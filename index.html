@@ -609,8 +609,8 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <div class="sp-sec">
         <div class="sp-sec-h"><h3>Calibración de escala</h3></div>
         <div class="sp-sec-b">
-          <p style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:13px">Traza una línea sobre un elemento de medida conocida para fijar la escala.</p>
-          <button class="btn btn-pri" id="sc-btn-calib" onclick="scSetMode('ref')" disabled>1 · Trazar línea de referencia</button>
+          <p style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:13px">Toca un extremo y luego el otro sobre un elemento de medida conocida (o arrástralo) para fijar la escala. Puedes acercar con dos dedos entre un punto y otro.</p>
+          <button class="btn btn-pri" id="sc-btn-calib" onclick="scSetMode('ref')" disabled>1 · Marcar referencia (2 puntos)</button>
           <div id="sc-ref-confirm-row" style="display:none;margin-top:13px">
             <div class="fld"><label>¿Cuánto mide en cm?</label><input id="sc-ref-cm-input" type="number" min="0.1" step="0.1" placeholder="Ej. 175"></div>
             <div class="ref-known">
@@ -2040,7 +2040,8 @@ const SC={
   img:null, imgW:0, imgH:0, cvsW:0, cvsH:0, scaleFactor:1,
   mode:'idle', mMode:'libre',
   refLine:null, refCm:0, nativePxPerCm:0,
-  down:false, sp:null, cp:null,
+  down:false, sp:null, cp:null, downPt:null, moved:false,
+  tapA:null, building:false,
   items:[], sel:null, nid:1, nc:0,
   z:1, tx:0, ty:0, gesture:false,
 };
@@ -2199,7 +2200,7 @@ function scRender(){
   });
   if(SC.down&&SC.sp&&SC.cp){
     const ep=scSnap(SC.sp,SC.cp);
-    if(SC.mode==='ref'){scDrawRef(ctx,SC.sp,ep);}
+    if(SC.mode==='ref'||SC.mode==='ref-drawn'){scDrawRef(ctx,SC.sp,ep);}
     else if(SC.mode==='measure'){
       const pxD=scDist(SC.sp,ep);
       const cm=SC.nativePxPerCm>0?(pxD*SC.scaleFactor)/SC.nativePxPerCm:0;
@@ -2207,6 +2208,15 @@ function scRender(){
       scDimAnnot(ctx,SC.sp.x,SC.sp.y,ep.x,ep.y,{text:cm>0?scFmtCm(cm)+' cm':'…',color:SC_COLORS[SC.nc%SC_COLORS.length],sel:false,offset:off,dashed:true});
     }
     [SC.sp,ep].forEach(p=>{ctx.save();ctx.fillStyle='#fff';ctx.strokeStyle='#3a4ad8';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,4.5,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();});
+  }
+  // Marcador del primer punto colocado (modo tocar-por-toque), visible entre un toque y otro
+  if(SC.building&&SC.tapA&&!SC.down){
+    const p=SC.tapA;ctx.save();
+    ctx.fillStyle=SC.mode==='measure'?'#3a4ad8':'#f59e0b';ctx.strokeStyle='#fff';ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(p.x,p.y,6.5,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=1.5;ctx.globalAlpha=.5;
+    ctx.beginPath();ctx.arc(p.x,p.y,12,0,Math.PI*2);ctx.stroke();
+    ctx.restore();
   }
 }
 function scDrawRef(ctx,a,b){
@@ -2259,39 +2269,66 @@ function scSnap(a,b){
   if(SC.mMode==='v')return{x:a.x,y:b.y};
   return b;
 }
+const SC_TAPTHR=11; // px: distinguir un toque de un arrastre
 function scDown(e){
   if(e.touches&&e.touches.length>=2){scGestureStart(e);return;}
   if(SC.gesture)return;
-  if(SC.mode!=='ref'&&SC.mode!=='measure')return;
-  e.preventDefault();SC.down=true;SC.sp=scGetXY(e);SC.cp={...SC.sp};
+  if(SC.mode!=='ref'&&SC.mode!=='ref-drawn'&&SC.mode!=='measure')return;
+  e.preventDefault();
+  SC.down=true;SC.downPt=scGetXY(e);SC.moved=false;
+  SC.sp=SC.building?SC.tapA:SC.downPt; // ancla de la previsualización
+  SC.cp={...SC.downPt};
   scRender();scLoupe(e);
 }
 function scMove(e){
   if(SC.gesture){scGestureMove(e);return;}
-  if(!SC.down)return;e.preventDefault();SC.cp=scGetXY(e);scRender();scLoupe(e);
+  if(!SC.down)return;e.preventDefault();
+  SC.cp=scGetXY(e);
+  if(scDist(SC.downPt,SC.cp)>SC_TAPTHR)SC.moved=true;
+  scRender();scLoupe(e);
 }
 function scUp(e){
   if(SC.gesture){if(!e.touches||e.touches.length===0)SC.gesture=false;scHideLoupe();return;}
   scHideLoupe();
-  if(!SC.down||!SC.sp)return;
+  if(!SC.down){return;}
   e.preventDefault();SC.down=false;
-  const raw=e.changedTouches?scGetXY(e):(SC.cp||scGetXY(e));
-  const ep=scSnap(SC.sp,raw),d=scDist(SC.sp,ep);
-  if(d<8){SC.sp=null;SC.cp=null;scRender();return;}
-  if(SC.mode==='ref'){
-    SC.refLine={nx1:SC.sp.x/SC.cvsW,ny1:SC.sp.y/SC.cvsH,nx2:ep.x/SC.cvsW,ny2:ep.y/SC.cvsH};
+  const raw=(e.changedTouches&&e.changedTouches.length)?scGetXY(e):(SC.cp||SC.downPt);
+  if(SC.moved){
+    // Arrastre: línea desde el ancla (primer punto si se estaba construyendo) hasta donde se soltó
+    const anchor=SC.building?SC.tapA:SC.downPt;
+    if(scCommitLine(anchor,raw)){SC.building=false;SC.tapA=null;}
+  }else{
+    // Toque simple: colocar el punto
+    if(SC.building&&SC.tapA){
+      if(scCommitLine(SC.tapA,raw)){SC.building=false;SC.tapA=null;}
+    }else{
+      SC.tapA={...raw};SC.building=true;
+      scSetHint(SC.mode==='measure'
+        ?'✓ Primer punto puesto — toca el otro extremo (puedes acercar con dos dedos)'
+        :'✓ Primer punto puesto — toca el otro extremo de la referencia');
+    }
+  }
+  SC.sp=null;SC.cp=null;SC.downPt=null;SC.moved=false;scRender();
+}
+function scLeave(e){if(SC.down){SC.cp=scGetXY(e);if(scDist(SC.downPt,SC.cp)>SC_TAPTHR)SC.moved=true;scRender();}scHideLoupe();}
+function scCommitLine(a,b){
+  if(!a||!b)return false;
+  const ep=scSnap(a,b),d=scDist(a,ep);
+  if(d<6){scSetHint('Los dos puntos quedaron muy juntos — vuelve a intentarlo');return false;}
+  if(SC.mode==='ref'||SC.mode==='ref-drawn'){
+    SC.refLine={nx1:a.x/SC.cvsW,ny1:a.y/SC.cvsH,nx2:ep.x/SC.cvsW,ny2:ep.y/SC.cvsH};
     SC.mode='ref-drawn';
     $('sc-ref-confirm-row').style.display='';
-    $('sc-ref-cm-input').value='';$('sc-ref-cm-input').focus();
-    scSetHint('¿Cuánto mide en cm ese elemento? Escríbelo en el panel derecho');
+    $('sc-ref-cm-input').value='';
+    try{$('sc-ref-cm-input').focus({preventScroll:true});}catch(_){$('sc-ref-cm-input').focus();}
+    scSetHint('¿Cuánto mide en cm ese elemento? Escríbelo en el panel');
   }else if(SC.mode==='measure'){
-    const pxD=scDist(SC.sp,ep),cm=(pxD*SC.scaleFactor)/SC.nativePxPerCm;
-    SC.items.push({id:SC.nid++,nx1:SC.sp.x/SC.cvsW,ny1:SC.sp.y/SC.cvsH,nx2:ep.x/SC.cvsW,ny2:ep.y/SC.cvsH,cm,label:'',color:SC_COLORS[SC.nc++%SC_COLORS.length],type:SC.mMode});
+    const pxD=scDist(a,ep),cm=(pxD*SC.scaleFactor)/SC.nativePxPerCm;
+    SC.items.push({id:SC.nid++,nx1:a.x/SC.cvsW,ny1:a.y/SC.cvsH,nx2:ep.x/SC.cvsW,ny2:ep.y/SC.cvsH,cm,label:'',color:SC_COLORS[SC.nc++%SC_COLORS.length],type:SC.mMode});
     SC.sel=SC.items[SC.items.length-1].id;scUpdateList();
   }
-  SC.sp=null;SC.cp=null;scRender();
+  return true;
 }
-function scLeave(e){if(SC.down){SC.cp=scGetXY(e);scRender();}scHideLoupe();}
 
 function scConfirmCalib(){
   const v=parseFloat($('sc-ref-cm-input').value);
@@ -2310,7 +2347,7 @@ function scConfirmCalib(){
   scRender();
 }
 function scResetCalib(full=true){
-  SC.refLine=null;SC.refCm=0;SC.nativePxPerCm=0;
+  SC.refLine=null;SC.refCm=0;SC.nativePxPerCm=0;SC.building=false;SC.tapA=null;
   $('sc-ref-confirm-row').style.display='none';
   $('sc-calib-done').style.display='none';
   $('sc-ref-cm-input').value='';
@@ -2319,18 +2356,18 @@ function scResetCalib(full=true){
   if(full){scSetMode('ref');scRender();}
 }
 function scSetMode(m){
-  SC.mode=m;SC.down=false;SC.sp=null;SC.cp=null;
+  SC.mode=m;SC.down=false;SC.sp=null;SC.cp=null;SC.downPt=null;SC.moved=false;SC.building=false;SC.tapA=null;
   ['sc-btn-ref','sc-btn-libre','sc-btn-h','sc-btn-v'].forEach(id=>$(id).classList.remove('active'));
   const cvs=$('scalerCanvas');
   if(m==='ref'||m==='ref-drawn'){
     $('sc-btn-ref').classList.add('active');
-    scSetHint('Traza una línea sobre un elemento conocido — puerta 200 cm, persona 175 cm…');
+    scSetHint('Toca un extremo y luego el otro sobre un elemento conocido (o arrástralo) — puerta 200 cm, persona 175 cm…');
     cvs.style.cursor='crosshair';
   }else if(m==='measure'){
     const mm={'libre':'sc-btn-libre','h':'sc-btn-h','v':'sc-btn-v'};
     $(mm[SC.mMode]||'sc-btn-libre').classList.add('active');
     const mn={'libre':'Libre · cualquier ángulo','h':'Horizontal','v':'Vertical'};
-    scSetHint('Modo: '+mn[SC.mMode]+' — traza una línea sobre el elemento a medir');
+    scSetHint('Modo: '+mn[SC.mMode]+' — toca los dos extremos del elemento (o arrastra)');
     cvs.style.cursor='crosshair';
   }else{scSetHint('');cvs.style.cursor='default';}
 }
