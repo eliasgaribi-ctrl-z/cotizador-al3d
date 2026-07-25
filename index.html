@@ -7,8 +7,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAgWSURBVHhe7Zp5bBT3FcfzR6WqiaJWFUTEhThAAojga21jMDgYDFFIMBRQ8YUNtndtrkAUQlGhCWAlDTWFGuwQjiohKFSNOdSoNI45hFSXkgS7hmAUDmOvz8X2ru9z5/hUv1ls1uuDBWxk1fOVnmb37cxv9n3m/d77zew+papqmKqqKcPVnlJVdTfDWAJAiqtzOEkHoAPQAegAdACuzuEkHYAOQAegA9ABuDqHk3QAOgAdgA5gSAOorq6mvLzc1T1gGvIAsrKyOHLkSDefJEm0trZ2vZdlmYaGBm37sBryAM6ePcuxY8e6+VJ2pDB3ThiNDY3a+ytXrjAtcCo3frzRbT93NEAAVHEdXJ0DIlcAqqqy5NeL8RzzAlevXtV8ubm5jH9xLAXXrjkd6Z4eC0BjQx3/OFdK6uEStqWXsO9oCXk/VADt9/ZQqKmppaiwGmhzOdo9uQKqulvF9KBpGoDjmZma7795eUyaMJGCggKnI93TIwLo4KszZsLXVuIX2Yp/jErAcvCLUghaXs+m1BIu5ZrZs8NM0PhqvJ+3EbPATHmp1XWgB8oVwL9zcpgy+RW8p3ix7f33Nd8TBtDGrsNF+EY0MyMB5qyCOclql81OhsBYCFtdRIB3IVN+AYbR4PlTiHi9FEVtcR2wX7kCyEjPYF7YXLZu2cqi8IWaLz8//0kBkNj3eTFeyzq0QJ0D7wKQBGHJLcT/2U7C3kaCfSswjIJAT5VxT9s5kGamubmWO7er+Op4GXt3lvCXjFJ+vH631zriCsCYkMiaVavJzs7Gx8ub9vZ2Cq4VPBkAl/IqMUQ2EZrUe/CdAF5b00z8ng6SDsGyTZX4jWoiYIwjE/xGtzDP34K/p42Xnm1l/DMSY39mZ8pzNj7cWoSidM8QZwB2u52ZwTO0LLBUVvLy+Je4fv06t27dGnwAqtJO0rZKpsb1HXwngLmrWlj5pzYS90HSQYmweSX4/BICPMHwK/AaAT4jwd8DAl5QCfBU8POA0T+x8947xSLUrvM6AyguLsbPx5fQV2dp6T/uxbGcOnWK4qKiwQdw804NwXGNfab+fYPQRDuROxowfQzGDIjbWcv0KWX4jmjB4FFP0KQqQgLLmDb5Ln7PteM/WoBQ8B8DY59u4Xy26CQOOQM4k31GCzQqMoqYqGj8/QykbN9B4e1CzS9APKzcBnAiy4IhSuol4J422ySmQQMrUpswpSskH4QVqY0sWVdOxG8trEitJTGjifg9tbwZXYTBo7ELwoSfQ8LSSq3TCDkD2PmHj5gaEKitBYR2bN/OG6/PJy83l8kTJ2EyGtmwfgO7d7v/e6/bADK+sGCI7hlsXxZqUpmb3Ej4RhtLt9hISLOTdBBM+yExHRL2OrarPlUIjzNrmSCmg68HTH+5lprqeu28zgBE8Vu7Zk3Xd7pw7htmzwrl3NlsFr05h7BZQUw1TCYq8jdd+zxIbgNI+9yi9XvXQPszUQ9mGSEkXmbB27UY98kkpNHNRJ0w7m8jJMjRLUQmeI1qouCqY83gDKCurg6UNiqqZb67JlFRZae1pZYaWyvZOVbOXrRx4ZIVq80Bzx25DeCzkyID5B5BumOiboQltbBiV6sWsCsE0S0WJVbiO7JDA+A9qpGCH3oCEDqdA0GxMhMXy8yIV/lXPtwpVwmMA98oeGUZJH8IDU2K07fvW24DyPm+ioDoNq3IuQb4YINQYwfRHzRhFOnvAkBMi4jNNRg8mvAdBcETbVitPadAY7NC4HKZZZsVzn1rZ+m7Cos3OrIheKXC0dMSn2RKTFqicOq85BJB73IbQH19A/NX2wgxPgoAlVmJCkt+V48po38AE54FU4ToAo5W6AzAWq+wPrWD8985gks7JhGSqPB1jp2ZCTIV1eKqq8xbLbM/c4ABiBubnYfK8ItSCVvVM8C+DW0KiHowb3UjCXsc6wPXKbBwRQU+I2TGPdPChTOiCzjkOgUcd56O7Xv7ZWYnKVy4bCc4XuZGsQNA+Nuylgnu6CEAQHmlldAEq1tZECauehIELpeYFttE4HKFkERYuNGGKV3CeA+CgJGY3kKQVw3PP6Wwea1YCDlaoFBPAJB/Q2ZDqsTMBIUv/ilzq0TWpsYNswPAG29JfHJ8EACIwU9mleC9rLXf5bDIkOB4CFlZy2cnzFy+Ukb6UTPBcXUExKgseKeOlbuaSdynEp0GM8Pv4DPSwgdbiumwN3c7Y28AvrkoERQnaVCzLkoUljlqw817AOavGzQAQnYO/LUY34gmgvu4GzTEwGtJFr7NK3NKWZnLV8pZuaUU/8h6/CJszDYVc+jv5ZzILKTULKr+g2+GOtXapvD7j2VCTY6COCP+PoAFG+TBBCAkcfp8CQvXVWjPA8QCyT9GPA+wMz22lk2pxZRViIcgvUhpJveqhb+dLuP7/CptrP7kDECSVMyVMvX3WlzmGYmpsQpfZtt51ahwu/R+Ddj/Zf/jduoRATjU1FjH1xdK2fNpCR8dLOHIyVKu37R0m8OPK2cAInifCDsHjosOoXL4lJgKCifPCQAyt0skLDUygbGy9pk7eiwA3dWZ6gMrZwBtHQpL3pWZmaCy7YCjBcZsdawDxNOoBevFZwreEYpWKN3RAAIYHLnWgJtmGWOKRKhJJn6bxC2zzF2rWB/YWbtT5q0/SmT/x72rLzTkAfT2u4DINlEEu2edeN1p7mvIA7BarVgsoq4MjoY8gMGWDkAHoAPQAegAXJ3DSToAHYAOQAegA3B1DifpAHQAOgAdgPv/Jvg/1P8AwztWIiZp2tcAAAAASUVORK5CYII=">
 <style>
 :root{
@@ -288,37 +286,88 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 #prog-pct{font-size:12.5px;font-weight:900;color:var(--brand)}
 .prog-track{height:7px;background:var(--line);border-radius:10px;overflow:hidden}
 #prog-bar{height:100%;background:linear-gradient(90deg,#f59e0b,#fb923c);border-radius:10px;transition:width .5s cubic-bezier(.22,1,.36,1),background .5s;width:0%}
-/* ----- Escalador de imagen ----- */
-.scaler-panel{background:#fff;border-radius:20px;max-width:860px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.35);max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
-.scaler-head{display:flex;align-items:flex-start;justify-content:space-between;padding:14px 18px 12px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),#fff);flex-shrink:0}
-.scaler-body{padding:12px 14px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px}
-.scaler-hint{font-size:12.5px;color:var(--ink);background:var(--soft-2);border-radius:9px;padding:9px 13px;line-height:1.55}
-.sc-steps{display:flex;gap:7px;margin-top:7px}
-.sc-step{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 11px;border-radius:20px;background:var(--soft);color:var(--muted);border:1.5px solid var(--line);transition:.2s}
-.sc-step.active{background:var(--brand-grd);color:#fff;border-color:var(--brand)}
-.sc-step.done{background:#e8f9ee;color:var(--green);border-color:#b6e8ca}
-.scaler-canvas-wrap{background:#111;border-radius:11px;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:140px;flex:1 1 auto}
-#scalerCanvas{display:block;max-width:100%;max-height:54vh;cursor:crosshair;touch-action:none;user-select:none;-webkit-user-select:none}
-.ref-known{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
-.ref-known-title{font-size:11px;font-weight:700;color:var(--muted);margin-right:2px}
-.ref-known button{padding:5px 10px;border:1.5px solid var(--line);border-radius:8px;background:#fff;font-size:11.5px;font-weight:600;cursor:pointer;color:var(--ink);transition:.12s;white-space:nowrap}
-.ref-known button:hover{border-color:var(--brand);background:var(--soft-2);color:var(--brand)}
-.ref-confirm-row{display:flex;gap:8px;align-items:center}
-.medida-row{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--soft);border-radius:8px;border:1px solid var(--line);animation:chipPop .18s cubic-bezier(.34,1.56,.64,1)}
-.medida-cm{font-size:15px;font-weight:800;color:var(--brand);min-width:68px}
-.btn-med-use{flex:1;padding:7px 10px;background:var(--brand-grd);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;transition:.15s}
-.btn-med-use:hover{opacity:.88;transform:scale(.98)}
-.btn-med-del{border:none;background:none;color:#ccc;cursor:pointer;font-size:17px;padding:3px 7px;border-radius:6px;line-height:1;transition:.12s}
-.btn-med-del:hover{color:var(--red);background:var(--red-bg)}
+/* ----- Escalador Pro (modal pantalla completa) ----- */
+.scaler-modal-bg{position:fixed;inset:0;background:rgba(12,15,38,.75);display:none;z-index:55;flex-direction:column;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.scaler-modal-bg.show{display:flex}
+.sp-topbar{background:rgba(255,255,255,.96);backdrop-filter:blur(14px);border-bottom:1px solid rgba(224,228,240,.7);flex-shrink:0;padding:0 20px;height:56px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 8px rgba(23,29,74,.06)}
+.sp-main{flex:1;display:flex;overflow:hidden;min-height:0}
+.sp-canvas-area{flex:1;position:relative;overflow:hidden;background:#181c2e;background-image:radial-gradient(rgba(255,255,255,.04) 1px,transparent 1px);background-size:22px 22px;display:flex;align-items:center;justify-content:center;min-width:0}
+#scalerCanvas{display:block;cursor:crosshair;touch-action:none;user-select:none;-webkit-user-select:none;max-width:100%;max-height:100%;box-shadow:0 12px 48px rgba(0,0,0,.55),0 3px 10px rgba(0,0,0,.35);border-radius:3px}
+.sp-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;pointer-events:none}
+.sp-overlay.hide{display:none}
+.sp-hint-bar{position:absolute;bottom:0;left:0;right:0;background:rgba(17,22,46,.78);color:rgba(255,255,255,.9);font-size:12.5px;font-weight:600;padding:10px 20px;text-align:center;backdrop-filter:blur(8px);transition:opacity .2s}
+.sp-hint-bar.hide{opacity:0;pointer-events:none}
+.sp-side{width:306px;flex-shrink:0;background:#fff;border-left:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;box-shadow:-2px 0 12px rgba(23,29,74,.04)}
+.sp-sec{border-bottom:1px solid var(--line)}
+.sp-sec-h{padding:16px 20px 0}
+.sp-sec-h h3{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--brand);display:flex;align-items:center;gap:8px}
+.sp-sec-h h3::before{content:'';display:inline-block;width:3px;height:14px;background:var(--brand-grd);border-radius:2px;flex-shrink:0}
+.sp-sec-b{padding:14px 20px 18px}
+.sp-mlist{flex:1;overflow-y:auto;min-height:0;padding:10px 14px 8px}
+.sp-mlist-empty{text-align:center;color:var(--muted);font-size:13px;padding:28px 12px;line-height:1.7;border:1.5px dashed var(--line);border-radius:var(--r-sm);background:var(--soft);margin-top:2px}
+.sp-mitem{border:1px solid rgba(224,228,240,.8);border-left:3px solid var(--brand);border-radius:var(--r-sm);padding:12px 11px;margin-bottom:9px;background:#fff;box-shadow:var(--sh-sm);display:flex;align-items:stretch;gap:9px;cursor:pointer;transition:box-shadow .15s}
+.sp-mitem:hover{box-shadow:0 2px 8px rgba(23,29,74,.06),0 8px 28px rgba(23,29,74,.1)}
+.sp-mitem.sel{border-color:var(--brand-strong);background:var(--soft-2);box-shadow:0 0 0 3px rgba(58,74,216,.12)}
+.sp-mitem-cm{font-size:17px;font-weight:900;color:var(--brand-strong);line-height:1;letter-spacing:.1px}
+.sp-mitem-cm small{font-size:11px;font-weight:600;color:var(--muted);margin-left:2px}
+.sp-mitem-label{display:block;width:100%;border:none;background:transparent;padding:3px 0;font-size:12px;color:var(--muted);font-family:inherit;cursor:text;margin-top:4px;outline:none;border-bottom:1px solid transparent;transition:.15s}
+.sp-mitem-label:focus{color:var(--ink);border-bottom-color:var(--line)}
+.sp-mitem-label::placeholder{color:#bec5d4}
+.sp-mitem-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0;padding-top:2px}
+.sp-ibtn{border:none;background:none;color:#cdd2e0;font-size:15px;cursor:pointer;padding:3px 6px;border-radius:6px;line-height:1;transition:.12s}
+.sp-ibtn:hover{color:var(--red);background:var(--red-bg)}
+.sp-calib-badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:20px;white-space:nowrap;flex-shrink:0;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(207,138,18,.2)}
+.sp-calib-badge.ok{background:var(--green-bg);color:var(--green);border-color:rgba(21,160,106,.2)}
+.sp-calib-badge .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
+.tool-seg{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:var(--r-sm);padding:3px;gap:2px}
+.tool-seg button{border:none;background:none;padding:7px 13px;font-size:12.5px;font-weight:600;color:var(--muted);border-radius:9px;cursor:pointer;transition:.15s;font-family:inherit;white-space:nowrap}
+.tool-seg button:hover:not(.active){background:rgba(58,74,216,.06);color:var(--brand)}
+.tool-seg button.active{background:var(--brand-grd);color:#fff;box-shadow:0 2px 10px rgba(58,74,216,.3)}
+.tool-seg button:disabled{opacity:.38;pointer-events:none}
+.sp-tb-btn{border:1.5px solid var(--line);background:#fff;border-radius:var(--r-sm);padding:8px 14px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;transition:.14s;display:flex;align-items:center;gap:6px;white-space:nowrap;font-family:inherit}
+.sp-tb-btn:hover{border-color:var(--brand);color:var(--brand);background:var(--soft)}
+.sp-tb-btn.active{background:var(--brand-grd);color:#fff;border-color:var(--brand);box-shadow:0 2px 10px rgba(58,74,216,.28)}
+.sp-tb-btn:disabled{opacity:.42;cursor:not-allowed;pointer-events:none}
 .btn-scaler-open{display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 14px;border:1.5px solid #15a06a;border-radius:var(--r-sm);background:#fff;color:#1c6e3d;font-size:12.5px;font-weight:700;cursor:pointer;transition:.16s;white-space:nowrap}
 .btn-scaler-open:hover{background:#e8f9ee;border-color:#1c6e3d}
 .scaler-ai-row{display:flex;gap:8px;margin-bottom:14px}
 .scaler-ai-row .ai-btn{flex:1;margin-bottom:0}
-@media(max-width:600px){
-  .modal-bg#scalermodal{padding:0;align-items:flex-end}
-  .scaler-panel{border-radius:20px 20px 0 0;max-height:96vh}
-  #scalerCanvas{max-height:42vh}
+.ref-known{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:8px}
+.ref-known-title{font-size:11px;font-weight:700;color:var(--muted);margin-right:2px;white-space:nowrap}
+.ref-known button{padding:5px 9px;border:1.5px solid var(--line);border-radius:8px;background:#fff;font-size:11.5px;font-weight:600;cursor:pointer;color:var(--ink);transition:.12s;white-space:nowrap;font-family:inherit}
+.ref-known button:hover{border-color:var(--brand);background:var(--soft-2);color:var(--brand)}
+@media(max-width:700px){
+  .sp-side{width:100%;height:240px;border-left:none;border-top:1px solid var(--line)}
+  .sp-main{flex-direction:column}
 }
+/* ----- Visibilidad en PDF / modo edición ----- */
+.pdf-vis{border:none;background:none;font-size:15px;cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1;transition:.12s;color:var(--brand)}
+.pdf-vis.off{opacity:.4;color:var(--muted)}
+.pdf-vis:hover{background:var(--soft)}
+.partida.hidden-pdf{opacity:.55;border-left-color:#c4c9da}
+.edit-mode-banner{display:flex;align-items:center;gap:9px;background:var(--amber-bg);border:1.5px solid rgba(207,138,18,.28);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:12px;font-size:12.5px;font-weight:600;color:var(--amber)}
+/* ----- Registrar Venta modal ----- */
+.rv-modal-bg{position:fixed;inset:0;background:rgba(12,15,38,.7);display:none;z-index:60;align-items:center;justify-content:center;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.rv-modal-bg.show{display:flex}
+.rv-modal{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);width:min(520px,92vw);max-height:90vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,.45),0 6px 20px rgba(0,0,0,.3)}
+.rv-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid var(--line)}
+.rv-header h2{font-size:15px;font-weight:700;color:var(--fg);margin:0}
+.rv-body{padding:20px}
+.rv-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.rv-field{display:flex;flex-direction:column;gap:5px}
+.rv-field.full{grid-column:1/-1}
+.rv-field label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.rv-field input,.rv-field select{background:var(--soft);border:1.5px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;font-size:13px;color:var(--fg);width:100%;outline:none;box-sizing:border-box;font-family:inherit}
+.rv-field input:focus,.rv-field select:focus{border-color:var(--brand)}
+.rv-field input[readonly]{opacity:.65;cursor:default}
+.rv-calc{background:var(--soft);border-radius:var(--r-sm);padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.rv-calc-item{display:flex;flex-direction:column;gap:3px}
+.rv-calc-item span:first-child{font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.rv-calc-item span:last-child{font-size:14px;font-weight:700;color:var(--fg)}
+.rv-calc-item.accent span:last-child{color:var(--brand)}
+.rv-footer{padding:10px 20px 20px;display:flex;flex-direction:column;gap:9px}
+.rv-copied{display:none;align-items:center;gap:7px;background:#e8faf0;border:1px solid #4caf50;border-radius:var(--r-sm);padding:10px 14px;font-size:12.5px;color:#2e7d32;font-weight:600}
+.rv-copied.show{display:flex}
 </style>
 </head>
 <body>
@@ -484,48 +533,88 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
     <div class="hist-body" id="hist-body"></div>
   </div>
 </div>
-<div class="modal-bg" id="scalermodal" onclick="if(event.target===this)cerrarScaler()">
-  <div class="scaler-panel">
-    <div class="scaler-head">
-      <div>
-        <b style="font-size:14px;font-weight:800">📐 Escalador de imagen</b>
-        <div class="sc-steps">
-          <div class="sc-step" id="sc-step1">1 · Referencia</div>
-          <div class="sc-step" id="sc-step2">2 · Medir</div>
-        </div>
-      </div>
-      <button onclick="cerrarScaler()" style="border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center" aria-label="Cerrar">×</button>
+<div class="scaler-modal-bg" id="scalermodal">
+  <!-- Topbar -->
+  <div class="sp-topbar">
+    <div class="brand" style="cursor:default">
+      <div class="logoslot" style="pointer-events:none"><span class="lg-al">AL</span><span class="lg-3d">3D</span></div>
+      <div><div style="font-size:14px;font-weight:700;color:var(--ink)">Escalador Pro</div><div style="font-size:10.5px;color:var(--muted)">Medición con cotas</div></div>
     </div>
-    <div class="scaler-body">
-      <div class="scaler-hint" id="scaler-hint">Carga una imagen del proyecto para comenzar</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap" id="scaler-load-row">
-        <input type="file" id="scaler-img-input" accept="image/*" style="display:none" onchange="cargarImagenScaler(this)">
-        <button onclick="$('scaler-img-input').click()" style="padding:8px 15px;border:1.5px solid var(--line);border-radius:9px;background:#fff;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--ink);display:flex;align-items:center;gap:6px">📷 Cargar imagen</button>
-        <button id="sc-use-ai-btn" onclick="usarImagenAIEnScaler()" style="display:none;padding:8px 15px;border:1.5px solid var(--brand);border-radius:9px;background:var(--soft-2);font-size:12.5px;font-weight:700;cursor:pointer;color:var(--brand);gap:6px;align-items:center">✨ Usar imagen de IA</button>
-        <button id="sc-reset-btn" onclick="resetScalerRef()" style="display:none;padding:8px 12px;border:1.5px solid var(--line);border-radius:9px;background:#fff;font-size:12px;font-weight:700;cursor:pointer;color:var(--muted)">↺ Nueva referencia</button>
-      </div>
-      <div class="scaler-canvas-wrap" id="scaler-canvas-wrap">
-        <canvas id="scalerCanvas"
-          onmousedown="scalerDown(event)" onmousemove="scalerMove(event)" onmouseup="scalerUp(event)" onmouseleave="scalerUp(event)"
-          ontouchstart="scalerDown(event)" ontouchmove="scalerMove(event)" ontouchend="scalerUp(event)">
-        </canvas>
-      </div>
-      <div id="ref-confirm-wrap" style="display:none">
-        <div class="ref-known">
-          <span class="ref-known-title">Referencias rápidas:</span>
-          <button onclick="usarRefConocida(200)">🚪 Puerta 200cm</button>
-          <button onclick="usarRefConocida(175)">🧍 Persona 175cm</button>
-          <button onclick="usarRefConocida(120)">🪟 Ventana 120cm</button>
-          <button onclick="usarRefConocida(145)">🚗 Auto 145cm</button>
-          <button onclick="usarRefConocida(40)">⬜ Loseta 40cm</button>
-        </div>
-        <div class="ref-confirm-row">
-          <input id="ref-cm-input" type="number" min="1" placeholder="¿Cuánto mide en cm?" style="flex:1;padding:10px 14px;border:1.5px solid var(--line);border-radius:9px;font-size:14px;font-weight:700">
-          <button onclick="fijarReferencia()" style="padding:10px 16px;background:var(--brand-grd);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">✓ Fijar escala</button>
-        </div>
-      </div>
-      <div id="medidas-list"></div>
+    <div style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
+    <input type="file" id="scaler-img-input" accept="image/*,.svg,.pdf" style="display:none" onchange="cargarImagenScaler(this)">
+    <button class="sp-tb-btn" onclick="$('scaler-img-input').click()">📂 Cargar imagen</button>
+    <button class="sp-tb-btn" id="sc-use-ai-btn" onclick="usarImagenAIEnScaler()" style="display:none">✨ Imagen de IA</button>
+    <div style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
+    <button class="sp-tb-btn" id="sc-btn-ref" onclick="scSetMode('ref')" disabled>📏 Calibrar escala</button>
+    <div style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
+    <div class="tool-seg">
+      <button id="sc-btn-libre" onclick="scSetMeasMode('libre')" disabled>↗ Libre</button>
+      <button id="sc-btn-h" onclick="scSetMeasMode('h')" disabled>↔ Horizontal</button>
+      <button id="sc-btn-v" onclick="scSetMeasMode('v')" disabled>↕ Vertical</button>
     </div>
+    <div style="flex:1"></div>
+    <span class="sp-calib-badge" id="sc-calib-badge"><span class="dot"></span><span id="sc-calib-txt">Sin calibrar</span></span>
+    <div style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
+    <button onclick="cerrarScaler()" style="border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.12s" onmouseover="this.style.background='var(--soft)'" onmouseout="this.style.background='none'" title="Volver al cotizador">×</button>
+  </div>
+  <!-- Main -->
+  <div class="sp-main">
+    <!-- Canvas -->
+    <div class="sp-canvas-area" id="sp-canvas-area"
+      ondrop="scOnDrop(event)" ondragover="event.preventDefault();this.style.outline='3px dashed var(--brand)'" ondragleave="this.style.outline=''">
+      <canvas id="scalerCanvas"
+        onmousedown="scDown(event)" onmousemove="scMove(event)" onmouseup="scUp(event)" onmouseleave="scLeave(event)"
+        ontouchstart="scDown(event)" ontouchmove="scMove(event)" ontouchend="scUp(event)">
+      </canvas>
+      <div class="sp-overlay" id="sp-overlay">
+        <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(58,74,216,.4))">📐</div>
+        <div style="font-size:16px;font-weight:700;color:rgba(255,255,255,.82)">Carga una imagen para medir</div>
+        <div style="font-size:12px;color:rgba(255,255,255,.4);letter-spacing:.4px">JPG · PNG · SVG · PDF — o usa la imagen de IA</div>
+        <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(58,74,216,.4)" onclick="$('scaler-img-input').click()">📂 Seleccionar archivo</button>
+      </div>
+      <div class="sp-hint-bar hide" id="sp-hint-bar"></div>
+    </div>
+    <!-- Sidebar -->
+    <aside class="sp-side">
+      <!-- Calibración -->
+      <div class="sp-sec">
+        <div class="sp-sec-h"><h3>Calibración de escala</h3></div>
+        <div class="sp-sec-b">
+          <p style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:13px">Traza una línea sobre un elemento de medida conocida para fijar la escala.</p>
+          <button class="btn btn-pri" id="sc-btn-calib" onclick="scSetMode('ref')" disabled>1 · Trazar línea de referencia</button>
+          <div id="sc-ref-confirm-row" style="display:none;margin-top:13px">
+            <div class="fld"><label>¿Cuánto mide en cm?</label><input id="sc-ref-cm-input" type="number" min="0.1" step="0.1" placeholder="Ej. 175"></div>
+            <div class="ref-known">
+              <span class="ref-known-title">Rápidos:</span>
+              <button onclick="$('sc-ref-cm-input').value=200">🚪 200</button>
+              <button onclick="$('sc-ref-cm-input').value=175">🧍 175</button>
+              <button onclick="$('sc-ref-cm-input').value=120">🪟 120</button>
+              <button onclick="$('sc-ref-cm-input').value=145">🚗 145</button>
+              <button onclick="$('sc-ref-cm-input').value=40">⬜ 40</button>
+            </div>
+            <button class="btn btn-ok" onclick="scConfirmCalib()" style="margin-top:11px">✓ Confirmar escala</button>
+          </div>
+          <div id="sc-calib-done" style="display:none">
+            <div style="background:var(--green-bg);border:1px solid rgba(21,160,106,.2);border-radius:var(--r-sm);padding:11px 13px;font-size:12.5px;color:var(--green);font-weight:600;margin-bottom:10px">✓ Escala calibrada</div>
+            <button class="btn btn-gho" onclick="scResetCalib()" style="font-size:13px">↺ Re-calibrar</button>
+          </div>
+        </div>
+      </div>
+      <!-- Medidas -->
+      <div style="padding:14px 20px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)">
+        <h3 style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--brand);display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:3px;height:14px;background:var(--brand-grd);border-radius:2px;flex-shrink:0"></span>Medidas</h3>
+        <span style="font-size:11px;font-weight:700;background:var(--soft-2);color:var(--brand);padding:2px 10px;border-radius:20px;border:1px solid rgba(58,74,216,.12)" id="sc-mcount">0</span>
+      </div>
+      <div class="sp-mlist" id="sc-medidas-list"></div>
+      <!-- Exportar -->
+      <div class="sp-sec">
+        <div class="sp-sec-h"><h3>Exportar</h3></div>
+        <div class="sp-sec-b">
+          <button class="btn btn-gho" id="sc-btn-export" onclick="scExportImg()" disabled>🖼️ Descargar imagen con cotas</button>
+          <button class="btn btn-gho" onclick="cerrarScaler()" style="margin-top:9px">← Volver al cotizador</button>
+        </div>
+      </div>
+    </aside>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -574,7 +663,8 @@ const Q = {
   anti:0, antiManual:false,
   precioAuth:0,
   itemsAuth:{},
-  aiFile:null
+  aiFile:null,
+  editMode:false
 };
 let pid=0, dragId=null;
 
@@ -582,7 +672,7 @@ let pid=0, dragId=null;
 const $=id=>document.getElementById(id);
 const money=n=>'$'+Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-const locked=()=>Q.estado!=='borrador';
+const locked=()=>Q.estado!=='borrador'&&!Q.editMode;
 /* Accesibilidad: hace que un chip clicable también responda a teclado (Enter/Espacio) */
 const chipA11y=isOn=>`role="button" tabindex="0" aria-pressed="${isOn?'true':'false'}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"`;
 
@@ -622,7 +712,7 @@ function totals(){
 function addItem(){
   if(locked())return;
   Q.items.push({id:++pid,tipo:'letras',material:'',comp:'',luz:true,ilumTipo:'fria',altura:0,n:0,
-    tarifa:0,ancho:0,alto:0, acab:'',recComp:false,bas:'', desc:'',descAi:false,pz:1,pu:0,textoAuto:''});
+    tarifa:0,ancho:0,alto:0, acab:'',recComp:false,bas:'', desc:'',descAi:false,pz:1,pu:0,textoAuto:'',showInPdf:true});
   renderItems();
 }
 function delItem(id){
@@ -648,6 +738,23 @@ function dupItem(id){
   Q.items.splice(idx+1,0,copy);
   renderItems(); toast('Partida duplicada');
 }
+function setShowInPdf(id,val){
+  const it=Q.items.find(x=>x.id===id); if(!it)return;
+  it.showInPdf=val;
+  renderItems();
+}
+function toggleEditMode(){
+  Q.editMode=true;
+  renderItems();
+  toast('Modo edición activado — modifica y guarda cuando termines','',4000);
+}
+function guardarCambiosEdicion(){
+  Q.editMode=false;
+  guardarEnHistorial();
+  saveState();
+  renderItems();
+  toast('Cambios guardados','ok');
+}
 function autoContarLetras(id,texto){
   const n=texto.replace(/\s/g,'').length;
   const it=Q.items.find(x=>x.id===id); if(!it)return;
@@ -664,10 +771,18 @@ function autoContarLetras(id,texto){
 function renderItems(){
   renderAiPreview();
   const c=$('items'); c.innerHTML='';
-  if(Q.items.length===0){ c.innerHTML='<div class="empty">Aún no hay partidas. Agrega letras 3D, un recorte de acrílico, un bastidor, una caja de luz o una partida manual.</div>'; }
+  if(Q.editMode&&Q.estado==='autorizada'){
+    const banner=document.createElement('div');
+    banner.className='edit-mode-banner';
+    banner.innerHTML='✏️ <span>Modo edición activo — modifica materiales, descripciones o usa <b>👁</b> para ocultar partidas del PDF sin borrarlas.</span>';
+    c.appendChild(banner);
+  }
+  if(Q.items.length===0){ const empty=document.createElement('div'); empty.className='empty'; empty.textContent='Aún no hay partidas. Agrega letras 3D, un recorte de acrílico, un bastidor, una caja de luz o una partida manual.'; c.appendChild(empty); }
   Q.items.forEach((it,i)=>{
     const d=document.createElement('div'); d.className='partida';
+    if(it.showInPdf===false) d.classList.add('hidden-pdf');
     if(!locked()) d.setAttribute('draggable','true');
+    const pdfVis=it.showInPdf!==false;
     d.innerHTML=`
       <div class="partida-top">
         <div class="pnum">
@@ -678,6 +793,7 @@ function renderItems(){
           </div>
         </div>
         ${!locked()?`<button class="dup" onclick="dupItem(${it.id})" title="Duplicar partida">⧉</button>`:''}
+        <button class="pdf-vis${pdfVis?'':' off'}" onclick="setShowInPdf(${it.id},${!pdfVis})" title="${pdfVis?'Ocultar del PDF — la partida sigue sumando al total':'Mostrar en PDF'}">👁</button>
         <button class="del" ${locked()?'disabled':''} onclick="delItem(${it.id})" title="Eliminar">×</button>
       </div>
       ${bodyFor(it)}
@@ -715,7 +831,8 @@ function renderItems(){
     }
     c.appendChild(d);
   });
-  $('pcount').textContent=Q.items.length+' partida'+(Q.items.length!==1?'s':'');
+  const _hiddenPdf=Q.items.filter(x=>x.showInPdf===false).length;
+  $('pcount').textContent=Q.items.length+' partida'+(Q.items.length!==1?'s':'')+(_hiddenPdf?` · ${_hiddenPdf} oculta${_hiddenPdf>1?'s':''} del PDF`:'');
   renderSummary(); updProg(); saveState();
 }
 function calcProg(){
@@ -1055,12 +1172,25 @@ function renderAuth(){
       const neto=totals().neto;
       const pa=Q.precioAuth&&Q.precioAuth<neto?Q.precioAuth:0;
       const descHTML=pa?`<div class="authnote" style="border-color:var(--green);background:var(--green-bg);color:var(--green);margin-top:8px">Precio autorizado: <b>${money(pa)}</b> · Ahorro: <b>${money(neto-pa)}</b> (${Math.round((neto-pa)/neto*100)}%)</div>`:'';
-      body=`<div class="authnote">Autorizada por <b>${esc(Q.autorizador)||'—'}</b> el <b>${esc(Q.fechaAuth)}</b>.${Q.nota?'<br>Nota: '+esc(Q.nota):''}</div>
-            ${descHTML}
-            <button class="btn btn-pri" onclick="generarPDF()">📄 Generar PDF</button>
-            <button class="btn btn-gho" onclick="copiarParaCanva()">📋 Copiar datos para Canva</button>
-            <button class="btn btn-gho" onclick="copiarParaGemini()">🖼️ Prompt para imagen (Gemini)</button>
-            <button class="btn btn-gho" onclick="pedirConfNueva()">Nueva cotización</button>`;
+      const authNote=`<div class="authnote">Autorizada por <b>${esc(Q.autorizador)||'—'}</b> el <b>${esc(Q.fechaAuth)}</b>.${Q.nota?'<br>Nota: '+esc(Q.nota):''}</div>`;
+      if(Q.editMode){
+        body=`${authNote}
+              ${descHTML}
+              <div class="authnote" style="border-color:var(--amber);background:var(--amber-bg);color:var(--amber);margin-top:8px">✏️ Modo edición activo — usa <b>👁</b> para mostrar u ocultar partidas del PDF.</div>
+              <button class="btn btn-ok" onclick="guardarCambiosEdicion()">💾 Guardar y salir de edición</button>
+              <button class="btn btn-pri" onclick="generarPDF()">📄 Generar PDF</button>
+              <button class="btn btn-gho" onclick="copiarParaCanva()">📋 Copiar datos para Canva</button>
+              <button class="btn btn-gho" onclick="copiarParaGemini()">🖼️ Prompt para imagen (Gemini)</button>`;
+      } else {
+        body=`${authNote}
+              ${descHTML}
+              <button class="btn btn-pri" onclick="generarPDF()">📄 Generar PDF</button>
+              <button class="btn btn-ok" onclick="abrirRegistrarVenta()">📊 Registrar venta</button>
+              <button class="btn btn-gho" onclick="toggleEditMode()">✏️ Editar partidas</button>
+              <button class="btn btn-gho" onclick="copiarParaCanva()">📋 Copiar datos para Canva</button>
+              <button class="btn btn-gho" onclick="copiarParaGemini()">🖼️ Prompt para imagen (Gemini)</button>
+              <button class="btn btn-gho" onclick="pedirConfNueva()">Nueva cotización</button>`;
+      }
     }
     else if(Q.estado==='rechazada'){
       body=`<div class="authnote">Rechazada por <b>${esc(Q.autorizador)||'—'}</b>.${Q.nota?'<br>Motivo: '+esc(Q.nota):''}</div>
@@ -1312,7 +1442,7 @@ function applyAi(p){
   if(Array.isArray(p.partidas) && p.partidas.length){
     Q.items=[];
     p.partidas.forEach(x=>{
-      const it={id:++pid,tipo:'letras',material:'',comp:'',luz:true,altura:0,n:0,tarifa:0,ancho:0,alto:0,acab:'',recComp:false,bas:'',desc:'',descAi:false,pz:1,pu:0};
+      const it={id:++pid,tipo:'letras',material:'',comp:'',luz:true,altura:0,n:0,tarifa:0,ancho:0,alto:0,acab:'',recComp:false,bas:'',desc:'',descAi:false,pz:1,pu:0,showInPdf:true};
       it.tipo=['letras','recorte','bastidor','caja','manual'].includes(x.tipo)?x.tipo:'letras';
       it.desc=(x.descripcion||'').trim(); it.descAi=!!it.desc;
       if(it.tipo==='letras'){
@@ -1467,7 +1597,7 @@ Importante: respeta todos los elementos, posiciones y acomodo que aparecen en la
 }
 
 /* ===================== Generador de PDF ===================== */
-async function generarPDF(){
+function generarPDF(){
   const t = totals();
   const precioFinal = Q.precioAuth && Q.precioAuth < t.neto ? Q.precioAuth : t.neto;
   const descuento   = Q.precioAuth && Q.precioAuth < t.neto ? t.neto - Q.precioAuth : 0;
@@ -1503,7 +1633,8 @@ async function generarPDF(){
     return money(tot);
   }
 
-  const filas = Q.items.map((it,i)=>`
+  const itemsForPDF = Q.items.filter(it=>it.showInPdf!==false);
+  const filas = itemsForPDF.map((it,i)=>`
     <tr class="${i%2===0?'re':'ro'}">
       <td>${desc(it)}</td>
       <td class="c">${med(it)}</td>
@@ -1513,8 +1644,8 @@ async function generarPDF(){
     </tr>`).join('');
 
   /* Filas vacías para rellenar tabla */
-  const vacias = Array.from({length:Math.max(0,4-Q.items.length)},(_,i)=>`
-    <tr class="${(Q.items.length+i)%2===0?'re':'ro'}"><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('');
+  const vacias = Array.from({length:Math.max(0,4-itemsForPDF.length)},(_,i)=>`
+    <tr class="${(itemsForPDF.length+i)%2===0?'re':'ro'}"><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('');
 
   /* Logo */
   const logoSrc = (()=>{ try{return localStorage.getItem('al3d_logo');}catch(_){return null;} })();
@@ -1586,149 +1717,129 @@ async function generarPDF(){
     {label:'Whatsapp',val:esc(EMPRESA.whatsapp)}
   ]);
 
-  /* Contenido de cada página (sin el contenedor .pdfpg, eso se agrega al montar) */
-  const paginas = [
-    `${deco}
-    ${hdr(Q.fecha)}
-    ${prowProyDir()}
-    <table>
-      <thead><tr>
-        <th style="width:38%">Descripción:</th>
-        <th class="c" style="width:16%">Medidas:</th>
-        <th class="c" style="width:9%">Pzas.</th>
-        <th class="r" style="width:18%">Precio unitario</th>
-        <th class="r" style="width:19%">Total</th>
-      </tr></thead>
-      <tbody>${filas}${vacias}</tbody>
-    </table>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
-      <div style="width:265px">
-        <div class="t-row"><b>Subtotal:</b><span>${money(t.sub)}</span></div>
-        <div class="t-row" style="background:#d8d8f8"><b>I.V.A</b><span>${money(t.iva)}</span></div>
-        <div class="t-row" style="background:#3a4ad8;color:#fff;font-weight:700;font-size:12px"><b>Total Neto:</b><span>${money(t.neto)}</span></div>
-        ${descuento?`<div class="t-row" style="background:#e5f6ee;color:#15a06a;font-weight:700"><b>Precio autorizado:</b><span>${money(precioFinal)}</span></div>`:''}
-      </div>
+  const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<title>Cotización ${esc(Q.folio)} · AL3D</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a2e;font-size:11px;background:#fff}
+.pg{page-break-after:always;padding:28px 32px 80px;min-height:100vh;position:relative;overflow:hidden}
+.pg:last-child{page-break-after:auto}
+th{background:#3a4ad8;color:#fff;font-size:10.5px;font-weight:700;padding:8px 10px;text-align:left}
+th.c,td.c{text-align:center} th.r,td.r{text-align:right}
+td{padding:7px 10px;font-size:10.5px;border-bottom:1px solid #d0d4e8;vertical-align:top}
+.re td,.ro td{background:#fff}
+table{width:100%;border-collapse:collapse;margin-bottom:8px}
+.t-row{display:flex;justify-content:space-between;padding:5px 10px;font-size:10.5px;border:1px solid #d0d4e8;border-top:none}
+.t-row:first-child{border-top:1px solid #d0d4e8}
+.t-row b{font-weight:700}
+@media print{@page{margin:0;size:letter portrait}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style></head><body>
+
+<!-- PÁGINA 1: COTIZACIÓN -->
+<div class="pg">
+  ${deco}
+  ${hdr(Q.fecha)}
+  ${prowProyDir()}
+  <table>
+    <thead><tr>
+      <th style="width:38%">Descripción:</th>
+      <th class="c" style="width:16%">Medidas:</th>
+      <th class="c" style="width:9%">Pzas.</th>
+      <th class="r" style="width:18%">Precio unitario</th>
+      <th class="r" style="width:19%">Total</th>
+    </tr></thead>
+    <tbody>${filas}${vacias}</tbody>
+  </table>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+    <div style="width:265px">
+      <div class="t-row"><b>Subtotal:</b><span>${money(t.sub)}</span></div>
+      <div class="t-row" style="background:#d8d8f8"><b>I.V.A</b><span>${money(t.iva)}</span></div>
+      <div class="t-row" style="background:#3a4ad8;color:#fff;font-weight:700;font-size:12px"><b>Total Neto:</b><span>${money(t.neto)}</span></div>
+      ${descuento?`<div class="t-row" style="background:#e5f6ee;color:#15a06a;font-weight:700"><b>Precio autorizado:</b><span>${money(precioFinal)}</span></div>`:''}
     </div>
-    <div style="text-align:center;font-size:10px;margin-bottom:12px">
-      <u style="font-weight:700">Nota:</u><br>
-      ${esc(Q.nota||'El cliente debe proporcionar salidas eléctricas.')}
+  </div>
+  <div style="text-align:center;font-size:10px;margin-bottom:12px">
+    <u style="font-weight:700">Nota:</u><br>
+    ${esc(Q.nota||'El cliente debe proporcionar salidas eléctricas.')}
+  </div>
+  ${footerCot}
+</div>
+
+<!-- PÁGINA 2: TÉRMINOS Y CONDICIONES -->
+<div class="pg">
+  ${deco}
+  ${hdr('')}
+  <div style="text-align:center;font-size:17px;font-weight:800;color:#3a4ad8;margin:16px 0 5px;letter-spacing:1px">TERMINOS Y CONDICIONES</div>
+  <div style="width:160px;height:2px;background:#3a4ad8;margin:0 auto 18px"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 26px;font-size:9.5px;line-height:1.55">
+    <div>
+      <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">1. Pagos y Facturación</p>
+      <ul style="padding-left:12px;margin-bottom:12px"><li>50% de anticipo para comenzar fabricación.</li><li>50% al finalizar, debe liquidar en máximo 2 días posterior a la instalación.</li><li><u>Excepción: proyectos mayores a $60,000 MXN.</u></li><li>Si requiere factura, el anticipo es mas IVA.</li><li>La cotización es válida por 10 días.</li></ul>
+      <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">2. Requisitos para Instalación</p>
+      <ul style="padding-left:12px;margin-bottom:12px"><li>En caso de el proyecto llevar iluminación, el cliente debe proporcionar salida eléctrica detrás de donde se instalará el anuncio.</li><li>Área limpia, accesible y segura.</li><li>El cliente debe gestionar accesos, permisos y condiciones necesarias.</li><li>Cualquier retraso por falta de esto será responsabilidad del cliente.</li></ul>
+      <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">3. Modificaciones</p>
+      <ul style="padding-left:12px;margin-bottom:12px"><li>Cambios al diseño aprobado pueden generar costos y retrasos.</li><li>Deben ser autorizados previamente.</li><li>AL3D no responde por fallas si el cliente exige cambios fuera de especificación.</li></ul>
+      <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">4. Garantías</p>
+      <ul style="padding-left:12px"><li>1 año en material eléctrico.</li><li>2 años en colorimetría.</li><li>Se atiende según disponibilidad del equipo.</li><li>No aplica si fue instalado/modificado por terceros o expuesto a condiciones extremas.</li></ul>
     </div>
-    ${footerCot}`,
-
-    `${deco}
-    ${hdr('')}
-    <div style="text-align:center;font-size:17px;font-weight:800;color:#3a4ad8;margin:16px 0 5px;letter-spacing:1px">TERMINOS Y CONDICIONES</div>
-    <div style="width:160px;height:2px;background:#3a4ad8;margin:0 auto 18px"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 26px;font-size:9.5px;line-height:1.55">
-      <div>
-        <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">1. Pagos y Facturación</p>
-        <ul style="padding-left:12px;margin-bottom:12px"><li>50% de anticipo para comenzar fabricación.</li><li>50% al finalizar, debe liquidar en máximo 2 días posterior a la instalación.</li><li><u>Excepción: proyectos mayores a $60,000 MXN.</u></li><li>Si requiere factura, el anticipo es mas IVA.</li><li>La cotización es válida por 10 días.</li></ul>
-        <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">2. Requisitos para Instalación</p>
-        <ul style="padding-left:12px;margin-bottom:12px"><li>En caso de el proyecto llevar iluminación, el cliente debe proporcionar salida eléctrica detrás de donde se instalará el anuncio.</li><li>Área limpia, accesible y segura.</li><li>El cliente debe gestionar accesos, permisos y condiciones necesarias.</li><li>Cualquier retraso por falta de esto será responsabilidad del cliente.</li></ul>
-        <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">3. Modificaciones</p>
-        <ul style="padding-left:12px;margin-bottom:12px"><li>Cambios al diseño aprobado pueden generar costos y retrasos.</li><li>Deben ser autorizados previamente.</li><li>AL3D no responde por fallas si el cliente exige cambios fuera de especificación.</li></ul>
-        <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">4. Garantías</p>
-        <ul style="padding-left:12px"><li>1 año en material eléctrico.</li><li>2 años en colorimetría.</li><li>Se atiende según disponibilidad del equipo.</li><li>No aplica si fue instalado/modificado por terceros o expuesto a condiciones extremas.</li></ul>
-      </div>
-      <div>
-        <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">5. Cancelaciones y Penalizaciones</p>
-        <ul style="padding-left:12px;margin-bottom:12px"><li>El anticipo no es reembolsable.</li><li>Si se cancela con el proyecto iniciado o materiales comprados, se debe pagar el 100%.</li><li>Después de 10 días sin pago, AL3D puede retirar el anuncio.</li></ul>
-        <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">6. Uso y Responsabilidad</p>
-        <p style="margin-bottom:3px">AL3D no se hace responsable por:</p>
-        <ul style="padding-left:12px;margin-bottom:12px"><li>Uso indebido o manipulación externa a nosotros.</li><li>Clima extremo.</li><li>Fallas estructurales del inmueble.</li></ul>
-        <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">7. Permisos</p>
-        <ul style="padding-left:12px;margin-bottom:12px"><li>El cliente debe tramitar los permisos.</li><li>AL3D no se hace responsable por multas o clausuras.</li></ul>
-        <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">8. Consentimiento y Uso de Imágenes</p>
-        <ul style="padding-left:12px"><li><u>El depósito implica aceptación de todos estos términos.</u></li><li>El cliente autoriza a AL3D a usar imágenes del proyecto con fines promocionales y de portafolio.</li></ul>
-      </div>
+    <div>
+      <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">5. Cancelaciones y Penalizaciones</p>
+      <ul style="padding-left:12px;margin-bottom:12px"><li>El anticipo no es reembolsable.</li><li>Si se cancela con el proyecto iniciado o materiales comprados, se debe pagar el 100%.</li><li>Después de 10 días sin pago, AL3D puede retirar el anuncio.</li></ul>
+      <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">6. Uso y Responsabilidad</p>
+      <p style="margin-bottom:3px">AL3D no se hace responsable por:</p>
+      <ul style="padding-left:12px;margin-bottom:12px"><li>Uso indebido o manipulación externa a nosotros.</li><li>Clima extremo.</li><li>Fallas estructurales del inmueble.</li></ul>
+      <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">7. Permisos</p>
+      <ul style="padding-left:12px;margin-bottom:12px"><li>El cliente debe tramitar los permisos.</li><li>AL3D no se hace responsable por multas o clausuras.</li></ul>
+      <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">8. Consentimiento y Uso de Imágenes</p>
+      <ul style="padding-left:12px"><li><u>El depósito implica aceptación de todos estos términos.</u></li><li>El cliente autoriza a AL3D a usar imágenes del proyecto con fines promocionales y de portafolio.</li></ul>
     </div>
-    ${footer([{label:'Whatsapp',val:esc(EMPRESA.whatsapp)},{label:'Dirección Oficina',val:esc(EMPRESA.oficina)}])}`,
+  </div>
+  ${footer([{label:'Whatsapp',val:esc(EMPRESA.whatsapp)},{label:'Dirección Oficina',val:esc(EMPRESA.oficina)}])}
+</div>
 
-    `${deco}
-    ${hdr(Q.fecha)}
-    ${prowProyDir()}
-    <div style="display:flex;align-items:center;justify-content:center;height:55vh">
-      ${Q.entrega
-        ? `<div style="background:#5adb5a;border-radius:14px;padding:22px 36px;text-align:center;display:inline-block">
-            <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:4px">Límite Fabricación</div>
-            <div style="font-size:22px;font-weight:900;color:#e02020;text-transform:uppercase">${esc(limDia)}</div>
-            <div style="font-size:22px;font-weight:900;color:#1a1a2e;text-transform:uppercase">${esc(limFecha)}</div>
-          </div>`
-        : `<p style="color:#aaa;font-size:13px">Sin límite de fabricación definido.<br>Agrega la fecha en "Datos del proyecto".</p>`}
+<!-- PÁGINA 3: LÍMITE DE FABRICACIÓN -->
+<div class="pg">
+  ${deco}
+  ${hdr(Q.fecha)}
+  ${prowProyDir()}
+  <div style="display:flex;align-items:center;justify-content:center;height:55vh">
+    ${Q.entrega
+      ? `<div style="background:#5adb5a;border-radius:14px;padding:22px 36px;text-align:center;display:inline-block">
+          <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:4px">Límite Fabricación</div>
+          <div style="font-size:22px;font-weight:900;color:#e02020;text-transform:uppercase">${esc(limDia)}</div>
+          <div style="font-size:22px;font-weight:900;color:#1a1a2e;text-transform:uppercase">${esc(limFecha)}</div>
+        </div>`
+      : `<p style="color:#aaa;font-size:13px">Sin límite de fabricación definido.<br>Agrega la fecha en "Datos del proyecto".</p>`}
+  </div>
+  ${footerCot}
+</div>
+
+<!-- PÁGINA 4: ORDEN DE INSTALACIÓN -->
+<div class="pg">
+  ${deco}
+  ${hdr(Q.fecha)}
+  ${prowProyDir()}
+  <div style="display:flex;margin-bottom:8px;border:1.5px solid #3a4ad8;border-radius:4px;overflow:hidden">
+    <div style="display:flex;flex:1">
+      <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Telefono:</span>
+      <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(Q.tel)}</span>
     </div>
-    ${footerCot}`,
-
-    `${deco}
-    ${hdr(Q.fecha)}
-    ${prowProyDir()}
-    <div style="display:flex;margin-bottom:8px;border:1.5px solid #3a4ad8;border-radius:4px;overflow:hidden">
-      <div style="display:flex;flex:1">
-        <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Telefono:</span>
-        <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(Q.tel)}</span>
-      </div>
-      <div style="display:flex;flex:1;border-left:1.5px solid #3a4ad8">
-        <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Entre calles:</span>
-        <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(Q.entrecalles)}</span>
-      </div>
+    <div style="display:flex;flex:1;border-left:1.5px solid #3a4ad8">
+      <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Entre calles:</span>
+      <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(Q.entrecalles)}</span>
     </div>
-    ${footerCot}`
-  ];
+  </div>
+  ${footerCot}
+</div>
 
-  if(typeof html2canvas==='undefined' || typeof window.jspdf==='undefined'){
-    toast('No se pudo cargar el generador de PDF (revisa tu conexión a internet).','err',4000);
-    return;
-  }
+</body></html>`;
 
-  toast('Generando PDF…','',2500);
-
-  /* Tamaño físico exacto: carta VERTICAL (8.5in × 11in). Nada de landscape. */
-  const PAGE_W_PX = 816, PAGE_H_PX = 1056;   // 96dpi
-  const PAGE_W_PT = 612, PAGE_H_PT = 792;    // puntos jsPDF
-
-  const cont = document.createElement('div');
-  cont.className = 'pdfExportRoot';
-  cont.style.cssText = `position:fixed;left:-99999px;top:0;width:${PAGE_W_PX}px;z-index:-1`;
-  cont.innerHTML = `
-    <style>
-      .pdfExportRoot .pdfpg{width:${PAGE_W_PX}px;height:${PAGE_H_PX}px;padding:28px 32px 80px;position:relative;overflow:hidden;box-sizing:border-box;background:#fff;font-family:'Segoe UI',Arial,sans-serif;color:#1a1a2e;font-size:11px}
-      .pdfExportRoot table{width:100%;border-collapse:collapse;margin-bottom:8px}
-      .pdfExportRoot th{background:#3a4ad8;color:#fff;font-size:10.5px;font-weight:700;padding:8px 10px;text-align:left}
-      .pdfExportRoot th.c,.pdfExportRoot td.c{text-align:center}
-      .pdfExportRoot th.r,.pdfExportRoot td.r{text-align:right}
-      .pdfExportRoot td{padding:7px 10px;font-size:10.5px;border-bottom:1px solid #d0d4e8;vertical-align:top}
-      .pdfExportRoot .re td,.pdfExportRoot .ro td{background:#fff}
-      .pdfExportRoot .t-row{display:flex;justify-content:space-between;padding:5px 10px;font-size:10.5px;border:1px solid #d0d4e8;border-top:none}
-      .pdfExportRoot .t-row:first-child{border-top:1px solid #d0d4e8}
-      .pdfExportRoot .t-row b{font-weight:700}
-    </style>
-    ${paginas.map(p=>`<div class="pdfpg">${p}</div>`).join('')}
-  `;
-  document.body.appendChild(cont);
-
-  try{
-    const imgs = cont.querySelectorAll('img');
-    await Promise.all(Array.from(imgs).map(img=>img.decode?img.decode().catch(()=>{}):Promise.resolve()));
-    await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
-
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({orientation:'portrait',unit:'pt',format:'letter'});
-    const pgEls = cont.querySelectorAll('.pdfpg');
-
-    for(let i=0;i<pgEls.length;i++){
-      const canvas = await html2canvas(pgEls[i],{scale:2,useCORS:true,backgroundColor:'#ffffff'});
-      const imgData = canvas.toDataURL('image/jpeg',0.95);
-      if(i>0) doc.addPage();
-      doc.addImage(imgData,'JPEG',0,0,PAGE_W_PT,PAGE_H_PT);
-    }
-
-    doc.save(`Cotizacion_${Q.folio||'AL3D'}.pdf`);
-    toast('PDF generado en carta vertical','ok',2500);
-  }catch(err){
-    console.error(err);
-    toast('Ocurrió un error generando el PDF. Revisa la consola.','err',4000);
-  }finally{
-    document.body.removeChild(cont);
-  }
+  const w = window.open('','_blank');
+  if(!w){ toast('Permite ventanas emergentes para generar el PDF','err',3500); return; }
+  w.document.write(html);
+  w.document.close();
+  setTimeout(()=>{ w.focus(); w.print(); }, 700);
 }
 
 /* ===================== Historial de cotizaciones autorizadas ===================== */
@@ -1865,7 +1976,8 @@ function loadQueueEntry(folio){
 /* ===================== Persistencia ===================== */
 function saveState(){
   try{
-    const toSave={...Q,aiFile:null};
+    const {editMode,...rest}=Q;
+    const toSave={...rest,aiFile:null};
     localStorage.setItem('al3d_q',JSON.stringify(toSave));
   }catch(_){}
 }
@@ -1878,6 +1990,7 @@ function loadState(){
     const saved=JSON.parse(s);
     Object.assign(Q,saved);
     Q.aiFile=null;
+    Q.editMode=false;
     pid=Q.items.reduce((m,it)=>Math.max(m,it.id||0),0);
     Object.entries(_FM).forEach(([k,id])=>{ if(Q[k]&&$(id)) $(id).value=Q[k]; });
     return true;
@@ -1892,173 +2005,295 @@ function nextFolio(){
   }catch(_){ return 'COT-'+String(Math.floor(Math.random()*9000)+1000); }
 }
 
-/* ===================== Escalador de imagen ===================== */
-const SC={img:null,mode:'load',refLine:null,refCm:0,cmPerPx:0,measures:[],drawing:false,startPt:null,curPt:null};
+/* ===================== Escalador Pro ===================== */
+const SC={
+  img:null, imgW:0, imgH:0, cvsW:0, cvsH:0, scaleFactor:1,
+  mode:'idle', mMode:'libre',
+  refLine:null, refCm:0, nativePxPerCm:0,
+  down:false, sp:null, cp:null,
+  items:[], sel:null, nid:1, nc:0,
+};
+const SC_COLORS=['#3a4ad8','#d32f2f','#2e7d32','#e65100','#6a1b9a','#0277bd','#558b2f','#4e342e'];
 
 function abrirScaler(){
-  SC.img=null;SC.mode='load';SC.refLine=null;SC.refCm=0;SC.cmPerPx=0;
-  SC.measures=[];SC.drawing=false;SC.startPt=null;SC.curPt=null;
-  $('scalerCanvas').style.display='none';
-  $('scaler-canvas-wrap').style.minHeight='0';
   $('sc-use-ai-btn').style.display=(Q.aiFile&&Q.aiFile.url)?'flex':'none';
-  $('sc-reset-btn').style.display='none';
-  renderMedidas(); actualizarUIScaler();
+  if(!SC.img) $('sp-overlay').classList.remove('hide');
   $('scalermodal').classList.add('show');
+  if(SC.img){setTimeout(()=>{scFitCanvas();scRender();},60);}
+  scUpdateList();
 }
 function cerrarScaler(){$('scalermodal').classList.remove('show');}
 
 function cargarImagenScaler(input){
-  const f=input.files[0]; if(!f)return;
+  const f=input.files[0];if(!f)return;
+  if(f.type==='application/pdf'){scLoadPDF(f);input.value='';return;}
   const r=new FileReader();
-  r.onload=ev=>cargarUrlEnScaler(ev.target.result);
+  r.onload=ev=>scLoadImgSrc(ev.target.result,f.name);
   r.readAsDataURL(f);
   input.value='';
 }
 function usarImagenAIEnScaler(){
-  if(Q.aiFile&&Q.aiFile.url) cargarUrlEnScaler(Q.aiFile.url);
+  if(Q.aiFile&&Q.aiFile.url) scLoadImgSrc(Q.aiFile.url,'imagen IA');
 }
-function cargarUrlEnScaler(url){
+function scOnDrop(e){
+  e.preventDefault();e.currentTarget.style.outline='';
+  if(e.dataTransfer.files[0]) cargarImagenScaler({files:e.dataTransfer.files,value:''});
+}
+function scLoadImgSrc(src,name){
   const img=new Image();
   img.onload=()=>{
-    SC.img=img; SC.mode='ref'; SC.refLine=null; SC.measures=[];
-    const cvs=$('scalerCanvas');
-    const maxW=1400,maxH=1200;
-    let w=img.naturalWidth,h=img.naturalHeight;
-    if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
-    if(h>maxH){w=Math.round(w*maxH/h);h=maxH;}
-    cvs.width=w; cvs.height=h;
-    cvs.style.display='block';
-    $('scaler-canvas-wrap').style.minHeight='140px';
-    $('sc-reset-btn').style.display='none';
-    renderCanvas(); actualizarUIScaler(); renderMedidas();
-    toast('Imagen cargada — traza la línea de referencia','ok',2500);
+    SC.img=img;SC.imgW=img.naturalWidth;SC.imgH=img.naturalHeight;
+    scResetCalib(false);
+    SC.items=[];SC.sel=null;SC.nid=1;SC.nc=0;
+    $('sp-overlay').classList.add('hide');
+    scEnableTools(true);scFitCanvas();scRender();scUpdateList();
+    scSetMode('ref');
+    toast('Imagen cargada · '+(name||''),'ok');
   };
   img.onerror=()=>toast('No se pudo cargar la imagen','err');
-  img.src=url;
+  img.src=src;
+}
+async function scLoadPDF(f){
+  toast('Cargando PDF…','',8000);
+  try{
+    if(!window.pdfjsLib){
+      await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});
+      pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+    const ab=await f.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:ab}).promise;
+    const page=await pdf.getPage(1);
+    const vp=page.getViewport({scale:2.5});
+    const oc=document.createElement('canvas');oc.width=vp.width;oc.height=vp.height;
+    await page.render({canvasContext:oc.getContext('2d'),viewport:vp}).promise;
+    scLoadImgSrc(oc.toDataURL(),f.name);
+  }catch(e){toast('Error PDF: '+e.message,'err',4000);}
 }
 
-function getXY(e){
-  const cvs=$('scalerCanvas');
-  const rect=cvs.getBoundingClientRect();
-  const sx=cvs.width/rect.width, sy=cvs.height/rect.height;
+function scFitCanvas(){
+  const area=$('sp-canvas-area'),cvs=$('scalerCanvas');
+  const maxW=area.clientWidth-32,maxH=area.clientHeight-32;
+  const iA=SC.imgW/SC.imgH;
+  let w=maxW,h=maxW/iA;
+  if(h>maxH){h=maxH;w=h*iA;}
+  SC.cvsW=cvs.width=Math.round(w);SC.cvsH=cvs.height=Math.round(h);
+  SC.scaleFactor=SC.imgW/SC.cvsW;
+}
+window.addEventListener('resize',()=>{
+  if(SC.img&&$('scalermodal').classList.contains('show')){scFitCanvas();scRender();}
+});
+
+function scRender(){
+  const cvs=$('scalerCanvas'),ctx=cvs.getContext('2d');
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  if(!SC.img)return;
+  ctx.drawImage(SC.img,0,0,SC.cvsW,SC.cvsH);
+  if(SC.refLine){
+    const a={x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH};
+    const b={x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH};
+    scDrawRef(ctx,a,b);
+  }
+  SC.items.forEach(m=>{
+    const p1={x:m.nx1*SC.cvsW,y:m.ny1*SC.cvsH};
+    const p2={x:m.nx2*SC.cvsW,y:m.ny2*SC.cvsH};
+    const off=Math.min(SC.cvsW,SC.cvsH)*.045;
+    scDimAnnot(ctx,p1.x,p1.y,p2.x,p2.y,{text:scFmtCm(m.cm)+' cm',color:m.color,sel:m.id===SC.sel,offset:off});
+  });
+  if(SC.down&&SC.sp&&SC.cp){
+    const ep=scSnap(SC.sp,SC.cp);
+    if(SC.mode==='ref'){scDrawRef(ctx,SC.sp,ep);}
+    else if(SC.mode==='measure'){
+      const pxD=scDist(SC.sp,ep);
+      const cm=SC.nativePxPerCm>0?(pxD*SC.scaleFactor)/SC.nativePxPerCm:0;
+      const off=Math.min(SC.cvsW,SC.cvsH)*.045;
+      scDimAnnot(ctx,SC.sp.x,SC.sp.y,ep.x,ep.y,{text:cm>0?scFmtCm(cm)+' cm':'…',color:SC_COLORS[SC.nc%SC_COLORS.length],sel:false,offset:off,dashed:true});
+    }
+  }
+}
+function scDrawRef(ctx,a,b){
+  ctx.save();ctx.strokeStyle='#f59e0b';ctx.lineWidth=2.5;ctx.setLineDash([8,5]);
+  ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.setLineDash([]);
+  [a,b].forEach(p=>{ctx.fillStyle='#f59e0b';ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fill();});
+  ctx.restore();
+}
+function scDimAnnot(ctx,x1,y1,x2,y2,opts){
+  const{offset=50,color='#3a4ad8',sel=false,text='',dashed=false}=opts;
+  const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy);if(len<4)return;
+  const ux=dx/len,uy=dy/len,nx=-uy,ny=ux;
+  const col=sel?'#e03060':color,gap=7,over=7,aSize=Math.max(7,Math.min(14,len*.08));
+  const ax=x1+nx*offset,ay=y1+ny*offset,bx=x2+nx*offset,by=y2+ny*offset;
+  ctx.save();ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=sel?2:1.5;
+  if(dashed)ctx.setLineDash([5,4]);else ctx.setLineDash([]);
+  const ln=(x1,y1,x2,y2)=>{ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();};
+  ln(x1+nx*gap,y1+ny*gap,ax+nx*over,ay+ny*over);
+  ln(x2+nx*gap,y2+ny*gap,bx+nx*over,by+ny*over);
+  ctx.setLineDash([]);
+  ln(ax+ux*aSize,ay+uy*aSize,bx-ux*aSize,by-uy*aSize);
+  const arr=(tx,ty,dx,dy)=>{const hw=aSize*.38;ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(tx-dx*aSize+nx*hw,ty-dy*aSize+ny*hw);ctx.lineTo(tx-dx*aSize-nx*hw,ty-dy*aSize-ny*hw);ctx.closePath();ctx.fill();};
+  arr(ax,ay,ux,uy);arr(bx,by,-ux,-uy);
+  if(text){
+    const mx=(ax+bx)/2,my=(ay+by)/2;
+    let angle=Math.atan2(uy,ux);if(angle>Math.PI/2||angle<-Math.PI/2)angle+=Math.PI;
+    ctx.save();ctx.translate(mx,my);ctx.rotate(angle);
+    ctx.font='700 12px Inter,Arial,sans-serif';
+    const tw=ctx.measureText(text).width,pad=6,bh=18,bw=tw+pad*2,rx=-bw/2,ry=-bh-3,rr=5;
+    ctx.fillStyle='rgba(255,255,255,.95)';ctx.strokeStyle=col;ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.moveTo(rx+rr,ry);ctx.lineTo(rx+bw-rr,ry);ctx.arcTo(rx+bw,ry,rx+bw,ry+rr,rr);ctx.lineTo(rx+bw,ry+bh-rr);ctx.arcTo(rx+bw,ry+bh,rx+bw-rr,ry+bh,rr);ctx.lineTo(rx+rr,ry+bh);ctx.arcTo(rx,ry+bh,rx,ry+bh-rr,rr);ctx.lineTo(rx,ry+rr);ctx.arcTo(rx,ry,rx+rr,ry,rr);ctx.closePath();
+    ctx.fill();ctx.stroke();
+    ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(text,0,-4);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function scGetXY(e){
+  const cvs=$('scalerCanvas'),rect=cvs.getBoundingClientRect();
+  const sx=cvs.width/rect.width,sy=cvs.height/rect.height;
   let cx,cy;
   if(e.touches&&e.touches.length){cx=e.touches[0].clientX;cy=e.touches[0].clientY;}
   else if(e.changedTouches&&e.changedTouches.length){cx=e.changedTouches[0].clientX;cy=e.changedTouches[0].clientY;}
   else{cx=e.clientX;cy=e.clientY;}
-  return {x:Math.round((cx-rect.left)*sx),y:Math.round((cy-rect.top)*sy)};
+  return{x:(cx-rect.left)*sx,y:(cy-rect.top)*sy};
 }
-function scalerDown(e){
+function scSnap(a,b){
+  if(SC.mMode==='h')return{x:b.x,y:a.y};
+  if(SC.mMode==='v')return{x:a.x,y:b.y};
+  return b;
+}
+function scDown(e){
   if(SC.mode!=='ref'&&SC.mode!=='measure')return;
-  e.preventDefault();
-  SC.drawing=true; SC.startPt=getXY(e); SC.curPt={...SC.startPt};
+  e.preventDefault();SC.down=true;SC.sp=scGetXY(e);SC.cp={...SC.sp};
 }
-function scalerMove(e){
-  if(!SC.drawing)return;
-  e.preventDefault();
-  SC.curPt=getXY(e); renderCanvas();
-}
-function scalerUp(e){
-  if(!SC.drawing||!SC.startPt)return;
-  e.preventDefault(); SC.drawing=false;
-  const end=(e.changedTouches||e.touches)?getXY(e):(SC.curPt||getXY(e));
-  const dx=end.x-SC.startPt.x, dy=end.y-SC.startPt.y;
-  const pxLen=Math.sqrt(dx*dx+dy*dy);
-  if(pxLen<8){SC.startPt=null;SC.curPt=null;renderCanvas();return;}
-  const line={x1:SC.startPt.x,y1:SC.startPt.y,x2:end.x,y2:end.y,pxLen};
+function scMove(e){if(!SC.down)return;e.preventDefault();SC.cp=scGetXY(e);scRender();}
+function scUp(e){
+  if(!SC.down||!SC.sp)return;
+  e.preventDefault();SC.down=false;
+  const raw=e.changedTouches?scGetXY(e):(SC.cp||scGetXY(e));
+  const ep=scSnap(SC.sp,raw),d=scDist(SC.sp,ep);
+  if(d<8){SC.sp=null;SC.cp=null;scRender();return;}
   if(SC.mode==='ref'){
-    SC.refLine=line; SC.mode='ref-confirm';
-    $('ref-cm-input').value=''; $('ref-cm-input').focus();
-    actualizarUIScaler();
-  } else if(SC.mode==='measure'){
-    const cm=pxLen*SC.cmPerPx;
-    SC.measures.push({...line,cm}); renderMedidas();
+    SC.refLine={nx1:SC.sp.x/SC.cvsW,ny1:SC.sp.y/SC.cvsH,nx2:ep.x/SC.cvsW,ny2:ep.y/SC.cvsH};
+    SC.mode='ref-drawn';
+    $('sc-ref-confirm-row').style.display='';
+    $('sc-ref-cm-input').value='';$('sc-ref-cm-input').focus();
+    scSetHint('¿Cuánto mide en cm ese elemento? Escríbelo en el panel derecho');
+  }else if(SC.mode==='measure'){
+    const pxD=scDist(SC.sp,ep),cm=(pxD*SC.scaleFactor)/SC.nativePxPerCm;
+    SC.items.push({id:SC.nid++,nx1:SC.sp.x/SC.cvsW,ny1:SC.sp.y/SC.cvsH,nx2:ep.x/SC.cvsW,ny2:ep.y/SC.cvsH,cm,label:'',color:SC_COLORS[SC.nc++%SC_COLORS.length],type:SC.mMode});
+    SC.sel=SC.items[SC.items.length-1].id;scUpdateList();
   }
-  SC.startPt=null; SC.curPt=null; renderCanvas();
+  SC.sp=null;SC.cp=null;scRender();
 }
+function scLeave(e){if(SC.down){SC.cp=scGetXY(e);scRender();}}
 
-function fijarReferencia(){
-  const val=parseFloat($('ref-cm-input').value);
-  if(!val||val<=0){toast('Ingresa una medida válida en cm','err');return;}
-  SC.refCm=val; SC.cmPerPx=val/SC.refLine.pxLen;
-  SC.mode='measure'; $('sc-reset-btn').style.display='';
-  actualizarUIScaler(); renderCanvas();
-  toast('✓ Escala fijada · traza líneas sobre los elementos para medir','ok',3000);
+function scConfirmCalib(){
+  const v=parseFloat($('sc-ref-cm-input').value);
+  if(!v||v<=0){toast('Ingresa una medida válida en cm','err');return;}
+  if(!SC.refLine){toast('Traza primero la línea de referencia','err');return;}
+  SC.refCm=v;
+  const p1={x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH};
+  const p2={x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH};
+  SC.nativePxPerCm=(scDist(p1,p2)*SC.scaleFactor)/v;
+  $('sc-ref-confirm-row').style.display='none';
+  $('sc-calib-done').style.display='';
+  $('sc-calib-badge').className='sp-calib-badge ok';
+  $('sc-calib-txt').textContent='Escala calibrada';
+  scSetMode('measure');
+  toast('Escala calibrada — traza líneas para medir','ok');
+  scRender();
 }
-function usarRefConocida(cm){$('ref-cm-input').value=cm;}
-function resetScalerRef(){
-  SC.refLine=null;SC.refCm=0;SC.cmPerPx=0;SC.mode='ref';SC.measures=[];
-  $('sc-reset-btn').style.display='none';
-  actualizarUIScaler(); renderCanvas(); renderMedidas();
+function scResetCalib(full=true){
+  SC.refLine=null;SC.refCm=0;SC.nativePxPerCm=0;
+  $('sc-ref-confirm-row').style.display='none';
+  $('sc-calib-done').style.display='none';
+  $('sc-ref-cm-input').value='';
+  $('sc-calib-badge').className='sp-calib-badge';
+  $('sc-calib-txt').textContent='Sin calibrar';
+  if(full){scSetMode('ref');scRender();}
 }
-function borrarMedida(i){SC.measures.splice(i,1);renderMedidas();renderCanvas();}
-function usarMedida(i){
-  const h=Math.round(SC.measures[i].cm);
+function scSetMode(m){
+  SC.mode=m;SC.down=false;SC.sp=null;SC.cp=null;
+  ['sc-btn-ref','sc-btn-libre','sc-btn-h','sc-btn-v'].forEach(id=>$(id).classList.remove('active'));
+  const cvs=$('scalerCanvas');
+  if(m==='ref'||m==='ref-drawn'){
+    $('sc-btn-ref').classList.add('active');
+    scSetHint('Traza una línea sobre un elemento conocido — puerta 200 cm, persona 175 cm…');
+    cvs.style.cursor='crosshair';
+  }else if(m==='measure'){
+    const mm={'libre':'sc-btn-libre','h':'sc-btn-h','v':'sc-btn-v'};
+    $(mm[SC.mMode]||'sc-btn-libre').classList.add('active');
+    const mn={'libre':'Libre · cualquier ángulo','h':'Horizontal','v':'Vertical'};
+    scSetHint('Modo: '+mn[SC.mMode]+' — traza una línea sobre el elemento a medir');
+    cvs.style.cursor='crosshair';
+  }else{scSetHint('');cvs.style.cursor='default';}
+}
+function scSetMeasMode(m){
+  if(!SC.img)return;
+  if(SC.nativePxPerCm<=0){toast('Calibra la escala primero','err',2500);return;}
+  SC.mMode=m;scSetMode('measure');
+}
+function scEnableTools(v){
+  ['sc-btn-ref','sc-btn-libre','sc-btn-h','sc-btn-v','sc-btn-calib'].forEach(id=>$(id).disabled=!v);
+}
+function scSetHint(txt){
+  const bar=$('sp-hint-bar');
+  if(txt){bar.textContent=txt;bar.classList.remove('hide');}else bar.classList.add('hide');
+}
+function scUpdateList(){
+  const list=$('sc-medidas-list');
+  $('sc-mcount').textContent=SC.items.length;
+  list.innerHTML='';
+  if(!SC.items.length){
+    list.innerHTML='<div class="sp-mlist-empty">'+(SC.nativePxPerCm>0?'Traza líneas sobre los elementos<br>para registrar sus medidas.':'Calibra la escala primero,<br>luego traza líneas para medir.')+'</div>';
+    $('sc-btn-export').disabled=true;return;
+  }
+  SC.items.forEach((m,i)=>{
+    const el=document.createElement('div');
+    el.className='sp-mitem'+(m.id===SC.sel?' sel':'');
+    el.style.borderLeftColor=m.color;
+    el.onclick=()=>{SC.sel=SC.sel===m.id?null:m.id;scUpdateList();scRender();};
+    el.innerHTML=`
+      <div style="flex:1;min-width:0">
+        <div style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;background:var(--brand-grd);color:#fff;font-size:9px;font-weight:800;margin-bottom:4px;box-shadow:0 2px 6px rgba(58,74,216,.25)">${i+1}</div>
+        <div class="sp-mitem-cm">${scFmtCm(m.cm)}<small> cm</small></div>
+        <input class="sp-mitem-label" placeholder="Letras, logo, fachada…" value="${scEsc(m.label)}"
+          onclick="event.stopPropagation()" oninput="scSetLabel(${m.id},this.value)">
+        <button style="margin-top:8px;width:100%;padding:7px 10px;background:var(--brand-grd);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px"
+          onclick="event.stopPropagation();scUsarMedida(${m.id})">→ Agregar como partida</button>
+      </div>
+      <div class="sp-mitem-actions">
+        <button class="sp-ibtn" onclick="event.stopPropagation();scDelMedida(${m.id})" title="Eliminar">×</button>
+      </div>`;
+    list.appendChild(el);
+  });
+  $('sc-btn-export').disabled=false;
+}
+function scSetLabel(id,v){const m=SC.items.find(x=>x.id===id);if(m)m.label=v;}
+function scDelMedida(id){SC.items=SC.items.filter(x=>x.id!==id);if(SC.sel===id)SC.sel=null;scUpdateList();scRender();}
+function scUsarMedida(id){
+  const m=SC.items.find(x=>x.id===id);if(!m)return;
+  const h=Math.round(m.cm);
   if(locked()){toast('La cotización está bloqueada','err');return;}
   addItem();
   Q.items[Q.items.length-1].altura=h;
-  cerrarScaler(); renderItems();
-  toast(`Partida creada con altura ${h}cm — completa los demás campos`,'ok',3200);
+  if(m.label) Q.items[Q.items.length-1].desc=m.label;
+  cerrarScaler();renderItems();
+  toast(`Partida creada con altura ${h} cm — completa los demás campos`,'ok',3200);
 }
-
-function renderCanvas(){
-  const cvs=$('scalerCanvas'); if(!SC.img||cvs.style.display==='none')return;
-  const ctx=cvs.getContext('2d');
-  ctx.clearRect(0,0,cvs.width,cvs.height);
-  ctx.drawImage(SC.img,0,0,cvs.width,cvs.height);
-  function drawLn(x1,y1,x2,y2,color,dash,label){
-    ctx.save();ctx.strokeStyle=color;ctx.lineWidth=2.5;ctx.setLineDash(dash||[]);
-    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
-    ctx.setLineDash([]);ctx.fillStyle=color;
-    [[x1,y1],[x2,y2]].forEach(([px,py])=>{ctx.beginPath();ctx.arc(px,py,5,0,Math.PI*2);ctx.fill();});
-    if(label){
-      const mx=(x1+x2)/2+7,my=(y1+y2)/2-6;
-      ctx.font='bold 13px Inter,Arial,sans-serif';
-      ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.65)';ctx.strokeText(label,mx,my);
-      ctx.fillStyle='#fff';ctx.fillText(label,mx,my);
-    }
-    ctx.restore();
-  }
-  if(SC.refLine) drawLn(SC.refLine.x1,SC.refLine.y1,SC.refLine.x2,SC.refLine.y2,'#f59e0b',[],SC.refCm?SC.refCm+'cm (REF)':'REF — ¿cuánto mide?');
-  SC.measures.forEach(m=>drawLn(m.x1,m.y1,m.x2,m.y2,'#3a4ad8',[],m.cm.toFixed(1)+'cm'));
-  if(SC.drawing&&SC.startPt&&SC.curPt){
-    const col=SC.mode==='ref'?'#f59e0b':'#3a4ad8';
-    drawLn(SC.startPt.x,SC.startPt.y,SC.curPt.x,SC.curPt.y,col,[6,4],'');
-  }
+function scExportImg(){
+  if(!SC.img||!SC.items.length)return;
+  const oc=document.createElement('canvas');oc.width=SC.imgW;oc.height=SC.imgH;
+  const octx=oc.getContext('2d');octx.drawImage(SC.img,0,0);
+  SC.items.forEach(m=>{
+    const p1={x:m.nx1*SC.imgW,y:m.ny1*SC.imgH},p2={x:m.nx2*SC.imgW,y:m.ny2*SC.imgH};
+    scDimAnnot(octx,p1.x,p1.y,p2.x,p2.y,{text:scFmtCm(m.cm)+' cm'+(m.label?' · '+m.label:''),color:m.color,sel:false,offset:Math.min(SC.imgW,SC.imgH)*.045});
+  });
+  const a=document.createElement('a');a.href=oc.toDataURL('image/png');a.download='medidas-al3d.png';a.click();
+  toast('Imagen descargada','ok');
 }
-function renderMedidas(){
-  const el=$('medidas-list');if(!el)return;
-  if(!SC.measures.length){
-    el.innerHTML=SC.mode==='measure'?'<p style="font-size:12px;color:var(--muted);text-align:center;padding:6px 0">Traza líneas sobre los elementos para medir su altura</p>':'';
-    return;
-  }
-  el.innerHTML=SC.measures.map((m,i)=>`
-    <div class="medida-row">
-      <span class="medida-cm">${m.cm.toFixed(1)} cm</span>
-      <button class="btn-med-use" onclick="usarMedida(${i})">→ Agregar como partida</button>
-      <button class="btn-med-del" onclick="borrarMedida(${i})" title="Eliminar">×</button>
-    </div>`).join('');
-}
-function actualizarUIScaler(){
-  const hint=$('scaler-hint'),rw=$('ref-confirm-wrap');
-  const s1=$('sc-step1'),s2=$('sc-step2');
-  if(SC.mode==='load'){
-    if(hint)hint.textContent='Carga una imagen del proyecto para comenzar';
-    if(rw)rw.style.display='none';
-    if(s1){s1.className='sc-step';s2.className='sc-step';}
-  }else if(SC.mode==='ref'){
-    if(hint)hint.innerHTML='<b>Paso 1 — Referencia:</b> Toca o arrastra sobre un elemento cuya medida real conozcas (puerta, ventana, persona…)';
-    if(rw)rw.style.display='none';
-    if(s1){s1.className='sc-step active';s2.className='sc-step';}
-  }else if(SC.mode==='ref-confirm'){
-    if(hint)hint.innerHTML='<b>Línea de referencia trazada ✓</b> — ¿Cuánto mide en cm ese elemento?';
-    if(rw)rw.style.display='block';
-    if(s1){s1.className='sc-step active';s2.className='sc-step';}
-  }else if(SC.mode==='measure'){
-    if(hint)hint.innerHTML=`<b>Paso 2 — Medir:</b> Traza líneas sobre letras o elementos. Escala: <b>1cm ≈ ${(1/SC.cmPerPx).toFixed(1)}px</b>`;
-    if(rw)rw.style.display='none';
-    if(s1){s1.className='sc-step done';s2.className='sc-step active';}
-  }
-}
+function scFmtCm(cm){return Number(cm).toFixed(1).replace(/\.0$/,'');}
+function scEsc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function scDist(a,b){return Math.hypot(b.x-a.x,b.y-a.y);}
 
 /* ===================== Init ===================== */
 function hoy(){return new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});}
@@ -2082,6 +2317,140 @@ window.addEventListener('beforeunload',e=>{
 });
 
 init();
+
+// ----- Registrar Venta -----
+function abrirRegistrarVenta(){
+  const t=totals();
+  const hoy=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});
+  document.getElementById('rv-proyecto').value=(Q.cliente?Q.cliente+' - ':'')+Q.proy;
+  document.getElementById('rv-fecha').value=Q.fecha||hoy;
+  document.getElementById('rv-iva').value=Q.iva?'Yes':'No';
+  document.getElementById('rv-anticipo').value=Q.anti||0;
+  document.getElementById('rv-pct').value=10;
+  document.getElementById('rv-estatus').value='ANTICIPO';
+  document.getElementById('rv-copied').classList.remove('show');
+  rvRecalc();
+  document.getElementById('rv-modal-bg').classList.add('show');
+}
+function cerrarRegistrarVenta(){
+  document.getElementById('rv-modal-bg').classList.remove('show');
+}
+function rvRecalc(){
+  const t=totals();
+  const sub=t.sub, neto=t.neto;
+  const anti=parseFloat(document.getElementById('rv-anticipo').value)||0;
+  const pct=parseFloat(document.getElementById('rv-pct').value)||0;
+  const estatus=document.getElementById('rv-estatus').value;
+  const com=Math.round(sub*pct/100);
+  const pend=estatus==='LIQUIDADO'?0:Math.max(0,neto-anti);
+  document.getElementById('rv-sub-disp').textContent=money(sub);
+  document.getElementById('rv-neto-disp').textContent=money(neto);
+  document.getElementById('rv-com-disp').textContent=money(com);
+  document.getElementById('rv-pend-disp').textContent=money(pend);
+}
+function copiarFilaVenta(){
+  const t=totals();
+  const sub=t.sub, neto=t.neto;
+  const proyecto=document.getElementById('rv-proyecto').value.trim();
+  const fecha=document.getElementById('rv-fecha').value.trim();
+  const iva=document.getElementById('rv-iva').value;
+  const anti=parseFloat(document.getElementById('rv-anticipo').value)||0;
+  const pct=parseFloat(document.getElementById('rv-pct').value)||0;
+  const cuenta=document.getElementById('rv-cuenta').value;
+  const estatus=document.getElementById('rv-estatus').value;
+  const com=Math.round(sub*pct/100);
+  const pend=estatus==='LIQUIDADO'?0:Math.max(0,neto-anti);
+  const liquidacion=estatus==='LIQUIDADO'?neto:'';
+  const abonoComision=estatus==='LIQUIDADO'?com:0;
+  const comRestante=estatus==='LIQUIDADO'?0:com;
+  const fechaLiq=estatus==='LIQUIDADO'?fecha:'';
+  // Orden de columnas idéntico al CSV de Ventas de Notion:
+  // Proyecto | Abono Comision | Anticipo | Comision Restante | Comisiones | Cuenta | Estatus
+  // Fecha Anticipo e Instalacion | Fecha Comision | Fecha Liquidacion | IVA | Liquidacion | Pago Pendiente | Precio Neto | Precio Subtotal
+  const row=[
+    proyecto,abonoComision,anti,comRestante,com,cuenta,estatus,
+    fecha,'',fechaLiq,iva,liquidacion,pend,neto,sub
+  ].join('\t');
+  navigator.clipboard.writeText(row).then(()=>{
+    document.getElementById('rv-copied').classList.add('show');
+  });
+}
 </script>
+
+<!-- Modal: Registrar Venta -->
+<div class="rv-modal-bg" id="rv-modal-bg" onclick="if(event.target===this)cerrarRegistrarVenta()">
+  <div class="rv-modal">
+    <div class="rv-header">
+      <h2>📊 Registrar Venta en Google Sheets</h2>
+      <button class="btn btn-gho" style="padding:4px 12px;font-size:12px" onclick="cerrarRegistrarVenta()">✕</button>
+    </div>
+    <div class="rv-body">
+      <div class="rv-grid">
+        <div class="rv-field full">
+          <label>Proyecto</label>
+          <input type="text" id="rv-proyecto" placeholder="Cliente - Proyecto">
+        </div>
+        <div class="rv-field">
+          <label>Fecha Anticipo</label>
+          <input type="text" id="rv-fecha">
+        </div>
+        <div class="rv-field">
+          <label>IVA</label>
+          <input type="text" id="rv-iva" readonly>
+        </div>
+        <div class="rv-field">
+          <label>Anticipo ($)</label>
+          <input type="number" id="rv-anticipo" min="0" oninput="rvRecalc()">
+        </div>
+        <div class="rv-field">
+          <label>% Comisión</label>
+          <input type="number" id="rv-pct" value="10" min="0" max="100" step="0.5" oninput="rvRecalc()">
+        </div>
+        <div class="rv-field">
+          <label>Cuenta</label>
+          <select id="rv-cuenta">
+            <option>Elias BBVA</option>
+            <option>Moni MPago</option>
+            <option>Constru BNT</option>
+            <option>Otra</option>
+          </select>
+        </div>
+        <div class="rv-field">
+          <label>Estatus</label>
+          <select id="rv-estatus" onchange="rvRecalc()">
+            <option>ANTICIPO</option>
+            <option>LIQUIDADO</option>
+            <option>CANCELADO</option>
+            <option>PENDIENTE</option>
+          </select>
+        </div>
+      </div>
+      <div class="rv-calc">
+        <div class="rv-calc-item">
+          <span>Precio Subtotal</span>
+          <span id="rv-sub-disp">—</span>
+        </div>
+        <div class="rv-calc-item accent">
+          <span>Precio Neto</span>
+          <span id="rv-neto-disp">—</span>
+        </div>
+        <div class="rv-calc-item">
+          <span>Comisiones</span>
+          <span id="rv-com-disp">—</span>
+        </div>
+        <div class="rv-calc-item">
+          <span>Pago Pendiente</span>
+          <span id="rv-pend-disp">—</span>
+        </div>
+      </div>
+    </div>
+    <div class="rv-footer">
+      <div class="rv-copied" id="rv-copied">✅ Fila copiada — pégala en la hoja <b>Ventas</b> de Google Sheets con Ctrl+Shift+V</div>
+      <button class="btn btn-pri" onclick="copiarFilaVenta()">📋 Copiar fila para Google Sheets</button>
+      <button class="btn btn-gho" onclick="cerrarRegistrarVenta()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
