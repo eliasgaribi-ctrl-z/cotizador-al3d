@@ -295,7 +295,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-topbar{background:rgba(255,255,255,.96);backdrop-filter:blur(14px);border-bottom:1px solid rgba(224,228,240,.7);flex-shrink:0;padding:0 20px;height:56px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 8px rgba(23,29,74,.06)}
 .sp-main{flex:1;display:flex;overflow:hidden;min-height:0}
 .sp-canvas-area{flex:1;position:relative;overflow:hidden;background:#181c2e;background-image:radial-gradient(rgba(255,255,255,.04) 1px,transparent 1px);background-size:22px 22px;display:flex;align-items:center;justify-content:center;min-width:0}
-#scalerCanvas{display:block;cursor:crosshair;touch-action:none;user-select:none;-webkit-user-select:none;max-width:100%;max-height:100%;box-shadow:0 12px 48px rgba(0,0,0,.55),0 3px 10px rgba(0,0,0,.35);border-radius:3px}
+#scalerCanvas{display:block;cursor:crosshair;touch-action:none;user-select:none;-webkit-user-select:none;max-width:100%;max-height:100%;box-shadow:0 12px 48px rgba(0,0,0,.55),0 3px 10px rgba(0,0,0,.35);border-radius:3px;transform-origin:center center;will-change:transform}
 .sp-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;pointer-events:none}
 .sp-overlay.hide{display:none}
 .sp-hint-bar{position:absolute;bottom:0;left:0;right:0;background:rgba(17,22,46,.78);color:rgba(255,255,255,.9);font-size:12.5px;font-weight:600;padding:10px 20px;text-align:center;backdrop-filter:blur(8px);transition:opacity .2s}
@@ -339,9 +339,28 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .ref-known-title{font-size:11px;font-weight:700;color:var(--muted);margin-right:2px;white-space:nowrap}
 .ref-known button{padding:5px 9px;border:1.5px solid var(--line);border-radius:8px;background:#fff;font-size:11.5px;font-weight:600;cursor:pointer;color:var(--ink);transition:.12s;white-space:nowrap;font-family:inherit}
 .ref-known button:hover{border-color:var(--brand);background:var(--soft-2);color:var(--brand)}
-@media(max-width:700px){
-  .sp-side{width:100%;height:240px;border-left:none;border-top:1px solid var(--line)}
+/* ----- Zoom / desplazamiento y lupa del escalador ----- */
+.sp-zoom{position:absolute;right:12px;bottom:52px;display:none;flex-direction:column;gap:7px;z-index:6}
+.sp-zoom button{width:42px;height:42px;border:none;border-radius:11px;background:rgba(255,255,255,.95);color:var(--ink);font-size:20px;font-weight:800;cursor:pointer;box-shadow:0 3px 14px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;line-height:1;font-family:inherit}
+.sp-zoom button:active{background:#eef1ff;transform:scale(.94)}
+.sp-loupe{position:fixed;width:118px;height:118px;border-radius:50%;border:3px solid rgba(255,255,255,.92);box-shadow:0 6px 26px rgba(0,0,0,.45);display:none;pointer-events:none;z-index:60;overflow:hidden;background:#181c2e}
+.sp-loupe canvas{display:block}
+@media(max-width:760px){
+  /* Barra de herramientas: permitir salto de línea para que nada quede fuera de pantalla */
+  .sp-topbar{height:auto;min-height:52px;flex-wrap:wrap;padding:8px 10px;gap:7px;row-gap:8px}
+  .sp-topbar .sp-sep{display:none}
+  .sp-brand-sub{display:none}
+  .sp-tb-btn{min-height:42px;padding:9px 13px}
+  .tool-seg{width:100%}
+  .tool-seg button{flex:1;min-height:40px;padding:9px 8px}
+  /* Panel inferior: hoja deslizable, todo el contenido alcanzable */
   .sp-main{flex-direction:column}
+  .sp-canvas-area{flex:1 1 auto;min-height:42vh}
+  .sp-side{width:100%;height:auto;max-height:47vh;flex-shrink:0;border-left:none;border-top:1px solid var(--line);overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .sp-mlist{flex:none;overflow:visible;min-height:0}
+  .sp-side .btn{min-height:46px}
+  .sp-ibtn{font-size:20px;padding:7px 11px}
+  .sp-zoom button{width:46px;height:46px}
 }
 /* ----- Visibilidad en PDF / modo edición ----- */
 .pdf-vis{border:none;background:none;font-size:15px;cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1;transition:.12s;color:var(--brand)}
@@ -541,15 +560,15 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   <div class="sp-topbar">
     <div class="brand" style="cursor:default">
       <div class="logoslot" style="pointer-events:none"><span class="lg-al">AL</span><span class="lg-3d">3D</span></div>
-      <div><div style="font-size:14px;font-weight:700;color:var(--ink)">Escalador Pro</div><div style="font-size:10.5px;color:var(--muted)">Medición con cotas</div></div>
+      <div><div style="font-size:14px;font-weight:700;color:var(--ink)">Escalador Pro</div><div class="sp-brand-sub" style="font-size:10.5px;color:var(--muted)">Medición con cotas</div></div>
     </div>
-    <div style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
+    <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
     <input type="file" id="scaler-img-input" accept="image/*,.svg,.pdf" style="display:none" onchange="cargarImagenScaler(this)">
     <button class="sp-tb-btn" onclick="$('scaler-img-input').click()">📂 Cargar imagen</button>
     <button class="sp-tb-btn" id="sc-use-ai-btn" onclick="usarImagenAIEnScaler()" style="display:none">✨ Imagen de IA</button>
-    <div style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
+    <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
     <button class="sp-tb-btn" id="sc-btn-ref" onclick="scSetMode('ref')" disabled>📏 Calibrar escala</button>
-    <div style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
+    <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
     <div class="tool-seg">
       <button id="sc-btn-libre" onclick="scSetMeasMode('libre')" disabled>↗ Libre</button>
       <button id="sc-btn-h" onclick="scSetMeasMode('h')" disabled>↔ Horizontal</button>
@@ -557,7 +576,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
     </div>
     <div style="flex:1"></div>
     <span class="sp-calib-badge" id="sc-calib-badge"><span class="dot"></span><span id="sc-calib-txt">Sin calibrar</span></span>
-    <div style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
+    <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
     <button onclick="cerrarScaler()" style="border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.12s" onmouseover="this.style.background='var(--soft)'" onmouseout="this.style.background='none'" title="Volver al cotizador">×</button>
   </div>
   <!-- Main -->
@@ -576,6 +595,12 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
         <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(58,74,216,.4)" onclick="$('scaler-img-input').click()">📂 Seleccionar archivo</button>
       </div>
       <div class="sp-hint-bar hide" id="sp-hint-bar"></div>
+      <div class="sp-zoom" id="sp-zoom">
+        <button onclick="scZoomBy(1.5)" title="Acercar">+</button>
+        <button onclick="scZoomBy(1/1.5)" title="Alejar">−</button>
+        <button onclick="scZoomReset()" title="Ajustar a la pantalla" style="font-size:16px">⤢</button>
+      </div>
+      <div class="sp-loupe" id="sc-loupe"><canvas id="sc-loupe-cvs" width="118" height="118"></canvas></div>
     </div>
     <!-- Sidebar -->
     <aside class="sp-side">
@@ -2016,11 +2041,13 @@ const SC={
   refLine:null, refCm:0, nativePxPerCm:0,
   down:false, sp:null, cp:null,
   items:[], sel:null, nid:1, nc:0,
+  z:1, tx:0, ty:0, gesture:false,
 };
 const SC_COLORS=['#3a4ad8','#d32f2f','#2e7d32','#e65100','#6a1b9a','#0277bd','#558b2f','#4e342e'];
 
 function abrirScaler(){
   $('sc-use-ai-btn').style.display=(Q.aiFile&&Q.aiFile.url)?'flex':'none';
+  $('sp-zoom').style.display=SC.img?'flex':'none';
   if(!SC.img) $('sp-overlay').classList.remove('hide');
   $('scalermodal').classList.add('show');
   if(SC.img){setTimeout(()=>{scFitCanvas();scRender();},60);}
@@ -2050,6 +2077,7 @@ function scLoadImgSrc(src,name){
     scResetCalib(false);
     SC.items=[];SC.sel=null;SC.nid=1;SC.nc=0;
     $('sp-overlay').classList.add('hide');
+    $('sp-zoom').style.display='flex';
     scEnableTools(true);scFitCanvas();scRender();scUpdateList();
     scSetMode('ref');
     toast('Imagen cargada · '+(name||''),'ok');
@@ -2082,7 +2110,57 @@ function scFitCanvas(){
   if(h>maxH){h=maxH;w=h*iA;}
   SC.cvsW=cvs.width=Math.round(w);SC.cvsH=cvs.height=Math.round(h);
   SC.scaleFactor=SC.imgW/SC.cvsW;
+  scZoomReset();
 }
+/* ----- Zoom y desplazamiento (pan) ----- */
+function scApplyTransform(){
+  $('scalerCanvas').style.transform='translate('+SC.tx+'px,'+SC.ty+'px) scale('+SC.z+')';
+}
+function scZoomReset(){SC.z=1;SC.tx=0;SC.ty=0;scApplyTransform();}
+function scZoomBy(f){
+  SC.z=Math.max(1,Math.min(8,SC.z*f));
+  if(SC.z<=1){SC.tx=0;SC.ty=0;}
+  scApplyTransform();
+}
+function scGestureStart(e){
+  SC.gesture=true;SC.down=false;SC.sp=null;SC.cp=null;scHideLoupe();scRender();
+  const t=e.touches;
+  SC._gd=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY)||1;
+  SC._gm={x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2};
+  SC._gz=SC.z;SC._gtx=SC.tx;SC._gty=SC.ty;
+}
+function scGestureMove(e){
+  const t=e.touches;if(!t||t.length<2)return;
+  e.preventDefault();
+  const d=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+  const m={x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2};
+  SC.z=Math.max(1,Math.min(8,SC._gz*(d/SC._gd)));
+  SC.tx=SC._gtx+(m.x-SC._gm.x);
+  SC.ty=SC._gty+(m.y-SC._gm.y);
+  if(SC.z<=1){SC.tx=0;SC.ty=0;}
+  scApplyTransform();
+}
+/* ----- Lupa (para ver bajo el dedo al trazar) ----- */
+function scLoupe(e){
+  if(!e.touches||!e.touches.length)return;
+  const src=SC.cp||SC.sp;if(!src)return;
+  const lp=$('sc-loupe'),size=118,mag=2.6,t=e.touches[0];
+  let lx=t.clientX-size/2,ly=t.clientY-size-30;
+  if(ly<8)ly=t.clientY+34;
+  lx=Math.max(8,Math.min(window.innerWidth-size-8,lx));
+  lp.style.left=lx+'px';lp.style.top=ly+'px';lp.style.display='block';
+  const lc=$('sc-loupe-cvs'),lctx=lc.getContext('2d');
+  lctx.clearRect(0,0,size,size);lctx.save();
+  lctx.beginPath();lctx.arc(size/2,size/2,size/2,0,Math.PI*2);lctx.clip();
+  lctx.fillStyle='#181c2e';lctx.fillRect(0,0,size,size);
+  const sw=size/mag;
+  try{lctx.drawImage($('scalerCanvas'),src.x-sw/2,src.y-sw/2,sw,sw,0,0,size,size);}catch(_){}
+  lctx.strokeStyle='rgba(58,74,216,.95)';lctx.lineWidth=1.5;
+  lctx.beginPath();lctx.moveTo(size/2-15,size/2);lctx.lineTo(size/2+15,size/2);
+  lctx.moveTo(size/2,size/2-15);lctx.lineTo(size/2,size/2+15);lctx.stroke();
+  lctx.restore();
+}
+function scHideLoupe(){const lp=$('sc-loupe');if(lp)lp.style.display='none';}
 window.addEventListener('resize',()=>{
   if(SC.img&&$('scalermodal').classList.contains('show')){scFitCanvas();scRender();}
 });
@@ -2112,6 +2190,7 @@ function scRender(){
       const off=Math.min(SC.cvsW,SC.cvsH)*.045;
       scDimAnnot(ctx,SC.sp.x,SC.sp.y,ep.x,ep.y,{text:cm>0?scFmtCm(cm)+' cm':'…',color:SC_COLORS[SC.nc%SC_COLORS.length],sel:false,offset:off,dashed:true});
     }
+    [SC.sp,ep].forEach(p=>{ctx.save();ctx.fillStyle='#fff';ctx.strokeStyle='#3a4ad8';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,4.5,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();});
   }
 }
 function scDrawRef(ctx,a,b){
@@ -2165,11 +2244,19 @@ function scSnap(a,b){
   return b;
 }
 function scDown(e){
+  if(e.touches&&e.touches.length>=2){scGestureStart(e);return;}
+  if(SC.gesture)return;
   if(SC.mode!=='ref'&&SC.mode!=='measure')return;
   e.preventDefault();SC.down=true;SC.sp=scGetXY(e);SC.cp={...SC.sp};
+  scRender();scLoupe(e);
 }
-function scMove(e){if(!SC.down)return;e.preventDefault();SC.cp=scGetXY(e);scRender();}
+function scMove(e){
+  if(SC.gesture){scGestureMove(e);return;}
+  if(!SC.down)return;e.preventDefault();SC.cp=scGetXY(e);scRender();scLoupe(e);
+}
 function scUp(e){
+  if(SC.gesture){if(!e.touches||e.touches.length===0)SC.gesture=false;scHideLoupe();return;}
+  scHideLoupe();
   if(!SC.down||!SC.sp)return;
   e.preventDefault();SC.down=false;
   const raw=e.changedTouches?scGetXY(e):(SC.cp||scGetXY(e));
@@ -2188,7 +2275,7 @@ function scUp(e){
   }
   SC.sp=null;SC.cp=null;scRender();
 }
-function scLeave(e){if(SC.down){SC.cp=scGetXY(e);scRender();}}
+function scLeave(e){if(SC.down){SC.cp=scGetXY(e);scRender();}scHideLoupe();}
 
 function scConfirmCalib(){
   const v=parseFloat($('sc-ref-cm-input').value);
