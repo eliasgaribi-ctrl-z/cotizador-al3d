@@ -1,0 +1,2087 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cotizador AL3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAgWSURBVHhe7Zp5bBT3FcfzR6WqiaJWFUTEhThAAojga21jMDgYDFFIMBRQ8YUNtndtrkAUQlGhCWAlDTWFGuwQjiohKFSNOdSoNI45hFSXkgS7hmAUDmOvz8X2ru9z5/hUv1ls1uuDBWxk1fOVnmb37cxv9n3m/d77zew+papqmKqqKcPVnlJVdTfDWAJAiqtzOEkHoAPQAegAdACuzuEkHYAOQAegA9ABuDqHk3QAOgAdgA5gSAOorq6mvLzc1T1gGvIAsrKyOHLkSDefJEm0trZ2vZdlmYaGBm37sBryAM6ePcuxY8e6+VJ2pDB3ThiNDY3a+ytXrjAtcCo3frzRbT93NEAAVHEdXJ0DIlcAqqqy5NeL8RzzAlevXtV8ubm5jH9xLAXXrjkd6Z4eC0BjQx3/OFdK6uEStqWXsO9oCXk/VADt9/ZQqKmppaiwGmhzOdo9uQKqulvF9KBpGoDjmZma7795eUyaMJGCggKnI93TIwLo4KszZsLXVuIX2Yp/jErAcvCLUghaXs+m1BIu5ZrZs8NM0PhqvJ+3EbPATHmp1XWgB8oVwL9zcpgy+RW8p3ix7f33Nd8TBtDGrsNF+EY0MyMB5qyCOclql81OhsBYCFtdRIB3IVN+AYbR4PlTiHi9FEVtcR2wX7kCyEjPYF7YXLZu2cqi8IWaLz8//0kBkNj3eTFeyzq0QJ0D7wKQBGHJLcT/2U7C3kaCfSswjIJAT5VxT9s5kGamubmWO7er+Op4GXt3lvCXjFJ+vH631zriCsCYkMiaVavJzs7Gx8ub9vZ2Cq4VPBkAl/IqMUQ2EZrUe/CdAF5b00z8ng6SDsGyTZX4jWoiYIwjE/xGtzDP34K/p42Xnm1l/DMSY39mZ8pzNj7cWoSidM8QZwB2u52ZwTO0LLBUVvLy+Je4fv06t27dGnwAqtJO0rZKpsb1HXwngLmrWlj5pzYS90HSQYmweSX4/BICPMHwK/AaAT4jwd8DAl5QCfBU8POA0T+x8947xSLUrvM6AyguLsbPx5fQV2dp6T/uxbGcOnWK4qKiwQdw804NwXGNfab+fYPQRDuROxowfQzGDIjbWcv0KWX4jmjB4FFP0KQqQgLLmDb5Ln7PteM/WoBQ8B8DY59u4Xy26CQOOQM4k31GCzQqMoqYqGj8/QykbN9B4e1CzS9APKzcBnAiy4IhSuol4J422ySmQQMrUpswpSskH4QVqY0sWVdOxG8trEitJTGjifg9tbwZXYTBo7ELwoSfQ8LSSq3TCDkD2PmHj5gaEKitBYR2bN/OG6/PJy83l8kTJ2EyGtmwfgO7d7v/e6/bADK+sGCI7hlsXxZqUpmb3Ej4RhtLt9hISLOTdBBM+yExHRL2OrarPlUIjzNrmSCmg68HTH+5lprqeu28zgBE8Vu7Zk3Xd7pw7htmzwrl3NlsFr05h7BZQUw1TCYq8jdd+zxIbgNI+9yi9XvXQPszUQ9mGSEkXmbB27UY98kkpNHNRJ0w7m8jJMjRLUQmeI1qouCqY83gDKCurg6UNiqqZb67JlFRZae1pZYaWyvZOVbOXrRx4ZIVq80Bzx25DeCzkyID5B5BumOiboQltbBiV6sWsCsE0S0WJVbiO7JDA+A9qpGCH3oCEDqdA0GxMhMXy8yIV/lXPtwpVwmMA98oeGUZJH8IDU2K07fvW24DyPm+ioDoNq3IuQb4YINQYwfRHzRhFOnvAkBMi4jNNRg8mvAdBcETbVitPadAY7NC4HKZZZsVzn1rZ+m7Cos3OrIheKXC0dMSn2RKTFqicOq85BJB73IbQH19A/NX2wgxPgoAlVmJCkt+V48po38AE54FU4ToAo5W6AzAWq+wPrWD8985gks7JhGSqPB1jp2ZCTIV1eKqq8xbLbM/c4ABiBubnYfK8ItSCVvVM8C+DW0KiHowb3UjCXsc6wPXKbBwRQU+I2TGPdPChTOiCzjkOgUcd56O7Xv7ZWYnKVy4bCc4XuZGsQNA+Nuylgnu6CEAQHmlldAEq1tZECauehIELpeYFttE4HKFkERYuNGGKV3CeA+CgJGY3kKQVw3PP6Wwea1YCDlaoFBPAJB/Q2ZDqsTMBIUv/ilzq0TWpsYNswPAG29JfHJ8EACIwU9mleC9rLXf5bDIkOB4CFlZy2cnzFy+Ukb6UTPBcXUExKgseKeOlbuaSdynEp0GM8Pv4DPSwgdbiumwN3c7Y28AvrkoERQnaVCzLkoUljlqw817AOavGzQAQnYO/LUY34gmgvu4GzTEwGtJFr7NK3NKWZnLV8pZuaUU/8h6/CJszDYVc+jv5ZzILKTULKr+g2+GOtXapvD7j2VCTY6COCP+PoAFG+TBBCAkcfp8CQvXVWjPA8QCyT9GPA+wMz22lk2pxZRViIcgvUhpJveqhb+dLuP7/CptrP7kDECSVMyVMvX3WlzmGYmpsQpfZtt51ahwu/R+Ddj/Zf/jduoRATjU1FjH1xdK2fNpCR8dLOHIyVKu37R0m8OPK2cAInifCDsHjosOoXL4lJgKCifPCQAyt0skLDUygbGy9pk7eiwA3dWZ6gMrZwBtHQpL3pWZmaCy7YCjBcZsdawDxNOoBevFZwreEYpWKN3RAAIYHLnWgJtmGWOKRKhJJn6bxC2zzF2rWB/YWbtT5q0/SmT/x72rLzTkAfT2u4DINlEEu2edeN1p7mvIA7BarVgsoq4MjoY8gMGWDkAHoAPQAegAXJ3DSToAHYAOQAegA3B1DifpAHQAOgAdgPv/Jvg/1P8AwztWIiZp2tcAAAAASUVORK5CYII=">
+<style>
+:root{
+  --bg:#e8eaf4; --card:#ffffff; --ink:#161c2e; --muted:#7f88a0; --line:#e0e4f0;
+  --brand:#3a4ad8; --brand-2:#5566ef; --brand-strong:#2535c4; --navy:#171d4a;
+  --soft:#f2f4fb; --soft-2:#eaedfa;
+  --green:#15a06a; --green-bg:#e5f6ee; --amber:#cf8a12; --amber-bg:#fbf1dd;
+  --red:#d8453f; --red-bg:#fbe9e8; --gray:#7c8499; --gray-bg:#eef0f5;
+  --r:18px; --r-sm:11px; --r-xs:7px;
+  --sh:0 2px 4px rgba(23,29,74,.04),0 10px 36px rgba(23,29,74,.09);
+  --sh-sm:0 1px 3px rgba(23,29,74,.05),0 4px 14px rgba(23,29,74,.07);
+  --brand-grd:linear-gradient(135deg,#3a4ad8 0%,#5c6df0 100%);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(130,138,160,.22);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:rgba(58,74,216,.32)}
+body{
+  font-family:'Inter','Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg);
+  background-image:
+    radial-gradient(ellipse 80% 55% at 15% 0%,rgba(58,74,216,.09) 0,transparent 60%),
+    radial-gradient(ellipse 65% 50% at 90% 100%,rgba(92,109,240,.07) 0,transparent 60%);
+  background-attachment:fixed;
+  color:var(--ink);line-height:1.5;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+}
+body::before{
+  content:'';position:fixed;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,#3a4ad8 0%,#8090f8 50%,#3a4ad8 100%);
+  z-index:200;
+}
+
+/* ---------- Topbar ---------- */
+.topbar{background:rgba(255,255,255,.93);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid rgba(224,228,240,.7);position:sticky;top:3px;z-index:30;box-shadow:0 1px 0 rgba(255,255,255,.9),var(--sh-sm)}
+.topbar-in{max-width:1180px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px;cursor:pointer}
+.brand svg{width:50px;height:32px}
+.logoslot{display:flex;align-items:center;gap:1px;padding:7px 12px;border:1.5px dashed var(--line);border-radius:10px;background:var(--soft);transition:.15s}
+.logoslot:hover{border-color:var(--brand);background:var(--soft-2)}
+.logoslot .up{font-size:10px;font-weight:600;color:var(--muted);margin-left:7px;border-left:1px solid var(--line);padding-left:7px;line-height:1.1}
+.lg-al{font-size:17px;font-weight:900;color:#1e2340;letter-spacing:.3px}
+.lg-3d{font-size:17px;font-weight:900;color:var(--brand);letter-spacing:.3px}
+.logoimg{height:38px;width:auto;display:block;max-width:200px;object-fit:contain}
+.brand .t{font-size:15px;font-weight:700;letter-spacing:.1px}
+.brand .t small{display:block;font-size:10.5px;font-weight:500;color:var(--muted);letter-spacing:.2px}
+.rolewrap{display:flex;align-items:center;gap:10px}
+.folio{font-size:12px;color:var(--brand);font-weight:700;background:var(--soft-2);padding:6px 13px;border-radius:10px;border:1px solid rgba(58,74,216,.14);letter-spacing:.3px}
+.seg{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:11px;padding:3px;gap:2px}
+.seg button{border:none;background:none;padding:7px 14px;font-size:12.5px;font-weight:600;color:var(--muted);border-radius:8px;cursor:pointer;transition:.15s}
+.seg button.on{background:#fff;color:var(--brand);box-shadow:var(--sh-sm)}
+
+/* ---------- Layout ---------- */
+.wrap{max-width:1180px;margin:0 auto;padding:26px 24px 70px;display:grid;grid-template-columns:1fr 385px;gap:24px;align-items:start}
+@media(max-width:920px){.wrap{grid-template-columns:1fr}}
+@media(max-width:560px){
+  .wrap{padding:18px 14px 60px}
+  .grid2,.grid3{grid-template-columns:1fr}
+  .card-b{padding:16px}
+  .topbar-in{padding:10px 14px}
+  .neto .amt{font-size:24px}
+}
+
+.card{background:rgba(255,255,255,.98);border:1px solid rgba(224,228,240,.7);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;transition:box-shadow .2s}
+.card+.card{margin-top:20px}
+.card-h{padding:20px 22px 0;display:flex;align-items:center;justify-content:space-between}
+.card-h h3{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--brand);display:flex;align-items:center;gap:8px}
+.card-h h3::before{content:'';display:inline-block;width:3px;height:14px;background:var(--brand-grd);border-radius:2px;flex-shrink:0}
+.card-b{padding:18px 22px 22px}
+
+label{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin-bottom:5px;letter-spacing:.05px}
+input,select,textarea{width:100%;border:1.5px solid var(--line);border-radius:var(--r-sm);padding:10px 13px;font-size:14px;color:var(--ink);background:#fcfdff;outline:none;font-family:inherit;transition:.15s}
+input:focus,select:focus,textarea:focus{border-color:var(--brand);background:#fff;box-shadow:0 0 0 3.5px rgba(58,74,216,.11)}
+input:disabled,select:disabled,textarea:disabled{background:#f4f5f9;color:#9aa1b3;cursor:not-allowed}
+textarea{resize:vertical;min-height:46px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.fld{margin-bottom:13px}.fld:last-child{margin-bottom:0}
+
+/* ---------- Partidas ---------- */
+.empty{text-align:center;color:var(--muted);font-size:13px;padding:30px 10px;border:1.5px dashed var(--line);border-radius:var(--r-sm);background:var(--soft)}
+.partida{border:1px solid rgba(224,228,240,.8);border-left:3px solid var(--brand);border-radius:var(--r-sm);padding:16px;margin-bottom:14px;background:#fff;box-shadow:var(--sh-sm);position:relative;transition:box-shadow .15s}
+.partida:hover{box-shadow:0 2px 8px rgba(23,29,74,.06),0 8px 28px rgba(23,29,74,.1)}
+.partida-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.pnum{display:flex;align-items:center;gap:8px}
+.pnum .n{width:26px;height:26px;border-radius:8px;background:var(--brand-grd);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 6px rgba(58,74,216,.25)}
+.tipo-seg{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:9px;padding:3px;flex-wrap:wrap;gap:2px}
+.tipo-seg button{border:none;background:none;padding:5px 10px;font-size:11.5px;font-weight:600;color:var(--muted);border-radius:7px;cursor:pointer;transition:.15s}
+.tipo-seg button.on{background:var(--brand-grd);color:#fff;box-shadow:0 2px 10px rgba(58,74,216,.38);animation:chipPop .22s cubic-bezier(.34,1.56,.64,1)}
+.del{border:none;background:none;color:#d0d5e5;font-size:19px;cursor:pointer;line-height:1;padding:3px 6px;border-radius:7px;transition:.12s}
+.del:hover{color:var(--red);background:var(--red-bg)}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.chip{padding:6px 13px;border:1.5px solid var(--line);border-radius:20px;font-size:12.5px;font-weight:600;cursor:pointer;background:#fff;color:#566173;transition:.15s;user-select:none}
+.chip small{font-weight:700;color:var(--brand)}
+.chip.on{border-color:var(--brand-strong);background:var(--brand-grd);color:#fff;box-shadow:0 3px 14px rgba(58,74,216,.40);animation:chipPop .22s cubic-bezier(.34,1.56,.64,1)}
+.chip.on small{color:rgba(255,255,255,.88)}
+.chip:hover:not(.on){border-color:rgba(58,74,216,.28);background:var(--soft-2)}
+.chip:focus-visible{outline:2.5px solid var(--brand);outline-offset:2px}
+@keyframes chipPop{0%{transform:scale(.84)}65%{transform:scale(1.07)}100%{transform:scale(1)}}
+.hintnote{font-size:11.5px;color:var(--muted);background:linear-gradient(90deg,var(--soft),rgba(242,244,251,.3));border-left:2px solid rgba(58,74,216,.2);border-radius:0 7px 7px 0;padding:6px 11px;display:inline-block}
+
+.switch{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;user-select:none}
+.tg{width:42px;height:24px;background:#cdd2e0;border-radius:13px;position:relative;transition:.2s;flex-shrink:0}
+.tg.on{background:var(--brand-grd)}
+.tg::after{content:'';width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:3px;left:3px;transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.tg.on::after{left:21px}
+
+.pline{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px dashed rgba(224,228,240,.9)}
+.pline .formula{font-size:11.5px;color:var(--muted)}
+.pline .formula b{color:var(--ink);font-weight:700}
+.pline .lt{font-size:18px;font-weight:800;color:var(--brand)}
+.addbtn{width:100%;padding:13px;border:1.5px dashed rgba(58,74,216,.35);border-radius:var(--r-sm);background:linear-gradient(135deg,rgba(58,74,216,.04),rgba(92,109,240,.07));color:var(--brand);font-size:13.5px;font-weight:700;cursor:pointer;transition:.15s}
+.addbtn:hover{background:linear-gradient(135deg,rgba(58,74,216,.09),rgba(92,109,240,.13));border-color:var(--brand)}
+.addbtn:disabled{opacity:.45;cursor:not-allowed}
+
+/* Duplicate button */
+.dup{border:none;background:none;color:#c4c9d8;font-size:16px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px;margin-right:2px}
+.dup:hover{color:var(--brand);background:var(--soft-2)}
+/* Drag & drop reorder */
+.drag-handle{cursor:grab;color:#c4c9d8;font-size:18px;padding:0 5px 0 0;user-select:none;line-height:1;display:inline-flex;align-items:center}
+.drag-handle:active,.drag-handle:hover{cursor:grabbing;color:var(--brand)}
+.partida.drag-over{border-color:var(--brand);border-style:dashed;background:linear-gradient(180deg,#f3f5ff,#eef0fe)}
+.partida.dragging{opacity:.35}
+/* Auto-counter for letter count */
+.autoctr{display:flex;align-items:center;gap:6px;margin-top:5px}
+.autoctr input{font-size:12px;padding:5px 8px;flex:1}
+.autoctr .cnt{font-size:11px;color:var(--brand);font-weight:700;white-space:nowrap;min-width:42px;text-align:right}
+
+/* ---------- Resumen (sticky) ---------- */
+.side{position:sticky;top:calc(3px + 78px)}
+.sum{background:rgba(255,255,255,.98);border:1px solid rgba(224,228,240,.7);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
+.sum-rows{padding:18px 20px 8px}
+.srow{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:#4b5269;padding:7px 0}
+.srow.ivt{border-top:1px dashed var(--line);margin-top:5px}
+.srow .v{font-weight:700;color:var(--ink)}
+.srow.subtotal{font-size:16.5px;font-weight:800;color:var(--ink);padding:8px 0 10px}
+.srow.subtotal .v{font-size:21px;font-weight:900;color:var(--brand-strong);letter-spacing:.2px}
+.neto{background:linear-gradient(135deg,#1c2456 0%,var(--navy) 55%,#242d6e 100%);color:#fff;padding:18px 20px;display:flex;justify-content:space-between;align-items:center}
+.neto .lab{font-size:13px;font-weight:700;opacity:.9}
+.neto .neto-calc{font-size:11px;opacity:.55;font-weight:500;margin-top:2px}
+.neto .amt{font-size:28px;font-weight:900;letter-spacing:.2px;font-variant-numeric:tabular-nums}
+.anti{padding:16px 20px;border-top:1px solid var(--line)}
+
+/* ---------- Autorización ---------- */
+.auth{padding:18px 20px;border-top:1px solid var(--line);background:var(--soft)}
+.statusrow{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}
+.statusrow .lab{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--muted)}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px}
+.badge .dot{width:7px;height:7px;border-radius:50%}
+.badge.borrador{background:var(--gray-bg);color:var(--gray)} .badge.borrador .dot{background:var(--gray)}
+.badge.pendiente{background:var(--amber-bg);color:var(--amber)} .badge.pendiente .dot{background:var(--amber)}
+.badge.autorizada{background:var(--green-bg);color:var(--green)} .badge.autorizada .dot{background:var(--green)}
+.badge.rechazada{background:var(--red-bg);color:var(--red)} .badge.rechazada .dot{background:var(--red)}
+
+.btn{width:100%;padding:13px;border-radius:var(--r-sm);font-size:14px;font-weight:700;border:none;cursor:pointer;transition:.16s;display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.05px}
+.btn+.btn{margin-top:9px}
+.btn-pri{background:var(--brand-grd);color:#fff;box-shadow:0 2px 10px rgba(58,74,216,.28)}.btn-pri:hover{background:linear-gradient(135deg,#2e3dbf,#4d5ee8);box-shadow:0 4px 16px rgba(58,74,216,.38)}
+.btn-ok{background:linear-gradient(135deg,#108f5a,var(--green));color:#fff;box-shadow:0 2px 8px rgba(21,160,106,.22)}.btn-ok:hover{filter:brightness(1.06)}
+.btn-dgr{background:#fff;color:var(--red);border:1.5px solid rgba(216,69,63,.3)}.btn-dgr:hover{background:var(--red-bg);border-color:var(--red)}
+.btn-gho{background:#fff;color:var(--brand);border:1.5px solid var(--line)}.btn-gho:hover{border-color:var(--brand);background:var(--soft-2)}
+.btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+.authnote{font-size:12.5px;color:#4b5269;line-height:1.55;background:#fff;border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 13px;margin-bottom:10px}
+.authnote b{color:var(--ink)}
+.mini{font-size:11.5px;color:var(--muted);margin-top:9px;text-align:center;line-height:1.5}
+
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(90px);background:#11162e;color:#fff;padding:13px 24px;border-radius:13px;font-size:14px;font-weight:600;z-index:100;transition:transform .3s cubic-bezier(.2,.8,.2,1);box-shadow:0 8px 40px rgba(0,0,0,.28)}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.ok{background:linear-gradient(135deg,#108f5a,var(--green))} .toast.err{background:linear-gradient(135deg,#bf3730,var(--red))}
+
+/* ----- Cola de autorización ----- */
+.queue-list{border:1.5px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-bottom:11px}
+.queue-empty{font-size:12.5px;color:var(--muted);text-align:center;padding:16px 10px;background:var(--soft)}
+.queue-item{display:flex;align-items:center;gap:9px;padding:10px 13px;cursor:pointer;border-bottom:1px solid var(--line);transition:.12s;background:#fff}
+.queue-item:last-child{border-bottom:none}
+.queue-item:hover:not(.active){background:var(--soft)}
+.queue-item.active{background:var(--soft-2);border-left:3px solid var(--brand);padding-left:10px}
+.qi-dot{width:8px;height:8px;border-radius:50%;border:2px solid var(--brand);flex-shrink:0;margin-top:2px}
+.queue-item.active .qi-dot{background:var(--brand)}
+.qi-body{flex:1;min-width:0}
+.qi-folio{font-size:10px;font-weight:800;color:var(--brand);letter-spacing:.4px;text-transform:uppercase}
+.qi-name{font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qi-fecha{font-size:10.5px;color:var(--muted)}
+.qi-total{font-size:12px;font-weight:800;color:var(--ink);white-space:nowrap}
+.auth-divider{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin:2px 0 11px;border-top:1px solid var(--line);padding-top:11px}
+.descuento-info{font-size:12px;color:var(--green);font-weight:700;margin-top:4px;min-height:16px}
+.auth-adj{border-top:1px solid var(--line);padding:11px 20px 4px;background:var(--green-bg)}
+.auth-adj .adj-label{font-size:12px;color:var(--green);font-weight:600}
+.auth-adj .adj-amt{font-size:18px;font-weight:800;color:var(--green)}
+.auth-adj .adj-desc{font-size:11.5px;color:var(--green);padding-bottom:10px}
+
+/* ----- IA ----- */
+.ai-btn{width:100%;padding:12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 10px rgba(58,74,216,.25);transition:.16s}
+.ai-btn:hover{background:linear-gradient(135deg,#2e3dbf,#4d5ee8);box-shadow:0 4px 16px rgba(58,74,216,.35)}
+.modal-bg{position:fixed;inset:0;background:rgba(17,22,46,.6);display:none;align-items:center;justify-content:center;z-index:60;padding:18px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.modal-bg.show{display:flex}
+.modal{background:#fff;border-radius:20px;max-width:460px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.28);overflow:hidden}
+.modal-h{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),#fff)}
+.modal-h b{font-size:15px;font-weight:700}
+.modal-h button{border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:.12s}
+.modal-h button:hover{background:var(--soft);color:var(--ink)}
+.modal-b{padding:18px 20px 20px;max-height:80vh;overflow-y:auto}
+.ai-status{font-size:12.5px;margin-top:11px;min-height:16px;font-weight:600}
+.ai-status.err{color:var(--red)} .ai-status.ok{color:var(--green)} .ai-status.work{color:var(--brand)}
+.ai-link{color:var(--brand);font-weight:600;text-decoration:none}.ai-link:hover{text-decoration:underline}
+details.ai-cfg{margin-bottom:13px;border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 12px;background:var(--soft)}
+details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-weight:700}
+.ai-tag{display:inline-block;font-size:9.5px;font-weight:700;color:var(--brand);background:#eef0fe;border-radius:5px;padding:1px 5px;margin-left:5px;vertical-align:middle;text-transform:none;letter-spacing:0}
+.ai-prev-big{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--soft);padding:12px;margin-bottom:14px}
+.ai-prev-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
+.ai-prev-head .ttl{font-size:11.5px;font-weight:700;color:var(--brand);line-height:1.4}
+.ai-prev-head .x{border:none;background:none;color:#c4c9d8;font-size:18px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px;flex-shrink:0;transition:.12s}
+.ai-prev-head .x:hover{color:var(--red);background:var(--red-bg)}
+.ai-prev-img{display:block;width:100%;max-height:440px;object-fit:contain;border-radius:9px;border:1px solid var(--line);background:repeating-conic-gradient(#f4f5f9 0% 25%,#fff 0% 50%) 50%/16px 16px;cursor:zoom-in}
+.ai-prev-pdf{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:130px;border-radius:9px;border:1.5px dashed var(--red);background:var(--red-bg);color:var(--red);font-weight:700;font-size:13px;cursor:pointer;text-align:center;padding:10px}
+.ai-prev-big .sub{font-size:11px;color:var(--muted);margin-top:8px;text-align:center}
+.lightbox-close{position:fixed;top:20px;right:24px;width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:70;transition:.12s}
+.lightbox-close:hover{background:rgba(255,255,255,.28)}
+.lightbox-img{max-width:94vw;max-height:92vh;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.5);display:block}
+.lightbox-iframe{width:88vw;height:90vh;border:0;border-radius:8px;background:#fff}
+/* ----- Historial ----- */
+.btn-hist{background:none;border:1.5px solid var(--line);border-radius:10px;padding:6px 13px;font-size:12px;font-weight:700;color:var(--brand);cursor:pointer;transition:.15s;white-space:nowrap}
+.btn-hist:hover{background:var(--soft-2);border-color:var(--brand)}
+.hist-panel{background:#fff;border-radius:20px;max-width:720px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.3);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.hist-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),#fff);border-radius:20px 20px 0 0;flex-shrink:0}
+.hist-body{overflow-y:auto;flex:1}
+.hist-empty{text-align:center;color:var(--muted);font-size:13px;padding:50px 20px}
+.hentry{border-bottom:1px solid var(--line);padding:18px 20px}
+.hentry:last-child{border-bottom:none}
+.hentry-top{display:flex;align-items:flex-start;gap:13px;margin-bottom:12px}
+.hentry-img{width:96px;height:96px;object-fit:cover;border-radius:11px;border:1px solid var(--line);cursor:zoom-in;flex-shrink:0;background:repeating-conic-gradient(#f4f5f9 0% 25%,#fff 0% 50%) 50%/12px 12px}
+.hentry-img-ph{width:96px;height:96px;border-radius:11px;border:1.5px dashed var(--line);background:var(--soft);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:30px;flex-shrink:0}
+.hentry-meta{flex:1;min-width:0}
+.hentry-folio{font-size:10px;font-weight:800;color:var(--brand);letter-spacing:.5px;text-transform:uppercase}
+.hentry-name{font-size:14px;font-weight:800;color:var(--ink);margin:3px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hentry-sub{font-size:11.5px;color:var(--muted);line-height:1.6}
+.hentry-auth{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;background:var(--green-bg);color:var(--green);padding:3px 11px;border-radius:20px;margin-top:6px}
+.hentry-del{border:none;background:none;color:#ccc;cursor:pointer;font-size:16px;padding:5px 7px;border-radius:7px;transition:.12s;align-self:flex-start;flex-shrink:0}
+.hentry-del:hover{color:var(--red);background:var(--red-bg)}
+.htable{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:10px}
+.htable td{padding:5px 7px;border-bottom:1px solid var(--line);color:#4b5269;vertical-align:top}
+.htable td:first-child{width:28px;font-weight:800;color:var(--brand);text-align:center}
+.htable td:last-child{text-align:right;font-weight:700;color:var(--ink);white-space:nowrap}
+.htable tr:last-child td{border-bottom:none}
+.hentry-total{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:800;padding:9px 7px 0;border-top:1.5px solid var(--line);color:var(--ink)}
+/* ----- Dirección raw del cliente ----- */
+.dir-raw-actions{display:flex;gap:8px;margin-top:7px}
+.btn-maps{flex:1;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff;color:var(--brand);font-size:12px;font-weight:700;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:5px}
+.btn-maps:hover{border-color:var(--brand);background:var(--soft-2)}
+.btn-maps.copy{color:var(--green);border-color:rgba(21,160,106,.25)}.btn-maps.copy:hover{background:var(--green-bg);border-color:var(--green)}
+/* ----- AI preview en sidebar ----- */
+.side #aiPreview:not(:empty){margin-bottom:14px}
+.side .ai-prev-big{border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
+.side .ai-prev-img{max-height:220px;cursor:zoom-in}
+.side .ai-prev-head .ttl{font-size:10.5px}
+/* ----- Input monetario con prefijo $ ----- */
+.inp-money{position:relative;display:block}
+.inp-money::before{content:'$';position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-weight:700;font-size:13px;pointer-events:none;z-index:1}
+.inp-money input{padding-left:26px}
+/* ----- Auth por partida ----- */
+.ia-row{border:1px solid var(--line);border-radius:8px;margin-bottom:5px;overflow:hidden;background:#fff}
+.ia-hdr{display:flex;align-items:center;gap:7px;padding:8px 10px;cursor:pointer;user-select:none;transition:.1s}
+.ia-hdr:hover{background:var(--soft)}
+.ia-num{width:20px;height:20px;border-radius:6px;background:var(--brand-grd);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ia-desc{flex:1;font-size:11px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.ia-calc{font-size:10.5px;color:var(--muted);white-space:nowrap;font-weight:600}
+.ia-arrow{font-size:11px;color:var(--brand);flex-shrink:0}
+.ia-body{padding:9px 10px 10px;border-top:1px solid var(--line);background:var(--soft)}
+.ia-adj{font-size:11px;color:var(--green);font-weight:600;margin-top:4px;min-height:14px}
+.ia-adj.inc{color:var(--amber)}
+.ia-total{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700;padding:8px 10px;background:var(--soft-2);border-radius:8px;margin-top:6px;border:1px solid var(--line);margin-bottom:10px}
+/* ----- Barra de progreso ----- */
+.prog-box{padding:10px 20px 13px;border-bottom:1px solid var(--line)}
+.prog-label{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.prog-label span:first-child{font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+#prog-pct{font-size:12.5px;font-weight:900;color:var(--brand)}
+.prog-track{height:7px;background:var(--line);border-radius:10px;overflow:hidden}
+#prog-bar{height:100%;background:linear-gradient(90deg,#f59e0b,#fb923c);border-radius:10px;transition:width .5s cubic-bezier(.22,1,.36,1),background .5s;width:0%}
+/* ----- Escalador de imagen ----- */
+.scaler-panel{background:#fff;border-radius:20px;max-width:860px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.35);max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
+.scaler-head{display:flex;align-items:flex-start;justify-content:space-between;padding:14px 18px 12px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),#fff);flex-shrink:0}
+.scaler-body{padding:12px 14px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px}
+.scaler-hint{font-size:12.5px;color:var(--ink);background:var(--soft-2);border-radius:9px;padding:9px 13px;line-height:1.55}
+.sc-steps{display:flex;gap:7px;margin-top:7px}
+.sc-step{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 11px;border-radius:20px;background:var(--soft);color:var(--muted);border:1.5px solid var(--line);transition:.2s}
+.sc-step.active{background:var(--brand-grd);color:#fff;border-color:var(--brand)}
+.sc-step.done{background:#e8f9ee;color:var(--green);border-color:#b6e8ca}
+.scaler-canvas-wrap{background:#111;border-radius:11px;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:140px;flex:1 1 auto}
+#scalerCanvas{display:block;max-width:100%;max-height:54vh;cursor:crosshair;touch-action:none;user-select:none;-webkit-user-select:none}
+.ref-known{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+.ref-known-title{font-size:11px;font-weight:700;color:var(--muted);margin-right:2px}
+.ref-known button{padding:5px 10px;border:1.5px solid var(--line);border-radius:8px;background:#fff;font-size:11.5px;font-weight:600;cursor:pointer;color:var(--ink);transition:.12s;white-space:nowrap}
+.ref-known button:hover{border-color:var(--brand);background:var(--soft-2);color:var(--brand)}
+.ref-confirm-row{display:flex;gap:8px;align-items:center}
+.medida-row{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--soft);border-radius:8px;border:1px solid var(--line);animation:chipPop .18s cubic-bezier(.34,1.56,.64,1)}
+.medida-cm{font-size:15px;font-weight:800;color:var(--brand);min-width:68px}
+.btn-med-use{flex:1;padding:7px 10px;background:var(--brand-grd);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;transition:.15s}
+.btn-med-use:hover{opacity:.88;transform:scale(.98)}
+.btn-med-del{border:none;background:none;color:#ccc;cursor:pointer;font-size:17px;padding:3px 7px;border-radius:6px;line-height:1;transition:.12s}
+.btn-med-del:hover{color:var(--red);background:var(--red-bg)}
+.btn-scaler-open{display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 14px;border:1.5px solid #15a06a;border-radius:var(--r-sm);background:#fff;color:#1c6e3d;font-size:12.5px;font-weight:700;cursor:pointer;transition:.16s;white-space:nowrap}
+.btn-scaler-open:hover{background:#e8f9ee;border-color:#1c6e3d}
+.scaler-ai-row{display:flex;gap:8px;margin-bottom:14px}
+.scaler-ai-row .ai-btn{flex:1;margin-bottom:0}
+@media(max-width:600px){
+  .modal-bg#scalermodal{padding:0;align-items:flex-end}
+  .scaler-panel{border-radius:20px 20px 0 0;max-height:96vh}
+  #scalerCanvas{max-height:42vh}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-in">
+    <div class="brand" id="brandLogo" onclick="pickLogo()" title="Clic para subir tu logotipo real (PNG o SVG)">
+      <div class="logoslot" id="logoslot"><svg width="28" height="18" viewBox="0 0 46 28" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><circle cx="34" cy="13" r="11" fill="#2f39d6"/><circle cx="13" cy="14" r="13" fill="#4a63f0"/><circle cx="25" cy="15.5" r="8" fill="#7b9bf7"/></svg><span style="display:inline-block;width:1.5px;height:20px;background:#1e2340;margin:0 7px"></span><span class="lg-al">AL</span><span class="lg-3d">3D</span><span class="up">subir<br>logo</span></div>
+      <div class="t">Cotizador <small>Anuncios Luminosos 3D</small></div>
+    </div>
+    <div class="rolewrap">
+      <button class="btn-hist" onclick="abrirHistorial()">📋 Historial</button>
+      <span class="folio" id="folio">COT-0001</span>
+      <div class="seg" id="roleseg" title="Cambia de rol para ver el flujo de autorización">
+        <button class="on" data-rol="vendedor" onclick="setRol('vendedor')">Vendedor</button>
+        <button data-rol="autorizador" onclick="setRol('autorizador')">Autorizador</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- ===== IZQUIERDA: FORM ===== -->
+  <section>
+    <div class="card">
+      <div class="card-h"><h3>Datos del proyecto</h3></div>
+      <div class="card-b">
+        <div class="grid2">
+          <div class="fld"><label>Cliente</label><input id="f-cli" placeholder="Nombre del cliente" oninput="upd('cliente',this.value)"></div>
+          <div class="fld"><label>Teléfono</label><input id="f-tel" placeholder="33 0000 0000" oninput="upd('tel',this.value)"></div>
+        </div>
+        <div class="fld"><label>Proyecto</label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" oninput="upd('proy',this.value)"></div>
+        <div class="fld">
+          <label>Dirección como la compartió el/la cliente</label>
+          <textarea id="f-dir-raw" placeholder="Pega aquí la dirección tal como te la mandaron&#10;Ej. Urban Center en Lopez Mateos Sur&#10;Ej. Mártires de Cananea #60, Centro, El Salto, Jalisco" rows="2" oninput="updDirRaw(this.value)"></textarea>
+          <div class="dir-raw-actions" id="dir-raw-actions" style="display:none">
+            <button class="btn-maps" onclick="abrirDirRaw()">📍 Abrir en Maps</button>
+            <button class="btn-maps copy" onclick="copiarLinkDirRaw()">📋 Copiar link</button>
+          </div>
+          <div class="hintnote" id="dir-raw-hint" style="margin-top:7px;display:none">Se genera un link de búsqueda de Google Maps con el texto que escribiste — ábrelo para verificar la ubicación y luego compártelo con el cliente.</div>
+        </div>
+        <div class="fld" style="margin-bottom:0">
+          <label>Ubicación · link de Google Maps</label>
+          <div style="display:flex;gap:8px;align-items:stretch">
+            <input id="f-maps" placeholder="Pega aquí el link de Google Maps" oninput="updMaps(this.value)" style="flex:1">
+            <button class="btn btn-gho" id="mapsbtn" onclick="abrirMaps()" disabled style="width:auto;padding:0 15px;white-space:nowrap">📍 Abrir</button>
+          </div>
+          <div class="hintnote" style="margin-top:7px">Tip: en Google Maps usa <b>Compartir → Copiar vínculo</b> y pégalo aquí para tener la ubicación exacta.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>Partidas</h3><span class="folio" id="pcount">0 partidas</span></div>
+      <div class="card-b">
+        <div class="scaler-ai-row">
+          <button class="ai-btn" onclick="aiOpen()">✨ Cotizar con IA — analizar JPG o PDF</button>
+          <button class="btn-scaler-open" onclick="abrirScaler()" title="Escalar imagen — medir elementos sin cotas">📐 Escalar</button>
+        </div>
+        <div id="items"></div>
+        <button class="addbtn" id="addbtn" onclick="addItem()">+ Agregar partida</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== DERECHA: RESUMEN + AUTORIZACIÓN ===== -->
+  <aside class="side">
+    <div id="aiPreview"></div>
+    <div class="sum">
+      <div class="prog-box">
+        <div class="prog-label"><span>Completitud</span><span id="prog-pct">0%</span></div>
+        <div class="prog-track"><div id="prog-bar"></div></div>
+      </div>
+      <div class="sum-rows">
+        <div class="srow ivt" style="border-top:none;margin-top:0">
+          <label class="switch" style="margin:0" onclick="toggleIva(event)"><span class="tg on" id="ivatg"></span> IVA 16%</label>
+          <span class="v" id="s-iva">$0.00</span>
+        </div>
+      </div>
+      <div style="background:linear-gradient(135deg,#3a4ad8 0%,#5c6df0 100%);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;font-weight:800;letter-spacing:.05px">Subtotal</span>
+        <div style="text-align:right">
+          <div style="font-size:28px;font-weight:900;letter-spacing:.2px;font-variant-numeric:tabular-nums" id="s-sub">$0.00</div>
+          <div id="s-iva-hint" style="font-size:10.5px;font-weight:700;opacity:.8;margin-top:1px">+ IVA</div>
+        </div>
+      </div>
+      <div style="background:linear-gradient(135deg,#1c2456 0%,#171d4a 55%,#242d6e 100%);color:rgba(255,255,255,.6);padding:12px 20px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <span style="font-size:12px;font-weight:700">Total Neto</span>
+          <div style="font-size:10.5px;opacity:.65;font-weight:500;margin-top:2px" id="s-calc">Subtotal × 1.16</div>
+        </div>
+        <span style="font-size:20px;font-weight:800;letter-spacing:.2px;font-variant-numeric:tabular-nums" id="s-neto">$0.00</span>
+      </div>
+      <div class="anti">
+        <label>Anticipo sugerido (50%)</label>
+        <div class="inp-money"><input id="f-anti" type="number" min="0" placeholder="0"></div>
+      </div>
+      <div class="auth-adj" id="s-auth-row" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <span class="adj-label">Precio autorizado</span>
+          <span class="adj-amt" id="s-auth">$0.00</span>
+        </div>
+        <div class="adj-desc" id="s-auth-desc"></div>
+      </div>
+
+      <div class="auth" id="authbox"></div>
+    </div>
+    <p class="mini">El precio se bloquea al solicitar autorización. La plantilla / PDF se configura <b>después</b> de autorizar.</p>
+  </aside>
+
+</div>
+<div class="modal-bg" id="aimodal">
+  <div class="modal">
+    <div class="modal-h"><b>✨ Cotizar con IA</b><button onclick="aiClose()" aria-label="Cerrar">×</button></div>
+    <div class="modal-b">
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:13px;line-height:1.5">Sube una foto (JPG) o PDF del diseño/boceto. La IA detecta texto, medidas, material e iluminación, <b>describe qué está cotizando en cada partida</b> y muestra una miniatura del archivo para que lo compares. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo.</p>
+      <details class="ai-cfg" id="ai-cfg-box">
+        <summary>Configuración · proveedores gratuitos de IA</summary>
+        <div style="margin-top:11px">
+          <div class="fld" style="margin-bottom:10px">
+            <label>Proveedor</label>
+            <div class="seg" id="ai-prov-seg" style="width:100%">
+              <button data-p="gemini" onclick="setAiProv('gemini')">Google Gemini</button>
+              <button data-p="groq" onclick="setAiProv('groq')">Groq</button>
+              <button data-p="openrouter" onclick="setAiProv('openrouter')">OpenRouter</button>
+            </div>
+          </div>
+          <div id="prov-gemini">
+            <div class="fld"><label>API key de Google Gemini</label><input id="ai-key-gemini" type="password" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
+            <div class="fld"><label>Modelo</label><input id="ai-model-gemini" placeholder="gemini-2.5-flash" value="gemini-2.5-flash"></div>
+            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Admite JPG y PDF.</p>
+          </div>
+          <div id="prov-groq" style="display:none">
+            <div class="fld"><label>API key de Groq</label><input id="ai-key-groq" type="password" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
+            <div class="fld"><label>Modelo</label><input id="ai-model-groq" value="meta-llama/llama-4-scout-17b-16e-instruct"></div>
+            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>. Muy rápido · solo JPG (no PDF).</p>
+          </div>
+          <div id="prov-openrouter" style="display:none">
+            <div class="fld"><label>API key de OpenRouter</label><input id="ai-key-openrouter" type="password" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
+            <div class="fld"><label>Modelo</label><input id="ai-model-openrouter" value="meta-llama/llama-4-scout:free"></div>
+            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Acceso a muchos modelos · solo JPG (no PDF).</p>
+          </div>
+        </div>
+      </details>
+      <div class="fld"><label>Archivo (JPG o PDF)</label><input id="ai-file" type="file" accept="image/*,application/pdf"></div>
+      <button class="btn btn-pri" onclick="aiAnalyze()" style="margin-top:8px">Analizar y cotizar</button>
+      <div class="ai-status" id="ai-status"></div>
+    </div>
+  </div>
+</div>
+<input type="file" id="logoin" accept="image/png,image/svg+xml,image/jpeg,image/webp" style="display:none">
+<div class="modal-bg" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()" aria-label="Cerrar">×</button>
+  <div id="lightboxBody"></div>
+</div>
+<div class="modal-bg" id="histmodal" onclick="if(event.target===this)cerrarHistorial()" style="align-items:flex-start;padding-top:32px">
+  <div class="hist-panel">
+    <div class="hist-head">
+      <b style="font-size:15px;font-weight:800">📋 Cotizaciones autorizadas</b>
+      <button onclick="cerrarHistorial()" style="border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center" aria-label="Cerrar">×</button>
+    </div>
+    <div class="hist-body" id="hist-body"></div>
+  </div>
+</div>
+<div class="modal-bg" id="scalermodal" onclick="if(event.target===this)cerrarScaler()">
+  <div class="scaler-panel">
+    <div class="scaler-head">
+      <div>
+        <b style="font-size:14px;font-weight:800">📐 Escalador de imagen</b>
+        <div class="sc-steps">
+          <div class="sc-step" id="sc-step1">1 · Referencia</div>
+          <div class="sc-step" id="sc-step2">2 · Medir</div>
+        </div>
+      </div>
+      <button onclick="cerrarScaler()" style="border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center" aria-label="Cerrar">×</button>
+    </div>
+    <div class="scaler-body">
+      <div class="scaler-hint" id="scaler-hint">Carga una imagen del proyecto para comenzar</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap" id="scaler-load-row">
+        <input type="file" id="scaler-img-input" accept="image/*" style="display:none" onchange="cargarImagenScaler(this)">
+        <button onclick="$('scaler-img-input').click()" style="padding:8px 15px;border:1.5px solid var(--line);border-radius:9px;background:#fff;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--ink);display:flex;align-items:center;gap:6px">📷 Cargar imagen</button>
+        <button id="sc-use-ai-btn" onclick="usarImagenAIEnScaler()" style="display:none;padding:8px 15px;border:1.5px solid var(--brand);border-radius:9px;background:var(--soft-2);font-size:12.5px;font-weight:700;cursor:pointer;color:var(--brand);gap:6px;align-items:center">✨ Usar imagen de IA</button>
+        <button id="sc-reset-btn" onclick="resetScalerRef()" style="display:none;padding:8px 12px;border:1.5px solid var(--line);border-radius:9px;background:#fff;font-size:12px;font-weight:700;cursor:pointer;color:var(--muted)">↺ Nueva referencia</button>
+      </div>
+      <div class="scaler-canvas-wrap" id="scaler-canvas-wrap">
+        <canvas id="scalerCanvas"
+          onmousedown="scalerDown(event)" onmousemove="scalerMove(event)" onmouseup="scalerUp(event)" onmouseleave="scalerUp(event)"
+          ontouchstart="scalerDown(event)" ontouchmove="scalerMove(event)" ontouchend="scalerUp(event)">
+        </canvas>
+      </div>
+      <div id="ref-confirm-wrap" style="display:none">
+        <div class="ref-known">
+          <span class="ref-known-title">Referencias rápidas:</span>
+          <button onclick="usarRefConocida(200)">🚪 Puerta 200cm</button>
+          <button onclick="usarRefConocida(175)">🧍 Persona 175cm</button>
+          <button onclick="usarRefConocida(120)">🪟 Ventana 120cm</button>
+          <button onclick="usarRefConocida(145)">🚗 Auto 145cm</button>
+          <button onclick="usarRefConocida(40)">⬜ Loseta 40cm</button>
+        </div>
+        <div class="ref-confirm-row">
+          <input id="ref-cm-input" type="number" min="1" placeholder="¿Cuánto mide en cm?" style="flex:1;padding:10px 14px;border:1.5px solid var(--line);border-radius:9px;font-size:14px;font-weight:700">
+          <button onclick="fijarReferencia()" style="padding:10px 16px;background:var(--brand-grd);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">✓ Fijar escala</button>
+        </div>
+      </div>
+      <div id="medidas-list"></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================== Catálogo de precios ===================== */
+const MATERIALES = [
+  {key:'al-paint', label:'Aluminio Blanco/Negro/Pintado', precio:30, ilum:'LED posterior (cálida/fría)'},
+  {key:'al-brush', label:'Aluminio Brush Cepillado',       precio:35, ilum:'LED posterior (cálida/fría)'},
+  {key:'acr-vol',  label:'Acrílico + Aluminio (Volumen)',  precio:40, ilum:'LED fría frontal'},
+  {key:'acr-vinil',label:'Acrílico + Vinil',               precio:45, ilum:'LED fría frontal'},
+];
+const COMPLEJIDAD = [
+  {key:'recta',    label:'Recta',    extra:0},
+  {key:'cursiva',  label:'Cursiva',  extra:5},
+  {key:'compleja', label:'Compleja', extra:10},
+];
+const CAJAS = [
+  {key:'std',  label:'Estándar', tarifa:3900, desc:'Cuadrada / rectangular / circular'},
+  {key:'nube', label:'Tipo nube / silueta', tarifa:4600, desc:'Silueta de logotipo o personaje'},
+];
+/* Recorte de acrílico: precio por cm de altura × pieza (igual que letras) */
+const RECORTES = [
+  {key:'sencillo', label:'Sencillo', precio:20},
+  {key:'vinil',    label:'Rotulación de vinil', precio:25},
+  {key:'sandwich', label:'Tipo sándwich c/iluminación', precio:55},
+];
+const RECORTE_COMP_EXTRA = 5; // complejidad opcional, solo para tipo sándwich
+/* Bastidores: precio por metro cuadrado */
+const BASTIDORES = [
+  {key:'lamina',    label:'Lámina',    tarifa:950},
+  {key:'alucobond', label:'Alucobond', tarifa:1500},
+];
+const matOf=k=>MATERIALES.find(m=>m.key===k);
+const compOf=k=>COMPLEJIDAD.find(c=>c.key===k);
+const recOf=k=>RECORTES.find(r=>r.key===k);
+const basOf=k=>BASTIDORES.find(b=>b.key===k);
+const factorOf=it=>((matOf(it.material)?.precio||0)+(compOf(it.comp)?.extra||0));
+
+/* ===================== Estado ===================== */
+const Q = {
+  proy:'', cliente:'', tel:'', direccion:'', fecha:'', maps:'', folio:'', entrecalles:'', entrega:'', dirRaw:'',
+  items:[], iva:true,
+  estado:'borrador', rol:'vendedor',
+  autorizador:'', nota:'', fechaAuth:'',
+  anti:0, antiManual:false,
+  precioAuth:0,
+  itemsAuth:{},
+  aiFile:null
+};
+let pid=0, dragId=null;
+
+/* ===================== Helpers ===================== */
+const $=id=>document.getElementById(id);
+const money=n=>'$'+Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const locked=()=>Q.estado!=='borrador';
+/* Accesibilidad: hace que un chip clicable también responda a teclado (Enter/Espacio) */
+const chipA11y=isOn=>`role="button" tabindex="0" aria-pressed="${isOn?'true':'false'}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"`;
+
+function toast(msg,type='',dur=2600){const t=$('toast');t.textContent=msg;t.className='toast '+type;void t.offsetWidth;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
+
+/* ===================== Cálculo ===================== */
+function lineTotal(it){
+  if(it.tipo==='letras'){
+    let p=factorOf(it)*(it.altura||0)*(it.n||0);
+    if(!it.luz) p*=0.8;
+    return p;
+  }
+  if(it.tipo==='recorte'){
+    let rate=recOf(it.acab)?.precio||0;
+    if(it.acab==='sandwich' && it.recComp) rate+=RECORTE_COMP_EXTRA;
+    return rate*(it.altura||0)*(it.n||0);
+  }
+  if(it.tipo==='bastidor'){
+    const m2=(it.ancho||0)*(it.alto||0)/10000;
+    return (basOf(it.bas)?.tarifa||0)*m2;
+  }
+  if(it.tipo==='caja'){
+    const m2=(it.ancho||0)*(it.alto||0)/10000;
+    if(m2<=0) return 0;
+    // Mínimo: el precio de 1 m². Si tarifa × m² es menor, se respeta la tarifa por metro cuadrado.
+    return Math.max((it.tarifa||0)*m2,(it.tarifa||0));
+  }
+  return (it.pz||0)*(it.pu||0); // manual
+}
+function totals(){
+  const sub=Q.items.reduce((s,it)=>s+lineTotal(it),0);
+  const iva=Q.iva?sub*0.16:0;
+  return {sub,iva,neto:sub+iva};
+}
+
+/* ===================== Acciones partidas ===================== */
+function addItem(){
+  if(locked())return;
+  Q.items.push({id:++pid,tipo:'letras',material:'',comp:'',luz:true,ilumTipo:'fria',altura:0,n:0,
+    tarifa:0,ancho:0,alto:0, acab:'',recComp:false,bas:'', desc:'',descAi:false,pz:1,pu:0,textoAuto:''});
+  renderItems();
+}
+function delItem(id){
+  if(locked())return;
+  Q.items=Q.items.filter(x=>x.id!==id); renderItems();
+}
+function setItem(id,k,v){ const it=Q.items.find(x=>x.id===id); if(!it)return; it[k]=v; renderItems(); }
+/* Escritura ligera: no re-renderiza el input (evita perder el foco), solo refresca total y resumen */
+function typeItem(id,k,v){
+  const it=Q.items.find(x=>x.id===id); if(!it)return; it[k]=v;
+  if(k==='desc') it.descAi=false;
+  const f=$('formula-'+id), l=$('lt-'+id);
+  if(f) f.textContent=formulaFor(it);
+  if(l) l.textContent=money(lineTotal(it));
+  renderSummary(); saveState();
+}
+function setTipo(id,t){ if(locked())return; const it=Q.items.find(x=>x.id===id); if(!it)return; it.tipo=t; if(t==='caja'&&!it.tarifa) it.tarifa=3900; renderItems(); }
+function dupItem(id){
+  if(locked())return;
+  const src=Q.items.find(x=>x.id===id); if(!src)return;
+  const copy=JSON.parse(JSON.stringify(src)); copy.id=++pid;
+  const idx=Q.items.findIndex(x=>x.id===id);
+  Q.items.splice(idx+1,0,copy);
+  renderItems(); toast('Partida duplicada');
+}
+function autoContarLetras(id,texto){
+  const n=texto.replace(/\s/g,'').length;
+  const it=Q.items.find(x=>x.id===id); if(!it)return;
+  it.n=n; it.textoAuto=texto;
+  const inp=$('n-'+id); if(inp) inp.value=n||'';
+  const cnt=$('acnt-'+id); if(cnt) cnt.textContent=n+' letras';
+  const f=$('formula-'+id),l=$('lt-'+id);
+  if(f) f.textContent=formulaFor(it);
+  if(l) l.textContent=money(lineTotal(it));
+  renderSummary(); saveState();
+}
+
+/* ===================== Render partidas ===================== */
+function renderItems(){
+  renderAiPreview();
+  const c=$('items'); c.innerHTML='';
+  if(Q.items.length===0){ c.innerHTML='<div class="empty">Aún no hay partidas. Agrega letras 3D, un recorte de acrílico, un bastidor, una caja de luz o una partida manual.</div>'; }
+  Q.items.forEach((it,i)=>{
+    const d=document.createElement('div'); d.className='partida';
+    if(!locked()) d.setAttribute('draggable','true');
+    d.innerHTML=`
+      <div class="partida-top">
+        <div class="pnum">
+          ${!locked()?'<span class="drag-handle" title="Arrastra para reordenar">⠿</span>':''}
+          <div class="n">${i+1}</div>
+          <div class="tipo-seg">
+            ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button class="${it.tipo===t?'on':''}" ${locked()?'disabled':''} onclick="setTipo(${it.id},'${t}')">${({letras:'Letras 3D',recorte:'Recorte acrílico',bastidor:'Bastidor',caja:'Caja de luz',manual:'Manual'})[t]}</button>`).join('')}
+          </div>
+        </div>
+        ${!locked()?`<button class="dup" onclick="dupItem(${it.id})" title="Duplicar partida">⧉</button>`:''}
+        <button class="del" ${locked()?'disabled':''} onclick="delItem(${it.id})" title="Eliminar">×</button>
+      </div>
+      ${bodyFor(it)}
+      <div class="pline">
+        <span class="formula" id="formula-${it.id}">${formulaFor(it)}</span>
+        <span class="lt" id="lt-${it.id}">${money(lineTotal(it))}</span>
+      </div>`;
+    if(!locked()){
+      d.addEventListener('dragstart',e=>{
+        dragId=it.id; d.classList.add('dragging');
+        e.dataTransfer.effectAllowed='move';
+      });
+      d.addEventListener('dragover',e=>{
+        e.preventDefault(); e.dataTransfer.dropEffect='move';
+        if(!d.classList.contains('drag-over')){
+          document.querySelectorAll('.partida.drag-over').forEach(el=>el.classList.remove('drag-over'));
+          d.classList.add('drag-over');
+        }
+      });
+      d.addEventListener('dragleave',e=>{
+        if(!d.contains(e.relatedTarget)) d.classList.remove('drag-over');
+      });
+      d.addEventListener('drop',e=>{
+        e.preventDefault(); d.classList.remove('drag-over');
+        if(dragId===null||dragId===it.id)return;
+        const fi=Q.items.findIndex(x=>x.id===dragId), ti=Q.items.findIndex(x=>x.id===it.id);
+        if(fi<0||ti<0)return;
+        const [moved]=Q.items.splice(fi,1); Q.items.splice(ti,0,moved);
+        dragId=null; renderItems();
+      });
+      d.addEventListener('dragend',()=>{
+        dragId=null;
+        document.querySelectorAll('.partida').forEach(p=>p.classList.remove('dragging','drag-over'));
+      });
+    }
+    c.appendChild(d);
+  });
+  $('pcount').textContent=Q.items.length+' partida'+(Q.items.length!==1?'s':'');
+  renderSummary(); updProg(); saveState();
+}
+function calcProg(){
+  let pts=0,max=0;
+  max+=20; if((Q.cliente||'').trim())pts+=10; if((Q.proy||'').trim())pts+=10;
+  max+=10; if((Q.dirRaw||'').trim()||(Q.maps||'').trim())pts+=10;
+  if(!Q.items.length){max+=30;}
+  else{
+    Q.items.forEach(it=>{
+      max+=30;
+      if(it.tipo==='letras'){
+        if(it.material)pts+=8; if(it.comp)pts+=4;
+        if(it.altura>0)pts+=10; if(it.n>0)pts+=8;
+      }else if(it.tipo==='recorte'){
+        if(it.acab)pts+=10; if(it.altura>0)pts+=12; if(it.n>0)pts+=8;
+      }else if(it.tipo==='bastidor'||it.tipo==='caja'){
+        if(it.ancho>0)pts+=15; if(it.alto>0)pts+=15;
+      }else{
+        if(it.pu>0)pts+=20; if(it.desc)pts+=10;
+      }
+    });
+  }
+  return Math.min(100,Math.round(pts/max*100));
+}
+function updProg(){
+  const pct=calcProg();
+  const bar=$('prog-bar'),pctEl=$('prog-pct');
+  if(!bar||!pctEl)return;
+  bar.style.width=pct+'%';
+  pctEl.textContent=pct+'%';
+  if(pct<40)bar.style.background='linear-gradient(90deg,#f59e0b,#fb923c)';
+  else if(pct<80)bar.style.background='linear-gradient(90deg,#3a4ad8,#7b9bf7)';
+  else bar.style.background='linear-gradient(90deg,#15a06a,#22c55e)';
+}
+
+/* Campo de descripción "qué se cotiza", disponible en todas las partidas */
+function descFld(it){
+  const dis=locked()?'disabled':'';
+  const tag=it.descAi?'<span class="ai-tag">✨ IA</span>':'';
+  return `<div class="fld"><label>Descripción · qué se cotiza ${tag}</label><input value="${esc(it.desc)}" placeholder="Ej. Letrero de fachada «FARMACIA», acrílico blanco" ${dis} oninput="typeItem(${it.id},'desc',this.value)"></div>`;
+}
+
+function bodyFor(it){
+  const dis=locked()?'disabled':'';
+  if(it.tipo==='letras'){
+    const matChips=MATERIALES.map(m=>`<div class="chip ${it.material===m.key?'on':''}" ${chipA11y(it.material===m.key)} onclick="${locked()?'':`setItem(${it.id},'material','${m.key}')`}">${m.label} <small>$${m.precio}</small></div>`).join('');
+    const compChips=COMPLEJIDAD.map(c=>`<div class="chip ${it.comp===c.key?'on':''}" ${chipA11y(it.comp===c.key)} onclick="${locked()?'':`setItem(${it.id},'comp','${c.key}')`}">${c.label} <small>${c.extra?'+$'+c.extra:'+$0'}</small></div>`).join('');
+    const mat=matOf(it.material);
+    return `
+      ${descFld(it)}
+      <label>Material / acabado</label>
+      <div class="chips" style="margin-bottom:7px">${matChips}</div>
+      <div class="hintnote">Iluminación sugerida: ${mat?mat.ilum:'—'}</div>
+      ${(it.material==='acr-vol'||it.material==='acr-vinil')&&!it.luz?`<div class="hintnote" style="background:#fff8e1;border-left:3px solid var(--amber);color:#7a5800;margin-top:5px">⚠️ El acrílico es valioso principalmente por el paso de luz. Sin iluminación, considera cambiar a <b>Aluminio</b> — mismo resultado visual, menor costo.</div>`:''}
+      ${it.material==='al-paint'&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green);color:#1c6e3d;margin-top:5px">💡 Con aluminio e iluminación, la luz va por detrás (retroiluminación). Para luz que pase a través de las caras, considera <b>Acrílico + Aluminio</b>.</div>`:''}
+      <div style="display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap">
+        <label class="switch" style="margin:0"><span class="tg ${it.luz?'on':''}" onclick="${locked()?'':`setItem(${it.id},'luz',${!it.luz})`}"></span> Con iluminación</label>
+        ${it.luz?`<div class="chips" style="margin:0;gap:6px">
+          <div class="chip ${(it.ilumTipo||'fria')==='calida'?'on':''}" role="button" tabindex="0" aria-pressed="${(it.ilumTipo||'fria')==='calida'}" onclick="${locked()?'':`setItem(${it.id},'ilumTipo','calida')`}">🌅 Cálida <small>3000K</small></div>
+          <div class="chip ${(it.ilumTipo||'fria')==='fria'?'on':''}" role="button" tabindex="0" aria-pressed="${(it.ilumTipo||'fria')==='fria'}" onclick="${locked()?'':`setItem(${it.id},'ilumTipo','fria')`}">❄️ Fría <small>6500K</small></div>
+        </div>`:''}
+      </div>
+      <label style="margin-top:12px">Complejidad tipográfica</label>
+      <div class="chips" style="margin-bottom:12px">${compChips}</div>
+      <div class="grid3">
+        <div class="fld">
+          <label>Altura (cm)</label>
+          <input id="h-${it.id}" type="number" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="typeItem(${it.id},'altura',+this.value)">
+        </div>
+        <div class="fld">
+          <label># Letras</label>
+          <input id="n-${it.id}" type="number" min="0" value="${it.n||''}" ${dis} oninput="typeItem(${it.id},'n',+this.value)">
+          ${!locked()?`<div class="autoctr"><input type="text" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} letras</span></div>`:''}
+        </div>
+        <div class="fld"><label style="visibility:hidden">.</label></div>
+      </div>`;
+  }
+  if(it.tipo==='recorte'){
+    const recChips=RECORTES.map(r=>`<div class="chip ${it.acab===r.key?'on':''}" ${chipA11y(it.acab===r.key)} onclick="${locked()?'':`setItem(${it.id},'acab','${r.key}')`}">${r.label} <small>$${r.precio}</small></div>`).join('');
+    const compRow = it.acab==='sandwich' ? `
+      <label style="margin-top:12px">Complejidad</label>
+      <label class="switch" style="margin-bottom:2px"><span class="tg ${it.recComp?'on':''}" onclick="${locked()?'':`setItem(${it.id},'recComp',${!it.recComp})`}"></span> Con complejidad (+$5/cm)</label>` : '';
+    return `
+      ${descFld(it)}
+      <label>Acabado del recorte</label>
+      <div class="chips" style="margin-bottom:7px">${recChips}</div>
+      <div class="hintnote">$20 sencillo &nbsp;·&nbsp; $25 rotulación de vinil &nbsp;·&nbsp; $55 tipo sándwich c/iluminación (+$5 complejidad) &nbsp;·&nbsp; precio por cm de altura × pieza</div>
+      ${compRow}
+      <div class="grid3" style="margin-top:12px">
+        <div class="fld">
+          <label>Altura (cm)</label>
+          <input id="h-${it.id}" type="number" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="typeItem(${it.id},'altura',+this.value)">
+        </div>
+        <div class="fld"><label># Piezas</label><input id="n-${it.id}" type="number" min="0" value="${it.n||''}" ${dis} oninput="typeItem(${it.id},'n',+this.value)">
+          ${!locked()?`<div class="autoctr"><input type="text" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} letras</span></div>`:''}
+        </div>
+        <div class="fld"><label style="visibility:hidden">.</label></div>
+      </div>`;
+  }
+  if(it.tipo==='bastidor'){
+    const chips=BASTIDORES.map(b=>`<div class="chip ${it.bas===b.key?'on':''}" ${chipA11y(it.bas===b.key)} onclick="${locked()?'':`setItem(${it.id},'bas','${b.key}')`}">${b.label} <small>$${b.tarifa}/m²</small></div>`).join('');
+    return `
+      ${descFld(it)}
+      <label>Material del bastidor</label>
+      <div class="chips" style="margin-bottom:7px">${chips}</div>
+      <div class="hintnote">Lámina $950/m² &nbsp;·&nbsp; Alucobond $1,500/m² &nbsp;·&nbsp; se cobra por área (ancho × alto)</div>
+      <div class="grid2" style="margin-top:12px">
+        <div class="fld"><label>Ancho (cm)</label><input type="number" min="0" value="${it.ancho||''}" ${dis} oninput="typeItem(${it.id},'ancho',+this.value)"></div>
+        <div class="fld"><label>Alto (cm)</label><input type="number" min="0" value="${it.alto||''}" ${dis} oninput="typeItem(${it.id},'alto',+this.value)"></div>
+      </div>`;
+  }
+  if(it.tipo==='caja'){
+    const chips=CAJAS.map(c=>`<div class="chip ${it.tarifa===c.tarifa?'on':''}" ${chipA11y(it.tarifa===c.tarifa)} onclick="${locked()?'':`setItem(${it.id},'tarifa',${c.tarifa})`}">${c.label} <small>$${c.tarifa}/m²</small></div>`).join('');
+    return `
+      ${descFld(it)}
+      <label>Tipo de caja</label>
+      <div class="chips" style="margin-bottom:7px">${chips}</div>
+      <div class="hintnote">Se cobra mínimo 1 m²: si el área es menor, se respeta el precio de un metro cuadrado.</div>
+      <div class="grid3" style="margin-top:12px">
+        <div class="fld"><label>Ancho (cm)</label><input type="number" min="0" value="${it.ancho||''}" ${dis} oninput="typeItem(${it.id},'ancho',+this.value)"></div>
+        <div class="fld"><label>Alto (cm)</label><input type="number" min="0" value="${it.alto||''}" ${dis} oninput="typeItem(${it.id},'alto',+this.value)"></div>
+        <div class="fld"><label>Tarifa ($/m²)</label><div class="inp-money"><input type="number" min="0" value="${it.tarifa||''}" ${dis} oninput="typeItem(${it.id},'tarifa',+this.value)"></div></div>
+      </div>`;
+  }
+  // manual
+  return `
+    <div class="fld"><label>Descripción ${it.descAi?'<span class="ai-tag">✨ IA</span>':''}</label><input value="${esc(it.desc)}" placeholder="Ej. Rotulación vehicular, instalación, viáticos…" ${dis} oninput="typeItem(${it.id},'desc',this.value)"></div>
+    <div class="grid2">
+      <div class="fld"><label>Piezas</label><input type="number" min="1" value="${it.pz||''}" ${dis} oninput="typeItem(${it.id},'pz',+this.value)"></div>
+      <div class="fld"><label>Precio unitario</label><div class="inp-money"><input type="number" min="0" value="${it.pu||''}" ${dis} oninput="typeItem(${it.id},'pu',+this.value)"></div></div>
+    </div>`;
+}
+
+function formulaFor(it){
+  if(it.tipo==='letras'){
+    const f=factorOf(it), base=matOf(it.material)?.precio||0, ex=compOf(it.comp)?.extra||0;
+    const adj=(!it.luz)?' · −20% sin luz':'';
+    return `$${f} ($${base}${ex?` + $${ex}`:''}) × ${it.altura||0}cm × ${it.n||0}${adj}`;
+  }
+  if(it.tipo==='recorte'){
+    const p=recOf(it.acab)?.precio||0;
+    const ex=(it.acab==='sandwich'&&it.recComp)?RECORTE_COMP_EXTRA:0;
+    return `$${p+ex}/cm${ex?` ($${p} + $${ex})`:''} × ${it.altura||0}cm × ${it.n||0} pza`;
+  }
+  if(it.tipo==='bastidor'){
+    const m2=((it.ancho||0)*(it.alto||0)/10000);
+    return `$${basOf(it.bas)?.tarifa||0}/m² × ${m2.toFixed(3)} m²`;
+  }
+  if(it.tipo==='caja'){
+    const m2=((it.ancho||0)*(it.alto||0)/10000);
+    const calc=(it.tarifa||0)*m2;
+    if(m2>0 && calc<(it.tarifa||0)) return `$${it.tarifa||0}/m² · mínimo 1 m² (área real ${m2.toFixed(3)} m²)`;
+    return `$${it.tarifa||0}/m² × ${m2.toFixed(3)} m²`;
+  }
+  return `${it.pz||0} pza × ${money(it.pu)}`;
+}
+
+/* ===================== Vista previa del archivo analizado por IA ===================== */
+function renderAiPreview(){
+  const el=$('aiPreview'); if(!el)return;
+  if(!Q.aiFile){ el.innerHTML=''; return; }
+  const f=Q.aiFile;
+  const isImg=f.type && f.type.indexOf('image/')===0;
+  const big=isImg
+    ? `<img class="ai-prev-img" src="${f.url}" alt="Archivo analizado" onclick="openAiFile()">`
+    : `<div class="ai-prev-pdf" onclick="openAiFile()">📄 Ver PDF analizado a pantalla completa<br><span style="font-weight:500;font-size:11px">${esc(f.name||'archivo')}</span></div>`;
+  el.innerHTML=`<div class="ai-prev-big">
+    <div class="ai-prev-head">
+      <span class="ttl">✨ Archivo analizado por IA · revisa que ningún elemento haya quedado fuera antes de autorizar</span>
+      <button class="x" onclick="clearAiFile()" title="Quitar vista previa">×</button>
+    </div>
+    ${big}
+    <div class="sub">${esc(f.name||'archivo')} ${isImg?'· clic en la imagen para verla a pantalla completa':''}</div>
+  </div>`;
+}
+function openAiFile(){
+  if(!Q.aiFile||!Q.aiFile.url)return;
+  const isImg=Q.aiFile.type && Q.aiFile.type.indexOf('image/')===0;
+  const safeName=esc(Q.aiFile.name||'Archivo');
+  $('lightboxBody').innerHTML=isImg
+    ? `<img class="lightbox-img" src="${Q.aiFile.url}" alt="${safeName}" onclick="event.stopPropagation()">`
+    : `<iframe class="lightbox-iframe" src="${Q.aiFile.url}" onclick="event.stopPropagation()"></iframe>`;
+  $('lightbox').classList.add('show');
+}
+function closeLightbox(){ $('lightbox').classList.remove('show'); $('lightboxBody').innerHTML=''; }
+function clearAiFile(){ Q.aiFile=null; renderAiPreview(); }
+
+/* ===================== Auth por partida ===================== */
+function shortDescAuth(it){
+  if(it.desc) return it.desc;
+  if(it.tipo==='letras')    return 'Letras 3D · '+( it.n||0)+' letras, '+(it.altura||0)+'cm';
+  if(it.tipo==='recorte')   return 'Recorte acrílico · '+(it.n||0)+' pzas, '+(it.altura||0)+'cm';
+  if(it.tipo==='bastidor')  return 'Bastidor · '+(it.ancho||0)+'×'+(it.alto||0)+'cm';
+  if(it.tipo==='caja')      return 'Caja de luz · '+(it.ancho||0)+'×'+(it.alto||0)+'cm';
+  return 'Manual · '+(it.pz||1)+' pza';
+}
+function toggleItemAuth(id){
+  const body=$('ia-body-'+id),arrow=$('ia-arrow-'+id);
+  if(!body) return;
+  const open=body.style.display!=='none';
+  body.style.display=open?'none':'';
+  if(arrow) arrow.textContent=open?'▸':'▾';
+}
+function updItemAuth(id,val){
+  if(!Q.itemsAuth) Q.itemsAuth={};
+  Q.itemsAuth[id]=val;
+  const neto=totals().neto;
+  const it=Q.items.find(x=>x.id===id);
+  const orig=it?lineTotal(it):0;
+  const adjEl=$('ia-adj-'+id);
+  if(adjEl){
+    const diff=val-orig;
+    if(Math.abs(diff)<0.01){adjEl.textContent='';adjEl.className='ia-adj';}
+    else if(diff<0){adjEl.textContent='Descuento: '+money(-diff);adjEl.className='ia-adj';}
+    else{adjEl.textContent='Aumento: '+money(diff);adjEl.className='ia-adj inc';}
+  }
+  const sum=Q.items.reduce((s,x)=>{const v=Q.itemsAuth[x.id];return s+(v!==undefined?v:lineTotal(x));},0);
+  const sumEl=$('ia-sum'); if(sumEl) sumEl.textContent=money(sum);
+  const gInput=$('a-precio'); if(gInput) gInput.value=Math.round(sum);
+  Q.precioAuth=sum<neto-0.01?Math.round(sum):0;
+  updPrecioAuth(sum,neto);
+  saveState();
+}
+
+/* ===================== Resumen + Autorización ===================== */
+function renderSummary(){
+  const t=totals();
+  $('s-sub').textContent=money(t.sub);
+  $('s-iva').textContent=money(t.iva);
+  $('s-neto').textContent=money(t.neto);
+  $('s-calc').textContent=Q.iva?`${money(t.sub)} × 1.16`:'Sin IVA (= subtotal)';
+  $('ivatg').classList.toggle('on',Q.iva);
+  const ivaHint=$('s-iva-hint'); if(ivaHint) ivaHint.style.display=Q.iva?'':'none';
+  if(!Q.antiManual){ const auto=Math.round(t.neto*0.5); Q.anti=auto; if(document.activeElement!==$('f-anti')) $('f-anti').value=auto||''; }
+  else if(document.activeElement!==$('f-anti')) $('f-anti').value=Q.anti||'';
+  // Precio autorizado con descuento
+  const authRow=$('s-auth-row');
+  if(authRow){
+    const pa=Q.precioAuth, neto=t.neto;
+    if(Q.estado==='autorizada'&&pa&&pa>0&&pa<neto){
+      $('s-auth').textContent=money(pa);
+      $('s-auth-desc').textContent=`Descuento: ${money(neto-pa)} (${Math.round((neto-pa)/neto*100)}%)`;
+      authRow.style.display='';
+    } else { authRow.style.display='none'; }
+  }
+  renderAuth();
+  // bloqueo de inputs generales
+  ['f-proy','f-cli','f-tel','f-maps','f-anti','f-dir-raw'].forEach(id=>{ if($(id)) $(id).disabled=locked(); });
+  $('addbtn').disabled=locked();
+}
+
+function renderAuth(){
+  const box=$('authbox');
+  const LABELS={borrador:'Borrador',pendiente:'Pendiente de autorización',autorizada:'Autorizada',rechazada:'Rechazada'};
+  const badge=`<span class="badge ${Q.estado}"><span class="dot"></span>${LABELS[Q.estado]}</span>`;
+  let body='';
+  const hayPartidas=Q.items.length>0&&totals().sub>0;
+
+  if(Q.rol==='autorizador'){
+    // --- Cola de pendientes ---
+    const pendientes=getQueue().filter(x=>x.estado==='pendiente');
+    let qHTML='';
+    if(!pendientes.length){
+      qHTML=`<div class="queue-list"><div class="queue-empty">Sin cotizaciones pendientes por autorizar.</div></div>`;
+    } else {
+      const rows=pendientes.map(e=>`<div class="queue-item${e.folio===Q.folio?' active':''}" onclick="loadQueueEntry('${esc(e.folio)}')">
+        <span class="qi-dot"></span>
+        <div class="qi-body">
+          <div class="qi-folio">${esc(e.folio)}</div>
+          <div class="qi-name">${esc(e.proy||e.cliente||'Sin nombre')}</div>
+          <div class="qi-fecha">${esc(e.fecha_sol||'')}</div>
+        </div>
+        <div style="text-align:right"><div class="qi-total">${money(e.neto)}</div></div>
+      </div>`).join('');
+      qHTML=`<div class="queue-list">${rows}</div>`;
+    }
+
+    // --- Formulario de revisión (solo si la cotización cargada está pendiente) ---
+    let formHTML='';
+    if(Q.estado==='pendiente'){
+      const neto=totals().neto;
+      const ia=Q.itemsAuth||{};
+      const authSum=Q.items.reduce((s,it)=>{const v=ia[it.id];return s+(v!==undefined?v:lineTotal(it));},0);
+      const paCurrent=Q.precioAuth&&Q.precioAuth<neto?Q.precioAuth:Math.round(authSum);
+      const itemRows=Q.items.map((it,i)=>{
+        const orig=lineTotal(it);
+        const authVal=ia[it.id]!==undefined?ia[it.id]:orig;
+        const isOpen=ia[it.id]!==undefined&&Math.abs(ia[it.id]-orig)>0.01;
+        const diff=authVal-orig;
+        const diffTxt=Math.abs(diff)<0.01?'':(diff<0?'Descuento: '+money(-diff):'Aumento: '+money(diff));
+        const diffCls=diff>0.01?' inc':'';
+        return '<div class="ia-row">'+
+          '<div class="ia-hdr" onclick="toggleItemAuth('+it.id+')">'+
+          '<div class="ia-num">'+(i+1)+'</div>'+
+          '<div class="ia-desc">'+esc(shortDescAuth(it))+'</div>'+
+          '<div class="ia-calc">'+money(orig)+'</div>'+
+          '<span class="ia-arrow" id="ia-arrow-'+it.id+'">'+(isOpen?'▾':'▸')+'</span>'+
+          '</div>'+
+          '<div class="ia-body" id="ia-body-'+it.id+'" style="'+(isOpen?'':'display:none')+'">'+
+          '<label style="font-size:11px;margin-bottom:4px">Precio autorizado</label>'+
+          '<div class="inp-money"><input type="number" min="0" step="50" value="'+authVal+'" oninput="updItemAuth('+it.id+',+this.value)"></div>'+
+          '<div class="ia-adj'+diffCls+'" id="ia-adj-'+it.id+'">'+diffTxt+'</div>'+
+          '</div>'+
+          '</div>';
+      }).join('');
+      formHTML=`<div class="auth-divider">Revisando · ${esc(Q.folio)}${Q.proy||Q.cliente?' — '+esc(Q.proy||Q.cliente):''}</div>
+        <div class="fld">
+          <label>Precio final autorizado</label>
+          <div class="precio-auth-orig" style="font-size:11.5px;color:var(--muted);margin-bottom:4px">Total calculado: <b>${money(neto)}</b></div>
+          <div class="inp-money"><input id="a-precio" type="number" min="0" step="100" value="${paCurrent}" oninput="updPrecioAuth(+this.value,${neto})"></div>
+          <div class="descuento-info" id="descuento-info"></div>
+        </div>
+        <div class="auth-divider" style="margin-top:8px">Ajuste por partida</div>
+        ${itemRows}
+        <div class="ia-total"><span>Total ajustado</span><span id="ia-sum">${money(authSum)}</span></div>
+        <div class="fld"><label>Tu nombre (autorizador)</label><input id="a-name" placeholder="Ej. Elías" value="${esc(Q.autorizador||'')}"></div>
+        <div class="fld"><label>Nota (opcional)</label><textarea id="a-note" placeholder="Comentario para el vendedor…">${esc(Q.nota||'')}</textarea></div>
+        <button class="btn btn-ok" onclick="autorizar()">✓ Autorizar precio</button>
+        <button class="btn btn-dgr" onclick="rechazar()">Rechazar</button>`;
+    } else if(pendientes.length){
+      formHTML=`<p class="mini" style="margin-top:2px">Selecciona una cotización de la lista para revisarla.</p>`;
+    }
+    body=qHTML+formHTML;
+
+  } else {
+    // --- Vista vendedor ---
+    if(Q.estado==='borrador'){
+      body=`<button class="btn btn-pri" ${hayPartidas?'':'disabled'} onclick="solicitar()">Solicitar autorización</button>
+            ${hayPartidas?'':'<p class="mini">Agrega partidas con precio para continuar.</p>'}
+            <button class="btn btn-gho" onclick="pedirConfNueva()">🗑️ Vaciar y empezar cotización nueva</button>`;
+    }
+    else if(Q.estado==='pendiente'){
+      body=`<div class="authnote">Esperando autorización del precio. Cambia el rol a <b>Autorizador</b> (arriba a la derecha) para aprobar o rechazar.</div>
+            <button class="btn btn-gho" onclick="reabrir()">← Editar (cancela la solicitud)</button>`;
+    }
+    else if(Q.estado==='autorizada'){
+      const neto=totals().neto;
+      const pa=Q.precioAuth&&Q.precioAuth<neto?Q.precioAuth:0;
+      const descHTML=pa?`<div class="authnote" style="border-color:var(--green);background:var(--green-bg);color:var(--green);margin-top:8px">Precio autorizado: <b>${money(pa)}</b> · Ahorro: <b>${money(neto-pa)}</b> (${Math.round((neto-pa)/neto*100)}%)</div>`:'';
+      body=`<div class="authnote">Autorizada por <b>${esc(Q.autorizador)||'—'}</b> el <b>${esc(Q.fechaAuth)}</b>.${Q.nota?'<br>Nota: '+esc(Q.nota):''}</div>
+            ${descHTML}
+            <button class="btn btn-pri" onclick="generarPDF()">📄 Generar PDF</button>
+            <button class="btn btn-gho" onclick="copiarParaCanva()">📋 Copiar datos para Canva</button>
+            <button class="btn btn-gho" onclick="copiarParaGemini()">🖼️ Prompt para imagen (Gemini)</button>
+            <button class="btn btn-gho" onclick="pedirConfNueva()">Nueva cotización</button>`;
+    }
+    else if(Q.estado==='rechazada'){
+      body=`<div class="authnote">Rechazada por <b>${esc(Q.autorizador)||'—'}</b>.${Q.nota?'<br>Motivo: '+esc(Q.nota):''}</div>
+            <button class="btn btn-gho" onclick="reabrir()">← Editar y volver a enviar</button>
+            <button class="btn btn-gho" onclick="pedirConfNueva()">🗑️ Vaciar y empezar cotización nueva</button>`;
+    }
+  }
+
+  box.innerHTML=`<div class="statusrow"><span class="lab">Autorización</span>${badge}</div>${body}`;
+  // Inicializar display de descuento tras render
+  if(Q.rol==='autorizador'&&Q.estado==='pendiente'){
+    updPrecioAuth(parseFloat($('a-precio')?.value)||0, totals().neto);
+  }
+}
+
+function updPrecioAuth(pa, neto){
+  const el=$('descuento-info'); if(!el) return;
+  if(!pa||pa<=0||pa>=neto){ el.textContent=''; return; }
+  const desc=neto-pa;
+  el.textContent=`Descuento: ${money(desc)} (${Math.round(desc/neto*100)}%)`;
+}
+
+/* ===================== Flujo ===================== */
+function solicitar(){
+  if(!Q.proy.trim()&&!Q.cliente.trim()){toast('Completa al menos el nombre del proyecto o del cliente.','err',3200);return;}
+  if(!Q.items.length||totals().sub<=0){toast('Agrega al menos una partida con precio mayor a cero.','err',3200);return;}
+  Q.estado='pendiente'; pushToQueue(); saveState(); renderItems(); toast('Solicitud enviada · precio bloqueado','ok');
+}
+function reabrir(){
+  const eraPendiente=Q.estado==='pendiente';
+  Q.estado='borrador'; Q.autorizador=''; Q.nota='';
+  if(eraPendiente) removeFromQueue(Q.folio);
+  saveState(); renderItems(); toast('Cotización reabierta para editar');
+}
+function autorizar(){
+  Q.autorizador=($('a-name')?.value||'').trim()||'Autorizador';
+  Q.nota=($('a-note')?.value||'').trim();
+  const neto=totals().neto;
+  const pa=parseFloat($('a-precio')?.value)||0;
+  Q.precioAuth=(pa>0&&pa<neto)?pa:0;
+  Q.estado='autorizada';
+  Q.fechaAuth=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
+  updateQueueEntry(Q.folio,{estado:'autorizada',precioAuth:Q.precioAuth,autorizador:Q.autorizador,nota:Q.nota,fechaAuth:Q.fechaAuth,itemsAuth:Q.itemsAuth});
+  guardarEnHistorial();
+  saveState(); renderItems(); toast('✓ Cotización autorizada — guardada en historial','ok',3200);
+}
+function rechazar(){
+  Q.autorizador=($('a-name')?.value||'').trim()||'Autorizador';
+  Q.nota=($('a-note')?.value||'').trim();
+  Q.estado='rechazada';
+  updateQueueEntry(Q.folio,{estado:'rechazada',autorizador:Q.autorizador,nota:Q.nota});
+  saveState(); renderItems(); toast('Cotización rechazada','err');
+}
+function pedirConfNueva(){
+  const box=$('authbox');
+  const LABELS={borrador:'Borrador',pendiente:'Pendiente de autorización',autorizada:'Autorizada',rechazada:'Rechazada'};
+  const badge=`<span class="badge ${Q.estado}"><span class="dot"></span>${LABELS[Q.estado]}</span>`;
+  box.innerHTML=`<div class="statusrow"><span class="lab">Autorización</span>${badge}</div>
+    <div style="background:var(--red-bg);border:1.5px solid rgba(216,69,63,.3);border-radius:var(--r-sm);padding:13px">
+      <p style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:11px">¿Borrar toda la cotización y empezar de nuevo? No se puede deshacer.</p>
+      <button class="btn btn-dgr" onclick="nueva()">🗑️ Sí, borrar todo</button>
+      <button class="btn btn-gho" style="margin-top:9px" onclick="renderAuth()">← Cancelar</button>
+    </div>`;
+}
+function nueva(){
+  Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};
+  Q.entrecalles=Q.entrega='';
+  ['f-proy','f-cli','f-tel','f-maps','f-dir-raw'].forEach(id=>{if($(id))$(id).value='';});
+  updDirRaw('');
+  $('mapsbtn').disabled=true;
+  const f=nextFolio(); Q.folio=f; $('folio').textContent=f;
+  Q.fecha=hoy();
+  addItem(); toast('Nueva cotización lista');
+}
+
+/* ===================== Inputs generales ===================== */
+function upd(k,v){ Q[k]=v; saveState(); updProg(); }
+function updMaps(v){ Q.maps=(v||'').trim(); const ok=/^https?:\/\//i.test(Q.maps); $('mapsbtn').disabled=!ok; }
+function abrirMaps(){ if(/^https?:\/\//i.test(Q.maps)) window.open(Q.maps,'_blank','noopener'); }
+function dirRawMapsUrl(){ return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent((Q.dirRaw||'').trim()); }
+function updDirRaw(v){
+  Q.dirRaw=(v||'').trim(); saveState();
+  const show=!!Q.dirRaw;
+  $('dir-raw-actions').style.display=show?'flex':'none';
+  $('dir-raw-hint').style.display=show?'':'none';
+}
+function abrirDirRaw(){ if(Q.dirRaw) window.open(dirRawMapsUrl(),'_blank','noopener'); }
+function copiarLinkDirRaw(){
+  if(!Q.dirRaw) return;
+  navigator.clipboard.writeText(dirRawMapsUrl())
+    .then(()=>toast('Link de Maps copiado · listo para compartir','ok',3200))
+    .catch(()=>toast('No se pudo copiar automáticamente','err',3000));
+}
+function toggleIva(e){ if(e)e.preventDefault(); Q.iva=!Q.iva; saveState(); renderSummary(); }
+function setRol(r){ Q.rol=r; document.querySelectorAll('#roleseg button').forEach(b=>b.classList.toggle('on',b.dataset.rol===r)); renderAuth(); }
+$('f-anti').addEventListener('input',function(){Q.anti=parseFloat(this.value)||0;Q.antiManual=this.value.trim()!=='';saveState();});
+
+/* ===================== Logotipo ===================== */
+function pickLogo(){ $('logoin').click(); }
+function setLogo(src){
+  $('brandLogo').innerHTML=`<img class="logoimg" src="${src}" alt="AL3D"><div class="t">Cotizador <small>Anuncios Luminosos 3D</small></div>`;
+}
+$('logoin').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{ setLogo(ev.target.result); try{localStorage.setItem('al3d_logo',ev.target.result);}catch(_){} toast('Logotipo cargado','ok'); };
+  r.readAsDataURL(f); e.target.value='';
+});
+function loadLogo(){ try{const s=localStorage.getItem('al3d_logo'); if(s) setLogo(s);}catch(_){} }
+
+/* ===================== IA (Google Gemini) ===================== */
+const PROMPT_IA = `Eres un asistente experto en cotizacion para "AL3D", empresa que fabrica letras 3D (caras de acrilico, cantos de aluminio), recortes de acrilico, bastidores y cajas de luz.
+
+Analiza la imagen o PDF y DESGLOSA CADA ELEMENTO por separado en distintas partidas. Devuelve SOLO un JSON valido, sin texto adicional:
+{"proyecto":"","cliente":"","direccion":"","partidas":[{"tipo":"letras|recorte|bastidor|caja|manual","material":"al-paint|al-brush|acr-vol|acr-vinil","complejidad":"recta|cursiva|compleja","acabado":"sencillo|vinil|sandwich","bastidor":"lamina|alucobond","altura_cm":0,"n_letras":0,"iluminacion":true,"tarifa":0,"ancho_cm":0,"alto_cm":0,"descripcion":"","piezas":1,"precio_unitario":0,"notas":""}]}
+
+=== CÓMO DISTINGUIR tipos (LEE ESTO PRIMERO — ORDEN DE PRIORIDAD) ===
+- tipo "letras": ES EL TIPO POR DEFECTO. Texto, letras, iconos y logos con profundidad/volumen. Ante CUALQUIER DUDA entre letras y recorte, SIEMPRE elige letras. Es el tipo más común en todos los proyectos.
+- tipo "caja": cuando hay una SILUETA COMPLETA de logotipo, figura, mascota, animal o icono que funciona como una forma unica iluminada (no son letras individuales separadas). REGLA: si la imagen muestra un dibujo, figura o logo completo como silueta → SIEMPRE tipo "caja" con tarifa 4600 (tipo nube/silueta). Incluye ancho_cm y alto_cm.
+- tipo "recorte": ULTIMO RECURSO. Solo cuando el diseno especifica EXPLICITAMENTE que el elemento es plano/2D, sin profundidad, sin iluminacion interna. NUNCA uses recorte si tienes la minima duda — elige letras en su lugar.
+REGLA DE ORO: letras (default para todo texto e iconos) > caja (silueta o figura completa) > bastidor (panel de fondo) > recorte (solo si el cliente lo pide explicitamente, muy raro).
+
+=== REGLA PRINCIPAL: DESGLOSA SIEMPRE ===
+NUNCA pongas un logotipo completo como una sola partida. Separa cada elemento:
+1. Si hay un SIMBOLO, ICONO o LOGOTIPO con VOLUMEN/PROFUNDIDAD (dice "Cantos en Aluminio", "3D", o se ven los lados en la imagen) → tipo "letras". Si es PLANO y sin profundidad → tipo "recorte".
+2. Si hay TEXTO principal (nombre/marca) → partida tipo "letras", cuenta CADA letra individual (sin espacios).
+3. Si hay SLOGAN o texto secundario con diferente tamaño o tipografia → partida tipo "letras" SEPARADA.
+4. Si hay diferentes alturas en el mismo texto → crea una partida por cada grupo de altura distinta.
+5. Si hay diferentes materiales en el mismo diseno → una partida por material.
+
+Ejemplos de desglose correcto:
+- Logo "FARMACIA SAN JUAN" con cruz medica: → Partida 1: caja (cruz como silueta completa iluminada, tarifa 4600) + Partida 2: letras (FARMACIA = 8 letras) + Partida 3: letras (SANJUAN = 7 letras, si tienen altura diferente).
+- Letrero "AL3D Anuncios": → Partida 1: letras (AL3D = 4 caracteres) + Partida 2: letras (Anuncios = 8 letras, si es distinto tamano o tipografia).
+- Logo con isotipo + nombre: SIEMPRE son minimo 2 partidas separadas. Si el isotipo es una figura/silueta completa → tipo "caja" tarifa 4600. Si son letras → tipo "letras".
+
+=== REGLAS DE CAMPOS ===
+- "descripcion": OBLIGATORIA. Escribe SOLO el contenido visual (texto detectado o descripcion del icono/figura). NO incluyas el material ni las medidas exactas — esos datos ya van en sus propios campos JSON (material, altura_cm, etc.). Ejemplo correcto: "Letras «FARMACIA»", "Cruz médica", "Corazón con avión". Ejemplo incorrecto: "Letras «FARMACIA» en aluminio pintado, 25 cm" (no hagas esto).
+- n_letras para tipo "letras": cuenta CADA caracter visible del texto de esa partida, SIN espacios. "AL 3D" = 4.
+- n_letras para tipo "recorte": numero de piezas fisicas del elemento (icono, figura, silueta).
+- REGLA DE CORCHETES — PASO 1 OBLIGATORIO: Antes de generar el JSON, CUENTA cuantos corchetes, brackets o lineas de cota hay en la imagen. Ese numero exacto es la cantidad minima de partidas que debes generar. Anota internamente: "Veo N corchetes, debo crear N partidas".
+- REGLA DE CORCHETES — PASO 2: Aunque dos corchetes apunten a partes del mismo logotipo o elemento visual (por ejemplo: corchete de 92cm para las ondas Y corchete de 19cm para el circulo del mismo logo), CADA corchete con medida diferente = partida SEPARADA. Un logotipo con 2 corchetes = 2 partidas. NO los fusiones en una sola aunque sean del mismo logo.
+- REGLA DE CORCHETES — PASO 3: Verifica antes de responder que el numero de partidas en tu JSON coincide con el numero de corchetes que contaste. Si no coincide, agrega las partidas faltantes.
+- REGLA DE TEXTOS DESCRIPTIVOS: Los planos suelen tener bloques de texto con especificaciones (ej. "Letras Individuales 3D: Cara en Acrilico Blanco, Cantos en Aluminio Blanco"). Cada bloque de texto descriptivo aplica al elemento visual mas cercano o al que apunta. Cuando hay DOS bloques de texto distintos → son elementos distintos con especificaciones distintas. LEE y USA esos textos para rellenar material, tipo e iluminacion de CADA partida. NUNCA dejes una partida sin descripcion ni sin material si hay texto en la imagen que la describa.
+- REGLA ANTI-PARTIDA-VACIA: Una partida con todos los campos en 0 o vacios es invalida. Si creaste una partida para cumplir el conteo de corchetes pero no la llenaste, busca en la imagen el elemento visual y el texto descriptivo que corresponden a ese corchete y rellena todos sus campos.
+- altura_cm: el valor numerico que muestra el corchete apuntando a ese elemento. No importa si el corchete es vertical u horizontal: usa ese numero tal cual como centimetros. NUNCA ignores un corchete porque sea horizontal o apunte al ancho.
+- Cuando hay MULTIPLES corchetes: asigna el valor de cada corchete al elemento al que apunta. NUNCA uses la misma medida para elementos distintos. NUNCA omitas un corchete.
+- Ejemplo para imagen con 2 bloques de texto + 3 corchetes (92cm ondas, 19cm circulo, 62cm letras): → Partida 1: ondas, acr-vinil, altura_cm=92, n_letras=4 (piezas de onda). Partida 2: circulo, acr-vinil, altura_cm=19, n_letras=1. Partida 3: letras "National", acr-vol, altura_cm=62, n_letras=8. TRES partidas completas, ninguna vacia.
+- Material de letras: al-paint=Aluminio pintado, al-brush=Aluminio brush cepillado, acr-vol=Acrilico+Aluminio con volumen, acr-vinil=Acrilico+Vinil.
+- Deteccion de material por descripcion: "Cara en Acrilico" + "rotulacion de vinil" + "Cantos en Aluminio" → material="acr-vinil". "Cara en Acrilico" + "Cantos en Aluminio" sin vinil → material="acr-vol". "Cantos en Aluminio Blanco/Negro/Pintado" sin acrilico → material="al-paint".
+- complejidad: recta (tipografia recta/imprenta), cursiva (manuscrita/script/italica), compleja (muy ornamentada o muy detallada).
+- iluminacion: true salvo que diga explicitamente "sin luz" o "sin iluminacion".
+- tipo "recorte": acabado sencillo=$20/cm, vinil=$25/cm, sandwich=$55/cm (+$5 si es compleja). Se cobra altura_cm x n_letras (piezas).
+- tipo "bastidor": bastidor lamina=$950/m2 o alucobond=$1500/m2. Incluye ancho_cm y alto_cm.
+- tipo "caja": tarifa 3900 (estandar) o 4600 (tipo nube/silueta). Incluye ancho_cm y alto_cm. Minimo 1 m2.
+- tipo "manual": para instalacion, viaticos, rotulacion vehicular u otros. Usa descripcion, piezas y precio_unitario solo si el precio aparece en el archivo.
+- Si un dato no se ve claramente, dejalo en 0 o "". NUNCA inventes precios.
+
+=== CUANDO NO HAY CORCHETES NI COTAS (imagen sin medidas) ===
+Si la imagen NO tiene corchetes ni lineas de cota, estima alturas usando objetos de referencia comunes que aparezcan en la foto:
+- Puerta o marco de puerta: 200cm alto x 90cm ancho
+- Ventana residencial: 120cm alto x 80cm ancho
+- Persona adulta: 170cm alto
+- Auto sedan: 145cm alto | Camioneta/SUV: 175cm alto
+- Ladrillo estandar MX: 6cm alto x 19cm largo
+- Loseta/baldosa cuadrada: 40x40cm
+- Letra de cartel tipica en fachada de local comercial (referencia secundaria): 20-40cm alto
+PROCESO sin cotas: 1) Identifica el objeto de referencia mas obvio y claro en la imagen. 2) Calcula la proporcion de ese objeto vs los elementos a cotizar usando sus tamaños relativos en pixeles. 3) Estima la altura de letras y elementos. 4) En el campo "descripcion" de CADA partida escribe al final: "(~Xcm estimado por [referencia usada])". 5) Si no hay ninguna referencia reconocible, deja altura_cm=0 y escribe en descripcion "Sin escala — confirmar medidas con cliente".`;
+
+let aiProv='gemini';
+function setAiProv(p){
+  aiProv=p;
+  localStorage.setItem('ai_provider',p);
+  ['gemini','groq','openrouter'].forEach(x=>{ const el=$('prov-'+x); if(el) el.style.display=x===p?'':'none'; });
+  document.querySelectorAll('#ai-prov-seg button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
+}
+function aiOpen(){
+  $('ai-key-gemini').value=localStorage.getItem('ai_key_gemini')||localStorage.getItem('ai_key')||'';
+  $('ai-model-gemini').value=localStorage.getItem('ai_model_gemini')||localStorage.getItem('ai_model')||'gemini-2.5-flash';
+  $('ai-key-groq').value=localStorage.getItem('ai_key_groq')||'';
+  $('ai-model-groq').value=localStorage.getItem('ai_model_groq')||'meta-llama/llama-4-scout-17b-16e-instruct';
+  $('ai-key-openrouter').value=localStorage.getItem('ai_key_openrouter')||'';
+  $('ai-model-openrouter').value=localStorage.getItem('ai_model_openrouter')||'meta-llama/llama-4-scout:free';
+  const p=localStorage.getItem('ai_provider')||'gemini';
+  setAiProv(p);
+  if(!$('ai-key-'+p).value) $('ai-cfg-box').open=true;
+  aiStatus(''); $('aimodal').classList.add('show');
+}
+function aiClose(){ $('aimodal').classList.remove('show'); }
+function aiStatus(msg,cls=''){ const e=$('ai-status'); e.textContent=msg; e.className='ai-status '+cls; }
+function fileToB64(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(f); }); }
+function extractJSON(txt){
+  try{ return JSON.parse(txt); }catch(_){}
+  const m=txt.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if(m){ try{ return JSON.parse(m[1].trim()); }catch(_){} }
+  throw new Error('No se pudo interpretar la respuesta de la IA.');
+}
+
+async function aiAnalyze(){
+  const f=$('ai-file').files[0];
+  if(!f){ aiStatus('Selecciona un archivo JPG o PDF.','err'); return; }
+  if(aiProv!=='gemini' && f.type==='application/pdf'){
+    aiStatus('Groq y OpenRouter solo admiten imágenes JPG. Para PDF usa Gemini.','err'); return;
+  }
+  const DEFAULTS={gemini:'gemini-2.5-flash',groq:'meta-llama/llama-4-scout-17b-16e-instruct',openrouter:'meta-llama/llama-4-scout:free'};
+  const key=$('ai-key-'+aiProv).value.trim();
+  const model=($('ai-model-'+aiProv).value.trim())||DEFAULTS[aiProv];
+  if(!key){ $('ai-cfg-box').open=true; aiStatus('Pega tu API key de '+aiProv+'.','err'); return; }
+  localStorage.setItem('ai_key_'+aiProv,key);
+  localStorage.setItem('ai_model_'+aiProv,model);
+  localStorage.setItem('ai_provider',aiProv);
+  aiStatus('Analizando con IA… (unos segundos)','work');
+  try{
+    const b64=await fileToB64(f);
+    const mime=f.type||'image/jpeg';
+    let parsed;
+    if(aiProv==='gemini'){
+      const body={contents:[{parts:[{text:PROMPT_IA},{inline_data:{mime_type:mime,data:b64}}]}],generationConfig:{responseMimeType:'application/json',temperature:0.2}};
+      const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+      const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const data=await res.json();
+      if(data.error) throw new Error(data.error.message||('HTTP '+res.status));
+      const txt=(data.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('').trim();
+      if(!txt) throw new Error('La IA no devolvió datos. Intenta con otra imagen.');
+      parsed=extractJSON(txt);
+    } else {
+      const URLS={groq:'https://api.groq.com/openai/v1/chat/completions',openrouter:'https://openrouter.ai/api/v1/chat/completions'};
+      const hdrs={'Content-Type':'application/json','Authorization':'Bearer '+key};
+      if(aiProv==='openrouter'){hdrs['HTTP-Referer']=location.origin;hdrs['X-Title']='Cotizador AL3D';}
+      const body={model,messages:[{role:'user',content:[{type:'text',text:PROMPT_IA},{type:'image_url',image_url:{url:`data:${mime};base64,${b64}`}}]}],response_format:{type:'json_object'},temperature:0.2};
+      const res=await fetch(URLS[aiProv],{method:'POST',headers:hdrs,body:JSON.stringify(body)});
+      const data=await res.json();
+      if(data.error) throw new Error(data.error.message||('HTTP '+res.status));
+      const txt=(data.choices?.[0]?.message?.content||'').trim();
+      if(!txt) throw new Error('La IA no devolvió datos. Intenta con otra imagen.');
+      parsed=extractJSON(txt);
+    }
+    Q.aiFile={name:f.name,type:mime,url:'data:'+mime+';base64,'+b64};
+    applyAi(parsed);
+    aiStatus('Borrador generado. Revísalo y ajústalo antes de autorizar.','ok');
+    toast('Cotización IA lista (borrador)','ok');
+    setTimeout(aiClose,1500);
+  }catch(e){ aiStatus('Error: '+e.message,'err'); }
+}
+
+function applyAi(p){
+  if(p.proyecto){ Q.proy=p.proyecto; if($('f-proy')) $('f-proy').value=p.proyecto; }
+  if(p.cliente){ Q.cliente=p.cliente; if($('f-cli')) $('f-cli').value=p.cliente; }
+  if(p.direccion){ Q.direccion=p.direccion; if($('f-dir')) $('f-dir').value=p.direccion; }
+  if(Array.isArray(p.partidas) && p.partidas.length){
+    Q.items=[];
+    p.partidas.forEach(x=>{
+      const it={id:++pid,tipo:'letras',material:'',comp:'',luz:true,altura:0,n:0,tarifa:0,ancho:0,alto:0,acab:'',recComp:false,bas:'',desc:'',descAi:false,pz:1,pu:0};
+      it.tipo=['letras','recorte','bastidor','caja','manual'].includes(x.tipo)?x.tipo:'letras';
+      it.desc=(x.descripcion||'').trim(); it.descAi=!!it.desc;
+      if(it.tipo==='letras'){
+        it.material=['al-paint','al-brush','acr-vol','acr-vinil'].includes(x.material)?x.material:'';
+        it.comp=['recta','cursiva','compleja'].includes(x.complejidad)?x.complejidad:'recta';
+        it.altura=+x.altura_cm||0; it.n=+x.n_letras||0; it.luz=(x.iluminacion!==false);
+        const aiNotes=(x.notas||x.descripcion||'').toLowerCase();
+        it.ilumTipo=aiNotes.match(/c[aá]lid/)?'calida':'fria';
+      } else if(it.tipo==='recorte'){
+        it.acab=['sencillo','vinil','sandwich'].includes(x.acabado)?x.acabado:'sencillo';
+        it.recComp=(it.acab==='sandwich' && x.complejidad==='compleja');
+        it.altura=+x.altura_cm||0; it.n=(+x.n_letras||+x.piezas)||0;
+      } else if(it.tipo==='bastidor'){
+        it.bas=['lamina','alucobond'].includes(x.bastidor)?x.bastidor:'lamina';
+        it.ancho=+x.ancho_cm||0; it.alto=+x.alto_cm||0;
+      } else if(it.tipo==='caja'){
+        it.tarifa=+x.tarifa||3900; it.ancho=+x.ancho_cm||0; it.alto=+x.alto_cm||0;
+      } else {
+        it.pz=+x.piezas||1; it.pu=+x.precio_unitario||0;
+        if(!it.desc && x.notas) it.desc=x.notas;
+      }
+      Q.items.push(it);
+    });
+    Q.estado='borrador';
+    renderItems();
+  }
+}
+
+/* ===================== Datos de empresa (edita aquí) ===================== */
+const EMPRESA = {
+  vendedor:  'Elias Guerrero',
+  taller:    'Naranjos #648 Col. Lindavista Cp. 45169',
+  whatsapp:  '33-2813-0092',
+  oficina:   'Naranjos #648 Col. Lindavista Cp. 45169'
+};
+
+/* ===================== Copiar datos para pegar en Canva ===================== */
+function copiarParaCanva(){
+  const t=totals();
+  const precioFinal=Q.precioAuth&&Q.precioAuth<t.neto?Q.precioAuth:t.neto;
+  const MAT={'al-paint':'Aluminio Blanco/Negro/Pintado','al-brush':'Aluminio Brush Cepillado','acr-vol':'Acrílico + Aluminio (Volumen)','acr-vinil':'Acrílico + Vinil'};
+  const ACAB={'sencillo':'Sencillo','vinil':'Rotulación de Vinil','sandwich':'Tipo Sándwich con Iluminación'};
+  const BAS={'lamina':'Lámina Galvanizada','alucobond':'Alucobond'};
+  function descTxt(it){
+    let d='';
+    if(it.tipo==='letras')    d=`Letras Individuales 3D: Caras en Acrílico, Cantos en ${MAT[it.material]||'Aluminio'}${it.luz?` con Iluminación LED ${it.ilumTipo==='calida'?'Cálida (3000K)':'Fría (6500K)'}`:' sin iluminación'}.`;
+    else if(it.tipo==='recorte')  d=`Recorte de Acrílico: ${ACAB[it.acab]||''}.`;
+    else if(it.tipo==='bastidor') d=`Bastidor para Letras 3D: estructura tubular 1"pulg forrada de ${BAS[it.bas]||'lámina galvanizada'}.`;
+    else if(it.tipo==='caja'){const tp=it.tarifa>=4600?'Tipo Nube / Silueta':'Estándar'; d=`Caja de Luz: ${tp}, Caras en Acrílico con Iluminación LED Fría.`;}
+    if(it.desc) d+=(d?' — ':'')+it.desc;
+    return d||'—';
+  }
+  function medTxt(it){
+    if(it.tipo==='letras')  return `${it.altura}cm alt.`;
+    if(it.tipo==='recorte') return `${it.altura}cm × pieza`;
+    if(it.tipo==='bastidor'||it.tipo==='caja') return `${it.ancho}×${it.alto} cm`;
+    return '—';
+  }
+  function pzasTxt(it){
+    if(it.tipo==='letras'||it.tipo==='recorte') return it.n||0;
+    if(it.tipo==='bastidor'||it.tipo==='caja')  return 1;
+    return it.pz||1;
+  }
+  const lineas=Q.items.map((it,i)=>`${i+1}. ${descTxt(it)}\n   Medidas: ${medTxt(it)}  ·  Pzas: ${pzasTxt(it)}  ·  Total: ${money(lineTotal(it))}`).join('\n\n');
+  const txt=`PROYECTO: ${Q.proy||'—'}
+CLIENTE: ${Q.cliente||'—'}
+DIRECCIÓN: ${Q.direccion||'—'}
+FECHA: ${Q.fecha||'—'}
+
+PARTIDAS:
+${lineas}
+
+Subtotal: ${money(t.sub)}
+IVA (16%): ${money(t.iva)}
+Total Neto: ${money(t.neto)}${Q.precioAuth&&Q.precioAuth<t.neto?`\nPrecio autorizado: ${money(precioFinal)}`:''}
+
+Nota: ${Q.nota||'El cliente debe proporcionar salidas eléctricas.'}
+Límite de fabricación: ${Q.entrega||'—'}
+Teléfono: ${Q.tel||'—'}
+Entre calles: ${Q.entrecalles||'—'}
+
+Vendedor: ${EMPRESA.vendedor}
+Whatsapp: ${EMPRESA.whatsapp}`;
+
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt)
+      .then(()=>toast('Datos copiados · listos para pegar en Canva','ok',3200))
+      .catch(()=>toast('No se pudo copiar automáticamente. Copia el texto manualmente.','err',3500));
+  } else {
+    toast('Tu navegador no permite copiar automáticamente.','err',3500);
+  }
+}
+
+/* ===================== Prompt para imagen de referencia (Gemini) ===================== */
+function copiarParaGemini(){
+  function descGemini(it){
+    const label=it.desc?` "${it.desc}"`:'';
+    if(it.tipo==='letras'){
+      let fabr='';
+      if(it.material==='al-paint') fabr='Fabricadas en Aluminio Pintado';
+      else if(it.material==='al-brush') fabr='Fabricadas en Aluminio Brush Cepillado';
+      else if(it.material==='acr-vol') fabr='Fabricadas en Acrílico, Cantos en Aluminio';
+      else if(it.material==='acr-vinil') fabr='Fabricadas en Acrílico con Rotulación de Vinil, Cantos en Aluminio';
+      else fabr='Fabricadas en Aluminio';
+      const ilumPos=(it.material==='acr-vol'||it.material==='acr-vinil')?'Interna':'Posterior';
+      const ilumColor=(it.ilumTipo==='calida')?'Cálida (3000K)':'Fría (6500K)';
+      const ilum=it.luz?`, con Iluminación LED ${ilumPos} ${ilumColor}`:' sin iluminación';
+      const alt=it.altura?`, altura de ${it.altura}cm`:'';
+      return `Letras Individuales 3D${label} — ${fabr}${alt}${ilum}`;
+    }
+    if(it.tipo==='recorte'){
+      const alt=it.altura?`, ${it.altura}cm de altura`:'';
+      if(it.acab==='sandwich') return `Recorte de Acrílico Tipo Sándwich${label} — Con Iluminación LED Fría${alt}`;
+      if(it.acab==='vinil')    return `Recorte de Acrílico con Rotulación de Vinil${label}${alt}`;
+      return `Recorte de Acrílico Sencillo${label}${alt}`;
+    }
+    if(it.tipo==='bastidor'){
+      const bas=it.bas==='alucobond'?'Alucobond':'Lámina Galvanizada';
+      const med=(it.ancho&&it.alto)?`, ${it.ancho}×${it.alto}cm`:'';
+      return `Bastidor${label} — Estructura Tubular Forrada de ${bas}${med}`;
+    }
+    if(it.tipo==='caja'){
+      const tipo=it.tarifa>=4600?'Tipo Nube / Silueta':'Estándar';
+      const med=(it.ancho&&it.alto)?`, ${it.ancho}×${it.alto}cm`:'';
+      return `Caja de Luz ${tipo}${label} — Cara en Acrílico con Iluminación LED Fría${med}`;
+    }
+    return null; // partidas manuales no se incluyen en el render visual
+  }
+
+  let idx=0;
+  const conceptos=Q.items.map(it=>{
+    const d=descGemini(it); if(!d) return null;
+    return `${++idx}. ${d}`;
+  }).filter(Boolean).join('\n');
+
+  const prompt=`Ayudame a crear una imagen tipo render realista del siguiente proyecto:
+
+Proyecto: ${Q.proy||'—'}
+Cliente: ${Q.cliente||'—'}
+
+${conceptos||'Sin partidas definidas'}
+
+Importante: respeta todos los elementos, posiciones y acomodo que aparecen en las imágenes de referencia.`;
+
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(prompt)
+      .then(()=>toast('Prompt copiado · pégalo en Gemini junto con tu imagen de referencia','ok',3500))
+      .catch(()=>toast('No se pudo copiar automáticamente.','err',3500));
+  } else {
+    toast('Tu navegador no permite copiar automáticamente.','err',3500);
+  }
+}
+
+/* ===================== Generador de PDF ===================== */
+async function generarPDF(){
+  const t = totals();
+  const precioFinal = Q.precioAuth && Q.precioAuth < t.neto ? Q.precioAuth : t.neto;
+  const descuento   = Q.precioAuth && Q.precioAuth < t.neto ? t.neto - Q.precioAuth : 0;
+
+  /* Etiquetas de catálogos */
+  const MAT = {'al-paint':'Aluminio Blanco/Negro/Pintado','al-brush':'Aluminio Brush Cepillado','acr-vol':'Acrílico + Aluminio (Volumen)','acr-vinil':'Acrílico + Vinil'};
+  const ACAB = {'sencillo':'Sencillo','vinil':'Rotulación de Vinil','sandwich':'Tipo Sándwich con Iluminación'};
+  const BAS  = {'lamina':'Lámina Galvanizada','alucobond':'Alucobond'};
+
+  function desc(it){
+    let d='';
+    if(it.tipo==='letras')    d=`<b>Letras Individuales 3D:</b> Caras en Acrílico, Cantos en ${MAT[it.material]||'Aluminio'}${it.luz?` con Iluminación LED ${it.ilumTipo==='calida'?'Cálida (3000K)':'Fría (6500K)'}`:' sin iluminación'}.`;
+    else if(it.tipo==='recorte')  d=`<b>Recorte de Acrílico:</b> ${ACAB[it.acab]||''}.`;
+    else if(it.tipo==='bastidor') d=`<b>Bastidor para Letras 3D:</b> estructura tubular 1"pulg forrada de ${BAS[it.bas]||'lámina galvanizada'}.`;
+    else if(it.tipo==='caja'){const tp=it.tarifa>=4600?'Tipo Nube / Silueta':'Estándar'; d=`<b>Caja de Luz:</b> ${tp}, Caras en Acrílico con Iluminación LED Fría.`;}
+    if(it.desc) d+=(d?'<br>':'')+esc(it.desc);
+    return d||'—';
+  }
+  function med(it){
+    if(it.tipo==='letras')  return `${it.altura}cm alt.`;
+    if(it.tipo==='recorte') return `${it.altura}cm × pieza`;
+    if(it.tipo==='bastidor'||it.tipo==='caja') return `${it.ancho}×${it.alto} cm`;
+    return '—';
+  }
+  function pzas(it){
+    if(it.tipo==='letras'||it.tipo==='recorte') return it.n||0;
+    if(it.tipo==='bastidor'||it.tipo==='caja')  return 1;
+    return it.pz||1;
+  }
+  function pu(it){
+    const tot=lineTotal(it), p=pzas(it);
+    if(p>1&&(it.tipo==='letras'||it.tipo==='recorte')) return money(tot/p);
+    return money(tot);
+  }
+
+  const filas = Q.items.map((it,i)=>`
+    <tr class="${i%2===0?'re':'ro'}">
+      <td>${desc(it)}</td>
+      <td class="c">${med(it)}</td>
+      <td class="c">${pzas(it)}</td>
+      <td class="r">${pu(it)}</td>
+      <td class="r">${money(lineTotal(it))}</td>
+    </tr>`).join('');
+
+  /* Filas vacías para rellenar tabla */
+  const vacias = Array.from({length:Math.max(0,4-Q.items.length)},(_,i)=>`
+    <tr class="${(Q.items.length+i)%2===0?'re':'ro'}"><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('');
+
+  /* Logo */
+  const logoSrc = (()=>{ try{return localStorage.getItem('al3d_logo');}catch(_){return null;} })();
+  const logoH = logoSrc
+    ? `<img src="${logoSrc}" style="height:38px;max-width:180px;object-fit:contain;display:block">`
+    : `<div style="display:flex;align-items:center;gap:8px">
+        <svg width="34" height="22" viewBox="0 0 46 28" xmlns="http://www.w3.org/2000/svg"><circle cx="34" cy="13" r="11" fill="#2f39d6"/><circle cx="13" cy="14" r="13" fill="#4a63f0"/><circle cx="25" cy="15.5" r="8" fill="#7b9bf7"/></svg>
+        <span style="display:inline-block;width:2px;height:24px;background:#2b2f3a"></span>
+        <span style="font-size:18px;font-weight:900;line-height:1.02"><span style="display:block;color:#2b2f3a">AL</span><span style="display:block;color:#3a4ad8">3D</span></span>
+      </div>`;
+
+  /* Límite de fabricación */
+  const ep = (Q.entrega||'').trim().split(/\s+/);
+  const limDia   = ep[0]||'';
+  const limFecha = ep.slice(1).join(' ');
+
+  /* Decorativo esquina superior derecha · cinta curva estilo plantilla Canva */
+  const deco=`<svg style="position:absolute;top:0;right:0;width:190px;height:135px;pointer-events:none" viewBox="0 0 190 135" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="decoGrad" x1="100%" y1="0%" x2="20%" y2="100%">
+        <stop offset="0%" stop-color="#1c2456"/>
+        <stop offset="45%" stop-color="#3a4ad8"/>
+        <stop offset="100%" stop-color="#9aa8ff"/>
+      </linearGradient>
+    </defs>
+    <path d="M190,0 C128,6 78,32 60,66 C45,94 60,118 98,126" stroke="url(#decoGrad)" stroke-width="36" fill="none" stroke-linecap="round"/>
+    <path d="M190,20 C138,26 100,48 88,74" stroke="#c7cffb" stroke-width="9" fill="none" stroke-linecap="round" opacity=".75"/>
+  </svg>`;
+
+  /* Header reutilizable */
+  function hdr(fecha){
+    return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+      <div>${logoH}</div>
+      ${fecha?`<div style="display:flex;align-items:center;border:1.5px solid #3a4ad8;border-radius:6px;overflow:hidden">
+        <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:11px;padding:5px 11px">Fecha</span>
+        <span style="padding:5px 13px;font-size:11px;font-weight:600;min-width:90px">${esc(fecha)}</span>
+      </div>`:''}
+    </div>
+    <div style="height:3px;background:#3a4ad8;margin-bottom:10px"></div>`;
+  }
+
+  /* Fila proyecto/dirección */
+  function prowProyDir(){
+    return `<div style="display:flex;margin-bottom:12px;border:1.5px solid #3a4ad8;border-radius:4px;overflow:hidden">
+      <div style="display:flex;flex:1">
+        <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Proyecto:</span>
+        <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(Q.proy)}</span>
+      </div>
+      <div style="display:flex;flex:1;border-left:1.5px solid #3a4ad8">
+        <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Dirección</span>
+        <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(Q.direccion)}</span>
+      </div>
+    </div>`;
+  }
+
+  /* Footer reutilizable */
+  function footer(cols){
+    const colsHTML = cols.map(c=>`<div style="text-align:center"><b style="display:block;font-size:10.5px">${c.label}</b><span style="font-size:10px">${c.val}</span></div>`).join('');
+    return `<div style="position:absolute;bottom:26px;left:32px;right:32px">
+      <div style="border-top:1.5px dashed #9999bb;margin-bottom:10px"></div>
+      <div style="display:flex;justify-content:space-around">${colsHTML}</div>
+      <div style="height:8px;background:#3a4ad8;border-radius:2px;margin-top:10px"></div>
+    </div>`;
+  }
+
+  const footerCot = footer([
+    {label:'Vendedor:',val:esc(EMPRESA.vendedor)},
+    {label:'Dirección Taller.',val:esc(EMPRESA.taller)},
+    {label:'Whatsapp',val:esc(EMPRESA.whatsapp)}
+  ]);
+
+  /* Contenido de cada página (sin el contenedor .pdfpg, eso se agrega al montar) */
+  const paginas = [
+    `${deco}
+    ${hdr(Q.fecha)}
+    ${prowProyDir()}
+    <table>
+      <thead><tr>
+        <th style="width:38%">Descripción:</th>
+        <th class="c" style="width:16%">Medidas:</th>
+        <th class="c" style="width:9%">Pzas.</th>
+        <th class="r" style="width:18%">Precio unitario</th>
+        <th class="r" style="width:19%">Total</th>
+      </tr></thead>
+      <tbody>${filas}${vacias}</tbody>
+    </table>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+      <div style="width:265px">
+        <div class="t-row"><b>Subtotal:</b><span>${money(t.sub)}</span></div>
+        <div class="t-row" style="background:#d8d8f8"><b>I.V.A</b><span>${money(t.iva)}</span></div>
+        <div class="t-row" style="background:#3a4ad8;color:#fff;font-weight:700;font-size:12px"><b>Total Neto:</b><span>${money(t.neto)}</span></div>
+        ${descuento?`<div class="t-row" style="background:#e5f6ee;color:#15a06a;font-weight:700"><b>Precio autorizado:</b><span>${money(precioFinal)}</span></div>`:''}
+      </div>
+    </div>
+    <div style="text-align:center;font-size:10px;margin-bottom:12px">
+      <u style="font-weight:700">Nota:</u><br>
+      ${esc(Q.nota||'El cliente debe proporcionar salidas eléctricas.')}
+    </div>
+    ${footerCot}`,
+
+    `${deco}
+    ${hdr('')}
+    <div style="text-align:center;font-size:17px;font-weight:800;color:#3a4ad8;margin:16px 0 5px;letter-spacing:1px">TERMINOS Y CONDICIONES</div>
+    <div style="width:160px;height:2px;background:#3a4ad8;margin:0 auto 18px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 26px;font-size:9.5px;line-height:1.55">
+      <div>
+        <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">1. Pagos y Facturación</p>
+        <ul style="padding-left:12px;margin-bottom:12px"><li>50% de anticipo para comenzar fabricación.</li><li>50% al finalizar, debe liquidar en máximo 2 días posterior a la instalación.</li><li><u>Excepción: proyectos mayores a $60,000 MXN.</u></li><li>Si requiere factura, el anticipo es mas IVA.</li><li>La cotización es válida por 10 días.</li></ul>
+        <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">2. Requisitos para Instalación</p>
+        <ul style="padding-left:12px;margin-bottom:12px"><li>En caso de el proyecto llevar iluminación, el cliente debe proporcionar salida eléctrica detrás de donde se instalará el anuncio.</li><li>Área limpia, accesible y segura.</li><li>El cliente debe gestionar accesos, permisos y condiciones necesarias.</li><li>Cualquier retraso por falta de esto será responsabilidad del cliente.</li></ul>
+        <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">3. Modificaciones</p>
+        <ul style="padding-left:12px;margin-bottom:12px"><li>Cambios al diseño aprobado pueden generar costos y retrasos.</li><li>Deben ser autorizados previamente.</li><li>AL3D no responde por fallas si el cliente exige cambios fuera de especificación.</li></ul>
+        <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">4. Garantías</p>
+        <ul style="padding-left:12px"><li>1 año en material eléctrico.</li><li>2 años en colorimetría.</li><li>Se atiende según disponibilidad del equipo.</li><li>No aplica si fue instalado/modificado por terceros o expuesto a condiciones extremas.</li></ul>
+      </div>
+      <div>
+        <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">5. Cancelaciones y Penalizaciones</p>
+        <ul style="padding-left:12px;margin-bottom:12px"><li>El anticipo no es reembolsable.</li><li>Si se cancela con el proyecto iniciado o materiales comprados, se debe pagar el 100%.</li><li>Después de 10 días sin pago, AL3D puede retirar el anuncio.</li></ul>
+        <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">6. Uso y Responsabilidad</p>
+        <p style="margin-bottom:3px">AL3D no se hace responsable por:</p>
+        <ul style="padding-left:12px;margin-bottom:12px"><li>Uso indebido o manipulación externa a nosotros.</li><li>Clima extremo.</li><li>Fallas estructurales del inmueble.</li></ul>
+        <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">7. Permisos</p>
+        <ul style="padding-left:12px;margin-bottom:12px"><li>El cliente debe tramitar los permisos.</li><li>AL3D no se hace responsable por multas o clausuras.</li></ul>
+        <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">8. Consentimiento y Uso de Imágenes</p>
+        <ul style="padding-left:12px"><li><u>El depósito implica aceptación de todos estos términos.</u></li><li>El cliente autoriza a AL3D a usar imágenes del proyecto con fines promocionales y de portafolio.</li></ul>
+      </div>
+    </div>
+    ${footer([{label:'Whatsapp',val:esc(EMPRESA.whatsapp)},{label:'Dirección Oficina',val:esc(EMPRESA.oficina)}])}`,
+
+    `${deco}
+    ${hdr(Q.fecha)}
+    ${prowProyDir()}
+    <div style="display:flex;align-items:center;justify-content:center;height:55vh">
+      ${Q.entrega
+        ? `<div style="background:#5adb5a;border-radius:14px;padding:22px 36px;text-align:center;display:inline-block">
+            <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:4px">Límite Fabricación</div>
+            <div style="font-size:22px;font-weight:900;color:#e02020;text-transform:uppercase">${esc(limDia)}</div>
+            <div style="font-size:22px;font-weight:900;color:#1a1a2e;text-transform:uppercase">${esc(limFecha)}</div>
+          </div>`
+        : `<p style="color:#aaa;font-size:13px">Sin límite de fabricación definido.<br>Agrega la fecha en "Datos del proyecto".</p>`}
+    </div>
+    ${footerCot}`,
+
+    `${deco}
+    ${hdr(Q.fecha)}
+    ${prowProyDir()}
+    <div style="display:flex;margin-bottom:8px;border:1.5px solid #3a4ad8;border-radius:4px;overflow:hidden">
+      <div style="display:flex;flex:1">
+        <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Telefono:</span>
+        <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(Q.tel)}</span>
+      </div>
+      <div style="display:flex;flex:1;border-left:1.5px solid #3a4ad8">
+        <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Entre calles:</span>
+        <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(Q.entrecalles)}</span>
+      </div>
+    </div>
+    ${footerCot}`
+  ];
+
+  if(typeof html2canvas==='undefined' || typeof window.jspdf==='undefined'){
+    toast('No se pudo cargar el generador de PDF (revisa tu conexión a internet).','err',4000);
+    return;
+  }
+
+  toast('Generando PDF…','',2500);
+
+  /* Tamaño físico exacto: carta VERTICAL (8.5in × 11in). Nada de landscape. */
+  const PAGE_W_PX = 816, PAGE_H_PX = 1056;   // 96dpi
+  const PAGE_W_PT = 612, PAGE_H_PT = 792;    // puntos jsPDF
+
+  const cont = document.createElement('div');
+  cont.className = 'pdfExportRoot';
+  cont.style.cssText = `position:fixed;left:-99999px;top:0;width:${PAGE_W_PX}px;z-index:-1`;
+  cont.innerHTML = `
+    <style>
+      .pdfExportRoot .pdfpg{width:${PAGE_W_PX}px;height:${PAGE_H_PX}px;padding:28px 32px 80px;position:relative;overflow:hidden;box-sizing:border-box;background:#fff;font-family:'Segoe UI',Arial,sans-serif;color:#1a1a2e;font-size:11px}
+      .pdfExportRoot table{width:100%;border-collapse:collapse;margin-bottom:8px}
+      .pdfExportRoot th{background:#3a4ad8;color:#fff;font-size:10.5px;font-weight:700;padding:8px 10px;text-align:left}
+      .pdfExportRoot th.c,.pdfExportRoot td.c{text-align:center}
+      .pdfExportRoot th.r,.pdfExportRoot td.r{text-align:right}
+      .pdfExportRoot td{padding:7px 10px;font-size:10.5px;border-bottom:1px solid #d0d4e8;vertical-align:top}
+      .pdfExportRoot .re td,.pdfExportRoot .ro td{background:#fff}
+      .pdfExportRoot .t-row{display:flex;justify-content:space-between;padding:5px 10px;font-size:10.5px;border:1px solid #d0d4e8;border-top:none}
+      .pdfExportRoot .t-row:first-child{border-top:1px solid #d0d4e8}
+      .pdfExportRoot .t-row b{font-weight:700}
+    </style>
+    ${paginas.map(p=>`<div class="pdfpg">${p}</div>`).join('')}
+  `;
+  document.body.appendChild(cont);
+
+  try{
+    const imgs = cont.querySelectorAll('img');
+    await Promise.all(Array.from(imgs).map(img=>img.decode?img.decode().catch(()=>{}):Promise.resolve()));
+    await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({orientation:'portrait',unit:'pt',format:'letter'});
+    const pgEls = cont.querySelectorAll('.pdfpg');
+
+    for(let i=0;i<pgEls.length;i++){
+      const canvas = await html2canvas(pgEls[i],{scale:2,useCORS:true,backgroundColor:'#ffffff'});
+      const imgData = canvas.toDataURL('image/jpeg',0.95);
+      if(i>0) doc.addPage();
+      doc.addImage(imgData,'JPEG',0,0,PAGE_W_PT,PAGE_H_PT);
+    }
+
+    doc.save(`Cotizacion_${Q.folio||'AL3D'}.pdf`);
+    toast('PDF generado en carta vertical','ok',2500);
+  }catch(err){
+    console.error(err);
+    toast('Ocurrió un error generando el PDF. Revisa la consola.','err',4000);
+  }finally{
+    document.body.removeChild(cont);
+  }
+}
+
+/* ===================== Historial de cotizaciones autorizadas ===================== */
+function getHistorial(){ try{return JSON.parse(localStorage.getItem('al3d_historial')||'[]');}catch(_){return [];} }
+function saveHistorial(arr){
+  try{ localStorage.setItem('al3d_historial',JSON.stringify(arr)); }
+  catch(_){
+    const slim=arr.map(x=>({...x,aiFile:x.aiFile?{name:x.aiFile.name,type:x.aiFile.type,url:''}:null}));
+    try{ localStorage.setItem('al3d_historial',JSON.stringify(slim)); }catch(_){}
+    toast('Historial guardado sin imágenes (espacio limitado)','',3500);
+  }
+}
+function guardarEnHistorial(){
+  const t=totals();
+  const entry={
+    folio:Q.folio, proy:Q.proy, cliente:Q.cliente, tel:Q.tel||'', dirRaw:Q.dirRaw||'',
+    fechaAuth:Q.fechaAuth, autorizador:Q.autorizador, nota:Q.nota,
+    precioAuth:Q.precioAuth, neto:t.neto, sub:t.sub, iva:Q.iva,
+    items:JSON.parse(JSON.stringify(Q.items)),
+    itemsAuth:JSON.parse(JSON.stringify(Q.itemsAuth||{})),
+    aiFile:Q.aiFile?{name:Q.aiFile.name,type:Q.aiFile.type,url:Q.aiFile.url}:null,
+    ts:Date.now()
+  };
+  const arr=getHistorial();
+  const idx=arr.findIndex(x=>x.folio===Q.folio);
+  if(idx>=0) arr[idx]=entry; else arr.unshift(entry);
+  saveHistorial(arr);
+}
+
+let _histData=[];
+function openHistImg(folio){
+  const e=_histData.find(x=>x.folio===folio);
+  if(!e||!e.aiFile||!e.aiFile.url) return;
+  $('lightboxBody').innerHTML=`<img class="lightbox-img" src="${e.aiFile.url}" alt="${esc(e.aiFile.name||'')}" onclick="event.stopPropagation()">`;
+  $('lightbox').classList.add('show');
+}
+function borrarDeHistorial(folio){
+  if(!confirm('¿Eliminar esta cotización del historial?')) return;
+  saveHistorial(getHistorial().filter(x=>x.folio!==folio));
+  abrirHistorial();
+}
+
+function abrirHistorial(){
+  _histData=getHistorial();
+  const MAT={'al-paint':'Aluminio Pintado','al-brush':'Aluminio Brush','acr-vol':'Acrílico + Aluminio','acr-vinil':'Acrílico + Vinil'};
+  const ACAB={'sencillo':'Sencillo','vinil':'Rotulación Vinil','sandwich':'Sándwich c/luz'};
+  const BAS={'lamina':'Lámina','alucobond':'Alucobond'};
+  function dsc(it){
+    if(it.desc) return it.desc;
+    if(it.tipo==='letras')    return (MAT[it.material]||'Letras 3D')+' · '+(it.n||0)+' letras, '+(it.altura||0)+'cm';
+    if(it.tipo==='recorte')   return 'Recorte '+(ACAB[it.acab]||'')+' · '+(it.n||0)+' pzas';
+    if(it.tipo==='bastidor')  return 'Bastidor '+(BAS[it.bas]||'')+' '+(it.ancho||0)+'×'+(it.alto||0)+'cm';
+    if(it.tipo==='caja')      return 'Caja de luz '+(it.ancho||0)+'×'+(it.alto||0)+'cm';
+    return 'Partida manual';
+  }
+  let html='';
+  if(!_histData.length){
+    html='<div class="hist-empty">Aún no hay cotizaciones autorizadas.<br><span style="font-size:12px">Aparecerán aquí automáticamente cuando autorices una cotización.</span></div>';
+  } else {
+    html=_histData.map(e=>{
+      const isImg=e.aiFile&&e.aiFile.type&&e.aiFile.type.indexOf('image/')===0&&e.aiFile.url;
+      const imgHTML=isImg
+        ? `<img class="hentry-img" src="${e.aiFile.url}" onclick="openHistImg('${esc(e.folio)}')" title="Ver imagen completa" alt="Referencia">`
+        : `<div class="hentry-img-ph">${e.aiFile?'📄':'🖼️'}</div>`;
+      const rows=e.items.map((it,i)=>{
+        const ia=(e.itemsAuth&&e.itemsAuth[it.id]!==undefined)?e.itemsAuth[it.id]:lineTotal(it);
+        return `<tr><td>${i+1}</td><td>${esc(dsc(it))}</td><td>${money(ia)}</td></tr>`;
+      }).join('');
+      const precioFinal=e.precioAuth&&e.precioAuth<e.neto?e.precioAuth:e.neto;
+      const descuento=e.precioAuth&&e.precioAuth<e.neto?e.neto-e.precioAuth:0;
+      return `<div class="hentry">
+        <div class="hentry-top">
+          ${imgHTML}
+          <div class="hentry-meta">
+            <div class="hentry-folio">${esc(e.folio)}</div>
+            <div class="hentry-name">${esc(e.proy||e.cliente||'Sin nombre')}</div>
+            <div class="hentry-sub">${esc(e.cliente||'')+(e.tel?' · '+esc(e.tel):'')+(e.dirRaw?'<br>📍 '+esc(e.dirRaw):'')}</div>
+            <div class="hentry-auth">✓ ${esc(e.autorizador||'—')} · ${esc(e.fechaAuth||'')}</div>
+          </div>
+          <button class="hentry-del" onclick="borrarDeHistorial('${esc(e.folio)}')" title="Eliminar">🗑</button>
+        </div>
+        <table class="htable">${rows}</table>
+        <div class="hentry-total">
+          <span>Total autorizado</span>
+          <span style="color:var(--green)">${money(precioFinal)}${descuento?`&nbsp;<small style="font-weight:500;color:var(--muted);font-size:11px">(ahorro ${money(descuento)})</small>`:''}</span>
+        </div>
+        ${e.nota?`<div style="font-size:11.5px;color:var(--muted);margin-top:7px;padding-top:7px;border-top:1px solid var(--line)">💬 ${esc(e.nota)}</div>`:''}
+      </div>`;
+    }).join('');
+  }
+  $('hist-body').innerHTML=html;
+  $('histmodal').classList.add('show');
+}
+function cerrarHistorial(){ $('histmodal').classList.remove('show'); }
+
+/* ===================== Cola de autorización ===================== */
+function getQueue(){ try{return JSON.parse(localStorage.getItem('al3d_queue')||'[]');}catch(_){return [];} }
+function saveQueue(arr){ try{localStorage.setItem('al3d_queue',JSON.stringify(arr));}catch(_){} }
+function removeFromQueue(folio){ saveQueue(getQueue().filter(x=>x.folio!==folio)); }
+
+function pushToQueue(){
+  const arr=getQueue();
+  const neto=totals().neto;
+  const snapshot=JSON.parse(JSON.stringify({...Q,aiFile:null}));
+  const entry={folio:Q.folio,proy:Q.proy,cliente:Q.cliente,neto,fecha_sol:Q.fecha,estado:'pendiente',precioAuth:0,autorizador:'',nota:'',fechaAuth:'',q:snapshot};
+  const idx=arr.findIndex(x=>x.folio===Q.folio);
+  if(idx>=0) arr[idx]=entry; else arr.push(entry);
+  saveQueue(arr);
+}
+
+function updateQueueEntry(folio,changes){
+  const arr=getQueue();
+  const idx=arr.findIndex(x=>x.folio===folio);
+  if(idx>=0){ Object.assign(arr[idx],changes); saveQueue(arr); }
+}
+
+function loadQueueEntry(folio){
+  if(folio===Q.folio) return;
+  const arr=getQueue();
+  const entry=arr.find(x=>x.folio===folio);
+  if(!entry||!entry.q) return;
+  const hayCambiosSinGuardar=Q.estado==='borrador'&&(Q.items.length>0||Q.proy.trim()||Q.cliente.trim());
+  if(hayCambiosSinGuardar&&!confirm('Tienes una cotización sin guardar en pantalla. Si continúas, se perderá. ¿Cambiar de todos modos?')) return;
+  Object.assign(Q,entry.q);
+  Q.aiFile=null;
+  pid=Q.items.reduce((m,it)=>Math.max(m,it.id||0),0);
+  const FM={proy:'f-proy',cliente:'f-cli',tel:'f-tel',maps:'f-maps',dirRaw:'f-dir-raw'};
+  Object.entries(FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
+  if(Q.folio) $('folio').textContent=Q.folio;
+  if(Q.maps) $('mapsbtn').disabled=!/^https?:\/\//i.test(Q.maps);
+  saveState(); renderItems();
+}
+
+/* ===================== Persistencia ===================== */
+function saveState(){
+  try{
+    const toSave={...Q,aiFile:null};
+    localStorage.setItem('al3d_q',JSON.stringify(toSave));
+  }catch(_){}
+}
+
+const _FM={proy:'f-proy',cliente:'f-cli',tel:'f-tel',maps:'f-maps',dirRaw:'f-dir-raw'};
+function loadState(){
+  try{
+    const s=localStorage.getItem('al3d_q');
+    if(!s) return false;
+    const saved=JSON.parse(s);
+    Object.assign(Q,saved);
+    Q.aiFile=null;
+    pid=Q.items.reduce((m,it)=>Math.max(m,it.id||0),0);
+    Object.entries(_FM).forEach(([k,id])=>{ if(Q[k]&&$(id)) $(id).value=Q[k]; });
+    return true;
+  }catch(_){ return false; }
+}
+
+function nextFolio(){
+  try{
+    const n=(parseInt(localStorage.getItem('al3d_folio')||'0')||0)+1;
+    localStorage.setItem('al3d_folio',String(n));
+    return 'COT-'+String(n).padStart(4,'0');
+  }catch(_){ return 'COT-'+String(Math.floor(Math.random()*9000)+1000); }
+}
+
+/* ===================== Escalador de imagen ===================== */
+const SC={img:null,mode:'load',refLine:null,refCm:0,cmPerPx:0,measures:[],drawing:false,startPt:null,curPt:null};
+
+function abrirScaler(){
+  SC.img=null;SC.mode='load';SC.refLine=null;SC.refCm=0;SC.cmPerPx=0;
+  SC.measures=[];SC.drawing=false;SC.startPt=null;SC.curPt=null;
+  $('scalerCanvas').style.display='none';
+  $('scaler-canvas-wrap').style.minHeight='0';
+  $('sc-use-ai-btn').style.display=(Q.aiFile&&Q.aiFile.url)?'flex':'none';
+  $('sc-reset-btn').style.display='none';
+  renderMedidas(); actualizarUIScaler();
+  $('scalermodal').classList.add('show');
+}
+function cerrarScaler(){$('scalermodal').classList.remove('show');}
+
+function cargarImagenScaler(input){
+  const f=input.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>cargarUrlEnScaler(ev.target.result);
+  r.readAsDataURL(f);
+  input.value='';
+}
+function usarImagenAIEnScaler(){
+  if(Q.aiFile&&Q.aiFile.url) cargarUrlEnScaler(Q.aiFile.url);
+}
+function cargarUrlEnScaler(url){
+  const img=new Image();
+  img.onload=()=>{
+    SC.img=img; SC.mode='ref'; SC.refLine=null; SC.measures=[];
+    const cvs=$('scalerCanvas');
+    const maxW=1400,maxH=1200;
+    let w=img.naturalWidth,h=img.naturalHeight;
+    if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
+    if(h>maxH){w=Math.round(w*maxH/h);h=maxH;}
+    cvs.width=w; cvs.height=h;
+    cvs.style.display='block';
+    $('scaler-canvas-wrap').style.minHeight='140px';
+    $('sc-reset-btn').style.display='none';
+    renderCanvas(); actualizarUIScaler(); renderMedidas();
+    toast('Imagen cargada — traza la línea de referencia','ok',2500);
+  };
+  img.onerror=()=>toast('No se pudo cargar la imagen','err');
+  img.src=url;
+}
+
+function getXY(e){
+  const cvs=$('scalerCanvas');
+  const rect=cvs.getBoundingClientRect();
+  const sx=cvs.width/rect.width, sy=cvs.height/rect.height;
+  let cx,cy;
+  if(e.touches&&e.touches.length){cx=e.touches[0].clientX;cy=e.touches[0].clientY;}
+  else if(e.changedTouches&&e.changedTouches.length){cx=e.changedTouches[0].clientX;cy=e.changedTouches[0].clientY;}
+  else{cx=e.clientX;cy=e.clientY;}
+  return {x:Math.round((cx-rect.left)*sx),y:Math.round((cy-rect.top)*sy)};
+}
+function scalerDown(e){
+  if(SC.mode!=='ref'&&SC.mode!=='measure')return;
+  e.preventDefault();
+  SC.drawing=true; SC.startPt=getXY(e); SC.curPt={...SC.startPt};
+}
+function scalerMove(e){
+  if(!SC.drawing)return;
+  e.preventDefault();
+  SC.curPt=getXY(e); renderCanvas();
+}
+function scalerUp(e){
+  if(!SC.drawing||!SC.startPt)return;
+  e.preventDefault(); SC.drawing=false;
+  const end=(e.changedTouches||e.touches)?getXY(e):(SC.curPt||getXY(e));
+  const dx=end.x-SC.startPt.x, dy=end.y-SC.startPt.y;
+  const pxLen=Math.sqrt(dx*dx+dy*dy);
+  if(pxLen<8){SC.startPt=null;SC.curPt=null;renderCanvas();return;}
+  const line={x1:SC.startPt.x,y1:SC.startPt.y,x2:end.x,y2:end.y,pxLen};
+  if(SC.mode==='ref'){
+    SC.refLine=line; SC.mode='ref-confirm';
+    $('ref-cm-input').value=''; $('ref-cm-input').focus();
+    actualizarUIScaler();
+  } else if(SC.mode==='measure'){
+    const cm=pxLen*SC.cmPerPx;
+    SC.measures.push({...line,cm}); renderMedidas();
+  }
+  SC.startPt=null; SC.curPt=null; renderCanvas();
+}
+
+function fijarReferencia(){
+  const val=parseFloat($('ref-cm-input').value);
+  if(!val||val<=0){toast('Ingresa una medida válida en cm','err');return;}
+  SC.refCm=val; SC.cmPerPx=val/SC.refLine.pxLen;
+  SC.mode='measure'; $('sc-reset-btn').style.display='';
+  actualizarUIScaler(); renderCanvas();
+  toast('✓ Escala fijada · traza líneas sobre los elementos para medir','ok',3000);
+}
+function usarRefConocida(cm){$('ref-cm-input').value=cm;}
+function resetScalerRef(){
+  SC.refLine=null;SC.refCm=0;SC.cmPerPx=0;SC.mode='ref';SC.measures=[];
+  $('sc-reset-btn').style.display='none';
+  actualizarUIScaler(); renderCanvas(); renderMedidas();
+}
+function borrarMedida(i){SC.measures.splice(i,1);renderMedidas();renderCanvas();}
+function usarMedida(i){
+  const h=Math.round(SC.measures[i].cm);
+  if(locked()){toast('La cotización está bloqueada','err');return;}
+  addItem();
+  Q.items[Q.items.length-1].altura=h;
+  cerrarScaler(); renderItems();
+  toast(`Partida creada con altura ${h}cm — completa los demás campos`,'ok',3200);
+}
+
+function renderCanvas(){
+  const cvs=$('scalerCanvas'); if(!SC.img||cvs.style.display==='none')return;
+  const ctx=cvs.getContext('2d');
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  ctx.drawImage(SC.img,0,0,cvs.width,cvs.height);
+  function drawLn(x1,y1,x2,y2,color,dash,label){
+    ctx.save();ctx.strokeStyle=color;ctx.lineWidth=2.5;ctx.setLineDash(dash||[]);
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+    ctx.setLineDash([]);ctx.fillStyle=color;
+    [[x1,y1],[x2,y2]].forEach(([px,py])=>{ctx.beginPath();ctx.arc(px,py,5,0,Math.PI*2);ctx.fill();});
+    if(label){
+      const mx=(x1+x2)/2+7,my=(y1+y2)/2-6;
+      ctx.font='bold 13px Inter,Arial,sans-serif';
+      ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.65)';ctx.strokeText(label,mx,my);
+      ctx.fillStyle='#fff';ctx.fillText(label,mx,my);
+    }
+    ctx.restore();
+  }
+  if(SC.refLine) drawLn(SC.refLine.x1,SC.refLine.y1,SC.refLine.x2,SC.refLine.y2,'#f59e0b',[],SC.refCm?SC.refCm+'cm (REF)':'REF — ¿cuánto mide?');
+  SC.measures.forEach(m=>drawLn(m.x1,m.y1,m.x2,m.y2,'#3a4ad8',[],m.cm.toFixed(1)+'cm'));
+  if(SC.drawing&&SC.startPt&&SC.curPt){
+    const col=SC.mode==='ref'?'#f59e0b':'#3a4ad8';
+    drawLn(SC.startPt.x,SC.startPt.y,SC.curPt.x,SC.curPt.y,col,[6,4],'');
+  }
+}
+function renderMedidas(){
+  const el=$('medidas-list');if(!el)return;
+  if(!SC.measures.length){
+    el.innerHTML=SC.mode==='measure'?'<p style="font-size:12px;color:var(--muted);text-align:center;padding:6px 0">Traza líneas sobre los elementos para medir su altura</p>':'';
+    return;
+  }
+  el.innerHTML=SC.measures.map((m,i)=>`
+    <div class="medida-row">
+      <span class="medida-cm">${m.cm.toFixed(1)} cm</span>
+      <button class="btn-med-use" onclick="usarMedida(${i})">→ Agregar como partida</button>
+      <button class="btn-med-del" onclick="borrarMedida(${i})" title="Eliminar">×</button>
+    </div>`).join('');
+}
+function actualizarUIScaler(){
+  const hint=$('scaler-hint'),rw=$('ref-confirm-wrap');
+  const s1=$('sc-step1'),s2=$('sc-step2');
+  if(SC.mode==='load'){
+    if(hint)hint.textContent='Carga una imagen del proyecto para comenzar';
+    if(rw)rw.style.display='none';
+    if(s1){s1.className='sc-step';s2.className='sc-step';}
+  }else if(SC.mode==='ref'){
+    if(hint)hint.innerHTML='<b>Paso 1 — Referencia:</b> Toca o arrastra sobre un elemento cuya medida real conozcas (puerta, ventana, persona…)';
+    if(rw)rw.style.display='none';
+    if(s1){s1.className='sc-step active';s2.className='sc-step';}
+  }else if(SC.mode==='ref-confirm'){
+    if(hint)hint.innerHTML='<b>Línea de referencia trazada ✓</b> — ¿Cuánto mide en cm ese elemento?';
+    if(rw)rw.style.display='block';
+    if(s1){s1.className='sc-step active';s2.className='sc-step';}
+  }else if(SC.mode==='measure'){
+    if(hint)hint.innerHTML=`<b>Paso 2 — Medir:</b> Traza líneas sobre letras o elementos. Escala: <b>1cm ≈ ${(1/SC.cmPerPx).toFixed(1)}px</b>`;
+    if(rw)rw.style.display='none';
+    if(s1){s1.className='sc-step done';s2.className='sc-step active';}
+  }
+}
+
+/* ===================== Init ===================== */
+function hoy(){return new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});}
+function init(){
+  loadLogo();
+  if(!loadState()){
+    const f=nextFolio(); Q.folio=f; $('folio').textContent=f;
+    Q.fecha=hoy(); addItem();
+  } else {
+    if(Q.folio) $('folio').textContent=Q.folio;
+    if(Q.maps) $('mapsbtn').disabled=!/^https?:\/\//i.test(Q.maps);
+    if(Q.dirRaw) updDirRaw(Q.dirRaw);
+    renderItems();
+  }
+  updProg();
+}
+
+window.addEventListener('beforeunload',e=>{
+  const {sub}=totals();
+  if(sub>0||Q.aiFile){e.preventDefault();return e.returnValue='';}
+});
+
+init();
+</script>
+</body>
+</html>
