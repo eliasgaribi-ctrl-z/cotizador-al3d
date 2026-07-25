@@ -290,11 +290,11 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .prog-track{height:7px;background:var(--line);border-radius:10px;overflow:hidden}
 #prog-bar{height:100%;background:linear-gradient(90deg,#f59e0b,#fb923c);border-radius:10px;transition:width .5s cubic-bezier(.22,1,.36,1),background .5s;width:0%}
 /* ----- Escalador Pro (modal pantalla completa) ----- */
-.scaler-modal-bg{position:fixed;inset:0;background:rgba(12,15,38,.75);display:none;z-index:55;flex-direction:column;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.scaler-modal-bg{position:fixed;inset:0;background:rgba(12,15,38,.75);display:none;z-index:55;flex-direction:column;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);overscroll-behavior:contain}
 .scaler-modal-bg.show{display:flex}
 .sp-topbar{background:rgba(255,255,255,.96);backdrop-filter:blur(14px);border-bottom:1px solid rgba(224,228,240,.7);flex-shrink:0;padding:0 20px;height:56px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 8px rgba(23,29,74,.06)}
 .sp-main{flex:1;display:flex;overflow:hidden;min-height:0}
-.sp-canvas-area{flex:1;position:relative;overflow:hidden;background:#181c2e;background-image:radial-gradient(rgba(255,255,255,.04) 1px,transparent 1px);background-size:22px 22px;display:flex;align-items:center;justify-content:center;min-width:0}
+.sp-canvas-area{flex:1;position:relative;overflow:hidden;background:#181c2e;background-image:radial-gradient(rgba(255,255,255,.04) 1px,transparent 1px);background-size:22px 22px;display:flex;align-items:center;justify-content:center;min-width:0;touch-action:none;overscroll-behavior:contain}
 #scalerCanvas{display:block;cursor:crosshair;touch-action:none;user-select:none;-webkit-user-select:none;max-width:100%;max-height:100%;box-shadow:0 12px 48px rgba(0,0,0,.55),0 3px 10px rgba(0,0,0,.35);border-radius:3px;transform-origin:center center;will-change:transform}
 .sp-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;pointer-events:none}
 .sp-overlay.hide{display:none}
@@ -356,11 +356,12 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   /* Panel inferior: hoja deslizable, todo el contenido alcanzable */
   .sp-main{flex-direction:column}
   .sp-canvas-area{flex:1 1 auto;min-height:42vh}
-  .sp-side{width:100%;height:auto;max-height:47vh;flex-shrink:0;border-left:none;border-top:1px solid var(--line);overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .sp-side{width:100%;height:auto;max-height:47vh;flex-shrink:0;border-left:none;border-top:1px solid var(--line);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
   .sp-mlist{flex:none;overflow:visible;min-height:0}
   .sp-side .btn{min-height:46px}
   .sp-ibtn{font-size:20px;padding:7px 11px}
   .sp-zoom button{width:46px;height:46px}
+  .sp-close{width:44px!important;height:44px!important;font-size:26px!important}
 }
 /* ----- Visibilidad en PDF / modo edición ----- */
 .pdf-vis{border:none;background:none;font-size:15px;cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1;transition:.12s;color:var(--brand)}
@@ -577,7 +578,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
     <div style="flex:1"></div>
     <span class="sp-calib-badge" id="sc-calib-badge"><span class="dot"></span><span id="sc-calib-txt">Sin calibrar</span></span>
     <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
-    <button onclick="cerrarScaler()" style="border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.12s" onmouseover="this.style.background='var(--soft)'" onmouseout="this.style.background='none'" title="Volver al cotizador">×</button>
+    <button class="sp-close" onclick="cerrarScaler()" style="border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.12s" onmouseover="this.style.background='var(--soft)'" onmouseout="this.style.background='none'" title="Volver al cotizador">×</button>
   </div>
   <!-- Main -->
   <div class="sp-main">
@@ -2105,11 +2106,17 @@ async function scLoadPDF(f){
 function scFitCanvas(){
   const area=$('sp-canvas-area'),cvs=$('scalerCanvas');
   const maxW=area.clientWidth-32,maxH=area.clientHeight-32;
+  // El modal puede no tener layout todavía (recién mostrado): reintentar
+  if(!SC.img||!(maxW>0)||!(maxH>0)||!(SC.imgW>0)||!(SC.imgH>0)){
+    if(SC.img)setTimeout(()=>{if(SC.img&&$('scalermodal').classList.contains('show')){scFitCanvas();scRender();}},80);
+    return;
+  }
   const iA=SC.imgW/SC.imgH;
   let w=maxW,h=maxW/iA;
   if(h>maxH){h=maxH;w=h*iA;}
-  SC.cvsW=cvs.width=Math.round(w);SC.cvsH=cvs.height=Math.round(h);
+  SC.cvsW=cvs.width=Math.max(1,Math.round(w));SC.cvsH=cvs.height=Math.max(1,Math.round(h));
   SC.scaleFactor=SC.imgW/SC.cvsW;
+  SC._lastAW=area.clientWidth;SC._lastAH=area.clientHeight;
   scZoomReset();
 }
 /* ----- Zoom y desplazamiento (pan) ----- */
@@ -2148,7 +2155,7 @@ function scGestureMove(e){
 function scLoupe(e){
   if(!e.touches||!e.touches.length)return;
   const src=SC.cp||SC.sp;if(!src)return;
-  const lp=$('sc-loupe'),size=118,mag=2.6,t=e.touches[0];
+  const lp=$('sc-loupe'),size=118,mag=2.4,t=e.touches[0];
   let lx=t.clientX-size/2,ly=t.clientY-size-30;
   if(ly<8)ly=t.clientY+34;
   lx=Math.max(8,Math.min(window.innerWidth-size-8,lx));
@@ -2157,7 +2164,8 @@ function scLoupe(e){
   lctx.clearRect(0,0,size,size);lctx.save();
   lctx.beginPath();lctx.arc(size/2,size/2,size/2,0,Math.PI*2);lctx.clip();
   lctx.fillStyle='#181c2e';lctx.fillRect(0,0,size,size);
-  const sw=size/mag;
+  // Ventana de origen relativa al zoom: la lupa siempre magnifica MÁS de lo que ya se ve
+  const sw=Math.max(6,size/(mag*(SC.z||1)));
   try{lctx.drawImage($('scalerCanvas'),src.x-sw/2,src.y-sw/2,sw,sw,0,0,size,size);}catch(_){}
   lctx.strokeStyle='rgba(58,74,216,.95)';lctx.lineWidth=1.5;
   lctx.beginPath();lctx.moveTo(size/2-15,size/2);lctx.lineTo(size/2+15,size/2);
@@ -2166,7 +2174,11 @@ function scLoupe(e){
 }
 function scHideLoupe(){const lp=$('sc-loupe');if(lp)lp.style.display='none';}
 window.addEventListener('resize',()=>{
-  if(SC.img&&$('scalermodal').classList.contains('show')){scFitCanvas();scRender();}
+  if(!(SC.img&&$('scalermodal').classList.contains('show')))return;
+  const area=$('sp-canvas-area'),w=area.clientWidth,h=area.clientHeight;
+  // Ignorar el temblor de altura por la barra de direcciones de Safari (no rehacer el ajuste ni perder el zoom)
+  if(w===SC._lastAW && Math.abs(h-(SC._lastAH||0))<130)return;
+  scFitCanvas();scRender();
 });
 
 function scRender(){
