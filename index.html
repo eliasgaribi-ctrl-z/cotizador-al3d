@@ -2128,15 +2128,19 @@ function scGestureStart(e){
   SC._gd=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY)||1;
   SC._gm={x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2};
   SC._gz=SC.z;SC._gtx=SC.tx;SC._gty=SC.ty;
+  const a=$('sp-canvas-area').getBoundingClientRect();
+  SC._gS0={x:a.left+a.width/2,y:a.top+a.height/2};
 }
 function scGestureMove(e){
   const t=e.touches;if(!t||t.length<2)return;
   e.preventDefault();
   const d=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
   const m={x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2};
-  SC.z=Math.max(1,Math.min(8,SC._gz*(d/SC._gd)));
-  SC.tx=SC._gtx+(m.x-SC._gm.x);
-  SC.ty=SC._gty+(m.y-SC._gm.y);
+  const z=Math.max(1,Math.min(8,SC._gz*(d/SC._gd))),f=z/SC._gz;
+  SC.z=z;
+  // Ancla el zoom/pan al punto entre los dedos (lo que estaba bajo los dedos se queda ahí)
+  SC.tx=m.x-SC._gS0.x-f*(SC._gm.x-SC._gtx-SC._gS0.x);
+  SC.ty=m.y-SC._gS0.y-f*(SC._gm.y-SC._gty-SC._gS0.y);
   if(SC.z<=1){SC.tx=0;SC.ty=0;}
   scApplyTransform();
 }
