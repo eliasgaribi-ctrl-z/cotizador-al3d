@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="logo-al3d.png" alt="AL3D — Anuncios Luminosos 3D" width="320">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="logo-al3d-dark.png">
+    <img src="logo-al3d.png" alt="AL3D — Anuncios Luminosos 3D" width="320">
+  </picture>
 </p>
 
 <h1 align="center">Cotizador AL3D</h1>
