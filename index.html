@@ -59,6 +59,8 @@ body::before{
 .brand .t small{display:block;font-size:10.5px;font-weight:500;color:var(--muted);letter-spacing:.2px}
 .rolewrap{display:flex;align-items:center;gap:10px}
 .folio{font-size:12px;color:var(--brand);font-weight:700;background:var(--soft-2);padding:6px 13px;border-radius:10px;border:1px solid rgba(58,74,216,.14);letter-spacing:.3px}
+/* Folio aún no confirmado: no cuenta todavía en el contador de cotizaciones */
+#folio.prov{color:var(--muted);background:var(--soft);border-color:var(--line);border-style:dashed}
 .seg{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:11px;padding:3px;gap:2px}
 .seg button{border:none;background:none;padding:7px 14px;font-size:12.5px;font-weight:600;color:var(--muted);border-radius:8px;cursor:pointer;transition:.15s}
 .seg button.on{background:#fff;color:var(--brand);box-shadow:var(--sh-sm)}
@@ -230,6 +232,15 @@ textarea{resize:vertical;min-height:46px}
 .ai-link{color:var(--brand);font-weight:600;text-decoration:none}.ai-link:hover{text-decoration:underline}
 details.ai-cfg{margin-bottom:13px;border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 12px;background:var(--soft)}
 details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-weight:700}
+/* Campo de API key: se oculta con text-security en vez de type="password" para que
+   el navegador no lo tome por una contraseña y ofrezca guardarla. */
+.key-in{-webkit-text-security:disc;text-security:disc;font-family:inherit;letter-spacing:.08em}
+.key-saved{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--green-bg);border:1px solid rgba(21,160,106,.22);border-radius:var(--r-sm);padding:8px 11px}
+.key-mask{flex:1;min-width:0;font-size:12px;font-weight:700;color:var(--green);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.key-btn{border:1px solid var(--line);background:#fff;color:var(--brand);border-radius:8px;padding:4px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit}
+.key-btn:hover{background:var(--soft-2)}
+.key-btn.del{color:var(--red)}
+.key-note{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:9px;border-top:1px dashed var(--line);padding-top:9px}
 .ai-tag{display:inline-block;font-size:9.5px;font-weight:700;color:var(--brand);background:#eef0fe;border-radius:5px;padding:1px 5px;margin-left:5px;vertical-align:middle;text-transform:none;letter-spacing:0}
 .ai-prev-big{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--soft);padding:12px;margin-bottom:14px}
 .ai-prev-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
@@ -329,6 +340,12 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-mitem-label:focus{color:var(--ink);border-bottom-color:var(--line)}
 .sp-mitem-label::placeholder{color:#bec5d4}
 .sp-mitem-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0;padding-top:2px}
+.sp-mitem-add{margin-top:8px;width:100%;padding:7px 10px;background:var(--brand-grd);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px}
+.sp-mitem-add.done{background:var(--green-bg);color:var(--green);border:1px solid rgba(21,160,106,.25);font-weight:600}
+.sp-addall{margin:0 14px 10px;padding:9px 12px;width:calc(100% - 28px);border:1.5px solid var(--brand);border-radius:var(--r-sm);background:var(--soft-2);color:var(--brand-strong);font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;transition:.15s}
+.sp-addall:hover{background:#e5e9ff}
+.sp-addall:disabled{opacity:.45;cursor:default}
+.sp-addall-note{margin:0 14px 10px;font-size:11.5px;color:var(--green);font-weight:700;text-align:center}
 .sp-ibtn{border:none;background:none;color:#cdd2e0;font-size:15px;cursor:pointer;padding:3px 6px;border-radius:6px;line-height:1;transition:.12s}
 .sp-ibtn:hover{color:var(--red);background:var(--red-bg)}
 .sp-calib-badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:20px;white-space:nowrap;flex-shrink:0;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(207,138,18,.2)}
@@ -532,20 +549,21 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
             </div>
           </div>
           <div id="prov-gemini">
-            <div class="fld"><label>API key de Google Gemini</label><input id="ai-key-gemini" type="password" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
+            <div class="fld"><label>API key de Google Gemini</label><div class="key-saved" id="key-saved-gemini" style="display:none"><span class="key-mask" id="key-mask-gemini"></span><button type="button" class="key-btn" onclick="aiEditKey('gemini')">Cambiar</button><button type="button" class="key-btn del" onclick="aiDelKey('gemini')">Borrar</button></div><input id="ai-key-gemini" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
             <div class="fld"><label>Modelo</label><input id="ai-model-gemini" placeholder="gemini-2.5-flash" value="gemini-2.5-flash"></div>
             <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Admite JPG y PDF.</p>
           </div>
           <div id="prov-groq" style="display:none">
-            <div class="fld"><label>API key de Groq</label><input id="ai-key-groq" type="password" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
+            <div class="fld"><label>API key de Groq</label><div class="key-saved" id="key-saved-groq" style="display:none"><span class="key-mask" id="key-mask-groq"></span><button type="button" class="key-btn" onclick="aiEditKey('groq')">Cambiar</button><button type="button" class="key-btn del" onclick="aiDelKey('groq')">Borrar</button></div><input id="ai-key-groq" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
             <div class="fld"><label>Modelo</label><input id="ai-model-groq" value="meta-llama/llama-4-scout-17b-16e-instruct"></div>
             <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>. Muy rápido · solo JPG (no PDF).</p>
           </div>
           <div id="prov-openrouter" style="display:none">
-            <div class="fld"><label>API key de OpenRouter</label><input id="ai-key-openrouter" type="password" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
+            <div class="fld"><label>API key de OpenRouter</label><div class="key-saved" id="key-saved-openrouter" style="display:none"><span class="key-mask" id="key-mask-openrouter"></span><button type="button" class="key-btn" onclick="aiEditKey('openrouter')">Cambiar</button><button type="button" class="key-btn del" onclick="aiDelKey('openrouter')">Borrar</button></div><input id="ai-key-openrouter" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
             <div class="fld"><label>Modelo</label><input id="ai-model-openrouter" value="meta-llama/llama-4-scout:free"></div>
             <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Acceso a muchos modelos · solo JPG (no PDF).</p>
           </div>
+          <p class="key-note">🔒 La API key no está escrita en el código del cotizador: la escribes una sola vez, se guarda ofuscada en <b>este</b> dispositivo y después solo se muestran sus últimos 4 caracteres. Se envía directo al proveedor que elijas. Si el dispositivo es compartido, usa <b>Borrar</b> al terminar.</p>
         </div>
       </details>
       <div class="fld"><label>Archivo (JPG o PDF)</label><input id="ai-file" type="file" accept="image/*,application/pdf"></div>
@@ -647,6 +665,8 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
         <span style="font-size:11px;font-weight:700;background:var(--soft-2);color:var(--brand);padding:2px 10px;border-radius:20px;border:1px solid rgba(58,74,216,.12)" id="sc-mcount">0</span>
       </div>
       <div class="sp-mlist" id="sc-medidas-list"></div>
+      <button class="sp-addall" id="sc-btn-addall" onclick="scUsarTodas()" disabled>→ Agregar todas las medidas como partidas</button>
+      <div class="sp-addall-note" id="sc-addall-note" style="display:none"></div>
       <!-- Exportar -->
       <div class="sp-sec">
         <div class="sp-sec-h"><h3>Exportar</h3></div>
@@ -720,6 +740,13 @@ const chipA11y=isOn=>`role="button" tabindex="0" aria-pressed="${isOn?'true':'fa
 function toast(msg,type='',dur=2600){const t=$('toast');t.textContent=msg;t.className='toast '+type;void t.offsetWidth;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
 
 /* ===================== Cálculo ===================== */
+/* Todo lo que se cobra por m² (bastidor y caja de luz) comparte la misma regla:
+   se cobra mínimo 1 m². Si el área es menor, se respeta el precio de un metro
+   cuadrado completo; a partir de 1 m² se cobra tarifa × área real. */
+const M2_MINIMO=1;
+function m2Total(tarifa,m2){ return (tarifa||0)*Math.max(m2||0,M2_MINIMO); }
+function m2EsMinimo(m2){ return (m2||0)>0 && (m2||0)<M2_MINIMO; }
+
 function lineTotal(it){
   if(it.tipo==='letras'){
     let p=factorOf(it)*(it.altura||0)*(it.n||0);
@@ -733,13 +760,14 @@ function lineTotal(it){
   }
   if(it.tipo==='bastidor'){
     const m2=(it.ancho||0)*(it.alto||0)/10000;
-    return (basOf(it.bas)?.tarifa||0)*m2;
+    if(m2<=0) return 0;
+    // Misma regla que la caja de luz: se cobra mínimo 1 m².
+    return m2Total(basOf(it.bas)?.tarifa||0,m2);
   }
   if(it.tipo==='caja'){
     const m2=(it.ancho||0)*(it.alto||0)/10000;
     if(m2<=0) return 0;
-    // Mínimo: el precio de 1 m². Si tarifa × m² es menor, se respeta la tarifa por metro cuadrado.
-    return Math.max((it.tarifa||0)*m2,(it.tarifa||0));
+    return m2Total(it.tarifa||0,m2);
   }
   return (it.pz||0)*(it.pu||0); // manual
 }
@@ -979,7 +1007,7 @@ function bodyFor(it){
       ${descFld(it)}
       <label>Material del bastidor</label>
       <div class="chips" style="margin-bottom:7px">${chips}</div>
-      <div class="hintnote">Lámina $950/m² &nbsp;·&nbsp; Alucobond $1,500/m² &nbsp;·&nbsp; se cobra por área (ancho × alto)</div>
+      <div class="hintnote">Lámina $950/m² &nbsp;·&nbsp; Alucobond $1,500/m² &nbsp;·&nbsp; se cobra por área (ancho × alto), mínimo 1 m²: si el área es menor, se respeta el precio de un metro cuadrado.</div>
       <div class="grid2" style="margin-top:12px">
         <div class="fld"><label>Ancho (cm)</label><input type="number" min="0" value="${it.ancho||''}" ${dis} oninput="typeItem(${it.id},'ancho',+this.value)"></div>
         <div class="fld"><label>Alto (cm)</label><input type="number" min="0" value="${it.alto||''}" ${dis} oninput="typeItem(${it.id},'alto',+this.value)"></div>
@@ -1007,6 +1035,11 @@ function bodyFor(it){
     </div>`;
 }
 
+function formulaM2(tarifa,it){
+  const m2=((it.ancho||0)*(it.alto||0)/10000);
+  if(m2EsMinimo(m2)) return `$${tarifa}/m² · mínimo 1 m² (área real ${m2.toFixed(3)} m²)`;
+  return `$${tarifa}/m² × ${m2.toFixed(3)} m²`;
+}
 function formulaFor(it){
   if(it.tipo==='letras'){
     const f=factorOf(it), base=matOf(it.material)?.precio||0, ex=compOf(it.comp)?.extra||0;
@@ -1018,16 +1051,8 @@ function formulaFor(it){
     const ex=(it.acab==='sandwich'&&it.recComp)?RECORTE_COMP_EXTRA:0;
     return `$${p+ex}/cm${ex?` ($${p} + $${ex})`:''} × ${it.altura||0}cm × ${it.n||0} pza`;
   }
-  if(it.tipo==='bastidor'){
-    const m2=((it.ancho||0)*(it.alto||0)/10000);
-    return `$${basOf(it.bas)?.tarifa||0}/m² × ${m2.toFixed(3)} m²`;
-  }
-  if(it.tipo==='caja'){
-    const m2=((it.ancho||0)*(it.alto||0)/10000);
-    const calc=(it.tarifa||0)*m2;
-    if(m2>0 && calc<(it.tarifa||0)) return `$${it.tarifa||0}/m² · mínimo 1 m² (área real ${m2.toFixed(3)} m²)`;
-    return `$${it.tarifa||0}/m² × ${m2.toFixed(3)} m²`;
-  }
+  if(it.tipo==='bastidor') return formulaM2(basOf(it.bas)?.tarifa||0,it);
+  if(it.tipo==='caja')     return formulaM2(it.tarifa||0,it);
   return `${it.pz||0} pza × ${money(it.pu)}`;
 }
 
@@ -1120,6 +1145,7 @@ function renderSummary(){
     } else { authRow.style.display='none'; }
   }
   renderAuth();
+  pintarFolio();
   // bloqueo de inputs generales
   ['f-proy','f-cli','f-tel','f-maps','f-anti','f-dir-raw'].forEach(id=>{ if($(id)) $(id).disabled=locked(); });
   $('addbtn').disabled=locked();
@@ -1274,6 +1300,7 @@ function autorizar(){
   Q.precioAuth=(pa>0&&pa<neto)?pa:0;
   Q.estado='autorizada';
   Q.fechaAuth=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
+  confirmarFolio(Q.folio); // el contador de cotizaciones solo avanza al autorizar
   updateQueueEntry(Q.folio,{estado:'autorizada',precioAuth:Q.precioAuth,autorizador:Q.autorizador,nota:Q.nota,fechaAuth:Q.fechaAuth,itemsAuth:Q.itemsAuth});
   guardarEnHistorial();
   saveState(); renderItems(); toast('✓ Cotización autorizada — guardada en historial','ok',3200);
@@ -1302,7 +1329,7 @@ function nueva(){
   ['f-proy','f-cli','f-tel','f-maps','f-dir-raw'].forEach(id=>{if($(id))$(id).value='';});
   updDirRaw('');
   $('mapsbtn').disabled=true;
-  const f=nextFolio(); Q.folio=f; $('folio').textContent=f;
+  Q.folio=nextFolio(); pintarFolio();
   Q.fecha=hoy();
   addItem(); toast('Nueva cotización lista');
 }
@@ -1385,7 +1412,7 @@ Ejemplos de desglose correcto:
 - complejidad: recta (tipografia recta/imprenta), cursiva (manuscrita/script/italica), compleja (muy ornamentada o muy detallada).
 - iluminacion: true salvo que diga explicitamente "sin luz" o "sin iluminacion".
 - tipo "recorte": acabado sencillo=$20/cm, vinil=$25/cm, sandwich=$55/cm (+$5 si es compleja). Se cobra altura_cm x n_letras (piezas).
-- tipo "bastidor": bastidor lamina=$950/m2 o alucobond=$1500/m2. Incluye ancho_cm y alto_cm.
+- tipo "bastidor": bastidor lamina=$950/m2 o alucobond=$1500/m2. Incluye ancho_cm y alto_cm. Minimo 1 m2.
 - tipo "caja": tarifa 3900 (estandar) o 4600 (tipo nube/silueta). Incluye ancho_cm y alto_cm. Minimo 1 m2.
 - tipo "manual": para instalacion, viaticos, rotulacion vehicular u otros. Usa descripcion, piezas y precio_unitario solo si el precio aparece en el archivo.
 - Si un dato no se ve claramente, dejalo en 0 o "". NUNCA inventes precios.
@@ -1401,23 +1428,81 @@ Si la imagen NO tiene corchetes ni lineas de cota, estima alturas usando objetos
 - Letra de cartel tipica en fachada de local comercial (referencia secundaria): 20-40cm alto
 PROCESO sin cotas: 1) Identifica el objeto de referencia mas obvio y claro en la imagen. 2) Calcula la proporcion de ese objeto vs los elementos a cotizar usando sus tamaños relativos en pixeles. 3) Estima la altura de letras y elementos. 4) En el campo "descripcion" de CADA partida escribe al final: "(~Xcm estimado por [referencia usada])". 5) Si no hay ninguna referencia reconocible, deja altura_cm=0 y escribe en descripcion "Sin escala — confirmar medidas con cliente".`;
 
+/* ----- API keys: fuera del código y fuera de la vista -----
+   La key nunca está escrita en el HTML: la captura el usuario. Al guardarla se
+   ofusca (no queda en texto plano en localStorage) y en pantalla solo se ven
+   sus últimos 4 caracteres, así que tampoco queda visible al abrir el modal.
+   El campo es type="text" con text-security en vez de type="password" para que
+   Chrome no lo detecte como contraseña ni ofrezca guardarla en el gestor. */
+const AI_PROVS=['gemini','groq','openrouter'];
+const _KSALT='al3d·key·v1';
+function _kxor(s){ let o=''; for(let i=0;i<s.length;i++) o+=String.fromCharCode(s.charCodeAt(i)^_KSALT.charCodeAt(i%_KSALT.length)); return o; }
+function keyPack(k){ try{ return btoa(_kxor(String(k))); }catch(_){ return ''; } }
+function keyUnpack(v){ try{ return _kxor(atob(String(v))); }catch(_){ return ''; } }
+function keyMask(k){ return k.length>4?'••••••••'+k.slice(-4):'••••'; }
+function getKey(p){
+  try{
+    const v=localStorage.getItem('al3d_kx_'+p);
+    if(v) return keyUnpack(v);
+    // Migración de las keys que se guardaban en texto plano en versiones previas
+    const legacy=localStorage.getItem('ai_key_'+p)||(p==='gemini'?localStorage.getItem('ai_key'):'')||'';
+    if(legacy){ setKey(p,legacy); return legacy; }
+  }catch(_){}
+  return '';
+}
+function setKey(p,k){
+  try{
+    if(k) localStorage.setItem('al3d_kx_'+p,keyPack(k));
+    else  localStorage.removeItem('al3d_kx_'+p);
+    localStorage.removeItem('ai_key_'+p);
+    if(p==='gemini') localStorage.removeItem('ai_key');
+  }catch(_){}
+}
+/* Si el navegador no soporta text-security (p. ej. Firefox), el campo se vería en
+   claro: ahí sí conviene type="password" con autocomplete="new-password". */
+function aiKeyFallback(){
+  const ok=window.CSS&&CSS.supports&&(CSS.supports('-webkit-text-security','disc')||CSS.supports('text-security','disc'));
+  if(ok) return;
+  AI_PROVS.forEach(p=>{ const i=$('ai-key-'+p); if(i){ i.type='password'; i.setAttribute('autocomplete','new-password'); } });
+}
+function aiRenderKey(p){
+  const inp=$('ai-key-'+p), box=$('key-saved-'+p);
+  if(!inp||!box) return;
+  const k=getKey(p), editando=inp.dataset.editing==='1';
+  if(k&&!editando){
+    box.style.display='flex';
+    $('key-mask-'+p).textContent='🔒 Key guardada · '+keyMask(k);
+    inp.style.display='none'; inp.value='';
+  }else{
+    box.style.display='none'; inp.style.display='';
+  }
+}
+function aiEditKey(p){
+  const inp=$('ai-key-'+p);
+  inp.dataset.editing='1'; inp.value=''; aiRenderKey(p);
+  try{ inp.focus({preventScroll:true}); }catch(_){ inp.focus(); }
+}
+function aiDelKey(p){
+  setKey(p,'');
+  const inp=$('ai-key-'+p); delete inp.dataset.editing; inp.value='';
+  aiRenderKey(p); toast('API key borrada de este dispositivo','ok');
+}
+
 let aiProv='gemini';
 function setAiProv(p){
   aiProv=p;
   localStorage.setItem('ai_provider',p);
-  ['gemini','groq','openrouter'].forEach(x=>{ const el=$('prov-'+x); if(el) el.style.display=x===p?'':'none'; });
+  AI_PROVS.forEach(x=>{ const el=$('prov-'+x); if(el) el.style.display=x===p?'':'none'; });
   document.querySelectorAll('#ai-prov-seg button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
 }
 function aiOpen(){
-  $('ai-key-gemini').value=localStorage.getItem('ai_key_gemini')||localStorage.getItem('ai_key')||'';
+  AI_PROVS.forEach(p=>{ const inp=$('ai-key-'+p); if(inp){ delete inp.dataset.editing; inp.value=''; } aiRenderKey(p); });
   $('ai-model-gemini').value=localStorage.getItem('ai_model_gemini')||localStorage.getItem('ai_model')||'gemini-2.5-flash';
-  $('ai-key-groq').value=localStorage.getItem('ai_key_groq')||'';
   $('ai-model-groq').value=localStorage.getItem('ai_model_groq')||'meta-llama/llama-4-scout-17b-16e-instruct';
-  $('ai-key-openrouter').value=localStorage.getItem('ai_key_openrouter')||'';
   $('ai-model-openrouter').value=localStorage.getItem('ai_model_openrouter')||'meta-llama/llama-4-scout:free';
   const p=localStorage.getItem('ai_provider')||'gemini';
   setAiProv(p);
-  if(!$('ai-key-'+p).value) $('ai-cfg-box').open=true;
+  if(!getKey(p)) $('ai-cfg-box').open=true;
   aiStatus(''); $('aimodal').classList.add('show');
 }
 function aiClose(){ $('aimodal').classList.remove('show'); }
@@ -1437,10 +1522,11 @@ async function aiAnalyze(){
     aiStatus('Groq y OpenRouter solo admiten imágenes JPG. Para PDF usa Gemini.','err'); return;
   }
   const DEFAULTS={gemini:'gemini-2.5-flash',groq:'meta-llama/llama-4-scout-17b-16e-instruct',openrouter:'meta-llama/llama-4-scout:free'};
-  const key=$('ai-key-'+aiProv).value.trim();
+  const key=$('ai-key-'+aiProv).value.trim()||getKey(aiProv);
   const model=($('ai-model-'+aiProv).value.trim())||DEFAULTS[aiProv];
-  if(!key){ $('ai-cfg-box').open=true; aiStatus('Pega tu API key de '+aiProv+'.','err'); return; }
-  localStorage.setItem('ai_key_'+aiProv,key);
+  if(!key){ $('ai-cfg-box').open=true; aiEditKey(aiProv); aiStatus('Pega tu API key de '+aiProv+'.','err'); return; }
+  setKey(aiProv,key);
+  const _kin=$('ai-key-'+aiProv); delete _kin.dataset.editing; aiRenderKey(aiProv);
   localStorage.setItem('ai_model_'+aiProv,model);
   localStorage.setItem('ai_provider',aiProv);
   aiStatus('Analizando con IA… (unos segundos)','work');
@@ -2045,7 +2131,7 @@ function loadQueueEntry(folio){
   pid=Q.items.reduce((m,it)=>Math.max(m,it.id||0),0);
   const FM={proy:'f-proy',cliente:'f-cli',tel:'f-tel',maps:'f-maps',dirRaw:'f-dir-raw'};
   Object.entries(FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
-  if(Q.folio) $('folio').textContent=Q.folio;
+  pintarFolio();
   if(Q.maps) $('mapsbtn').disabled=!/^https?:\/\//i.test(Q.maps);
   saveState(); renderItems();
 }
@@ -2074,12 +2160,47 @@ function loadState(){
   }catch(_){ return false; }
 }
 
+/* ----- Folio / contador de cotizaciones -----
+   El contador solo avanza con las cotizaciones CONFIRMADAS (autorizadas).
+   Mientras la cotización es borrador o está pendiente, el folio es provisional:
+   se muestra el siguiente número libre pero no se consume, así los borradores
+   que nunca se autorizan no gastan folios del contador. */
+const FOLIO_PREFIJO='COT-';
+function folioNum(f){ const m=/(\d+)/.exec(String(f||'')); return m?parseInt(m[1],10):0; }
+function folioFmt(n){ return FOLIO_PREFIJO+String(n).padStart(4,'0'); }
+function folioConfirmados(){ try{ return parseInt(localStorage.getItem('al3d_folio')||'0')||0; }catch(_){ return 0; } }
+/* Números ya tomados por cotizaciones vivas (pendientes o autorizadas) o del historial:
+   no se reutilizan aunque el contador de confirmadas aún no haya avanzado. */
+function foliosOcupados(){
+  const s=new Set();
+  try{ getQueue().forEach(e=>{ if(e.estado!=='rechazada') s.add(folioNum(e.folio)); }); }catch(_){}
+  try{ getHistorial().forEach(e=>s.add(folioNum(e.folio))); }catch(_){}
+  s.delete(0);
+  return s;
+}
 function nextFolio(){
   try{
-    const n=(parseInt(localStorage.getItem('al3d_folio')||'0')||0)+1;
-    localStorage.setItem('al3d_folio',String(n));
-    return 'COT-'+String(n).padStart(4,'0');
-  }catch(_){ return 'COT-'+String(Math.floor(Math.random()*9000)+1000); }
+    const ocupados=foliosOcupados();
+    let n=folioConfirmados()+1;
+    while(ocupados.has(n)) n++;
+    return folioFmt(n);
+  }catch(_){ return FOLIO_PREFIJO+String(Math.floor(Math.random()*9000)+1000); }
+}
+/* Se llama al autorizar: es ahí cuando la cotización cuenta para el contador. */
+function confirmarFolio(folio){
+  const n=folioNum(folio);
+  if(!n) return;
+  try{ if(n>folioConfirmados()) localStorage.setItem('al3d_folio',String(n)); }catch(_){}
+}
+function folioConfirmado(){ return Q.estado==='autorizada'; }
+function pintarFolio(){
+  const el=$('folio'); if(!el) return;
+  const conf=folioConfirmado();
+  el.textContent=Q.folio||'';
+  el.classList.toggle('prov',!conf);
+  el.title=conf
+    ? 'Folio confirmado — cuenta en el contador de cotizaciones'
+    : 'Folio provisional — el contador solo avanza cuando la cotización se autoriza';
 }
 
 /* ===================== Escalador Pro ===================== */
@@ -2434,6 +2555,7 @@ function scUpdateList(){
   const list=$('sc-medidas-list');
   $('sc-mcount').textContent=SC.items.length;
   list.innerHTML='';
+  scUpdateAddAll();
   if(!SC.items.length){
     list.innerHTML='<div class="sp-mlist-empty">'+(SC.nativePxPerCm>0?'Traza líneas sobre los elementos<br>para registrar sus medidas.':'Calibra la escala primero,<br>luego traza líneas para medir.')+'</div>';
     $('sc-btn-export').disabled=true;return;
@@ -2449,8 +2571,8 @@ function scUpdateList(){
         <div class="sp-mitem-cm">${scFmtCm(m.cm)}<small> cm</small></div>
         <input class="sp-mitem-label" placeholder="Letras, logo, fachada…" value="${scEsc(m.label)}"
           onclick="event.stopPropagation()" oninput="scSetLabel(${m.id},this.value)">
-        <button style="margin-top:8px;width:100%;padding:7px 10px;background:var(--brand-grd);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px"
-          onclick="event.stopPropagation();scUsarMedida(${m.id})">→ Agregar como partida</button>
+        <button class="sp-mitem-add${m.usada?' done':''}"
+          onclick="event.stopPropagation();scUsarMedida(${m.id})">${m.usada?'✓ Agregada · agregar otra vez':'→ Agregar como partida'}</button>
       </div>
       <div class="sp-mitem-actions">
         <button class="sp-ibtn" onclick="event.stopPropagation();scDelMedida(${m.id})" title="Eliminar">×</button>
@@ -2461,15 +2583,47 @@ function scUpdateList(){
 }
 function scSetLabel(id,v){const m=SC.items.find(x=>x.id===id);if(m)m.label=v;}
 function scDelMedida(id){SC.items=SC.items.filter(x=>x.id!==id);if(SC.sel===id)SC.sel=null;scUpdateList();scRender();}
+/* Crea la partida de una medida. No cierra el escalador: de una misma imagen
+   salen varias medidas y por lo tanto varias partidas. */
+function scAgregarPartida(m){
+  const h=Math.round(m.cm);
+  addItem();
+  const it=Q.items[Q.items.length-1];
+  it.altura=h;
+  if(m.label){ it.desc=m.label; }
+  m.usada=true;
+  return h;
+}
 function scUsarMedida(id){
   const m=SC.items.find(x=>x.id===id);if(!m)return;
-  const h=Math.round(m.cm);
   if(locked()){toast('La cotización está bloqueada','err');return;}
-  addItem();
-  Q.items[Q.items.length-1].altura=h;
-  if(m.label) Q.items[Q.items.length-1].desc=m.label;
-  cerrarScaler();renderItems();
-  toast(`Partida creada con altura ${h} cm — completa los demás campos`,'ok',3200);
+  const h=scAgregarPartida(m);
+  scUpdateList();
+  toast(`Partida con altura ${h} cm agregada — sigue midiendo o vuelve al cotizador`,'ok',3200);
+}
+function scUsarTodas(){
+  if(locked()){toast('La cotización está bloqueada','err');return;}
+  const pend=SC.items.filter(m=>!m.usada);
+  if(!pend.length){toast('Todas las medidas ya están agregadas','',2200);return;}
+  pend.forEach(scAgregarPartida);
+  scUpdateList();
+  toast(`${pend.length} ${pend.length===1?'partida agregada':'partidas agregadas'} a la cotización`,'ok',3200);
+}
+/* Cuenta de partidas ya creadas desde el escalador, para el pie del panel */
+function scUsadas(){ return SC.items.filter(m=>m.usada).length; }
+function scUpdateAddAll(){
+  const btn=$('sc-btn-addall'),note=$('sc-addall-note');
+  if(!btn) return;
+  const pend=SC.items.filter(m=>!m.usada).length, usadas=scUsadas();
+  btn.disabled=!pend||locked();
+  const restantes=pend<SC.items.length;
+  btn.textContent=!pend ? '→ Agregar todas las medidas como partidas'
+    : pend===1 ? `→ Agregar la medida ${restantes?'restante ':''}como partida`
+    : `→ Agregar las ${pend} medidas ${restantes?'restantes ':''}como partidas`;
+  if(note){
+    note.style.display=usadas?'':'none';
+    note.textContent=usadas?`✓ ${usadas} ${usadas===1?'partida agregada':'partidas agregadas'} a la cotización`:'';
+  }
 }
 function scExportImg(){
   if(!SC.img||!SC.items.length)return;
@@ -2490,11 +2644,12 @@ function scDist(a,b){return Math.hypot(b.x-a.x,b.y-a.y);}
 function hoy(){return new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});}
 function init(){
   loadLogo();
+  aiKeyFallback();
   if(!loadState()){
-    const f=nextFolio(); Q.folio=f; $('folio').textContent=f;
+    Q.folio=nextFolio(); pintarFolio();
     Q.fecha=hoy(); addItem();
   } else {
-    if(Q.folio) $('folio').textContent=Q.folio;
+    pintarFolio();
     if(Q.maps) $('mapsbtn').disabled=!/^https?:\/\//i.test(Q.maps);
     if(Q.dirRaw) updDirRaw(Q.dirRaw);
     renderItems();
