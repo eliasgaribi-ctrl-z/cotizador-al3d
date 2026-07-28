@@ -81,7 +81,6 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   /* iOS/Safari hace zoom al enfocar un campo con letra <16px; forzamos 16px solo en móvil */
   input,select,textarea,.rv-field input,.rv-field select,.autoctr input{font-size:16px}
   .btn,.addbtn,.ai-btn{min-height:46px}
-  .tipo-seg button{padding:8px 12px}
   .chip{padding:9px 14px;font-size:13px}
   .seg button{padding:9px 14px}
   .del,.dup,.pdf-vis{font-size:22px;padding:6px 10px}
@@ -108,21 +107,33 @@ textarea{resize:vertical;min-height:46px}
 .empty{text-align:center;color:var(--muted);font-size:13px;padding:30px 10px;border:1.5px dashed var(--line);border-radius:var(--r-sm);background:var(--soft)}
 .partida{border:1px solid rgba(224,228,240,.8);border-left:3px solid var(--brand);border-radius:var(--r-sm);padding:16px;margin-bottom:14px;background:#fff;box-shadow:var(--sh-sm);position:relative;transition:box-shadow .15s}
 .partida:hover{box-shadow:0 2px 8px rgba(23,29,74,.06),0 8px 28px rgba(23,29,74,.1)}
-.partida-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
-.pnum{display:flex;align-items:center;gap:8px}
+.partida-top{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.pnum{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.ptop-actions{display:flex;align-items:center;gap:2px;margin-left:auto;flex-shrink:0}
 .pnum .n{width:26px;height:26px;border-radius:8px;background:var(--brand-grd);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 6px rgba(58,74,216,.25)}
 .tipo-seg{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:9px;padding:3px;flex-wrap:wrap;gap:2px}
 .tipo-seg button{border:none;background:none;padding:5px 10px;font-size:11.5px;font-weight:600;color:var(--muted);border-radius:7px;cursor:pointer;transition:.15s}
 .tipo-seg button.on{background:var(--brand-grd);color:#fff;box-shadow:0 2px 10px rgba(58,74,216,.38);animation:chipPop .22s cubic-bezier(.34,1.56,.64,1)}
+/* En móvil el selector de tipo se apilaba en 5 renglones y parecía una lista desplegable:
+   rejilla de 3 columnas para que se vea de un golpe cuál está activo. (Va después de la
+   regla base porque una media query no gana por sí sola cuando la especificidad empata.) */
+@media(max-width:760px){
+  .tipo-seg{order:9;flex-basis:100%;width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
+  .tipo-seg button{padding:10px 5px;font-size:11.5px;line-height:1.25;text-align:center}
+}
 .del{border:none;background:none;color:#d0d5e5;font-size:19px;cursor:pointer;line-height:1;padding:3px 6px;border-radius:7px;transition:.12s}
 .del:hover{color:var(--red);background:var(--red-bg)}
 
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
-.chip{padding:6px 13px;border:1.5px solid var(--line);border-radius:20px;font-size:12.5px;font-weight:600;cursor:pointer;background:#fff;color:#566173;transition:.15s;user-select:none}
-.chip small{font-weight:700;color:var(--brand)}
-.chip.on{border-color:var(--brand-strong);background:var(--brand-grd);color:#fff;box-shadow:0 3px 14px rgba(58,74,216,.40);animation:chipPop .22s cubic-bezier(.34,1.56,.64,1)}
+/* Chip sin elegir: plano y discreto. Chip elegido: relleno, con palomita y sombra.
+   La diferencia tiene que verse de un vistazo, sin leer. */
+.chip{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border:1.5px solid transparent;border-radius:20px;font-size:12.5px;font-weight:600;cursor:pointer;background:var(--soft);color:#697386;transition:.15s;user-select:none}
+.chip small{font-weight:700;color:var(--muted)}
+.chip .ck{display:none}
+.chip.on{border-color:var(--brand-strong);background:var(--brand-grd);color:#fff;font-weight:700;box-shadow:0 3px 14px rgba(58,74,216,.40);animation:chipPop .22s cubic-bezier(.34,1.56,.64,1)}
 .chip.on small{color:rgba(255,255,255,.88)}
-.chip:hover:not(.on){border-color:rgba(58,74,216,.28);background:var(--soft-2)}
+.chip.on .ck{display:inline;font-size:11px;font-weight:900;line-height:1}
+.chip:hover:not(.on){border-color:rgba(58,74,216,.28);background:var(--soft-2);color:var(--brand-strong)}
 .chip:focus-visible{outline:2.5px solid var(--brand);outline-offset:2px}
 @keyframes chipPop{0%{transform:scale(.84)}65%{transform:scale(1.07)}100%{transform:scale(1)}}
 .hintnote{font-size:11.5px;color:var(--muted);background:linear-gradient(90deg,var(--soft),rgba(242,244,251,.3));border-left:2px solid rgba(58,74,216,.2);border-radius:0 7px 7px 0;padding:6px 11px;display:inline-block}
@@ -147,6 +158,26 @@ textarea{resize:vertical;min-height:46px}
 /* Drag & drop reorder */
 .drag-handle{cursor:grab;color:#c4c9d8;font-size:18px;padding:0 5px 0 0;user-select:none;line-height:1;display:inline-flex;align-items:center}
 .drag-handle:active,.drag-handle:hover{cursor:grabbing;color:var(--brand)}
+/* ----- Qué está seleccionado en la partida -----
+   Resumen de arriba: lee de corrido lo que ya se eligió y marca en ámbar lo que falta. */
+.psum{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+.ptok{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:8px;background:var(--soft-2);color:var(--brand-strong);border:1px solid rgba(58,74,216,.16);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ptok::before{content:'✓';font-size:10px;font-weight:900;opacity:.75}
+.ptok.falta{background:var(--amber-bg);color:var(--amber);border-color:rgba(207,138,18,.3)}
+.ptok.falta::before{content:'!';opacity:1}
+.ptok.off{background:var(--soft);color:var(--muted);border-color:var(--line)}
+.ptok.off::before{content:'—';font-weight:700}
+/* Cada bloque de opciones va encerrado y con su valor elegido en el encabezado */
+.optgrp{border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px 11px;margin-bottom:11px;background:linear-gradient(180deg,#fff,var(--soft))}
+.optgrp.falta{border-color:rgba(207,138,18,.35);background:linear-gradient(180deg,#fff,#fffaf0)}
+.optgrp-h{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:9px}
+.optgrp-t{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
+.optgrp-v{font-size:12.5px;font-weight:800;color:var(--brand-strong);display:inline-flex;align-items:center;gap:4px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.optgrp-v::before{content:'✓';font-size:10.5px}
+.optgrp-v.falta{color:var(--amber)}
+.optgrp-v.falta::before{content:'!'}
+.optgrp .chips{margin:0}
+.optgrp .hintnote{margin-top:8px}
 .partida.drag-over{border-color:var(--brand);border-style:dashed;background:linear-gradient(180deg,#f3f5ff,#eef0fe)}
 .partida.dragging{opacity:.35}
 /* Auto-counter for letter count */
@@ -780,7 +811,7 @@ function totals(){
 /* ===================== Acciones partidas ===================== */
 function addItem(){
   if(locked())return;
-  Q.items.push({id:++pid,tipo:'letras',material:'',comp:'',luz:true,ilumTipo:'fria',altura:0,n:0,
+  Q.items.push({id:++pid,tipo:'letras',material:'',comp:'recta',luz:true,ilumTipo:'fria',altura:0,n:0,
     tarifa:0,ancho:0,alto:0, acab:'',recComp:false,bas:'', desc:'',descAi:false,pz:1,pu:0,textoAuto:'',showInPdf:true});
   renderItems();
 }
@@ -796,6 +827,7 @@ function typeItem(id,k,v){
   const f=$('formula-'+id), l=$('lt-'+id);
   if(f) f.textContent=formulaFor(it);
   if(l) l.textContent=money(lineTotal(it));
+  pintarResumen(it);
   renderSummary(); saveState();
 }
 function setTipo(id,t){ if(locked())return; const it=Q.items.find(x=>x.id===id); if(!it)return; it.tipo=t; if(t==='caja'&&!it.tarifa) it.tarifa=3900; renderItems(); }
@@ -833,6 +865,7 @@ function autoContarLetras(id,texto){
   const f=$('formula-'+id),l=$('lt-'+id);
   if(f) f.textContent=formulaFor(it);
   if(l) l.textContent=money(lineTotal(it));
+  pintarResumen(it);
   renderSummary(); saveState();
 }
 
@@ -857,14 +890,17 @@ function renderItems(){
         <div class="pnum">
           ${!locked()?'<span class="drag-handle" title="Arrastra para reordenar">⠿</span>':''}
           <div class="n">${i+1}</div>
-          <div class="tipo-seg">
-            ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button class="${it.tipo===t?'on':''}" ${locked()?'disabled':''} onclick="setTipo(${it.id},'${t}')">${({letras:'Letras 3D',recorte:'Recorte acrílico',bastidor:'Bastidor',caja:'Caja de luz',manual:'Manual'})[t]}</button>`).join('')}
-          </div>
         </div>
-        ${!locked()?`<button class="dup" onclick="dupItem(${it.id})" title="Duplicar partida">⧉</button>`:''}
-        <button class="pdf-vis${pdfVis?'':' off'}" onclick="setShowInPdf(${it.id},${!pdfVis})" title="${pdfVis?'Ocultar del PDF — la partida sigue sumando al total':'Mostrar en PDF'}">👁</button>
-        <button class="del" ${locked()?'disabled':''} onclick="delItem(${it.id})" title="Eliminar">×</button>
+        <div class="tipo-seg">
+          ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button class="${it.tipo===t?'on':''}" ${locked()?'disabled':''} onclick="setTipo(${it.id},'${t}')">${({letras:'Letras 3D',recorte:'Recorte acrílico',bastidor:'Bastidor',caja:'Caja de luz',manual:'Manual'})[t]}</button>`).join('')}
+        </div>
+        <div class="ptop-actions">
+          ${!locked()?`<button class="dup" onclick="dupItem(${it.id})" title="Duplicar partida">⧉</button>`:''}
+          <button class="pdf-vis${pdfVis?'':' off'}" onclick="setShowInPdf(${it.id},${!pdfVis})" title="${pdfVis?'Ocultar del PDF — la partida sigue sumando al total':'Mostrar en PDF'}">👁</button>
+          <button class="del" ${locked()?'disabled':''} onclick="delItem(${it.id})" title="Eliminar">×</button>
+        </div>
       </div>
+      ${resumenHTML(it)}
       ${bodyFor(it)}
       <div class="pline">
         <span class="formula" id="formula-${it.id}">${formulaFor(it)}</span>
@@ -938,6 +974,68 @@ function updProg(){
 }
 
 /* Campo de descripción "qué se cotiza", disponible en todas las partidas */
+/* ----- Opciones de la partida: chip y grupo -----
+   Un solo lugar donde se decide cómo se ve una opción elegida, para que material,
+   complejidad, acabado, bastidor y caja se lean todos igual. */
+function chip(on,click,label,extra){
+  return `<div class="chip${on?' on':''}" ${chipA11y(on)} onclick="${locked()?'':click}"><span class="ck">✓</span>${label}${extra?` <small>${extra}</small>`:''}</div>`;
+}
+/* Bloque de opciones con su valor elegido en el encabezado; si no hay nada elegido
+   el bloque se marca en ámbar con "Sin elegir". */
+function grupo(titulo,valor,chipsHTML,extraHTML=''){
+  const falta=!valor;
+  return `<div class="optgrp${falta?' falta':''}">
+      <div class="optgrp-h"><span class="optgrp-t">${titulo}</span><span class="optgrp-v${falta?' falta':''}">${falta?'Sin elegir':esc(valor)}</span></div>
+      <div class="chips">${chipsHTML}</div>${extraHTML}
+    </div>`;
+}
+
+/* ----- Resumen: qué está seleccionado en esta partida -----
+   Devuelve fichas {txt, estado}: 'ok' elegido, 'falta' pendiente, 'off' desactivado
+   a propósito (p. ej. sin iluminación). */
+function resumenPartida(it){
+  const t=[], ok=x=>t.push({txt:x,estado:'ok'}), falta=x=>t.push({txt:x,estado:'falta'}), off=x=>t.push({txt:x,estado:'off'});
+  const medidas=()=>{
+    if(it.ancho>0&&it.alto>0){
+      const m2=it.ancho*it.alto/10000;
+      ok(`${it.ancho}×${it.alto} cm`);
+      ok(m2EsMinimo(m2)?`${m2.toFixed(2)} m² · se cobra 1 m²`:`${m2.toFixed(2)} m²`);
+    } else falta('Faltan medidas');
+  };
+  if(it.tipo==='letras'){
+    const m=matOf(it.material); m?ok(m.label):falta('Falta material');
+    const c=compOf(it.comp);    c?ok(c.label):falta('Falta complejidad');
+    if(it.luz) ok((it.ilumTipo||'fria')==='calida'?'Luz cálida 3000K':'Luz fría 6500K');
+    else off('Sin iluminación · −20%');
+    it.altura>0?ok(it.altura+' cm de altura'):falta('Falta altura');
+    it.n>0?ok(it.n+(it.n===1?' letra':' letras')):falta('Faltan letras');
+  }else if(it.tipo==='recorte'){
+    const r=recOf(it.acab); r?ok(r.label):falta('Falta acabado');
+    if(it.acab==='sandwich') it.recComp?ok('Con complejidad +$5'):off('Sin complejidad');
+    it.altura>0?ok(it.altura+' cm de altura'):falta('Falta altura');
+    it.n>0?ok(it.n+(it.n===1?' pieza':' piezas')):falta('Faltan piezas');
+  }else if(it.tipo==='bastidor'){
+    const b=basOf(it.bas); b?ok(b.label+' · $'+b.tarifa+'/m²'):falta('Falta material');
+    medidas();
+  }else if(it.tipo==='caja'){
+    const c=CAJAS.find(x=>x.tarifa===it.tarifa);
+    it.tarifa>0?ok((c?c.label:'Tarifa personalizada')+' · $'+it.tarifa+'/m²'):falta('Falta tipo de caja');
+    medidas();
+  }else{
+    it.pz>0?ok(it.pz+(it.pz===1?' pieza':' piezas')):falta('Faltan piezas');
+    it.pu>0?ok(money(it.pu)+' c/u'):falta('Falta precio unitario');
+  }
+  return t;
+}
+function resumenHTML(it){
+  return `<div class="psum" id="psum-${it.id}">${resumenPartida(it).map(f=>`<span class="ptok ${f.estado}">${esc(f.txt)}</span>`).join('')}</div>`;
+}
+function pintarResumen(it){
+  const el=$('psum-'+it.id);
+  if(el) el.innerHTML=resumenPartida(it).map(f=>`<span class="ptok ${f.estado}">${esc(f.txt)}</span>`).join('');
+}
+function faltantesDe(it){ return resumenPartida(it).filter(f=>f.estado==='falta').map(f=>f.txt.replace(/^Faltan? /,'').toLowerCase()); }
+
 function descFld(it){
   const dis=locked()?'disabled':'';
   const tag=it.descAi?'<span class="ai-tag">✨ IA</span>':'';
@@ -947,25 +1045,22 @@ function descFld(it){
 function bodyFor(it){
   const dis=locked()?'disabled':'';
   if(it.tipo==='letras'){
-    const matChips=MATERIALES.map(m=>`<div class="chip ${it.material===m.key?'on':''}" ${chipA11y(it.material===m.key)} onclick="${locked()?'':`setItem(${it.id},'material','${m.key}')`}">${m.label} <small>$${m.precio}</small></div>`).join('');
-    const compChips=COMPLEJIDAD.map(c=>`<div class="chip ${it.comp===c.key?'on':''}" ${chipA11y(it.comp===c.key)} onclick="${locked()?'':`setItem(${it.id},'comp','${c.key}')`}">${c.label} <small>${c.extra?'+$'+c.extra:'+$0'}</small></div>`).join('');
+    const matChips=MATERIALES.map(m=>chip(it.material===m.key,`setItem(${it.id},'material','${m.key}')`,m.label,'$'+m.precio)).join('');
+    const compChips=COMPLEJIDAD.map(c=>chip(it.comp===c.key,`setItem(${it.id},'comp','${c.key}')`,c.label,c.extra?'+$'+c.extra:'+$0')).join('');
     const mat=matOf(it.material);
+    const avisos=`<div class="hintnote">Iluminación sugerida: ${mat?mat.ilum:'—'}</div>
+      ${(it.material==='acr-vol'||it.material==='acr-vinil')&&!it.luz?`<div class="hintnote" style="background:#fff8e1;border-left:3px solid var(--amber);color:#7a5800;margin-top:5px">⚠️ El acrílico es valioso principalmente por el paso de luz. Sin iluminación, considera cambiar a <b>Aluminio</b> — mismo resultado visual, menor costo.</div>`:''}
+      ${it.material==='al-paint'&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green);color:#1c6e3d;margin-top:5px">💡 Con aluminio e iluminación, la luz va por detrás (retroiluminación). Para luz que pase a través de las caras, considera <b>Acrílico + Aluminio</b>.</div>`:''}`;
+    const tono=(it.ilumTipo||'fria')==='calida';
+    const luzChips=it.luz
+      ? chip(tono,`setItem(${it.id},'ilumTipo','calida')`,'🌅 Cálida','3000K')+chip(!tono,`setItem(${it.id},'ilumTipo','fria')`,'❄️ Fría','6500K')
+      : '';
     return `
       ${descFld(it)}
-      <label>Material / acabado</label>
-      <div class="chips" style="margin-bottom:7px">${matChips}</div>
-      <div class="hintnote">Iluminación sugerida: ${mat?mat.ilum:'—'}</div>
-      ${(it.material==='acr-vol'||it.material==='acr-vinil')&&!it.luz?`<div class="hintnote" style="background:#fff8e1;border-left:3px solid var(--amber);color:#7a5800;margin-top:5px">⚠️ El acrílico es valioso principalmente por el paso de luz. Sin iluminación, considera cambiar a <b>Aluminio</b> — mismo resultado visual, menor costo.</div>`:''}
-      ${it.material==='al-paint'&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green);color:#1c6e3d;margin-top:5px">💡 Con aluminio e iluminación, la luz va por detrás (retroiluminación). Para luz que pase a través de las caras, considera <b>Acrílico + Aluminio</b>.</div>`:''}
-      <div style="display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap">
-        <label class="switch" style="margin:0"><span class="tg ${it.luz?'on':''}" onclick="${locked()?'':`setItem(${it.id},'luz',${!it.luz})`}"></span> Con iluminación</label>
-        ${it.luz?`<div class="chips" style="margin:0;gap:6px">
-          <div class="chip ${(it.ilumTipo||'fria')==='calida'?'on':''}" role="button" tabindex="0" aria-pressed="${(it.ilumTipo||'fria')==='calida'}" onclick="${locked()?'':`setItem(${it.id},'ilumTipo','calida')`}">🌅 Cálida <small>3000K</small></div>
-          <div class="chip ${(it.ilumTipo||'fria')==='fria'?'on':''}" role="button" tabindex="0" aria-pressed="${(it.ilumTipo||'fria')==='fria'}" onclick="${locked()?'':`setItem(${it.id},'ilumTipo','fria')`}">❄️ Fría <small>6500K</small></div>
-        </div>`:''}
-      </div>
-      <label style="margin-top:12px">Complejidad tipográfica</label>
-      <div class="chips" style="margin-bottom:12px">${compChips}</div>
+      ${grupo('Material / acabado',mat?mat.label:'',matChips,avisos)}
+      ${grupo('Iluminación',it.luz?(tono?'Cálida 3000K':'Fría 6500K'):'Sin iluminación · −20%',
+        `<label class="switch" style="margin:0 6px 0 0"><span class="tg ${it.luz?'on':''}" onclick="${locked()?'':`setItem(${it.id},'luz',${!it.luz})`}"></span> Con iluminación</label>${luzChips}`)}
+      ${grupo('Complejidad tipográfica',compOf(it.comp)?compOf(it.comp).label:'',compChips)}
       <div class="grid3">
         <div class="fld">
           <label>Altura (cm)</label>
@@ -980,15 +1075,15 @@ function bodyFor(it){
       </div>`;
   }
   if(it.tipo==='recorte'){
-    const recChips=RECORTES.map(r=>`<div class="chip ${it.acab===r.key?'on':''}" ${chipA11y(it.acab===r.key)} onclick="${locked()?'':`setItem(${it.id},'acab','${r.key}')`}">${r.label} <small>$${r.precio}</small></div>`).join('');
-    const compRow = it.acab==='sandwich' ? `
-      <label style="margin-top:12px">Complejidad</label>
-      <label class="switch" style="margin-bottom:2px"><span class="tg ${it.recComp?'on':''}" onclick="${locked()?'':`setItem(${it.id},'recComp',${!it.recComp})`}"></span> Con complejidad (+$5/cm)</label>` : '';
+    const recChips=RECORTES.map(r=>chip(it.acab===r.key,`setItem(${it.id},'acab','${r.key}')`,r.label,'$'+r.precio)).join('');
+    const hint='<div class="hintnote">$20 sencillo &nbsp;·&nbsp; $25 rotulación de vinil &nbsp;·&nbsp; $55 tipo sándwich c/iluminación (+$5 complejidad) &nbsp;·&nbsp; precio por cm de altura × pieza</div>';
+    const compRow = it.acab==='sandwich'
+      ? grupo('Complejidad',it.recComp?'Con complejidad +$5/cm':'Sencilla',
+          `<label class="switch" style="margin:0"><span class="tg ${it.recComp?'on':''}" onclick="${locked()?'':`setItem(${it.id},'recComp',${!it.recComp})`}"></span> Con complejidad (+$5/cm)</label>`)
+      : '';
     return `
       ${descFld(it)}
-      <label>Acabado del recorte</label>
-      <div class="chips" style="margin-bottom:7px">${recChips}</div>
-      <div class="hintnote">$20 sencillo &nbsp;·&nbsp; $25 rotulación de vinil &nbsp;·&nbsp; $55 tipo sándwich c/iluminación (+$5 complejidad) &nbsp;·&nbsp; precio por cm de altura × pieza</div>
+      ${grupo('Acabado del recorte',recOf(it.acab)?recOf(it.acab).label:'',recChips,hint)}
       ${compRow}
       <div class="grid3" style="margin-top:12px">
         <div class="fld">
@@ -1002,24 +1097,23 @@ function bodyFor(it){
       </div>`;
   }
   if(it.tipo==='bastidor'){
-    const chips=BASTIDORES.map(b=>`<div class="chip ${it.bas===b.key?'on':''}" ${chipA11y(it.bas===b.key)} onclick="${locked()?'':`setItem(${it.id},'bas','${b.key}')`}">${b.label} <small>$${b.tarifa}/m²</small></div>`).join('');
+    const chips=BASTIDORES.map(b=>chip(it.bas===b.key,`setItem(${it.id},'bas','${b.key}')`,b.label,'$'+b.tarifa+'/m²')).join('');
+    const hint='<div class="hintnote">Lámina $950/m² &nbsp;·&nbsp; Alucobond $1,500/m² &nbsp;·&nbsp; se cobra por área (ancho × alto), mínimo 1 m²: si el área es menor, se respeta el precio de un metro cuadrado.</div>';
     return `
       ${descFld(it)}
-      <label>Material del bastidor</label>
-      <div class="chips" style="margin-bottom:7px">${chips}</div>
-      <div class="hintnote">Lámina $950/m² &nbsp;·&nbsp; Alucobond $1,500/m² &nbsp;·&nbsp; se cobra por área (ancho × alto), mínimo 1 m²: si el área es menor, se respeta el precio de un metro cuadrado.</div>
+      ${grupo('Material del bastidor',basOf(it.bas)?basOf(it.bas).label:'',chips,hint)}
       <div class="grid2" style="margin-top:12px">
         <div class="fld"><label>Ancho (cm)</label><input type="number" min="0" value="${it.ancho||''}" ${dis} oninput="typeItem(${it.id},'ancho',+this.value)"></div>
         <div class="fld"><label>Alto (cm)</label><input type="number" min="0" value="${it.alto||''}" ${dis} oninput="typeItem(${it.id},'alto',+this.value)"></div>
       </div>`;
   }
   if(it.tipo==='caja'){
-    const chips=CAJAS.map(c=>`<div class="chip ${it.tarifa===c.tarifa?'on':''}" ${chipA11y(it.tarifa===c.tarifa)} onclick="${locked()?'':`setItem(${it.id},'tarifa',${c.tarifa})`}">${c.label} <small>$${c.tarifa}/m²</small></div>`).join('');
+    const chips=CAJAS.map(c=>chip(it.tarifa===c.tarifa,`setItem(${it.id},'tarifa',${c.tarifa})`,c.label,'$'+c.tarifa+'/m²')).join('');
+    const hint='<div class="hintnote">Se cobra mínimo 1 m²: si el área es menor, se respeta el precio de un metro cuadrado.</div>';
+    const cajaSel=CAJAS.find(c=>c.tarifa===it.tarifa);
     return `
       ${descFld(it)}
-      <label>Tipo de caja</label>
-      <div class="chips" style="margin-bottom:7px">${chips}</div>
-      <div class="hintnote">Se cobra mínimo 1 m²: si el área es menor, se respeta el precio de un metro cuadrado.</div>
+      ${grupo('Tipo de caja',cajaSel?cajaSel.label:(it.tarifa>0?'Tarifa personalizada · $'+it.tarifa+'/m²':''),chips,hint)}
       <div class="grid3" style="margin-top:12px">
         <div class="fld"><label>Ancho (cm)</label><input type="number" min="0" value="${it.ancho||''}" ${dis} oninput="typeItem(${it.id},'ancho',+this.value)"></div>
         <div class="fld"><label>Alto (cm)</label><input type="number" min="0" value="${it.alto||''}" ${dis} oninput="typeItem(${it.id},'alto',+this.value)"></div>
@@ -1041,6 +1135,9 @@ function formulaM2(tarifa,it){
   return `$${tarifa}/m² × ${m2.toFixed(3)} m²`;
 }
 function formulaFor(it){
+  // Con datos incompletos la fórmula era "$0 ($0) × 0cm × 0": mejor decir qué falta.
+  const faltan=faltantesDe(it);
+  if(faltan.length) return (faltan.length>1?'Faltan: ':'Falta: ')+faltan.join(', ');
   if(it.tipo==='letras'){
     const f=factorOf(it), base=matOf(it.material)?.precio||0, ex=compOf(it.comp)?.extra||0;
     const adj=(!it.luz)?' · −20% sin luz':'';
