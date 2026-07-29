@@ -358,6 +358,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-zoom{position:absolute;right:12px;bottom:52px;display:none;flex-direction:column;gap:7px;z-index:6}
 .sp-zoom button{width:42px;height:42px;border:none;border-radius:11px;background:rgba(255,255,255,.95);color:var(--ink);font-size:20px;font-weight:800;cursor:pointer;box-shadow:0 3px 14px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;line-height:1;font-family:inherit}
 .sp-zoom button:active{background:#eef1ff;transform:scale(.94)}
+.sp-zoom button:disabled{opacity:.35;pointer-events:none}
 .sp-loupe{position:fixed;width:132px;height:132px;border-radius:50%;border:3px solid rgba(255,255,255,.92);box-shadow:0 6px 26px rgba(0,0,0,.45);display:none;pointer-events:none;z-index:60;overflow:hidden;background:#181c2e}
 .sp-loupe canvas{display:block}
 @media(max-width:760px){
@@ -612,6 +613,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       </div>
       <div class="sp-hint-bar hide" id="sp-hint-bar"></div>
       <div class="sp-zoom" id="sp-zoom">
+        <button id="sc-btn-undo" onclick="scDeshacer()" title="Deshacer la última medida" style="font-size:19px" disabled>↩</button>
         <button onclick="scZoomBy(1.5)" title="Acercar">+</button>
         <button onclick="scZoomBy(1/1.5)" title="Alejar">−</button>
         <button onclick="scZoomReset()" title="Ajustar a la pantalla" style="font-size:16px">⤢</button>
@@ -2094,6 +2096,7 @@ const SC={
   tapA:null, building:false,
   items:[], sel:null, nid:1, nc:0,
   z:1, tx:0, ty:0, gesture:false,
+  pan:null, drag:null,
   vw:0, vh:0, rs:1, rsDpr:1, full:null, fullW:0, tile:null, tileR:null, tileS:0, objUrl:null,
 };
 const SC_COLORS=['#3a4ad8','#d32f2f','#2e7d32','#e65100','#6a1b9a','#0277bd','#558b2f','#4e342e'];
@@ -2281,11 +2284,39 @@ function scFitCanvas(){
 }
 /* ----- Zoom y desplazamiento (pan) ----- */
 function scApplyTransform(){scRender();}
-function scZoomReset(){SC.z=1;SC.tx=0;SC.ty=0;scRender();}
+/* Tope del desplazamiento: la foto no puede salirse de la vista. Ajustada (z=1) cabe
+   entera, así que queda centrada y no se mueve, igual que antes. */
+function scClampPan(){
+  const mx=Math.max(0,(SC.cvsW*SC.z-SC.vw)/2),my=Math.max(0,(SC.cvsH*SC.z-SC.vh)/2);
+  SC.tx=Math.max(-mx,Math.min(mx,SC.tx));
+  SC.ty=Math.max(-my,Math.min(my,SC.ty));
+}
+function scCursor(){
+  const cvs=$('scalerCanvas');
+  if(SC.mode!=='ref'&&SC.mode!=='ref-drawn'&&SC.mode!=='measure'){cvs.style.cursor='default';return;}
+  cvs.style.cursor=SC.pan?'grabbing':(SC.drag?'grabbing':(SC.z>1?'grab':'crosshair'));
+}
+function scHintModo(){
+  const mover=SC.z>1;
+  if(SC.mode==='measure'){
+    const mn={'libre':'Libre · cualquier ángulo','h':'Horizontal','v':'Vertical'};
+    scSetHint('Modo: '+(mn[SC.mMode]||'Libre')+' — '+(mover
+      ?'toca los dos extremos · arrastra para moverte'
+      :'toca los dos extremos del elemento (o arrastra)'));
+  }else if(SC.mode==='ref'||SC.mode==='ref-drawn'){
+    scSetHint(mover
+      ?'Toca los dos extremos de un elemento conocido · arrastra para moverte'
+      :'Toca un extremo y luego el otro sobre un elemento conocido (o arrástralo) — puerta 200 cm, persona 175 cm…');
+  }
+}
+function scZoomReset(){SC.z=1;SC.tx=0;SC.ty=0;scRender();scCursor();scHintModo();}
 function scZoomBy(f){
+  const z0=SC.z;
   SC.z=Math.max(1,Math.min(8,SC.z*f));
-  if(SC.z<=1){SC.tx=0;SC.ty=0;}
-  scRender();
+  // El acercamiento con botón se ancla al centro, así que el desplazamiento escala igual
+  const r=SC.z/z0;SC.tx*=r;SC.ty*=r;
+  scClampPan();scRender();
+  if((z0>1)!==(SC.z>1)){scCursor();scHintModo();}
 }
 function scGestureStart(e){
   SC.gesture=true;SC.down=false;SC.sp=null;SC.cp=null;scHideLoupe();scRender();
@@ -2306,7 +2337,7 @@ function scGestureMove(e){
   // Ancla el zoom/pan al punto entre los dedos (lo que estaba bajo los dedos se queda ahí)
   SC.tx=m.x-SC._gS0.x-f*(SC._gm.x-SC._gtx-SC._gS0.x);
   SC.ty=m.y-SC._gS0.y-f*(SC._gm.y-SC._gty-SC._gS0.y);
-  if(SC.z<=1){SC.tx=0;SC.ty=0;}
+  scClampPan();
   scApplyTransform();
 }
 /* ----- Lupa (para ver bajo el dedo al trazar) ----- */
@@ -2391,6 +2422,16 @@ function scScene(ctx,w,h,cx,cy,k,dpr,shadow,lupa){
     const p2={x:m.nx2*SC.cvsW,y:m.ny2*SC.cvsH};
     const off=Math.min(SC.cvsW,SC.cvsH)*.045;
     scDimAnnot(ctx,p1.x,p1.y,p2.x,p2.y,{text:scFmtCm(m.cm)+' cm',color:m.color,sel:m.id===SC.sel,offset:off});
+    // Asas de la medida seleccionada: tamaño constante en pantalla, para poder agarrarlas
+    if(m.id===SC.sel){
+      const r=9/k;
+      [p1,p2].forEach(p=>{
+        ctx.save();ctx.fillStyle='#fff';ctx.strokeStyle='#e03060';ctx.lineWidth=2.5/k;
+        ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();ctx.stroke();
+        ctx.fillStyle='#e03060';ctx.beginPath();ctx.arc(p.x,p.y,r*.34,0,Math.PI*2);ctx.fill();
+        ctx.restore();
+      });
+    }
   });
   if(SC.down&&SC.sp&&SC.cp){
     const ep=scSnap(SC.sp,SC.cp);
@@ -2474,48 +2515,128 @@ function scSnap(a,b){
   return b;
 }
 const SC_TAPTHR=11; // px: distinguir un toque de un arrastre
+function scClient(e){
+  if(e.touches&&e.touches.length)return{x:e.touches[0].clientX,y:e.touches[0].clientY};
+  if(e.changedTouches&&e.changedTouches.length)return{x:e.changedTouches[0].clientX,y:e.changedTouches[0].clientY};
+  return{x:e.clientX,y:e.clientY};
+}
+/* ----- Editar una medida ya trazada: asas en sus extremos ----- */
+function scAsa(pt){
+  if(!SC.sel)return null;
+  const m=SC.items.find(x=>x.id===SC.sel);if(!m)return null;
+  const thr=18/(SC.z||1); // ~18 px de pantalla, sea cual sea el acercamiento
+  const a={x:m.nx1*SC.cvsW,y:m.ny1*SC.cvsH},b={x:m.nx2*SC.cvsW,y:m.ny2*SC.cvsH};
+  const da=scDist(pt,a),db=scDist(pt,b);
+  if(da<=thr&&da<=db)return{id:m.id,ext:1};
+  if(db<=thr)return{id:m.id,ext:2};
+  return null;
+}
+function scMoverAsa(pt){
+  const m=SC.items.find(x=>x.id===SC.drag.id);if(!m)return;
+  let p={x:Math.max(0,Math.min(SC.cvsW,pt.x)),y:Math.max(0,Math.min(SC.cvsH,pt.y))};
+  // Se respeta el modo con el que se trazó: una medida horizontal sigue horizontal
+  const o=SC.drag.ext===1?{x:m.nx2*SC.cvsW,y:m.ny2*SC.cvsH}:{x:m.nx1*SC.cvsW,y:m.ny1*SC.cvsH};
+  if(m.type==='h')p.y=o.y;else if(m.type==='v')p.x=o.x;
+  if(SC.drag.ext===1){m.nx1=p.x/SC.cvsW;m.ny1=p.y/SC.cvsH;}
+  else{m.nx2=p.x/SC.cvsW;m.ny2=p.y/SC.cvsH;}
+  const p1={x:m.nx1*SC.cvsW,y:m.ny1*SC.cvsH},p2={x:m.nx2*SC.cvsW,y:m.ny2*SC.cvsH};
+  if(SC.nativePxPerCm>0)m.cm=(scDist(p1,p2)*SC.scaleFactor)/SC.nativePxPerCm;
+  scUpdateList();scRender();
+}
+/* ----- Deshacer ----- */
+function scDeshacer(){
+  if(SC.building&&SC.tapA){ // cancelar el primer punto pendiente
+    SC.building=false;SC.tapA=null;scHintModo();scRender();scActualizarUndo();return;
+  }
+  if(!SC.items.length)return;
+  const m=SC.items.pop();
+  if(SC.sel===m.id)SC.sel=null;
+  if(SC.nc>0)SC.nc--; // devolver el color al turno
+  scUpdateList();scRender();
+  toast('Medida deshecha','ok',1600);
+}
+function scActualizarUndo(){
+  const b=$('sc-btn-undo');if(b)b.disabled=!(SC.items.length||(SC.building&&SC.tapA));
+}
+function scPonerPunto(raw){
+  if(SC.building&&SC.tapA){
+    if(scCommitLine(SC.tapA,raw)){SC.building=false;SC.tapA=null;}
+  }else{
+    SC.tapA={...raw};SC.building=true;
+    scSetHint(SC.mode==='measure'
+      ?'✓ Primer punto puesto — toca el otro extremo (arrastra o pellizca para moverte)'
+      :'✓ Primer punto puesto — toca el otro extremo de la referencia');
+  }
+  scActualizarUndo();
+}
 function scDown(e){
   if(e.touches&&e.touches.length>=2){scGestureStart(e);return;}
   if(SC.gesture)return;
   if(SC.mode!=='ref'&&SC.mode!=='ref-drawn'&&SC.mode!=='measure')return;
   e.preventDefault();
-  SC.down=true;SC.downPt=scGetXY(e);SC.moved=false;
+  const pt=scGetXY(e);
+  // 1) Asa de la medida seleccionada: mueve ese extremo
+  const asa=scAsa(pt);
+  if(asa){SC.drag=asa;SC.down=false;scCursor();scRender();return;}
+  SC.down=true;SC.downPt=pt;SC.moved=false;
+  // 2) Acercado, el arrastre mueve la vista; el toque simple sigue poniendo puntos
+  if(SC.z>1){
+    const c=scClient(e);
+    SC.pan={cx:c.x,cy:c.y,tx:SC.tx,ty:SC.ty};
+    SC.sp=null;SC.cp=null;scCursor();return;
+  }
+  // 3) Ajustado: el arrastre traza, como siempre
   SC.sp=SC.building?SC.tapA:SC.downPt; // ancla de la previsualización
   SC.cp={...SC.downPt};
   scRender();scLoupe(e);
 }
 function scMove(e){
   if(SC.gesture){scGestureMove(e);return;}
+  if(SC.drag){e.preventDefault();scMoverAsa(scGetXY(e));return;}
   if(!SC.down)return;e.preventDefault();
+  if(SC.pan){
+    const c=scClient(e);
+    if(!SC.moved){
+      // Hasta no superar el umbral sigue siendo un toque: la vista no se mueve, así un
+      // dedo que tiembla al tocar no descuadra la foto.
+      if(Math.hypot(c.x-SC.pan.cx,c.y-SC.pan.cy)<=SC_TAPTHR)return;
+      SC.moved=true;SC.pan.cx=c.x;SC.pan.cy=c.y; // arranca desde aquí, sin salto
+      return;
+    }
+    SC.tx=SC.pan.tx+(c.x-SC.pan.cx);SC.ty=SC.pan.ty+(c.y-SC.pan.cy);
+    scClampPan();scRender();
+    return;
+  }
   SC.cp=scGetXY(e);
   if(scDist(SC.downPt,SC.cp)>SC_TAPTHR)SC.moved=true;
   scRender();scLoupe(e);
 }
 function scUp(e){
-  // Al soltar el pellizco se rehace el lienzo con la resolución que toca al nuevo zoom
   if(SC.gesture){if(!e.touches||e.touches.length===0)SC.gesture=false;scHideLoupe();return;}
+  if(SC.drag){SC.drag=null;scCursor();scUpdateList();scRender();return;}
   scHideLoupe();
   if(!SC.down){return;}
   e.preventDefault();SC.down=false;
+  if(SC.pan){
+    // Si no llegó a arrastrar, fue un toque: coloca el punto
+    const arrastro=SC.moved;SC.pan=null;SC.moved=false;
+    if(!arrastro)scPonerPunto(scGetXY(e));
+    SC.downPt=null;scCursor();scRender();return;
+  }
   const raw=(e.changedTouches&&e.changedTouches.length)?scGetXY(e):(SC.cp||SC.downPt);
   if(SC.moved){
     // Arrastre: línea desde el ancla (primer punto si se estaba construyendo) hasta donde se soltó
     const anchor=SC.building?SC.tapA:SC.downPt;
     if(scCommitLine(anchor,raw)){SC.building=false;SC.tapA=null;}
-  }else{
-    // Toque simple: colocar el punto
-    if(SC.building&&SC.tapA){
-      if(scCommitLine(SC.tapA,raw)){SC.building=false;SC.tapA=null;}
-    }else{
-      SC.tapA={...raw};SC.building=true;
-      scSetHint(SC.mode==='measure'
-        ?'✓ Primer punto puesto — toca el otro extremo (puedes acercar con dos dedos)'
-        :'✓ Primer punto puesto — toca el otro extremo de la referencia');
-    }
-  }
+  }else scPonerPunto(raw);
   SC.sp=null;SC.cp=null;SC.downPt=null;SC.moved=false;scRender();
 }
-function scLeave(e){if(SC.down){SC.cp=scGetXY(e);if(scDist(SC.downPt,SC.cp)>SC_TAPTHR)SC.moved=true;scRender();}scHideLoupe();}
+function scLeave(e){
+  if(SC.drag){SC.drag=null;scCursor();scUpdateList();scRender();}
+  if(SC.pan){SC.pan=null;SC.down=false;SC.moved=false;scCursor();}
+  else if(SC.down){SC.cp=scGetXY(e);if(scDist(SC.downPt,SC.cp)>SC_TAPTHR)SC.moved=true;scRender();}
+  scHideLoupe();
+}
 function scCommitLine(a,b){
   if(!a||!b)return false;
   const ep=scSnap(a,b),d=scDist(a,ep);
@@ -2562,18 +2683,16 @@ function scResetCalib(full=true){
 }
 function scSetMode(m){
   SC.mode=m;SC.down=false;SC.sp=null;SC.cp=null;SC.downPt=null;SC.moved=false;SC.building=false;SC.tapA=null;
+  SC.pan=null;SC.drag=null;scActualizarUndo();
   ['sc-btn-ref','sc-btn-libre','sc-btn-h','sc-btn-v'].forEach(id=>$(id).classList.remove('active'));
   const cvs=$('scalerCanvas');
   if(m==='ref'||m==='ref-drawn'){
     $('sc-btn-ref').classList.add('active');
-    scSetHint('Toca un extremo y luego el otro sobre un elemento conocido (o arrástralo) — puerta 200 cm, persona 175 cm…');
-    cvs.style.cursor='crosshair';
+    scHintModo();scCursor();
   }else if(m==='measure'){
     const mm={'libre':'sc-btn-libre','h':'sc-btn-h','v':'sc-btn-v'};
     $(mm[SC.mMode]||'sc-btn-libre').classList.add('active');
-    const mn={'libre':'Libre · cualquier ángulo','h':'Horizontal','v':'Vertical'};
-    scSetHint('Modo: '+mn[SC.mMode]+' — toca los dos extremos del elemento (o arrastra)');
-    cvs.style.cursor='crosshair';
+    scHintModo();scCursor();
   }else{scSetHint('');cvs.style.cursor='default';}
 }
 function scSetMeasMode(m){
@@ -2594,13 +2713,17 @@ function scUpdateList(){
   list.innerHTML='';
   if(!SC.items.length){
     list.innerHTML='<div class="sp-mlist-empty">'+(SC.nativePxPerCm>0?'Traza líneas sobre los elementos<br>para registrar sus medidas.':'Calibra la escala primero,<br>luego traza líneas para medir.')+'</div>';
-    $('sc-btn-export').disabled=true;return;
+    $('sc-btn-export').disabled=true;scActualizarUndo();return;
   }
   SC.items.forEach((m,i)=>{
     const el=document.createElement('div');
     el.className='sp-mitem'+(m.id===SC.sel?' sel':'');
     el.style.borderLeftColor=m.color;
-    el.onclick=()=>{SC.sel=SC.sel===m.id?null:m.id;scUpdateList();scRender();};
+    el.onclick=()=>{
+      SC.sel=SC.sel===m.id?null:m.id;scUpdateList();scRender();
+      if(SC.sel===m.id)scSetHint('Medida seleccionada — arrastra sus extremos sobre la foto para corregirla');
+      else scHintModo();
+    };
     el.innerHTML=`
       <div style="flex:1;min-width:0">
         <div style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;background:var(--brand-grd);color:#fff;font-size:9px;font-weight:800;margin-bottom:4px;box-shadow:0 2px 6px rgba(58,74,216,.25)">${i+1}</div>
@@ -2615,7 +2738,7 @@ function scUpdateList(){
       </div>`;
     list.appendChild(el);
   });
-  $('sc-btn-export').disabled=false;
+  $('sc-btn-export').disabled=false;scActualizarUndo();
 }
 function scSetLabel(id,v){const m=SC.items.find(x=>x.id===id);if(m)m.label=v;}
 function scDelMedida(id){SC.items=SC.items.filter(x=>x.id!==id);if(SC.sel===id)SC.sel=null;scUpdateList();scRender();}
@@ -2662,6 +2785,13 @@ function init(){
   updProg();
 }
 
+window.addEventListener('keydown',e=>{
+  if(!$('scalermodal').classList.contains('show'))return;
+  const t=e.target,campo=t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA');
+  if(campo)return;
+  if((e.ctrlKey||e.metaKey)&&(e.key==='z'||e.key==='Z')){e.preventDefault();scDeshacer();}
+  else if(e.key==='Escape'&&SC.building){e.preventDefault();scDeshacer();}
+});
 window.addEventListener('beforeunload',e=>{
   // La cotización se guarda sola en localStorage y se restaura al reabrir, así que
   // solo advertimos cuando hay algo que NO se persiste: la imagen analizada por IA.
