@@ -222,8 +222,16 @@ textarea{resize:vertical;min-height:46px}
 .authnote b{color:var(--ink)}
 .mini{font-size:11.5px;color:var(--muted);margin-top:9px;text-align:center;line-height:1.5}
 
-.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(90px);background:#11162e;color:#fff;padding:13px 24px;border-radius:13px;font-size:14px;font-weight:600;z-index:100;transition:transform .3s cubic-bezier(.2,.8,.2,1);box-shadow:0 8px 40px rgba(0,0,0,.28)}
-.toast.show{transform:translateX(-50%) translateY(0)}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(90px);background:#11162e;color:#fff;padding:13px 20px;border-radius:13px;font-size:14px;font-weight:600;z-index:100;transition:transform .3s cubic-bezier(.2,.8,.2,1);box-shadow:0 8px 40px rgba(0,0,0,.28);display:flex;align-items:center;gap:14px;max-width:min(92vw,540px);text-align:left;visibility:hidden;transition:transform .3s cubic-bezier(.2,.8,.2,1),visibility 0s linear .3s}
+/* Al aparecer se hace visible de inmediato; al ocultarse espera a que termine de
+   deslizarse. Con una transición normal de visibility el botón "Deshacer" tardaba
+   en volverse tocable. */
+.toast.show{transform:translateX(-50%) translateY(0);visibility:visible;transition:transform .3s cubic-bezier(.2,.8,.2,1),visibility 0s linear 0s}
+/* Solo se animan color y borde: con "transition:.13s" (que aplica a todas las
+   propiedades) el botón heredaba la animación de visibility del aviso y tardaba
+   en volverse tocable justo cuando el usuario quiere apretarlo. */
+.toast-act{flex-shrink:0;border:1.5px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;font-family:inherit;font-size:13px;font-weight:800;padding:7px 15px;border-radius:9px;cursor:pointer;transition:background .13s,border-color .13s}
+.toast-act:hover{background:rgba(255,255,255,.24);border-color:#fff}
 .toast.ok{background:linear-gradient(135deg,#108f5a,var(--green))} .toast.err{background:linear-gradient(135deg,#bf3730,var(--red))}
 
 /* ----- Cola de autorización ----- */
@@ -242,10 +250,16 @@ textarea{resize:vertical;min-height:46px}
 .qi-total{font-size:12px;font-weight:800;color:var(--ink);white-space:nowrap}
 .auth-divider{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin:2px 0 11px;border-top:1px solid var(--line);padding-top:11px}
 .descuento-info{font-size:12px;color:var(--green);font-weight:700;margin-top:4px;min-height:16px}
+.descuento-info.inc{color:var(--amber)}
 .auth-adj{border-top:1px solid var(--line);padding:11px 20px 4px;background:var(--green-bg)}
 .auth-adj .adj-label{font-size:12px;color:var(--green);font-weight:600}
 .auth-adj .adj-amt{font-size:18px;font-weight:800;color:var(--green)}
 .auth-adj .adj-desc{font-size:11.5px;color:var(--green);padding-bottom:10px}
+/* Cuando el autorizador sube el precio en vez de bajarlo, el bloque cambia a ámbar
+   para que no se lea como un descuento. */
+.auth-adj.inc{background:var(--amber-bg)}
+.auth-adj.inc .adj-label,.auth-adj.inc .adj-amt,.auth-adj.inc .adj-desc{color:var(--amber)}
+.anti-rest{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:7px}
 
 /* ----- IA ----- */
 .ai-btn{width:100%;padding:12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 10px rgba(58,74,216,.25);transition:.16s}
@@ -263,6 +277,9 @@ textarea{resize:vertical;min-height:46px}
 .ai-link{color:var(--brand);font-weight:600;text-decoration:none}.ai-link:hover{text-decoration:underline}
 details.ai-cfg{margin-bottom:13px;border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 12px;background:var(--soft)}
 details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-weight:700}
+.ai-merge{margin-top:11px;background:var(--amber-bg);border:1.5px solid rgba(207,138,18,.28);border-radius:var(--r-sm);padding:11px 13px}
+.ai-merge .switch{font-size:12.5px;font-weight:700;color:#7a5800}
+.ai-merge-note{font-size:11.5px;color:#7a5800;line-height:1.5;margin-top:7px}
 /* Campo de API key: se oculta con text-security en vez de type="password" para que
    el navegador no lo tome por una contraseña y ofrezca guardarla. */
 .key-in{-webkit-text-security:disc;text-security:disc;font-family:inherit;letter-spacing:.08em}
@@ -290,7 +307,13 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .btn-hist:hover{background:var(--soft-2);border-color:var(--brand)}
 .hist-panel{background:#fff;border-radius:20px;max-width:720px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.3);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
 .hist-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),#fff);border-radius:20px 20px 0 0;flex-shrink:0}
+.hist-search-bar{display:flex;align-items:center;gap:10px;padding:11px 20px;border-bottom:1px solid var(--line);flex-shrink:0;background:#fff}
+.hist-search-bar input{flex:1;min-width:0}
+.hist-count{font-size:11px;font-weight:800;color:var(--brand);background:var(--soft-2);border:1px solid rgba(58,74,216,.12);padding:5px 12px;border-radius:20px;white-space:nowrap}
 .hist-body{overflow-y:auto;flex:1}
+.hentry-acts{display:flex;flex-direction:column;gap:5px;align-self:flex-start;flex-shrink:0}
+.hentry-open{border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:8px;cursor:pointer;white-space:nowrap;transition:.12s}
+.hentry-open:hover{border-color:var(--brand);background:var(--soft-2)}
 .hist-empty{text-align:center;color:var(--muted);font-size:13px;padding:50px 20px}
 .hentry{border-bottom:1px solid var(--line);padding:18px 20px}
 .hentry:last-child{border-bottom:none}
@@ -336,6 +359,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .ia-adj{font-size:11px;color:var(--green);font-weight:600;margin-top:4px;min-height:14px}
 .ia-adj.inc{color:var(--amber)}
 .ia-total{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700;padding:8px 10px;background:var(--soft-2);border-radius:8px;margin-top:6px;border:1px solid var(--line);margin-bottom:10px}
+.ia-total.soft{background:#fff;color:var(--brand);margin-top:-5px}
 /* ----- Barra de progreso ----- */
 .prog-box{padding:10px 20px 13px;border-bottom:1px solid var(--line)}
 .prog-label{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
@@ -446,6 +470,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .rv-field input,.rv-field select{background:var(--soft);border:1.5px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;font-size:13px;color:var(--fg);width:100%;outline:none;box-sizing:border-box;font-family:inherit}
 .rv-field input:focus,.rv-field select:focus{border-color:var(--brand)}
 .rv-field input[readonly]{opacity:.65;cursor:default}
+.rv-aviso{background:var(--green-bg);border:1px solid rgba(21,160,106,.25);color:var(--green);border-radius:var(--r-sm);padding:10px 13px;font-size:12px;font-weight:600;line-height:1.5;margin-bottom:14px}
 .rv-calc{background:var(--soft);border-radius:var(--r-sm);padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
 .rv-calc-item{display:flex;flex-direction:column;gap:3px}
 .rv-calc-item span:first-child{font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
@@ -496,7 +521,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
           </div>
           <div class="hintnote" id="dir-raw-hint" style="margin-top:7px;display:none">Se genera un link de búsqueda de Google Maps con el texto que escribiste — ábrelo para verificar la ubicación y luego compártelo con el cliente.</div>
         </div>
-        <div class="fld" style="margin-bottom:0">
+        <div class="fld">
           <label>Ubicación · link de Google Maps</label>
           <div style="display:flex;gap:8px;align-items:stretch">
             <input id="f-maps" placeholder="Pega aquí el link de Google Maps" oninput="updMaps(this.value)" style="flex:1">
@@ -504,6 +529,20 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
           </div>
           <div class="hintnote" style="margin-top:7px">Tip: en Google Maps usa <b>Compartir → Copiar vínculo</b> y pégalo aquí para tener la ubicación exacta.</div>
         </div>
+        <details class="ai-cfg" id="pdf-extra-box" style="margin-bottom:0">
+          <summary>Datos que salen en el PDF (opcional)</summary>
+          <div style="margin-top:12px">
+            <div class="grid2">
+              <div class="fld"><label>Entre calles</label><input id="f-entrecalles" placeholder="Ej. entre Av. Vallarta y López Mateos" oninput="upd('entrecalles',this.value)"></div>
+              <div class="fld"><label>Límite de fabricación</label><input id="f-entrega" placeholder="Ej. Viernes 15 de Agosto" oninput="upd('entrega',this.value)"></div>
+            </div>
+            <div class="fld" style="margin-bottom:0">
+              <label>Nota para el cliente</label>
+              <textarea id="f-nota-cli" rows="2" placeholder="El cliente debe proporcionar salidas eléctricas." oninput="upd('notaCliente',this.value)"></textarea>
+              <div class="hintnote" style="margin-top:7px">Esta nota se imprime en la cotización. Si la dejas vacía sale «El cliente debe proporcionar salidas eléctricas.». La nota del autorizador es interna y <b>no</b> aparece en el PDF.</div>
+            </div>
+          </div>
+        </details>
       </div>
     </div>
 
@@ -551,6 +590,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <div class="anti">
         <label>Anticipo sugerido (50%)</label>
         <div class="inp-money"><input id="f-anti" type="number" min="0" placeholder="0"></div>
+        <div class="anti-rest" id="s-anti-rest"></div>
       </div>
       <div class="auth-adj" id="s-auth-row" style="display:none">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
@@ -601,6 +641,10 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
         </div>
       </details>
       <div class="fld"><label>Archivo (JPG o PDF)</label><input id="ai-file" type="file" accept="image/*,application/pdf"></div>
+      <div class="ai-merge" id="ai-merge-box" style="display:none">
+        <label class="switch" style="margin:0"><span class="tg" id="ai-merge-tg" onclick="toggleAiMerge()"></span> Conservar las partidas que ya capturé</label>
+        <div class="ai-merge-note" id="ai-merge-note"></div>
+      </div>
       <button class="btn btn-pri" onclick="aiAnalyze()" style="margin-top:8px">Analizar y cotizar</button>
       <div class="ai-status" id="ai-status"></div>
     </div>
@@ -616,6 +660,10 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
     <div class="hist-head">
       <b style="font-size:15px;font-weight:800">📋 Cotizaciones autorizadas</b>
       <button onclick="cerrarHistorial()" style="border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center" aria-label="Cerrar">×</button>
+    </div>
+    <div class="hist-search-bar">
+      <input id="hist-search" type="search" placeholder="Buscar por folio, cliente o proyecto…" autocomplete="off" oninput="pintarHistorial()">
+      <span class="hist-count" id="hist-count"></span>
     </div>
     <div class="hist-body" id="hist-body"></div>
   </div>
@@ -712,7 +760,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
     </aside>
   </div>
 </div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 /* ===================== Catálogo de precios ===================== */
@@ -752,6 +800,7 @@ const factorOf=it=>((matOf(it.material)?.precio||0)+(compOf(it.comp)?.extra||0))
 /* ===================== Estado ===================== */
 const Q = {
   proy:'', cliente:'', tel:'', direccion:'', fecha:'', maps:'', folio:'', entrecalles:'', entrega:'', dirRaw:'',
+  notaCliente:'',
   items:[], iva:true,
   estado:'borrador', rol:'vendedor',
   autorizador:'', nota:'', fechaAuth:'',
@@ -771,7 +820,37 @@ const locked=()=>Q.estado!=='borrador'&&!Q.editMode;
 /* Accesibilidad: hace que un chip clicable también responda a teclado (Enter/Espacio) */
 const chipA11y=isOn=>`role="button" tabindex="0" aria-pressed="${isOn?'true':'false'}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"`;
 
-function toast(msg,type='',dur=2600){const t=$('toast');t.textContent=msg;t.className='toast '+type;void t.offsetWidth;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
+/* Aviso emergente. Con un solo temporizador compartido: antes dos avisos seguidos
+   se pisaban y el segundo se ocultaba antes de tiempo por el reloj del primero.
+   Acepta un botón opcional, por ejemplo para deshacer un borrado. */
+let _toastT=null;
+function toast(msg,type='',dur=2600,accion=null){
+  const t=$('toast');
+  t.innerHTML='';
+  const sp=document.createElement('span'); sp.textContent=msg; t.appendChild(sp);
+  if(accion&&accion.label&&typeof accion.fn==='function'){
+    const b=document.createElement('button');
+    b.type='button'; b.className='toast-act'; b.textContent=accion.label;
+    b.onclick=()=>{ clearTimeout(_toastT); t.classList.remove('show'); accion.fn(); };
+    t.appendChild(b);
+  }
+  t.className='toast '+type;
+  void t.offsetWidth; t.classList.add('show');
+  clearTimeout(_toastT);
+  _toastT=setTimeout(()=>t.classList.remove('show'),dur);
+}
+
+/* Copiar al portapapeles, con respaldo. En iOS y en páginas no seguras la API
+   moderna falla; antes cada botón reaccionaba distinto (uno tenía respaldo y los
+   otros solo avisaban del error), así que copiar dependía del botón que tocaras. */
+function copiarTexto(txt,msgOk,extra){
+  const ok=()=>{ if(msgOk) toast(msgOk,'ok',3400); if(typeof extra==='function') extra(); };
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(ok).catch(()=>_copiaManual(txt,ok));
+    } else _copiaManual(txt,ok);
+  }catch(_){ _copiaManual(txt,ok); }
+}
 
 /* ===================== Cálculo ===================== */
 /* Todo lo que se cobra por m² (bastidor y caja de luz) comparte la misma regla:
@@ -811,6 +890,36 @@ function totals(){
   return {sub,iva,neto:sub+iva};
 }
 
+/* ----- Precio final de la cotización -----
+   Si el autorizador fijó un precio distinto al calculado, ESE es el que manda en
+   todo: PDF, anticipo, registro de venta y textos copiados. Antes cada pantalla
+   decidía por su cuenta y el registro de venta cobraba el precio sin descuento. */
+function precioFinal(){
+  const neto=totals().neto;
+  return (Q.precioAuth>0 && Math.abs(Q.precioAuth-neto)>0.01) ? Q.precioAuth : neto;
+}
+/* Ajuste del autorizador: positivo = descuento, negativo = aumento, 0 = sin ajuste. */
+function ajusteAuth(){ return +(totals().neto-precioFinal()).toFixed(2); }
+/* Subtotal e IVA que corresponden al precio final (para el registro de venta). */
+function desgloseFinal(){
+  const neto=precioFinal();
+  const sub=Q.iva?neto/1.16:neto;
+  return {sub:+sub.toFixed(2), iva:+(neto-sub).toFixed(2), neto:+neto.toFixed(2)};
+}
+/* Precio de una partida: el ajustado por el autorizador si lo hay, si no el calculado. */
+function itemPrecio(it){
+  const v=Q.itemsAuth&&Q.itemsAuth[it.id];
+  return v!==undefined?v:lineTotal(it);
+}
+
+/* ----- Textos que sí van dirigidos al cliente -----
+   Q.nota es el comentario INTERNO del autorizador para el vendedor y antes se
+   imprimía tal cual en la cotización del cliente. Ahora el PDF usa notaCliente. */
+function notaCliente(){ return (Q.notaCliente||'').trim()||'El cliente debe proporcionar salidas eléctricas.'; }
+/* La dirección del PDF es la que capturó el vendedor; Q.direccion queda solo como
+   respaldo de lo que haya detectado la IA. */
+function direccionPdf(){ return (Q.dirRaw||'').trim()||(Q.direccion||'').trim(); }
+
 /* ===================== Acciones partidas ===================== */
 function addItem(){
   if(locked())return;
@@ -818,9 +927,25 @@ function addItem(){
     tarifa:0,ancho:0,alto:0, acab:'',recComp:false,bas:'', desc:'',descAi:false,pz:1,pu:0,textoAuto:'',showInPdf:true});
   renderItems();
 }
+/* Última partida borrada, para poder deshacer: en el celular es fácil tocar la ×
+   por accidente y perder una partida con todo su detalle capturado. */
+let _borrada=null;
 function delItem(id){
   if(locked())return;
-  Q.items=Q.items.filter(x=>x.id!==id); renderItems();
+  const idx=Q.items.findIndex(x=>x.id===id);
+  if(idx<0) return;
+  _borrada={item:Q.items[idx],idx};
+  Q.items.splice(idx,1);
+  renderItems();
+  toast('Partida '+(idx+1)+' eliminada','',6000,{label:'Deshacer',fn:deshacerBorrado});
+}
+function deshacerBorrado(){
+  if(!_borrada) return;
+  if(locked()){ toast('La cotización está bloqueada','err'); return; }
+  Q.items.splice(Math.min(_borrada.idx,Q.items.length),0,_borrada.item);
+  _borrada=null;
+  renderItems();
+  toast('Partida restaurada','ok');
 }
 function setItem(id,k,v){ const it=Q.items.find(x=>x.id===id); if(!it)return; it[k]=v; renderItems(); }
 /* Escritura ligera: no re-renderiza el input (evita perder el foco), solo refresca total y resumen */
@@ -1215,11 +1340,16 @@ function updItemAuth(id,val){
     else if(diff<0){adjEl.textContent='Descuento: '+money(-diff);adjEl.className='ia-adj';}
     else{adjEl.textContent='Aumento: '+money(diff);adjEl.className='ia-adj inc';}
   }
-  const sum=Q.items.reduce((s,x)=>{const v=Q.itemsAuth[x.id];return s+(v!==undefined?v:lineTotal(x));},0);
-  const sumEl=$('ia-sum'); if(sumEl) sumEl.textContent=money(sum);
-  const gInput=$('a-precio'); if(gInput) gInput.value=Math.round(sum);
-  Q.precioAuth=sum<neto-0.01?Math.round(sum):0;
-  updPrecioAuth(sum,neto);
+  // Los ajustes por partida van sin IVA; el precio final que se autoriza lo lleva.
+  const sub=Q.items.reduce((s,x)=>{const v=Q.itemsAuth[x.id];return s+(v!==undefined?v:lineTotal(x));},0);
+  const netoAj=Math.round(Q.iva?sub*1.16:sub);
+  const sumEl=$('ia-sum'); if(sumEl) sumEl.textContent=money(sub);
+  const sumNetoEl=$('ia-sum-neto'); if(sumNetoEl) sumNetoEl.textContent=money(Q.iva?sub*1.16:sub);
+  const gInput=$('a-precio'); if(gInput) gInput.value=netoAj;
+  // Se respeta el ajuste sea hacia abajo o hacia arriba: antes un aumento se veía
+  // en pantalla pero se perdía al autorizar.
+  Q.precioAuth=Math.abs(netoAj-neto)>0.01?netoAj:0;
+  updPrecioAuth(netoAj,neto);
   saveState();
 }
 
@@ -1232,22 +1362,35 @@ function renderSummary(){
   $('s-calc').textContent=Q.iva?`${money(t.sub)} × 1.16`:'Sin IVA (= subtotal)';
   $('ivatg').classList.toggle('on',Q.iva);
   const ivaHint=$('s-iva-hint'); if(ivaHint) ivaHint.style.display=Q.iva?'':'none';
-  if(!Q.antiManual){ const auto=Math.round(t.neto*0.5); Q.anti=auto; if(document.activeElement!==$('f-anti')) $('f-anti').value=auto||''; }
+  // El anticipo se calcula sobre lo que realmente se va a cobrar, no sobre el
+  // total calculado: si el autorizador dio descuento, el 50% también baja.
+  const pf=precioFinal();
+  if(!Q.antiManual){ const auto=Math.round(pf*0.5); Q.anti=auto; if(document.activeElement!==$('f-anti')) $('f-anti').value=auto||''; }
   else if(document.activeElement!==$('f-anti')) $('f-anti').value=Q.anti||'';
-  // Precio autorizado con descuento
+  const restEl=$('s-anti-rest');
+  if(restEl){
+    const resta=pf-(Q.anti||0);
+    restEl.textContent = pf>0 ? `Resta al entregar: ${money(Math.max(0,resta))}${resta<-0.01?' · el anticipo supera el total':''}` : '';
+  }
+  // Precio autorizado (descuento o aumento respecto al calculado)
   const authRow=$('s-auth-row');
   if(authRow){
-    const pa=Q.precioAuth, neto=t.neto;
-    if(Q.estado==='autorizada'&&pa&&pa>0&&pa<neto){
-      $('s-auth').textContent=money(pa);
-      $('s-auth-desc').textContent=`Descuento: ${money(neto-pa)} (${Math.round((neto-pa)/neto*100)}%)`;
+    const aj=ajusteAuth(), neto=t.neto;
+    if(Q.estado==='autorizada'&&Math.abs(aj)>0.01&&neto>0){
+      $('s-auth').textContent=money(pf);
+      $('s-auth-desc').textContent= aj>0
+        ? `Descuento: ${money(aj)} (${Math.round(aj/neto*100)}%)`
+        : `Aumento: ${money(-aj)} (${Math.round(-aj/neto*100)}%)`;
+      authRow.classList.toggle('inc',aj<0);
       authRow.style.display='';
     } else { authRow.style.display='none'; }
   }
   renderAuth();
   pintarFolio();
-  // bloqueo de inputs generales
-  ['f-proy','f-cli','f-tel','f-maps','f-anti','f-dir-raw'].forEach(id=>{ if($(id)) $(id).disabled=locked(); });
+  /* Bloqueo de inputs generales. Los datos que solo salen en el PDF no mueven el
+     precio, así que siguen editables después de autorizar: la fecha límite y la
+     nota para el cliente normalmente se definen justo en ese momento. */
+  Object.values(_FM).concat('f-anti').forEach(id=>{ if($(id)) $(id).disabled=locked()&&!_FM_PDF.includes(id); });
   $('addbtn').disabled=locked();
 }
 
@@ -1282,8 +1425,13 @@ function renderAuth(){
     if(Q.estado==='pendiente'){
       const neto=totals().neto;
       const ia=Q.itemsAuth||{};
-      const authSum=Q.items.reduce((s,it)=>{const v=ia[it.id];return s+(v!==undefined?v:lineTotal(it));},0);
-      const paCurrent=Q.precioAuth&&Q.precioAuth<neto?Q.precioAuth:Math.round(authSum);
+      /* Los ajustes por partida son montos SIN IVA (igual que lineTotal), mientras que
+         el "precio final autorizado" es lo que paga el cliente CON IVA. Antes se
+         comparaban entre sí y eso pintaba un descuento fantasma del 16% que quedaba
+         aplicado con solo apretar Autorizar. */
+      const authSub=Q.items.reduce((s,it)=>{const v=ia[it.id];return s+(v!==undefined?v:lineTotal(it));},0);
+      const authNeto=Q.iva?authSub*1.16:authSub;
+      const paCurrent=(Q.precioAuth>0&&Math.abs(Q.precioAuth-neto)>0.01)?Q.precioAuth:Math.round(authNeto);
       const itemRows=Q.items.map((it,i)=>{
         const orig=lineTotal(it);
         const authVal=ia[it.id]!==undefined?ia[it.id]:orig;
@@ -1307,14 +1455,15 @@ function renderAuth(){
       }).join('');
       formHTML=`<div class="auth-divider">Revisando · ${esc(Q.folio)}${Q.proy||Q.cliente?' — '+esc(Q.proy||Q.cliente):''}</div>
         <div class="fld">
-          <label>Precio final autorizado</label>
+          <label>Precio final autorizado ${Q.iva?'(con IVA)':'(sin IVA)'}</label>
           <div class="precio-auth-orig" style="font-size:11.5px;color:var(--muted);margin-bottom:4px">Total calculado: <b>${money(neto)}</b></div>
           <div class="inp-money"><input id="a-precio" type="number" min="0" step="100" value="${paCurrent}" oninput="updPrecioAuth(+this.value,${neto})"></div>
           <div class="descuento-info" id="descuento-info"></div>
         </div>
-        <div class="auth-divider" style="margin-top:8px">Ajuste por partida</div>
+        <div class="auth-divider" style="margin-top:8px">Ajuste por partida ${Q.iva?'· montos sin IVA':''}</div>
         ${itemRows}
-        <div class="ia-total"><span>Total ajustado</span><span id="ia-sum">${money(authSum)}</span></div>
+        <div class="ia-total"><span>${Q.iva?'Subtotal ajustado':'Total ajustado'}</span><span id="ia-sum">${money(authSub)}</span></div>
+        ${Q.iva?`<div class="ia-total soft"><span>Con IVA 16%</span><span id="ia-sum-neto">${money(authNeto)}</span></div>`:''}
         <div class="fld"><label>Tu nombre (autorizador)</label><input id="a-name" placeholder="Ej. Elías" value="${esc(Q.autorizador||'')}"></div>
         <div class="fld"><label>Nota (opcional)</label><textarea id="a-note" placeholder="Comentario para el vendedor…">${esc(Q.nota||'')}</textarea></div>
         <button class="btn btn-ok" onclick="autorizar()">✓ Autorizar precio</button>
@@ -1337,8 +1486,12 @@ function renderAuth(){
     }
     else if(Q.estado==='autorizada'){
       const neto=totals().neto;
-      const pa=Q.precioAuth&&Q.precioAuth<neto?Q.precioAuth:0;
-      const descHTML=pa?`<div class="authnote" style="border-color:var(--green);background:var(--green-bg);color:var(--green);margin-top:8px">Precio autorizado: <b>${money(pa)}</b> · Ahorro: <b>${money(neto-pa)}</b> (${Math.round((neto-pa)/neto*100)}%)</div>`:'';
+      const aj=ajusteAuth();
+      const descHTML=Math.abs(aj)>0.01&&neto>0
+        ? (aj>0
+            ? `<div class="authnote" style="border-color:var(--green);background:var(--green-bg);color:var(--green);margin-top:8px">Precio autorizado: <b>${money(precioFinal())}</b> · Ahorro: <b>${money(aj)}</b> (${Math.round(aj/neto*100)}%)</div>`
+            : `<div class="authnote" style="border-color:var(--amber);background:var(--amber-bg);color:var(--amber);margin-top:8px">Precio autorizado: <b>${money(precioFinal())}</b> · Aumento: <b>${money(-aj)}</b> (${Math.round(-aj/neto*100)}%)</div>`)
+        : '';
       const authNote=`<div class="authnote">Autorizada por <b>${esc(Q.autorizador)||'—'}</b> el <b>${esc(Q.fechaAuth)}</b>.${Q.nota?'<br>Nota: '+esc(Q.nota):''}</div>`;
       if(Q.editMode){
         body=`${authNote}
@@ -1375,9 +1528,10 @@ function renderAuth(){
 
 function updPrecioAuth(pa, neto){
   const el=$('descuento-info'); if(!el) return;
-  if(!pa||pa<=0||pa>=neto){ el.textContent=''; return; }
-  const desc=neto-pa;
-  el.textContent=`Descuento: ${money(desc)} (${Math.round(desc/neto*100)}%)`;
+  const d=neto-pa;
+  if(!pa||pa<=0||neto<=0||Math.abs(d)<0.01){ el.textContent=''; el.classList.remove('inc'); return; }
+  if(d>0){ el.textContent=`Descuento: ${money(d)} (${Math.round(d/neto*100)}%)`; el.classList.remove('inc'); }
+  else   { el.textContent=`Aumento: ${money(-d)} (${Math.round(-d/neto*100)}%)`; el.classList.add('inc'); }
 }
 
 /* ===================== Flujo ===================== */
@@ -1389,6 +1543,9 @@ function solicitar(){
 function reabrir(){
   const eraPendiente=Q.estado==='pendiente';
   Q.estado='borrador'; Q.autorizador=''; Q.nota='';
+  // Al reabrir se cancela la solicitud: el precio autorizado antes ya no vale, si
+  // no quedaba aplicándose en silencio sobre partidas que cambiaron.
+  Q.precioAuth=0; Q.itemsAuth={};
   if(eraPendiente) removeFromQueue(Q.folio);
   saveState(); renderItems(); toast('Cotización reabierta para editar');
 }
@@ -1397,7 +1554,7 @@ function autorizar(){
   Q.nota=($('a-note')?.value||'').trim();
   const neto=totals().neto;
   const pa=parseFloat($('a-precio')?.value)||0;
-  Q.precioAuth=(pa>0&&pa<neto)?pa:0;
+  Q.precioAuth=(pa>0&&Math.abs(pa-neto)>0.01)?pa:0;
   Q.estado='autorizada';
   Q.fechaAuth=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
   confirmarFolio(Q.folio); // el contador de cotizaciones solo avanza al autorizar
@@ -1425,8 +1582,10 @@ function pedirConfNueva(){
 }
 function nueva(){
   Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};
-  Q.entrecalles=Q.entrega='';
-  ['f-proy','f-cli','f-tel','f-maps','f-dir-raw'].forEach(id=>{if($(id))$(id).value='';});
+  Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth='';
+  Q.editMode=false;
+  Object.values(_FM).forEach(id=>{if($(id))$(id).value='';});
+  $('f-anti').value='';
   updDirRaw('');
   $('mapsbtn').disabled=true;
   Q.folio=nextFolio(); pintarFolio();
@@ -1448,9 +1607,7 @@ function updDirRaw(v){
 function abrirDirRaw(){ if(Q.dirRaw) window.open(dirRawMapsUrl(),'_blank','noopener'); }
 function copiarLinkDirRaw(){
   if(!Q.dirRaw) return;
-  navigator.clipboard.writeText(dirRawMapsUrl())
-    .then(()=>toast('Link de Maps copiado · listo para compartir','ok',3200))
-    .catch(()=>toast('No se pudo copiar automáticamente','err',3000));
+  copiarTexto(dirRawMapsUrl(),'Link de Maps copiado · listo para compartir');
 }
 function toggleIva(e){ if(e)e.preventDefault(); Q.iva=!Q.iva; saveState(); renderSummary(); }
 function setRol(r){ Q.rol=r; document.querySelectorAll('#roleseg button').forEach(b=>b.classList.toggle('on',b.dataset.rol===r)); renderAuth(); }
@@ -1595,7 +1752,31 @@ function setAiProv(p){
   AI_PROVS.forEach(x=>{ const el=$('prov-'+x); if(el) el.style.display=x===p?'':'none'; });
   document.querySelectorAll('#ai-prov-seg button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
 }
+/* Una partida recién agregada está en blanco: no cuenta como trabajo capturado. */
+function itemVacio(it){
+  return !(it.desc||'').trim() && !it.altura && !it.n && !it.ancho && !it.alto && !it.pu
+      && !it.material && !it.acab && !it.bas;
+}
+/* Analizar un archivo reemplazaba TODAS las partidas sin avisar. Ahora, si ya hay
+   trabajo capturado, la app lo dice y deja elegir si se conserva. */
+let aiMerge=false;
+function toggleAiMerge(){
+  aiMerge=!aiMerge;
+  $('ai-merge-tg').classList.toggle('on',aiMerge);
+  aiPintarMerge();
+}
+function aiPintarMerge(){
+  const box=$('ai-merge-box'), note=$('ai-merge-note'); if(!box) return;
+  const n=Q.items.filter(it=>!itemVacio(it)).length;
+  box.style.display=n?'':'none';
+  if(!n) return;
+  const plural=n===1?'partida ya capturada':'partidas ya capturadas';
+  note.textContent=aiMerge
+    ? `Se conservarán tus ${n} ${plural} y las de la IA se agregarán al final.`
+    : `⚠️ Tienes ${n} ${plural}. Tal como está, se reemplazarán por lo que detecte la IA.`;
+}
 function aiOpen(){
+  aiMerge=false; $('ai-merge-tg').classList.remove('on'); aiPintarMerge();
   AI_PROVS.forEach(p=>{ const inp=$('ai-key-'+p); if(inp){ delete inp.dataset.editing; inp.value=''; } aiRenderKey(p); });
   $('ai-model-gemini').value=localStorage.getItem('ai_model_gemini')||localStorage.getItem('ai_model')||'gemini-2.5-flash';
   $('ai-model-groq').value=localStorage.getItem('ai_model_groq')||'meta-llama/llama-4-scout-17b-16e-instruct';
@@ -1666,9 +1847,15 @@ async function aiAnalyze(){
 function applyAi(p){
   if(p.proyecto){ Q.proy=p.proyecto; if($('f-proy')) $('f-proy').value=p.proyecto; }
   if(p.cliente){ Q.cliente=p.cliente; if($('f-cli')) $('f-cli').value=p.cliente; }
-  if(p.direccion){ Q.direccion=p.direccion; if($('f-dir')) $('f-dir').value=p.direccion; }
+  /* Antes esto escribía en un campo #f-dir que ya no existe, así que la dirección
+     detectada se quedaba invisible. Se llena el campo real y solo si está vacío,
+     para no pisar lo que ya escribió el vendedor. */
+  if(p.direccion){
+    Q.direccion=p.direccion;
+    if(!(Q.dirRaw||'').trim()){ if($('f-dir-raw')) $('f-dir-raw').value=p.direccion; updDirRaw(p.direccion); }
+  }
   if(Array.isArray(p.partidas) && p.partidas.length){
-    Q.items=[];
+    const nuevos=[];
     p.partidas.forEach(x=>{
       const it={id:++pid,tipo:'letras',material:'',comp:'',luz:true,altura:0,n:0,tarifa:0,ancho:0,alto:0,acab:'',recComp:false,bas:'',desc:'',descAi:false,pz:1,pu:0,showInPdf:true};
       it.tipo=['letras','recorte','bastidor','caja','manual'].includes(x.tipo)?x.tipo:'letras';
@@ -1692,10 +1879,15 @@ function applyAi(p){
         it.pz=+x.piezas||1; it.pu=+x.precio_unitario||0;
         if(!it.desc && x.notas) it.desc=x.notas;
       }
-      Q.items.push(it);
+      nuevos.push(it);
     });
-    Q.estado='borrador';
+    const conservadas=aiMerge?Q.items.filter(it=>!itemVacio(it)):[];
+    Q.items=conservadas.concat(nuevos);
+    // La cotización vuelve a borrador: cualquier precio autorizado antes ya no aplica
+    // a estas partidas nuevas.
+    Q.estado='borrador'; Q.precioAuth=0; Q.itemsAuth={};
     renderItems();
+    if(conservadas.length) toast(`${conservadas.length} partida${conservadas.length>1?'s':''} tuya${conservadas.length>1?'s':''} + ${nuevos.length} de la IA`,'ok',3600);
   }
 }
 
@@ -1709,8 +1901,6 @@ const EMPRESA = {
 
 /* ===================== Copiar datos para pegar en Canva ===================== */
 function copiarParaCanva(){
-  const t=totals();
-  const precioFinal=Q.precioAuth&&Q.precioAuth<t.neto?Q.precioAuth:t.neto;
   const MAT={'al-paint':'Aluminio Blanco/Negro/Pintado','al-brush':'Aluminio Brush Cepillado','acr-vol':'Acrílico + Aluminio (Volumen)','acr-vinil':'Acrílico + Vinil'};
   const ACAB={'sencillo':'Sencillo','vinil':'Rotulación de Vinil','sandwich':'Tipo Sándwich con Iluminación'};
   const BAS={'lamina':'Lámina Galvanizada','alucobond':'Alucobond'};
@@ -1734,20 +1924,27 @@ function copiarParaCanva(){
     if(it.tipo==='bastidor'||it.tipo==='caja')  return 1;
     return it.pz||1;
   }
-  const lineas=Q.items.map((it,i)=>`${i+1}. ${descTxt(it)}\n   Medidas: ${medTxt(it)}  ·  Pzas: ${pzasTxt(it)}  ·  Total: ${money(lineTotal(it))}`).join('\n\n');
+  /* Mismos criterios que el PDF: solo las partidas visibles, con los precios que
+     autorizó el autorizador, para que el texto y el documento no se contradigan. */
+  const visibles=Q.items.filter(it=>it.showInPdf!==false);
+  const subC=Q.items.reduce((s,it)=>s+itemPrecio(it),0);
+  const ivaC=Q.iva?subC*0.16:0;
+  const netoC=subC+ivaC;
+  const pFinal=precioFinal();
+  const ajuste=+(netoC-pFinal).toFixed(2);
+  const lineas=visibles.map((it,i)=>`${i+1}. ${descTxt(it)}\n   Medidas: ${medTxt(it)}  ·  Pzas: ${pzasTxt(it)}  ·  Total: ${money(itemPrecio(it))}`).join('\n\n');
   const txt=`PROYECTO: ${Q.proy||'—'}
 CLIENTE: ${Q.cliente||'—'}
-DIRECCIÓN: ${Q.direccion||'—'}
+DIRECCIÓN: ${direccionPdf()||'—'}
 FECHA: ${Q.fecha||'—'}
 
 PARTIDAS:
 ${lineas}
 
-Subtotal: ${money(t.sub)}
-IVA (16%): ${money(t.iva)}
-Total Neto: ${money(t.neto)}${Q.precioAuth&&Q.precioAuth<t.neto?`\nPrecio autorizado: ${money(precioFinal)}`:''}
+Subtotal: ${money(subC)}${Q.iva?`\nIVA (16%): ${money(ivaC)}`:''}
+Total Neto: ${money(netoC)}${ajuste>0.01?`\nDescuento: −${money(ajuste)}\nTotal a pagar: ${money(pFinal)}`:''}${ajuste<-0.01?`\nAjuste: +${money(-ajuste)}\nTotal a pagar: ${money(pFinal)}`:''}
 
-Nota: ${Q.nota||'El cliente debe proporcionar salidas eléctricas.'}
+Nota: ${notaCliente()}
 Límite de fabricación: ${Q.entrega||'—'}
 Teléfono: ${Q.tel||'—'}
 Entre calles: ${Q.entrecalles||'—'}
@@ -1755,13 +1952,7 @@ Entre calles: ${Q.entrecalles||'—'}
 Vendedor: ${EMPRESA.vendedor}
 Whatsapp: ${EMPRESA.whatsapp}`;
 
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(txt)
-      .then(()=>toast('Datos copiados · listos para pegar en Canva','ok',3200))
-      .catch(()=>toast('No se pudo copiar automáticamente. Copia el texto manualmente.','err',3500));
-  } else {
-    toast('Tu navegador no permite copiar automáticamente.','err',3500);
-  }
+  copiarTexto(txt,'Datos copiados · listos para pegar en Canva');
 }
 
 /* ===================== Prompt para imagen de referencia (Gemini) ===================== */
@@ -1815,20 +2006,18 @@ ${conceptos||'Sin partidas definidas'}
 
 Importante: respeta todos los elementos, posiciones y acomodo que aparecen en las imágenes de referencia.`;
 
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(prompt)
-      .then(()=>toast('Prompt copiado · pégalo en Gemini junto con tu imagen de referencia','ok',3500))
-      .catch(()=>toast('No se pudo copiar automáticamente.','err',3500));
-  } else {
-    toast('Tu navegador no permite copiar automáticamente.','err',3500);
-  }
+  copiarTexto(prompt,'Prompt copiado · pégalo en Gemini junto con tu imagen de referencia');
 }
 
 /* ===================== Generador de PDF ===================== */
 function generarPDF(){
-  const t = totals();
-  const precioFinal = Q.precioAuth && Q.precioAuth < t.neto ? Q.precioAuth : t.neto;
-  const descuento   = Q.precioAuth && Q.precioAuth < t.neto ? t.neto - Q.precioAuth : 0;
+  /* El PDF se arma con los precios ya ajustados por el autorizador, para que las
+     filas de la tabla siempre sumen lo que dice el total. */
+  const subPdf  = Q.items.reduce((s,it)=>s+itemPrecio(it),0);
+  const ivaPdf  = Q.iva ? subPdf*0.16 : 0;
+  const netoPdf = subPdf+ivaPdf;
+  const pFinal  = precioFinal();
+  const ajuste  = +(netoPdf-pFinal).toFixed(2); // >0 descuento · <0 aumento
 
   /* Etiquetas de catálogos */
   const MAT = {'al-paint':'Aluminio Blanco/Negro/Pintado','al-brush':'Aluminio Brush Cepillado','acr-vol':'Acrílico + Aluminio (Volumen)','acr-vinil':'Acrílico + Vinil'};
@@ -1856,7 +2045,7 @@ function generarPDF(){
     return it.pz||1;
   }
   function pu(it){
-    const tot=lineTotal(it), p=pzas(it);
+    const tot=itemPrecio(it), p=pzas(it);
     if(p>1&&(it.tipo==='letras'||it.tipo==='recorte')) return money(tot/p);
     return money(tot);
   }
@@ -1868,7 +2057,7 @@ function generarPDF(){
       <td class="c">${med(it)}</td>
       <td class="c">${pzas(it)}</td>
       <td class="r">${pu(it)}</td>
-      <td class="r">${money(lineTotal(it))}</td>
+      <td class="r">${money(itemPrecio(it))}</td>
     </tr>`).join('');
 
   /* Filas vacías para rellenar tabla */
@@ -1924,7 +2113,7 @@ function generarPDF(){
       </div>
       <div style="display:flex;flex:1;border-left:1.5px solid #3a4ad8">
         <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Dirección</span>
-        <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(Q.direccion)}</span>
+        <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(direccionPdf())}</span>
       </div>
     </div>`;
   }
@@ -1953,6 +2142,10 @@ function generarPDF(){
 body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a2e;font-size:11px;background:#fff}
 .pg{page-break-after:always;padding:28px 32px 80px;min-height:100vh;position:relative;overflow:hidden}
 .pg:last-child{page-break-after:auto}
+/* La cinta decorativa está posicionada, así que se pintaba ENCIMA del contenido y
+   tapaba la fecha y el final de la dirección. Va al fondo; el contenido, arriba. */
+.pg>svg{z-index:0}
+.pg>*:not(svg){position:relative;z-index:1}
 th{background:#3a4ad8;color:#fff;font-size:10.5px;font-weight:700;padding:8px 10px;text-align:left}
 th.c,td.c{text-align:center} th.r,td.r{text-align:right}
 td{padding:7px 10px;font-size:10.5px;border-bottom:1px solid #d0d4e8;vertical-align:top}
@@ -1981,15 +2174,17 @@ table{width:100%;border-collapse:collapse;margin-bottom:8px}
   </table>
   <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
     <div style="width:265px">
-      <div class="t-row"><b>Subtotal:</b><span>${money(t.sub)}</span></div>
-      <div class="t-row" style="background:#d8d8f8"><b>I.V.A</b><span>${money(t.iva)}</span></div>
-      <div class="t-row" style="background:#3a4ad8;color:#fff;font-weight:700;font-size:12px"><b>Total Neto:</b><span>${money(t.neto)}</span></div>
-      ${descuento?`<div class="t-row" style="background:#e5f6ee;color:#15a06a;font-weight:700"><b>Precio autorizado:</b><span>${money(precioFinal)}</span></div>`:''}
+      <div class="t-row"><b>Subtotal:</b><span>${money(subPdf)}</span></div>
+      ${Q.iva?`<div class="t-row" style="background:#d8d8f8"><b>I.V.A</b><span>${money(ivaPdf)}</span></div>`:''}
+      <div class="t-row" style="background:${Math.abs(ajuste)>0.01?'#8b95e8':'#3a4ad8'};color:#fff;font-weight:700;font-size:12px"><b>Total Neto:</b><span>${money(netoPdf)}</span></div>
+      ${ajuste>0.01?`<div class="t-row" style="background:#e5f6ee;color:#15a06a;font-weight:700"><b>Descuento:</b><span>− ${money(ajuste)}</span></div>`:''}
+      ${ajuste<-0.01?`<div class="t-row" style="background:#fbf1dd;color:#8a5c0a;font-weight:700"><b>Ajuste:</b><span>+ ${money(-ajuste)}</span></div>`:''}
+      ${Math.abs(ajuste)>0.01?`<div class="t-row" style="background:#3a4ad8;color:#fff;font-weight:700;font-size:12px"><b>Total a pagar:</b><span>${money(pFinal)}</span></div>`:''}
     </div>
   </div>
   <div style="text-align:center;font-size:10px;margin-bottom:12px">
     <u style="font-weight:700">Nota:</u><br>
-    ${esc(Q.nota||'El cliente debe proporcionar salidas eléctricas.')}
+    ${esc(notaCliente())}
   </div>
   ${footerCot}
 </div>
@@ -2038,7 +2233,7 @@ table{width:100%;border-collapse:collapse;margin-bottom:8px}
           <div style="font-size:22px;font-weight:900;color:#e02020;text-transform:uppercase">${esc(limDia)}</div>
           <div style="font-size:22px;font-weight:900;color:#1a1a2e;text-transform:uppercase">${esc(limFecha)}</div>
         </div>`
-      : `<p style="color:#aaa;font-size:13px">Sin límite de fabricación definido.<br>Agrega la fecha en "Datos del proyecto".</p>`}
+      : `<p style="color:#aaa;font-size:13px">Sin límite de fabricación definido.<br>Agrégalo en «Datos del proyecto → Datos que salen en el PDF».</p>`}
   </div>
   ${footerCot}
 </div>
@@ -2119,6 +2314,9 @@ function guardarEnHistorial(){
   const t=totals();
   const entry={
     folio:Q.folio, proy:Q.proy, cliente:Q.cliente, tel:Q.tel||'', dirRaw:Q.dirRaw||'',
+    // Se guarda todo lo que hace falta para volver a abrirla y regenerar su PDF igual.
+    direccion:Q.direccion||'', maps:Q.maps||'', entrecalles:Q.entrecalles||'',
+    entrega:Q.entrega||'', notaCliente:Q.notaCliente||'', fecha:Q.fecha||'',
     fechaAuth:Q.fechaAuth, autorizador:Q.autorizador, nota:Q.nota,
     precioAuth:Q.precioAuth, neto:t.neto, sub:t.sub, iva:Q.iva,
     items:JSON.parse(JSON.stringify(Q.items)),
@@ -2140,29 +2338,49 @@ function openHistImg(folio){
   $('lightbox').classList.add('show');
 }
 function borrarDeHistorial(folio){
-  if(!confirm('¿Eliminar esta cotización del historial?')) return;
+  if(!confirm('¿Eliminar '+folio+' del historial?\n\nEsta acción no se puede deshacer.')) return;
   saveHistorial(getHistorial().filter(x=>x.folio!==folio));
-  abrirHistorial();
+  _histData=getHistorial();
+  pintarHistorial(); // se conserva lo que el usuario tenía escrito en el buscador
 }
 
+const HIST_MAT={'al-paint':'Aluminio Pintado','al-brush':'Aluminio Brush','acr-vol':'Acrílico + Aluminio','acr-vinil':'Acrílico + Vinil'};
+const HIST_ACAB={'sencillo':'Sencillo','vinil':'Rotulación Vinil','sandwich':'Sándwich c/luz'};
+const HIST_BAS={'lamina':'Lámina','alucobond':'Alucobond'};
+function histDsc(it){
+  if(it.desc) return it.desc;
+  if(it.tipo==='letras')    return (HIST_MAT[it.material]||'Letras 3D')+' · '+(it.n||0)+' letras, '+(it.altura||0)+'cm';
+  if(it.tipo==='recorte')   return 'Recorte '+(HIST_ACAB[it.acab]||'')+' · '+(it.n||0)+' pzas';
+  if(it.tipo==='bastidor')  return 'Bastidor '+(HIST_BAS[it.bas]||'')+' '+(it.ancho||0)+'×'+(it.alto||0)+'cm';
+  if(it.tipo==='caja')      return 'Caja de luz '+(it.ancho||0)+'×'+(it.alto||0)+'cm';
+  return 'Partida manual';
+}
 function abrirHistorial(){
   _histData=getHistorial();
-  const MAT={'al-paint':'Aluminio Pintado','al-brush':'Aluminio Brush','acr-vol':'Acrílico + Aluminio','acr-vinil':'Acrílico + Vinil'};
-  const ACAB={'sencillo':'Sencillo','vinil':'Rotulación Vinil','sandwich':'Sándwich c/luz'};
-  const BAS={'lamina':'Lámina','alucobond':'Alucobond'};
-  function dsc(it){
-    if(it.desc) return it.desc;
-    if(it.tipo==='letras')    return (MAT[it.material]||'Letras 3D')+' · '+(it.n||0)+' letras, '+(it.altura||0)+'cm';
-    if(it.tipo==='recorte')   return 'Recorte '+(ACAB[it.acab]||'')+' · '+(it.n||0)+' pzas';
-    if(it.tipo==='bastidor')  return 'Bastidor '+(BAS[it.bas]||'')+' '+(it.ancho||0)+'×'+(it.alto||0)+'cm';
-    if(it.tipo==='caja')      return 'Caja de luz '+(it.ancho||0)+'×'+(it.alto||0)+'cm';
-    return 'Partida manual';
-  }
+  const s=$('hist-search'); if(s) s.value='';
+  pintarHistorial();
+  $('histmodal').classList.add('show');
+}
+/* Lista del historial, filtrada por el buscador. Con decenas de folios encontrar
+   uno a mano era imposible. */
+function pintarHistorial(){
+  const dsc=histDsc;
+  const q=($('hist-search')?.value||'').trim().toLowerCase();
+  const lista=q
+    ? _histData.filter(e=>[e.folio,e.proy,e.cliente,e.tel,e.dirRaw,e.autorizador]
+        .some(v=>String(v||'').toLowerCase().includes(q)))
+    : _histData;
+  const cnt=$('hist-count');
+  if(cnt) cnt.textContent=_histData.length
+    ? (q?`${lista.length} de ${_histData.length}`:`${_histData.length} cotización${_histData.length===1?'':'es'}`)
+    : '';
   let html='';
   if(!_histData.length){
     html='<div class="hist-empty">Aún no hay cotizaciones autorizadas.<br><span style="font-size:12px">Aparecerán aquí automáticamente cuando autorices una cotización.</span></div>';
+  } else if(!lista.length){
+    html=`<div class="hist-empty">Ninguna cotización coincide con «${esc(q)}».</div>`;
   } else {
-    html=_histData.map(e=>{
+    html=lista.map(e=>{
       const isImg=e.aiFile&&e.aiFile.type&&e.aiFile.type.indexOf('image/')===0&&e.aiFile.url;
       const imgHTML=isImg
         ? `<img class="hentry-img" src="${e.aiFile.url}" onclick="openHistImg('${esc(e.folio)}')" title="Ver imagen completa" alt="Referencia">`
@@ -2171,8 +2389,8 @@ function abrirHistorial(){
         const ia=(e.itemsAuth&&e.itemsAuth[it.id]!==undefined)?e.itemsAuth[it.id]:lineTotal(it);
         return `<tr><td>${i+1}</td><td>${esc(dsc(it))}</td><td>${money(ia)}</td></tr>`;
       }).join('');
-      const precioFinal=e.precioAuth&&e.precioAuth<e.neto?e.precioAuth:e.neto;
-      const descuento=e.precioAuth&&e.precioAuth<e.neto?e.neto-e.precioAuth:0;
+      const pFin=(e.precioAuth>0&&Math.abs(e.precioAuth-e.neto)>0.01)?e.precioAuth:e.neto;
+      const ajuste=+(e.neto-pFin).toFixed(2);
       return `<div class="hentry">
         <div class="hentry-top">
           ${imgHTML}
@@ -2182,21 +2400,51 @@ function abrirHistorial(){
             <div class="hentry-sub">${esc(e.cliente||'')+(e.tel?' · '+esc(e.tel):'')+(e.dirRaw?'<br>📍 '+esc(e.dirRaw):'')}</div>
             <div class="hentry-auth">✓ ${esc(e.autorizador||'—')} · ${esc(e.fechaAuth||'')}</div>
           </div>
-          <button class="hentry-del" onclick="borrarDeHistorial('${esc(e.folio)}')" title="Eliminar">🗑</button>
+          <div class="hentry-acts">
+            <button class="hentry-open" onclick="reabrirDeHistorial('${esc(e.folio)}')" title="Cargarla en el cotizador para volver a generar su PDF">↻ Abrir</button>
+            <button class="hentry-del" onclick="borrarDeHistorial('${esc(e.folio)}')" title="Eliminar">🗑</button>
+          </div>
         </div>
         <table class="htable">${rows}</table>
         <div class="hentry-total">
           <span>Total autorizado</span>
-          <span style="color:var(--green)">${money(precioFinal)}${descuento?`&nbsp;<small style="font-weight:500;color:var(--muted);font-size:11px">(ahorro ${money(descuento)})</small>`:''}</span>
+          <span style="color:var(--green)">${money(pFin)}${ajuste>0.01?`&nbsp;<small style="font-weight:500;color:var(--muted);font-size:11px">(ahorro ${money(ajuste)})</small>`:''}${ajuste<-0.01?`&nbsp;<small style="font-weight:500;color:var(--amber);font-size:11px">(aumento ${money(-ajuste)})</small>`:''}</span>
         </div>
         ${e.nota?`<div style="font-size:11.5px;color:var(--muted);margin-top:7px;padding-top:7px;border-top:1px solid var(--line)">💬 ${esc(e.nota)}</div>`:''}
       </div>`;
     }).join('');
   }
   $('hist-body').innerHTML=html;
-  $('histmodal').classList.add('show');
 }
 function cerrarHistorial(){ $('histmodal').classList.remove('show'); }
+
+/* Volver a abrir una cotización ya autorizada: el cliente vuelve a pedir el PDF o
+   quiere copiar la venta y antes había que capturarla otra vez desde cero. */
+function reabrirDeHistorial(folio){
+  const e=_histData.find(x=>x.folio===folio); if(!e) return;
+  const hayTrabajo=Q.estado!=='autorizada'&&Q.items.some(it=>!itemVacio(it));
+  if(hayTrabajo&&!confirm('Tienes una cotización sin autorizar en pantalla. Si abres '+folio+', se perderá. ¿Continuar?')) return;
+  Q.folio=e.folio;
+  Q.proy=e.proy||''; Q.cliente=e.cliente||''; Q.tel=e.tel||'';
+  Q.dirRaw=e.dirRaw||''; Q.direccion=e.direccion||''; Q.maps=e.maps||'';
+  Q.entrecalles=e.entrecalles||''; Q.entrega=e.entrega||''; Q.notaCliente=e.notaCliente||'';
+  Q.fecha=e.fecha||Q.fecha;
+  Q.items=JSON.parse(JSON.stringify(e.items||[]));
+  Q.itemsAuth=JSON.parse(JSON.stringify(e.itemsAuth||{}));
+  Q.iva=e.iva!==false;
+  Q.precioAuth=e.precioAuth||0;
+  Q.autorizador=e.autorizador||''; Q.nota=e.nota||''; Q.fechaAuth=e.fechaAuth||'';
+  Q.estado='autorizada'; Q.editMode=false;
+  Q.anti=0; Q.antiManual=false; Q.aiFile=null;
+  // Los ids se reutilizan tal cual, así que el contador tiene que quedar por encima
+  // del mayor para que las partidas nuevas no choquen con las restauradas.
+  pid=Q.items.reduce((m,it)=>Math.max(m,it.id||0),pid);
+  Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
+  updDirRaw(Q.dirRaw); updMaps(Q.maps);
+  pintarFolio(); saveState(); renderItems();
+  cerrarHistorial();
+  toast('Cotización '+e.folio+' abierta — ya puedes generar el PDF','ok',3600);
+}
 
 /* ===================== Cola de autorización ===================== */
 function getQueue(){ try{return JSON.parse(localStorage.getItem('al3d_queue')||'[]');}catch(_){return [];} }
@@ -2226,11 +2474,17 @@ function loadQueueEntry(folio){
   if(!entry||!entry.q) return;
   const hayCambiosSinGuardar=Q.estado==='borrador'&&(Q.items.length>0||Q.proy.trim()||Q.cliente.trim());
   if(hayCambiosSinGuardar&&!confirm('Tienes una cotización sin guardar en pantalla. Si continúas, se perderá. ¿Cambiar de todos modos?')) return;
+  /* El rol es de quien está usando la app, no de la cotización: el snapshot lo
+     guardó el vendedor, así que si lo copiáramos el autorizador saldría expulsado
+     de su propia vista al abrir un pendiente. */
+  const rolActual=Q.rol;
   Object.assign(Q,entry.q);
+  Q.rol=rolActual;
+  Q.editMode=false;
   Q.aiFile=null;
   pid=Q.items.reduce((m,it)=>Math.max(m,it.id||0),0);
-  const FM={proy:'f-proy',cliente:'f-cli',tel:'f-tel',maps:'f-maps',dirRaw:'f-dir-raw'};
-  Object.entries(FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
+  Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
+  updDirRaw(Q.dirRaw||'');
   pintarFolio();
   if(Q.maps) $('mapsbtn').disabled=!/^https?:\/\//i.test(Q.maps);
   saveState(); renderItems();
@@ -2245,7 +2499,13 @@ function saveState(){
   }catch(_){}
 }
 
-const _FM={proy:'f-proy',cliente:'f-cli',tel:'f-tel',maps:'f-maps',dirRaw:'f-dir-raw'};
+/* Campos de texto de la cotización ↔ id de su input. Un solo lugar para cargarlos,
+   limpiarlos y bloquearlos: antes cada función traía su propia lista y los campos
+   nuevos se quedaban fuera de alguna de ellas. */
+const _FM={proy:'f-proy',cliente:'f-cli',tel:'f-tel',maps:'f-maps',dirRaw:'f-dir-raw',
+  entrecalles:'f-entrecalles',entrega:'f-entrega',notaCliente:'f-nota-cli'};
+/* Estos tres no alteran el total, así que no se bloquean al autorizar. */
+const _FM_PDF=['f-entrecalles','f-entrega','f-nota-cli'];
 function loadState(){
   try{
     const s=localStorage.getItem('al3d_q');
@@ -2255,7 +2515,7 @@ function loadState(){
     Q.aiFile=null;
     Q.editMode=false;
     pid=Q.items.reduce((m,it)=>Math.max(m,it.id||0),0);
-    Object.entries(_FM).forEach(([k,id])=>{ if(Q[k]&&$(id)) $(id).value=Q[k]; });
+    Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
     return true;
   }catch(_){ return false; }
 }
@@ -2853,6 +3113,9 @@ function scUsarMedida(id){
   const m=SC.items.find(x=>x.id===id);if(!m)return;
   if(locked()){toast('La cotización está bloqueada','err');return;}
   const h=scAgregarPartida(m);
+  // scAgregarPartida modifica la partida DESPUÉS de que addItem la pintó, así que
+  // sin este re-render la última medida se veía con la altura vacía en el cotizador.
+  renderItems();
   scUpdateList();
   toast(`Partida con altura ${h} cm agregada — sigue midiendo o vuelve al cotizador`,'ok',3200);
 }
@@ -2861,6 +3124,7 @@ function scUsarTodas(){
   const pend=SC.items.filter(m=>!m.usada);
   if(!pend.length){toast('Todas las medidas ya están agregadas','',2200);return;}
   pend.forEach(scAgregarPartida);
+  renderItems();
   scUpdateList();
   toast(`${pend.length} ${pend.length===1?'partida agregada':'partidas agregadas'} a la cotización`,'ok',3200);
 }
@@ -2906,6 +3170,9 @@ function init(){
     Q.folio=nextFolio(); pintarFolio();
     Q.fecha=hoy(); addItem();
   } else {
+    /* El rol se guarda con la cotización: hay que dejar el segmento de arriba
+       marcando el mismo rol que está pintando el panel de autorización. */
+    setRol(Q.rol==='autorizador'?'autorizador':'vendedor');
     pintarFolio();
     if(Q.maps) $('mapsbtn').disabled=!/^https?:\/\//i.test(Q.maps);
     if(Q.dirRaw) updDirRaw(Q.dirRaw);
@@ -2924,8 +3191,17 @@ init();
 
 // ----- Registrar Venta -----
 function abrirRegistrarVenta(){
-  const t=totals();
   const hoy=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});
+  // Si el autorizador ajustó el precio, se avisa aquí: la venta se registra por ese
+  // precio, no por el calculado.
+  const aj=ajusteAuth(), avisoEl=document.getElementById('rv-aviso-auth');
+  if(avisoEl){
+    if(Math.abs(aj)>0.01){
+      avisoEl.textContent=(aj>0?'Precio autorizado con descuento de '+money(aj):'Precio autorizado con aumento de '+money(-aj))
+        +' — la venta se registra por '+money(precioFinal())+'.';
+      avisoEl.style.display='';
+    } else avisoEl.style.display='none';
+  }
   document.getElementById('rv-proyecto').value=(Q.cliente?Q.cliente+' - ':'')+Q.proy;
   document.getElementById('rv-fecha').value=Q.fecha||hoy;
   document.getElementById('rv-iva').value=Q.iva?'Yes':'No';
@@ -2940,7 +3216,8 @@ function cerrarRegistrarVenta(){
   document.getElementById('rv-modal-bg').classList.remove('show');
 }
 function rvRecalc(){
-  const t=totals();
+  // Se registra lo que realmente se va a cobrar (precio autorizado), no el calculado.
+  const t=desgloseFinal();
   const sub=t.sub, neto=t.neto;
   const anti=parseFloat(document.getElementById('rv-anticipo').value)||0;
   const pct=parseFloat(document.getElementById('rv-pct').value)||0;
@@ -2953,7 +3230,7 @@ function rvRecalc(){
   document.getElementById('rv-pend-disp').textContent=money(pend);
 }
 function copiarFilaVenta(){
-  const t=totals();
+  const t=desgloseFinal();
   const sub=t.sub, neto=t.neto;
   const proyecto=document.getElementById('rv-proyecto').value.trim();
   const fecha=document.getElementById('rv-fecha').value.trim();
@@ -2975,12 +3252,7 @@ function copiarFilaVenta(){
     proyecto,abonoComision,anti,comRestante,com,cuenta,estatus,
     fecha,'',fechaLiq,iva,liquidacion,pend,neto,sub
   ].join('\t');
-  const _done=()=>{ document.getElementById('rv-copied').classList.add('show'); };
-  try{
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(row).then(_done).catch(()=>_copiaManual(row,_done));
-    } else { _copiaManual(row,_done); }
-  } catch(_){ _copiaManual(row,_done); }
+  copiarTexto(row,null,()=>{ document.getElementById('rv-copied').classList.add('show'); });
 }
 /* Respaldo de copiado para navegadores sin API de portapapeles (o contextos no seguros) */
 function _copiaManual(txt,cb){
@@ -3003,6 +3275,7 @@ function _copiaManual(txt,cb){
       <button class="btn btn-gho" style="padding:4px 12px;font-size:12px" onclick="cerrarRegistrarVenta()">✕</button>
     </div>
     <div class="rv-body">
+      <div class="rv-aviso" id="rv-aviso-auth" style="display:none"></div>
       <div class="rv-grid">
         <div class="rv-field full">
           <label>Proyecto</label>
