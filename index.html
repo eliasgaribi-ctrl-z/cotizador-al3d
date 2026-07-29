@@ -355,7 +355,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-zoom{position:absolute;right:12px;bottom:52px;display:none;flex-direction:column;gap:7px;z-index:6}
 .sp-zoom button{width:42px;height:42px;border:none;border-radius:11px;background:rgba(255,255,255,.95);color:var(--ink);font-size:20px;font-weight:800;cursor:pointer;box-shadow:0 3px 14px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;line-height:1;font-family:inherit}
 .sp-zoom button:active{background:#eef1ff;transform:scale(.94)}
-.sp-loupe{position:fixed;width:118px;height:118px;border-radius:50%;border:3px solid rgba(255,255,255,.92);box-shadow:0 6px 26px rgba(0,0,0,.45);display:none;pointer-events:none;z-index:60;overflow:hidden;background:#181c2e}
+.sp-loupe{position:fixed;width:132px;height:132px;border-radius:50%;border:3px solid rgba(255,255,255,.92);box-shadow:0 6px 26px rgba(0,0,0,.45);display:none;pointer-events:none;z-index:60;overflow:hidden;background:#181c2e}
 .sp-loupe canvas{display:block}
 @media(max-width:760px){
   /* Barra de herramientas: permitir salto de línea para que nada quede fuera de pantalla */
@@ -613,7 +613,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
         <button onclick="scZoomBy(1/1.5)" title="Alejar">−</button>
         <button onclick="scZoomReset()" title="Ajustar a la pantalla" style="font-size:16px">⤢</button>
       </div>
-      <div class="sp-loupe" id="sc-loupe"><canvas id="sc-loupe-cvs" width="118" height="118"></canvas></div>
+      <div class="sp-loupe" id="sc-loupe"><canvas id="sc-loupe-cvs"></canvas></div>
     </div>
     <!-- Sidebar -->
     <aside class="sp-side">
@@ -2091,6 +2091,7 @@ const SC={
   tapA:null, building:false,
   items:[], sel:null, nid:1, nc:0,
   z:1, tx:0, ty:0, gesture:false,
+  rs:1, rsDpr:1, base:null, objUrl:null,
 };
 const SC_COLORS=['#3a4ad8','#d32f2f','#2e7d32','#e65100','#6a1b9a','#0277bd','#558b2f','#4e342e'];
 
@@ -2122,7 +2123,9 @@ function scOnDrop(e){
 function scLoadImgSrc(src,name){
   const img=new Image();
   img.onload=()=>{
-    SC.img=img;SC.imgW=img.naturalWidth;SC.imgH=img.naturalHeight;
+    SC.img=img;SC.imgW=img.naturalWidth;SC.imgH=img.naturalHeight;SC.base=null;
+    if(SC.objUrl&&SC.objUrl!==src){try{URL.revokeObjectURL(SC.objUrl);}catch(_){}}
+    SC.objUrl=/^blob:/.test(src)?src:null;
     scResetCalib(false);
     SC.items=[];SC.sel=null;SC.nid=1;SC.nc=0;
     $('sp-overlay').classList.add('hide');
@@ -2144,16 +2147,73 @@ async function scLoadPDF(f){
     const ab=await f.arrayBuffer();
     const pdf=await pdfjsLib.getDocument({data:ab}).promise;
     const page=await pdf.getPage(1);
-    const vp=page.getViewport({scale:2.5});
-    const oc=document.createElement('canvas');oc.width=vp.width;oc.height=vp.height;
+    // Resolución acorde a la pantalla en vez de un 2.5 fijo: los planos grandes conservan el detalle
+    const base=page.getViewport({scale:1});
+    const target=Math.min(3400,Math.max(1800,Math.round((window.screen&&window.screen.width||1280)*scDPR()*1.6)));
+    let s=Math.max(2,Math.min(5,target/base.width));
+    const cap=2.4e7;
+    if(base.width*base.height*s*s>cap)s=Math.sqrt(cap/(base.width*base.height));
+    const vp=page.getViewport({scale:s});
+    const oc=document.createElement('canvas');oc.width=Math.round(vp.width);oc.height=Math.round(vp.height);
     await page.render({canvasContext:oc.getContext('2d'),viewport:vp}).promise;
-    scLoadImgSrc(oc.toDataURL(),f.name);
+    // Blob en vez de dataURL: a esta resolución un dataURL ocupa decenas de MB
+    const url=await new Promise(res=>{
+      try{oc.toBlob(b=>res(b?URL.createObjectURL(b):oc.toDataURL()),'image/png');}
+      catch(_){res(oc.toDataURL());}
+    });
+    scLoadImgSrc(url,f.name);
   }catch(e){toast('Error PDF: '+e.message,'err',4000);}
 }
 
+/* ----- Resolución de dibujo -----
+   El lienzo trabaja en coordenadas "lógicas" (cvsW × cvsH, las mismas de siempre)
+   pero su mapa de bits se crea a cvsW·rs × cvsH·rs píxeles reales. Así se ve nítido
+   en pantallas Retina y al acercar, sin tocar la lógica de medición. */
+function scDPR(){return Math.min(3,Math.max(1,window.devicePixelRatio||1));}
+function scIsMobile(){return window.matchMedia('(max-width:760px)').matches;}
+function scPixelBudget(){
+  // Tope de píxeles del lienzo. Pasado cierto tamaño el navegador deja de acelerarlo
+  // por GPU y el redibujo al arrastrar se vuelve lento; además iOS limita el área total.
+  return scIsMobile()?5e6:8e6;
+}
+function scCalcRS(){
+  const dpr=scDPR();
+  if(!(SC.cvsW>0&&SC.cvsH>0))return dpr;
+  // Al acercar se redibuja con más píxeles reales en vez de estirar el mapa de bits.
+  let boost=1;[1.5,2,2.5].forEach(s=>{if((SC.z||1)>=s)boost=s;});
+  const maxRS=Math.sqrt(scPixelBudget()/(SC.cvsW*SC.cvsH));
+  return Math.max(1,Math.min(dpr*boost,maxRS));
+}
+function scApplyRS(force){
+  const rs=Math.round(scCalcRS()*100)/100;
+  if(!force&&Math.abs(rs-SC.rs)<.01)return false;
+  SC.rs=rs;SC.rsDpr=scDPR();SC.base=null;
+  const cvs=$('scalerCanvas');
+  cvs.width=Math.max(1,Math.round(SC.cvsW*rs));
+  cvs.height=Math.max(1,Math.round(SC.cvsH*rs));
+  cvs.style.width=SC.cvsW+'px';cvs.style.height=SC.cvsH+'px';
+  return true;
+}
+/* Capa base (la foto ya escalada) en caché: reducirla a la mitad por pasos evita el
+   aliasing de bajar una foto grande de golpe, y el redibujo por cuadro es solo un copiado. */
+function scBuildBase(w,h){
+  const b=document.createElement('canvas');b.width=w;b.height=h;
+  const bx=b.getContext('2d');bx.imageSmoothingEnabled=true;bx.imageSmoothingQuality='high';
+  let src=SC.img,sw=SC.imgW,sh=SC.imgH;
+  while(sw>=w*2&&sh>=h*2&&sw>2&&sh>2){
+    const hw=Math.max(1,Math.floor(sw/2)),hh=Math.max(1,Math.floor(sh/2));
+    const t=document.createElement('canvas');t.width=hw;t.height=hh;
+    const tx=t.getContext('2d');tx.imageSmoothingEnabled=true;tx.imageSmoothingQuality='high';
+    tx.drawImage(src,0,0,sw,sh,0,0,hw,hh);
+    src=t;sw=hw;sh=hh;
+  }
+  bx.drawImage(src,0,0,sw,sh,0,0,w,h);
+  SC.base=b;
+}
 function scFitCanvas(){
-  const area=$('sp-canvas-area'),cvs=$('scalerCanvas');
-  const maxW=area.clientWidth-32,maxH=area.clientHeight-32;
+  const area=$('sp-canvas-area');
+  const pad=scIsMobile()?12:32;
+  const maxW=area.clientWidth-pad,maxH=area.clientHeight-pad;
   // El modal puede no tener layout todavía (recién mostrado): reintentar
   if(!SC.img||!(maxW>0)||!(maxH>0)||!(SC.imgW>0)||!(SC.imgH>0)){
     if(SC.img)setTimeout(()=>{if(SC.img&&$('scalermodal').classList.contains('show')){scFitCanvas();scRender();}},80);
@@ -2162,20 +2222,23 @@ function scFitCanvas(){
   const iA=SC.imgW/SC.imgH;
   let w=maxW,h=maxW/iA;
   if(h>maxH){h=maxH;w=h*iA;}
-  SC.cvsW=cvs.width=Math.max(1,Math.round(w));SC.cvsH=cvs.height=Math.max(1,Math.round(h));
+  SC.cvsW=Math.max(1,Math.round(w));SC.cvsH=Math.max(1,Math.round(h));
   SC.scaleFactor=SC.imgW/SC.cvsW;
   SC._lastAW=area.clientWidth;SC._lastAH=area.clientHeight;
-  scZoomReset();
+  SC.z=1;SC.tx=0;SC.ty=0;
+  scApplyRS(true);
+  scApplyTransform();
 }
 /* ----- Zoom y desplazamiento (pan) ----- */
 function scApplyTransform(){
   $('scalerCanvas').style.transform='translate('+SC.tx+'px,'+SC.ty+'px) scale('+SC.z+')';
 }
-function scZoomReset(){SC.z=1;SC.tx=0;SC.ty=0;scApplyTransform();}
+function scZoomReset(){SC.z=1;SC.tx=0;SC.ty=0;scApplyTransform();if(scApplyRS())scRender();}
 function scZoomBy(f){
   SC.z=Math.max(1,Math.min(8,SC.z*f));
   if(SC.z<=1){SC.tx=0;SC.ty=0;}
   scApplyTransform();
+  if(scApplyRS())scRender();
 }
 function scGestureStart(e){
   SC.gesture=true;SC.down=false;SC.sp=null;SC.cp=null;scHideLoupe();scRender();
@@ -2200,30 +2263,38 @@ function scGestureMove(e){
   scApplyTransform();
 }
 /* ----- Lupa (para ver bajo el dedo al trazar) ----- */
+const SC_LOUPE=132;
 function scLoupe(e){
   if(!e.touches||!e.touches.length)return;
   const src=SC.cp||SC.sp;if(!src)return;
-  const lp=$('sc-loupe'),size=118,mag=2.4,t=e.touches[0];
+  const lp=$('sc-loupe'),size=SC_LOUPE,mag=2.8,t=e.touches[0];
   let lx=t.clientX-size/2,ly=t.clientY-size-30;
   if(ly<8)ly=t.clientY+34;
   lx=Math.max(8,Math.min(window.innerWidth-size-8,lx));
   lp.style.left=lx+'px';lp.style.top=ly+'px';lp.style.display='block';
-  const lc=$('sc-loupe-cvs'),lctx=lc.getContext('2d');
+  const lc=$('sc-loupe-cvs'),dpr=scDPR(),px=Math.round(size*dpr);
+  if(lc.width!==px){lc.width=lc.height=px;lc.style.width=lc.style.height=size+'px';}
+  const lctx=lc.getContext('2d');
+  lctx.setTransform(dpr,0,0,dpr,0,0);
   lctx.clearRect(0,0,size,size);lctx.save();
   lctx.beginPath();lctx.arc(size/2,size/2,size/2,0,Math.PI*2);lctx.clip();
   lctx.fillStyle='#181c2e';lctx.fillRect(0,0,size,size);
-  // Ventana de origen relativa al zoom: la lupa siempre magnifica MÁS de lo que ya se ve
-  const sw=Math.max(6,size/(mag*(SC.z||1)));
-  try{lctx.drawImage($('scalerCanvas'),src.x-sw/2,src.y-sw/2,sw,sw,0,0,size,size);}catch(_){}
+  lctx.imageSmoothingEnabled=true;lctx.imageSmoothingQuality='high';
+  // Ventana de origen relativa al zoom: la lupa siempre magnifica MÁS de lo que ya se ve.
+  // Se recorta en píxeles reales del lienzo (×rs) para que aporte detalle de verdad.
+  const sw=Math.max(6,size/(mag*(SC.z||1))),r=SC.rs||1;
+  try{lctx.drawImage($('scalerCanvas'),(src.x-sw/2)*r,(src.y-sw/2)*r,sw*r,sw*r,0,0,size,size);}catch(_){}
   lctx.strokeStyle='rgba(58,74,216,.95)';lctx.lineWidth=1.5;
-  lctx.beginPath();lctx.moveTo(size/2-15,size/2);lctx.lineTo(size/2+15,size/2);
-  lctx.moveTo(size/2,size/2-15);lctx.lineTo(size/2,size/2+15);lctx.stroke();
+  lctx.beginPath();lctx.moveTo(size/2-16,size/2);lctx.lineTo(size/2+16,size/2);
+  lctx.moveTo(size/2,size/2-16);lctx.lineTo(size/2,size/2+16);lctx.stroke();
   lctx.restore();
 }
 function scHideLoupe(){const lp=$('sc-loupe');if(lp)lp.style.display='none';}
 window.addEventListener('resize',()=>{
   if(!(SC.img&&$('scalermodal').classList.contains('show')))return;
   const area=$('sp-canvas-area'),w=area.clientWidth,h=area.clientHeight;
+  // Cambió la densidad de pantalla (otro monitor, zoom del navegador): rehacer a esa resolución
+  if(scDPR()!==SC.rsDpr){scFitCanvas();scRender();return;}
   // Ignorar el temblor de altura por la barra de direcciones de Safari (no rehacer el ajuste ni perder el zoom)
   if(w===SC._lastAW && Math.abs(h-(SC._lastAH||0))<130)return;
   scFitCanvas();scRender();
@@ -2231,9 +2302,13 @@ window.addEventListener('resize',()=>{
 
 function scRender(){
   const cvs=$('scalerCanvas'),ctx=cvs.getContext('2d');
+  ctx.setTransform(1,0,0,1,0,0);
   ctx.clearRect(0,0,cvs.width,cvs.height);
   if(!SC.img)return;
-  ctx.drawImage(SC.img,0,0,SC.cvsW,SC.cvsH);
+  if(!SC.base||SC.base.width!==cvs.width||SC.base.height!==cvs.height)scBuildBase(cvs.width,cvs.height);
+  ctx.drawImage(SC.base,0,0);
+  // A partir de aquí se dibuja en coordenadas lógicas; el lienzo las lleva a píxeles reales
+  ctx.setTransform(SC.rs,0,0,SC.rs,0,0);
   if(SC.refLine){
     const a={x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH};
     const b={x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH};
@@ -2265,6 +2340,7 @@ function scRender(){
     ctx.beginPath();ctx.arc(p.x,p.y,12,0,Math.PI*2);ctx.stroke();
     ctx.restore();
   }
+  ctx.setTransform(1,0,0,1,0,0);
 }
 function scDrawRef(ctx,a,b){
   ctx.save();ctx.strokeStyle='#f59e0b';ctx.lineWidth=2.5;ctx.setLineDash([8,5]);
@@ -2273,13 +2349,14 @@ function scDrawRef(ctx,a,b){
   ctx.restore();
 }
 function scDimAnnot(ctx,x1,y1,x2,y2,opts){
-  const{offset=50,color='#3a4ad8',sel=false,text='',dashed=false}=opts;
+  // s: escala de los trazos y del texto (>1 al exportar a la resolución nativa de la foto)
+  const{offset=50,color='#3a4ad8',sel=false,text='',dashed=false,s=1}=opts;
   const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy);if(len<4)return;
   const ux=dx/len,uy=dy/len,nx=-uy,ny=ux;
-  const col=sel?'#e03060':color,gap=7,over=7,aSize=Math.max(7,Math.min(14,len*.08));
+  const col=sel?'#e03060':color,gap=7*s,over=7*s,aSize=Math.max(7*s,Math.min(14*s,len*.08));
   const ax=x1+nx*offset,ay=y1+ny*offset,bx=x2+nx*offset,by=y2+ny*offset;
-  ctx.save();ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=sel?2:1.5;
-  if(dashed)ctx.setLineDash([5,4]);else ctx.setLineDash([]);
+  ctx.save();ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=(sel?2:1.5)*s;
+  if(dashed)ctx.setLineDash([5*s,4*s]);else ctx.setLineDash([]);
   const ln=(x1,y1,x2,y2)=>{ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();};
   ln(x1+nx*gap,y1+ny*gap,ax+nx*over,ay+ny*over);
   ln(x2+nx*gap,y2+ny*gap,bx+nx*over,by+ny*over);
@@ -2291,12 +2368,12 @@ function scDimAnnot(ctx,x1,y1,x2,y2,opts){
     const mx=(ax+bx)/2,my=(ay+by)/2;
     let angle=Math.atan2(uy,ux);if(angle>Math.PI/2||angle<-Math.PI/2)angle+=Math.PI;
     ctx.save();ctx.translate(mx,my);ctx.rotate(angle);
-    ctx.font='700 12px Inter,Arial,sans-serif';
-    const tw=ctx.measureText(text).width,pad=6,bh=18,bw=tw+pad*2,rx=-bw/2,ry=-bh-3,rr=5;
-    ctx.fillStyle='rgba(255,255,255,.95)';ctx.strokeStyle=col;ctx.lineWidth=1.2;
+    ctx.font='700 '+(12*s)+'px Inter,Arial,sans-serif';
+    const tw=ctx.measureText(text).width,pad=6*s,bh=18*s,bw=tw+pad*2,rx=-bw/2,ry=-bh-3*s,rr=5*s;
+    ctx.fillStyle='rgba(255,255,255,.95)';ctx.strokeStyle=col;ctx.lineWidth=1.2*s;
     ctx.beginPath();ctx.moveTo(rx+rr,ry);ctx.lineTo(rx+bw-rr,ry);ctx.arcTo(rx+bw,ry,rx+bw,ry+rr,rr);ctx.lineTo(rx+bw,ry+bh-rr);ctx.arcTo(rx+bw,ry+bh,rx+bw-rr,ry+bh,rr);ctx.lineTo(rx+rr,ry+bh);ctx.arcTo(rx,ry+bh,rx,ry+bh-rr,rr);ctx.lineTo(rx,ry+rr);ctx.arcTo(rx,ry,rx+rr,ry,rr);ctx.closePath();
     ctx.fill();ctx.stroke();
-    ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(text,0,-4);
+    ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(text,0,-4*s);
     ctx.restore();
   }
   ctx.restore();
@@ -2304,7 +2381,8 @@ function scDimAnnot(ctx,x1,y1,x2,y2,opts){
 
 function scGetXY(e){
   const cvs=$('scalerCanvas'),rect=cvs.getBoundingClientRect();
-  const sx=cvs.width/rect.width,sy=cvs.height/rect.height;
+  // El rect ya viene afectado por el zoom (transform), así que se pasa a coordenadas lógicas
+  const sx=rect.width>0?SC.cvsW/rect.width:1,sy=rect.height>0?SC.cvsH/rect.height:1;
   let cx,cy;
   if(e.touches&&e.touches.length){cx=e.touches[0].clientX;cy=e.touches[0].clientY;}
   else if(e.changedTouches&&e.changedTouches.length){cx=e.changedTouches[0].clientX;cy=e.changedTouches[0].clientY;}
@@ -2335,7 +2413,8 @@ function scMove(e){
   scRender();scLoupe(e);
 }
 function scUp(e){
-  if(SC.gesture){if(!e.touches||e.touches.length===0)SC.gesture=false;scHideLoupe();return;}
+  // Al soltar el pellizco se rehace el lienzo con la resolución que toca al nuevo zoom
+  if(SC.gesture){if(!e.touches||e.touches.length===0){SC.gesture=false;if(scApplyRS())scRender();}scHideLoupe();return;}
   scHideLoupe();
   if(!SC.down){return;}
   e.preventDefault();SC.down=false;
@@ -2475,9 +2554,11 @@ function scExportImg(){
   if(!SC.img||!SC.items.length)return;
   const oc=document.createElement('canvas');oc.width=SC.imgW;oc.height=SC.imgH;
   const octx=oc.getContext('2d');octx.drawImage(SC.img,0,0);
+  // Las cotas se dibujan a escala de la foto original, si no quedan diminutas en fotos grandes
+  const s=Math.max(1,Math.min(6,Math.min(SC.imgW,SC.imgH)/620));
   SC.items.forEach(m=>{
     const p1={x:m.nx1*SC.imgW,y:m.ny1*SC.imgH},p2={x:m.nx2*SC.imgW,y:m.ny2*SC.imgH};
-    scDimAnnot(octx,p1.x,p1.y,p2.x,p2.y,{text:scFmtCm(m.cm)+' cm'+(m.label?' · '+m.label:''),color:m.color,sel:false,offset:Math.min(SC.imgW,SC.imgH)*.045});
+    scDimAnnot(octx,p1.x,p1.y,p2.x,p2.y,{text:scFmtCm(m.cm)+' cm'+(m.label?' · '+m.label:''),color:m.color,sel:false,offset:Math.min(SC.imgW,SC.imgH)*.045,s});
   });
   const a=document.createElement('a');a.href=oc.toDataURL('image/png');a.download='medidas-al3d.png';a.click();
   toast('Imagen descargada','ok');
