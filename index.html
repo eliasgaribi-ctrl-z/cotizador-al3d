@@ -307,7 +307,10 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-topbar{background:rgba(255,255,255,.96);backdrop-filter:blur(14px);border-bottom:1px solid rgba(224,228,240,.7);flex-shrink:0;padding:0 20px;height:56px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 8px rgba(23,29,74,.06)}
 .sp-main{flex:1;display:flex;overflow:hidden;min-height:0}
 .sp-canvas-area{flex:1;position:relative;overflow:hidden;background:#181c2e;background-image:radial-gradient(rgba(255,255,255,.04) 1px,transparent 1px);background-size:22px 22px;display:flex;align-items:center;justify-content:center;min-width:0;touch-action:none;overscroll-behavior:contain}
-#scalerCanvas{display:block;cursor:crosshair;touch-action:none;user-select:none;-webkit-user-select:none;max-width:100%;max-height:100%;box-shadow:0 12px 48px rgba(0,0,0,.55),0 3px 10px rgba(0,0,0,.35);border-radius:3px;transform-origin:center center;will-change:transform}
+/* El lienzo cubre toda el área: el zoom se aplica dentro del canvas, no con transform
+   de CSS, para dibujar siempre a la densidad real de la pantalla. La sombra de la foto
+   se dibuja dentro del propio lienzo. */
+#scalerCanvas{position:absolute;inset:0;display:block;cursor:crosshair;touch-action:none;user-select:none;-webkit-user-select:none}
 .sp-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;pointer-events:none}
 .sp-overlay.hide{display:none}
 .sp-hint-bar{position:absolute;bottom:0;left:0;right:0;background:rgba(17,22,46,.78);color:rgba(255,255,255,.9);font-size:12.5px;font-weight:600;padding:10px 20px;text-align:center;backdrop-filter:blur(8px);transition:opacity .2s}
@@ -355,7 +358,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-zoom{position:absolute;right:12px;bottom:52px;display:none;flex-direction:column;gap:7px;z-index:6}
 .sp-zoom button{width:42px;height:42px;border:none;border-radius:11px;background:rgba(255,255,255,.95);color:var(--ink);font-size:20px;font-weight:800;cursor:pointer;box-shadow:0 3px 14px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;line-height:1;font-family:inherit}
 .sp-zoom button:active{background:#eef1ff;transform:scale(.94)}
-.sp-loupe{position:fixed;width:118px;height:118px;border-radius:50%;border:3px solid rgba(255,255,255,.92);box-shadow:0 6px 26px rgba(0,0,0,.45);display:none;pointer-events:none;z-index:60;overflow:hidden;background:#181c2e}
+.sp-loupe{position:fixed;width:132px;height:132px;border-radius:50%;border:3px solid rgba(255,255,255,.92);box-shadow:0 6px 26px rgba(0,0,0,.45);display:none;pointer-events:none;z-index:60;overflow:hidden;background:#181c2e}
 .sp-loupe canvas{display:block}
 @media(max-width:760px){
   /* Barra de herramientas: permitir salto de línea para que nada quede fuera de pantalla */
@@ -613,7 +616,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
         <button onclick="scZoomBy(1/1.5)" title="Alejar">−</button>
         <button onclick="scZoomReset()" title="Ajustar a la pantalla" style="font-size:16px">⤢</button>
       </div>
-      <div class="sp-loupe" id="sc-loupe"><canvas id="sc-loupe-cvs" width="118" height="118"></canvas></div>
+      <div class="sp-loupe" id="sc-loupe"><canvas id="sc-loupe-cvs"></canvas></div>
     </div>
     <!-- Sidebar -->
     <aside class="sp-side">
@@ -2091,6 +2094,7 @@ const SC={
   tapA:null, building:false,
   items:[], sel:null, nid:1, nc:0,
   z:1, tx:0, ty:0, gesture:false,
+  vw:0, vh:0, rs:1, rsDpr:1, full:null, fullW:0, tile:null, tileR:null, tileS:0, objUrl:null,
 };
 const SC_COLORS=['#3a4ad8','#d32f2f','#2e7d32','#e65100','#6a1b9a','#0277bd','#558b2f','#4e342e'];
 
@@ -2122,7 +2126,9 @@ function scOnDrop(e){
 function scLoadImgSrc(src,name){
   const img=new Image();
   img.onload=()=>{
-    SC.img=img;SC.imgW=img.naturalWidth;SC.imgH=img.naturalHeight;
+    SC.img=img;SC.imgW=img.naturalWidth;SC.imgH=img.naturalHeight;scDropCache();
+    if(SC.objUrl&&SC.objUrl!==src){try{URL.revokeObjectURL(SC.objUrl);}catch(_){}}
+    SC.objUrl=/^blob:/.test(src)?src:null;
     scResetCalib(false);
     SC.items=[];SC.sel=null;SC.nid=1;SC.nc=0;
     $('sp-overlay').classList.add('hide');
@@ -2144,16 +2150,115 @@ async function scLoadPDF(f){
     const ab=await f.arrayBuffer();
     const pdf=await pdfjsLib.getDocument({data:ab}).promise;
     const page=await pdf.getPage(1);
-    const vp=page.getViewport({scale:2.5});
-    const oc=document.createElement('canvas');oc.width=vp.width;oc.height=vp.height;
+    // Resolución acorde a la pantalla en vez de un 2.5 fijo: los planos grandes conservan el detalle
+    const base=page.getViewport({scale:1});
+    const target=Math.min(3400,Math.max(1800,Math.round((window.screen&&window.screen.width||1280)*scDPR()*1.6)));
+    let s=Math.max(2,Math.min(5,target/base.width));
+    const cap=2.4e7;
+    if(base.width*base.height*s*s>cap)s=Math.sqrt(cap/(base.width*base.height));
+    const vp=page.getViewport({scale:s});
+    const oc=document.createElement('canvas');oc.width=Math.round(vp.width);oc.height=Math.round(vp.height);
     await page.render({canvasContext:oc.getContext('2d'),viewport:vp}).promise;
-    scLoadImgSrc(oc.toDataURL(),f.name);
+    // Blob en vez de dataURL: a esta resolución un dataURL ocupa decenas de MB
+    const url=await new Promise(res=>{
+      try{oc.toBlob(b=>res(b?URL.createObjectURL(b):oc.toDataURL()),'image/png');}
+      catch(_){res(oc.toDataURL());}
+    });
+    scLoadImgSrc(url,f.name);
   }catch(e){toast('Error PDF: '+e.message,'err',4000);}
 }
 
+/* ----- Resolución de dibujo -----
+   El lienzo cubre el área visible y se dibuja siempre a la densidad real de la pantalla.
+   El zoom NO estira un mapa de bits: es una transformación aplicada al dibujar, así que
+   la nitidez es la misma acercado que ajustado, y la memoria no crece con el zoom.
+   Las coordenadas "lógicas" (la foto ajustada, cvsW × cvsH) no cambian, así que la
+   lógica de medición —normalización, escala, calibración— sigue igual. */
+function scDPR(){return Math.min(3,Math.max(1,window.devicePixelRatio||1));}
+function scIsMobile(){return window.matchMedia('(max-width:760px)').matches;}
+function scPixelBudget(){
+  // Tope de píxeles del lienzo. Pasado cierto tamaño el navegador deja de acelerarlo
+  // por GPU y el redibujo al arrastrar se vuelve lento; además iOS limita el área total.
+  return scIsMobile()?5e6:8e6;
+}
+/* Presupuesto de una copia en caché. Medido: un canvas de ~5 MP se pinta al instante,
+   uno de 12 MP tarda decenas de ms porque el navegador deja de acelerarlo. */
+function scSrcBudget(){return 7e6;}
+/* De dónde se lee la foto para pintar el trozo visible [l,t,r,b] (coords lógicas).
+   Devuelve un lienzo y el rectángulo lógico que cubre. Dos casos:
+   - Alejado: una copia de la foto completa al tamaño que hace falta.
+   - Acercado: un recorte de la zona visible a resolución nativa, con margen para que
+     un desplazamiento pequeño no obligue a rehacerlo.
+   Leer del <img> original cuesta lo mismo sin importar el recorte, así que nunca se
+   hace por cuadro: solo al rehacer la copia. */
+function scDropCache(){SC.full=null;SC.fullW=0;SC.tile=null;SC.tileR=null;SC.tileS=0;}
+function scLayer(need,l,t,r,b){
+  const iw=SC.imgW,ih=SC.imgH,cap=scSrcBudget(),sf=iw/SC.cvsW;
+  const capW=Math.sqrt(cap*iw/ih);
+  if(need<=capW){
+    // Se prefiere una cadena de mitades exactas (cada paso conserva la nitidez) y solo
+    // se recorta a una medida arbitraria si la potencia de dos no cabe en el presupuesto.
+    let w=iw;while(w/2>=need&&w>2)w=Math.floor(w/2);
+    let mitades=true;
+    if(w*Math.round(ih*w/iw)>cap){w=Math.floor(capW);mitades=false;}
+    const h=Math.max(1,Math.round(ih*w/iw));
+    if(!(SC.full&&SC.fullW===w)){
+      const f=document.createElement('canvas');f.width=w;f.height=h;
+      const g=f.getContext('2d');g.imageSmoothingEnabled=true;g.imageSmoothingQuality='high';
+      if(mitades){
+        let src=SC.img,sw=iw,sh=ih;
+        while(sw>w*1.6&&sh>2){
+          const hw=Math.max(w,Math.floor(sw/2)),hh=Math.max(h,Math.floor(sh/2));
+          const c=document.createElement('canvas');c.width=hw;c.height=hh;
+          const cg=c.getContext('2d');cg.imageSmoothingEnabled=true;cg.imageSmoothingQuality='high';
+          cg.drawImage(src,0,0,sw,sh,0,0,hw,hh);src=c;sw=hw;sh=hh;
+        }
+        g.drawImage(src,0,0,sw,sh,0,0,w,h);
+      }else g.drawImage(SC.img,0,0,iw,ih,0,0,w,h);
+      SC.full=f;SC.fullW=w;
+    }
+    return{c:SC.full,rx0:0,ry0:0,rx1:SC.cvsW,ry1:SC.cvsH};
+  }
+  const mx=(r-l)*.3,my=(b-t)*.3;
+  const x0=Math.max(0,l-mx),y0=Math.max(0,t-my);
+  const x1=Math.min(SC.cvsW,r+mx),y1=Math.min(SC.cvsH,b+my);
+  let esc=Math.min(need/SC.cvsW,sf);
+  let tw=Math.max(1,Math.round((x1-x0)*esc)),th=Math.max(1,Math.round((y1-y0)*esc));
+  const exceso=tw*th/cap;
+  if(exceso>1){const f=Math.sqrt(exceso);tw=Math.max(1,Math.round(tw/f));th=Math.max(1,Math.round(th/f));}
+  const R=SC.tileR;
+  if(SC.tile&&R&&l>=R[0]&&t>=R[1]&&r<=R[2]&&b<=R[3]&&SC.tileS>=esc*.7&&SC.tileS<=esc*2)
+    return{c:SC.tile,rx0:R[0],ry0:R[1],rx1:R[2],ry1:R[3]};
+  const tc=document.createElement('canvas');tc.width=tw;tc.height=th;
+  const g=tc.getContext('2d');g.imageSmoothingEnabled=true;g.imageSmoothingQuality='high';
+  g.drawImage(SC.img,x0*sf,y0*sf,(x1-x0)*sf,(y1-y0)*sf,0,0,tw,th);
+  SC.tile=tc;SC.tileR=[x0,y0,x1,y1];SC.tileS=tw/(x1-x0);
+  return{c:tc,rx0:x0,ry0:y0,rx1:x1,ry1:y1};
+}
+/* Dibuja solo el trozo de foto que se ve: el trabajo por cuadro lo marca el tamaño de
+   la pantalla, no el de la foto ni el nivel de acercamiento. */
+function scDrawPhoto(ctx,cx,cy,k,dpr,w,h,directo){
+  const hw=w/(2*k),hh=h/(2*k);
+  const l=Math.max(0,cx-hw),t=Math.max(0,cy-hh);
+  const r=Math.min(SC.cvsW,cx+hw),b=Math.min(SC.cvsH,cy+hh);
+  if(!(r>l&&b>t))return;
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+  if(directo){
+    // Lupa: el destino es diminuto, así que sale barato leer del original y enseñar
+    // el detalle nativo de la foto en vez de píxeles ya escalados.
+    const sf=SC.imgW/SC.cvsW;
+    ctx.drawImage(SC.img,l*sf,t*sf,(r-l)*sf,(b-t)*sf,l,t,r-l,b-t);
+    return;
+  }
+  const L=scLayer(SC.cvsW*k*dpr,l,t,r,b);
+  const ex=L.c.width/(L.rx1-L.rx0),ey=L.c.height/(L.ry1-L.ry0);
+  ctx.drawImage(L.c,(l-L.rx0)*ex,(t-L.ry0)*ey,(r-l)*ex,(b-t)*ey,l,t,r-l,b-t);
+}
 function scFitCanvas(){
   const area=$('sp-canvas-area'),cvs=$('scalerCanvas');
-  const maxW=area.clientWidth-32,maxH=area.clientHeight-32;
+  const vw=area.clientWidth,vh=area.clientHeight;
+  const pad=scIsMobile()?12:32;
+  const maxW=vw-pad,maxH=vh-pad;
   // El modal puede no tener layout todavía (recién mostrado): reintentar
   if(!SC.img||!(maxW>0)||!(maxH>0)||!(SC.imgW>0)||!(SC.imgH>0)){
     if(SC.img)setTimeout(()=>{if(SC.img&&$('scalermodal').classList.contains('show')){scFitCanvas();scRender();}},80);
@@ -2162,20 +2267,25 @@ function scFitCanvas(){
   const iA=SC.imgW/SC.imgH;
   let w=maxW,h=maxW/iA;
   if(h>maxH){h=maxH;w=h*iA;}
-  SC.cvsW=cvs.width=Math.max(1,Math.round(w));SC.cvsH=cvs.height=Math.max(1,Math.round(h));
+  SC.cvsW=Math.max(1,Math.round(w));SC.cvsH=Math.max(1,Math.round(h));
   SC.scaleFactor=SC.imgW/SC.cvsW;
-  SC._lastAW=area.clientWidth;SC._lastAH=area.clientHeight;
-  scZoomReset();
+  SC.vw=vw;SC.vh=vh;
+  SC.rs=Math.min(scDPR(),Math.sqrt(scPixelBudget()/Math.max(1,vw*vh)));
+  SC.rsDpr=scDPR();
+  cvs.width=Math.max(1,Math.round(vw*SC.rs));cvs.height=Math.max(1,Math.round(vh*SC.rs));
+  cvs.style.width=vw+'px';cvs.style.height=vh+'px';
+  SC._lastAW=vw;SC._lastAH=vh;
+  // El recorte se guarda en coordenadas lógicas: si cambia el ajuste, deja de valer
+  SC.tile=null;SC.tileR=null;
+  SC.z=1;SC.tx=0;SC.ty=0;
 }
 /* ----- Zoom y desplazamiento (pan) ----- */
-function scApplyTransform(){
-  $('scalerCanvas').style.transform='translate('+SC.tx+'px,'+SC.ty+'px) scale('+SC.z+')';
-}
-function scZoomReset(){SC.z=1;SC.tx=0;SC.ty=0;scApplyTransform();}
+function scApplyTransform(){scRender();}
+function scZoomReset(){SC.z=1;SC.tx=0;SC.ty=0;scRender();}
 function scZoomBy(f){
   SC.z=Math.max(1,Math.min(8,SC.z*f));
   if(SC.z<=1){SC.tx=0;SC.ty=0;}
-  scApplyTransform();
+  scRender();
 }
 function scGestureStart(e){
   SC.gesture=true;SC.down=false;SC.sp=null;SC.cp=null;scHideLoupe();scRender();
@@ -2200,40 +2310,77 @@ function scGestureMove(e){
   scApplyTransform();
 }
 /* ----- Lupa (para ver bajo el dedo al trazar) ----- */
+const SC_LOUPE=132;
 function scLoupe(e){
   if(!e.touches||!e.touches.length)return;
   const src=SC.cp||SC.sp;if(!src)return;
-  const lp=$('sc-loupe'),size=118,mag=2.4,t=e.touches[0];
+  const lp=$('sc-loupe'),size=SC_LOUPE,mag=2.8,t=e.touches[0];
   let lx=t.clientX-size/2,ly=t.clientY-size-30;
   if(ly<8)ly=t.clientY+34;
   lx=Math.max(8,Math.min(window.innerWidth-size-8,lx));
   lp.style.left=lx+'px';lp.style.top=ly+'px';lp.style.display='block';
-  const lc=$('sc-loupe-cvs'),lctx=lc.getContext('2d');
-  lctx.clearRect(0,0,size,size);lctx.save();
-  lctx.beginPath();lctx.arc(size/2,size/2,size/2,0,Math.PI*2);lctx.clip();
-  lctx.fillStyle='#181c2e';lctx.fillRect(0,0,size,size);
-  // Ventana de origen relativa al zoom: la lupa siempre magnifica MÁS de lo que ya se ve
-  const sw=Math.max(6,size/(mag*(SC.z||1)));
-  try{lctx.drawImage($('scalerCanvas'),src.x-sw/2,src.y-sw/2,sw,sw,0,0,size,size);}catch(_){}
+  const lc=$('sc-loupe-cvs'),dpr=scDPR(),px=Math.round(size*dpr);
+  if(lc.width!==px){lc.width=lc.height=px;lc.style.width=lc.style.height=size+'px';}
+  const lctx=lc.getContext('2d');
+  // La lupa redibuja la escena centrada en el punto y con más aumento, en vez de
+  // ampliar el lienzo ya dibujado: así enseña detalle real de la foto, no píxeles estirados.
+  scScene(lctx,size,size,src.x,src.y,(SC.z||1)*mag,dpr,false,true);
+  lctx.setTransform(dpr,0,0,dpr,0,0);
   lctx.strokeStyle='rgba(58,74,216,.95)';lctx.lineWidth=1.5;
-  lctx.beginPath();lctx.moveTo(size/2-15,size/2);lctx.lineTo(size/2+15,size/2);
-  lctx.moveTo(size/2,size/2-15);lctx.lineTo(size/2,size/2+15);lctx.stroke();
-  lctx.restore();
+  lctx.beginPath();lctx.moveTo(size/2-16,size/2);lctx.lineTo(size/2+16,size/2);
+  lctx.moveTo(size/2,size/2-16);lctx.lineTo(size/2,size/2+16);lctx.stroke();
 }
 function scHideLoupe(){const lp=$('sc-loupe');if(lp)lp.style.display='none';}
 window.addEventListener('resize',()=>{
   if(!(SC.img&&$('scalermodal').classList.contains('show')))return;
   const area=$('sp-canvas-area'),w=area.clientWidth,h=area.clientHeight;
+  // Cambió la densidad de pantalla (otro monitor, zoom del navegador): rehacer a esa resolución
+  if(scDPR()!==SC.rsDpr){scFitCanvas();scRender();return;}
   // Ignorar el temblor de altura por la barra de direcciones de Safari (no rehacer el ajuste ni perder el zoom)
   if(w===SC._lastAW && Math.abs(h-(SC._lastAH||0))<130)return;
   scFitCanvas();scRender();
 });
 
-function scRender(){
-  const cvs=$('scalerCanvas'),ctx=cvs.getContext('2d');
-  ctx.clearRect(0,0,cvs.width,cvs.height);
+/* Dibuja la escena en un lienzo de w×h px CSS, con el punto lógico (cx,cy) al centro y
+   k px de pantalla por px lógico. Lo usan tanto el lienzo principal como la lupa: la
+   lupa es simplemente la misma escena con más aumento, por eso muestra detalle real. */
+/* Trazos de la lupa: mismas líneas, grosor constante en pantalla y sin etiquetas */
+function scSceneLite(ctx,k){
+  const px=v=>v/k; // para que el grosor no crezca con el aumento
+  const linea=(a,b,col,dash)=>{
+    ctx.save();ctx.strokeStyle=col;ctx.lineWidth=px(2);
+    if(dash)ctx.setLineDash([px(7),px(5)]);
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.restore();
+  };
+  if(SC.refLine)linea({x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH},
+                      {x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH},'#f59e0b',true);
+  SC.items.forEach(m=>linea({x:m.nx1*SC.cvsW,y:m.ny1*SC.cvsH},{x:m.nx2*SC.cvsW,y:m.ny2*SC.cvsH},m.color,false));
+  const punto=(p,col)=>{ctx.save();ctx.fillStyle=col;ctx.strokeStyle='#fff';ctx.lineWidth=px(1.5);
+    ctx.beginPath();ctx.arc(p.x,p.y,px(4),0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();};
+  if(SC.down&&SC.sp&&SC.cp){
+    const ep=scSnap(SC.sp,SC.cp),ref=(SC.mode==='ref'||SC.mode==='ref-drawn');
+    linea(SC.sp,ep,ref?'#f59e0b':'#3a4ad8',true);
+    punto(SC.sp,ref?'#f59e0b':'#3a4ad8');
+  }
+  if(SC.tapA&&SC.building)punto(SC.tapA,SC.mode==='measure'?'#3a4ad8':'#f59e0b');
+}
+function scScene(ctx,w,h,cx,cy,k,dpr,shadow,lupa){
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,Math.ceil(w*dpr),Math.ceil(h*dpr));
   if(!SC.img)return;
-  ctx.drawImage(SC.img,0,0,SC.cvsW,SC.cvsH);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.translate(w/2,h/2);ctx.scale(k,k);ctx.translate(-cx,-cy);
+  // Sombra de la foto (antes era box-shadow del elemento). Solo en reposo y cerca del
+  // ajuste: acercado los bordes quedan fuera de cuadro, y un desenfoque grande por
+  // cuadro encarecería el arrastre justo cuando importa la fluidez.
+  if(shadow&&k<=2&&!SC.down&&!SC.gesture){
+    ctx.save();ctx.shadowColor='rgba(0,0,0,.55)';ctx.shadowBlur=48;ctx.shadowOffsetY=12;
+    ctx.fillStyle='#0d1022';ctx.fillRect(0,0,SC.cvsW,SC.cvsH);ctx.restore();
+  }
+  scDrawPhoto(ctx,cx,cy,k,dpr,w,h,lupa);
+  // En la lupa las cotas irían aumentadas igual que la foto y taparían justo lo que se
+  // quiere ver: ahí se trazan finas y sin etiqueta, para no estorbar al colocar el punto.
+  if(lupa){scSceneLite(ctx,k);ctx.setTransform(1,0,0,1,0,0);return;}
   if(SC.refLine){
     const a={x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH};
     const b={x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH};
@@ -2265,6 +2412,13 @@ function scRender(){
     ctx.beginPath();ctx.arc(p.x,p.y,12,0,Math.PI*2);ctx.stroke();
     ctx.restore();
   }
+  ctx.setTransform(1,0,0,1,0,0);
+}
+function scRender(){
+  if(!(SC.vw>0&&SC.vh>0))return;
+  // El centro de la vista en coordenadas lógicas, a partir del zoom y el desplazamiento
+  const cx=SC.cvsW/2-SC.tx/SC.z,cy=SC.cvsH/2-SC.ty/SC.z;
+  scScene($('scalerCanvas').getContext('2d'),SC.vw,SC.vh,cx,cy,SC.z,SC.rs,true);
 }
 function scDrawRef(ctx,a,b){
   ctx.save();ctx.strokeStyle='#f59e0b';ctx.lineWidth=2.5;ctx.setLineDash([8,5]);
@@ -2273,13 +2427,14 @@ function scDrawRef(ctx,a,b){
   ctx.restore();
 }
 function scDimAnnot(ctx,x1,y1,x2,y2,opts){
-  const{offset=50,color='#3a4ad8',sel=false,text='',dashed=false}=opts;
+  // s: escala de los trazos y del texto (>1 al exportar a la resolución nativa de la foto)
+  const{offset=50,color='#3a4ad8',sel=false,text='',dashed=false,s=1}=opts;
   const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy);if(len<4)return;
   const ux=dx/len,uy=dy/len,nx=-uy,ny=ux;
-  const col=sel?'#e03060':color,gap=7,over=7,aSize=Math.max(7,Math.min(14,len*.08));
+  const col=sel?'#e03060':color,gap=7*s,over=7*s,aSize=Math.max(7*s,Math.min(14*s,len*.08));
   const ax=x1+nx*offset,ay=y1+ny*offset,bx=x2+nx*offset,by=y2+ny*offset;
-  ctx.save();ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=sel?2:1.5;
-  if(dashed)ctx.setLineDash([5,4]);else ctx.setLineDash([]);
+  ctx.save();ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=(sel?2:1.5)*s;
+  if(dashed)ctx.setLineDash([5*s,4*s]);else ctx.setLineDash([]);
   const ln=(x1,y1,x2,y2)=>{ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();};
   ln(x1+nx*gap,y1+ny*gap,ax+nx*over,ay+ny*over);
   ln(x2+nx*gap,y2+ny*gap,bx+nx*over,by+ny*over);
@@ -2291,12 +2446,12 @@ function scDimAnnot(ctx,x1,y1,x2,y2,opts){
     const mx=(ax+bx)/2,my=(ay+by)/2;
     let angle=Math.atan2(uy,ux);if(angle>Math.PI/2||angle<-Math.PI/2)angle+=Math.PI;
     ctx.save();ctx.translate(mx,my);ctx.rotate(angle);
-    ctx.font='700 12px Inter,Arial,sans-serif';
-    const tw=ctx.measureText(text).width,pad=6,bh=18,bw=tw+pad*2,rx=-bw/2,ry=-bh-3,rr=5;
-    ctx.fillStyle='rgba(255,255,255,.95)';ctx.strokeStyle=col;ctx.lineWidth=1.2;
+    ctx.font='700 '+(12*s)+'px Inter,Arial,sans-serif';
+    const tw=ctx.measureText(text).width,pad=6*s,bh=18*s,bw=tw+pad*2,rx=-bw/2,ry=-bh-3*s,rr=5*s;
+    ctx.fillStyle='rgba(255,255,255,.95)';ctx.strokeStyle=col;ctx.lineWidth=1.2*s;
     ctx.beginPath();ctx.moveTo(rx+rr,ry);ctx.lineTo(rx+bw-rr,ry);ctx.arcTo(rx+bw,ry,rx+bw,ry+rr,rr);ctx.lineTo(rx+bw,ry+bh-rr);ctx.arcTo(rx+bw,ry+bh,rx+bw-rr,ry+bh,rr);ctx.lineTo(rx+rr,ry+bh);ctx.arcTo(rx,ry+bh,rx,ry+bh-rr,rr);ctx.lineTo(rx,ry+rr);ctx.arcTo(rx,ry,rx+rr,ry,rr);ctx.closePath();
     ctx.fill();ctx.stroke();
-    ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(text,0,-4);
+    ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(text,0,-4*s);
     ctx.restore();
   }
   ctx.restore();
@@ -2304,12 +2459,14 @@ function scDimAnnot(ctx,x1,y1,x2,y2,opts){
 
 function scGetXY(e){
   const cvs=$('scalerCanvas'),rect=cvs.getBoundingClientRect();
-  const sx=cvs.width/rect.width,sy=cvs.height/rect.height;
   let cx,cy;
   if(e.touches&&e.touches.length){cx=e.touches[0].clientX;cy=e.touches[0].clientY;}
   else if(e.changedTouches&&e.changedTouches.length){cx=e.changedTouches[0].clientX;cy=e.changedTouches[0].clientY;}
   else{cx=e.clientX;cy=e.clientY;}
-  return{x:(cx-rect.left)*sx,y:(cy-rect.top)*sy};
+  // Inversa de la transformación de la vista: pantalla → coordenadas lógicas
+  const z=SC.z||1;
+  return{x:(cx-rect.left-SC.vw/2-SC.tx)/z+SC.cvsW/2,
+         y:(cy-rect.top-SC.vh/2-SC.ty)/z+SC.cvsH/2};
 }
 function scSnap(a,b){
   if(SC.mMode==='h')return{x:b.x,y:a.y};
@@ -2335,6 +2492,7 @@ function scMove(e){
   scRender();scLoupe(e);
 }
 function scUp(e){
+  // Al soltar el pellizco se rehace el lienzo con la resolución que toca al nuevo zoom
   if(SC.gesture){if(!e.touches||e.touches.length===0)SC.gesture=false;scHideLoupe();return;}
   scHideLoupe();
   if(!SC.down){return;}
@@ -2475,9 +2633,11 @@ function scExportImg(){
   if(!SC.img||!SC.items.length)return;
   const oc=document.createElement('canvas');oc.width=SC.imgW;oc.height=SC.imgH;
   const octx=oc.getContext('2d');octx.drawImage(SC.img,0,0);
+  // Las cotas se dibujan a escala de la foto original, si no quedan diminutas en fotos grandes
+  const s=Math.max(1,Math.min(6,Math.min(SC.imgW,SC.imgH)/620));
   SC.items.forEach(m=>{
     const p1={x:m.nx1*SC.imgW,y:m.ny1*SC.imgH},p2={x:m.nx2*SC.imgW,y:m.ny2*SC.imgH};
-    scDimAnnot(octx,p1.x,p1.y,p2.x,p2.y,{text:scFmtCm(m.cm)+' cm'+(m.label?' · '+m.label:''),color:m.color,sel:false,offset:Math.min(SC.imgW,SC.imgH)*.045});
+    scDimAnnot(octx,p1.x,p1.y,p2.x,p2.y,{text:scFmtCm(m.cm)+' cm'+(m.label?' · '+m.label:''),color:m.color,sel:false,offset:Math.min(SC.imgW,SC.imgH)*.045,s});
   });
   const a=document.createElement('a');a.href=oc.toDataURL('image/png');a.download='medidas-al3d.png';a.click();
   toast('Imagen descargada','ok');
