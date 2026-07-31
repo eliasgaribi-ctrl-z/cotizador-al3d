@@ -18,6 +18,7 @@
   --soft:#f2f4fb; --soft-2:#eaedfa;
   --green:#15a06a; --green-bg:#e5f6ee; --amber:#cf8a12; --amber-bg:#fbf1dd;
   --red:#d8453f; --red-bg:#fbe9e8; --gray:#7c8499; --gray-bg:#eef0f5;
+  --sc-guide:#00b8d9;
   --r:18px; --r-sm:11px; --r-xs:7px; --r-lg:20px;
   --sh:0 2px 4px rgba(23,29,74,.04),0 10px 36px rgba(23,29,74,.09);
   --sh-sm:0 1px 3px rgba(23,29,74,.05),0 4px 14px rgba(23,29,74,.07);
@@ -298,6 +299,13 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .ai-prev-img{display:block;width:100%;max-height:440px;object-fit:contain;border-radius:9px;border:1px solid var(--line);background:repeating-conic-gradient(#f4f5f9 0% 25%,#fff 0% 50%) 50%/16px 16px;cursor:zoom-in}
 .ai-prev-pdf{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:130px;border-radius:9px;border:1.5px dashed var(--red);background:var(--red-bg);color:var(--red);font-weight:700;font-size:13px;cursor:pointer;text-align:center;padding:10px}
 .ai-prev-big .sub{font-size:11px;color:var(--muted);margin-top:8px;text-align:center}
+/* ----- Vista previa de la imagen del escalador, junto a las partidas ----- */
+.sc-prev-box{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--soft);padding:12px;margin-bottom:16px}
+.sc-prev-head{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;user-select:none}
+.sc-prev-head .ttl{font-size:11.5px;font-weight:700;color:var(--brand);line-height:1.4}
+.sc-prev-head .chev{font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;flex-shrink:0}
+.sc-prev-img{display:block;width:100%;height:auto;max-height:420px;margin-top:9px;border-radius:9px;border:1px solid var(--line);background:repeating-conic-gradient(#f4f5f9 0% 25%,#fff 0% 50%) 50%/16px 16px;cursor:pointer;object-fit:contain}
+.sc-prev-box .sub{font-size:11px;color:var(--muted);margin-top:8px;text-align:center}
 .lightbox-close{position:fixed;top:20px;right:24px;width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:70;transition:.12s}
 .lightbox-close:hover{background:rgba(255,255,255,.28)}
 .lightbox-img{max-width:94vw;max-height:92vh;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.5);display:block}
@@ -406,6 +414,11 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-addall-note{margin:0 14px 10px;font-size:11.5px;color:var(--green);font-weight:700;text-align:center}
 .sp-ibtn{border:none;background:none;color:#cdd2e0;font-size:15px;cursor:pointer;padding:3px 6px;border-radius:6px;line-height:1;transition:.12s}
 .sp-ibtn:hover{color:var(--red);background:var(--red-bg)}
+/* ----- Guías del escalador ----- */
+.sp-gitem{display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;border:1px solid rgba(224,228,240,.8);border-left:3px solid var(--sc-guide);border-radius:var(--r-sm);background:#fff;font-size:12.5px}
+.sp-gitem .ico{font-weight:800;color:var(--sc-guide);width:14px;text-align:center;flex-shrink:0}
+.sp-gitem .lbl{flex:1;color:var(--ink);font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-gitem .pos{color:var(--muted);font-variant-numeric:tabular-nums;font-size:11.5px;flex-shrink:0}
 .sp-calib-badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:20px;white-space:nowrap;flex-shrink:0;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(207,138,18,.2)}
 .sp-calib-badge.ok{background:var(--green-bg);color:var(--green);border-color:rgba(21,160,106,.2)}
 .sp-calib-badge .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
@@ -553,6 +566,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
           <button class="ai-btn" onclick="aiOpen()">✨ Cotizar con IA — analizar JPG o PDF</button>
           <button class="btn-scaler-open" onclick="abrirScaler()" title="Escalar imagen — medir elementos sin cotas">📐 Escalar</button>
         </div>
+        <div id="scPreviewBox"></div>
         <div id="items"></div>
         <button class="addbtn" id="addbtn" onclick="addItem()">+ Agregar partida</button>
       </div>
@@ -739,6 +753,18 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
             <div style="background:var(--green-bg);border:1px solid rgba(21,160,106,.2);border-radius:var(--r-sm);padding:11px 13px;font-size:12.5px;color:var(--green);font-weight:600;margin-bottom:10px">✓ Escala calibrada</div>
             <button class="btn btn-gho" onclick="scResetCalib()" style="font-size:13px">↺ Re-calibrar</button>
           </div>
+        </div>
+      </div>
+      <!-- Guías -->
+      <div class="sp-sec">
+        <div class="sp-sec-h"><h3>Guías</h3></div>
+        <div class="sp-sec-b">
+          <p style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:11px">Marca dónde termina un diseño y empieza otro. Arrástralas sobre la foto para ubicarlas — no se cuentan como medida.</p>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-gho" id="sc-btn-guide-h" onclick="scAddGuide('h')" disabled style="flex:1">↔ Horizontal</button>
+            <button class="btn btn-gho" id="sc-btn-guide-v" onclick="scAddGuide('v')" disabled style="flex:1">↕ Vertical</button>
+          </div>
+          <div id="sc-guides-list" style="margin-top:10px"></div>
         </div>
       </div>
       <!-- Medidas -->
@@ -1000,6 +1026,7 @@ function autoContarLetras(id,texto){
 /* ===================== Render partidas ===================== */
 function renderItems(){
   renderAiPreview();
+  renderScalerPreview();
   const c=$('items'); c.innerHTML='';
   if(Q.editMode&&Q.estado==='autorizada'){
     const banner=document.createElement('div');
@@ -2571,10 +2598,12 @@ const SC={
   down:false, sp:null, cp:null, downPt:null, moved:false,
   tapA:null, building:false,
   items:[], sel:null, nid:1, nc:0,
+  guides:[], gid:1, draggingGuide:null, previewCollapsed:false,
   z:1, tx:0, ty:0, gesture:false,
   vw:0, vh:0, rs:1, rsDpr:1, full:null, fullW:0, tile:null, tileR:null, tileS:0, objUrl:null,
 };
 const SC_COLORS=['#3a4ad8','#d32f2f','#2e7d32','#e65100','#6a1b9a','#0277bd','#558b2f','#4e342e'];
+const SC_GUIDE_COLOR='#00b8d9';
 
 function abrirScaler(){
   $('sc-use-ai-btn').style.display=(Q.aiFile&&Q.aiFile.url)?'flex':'none';
@@ -2609,6 +2638,7 @@ function scLoadImgSrc(src,name){
     SC.objUrl=/^blob:/.test(src)?src:null;
     scResetCalib(false);
     SC.items=[];SC.sel=null;SC.nid=1;SC.nc=0;
+    SC.guides=[];SC.gid=1;SC.draggingGuide=null;
     $('sp-overlay').classList.add('hide');
     $('sp-zoom').style.display='flex';
     scEnableTools(true);scFitCanvas();scRender();scUpdateList();
@@ -2859,6 +2889,7 @@ function scScene(ctx,w,h,cx,cy,k,dpr,shadow,lupa){
   // En la lupa las cotas irían aumentadas igual que la foto y taparían justo lo que se
   // quiere ver: ahí se trazan finas y sin etiqueta, para no estorbar al colocar el punto.
   if(lupa){scSceneLite(ctx,k);ctx.setTransform(1,0,0,1,0,0);return;}
+  scDrawGuides(ctx,cx,cy,k,w,h);
   if(SC.refLine){
     const a={x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH};
     const b={x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH};
@@ -2897,6 +2928,27 @@ function scRender(){
   // El centro de la vista en coordenadas lógicas, a partir del zoom y el desplazamiento
   const cx=SC.cvsW/2-SC.tx/SC.z,cy=SC.cvsH/2-SC.ty/SC.z;
   scScene($('scalerCanvas').getContext('2d'),SC.vw,SC.vh,cx,cy,SC.z,SC.rs,true);
+}
+/* Guías: líneas de referencia que el usuario coloca a mano para ubicar dónde termina
+   un diseño y empieza otro. Cruzan todo lo visible (no solo la foto) y no se cuentan
+   como medida ni salen en la imagen exportada — son un apoyo mientras se mide. */
+function scDrawGuides(ctx,cx,cy,k,w,h){
+  if(!SC.guides.length)return;
+  const hw=w/(2*k),hh=h/(2*k);
+  const x0=cx-hw,x1=cx+hw,y0=cy-hh,y1=cy+hh;
+  ctx.save();
+  ctx.setLineDash([7/k,5/k]);
+  SC.guides.forEach(g=>{
+    const active=g===SC.draggingGuide;
+    ctx.strokeStyle=active?'#0e7490':SC_GUIDE_COLOR;
+    ctx.globalAlpha=active?1:.85;
+    ctx.lineWidth=(active?2.2:1.4)/k;
+    ctx.beginPath();
+    if(g.type==='h'){const y=g.pos*SC.cvsH;ctx.moveTo(x0,y);ctx.lineTo(x1,y);}
+    else{const x=g.pos*SC.cvsW;ctx.moveTo(x,y0);ctx.lineTo(x,y1);}
+    ctx.stroke();
+  });
+  ctx.restore();
 }
 function scDrawRef(ctx,a,b){
   ctx.save();ctx.strokeStyle='#f59e0b';ctx.lineWidth=2.5;ctx.setLineDash([8,5]);
@@ -2952,19 +3004,55 @@ function scSnap(a,b){
   return b;
 }
 const SC_TAPTHR=11; // px: distinguir un toque de un arrastre
+const SC_GUIDE_HITPX=10; // radio de toque de una guía, constante en pantalla sea cual sea el zoom
+function scGuideHit(pt){
+  if(!SC.guides||!SC.guides.length)return null;
+  const thr=SC_GUIDE_HITPX/(SC.z||1);
+  let best=null,bestD=thr;
+  SC.guides.forEach(g=>{
+    const d=g.type==='h'?Math.abs(pt.y-g.pos*SC.cvsH):Math.abs(pt.x-g.pos*SC.cvsW);
+    if(d<bestD){bestD=d;best=g;}
+  });
+  return best;
+}
+function scDefaultCursor(){
+  return(SC.mode==='ref'||SC.mode==='ref-drawn'||SC.mode==='measure')?'crosshair':'default';
+}
 function scDown(e){
   if(e.touches&&e.touches.length>=2){scGestureStart(e);return;}
   if(SC.gesture)return;
+  const pt=scGetXY(e);
+  // Las guías se pueden arrastrar aunque no haya ninguna herramienta activa, salvo a
+  // mitad de trazar una línea (para no robarle el segundo toque a esa medición/referencia).
+  if(SC.img&&!SC.building){
+    const g=scGuideHit(pt);
+    if(g){e.preventDefault();SC.draggingGuide=g;scRender();return;}
+  }
   if(SC.mode!=='ref'&&SC.mode!=='ref-drawn'&&SC.mode!=='measure')return;
   e.preventDefault();
-  SC.down=true;SC.downPt=scGetXY(e);SC.moved=false;
+  SC.down=true;SC.downPt=pt;SC.moved=false;
   SC.sp=SC.building?SC.tapA:SC.downPt; // ancla de la previsualización
-  SC.cp={...SC.downPt};
+  SC.cp={...pt};
   scRender();scLoupe(e);
 }
 function scMove(e){
   if(SC.gesture){scGestureMove(e);return;}
-  if(!SC.down)return;e.preventDefault();
+  if(SC.draggingGuide){
+    e.preventDefault();
+    const pt=scGetXY(e),g=SC.draggingGuide;
+    g.pos=Math.min(1,Math.max(0,g.type==='h'?pt.y/SC.cvsH:pt.x/SC.cvsW));
+    scUpdateGuideList();scRender();
+    return;
+  }
+  if(!SC.down){
+    // Sin botón/dedo abajo: solo cambia el cursor si el puntero (mouse) queda sobre una guía
+    if(!e.touches&&SC.img){
+      const hov=!SC.building?scGuideHit(scGetXY(e)):null;
+      $('scalerCanvas').style.cursor=hov?(hov.type==='h'?'row-resize':'col-resize'):scDefaultCursor();
+    }
+    return;
+  }
+  e.preventDefault();
   SC.cp=scGetXY(e);
   if(scDist(SC.downPt,SC.cp)>SC_TAPTHR)SC.moved=true;
   scRender();scLoupe(e);
@@ -2972,6 +3060,7 @@ function scMove(e){
 function scUp(e){
   // Al soltar el pellizco se rehace el lienzo con la resolución que toca al nuevo zoom
   if(SC.gesture){if(!e.touches||e.touches.length===0)SC.gesture=false;scHideLoupe();return;}
+  if(SC.draggingGuide){SC.draggingGuide=null;scUpdateGuideList();scRender();return;}
   scHideLoupe();
   if(!SC.down){return;}
   e.preventDefault();SC.down=false;
@@ -2993,7 +3082,11 @@ function scUp(e){
   }
   SC.sp=null;SC.cp=null;SC.downPt=null;SC.moved=false;scRender();
 }
-function scLeave(e){if(SC.down){SC.cp=scGetXY(e);if(scDist(SC.downPt,SC.cp)>SC_TAPTHR)SC.moved=true;scRender();}scHideLoupe();}
+function scLeave(e){
+  if(SC.draggingGuide){SC.draggingGuide=null;scUpdateGuideList();scRender();return;}
+  if(SC.down){SC.cp=scGetXY(e);if(scDist(SC.downPt,SC.cp)>SC_TAPTHR)SC.moved=true;scRender();}
+  scHideLoupe();
+}
 function scCommitLine(a,b){
   if(!a||!b)return false;
   const ep=scSnap(a,b),d=scDist(a,ep);
@@ -3045,14 +3138,13 @@ function scSetMode(m){
   if(m==='ref'||m==='ref-drawn'){
     $('sc-btn-ref').classList.add('active');
     scSetHint('Toca un extremo y luego el otro sobre un elemento conocido (o arrástralo) — puerta 200 cm, persona 175 cm…');
-    cvs.style.cursor='crosshair';
   }else if(m==='measure'){
     const mm={'libre':'sc-btn-libre','h':'sc-btn-h','v':'sc-btn-v'};
     $(mm[SC.mMode]||'sc-btn-libre').classList.add('active');
     const mn={'libre':'Libre · cualquier ángulo','h':'Horizontal','v':'Vertical'};
     scSetHint('Modo: '+mn[SC.mMode]+' — toca los dos extremos del elemento (o arrastra)');
-    cvs.style.cursor='crosshair';
-  }else{scSetHint('');cvs.style.cursor='default';}
+  }else{scSetHint('');}
+  cvs.style.cursor=scDefaultCursor();
 }
 function scSetMeasMode(m){
   if(!SC.img)return;
@@ -3060,17 +3152,53 @@ function scSetMeasMode(m){
   SC.mMode=m;scSetMode('measure');
 }
 function scEnableTools(v){
-  ['sc-btn-ref','sc-btn-libre','sc-btn-h','sc-btn-v','sc-btn-calib'].forEach(id=>$(id).disabled=!v);
+  ['sc-btn-ref','sc-btn-libre','sc-btn-h','sc-btn-v','sc-btn-calib','sc-btn-guide-h','sc-btn-guide-v'].forEach(id=>$(id).disabled=!v);
 }
 function scSetHint(txt){
   const bar=$('sp-hint-bar');
   if(txt){bar.textContent=txt;bar.classList.remove('hide');}else bar.classList.add('hide');
+}
+/* ----- Guías ----- */
+function scAddGuide(type){
+  if(!SC.img)return;
+  // Para que varias guías nuevas seguidas no queden todas apiladas al centro
+  const same=SC.guides.filter(g=>g.type===type).length;
+  const step=Math.ceil(same/2)*.08*(same%2?-1:1);
+  const pos=Math.min(.92,Math.max(.08,.5+step));
+  SC.guides.push({id:SC.gid++,type,pos});
+  scUpdateGuideList();scRender();
+  scSetHint((type==='h'?'Guía horizontal':'Guía vertical')+' agregada — arrástrala hasta el borde del diseño');
+}
+function scDelGuide(id){
+  SC.guides=SC.guides.filter(g=>g.id!==id);
+  if(SC.draggingGuide&&SC.draggingGuide.id===id)SC.draggingGuide=null;
+  scUpdateGuideList();scRender();
+}
+function scGuidePosLabel(g){
+  if(SC.nativePxPerCm>0){
+    const pxLogical=g.pos*(g.type==='h'?SC.cvsH:SC.cvsW);
+    const cm=(pxLogical*SC.scaleFactor)/SC.nativePxPerCm;
+    return scFmtCm(cm)+' cm';
+  }
+  return Math.round(g.pos*100)+'%';
+}
+function scUpdateGuideList(){
+  const list=$('sc-guides-list');if(!list)return;
+  if(!SC.guides.length){list.innerHTML='';return;}
+  list.innerHTML=SC.guides.map(g=>`
+    <div class="sp-gitem">
+      <span class="ico">${g.type==='h'?'↔':'↕'}</span>
+      <span class="lbl">${g.type==='h'?'Horizontal':'Vertical'}</span>
+      <span class="pos">${scGuidePosLabel(g)}</span>
+      <button class="sp-ibtn" onclick="scDelGuide(${g.id})" title="Quitar guía">×</button>
+    </div>`).join('');
 }
 function scUpdateList(){
   const list=$('sc-medidas-list');
   $('sc-mcount').textContent=SC.items.length;
   list.innerHTML='';
   scUpdateAddAll();
+  renderScalerPreview();
   if(!SC.items.length){
     list.innerHTML='<div class="sp-mlist-empty">'+(SC.nativePxPerCm>0?'Traza líneas sobre los elementos<br>para registrar sus medidas.':'Calibra la escala primero,<br>luego traza líneas para medir.')+'</div>';
     $('sc-btn-export').disabled=true;return;
@@ -3143,6 +3271,42 @@ function scUpdateAddAll(){
     note.style.display=usadas?'':'none';
     note.textContent=usadas?`✓ ${usadas} ${usadas===1?'partida agregada':'partidas agregadas'} a la cotización`:'';
   }
+}
+/* ===================== Vista previa de la imagen escalada, junto a las partidas =====================
+   Sin esto, al volver del escalador al cotizador no quedaba rastro de la foto que se
+   estaba midiendo, y comparar las partidas contra lo escalado obligaba a reabrir el
+   modal una y otra vez. Es solo de la sesión (como Q.aiFile): no se guarda con la cotización. */
+function toggleScalerPreview(){
+  SC.previewCollapsed=!SC.previewCollapsed;
+  renderScalerPreview();
+}
+function renderScalerPreview(){
+  const el=$('scPreviewBox');if(!el)return;
+  if(!SC.img){el.innerHTML='';return;}
+  const n=SC.items.length,collapsed=!!SC.previewCollapsed;
+  el.innerHTML=`<div class="sc-prev-box">
+    <div class="sc-prev-head" onclick="toggleScalerPreview()" ${chipA11y(!collapsed)}>
+      <span class="ttl">📐 Imagen del escalador · ${n} ${n===1?'medida':'medidas'}</span>
+      <span class="chev">${collapsed?'▾ ver':'▴ ocultar'}</span>
+    </div>
+    ${collapsed?'':`<canvas id="sc-mini-cvs" class="sc-prev-img" onclick="abrirScaler()" title="Clic para volver al escalador y seguir midiendo"></canvas>
+    <div class="sub">Compárala con tus partidas · clic en la imagen para volver al escalador</div>`}
+  </div>`;
+  if(!collapsed)scPaintMiniPreview();
+}
+function scPaintMiniPreview(){
+  const cvs=$('sc-mini-cvs');if(!cvs||!SC.img)return;
+  const dpr=Math.min(2,window.devicePixelRatio||1);
+  const w=Math.round(Math.min(700,SC.imgW)*dpr),h=Math.round(w*SC.imgH/SC.imgW);
+  cvs.width=w;cvs.height=h;
+  const ctx=cvs.getContext('2d');
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+  ctx.drawImage(SC.img,0,0,w,h);
+  const s=Math.max(1,dpr*1.15);
+  SC.items.forEach(m=>{
+    const p1={x:m.nx1*w,y:m.ny1*h},p2={x:m.nx2*w,y:m.ny2*h};
+    scDimAnnot(ctx,p1.x,p1.y,p2.x,p2.y,{text:scFmtCm(m.cm)+' cm'+(m.label?' · '+m.label:''),color:m.color,sel:false,offset:Math.min(w,h)*.045,s});
+  });
 }
 function scExportImg(){
   if(!SC.img||!SC.items.length)return;
