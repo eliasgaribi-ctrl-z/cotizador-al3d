@@ -765,6 +765,8 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
             <button class="btn btn-gho" id="sc-btn-guide-h" onclick="scAddGuide('h')" disabled style="flex:1">↔ Horizontal</button>
             <button class="btn btn-gho" id="sc-btn-guide-v" onclick="scAddGuide('v')" disabled style="flex:1">↕ Vertical</button>
           </div>
+          <label class="switch" style="margin-top:12px;font-size:12.5px" onclick="toggleSnapGuias(event)"><span class="tg on" id="sc-snap-tg"></span> Pegar los puntos a las guías</label>
+          <div class="hintnote" style="margin-top:8px">Al medir, los puntos que caigan cerca de una guía se pegan a ella, así las medidas arrancan justo en el borde que marcaste.</div>
           <div id="sc-guides-list" style="margin-top:10px"></div>
           <button class="sp-gclear" id="sc-guides-clear" onclick="scClearGuides()" style="display:none">Quitar todas las guías</button>
         </div>
@@ -2601,6 +2603,7 @@ const SC={
   tapA:null, building:false,
   items:[], sel:null, nid:1, nc:0,
   guides:[], gid:1, draggingGuide:null, previewCollapsed:false,
+  snapOn:true, snapH:null, snapV:null,
   z:1, tx:0, ty:0, gesture:false,
   vw:0, vh:0, rs:1, rsDpr:1, full:null, fullW:0, tile:null, tileR:null, tileS:0, objUrl:null,
 };
@@ -2959,12 +2962,15 @@ function scDrawGuides(ctx,cx,cy,k,w,h){
   const hw=w/(2*k),hh=h/(2*k);
   const x0=cx-hw,x1=cx+hw,y0=cy-hh,y1=cy+hh;
   ctx.save();
-  ctx.setLineDash([7/k,5/k]);
   SC.guides.forEach(g=>{
     const active=g===SC.draggingGuide;
-    ctx.strokeStyle=active?'#0e7490':SC_GUIDE_COLOR;
-    ctx.globalAlpha=active?1:.85;
-    ctx.lineWidth=(active?2.2:1.4)/k;
+    // Guía a la que se está pegando el punto que se traza: sólida y marcada, para que
+    // se vea de dónde va a salir la medida antes de soltar.
+    const pegada=SC.down&&(g===SC.snapH||g===SC.snapV);
+    ctx.setLineDash(pegada?[]:[7/k,5/k]);
+    ctx.strokeStyle=(active||pegada)?'#0e7490':SC_GUIDE_COLOR;
+    ctx.globalAlpha=(active||pegada)?1:.85;
+    ctx.lineWidth=(pegada?2.6:active?2.2:1.4)/k;
     ctx.beginPath();
     if(g.type==='h'){const y=g.pos*SC.cvsH;ctx.moveTo(x0,y);ctx.lineTo(x1,y);}
     else{const x=g.pos*SC.cvsW;ctx.moveTo(x,y0);ctx.lineTo(x,y1);}
@@ -3095,6 +3101,37 @@ function scGetXY(e){
   return{x:(p.x-SC.vw/2-SC.tx)/z+SC.cvsW/2,
          y:(p.y-SC.vh/2-SC.ty)/z+SC.cvsH/2};
 }
+const SC_SNAP_PX=13; // a esta distancia de una guía (px de pantalla) el punto se le pega
+/* Pega el punto a las guías que tenga cerca: la horizontal le fija la Y, la vertical la
+   X, y si hay una de cada una el punto cae justo en el cruce. Es lo que hace útiles a
+   las guías para medir: se marca una vez dónde termina un diseño y desde ese borde
+   salen todas las medidas, sin tener que atinarle a pulso cada vez. */
+function scSnapGuides(pt){
+  SC.snapH=null;SC.snapV=null;
+  if(!SC.snapOn||!SC.guides.length)return pt;
+  const thr=SC_SNAP_PX/(SC.z||1);
+  let dh=thr,dv=thr;
+  const out={x:pt.x,y:pt.y};
+  SC.guides.forEach(g=>{
+    if(g.type==='h'){
+      const y=g.pos*SC.cvsH,d=Math.abs(pt.y-y);
+      if(d<dh){dh=d;out.y=y;SC.snapH=g;}
+    }else{
+      const x=g.pos*SC.cvsW,d=Math.abs(pt.x-x);
+      if(d<dv){dv=d;out.x=x;SC.snapV=g;}
+    }
+  });
+  return out;
+}
+/* Punto del evento ya pegado a las guías. Lo usan todos los puntos que se colocan
+   (medidas y referencia); el arrastre de una guía sigue leyendo la posición cruda. */
+function scGetXYSnap(e){return scSnapGuides(scGetXY(e));}
+function toggleSnapGuias(e){
+  if(e)e.preventDefault();
+  SC.snapOn=!SC.snapOn;
+  $('sc-snap-tg').className='tg'+(SC.snapOn?' on':'');
+  scRender();
+}
 function scSnap(a,b){
   if(SC.mMode==='h')return{x:b.x,y:a.y};
   if(SC.mMode==='v')return{x:a.x,y:b.y};
@@ -3158,7 +3195,10 @@ function scDown(e){
   }
   if(SC.mode!=='ref'&&SC.mode!=='ref-drawn'&&SC.mode!=='measure')return;
   e.preventDefault();
-  SC.down=true;SC.downPt=scGetXY(e);SC.moved=false;
+  // Pegado a guías desde el primer punto. Los dos extremos se leen igual, así el
+  // desplazamiento del pegado no se confunde con un arrastre y el toque simple sigue
+  // colocando un punto en vez de trazar una línea.
+  SC.down=true;SC.downPt=scGetXYSnap(e);SC.moved=false;
   SC.sp=SC.building?SC.tapA:SC.downPt; // ancla de la previsualización
   SC.cp={...SC.downPt};
   scRender();scLoupe(e);
@@ -3175,7 +3215,7 @@ function scMove(e){
     return;
   }
   e.preventDefault();
-  SC.cp=scGetXY(e);
+  SC.cp=scGetXYSnap(e);
   if(scDist(SC.downPt,SC.cp)>SC_TAPTHR)SC.moved=true;
   scRender();scLoupe(e);
 }
@@ -3186,7 +3226,7 @@ function scUp(e){
   scHideLoupe();
   if(!SC.down){return;}
   e.preventDefault();SC.down=false;
-  const raw=(e.changedTouches&&e.changedTouches.length)?scGetXY(e):(SC.cp||SC.downPt);
+  const raw=(e.changedTouches&&e.changedTouches.length)?scGetXYSnap(e):(SC.cp||SC.downPt);
   if(SC.moved){
     // Arrastre: línea desde el ancla (primer punto si se estaba construyendo) hasta donde se soltó
     const anchor=SC.building?SC.tapA:SC.downPt;
@@ -3206,7 +3246,7 @@ function scUp(e){
 }
 function scLeave(e){
   if(SC.draggingGuide)return; // el arrastre sigue vivo aunque el puntero salga del lienzo
-  if(SC.down){SC.cp=scGetXY(e);if(scDist(SC.downPt,SC.cp)>SC_TAPTHR)SC.moved=true;scRender();}
+  if(SC.down){SC.cp=scGetXYSnap(e);if(scDist(SC.downPt,SC.cp)>SC_TAPTHR)SC.moved=true;scRender();}
   scHideLoupe();
 }
 function scCommitLine(a,b){
