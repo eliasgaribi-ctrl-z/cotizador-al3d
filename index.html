@@ -418,7 +418,8 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-gitem{display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;border:1px solid rgba(224,228,240,.8);border-left:3px solid var(--sc-guide);border-radius:var(--r-sm);background:#fff;font-size:12.5px}
 .sp-gitem .ico{font-weight:800;color:var(--sc-guide);width:14px;text-align:center;flex-shrink:0}
 .sp-gitem .lbl{flex:1;color:var(--ink);font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sp-gitem .pos{color:var(--muted);font-variant-numeric:tabular-nums;font-size:11.5px;flex-shrink:0}
+.sp-gclear{display:block;width:100%;margin-top:2px;padding:6px;border:none;background:none;color:var(--muted);font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;border-radius:7px;transition:.12s}
+.sp-gclear:hover{color:var(--red);background:var(--red-bg)}
 .sp-calib-badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:20px;white-space:nowrap;flex-shrink:0;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(207,138,18,.2)}
 .sp-calib-badge.ok{background:var(--green-bg);color:var(--green);border-color:rgba(21,160,106,.2)}
 .sp-calib-badge .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
@@ -759,12 +760,13 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <div class="sp-sec">
         <div class="sp-sec-h"><h3>Guías</h3></div>
         <div class="sp-sec-b">
-          <p style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:11px">Marca dónde termina un diseño y empieza otro. Arrástralas sobre la foto para ubicarlas — no se cuentan como medida.</p>
+          <p style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:11px">Marca dónde termina un diseño y empieza otro. Cada guía se mueve arrastrando su <b>pestaña del borde</b>, así el resto de la imagen queda libre para medir.</p>
           <div style="display:flex;gap:8px">
             <button class="btn btn-gho" id="sc-btn-guide-h" onclick="scAddGuide('h')" disabled style="flex:1">↔ Horizontal</button>
             <button class="btn btn-gho" id="sc-btn-guide-v" onclick="scAddGuide('v')" disabled style="flex:1">↕ Vertical</button>
           </div>
           <div id="sc-guides-list" style="margin-top:10px"></div>
+          <button class="sp-gclear" id="sc-guides-clear" onclick="scClearGuides()" style="display:none">Quitar todas las guías</button>
         </div>
       </div>
       <!-- Medidas -->
@@ -2604,6 +2606,22 @@ const SC={
 };
 const SC_COLORS=['#3a4ad8','#d32f2f','#2e7d32','#e65100','#6a1b9a','#0277bd','#558b2f','#4e342e'];
 const SC_GUIDE_COLOR='#00b8d9';
+/* Centro y aumento de la vista en coordenadas lógicas. Lo usan por igual el dibujo y
+   la detección de toques, para que nunca se desincronicen. */
+function scViewCenter(){
+  const k=SC.z||1;
+  return{cx:SC.cvsW/2-SC.tx/k,cy:SC.cvsH/2-SC.ty/k,k};
+}
+/* Rectángulo redondeado. No se usa ctx.roundRect: falta en Safari de iOS algo viejo. */
+function scRoundRect(ctx,x,y,w,h,r){
+  const rr=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rr,y);ctx.lineTo(x+w-rr,y);ctx.arcTo(x+w,y,x+w,y+rr,rr);
+  ctx.lineTo(x+w,y+h-rr);ctx.arcTo(x+w,y+h,x+w-rr,y+h,rr);
+  ctx.lineTo(x+rr,y+h);ctx.arcTo(x,y+h,x,y+h-rr,rr);
+  ctx.lineTo(x,y+rr);ctx.arcTo(x,y,x+rr,y,rr);
+  ctx.closePath();
+}
 
 function abrirScaler(){
   $('sc-use-ai-btn').style.display=(Q.aiFile&&Q.aiFile.url)?'flex':'none';
@@ -2641,7 +2659,7 @@ function scLoadImgSrc(src,name){
     SC.guides=[];SC.gid=1;SC.draggingGuide=null;
     $('sp-overlay').classList.add('hide');
     $('sp-zoom').style.display='flex';
-    scEnableTools(true);scFitCanvas();scRender();scUpdateList();
+    scEnableTools(true);scFitCanvas();scRender();scUpdateList();scUpdateGuideList();
     scSetMode('ref');
     toast('Imagen cargada · '+(name||''),'ok');
   };
@@ -2860,6 +2878,12 @@ function scSceneLite(ctx,k){
     if(dash)ctx.setLineDash([px(7),px(5)]);
     ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.restore();
   };
+  // Las guías también en la lupa: sirven para pegar el punto al borde ya marcado
+  // sin tener que alejar la foto para verlo.
+  SC.guides.forEach(g=>{
+    if(g.type==='h'){const y=g.pos*SC.cvsH;linea({x:-SC.cvsW,y},{x:SC.cvsW*2,y},SC_GUIDE_COLOR,true);}
+    else{const x=g.pos*SC.cvsW;linea({x,y:-SC.cvsH},{x,y:SC.cvsH*2},SC_GUIDE_COLOR,true);}
+  });
   if(SC.refLine)linea({x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH},
                       {x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH},'#f59e0b',true);
   SC.items.forEach(m=>linea({x:m.nx1*SC.cvsW,y:m.ny1*SC.cvsH},{x:m.nx2*SC.cvsW,y:m.ny2*SC.cvsH},m.color,false));
@@ -2895,20 +2919,14 @@ function scScene(ctx,w,h,cx,cy,k,dpr,shadow,lupa){
     const b={x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH};
     scDrawRef(ctx,a,b);
   }
-  SC.items.forEach(m=>{
-    const p1={x:m.nx1*SC.cvsW,y:m.ny1*SC.cvsH};
-    const p2={x:m.nx2*SC.cvsW,y:m.ny2*SC.cvsH};
-    const off=Math.min(SC.cvsW,SC.cvsH)*.045;
-    scDimAnnot(ctx,p1.x,p1.y,p2.x,p2.y,{text:scFmtCm(m.cm)+' cm',color:m.color,sel:m.id===SC.sel,offset:off});
-  });
+  scDrawDims(ctx,SC.cvsW,SC.cvsH,{selId:SC.sel});
   if(SC.down&&SC.sp&&SC.cp){
     const ep=scSnap(SC.sp,SC.cp);
     if(SC.mode==='ref'||SC.mode==='ref-drawn'){scDrawRef(ctx,SC.sp,ep);}
     else if(SC.mode==='measure'){
       const pxD=scDist(SC.sp,ep);
       const cm=SC.nativePxPerCm>0?(pxD*SC.scaleFactor)/SC.nativePxPerCm:0;
-      const off=Math.min(SC.cvsW,SC.cvsH)*.045;
-      scDimAnnot(ctx,SC.sp.x,SC.sp.y,ep.x,ep.y,{text:cm>0?scFmtCm(cm)+' cm':'…',color:SC_COLORS[SC.nc%SC_COLORS.length],sel:false,offset:off,dashed:true});
+      scDimAnnot(ctx,SC.sp.x,SC.sp.y,ep.x,ep.y,{text:cm>0?scFmtCm(cm)+' cm':'…',color:SC_COLORS[SC.nc%SC_COLORS.length],sel:false,offset:scDimOffset(SC.cvsW,SC.cvsH),dashed:true});
     }
     [SC.sp,ep].forEach(p=>{ctx.save();ctx.fillStyle='#fff';ctx.strokeStyle='#3a4ad8';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,4.5,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();});
   }
@@ -2921,6 +2939,7 @@ function scScene(ctx,w,h,cx,cy,k,dpr,shadow,lupa){
     ctx.beginPath();ctx.arc(p.x,p.y,12,0,Math.PI*2);ctx.stroke();
     ctx.restore();
   }
+  scDrawGuideHandles(ctx,w,h,cx,cy,k,dpr);
   ctx.setTransform(1,0,0,1,0,0);
 }
 function scRender(){
@@ -2931,7 +2950,10 @@ function scRender(){
 }
 /* Guías: líneas de referencia que el usuario coloca a mano para ubicar dónde termina
    un diseño y empieza otro. Cruzan todo lo visible (no solo la foto) y no se cuentan
-   como medida ni salen en la imagen exportada — son un apoyo mientras se mide. */
+   como medida ni salen en la imagen exportada — son un apoyo mientras se mide.
+   Se agarran únicamente por su pestaña del borde (scDrawGuideHandles): si se pudieran
+   arrastrar desde la línea, cada guía dejaría una franja de toda la pantalla donde ya
+   no se puede medir, justo sobre el borde del diseño que es donde más se mide. */
 function scDrawGuides(ctx,cx,cy,k,w,h){
   if(!SC.guides.length)return;
   const hw=w/(2*k),hh=h/(2*k);
@@ -2950,53 +2972,128 @@ function scDrawGuides(ctx,cx,cy,k,w,h){
   });
   ctx.restore();
 }
+/* Lado de la pestaña de arrastre, en px de pantalla: no crece con el zoom y en el
+   celular es más grande para que se pueda tomar con el dedo. */
+function scGuideHandleSize(){return scIsMobile()?26:19;}
+/* Posición de la guía en píxeles de pantalla (eje perpendicular a la línea) */
+function scGuideScreen(g,v,w,h){
+  return g.type==='h'?(g.pos*SC.cvsH-v.cy)*v.k+h/2:(g.pos*SC.cvsW-v.cx)*v.k+w/2;
+}
+/* Pestañas pegadas al borde (izquierdo si es horizontal, superior si es vertical).
+   Se dibujan en coordenadas de pantalla, después de deshacer el zoom: así conservan
+   su tamaño y siguen alcanzables por más que se acerque la foto. */
+function scDrawGuideHandles(ctx,w,h,cx,cy,k,dpr){
+  if(!SC.guides.length)return;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const size=scGuideHandleSize(),v={cx,cy,k};
+  SC.guides.forEach(g=>{
+    const c=scGuideScreen(g,v,w,h),lim=g.type==='h'?h:w;
+    if(c<-size||c>lim+size)return; // fuera de cuadro
+    const active=g===SC.draggingGuide;
+    const x=g.type==='h'?0:c-size/2, y=g.type==='h'?c-size/2:0;
+    ctx.save();
+    ctx.fillStyle=active?'#0e7490':SC_GUIDE_COLOR;
+    ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur=5;ctx.shadowOffsetY=1;
+    scRoundRect(ctx,x,y,size,size,5);ctx.fill();
+    ctx.shadowColor='transparent';
+    // Dos rayitas: se lee como "esto se arrastra"
+    ctx.strokeStyle='rgba(255,255,255,.95)';ctx.lineWidth=1.5;ctx.lineCap='round';
+    const mx=x+size/2,my=y+size/2,r=size*.22;
+    ctx.beginPath();
+    if(g.type==='h'){
+      ctx.moveTo(mx-r,my-2.5);ctx.lineTo(mx+r,my-2.5);
+      ctx.moveTo(mx-r,my+2.5);ctx.lineTo(mx+r,my+2.5);
+    }else{
+      ctx.moveTo(mx-2.5,my-r);ctx.lineTo(mx-2.5,my+r);
+      ctx.moveTo(mx+2.5,my-r);ctx.lineTo(mx+2.5,my+r);
+    }
+    ctx.stroke();
+    ctx.restore();
+  });
+}
 function scDrawRef(ctx,a,b){
   ctx.save();ctx.strokeStyle='#f59e0b';ctx.lineWidth=2.5;ctx.setLineDash([8,5]);
   ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.setLineDash([]);
   [a,b].forEach(p=>{ctx.fillStyle='#f59e0b';ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fill();});
   ctx.restore();
 }
+/* Separación entre lo medido y su línea de cota. Antes era .045 del lado menor: con
+   varias medidas en la misma foto las cotas se iban lejos del elemento y se encimaban
+   entre ellas. */
+function scDimOffset(w,h){return Math.min(w,h)*.026;}
+/* Cota de dibujo técnico: líneas de extensión, línea de cota con flechas y la medida
+   escrita DENTRO de la línea, en el hueco del centro, en vez de una caja por encima.
+   Ocupa bastante menos y deja leer varias medidas juntas sin que se tapen.
+   s: escala de trazos y texto (>1 al exportar a la resolución nativa de la foto). */
 function scDimAnnot(ctx,x1,y1,x2,y2,opts){
-  // s: escala de los trazos y del texto (>1 al exportar a la resolución nativa de la foto)
   const{offset=50,color='#3a4ad8',sel=false,text='',dashed=false,s=1}=opts;
   const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy);if(len<4)return;
   const ux=dx/len,uy=dy/len,nx=-uy,ny=ux;
-  const col=sel?'#e03060':color,gap=7*s,over=7*s,aSize=Math.max(7*s,Math.min(14*s,len*.08));
+  const col=sel?'#e03060':color;
+  const gap=4*s,over=4*s,aSize=Math.max(5*s,Math.min(9*s,len*.055));
   const ax=x1+nx*offset,ay=y1+ny*offset,bx=x2+nx*offset,by=y2+ny*offset;
-  ctx.save();ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=(sel?2:1.5)*s;
-  if(dashed)ctx.setLineDash([5*s,4*s]);else ctx.setLineDash([]);
-  const ln=(x1,y1,x2,y2)=>{ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();};
+  ctx.save();
+  ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=(sel?1.7:1.2)*s;ctx.lineJoin='round';
+  const ln=(X1,Y1,X2,Y2)=>{ctx.beginPath();ctx.moveTo(X1,Y1);ctx.lineTo(X2,Y2);ctx.stroke();};
+  if(dashed)ctx.setLineDash([4*s,3*s]);else ctx.setLineDash([]);
   ln(x1+nx*gap,y1+ny*gap,ax+nx*over,ay+ny*over);
   ln(x2+nx*gap,y2+ny*gap,bx+nx*over,by+ny*over);
   ctx.setLineDash([]);
-  ln(ax+ux*aSize,ay+uy*aSize,bx-ux*aSize,by-uy*aSize);
-  const arr=(tx,ty,dx,dy)=>{const hw=aSize*.38;ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(tx-dx*aSize+nx*hw,ty-dy*aSize+ny*hw);ctx.lineTo(tx-dx*aSize-nx*hw,ty-dy*aSize-ny*hw);ctx.closePath();ctx.fill();};
+  // El texto va dentro: se mide primero para saber cuánto hueco dejarle a la línea
+  const fs=10.5*s,fuente='700 '+fs+'px Inter,Arial,sans-serif';
+  ctx.font=fuente;
+  const hueco=text?ctx.measureText(text).width/2+3.5*s:0;
+  const dentro=!!text&&hueco<len/2-aSize-2*s;
+  const mx=(ax+bx)/2,my=(ay+by)/2;
+  if(dentro){
+    ln(ax+ux*aSize,ay+uy*aSize,mx-ux*hueco,my-uy*hueco);
+    ln(mx+ux*hueco,my+uy*hueco,bx-ux*aSize,by-uy*aSize);
+  }else ln(ax+ux*aSize,ay+uy*aSize,bx-ux*aSize,by-uy*aSize);
+  const arr=(tx,ty,vx,vy)=>{const hw=aSize*.34;ctx.beginPath();ctx.moveTo(tx,ty);
+    ctx.lineTo(tx-vx*aSize+nx*hw,ty-vy*aSize+ny*hw);ctx.lineTo(tx-vx*aSize-nx*hw,ty-vy*aSize-ny*hw);
+    ctx.closePath();ctx.fill();};
   arr(ax,ay,ux,uy);arr(bx,by,-ux,-uy);
   if(text){
-    const mx=(ax+bx)/2,my=(ay+by)/2;
-    let angle=Math.atan2(uy,ux);if(angle>Math.PI/2||angle<-Math.PI/2)angle+=Math.PI;
-    ctx.save();ctx.translate(mx,my);ctx.rotate(angle);
-    ctx.font='700 '+(12*s)+'px Inter,Arial,sans-serif';
-    const tw=ctx.measureText(text).width,pad=6*s,bh=18*s,bw=tw+pad*2,rx=-bw/2,ry=-bh-3*s,rr=5*s;
-    ctx.fillStyle='rgba(255,255,255,.95)';ctx.strokeStyle=col;ctx.lineWidth=1.2*s;
-    ctx.beginPath();ctx.moveTo(rx+rr,ry);ctx.lineTo(rx+bw-rr,ry);ctx.arcTo(rx+bw,ry,rx+bw,ry+rr,rr);ctx.lineTo(rx+bw,ry+bh-rr);ctx.arcTo(rx+bw,ry+bh,rx+bw-rr,ry+bh,rr);ctx.lineTo(rx+rr,ry+bh);ctx.arcTo(rx,ry+bh,rx,ry+bh-rr,rr);ctx.lineTo(rx,ry+rr);ctx.arcTo(rx,ry,rx+rr,ry,rr);ctx.closePath();
-    ctx.fill();ctx.stroke();
-    ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(text,0,-4*s);
+    let ang=Math.atan2(uy,ux);if(ang>Math.PI/2||ang<-Math.PI/2)ang+=Math.PI;
+    ctx.save();ctx.translate(mx,my);ctx.rotate(ang);
+    ctx.font=fuente;ctx.textAlign='center';ctx.textBaseline='middle';
+    // Halo blanco en lugar de caja: se lee sobre cualquier fondo y tapa mucho menos el
+    // diseño. Si la medida es tan corta que el texto no cabe en la línea, va justo arriba.
+    const ty=dentro?0:-(fs*.72+2*s);
+    ctx.lineWidth=3*s;ctx.strokeStyle='rgba(255,255,255,.92)';ctx.lineJoin='round';ctx.miterLimit=2;
+    ctx.strokeText(text,0,ty);
+    ctx.fillStyle=col;ctx.fillText(text,0,ty);
     ctx.restore();
   }
   ctx.restore();
 }
+/* Cotas de todas las medidas sobre un lienzo de w×h. La comparten la vista del
+   escalador, la miniatura del cotizador y la imagen que se descarga, para que las
+   tres se vean igual y haya un solo lugar que ajustar. */
+function scDrawDims(ctx,w,h,opt){
+  const{s=1,selId=null,conLabel=false}=opt||{};
+  const off=scDimOffset(w,h);
+  SC.items.forEach(m=>{
+    scDimAnnot(ctx,m.nx1*w,m.ny1*h,m.nx2*w,m.ny2*h,{
+      text:scFmtCm(m.cm)+' cm'+(conLabel&&m.label?' · '+m.label:''),
+      color:m.color,sel:m.id===selId,offset:off,s});
+  });
+}
 
-function scGetXY(e){
-  const cvs=$('scalerCanvas'),rect=cvs.getBoundingClientRect();
+/* Punto del evento en píxeles de pantalla, relativo al lienzo */
+function scGetScreenXY(e){
+  const rect=$('scalerCanvas').getBoundingClientRect();
   let cx,cy;
   if(e.touches&&e.touches.length){cx=e.touches[0].clientX;cy=e.touches[0].clientY;}
   else if(e.changedTouches&&e.changedTouches.length){cx=e.changedTouches[0].clientX;cy=e.changedTouches[0].clientY;}
   else{cx=e.clientX;cy=e.clientY;}
+  return{x:cx-rect.left,y:cy-rect.top};
+}
+function scGetXY(e){
   // Inversa de la transformación de la vista: pantalla → coordenadas lógicas
-  const z=SC.z||1;
-  return{x:(cx-rect.left-SC.vw/2-SC.tx)/z+SC.cvsW/2,
-         y:(cy-rect.top-SC.vh/2-SC.ty)/z+SC.cvsH/2};
+  const p=scGetScreenXY(e),z=SC.z||1;
+  return{x:(p.x-SC.vw/2-SC.tx)/z+SC.cvsW/2,
+         y:(p.y-SC.vh/2-SC.ty)/z+SC.cvsH/2};
 }
 function scSnap(a,b){
   if(SC.mMode==='h')return{x:b.x,y:a.y};
@@ -3004,50 +3101,75 @@ function scSnap(a,b){
   return b;
 }
 const SC_TAPTHR=11; // px: distinguir un toque de un arrastre
-const SC_GUIDE_HITPX=10; // radio de toque de una guía, constante en pantalla sea cual sea el zoom
-function scGuideHit(pt){
-  if(!SC.guides||!SC.guides.length)return null;
-  const thr=SC_GUIDE_HITPX/(SC.z||1);
-  let best=null,bestD=thr;
-  SC.guides.forEach(g=>{
-    const d=g.type==='h'?Math.abs(pt.y-g.pos*SC.cvsH):Math.abs(pt.x-g.pos*SC.cvsW);
-    if(d<bestD){bestD=d;best=g;}
-  });
-  return best;
+/* Guía cuya pestaña del borde contiene el punto (en píxeles de pantalla). Solo la
+   pestaña responde: la línea en sí se ignora, para dejar toda la foto libre para medir. */
+function scGuideHandleHit(sp){
+  if(!SC.guides.length)return null;
+  const v=scViewCenter(),size=scGuideHandleSize(),half=size/2+3;
+  // De la última a la primera: gana la que se dibujó encima
+  for(let i=SC.guides.length-1;i>=0;i--){
+    const g=SC.guides[i],c=scGuideScreen(g,v,SC.vw,SC.vh);
+    if(g.type==='h'){if(sp.x<=size+4&&Math.abs(sp.y-c)<=half)return g;}
+    else if(sp.y<=size+4&&Math.abs(sp.x-c)<=half)return g;
+  }
+  return null;
 }
 function scDefaultCursor(){
   return(SC.mode==='ref'||SC.mode==='ref-drawn'||SC.mode==='measure')?'crosshair':'default';
 }
+/* Arrastre de una guía. Escucha en la ventana y no en el lienzo: si se suelta el dedo
+   fuera del lienzo (sobre los botones de zoom o el panel) el arrastre termina igual y
+   la guía no se queda pegada al puntero. */
+function scGuideDragStart(g,e){
+  SC.draggingGuide=g;
+  // Distancia entre el punto agarrado y la guía: se conserva durante todo el arrastre,
+  // así la guía no pega un salto cuando la pestaña se toma por la orilla.
+  const p0=scGetXY(e);
+  const d0=g.type==='h'?g.pos*SC.cvsH-p0.y:g.pos*SC.cvsW-p0.x;
+  const mover=ev=>{
+    if(ev.cancelable)ev.preventDefault();
+    const pt=scGetXY(ev);
+    const v=g.type==='h'?(pt.y+d0)/SC.cvsH:(pt.x+d0)/SC.cvsW;
+    g.pos=Math.min(1,Math.max(0,v));
+    scRender();
+  };
+  const soltar=()=>{
+    window.removeEventListener('mousemove',mover);
+    window.removeEventListener('mouseup',soltar);
+    window.removeEventListener('touchmove',mover);
+    window.removeEventListener('touchend',soltar);
+    window.removeEventListener('touchcancel',soltar);
+    SC.draggingGuide=null;scRender();
+  };
+  window.addEventListener('mousemove',mover);
+  window.addEventListener('mouseup',soltar);
+  window.addEventListener('touchmove',mover,{passive:false});
+  window.addEventListener('touchend',soltar);
+  window.addEventListener('touchcancel',soltar);
+  scRender();
+}
 function scDown(e){
   if(e.touches&&e.touches.length>=2){scGestureStart(e);return;}
   if(SC.gesture)return;
-  const pt=scGetXY(e);
-  // Las guías se pueden arrastrar aunque no haya ninguna herramienta activa, salvo a
-  // mitad de trazar una línea (para no robarle el segundo toque a esa medición/referencia).
-  if(SC.img&&!SC.building){
-    const g=scGuideHit(pt);
-    if(g){e.preventDefault();SC.draggingGuide=g;scRender();return;}
+  // La pestaña de una guía gana al resto: es un objetivo pequeño y del borde, no estorba
+  if(SC.img){
+    const g=scGuideHandleHit(scGetScreenXY(e));
+    if(g){e.preventDefault();scGuideDragStart(g,e);return;}
   }
   if(SC.mode!=='ref'&&SC.mode!=='ref-drawn'&&SC.mode!=='measure')return;
   e.preventDefault();
-  SC.down=true;SC.downPt=pt;SC.moved=false;
+  SC.down=true;SC.downPt=scGetXY(e);SC.moved=false;
   SC.sp=SC.building?SC.tapA:SC.downPt; // ancla de la previsualización
-  SC.cp={...pt};
+  SC.cp={...SC.downPt};
   scRender();scLoupe(e);
 }
 function scMove(e){
   if(SC.gesture){scGestureMove(e);return;}
-  if(SC.draggingGuide){
-    e.preventDefault();
-    const pt=scGetXY(e),g=SC.draggingGuide;
-    g.pos=Math.min(1,Math.max(0,g.type==='h'?pt.y/SC.cvsH:pt.x/SC.cvsW));
-    scUpdateGuideList();scRender();
-    return;
-  }
+  if(SC.draggingGuide)return; // lo lleva el arrastre registrado en la ventana
   if(!SC.down){
-    // Sin botón/dedo abajo: solo cambia el cursor si el puntero (mouse) queda sobre una guía
+    // Sin botón abajo: el cursor avisa cuándo el ratón está sobre una pestaña de guía
     if(!e.touches&&SC.img){
-      const hov=!SC.building?scGuideHit(scGetXY(e)):null;
+      const hov=scGuideHandleHit(scGetScreenXY(e));
       $('scalerCanvas').style.cursor=hov?(hov.type==='h'?'row-resize':'col-resize'):scDefaultCursor();
     }
     return;
@@ -3060,7 +3182,7 @@ function scMove(e){
 function scUp(e){
   // Al soltar el pellizco se rehace el lienzo con la resolución que toca al nuevo zoom
   if(SC.gesture){if(!e.touches||e.touches.length===0)SC.gesture=false;scHideLoupe();return;}
-  if(SC.draggingGuide){SC.draggingGuide=null;scUpdateGuideList();scRender();return;}
+  if(SC.draggingGuide)return;
   scHideLoupe();
   if(!SC.down){return;}
   e.preventDefault();SC.down=false;
@@ -3083,7 +3205,7 @@ function scUp(e){
   SC.sp=null;SC.cp=null;SC.downPt=null;SC.moved=false;scRender();
 }
 function scLeave(e){
-  if(SC.draggingGuide){SC.draggingGuide=null;scUpdateGuideList();scRender();return;}
+  if(SC.draggingGuide)return; // el arrastre sigue vivo aunque el puntero salga del lienzo
   if(SC.down){SC.cp=scGetXY(e);if(scDist(SC.downPt,SC.cp)>SC_TAPTHR)SC.moved=true;scRender();}
   scHideLoupe();
 }
@@ -3135,16 +3257,24 @@ function scSetMode(m){
   SC.mode=m;SC.down=false;SC.sp=null;SC.cp=null;SC.downPt=null;SC.moved=false;SC.building=false;SC.tapA=null;
   ['sc-btn-ref','sc-btn-libre','sc-btn-h','sc-btn-v'].forEach(id=>$(id).classList.remove('active'));
   const cvs=$('scalerCanvas');
-  if(m==='ref'||m==='ref-drawn'){
-    $('sc-btn-ref').classList.add('active');
-    scSetHint('Toca un extremo y luego el otro sobre un elemento conocido (o arrástralo) — puerta 200 cm, persona 175 cm…');
-  }else if(m==='measure'){
+  if(m==='ref'||m==='ref-drawn')$('sc-btn-ref').classList.add('active');
+  else if(m==='measure'){
     const mm={'libre':'sc-btn-libre','h':'sc-btn-h','v':'sc-btn-v'};
     $(mm[SC.mMode]||'sc-btn-libre').classList.add('active');
-    const mn={'libre':'Libre · cualquier ángulo','h':'Horizontal','v':'Vertical'};
-    scSetHint('Modo: '+mn[SC.mMode]+' — toca los dos extremos del elemento (o arrastra)');
-  }else{scSetHint('');}
+  }
+  scSetHint(scHintModo());
   cvs.style.cursor=scDefaultCursor();
+}
+/* Indicación fija de la herramienta activa. En un solo lugar para poder volver a ella
+   cuando un aviso pasajero (por ejemplo el de una guía recién puesta) termina. */
+function scHintModo(){
+  if(SC.mode==='ref'||SC.mode==='ref-drawn')
+    return 'Toca un extremo y luego el otro sobre un elemento conocido (o arrástralo) — puerta 200 cm, persona 175 cm…';
+  if(SC.mode==='measure'){
+    const mn={'libre':'Libre · cualquier ángulo','h':'Horizontal','v':'Vertical'};
+    return 'Modo: '+mn[SC.mMode]+' — toca los dos extremos del elemento (o arrastra)';
+  }
+  return '';
 }
 function scSetMeasMode(m){
   if(!SC.img)return;
@@ -3154,44 +3284,52 @@ function scSetMeasMode(m){
 function scEnableTools(v){
   ['sc-btn-ref','sc-btn-libre','sc-btn-h','sc-btn-v','sc-btn-calib','sc-btn-guide-h','sc-btn-guide-v'].forEach(id=>$(id).disabled=!v);
 }
-function scSetHint(txt){
+let _scHintT=null;
+/* tempMs: aviso pasajero. Al terminar vuelve la indicación de la herramienta activa,
+   sin tocar el estado (a media medición no se pierde el primer punto ya colocado). */
+function scSetHint(txt,tempMs){
   const bar=$('sp-hint-bar');
+  clearTimeout(_scHintT);
   if(txt){bar.textContent=txt;bar.classList.remove('hide');}else bar.classList.add('hide');
+  if(txt&&tempMs)_scHintT=setTimeout(()=>scSetHint(scHintModo()),tempMs);
 }
 /* ----- Guías ----- */
+/* Posiciones candidatas para una guía nueva, del centro hacia afuera. Se elige la
+   primera libre en vez de escalonar a ciegas: así una guía nueva nunca nace encima de
+   otra, ni siquiera después de haber movido las anteriores. */
+const SC_GUIDE_SLOTS=[.5,.35,.65,.25,.75,.15,.85,.42,.58,.3,.7,.2,.8,.1,.9];
 function scAddGuide(type){
   if(!SC.img)return;
-  // Para que varias guías nuevas seguidas no queden todas apiladas al centro
-  const same=SC.guides.filter(g=>g.type===type).length;
-  const step=Math.ceil(same/2)*.08*(same%2?-1:1);
-  const pos=Math.min(.92,Math.max(.08,.5+step));
-  SC.guides.push({id:SC.gid++,type,pos});
+  const usadas=SC.guides.filter(g=>g.type===type).map(g=>g.pos);
+  const pos=SC_GUIDE_SLOTS.find(p=>usadas.every(u=>Math.abs(u-p)>.05));
+  SC.guides.push({id:SC.gid++,type,pos:pos===undefined?.5:pos});
   scUpdateGuideList();scRender();
-  scSetHint((type==='h'?'Guía horizontal':'Guía vertical')+' agregada — arrástrala hasta el borde del diseño');
+  scSetHint('Guía '+(type==='h'?'horizontal':'vertical')+' agregada — muévela arrastrando su pestaña '+(type==='h'?'del borde izquierdo':'del borde superior'),4000);
 }
 function scDelGuide(id){
   SC.guides=SC.guides.filter(g=>g.id!==id);
   if(SC.draggingGuide&&SC.draggingGuide.id===id)SC.draggingGuide=null;
   scUpdateGuideList();scRender();
 }
-function scGuidePosLabel(g){
-  if(SC.nativePxPerCm>0){
-    const pxLogical=g.pos*(g.type==='h'?SC.cvsH:SC.cvsW);
-    const cm=(pxLogical*SC.scaleFactor)/SC.nativePxPerCm;
-    return scFmtCm(cm)+' cm';
-  }
-  return Math.round(g.pos*100)+'%';
+function scClearGuides(){
+  if(!SC.guides.length)return;
+  SC.guides=[];SC.draggingGuide=null;
+  scUpdateGuideList();scRender();
 }
 function scUpdateGuideList(){
   const list=$('sc-guides-list');if(!list)return;
-  if(!SC.guides.length){list.innerHTML='';return;}
-  list.innerHTML=SC.guides.map(g=>`
-    <div class="sp-gitem">
+  const clear=$('sc-guides-clear');
+  if(clear)clear.style.display=SC.guides.length>1?'':'none';
+  // Sin medida: la guía solo marca dónde parte el diseño, las cotas son las que miden
+  let h=0,v=0;
+  list.innerHTML=SC.guides.map(g=>{
+    const n=g.type==='h'?++h:++v;
+    return `<div class="sp-gitem">
       <span class="ico">${g.type==='h'?'↔':'↕'}</span>
-      <span class="lbl">${g.type==='h'?'Horizontal':'Vertical'}</span>
-      <span class="pos">${scGuidePosLabel(g)}</span>
+      <span class="lbl">${g.type==='h'?'Horizontal':'Vertical'} ${n}</span>
       <button class="sp-ibtn" onclick="scDelGuide(${g.id})" title="Quitar guía">×</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 function scUpdateList(){
   const list=$('sc-medidas-list');
@@ -3302,11 +3440,7 @@ function scPaintMiniPreview(){
   const ctx=cvs.getContext('2d');
   ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
   ctx.drawImage(SC.img,0,0,w,h);
-  const s=Math.max(1,dpr*1.15);
-  SC.items.forEach(m=>{
-    const p1={x:m.nx1*w,y:m.ny1*h},p2={x:m.nx2*w,y:m.ny2*h};
-    scDimAnnot(ctx,p1.x,p1.y,p2.x,p2.y,{text:scFmtCm(m.cm)+' cm'+(m.label?' · '+m.label:''),color:m.color,sel:false,offset:Math.min(w,h)*.045,s});
-  });
+  scDrawDims(ctx,w,h,{s:Math.max(1,dpr*1.15),conLabel:true});
 }
 function scExportImg(){
   if(!SC.img||!SC.items.length)return;
@@ -3314,10 +3448,7 @@ function scExportImg(){
   const octx=oc.getContext('2d');octx.drawImage(SC.img,0,0);
   // Las cotas se dibujan a escala de la foto original, si no quedan diminutas en fotos grandes
   const s=Math.max(1,Math.min(6,Math.min(SC.imgW,SC.imgH)/620));
-  SC.items.forEach(m=>{
-    const p1={x:m.nx1*SC.imgW,y:m.ny1*SC.imgH},p2={x:m.nx2*SC.imgW,y:m.ny2*SC.imgH};
-    scDimAnnot(octx,p1.x,p1.y,p2.x,p2.y,{text:scFmtCm(m.cm)+' cm'+(m.label?' · '+m.label:''),color:m.color,sel:false,offset:Math.min(SC.imgW,SC.imgH)*.045,s});
-  });
+  scDrawDims(octx,SC.imgW,SC.imgH,{s,conLabel:true});
   const a=document.createElement('a');a.href=oc.toDataURL('image/png');a.download='medidas-al3d.png';a.click();
   toast('Imagen descargada','ok');
 }
