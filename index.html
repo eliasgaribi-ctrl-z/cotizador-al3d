@@ -228,6 +228,9 @@ textarea{resize:vertical;min-height:46px}
    deslizarse. Con una transición normal de visibility el botón "Deshacer" tardaba
    en volverse tocable. */
 .toast.show{transform:translateX(-50%) translateY(0);visibility:visible;transition:transform .3s cubic-bezier(.2,.8,.2,1),visibility 0s linear 0s}
+/* Mientras se va deslizando sigue visible 0.3 s y se comía el toque del botón que
+   quedaba debajo: ya retirado, no estorba. */
+.toast:not(.show){pointer-events:none}
 /* Solo se animan color y borde: con "transition:.13s" (que aplica a todas las
    propiedades) el botón heredaba la animación de visibility del aviso y tardaba
    en volverse tocable justo cuando el usuario quiere apretarlo. */
@@ -376,7 +379,9 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .prog-track{height:7px;background:var(--line);border-radius:10px;overflow:hidden}
 #prog-bar{height:100%;background:linear-gradient(90deg,#f59e0b,#fb923c);border-radius:10px;transition:width .5s cubic-bezier(.22,1,.36,1),background .5s;width:0%}
 /* ----- Escalador Pro (modal pantalla completa) ----- */
-.scaler-modal-bg{position:fixed;inset:0;background:rgba(12,15,38,.75);display:none;z-index:55;flex-direction:column;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);overscroll-behavior:contain}
+/* 100dvh además de inset: en el celular la barra de direcciones cambia de alto y con
+   solo inset:0 el pie del panel quedaba fuera de la pantalla, sin manera de volver. */
+.scaler-modal-bg{position:fixed;inset:0;height:100dvh;background:rgba(12,15,38,.75);display:none;z-index:55;flex-direction:column;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);overscroll-behavior:contain}
 .scaler-modal-bg.show{display:flex}
 .sp-topbar{background:rgba(255,255,255,.96);backdrop-filter:blur(14px);border-bottom:1px solid rgba(224,228,240,.7);flex-shrink:0;padding:0 20px;height:56px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 8px rgba(23,29,74,.06)}
 .sp-main{flex:1;display:flex;overflow:hidden;min-height:0}
@@ -387,8 +392,10 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 #scalerCanvas{position:absolute;inset:0;display:block;cursor:crosshair;touch-action:none;user-select:none;-webkit-user-select:none}
 .sp-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;pointer-events:none}
 .sp-overlay.hide{display:none}
-.sp-hint-bar{position:absolute;bottom:0;left:0;right:0;background:rgba(17,22,46,.78);color:rgba(255,255,255,.9);font-size:12.5px;font-weight:600;padding:10px 20px;text-align:center;backdrop-filter:blur(8px);transition:opacity .2s}
+.sp-hint-bar{position:absolute;bottom:0;left:0;right:0;background:rgba(17,22,46,.78);color:rgba(255,255,255,.9);font-size:12.5px;font-weight:600;padding:10px 20px;text-align:center;backdrop-filter:blur(8px);transition:opacity .2s;display:flex;align-items:center;justify-content:center;gap:12px}
 .sp-hint-bar.hide{opacity:0;pointer-events:none}
+.sp-hint-act{border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.14);color:#fff;border-radius:9px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap}
+.sp-hint-act:active{background:rgba(255,255,255,.3)}
 .sp-side{width:306px;flex-shrink:0;background:#fff;border-left:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;box-shadow:-2px 0 12px rgba(23,29,74,.04)}
 .sp-sec{border-bottom:1px solid var(--line)}
 .sp-sec-h{padding:16px 20px 0}
@@ -412,6 +419,9 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-addall:hover{background:#e5e9ff}
 .sp-addall:disabled{opacity:.45;cursor:default}
 .sp-addall-note{margin:0 14px 10px;font-size:11.5px;color:var(--green);font-weight:700;text-align:center}
+/* Volver al cotizador desde el pie del panel: en el celular es el botón que se queda
+   pegado abajo, siempre a la vista aunque la lista de medidas crezca. */
+.sp-back-m{display:none}
 .sp-ibtn{border:none;background:none;color:#cdd2e0;font-size:15px;cursor:pointer;padding:3px 6px;border-radius:6px;line-height:1;transition:.12s}
 .sp-ibtn:hover{color:var(--red);background:var(--red-bg)}
 /* ----- Guías del escalador ----- */
@@ -432,10 +442,18 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-tb-btn:hover{border-color:var(--brand);color:var(--brand);background:var(--soft)}
 .sp-tb-btn.active{background:var(--brand-grd);color:#fff;border-color:var(--brand);box-shadow:0 2px 10px rgba(58,74,216,.28)}
 .sp-tb-btn:disabled{opacity:.42;cursor:not-allowed;pointer-events:none}
+/* Salida del escalador. En el celular deja de ser una × suelta y se vuelve un botón
+   con texto: es la manera obvia de regresar al cotizador. */
+.sp-close{border:none;background:none;color:var(--muted);cursor:pointer;line-height:1;width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;gap:6px;flex-shrink:0;transition:.12s;font-family:inherit}
+.sp-close:hover{background:var(--soft);color:var(--ink)}
+.sp-close .ico{font-size:22px;line-height:1}
+.sp-close .back,.sp-close .lbl{display:none}
 .btn-scaler-open{display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 14px;border:1.5px solid #15a06a;border-radius:var(--r-sm);background:#fff;color:#1c6e3d;font-size:12.5px;font-weight:700;cursor:pointer;transition:.16s;white-space:nowrap}
 .btn-scaler-open:hover{background:#e8f9ee;border-color:#1c6e3d}
 .scaler-ai-row{display:flex;gap:8px;margin-bottom:14px}
 .scaler-ai-row .ai-btn{flex:1;margin-bottom:0}
+.sc-flash{animation:scFlash 1.5s ease-out 1}
+@keyframes scFlash{0%,55%{box-shadow:0 0 0 3px rgba(58,74,216,.35);border-radius:var(--r-sm)}100%{box-shadow:0 0 0 3px rgba(58,74,216,0);border-radius:var(--r-sm)}}
 .ref-known{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:8px}
 .ref-known-title{font-size:11px;font-weight:700;color:var(--muted);margin-right:2px;white-space:nowrap}
 .ref-known button{padding:5px 9px;border:1.5px solid var(--line);border-radius:8px;background:#fff;font-size:11.5px;font-weight:600;cursor:pointer;color:var(--ink);transition:.12s;white-space:nowrap;font-family:inherit}
@@ -447,22 +465,57 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-loupe{position:fixed;width:132px;height:132px;border-radius:50%;border:3px solid rgba(255,255,255,.92);box-shadow:0 6px 26px rgba(0,0,0,.45);display:none;pointer-events:none;z-index:60;overflow:hidden;background:#181c2e}
 .sp-loupe canvas{display:block}
 @media(max-width:760px){
-  /* Barra de herramientas: permitir salto de línea para que nada quede fuera de pantalla */
+  /* Barra de herramientas: permitir salto de línea para que nada quede fuera de pantalla.
+     El orden pone marca, estado y salida en el primer renglón —así el botón de volver
+     al cotizador queda siempre arriba a la derecha— y las herramientas debajo. */
   .sp-topbar{height:auto;min-height:52px;flex-wrap:wrap;padding:8px 10px;gap:7px;row-gap:8px}
-  .sp-topbar .sp-sep{display:none}
+  .sp-topbar .sp-sep,.sp-topbar .sp-spacer{display:none}
   .sp-brand-sub{display:none}
-  .sp-tb-btn{min-height:42px;padding:9px 13px}
-  .tool-seg{width:100%}
+  /* El logotipo se va: con él, "Sin calibrar" y la salida no cabían en el mismo
+     renglón y la barra se comía cuatro filas de pantalla. */
+  .sp-topbar .brand{order:1;flex:1 1 auto;min-width:0;gap:0}
+  .sp-topbar .brand .logoslot{display:none}
+  .sp-topbar .brand>div{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sp-calib-badge{order:2}
+  .sp-close{order:3}
+  .sp-tb-btn{order:4;min-height:42px;padding:9px 13px}
+  .tool-seg{order:5;width:100%}
   .tool-seg button{flex:1;min-height:40px;padding:9px 8px}
-  /* Panel inferior: hoja deslizable, todo el contenido alcanzable */
+  /* Panel inferior: hoja deslizable, todo el contenido alcanzable.
+     Los altos van en % del área disponible y no en vh: con vh la suma de lienzo y panel
+     se pasaba de la pantalla —la barra de herramientas también ocupa— y .sp-main recorta,
+     así que el pie del panel (con el botón de volver) quedaba inalcanzable. */
   .sp-main{flex-direction:column}
-  .sp-canvas-area{flex:1 1 auto;min-height:42vh}
-  .sp-side{width:100%;height:auto;max-height:47vh;flex-shrink:0;border-left:none;border-top:1px solid var(--line);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+  .sp-canvas-area{flex:1 1 auto;min-height:120px}
+  .sp-side{width:100%;height:auto;max-height:54%;flex:0 0 auto;border-left:none;border-top:1px solid var(--line);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
   .sp-mlist{flex:none;overflow:visible;min-height:0}
   .sp-side .btn{min-height:46px}
-  .sp-ibtn{font-size:20px;padding:7px 11px}
+  .sp-ibtn{font-size:19px;padding:0;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:10px;color:var(--muted)}
+  .sp-mitem{padding:13px 11px}
+  .sp-mitem-add{min-height:44px;font-size:13px}
+  .sp-mitem-label{padding:9px 0;font-size:13px}
+  .ref-known button{min-height:40px;padding:8px 12px;font-size:12.5px}
   .sp-zoom button{width:46px;height:46px}
-  .sp-close{width:44px!important;height:44px!important;font-size:26px!important}
+  .sp-close{width:auto;height:44px;padding:0 12px;border:1.5px solid var(--line);background:#fff;color:var(--ink)}
+  .sp-close .ico{display:none}
+  .sp-close .back{display:inline;font-size:19px;line-height:1}
+  .sp-close .lbl{display:inline;font-size:13px;font-weight:800}
+  /* Acciones pegadas al pie del panel: agregar las medidas y volver al cotizador
+     siguen a la vista por más medidas que haya en la lista. */
+  .sp-actions{order:9;position:sticky;bottom:0;z-index:4;background:#fff;border-top:1px solid var(--line);box-shadow:0 -7px 16px rgba(23,29,74,.08);padding:9px 14px 10px;margin-top:4px}
+  .sp-actions .sp-addall{margin:0;width:100%;min-height:46px}
+  .sp-actions .sp-addall-note{margin:8px 0 0}
+  .sp-back-m{display:block;width:100%;min-height:46px;margin-top:8px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff;color:var(--brand-strong);font-size:13px;font-weight:800;font-family:inherit;cursor:pointer}
+  .sp-back-m:active{background:var(--soft-2)}
+  /* El aviso emergente se sube por encima de esa barra: tapaba justo el botón de volver */
+  .scaler-modal-bg.show+.toast{bottom:calc(26px + 104px)}
+}
+/* Celular acostado: el panel a un lado, si no el lienzo se queda sin alto */
+@media(max-width:900px) and (max-height:520px) and (orientation:landscape){
+  .sp-main{flex-direction:row}
+  .sp-canvas-area{min-height:0}
+  .sp-side{width:46%;max-width:340px;height:100%;max-height:none;border-top:none;border-left:1px solid var(--line)}
+  .scaler-modal-bg.show+.toast{bottom:16px}
 }
 /* ----- Visibilidad en PDF / modo edición ----- */
 .pdf-vis{border:none;background:none;font-size:15px;cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1;transition:.12s;color:var(--brand)}
@@ -702,10 +755,10 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <button id="sc-btn-h" onclick="scSetMeasMode('h')" disabled>↔ Horizontal</button>
       <button id="sc-btn-v" onclick="scSetMeasMode('v')" disabled>↕ Vertical</button>
     </div>
-    <div style="flex:1"></div>
+    <div class="sp-spacer" style="flex:1"></div>
     <span class="sp-calib-badge" id="sc-calib-badge"><span class="dot"></span><span id="sc-calib-txt">Sin calibrar</span></span>
     <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
-    <button class="sp-close" onclick="cerrarScaler()" style="border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.12s" onmouseover="this.style.background='var(--soft)'" onmouseout="this.style.background='none'" title="Volver al cotizador">×</button>
+    <button class="sp-close" onclick="cerrarScaler()" title="Volver al cotizador" aria-label="Volver al cotizador"><span class="ico" aria-hidden="true">×</span><span class="back" aria-hidden="true">←</span><span class="lbl">Cotizador</span></button>
   </div>
   <!-- Main -->
   <div class="sp-main">
@@ -714,7 +767,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       ondrop="scOnDrop(event)" ondragover="event.preventDefault();this.style.outline='3px dashed var(--brand)'" ondragleave="this.style.outline=''">
       <canvas id="scalerCanvas"
         onmousedown="scDown(event)" onmousemove="scMove(event)" onmouseup="scUp(event)" onmouseleave="scLeave(event)"
-        ontouchstart="scDown(event)" ontouchmove="scMove(event)" ontouchend="scUp(event)">
+        ontouchstart="scDown(event)" ontouchmove="scMove(event)" ontouchend="scUp(event)" ontouchcancel="scUp(event)">
       </canvas>
       <div class="sp-overlay" id="sp-overlay">
         <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(58,74,216,.4))">📐</div>
@@ -736,10 +789,10 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <div class="sp-sec">
         <div class="sp-sec-h"><h3>Calibración de escala</h3></div>
         <div class="sp-sec-b">
-          <p style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:13px">Toca un extremo y luego el otro sobre un elemento de medida conocida (o arrástralo) para fijar la escala. Puedes acercar con dos dedos entre un punto y otro.</p>
+          <p id="sc-calib-help" style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:13px">Toca un extremo y luego el otro sobre un elemento de medida conocida. Sin soltar el dedo puedes deslizarlo hasta dejar el punto donde va —la lupa enseña qué hay debajo— y después arrastrar sus extremos para corregirla.</p>
           <button class="btn btn-pri" id="sc-btn-calib" onclick="scSetMode('ref')" disabled>1 · Marcar referencia (2 puntos)</button>
           <div id="sc-ref-confirm-row" style="display:none;margin-top:13px">
-            <div class="fld"><label>¿Cuánto mide en cm?</label><input id="sc-ref-cm-input" type="number" min="0.1" step="0.1" placeholder="Ej. 175"></div>
+            <div class="fld"><label>¿Cuánto mide en cm?</label><input id="sc-ref-cm-input" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="Ej. 175"></div>
             <div class="ref-known">
               <span class="ref-known-title">Rápidos:</span>
               <button onclick="$('sc-ref-cm-input').value=200">🚪 200</button>
@@ -777,8 +830,11 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
         <span style="font-size:11px;font-weight:700;background:var(--soft-2);color:var(--brand);padding:2px 10px;border-radius:20px;border:1px solid rgba(58,74,216,.12)" id="sc-mcount">0</span>
       </div>
       <div class="sp-mlist" id="sc-medidas-list"></div>
-      <button class="sp-addall" id="sc-btn-addall" onclick="scUsarTodas()" disabled>→ Agregar todas las medidas como partidas</button>
-      <div class="sp-addall-note" id="sc-addall-note" style="display:none"></div>
+      <div class="sp-actions">
+        <button class="sp-addall" id="sc-btn-addall" onclick="scUsarTodas()" disabled>→ Agregar todas las medidas como partidas</button>
+        <div class="sp-addall-note" id="sc-addall-note" style="display:none"></div>
+        <button class="sp-back-m" onclick="cerrarScaler()">← Volver al cotizador</button>
+      </div>
       <!-- Exportar -->
       <div class="sp-sec">
         <div class="sp-sec-h"><h3>Exportar</h3></div>
@@ -2599,8 +2655,8 @@ const SC={
   img:null, imgW:0, imgH:0, cvsW:0, cvsH:0, scaleFactor:1,
   mode:'idle', mMode:'libre',
   refLine:null, refCm:0, nativePxPerCm:0,
-  down:false, sp:null, cp:null, downPt:null, moved:false,
-  tapA:null, building:false,
+  down:false, sp:null, cp:null, downPt:null, moved:false, isTouch:false,
+  tapA:null, building:false, dragH:null, hist:false,
   items:[], sel:null, nid:1, nc:0,
   guides:[], gid:1, draggingGuide:null, previewCollapsed:false,
   snapOn:true, snapH:null, snapV:null,
@@ -2631,10 +2687,25 @@ function abrirScaler(){
   $('sp-zoom').style.display=SC.img?'flex':'none';
   if(!SC.img) $('sp-overlay').classList.remove('hide');
   $('scalermodal').classList.add('show');
+  // Una entrada de historial por el escalador: en el celular el gesto natural para
+  // regresar es el botón "atrás", y sin esto se salía de la cotización entera.
+  if(!SC.hist){ try{history.pushState({sc:1},'');SC.hist=true;}catch(_){} }
   if(SC.img){setTimeout(()=>{scFitCanvas();scRender();},60);}
   scUpdateList();
 }
-function cerrarScaler(){$('scalermodal').classList.remove('show');}
+function scOcultarScaler(){
+  $('scalermodal').classList.remove('show');
+  scHideLoupe();
+}
+function cerrarScaler(){
+  scOcultarScaler();
+  if(SC.hist){ SC.hist=false; try{history.back();}catch(_){} }
+}
+window.addEventListener('popstate',()=>{
+  if(!$('scalermodal').classList.contains('show'))return;
+  SC.hist=false;            // la entrada ya la consumió el "atrás" del navegador
+  scOcultarScaler();
+});
 
 function cargarImagenScaler(input){
   const f=input.files[0];if(!f)return;
@@ -2658,8 +2729,8 @@ function scLoadImgSrc(src,name){
     if(SC.objUrl&&SC.objUrl!==src){try{URL.revokeObjectURL(SC.objUrl);}catch(_){}}
     SC.objUrl=/^blob:/.test(src)?src:null;
     scResetCalib(false);
-    SC.items=[];SC.sel=null;SC.nid=1;SC.nc=0;
-    SC.guides=[];SC.gid=1;SC.draggingGuide=null;
+    SC.items=[];SC.sel=null;SC.nid=1;SC.nc=0;_scBorrada=null;
+    SC.guides=[];SC.gid=1;SC.draggingGuide=null;SC.dragH=null;
     $('sp-overlay').classList.add('hide');
     $('sp-zoom').style.display='flex';
     scEnableTools(true);scFitCanvas();scRender();scUpdateList();scUpdateGuideList();
@@ -2817,6 +2888,10 @@ function scZoomBy(f){
   scRender();
 }
 function scGestureStart(e){
+  // Si se estaba moviendo un extremo o una guía, se cierra esa acción: al soltar el
+  // pellizco ya no debe seguir pegada al dedo.
+  if(SC.dragH)scEndHandle();
+  SC.draggingGuide=null;
   SC.gesture=true;SC.down=false;SC.sp=null;SC.cp=null;scHideLoupe();scRender();
   const t=e.touches;
   SC._gd=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY)||1;
@@ -2840,9 +2915,22 @@ function scGestureMove(e){
 }
 /* ----- Lupa (para ver bajo el dedo al trazar) ----- */
 const SC_LOUPE=132;
+/* Dónde se centra la lupa: en el punto que va a quedar —el extremo que se está
+   moviendo, o el punto ya ajustado al eje— y no en el dedo, que es lo que tapa. */
+function scLoupePt(){
+  const h=SC.dragH;
+  if(h){
+    if(h.kind==='ref'&&SC.refLine)
+      return h.end===1?{x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH}:{x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH};
+    if(h.item)
+      return h.end===1?{x:h.item.nx1*SC.cvsW,y:h.item.ny1*SC.cvsH}:{x:h.item.nx2*SC.cvsW,y:h.item.ny2*SC.cvsH};
+  }
+  if(SC.down&&SC.sp&&SC.cp)return scSnap(SC.sp,SC.cp);
+  return SC.cp||SC.sp;
+}
 function scLoupe(e){
   if(!e.touches||!e.touches.length)return;
-  const src=SC.cp||SC.sp;if(!src)return;
+  const src=scLoupePt();if(!src)return;
   const lp=$('sc-loupe'),size=SC_LOUPE,mag=2.8,t=e.touches[0];
   let lx=t.clientX-size/2,ly=t.clientY-size-30;
   if(ly<8)ly=t.clientY+34;
@@ -2920,18 +3008,42 @@ function scScene(ctx,w,h,cx,cy,k,dpr,shadow,lupa){
   if(SC.refLine){
     const a={x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH};
     const b={x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH};
-    scDrawRef(ctx,a,b);
+    scDrawRef(ctx,a,b,k);
   }
   scDrawDims(ctx,SC.cvsW,SC.cvsH,{selId:SC.sel});
-  if(SC.down&&SC.sp&&SC.cp){
-    const ep=scSnap(SC.sp,SC.cp);
-    if(SC.mode==='ref'||SC.mode==='ref-drawn'){scDrawRef(ctx,SC.sp,ep);}
-    else if(SC.mode==='measure'){
-      const pxD=scDist(SC.sp,ep);
-      const cm=SC.nativePxPerCm>0?(pxD*SC.scaleFactor)/SC.nativePxPerCm:0;
-      scDimAnnot(ctx,SC.sp.x,SC.sp.y,ep.x,ep.y,{text:cm>0?scFmtCm(cm)+' cm':'…',color:SC_COLORS[SC.nc%SC_COLORS.length],sel:false,offset:scDimOffset(SC.cvsW,SC.cvsH),dashed:true});
+  // Agarraderas: los extremos de cada medida se ven como puntos para que se note que
+  // se pueden mover. Van a tamaño de pantalla (÷k) para no crecer con el acercamiento.
+  if(!SC.down){
+    SC.items.forEach(m=>{
+      const s=m.id===SC.sel, r=(s?6:4.5)/k;
+      [[m.nx1,m.ny1],[m.nx2,m.ny2]].forEach(([nx,ny])=>{
+        const arr=SC.dragH&&SC.dragH.kind==='item'&&SC.dragH.item===m;
+        scPunto(ctx,{x:nx*SC.cvsW,y:ny*SC.cvsH},m.color,r,k,arr||s);
+      });
+    });
+  }
+  if(SC.down&&SC.cp){
+    const anchor=SC.sp;
+    const ep=anchor?scSnap(anchor,SC.cp):SC.cp;
+    if(anchor){
+      if(SC.mode==='ref'||SC.mode==='ref-drawn'){scDrawRef(ctx,anchor,ep,k);}
+      else if(SC.mode==='measure'){
+        const pxD=scDist(anchor,ep);
+        const cm=SC.nativePxPerCm>0?(pxD*SC.scaleFactor)/SC.nativePxPerCm:0;
+        scDimAnnot(ctx,anchor.x,anchor.y,ep.x,ep.y,{text:cm>0?scFmtCm(cm)+' cm':'…',color:SC_COLORS[SC.nc%SC_COLORS.length],sel:false,offset:scDimOffset(SC.cvsW,SC.cvsH),dashed:true});
+      }
+      [anchor,ep].forEach(p=>scPunto(ctx,p,'#3a4ad8',4.5/k,k,false));
+    }else{
+      // Colocando el primer punto con el dedo: solo el punto, sin línea — todavía no
+      // hay medida, y así se ve que deslizar afina el punto en vez de trazar.
+      scPunto(ctx,ep,SC.mode==='measure'?'#3a4ad8':'#f59e0b',6.5/k,k,true);
     }
-    [SC.sp,ep].forEach(p=>{ctx.save();ctx.fillStyle='#fff';ctx.strokeStyle='#3a4ad8';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,4.5,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();});
+  }
+  if(SC.dragH&&SC.cp){
+    const h=SC.dragH,p=h.kind==='ref'
+      ?(h.end===1?{x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH}:{x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH})
+      :(h.end===1?{x:h.item.nx1*SC.cvsW,y:h.item.ny1*SC.cvsH}:{x:h.item.nx2*SC.cvsW,y:h.item.ny2*SC.cvsH});
+    scPunto(ctx,p,h.kind==='ref'?'#f59e0b':(h.item.color||'#3a4ad8'),6.5/k,k,true);
   }
   // Marcador del primer punto colocado (modo tocar-por-toque), visible entre un toque y otro
   if(SC.building&&SC.tapA&&!SC.down){
@@ -2966,7 +3078,7 @@ function scDrawGuides(ctx,cx,cy,k,w,h){
     const active=g===SC.draggingGuide;
     // Guía a la que se está pegando el punto que se traza: sólida y marcada, para que
     // se vea de dónde va a salir la medida antes de soltar.
-    const pegada=SC.down&&(g===SC.snapH||g===SC.snapV);
+    const pegada=(SC.down||SC.dragH)&&(g===SC.snapH||g===SC.snapV);
     ctx.setLineDash(pegada?[]:[7/k,5/k]);
     ctx.strokeStyle=(active||pegada)?'#0e7490':SC_GUIDE_COLOR;
     ctx.globalAlpha=(active||pegada)?1:.85;
@@ -3017,11 +3129,25 @@ function scDrawGuideHandles(ctx,w,h,cx,cy,k,dpr){
     ctx.restore();
   });
 }
-function scDrawRef(ctx,a,b){
-  ctx.save();ctx.strokeStyle='#f59e0b';ctx.lineWidth=2.5;ctx.setLineDash([8,5]);
-  ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.setLineDash([]);
-  [a,b].forEach(p=>{ctx.fillStyle='#f59e0b';ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fill();});
+/* Punto de un extremo. El radio llega ya dividido entre k, así que se ve del mismo
+   tamaño esté la foto ajustada o acercada; el aro marca el que se está moviendo. */
+function scPunto(ctx,p,color,r,k,aro){
+  ctx.save();
+  ctx.fillStyle='#fff';ctx.strokeStyle=color;ctx.lineWidth=2/k;
+  ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.fillStyle=color;
+  ctx.beginPath();ctx.arc(p.x,p.y,Math.max(r*.42,.8/k),0,Math.PI*2);ctx.fill();
+  if(aro){
+    ctx.globalAlpha=.55;ctx.strokeStyle=color;ctx.lineWidth=1.5/k;
+    ctx.beginPath();ctx.arc(p.x,p.y,r+7/k,0,Math.PI*2);ctx.stroke();
+  }
   ctx.restore();
+}
+function scDrawRef(ctx,a,b,k=1){
+  ctx.save();ctx.strokeStyle='#f59e0b';ctx.lineWidth=2.5/k;ctx.setLineDash([8/k,5/k]);
+  ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+  ctx.restore();
+  [a,b].forEach(p=>scPunto(ctx,p,'#f59e0b',5/k,k,false));
 }
 /* Separación entre lo medido y su línea de cota. Antes era .045 del lado menor: con
    varias medidas en la misma foto las cotas se iban lejos del elemento y se encimaban
@@ -3138,6 +3264,7 @@ function scSnap(a,b){
   return b;
 }
 const SC_TAPTHR=11; // px: distinguir un toque de un arrastre
+const SC_HANDLE_HITPX=14; // radio de toque del extremo de una línea, constante en pantalla
 /* Guía cuya pestaña del borde contiene el punto (en píxeles de pantalla). Solo la
    pestaña responde: la línea en sí se ignora, para dejar toda la foto libre para medir. */
 function scGuideHandleHit(sp){
@@ -3150,6 +3277,76 @@ function scGuideHandleHit(sp){
     else if(sp.y<=size+4&&Math.abs(sp.x-c)<=half)return g;
   }
   return null;
+}
+/* ----- Corregir una línea ya trazada -----
+   Un punto puesto con el dedo casi nunca queda exacto al primer intento. En vez de
+   obligar a borrar la medida y volver a empezar, los extremos de la referencia y de
+   cada medida se pueden agarrar y mover: se guarda el desfase entre el dedo y el
+   extremo para que el punto no salte al tocarlo. */
+function scHandleHit(pt){
+  if(!SC.img)return null;
+  const thr=SC_HANDLE_HITPX/(SC.z||1);
+  let best=null,bestD=thr;
+  const probar=(x,y,h)=>{const d=Math.hypot(pt.x-x,pt.y-y);if(d<bestD){bestD=d;best={...h,dx:x-pt.x,dy:y-pt.y};}};
+  // La seleccionada se prueba al final: con dos extremos encimados gana la que ya se
+  // estaba trabajando solo si queda igual de cerca.
+  SC.items.forEach(m=>{
+    if(m.id===SC.sel)return;
+    probar(m.nx1*SC.cvsW,m.ny1*SC.cvsH,{kind:'item',item:m,end:1});
+    probar(m.nx2*SC.cvsW,m.ny2*SC.cvsH,{kind:'item',item:m,end:2});
+  });
+  const sel=SC.items.find(m=>m.id===SC.sel);
+  if(sel){
+    probar(sel.nx1*SC.cvsW,sel.ny1*SC.cvsH,{kind:'item',item:sel,end:1});
+    probar(sel.nx2*SC.cvsW,sel.ny2*SC.cvsH,{kind:'item',item:sel,end:2});
+  }
+  if(SC.refLine){
+    probar(SC.refLine.nx1*SC.cvsW,SC.refLine.ny1*SC.cvsH,{kind:'ref',end:1});
+    probar(SC.refLine.nx2*SC.cvsW,SC.refLine.ny2*SC.cvsH,{kind:'ref',end:2});
+  }
+  return best;
+}
+function scMoveHandle(h,pt){
+  let x=pt.x+h.dx,y=pt.y+h.dy;
+  // El extremo corregido también se pega a las guías, igual que al colocarlo por
+  // primera vez: se pega la posición final del punto, no la del dedo, para que el
+  // desfase con el que se agarró no lo desalinee del borde marcado.
+  const s=scSnapGuides({x,y});x=s.x;y=s.y;
+  x=Math.max(0,Math.min(SC.cvsW,x));y=Math.max(0,Math.min(SC.cvsH,y));
+  if(h.kind==='ref'){
+    if(h.end===1){SC.refLine.nx1=x/SC.cvsW;SC.refLine.ny1=y/SC.cvsH;}
+    else{SC.refLine.nx2=x/SC.cvsW;SC.refLine.ny2=y/SC.cvsH;}
+    return;
+  }
+  const m=h.item;
+  // Una medida horizontal o vertical conserva su eje al corregirle un extremo
+  const otro=h.end===1?{x:m.nx2*SC.cvsW,y:m.ny2*SC.cvsH}:{x:m.nx1*SC.cvsW,y:m.ny1*SC.cvsH};
+  if(m.type==='h')y=otro.y; else if(m.type==='v')x=otro.x;
+  if(h.end===1){m.nx1=x/SC.cvsW;m.ny1=y/SC.cvsH;}else{m.nx2=x/SC.cvsW;m.ny2=y/SC.cvsH;}
+  if(SC.nativePxPerCm>0)m.cm=(scDist({x,y},otro)*SC.scaleFactor)/SC.nativePxPerCm;
+}
+/* Al mover la referencia cambia la escala y con ella TODAS las medidas: se recalculan
+   para que la lista nunca muestre centímetros de una escala vieja. */
+function scRecalcTodas(){
+  if(SC.nativePxPerCm<=0)return;
+  SC.items.forEach(m=>{
+    m.cm=(scDist({x:m.nx1*SC.cvsW,y:m.ny1*SC.cvsH},{x:m.nx2*SC.cvsW,y:m.ny2*SC.cvsH})*SC.scaleFactor)/SC.nativePxPerCm;
+  });
+}
+function scEndHandle(){
+  const h=SC.dragH;SC.dragH=null;if(!h)return;
+  if(h.kind==='ref'){
+    if(SC.refCm>0){
+      const d=scDist({x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH},{x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH});
+      if(d>=6){
+        SC.nativePxPerCm=(d*SC.scaleFactor)/SC.refCm;
+        scRecalcTodas();
+        toast('Escala ajustada'+(SC.items.length?' — medidas actualizadas':''),'ok',2600);
+      }
+    }
+  }
+  scSetHint(scModeHint());
+  scUpdateGuideList();scUpdateList();scRender();
 }
 function scDefaultCursor(){
   return(SC.mode==='ref'||SC.mode==='ref-drawn'||SC.mode==='measure')?'crosshair':'default';
@@ -3188,29 +3385,59 @@ function scGuideDragStart(g,e){
 function scDown(e){
   if(e.touches&&e.touches.length>=2){scGestureStart(e);return;}
   if(SC.gesture)return;
+  const pt=scGetXY(e),touch=!!(e.touches&&e.touches.length);
   // La pestaña de una guía gana al resto: es un objetivo pequeño y del borde, no estorba
   if(SC.img){
     const g=scGuideHandleHit(scGetScreenXY(e));
     if(g){e.preventDefault();scGuideDragStart(g,e);return;}
+  }
+  // Corregir un extremo ya puesto gana sobre empezar una línea nueva: es lo que se
+  // busca al tocar justo encima de un punto que quedó mal. Se busca con la posición
+  // cruda del dedo: lo que se apunta es el extremo, no la guía que tenga cerca.
+  if(SC.img&&!SC.building){
+    const h=scHandleHit(pt);
+    if(h){
+      e.preventDefault();
+      SC.dragH=h;SC.isTouch=touch;
+      if(h.kind==='item')SC.sel=h.item.id;
+      SC.cp={...pt};
+      scSetHint(h.kind==='ref'
+        ?'Ajustando la referencia — suelta el dedo donde va el extremo'
+        :'Ajustando la medida '+(SC.items.indexOf(h.item)+1)+' — suelta el dedo donde va el extremo');
+      scUpdateList();scRender();scLoupe(e);
+      return;
+    }
   }
   if(SC.mode!=='ref'&&SC.mode!=='ref-drawn'&&SC.mode!=='measure')return;
   e.preventDefault();
   // Pegado a guías desde el primer punto. Los dos extremos se leen igual, así el
   // desplazamiento del pegado no se confunde con un arrastre y el toque simple sigue
   // colocando un punto en vez de trazar una línea.
-  SC.down=true;SC.downPt=scGetXYSnap(e);SC.moved=false;
-  SC.sp=SC.building?SC.tapA:SC.downPt; // ancla de la previsualización
-  SC.cp={...SC.downPt};
+  const sp=scGetXYSnap(e);
+  SC.down=true;SC.downPt=sp;SC.moved=false;SC.isTouch=touch;
+  // Ancla de la previsualización. Con el dedo, mientras se coloca el PRIMER punto no
+  // hay ancla: deslizar afina ese punto en vez de trazar una línea de una vez.
+  SC.sp=SC.building?SC.tapA:(touch?null:SC.downPt);
+  SC.cp={...sp};
   scRender();scLoupe(e);
 }
 function scMove(e){
   if(SC.gesture){scGestureMove(e);return;}
+  if(SC.dragH){
+    e.preventDefault();
+    const pt=scGetXY(e);
+    SC.cp={...pt};
+    scMoveHandle(SC.dragH,pt);
+    scRender();scLoupe(e);
+    return;
+  }
   if(SC.draggingGuide)return; // lo lleva el arrastre registrado en la ventana
   if(!SC.down){
-    // Sin botón abajo: el cursor avisa cuándo el ratón está sobre una pestaña de guía
+    // Sin botón/dedo abajo: el cursor avisa cuándo el ratón queda sobre algo agarrable
     if(!e.touches&&SC.img){
-      const hov=scGuideHandleHit(scGetScreenXY(e));
-      $('scalerCanvas').style.cursor=hov?(hov.type==='h'?'row-resize':'col-resize'):scDefaultCursor();
+      const g=scGuideHandleHit(scGetScreenXY(e));
+      const h=!g&&!SC.building?scHandleHit(scGetXY(e)):null;
+      $('scalerCanvas').style.cursor=g?(g.type==='h'?'row-resize':'col-resize'):(h?'grab':scDefaultCursor());
     }
     return;
   }
@@ -3220,50 +3447,76 @@ function scMove(e){
   scRender();scLoupe(e);
 }
 function scUp(e){
+  // Toque cancelado por el sistema (una notificación, el gesto de "atrás"): no se
+  // coloca ningún punto, solo se suelta lo que se estuviera moviendo.
+  if(e&&e.type==='touchcancel'){
+    if(!e.touches||!e.touches.length)SC.gesture=false;
+    if(SC.dragH)scEndHandle();
+    SC.draggingGuide=null;SC.down=false;SC.sp=null;SC.cp=null;SC.downPt=null;SC.moved=false;
+    scHideLoupe();scRender();return;
+  }
   // Al soltar el pellizco se rehace el lienzo con la resolución que toca al nuevo zoom
   if(SC.gesture){if(!e.touches||e.touches.length===0)SC.gesture=false;scHideLoupe();return;}
-  if(SC.draggingGuide)return;
+  if(SC.dragH){scHideLoupe();SC.cp=null;scEndHandle();return;}
+  if(SC.draggingGuide)return; // lo lleva el arrastre registrado en la ventana
   scHideLoupe();
   if(!SC.down){return;}
   e.preventDefault();SC.down=false;
   const raw=(e.changedTouches&&e.changedTouches.length)?scGetXYSnap(e):(SC.cp||SC.downPt);
-  if(SC.moved){
-    // Arrastre: línea desde el ancla (primer punto si se estaba construyendo) hasta donde se soltó
+  // Con el ratón, arrastrar traza la línea completa de un tirón. Con el dedo NO: se
+  // deslizaba sin querer al acomodar el punto y la línea se guardaba sola —cada toque
+  // coloca un punto y el segundo cierra la medida.
+  if(SC.moved&&!SC.isTouch){
     const anchor=SC.building?SC.tapA:SC.downPt;
     if(scCommitLine(anchor,raw)){SC.building=false;SC.tapA=null;}
+  }else if(SC.building&&SC.tapA){
+    if(scCommitLine(SC.tapA,raw)){SC.building=false;SC.tapA=null;}
   }else{
-    // Toque simple: colocar el punto
-    if(SC.building&&SC.tapA){
-      if(scCommitLine(SC.tapA,raw)){SC.building=false;SC.tapA=null;}
-    }else{
-      SC.tapA={...raw};SC.building=true;
-      scSetHint(SC.mode==='measure'
-        ?'✓ Primer punto puesto — toca el otro extremo (puedes acercar con dos dedos)'
-        :'✓ Primer punto puesto — toca el otro extremo de la referencia');
-    }
+    // Primer punto: queda donde se levantó el dedo, no donde se posó
+    SC.tapA={...raw};SC.building=true;
+    scSetHint(SC.mode==='measure'
+      ?'✓ Primer punto puesto — toca el otro extremo (puedes acercar con dos dedos)'
+      :'✓ Primer punto puesto — toca el otro extremo de la referencia',
+      {label:'↺ Quitar punto',fn:scCancelarPunto});
   }
   SC.sp=null;SC.cp=null;SC.downPt=null;SC.moved=false;scRender();
 }
 function scLeave(e){
+  if(SC.dragH){scHideLoupe();SC.cp=null;scEndHandle();return;}
   if(SC.draggingGuide)return; // el arrastre sigue vivo aunque el puntero salga del lienzo
   if(SC.down){SC.cp=scGetXYSnap(e);if(scDist(SC.downPt,SC.cp)>SC_TAPTHR)SC.moved=true;scRender();}
   scHideLoupe();
 }
+/* Quita el punto que quedó a medias, sin tener que cambiar de herramienta */
+function scCancelarPunto(){
+  SC.building=false;SC.tapA=null;SC.down=false;SC.sp=null;SC.cp=null;SC.downPt=null;SC.moved=false;
+  scSetHint(scModeHint());
+  scRender();
+}
 function scCommitLine(a,b){
   if(!a||!b)return false;
   const ep=scSnap(a,b),d=scDist(a,ep);
-  if(d<6){scSetHint('Los dos puntos quedaron muy juntos — vuelve a intentarlo');return false;}
+  if(d<6){scSetHint('Los dos puntos quedaron muy juntos — toca el otro extremo',{label:'↺ Quitar punto',fn:scCancelarPunto});return false;}
   if(SC.mode==='ref'||SC.mode==='ref-drawn'){
     SC.refLine={nx1:a.x/SC.cvsW,ny1:a.y/SC.cvsH,nx2:ep.x/SC.cvsW,ny2:ep.y/SC.cvsH};
     SC.mode='ref-drawn';
     $('sc-ref-confirm-row').style.display='';
     $('sc-ref-cm-input').value='';
-    try{$('sc-ref-cm-input').focus({preventScroll:true});}catch(_){$('sc-ref-cm-input').focus();}
-    scSetHint('¿Cuánto mide en cm ese elemento? Escríbelo en el panel');
+    // En el celular no se le roba el foco al campo: el teclado tapa el panel entero
+    // (con él, el botón de confirmar quedaba debajo del teclado). Se acerca y se resalta.
+    if(scIsMobile()){
+      const row=$('sc-ref-confirm-row');
+      try{row.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(_){}
+      row.classList.remove('sc-flash');void row.offsetWidth;row.classList.add('sc-flash');
+    }else{
+      try{$('sc-ref-cm-input').focus({preventScroll:true});}catch(_){$('sc-ref-cm-input').focus();}
+    }
+    scSetHint('¿Cuánto mide en cm ese elemento? Escríbelo en el panel · puedes arrastrar sus extremos para ajustarla');
   }else if(SC.mode==='measure'){
     const pxD=scDist(a,ep),cm=(pxD*SC.scaleFactor)/SC.nativePxPerCm;
     SC.items.push({id:SC.nid++,nx1:a.x/SC.cvsW,ny1:a.y/SC.cvsH,nx2:ep.x/SC.cvsW,ny2:ep.y/SC.cvsH,cm,label:'',color:SC_COLORS[SC.nc++%SC_COLORS.length],type:SC.mMode});
     SC.sel=SC.items[SC.items.length-1].id;scUpdateList();
+    scSetHint(scModeHint());
   }
   return true;
 }
@@ -3276,45 +3529,56 @@ function scConfirmCalib(){
   const p1={x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH};
   const p2={x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH};
   SC.nativePxPerCm=(scDist(p1,p2)*SC.scaleFactor)/v;
+  // Recalibrar con medidas ya trazadas: se recalculan todas, si no quedaban con los
+  // centímetros de la escala anterior.
+  scRecalcTodas();
   $('sc-ref-confirm-row').style.display='none';
   $('sc-calib-done').style.display='';
+  // Calibrado: sobran las instrucciones y el botón de marcar referencia. En el celular
+  // son 140 px que le hacen falta a la lista de medidas.
+  $('sc-calib-help').style.display='none';
+  $('sc-btn-calib').style.display='none';
   $('sc-calib-badge').className='sp-calib-badge ok';
   $('sc-calib-txt').textContent='Escala calibrada';
   scSetMode('measure');
-  toast('Escala calibrada — traza líneas para medir','ok');
+  scUpdateList();scUpdateGuideList();
+  toast(SC.items.length?'Escala calibrada — medidas actualizadas':'Escala calibrada — traza líneas para medir','ok');
   scRender();
 }
 function scResetCalib(full=true){
-  SC.refLine=null;SC.refCm=0;SC.nativePxPerCm=0;SC.building=false;SC.tapA=null;
+  SC.refLine=null;SC.refCm=0;SC.nativePxPerCm=0;SC.building=false;SC.tapA=null;SC.dragH=null;
   $('sc-ref-confirm-row').style.display='none';
   $('sc-calib-done').style.display='none';
+  $('sc-calib-help').style.display='';
+  $('sc-btn-calib').style.display='';
   $('sc-ref-cm-input').value='';
   $('sc-calib-badge').className='sp-calib-badge';
   $('sc-calib-txt').textContent='Sin calibrar';
   if(full){scSetMode('ref');scRender();}
 }
+/* Texto de ayuda del modo actual, para volver a él al terminar o cancelar una línea */
+function scModeHint(){
+  if(SC.mode==='ref'||SC.mode==='ref-drawn')
+    return 'Toca un extremo y luego el otro sobre un elemento conocido — puerta 200 cm, persona 175 cm…';
+  if(SC.mode==='measure'){
+    const mn={'libre':'Libre · cualquier ángulo','h':'Horizontal','v':'Vertical'};
+    return 'Modo: '+mn[SC.mMode]+' — toca los dos extremos del elemento'+
+      (SC.items.length?' · arrastra un extremo ya puesto para corregirlo':'');
+  }
+  return '';
+}
 function scSetMode(m){
-  SC.mode=m;SC.down=false;SC.sp=null;SC.cp=null;SC.downPt=null;SC.moved=false;SC.building=false;SC.tapA=null;
+  SC.mode=m;SC.down=false;SC.sp=null;SC.cp=null;SC.downPt=null;SC.moved=false;SC.building=false;SC.tapA=null;SC.dragH=null;
   ['sc-btn-ref','sc-btn-libre','sc-btn-h','sc-btn-v'].forEach(id=>$(id).classList.remove('active'));
   const cvs=$('scalerCanvas');
-  if(m==='ref'||m==='ref-drawn')$('sc-btn-ref').classList.add('active');
-  else if(m==='measure'){
+  if(m==='ref'||m==='ref-drawn'){
+    $('sc-btn-ref').classList.add('active');
+  }else if(m==='measure'){
     const mm={'libre':'sc-btn-libre','h':'sc-btn-h','v':'sc-btn-v'};
     $(mm[SC.mMode]||'sc-btn-libre').classList.add('active');
   }
-  scSetHint(scHintModo());
+  scSetHint(scModeHint());
   cvs.style.cursor=scDefaultCursor();
-}
-/* Indicación fija de la herramienta activa. En un solo lugar para poder volver a ella
-   cuando un aviso pasajero (por ejemplo el de una guía recién puesta) termina. */
-function scHintModo(){
-  if(SC.mode==='ref'||SC.mode==='ref-drawn')
-    return 'Toca un extremo y luego el otro sobre un elemento conocido (o arrástralo) — puerta 200 cm, persona 175 cm…';
-  if(SC.mode==='measure'){
-    const mn={'libre':'Libre · cualquier ángulo','h':'Horizontal','v':'Vertical'};
-    return 'Modo: '+mn[SC.mMode]+' — toca los dos extremos del elemento (o arrastra)';
-  }
-  return '';
 }
 function scSetMeasMode(m){
   if(!SC.img)return;
@@ -3325,13 +3589,24 @@ function scEnableTools(v){
   ['sc-btn-ref','sc-btn-libre','sc-btn-h','sc-btn-v','sc-btn-calib','sc-btn-guide-h','sc-btn-guide-v'].forEach(id=>$(id).disabled=!v);
 }
 let _scHintT=null;
-/* tempMs: aviso pasajero. Al terminar vuelve la indicación de la herramienta activa,
+/* Barra de ayuda del lienzo. Acepta un botón —por ejemplo para quitar el punto que
+   quedó a medias—, que en el celular es la salida cuando el primer toque cayó mal.
+   tempMs: aviso pasajero; al terminar vuelve la indicación de la herramienta activa,
    sin tocar el estado (a media medición no se pierde el primer punto ya colocado). */
-function scSetHint(txt,tempMs){
+function scSetHint(txt,accion,tempMs){
   const bar=$('sp-hint-bar');
   clearTimeout(_scHintT);
-  if(txt){bar.textContent=txt;bar.classList.remove('hide');}else bar.classList.add('hide');
-  if(txt&&tempMs)_scHintT=setTimeout(()=>scSetHint(scHintModo()),tempMs);
+  bar.innerHTML='';
+  if(!txt){bar.classList.add('hide');return;}
+  const sp=document.createElement('span');sp.textContent=txt;bar.appendChild(sp);
+  if(accion&&accion.label&&typeof accion.fn==='function'){
+    const b=document.createElement('button');
+    b.type='button';b.className='sp-hint-act';b.textContent=accion.label;
+    b.onclick=ev=>{ev.stopPropagation();accion.fn();};
+    bar.appendChild(b);
+  }
+  bar.classList.remove('hide');
+  if(tempMs)_scHintT=setTimeout(()=>scSetHint(scModeHint()),tempMs);
 }
 /* ----- Guías ----- */
 /* Posiciones candidatas para una guía nueva, del centro hacia afuera. Se elige la
@@ -3344,7 +3619,7 @@ function scAddGuide(type){
   const pos=SC_GUIDE_SLOTS.find(p=>usadas.every(u=>Math.abs(u-p)>.05));
   SC.guides.push({id:SC.gid++,type,pos:pos===undefined?.5:pos});
   scUpdateGuideList();scRender();
-  scSetHint('Guía '+(type==='h'?'horizontal':'vertical')+' agregada — muévela arrastrando su pestaña '+(type==='h'?'del borde izquierdo':'del borde superior'),4000);
+  scSetHint('Guía '+(type==='h'?'horizontal':'vertical')+' agregada — muévela arrastrando su pestaña '+(type==='h'?'del borde izquierdo':'del borde superior'),null,4000);
 }
 function scDelGuide(id){
   SC.guides=SC.guides.filter(g=>g.id!==id);
@@ -3396,14 +3671,31 @@ function scUpdateList(){
           onclick="event.stopPropagation();scUsarMedida(${m.id})">${m.usada?'✓ Agregada · agregar otra vez':'→ Agregar como partida'}</button>
       </div>
       <div class="sp-mitem-actions">
-        <button class="sp-ibtn" onclick="event.stopPropagation();scDelMedida(${m.id})" title="Eliminar">×</button>
+        <button class="sp-ibtn" onclick="event.stopPropagation();scDelMedida(${m.id})" title="Eliminar medida ${i+1}" aria-label="Eliminar medida ${i+1}">×</button>
       </div>`;
     list.appendChild(el);
   });
   $('sc-btn-export').disabled=false;
 }
 function scSetLabel(id,v){const m=SC.items.find(x=>x.id===id);if(m)m.label=v;}
-function scDelMedida(id){SC.items=SC.items.filter(x=>x.id!==id);if(SC.sel===id)SC.sel=null;scUpdateList();scRender();}
+/* Última medida borrada, para poder deshacer: en el celular la × queda a un dedo de
+   distancia de todo lo demás y perder una medida obliga a volver a trazarla. */
+let _scBorrada=null;
+function scDelMedida(id){
+  const idx=SC.items.findIndex(x=>x.id===id);if(idx<0)return;
+  _scBorrada={m:SC.items[idx],idx};
+  SC.items.splice(idx,1);
+  if(SC.sel===id)SC.sel=null;
+  scUpdateList();scRender();
+  toast('Medida '+(idx+1)+' eliminada','',6000,{label:'Deshacer',fn:scDeshacerMedida});
+}
+function scDeshacerMedida(){
+  if(!_scBorrada)return;
+  SC.items.splice(Math.min(_scBorrada.idx,SC.items.length),0,_scBorrada.m);
+  SC.sel=_scBorrada.m.id;_scBorrada=null;
+  scUpdateList();scRender();
+  toast('Medida restaurada','ok');
+}
 /* Crea la partida de una medida. No cierra el escalador: de una misma imagen
    salen varias medidas y por lo tanto varias partidas. */
 function scAgregarPartida(m){
@@ -3423,7 +3715,9 @@ function scUsarMedida(id){
   // sin este re-render la última medida se veía con la altura vacía en el cotizador.
   renderItems();
   scUpdateList();
-  toast(`Partida con altura ${h} cm agregada — sigue midiendo o vuelve al cotizador`,'ok',3200);
+  // El aviso lleva la salida al cotizador: es justo lo que se quiere hacer después de
+  // agregar y en el celular ahorra buscar el botón.
+  toast(`Partida con altura ${h} cm agregada — sigue midiendo`,'ok',4200,{label:'Ir al cotizador',fn:cerrarScaler});
 }
 function scUsarTodas(){
   if(locked()){toast('La cotización está bloqueada','err');return;}
@@ -3432,7 +3726,7 @@ function scUsarTodas(){
   pend.forEach(scAgregarPartida);
   renderItems();
   scUpdateList();
-  toast(`${pend.length} ${pend.length===1?'partida agregada':'partidas agregadas'} a la cotización`,'ok',3200);
+  toast(`${pend.length} ${pend.length===1?'partida agregada':'partidas agregadas'} a la cotización`,'ok',4200,{label:'Ir al cotizador',fn:cerrarScaler});
 }
 /* Cuenta de partidas ya creadas desde el escalador, para el pie del panel */
 function scUsadas(){ return SC.items.filter(m=>m.usada).length; }
