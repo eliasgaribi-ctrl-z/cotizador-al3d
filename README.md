@@ -20,7 +20,9 @@
 ## Qué hace
 
 - **Partidas por tipo** — letras 3D, recorte de acrílico, bastidor, caja de luz o captura manual, cada una con su catálogo de materiales y tarifas. Si borras una por error, el aviso trae **Deshacer**.
-- **Cotizar con IA** — analiza un JPG o PDF del proyecto y propone las partidas. Antes de analizar avisa si ya tienes trabajo capturado y deja conservarlo.
+- **Cotizar con IA** — analiza un JPG o PDF del proyecto y propone las partidas. Antes de analizar avisa si ya tienes trabajo capturado y deja conservarlo. Funciona con Google Gemini, Groq u OpenRouter, poniendo tu propia API key (gratis, sin tarjeta). Como el archivo que se manda es una **imagen**, el modelo tiene que saber leer fotos.
+
+  > **Los modelos gratuitos se apagan seguido.** Google retiró `gemini-2.5-flash` y Groq apagó `llama-4-scout` en agosto de 2026, que eran los que traía puestos el cotizador. Si al analizar sale *"ese modelo ya no existe"*, la API key está bien: hay que abrir **Configurar** y escribir uno vigente en el campo **Modelo**. Al momento de escribir esto servían `gemini-3.5-flash`, `qwen/qwen3.6-27b` (Groq) y `google/gemma-4-31b-it:free` (OpenRouter). Los que ya murieron se cambian solos al abrir la ventana.
 - **Escalador de imagen** — mide elementos sobre una foto o plano sin cotas: se calibra con una referencia conocida y de ahí se sacan las demás medidas. Con el dedo, cada toque coloca un punto y deslizando sin soltar se afina con lupa antes de dejarlo; los extremos ya trazados se arrastran para corregir la medida sin borrarla, y mover la referencia recalcula todas. El botón **← Cotizador** de arriba, el que queda pegado al pie del panel y el "atrás" del celular regresan a la cotización en cualquier momento.
 - **Autorización** — flujo de vendedor a autorizador; el precio se bloquea al solicitar autorización. El autorizador puede ajustar el total o partida por partida, hacia abajo o hacia arriba, y ese precio es el que manda en el PDF, el anticipo y el registro de venta.
 - **PDF de cotización** con el logotipo, el desglose de partidas, IVA, descuento autorizado y anticipo sugerido.

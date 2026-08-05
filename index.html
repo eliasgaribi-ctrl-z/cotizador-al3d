@@ -692,18 +692,18 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
           </div>
           <div id="prov-gemini">
             <div class="fld"><label>API key de Google Gemini</label><div class="key-saved" id="key-saved-gemini" style="display:none"><span class="key-mask" id="key-mask-gemini"></span><button type="button" class="key-btn" onclick="aiEditKey('gemini')">Cambiar</button><button type="button" class="key-btn del" onclick="aiDelKey('gemini')">Borrar</button></div><input id="ai-key-gemini" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
-            <div class="fld"><label>Modelo</label><input id="ai-model-gemini" placeholder="gemini-2.5-flash" value="gemini-2.5-flash"></div>
+            <div class="fld"><label>Modelo</label><input id="ai-model-gemini" placeholder="gemini-3.5-flash" value="gemini-3.5-flash"></div>
             <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Admite JPG y PDF.</p>
           </div>
           <div id="prov-groq" style="display:none">
             <div class="fld"><label>API key de Groq</label><div class="key-saved" id="key-saved-groq" style="display:none"><span class="key-mask" id="key-mask-groq"></span><button type="button" class="key-btn" onclick="aiEditKey('groq')">Cambiar</button><button type="button" class="key-btn del" onclick="aiDelKey('groq')">Borrar</button></div><input id="ai-key-groq" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
-            <div class="fld"><label>Modelo</label><input id="ai-model-groq" value="meta-llama/llama-4-scout-17b-16e-instruct"></div>
-            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>. Muy rápido · solo JPG (no PDF).</p>
+            <div class="fld"><label>Modelo</label><input id="ai-model-groq" placeholder="qwen/qwen3.6-27b" value="qwen/qwen3.6-27b"></div>
+            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>. Muy rápido · solo JPG (no PDF). El modelo debe leer imágenes: hoy es <b>qwen/qwen3.6-27b</b>.</p>
           </div>
           <div id="prov-openrouter" style="display:none">
             <div class="fld"><label>API key de OpenRouter</label><div class="key-saved" id="key-saved-openrouter" style="display:none"><span class="key-mask" id="key-mask-openrouter"></span><button type="button" class="key-btn" onclick="aiEditKey('openrouter')">Cambiar</button><button type="button" class="key-btn del" onclick="aiDelKey('openrouter')">Borrar</button></div><input id="ai-key-openrouter" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
-            <div class="fld"><label>Modelo</label><input id="ai-model-openrouter" value="meta-llama/llama-4-scout:free"></div>
-            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Acceso a muchos modelos · solo JPG (no PDF).</p>
+            <div class="fld"><label>Modelo</label><input id="ai-model-openrouter" placeholder="google/gemma-4-31b-it:free" value="google/gemma-4-31b-it:free"></div>
+            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Acceso a muchos modelos · solo JPG (no PDF). Su lista de gratuitos rota seguido; el modelo debe leer imágenes.</p>
           </div>
           <p class="key-note">🔒 La API key no está escrita en el código del cotizador: la escribes una sola vez, se guarda ofuscada en <b>este</b> dispositivo y después solo se muestran sus últimos 4 caracteres. Se envía directo al proveedor que elijas. Si el dispositivo es compartido, usa <b>Borrar</b> al terminar.</p>
         </div>
@@ -1779,6 +1779,28 @@ PROCESO sin cotas: 1) Identifica el objeto de referencia mas obvio y claro en la
    El campo es type="text" con text-security en vez de type="password" para que
    Chrome no lo detecte como contraseña ni ofrezca guardarla en el gestor. */
 const AI_PROVS=['gemini','groq','openrouter'];
+/* El modelo por omisión estaba escrito en tres lugares —el value del input, el
+   arranque del modal y los DEFAULTS de la llamada—, y cuando los proveedores
+   apagaron los suyos hubo que cazarlos uno por uno. Ahora vive aquí y nada más.
+   El cotizador LEE FOTOS, así que sólo sirven modelos que acepten imagen. */
+const AI_MODELO={gemini:'gemini-3.5-flash',groq:'qwen/qwen3.6-27b',openrouter:'google/gemma-4-31b-it:free'};
+/* Los de abajo ya no los sirve nadie: Google retiró gemini-2.5-flash y Groq
+   apagó llama-4-scout en agosto de 2026. Quien los traiga guardados de antes
+   recibiría un error que no dice nada, así que se le cambian solos. Si escribió
+   cualquier otro modelo a mano, se respeta. */
+const AI_MODELOS_MUERTOS={
+  'gemini-2.5-flash':'gemini-3.5-flash',
+  'gemini-2.0-flash':'gemini-3.5-flash',
+  'gemini-1.5-flash':'gemini-3.5-flash',
+  'meta-llama/llama-4-scout-17b-16e-instruct':'qwen/qwen3.6-27b',
+  'meta-llama/llama-4-scout:free':'google/gemma-4-31b-it:free',
+  'llama-3.3-70b-versatile':'qwen/qwen3.6-27b',
+};
+function aiModeloVivo(p,guardado){
+  const m=(guardado||'').trim();
+  if(!m) return AI_MODELO[p];
+  return AI_MODELOS_MUERTOS[m]||m;
+}
 const _KSALT='al3d·key·v1';
 function _kxor(s){ let o=''; for(let i=0;i<s.length;i++) o+=String.fromCharCode(s.charCodeAt(i)^_KSALT.charCodeAt(i%_KSALT.length)); return o; }
 function keyPack(k){ try{ return btoa(_kxor(String(k))); }catch(_){ return ''; } }
@@ -1865,9 +1887,9 @@ function aiPintarMerge(){
 function aiOpen(){
   aiMerge=false; $('ai-merge-tg').classList.remove('on'); aiPintarMerge();
   AI_PROVS.forEach(p=>{ const inp=$('ai-key-'+p); if(inp){ delete inp.dataset.editing; inp.value=''; } aiRenderKey(p); });
-  $('ai-model-gemini').value=localStorage.getItem('ai_model_gemini')||localStorage.getItem('ai_model')||'gemini-2.5-flash';
-  $('ai-model-groq').value=localStorage.getItem('ai_model_groq')||'meta-llama/llama-4-scout-17b-16e-instruct';
-  $('ai-model-openrouter').value=localStorage.getItem('ai_model_openrouter')||'meta-llama/llama-4-scout:free';
+  $('ai-model-gemini').value=aiModeloVivo('gemini',localStorage.getItem('ai_model_gemini')||localStorage.getItem('ai_model'));
+  $('ai-model-groq').value=aiModeloVivo('groq',localStorage.getItem('ai_model_groq'));
+  $('ai-model-openrouter').value=aiModeloVivo('openrouter',localStorage.getItem('ai_model_openrouter'));
   const p=localStorage.getItem('ai_provider')||'gemini';
   setAiProv(p);
   if(!getKey(p)) $('ai-cfg-box').open=true;
@@ -1889,9 +1911,11 @@ async function aiAnalyze(){
   if(aiProv!=='gemini' && f.type==='application/pdf'){
     aiStatus('Groq y OpenRouter solo admiten imágenes JPG. Para PDF usa Gemini.','err'); return;
   }
-  const DEFAULTS={gemini:'gemini-2.5-flash',groq:'meta-llama/llama-4-scout-17b-16e-instruct',openrouter:'meta-llama/llama-4-scout:free'};
   const key=$('ai-key-'+aiProv).value.trim()||getKey(aiProv);
-  const model=($('ai-model-'+aiProv).value.trim())||DEFAULTS[aiProv];
+  const model=aiModeloVivo(aiProv,$('ai-model-'+aiProv).value);
+  /* Si se cambió un modelo apagado por el vivo, que se vea en el campo: si no,
+     la pantalla seguiría diciendo uno y la llamada usaría otro. */
+  $('ai-model-'+aiProv).value=model;
   if(!key){ $('ai-cfg-box').open=true; aiEditKey(aiProv); aiStatus('Pega tu API key de '+aiProv+'.','err'); return; }
   setKey(aiProv,key);
   const _kin=$('ai-key-'+aiProv); delete _kin.dataset.editing; aiRenderKey(aiProv);
@@ -1928,7 +1952,24 @@ async function aiAnalyze(){
     aiStatus('Borrador generado. Revísalo y ajústalo antes de autorizar.','ok');
     toast('Cotización IA lista (borrador)','ok');
     setTimeout(aiClose,1500);
-  }catch(e){ aiStatus('Error: '+e.message,'err'); }
+  }catch(e){ aiStatus(aiErrorMsg(e),'err'); }
+}
+
+/* Los proveedores gratuitos apagan y renombran modelos cada pocas semanas, y
+   cuando pasa contestan cosas como "model_decommissioned" o "model not found",
+   que tal cual no le dicen nada a quien está cotizando. Peor: parece que la key
+   se echó a perder, cuando la key está bien y lo que hay que cambiar es el
+   modelo. Este es el único mensaje que vale la pena traducir. */
+function aiErrorMsg(e){
+  const m=String(e&&e.message||e);
+  if(/model_decommissioned|model_not_found|decommissioned|does not exist|is not a valid model|no longer (available|supported)/i.test(m))
+    return 'Ese modelo ya no existe. Los proveedores gratuitos los apagan cada pocas semanas. '
+         + 'Abre «Configurar» y escribe uno vigente en el campo Modelo (para '+aiProv+', '
+         + AI_MODELO[aiProv]+' servía al momento de publicar esto). Tu API key está bien.';
+  if(/image|vision|multimodal|not support/i.test(m))
+    return 'Ese modelo no sabe leer imágenes. Abre «Configurar» y usa uno que sí, como '
+         + AI_MODELO[aiProv]+'. Detalle: '+m;
+  return 'Error: '+m;
 }
 
 function applyAi(p){
