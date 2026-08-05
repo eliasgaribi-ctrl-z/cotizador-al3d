@@ -2,7 +2,15 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- viewport-fit=cover: la barra inferior fija se apoya en el borde real de la
+     pantalla y el "notch" del iPhone se compensa con env(safe-area-inset-*). -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#3a4ad8">
+<!-- Agregado a la pantalla de inicio abre sin barra de direcciones, como app -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Cotizador AL3D">
 <title>Cotizador AL3D</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -68,7 +76,11 @@ body::before{
 
 /* ---------- Layout ---------- */
 .wrap{max-width:1180px;margin:0 auto;padding:26px 24px 70px;display:grid;grid-template-columns:1fr 385px;gap:24px;align-items:start}
-@media(max-width:920px){.wrap{grid-template-columns:1fr}}
+/* minmax(0,1fr) y no 1fr: el mínimo automático de una pista de rejilla es el
+   min-content de lo que lleva dentro, así que un renglón que no parte (el botón de
+   la IA, la fila del link de Maps) estiraba toda la página y en pantallas de 320 px
+   aparecía barra de desplazamiento horizontal. */
+@media(max-width:920px){.wrap{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:560px){
   .wrap{padding:18px 14px 60px}
   .grid2,.grid3{grid-template-columns:1fr}
@@ -86,6 +98,62 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   .seg button{padding:9px 14px}
   .del,.dup,.pdf-vis{font-size:22px;padding:6px 10px}
   .btn-maps{padding:11px 10px}
+  /* Hueco que solo existe para cuadrar la tercera columna en escritorio */
+  .fld-relleno{display:none}
+  /* Debajo de todo va la barra fija con el total: que no tape el último botón */
+  .wrap{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+  /* Al saltar al resumen o abrir una partida, que no queden debajo de la topbar */
+  .partida,.side{scroll-margin-top:70px}
+}
+/* ---------- Móvil: topbar compacta ----------
+   Con el logotipo, el folio y el selector de rol la barra se partía en tres
+   renglones y se comía la primera pantalla. */
+@media(max-width:560px){
+  .topbar-in{gap:8px;padding:8px 12px}
+  .brand{min-width:0}
+  .brand .t{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brand .t small{display:none}
+  .logoslot{padding:5px 9px}
+  .logoslot .up{display:none}
+  .logoimg{height:28px;max-width:120px}
+  /* En pantallas de 320 px el rol + folio + historial no caben en un renglón y
+     desbordaban la página a lo ancho: se les deja envolver entre ellos. */
+  .rolewrap{gap:7px;flex:1;min-width:0;flex-wrap:wrap;justify-content:flex-end}
+  .btn-hist{padding:7px 11px}
+  .folio{font-size:10.5px;padding:5px 9px;letter-spacing:.1px}
+  .seg{padding:2px}
+  .seg button{padding:7px 10px;font-size:11.5px}
+}
+/* ---------- Barra fija de móvil: total siempre a la vista ----------
+   En el celular el resumen queda hasta el fondo de la página, así que el vendedor
+   cotizaba a ciegas y tenía que bajar hasta abajo para cada acción. */
+.mbar{display:none}
+@media(max-width:760px){
+  .mbar{
+    display:flex;align-items:stretch;gap:9px;
+    position:fixed;left:0;right:0;bottom:0;z-index:28;
+    padding:9px 12px calc(9px + env(safe-area-inset-bottom));
+    background:rgba(255,255,255,.96);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border-top:1px solid var(--line);box-shadow:0 -4px 20px rgba(23,29,74,.10)
+  }
+  .mbar-tot{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:1px;
+    border:none;background:none;font-family:inherit;text-align:left;padding:2px 2px;cursor:pointer}
+  .mbar-lab{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);display:flex;align-items:center;gap:4px}
+  .mbar-lab::after{content:'↓';font-size:11px;opacity:.7}
+  .mbar-amt{font-size:19px;font-weight:900;color:var(--brand-strong);letter-spacing:.2px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mbar-amt.aut{color:var(--green)}
+  .mbar-cta{flex-shrink:0;max-width:62%;border:none;border-radius:12px;padding:0 16px;min-height:46px;
+    font-family:inherit;font-size:13.5px;font-weight:800;color:#fff;background:var(--brand-grd);
+    box-shadow:0 2px 10px rgba(58,74,216,.28);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mbar-cta.ok{background:linear-gradient(135deg,#108f5a,var(--green));box-shadow:0 2px 8px rgba(21,160,106,.22)}
+  .mbar-cta.gho{background:#fff;color:var(--brand);border:1.5px solid var(--line);box-shadow:none}
+  .mbar-cta:disabled{opacity:.45}
+}
+/* Pantallas de 320 px: "Solicitar autorización" no cabía y salía cortado */
+@media(max-width:360px){
+  .mbar{gap:7px;padding-left:10px;padding-right:10px}
+  .mbar-cta{font-size:12.5px;padding:0 12px}
+  .mbar-amt{font-size:17.5px}
 }
 
 .card{background:rgba(255,255,255,.98);border:1px solid rgba(224,228,240,.7);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;transition:box-shadow .2s}
@@ -105,6 +173,28 @@ textarea{resize:vertical;min-height:46px}
 .fld{margin-bottom:13px}.fld:last-child{margin-bottom:0}
 
 /* ---------- Partidas ---------- */
+/* ----- Acordeón de móvil -----
+   Una partida abierta ocupa casi toda la pantalla del celular, así que con tres o
+   cuatro capturadas el vendedor se pierde entre ellas y llegar a la de abajo son
+   varias pantallas de scroll. En móvil se muestran como tarjetas de un renglón y
+   solo se abre la que se está editando; `#items.acordeon` marca ese modo (lo pone
+   el JS, porque depende de cuántas partidas hay, no solo del ancho). */
+.pmini{display:none}
+.pcol{display:none}
+#items.acordeon .pcol{display:inline-flex;align-items:center;justify-content:center;border:none;background:none;color:#a9b1c6;font-size:15px;line-height:1;padding:6px 8px;border-radius:7px;cursor:pointer}
+.partida.colapsada{padding:0;overflow:hidden}
+.partida.colapsada .pfull{display:none}
+.partida.colapsada .pmini{display:flex;align-items:center;gap:10px;width:100%;padding:13px 14px;background:none;border:none;font-family:inherit;text-align:left;cursor:pointer}
+.partida.colapsada.falta{border-left-color:var(--amber)}
+.pmini .n{width:24px;height:24px;border-radius:7px;background:var(--brand-grd);color:#fff;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 6px rgba(58,74,216,.25)}
+.partida.colapsada.falta .pmini .n{background:linear-gradient(135deg,#e0a63a,var(--amber));box-shadow:0 2px 6px rgba(207,138,18,.25)}
+.pmini-b{flex:1;min-width:0}
+.pmini-t{font-size:12.5px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pmini-s{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.pmini-r{flex-shrink:0;text-align:right}
+.pmini-lt{font-size:14.5px;font-weight:800;color:var(--brand);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pmini-warn{font-size:10px;font-weight:800;color:var(--amber);white-space:nowrap;margin-top:1px}
+.pmini-arrow{flex-shrink:0;color:#b9c0d2;font-size:13px;line-height:1}
 .empty{text-align:center;color:var(--muted);font-size:13px;padding:30px 10px;border:1.5px dashed var(--line);border-radius:var(--r-sm);background:var(--soft)}
 .partida{border:1px solid rgba(224,228,240,.8);border-left:3px solid var(--brand);border-radius:var(--r-sm);padding:16px;margin-bottom:14px;background:#fff;box-shadow:var(--sh-sm);position:relative;transition:box-shadow .15s}
 .partida:hover{box-shadow:0 2px 8px rgba(23,29,74,.06),0 8px 28px rgba(23,29,74,.1)}
@@ -137,6 +227,17 @@ textarea{resize:vertical;min-height:46px}
 .chip:hover:not(.on){border-color:rgba(58,74,216,.28);background:var(--soft-2);color:var(--brand-strong)}
 .chip:focus-visible{outline:2.5px solid var(--brand);outline-offset:2px}
 @keyframes chipPop{0%{transform:scale(.84)}65%{transform:scale(1.07)}100%{transform:scale(1)}}
+/* Los catálogos de producto (material, acabado, bastidor, caja) traen etiquetas
+   largas: como píldoras se parten en dos y tres renglones y en el celular ya no se
+   distingue dónde acaba una y empieza la otra. Ahí se leen mejor como lista, cada
+   opción en su renglón y el precio alineado a la derecha. */
+@media(max-width:760px){
+  .chips.chips-lista{display:grid;grid-template-columns:1fr;gap:7px}
+  .chips.chips-lista .chip{width:100%;border-radius:12px;padding:12px 14px;justify-content:flex-start;line-height:1.3}
+  .chips.chips-lista .chip small{margin-left:auto;padding-left:10px;white-space:nowrap}
+  .chips.chips-lista .chip .ck{display:inline-block;width:13px;flex-shrink:0;visibility:hidden;font-size:11px;font-weight:900}
+  .chips.chips-lista .chip.on .ck{visibility:visible}
+}
 .hintnote{font-size:11.5px;color:var(--muted);background:linear-gradient(90deg,var(--soft),rgba(242,244,251,.3));border-left:2px solid rgba(58,74,216,.2);border-radius:0 7px 7px 0;padding:6px 11px;display:inline-block}
 
 .switch{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;user-select:none}
@@ -237,6 +338,12 @@ textarea{resize:vertical;min-height:46px}
 .toast-act{flex-shrink:0;border:1.5px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;font-family:inherit;font-size:13px;font-weight:800;padding:7px 15px;border-radius:9px;cursor:pointer;transition:background .13s,border-color .13s}
 .toast-act:hover{background:rgba(255,255,255,.24);border-color:#fff}
 .toast.ok{background:linear-gradient(135deg,#108f5a,var(--green))} .toast.err{background:linear-gradient(135deg,#bf3730,var(--red))}
+/* El aviso emergente se sube por encima de la barra fija del total, si no tapaba
+   justo el botón de la acción. Va aquí, después de la regla base: una media query
+   no gana por sí sola cuando la especificidad empata. */
+@media(max-width:760px){
+  .toast{bottom:calc(88px + env(safe-area-inset-bottom))}
+}
 
 /* ----- Cola de autorización ----- */
 .queue-list{border:1.5px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-bottom:11px}
@@ -576,7 +683,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <div class="card-b">
         <div class="grid2">
           <div class="fld"><label>Cliente</label><input id="f-cli" placeholder="Nombre del cliente" oninput="upd('cliente',this.value)"></div>
-          <div class="fld"><label>Teléfono</label><input id="f-tel" placeholder="33 0000 0000" oninput="upd('tel',this.value)"></div>
+          <div class="fld"><label>Teléfono</label><input id="f-tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="33 0000 0000" oninput="upd('tel',this.value)"></div>
         </div>
         <div class="fld"><label>Proyecto</label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" oninput="upd('proy',this.value)"></div>
         <div class="fld">
@@ -657,7 +764,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       </div>
       <div class="anti">
         <label>Anticipo sugerido (50%)</label>
-        <div class="inp-money"><input id="f-anti" type="number" min="0" placeholder="0"></div>
+        <div class="inp-money"><input id="f-anti" type="number" inputmode="decimal" min="0" placeholder="0"></div>
         <div class="anti-rest" id="s-anti-rest"></div>
       </div>
       <div class="auth-adj" id="s-auth-row" style="display:none">
@@ -673,6 +780,14 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
     <p class="mini">El precio se bloquea al solicitar autorización. La plantilla / PDF se configura <b>después</b> de autorizar.</p>
   </aside>
 
+</div>
+<!-- Barra fija de móvil: el total y la acción que toca, sin bajar hasta el resumen -->
+<div class="mbar" id="mbar">
+  <button class="mbar-tot" type="button" onclick="irAResumen()" title="Ir al resumen">
+    <span class="mbar-lab" id="mbar-lab">Total neto</span>
+    <span class="mbar-amt" id="mbar-amt">$0.00</span>
+  </button>
+  <button class="mbar-cta" type="button" id="mbar-cta">Ver resumen</button>
 </div>
 <div class="modal-bg" id="aimodal">
   <div class="modal">
@@ -792,7 +907,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
           <p id="sc-calib-help" style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:13px">Toca un extremo y luego el otro sobre un elemento de medida conocida. Sin soltar el dedo puedes deslizarlo hasta dejar el punto donde va —la lupa enseña qué hay debajo— y después arrastrar sus extremos para corregirla.</p>
           <button class="btn btn-pri" id="sc-btn-calib" onclick="scSetMode('ref')" disabled>1 · Marcar referencia (2 puntos)</button>
           <div id="sc-ref-confirm-row" style="display:none;margin-top:13px">
-            <div class="fld"><label>¿Cuánto mide en cm?</label><input id="sc-ref-cm-input" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="Ej. 175"></div>
+            <div class="fld"><label>¿Cuánto mide en cm?</label><input id="sc-ref-cm-input" type="number" inputmode="decimal" inputmode="decimal" min="0.1" step="0.1" placeholder="Ej. 175"></div>
             <div class="ref-known">
               <span class="ref-known-title">Rápidos:</span>
               <button onclick="$('sc-ref-cm-input').value=200">🚪 200</button>
@@ -850,12 +965,22 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 
 <script>
 /* ===================== Catálogo de precios ===================== */
+/* Cada material trae aquí TODOS sus textos: el largo del chip y del PDF, el corto
+   del historial y la frase de fabricación del prompt de imagen. Antes esas tres
+   listas vivían copiadas en otras partes del archivo y agregar un material dejaba
+   fuera a alguna de ellas. `luzInterna` distingue las caras que dejan pasar la luz
+   (acrílico, iluminación interna) de los metales, que se retroiluminan por detrás. */
 const MATERIALES = [
-  {key:'al-paint', label:'Aluminio Blanco/Negro/Pintado', precio:30, ilum:'LED posterior (cálida/fría)'},
-  {key:'al-brush', label:'Aluminio Brush Cepillado',       precio:35, ilum:'LED posterior (cálida/fría)'},
-  {key:'acr-vol',  label:'Acrílico + Aluminio (Volumen)',  precio:40, ilum:'LED fría frontal'},
-  {key:'acr-vinil',label:'Acrílico + Vinil',               precio:45, ilum:'LED fría frontal'},
+  {key:'al-paint', label:'Aluminio Blanco/Negro/Pintado', corto:'Aluminio Pintado',    precio:30, ilum:'LED posterior (cálida/fría)', luzInterna:false, fabr:'Fabricadas en Aluminio Pintado'},
+  {key:'al-brush', label:'Aluminio Brush Cepillado',      corto:'Aluminio Brush',      precio:35, ilum:'LED posterior (cálida/fría)', luzInterna:false, fabr:'Fabricadas en Aluminio Brush Cepillado'},
+  {key:'acr-vol',  label:'Acrílico + Aluminio (Volumen)', corto:'Acrílico + Aluminio', precio:40, ilum:'LED fría frontal',            luzInterna:true,  fabr:'Fabricadas en Acrílico, Cantos en Aluminio'},
+  {key:'acr-vinil',label:'Acrílico + Vinil',              corto:'Acrílico + Vinil',    precio:45, ilum:'LED fría frontal',            luzInterna:true,  fabr:'Fabricadas en Acrílico con Rotulación de Vinil, Cantos en Aluminio'},
+  {key:'acero',    label:'Acero Inoxidable',              corto:'Acero Inoxidable',    precio:55, ilum:'LED posterior (cálida/fría)', luzInterna:false, fabr:'Fabricadas en Acero Inoxidable',
+    nota:'Acabado espejo o cepillado y el más resistente a la intemperie; es el material más caro del catálogo.'},
 ];
+/* Etiquetas por clave, para el PDF, el texto de Canva y el historial. */
+const MAT_LABEL=Object.fromEntries(MATERIALES.map(m=>[m.key,m.label]));
+const MAT_CORTO=Object.fromEntries(MATERIALES.map(m=>[m.key,m.corto]));
 const COMPLEJIDAD = [
   {key:'recta',    label:'Recta',    extra:0},
   {key:'cursiva',  label:'Cursiva',  extra:5},
@@ -1006,12 +1131,53 @@ function notaCliente(){ return (Q.notaCliente||'').trim()||'El cliente debe prop
    respaldo de lo que haya detectado la IA. */
 function direccionPdf(){ return (Q.dirRaw||'').trim()||(Q.direccion||'').trim(); }
 
+/* ===================== Acordeón de partidas en móvil =====================
+   En pantalla chica solo se deja abierta la partida que se está editando; las
+   demás quedan como una tarjeta de un renglón con su total. El estado vive aquí
+   fuera de Q porque es de la vista: no debe viajar al historial ni al PDF. */
+const MQ_MOVIL='(max-width:760px)';
+function esMovil(){ try{ return window.matchMedia(MQ_MOVIL).matches; }catch(_){ return window.innerWidth<=760; } }
+let partidaAbierta=null;
+/* El acordeón solo tiene sentido con más de una partida: con una sola, colapsarla
+   sería un toque extra para nada. */
+function acordeonActivo(){ return esMovil() && Q.items.length>1; }
+/* Con un modal encima (escalador, IA, historial) el cotizador no se ve, así que
+   moverlo solo produciría un salto raro al cerrar. */
+function hayModalAbierto(){ return !!document.querySelector('.modal-bg.show,.scaler-modal-bg.show,.rv-modal-bg.show'); }
+function verPartida(id){
+  if(hayModalAbierto()) return;
+  setTimeout(()=>{ const el=$('partida-'+id); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); },30);
+}
+function togglePartida(id){
+  partidaAbierta = (partidaAbierta===id) ? null : id;
+  renderItems();
+  // Que la partida recién abierta quede arriba y no debajo de la barra pegajosa
+  if(partidaAbierta===id) verPartida(id);
+}
+/* Al cambiar de orientación o girar el celular cambia si aplica el acordeón */
+try{ window.matchMedia(MQ_MOVIL).addEventListener('change',()=>{ if($('items')) renderItems(); }); }catch(_){}
+
+const TIPO_LABEL={letras:'Letras 3D',recorte:'Recorte acrílico',bastidor:'Bastidor',caja:'Caja de luz',manual:'Manual'};
+/* Segundo renglón de la tarjeta recogida: lo que distingue a esta partida de las
+   otras del mismo tipo, sin repetir el tipo que ya va arriba. */
+function miniResumen(it){
+  if((it.desc||'').trim()) return it.desc.trim();
+  if(it.tipo==='letras')   return [MAT_CORTO[it.material],(it.n||0)+' letras',(it.altura||0)+'cm'].filter(Boolean).join(' · ');
+  if(it.tipo==='recorte')  return [HIST_ACAB[it.acab],(it.n||0)+' pzas',(it.altura||0)+'cm'].filter(Boolean).join(' · ');
+  if(it.tipo==='bastidor') return [HIST_BAS[it.bas],(it.ancho||0)+'×'+(it.alto||0)+' cm'].filter(Boolean).join(' · ');
+  if(it.tipo==='caja')     return (it.tarifa>=4600?'Tipo nube / silueta':'Estándar')+' · '+(it.ancho||0)+'×'+(it.alto||0)+' cm';
+  return (it.pz||1)+' pza × '+money(it.pu);
+}
+
 /* ===================== Acciones partidas ===================== */
 function addItem(){
   if(locked())return;
-  Q.items.push({id:++pid,tipo:'letras',material:'',comp:'recta',luz:true,ilumTipo:'fria',altura:0,n:0,
+  const id=++pid;
+  Q.items.push({id,tipo:'letras',material:'',comp:'recta',luz:true,ilumTipo:'fria',altura:0,n:0,
     tarifa:0,ancho:0,alto:0, acab:'',recComp:false,bas:'', desc:'',descAi:false,pz:1,pu:0,textoAuto:'',showInPdf:true});
+  partidaAbierta=id; // la nueva se abre sola; las demás se recogen
   renderItems();
+  if(acordeonActivo()) verPartida(id);
 }
 /* Última partida borrada, para poder deshacer: en el celular es fácil tocar la ×
    por accidente y perder una partida con todo su detalle capturado. */
@@ -1022,6 +1188,7 @@ function delItem(id){
   if(idx<0) return;
   _borrada={item:Q.items[idx],idx};
   Q.items.splice(idx,1);
+  if(partidaAbierta===id) partidaAbierta=null;
   renderItems();
   toast('Partida '+(idx+1)+' eliminada','',6000,{label:'Deshacer',fn:deshacerBorrado});
 }
@@ -1051,6 +1218,7 @@ function dupItem(id){
   const copy=JSON.parse(JSON.stringify(src)); copy.id=++pid;
   const idx=Q.items.findIndex(x=>x.id===id);
   Q.items.splice(idx+1,0,copy);
+  partidaAbierta=copy.id; // la copia es la que se va a ajustar
   renderItems(); toast('Partida duplicada');
 }
 function setShowInPdf(id,val){
@@ -1095,21 +1263,43 @@ function renderItems(){
     c.appendChild(banner);
   }
   if(Q.items.length===0){ const empty=document.createElement('div'); empty.className='empty'; empty.textContent='Aún no hay partidas. Agrega letras 3D, un recorte de acrílico, un bastidor, una caja de luz o una partida manual.'; c.appendChild(empty); }
+  const acordeon=acordeonActivo();
+  c.classList.toggle('acordeon',acordeon);
   Q.items.forEach((it,i)=>{
     const d=document.createElement('div'); d.className='partida';
+    d.id='partida-'+it.id;
     if(it.showInPdf===false) d.classList.add('hidden-pdf');
+    const faltan=faltantesDe(it);
+    if(acordeon&&it.id!==partidaAbierta){
+      d.classList.add('colapsada');
+      if(faltan.length) d.classList.add('falta');
+    }
     if(!locked()) d.setAttribute('draggable','true');
     const pdfVis=it.showInPdf!==false;
     d.innerHTML=`
+      <button class="pmini" type="button" onclick="togglePartida(${it.id})" aria-expanded="false">
+        <div class="n">${i+1}</div>
+        <div class="pmini-b">
+          <div class="pmini-t">${esc(TIPO_LABEL[it.tipo]||'Partida')}${it.showInPdf===false?' · oculta del PDF':''}</div>
+          <div class="pmini-s">${esc(miniResumen(it))}</div>
+        </div>
+        <div class="pmini-r">
+          <div class="pmini-lt">${money(lineTotal(it))}</div>
+          ${faltan.length?`<div class="pmini-warn">Falta ${esc(faltan[0])}${faltan.length>1?' +'+(faltan.length-1):''}</div>`:''}
+        </div>
+        <span class="pmini-arrow">▸</span>
+      </button>
+      <div class="pfull">
       <div class="partida-top">
         <div class="pnum">
           ${!locked()?'<span class="drag-handle" title="Arrastra para reordenar">⠿</span>':''}
           <div class="n">${i+1}</div>
         </div>
         <div class="tipo-seg">
-          ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button class="${it.tipo===t?'on':''}" ${locked()?'disabled':''} onclick="setTipo(${it.id},'${t}')">${({letras:'Letras 3D',recorte:'Recorte acrílico',bastidor:'Bastidor',caja:'Caja de luz',manual:'Manual'})[t]}</button>`).join('')}
+          ${Object.keys(TIPO_LABEL).map(t=>`<button class="${it.tipo===t?'on':''}" ${locked()?'disabled':''} onclick="setTipo(${it.id},'${t}')">${TIPO_LABEL[t]}</button>`).join('')}
         </div>
         <div class="ptop-actions">
+          <button class="pcol" onclick="togglePartida(${it.id})" title="Contraer partida" aria-label="Contraer partida">▾</button>
           ${!locked()?`<button class="dup" onclick="dupItem(${it.id})" title="Duplicar partida">⧉</button>`:''}
           <button class="pdf-vis${pdfVis?'':' off'}" onclick="setShowInPdf(${it.id},${!pdfVis})" title="${pdfVis?'Ocultar del PDF — la partida sigue sumando al total':'Mostrar en PDF'}">👁</button>
           <button class="del" ${locked()?'disabled':''} onclick="delItem(${it.id})" title="Eliminar">×</button>
@@ -1120,6 +1310,7 @@ function renderItems(){
       <div class="pline">
         <span class="formula" id="formula-${it.id}">${formulaFor(it)}</span>
         <span class="lt" id="lt-${it.id}">${money(lineTotal(it))}</span>
+      </div>
       </div>`;
     if(!locked()){
       d.addEventListener('dragstart',e=>{
@@ -1197,11 +1388,13 @@ function chip(on,click,label,extra){
 }
 /* Bloque de opciones con su valor elegido en el encabezado; si no hay nada elegido
    el bloque se marca en ámbar con "Sin elegir". */
-function grupo(titulo,valor,chipsHTML,extraHTML=''){
+/* `lista` marca los catálogos de producto, cuyas etiquetas son largas: en móvil se
+   pintan como lista de una columna en vez de píldoras que se parten en renglones. */
+function grupo(titulo,valor,chipsHTML,extraHTML='',lista=false){
   const falta=!valor;
   return `<div class="optgrp${falta?' falta':''}">
       <div class="optgrp-h"><span class="optgrp-t">${titulo}</span><span class="optgrp-v${falta?' falta':''}">${falta?'Sin elegir':esc(valor)}</span></div>
-      <div class="chips">${chipsHTML}</div>${extraHTML}
+      <div class="chips${lista?' chips-lista':''}">${chipsHTML}</div>${extraHTML}
     </div>`;
 }
 
@@ -1263,30 +1456,33 @@ function bodyFor(it){
     const matChips=MATERIALES.map(m=>chip(it.material===m.key,`setItem(${it.id},'material','${m.key}')`,m.label,'$'+m.precio)).join('');
     const compChips=COMPLEJIDAD.map(c=>chip(it.comp===c.key,`setItem(${it.id},'comp','${c.key}')`,c.label,c.extra?'+$'+c.extra:'+$0')).join('');
     const mat=matOf(it.material);
+    /* Los avisos salen del propio catálogo: cualquier material nuevo hereda el que
+       le toca por ser de cara translúcida o metálica, sin listar claves a mano. */
     const avisos=`<div class="hintnote">Iluminación sugerida: ${mat?mat.ilum:'—'}</div>
-      ${(it.material==='acr-vol'||it.material==='acr-vinil')&&!it.luz?`<div class="hintnote" style="background:#fff8e1;border-left:3px solid var(--amber);color:#7a5800;margin-top:5px">⚠️ El acrílico es valioso principalmente por el paso de luz. Sin iluminación, considera cambiar a <b>Aluminio</b> — mismo resultado visual, menor costo.</div>`:''}
-      ${it.material==='al-paint'&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green);color:#1c6e3d;margin-top:5px">💡 Con aluminio e iluminación, la luz va por detrás (retroiluminación). Para luz que pase a través de las caras, considera <b>Acrílico + Aluminio</b>.</div>`:''}`;
+      ${mat&&mat.nota?`<div class="hintnote" style="margin-top:5px">${mat.nota}</div>`:''}
+      ${mat&&mat.luzInterna&&!it.luz?`<div class="hintnote" style="background:#fff8e1;border-left:3px solid var(--amber);color:#7a5800;margin-top:5px">⚠️ El acrílico es valioso principalmente por el paso de luz. Sin iluminación, considera cambiar a <b>Aluminio</b> — mismo resultado visual, menor costo.</div>`:''}
+      ${mat&&!mat.luzInterna&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green);color:#1c6e3d;margin-top:5px">💡 Con ${esc(mat.corto.toLowerCase())} e iluminación, la luz va por detrás (retroiluminación). Para luz que pase a través de las caras, considera <b>Acrílico + Aluminio</b>.</div>`:''}`;
     const tono=(it.ilumTipo||'fria')==='calida';
     const luzChips=it.luz
       ? chip(tono,`setItem(${it.id},'ilumTipo','calida')`,'🌅 Cálida','3000K')+chip(!tono,`setItem(${it.id},'ilumTipo','fria')`,'❄️ Fría','6500K')
       : '';
     return `
       ${descFld(it)}
-      ${grupo('Material / acabado',mat?mat.label:'',matChips,avisos)}
+      ${grupo('Material / acabado',mat?mat.label:'',matChips,avisos,true)}
       ${grupo('Iluminación',it.luz?(tono?'Cálida 3000K':'Fría 6500K'):'Sin iluminación · −20%',
         `<label class="switch" style="margin:0 6px 0 0"><span class="tg ${it.luz?'on':''}" onclick="${locked()?'':`setItem(${it.id},'luz',${!it.luz})`}"></span> Con iluminación</label>${luzChips}`)}
       ${grupo('Complejidad tipográfica',compOf(it.comp)?compOf(it.comp).label:'',compChips)}
       <div class="grid3">
         <div class="fld">
           <label>Altura (cm)</label>
-          <input id="h-${it.id}" type="number" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="typeItem(${it.id},'altura',+this.value)">
+          <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="typeItem(${it.id},'altura',+this.value)">
         </div>
         <div class="fld">
           <label># Letras</label>
-          <input id="n-${it.id}" type="number" min="0" value="${it.n||''}" ${dis} oninput="typeItem(${it.id},'n',+this.value)">
+          <input id="n-${it.id}" type="number" inputmode="decimal" min="0" value="${it.n||''}" ${dis} oninput="typeItem(${it.id},'n',+this.value)">
           ${!locked()?`<div class="autoctr"><input type="text" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} letras</span></div>`:''}
         </div>
-        <div class="fld"><label style="visibility:hidden">.</label></div>
+        <div class="fld fld-relleno"><label style="visibility:hidden">.</label></div>
       </div>`;
   }
   if(it.tipo==='recorte'){
@@ -1298,17 +1494,17 @@ function bodyFor(it){
       : '';
     return `
       ${descFld(it)}
-      ${grupo('Acabado del recorte',recOf(it.acab)?recOf(it.acab).label:'',recChips,hint)}
+      ${grupo('Acabado del recorte',recOf(it.acab)?recOf(it.acab).label:'',recChips,hint,true)}
       ${compRow}
       <div class="grid3" style="margin-top:12px">
         <div class="fld">
           <label>Altura (cm)</label>
-          <input id="h-${it.id}" type="number" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="typeItem(${it.id},'altura',+this.value)">
+          <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="typeItem(${it.id},'altura',+this.value)">
         </div>
-        <div class="fld"><label># Piezas</label><input id="n-${it.id}" type="number" min="0" value="${it.n||''}" ${dis} oninput="typeItem(${it.id},'n',+this.value)">
+        <div class="fld"><label># Piezas</label><input id="n-${it.id}" type="number" inputmode="decimal" min="0" value="${it.n||''}" ${dis} oninput="typeItem(${it.id},'n',+this.value)">
           ${!locked()?`<div class="autoctr"><input type="text" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} letras</span></div>`:''}
         </div>
-        <div class="fld"><label style="visibility:hidden">.</label></div>
+        <div class="fld fld-relleno"><label style="visibility:hidden">.</label></div>
       </div>`;
   }
   if(it.tipo==='bastidor'){
@@ -1316,10 +1512,10 @@ function bodyFor(it){
     const hint='<div class="hintnote">Lámina $950/m² &nbsp;·&nbsp; Alucobond $1,500/m² &nbsp;·&nbsp; se cobra por área (ancho × alto), mínimo 1 m²: si el área es menor, se respeta el precio de un metro cuadrado.</div>';
     return `
       ${descFld(it)}
-      ${grupo('Material del bastidor',basOf(it.bas)?basOf(it.bas).label:'',chips,hint)}
+      ${grupo('Material del bastidor',basOf(it.bas)?basOf(it.bas).label:'',chips,hint,true)}
       <div class="grid2" style="margin-top:12px">
-        <div class="fld"><label>Ancho (cm)</label><input type="number" min="0" value="${it.ancho||''}" ${dis} oninput="typeItem(${it.id},'ancho',+this.value)"></div>
-        <div class="fld"><label>Alto (cm)</label><input type="number" min="0" value="${it.alto||''}" ${dis} oninput="typeItem(${it.id},'alto',+this.value)"></div>
+        <div class="fld"><label>Ancho (cm)</label><input type="number" inputmode="decimal" min="0" value="${it.ancho||''}" ${dis} oninput="typeItem(${it.id},'ancho',+this.value)"></div>
+        <div class="fld"><label>Alto (cm)</label><input type="number" inputmode="decimal" min="0" value="${it.alto||''}" ${dis} oninput="typeItem(${it.id},'alto',+this.value)"></div>
       </div>`;
   }
   if(it.tipo==='caja'){
@@ -1328,19 +1524,19 @@ function bodyFor(it){
     const cajaSel=CAJAS.find(c=>c.tarifa===it.tarifa);
     return `
       ${descFld(it)}
-      ${grupo('Tipo de caja',cajaSel?cajaSel.label:(it.tarifa>0?'Tarifa personalizada · $'+it.tarifa+'/m²':''),chips,hint)}
+      ${grupo('Tipo de caja',cajaSel?cajaSel.label:(it.tarifa>0?'Tarifa personalizada · $'+it.tarifa+'/m²':''),chips,hint,true)}
       <div class="grid3" style="margin-top:12px">
-        <div class="fld"><label>Ancho (cm)</label><input type="number" min="0" value="${it.ancho||''}" ${dis} oninput="typeItem(${it.id},'ancho',+this.value)"></div>
-        <div class="fld"><label>Alto (cm)</label><input type="number" min="0" value="${it.alto||''}" ${dis} oninput="typeItem(${it.id},'alto',+this.value)"></div>
-        <div class="fld"><label>Tarifa ($/m²)</label><div class="inp-money"><input type="number" min="0" value="${it.tarifa||''}" ${dis} oninput="typeItem(${it.id},'tarifa',+this.value)"></div></div>
+        <div class="fld"><label>Ancho (cm)</label><input type="number" inputmode="decimal" min="0" value="${it.ancho||''}" ${dis} oninput="typeItem(${it.id},'ancho',+this.value)"></div>
+        <div class="fld"><label>Alto (cm)</label><input type="number" inputmode="decimal" min="0" value="${it.alto||''}" ${dis} oninput="typeItem(${it.id},'alto',+this.value)"></div>
+        <div class="fld"><label>Tarifa ($/m²)</label><div class="inp-money"><input type="number" inputmode="decimal" min="0" value="${it.tarifa||''}" ${dis} oninput="typeItem(${it.id},'tarifa',+this.value)"></div></div>
       </div>`;
   }
   // manual
   return `
     <div class="fld"><label>Descripción ${it.descAi?'<span class="ai-tag">✨ IA</span>':''}</label><input value="${esc(it.desc)}" placeholder="Ej. Rotulación vehicular, instalación, viáticos…" ${dis} oninput="typeItem(${it.id},'desc',this.value)"></div>
     <div class="grid2">
-      <div class="fld"><label>Piezas</label><input type="number" min="1" value="${it.pz||''}" ${dis} oninput="typeItem(${it.id},'pz',+this.value)"></div>
-      <div class="fld"><label>Precio unitario</label><div class="inp-money"><input type="number" min="0" value="${it.pu||''}" ${dis} oninput="typeItem(${it.id},'pu',+this.value)"></div></div>
+      <div class="fld"><label>Piezas</label><input type="number" inputmode="decimal" min="1" value="${it.pz||''}" ${dis} oninput="typeItem(${it.id},'pz',+this.value)"></div>
+      <div class="fld"><label>Precio unitario</label><div class="inp-money"><input type="number" inputmode="decimal" min="0" value="${it.pu||''}" ${dis} oninput="typeItem(${it.id},'pu',+this.value)"></div></div>
     </div>`;
 }
 
@@ -1481,6 +1677,39 @@ function renderSummary(){
   $('addbtn').disabled=locked();
 }
 
+/* ===================== Barra fija de móvil =====================
+   El resumen y los botones viven en la columna derecha, que en el celular queda
+   hasta el fondo de la página: había que bajar toda la lista de partidas para ver
+   cuánto va y otra vez para pedir autorización. La barra trae ese total y el botón
+   que toca según rol y estado. Las acciones son las mismas funciones del panel, no
+   una copia de la lógica: lo que valide `solicitar()` sigue valiendo aquí. */
+function irAResumen(){
+  const el=document.querySelector('.side');
+  if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function renderBarraMovil(){
+  const lab=$('mbar-lab'), amt=$('mbar-amt'), cta=$('mbar-cta');
+  if(!lab||!amt||!cta) return;
+  const pf=precioFinal(), ajustado=Q.estado==='autorizada'&&Math.abs(ajusteAuth())>0.01;
+  lab.textContent=ajustado?'Precio autorizado':'Total neto';
+  amt.textContent=money(pf);
+  amt.classList.toggle('aut',ajustado);
+
+  const hayPartidas=Q.items.length>0&&totals().sub>0;
+  let txt='Ver resumen', cls='gho', fn=irAResumen, off=false;
+  if(Q.rol==='autorizador'){
+    if(Q.estado==='pendiente'){ txt='Revisar precio'; cls=''; }
+  } else if(Q.estado==='borrador'){
+    txt='Solicitar autorización'; cls=''; fn=solicitar; off=!hayPartidas;
+  } else if(Q.estado==='autorizada'){
+    txt='📄 Generar PDF'; cls='ok'; fn=generarPDF;
+  }
+  cta.textContent=txt;
+  cta.className='mbar-cta'+(cls?' '+cls:'');
+  cta.disabled=off;
+  cta.onclick=fn;
+}
+
 function renderAuth(){
   const box=$('authbox');
   const LABELS={borrador:'Borrador',pendiente:'Pendiente de autorización',autorizada:'Autorizada',rechazada:'Rechazada'};
@@ -1535,7 +1764,7 @@ function renderAuth(){
           '</div>'+
           '<div class="ia-body" id="ia-body-'+it.id+'" style="'+(isOpen?'':'display:none')+'">'+
           '<label style="font-size:11px;margin-bottom:4px">Precio autorizado</label>'+
-          '<div class="inp-money"><input type="number" min="0" step="50" value="'+authVal+'" oninput="updItemAuth('+it.id+',+this.value)"></div>'+
+          '<div class="inp-money"><input type="number" inputmode="decimal" min="0" step="50" value="'+authVal+'" oninput="updItemAuth('+it.id+',+this.value)"></div>'+
           '<div class="ia-adj'+diffCls+'" id="ia-adj-'+it.id+'">'+diffTxt+'</div>'+
           '</div>'+
           '</div>';
@@ -1544,7 +1773,7 @@ function renderAuth(){
         <div class="fld">
           <label>Precio final autorizado ${Q.iva?'(con IVA)':'(sin IVA)'}</label>
           <div class="precio-auth-orig" style="font-size:11.5px;color:var(--muted);margin-bottom:4px">Total calculado: <b>${money(neto)}</b></div>
-          <div class="inp-money"><input id="a-precio" type="number" min="0" step="100" value="${paCurrent}" oninput="updPrecioAuth(+this.value,${neto})"></div>
+          <div class="inp-money"><input id="a-precio" type="number" inputmode="decimal" min="0" step="100" value="${paCurrent}" oninput="updPrecioAuth(+this.value,${neto})"></div>
           <div class="descuento-info" id="descuento-info"></div>
         </div>
         <div class="auth-divider" style="margin-top:8px">Ajuste por partida ${Q.iva?'· montos sin IVA':''}</div>
@@ -1611,6 +1840,9 @@ function renderAuth(){
   if(Q.rol==='autorizador'&&Q.estado==='pendiente'){
     updPrecioAuth(parseFloat($('a-precio')?.value)||0, totals().neto);
   }
+  // La barra de móvil ofrece la misma acción que este panel, así que se repinta
+  // desde aquí: cambiar de rol solo llama a renderAuth y si no se quedaba atrás.
+  renderBarraMovil();
 }
 
 function updPrecioAuth(pa, neto){
@@ -1718,7 +1950,7 @@ function loadLogo(){ let s=null; try{s=localStorage.getItem('al3d_logo');}catch(
 const PROMPT_IA = `Eres un asistente experto en cotizacion para "AL3D", empresa que fabrica letras 3D (caras de acrilico, cantos de aluminio), recortes de acrilico, bastidores y cajas de luz.
 
 Analiza la imagen o PDF y DESGLOSA CADA ELEMENTO por separado en distintas partidas. Devuelve SOLO un JSON valido, sin texto adicional:
-{"proyecto":"","cliente":"","direccion":"","partidas":[{"tipo":"letras|recorte|bastidor|caja|manual","material":"al-paint|al-brush|acr-vol|acr-vinil","complejidad":"recta|cursiva|compleja","acabado":"sencillo|vinil|sandwich","bastidor":"lamina|alucobond","altura_cm":0,"n_letras":0,"iluminacion":true,"tarifa":0,"ancho_cm":0,"alto_cm":0,"descripcion":"","piezas":1,"precio_unitario":0,"notas":""}]}
+{"proyecto":"","cliente":"","direccion":"","partidas":[{"tipo":"letras|recorte|bastidor|caja|manual","material":"al-paint|al-brush|acr-vol|acr-vinil|acero","complejidad":"recta|cursiva|compleja","acabado":"sencillo|vinil|sandwich","bastidor":"lamina|alucobond","altura_cm":0,"n_letras":0,"iluminacion":true,"tarifa":0,"ancho_cm":0,"alto_cm":0,"descripcion":"","piezas":1,"precio_unitario":0,"notas":""}]}
 
 === CÓMO DISTINGUIR tipos (LEE ESTO PRIMERO — ORDEN DE PRIORIDAD) ===
 - tipo "letras": ES EL TIPO POR DEFECTO. Texto, letras, iconos y logos con profundidad/volumen. Ante CUALQUIER DUDA entre letras y recorte, SIEMPRE elige letras. Es el tipo más común en todos los proyectos.
@@ -1751,8 +1983,8 @@ Ejemplos de desglose correcto:
 - altura_cm: el valor numerico que muestra el corchete apuntando a ese elemento. No importa si el corchete es vertical u horizontal: usa ese numero tal cual como centimetros. NUNCA ignores un corchete porque sea horizontal o apunte al ancho.
 - Cuando hay MULTIPLES corchetes: asigna el valor de cada corchete al elemento al que apunta. NUNCA uses la misma medida para elementos distintos. NUNCA omitas un corchete.
 - Ejemplo para imagen con 2 bloques de texto + 3 corchetes (92cm ondas, 19cm circulo, 62cm letras): → Partida 1: ondas, acr-vinil, altura_cm=92, n_letras=4 (piezas de onda). Partida 2: circulo, acr-vinil, altura_cm=19, n_letras=1. Partida 3: letras "National", acr-vol, altura_cm=62, n_letras=8. TRES partidas completas, ninguna vacia.
-- Material de letras: al-paint=Aluminio pintado, al-brush=Aluminio brush cepillado, acr-vol=Acrilico+Aluminio con volumen, acr-vinil=Acrilico+Vinil.
-- Deteccion de material por descripcion: "Cara en Acrilico" + "rotulacion de vinil" + "Cantos en Aluminio" → material="acr-vinil". "Cara en Acrilico" + "Cantos en Aluminio" sin vinil → material="acr-vol". "Cantos en Aluminio Blanco/Negro/Pintado" sin acrilico → material="al-paint".
+- Material de letras: al-paint=Aluminio pintado ($30/cm), al-brush=Aluminio brush cepillado ($35/cm), acr-vol=Acrilico+Aluminio con volumen ($40/cm), acr-vinil=Acrilico+Vinil ($45/cm), acero=Acero Inoxidable ($55/cm).
+- Deteccion de material por descripcion: "Cara en Acrilico" + "rotulacion de vinil" + "Cantos en Aluminio" → material="acr-vinil". "Cara en Acrilico" + "Cantos en Aluminio" sin vinil → material="acr-vol". "Cantos en Aluminio Blanco/Negro/Pintado" sin acrilico → material="al-paint". "Acero inoxidable", "inox", "stainless" o "acero espejo/cepillado" → material="acero".
 - complejidad: recta (tipografia recta/imprenta), cursiva (manuscrita/script/italica), compleja (muy ornamentada o muy detallada).
 - iluminacion: true salvo que diga explicitamente "sin luz" o "sin iluminacion".
 - tipo "recorte": acabado sencillo=$20/cm, vinil=$25/cm, sandwich=$55/cm (+$5 si es compleja). Se cobra altura_cm x n_letras (piezas).
@@ -1948,7 +2180,7 @@ function applyAi(p){
       it.tipo=['letras','recorte','bastidor','caja','manual'].includes(x.tipo)?x.tipo:'letras';
       it.desc=(x.descripcion||'').trim(); it.descAi=!!it.desc;
       if(it.tipo==='letras'){
-        it.material=['al-paint','al-brush','acr-vol','acr-vinil'].includes(x.material)?x.material:'';
+        it.material=matOf(x.material)?x.material:'';
         it.comp=['recta','cursiva','compleja'].includes(x.complejidad)?x.complejidad:'recta';
         it.altura=+x.altura_cm||0; it.n=+x.n_letras||0; it.luz=(x.iluminacion!==false);
         const aiNotes=(x.notas||x.descripcion||'').toLowerCase();
@@ -1973,6 +2205,8 @@ function applyAi(p){
     // La cotización vuelve a borrador: cualquier precio autorizado antes ya no aplica
     // a estas partidas nuevas.
     Q.estado='borrador'; Q.precioAuth=0; Q.itemsAuth={};
+    // Con varias partidas de golpe conviene ver la lista completa antes de entrar a una
+    partidaAbierta=null;
     renderItems();
     if(conservadas.length) toast(`${conservadas.length} partida${conservadas.length>1?'s':''} tuya${conservadas.length>1?'s':''} + ${nuevos.length} de la IA`,'ok',3600);
   }
@@ -1988,7 +2222,7 @@ const EMPRESA = {
 
 /* ===================== Copiar datos para pegar en Canva ===================== */
 function copiarParaCanva(){
-  const MAT={'al-paint':'Aluminio Blanco/Negro/Pintado','al-brush':'Aluminio Brush Cepillado','acr-vol':'Acrílico + Aluminio (Volumen)','acr-vinil':'Acrílico + Vinil'};
+  const MAT=MAT_LABEL;
   const ACAB={'sencillo':'Sencillo','vinil':'Rotulación de Vinil','sandwich':'Tipo Sándwich con Iluminación'};
   const BAS={'lamina':'Lámina Galvanizada','alucobond':'Alucobond'};
   function descTxt(it){
@@ -2047,13 +2281,9 @@ function copiarParaGemini(){
   function descGemini(it){
     const label=it.desc?` "${it.desc}"`:'';
     if(it.tipo==='letras'){
-      let fabr='';
-      if(it.material==='al-paint') fabr='Fabricadas en Aluminio Pintado';
-      else if(it.material==='al-brush') fabr='Fabricadas en Aluminio Brush Cepillado';
-      else if(it.material==='acr-vol') fabr='Fabricadas en Acrílico, Cantos en Aluminio';
-      else if(it.material==='acr-vinil') fabr='Fabricadas en Acrílico con Rotulación de Vinil, Cantos en Aluminio';
-      else fabr='Fabricadas en Aluminio';
-      const ilumPos=(it.material==='acr-vol'||it.material==='acr-vinil')?'Interna':'Posterior';
+      const m=matOf(it.material);
+      const fabr=m?m.fabr:'Fabricadas en Aluminio';
+      const ilumPos=(m&&m.luzInterna)?'Interna':'Posterior';
       const ilumColor=(it.ilumTipo==='calida')?'Cálida (3000K)':'Fría (6500K)';
       const ilum=it.luz?`, con Iluminación LED ${ilumPos} ${ilumColor}`:' sin iluminación';
       const alt=it.altura?`, altura de ${it.altura}cm`:'';
@@ -2107,7 +2337,7 @@ function generarPDF(){
   const ajuste  = +(netoPdf-pFinal).toFixed(2); // >0 descuento · <0 aumento
 
   /* Etiquetas de catálogos */
-  const MAT = {'al-paint':'Aluminio Blanco/Negro/Pintado','al-brush':'Aluminio Brush Cepillado','acr-vol':'Acrílico + Aluminio (Volumen)','acr-vinil':'Acrílico + Vinil'};
+  const MAT = MAT_LABEL;
   const ACAB = {'sencillo':'Sencillo','vinil':'Rotulación de Vinil','sandwich':'Tipo Sándwich con Iluminación'};
   const BAS  = {'lamina':'Lámina Galvanizada','alucobond':'Alucobond'};
 
@@ -2431,7 +2661,7 @@ function borrarDeHistorial(folio){
   pintarHistorial(); // se conserva lo que el usuario tenía escrito en el buscador
 }
 
-const HIST_MAT={'al-paint':'Aluminio Pintado','al-brush':'Aluminio Brush','acr-vol':'Acrílico + Aluminio','acr-vinil':'Acrílico + Vinil'};
+const HIST_MAT=MAT_CORTO;
 const HIST_ACAB={'sencillo':'Sencillo','vinil':'Rotulación Vinil','sandwich':'Sándwich c/luz'};
 const HIST_BAS={'lamina':'Lámina','alucobond':'Alucobond'};
 function histDsc(it){
@@ -3724,6 +3954,8 @@ function scUsarTodas(){
   const pend=SC.items.filter(m=>!m.usada);
   if(!pend.length){toast('Todas las medidas ya están agregadas','',2200);return;}
   pend.forEach(scAgregarPartida);
+  // Varias partidas de golpe: al volver conviene ver la lista completa, no la última
+  partidaAbierta=null;
   renderItems();
   scUpdateList();
   toast(`${pend.length} ${pend.length===1?'partida agregada':'partidas agregadas'} a la cotización`,'ok',4200,{label:'Ir al cotizador',fn:cerrarScaler});
@@ -3920,11 +4152,11 @@ function _copiaManual(txt,cb){
         </div>
         <div class="rv-field">
           <label>Anticipo ($)</label>
-          <input type="number" id="rv-anticipo" min="0" oninput="rvRecalc()">
+          <input type="number" inputmode="decimal" id="rv-anticipo" min="0" oninput="rvRecalc()">
         </div>
         <div class="rv-field">
           <label>% Comisión</label>
-          <input type="number" id="rv-pct" value="10" min="0" max="100" step="0.5" oninput="rvRecalc()">
+          <input type="number" inputmode="decimal" id="rv-pct" value="10" min="0" max="100" step="0.5" oninput="rvRecalc()">
         </div>
         <div class="rv-field">
           <label>Cuenta</label>
