@@ -418,6 +418,17 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .key-btn.del{color:var(--red)}
 .key-note{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:9px;border-top:1px dashed var(--line);padding-top:9px}
 .ai-tag{display:inline-block;font-size:9.5px;font-weight:700;color:var(--brand);background:#eef0fe;border-radius:5px;padding:1px 5px;margin-left:5px;vertical-align:middle;text-transform:none;letter-spacing:0}
+/* Origen del análisis cuando no es un archivo suelto sino lo que se acaba de medir */
+.ai-src{display:flex;gap:11px;align-items:flex-start;background:var(--green-bg);border:1.5px solid rgba(21,160,106,.28);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:13px}
+/* contain, no cover: de un plano o un boceto hay que reconocer el conjunto, y
+   recortarlo a un cuadrado deja fuera justo lo que se va a cotizar. */
+.ai-src-img{width:76px;height:76px;object-fit:contain;border-radius:9px;border:1px solid rgba(21,160,106,.25);flex-shrink:0;background:#fff;padding:3px}
+.ai-src-b{flex:1;min-width:0}
+.ai-src-t{font-size:12.5px;font-weight:800;color:var(--green)}
+.ai-src-n{font-size:11.5px;color:#1c6e3d;line-height:1.45;margin:3px 0 8px}
+/* Segunda entrada a lo mismo, desde la vista previa que queda junto a las partidas */
+.sc-prev-ia{width:100%;margin-top:9px;padding:9px 12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 10px rgba(58,74,216,.25)}
+.sc-prev-ia:hover{filter:brightness(1.06)}
 .ai-prev-big{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--soft);padding:12px;margin-bottom:14px}
 .ai-prev-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
 .ai-prev-head .ttl{font-size:11.5px;font-weight:700;color:var(--brand);line-height:1.4}
@@ -543,6 +554,12 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-addall:hover{background:#e5e9ff}
 .sp-addall:disabled{opacity:.45;cursor:default}
 .sp-addall-note{margin:0 14px 10px;font-size:11.5px;color:var(--green);font-weight:700;text-align:center}
+/* Del escalador a la IA: la otra salida de las medidas, la que devuelve la partida
+   completa en vez de solo su altura. */
+.sp-ai{margin:0 14px 7px;padding:9px 12px;width:calc(100% - 28px);border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 10px rgba(58,74,216,.25);transition:.15s}
+.sp-ai:hover{filter:brightness(1.06)}
+.sp-ai:disabled{opacity:.45;cursor:default;box-shadow:none}
+.sp-ai-note{margin:0 14px 10px;font-size:11px;color:var(--muted);line-height:1.45;text-align:center}
 /* Volver al cotizador desde el pie del panel: en el celular es el botón que se queda
    pegado abajo, siempre a la vista aunque la lista de medidas crezca. */
 .sp-back-m{display:none}
@@ -628,6 +645,8 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
      siguen a la vista por más medidas que haya en la lista. */
   .sp-actions{order:9;position:sticky;bottom:0;z-index:4;background:#fff;border-top:1px solid var(--line);box-shadow:0 -7px 16px rgba(23,29,74,.08);padding:9px 14px 10px;margin-top:4px}
   .sp-actions .sp-addall{margin:0;width:100%;min-height:46px}
+  .sp-actions .sp-ai{margin:8px 0 0;width:100%;min-height:46px}
+  .sp-actions .sp-ai-note{margin:6px 0 0}
   .sp-actions .sp-addall-note{margin:8px 0 0}
   .sp-back-m{display:block;width:100%;min-height:46px;margin-top:8px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff;color:var(--brand-strong);font-size:13px;font-weight:800;font-family:inherit;cursor:pointer}
   .sp-back-m:active{background:var(--soft-2)}
@@ -922,7 +941,15 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   <div class="modal">
     <div class="modal-h"><b>✨ Cotizar con IA</b><button onclick="aiClose()" aria-label="Cerrar">×</button></div>
     <div class="modal-b">
-      <p style="font-size:12.5px;color:var(--muted);margin-bottom:13px;line-height:1.5">Sube una foto (JPG) o PDF del diseño/boceto. La IA detecta texto, medidas, material e iluminación, <b>describe qué está cotizando en cada partida</b> y muestra una miniatura del archivo para que lo compares. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo.</p>
+      <div class="ai-src" id="ai-src-box" style="display:none">
+        <img class="ai-src-img" id="ai-src-img" alt="Imagen medida en el escalador">
+        <div class="ai-src-b">
+          <div class="ai-src-t">📐 Imagen del escalador</div>
+          <div class="ai-src-n" id="ai-src-n"></div>
+          <button type="button" class="key-btn" onclick="aiUsarArchivo()">Analizar otro archivo</button>
+        </div>
+      </div>
+      <p id="ai-intro" style="font-size:12.5px;color:var(--muted);margin-bottom:13px;line-height:1.5"></p>
       <details class="ai-cfg" id="ai-cfg-box">
         <summary>Configuración · proveedores gratuitos de IA</summary>
         <div style="margin-top:11px">
@@ -952,12 +979,12 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
           <p class="key-note">🔒 La API key no está escrita en el código del cotizador: la escribes una sola vez, se guarda ofuscada en <b>este</b> dispositivo y después solo se muestran sus últimos 4 caracteres. Se envía directo al proveedor que elijas. Si el dispositivo es compartido, usa <b>Borrar</b> al terminar.</p>
         </div>
       </details>
-      <div class="fld"><label>Archivo (JPG o PDF)</label><input id="ai-file" type="file" accept="image/*,application/pdf"></div>
+      <div class="fld" id="ai-file-fld"><label>Archivo (JPG o PDF)</label><input id="ai-file" type="file" accept="image/*,application/pdf"></div>
       <div class="ai-merge" id="ai-merge-box" style="display:none">
         <label class="switch" style="margin:0"><span class="tg" id="ai-merge-tg" onclick="toggleAiMerge()"></span> Conservar las partidas que ya capturé</label>
         <div class="ai-merge-note" id="ai-merge-note"></div>
       </div>
-      <button class="btn btn-pri" onclick="aiAnalyze()" style="margin-top:8px">Analizar y cotizar</button>
+      <button class="btn btn-pri" id="ai-go-btn" onclick="aiAnalyze()" style="margin-top:8px">Analizar y cotizar</button>
       <div class="ai-status" id="ai-status"></div>
     </div>
   </div>
@@ -1076,6 +1103,8 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <div class="sp-mlist" id="sc-medidas-list"></div>
       <div class="sp-actions">
         <button class="sp-addall" id="sc-btn-addall" onclick="scUsarTodas()" disabled>→ Agregar todas las medidas como partidas</button>
+        <button class="sp-ai" id="sc-btn-ia" onclick="scCotizarConIA()" disabled>✨ Cotizar estas medidas con IA</button>
+        <div class="sp-ai-note" id="sc-ia-note">La IA lee la foto con tus cotas y devuelve las partidas ya con material, tipo y número de letras.</div>
         <div class="sp-addall-note" id="sc-addall-note" style="display:none"></div>
         <button class="sp-back-m" onclick="cerrarScaler()">← Volver al cotizador</button>
       </div>
@@ -2183,6 +2212,38 @@ Si la imagen NO tiene corchetes ni lineas de cota, estima alturas usando objetos
 - Letra de cartel tipica en fachada de local comercial (referencia secundaria): 20-40cm alto
 PROCESO sin cotas: 1) Identifica el objeto de referencia mas obvio y claro en la imagen. 2) Calcula la proporcion de ese objeto vs los elementos a cotizar usando sus tamaños relativos en pixeles. 3) Estima la altura de letras y elementos. 4) En el campo "descripcion" de CADA partida escribe al final: "(~Xcm estimado por [referencia usada])". 5) Si no hay ninguna referencia reconocible, deja altura_cm=0 y escribe en descripcion "Sin escala — confirmar medidas con cliente".`;
 
+/* ----- Lo que se le añade al prompt cuando la imagen viene del escalador -----
+   El prompt de arriba dedica un bloque entero a estimar tamaños comparando contra
+   puertas, ladrillos y personas, porque normalmente la IA no tiene de dónde sacarlos.
+   Cuando la foto viene del escalador ese problema no existe: las medidas están
+   calibradas contra una referencia real y dibujadas sobre la imagen. Aquí se le dice
+   que las use tal cual y que dedique su trabajo a lo que sí tiene que deducir —qué es
+   cada elemento, de qué material y con cuántas letras—. */
+function promptMedidas(medidas){
+  const n=medidas.length;
+  const lista=medidas.map((m,i)=>`${i+1}. ${scFmtCm(m.cm)} cm${m.label?' — '+m.label:''}`).join('\n');
+  return `
+
+=== MEDIDAS YA CALIBRADAS — MANDAN SOBRE CUALQUIER ESTIMACION ===
+Esta imagen viene del escalador de AL3D: se calibro contra una referencia real y las
+cotas dibujadas encima son medidas EXACTAS en centimetros, no estimaciones.
+
+Medidas tomadas (${n}):
+${lista}
+
+1. Usa EXACTAMENTE estos numeros. En las partidas de tipo letras y recorte van en
+   altura_cm; en bastidor y caja, en el lado que corresponda (ancho_cm o alto_cm).
+   No los redondees, no los cambies y no los sustituyas por una estimacion tuya.
+2. Genera una partida por cada medida de la lista y en el mismo orden:
+   ${n} medidas = ${n} partidas.
+3. El texto que acompaña a una medida lo escribio el vendedor sobre ese elemento:
+   usalo para decidir el tipo de partida y para la descripcion.
+4. IGNORA por completo la seccion "CUANDO NO HAY CORCHETES NI COTAS": aqui si hay
+   cotas y son fiables.
+5. Lo que si tienes que deducir de la imagen es QUE es cada elemento: tipo, material,
+   complejidad, iluminacion y, en las de tipo letras, cuantas letras tiene el texto.`;
+}
+
 /* ----- API keys: fuera del código y fuera de la vista -----
    La key nunca está escrita en el HTML: la captura el usuario. Al guardarla se
    ofusca (no queda en texto plano en localStorage) y en pantalla solo se ven
@@ -2273,7 +2334,13 @@ function aiPintarMerge(){
     ? `Se conservarán tus ${n} ${plural} y las de la IA se agregarán al final.`
     : `⚠️ Tienes ${n} ${plural}. Tal como está, se reemplazarán por lo que detecte la IA.`;
 }
-function aiOpen(){
+/* Fuente del análisis. Normalmente es el archivo que el usuario elige en el modal;
+   cuando se entra desde el escalador es la foto que ya se midió, con sus cotas
+   dibujadas y su lista de medidas. Solo dura lo que dura el modal abierto. */
+let aiSrc=null;
+function aiOpen(fuente){
+  aiSrc=(fuente&&fuente.url)?fuente:null;
+  aiPintarFuente();
   aiMerge=false; $('ai-merge-tg').classList.remove('on'); aiPintarMerge();
   AI_PROVS.forEach(p=>{ const inp=$('ai-key-'+p); if(inp){ delete inp.dataset.editing; inp.value=''; } aiRenderKey(p); });
   $('ai-model-gemini').value=localStorage.getItem('ai_model_gemini')||localStorage.getItem('ai_model')||'gemini-2.5-flash';
@@ -2285,6 +2352,24 @@ function aiOpen(){
   aiStatus(''); $('aimodal').classList.add('show');
 }
 function aiClose(){ $('aimodal').classList.remove('show'); }
+/* Con la imagen del escalador el modal cambia de cara: en vez de pedir un archivo
+   enseña lo que se va a analizar, y deja la puerta abierta por si el usuario prefiere
+   subir otra cosa. */
+const AI_INTRO_ARCHIVO='Sube una foto (JPG) o PDF del diseño/boceto. La IA detecta texto, medidas, material e iluminación, <b>describe qué está cotizando en cada partida</b> y muestra una miniatura del archivo para que lo compares. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo.';
+const AI_INTRO_ESCALADOR='Se analiza la imagen que acabas de medir, con tus cotas dibujadas encima. Como las medidas ya están calibradas, la IA <b>no tiene que estimar tamaños</b>: los usa tal cual y dedica su trabajo a reconocer qué es cada elemento, de qué material y con cuántas letras. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo.';
+function aiPintarFuente(){
+  const box=$('ai-src-box'), fld=$('ai-file-fld'), btn=$('ai-go-btn'), intro=$('ai-intro');
+  if(!box) return;
+  box.style.display=aiSrc?'flex':'none';
+  if(fld) fld.style.display=aiSrc?'none':'';
+  if(intro) intro.innerHTML=aiSrc?AI_INTRO_ESCALADOR:AI_INTRO_ARCHIVO;
+  if(!aiSrc){ if(btn) btn.textContent='Analizar y cotizar'; return; }
+  $('ai-src-img').src=aiSrc.url;
+  const n=aiSrc.medidas.length;
+  $('ai-src-n').textContent=`${n} ${n===1?'medida calibrada':'medidas calibradas'} — se usan tal cual, sin redondear.`;
+  if(btn) btn.textContent='Analizar las medidas y cotizar';
+}
+function aiUsarArchivo(){ aiSrc=null; aiPintarFuente(); }
 function aiStatus(msg,cls=''){ const e=$('ai-status'); e.textContent=msg; e.className='ai-status '+cls; }
 function fileToB64(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(f); }); }
 function extractJSON(txt){
@@ -2296,8 +2381,8 @@ function extractJSON(txt){
 
 async function aiAnalyze(){
   const f=$('ai-file').files[0];
-  if(!f){ aiStatus('Selecciona un archivo JPG o PDF.','err'); return; }
-  if(aiProv!=='gemini' && f.type==='application/pdf'){
+  if(!aiSrc && !f){ aiStatus('Selecciona un archivo JPG o PDF.','err'); return; }
+  if(!aiSrc && aiProv!=='gemini' && f.type==='application/pdf'){
     aiStatus('Groq y OpenRouter solo admiten imágenes JPG. Para PDF usa Gemini.','err'); return;
   }
   const DEFAULTS={gemini:'gemini-2.5-flash',groq:'meta-llama/llama-4-scout-17b-16e-instruct',openrouter:'meta-llama/llama-4-scout:free'};
@@ -2308,13 +2393,17 @@ async function aiAnalyze(){
   const _kin=$('ai-key-'+aiProv); delete _kin.dataset.editing; aiRenderKey(aiProv);
   localStorage.setItem('ai_model_'+aiProv,model);
   localStorage.setItem('ai_provider',aiProv);
-  aiStatus('Analizando con IA… (unos segundos)','work');
+  aiStatus(aiSrc?'Analizando la imagen medida… (unos segundos)':'Analizando con IA… (unos segundos)','work');
   try{
-    const b64=await fileToB64(f);
-    const mime=f.type||'image/jpeg';
+    /* La imagen del escalador ya viene lista en base64 —la dibuja scImagenParaIA con
+       sus cotas encima—, así que no hay archivo que leer. Y como esas cotas son
+       medidas reales, al prompt se le añade la lista para que las use tal cual. */
+    const b64=aiSrc?aiSrc.url.split(',')[1]:await fileToB64(f);
+    const mime=aiSrc?(aiSrc.mime||'image/jpeg'):(f.type||'image/jpeg');
+    const prompt=aiSrc?PROMPT_IA+promptMedidas(aiSrc.medidas):PROMPT_IA;
     let parsed;
     if(aiProv==='gemini'){
-      const body={contents:[{parts:[{text:PROMPT_IA},{inline_data:{mime_type:mime,data:b64}}]}],generationConfig:{responseMimeType:'application/json',temperature:0.2}};
+      const body={contents:[{parts:[{text:prompt},{inline_data:{mime_type:mime,data:b64}}]}],generationConfig:{responseMimeType:'application/json',temperature:0.2}};
       const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
       const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       const data=await res.json();
@@ -2326,7 +2415,7 @@ async function aiAnalyze(){
       const URLS={groq:'https://api.groq.com/openai/v1/chat/completions',openrouter:'https://openrouter.ai/api/v1/chat/completions'};
       const hdrs={'Content-Type':'application/json','Authorization':'Bearer '+key};
       if(aiProv==='openrouter'){hdrs['HTTP-Referer']=location.origin;hdrs['X-Title']='Cotizador AL3D';}
-      const body={model,messages:[{role:'user',content:[{type:'text',text:PROMPT_IA},{type:'image_url',image_url:{url:`data:${mime};base64,${b64}`}}]}],response_format:{type:'json_object'},temperature:0.2};
+      const body={model,messages:[{role:'user',content:[{type:'text',text:prompt},{type:'image_url',image_url:{url:`data:${mime};base64,${b64}`}}]}],response_format:{type:'json_object'},temperature:0.2};
       const res=await fetch(URLS[aiProv],{method:'POST',headers:hdrs,body:JSON.stringify(body)});
       const data=await res.json();
       if(data.error) throw new Error(data.error.message||('HTTP '+res.status));
@@ -2334,10 +2423,26 @@ async function aiAnalyze(){
       if(!txt) throw new Error('La IA no devolvió datos. Intenta con otra imagen.');
       parsed=extractJSON(txt);
     }
-    Q.aiFile={name:f.name,type:mime,url:'data:'+mime+';base64,'+b64};
+    /* La foto del escalador no se guarda como "archivo de IA": ya se ve, con sus
+       cotas, en la vista previa del escalador que está junto a las partidas.
+       Duplicarla solo repetiría la misma imagen dos veces en la pantalla. */
+    if(!aiSrc) Q.aiFile={name:f.name,type:mime,url:'data:'+mime+';base64,'+b64};
+    const medidas=(aiSrc&&aiSrc.origen==='escalador')?aiSrc.medidas.length:0;
     applyAi(parsed);
     aiStatus('Borrador generado. Revísalo y ajústalo antes de autorizar.','ok');
-    toast('Cotización IA lista (borrador)','ok');
+    if(medidas){
+      scMarcarMedidasUsadas();
+      /* Se le pidió una partida por medida, pero el modelo puede saltarse o juntar
+         elementos. Si las cuentas no cuadran conviene decirlo: quien midió sabe
+         cuántas cosas midió y es el único que puede notar la que falta. */
+      const dio=Array.isArray(parsed.partidas)?parsed.partidas.length:0;
+      toast(dio&&dio!==medidas
+        ? `⚠️ La IA devolvió ${dio} ${dio===1?'partida':'partidas'} para ${medidas} medidas — revisa cuál falta`
+        : `${medidas} ${medidas===1?'medida cotizada':'medidas cotizadas'} con IA (borrador)`,
+        dio&&dio!==medidas?'':'ok', dio&&dio!==medidas?6000:3200);
+    } else {
+      toast('Cotización IA lista (borrador)','ok');
+    }
     setTimeout(aiClose,1500);
   }catch(e){ aiStatus('Error: '+e.message,'err'); }
 }
@@ -4143,6 +4248,52 @@ function scUsarTodas(){
   scUpdateList();
   toast(`${pend.length} ${pend.length===1?'partida agregada':'partidas agregadas'} a la cotización`,'ok',4200,{label:'Ir al cotizador',fn:cerrarScaler});
 }
+/* ===================== Del escalador a la IA =====================
+   Eran dos caminos sueltos que resolvían mitades distintas del mismo problema: el
+   escalador sabe CUÁNTO mide cada elemento —lo midió sobre la foto, calibrado contra
+   una referencia real— pero de ahí solo salen partidas con la altura puesta, y hay
+   que completarles material, tipo y número de letras a mano. La IA sabe QUÉ es cada
+   elemento —lee el texto, el material, la tipografía— pero de los tamaños tiene que
+   adivinar comparando contra puertas y ladrillos.
+
+   Unidos se cubren: se le manda a la misma IA la foto CON las cotas dibujadas encima
+   más la lista de medidas en texto, y devuelve las partidas ya clasificadas y con las
+   medidas exactas. Es la misma IA, la misma key y el mismo modal de siempre; lo único
+   que cambia es de dónde sale la imagen. */
+function scImagenParaIA(){
+  /* Se manda la foto con las cotas ya pintadas: es justo el material con el que mejor
+     trabaja el prompt, que sabe leer un corchete con su número al lado. */
+  const k=Math.min(1,1600/Math.max(SC.imgW,SC.imgH)); // más de 1600 px no aporta y encarece la subida
+  const oc=document.createElement('canvas');
+  oc.width=Math.max(1,Math.round(SC.imgW*k));
+  oc.height=Math.max(1,Math.round(SC.imgH*k));
+  const ctx=oc.getContext('2d');
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+  ctx.drawImage(SC.img,0,0,oc.width,oc.height);
+  const s=Math.max(1,Math.min(6,Math.min(oc.width,oc.height)/620));
+  scDrawDims(ctx,oc.width,oc.height,{s,conLabel:true});
+  return oc.toDataURL('image/jpeg',0.9);
+}
+function scCotizarConIA(){
+  if(locked()){ toast('La cotización está bloqueada','err'); return; }
+  if(!SC.img||!SC.items.length){ toast('Traza al menos una medida para cotizarla con IA','err',3200); return; }
+  const fuente={
+    origen:'escalador',
+    mime:'image/jpeg',
+    url:scImagenParaIA(),
+    medidas:SC.items.map(m=>({cm:m.cm,label:(m.label||'').trim()})),
+  };
+  // El mismo botón vive en el escalador y en la vista previa del cotizador: solo hay
+  // que cerrar el modal —y devolver su entrada de historial— si está abierto.
+  if($('scalermodal').classList.contains('show')) cerrarScaler();
+  aiOpen(fuente);
+}
+/* Las medidas que la IA acaba de convertir en partidas quedan marcadas, para que el
+   pie del escalador no invite a agregarlas otra vez. */
+function scMarcarMedidasUsadas(){
+  SC.items.forEach(m=>{ m.usada=true; });
+  scUpdateList();
+}
 /* Cuenta de partidas ya creadas desde el escalador, para el pie del panel */
 function scUsadas(){ return SC.items.filter(m=>m.usada).length; }
 function scUpdateAddAll(){
@@ -4157,6 +4308,13 @@ function scUpdateAddAll(){
   if(note){
     note.style.display=usadas?'':'none';
     note.textContent=usadas?`✓ ${usadas} ${usadas===1?'partida agregada':'partidas agregadas'} a la cotización`:'';
+  }
+  const ia=$('sc-btn-ia'), iaNote=$('sc-ia-note');
+  if(ia){
+    const n=SC.items.length;
+    ia.disabled=!n||locked();
+    ia.textContent=n>1 ? `✨ Cotizar estas ${n} medidas con IA` : '✨ Cotizar esta medida con IA';
+    if(iaNote) iaNote.style.display=n?'':'none';
   }
 }
 /* ===================== Vista previa de la imagen escalada, junto a las partidas =====================
@@ -4178,6 +4336,7 @@ function renderScalerPreview(){
     </div>
     ${collapsed?'':`<canvas id="sc-mini-cvs" class="sc-prev-img" onclick="abrirScaler()" title="Clic para volver al escalador y seguir midiendo"></canvas>
     <div class="sub">Compárala con tus partidas · clic en la imagen para volver al escalador</div>`}
+    ${n&&!locked()?`<button class="sc-prev-ia" onclick="scCotizarConIA()">✨ Cotizar ${n===1?'esta medida':`estas ${n} medidas`} con IA</button>`:''}
   </div>`;
   if(!collapsed)scPaintMiniPreview();
 }
