@@ -3722,12 +3722,15 @@ function scDimAnnot(ctx,x1,y1,x2,y2,opts){
 /* Cotas de todas las medidas sobre un lienzo de w×h. La comparten la vista del
    escalador, la miniatura del cotizador y la imagen que se descarga, para que las
    tres se vean igual y haya un solo lugar que ajustar. */
+/* La cota dice la medida y nada más. La etiqueta que el vendedor le pone a cada línea
+   sirve para identificarla en la lista del panel, pero encima de la imagen solo
+   estorba: alarga el texto sobre el propio dibujo y tapa lo que se está midiendo. */
 function scDrawDims(ctx,w,h,opt){
-  const{s=1,selId=null,conLabel=false}=opt||{};
+  const{s=1,selId=null}=opt||{};
   const off=scDimOffset(w,h);
   SC.items.forEach(m=>{
     scDimAnnot(ctx,m.nx1*w,m.ny1*h,m.nx2*w,m.ny2*h,{
-      text:scFmtCm(m.cm)+' cm'+(conLabel&&m.label?' · '+m.label:''),
+      text:scFmtCm(m.cm)+' cm',
       color:m.color,sel:m.id===selId,offset:off,s});
   });
 }
@@ -4271,7 +4274,7 @@ function scImagenParaIA(){
   ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
   ctx.drawImage(SC.img,0,0,oc.width,oc.height);
   const s=Math.max(1,Math.min(6,Math.min(oc.width,oc.height)/620));
-  scDrawDims(ctx,oc.width,oc.height,{s,conLabel:true});
+  scDrawDims(ctx,oc.width,oc.height,{s});
   return oc.toDataURL('image/jpeg',0.9);
 }
 function scCotizarConIA(){
@@ -4348,7 +4351,7 @@ function scPaintMiniPreview(){
   const ctx=cvs.getContext('2d');
   ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
   ctx.drawImage(SC.img,0,0,w,h);
-  scDrawDims(ctx,w,h,{s:Math.max(1,dpr*1.15),conLabel:true});
+  scDrawDims(ctx,w,h,{s:Math.max(1,dpr*1.15)});
 }
 function scExportImg(){
   if(!SC.img||!SC.items.length)return;
@@ -4356,7 +4359,7 @@ function scExportImg(){
   const octx=oc.getContext('2d');octx.drawImage(SC.img,0,0);
   // Las cotas se dibujan a escala de la foto original, si no quedan diminutas en fotos grandes
   const s=Math.max(1,Math.min(6,Math.min(SC.imgW,SC.imgH)/620));
-  scDrawDims(octx,SC.imgW,SC.imgH,{s,conLabel:true});
+  scDrawDims(octx,SC.imgW,SC.imgH,{s});
   const a=document.createElement('a');a.href=oc.toDataURL('image/png');a.download='medidas-al3d.png';a.click();
   toast('Imagen descargada','ok');
 }
