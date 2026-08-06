@@ -72,12 +72,16 @@ body::before{
 
 /* ---------- Layout ---------- */
 .wrap{max-width:1180px;margin:0 auto;padding:26px 24px 70px;display:grid;grid-template-columns:1fr 385px;gap:24px;align-items:start}
+/* Las dos columnas pueden encogerse por debajo de su contenido: sin esto, cualquier
+   texto largo que no quepa —un nombre de cliente, una fórmula— ensancha la rejilla y
+   la página entera se desplaza a lo ancho en el teléfono. */
+.wrap>section,.wrap>aside{min-width:0}
 @media(max-width:920px){.wrap{grid-template-columns:1fr}}
+/* Las medidas del teléfono —relleno de tarjetas, rejillas, tamaños— viven en el
+   bloque «Teléfono: aprovechar la pantalla» del final de la hoja. Aquí solo queda lo
+   que no repite un selector base: entre dos reglas con la misma especificidad gana la
+   última, y las de ese bloque son las últimas. */
 @media(max-width:560px){
-  .wrap{padding:18px 14px 96px}
-  .grid2,.grid3{grid-template-columns:1fr}
-  .card-b{padding:16px}
-  .neto .amt{font-size:24px}
   .topbar-in{padding:8px 12px;gap:8px}
   .brand .t{font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .brand .t small{display:none}
@@ -107,16 +111,38 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
    Va después del bloque de 760 px porque ahí se reajustan .seg y .chip: entre dos
    media queries con la misma especificidad gana la última, no la más estrecha.
    El contenedor de la derecha se disuelve (display:contents) para que sus tres
-   controles se acomoden como hermanos de la marca. Así quedan dos renglones fijos:
-   arriba marca + folio + historial, y abajo el selector de rol a todo lo ancho —que
-   antes se partía en un tercer renglón y se comía una quinta parte de la pantalla. */
+   controles se acomoden como hermanos de la marca. Quedan dos renglones: arriba la
+   marca —logotipo y nombre— y abajo los tres controles que de verdad se usan, folio,
+   rol e historial.
+
+   Y de esos dos renglones solo el segundo se queda pegado al desplazarse:
+   ajustarTopbarMovil() le pone a la barra un desplazamiento negativo del alto exacto
+   de la marca, así el logotipo se va con el scroll y lo que permanece a la vista es
+   la fila útil. La barra fija baja de 115 px a ~50 px —una séptima parte de la
+   pantalla del teléfono que regresa a la cotización— y la marca vuelve a aparecer
+   sola al subir hasta arriba.
+
+   Los selectores van acotados a .topbar-in: la píldora del folio comparte clase con
+   el contador de partidas, y un `order` suelto se lo llevaba también a él, que vive
+   en otra caja y con otro orden. */
 @media(max-width:560px){
   .rolewrap{display:contents}
-  .brand{order:1;flex:1 1 auto;min-width:0;gap:8px}
-  .folio{order:2;flex:0 0 auto;padding:5px 9px;font-size:11.5px;white-space:nowrap}
-  .btn-hist{order:3;flex:0 0 auto;padding:0 11px;min-height:40px}
-  .seg{order:4;flex:1 1 100%;width:100%}
-  .seg button{flex:1;padding:0 10px;min-height:42px;font-size:12.5px}
+  .topbar-in .brand{order:1;flex:1 1 100%;min-width:0;gap:8px}
+  .topbar-in .folio{order:2;flex:0 0 auto;padding:5px 9px;font-size:11.5px;white-space:nowrap}
+  /* Base de 150 px: si con el folio y el historial ya no cabe —pantallas de 320 px—
+     el selector de rol se pasa solo al renglón de abajo en vez de partir su texto. */
+  .topbar-in .seg{order:3;flex:1 1 150px;width:auto}
+  .topbar-in .seg button{flex:1;padding:0 10px;min-height:40px;font-size:12.5px}
+  .topbar-in .btn-hist{order:4;flex:0 0 auto;padding:0 12px;min-height:40px}
+  .topbar-in{row-gap:7px}
+}
+/* En las pantallas angostas —iPhone SE, 13 mini— la palabra «Historial» era justo lo
+   que hacía que el selector de rol ya no cupiera y se fuera a un tercer renglón, que
+   es el que se queda pegado y cuesta pantalla. Se queda el icono con su nombre
+   accesible: el destino sigue siendo el mismo y la fila cabe entera. */
+@media(max-width:385px){
+  .topbar-in .btn-hist .lbl{display:none}
+  .topbar-in .btn-hist{padding:0;width:42px;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
 }
 /* Nada de zoom por doble toque ni destello gris al tocar: en el celular ese medio
    segundo de espera del navegador hace que la app se sienta lenta. */
@@ -134,8 +160,13 @@ button,.chip,.tg,.switch,.ptok,.tipo-seg button,.seg button,summary{touch-action
     background:rgba(255,255,255,.97);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
     border-top:1px solid var(--line);box-shadow:0 -3px 18px rgba(23,29,74,.11);
     padding:9px 14px;padding-bottom:calc(9px + env(safe-area-inset-bottom,0px));
+    padding-left:max(14px,env(safe-area-inset-left,0px));
+    padding-right:max(14px,env(safe-area-inset-right,0px));
   }
-  .wrap{padding-bottom:96px}
+  /* El hueco de abajo tiene que contar la franja del gesto de inicio del iPhone:
+     con 96 px fijos, la barra —65 px más 34 px de franja— tapaba el final de la
+     página y el último renglón quedaba inalcanzable. */
+  .wrap{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
 }
 .mbar-tot{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px;
   border:none;background:none;padding:2px 0;font-family:inherit;cursor:pointer;text-align:left}
@@ -159,7 +190,11 @@ button,.chip,.tg,.switch,.ptok,.tipo-seg button,.seg button,summary{touch-action
   .card-fold{display:inline-flex;align-items:center;gap:7px;border:1.5px solid var(--line);background:#fff;
     color:var(--brand-strong);border-radius:9px;padding:7px 11px;font-family:inherit;font-size:11.5px;
     font-weight:700;cursor:pointer;max-width:60%;min-height:40px}
-  .card-fold .txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* min-width:0 para que el «…» funcione de verdad: un elemento flexible no baja de
+     lo que mide su texto mientras conserve el min-width automático, así que con un
+     nombre de cliente largo el resumen no se recortaba, empujaba la tarjeta y con
+     ella toda la página a lo ancho. */
+  .card-fold .txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
   .card-fold .chev{font-size:10px;flex-shrink:0;transition:transform .18s}
   .card.folded .card-fold .chev{transform:rotate(-90deg)}
   .card.folded .card-b{display:none}
@@ -193,6 +228,9 @@ textarea{resize:vertical;min-height:46px}
 .tipo-seg{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:9px;padding:3px;flex-wrap:wrap;gap:2px}
 .tipo-seg button{border:none;background:none;padding:5px 10px;font-size:11.5px;font-weight:600;color:var(--muted);border-radius:7px;cursor:pointer;transition:.15s}
 .tipo-seg button.on{background:var(--brand-grd);color:#fff;box-shadow:0 2px 10px rgba(58,74,216,.38);animation:chipPop .22s cubic-bezier(.34,1.56,.64,1)}
+/* Cada tipo trae su nombre largo y uno corto; en el teléfono se cambia al corto para
+   que los cinco quepan en un solo renglón (ver el bloque del final de la hoja). */
+.tipo-seg .sm{display:none}
 /* En móvil el selector de tipo se apilaba en 5 renglones y parecía una lista desplegable:
    rejilla de 3 columnas para que se vea de un golpe cuál está activo. (Va después de la
    regla base porque una media query no gana por sí sola cuando la especificidad empata.) */
@@ -632,6 +670,117 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .rv-footer{padding:10px 20px 20px;display:flex;flex-direction:column;gap:9px}
 .rv-copied{display:none;align-items:center;gap:7px;background:#e8faf0;border:1px solid #4caf50;border-radius:var(--r-sm);padding:10px 14px;font-size:12.5px;color:#2e7d32;font-weight:600}
 .rv-copied.show{display:flex}
+
+/* ===================== Teléfono: aprovechar la pantalla =====================
+   Este bloque va al final de la hoja a propósito. Varias reglas de aquí repiten
+   selectores que ya existen más arriba y, entre dos reglas con la misma
+   especificidad, gana la última: una media query no pesa más por ser más estrecha.
+   Por eso el `.card-b{padding:16px}` y el `.grid2/.grid3` de una sola columna que
+   estaban en el primer bloque de 560 px nunca llegaron a aplicarse —las reglas base
+   de más abajo los pisaban— y en el celular seguían saliendo los 22 px de relleno
+   pensados para el escritorio.
+
+   La regla al elegir medidas: se recorta el marco (rellenos, huecos, notas), nunca
+   el blanco de lo que se toca. Todo lo tocable sigue en 40 px o más. */
+
+/* ----- Partidas plegables -----
+   Una partida de letras mide 1 293 px en un iPhone: con dos capturadas ya no cabía
+   ninguna completa en pantalla y había que desplazarse a ciegas para compararlas.
+   Plegada deja a la vista lo que se necesita de un vistazo —número, tipo, lo que ya
+   está elegido y su total— y se abre con un toque. El estado vive fuera de la
+   cotización: no se guarda ni viaja al PDF. */
+.pfold{display:none}
+.ptipo{display:none}
+.ph-acts{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;min-width:0}
+#fold-all-btn{max-width:none}
+#fold-all-btn.oculto{display:none}
+#fold-all-btn[aria-expanded="false"] .chev{transform:rotate(-90deg)}
+@media(max-width:920px){
+  /* El asa de arrastre no sirve en el teléfono —el arrastre de HTML no existe al
+     tocar— así que su lugar, el borde de entrada de la partida, lo toma el plegado. */
+  .drag-handle{display:none}
+  .pfold{display:inline-flex;align-items:center;justify-content:center;border:none;background:none;
+    color:var(--brand);font-size:12px;font-weight:900;line-height:1;cursor:pointer;
+    padding:0;width:30px;height:30px;border-radius:8px;transition:transform .18s}
+  .pfold:active{background:var(--soft-2)}
+  .partida.folded .pfold{transform:rotate(-90deg)}
+  .partida.folded .tipo-seg,.partida.folded .pbody{display:none}
+  .partida.folded .partida-top{margin-bottom:9px}
+  .partida.folded .psum{margin-bottom:0;cursor:pointer}
+  .partida.folded .pline{margin-top:9px;padding-top:9px}
+  /* Desplegada, el resumen de fichas repetía lo que ya dice el encabezado de cada
+     bloque de opciones (✓ elegido / ! sin elegir) y el renglón del total: 94 px de
+     información duplicada por partida. Se queda solo como cara de la partida plegada. */
+  .partida:not(.folded) .psum{display:none}
+  .partida.folded .ptipo{display:inline-flex;align-items:center;font-size:11px;font-weight:800;
+    color:var(--brand-strong);background:var(--soft-2);border:1px solid rgba(58,74,216,.16);
+    border-radius:8px;padding:4px 9px;white-space:nowrap}
+}
+
+@media(max-width:560px){
+  /* ----- Marco: menos cáscara, más cotización -----
+     Entre el ancho de la página, la tarjeta, la partida y el bloque de opciones se
+     iban 50 px por lado antes de llegar al primer chip; ahora son 30. */
+  .wrap{padding:12px 10px calc(84px + env(safe-area-inset-bottom,0px));gap:14px}
+  .wrap{padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px))}
+  .topbar-in{padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
+  .card+.card{margin-top:12px}
+  /* El título no se parte: si compite por el ancho con el botón de plegar, «Datos del
+     proyecto» se iba a dos renglones y el encabezado crecía el doble. Lo que cede el
+     ancho es el botón, y para eso necesita min-width:0 —sin él un elemento flexible
+     no baja de lo que mide su texto y termina empujando la página a lo ancho. */
+  .card-h{padding:13px 13px 0;gap:9px}
+  .card-h h3{white-space:nowrap;flex-shrink:0}
+  .card-h .card-fold{min-width:0}
+  .card-b{padding:11px 13px 15px}
+  .card.folded .card-h{padding-bottom:13px}
+  .partida{padding:11px 11px 12px;margin-bottom:10px}
+  .optgrp{padding:8px 9px 9px;margin-bottom:8px}
+  .optgrp-h{margin-bottom:7px;gap:7px}
+  .fld{margin-bottom:10px}
+  label{margin-bottom:3px}
+  .hintnote{font-size:11px;line-height:1.45;padding:5px 9px;border-radius:0 6px 6px 0}
+  .optgrp .hintnote{margin-top:6px}
+  .psum{gap:5px;margin-bottom:11px}
+  .empty{padding:22px 10px}
+  .scaler-ai-row{margin-bottom:11px}
+  .ai-btn{padding:11px}
+
+  /* Dos campos cortos por renglón ocupan la mitad de alto que dos renglones enteros
+     y siguen siendo cómodos de tocar. En las rejillas de tres, el tercer campo
+     —cuando existe, como la tarifa de la caja de luz— se pasa completo abajo. */
+  .grid2,.grid3{grid-template-columns:1fr 1fr;gap:9px}
+  .grid3>.fld:nth-child(3){grid-column:1/-1}
+
+  /* ----- Tipo de partida: los cinco de un vistazo -----
+     En rejilla de tres se iban dos renglones y 102 px por partida, con «Recorte
+     acrílico» partido a la mitad y un hueco muerto al final. Con el nombre corto
+     caben los cinco en un renglón de 40 px. */
+  .tipo-seg{grid-template-columns:repeat(5,1fr);gap:2px;padding:2px}
+  .tipo-seg button{padding:9px 2px;font-size:10.5px;line-height:1.15;letter-spacing:-.1px;min-height:40px}
+  .tipo-seg .lg{display:none}
+  .tipo-seg .sm{display:inline}
+
+  /* ----- Opciones en dos columnas -----
+     A lo ancho completo cada material se comía un renglón entero: los cinco de
+     letras 3D medían media pantalla. En dos columnas el nombre largo se acomoda en
+     dos líneas dentro del mismo chip y el bloque baja de 270 px a 155 px. El último
+     chip de un renglón impar crece para no dejar el hueco a la vista. */
+  .optgrp .chips{gap:6px}
+  .optgrp .chip{flex:1 1 calc(50% - 3px);min-height:42px;padding:9px 8px;font-size:11.5px;line-height:1.25;border-radius:13px}
+  .optgrp .chip small{font-size:10.5px}
+
+  /* ----- Resumen y autorización ----- */
+  .prog-box{padding:9px 14px 11px}
+  .sum-rows{padding:13px 14px 6px}
+  .anti{padding:13px 14px}
+  .auth{padding:14px}
+  .auth-adj{padding:10px 14px 4px}
+  .neto{padding:14px}
+  .neto .amt{font-size:24px}
+  .mini{margin-top:7px}
+  .side #aiPreview:not(:empty){margin-bottom:11px}
+}
 </style>
 </head>
 <body>
@@ -643,7 +792,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <div class="t">Cotizador <small>Anuncios Luminosos 3D</small></div>
     </div>
     <div class="rolewrap">
-      <button class="btn-hist" onclick="abrirHistorial()">📋 Historial</button>
+      <button class="btn-hist" onclick="abrirHistorial()" title="Historial de cotizaciones" aria-label="Historial de cotizaciones">📋<span class="lbl"> Historial</span></button>
       <span class="folio" id="folio">COT-0001</span>
       <div class="seg" id="roleseg" title="Cambia de rol para ver el flujo de autorización">
         <button class="on" data-rol="vendedor" onclick="setRol('vendedor')">Vendedor</button>
@@ -703,7 +852,13 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
     </div>
 
     <div class="card">
-      <div class="card-h"><h3>Partidas</h3><span class="folio" id="pcount">0 partidas</span></div>
+      <div class="card-h">
+        <h3>Partidas</h3>
+        <div class="ph-acts">
+          <span class="folio" id="pcount">0 partidas</span>
+          <button class="card-fold oculto" id="fold-all-btn" onclick="togglePlegarTodas()" aria-expanded="true"><span class="txt" id="fold-all-txt">Plegar todas</span><span class="chev">▾</span></button>
+        </div>
+      </div>
       <div class="card-b">
         <div class="scaler-ai-row">
           <button class="ai-btn" onclick="aiOpen()"><span>✨ Cotizar con IA<span class="solo-desk"> — analizar JPG o PDF</span></span></button>
@@ -971,6 +1126,11 @@ const BASTIDORES = [
   {key:'lamina',    label:'Lámina',    tarifa:950},
   {key:'alucobond', label:'Alucobond', tarifa:1500},
 ];
+/* Nombre de cada tipo de partida. El corto es para el teléfono, donde los cinco
+   botones tienen que caber en un solo renglón; el largo es el que se lee en todos
+   los demás lados. */
+const TIPO_NOMBRE={letras:'Letras 3D',recorte:'Recorte acrílico',bastidor:'Bastidor',caja:'Caja de luz',manual:'Manual'};
+const TIPO_CORTO ={letras:'Letras',   recorte:'Recorte',         bastidor:'Bastidor',caja:'Caja',       manual:'Manual'};
 const matOf=k=>MATERIALES.find(m=>m.key===k);
 const compOf=k=>COMPLEJIDAD.find(c=>c.key===k);
 const recOf=k=>RECORTES.find(r=>r.key===k);
@@ -1002,15 +1162,38 @@ const chipA11y=isOn=>`role="button" tabindex="0" aria-pressed="${isOn?'true':'fa
 
 /* ----- Llevar algo a la vista -----
    La barra de arriba queda fija: sin restarle su alto, lo que se trae a la vista
-   aparece justo debajo de ella y queda medio tapado. */
+   aparece justo debajo de ella y queda medio tapado. Lo que estorba no es el alto de
+   la barra sino dónde termina cuando está pegada, que es su desplazamiento (`top`)
+   más su alto; en el teléfono ese desplazamiento es negativo a propósito, porque la
+   fila de la marca se va con el scroll. */
+function altoTopbarFija(){
+  const tb=document.querySelector('.topbar');
+  if(!tb) return 0;
+  const top=parseFloat(getComputedStyle(tb).top)||0;
+  return Math.max(0,tb.offsetHeight+top);
+}
 function irA(el,extra=12){
   if(typeof el==='string') el=$(el);
   if(!el) return;
-  const tb=document.querySelector('.topbar');
-  const off=(tb?tb.offsetHeight:0)+extra;
-  const y=el.getBoundingClientRect().top+window.pageYOffset-off;
+  const y=el.getBoundingClientRect().top+window.pageYOffset-altoTopbarFija()-extra;
   window.scrollTo({top:Math.max(0,y),behavior:'smooth'});
 }
+/* ----- La marca no se queda pegada en el teléfono -----
+   La barra de arriba se lleva 115 px de una pantalla de 664: dos renglones, y el de
+   arriba es solo el logotipo. Con un desplazamiento negativo del alto exacto de esa
+   fila, la marca se va con el scroll y lo que permanece pegado es el renglón útil
+   —folio, rol e historial—. Se recalcula porque el alto de la marca cambia: al subir
+   un logotipo propio, al girar el teléfono o al cambiar el tamaño de letra del sistema. */
+function ajustarTopbarMovil(){
+  const tb=document.querySelector('.topbar'), marca=$('brandLogo');
+  if(!tb||!marca) return;
+  if(!window.matchMedia('(max-width:560px)').matches){ tb.style.top=''; return; }
+  const fila=tb.querySelector('.topbar-in');
+  const hueco=parseFloat(getComputedStyle(fila).rowGap)||0;
+  tb.style.top=(3-Math.round(marca.offsetHeight+hueco))+'px';
+}
+window.addEventListener('resize',ajustarTopbarMovil);
+window.addEventListener('orientationchange',()=>setTimeout(ajustarTopbarMovil,180));
 function irAResumen(){ irA('sidebox'); }
 
 /* Aviso emergente. Con un solo temporizador compartido: antes dos avisos seguidos
@@ -1114,11 +1297,52 @@ function notaCliente(){ return (Q.notaCliente||'').trim()||'El cliente debe prop
 function direccionPdf(){ return (Q.dirRaw||'').trim()||(Q.direccion||'').trim(); }
 
 /* ===================== Acciones partidas ===================== */
+/* ===================== Partidas plegables (móvil) =====================
+   Una partida de letras mide 1 293 px en un iPhone: con dos capturadas ya no cabía
+   ninguna completa en pantalla. Plegada se queda en su encabezado —número, tipo, lo
+   que ya está elegido y el total— y se abre con un toque.
+
+   El estado se guarda aparte, en un conjunto de ids, y no dentro de Q: así no se
+   escribe en localStorage, no viaja al historial ni acaba en el PDF; es una
+   preferencia de cómo se está viendo la pantalla, no un dato de la cotización. */
+const _plegadas=new Set();
+const _esMovil=()=>window.matchMedia('(max-width:920px)').matches;
+/* Al abrir una partida se recogen las demás: se ve el resumen de lo que ya iba y el
+   formulario de lo que se está capturando, sin desplazarse a ciegas. */
+function plegarOtras(dejarAbierta){
+  if(!_esMovil())return;
+  Q.items.forEach(it=>{ if(it.id!==dejarAbierta) _plegadas.add(it.id); });
+  _plegadas.delete(dejarAbierta);
+}
+function togglePartida(id,opts){
+  if(!_esMovil())return;
+  const plegada=_plegadas.has(id);
+  if(opts&&opts.soloAbrir&&!plegada) return;   // el resumen solo abre; no pliega
+  if(plegada) _plegadas.delete(id); else _plegadas.add(id);
+  renderItems();
+  /* Al plegar, lo de abajo sube de golpe: se deja la partida donde estaba el dedo. */
+  if(!plegada) irA('p-'+id);
+}
+function togglePlegarTodas(){
+  const hayAbiertas=Q.items.some(it=>!_plegadas.has(it.id));
+  if(hayAbiertas) Q.items.forEach(it=>_plegadas.add(it.id));
+  else _plegadas.clear();
+  renderItems();
+}
+/* Al abrir una cotización guardada solo se deja desplegada la última: si no, cinco
+   partidas ya capturadas son seis mil píxeles de desplazamiento antes de ver el total. */
+function sincronizarPlegado(){
+  _plegadas.clear();
+  if(!_esMovil()||Q.items.length<2)return;
+  Q.items.slice(0,-1).forEach(it=>_plegadas.add(it.id));
+}
+
 function addItem(opts){
   if(locked())return;
   const id=++pid;
   Q.items.push({id,tipo:'letras',material:'',comp:'recta',luz:true,ilumTipo:'fria',altura:0,n:0,
     tarifa:0,ancho:0,alto:0, acab:'',recComp:false,bas:'', desc:'',descAi:false,pz:1,pu:0,textoAuto:'',showInPdf:true});
+  plegarOtras(id);
   renderItems();
   if(!opts||opts.enfocar!==false) enfocarPartida(id);
 }
@@ -1166,6 +1390,7 @@ function dupItem(id){
   const copy=JSON.parse(JSON.stringify(src)); copy.id=++pid;
   const idx=Q.items.findIndex(x=>x.id===id);
   Q.items.splice(idx+1,0,copy);
+  plegarOtras(copy.id);
   renderItems(); enfocarPartida(copy.id); toast('Partida duplicada');
 }
 function setShowInPdf(id,val){
@@ -1215,14 +1440,18 @@ function renderItems(){
     if(it.showInPdf===false) d.classList.add('hidden-pdf');
     if(!locked()) d.setAttribute('draggable','true');
     const pdfVis=it.showInPdf!==false;
+    const plegada=_plegadas.has(it.id);
+    if(plegada) d.classList.add('folded');
     d.innerHTML=`
       <div class="partida-top">
         <div class="pnum">
+          <button class="pfold" onclick="togglePartida(${it.id})" aria-expanded="${plegada?'false':'true'}" aria-controls="pbody-${it.id}" title="${plegada?'Abrir la partida':'Plegar la partida'}">▾</button>
           ${!locked()?'<span class="drag-handle" title="Arrastra para reordenar">⠿</span>':''}
           <div class="n">${i+1}</div>
         </div>
+        <span class="ptipo">${TIPO_NOMBRE[it.tipo]||''}</span>
         <div class="tipo-seg">
-          ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button class="${it.tipo===t?'on':''}" ${locked()?'disabled':''} onclick="setTipo(${it.id},'${t}')">${({letras:'Letras 3D',recorte:'Recorte acrílico',bastidor:'Bastidor',caja:'Caja de luz',manual:'Manual'})[t]}</button>`).join('')}
+          ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button class="${it.tipo===t?'on':''}" ${locked()?'disabled':''} onclick="setTipo(${it.id},'${t}')"><span class="lg">${TIPO_NOMBRE[t]}</span><span class="sm">${TIPO_CORTO[t]}</span></button>`).join('')}
         </div>
         <div class="ptop-actions">
           ${!locked()?`<button class="dup" onclick="dupItem(${it.id})" title="Duplicar partida">⧉</button>`:''}
@@ -1231,7 +1460,7 @@ function renderItems(){
         </div>
       </div>
       ${resumenHTML(it)}
-      ${bodyFor(it)}
+      <div class="pbody" id="pbody-${it.id}">${bodyFor(it)}</div>
       <div class="pline">
         <span class="formula" id="formula-${it.id}">${formulaFor(it)}</span>
         <span class="lt" id="lt-${it.id}">${money(lineTotal(it))}</span>
@@ -1268,6 +1497,14 @@ function renderItems(){
   });
   const _hiddenPdf=Q.items.filter(x=>x.showInPdf===false).length;
   $('pcount').textContent=Q.items.length+' partida'+(Q.items.length!==1?'s':'')+(_hiddenPdf?` · ${_hiddenPdf} oculta${_hiddenPdf>1?'s':''} del PDF`:'');
+  /* Plegar/abrir todas: solo tiene sentido con más de una partida */
+  const fab=$('fold-all-btn');
+  if(fab){
+    const hayAbiertas=Q.items.some(it=>!_plegadas.has(it.id));
+    fab.classList.toggle('oculto',Q.items.length<2);
+    fab.setAttribute('aria-expanded',hayAbiertas?'true':'false');
+    $('fold-all-txt').textContent=hayAbiertas?'Plegar todas':'Abrir todas';
+  }
   renderSummary(); updProg(); saveState();
 }
 function calcProg(){
@@ -1358,7 +1595,8 @@ function resumenPartida(it){
   return t;
 }
 function resumenHTML(it){
-  return `<div class="psum" id="psum-${it.id}">${resumenPartida(it).map(f=>`<span class="ptok ${f.estado}">${esc(f.txt)}</span>`).join('')}</div>`;
+  /* Plegada, este resumen es la cara de la partida: tocarlo la vuelve a abrir. */
+  return `<div class="psum" id="psum-${it.id}" onclick="togglePartida(${it.id},{soloAbrir:true})">${resumenPartida(it).map(f=>`<span class="ptok ${f.estado}">${esc(f.txt)}</span>`).join('')}</div>`;
 }
 function pintarResumen(it){
   const el=$('psum-'+it.id);
@@ -1875,6 +2113,9 @@ const AL3D_LOGO='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQQAAACCCAYAAACgl
 function pickLogo(){ $('logoin').click(); }
 function setLogo(src){
   $('brandLogo').innerHTML=`<img class="logoimg" src="${src}" alt="AL3D"><div class="t">Cotizador <small>Anuncios Luminosos 3D</small></div>`;
+  /* Un logotipo propio cambia el alto de la fila de la marca, y de ese alto depende
+     cuánto se recorre la barra de arriba al desplazarse en el teléfono. */
+  ajustarTopbarMovil();
 }
 $('logoin').addEventListener('change',e=>{
   const f=e.target.files[0]; if(!f)return;
@@ -2143,6 +2384,7 @@ function applyAi(p){
     // La cotización vuelve a borrador: cualquier precio autorizado antes ya no aplica
     // a estas partidas nuevas.
     Q.estado='borrador'; Q.precioAuth=0; Q.itemsAuth={};
+    sincronizarPlegado();
     renderItems();
     if(conservadas.length) toast(`${conservadas.length} partida${conservadas.length>1?'s':''} tuya${conservadas.length>1?'s':''} + ${nuevos.length} de la IA`,'ok',3600);
   }
@@ -2699,6 +2941,7 @@ function reabrirDeHistorial(folio){
   pid=Q.items.reduce((m,it)=>Math.max(m,it.id||0),pid);
   Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
   updDirRaw(Q.dirRaw); updMaps(Q.maps);
+  sincronizarPlegado();
   pintarFolio(); saveState(); renderItems();
   cerrarHistorial();
   toast('Cotización '+e.folio+' abierta — ya puedes generar el PDF','ok',3600);
@@ -2745,6 +2988,7 @@ function loadQueueEntry(folio){
   updDirRaw(Q.dirRaw||'');
   pintarFolio();
   if(Q.maps) $('mapsbtn').disabled=!/^https?:\/\//i.test(Q.maps);
+  sincronizarPlegado();
   saveState(); renderItems();
 }
 
@@ -3977,9 +4221,11 @@ function init(){
     pintarFolio();
     if(Q.maps) $('mapsbtn').disabled=!/^https?:\/\//i.test(Q.maps);
     if(Q.dirRaw) updDirRaw(Q.dirRaw);
+    sincronizarPlegado();
     renderItems();
   }
   aplicarFoldProy();
+  ajustarTopbarMovil();
   renderMobileBar();
   updProg();
 }

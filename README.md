@@ -31,7 +31,13 @@
 
 Todo corre en el navegador, sin instalar nada. Desde el celular conviene abrir la liga y agregarla a la pantalla de inicio (Chrome → menú → *Agregar a pantalla principal*; en iPhone, Safari → *Compartir* → *Agregar a inicio*) para que quede como aplicación, a pantalla completa y sin la barra del navegador.
 
-En el teléfono la pantalla se acomoda sola: una **barra fija abajo** con el total y el siguiente paso —solicitar autorización, generar el PDF, lo que toque según el estado—, la tarjeta de *Datos del proyecto* se pliega con un toque para dejar las partidas hasta arriba, cada partida nueva se trae a la vista al crearla, las opciones de material y acabado se estiran a todo lo ancho para acertarles con el dedo, y los campos de medidas abren el teclado numérico.
+En el teléfono la pantalla se acomoda sola y se aprovecha completa:
+
+- **Partidas plegables.** Una partida capturada se recoge a su encabezado —número, tipo, lo que ya está elegido y su total— y se abre con un toque. Al agregar una nueva, las anteriores se pliegan solas, así se ve el resumen de lo que ya iba junto al formulario de lo que se está capturando; al abrir una cotización guardada solo queda desplegada la última. El botón **Plegar todas / Abrir todas** del encabezado de *Partidas* hace las dos cosas de golpe. Es solo una manera de ver la pantalla: no se guarda con la cotización ni sale en el PDF.
+- **Barra de arriba a la mitad.** Al desplazarse, el logotipo se va y se queda pegado únicamente el renglón que se usa —folio, rol e historial—: de 115 px fijos a unos 50.
+- **Barra fija abajo** con el total y el siguiente paso —solicitar autorización, generar el PDF, lo que toque según el estado—, ya sin tapar el final de la página en los iPhone con franja de gesto.
+- Los cinco tipos de partida caben en un solo renglón, las opciones de material y acabado van en dos columnas, y la tarjeta de *Datos del proyecto* se pliega con un toque para dejar las partidas hasta arriba.
+- Cada partida nueva se trae a la vista al crearla, todo lo tocable mide 40 px o más, y los campos de medidas abren el teclado numérico.
 
 Los datos —historial, cotizaciones, logotipo— se guardan localmente en cada dispositivo y no se sincronizan entre ellos.
 
