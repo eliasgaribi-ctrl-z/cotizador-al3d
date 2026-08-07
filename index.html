@@ -537,6 +537,16 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-sec-h h3{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--brand);display:flex;align-items:center;gap:8px}
 .sp-sec-h h3::before{content:'';display:inline-block;width:3px;height:14px;background:var(--brand-grd);border-radius:2px;flex-shrink:0}
 .sp-sec-b{padding:14px 20px 18px}
+/* Sección plegable del panel del escalador. Mismo gesto que las tarjetas del cotizador
+   —encabezado que se toca y galón que gira—, para no inventar un idioma nuevo. */
+.sp-sec-fold .sp-sec-h{display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none}
+.sp-sec-fold .sp-sec-h h3{flex:1;min-width:0}
+.sp-sec-fold .sp-sec-h .chev{font-size:10px;font-weight:700;color:var(--muted);transition:transform .18s;flex-shrink:0}
+.sp-sec-fold.plegada .sp-sec-h .chev{transform:rotate(-90deg)}
+.sp-sec-fold.plegada .sp-sec-h{padding-bottom:16px}
+.sp-sec-fold.plegada .sp-sec-b{display:none}
+/* Cuántas guías hay puestas. Plegada, es lo único que delata que existen. */
+.sp-sec-tag{font-size:10.5px;font-weight:800;background:var(--soft-2);color:var(--brand);padding:2px 9px;border-radius:20px;border:1px solid rgba(58,74,216,.12);flex-shrink:0}
 .sp-mlist{flex:1;overflow-y:auto;min-height:0;padding:10px 14px 8px}
 .sp-mlist-empty{text-align:center;color:var(--muted);font-size:13px;padding:28px 12px;line-height:1.7;border:1.5px dashed var(--line);border-radius:var(--r-sm);background:var(--soft);margin-top:2px}
 .sp-mitem{border:1px solid rgba(224,228,240,.8);border-left:3px solid var(--brand);border-radius:var(--r-sm);padding:12px 11px;margin-bottom:9px;background:#fff;box-shadow:var(--sh-sm);display:flex;align-items:stretch;gap:9px;cursor:pointer;transition:box-shadow .15s}
@@ -720,6 +730,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   .sp-side .btn{min-height:46px}
   .sp-ibtn{font-size:19px;padding:0;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:10px;color:var(--muted)}
   .sp-mitem{padding:13px 11px}
+  .sp-sec-fold .sp-sec-h{min-height:46px}
   .sp-mitem-add{min-height:44px;font-size:13px}
   .sp-mitem-label{padding:9px 0;font-size:13px}
   .ref-known button{min-height:40px;padding:8px 12px;font-size:12.5px}
@@ -1318,9 +1329,13 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
         </div>
       </div>
       <!-- Guías -->
-      <div class="sp-sec">
-        <div class="sp-sec-h"><h3>Guías</h3></div>
-        <div class="sp-sec-b">
+      <div class="sp-sec sp-sec-fold plegada" id="sc-sec-guias">
+        <div class="sp-sec-h" id="sc-guias-h" onclick="toggleGuias()" role="button" tabindex="0"
+          aria-expanded="false" aria-controls="sc-guias-b"
+          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
+          <h3>Guías</h3><span class="sp-sec-tag" id="sc-guias-tag" style="display:none"></span><span class="chev">&#9662;</span>
+        </div>
+        <div class="sp-sec-b" id="sc-guias-b">
           <p style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:11px">Marca dónde termina un diseño y empieza otro. Cada guía se mueve arrastrando su <b>pestaña del borde</b>, así el resto de la imagen queda libre para medir.</p>
           <div style="display:flex;gap:8px">
             <button class="btn btn-gho" id="sc-btn-guide-h" onclick="scAddGuide('h')" disabled style="flex:1">↔ Horizontal</button>
@@ -4373,6 +4388,22 @@ function scSetHint(txt,accion,tempMs){
   if(tempMs)_scHintT=setTimeout(()=>scSetHint(scModeHint()),tempMs);
 }
 /* ----- Guías ----- */
+/* La sección nace plegada: las guías son una ayuda ocasional —marcar dónde acaba un
+   diseño y empieza otro— y desplegada se comía media pantalla del panel justo al abrir
+   el escalador, empujando la lista de medidas, que es a lo que se viene. La preferencia
+   se guarda, así que a quien sí las use le queda abierta. */
+let _foldGuias=true;
+function toggleGuias(){
+  _foldGuias=!_foldGuias;
+  try{ localStorage.setItem('al3d_fold_guias',_foldGuias?'1':'0'); }catch(_){}
+  aplicarFoldGuias();
+}
+function aplicarFoldGuias(){
+  const sec=$('sc-sec-guias'); if(!sec)return;
+  sec.classList.toggle('plegada',_foldGuias);
+  const h=$('sc-guias-h');
+  if(h) h.setAttribute('aria-expanded',_foldGuias?'false':'true');
+}
 /* Posiciones candidatas para una guía nueva, del centro hacia afuera. Se elige la
    primera libre en vez de escalonar a ciegas: así una guía nueva nunca nace encima de
    otra, ni siquiera después de haber movido las anteriores. */
@@ -4399,6 +4430,9 @@ function scUpdateGuideList(){
   const list=$('sc-guides-list');if(!list)return;
   const clear=$('sc-guides-clear');
   if(clear)clear.style.display=SC.guides.length>1?'':'none';
+  // Con la sección plegada, el contador del encabezado es la única señal de que hay guías
+  const tag=$('sc-guias-tag');
+  if(tag){ tag.textContent=SC.guides.length||''; tag.style.display=SC.guides.length?'':'none'; }
   // Sin medida: la guía solo marca dónde parte el diseño, las cotas son las que miden
   let h=0,v=0;
   list.innerHTML=SC.guides.map(g=>{
@@ -4614,6 +4648,9 @@ function init(){
   loadLogo();
   aiKeyFallback();
   try{ _foldProy=localStorage.getItem('al3d_fold_proy')==='1'; }catch(_){}
+  // Plegada salvo que alguien la haya abierto a propósito alguna vez
+  try{ _foldGuias=localStorage.getItem('al3d_fold_guias')!=='0'; }catch(_){}
+  aplicarFoldGuias();
   if(!loadState()){
     Q.folio=nextFolio(); pintarFolio();
     Q.fecha=hoy(); addItem({enfocar:false});
