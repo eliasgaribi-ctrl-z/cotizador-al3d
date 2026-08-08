@@ -777,6 +777,43 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .rv-copied{display:none;align-items:center;gap:7px;background:#e8faf0;border:1px solid #4caf50;border-radius:var(--r-sm);padding:10px 14px;font-size:12.5px;color:#2e7d32;font-weight:600}
 .rv-copied.show{display:flex}
 
+/* ===================== Material heredado =====================
+   Marca visible de que el material lo puso la app —heredado de la partida anterior—
+   y no la persona. Es un dato que mueve el precio: tiene que verse. */
+.heredado{display:inline-block;font-size:9.5px;font-weight:700;color:#7a5800;background:#fff8e1;border:1px solid rgba(207,138,18,.35);border-radius:5px;padding:0 5px;margin-left:6px;vertical-align:middle;text-transform:none;letter-spacing:0}
+
+/* ===================== Agregar partida =====================
+   Duplicar la anterior ya existía en el ⧉ del encabezado de cada partida, pero
+   escondido arriba a la derecha. Aquí queda junto a la acción que se usa después de
+   capturar una partida, que es cuando de verdad se necesita. */
+.addrow{display:flex;gap:9px;align-items:stretch}
+.addrow .addbtn{flex:1;min-width:0}
+.addbtn.igual{flex:0 1 auto;white-space:nowrap;border-style:solid;border-color:var(--line);background:#fff;color:var(--brand)}
+.addbtn.igual:hover{border-color:var(--brand);background:var(--soft-2)}
+
+/* ===================== Revisión previa: partidas sin terminar ===================== */
+.falt-intro{font-size:12.5px;color:var(--muted);line-height:1.5;margin-bottom:13px}
+.falt-list{display:flex;flex-direction:column;gap:8px;margin-bottom:15px}
+.falt-row{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1.5px solid rgba(207,138,18,.45);background:var(--amber-bg);border-radius:var(--r-sm);width:100%;text-align:left;font-family:inherit;transition:.14s}
+.falt-ir{flex:1;min-width:0;display:flex;align-items:center;gap:11px;border:none;background:none;font-family:inherit;text-align:left;cursor:pointer;padding:0}
+.falt-n{width:26px;height:26px;border-radius:8px;background:var(--amber);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.falt-b{flex:1;min-width:0}
+.falt-t{display:block;font-size:12.5px;font-weight:800;color:var(--ink);line-height:1.35}
+.falt-d{display:block;font-size:11.5px;color:#7a5800;line-height:1.45;margin-top:2px}
+.falt-go{font-size:14px;color:var(--amber);flex-shrink:0;font-weight:800}
+.falt-quitar{border:1.5px solid rgba(216,69,63,.3);background:#fff;color:var(--red);font-family:inherit;font-size:11px;font-weight:700;padding:6px 10px;border-radius:8px;cursor:pointer;flex-shrink:0;transition:.14s}
+.falt-quitar:hover{background:var(--red-bg);border-color:var(--red)}
+
+/* ===================== Respaldo, restauración y CSV ===================== */
+.hist-foot{display:flex;gap:8px;padding:11px 20px 13px;border-top:1px solid var(--line);flex-shrink:0;background:var(--soft);flex-wrap:wrap;border-radius:0 0 20px 20px}
+.hist-foot button{flex:1;min-width:104px;border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:12px;font-weight:700;padding:9px 8px;border-radius:9px;cursor:pointer;transition:.14s;white-space:nowrap}
+.hist-foot button:hover{border-color:var(--brand);background:var(--soft-2)}
+.hist-foot .foot-nota{flex-basis:100%;font-size:10.5px;color:var(--muted);line-height:1.45;text-align:center;margin-top:2px}
+
+/* ===================== WhatsApp ===================== */
+.btn-wa{background:#fff;color:#0f7a6c;border:1.5px solid rgba(18,140,126,.32)}
+.btn-wa:hover{background:#e9f8f5;border-color:#128c7e}
+
 /* ===================== Teléfono: aprovechar la pantalla =====================
    Este bloque va al final de la hoja a propósito. Varias reglas de aquí repiten
    selectores que ya existen más arriba y, entre dos reglas con la misma
@@ -851,6 +888,22 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   .empty{padding:22px 10px}
   .scaler-ai-row{margin-bottom:11px}
   .ai-btn{padding:11px}
+  /* Los dos botones de agregar caben en un renglón si se les recorta el relleno
+     lateral; lo que no se recorta es el alto, que es lo que se toca. */
+  .addrow{gap:7px}
+  .addbtn{padding:13px 9px;font-size:12.5px}
+  .addbtn.igual{font-size:12px;padding:13px 10px}
+  .hist-foot{padding:10px 13px 12px;gap:7px}
+  .hist-foot button{min-width:0;font-size:11.5px;padding:9px 6px}
+  /* Con dos acciones —abrir y usar como base— la columna de botones dejaba el nombre
+     del proyecto en tres letras por renglón. En el teléfono bajan a su propio renglón,
+     donde además caben más anchas y se tocan mejor. */
+  .hentry{padding:15px 13px}
+  .hentry-top{flex-wrap:wrap;gap:11px}
+  .hentry-img,.hentry-img-ph{width:74px;height:74px}
+  .hentry-acts{order:9;flex-basis:100%;flex-direction:row;align-items:stretch;gap:6px}
+  .hentry-acts .hentry-open{flex:1;padding:9px 6px;text-align:center}
+  .hentry-del{align-self:stretch;padding:5px 10px}
 
   /* Dos campos cortos por renglón ocupan la mitad de alto que dos renglones enteros
      y siguen siendo cómodos de tocar. En las rejillas de tres, el tercer campo
@@ -919,7 +972,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       </div>
       <div class="card-b" id="card-proy-b">
         <div class="grid2">
-          <div class="fld"><label>Cliente</label><input id="f-cli" placeholder="Nombre del cliente" autocomplete="name" oninput="upd('cliente',this.value)"></div>
+          <div class="fld"><label>Cliente</label><input id="f-cli" list="clientes-conocidos" placeholder="Nombre del cliente" autocomplete="name" oninput="upd('cliente',this.value)"><datalist id="clientes-conocidos"></datalist></div>
           <div class="fld"><label>Teléfono</label><input id="f-tel" type="tel" inputmode="tel" placeholder="33 0000 0000" autocomplete="tel" oninput="upd('tel',this.value)"></div>
         </div>
         <div class="fld"><label>Proyecto</label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" oninput="upd('proy',this.value)"></div>
@@ -973,7 +1026,10 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
         </div>
         <div id="scPreviewBox"></div>
         <div id="items"></div>
-        <button class="addbtn" id="addbtn" onclick="addItem()">+ Agregar partida</button>
+        <div class="addrow">
+          <button class="addbtn" id="addbtn" onclick="addItem({heredar:true})">+ Agregar partida</button>
+          <button class="addbtn igual" id="dupbtn" onclick="duplicarUltima()" title="Copia la última partida con todo lo elegido">⧉ Igual que la anterior</button>
+        </div>
       </div>
     </div>
   </section>
@@ -1093,6 +1149,26 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <span class="hist-count" id="hist-count"></span>
     </div>
     <div class="hist-body" id="hist-body"></div>
+    <div class="hist-foot">
+      <button onclick="respaldar()" title="Descarga un archivo con el historial, los folios y la cotización en curso">⬇ Respaldar</button>
+      <button onclick="pedirRestaurar()" title="Reemplaza los datos de este dispositivo con los de un respaldo">⬆ Restaurar</button>
+      <button onclick="exportarHistorialCSV()" title="Descarga el historial como CSV para Google Sheets">📄 CSV</button>
+      <p class="foot-nota">Todo se guarda solo en este dispositivo. El respaldo <b>no</b> incluye tu API key.</p>
+    </div>
+    <input type="file" id="restaurarin" accept="application/json,.json" style="display:none">
+  </div>
+</div>
+
+<!-- Revisión previa: partidas que valdrían $0 si se autorizan así -->
+<div class="modal-bg" id="faltmodal" onclick="if(event.target===this)cerrarFaltantes()">
+  <div class="modal">
+    <div class="modal-h"><b>⚠️ Hay partidas sin terminar</b><button onclick="cerrarFaltantes()" aria-label="Cerrar">×</button></div>
+    <div class="modal-b">
+      <p class="falt-intro" id="falt-intro"></p>
+      <div class="falt-list" id="falt-list"></div>
+      <button class="btn btn-gho" id="falt-seguir" onclick="faltSeguir()"></button>
+      <button class="btn btn-pri" onclick="cerrarFaltantes()">← Volver a completarlas</button>
+    </div>
   </div>
 </div>
 <!-- ===================== Vectorizador =====================
@@ -1494,6 +1570,53 @@ function copiarTexto(txt,msgOk,extra){
   }catch(_){ _copiaManual(txt,ok); }
 }
 
+/* ===================== Preferencias del dispositivo =====================
+   Datos que se volvían a poner igual en cada cotización —el nombre de quien autoriza,
+   el material que casi siempre se usa, el porcentaje de comisión y la cuenta donde
+   entra el anticipo—. No son parte de la cotización: son de quien usa este teléfono,
+   así que viven fuera de Q y no viajan al historial, al PDF ni a la cola. */
+const PREF_AUTORIZADOR='al3d_autorizador', PREF_MATERIAL='al3d_ult_material',
+      PREF_RV_PCT='al3d_rv_pct', PREF_RV_CUENTA='al3d_rv_cuenta';
+function prefGet(k,def=''){ try{ const v=localStorage.getItem(k); return v===null?def:v; }catch(_){ return def; } }
+function prefSet(k,v){ try{ localStorage.setItem(k,String(v)); }catch(_){} }
+
+/* ===================== Clientes ya conocidos =====================
+   El historial ya guardaba nombre, teléfono y dirección de cada cliente autorizado,
+   pero el campo Cliente arrancaba vacío siempre: el cliente que regresaba por su
+   segundo letrero se tecleaba completo otra vez. Se sugieren los del historial y, al
+   elegir uno, se llenan los campos que estén VACÍOS —nunca se pisa lo ya escrito. */
+function normNom(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
+function clientesConocidos(){
+  const m=new Map();
+  /* El historial está ordenado de lo más reciente a lo más viejo, así que el primero
+     que aparece manda; de los demás solo se toman los huecos que dejó. */
+  getHistorial().forEach(e=>{
+    const k=normNom(e.cliente); if(!k) return;
+    const prev=m.get(k);
+    if(!prev){ m.set(k,{cliente:e.cliente,tel:e.tel||'',dirRaw:e.dirRaw||'',maps:e.maps||''}); return; }
+    if(!prev.tel&&e.tel) prev.tel=e.tel;
+    if(!prev.dirRaw&&e.dirRaw) prev.dirRaw=e.dirRaw;
+    if(!prev.maps&&e.maps) prev.maps=e.maps;
+  });
+  return [...m.values()];
+}
+function pintarClientes(){
+  const dl=$('clientes-conocidos'); if(!dl) return;
+  dl.innerHTML=clientesConocidos().map(c=>`<option value="${esc(c.cliente)}"></option>`).join('');
+}
+function autocompletarCliente(v){
+  if(locked()) return;
+  const c=clientesConocidos().find(x=>normNom(x.cliente)===normNom(v));
+  if(!c) return;
+  const puestos=[];
+  if(c.tel && !(Q.tel||'').trim()){ Q.tel=c.tel; if($('f-tel')) $('f-tel').value=c.tel; puestos.push('el teléfono'); }
+  if(c.dirRaw && !(Q.dirRaw||'').trim()){ if($('f-dir-raw')) $('f-dir-raw').value=c.dirRaw; updDirRaw(c.dirRaw); puestos.push('la dirección'); }
+  if(c.maps && !(Q.maps||'').trim()){ if($('f-maps')) $('f-maps').value=c.maps; updMaps(c.maps); Q.maps=c.maps; puestos.push('el link de Maps'); }
+  if(!puestos.length) return;   // ya estaban llenos: nada que avisar
+  saveState(); updProg();
+  toast('Cliente conocido — se llenó '+puestos.join(' y '),'ok',3400);
+}
+
 /* ===================== Cálculo ===================== */
 /* Todo lo que se cobra por m² (bastidor y caja de luz) comparte la misma regla:
    se cobra mínimo 1 m². Si el área es menor, se respeta el precio de un metro
@@ -1603,14 +1726,35 @@ function sincronizarPlegado(){
   Q.items.slice(0,-1).forEach(it=>_plegadas.add(it.id));
 }
 
+/* ----- Material heredado -----
+   El material es el único campo de una partida de letras que hay que elegir en TODAS
+   y que casi nunca cambia dentro del mismo trabajo. Se hereda el último que se eligió
+   a mano, con una etiqueta visible al lado para que se note que lo puso la app.
+
+   No es lo mismo que adivinarlo: no sale de la imagen ni de una corazonada del
+   programa, sale de la última decisión explícita de quien cotiza. Por eso solo se
+   hereda cuando la partida nace de capturar a mano (`heredar:true`); las que crea el
+   escalador o el vectorizador siguen naciendo sin material, porque ahí la partida
+   viene de una medida y el material sí sería una suposición con precio. */
 function addItem(opts){
   if(locked())return;
   const id=++pid;
-  Q.items.push({id,tipo:'letras',material:'',comp:'recta',luz:true,ilumTipo:'fria',altura:0,n:0,
+  const heredado=(opts&&opts.heredar)?prefGet(PREF_MATERIAL,''):'';
+  const mat=matOf(heredado)?heredado:'';
+  Q.items.push({id,tipo:'letras',material:mat,matAuto:!!mat,comp:'recta',luz:true,ilumTipo:'fria',altura:0,n:0,
     tarifa:0,ancho:0,alto:0, acab:'',recComp:false,bas:'', desc:'',descAi:false,pz:1,pu:0,textoAuto:'',showInPdf:true});
   plegarOtras(id);
   renderItems();
   if(!opts||opts.enfocar!==false) enfocarPartida(id);
+}
+/* Duplicar la última partida. Es lo que más se hace cuando un letrero trae dos
+   renglones del mismo material y distinta altura, y hasta ahora vivía escondido en el
+   ⧉ del encabezado de cada partida. Sin partidas todavía, agrega la primera. */
+function duplicarUltima(){
+  if(locked())return;
+  const last=Q.items[Q.items.length-1];
+  if(!last){ addItem({heredar:true}); return; }
+  dupItem(last.id);
 }
 /* La partida nueva se trae a la vista. En el celular «+ Agregar partida» queda al
    final de una lista larga y la que se acababa de crear nacía fuera de pantalla. */
@@ -1638,7 +1782,14 @@ function deshacerBorrado(){
   renderItems();
   toast('Partida restaurada','ok');
 }
-function setItem(id,k,v){ const it=Q.items.find(x=>x.id===id); if(!it)return; it[k]=v; renderItems(); }
+function setItem(id,k,v){
+  const it=Q.items.find(x=>x.id===id); if(!it)return;
+  it[k]=v;
+  /* Elegir el material a mano lo vuelve decisión propia: se quita la etiqueta de
+     heredado y ese material pasa a ser el que hereden las partidas siguientes. */
+  if(k==='material'){ it.matAuto=false; if(v) prefSet(PREF_MATERIAL,v); }
+  renderItems();
+}
 /* Escritura ligera: no re-renderiza el input (evita perder el foco), solo refresca total y resumen */
 function typeItem(id,k,v){
   const it=Q.items.find(x=>x.id===id); if(!it)return; it[k]=v;
@@ -1653,7 +1804,9 @@ function setTipo(id,t){ if(locked())return; const it=Q.items.find(x=>x.id===id);
 function dupItem(id){
   if(locked())return;
   const src=Q.items.find(x=>x.id===id); if(!src)return;
-  const copy=JSON.parse(JSON.stringify(src)); copy.id=++pid;
+  /* Duplicar es una decisión explícita: el material de la copia ya no va marcado como
+     heredado, porque quien duplicó sabe exactamente qué está copiando. */
+  const copy=JSON.parse(JSON.stringify(src)); copy.id=++pid; copy.matAuto=false;
   const idx=Q.items.findIndex(x=>x.id===id);
   Q.items.splice(idx+1,0,copy);
   plegarOtras(copy.id);
@@ -1763,6 +1916,8 @@ function renderItems(){
   });
   const _hiddenPdf=Q.items.filter(x=>x.showInPdf===false).length;
   $('pcount').textContent=Q.items.length+' partida'+(Q.items.length!==1?'s':'')+(_hiddenPdf?` · ${_hiddenPdf} oculta${_hiddenPdf>1?'s':''} del PDF`:'');
+  /* «Igual que la anterior» solo tiene sentido cuando hay una anterior. */
+  const dupBtn=$('dupbtn'); if(dupBtn) dupBtn.style.display=Q.items.length?'':'none';
   /* Plegar/abrir todas: solo tiene sentido con más de una partida */
   const fab=$('fold-all-btn');
   if(fab){
@@ -1882,7 +2037,12 @@ function bodyFor(it){
     const matChips=MATERIALES.map(m=>chip(it.material===m.key,`setItem(${it.id},'material','${m.key}')`,m.label,'$'+m.precio)).join('');
     const compChips=COMPLEJIDAD.map(c=>chip(it.comp===c.key,`setItem(${it.id},'comp','${c.key}')`,c.label,c.extra?'+$'+c.extra:'+$0')).join('');
     const mat=matOf(it.material);
-    const avisos=`<div class="hintnote">Iluminación sugerida: ${mat?mat.ilum:'—'}</div>
+    /* Material heredado: el título lo dice y la nota explica de dónde salió. Se avisa
+       porque es el campo que más pesa en el precio —de $30 a $55 por cm. */
+    const heredado=!!(it.matAuto&&mat);
+    const matTitulo='Material / acabado'+(heredado?' <span class="heredado">↩ como la anterior</span>':'');
+    const avisos=`${heredado?'<div class="hintnote" style="background:#fff8e1;border-left:3px solid var(--amber);color:#7a5800;margin-bottom:5px">↩ Se puso solo el último material que elegiste. Si este trabajo va con otro, tócalo.</div>':''}
+      <div class="hintnote">Iluminación sugerida: ${mat?mat.ilum:'—'}</div>
       ${(it.material==='acr-vol'||it.material==='acr-vinil')&&!it.luz?`<div class="hintnote" style="background:#fff8e1;border-left:3px solid var(--amber);color:#7a5800;margin-top:5px">⚠️ El acrílico es valioso principalmente por el paso de luz. Sin iluminación, considera cambiar a <b>Aluminio</b> — mismo resultado visual, menor costo.</div>`:''}
       ${it.material==='al-paint'&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green);color:#1c6e3d;margin-top:5px">💡 Con aluminio e iluminación, la luz va por detrás (retroiluminación). Para luz que pase a través de las caras, considera <b>Acrílico + Aluminio</b>.</div>`:''}
       ${it.material==='acero'&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green);color:#1c6e3d;margin-top:5px">💡 El acero inoxidable es opaco: la luz sale por detrás (retroiluminación) y el canto queda con acabado espejo. Para luz que pase a través de las caras, considera <b>Acrílico + Aluminio</b>.</div>`:''}`;
@@ -1892,7 +2052,7 @@ function bodyFor(it){
       : '';
     return `
       ${descFld(it)}
-      ${grupo('Material / acabado',mat?mat.label:'',matChips,avisos)}
+      ${grupo(matTitulo,mat?mat.label:'',matChips,avisos)}
       ${grupo('Iluminación',it.luz?(tono?'Cálida 3000K':'Fría 6500K'):'Sin iluminación · −20%',
         `<label class="switch" style="margin:0 6px 0 0"><span class="tg ${it.luz?'on':''}" onclick="${locked()?'':`setItem(${it.id},'luz',${!it.luz})`}"></span> Con iluminación</label>${luzChips}`)}
       ${grupo('Complejidad tipográfica',compOf(it.comp)?compOf(it.comp).label:'',compChips)}
@@ -2049,7 +2209,8 @@ function updItemAuth(id,val){
   }
   // Los ajustes por partida van sin IVA; el precio final que se autoriza lo lleva.
   const sub=Q.items.reduce((s,x)=>{const v=Q.itemsAuth[x.id];return s+(v!==undefined?v:lineTotal(x));},0);
-  const netoAj=Math.round(Q.iva?sub*1.16:sub);
+  // Mismo criterio que el formulario: no se redondea, para no inventar un ajuste.
+  const netoAj=+(Q.iva?sub*1.16:sub).toFixed(2);
   const sumEl=$('ia-sum'); if(sumEl) sumEl.textContent=money(sub);
   const sumNetoEl=$('ia-sum-neto'); if(sumNetoEl) sumNetoEl.textContent=money(Q.iva?sub*1.16:sub);
   const gInput=$('a-precio'); if(gInput) gInput.value=netoAj;
@@ -2099,6 +2260,7 @@ function renderSummary(){
      nota para el cliente normalmente se definen justo en ese momento. */
   Object.values(_FM).concat('f-anti').forEach(id=>{ if($(id)) $(id).disabled=locked()&&!_FM_PDF.includes(id); });
   $('addbtn').disabled=locked();
+  if($('dupbtn')) $('dupbtn').disabled=locked();
   renderMobileBar();
 }
 
@@ -2130,53 +2292,8 @@ function renderAuth(){
 
     // --- Formulario de revisión (solo si la cotización cargada está pendiente) ---
     let formHTML='';
-    if(Q.estado==='pendiente'){
-      const neto=totals().neto;
-      const ia=Q.itemsAuth||{};
-      /* Los ajustes por partida son montos SIN IVA (igual que lineTotal), mientras que
-         el "precio final autorizado" es lo que paga el cliente CON IVA. Antes se
-         comparaban entre sí y eso pintaba un descuento fantasma del 16% que quedaba
-         aplicado con solo apretar Autorizar. */
-      const authSub=Q.items.reduce((s,it)=>{const v=ia[it.id];return s+(v!==undefined?v:lineTotal(it));},0);
-      const authNeto=Q.iva?authSub*1.16:authSub;
-      const paCurrent=(Q.precioAuth>0&&Math.abs(Q.precioAuth-neto)>0.01)?Q.precioAuth:Math.round(authNeto);
-      const itemRows=Q.items.map((it,i)=>{
-        const orig=lineTotal(it);
-        const authVal=ia[it.id]!==undefined?ia[it.id]:orig;
-        const isOpen=ia[it.id]!==undefined&&Math.abs(ia[it.id]-orig)>0.01;
-        const diff=authVal-orig;
-        const diffTxt=Math.abs(diff)<0.01?'':(diff<0?'Descuento: '+money(-diff):'Aumento: '+money(diff));
-        const diffCls=diff>0.01?' inc':'';
-        return '<div class="ia-row">'+
-          '<div class="ia-hdr" onclick="toggleItemAuth('+it.id+')">'+
-          '<div class="ia-num">'+(i+1)+'</div>'+
-          '<div class="ia-desc">'+esc(shortDescAuth(it))+'</div>'+
-          '<div class="ia-calc">'+money(orig)+'</div>'+
-          '<span class="ia-arrow" id="ia-arrow-'+it.id+'">'+(isOpen?'▾':'▸')+'</span>'+
-          '</div>'+
-          '<div class="ia-body" id="ia-body-'+it.id+'" style="'+(isOpen?'':'display:none')+'">'+
-          '<label style="font-size:11px;margin-bottom:4px">Precio autorizado</label>'+
-          '<div class="inp-money"><input type="number" inputmode="decimal" min="0" step="50" value="'+authVal+'" oninput="updItemAuth('+it.id+',+this.value)"></div>'+
-          '<div class="ia-adj'+diffCls+'" id="ia-adj-'+it.id+'">'+diffTxt+'</div>'+
-          '</div>'+
-          '</div>';
-      }).join('');
-      formHTML=`<div class="auth-divider">Revisando · ${esc(Q.folio)}${Q.proy||Q.cliente?' — '+esc(Q.proy||Q.cliente):''}</div>
-        <div class="fld">
-          <label>Precio final autorizado ${Q.iva?'(con IVA)':'(sin IVA)'}</label>
-          <div class="precio-auth-orig" style="font-size:11.5px;color:var(--muted);margin-bottom:4px">Total calculado: <b>${money(neto)}</b></div>
-          <div class="inp-money"><input id="a-precio" type="number" inputmode="decimal" min="0" step="100" value="${paCurrent}" oninput="updPrecioAuth(+this.value,${neto})"></div>
-          <div class="descuento-info" id="descuento-info"></div>
-        </div>
-        <div class="auth-divider" style="margin-top:8px">Ajuste por partida ${Q.iva?'· montos sin IVA':''}</div>
-        ${itemRows}
-        <div class="ia-total"><span>${Q.iva?'Subtotal ajustado':'Total ajustado'}</span><span id="ia-sum">${money(authSub)}</span></div>
-        ${Q.iva?`<div class="ia-total soft"><span>Con IVA 16%</span><span id="ia-sum-neto">${money(authNeto)}</span></div>`:''}
-        <div class="fld"><label>Tu nombre (autorizador)</label><input id="a-name" placeholder="Ej. Elías" value="${esc(Q.autorizador||'')}"></div>
-        <div class="fld"><label>Nota (opcional)</label><textarea id="a-note" placeholder="Comentario para el vendedor…">${esc(Q.nota||'')}</textarea></div>
-        <button class="btn btn-ok" onclick="autorizar()">✓ Autorizar precio</button>
-        <button class="btn btn-dgr" onclick="rechazar()">Rechazar</button>`;
-    } else if(pendientes.length){
+    if(Q.estado==='pendiente') formHTML=authRevisionHTML(false);
+    else if(pendientes.length){
       formHTML=`<p class="mini" style="margin-top:2px">Selecciona una cotización de la lista para revisarla.</p>`;
     }
     body=qHTML+formHTML;
@@ -2184,13 +2301,21 @@ function renderAuth(){
   } else {
     // --- Vista vendedor ---
     if(Q.estado==='borrador'){
-      body=`<button class="btn btn-pri" ${hayPartidas?'':'disabled'} onclick="solicitar()">Solicitar autorización</button>
+      /* «Autorizar yo mismo» es la acción principal porque es la que se usa casi
+         siempre: la cola de autorización vive en el almacenamiento de ESTE teléfono,
+         así que el flujo de dos personas solo funciona si las dos comparten aparato.
+         Solicitar a alguien más sigue disponible, un renglón abajo. */
+      body=`<button class="btn btn-pri" ${hayPartidas?'':'disabled'} onclick="autorizarYoMismo()">⚡ Autorizar yo mismo</button>
+            <button class="btn btn-gho" ${hayPartidas?'':'disabled'} onclick="solicitar()">Solicitar autorización a alguien más</button>
             ${hayPartidas?'':'<p class="mini">Agrega partidas con precio para continuar.</p>'}
             <button class="btn btn-gho" onclick="pedirConfNueva()">🗑️ Vaciar y empezar cotización nueva</button>`;
     }
     else if(Q.estado==='pendiente'){
-      body=`<div class="authnote">Esperando autorización del precio. Cambia el rol a <b>Autorizador</b> (arriba a la derecha) para aprobar o rechazar.</div>
-            <button class="btn btn-gho" onclick="reabrir()">← Editar (cancela la solicitud)</button>`;
+      body=_selfAuth
+        ? `<div class="auth-divider">Autorizando tú mismo</div>${authRevisionHTML(true)}`
+        : `<div class="authnote">Esperando autorización del precio. Cambia el rol a <b>Autorizador</b> (arriba a la derecha) para aprobar o rechazar.</div>
+           <button class="btn btn-pri" onclick="autorizarYoMismo()">⚡ Autorizarla yo mismo</button>
+           <button class="btn btn-gho" onclick="reabrir()">← Editar (cancela la solicitud)</button>`;
     }
     else if(Q.estado==='autorizada'){
       const neto=totals().neto;
@@ -2213,6 +2338,7 @@ function renderAuth(){
         body=`${authNote}
               ${descHTML}
               <button class="btn btn-pri" onclick="generarPDF()">📄 Generar PDF</button>
+              <button class="btn btn-wa" onclick="enviarPorWhatsApp()">💬 Enviar por WhatsApp</button>
               <button class="btn btn-ok" onclick="abrirRegistrarVenta()">📊 Registrar venta</button>
               <button class="btn btn-gho" onclick="toggleEditMode()">✏️ Editar partidas</button>
               <button class="btn btn-gho" onclick="copiarParaCanva()">📋 Copiar datos para Canva</button>
@@ -2229,9 +2355,70 @@ function renderAuth(){
 
   box.innerHTML=`<div class="statusrow"><span class="lab">Autorización</span>${badge}</div>${body}`;
   // Inicializar display de descuento tras render
-  if(Q.rol==='autorizador'&&Q.estado==='pendiente'){
+  if(Q.estado==='pendiente'&&(Q.rol==='autorizador'||_selfAuth)){
     updPrecioAuth(parseFloat($('a-precio')?.value)||0, totals().neto);
   }
+}
+
+/* ----- Formulario de revisión del precio -----
+   Uno solo, usado por el autorizador desde su cola y por el atajo «Autorizar yo
+   mismo» dentro de la vista de vendedor. `soloAutorizar` quita el botón de rechazar:
+   rechazarte a ti mismo no significa nada, para eso está volver a editar. */
+function authRevisionHTML(soloAutorizar){
+  const neto=totals().neto;
+  const ia=Q.itemsAuth||{};
+  /* Los ajustes por partida son montos SIN IVA (igual que lineTotal), mientras que
+     el "precio final autorizado" es lo que paga el cliente CON IVA. Antes se
+     comparaban entre sí y eso pintaba un descuento fantasma del 16% que quedaba
+     aplicado con solo apretar Autorizar. */
+  const authSub=Q.items.reduce((s,it)=>{const v=ia[it.id];return s+(v!==undefined?v:lineTotal(it));},0);
+  const authNeto=Q.iva?authSub*1.16:authSub;
+  /* Sin redondear. Al redondear el total calculado a pesos enteros, una cotización de
+     $17,585.60 abría el formulario proponiendo $17,586 y se anunciaba sola como
+     «Aumento: $0.40» antes de que nadie tocara nada. El precio propuesto tiene que ser
+     exactamente el calculado; redondear es una decisión del autorizador, no del
+     formulario. */
+  const paCurrent=(Q.precioAuth>0&&Math.abs(Q.precioAuth-neto)>0.01)?Q.precioAuth:+authNeto.toFixed(2);
+  const itemRows=Q.items.map((it,i)=>{
+    const orig=lineTotal(it);
+    const authVal=ia[it.id]!==undefined?ia[it.id]:orig;
+    const isOpen=ia[it.id]!==undefined&&Math.abs(ia[it.id]-orig)>0.01;
+    const diff=authVal-orig;
+    const diffTxt=Math.abs(diff)<0.01?'':(diff<0?'Descuento: '+money(-diff):'Aumento: '+money(diff));
+    const diffCls=diff>0.01?' inc':'';
+    return '<div class="ia-row">'+
+      '<div class="ia-hdr" onclick="toggleItemAuth('+it.id+')">'+
+      '<div class="ia-num">'+(i+1)+'</div>'+
+      '<div class="ia-desc">'+esc(shortDescAuth(it))+'</div>'+
+      '<div class="ia-calc">'+money(orig)+'</div>'+
+      '<span class="ia-arrow" id="ia-arrow-'+it.id+'">'+(isOpen?'▾':'▸')+'</span>'+
+      '</div>'+
+      '<div class="ia-body" id="ia-body-'+it.id+'" style="'+(isOpen?'':'display:none')+'">'+
+      '<label style="font-size:11px;margin-bottom:4px">Precio autorizado</label>'+
+      '<div class="inp-money"><input type="number" inputmode="decimal" min="0" step="50" value="'+authVal+'" oninput="updItemAuth('+it.id+',+this.value)"></div>'+
+      '<div class="ia-adj'+diffCls+'" id="ia-adj-'+it.id+'">'+diffTxt+'</div>'+
+      '</div>'+
+      '</div>';
+  }).join('');
+  /* El nombre de quien autoriza se recuerda en el dispositivo: es siempre el mismo y
+     se estaba tecleando en cada cotización. */
+  return `<div class="auth-divider">Revisando · ${esc(Q.folio)}${Q.proy||Q.cliente?' — '+esc(Q.proy||Q.cliente):''}</div>
+    <div class="fld">
+      <label>Precio final autorizado ${Q.iva?'(con IVA)':'(sin IVA)'}</label>
+      <div class="precio-auth-orig" style="font-size:11.5px;color:var(--muted);margin-bottom:4px">Total calculado: <b>${money(neto)}</b></div>
+      <div class="inp-money"><input id="a-precio" type="number" inputmode="decimal" min="0" step="100" value="${paCurrent}" oninput="updPrecioAuth(+this.value,${neto})"></div>
+      <div class="descuento-info" id="descuento-info"></div>
+    </div>
+    <div class="auth-divider" style="margin-top:8px">Ajuste por partida ${Q.iva?'· montos sin IVA':''}</div>
+    ${itemRows}
+    <div class="ia-total"><span>${Q.iva?'Subtotal ajustado':'Total ajustado'}</span><span id="ia-sum">${money(authSub)}</span></div>
+    ${Q.iva?`<div class="ia-total soft"><span>Con IVA 16%</span><span id="ia-sum-neto">${money(authNeto)}</span></div>`:''}
+    <div class="fld"><label>Tu nombre (autorizador)</label><input id="a-name" placeholder="Ej. Elías" value="${esc(Q.autorizador||prefGet(PREF_AUTORIZADOR,''))}"></div>
+    <div class="fld"><label>Nota (opcional)</label><textarea id="a-note" placeholder="Comentario para el vendedor…">${esc(Q.nota||'')}</textarea></div>
+    <button class="btn btn-ok" onclick="autorizar()">✓ Autorizar precio</button>
+    ${soloAutorizar
+      ? '<button class="btn btn-gho" onclick="cancelarAutoAutorizacion()">← Volver a editar</button>'
+      : '<button class="btn btn-dgr" onclick="rechazar()">Rechazar</button>'}`;
 }
 
 function updPrecioAuth(pa, neto){
@@ -2242,24 +2429,133 @@ function updPrecioAuth(pa, neto){
   else   { el.textContent=`Aumento: ${money(-d)} (${Math.round(-d/neto*100)}%)`; el.classList.add('inc'); }
 }
 
+/* ===================== Revisión previa: partidas sin terminar =====================
+   Una partida de letras sin material vale $0 —el precio se multiplica por el precio
+   del material—, y hasta aquí está bien: la partida lo dice en ámbar mientras se
+   captura. Lo que faltaba era el momento de decirlo. `solicitar()` solo miraba que el
+   total fuera mayor a cero, así que bastaba con que OTRA partida tuviera precio para
+   que la incompleta pasara el filtro, se autorizara y saliera en el PDF como un
+   renglón normal, con su descripción bien redactada, en $0.00.
+
+   El cálculo de qué falta ya existía: es el mismo `faltantesDe()` que pinta los chips
+   ámbar de cada partida. Aquí solo se usa en el momento en que importa. Si no falta
+   nada, no agrega ni un toque al flujo. */
+function partidasSinTerminar(){
+  return Q.items
+    .map((it,i)=>({n:i+1,it,faltan:faltantesDe(it),vacia:itemVacio(it)}))
+    .filter(x=>x.faltan.length);
+}
+let _faltSeguir=null;
+/* Corre `accion` salvo que haya partidas sin terminar; si las hay, las enseña primero.
+   `etiqueta` es lo que dirá el botón de continuar de todos modos. */
+function revisarAntesDe(accion,etiqueta){
+  const pend=partidasSinTerminar();
+  if(!pend.length){ accion(); return; }
+  _faltSeguir=accion;
+  $('falt-seguir').textContent=etiqueta;
+  pintarFaltantes(pend);
+  $('faltmodal').classList.add('show');
+}
+function pintarFaltantes(pend){
+  const n=pend.length;
+  $('falt-intro').innerHTML=`${n===1?'Esta partida está':'Estas '+n+' partidas están'} sin terminar y ${n===1?'vale':'valen'} <b>$0</b>. Tal como ${n===1?'está saldría':'están saldrían'} en el PDF como ${n===1?'un renglón':'renglones'} en $0.00. Toca ${n===1?'la partida':'una'} para ir a completarla.`;
+  $('falt-list').innerHTML=pend.map(x=>`<div class="falt-row">
+      <button class="falt-ir" onclick="irAPartida(${x.it.id})">
+        <span class="falt-n">${x.n}</span>
+        <span class="falt-b">
+          <span class="falt-t">${esc(TIPO_NOMBRE[x.it.tipo]||'Partida')}${x.it.desc?' · '+esc(x.it.desc):''}</span>
+          <span class="falt-d">${x.vacia?'Está completamente vacía':'Falta '+esc(x.faltan.join(', '))}</span>
+        </span>
+      </button>
+      ${x.vacia&&!locked()?`<button class="falt-quitar" onclick="quitarDesdeFaltantes(${x.it.id})">Quitar</button>`:'<span class="falt-go">›</span>'}
+    </div>`).join('');
+}
+function cerrarFaltantes(){ $('faltmodal').classList.remove('show'); _faltSeguir=null; }
+function faltSeguir(){
+  const f=_faltSeguir;
+  $('faltmodal').classList.remove('show'); _faltSeguir=null;
+  if(f) f();
+}
+/* Ir a una partida: se despliega antes de traerla a la vista, porque en el celular
+   podría estar plegada y llevarte a un encabezado no resuelve nada.
+
+   Si el aviso salió al autorizar, la cotización ya está bloqueada: para poder
+   corregirla hay que reabrirla, que es exactamente lo que significa volver a tocar las
+   partidas. El autorizador es el único que no la reabre —revisar no es editar—; para
+   él el aviso solo señala dónde está el hueco. */
+function irAPartida(id){
+  $('faltmodal').classList.remove('show'); _faltSeguir=null;
+  if(locked()&&Q.rol!=='autorizador') reabrir();
+  _plegadas.delete(id);
+  renderItems();
+  requestAnimationFrame(()=>irA('p-'+id));
+}
+/* Quitar una partida vacía sin salir del aviso: si quedan otras, la lista se repinta;
+   si era la última pendiente, se sigue con lo que se iba a hacer. Solo aparece cuando
+   la cotización se puede editar, así que aquí `delItem` siempre surte efecto. */
+function quitarDesdeFaltantes(id){
+  const f=_faltSeguir;
+  delItem(id);
+  const pend=partidasSinTerminar();
+  if(pend.length){ pintarFaltantes(pend); return; }
+  $('faltmodal').classList.remove('show'); _faltSeguir=null;
+  if(f&&Q.items.length&&totals().sub>0) f();
+  else toast('Listo — ya no quedan partidas sin terminar','ok',3000);
+}
+
 /* ===================== Flujo ===================== */
 function solicitar(){
   if(!Q.proy.trim()&&!Q.cliente.trim()){toast('Completa al menos el nombre del proyecto o del cliente.','err',3200);return;}
   if(!Q.items.length||totals().sub<=0){toast('Agrega al menos una partida con precio mayor a cero.','err',3200);return;}
+  revisarAntesDe(solicitarConfirmado,'Solicitar de todos modos');
+}
+function solicitarConfirmado(){
   Q.estado='pendiente'; pushToQueue(); saveState(); renderItems(); toast('Solicitud enviada · precio bloqueado','ok');
 }
+/* ----- Autorizar sin cambiar de rol -----
+   El flujo de vendedor → autorizador está pensado para dos personas y se queda tal
+   cual. Lo que sobraba era representarlo cuando eres tú en los dos papeles: solicitar,
+   cambiar el rol de arriba, escribir tu nombre, autorizar y volver a cambiar el rol.
+   Este atajo abre el MISMO formulario de revisión —precio final y ajuste por partida—
+   dentro de la vista de vendedor, sin tocar Q.rol. Como es el mismo formulario, no hay
+   dos maneras de autorizar que puedan contradecirse.
+
+   Vive fuera de Q a propósito: es cómo se está viendo la pantalla en este momento, no
+   un dato de la cotización, así que no se guarda ni viaja al historial. */
+let _selfAuth=false;
+function autorizarYoMismo(){
+  if(Q.estado==='borrador'){
+    if(!Q.proy.trim()&&!Q.cliente.trim()){toast('Completa al menos el nombre del proyecto o del cliente.','err',3200);return;}
+    if(!Q.items.length||totals().sub<=0){toast('Agrega al menos una partida con precio mayor a cero.','err',3200);return;}
+    /* Se pasa por «pendiente» y por la cola igual que el flujo normal: así el estado y
+       el registro de la cola nunca dependen de por cuál de los dos caminos se llegó. */
+    Q.estado='pendiente'; pushToQueue(); saveState();
+  }
+  _selfAuth=true;
+  renderItems();
+  irAResumen();
+}
+function cancelarAutoAutorizacion(){ _selfAuth=false; reabrir(); }
 function reabrir(){
   const eraPendiente=Q.estado==='pendiente';
-  Q.estado='borrador'; Q.autorizador=''; Q.nota='';
+  Q.estado='borrador'; Q.autorizador=''; Q.nota=''; _selfAuth=false;
   // Al reabrir se cancela la solicitud: el precio autorizado antes ya no vale, si
   // no quedaba aplicándose en silencio sobre partidas que cambiaron.
   Q.precioAuth=0; Q.itemsAuth={};
   if(eraPendiente) removeFromQueue(Q.folio);
   saveState(); renderItems(); toast('Cotización reabierta para editar');
 }
-function autorizar(){
-  Q.autorizador=($('a-name')?.value||'').trim()||'Autorizador';
+/* Autorizar es el momento en que el precio se vuelve el que se cobra: es aquí donde
+   conviene avisar de las partidas sin terminar, sin importar por cuál de los dos
+   caminos se llegó. Por eso el atajo «Autorizar yo mismo» no revisa nada al abrirse:
+   ahí todavía no se compromete nada. */
+function autorizar(){ revisarAntesDe(autorizarConfirmado,'Autorizar de todos modos'); }
+function autorizarConfirmado(){
+  const nombre=($('a-name')?.value||'').trim();
+  Q.autorizador=nombre||prefGet(PREF_AUTORIZADOR,'')||'Autorizador';
+  if(nombre) prefSet(PREF_AUTORIZADOR,nombre);
   Q.nota=($('a-note')?.value||'').trim();
+  _selfAuth=false;
   const neto=totals().neto;
   const pa=parseFloat($('a-precio')?.value)||0;
   Q.precioAuth=(pa>0&&Math.abs(pa-neto)>0.01)?pa:0;
@@ -2271,9 +2567,11 @@ function autorizar(){
   saveState(); renderItems(); toast('✓ Cotización autorizada — guardada en historial','ok',3200);
 }
 function rechazar(){
-  Q.autorizador=($('a-name')?.value||'').trim()||'Autorizador';
+  const nombre=($('a-name')?.value||'').trim();
+  Q.autorizador=nombre||prefGet(PREF_AUTORIZADOR,'')||'Autorizador';
+  if(nombre) prefSet(PREF_AUTORIZADOR,nombre);
   Q.nota=($('a-note')?.value||'').trim();
-  Q.estado='rechazada';
+  Q.estado='rechazada'; _selfAuth=false;
   updateQueueEntry(Q.folio,{estado:'rechazada',autorizador:Q.autorizador,nota:Q.nota});
   saveState(); renderItems(); toast('Cotización rechazada','err');
 }
@@ -2291,14 +2589,14 @@ function pedirConfNueva(){
 function nueva(){
   Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};
   Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth='';
-  Q.editMode=false;
+  Q.editMode=false; _selfAuth=false;
   Object.values(_FM).forEach(id=>{if($(id))$(id).value='';});
   $('f-anti').value='';
   updDirRaw('');
   $('mapsbtn').disabled=true;
   Q.folio=nextFolio(); pintarFolio();
   Q.fecha=hoy();
-  addItem({enfocar:false}); aplicarFoldProy(); toast('Nueva cotización lista');
+  addItem({enfocar:false,heredar:true}); aplicarFoldProy(); toast('Nueva cotización lista');
 }
 
 /* ===================== Barra de acción de abajo (móvil) =====================
@@ -2315,7 +2613,11 @@ function renderMobileBar(){
       ? `<button class="mbar-btn ok" onclick="irAResumen()">Revisar precio</button>`
       : `<button class="mbar-btn gho" onclick="irAResumen()">Ver cola</button>`;
   } else if(Q.estado==='pendiente'){
-    btn=`<button class="mbar-btn gho" onclick="reabrir()">← Editar</button>`;
+    /* Autorizándote a ti mismo, el siguiente paso es cerrar el precio; si la solicitud
+       va para alguien más, el único paso propio es volver a editarla. */
+    btn=_selfAuth
+      ? `<button class="mbar-btn ok" onclick="autorizar()">✓ Autorizar</button>`
+      : `<button class="mbar-btn gho" onclick="reabrir()">← Editar</button>`;
   } else if(Q.estado==='autorizada'){
     btn=Q.editMode
       ? `<button class="mbar-btn ok" onclick="guardarCambiosEdicion()">💾 Guardar</button>`
@@ -2324,7 +2626,7 @@ function renderMobileBar(){
     btn=`<button class="mbar-btn gho" onclick="reabrir()">← Editar</button>`;
   } else {
     const listo=Q.items.length>0&&totals().sub>0;
-    btn=`<button class="mbar-btn" ${listo?'':'disabled'} onclick="solicitar()">Solicitar autorización</button>`;
+    btn=`<button class="mbar-btn" ${listo?'':'disabled'} onclick="autorizarYoMismo()">⚡ Autorizar yo mismo</button>`;
   }
   bar.innerHTML=`<button class="mbar-tot" onclick="irAResumen()" title="Ir al resumen">
       <span class="mbar-lab">${lab}<span class="chev">▾</span></span>
@@ -2355,7 +2657,11 @@ function aplicarFoldProy(){
 }
 
 /* ===================== Inputs generales ===================== */
-function upd(k,v){ Q[k]=v; saveState(); updProg(); if(k==='cliente'||k==='proy') aplicarFoldProy(); }
+function upd(k,v){
+  Q[k]=v; saveState(); updProg();
+  if(k==='cliente'||k==='proy') aplicarFoldProy();
+  if(k==='cliente') autocompletarCliente(v);
+}
 function updMaps(v){ Q.maps=(v||'').trim(); const ok=/^https?:\/\//i.test(Q.maps); $('mapsbtn').disabled=!ok; }
 function abrirMaps(){ if(/^https?:\/\//i.test(Q.maps)) window.open(Q.maps,'_blank','noopener'); }
 function dirRawMapsUrl(){ return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent((Q.dirRaw||'').trim()); }
@@ -2739,6 +3045,54 @@ const EMPRESA = {
   whatsapp:  '33-2813-0092',
   oficina:   'Naranjos #648 Col. Lindavista Cp. 45169'
 };
+
+/* ===================== Enviar la cotización por WhatsApp =====================
+   El teléfono del cliente se capturaba al principio de cada cotización y no se usaba
+   para nada. Aquí abre su chat con el mensaje ya escrito —folio, proyecto, total
+   autorizado y anticipo—, que era lo que se volvía a redactar en cada envío.
+
+   El archivo se sigue adjuntando a mano, y eso no es un descuido: lo que la app llama
+   «PDF» es una página HTML que se manda a imprimir, no un archivo, así que no hay nada
+   que adjuntar por programa. Adjuntarlo de un toque pide generar un PDF de verdad. */
+function telWhatsApp(t){
+  const d=String(t||'').replace(/\D/g,'');
+  if(!d) return '';
+  if(d.length===10) return '52'+d;                 // celular mexicano sin lada de país
+  if(d.length===12&&d.startsWith('52')) return d;  // ya viene con 52
+  if(d.length===13&&d.startsWith('521')) return d; // formato viejo con el 1
+  return d;                                        // otro país: se manda tal cual
+}
+function mensajeWhatsApp(){
+  const pf=precioFinal();
+  const n=Q.items.filter(it=>it.showInPdf!==false).length;
+  const L=[];
+  /* Sin nombre en el saludo: la mayoría de los clientes son negocios —«Farmacia San
+     Juan», «Tacos El Güero»— y tanto el nombre completo como el primer pedazo se leen
+     raro en un «Hola». El nombre ya va en el chat al que se manda. */
+  L.push(`Hola, le comparto la cotización *${Q.folio}* de AL3D.`);
+  L.push('');
+  if((Q.proy||'').trim()) L.push(`*${Q.proy.trim()}*`);
+  L.push(`${n} ${n===1?'partida':'partidas'}`);
+  L.push(`Total: ${money(pf)}${Q.iva?' (IVA incluido)':' (sin IVA)'}`);
+  if(Q.anti>0) L.push(`Anticipo para arrancar: ${money(Q.anti)}`);
+  if((Q.entrega||'').trim()) L.push(`Límite de fabricación: ${Q.entrega.trim()}`);
+  /* Solo la nota que se escribió a mano. La de respaldo —«El cliente debe proporcionar
+     salidas eléctricas»— está redactada para el documento, no para hablarle a alguien;
+     en el PDF se sigue imprimiendo igual. */
+  const nota=(Q.notaCliente||'').trim();
+  if(nota){ L.push(''); L.push(nota); }
+  L.push('');
+  L.push('Le adjunto el PDF con el desglose. Quedo al pendiente de cualquier duda.');
+  L.push(`${EMPRESA.vendedor} · AL3D Anuncios Luminosos 3D`);
+  return L.join('\n');
+}
+function enviarPorWhatsApp(){
+  const num=telWhatsApp(Q.tel);
+  const url='https://wa.me/'+num+'?text='+encodeURIComponent(mensajeWhatsApp());
+  const w=window.open(url,'_blank','noopener');
+  if(!w){ toast('Permite ventanas emergentes para abrir WhatsApp','err',3400); return; }
+  toast(num?'WhatsApp abierto — falta adjuntar el PDF':'Sin teléfono capturado: elige el chat en WhatsApp','',4200);
+}
 
 /* ===================== Copiar datos para pegar en Canva ===================== */
 function copiarParaCanva(){
@@ -3170,6 +3524,8 @@ function guardarEnHistorial(){
   const idx=arr.findIndex(x=>x.folio===Q.folio);
   if(idx>=0) arr[idx]=entry; else arr.unshift(entry);
   saveHistorial(arr);
+  /* El historial es de donde salen las sugerencias de cliente: al crecer, crecen. */
+  pintarClientes();
 }
 
 let _histData=[];
@@ -3183,6 +3539,7 @@ function borrarDeHistorial(folio){
   if(!confirm('¿Eliminar '+folio+' del historial?\n\nEsta acción no se puede deshacer.')) return;
   saveHistorial(getHistorial().filter(x=>x.folio!==folio));
   _histData=getHistorial();
+  pintarClientes();
   pintarHistorial(); // se conserva lo que el usuario tenía escrito en el buscador
 }
 
@@ -3244,6 +3601,7 @@ function pintarHistorial(){
           </div>
           <div class="hentry-acts">
             <button class="hentry-open" onclick="reabrirDeHistorial('${esc(e.folio)}')" title="Cargarla en el cotizador para volver a generar su PDF">↻ Abrir</button>
+            <button class="hentry-open" onclick="usarComoBase('${esc(e.folio)}')" title="Empezar una cotización nueva con estas mismas partidas">⧉ Usar como base</button>
             <button class="hentry-del" onclick="borrarDeHistorial('${esc(e.folio)}')" title="Eliminar">🗑</button>
           </div>
         </div>
@@ -3276,7 +3634,7 @@ function reabrirDeHistorial(folio){
   Q.iva=e.iva!==false;
   Q.precioAuth=e.precioAuth||0;
   Q.autorizador=e.autorizador||''; Q.nota=e.nota||''; Q.fechaAuth=e.fechaAuth||'';
-  Q.estado='autorizada'; Q.editMode=false;
+  Q.estado='autorizada'; Q.editMode=false; _selfAuth=false;
   Q.anti=0; Q.antiManual=false; Q.aiFile=null;
   // Los ids se reutilizan tal cual, así que el contador tiene que quedar por encima
   // del mayor para que las partidas nuevas no choquen con las restauradas.
@@ -3287,6 +3645,143 @@ function reabrirDeHistorial(folio){
   pintarFolio(); saveState(); renderItems();
   cerrarHistorial();
   toast('Cotización '+e.folio+' abierta — ya puedes generar el PDF','ok',3600);
+}
+
+/* ----- Recotizar algo parecido -----
+   «↻ Abrir» trae la cotización tal cual, autorizada, para reimprimir su PDF. Eso deja
+   fuera el caso más común del negocio: el mismo cliente que pide otro letrero, o el
+   local de junto que quiere lo mismo con otra medida. Antes eso se capturaba desde
+   cero. Aquí se copian los datos del cliente y las partidas a una cotización NUEVA:
+   folio nuevo, en borrador, con el precio recalculado y sin arrastrar nada de la
+   autorización anterior. Tus plantillas son tus cotizaciones anteriores. */
+function usarComoBase(folio){
+  const e=_histData.find(x=>x.folio===folio); if(!e) return;
+  const hayTrabajo=Q.estado!=='autorizada'&&Q.items.some(it=>!itemVacio(it));
+  if(hayTrabajo&&!confirm('Tienes una cotización sin autorizar en pantalla. Si empiezas una nueva a partir de '+folio+', se perderá. ¿Continuar?')) return;
+  Q.folio=nextFolio();
+  Q.proy=e.proy||''; Q.cliente=e.cliente||''; Q.tel=e.tel||'';
+  Q.dirRaw=e.dirRaw||''; Q.direccion=e.direccion||''; Q.maps=e.maps||'';
+  Q.entrecalles=e.entrecalles||''; Q.notaCliente=e.notaCliente||'';
+  /* El límite de fabricación se pacta en cada trabajo: copiarlo sería prometer una
+     fecha del proyecto pasado. */
+  Q.entrega='';
+  Q.fecha=hoy();
+  /* Ids nuevos: los del historial pueden chocar con los de la cotización en pantalla. */
+  Q.items=(e.items||[]).map(it=>{ const c=JSON.parse(JSON.stringify(it)); c.id=++pid; c.showInPdf=true; c.matAuto=false; return c; });
+  Q.iva=e.iva!==false;
+  Q.itemsAuth={}; Q.precioAuth=0;
+  Q.autorizador=''; Q.nota=''; Q.fechaAuth='';
+  Q.estado='borrador'; Q.editMode=false; _selfAuth=false;
+  Q.anti=0; Q.antiManual=false; Q.aiFile=null;
+  Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
+  updDirRaw(Q.dirRaw); updMaps(Q.maps);
+  sincronizarPlegado();
+  pintarFolio(); saveState(); renderItems();
+  cerrarHistorial();
+  const n=Q.items.length;
+  toast(`${Q.folio} · ${n} ${n===1?'partida copiada':'partidas copiadas'} de ${e.folio} — ajusta medidas y autoriza`,'ok',4600);
+}
+
+/* ===================== Respaldo, restauración y CSV =====================
+   Todo lo que hace esta app —historial, folios, cotización en curso, logotipo— vive
+   en el almacenamiento local de ESTE navegador. Se pierde al borrar los datos del
+   navegador, al cambiar de teléfono o cuando iOS limpia los sitios que llevan semanas
+   sin abrirse. Hasta ahora no había forma de sacarlo ni de moverlo.
+
+   La API key se queda fuera del respaldo a propósito: un respaldo se manda por
+   WhatsApp o por correo, y una key que viaja así deja de ser secreta. Se vuelve a
+   pegar en el teléfono nuevo, que es un minuto. */
+const RESPALDO_KEYS=['al3d_historial','al3d_folio','al3d_q','al3d_queue','al3d_logo',
+  'al3d_fold_proy',PREF_AUTORIZADOR,PREF_MATERIAL,PREF_RV_PCT,PREF_RV_CUENTA];
+function selloFecha(){
+  const d=new Date(), p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+/* Descarga un archivo generado en el momento. `<a download>` es lo único que funciona
+   igual en Android y en iOS moderno; si el navegador no lo soporta, se abre en una
+   pestaña para que se guarde desde ahí. */
+function descargarArchivo(texto,nombre,tipo){
+  try{
+    const blob=new Blob([texto],{type:tipo});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    if('download' in a){
+      a.href=url; a.download=nombre; a.style.display='none';
+      document.body.appendChild(a); a.click(); a.remove();
+    } else window.open(url,'_blank');
+    setTimeout(()=>{ try{URL.revokeObjectURL(url);}catch(_){} },60000);
+    return true;
+  }catch(_){ toast('Este navegador no permitió descargar el archivo','err',3400); return false; }
+}
+function armarRespaldo(){
+  const datos={};
+  RESPALDO_KEYS.forEach(k=>{ try{ const v=localStorage.getItem(k); if(v!==null) datos[k]=v; }catch(_){} });
+  return JSON.stringify({app:'cotizador-al3d',formato:1,fecha:new Date().toISOString(),datos});
+}
+function respaldar(nombre){
+  const n=getHistorial().length;
+  if(descargarArchivo(armarRespaldo(),nombre||`cotizador-al3d-respaldo-${selloFecha()}.json`,'application/json')){
+    toast(`Respaldo descargado · ${n} ${n===1?'cotización':'cotizaciones'}`,'ok',3600);
+  }
+}
+function pedirRestaurar(){ $('restaurarin').click(); }
+function restaurarDesde(texto){
+  let paquete;
+  try{ paquete=JSON.parse(texto); }
+  catch(_){ toast('Ese archivo no se pudo leer — ¿es el respaldo?','err',3600); return; }
+  if(!paquete||paquete.app!=='cotizador-al3d'||!paquete.datos){
+    toast('Ese archivo no es un respaldo del cotizador','err',3600); return;
+  }
+  let cuantas=0;
+  try{ cuantas=(JSON.parse(paquete.datos['al3d_historial']||'[]')||[]).length; }catch(_){}
+  const fecha=(paquete.fecha||'').slice(0,10);
+  if(!confirm(`Restaurar reemplaza el historial, los folios y la cotización en curso de este teléfono por los del respaldo`
+    +(fecha?` del ${fecha}`:'')+` (${cuantas} ${cuantas===1?'cotización':'cotizaciones'}).\n\n`
+    +`Antes de reemplazar se descarga un respaldo de lo que hay ahora.\n\n¿Continuar?`)) return;
+  respaldar(`cotizador-al3d-antes-de-restaurar-${selloFecha()}.json`);
+  try{
+    /* Se limpian primero las claves que maneja la app: si el respaldo no traía alguna
+       —por ejemplo no había logotipo—, lo correcto es que tampoco quede la de antes. */
+    RESPALDO_KEYS.forEach(k=>{ try{ localStorage.removeItem(k); }catch(_){} });
+    Object.entries(paquete.datos).forEach(([k,v])=>{
+      if(RESPALDO_KEYS.includes(k)) { try{ localStorage.setItem(k,v); }catch(_){} }
+    });
+  }catch(_){ toast('No se pudo escribir el respaldo en este dispositivo','err',3600); return; }
+  toast('Respaldo restaurado — recargando…','ok',2000);
+  setTimeout(()=>location.reload(),900);
+}
+$('restaurarin').addEventListener('change',e=>{
+  const f=e.target.files[0]; e.target.value='';
+  if(!f) return;
+  const r=new FileReader();
+  r.onload=ev=>restaurarDesde(String(ev.target.result||''));
+  r.onerror=()=>toast('No se pudo leer el archivo','err',3200);
+  r.readAsText(f);
+});
+/* CSV para Google Sheets. Con BOM al principio para que Sheets y Excel respeten los
+   acentos, y con CRLF, que es lo que espera el formato. */
+function csvCampo(v){
+  const s=String(v===undefined||v===null?'':v);
+  return /[",\r\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+function exportarHistorialCSV(){
+  const arr=getHistorial();
+  if(!arr.length){ toast('Todavía no hay cotizaciones autorizadas','',2600); return; }
+  const enc=['Folio','Fecha de autorización','Cliente','Teléfono','Proyecto','Dirección',
+    'Autorizador','Partidas','Subtotal','IVA','Total calculado','Precio autorizado','Ajuste','Detalle'];
+  const filas=arr.map(e=>{
+    const pFin=(e.precioAuth>0&&Math.abs(e.precioAuth-e.neto)>0.01)?e.precioAuth:e.neto;
+    const ajuste=+(e.neto-pFin).toFixed(2);
+    const detalle=(e.items||[]).map((it,i)=>`${i+1}. ${histDsc(it)}`).join(' · ');
+    return [e.folio,e.fechaAuth||'',e.cliente||'',e.tel||'',e.proy||'',(e.dirRaw||'').replace(/\s*\n\s*/g,' '),
+      e.autorizador||'',(e.items||[]).length,
+      (e.sub||0).toFixed(2),(e.iva?((e.neto||0)-(e.sub||0)):0).toFixed(2),
+      (e.neto||0).toFixed(2),pFin.toFixed(2),ajuste.toFixed(2),detalle].map(csvCampo).join(',');
+  });
+  const csv='﻿'+[enc.map(csvCampo).join(',')].concat(filas).join('\r\n');
+  if(descargarArchivo(csv,`cotizador-al3d-historial-${selloFecha()}.csv`,'text/csv;charset=utf-8')){
+    toast(`${arr.length} ${arr.length===1?'cotización exportada':'cotizaciones exportadas'} a CSV`,'ok',3400);
+  }
 }
 
 /* ===================== Cola de autorización ===================== */
@@ -3323,7 +3818,7 @@ function loadQueueEntry(folio){
   const rolActual=Q.rol;
   Object.assign(Q,entry.q);
   Q.rol=rolActual;
-  Q.editMode=false;
+  Q.editMode=false; _selfAuth=false;
   Q.aiFile=null;
   pid=Q.items.reduce((m,it)=>Math.max(m,it.id||0),0);
   Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
@@ -4616,7 +5111,7 @@ function init(){
   try{ _foldProy=localStorage.getItem('al3d_fold_proy')==='1'; }catch(_){}
   if(!loadState()){
     Q.folio=nextFolio(); pintarFolio();
-    Q.fecha=hoy(); addItem({enfocar:false});
+    Q.fecha=hoy(); addItem({enfocar:false,heredar:true});
   } else {
     /* El rol se guarda con la cotización: hay que dejar el segmento de arriba
        marcando el mismo rol que está pintando el panel de autorización. */
@@ -4627,6 +5122,7 @@ function init(){
     sincronizarPlegado();
     renderItems();
   }
+  pintarClientes();
   aplicarFoldProy();
   ajustarTopbarMovil();
   renderMobileBar();
@@ -4658,7 +5154,11 @@ function abrirRegistrarVenta(){
   document.getElementById('rv-fecha').value=Q.fecha||hoy;
   document.getElementById('rv-iva').value=Q.iva?'Yes':'No';
   document.getElementById('rv-anticipo').value=Q.anti||0;
-  document.getElementById('rv-pct').value=10;
+  /* La comisión y la cuenta casi nunca cambian y se volvían a poner en cada venta. */
+  document.getElementById('rv-pct').value=prefGet(PREF_RV_PCT,'10');
+  const selCuenta=document.getElementById('rv-cuenta');
+  const cuentaPref=prefGet(PREF_RV_CUENTA,'');
+  if(cuentaPref&&[...selCuenta.options].some(o=>o.value===cuentaPref)) selCuenta.value=cuentaPref;
   document.getElementById('rv-estatus').value='ANTICIPO';
   document.getElementById('rv-copied').classList.remove('show');
   rvRecalc();
@@ -4691,6 +5191,8 @@ function copiarFilaVenta(){
   const pct=parseFloat(document.getElementById('rv-pct').value)||0;
   const cuenta=document.getElementById('rv-cuenta').value;
   const estatus=document.getElementById('rv-estatus').value;
+  // Se recuerdan al registrar, que es cuando ya son la decisión buena.
+  prefSet(PREF_RV_PCT,pct); prefSet(PREF_RV_CUENTA,cuenta);
   const com=Math.round(sub*pct/100);
   const pend=estatus==='LIQUIDADO'?0:Math.max(0,neto-anti);
   const liquidacion=estatus==='LIQUIDADO'?neto:'';
