@@ -507,7 +507,13 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .ia-total{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700;padding:8px 10px;background:var(--soft-2);border-radius:8px;margin-top:6px;border:1px solid var(--line);margin-bottom:10px}
 .ia-total.soft{background:#fff;color:var(--brand);margin-top:-5px}
 /* ----- Barra de progreso ----- */
-.prog-box{padding:10px 20px 13px;border-bottom:1px solid var(--line)}
+/* La barra de completitud es un botón: decía cuánto falta pero no qué, y ahora lleva a
+   lo primero pendiente. Se conserva el aspecto que ya tenía de bloque, no de botón. */
+.prog-box{display:block;width:100%;padding:10px 20px 13px;border:none;border-bottom:1px solid var(--line);background:none;font-family:inherit;text-align:left;cursor:pointer;transition:background .14s}
+.prog-box:hover{background:var(--soft)}
+.prog-box:disabled{cursor:default;background:none}
+.prog-next{font-size:11px;color:var(--brand);font-weight:700;margin-top:6px;display:flex;align-items:center;gap:5px}
+.prog-next:empty{display:none}
 .prog-label{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
 .prog-label span:first-child{font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
 #prog-pct{font-size:12.5px;font-weight:900;color:var(--brand)}
@@ -1038,10 +1044,11 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   <aside class="side" id="sidebox">
     <div id="aiPreview"></div>
     <div class="sum">
-      <div class="prog-box">
+      <button class="prog-box" onclick="irAPendiente()" title="Ir a lo primero que falta por capturar">
         <div class="prog-label"><span>Completitud</span><span id="prog-pct">0%</span></div>
         <div class="prog-track"><div id="prog-bar"></div></div>
-      </div>
+        <div class="prog-next" id="prog-next"></div>
+      </button>
       <div class="sum-rows">
         <div class="srow ivt" style="border-top:none;margin-top:0">
           <label class="switch" style="margin:0" onclick="toggleIva(event)"><span class="tg on" id="ivatg"></span> IVA 16%</label>
@@ -1577,6 +1584,12 @@ function copiarTexto(txt,msgOk,extra){
    así que viven fuera de Q y no viajan al historial, al PDF ni a la cola. */
 const PREF_AUTORIZADOR='al3d_autorizador', PREF_MATERIAL='al3d_ult_material',
       PREF_RV_PCT='al3d_rv_pct', PREF_RV_CUENTA='al3d_rv_cuenta';
+/* La imagen analizada por IA se guarda en su propia clave, no dentro de al3d_q — el
+   por qué está en sincronizarAiFile(). Se declara aquí, junto a las demás claves de
+   almacenamiento, porque la lista del respaldo la necesita y se arma antes. */
+const AI_FILE_KEY='al3d_aifile';
+const AI_FILE_MAX=2000000;      // ~2 MB: más que eso no conviene junto al historial
+let _aiFileGuardada=null;       // url ya escrita en el almacenamiento, o null si no cupo
 function prefGet(k,def=''){ try{ const v=localStorage.getItem(k); return v===null?def:v; }catch(_){ return def; } }
 function prefSet(k,v){ try{ localStorage.setItem(k,String(v)); }catch(_){} }
 
@@ -1959,6 +1972,48 @@ function updProg(){
   if(pct<40)bar.style.background='linear-gradient(90deg,#f59e0b,#fb923c)';
   else if(pct<80)bar.style.background='linear-gradient(90deg,#3a4ad8,#7b9bf7)';
   else bar.style.background='linear-gradient(90deg,#15a06a,#22c55e)';
+  pintarPendiente();
+}
+
+/* ----- Qué falta, no solo cuánto -----
+   El porcentaje decía cuánto faltaba pero no qué, así que para encontrarlo había que
+   recorrer la pantalla a mano. Ahora el bloque nombra lo primero pendiente y tocarlo
+   lleva ahí. El orden es el de la captura: primero de quién es, luego dónde, luego las
+   partidas. */
+/* Cada caso trae su frase completa en vez de colgar de un «Falta» fijo: con el prefijo
+   suelto salía «Falta la partida 1 · falta altura», que repite el verbo. */
+function siguientePendiente(){
+  if(!(Q.cliente||'').trim()&&!(Q.proy||'').trim()) return {txt:'Falta el cliente o el proyecto',campo:'f-cli'};
+  if(!(Q.dirRaw||'').trim()&&!(Q.maps||'').trim())  return {txt:'Falta la dirección',campo:'f-dir-raw'};
+  if(!Q.items.length) return {txt:'Agrega una partida',boton:'addbtn'};
+  const pend=partidasSinTerminar();
+  if(!pend.length) return null;
+  const p=pend[0];
+  const detalle=p.vacia?'está vacía':`${p.faltan.length>1?'faltan':'falta'} ${p.faltan.join(', ')}`;
+  return {txt:`Partida ${p.n} · ${detalle}`,item:p.it.id};
+}
+function pintarPendiente(){
+  const el=$('prog-next'); if(!el) return;
+  const box=el.closest('.prog-box');
+  const p=siguientePendiente();
+  if(!p){ el.textContent=''; if(box) box.disabled=true; return; }
+  if(box) box.disabled=false;
+  el.innerHTML=`${esc(p.txt)} <span aria-hidden="true">›</span>`;
+}
+function irAPendiente(){
+  const p=siguientePendiente();
+  if(!p){ toast('No falta nada por capturar','ok',2400); return; }
+  if(p.item) return llevarAPartida(p.item);
+  if(p.boton){ irA(p.boton); return; }
+  /* Los datos del proyecto pueden estar plegados: llevar ahí sin abrirlos dejaría al
+     usuario mirando un encabezado cerrado. */
+  if(_foldProy){
+    _foldProy=false; aplicarFoldProy();
+    try{ localStorage.setItem('al3d_fold_proy','0'); }catch(_){}
+  }
+  irA('card-proy');
+  const el=$(p.campo);
+  if(el&&!el.disabled) requestAnimationFrame(()=>{ try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); } });
 }
 
 /* Campo de descripción "qué se cotiza", disponible en todas las partidas */
@@ -2176,7 +2231,7 @@ function openAiFile(){
   $('lightbox').classList.add('show');
 }
 function closeLightbox(){ $('lightbox').classList.remove('show'); $('lightboxBody').innerHTML=''; }
-function clearAiFile(){ Q.aiFile=null; renderAiPreview(); }
+function clearAiFile(){ Q.aiFile=null; saveState(); renderAiPreview(); }
 
 /* ===================== Auth por partida ===================== */
 function shortDescAuth(it){
@@ -2275,8 +2330,13 @@ function renderAuth(){
     // --- Cola de pendientes ---
     const pendientes=getQueue().filter(x=>x.estado==='pendiente');
     let qHTML='';
+    /* La cola vive en el almacenamiento de ESTE navegador, no en un servidor: aquí solo
+       aparece lo que se solicitó en este mismo aparato. Vale la pena decirlo en la
+       pantalla, porque una cola vacía se lee como «no hay nada pendiente» cuando en
+       realidad puede haber solicitudes hechas en otro teléfono. */
+    const qNota=`<p class="mini" style="text-align:left;margin-top:8px">Solo aparecen las solicitudes hechas en <b>este</b> dispositivo — la cola se guarda aquí, no en un servidor.</p>`;
     if(!pendientes.length){
-      qHTML=`<div class="queue-list"><div class="queue-empty">Sin cotizaciones pendientes por autorizar.</div></div>`;
+      qHTML=`<div class="queue-list"><div class="queue-empty">Sin cotizaciones pendientes por autorizar.</div></div>${qNota}`;
     } else {
       const rows=pendientes.map(e=>`<div class="queue-item${e.folio===Q.folio?' active':''}" onclick="loadQueueEntry('${esc(e.folio)}')">
         <span class="qi-dot"></span>
@@ -2287,7 +2347,7 @@ function renderAuth(){
         </div>
         <div style="text-align:right"><div class="qi-total">${money(e.neto)}</div></div>
       </div>`).join('');
-      qHTML=`<div class="queue-list">${rows}</div>`;
+      qHTML=`<div class="queue-list">${rows}</div>${qNota}`;
     }
 
     // --- Formulario de revisión (solo si la cotización cargada está pendiente) ---
@@ -2483,12 +2543,15 @@ function faltSeguir(){
    corregirla hay que reabrirla, que es exactamente lo que significa volver a tocar las
    partidas. El autorizador es el único que no la reabre —revisar no es editar—; para
    él el aviso solo señala dónde está el hueco. */
-function irAPartida(id){
-  $('faltmodal').classList.remove('show'); _faltSeguir=null;
-  if(locked()&&Q.rol!=='autorizador') reabrir();
+function llevarAPartida(id){
   _plegadas.delete(id);
   renderItems();
   requestAnimationFrame(()=>irA('p-'+id));
+}
+function irAPartida(id){
+  $('faltmodal').classList.remove('show'); _faltSeguir=null;
+  if(locked()&&Q.rol!=='autorizador') reabrir();
+  llevarAPartida(id);
 }
 /* Quitar una partida vacía sin salir del aviso: si quedan otras, la lista se repinta;
    si era la última pendiente, se sigue con lo que se iba a hacer. Solo aparece cuando
@@ -2586,7 +2649,18 @@ function pedirConfNueva(){
       <button class="btn btn-gho" style="margin-top:9px" onclick="renderAuth()">← Cancelar</button>
     </div>`;
 }
+/* ----- Vaciar, con vuelta atrás -----
+   Borrar UNA partida por accidente ya tenía Deshacer y funciona bien. Borrar la
+   cotización completa —que duele mucho más— solo tenía un «¿seguro?», y un «sí» de
+   más se llevaba todo lo capturado. Se guarda una copia de lo que había para poder
+   devolverla desde el mismo aviso.
+
+   Solo se ofrece cuando de verdad había algo: en una cotización en blanco el botón
+   sería ruido, y la partida con el material heredado no cuenta como algo capturado. */
+let _vaciada=null;
 function nueva(){
+  const habia=Q.items.some(it=>!itemVacio(it))||!!(Q.cliente||'').trim()||!!(Q.proy||'').trim();
+  _vaciada=habia?{q:JSON.parse(JSON.stringify({...Q,aiFile:null})),pid,rol:Q.rol}:null;
   Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};
   Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth='';
   Q.editMode=false; _selfAuth=false;
@@ -2596,7 +2670,26 @@ function nueva(){
   $('mapsbtn').disabled=true;
   Q.folio=nextFolio(); pintarFolio();
   Q.fecha=hoy();
-  addItem({enfocar:false,heredar:true}); aplicarFoldProy(); toast('Nueva cotización lista');
+  addItem({enfocar:false,heredar:true}); aplicarFoldProy();
+  if(_vaciada) toast('Cotización vaciada','',7000,{label:'Deshacer',fn:deshacerVaciado});
+  else toast('Nueva cotización lista');
+}
+function deshacerVaciado(){
+  if(!_vaciada) return;
+  /* El rol es de quien está usando la app, no de la cotización: se respeta el actual
+     igual que al abrir un pendiente de la cola. */
+  const rolActual=Q.rol;
+  Object.assign(Q,_vaciada.q);
+  Q.rol=rolActual;
+  Q.aiFile=null; Q.editMode=false; _selfAuth=false;
+  pid=Math.max(pid,_vaciada.pid||0);
+  _vaciada=null;
+  Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
+  updDirRaw(Q.dirRaw||''); updMaps(Q.maps||'');
+  $('f-anti').value=Q.anti||'';
+  sincronizarPlegado();
+  pintarFolio(); aplicarFoldProy(); saveState(); renderItems();
+  toast('Cotización restaurada','ok');
 }
 
 /* ===================== Barra de acción de abajo (móvil) =====================
@@ -2854,14 +2947,21 @@ function setAiProv(p){
   AI_PROVS.forEach(x=>{ const el=$('prov-'+x); if(el) el.style.display=x===p?'':'none'; });
   document.querySelectorAll('#ai-prov-seg button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
 }
-/* Una partida recién agregada está en blanco: no cuenta como trabajo capturado. */
+/* Una partida recién agregada está en blanco: no cuenta como trabajo capturado.
+   El material HEREDADO tampoco cuenta: lo puso la app, no la persona. Sin esa
+   salvedad, una cotización recién abierta decía tener «1 partida ya capturada» y la
+   IA avisaba de que iba a reemplazar trabajo que nadie había hecho. Solo el material
+   elegido a mano —el que ya no trae matAuto— es trabajo. */
 function itemVacio(it){
+  const matPropio=!!it.material && !it.matAuto;
   return !(it.desc||'').trim() && !it.altura && !it.n && !it.ancho && !it.alto && !it.pu
-      && !it.material && !it.acab && !it.bas;
+      && !matPropio && !it.acab && !it.bas;
 }
-/* Analizar un archivo reemplazaba TODAS las partidas sin avisar. Ahora, si ya hay
-   trabajo capturado, la app lo dice y deja elegir si se conserva. */
-let aiMerge=false;
+/* Analizar un archivo reemplazaba TODAS las partidas sin avisar. Después la app lo
+   avisaba, pero seguía llegando en «reemplazar»: lo predeterminado destruía trabajo y
+   solo un aviso en ámbar lo detenía. Ahora arranca en «conservar». Reemplazar sigue a
+   un toque, y es una decisión que se toma a propósito en vez de por omisión. */
+let aiMerge=true;
 function toggleAiMerge(){
   aiMerge=!aiMerge;
   $('ai-merge-tg').classList.toggle('on',aiMerge);
@@ -2872,10 +2972,11 @@ function aiPintarMerge(){
   const n=Q.items.filter(it=>!itemVacio(it)).length;
   box.style.display=n?'':'none';
   if(!n) return;
-  const plural=n===1?'partida ya capturada':'partidas ya capturadas';
+  /* Con una sola partida, «tus 1 partida» se lee mal: la frase entera cambia de número. */
+  const suyas=n===1?'tu partida ya capturada':`tus ${n} partidas ya capturadas`;
   note.textContent=aiMerge
-    ? `Se conservarán tus ${n} ${plural} y las de la IA se agregarán al final.`
-    : `⚠️ Tienes ${n} ${plural}. Tal como está, se reemplazarán por lo que detecte la IA.`;
+    ? `Se ${n===1?'conservará':'conservarán'} ${suyas} y las de la IA se agregarán al final.`
+    : `⚠️ Apagado: ${suyas} se ${n===1?'reemplazará':'reemplazarán'} por lo que detecte la IA.`;
 }
 /* Fuente del análisis. Normalmente es el archivo que el usuario elige en el modal;
    cuando se entra desde el escalador es la foto que ya se midió, con sus cotas
@@ -2884,7 +2985,7 @@ let aiSrc=null;
 function aiOpen(fuente){
   aiSrc=(fuente&&fuente.url)?fuente:null;
   aiPintarFuente();
-  aiMerge=false; $('ai-merge-tg').classList.remove('on'); aiPintarMerge();
+  aiMerge=true; $('ai-merge-tg').classList.add('on'); aiPintarMerge();
   AI_PROVS.forEach(p=>{ const inp=$('ai-key-'+p); if(inp){ delete inp.dataset.editing; inp.value=''; } aiRenderKey(p); });
   $('ai-model-gemini').value=localStorage.getItem('ai_model_gemini')||localStorage.getItem('ai_model')||'gemini-2.5-flash';
   $('ai-model-groq').value=localStorage.getItem('ai_model_groq')||'meta-llama/llama-4-scout-17b-16e-instruct';
@@ -2969,7 +3070,12 @@ async function aiAnalyze(){
     /* La foto del escalador no se guarda como "archivo de IA": ya se ve, con sus
        cotas, en la vista previa del escalador que está junto a las partidas.
        Duplicarla solo repetiría la misma imagen dos veces en la pantalla. */
-    if(!aiSrc) Q.aiFile={name:f.name,type:mime,url:'data:'+mime+';base64,'+b64};
+    /* Se guarda y se pinta aquí mismo: si la IA no devolvió partidas, applyAi no
+       re-renderiza y antes la miniatura del archivo analizado no llegaba a aparecer. */
+    if(!aiSrc){
+      Q.aiFile={name:f.name,type:mime,url:'data:'+mime+';base64,'+b64};
+      saveState(); renderAiPreview();
+    }
     const medidas=(aiSrc&&aiSrc.origen==='escalador')?aiSrc.medidas.length:0;
     applyAi(parsed);
     aiStatus('Borrador generado. Revísalo y ajústalo antes de autorizar.','ok');
@@ -3692,7 +3798,7 @@ function usarComoBase(folio){
    WhatsApp o por correo, y una key que viaja así deja de ser secreta. Se vuelve a
    pegar en el teléfono nuevo, que es un minuto. */
 const RESPALDO_KEYS=['al3d_historial','al3d_folio','al3d_q','al3d_queue','al3d_logo',
-  'al3d_fold_proy',PREF_AUTORIZADOR,PREF_MATERIAL,PREF_RV_PCT,PREF_RV_CUENTA];
+  'al3d_fold_proy',AI_FILE_KEY,PREF_AUTORIZADOR,PREF_MATERIAL,PREF_RV_PCT,PREF_RV_CUENTA];
 function selloFecha(){
   const d=new Date(), p=n=>String(n).padStart(2,'0');
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
@@ -3836,6 +3942,37 @@ function saveState(){
     const toSave={...rest,aiFile:null};
     localStorage.setItem('al3d_q',JSON.stringify(toSave));
   }catch(_){}
+  sincronizarAiFile();
+}
+
+/* ----- La imagen analizada sobrevive a la recarga -----
+   Era lo único de la cotización que no se guardaba, y por eso la app tenía que
+   advertir al salir. La advertencia era correcta pero salía seguido y en el celular
+   cualquier cambio de app la dispara; lo que faltaba era guardar la imagen.
+
+   Va en su PROPIA clave, no dentro de al3d_q: una foto son megabytes y si no cabe, el
+   error se lo llevaría todo —la cotización entera dejaría de guardarse en silencio—.
+   Aparte, si no cabe solo se pierde la imagen. Y se escribe únicamente cuando cambia:
+   saveState() corre en cada tecla y reescribir megabytes en cada letra congelaría la
+   captura. Si no se pudo guardar, el aviso al salir vuelve a tener sentido y aparece. */
+function sincronizarAiFile(){
+  const url=Q.aiFile?Q.aiFile.url:null;
+  if(url===_aiFileGuardada) return;
+  try{
+    if(!Q.aiFile){ localStorage.removeItem(AI_FILE_KEY); _aiFileGuardada=null; return; }
+    const s=JSON.stringify(Q.aiFile);
+    if(s.length>AI_FILE_MAX){ localStorage.removeItem(AI_FILE_KEY); _aiFileGuardada=null; return; }
+    localStorage.setItem(AI_FILE_KEY,s);
+    _aiFileGuardada=url;
+  }catch(_){ _aiFileGuardada=null; }
+}
+function cargarAiFile(){
+  try{
+    const s=localStorage.getItem(AI_FILE_KEY);
+    if(!s) return;
+    const f=JSON.parse(s);
+    if(f&&f.url){ Q.aiFile=f; _aiFileGuardada=f.url; }
+  }catch(_){}
 }
 
 /* Campos de texto de la cotización ↔ id de su input. Un solo lugar para cargarlos,
@@ -3852,6 +3989,7 @@ function loadState(){
     const saved=JSON.parse(s);
     Object.assign(Q,saved);
     Q.aiFile=null;
+    cargarAiFile();   // la imagen analizada se guarda aparte; si cupo, vuelve con la cotización
     Q.editMode=false;
     pid=Q.items.reduce((m,it)=>Math.max(m,it.id||0),0);
     Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
@@ -5130,9 +5268,10 @@ function init(){
 }
 
 window.addEventListener('beforeunload',e=>{
-  // La cotización se guarda sola en localStorage y se restaura al reabrir, así que
-  // solo advertimos cuando hay algo que NO se persiste: la imagen analizada por IA.
-  if(Q.aiFile){e.preventDefault();return e.returnValue='';}
+  // La cotización se guarda sola y se restaura al reabrir, y ahora la imagen analizada
+  // también. Solo queda algo que perder cuando esa imagen NO alcanzó a guardarse —por
+  // tamaño o por falta de espacio—, así que el aviso aparece nada más en ese caso.
+  if(Q.aiFile&&_aiFileGuardada===null){e.preventDefault();return e.returnValue='';}
 });
 
 init();
