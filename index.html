@@ -412,6 +412,11 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
    el navegador no lo tome por una contraseña y ofrezca guardarla. */
 .key-in{-webkit-text-security:disc;text-security:disc;font-family:inherit;letter-spacing:.08em}
 .key-saved{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--green-bg);border:1px solid rgba(21,160,106,.22);border-radius:var(--r-sm);padding:8px 11px}
+.key-list{display:flex;flex-direction:column;gap:6px}
+.key-list:not(:empty){margin-bottom:7px}
+.key-add{display:flex;gap:7px;align-items:stretch}
+.key-add .key-in{flex:1;min-width:0}
+.key-btn.add{white-space:nowrap;padding:0 13px;background:var(--soft-2)}
 .key-mask{flex:1;min-width:0;font-size:12px;font-weight:700;color:var(--green);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .key-btn{border:1px solid var(--line);background:#fff;color:var(--brand);border-radius:8px;padding:4px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit}
 .key-btn:hover{background:var(--soft-2)}
@@ -1113,22 +1118,22 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
             </div>
           </div>
           <div id="prov-gemini">
-            <div class="fld"><label>API key de Google Gemini</label><div class="key-saved" id="key-saved-gemini" style="display:none"><span class="key-mask" id="key-mask-gemini"></span><button type="button" class="key-btn" onclick="aiEditKey('gemini')">Cambiar</button><button type="button" class="key-btn del" onclick="aiDelKey('gemini')">Borrar</button></div><input id="ai-key-gemini" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
+            <div class="fld"><label>API keys de Google Gemini</label><div class="key-list" id="keys-gemini"></div><div class="key-add"><input id="ai-key-gemini" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"><button type="button" class="key-btn add" onclick="aiAddKey('gemini')">Agregar</button></div></div>
             <div class="fld"><label>Modelo</label><input id="ai-model-gemini" placeholder="gemini-2.5-flash" value="gemini-2.5-flash"></div>
             <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. El único que admite PDF, y en horas pico el que más se satura.</p>
           </div>
           <div id="prov-groq" style="display:none">
-            <div class="fld"><label>API key de Groq</label><div class="key-saved" id="key-saved-groq" style="display:none"><span class="key-mask" id="key-mask-groq"></span><button type="button" class="key-btn" onclick="aiEditKey('groq')">Cambiar</button><button type="button" class="key-btn del" onclick="aiDelKey('groq')">Borrar</button></div><input id="ai-key-groq" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
+            <div class="fld"><label>API keys de Groq</label><div class="key-list" id="keys-groq"></div><div class="key-add"><input id="ai-key-groq" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"><button type="button" class="key-btn add" onclick="aiAddKey('groq')">Agregar</button></div></div>
             <div class="fld"><label>Modelo</label><input id="ai-model-groq" value="meta-llama/llama-4-scout-17b-16e-instruct"></div>
             <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>. Muy rápido · solo JPG (no PDF). Buen respaldo de Gemini: no comparten la misma cola.</p>
           </div>
           <div id="prov-openrouter" style="display:none">
-            <div class="fld"><label>API key de OpenRouter</label><div class="key-saved" id="key-saved-openrouter" style="display:none"><span class="key-mask" id="key-mask-openrouter"></span><button type="button" class="key-btn" onclick="aiEditKey('openrouter')">Cambiar</button><button type="button" class="key-btn del" onclick="aiDelKey('openrouter')">Borrar</button></div><input id="ai-key-openrouter" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
+            <div class="fld"><label>API keys de OpenRouter</label><div class="key-list" id="keys-openrouter"></div><div class="key-add"><input id="ai-key-openrouter" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"><button type="button" class="key-btn add" onclick="aiAddKey('openrouter')">Agregar</button></div></div>
             <div class="fld"><label>Modelo</label><input id="ai-model-openrouter" value="meta-llama/llama-4-scout:free"></div>
             <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Acceso a muchos modelos · solo JPG (no PDF). Su catálogo cambia seguido: si dice que no reconoce el modelo, copia el nombre exacto de <a class="ai-link" href="https://openrouter.ai/models?fmt=cards&input_modalities=image&max_price=0" target="_blank" rel="noopener">openrouter.ai/models</a> (los gratuitos terminan en <code>:free</code>).</p>
           </div>
           <p class="key-note" id="ai-respaldo"></p>
-          <p class="key-note">🔒 La API key no está escrita en el código del cotizador: la escribes una sola vez, se guarda ofuscada en <b>este</b> dispositivo y después solo se muestran sus últimos 4 caracteres. Se envía directo al proveedor que elijas. Si el dispositivo es compartido, usa <b>Borrar</b> al terminar.</p>
+          <p class="key-note">🔒 Las API keys no están escritas en el código del cotizador: las pegas una sola vez, se guardan ofuscadas en <b>este</b> dispositivo y después solo se muestran sus últimos 4 caracteres. Cada una se envía directo a su proveedor. Si el dispositivo es compartido, usa <b>Borrar</b> al terminar.</p>
         </div>
       </details>
       <div class="fld" id="ai-file-fld"><label>Archivo (JPG o PDF)</label><input id="ai-file" type="file" accept="image/*,application/pdf"></div>
@@ -1161,7 +1166,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <button onclick="respaldar()" title="Descarga un archivo con el historial, los folios y la cotización en curso">⬇ Respaldar</button>
       <button onclick="pedirRestaurar()" title="Reemplaza los datos de este dispositivo con los de un respaldo">⬆ Restaurar</button>
       <button onclick="exportarHistorialCSV()" title="Descarga el historial como CSV para Google Sheets">📄 CSV</button>
-      <p class="foot-nota">Todo se guarda solo en este dispositivo. El respaldo <b>no</b> incluye tu API key.</p>
+      <p class="foot-nota">Todo se guarda solo en este dispositivo. El respaldo <b>no</b> incluye tus API keys.</p>
     </div>
     <input type="file" id="restaurarin" accept="application/json,.json" style="display:none">
   </div>
@@ -2893,23 +2898,45 @@ function _kxor(s){ let o=''; for(let i=0;i<s.length;i++) o+=String.fromCharCode(
 function keyPack(k){ try{ return btoa(_kxor(String(k))); }catch(_){ return ''; } }
 function keyUnpack(v){ try{ return _kxor(atob(String(v))); }catch(_){ return ''; } }
 function keyMask(k){ return k.length>4?'••••••••'+k.slice(-4):'••••'; }
-function getKey(p){
+/* Cada proveedor guarda VARIAS keys, no una. En los planes gratuitos la cuota va por
+   key —no por proveedor—, así que dos cuentas de Google son dos cuotas de Gemini, y
+   cuando una se queda sin cupo del día la siguiente sigue contestando. Se guardan
+   ofuscadas y en una sola entrada por proveedor. */
+const AI_MAX_KEYS=8;
+function getKeys(p){
   try{
-    const v=localStorage.getItem('al3d_kx_'+p);
-    if(v) return keyUnpack(v);
-    // Migración de las keys que se guardaban en texto plano en versiones previas
-    const legacy=localStorage.getItem('ai_key_'+p)||(p==='gemini'?localStorage.getItem('ai_key'):'')||'';
-    if(legacy){ setKey(p,legacy); return legacy; }
+    const v=localStorage.getItem('al3d_kxs_'+p);
+    if(v){ const a=JSON.parse(keyUnpack(v)); if(Array.isArray(a)) return a.filter(Boolean); }
+    /* Migración: la key única de las versiones anteriores —ofuscada o, más atrás
+       todavía, en texto plano— se convierte en una lista de una. */
+    const una=keyUnpack(localStorage.getItem('al3d_kx_'+p)||'')
+           || localStorage.getItem('ai_key_'+p)
+           || (p==='gemini'?localStorage.getItem('ai_key'):'') || '';
+    if(una){ setKeys(p,[una]); return [una]; }
   }catch(_){}
-  return '';
+  return [];
 }
-function setKey(p,k){
+function setKeys(p,arr){
+  const lim=[];
+  (arr||[]).forEach(k=>{ k=String(k||'').trim(); if(k&&!lim.includes(k)&&lim.length<AI_MAX_KEYS) lim.push(k); });
   try{
-    if(k) localStorage.setItem('al3d_kx_'+p,keyPack(k));
-    else  localStorage.removeItem('al3d_kx_'+p);
+    if(lim.length) localStorage.setItem('al3d_kxs_'+p,keyPack(JSON.stringify(lim)));
+    else localStorage.removeItem('al3d_kxs_'+p);
+    localStorage.removeItem('al3d_kx_'+p);
     localStorage.removeItem('ai_key_'+p);
     if(p==='gemini') localStorage.removeItem('ai_key');
   }catch(_){}
+  return lim;
+}
+/* Sigue habiendo un getKey de una sola key porque media app solo pregunta «¿hay algo
+   configurado para este proveedor?». */
+function getKey(p){ return getKeys(p)[0]||''; }
+function addKey(p,k){
+  k=String(k||'').trim(); if(!k) return '';
+  const a=getKeys(p);
+  if(a.includes(k)) return 'repetida';
+  if(a.length>=AI_MAX_KEYS) return 'llena';
+  setKeys(p,a.concat([k])); return 'ok';
 }
 /* Si el navegador no soporta text-security (p. ej. Firefox), el campo se vería en
    claro: ahí sí conviene type="password" con autocomplete="new-password". */
@@ -2919,36 +2946,46 @@ function aiKeyFallback(){
   AI_PROVS.forEach(p=>{ const i=$('ai-key-'+p); if(i){ i.type='password'; i.setAttribute('autocomplete','new-password'); } });
 }
 function aiRenderKey(p){
-  const inp=$('ai-key-'+p), box=$('key-saved-'+p);
-  if(!inp||!box) return;
-  const k=getKey(p), editando=inp.dataset.editing==='1';
-  if(k&&!editando){
-    box.style.display='flex';
-    $('key-mask-'+p).textContent='🔒 Key guardada · '+keyMask(k);
-    inp.style.display='none'; inp.value='';
-  }else{
-    box.style.display='none'; inp.style.display='';
-  }
+  const cont=$('keys-'+p); if(!cont) return;
+  const ks=getKeys(p);
+  /* Se numeran para poder hablar de ellas: la barra de estado dice «key 2 de 3»
+     mientras analiza, y así se sabe cuál es la que se quedó sin cuota. */
+  cont.innerHTML=ks.map((k,i)=>
+    `<div class="key-saved"><span class="key-mask">🔒 ${ks.length>1?'Key '+(i+1)+' · ':''}${esc(keyMask(k))}</span>`+
+    `<button type="button" class="key-btn del" onclick="aiDelKey('${p}',${i})">Borrar</button></div>`).join('');
+  const inp=$('ai-key-'+p);
+  if(inp) inp.placeholder=ks.length
+    ? (ks.length>=AI_MAX_KEYS?'Ya no caben más keys':'Pega otra key y se turnará con las de arriba')
+    : 'Pega tu key (gratis, sin tarjeta)';
   aiPintarRespaldo();
 }
-/* Guardar la key de un segundo proveedor es lo único que hay que hacer para dejar de
-   depender de que Gemini tenga cupo, así que se dice justo donde se pegan las keys,
-   que es donde se puede hacer algo al respecto. */
+/* Cuántas APIs hay cargadas y qué implica. Es la única cuenta que le importa a quien
+   cotiza: mientras quede una con cupo, la cotización no se detiene. */
 function aiPintarRespaldo(){
   const el=$('ai-respaldo'); if(!el) return;
-  const otros=AI_PROVS.filter(p=>p!==aiProv&&getKey(p)).map(p=>AI_NOMBRE[p]);
-  el.innerHTML=otros.length
-    ? `🔁 <b>Respaldo activo.</b> Si ${AI_NOMBRE[aiProv]||'el proveedor elegido'} está saturado, la app reintenta sola y después pasa a ${otros.join(' y ')} sin que tengas que volver a pulsar nada.`
-    : `🔁 Cuando el proveedor está saturado la app reintenta sola varias veces. Si guardas también la key de <b>otro</b> proveedor, además se cambia a él en lugar de fallar.`;
+  const det=AI_PROVS.map(p=>({p,n:getKeys(p).length})).filter(x=>x.n);
+  const total=det.reduce((a,x)=>a+x.n,0);
+  const lista=det.map(x=>`${x.n} de ${AI_NOMBRE[x.p]}`).join(', ');
+  el.innerHTML=
+    total>1 ? `🔁 <b>${total} APIs cargadas</b> (${lista}). Se prueban por turnos: si una está saturada o se quedó sin cuota del día, la app pasa sola a la siguiente y la cotización no se detiene.`
+    : total ? `🔁 Hay <b>1 API cargada</b> (${lista}). Cuando se satura, la app reintenta sola varias veces — pero no tiene a dónde caerse. Agrega otra key aquí, de este proveedor o de otro, y deja de depender de una sola.`
+    : `🔁 Puedes cargar <b>varias APIs</b>, del mismo proveedor o de distintos: se prueban por turnos y la cotización deja de depender de que una tenga cupo.`;
 }
 function aiEditKey(p){
-  const inp=$('ai-key-'+p);
-  inp.dataset.editing='1'; inp.value=''; aiRenderKey(p);
+  const inp=$('ai-key-'+p); if(!inp) return;
   try{ inp.focus({preventScroll:true}); }catch(_){ inp.focus(); }
 }
-function aiDelKey(p){
-  setKey(p,'');
-  const inp=$('ai-key-'+p); delete inp.dataset.editing; inp.value='';
+function aiAddKey(p){
+  const inp=$('ai-key-'+p); if(!inp) return;
+  const r=addKey(p,inp.value);
+  if(r==='ok'){ inp.value=''; aiRenderKey(p); toast(`API key guardada · ${getKeys(p).length} de ${AI_NOMBRE[p]}`,'ok'); }
+  else if(r==='repetida'){ inp.value=''; toast('Esa key ya estaba guardada','',2600); }
+  else if(r==='llena') toast(`Máximo ${AI_MAX_KEYS} keys por proveedor`,'err',3000);
+  else { aiEditKey(p); toast('Pega la key antes de agregarla','err',2600); }
+}
+function aiDelKey(p,i){
+  const a=getKeys(p);
+  setKeys(p,a.filter((_,x)=>x!==i));
   aiRenderKey(p); toast('API key borrada de este dispositivo','ok');
 }
 
@@ -2999,7 +3036,7 @@ function aiOpen(fuente){
   aiSrc=(fuente&&fuente.url)?fuente:null;
   aiPintarFuente();
   aiMerge=true; $('ai-merge-tg').classList.add('on'); aiPintarMerge();
-  AI_PROVS.forEach(p=>{ const inp=$('ai-key-'+p); if(inp){ delete inp.dataset.editing; inp.value=''; } aiRenderKey(p); });
+  AI_PROVS.forEach(p=>{ const inp=$('ai-key-'+p); if(inp) inp.value=''; aiRenderKey(p); });
   $('ai-model-gemini').value=localStorage.getItem('ai_model_gemini')||localStorage.getItem('ai_model')||AI_DEFAULTS.gemini;
   $('ai-model-groq').value=localStorage.getItem('ai_model_groq')||AI_DEFAULTS.groq;
   $('ai-model-openrouter').value=localStorage.getItem('ai_model_openrouter')||AI_DEFAULTS.openrouter;
@@ -3068,7 +3105,7 @@ const AI_ESPERAS=[1200,3000,7000];
 const AI_ESPERAS_RESPALDO=[1500];
 const AI_IMG_MAX=1600, AI_IMG_Q=0.85;
 const aiSleep=ms=>new Promise(r=>setTimeout(r,ms));
-const aiEtq=c=>`${AI_NOMBRE[c.prov]||c.prov} · ${c.model}`;
+const aiEtq=c=>`${AI_NOMBRE[c.prov]||c.prov} · ${c.model}${c.nk>1?` · key ${c.kn}`:''}`;
 function fileToB64(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(f); }); }
 
 /* Una foto de celular pesa entre 3 y 8 MB y en base64 crece otro 33%. Gemini lo
@@ -3185,39 +3222,60 @@ async function aiLlamar(c,prompt,b64,mime,sinJson){
 
 /* Un candidato = un proveedor con un modelo. Se insiste con él mientras el fallo sea
    pasajero; lo demás se devuelve enseguida para que la cadena pase al siguiente. */
-async function aiCandidato(c,prompt,b64,mime,verbo,esperas){
+async function aiCandidato(c,prompt,b64,mime,verbo,esperas,hayMas){
   const E=esperas||AI_ESPERAS;
   for(let i=0;;i++){
     try{
       aiStatus(`${verbo} con ${aiEtq(c)}…${i?` (intento ${i+1} de ${E.length+1})`:''}`,'work');
       return await aiLlamar(c,prompt,b64,mime,false);
     }catch(e){
+      /* Un 429 es cuota de ESA key: esperar no la devuelve, y si hay otra key u otro
+         proveedor esperando turno, probarlo es más rápido y más seguro que dormir. */
+      if(e.status===429&&hayMas) throw e;
       if(!e.transitorio||i>=E.length) throw e;
       aiStatus(`⏳ ${e.message} · reintentando en ${Math.round(E[i]/1000)} s…`,'work');
       await aiSleep(E[i]);
     }
   }
 }
-/* El orden en que se va a intentar: primero lo que eligió el usuario, después los
-   modelos hermanos del mismo proveedor y al final los otros proveedores que tengan
-   key guardada. Solo se usan keys ya guardadas en este dispositivo: la app no manda
-   nada a un proveedor que el usuario no haya configurado. */
-function aiCadena(prov,model,key,esPdf){
+/* Las keys de un mismo proveedor se turnan: cada análisis empieza por una distinta
+   para repartir la cuota del día, en vez de quemar siempre la primera hasta agotarla
+   y pagar un 429 en cada cotización a partir de ahí. Conservan su número de la lista
+   para que la pantalla pueda decir cuál está usando. */
+function aiKeysRotadas(p){
+  const ks=getKeys(p).map((k,i)=>({key:k,n:i+1}));
+  if(ks.length<2) return ks;
+  let i=0; try{ i=(+(localStorage.getItem('ai_key_rot_'+p)||0)||0)%ks.length; }catch(_){}
+  return ks.slice(i).concat(ks.slice(0,i));
+}
+function aiAvanzarTurno(p,n){
+  if(n<2) return;
+  try{ localStorage.setItem('ai_key_rot_'+p,String(((+(localStorage.getItem('ai_key_rot_'+p)||0)||0)+1)%n)); }catch(_){}
+}
+/* El orden en que se va a intentar. Primero el proveedor elegido: el modelo elegido
+   con TODAS sus keys —la cuota gratuita va por key, así que otra cuenta es cuota
+   nueva— y después sus modelos hermanos con una sola, porque un modelo saturado no
+   lo arregla cambiar de cuenta. Luego lo mismo con los demás proveedores que tengan
+   keys guardadas. Solo se usan keys ya guardadas en este dispositivo: la app no
+   manda nada a un proveedor que el usuario no haya configurado. */
+const AI_MAX_INTENTOS=12;
+function aiCadena(prov,model,esPdf){
   const out=[], vistos=new Set();
-  const push=(p,m,k)=>{ if(!k||!m) return; const id=p+'|'+m; if(vistos.has(id)) return; vistos.add(id); out.push({prov:p,model:m,key:k}); };
+  const push=(p,m,k,kn,nk)=>{
+    if(!k||!m) return; const id=p+'|'+m+'|'+kn; if(vistos.has(id)) return;
+    vistos.add(id); out.push({prov:p,model:m,key:k,kn,nk});
+  };
+  const bloque=(p,primero)=>{
+    const ks=aiKeysRotadas(p); if(!ks.length) return;
+    ks.forEach(x=>push(p,primero,x.key,x.n,ks.length));
+    (AI_RESPALDO[p]||[]).forEach(m=>push(p,m,ks[0].key,ks[0].n,ks.length));
+    aiAvanzarTurno(p,ks.length);
+  };
   /* Groq y OpenRouter no leen PDF: con un PDF en la mano el único que sirve es
      Gemini, aunque el proveedor elegido en el modal sea otro. */
-  if(!(esPdf&&prov!=='gemini')){
-    push(prov,model,key);
-    (AI_RESPALDO[prov]||[]).forEach(m=>push(prov,m,key));
-  }
-  AI_PROVS.forEach(p=>{
-    if(p===prov||(esPdf&&p!=='gemini')) return;
-    const k=getKey(p); if(!k) return;
-    const m=localStorage.getItem('ai_model_'+p)||AI_DEFAULTS[p];
-    push(p,m,k); (AI_RESPALDO[p]||[]).forEach(x=>push(p,x,k));
-  });
-  return out;
+  if(!(esPdf&&prov!=='gemini')) bloque(prov,model);
+  AI_PROVS.forEach(p=>{ if(p===prov||(esPdf&&p!=='gemini')) return; bloque(p,localStorage.getItem('ai_model_'+p)||AI_DEFAULTS[p]); });
+  return out.slice(0,AI_MAX_INTENTOS);
 }
 
 let aiTrabajando=false;
@@ -3234,12 +3292,12 @@ async function aiAnalyze(){
     aiStatus('Groq y OpenRouter solo admiten imágenes JPG. Para PDF guarda tu API key de Gemini en Configuración.','err');
     $('ai-cfg-box').open=true; return;
   }
-  const key=$('ai-key-'+aiProv).value.trim()||getKey(aiProv);
+  /* Una key pegada en el campo y sin «Agregar» cuenta igual: el reflejo de pegar y
+     darle a Analizar es el de siempre y no tiene por qué costar un paso extra. */
+  if($('ai-key-'+aiProv).value.trim()){ addKey(aiProv,$('ai-key-'+aiProv).value); $('ai-key-'+aiProv).value=''; aiRenderKey(aiProv); }
   const model=($('ai-model-'+aiProv).value.trim())||AI_DEFAULTS[aiProv];
-  const soloGemini=esPdf&&aiProv!=='gemini';   // el PDF se va a Gemini: la key del elegido no hace falta
-  if(!key&&!soloGemini){ $('ai-cfg-box').open=true; aiEditKey(aiProv); aiStatus('Pega tu API key de '+(AI_NOMBRE[aiProv]||aiProv)+'.','err'); return; }
-  if(key) setKey(aiProv,key);
-  const _kin=$('ai-key-'+aiProv); delete _kin.dataset.editing; aiRenderKey(aiProv);
+  const soloGemini=esPdf&&aiProv!=='gemini';   // el PDF se va a Gemini: las keys del elegido no hacen falta
+  if(!getKeys(aiProv).length&&!soloGemini){ $('ai-cfg-box').open=true; aiEditKey(aiProv); aiStatus('Pega tu API key de '+(AI_NOMBRE[aiProv]||aiProv)+'.','err'); return; }
   localStorage.setItem('ai_model_'+aiProv,model);
   localStorage.setItem('ai_provider',aiProv);
   const verbo=aiSrc?'Analizando la imagen medida':'Analizando';
@@ -3252,11 +3310,11 @@ async function aiAnalyze(){
        lista para que las use tal cual. */
     const {b64,mime}=aiSrc?{b64:aiSrc.url.split(',')[1],mime:aiSrc.mime||'image/jpeg'}:await aiImagen(f);
     const prompt=aiSrc?PROMPT_IA+promptMedidas(aiSrc.medidas):PROMPT_IA;
-    const cadena=aiCadena(aiProv,model,key,esPdf);
+    const cadena=aiCadena(aiProv,model,esPdf);
     if(!cadena.length) throw new Error('no hay ninguna API key guardada para analizar este archivo');
     let parsed=null,usado=null,ultimo=null;
     for(let i=0;i<cadena.length;i++){
-      try{ parsed=await aiCandidato(cadena[i],prompt,b64,mime,verbo,i?AI_ESPERAS_RESPALDO:AI_ESPERAS); usado=cadena[i]; break; }
+      try{ parsed=await aiCandidato(cadena[i],prompt,b64,mime,verbo,i?AI_ESPERAS_RESPALDO:AI_ESPERAS,i<cadena.length-1); usado=cadena[i]; break; }
       catch(e){
         ultimo=e;
         if(i<cadena.length-1) aiStatus(`${e.message} · probando con ${aiEtq(cadena[i+1])}…`,'work');
@@ -3296,12 +3354,12 @@ async function aiAnalyze(){
     }
     setTimeout(aiClose,1500);
   }catch(e){
-    /* Si el único proveedor configurado se cayó, insistir más no arregla nada: lo que
-       lo arregla es tener a dónde caerse. Se dice aquí, que es cuando duele. */
-    const solos=AI_PROVS.filter(p=>getKey(p)).length<2;
-    aiStatus('Error: '+e.message+(e.transitorio&&solos
-      ? ' · Ya reintenté varias veces. Guarda también una key de Groq u OpenRouter en Configuración y la app cambiará sola de proveedor cuando esto vuelva a pasar.'
-      : ''),'err');
+    /* Si solo hay una API cargada, insistir más no arregla nada: lo que lo arregla es
+       tener a dónde caerse. Se dice aquí, que es cuando duele. */
+    const total=AI_PROVS.reduce((a,p)=>a+getKeys(p).length,0);
+    aiStatus('Error: '+e.message+(e.transitorio&&total<2
+      ? ' · Ya reintenté varias veces con la única API cargada. En Configuración puedes agregar más keys —de este proveedor o de otro— y la app irá cambiando sola cuando esto vuelva a pasar.'
+      : total>1?' · Se probaron las '+total+' APIs cargadas.':''),'err');
   }finally{
     aiTrabajando=false;
     const b=$('ai-go-btn'); if(b) b.disabled=false;
