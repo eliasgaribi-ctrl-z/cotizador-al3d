@@ -1115,18 +1115,19 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
           <div id="prov-gemini">
             <div class="fld"><label>API key de Google Gemini</label><div class="key-saved" id="key-saved-gemini" style="display:none"><span class="key-mask" id="key-mask-gemini"></span><button type="button" class="key-btn" onclick="aiEditKey('gemini')">Cambiar</button><button type="button" class="key-btn del" onclick="aiDelKey('gemini')">Borrar</button></div><input id="ai-key-gemini" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
             <div class="fld"><label>Modelo</label><input id="ai-model-gemini" placeholder="gemini-2.5-flash" value="gemini-2.5-flash"></div>
-            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Admite JPG y PDF.</p>
+            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. El único que admite PDF, y en horas pico el que más se satura.</p>
           </div>
           <div id="prov-groq" style="display:none">
             <div class="fld"><label>API key de Groq</label><div class="key-saved" id="key-saved-groq" style="display:none"><span class="key-mask" id="key-mask-groq"></span><button type="button" class="key-btn" onclick="aiEditKey('groq')">Cambiar</button><button type="button" class="key-btn del" onclick="aiDelKey('groq')">Borrar</button></div><input id="ai-key-groq" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
             <div class="fld"><label>Modelo</label><input id="ai-model-groq" value="meta-llama/llama-4-scout-17b-16e-instruct"></div>
-            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>. Muy rápido · solo JPG (no PDF).</p>
+            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>. Muy rápido · solo JPG (no PDF). Buen respaldo de Gemini: no comparten la misma cola.</p>
           </div>
           <div id="prov-openrouter" style="display:none">
             <div class="fld"><label>API key de OpenRouter</label><div class="key-saved" id="key-saved-openrouter" style="display:none"><span class="key-mask" id="key-mask-openrouter"></span><button type="button" class="key-btn" onclick="aiEditKey('openrouter')">Cambiar</button><button type="button" class="key-btn del" onclick="aiDelKey('openrouter')">Borrar</button></div><input id="ai-key-openrouter" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"></div>
             <div class="fld"><label>Modelo</label><input id="ai-model-openrouter" value="meta-llama/llama-4-scout:free"></div>
-            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Acceso a muchos modelos · solo JPG (no PDF).</p>
+            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Acceso a muchos modelos · solo JPG (no PDF). Su catálogo cambia seguido: si dice que no reconoce el modelo, copia el nombre exacto de <a class="ai-link" href="https://openrouter.ai/models?fmt=cards&input_modalities=image&max_price=0" target="_blank" rel="noopener">openrouter.ai/models</a> (los gratuitos terminan en <code>:free</code>).</p>
           </div>
+          <p class="key-note" id="ai-respaldo"></p>
           <p class="key-note">🔒 La API key no está escrita en el código del cotizador: la escribes una sola vez, se guarda ofuscada en <b>este</b> dispositivo y después solo se muestran sus últimos 4 caracteres. Se envía directo al proveedor que elijas. Si el dispositivo es compartido, usa <b>Borrar</b> al terminar.</p>
         </div>
       </details>
@@ -2928,6 +2929,17 @@ function aiRenderKey(p){
   }else{
     box.style.display='none'; inp.style.display='';
   }
+  aiPintarRespaldo();
+}
+/* Guardar la key de un segundo proveedor es lo único que hay que hacer para dejar de
+   depender de que Gemini tenga cupo, así que se dice justo donde se pegan las keys,
+   que es donde se puede hacer algo al respecto. */
+function aiPintarRespaldo(){
+  const el=$('ai-respaldo'); if(!el) return;
+  const otros=AI_PROVS.filter(p=>p!==aiProv&&getKey(p)).map(p=>AI_NOMBRE[p]);
+  el.innerHTML=otros.length
+    ? `🔁 <b>Respaldo activo.</b> Si ${AI_NOMBRE[aiProv]||'el proveedor elegido'} está saturado, la app reintenta sola y después pasa a ${otros.join(' y ')} sin que tengas que volver a pulsar nada.`
+    : `🔁 Cuando el proveedor está saturado la app reintenta sola varias veces. Si guardas también la key de <b>otro</b> proveedor, además se cambia a él en lugar de fallar.`;
 }
 function aiEditKey(p){
   const inp=$('ai-key-'+p);
@@ -2946,6 +2958,7 @@ function setAiProv(p){
   localStorage.setItem('ai_provider',p);
   AI_PROVS.forEach(x=>{ const el=$('prov-'+x); if(el) el.style.display=x===p?'':'none'; });
   document.querySelectorAll('#ai-prov-seg button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
+  aiPintarRespaldo();
 }
 /* Una partida recién agregada está en blanco: no cuenta como trabajo capturado.
    El material HEREDADO tampoco cuenta: lo puso la app, no la persona. Sin esa
@@ -2987,9 +3000,9 @@ function aiOpen(fuente){
   aiPintarFuente();
   aiMerge=true; $('ai-merge-tg').classList.add('on'); aiPintarMerge();
   AI_PROVS.forEach(p=>{ const inp=$('ai-key-'+p); if(inp){ delete inp.dataset.editing; inp.value=''; } aiRenderKey(p); });
-  $('ai-model-gemini').value=localStorage.getItem('ai_model_gemini')||localStorage.getItem('ai_model')||'gemini-2.5-flash';
-  $('ai-model-groq').value=localStorage.getItem('ai_model_groq')||'meta-llama/llama-4-scout-17b-16e-instruct';
-  $('ai-model-openrouter').value=localStorage.getItem('ai_model_openrouter')||'meta-llama/llama-4-scout:free';
+  $('ai-model-gemini').value=localStorage.getItem('ai_model_gemini')||localStorage.getItem('ai_model')||AI_DEFAULTS.gemini;
+  $('ai-model-groq').value=localStorage.getItem('ai_model_groq')||AI_DEFAULTS.groq;
+  $('ai-model-openrouter').value=localStorage.getItem('ai_model_openrouter')||AI_DEFAULTS.openrouter;
   const p=localStorage.getItem('ai_provider')||'gemini';
   setAiProv(p);
   if(!getKey(p)) $('ai-cfg-box').open=true;
@@ -3020,53 +3033,236 @@ function extractJSON(txt){
   try{ return JSON.parse(txt); }catch(_){}
   const m=txt.match(/```(?:json)?\s*([\s\S]*?)```/);
   if(m){ try{ return JSON.parse(m[1].trim()); }catch(_){} }
+  /* Sin el modo JSON del API —Groq y OpenRouter no siempre lo aceptan con imagen—
+     el modelo suele anteponer una frase de cortesía al objeto. Se recorta desde la
+     primera llave hasta la última. */
+  const a=txt.indexOf('{'), b=txt.lastIndexOf('}');
+  if(a>=0&&b>a){ try{ return JSON.parse(txt.slice(a,b+1)); }catch(_){} }
   throw new Error('No se pudo interpretar la respuesta de la IA.');
 }
 
+/* ===== Reintentos, respaldo entre proveedores e imágenes más ligeras =====
+   Los planes gratuitos devuelven 503 «model is overloaded» y 429 «rate limit» a
+   cualquier hora del día. Eso llegaba a pantalla como un error seco y el vendedor
+   tenía que volver a pulsar «Analizar» hasta que sonara la flauta —a veces cinco o
+   seis veces, con el cliente enfrente—. Ahora la app hace sola esa insistencia: 4
+   intentos con esperas crecientes y, si el proveedor sigue caído, pasa al siguiente
+   modelo y al siguiente proveedor que tenga key guardada, diciendo en todo momento
+   con quién está hablando. */
+const AI_NOMBRE={gemini:'Gemini',groq:'Groq',openrouter:'OpenRouter'};
+const AI_DEFAULTS={gemini:'gemini-2.5-flash',groq:'meta-llama/llama-4-scout-17b-16e-instruct',openrouter:'meta-llama/llama-4-scout:free'};
+/* Modelos hermanos a los que se cae cuando el elegido está saturado: cuando el
+   2.5-flash no da abasto, el lite y el 2.0 suelen contestar a la primera porque no
+   comparten la misma cola. Sirven también de red para un nombre de modelo mal
+   escrito a mano, que si no dejaba al proveedor inservible hasta corregirlo. */
+const AI_RESPALDO={
+  gemini:['gemini-2.5-flash','gemini-2.5-flash-lite','gemini-2.0-flash'],
+  groq:['meta-llama/llama-4-scout-17b-16e-instruct','meta-llama/llama-4-maverick-17b-128e-instruct'],
+  openrouter:[]  // el catálogo cambia seguido; no se adivinan slugs que quizá no existan
+};
+const AI_TIMEOUT=90000;
+/* Con el proveedor elegido se insiste de verdad —4 intentos, hasta 11 s de esperas—
+   porque es el que el usuario quiere usar. Con los de respaldo no: si el primero
+   está caído, lo que importa es contestar pronto, no agotar la cola de cada uno. */
+const AI_ESPERAS=[1200,3000,7000];
+const AI_ESPERAS_RESPALDO=[1500];
+const AI_IMG_MAX=1600, AI_IMG_Q=0.85;
+const aiSleep=ms=>new Promise(r=>setTimeout(r,ms));
+const aiEtq=c=>`${AI_NOMBRE[c.prov]||c.prov} · ${c.model}`;
+function fileToB64(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(f); }); }
+
+/* Una foto de celular pesa entre 3 y 8 MB y en base64 crece otro 33%. Gemini lo
+   aguanta; Groq la rechaza por tamaño y en 4G la subida tarda tanto que parece que
+   la app se colgó. 1600 px es lo mismo que manda el escalador y de sobra para leer
+   una cota. Si el navegador no sabe abrir el archivo —HEIC de iPhone en Android—
+   se manda tal cual y que conteste el proveedor. */
+async function aiImagen(f){
+  const crudo=async()=>({b64:await fileToB64(f),mime:f.type||'image/jpeg'});
+  if(f.type==='application/pdf') return crudo();
+  try{
+    const img=await new Promise((res,rej)=>{
+      const u=URL.createObjectURL(f), im=new Image();
+      im.onload=()=>{ URL.revokeObjectURL(u); res(im); };
+      im.onerror=()=>{ URL.revokeObjectURL(u); rej(new Error('no se pudo abrir la imagen')); };
+      im.src=u;
+    });
+    const w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+    if(!w||!h) return crudo();
+    const k=Math.min(1,AI_IMG_MAX/Math.max(w,h));
+    if(k===1&&f.size<=1200000) return crudo();  // ya es ligera: no se recomprime de gratis
+    const c=document.createElement('canvas');
+    c.width=Math.max(1,Math.round(w*k)); c.height=Math.max(1,Math.round(h*k));
+    const ctx=c.getContext('2d');
+    ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+    ctx.drawImage(img,0,0,c.width,c.height);
+    return {b64:c.toDataURL('image/jpeg',AI_IMG_Q).split(',')[1],mime:'image/jpeg'};
+  }catch(_){ return crudo(); }
+}
+
+/* Un 503 con página HTML de por medio, o un corte de red, reventaba dentro de
+   res.json() y salía a pantalla como «Unexpected token <», que no le dice nada a
+   nadie y encima no se distinguía de un error de verdad. Aquí se lee el cuerpo como
+   texto y se intenta interpretar después. */
+async function aiFetch(url,opts){
+  const ctl=new AbortController();
+  const t=setTimeout(()=>ctl.abort(),AI_TIMEOUT);
+  let res;
+  try{
+    res=await fetch(url,Object.assign({},opts,{signal:ctl.signal}));
+  }catch(e){
+    const err=new Error(e&&e.name==='AbortError'
+      ? 'el proveedor tardó demasiado en responder'
+      : 'no se pudo conectar con el proveedor (revisa tu conexión)');
+    err.transitorio=true; throw err;
+  }finally{ clearTimeout(t); }
+  const txt=await res.text().catch(()=>'');
+  let data=null; try{ data=JSON.parse(txt); }catch(_){}
+  return {res,data,txt};
+}
+/* Qué salió mal, en una frase que se pueda leer, y sobre todo: ¿vale la pena
+   reintentar? Saturación y límites por minuto sí; una key inválida no. OpenRouter
+   contesta algunos errores con HTTP 200 y el código real dentro del cuerpo, así que
+   el estado se toma de ahí cuando viene. */
+function aiError(r,prov,model){
+  const e=r.data&&r.data.error;
+  const crudo=((typeof e==='string'?e:(e&&(e.message||e.msg)))||(r.data&&r.data.message)||
+               (r.txt||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim()).slice(0,140);
+  const s=(e&&typeof e.code==='number'&&e.code>=100)?e.code:r.res.status;
+  const n=AI_NOMBRE[prov]||prov;
+  let msg,trans=false;
+  if(s===429){ msg=`${n} alcanzó su límite de peticiones`; trans=true; }
+  else if(s===408||s>=500){ msg=`${n} está saturado`; trans=true; }
+  else if(s===401||s===403) msg=`la API key de ${n} no es válida o no tiene permiso`;
+  else if(s===404) msg=`${n} no reconoce el modelo «${model}»`;
+  else if(s===413) msg=`el archivo pesa demasiado para ${n}`;
+  else msg=`${n} rechazó la petición (HTTP ${s})`;
+  const err=new Error(crudo?`${msg} — ${crudo}`:msg);
+  err.transitorio=trans; err.status=s; err.crudo=crudo;
+  return err;
+}
+function aiVacio(prov,razon){
+  const n=AI_NOMBRE[prov]||prov, r=String(razon||'').toUpperCase();
+  const err=new Error(
+    /SAFETY|BLOCK|RECITATION|PROHIBIT/.test(r) ? `${n} bloqueó la imagen con sus filtros de contenido`
+    : /MAX_TOKEN|LENGTH/.test(r)               ? `${n} cortó la respuesta antes de terminar el JSON`
+    : `${n} respondió vacío`);
+  err.transitorio=!r;   // vacío sin motivo declarado suele ser un hipo del proveedor
+  return err;
+}
+
+async function aiLlamar(c,prompt,b64,mime,sinJson){
+  if(c.prov==='gemini'){
+    const body={contents:[{parts:[{text:prompt},{inline_data:{mime_type:mime,data:b64}}]}],generationConfig:{responseMimeType:'application/json',temperature:0.2}};
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.model)}:generateContent?key=${encodeURIComponent(c.key)}`;
+    const r=await aiFetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.res.ok||(r.data&&r.data.error)||!r.data) throw aiError(r,c.prov,c.model);
+    const cand=(r.data.candidates||[])[0];
+    const txt=((cand&&cand.content&&cand.content.parts)||[]).map(p=>p.text||'').join('').trim();
+    if(!txt) throw aiVacio(c.prov,(cand&&cand.finishReason)||(r.data.promptFeedback&&r.data.promptFeedback.blockReason));
+    return extractJSON(txt);
+  }
+  const URLS={groq:'https://api.groq.com/openai/v1/chat/completions',openrouter:'https://openrouter.ai/api/v1/chat/completions'};
+  const hdrs={'Content-Type':'application/json','Authorization':'Bearer '+c.key};
+  if(c.prov==='openrouter'){ hdrs['HTTP-Referer']=location.origin; hdrs['X-Title']='Cotizador AL3D'; }
+  const body={model:c.model,messages:[{role:'user',content:[{type:'text',text:prompt},{type:'image_url',image_url:{url:`data:${mime};base64,${b64}`}}]}],temperature:0.2,max_tokens:4096};
+  if(!sinJson) body.response_format={type:'json_object'};
+  const r=await aiFetch(URLS[c.prov],{method:'POST',headers:hdrs,body:JSON.stringify(body)});
+  if(!r.res.ok||(r.data&&r.data.error)||!r.data){
+    const err=aiError(r,c.prov,c.model);
+    /* Buena parte de los modelos de visión no aceptan el modo JSON del API cuando va
+       una imagen en la misma petición, y contestan un 400 que reintentar no arregla
+       —era el «Groq no me funciona» de siempre—. Quitar la opción sí lo arregla: el
+       prompt ya pide «SOLO un JSON valido» y extractJSON sabe pelar el ```json. */
+    if(!sinJson&&err.status===400&&/json|response_format|schema|format/i.test(err.crudo||''))
+      return aiLlamar(c,prompt,b64,mime,true);
+    throw err;
+  }
+  const ch=(r.data.choices||[])[0];
+  const txt=((ch&&ch.message&&ch.message.content)||'').trim();
+  if(!txt) throw aiVacio(c.prov,ch&&ch.finish_reason);
+  return extractJSON(txt);
+}
+
+/* Un candidato = un proveedor con un modelo. Se insiste con él mientras el fallo sea
+   pasajero; lo demás se devuelve enseguida para que la cadena pase al siguiente. */
+async function aiCandidato(c,prompt,b64,mime,verbo,esperas){
+  const E=esperas||AI_ESPERAS;
+  for(let i=0;;i++){
+    try{
+      aiStatus(`${verbo} con ${aiEtq(c)}…${i?` (intento ${i+1} de ${E.length+1})`:''}`,'work');
+      return await aiLlamar(c,prompt,b64,mime,false);
+    }catch(e){
+      if(!e.transitorio||i>=E.length) throw e;
+      aiStatus(`⏳ ${e.message} · reintentando en ${Math.round(E[i]/1000)} s…`,'work');
+      await aiSleep(E[i]);
+    }
+  }
+}
+/* El orden en que se va a intentar: primero lo que eligió el usuario, después los
+   modelos hermanos del mismo proveedor y al final los otros proveedores que tengan
+   key guardada. Solo se usan keys ya guardadas en este dispositivo: la app no manda
+   nada a un proveedor que el usuario no haya configurado. */
+function aiCadena(prov,model,key,esPdf){
+  const out=[], vistos=new Set();
+  const push=(p,m,k)=>{ if(!k||!m) return; const id=p+'|'+m; if(vistos.has(id)) return; vistos.add(id); out.push({prov:p,model:m,key:k}); };
+  /* Groq y OpenRouter no leen PDF: con un PDF en la mano el único que sirve es
+     Gemini, aunque el proveedor elegido en el modal sea otro. */
+  if(!(esPdf&&prov!=='gemini')){
+    push(prov,model,key);
+    (AI_RESPALDO[prov]||[]).forEach(m=>push(prov,m,key));
+  }
+  AI_PROVS.forEach(p=>{
+    if(p===prov||(esPdf&&p!=='gemini')) return;
+    const k=getKey(p); if(!k) return;
+    const m=localStorage.getItem('ai_model_'+p)||AI_DEFAULTS[p];
+    push(p,m,k); (AI_RESPALDO[p]||[]).forEach(x=>push(p,x,k));
+  });
+  return out;
+}
+
+let aiTrabajando=false;
+
 async function aiAnalyze(){
+  if(aiTrabajando) return;   // el botón queda deshabilitado, pero el Enter del teclado no
   const f=$('ai-file').files[0];
   if(!aiSrc && !f){ aiStatus('Selecciona un archivo JPG o PDF.','err'); return; }
-  if(!aiSrc && aiProv!=='gemini' && f.type==='application/pdf'){
-    aiStatus('Groq y OpenRouter solo admiten imágenes JPG. Para PDF usa Gemini.','err'); return;
+  const esPdf=!aiSrc && f.type==='application/pdf';
+  /* Con un PDF y Groq/OpenRouter elegidos, antes esto era un callejón sin salida:
+     había que entrar a Configuración y cambiar de proveedor a mano. Si la key de
+     Gemini ya está guardada, se usa esa y ya. */
+  if(esPdf && aiProv!=='gemini' && !getKey('gemini')){
+    aiStatus('Groq y OpenRouter solo admiten imágenes JPG. Para PDF guarda tu API key de Gemini en Configuración.','err');
+    $('ai-cfg-box').open=true; return;
   }
-  const DEFAULTS={gemini:'gemini-2.5-flash',groq:'meta-llama/llama-4-scout-17b-16e-instruct',openrouter:'meta-llama/llama-4-scout:free'};
   const key=$('ai-key-'+aiProv).value.trim()||getKey(aiProv);
-  const model=($('ai-model-'+aiProv).value.trim())||DEFAULTS[aiProv];
-  if(!key){ $('ai-cfg-box').open=true; aiEditKey(aiProv); aiStatus('Pega tu API key de '+aiProv+'.','err'); return; }
-  setKey(aiProv,key);
+  const model=($('ai-model-'+aiProv).value.trim())||AI_DEFAULTS[aiProv];
+  const soloGemini=esPdf&&aiProv!=='gemini';   // el PDF se va a Gemini: la key del elegido no hace falta
+  if(!key&&!soloGemini){ $('ai-cfg-box').open=true; aiEditKey(aiProv); aiStatus('Pega tu API key de '+(AI_NOMBRE[aiProv]||aiProv)+'.','err'); return; }
+  if(key) setKey(aiProv,key);
   const _kin=$('ai-key-'+aiProv); delete _kin.dataset.editing; aiRenderKey(aiProv);
   localStorage.setItem('ai_model_'+aiProv,model);
   localStorage.setItem('ai_provider',aiProv);
-  aiStatus(aiSrc?'Analizando la imagen medida… (unos segundos)':'Analizando con IA… (unos segundos)','work');
+  const verbo=aiSrc?'Analizando la imagen medida':'Analizando';
+  aiStatus(verbo+'…','work');
+  const btn=$('ai-go-btn'); aiTrabajando=true; if(btn) btn.disabled=true;
   try{
     /* La imagen del escalador ya viene lista en base64 —la dibuja scImagenParaIA con
-       sus cotas encima—, así que no hay archivo que leer. Y como esas cotas son
-       medidas reales, al prompt se le añade la lista para que las use tal cual. */
-    const b64=aiSrc?aiSrc.url.split(',')[1]:await fileToB64(f);
-    const mime=aiSrc?(aiSrc.mime||'image/jpeg'):(f.type||'image/jpeg');
+       sus cotas encima y ya reducida—, así que no hay archivo que leer ni que
+       comprimir. Y como esas cotas son medidas reales, al prompt se le añade la
+       lista para que las use tal cual. */
+    const {b64,mime}=aiSrc?{b64:aiSrc.url.split(',')[1],mime:aiSrc.mime||'image/jpeg'}:await aiImagen(f);
     const prompt=aiSrc?PROMPT_IA+promptMedidas(aiSrc.medidas):PROMPT_IA;
-    let parsed;
-    if(aiProv==='gemini'){
-      const body={contents:[{parts:[{text:prompt},{inline_data:{mime_type:mime,data:b64}}]}],generationConfig:{responseMimeType:'application/json',temperature:0.2}};
-      const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
-      const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-      const data=await res.json();
-      if(data.error) throw new Error(data.error.message||('HTTP '+res.status));
-      const txt=(data.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('').trim();
-      if(!txt) throw new Error('La IA no devolvió datos. Intenta con otra imagen.');
-      parsed=extractJSON(txt);
-    } else {
-      const URLS={groq:'https://api.groq.com/openai/v1/chat/completions',openrouter:'https://openrouter.ai/api/v1/chat/completions'};
-      const hdrs={'Content-Type':'application/json','Authorization':'Bearer '+key};
-      if(aiProv==='openrouter'){hdrs['HTTP-Referer']=location.origin;hdrs['X-Title']='Cotizador AL3D';}
-      const body={model,messages:[{role:'user',content:[{type:'text',text:prompt},{type:'image_url',image_url:{url:`data:${mime};base64,${b64}`}}]}],response_format:{type:'json_object'},temperature:0.2};
-      const res=await fetch(URLS[aiProv],{method:'POST',headers:hdrs,body:JSON.stringify(body)});
-      const data=await res.json();
-      if(data.error) throw new Error(data.error.message||('HTTP '+res.status));
-      const txt=(data.choices?.[0]?.message?.content||'').trim();
-      if(!txt) throw new Error('La IA no devolvió datos. Intenta con otra imagen.');
-      parsed=extractJSON(txt);
+    const cadena=aiCadena(aiProv,model,key,esPdf);
+    if(!cadena.length) throw new Error('no hay ninguna API key guardada para analizar este archivo');
+    let parsed=null,usado=null,ultimo=null;
+    for(let i=0;i<cadena.length;i++){
+      try{ parsed=await aiCandidato(cadena[i],prompt,b64,mime,verbo,i?AI_ESPERAS_RESPALDO:AI_ESPERAS); usado=cadena[i]; break; }
+      catch(e){
+        ultimo=e;
+        if(i<cadena.length-1) aiStatus(`${e.message} · probando con ${aiEtq(cadena[i+1])}…`,'work');
+      }
     }
+    if(!parsed) throw ultimo||new Error('No se pudo analizar el archivo.');
     /* La foto del escalador no se guarda como "archivo de IA": ya se ve, con sus
        cotas, en la vista previa del escalador que está junto a las partidas.
        Duplicarla solo repetiría la misma imagen dos veces en la pantalla. */
@@ -3078,7 +3274,13 @@ async function aiAnalyze(){
     }
     const medidas=(aiSrc&&aiSrc.origen==='escalador')?aiSrc.medidas.length:0;
     applyAi(parsed);
-    aiStatus('Borrador generado. Revísalo y ajústalo antes de autorizar.','ok');
+    /* Si contestó un modelo distinto al elegido conviene decirlo: el borrador puede
+       venir de otra IA y quien lo revisa tiene derecho a saber de cuál. */
+    const cambio=usado.prov!==cadena[0].prov||usado.model!==cadena[0].model;
+    aiStatus(cambio
+      ? `${AI_NOMBRE[cadena[0].prov]} no respondió · borrador generado con ${aiEtq(usado)}. Revísalo antes de autorizar.`
+      : 'Borrador generado. Revísalo y ajústalo antes de autorizar.','ok');
+    if(cambio) toast(`⚠️ ${aiEtq(cadena[0])} no respondió · lo resolvió ${aiEtq(usado)}`,'',5200);
     if(medidas){
       scMarcarMedidasUsadas();
       /* Se le pidió una partida por medida, pero el modelo puede saltarse o juntar
@@ -3093,7 +3295,17 @@ async function aiAnalyze(){
       toast('Cotización IA lista (borrador)','ok');
     }
     setTimeout(aiClose,1500);
-  }catch(e){ aiStatus('Error: '+e.message,'err'); }
+  }catch(e){
+    /* Si el único proveedor configurado se cayó, insistir más no arregla nada: lo que
+       lo arregla es tener a dónde caerse. Se dice aquí, que es cuando duele. */
+    const solos=AI_PROVS.filter(p=>getKey(p)).length<2;
+    aiStatus('Error: '+e.message+(e.transitorio&&solos
+      ? ' · Ya reintenté varias veces. Guarda también una key de Groq u OpenRouter en Configuración y la app cambiará sola de proveedor cuando esto vuelva a pasar.'
+      : ''),'err');
+  }finally{
+    aiTrabajando=false;
+    const b=$('ai-go-btn'); if(b) b.disabled=false;
+  }
 }
 
 function applyAi(p){
