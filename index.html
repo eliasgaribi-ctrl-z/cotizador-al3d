@@ -34,7 +34,10 @@
 ::-webkit-scrollbar-thumb{background:rgba(130,138,160,.22);border-radius:4px}
 ::-webkit-scrollbar-thumb:hover{background:rgba(58,74,216,.32)}
 body{
-  font-family:'Inter','Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  /* Las fuentes de emoji van nombradas y antes del genérico: los pocos emoji que
+     quedan (los de las referencias rápidas, los avisos emergentes) salen del mismo
+     sitio en los dos sistemas en vez de depender del último recurso del navegador. */
+  font-family:'Inter','Segoe UI',Roboto,Helvetica,Arial,'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
   background:var(--bg);
   background-image:
     radial-gradient(ellipse 80% 55% at 15% 0%,rgba(58,74,216,.09) 0,transparent 60%),
@@ -51,7 +54,8 @@ body::before{
 
 /* ---------- Topbar ---------- */
 .topbar{background:rgba(255,255,255,.93);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid rgba(224,228,240,.7);position:sticky;top:3px;z-index:30;box-shadow:0 1px 0 rgba(255,255,255,.9),var(--sh-sm)}
-.topbar-in{max-width:1180px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.topbar-in{max-width:1180px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  padding:12px max(24px,env(safe-area-inset-right,0px)) 12px max(24px,env(safe-area-inset-left,0px))}
 .brand{display:flex;align-items:center;gap:12px;cursor:pointer}
 .brand svg{width:50px;height:32px}
 .logoslot{display:flex;align-items:center;gap:1px;padding:7px 12px;border:1.5px dashed var(--line);border-radius:10px;background:var(--soft);transition:.15s}
@@ -70,8 +74,21 @@ body::before{
 .seg button{border:none;background:none;padding:7px 14px;font-size:12.5px;font-weight:600;color:var(--muted);border-radius:8px;cursor:pointer;transition:.15s}
 .seg button.on{background:#fff;color:var(--brand);box-shadow:var(--sh-sm)}
 
+/* ===================== Iconos =====================
+   Un icono mide 1 em —el alto de la letra que lleva al lado— y se pinta con el color
+   del texto, así que sigue al botón cuando cambia de estado sin reglas aparte.
+   pointer-events:none para que el toque siempre lo reciba el botón y no el trazo. */
+.svgi{width:1em;height:1em;flex:0 0 auto;vertical-align:-.135em;pointer-events:none;
+  fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+/* Los emoji que sí siguen siendo emoji porque dibujan una cosa del mundo —una puerta,
+   una persona, el tono de la luz— y un trazo monocromo no lo diría igual. Se les fija
+   la fuente y el tamaño para que no crezcan más que el texto. */
+.emo{font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
+  font-size:.95em;line-height:1;font-style:normal;font-weight:400;vertical-align:-.05em}
+
 /* ---------- Layout ---------- */
-.wrap{max-width:1180px;margin:0 auto;padding:26px 24px 70px;display:grid;grid-template-columns:1fr 385px;gap:24px;align-items:start}
+.wrap{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:1fr 385px;gap:24px;align-items:start;
+  padding:26px max(24px,env(safe-area-inset-right,0px)) 70px max(24px,env(safe-area-inset-left,0px))}
 /* Las dos columnas pueden encogerse por debajo de su contenido: sin esto, cualquier
    texto largo que no quepa —un nombre de cliente, una fórmula— ensancha la rejilla y
    la página entera se desplaza a lo ancho en el teléfono. */
@@ -88,15 +105,22 @@ body::before{
   .logoslot{padding:5px 9px}
   .logoslot .up{display:none}
 }
-/* ---------- Móvil: sin zoom automático de iOS al enfocar campos + áreas táctiles más grandes ---------- */
+/* ---------- Móvil: sin zoom automático de iOS al enfocar campos + áreas táctiles más grandes ----------
+   Hasta 920 px, que es donde la página ya es de una sola columna y aparece la barra
+   inferior: entre 761 y 920 px la maqueta era de teléfono pero las medidas seguían
+   siendo de escritorio, y ahí cae la pantalla interna del Fold 6 (832 px). */
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
-@media(max-width:760px){
+@media(max-width:920px){
   /* iOS/Safari hace zoom al enfocar un campo con letra <16px; forzamos 16px solo en móvil */
   input,select,textarea,.rv-field input,.rv-field select,.autoctr input{font-size:16px}
   .btn,.addbtn,.ai-btn{min-height:46px}
   .chip{padding:9px 14px;font-size:13px}
   .seg button{padding:9px 14px}
-  .del,.dup,.pdf-vis{font-size:22px;padding:6px 10px}
+  /* Un icono de 22 px con 6 px de relleno daba una zona de toque de 34 px de alto,
+     por debajo de los 44 px, y con tres botones juntos se erraba. Ahora el icono baja
+     a 19 px y la caja sube a 40x40. */
+  .del,.dup,.pdf-vis{font-size:19px;padding:0;width:40px;height:40px;
+    display:inline-flex;align-items:center;justify-content:center;border-radius:9px}
   .btn-maps{padding:11px 10px}
   /* Chips a lo ancho: cada opción se estira para llenar su renglón, así el dedo
      acierta sin apuntar y las etiquetas largas no quedan a medias. */
@@ -392,14 +416,16 @@ textarea{resize:vertical;min-height:46px}
 /* ----- IA ----- */
 .ai-btn{width:100%;padding:12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 10px rgba(58,74,216,.25);transition:.16s}
 .ai-btn:hover{background:linear-gradient(135deg,#2e3dbf,#4d5ee8);box-shadow:0 4px 16px rgba(58,74,216,.35)}
-.modal-bg{position:fixed;inset:0;background:rgba(17,22,46,.6);display:none;align-items:center;justify-content:center;z-index:60;padding:18px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.modal-bg{position:fixed;inset:0;background:rgba(17,22,46,.6);display:none;align-items:center;justify-content:center;z-index:60;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  padding:calc(18px + env(safe-area-inset-top,0px)) calc(18px + env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) calc(18px + env(safe-area-inset-left,0px))}
 .modal-bg.show{display:flex}
-.modal{background:#fff;border-radius:20px;max-width:460px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.28);overflow:hidden}
-.modal-h{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),#fff)}
+.modal{background:#fff;border-radius:20px;max-width:460px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.28);overflow:hidden;
+  display:flex;flex-direction:column;max-height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+.modal-h{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),#fff);flex-shrink:0}
 .modal-h b{font-size:15px;font-weight:700}
 .modal-h button{border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:.12s}
 .modal-h button:hover{background:var(--soft);color:var(--ink)}
-.modal-b{padding:18px 20px 20px;max-height:80vh;overflow-y:auto}
+.modal-b{padding:18px 20px 20px;overflow-y:auto;flex:1 1 auto;min-height:0;-webkit-overflow-scrolling:touch}
 .ai-status{font-size:12.5px;margin-top:11px;min-height:16px;font-weight:600}
 .ai-status.err{color:var(--red)} .ai-status.ok{color:var(--green)} .ai-status.work{color:var(--brand)}
 .ai-link{color:var(--brand);font-weight:600;text-decoration:none}.ai-link:hover{text-decoration:underline}
@@ -456,7 +482,8 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 /* ----- Historial ----- */
 .btn-hist{background:none;border:1.5px solid var(--line);border-radius:10px;padding:6px 13px;font-size:12px;font-weight:700;color:var(--brand);cursor:pointer;transition:.15s;white-space:nowrap}
 .btn-hist:hover{background:var(--soft-2);border-color:var(--brand)}
-.hist-panel{background:#fff;border-radius:20px;max-width:720px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.3);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.hist-panel{background:#fff;border-radius:20px;max-width:720px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;
+  max-height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
 .hist-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),#fff);border-radius:20px 20px 0 0;flex-shrink:0}
 .hist-search-bar{display:flex;align-items:center;gap:10px;padding:11px 20px;border-bottom:1px solid var(--line);flex-shrink:0;background:#fff}
 .hist-search-bar input{flex:1;min-width:0}
@@ -538,11 +565,19 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 #scalerCanvas{position:absolute;inset:0;display:block;cursor:crosshair;touch-action:none;user-select:none;-webkit-user-select:none}
 .sp-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;pointer-events:none}
 .sp-overlay.hide{display:none}
-.sp-hint-bar{position:absolute;bottom:0;left:0;right:0;background:rgba(17,22,46,.78);color:rgba(255,255,255,.9);font-size:12.5px;font-weight:600;padding:10px 20px;text-align:center;backdrop-filter:blur(8px);transition:opacity .2s;display:flex;align-items:center;justify-content:center;gap:12px}
+/* pointer-events:none: la barra ocupa los 58 px de abajo del lienzo y se estaba
+   quedando con los toques de esa franja —justo el borde inferior de la foto, que es
+   donde se mide el alto de unas letras—. El botón de dentro sí los recibe. */
+.sp-hint-bar{position:absolute;bottom:0;left:0;right:0;background:rgba(17,22,46,.78);color:rgba(255,255,255,.9);font-size:12.5px;font-weight:600;padding:10px 20px;text-align:center;backdrop-filter:blur(8px);transition:opacity .2s;display:flex;align-items:center;justify-content:center;gap:12px;pointer-events:none;
+  padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+.sp-hint-bar>*{pointer-events:auto}
 .sp-hint-bar.hide{opacity:0;pointer-events:none}
 .sp-hint-act{border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.14);color:#fff;border-radius:9px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap}
 .sp-hint-act:active{background:rgba(255,255,255,.3)}
-.sp-side{width:306px;flex-shrink:0;background:#fff;border-left:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;box-shadow:-2px 0 12px rgba(23,29,74,.04)}
+/* overflow-y:auto y no hidden: con una pantalla ancha y baja —el Fold 6 abierto tiene
+   716 px de alto— el contenido del panel no cabe y con `hidden` se recortaba sin manera
+   de llegar al final. */
+.sp-side{width:306px;flex-shrink:0;background:#fff;border-left:1px solid var(--line);display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;box-shadow:-2px 0 12px rgba(23,29,74,.04)}
 .sp-sec{border-bottom:1px solid var(--line)}
 .sp-sec-h{padding:16px 20px 0}
 .sp-sec-h h3{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--brand);display:flex;align-items:center;gap:8px}
@@ -553,7 +588,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-mitem{border:1px solid rgba(224,228,240,.8);border-left:3px solid var(--brand);border-radius:var(--r-sm);padding:12px 11px;margin-bottom:9px;background:#fff;box-shadow:var(--sh-sm);display:flex;align-items:stretch;gap:9px;cursor:pointer;transition:box-shadow .15s}
 .sp-mitem:hover{box-shadow:0 2px 8px rgba(23,29,74,.06),0 8px 28px rgba(23,29,74,.1)}
 .sp-mitem.sel{border-color:var(--brand-strong);background:var(--soft-2);box-shadow:0 0 0 3px rgba(58,74,216,.12)}
-.sp-mitem-cm{font-size:17px;font-weight:900;color:var(--brand-strong);line-height:1;letter-spacing:.1px}
+.sp-mitem-cm{font-size:17px;font-weight:900;color:var(--brand-strong);line-height:1;letter-spacing:.1px;font-variant-numeric:tabular-nums}
 .sp-mitem-cm small{font-size:11px;font-weight:600;color:var(--muted);margin-left:2px}
 .sp-mitem-label{display:block;width:100%;border:none;background:transparent;padding:3px 0;font-size:12px;color:var(--muted);font-family:inherit;cursor:text;margin-top:4px;outline:none;border-bottom:1px solid transparent;transition:.15s}
 .sp-mitem-label:focus{color:var(--ink);border-bottom-color:var(--line)}
@@ -576,9 +611,29 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-back-m{display:none}
 .sp-ibtn{border:none;background:none;color:#cdd2e0;font-size:15px;cursor:pointer;padding:3px 6px;border-radius:6px;line-height:1;transition:.12s}
 .sp-ibtn:hover{color:var(--red);background:var(--red-bg)}
+/* ----- Secciones plegables del panel -----
+   El panel del escalador es una columna de 412 px visibles en el teléfono y su
+   contenido medía 1617 px: Calibración (206 px) y Guías (452 px) iban antes de las
+   medidas, así que la primera cota quedaba a 466 px de desplazamiento —invisible—.
+   Plegadas ocupan su encabezado y la lista de medidas queda a la vista de entrada. */
+.sp-fold>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:9px;
+  padding:13px 20px;min-height:46px;user-select:none;-webkit-tap-highlight-color:transparent}
+.sp-fold>summary::-webkit-details-marker{display:none}
+.sp-fold>summary::marker{content:''}
+.sp-fold>summary h3{flex:1;min-width:0}
+.sp-fold>summary::after{content:'▾';font-size:11px;font-weight:700;color:var(--muted);
+  flex-shrink:0;transition:transform .18s}
+.sp-fold[open]>summary::after{transform:rotate(180deg)}
+.sp-fold>summary:active{background:var(--soft)}
+.sp-fold[open]>summary{padding-bottom:0}
+.sp-fold .sp-sec-b{padding-top:12px}
+/* Cuántas guías hay, para no tener que desplegar la sección para saberlo */
+.sp-fold-n{font-size:11px;font-weight:800;color:var(--brand);background:var(--soft-2);
+  border:1px solid rgba(58,74,216,.12);border-radius:20px;padding:2px 9px;flex-shrink:0}
+.sp-fold-n:empty{display:none}
 /* ----- Guías del escalador ----- */
 .sp-gitem{display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;border:1px solid rgba(224,228,240,.8);border-left:3px solid var(--sc-guide);border-radius:var(--r-sm);background:#fff;font-size:12.5px}
-.sp-gitem .ico{font-weight:800;color:var(--sc-guide);width:14px;text-align:center;flex-shrink:0}
+.sp-gitem .ico{color:var(--sc-guide);width:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px}
 .sp-gitem .lbl{flex:1;color:var(--ink);font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sp-gclear{display:block;width:100%;margin-top:2px;padding:6px;border:none;background:none;color:var(--muted);font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;border-radius:7px;transition:.12s}
 .sp-gclear:hover{color:var(--red);background:var(--red-bg)}
@@ -598,7 +653,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
    con texto: es la manera obvia de regresar al cotizador. */
 .sp-close{border:none;background:none;color:var(--muted);cursor:pointer;line-height:1;width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;gap:6px;flex-shrink:0;transition:.12s;font-family:inherit}
 .sp-close:hover{background:var(--soft);color:var(--ink)}
-.sp-close .ico{font-size:22px;line-height:1}
+.sp-close .ico{font-size:19px;line-height:1;display:flex}
 .sp-close .back,.sp-close .lbl{display:none}
 .btn-scaler-open{display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 14px;border:1.5px solid #15a06a;border-radius:var(--r-sm);background:#fff;color:#1c6e3d;font-size:12.5px;font-weight:700;cursor:pointer;transition:.16s;white-space:nowrap}
 .btn-scaler-open:hover{background:#e8f9ee;border-color:#1c6e3d}
@@ -655,7 +710,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .vt-modal-bg input[type=range]{width:100%;accent-color:var(--brand);height:26px}
 .vt-modo{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .vt-modo button{padding:9px 4px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff;font-family:inherit;font-size:12px;font-weight:700;color:var(--ink);cursor:pointer;transition:.14s;display:flex;flex-direction:column;align-items:center;gap:3px;line-height:1.25}
-.vt-modo button .ic{font-size:15px}
+.vt-modo button .svgi{font-size:17px}
 .vt-modo button small{font-size:9.5px;font-weight:600;color:var(--muted);letter-spacing:.2px}
 .vt-modo button:hover{border-color:var(--brand);background:var(--soft)}
 .vt-modo button.on{background:var(--brand-grd);color:#fff;border-color:var(--brand);box-shadow:0 2px 10px rgba(58,74,216,.26)}
@@ -684,7 +739,13 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .vt-modal-bg .sp-actions{padding:10px 14px 12px}
 .btn-vector-open{display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 14px;border:1.5px solid #6a3bd8;border-radius:var(--r-sm);background:#fff;color:#5227b8;font-size:12.5px;font-weight:700;cursor:pointer;transition:.16s;white-space:nowrap;font-family:inherit}
 .btn-vector-open:hover{background:#f1ecfd;border-color:#5227b8}
-@media(max-width:760px){
+/* Los dos modales de pantalla completa —escalador y vectorizador— cambian a diseño de
+   teléfono a los 1000 px y no a los 760. Su barra de herramientas necesita 982 px para
+   caber en un renglón, así que entre 761 y 981 px desbordaba por la derecha y dejaba
+   fuera de la pantalla la insignia de calibración, el selector de modo y el botón de
+   volver al cotizador —sin manera de verlos ni de tocarlos—. La pantalla interna del
+   Galaxy Z Fold 6 mide 832 px y caía justo en ese hueco. */
+@media(max-width:1000px){
   /* El aviso emergente sube por encima de las acciones. El escalador puede con un número
      fijo porque su pie siempre mide lo mismo; aquí no —el pie crece y encoge según haya
      medida real, y el texto de ayuda cambia de renglones—, así que la altura se mide y se
@@ -695,19 +756,23 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   .vt-go{min-height:48px}
   .vt-sw{width:30px;height:30px}
   .vt-dl button{min-height:46px}
+}
+/* Estos tres viven en la tarjeta de partidas, no en el modal: siguen en 760 px */
+@media(max-width:760px){
   /* Los tres botones de entrada no caben en un renglón en pantallas chicas */
   .scaler-ai-row{flex-wrap:wrap}
   .scaler-ai-row .ai-btn{flex:1 1 100%}
   .btn-scaler-open,.btn-vector-open{flex:1 1 0;min-height:46px}
 }
-@media(max-width:900px) and (max-height:520px) and (orientation:landscape){
+@media(max-width:1000px) and (max-height:760px) and (orientation:landscape){
   .vt-modal-bg.show~.toast{bottom:16px}
 }
-@media(max-width:760px){
+@media(max-width:1000px){
   /* Barra de herramientas: permitir salto de línea para que nada quede fuera de pantalla.
      El orden pone marca, estado y salida en el primer renglón —así el botón de volver
      al cotizador queda siempre arriba a la derecha— y las herramientas debajo. */
-  .sp-topbar{height:auto;min-height:52px;flex-wrap:wrap;padding:8px 10px;gap:7px;row-gap:8px}
+  .sp-topbar{height:auto;min-height:52px;flex-wrap:wrap;gap:7px;row-gap:8px;
+    padding:max(8px,env(safe-area-inset-top,0px)) max(10px,env(safe-area-inset-right,0px)) 8px max(10px,env(safe-area-inset-left,0px))}
   .sp-topbar .sp-sep,.sp-topbar .sp-spacer{display:none}
   .sp-brand-sub{display:none}
   /* El logotipo se va: con él, "Sin calibrar" y la salida no cabían en el mismo
@@ -730,29 +795,40 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   .sp-mlist{flex:none;overflow:visible;min-height:0}
   .sp-side .btn{min-height:46px}
   .sp-ibtn{font-size:19px;padding:0;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:10px;color:var(--muted)}
-  .sp-mitem{padding:13px 11px}
-  .sp-mitem-add{min-height:44px;font-size:13px}
-  .sp-mitem-label{padding:9px 0;font-size:13px}
+  .sp-mitem{padding:10px;margin-bottom:7px}
+  .sp-mitem-add{min-height:44px;font-size:13px;margin-top:6px}
+  .sp-mitem-label{padding:6px 0;font-size:13px}
   .ref-known button{min-height:40px;padding:8px 12px;font-size:12.5px}
   .sp-zoom button{width:46px;height:46px}
   .sp-close{width:auto;height:44px;padding:0 12px;border:1.5px solid var(--line);background:#fff;color:var(--ink)}
   .sp-close .ico{display:none}
-  .sp-close .back{display:inline;font-size:19px;line-height:1}
+  .sp-close .back{display:flex;font-size:18px;line-height:1}
   .sp-close .lbl{display:inline;font-size:13px;font-weight:800}
   /* Acciones pegadas al pie del panel: agregar las medidas y volver al cotizador
      siguen a la vista por más medidas que haya en la lista. */
-  .sp-actions{order:9;position:sticky;bottom:0;z-index:4;background:#fff;border-top:1px solid var(--line);box-shadow:0 -7px 16px rgba(23,29,74,.08);padding:9px 14px 10px;margin-top:4px}
+  /* El pie va pegado al borde de abajo, así que tiene que contar la franja del gesto
+     de inicio del iPhone: sin esto la mitad inferior del botón de volver quedaba
+     debajo del indicador y no se podía tocar. */
+  .sp-actions{order:9;position:sticky;bottom:0;z-index:4;background:#fff;border-top:1px solid var(--line);box-shadow:0 -7px 16px rgba(23,29,74,.08);margin-top:4px;
+    padding:9px 14px calc(10px + env(safe-area-inset-bottom,0px));
+    padding-left:max(14px,env(safe-area-inset-left,0px));
+    padding-right:max(14px,env(safe-area-inset-right,0px))}
   .sp-actions .sp-addall{margin:0;width:100%;min-height:46px}
   .sp-actions .sp-ai{margin:8px 0 0;width:100%;min-height:46px}
-  .sp-actions .sp-ai-note{margin:6px 0 0}
+  /* La nota de tres renglones se llevaba 50 px del pie fijo cada vez, y el texto del
+     botón que explica ya lo dice. En el teléfono el alto es de la lista de medidas. */
+  .sp-actions .sp-ai-note{display:none}
   .sp-actions .sp-addall-note{margin:8px 0 0}
   .sp-back-m{display:block;width:100%;min-height:46px;margin-top:8px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff;color:var(--brand-strong);font-size:13px;font-weight:800;font-family:inherit;cursor:pointer}
   .sp-back-m:active{background:var(--soft-2)}
-  /* El aviso emergente se sube por encima de esa barra: tapaba justo el botón de volver */
-  .scaler-modal-bg.show+.toast{bottom:calc(26px + 104px)}
+  /* El aviso emergente se sube por encima de esa barra: tapaba justo el botón de volver.
+     El alto lo mide scAjustarToast() y lo publica en --sc-acc-h; con los 104 px fijos que
+     había antes el aviso caía DENTRO del pie —que mide entre 174 y 237 px según haya
+     medidas y cuántos renglones ocupe la nota— y tapaba justo el botón que anunciaba. */
+  .scaler-modal-bg.show+.toast{bottom:calc(16px + var(--sc-acc-h,150px))}
 }
 /* Celular acostado: el panel a un lado, si no el lienzo se queda sin alto */
-@media(max-width:900px) and (max-height:520px) and (orientation:landscape){
+@media(max-width:1000px) and (max-height:760px) and (orientation:landscape){
   .sp-main{flex-direction:row}
   .sp-canvas-area{min-height:0}
   .sp-side{width:46%;max-width:340px;height:100%;max-height:none;border-top:none;border-left:1px solid var(--line)}
@@ -767,7 +843,8 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 /* ----- Registrar Venta modal ----- */
 .rv-modal-bg{position:fixed;inset:0;background:rgba(12,15,38,.7);display:none;z-index:60;align-items:center;justify-content:center;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 .rv-modal-bg.show{display:flex}
-.rv-modal{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);width:min(520px,92vw);max-height:90vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,.45),0 6px 20px rgba(0,0,0,.3)}
+.rv-modal{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);width:min(520px,92vw);overflow-y:auto;-webkit-overflow-scrolling:touch;
+  max-height:calc(100dvh - 32px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));box-shadow:0 24px 80px rgba(0,0,0,.45),0 6px 20px rgba(0,0,0,.3)}
 .rv-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid var(--line)}
 .rv-header h2{font-size:15px;font-weight:700;color:var(--fg);margin:0}
 .rv-body{padding:20px}
@@ -951,9 +1028,71 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   .mini{margin-top:7px}
   .side #aiPreview:not(:empty){margin-bottom:11px}
 }
+
+/* ===================== Anti-zoom de iOS =====================
+   Safari amplía la página al enfocar un campo con letra de menos de 16 px, y no vuelve
+   solo a su tamaño. La regla de 16 px ya existía en el bloque de 760 px, pero las
+   reglas base de `input,select,textarea` (y las de .rv-field y .autoctr) están más
+   abajo en la hoja: con la misma especificidad gana la última, así que en el teléfono
+   los campos seguían en 14 px —13 px en el de registrar venta— y la página se ampliaba
+   con cada toque. Por eso va aquí, al final. */
+@media(max-width:920px){
+  input,select,textarea,
+  .rv-field input,.rv-field select,
+  .autoctr input{font-size:16px}
+}
+
+/* Sin animaciones para quien las pidió apagadas en el sistema */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
+    transition-duration:.001ms!important;scroll-behavior:auto!important}
+}
 </style>
 </head>
 <body>
+
+<!-- ===== Iconos =====
+     Van como SVG y no como emoji a propósito. La pila de fuentes no trae fuente de
+     emoji, así que cada glifo lo resolvía el fallback del sistema: en el iPhone y en
+     el Fold, ⬇ ⬜ 🖼 salían como emoji de color a ~1.5 em —enormes y fuera de la línea
+     base— mientras ↔ ↕ ↗ ⧉ caían a una fuente de símbolos y salían minúsculos. Mismo
+     botón, dos tamaños de icono, distinto en cada teléfono.
+     Así se dibujan siempre igual, heredan el color del texto (currentColor) y miden
+     1 em, el mismo alto que la letra que llevan al lado. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<symbol id="i-escalar" viewBox="0 0 24 24"><path d="M2.5 21.5h19L2.5 2.5z"/><path d="M7 21.5v-2.6M11 21.5v-4.2M15 21.5v-5.8"/></symbol>
+<symbol id="i-regla" viewBox="0 0 24 24"><rect x="2" y="7.5" width="20" height="9" rx="1.6"/><path d="M6.5 7.5v3.2M10.5 7.5v4.4M14.5 7.5v3.2M18.5 7.5v4.4"/></symbol>
+<symbol id="i-carpeta" viewBox="0 0 24 24"><path d="M4 20a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4.1a2 2 0 0 1 1.6.8l1 1.4a2 2 0 0 0 1.6.8H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2z"/><path d="M2 10.5h20"/></symbol>
+<symbol id="i-ia" viewBox="0 0 24 24"><path d="M10 2.5l1.7 4.3 4.3 1.7-4.3 1.7L10 14.5 8.3 10.2 4 8.5l4.3-1.7z"/><path d="M17.5 14l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></symbol>
+<symbol id="i-vector" viewBox="0 0 24 24"><path d="M4 19.5C12 19.5 15.5 16 15.5 8"/><rect x="1.5" y="17" width="5" height="5" rx="1.2"/><rect x="13" y="2" width="5" height="5" rx="1.2"/></symbol>
+<symbol id="i-historial" viewBox="0 0 24 24"><path d="M3.2 12a8.8 8.8 0 1 0 2.7-6.3"/><path d="M3 3.2v4h4"/><path d="M12 7.6V12l3.2 2"/></symbol>
+<symbol id="i-copiar" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="12.5" height="12.5" rx="2.2"/><path d="M16 8.5V5.2A2.2 2.2 0 0 0 13.8 3H5.2A2.2 2.2 0 0 0 3 5.2v8.6A2.2 2.2 0 0 0 5.2 16h3.3"/></symbol>
+<symbol id="i-basura" viewBox="0 0 24 24"><path d="M3 6.2h18"/><path d="M8.2 6.2V4.3c0-.7.6-1.3 1.3-1.3h5c.7 0 1.3.6 1.3 1.3v1.9"/><path d="M18.7 6.2 17.8 20a2 2 0 0 1-2 1.9H8.2a2 2 0 0 1-2-1.9L5.3 6.2"/><path d="M10.2 10.8v6.4M13.8 10.8v6.4"/></symbol>
+<symbol id="i-ojo" viewBox="0 0 24 24"><path d="M2 12s3.7-6.8 10-6.8S22 12 22 12s-3.7 6.8-10 6.8S2 12 2 12z"/><circle cx="12" cy="12" r="2.9"/></symbol>
+<symbol id="i-lapiz" viewBox="0 0 24 24"><path d="M16.8 3.2 20.8 7.2 8 20H4v-4z"/><path d="M14.6 5.4 18.6 9.4"/></symbol>
+<symbol id="i-aviso" viewBox="0 0 24 24"><path d="M12 3.2 22 20.4H2z"/><path d="M12 9.6v4.6M12 17.4v.6"/></symbol>
+<symbol id="i-imagen" viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="16" rx="2.2"/><circle cx="8.4" cy="9.6" r="1.8"/><path d="M21.5 15.5 16 10 6.5 19.5"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21.6s7-6.2 7-11.8a7 7 0 1 0-14 0c0 5.6 7 11.8 7 11.8z"/><circle cx="12" cy="9.8" r="2.6"/></symbol>
+<symbol id="i-bajar" viewBox="0 0 24 24"><path d="M12 3v12.5"/><path d="M6.8 10.6 12 15.8l5.2-5.2"/><path d="M4 20.6h16"/></symbol>
+<symbol id="i-subir" viewBox="0 0 24 24"><path d="M12 18V5.5"/><path d="M6.8 10.7 12 5.5l5.2 5.2"/><path d="M4 20.6h16"/></symbol>
+<symbol id="i-doc" viewBox="0 0 24 24"><path d="M13.8 3v5.2H19"/><path d="M19 8.4V19a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6.8z"/><path d="M8.6 13.2h6.8M8.6 16.8h4.6"/></symbol>
+<symbol id="i-horiz" viewBox="0 0 24 24"><path d="M2.8 12h18.4"/><path d="M6.6 8.2 2.8 12l3.8 3.8"/><path d="M17.4 8.2 21.2 12l-3.8 3.8"/></symbol>
+<symbol id="i-vert" viewBox="0 0 24 24"><path d="M12 2.8v18.4"/><path d="M8.2 6.6 12 2.8l3.8 3.8"/><path d="M8.2 17.4 12 21.2l3.8-3.8"/></symbol>
+<symbol id="i-libre" viewBox="0 0 24 24"><path d="M4.5 19.5 19.5 4.5"/><path d="M11.5 4.5h8v8"/></symbol>
+<symbol id="i-ajustar" viewBox="0 0 24 24"><path d="M14.5 3H21v6.5"/><path d="M21 3l-7.5 7.5"/><path d="M9.5 21H3v-6.5"/><path d="M3 21l7.5-7.5"/></symbol>
+<symbol id="i-recalibrar" viewBox="0 0 24 24"><path d="M20.8 12a8.8 8.8 0 1 1-2.7-6.3"/><path d="M21 3.2v4h-4"/></symbol>
+<symbol id="i-candado" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2.2"/><path d="M7.8 10V7.2a4.2 4.2 0 0 1 8.4 0V10"/></symbol>
+<symbol id="i-rayo" viewBox="0 0 24 24"><path d="M13.4 2 4.6 14h5.6l-1.6 8L19.4 10h-5.6z"/></symbol>
+<symbol id="i-asa" viewBox="0 0 24 24"><circle fill="currentColor" stroke="none" cx="9" cy="5.5" r="1.5"/><circle fill="currentColor" stroke="none" cx="15" cy="5.5" r="1.5"/><circle fill="currentColor" stroke="none" cx="9" cy="12" r="1.5"/><circle fill="currentColor" stroke="none" cx="15" cy="12" r="1.5"/><circle fill="currentColor" stroke="none" cx="9" cy="18.5" r="1.5"/><circle fill="currentColor" stroke="none" cx="15" cy="18.5" r="1.5"/></symbol>
+<symbol id="i-corte" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.1"/><path fill="currentColor" stroke="none" d="M12 2.9a9.1 9.1 0 0 1 0 18.2z"/></symbol>
+<symbol id="i-colores" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.1"/><circle fill="currentColor" stroke="none" cx="8.6" cy="9.4" r="1.5"/><circle fill="currentColor" stroke="none" cx="15.2" cy="9" r="1.5"/><circle fill="currentColor" stroke="none" cx="9.2" cy="15.6" r="1.5"/><circle fill="currentColor" stroke="none" cx="15.4" cy="15.2" r="1.5"/></symbol>
+<symbol id="i-guardar" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M8 3v5.4h7V3"/><path d="M8 21v-5.6h8V21"/></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 11.6a8.4 8.4 0 0 1-12.3 7.5L3.6 20.6l1.4-4.6A8.4 8.4 0 1 1 21 11.6z"/></symbol>
+<symbol id="i-venta" viewBox="0 0 24 24"><path d="M3 20.8h18"/><path d="M6.4 20.8V12M11.4 20.8V5.6M16.4 20.8v-6.2M21 20.8V9"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.8 9.5 17.8 19.8 6.6"/></symbol>
+<symbol id="i-cerrar" viewBox="0 0 24 24"><path d="M5.5 5.5 18.5 18.5M18.5 5.5 5.5 18.5"/></symbol>
+<symbol id="i-atras" viewBox="0 0 24 24"><path d="M20.5 12H4"/><path d="M10.2 5.8 4 12l6.2 6.2"/></symbol>
+</defs></svg>
 
 <div class="topbar">
   <div class="topbar-in">
@@ -962,7 +1101,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <div class="t">Cotizador <small>Anuncios Luminosos 3D</small></div>
     </div>
     <div class="rolewrap">
-      <button class="btn-hist" onclick="abrirHistorial()" title="Historial de cotizaciones" aria-label="Historial de cotizaciones">📋<span class="lbl"> Historial</span></button>
+      <button class="btn-hist" onclick="abrirHistorial()" title="Historial de cotizaciones" aria-label="Historial de cotizaciones"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg><span class="lbl"> Historial</span></button>
       <span class="folio" id="folio">COT-0001</span>
       <div class="seg" id="roleseg" title="Cambia de rol para ver el flujo de autorización">
         <button class="on" data-rol="vendedor" onclick="setRol('vendedor')">Vendedor</button>
@@ -991,8 +1130,8 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
           <label>Dirección como la compartió el/la cliente</label>
           <textarea id="f-dir-raw" placeholder="Pega aquí la dirección tal como te la mandaron&#10;Ej. Urban Center en Lopez Mateos Sur&#10;Ej. Mártires de Cananea #60, Centro, El Salto, Jalisco" rows="2" oninput="updDirRaw(this.value)"></textarea>
           <div class="dir-raw-actions" id="dir-raw-actions" style="display:none">
-            <button class="btn-maps" onclick="abrirDirRaw()">📍 Abrir en Maps</button>
-            <button class="btn-maps copy" onclick="copiarLinkDirRaw()">📋 Copiar link</button>
+            <button class="btn-maps" onclick="abrirDirRaw()"><svg class="svgi" aria-hidden="true"><use href="#i-pin"/></svg> Abrir en Maps</button>
+            <button class="btn-maps copy" onclick="copiarLinkDirRaw()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar link</button>
           </div>
           <div class="hintnote" id="dir-raw-hint" style="margin-top:7px;display:none">Se genera un link de búsqueda de Google Maps con el texto que escribiste — ábrelo para verificar la ubicación y luego compártelo con el cliente.</div>
         </div>
@@ -1000,7 +1139,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
           <label>Ubicación · link de Google Maps</label>
           <div style="display:flex;gap:8px;align-items:stretch">
             <input id="f-maps" placeholder="Pega aquí el link de Google Maps" oninput="updMaps(this.value)" style="flex:1">
-            <button class="btn btn-gho" id="mapsbtn" onclick="abrirMaps()" disabled style="width:auto;padding:0 15px;white-space:nowrap">📍 Abrir</button>
+            <button class="btn btn-gho" id="mapsbtn" onclick="abrirMaps()" disabled style="width:auto;padding:0 15px;white-space:nowrap"><svg class="svgi" aria-hidden="true"><use href="#i-pin"/></svg> Abrir</button>
           </div>
           <div class="hintnote" style="margin-top:7px">Tip: en Google Maps usa <b>Compartir → Copiar vínculo</b> y pégalo aquí para tener la ubicación exacta.</div>
         </div>
@@ -1031,15 +1170,15 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       </div>
       <div class="card-b">
         <div class="scaler-ai-row">
-          <button class="ai-btn" onclick="aiOpen()"><span>✨ Cotizar con IA<span class="solo-desk"> — analizar JPG o PDF</span></span></button>
-          <button class="btn-scaler-open" onclick="abrirScaler()" title="Escalar imagen — medir elementos sin cotas">📐 Escalar</button>
-          <button class="btn-vector-open" onclick="abrirVector()" title="Vectorizar — convertir el logotipo en trazo de corte">🪄 Vectorizar</button>
+          <button class="ai-btn" onclick="aiOpen()"><span><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar con IA<span class="solo-desk"> — analizar JPG o PDF</span></span></button>
+          <button class="btn-scaler-open" onclick="abrirScaler()" title="Escalar imagen — medir elementos sin cotas"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Escalar</button>
+          <button class="btn-vector-open" onclick="abrirVector()" title="Vectorizar — convertir el logotipo en trazo de corte"><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg> Vectorizar</button>
         </div>
         <div id="scPreviewBox"></div>
         <div id="items"></div>
         <div class="addrow">
           <button class="addbtn" id="addbtn" onclick="addItem({heredar:true})">+ Agregar partida</button>
-          <button class="addbtn igual" id="dupbtn" onclick="duplicarUltima()" title="Copia la última partida con todo lo elegido">⧉ Igual que la anterior</button>
+          <button class="addbtn igual" id="dupbtn" onclick="duplicarUltima()" title="Copia la última partida con todo lo elegido"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Igual que la anterior</button>
         </div>
       </div>
     </div>
@@ -1095,12 +1234,12 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 </div>
 <div class="modal-bg" id="aimodal">
   <div class="modal">
-    <div class="modal-h"><b>✨ Cotizar con IA</b><button onclick="aiClose()" aria-label="Cerrar">×</button></div>
+    <div class="modal-h"><b><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar con IA</b><button onclick="aiClose()" aria-label="Cerrar">×</button></div>
     <div class="modal-b">
       <div class="ai-src" id="ai-src-box" style="display:none">
         <img class="ai-src-img" id="ai-src-img" alt="Imagen medida en el escalador">
         <div class="ai-src-b">
-          <div class="ai-src-t">📐 Imagen del escalador</div>
+          <div class="ai-src-t"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Imagen del escalador</div>
           <div class="ai-src-n" id="ai-src-n"></div>
           <button type="button" class="key-btn" onclick="aiUsarArchivo()">Analizar otro archivo</button>
         </div>
@@ -1133,7 +1272,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
             <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Acceso a muchos modelos · solo JPG (no PDF). Su catálogo cambia seguido: si dice que no reconoce el modelo, copia el nombre exacto de <a class="ai-link" href="https://openrouter.ai/models?fmt=cards&input_modalities=image&max_price=0" target="_blank" rel="noopener">openrouter.ai/models</a> (los gratuitos terminan en <code>:free</code>).</p>
           </div>
           <p class="key-note" id="ai-respaldo"></p>
-          <p class="key-note">🔒 Las API keys no están escritas en el código del cotizador: las pegas una sola vez, se guardan ofuscadas en <b>este</b> dispositivo y después solo se muestran sus últimos 4 caracteres. Cada una se envía directo a su proveedor. Si el dispositivo es compartido, usa <b>Borrar</b> al terminar.</p>
+          <p class="key-note"><svg class="svgi" aria-hidden="true"><use href="#i-candado"/></svg> Las API keys no están escritas en el código del cotizador: las pegas una sola vez, se guardan ofuscadas en <b>este</b> dispositivo y después solo se muestran sus últimos 4 caracteres. Cada una se envía directo a su proveedor. Si el dispositivo es compartido, usa <b>Borrar</b> al terminar.</p>
         </div>
       </details>
       <div class="fld" id="ai-file-fld"><label>Archivo (JPG o PDF)</label><input id="ai-file" type="file" accept="image/*,application/pdf"></div>
@@ -1154,7 +1293,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 <div class="modal-bg" id="histmodal" onclick="if(event.target===this)cerrarHistorial()" style="align-items:flex-start;padding-top:32px">
   <div class="hist-panel">
     <div class="hist-head">
-      <b style="font-size:15px;font-weight:800">📋 Cotizaciones autorizadas</b>
+      <b style="font-size:15px;font-weight:800"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg> Cotizaciones autorizadas</b>
       <button onclick="cerrarHistorial()" style="border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center" aria-label="Cerrar">×</button>
     </div>
     <div class="hist-search-bar">
@@ -1163,9 +1302,9 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
     </div>
     <div class="hist-body" id="hist-body"></div>
     <div class="hist-foot">
-      <button onclick="respaldar()" title="Descarga un archivo con el historial, los folios y la cotización en curso">⬇ Respaldar</button>
-      <button onclick="pedirRestaurar()" title="Reemplaza los datos de este dispositivo con los de un respaldo">⬆ Restaurar</button>
-      <button onclick="exportarHistorialCSV()" title="Descarga el historial como CSV para Google Sheets">📄 CSV</button>
+      <button onclick="respaldar()" title="Descarga un archivo con el historial, los folios y la cotización en curso"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> Respaldar</button>
+      <button onclick="pedirRestaurar()" title="Reemplaza los datos de este dispositivo con los de un respaldo"><svg class="svgi" aria-hidden="true"><use href="#i-subir"/></svg> Restaurar</button>
+      <button onclick="exportarHistorialCSV()" title="Descarga el historial como CSV para Google Sheets"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> CSV</button>
       <p class="foot-nota">Todo se guarda solo en este dispositivo. El respaldo <b>no</b> incluye tus API keys.</p>
     </div>
     <input type="file" id="restaurarin" accept="application/json,.json" style="display:none">
@@ -1175,7 +1314,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 <!-- Revisión previa: partidas que valdrían $0 si se autorizan así -->
 <div class="modal-bg" id="faltmodal" onclick="if(event.target===this)cerrarFaltantes()">
   <div class="modal">
-    <div class="modal-h"><b>⚠️ Hay partidas sin terminar</b><button onclick="cerrarFaltantes()" aria-label="Cerrar">×</button></div>
+    <div class="modal-h"><b><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> Hay partidas sin terminar</b><button onclick="cerrarFaltantes()" aria-label="Cerrar">×</button></div>
     <div class="modal-b">
       <p class="falt-intro" id="falt-intro"></p>
       <div class="falt-list" id="falt-list"></div>
@@ -1196,9 +1335,9 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
     </div>
     <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
     <input type="file" id="vt-img-input" accept="image/*,.pdf" style="display:none" onchange="vtCargarImagen(this)">
-    <button class="sp-tb-btn" onclick="$('vt-img-input').click()">📂 Cargar imagen</button>
-    <button class="sp-tb-btn" id="vt-use-ai-btn" onclick="vtUsarImagenAI()" style="display:none">✨ Imagen de IA</button>
-    <button class="sp-tb-btn" id="vt-use-sc-btn" onclick="vtUsarImagenScaler()" style="display:none">📐 La del escalador</button>
+    <button class="sp-tb-btn" onclick="$('vt-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Cargar imagen</button>
+    <button class="sp-tb-btn" id="vt-use-ai-btn" onclick="vtUsarImagenAI()" style="display:none"><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Imagen de IA</button>
+    <button class="sp-tb-btn" id="vt-use-sc-btn" onclick="vtUsarImagenScaler()" style="display:none"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> La del escalador</button>
     <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
     <div class="tool-seg">
       <button id="vt-view-orig" onclick="vtSetVista('orig')" disabled>Original</button>
@@ -1208,7 +1347,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
     <div class="sp-spacer" style="flex:1"></div>
     <span class="sp-calib-badge" id="vt-badge"><span class="dot"></span><span id="vt-badge-txt">Sin vectorizar</span></span>
     <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
-    <button class="sp-close" onclick="cerrarVector()" title="Volver al cotizador" aria-label="Volver al cotizador"><span class="ico" aria-hidden="true">×</span><span class="back" aria-hidden="true">←</span><span class="lbl">Cotizador</span></button>
+    <button class="sp-close" onclick="cerrarVector()" title="Volver al cotizador" aria-label="Volver al cotizador"><span class="ico" aria-hidden="true"><svg class="svgi"><use href="#i-cerrar"/></svg></span><span class="back" aria-hidden="true"><svg class="svgi"><use href="#i-atras"/></svg></span><span class="lbl">Cotizador</span></button>
   </div>
   <div class="sp-main">
     <div class="sp-canvas-area" id="vt-canvas-area"
@@ -1224,10 +1363,10 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <div class="vt-split" id="vt-split"
         onmousedown="vtSplitDown(event)" ontouchstart="vtSplitDown(event)"></div>
       <div class="sp-overlay" id="vt-overlay">
-        <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(106,59,216,.45))">🪄</div>
+        <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(106,59,216,.45))"><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg></div>
         <div style="font-size:16px;font-weight:700;color:rgba(255,255,255,.82)">Carga el logotipo del cliente</div>
         <div style="font-size:12px;color:rgba(255,255,255,.4);letter-spacing:.4px">JPG · PNG · PDF — lo convierte en trazo vectorial para cortar</div>
-        <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(58,74,216,.4)" onclick="$('vt-img-input').click()">📂 Seleccionar archivo</button>
+        <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(58,74,216,.4)" onclick="$('vt-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
       </div>
       <div class="vt-prog" id="vt-prog">
         <div class="vt-prog-txt" id="vt-prog-txt">Vectorizando…</div>
@@ -1236,7 +1375,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <div class="sp-zoom" id="vt-zoom">
         <button onclick="vtZoomBy(1.4)" title="Acercar">+</button>
         <button onclick="vtZoomBy(1/1.4)" title="Alejar">−</button>
-        <button onclick="vtZoomReset()" title="Ajustar a la pantalla" style="font-size:16px">⤢</button>
+        <button onclick="vtZoomReset()" title="Ajustar a la pantalla" style="font-size:16px"><svg class="svgi" aria-hidden="true"><use href="#i-ajustar"/></svg></button>
       </div>
     </div>
     <aside class="sp-side">
@@ -1245,9 +1384,9 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
         <div class="sp-sec-h"><h3>Qué se está vectorizando</h3></div>
         <div class="sp-sec-b">
           <div class="vt-modo">
-            <button id="vt-modo-bn"   class="on" onclick="vtSetModo('bn')"><span class="ic">◑</span>Corte<small>1 color</small></button>
-            <button id="vt-modo-logo" onclick="vtSetModo('logo')"><span class="ic">🎨</span>Logotipo<small>pocos colores</small></button>
-            <button id="vt-modo-foto" onclick="vtSetModo('foto')"><span class="ic">🖼️</span>Foto<small>muchos colores</small></button>
+            <button id="vt-modo-bn"   class="on" onclick="vtSetModo('bn')"><svg class="svgi" aria-hidden="true"><use href="#i-corte"/></svg>Corte<small>1 color</small></button>
+            <button id="vt-modo-logo" onclick="vtSetModo('logo')"><svg class="svgi" aria-hidden="true"><use href="#i-colores"/></svg>Logotipo<small>pocos colores</small></button>
+            <button id="vt-modo-foto" onclick="vtSetModo('foto')"><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg>Foto<small>muchos colores</small></button>
           </div>
           <p class="vt-esc-note" id="vt-modo-help">Una sola silueta en negro: es lo que se manda a cortar el acrílico o el aluminio y de donde salen las letras y su altura.</p>
         </div>
@@ -1269,7 +1408,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
           <label class="switch" style="margin-top:14px;font-size:12.5px" onclick="vtToggleFondo(event)"><span class="tg on" id="vt-fondo-tg"></span> Quitar el fondo</label>
           <div class="hintnote" style="margin-top:8px">El color que más superficie ocupa se deja transparente. Es lo que hace que el SVG traiga solo el logotipo y no un rectángulo blanco encima.</div>
           <label class="switch" style="margin-top:11px;font-size:12.5px" onclick="vtToggleInvertir(event)"><span class="tg" id="vt-inv-tg"></span> Invertir (logotipo claro sobre oscuro)</label>
-          <button class="vt-go" id="vt-go" onclick="vtVectorizar()" style="margin-top:15px" disabled>🪄 Vectorizar</button>
+          <button class="vt-go" id="vt-go" onclick="vtVectorizar()" style="margin-top:15px" disabled><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg> Vectorizar</button>
         </div>
       </div>
       <!-- Resultado -->
@@ -1301,7 +1440,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
             <div class="fld" style="flex:1;margin:0"><label>Alto real (cm)</label><input id="vt-alto-cm" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="Ej. 40" oninput="vtEscala('alto',this.value)"></div>
             <div class="fld" style="flex:1;margin:0"><label>Ancho real (cm)</label><input id="vt-ancho-cm" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="Ej. 120" oninput="vtEscala('ancho',this.value)"></div>
           </div>
-          <button class="btn btn-gho" id="vt-esc-usar-sc" onclick="vtUsarEscalaScaler()" style="margin-top:9px;display:none;font-size:12.5px">📐 Usar la escala calibrada del escalador</button>
+          <button class="btn btn-gho" id="vt-esc-usar-sc" onclick="vtUsarEscalaScaler()" style="margin-top:9px;display:none;font-size:12.5px"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Usar la escala calibrada del escalador</button>
           <div id="vt-esc-res" style="display:none;margin-top:12px">
             <div class="vt-stats">
               <div class="vt-stat hl"><span class="k">Alto de letra</span><span class="v" id="vt-st-alto">—<small>cm</small></span></div>
@@ -1314,11 +1453,11 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <!-- Acciones -->
       <div class="sp-actions">
         <div class="vt-dl">
-          <button class="btn btn-gho" id="vt-dl-svg" onclick="vtDescargarSVG()" disabled style="font-size:12.5px">⬇ SVG</button>
-          <button class="btn btn-gho" id="vt-dl-png" onclick="vtDescargarPNG()" disabled style="font-size:12.5px">⬇ PNG</button>
+          <button class="btn btn-gho" id="vt-dl-svg" onclick="vtDescargarSVG()" disabled style="font-size:12.5px"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> SVG</button>
+          <button class="btn btn-gho" id="vt-dl-png" onclick="vtDescargarPNG()" disabled style="font-size:12.5px"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> PNG</button>
         </div>
         <button class="sp-addall" id="vt-btn-partidas" onclick="vtUsarComoPartidas()" disabled style="margin:0 0 8px;width:100%">→ Agregar como partida de letras 3D</button>
-        <button class="sp-ai" id="vt-btn-scaler" onclick="vtEnviarAEscalador()" disabled style="margin:0 0 7px;width:100%">📐 Medir el vector en el escalador</button>
+        <button class="sp-ai" id="vt-btn-scaler" onclick="vtEnviarAEscalador()" disabled style="margin:0 0 7px;width:100%"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Medir el vector en el escalador</button>
         <div class="sp-ai-note" id="vt-acc-note">El trazo limpio se manda al escalador para sacar de ahí cada medida, o entra directo como partida con su altura y su número de letras.</div>
         <button class="sp-back-m" onclick="cerrarVector()">← Volver al cotizador</button>
       </div>
@@ -1326,7 +1465,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <div class="sp-sec">
         <div class="sp-sec-h"><h3>Exportar</h3></div>
         <div class="sp-sec-b">
-          <button class="btn btn-gho" id="vt-copy-svg" onclick="vtCopiarSVG()" disabled>📋 Copiar el código SVG</button>
+          <button class="btn btn-gho" id="vt-copy-svg" onclick="vtCopiarSVG()" disabled><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar el código SVG</button>
           <button class="btn btn-gho" onclick="cerrarVector()" style="margin-top:9px">← Volver al cotizador</button>
         </div>
       </div>
@@ -1342,20 +1481,20 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
     </div>
     <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
     <input type="file" id="scaler-img-input" accept="image/*,.svg,.pdf" style="display:none" onchange="cargarImagenScaler(this)">
-    <button class="sp-tb-btn" onclick="$('scaler-img-input').click()">📂 Cargar imagen</button>
-    <button class="sp-tb-btn" id="sc-use-ai-btn" onclick="usarImagenAIEnScaler()" style="display:none">✨ Imagen de IA</button>
+    <button class="sp-tb-btn" onclick="$('scaler-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Cargar imagen</button>
+    <button class="sp-tb-btn" id="sc-use-ai-btn" onclick="usarImagenAIEnScaler()" style="display:none"><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Imagen de IA</button>
     <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
-    <button class="sp-tb-btn" id="sc-btn-ref" onclick="scSetMode('ref')" disabled>📏 Calibrar escala</button>
+    <button class="sp-tb-btn" id="sc-btn-ref" onclick="scSetMode('ref')" disabled><svg class="svgi" aria-hidden="true"><use href="#i-regla"/></svg> Calibrar escala</button>
     <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
     <div class="tool-seg">
-      <button id="sc-btn-libre" onclick="scSetMeasMode('libre')" disabled>↗ Libre</button>
-      <button id="sc-btn-h" onclick="scSetMeasMode('h')" disabled>↔ Horizontal</button>
-      <button id="sc-btn-v" onclick="scSetMeasMode('v')" disabled>↕ Vertical</button>
+      <button id="sc-btn-libre" onclick="scSetMeasMode('libre')" disabled><svg class="svgi" aria-hidden="true"><use href="#i-libre"/></svg> Libre</button>
+      <button id="sc-btn-h" onclick="scSetMeasMode('h')" disabled><svg class="svgi" aria-hidden="true"><use href="#i-horiz"/></svg> Horizontal</button>
+      <button id="sc-btn-v" onclick="scSetMeasMode('v')" disabled><svg class="svgi" aria-hidden="true"><use href="#i-vert"/></svg> Vertical</button>
     </div>
     <div class="sp-spacer" style="flex:1"></div>
     <span class="sp-calib-badge" id="sc-calib-badge"><span class="dot"></span><span id="sc-calib-txt">Sin calibrar</span></span>
     <div class="sp-sep" style="width:1px;height:26px;background:var(--line);flex-shrink:0"></div>
-    <button class="sp-close" onclick="cerrarScaler()" title="Volver al cotizador" aria-label="Volver al cotizador"><span class="ico" aria-hidden="true">×</span><span class="back" aria-hidden="true">←</span><span class="lbl">Cotizador</span></button>
+    <button class="sp-close" onclick="cerrarScaler()" title="Volver al cotizador" aria-label="Volver al cotizador"><span class="ico" aria-hidden="true"><svg class="svgi"><use href="#i-cerrar"/></svg></span><span class="back" aria-hidden="true"><svg class="svgi"><use href="#i-atras"/></svg></span><span class="lbl">Cotizador</span></button>
   </div>
   <!-- Main -->
   <div class="sp-main">
@@ -1367,24 +1506,24 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
         ontouchstart="scDown(event)" ontouchmove="scMove(event)" ontouchend="scUp(event)" ontouchcancel="scUp(event)">
       </canvas>
       <div class="sp-overlay" id="sp-overlay">
-        <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(58,74,216,.4))">📐</div>
+        <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(58,74,216,.4))"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg></div>
         <div style="font-size:16px;font-weight:700;color:rgba(255,255,255,.82)">Carga una imagen para medir</div>
         <div style="font-size:12px;color:rgba(255,255,255,.4);letter-spacing:.4px">JPG · PNG · SVG · PDF — o usa la imagen de IA</div>
-        <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(58,74,216,.4)" onclick="$('scaler-img-input').click()">📂 Seleccionar archivo</button>
+        <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(58,74,216,.4)" onclick="$('scaler-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
       </div>
       <div class="sp-hint-bar hide" id="sp-hint-bar"></div>
       <div class="sp-zoom" id="sp-zoom">
         <button onclick="scZoomBy(1.5)" title="Acercar">+</button>
         <button onclick="scZoomBy(1/1.5)" title="Alejar">−</button>
-        <button onclick="scZoomReset()" title="Ajustar a la pantalla" style="font-size:16px">⤢</button>
+        <button onclick="scZoomReset()" title="Ajustar a la pantalla" style="font-size:16px"><svg class="svgi" aria-hidden="true"><use href="#i-ajustar"/></svg></button>
       </div>
       <div class="sp-loupe" id="sc-loupe"><canvas id="sc-loupe-cvs"></canvas></div>
     </div>
     <!-- Sidebar -->
     <aside class="sp-side">
       <!-- Calibración -->
-      <div class="sp-sec">
-        <div class="sp-sec-h"><h3>Calibración de escala</h3></div>
+      <details class="sp-sec sp-fold" id="sc-sec-calib" open>
+        <summary class="sp-sec-h"><h3>Calibración de escala</h3></summary>
         <div class="sp-sec-b">
           <p id="sc-calib-help" style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:13px">Toca un extremo y luego el otro sobre un elemento de medida conocida. Sin soltar el dedo puedes deslizarlo hasta dejar el punto donde va —la lupa enseña qué hay debajo— y después arrastrar sus extremos para corregirla.</p>
           <button class="btn btn-pri" id="sc-btn-calib" onclick="scSetMode('ref')" disabled>1 · Marcar referencia (2 puntos)</button>
@@ -1392,35 +1531,36 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
             <div class="fld"><label>¿Cuánto mide en cm?</label><input id="sc-ref-cm-input" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="Ej. 175"></div>
             <div class="ref-known">
               <span class="ref-known-title">Rápidos:</span>
-              <button onclick="$('sc-ref-cm-input').value=200">🚪 200</button>
-              <button onclick="$('sc-ref-cm-input').value=175">🧍 175</button>
-              <button onclick="$('sc-ref-cm-input').value=120">🪟 120</button>
-              <button onclick="$('sc-ref-cm-input').value=145">🚗 145</button>
-              <button onclick="$('sc-ref-cm-input').value=40">⬜ 40</button>
+              <button onclick="$('sc-ref-cm-input').value=200"><span class="emo">🚪</span> 200</button>
+              <button onclick="$('sc-ref-cm-input').value=175"><span class="emo">🧍</span> 175</button>
+              <button onclick="$('sc-ref-cm-input').value=120"><span class="emo">🪟</span> 120</button>
+              <button onclick="$('sc-ref-cm-input').value=145"><span class="emo">🚗</span> 145</button>
+              <button onclick="$('sc-ref-cm-input').value=40"><span class="emo">⬜</span> 40</button>
             </div>
             <button class="btn btn-ok" onclick="scConfirmCalib()" style="margin-top:11px">✓ Confirmar escala</button>
           </div>
           <div id="sc-calib-done" style="display:none">
             <div style="background:var(--green-bg);border:1px solid rgba(21,160,106,.2);border-radius:var(--r-sm);padding:11px 13px;font-size:12.5px;color:var(--green);font-weight:600;margin-bottom:10px">✓ Escala calibrada</div>
-            <button class="btn btn-gho" onclick="scResetCalib()" style="font-size:13px">↺ Re-calibrar</button>
+            <button class="btn btn-gho" onclick="scResetCalib()" style="font-size:13px"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Re-calibrar</button>
           </div>
         </div>
-      </div>
-      <!-- Guías -->
-      <div class="sp-sec">
-        <div class="sp-sec-h"><h3>Guías</h3></div>
+      </details>
+      <!-- Guías. Nace plegada: es un apoyo opcional y desplegada medía más que el
+           panel entero, así que empujaba la lista de medidas fuera de la pantalla. -->
+      <details class="sp-sec sp-fold" id="sc-sec-guias">
+        <summary class="sp-sec-h"><h3>Guías</h3><span class="sp-fold-n" id="sc-guides-n"></span></summary>
         <div class="sp-sec-b">
           <p style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:11px">Marca dónde termina un diseño y empieza otro. Cada guía se mueve arrastrando su <b>pestaña del borde</b>, así el resto de la imagen queda libre para medir.</p>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-gho" id="sc-btn-guide-h" onclick="scAddGuide('h')" disabled style="flex:1">↔ Horizontal</button>
-            <button class="btn btn-gho" id="sc-btn-guide-v" onclick="scAddGuide('v')" disabled style="flex:1">↕ Vertical</button>
+            <button class="btn btn-gho" id="sc-btn-guide-h" onclick="scAddGuide('h')" disabled style="flex:1"><svg class="svgi" aria-hidden="true"><use href="#i-horiz"/></svg> Horizontal</button>
+            <button class="btn btn-gho" id="sc-btn-guide-v" onclick="scAddGuide('v')" disabled style="flex:1"><svg class="svgi" aria-hidden="true"><use href="#i-vert"/></svg> Vertical</button>
           </div>
           <label class="switch" style="margin-top:12px;font-size:12.5px" onclick="toggleSnapGuias(event)"><span class="tg on" id="sc-snap-tg"></span> Pegar los puntos a las guías</label>
           <div class="hintnote" style="margin-top:8px">Al medir, los puntos que caigan cerca de una guía se pegan a ella, así las medidas arrancan justo en el borde que marcaste.</div>
           <div id="sc-guides-list" style="margin-top:10px"></div>
           <button class="sp-gclear" id="sc-guides-clear" onclick="scClearGuides()" style="display:none">Quitar todas las guías</button>
         </div>
-      </div>
+      </details>
       <!-- Medidas -->
       <div style="padding:14px 20px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)">
         <h3 style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--brand);display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:3px;height:14px;background:var(--brand-grd);border-radius:2px;flex-shrink:0"></span>Medidas</h3>
@@ -1429,19 +1569,19 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <div class="sp-mlist" id="sc-medidas-list"></div>
       <div class="sp-actions">
         <button class="sp-addall" id="sc-btn-addall" onclick="scUsarTodas()" disabled>→ Agregar todas las medidas como partidas</button>
-        <button class="sp-ai" id="sc-btn-ia" onclick="scCotizarConIA()" disabled>✨ Cotizar estas medidas con IA</button>
+        <button class="sp-ai" id="sc-btn-ia" onclick="scCotizarConIA()" disabled><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar estas medidas con IA</button>
         <div class="sp-ai-note" id="sc-ia-note">La IA lee la foto con tus cotas y devuelve las partidas ya con material, tipo y número de letras.</div>
         <div class="sp-addall-note" id="sc-addall-note" style="display:none"></div>
         <button class="sp-back-m" onclick="cerrarScaler()">← Volver al cotizador</button>
       </div>
       <!-- Exportar -->
-      <div class="sp-sec">
-        <div class="sp-sec-h"><h3>Exportar</h3></div>
+      <details class="sp-sec sp-fold" id="sc-sec-export">
+        <summary class="sp-sec-h"><h3>Exportar</h3></summary>
         <div class="sp-sec-b">
-          <button class="btn btn-gho" id="sc-btn-export" onclick="scExportImg()" disabled>🖼️ Descargar imagen con cotas</button>
+          <button class="btn btn-gho" id="sc-btn-export" onclick="scExportImg()" disabled><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg> Descargar imagen con cotas</button>
           <button class="btn btn-gho" onclick="cerrarScaler()" style="margin-top:9px">← Volver al cotizador</button>
         </div>
-      </div>
+      </details>
     </aside>
   </div>
 </div>
@@ -1452,6 +1592,9 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 <div class="mbar" id="mbar"></div>
 
 <script>
+/* Icono en línea para el HTML que se arma desde JS. Mismo sprite que el markup. */
+function ico(n,cls){return '<svg class="svgi'+(cls?' '+cls:'')+'" aria-hidden="true"><use href="#'+n+'"/></svg>';}
+
 /* ===================== Catálogo de precios ===================== */
 const MATERIALES = [
   {key:'al-paint', label:'Aluminio Blanco/Negro/Pintado', precio:30, ilum:'LED posterior (cálida/fría)'},
@@ -1548,6 +1691,15 @@ function ajustarTopbarMovil(){
   tb.style.top=(3-Math.round(marca.offsetHeight+hueco))+'px';
 }
 window.addEventListener('resize',ajustarTopbarMovil);
+/* Las cotas del escalador se miden y se dibujan en el lienzo con Inter. Si la fuente
+   llega después del primer trazado, el hueco de cada etiqueta queda medido con la
+   fuente de reserva. Al terminar de cargar se repinta y se reajusta la barra. */
+if(document.fonts&&document.fonts.ready){
+  document.fonts.ready.then(()=>{
+    ajustarTopbarMovil();
+    if(typeof SC!=='undefined'&&SC.img){scFitCanvas();scRender();}
+  }).catch(()=>{});
+}
 window.addEventListener('orientationchange',()=>setTimeout(ajustarTopbarMovil,180));
 function irAResumen(){ irA('sidebox'); }
 
@@ -1869,7 +2021,7 @@ function renderItems(){
   if(Q.editMode&&Q.estado==='autorizada'){
     const banner=document.createElement('div');
     banner.className='edit-mode-banner';
-    banner.innerHTML='✏️ <span>Modo edición activo — modifica materiales, descripciones o usa <b>👁</b> para ocultar partidas del PDF sin borrarlas.</span>';
+    banner.innerHTML=ico('i-lapiz')+' <span>Modo edición activo — modifica materiales, descripciones o usa '+ico('i-ojo')+' para ocultar partidas del PDF sin borrarlas.</span>';
     c.appendChild(banner);
   }
   if(Q.items.length===0){ const empty=document.createElement('div'); empty.className='empty'; empty.textContent='Aún no hay partidas. Agrega letras 3D, un recorte de acrílico, un bastidor, una caja de luz o una partida manual.'; c.appendChild(empty); }
@@ -1884,7 +2036,7 @@ function renderItems(){
       <div class="partida-top">
         <div class="pnum">
           <button class="pfold" onclick="togglePartida(${it.id})" aria-expanded="${plegada?'false':'true'}" aria-controls="pbody-${it.id}" title="${plegada?'Abrir la partida':'Plegar la partida'}">▾</button>
-          ${!locked()?'<span class="drag-handle" title="Arrastra para reordenar">⠿</span>':''}
+          ${!locked()?'<span class="drag-handle" title="Arrastra para reordenar" aria-hidden="true">'+ico('i-asa')+'</span>':''}
           <div class="n">${i+1}</div>
         </div>
         <span class="ptipo">${TIPO_NOMBRE[it.tipo]||''}</span>
@@ -1892,8 +2044,8 @@ function renderItems(){
           ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button class="${it.tipo===t?'on':''}" ${locked()?'disabled':''} onclick="setTipo(${it.id},'${t}')"><span class="lg">${TIPO_NOMBRE[t]}</span><span class="sm">${TIPO_CORTO[t]}</span></button>`).join('')}
         </div>
         <div class="ptop-actions">
-          ${!locked()?`<button class="dup" onclick="dupItem(${it.id})" title="Duplicar partida">⧉</button>`:''}
-          <button class="pdf-vis${pdfVis?'':' off'}" onclick="setShowInPdf(${it.id},${!pdfVis})" title="${pdfVis?'Ocultar del PDF — la partida sigue sumando al total':'Mostrar en PDF'}">👁</button>
+          ${!locked()?`<button class="dup" onclick="dupItem(${it.id})" title="Duplicar partida" aria-label="Duplicar partida">${ico('i-copiar')}</button>`:''}
+          <button class="pdf-vis${pdfVis?'':' off'}" onclick="setShowInPdf(${it.id},${!pdfVis})" title="${pdfVis?'Ocultar del PDF — la partida sigue sumando al total':'Mostrar en PDF'}" aria-label="${pdfVis?'Ocultar del PDF':'Mostrar en PDF'}">${ico('i-ojo')}</button>
           <button class="del" ${locked()?'disabled':''} onclick="delItem(${it.id})" title="Eliminar">×</button>
         </div>
       </div>
@@ -2088,7 +2240,7 @@ function faltantesDe(it){ return resumenPartida(it).filter(f=>f.estado==='falta'
 
 function descFld(it){
   const dis=locked()?'disabled':'';
-  const tag=it.descAi?'<span class="ai-tag">✨ IA</span>':'';
+  const tag=it.descAi?'<span class="ai-tag">'+ico('i-ia')+' IA</span>':'';
   return `<div class="fld"><label>Descripción · qué se cotiza ${tag}</label><input value="${esc(it.desc)}" placeholder="Ej. Letrero de fachada «FARMACIA», acrílico blanco" ${dis} oninput="typeItem(${it.id},'desc',this.value)"></div>`;
 }
 
@@ -2104,12 +2256,12 @@ function bodyFor(it){
     const matTitulo='Material / acabado'+(heredado?' <span class="heredado">↩ como la anterior</span>':'');
     const avisos=`${heredado?'<div class="hintnote" style="background:#fff8e1;border-left:3px solid var(--amber);color:#7a5800;margin-bottom:5px">↩ Se puso solo el último material que elegiste. Si este trabajo va con otro, tócalo.</div>':''}
       <div class="hintnote">Iluminación sugerida: ${mat?mat.ilum:'—'}</div>
-      ${(it.material==='acr-vol'||it.material==='acr-vinil')&&!it.luz?`<div class="hintnote" style="background:#fff8e1;border-left:3px solid var(--amber);color:#7a5800;margin-top:5px">⚠️ El acrílico es valioso principalmente por el paso de luz. Sin iluminación, considera cambiar a <b>Aluminio</b> — mismo resultado visual, menor costo.</div>`:''}
-      ${it.material==='al-paint'&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green);color:#1c6e3d;margin-top:5px">💡 Con aluminio e iluminación, la luz va por detrás (retroiluminación). Para luz que pase a través de las caras, considera <b>Acrílico + Aluminio</b>.</div>`:''}
-      ${it.material==='acero'&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green);color:#1c6e3d;margin-top:5px">💡 El acero inoxidable es opaco: la luz sale por detrás (retroiluminación) y el canto queda con acabado espejo. Para luz que pase a través de las caras, considera <b>Acrílico + Aluminio</b>.</div>`:''}`;
+      ${(it.material==='acr-vol'||it.material==='acr-vinil')&&!it.luz?`<div class="hintnote" style="background:#fff8e1;border-left:3px solid var(--amber);color:#7a5800;margin-top:5px"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> El acrílico es valioso principalmente por el paso de luz. Sin iluminación, considera cambiar a <b>Aluminio</b> — mismo resultado visual, menor costo.</div>`:''}
+      ${it.material==='al-paint'&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green);color:#1c6e3d;margin-top:5px"><span class="emo">💡</span> Con aluminio e iluminación, la luz va por detrás (retroiluminación). Para luz que pase a través de las caras, considera <b>Acrílico + Aluminio</b>.</div>`:''}
+      ${it.material==='acero'&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green);color:#1c6e3d;margin-top:5px"><span class="emo">💡</span> El acero inoxidable es opaco: la luz sale por detrás (retroiluminación) y el canto queda con acabado espejo. Para luz que pase a través de las caras, considera <b>Acrílico + Aluminio</b>.</div>`:''}`;
     const tono=(it.ilumTipo||'fria')==='calida';
     const luzChips=it.luz
-      ? chip(tono,`setItem(${it.id},'ilumTipo','calida')`,'🌅 Cálida','3000K')+chip(!tono,`setItem(${it.id},'ilumTipo','fria')`,'❄️ Fría','6500K')
+      ? chip(tono,`setItem(${it.id},'ilumTipo','calida')`,'<span class="emo">🌅</span> Cálida','3000K')+chip(!tono,`setItem(${it.id},'ilumTipo','fria')`,'<span class="emo">❄️</span> Fría','6500K')
       : '';
     return `
       ${descFld(it)}
@@ -2178,7 +2330,7 @@ function bodyFor(it){
   }
   // manual
   return `
-    <div class="fld"><label>Descripción ${it.descAi?'<span class="ai-tag">✨ IA</span>':''}</label><input value="${esc(it.desc)}" placeholder="Ej. Rotulación vehicular, instalación, viáticos…" ${dis} oninput="typeItem(${it.id},'desc',this.value)"></div>
+    <div class="fld"><label>Descripción ${it.descAi?'<span class="ai-tag">'+ico('i-ia')+' IA</span>':''}</label><input value="${esc(it.desc)}" placeholder="Ej. Rotulación vehicular, instalación, viáticos…" ${dis} oninput="typeItem(${it.id},'desc',this.value)"></div>
     <div class="grid2">
       <div class="fld"><label>Piezas</label><input type="number" inputmode="decimal" min="1" value="${it.pz||''}" ${dis} oninput="typeItem(${it.id},'pz',+this.value)"></div>
       <div class="fld"><label>Precio unitario</label><div class="inp-money"><input type="number" inputmode="decimal" min="0" value="${it.pu||''}" ${dis} oninput="typeItem(${it.id},'pu',+this.value)"></div></div>
@@ -2217,10 +2369,10 @@ function renderAiPreview(){
   const isImg=f.type && f.type.indexOf('image/')===0;
   const big=isImg
     ? `<img class="ai-prev-img" src="${f.url}" alt="Archivo analizado" onclick="openAiFile()">`
-    : `<div class="ai-prev-pdf" onclick="openAiFile()">📄 Ver PDF analizado a pantalla completa<br><span style="font-weight:500;font-size:11px">${esc(f.name||'archivo')}</span></div>`;
+    : `<div class="ai-prev-pdf" onclick="openAiFile()"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> Ver PDF analizado a pantalla completa<br><span style="font-weight:500;font-size:11px">${esc(f.name||'archivo')}</span></div>`;
   el.innerHTML=`<div class="ai-prev-big">
     <div class="ai-prev-head">
-      <span class="ttl">✨ Archivo analizado por IA · revisa que ningún elemento haya quedado fuera antes de autorizar</span>
+      <span class="ttl"><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Archivo analizado por IA · revisa que ningún elemento haya quedado fuera antes de autorizar</span>
       <button class="x" onclick="clearAiFile()" title="Quitar vista previa">×</button>
     </div>
     ${big}
@@ -2371,16 +2523,16 @@ function renderAuth(){
          siempre: la cola de autorización vive en el almacenamiento de ESTE teléfono,
          así que el flujo de dos personas solo funciona si las dos comparten aparato.
          Solicitar a alguien más sigue disponible, un renglón abajo. */
-      body=`<button class="btn btn-pri" ${hayPartidas?'':'disabled'} onclick="autorizarYoMismo()">⚡ Autorizar yo mismo</button>
+      body=`<button class="btn btn-pri" ${hayPartidas?'':'disabled'} onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizar yo mismo</button>
             <button class="btn btn-gho" ${hayPartidas?'':'disabled'} onclick="solicitar()">Solicitar autorización a alguien más</button>
             ${hayPartidas?'':'<p class="mini">Agrega partidas con precio para continuar.</p>'}
-            <button class="btn btn-gho" onclick="pedirConfNueva()">🗑️ Vaciar y empezar cotización nueva</button>`;
+            <button class="btn btn-gho" onclick="pedirConfNueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Vaciar y empezar cotización nueva</button>`;
     }
     else if(Q.estado==='pendiente'){
       body=_selfAuth
         ? `<div class="auth-divider">Autorizando tú mismo</div>${authRevisionHTML(true)}`
         : `<div class="authnote">Esperando autorización del precio. Cambia el rol a <b>Autorizador</b> (arriba a la derecha) para aprobar o rechazar.</div>
-           <button class="btn btn-pri" onclick="autorizarYoMismo()">⚡ Autorizarla yo mismo</button>
+           <button class="btn btn-pri" onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizarla yo mismo</button>
            <button class="btn btn-gho" onclick="reabrir()">← Editar (cancela la solicitud)</button>`;
     }
     else if(Q.estado==='autorizada'){
@@ -2395,27 +2547,27 @@ function renderAuth(){
       if(Q.editMode){
         body=`${authNote}
               ${descHTML}
-              <div class="authnote" style="border-color:var(--amber);background:var(--amber-bg);color:var(--amber);margin-top:8px">✏️ Modo edición activo — usa <b>👁</b> para mostrar u ocultar partidas del PDF.</div>
-              <button class="btn btn-ok" onclick="guardarCambiosEdicion()">💾 Guardar y salir de edición</button>
-              <button class="btn btn-pri" onclick="generarPDF()">📄 Generar PDF</button>
-              <button class="btn btn-gho" onclick="copiarParaCanva()">📋 Copiar datos para Canva</button>
-              <button class="btn btn-gho" onclick="copiarParaGemini()">🖼️ Prompt para imagen (Gemini)</button>`;
+              <div class="authnote" style="border-color:var(--amber);background:var(--amber-bg);color:var(--amber);margin-top:8px"><svg class="svgi" aria-hidden="true"><use href="#i-lapiz"/></svg> Modo edición activo — usa <svg class="svgi" aria-hidden="true"><use href="#i-ojo"/></svg> para mostrar u ocultar partidas del PDF.</div>
+              <button class="btn btn-ok" onclick="guardarCambiosEdicion()"><svg class="svgi" aria-hidden="true"><use href="#i-guardar"/></svg> Guardar y salir de edición</button>
+              <button class="btn btn-pri" onclick="generarPDF()"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> Generar PDF</button>
+              <button class="btn btn-gho" onclick="copiarParaCanva()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar datos para Canva</button>
+              <button class="btn btn-gho" onclick="copiarParaGemini()"><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg> Prompt para imagen (Gemini)</button>`;
       } else {
         body=`${authNote}
               ${descHTML}
-              <button class="btn btn-pri" onclick="generarPDF()">📄 Generar PDF</button>
-              <button class="btn btn-wa" onclick="enviarPorWhatsApp()">💬 Enviar por WhatsApp</button>
-              <button class="btn btn-ok" onclick="abrirRegistrarVenta()">📊 Registrar venta</button>
-              <button class="btn btn-gho" onclick="toggleEditMode()">✏️ Editar partidas</button>
-              <button class="btn btn-gho" onclick="copiarParaCanva()">📋 Copiar datos para Canva</button>
-              <button class="btn btn-gho" onclick="copiarParaGemini()">🖼️ Prompt para imagen (Gemini)</button>
+              <button class="btn btn-pri" onclick="generarPDF()"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> Generar PDF</button>
+              <button class="btn btn-wa" onclick="enviarPorWhatsApp()"><svg class="svgi" aria-hidden="true"><use href="#i-chat"/></svg> Enviar por WhatsApp</button>
+              <button class="btn btn-ok" onclick="abrirRegistrarVenta()"><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg> Registrar venta</button>
+              <button class="btn btn-gho" onclick="toggleEditMode()"><svg class="svgi" aria-hidden="true"><use href="#i-lapiz"/></svg> Editar partidas</button>
+              <button class="btn btn-gho" onclick="copiarParaCanva()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar datos para Canva</button>
+              <button class="btn btn-gho" onclick="copiarParaGemini()"><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg> Prompt para imagen (Gemini)</button>
               <button class="btn btn-gho" onclick="pedirConfNueva()">Nueva cotización</button>`;
       }
     }
     else if(Q.estado==='rechazada'){
       body=`<div class="authnote">Rechazada por <b>${esc(Q.autorizador)||'—'}</b>.${Q.nota?'<br>Motivo: '+esc(Q.nota):''}</div>
             <button class="btn btn-gho" onclick="reabrir()">← Editar y volver a enviar</button>
-            <button class="btn btn-gho" onclick="pedirConfNueva()">🗑️ Vaciar y empezar cotización nueva</button>`;
+            <button class="btn btn-gho" onclick="pedirConfNueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Vaciar y empezar cotización nueva</button>`;
     }
   }
 
@@ -2651,7 +2803,7 @@ function pedirConfNueva(){
   box.innerHTML=`<div class="statusrow"><span class="lab">Autorización</span>${badge}</div>
     <div style="background:var(--red-bg);border:1.5px solid rgba(216,69,63,.3);border-radius:var(--r-sm);padding:13px">
       <p style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:11px">¿Borrar toda la cotización y empezar de nuevo? No se puede deshacer.</p>
-      <button class="btn btn-dgr" onclick="nueva()">🗑️ Sí, borrar todo</button>
+      <button class="btn btn-dgr" onclick="nueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Sí, borrar todo</button>
       <button class="btn btn-gho" style="margin-top:9px" onclick="renderAuth()">← Cancelar</button>
     </div>`;
 }
@@ -2719,13 +2871,13 @@ function renderMobileBar(){
       : `<button class="mbar-btn gho" onclick="reabrir()">← Editar</button>`;
   } else if(Q.estado==='autorizada'){
     btn=Q.editMode
-      ? `<button class="mbar-btn ok" onclick="guardarCambiosEdicion()">💾 Guardar</button>`
-      : `<button class="mbar-btn" onclick="generarPDF()">📄 Generar PDF</button>`;
+      ? `<button class="mbar-btn ok" onclick="guardarCambiosEdicion()"><svg class="svgi" aria-hidden="true"><use href="#i-guardar"/></svg> Guardar</button>`
+      : `<button class="mbar-btn" onclick="generarPDF()"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> Generar PDF</button>`;
   } else if(Q.estado==='rechazada'){
     btn=`<button class="mbar-btn gho" onclick="reabrir()">← Editar</button>`;
   } else {
     const listo=Q.items.length>0&&totals().sub>0;
-    btn=`<button class="mbar-btn" ${listo?'':'disabled'} onclick="autorizarYoMismo()">⚡ Autorizar yo mismo</button>`;
+    btn=`<button class="mbar-btn" ${listo?'':'disabled'} onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizar yo mismo</button>`;
   }
   bar.innerHTML=`<button class="mbar-tot" onclick="irAResumen()" title="Ir al resumen">
       <span class="mbar-lab">${lab}<span class="chev">▾</span></span>
@@ -2951,7 +3103,7 @@ function aiRenderKey(p){
   /* Se numeran para poder hablar de ellas: la barra de estado dice «key 2 de 3»
      mientras analiza, y así se sabe cuál es la que se quedó sin cuota. */
   cont.innerHTML=ks.map((k,i)=>
-    `<div class="key-saved"><span class="key-mask">🔒 ${ks.length>1?'Key '+(i+1)+' · ':''}${esc(keyMask(k))}</span>`+
+    `<div class="key-saved"><span class="key-mask">${ico('i-candado')} ${ks.length>1?'Key '+(i+1)+' · ':''}${esc(keyMask(k))}</span>`+
     `<button type="button" class="key-btn del" onclick="aiDelKey('${p}',${i})">Borrar</button></div>`).join('');
   const inp=$('ai-key-'+p);
   if(inp) inp.placeholder=ks.length
@@ -2967,9 +3119,9 @@ function aiPintarRespaldo(){
   const total=det.reduce((a,x)=>a+x.n,0);
   const lista=det.map(x=>`${x.n} de ${AI_NOMBRE[x.p]}`).join(', ');
   el.innerHTML=
-    total>1 ? `🔁 <b>${total} APIs cargadas</b> (${lista}). Se prueban por turnos: si una está saturada o se quedó sin cuota del día, la app pasa sola a la siguiente y la cotización no se detiene.`
-    : total ? `🔁 Hay <b>1 API cargada</b> (${lista}). Cuando se satura, la app reintenta sola varias veces — pero no tiene a dónde caerse. Agrega otra key aquí, de este proveedor o de otro, y deja de depender de una sola.`
-    : `🔁 Puedes cargar <b>varias APIs</b>, del mismo proveedor o de distintos: se prueban por turnos y la cotización deja de depender de que una tenga cupo.`;
+    total>1 ? `<span class="emo">🔁</span> <b>${total} APIs cargadas</b> (${lista}). Se prueban por turnos: si una está saturada o se quedó sin cuota del día, la app pasa sola a la siguiente y la cotización no se detiene.`
+    : total ? `<span class="emo">🔁</span> Hay <b>1 API cargada</b> (${lista}). Cuando se satura, la app reintenta sola varias veces — pero no tiene a dónde caerse. Agrega otra key aquí, de este proveedor o de otro, y deja de depender de una sola.`
+    : `<span class="emo">🔁</span> Puedes cargar <b>varias APIs</b>, del mismo proveedor o de distintos: se prueban por turnos y la cotización deja de depender de que una tenga cupo.`;
 }
 function aiEditKey(p){
   const inp=$('ai-key-'+p); if(!inp) return;
@@ -3862,10 +4014,10 @@ function mostrarEnlacePDF(url){
   ov.id='pdf-fallback';
   ov.style.cssText='position:fixed;inset:0;z-index:120;background:rgba(12,15,38,.7);display:flex;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)';
   ov.innerHTML='<div style="background:#fff;border-radius:18px;max-width:360px;width:100%;padding:24px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.3)">'
-    +'<div style="font-size:40px;margin-bottom:8px">📄</div>'
+    +'<div style="font-size:40px;margin-bottom:8px">'+ico('i-doc')+'</div>'
     +'<div style="font-size:15px;font-weight:800;color:#161c2e;margin-bottom:6px">Tu PDF está listo</div>'
     +'<div style="font-size:12.5px;color:#7f88a0;margin-bottom:16px;line-height:1.5">Ábrelo y usa <b>Compartir → Imprimir / Guardar en PDF</b>.</div>'
-    +'<a href="'+url+'" target="_blank" rel="noopener" onclick="var p=document.getElementById(\'pdf-fallback\');if(p)p.remove();" style="display:block;padding:14px;border-radius:11px;background:linear-gradient(135deg,#3a4ad8,#5c6df0);color:#fff;font-size:14px;font-weight:700;text-decoration:none;margin-bottom:9px">📄 Abrir PDF</a>'
+    +'<a href="'+url+'" target="_blank" rel="noopener" onclick="var p=document.getElementById(\'pdf-fallback\');if(p)p.remove();" style="display:block;padding:14px;border-radius:11px;background:linear-gradient(135deg,#3a4ad8,#5c6df0);color:#fff;font-size:14px;font-weight:700;text-decoration:none;margin-bottom:9px">'+ico('i-doc')+' Abrir PDF</a>'
     +'<button onclick="var p=document.getElementById(\'pdf-fallback\');if(p)p.remove();" style="width:100%;padding:12px;border-radius:11px;background:#fff;border:1.5px solid #e0e4f0;color:#3a4ad8;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Cerrar</button>'
     +'</div>';
   ov.addEventListener('click',function(e){ if(e.target===ov) ov.remove(); });
@@ -3959,7 +4111,7 @@ function pintarHistorial(){
       const isImg=e.aiFile&&e.aiFile.type&&e.aiFile.type.indexOf('image/')===0&&e.aiFile.url;
       const imgHTML=isImg
         ? `<img class="hentry-img" src="${e.aiFile.url}" onclick="openHistImg('${esc(e.folio)}')" title="Ver imagen completa" alt="Referencia">`
-        : `<div class="hentry-img-ph">${e.aiFile?'📄':'🖼️'}</div>`;
+        : `<div class="hentry-img-ph">${e.aiFile?ico('i-doc'):ico('i-imagen')}</div>`;
       const rows=e.items.map((it,i)=>{
         const ia=(e.itemsAuth&&e.itemsAuth[it.id]!==undefined)?e.itemsAuth[it.id]:lineTotal(it);
         return `<tr><td>${i+1}</td><td>${esc(dsc(it))}</td><td>${money(ia)}</td></tr>`;
@@ -3972,13 +4124,13 @@ function pintarHistorial(){
           <div class="hentry-meta">
             <div class="hentry-folio">${esc(e.folio)}</div>
             <div class="hentry-name">${esc(e.proy||e.cliente||'Sin nombre')}</div>
-            <div class="hentry-sub">${esc(e.cliente||'')+(e.tel?' · '+esc(e.tel):'')+(e.dirRaw?'<br>📍 '+esc(e.dirRaw):'')}</div>
+            <div class="hentry-sub">${esc(e.cliente||'')+(e.tel?' · '+esc(e.tel):'')+(e.dirRaw?'<br>'+ico('i-pin')+' '+esc(e.dirRaw):'')}</div>
             <div class="hentry-auth">✓ ${esc(e.autorizador||'—')} · ${esc(e.fechaAuth||'')}</div>
           </div>
           <div class="hentry-acts">
-            <button class="hentry-open" onclick="reabrirDeHistorial('${esc(e.folio)}')" title="Cargarla en el cotizador para volver a generar su PDF">↻ Abrir</button>
-            <button class="hentry-open" onclick="usarComoBase('${esc(e.folio)}')" title="Empezar una cotización nueva con estas mismas partidas">⧉ Usar como base</button>
-            <button class="hentry-del" onclick="borrarDeHistorial('${esc(e.folio)}')" title="Eliminar">🗑</button>
+            <button class="hentry-open" onclick="reabrirDeHistorial('${esc(e.folio)}')" title="Cargarla en el cotizador para volver a generar su PDF"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Abrir</button>
+            <button class="hentry-open" onclick="usarComoBase('${esc(e.folio)}')" title="Empezar una cotización nueva con estas mismas partidas"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Usar como base</button>
+            <button class="hentry-del" onclick="borrarDeHistorial('${esc(e.folio)}')" title="Eliminar" aria-label="Eliminar cotización">${ico('i-basura')}</button>
           </div>
         </div>
         <table class="htable">${rows}</table>
@@ -3986,7 +4138,7 @@ function pintarHistorial(){
           <span>Total autorizado</span>
           <span style="color:var(--green)">${money(pFin)}${ajuste>0.01?`&nbsp;<small style="font-weight:500;color:var(--muted);font-size:11px">(ahorro ${money(ajuste)})</small>`:''}${ajuste<-0.01?`&nbsp;<small style="font-weight:500;color:var(--amber);font-size:11px">(aumento ${money(-ajuste)})</small>`:''}</span>
         </div>
-        ${e.nota?`<div style="font-size:11.5px;color:var(--muted);margin-top:7px;padding-top:7px;border-top:1px solid var(--line)">💬 ${esc(e.nota)}</div>`:''}
+        ${e.nota?`<div style="font-size:11.5px;color:var(--muted);margin-top:7px;padding-top:7px;border-top:1px solid var(--line)">${ico('i-chat')} ${esc(e.nota)}</div>`:''}
       </div>`;
     }).join('');
   }
@@ -4351,7 +4503,7 @@ function abrirScaler(){
   // regresar es el botón "atrás", y sin esto se salía de la cotización entera.
   if(!SC.hist){ try{history.pushState({sc:1},'');SC.hist=true;}catch(_){} }
   if(SC.img){setTimeout(()=>{scFitCanvas();scRender();},60);}
-  scUpdateList();
+  scUpdateList();scAjustarToast();
 }
 function scOcultarScaler(){
   $('scalermodal').classList.remove('show');
@@ -4439,7 +4591,14 @@ async function scLoadPDF(f){
    Las coordenadas "lógicas" (la foto ajustada, cvsW × cvsH) no cambian, así que la
    lógica de medición —normalización, escala, calibración— sigue igual. */
 function scDPR(){return Math.min(3,Math.max(1,window.devicePixelRatio||1));}
-function scIsMobile(){return window.matchMedia('(max-width:760px)').matches;}
+/* «Móvil» aquí quiere decir «se toca con el dedo», no «pantalla angosta»: de eso
+   dependen el tamaño de las pestañas de guía y no robarle el foco al campo de cm
+   cuando el teclado taparía el botón de confirmar. Con el corte en 760 px el Fold 6
+   abierto (832 px) pasaba por escritorio y le tocaban pestañas de 19 px. */
+function scIsMobile(){
+  return window.matchMedia('(max-width:1000px)').matches
+      || window.matchMedia('(pointer:coarse)').matches;
+}
 function scPixelBudget(){
   // Tope de píxeles del lienzo. Pasado cierto tamaño el navegador deja de acelerarlo
   // por GPU y el redibujo al arrastrar se vuelve lento; además iOS limita el área total.
@@ -4518,16 +4677,27 @@ function scDrawPhoto(ctx,cx,cy,k,dpr,w,h,directo){
   const ex=L.c.width/(L.rx1-L.rx0),ey=L.c.height/(L.ry1-L.ry0);
   ctx.drawImage(L.c,(l-L.rx0)*ex,(t-L.ry0)*ey,(r-l)*ex,(b-t)*ey,l,t,r-l,b-t);
 }
+let _scFitIntentos=0;
 function scFitCanvas(){
   const area=$('sp-canvas-area'),cvs=$('scalerCanvas');
   const vw=area.clientWidth,vh=area.clientHeight;
   const pad=scIsMobile()?12:32;
   const maxW=vw-pad,maxH=vh-pad;
-  // El modal puede no tener layout todavía (recién mostrado): reintentar
+  // El modal puede no tener layout todavía (recién mostrado): reintentar.
+  // Acotado: un SVG sin width/height propios da naturalWidth 0 y esto reintentaba cada
+  // 80 ms para siempre, con el lienzo en blanco y sin decir nunca qué pasaba.
   if(!SC.img||!(maxW>0)||!(maxH>0)||!(SC.imgW>0)||!(SC.imgH>0)){
-    if(SC.img)setTimeout(()=>{if(SC.img&&$('scalermodal').classList.contains('show')){scFitCanvas();scRender();}},80);
+    if(SC.img&&++_scFitIntentos<=40){
+      setTimeout(()=>{if(SC.img&&$('scalermodal').classList.contains('show')){scFitCanvas();scRender();}},80);
+    }else if(SC.img){
+      SC.img=null;_scFitIntentos=0;
+      $('sp-overlay').classList.remove('hide');
+      scEnableTools(false);
+      toast('No se pudo leer el tamaño de la imagen — si es un SVG, ábrelo con un ancho y un alto definidos','err',5200);
+    }
     return;
   }
+  _scFitIntentos=0;
   const iA=SC.imgW/SC.imgH;
   let w=maxW,h=maxW/iA;
   if(h>maxH){h=maxH;w=h*iA;}
@@ -4552,12 +4722,15 @@ function scZoomBy(f){
   scRender();
 }
 function scGestureStart(e){
+  // En iOS el pellizco sobre el lienzo puede acabar ampliando la interfaz entera si no
+  // se detiene el evento aquí.
+  if(e&&e.cancelable)try{e.preventDefault();}catch(_){}
   // Si se estaba moviendo un extremo o una guía, se cierra esa acción: al soltar el
   // pellizco ya no debe seguir pegada al dedo.
   if(SC.dragH)scEndHandle();
   SC.draggingGuide=null;
   SC.gesture=true;SC.down=false;SC.sp=null;SC.cp=null;scHideLoupe();scRender();
-  const t=e.touches;
+  const t=scTT(e);if(!t||t.length<2)return;
   SC._gd=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY)||1;
   SC._gm={x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2};
   SC._gz=SC.z;SC._gtx=SC.tx;SC._gty=SC.ty;
@@ -4565,7 +4738,7 @@ function scGestureStart(e){
   SC._gS0={x:a.left+a.width/2,y:a.top+a.height/2};
 }
 function scGestureMove(e){
-  const t=e.touches;if(!t||t.length<2)return;
+  const t=scTT(e);if(!t||t.length<2)return;
   e.preventDefault();
   const d=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
   const m={x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2};
@@ -4593,9 +4766,9 @@ function scLoupePt(){
   return SC.cp||SC.sp;
 }
 function scLoupe(e){
-  if(!e.touches||!e.touches.length)return;
+  const tt=scTT(e);if(!tt)return;
   const src=scLoupePt();if(!src)return;
-  const lp=$('sc-loupe'),size=SC_LOUPE,mag=2.8,t=e.touches[0];
+  const lp=$('sc-loupe'),size=SC_LOUPE,mag=2.8,t=tt[0];
   let lx=t.clientX-size/2,ly=t.clientY-size-30;
   if(ly<8)ly=t.clientY+34;
   lx=Math.max(8,Math.min(window.innerWidth-size-8,lx));
@@ -4836,7 +5009,7 @@ function scDimAnnot(ctx,x1,y1,x2,y2,opts){
   ln(x2+nx*gap,y2+ny*gap,bx+nx*over,by+ny*over);
   ctx.setLineDash([]);
   // El texto va dentro: se mide primero para saber cuánto hueco dejarle a la línea
-  const fs=10.5*s,fuente='700 '+fs+'px Inter,Arial,sans-serif';
+  const fs=12*s,fuente='700 '+fs+'px Inter,Arial,sans-serif';
   ctx.font=fuente;
   const hueco=text?ctx.measureText(text).width/2+3.5*s:0;
   const dentro=!!text&&hueco<len/2-aSize-2*s;
@@ -4879,12 +5052,19 @@ function scDrawDims(ctx,w,h,opt){
   });
 }
 
+/* Cuántos dedos hay SOBRE EL LIENZO. `e.touches` cuenta los de toda la pantalla, así
+   que un pulgar o la palma apoyados en el borde —lo normal al sostener un teléfono
+   grande, y casi inevitable en el Fold abierto— convertían cada toque del lienzo en un
+   pellizco: dejaba de colocar puntos y la foto se movía sola. `targetTouches` solo
+   cuenta los del elemento que recibe el evento, que es el lienzo. */
+function scNT(e){return (e&&e.targetTouches)?e.targetTouches.length:0;}
+function scTT(e){return (e&&e.targetTouches&&e.targetTouches.length)?e.targetTouches:null;}
 /* Punto del evento en píxeles de pantalla, relativo al lienzo */
 function scGetScreenXY(e){
   const rect=$('scalerCanvas').getBoundingClientRect();
+  const t=scTT(e)||((e.changedTouches&&e.changedTouches.length)?e.changedTouches:null);
   let cx,cy;
-  if(e.touches&&e.touches.length){cx=e.touches[0].clientX;cy=e.touches[0].clientY;}
-  else if(e.changedTouches&&e.changedTouches.length){cx=e.changedTouches[0].clientX;cy=e.changedTouches[0].clientY;}
+  if(t){cx=t[0].clientX;cy=t[0].clientY;}
   else{cx=e.clientX;cy=e.clientY;}
   return{x:cx-rect.left,y:cy-rect.top};
 }
@@ -5050,7 +5230,7 @@ function scGuideDragStart(g,e){
   scRender();
 }
 function scDown(e){
-  if(e.touches&&e.touches.length>=2){scGestureStart(e);return;}
+  if(scNT(e)>=2){scGestureStart(e);return;}
   if(SC.gesture)return;
   const pt=scGetXY(e),touch=!!(e.touches&&e.touches.length);
   // La pestaña de una guía gana al resto: es un objetivo pequeño y del borde, no estorba
@@ -5117,13 +5297,13 @@ function scUp(e){
   // Toque cancelado por el sistema (una notificación, el gesto de "atrás"): no se
   // coloca ningún punto, solo se suelta lo que se estuviera moviendo.
   if(e&&e.type==='touchcancel'){
-    if(!e.touches||!e.touches.length)SC.gesture=false;
+    if(scNT(e)===0)SC.gesture=false;
     if(SC.dragH)scEndHandle();
     SC.draggingGuide=null;SC.down=false;SC.sp=null;SC.cp=null;SC.downPt=null;SC.moved=false;
     scHideLoupe();scRender();return;
   }
   // Al soltar el pellizco se rehace el lienzo con la resolución que toca al nuevo zoom
-  if(SC.gesture){if(!e.touches||e.touches.length===0)SC.gesture=false;scHideLoupe();return;}
+  if(SC.gesture){if(scNT(e)===0)SC.gesture=false;scHideLoupe();return;}
   if(SC.dragH){scHideLoupe();SC.cp=null;scEndHandle();return;}
   if(SC.draggingGuide)return; // lo lleva el arrastre registrado en la ventana
   scHideLoupe();
@@ -5207,6 +5387,9 @@ function scConfirmCalib(){
   $('sc-btn-calib').style.display='none';
   $('sc-calib-badge').className='sp-calib-badge ok';
   $('sc-calib-txt').textContent='Escala calibrada';
+  // Con la escala puesta, la sección de calibración ya no es el trabajo: se plega para
+  // que la lista de medidas —que es a lo que se viene— quede arriba y a la vista.
+  const secC=$('sc-sec-calib'); if(secC) secC.open=false;
   scSetMode('measure');
   scUpdateList();scUpdateGuideList();
   toast(SC.items.length?'Escala calibrada — medidas actualizadas':'Escala calibrada — traza líneas para medir','ok');
@@ -5221,6 +5404,7 @@ function scResetCalib(full=true){
   $('sc-ref-cm-input').value='';
   $('sc-calib-badge').className='sp-calib-badge';
   $('sc-calib-txt').textContent='Sin calibrar';
+  const secC=$('sc-sec-calib'); if(secC) secC.open=true;
   if(full){scSetMode('ref');scRender();}
 }
 /* Texto de ayuda del modo actual, para volver a él al terminar o cancelar una línea */
@@ -5302,12 +5486,14 @@ function scUpdateGuideList(){
   const list=$('sc-guides-list');if(!list)return;
   const clear=$('sc-guides-clear');
   if(clear)clear.style.display=SC.guides.length>1?'':'none';
+  const n=$('sc-guides-n');
+  if(n)n.textContent=SC.guides.length?SC.guides.length:'';
   // Sin medida: la guía solo marca dónde parte el diseño, las cotas son las que miden
   let h=0,v=0;
   list.innerHTML=SC.guides.map(g=>{
     const n=g.type==='h'?++h:++v;
     return `<div class="sp-gitem">
-      <span class="ico">${g.type==='h'?'↔':'↕'}</span>
+      <span class="ico" aria-hidden="true">${g.type==='h'?ico('i-horiz'):ico('i-vert')}</span>
       <span class="lbl">${g.type==='h'?'Horizontal':'Vertical'} ${n}</span>
       <button class="sp-ibtn" onclick="scDelGuide(${g.id})" title="Quitar guía">×</button>
     </div>`;
@@ -5343,6 +5529,7 @@ function scUpdateList(){
     list.appendChild(el);
   });
   $('sc-btn-export').disabled=false;
+  scAjustarToast();
 }
 function scSetLabel(id,v){const m=SC.items.find(x=>x.id===id);if(m)m.label=v;}
 /* Última medida borrada, para poder deshacer: en el celular la × queda a un dedo de
@@ -5460,7 +5647,7 @@ function scUpdateAddAll(){
   if(ia){
     const n=SC.items.length;
     ia.disabled=!n||locked();
-    ia.textContent=n>1 ? `✨ Cotizar estas ${n} medidas con IA` : '✨ Cotizar esta medida con IA';
+    ia.innerHTML=ico('i-ia')+(n>1 ? ` Cotizar estas ${n} medidas con IA` : ' Cotizar esta medida con IA');
     if(iaNote) iaNote.style.display=n?'':'none';
   }
 }
@@ -5478,12 +5665,12 @@ function renderScalerPreview(){
   const n=SC.items.length,collapsed=!!SC.previewCollapsed;
   el.innerHTML=`<div class="sc-prev-box">
     <div class="sc-prev-head" onclick="toggleScalerPreview()" ${chipA11y(!collapsed)}>
-      <span class="ttl">📐 Imagen del escalador · ${n} ${n===1?'medida':'medidas'}</span>
+      <span class="ttl">${ico('i-escalar')} Imagen del escalador · ${n} ${n===1?'medida':'medidas'}</span>
       <span class="chev">${collapsed?'▾ ver':'▴ ocultar'}</span>
     </div>
     ${collapsed?'':`<canvas id="sc-mini-cvs" class="sc-prev-img" onclick="abrirScaler()" title="Clic para volver al escalador y seguir midiendo"></canvas>
     <div class="sub">Compárala con tus partidas · clic en la imagen para volver al escalador</div>`}
-    ${n&&!locked()?`<button class="sc-prev-ia" onclick="scCotizarConIA()">✨ Cotizar ${n===1?'esta medida':`estas ${n} medidas`} con IA</button>`:''}
+    ${n&&!locked()?`<button class="sc-prev-ia" onclick="scCotizarConIA()">${ico('i-ia')} Cotizar ${n===1?'esta medida':`estas ${n} medidas`} con IA</button>`:''}
   </div>`;
   if(!collapsed)scPaintMiniPreview();
 }
@@ -5857,7 +6044,7 @@ function vtSucio(){
   if(!VT.hecho)return;
   VT.sucio=true;
   vtBadge('Ajustes cambiados','warn');
-  $('vt-go').textContent='🪄 Volver a vectorizar';
+  $('vt-go').innerHTML=ico('i-vector')+' Volver a vectorizar';
 }
 function vtBadge(txt,cls){
   $('vt-badge-txt').textContent=txt;
@@ -6461,7 +6648,7 @@ async function vtVectorizar(){
     vtMetricas();
     vtArmarSVG();
     VT.hecho=true; VT.sucio=false;
-    $('vt-go').textContent='🪄 Volver a vectorizar';
+    $('vt-go').innerHTML=ico('i-vector')+' Volver a vectorizar';
     vtBadge(VT.formas+(VT.formas===1?' forma':' formas')+' · '+VT.nodos+' nodos','ok');
     vtSetVista('cmp');
     vtRender();
@@ -6660,6 +6847,16 @@ function vtHabilitarSalidas(){
 /* Publica el alto real del pie de acciones para que el aviso emergente se pose encima
    y no sobre los botones. Se mide después de pintar, que es cuando el texto ya ocupa los
    renglones que va a ocupar. */
+/* Alto real del pie del escalador, para que el aviso emergente se pose encima y no
+   dentro. Igual que vtAjustarToast() en el vectorizador. */
+function scAjustarToast(){
+  const acc=document.querySelector('#scalermodal .sp-actions');
+  if(!acc) return;
+  requestAnimationFrame(()=>{
+    const h=Math.round(acc.getBoundingClientRect().height);
+    if(h>0) document.documentElement.style.setProperty('--sc-acc-h',h+'px');
+  });
+}
 function vtAjustarToast(){
   const acc=document.querySelector('#vectormodal .sp-actions');
   if(!acc) return;
@@ -6758,7 +6955,7 @@ function vtUsarComoPartidas(){
 <div class="rv-modal-bg" id="rv-modal-bg" onclick="if(event.target===this)cerrarRegistrarVenta()">
   <div class="rv-modal">
     <div class="rv-header">
-      <h2>📊 Registrar Venta en Google Sheets</h2>
+      <h2><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg> Registrar Venta en Google Sheets</h2>
       <button class="btn btn-gho" style="padding:4px 12px;font-size:12px" onclick="cerrarRegistrarVenta()">✕</button>
     </div>
     <div class="rv-body">
@@ -6823,8 +7020,8 @@ function vtUsarComoPartidas(){
       </div>
     </div>
     <div class="rv-footer">
-      <div class="rv-copied" id="rv-copied">✅ Fila copiada — pégala en la hoja <b>Ventas</b> de Google Sheets con Ctrl+Shift+V</div>
-      <button class="btn btn-pri" onclick="copiarFilaVenta()">📋 Copiar fila para Google Sheets</button>
+      <div class="rv-copied" id="rv-copied"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Fila copiada — pégala en la hoja <b>Ventas</b> de Google Sheets con Ctrl+Shift+V</div>
+      <button class="btn btn-pri" onclick="copiarFilaVenta()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar fila para Google Sheets</button>
       <button class="btn btn-gho" onclick="cerrarRegistrarVenta()">Cancelar</button>
     </div>
   </div>
