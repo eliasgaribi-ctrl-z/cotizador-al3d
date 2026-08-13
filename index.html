@@ -289,6 +289,10 @@ textarea{resize:vertical;min-height:46px}
 
 .switch{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;user-select:none}
 .tg{width:42px;height:24px;background:#9aa2b8;border-radius:13px;position:relative;transition:.2s;flex-shrink:0}
+/* La perilla se ve de 42×24, pero se toca en 50×44: la capa invisible crece la zona
+   sensible sin mover nada de sitio. Es el control del IVA, de la iluminación y del
+   pegado a guías; con 24 px de alto se erraba. */
+.tg::before{content:'';position:absolute;inset:-10px -4px;border-radius:16px}
 .tg.on{background:var(--brand-grd)}
 .tg::after{content:'';width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:3px;left:3px;transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .tg.on::after{left:21px}
@@ -430,6 +434,11 @@ textarea{resize:vertical;min-height:46px}
 .modal-bg{position:fixed;inset:0;background:rgba(17,22,46,.6);display:none;align-items:center;justify-content:center;z-index:60;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
   padding:calc(18px + env(safe-area-inset-top,0px)) calc(18px + env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) calc(18px + env(safe-area-inset-left,0px))}
 .modal-bg.show{display:flex}
+/* La imagen a pantalla completa se abre DESDE el historial, así que tiene que quedar
+   por encima de él: los dos son .modal-bg y con el z-index empatado en 60 ganaba el
+   panel por ir después en el documento — la pantalla se oscurecía y no se veía nada.
+   El 80 está libre (modales 60, vectorizador 56, escalador 55, aviso 100). */
+#lightbox{z-index:80}
 .modal{background:#fff;border-radius:20px;max-width:460px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.28);overflow:hidden;
   display:flex;flex-direction:column;max-height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
 .modal-h{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),#fff);flex-shrink:0}
@@ -857,6 +866,10 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .rv-modal{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);width:min(520px,92vw);overflow-y:auto;-webkit-overflow-scrolling:touch;
   max-height:calc(100dvh - 32px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));box-shadow:0 24px 80px rgba(0,0,0,.45),0 6px 20px rgba(0,0,0,.3)}
 .rv-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid var(--line)}
+/* .btn trae width:100% y dentro de un contenedor flex ese width es el tamaño base: el
+   botón de cerrar arrancaba pidiendo el ancho del modal entero y se comía media
+   cabecera. Aquí no crece y mantiene su área de toque. */
+.rv-header .btn{width:auto;flex:0 0 auto;min-width:44px;min-height:44px;padding:0;justify-content:center}
 .rv-header h2{font-size:15px;font-weight:700;color:var(--fg);margin:0}
 .rv-body{padding:20px}
 .rv-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -1999,12 +2012,18 @@ function enfocarPartida(id){
 /* Última partida borrada, para poder deshacer: en el celular es fácil tocar la ×
    por accidente y perder una partida con todo su detalle capturado. */
 let _borrada=null;
+/* Neto con el que se entró al modo edición. Si al salir el neto es otro, el precio
+   que autorizó una persona ya no corresponde a este trabajo y no puede seguir
+   mandando: vuelve al calculado y hay que autorizarlo otra vez. */
+let _netoAlEditar=0;
 function delItem(id){
   if(locked())return;
   const idx=Q.items.findIndex(x=>x.id===id);
   if(idx<0) return;
-  _borrada={item:Q.items[idx],idx};
+  _borrada={item:Q.items[idx],idx,precioAuth:(Q.itemsAuth||{})[id]};
   Q.items.splice(idx,1);
+  // Su precio autorizado se va con ella: si no, queda en el mapa y vuelve a sumar
+  if(Q.itemsAuth) delete Q.itemsAuth[id];
   renderItems();
   toast('Partida '+(idx+1)+' eliminada','',6000,{label:'Deshacer',fn:deshacerBorrado});
 }
@@ -2012,6 +2031,7 @@ function deshacerBorrado(){
   if(!_borrada) return;
   if(locked()){ toast('La cotización está bloqueada','err'); return; }
   Q.items.splice(Math.min(_borrada.idx,Q.items.length),0,_borrada.item);
+  if(_borrada.precioAuth!==undefined){ if(!Q.itemsAuth)Q.itemsAuth={}; Q.itemsAuth[_borrada.item.id]=_borrada.precioAuth; }
   _borrada=null;
   renderItems();
   toast('Partida restaurada','ok');
@@ -2053,15 +2073,28 @@ function setShowInPdf(id,val){
 }
 function toggleEditMode(){
   Q.editMode=true;
-  renderItems();
-  toast('Modo edición activado — modifica y guarda cuando termines','',4000);
+  _netoAlEditar=totals().neto;
+  renderItems();renderAuth();
+  toast(Q.precioAuth>0
+    ? 'Modo edición activado — si cambias las partidas habrá que volver a autorizar el precio'
+    : 'Modo edición activado — modifica y guarda cuando termines','',4600);
 }
 function guardarCambiosEdicion(){
   Q.editMode=false;
+  /* Cambiaron las partidas: el precio autorizado dejaba de cuadrar con el trabajo y
+     el «ajuste» se recalculaba solo contra el neto nuevo —un descuento distinto del
+     que se autorizó, o un descuento inventado si se agregó una partida—. Se suelta el
+     precio autorizado y se avisa: volver a autorizar es una decisión de una persona,
+     no algo que la app deba resolver por su cuenta. */
+  const cambio = Q.precioAuth>0 && Math.abs(totals().neto-_netoAlEditar)>0.01;
+  if(cambio){ Q.precioAuth=0; Q.itemsAuth={}; }
   guardarEnHistorial();
   saveState();
-  renderItems();
-  toast('Cambios guardados','ok');
+  renderItems();renderAuth();renderSummary();renderMobileBar();
+  if(typeof updateQueueEntry==='function')
+    updateQueueEntry(Q.folio,{precioAuth:Q.precioAuth,itemsAuth:Q.itemsAuth});
+  if(cambio) toast('Cambiaron las partidas: el precio vuelve al calculado y hay que autorizarlo de nuevo','',5600);
+  else toast('Cambios guardados','ok');
 }
 function autoContarLetras(id,texto){
   const n=texto.replace(/\s/g,'').length;
@@ -7024,7 +7057,7 @@ function vtUsarComoPartidas(){
   <div class="rv-modal">
     <div class="rv-header">
       <h2><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg> Registrar Venta en Google Sheets</h2>
-      <button class="btn btn-gho" style="padding:4px 12px;font-size:12px" onclick="cerrarRegistrarVenta()">✕</button>
+      <button class="btn btn-gho" onclick="cerrarRegistrarVenta()" aria-label="Cerrar"><svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg></button>
     </div>
     <div class="rv-body">
       <div class="rv-aviso" id="rv-aviso-auth" style="display:none"></div>
