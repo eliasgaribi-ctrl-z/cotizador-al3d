@@ -330,7 +330,10 @@ textarea{resize:vertical;min-height:46px}
 .partida.drag-over{border-color:var(--brand);border-style:dashed;background:linear-gradient(180deg,#f3f5ff,#eef0fe)}
 .partida.dragging{opacity:.35}
 /* Auto-counter for letter count */
+/* Renglón propio a lo ancho de la rejilla: dentro de la media columna de «# Letras»
+   el marcador «Escribe el texto →» quedaba recortado a 126 px. */
 .autoctr{display:flex;align-items:center;gap:6px;margin-top:5px}
+.grid3>.autoctr,.grid2>.autoctr{grid-column:1/-1;margin-top:0}
 .autoctr input{font-size:12px;padding:5px 8px;flex:1}
 .autoctr .cnt{font-size:11px;color:var(--brand);font-weight:700;white-space:nowrap;min-width:42px;text-align:right}
 
@@ -371,7 +374,7 @@ textarea{resize:vertical;min-height:46px}
 .authnote b{color:var(--ink)}
 .mini{font-size:11.5px;color:var(--muted);margin-top:9px;text-align:center;line-height:1.5}
 
-.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(90px);background:#11162e;color:#fff;padding:13px 20px;border-radius:13px;font-size:14px;font-weight:600;z-index:100;transition:transform .3s cubic-bezier(.2,.8,.2,1);box-shadow:0 8px 40px rgba(0,0,0,.28);display:flex;align-items:center;gap:14px;max-width:min(92vw,540px);text-align:left;visibility:hidden;transition:transform .3s cubic-bezier(.2,.8,.2,1),visibility 0s linear .3s}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(90px);background:#11162e;color:#fff;padding:13px 20px;border-radius:13px;font-size:14px;font-weight:600;z-index:100;transition:transform .3s cubic-bezier(.2,.8,.2,1);box-shadow:0 8px 40px rgba(0,0,0,.28);display:flex;align-items:center;gap:14px;width:max-content;max-width:min(92vw,540px);text-align:left;visibility:hidden;transition:transform .3s cubic-bezier(.2,.8,.2,1),visibility 0s linear .3s}
 /* Al aparecer se hace visible de inmediato; al ocultarse espera a que termine de
    deslizarse. Con una transición normal de visibility el botón "Deshacer" tardaba
    en volverse tocable. */
@@ -884,7 +887,12 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
    capturar una partida, que es cuando de verdad se necesita. */
 .addrow{display:flex;gap:9px;align-items:stretch}
 .addrow .addbtn{flex:1;min-width:0}
-.addbtn.igual{flex:0 1 auto;white-space:nowrap;border-style:solid;border-color:var(--line);background:#fff;color:var(--brand)}
+/* width:auto es lo que arregla el renglón: .addbtn base lleva width:100% y en un
+   contenedor flex ese width fija el tamaño base, así que este botón se reservaba el
+   renglón completo (355 px) y dejaba «+ Agregar partida» en 20 px con el texto
+   partido en tres. Con width:auto su base es lo que mide su texto y el principal se
+   queda con el resto. */
+.addbtn.igual{flex:0 1 auto;width:auto;white-space:nowrap;border-style:solid;border-color:var(--line);background:#fff;color:var(--brand)}
 .addbtn.igual:hover{border-color:var(--brand);background:var(--soft-2)}
 
 /* ===================== Revisión previa: partidas sin terminar ===================== */
@@ -2310,7 +2318,7 @@ function bodyFor(it){
     const heredado=!!(it.matAuto&&mat);
     const matTitulo='Material / acabado'+(heredado?' <span class="heredado">↩ como la anterior</span>':'');
     const avisos=`${heredado?'<div class="hintnote" style="background:#fff8e1;border-left:3px solid var(--amber);color:#7a5800;margin-bottom:5px">↩ Se puso solo el último material que elegiste. Si este trabajo va con otro, tócalo.</div>':''}
-      <div class="hintnote">Iluminación sugerida: ${mat?mat.ilum:'—'}</div>
+      ${mat?`<div class="hintnote">Iluminación sugerida: ${mat.ilum}</div>`:''}
       ${(it.material==='acr-vol'||it.material==='acr-vinil')&&!it.luz?`<div class="hintnote" style="background:#fff8e1;border-left:3px solid var(--amber);color:#7a5800;margin-top:5px"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> El acrílico es valioso principalmente por el paso de luz. Sin iluminación, considera cambiar a <b>Aluminio</b> — mismo resultado visual, menor costo.</div>`:''}
       ${it.material==='al-paint'&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green);color:#1c6e3d;margin-top:5px"><span class="emo">💡</span> Con aluminio e iluminación, la luz va por detrás (retroiluminación). Para luz que pase a través de las caras, considera <b>Acrílico + Aluminio</b>.</div>`:''}
       ${it.material==='acero'&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green);color:#1c6e3d;margin-top:5px"><span class="emo">💡</span> El acero inoxidable es opaco: la luz sale por detrás (retroiluminación) y el canto queda con acabado espejo. Para luz que pase a través de las caras, considera <b>Acrílico + Aluminio</b>.</div>`:''}`;
@@ -2332,9 +2340,9 @@ function bodyFor(it){
         <div class="fld">
           <label># Letras</label>
           <input id="n-${it.id}" type="number" inputmode="decimal" min="0" value="${it.n||''}" ${dis} oninput="typeItem(${it.id},'n',+this.value)">
-          ${!locked()?`<div class="autoctr"><input type="text" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} letras</span></div>`:''}
         </div>
         <div class="fld fld-relleno"><label style="visibility:hidden">.</label></div>
+        ${!locked()?`<div class="autoctr"><input type="text" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} letras</span></div>`:''}
       </div>`;
   }
   if(it.tipo==='recorte'){
@@ -2354,9 +2362,9 @@ function bodyFor(it){
           <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="typeItem(${it.id},'altura',+this.value)">
         </div>
         <div class="fld"><label># Piezas</label><input id="n-${it.id}" type="number" inputmode="decimal" min="0" value="${it.n||''}" ${dis} oninput="typeItem(${it.id},'n',+this.value)">
-          ${!locked()?`<div class="autoctr"><input type="text" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} letras</span></div>`:''}
         </div>
         <div class="fld fld-relleno"><label style="visibility:hidden">.</label></div>
+        ${!locked()?`<div class="autoctr"><input type="text" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} letras</span></div>`:''}
       </div>`;
   }
   if(it.tipo==='bastidor'){
