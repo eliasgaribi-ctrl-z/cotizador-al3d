@@ -4902,7 +4902,12 @@ function scScene(ctx,w,h,cx,cy,k,dpr,shadow,lupa){
     const b={x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH};
     scDrawRef(ctx,a,b,k);
   }
-  scDrawDims(ctx,SC.cvsW,SC.cvsH,{selId:SC.sel});
+  /* En el teléfono la anotación entera va un 25 % más grande: el factor s escala el
+     texto, los huecos, las puntas y el grosor a la vez, así que la etiqueta sigue
+     cabiendo dentro de la línea igual que en escritorio. El tamaño base se queda en
+     10.5: es una decisión tomada a propósito para que varias cotas en la misma
+     fachada no se encimen, y la cota además crece sola al acercar la foto. */
+  scDrawDims(ctx,SC.cvsW,SC.cvsH,{selId:SC.sel,s:scIsMobile()?1.25:1});
   // Agarraderas: los extremos de cada medida se ven como puntos para que se note que
   // se pueden mover. Van a tamaño de pantalla (÷k) para no crecer con el acercamiento.
   if(!SC.down){
@@ -4922,7 +4927,7 @@ function scScene(ctx,w,h,cx,cy,k,dpr,shadow,lupa){
       else if(SC.mode==='measure'){
         const pxD=scDist(anchor,ep);
         const cm=SC.nativePxPerCm>0?(pxD*SC.scaleFactor)/SC.nativePxPerCm:0;
-        scDimAnnot(ctx,anchor.x,anchor.y,ep.x,ep.y,{text:cm>0?scFmtCm(cm)+' cm':'…',color:SC_COLORS[SC.nc%SC_COLORS.length],sel:false,offset:scDimOffset(SC.cvsW,SC.cvsH),dashed:true});
+        scDimAnnot(ctx,anchor.x,anchor.y,ep.x,ep.y,{text:cm>0?scFmtCm(cm)+' cm':'…',color:SC_COLORS[SC.nc%SC_COLORS.length],sel:false,offset:scDimOffset(SC.cvsW,SC.cvsH),dashed:true,s:scIsMobile()?1.25:1});
       }
       [anchor,ep].forEach(p=>scPunto(ctx,p,'#3a4ad8',4.5/k,k,false));
     }else{
@@ -5064,7 +5069,7 @@ function scDimAnnot(ctx,x1,y1,x2,y2,opts){
   ln(x2+nx*gap,y2+ny*gap,bx+nx*over,by+ny*over);
   ctx.setLineDash([]);
   // El texto va dentro: se mide primero para saber cuánto hueco dejarle a la línea
-  const fs=12*s,fuente='700 '+fs+'px Inter,Arial,sans-serif';
+  const fs=10.5*s,fuente='700 '+fs+'px Inter,Arial,sans-serif';
   ctx.font=fuente;
   const hueco=text?ctx.measureText(text).width/2+3.5*s:0;
   const dentro=!!text&&hueco<len/2-aSize-2*s;
