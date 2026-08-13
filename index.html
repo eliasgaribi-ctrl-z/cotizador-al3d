@@ -418,11 +418,10 @@ textarea{resize:vertical;min-height:46px}
 .partida.drag-over{border-color:var(--brand);border-style:dashed;background:linear-gradient(180deg,#f3f5ff,#eef0fe)}
 .partida.dragging{opacity:.35}
 /* Auto-counter for letter count */
-/* Renglón propio a lo ancho de la rejilla: dentro de la media columna de «# Letras»
+/* Renglón propio debajo de la rejilla: metido en la media columna de «# Letras»
    el marcador «Escribe el texto →» quedaba recortado a 126 px. */
 .autoctr{display:flex;align-items:center;gap:6px;margin-top:5px}
-.grid3>.autoctr,.grid2>.autoctr{grid-column:1/-1;margin-top:0}
-.autoctr input{font-size:12px;padding:5px 8px;flex:1}
+.autoctr input{font-size:12px;padding:5px 8px;flex:1;min-width:0}
 .autoctr .cnt{font-size:11px;color:var(--brand);font-weight:700;white-space:nowrap;min-width:42px;text-align:right}
 
 /* ---------- Resumen (sticky) ---------- */
@@ -987,15 +986,26 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 /* ===================== Agregar partida =====================
    Duplicar la anterior ya existía en el ⧉ del encabezado de cada partida, pero
    escondido arriba a la derecha. Aquí queda junto a la acción que se usa después de
-   capturar una partida, que es cuando de verdad se necesita. */
-.addrow{display:flex;gap:9px;align-items:stretch}
-.addrow .addbtn{flex:1;min-width:0}
-/* width:auto es lo que arregla el renglón: .addbtn base lleva width:100% y en un
-   contenedor flex ese width fija el tamaño base, así que este botón se reservaba el
-   renglón completo (355 px) y dejaba «+ Agregar partida» en 20 px con el texto
-   partido en tres. Con width:auto su base es lo que mide su texto y el principal se
-   queda con el resto. */
-.addbtn.igual{flex:0 1 auto;width:auto;white-space:nowrap;border-style:solid;border-color:var(--line);background:#fff;color:var(--brand)}
+   capturar una partida, que es cuando de verdad se necesita.
+
+   `.addbtn` trae `width:100%` de cuando era un botón solo a lo ancho de la tarjeta. En
+   la fila, esa anchura es la que resuelve el `flex-basis:auto` de «Igual que la
+   anterior»: su tamaño base pasaba a ser el 100% del renglón, no el de su texto. Sin
+   espacio libre que repartir, «+ Agregar partida» —con base 0 y `min-width:0`— se
+   quedaba en sus 20 px de relleno, con el texto partido en «Ag pa» y cortado. Pasaba
+   en todos los anchos, también en el escritorio. Por eso la fila devuelve la anchura a
+   `auto`: el botón de duplicar vuelve a medir lo que mide su texto.
+
+   Y la fila envuelve. Con la letra de verdad —Inter, más ancha que la del sistema— los
+   dos textos suman más que un teléfono angosto: en vez de aplastar el botón principal,
+   el de duplicar se baja a su propio renglón y ahí se estira a lo ancho.
+
+   El sobrante se reparte 2 a 1 para que agregar —la acción principal— sea el botón
+   más ancho de los dos, que si no el texto más largo de duplicar lo dejaba en segundo
+   lugar. */
+.addrow{display:flex;flex-wrap:wrap;gap:9px;align-items:stretch}
+.addrow .addbtn{flex:2 1 auto;width:auto;min-width:0}
+.addbtn.igual{flex:1 1 auto;white-space:nowrap;border-style:solid;border-color:var(--line);background:#fff;color:var(--brand)}
 .addbtn.igual:hover{border-color:var(--brand);background:var(--soft-2)}
 
 /* ===================== Revisión previa: partidas sin terminar ===================== */
@@ -2427,7 +2437,9 @@ function autoContarLetras(id,texto){
   const it=Q.items.find(x=>x.id===id); if(!it)return;
   it.n=n; it.textoAuto=texto;
   const inp=$('n-'+id); if(inp) inp.value=n||'';
-  const cnt=$('acnt-'+id); if(cnt) cnt.textContent=n+' letras';
+  /* En un recorte el mismo campo cuenta piezas, no letras: el contador dice lo que
+     dice la etiqueta de arriba. */
+  const cnt=$('acnt-'+id); if(cnt) cnt.textContent=n+(it.tipo==='recorte'?' piezas':' letras');
   const f=$('formula-'+id),l=$('lt-'+id);
   if(f) f.innerHTML=formulaHTML(it);
   if(l) l.textContent=money(lineTotal(it));
@@ -2711,8 +2723,8 @@ function bodyFor(it){
           <input id="n-${it.id}" type="number" inputmode="decimal" min="0" value="${it.n||''}" ${dis} oninput="typeItem(${it.id},'n',+this.value)">
         </div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
-        ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las letras" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} letras</span></div>`:''}
-      </div>`;
+      </div>
+      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las letras" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} letras</span></div>`:''}`;
   }
   if(it.tipo==='recorte'){
     const recChips=RECORTES.map(r=>chip(it.acab===r.key,`setItem(${it.id},'acab','${r.key}')`,r.label,'$'+r.precio)).join('');
@@ -2733,8 +2745,8 @@ function bodyFor(it){
         <div class="fld"><label for="n-${it.id}"># Piezas</label><input id="n-${it.id}" type="number" inputmode="decimal" min="0" value="${it.n||''}" ${dis} oninput="typeItem(${it.id},'n',+this.value)">
         </div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
-        ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las letras" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} letras</span></div>`:''}
-      </div>`;
+      </div>
+      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las piezas" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} piezas</span></div>`:''}`;
   }
   if(it.tipo==='bastidor'){
     const chips=BASTIDORES.map(b=>chip(it.bas===b.key,`setItem(${it.id},'bas','${b.key}')`,b.label,'$'+b.tarifa+'/m²')).join('');
