@@ -17,7 +17,12 @@
 <meta name="theme-color" content="#3a4ad8">
 <style>
 :root{
-  --bg:#e8eaf4; --card:#ffffff; --ink:#161c2e; --fg:#161c2e; --muted:#7f88a0; --line:#e0e4f0;
+  /* La app es clara a propósito. Sin esto, Chrome de Android le aplica su tema oscuro
+     automático —invierte las tarjetas y los grises, pero no los degradados de marca ni
+     el lienzo del escalador— y queda a medias. También deja en claro los controles
+     nativos de iOS: datalist, teclado numérico, selector de archivo y autorrelleno. */
+  color-scheme:only light;
+  --bg:#e8eaf4; --card:#ffffff; --ink:#161c2e; --fg:#161c2e; --muted:#5f6880; --line:#e0e4f0;
   --brand:#3a4ad8; --brand-2:#5566ef; --brand-strong:#2535c4; --navy:#171d4a;
   --soft:#f2f4fb; --soft-2:#eaedfa;
   --green:#15a06a; --green-bg:#e5f6ee; --amber:#cf8a12; --amber-bg:#fbf1dd;
@@ -235,7 +240,10 @@ button,.chip,.tg,.switch,.ptok,.tipo-seg button,.seg button,summary{touch-action
 label{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin-bottom:5px;letter-spacing:.05px}
 input,select,textarea{width:100%;border:1.5px solid var(--line);border-radius:var(--r-sm);padding:10px 13px;font-size:14px;color:var(--ink);background:#fcfdff;outline:none;font-family:inherit;transition:.15s}
 input:focus,select:focus,textarea:focus{border-color:var(--brand);background:#fff;box-shadow:0 0 0 3.5px rgba(58,74,216,.11)}
-input:disabled,select:disabled,textarea:disabled{background:#f4f5f9;color:#9aa1b3;cursor:not-allowed}
+/* El autorrelleno de Safari pinta el campo de amarillo y el texto de negro sobre él */
+input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-text-fill-color:var(--ink);
+  -webkit-box-shadow:0 0 0 100px #fff inset;caret-color:var(--ink)}
+input:disabled,select:disabled,textarea:disabled{background:#f4f5f9;color:#5f6880;cursor:not-allowed}
 textarea{resize:vertical;min-height:46px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
@@ -262,7 +270,7 @@ textarea{resize:vertical;min-height:46px}
   .tipo-seg{order:9;flex-basis:100%;width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
   .tipo-seg button{padding:10px 5px;font-size:11.5px;line-height:1.25;text-align:center;min-height:42px}
 }
-.del{border:none;background:none;color:#d0d5e5;font-size:19px;cursor:pointer;line-height:1;padding:3px 6px;border-radius:7px;transition:.12s}
+.del{border:none;background:none;color:#8a90a6;font-size:19px;cursor:pointer;line-height:1;padding:3px 6px;border-radius:7px;transition:.12s}
 .del:hover{color:var(--red);background:var(--red-bg)}
 
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
@@ -280,7 +288,7 @@ textarea{resize:vertical;min-height:46px}
 .hintnote{font-size:11.5px;color:var(--muted);background:linear-gradient(90deg,var(--soft),rgba(242,244,251,.3));border-left:2px solid rgba(58,74,216,.2);border-radius:0 7px 7px 0;padding:6px 11px;display:inline-block}
 
 .switch{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;user-select:none}
-.tg{width:42px;height:24px;background:#cdd2e0;border-radius:13px;position:relative;transition:.2s;flex-shrink:0}
+.tg{width:42px;height:24px;background:#9aa2b8;border-radius:13px;position:relative;transition:.2s;flex-shrink:0}
 .tg.on{background:var(--brand-grd)}
 .tg::after{content:'';width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:3px;left:3px;transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .tg.on::after{left:21px}
@@ -294,10 +302,10 @@ textarea{resize:vertical;min-height:46px}
 .addbtn:disabled{opacity:.45;cursor:not-allowed}
 
 /* Duplicate button */
-.dup{border:none;background:none;color:#c4c9d8;font-size:16px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px;margin-right:2px}
+.dup{border:none;background:none;color:#8a90a6;font-size:16px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px;margin-right:2px}
 .dup:hover{color:var(--brand);background:var(--soft-2)}
 /* Drag & drop reorder */
-.drag-handle{cursor:grab;color:#c4c9d8;font-size:18px;padding:0 5px 0 0;user-select:none;line-height:1;display:inline-flex;align-items:center}
+.drag-handle{cursor:grab;color:#8a90a6;font-size:18px;padding:0 5px 0 0;user-select:none;line-height:1;display:inline-flex;align-items:center}
 .drag-handle:active,.drag-handle:hover{cursor:grabbing;color:var(--brand)}
 /* ----- Qué está seleccionado en la partida -----
    Resumen de arriba: lee de corrido lo que ya se eligió y marca en ámbar lo que falta. */
@@ -590,9 +598,9 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-mitem.sel{border-color:var(--brand-strong);background:var(--soft-2);box-shadow:0 0 0 3px rgba(58,74,216,.12)}
 .sp-mitem-cm{font-size:17px;font-weight:900;color:var(--brand-strong);line-height:1;letter-spacing:.1px;font-variant-numeric:tabular-nums}
 .sp-mitem-cm small{font-size:11px;font-weight:600;color:var(--muted);margin-left:2px}
-.sp-mitem-label{display:block;width:100%;border:none;background:transparent;padding:3px 0;font-size:12px;color:var(--muted);font-family:inherit;cursor:text;margin-top:4px;outline:none;border-bottom:1px solid transparent;transition:.15s}
+.sp-mitem-label{display:block;width:100%;border:none;background:transparent;padding:3px 0;font-size:12px;color:var(--ink);font-family:inherit;cursor:text;margin-top:4px;outline:none;border-bottom:1px solid transparent;transition:.15s}
 .sp-mitem-label:focus{color:var(--ink);border-bottom-color:var(--line)}
-.sp-mitem-label::placeholder{color:#bec5d4}
+.sp-mitem-label::placeholder{color:#8a90a6}
 .sp-mitem-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0;padding-top:2px}
 .sp-mitem-add{margin-top:8px;width:100%;padding:7px 10px;background:var(--brand-grd);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px}
 .sp-mitem-add.done{background:var(--green-bg);color:var(--green);border:1px solid rgba(21,160,106,.25);font-weight:600}
@@ -609,7 +617,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 /* Volver al cotizador desde el pie del panel: en el celular es el botón que se queda
    pegado abajo, siempre a la vista aunque la lista de medidas crezca. */
 .sp-back-m{display:none}
-.sp-ibtn{border:none;background:none;color:#cdd2e0;font-size:15px;cursor:pointer;padding:3px 6px;border-radius:6px;line-height:1;transition:.12s}
+.sp-ibtn{border:none;background:none;color:#8a90a6;font-size:15px;cursor:pointer;padding:3px 6px;border-radius:6px;line-height:1;transition:.12s}
 .sp-ibtn:hover{color:var(--red);background:var(--red-bg)}
 /* ----- Secciones plegables del panel -----
    El panel del escalador es una columna de 412 px visibles en el teléfono y su
@@ -1042,10 +1050,34 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   .autoctr input{font-size:16px}
 }
 
+/* ===================== Se toca con el dedo =====================
+   Por tipo de puntero y no por ancho: así vale igual en el iPhone y en las dos
+   pantallas del Fold 6, sin depender de en qué lado del punto de corte caiga cada una.
+   Lo que sube es la caja, nunca la letra. */
+@media(hover:none),(pointer:coarse){
+  .modal-h button{width:44px;height:44px}
+  .toast-act,.falt-quitar,.key-btn,.sp-gclear,.hist-foot button,
+  .card-fold,.btn-maps,.chip,.seg button,.tipo-seg button{min-height:44px}
+  .key-btn,.falt-quitar{padding-left:14px;padding-right:14px}
+  .hentry-del{min-width:44px;min-height:44px}
+  .del,.dup,.pdf-vis{width:40px;height:40px;padding:0;font-size:19px;
+    display:inline-flex;align-items:center;justify-content:center;border-radius:9px}
+  .sp-ibtn{min-width:44px;min-height:44px}
+  .optgrp .chip{min-height:44px}
+  .vt-sw{width:32px;height:32px}
+}
+/* Foco visible y con contraste: varios controles llevan outline:none y con teclado
+   no había manera de saber dónde estaba el cursor. */
+:where(button,summary,a[href],input,select,textarea,[tabindex]):focus-visible{
+  outline:2.5px solid var(--brand);outline-offset:2px;border-radius:6px}
+
 /* Sin animaciones para quien las pidió apagadas en el sistema */
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
     transition-duration:.001ms!important;scroll-behavior:auto!important}
+  .chip:active,.tipo-seg button:active,.seg button:active,.mbar-btn:active,
+  .sp-zoom button:active{transform:none}
+  body{background-attachment:scroll}
 }
 </style>
 </head>
@@ -1375,7 +1407,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <div class="sp-zoom" id="vt-zoom">
         <button onclick="vtZoomBy(1.4)" title="Acercar">+</button>
         <button onclick="vtZoomBy(1/1.4)" title="Alejar">−</button>
-        <button onclick="vtZoomReset()" title="Ajustar a la pantalla" style="font-size:16px"><svg class="svgi" aria-hidden="true"><use href="#i-ajustar"/></svg></button>
+        <button onclick="vtZoomReset()" title="Ajustar a la pantalla" aria-label="Ajustar la imagen a la pantalla" style="font-size:16px"><svg class="svgi" aria-hidden="true"><use href="#i-ajustar"/></svg></button>
       </div>
     </div>
     <aside class="sp-side">
@@ -1515,7 +1547,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <div class="sp-zoom" id="sp-zoom">
         <button onclick="scZoomBy(1.5)" title="Acercar">+</button>
         <button onclick="scZoomBy(1/1.5)" title="Alejar">−</button>
-        <button onclick="scZoomReset()" title="Ajustar a la pantalla" style="font-size:16px"><svg class="svgi" aria-hidden="true"><use href="#i-ajustar"/></svg></button>
+        <button onclick="scZoomReset()" title="Ajustar a la pantalla" aria-label="Ajustar la imagen a la pantalla" style="font-size:16px"><svg class="svgi" aria-hidden="true"><use href="#i-ajustar"/></svg></button>
       </div>
       <div class="sp-loupe" id="sc-loupe"><canvas id="sc-loupe-cvs"></canvas></div>
     </div>
@@ -1674,7 +1706,9 @@ function irA(el,extra=12){
   if(typeof el==='string') el=$(el);
   if(!el) return;
   const y=el.getBoundingClientRect().top+window.pageYOffset-altoTopbarFija()-extra;
-  window.scrollTo({top:Math.max(0,y),behavior:'smooth'});
+  // scroll-behavior del CSS no alcanza a un scrollTo programático: se pregunta aquí
+  const suave=!window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  window.scrollTo({top:Math.max(0,y),behavior:suave?'smooth':'auto'});
 }
 /* ----- La marca no se queda pegada en el teléfono -----
    La barra de arriba se lleva 115 px de una pantalla de 664: dos renglones, y el de
@@ -1702,6 +1736,27 @@ if(document.fonts&&document.fonts.ready){
 }
 window.addEventListener('orientationchange',()=>setTimeout(ajustarTopbarMovil,180));
 function irAResumen(){ irA('sidebox'); }
+
+/* Escape cierra la capa de arriba. Van de la más alta a la más baja por z-index, así
+   que con el escalador abierto encima del historial se cierra primero el escalador.
+   Cada una se cierra por su propia función, la misma que su botón: así no hay dos
+   maneras de cerrar que puedan dejar estados distintos. */
+const _CAPAS=[
+  ['lightbox',   ()=>closeLightbox()],
+  ['rv-modal-bg',()=>cerrarRegistrarVenta()],
+  ['faltmodal',  ()=>cerrarFaltantes()],
+  ['aimodal',    ()=>aiClose()],
+  ['histmodal',  ()=>cerrarHistorial()],
+  ['vectormodal',()=>cerrarVector()],
+  ['scalermodal',()=>cerrarScaler()],
+];
+window.addEventListener('keydown',e=>{
+  if(e.key!=='Escape')return;
+  for(const [id,cerrar] of _CAPAS){
+    const el=document.getElementById(id);
+    if(el&&el.classList.contains('show')){ e.preventDefault(); try{cerrar();}catch(_){} return; }
+  }
+});
 
 /* Aviso emergente. Con un solo temporizador compartido: antes dos avisos seguidos
    se pisaban y el segundo se ocultaba antes de tiempo por el reloj del primero.
