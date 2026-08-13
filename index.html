@@ -5348,6 +5348,9 @@ window.addEventListener('resize',()=>{
   const ae=document.activeElement;
   if(ae&&ae!==document.body&&$('scalermodal').contains(ae)&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;
   const area=$('sp-canvas-area'),w=area.clientWidth,h=area.clientHeight;
+  // El pie del panel cambia de alto con la maqueta y de ahí sale la altura del aviso:
+  // se vuelve a medir en todo resize, tenga o no que reajustarse el lienzo.
+  scAjustarToast();
   // Cambió la densidad de pantalla (otro monitor, zoom del navegador): rehacer a esa resolución
   if(scDPR()!==SC.rsDpr){scFitCanvas(true);scRender();return;}
   // Ignorar el temblor de altura por la barra de direcciones de Safari (no rehacer el ajuste ni perder el zoom)
@@ -5365,7 +5368,7 @@ if(window.ResizeObserver){
     new ResizeObserver(()=>{
       if(!(SC.img&&$('scalermodal').classList.contains('show')))return;
       const a=$('sp-canvas-area');
-      if(a.clientWidth!==SC._lastAW||a.clientHeight!==SC._lastAH){scFitCanvas(true);scRender();}
+      if(a.clientWidth!==SC._lastAW||a.clientHeight!==SC._lastAH){scFitCanvas(true);scRender();scAjustarToast();}
     }).observe($('sp-canvas-area'));
   }catch(_){}
 }
