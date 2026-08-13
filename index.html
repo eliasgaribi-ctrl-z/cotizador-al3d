@@ -91,6 +91,52 @@ body::before{
 .emo{font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
   font-size:.95em;line-height:1;font-style:normal;font-weight:400;vertical-align:-.05em}
 
+
+/* ===================== Precios difuminados en borrador =====================
+   Mientras la cotización es un borrador, los importes salen difuminados: se captura
+   delante del cliente y el precio no tiene por qué leerse desde el otro lado de la
+   mesa antes de estar autorizado. Se espían manteniéndolos tocados, y se destapan
+   solos al solicitar autorización —de ahí en adelante el precio ya es un dato firme.
+
+   Se difuminan los importes, no las tarifas de los chips de material: esas son el
+   catálogo con el que se captura, no el precio del trabajo.
+
+   El filtro va sobre el texto y no sobre un rectángulo encima, así que la caja no
+   cambia de tamaño y nada se mueve de sitio al destaparse. */
+body.precios-ocultos .lt,
+body.precios-ocultos #s-sub,
+body.precios-ocultos #s-iva,
+body.precios-ocultos #s-neto,
+body.precios-ocultos #s-calc,
+body.precios-ocultos #s-anti-rest,
+body.precios-ocultos .mbar-amt,
+body.precios-ocultos .anti .inp-money{
+  filter:blur(7px);
+  transition:filter .16s;
+  user-select:none;-webkit-user-select:none;
+  cursor:pointer;
+}
+/* Espiando: se sueltan todos a la vez, no de uno en uno */
+body.precios-ocultos.precios-a-la-vista .lt,
+body.precios-ocultos.precios-a-la-vista #s-sub,
+body.precios-ocultos.precios-a-la-vista #s-iva,
+body.precios-ocultos.precios-a-la-vista #s-neto,
+body.precios-ocultos.precios-a-la-vista #s-calc,
+body.precios-ocultos.precios-a-la-vista #s-anti-rest,
+body.precios-ocultos.precios-a-la-vista .mbar-amt,
+body.precios-ocultos.precios-a-la-vista .anti .inp-money{filter:none}
+/* Al escribir el anticipo hay que ver lo que se escribe */
+body.precios-ocultos .anti .inp-money:focus-within{filter:none}
+/* Quien las pidió sin animación no las tiene */
+@media(prefers-reduced-motion:reduce){
+  body.precios-ocultos .lt,body.precios-ocultos #s-sub,body.precios-ocultos #s-neto{transition:none}
+}
+/* El aviso de que se pueden espiar. Solo mientras están tapados. */
+.precios-nota{display:none;font-size:11px;color:var(--muted);line-height:1.45;
+  padding:0 20px 12px;align-items:center;gap:6px}
+body.precios-ocultos .precios-nota{display:flex}
+.precios-nota .svgi{flex-shrink:0;color:var(--brand)}
+
 /* ---------- Layout ---------- */
 .wrap{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:1fr 385px;gap:24px;align-items:start;
   padding:26px max(24px,env(safe-area-inset-right,0px)) 70px max(24px,env(safe-area-inset-left,0px))}
@@ -921,6 +967,9 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .falt-quitar{border:1.5px solid rgba(216,69,63,.3);background:#fff;color:var(--red);font-family:inherit;font-size:11px;font-weight:700;padding:6px 10px;border-radius:8px;cursor:pointer;flex-shrink:0;transition:.14s}
 .falt-quitar:hover{background:var(--red-bg);border-color:var(--red)}
 
+.hist-ayuda{margin:0;padding:0 20px 12px;font-size:11.5px;color:var(--muted);line-height:1.5}
+.hist-ayuda b{color:var(--ink);font-weight:700}
+
 /* ===================== Respaldo, restauración y CSV ===================== */
 .hist-foot{display:flex;gap:8px;padding:11px 20px 13px;border-top:1px solid var(--line);flex-shrink:0;background:var(--soft);flex-wrap:wrap;border-radius:0 0 20px 20px}
 .hist-foot button{flex:1;min-width:104px;border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:12px;font-weight:700;padding:9px 8px;border-radius:9px;cursor:pointer;transition:.14s;white-space:nowrap}
@@ -1271,6 +1320,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
         <div class="inp-money"><input id="f-anti" type="number" inputmode="decimal" min="0" placeholder="0"></div>
         <div class="anti-rest" id="s-anti-rest"></div>
       </div>
+      <div class="precios-nota"><svg class="svgi" aria-hidden="true"><use href="#i-ojo"/></svg><span>Los precios se destapan al solicitar autorización. Mantén uno tocado para verlo antes.</span></div>
       <div class="auth-adj" id="s-auth-row" style="display:none">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
           <span class="adj-label">Precio autorizado</span>
@@ -1349,6 +1399,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
       <b style="font-size:15px;font-weight:800"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg> Cotizaciones autorizadas</b>
       <button onclick="cerrarHistorial()" style="border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center" aria-label="Cerrar">×</button>
     </div>
+    <p class="hist-ayuda"><b>Duplicar</b> copia el cliente y las partidas a una cotización nueva, en borrador: es la de cotizar lo mismo con otro material o otra medida sin capturar de nuevo.</p>
     <div class="hist-search-bar">
       <input id="hist-search" type="search" placeholder="Buscar por folio, cliente o proyecto…" autocomplete="off" oninput="pintarHistorial()">
       <span class="hist-count" id="hist-count"></span>
@@ -1757,6 +1808,34 @@ if(document.fonts&&document.fonts.ready){
 }
 window.addEventListener('orientationchange',()=>setTimeout(ajustarTopbarMovil,180));
 function irAResumen(){ irA('sidebox'); }
+
+/* ----- Precios difuminados mientras es borrador -----
+   La clase va en <body> y no en cada importe: las partidas y la barra de abajo se
+   vuelven a pintar constantemente, y así los importes nuevos nacen ya tapados sin que
+   nadie tenga que acordarse de volver a marcarlos.
+   El autorizador nunca los ve tapados: su trabajo es justamente mirar el precio. */
+function aplicarBlurPrecios(){
+  const tapar = Q.estado==='borrador' && Q.rol!=='autorizador';
+  document.body.classList.toggle('precios-ocultos',tapar);
+  if(!tapar) document.body.classList.remove('precios-a-la-vista');
+}
+/* Espiar: se destapan mientras se mantiene tocado y se vuelven a tapar al soltar.
+   Los oyentes van en el documento —delegados— porque los importes se rehacen con cada
+   cambio y volver a engancharlos en cada pintado se olvidaría en algún camino. */
+const _SEL_PRECIO='.lt,#s-sub,#s-iva,#s-neto,#s-calc,#s-anti-rest,.mbar-amt,.anti .inp-money';
+function _espiarPrecios(e){
+  if(!document.body.classList.contains('precios-ocultos'))return;
+  const t=e.target.closest&&e.target.closest(_SEL_PRECIO);
+  if(!t)return;
+  // Sobre el campo del anticipo se deja pasar el toque: ahí se escribe
+  if(t.classList.contains('inp-money')&&e.target.tagName==='INPUT')return;
+  document.body.classList.add('precios-a-la-vista');
+}
+function _dejarDeEspiar(){ document.body.classList.remove('precios-a-la-vista'); }
+document.addEventListener('pointerdown',_espiarPrecios);
+document.addEventListener('pointerup',_dejarDeEspiar);
+document.addEventListener('pointercancel',_dejarDeEspiar);
+window.addEventListener('blur',_dejarDeEspiar);
 
 /* Escape cierra la capa de arriba. Van de la más alta a la más baja por z-index, así
    que con el escalador abierto encima del historial se cierra primero el escalador.
@@ -2532,6 +2611,7 @@ function updItemAuth(id,val){
 
 /* ===================== Resumen + Autorización ===================== */
 function renderSummary(){
+  aplicarBlurPrecios();
   const t=totals();
   $('s-sub').textContent=money(t.sub);
   $('s-iva').textContent=money(t.iva);
@@ -3024,7 +3104,7 @@ function copiarLinkDirRaw(){
   copiarTexto(dirRawMapsUrl(),'Link de Maps copiado · listo para compartir');
 }
 function toggleIva(e){ if(e)e.preventDefault(); Q.iva=!Q.iva; saveState(); renderSummary(); }
-function setRol(r){ Q.rol=r; document.querySelectorAll('#roleseg button').forEach(b=>b.classList.toggle('on',b.dataset.rol===r)); renderAuth(); renderMobileBar(); }
+function setRol(r){ Q.rol=r; document.querySelectorAll('#roleseg button').forEach(b=>b.classList.toggle('on',b.dataset.rol===r)); aplicarBlurPrecios(); renderAuth(); renderMobileBar(); }
 $('f-anti').addEventListener('input',function(){Q.anti=parseFloat(this.value)||0;Q.antiManual=this.value.trim()!=='';saveState();});
 
 /* ===================== Logotipo ===================== */
@@ -4224,8 +4304,8 @@ function pintarHistorial(){
             <div class="hentry-auth">✓ ${esc(e.autorizador||'—')} · ${esc(e.fechaAuth||'')}</div>
           </div>
           <div class="hentry-acts">
-            <button class="hentry-open" onclick="reabrirDeHistorial('${esc(e.folio)}')" title="Cargarla en el cotizador para volver a generar su PDF"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Abrir</button>
-            <button class="hentry-open" onclick="usarComoBase('${esc(e.folio)}')" title="Empezar una cotización nueva con estas mismas partidas"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Usar como base</button>
+            <button class="hentry-open" onclick="reabrirDeHistorial('${esc(e.folio)}')" title="Cargarla en el cotizador para reimprimir su PDF, o editarla con «Editar partidas»"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Abrir y editar</button>
+            <button class="hentry-open" onclick="usarComoBase('${esc(e.folio)}')" title="Empezar una cotización nueva con estas mismas partidas, para cambiarles el material o la medida sin recapturarlas"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Duplicar</button>
             <button class="hentry-del" onclick="borrarDeHistorial('${esc(e.folio)}')" title="Eliminar" aria-label="Eliminar cotización">${ico('i-basura')}</button>
           </div>
         </div>
@@ -4268,7 +4348,7 @@ function reabrirDeHistorial(folio){
   sincronizarPlegado();
   pintarFolio(); saveState(); renderItems();
   cerrarHistorial();
-  toast('Cotización '+e.folio+' abierta — ya puedes generar el PDF','ok',3600);
+  toast('Cotización '+e.folio+' abierta — reimprime su PDF, o toca «Editar partidas» para cambiarla','ok',5200);
 }
 
 /* ----- Recotizar algo parecido -----
@@ -5821,6 +5901,7 @@ function init(){
   pintarClientes();
   aplicarFoldProy();
   ajustarTopbarMovil();
+  aplicarBlurPrecios();
   renderMobileBar();
   updProg();
 }
