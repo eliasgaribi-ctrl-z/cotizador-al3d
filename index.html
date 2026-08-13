@@ -1866,6 +1866,10 @@ function tgAria(id){
   if(b) b.setAttribute('aria-checked', t.classList.contains('on')?'true':'false');
 }
 const chipA11y=isOn=>`role="button" tabindex="0" aria-pressed="${isOn?'true':'false'}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"`;
+/* Lo mismo para lo que abre algo en vez de conmutar: las miniaturas que abren el
+   lightbox eran <img> con onclick y nada más, o sea invisibles para el teclado. Sin
+   aria-pressed, que aquí no hay estado que anunciar. */
+const _ABRIBLE=`role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"`;
 /* Los cuatro segmentados decían cuál está puesto solo con el color de fondo: se oía
    «Letras botón, Recorte botón, Bastidor botón…» sin ninguna pista del tipo de la
    partida. segAria copia al aria-pressed la MISMA clase que ya usaba el CSS (.on o
@@ -1957,6 +1961,7 @@ window.addEventListener('blur',_dejarDeEspiar);
    Cada una se cierra por su propia función, la misma que su botón: así no hay dos
    maneras de cerrar que puedan dejar estados distintos. */
 const _CAPAS=[
+  ['pdf-fallback',()=>cerrarEnlacePDF()],
   ['lightbox',   ()=>closeLightbox()],
   ['rv-modal-bg',()=>cerrarRegistrarVenta()],
   ['faltmodal',  ()=>cerrarFaltantes()],
@@ -2002,7 +2007,17 @@ const _FOCABLES='a[href],button:not([disabled]),input:not([disabled]):not([type=
    en display:none y cada modal esconde su <input type=file>. Sin este filtro el foco
    aterrizaba en un campo invisible. Se mide con getClientRects y no con offsetParent
    porque los modales son position:fixed y ahí offsetParent es null. */
-function _focablesDe(m){ return [...m.querySelectorAll(_FOCABLES)].filter(e=>e.getClientRects().length); }
+function _focablesDe(m){
+  return [...m.querySelectorAll(_FOCABLES)].filter(e=>{
+    if(!e.getClientRects().length) return false;
+    /* Lo que vive dentro de un <details> plegado tiene caja pero NO acepta el foco.
+       checkVisibility lo distingue donde exista; el filtro del <details> cubre el resto
+       y no depende de esa API, porque ahí dentro lo único enfocable es su <summary>. */
+    if(e.checkVisibility && !e.checkVisibility({visibilityProperty:true})) return false;
+    const d=e.closest('details:not([open])');
+    return !d || (e.tagName==='SUMMARY' && e.parentElement===d);
+  });
+}
 /* La capa de arriba, leída de _CAPAS, que ya está ordenada por z-index. */
 function _capaDeArriba(){
   for(const [id] of _CAPAS){
@@ -2042,6 +2057,15 @@ function _modalCerrado(m){
      y si esto también esperara un fotograma se lo quitaría después. */
   if(a&&a.isConnected&&a.getClientRects().length&&(!arriba||arriba.contains(a))){
     try{ a.focus({preventScroll:true}); }catch(_){}
+  }
+  /* Red por debajo: si el que abrió la capa ya no puede recibir el foco —una miniatura
+     sin tabindex, un botón que se repintó mientras la capa estaba abierta—, el foco se
+     quedaba en el <body> y quien navega con teclado volvía al principio del documento.
+     Si queda una capa debajo, el foco se va a su primer control; si no, al menos no se
+     deja dentro de algo que ya está inerte. */
+  if(arriba&&(document.activeElement===document.body||!arriba.contains(document.activeElement))){
+    const alt=_focablesDe(arriba)[0];
+    if(alt){ try{ alt.focus({preventScroll:true}); }catch(_){} }
   }
 }
 const _obsModal=new MutationObserver(regs=>{
@@ -2783,8 +2807,8 @@ function renderAiPreview(){
   const f=Q.aiFile;
   const isImg=f.type && f.type.indexOf('image/')===0;
   const big=isImg
-    ? `<img class="ai-prev-img" src="${f.url}" alt="Archivo analizado" onclick="openAiFile()">`
-    : `<div class="ai-prev-pdf" onclick="openAiFile()"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> Ver PDF analizado a pantalla completa<br><span style="font-weight:500;font-size:11px">${esc(f.name||'archivo')}</span></div>`;
+    ? `<img class="ai-prev-img" src="${f.url}" alt="Archivo analizado" ${_ABRIBLE} onclick="openAiFile()">`
+    : `<div class="ai-prev-pdf" ${_ABRIBLE} onclick="openAiFile()"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> Ver PDF analizado a pantalla completa<br><span style="font-weight:500;font-size:11px">${esc(f.name||'archivo')}</span></div>`;
   el.innerHTML=`<div class="ai-prev-big">
     <div class="ai-prev-head">
       <span class="ttl"><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Archivo analizado por IA · revisa que ningún elemento haya quedado fuera antes de autorizar</span>
@@ -3633,7 +3657,14 @@ function aiPintarFuente(){
   if(btn) btn.textContent='Analizar las medidas y cotizar';
 }
 function aiUsarArchivo(){ aiSrc=null; aiPintarFuente(); }
-function aiStatus(msg,cls=''){ const e=$('ai-status'); e.textContent=msg; e.className='ai-status '+cls; }
+function aiStatus(msg,cls=''){
+  const e=$('ai-status'); e.textContent=msg; e.className='ai-status '+cls;
+  /* Por vozAlert los errores (role=alert, assertive) y por vozStatus el progreso, igual
+     que toast(). El textContent='' y la escritura en el fotograma siguiente son los que
+     hacen que cuente como inserción nueva aunque el texto se repita. */
+  const voz=$(cls==='err'?'vozAlert':'vozStatus');
+  if(voz&&msg){ voz.textContent=''; requestAnimationFrame(()=>{ voz.textContent=msg; }); }
+}
 function fileToB64(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(f); }); }
 function extractJSON(txt){
   try{ return JSON.parse(txt); }catch(_){}
@@ -4511,11 +4542,27 @@ function mostrarEnlacePDF(url){
     +'<div style="font-size:40px;margin-bottom:8px">'+ico('i-doc')+'</div>'
     +'<div style="font-size:15px;font-weight:800;color:#161c2e;margin-bottom:6px">Tu PDF está listo</div>'
     +'<div style="font-size:12.5px;color:#7f88a0;margin-bottom:16px;line-height:1.5">Ábrelo y usa <b>Compartir → Imprimir / Guardar en PDF</b>.</div>'
-    +'<a href="'+url+'" target="_blank" rel="noopener" onclick="var p=document.getElementById(\'pdf-fallback\');if(p)p.remove();" style="display:block;padding:14px;border-radius:11px;background:linear-gradient(135deg,#3a4ad8,#5c6df0);color:#fff;font-size:14px;font-weight:700;text-decoration:none;margin-bottom:9px">'+ico('i-doc')+' Abrir PDF</a>'
-    +'<button onclick="var p=document.getElementById(\'pdf-fallback\');if(p)p.remove();" style="width:100%;padding:12px;border-radius:11px;background:#fff;border:1.5px solid #e0e4f0;color:#3a4ad8;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Cerrar</button>'
+    +'<a href="'+url+'" target="_blank" rel="noopener" onclick="cerrarEnlacePDF()" style="display:block;padding:14px;border-radius:11px;background:linear-gradient(135deg,#3a4ad8,#5c6df0);color:#fff;font-size:14px;font-weight:700;text-decoration:none;margin-bottom:9px">'+ico('i-doc')+' Abrir PDF</a>'
+    +'<button onclick="cerrarEnlacePDF()" style="width:100%;padding:12px;border-radius:11px;background:#fff;border:1.5px solid #e0e4f0;color:#3a4ad8;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Cerrar</button>'
     +'</div>';
-  ov.addEventListener('click',function(e){ if(e.target===ov) ov.remove(); });
+  ov.setAttribute('role','dialog');
+  ov.setAttribute('aria-modal','true');
+  ov.setAttribute('aria-label','Tu PDF está listo');
+  ov.addEventListener('click',function(e){ if(e.target===ov) cerrarEnlacePDF(); });
   document.body.appendChild(ov);
+  /* Se vigila igual que los otros siete, pero aquí hay que hacerlo al crearlo: el
+     elemento no existe cuando corre _vigilarModales. La clase 'show' es la que dispara
+     _modalAbierto —foco dentro, fondo inerte, foco guardado para la vuelta—. */
+  ov.dataset.abierto='0';
+  _obsModal.observe(ov,{attributes:true,attributeFilter:['class']});
+  requestAnimationFrame(()=>ov.classList.add('show'));
+}
+/* Cerrar es quitar la clase y esperar: _modalCerrado devuelve el foco y despierta el
+   fondo antes de que el nodo desaparezca. */
+function cerrarEnlacePDF(){
+  const ov=document.getElementById('pdf-fallback'); if(!ov) return;
+  ov.classList.remove('show');
+  requestAnimationFrame(()=>ov.remove());
 }
 
 /* ===================== Historial de cotizaciones autorizadas ===================== */
@@ -4605,7 +4652,7 @@ function pintarHistorial(){
     html=lista.map(e=>{
       const isImg=e.aiFile&&e.aiFile.type&&e.aiFile.type.indexOf('image/')===0&&e.aiFile.url;
       const imgHTML=isImg
-        ? `<img class="hentry-img" src="${e.aiFile.url}" onclick="openHistImg('${esc(e.folio)}')" title="Ver imagen completa" alt="Referencia">`
+        ? `<img class="hentry-img" src="${e.aiFile.url}" ${_ABRIBLE} onclick="openHistImg('${esc(e.folio)}')" title="Ver imagen completa" alt="Referencia">`
         : `<div class="hentry-img-ph">${e.aiFile?ico('i-doc'):ico('i-imagen')}</div>`;
       const rows=e.items.map((it,i)=>{
         const ia=(e.itemsAuth&&e.itemsAuth[it.id]!==undefined)?e.itemsAuth[it.id]:lineTotal(it);
@@ -6450,16 +6497,22 @@ function copiarFilaVenta(){
     proyecto,abonoComision,anti,comRestante,com,cuenta,estatus,
     fecha,'',fechaLiq,iva,liquidacion,pend,neto,sub
   ].join('\t');
-  copiarTexto(row,null,()=>{ document.getElementById('rv-copied').classList.add('show'); });
+  copiarTexto(row,'Fila copiada — pégala en la hoja Ventas',()=>{ document.getElementById('rv-copied').classList.add('show'); });
 }
 /* Respaldo de copiado para navegadores sin API de portapapeles (o contextos no seguros) */
 function _copiaManual(txt,cb){
   try{
+    /* El <textarea> tiene que estar en el documento y enfocado para que execCommand
+       copie, y va en document.body porque dentro de un diálogo inerte no recibiría el
+       foco. Al quitarlo hay que devolver el foco a mano: si no, se queda en el <body>
+       con el diálogo todavía abierto y quien navega con teclado se sale del modal. */
+    const volver=document.activeElement;
     const ta=document.createElement('textarea');
     ta.value=txt; ta.setAttribute('readonly','');
     ta.style.cssText='position:fixed;top:0;left:0;opacity:0';
     document.body.appendChild(ta); ta.focus(); ta.select();
     const ok=document.execCommand('copy'); document.body.removeChild(ta);
+    if(volver&&volver.isConnected&&volver!==document.body){ try{ volver.focus({preventScroll:true}); }catch(_){} }
     if(ok){ cb&&cb(); } else { toast('No se pudo copiar automáticamente','err',3000); }
   }catch(e){ toast('No se pudo copiar en este navegador','err',3000); }
 }
