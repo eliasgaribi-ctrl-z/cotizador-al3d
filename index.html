@@ -52,7 +52,13 @@ body{
   /* Las fuentes de emoji van nombradas y antes del genérico: los pocos emoji que
      quedan (los de las referencias rápidas, los avisos emergentes) salen del mismo
      sitio en los dos sistemas en vez de depender del último recurso del navegador. */
-  font-family:'Inter','Segoe UI',Roboto,Helvetica,Arial,'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
+  /* Las de símbolos van después de las de emoji y antes del genérico: los pocos
+     glifos que siguen siendo texto (▾ ▸ ▴ de los plegados, ↺ de los avisos, → de los
+     botones que se reescriben por JS) no están en el subconjunto latin de Inter y los
+     resolvía el último recurso del navegador —Apple Symbols en iOS, Noto Sans Symbols
+     en Chrome—, cada uno con otro grosor y otra línea base. Nombradas, salen del mismo
+     sitio en los dos sistemas. */
+  font-family:'Inter','Segoe UI',Roboto,Helvetica,Arial,'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Apple Symbols','Segoe UI Symbol','Noto Sans Symbols 2',sans-serif;
   background:var(--bg);
   background-image:
     radial-gradient(ellipse 80% 55% at 15% 0%,rgba(58,74,216,.09) 0,transparent 60%),
@@ -346,7 +352,7 @@ textarea{resize:vertical;min-height:46px}
 .chip .ck{display:none}
 .chip.on{border-color:var(--brand-strong);background:var(--brand-grd);color:#fff;font-weight:700;box-shadow:0 3px 14px rgba(58,74,216,.40);animation:chipPop .22s cubic-bezier(.34,1.56,.64,1)}
 .chip.on small{color:rgba(255,255,255,.88)}
-.chip.on .ck{display:inline;font-size:11px;font-weight:900;line-height:1}
+.chip.on .ck{display:inline-flex;align-items:center;font-size:12px;line-height:1}
 .chip:hover:not(.on){border-color:rgba(58,74,216,.28);background:var(--soft-2);color:var(--brand-strong)}
 .chip:focus-visible{outline:2.5px solid var(--brand);outline-offset:2px}
 @keyframes chipPop{0%{transform:scale(.84)}65%{transform:scale(1.07)}100%{transform:scale(1)}}
@@ -393,9 +399,9 @@ textarea{resize:vertical;min-height:46px}
    Resumen de arriba: lee de corrido lo que ya se eligió y marca en ámbar lo que falta. */
 .psum{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
 .ptok{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:8px;background:var(--soft-2);color:var(--brand-strong);border:1px solid rgba(58,74,216,.16);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ptok::before{content:'✓';font-size:10px;font-weight:900;opacity:.75}
+.ptok::before{content:'✓';font-size:11px;font-weight:400;opacity:.75}
 .ptok.falta{background:var(--amber-bg);color:var(--amber);border-color:rgba(207,138,18,.3)}
-.ptok.falta::before{content:'!';opacity:1}
+.ptok.falta::before{content:'!';opacity:1;font-weight:900}
 .ptok.off{background:var(--soft);color:var(--muted);border-color:var(--line)}
 .ptok.off::before{content:'—';font-weight:700}
 /* Cada bloque de opciones va encerrado y con su valor elegido en el encabezado */
@@ -404,9 +410,9 @@ textarea{resize:vertical;min-height:46px}
 .optgrp-h{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:9px}
 .optgrp-t{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
 .optgrp-v{font-size:12.5px;font-weight:800;color:var(--brand-strong);display:inline-flex;align-items:center;gap:4px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.optgrp-v::before{content:'✓';font-size:10.5px}
+.optgrp-v::before{content:'✓';font-size:11.5px;font-weight:400}
 .optgrp-v.falta{color:var(--amber)}
-.optgrp-v.falta::before{content:'!'}
+.optgrp-v.falta::before{content:'!';font-weight:800}
 .optgrp .chips{margin:0}
 .optgrp .hintnote{margin-top:8px}
 .partida.drag-over{border-color:var(--brand);border-style:dashed;background:linear-gradient(180deg,#f3f5ff,#eef0fe)}
@@ -583,6 +589,12 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .hist-panel{background:#fff;border-radius:20px;max-width:720px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;
   max-height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
 .hist-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),#fff);border-radius:20px 20px 0 0;flex-shrink:0}
+/* Cerrar el historial. El tamaño venía de un style= en línea de 32×32 px que ninguna
+   hoja podía subir; como clase sí la alcanza el bloque de puntero grueso del final. */
+.hist-close{border:none;background:none;font-size:19px;color:var(--muted);cursor:pointer;
+  line-height:1;width:36px;height:36px;border-radius:8px;display:flex;align-items:center;
+  justify-content:center;flex:0 0 auto;padding:0}
+.hist-close:active{background:var(--soft-2)}
 .hist-search-bar{display:flex;align-items:center;gap:10px;padding:11px 20px;border-bottom:1px solid var(--line);flex-shrink:0;background:#fff}
 .hist-search-bar input{flex:1;min-width:0}
 .hist-count{font-size:11px;font-weight:800;color:var(--brand);background:var(--soft-2);border:1px solid rgba(58,74,216,.12);padding:5px 12px;border-radius:20px;white-space:nowrap}
@@ -790,7 +802,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 /* Cortina de comparación */
 .vt-split{position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,.95);box-shadow:0 0 0 1px rgba(12,15,38,.35);z-index:4;display:none;cursor:ew-resize;touch-action:none}
 .vt-split.on{display:block}
-.vt-split::after{content:'⇄';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:38px;height:38px;border-radius:50%;background:#fff;color:var(--brand-strong);font-size:16px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 14px rgba(0,0,0,.4)}
+.vt-split::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:38px;height:38px;border-radius:50%;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232535c4' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.8 12h18.4'/%3E%3Cpath d='M6.6 8.2 2.8 12l3.8 3.8'/%3E%3Cpath d='M17.4 8.2 21.2 12l-3.8 3.8'/%3E%3C/svg%3E") center/19px 19px no-repeat;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 14px rgba(0,0,0,.4)}
 .vt-tag{position:absolute;top:10px;font-size:10.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:#fff;background:rgba(17,22,46,.72);padding:5px 11px;border-radius:20px;z-index:5;pointer-events:none;backdrop-filter:blur(6px)}
 .vt-tag.l{left:12px}
 .vt-tag.r{right:12px}
@@ -1041,7 +1053,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
      tocar— así que su lugar, el borde de entrada de la partida, lo toma el plegado. */
   .drag-handle{display:none}
   .pfold{display:inline-flex;align-items:center;justify-content:center;border:none;background:none;
-    color:var(--brand);font-size:12px;font-weight:900;line-height:1;cursor:pointer;
+    color:var(--brand);font-size:13px;font-weight:400;line-height:1;cursor:pointer;
     padding:0;width:30px;height:30px;border-radius:8px;transition:transform .18s}
   .pfold:active{background:var(--soft-2)}
   .partida.folded .pfold{transform:rotate(-90deg)}
@@ -1167,6 +1179,13 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   .sp-ibtn{min-width:44px;min-height:44px}
   .optgrp .chip{min-height:44px}
   .vt-sw{width:32px;height:32px}
+  /* La cola del inventario, medida en el iPhone 15 Pro Max: cerrar el historial 32×32,
+     el contador de letras 37 px de alto (16 px de letra + 5+5 de padding), el plegado
+     de la partida 30×30 y el asa de la cortina de comparación 38 px de diámetro. */
+  .hist-close{width:44px;height:44px}
+  .autoctr input{min-height:44px}
+  .pfold{width:44px;height:44px}
+  .vt-split::after{width:48px;height:48px;background-size:22px 22px}
 }
 /* Foco visible y con contraste: varios controles llevan outline:none y con teclado
    no había manera de saber dónde estaba el cursor. */
@@ -1461,7 +1480,7 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
   <div class="hist-panel">
     <div class="hist-head">
       <b style="font-size:15px;font-weight:800"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg> Cotizaciones autorizadas</b>
-      <button onclick="cerrarHistorial()" style="border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center" aria-label="Cerrar">×</button>
+      <button class="hist-close" onclick="cerrarHistorial()" aria-label="Cerrar"><svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg></button>
     </div>
     <p class="hist-ayuda"><b>Duplicar</b> copia el cliente y las partidas a una cotización nueva, en borrador: es la de cotizar lo mismo con otro material o otra medida sin capturar de nuevo.</p>
     <div class="hist-search-bar">
@@ -1487,7 +1506,7 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
       <p class="falt-intro" id="falt-intro"></p>
       <div class="falt-list" id="falt-list"></div>
       <button class="btn btn-gho" id="falt-seguir" onclick="faltSeguir()"></button>
-      <button class="btn btn-pri" onclick="cerrarFaltantes()">← Volver a completarlas</button>
+      <button class="btn btn-pri" onclick="cerrarFaltantes()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver a completarlas</button>
     </div>
   </div>
 </div>
@@ -1544,8 +1563,8 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
         <div class="vt-prog-track"><div class="vt-prog-bar" id="vt-prog-bar"></div></div>
       </div>
       <div class="sp-zoom" id="vt-zoom">
-        <button onclick="vtZoomBy(1.4)" title="Acercar">+</button>
-        <button onclick="vtZoomBy(1/1.4)" title="Alejar">−</button>
+        <button onclick="vtZoomBy(1.4)" title="Acercar" aria-label="Acercar la imagen">+</button>
+        <button onclick="vtZoomBy(1/1.4)" title="Alejar" aria-label="Alejar la imagen">−</button>
         <button onclick="vtZoomReset()" title="Ajustar a la pantalla" aria-label="Ajustar la imagen a la pantalla" style="font-size:16px"><svg class="svgi" aria-hidden="true"><use href="#i-ajustar"/></svg></button>
       </div>
     </div>
@@ -1630,14 +1649,14 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
         <button class="sp-addall" id="vt-btn-partidas" onclick="vtUsarComoPartidas()" disabled style="margin:0 0 8px;width:100%">→ Agregar como partida de letras 3D</button>
         <button class="sp-ai" id="vt-btn-scaler" onclick="vtEnviarAEscalador()" disabled style="margin:0 0 7px;width:100%"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Medir el vector en el escalador</button>
         <div class="sp-ai-note" id="vt-acc-note">El trazo limpio se manda al escalador para sacar de ahí cada medida, o entra directo como partida con su altura y su número de letras.</div>
-        <button class="sp-back-m" onclick="cerrarVector()">← Volver al cotizador</button>
+        <button class="sp-back-m" onclick="cerrarVector()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver al cotizador</button>
       </div>
       <!-- Salida -->
       <div class="sp-sec">
         <div class="sp-sec-h"><h3>Exportar</h3></div>
         <div class="sp-sec-b">
           <button class="btn btn-gho" id="vt-copy-svg" onclick="vtCopiarSVG()" disabled><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar el código SVG</button>
-          <button class="btn btn-gho" onclick="cerrarVector()" style="margin-top:9px">← Volver al cotizador</button>
+          <button class="btn btn-gho" onclick="cerrarVector()" style="margin-top:9px"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver al cotizador</button>
         </div>
       </div>
     </aside>
@@ -1687,8 +1706,8 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
       </div>
       <div class="sp-hint-bar hide" id="sp-hint-bar"></div>
       <div class="sp-zoom" id="sp-zoom">
-        <button onclick="scZoomBy(1.5)" title="Acercar">+</button>
-        <button onclick="scZoomBy(1/1.5)" title="Alejar">−</button>
+        <button onclick="scZoomBy(1.5)" title="Acercar" aria-label="Acercar la foto">+</button>
+        <button onclick="scZoomBy(1/1.5)" title="Alejar" aria-label="Alejar la foto">−</button>
         <button onclick="scZoomReset()" title="Ajustar a la pantalla" aria-label="Ajustar la imagen a la pantalla" style="font-size:16px"><svg class="svgi" aria-hidden="true"><use href="#i-ajustar"/></svg></button>
       </div>
       <div class="sp-loupe" id="sc-loupe"><canvas id="sc-loupe-cvs"></canvas></div>
@@ -1711,10 +1730,10 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
               <button onclick="$('sc-ref-cm-input').value=145"><span class="emo">🚗</span> 145</button>
               <button onclick="$('sc-ref-cm-input').value=40"><span class="emo">⬜</span> 40</button>
             </div>
-            <button class="btn btn-ok" onclick="scConfirmCalib()" style="margin-top:11px">✓ Confirmar escala</button>
+            <button class="btn btn-ok" onclick="scConfirmCalib()" style="margin-top:11px"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Confirmar escala</button>
           </div>
           <div id="sc-calib-done" style="display:none">
-            <div style="background:var(--green-bg);border:1px solid rgba(21,160,106,.2);border-radius:var(--r-sm);padding:11px 13px;font-size:12.5px;color:var(--green);font-weight:600;margin-bottom:10px">✓ Escala calibrada</div>
+            <div style="background:var(--green-bg);border:1px solid rgba(21,160,106,.2);border-radius:var(--r-sm);padding:11px 13px;font-size:12.5px;color:var(--green);font-weight:600;margin-bottom:10px"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Escala calibrada</div>
             <button class="btn btn-gho" onclick="scResetCalib()" style="font-size:13px"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Re-calibrar</button>
           </div>
         </div>
@@ -1746,14 +1765,14 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
         <button class="sp-ai" id="sc-btn-ia" onclick="scCotizarConIA()" disabled><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar estas medidas con IA</button>
         <div class="sp-ai-note" id="sc-ia-note">La IA lee la foto con tus cotas y devuelve las partidas ya con material, tipo y número de letras.</div>
         <div class="sp-addall-note" id="sc-addall-note" style="display:none"></div>
-        <button class="sp-back-m" onclick="cerrarScaler()">← Volver al cotizador</button>
+        <button class="sp-back-m" onclick="cerrarScaler()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver al cotizador</button>
       </div>
       <!-- Exportar -->
       <details class="sp-sec sp-fold" id="sc-sec-export">
         <summary class="sp-sec-h"><h3>Exportar</h3></summary>
         <div class="sp-sec-b">
           <button class="btn btn-gho" id="sc-btn-export" onclick="scExportImg()" disabled><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg> Descargar imagen con cotas</button>
-          <button class="btn btn-gho" onclick="cerrarScaler()" style="margin-top:9px">← Volver al cotizador</button>
+          <button class="btn btn-gho" onclick="cerrarScaler()" style="margin-top:9px"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver al cotizador</button>
         </div>
       </details>
     </aside>
@@ -2414,7 +2433,7 @@ function renderItems(){
     d.innerHTML=`
       <div class="partida-top">
         <div class="pnum">
-          <button class="pfold" onclick="togglePartida(${it.id})" aria-expanded="${plegada?'false':'true'}" aria-controls="pbody-${it.id}" title="${plegada?'Abrir la partida':'Plegar la partida'}">▾</button>
+          <button class="pfold" onclick="togglePartida(${it.id})" aria-expanded="${plegada?'false':'true'}" aria-controls="pbody-${it.id}" title="${plegada?'Abrir la partida':'Plegar la partida'}" aria-label="${plegada?'Abrir':'Plegar'} la partida ${i+1}"><span aria-hidden="true">▾</span></button>
           ${!locked()?'<span class="drag-handle" title="Arrastra para reordenar" aria-hidden="true">'+ico('i-asa')+'</span>':''}
           <div class="n">${i+1}</div>
         </div>
@@ -2425,7 +2444,7 @@ function renderItems(){
         <div class="ptop-actions">
           ${!locked()?`<button class="dup" onclick="dupItem(${it.id})" title="Duplicar partida" aria-label="Duplicar partida">${ico('i-copiar')}</button>`:''}
           <button class="pdf-vis${pdfVis?'':' off'}" onclick="setShowInPdf(${it.id},${!pdfVis})" title="${pdfVis?'Ocultar del PDF — la partida sigue sumando al total':'Mostrar en PDF'}" aria-label="${pdfVis?'Ocultar del PDF':'Mostrar en PDF'}">${ico('i-ojo')}</button>
-          <button class="del" ${locked()?'disabled':''} onclick="delItem(${it.id})" title="Eliminar">×</button>
+          <button class="del" ${locked()?'disabled':''} onclick="delItem(${it.id})" title="Eliminar" aria-label="Eliminar la partida ${i+1}"><span aria-hidden="true">×</span></button>
         </div>
       </div>
       ${resumenHTML(it,i)}
@@ -2561,7 +2580,7 @@ function chip(on,click,label,extra){
   const dis=locked();
   return `<div class="chip${on?' on':''}" role="button" aria-pressed="${on?'true':'false'}"`+
     (dis?' aria-disabled="true"':` tabindex="0" onclick="${click}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"`)+
-    `><span class="ck" aria-hidden="true">✓</span>${label}${extra?` <small>${extra}</small>`:''}</div>`;
+    `><span class="ck" aria-hidden="true"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg></span>${label}${extra?` <small>${extra}</small>`:''}</div>`;
 }
 /* Bloque de opciones con su valor elegido en el encabezado; si no hay nada elegido
    el bloque se marca en ámbar con "Sin elegir". */
@@ -2930,7 +2949,7 @@ function renderAuth(){
         ? `<div class="auth-divider">Autorizando tú mismo</div>${authRevisionHTML(true)}`
         : `<div class="authnote">Esperando autorización del precio. Cambia el rol a <b>Autorizador</b> (arriba a la derecha) para aprobar o rechazar.</div>
            <button class="btn btn-pri" onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizarla yo mismo</button>
-           <button class="btn btn-gho" onclick="reabrir()">← Editar (cancela la solicitud)</button>`;
+           <button class="btn btn-gho" onclick="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar (cancela la solicitud)</button>`;
     }
     else if(Q.estado==='autorizada'){
       const neto=totals().neto;
@@ -2963,7 +2982,7 @@ function renderAuth(){
     }
     else if(Q.estado==='rechazada'){
       body=`<div class="authnote">Rechazada por <b>${esc(Q.autorizador)||'—'}</b>.${Q.nota?'<br>Motivo: '+esc(Q.nota):''}</div>
-            <button class="btn btn-gho" onclick="reabrir()">← Editar y volver a enviar</button>
+            <button class="btn btn-gho" onclick="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar y volver a enviar</button>
             <button class="btn btn-gho" onclick="pedirConfNueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Vaciar y empezar cotización nueva</button>`;
     }
   }
@@ -3030,9 +3049,9 @@ function authRevisionHTML(soloAutorizar){
     ${Q.iva?`<div class="ia-total soft"><span>Con IVA 16%</span><span id="ia-sum-neto">${money(authNeto)}</span></div>`:''}
     <div class="fld"><label for="a-name">Tu nombre (autorizador)</label><input id="a-name" autocomplete="off" placeholder="Ej. Elías" value="${esc(Q.autorizador||prefGet(PREF_AUTORIZADOR,''))}"></div>
     <div class="fld"><label for="a-note">Nota (opcional)</label><textarea id="a-note" placeholder="Comentario para el vendedor…">${esc(Q.nota||'')}</textarea></div>
-    <button class="btn btn-ok" onclick="autorizar()">✓ Autorizar precio</button>
+    <button class="btn btn-ok" onclick="autorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Autorizar precio</button>
     ${soloAutorizar
-      ? '<button class="btn btn-gho" onclick="cancelarAutoAutorizacion()">← Volver a editar</button>'
+      ? '<button class="btn btn-gho" onclick="cancelarAutoAutorizacion()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver a editar</button>'
       : '<button class="btn btn-dgr" onclick="rechazar()">Rechazar</button>'}`;
 }
 
@@ -3201,7 +3220,7 @@ function pedirConfNueva(){
     <div style="background:var(--red-bg);border:1.5px solid rgba(216,69,63,.3);border-radius:var(--r-sm);padding:13px">
       <p style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:11px">¿Borrar toda la cotización y empezar de nuevo? No se puede deshacer.</p>
       <button class="btn btn-dgr" onclick="nueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Sí, borrar todo</button>
-      <button class="btn btn-gho" style="margin-top:9px" onclick="renderAuth()">← Cancelar</button>
+      <button class="btn btn-gho" style="margin-top:9px" onclick="renderAuth()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Cancelar</button>
     </div>`;
 }
 /* ----- Vaciar, con vuelta atrás -----
@@ -3264,14 +3283,14 @@ function renderMobileBar(){
     /* Autorizándote a ti mismo, el siguiente paso es cerrar el precio; si la solicitud
        va para alguien más, el único paso propio es volver a editarla. */
     btn=_selfAuth
-      ? `<button class="mbar-btn ok" onclick="autorizar()">✓ Autorizar</button>`
-      : `<button class="mbar-btn gho" onclick="reabrir()">← Editar</button>`;
+      ? `<button class="mbar-btn ok" onclick="autorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Autorizar</button>`
+      : `<button class="mbar-btn gho" onclick="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar</button>`;
   } else if(Q.estado==='autorizada'){
     btn=Q.editMode
       ? `<button class="mbar-btn ok" onclick="guardarCambiosEdicion()"><svg class="svgi" aria-hidden="true"><use href="#i-guardar"/></svg> Guardar</button>`
       : `<button class="mbar-btn" onclick="generarPDF()"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> Generar PDF</button>`;
   } else if(Q.estado==='rechazada'){
-    btn=`<button class="mbar-btn gho" onclick="reabrir()">← Editar</button>`;
+    btn=`<button class="mbar-btn gho" onclick="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar</button>`;
   } else {
     const listo=Q.items.length>0&&totals().sub>0;
     btn=`<button class="mbar-btn" ${listo?'':'disabled'} onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizar yo mismo</button>`;
@@ -4505,8 +4524,9 @@ function saveHistorial(arr){
   try{ localStorage.setItem('al3d_historial',JSON.stringify(arr)); }
   catch(_){
     const slim=arr.map(x=>({...x,aiFile:x.aiFile?{name:x.aiFile.name,type:x.aiFile.type,url:''}:null}));
-    try{ localStorage.setItem('al3d_historial',JSON.stringify(slim)); }catch(_){}
-    toast('Historial guardado sin imágenes (espacio limitado)','',3500);
+    let ok=true; try{ localStorage.setItem('al3d_historial',JSON.stringify(slim)); }catch(_2){ ok=false; }
+    if(ok) toast('Historial guardado sin imágenes (espacio limitado)','',3500);
+    else toast('No hubo espacio para guardar en el historial — respalda y borra cotizaciones viejas','err',6000,{label:'Respaldar',fn:()=>respaldar()});
   }
 }
 function guardarEnHistorial(){
@@ -4600,7 +4620,7 @@ function pintarHistorial(){
             <div class="hentry-folio">${esc(e.folio)}</div>
             <div class="hentry-name">${esc(e.proy||e.cliente||'Sin nombre')}</div>
             <div class="hentry-sub">${esc(e.cliente||'')+(e.tel?' · '+esc(e.tel):'')+(e.dirRaw?'<br>'+ico('i-pin')+' '+esc(e.dirRaw):'')}</div>
-            <div class="hentry-auth">✓ ${esc(e.autorizador||'—')} · ${esc(e.fechaAuth||'')}</div>
+            <div class="hentry-auth"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> ${esc(e.autorizador||'—')} · ${esc(e.fechaAuth||'')}</div>
           </div>
           <div class="hentry-acts">
             <button class="hentry-open" onclick="reabrirDeHistorial('${esc(e.folio)}')" title="Cargarla en el cotizador para reimprimir su PDF, o editarla con «Editar partidas»"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Abrir y editar</button>
@@ -4741,15 +4761,33 @@ function restaurarDesde(texto){
   if(!confirm(`Restaurar reemplaza el historial, los folios y la cotización en curso de este teléfono por los del respaldo`
     +(fecha?` del ${fecha}`:'')+` (${cuantas} ${cuantas===1?'cotización':'cotizaciones'}).\n\n`
     +`Antes de reemplazar se descarga un respaldo de lo que hay ahora.\n\n¿Continuar?`)) return;
-  respaldar(`cotizador-al3d-antes-de-restaurar-${selloFecha()}.json`);
+  /* El confirm acaba de prometer que antes de reemplazar se descarga un respaldo de lo
+     que hay ahora. Si la descarga no salió, no se reemplaza nada: en la app instalada
+     de iOS descargarArchivo() devuelve false y antes se destruía el historial igual. */
+  if(!descargarArchivo(armarRespaldo(),`cotizador-al3d-antes-de-restaurar-${selloFecha()}.json`,'application/json')){
+    toast('No se pudo descargar el respaldo previo — no se cambió nada','err',5200); return;
+  }
+  /* Copia de lo que hay, para poder devolverlo. Antes se borraba todo y se reescribía
+     con un catch vacío por clave: si una no cabía se quedaba a medias, sin lo viejo y
+     sin lo nuevo, y el aviso de éxito salía igual. */
+  const previo={};
+  RESPALDO_KEYS.forEach(k=>{ try{ previo[k]=localStorage.getItem(k); }catch(_){} });
+  const fallaron=[];
   try{
     /* Se limpian primero las claves que maneja la app: si el respaldo no traía alguna
        —por ejemplo no había logotipo—, lo correcto es que tampoco quede la de antes. */
     RESPALDO_KEYS.forEach(k=>{ try{ localStorage.removeItem(k); }catch(_){} });
     Object.entries(paquete.datos).forEach(([k,v])=>{
-      if(RESPALDO_KEYS.includes(k)) { try{ localStorage.setItem(k,v); }catch(_){} }
+      if(RESPALDO_KEYS.includes(k)) { try{ localStorage.setItem(k,v); }catch(_){ fallaron.push(k); } }
     });
-  }catch(_){ toast('No se pudo escribir el respaldo en este dispositivo','err',3600); return; }
+  }catch(_){ fallaron.push('(escritura)'); }
+  if(fallaron.length){
+    RESPALDO_KEYS.forEach(k=>{
+      try{ localStorage.removeItem(k); if(previo[k]!=null) localStorage.setItem(k,previo[k]); }catch(_){}
+    });
+    toast('No cupo el respaldo en este dispositivo ('+fallaron.length+' '+(fallaron.length===1?'clave':'claves')+') — no se cambió nada','err',6000);
+    return;
+  }
   toast('Respaldo restaurado — recargando…','ok',2000);
   setTimeout(()=>location.reload(),900);
 }
@@ -5950,6 +5988,9 @@ function scConfirmCalib(){
   const p1={x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH};
   const p2={x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH};
   SC.nativePxPerCm=(scDist(p1,p2)*SC.scaleFactor)/v;
+  // 20 px de lienzo: por debajo de eso, un píxel de error al poner el punto ya mueve la
+  // escala varios por ciento y todas las medidas salen mal a la vez.
+  const largoRef=scDist(p1,p2);
   // Recalibrar con medidas ya trazadas: se recalculan todas, si no quedaban con los
   // centímetros de la escala anterior.
   scRecalcTodas();
@@ -5966,6 +6007,7 @@ function scConfirmCalib(){
   const secC=$('sc-sec-calib'); if(secC) secC.open=false;
   scSetMode('measure');
   scUpdateList();scUpdateGuideList();
+  if(largoRef<20){toast('La línea de referencia quedó muy corta — vuelve a trazarla más larga para que la escala sea confiable','err',4600);}
   toast(SC.items.length?'Escala calibrada — medidas actualizadas':'Escala calibrada — traza líneas para medir','ok');
   scRender();
 }
@@ -6082,7 +6124,7 @@ function scUpdateGuideList(){
     return `<div class="sp-gitem">
       <span class="ico" aria-hidden="true">${g.type==='h'?ico('i-horiz'):ico('i-vert')}</span>
       <span class="lbl">${g.type==='h'?'Horizontal':'Vertical'} ${n}</span>
-      <button class="sp-ibtn" onclick="scDelGuide(${g.id})" title="Quitar guía">×</button>
+      <button class="sp-ibtn" onclick="scDelGuide(${g.id})" title="Quitar guía" aria-label="Quitar la guía ${g.type==='h'?'horizontal':'vertical'} ${n}"><span aria-hidden="true">×</span></button>
     </div>`;
   }).join('');
 }
@@ -6108,7 +6150,7 @@ function scUpdateList(){
         <input class="sp-mitem-label" placeholder="Letras, logo, fachada…" value="${scEsc(m.label)}"
           onclick="event.stopPropagation()" oninput="scSetLabel(${m.id},this.value)">
         <button class="sp-mitem-add${m.usada?' done':''}"
-          onclick="event.stopPropagation();scUsarMedida(${m.id})">${m.usada?'✓ Agregada · agregar otra vez':'→ Agregar como partida'}</button>
+          onclick="event.stopPropagation();scUsarMedida(${m.id})">${m.usada?'<svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Agregada · agregar otra vez':'→ Agregar como partida'}</button>
       </div>
       <div class="sp-mitem-actions">
         <button class="sp-ibtn" onclick="event.stopPropagation();scDelMedida(${m.id})" title="Eliminar medida ${i+1}" aria-label="Eliminar medida ${i+1}">×</button>
@@ -6140,7 +6182,7 @@ function scDeshacerMedida(){
 /* Crea la partida de una medida. No cierra el escalador: de una misma imagen
    salen varias medidas y por lo tanto varias partidas. */
 function scAgregarPartida(m){
-  const h=Math.round(m.cm);
+  const h=Math.max(1,Math.round(m.cm));
   addItem({enfocar:false}); // el escalador está encima: mover la página de atrás no sirve de nada
   const it=Q.items[Q.items.length-1];
   it.altura=h;
@@ -6158,16 +6200,19 @@ function scUsarMedida(id){
   scUpdateList();
   // El aviso lleva la salida al cotizador: es justo lo que se quiere hacer después de
   // agregar y en el celular ahorra buscar el botón.
-  toast(`Partida con altura ${h} cm agregada — sigue midiendo`,'ok',4200,{label:'Ir al cotizador',fn:cerrarScaler});
+  if(m.cm<1){toast('Esa medida da menos de 1 cm — se agregó con 1 cm, revisa la calibración de escala','err',5000);}
+  else toast(`Partida con altura ${h} cm agregada — sigue midiendo`,'ok',4200,{label:'Ir al cotizador',fn:cerrarScaler});
 }
 function scUsarTodas(){
   if(locked()){toast('La cotización está bloqueada','err');return;}
   const pend=SC.items.filter(m=>!m.usada);
   if(!pend.length){toast('Todas las medidas ya están agregadas','',2200);return;}
+  const cortas=pend.filter(m=>m.cm<1).length;
   pend.forEach(scAgregarPartida);
   renderItems();
   scUpdateList();
-  toast(`${pend.length} ${pend.length===1?'partida agregada':'partidas agregadas'} a la cotización`,'ok',4200,{label:'Ir al cotizador',fn:cerrarScaler});
+  if(cortas){toast(`${cortas} ${cortas===1?'medida da':'medidas dan'} menos de 1 cm — se agregaron con 1 cm, revisa la calibración de escala`,'err',5600);}
+  else toast(`${pend.length} ${pend.length===1?'partida agregada':'partidas agregadas'} a la cotización`,'ok',4200,{label:'Ir al cotizador',fn:cerrarScaler});
 }
 /* ===================== Del escalador a la IA =====================
    Eran dos caminos sueltos que resolvían mitades distintas del mismo problema: el
@@ -6605,7 +6650,11 @@ function vtSplitDown(e){
   document.addEventListener('touchmove',mv,{passive:false});document.addEventListener('touchend',up);
   mv(e);
 }
-window.addEventListener('resize',()=>{ if($('vectormodal').classList.contains('show')&&VT.img){vtFit();vtRender();} });
+window.addEventListener('resize',()=>{
+  if(!$('vectormodal').classList.contains('show'))return;
+  vtAjustarToast();
+  if(VT.img){vtFit();vtRender();}
+});
 
 /* ---------- Ajustes ---------- */
 /* Cuánta mota tolera cada modo. En blanco y negro casi ninguna —la silueta es limpia y
@@ -7359,9 +7408,12 @@ function vtPintarResultado(){
   $('vt-st-trazos').textContent=VT.trazos;
   $('vt-st-colores').textContent=VT.keep.filter(Boolean).length;
   const cont=$('vt-swatches');
-  cont.innerHTML=VT.layers.map(L=>
+  cont.innerHTML=VT.layers.map((L,i)=>
     '<button class="vt-sw'+(VT.keep[L.idx]?'':' off')+'" style="background:'+vtHex(L.color)+'" '+
-    'onclick="vtToggleColor('+L.idx+')" title="'+vtHex(L.color)+(L.idx===VT.fondoIdx?' — fondo':'')+'"></button>').join('');
+    'onclick="vtToggleColor('+L.idx+')" aria-pressed="'+(VT.keep[L.idx]?'true':'false')+'" '+
+    'aria-label="Color '+(i+1)+' '+vtHex(L.color)+(L.idx===VT.fondoIdx?' (el fondo)':'')+
+    (VT.keep[L.idx]?' — incluido, toca para quitarlo':' — quitado, toca para incluirlo')+'" '+
+    'title="'+vtHex(L.color)+(L.idx===VT.fondoIdx?' — fondo':'')+'"></button>').join('');
   $('vt-sw-note').style.display=VT.layers.length>1?'':'none';
 }
 function vtToggleColor(idx){
