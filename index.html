@@ -319,6 +319,16 @@ textarea{resize:vertical;min-height:46px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 .fld{margin-bottom:13px}.fld:last-child{margin-bottom:0}
+/* ----- Campos obligatorios -----
+   Cliente, teléfono y proyecto se piden antes de mandar a autorización, así que se
+   anuncian desde el principio con un asterisco en la etiqueta: enterarse de que un
+   campo era obligatorio al momento de que te frenan es enterarse tarde.
+   El asterisco es decorativo —el dato para el lector de pantalla es aria-required en
+   el campo— y el ámbar del hueco solo se pinta cuando ya se intentó continuar. */
+.fld label .req{color:var(--amber-ico);font-weight:800;margin-left:1px}
+.fld.falta label{color:var(--amber)}
+.fld.falta input,.fld.falta textarea{border-color:var(--amber-ico);background:var(--amber-bg)}
+.fld.falta input:focus,.fld.falta textarea:focus{border-color:var(--brand);background:#fff}
 
 /* ---------- Partidas ---------- */
 .empty{text-align:center;color:var(--muted);font-size:13px;padding:30px 10px;border:1.5px dashed var(--line);border-radius:var(--r-sm);background:var(--soft)}
@@ -1317,10 +1327,12 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
       </div>
       <div class="card-b" id="card-proy-b">
         <div class="grid2">
-          <div class="fld"><label for="f-cli">Cliente</label><input id="f-cli" list="clientes-conocidos" placeholder="Nombre del cliente" autocomplete="off" oninput="upd('cliente',this.value)"><datalist id="clientes-conocidos"></datalist></div>
-          <div class="fld"><label for="f-tel">Teléfono</label><input id="f-tel" type="tel" inputmode="tel" placeholder="33 0000 0000" autocomplete="off" oninput="upd('tel',this.value)"></div>
+          <div class="fld" id="fld-cli"><label for="f-cli">Cliente<span class="req" aria-hidden="true">*</span></label><input id="f-cli" list="clientes-conocidos" placeholder="Nombre del cliente" autocomplete="off" aria-required="true" oninput="upd('cliente',this.value)"><datalist id="clientes-conocidos"></datalist></div>
+          <div class="fld" id="fld-tel"><label for="f-tel">Teléfono<span class="req" aria-hidden="true">*</span></label><input id="f-tel" type="tel" inputmode="tel" placeholder="33 0000 0000" autocomplete="off" aria-required="true" oninput="upd('tel',this.value)"></div>
         </div>
-        <div class="fld"><label for="f-proy">Proyecto</label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" autocomplete="off" oninput="upd('proy',this.value)"></div>
+        <div class="fld" id="fld-proy"><label for="f-proy">Proyecto<span class="req" aria-hidden="true">*</span></label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" autocomplete="off" aria-required="true" oninput="upd('proy',this.value)">
+          <div class="hintnote" style="margin-top:7px">Cliente, teléfono y proyecto son obligatorios: sin los tres no se puede mandar a autorización.</div>
+        </div>
         <div class="fld">
           <label for="f-dir-raw">Dirección como la compartió el/la cliente</label>
           <textarea id="f-dir-raw" autocomplete="off" placeholder="Pega aquí la dirección tal como te la mandaron&#10;Ej. Urban Center en Lopez Mateos Sur&#10;Ej. Mártires de Cananea #60, Centro, El Salto, Jalisco" rows="2" oninput="updDirRaw(this.value)"></textarea>
@@ -2535,7 +2547,10 @@ function renderItems(){
 }
 function calcProg(){
   let pts=0,max=0;
-  max+=20; if((Q.cliente||'').trim())pts+=10; if((Q.proy||'').trim())pts+=10;
+  /* Los tres obligatorios pesan aquí, cada uno lo mismo: si el teléfono no contara, la
+     barra podría llegar al 100% con una cotización que la autorización va a frenar. */
+  max+=30; if((Q.cliente||'').trim())pts+=10; if((Q.proy||'').trim())pts+=10;
+  if(!telIncompleto(Q.tel))pts+=10;
   max+=10; if((Q.dirRaw||'').trim()||(Q.maps||'').trim())pts+=10;
   if(!Q.items.length){max+=30;}
   else{
@@ -2556,6 +2571,10 @@ function calcProg(){
   return Math.min(100,Math.round(pts/max*100));
 }
 function updProg(){
+  /* Aquí y no en cada llamador: los datos del proyecto cambian por muchos caminos
+     —se teclean, los llena un cliente conocido, llegan de la IA, de la cola o del
+     historial— y todos pasan por un repintado. */
+  pintarObligatorios();
   const pct=calcProg();
   const bar=$('prog-bar'),pctEl=$('prog-pct');
   if(!bar||!pctEl)return;
@@ -2575,7 +2594,11 @@ function updProg(){
 /* Cada caso trae su frase completa en vez de colgar de un «Falta» fijo: con el prefijo
    suelto salía «Falta la partida 1 · falta altura», que repite el verbo. */
 function siguientePendiente(){
-  if(!(Q.cliente||'').trim()&&!(Q.proy||'').trim()) return {txt:'Falta el cliente o el proyecto',campo:'f-cli'};
+  /* Los tres obligatorios se nombran de uno en uno y en el orden en que están en la
+     pantalla: es la misma lista que frena la autorización, así que el aviso de arriba
+     y el que sale al continuar nunca pueden decir cosas distintas. */
+  const oblig=datosFaltantes();
+  if(oblig.length) return {txt:'Falta '+faltaTexto(oblig[0]),campo:oblig[0].campo};
   if(!(Q.dirRaw||'').trim()&&!(Q.maps||'').trim())  return {txt:'Falta la dirección',campo:'f-dir-raw'};
   if(!Q.items.length) return {txt:'Agrega una partida',boton:'addbtn'};
   const pend=partidasSinTerminar();
@@ -2597,14 +2620,18 @@ function irAPendiente(){
   if(!p){ toast('No falta nada por capturar','ok',2400); return; }
   if(p.item) return llevarAPartida(p.item);
   if(p.boton){ irA(p.boton); return; }
-  /* Los datos del proyecto pueden estar plegados: llevar ahí sin abrirlos dejaría al
-     usuario mirando un encabezado cerrado. */
+  irACampoProy(p.campo);
+}
+/* Llevar el foco a un campo de «Datos del proyecto», venga del aviso de arriba o del
+   freno al mandar a autorización. Los datos pueden estar plegados: llevar ahí sin
+   abrirlos dejaría al usuario mirando un encabezado cerrado. */
+function irACampoProy(id){
   if(_foldProy){
     _foldProy=false; aplicarFoldProy();
     try{ localStorage.setItem('al3d_fold_proy','0'); }catch(_){}
   }
   irA('card-proy');
-  const el=$(p.campo);
+  const el=$(id);
   if(el&&!el.disabled) requestAnimationFrame(()=>{ try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); } });
 }
 
@@ -3176,9 +3203,74 @@ function quitarDesdeFaltantes(id){
   else toast('Listo — ya no quedan partidas sin terminar','ok',3000);
 }
 
+/* ===================== Datos obligatorios del cliente =====================
+   Antes bastaba con el cliente O el proyecto para mandar a autorizar, y el teléfono no
+   se pedía nunca. El resultado eran cotizaciones autorizadas con las que después no se
+   podía hacer nada: sin nombre no se sabe de quién es, sin proyecto no se distingue de
+   las otras tres del mismo cliente y sin teléfono no hay a dónde mandarla por
+   WhatsApp —el botón de compartir existe justamente para eso—.
+
+   Los tres se piden en el momento de mandar a autorización y no antes: mientras se
+   captura se puede saltar de un lado a otro sin que la app estorbe. Es el mismo punto
+   donde el precio se bloquea, así que es también el último en el que corregirlo es
+   barato.
+
+   Una sola lista para los tres: la usan el aviso de «qué falta» de la barra de
+   progreso, el freno al continuar y el marcado en ámbar de los huecos. */
+const OBLIGATORIOS=[
+  {campo:'f-cli', caja:'fld-cli', llave:'cliente', nombre:'el nombre del cliente'},
+  {campo:'f-tel', caja:'fld-tel', llave:'tel',     nombre:'el teléfono del cliente'},
+  {campo:'f-proy',caja:'fld-proy',llave:'proy',    nombre:'el proyecto'}
+];
+/* Diez dígitos es un celular mexicano sin lada de país —lo mismo que ya pide
+   `telWhatsApp` para armar el enlace—. Se cuentan dígitos y no formato: «33 1234 5678»,
+   «3312345678» y «+52 33 1234 5678» son todos válidos. Un «33» a medias no lo es: un
+   teléfono incompleto engaña más que un teléfono vacío, porque parece capturado. */
+function telIncompleto(t){ return String(t||'').replace(/\D/g,'').length<10; }
+function datosFaltantes(){
+  return OBLIGATORIOS.filter(c=>c.llave==='tel'?telIncompleto(Q.tel):!(Q[c.llave]||'').trim());
+}
+/* El teléfono tiene dos huecos distintos y conviene distinguirlos: no es lo mismo
+   «falta el teléfono» que «lo que escribiste no alcanza a ser un teléfono». */
+function faltaTexto(c){
+  if(c.llave!=='tel') return c.nombre;
+  return (Q.tel||'').trim()?'el teléfono completo (10 dígitos)':c.nombre;
+}
+/* «a, b y c» — un «a, b, c» seco se lee como un formulario, no como una frase. */
+function listaY(arr){
+  if(arr.length<2) return arr[0]||'';
+  return arr.slice(0,-1).join(', ')+' y '+arr[arr.length-1];
+}
+/* El ámbar de los huecos aparece solo después de que la falta ya frenó algo: pintar de
+   ámbar una cotización recién abierta sería regañar por no haber empezado. Una vez
+   encendido se apaga campo por campo conforme se llenan, desde `upd`. */
+let _marcarOblig=false;
+function pintarObligatorios(){
+  const faltan=_marcarOblig?datosFaltantes():[];
+  OBLIGATORIOS.forEach(c=>{
+    const caja=$(c.caja), inp=$(c.campo);
+    const mal=faltan.includes(c);
+    if(caja) caja.classList.toggle('falta',mal);
+    if(inp){ if(mal) inp.setAttribute('aria-invalid','true'); else inp.removeAttribute('aria-invalid'); }
+  });
+}
+/* Devuelve true si se puede seguir. Si no, dice qué falta, lo marca y deja el cursor en
+   el primer hueco: enterarse de que falta algo sin que te lleven ahí es la mitad del
+   trabajo. */
+function exigirDatosCliente(){
+  const faltan=datosFaltantes();
+  _marcarOblig=faltan.length>0;
+  pintarObligatorios();
+  if(!faltan.length) return true;
+  const lista=listaY(faltan.map(faltaTexto));
+  toast(`Antes de mandar a autorización ${faltan.length===1?'falta':'faltan'} ${lista}.`,'err',4600);
+  irACampoProy(faltan[0].campo);
+  return false;
+}
+
 /* ===================== Flujo ===================== */
 function solicitar(){
-  if(!Q.proy.trim()&&!Q.cliente.trim()){toast('Completa al menos el nombre del proyecto o del cliente.','err',3200);return;}
+  if(!exigirDatosCliente()) return;
   if(!Q.items.length||totals().sub<=0){toast('Agrega al menos una partida con precio mayor a cero.','err',3200);return;}
   revisarAntesDe(solicitarConfirmado,'Solicitar de todos modos');
 }
@@ -3198,7 +3290,9 @@ function solicitarConfirmado(){
 let _selfAuth=false;
 function autorizarYoMismo(){
   if(Q.estado==='borrador'){
-    if(!Q.proy.trim()&&!Q.cliente.trim()){toast('Completa al menos el nombre del proyecto o del cliente.','err',3200);return;}
+    /* El atajo pasa por el mismo filtro que solicitar: autorizarse a uno mismo no es
+       una puerta de servicio para saltarse los datos del cliente. */
+    if(!exigirDatosCliente()) return;
     if(!Q.items.length||totals().sub<=0){toast('Agrega al menos una partida con precio mayor a cero.','err',3200);return;}
     /* Se pasa por «pendiente» y por la cola igual que el flujo normal: así el estado y
        el registro de la cola nunca dependen de por cuál de los dos caminos se llegó. */
@@ -3275,6 +3369,8 @@ function nueva(){
   Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth='';
   Q.editMode=false; _selfAuth=false;
   Object.values(_FM).forEach(id=>{if($(id))$(id).value='';});
+  // Una cotización en blanco no arranca regañada: el ámbar se apaga con ella.
+  _marcarOblig=false;
   $('f-anti').value='';
   updDirRaw('');
   $('mapsbtn').disabled=true;
@@ -4716,7 +4812,7 @@ function reabrirDeHistorial(folio){
   Q.iva=e.iva!==false;
   Q.precioAuth=e.precioAuth||0;
   Q.autorizador=e.autorizador||''; Q.nota=e.nota||''; Q.fechaAuth=e.fechaAuth||'';
-  Q.estado='autorizada'; Q.editMode=false; _selfAuth=false;
+  Q.estado='autorizada'; Q.editMode=false; _selfAuth=false; _marcarOblig=false;
   Q.anti=0; Q.antiManual=false; Q.aiFile=null;
   // Los ids se reutilizan tal cual, así que el contador tiene que quedar por encima
   // del mayor para que las partidas nuevas no choquen con las restauradas.
@@ -4753,7 +4849,7 @@ function usarComoBase(folio){
   Q.iva=e.iva!==false;
   Q.itemsAuth={}; Q.precioAuth=0;
   Q.autorizador=''; Q.nota=''; Q.fechaAuth='';
-  Q.estado='borrador'; Q.editMode=false; _selfAuth=false;
+  Q.estado='borrador'; Q.editMode=false; _selfAuth=false; _marcarOblig=false;
   Q.anti=0; Q.antiManual=false; Q.aiFile=null;
   Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
   updDirRaw(Q.dirRaw); updMaps(Q.maps);
@@ -4918,7 +5014,7 @@ function loadQueueEntry(folio){
   const rolActual=Q.rol;
   Object.assign(Q,entry.q);
   Q.rol=rolActual;
-  Q.editMode=false; _selfAuth=false;
+  Q.editMode=false; _selfAuth=false; _marcarOblig=false;
   Q.aiFile=null;
   pid=Q.items.reduce((m,it)=>Math.max(m,it.id||0),0);
   Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
