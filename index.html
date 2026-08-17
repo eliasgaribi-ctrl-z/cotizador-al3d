@@ -130,7 +130,12 @@ body.precios-ocultos #s-calc,
 body.precios-ocultos #s-anti-rest,
 body.precios-ocultos .mbar-amt,
 body.precios-ocultos .anti .inp-money,
-body.precios-ocultos .formula .dinero{
+body.precios-ocultos .formula .dinero,
+/* Dos fichas de la cara plegada llevan precio de este trabajo y no del catálogo: la
+   tarifa personalizada de una caja de luz y el precio unitario de una partida manual.
+   Se escapaban del difuminado, y plegada esa ficha es la superficie visible del
+   borrador —justo lo que no se lee desde el otro lado de la mesa—. */
+body.precios-ocultos .ptok.dinero{
   filter:blur(7px);
   transition:filter .16s;
   user-select:none;-webkit-user-select:none;
@@ -145,7 +150,8 @@ body.precios-ocultos.precios-a-la-vista #s-calc,
 body.precios-ocultos.precios-a-la-vista #s-anti-rest,
 body.precios-ocultos.precios-a-la-vista .mbar-amt,
 body.precios-ocultos.precios-a-la-vista .anti .inp-money,
-body.precios-ocultos.precios-a-la-vista .formula .dinero{filter:none}
+body.precios-ocultos.precios-a-la-vista .formula .dinero,
+body.precios-ocultos.precios-a-la-vista .ptok.dinero{filter:none}
 /* Al escribir el anticipo hay que ver lo que se escribe */
 body.precios-ocultos .anti .inp-money:focus-within{filter:none}
 /* Quien las pidió sin animación no las tiene */
@@ -242,7 +248,7 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 }
 /* Nada de zoom por doble toque ni destello gris al tocar: en el celular ese medio
    segundo de espera del navegador hace que la app se sienta lenta. */
-button,.chip,.tg,.switch,.ptok,.tipo-seg button,.seg button,summary{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .chip:active,.tipo-seg button:active,.seg button:active{transform:scale(.97)}
 
 /* ---------- Barra de acción de abajo (solo móvil) ----------
@@ -278,20 +284,28 @@ button,.chip,.tg,.switch,.ptok,.tipo-seg button,.seg button,summary{touch-action
 .mbar-btn.ok{background:linear-gradient(135deg,#0d8050,var(--green));box-shadow:0 3px 14px rgba(21,160,106,.32)}
 .mbar-btn.gho{background:#fff;color:var(--brand-strong);border:1.5px solid var(--line);box-shadow:none}
 
-/* ---------- Tarjetas plegables (solo móvil) ----------
-   Los datos del proyecto se capturan una vez y después estorban: en el celular la
-   tarjeta se pliega y deja las partidas —donde de verdad se trabaja— hasta arriba. */
-.card-fold{display:none}
+/* ---------- Botón de plegar de una tarjeta ----------
+   Lo usan dos botones con destinos distintos: «Ocultar» los datos del proyecto y
+   «Plegar todas» las partidas. El aspecto es base —lo comparten— y lo que se decide
+   por ancho es solo QUIÉN se ve: plegar los datos del proyecto sigue siendo cosa del
+   celular, donde esa tarjeta estorba después de capturarla; plegar las partidas sirve
+   en cualquier pantalla y su botón (#fold-all-btn, más abajo) se enseña siempre. */
+.card-fold{display:none;align-items:center;gap:7px;border:1.5px solid var(--line);background:#fff;
+  color:var(--brand-strong);border-radius:9px;padding:7px 11px;font-family:inherit;font-size:11.5px;
+  font-weight:700;cursor:pointer;max-width:60%;min-height:40px}
+/* min-width:0 para que el «…» funcione de verdad: un elemento flexible no baja de
+   lo que mide su texto mientras conserve el min-width automático, así que con un
+   nombre de cliente largo el resumen no se recortaba, empujaba la tarjeta y con
+   ella toda la página a lo ancho. */
+.card-fold .txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.card-fold .chev{font-size:10px;flex-shrink:0;transition:transform .18s}
+.card-fold:hover{border-color:var(--brand);background:var(--soft-2)}
 @media(max-width:920px){
-  .card-fold{display:inline-flex;align-items:center;gap:7px;border:1.5px solid var(--line);background:#fff;
-    color:var(--brand-strong);border-radius:9px;padding:7px 11px;font-family:inherit;font-size:11.5px;
-    font-weight:700;cursor:pointer;max-width:60%;min-height:40px}
-  /* min-width:0 para que el «…» funcione de verdad: un elemento flexible no baja de
-     lo que mide su texto mientras conserve el min-width automático, así que con un
-     nombre de cliente largo el resumen no se recortaba, empujaba la tarjeta y con
-     ella toda la página a lo ancho. */
-  .card-fold .txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-  .card-fold .chev{font-size:10px;flex-shrink:0;transition:transform .18s}
+  .card-fold{display:inline-flex}
+  /* Estas tres se quedan atadas al ancho a propósito: _foldProy se guarda en el
+     dispositivo y la tarjeta puede llegar a escritorio con la clase puesta. Si el
+     estado plegado valiera en cualquier ancho, quien la plegó en el celular se la
+     encontraría cerrada en la pantalla grande y sin el botón para abrirla. */
   .card.folded .card-fold .chev{transform:rotate(-90deg)}
   .card.folded .card-b{display:none}
   .card.folded .card-h{padding-bottom:16px}
@@ -319,6 +333,16 @@ textarea{resize:vertical;min-height:46px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 .fld{margin-bottom:13px}.fld:last-child{margin-bottom:0}
+/* ----- Campos obligatorios -----
+   Cliente, teléfono y proyecto se piden antes de mandar a autorización, así que se
+   anuncian desde el principio con un asterisco en la etiqueta: enterarse de que un
+   campo era obligatorio al momento de que te frenan es enterarse tarde.
+   El asterisco es decorativo —el dato para el lector de pantalla es aria-required en
+   el campo— y el ámbar del hueco solo se pinta cuando ya se intentó continuar. */
+.fld label .req{color:var(--amber-ico);font-weight:800;margin-left:1px}
+.fld.falta label{color:var(--amber)}
+.fld.falta input,.fld.falta textarea{border-color:var(--amber-ico);background:var(--amber-bg)}
+.fld.falta input:focus,.fld.falta textarea:focus{border-color:var(--brand);background:#fff}
 
 /* ---------- Partidas ---------- */
 .empty{text-align:center;color:var(--muted);font-size:13px;padding:30px 10px;border:1.5px dashed var(--line);border-radius:var(--r-sm);background:var(--soft)}
@@ -395,9 +419,19 @@ textarea{resize:vertical;min-height:46px}
 /* Drag & drop reorder */
 .drag-handle{cursor:grab;color:#8a90a6;font-size:18px;padding:0 5px 0 0;user-select:none;line-height:1;display:inline-flex;align-items:center}
 .drag-handle:active,.drag-handle:hover{cursor:grabbing;color:var(--brand)}
-/* ----- Qué está seleccionado en la partida -----
-   Resumen de arriba: lee de corrido lo que ya se eligió y marca en ámbar lo que falta. */
-.psum{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+/* ----- La cara de la partida plegada -----
+   Lo que se está cotizando en esa partida, y nada más: la descripción arriba y debajo
+   las fichas de lo elegido. Lo que falta se resume en una sola ficha ámbar; el itemizado
+   de los huecos se lee abajo, en el renglón de la fórmula, para no decirlo dos veces. */
+.psum{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;align-items:center}
+/* La descripción se lleva su propio renglón (flex-basis:100%) y NUNCA envuelve: una
+   descripción larga se corta con puntos suspensivos en vez de crecer la cara plegada.
+   min-width:0 es lo que hace que el recorte funcione dentro de un contenedor flexible. */
+.pdsc{flex:1 1 100%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:13px;font-weight:700;color:var(--ink);line-height:1.35}
+/* Sin descripción no se regaña en ámbar: no frena la autorización ni sale en el aviso de
+   partidas sin terminar, así que se dice en gris y se invita a escribirla. */
+.pdsc.vacia{font-weight:600;font-style:italic;color:var(--muted)}
 .ptok{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:8px;background:var(--soft-2);color:var(--brand-strong);border:1px solid rgba(58,74,216,.16);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ptok::before{content:'✓';font-size:11px;font-weight:400;opacity:.75}
 .ptok.falta{background:var(--amber-bg);color:var(--amber);border-color:rgba(207,138,18,.3)}
@@ -1044,40 +1078,80 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
    pensados para el escritorio.
 
    La regla al elegir medidas: se recorta el marco (rellenos, huecos, notas), nunca
-   el blanco de lo que se toca. Todo lo tocable sigue en 40 px o más. */
+   el blanco de lo que se toca. Todo lo tocable sigue en 40 px o más.
 
-/* ----- Partidas plegables -----
+   Ojo: el bloque del plegado que sigue ya NO es de esta sección —vale en cualquier
+   ancho—, pero se queda aquí porque necesita este lugar exacto de la hoja: después de
+   las reglas base que compiten con él y antes del bloque de puntero grueso, que sube el
+   ▾ a 44 px para el dedo. Lo suyo empieza en su propio encabezado. */
+
+/* ===================== Partidas plegables, en cualquier pantalla =====================
    Una partida de letras mide 1 293 px en un iPhone: con dos capturadas ya no cabía
    ninguna completa en pantalla y había que desplazarse a ciegas para compararlas.
-   Plegada deja a la vista lo que se necesita de un vistazo —número, tipo, lo que ya
-   está elegido y su total— y se abre con un toque. El estado vive fuera de la
-   cotización: no se guarda ni viaja al PDF. */
-.pfold{display:none}
+   Plegada deja a la vista lo que se está cotizando —descripción, tipo, lo elegido y su
+   total— y se abre con un toque. El estado vive fuera de la cotización: no se guarda ni
+   viaja al PDF.
+
+   Nació como arreglo del teléfono y por eso todo esto vivía dentro de la media query de
+   920 px, pero el problema no era del teléfono: era de las partidas. En escritorio la
+   columna de captura mide ~690 px y una partida de letras abierta se lleva 600 px de
+   alto enseñando el catálogo COMPLETO —los cinco materiales, las tres complejidades,
+   los tres acabados— multiplicado por cada partida de la cotización. Con cinco partidas
+   eran 3 000 px de opciones para leer dos datos. Así que el plegado vale igual en las
+   dos pantallas y las reglas son base.
+
+   Van en este hueco de la hoja a propósito, no al final: aquí ya quedaron atrás todas
+   las reglas base que compiten (.partida-top, .tipo-seg, .pline, .psum) y todavía no
+   llega el bloque de `@media(hover:none),(pointer:coarse)`, que sube el ▾ a 44 px para
+   el dedo. Al final de la hoja, ese 44 px se perdería. */
 .ptipo{display:none}
 .ph-acts{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;min-width:0}
-#fold-all-btn{max-width:none}
+/* Una sola definición del ▾, para que no exista un `display:none` que pisarse después. */
+.pfold{display:inline-flex;align-items:center;justify-content:center;border:none;background:none;
+  color:var(--brand);font-size:13px;font-weight:400;line-height:1;cursor:pointer;
+  padding:0;width:30px;height:30px;border-radius:8px;transition:transform .18s}
+.pfold:active{background:var(--soft-2)}
+/* Con ratón el ▾ necesita decir que es tocable; sus tres vecinos de la misma barra
+   —duplicar, ojo del PDF y borrar— ya lo dicen. */
+.pfold:hover{background:var(--soft-2)}
+.partida.folded .pfold{transform:rotate(-90deg)}
+.partida.folded .tipo-seg,.partida.folded .pbody{display:none}
+.partida.folded .partida-top{margin-bottom:9px}
+.partida.folded .psum{margin-bottom:0;cursor:pointer}
+.partida.folded .pline{margin-top:9px;padding-top:9px}
+/* Desplegada, el resumen de fichas repetía lo que ya dice el encabezado de cada
+   bloque de opciones (✓ elegido / ! sin elegir) y el renglón del total: 94 px de
+   información duplicada por partida. Se queda solo como cara de la partida plegada. */
+.partida:not(.folded) .psum{display:none}
+.partida.folded .ptipo{display:inline-flex;align-items:center;font-size:11px;font-weight:800;
+  color:var(--brand-strong);background:var(--soft-2);border:1px solid rgba(58,74,216,.16);
+  border-radius:8px;padding:4px 9px;white-space:nowrap}
+#fold-all-btn{max-width:none;display:inline-flex}
 #fold-all-btn.oculto{display:none}
 #fold-all-btn[aria-expanded="false"] .chev{transform:rotate(-90deg)}
 @media(max-width:920px){
   /* El asa de arrastre no sirve en el teléfono —el arrastre de HTML no existe al
-     tocar— así que su lugar, el borde de entrada de la partida, lo toma el plegado. */
+     tocar— así que su lugar, el borde de entrada de la partida, lo toma el plegado.
+     En escritorio el arrastre con ratón sí existe, así que ahí conviven las dos. */
   .drag-handle{display:none}
-  .pfold{display:inline-flex;align-items:center;justify-content:center;border:none;background:none;
-    color:var(--brand);font-size:13px;font-weight:400;line-height:1;cursor:pointer;
-    padding:0;width:30px;height:30px;border-radius:8px;transition:transform .18s}
-  .pfold:active{background:var(--soft-2)}
-  .partida.folded .pfold{transform:rotate(-90deg)}
-  .partida.folded .tipo-seg,.partida.folded .pbody{display:none}
-  .partida.folded .partida-top{margin-bottom:9px}
-  .partida.folded .psum{margin-bottom:0;cursor:pointer}
-  .partida.folded .pline{margin-top:9px;padding-top:9px}
-  /* Desplegada, el resumen de fichas repetía lo que ya dice el encabezado de cada
-     bloque de opciones (✓ elegido / ! sin elegir) y el renglón del total: 94 px de
-     información duplicada por partida. Se queda solo como cara de la partida plegada. */
-  .partida:not(.folded) .psum{display:none}
-  .partida.folded .ptipo{display:inline-flex;align-items:center;font-size:11px;font-weight:800;
-    color:var(--brand-strong);background:var(--soft-2);border:1px solid rgba(58,74,216,.16);
-    border-radius:8px;padding:4px 9px;white-space:nowrap}
+}
+/* Imprimir la pantalla del cotizador no es la manera de sacar la cotización —el PDF se
+   arma aparte, con su propio documento—, pero si alguien le da Ctrl+P a la app, nada de
+   lo plegado puede llevarse el detalle al papel: en pantalla se abre con un toque, en
+   una hoja ya no. Va DESPUÉS del bloque de arriba y del de la tarjeta de proyecto porque
+   pesa lo mismo que ellos: aquí sí manda el orden de la hoja.
+
+   No se toca el selector de tipo: plegada, la partida ya lleva su chip .ptipo con el
+   nombre del tipo, y devolverle el selector obligaría a acertar entre el inline-flex de
+   base y la rejilla de tres columnas de ≤760 px. La cara plegada sí se esconde, porque
+   abajo va el formulario completo y sería decir lo mismo dos veces. */
+@media print{
+  .pfold{display:none}
+  .partida.folded .pbody{display:block}
+  .partida.folded .psum{display:none}
+  /* Los datos del proyecto se pliegan en el celular y el estado se guarda: sin esto, un
+     Ctrl+P desde el teléfono imprime la cotización sin cliente, teléfono ni dirección. */
+  .card.folded .card-b{display:block}
 }
 
 @media(max-width:560px){
@@ -1313,14 +1387,16 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
     <div class="card" id="card-proy">
       <div class="card-h">
         <h2>Datos del proyecto</h2>
-        <button class="card-fold" id="fold-proy-btn" onclick="toggleFoldProy()" aria-expanded="true" aria-controls="card-proy-b"><span class="txt" id="fold-proy-txt">Ocultar</span><span class="chev">▾</span></button>
+        <button class="card-fold" id="fold-proy-btn" onclick="toggleFoldProy()" aria-expanded="true" aria-controls="card-proy-b"><span class="txt" id="fold-proy-txt">Ocultar</span><span class="chev" aria-hidden="true">▾</span></button>
       </div>
       <div class="card-b" id="card-proy-b">
         <div class="grid2">
-          <div class="fld"><label for="f-cli">Cliente</label><input id="f-cli" list="clientes-conocidos" placeholder="Nombre del cliente" autocomplete="off" oninput="upd('cliente',this.value)"><datalist id="clientes-conocidos"></datalist></div>
-          <div class="fld"><label for="f-tel">Teléfono</label><input id="f-tel" type="tel" inputmode="tel" placeholder="33 0000 0000" autocomplete="off" oninput="upd('tel',this.value)"></div>
+          <div class="fld" id="fld-cli"><label for="f-cli">Cliente<span class="req" aria-hidden="true">*</span></label><input id="f-cli" list="clientes-conocidos" placeholder="Nombre del cliente" autocomplete="off" aria-required="true" oninput="upd('cliente',this.value)"><datalist id="clientes-conocidos"></datalist></div>
+          <div class="fld" id="fld-tel"><label for="f-tel">Teléfono<span class="req" aria-hidden="true">*</span></label><input id="f-tel" type="tel" inputmode="tel" placeholder="33 0000 0000" autocomplete="off" aria-required="true" oninput="upd('tel',this.value)"></div>
         </div>
-        <div class="fld"><label for="f-proy">Proyecto</label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" autocomplete="off" oninput="upd('proy',this.value)"></div>
+        <div class="fld" id="fld-proy"><label for="f-proy">Proyecto<span class="req" aria-hidden="true">*</span></label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" autocomplete="off" aria-required="true" oninput="upd('proy',this.value)">
+          <div class="hintnote" style="margin-top:7px">Cliente, teléfono y proyecto son obligatorios: sin los tres no se puede mandar a autorización.</div>
+        </div>
         <div class="fld">
           <label for="f-dir-raw">Dirección como la compartió el/la cliente</label>
           <textarea id="f-dir-raw" autocomplete="off" placeholder="Pega aquí la dirección tal como te la mandaron&#10;Ej. Urban Center en Lopez Mateos Sur&#10;Ej. Mártires de Cananea #60, Centro, El Salto, Jalisco" rows="2" oninput="updDirRaw(this.value)"></textarea>
@@ -1360,7 +1436,7 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
         <h2>Partidas</h2>
         <div class="ph-acts">
           <span class="folio" id="pcount">0 partidas</span>
-          <button class="card-fold oculto" id="fold-all-btn" onclick="togglePlegarTodas()" aria-expanded="true"><span class="txt" id="fold-all-txt">Plegar todas</span><span class="chev">▾</span></button>
+          <button class="card-fold oculto" id="fold-all-btn" onclick="togglePlegarTodas()" aria-expanded="true"><span class="txt" id="fold-all-txt">Plegar todas</span><span class="chev" aria-hidden="true">▾</span></button>
         </div>
       </div>
       <div class="card-b">
@@ -1951,7 +2027,7 @@ function aplicarBlurPrecios(){
 /* Espiar: se destapan mientras se mantiene tocado y se vuelven a tapar al soltar.
    Los oyentes van en el documento —delegados— porque los importes se rehacen con cada
    cambio y volver a engancharlos en cada pintado se olvidaría en algún camino. */
-const _SEL_PRECIO='.lt,#s-sub,#s-iva,#s-neto,#s-calc,#s-anti-rest,.mbar-amt,.anti .inp-money,.formula';
+const _SEL_PRECIO='.lt,#s-sub,#s-iva,#s-neto,#s-calc,#s-anti-rest,.mbar-amt,.anti .inp-money,.formula,.ptok.dinero';
 function _espiarPrecios(e){
   if(!document.body.classList.contains('precios-ocultos'))return;
   const t=e.target.closest&&e.target.closest(_SEL_PRECIO);
@@ -2099,6 +2175,19 @@ function _vigilarModales(){
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_vigilarModales,{once:true});
 else _vigilarModales();
 
+/* ----- Decirlo solo al lector de pantalla -----
+   Para los cambios que con la vista se entienden de un golpe y sin ella no existen:
+   plegar de golpe todas las partidas, por ejemplo. Un aviso emergente ahí sería ruido
+   visual por algo que ya se ve.
+
+   El textContent='' y la escritura en el fotograma siguiente son los que hacen que la
+   región activa cuente el mensaje como inserción nueva aunque el texto se repita: sin
+   eso, «4 partidas plegadas» dos veces seguidas se oye una sola. */
+function voz(msg,urgente){
+  const el=$(urgente?'vozAlert':'vozStatus'); if(!el) return;
+  el.textContent='';
+  requestAnimationFrame(()=>{ el.textContent=msg; });
+}
 /* Aviso emergente. Con un solo temporizador compartido: antes dos avisos seguidos
    se pisaban y el segundo se ocultaba antes de tiempo por el reloj del primero.
    Acepta un botón opcional, por ejemplo para deshacer un borrado. */
@@ -2125,14 +2214,8 @@ function toast(msg,type='',dur=2600,accion=null){
      fuera del árbol de accesibilidad: la región activa no veía ninguna mutación, y
      volverlo visible con el texto ya puesto tampoco es una inserción. Ni VoiceOver ni
      TalkBack decían nada —ni «Partida 3 eliminada» con su Deshacer, ni los errores de
-     la IA—. Aquí el mensaje se repite en una región que nunca se oculta; el
-     textContent='' y la escritura en el fotograma siguiente son los que la hacen
-     contar como inserción nueva aunque el texto se repita. */
-  const voz=$(type==='err'?'vozAlert':'vozStatus');
-  if(voz){
-    voz.textContent='';
-    requestAnimationFrame(()=>{ voz.textContent=msg+(accion&&accion.label?' — '+accion.label+' disponible':''); });
-  }
+     la IA—. Por eso el mensaje se repite en una región que nunca se oculta. */
+  voz(msg+(accion&&accion.label?' — '+accion.label+' disponible':''),type==='err');
 }
 
 /* Copiar al portapapeles, con respaldo. En iOS y en páginas no seguras la API
@@ -2269,43 +2352,69 @@ function notaCliente(){ return (Q.notaCliente||'').trim()||'El cliente debe prop
 function direccionPdf(){ return (Q.dirRaw||'').trim()||(Q.direccion||'').trim(); }
 
 /* ===================== Acciones partidas ===================== */
-/* ===================== Partidas plegables (móvil) =====================
+/* ===================== Partidas plegables =====================
    Una partida de letras mide 1 293 px en un iPhone: con dos capturadas ya no cabía
-   ninguna completa en pantalla. Plegada se queda en su encabezado —número, tipo, lo
+   ninguna completa en pantalla. Plegada se queda en su encabezado —descripción, tipo, lo
    que ya está elegido y el total— y se abre con un toque.
+
+   Tres de las funciones de aquí —plegarOtras, togglePartida y sincronizarPlegado— salían
+   temprano si la pantalla medía más de 920 px, así que en escritorio no se podía plegar
+   nada: se veía el catálogo completo de cada partida —los
+   cinco materiales, las tres complejidades, los tres acabados— multiplicado por cada
+   renglón de la cotización. Plegar sirve igual en las dos pantallas, y de hecho más
+   arriba de 920 px, donde una cotización de cinco partidas medía 3 000 px de opciones.
 
    El estado se guarda aparte, en un conjunto de ids, y no dentro de Q: así no se
    escribe en localStorage, no viaja al historial ni acaba en el PDF; es una
    preferencia de cómo se está viendo la pantalla, no un dato de la cotización. */
 const _plegadas=new Set();
-const _esMovil=()=>window.matchMedia('(max-width:920px)').matches;
 /* Al abrir una partida se recogen las demás: se ve el resumen de lo que ya iba y el
    formulario de lo que se está capturando, sin desplazarse a ciegas. */
 function plegarOtras(dejarAbierta){
-  if(!_esMovil())return;
   Q.items.forEach(it=>{ if(it.id!==dejarAbierta) _plegadas.add(it.id); });
   _plegadas.delete(dejarAbierta);
 }
 function togglePartida(id,opts){
-  if(!_esMovil())return;
   const plegada=_plegadas.has(id);
   if(opts&&opts.soloAbrir&&!plegada) return;   // el resumen solo abre; no pliega
   if(plegada) _plegadas.delete(id); else _plegadas.add(id);
+  /* renderItems reconstruye la lista entera con innerHTML, así que el botón que se acaba
+     de pulsar deja de existir y el foco se cae al <body>: quien navega con teclado
+     volvía al principio del documento cada vez que plegaba. Se devuelve al ▾ de esta
+     misma partida, que es el único punto de anclaje que sobrevive al repintado. */
+  const a=document.activeElement;
+  const teniaFoco=!!(a&&a.closest&&a.closest('.partida')&&a.closest('.partida').id==='p-'+id);
   renderItems();
-  /* Al plegar, lo de abajo sube de golpe: se deja la partida donde estaba el dedo. */
-  if(!plegada) irA('p-'+id);
+  if(teniaFoco){
+    const b=$('p-'+id)&&$('p-'+id).querySelector('.pfold');
+    if(b){ try{ b.focus({preventScroll:true}); }catch(_){ b.focus(); } }
+  }
+  /* Al plegar, lo de abajo sube de golpe. En el teléfono eso se lleva la partida fuera
+     de la pantalla y hay que traerla de vuelta a donde estaba el dedo; con ratón hay
+     sitio de sobra y casi siempre sigue a la vista, y ahí un salto de página que nadie
+     pidió estorba más que no moverse. Por eso se mira antes si de verdad se salió. */
+  if(!plegada){
+    const el=$('p-'+id);
+    if(el&&el.getBoundingClientRect().top<altoTopbarFija()) irA(el);
+  }
 }
 function togglePlegarTodas(){
   const hayAbiertas=Q.items.some(it=>!_plegadas.has(it.id));
   if(hayAbiertas) Q.items.forEach(it=>_plegadas.add(it.id));
   else _plegadas.clear();
   renderItems();
+  /* Plegar N partidas de golpe se ve de un vistazo y no se oye: sin esto, quien usa
+     lector de pantalla pierde —o recupera— todos los formularios sin una palabra. */
+  const n=Q.items.length;
+  voz(n===1
+    ? `1 partida ${hayAbiertas?'plegada':'abierta'}`
+    : `${n} partidas ${hayAbiertas?'plegadas':'abiertas'}`);
 }
 /* Al abrir una cotización guardada solo se deja desplegada la última: si no, cinco
    partidas ya capturadas son seis mil píxeles de desplazamiento antes de ver el total. */
 function sincronizarPlegado(){
   _plegadas.clear();
-  if(!_esMovil()||Q.items.length<2)return;
+  if(Q.items.length<2)return;
   Q.items.slice(0,-1).forEach(it=>_plegadas.add(it.id));
 }
 
@@ -2469,7 +2578,11 @@ function renderItems(){
     d.innerHTML=`
       <div class="partida-top">
         <div class="pnum">
-          <button class="pfold" onclick="togglePartida(${it.id})" aria-expanded="${plegada?'false':'true'}" aria-controls="pbody-${it.id}" title="${plegada?'Abrir la partida':'Plegar la partida'}" aria-label="${plegada?'Abrir':'Plegar'} la partida ${i+1}"><span aria-hidden="true">▾</span></button>
+          <!-- El nombre no cambia con el estado: quien lo cambiaba obligaba a conciliar
+               un nombre que dice la acción («Abrir») con un aria-expanded que dice el
+               estado, leídos uno tras otro. El estado lo carga aria-expanded, que es su
+               trabajo; el title sí dice la acción, que es lo que necesita el ratón. -->
+          <button class="pfold" onclick="togglePartida(${it.id})" aria-expanded="${plegada?'false':'true'}" aria-controls="pbody-${it.id}" title="${plegada?'Abrir la partida':'Plegar la partida'}" aria-label="Detalle de la partida ${i+1}"><span aria-hidden="true">▾</span></button>
           ${!locked()?'<span class="drag-handle" title="Arrastra para reordenar" aria-hidden="true">'+ico('i-asa')+'</span>':''}
           <div class="n">${i+1}</div>
         </div>
@@ -2483,8 +2596,12 @@ function renderItems(){
           <button class="del" ${locked()?'disabled':''} onclick="delItem(${it.id})" title="Eliminar" aria-label="Eliminar la partida ${i+1}"><span aria-hidden="true">×</span></button>
         </div>
       </div>
-      ${resumenHTML(it,i)}
+      ${resumenHTML(it)}
       <div class="pbody" id="pbody-${it.id}">${bodyFor(it)}</div>
+      <!-- La fórmula y el total van FUERA de .pbody a propósito: son lo único del cuerpo
+           que se queda a la vista al plegar, y ahí es donde se espían los importes
+           tapados. Meterlos dentro los escondería; meterlos dentro del .psum haría que
+           cada intento de espiar el precio abriera la partida. -->
       <div class="pline">
         <span class="formula" id="formula-${it.id}">${formulaHTML(it)}</span>
         <span class="lt" id="lt-${it.id}">${money(lineTotal(it))}</span>
@@ -2535,7 +2652,10 @@ function renderItems(){
 }
 function calcProg(){
   let pts=0,max=0;
-  max+=20; if((Q.cliente||'').trim())pts+=10; if((Q.proy||'').trim())pts+=10;
+  /* Los tres obligatorios pesan aquí, cada uno lo mismo: si el teléfono no contara, la
+     barra podría llegar al 100% con una cotización que la autorización va a frenar. */
+  max+=30; if((Q.cliente||'').trim())pts+=10; if((Q.proy||'').trim())pts+=10;
+  if(!telIncompleto(Q.tel))pts+=10;
   max+=10; if((Q.dirRaw||'').trim()||(Q.maps||'').trim())pts+=10;
   if(!Q.items.length){max+=30;}
   else{
@@ -2556,6 +2676,10 @@ function calcProg(){
   return Math.min(100,Math.round(pts/max*100));
 }
 function updProg(){
+  /* Aquí y no en cada llamador: los datos del proyecto cambian por muchos caminos
+     —se teclean, los llena un cliente conocido, llegan de la IA, de la cola o del
+     historial— y todos pasan por un repintado. */
+  pintarObligatorios();
   const pct=calcProg();
   const bar=$('prog-bar'),pctEl=$('prog-pct');
   if(!bar||!pctEl)return;
@@ -2575,7 +2699,11 @@ function updProg(){
 /* Cada caso trae su frase completa en vez de colgar de un «Falta» fijo: con el prefijo
    suelto salía «Falta la partida 1 · falta altura», que repite el verbo. */
 function siguientePendiente(){
-  if(!(Q.cliente||'').trim()&&!(Q.proy||'').trim()) return {txt:'Falta el cliente o el proyecto',campo:'f-cli'};
+  /* Los tres obligatorios se nombran de uno en uno y en el orden en que están en la
+     pantalla: es la misma lista que frena la autorización, así que el aviso de arriba
+     y el que sale al continuar nunca pueden decir cosas distintas. */
+  const oblig=datosFaltantes();
+  if(oblig.length) return {txt:'Falta '+faltaTexto(oblig[0]),campo:oblig[0].campo};
   if(!(Q.dirRaw||'').trim()&&!(Q.maps||'').trim())  return {txt:'Falta la dirección',campo:'f-dir-raw'};
   if(!Q.items.length) return {txt:'Agrega una partida',boton:'addbtn'};
   const pend=partidasSinTerminar();
@@ -2597,14 +2725,18 @@ function irAPendiente(){
   if(!p){ toast('No falta nada por capturar','ok',2400); return; }
   if(p.item) return llevarAPartida(p.item);
   if(p.boton){ irA(p.boton); return; }
-  /* Los datos del proyecto pueden estar plegados: llevar ahí sin abrirlos dejaría al
-     usuario mirando un encabezado cerrado. */
+  irACampoProy(p.campo);
+}
+/* Llevar el foco a un campo de «Datos del proyecto», venga del aviso de arriba o del
+   freno al mandar a autorización. Los datos pueden estar plegados: llevar ahí sin
+   abrirlos dejaría al usuario mirando un encabezado cerrado. */
+function irACampoProy(id){
   if(_foldProy){
     _foldProy=false; aplicarFoldProy();
     try{ localStorage.setItem('al3d_fold_proy','0'); }catch(_){}
   }
   irA('card-proy');
-  const el=$(p.campo);
+  const el=$(id);
   if(el&&!el.disabled) requestAnimationFrame(()=>{ try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); } });
 }
 
@@ -2630,9 +2762,23 @@ function grupo(titulo,valor,chipsHTML,extraHTML=''){
 
 /* ----- Resumen: qué está seleccionado en esta partida -----
    Devuelve fichas {txt, estado}: 'ok' elegido, 'falta' pendiente, 'off' desactivado
-   a propósito (p. ej. sin iluminación). */
+   a propósito (p. ej. sin iluminación).
+
+   Es la fuente de tres cosas más, así que se trata como contrato cerrado: de las fichas
+   'falta' salen `faltantesDe` —y con ella la fórmula, el aviso de partidas sin terminar
+   y el freno de la autorización—. Una ficha por hueco, siempre; consolidar o recortar se
+   hace después, al pintar la cara plegada, nunca aquí.
+
+   Dos banderas opcionales, que solo lee esa cara:
+   · `pesa`: la ficha apagada tiene consecuencia de precio y por eso vale enseñarla
+     plegada. «Sin iluminación» son 20 pesos de cada cien; «Sin complejidad» es el valor
+     por omisión de uno de los tres acabados y no mueve nada.
+   · `dinero`: la ficha lleva un precio de ESTE trabajo —una tarifa teclateada a mano, un
+     precio unitario—, no una tarifa del catálogo, así que se difumina y se espía como
+     los demás importes mientras la cotización es borrador. */
 function resumenPartida(it){
-  const t=[], ok=x=>t.push({txt:x,estado:'ok'}), falta=x=>t.push({txt:x,estado:'falta'}), off=x=>t.push({txt:x,estado:'off'});
+  const t=[], push=(txt,estado,extra)=>t.push(Object.assign({txt,estado},extra||{}));
+  const ok=x=>push(x,'ok'), falta=x=>push(x,'falta'), off=x=>push(x,'off');
   const medidas=()=>{
     if(it.ancho>0&&it.alto>0){
       const m2=it.ancho*it.alto/10000;
@@ -2641,10 +2787,14 @@ function resumenPartida(it){
     } else falta('Faltan medidas');
   };
   if(it.tipo==='letras'){
-    const m=matOf(it.material); m?ok(m.label):falta('Falta material');
+    /* El material heredado se marca: abierta, la partida lo dice con «↩ como la anterior»
+       y con una nota, pero eso vive dentro del cuerpo y al plegar desaparecía, así que la
+       ficha quedaba idéntica a un material elegido a mano. Es el campo que más pesa en el
+       precio —de $30 a $55 el centímetro— y lo puso la app, no una persona. */
+    const m=matOf(it.material); m?push((it.matAuto?'↩ ':'')+m.label,'ok'):falta('Falta material');
     const c=compOf(it.comp);    c?ok(c.label):falta('Falta complejidad');
     if(it.luz) ok((it.ilumTipo||'fria')==='calida'?'Luz cálida 3000K':'Luz fría 6500K');
-    else off('Sin iluminación · −20%');
+    else push('Sin iluminación · −20%','off',{pesa:true});
     it.altura>0?ok(it.altura+' cm de altura'):falta('Falta altura');
     it.n>0?ok(it.n+(it.n===1?' letra':' letras')):falta('Faltan letras');
   }else if(it.tipo==='recorte'){
@@ -2657,28 +2807,70 @@ function resumenPartida(it){
     medidas();
   }else if(it.tipo==='caja'){
     const c=CAJAS.find(x=>x.tarifa===it.tarifa);
-    it.tarifa>0?ok((c?c.label:'Tarifa personalizada')+' · $'+it.tarifa+'/m²'):falta('Falta tipo de caja');
+    /* La tarifa del catálogo es catálogo; la personalizada la teclea quien cotiza para
+       este trabajo, así que esa sí es un precio y se tapa como los demás. */
+    it.tarifa>0?push((c?c.label:'Tarifa personalizada')+' · $'+it.tarifa+'/m²','ok',{dinero:!c}):falta('Falta tipo de caja');
     medidas();
   }else{
     it.pz>0?ok(it.pz+(it.pz===1?' pieza':' piezas')):falta('Faltan piezas');
-    it.pu>0?ok(money(it.pu)+' c/u'):falta('Falta precio unitario');
+    it.pu>0?push(money(it.pu)+' c/u','ok',{dinero:true}):falta('Falta precio unitario');
   }
   return t;
 }
-function psumLab(it,i){
-  const n=(typeof i==='number'?i:Q.items.findIndex(x=>x.id===it.id))+1;
-  return `Abrir la partida ${n} · ${resumenPartida(it).map(f=>f.txt).join(' · ')}`;
+/* ----- La cara de la partida plegada -----
+   Lo que se está cotizando en esa partida, y nada más. Plegada, esto es TODO lo que se
+   ve de ella junto con el encabezado y el renglón del total, así que lo que sobra aquí
+   sobra en la pantalla entera:
+
+   · La descripción va primero. Es el único texto que no se deduce del catálogo, el que
+     escribió una persona y el que viaja al PDF: entre dos partidas del mismo material y
+     distinta altura, es lo que dice cuál es cuál. Vacía se avisa en gris y no en ámbar,
+     porque no frena la autorización ni sale en el aviso de partidas sin terminar.
+   · Los huecos se resumen en UNA ficha ámbar con su cuenta. Una partida recién creada
+     tiene tres —material, altura, letras— y con una ficha por hueco la partida más vacía
+     era la que más ruido hacía, diciendo lo mismo que la fórmula de abajo ya itemiza con
+     sus propias palabras («Faltan: material, altura»). Va primera para que sea lo último
+     que se recorte cuando no cabe.
+   · De las fichas apagadas solo pasa la que mueve el precio (la bandera `pesa`).
+   · «Oculta del PDF» se dice con palabras: plegada, la única señal era un 45% de opacidad
+     y un borde gris, que se confunde con una partida sin capturar.
+
+   Un solo constructor para el primer pintado y para el repintado ligero de `typeItem`:
+   cuando eran dos mapas iguales, cualquier cosa que se agregara a uno desaparecía al
+   primer teclazo, porque el otro reescribía el innerHTML sin ella. */
+function caraPlegadaHTML(it){
+  const fichas=resumenPartida(it);
+  const huecos=fichas.filter(f=>f.estado==='falta').length;
+  const desc=(it.desc||'').trim();
+  const tok=(txt,cls)=>`<span class="ptok ${cls}">${esc(txt)}</span>`;
+  return `<span class="pdsc${desc?'':' vacia'}">${desc?esc(desc):'Sin descripción'}</span>`
+    +(huecos?tok(huecos===1?'Falta 1 dato':`Faltan ${huecos} datos`,'falta'):'')
+    +fichas.filter(f=>f.estado==='ok'||(f.estado==='off'&&f.pesa))
+           .map(f=>tok(f.txt,f.estado+(f.dinero?' dinero':''))).join('')
+    +(it.showInPdf===false?tok('Oculta del PDF','off'):'');
 }
-function resumenHTML(it,i){
-  /* Plegada, este resumen es la cara de la partida: tocarlo la vuelve a abrir. Como es la
-     única forma de abrirla aparte del ▾ de 30×30, también responde a Enter y Espacio. */
-  return `<div class="psum" id="psum-${it.id}" role="button" tabindex="0" aria-label="${esc(psumLab(it,i))}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" onclick="togglePartida(${it.id},{soloAbrir:true})">${resumenPartida(it).map(f=>`<span class="ptok ${f.estado}">${esc(f.txt)}</span>`).join('')}</div>`;
+/* Plegada, esta cara es la partida: pulsarla la vuelve a abrir. Ya no es un `role=button`
+   —lo era, y en escritorio anunciaba «Abrir la partida 3» sobre una partida abierta y al
+   pulsarlo no pasaba nada—. Como botón, además, volvía presentacionales a sus fichas: un
+   lector de pantalla no podía leerlas una por una, solo la etiqueta entera de corrido.
+   Ahora es texto que se puede leer y navegar, con el clic como atajo de ratón y de dedo;
+   el control accesible es el ▾ del encabezado, que hace exactamente lo mismo. */
+function resumenHTML(it){
+  return `<div class="psum" id="psum-${it.id}" onclick="abrirDesdeResumen(${it.id},event)">${caraPlegadaHTML(it)}</div>`;
+}
+/* Salvo cuando el toque cae en una ficha con precio TAPADO: ahí el gesto es espiar el
+   importe —se destapa mientras se mantiene tocado— y abrir la partida al soltar sería
+   castigar justo el gesto que la app enseña. Si los precios están a la vista no hay nada
+   que espiar y la ficha abre como el resto de la fila. */
+function abrirDesdeResumen(id,ev){
+  const t=ev&&ev.target;
+  if(document.body.classList.contains('precios-ocultos')&&t&&t.closest&&t.closest('.ptok.dinero')) return;
+  togglePartida(id,{soloAbrir:true});
 }
 function pintarResumen(it){
   const el=$('psum-'+it.id);
   if(!el) return;
-  el.innerHTML=resumenPartida(it).map(f=>`<span class="ptok ${f.estado}">${esc(f.txt)}</span>`).join('');
-  el.setAttribute('aria-label',psumLab(it));
+  el.innerHTML=caraPlegadaHTML(it);
 }
 function faltantesDe(it){ return resumenPartida(it).filter(f=>f.estado==='falta').map(f=>f.txt.replace(/^Faltan? /,'').toLowerCase()); }
 
@@ -3107,9 +3299,10 @@ function updPrecioAuth(pa, neto){
    que la incompleta pasara el filtro, se autorizara y saliera en el PDF como un
    renglón normal, con su descripción bien redactada, en $0.00.
 
-   El cálculo de qué falta ya existía: es el mismo `faltantesDe()` que pinta los chips
-   ámbar de cada partida. Aquí solo se usa en el momento en que importa. Si no falta
-   nada, no agrega ni un toque al flujo. */
+   El cálculo de qué falta ya existía: es el mismo `faltantesDe()` del que salen la
+   fórmula de la partida —«Faltan: material, altura»— y la ficha ámbar de su cara
+   plegada. Aquí solo se usa en el momento en que importa. Si no falta nada, no agrega ni
+   un toque al flujo. */
 function partidasSinTerminar(){
   return Q.items
     .map((it,i)=>({n:i+1,it,faltan:faltantesDe(it),vacia:itemVacio(it)}))
@@ -3146,8 +3339,8 @@ function faltSeguir(){
   $('faltmodal').classList.remove('show'); _faltSeguir=null;
   if(f) f();
 }
-/* Ir a una partida: se despliega antes de traerla a la vista, porque en el celular
-   podría estar plegada y llevarte a un encabezado no resuelve nada.
+/* Ir a una partida: se despliega antes de traerla a la vista, porque podría estar
+   plegada —en cualquier pantalla— y llevarte a un encabezado no resuelve nada.
 
    Si el aviso salió al autorizar, la cotización ya está bloqueada: para poder
    corregirla hay que reabrirla, que es exactamente lo que significa volver a tocar las
@@ -3176,9 +3369,74 @@ function quitarDesdeFaltantes(id){
   else toast('Listo — ya no quedan partidas sin terminar','ok',3000);
 }
 
+/* ===================== Datos obligatorios del cliente =====================
+   Antes bastaba con el cliente O el proyecto para mandar a autorizar, y el teléfono no
+   se pedía nunca. El resultado eran cotizaciones autorizadas con las que después no se
+   podía hacer nada: sin nombre no se sabe de quién es, sin proyecto no se distingue de
+   las otras tres del mismo cliente y sin teléfono no hay a dónde mandarla por
+   WhatsApp —el botón de compartir existe justamente para eso—.
+
+   Los tres se piden en el momento de mandar a autorización y no antes: mientras se
+   captura se puede saltar de un lado a otro sin que la app estorbe. Es el mismo punto
+   donde el precio se bloquea, así que es también el último en el que corregirlo es
+   barato.
+
+   Una sola lista para los tres: la usan el aviso de «qué falta» de la barra de
+   progreso, el freno al continuar y el marcado en ámbar de los huecos. */
+const OBLIGATORIOS=[
+  {campo:'f-cli', caja:'fld-cli', llave:'cliente', nombre:'el nombre del cliente'},
+  {campo:'f-tel', caja:'fld-tel', llave:'tel',     nombre:'el teléfono del cliente'},
+  {campo:'f-proy',caja:'fld-proy',llave:'proy',    nombre:'el proyecto'}
+];
+/* Diez dígitos es un celular mexicano sin lada de país —lo mismo que ya pide
+   `telWhatsApp` para armar el enlace—. Se cuentan dígitos y no formato: «33 1234 5678»,
+   «3312345678» y «+52 33 1234 5678» son todos válidos. Un «33» a medias no lo es: un
+   teléfono incompleto engaña más que un teléfono vacío, porque parece capturado. */
+function telIncompleto(t){ return String(t||'').replace(/\D/g,'').length<10; }
+function datosFaltantes(){
+  return OBLIGATORIOS.filter(c=>c.llave==='tel'?telIncompleto(Q.tel):!(Q[c.llave]||'').trim());
+}
+/* El teléfono tiene dos huecos distintos y conviene distinguirlos: no es lo mismo
+   «falta el teléfono» que «lo que escribiste no alcanza a ser un teléfono». */
+function faltaTexto(c){
+  if(c.llave!=='tel') return c.nombre;
+  return (Q.tel||'').trim()?'el teléfono completo (10 dígitos)':c.nombre;
+}
+/* «a, b y c» — un «a, b, c» seco se lee como un formulario, no como una frase. */
+function listaY(arr){
+  if(arr.length<2) return arr[0]||'';
+  return arr.slice(0,-1).join(', ')+' y '+arr[arr.length-1];
+}
+/* El ámbar de los huecos aparece solo después de que la falta ya frenó algo: pintar de
+   ámbar una cotización recién abierta sería regañar por no haber empezado. Una vez
+   encendido se apaga campo por campo conforme se llenan, desde `upd`. */
+let _marcarOblig=false;
+function pintarObligatorios(){
+  const faltan=_marcarOblig?datosFaltantes():[];
+  OBLIGATORIOS.forEach(c=>{
+    const caja=$(c.caja), inp=$(c.campo);
+    const mal=faltan.includes(c);
+    if(caja) caja.classList.toggle('falta',mal);
+    if(inp){ if(mal) inp.setAttribute('aria-invalid','true'); else inp.removeAttribute('aria-invalid'); }
+  });
+}
+/* Devuelve true si se puede seguir. Si no, dice qué falta, lo marca y deja el cursor en
+   el primer hueco: enterarse de que falta algo sin que te lleven ahí es la mitad del
+   trabajo. */
+function exigirDatosCliente(){
+  const faltan=datosFaltantes();
+  _marcarOblig=faltan.length>0;
+  pintarObligatorios();
+  if(!faltan.length) return true;
+  const lista=listaY(faltan.map(faltaTexto));
+  toast(`Antes de mandar a autorización ${faltan.length===1?'falta':'faltan'} ${lista}.`,'err',4600);
+  irACampoProy(faltan[0].campo);
+  return false;
+}
+
 /* ===================== Flujo ===================== */
 function solicitar(){
-  if(!Q.proy.trim()&&!Q.cliente.trim()){toast('Completa al menos el nombre del proyecto o del cliente.','err',3200);return;}
+  if(!exigirDatosCliente()) return;
   if(!Q.items.length||totals().sub<=0){toast('Agrega al menos una partida con precio mayor a cero.','err',3200);return;}
   revisarAntesDe(solicitarConfirmado,'Solicitar de todos modos');
 }
@@ -3198,7 +3456,9 @@ function solicitarConfirmado(){
 let _selfAuth=false;
 function autorizarYoMismo(){
   if(Q.estado==='borrador'){
-    if(!Q.proy.trim()&&!Q.cliente.trim()){toast('Completa al menos el nombre del proyecto o del cliente.','err',3200);return;}
+    /* El atajo pasa por el mismo filtro que solicitar: autorizarse a uno mismo no es
+       una puerta de servicio para saltarse los datos del cliente. */
+    if(!exigirDatosCliente()) return;
     if(!Q.items.length||totals().sub<=0){toast('Agrega al menos una partida con precio mayor a cero.','err',3200);return;}
     /* Se pasa por «pendiente» y por la cola igual que el flujo normal: así el estado y
        el registro de la cola nunca dependen de por cuál de los dos caminos se llegó. */
@@ -3275,6 +3535,8 @@ function nueva(){
   Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth='';
   Q.editMode=false; _selfAuth=false;
   Object.values(_FM).forEach(id=>{if($(id))$(id).value='';});
+  // Una cotización en blanco no arranca regañada: el ámbar se apaga con ella.
+  _marcarOblig=false;
   $('f-anti').value='';
   updDirRaw('');
   $('mapsbtn').disabled=true;
@@ -3672,10 +3934,10 @@ function aiUsarArchivo(){ aiSrc=null; aiPintarFuente(); }
 function aiStatus(msg,cls=''){
   const e=$('ai-status'); e.textContent=msg; e.className='ai-status '+cls;
   /* Por vozAlert los errores (role=alert, assertive) y por vozStatus el progreso, igual
-     que toast(). El textContent='' y la escritura en el fotograma siguiente son los que
-     hacen que cuente como inserción nueva aunque el texto se repita. */
-  const voz=$(cls==='err'?'vozAlert':'vozStatus');
-  if(voz&&msg){ voz.textContent=''; requestAnimationFrame(()=>{ voz.textContent=msg; }); }
+     que toast(). Este bloque tenía su propia copia del truco del fotograma siguiente y
+     además llamaba `voz` a la región: una const local que tapaba al helper del mismo
+     nombre, así que dentro de aquí `voz(...)` habría reventado. */
+  if(msg) voz(msg,cls==='err');
 }
 function fileToB64(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(f); }); }
 function extractJSON(txt){
@@ -4716,7 +4978,7 @@ function reabrirDeHistorial(folio){
   Q.iva=e.iva!==false;
   Q.precioAuth=e.precioAuth||0;
   Q.autorizador=e.autorizador||''; Q.nota=e.nota||''; Q.fechaAuth=e.fechaAuth||'';
-  Q.estado='autorizada'; Q.editMode=false; _selfAuth=false;
+  Q.estado='autorizada'; Q.editMode=false; _selfAuth=false; _marcarOblig=false;
   Q.anti=0; Q.antiManual=false; Q.aiFile=null;
   // Los ids se reutilizan tal cual, así que el contador tiene que quedar por encima
   // del mayor para que las partidas nuevas no choquen con las restauradas.
@@ -4753,7 +5015,7 @@ function usarComoBase(folio){
   Q.iva=e.iva!==false;
   Q.itemsAuth={}; Q.precioAuth=0;
   Q.autorizador=''; Q.nota=''; Q.fechaAuth='';
-  Q.estado='borrador'; Q.editMode=false; _selfAuth=false;
+  Q.estado='borrador'; Q.editMode=false; _selfAuth=false; _marcarOblig=false;
   Q.anti=0; Q.antiManual=false; Q.aiFile=null;
   Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
   updDirRaw(Q.dirRaw); updMaps(Q.maps);
@@ -4918,7 +5180,7 @@ function loadQueueEntry(folio){
   const rolActual=Q.rol;
   Object.assign(Q,entry.q);
   Q.rol=rolActual;
-  Q.editMode=false; _selfAuth=false;
+  Q.editMode=false; _selfAuth=false; _marcarOblig=false;
   Q.aiFile=null;
   pid=Q.items.reduce((m,it)=>Math.max(m,it.id||0),0);
   Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
