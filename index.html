@@ -2256,6 +2256,7 @@ const PREF_AUTORIZADOR='al3d_autorizador', PREF_MATERIAL='al3d_ult_material',
 const AI_FILE_KEY='al3d_aifile';
 const AI_FILE_MAX=2000000;      // ~2 MB: más que eso no conviene junto al historial
 let _aiFileGuardada=null;       // url ya escrita en el almacenamiento, o null si no cupo
+let _aiFileFallo=null;          // url que YA se intentó y no cupo: no se reintenta en cada tecla
 function prefGet(k,def=''){ try{ const v=localStorage.getItem(k); return v===null?def:v; }catch(_){ return def; } }
 function prefSet(k,v){ try{ localStorage.setItem(k,String(v)); }catch(_){} }
 
@@ -3592,6 +3593,8 @@ function autorizarConfirmado(){
   confirmarFolio(Q.folio); // el contador de cotizaciones solo avanza al autorizar
   updateQueueEntry(Q.folio,{estado:'autorizada',precioAuth:Q.precioAuth,autorizador:Q.autorizador,nota:Q.nota,fechaAuth:Q.fechaAuth,itemsAuth:Q.itemsAuth,huellaAuth:Q.huellaAuth});
   guardarEnHistorial();
+  /* Ya está en el historial: no tiene por qué seguir ocupando la cola con su copia. */
+  removeFromQueue(Q.folio);
   saveState(); renderItems(); toast('✓ Cotización autorizada — guardada en historial','ok',3200);
 }
 function rechazar(){
@@ -3605,6 +3608,8 @@ function rechazar(){
      aparecer propuesto la próxima vez que se abriera la cotización. */
   Q.precioAuth=0; Q.itemsAuth={}; Q.huellaAuth='';
   updateQueueEntry(Q.folio,{estado:'rechazada',autorizador:Q.autorizador,nota:Q.nota,precioAuth:0,itemsAuth:{},huellaAuth:''});
+  /* Una rechazada no se lista ni ocupa folio: se va de la cola con todo su snapshot. */
+  removeFromQueue(Q.folio);
   saveState(); renderItems(); toast('Cotización rechazada','err');
 }
 function pedirConfNueva(){
@@ -3766,10 +3771,49 @@ function setLogo(src){
      cuánto se recorre la barra de arriba al desplazarse en el teléfono. */
   ajustarTopbarMovil();
 }
+/* El logotipo se guardaba tal como venía del archivo. Con una foto de celular de 4 MB en
+   base64 no cabía, el setItem fallaba dentro de un catch vacío y el aviso decía «Logotipo
+   cargado» igual: se veía en pantalla y desaparecía al recargar. Ahora se reduce a 400 px
+   por un canvas antes de guardar, y el aviso dice lo que de verdad pasó.
+
+   Los SVG no pasan por el canvas: son texto, ya pesan poco y rasterizarlos sería perder
+   justo lo que los hace buenos para un logotipo. */
+const LOGO_MAX_PX=400, LOGO_MAX_BYTES=300000;
+function reducirLogo(dataUrl,tipo){
+  return new Promise(resolve=>{
+    if(/svg/i.test(tipo||'')) return resolve(dataUrl);
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const esc=Math.min(1,LOGO_MAX_PX/Math.max(img.width,img.height));
+        if(esc>=1&&dataUrl.length<=LOGO_MAX_BYTES) return resolve(dataUrl);
+        const cv=document.createElement('canvas');
+        cv.width=Math.max(1,Math.round(img.width*esc));
+        cv.height=Math.max(1,Math.round(img.height*esc));
+        const cx=cv.getContext('2d');
+        cx.drawImage(img,0,0,cv.width,cv.height);
+        /* PNG conserva la transparencia, que un logotipo suele necesitar; si sale muy
+           pesado —una foto rara vez tiene transparencia útil— se cae a JPEG. */
+        let out=cv.toDataURL('image/png');
+        if(out.length>LOGO_MAX_BYTES) out=cv.toDataURL('image/jpeg',0.85);
+        resolve(out.length<dataUrl.length?out:dataUrl);
+      }catch(_){ resolve(dataUrl); }
+    };
+    img.onerror=()=>resolve(dataUrl);
+    img.src=dataUrl;
+  });
+}
 $('logoin').addEventListener('change',e=>{
   const f=e.target.files[0]; if(!f)return;
   const r=new FileReader();
-  r.onload=ev=>{ setLogo(ev.target.result); try{localStorage.setItem('al3d_logo',ev.target.result);}catch(_){} toast('Logotipo cargado','ok'); };
+  r.onload=async ev=>{
+    const src=await reducirLogo(ev.target.result,f.type);
+    setLogo(src);
+    if(src.length>LOGO_MAX_BYTES){ toast('El logotipo pesa demasiado para guardarse — se ve ahora, pero no sobrevive a la recarga. Usa un PNG más chico.','err',7000); return; }
+    let ok=true; try{localStorage.setItem('al3d_logo',src);}catch(_){ ok=false; }
+    if(ok) toast('Logotipo cargado','ok');
+    else toast('No se pudo guardar el logotipo: no hay espacio en este dispositivo','err',6000,{label:'Respaldar',fn:()=>respaldar()});
+  };
   r.readAsDataURL(f); e.target.value='';
 });
 function loadLogo(){ let s=null; try{s=localStorage.getItem('al3d_logo');}catch(_){} setLogo(s||AL3D_LOGO); }
@@ -4967,13 +5011,26 @@ function cerrarEnlacePDF(){
 /* ===================== Historial de cotizaciones autorizadas ===================== */
 function getHistorial(){ try{return JSON.parse(localStorage.getItem('al3d_historial')||'[]');}catch(_){return [];} }
 function saveHistorial(arr){
-  try{ localStorage.setItem('al3d_historial',JSON.stringify(arr)); }
-  catch(_){
-    const slim=arr.map(x=>({...x,aiFile:x.aiFile?{name:x.aiFile.name,type:x.aiFile.type,url:''}:null}));
-    let ok=true; try{ localStorage.setItem('al3d_historial',JSON.stringify(slim)); }catch(_2){ ok=false; }
-    if(ok) toast('Historial guardado sin imágenes (espacio limitado)','',3500);
-    else toast('No hubo espacio para guardar en el historial — respalda y borra cotizaciones viejas','err',6000,{label:'Respaldar',fn:()=>respaldar()});
+  const escribir=a=>{ try{ localStorage.setItem('al3d_historial',JSON.stringify(a)); return true; }catch(_){ return false; } };
+  if(escribir(arr)) return;
+  /* No cupo. Antes se vaciaban de golpe las imágenes de TODAS las cotizaciones —incluidas
+     las que ya estaban guardadas y cabían de sobra— por autorizar una más: se perdía de
+     forma irreversible la referencia visual de todo el historial, que es con lo que el
+     vendedor reconoce una cotización vieja. Ahora se sueltan de la más antigua a la más
+     reciente y solo hasta que quepa; la que se está guardando es la última en perderla. */
+  const copia=arr.map(x=>({...x}));
+  const conImagen=[];
+  for(let i=copia.length-1;i>=0;i--) if(copia[i].aiFile&&copia[i].aiFile.url) conImagen.push(i);
+  let soltadas=0;
+  for(const i of conImagen){
+    copia[i].aiFile={name:copia[i].aiFile.name,type:copia[i].aiFile.type,url:''};
+    soltadas++;
+    if(escribir(copia)){
+      toast('Faltó espacio: se quitó la imagen de '+soltadas+(soltadas===1?' cotización vieja':' cotizaciones viejas'),'',5200,{label:'Respaldar',fn:()=>respaldar()});
+      return;
+    }
   }
+  toast('No hubo espacio para guardar en el historial — respalda y borra cotizaciones viejas','err',6000,{label:'Respaldar',fn:()=>respaldar()});
 }
 function guardarEnHistorial(){
   const t=totals();
@@ -5231,6 +5288,27 @@ function restaurarDesde(texto){
   if(!paquete||paquete.app!=='cotizador-al3d'||!paquete.datos){
     toast('Ese archivo no es un respaldo del cotizador','err',3600); return;
   }
+  /* Antes solo se miraba la etiqueta 'app' y de ahí se escribía directo en el
+     almacenamiento: un respaldo truncado o editado a mano pasaba el filtro, borraba lo que
+     había y anunciaba éxito, dejando la app sin arrancar. Se revisa la FORMA de lo que
+     viene antes de tocar nada. */
+  const D=paquete.datos;
+  if(typeof D!=='object'||Array.isArray(D)||Object.values(D).some(v=>typeof v!=='string'&&v!==null)){
+    toast('El respaldo está dañado: sus datos no tienen la forma esperada','err',4600); return;
+  }
+  if(!Object.keys(D).some(k=>RESPALDO_KEYS.includes(k))){
+    toast('El respaldo no trae ninguno de los datos del cotizador','err',4600); return;
+  }
+  /* Las dos claves que pueden dejar la app inservible se parsean de prueba. */
+  try{
+    if(D['al3d_historial']!=null && !Array.isArray(JSON.parse(D['al3d_historial']))) throw 0;
+    if(D['al3d_q']!=null){
+      const q=JSON.parse(D['al3d_q']);
+      if(!q||typeof q!=='object'||!Array.isArray(q.items)) throw 0;
+    }
+  }catch(_){
+    toast('El respaldo está dañado: el historial o la cotización en curso no se pueden leer','err',5200); return;
+  }
   let cuantas=0;
   try{ cuantas=(JSON.parse(paquete.datos['al3d_historial']||'[]')||[]).length; }catch(_){}
   const fecha=(paquete.fecha||'').slice(0,10);
@@ -5303,7 +5381,15 @@ function exportarHistorialCSV(){
 
 /* ===================== Cola de autorización ===================== */
 function getQueue(){ try{return JSON.parse(localStorage.getItem('al3d_queue')||'[]');}catch(_){return [];} }
-function saveQueue(arr){ try{localStorage.setItem('al3d_queue',JSON.stringify(arr));}catch(_){} }
+/* La cola guardaba una copia COMPLETA de cada cotización —partidas incluidas— para
+   siempre, también de las ya autorizadas o rechazadas, que no se listan en ningún lado, y
+   borrar del historial no la liberaba. Lo que ya cerró su ciclo se queda sin snapshot: de
+   lo autorizado ya se encarga el historial. Se conserva el renglón porque de él salen los
+   folios ocupados. */
+function saveQueue(arr){
+  const limpio=arr.map(e=>e.estado==='pendiente'?e:Object.assign({},e,{q:null}));
+  try{localStorage.setItem('al3d_queue',JSON.stringify(limpio));}catch(_){}
+}
 function removeFromQueue(folio){ saveQueue(getQueue().filter(x=>x.folio!==folio)); }
 
 function pushToQueue(){
@@ -5354,12 +5440,24 @@ function loadQueueEntry(folio){
 }
 
 /* ===================== Persistencia ===================== */
+/* Si el almacenamiento está lleno, la cotización deja de guardarse. Antes eso pasaba
+   detrás de un catch vacío: se seguía capturando delante del cliente creyendo que estaba a
+   salvo y al recargar no quedaba nada. Es el peor modo de falla de esta app —falla justo
+   cuando el usuario cree que está seguro—, así que ahora se dice, una sola vez, con el
+   mismo botón de Respaldar que ya ofrece saveHistorial, y el aviso al salir vuelve. */
+let _saveOk=true;
 function saveState(){
   try{
     const {editMode,...rest}=Q;
     const toSave={...rest,aiFile:null};
     localStorage.setItem('al3d_q',JSON.stringify(toSave));
-  }catch(_){}
+    _saveOk=true;
+  }catch(_){
+    if(_saveOk){
+      _saveOk=false;
+      toast('No hay espacio para guardar la cotización — respalda y borra cotizaciones viejas','err',9000,{label:'Respaldar',fn:()=>respaldar()});
+    }
+  }
   sincronizarAiFile();
 }
 
@@ -5376,13 +5474,21 @@ function saveState(){
 function sincronizarAiFile(){
   const url=Q.aiFile?Q.aiFile.url:null;
   if(url===_aiFileGuardada) return;
+  /* Se recuerda CUÁL archivo no cupo. El centinela era null para «no guardada», así que
+     un archivo que no cabía volvía a intentarse en cada saveState() —o sea en cada tecla—
+     y serializar megabytes por letra congelaba la captura en el celular: exactamente lo
+     que el comentario de arriba dice estar evitando. */
+  if(url&&url===_aiFileFallo) return;
   try{
-    if(!Q.aiFile){ localStorage.removeItem(AI_FILE_KEY); _aiFileGuardada=null; return; }
+    if(!Q.aiFile){ localStorage.removeItem(AI_FILE_KEY); _aiFileGuardada=null; _aiFileFallo=null; return; }
+    /* El tamaño se mide sobre la url, que es el 99% del peso, antes de construir la
+       cadena completa: no vale la pena armar 11 MB de JSON para descartarlos. */
+    if(url.length>AI_FILE_MAX){ localStorage.removeItem(AI_FILE_KEY); _aiFileGuardada=null; _aiFileFallo=url; return; }
     const s=JSON.stringify(Q.aiFile);
-    if(s.length>AI_FILE_MAX){ localStorage.removeItem(AI_FILE_KEY); _aiFileGuardada=null; return; }
+    if(s.length>AI_FILE_MAX){ localStorage.removeItem(AI_FILE_KEY); _aiFileGuardada=null; _aiFileFallo=url; return; }
     localStorage.setItem(AI_FILE_KEY,s);
-    _aiFileGuardada=url;
-  }catch(_){ _aiFileGuardada=null; }
+    _aiFileGuardada=url; _aiFileFallo=null;
+  }catch(_){ _aiFileGuardada=null; _aiFileFallo=url; }
 }
 function cargarAiFile(){
   try{
@@ -5408,6 +5514,10 @@ function loadState(){
     const s=localStorage.getItem('al3d_q');
     if(!s) return false;
     const saved=JSON.parse(s);
+    /* Se valida ANTES del Object.assign. Antes se asignaba y luego reventaba el reduce de
+       más abajo: Q quedaba ya contaminado con la basura y la app arrancaba a medias, con
+       loadState devolviendo false como si no hubiera encontrado nada. */
+    if(!saved||typeof saved!=='object'||!Array.isArray(saved.items)) return false;
     Object.assign(Q,saved);
     Q.aiFile=null;
     cargarAiFile();   // la imagen analizada se guarda aparte; si cupo, vuelve con la cotización
@@ -6863,11 +6973,30 @@ function init(){
   updProg();
 }
 
+/* ----- Dos pestañas sobre el mismo almacenamiento -----
+   No había nada que lo notara: cada pestaña guarda en cada tecla, así que la última en
+   escribir se llevaba lo de la otra y ninguna se enteraba. Fusionar dos cotizaciones
+   distintas no es cosa que la app pueda resolver sola, pero dejar de hacerlo en silencio
+   sí. El evento 'storage' solo llega a las OTRAS pestañas, que es justo a quienes hay que
+   avisar; se avisa una vez por sesión para no convertirlo en ruido. */
+let _avisoOtraPestana=false;
+window.addEventListener('storage',ev=>{
+  if(!ev.key||['al3d_q','al3d_historial','al3d_queue'].indexOf(ev.key)<0) return;
+  if(_avisoOtraPestana) return;
+  _avisoOtraPestana=true;
+  toast('El cotizador está abierto en otra ventana y acabó de guardar ahí. Para no pisar ese trabajo, usa una sola.','err',10000,
+    {label:'Recargar',fn:()=>location.reload()});
+});
+
 window.addEventListener('beforeunload',e=>{
   // La cotización se guarda sola y se restaura al reabrir, y ahora la imagen analizada
   // también. Solo queda algo que perder cuando esa imagen NO alcanzó a guardarse —por
   // tamaño o por falta de espacio—, así que el aviso aparece nada más en ese caso.
-  if(Q.aiFile&&_aiFileGuardada===null){e.preventDefault();return e.returnValue='';}
+  /* También hay que avisar cuando la cotización dejó de guardarse por falta de espacio, y
+     cuando hay medidas del escalador sin usar: SC vive solo en memoria y no se persiste,
+     así que una recarga se las llevaba sin preguntar. */
+  const hayMedidas=(typeof SC!=='undefined')&&SC.img&&SC.items&&SC.items.length>0;
+  if((Q.aiFile&&_aiFileGuardada===null)||!_saveOk||hayMedidas){e.preventDefault();return e.returnValue='';}
 });
 
 init();
