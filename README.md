@@ -62,6 +62,8 @@
 
 Todo corre en el navegador, sin instalar nada. Desde el celular conviene abrir la liga y agregarla a la pantalla de inicio (Chrome → menú → *Agregar a pantalla principal*; en iPhone, Safari → *Compartir* → *Agregar a inicio*) para que quede como aplicación, a pantalla completa y sin la barra del navegador.
 
+**Y abre sin señal.** La app guarda una copia de sí misma en el teléfono la primera vez que se abre con datos, así que en la calle —o en un local sin señal— sigue arrancando y el historial, los folios y la cotización en curso, que están en *ese* teléfono, siguen alcanzables. Lo que sí necesita conexión es *Cotizar con IA*, y leer un PDF en el escalador o el vectorizador la primera vez de cada sesión, porque el lector de PDF se descarga en ese momento; si no hay red, lo dice con esas palabras en vez de un error seco.
+
 En el teléfono la pantalla se acomoda sola y se aprovecha completa:
 
 - **Partidas plegadas.** Es lo que más se nota aquí —una partida de letras mide 1 293 px en un iPhone—, aunque ya funciona en cualquier pantalla: está descrito arriba, en *Qué hace*.
@@ -94,7 +96,9 @@ El sitio se sirve desde `index.html` en la rama `main`. Para publicar cambios:
 2. Subirlo en [/upload/main](https://github.com/eliasgaribi-ctrl-z/cotizador-al3d/upload/main) y hacer commit a `main`.
 3. Esperar entre 30 y 60 segundos a que GitHub Pages redespliegue.
 
-Si el celular sigue mostrando la versión anterior, es la caché: recargar forzando o abrir la liga con `?v=2` al final.
+Sigue siendo un solo archivo el que se edita. Junto a él viven dos piezas que se subieron una vez y no hay que volver a tocar: **`sw.js`**, que es lo que hace que la app abra sin señal, y **`manifest.webmanifest`**, que es lo que hace que Android la instale como aplicación y no como acceso directo. Si alguna vez se borran, la app sigue funcionando con conexión.
+
+Si el celular sigue mostrando la versión anterior, es la caché: recargar forzando o abrir la liga con `?v=2` al final. La copia local no estorba a esto —pide siempre la versión del servidor primero y solo usa la guardada cuando no hay red—, así que publicar y recargar alcanza.
 
 ---
 
