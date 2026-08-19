@@ -1700,7 +1700,7 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
           <input type="range" id="vt-esq" min="0" max="2" step="1" value="1" oninput="vtOpt('esquinas',+this.value)">
           <button type="button" class="switch" role="switch" aria-checked="true" style="margin-top:14px;font-size:12.5px" onclick="vtToggleFondo(event)"><span class="tg on" id="vt-fondo-tg" aria-hidden="true"></span> Quitar el fondo</button>
           <div class="hintnote" style="margin-top:8px">El color que más superficie ocupa se deja transparente. Es lo que hace que el SVG traiga solo el logotipo y no un rectángulo blanco encima.</div>
-          <button type="button" class="switch" role="switch" aria-checked="false" style="margin-top:11px;font-size:12.5px" onclick="vtToggleInvertir(event)"><span class="tg" id="vt-inv-tg" aria-hidden="true"></span> Invertir (logotipo claro sobre oscuro)</button>
+          <button type="button" class="switch" role="switch" aria-checked="false" style="margin-top:11px;font-size:12.5px" onclick="vtToggleInvertir(event)"><span class="tg" id="vt-inv-tg" aria-hidden="true"></span> Lo que quitó no era el fondo — usar el otro</button>
           <button class="vt-go" id="vt-go" onclick="vtVectorizar()" style="margin-top:15px" disabled><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg> Vectorizar</button>
         </div>
       </div>
@@ -5810,6 +5810,7 @@ window.addEventListener('popstate',()=>{
 
 function cargarImagenScaler(input){
   const f=input.files[0];if(!f)return;
+  if(!scPuedeCambiarImagen()){input.value='';return;}
   if(f.type==='application/pdf'){scLoadPDF(f);input.value='';return;}
   const r=new FileReader();
   r.onload=ev=>scLoadImgSrc(ev.target.result,f.name);
@@ -5817,17 +5818,34 @@ function cargarImagenScaler(input){
   input.value='';
 }
 function usarImagenAIEnScaler(){
-  if(Q.aiFile&&Q.aiFile.url) scLoadImgSrc(Q.aiFile.url,'imagen IA');
+  if(!(Q.aiFile&&Q.aiFile.url)) return;
+  if(!scPuedeCambiarImagen()) return;
+  scLoadImgSrc(Q.aiFile.url,'imagen IA');
 }
 function scOnDrop(e){
   e.preventDefault();e.currentTarget.style.outline='';
   if(e.dataTransfer.files[0]) cargarImagenScaler({files:e.dataTransfer.files,value:''});
 }
+/* Cargar otra imagen vacía SC.items. Los cuatro caminos que llegan aquí —elegir archivo,
+   arrastrar, traer la imagen de la IA y traer el vector— borraban sin preguntar las medidas
+   que ya había, y una medida se saca calibrando: no se recupera sola. La pregunta vive aquí
+   y no en cada llamador, que es lo que hacía que alguno se quedara fuera. */
+/* El eje de medición no se hereda: una imagen nueva —o una recalibración— no tiene por qué
+   seguir midiendo solo en horizontal porque la anterior lo necesitaba. */
+function scResetMMode(){ SC.mMode='libre'; try{ scSetMeasMode&&scSetMeasMode('libre'); }catch(_){} }
+function scPuedeCambiarImagen(){
+  if(!(SC.img&&SC.items&&SC.items.length)) return true;
+  const n=SC.items.length;
+  return confirm('El escalador tiene '+n+(n===1?' medida':' medidas')+' de la imagen actual. Al cargar otra se borran. ¿Continuar?');
+}
 function scLoadImgSrc(src,name,alCargar){
   const img=new Image();
   img.onload=()=>{
     SC.img=img;SC.imgW=img.naturalWidth;SC.imgH=img.naturalHeight;scDropCache();
-    if(SC.objUrl&&SC.objUrl!==src){try{URL.revokeObjectURL(SC.objUrl);}catch(_){}}
+    /* No se revoca un blob: que el vectorizador siga usando. Los dos módulos se pasan
+       imágenes entre sí, así que la URL que este cree suya puede ser la que el otro tiene
+       cargada: revocarla dejaba su imagen en blanco sin que nada lo explicara. */
+    if(SC.objUrl&&SC.objUrl!==src&&SC.objUrl!==VT.objUrl){try{URL.revokeObjectURL(SC.objUrl);}catch(_){}}
     SC.objUrl=/^blob:/.test(src)?src:null;
     scResetCalib(false);
     SC.items=[];SC.sel=null;SC.nid=1;SC.nc=0;_scBorrada=null;
@@ -6009,7 +6027,20 @@ function scFitCanvas(preservar){
   const iA=SC.imgW/SC.imgH;
   let w=maxW,h=maxW/iA;
   if(h>maxH){h=maxH;w=h*iA;}
+  const oW=SC.cvsW,oH=SC.cvsH;
   SC.cvsW=Math.max(1,Math.round(w));SC.cvsH=Math.max(1,Math.round(h));
+  /* Los puntos a medio trazar viven en coordenadas del lienzo, no normalizados como
+     SC.items y SC.refLine. Si el lienzo se reajusta entre los dos toques de una medida —y
+     se reajusta solo: la barra de pistas cambia de alto, el teléfono gira, aparece el
+     teclado— el primer punto se quedaba anclado donde estaba en el lienzo VIEJO y la medida
+     salía corrida sin que nada lo delatara. Se reescalan con el lienzo. */
+  if(oW>0&&oH>0&&(oW!==SC.cvsW||oH!==SC.cvsH)){
+    const kx=SC.cvsW/oW, ky=SC.cvsH/oH;
+    ['tapA','downPt','sp','cp'].forEach(k=>{
+      const pt=SC[k];
+      if(pt&&typeof pt.x==='number') SC[k]={...pt,x:pt.x*kx,y:pt.y*ky};
+    });
+  }
   SC.scaleFactor=SC.imgW/SC.cvsW;
   SC.vw=vw;SC.vh=vh;
   SC.rs=Math.min(scDPR(),Math.sqrt(scPixelBudget()/Math.max(1,vw*vh)));
@@ -6564,9 +6595,17 @@ function scEndHandle(){
     if(SC.refCm>0){
       const d=scDist({x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH},{x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH});
       if(d>=6){
+        /* Mismo umbral y mismo aviso que scConfirmCalib: mover un extremo recalculaba la
+           escala con una línea de 6 px y avisaba en verde de «Escala ajustada», con TODAS
+           las medidas rehechas sobre una referencia que ya no es confiable. Y ahora se
+           puede deshacer, porque el radio de agarre son 22 px con el dedo y agarrar la
+           referencia sin querer es fácil. */
+        const antes=SC.nativePxPerCm, refAntes=JSON.parse(JSON.stringify(SC.refLine));
         SC.nativePxPerCm=(d*SC.scaleFactor)/SC.refCm;
         scRecalcTodas();
-        toast('Escala ajustada'+(SC.items.length?' — medidas actualizadas':''),'ok',2600);
+        const volver=()=>{ SC.nativePxPerCm=antes; SC.refLine=refAntes; scRecalcTodas(); scUpdateList(); scRender(); toast('Escala restaurada','ok',2200); };
+        if(d<20) toast('La referencia quedó muy corta ('+Math.round(d)+' px): la escala dejó de ser confiable','err',6000,{label:'Deshacer',fn:volver});
+        else toast('Escala ajustada'+(SC.items.length?' — medidas actualizadas':''),'ok',3800,{label:'Deshacer',fn:volver});
       }
     }
   }
@@ -6729,10 +6768,16 @@ function scCancelarPunto(){
 }
 function scCommitLine(a,b){
   if(!a||!b)return false;
-  const ep=scSnap(a,b),d=scDist(a,ep);
+  /* El eje forzado (horizontal/vertical) es del modo de MEDICIÓN y no tiene por qué
+     enderezar la línea de referencia: un objeto conocido puesto en diagonal —el canto de
+     una puerta, una regla apoyada— quedaba recortado a su proyección horizontal, y la
+     escala salía más grande de lo real, con todas las medidas mal a la vez. */
+  const esRef=(SC.mode==='ref'||SC.mode==='ref-drawn');
+  const ep=esRef?b:scSnap(a,b), d=scDist(a,ep);
   if(d<6){scSetHint('Quedaron muy juntos — toca más lejos',{label:'↺ Quitar punto',fn:scCancelarPunto});return false;}
   if(SC.mode==='ref'||SC.mode==='ref-drawn'){
-    SC.refLine={nx1:a.x/SC.cvsW,ny1:a.y/SC.cvsH,nx2:ep.x/SC.cvsW,ny2:ep.y/SC.cvsH};
+    const n01=v=>Math.max(0,Math.min(1,v));
+    SC.refLine={nx1:n01(a.x/SC.cvsW),ny1:n01(a.y/SC.cvsH),nx2:n01(ep.x/SC.cvsW),ny2:n01(ep.y/SC.cvsH)};
     SC.mode='ref-drawn';
     $('sc-ref-confirm-row').style.display='';
     $('sc-ref-cm-input').value='';
@@ -6748,7 +6793,8 @@ function scCommitLine(a,b){
     scSetHint('¿Cuánto mide en cm? Escríbelo en el panel');
   }else if(SC.mode==='measure'){
     const pxD=scDist(a,ep),cm=(pxD*SC.scaleFactor)/SC.nativePxPerCm;
-    SC.items.push({id:SC.nid++,nx1:a.x/SC.cvsW,ny1:a.y/SC.cvsH,nx2:ep.x/SC.cvsW,ny2:ep.y/SC.cvsH,cm,label:'',color:SC_COLORS[SC.nc++%SC_COLORS.length],type:SC.mMode});
+    const c01=v=>Math.max(0,Math.min(1,v));
+    SC.items.push({id:SC.nid++,nx1:c01(a.x/SC.cvsW),ny1:c01(a.y/SC.cvsH),nx2:c01(ep.x/SC.cvsW),ny2:c01(ep.y/SC.cvsH),cm,label:'',color:SC_COLORS[SC.nc++%SC_COLORS.length],type:SC.mMode});
     SC.sel=SC.items[SC.items.length-1].id;scUpdateList();
     // Que los extremos se corrigen arrastrándolos se avisa una vez, de paso: como pista
     // fija no cabía en un renglón y la barra crecía a 58 px sobre las cotas de abajo.
@@ -6791,6 +6837,7 @@ function scConfirmCalib(){
 }
 function scResetCalib(full=true){
   SC.refLine=null;SC.refCm=0;SC.nativePxPerCm=0;SC.building=false;SC.tapA=null;SC.dragH=null;
+  SC.mMode='libre';
   $('sc-ref-confirm-row').style.display='none';
   $('sc-calib-done').style.display='none';
   $('sc-calib-help').style.display='';
@@ -6960,7 +7007,11 @@ function scDeshacerMedida(){
 /* Crea la partida de una medida. No cierra el escalador: de una misma imagen
    salen varias medidas y por lo tanto varias partidas. */
 function scAgregarPartida(m){
-  const h=Math.max(1,Math.round(m.cm));
+  /* Medio centímetro es la precisión que declara el propio campo de altura (step="0.5") y
+     la que enseña la lista de medidas (scFmtCm, un decimal). Redondear a entero tiraba
+     hasta 5 mm por partida: en letras de acero a $55/cm son casi $28 por letra, y en la
+     cotización eso ya no es redondeo. */
+  const h=Math.max(0.5,Math.round(m.cm*2)/2);
   addItem({enfocar:false}); // el escalador está encima: mover la página de atrás no sirve de nada
   const it=Q.items[Q.items.length-1];
   it.altura=h;
@@ -6978,14 +7029,14 @@ function scUsarMedida(id){
   scUpdateList();
   // El aviso lleva la salida al cotizador: es justo lo que se quiere hacer después de
   // agregar y en el celular ahorra buscar el botón.
-  if(m.cm<1){toast('Esa medida da menos de 1 cm — se agregó con 1 cm, revisa la calibración de escala','err',5000);}
+  if(m.cm<0.5){toast('Esa medida da menos de medio centímetro — se agregó con 0.5 cm, revisa la calibración de escala','err',5000);}
   else toast(`Partida con altura ${h} cm agregada — sigue midiendo`,'ok',4200,{label:'Ir al cotizador',fn:cerrarScaler});
 }
 function scUsarTodas(){
   if(locked()){toast('La cotización está bloqueada','err');return;}
   const pend=SC.items.filter(m=>!m.usada);
   if(!pend.length){toast('Todas las medidas ya están agregadas','',2200);return;}
-  const cortas=pend.filter(m=>m.cm<1).length;
+  const cortas=pend.filter(m=>m.cm<0.5).length;
   pend.forEach(scAgregarPartida);
   renderItems();
   scUpdateList();
@@ -7378,7 +7429,7 @@ function vtLoadImgSrc(src,name){
   const img=new Image();
   img.crossOrigin='anonymous';
   img.onload=()=>{
-    if(VT.objUrl&&VT.objUrl!==src){try{URL.revokeObjectURL(VT.objUrl);}catch(_){}}
+    if(VT.objUrl&&VT.objUrl!==src&&VT.objUrl!==SC.objUrl){try{URL.revokeObjectURL(VT.objUrl);}catch(_){}}
     VT.objUrl=/^blob:/.test(src)?src:null;
     VT.img=img; VT.imgW=img.naturalWidth; VT.imgH=img.naturalHeight; VT.nombre=name||'logo';
     VT.hecho=false; VT.sucio=false; VT.layers=[]; VT.svg=''; VT.pal=[]; VT.labels=null;
@@ -7547,20 +7598,32 @@ const vtPasadas=r=>Math.max(1,Math.min(5,Math.round(r/6)+1));
    píxeles: un SVG de megabytes que ningún software de corte abre. Se aplica antes de
    cuantizar, que es donde el daño se produce; la cuantización aplana después los bordes
    que el desenfoque hubiera suavizado. */
+/* El promedio no cruza la frontera del alfa. Un píxel transparente trae RGB (0,0,0) —los
+   exportadores no se molestan en pintar lo invisible—, así que promediar con él metía negro
+   en el borde del dibujo y fabricaba colores de paleta que no existen en el logotipo:
+   grises entre la tinta y la nada, que después salían como contornos fantasma. Los vecinos
+   transparentes se saltan y el promedio se renormaliza por el peso que de verdad se usó. */
 function vtSuavizar(pasadas){
   const d=VT.wData,w=VT.wW,h=VT.wH,tmp=new Uint8ClampedArray(d.length);
+  const opaco=i=>d[i+3]>=8;
   for(let p=0;p<pasadas;p++){
     tmp.set(d);
     for(let y=0;y<h;y++){
       const fila=y*w;
       for(let x=0;x<w;x++){
-        const i=(fila+x)*4, a=(fila+Math.max(0,x-1))*4, b=(fila+Math.min(w-1,x+1))*4;
-        for(let c=0;c<3;c++) tmp[i+c]=(d[a+c]+2*d[i+c]+d[b+c])>>2;
+        const i=(fila+x)*4;
+        if(!opaco(i)) continue;
+        const a=(fila+Math.max(0,x-1))*4, b=(fila+Math.min(w-1,x+1))*4;
+        const pa=opaco(a)?1:0, pb=opaco(b)?1:0, peso=pa+2+pb;
+        for(let c=0;c<3;c++) tmp[i+c]=(pa*d[a+c]+2*d[i+c]+pb*d[b+c])/peso;
       }
     }
     for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-      const i=(y*w+x)*4, a=(Math.max(0,y-1)*w+x)*4, b=(Math.min(h-1,y+1)*w+x)*4;
-      for(let c=0;c<3;c++) d[i+c]=(tmp[a+c]+2*tmp[i+c]+tmp[b+c])>>2;
+      const i=(y*w+x)*4;
+      if(!opaco(i)) continue;
+      const a=(Math.max(0,y-1)*w+x)*4, b=(Math.min(h-1,y+1)*w+x)*4;
+      const pa=opaco(a)?1:0, pb=opaco(b)?1:0, peso=pa+2+pb;
+      for(let c=0;c<3;c++) d[i+c]=(pa*tmp[a+c]+2*tmp[i+c]+pb*tmp[b+c])/peso;
     }
   }
 }
@@ -7705,8 +7768,15 @@ function vtDetectarFondo(){
   const voto=p=>{const v=lab[p]; if(v>=0)votos[v]++;};
   for(let x=0;x<w;x++){voto(x);voto((h-1)*w+x);}
   for(let y=0;y<h;y++){voto(y*w);voto(y*w+w-1);}
-  let bi=-1,best=-1;
+  /* best empieza en 0, no en -1, para que solo gane un color con AL MENOS un voto. Con un
+     PNG de logotipo sobre fondo transparente —el caso de entrada más común— los píxeles del
+     borde tienen alfa 0 y quedan con lab=-1, así que nadie votaba: el bucle se quedaba con
+     el índice 0 por descarte, que es la TINTA del logotipo, y quitarFondo la borraba. El
+     resultado era un SVG completamente vacío, con aviso de éxito y sin nada que explicara
+     por qué. Cuando nadie vota no hay fondo que quitar: la transparencia ya es el fondo. */
+  let bi=-1,best=0;
   for(let i=0;i<votos.length;i++) if(votos[i]>best){best=votos[i];bi=i;}
+  if(bi<0){ VT.fondoIdx=-1; VT.keep=VT.pal.map(()=>true); return; }
   VT.fondoIdx=bi;
   if(VT.opts.modo==='bn'&&VT.opts.invertir) VT.fondoIdx=bi===0?1:0;
   VT.keep=VT.pal.map((_,i)=>!(VT.opts.quitarFondo&&i===VT.fondoIdx));
@@ -8285,13 +8355,24 @@ function vtUsarEscalaScaler(){
 }
 
 /* ---------- Salidas ---------- */
+/* Por encima de esto, lo que el trazo tiene no son letras: es una foto vectorizada. Cotizar
+   «312 letras» a $30 el centímetro sale en cientos de miles de pesos y nadie lo captura a
+   mano por error, así que el número no se lleva a una partida sin que alguien lo mire. */
+const VT_MAX_PIEZAS=60;
 function vtHabilitarSalidas(){
   const hay=VT.hecho;
   ['vt-dl-svg','vt-dl-png','vt-copy-svg','vt-btn-scaler'].forEach(id=>{const e=$(id); if(e)e.disabled=!hay;});
   const bp=$('vt-btn-partidas');
   if(bp){
-    bp.disabled=!(hay&&VT.cmPorPx>0)||locked();
+    /* VT.ink es el recuadro de lo que quedó dibujado: apagando todos los colores el trazo se
+       queda vacío pero VT.hecho seguía en true, así que el botón ofrecía crear una partida
+       de 1 pieza con un alto que ya no correspondía a nada. */
+    const conTrazo=hay&&!!VT.ink&&VT.formas>0;
+    const demasiadas=VT.formas>VT_MAX_PIEZAS;
+    bp.disabled=!(conTrazo&&VT.cmPorPx>0)||demasiadas||locked();
     bp.textContent=!hay?'→ Agregar como partida de letras 3D'
+      :!conTrazo?'→ El trazo está vacío: enciende al menos un color'
+      :demasiadas?'→ '+VT.formas+' formas: eso no son letras, revisa el modo'
       :VT.cmPorPx>0?'→ Agregar como partida · '+VT.altoCm.toFixed(0)+' cm × '+VT.formas+(VT.formas===1?' letra':' letras')
       :'→ Pon la medida real para poder agregarla';
   }
@@ -8353,6 +8434,7 @@ function vtCopiarSVG(){
    están donde de verdad se va a cortar, no donde el JPG los difuminó. */
 function vtEnviarAEscalador(){
   if(!VT.hecho)return;
+  if(!scPuedeCambiarImagen()) return;
   const oc=document.createElement('canvas');
   oc.width=VT.imgW; oc.height=VT.imgH;
   const ctx=oc.getContext('2d');
@@ -8390,6 +8472,10 @@ function vtEnviarAEscalador(){
 function vtUsarComoPartidas(){
   if(locked()){ toast('La cotización está bloqueada','err'); return; }
   if(!VT.hecho||!(VT.cmPorPx>0)){ toast('Pon la medida real del diseño para poder cotizarlo','err',3400); return; }
+  /* Las mismas dos guardas que el botón, porque a esta función también se llega por teclado
+     y porque el estado puede haber cambiado desde el último repintado. */
+  if(!VT.ink||!VT.formas){ toast('El trazo no tiene ninguna forma — enciende al menos un color','err',4200); return; }
+  if(VT.formas>VT_MAX_PIEZAS){ toast('El trazo tiene '+VT.formas+' formas: eso no son letras. Prueba el modo Corte o Logotipo antes de cotizarlo.','err',6000); return; }
   const alto=Math.max(1,Math.round(VT.altoCm));
   const n=Math.max(1,VT.formas);
   addItem({enfocar:false});
