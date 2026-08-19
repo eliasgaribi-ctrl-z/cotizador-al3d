@@ -165,6 +165,12 @@ body.precios-ocultos .partida .inp-money:focus-within{filter:none}
 @media(prefers-reduced-motion:reduce){
   body.precios-ocultos .lt,body.precios-ocultos #s-sub,body.precios-ocultos #s-neto{transition:none}
 }
+/* Un Ctrl+P sobre el borrador salía con todos los importes borrosos: el difuminado existe
+   para que el precio no se lea desde el otro lado de la mesa, no para inutilizar la
+   impresión. El @media print de más abajo ya revierte el plegado; esto revierte el blur. */
+@media print{
+  body.precios-ocultos *{filter:none!important}
+}
 /* El aviso de que se pueden espiar. Solo mientras están tapados. */
 .precios-nota{display:none;font-size:11px;color:var(--muted);line-height:1.45;
   padding:0 20px 12px;align-items:center;gap:6px}
@@ -2407,8 +2413,16 @@ function precioFinal(){
   if(!authVigente()) return neto;
   return (Q.precioAuth>0 && Math.abs(Q.precioAuth-neto)>0.01) ? Q.precioAuth : neto;
 }
-/* Ajuste del autorizador: positivo = descuento, negativo = aumento, 0 = sin ajuste. */
-function ajusteAuth(){ return +(totals().neto-precioFinal()).toFixed(2); }
+/* Subtotal y neto de los precios YA ajustados partida por partida. Es la base contra la
+   que se mide el ajuste global, y la misma que suman los renglones del PDF. */
+function subAjustado(){ return Q.items.reduce((s,it)=>s+itemPrecio(it),0); }
+function netoAjustado(){ const sub=subAjustado(); return +((Q.iva?sub*1.16:sub)).toFixed(2); }
+/* Ajuste del autorizador: positivo = descuento, negativo = aumento, 0 = sin ajuste.
+   Se medía contra totals(), que ignora los ajustes por partida, mientras el PDF lo medía
+   contra los precios ajustados: la pantalla anunciaba un «Ahorro» que el documento del
+   cliente no mencionaba. Los descuentos por partida se ven en su propio renglón —con el
+   calculado tachado—, así que aquí solo cuenta el ajuste que va encima de todos. */
+function ajusteAuth(){ return +(netoAjustado()-precioFinal()).toFixed(2); }
 /* Subtotal e IVA que corresponden al precio final (para el registro de venta). */
 function desgloseFinal(){
   const neto=precioFinal();
@@ -3212,7 +3226,7 @@ function renderSummary(){
   // Precio autorizado (descuento o aumento respecto al calculado)
   const authRow=$('s-auth-row');
   if(authRow){
-    const aj=ajusteAuth(), neto=t.neto;
+    const aj=ajusteAuth(), neto=netoAjustado();
     if(Q.estado==='autorizada'&&Math.abs(aj)>0.01&&neto>0){
       $('s-auth').textContent=money(pf);
       $('s-auth-desc').textContent= aj>0
@@ -3297,7 +3311,7 @@ function renderAuth(){
            <button class="btn btn-gho" onclick="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar (cancela la solicitud)</button>`;
     }
     else if(Q.estado==='autorizada'){
-      const neto=totals().neto;
+      const neto=netoAjustado();
       const aj=ajusteAuth();
       const descHTML=Math.abs(aj)>0.01&&neto>0
         ? (aj>0
@@ -4571,7 +4585,14 @@ function telWhatsApp(t){
   if(d.length===10) return '52'+d;                 // celular mexicano sin lada de país
   if(d.length===12&&d.startsWith('52')) return d;  // ya viene con 52
   if(d.length===13&&d.startsWith('521')) return d; // formato viejo con el 1
-  return d;                                        // otro país: se manda tal cual
+  /* De aquí para abajo no se adivina. Un 11 dígitos que empieza con 1 se lee igual como
+     número de Estados Unidos (+1 415 555 2671) que como el formato mexicano viejo sin lada
+     de país, así que se manda tal cual: quien escribió «+1» quiso decir +1. Lo que antes
+     también pasaba tal cual —un «33» a medias— abría el chat de un número que no era el del
+     cliente mientras el aviso decía «WhatsApp abierto»; eso ahora se rechaza y se abre
+     WhatsApp sin número, el mismo camino que ya existía para el teléfono vacío. */
+  if(d.length>=11&&d.length<=15) return d;         // internacional con lada plausible
+  return '';
 }
 function mensajeWhatsApp(){
   const pf=precioFinal();
@@ -4600,9 +4621,17 @@ function mensajeWhatsApp(){
 function enviarPorWhatsApp(){
   const num=telWhatsApp(Q.tel);
   const url='https://wa.me/'+num+'?text='+encodeURIComponent(mensajeWhatsApp());
-  const w=window.open(url,'_blank','noopener');
+  /* Sin el 'noopener': window.open lo devuelve null POR ESPECIFICACIÓN cuando se pide, así
+     que la app siempre creía que el navegador había bloqueado la ventana y enseñaba el aviso
+     de emergencia aunque WhatsApp hubiera abierto bien. Aquí no hace falta: wa.me es un
+     destino conocido y la pestaña se abre por acción directa del usuario. */
+  const w=window.open(url,'_blank');
   if(!w){ toast('Permite ventanas emergentes para abrir WhatsApp','err',3400); return; }
-  toast(num?'WhatsApp abierto — falta adjuntar el PDF':'Sin teléfono capturado: elige el chat en WhatsApp','',4200);
+  const teniaTel=String(Q.tel||'').replace(/\D/g,'').length>0;
+  toast(num?'WhatsApp abierto — falta adjuntar el PDF'
+    :(teniaTel?'El teléfono capturado no parece un número válido — elige el chat en WhatsApp'
+             :'Sin teléfono capturado: elige el chat en WhatsApp'),
+    num?'':'err',num?4200:5200);
 }
 
 /* ===================== Copiar datos para pegar en Canva ===================== */
@@ -4638,6 +4667,11 @@ function copiarParaCanva(){
   const netoC=subC+ivaC;
   const pFinal=precioFinal();
   const ajuste=+(netoC-pFinal).toFixed(2);
+  /* El mismo desglose coherente que el PDF: el descuento baja la base y el IVA sale de la
+     base descontada, para que los dos documentos digan lo mismo. */
+  const hayAjusteC=Math.abs(ajuste)>0.01;
+  const dFinC=desgloseFinal();
+  const descSinIvaC=+(subC-dFinC.sub).toFixed(2);
   /* Igual que el PDF: las ocultas se cobran, así que se enlistan agrupadas para que las
      líneas sumen el subtotal de abajo. */
   const subOcultoC=+(subC-visibles.reduce((s,it)=>s+itemPrecio(it),0)).toFixed(2);
@@ -4651,8 +4685,8 @@ FECHA: ${Q.fecha||'—'}
 PARTIDAS:
 ${lineas}
 
-Subtotal: ${money(subC)}${Q.iva?`\nIVA (16%): ${money(ivaC)}`:''}
-Total Neto: ${money(netoC)}${ajuste>0.01?`\nDescuento: −${money(ajuste)}\nTotal a pagar: ${money(pFinal)}`:''}${ajuste<-0.01?`\nAjuste: +${money(-ajuste)}\nTotal a pagar: ${money(pFinal)}`:''}
+Subtotal: ${money(subC)}${hayAjusteC&&ajuste>0.01?`\nDescuento: −${money(descSinIvaC)}`:''}${hayAjusteC&&ajuste<-0.01?`\nAjuste: +${money(-descSinIvaC)}`:''}${hayAjusteC?`\nSubtotal ${ajuste>0?'con descuento':'ajustado'}: ${money(dFinC.sub)}`:''}${Q.iva?`\nIVA (16%): ${money(dFinC.iva)}`:''}
+${Q.iva?'Total Neto':'Total'}: ${money(dFinC.neto)}${Q.anti>0?`\nAnticipo para arrancar: ${money(Q.anti)}\nResta al entregar: ${money(Math.max(0,dFinC.neto-Q.anti))}`:''}
 
 Nota: ${notaCliente()}
 Límite de fabricación: ${Q.entrega||'—'}
@@ -4723,6 +4757,11 @@ Importante: respeta todos los elementos, posiciones y acomodo que aparecen en la
 /* ===================== Generador de PDF ===================== */
 function generarPDF(){
   const itemsForPDF = Q.items.filter(it=>it.showInPdf!==false);
+  /* Con todas las partidas ocultas salía un documento con el total completo y cero
+     renglones: nada que enseñarle al cliente y un total sin sustento. */
+  if(Q.items.length&&!itemsForPDF.length){
+    toast('Todas las partidas están ocultas del PDF — muestra al menos una','err',4600); return;
+  }
   /* El PDF se arma con los precios ya ajustados por el autorizador, para que las
      filas de la tabla siempre sumen lo que dice el total.
 
@@ -4737,6 +4776,14 @@ function generarPDF(){
   const netoPdf = subPdf+ivaPdf;
   const pFinal  = precioFinal();
   const ajuste  = +(netoPdf-pFinal).toFixed(2); // >0 descuento · <0 aumento
+  const hayAjuste = Math.abs(ajuste)>0.01;
+  /* El desglose que corresponde a lo que de verdad se cobra. Antes el I.V.A. impreso se
+     calculaba sobre el subtotal SIN descuento, así que el documento decía
+     «Subtotal 20,000 · I.V.A 3,200 · Descuento 1,200 · Total a pagar 22,000»: cuatro
+     números de los que ninguna pareja cuadraba. Ahora el descuento baja la base, el I.V.A.
+     sale de la base descontada y el total es exactamente subtotal + I.V.A. */
+  const dFin = desgloseFinal();
+  const descSinIva = +(subPdf-dFin.sub).toFixed(2);
 
   /* Etiquetas de catálogos */
   const MAT = {'al-paint':'Aluminio Blanco/Negro/Pintado','al-brush':'Aluminio Brush Cepillado','acr-vol':'Acrílico + Aluminio (Volumen)','acr-vinil':'Acrílico + Vinil','acero':'Acero Inoxidable'};
@@ -4798,7 +4845,11 @@ function generarPDF(){
      renglones de holgura por si la cuenta de abajo se queda corta. La hoja que además
      cierra con los totales (72 px más 16 de margen) y la nota (22 px más 12) tiene
      692 px; se reparte hasta 640 para que quepa una nota de tres renglones. */
-  const ALTO_TBODY=790, ALTO_TBODY_ULT=640;
+  /* El renglón del cliente son ~30 px más de encabezado en cada hoja, y el bloque de
+     totales creció con el anticipo y el subtotal descontado (~54 px en el peor caso).
+     Se le quita a lo que se reparte, que es lo que evita que la tabla empuje al pie
+     fuera de la hoja. */
+  const ALTO_TBODY=760, ALTO_TBODY_ULT=556;
   function altoFila(it){
     /* Alto de una fila medido: 14 px de padding más 13 px por renglón (una fila de un
        renglón mide 27 px y de dos, 39). En la columna de descripción, que mide 286 px,
@@ -4879,17 +4930,24 @@ function generarPDF(){
   }
 
   /* Fila proyecto/dirección */
+  /* El nombre del cliente no aparecía en ninguna hoja del PDF, aunque es obligatorio para
+     autorizar: la cotización llegaba sin decir de quién era. Va en su propio renglón porque
+     esta fila se reutiliza en las tres hojas —cotización, límite de fabricación y orden de
+     instalación— y en las tres hace falta. */
   function prowProyDir(){
-    return `<div style="display:flex;margin-bottom:12px;border:1.5px solid #3a4ad8;border-radius:4px;overflow:hidden">
+    const celda=(etq,val)=>`
       <div style="display:flex;flex:1">
-        <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Proyecto:</span>
-        <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(Q.proy)}</span>
-      </div>
-      <div style="display:flex;flex:1;border-left:1.5px solid #3a4ad8">
+        <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">${etq}</span>
+        <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${val}</span>
+      </div>`;
+    const marco=contenido=>`<div style="display:flex;margin-bottom:6px;border:1.5px solid #3a4ad8;border-radius:4px;overflow:hidden">${contenido}</div>`;
+    return marco(celda('Cliente:',esc(Q.cliente)))
+      +`<div style="margin-bottom:12px">`+marco(
+        celda('Proyecto:',esc(Q.proy))
+        +`<div style="display:flex;flex:1;border-left:1.5px solid #3a4ad8">
         <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Dirección</span>
         <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(direccionPdf())}</span>
-      </div>
-    </div>`;
+      </div>`)+`</div>`;
   }
 
   /* Footer reutilizable */
@@ -4971,11 +5029,13 @@ ${trozos.map((trozo,ti)=>{
   ${ultima?`<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
     <div style="width:265px">
       <div class="t-row"><b>Subtotal:</b><span>${money(subPdf)}</span></div>
-      ${Q.iva?`<div class="t-row" style="background:#d8d8f8"><b>I.V.A</b><span>${money(ivaPdf)}</span></div>`:''}
-      <div class="t-row" style="background:${Math.abs(ajuste)>0.01?'#8b95e8':'#3a4ad8'};color:#fff;font-weight:700;font-size:12px"><b>Total Neto:</b><span>${money(netoPdf)}</span></div>
-      ${ajuste>0.01?`<div class="t-row" style="background:#e5f6ee;color:#15a06a;font-weight:700"><b>Descuento:</b><span>− ${money(ajuste)}</span></div>`:''}
-      ${ajuste<-0.01?`<div class="t-row" style="background:#fbf1dd;color:#8a5c0a;font-weight:700"><b>Ajuste:</b><span>+ ${money(-ajuste)}</span></div>`:''}
-      ${Math.abs(ajuste)>0.01?`<div class="t-row" style="background:#3a4ad8;color:#fff;font-weight:700;font-size:12px"><b>Total a pagar:</b><span>${money(pFinal)}</span></div>`:''}
+      ${hayAjuste&&ajuste>0.01?`<div class="t-row" style="background:#e5f6ee;color:#15a06a;font-weight:700"><b>Descuento:</b><span>− ${money(descSinIva)}</span></div>`:''}
+      ${hayAjuste&&ajuste<-0.01?`<div class="t-row" style="background:#fbf1dd;color:#8a5c0a;font-weight:700"><b>Ajuste:</b><span>+ ${money(-descSinIva)}</span></div>`:''}
+      ${hayAjuste?`<div class="t-row"><b>Subtotal ${ajuste>0?'con descuento':'ajustado'}:</b><span>${money(dFin.sub)}</span></div>`:''}
+      ${Q.iva?`<div class="t-row" style="background:#d8d8f8"><b>I.V.A</b><span>${money(dFin.iva)}</span></div>`:''}
+      <div class="t-row" style="background:#3a4ad8;color:#fff;font-weight:700;font-size:12px"><b>${Q.iva?'Total Neto:':'Total:'}</b><span>${money(dFin.neto)}</span></div>
+      ${Q.anti>0?`<div class="t-row" style="background:#eef0fb"><b>Anticipo para arrancar:</b><span>${money(Q.anti)}</span></div>
+      <div class="t-row"><b>Resta al entregar:</b><span>${money(Math.max(0,dFin.neto-Q.anti))}</span></div>`:''}
     </div>
   </div>
   <div style="text-align:center;font-size:10px;margin-bottom:12px">
