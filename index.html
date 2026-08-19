@@ -1452,7 +1452,7 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
       </div>
       <div class="card-b">
         <div class="scaler-ai-row">
-          <button class="ai-btn" onclick="aiOpen()"><span><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar con IA<span class="solo-desk"> — analizar JPG o PDF</span></span></button>
+          <button class="ai-btn" id="aibtn" onclick="aiOpen()"><span><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar con IA<span class="solo-desk"> — analizar JPG o PDF</span></span></button>
           <button class="btn-scaler-open" onclick="abrirScaler()" title="Escalar imagen — medir elementos sin cotas"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Escalar</button>
           <button class="btn-vector-open" onclick="abrirVector()" title="Vectorizar — convertir el logotipo en trazo de corte"><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg> Vectorizar</button>
         </div>
@@ -3233,6 +3233,8 @@ function renderSummary(){
   /* El IVA sí mueve el total, así que se bloquea con las partidas. Se quedaba fuera de
      esta lista y era la puerta abierta por la que el precio autorizado se movía solo. */
   if($('ivabtn')) $('ivabtn').disabled=locked();
+  /* Cotizar con IA reemplaza las partidas, así que se bloquea igual que agregarlas. */
+  if($('aibtn')) $('aibtn').disabled=locked();
   renderMobileBar();
 }
 
@@ -4082,15 +4084,34 @@ function aiOpen(fuente){
   aiPintarFuente();
   aiMerge=true; $('ai-merge-tg').classList.add('on'); tgAria('ai-merge-tg'); aiPintarMerge();
   AI_PROVS.forEach(p=>{ const inp=$('ai-key-'+p); if(inp) inp.value=''; aiRenderKey(p); });
+  /* El <input type=file> conserva su selección entre aperturas: sin limpiarlo, volver a
+     abrir el modal y darle a Analizar re-analizaba —y volvía a pagar— el archivo del
+     análisis anterior, sin que nada en pantalla dijera cuál era. */
+  const fi=$('ai-file'); if(fi) fi.value='';
   $('ai-model-gemini').value=localStorage.getItem('ai_model_gemini')||localStorage.getItem('ai_model')||AI_DEFAULTS.gemini;
   $('ai-model-groq').value=localStorage.getItem('ai_model_groq')||AI_DEFAULTS.groq;
   $('ai-model-openrouter').value=localStorage.getItem('ai_model_openrouter')||AI_DEFAULTS.openrouter;
   const p=localStorage.getItem('ai_provider')||'gemini';
   setAiProv(p);
   if(!getKey(p)) $('ai-cfg-box').open=true;
-  aiStatus(''); $('aimodal').classList.add('show');
+  _aiCancelado=false;
+  const go=$('ai-go-btn'); if(go) go.disabled=aiTrabajando;
+  aiStatus(aiTrabajando?'Hay un análisis en curso…':''
+    ,aiTrabajando?'work':'');
+  $('aimodal').classList.add('show');
 }
-function aiClose(){ $('aimodal').classList.remove('show'); }
+/* Cerrar el modal cancela lo que estuviera corriendo. Antes el análisis seguía en marcha
+   con aiTrabajando en true, así que al reabrir el modal el botón Analizar estaba gris y
+   sin ninguna explicación, y no había forma de cancelar. */
+function aiClose(){
+  $('aimodal').classList.remove('show');
+  if(aiTrabajando){
+    _aiCancelado=true;
+    if(_aiAbort){ try{_aiAbort.abort();}catch(_){} }
+    aiTrabajando=false;
+    const b=$('ai-go-btn'); if(b) b.disabled=false;
+  }
+}
 /* Con la imagen del escalador el modal cambia de cara: en vez de pedir un archivo
    enseña lo que se va a analizar, y deja la puerta abierta por si el usuario prefiere
    subir otra cosa. */
@@ -4108,7 +4129,9 @@ function aiPintarFuente(){
   $('ai-src-n').textContent=`${n} ${n===1?'medida calibrada':'medidas calibradas'} — se usan tal cual, sin redondear.`;
   if(btn) btn.textContent='Analizar las medidas y cotizar';
 }
-function aiUsarArchivo(){ aiSrc=null; aiPintarFuente(); }
+/* Al pasar de «la imagen medida» a «subir un archivo» también se limpia la selección
+   anterior, por lo mismo que en aiOpen. */
+function aiUsarArchivo(){ aiSrc=null; const fi=$('ai-file'); if(fi) fi.value=''; aiPintarFuente(); }
 function aiStatus(msg,cls=''){
   const e=$('ai-status'); e.textContent=msg; e.className='ai-status '+cls;
   /* Por vozAlert los errores (role=alert, assertive) y por vozStatus el progreso, igual
@@ -4194,16 +4217,20 @@ async function aiImagen(f){
    texto y se intenta interpretar después. */
 async function aiFetch(url,opts){
   const ctl=new AbortController();
+  _aiAbort=ctl;   // para que cerrar el modal pueda cortar la petición en vuelo
   const t=setTimeout(()=>ctl.abort(),AI_TIMEOUT);
   let res;
   try{
     res=await fetch(url,Object.assign({},opts,{signal:ctl.signal}));
   }catch(e){
+    /* Cancelar no es un fallo del proveedor: si se reintentara, cerrar el modal no
+       cancelaría nada — la cadena seguiría dando vueltas sola. */
+    if(_aiCancelado){ const c=new Error('análisis cancelado'); c.cancelado=true; throw c; }
     const err=new Error(e&&e.name==='AbortError'
       ? 'el proveedor tardó demasiado en responder'
       : 'no se pudo conectar con el proveedor (revisa tu conexión)');
     err.transitorio=true; throw err;
-  }finally{ clearTimeout(t); }
+  }finally{ clearTimeout(t); if(_aiAbort===ctl) _aiAbort=null; }
   const txt=await res.text().catch(()=>'');
   let data=null; try{ data=JSON.parse(txt); }catch(_){}
   return {res,data,txt};
@@ -4284,6 +4311,7 @@ async function aiCandidato(c,prompt,b64,mime,verbo,esperas,hayMas){
       /* Un 429 es cuota de ESA key: esperar no la devuelve, y si hay otra key u otro
          proveedor esperando turno, probarlo es más rápido y más seguro que dormir. */
       if(e.status===429&&hayMas) throw e;
+      if(e.cancelado) throw e;
       if(!e.transitorio||i>=E.length) throw e;
       aiStatus(`⏳ ${e.message} · reintentando en ${Math.round(E[i]/1000)} s…`,'work');
       await aiSleep(E[i]);
@@ -4331,9 +4359,18 @@ function aiCadena(prov,model,esPdf){
 }
 
 let aiTrabajando=false;
+/* Qué se intentó de verdad en la última corrida, para que el mensaje de error no cuente
+   keys que la cadena excluyó a propósito. */
+let _aiIntentados=0, _aiProvsProbados=0, _aiEraPdf=false;
+/* El análisis en curso, para poder cancelarlo al cerrar el modal. */
+let _aiAbort=null, _aiCancelado=false;
 
 async function aiAnalyze(){
   if(aiTrabajando) return;   // el botón queda deshabilitado, pero el Enter del teclado no
+  /* La misma guarda que ya tiene scCotizarConIA. Sin ella, un análisis sobre una
+     cotización autorizada la devolvía a borrador y le borraba el precio: había que volver
+     a pedir la autorización con el cliente enfrente. */
+  if(locked()){ aiStatus('La cotización está autorizada · usa «Editar partidas» antes de analizar','err'); return; }
   const f=$('ai-file').files[0];
   if(!aiSrc && !f){ aiStatus('Selecciona un archivo JPG o PDF.','err'); return; }
   const esPdf=!aiSrc && f.type==='application/pdf';
@@ -4350,8 +4387,9 @@ async function aiAnalyze(){
   const model=($('ai-model-'+aiProv).value.trim())||AI_DEFAULTS[aiProv];
   const soloGemini=esPdf&&aiProv!=='gemini';   // el PDF se va a Gemini: las keys del elegido no hacen falta
   if(!getKeys(aiProv).length&&!soloGemini){ $('ai-cfg-box').open=true; aiEditKey(aiProv); aiStatus('Pega tu API key de '+(AI_NOMBRE[aiProv]||aiProv)+'.','err'); return; }
-  localStorage.setItem('ai_model_'+aiProv,model);
-  localStorage.setItem('ai_provider',aiProv);
+  /* Recordar la preferencia es un lujo; poder analizar no. Sin el try, con el
+     almacenamiento lleno esto lanzaba aquí mismo y el análisis no arrancaba. */
+  try{ localStorage.setItem('ai_model_'+aiProv,model); localStorage.setItem('ai_provider',aiProv); }catch(_){}
   const verbo=aiSrc?'Analizando la imagen medida':'Analizando';
   aiStatus(verbo+'…','work');
   const btn=$('ai-go-btn'); aiTrabajando=true; if(btn) btn.disabled=true;
@@ -4365,13 +4403,27 @@ async function aiAnalyze(){
     const cadena=aiCadena(aiProv,model,esPdf);
     if(!cadena.length) throw new Error('no hay ninguna API key guardada para analizar este archivo');
     let parsed=null,usado=null,ultimo=null;
+    let intentados=0;
     for(let i=0;i<cadena.length;i++){
+      intentados++;
       try{ parsed=await aiCandidato(cadena[i],prompt,b64,mime,verbo,i?AI_ESPERAS_RESPALDO:AI_ESPERAS,i<cadena.length-1); usado=cadena[i]; break; }
       catch(e){
         ultimo=e;
+        if(e.cancelado) break;   // el modal se cerró: no se sigue con la cadena
+        /* Un 404 es «ese modelo no existe», no «esa key no sirve»: repetirlo con las otras
+           keys del mismo proveedor es gastar intentos en el mismo error. El README promete
+           justo esto —«los errores que no se arreglan reintentando no gastan intentos»— y
+           para el 404 no se cumplía. */
+        if(e.status===404){
+          while(i+1<cadena.length&&cadena[i+1].prov===cadena[i].prov&&cadena[i+1].model===cadena[i].model) i++;
+        }
         if(i<cadena.length-1) aiStatus(`${e.message} · probando con ${aiEtq(cadena[i+1])}…`,'work');
       }
     }
+    _aiIntentados=intentados;
+    _aiProvsProbados=new Set(cadena.slice(0,intentados).map(c=>c.prov)).size;
+    _aiEraPdf=esPdf;
+    if(_aiCancelado) return;   // el usuario cerró el modal a media petición
     if(!parsed) throw ultimo||new Error('No se pudo analizar el archivo.');
     /* La foto del escalador no se guarda como "archivo de IA": ya se ve, con sus
        cotas, en la vista previa del escalador que está junto a las partidas.
@@ -4383,7 +4435,12 @@ async function aiAnalyze(){
       saveState(); renderAiPreview();
     }
     const medidas=(aiSrc&&aiSrc.origen==='escalador')?aiSrc.medidas.length:0;
-    applyAi(parsed);
+    const creadas=applyAi(parsed);
+    if(!creadas){
+      aiStatus('La IA no detectó ninguna partida en este archivo. Prueba con otra foto, o captura a mano.','err');
+      if(medidas) toast('La IA no devolvió ninguna partida — tus medidas siguen ahí para agregarlas a mano','err',5600);
+      return;   // sin cerrar el modal, sin felicitar y sin marcar las medidas como usadas
+    }
     /* Si contestó un modelo distinto al elegido conviene decirlo: el borrador puede
        venir de otra IA y quien lo revisa tiene derecho a saber de cuál. */
     const cambio=usado.prov!==cadena[0].prov||usado.model!==cadena[0].model;
@@ -4396,7 +4453,7 @@ async function aiAnalyze(){
       /* Se le pidió una partida por medida, pero el modelo puede saltarse o juntar
          elementos. Si las cuentas no cuadran conviene decirlo: quien midió sabe
          cuántas cosas midió y es el único que puede notar la que falta. */
-      const dio=Array.isArray(parsed.partidas)?parsed.partidas.length:0;
+      const dio=creadas;
       toast(dio&&dio!==medidas
         ? `⚠️ La IA devolvió ${dio} ${dio===1?'partida':'partidas'} para ${medidas} medidas — revisa cuál falta`
         : `${medidas} ${medidas===1?'medida cotizada':'medidas cotizadas'} con IA (borrador)`,
@@ -4406,14 +4463,22 @@ async function aiAnalyze(){
     }
     setTimeout(aiClose,1500);
   }catch(e){
+    if(e&&e.cancelado) return;   // se canceló a propósito: no hay error que enseñar
     /* Si solo hay una API cargada, insistir más no arregla nada: lo que lo arregla es
-       tener a dónde caerse. Se dice aquí, que es cuando duele. */
-    const total=AI_PROVS.reduce((a,p)=>a+getKeys(p).length,0);
-    aiStatus('Error: '+e.message+(e.transitorio&&total<2
-      ? ' · Ya reintenté varias veces con la única API cargada. En Configuración puedes agregar más keys —de este proveedor o de otro— y la app irá cambiando sola cuando esto vuelva a pasar.'
-      : total>1?' · Se probaron las '+total+' APIs cargadas.':''),'err');
+       tener a dónde caerse. Se dice aquí, que es cuando duele.
+       Y se cuenta lo que se intentó, no lo que hay guardado. «Se probaron las 5 APIs
+       cargadas» era falso al analizar un PDF: ahí la cadena solo lleva Gemini, porque Groq
+       y OpenRouter no leen PDF, y el mensaje culpaba a keys que nadie tocó. */
+    const probados=_aiIntentados;
+    const nota=probados>1
+      ? ' · Se probaron '+probados+' combinaciones en '+_aiProvsProbados+(_aiProvsProbados===1?' proveedor':' proveedores')+'.'
+        +((_aiEraPdf&&_aiProvsProbados===1)?' Groq y OpenRouter no leen PDF, así que no se intentaron.':'')
+      : (e.transitorio
+          ? ' · Ya reintenté varias veces con la única API cargada. En Configuración puedes agregar más keys —de este proveedor o de otro— y la app irá cambiando sola cuando esto vuelva a pasar.'
+          : '');
+    aiStatus('Error: '+e.message+nota,'err');
   }finally{
-    aiTrabajando=false;
+    aiTrabajando=false; _aiAbort=null;
     const b=$('ai-go-btn'); if(b) b.disabled=false;
   }
 }
@@ -4428,7 +4493,8 @@ async function aiAnalyze(){
 const aiTxt=v=>typeof v==='string'?v.trim():'';
 const aiNum=v=>{ const n=parseFloat(v); return Number.isFinite(n)&&n>0?n:0; };
 function applyAi(p){
-  if(!p||typeof p!=='object') return;
+  if(!p||typeof p!=='object') return 0;
+  if(locked()) return 0;
   p.proyecto=aiTxt(p.proyecto); p.cliente=aiTxt(p.cliente); p.direccion=aiTxt(p.direccion);
   if(p.proyecto){ Q.proy=p.proyecto; if($('f-proy')) $('f-proy').value=p.proyecto; }
   if(p.cliente){ Q.cliente=p.cliente; if($('f-cli')) $('f-cli').value=p.cliente; }
@@ -4475,7 +4541,12 @@ function applyAi(p){
     sincronizarPlegado();
     renderItems();
     if(conservadas.length) toast(`${conservadas.length} partida${conservadas.length>1?'s':''} tuya${conservadas.length>1?'s':''} + ${nuevos.length} de la IA`,'ok',3600);
+    return nuevos.length;
   }
+  /* Devuelve cuántas partidas creó. Antes no devolvía nada y quien llamaba daba por hecho
+     que había funcionado: con una respuesta sin partidas la pantalla anunciaba éxito en
+     verde y cerraba el modal, sin que se hubiera agregado una sola. */
+  return 0;
 }
 
 /* ===================== Datos de empresa (edita aquí) ===================== */
