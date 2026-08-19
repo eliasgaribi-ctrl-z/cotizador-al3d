@@ -1,0 +1,15 @@
+{
+  "name": "Cotizador AL3D",
+  "short_name": "Cotizador",
+  "description": "Cotizador de anuncios luminosos: letras 3D, recorte de acrílico, bastidores y cajas de luz.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f6fb",
+  "theme_color": "#3a4ad8",
+  "lang": "es-MX",
+  "icons": [
+    { "src": "logo-al3d.png", "sizes": "any", "type": "image/png", "purpose": "any" }
+  ]
+}
