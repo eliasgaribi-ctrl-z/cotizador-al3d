@@ -2673,7 +2673,11 @@ function typeItem(id,k,v){
   if(f) f.innerHTML=formulaHTML(it);
   if(l) l.innerHTML=ltHTML(it);
   pintarResumen(it);
-  renderSummary(); saveState();
+  /* updProg además de renderSummary: la barra de completitud y el «falta esto» se quedaban
+     con la cuenta de antes mientras se teclea —los campos del proyecto sí la refrescan
+     desde upd(), los de la partida no—, así que decía que faltaba la altura con la altura
+     ya escrita, hasta que otra cosa repintara. */
+  renderSummary(); updProg(); saveState();
 }
 function setTipo(id,t){ if(locked())return; const it=Q.items.find(x=>x.id===id); if(!it)return; it.tipo=t; if(t==='caja'&&!it.tarifa) it.tarifa=3900; renderItems(); }
 function dupItem(id){
@@ -2733,7 +2737,11 @@ function autoContarLetras(id,texto){
   if(f) f.innerHTML=formulaHTML(it);
   if(l) l.innerHTML=ltHTML(it);
   pintarResumen(it);
-  renderSummary(); saveState();
+  /* updProg además de renderSummary: la barra de completitud y el «falta esto» se quedaban
+     con la cuenta de antes mientras se teclea —los campos del proyecto sí la refrescan
+     desde upd(), los de la partida no—, así que decía que faltaba la altura con la altura
+     ya escrita, hasta que otra cosa repintara. */
+  renderSummary(); updProg(); saveState();
 }
 
 /* ----- El foco sobrevive al repintado -----
@@ -3881,8 +3889,7 @@ function aplicarFoldProy(){
 
 /* ===================== Inputs generales ===================== */
 function upd(k,v){
-  Q[k]=v; saveState(); updProg();
-  if(k==='cliente'||k==='proy') aplicarFoldProy();
+  Q[k]=v; saveState(); updProg();   // updProg ya repinta el encabezado plegado
   if(k==='cliente') autocompletarCliente(v);
 }
 function updMaps(v){ Q.maps=(v||'').trim(); const ok=/^https?:\/\//i.test(Q.maps); $('mapsbtn').disabled=!ok; }
