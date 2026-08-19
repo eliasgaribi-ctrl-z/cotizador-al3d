@@ -165,6 +165,9 @@ body.precios-ocultos .partida .inp-money:focus-within{filter:none}
 @media(prefers-reduced-motion:reduce){
   body.precios-ocultos .lt,body.precios-ocultos #s-sub,body.precios-ocultos #s-neto{transition:none}
 }
+.precios-ver{flex-shrink:0;margin-left:auto;border:1px solid var(--line-2,rgba(0,0,0,.15));background:transparent;
+  color:inherit;font-family:inherit;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:7px;cursor:pointer}
+.precios-ver:hover{background:rgba(255,255,255,.5)}
 /* Un Ctrl+P sobre el borrador salía con todos los importes borrosos: el difuminado existe
    para que el precio no se lea desde el otro lado de la mesa, no para inutilizar la
    impresión. El @media print de más abajo ya revierte el plegado; esto revierte el blur. */
@@ -1290,8 +1293,12 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 }
 /* Foco visible y con contraste: varios controles llevan outline:none y con teclado
    no había manera de saber dónde estaba el cursor. */
+/* Sin border-radius: el contorno sigue por sí solo el radio real del elemento, y
+   declararlo aquí les cambiaba la FORMA al enfocarlos —los chips de material dejaban de
+   ser píldoras, los campos perdían su radio— justo en el momento en que el usuario está
+   mirando ese control. */
 :where(button,summary,a[href],input,select,textarea,[tabindex]):focus-visible{
-  outline:2.5px solid var(--brand);outline-offset:2px;border-radius:6px}
+  outline:2.5px solid var(--brand);outline-offset:2px}
 
 /* ===================== Modal abierto: el fondo se queda quieto =====================
    .modal-bg es position:fixed;inset:0, pero el que hacía scroll seguía siendo el
@@ -1506,7 +1513,10 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
         <div class="inp-money"><input id="f-anti" type="number" inputmode="decimal" min="0" placeholder="0"></div>
         <div class="anti-rest" id="s-anti-rest"></div>
       </div>
-      <div class="precios-nota"><svg class="svgi" aria-hidden="true"><use href="#i-ojo"/></svg><span>Los precios se destapan al solicitar autorización. Mantén uno tocado para verlo antes.</span></div>
+      <!-- El botón no es un adorno: espiar era «mantener tocado», o sea imposible sin dedo ni
+           ratón, y quien navega con teclado no tenía manera de leer un solo importe. -->
+      <div class="precios-nota"><svg class="svgi" aria-hidden="true"><use href="#i-ojo"/></svg><span>Los precios se destapan al solicitar autorización. Mantén uno tocado para verlo antes.</span>
+        <button type="button" class="precios-ver" id="precios-ver" aria-pressed="false" onclick="togglePreciosALaVista()">Ver precios</button></div>
       <div class="auth-adj" id="s-auth-row" style="display:none">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
           <span class="adj-label">Precio autorizado</span>
@@ -2064,6 +2074,16 @@ function aplicarBlurPrecios(){
   const tapar = Q.estado==='borrador' && Q.rol!=='autorizador';
   document.body.classList.toggle('precios-ocultos',tapar);
   if(!tapar) document.body.classList.remove('precios-a-la-vista');
+  const b=$('precios-ver');
+  if(b) b.setAttribute('aria-pressed',document.body.classList.contains('precios-a-la-vista')?'true':'false');
+}
+/* La misma cosa que hace el gesto de mantener tocado, pero sin depender de un dedo: se
+   queda destapado hasta que se vuelve a pulsar, porque un teclado no tiene «soltar». */
+function togglePreciosALaVista(){
+  const v=document.body.classList.toggle('precios-a-la-vista');
+  const b=$('precios-ver');
+  if(b){ b.setAttribute('aria-pressed',v?'true':'false'); b.textContent=v?'Ocultar precios':'Ver precios'; }
+  voz(v?'Precios a la vista':'Precios ocultos');
 }
 /* Espiar: se destapan mientras se mantiene tocado y se vuelven a tapar al soltar.
    Los oyentes van en el documento —delegados— porque los importes se rehacen con cada
@@ -2076,8 +2096,17 @@ function _espiarPrecios(e){
   // Sobre el campo del anticipo se deja pasar el toque: ahí se escribe
   if(t.classList.contains('inp-money')&&e.target.tagName==='INPUT')return;
   document.body.classList.add('precios-a-la-vista');
+  _espiando=true;
 }
-function _dejarDeEspiar(){ document.body.classList.remove('precios-a-la-vista'); }
+/* Soltar solo tapa lo que destapó el GESTO. Si los precios están a la vista porque alguien
+   pulsó «Ver precios», un toque en cualquier otra parte de la pantalla los volvía a tapar y
+   el botón quedaba diciendo «Ocultar precios» sobre unos precios ya ocultos. */
+let _espiando=false;
+function _dejarDeEspiar(){
+  if(!_espiando) return;
+  _espiando=false;
+  document.body.classList.remove('precios-a-la-vista');
+}
 document.addEventListener('pointerdown',_espiarPrecios);
 document.addEventListener('pointerup',_dejarDeEspiar);
 document.addEventListener('pointercancel',_dejarDeEspiar);
@@ -2162,7 +2191,16 @@ function _fondoInerte(v){
   document.documentElement.classList.toggle('modal-abierto',v);
 }
 function _modalAbierto(m){
-  _focoAntes.set(m.id,document.activeElement);   // antes de inertar: si no, ya se perdió
+  /* Antes de inertar: si no, ya se perdió. Y NO se guarda un elemento que vive dentro del
+     propio modal ni dentro de otra capa: pasar del vectorizador al escalador —el botón
+     «Medir el vector en el escalador» vive dentro del vectorizador, que se cierra— dejaba
+     al escalador con un «foco anterior» que se iba a desconectar, así que al cerrarlo el
+     cursor aterrizaba al principio del documento. */
+  const prev=document.activeElement;
+  const dentroDeUnaCapa=prev&&prev.closest&&_CAPAS.some(([id])=>{
+    const c=document.getElementById(id); return c&&c.contains(prev);
+  });
+  _focoAntes.set(m.id,dentroDeUnaCapa?null:prev);
   _fondoInerte(true);
   const f=_focablesDe(m);
   const d=f[0]||m;
@@ -2193,6 +2231,13 @@ function _modalCerrado(m){
   if(arriba&&(document.activeElement===document.body||!arriba.contains(document.activeElement))){
     const alt=_focablesDe(arriba)[0];
     if(alt){ try{ alt.focus({preventScroll:true}); }catch(_){} }
+  }
+  /* Sin capas debajo y sin foco válido que devolver, el cursor se quedaba en el <body> y
+     había que retabular el documento entero. Se ancla en el contenido, que es lo más cerca
+     que se puede dejar de donde estaba el usuario. */
+  if(!arriba&&document.activeElement===document.body){
+    const anc=$('contenido');
+    if(anc){ anc.tabIndex=-1; try{ anc.focus({preventScroll:true}); }catch(_){} }
   }
 }
 const _obsModal=new MutationObserver(regs=>{
@@ -2545,6 +2590,9 @@ function addItem(opts){
     tarifa:0,ancho:0,alto:0, acab:'',recComp:false,bas:'', desc:'',descAi:false,pz:1,pu:0,textoAuto:'',showInPdf:true});
   plegarOtras(id);
   renderItems();
+  /* Sin esto, quien usa lector de pantalla no se enteraba de que apareció una partida ni
+     de que las anteriores se plegaron: la lista cambia entera y no se anuncia nada. */
+  voz('Partida '+Q.items.length+' agregada'+(Q.items.length>1?' — se plegaron las anteriores':''));
   if(!opts||opts.enfocar!==false) enfocarPartida(id);
 }
 /* Duplicar la última partida. Es lo que más se hace cuando un letrero trae dos
@@ -2664,8 +2712,32 @@ function autoContarLetras(id,texto){
   renderSummary(); saveState();
 }
 
+/* ----- El foco sobrevive al repintado -----
+   renderItems reconstruye la lista con innerHTML, así que el control que se acaba de pulsar
+   deja de existir y el foco se cae al <body>. Capturar una partida son de tres a cinco
+   opciones —material, complejidad, acabado, iluminación— y cada una costaba retabular la
+   página entera desde arriba, sin nada que confirmara la elección: el flujo central de la
+   app quedaba inservible por teclado. togglePartida ya resolvía su propio caso a mano; esto
+   lo generaliza para todos.
+
+   El control se reconoce por su propio onclick, que ya es único porque lleva el id de la
+   partida y el valor elegido, así que no hace falta marcar nada en el HTML ni mantener una
+   lista de qué es enfocable. */
+function _focoDeItems(){
+  const a=document.activeElement;
+  if(!a||!a.closest||!a.closest('#items')) return null;
+  return a.getAttribute('onclick')||null;
+}
+function _devolverFocoItems(marca){
+  if(!marca) return;
+  const c=$('items'); if(!c) return;
+  const el=Array.prototype.find.call(c.querySelectorAll('[onclick]'),e=>e.getAttribute('onclick')===marca);
+  if(el){ try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); } }
+}
+
 /* ===================== Render partidas ===================== */
 function renderItems(){
+  const _focoPrevio=_focoDeItems();
   renderAiPreview();
   renderScalerPreview();
   const c=$('items'); c.innerHTML='';
@@ -2757,6 +2829,7 @@ function renderItems(){
     $('fold-all-txt').textContent=hayAbiertas?'Plegar todas':'Abrir todas';
   }
   renderSummary(); updProg(); saveState();
+  _devolverFocoItems(_focoPrevio);
 }
 function calcProg(){
   let pts=0,max=0;
@@ -2788,6 +2861,10 @@ function updProg(){
      —se teclean, los llena un cliente conocido, llegan de la IA, de la cola o del
      historial— y todos pasan por un repintado. */
   pintarObligatorios();
+  /* El resumen del encabezado plegado de «Datos del proyecto» se quedaba con el cliente de
+     la cotización anterior al abrir otra: se pintaba solo al plegar y desplegar, no cuando
+     los datos cambiaban. Va aquí por el mismo motivo que pintarObligatorios. */
+  aplicarFoldProy();
   const pct=calcProg();
   const bar=$('prog-bar'),pctEl=$('prog-pct');
   if(!bar||!pctEl)return;
@@ -3157,6 +3234,9 @@ function toggleItemAuth(id){
   const open=body.style.display!=='none';
   body.style.display=open?'none':'';
   if(arrow) arrow.textContent=open?'▸':'▾';
+  /* El estado lo carga aria-expanded, no el ▸/▾, que va aria-hidden. */
+  const hdr=arrow&&arrow.closest('.ia-hdr');
+  if(hdr) hdr.setAttribute('aria-expanded',open?'false':'true');
 }
 function updItemAuth(id,val){
   if(!Q.itemsAuth) Q.itemsAuth={};
@@ -3271,7 +3351,10 @@ function renderAuth(){
     if(!pendientes.length){
       qHTML=`<div class="queue-list"><div class="queue-empty">Sin cotizaciones pendientes por autorizar.</div></div>${qNota}`;
     } else {
-      const rows=pendientes.map(e=>`<div class="queue-item${e.folio===Q.folio?' active':''}" onclick="loadQueueEntry('${esc(e.folio)}')">
+      /* El renglón era un div con onclick y nada más: el autorizador que navega con teclado
+         no podía cargar ninguna cotización pendiente, que es lo único que hace esta pantalla.
+         aria-current marca la que está abierta, que hasta ahora solo se distinguía por color. */
+      const rows=pendientes.map(e=>`<div class="queue-item${e.folio===Q.folio?' active':''}" ${_ABRIBLE} ${e.folio===Q.folio?'aria-current="true"':''} aria-label="Revisar ${esc(e.folio)}${e.proy||e.cliente?', '+esc(e.proy||e.cliente):''}" onclick="loadQueueEntry('${esc(e.folio)}')">
         <span class="qi-dot"></span>
         <div class="qi-body">
           <div class="qi-folio">${esc(e.folio)}</div>
@@ -3380,11 +3463,11 @@ function authRevisionHTML(soloAutorizar){
     const diffTxt=Math.abs(diff)<0.01?'':(diff<0?'Descuento: '+money(-diff):'Aumento: '+money(diff));
     const diffCls=diff>0.01?' inc':'';
     return '<div class="ia-row">'+
-      '<div class="ia-hdr" onclick="toggleItemAuth('+it.id+')">'+
+      '<div class="ia-hdr" '+_ABRIBLE+' aria-expanded="'+(isOpen?'true':'false')+'" aria-controls="ia-body-'+it.id+'" onclick="toggleItemAuth('+it.id+')">'+
       '<div class="ia-num">'+(i+1)+'</div>'+
       '<div class="ia-desc">'+esc(shortDescAuth(it))+'</div>'+
       '<div class="ia-calc">'+money(orig)+'</div>'+
-      '<span class="ia-arrow" id="ia-arrow-'+it.id+'">'+(isOpen?'▾':'▸')+'</span>'+
+      '<span class="ia-arrow" id="ia-arrow-'+it.id+'" aria-hidden="true">'+(isOpen?'▾':'▸')+'</span>'+
       '</div>'+
       '<div class="ia-body" id="ia-body-'+it.id+'" style="'+(isOpen?'':'display:none')+'">'+
       '<label for="ia-in-'+it.id+'" style="font-size:11px;margin-bottom:4px">Precio autorizado</label>'+
@@ -3406,8 +3489,12 @@ function authRevisionHTML(soloAutorizar){
     ${itemRows}
     <div class="ia-total"><span>${Q.iva?'Subtotal ajustado':'Total ajustado'}</span><span id="ia-sum">${money(authSub)}</span></div>
     ${Q.iva?`<div class="ia-total soft"><span>Con IVA 16%</span><span id="ia-sum-neto">${money(authNeto)}</span></div>`:''}
-    <div class="fld"><label for="a-name">Tu nombre (autorizador)</label><input id="a-name" autocomplete="off" placeholder="Ej. Elías" value="${esc(Q.autorizador||prefGet(PREF_AUTORIZADOR,''))}"></div>
-    <div class="fld"><label for="a-note">Nota (opcional)</label><textarea id="a-note" placeholder="Comentario para el vendedor…">${esc(Q.nota||'')}</textarea></div>
+    <div class="fld"><label for="a-name">Tu nombre (autorizador)</label><input id="a-name" autocomplete="off" placeholder="Ej. Elías" value="${esc(Q.autorizador||prefGet(PREF_AUTORIZADOR,''))}" oninput="Q.autorizador=this.value"></div>
+    <!-- Los dos campos escriben en Q mientras se teclean, como el resto de los inputs
+         generales: renderAuth reconstruye este formulario con innerHTML y cualquier
+         repintado —plegar una partida, ajustar un precio— borraba lo que se llevaba
+         escrito, sin nada que lo insinuara. -->
+    <div class="fld"><label for="a-note">Nota (opcional)</label><textarea id="a-note" placeholder="Comentario para el vendedor…" oninput="Q.nota=this.value">${esc(Q.nota||'')}</textarea></div>
     <button class="btn btn-ok" onclick="autorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Autorizar precio</button>
     ${soloAutorizar
       ? '<button class="btn btn-gho" onclick="cancelarAutoAutorizacion()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver a editar</button>'
@@ -3603,9 +3690,11 @@ function cancelarAutoAutorizacion(){ _selfAuth=false; reabrir(); }
 function reabrir(){
   const eraPendiente=Q.estado==='pendiente';
   Q.estado='borrador'; Q.autorizador=''; Q.nota=''; _selfAuth=false;
-  // Al reabrir se cancela la solicitud: el precio autorizado antes ya no vale, si
-  // no quedaba aplicándose en silencio sobre partidas que cambiaron.
-  Q.precioAuth=0; Q.itemsAuth={}; Q.huellaAuth='';
+  /* El precio autorizado NO se tira aquí. Ya no hace falta: precioFinal() e itemPrecio()
+     solo lo usan cuando el estado es 'autorizada', y soltarAuthSiCambio() lo borra en
+     cuanto una partida cambia. Tirarlo de entrada convertía cualquier salto a una partida
+     —el aviso de «partidas sin terminar» reabre para poder editarla— en la pérdida
+     silenciosa de todos los ajustes que el autorizador acababa de capturar. */
   if(eraPendiente) removeFromQueue(Q.folio);
   saveState(); renderItems(); toast('Cotización reabierta para editar');
 }
@@ -3672,7 +3761,10 @@ function pedirConfNueva(){
 let _vaciada=null;
 function nueva(){
   const habia=Q.items.some(it=>!itemVacio(it))||!!(Q.cliente||'').trim()||!!(Q.proy||'').trim();
-  _vaciada=habia?{q:JSON.parse(JSON.stringify({...Q,aiFile:null})),pid,rol:Q.rol}:null;
+  /* La imagen analizada va en el respaldo: es serializable —es lo mismo que se guarda en su
+     propia clave— y sin ella «Deshacer» devolvía la cotización sin la foto de la que
+     salieron sus partidas, ya borrada del almacenamiento y sin manera de recuperarla. */
+  _vaciada=habia?{q:JSON.parse(JSON.stringify(Q)),pid,rol:Q.rol}:null;
   Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};Q.huellaAuth='';
   Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth='';
   Q.editMode=false; _selfAuth=false;
@@ -3684,6 +3776,7 @@ function nueva(){
   $('mapsbtn').disabled=true;
   Q.folio=nextFolio(); pintarFolio();
   Q.fecha=hoy();
+  scReset();
   addItem({enfocar:false,heredar:true}); aplicarFoldProy();
   if(_vaciada) toast('Cotización vaciada','',7000,{label:'Deshacer',fn:deshacerVaciado});
   else toast('Nueva cotización lista');
@@ -3695,7 +3788,7 @@ function deshacerVaciado(){
   const rolActual=Q.rol;
   Object.assign(Q,_vaciada.q);
   Q.rol=rolActual;
-  Q.aiFile=null; Q.editMode=false; _selfAuth=false;
+  Q.editMode=false; _selfAuth=false;
   pid=Math.max(pid,_vaciada.pid||0);
   _vaciada=null;
   Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
@@ -5327,6 +5420,7 @@ function reabrirDeHistorial(folio){
   const e=_histData.find(x=>x.folio===folio); if(!e) return;
   const hayTrabajo=Q.estado!=='autorizada'&&Q.items.some(it=>!itemVacio(it));
   if(hayTrabajo&&!confirm('Tienes una cotización sin autorizar en pantalla. Si abres '+folio+', se perderá. ¿Continuar?')) return;
+  scReset();
   Q.folio=e.folio;
   Q.proy=e.proy||''; Q.cliente=e.cliente||''; Q.tel=e.tel||'';
   Q.dirRaw=e.dirRaw||''; Q.direccion=e.direccion||''; Q.maps=e.maps||'';
@@ -5377,6 +5471,7 @@ function usarComoBase(folio){
   const e=_histData.find(x=>x.folio===folio); if(!e) return;
   const hayTrabajo=Q.estado!=='autorizada'&&Q.items.some(it=>!itemVacio(it));
   if(hayTrabajo&&!confirm('Tienes una cotización sin autorizar en pantalla. Si empiezas una nueva a partir de '+folio+', se perderá. ¿Continuar?')) return;
+  scReset();
   Q.folio=nextFolio();
   Q.proy=e.proy||''; Q.cliente=e.cliente||''; Q.tel=e.tel||'';
   Q.dirRaw=e.dirRaw||''; Q.direccion=e.direccion||''; Q.maps=e.maps||'';
@@ -5587,7 +5682,10 @@ function loadQueueEntry(folio){
   const arr=getQueue();
   const entry=arr.find(x=>x.folio===folio);
   if(!entry||!entry.q) return;
-  const hayCambiosSinGuardar=Q.estado==='borrador'&&(Q.items.length>0||Q.proy.trim()||Q.cliente.trim());
+  /* itemVacio es la prueba de «esta partida no tiene nada capturado». Con Q.items.length el
+     aviso salía siempre, porque init() y nueva() dejan una partida vacía en pantalla: se
+     preguntaba por trabajo que no existía y se enseñaba a ignorar la pregunta. */
+  const hayCambiosSinGuardar=Q.estado==='borrador'&&(Q.items.some(it=>!itemVacio(it))||Q.proy.trim()||Q.cliente.trim());
   if(hayCambiosSinGuardar&&!confirm('Tienes una cotización sin guardar en pantalla. Si continúas, se perderá. ¿Cambiar de todos modos?')) return;
   /* Una revisión a medias también es trabajo que se pierde: el autorizador puede llevar
      media cotización ajustada partida por partida y esa guarda de arriba no la veía,
@@ -5597,6 +5695,7 @@ function loadQueueEntry(folio){
   /* El rol es de quien está usando la app, no de la cotización: el snapshot lo
      guardó el vendedor, así que si lo copiáramos el autorizador saldría expulsado
      de su propia vista al abrir un pendiente. */
+  scReset();
   const rolActual=Q.rol;
   Object.assign(Q,entry.q);
   Q.rol=rolActual;
@@ -5833,6 +5932,18 @@ function scOnDrop(e){
 /* El eje de medición no se hereda: una imagen nueva —o una recalibración— no tiene por qué
    seguir midiendo solo en horizontal porque la anterior lo necesitaba. */
 function scResetMMode(){ SC.mMode='libre'; try{ scSetMeasMode&&scSetMeasMode('libre'); }catch(_){} }
+/* La foto y las medidas del escalador viven aparte de Q y ninguna de las cuatro rutas que
+   reponen la cotización las tocaba: al abrir otra del historial, la foto del cliente
+   anterior seguía en la vista previa, junto a las partidas nuevas, y sus medidas seguían
+   marcadas como «usadas» —una afirmación sobre una cotización que ya no está en pantalla—,
+   así que no se podían volver a agregar. */
+function scReset(){
+  if(typeof SC==='undefined') return;
+  SC.img=null; SC.items=[]; SC.guides=[]; SC.sel=null; SC.nid=1; SC.nc=0;
+  SC.building=false; SC.tapA=null; SC.dragH=null; SC.down=false;
+  try{ scResetCalib(false); }catch(_){}
+  try{ renderScalerPreview(); }catch(_){}
+}
 function scPuedeCambiarImagen(){
   if(!(SC.img&&SC.items&&SC.items.length)) return true;
   const n=SC.items.length;
