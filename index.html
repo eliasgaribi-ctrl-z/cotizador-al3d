@@ -439,6 +439,12 @@ button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-
   font-family:inherit;font-size:var(--t3);font-weight:550;padding:0 18px;min-height:46px;cursor:pointer;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mbar-btn:active{transform:scale(.98)}
+/* El 62% de arriba existe para que el botón no le coma el sitio al total. En la pantalla
+   del cliente no hay total: el botón es el único hijo de la barra y renderMobileBar le
+   pone width:100%, pero max-width siempre gana, así que la llamada a la acción principal
+   de la primera pantalla salía usando 224 px de una barra de 390 y dejando el resto en
+   blanco. */
+.mbar-btn:only-child{max-width:100%}
 .mbar-btn:disabled{opacity:.42;box-shadow:none;cursor:not-allowed}
 .mbar-btn.ok{background:var(--ok)}
 .mbar-btn.gho{background:#fff;color:var(--n7);border-color:var(--n3)}
@@ -3227,7 +3233,13 @@ function plegarOtras(dejarAbierta){
 function togglePartida(id,opts){
   const plegada=_plegadas.has(id);
   if(opts&&opts.soloAbrir&&!plegada) return;   // el resumen solo abre; no pliega
-  if(plegada) _plegadas.delete(id); else _plegadas.add(id);
+  /* Al ABRIR se pliegan las demás. La app ya imponía «una abierta a la vez» al cargar
+     una cotización (sincronizarPlegado) y al agregar una partida (plegarOtras dentro de
+     addItem); faltaba la única vez que lo decide la persona, que es ésta. Sin esto, dos
+     toques pasaban la página de 2 493 px a 3 787 px en un iPhone, y una partida de letras
+     abierta mide 941 px en una pantalla de 844: dos no caben. Al plegar no se toca nada
+     más — plegar es quitar, no reorganizar. */
+  if(plegada) plegarOtras(id); else _plegadas.add(id);
   /* renderItems reconstruye la lista entera con innerHTML, así que el botón que se acaba
      de pulsar deja de existir y el foco se cae al <body>: quien navega con teclado
      volvía al principio del documento cada vez que plegaba. Se devuelve al ▾ de esta
@@ -3242,11 +3254,14 @@ function togglePartida(id,opts){
   /* Al plegar, lo de abajo sube de golpe. En el teléfono eso se lleva la partida fuera
      de la pantalla y hay que traerla de vuelta a donde estaba el dedo; con ratón hay
      sitio de sobra y casi siempre sigue a la vista, y ahí un salto de página que nadie
-     pidió estorba más que no moverse. Por eso se mira antes si de verdad se salió. */
-  if(!plegada){
-    const el=$('p-'+id);
-    if(el&&el.getBoundingClientRect().top<altoTopbarFija()) irA(el);
-  }
+     pidió estorba más que no moverse. Por eso se mira antes si de verdad se salió.
+
+     Ahora vale para los dos sentidos: desde que abrir recoge las demás, abrir la última
+     partida también sube todo lo que tenía encima y puede dejarla debajo de la barra
+     pegajosa. La condición no cambia —solo se actúa si de verdad se salió—, así que
+     cuando no se mueve nada, no se mueve nada. */
+  const el=$('p-'+id);
+  if(el&&el.getBoundingClientRect().top<altoTopbarFija()) irA(el);
 }
 function togglePlegarTodas(){
   const hayAbiertas=Q.items.some(it=>!_plegadas.has(it.id));
@@ -4286,7 +4301,11 @@ function authRevisionHTML(soloAutorizar){
      «Aumento: $0.40» antes de que nadie tocara nada. El precio propuesto tiene que ser
      exactamente el calculado; redondear es una decisión del autorizador, no del
      formulario. */
-  const paCurrent=(Q.precioAuth>0&&Math.abs(Q.precioAuth-neto)>0.01)?Q.precioAuth:+authNeto.toFixed(2);
+  /* Lo tecleado manda sobre lo calculado: si el autorizador ya escribió un precio, el
+     formulario tiene que volver a pintarlo con ése y no con el total. Ver _paDraft. */
+  const paTecleado=paBorrador();
+  const paCurrent=paTecleado!==null?paTecleado
+    :(Q.precioAuth>0&&Math.abs(Q.precioAuth-neto)>0.01)?Q.precioAuth:+authNeto.toFixed(2);
   const itemRows=Q.items.map((it,i)=>{
     const orig=lineTotal(it);
     const authVal=ia[it.id]!==undefined?ia[it.id]:orig;
@@ -4334,6 +4353,10 @@ function authRevisionHTML(soloAutorizar){
 }
 
 function updPrecioAuth(pa, neto){
+  /* Antes que nada, quedarse con lo tecleado: es lo que sobrevive al siguiente
+     repintado del formulario. Va fuera del early return de abajo porque borrar el
+     campo —dejarlo en cero— también es algo que el autorizador acaba de escribir. */
+  paBorradorSet(pa);
   const el=$('descuento-info'); if(!el) return;
   const d=neto-pa;
   if(!pa||pa<=0||neto<=0||Math.abs(d)<0.01){ el.textContent=''; el.classList.remove('inc'); return; }
@@ -4519,6 +4542,17 @@ function exigirDatosCliente(motivo,opts){
    dejar una sola de esas puertas abierta convierte la restricción en un adorno. Se abre
    solo, en el momento en que se termina de escribir el último de los tres: no hay que
    guardar, ni recargar, ni apretar nada. */
+/* «Hay algo capturado del cliente que se perdería.» Es la otra mitad de la guarda que
+   protege el trabajo en pantalla al abrir o duplicar del historial: esa guarda solo
+   miraba las partidas, y eso era razonable cuando el cliente y las partidas compartían
+   pantalla. Ya no. El paso 1 OBLIGA a capturar cliente, teléfono y proyecto antes de que
+   pueda existir la primera partida, así que «cliente puesto, cero partidas» dejó de ser
+   un caso raro: es el estado normal a mitad de captura, y era justo el hueco. El vendedor
+   capturaba al cliente, abría el historial para ver qué le cotizó la vez pasada, y el
+   teléfono que acababa de pedir desaparecía sin una palabra. */
+function hayDatosCliente(){
+  return [Q.cliente,Q.tel,Q.proy,Q.dirRaw,Q.direccion,Q.maps].some(v=>String(v||'').trim());
+}
 function faltanDatosCliente(){ return datosFaltantes().length>0; }
 /* Los dos candados que tiene una partida, en una sola pregunta: el viejo —el precio ya
    está autorizado— y el nuevo —todavía no se sabe de quién es la cotización—. Los dos
@@ -4706,6 +4740,24 @@ function solicitarConfirmado(){
    Vive fuera de Q a propósito: es cómo se está viendo la pantalla en este momento, no
    un dato de la cotización, así que no se guarda ni viaja al historial. */
 let _selfAuth=false;
+/* ----- El precio final que se está tecleando -----
+   Vive aquí por la misma razón que `Q.autorizador` y `Q.nota` empezaron a escribirse en
+   cada tecla: renderAuth reconstruye el formulario entero con innerHTML, así que
+   cualquier repintado —plegar una partida, tocar un chip, que cambie el resumen— borra
+   lo que se llevara escrito. Los otros dos campos ya estaban resueltos; éste no, y era
+   el único que lleva dinero: el autorizador escribía 45 000, plegaba una partida para
+   revisar algo, y el campo volvía al total calculado sin decir nada. Autorizar ahí
+   dejaba Q.precioAuth en cero y la venta se cerraba a precio completo.
+
+   No se escribe en Q.precioAuth porque ése es «el precio ya autorizado», y lo leen
+   precioFinal(), authVigente() y el resumen: teclear un descuento no puede aplicarlo
+   antes de que alguien apriete Autorizar. Va con su folio para que un borrador no se
+   pueda colar en otra cotización; se limpia al cerrar la revisión, que es cuando
+   Q.precioAuth pasa a ser la verdad. */
+let _paDraft=null;   // {folio, val} — nunca es el precio autorizado, solo lo tecleado
+function paBorrador(){ return (_paDraft&&_paDraft.folio===Q.folio)?_paDraft.val:null; }
+function paBorradorSet(v){ _paDraft={folio:Q.folio,val:v}; }
+function paBorradorLimpiar(){ _paDraft=null; }
 function autorizarYoMismo(){
   if(Q.estado==='borrador'){
     /* El atajo pasa por el mismo filtro que solicitar: autorizarse a uno mismo no es
@@ -4723,7 +4775,7 @@ function autorizarYoMismo(){
 function cancelarAutoAutorizacion(){ _selfAuth=false; reabrir(); }
 function reabrir(){
   const eraPendiente=Q.estado==='pendiente';
-  Q.estado='borrador'; Q.autorizador=''; Q.nota=''; _selfAuth=false;
+  Q.estado='borrador'; Q.autorizador=''; Q.nota=''; _selfAuth=false; paBorradorLimpiar();
   /* El precio autorizado NO se tira aquí. Ya no hace falta: precioFinal() e itemPrecio()
      solo lo usan cuando el estado es 'autorizada', y soltarAuthSiCambio() lo borra en
      cuanto una partida cambia. Tirarlo de entrada convertía cualquier salto a una partida
@@ -4746,6 +4798,7 @@ function autorizarConfirmado(){
   const neto=totals().neto;
   const pa=parseFloat($('a-precio')?.value)||0;
   Q.precioAuth=(pa>0&&Math.abs(pa-neto)>0.01)?pa:0;
+  paBorradorLimpiar();   // a partir de aquí manda Q.precioAuth, no lo que se tecleó
   /* Queda registrado SOBRE QUÉ se autorizó este precio. Es lo que después permite notar
      que el trabajo cambió, sin depender de que nadie apriete «Guardar». */
   sellarAuth();
@@ -4763,7 +4816,7 @@ function rechazar(){
   Q.autorizador=nombre||prefGet(PREF_AUTORIZADOR,'')||'Autorizador';
   if(nombre) prefSet(PREF_AUTORIZADOR,nombre);
   Q.nota=($('a-note')?.value||'').trim();
-  Q.estado='rechazada'; _selfAuth=false;
+  Q.estado='rechazada'; _selfAuth=false; paBorradorLimpiar();
   /* Rechazar borra el borrador de precio que el formulario dejó escrito en Q mientras se
      teclaba: si no, un ajuste que se decidió NO aprobar se quedaba guardado y volvía a
      aparecer propuesto la próxima vez que se abriera la cotización. */
@@ -6506,7 +6559,7 @@ function cerrarHistorial(){ $('histmodal').classList.remove('show'); }
    quiere copiar la venta y antes había que capturarla otra vez desde cero. */
 function reabrirDeHistorial(folio){
   const e=_histData.find(x=>x.folio===folio); if(!e) return;
-  const hayTrabajo=Q.estado!=='autorizada'&&Q.items.some(it=>!itemVacio(it));
+  const hayTrabajo=Q.estado!=='autorizada'&&(Q.items.some(it=>!itemVacio(it))||hayDatosCliente());
   if(hayTrabajo&&!confirm('Tienes una cotización sin autorizar en pantalla. Si abres '+folio+', se perderá. ¿Continuar?')) return;
   scReset();
   Q.folio=e.folio;
@@ -6560,7 +6613,7 @@ function reabrirDeHistorial(folio){
    autorización anterior. Tus plantillas son tus cotizaciones anteriores. */
 function usarComoBase(folio){
   const e=_histData.find(x=>x.folio===folio); if(!e) return;
-  const hayTrabajo=Q.estado!=='autorizada'&&Q.items.some(it=>!itemVacio(it));
+  const hayTrabajo=Q.estado!=='autorizada'&&(Q.items.some(it=>!itemVacio(it))||hayDatosCliente());
   if(hayTrabajo&&!confirm('Tienes una cotización sin autorizar en pantalla. Si empiezas una nueva a partir de '+folio+', se perderá. ¿Continuar?')) return;
   scReset();
   Q.folio=nextFolio();
