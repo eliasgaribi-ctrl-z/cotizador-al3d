@@ -25,31 +25,78 @@
 <link rel="manifest" href="manifest.webmanifest">
 <style>
 :root{
+  /* ===================== El sistema =====================
+     Antes de esto la hoja tenía 23 tamaños de letra distintos —de 9 a 30 px, en saltos de
+     medio píxel—, 39 sombras y 18 degradados. Ninguno estaba mal por sí solo; el problema
+     es que no eran un sistema, eran decisiones sueltas tomadas de una en una a lo largo de
+     meses. Una pantalla hecha así se siente desordenada aunque cada pieza esté bien.
+
+     Ahora hay una escala de cada cosa y todo sale de ahí. Los nombres viejos se quedan
+     como alias, apuntando a los nuevos, para que las mil líneas de CSS que ya los usan
+     sigan funcionando sin tocarlas. */
+
   /* La app es clara a propósito. Sin esto, Chrome de Android le aplica su tema oscuro
      automático —invierte las tarjetas y los grises, pero no los degradados de marca ni
      el lienzo del escalador— y queda a medias. También deja en claro los controles
      nativos de iOS: datalist, teclado numérico, selector de archivo y autorrelleno. */
   color-scheme:only light;
-  --bg:#e8eaf4; --card:#ffffff; --ink:#161c2e; --fg:#161c2e; --muted:#5f6880; --line:#e0e4f0;
-  --brand:#3a4ad8; --brand-2:#5566ef; --brand-strong:#2535c4; --navy:#171d4a;
-  --soft:#f2f4fb; --soft-2:#eaedfa;
-  /* Dos tonos por color de estado, porque el mismo valor se usaba de TEXTO y de RELLENO.
-     El oscuro es el del texto: --amber sobre --amber-bg medía 2,57:1 y es todo el sistema
-     de avisos («Sin elegir», «Sin calibrar», el modo edición), ahora da 5,28:1; --green
-     daba 2,99:1 y da 5,19:1 (y el blanco encima, 5,82:1, que era el otro fallo de .btn-ok);
-     --red daba 3,70:1 y da 5,08:1. Los -ico guardan el tono vivo
-     para donde el color no lleva texto encima: el filete de 3 px de las notas de material
-     y el borde de la nota de ajuste, que en oscuro se veían como un marco sucio. */
-  --green:#0c7449; --green-ico:#15a06a; --green-bg:#e5f6ee;
-  --amber:#8a5a06; --amber-ico:#cf8a12; --amber-bg:#fbf1dd;
-  --red:#b8322c; --red-bg:#fbe9e8; --gray:#7c8499; --gray-bg:#eef0f5;
-  /* El turquesa de las guías medía 2,37:1 sobre blanco y la lista de guías lo usa de
-     texto y de icono, no solo de trazo sobre la foto: #0093ad da 3,08:1. */
+
+  /* ----- Neutros -----
+     Una sola rampa, de la que salen fondo, superficie, líneas y texto. El fondo deja de ser
+     azulado: un lienzo casi blanco hace que la tarjeta no necesite sombra para separarse. */
+  --n0:#fbfbfd; --n1:#f5f6f9; --n2:#eeeff4; --n3:#e3e5ec; --n4:#c9cdd9;
+  --n5:#8b91a3; --n6:#666d80; --n7:#3f4557; --n8:#242938; --n9:#12141c;
+  /* REGLA: de --n5 para arriba NADA lleva texto. Medido sobre blanco, --n4 da 1,59:1 y
+     --n5 da 3,15:1 —alcanzan para un borde o un icono, no para leer—; el primero que sirve
+     de texto es --n6, con 5,17:1. El primer intento de este rediseño puso los chips
+     apagados en --n5 y los dejó en 2,91:1, que es exactamente el agujero que este proyecto
+     ya había tapado una vez subiendo los tonos de estado. */
+
+  /* ----- Acento -----
+     Uno solo, y para tres cosas: la acción principal, lo que está seleccionado y el aro de
+     foco. Nada más lleva color de marca; en cuanto el azul se usa de adorno deja de señalar. */
+  --a:#3d4ee8; --a-fuerte:#2f3ec4; --a-suave:#eef0fe; --a-borde:#c3c9fb;
+
+  /* ----- Estados -----
+     El tono oscuro es el del texto y el claro el del relleno; los dos medidos contra su
+     pareja para que ningún aviso baje de 4,5:1. */
+  --ok:#0c7449; --ok-bg:#e8f6ef; --ok-borde:#bde3d1;
+  --av:#8a5a06; --av-bg:#fdf4e3; --av-borde:#f0dcb4;
+  --mal:#b8322c; --mal-bg:#fceceb; --mal-borde:#f3cdcb;
+
+  /* ----- Tipografía -----
+     Siete pasos, ni uno más. Cada uno tiene un trabajo: meta, secundario, cuerpo, título de
+     tarjeta, título de pantalla, importe, total. */
+  --t1:11px; --t2:12.5px; --t3:14px; --t4:16px; --t5:20px; --t6:26px; --t7:32px;
+
+  /* ----- Espacio -----
+     Múltiplos de 4. Todo margen y todo relleno sale de aquí, que es lo que hace que dos
+     bloques que no se conocen entre sí parezcan alineados. */
+  --e1:4px; --e2:8px; --e3:12px; --e4:16px; --e5:24px; --e6:32px; --e7:48px;
+
+  /* ----- Radios ----- tres, no veinte. */
+  --rr1:8px; --rr2:12px; --rr3:18px;
+
+  /* ----- Elevación -----
+     Dos niveles y se acabó. Las tarjetas NO llevan sombra: se separan con una línea de un
+     píxel sobre un fondo más claro, que es lo que las hace ver limpias en vez de infladas.
+     La sombra queda para lo que de verdad flota encima de la página. */
+  --sh1:0 1px 2px rgba(18,20,28,.04),0 2px 8px rgba(18,20,28,.04);
+  --sh2:0 8px 24px rgba(18,20,28,.10),0 2px 6px rgba(18,20,28,.06);
+
+  /* ----- Alias de los nombres viejos ----- */
+  --bg:var(--n1); --card:#ffffff; --ink:var(--n8); --fg:var(--n8); --muted:var(--n6); --line:var(--n3);
+  --brand:var(--a); --brand-2:var(--a); --brand-strong:var(--a-fuerte); --navy:var(--n9);
+  --soft:var(--n1); --soft-2:var(--n2);
+  --green:var(--ok); --green-ico:#15a06a; --green-bg:var(--ok-bg);
+  --amber:var(--av); --amber-ico:#c1830f; --amber-bg:var(--av-bg);
+  --red:var(--mal); --red-bg:var(--mal-bg); --gray:var(--n6); --gray-bg:var(--n2);
   --sc-guide:#0093ad;
-  --r:18px; --r-sm:11px; --r-xs:7px; --r-lg:20px;
-  --sh:0 2px 4px rgba(23,29,74,.04),0 10px 36px rgba(23,29,74,.09);
-  --sh-sm:0 1px 3px rgba(23,29,74,.05),0 4px 14px rgba(23,29,74,.07);
-  --brand-grd:linear-gradient(135deg,#3a4ad8 0%,#4a5ae2 100%);
+  --r:var(--rr3); --r-sm:var(--rr2); --r-xs:var(--rr1); --r-lg:var(--rr3);
+  --sh:var(--sh1); --sh-sm:var(--sh1);
+  /* El degradado de marca deja de ser degradado: en una superficie grande el degradado es
+     justo lo que hace que un botón se vea de hace diez años. */
+  --brand-grd:var(--a);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 ::-webkit-scrollbar{width:6px;height:6px}
@@ -82,7 +129,7 @@ body::before{
 }
 
 /* ---------- Topbar ---------- */
-.topbar{background:rgba(255,255,255,.93);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid rgba(224,228,240,.7);position:sticky;top:3px;z-index:30;box-shadow:0 1px 0 rgba(255,255,255,.9),var(--sh-sm)}
+.topbar{background:rgba(255,255,255,.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--n2);position:sticky;top:3px;z-index:30}
 .topbar-in{max-width:1180px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
   padding:12px max(24px,env(safe-area-inset-right,0px)) 12px max(24px,env(safe-area-inset-left,0px))}
 .brand{display:flex;align-items:center;gap:12px}
@@ -96,15 +143,15 @@ body::before{
 .lg-al{font-size:17px;font-weight:900;color:#1e2340;letter-spacing:.3px}
 .lg-3d{font-size:17px;font-weight:900;color:var(--brand);letter-spacing:.3px}
 .logoimg{height:38px;width:auto;display:block;max-width:200px;object-fit:contain}
-.brand .t{font-size:15px;font-weight:700;letter-spacing:.1px}
+.brand .t{font-size:var(--t4);font-weight:600;letter-spacing:-.2px}
 .brand .t small{display:block;font-size:10.5px;font-weight:500;color:var(--muted);letter-spacing:.2px}
 .rolewrap{display:flex;align-items:center;gap:10px}
-.folio{font-size:12px;color:var(--brand);font-weight:700;background:var(--soft-2);padding:6px 13px;border-radius:10px;border:1px solid rgba(58,74,216,.14);letter-spacing:.3px}
+.folio{font-size:var(--t2);color:var(--n6);font-weight:500;background:var(--n1);padding:6px 12px;border-radius:var(--rr1);border:1px solid var(--n2);font-variant-numeric:tabular-nums}
 /* Folio aún no confirmado: no cuenta todavía en el contador de cotizaciones */
 #folio.prov{color:var(--muted);background:var(--soft);border-color:var(--line);border-style:dashed}
-.seg{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:11px;padding:3px;gap:2px}
-.seg button{border:none;background:none;padding:7px 14px;font-size:12.5px;font-weight:600;color:var(--muted);border-radius:8px;cursor:pointer;transition:.15s}
-.seg button.on{background:#fff;color:var(--brand);box-shadow:var(--sh-sm)}
+.seg{display:inline-flex;background:var(--n1);border:1px solid var(--n2);border-radius:var(--rr1);padding:3px;gap:2px}
+.seg button{border:none;background:none;padding:7px 14px;font-size:var(--t2);font-weight:500;color:var(--n6);border-radius:6px;cursor:pointer;transition:background .12s,color .12s}
+.seg button.on{background:#fff;color:var(--n8);font-weight:600;box-shadow:0 1px 2px rgba(18,20,28,.07)}
 
 /* ===================== Iconos =====================
    Un icono mide 1 em —el alto de la letra que lleva al lado— y se pinta con el color
@@ -211,17 +258,17 @@ body.precios-ocultos .precios-nota{display:flex}
 .pasos{grid-column:1/-1;display:flex;align-items:stretch;gap:4px;margin-bottom:2px}
 .paso-tab{display:flex;align-items:center;gap:9px;padding:9px 15px 9px 11px;border:1px solid transparent;border-radius:var(--r-sm);
   background:none;cursor:pointer;text-align:left;color:var(--muted);font-family:inherit;transition:.15s;min-width:0}
-.paso-tab .tx{display:flex;flex-direction:column;min-width:0;font-size:13px;font-weight:700;line-height:1.2}
+.paso-tab .tx{display:flex;flex-direction:column;min-width:0;font-size:var(--t2);font-weight:550;line-height:1.25}
 /* El nombre del cliente debajo del paso 1: es el único dato de la pantalla que se acaba de
    dejar atrás y que hace falta no perder de vista mientras se captura la otra. Nunca
    envuelve —se recorta— para que la barra no crezca de alto. */
-.paso-tab .tx small{font-size:11px;font-weight:600;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:22ch}
-.paso-tab .n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex-shrink:0;border-radius:8px;
-  background:var(--soft-2);color:var(--muted);font-size:11.5px;font-weight:800}
+.paso-tab .tx small{font-size:var(--t1);font-weight:400;color:var(--n6);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:22ch}
+.paso-tab .n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex-shrink:0;border-radius:7px;
+  background:var(--n2);color:var(--n6);font-size:var(--t2);font-weight:600}
 .paso-tab:hover{background:rgba(255,255,255,.7);border-color:var(--line)}
-.paso-tab.on{background:#fff;border-color:rgba(224,228,240,.9);box-shadow:var(--sh-sm);color:var(--ink)}
-.paso-tab.on .n{background:var(--brand-grd);color:#fff;box-shadow:0 2px 6px rgba(58,74,216,.25)}
-.paso-tab.hecho .n{background:var(--green-bg);color:var(--green)}
+.paso-tab.on{background:#fff;border-color:var(--n3);color:var(--n8)}
+.paso-tab.on .n{background:var(--a);color:#fff}
+.paso-tab.hecho .n{background:var(--ok-bg);color:var(--ok)}
 .paso-tab.hecho .n::after{content:'✓'}
 .paso-tab.hecho .n>span,.paso-tab.hecho .n{font-size:12px}
 /* El paso que todavía no toca: ámbar, el mismo de todo lo que falta. No se deshabilita
@@ -347,17 +394,17 @@ button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-
 }
 .mbar-tot{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px;
   border:none;background:none;padding:2px 0;font-family:inherit;cursor:pointer;text-align:left}
-.mbar-lab{font-size:10px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:5px}
+.mbar-lab{font-size:var(--t1);font-weight:500;color:var(--n6);display:flex;align-items:center;gap:var(--e1)}
 .mbar-lab .chev{font-size:9px;opacity:.7}
-.mbar-amt{font-size:20px;font-weight:900;color:var(--brand-strong);letter-spacing:.2px;font-variant-numeric:tabular-nums;line-height:1.15}
+.mbar-amt{font-size:var(--t5);font-weight:650;color:var(--n9);letter-spacing:-.5px;font-variant-numeric:tabular-nums;line-height:1.15}
 .mbar-amt.desc{color:var(--green)}
-.mbar-btn{flex:0 0 auto;max-width:62%;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;
-  font-family:inherit;font-size:13.5px;font-weight:800;padding:0 16px;min-height:46px;cursor:pointer;
-  box-shadow:0 3px 14px rgba(58,74,216,.34);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mbar-btn{flex:0 0 auto;max-width:62%;border:1px solid transparent;border-radius:var(--rr1);background:var(--a);color:#fff;
+  font-family:inherit;font-size:var(--t3);font-weight:550;padding:0 18px;min-height:46px;cursor:pointer;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mbar-btn:active{transform:scale(.98)}
 .mbar-btn:disabled{opacity:.42;box-shadow:none;cursor:not-allowed}
-.mbar-btn.ok{background:linear-gradient(135deg,#0d8050,var(--green));box-shadow:0 3px 14px rgba(21,160,106,.32)}
-.mbar-btn.gho{background:#fff;color:var(--brand-strong);border:1.5px solid var(--line);box-shadow:none}
+.mbar-btn.ok{background:var(--ok)}
+.mbar-btn.gho{background:#fff;color:var(--n7);border-color:var(--n3)}
 
 /* ---------- Botón de plegar de una tarjeta ----------
    Lo usan dos botones con destinos distintos: «Ocultar» los datos del proyecto y
@@ -386,24 +433,33 @@ button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-
   .card.folded .card-h{padding-bottom:16px}
 }
 
-.card{background:rgba(255,255,255,.98);border:1px solid rgba(224,228,240,.7);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;transition:box-shadow .2s}
-.card+.card{margin-top:20px}
-.card-h{padding:20px 22px 0;display:flex;align-items:center;justify-content:space-between}
-.card-h :is(h2,h3){font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--brand);display:flex;align-items:center;gap:8px}
-.card-h :is(h2,h3)::before{content:'';display:inline-block;width:3px;height:14px;background:var(--brand-grd);border-radius:2px;flex-shrink:0}
-.card-b{padding:18px 22px 22px}
+/* ----- La tarjeta -----
+   Sin sombra. Una línea de un píxel sobre un lienzo más claro separa igual de bien y no
+   infla la página: tres tarjetas con sombra, cada una con recuadros con sombra dentro, era
+   la mitad del desorden. El título deja de ser un renglón de mayúsculas diminutas en azul
+   con un filete al lado —eso es decoración— y pasa a ser lo que es: un título, en el
+   tamaño y el peso que le tocan, en tinta. */
+.card{background:var(--card);border:1px solid var(--n3);border-radius:var(--rr3);overflow:hidden}
+.card+.card{margin-top:var(--e4)}
+.card-h{padding:var(--e5) var(--e5) 0;display:flex;align-items:baseline;justify-content:space-between;gap:var(--e3)}
+.card-h :is(h2,h3){font-size:var(--t4);font-weight:650;letter-spacing:-.2px;color:var(--n8);display:flex;align-items:center;gap:var(--e2)}
+.card-b{padding:var(--e4) var(--e5) var(--e5)}
 
-label,.fld-lab{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin-bottom:5px;letter-spacing:.05px}
+label,.fld-lab{display:block;font-size:var(--t2);font-weight:500;color:var(--n6);margin-bottom:var(--e2)}
 /* .fld-lab es el mismo renglón de arriba de un campo, pero para lo que NO es un campo:
    la lista de API keys y el segmentado de proveedor. Un <label> que no apunta a ningún
    control se lee como texto suelto, así que ahí va un div con id y el grupo lo nombra
    con aria-labelledby. */
-input,select,textarea{width:100%;border:1.5px solid var(--line);border-radius:var(--r-sm);padding:10px 13px;font-size:14px;color:var(--ink);background:#fcfdff;outline:none;font-family:inherit;transition:.15s}
-input:focus,select:focus,textarea:focus{border-color:var(--brand);background:#fff;box-shadow:0 0 0 3.5px rgba(58,74,216,.11)}
+/* Campos: borde de un píxel y fondo blanco. El borde de píxel y medio con fondo azulado
+   engordaba cada campo y, con quince en pantalla, era medio dibujo de más. */
+input,select,textarea{width:100%;border:1px solid var(--n3);border-radius:var(--rr1);padding:11px 13px;font-size:var(--t3);color:var(--n8);background:#fff;outline:none;font-family:inherit;transition:border-color .12s,box-shadow .12s}
+input::placeholder,textarea::placeholder{color:var(--n6)}
+input:hover:not(:disabled),textarea:hover:not(:disabled){border-color:var(--n4)}
+input:focus,select:focus,textarea:focus{border-color:var(--a);box-shadow:0 0 0 3px var(--a-suave)}
 /* El autorrelleno de Safari pinta el campo de amarillo y el texto de negro sobre él */
 input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-text-fill-color:var(--ink);
   -webkit-box-shadow:0 0 0 100px #fff inset;caret-color:var(--ink)}
-input:disabled,select:disabled,textarea:disabled{background:#f4f5f9;color:#5f6880;cursor:not-allowed}
+input:disabled,select:disabled,textarea:disabled{background:var(--n1);border-color:var(--n2);color:var(--n6);cursor:not-allowed}
 textarea{resize:vertical;min-height:46px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
@@ -421,15 +477,25 @@ textarea{resize:vertical;min-height:46px}
 
 /* ---------- Partidas ---------- */
 .empty{text-align:center;color:var(--muted);font-size:13px;padding:30px 10px;border:1.5px dashed var(--line);border-radius:var(--r-sm);background:var(--soft)}
-.partida{border:1px solid rgba(224,228,240,.8);border-left:3px solid var(--brand);border-radius:var(--r-sm);padding:16px;margin-bottom:14px;background:#fff;box-shadow:var(--sh-sm);position:relative;transition:box-shadow .15s}
-.partida:hover{box-shadow:0 2px 8px rgba(23,29,74,.06),0 8px 28px rgba(23,29,74,.1)}
+/* ----- La partida -----
+   Deja de ser una tarjeta dentro de una tarjeta. Es una sección separada por una línea, con
+   su número a la izquierda: el mismo recurso que usa cualquier lista larga que se lee bien.
+   Sin borde propio, sin sombra y sin el filete azul de tres píxeles, que competía con el
+   único azul que sí significa algo —lo seleccionado— en cada renglón de la cotización. */
+.partida{padding:var(--e5) 0;border-top:1px solid var(--n2);position:relative;background:none}
+#items>.partida:first-of-type{border-top:none;padding-top:var(--e2)}
 .partida-top{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
 .pnum{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .ptop-actions{display:flex;align-items:center;gap:2px;margin-left:auto;flex-shrink:0}
-.pnum .n{width:26px;height:26px;border-radius:8px;background:var(--brand-grd);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 6px rgba(58,74,216,.25)}
-.tipo-seg{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:9px;padding:3px;flex-wrap:wrap;gap:2px}
-.tipo-seg button{border:none;background:none;padding:5px 10px;font-size:11.5px;font-weight:600;color:var(--muted);border-radius:7px;cursor:pointer;transition:.15s}
-.tipo-seg button.on{background:var(--brand-grd);color:#fff;box-shadow:0 2px 10px rgba(58,74,216,.38);animation:chipPop .22s cubic-bezier(.34,1.56,.64,1)}
+/* El número de la partida es una etiqueta, no una acción: en azul de marca competía con
+   lo único que ese color debería señalar dentro de la partida, que es lo seleccionado. */
+.pnum .n{width:24px;height:24px;border-radius:7px;background:var(--n1);border:1px solid var(--n2);color:var(--n6);font-size:var(--t2);font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-variant-numeric:tabular-nums}
+/* Control segmentado, del que se usa en todos lados: la pastilla del elegido se desliza
+   sobre un carril gris. Sin relleno de marca ni sombra de 10 px: dentro de una partida es
+   una elección entre cinco, no la acción principal de la pantalla. */
+.tipo-seg{display:inline-flex;background:var(--n1);border:1px solid var(--n2);border-radius:var(--rr1);padding:3px;flex-wrap:wrap;gap:2px}
+.tipo-seg button{border:none;background:none;padding:6px 11px;font-size:var(--t2);font-weight:500;color:var(--n6);border-radius:6px;cursor:pointer;transition:background .12s,color .12s}
+.tipo-seg button.on{background:#fff;color:var(--n8);font-weight:600;box-shadow:0 1px 2px rgba(18,20,28,.07)}
 /* Cada tipo trae su nombre largo y uno corto; en el teléfono se cambia al corto para
    que los cinco quepan en un solo renglón (ver el bloque del final de la hoja). */
 .tipo-seg .sm{display:none}
@@ -446,13 +512,20 @@ textarea{resize:vertical;min-height:46px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
 /* Chip sin elegir: plano y discreto. Chip elegido: relleno, con palomita y sombra.
    La diferencia tiene que verse de un vistazo, sin leer. */
-.chip{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border:1.5px solid transparent;border-radius:20px;font-size:12.5px;font-weight:600;cursor:pointer;background:var(--soft);color:#697386;transition:.15s;user-select:none}
-.chip small{font-weight:700;color:var(--muted)}
+/* ----- El chip -----
+   Era una píldora gris que al elegirla se volvía azul con degradado, sombra de 14 px y un
+   rebote. Multiplicado por los cinco materiales, las tres complejidades y los tres acabados
+   de cada partida, lo seleccionado era lo más ruidoso de la pantalla justo por estar
+   decidido. Ahora es un botón plano de esquina suave; el elegido se marca con fondo tenue
+   del acento, su borde y su tinta —queda claro sin gritar— y el ✓ hace el resto. */
+.chip{display:inline-flex;align-items:center;gap:var(--e2);padding:9px 14px;border:1px solid var(--n3);border-radius:var(--rr1);
+  font-size:var(--t2);font-weight:500;cursor:pointer;background:#fff;color:var(--n7);transition:background .12s,border-color .12s,color .12s;user-select:none}
+.chip small{font-weight:500;color:var(--n6);font-variant-numeric:tabular-nums}
 .chip .ck{display:none}
-.chip.on{border-color:var(--brand-strong);background:var(--brand-grd);color:#fff;font-weight:700;box-shadow:0 3px 14px rgba(58,74,216,.40);animation:chipPop .22s cubic-bezier(.34,1.56,.64,1)}
-.chip.on small{color:rgba(255,255,255,.88)}
-.chip.on .ck{display:inline-flex;align-items:center;font-size:12px;line-height:1}
-.chip:hover:not(.on){border-color:rgba(58,74,216,.28);background:var(--soft-2);color:var(--brand-strong)}
+.chip.on{border-color:var(--a-borde);background:var(--a-suave);color:var(--a-fuerte);font-weight:600}
+.chip.on small{color:var(--a-fuerte);opacity:.75}
+.chip.on .ck{display:inline-flex;align-items:center;font-size:11px;line-height:1;color:var(--a)}
+.chip:hover:not(.on){border-color:var(--n4);background:var(--n1)}
 .chip:focus-visible{outline:2.5px solid var(--brand);outline-offset:2px}
 /* Un chip apagado —cotización autorizada, o el candado de las partidas— conservaba
    `cursor:pointer` y su `:hover`, así que se veía y se comportaba como uno vivo hasta que
@@ -460,11 +533,11 @@ textarea{resize:vertical;min-height:46px}
    apagado se hace con color y no con opacidad: el chip dice QUÉ material se eligió, y eso
    hay que poder leerlo. El elegido se queda relleno —es la respuesta— pero sin la sombra
    ni el rebote, que son lo que promete que se puede tocar. */
-.chip[aria-disabled="true"]{cursor:default;background:transparent;border-color:var(--line);color:var(--muted)}
-.chip[aria-disabled="true"]:hover:not(.on){background:transparent;border-color:var(--line);color:var(--muted)}
-.chip[aria-disabled="true"].on{background:var(--gray-bg);border-color:#b6bdd0;color:var(--ink);box-shadow:none;animation:none}
-.chip[aria-disabled="true"].on small{color:var(--muted)}
-.chip[aria-disabled="true"].on .ck{color:var(--gray)}
+.chip[aria-disabled="true"]{cursor:default;background:transparent;border-color:var(--n2);color:var(--n6)}
+.chip[aria-disabled="true"]:hover:not(.on){background:transparent;border-color:var(--n2);color:var(--n6)}
+.chip[aria-disabled="true"].on{background:var(--n2);border-color:var(--n3);color:var(--n7)}
+.chip[aria-disabled="true"].on small{color:var(--n6)}
+.chip[aria-disabled="true"].on .ck{color:var(--n6)}
 /* Mismo problema y mismo criterio en los dos botones que quedaban: el selector de tipo y
    la × de borrar salían idénticos a los vivos —el tipo elegido seguía siendo la píldora
    azul con degradado y sombra, el objeto más llamativo de la partida— y hasta conservaban
@@ -476,7 +549,12 @@ textarea{resize:vertical;min-height:46px}
 .del:is(:disabled,[aria-disabled="true"]){cursor:default;color:#a8aec0}
 .del:is(:disabled,[aria-disabled="true"]):hover{color:#a8aec0;background:none}
 @keyframes chipPop{0%{transform:scale(.84)}65%{transform:scale(1.07)}100%{transform:scale(1)}}
-.hintnote{font-size:11.5px;color:var(--muted);background:linear-gradient(90deg,var(--soft),rgba(242,244,251,.3));border-left:2px solid rgba(58,74,216,.2);border-radius:0 7px 7px 0;padding:6px 11px;display:inline-block}
+.hintnote{font-size:var(--t2);color:var(--n6);background:var(--n1);border-radius:var(--rr1);padding:8px 12px;display:inline-block;line-height:1.5}
+/* Los avisos con color van con el mismo relleno tenue y borde de un píxel que todo lo
+   demás; el filete de tres píxeles a la izquierda era el único elemento de la hoja que se
+   dibujaba así, y con tres colores distintos. */
+.hintnote.nota-av{background:var(--av-bg);border:1px solid var(--av-borde);color:var(--av)}
+.hintnote.nota-ok{background:var(--ok-bg);border:1px solid var(--ok-borde);color:var(--ok)}
 
 /* Los siete interruptores eran <label class="switch"> con un <span class="tg"> dentro:
    sin for y sin control dentro, ni entraban en el orden de tabulación ni respondían a
@@ -505,18 +583,18 @@ textarea{resize:vertical;min-height:46px}
 .tg::after{content:'';width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:3px;left:3px;transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .tg.on::after{left:21px}
 
-.pline{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px dashed rgba(224,228,240,.9)}
+.pline{display:flex;align-items:center;justify-content:space-between;gap:var(--e3);margin-top:var(--e4);padding-top:var(--e3);border-top:1px solid var(--n2)}
 .pline .formula{font-size:11.5px;color:var(--muted)}
 /* inline-block para que el difuminado de la cifra no descuadre el renglón */
 .formula .dinero{display:inline-block}
 .pline .formula b{color:var(--ink);font-weight:700}
-.pline .lt{font-size:18px;font-weight:800;color:var(--brand)}
+.pline .lt{font-size:var(--t4);font-weight:600;color:var(--n8);font-variant-numeric:tabular-nums}
 /* Partida con precio puesto a mano por el autorizador: se enseña el que se va a cobrar y,
    al lado, el calculado tachado. Antes la pantalla decía el calculado y el PDF el
    autorizado, y nada avisaba de que eran dos números distintos. */
 .pline .lt .lt-calc{font-size:12.5px;font-weight:600;color:var(--muted);text-decoration:line-through;margin-right:5px}
-.addbtn{width:100%;padding:13px;border:1.5px dashed rgba(58,74,216,.35);border-radius:var(--r-sm);background:linear-gradient(135deg,rgba(58,74,216,.04),rgba(92,109,240,.07));color:var(--brand);font-size:13.5px;font-weight:700;cursor:pointer;transition:.15s}
-.addbtn:hover{background:linear-gradient(135deg,rgba(58,74,216,.09),rgba(92,109,240,.13));border-color:var(--brand)}
+.addbtn{width:100%;padding:12px;border:1px dashed var(--n4);border-radius:var(--rr1);background:none;color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;transition:border-color .12s,background .12s}
+.addbtn:hover{background:var(--n1);border-color:var(--n5);color:var(--n8)}
 .addbtn:disabled{opacity:.45;cursor:not-allowed}
 
 /* Duplicate button */
@@ -538,24 +616,32 @@ textarea{resize:vertical;min-height:46px}
 /* Sin descripción no se regaña en ámbar: no frena la autorización ni sale en el aviso de
    partidas sin terminar, así que se dice en gris y se invita a escribirla. */
 .pdsc.vacia{font-weight:600;font-style:italic;color:var(--muted)}
-.ptok{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:8px;background:var(--soft-2);color:var(--brand-strong);border:1px solid rgba(58,74,216,.16);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ptok::before{content:'✓';font-size:11px;font-weight:400;opacity:.75}
-.ptok.falta{background:var(--amber-bg);color:var(--amber);border-color:rgba(207,138,18,.3)}
-.ptok.falta::before{content:'!';opacity:1;font-weight:900}
-.ptok.off{background:var(--soft);color:var(--muted);border-color:var(--line)}
-.ptok.off::before{content:'—';font-weight:700}
+/* ----- La cara de la partida plegada -----
+   Estos son DATOS, no selecciones: lo que ya está decidido en esa partida. Iban con el
+   fondo y la tinta del acento —el mismo lenguaje que el chip elegido— y una partida plegada
+   se veía como seis cosas recién escogidas parpadeando en azul. Ahora son neutros y el ✓ es
+   lo que dice que están puestos; el color se guarda para lo que falta y para lo apagado,
+   que son los dos casos en los que hace falta mirar. */
+.ptok{display:inline-flex;align-items:center;gap:var(--e1);font-size:var(--t2);font-weight:500;padding:4px 10px;border-radius:var(--rr1);background:var(--n1);color:var(--n7);border:1px solid var(--n2);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ptok::before{content:'✓';font-size:10px;font-weight:400;color:var(--n5)}
+.ptok.falta{background:var(--av-bg);color:var(--av);border-color:var(--av-borde)}
+.ptok.falta::before{content:'!';font-weight:700;color:var(--av)}
+.ptok.off{background:transparent;color:var(--n6);border-color:var(--n2)}
+.ptok.off::before{content:'—';font-weight:500;color:var(--n5)}
 /* Cada bloque de opciones va encerrado y con su valor elegido en el encabezado */
-.optgrp{border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 12px 10px;margin-bottom:9px;background:#fff}
-.optgrp.falta{border-color:rgba(207,138,18,.35);background:linear-gradient(180deg,#fff,#fffaf0)}
-.optgrp-h{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:9px}
-.optgrp-t{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
-.optgrp-v{font-size:12.5px;font-weight:800;color:var(--brand-strong);display:inline-flex;align-items:center;gap:4px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.optgrp-v::before{content:'✓';font-size:11.5px;font-weight:400}
-.optgrp-v.falta{color:var(--amber)}
-.optgrp-v.falta::before{content:'!';font-weight:800}
+/* ----- El grupo de opciones -----
+   Era un recuadro con borde y fondo dentro de la partida, que a su vez era una tarjeta
+   dentro de otra tarjeta: tres marcos para enseñar cinco botones. Ahora es lo que siempre
+   fue —una etiqueta y sus opciones debajo— y lo que los agrupa es el espacio. La etiqueta
+   deja de ser mayúsculas diminutas con interletrado: eso se lee peor y grita más. */
+.optgrp{margin-bottom:var(--e4)}
+.optgrp-h{display:flex;align-items:baseline;gap:var(--e2);flex-wrap:wrap;margin-bottom:var(--e2)}
+.optgrp-t{font-size:var(--t2);font-weight:600;color:var(--n6)}
+.optgrp-v{font-size:var(--t2);font-weight:600;color:var(--av);display:inline-flex;align-items:center;gap:var(--e1);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.optgrp-v::before{content:'·';font-weight:700}
 .optgrp .chips{margin:0}
 .optgrp .hintnote{margin-top:8px}
-.partida.drag-over{border-color:var(--brand);border-style:dashed;background:linear-gradient(180deg,#f3f5ff,#eef0fe)}
+.partida.drag-over{box-shadow:inset 0 2px 0 var(--a)}
 .partida.dragging{opacity:.35}
 /* Auto-counter for letter count */
 /* Renglón propio debajo de la rejilla: metido en la media columna de «# Letras»
@@ -566,36 +652,47 @@ textarea{resize:vertical;min-height:46px}
 
 /* ---------- Resumen (sticky) ---------- */
 .side{position:sticky;top:calc(3px + 78px)}
-.sum{background:rgba(255,255,255,.98);border:1px solid rgba(224,228,240,.7);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
-.sum-rows{padding:18px 20px 8px}
-.srow{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:#4b5269;padding:7px 0}
-.srow.ivt{border-top:1px dashed var(--line);margin-top:5px}
-.srow .v{font-weight:700;color:var(--ink)}
-.srow.subtotal{font-size:16.5px;font-weight:800;color:var(--ink);padding:8px 0 10px}
-.srow.subtotal .v{font-size:21px;font-weight:900;color:var(--brand-strong);letter-spacing:.2px}
-.neto{background:linear-gradient(135deg,#1c2456 0%,var(--navy) 55%,#242d6e 100%);color:#fff;padding:18px 20px;display:flex;justify-content:space-between;align-items:center}
-.neto .lab{font-size:13px;font-weight:700;opacity:.9}
-.neto .neto-calc{font-size:11px;opacity:.55;font-weight:500;margin-top:2px}
-.neto .amt{font-size:28px;font-weight:900;letter-spacing:.2px;font-variant-numeric:tabular-nums}
-.anti{padding:16px 20px;border-top:1px solid var(--line)}
+/* ----- El resumen -----
+   Eran dos bloques de color a pantalla completa —uno azul de marca para el subtotal y uno
+   marino con degradado para el total— apilados uno encima del otro. Pintar de color un
+   número no lo hace más importante: lo hace más ruidoso, y ahí estaban los dos objetos más
+   llamativos de la pantalla compitiendo entre sí. Ahora la jerarquía la hace el tamaño: el
+   total es el número grande de la columna y no necesita nada más. */
+.sum{background:var(--card);border:1px solid var(--n3);border-radius:var(--rr3);overflow:hidden}
+.sum-rows{padding:var(--e4) var(--e5) var(--e2)}
+.srow{display:flex;justify-content:space-between;align-items:center;gap:var(--e3);font-size:var(--t3);color:var(--n6);padding:var(--e2) 0}
+.srow.ivt{border-top:1px solid var(--n2);margin-top:var(--e1)}
+.srow .v{font-weight:500;color:var(--n8);font-variant-numeric:tabular-nums}
+.srow.subtotal{font-size:var(--t3);font-weight:500;color:var(--n7);padding:var(--e2) 0}
+.srow.subtotal .v{font-size:var(--t4);font-weight:600;color:var(--n8)}
+.neto{padding:var(--e4) var(--e5) var(--e5);border-top:1px solid var(--n2);display:flex;justify-content:space-between;align-items:flex-end;gap:var(--e3)}
+.neto .lab{font-size:var(--t2);font-weight:500;color:var(--n6)}
+.neto .neto-calc{font-size:var(--t1);color:var(--n6);margin-top:2px}
+.neto .amt{font-size:var(--t7);font-weight:650;letter-spacing:-1px;color:var(--n9);font-variant-numeric:tabular-nums;line-height:1}
+.anti{padding:var(--e4) var(--e5);border-top:1px solid var(--n2)}
+.sum-rows-2{padding-top:0;padding-bottom:0;border-top:1px solid var(--n2);margin-top:var(--e2)}
+.srow.subtotal .v small{font-size:var(--t1);font-weight:500;color:var(--n6);margin-left:var(--e1)}
 
 /* ---------- Autorización ---------- */
-.auth{padding:18px 20px;border-top:1px solid var(--line);background:var(--soft)}
-.statusrow{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}
-.statusrow .lab{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--muted)}
-.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px}
+.auth{padding:var(--e4) var(--e5) var(--e5);border-top:1px solid var(--n2)}
+.statusrow{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--e3)}
+.statusrow .lab{font-size:var(--t2);font-weight:500;color:var(--n6)}
+.badge{display:inline-flex;align-items:center;gap:var(--e2);font-size:var(--t1);font-weight:500;padding:4px 10px;border-radius:var(--rr1)}
 .badge .dot{width:7px;height:7px;border-radius:50%}
 .badge.borrador{background:var(--gray-bg);color:var(--gray)} .badge.borrador .dot{background:var(--gray)}
 .badge.pendiente{background:var(--amber-bg);color:var(--amber)} .badge.pendiente .dot{background:var(--amber)}
 .badge.autorizada{background:var(--green-bg);color:var(--green)} .badge.autorizada .dot{background:var(--green)}
 .badge.rechazada{background:var(--red-bg);color:var(--red)} .badge.rechazada .dot{background:var(--red)}
 
-.btn{width:100%;padding:13px;border-radius:var(--r-sm);font-size:14px;font-weight:700;border:none;cursor:pointer;transition:.16s;display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.05px}
-.btn+.btn{margin-top:9px}
-.btn-pri{background:var(--brand-grd);color:#fff;box-shadow:0 2px 10px rgba(58,74,216,.28)}.btn-pri:hover{background:linear-gradient(135deg,#2e3dbf,#4d5ee8);box-shadow:0 4px 16px rgba(58,74,216,.38)}
-.btn-ok{background:linear-gradient(135deg,#0d8050,var(--green));color:#fff;box-shadow:0 2px 8px rgba(21,160,106,.22)}.btn-ok:hover{filter:brightness(1.06)}
-.btn-dgr{background:#fff;color:var(--red);border:1.5px solid rgba(216,69,63,.3)}.btn-dgr:hover{background:var(--red-bg);border-color:var(--red)}
-.btn-gho{background:#fff;color:var(--brand);border:1.5px solid var(--line)}.btn-gho:hover{border-color:var(--brand);background:var(--soft-2)}
+/* Un solo botón lleva color de relleno en cada pantalla: el que hace lo que se vino a
+   hacer. Los demás son neutros con borde. Cuando todos gritan, ninguno dirige. */
+.btn{width:100%;padding:12px 16px;border-radius:var(--rr1);font-size:var(--t3);font-weight:550;border:1px solid transparent;cursor:pointer;
+  transition:background .12s,border-color .12s,color .12s;display:flex;align-items:center;justify-content:center;gap:var(--e2)}
+.btn+.btn{margin-top:var(--e2)}
+.btn-pri{background:var(--a);color:#fff}.btn-pri:hover{background:var(--a-fuerte)}
+.btn-ok{background:var(--ok);color:#fff}.btn-ok:hover{filter:brightness(1.08)}
+.btn-dgr{background:#fff;color:var(--mal);border-color:var(--mal-borde)}.btn-dgr:hover{background:var(--mal-bg)}
+.btn-gho{background:#fff;color:var(--n7);border-color:var(--n3)}.btn-gho:hover{border-color:var(--n4);background:var(--n1)}
 .btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
 .authnote{font-size:12.5px;color:#4b5269;line-height:1.55;background:#fff;border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 13px;margin-bottom:10px}
 .authnote b{color:var(--ink)}
@@ -652,7 +749,11 @@ textarea{resize:vertical;min-height:46px}
 .anti-rest{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:7px}
 
 /* ----- IA ----- */
-.ai-btn{width:100%;padding:12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 10px rgba(58,74,216,.25);transition:.16s}
+/* Los tres accesos —IA, escalar, vectorizar— son tres herramientas del mismo rango, y sin
+   embargo uno era una barra azul sólida a todo lo ancho, otro tenía borde verde y el otro
+   morado. Tres pesos y tres colores para tres cosas iguales. Ahora los tres son el mismo
+   botón neutro; el color se reserva para la acción principal de la pantalla. */
+.ai-btn{width:100%;padding:10px 14px;border:1px solid var(--n3);border-radius:var(--rr1);background:#fff;color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;margin-bottom:var(--e4);display:flex;align-items:center;justify-content:center;gap:var(--e2);transition:border-color .12s,background .12s}
 .ai-btn:hover{background:linear-gradient(135deg,#2e3dbf,#4d5ee8);box-shadow:0 4px 16px rgba(58,74,216,.35)}
 .modal-bg{position:fixed;inset:0;background:rgba(17,22,46,.6);display:none;align-items:center;justify-content:center;z-index:60;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
   padding:calc(18px + env(safe-area-inset-top,0px)) calc(18px + env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) calc(18px + env(safe-area-inset-left,0px))}
@@ -796,7 +897,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .prog-next{font-size:11px;color:var(--brand);font-weight:700;margin-top:6px;display:flex;align-items:center;gap:5px}
 .prog-next:empty{display:none}
 .prog-label{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
-.prog-label span:first-child{font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.prog-label span:first-child{font-size:var(--t2);font-weight:500;color:var(--n6)}
 #prog-pct{font-size:12.5px;font-weight:900;color:var(--brand)}
 .prog-track{height:7px;background:var(--line);border-radius:10px;overflow:hidden}
 #prog-bar{height:100%;background:linear-gradient(90deg,#f59e0b,#fb923c);border-radius:10px;transition:width .5s cubic-bezier(.22,1,.36,1),background .5s;width:0%}
@@ -904,7 +1005,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .sp-close:hover{background:var(--soft);color:var(--ink)}
 .sp-close .ico{font-size:19px;line-height:1;display:flex}
 .sp-close .back,.sp-close .lbl{display:none}
-.btn-scaler-open{display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 14px;border:1.5px solid #15a06a;border-radius:var(--r-sm);background:#fff;color:#1c6e3d;font-size:12.5px;font-weight:700;cursor:pointer;transition:.16s;white-space:nowrap}
+.btn-scaler-open{display:flex;align-items:center;justify-content:center;gap:var(--e2);padding:10px 14px;border:1px solid var(--n3);border-radius:var(--rr1);background:#fff;color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;transition:border-color .12s,background .12s;white-space:nowrap}
 .btn-scaler-open:hover{background:#e8f9ee;border-color:#1c6e3d}
 .scaler-ai-row{display:flex;gap:8px;margin-bottom:14px}
 .scaler-ai-row .ai-btn{flex:1;margin-bottom:0}
@@ -986,7 +1087,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .vt-warn{background:var(--amber-bg);border:1px solid rgba(207,138,18,.22);border-radius:var(--r-sm);padding:9px 11px;font-size:11.5px;color:var(--amber);font-weight:600;line-height:1.5;margin-top:9px}
 .vt-dl{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:9px}
 .vt-modal-bg .sp-actions{padding:10px 14px 12px}
-.btn-vector-open{display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 14px;border:1.5px solid #6a3bd8;border-radius:var(--r-sm);background:#fff;color:#5227b8;font-size:12.5px;font-weight:700;cursor:pointer;transition:.16s;white-space:nowrap;font-family:inherit}
+.btn-vector-open{display:flex;align-items:center;justify-content:center;gap:var(--e2);padding:10px 14px;border:1px solid var(--n3);border-radius:var(--rr1);background:#fff;color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;transition:border-color .12s,background .12s;white-space:nowrap;font-family:inherit}
 .btn-vector-open:hover{background:#f1ecfd;border-color:#5227b8}
 /* Los dos modales de pantalla completa —escalador y vectorizador— cambian a diseño de
    teléfono a los 1000 px y no a los 760. Su barra de herramientas necesita 982 px para
@@ -1099,15 +1200,17 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .pdf-vis{border:none;background:none;font-size:15px;cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1;transition:.12s;color:var(--brand)}
 .pdf-vis.off{opacity:.4;color:var(--muted)}
 .pdf-vis:hover{background:var(--soft)}
-.partida.hidden-pdf{opacity:.55;border-left-color:#c4c9da}
-.edit-mode-banner{display:flex;align-items:center;gap:9px;background:var(--amber-bg);border:1.5px solid rgba(207,138,18,.28);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:12px;font-size:12.5px;font-weight:600;color:var(--amber)}
+/* Oculta del PDF: no se atenúa con opacidad —eso hundía su texto a 2:1 y la partida sigue
+   siendo legible por derecho— sino que se marca en el margen y lo dice con palabras. */
+.partida.hidden-pdf{background:var(--n1)}
+.edit-mode-banner{display:flex;align-items:center;gap:var(--e2);background:var(--av-bg);border:1px solid var(--av-borde);border-radius:var(--rr1);padding:11px 14px;margin-bottom:var(--e3);font-size:var(--t2);font-weight:500;color:var(--av)}
 /* ----- El candado de las partidas -----
    Mismo ámbar que el resto de los avisos de «falta algo» —el de los huecos obligatorios y
    el del modo edición—, para que se lea como parte de la misma familia y no como un error.
    Va en la tarjeta de Partidas y no arriba de todo a propósito: el aviso tiene que estar
    donde se va a intentar capturar, que es donde surge la duda. */
-.cand-partidas{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--amber-bg);border:1.5px solid rgba(207,138,18,.28);border-radius:var(--r-sm);padding:11px 13px;margin-bottom:12px;font-size:12.5px;font-weight:600;color:var(--amber);cursor:pointer;transition:.15s}
-.cand-partidas:hover{border-color:var(--amber-ico);background:#f9ead0}
+.cand-partidas{display:flex;align-items:center;gap:var(--e3);width:100%;text-align:left;background:var(--av-bg);border:1px solid var(--av-borde);border-radius:var(--rr1);padding:12px 14px;margin-bottom:var(--e3);font-size:var(--t2);font-weight:500;color:var(--av);cursor:pointer;transition:border-color .12s}
+.cand-partidas:hover{border-color:var(--amber-ico)}
 .cand-partidas[hidden]{display:none}
 .cand-partidas .svgi{flex-shrink:0;color:var(--amber-ico)}
 .cand-partidas .cp-txt{flex:1;min-width:0;line-height:1.45;font-weight:600}
@@ -1125,9 +1228,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
    de reposo y filete gris en vez del azul de marca—, y el estado real lo llevan los
    controles: los campos con su gris de deshabilitado de siempre y los chips con la regla
    de aquí abajo. El texto se queda en su contraste completo. */
-.items-cand .partida{background:var(--soft);border-left-color:#aab2c8;box-shadow:none}
-.items-cand .partida:hover{box-shadow:none}
-.items-cand .optgrp,.items-cand .autoctr{background:#fff}
+.items-cand .partida{background:var(--n1)}
 /* ----- Registrar Venta modal ----- */
 .rv-modal-bg{position:fixed;inset:0;background:rgba(12,15,38,.7);display:none;z-index:60;align-items:center;justify-content:center;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 .rv-modal-bg.show{display:flex}
@@ -1301,7 +1402,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
      porque body lleva print-color-adjust:exact, así que sí se imprimiría, y una cotización
      con medio bloque gris se lee como una impresión sucia. La ficha ámbar, además, no le
      dice nada a quien recibe la hoja. */
-  .items-cand .partida{background:#fff;border-left-color:var(--brand)}
+  .items-cand .partida{background:#fff}
   .cand-partidas{display:none!important}
   .partida.folded .pbody{display:block}
   .partida.folded .psum{display:none}
@@ -1676,19 +1777,24 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
           <span class="v" id="s-iva">$0.00</span>
         </div>
       </div>
-      <div style="background:linear-gradient(135deg,#3a4ad8 0%,#4a5ae2 100%);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:13px;font-weight:800;letter-spacing:.05px">Subtotal</span>
-        <div style="text-align:right">
-          <div style="font-size:28px;font-weight:900;letter-spacing:.2px;font-variant-numeric:tabular-nums" id="s-sub">$0.00</div>
-          <div id="s-iva-hint" style="font-size:10.5px;font-weight:700;opacity:.92;margin-top:1px">+ IVA</div>
+      <!-- El subtotal y el total eran dos bloques de color a pantalla completa, apilados: uno
+           azul de marca y uno marino con degradado. Pintar de color un número no lo vuelve
+           más importante, lo vuelve más ruidoso, y ahí estaban los dos objetos más
+           llamativos de la pantalla compitiendo entre sí. Ahora son dos renglones: el
+           subtotal como cualquier otro y el total como EL número de la columna, que es lo
+           que de verdad se viene a leer. -->
+      <div class="sum-rows sum-rows-2">
+        <div class="srow subtotal">
+          <span>Subtotal</span>
+          <span class="v"><span id="s-sub">$0.00</span> <small id="s-iva-hint">+ IVA</small></span>
         </div>
       </div>
-      <div style="background:linear-gradient(135deg,#1c2456 0%,#171d4a 55%,#242d6e 100%);color:rgba(255,255,255,.6);padding:12px 20px;display:flex;justify-content:space-between;align-items:center">
+      <div class="neto">
         <div>
-          <span style="font-size:12px;font-weight:700">Total Neto</span>
-          <div style="font-size:10.5px;color:rgba(255,255,255,.5);font-weight:500;margin-top:2px" id="s-calc">Subtotal × 1.16</div>
+          <span class="lab">Total neto</span>
+          <div class="neto-calc" id="s-calc">Subtotal × 1.16</div>
         </div>
-        <span style="font-size:20px;font-weight:800;letter-spacing:.2px;font-variant-numeric:tabular-nums" id="s-neto">$0.00</span>
+        <span class="amt" id="s-neto">$0.00</span>
       </div>
       <div class="anti">
         <label for="f-anti">Anticipo sugerido (50%)</label>
@@ -3399,8 +3505,8 @@ function bodyFor(it){
        abajo en un párrafo, y la iluminación sugerida decía con otras palabras lo mismo que el
        consejo del material que va debajo. */
     const avisos=`
-      ${(it.material==='acr-vol'||it.material==='acr-vinil')&&!it.luz?`<div class="hintnote" style="background:#fff8e1;border-left:3px solid var(--amber-ico);color:#7a5800"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> Acrílico sin luz: el <b>Aluminio</b> se ve igual y cuesta menos.</div>`:''}
-      ${(it.material==='al-paint'||it.material==='acero')&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green-ico);color:#1c6e3d"><span class="emo">💡</span> Opaco: la luz sale por detrás. Para luz de frente, <b>Acrílico + Aluminio</b>.</div>`:''}`;
+      ${(it.material==='acr-vol'||it.material==='acr-vinil')&&!it.luz?`<div class="hintnote nota-av"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> Acrílico sin luz: el <b>Aluminio</b> se ve igual y cuesta menos.</div>`:''}
+      ${(it.material==='al-paint'||it.material==='acero')&&it.luz?`<div class="hintnote nota-ok"><span class="emo">💡</span> Opaco: la luz sale por detrás. Para luz de frente, <b>Acrílico + Aluminio</b>.</div>`:''}`;
     const tono=(it.ilumTipo||'fria')==='calida';
     const luzChips=it.luz
       ? chip(tono,`setItem(${it.id},'ilumTipo','calida')`,'<span class="emo">🌅</span> Cálida','3000K')+chip(!tono,`setItem(${it.id},'ilumTipo','fria')`,'<span class="emo">❄️</span> Fría','6500K')
