@@ -2046,6 +2046,12 @@ const Q = {
   /* Huella del trabajo sobre el que se autorizó el precio. Ver authVigente(). */
   huellaAuth:'',
   aiFile:null,
+  /* «Esta cotización nunca ha tenido una partida». Va en Q y no en una variable suelta
+     porque tiene que sobrevivir a una recarga: se captura el cliente, se recarga la
+     página con el candado todavía puesto y al escribir el teléfono la partida en blanco
+     del arranque tiene que aparecer igual. Se apaga en cuanto nace la primera y ya no se
+     vuelve a encender, que es lo que distingue sembrar de resucitar. */
+  sinEstrenar:true,
   editMode:false
 };
 let pid=0, dragId=null;
@@ -2692,6 +2698,7 @@ function addItem(opts){
   const mat=matOf(heredado)?heredado:'';
   Q.items.push({id,tipo:'letras',material:mat,matAuto:!!mat,comp:'recta',luz:true,ilumTipo:'fria',altura:0,n:0,
     tarifa:0,ancho:0,alto:0, acab:'',recComp:false,bas:'', desc:'',descAi:false,pz:1,pu:0,textoAuto:'',showInPdf:true});
+  Q.sinEstrenar=false;
   plegarOtras(id);
   renderItems();
   /* Sin esto, quien usa lector de pantalla no se enteraba de que apareció una partida ni
@@ -2804,7 +2811,10 @@ function dupItem(id){
    guardaba en el historial, de modo que al reimprimir volvían a salir las ocultas. */
 function setShowInPdf(id,val){
   if(locked()){ toast('La cotización está bloqueada — usa «Editar partidas» para ocultar partidas','err',4200); return; }
-  if(!exigirDatosParaPartidas()) return;
+  /* Sin llevar: el ojo vive dentro de la partida y se toca mientras se lee. Con el salto,
+     pulsarlo mandaba la página al principio del documento —y el foco con ella—, que es
+     mucho más de lo que pidió quien solo quería tapar un renglón del PDF. */
+  if(!exigirDatosParaPartidas({llevar:false})) return;
   const it=Q.items.find(x=>x.id===id); if(!it)return;
   it.showInPdf=val;
   renderItems();
@@ -2892,7 +2902,16 @@ function renderItems(){
     banner.innerHTML=ico('i-lapiz')+' <span>Modo edición activo — modifica materiales, descripciones o usa '+ico('i-ojo')+' para ocultar partidas del PDF sin borrarlas.</span>';
     c.appendChild(banner);
   }
-  if(Q.items.length===0){ const empty=document.createElement('div'); empty.className='empty'; empty.textContent='Aún no hay partidas. Agrega letras 3D, un recorte de acrílico, un bastidor, una caja de luz o una partida manual.'; c.appendChild(empty); }
+  if(Q.items.length===0){
+    const empty=document.createElement('div'); empty.className='empty';
+    /* Con el candado puesto, el texto de siempre —«Agrega letras 3D…»— pide justo lo que
+       la ficha de arriba acaba de prohibir, y dos renglones que se contradicen a diez
+       píxeles de distancia se leen como que la app se equivocó. */
+    empty.textContent=(!locked()&&faltanDatosCliente())
+      ? 'Las partidas se capturan en cuanto estén el cliente, el teléfono y el proyecto.'
+      : 'Aún no hay partidas. Agrega letras 3D, un recorte de acrílico, un bastidor, una caja de luz o una partida manual.';
+    c.appendChild(empty);
+  }
   Q.items.forEach((it,i)=>{
     const d=document.createElement('div'); d.className='partida'; d.id='p-'+it.id;
     if(it.showInPdf===false) d.classList.add('hidden-pdf');
@@ -3884,6 +3903,13 @@ function exigirDatosDesdeModal(cerrar){
    mirando. */
 let _candCerrado=null;   // null = todavía no se ha pintado nunca
 let _candPintando=false; // renderItems vuelve a entrar aquí; se pinta, pero no se reacciona dos veces
+/* La app siempre ha arrancado con una partida en blanco. Con el candado puesto esa
+   siembra no se puede hacer, así que queda pendiente y se hace en cuanto el candado se
+   abre —ver Q.sinEstrenar—. Es UNA sola vez, y por eso se pregunta por «nunca ha tenido
+   una» y no por «no tiene ninguna ahora»: con la segunda regla, un vendedor que borra a
+   propósito la última partida y luego se va a corregir el teléfono se la encontraba de
+   vuelta al terminar de escribirlo, sin haber pedido nada. Sembrar lo que nunca nació es
+   ayudar; resucitar lo que alguien acaba de borrar es no hacerle caso. */
 function pintarCandadoPartidas(){
   const cerrado=!locked()&&faltanDatosCliente();
   const box=$('cand-partidas');
@@ -3925,12 +3951,17 @@ function pintarCandadoPartidas(){
        sin esto el vendedor que acaba de llenar los tres datos se queda mirando una tarjeta
        de Partidas vacía. No se le lleva el foco: se está tecleando en el proyecto. */
     let creada=null;
-    if(abrio&&!Q.items.length&&!locked()) creada=addItem({enfocar:false,heredar:true});
+    if(abrio&&Q.sinEstrenar&&!Q.items.length&&!locked()) creada=addItem({enfocar:false,heredar:true});
     else renderItems();
     /* Sin esto, quien usa lector de pantalla no se entera de que el candado se abrió: la
        ficha ámbar desaparece y una región que se va no anuncia nada. Cortés y no urgente,
        porque se está tecleando el último de los tres datos. */
     if(abrio) voz('Ya puedes capturar partidas'+(creada?' — se agregó la partida 1':''));
+    /* Y al cerrarse también. La ficha ámbar aparece, pero una región que se enciende con
+       `hidden` no anuncia nada al aparecer, así que quien no la ve se encontraba con una
+       tarjeta que dejó de responder sin que nada lo dijera. */
+    else if(cerrado) voz('Las partidas quedan bloqueadas: '+
+      (datosFaltantes().length===1?'falta ':'faltan ')+listaY(datosFaltantes().map(faltaTexto)));
   } finally { _candPintando=false; }
 }
 
@@ -4049,7 +4080,7 @@ function nueva(){
   _vaciada=habia?{q:JSON.parse(JSON.stringify(Q)),pid,rol:Q.rol}:null;
   Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};Q.huellaAuth='';
   Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth='';
-  Q.editMode=false; _selfAuth=false;
+  Q.editMode=false; _selfAuth=false; Q.sinEstrenar=true;
   Object.values(_FM).forEach(id=>{if($(id))$(id).value='';});
   // Una cotización en blanco no arranca regañada: el ámbar se apaga con ella.
   _marcarOblig=false;
@@ -6107,6 +6138,10 @@ function loadState(){
        loadState devolviendo false como si no hubiera encontrado nada. */
     if(!saved||typeof saved!=='object'||!Array.isArray(saved.items)) return false;
     Object.assign(Q,saved);
+    /* Una cotización guardada por una versión anterior no trae la bandera, y la que llega
+       con partidas evidentemente ya se estrenó: se deduce de lo que hay en vez de confiar
+       en un campo que puede no existir. */
+    if(Q.items.length) Q.sinEstrenar=false;
     Q.aiFile=null;
     cargarAiFile();   // la imagen analizada se guarda aparte; si cupo, vuelve con la cotización
     Q.editMode=false;
