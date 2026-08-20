@@ -419,6 +419,16 @@ textarea{resize:vertical;min-height:46px}
 .chip[aria-disabled="true"].on{background:var(--gray-bg);border-color:#b6bdd0;color:var(--ink);box-shadow:none;animation:none}
 .chip[aria-disabled="true"].on small{color:var(--muted)}
 .chip[aria-disabled="true"].on .ck{color:var(--gray)}
+/* Mismo problema y mismo criterio en los dos botones que quedaban: el selector de tipo y
+   la × de borrar salían idénticos a los vivos —el tipo elegido seguía siendo la píldora
+   azul con degradado y sombra, el objeto más llamativo de la partida— y hasta conservaban
+   el encogido al pulsar y el rojo al pasar el ratón. Se cubren las dos formas de apagado,
+   `disabled` y `aria-disabled`, porque la partida usa una u otra según qué candado sea. */
+.tipo-seg button:is(:disabled,[aria-disabled="true"]){cursor:default}
+.tipo-seg button:is(:disabled,[aria-disabled="true"]):active{transform:none}
+.tipo-seg button:is(:disabled,[aria-disabled="true"]).on{background:var(--gray-bg);color:var(--ink);box-shadow:none;animation:none}
+.del:is(:disabled,[aria-disabled="true"]){cursor:default;color:#a8aec0}
+.del:is(:disabled,[aria-disabled="true"]):hover{color:#a8aec0;background:none}
 @keyframes chipPop{0%{transform:scale(.84)}65%{transform:scale(1.07)}100%{transform:scale(1)}}
 .hintnote{font-size:11.5px;color:var(--muted);background:linear-gradient(90deg,var(--soft),rgba(242,244,251,.3));border-left:2px solid rgba(58,74,216,.2);border-radius:0 7px 7px 0;padding:6px 11px;display:inline-block}
 
@@ -2739,7 +2749,7 @@ function delItem(id){
      cotización a la que todavía no se le puede meter nada tampoco tiene por qué poder
      perder lo que ya traía —las partidas de una cotización vieja que se abrió sin
      teléfono siguen ahí, intactas, hasta que se escriba. */
-  if(!exigirDatosParaPartidas())return;
+  if(!exigirDatosParaPartidas({llevar:false}))return;
   const idx=Q.items.findIndex(x=>x.id===id);
   if(idx<0) return;
   /* Borrar también estrena la cotización: si aquí hubo una partida, la de arriba ya no es
@@ -2815,11 +2825,15 @@ function dupItem(id){
    candado: en una cotización bloqueada el ojo seguía funcionando y el cambio no se
    guardaba en el historial, de modo que al reimprimir volvían a salir las ocultas. */
 function setShowInPdf(id,val){
+  /* Ocultar del PDF queda FUERA del candado nuevo, por lo mismo que deshacer un borrado:
+     no mete un dato en la partida, decide qué renglones salen impresos. Y bloquearlo dejaba
+     a la app dándose instrucciones que ella misma frenaba: en una cotización autorizada sin
+     teléfono —de las que el historial guarda desde antes de que se pidiera—, el ojo decía
+     «usa Editar partidas», y al entrar a editar el candado se cerraba encima y el ojo
+     contestaba que no se podía, con el banner del modo edición señalándolo. Ahí no se está
+     capturando nada: la cotización ya se autorizó y lo que se quiere es tapar un renglón
+     del papel. */
   if(locked()){ toast('La cotización está bloqueada — usa «Editar partidas» para ocultar partidas','err',4200); return; }
-  /* Sin llevar: el ojo vive dentro de la partida y se toca mientras se lee. Con el salto,
-     pulsarlo mandaba la página al principio del documento —y el foco con ella—, que es
-     mucho más de lo que pidió quien solo quería tapar un renglón del PDF. */
-  if(!exigirDatosParaPartidas({llevar:false})) return;
   const it=Q.items.find(x=>x.id===id); if(!it)return;
   it.showInPdf=val;
   renderItems();
@@ -2922,7 +2936,15 @@ function renderItems(){
     if(it.showInPdf===false) d.classList.add('hidden-pdf');
     /* De aquí para abajo se pregunta por capturaBloqueada() y no por locked(): reordenar,
        cambiar el tipo, duplicar y borrar son maneras de meter datos en las partidas, y el
-       candado nuevo las cubre igual que el viejo. */
+       candado nuevo las cubre igual que el viejo.
+
+       Los dos botones que sí se pintan —el selector de tipo y la ×— se apagan de dos
+       maneras distintas a propósito. Con el candado del precio, `disabled`, que es lo que
+       han hecho siempre. Con el candado nuevo, `aria-disabled`: un <button disabled> no
+       despacha click, así que el oyente que existe para que nada se quede callado nunca se
+       enteraba y los dos eran los únicos puntos mudos que quedaban en la partida —el resto
+       ya contesta—. La escritura la frenan setTipo y delItem, que preguntan ellos mismos. */
+    const _off=locked()?'disabled':(faltanDatosCliente()?'aria-disabled="true"':'');
     if(!capturaBloqueada()) d.setAttribute('draggable','true');
     const pdfVis=it.showInPdf!==false;
     const plegada=_plegadas.has(it.id);
@@ -2940,12 +2962,12 @@ function renderItems(){
         </div>
         <span class="ptipo">${TIPO_NOMBRE[it.tipo]||''}</span>
         <div class="tipo-seg" role="group" aria-label="Tipo de la partida ${i+1}">
-          ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button class="${it.tipo===t?'on':''}" aria-pressed="${it.tipo===t?'true':'false'}" ${capturaBloqueada()?'disabled':''} onclick="setTipo(${it.id},'${t}')"><span class="lg">${TIPO_NOMBRE[t]}</span><span class="sm">${TIPO_CORTO[t]}</span></button>`).join('')}
+          ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button class="${it.tipo===t?'on':''}" aria-pressed="${it.tipo===t?'true':'false'}" ${_off} onclick="setTipo(${it.id},'${t}')"><span class="lg">${TIPO_NOMBRE[t]}</span><span class="sm">${TIPO_CORTO[t]}</span></button>`).join('')}
         </div>
         <div class="ptop-actions">
           ${!capturaBloqueada()?`<button class="dup" onclick="dupItem(${it.id})" title="Duplicar partida" aria-label="Duplicar partida">${ico('i-copiar')}</button>`:''}
           <button class="pdf-vis${pdfVis?'':' off'}" onclick="setShowInPdf(${it.id},${!pdfVis})" title="${pdfVis?'Ocultar del PDF — la partida sigue sumando al total':'Mostrar en PDF'}" aria-label="${pdfVis?'Ocultar del PDF':'Mostrar en PDF'}">${ico('i-ojo')}</button>
-          <button class="del" ${capturaBloqueada()?'disabled':''} onclick="delItem(${it.id})" title="Eliminar" aria-label="Eliminar la partida ${i+1}"><span aria-hidden="true">×</span></button>
+          <button class="del" ${_off} onclick="delItem(${it.id})" title="Eliminar" aria-label="Eliminar la partida ${i+1}"><span aria-hidden="true">×</span></button>
         </div>
       </div>
       ${resumenHTML(it)}
@@ -3091,13 +3113,15 @@ function irAlCandado(){ exigirDatosParaPartidas(); }
    marco de la partida—, así que con un solo oyente en la lista se contesta casi toda la
    superficie que se puede tocar.
 
-   Quedan fuera a propósito el ▾ de plegar y el ojo del PDF: son las dos cosas que tienen
-   que seguir respondiendo para poder LEER una cotización congelada, y el ojo ya trae su
-   propio aviso. */
+   Quedan fuera a propósito lo que sirve para LEER una cotización congelada: el ▾ de
+   plegar, la cara plegada entera —que es el blanco grande, el ▾ es un botón de 30 px al
+   lado, y las dos hacen lo mismo—, las fichas del resumen —donde el gesto es espiar un
+   importe tapado— y el ojo del PDF. Sin la cara plegada, abrir una partida para leerla
+   funcionaba Y sacaba un aviso rojo diciendo que había fallado, en el mismo toque. */
 function _candTocarPartida(e){
   if(locked()||!faltanDatosCliente()) return;
   const t=e.target;
-  if(t&&t.closest&&t.closest('.pfold,.pdf-vis,[href]')) return;
+  if(t&&t.closest&&t.closest('.pfold,.pdf-vis,.psum,[href]')) return;
   exigirDatosParaPartidas({llevar:false});
 }
 function irAPendiente(){
@@ -3296,7 +3320,7 @@ function bodyFor(it){
         </div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
-      ${!capturaBloqueada()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las letras" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} letras</span></div>`:''}`;
+      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las letras" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} letras</span></div>`:''}`;
   }
   if(it.tipo==='recorte'){
     const recChips=RECORTES.map(r=>chip(it.acab===r.key,`setItem(${it.id},'acab','${r.key}')`,r.label,'$'+r.precio)).join('');
@@ -3318,7 +3342,7 @@ function bodyFor(it){
         </div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
-      ${!capturaBloqueada()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las piezas" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} piezas</span></div>`:''}`;
+      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las piezas" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} piezas</span></div>`:''}`;
   }
   if(it.tipo==='bastidor'){
     const chips=BASTIDORES.map(b=>chip(it.bas===b.key,`setItem(${it.id},'bas','${b.key}')`,b.label,'$'+b.tarifa+'/m²')).join('');
@@ -3966,7 +3990,12 @@ function pintarCandadoPartidas(){
     /* Sin esto, quien usa lector de pantalla no se entera de que el candado se abrió: la
        ficha ámbar desaparece y una región que se va no anuncia nada. Cortés y no urgente,
        porque se está tecleando el último de los tres datos. */
-    if(abrio) voz('Ya puedes capturar partidas'+(creada?' — se agregó la partida 1':''));
+    /* El `!locked()` no sobra: _candCerrado es de la pantalla, no de la cotización, así que
+       al abrir un pendiente de la cola la transición se calcula contra la cotización
+       anterior y `abrio` se dispara porque ahora manda el candado del precio. Sin esto, al
+       autorizador se le anunciaba «Ya puedes capturar partidas» justo encima de una
+       cotización que está congelada precisamente para que no las capture. */
+    if(abrio&&!locked()) voz('Ya puedes capturar partidas'+(creada?' — se agregó la partida 1':''));
     /* Y al cerrarse también. La ficha ámbar aparece, pero una región que se enciende con
        `hidden` no anuncia nada al aparecer, así que quien no la ve se encontraba con una
        tarjeta que dejó de responder sin que nada lo dijera. */
