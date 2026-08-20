@@ -1055,6 +1055,14 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .pdf-vis:hover{background:var(--soft)}
 .partida.hidden-pdf{opacity:.55;border-left-color:#c4c9da}
 .edit-mode-banner{display:flex;align-items:center;gap:9px;background:var(--amber-bg);border:1.5px solid rgba(207,138,18,.28);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:12px;font-size:12.5px;font-weight:600;color:var(--amber)}
+/* ----- Los dos pasos -----
+   Numerarlos es lo que convierte una regla en un orden: «Partidas» a secas parece algo que
+   se puede empezar cuando quieras, y «2 · Partidas» debajo de «1 · Datos del proyecto» ya
+   dice por sí solo qué va antes, sin que haga falta chocar con un aviso para enterarse.
+   El número del paso que todavía no toca va en ámbar, del mismo color que el aviso y que
+   los huecos obligatorios, y vuelve al azul de marca cuando el paso se abre. */
+.card-h h2 .paso{display:inline-flex;align-items:center;justify-content:center;width:21px;height:21px;border-radius:7px;background:var(--brand-grd);color:#fff;font-size:11.5px;font-weight:800;margin-right:7px;vertical-align:2px;box-shadow:0 2px 6px rgba(58,74,216,.25)}
+.card-h h2 .paso.espera{background:var(--amber-bg);color:var(--amber);box-shadow:none;border:1.5px solid rgba(207,138,18,.35)}
 /* ----- El candado de las partidas -----
    Mismo ámbar que el resto de los avisos de «falta algo» —el de los huecos obligatorios y
    el del modo edición—, para que se lea como parte de la misma familia y no como un error.
@@ -1137,6 +1145,10 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
    más ancho de los dos, que si no el texto más largo de duplicar lo dejaba en segundo
    lugar. */
 .addrow{display:flex;flex-wrap:wrap;gap:9px;align-items:stretch}
+/* El atributo `hidden` es `display:none` de la hoja del navegador, y una regla de autor con
+   `display` le gana: sin esto, la fila de agregar seguía a la vista con el paso 1 sin
+   terminar aunque el atributo estuviera puesto. */
+.addrow[hidden]{display:none}
 .addrow .addbtn{flex:2 1 auto;width:auto;min-width:0}
 .addbtn.igual{flex:1 1 auto;white-space:nowrap;border-style:solid;border-color:var(--line);background:#fff;color:var(--brand)}
 .addbtn.igual:hover{border-color:var(--brand);background:var(--soft-2)}
@@ -1496,7 +1508,7 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
   <main id="contenido">
     <div class="card" id="card-proy">
       <div class="card-h">
-        <h2>Datos del proyecto</h2>
+        <h2><span class="paso" aria-hidden="true">1</span> Datos del proyecto</h2>
         <button class="card-fold" id="fold-proy-btn" onclick="toggleFoldProy()" aria-expanded="true" aria-controls="card-proy-b"><span class="txt" id="fold-proy-txt">Ocultar</span><span class="chev" aria-hidden="true">▾</span></button>
       </div>
       <div class="card-b" id="card-proy-b">
@@ -1543,7 +1555,7 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
 
     <div class="card">
       <div class="card-h">
-        <h2>Partidas</h2>
+        <h2><span class="paso" id="paso2-num" aria-hidden="true">2</span> Partidas</h2>
         <div class="ph-acts">
           <span class="folio" id="pcount">0 partidas</span>
           <button class="card-fold oculto" id="fold-all-btn" onclick="togglePlegarTodas()" aria-expanded="true"><span class="txt" id="fold-all-txt">Plegar todas</span><span class="chev" aria-hidden="true">▾</span></button>
@@ -1558,14 +1570,22 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
           <span class="cp-txt"><b id="cand-partidas-cab">Primero, de quién es la cotización.</b> <span id="cand-partidas-txt" aria-live="polite" aria-atomic="true"></span></span>
           <span class="cp-go" aria-hidden="true">›</span>
         </button>
+        <!-- Todo lo que EMPIEZA una partida vive aquí dentro, en un solo envoltorio: con el
+             paso 1 sin terminar no se pinta. Un botón que se queda a la vista para negarse
+             sigue diciendo «esto ya se puede»; el paso siguiente todavía no existe, y la
+             manera honesta de decirlo es no enseñarlo. Lo que ya estuviera capturado —una
+             cotización vieja que llegó sin teléfono— se queda fuera del envoltorio y sigue
+             a la vista, porque leerla nunca estuvo prohibido. -->
+        <div id="paso2-tools" hidden>
         <div class="scaler-ai-row">
           <button class="ai-btn" id="aibtn" onclick="aiOpen()"><span><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar con IA<span class="solo-desk"> — analizar JPG o PDF</span></span></button>
           <button class="btn-scaler-open" onclick="abrirScaler()" title="Escalar imagen — medir elementos sin cotas"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Escalar</button>
           <button class="btn-vector-open" onclick="abrirVector()" title="Vectorizar — convertir el logotipo en trazo de corte"><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg> Vectorizar</button>
         </div>
+        </div>
         <div id="scPreviewBox"></div>
         <div id="items"></div>
-        <div class="addrow">
+        <div class="addrow" id="paso2-addrow">
           <button class="addbtn" id="addbtn" onclick="agregarPartida()">+ Agregar partida</button>
           <button class="addbtn igual" id="dupbtn" onclick="duplicarUltima()" title="Copia la última partida con todo lo elegido"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Igual que la anterior</button>
         </div>
@@ -2921,14 +2941,14 @@ function renderItems(){
     banner.innerHTML=ico('i-lapiz')+' <span>Modo edición activo — modifica materiales, descripciones o usa '+ico('i-ojo')+' para ocultar partidas del PDF sin borrarlas.</span>';
     c.appendChild(banner);
   }
-  if(Q.items.length===0){
+  /* El recuadro de «Aún no hay partidas» solo sale cuando de verdad se pueden agregar. Con
+     el paso 1 sin terminar el texto de siempre —«Agrega letras 3D…»— pedía justo lo que la
+     ficha ámbar acaba de prohibir dos centímetros más arriba, y cualquier redacción
+     alternativa repite palabra por palabra lo que ya dice la ficha. Dos avisos seguidos
+     diciendo lo mismo no informan el doble: se estorban. */
+  if(Q.items.length===0&&!(!locked()&&faltanDatosCliente())){
     const empty=document.createElement('div'); empty.className='empty';
-    /* Con el candado puesto, el texto de siempre —«Agrega letras 3D…»— pide justo lo que
-       la ficha de arriba acaba de prohibir, y dos renglones que se contradicen a diez
-       píxeles de distancia se leen como que la app se equivocó. */
-    empty.textContent=(!locked()&&faltanDatosCliente())
-      ? 'Las partidas se capturan en cuanto estén el cliente, el teléfono y el proyecto.'
-      : 'Aún no hay partidas. Agrega letras 3D, un recorte de acrílico, un bastidor, una caja de luz o una partida manual.';
+    empty.textContent='Aún no hay partidas. Agrega letras 3D, un recorte de acrílico, un bastidor, una caja de luz o una partida manual.';
     c.appendChild(empty);
   }
   Q.items.forEach((it,i)=>{
@@ -3602,7 +3622,9 @@ function renderAuth(){
          Solicitar a alguien más sigue disponible, un renglón abajo. */
       body=`<button class="btn btn-pri" ${hayPartidas?'':'disabled'} onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizar yo mismo</button>
             <button class="btn btn-gho" ${hayPartidas?'':'disabled'} onclick="solicitar()">Solicitar autorización a alguien más</button>
-            ${hayPartidas?'':'<p class="mini">Agrega partidas con precio para continuar.</p>'}
+            ${hayPartidas?'':`<p class="mini">${!locked()&&faltanDatosCliente()
+              ? esc('Primero el paso 1: '+(datosFaltantes().length===1?'falta ':'faltan ')+listaY(datosFaltantes().map(faltaTexto))+'.')
+              : 'Agrega partidas con precio para continuar.'}</p>`}
             <button class="btn btn-gho" onclick="pedirConfNueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Vaciar y empezar cotización nueva</button>`;
     }
     else if(Q.estado==='pendiente'){
@@ -3946,6 +3968,13 @@ let _candPintando=false; // renderItems vuelve a entrar aquí; se pinta, pero no
    ayudar; resucitar lo que alguien acaba de borrar es no hacerle caso. */
 function pintarCandadoPartidas(){
   const cerrado=!locked()&&faltanDatosCliente();
+  /* El paso 2 no existe hasta que el 1 esté completo: ni la fila de herramientas ni los
+     botones de agregar. Lo que ya estuviera capturado se queda a la vista —congelado— y
+     los repinta renderItems, que vive fuera de este envoltorio. */
+  const tools=$('paso2-tools'), addrow=$('paso2-addrow'), num=$('paso2-num');
+  if(tools) tools.hidden=cerrado;
+  if(addrow) addrow.hidden=cerrado;
+  if(num) num.classList.toggle('espera',cerrado);
   const box=$('cand-partidas');
   if(box){
     box.hidden=!cerrado;
