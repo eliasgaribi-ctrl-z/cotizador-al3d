@@ -42,47 +42,81 @@
   color-scheme:only light;
 
   /* ----- Neutros -----
-     Una sola rampa, de la que salen fondo, superficie, líneas y texto. El fondo deja de ser
-     azulado: un lienzo casi blanco hace que la tarjeta no necesite sombra para separarse. */
-  --n0:#fbfbfd; --n1:#f5f6f9; --n2:#eeeff4; --n3:#e3e5ec; --n4:#c9cdd9;
-  --n5:#8b91a3; --n6:#666d80; --n7:#3f4557; --n8:#242938; --n9:#12141c;
-  /* REGLA: de --n5 para arriba NADA lleva texto. Medido sobre blanco, --n4 da 1,59:1 y
-     --n5 da 3,15:1 —alcanzan para un borde o un icono, no para leer—; el primero que sirve
-     de texto es --n6, con 5,17:1. El primer intento de este rediseño puso los chips
-     apagados en --n5 y los dejó en 2,91:1, que es exactamente el agujero que este proyecto
-     ya había tapado una vez subiendo los tonos de estado. */
+     Fríos y con un toque de lavanda, no grises puros: en claymorphism el lienzo tiene que
+     ser del mismo mundo que las piezas, o el barro se ve pegado encima de una hoja de
+     Word. Salen del azul del logotipo desaturado. */
+  --n0:#fdfdff; --n1:#f2f3fe; --n2:#e7e9fb; --n3:#d8dbf6; --n4:#b6bbe6;
+  --n5:#8b90c0; --n6:#61668f; --n7:#3d4166; --n8:#232744; --n9:#14162b;
 
-  /* ----- Acento -----
-     Uno solo, y para tres cosas: la acción principal, lo que está seleccionado y el aro de
-     foco. Nada más lleva color de marca; en cuanto el azul se usa de adorno deja de señalar. */
-  --a:#3d4ee8; --a-fuerte:#2f3ec4; --a-suave:#eef0fe; --a-borde:#c3c9fb;
+  /* ----- El acento, sacado del logotipo -----
+     Los tres azules son los que de verdad trae el archivo del logo, muestreados píxel por
+     píxel: #3018f8 en el círculo oscuro, #4060f8 en el grande —el dominante— y #6090f8 en
+     el chico. No son "un azul parecido": son los suyos, y por eso la app y la marca se ven
+     de la misma familia. El violeta y el aguamarina se derivan del mismo tono para tener
+     con qué acentuar sin salirse. */
+  --a:#4060f8; --a-fuerte:#3018f8; --a-claro:#6090f8; --a-suave:#e9edff; --a-borde:#b9c5fe;
+  --a2:#7b3ff8;            /* violeta: el mismo azul girado, para el segundo acento */
+  --a3:#18b6d8;            /* aguamarina: para lo que informa sin ser acción */
+  /* MEDIDO, y es el detalle que hunde a la mitad de los diseños de este estilo: con blanco
+     encima, --a-claro (#6090f8) da 3,07:1 y --a3 (#18b6d8) da 2,41:1. Los dos son bonitos y
+     los dos son ilegibles. Así que el azul claro y el aguamarina son DECORACIÓN —sombras,
+     el lienzo, un borde, un trazo— y nunca fondo de texto. Lo que sí aguanta blanco encima
+     empieza en --a: 4,95:1; --a-fuerte da 8,04:1 y --a2, 5,37:1. */
+  --grd-deco:linear-gradient(160deg,var(--a-claro),var(--a) 55%,var(--a-fuerte));
 
-  /* ----- Estados -----
-     El tono oscuro es el del texto y el claro el del relleno; los dos medidos contra su
-     pareja para que ningún aviso baje de 4,5:1. */
-  --ok:#0c7449; --ok-bg:#e8f6ef; --ok-borde:#bde3d1;
-  --av:#8a5a06; --av-bg:#fdf4e3; --av-borde:#f0dcb4;
-  --mal:#b8322c; --mal-bg:#fceceb; --mal-borde:#f3cdcb;
+  /* ----- Estados ----- vivos, no apagados; medidos contra su relleno. */
+  --ok:#0a7d4a; --ok-bg:#e2f8ec; --ok-borde:#a9e8c6;
+  --av:#8a5100; --av-bg:#fff2dd; --av-borde:#ffd79c;
+  --mal:#c62828; --mal-bg:#ffeceb; --mal-borde:#ffc4c1;
 
-  /* ----- Tipografía -----
-     Siete pasos, ni uno más. Cada uno tiene un trabajo: meta, secundario, cuerpo, título de
-     tarjeta, título de pantalla, importe, total. */
-  --t1:11px; --t2:12.5px; --t3:14px; --t4:16px; --t5:20px; --t6:26px; --t7:32px;
+  /* ----- Tipografía ----- siete pasos. */
+  --t1:11px; --t2:12.5px; --t3:14px; --t4:16px; --t5:20px; --t6:26px; --t7:34px;
 
-  /* ----- Espacio -----
-     Múltiplos de 4. Todo margen y todo relleno sale de aquí, que es lo que hace que dos
-     bloques que no se conocen entre sí parezcan alineados. */
+  /* ----- Espacio ----- múltiplos de 4. */
   --e1:4px; --e2:8px; --e3:12px; --e4:16px; --e5:24px; --e6:32px; --e7:48px;
 
-  /* ----- Radios ----- tres, no veinte. */
-  --rr1:8px; --rr2:12px; --rr3:18px;
+  /* ----- Radios -----
+     Grandes. El radio generoso es la mitad de lo que hace que una superficie se lea como
+     una pieza de barro y no como un rectángulo: con 8 px el mismo juego de sombras se ve
+     como un bisel de los noventa. */
+  --rr1:16px; --rr2:22px; --rr3:30px; --rr4:38px;
 
-  /* ----- Elevación -----
-     Dos niveles y se acabó. Las tarjetas NO llevan sombra: se separan con una línea de un
-     píxel sobre un fondo más claro, que es lo que las hace ver limpias en vez de infladas.
-     La sombra queda para lo que de verdad flota encima de la página. */
-  --sh1:0 1px 2px rgba(18,20,28,.04),0 2px 8px rgba(18,20,28,.04);
-  --sh2:0 8px 24px rgba(18,20,28,.10),0 2px 6px rgba(18,20,28,.06);
+  /* ===================== Barro =====================
+     La receta, una sola vez y de aquí sale todo. Tres capas y en este orden:
+       1) una luz interior arriba, que es la que infla la pieza;
+       2) una sombra interior abajo, que le da el grosor;
+       3) una sombra exterior suave y TEÑIDA del acento, no gris: la sombra gris es lo que
+          hace que un diseño así se vea sucio en vez de blando.
+     Y el truco que casi nadie aplica: la sombra exterior va en dos pasos, una corta y
+     apretada y otra larga y abierta. Con una sola, la pieza flota; con dos, se apoya. */
+  --clay:
+    inset 0 3px 6px rgba(255,255,255,.95),
+    inset 0 -5px 10px rgba(64,96,248,.10),
+    0 3px 6px rgba(35,39,68,.05),
+    0 14px 30px -6px rgba(64,96,248,.16);
+  --clay-alto:
+    inset 0 3px 7px rgba(255,255,255,.95),
+    inset 0 -6px 12px rgba(64,96,248,.13),
+    0 5px 10px rgba(35,39,68,.06),
+    0 24px 44px -8px rgba(64,96,248,.24);
+  /* Barro de color: la luz interior es más fuerte porque compite con el relleno. */
+  --clay-a:
+    inset 0 3px 7px rgba(255,255,255,.42),
+    inset 0 -6px 12px rgba(20,22,43,.26),
+    0 4px 8px rgba(48,24,248,.18),
+    0 16px 30px -6px rgba(48,24,248,.42);
+  /* Hundido: lo que se aprieta o lo que recibe texto. Sin sombra exterior; la luz va abajo
+     porque la pieza está metida, no salida. */
+  --clay-in:
+    inset 0 3px 7px rgba(64,96,248,.13),
+    inset 0 -2px 4px rgba(255,255,255,.9);
+
+  /* ----- Movimiento -----
+     Dos curvas: una para lo que responde al dedo, con un rebote corto —el barro es blando,
+     así que tiene que ceder y volver— y una limpia para lo que solo aparece. */
+  --mv:.42s cubic-bezier(.34,1.32,.5,1);
+  --mv-r:.2s cubic-bezier(.34,1.56,.64,1);
+  --mv-s:.16s cubic-bezier(.4,0,.2,1);
 
   /* ----- Alias de los nombres viejos ----- */
   --bg:var(--n1); --card:#ffffff; --ink:var(--n8); --fg:var(--n8); --muted:var(--n6); --line:var(--n3);
@@ -92,11 +126,14 @@
   --amber:var(--av); --amber-ico:#c1830f; --amber-bg:var(--av-bg);
   --red:var(--mal); --red-bg:var(--mal-bg); --gray:var(--n6); --gray-bg:var(--n2);
   --sc-guide:#0093ad;
-  --r:var(--rr3); --r-sm:var(--rr2); --r-xs:var(--rr1); --r-lg:var(--rr3);
-  --sh:var(--sh1); --sh-sm:var(--sh1);
+  --r:var(--rr4); --r-sm:var(--rr2); --r-xs:var(--rr1); --r-lg:var(--rr4);
+  --sh:var(--clay); --sh-sm:var(--clay);
+  --sh1:var(--clay); --sh2:var(--clay-alto);
   /* El degradado de marca deja de ser degradado: en una superficie grande el degradado es
      justo lo que hace que un botón se vea de hace diez años. */
-  --brand-grd:var(--a);
+  /* Arranca en --a y no en --a-claro justo por lo de arriba: es el relleno de los chips
+     elegidos, del botón principal y del interruptor encendido, y los tres llevan blanco. */
+  --brand-grd:linear-gradient(160deg,var(--a) 0%,#3a46ee 45%,var(--a-fuerte) 100%);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 ::-webkit-scrollbar{width:6px;height:6px}
@@ -1570,6 +1607,369 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
   .chip:active,.tipo-seg button:active,.seg button:active,.mbar-btn:active,
   .sp-zoom button:active{transform:none}
   body{background-attachment:scroll}
+}
+
+/* =====================================================================
+   ================  CAPA DE BARRO Y MOVIMIENTO  =======================
+   =====================================================================
+   Va al final a propósito: es una capa, no un parche repartido. Todo lo de
+   arriba sigue siendo la estructura —qué mide qué, qué va dónde— y esto es
+   el material del que están hechas las piezas. Se puede leer completa de un
+   tirón, y se puede quitar de un tirón.
+
+   Claymorphism no es "esquinas redondas y una sombra". Son cuatro cosas a la
+   vez, y si falta una el efecto no aparece:
+     · radio muy generoso, para que la pieza se lea blanda y no biselada;
+     · luz interior arriba + sombra interior abajo, que es lo que la infla;
+     · sombra exterior TEÑIDA del acento y en dos pasos, para que se apoye
+       en la página en vez de flotar sobre ella;
+     · y que ceda al tocarla. Una pieza de barro que no se deforma al
+       apretarla no se lee como barro: se lee como una calcomanía.
+   ===================================================================== */
+
+/* ---------- El lienzo ----------
+   Dos manchas de color muy diluidas, fijas al viewport. Sin esto el barro
+   descansa sobre blanco plano y se ve recortado y pegado encima. */
+body{
+  /* El lienzo va un paso más profundo que las piezas —y teñido—, porque una pieza casi
+     blanca sobre un fondo casi blanco no sobresale por más sombra que le pongas: lo que
+     hace que el barro se vea salido es el contraste con lo que tiene detrás. */
+  background:
+    radial-gradient(1200px 680px at 6% -10%, rgba(96,144,248,.34), transparent 58%),
+    radial-gradient(980px 600px at 102% 4%, rgba(123,63,248,.26), transparent 60%),
+    radial-gradient(820px 560px at 44% 110%, rgba(24,182,216,.20), transparent 62%),
+    var(--n2);
+  background-attachment:fixed;
+}
+
+/* ---------- Superficies ---------- */
+.card,.sum{
+  background:linear-gradient(168deg,#fff 0%,var(--n0) 58%,#f7f8ff 100%);
+  border:1px solid rgba(255,255,255,.9);
+  border-radius:var(--rr4);
+  box-shadow:var(--clay);
+  transition:box-shadow var(--mv),transform var(--mv);
+}
+.card:hover,.sum:hover{box-shadow:var(--clay-alto)}
+
+/* La partida vuelve a ser una pieza, pero hundida en la tarjeta en vez de
+   apilada encima: así se distingue sin sumar una tercera sombra saliente. */
+.partida{
+  border-top:none;
+  background:linear-gradient(168deg,rgba(255,255,255,.75),rgba(242,243,254,.55));
+  border-radius:var(--rr3);
+  padding:var(--e5);
+  margin-bottom:var(--e4);
+  box-shadow:var(--clay-in);
+  transition:box-shadow var(--mv),transform var(--mv);
+}
+#items>.partida:first-of-type{padding-top:var(--e5)}
+.partida:hover{box-shadow:inset 0 3px 8px rgba(64,96,248,.16),inset 0 -2px 4px rgba(255,255,255,.95)}
+.partida.folded{background:linear-gradient(168deg,rgba(255,255,255,.85),rgba(242,243,254,.4))}
+.items-cand .partida{background:linear-gradient(168deg,rgba(231,233,251,.9),rgba(216,219,246,.6))}
+.partida.hidden-pdf{background:linear-gradient(168deg,rgba(231,233,251,.7),rgba(231,233,251,.4))}
+
+/* ---------- Campos: hundidos, como una huella en el barro ---------- */
+input,select,textarea,.inp-money{
+  border:1px solid rgba(255,255,255,.85);
+  border-radius:var(--rr1);
+  background:linear-gradient(180deg,var(--n1),#fff);
+  box-shadow:var(--clay-in);
+  transition:box-shadow var(--mv-s),border-color var(--mv-s);
+}
+input:hover:not(:disabled),textarea:hover:not(:disabled){
+  box-shadow:inset 0 3px 8px rgba(64,96,248,.17),inset 0 -2px 4px rgba(255,255,255,.9);
+}
+input:focus,select:focus,textarea:focus{
+  border-color:rgba(255,255,255,.95);
+  box-shadow:inset 0 3px 7px rgba(64,96,248,.1),0 0 0 4px rgba(64,96,248,.18),0 8px 20px -4px rgba(64,96,248,.28);
+  animation:foco-brote var(--mv-r);
+}
+@keyframes foco-brote{from{box-shadow:inset 0 3px 7px rgba(64,96,248,.1),0 0 0 0 rgba(64,96,248,.30),0 8px 20px -4px rgba(64,96,248,.28)}}
+input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow:inset 0 2px 5px rgba(64,96,248,.09);color:var(--n6)}
+
+/* ---------- Botones ----------
+   El primario es barro de color; los demás, barro claro. Los dos ceden. */
+.btn,.mbar-btn,.ai-btn,.btn-scaler-open,.btn-vector-open,.addbtn,.precios-ver,.btn-maps,.card-fold,.btn-hist{
+  border-radius:var(--rr1);
+  transition:transform var(--mv-r),box-shadow var(--mv),background var(--mv-s),color var(--mv-s),border-color var(--mv-s);
+}
+.btn-pri,.mbar-btn:not(.gho):not(.ok){
+  background:var(--brand-grd);color:#fff;border:1px solid rgba(255,255,255,.28);
+  box-shadow:var(--clay-a);text-shadow:0 1px 2px rgba(20,22,43,.22);
+}
+.btn-pri:hover,.mbar-btn:not(.gho):not(.ok):hover{
+  background:linear-gradient(160deg,#4c6afa 0%,#3540ea 42%,#2a12e8 100%);
+  transform:translateY(-2px);
+  box-shadow:inset 0 3px 7px rgba(255,255,255,.45),inset 0 -6px 12px rgba(20,22,43,.28),0 6px 12px rgba(48,24,248,.2),0 22px 40px -8px rgba(48,24,248,.5);
+}
+.btn-ok,.mbar-btn.ok{
+  background:linear-gradient(160deg,#22c98a 0%,#12a86c 45%,#0a7d4a 100%);color:#fff;border:1px solid rgba(255,255,255,.28);
+  box-shadow:inset 0 3px 7px rgba(255,255,255,.4),inset 0 -6px 12px rgba(6,60,36,.3),0 4px 8px rgba(10,125,74,.2),0 16px 30px -6px rgba(10,125,74,.42);
+}
+.btn-gho,.btn-dgr,.ai-btn,.btn-scaler-open,.btn-vector-open,.precios-ver,.btn-maps,.card-fold,.btn-hist,.mbar-btn.gho{
+  background:linear-gradient(168deg,#fff,var(--n1));
+  border:1px solid rgba(255,255,255,.9);
+  box-shadow:var(--clay);
+}
+.btn-gho:hover,.btn-dgr:hover,.ai-btn:hover,.btn-scaler-open:hover,.btn-vector-open:hover,.precios-ver:hover,.btn-maps:hover,.card-fold:hover,.btn-hist:hover,.mbar-btn.gho:hover{
+  transform:translateY(-2px);box-shadow:var(--clay-alto);
+}
+/* El pellizco. Es lo que convierte una superficie con sombra en barro. */
+.btn:active:not(:disabled),.mbar-btn:active:not(:disabled),.ai-btn:active,.btn-scaler-open:active,
+.btn-vector-open:active,.addbtn:active,.precios-ver:active,.btn-maps:active,.card-fold:active,.btn-hist:active{
+  transform:translateY(1px) scale(.975);
+  box-shadow:inset 0 4px 9px rgba(64,96,248,.2),inset 0 -1px 3px rgba(255,255,255,.75);
+}
+.btn-pri:active:not(:disabled),.mbar-btn:not(.gho):active:not(:disabled){
+  box-shadow:inset 0 5px 11px rgba(20,22,43,.36),inset 0 -1px 3px rgba(255,255,255,.28);
+}
+.btn:disabled,.mbar-btn:disabled{box-shadow:var(--clay-in);transform:none;opacity:.55}
+.addbtn{
+  background:linear-gradient(168deg,rgba(255,255,255,.7),rgba(233,237,255,.55));
+  border:1.5px dashed var(--a-borde);color:var(--a-fuerte);font-weight:550;
+  box-shadow:inset 0 2px 5px rgba(255,255,255,.9);
+}
+.addbtn:hover{
+  background:linear-gradient(168deg,#fff,var(--a-suave));border-color:var(--a);color:var(--a-fuerte);
+  transform:translateY(-2px);box-shadow:var(--clay);
+}
+
+/* ---------- Chips: pastillas de barro ---------- */
+.chip{
+  border-radius:999px;padding:10px 16px;
+  background:linear-gradient(168deg,#fff,var(--n1));
+  border:1px solid rgba(255,255,255,.9);
+  box-shadow:var(--clay);
+  transition:transform var(--mv-r),box-shadow var(--mv),background var(--mv-s),color var(--mv-s);
+}
+.chip:hover:not(.on):not([aria-disabled]){transform:translateY(-2px);box-shadow:var(--clay-alto);background:linear-gradient(168deg,#fff,var(--a-suave))}
+.chip:active:not([aria-disabled]){transform:translateY(1px) scale(.97);box-shadow:var(--clay-in)}
+.chip.on{
+  background:var(--brand-grd);color:#fff;border-color:rgba(255,255,255,.3);
+  box-shadow:var(--clay-a);text-shadow:0 1px 2px rgba(20,22,43,.2);
+  animation:barro-pop var(--mv);
+}
+.chip.on small{color:rgba(255,255,255,.86);opacity:1}
+.chip.on .ck{color:#fff}
+@keyframes barro-pop{
+  0%{transform:scale(.9)}
+  45%{transform:scale(1.055)}
+  70%{transform:scale(.985)}
+  100%{transform:scale(1)}
+}
+.chip[aria-disabled="true"]{box-shadow:var(--clay-in);background:var(--n1);transform:none}
+.chip[aria-disabled="true"].on{background:linear-gradient(168deg,var(--n3),var(--n2));color:var(--n7);text-shadow:none;box-shadow:var(--clay-in);animation:none}
+
+/* ---------- Control segmentado ---------- */
+.tipo-seg,.seg{
+  border-radius:999px;padding:4px;gap:2px;
+  background:linear-gradient(180deg,var(--n2),var(--n1));
+  border:1px solid rgba(255,255,255,.85);
+  box-shadow:var(--clay-in);
+}
+.tipo-seg button,.seg button{border-radius:999px;transition:transform var(--mv-r),box-shadow var(--mv),background var(--mv-s),color var(--mv-s)}
+.tipo-seg button.on,.seg button.on{
+  background:linear-gradient(168deg,#fff,var(--n0));color:var(--a-fuerte);font-weight:600;
+  box-shadow:0 2px 4px rgba(35,39,68,.06),0 8px 16px -4px rgba(64,96,248,.28),inset 0 2px 4px rgba(255,255,255,.95);
+  animation:barro-pop var(--mv);
+}
+.tipo-seg button:active,.seg button:active{transform:scale(.94)}
+
+/* ---------- Interruptores ---------- */
+.tg{
+  width:46px;height:26px;border-radius:999px;
+  background:linear-gradient(180deg,var(--n3),var(--n2));
+  box-shadow:var(--clay-in);
+  transition:background var(--mv),box-shadow var(--mv);
+}
+.tg::after{
+  width:20px;height:20px;top:3px;left:3px;
+  box-shadow:0 2px 5px rgba(35,39,68,.22),inset 0 -2px 4px rgba(64,96,248,.12),inset 0 2px 3px rgba(255,255,255,.95);
+  transition:left var(--mv),transform var(--mv-r);
+}
+.tg.on{background:var(--brand-grd);box-shadow:inset 0 2px 5px rgba(20,22,43,.22),0 4px 12px -2px rgba(48,24,248,.45)}
+.tg.on::after{left:23px}
+.switch:active .tg::after{transform:scale(.9)}
+
+/* ---------- Fichas, insignias y avisos ---------- */
+.ptok,.folio,.badge{border-radius:999px;box-shadow:var(--clay-in);border:1px solid rgba(255,255,255,.8)}
+.ptok{background:linear-gradient(168deg,#fff,var(--n1))}
+.ptok.falta{background:linear-gradient(168deg,#fff8ec,var(--av-bg))}
+.badge.pendiente{background:linear-gradient(168deg,#fff8ec,var(--av-bg))}
+.badge.autorizada{background:linear-gradient(168deg,#eefaf3,var(--ok-bg))}
+.badge.borrador{background:linear-gradient(168deg,#fff,var(--n2))}
+.hintnote{border-radius:var(--rr1);box-shadow:var(--clay-in);border:1px solid rgba(255,255,255,.8);background:linear-gradient(168deg,#fff,var(--n1))}
+.hintnote.nota-av{background:linear-gradient(168deg,#fffaf0,var(--av-bg))}
+.hintnote.nota-ok{background:linear-gradient(168deg,#f2fbf6,var(--ok-bg))}
+.cand-partidas,.edit-mode-banner{
+  border-radius:var(--rr2);border:1px solid rgba(255,255,255,.75);
+  background:linear-gradient(168deg,#fffaf0,var(--av-bg));
+  box-shadow:inset 0 3px 6px rgba(255,255,255,.9),inset 0 -4px 9px rgba(200,140,20,.13),0 10px 22px -6px rgba(200,140,20,.22);
+}
+/* Late despacio: es lo único de la pantalla que pide que hagas algo antes de seguir. */
+.cand-partidas{animation:latido 2.6s ease-in-out infinite}
+.cand-partidas:hover{transform:translateY(-2px);box-shadow:inset 0 3px 6px rgba(255,255,255,.9),inset 0 -4px 9px rgba(200,140,20,.15),0 16px 30px -6px rgba(200,140,20,.32);animation:none}
+@keyframes latido{
+  0%,100%{box-shadow:inset 0 3px 6px rgba(255,255,255,.9),inset 0 -4px 9px rgba(200,140,20,.13),0 10px 22px -6px rgba(200,140,20,.22)}
+  50%{box-shadow:inset 0 3px 6px rgba(255,255,255,.9),inset 0 -4px 9px rgba(200,140,20,.13),0 14px 28px -6px rgba(200,140,20,.36)}
+}
+
+/* ---------- Barra de pasos ---------- */
+.paso-tab{border-radius:999px;transition:transform var(--mv-r),box-shadow var(--mv),background var(--mv-s),color var(--mv-s)}
+.paso-tab:hover{transform:translateY(-1px)}
+.paso-tab.on{
+  background:linear-gradient(168deg,#fff,var(--n0));border-color:rgba(255,255,255,.9);
+  box-shadow:var(--clay);
+}
+.paso-tab .n{border-radius:999px;box-shadow:var(--clay-in);border:1px solid rgba(255,255,255,.8);transition:background var(--mv),color var(--mv)}
+.paso-tab.on .n{background:var(--brand-grd);color:#fff;border-color:rgba(255,255,255,.35);box-shadow:inset 0 2px 4px rgba(255,255,255,.4),inset 0 -3px 6px rgba(20,22,43,.25),0 4px 10px -2px rgba(48,24,248,.42)}
+.paso-tab.hecho .n{background:linear-gradient(160deg,#22c98a,#0a7d4a);color:#fff;border-color:rgba(255,255,255,.35);box-shadow:inset 0 2px 4px rgba(255,255,255,.4),0 4px 10px -2px rgba(10,125,74,.4);animation:barro-pop var(--mv)}
+.paso-tab:active{transform:scale(.97)}
+
+/* ---------- Barra fija y encabezado ---------- */
+.topbar{
+  background:rgba(255,255,255,.72);
+  backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);
+  border-bottom:1px solid rgba(255,255,255,.9);
+  box-shadow:0 1px 0 rgba(255,255,255,.7),0 8px 24px -12px rgba(64,96,248,.2);
+}
+.mbar{
+  background:rgba(255,255,255,.8);
+  backdrop-filter:blur(22px) saturate(1.5);-webkit-backdrop-filter:blur(22px) saturate(1.5);
+  border-top:1px solid rgba(255,255,255,.9);
+  box-shadow:0 -10px 30px -10px rgba(64,96,248,.28);
+}
+
+/* ---------- El total ----------
+   El número más grande de la app, y el único que late cuando cambia. */
+.neto .amt{
+  background:linear-gradient(160deg,var(--a-claro),var(--a) 45%,var(--a-fuerte));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 3px 8px rgba(64,96,248,.28));
+}
+.neto .amt.cambio{animation:total-late var(--mv)}
+@keyframes total-late{
+  0%{transform:scale(1)} 35%{transform:scale(1.055)} 70%{transform:scale(.99)} 100%{transform:scale(1)}
+}
+
+/* ---------- Barra de completitud ----------
+   Con brillo que recorre: es lo que dice que la app está trabajando contigo. */
+#prog-bar{border-radius:999px;box-shadow:0 2px 8px -2px rgba(64,96,248,.5);position:relative;overflow:hidden;transition:width var(--mv)}
+#prog-bar::after{
+  content:'';position:absolute;inset:0;border-radius:999px;
+  background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.6) 50%,transparent 80%);
+  animation:brillo 2.4s ease-in-out infinite;
+}
+@keyframes brillo{0%{transform:translateX(-110%)}60%,100%{transform:translateX(220%)}}
+.prog-track{border-radius:999px;box-shadow:var(--clay-in);background:var(--n2)}
+
+/* ---------- Modales ---------- */
+.modal,.rv-modal,.sc-modal,.vt-modal,.hist-modal,.lightbox-body{
+  border-radius:var(--rr4);
+  box-shadow:inset 0 3px 8px rgba(255,255,255,.85),0 32px 70px -12px rgba(20,22,43,.42);
+  animation:modal-entra var(--mv);
+}
+@keyframes modal-entra{
+  from{opacity:0;transform:translateY(18px) scale(.94)}
+  to{opacity:1;transform:none}
+}
+.modal-bg,.rv-modal-bg{backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2)}
+.modal-bg.show,.rv-modal-bg.show{animation:vela var(--mv-s)}
+@keyframes vela{from{opacity:0}to{opacity:1}}
+
+/* ---------- Aviso emergente ---------- */
+#toast{border-radius:999px;box-shadow:inset 0 2px 5px rgba(255,255,255,.2),0 16px 36px -8px rgba(20,22,43,.5)}
+#toast.show{animation:toast-sube var(--mv)}
+@keyframes toast-sube{from{opacity:0;transform:translate(-50%,22px) scale(.92)}}
+
+/* ---------- Entradas ----------
+   Las tarjetas y las partidas no aparecen: se asientan. En escalera, para que
+   la pantalla se lea de arriba abajo en el orden en que hay que usarla. */
+@keyframes barro-entra{
+  from{opacity:0;transform:translateY(16px) scale(.975)}
+  to{opacity:1;transform:none}
+}
+.card,.sum,.pasos,.p1-cierre{animation:barro-entra .5s cubic-bezier(.22,1,.36,1) both}
+.pasos{animation-delay:.02s}
+#card-proy,#card-partidas{animation-delay:.08s}
+.p1-cierre{animation-delay:.16s}
+#sidebox .sum{animation-delay:.14s}
+.partida{animation:barro-entra .44s cubic-bezier(.22,1,.36,1) both}
+#items>.partida:nth-child(1){animation-delay:.04s}
+#items>.partida:nth-child(2){animation-delay:.09s}
+#items>.partida:nth-child(3){animation-delay:.14s}
+#items>.partida:nth-child(4){animation-delay:.18s}
+#items>.partida:nth-child(n+5){animation-delay:.22s}
+/* Cambiar de pantalla es un movimiento, no un corte. */
+.wrap>main>.card,.wrap>aside{animation-name:barro-entra}
+
+/* ---------- Iconos y detalles ---------- */
+.svgi{transition:transform var(--mv-r)}
+.btn:hover .svgi,.ai-btn:hover .svgi,.btn-hist:hover .svgi{transform:scale(1.12)}
+.del:hover,.dup:hover,.pdf-vis:hover{transform:scale(1.15)}
+.del,.dup,.pdf-vis,.pfold{transition:transform var(--mv-r),color var(--mv-s),background var(--mv-s)}
+.del:active,.dup:active,.pdf-vis:active,.pfold:active{transform:scale(.88)}
+.pfold{transition:transform var(--mv)}
+
+/* ---------- La IA tiene su propio color ----------
+   Es la función estrella y la única que trae algo de fuera, así que se
+   distingue: violeta hacia azul, los dos derivados del logotipo. Escalar y
+   vectorizar se quedan neutros —son herramientas de mano— y así la fila
+   tiene una jerarquía en vez de tres botones idénticos o tres colores
+   peleados, que eran los dos extremos anteriores. El degradado respira. */
+.ai-btn{
+  background:linear-gradient(115deg,var(--a2) 0%,var(--a) 48%,var(--a-fuerte) 100%);
+  background-size:220% 100%;
+  color:#fff;border:1px solid rgba(255,255,255,.3);
+  box-shadow:inset 0 3px 7px rgba(255,255,255,.4),inset 0 -6px 12px rgba(20,22,43,.26),0 4px 8px rgba(123,63,248,.2),0 16px 32px -6px rgba(123,63,248,.45);
+  text-shadow:0 1px 2px rgba(20,22,43,.24);
+  animation:ia-respira 7s ease-in-out infinite;
+}
+@keyframes ia-respira{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.ai-btn:hover{
+  background:linear-gradient(115deg,var(--a2) 0%,var(--a) 48%,var(--a-fuerte) 100%);
+  transform:translateY(-2px);
+  box-shadow:inset 0 3px 7px rgba(255,255,255,.45),inset 0 -6px 12px rgba(20,22,43,.28),0 6px 12px rgba(123,63,248,.24),0 24px 44px -8px rgba(123,63,248,.55);
+}
+.ai-btn:disabled{animation:none;opacity:.5}
+
+/* El número de la partida, con su propia pieza de barro. */
+.pnum .n{
+  background:linear-gradient(168deg,#fff,var(--n2));border:1px solid rgba(255,255,255,.9);
+  color:var(--a-fuerte);font-weight:700;border-radius:999px;width:26px;height:26px;
+  box-shadow:0 2px 4px rgba(35,39,68,.06),0 6px 12px -3px rgba(64,96,248,.24),inset 0 2px 3px rgba(255,255,255,.95);
+}
+
+/* Los importes de cada partida, con el peso que les toca. */
+.pline .lt{font-size:var(--t5);font-weight:700;letter-spacing:-.4px;color:var(--n8)}
+
+/* La cara plegada se levanta al pasar por encima: dice que se puede abrir. */
+.partida.folded .psum:hover .pdsc{color:var(--a-fuerte)}
+
+/* ---------- Aro de foco ---------- */
+:where(button,summary,a[href],input,select,textarea,[tabindex]):focus-visible{
+  outline:2.5px solid var(--a);outline-offset:3px;
+}
+
+/* ---------- Quien pida menos movimiento, recibe menos ----------
+   No es un extra: hay gente a la que una pantalla que se mueve le provoca
+   mareo de verdad. Se apagan las animaciones y se quedan las sombras, que
+   son lo que da el estilo. */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+  #prog-bar::after,.cand-partidas{animation:none!important}
+  .btn:hover,.chip:hover,.paso-tab:hover,.ai-btn:hover{transform:none!important}
+}
+
+/* ---------- En papel no hay barro ----------
+   Las sombras y los degradados de texto no se imprimen bien: el total con
+   relleno de degradado sale hueco en una impresora de tinta. */
+@media print{
+  *{box-shadow:none!important;animation:none!important;text-shadow:none!important}
+  body{background:#fff!important}
+  .card,.sum,.partida{background:#fff!important;border:1px solid #ddd!important}
+  .neto .amt{-webkit-text-fill-color:initial;color:#12162b!important;filter:none}
 }
 </style>
 </head>
@@ -3719,6 +4119,7 @@ function renderSummary(){
   $('s-sub').textContent=money(t.sub);
   $('s-iva').textContent=money(t.iva);
   $('s-neto').textContent=money(t.neto);
+  latirTotal();
   $('s-calc').textContent=Q.iva?`${money(t.sub)} × 1.16`:'Sin IVA (= subtotal)';
   $('ivatg').classList.toggle('on',Q.iva); tgAria('ivatg');
   const ivaHint=$('s-iva-hint'); if(ivaHint) ivaHint.style.display=Q.iva?'':'none';
@@ -4439,6 +4840,22 @@ function deshacerVaciado(){
    Repite en el pie de la pantalla las dos cosas que en el celular quedaban hasta el
    fondo de la página: cuánto va la cotización y cuál es el siguiente paso. El botón
    es el mismo del panel de autorización, así que nunca se contradicen. */
+/* ----- El total late cuando cambia -----
+   Es el número que se viene a mirar, y un número que se reescribe sin avisar no se nota:
+   quien está capturando no sabe si el material que acaba de tocar movió el precio o no. El
+   latido dura lo que un parpadeo y solo ocurre cuando el importe cambia de verdad —no en
+   cada repintado— porque una pantalla que se mueve sola todo el tiempo cansa. */
+let _netoPrev=null;
+function latirTotal(){
+  const el=$('s-neto'); if(!el) return;
+  const ahora=el.textContent;
+  if(_netoPrev!==null&&_netoPrev!==ahora){
+    el.classList.remove('cambio');
+    void el.offsetWidth;          // reinicia la animación: sin esto solo late la primera vez
+    el.classList.add('cambio');
+  }
+  _netoPrev=ahora;
+}
 function renderMobileBar(){
   const bar=$('mbar'); if(!bar) return;
   /* En la pantalla del cliente la barra fija es el botón de continuar: ahí no hay total que
