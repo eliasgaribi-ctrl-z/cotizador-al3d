@@ -363,7 +363,7 @@ textarea{resize:vertical;min-height:46px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 .fld{margin-bottom:13px}.fld:last-child{margin-bottom:0}
 /* ----- Campos obligatorios -----
-   Cliente, teléfono y proyecto se piden antes de mandar a autorización, así que se
+   Cliente, teléfono y proyecto se piden antes de la primera partida, así que se
    anuncian desde el principio con un asterisco en la etiqueta: enterarse de que un
    campo era obligatorio al momento de que te frenan es enterarse tarde.
    El asterisco es decorativo —el dato para el lector de pantalla es aria-required en
@@ -408,6 +408,27 @@ textarea{resize:vertical;min-height:46px}
 .chip.on .ck{display:inline-flex;align-items:center;font-size:12px;line-height:1}
 .chip:hover:not(.on){border-color:rgba(58,74,216,.28);background:var(--soft-2);color:var(--brand-strong)}
 .chip:focus-visible{outline:2.5px solid var(--brand);outline-offset:2px}
+/* Un chip apagado —cotización autorizada, o el candado de las partidas— conservaba
+   `cursor:pointer` y su `:hover`, así que se veía y se comportaba como uno vivo hasta que
+   lo tocabas y no pasaba nada. No existía una sola regla [aria-disabled] en la hoja. El
+   apagado se hace con color y no con opacidad: el chip dice QUÉ material se eligió, y eso
+   hay que poder leerlo. El elegido se queda relleno —es la respuesta— pero sin la sombra
+   ni el rebote, que son lo que promete que se puede tocar. */
+.chip[aria-disabled="true"]{cursor:default;background:transparent;border-color:var(--line);color:var(--muted)}
+.chip[aria-disabled="true"]:hover:not(.on){background:transparent;border-color:var(--line);color:var(--muted)}
+.chip[aria-disabled="true"].on{background:var(--gray-bg);border-color:#b6bdd0;color:var(--ink);box-shadow:none;animation:none}
+.chip[aria-disabled="true"].on small{color:var(--muted)}
+.chip[aria-disabled="true"].on .ck{color:var(--gray)}
+/* Mismo problema y mismo criterio en los dos botones que quedaban: el selector de tipo y
+   la × de borrar salían idénticos a los vivos —el tipo elegido seguía siendo la píldora
+   azul con degradado y sombra, el objeto más llamativo de la partida— y hasta conservaban
+   el encogido al pulsar y el rojo al pasar el ratón. Se cubren las dos formas de apagado,
+   `disabled` y `aria-disabled`, porque la partida usa una u otra según qué candado sea. */
+.tipo-seg button:is(:disabled,[aria-disabled="true"]){cursor:default}
+.tipo-seg button:is(:disabled,[aria-disabled="true"]):active{transform:none}
+.tipo-seg button:is(:disabled,[aria-disabled="true"]).on{background:var(--gray-bg);color:var(--ink);box-shadow:none;animation:none}
+.del:is(:disabled,[aria-disabled="true"]){cursor:default;color:#a8aec0}
+.del:is(:disabled,[aria-disabled="true"]):hover{color:#a8aec0;background:none}
 @keyframes chipPop{0%{transform:scale(.84)}65%{transform:scale(1.07)}100%{transform:scale(1)}}
 .hintnote{font-size:11.5px;color:var(--muted);background:linear-gradient(90deg,var(--soft),rgba(242,244,251,.3));border-left:2px solid rgba(58,74,216,.2);border-radius:0 7px 7px 0;padding:6px 11px;display:inline-block}
 
@@ -423,6 +444,12 @@ textarea{resize:vertical;min-height:46px}
 .switch{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;user-select:none;
   border:none;background:none;font-family:inherit;text-align:left;padding:0;margin-bottom:5px}
 .switch:disabled{cursor:default}
+/* Un interruptor apagado solo cambiaba el cursor: seguía azul de marca y con su sombra,
+   o sea exactamente igual que uno vivo. Mismo criterio que los chips —el estado se lee,
+   pero no promete que se pueda tocar—: el encendido se queda encendido, en gris de
+   reposo, y el texto conserva su color de siempre. */
+.switch:disabled .tg{background:#b6bdd0;box-shadow:none}
+.switch:disabled .tg.on{background:#8a90a6}
 .tg{width:42px;height:24px;background:#8a90a6;border-radius:13px;position:relative;transition:.2s;flex-shrink:0}
 /* La perilla se ve de 42×24, pero se toca en 50×44: la capa invisible crece la zona
    sensible sin mover nada de sitio. Es el control del IVA, de la iluminación y del
@@ -1028,6 +1055,33 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .pdf-vis:hover{background:var(--soft)}
 .partida.hidden-pdf{opacity:.55;border-left-color:#c4c9da}
 .edit-mode-banner{display:flex;align-items:center;gap:9px;background:var(--amber-bg);border:1.5px solid rgba(207,138,18,.28);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:12px;font-size:12.5px;font-weight:600;color:var(--amber)}
+/* ----- El candado de las partidas -----
+   Mismo ámbar que el resto de los avisos de «falta algo» —el de los huecos obligatorios y
+   el del modo edición—, para que se lea como parte de la misma familia y no como un error.
+   Va en la tarjeta de Partidas y no arriba de todo a propósito: el aviso tiene que estar
+   donde se va a intentar capturar, que es donde surge la duda. */
+.cand-partidas{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--amber-bg);border:1.5px solid rgba(207,138,18,.28);border-radius:var(--r-sm);padding:11px 13px;margin-bottom:12px;font-size:12.5px;font-weight:600;color:var(--amber);cursor:pointer;transition:.15s}
+.cand-partidas:hover{border-color:var(--amber-ico);background:#f9ead0}
+.cand-partidas[hidden]{display:none}
+.cand-partidas .svgi{flex-shrink:0;color:var(--amber-ico)}
+.cand-partidas .cp-txt{flex:1;min-width:0;line-height:1.45;font-weight:600}
+.cand-partidas .cp-txt b{font-weight:800}
+.cand-partidas .cp-go{flex-shrink:0;font-size:16px;font-weight:800;opacity:.75}
+/* Con el candado puesto, las partidas que ya traía una cotización vieja se quedan a la
+   vista pero en reposo: se pueden leer, no tocar. Sin esto se veían exactamente igual que
+   una partida editable y el único aviso de que no respondían era que no respondían.
+
+   NO se apaga con `opacity`, que fue el primer intento: un .62 sobre la partida entera se
+   lleva por delante el texto, y el valor de la descripción bajaba de 16,9:1 a 2,6:1 y las
+   fichas ámbar a 2,7:1 —exactamente el problema que este archivo ya había arreglado una
+   vez subiendo los tonos de estado—. Congelar una partida no puede volverla ilegible: leer
+   es justo lo único que se puede hacer con ella. Así que lo que cambia es el marco —fondo
+   de reposo y filete gris en vez del azul de marca—, y el estado real lo llevan los
+   controles: los campos con su gris de deshabilitado de siempre y los chips con la regla
+   de aquí abajo. El texto se queda en su contraste completo. */
+.items-cand .partida{background:var(--soft);border-left-color:#aab2c8;box-shadow:none}
+.items-cand .partida:hover{box-shadow:none}
+.items-cand .optgrp,.items-cand .autoctr{background:#fff}
 /* ----- Registrar Venta modal ----- */
 .rv-modal-bg{position:fixed;inset:0;background:rgba(12,15,38,.7);display:none;z-index:60;align-items:center;justify-content:center;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 .rv-modal-bg.show{display:flex}
@@ -1192,6 +1246,13 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
    abajo va el formulario completo y sería decir lo mismo dos veces. */
 @media print{
   .pfold{display:none}
+  /* El reposo de las partidas y la ficha del candado son de la pantalla táctil. El papel
+     no tiene estados: la hoja sale igual esté el candado puesto o no. El fondo importa
+     porque body lleva print-color-adjust:exact, así que sí se imprimiría, y una cotización
+     con medio bloque gris se lee como una impresión sucia. La ficha ámbar, además, no le
+     dice nada a quien recibe la hoja. */
+  .items-cand .partida{background:#fff;border-left-color:var(--brand)}
+  .cand-partidas{display:none!important}
   .partida.folded .pbody{display:block}
   .partida.folded .psum{display:none}
   /* Los datos del proyecto se pliegan en el celular y el estado se guarda: sin esto, un
@@ -1440,11 +1501,11 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
       </div>
       <div class="card-b" id="card-proy-b">
         <div class="grid2">
-          <div class="fld" id="fld-cli"><label for="f-cli">Cliente<span class="req" aria-hidden="true">*</span></label><input id="f-cli" list="clientes-conocidos" placeholder="Nombre del cliente" autocomplete="off" aria-required="true" oninput="upd('cliente',this.value)"><datalist id="clientes-conocidos"></datalist></div>
-          <div class="fld" id="fld-tel"><label for="f-tel">Teléfono<span class="req" aria-hidden="true">*</span></label><input id="f-tel" type="tel" inputmode="tel" placeholder="33 0000 0000" autocomplete="off" aria-required="true" oninput="upd('tel',this.value)"></div>
+          <div class="fld" id="fld-cli"><label for="f-cli">Cliente<span class="req" aria-hidden="true">*</span></label><input id="f-cli" list="clientes-conocidos" placeholder="Nombre del cliente" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('cliente',this.value)"><datalist id="clientes-conocidos"></datalist></div>
+          <div class="fld" id="fld-tel"><label for="f-tel">Teléfono<span class="req" aria-hidden="true">*</span></label><input id="f-tel" type="tel" inputmode="tel" placeholder="33 0000 0000" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('tel',this.value)"></div>
         </div>
-        <div class="fld" id="fld-proy"><label for="f-proy">Proyecto<span class="req" aria-hidden="true">*</span></label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" autocomplete="off" aria-required="true" oninput="upd('proy',this.value)">
-          <div class="hintnote" style="margin-top:7px">Cliente, teléfono y proyecto son obligatorios: sin los tres no se puede mandar a autorización.</div>
+        <div class="fld" id="fld-proy"><label for="f-proy">Proyecto<span class="req" aria-hidden="true">*</span></label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('proy',this.value)">
+          <div class="hintnote" id="hint-oblig" style="margin-top:7px">Cliente, teléfono y proyecto son obligatorios: <b>sin los tres no se pueden capturar partidas</b>, y sin ellos no se puede mandar a autorización.</div>
         </div>
         <div class="fld">
           <label for="f-dir-raw">Dirección como la compartió el/la cliente</label>
@@ -1489,6 +1550,14 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
         </div>
       </div>
       <div class="card-b">
+        <!-- El candado de las partidas. Es un botón y no un aviso a secas porque enterarse
+             de que falta algo sin que te lleven ahí es la mitad del trabajo: lleva al
+             primer hueco, igual que la barra de completitud de la derecha. -->
+        <button type="button" class="cand-partidas" id="cand-partidas" onclick="irAlCandado()" hidden>
+          <svg class="svgi" aria-hidden="true"><use href="#i-candado"/></svg>
+          <span class="cp-txt"><b id="cand-partidas-cab">Primero, de quién es la cotización.</b> <span id="cand-partidas-txt" aria-live="polite" aria-atomic="true"></span></span>
+          <span class="cp-go" aria-hidden="true">›</span>
+        </button>
         <div class="scaler-ai-row">
           <button class="ai-btn" id="aibtn" onclick="aiOpen()"><span><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar con IA<span class="solo-desk"> — analizar JPG o PDF</span></span></button>
           <button class="btn-scaler-open" onclick="abrirScaler()" title="Escalar imagen — medir elementos sin cotas"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Escalar</button>
@@ -1497,7 +1566,7 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
         <div id="scPreviewBox"></div>
         <div id="items"></div>
         <div class="addrow">
-          <button class="addbtn" id="addbtn" onclick="addItem({heredar:true})">+ Agregar partida</button>
+          <button class="addbtn" id="addbtn" onclick="agregarPartida()">+ Agregar partida</button>
           <button class="addbtn igual" id="dupbtn" onclick="duplicarUltima()" title="Copia la última partida con todo lo elegido"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Igual que la anterior</button>
         </div>
       </div>
@@ -1987,6 +2056,12 @@ const Q = {
   /* Huella del trabajo sobre el que se autorizó el precio. Ver authVigente(). */
   huellaAuth:'',
   aiFile:null,
+  /* «Esta cotización nunca ha tenido una partida». Va en Q y no en una variable suelta
+     porque tiene que sobrevivir a una recarga: se captura el cliente, se recarga la
+     página con el candado todavía puesto y al escribir el teléfono la partida en blanco
+     del arranque tiene que aparecer igual. Se apaga en cuanto nace la primera y ya no se
+     vuelve a encender, que es lo que distingue sembrar de resucitar. */
+  sinEstrenar:true,
   editMode:false
 };
 let pid=0, dragId=null;
@@ -2451,6 +2526,11 @@ function totals(){
    del catálogo de precios —este archivo se edita a mano y se publica— en un cambio de
    trabajo, y soltaría autorizaciones que nadie había tocado. */
 const _CAMPOS_PRECIO=['tipo','material','comp','luz','altura','n','acab','recComp','bas','ancho','alto','tarifa','pz','pu'];
+/* La huella NO incluye cliente, teléfono ni proyecto, y es a propósito: son datos de a
+   quién se le cotiza, no del trabajo cotizado. De ahí depende que escribir el teléfono
+   que falta en una cotización vieja —para poder editar sus partidas— no le suelte su
+   precio autorizado. Meterlos aquí «por consistencia» rompería justo eso, y es de las
+   cosas que solo se descubren cuando ya rompieron una cotización que el cliente firmó. */
 function huellaTrabajo(){
   return (Q.iva?'c':'s')+'|'+Q.items.map(it=>
     it.id+':'+_CAMPOS_PRECIO.map(k=>it[k]===undefined?'':String(it[k])).join('~')).join(',');
@@ -2605,25 +2685,51 @@ function sincronizarPlegado(){
    hereda cuando la partida nace de capturar a mano (`heredar:true`); las que crea el
    escalador o el vectorizador siguen naciendo sin material, porque ahí la partida
    viene de una medida y el material sí sería una suposición con precio. */
+/* Devuelve la partida que creó, o null si no creó ninguna. No es un adorno: hasta ahora
+   addItem SIEMPRE agregaba, y quien la llamaba desde el escalador o el vectorizador leía
+   `Q.items[Q.items.length-1]` dando por hecho que era la recién nacida. Con una guarda que
+   puede salir sin crear, esa línea agarra la partida ANTERIOR y le pisa altura, piezas y
+   descripción sin decir nada —o es undefined con la lista vacía y truena—. Hoy lo tapan las
+   guardas de más arriba, pero eso es confiar en una guarda que vive en otro archivo mental. */
 function addItem(opts){
-  if(locked())return;
+  if(locked())return null;
+  /* Backstop mudo. Cada botón que llega hasta aquí ya pasó por exigirDatosParaPartidas()
+     y ya dijo lo que faltaba; esta guarda es para los caminos que NO son un botón —el
+     arranque de la app y `nueva()`, que crean la primera partida en blanco—, donde un
+     aviso sería un regaño por no haber empezado todavía.
+
+     Se repinta igual antes de salir: el arranque y `nueva()` daban por hecho que después
+     de addItem la pantalla ya correspondía a Q —era addItem quien repintaba—, así que sin
+     esto «Vaciar y empezar cotización nueva» dejaba en pantalla las partidas de la
+     cotización que se acababa de vaciar. */
+  if(faltanDatosCliente()){ renderItems(); return null; }
   const id=++pid;
   const heredado=(opts&&opts.heredar)?prefGet(PREF_MATERIAL,''):'';
   const mat=matOf(heredado)?heredado:'';
   Q.items.push({id,tipo:'letras',material:mat,matAuto:!!mat,comp:'recta',luz:true,ilumTipo:'fria',altura:0,n:0,
     tarifa:0,ancho:0,alto:0, acab:'',recComp:false,bas:'', desc:'',descAi:false,pz:1,pu:0,textoAuto:'',showInPdf:true});
+  Q.sinEstrenar=false;
   plegarOtras(id);
   renderItems();
   /* Sin esto, quien usa lector de pantalla no se enteraba de que apareció una partida ni
      de que las anteriores se plegaron: la lista cambia entera y no se anuncia nada. */
   voz('Partida '+Q.items.length+' agregada'+(Q.items.length>1?' — se plegaron las anteriores':''));
   if(!opts||opts.enfocar!==false) enfocarPartida(id);
+  return Q.items[Q.items.length-1];
+}
+/* La puerta de «+ Agregar partida». El botón NO se deshabilita cuando faltan los datos
+   del cliente: un botón gris no dice por qué está gris, y aquí el porqué es justo lo que
+   hay que hacer a continuación. Así que se queda vivo, nombra lo que falta y lleva ahí. */
+function agregarPartida(){
+  if(!exigirDatosParaPartidas()) return;
+  addItem({heredar:true});
 }
 /* Duplicar la última partida. Es lo que más se hace cuando un letrero trae dos
    renglones del mismo material y distinta altura, y hasta ahora vivía escondido en el
    ⧉ del encabezado de cada partida. Sin partidas todavía, agrega la primera. */
 function duplicarUltima(){
   if(locked())return;
+  if(!exigirDatosParaPartidas()) return;
   const last=Q.items[Q.items.length-1];
   if(!last){ addItem({heredar:true}); return; }
   dupItem(last.id);
@@ -2639,8 +2745,18 @@ function enfocarPartida(id){
 let _borrada=null;
 function delItem(id){
   if(locked())return;
+  /* Borrar tampoco: el candado es sobre la partida entera, no solo sobre sus campos. Una
+     cotización a la que todavía no se le puede meter nada tampoco tiene por qué poder
+     perder lo que ya traía —las partidas de una cotización vieja que se abrió sin
+     teléfono siguen ahí, intactas, hasta que se escriba. */
+  if(!exigirDatosParaPartidas({llevar:false}))return;
   const idx=Q.items.findIndex(x=>x.id===id);
   if(idx<0) return;
+  /* Borrar también estrena la cotización: si aquí hubo una partida, la de arriba ya no es
+     la primera y no hay nada que sembrar. Sin esto quedaba un rincón —vaciar, duplicar
+     del historial, borrarlas todas— donde la bandera seguía en pie y la partida en blanco
+     reaparecía al abrirse el candado. */
+  Q.sinEstrenar=false;
   _borrada={item:Q.items[idx],idx,precioAuth:(Q.itemsAuth||{})[id]};
   Q.items.splice(idx,1);
   // Su precio autorizado se va con ella: si no, queda en el mapa y vuelve a sumar
@@ -2648,6 +2764,13 @@ function delItem(id){
   renderItems();
   toast('Partida '+(idx+1)+' eliminada','',6000,{label:'Deshacer',fn:deshacerBorrado});
 }
+/* Deshacer un borrado queda FUERA del candado nuevo, y no es un olvido: restituir no es
+   capturar, y devolver una partida que ya existía hace un segundo no mete un dato que no
+   estuviera. Bloquearlo era además el único punto donde este candado podía PERDER trabajo:
+   el «Deshacer» dura seis segundos, y si en esos seis segundos el vendedor se fue a
+   corregir el teléfono —lo borró para reescribirlo—, el candado se cerraba y la partida se
+   perdía para siempre. Un candado que existe para que no se pierda nada no puede ser el
+   único que pierde algo. Borrar sí se queda dentro: ahí no hay nada que rescatar. */
 function deshacerBorrado(){
   if(!_borrada) return;
   if(locked()){ toast('La cotización está bloqueada','err'); return; }
@@ -2658,6 +2781,11 @@ function deshacerBorrado(){
   toast('Partida restaurada','ok');
 }
 function setItem(id,k,v){
+  /* Los chips y los interruptores ya salen apagados cuando la partida está bloqueada,
+     pero setItem y typeItem eran las dos únicas funciones que escriben dentro de una
+     partida sin preguntar nada: el candado dependía por completo de que el HTML se
+     hubiera pintado bien. Ahora lo preguntan ellas, que es donde se escribe. */
+  if(capturaBloqueada())return;
   const it=Q.items.find(x=>x.id===id); if(!it)return;
   it[k]=v;
   /* Elegir el material a mano lo vuelve decisión propia: se quita la etiqueta de
@@ -2667,6 +2795,7 @@ function setItem(id,k,v){
 }
 /* Escritura ligera: no re-renderiza el input (evita perder el foco), solo refresca total y resumen */
 function typeItem(id,k,v){
+  if(capturaBloqueada())return;
   const it=Q.items.find(x=>x.id===id); if(!it)return; it[k]=v;
   if(k==='desc') it.descAi=false;
   const f=$('formula-'+id), l=$('lt-'+id);
@@ -2679,9 +2808,10 @@ function typeItem(id,k,v){
      ya escrita, hasta que otra cosa repintara. */
   renderSummary(); updProg(); saveState();
 }
-function setTipo(id,t){ if(locked())return; const it=Q.items.find(x=>x.id===id); if(!it)return; it.tipo=t; if(t==='caja'&&!it.tarifa) it.tarifa=3900; renderItems(); }
+function setTipo(id,t){ if(capturaBloqueada())return; const it=Q.items.find(x=>x.id===id); if(!it)return; it.tipo=t; if(t==='caja'&&!it.tarifa) it.tarifa=3900; renderItems(); }
 function dupItem(id){
   if(locked())return;
+  if(!exigirDatosParaPartidas()) return;
   const src=Q.items.find(x=>x.id===id); if(!src)return;
   /* Duplicar es una decisión explícita: el material de la copia ya no va marcado como
      heredado, porque quien duplicó sabe exactamente qué está copiando. */
@@ -2695,6 +2825,14 @@ function dupItem(id){
    candado: en una cotización bloqueada el ojo seguía funcionando y el cambio no se
    guardaba en el historial, de modo que al reimprimir volvían a salir las ocultas. */
 function setShowInPdf(id,val){
+  /* Ocultar del PDF queda FUERA del candado nuevo, por lo mismo que deshacer un borrado:
+     no mete un dato en la partida, decide qué renglones salen impresos. Y bloquearlo dejaba
+     a la app dándose instrucciones que ella misma frenaba: en una cotización autorizada sin
+     teléfono —de las que el historial guarda desde antes de que se pidiera—, el ojo decía
+     «usa Editar partidas», y al entrar a editar el candado se cerraba encima y el ojo
+     contestaba que no se podía, con el banner del modo edición señalándolo. Ahí no se está
+     capturando nada: la cotización ya se autorizó y lo que se quiere es tapar un renglón
+     del papel. */
   if(locked()){ toast('La cotización está bloqueada — usa «Editar partidas» para ocultar partidas','err',4200); return; }
   const it=Q.items.find(x=>x.id===id); if(!it)return;
   it.showInPdf=val;
@@ -2726,6 +2864,7 @@ function guardarCambiosEdicion(){
     updateQueueEntry(Q.folio,{precioAuth:Q.precioAuth,itemsAuth:Q.itemsAuth,huellaAuth:Q.huellaAuth});
 }
 function autoContarLetras(id,texto){
+  if(capturaBloqueada())return;
   const n=texto.replace(/\s/g,'').length;
   const it=Q.items.find(x=>x.id===id); if(!it)return;
   it.n=n; it.textoAuto=texto;
@@ -2773,17 +2912,40 @@ function renderItems(){
   renderAiPreview();
   renderScalerPreview();
   const c=$('items'); c.innerHTML='';
+  /* Las partidas de una cotización que se abrió sin los datos del cliente siguen ahí y se
+     leen; lo que no se puede es escribir en ellas. La clase las apaga para que se note. */
+  c.classList.toggle('items-cand',!locked()&&faltanDatosCliente());
   if(Q.editMode&&Q.estado==='autorizada'){
     const banner=document.createElement('div');
     banner.className='edit-mode-banner';
     banner.innerHTML=ico('i-lapiz')+' <span>Modo edición activo — modifica materiales, descripciones o usa '+ico('i-ojo')+' para ocultar partidas del PDF sin borrarlas.</span>';
     c.appendChild(banner);
   }
-  if(Q.items.length===0){ const empty=document.createElement('div'); empty.className='empty'; empty.textContent='Aún no hay partidas. Agrega letras 3D, un recorte de acrílico, un bastidor, una caja de luz o una partida manual.'; c.appendChild(empty); }
+  if(Q.items.length===0){
+    const empty=document.createElement('div'); empty.className='empty';
+    /* Con el candado puesto, el texto de siempre —«Agrega letras 3D…»— pide justo lo que
+       la ficha de arriba acaba de prohibir, y dos renglones que se contradicen a diez
+       píxeles de distancia se leen como que la app se equivocó. */
+    empty.textContent=(!locked()&&faltanDatosCliente())
+      ? 'Las partidas se capturan en cuanto estén el cliente, el teléfono y el proyecto.'
+      : 'Aún no hay partidas. Agrega letras 3D, un recorte de acrílico, un bastidor, una caja de luz o una partida manual.';
+    c.appendChild(empty);
+  }
   Q.items.forEach((it,i)=>{
     const d=document.createElement('div'); d.className='partida'; d.id='p-'+it.id;
     if(it.showInPdf===false) d.classList.add('hidden-pdf');
-    if(!locked()) d.setAttribute('draggable','true');
+    /* De aquí para abajo se pregunta por capturaBloqueada() y no por locked(): reordenar,
+       cambiar el tipo, duplicar y borrar son maneras de meter datos en las partidas, y el
+       candado nuevo las cubre igual que el viejo.
+
+       Los dos botones que sí se pintan —el selector de tipo y la ×— se apagan de dos
+       maneras distintas a propósito. Con el candado del precio, `disabled`, que es lo que
+       han hecho siempre. Con el candado nuevo, `aria-disabled`: un <button disabled> no
+       despacha click, así que el oyente que existe para que nada se quede callado nunca se
+       enteraba y los dos eran los únicos puntos mudos que quedaban en la partida —el resto
+       ya contesta—. La escritura la frenan setTipo y delItem, que preguntan ellos mismos. */
+    const _off=locked()?'disabled':(faltanDatosCliente()?'aria-disabled="true"':'');
+    if(!capturaBloqueada()) d.setAttribute('draggable','true');
     const pdfVis=it.showInPdf!==false;
     const plegada=_plegadas.has(it.id);
     if(plegada) d.classList.add('folded');
@@ -2795,17 +2957,17 @@ function renderItems(){
                estado, leídos uno tras otro. El estado lo carga aria-expanded, que es su
                trabajo; el title sí dice la acción, que es lo que necesita el ratón. -->
           <button class="pfold" onclick="togglePartida(${it.id})" aria-expanded="${plegada?'false':'true'}" aria-controls="pbody-${it.id}" title="${plegada?'Abrir la partida':'Plegar la partida'}" aria-label="Detalle de la partida ${i+1}"><span aria-hidden="true">▾</span></button>
-          ${!locked()?'<span class="drag-handle" title="Arrastra para reordenar" aria-hidden="true">'+ico('i-asa')+'</span>':''}
+          ${!capturaBloqueada()?'<span class="drag-handle" title="Arrastra para reordenar" aria-hidden="true">'+ico('i-asa')+'</span>':''}
           <div class="n">${i+1}</div>
         </div>
         <span class="ptipo">${TIPO_NOMBRE[it.tipo]||''}</span>
         <div class="tipo-seg" role="group" aria-label="Tipo de la partida ${i+1}">
-          ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button class="${it.tipo===t?'on':''}" aria-pressed="${it.tipo===t?'true':'false'}" ${locked()?'disabled':''} onclick="setTipo(${it.id},'${t}')"><span class="lg">${TIPO_NOMBRE[t]}</span><span class="sm">${TIPO_CORTO[t]}</span></button>`).join('')}
+          ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button class="${it.tipo===t?'on':''}" aria-pressed="${it.tipo===t?'true':'false'}" ${_off} onclick="setTipo(${it.id},'${t}')"><span class="lg">${TIPO_NOMBRE[t]}</span><span class="sm">${TIPO_CORTO[t]}</span></button>`).join('')}
         </div>
         <div class="ptop-actions">
-          ${!locked()?`<button class="dup" onclick="dupItem(${it.id})" title="Duplicar partida" aria-label="Duplicar partida">${ico('i-copiar')}</button>`:''}
+          ${!capturaBloqueada()?`<button class="dup" onclick="dupItem(${it.id})" title="Duplicar partida" aria-label="Duplicar partida">${ico('i-copiar')}</button>`:''}
           <button class="pdf-vis${pdfVis?'':' off'}" onclick="setShowInPdf(${it.id},${!pdfVis})" title="${pdfVis?'Ocultar del PDF — la partida sigue sumando al total':'Mostrar en PDF'}" aria-label="${pdfVis?'Ocultar del PDF':'Mostrar en PDF'}">${ico('i-ojo')}</button>
-          <button class="del" ${locked()?'disabled':''} onclick="delItem(${it.id})" title="Eliminar" aria-label="Eliminar la partida ${i+1}"><span aria-hidden="true">×</span></button>
+          <button class="del" ${_off} onclick="delItem(${it.id})" title="Eliminar" aria-label="Eliminar la partida ${i+1}"><span aria-hidden="true">×</span></button>
         </div>
       </div>
       ${resumenHTML(it)}
@@ -2818,7 +2980,7 @@ function renderItems(){
         <span class="formula" id="formula-${it.id}">${formulaHTML(it)}</span>
         <span class="lt" id="lt-${it.id}">${ltHTML(it)}</span>
       </div>`;
-    if(!locked()){
+    if(!capturaBloqueada()){
       d.addEventListener('dragstart',e=>{
         dragId=it.id; d.classList.add('dragging');
         e.dataTransfer.effectAllowed='move';
@@ -2892,6 +3054,9 @@ function updProg(){
      —se teclean, los llena un cliente conocido, llegan de la IA, de la cola o del
      historial— y todos pasan por un repintado. */
   pintarObligatorios();
+  /* El candado de las partidas, por lo mismo y en el mismo sitio: es la otra cosa que
+     cambia cuando cambian los tres obligatorios. */
+  pintarCandadoPartidas();
   /* El resumen del encabezado plegado de «Datos del proyecto» se quedaba con el cliente de
      la cotización anterior al abrir otra: se pintaba solo al plegar y desplegar, no cuando
      los datos cambiaban. Va aquí por el mismo motivo que pintarObligatorios. */
@@ -2936,6 +3101,29 @@ function pintarPendiente(){
   if(box) box.disabled=false;
   el.innerHTML=`${esc(p.txt)} <span aria-hidden="true">›</span>`;
 }
+/* Tocar el aviso del candado lleva al primer hueco y enciende el ámbar, igual que si se
+   hubiera intentado agregar una partida: el aviso y el freno del botón dicen lo mismo y
+   hacen lo mismo, así que no hay dos maneras de enterarse que puedan discrepar. */
+function irAlCandado(){ exigirDatosParaPartidas(); }
+/* ----- Ningún control mudo -----
+   Un `<input disabled>` no despacha `click` ni `pointerdown`: tocar la altura de una
+   partida congelada no producía absolutamente nada, y un campo que se ve y no contesta es,
+   palabra por palabra, «la app se rompió». El resto de la partida sí despacha —los chips
+   apagados son `<div>` con aria-disabled, las etiquetas, los recuadros de opciones y el
+   marco de la partida—, así que con un solo oyente en la lista se contesta casi toda la
+   superficie que se puede tocar.
+
+   Quedan fuera a propósito lo que sirve para LEER una cotización congelada: el ▾ de
+   plegar, la cara plegada entera —que es el blanco grande, el ▾ es un botón de 30 px al
+   lado, y las dos hacen lo mismo—, las fichas del resumen —donde el gesto es espiar un
+   importe tapado— y el ojo del PDF. Sin la cara plegada, abrir una partida para leerla
+   funcionaba Y sacaba un aviso rojo diciendo que había fallado, en el mismo toque. */
+function _candTocarPartida(e){
+  if(locked()||!faltanDatosCliente()) return;
+  const t=e.target;
+  if(t&&t.closest&&t.closest('.pfold,.pdf-vis,.psum,[href]')) return;
+  exigirDatosParaPartidas({llevar:false});
+}
 function irAPendiente(){
   const p=siguientePendiente();
   if(!p){ toast('No falta nada por capturar','ok',2400); return; }
@@ -2961,7 +3149,7 @@ function irACampoProy(id){
    Un solo lugar donde se decide cómo se ve una opción elegida, para que material,
    complejidad, acabado, bastidor y caja se lean todos igual. */
 function chip(on,click,label,extra){
-  const dis=locked();
+  const dis=capturaBloqueada();
   return `<div class="chip${on?' on':''}" role="button" aria-pressed="${on?'true':'false'}"`+
     (dis?' aria-disabled="true"':` tabindex="0" onclick="${click}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"`)+
     `><span class="ck" aria-hidden="true"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg></span>${label}${extra?` <small>${extra}</small>`:''}</div>`;
@@ -3091,13 +3279,13 @@ function pintarResumen(it){
 function faltantesDe(it){ return resumenPartida(it).filter(f=>f.estado==='falta').map(f=>f.txt.replace(/^Faltan? /,'').toLowerCase()); }
 
 function descFld(it){
-  const dis=locked()?'disabled':'';
+  const dis=capturaBloqueada()?'disabled':'';
   const tag=it.descAi?'<span class="ai-tag">'+ico('i-ia')+' IA</span>':'';
   return `<div class="fld"><label for="d-${it.id}">Descripción · qué se cotiza ${tag}</label><input id="d-${it.id}" value="${esc(it.desc)}" placeholder="Ej. Letrero de fachada «FARMACIA», acrílico blanco" ${dis} oninput="typeItem(${it.id},'desc',this.value)"></div>`;
 }
 
 function bodyFor(it){
-  const dis=locked()?'disabled':'';
+  const dis=capturaBloqueada()?'disabled':'';
   if(it.tipo==='letras'){
     const matChips=MATERIALES.map(m=>chip(it.material===m.key,`setItem(${it.id},'material','${m.key}')`,m.label,'$'+m.precio)).join('');
     const compChips=COMPLEJIDAD.map(c=>chip(it.comp===c.key,`setItem(${it.id},'comp','${c.key}')`,c.label,c.extra?'+$'+c.extra:'+$0')).join('');
@@ -3119,7 +3307,7 @@ function bodyFor(it){
       ${descFld(it)}
       ${grupo(matTitulo,mat?mat.label:'',matChips,avisos)}
       ${grupo('Iluminación',it.luz?(tono?'Cálida 3000K':'Fría 6500K'):'Sin iluminación · −20%',
-        `<button type="button" class="switch" role="switch" aria-checked="${it.luz?'true':'false'}" style="margin:0 6px 0 0" ${locked()?'disabled':`onclick="setItem(${it.id},'luz',${!it.luz})"`}><span class="tg ${it.luz?'on':''}" aria-hidden="true"></span> Con iluminación</button>${luzChips}`)}
+        `<button type="button" class="switch" role="switch" aria-checked="${it.luz?'true':'false'}" style="margin:0 6px 0 0" ${capturaBloqueada()?'disabled':`onclick="setItem(${it.id},'luz',${!it.luz})"`}><span class="tg ${it.luz?'on':''}" aria-hidden="true"></span> Con iluminación</button>${luzChips}`)}
       ${grupo('Complejidad tipográfica',compOf(it.comp)?compOf(it.comp).label:'',compChips)}
       <div class="grid3">
         <div class="fld">
@@ -3132,14 +3320,14 @@ function bodyFor(it){
         </div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
-      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las letras" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} letras</span></div>`:''}`;
+      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las letras" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} letras</span></div>`:''}`;
   }
   if(it.tipo==='recorte'){
     const recChips=RECORTES.map(r=>chip(it.acab===r.key,`setItem(${it.id},'acab','${r.key}')`,r.label,'$'+r.precio)).join('');
     const hint='<div class="hintnote">$20 sencillo &nbsp;·&nbsp; $25 rotulación de vinil &nbsp;·&nbsp; $55 tipo sándwich c/iluminación (+$5 complejidad) &nbsp;·&nbsp; precio por cm de altura × pieza</div>';
     const compRow = it.acab==='sandwich'
       ? grupo('Complejidad',it.recComp?'Con complejidad +$5/cm':'Sencilla',
-          `<button type="button" class="switch" role="switch" aria-checked="${it.recComp?'true':'false'}" style="margin:0" ${locked()?'disabled':`onclick="setItem(${it.id},'recComp',${!it.recComp})"`}><span class="tg ${it.recComp?'on':''}" aria-hidden="true"></span> Con complejidad (+$5/cm)</button>`)
+          `<button type="button" class="switch" role="switch" aria-checked="${it.recComp?'true':'false'}" style="margin:0" ${capturaBloqueada()?'disabled':`onclick="setItem(${it.id},'recComp',${!it.recComp})"`}><span class="tg ${it.recComp?'on':''}" aria-hidden="true"></span> Con complejidad (+$5/cm)</button>`)
       : '';
     return `
       ${descFld(it)}
@@ -3154,7 +3342,7 @@ function bodyFor(it){
         </div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
-      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las piezas" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} piezas</span></div>`:''}`;
+      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las piezas" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} piezas</span></div>`:''}`;
   }
   if(it.tipo==='bastidor'){
     const chips=BASTIDORES.map(b=>chip(it.bas===b.key,`setItem(${it.id},'bas','${b.key}')`,b.label,'$'+b.tarifa+'/m²')).join('');
@@ -3579,7 +3767,7 @@ function pintarFaltantes(pend){
           <span class="falt-d">${x.vacia?'Está completamente vacía':'Falta '+esc(x.faltan.join(', '))}</span>
         </span>
       </button>
-      ${x.vacia&&!locked()?`<button class="falt-quitar" onclick="quitarDesdeFaltantes(${x.it.id})">Quitar</button>`:'<span class="falt-go">›</span>'}
+      ${x.vacia&&!capturaBloqueada()?`<button class="falt-quitar" onclick="quitarDesdeFaltantes(${x.it.id})">Quitar</button>`:'<span class="falt-go">›</span>'}
     </div>`).join('');
 }
 function cerrarFaltantes(){ $('faltmodal').classList.remove('show'); _faltSeguir=null; }
@@ -3625,17 +3813,23 @@ function quitarDesdeFaltantes(id){
    las otras tres del mismo cliente y sin teléfono no hay a dónde mandarla por
    WhatsApp —el botón de compartir existe justamente para eso—.
 
-   Los tres se piden en el momento de mandar a autorización y no antes: mientras se
-   captura se puede saltar de un lado a otro sin que la app estorbe. Es el mismo punto
-   donde el precio se bloquea, así que es también el último en el que corregirlo es
-   barato.
+   Los tres se piden ANTES de la primera partida —ver «El candado de las partidas», más
+   abajo— y se vuelven a exigir al mandar a autorización, que es el punto donde el precio
+   se bloquea. Es el mismo requisito preguntado en el único momento en que sale gratis
+   —cuando todavía no hay nada capturado— y confirmado en el último en el que corregirlo
+   sigue siendo barato.
 
    Una sola lista para los tres: la usan el aviso de «qué falta» de la barra de
    progreso, el freno al continuar y el marcado en ámbar de los huecos. */
+/* Dos nombres por campo. El largo es el de las frases —«faltan el nombre del cliente y el
+   proyecto»—, donde hace falta decir de quién es el nombre y de quién el teléfono. El corto
+   es para la barra fija del celular, que mide poco más de 200 px: con el nombre largo, «el
+   teléfono completo (10 dígitos)» se cortaba en «Falta el teléfono completo (…» y se comía
+   justo la mitad que sirve. El detalle no se pierde, lo dice el aviso al tocarla. */
 const OBLIGATORIOS=[
-  {campo:'f-cli', caja:'fld-cli', llave:'cliente', nombre:'el nombre del cliente'},
-  {campo:'f-tel', caja:'fld-tel', llave:'tel',     nombre:'el teléfono del cliente'},
-  {campo:'f-proy',caja:'fld-proy',llave:'proy',    nombre:'el proyecto'}
+  {campo:'f-cli', caja:'fld-cli', llave:'cliente', nombre:'el nombre del cliente',  corto:'el cliente'},
+  {campo:'f-tel', caja:'fld-tel', llave:'tel',     nombre:'el teléfono del cliente',corto:'el teléfono'},
+  {campo:'f-proy',caja:'fld-proy',llave:'proy',    nombre:'el proyecto',            corto:'el proyecto'}
 ];
 /* Diez dígitos es un celular mexicano sin lada de país —lo mismo que ya pide
    `telWhatsApp` para armar el enlace—. Se cuentan dígitos y no formato: «33 1234 5678»,
@@ -3671,16 +3865,143 @@ function pintarObligatorios(){
 }
 /* Devuelve true si se puede seguir. Si no, dice qué falta, lo marca y deja el cursor en
    el primer hueco: enterarse de que falta algo sin que te lleven ahí es la mitad del
-   trabajo. */
-function exigirDatosCliente(){
+   trabajo.
+
+   El motivo va por parámetro porque ahora hay dos momentos que exigen lo mismo —capturar
+   partidas y mandar a autorización— y la frase tiene que decir cuál de los dos frenó: un
+   «faltan el teléfono y el proyecto» sin más deja al vendedor buscando qué fue lo que
+   tocó. Lo que se exige es idéntico en los dos; lo único distinto es la primera mitad de
+   la oración. */
+function exigirDatosCliente(motivo,opts){
   const faltan=datosFaltantes();
   _marcarOblig=faltan.length>0;
   pintarObligatorios();
   if(!faltan.length) return true;
   const lista=listaY(faltan.map(faltaTexto));
-  toast(`Antes de mandar a autorización ${faltan.length===1?'falta':'faltan'} ${lista}.`,'err',4600);
-  irACampoProy(faltan[0].campo);
+  toast(`${motivo||'Antes de mandar a autorización'} ${faltan.length===1?'falta':'faltan'} ${lista}.`,'err',4600);
+  /* `llevar:false` para los frenos que nacen DENTRO de una partida. irACampoProy no solo
+     sube la pantalla: además ESCRIBE la preferencia de plegado en el dispositivo. Cambiar
+     una preferencia guardada porque alguien rozó un chip mientras leía es desproporcionado,
+     y arrastrarle la pantalla hasta arriba a media lectura es peor que no contestar. Los
+     botones que de verdad conducen —agregar, duplicar, la IA— sí llevan. */
+  if(!opts||opts.llevar!==false) irACampoProy(faltan[0].campo);
   return false;
+}
+
+/* ===================== El candado de las partidas =====================
+   Una cotización se captura de arriba abajo, pero nada obligaba a hacerlo: se podía
+   llenar la cotización entera —cinco partidas, materiales, medidas— y llegar hasta el
+   final sin haber escrito de quién era. El freno estaba solo al mandar a autorización,
+   o sea al final, que es donde corregir cuesta más: para entonces el trabajo ya está
+   capturado y lo que falta es justo lo que nadie recuerda —el teléfono del cliente— con
+   el cliente ya colgado.
+
+   Ahora los tres datos se piden ANTES de la primera partida. Es el mismo requisito de
+   siempre, movido al principio: no se agrega un requisito nuevo, se adelanta el que ya
+   existía al único momento en que preguntarlo es gratis, que es cuando todavía no se
+   ha capturado nada.
+
+   Un solo candado para TODO lo que mete datos en una partida —agregarla, duplicarla,
+   la IA, el escalador, el vectorizador y cada campo de una partida ya escrita—, porque
+   dejar una sola de esas puertas abierta convierte la restricción en un adorno. Se abre
+   solo, en el momento en que se termina de escribir el último de los tres: no hay que
+   guardar, ni recargar, ni apretar nada. */
+function faltanDatosCliente(){ return datosFaltantes().length>0; }
+/* Los dos candados que tiene una partida, en una sola pregunta: el viejo —el precio ya
+   está autorizado— y el nuevo —todavía no se sabe de quién es la cotización—. Los dos
+   significan lo mismo para un campo de partida: no se toca. Van juntos en una función
+   para que no vuelva a haber una lista de sitios donde se preguntó solo por uno. */
+function capturaBloqueada(){ return locked()||faltanDatosCliente(); }
+/* La versión que habla, para los botones. `locked()` ya trae su propio aviso en cada
+   sitio, así que aquí solo se atiende el candado nuevo. */
+function exigirDatosParaPartidas(opts){
+  if(locked()) return true;
+  return exigirDatosCliente('Antes de capturar partidas',opts);
+}
+/* Lo mismo desde el escalador o el vectorizador, que viven en un modal encima de la
+   página: el aviso deja el cursor en el campo que falta, y un campo enfocado detrás de
+   un modal no sirve de nada. Se cierra primero y se avisa después. */
+function exigirDatosDesdeModal(cerrar){
+  if(locked()||!faltanDatosCliente()) return true;
+  if(typeof cerrar==='function') cerrar();
+  exigirDatosCliente('Antes de capturar partidas');
+  return false;
+}
+/* Pintar el candado: la ficha ámbar de la tarjeta de Partidas y el repintado de las
+   partidas cuando el candado se abre o se cierra.
+
+   Va colgado de updProg() y no de renderItems() a propósito: updProg corre en CADA
+   tecla de los tres campos —es de donde ya viven la barra de completitud y el ámbar de
+   los huecos— y renderItems no. Si colgara de renderItems, el candado se abriría al
+   siguiente repintado y no al terminar de escribir, que es cuando el vendedor está
+   mirando. */
+let _candCerrado=null;   // null = todavía no se ha pintado nunca
+let _candPintando=false; // renderItems vuelve a entrar aquí; se pinta, pero no se reacciona dos veces
+/* La app siempre ha arrancado con una partida en blanco. Con el candado puesto esa
+   siembra no se puede hacer, así que queda pendiente y se hace en cuanto el candado se
+   abre —ver Q.sinEstrenar—. Es UNA sola vez, y por eso se pregunta por «nunca ha tenido
+   una» y no por «no tiene ninguna ahora»: con la segunda regla, un vendedor que borra a
+   propósito la última partida y luego se va a corregir el teléfono se la encontraba de
+   vuelta al terminar de escribirlo, sin haber pedido nada. Sembrar lo que nunca nació es
+   ayudar; resucitar lo que alguien acaba de borrar es no hacerle caso. */
+function pintarCandadoPartidas(){
+  const cerrado=!locked()&&faltanDatosCliente();
+  const box=$('cand-partidas');
+  if(box){
+    box.hidden=!cerrado;
+    const txt=$('cand-partidas-txt'), cab=$('cand-partidas-cab');
+    if(cerrado){
+      /* Dos encabezados. «Primero, de quién es la cotización» encima de cinco partidas ya
+         capturadas —un borrador viejo, un respaldo que llegó por WhatsApp— se lee como que
+         la app se equivocó de cotización. La lista de campos sale de las mismas funciones
+         en los dos casos, así que nunca puede discrepar del aviso del botón; lo único que
+         cambia es la primera frase. */
+      if(cab) cab.textContent=Q.items.length
+        ? 'Esta cotización no trae los datos del cliente.'
+        : 'Primero, de quién es la cotización.';
+      const faltan=datosFaltantes();
+      const frase=(faltan.length===1?'Falta ':'Faltan ')+listaY(faltan.map(faltaTexto));
+      /* Solo si cambió: es una región viva, y reescribirla en cada letra del nombre del
+         cliente le repite la misma frase al oído a quien está tecleando. */
+      if(txt&&txt.textContent!==frase) txt.textContent=frase;
+    }
+  }
+  /* La barra fija del celular nombra el hueco que falta, así que se repinta en cada tecla
+     y no solo cuando el candado cambia de estado: si no, se quedaría diciendo «Falta el
+     teléfono» con el teléfono ya escrito hasta que otra cosa la repintara. */
+  if(!_candPintando) renderMobileBar();
+  if(_candCerrado===cerrado||_candPintando){ _candCerrado=cerrado; return; }
+  /* La primera vez no se reacciona: las partidas se acaban de pintar leyendo el candado
+     vivo desde bodyFor, así que ya salieron bien. Repintarlas aquí sería un render de más
+     en cada arranque. */
+  const primera=_candCerrado===null;
+  const abrio=_candCerrado===true&&!cerrado;
+  _candCerrado=cerrado;
+  if(primera) return;
+  _candPintando=true;
+  try{
+    /* Al abrirse el candado, la cotización se queda con la partida en blanco con la que
+       siempre ha arrancado la app: al arrancar bloqueada esa partida no se pudo crear, y
+       sin esto el vendedor que acaba de llenar los tres datos se queda mirando una tarjeta
+       de Partidas vacía. No se le lleva el foco: se está tecleando en el proyecto. */
+    let creada=null;
+    if(abrio&&Q.sinEstrenar&&!Q.items.length&&!locked()) creada=addItem({enfocar:false,heredar:true});
+    else renderItems();
+    /* Sin esto, quien usa lector de pantalla no se entera de que el candado se abrió: la
+       ficha ámbar desaparece y una región que se va no anuncia nada. Cortés y no urgente,
+       porque se está tecleando el último de los tres datos. */
+    /* El `!locked()` no sobra: _candCerrado es de la pantalla, no de la cotización, así que
+       al abrir un pendiente de la cola la transición se calcula contra la cotización
+       anterior y `abrio` se dispara porque ahora manda el candado del precio. Sin esto, al
+       autorizador se le anunciaba «Ya puedes capturar partidas» justo encima de una
+       cotización que está congelada precisamente para que no las capture. */
+    if(abrio&&!locked()) voz('Ya puedes capturar partidas'+(creada?' — se agregó la partida 1':''));
+    /* Y al cerrarse también. La ficha ámbar aparece, pero una región que se enciende con
+       `hidden` no anuncia nada al aparecer, así que quien no la ve se encontraba con una
+       tarjeta que dejó de responder sin que nada lo dijera. */
+    else if(cerrado) voz('Las partidas quedan bloqueadas: '+
+      (datosFaltantes().length===1?'falta ':'faltan ')+listaY(datosFaltantes().map(faltaTexto)));
+  } finally { _candPintando=false; }
 }
 
 /* ===================== Flujo ===================== */
@@ -3798,7 +4119,7 @@ function nueva(){
   _vaciada=habia?{q:JSON.parse(JSON.stringify(Q)),pid,rol:Q.rol}:null;
   Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};Q.huellaAuth='';
   Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth='';
-  Q.editMode=false; _selfAuth=false;
+  Q.editMode=false; _selfAuth=false; Q.sinEstrenar=true;
   Object.values(_FM).forEach(id=>{if($(id))$(id).value='';});
   // Una cotización en blanco no arranca regañada: el ámbar se apaga con ella.
   _marcarOblig=false;
@@ -3855,6 +4176,14 @@ function renderMobileBar(){
       : `<button class="mbar-btn" onclick="generarPDF()"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> Generar PDF</button>`;
   } else if(Q.estado==='rechazada'){
     btn=`<button class="mbar-btn gho" onclick="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar</button>`;
+  } else if(!locked()&&faltanDatosCliente()){
+    /* Mientras el candado está puesto, esta barra pintaba «Autorizar yo mismo» gris y
+       muerto, que es lo contrario de conducir. En el celular la columna del resumen —con la
+       barra de completitud, que es la que dice qué falta— se va debajo de las partidas, así
+       que esta barra fija es lo único que puede nombrar el siguiente paso mientras se mira
+       la tarjeta de Partidas. */
+    const f=datosFaltantes()[0];
+    btn=`<button class="mbar-btn" onclick="irAlCandado()">${esc('Falta '+f.corto)} ›</button>`;
   } else {
     const listo=Q.items.length>0&&totals().sub>0;
     btn=`<button class="mbar-btn" ${listo?'':'disabled'} onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizar yo mismo</button>`;
@@ -4217,6 +4546,10 @@ function aiPintarMerge(){
    dibujadas y su lista de medidas. Solo dura lo que dura el modal abierto. */
 let aiSrc=null;
 function aiOpen(fuente){
+  /* La IA propone partidas, así que pasa por el mismo candado que agregarlas a mano.
+     Que además sepa leer el nombre del cliente en la imagen no la exime: lo que la IA
+     no puede sacar de un JPG es el teléfono, y es de los tres el que más falta hace. */
+  if(!exigirDatosParaPartidas()) return;
   aiSrc=(fuente&&fuente.url)?fuente:null;
   aiPintarFuente();
   aiMerge=true; $('ai-merge-tg').classList.add('on'); tgAria('ai-merge-tg'); aiPintarMerge();
@@ -4629,6 +4962,14 @@ async function aiAnalyze(){
    del total. */
 const aiTxt=v=>typeof v==='string'?v.trim():'';
 const aiNum=v=>{ const n=parseFloat(v); return Number.isFinite(n)&&n>0?n:0; };
+/* Excepción deliberada a «ninguna puerta abierta»: aquí NO se vuelve a preguntar por los
+   datos del cliente. `aiOpen` ya los pidió al abrir el modal; la escritura ocurre medio
+   minuto después, cuando el análisis ya se pagó y ya terminó, y frenarlo aquí lo tiraría a
+   la basura para impedir un caso que exige borrar el teléfono a propósito mientras la IA
+   trabaja. Además la IA llena el cliente y el proyecto en esta misma pasada y el teléfono
+   no lo saca de un JPG nunca, así que revalidar aquí fallaría casi siempre por el único
+   dato que no puede traer. Lo que pasa es lo correcto: las partidas entran, y el candado
+   se vuelve a cerrar sobre ellas si de verdad falta algo. No se pierde nada. */
 function applyAi(p){
   if(!p||typeof p!=='object') return 0;
   if(locked()) return 0;
@@ -4683,6 +5024,13 @@ function applyAi(p){
   /* Devuelve cuántas partidas creó. Antes no devolvía nada y quien llamaba daba por hecho
      que había funcionado: con una respuesta sin partidas la pantalla anunciaba éxito en
      verde y cerraba el modal, sin que se hubiera agregado una sola. */
+  /* Por esta rama se sale habiendo escrito el cliente y el proyecto —arriba— y nada más.
+     Los inputs se llenaron a mano, y asignarle `.value` a un input NO dispara su `oninput`,
+     así que `upd()` nunca corre: sin este repintado la barra de completitud, el ámbar de
+     los huecos y el candado de las partidas se quedaban con la cuenta anterior, diciendo
+     que falta el cliente con el cliente ya escrito por la IA. Y sin el guardado, un
+     recargón se llevaba los dos datos que sí llegaron. */
+  updProg(); saveState();
   return 0;
 }
 
@@ -5525,7 +5873,14 @@ function usarComoBase(folio){
   pintarFolio(); saveState(); renderItems();
   cerrarHistorial();
   const n=Q.items.length;
-  toast(`${Q.folio} · ${n} ${n===1?'partida copiada':'partidas copiadas'} de ${e.folio} — ajusta medidas y autoriza`,'ok',4600);
+  /* La cotización que se copia puede venir sin teléfono —el historial guarda entradas de
+     cuando no se pedía—, y entonces la copia nace con el candado puesto. Decirle «ajusta
+     medidas y autoriza» a alguien que no puede tocar ni una es contradecir la pantalla:
+     el aviso nombra el hueco, que es lo que hay que hacer antes. */
+  const falta=!locked()&&faltanDatosCliente()
+    ? ' — '+(datosFaltantes().length===1?'falta ':'faltan ')+listaY(datosFaltantes().map(faltaTexto))+' para poder ajustarlas'
+    : ' — ajusta medidas y autoriza';
+  toast(`${Q.folio} · ${n} ${n===1?'partida copiada':'partidas copiadas'} de ${e.folio}${falta}`,'ok',4600);
 }
 
 /* ===================== Respaldo, restauración y CSV =====================
@@ -5822,6 +6177,10 @@ function loadState(){
        loadState devolviendo false como si no hubiera encontrado nada. */
     if(!saved||typeof saved!=='object'||!Array.isArray(saved.items)) return false;
     Object.assign(Q,saved);
+    /* Una cotización guardada por una versión anterior no trae la bandera, y la que llega
+       con partidas evidentemente ya se estrenó: se deduce de lo que hay en vez de confiar
+       en un campo que puede no existir. */
+    if(Q.items.length) Q.sinEstrenar=false;
     Q.aiFile=null;
     cargarAiFile();   // la imagen analizada se guarda aparte; si cupo, vuelve con la cotización
     Q.editMode=false;
@@ -7156,8 +7515,9 @@ function scAgregarPartida(m){
      hasta 5 mm por partida: en letras de acero a $55/cm son casi $28 por letra, y en la
      cotización eso ya no es redondeo. */
   const h=Math.max(0.5,Math.round(m.cm*2)/2);
-  addItem({enfocar:false}); // el escalador está encima: mover la página de atrás no sirve de nada
-  const it=Q.items[Q.items.length-1];
+  // el escalador está encima: mover la página de atrás no sirve de nada
+  const it=addItem({enfocar:false});
+  if(!it) return 0;   // no creó: escribir aquí le pisaría la altura a la partida anterior
   it.altura=h;
   if(m.label){ it.desc=m.label; }
   m.usada=true;
@@ -7166,7 +7526,12 @@ function scAgregarPartida(m){
 function scUsarMedida(id){
   const m=SC.items.find(x=>x.id===id);if(!m)return;
   if(locked()){toast('La cotización está bloqueada','err');return;}
+  if(!exigirDatosDesdeModal(cerrarScaler))return;
   const h=scAgregarPartida(m);
+  /* Un 0 significa que no se creó la partida —la única razón que queda aquí es que el
+     candado se cerrara entre el aviso y este renglón—: sin este corte, el aviso de abajo
+     anunciaría en verde una partida que no existe. */
+  if(!h) return;
   // scAgregarPartida modifica la partida DESPUÉS de que addItem la pintó, así que
   // sin este re-render la última medida se veía con la altura vacía en el cotizador.
   renderItems();
@@ -7178,6 +7543,7 @@ function scUsarMedida(id){
 }
 function scUsarTodas(){
   if(locked()){toast('La cotización está bloqueada','err');return;}
+  if(!exigirDatosDesdeModal(cerrarScaler))return;
   const pend=SC.items.filter(m=>!m.usada);
   if(!pend.length){toast('Todas las medidas ya están agregadas','',2200);return;}
   const cortas=pend.filter(m=>m.cm<0.5).length;
@@ -7215,6 +7581,9 @@ function scImagenParaIA(){
 }
 function scCotizarConIA(){
   if(locked()){ toast('La cotización está bloqueada','err'); return; }
+  /* Antes que nada: de aquí se sale a la IA, que crea partidas. Se pregunta ANTES de
+     armar la imagen y de cerrar el escalador para no cerrarlo en balde. */
+  if(!exigirDatosDesdeModal(cerrarScaler))return;
   if(!SC.img||!SC.items.length){ toast('Traza al menos una medida para cotizarla con IA','err',3200); return; }
   const fuente={
     origen:'escalador',
@@ -7338,6 +7707,9 @@ function init(){
   aplicarFoldProy();
   ajustarTopbarMovil();
   aplicarBlurPrecios();
+  /* En #items y no en cada partida: renderItems reescribe su contenido entero en cada
+     repintado, así que un oyente colgado de una partida se iría con ella. */
+  const _items=$('items'); if(_items) _items.addEventListener('click',_candTocarPartida);
   renderMobileBar();
   updProg();
   registrarSW();
@@ -8627,6 +8999,7 @@ function vtEnviarAEscalador(){
    3D —cuántas son y qué alto tienen— y hasta ahora se contaban a mano sobre la foto. */
 function vtUsarComoPartidas(){
   if(locked()){ toast('La cotización está bloqueada','err'); return; }
+  if(!exigirDatosDesdeModal(cerrarVector))return;
   if(!VT.hecho||!(VT.cmPorPx>0)){ toast('Pon la medida real del diseño para poder cotizarlo','err',3400); return; }
   /* Las mismas dos guardas que el botón, porque a esta función también se llega por teclado
      y porque el estado puede haber cambiado desde el último repintado. */
@@ -8634,8 +9007,8 @@ function vtUsarComoPartidas(){
   if(VT.formas>VT_MAX_PIEZAS){ toast('El trazo tiene '+VT.formas+' formas: eso no son letras. Prueba el modo Corte o Logotipo antes de cotizarlo.','err',6000); return; }
   const alto=Math.max(1,Math.round(VT.altoCm));
   const n=Math.max(1,VT.formas);
-  addItem({enfocar:false});
-  const it=Q.items[Q.items.length-1];
+  const it=addItem({enfocar:false});
+  if(!it) return;
   /* Se llenan la altura y el número de piezas y NADA más. Material y complejidad los
      elige la persona, aunque el trazo dé pistas de los dos: son campos que mueven el
      precio —la complejidad son $5 o $10 por cm, que en cinco letras de 40 cm son mil o
