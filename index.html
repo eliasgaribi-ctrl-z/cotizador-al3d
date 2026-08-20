@@ -4806,10 +4806,18 @@ function autorizarConfirmado(){
   Q.fechaAuth=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
   confirmarFolio(Q.folio); // el contador de cotizaciones solo avanza al autorizar
   updateQueueEntry(Q.folio,{estado:'autorizada',precioAuth:Q.precioAuth,autorizador:Q.autorizador,nota:Q.nota,fechaAuth:Q.fechaAuth,itemsAuth:Q.itemsAuth,huellaAuth:Q.huellaAuth});
-  guardarEnHistorial();
-  /* Ya está en el historial: no tiene por qué seguir ocupando la cola con su copia. */
-  removeFromQueue(Q.folio);
-  saveState(); renderItems(); toast('✓ Cotización autorizada — guardada en historial','ok',3200);
+  const guardada=guardarEnHistorial();
+  /* Solo si el historial DE VERDAD la recibió. Cuando no cupo, la cola es la única copia que
+     queda del folio, el precio autorizado y quién lo autorizó; soltarla ahí los perdía para
+     siempre, y encima en el instante irreversible. */
+  if(guardada) removeFromQueue(Q.folio);
+  saveState(); renderItems();
+  /* toast() es UN solo elemento y estas escrituras ocurren en el mismo tick: el último gana.
+     Un «✓ guardada en historial» incondicional borraba justo el aviso de que no se guardó
+     —con su botón de Respaldar—, que es el único momento en que se podía rescatar. Si algo
+     falló, el que se queda es el que lo dice. */
+  if(guardada&&_saveOk) toast('✓ Cotización autorizada — guardada en historial','ok',3200);
+  else if(guardada) toast('Autorizada y guardada, pero la cotización en curso ya no cabe en este teléfono — respalda y borra cotizaciones viejas','err',9000,{label:'Respaldar',fn:()=>respaldar()});
 }
 function rechazar(){
   const nombre=($('a-name')?.value||'').trim();
@@ -6442,7 +6450,7 @@ function cerrarEnlacePDF(){
 function getHistorial(){ try{return JSON.parse(localStorage.getItem('al3d_historial')||'[]');}catch(_){return [];} }
 function saveHistorial(arr){
   const escribir=a=>{ try{ localStorage.setItem('al3d_historial',JSON.stringify(a)); return true; }catch(_){ return false; } };
-  if(escribir(arr)) return;
+  if(escribir(arr)) return true;
   /* No cupo. Antes se vaciaban de golpe las imágenes de TODAS las cotizaciones —incluidas
      las que ya estaban guardadas y cabían de sobra— por autorizar una más: se perdía de
      forma irreversible la referencia visual de todo el historial, que es con lo que el
@@ -6457,10 +6465,13 @@ function saveHistorial(arr){
     soltadas++;
     if(escribir(copia)){
       toast('Faltó espacio: se quitó la imagen de '+soltadas+(soltadas===1?' cotización vieja':' cotizaciones viejas'),'',5200,{label:'Respaldar',fn:()=>respaldar()});
-      return;
+      /* Degradada, pero la cotización SÍ quedó escrita: lo que se soltó son imágenes viejas. */
+      return true;
     }
   }
   toast('No hubo espacio para guardar en el historial — respalda y borra cotizaciones viejas','err',6000,{label:'Respaldar',fn:()=>respaldar()});
+  /* Nada quedó escrito. Quien llame tiene que enterarse: hay una copia que no se puede soltar. */
+  return false;
 }
 function guardarEnHistorial(){
   const t=totals();
@@ -6490,9 +6501,10 @@ function guardarEnHistorial(){
   const arr=getHistorial();
   const idx=arr.findIndex(x=>x.folio===Q.folio);
   if(idx>=0) arr[idx]=entry; else arr.unshift(entry);
-  saveHistorial(arr);
+  const ok=saveHistorial(arr);
   /* El historial es de donde salen las sugerencias de cliente: al crecer, crecen. */
   pintarClientes();
+  return ok;
 }
 
 let _histData=[];
