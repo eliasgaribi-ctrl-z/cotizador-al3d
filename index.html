@@ -2481,6 +2481,11 @@ function totals(){
    del catálogo de precios —este archivo se edita a mano y se publica— en un cambio de
    trabajo, y soltaría autorizaciones que nadie había tocado. */
 const _CAMPOS_PRECIO=['tipo','material','comp','luz','altura','n','acab','recComp','bas','ancho','alto','tarifa','pz','pu'];
+/* La huella NO incluye cliente, teléfono ni proyecto, y es a propósito: son datos de a
+   quién se le cotiza, no del trabajo cotizado. De ahí depende que escribir el teléfono
+   que falta en una cotización vieja —para poder editar sus partidas— no le suelte su
+   precio autorizado. Meterlos aquí «por consistencia» rompería justo eso, y es de las
+   cosas que solo se descubren cuando ya rompieron una cotización que el cliente firmó. */
 function huellaTrabajo(){
   return (Q.iva?'c':'s')+'|'+Q.items.map(it=>
     it.id+':'+_CAMPOS_PRECIO.map(k=>it[k]===undefined?'':String(it[k])).join('~')).join(',');
@@ -4858,6 +4863,14 @@ async function aiAnalyze(){
    del total. */
 const aiTxt=v=>typeof v==='string'?v.trim():'';
 const aiNum=v=>{ const n=parseFloat(v); return Number.isFinite(n)&&n>0?n:0; };
+/* Excepción deliberada a «ninguna puerta abierta»: aquí NO se vuelve a preguntar por los
+   datos del cliente. `aiOpen` ya los pidió al abrir el modal; la escritura ocurre medio
+   minuto después, cuando el análisis ya se pagó y ya terminó, y frenarlo aquí lo tiraría a
+   la basura para impedir un caso que exige borrar el teléfono a propósito mientras la IA
+   trabaja. Además la IA llena el cliente y el proyecto en esta misma pasada y el teléfono
+   no lo saca de un JPG nunca, así que revalidar aquí fallaría casi siempre por el único
+   dato que no puede traer. Lo que pasa es lo correcto: las partidas entran, y el candado
+   se vuelve a cerrar sobre ellas si de verdad falta algo. No se pierde nada. */
 function applyAi(p){
   if(!p||typeof p!=='object') return 0;
   if(locked()) return 0;
@@ -4912,6 +4925,13 @@ function applyAi(p){
   /* Devuelve cuántas partidas creó. Antes no devolvía nada y quien llamaba daba por hecho
      que había funcionado: con una respuesta sin partidas la pantalla anunciaba éxito en
      verde y cerraba el modal, sin que se hubiera agregado una sola. */
+  /* Por esta rama se sale habiendo escrito el cliente y el proyecto —arriba— y nada más.
+     Los inputs se llenaron a mano, y asignarle `.value` a un input NO dispara su `oninput`,
+     así que `upd()` nunca corre: sin este repintado la barra de completitud, el ámbar de
+     los huecos y el candado de las partidas se quedaban con la cuenta anterior, diciendo
+     que falta el cliente con el cliente ya escrito por la IA. Y sin el guardado, un
+     recargón se llevaba los dos datos que sí llegaron. */
+  updProg(); saveState();
   return 0;
 }
 
