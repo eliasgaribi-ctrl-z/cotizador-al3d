@@ -201,6 +201,52 @@ body.precios-ocultos .precios-nota{display:flex}
    la página entera se desplaza a lo ancho en el teléfono. */
 .wrap>main,.wrap>aside{min-width:0}
 @media(max-width:920px){.wrap{grid-template-columns:1fr}}
+
+/* ----- Las dos pantallas -----
+   La pantalla 1 es una columna sola y estrecha: son cinco campos, y estirarlos a 1 180 px
+   los deja nadando y obliga a barrer la vista de un lado a otro para leer una etiqueta y su
+   campo. La 2 recupera las dos columnas, porque ahí el resumen de la derecha se lee CONTRA
+   las partidas de la izquierda y separarlos costaría un desplazamiento por cada cambio. */
+.wrap.p-cliente{grid-template-columns:minmax(0,660px);justify-content:center}
+.pasos{grid-column:1/-1;display:flex;align-items:stretch;gap:4px;margin-bottom:2px}
+.paso-tab{display:flex;align-items:center;gap:9px;padding:9px 15px 9px 11px;border:1px solid transparent;border-radius:var(--r-sm);
+  background:none;cursor:pointer;text-align:left;color:var(--muted);font-family:inherit;transition:.15s;min-width:0}
+.paso-tab .tx{display:flex;flex-direction:column;min-width:0;font-size:13px;font-weight:700;line-height:1.2}
+/* El nombre del cliente debajo del paso 1: es el único dato de la pantalla que se acaba de
+   dejar atrás y que hace falta no perder de vista mientras se captura la otra. Nunca
+   envuelve —se recorta— para que la barra no crezca de alto. */
+.paso-tab .tx small{font-size:11px;font-weight:600;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:22ch}
+.paso-tab .n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex-shrink:0;border-radius:8px;
+  background:var(--soft-2);color:var(--muted);font-size:11.5px;font-weight:800}
+.paso-tab:hover{background:rgba(255,255,255,.7);border-color:var(--line)}
+.paso-tab.on{background:#fff;border-color:rgba(224,228,240,.9);box-shadow:var(--sh-sm);color:var(--ink)}
+.paso-tab.on .n{background:var(--brand-grd);color:#fff;box-shadow:0 2px 6px rgba(58,74,216,.25)}
+.paso-tab.hecho .n{background:var(--green-bg);color:var(--green)}
+.paso-tab.hecho .n::after{content:'✓'}
+.paso-tab.hecho .n>span,.paso-tab.hecho .n{font-size:12px}
+/* El paso que todavía no toca: ámbar, el mismo de todo lo que falta. No se deshabilita
+   —tocarlo dice qué falta y lleva al hueco—, porque un botón gris no explica nada. */
+.paso-tab.espera .n{background:var(--amber-bg);color:var(--amber);box-shadow:none}
+.paso-tab.espera{color:var(--amber)}
+.paso-flecha{display:flex;align-items:center;color:#b9c0d4;font-size:17px;font-weight:700;flex-shrink:0}
+/* Cierre de la pantalla 1. En el teléfono desaparece: ahí la barra fija de abajo ya es
+   «Continuar a partidas», y dos botones iguales a un dedo de distancia hacen dudar de si
+   son el mismo. En escritorio no hay barra fija, así que este es el único. */
+.p1-cierre{margin-top:15px}
+.p1-cierre .btn{width:100%}
+@media(max-width:920px){ .p1-cierre{display:none} }
+@media(max-width:560px){
+  .pasos{gap:2px}
+  .paso-tab{padding:8px 10px 8px 8px;gap:7px}
+  .paso-tab .tx{font-size:12.5px}
+  .paso-tab .tx small{max-width:14ch}
+}
+/* En papel no hay pantallas: sale la cotización entera, las dos partes, sin la barra. */
+@media print{
+  .pasos,.p1-cierre{display:none!important}
+  .wrap{grid-template-columns:1fr!important}
+  #card-proy,#card-partidas,#sidebox{display:block!important}
+}
 /* Las medidas del teléfono —relleno de tarjetas, rejillas, tamaños— viven en el
    bloque «Teléfono: aprovechar la pantalla» del final de la hoja. Aquí solo queda lo
    que no repite un selector base: entre dos reglas con la misma especificidad gana la
@@ -1055,14 +1101,6 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .pdf-vis:hover{background:var(--soft)}
 .partida.hidden-pdf{opacity:.55;border-left-color:#c4c9da}
 .edit-mode-banner{display:flex;align-items:center;gap:9px;background:var(--amber-bg);border:1.5px solid rgba(207,138,18,.28);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:12px;font-size:12.5px;font-weight:600;color:var(--amber)}
-/* ----- Los dos pasos -----
-   Numerarlos es lo que convierte una regla en un orden: «Partidas» a secas parece algo que
-   se puede empezar cuando quieras, y «2 · Partidas» debajo de «1 · Datos del proyecto» ya
-   dice por sí solo qué va antes, sin que haga falta chocar con un aviso para enterarse.
-   El número del paso que todavía no toca va en ámbar, del mismo color que el aviso y que
-   los huecos obligatorios, y vuelve al azul de marca cuando el paso se abre. */
-.card-h h2 .paso{display:inline-flex;align-items:center;justify-content:center;width:21px;height:21px;border-radius:7px;background:var(--brand-grd);color:#fff;font-size:11.5px;font-weight:800;margin-right:7px;vertical-align:2px;box-shadow:0 2px 6px rgba(58,74,216,.25)}
-.card-h h2 .paso.espera{background:var(--amber-bg);color:var(--amber);box-shadow:none;border:1.5px solid rgba(207,138,18,.35)}
 /* ----- El candado de las partidas -----
    Mismo ámbar que el resto de los avisos de «falta algo» —el de los huecos obligatorios y
    el del modo edición—, para que se lea como parte de la misma familia y no como un error.
@@ -1499,7 +1537,25 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
   </div>
 </div>
 
-<div class="wrap">
+<div class="wrap" id="wrap">
+
+  <!-- ----- Los dos pasos, como dos pantallas -----
+       Cliente y partidas dejaron de compartir pantalla. Eran dos momentos distintos de la
+       misma llamada —de quién es esto, y qué le vamos a hacer— y verlos juntos obligaba a
+       leer el doble para atender uno. Esta barra es la única cosa que se queda en las dos:
+       dice en cuál estás, y el paso 1 lleva de vuelta con un toque, con el nombre del
+       cliente debajo para no perder de vista de quién es la cotización que se captura. -->
+  <nav class="pasos" id="pasos" aria-label="Pasos de la cotización">
+    <button type="button" class="paso-tab" id="tab-1" onclick="irAPantalla('cliente')">
+      <span class="n" id="tab-1-n" aria-hidden="true">1</span>
+      <span class="tx">Cliente<small id="tab-1-sub"></small></span>
+    </button>
+    <span class="paso-flecha" aria-hidden="true">›</span>
+    <button type="button" class="paso-tab" id="tab-2" onclick="irAPantalla('partidas')">
+      <span class="n" id="tab-2-n" aria-hidden="true">2</span>
+      <span class="tx">Partidas<small id="tab-2-sub"></small></span>
+    </button>
+  </nav>
 
   <!-- ===== IZQUIERDA: FORM ===== -->
   <!-- Era un <section> sin nombre, y un <section> sin nombre accesible no se expone
@@ -1508,8 +1564,10 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
   <main id="contenido">
     <div class="card" id="card-proy">
       <div class="card-h">
-        <h2><span class="paso" aria-hidden="true">1</span> Datos del proyecto</h2>
-        <button class="card-fold" id="fold-proy-btn" onclick="toggleFoldProy()" aria-expanded="true" aria-controls="card-proy-b"><span class="txt" id="fold-proy-txt">Ocultar</span><span class="chev" aria-hidden="true">▾</span></button>
+        <h2>Datos del cliente</h2>
+        <!-- Plegar los datos del cliente servía cuando compartían pantalla con las partidas y
+             estorbaban. Ahora son su propia pantalla: plegar la única tarjeta que hay deja la
+             pantalla vacía. El botón se va; la lógica se queda por si algo la llama. -->
       </div>
       <div class="card-b" id="card-proy-b">
         <div class="grid2">
@@ -1556,9 +1614,16 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
       </div>
     </div>
 
-    <div class="card">
+    <!-- Cierra la pantalla 1: valida los tres y pasa a las partidas. Es el mismo filtro que
+         ya frenaba la captura, ahora con la forma que le corresponde —un botón que dice qué
+         sigue— en vez de un aviso que aparece cuando chocas con él. -->
+    <div class="p1-cierre" id="p1-cierre">
+      <button class="btn btn-pri" id="p1-btn" onclick="continuarAPartidas()">Continuar a partidas <span aria-hidden="true">→</span></button>
+    </div>
+
+    <div class="card" id="card-partidas">
       <div class="card-h">
-        <h2><span class="paso" id="paso2-num" aria-hidden="true">2</span> Partidas</h2>
+        <h2>Partidas</h2>
         <div class="ph-acts">
           <span class="folio" id="pcount">0 partidas</span>
           <button class="card-fold oculto" id="fold-all-btn" onclick="togglePlegarTodas()" aria-expanded="true"><span class="txt" id="fold-all-txt">Plegar todas</span><span class="chev" aria-hidden="true">▾</span></button>
@@ -3157,6 +3222,9 @@ function irAPendiente(){
    freno al mandar a autorización. Los datos pueden estar plegados: llevar ahí sin
    abrirlos dejaría al usuario mirando un encabezado cerrado. */
 function irACampoProy(id){
+  /* Antes que nada, la pantalla: enfocar un campo que está en la otra no enfoca nada, y el
+     usuario se queda mirando la misma pantalla creyendo que el aviso no hizo caso. */
+  if(_pantalla!=='cliente') irAPantalla('cliente',{subir:false});
   if(_foldProy){
     _foldProy=false; aplicarFoldProy();
     try{ localStorage.setItem('al3d_fold_proy','0'); }catch(_){}
@@ -3965,6 +4033,69 @@ function exigirDatosDesdeModal(cerrar){
   exigirDatosCliente('Antes de capturar partidas');
   return false;
 }
+/* ===================== Las dos pantallas =====================
+   Cliente y partidas dejaron de compartir pantalla. Son dos momentos distintos de la misma
+   llamada —de quién es esto, y qué le vamos a hacer— y verlos juntos obligaba a leer el
+   doble para atender uno solo.
+
+   Vive fuera de Q a propósito: es cómo se está viendo la app en este momento, no un dato de
+   la cotización. No se guarda, no viaja al historial y no sale en el PDF. Al recargar se
+   deduce de lo que hay: con los tres datos puestos se abre en partidas —estabas cotizando—,
+   sin ellos en cliente, que es donde toca empezar. */
+let _pantalla='cliente';
+function pantallaSegunDatos(){ return (!faltanDatosCliente()||locked())?'partidas':'cliente'; }
+function irAPantalla(cual,opts){
+  /* Ir a partidas pasa por el mismo filtro que capturarlas: la pestaña no es una puerta de
+     servicio. Al revés —volver a cliente— nunca se frena: corregir un dato es justo lo que
+     se viene a hacer. */
+  if(cual==='partidas'&&!(opts&&opts.forzar)&&!exigirDatosParaPartidas()) return;
+  _pantalla=cual;
+  pintarPantalla();
+  /* Arriba de todo: cambiar de pantalla a media página deja al usuario mirando el hueco por
+     el que venía bajando, no el principio de lo que acaba de abrir. */
+  if(!opts||opts.subir!==false) window.scrollTo({top:0,behavior:'auto'});
+}
+function continuarAPartidas(){ irAPantalla('partidas'); }
+function pintarPantalla(){
+  const enCliente=_pantalla==='cliente';
+  const w=$('wrap'); if(w) w.classList.toggle('p-cliente',enCliente);
+  const proy=$('card-proy'), part=$('card-partidas'), side=$('sidebox'), cierre=$('p1-cierre');
+  if(proy)   proy.hidden=!enCliente;
+  if(cierre) cierre.hidden=!enCliente;
+  if(part)   part.hidden=enCliente;
+  if(side)   side.hidden=enCliente;
+  pintarPasos();
+  /* La barra fija del celular cambia de contenido con la pantalla —«Continuar» en la del
+     cliente, el total y «Autorizar yo mismo» en la de partidas—, así que se repinta aquí.
+     Sin esto se quedaba con la de la pantalla anterior hasta que otra cosa la repintara:
+     un «Continuar a partidas» flotando sobre las partidas ya abiertas. */
+  renderMobileBar();
+}
+/* La barra de pasos: en cuál estás, cuál está listo y cuál todavía no toca. El nombre del
+   cliente va debajo del paso 1 porque es el único dato de la pantalla que se dejó atrás y
+   que hace falta no perder de vista; la cuenta de partidas va debajo del 2 por lo mismo,
+   cuando se está en cliente. */
+function pintarPasos(){
+  const enCliente=_pantalla==='cliente', falta=faltanDatosCliente()&&!locked();
+  const t1=$('tab-1'), t2=$('tab-2');
+  if(t1){
+    t1.classList.toggle('on',enCliente);
+    t1.classList.toggle('hecho',!enCliente&&!falta);
+    t1.classList.toggle('espera',enCliente&&falta);
+    t1.setAttribute('aria-current',enCliente?'step':'false');
+    const n=$('tab-1-n'); if(n) n.textContent=(!enCliente&&!falta)?'':'1';
+    const sub=$('tab-1-sub');
+    if(sub) sub.textContent=enCliente?'':(Q.cliente||'').trim();
+  }
+  if(t2){
+    t2.classList.toggle('on',!enCliente);
+    t2.classList.toggle('espera',enCliente&&falta);
+    t2.setAttribute('aria-current',!enCliente?'step':'false');
+    const sub=$('tab-2-sub');
+    if(sub) sub.textContent=!enCliente?'':(Q.items.length?Q.items.length+(Q.items.length===1?' partida':' partidas'):'');
+  }
+}
+
 /* Pintar el candado: la ficha ámbar de la tarjeta de Partidas y el repintado de las
    partidas cuando el candado se abre o se cierra.
 
@@ -3987,10 +4118,10 @@ function pintarCandadoPartidas(){
   /* El paso 2 no existe hasta que el 1 esté completo: ni la fila de herramientas ni los
      botones de agregar. Lo que ya estuviera capturado se queda a la vista —congelado— y
      los repinta renderItems, que vive fuera de este envoltorio. */
-  const tools=$('paso2-tools'), addrow=$('paso2-addrow'), num=$('paso2-num');
+  const tools=$('paso2-tools'), addrow=$('paso2-addrow');
   if(tools) tools.hidden=cerrado;
   if(addrow) addrow.hidden=cerrado;
-  if(num) num.classList.toggle('espera',cerrado);
+  pintarPasos();
   const box=$('cand-partidas');
   if(box){
     box.hidden=!cerrado;
@@ -4174,6 +4305,8 @@ function nueva(){
   Q.fecha=hoy();
   scReset();
   addItem({enfocar:false,heredar:true}); aplicarFoldProy();
+  /* Una cotización en blanco empieza donde empieza: por el cliente. */
+  irAPantalla('cliente',{forzar:true});
   if(_vaciada) toast('Cotización vaciada','',7000,{label:'Deshacer',fn:deshacerVaciado});
   else toast('Nueva cotización lista');
 }
@@ -4192,6 +4325,7 @@ function deshacerVaciado(){
   $('f-anti').value=Q.anti||'';
   sincronizarPlegado();
   pintarFolio(); aplicarFoldProy(); saveState(); renderItems();
+  irAPantalla(pantallaSegunDatos(),{forzar:true});
   toast('Cotización restaurada','ok');
 }
 
@@ -4201,6 +4335,15 @@ function deshacerVaciado(){
    es el mismo del panel de autorización, así que nunca se contradicen. */
 function renderMobileBar(){
   const bar=$('mbar'); if(!bar) return;
+  /* En la pantalla del cliente la barra fija es el botón de continuar: ahí no hay total que
+     mirar todavía, y el «Autorizar yo mismo» de más abajo es de la otra pantalla. */
+  if(_pantalla==='cliente'){
+    /* Siempre «Continuar», nunca «Falta el cliente»: en esta pantalla los tres campos están
+       a la vista con su asterisco, así que nombrar el hueco aquí es decir lo que ya se ve.
+       La acción es una sola, y si falta algo lo dice al tocarla, con el cursor puesto. */
+    bar.innerHTML=`<button class="mbar-btn" style="width:100%" onclick="continuarAPartidas()">Continuar a partidas <span aria-hidden="true">→</span></button>`;
+    return;
+  }
   const pf=precioFinal(), aj=ajusteAuth(), hayAjuste=Q.estado==='autorizada'&&Math.abs(aj)>0.01;
   const lab=hayAjuste?'Precio autorizado':(Q.iva?'Total neto':'Total');
   let btn;
@@ -5878,6 +6021,9 @@ function reabrirDeHistorial(folio){
   updDirRaw(Q.dirRaw); updMaps(Q.maps);
   sincronizarPlegado();
   pintarFolio(); saveState(); renderItems();
+  /* Abrir una cotización guardada es entrar a verla, no a capturarla de nuevo: se abre en
+     partidas, que es donde está el trabajo y desde donde se reimprime. */
+  irAPantalla(pantallaSegunDatos(),{forzar:true});
   cerrarHistorial();
   toast('Cotización '+e.folio+' abierta — reimprime su PDF, o toca «Editar partidas» para cambiarla','ok',5200);
 }
@@ -5915,6 +6061,7 @@ function usarComoBase(folio){
   updDirRaw(Q.dirRaw); updMaps(Q.maps);
   sincronizarPlegado();
   pintarFolio(); saveState(); renderItems();
+  irAPantalla(pantallaSegunDatos(),{forzar:true});
   cerrarHistorial();
   const n=Q.items.length;
   /* La cotización que se copia puede venir sin teléfono —el historial guarda entradas de
@@ -6139,6 +6286,9 @@ function loadQueueEntry(folio){
   if(Q.maps) $('mapsbtn').disabled=!/^https?:\/\//i.test(Q.maps);
   sincronizarPlegado();
   saveState(); renderItems();
+  /* El autorizador entra a revisar un precio, no a capturar un cliente: la pantalla que le
+     toca es la de partidas, con su resumen al lado. */
+  irAPantalla('partidas',{forzar:true});
 }
 
 /* ===================== Persistencia ===================== */
@@ -7733,7 +7883,11 @@ function hoy(){return new Date().toLocaleDateString('es-MX',{day:'2-digit',month
 function init(){
   loadLogo();
   aiKeyFallback();
-  try{ _foldProy=localStorage.getItem('al3d_fold_proy')==='1'; }catch(_){}
+  /* La preferencia de plegado ya no se lee: con los datos del cliente en su propia
+     pantalla, plegarlos la deja en blanco, y el botón que los volvía a abrir se fue con
+     ella. Quien tuviera guardado un «1» de antes abriría a una tarjeta cerrada y sin
+     manera de abrirla. */
+  _foldProy=false;
   if(!loadState()){
     Q.folio=nextFolio(); pintarFolio();
     Q.fecha=hoy(); addItem({enfocar:false,heredar:true});
@@ -7754,6 +7908,9 @@ function init(){
   /* En #items y no en cada partida: renderItems reescribe su contenido entero en cada
      repintado, así que un oyente colgado de una partida se iría con ella. */
   const _items=$('items'); if(_items) _items.addEventListener('click',_candTocarPartida);
+  /* La pantalla se deduce de lo que hay: con los tres datos puestos se estaba cotizando y se
+     abre en partidas; sin ellos, en cliente. Va al final, cuando Q ya está cargado. */
+  _pantalla=pantallaSegunDatos(); pintarPantalla();
   renderMobileBar();
   updProg();
   registrarSW();
