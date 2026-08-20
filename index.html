@@ -3797,10 +3797,15 @@ function quitarDesdeFaltantes(id){
 
    Una sola lista para los tres: la usan el aviso de «qué falta» de la barra de
    progreso, el freno al continuar y el marcado en ámbar de los huecos. */
+/* Dos nombres por campo. El largo es el de las frases —«faltan el nombre del cliente y el
+   proyecto»—, donde hace falta decir de quién es el nombre y de quién el teléfono. El corto
+   es para la barra fija del celular, que mide poco más de 200 px: con el nombre largo, «el
+   teléfono completo (10 dígitos)» se cortaba en «Falta el teléfono completo (…» y se comía
+   justo la mitad que sirve. El detalle no se pierde, lo dice el aviso al tocarla. */
 const OBLIGATORIOS=[
-  {campo:'f-cli', caja:'fld-cli', llave:'cliente', nombre:'el nombre del cliente'},
-  {campo:'f-tel', caja:'fld-tel', llave:'tel',     nombre:'el teléfono del cliente'},
-  {campo:'f-proy',caja:'fld-proy',llave:'proy',    nombre:'el proyecto'}
+  {campo:'f-cli', caja:'fld-cli', llave:'cliente', nombre:'el nombre del cliente',  corto:'el cliente'},
+  {campo:'f-tel', caja:'fld-tel', llave:'tel',     nombre:'el teléfono del cliente',corto:'el teléfono'},
+  {campo:'f-proy',caja:'fld-proy',llave:'proy',    nombre:'el proyecto',            corto:'el proyecto'}
 ];
 /* Diez dígitos es un celular mexicano sin lada de país —lo mismo que ya pide
    `telWhatsApp` para armar el enlace—. Se cuentan dígitos y no formato: «33 1234 5678»,
@@ -4149,7 +4154,7 @@ function renderMobileBar(){
        que esta barra fija es lo único que puede nombrar el siguiente paso mientras se mira
        la tarjeta de Partidas. */
     const f=datosFaltantes()[0];
-    btn=`<button class="mbar-btn" onclick="irAlCandado()">${esc('Falta '+faltaTexto(f))} ›</button>`;
+    btn=`<button class="mbar-btn" onclick="irAlCandado()">${esc('Falta '+f.corto)} ›</button>`;
   } else {
     const listo=Q.items.length>0&&totals().sub>0;
     btn=`<button class="mbar-btn" ${listo?'':'disabled'} onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizar yo mismo</button>`;
