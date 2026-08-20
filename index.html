@@ -408,6 +408,17 @@ textarea{resize:vertical;min-height:46px}
 .chip.on .ck{display:inline-flex;align-items:center;font-size:12px;line-height:1}
 .chip:hover:not(.on){border-color:rgba(58,74,216,.28);background:var(--soft-2);color:var(--brand-strong)}
 .chip:focus-visible{outline:2.5px solid var(--brand);outline-offset:2px}
+/* Un chip apagado —cotización autorizada, o el candado de las partidas— conservaba
+   `cursor:pointer` y su `:hover`, así que se veía y se comportaba como uno vivo hasta que
+   lo tocabas y no pasaba nada. No existía una sola regla [aria-disabled] en la hoja. El
+   apagado se hace con color y no con opacidad: el chip dice QUÉ material se eligió, y eso
+   hay que poder leerlo. El elegido se queda relleno —es la respuesta— pero sin la sombra
+   ni el rebote, que son lo que promete que se puede tocar. */
+.chip[aria-disabled="true"]{cursor:default;background:transparent;border-color:var(--line);color:var(--muted)}
+.chip[aria-disabled="true"]:hover:not(.on){background:transparent;border-color:var(--line);color:var(--muted)}
+.chip[aria-disabled="true"].on{background:var(--gray-bg);border-color:#b6bdd0;color:var(--ink);box-shadow:none;animation:none}
+.chip[aria-disabled="true"].on small{color:var(--muted)}
+.chip[aria-disabled="true"].on .ck{color:var(--gray)}
 @keyframes chipPop{0%{transform:scale(.84)}65%{transform:scale(1.07)}100%{transform:scale(1)}}
 .hintnote{font-size:11.5px;color:var(--muted);background:linear-gradient(90deg,var(--soft),rgba(242,244,251,.3));border-left:2px solid rgba(58,74,216,.2);border-radius:0 7px 7px 0;padding:6px 11px;display:inline-block}
 
@@ -423,6 +434,12 @@ textarea{resize:vertical;min-height:46px}
 .switch{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;user-select:none;
   border:none;background:none;font-family:inherit;text-align:left;padding:0;margin-bottom:5px}
 .switch:disabled{cursor:default}
+/* Un interruptor apagado solo cambiaba el cursor: seguía azul de marca y con su sombra,
+   o sea exactamente igual que uno vivo. Mismo criterio que los chips —el estado se lee,
+   pero no promete que se pueda tocar—: el encendido se queda encendido, en gris de
+   reposo, y el texto conserva su color de siempre. */
+.switch:disabled .tg{background:#b6bdd0;box-shadow:none}
+.switch:disabled .tg.on{background:#8a90a6}
 .tg{width:42px;height:24px;background:#8a90a6;border-radius:13px;position:relative;transition:.2s;flex-shrink:0}
 /* La perilla se ve de 42×24, pero se toca en 50×44: la capa invisible crece la zona
    sensible sin mover nada de sitio. Es el control del IVA, de la iluminación y del
@@ -1041,10 +1058,20 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .cand-partidas .cp-txt b{font-weight:800}
 .cand-partidas .cp-go{flex-shrink:0;font-size:16px;font-weight:800;opacity:.75}
 /* Con el candado puesto, las partidas que ya traía una cotización vieja se quedan a la
-   vista pero apagadas: se pueden leer, no tocar. Sin esto se veían exactamente igual que
-   una partida editable y el único aviso de que no respondían era que no respondían. */
-.items-cand .partida{opacity:.62}
-.items-cand .partida:hover{box-shadow:var(--sh-sm)}
+   vista pero en reposo: se pueden leer, no tocar. Sin esto se veían exactamente igual que
+   una partida editable y el único aviso de que no respondían era que no respondían.
+
+   NO se apaga con `opacity`, que fue el primer intento: un .62 sobre la partida entera se
+   lleva por delante el texto, y el valor de la descripción bajaba de 16,9:1 a 2,6:1 y las
+   fichas ámbar a 2,7:1 —exactamente el problema que este archivo ya había arreglado una
+   vez subiendo los tonos de estado—. Congelar una partida no puede volverla ilegible: leer
+   es justo lo único que se puede hacer con ella. Así que lo que cambia es el marco —fondo
+   de reposo y filete gris en vez del azul de marca—, y el estado real lo llevan los
+   controles: los campos con su gris de deshabilitado de siempre y los chips con la regla
+   de aquí abajo. El texto se queda en su contraste completo. */
+.items-cand .partida{background:var(--soft);border-left-color:#aab2c8;box-shadow:none}
+.items-cand .partida:hover{box-shadow:none}
+.items-cand .optgrp,.items-cand .autoctr{background:#fff}
 /* ----- Registrar Venta modal ----- */
 .rv-modal-bg{position:fixed;inset:0;background:rgba(12,15,38,.7);display:none;z-index:60;align-items:center;justify-content:center;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 .rv-modal-bg.show{display:flex}
@@ -1209,10 +1236,12 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
    abajo va el formulario completo y sería decir lo mismo dos veces. */
 @media print{
   .pfold{display:none}
-  /* El apagado de las partidas y la ficha del candado son de la pantalla táctil: en papel
-     una partida al 62% se lee como tinta agotada, y la ficha ámbar no le dice nada a quien
-     recibe la hoja. Un Ctrl+P de una cotización con el candado puesto sale entero. */
-  .items-cand .partida{opacity:1}
+  /* El reposo de las partidas y la ficha del candado son de la pantalla táctil. El papel
+     no tiene estados: la hoja sale igual esté el candado puesto o no. El fondo importa
+     porque body lleva print-color-adjust:exact, así que sí se imprimiría, y una cotización
+     con medio bloque gris se lee como una impresión sucia. La ficha ámbar, además, no le
+     dice nada a quien recibe la hoja. */
+  .items-cand .partida{background:#fff;border-left-color:var(--brand)}
   .cand-partidas{display:none!important}
   .partida.folded .pbody{display:block}
   .partida.folded .psum{display:none}
@@ -5774,7 +5803,14 @@ function usarComoBase(folio){
   pintarFolio(); saveState(); renderItems();
   cerrarHistorial();
   const n=Q.items.length;
-  toast(`${Q.folio} · ${n} ${n===1?'partida copiada':'partidas copiadas'} de ${e.folio} — ajusta medidas y autoriza`,'ok',4600);
+  /* La cotización que se copia puede venir sin teléfono —el historial guarda entradas de
+     cuando no se pedía—, y entonces la copia nace con el candado puesto. Decirle «ajusta
+     medidas y autoriza» a alguien que no puede tocar ni una es contradecir la pantalla:
+     el aviso nombra el hueco, que es lo que hay que hacer antes. */
+  const falta=!locked()&&faltanDatosCliente()
+    ? ' — '+(datosFaltantes().length===1?'falta ':'faltan ')+listaY(datosFaltantes().map(faltaTexto))+' para poder ajustarlas'
+    : ' — ajusta medidas y autoriza';
+  toast(`${Q.folio} · ${n} ${n===1?'partida copiada':'partidas copiadas'} de ${e.folio}${falta}`,'ok',4600);
 }
 
 /* ===================== Respaldo, restauración y CSV =====================
