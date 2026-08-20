@@ -2742,6 +2742,11 @@ function delItem(id){
   if(!exigirDatosParaPartidas())return;
   const idx=Q.items.findIndex(x=>x.id===id);
   if(idx<0) return;
+  /* Borrar también estrena la cotización: si aquí hubo una partida, la de arriba ya no es
+     la primera y no hay nada que sembrar. Sin esto quedaba un rincón —vaciar, duplicar
+     del historial, borrarlas todas— donde la bandera seguía en pie y la partida en blanco
+     reaparecía al abrirse el candado. */
+  Q.sinEstrenar=false;
   _borrada={item:Q.items[idx],idx,precioAuth:(Q.itemsAuth||{})[id]};
   Q.items.splice(idx,1);
   // Su precio autorizado se va con ella: si no, queda en el mapa y vuelve a sumar
