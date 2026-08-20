@@ -499,7 +499,7 @@ textarea{resize:vertical;min-height:46px}
 .ptok.off{background:var(--soft);color:var(--muted);border-color:var(--line)}
 .ptok.off::before{content:'—';font-weight:700}
 /* Cada bloque de opciones va encerrado y con su valor elegido en el encabezado */
-.optgrp{border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px 11px;margin-bottom:11px;background:linear-gradient(180deg,#fff,var(--soft))}
+.optgrp{border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 12px 10px;margin-bottom:9px;background:#fff}
 .optgrp.falta{border-color:rgba(207,138,18,.35);background:linear-gradient(180deg,#fff,#fffaf0)}
 .optgrp-h{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:9px}
 .optgrp-t{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
@@ -1517,16 +1517,20 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
           <div class="fld" id="fld-tel"><label for="f-tel">Teléfono<span class="req" aria-hidden="true">*</span></label><input id="f-tel" type="tel" inputmode="tel" placeholder="33 0000 0000" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('tel',this.value)"></div>
         </div>
         <div class="fld" id="fld-proy"><label for="f-proy">Proyecto<span class="req" aria-hidden="true">*</span></label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('proy',this.value)">
-          <div class="hintnote" id="hint-oblig" style="margin-top:7px">Cliente, teléfono y proyecto son obligatorios: <b>sin los tres no se pueden capturar partidas</b>, y sin ellos no se puede mandar a autorización.</div>
+          <!-- El asterisco de la etiqueta ya dice que es obligatorio, y el paso 2 lo dice otra
+               vez —con los campos que falten por nombre— en el momento en que estorba. Un
+               párrafo aquí era la tercera vez, y la única que nadie había pedido. Se queda
+               para el lector de pantalla, que del asterisco decorativo no se entera. -->
+          <span class="solo-voz" id="hint-oblig">Sin cliente, teléfono y proyecto no se pueden capturar partidas.</span>
         </div>
         <div class="fld">
           <label for="f-dir-raw">Dirección como la compartió el/la cliente</label>
-          <textarea id="f-dir-raw" autocomplete="off" placeholder="Pega aquí la dirección tal como te la mandaron&#10;Ej. Urban Center en Lopez Mateos Sur&#10;Ej. Mártires de Cananea #60, Centro, El Salto, Jalisco" rows="2" oninput="updDirRaw(this.value)"></textarea>
+          <textarea id="f-dir-raw" autocomplete="off" placeholder="Como te la mandaron — «Urban Center en López Mateos Sur»" rows="2" oninput="updDirRaw(this.value)"></textarea>
           <div class="dir-raw-actions" id="dir-raw-actions" style="display:none">
             <button class="btn-maps" onclick="abrirDirRaw()"><svg class="svgi" aria-hidden="true"><use href="#i-pin"/></svg> Abrir en Maps</button>
             <button class="btn-maps copy" onclick="copiarLinkDirRaw()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar link</button>
           </div>
-          <div class="hintnote" id="dir-raw-hint" style="margin-top:7px;display:none">Se genera un link de búsqueda de Google Maps con el texto que escribiste — ábrelo para verificar la ubicación y luego compártelo con el cliente.</div>
+          <div class="hintnote" id="dir-raw-hint" style="margin-top:7px;display:none">Ábrelo para verificar la ubicación antes de compartirla.</div>
         </div>
         <div class="fld">
           <label for="f-maps">Ubicación · link de Google Maps</label>
@@ -1534,7 +1538,6 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
             <input id="f-maps" autocomplete="off" placeholder="Pega aquí el link de Google Maps" oninput="updMaps(this.value)" style="flex:1">
             <button class="btn btn-gho" id="mapsbtn" onclick="abrirMaps()" disabled style="width:auto;padding:0 15px;white-space:nowrap"><svg class="svgi" aria-hidden="true"><use href="#i-pin"/></svg> Abrir</button>
           </div>
-          <div class="hintnote" style="margin-top:7px">Tip: en Google Maps usa <b>Compartir → Copiar vínculo</b> y pégalo aquí para tener la ubicación exacta.</div>
         </div>
         <details class="ai-cfg" id="pdf-extra-box" style="margin-bottom:0">
           <summary>Datos que salen en el PDF (opcional)</summary>
@@ -1546,7 +1549,7 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
             <div class="fld" style="margin-bottom:0">
               <label for="f-nota-cli">Nota para el cliente</label>
               <textarea id="f-nota-cli" rows="2" placeholder="El cliente debe proporcionar salidas eléctricas." oninput="upd('notaCliente',this.value)"></textarea>
-              <div class="hintnote" style="margin-top:7px">Esta nota se imprime en la cotización. Si la dejas vacía sale «El cliente debe proporcionar salidas eléctricas.». La nota del autorizador es interna y <b>no</b> aparece en el PDF.</div>
+              <div class="hintnote" style="margin-top:7px">Se imprime en la cotización. Vacía, sale la de arriba.</div>
             </div>
           </div>
         </details>
@@ -1567,7 +1570,7 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
              primer hueco, igual que la barra de completitud de la derecha. -->
         <button type="button" class="cand-partidas" id="cand-partidas" onclick="irAlCandado()" hidden>
           <svg class="svgi" aria-hidden="true"><use href="#i-candado"/></svg>
-          <span class="cp-txt"><b id="cand-partidas-cab">Primero, de quién es la cotización.</b> <span id="cand-partidas-txt" aria-live="polite" aria-atomic="true"></span></span>
+          <span class="cp-txt" id="cand-partidas-txt" aria-live="polite" aria-atomic="true"></span>
           <span class="cp-go" aria-hidden="true">›</span>
         </button>
         <!-- Todo lo que EMPIEZA una partida vive aquí dentro, en un solo envoltorio: con el
@@ -1629,7 +1632,7 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
       </div>
       <!-- El botón no es un adorno: espiar era «mantener tocado», o sea imposible sin dedo ni
            ratón, y quien navega con teclado no tenía manera de leer un solo importe. -->
-      <div class="precios-nota"><svg class="svgi" aria-hidden="true"><use href="#i-ojo"/></svg><span>Los precios se destapan al solicitar autorización. Mantén uno tocado para verlo antes.</span>
+      <div class="precios-nota"><svg class="svgi" aria-hidden="true"><use href="#i-ojo"/></svg><span>Mantén tocado para ver un importe</span>
         <button type="button" class="precios-ver" id="precios-ver" aria-pressed="false" onclick="togglePreciosALaVista()">Ver precios</button></div>
       <div class="auth-adj" id="s-auth-row" style="display:none">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
@@ -1641,7 +1644,6 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
 
       <div class="auth" id="authbox"></div>
     </div>
-    <p class="mini">El precio se bloquea al solicitar autorización. La plantilla / PDF se configura <b>después</b> de autorizar.</p>
   </aside>
 
 </div>
@@ -3176,10 +3178,18 @@ function chip(on,click,label,extra){
 }
 /* Bloque de opciones con su valor elegido en el encabezado; si no hay nada elegido
    el bloque se marca en ámbar con "Sin elegir". */
+/* El encabezado del grupo llevaba el valor elegido —«MATERIAL / ACABADO  ✓ Acero
+   Inoxidable»— con el chip «Acero Inoxidable» resaltado dos renglones más abajo, en la
+   misma caja. Era la misma palabra dos veces, tres veces por partida y multiplicado por
+   cada renglón de la cotización: de las cosas que más saturaban la pantalla sin aportar un
+   dato. Con la partida abierta el chip resaltado ES la respuesta; el encabezado se queda
+   solo con el nombre del campo. Lo que sí sigue ahí es el «Sin elegir», que no se lee de
+   ninguna otra parte —un grupo sin nada resaltado se confunde con uno que no miraste—, y
+   la cara de la partida plegada sigue enseñando lo elegido, que es su trabajo. */
 function grupo(titulo,valor,chipsHTML,extraHTML=''){
   const falta=!valor;
   return `<div class="optgrp${falta?' falta':''}">
-      <div class="optgrp-h"><span class="optgrp-t">${titulo}</span><span class="optgrp-v${falta?' falta':''}">${falta?'Sin elegir':esc(valor)}</span></div>
+      <div class="optgrp-h"><span class="optgrp-t">${titulo}</span>${falta?'<span class="optgrp-v falta">Sin elegir</span>':''}</div>
       <div class="chips" role="group" aria-label="${esc(titulo.replace(/<[^>]*>/g,'').trim())}">${chipsHTML}</div>${extraHTML}
     </div>`;
 }
@@ -3301,7 +3311,7 @@ function faltantesDe(it){ return resumenPartida(it).filter(f=>f.estado==='falta'
 function descFld(it){
   const dis=capturaBloqueada()?'disabled':'';
   const tag=it.descAi?'<span class="ai-tag">'+ico('i-ia')+' IA</span>':'';
-  return `<div class="fld"><label for="d-${it.id}">Descripción · qué se cotiza ${tag}</label><input id="d-${it.id}" value="${esc(it.desc)}" placeholder="Ej. Letrero de fachada «FARMACIA», acrílico blanco" ${dis} oninput="typeItem(${it.id},'desc',this.value)"></div>`;
+  return `<div class="fld"><label for="d-${it.id}">Descripción ${tag}</label><input id="d-${it.id}" value="${esc(it.desc)}" placeholder="Ej. Letrero de fachada «FARMACIA», acrílico blanco" ${dis} oninput="typeItem(${it.id},'desc',this.value)"></div>`;
 }
 
 function bodyFor(it){
@@ -3314,11 +3324,15 @@ function bodyFor(it){
        porque es el campo que más pesa en el precio —de $30 a $55 por cm. */
     const heredado=!!(it.matAuto&&mat);
     const matTitulo='Material / acabado'+(heredado?' <span class="heredado">↩ como la anterior</span>':'');
-    const avisos=`${heredado?'<div class="hintnote" style="background:#fff8e1;border-left:3px solid var(--amber-ico);color:#7a5800;margin-bottom:5px">↩ Se puso solo el último material que elegiste. Si este trabajo va con otro, tócalo.</div>':''}
-      ${mat?`<div class="hintnote">Iluminación sugerida: ${mat.ilum}</div>`:''}
-      ${(it.material==='acr-vol'||it.material==='acr-vinil')&&!it.luz?`<div class="hintnote" style="background:#fff8e1;border-left:3px solid var(--amber-ico);color:#7a5800;margin-top:5px"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> El acrílico es valioso principalmente por el paso de luz. Sin iluminación, considera cambiar a <b>Aluminio</b> — mismo resultado visual, menor costo.</div>`:''}
-      ${it.material==='al-paint'&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green-ico);color:#1c6e3d;margin-top:5px"><span class="emo">💡</span> Con aluminio e iluminación, la luz va por detrás (retroiluminación). Para luz que pase a través de las caras, considera <b>Acrílico + Aluminio</b>.</div>`:''}
-      ${it.material==='acero'&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green-ico);color:#1c6e3d;margin-top:5px"><span class="emo">💡</span> El acero inoxidable es opaco: la luz sale por detrás (retroiluminación) y el canto queda con acabado espejo. Para luz que pase a través de las caras, considera <b>Acrílico + Aluminio</b>.</div>`:''}`;
+    /* Los avisos de material se quedaron en uno solo, y corto. Antes eran hasta tres a la
+       vez —de dónde salió el material heredado, la iluminación sugerida y el consejo del
+       material— repetidos en CADA partida: multiplicado por seis renglones, el consejo tapaba
+       la cotización. Lo que dice el «↩ como la anterior» del título no hace falta repetirlo
+       abajo en un párrafo, y la iluminación sugerida decía con otras palabras lo mismo que el
+       consejo del material que va debajo. */
+    const avisos=`
+      ${(it.material==='acr-vol'||it.material==='acr-vinil')&&!it.luz?`<div class="hintnote" style="background:#fff8e1;border-left:3px solid var(--amber-ico);color:#7a5800"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> Acrílico sin luz: el <b>Aluminio</b> se ve igual y cuesta menos.</div>`:''}
+      ${(it.material==='al-paint'||it.material==='acero')&&it.luz?`<div class="hintnote" style="background:#e8f9ee;border-left:3px solid var(--green-ico);color:#1c6e3d"><span class="emo">💡</span> Opaco: la luz sale por detrás. Para luz de frente, <b>Acrílico + Aluminio</b>.</div>`:''}`;
     const tono=(it.ilumTipo||'fria')==='calida';
     const luzChips=it.luz
       ? chip(tono,`setItem(${it.id},'ilumTipo','calida')`,'<span class="emo">🌅</span> Cálida','3000K')+chip(!tono,`setItem(${it.id},'ilumTipo','fria')`,'<span class="emo">❄️</span> Fría','6500K')
@@ -3328,7 +3342,7 @@ function bodyFor(it){
       ${grupo(matTitulo,mat?mat.label:'',matChips,avisos)}
       ${grupo('Iluminación',it.luz?(tono?'Cálida 3000K':'Fría 6500K'):'Sin iluminación · −20%',
         `<button type="button" class="switch" role="switch" aria-checked="${it.luz?'true':'false'}" style="margin:0 6px 0 0" ${capturaBloqueada()?'disabled':`onclick="setItem(${it.id},'luz',${!it.luz})"`}><span class="tg ${it.luz?'on':''}" aria-hidden="true"></span> Con iluminación</button>${luzChips}`)}
-      ${grupo('Complejidad tipográfica',compOf(it.comp)?compOf(it.comp).label:'',compChips)}
+      ${grupo('Complejidad',compOf(it.comp)?compOf(it.comp).label:'',compChips)}
       <div class="grid3">
         <div class="fld">
           <label for="h-${it.id}">Altura (cm)</label>
@@ -3344,7 +3358,9 @@ function bodyFor(it){
   }
   if(it.tipo==='recorte'){
     const recChips=RECORTES.map(r=>chip(it.acab===r.key,`setItem(${it.id},'acab','${r.key}')`,r.label,'$'+r.precio)).join('');
-    const hint='<div class="hintnote">$20 sencillo &nbsp;·&nbsp; $25 rotulación de vinil &nbsp;·&nbsp; $55 tipo sándwich c/iluminación (+$5 complejidad) &nbsp;·&nbsp; precio por cm de altura × pieza</div>';
+    /* Los tres precios ya van en los chips; repetirlos en una lista era decir dos veces lo
+       mismo dentro del mismo recuadro. Lo único que los chips no dicen es CÓMO se cobra. */
+    const hint='<div class="hintnote">Por cm de altura × pieza</div>';
     const compRow = it.acab==='sandwich'
       ? grupo('Complejidad',it.recComp?'Con complejidad +$5/cm':'Sencilla',
           `<button type="button" class="switch" role="switch" aria-checked="${it.recComp?'true':'false'}" style="margin:0" ${capturaBloqueada()?'disabled':`onclick="setItem(${it.id},'recComp',${!it.recComp})"`}><span class="tg ${it.recComp?'on':''}" aria-hidden="true"></span> Con complejidad (+$5/cm)</button>`)
@@ -3366,7 +3382,7 @@ function bodyFor(it){
   }
   if(it.tipo==='bastidor'){
     const chips=BASTIDORES.map(b=>chip(it.bas===b.key,`setItem(${it.id},'bas','${b.key}')`,b.label,'$'+b.tarifa+'/m²')).join('');
-    const hint='<div class="hintnote">Lámina $950/m² &nbsp;·&nbsp; Alucobond $1,500/m² &nbsp;·&nbsp; se cobra por área (ancho × alto), mínimo 1 m²: si el área es menor, se respeta el precio de un metro cuadrado.</div>';
+    const hint='<div class="hintnote">Por área (ancho × alto), mínimo 1 m²</div>';
     return `
       ${descFld(it)}
       ${grupo('Material del bastidor',basOf(it.bas)?basOf(it.bas).label:'',chips,hint)}
@@ -3377,7 +3393,7 @@ function bodyFor(it){
   }
   if(it.tipo==='caja'){
     const chips=CAJAS.map(c=>chip(it.tarifa===c.tarifa,`setItem(${it.id},'tarifa',${c.tarifa})`,c.label,'$'+c.tarifa+'/m²')).join('');
-    const hint='<div class="hintnote">Se cobra mínimo 1 m²: si el área es menor, se respeta el precio de un metro cuadrado.</div>';
+    const hint='<div class="hintnote">Mínimo 1 m²</div>';
     const cajaSel=CAJAS.find(c=>c.tarifa===it.tarifa);
     return `
       ${descFld(it)}
@@ -3623,7 +3639,7 @@ function renderAuth(){
       body=`<button class="btn btn-pri" ${hayPartidas?'':'disabled'} onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizar yo mismo</button>
             <button class="btn btn-gho" ${hayPartidas?'':'disabled'} onclick="solicitar()">Solicitar autorización a alguien más</button>
             ${hayPartidas?'':`<p class="mini">${!locked()&&faltanDatosCliente()
-              ? esc('Primero el paso 1: '+(datosFaltantes().length===1?'falta ':'faltan ')+listaY(datosFaltantes().map(faltaTexto))+'.')
+              ? 'Falta el paso 1.'
               : 'Agrega partidas con precio para continuar.'}</p>`}
             <button class="btn btn-gho" onclick="pedirConfNueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Vaciar y empezar cotización nueva</button>`;
     }
@@ -3978,21 +3994,20 @@ function pintarCandadoPartidas(){
   const box=$('cand-partidas');
   if(box){
     box.hidden=!cerrado;
-    const txt=$('cand-partidas-txt'), cab=$('cand-partidas-cab');
-    if(cerrado){
-      /* Dos encabezados. «Primero, de quién es la cotización» encima de cinco partidas ya
-         capturadas —un borrador viejo, un respaldo que llegó por WhatsApp— se lee como que
-         la app se equivocó de cotización. La lista de campos sale de las mismas funciones
-         en los dos casos, así que nunca puede discrepar del aviso del botón; lo único que
-         cambia es la primera frase. */
-      if(cab) cab.textContent=Q.items.length
-        ? 'Esta cotización no trae los datos del cliente.'
-        : 'Primero, de quién es la cotización.';
+    const txt=$('cand-partidas-txt');
+    if(cerrado&&txt){
+      /* Una línea y nada más. Antes llevaba encima una frase en negritas —«Primero, de quién
+         es la cotización»— que decía con palabras lo que ya dice el «2» en ámbar del
+         encabezado: que este paso todavía no toca. Y los nombres van en corto: «faltan el
+         nombre del cliente, el teléfono del cliente y el proyecto» repite «del cliente» dos
+         veces para nombrar tres campos que están a diez centímetros, con su etiqueta puesta.
+         Las frases largas se quedan para el aviso de la autorización, que es donde no hay
+         una pantalla al lado que las haga obvias. */
       const faltan=datosFaltantes();
-      const frase=(faltan.length===1?'Falta ':'Faltan ')+listaY(faltan.map(faltaTexto));
+      const frase=(faltan.length===1?'Falta ':'Faltan ')+listaY(faltan.map(c=>c.corto));
       /* Solo si cambió: es una región viva, y reescribirla en cada letra del nombre del
          cliente le repite la misma frase al oído a quien está tecleando. */
-      if(txt&&txt.textContent!==frase) txt.textContent=frase;
+      if(txt.textContent!==frase) txt.textContent=frase;
     }
   }
   /* La barra fija del celular nombra el hueco que falta, así que se repinta en cada tecla
@@ -4029,7 +4044,7 @@ function pintarCandadoPartidas(){
        `hidden` no anuncia nada al aparecer, así que quien no la ve se encontraba con una
        tarjeta que dejó de responder sin que nada lo dijera. */
     else if(cerrado) voz('Las partidas quedan bloqueadas: '+
-      (datosFaltantes().length===1?'falta ':'faltan ')+listaY(datosFaltantes().map(faltaTexto)));
+      (datosFaltantes().length===1?'falta ':'faltan ')+listaY(datosFaltantes().map(c=>c.corto)));
   } finally { _candPintando=false; }
 }
 
@@ -5907,7 +5922,7 @@ function usarComoBase(folio){
      medidas y autoriza» a alguien que no puede tocar ni una es contradecir la pantalla:
      el aviso nombra el hueco, que es lo que hay que hacer antes. */
   const falta=!locked()&&faltanDatosCliente()
-    ? ' — '+(datosFaltantes().length===1?'falta ':'faltan ')+listaY(datosFaltantes().map(faltaTexto))+' para poder ajustarlas'
+    ? ' — '+(datosFaltantes().length===1?'falta ':'faltan ')+listaY(datosFaltantes().map(c=>c.corto))+' para poder ajustarlas'
     : ' — ajusta medidas y autoriza';
   toast(`${Q.folio} · ${n} ${n===1?'partida copiada':'partidas copiadas'} de ${e.folio}${falta}`,'ok',4600);
 }
