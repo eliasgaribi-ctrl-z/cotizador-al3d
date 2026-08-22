@@ -160,7 +160,7 @@ body{
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
 }
 body::before{
-  content:'';position:fixed;top:0;left:0;right:0;height:3px;
+  content:'';position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;height:3px;
   background:linear-gradient(90deg,#3a4ad8 0%,#8090f8 50%,#3a4ad8 100%);
   z-index:200;
 }
@@ -168,7 +168,7 @@ body::before{
 /* ---------- Topbar ---------- */
 .topbar{background:rgba(255,255,255,.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--n2);position:sticky;top:3px;z-index:30}
 .topbar-in{max-width:1180px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
-  padding:12px max(24px,env(safe-area-inset-right,0px)) 12px max(24px,env(safe-area-inset-left,0px))}
+  padding:max(12px,env(safe-area-inset-top,0px)) max(24px,env(safe-area-inset-right,0px)) 12px max(24px,env(safe-area-inset-left,0px))}
 .brand{display:flex;align-items:center;gap:12px}
 /* El logotipo cargado es lo que dispara el selector de archivos; antes el onclick vivía
    en .brand y en la portada del Fold 6 eso era el renglón entero. */
@@ -285,6 +285,13 @@ body.precios-ocultos .precios-nota{display:flex}
    la página entera se desplaza a lo ancho en el teléfono. */
 .wrap>main,.wrap>aside{min-width:0}
 @media(max-width:920px){.wrap{grid-template-columns:1fr}}
+/* En la banda del Fold abierto la columna del dinero se estiraba a 725-852 px y dejaba 610 px
+   entre «Subtotal» y su cifra. Vuelve a sus 385 px de siempre, pegada a la derecha. El
+   width:100% es lo que hace que el max-width sea el ancho y no una cota sobre el contenido;
+   el «screen and» deja el papel fuera, que imprime a una columna a todo lo ancho. */
+@media screen and (min-width:561px) and (max-width:920px){
+  .wrap>aside{width:100%;max-width:385px;margin-left:auto}
+}
 
 /* ----- Las dos pantallas -----
    La pantalla 1 es una columna sola y estrecha: son cinco campos, y estirarlos a 1 180 px
@@ -323,7 +330,6 @@ body.precios-ocultos .precios-nota{display:flex}
   .pasos{gap:2px}
   .paso-tab{padding:8px 10px 8px 8px;gap:7px}
   .paso-tab .tx{font-size:12.5px}
-  .paso-tab .tx small{max-width:14ch}
 }
 /* En papel no hay pantallas: sale la cotización entera, las dos partes, sin la barra. */
 @media print{
@@ -336,7 +342,7 @@ body.precios-ocultos .precios-nota{display:flex}
    que no repite un selector base: entre dos reglas con la misma especificidad gana la
    última, y las de ese bloque son las últimas. */
 @media(max-width:560px){
-  .topbar-in{padding:8px 12px;gap:8px}
+  .topbar-in{padding:max(8px,env(safe-area-inset-top,0px)) 12px 8px;gap:8px}
   .brand .t{font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .brand .t small{display:none}
   .logoslot{padding:5px 9px}
@@ -1163,13 +1169,21 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   .vt-dl button{min-height:46px}
 }
 /* Estos tres viven en la tarjeta de partidas, no en el modal: siguen en 760 px */
-@media(max-width:760px){
-  /* Los tres botones de entrada no caben en un renglón en pantallas chicas */
+@media(max-width:399px){
+  /* Debajo de 400 px los tres botones de entrada no caben en un renglón */
   .scaler-ai-row{flex-wrap:wrap}
   .scaler-ai-row .ai-btn{flex:1 1 100%}
   .btn-scaler-open,.btn-vector-open{flex:1 1 0;min-height:46px}
 }
-@media(max-width:1000px) and (max-height:760px) and (orientation:landscape){
+/* De 400 px para arriba los tres SÍ caben en un renglón: medido a 430 px, 157.8 + 89.9 +
+   109.1 = 356.8 de 382 disponibles, con 25 px de holgura y sin un solo recorte. Eran dos
+   renglones y 97.5 px de alto por creer que no cabían. Debajo de 400 px sigue envuelta. */
+@media(min-width:400px) and (max-width:760px){
+  .scaler-ai-row{flex-wrap:nowrap}
+  .scaler-ai-row .ai-btn{flex:1 1 auto;width:auto;min-width:0}
+  .btn-scaler-open,.btn-vector-open{flex:0 0 auto}
+}
+@media(max-width:1000px) and (max-height:820px) and (orientation:landscape){
   .vt-modal-bg.show~.toast{bottom:16px}
 }
 @media(max-width:1000px){
@@ -1242,7 +1256,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   .scaler-modal-bg.show+.toast{bottom:calc(16px + var(--sc-acc-h,150px))}
 }
 /* Celular acostado: el panel a un lado, si no el lienzo se queda sin alto */
-@media(max-width:1000px) and (max-height:760px) and (orientation:landscape){
+@media(max-width:1000px) and (max-height:820px) and (orientation:landscape){
   .sp-main{flex-direction:row}
   .sp-canvas-area{min-height:0}
   .sp-side{width:46%;max-width:340px;height:100%;max-height:none;border-top:none;border-left:1px solid var(--line)}
@@ -1520,7 +1534,6 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
      y siguen siendo cómodos de tocar. En las rejillas de tres, el tercer campo
      —cuando existe, como la tarifa de la caja de luz— se pasa completo abajo. */
   .grid2,.grid3{grid-template-columns:1fr 1fr;gap:9px}
-  .grid3>.fld:nth-child(3){grid-column:1/-1}
 
   /* ----- Tipo de partida: los cinco de un vistazo -----
      En rejilla de tres se iban dos renglones y 102 px por partida, con «Recorte
@@ -1995,7 +2008,11 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
    fija (.mbar-amt, --t5/650): hay uno por partida contra uno solo del total. Se queda un
    escalón abajo. Va aquí y no en el bloque de 560 px, que está antes en la hoja y con la
    misma especificidad perdería —el mismo tropiezo que documenta el comentario de 1364. */
-@media(max-width:560px){ .pline .lt{font-size:var(--t4);font-weight:650} }
+/* En toda la banda que lleva barra fija, no solo en el teléfono: a 773 y 900 px el importe
+   de cada partida se pintaba 20px/700 contra los 20px/650 del total de la barra, y hay uno
+   por partida contra uno solo del total. El «screen and» deja el papel fuera: ahí no hay
+   barra fija que justifique la regla. */
+@media screen and (max-width:920px){ .pline .lt{font-size:var(--t4);font-weight:650} }
 
 /* La cara plegada se levanta al pasar por encima: dice que se puede abrir. */
 .partida.folded .psum:hover .pdsc{color:var(--a-fuerte)}
@@ -2013,6 +2030,63 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
   #prog-bar::after,.cand-partidas{animation:none!important}
   .btn:hover,.chip:hover,.paso-tab:hover,.ai-btn:hover{transform:none!important}
+}
+
+/* ===================== Cierre de la hoja: lo que tiene que ganar por orden =====================
+   Va aquí —después de la capa de barro y del pase visual, y ANTES del @media print— porque
+   entre dos reglas con la misma especificidad gana la última. Es el mismo tropiezo que ya
+   documentan los comentarios de más arriba, y les había pasado a estas: medido en el
+   navegador, ninguna de las reglas de este bloque llegaba a aplicarse desde donde estaba. */
+@media(max-width:560px){
+  /* La capa de barro le devolvía al teléfono el relleno de escritorio: .partida computaba
+     24px/16px y no los 11/10 que pedía el bloque del teléfono, 209 líneas más arriba. Son
+     303 px de página en el iPhone y 521 px en la portada del Fold —una partida plegada más
+     a la vista—, y es lo que partía en dos renglones el encabezado de la partida plegada a
+     344 px. El :first-of-type hace falta porque la regla de la capa lleva un id. */
+  .partida{padding:11px 11px 12px;margin-bottom:10px}
+  #items>.partida:first-of-type{padding-top:11px}
+}
+@media(min-width:385px) and (max-width:560px){
+  /* La caja de luz es el único tipo con tercer campo de verdad —la tarifa—: mandarlo a su
+     propio renglón duplicaba el alto del bloque de medidas y en tres columnas cabe. Los
+     otros tipos llevan un .fld-relleno de tercer hijo y no entran aquí. */
+  .grid3:has(>.fld:nth-child(3):not(.fld-relleno)){grid-template-columns:repeat(3,1fr);gap:7px}
+}
+@media(max-width:385px){
+  /* Portada del Fold: con la marca sin ceder ancho, la barra del escalador y del
+     vectorizador se iba a cuatro renglones —206 px— y «← Cotizador» se caía del primero. */
+  .sp-topbar .brand{flex:1 1 0;min-width:0}
+  /* Cliente y teléfono a renglón completo: en dos columnas de 140 px el nombre se leía al
+     59 % mientras quedaban 143 px de blanco muerto justo debajo. */
+  #fld-cli,#fld-tel{grid-column:1/-1}
+}
+@media screen and (min-width:561px) and (max-width:920px){
+  /* ----- El Fold 6 abierto: 773 y 900 px -----
+     Esta banda recibía la maqueta de una columna con barra fija de teléfono pero ninguna de
+     sus medidas: se quedó con las de escritorio. Es el hueco que nombra el comentario del
+     bloque de 920 px, del que solo se habían traído tres cosas. */
+  /* Con el nombre largo el selector de tipo medía 400-414 px y empujaba los tres iconos de
+     acción a un renglón propio y vacío: 99 px de encabezado en lugar de 51. */
+  .tipo-seg .lg{display:none}
+  .tipo-seg .sm{display:inline}
+  /* El carril vacío del bloque de medidas se quedaba con un tercio del renglón: display:none
+     no le quita la columna a la rejilla. Se colapsa solo cuando no hay tercer campo real. */
+  .grid3:not(:has(>.fld:nth-child(3):not(.fld-relleno))){grid-template-columns:1fr 1fr}
+  /* El relleno de escritorio en una columna de 773 px cuesta 120 px de página. */
+  .partida{padding:16px;margin-bottom:12px}
+  #items>.partida:first-of-type{padding-top:16px}
+  /* El chip crecía sin tope y el reparto salía invertido: las dos etiquetas más cortas se
+     llevaban las dos cajas más anchas. Que cada uno mida lo que dice. */
+  /* Y cinco rangos distintos de la partida se pintaban todos a 12.5 px, así que el chip
+     elegido salía del mismo tamaño que el encabezado del grupo que lo contiene. */
+  .optgrp .chip{flex:0 1 auto;max-width:100%;font-size:11.5px}
+  .optgrp .chip small{font-size:10.5px}
+  .tipo-seg button{font-size:11.5px}
+  .hintnote{font-size:11px;line-height:1.45}
+}
+@media(max-width:1000px){
+  /* Un deslizador de 733 a 860 px de largo para elegir entre tres valores. */
+  .vt-modal-bg input[type=range]{max-width:400px}
 }
 
 /* ---------- En papel no hay barro ----------
@@ -2330,7 +2404,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
   <button class="lightbox-close" onclick="closeLightbox()" aria-label="Cerrar">×</button>
   <div id="lightboxBody"></div>
 </div>
-<div class="modal-bg" id="histmodal" onclick="if(event.target===this)cerrarHistorial()" role="dialog" aria-modal="true" aria-label="Cotizaciones autorizadas" style="align-items:flex-start;padding-top:32px">
+<div class="modal-bg" id="histmodal" onclick="if(event.target===this)cerrarHistorial()" role="dialog" aria-modal="true" aria-label="Cotizaciones autorizadas" style="align-items:flex-start;padding-top:calc(32px + env(safe-area-inset-top,0px))">
   <div class="hist-panel">
     <div class="hist-head">
       <b style="font-size:15px;font-weight:800"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg> Cotizaciones autorizadas</b>
@@ -4029,7 +4103,6 @@ function bodyFor(it){
           <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="typeItem(${it.id},'altura',+this.value)">
         </div>
         <div class="fld"><label for="n-${it.id}"># Piezas</label><input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="typeItem(${it.id},'n',+this.value)" onchange="this.value=Math.max(0,Math.round(+this.value||0))||'';typeItem(${it.id},'n',+this.value)"></div>
-        </div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
       ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las piezas" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} piezas</span></div>`:''}`;
