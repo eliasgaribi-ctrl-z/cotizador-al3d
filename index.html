@@ -160,7 +160,7 @@ body{
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
 }
 body::before{
-  content:'';position:fixed;top:0;left:0;right:0;height:3px;
+  content:'';position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;height:3px;
   background:linear-gradient(90deg,#3a4ad8 0%,#8090f8 50%,#3a4ad8 100%);
   z-index:200;
 }
@@ -168,7 +168,7 @@ body::before{
 /* ---------- Topbar ---------- */
 .topbar{background:rgba(255,255,255,.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--n2);position:sticky;top:3px;z-index:30}
 .topbar-in{max-width:1180px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
-  padding:12px max(24px,env(safe-area-inset-right,0px)) 12px max(24px,env(safe-area-inset-left,0px))}
+  padding:max(12px,env(safe-area-inset-top,0px)) max(24px,env(safe-area-inset-right,0px)) 12px max(24px,env(safe-area-inset-left,0px))}
 .brand{display:flex;align-items:center;gap:12px}
 /* El logotipo cargado es lo que dispara el selector de archivos; antes el onclick vivía
    en .brand y en la portada del Fold 6 eso era el renglón entero. */
@@ -285,6 +285,13 @@ body.precios-ocultos .precios-nota{display:flex}
    la página entera se desplaza a lo ancho en el teléfono. */
 .wrap>main,.wrap>aside{min-width:0}
 @media(max-width:920px){.wrap{grid-template-columns:1fr}}
+/* En la banda del Fold abierto la columna del dinero se estiraba a 725-852 px y dejaba 610 px
+   entre «Subtotal» y su cifra. Vuelve a sus 385 px de siempre, pegada a la derecha. El
+   width:100% es lo que hace que el max-width sea el ancho y no una cota sobre el contenido;
+   el «screen and» deja el papel fuera, que imprime a una columna a todo lo ancho. */
+@media screen and (min-width:561px) and (max-width:920px){
+  .wrap>aside{width:100%;max-width:385px;margin-left:auto}
+}
 
 /* ----- Las dos pantallas -----
    La pantalla 1 es una columna sola y estrecha: son cinco campos, y estirarlos a 1 180 px
@@ -294,7 +301,7 @@ body.precios-ocultos .precios-nota{display:flex}
 .wrap.p-cliente{grid-template-columns:minmax(0,660px);justify-content:center}
 .pasos{grid-column:1/-1;display:flex;align-items:stretch;gap:4px;margin-bottom:2px}
 .paso-tab{display:flex;align-items:center;gap:9px;padding:9px 15px 9px 11px;border:1px solid transparent;border-radius:var(--r-sm);
-  background:none;cursor:pointer;text-align:left;color:var(--muted);font-family:inherit;transition:.15s;min-width:0}
+  background:rgba(255,255,255,.7);cursor:pointer;text-align:left;color:var(--muted);font-family:inherit;transition:.15s;min-width:0}
 .paso-tab .tx{display:flex;flex-direction:column;min-width:0;font-size:var(--t2);font-weight:550;line-height:1.25}
 /* El nombre del cliente debajo del paso 1: es el único dato de la pantalla que se acaba de
    dejar atrás y que hace falta no perder de vista mientras se captura la otra. Nunca
@@ -302,7 +309,7 @@ body.precios-ocultos .precios-nota{display:flex}
 .paso-tab .tx small{font-size:var(--t1);font-weight:400;color:var(--n6);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:22ch}
 .paso-tab .n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex-shrink:0;border-radius:7px;
   background:var(--n2);color:var(--n6);font-size:var(--t2);font-weight:600}
-.paso-tab:hover{background:rgba(255,255,255,.7);border-color:var(--line)}
+.paso-tab:hover{background:#fff;border-color:var(--line)}
 .paso-tab.on{background:#fff;border-color:var(--n3);color:var(--n8)}
 .paso-tab.on .n{background:var(--a);color:#fff}
 .paso-tab.hecho .n{background:var(--ok-bg);color:var(--ok)}
@@ -323,7 +330,6 @@ body.precios-ocultos .precios-nota{display:flex}
   .pasos{gap:2px}
   .paso-tab{padding:8px 10px 8px 8px;gap:7px}
   .paso-tab .tx{font-size:12.5px}
-  .paso-tab .tx small{max-width:14ch}
 }
 /* En papel no hay pantallas: sale la cotización entera, las dos partes, sin la barra. */
 @media print{
@@ -336,7 +342,7 @@ body.precios-ocultos .precios-nota{display:flex}
    que no repite un selector base: entre dos reglas con la misma especificidad gana la
    última, y las de ese bloque son las últimas. */
 @media(max-width:560px){
-  .topbar-in{padding:8px 12px;gap:8px}
+  .topbar-in{padding:max(8px,env(safe-area-inset-top,0px)) 12px 8px;gap:8px}
   .brand .t{font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .brand .t small{display:none}
   .logoslot{padding:5px 9px}
@@ -346,7 +352,7 @@ body.precios-ocultos .precios-nota{display:flex}
    Hasta 920 px, que es donde la página ya es de una sola columna y aparece la barra
    inferior: entre 761 y 920 px la maqueta era de teléfono pero las medidas seguían
    siendo de escritorio, y ahí cae la pantalla interna del Fold 6 (832 px). */
-html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:calc(var(--top-fijo,70px) + 12px)}
 @media(max-width:920px){
   /* iOS/Safari hace zoom al enfocar un campo con letra <16px; forzamos 16px solo en móvil */
   input,select,textarea,.rv-field input,.rv-field select,.autoctr input{font-size:16px}
@@ -428,6 +434,9 @@ button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-
      con 96 px fijos, la barra —65 px más 34 px de franja— tapaba el final de la
      página y el último renglón quedaba inalcanzable. */
   .wrap{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+  /* Sin esto, al llegar con Tab el control enfocado quedaba debajo de la barra fija: 13 de
+     58 paradas del recorrido, enteras y sin saber dónde estaba el cursor. */
+  html{scroll-padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
 }
 .mbar-tot{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px;
   border:none;background:none;padding:2px 0;font-family:inherit;cursor:pointer;text-align:left}
@@ -448,6 +457,10 @@ button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-
 .mbar-btn:disabled{opacity:.42;box-shadow:none;cursor:not-allowed}
 .mbar-btn.ok{background:var(--ok)}
 .mbar-btn.gho{background:#fff;color:var(--n7);border-color:var(--n3)}
+
+/* Por debajo de ~325 px el texto del botón principal no cabía en un renglón y se
+   recortaba («⚡ Autorizar yo …»). 340 px es guarda holgada; el 62% de arriba no se toca. */
+@media(max-width:340px){ .mbar-btn{white-space:normal;line-height:1.15;padding:0 12px;text-align:center} }
 
 /* ---------- Botón de plegar de una tarjeta ----------
    Lo usan dos botones con destinos distintos: «Ocultar» los datos del proyecto y
@@ -541,7 +554,7 @@ textarea{resize:vertical;min-height:46px}
 .tipo-seg button.on{background:#fff;color:var(--n8);font-weight:600;box-shadow:0 1px 2px rgba(18,20,28,.07)}
 /* Cada tipo trae su nombre largo y uno corto; en el teléfono se cambia al corto para
    que los cinco quepan en un solo renglón (ver el bloque del final de la hoja). */
-.tipo-seg .sm{display:none}
+.tipo-seg .sm,.ptipo .sm{display:none}
 /* En móvil el selector de tipo se apilaba en 5 renglones y parecía una lista desplegable:
    rejilla de 3 columnas para que se vea de un golpe cuál está activo. (Va después de la
    regla base porque una media query no gana por sí sola cuando la especificidad empata.) */
@@ -641,7 +654,7 @@ textarea{resize:vertical;min-height:46px}
 .addbtn:disabled{opacity:.45;cursor:not-allowed}
 
 /* Duplicate button */
-.dup{border:none;background:none;color:#8a90a6;font-size:16px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px;margin-right:2px}
+.dup{border:none;background:none;color:#8a90a6;font-size:16px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px}
 .dup:hover{color:var(--brand);background:var(--soft-2)}
 /* Drag & drop reorder */
 .drag-handle{cursor:grab;color:#8a90a6;font-size:18px;padding:0 5px 0 0;user-select:none;line-height:1;display:inline-flex;align-items:center}
@@ -732,6 +745,11 @@ textarea{resize:vertical;min-height:46px}
 .btn{width:100%;padding:12px 16px;border-radius:var(--rr1);font-size:var(--t3);font-weight:550;border:1px solid transparent;cursor:pointer;
   transition:background .12s,border-color .12s,color .12s;display:flex;align-items:center;justify-content:center;gap:var(--e2)}
 .btn+.btn{margin-top:var(--e2)}
+/* Dos botones en un renglón: el margen de arriba los descuadra —el hermano sin margen se
+   estira al alto de la fila y el otro queda 8 px más abajo y 8 px más chico—. Apilados el
+   margen sí es lo correcto, así que el selector no se amplía más allá de estas dos filas. */
+.btn-fila{display:flex;gap:8px}
+.btn-fila .btn+.btn,.vt-dl .btn+.btn{margin-top:0}
 .btn-pri{background:var(--a);color:#fff}.btn-pri:hover{background:var(--a-fuerte)}
 .btn-ok{background:var(--ok);color:#fff}.btn-ok:hover{filter:brightness(1.08)}
 .btn-dgr{background:#fff;color:var(--mal);border-color:var(--mal-borde)}.btn-dgr:hover{background:var(--mal-bg)}
@@ -831,11 +849,11 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .key-add .key-in{flex:1;min-width:0}
 .key-btn.add{white-space:nowrap;padding:0 13px;background:var(--soft-2)}
 .key-mask{flex:1;min-width:0;font-size:12px;font-weight:700;color:var(--green);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.key-btn{border:1px solid var(--line);background:#fff;color:var(--brand);border-radius:8px;padding:4px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit}
+.key-btn{border:1px solid var(--line);background:#fff;color:var(--a-fuerte);border-radius:8px;padding:4px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit}
 .key-btn:hover{background:var(--soft-2)}
 .key-btn.del{color:var(--red)}
 .key-note{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:9px;border-top:1px dashed var(--line);padding-top:9px}
-.ai-tag{display:inline-block;font-size:9.5px;font-weight:700;color:var(--brand);background:#eef0fe;border-radius:5px;padding:1px 5px;margin-left:5px;vertical-align:middle;text-transform:none;letter-spacing:0}
+.ai-tag{display:inline-block;font-size:9.5px;font-weight:700;color:var(--a-fuerte);background:#eef0fe;border-radius:5px;padding:1px 5px;margin-left:5px;vertical-align:middle;text-transform:none;letter-spacing:0}
 /* Origen del análisis cuando no es un archivo suelto sino lo que se acaba de medir */
 .ai-src{display:flex;gap:11px;align-items:flex-start;background:var(--green-bg);border:1.5px solid rgba(21,160,106,.28);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:13px}
 /* contain, no cover: de un plano o un boceto hay que reconocer el conjunto, y
@@ -871,19 +889,19 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .btn-hist:hover{background:var(--soft-2);border-color:var(--brand)}
 .hist-panel{background:#fff;border-radius:20px;max-width:720px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;
   max-height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
-.hist-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),#fff);border-radius:20px 20px 0 0;flex-shrink:0}
+.hist-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),#fff);border-radius:var(--rr4) var(--rr4) 0 0;flex-shrink:0}
 /* Cerrar el historial. El tamaño venía de un style= en línea de 32×32 px que ninguna
    hoja podía subir; como clase sí la alcanza el bloque de puntero grueso del final. */
 .hist-close{border:none;background:none;font-size:19px;color:var(--muted);cursor:pointer;
-  line-height:1;width:36px;height:36px;border-radius:8px;display:flex;align-items:center;
+  line-height:1;width:36px;height:36px;border-radius:var(--rr1);display:flex;align-items:center;
   justify-content:center;flex:0 0 auto;padding:0}
 .hist-close:active{background:var(--soft-2)}
 .hist-search-bar{display:flex;align-items:center;gap:10px;padding:11px 20px;border-bottom:1px solid var(--line);flex-shrink:0;background:#fff}
 .hist-search-bar input{flex:1;min-width:0}
-.hist-count{font-size:11px;font-weight:800;color:var(--brand);background:var(--soft-2);border:1px solid rgba(58,74,216,.12);padding:5px 12px;border-radius:20px;white-space:nowrap}
+.hist-count{font-size:11px;font-weight:800;color:var(--a-fuerte);background:var(--soft-2);border:1px solid rgba(58,74,216,.12);padding:5px 12px;border-radius:20px;white-space:nowrap}
 .hist-body{overflow-y:auto;flex:1}
 .hentry-acts{display:flex;flex-direction:column;gap:5px;align-self:flex-start;flex-shrink:0}
-.hentry-open{border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:8px;cursor:pointer;white-space:nowrap;transition:.12s}
+.hentry-open{border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap;transition:.12s}
 .hentry-open:hover{border-color:var(--brand);background:var(--soft-2)}
 .hist-empty{text-align:center;color:var(--muted);font-size:13px;padding:50px 20px}
 .hentry{border-bottom:1px solid var(--line);padding:18px 20px}
@@ -896,7 +914,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .hentry-name{font-size:14px;font-weight:800;color:var(--ink);margin:3px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hentry-sub{font-size:11.5px;color:var(--muted);line-height:1.6}
 .hentry-auth{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;background:var(--green-bg);color:var(--green);padding:3px 11px;border-radius:20px;margin-top:6px}
-.hentry-del{border:none;background:none;color:#8a90a6;cursor:pointer;font-size:16px;padding:5px 7px;border-radius:7px;transition:.12s;align-self:flex-start;flex-shrink:0}
+.hentry-del{border:none;background:none;color:#8a90a6;cursor:pointer;font-size:16px;padding:5px 7px;border-radius:9px;transition:.12s;align-self:flex-start;flex-shrink:0}
 .hentry-del:hover{color:var(--red);background:var(--red-bg)}
 .htable{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:10px}
 .htable td{padding:5px 7px;border-bottom:1px solid var(--line);color:#4b5269;vertical-align:top}
@@ -1151,13 +1169,21 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   .vt-dl button{min-height:46px}
 }
 /* Estos tres viven en la tarjeta de partidas, no en el modal: siguen en 760 px */
-@media(max-width:760px){
-  /* Los tres botones de entrada no caben en un renglón en pantallas chicas */
+@media(max-width:399px){
+  /* Debajo de 400 px los tres botones de entrada no caben en un renglón */
   .scaler-ai-row{flex-wrap:wrap}
   .scaler-ai-row .ai-btn{flex:1 1 100%}
   .btn-scaler-open,.btn-vector-open{flex:1 1 0;min-height:46px}
 }
-@media(max-width:1000px) and (max-height:760px) and (orientation:landscape){
+/* De 400 px para arriba los tres SÍ caben en un renglón: medido a 430 px, 157.8 + 89.9 +
+   109.1 = 356.8 de 382 disponibles, con 25 px de holgura y sin un solo recorte. Eran dos
+   renglones y 97.5 px de alto por creer que no cabían. Debajo de 400 px sigue envuelta. */
+@media(min-width:400px) and (max-width:760px){
+  .scaler-ai-row{flex-wrap:nowrap}
+  .scaler-ai-row .ai-btn{flex:1 1 auto;width:auto;min-width:0}
+  .btn-scaler-open,.btn-vector-open{flex:0 0 auto}
+}
+@media(max-width:1000px) and (max-height:820px) and (orientation:landscape){
   .vt-modal-bg.show~.toast{bottom:16px}
 }
 @media(max-width:1000px){
@@ -1230,7 +1256,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   .scaler-modal-bg.show+.toast{bottom:calc(16px + var(--sc-acc-h,150px))}
 }
 /* Celular acostado: el panel a un lado, si no el lienzo se queda sin alto */
-@media(max-width:1000px) and (max-height:760px) and (orientation:landscape){
+@media(max-width:1000px) and (max-height:820px) and (orientation:landscape){
   .sp-main{flex-direction:row}
   .sp-canvas-area{min-height:0}
   .sp-side{width:46%;max-width:340px;height:100%;max-height:none;border-top:none;border-left:1px solid var(--line)}
@@ -1352,8 +1378,8 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .hist-ayuda b{color:var(--ink);font-weight:700}
 
 /* ===================== Respaldo, restauración y CSV ===================== */
-.hist-foot{display:flex;gap:8px;padding:11px 20px 13px;border-top:1px solid var(--line);flex-shrink:0;background:var(--soft);flex-wrap:wrap;border-radius:0 0 20px 20px}
-.hist-foot button{flex:1;min-width:104px;border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:12px;font-weight:700;padding:9px 8px;border-radius:9px;cursor:pointer;transition:.14s;white-space:nowrap}
+.hist-foot{display:flex;gap:8px;padding:11px 20px 13px;border-top:1px solid var(--line);flex-shrink:0;background:var(--soft);flex-wrap:wrap;border-radius:0 0 var(--rr4) var(--rr4)}
+.hist-foot button{flex:1;min-width:104px;border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:12px;font-weight:700;padding:9px 8px;border-radius:var(--rr1);cursor:pointer;transition:.14s;white-space:nowrap}
 .hist-foot button:hover{border-color:var(--brand);background:var(--soft-2)}
 .hist-foot .foot-nota{flex-basis:100%;font-size:10.5px;color:var(--muted);line-height:1.45;text-align:center;margin-top:2px}
 
@@ -1418,7 +1444,7 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .partida:not(.folded) .psum{display:none}
 .partida.folded .ptipo{display:inline-flex;align-items:center;font-size:11px;font-weight:800;
   color:var(--brand-strong);background:var(--soft-2);border:1px solid rgba(58,74,216,.16);
-  border-radius:8px;padding:4px 9px;white-space:nowrap}
+  padding:4px 9px;white-space:nowrap}
 #fold-all-btn{max-width:none;display:inline-flex}
 #fold-all-btn.oculto{display:none}
 #fold-all-btn[aria-expanded="false"] .chev{transform:rotate(-90deg)}
@@ -1498,12 +1524,16 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   .hentry-acts{order:9;flex-basis:100%;flex-direction:row;align-items:stretch;gap:6px}
   .hentry-acts .hentry-open{flex:1;padding:9px 6px;text-align:center}
   .hentry-del{align-self:stretch;padding:5px 10px}
+  /* El contenido del panel tenía tres bordes izquierdos distintos: 20 px la cabecera, la
+     ayuda y la búsqueda; 13 px la entrada y el pie. En el teléfono se veía el escalón. */
+  .hist-head{padding:16px 13px}
+  .hist-search-bar{padding:11px 13px}
+  .hist-ayuda{padding:0 13px 12px}
 
   /* Dos campos cortos por renglón ocupan la mitad de alto que dos renglones enteros
      y siguen siendo cómodos de tocar. En las rejillas de tres, el tercer campo
      —cuando existe, como la tarifa de la caja de luz— se pasa completo abajo. */
   .grid2,.grid3{grid-template-columns:1fr 1fr;gap:9px}
-  .grid3>.fld:nth-child(3){grid-column:1/-1}
 
   /* ----- Tipo de partida: los cinco de un vistazo -----
      En rejilla de tres se iban dos renglones y 102 px por partida, con «Recorte
@@ -1514,13 +1544,24 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   .tipo-seg .lg{display:none}
   .tipo-seg .sm{display:inline}
 
+  /* El encabezado de la partida plegada se partía en dos renglones en TODO teléfono de
+     320 a 390 px —y hasta 414 con «Recorte acrílico»—: 44 px pasaban a 94 y cada partida
+     plegada crecía 50 px. Se recorta el marco (huecos y relleno del chip) y la ficha usa
+     el nombre corto, igual que el selector de tipo. Lo tocable no se toca. */
+  .partida-top{gap:6px}
+  .pnum{gap:4px}
+  .ptop-actions{gap:2px}
+  .partida.folded .ptipo{padding:4px 7px}
+  .ptipo .lg{display:none}
+  .ptipo .sm{display:inline}
+
   /* ----- Opciones en dos columnas -----
      A lo ancho completo cada material se comía un renglón entero: los cinco de
      letras 3D medían media pantalla. En dos columnas el nombre largo se acomoda en
      dos líneas dentro del mismo chip y el bloque baja de 270 px a 155 px. El último
      chip de un renglón impar crece para no dejar el hueco a la vista. */
   .optgrp .chips{gap:6px}
-  .optgrp .chip{flex:1 1 calc(50% - 3px);min-height:42px;padding:9px 8px;font-size:11.5px;line-height:1.25;border-radius:13px}
+  .optgrp .chip{flex:1 1 calc(50% - 3px);min-height:42px;padding:9px 8px;font-size:11.5px;line-height:1.25}
   .optgrp .chip small{font-size:10.5px}
 
   /* ----- Resumen y autorización ----- */
@@ -1721,6 +1762,15 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 .btn-gho:hover,.btn-dgr:hover,.ai-btn:hover,.btn-scaler-open:hover,.btn-vector-open:hover,.precios-ver:hover,.btn-maps:hover,.card-fold:hover,.btn-hist:hover,.mbar-btn.gho:hover{
   transform:translateY(-2px);box-shadow:var(--clay-alto);
 }
+/* WhatsApp y Registrar venta: barro claro con su propia tinta, para que se encuentren sin
+   pelearse con el único relleno de la pantalla. Van DESPUÉS de la lista de arriba porque
+   esa declara border:1px solid rgba(255,255,255,.9) con la misma especificidad y ganaría. */
+.btn-wa{background:linear-gradient(168deg,#fff,#eafaf6);border:1px solid rgba(18,140,126,.35);box-shadow:var(--clay)}
+.btn-wa:hover{transform:translateY(-2px);box-shadow:var(--clay-alto);background:linear-gradient(168deg,#fff,#e2f7f2)}
+.btn-vta{background:linear-gradient(168deg,#fff,#eafaf3);border:1px solid rgba(10,125,74,.32);color:#0a7d4a;box-shadow:var(--clay)}
+.btn-vta:hover{transform:translateY(-2px);box-shadow:var(--clay-alto)}
+/* .btn-dgr entra en la lista de barro de arriba y ahí perdía su borde rojo. */
+.btn-dgr{border-color:var(--mal-borde)}
 /* El pellizco. Es lo que convierte una superficie con sombra en barro. */
 .btn:active:not(:disabled),.mbar-btn:active:not(:disabled),.ai-btn:active,.btn-scaler-open:active,
 .btn-vector-open:active,.addbtn:active,.precios-ver:active,.btn-maps:active,.card-fold:active,.btn-hist:active{
@@ -1751,13 +1801,18 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 }
 .chip:hover:not(.on):not([aria-disabled]){transform:translateY(-2px);box-shadow:var(--clay-alto);background:linear-gradient(168deg,#fff,var(--a-suave))}
 .chip:active:not([aria-disabled]){transform:translateY(1px) scale(.97);box-shadow:var(--clay-in)}
+/* El chip elegido va hundido y en tinta, no relleno de marca: con el degradado, la sombra
+   teñida y el rebote quedaba pintado EXACTAMENTE igual que el botón principal —mismo
+   linear-gradient, mismo box-shadow, mismo blanco—, y una partida recién agregada nace ya
+   con dos encendidos («Fría 6500K» y «Recta»), así que lo más ruidoso de la pantalla eran
+   dos valores por omisión en una partida sin material, sin altura y sin letras.
+   Es lo que el comentario del chip de más arriba decidió y midió; esta capa lo deshacía. */
 .chip.on{
-  background:var(--brand-grd);color:#fff;border-color:rgba(255,255,255,.3);
-  box-shadow:var(--clay-a);text-shadow:0 1px 2px rgba(20,22,43,.2);
-  animation:barro-pop var(--mv);
+  background:var(--a-suave);color:var(--a-fuerte);border-color:var(--a-borde);
+  box-shadow:var(--clay-in);font-weight:600;
 }
-.chip.on small{color:rgba(255,255,255,.86);opacity:1}
-.chip.on .ck{color:#fff}
+.chip.on small{color:var(--a-fuerte);opacity:.75}
+.chip.on .ck{color:var(--a)}
 @keyframes barro-pop{
   0%{transform:scale(.9)}
   45%{transform:scale(1.055)}
@@ -1799,7 +1854,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 .switch:active .tg::after{transform:scale(.9)}
 
 /* ---------- Fichas, insignias y avisos ---------- */
-.ptok,.folio,.badge{border-radius:999px;box-shadow:var(--clay-in);border:1px solid rgba(255,255,255,.8)}
+.ptok,.ptipo,.folio,.badge{border-radius:999px;box-shadow:var(--clay-in);border:1px solid rgba(255,255,255,.8)}
 .ptok{background:linear-gradient(168deg,#fff,var(--n1))}
 .ptok.falta{background:linear-gradient(168deg,#fff8ec,var(--av-bg))}
 .badge.pendiente{background:linear-gradient(168deg,#fff8ec,var(--av-bg))}
@@ -1871,7 +1926,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 .prog-track{border-radius:999px;box-shadow:var(--clay-in);background:var(--n2)}
 
 /* ---------- Modales ---------- */
-.modal,.rv-modal,.sc-modal,.vt-modal,.hist-modal,.lightbox-body{
+.modal,.rv-modal,.sc-modal,.vt-modal,.hist-panel,.lightbox-body{
   border-radius:var(--rr4);
   box-shadow:inset 0 3px 8px rgba(255,255,255,.85),0 32px 70px -12px rgba(20,22,43,.42);
   animation:modal-entra var(--mv);
@@ -1949,6 +2004,15 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 
 /* Los importes de cada partida, con el peso que les toca. */
 .pline .lt{font-size:var(--t5);font-weight:700;letter-spacing:-.4px;color:var(--n8)}
+/* En el teléfono el importe de una partida no puede pesar más que el total de la barra
+   fija (.mbar-amt, --t5/650): hay uno por partida contra uno solo del total. Se queda un
+   escalón abajo. Va aquí y no en el bloque de 560 px, que está antes en la hoja y con la
+   misma especificidad perdería —el mismo tropiezo que documenta el comentario de 1364. */
+/* En toda la banda que lleva barra fija, no solo en el teléfono: a 773 y 900 px el importe
+   de cada partida se pintaba 20px/700 contra los 20px/650 del total de la barra, y hay uno
+   por partida contra uno solo del total. El «screen and» deja el papel fuera: ahí no hay
+   barra fija que justifique la regla. */
+@media screen and (max-width:920px){ .pline .lt{font-size:var(--t4);font-weight:650} }
 
 /* La cara plegada se levanta al pasar por encima: dice que se puede abrir. */
 .partida.folded .psum:hover .pdsc{color:var(--a-fuerte)}
@@ -1966,6 +2030,63 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
   #prog-bar::after,.cand-partidas{animation:none!important}
   .btn:hover,.chip:hover,.paso-tab:hover,.ai-btn:hover{transform:none!important}
+}
+
+/* ===================== Cierre de la hoja: lo que tiene que ganar por orden =====================
+   Va aquí —después de la capa de barro y del pase visual, y ANTES del @media print— porque
+   entre dos reglas con la misma especificidad gana la última. Es el mismo tropiezo que ya
+   documentan los comentarios de más arriba, y les había pasado a estas: medido en el
+   navegador, ninguna de las reglas de este bloque llegaba a aplicarse desde donde estaba. */
+@media(max-width:560px){
+  /* La capa de barro le devolvía al teléfono el relleno de escritorio: .partida computaba
+     24px/16px y no los 11/10 que pedía el bloque del teléfono, 209 líneas más arriba. Son
+     303 px de página en el iPhone y 521 px en la portada del Fold —una partida plegada más
+     a la vista—, y es lo que partía en dos renglones el encabezado de la partida plegada a
+     344 px. El :first-of-type hace falta porque la regla de la capa lleva un id. */
+  .partida{padding:11px 11px 12px;margin-bottom:10px}
+  #items>.partida:first-of-type{padding-top:11px}
+}
+@media(min-width:385px) and (max-width:560px){
+  /* La caja de luz es el único tipo con tercer campo de verdad —la tarifa—: mandarlo a su
+     propio renglón duplicaba el alto del bloque de medidas y en tres columnas cabe. Los
+     otros tipos llevan un .fld-relleno de tercer hijo y no entran aquí. */
+  .grid3:has(>.fld:nth-child(3):not(.fld-relleno)){grid-template-columns:repeat(3,1fr);gap:7px}
+}
+@media(max-width:385px){
+  /* Portada del Fold: con la marca sin ceder ancho, la barra del escalador y del
+     vectorizador se iba a cuatro renglones —206 px— y «← Cotizador» se caía del primero. */
+  .sp-topbar .brand{flex:1 1 0;min-width:0}
+  /* Cliente y teléfono a renglón completo: en dos columnas de 140 px el nombre se leía al
+     59 % mientras quedaban 143 px de blanco muerto justo debajo. */
+  #fld-cli,#fld-tel{grid-column:1/-1}
+}
+@media screen and (min-width:561px) and (max-width:920px){
+  /* ----- El Fold 6 abierto: 773 y 900 px -----
+     Esta banda recibía la maqueta de una columna con barra fija de teléfono pero ninguna de
+     sus medidas: se quedó con las de escritorio. Es el hueco que nombra el comentario del
+     bloque de 920 px, del que solo se habían traído tres cosas. */
+  /* Con el nombre largo el selector de tipo medía 400-414 px y empujaba los tres iconos de
+     acción a un renglón propio y vacío: 99 px de encabezado en lugar de 51. */
+  .tipo-seg .lg{display:none}
+  .tipo-seg .sm{display:inline}
+  /* El carril vacío del bloque de medidas se quedaba con un tercio del renglón: display:none
+     no le quita la columna a la rejilla. Se colapsa solo cuando no hay tercer campo real. */
+  .grid3:not(:has(>.fld:nth-child(3):not(.fld-relleno))){grid-template-columns:1fr 1fr}
+  /* El relleno de escritorio en una columna de 773 px cuesta 120 px de página. */
+  .partida{padding:16px;margin-bottom:12px}
+  #items>.partida:first-of-type{padding-top:16px}
+  /* El chip crecía sin tope y el reparto salía invertido: las dos etiquetas más cortas se
+     llevaban las dos cajas más anchas. Que cada uno mida lo que dice. */
+  /* Y cinco rangos distintos de la partida se pintaban todos a 12.5 px, así que el chip
+     elegido salía del mismo tamaño que el encabezado del grupo que lo contiene. */
+  .optgrp .chip{flex:0 1 auto;max-width:100%;font-size:11.5px}
+  .optgrp .chip small{font-size:10.5px}
+  .tipo-seg button{font-size:11.5px}
+  .hintnote{font-size:11px;line-height:1.45}
+}
+@media(max-width:1000px){
+  /* Un deslizador de 733 a 860 px de largo para elegir entre tres valores. */
+  .vt-modal-bg input[type=range]{max-width:400px}
 }
 
 /* ---------- En papel no hay barro ----------
@@ -2090,7 +2211,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
         </div>
         <div class="fld">
           <label for="f-dir-raw">Dirección como la compartió el/la cliente</label>
-          <textarea id="f-dir-raw" autocomplete="off" placeholder="Como te la mandaron — «Urban Center en López Mateos Sur»" rows="2" oninput="updDirRaw(this.value)"></textarea>
+          <textarea id="f-dir-raw" autocomplete="off" placeholder="Como te la mandaron — «Urban Center en López Mateos Sur»" rows="4" oninput="updDirRaw(this.value)"></textarea>
           <div class="dir-raw-actions" id="dir-raw-actions" style="display:none">
             <button class="btn-maps" onclick="abrirDirRaw()"><svg class="svgi" aria-hidden="true"><use href="#i-pin"/></svg> Abrir en Maps</button>
             <button class="btn-maps copy" onclick="copiarLinkDirRaw()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar link</button>
@@ -2103,6 +2224,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
             <input id="f-maps" autocomplete="off" placeholder="Pega aquí el link de Google Maps" oninput="updMaps(this.value)" style="flex:1">
             <button class="btn btn-gho" id="mapsbtn" onclick="abrirMaps()" disabled style="width:auto;padding:0 15px;white-space:nowrap"><svg class="svgi" aria-hidden="true"><use href="#i-pin"/></svg> Abrir</button>
           </div>
+          <div class="hintnote" id="maps-hint" style="margin-top:7px;display:none">Pega el link completo, empezando con <b>https://</b> — o escribe la dirección en el campo de arriba y usa «Abrir en Maps».</div>
         </div>
         <details class="ai-cfg" id="pdf-extra-box" style="margin-bottom:0">
           <summary>Datos que salen en el PDF (opcional)</summary>
@@ -2209,7 +2331,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
       </div>
       <!-- El botón no es un adorno: espiar era «mantener tocado», o sea imposible sin dedo ni
            ratón, y quien navega con teclado no tenía manera de leer un solo importe. -->
-      <div class="precios-nota"><svg class="svgi" aria-hidden="true"><use href="#i-ojo"/></svg><span>Mantén tocado para ver un importe</span>
+      <div class="precios-nota"><svg class="svgi" aria-hidden="true"><use href="#i-ojo"/></svg><span id="precios-nota-txt">Mantén tocado para ver un importe</span>
         <button type="button" class="precios-ver" id="precios-ver" aria-pressed="false" onclick="togglePreciosALaVista()">Ver precios</button></div>
       <div class="auth-adj" id="s-auth-row" style="display:none">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
@@ -2282,7 +2404,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
   <button class="lightbox-close" onclick="closeLightbox()" aria-label="Cerrar">×</button>
   <div id="lightboxBody"></div>
 </div>
-<div class="modal-bg" id="histmodal" onclick="if(event.target===this)cerrarHistorial()" role="dialog" aria-modal="true" aria-label="Cotizaciones autorizadas" style="align-items:flex-start;padding-top:32px">
+<div class="modal-bg" id="histmodal" onclick="if(event.target===this)cerrarHistorial()" role="dialog" aria-modal="true" aria-label="Cotizaciones autorizadas" style="align-items:flex-start;padding-top:calc(32px + env(safe-area-inset-top,0px))">
   <div class="hist-panel">
     <div class="hist-head">
       <b style="font-size:15px;font-weight:800"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg> Cotizaciones autorizadas</b>
@@ -2361,7 +2483,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
       <div class="sp-overlay" id="vt-overlay">
         <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(106,59,216,.45))"><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg></div>
         <div style="font-size:16px;font-weight:700;color:rgba(255,255,255,.82)">Carga el logotipo del cliente</div>
-        <div style="font-size:12px;color:rgba(255,255,255,.4);letter-spacing:.4px">JPG · PNG · PDF — lo convierte en trazo vectorial para cortar</div>
+        <div style="font-size:12px;color:rgba(255,255,255,.55);letter-spacing:.4px">JPG · PNG · PDF — lo convierte en trazo vectorial para cortar</div>
         <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(58,74,216,.4)" onclick="$('vt-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
       </div>
       <div class="vt-prog" id="vt-prog">
@@ -2396,11 +2518,11 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
             <input type="range" id="vt-colores" min="2" max="24" step="1" value="6" oninput="vtOpt('colores',+this.value)">
           </div>
           <div class="vt-row"><label for="vt-detalle">Detalle</label><span class="vt-val" id="vt-detalle-v">Medio</span></div>
-          <input type="range" id="vt-detalle" min="0" max="2" step="1" value="1" oninput="vtOpt('detalle',+this.value)">
+          <input type="range" id="vt-detalle" min="0" max="2" step="1" value="1" aria-valuetext="Medio" oninput="vtOpt('detalle',+this.value)">
           <div class="vt-row" style="margin-top:13px"><label for="vt-ruido">Quitar motas menores a</label><span class="vt-val" id="vt-ruido-v">4 px</span></div>
-          <input type="range" id="vt-ruido" min="0" max="40" step="1" value="4" oninput="vtOpt('despeckle',+this.value)">
+          <input type="range" id="vt-ruido" min="0" max="40" step="1" value="4" aria-valuetext="4 px" oninput="vtOpt('despeckle',+this.value)">
           <div class="vt-row" style="margin-top:13px"><label for="vt-esq">Esquinas vivas</label><span class="vt-val" id="vt-esq-v">Medio</span></div>
-          <input type="range" id="vt-esq" min="0" max="2" step="1" value="1" oninput="vtOpt('esquinas',+this.value)">
+          <input type="range" id="vt-esq" min="0" max="2" step="1" value="1" aria-valuetext="Medio" oninput="vtOpt('esquinas',+this.value)">
           <button type="button" class="switch" role="switch" aria-checked="true" style="margin-top:14px;font-size:12.5px" onclick="vtToggleFondo(event)"><span class="tg on" id="vt-fondo-tg" aria-hidden="true"></span> Quitar el fondo</button>
           <div class="hintnote" style="margin-top:8px">El color que más superficie ocupa se deja transparente. Es lo que hace que el SVG traiga solo el logotipo y no un rectángulo blanco encima.</div>
           <button type="button" class="switch" role="switch" aria-checked="false" style="margin-top:11px;font-size:12.5px" onclick="vtToggleInvertir(event)"><span class="tg" id="vt-inv-tg" aria-hidden="true"></span> Lo que quitó no era el fondo — usar el otro</button>
@@ -2507,7 +2629,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
       <div class="sp-overlay" id="sp-overlay">
         <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(58,74,216,.4))"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg></div>
         <div style="font-size:16px;font-weight:700;color:rgba(255,255,255,.82)">Carga una imagen para medir</div>
-        <div style="font-size:12px;color:rgba(255,255,255,.4);letter-spacing:.4px">JPG · PNG · SVG · PDF — o usa la imagen de IA</div>
+        <div style="font-size:12px;color:rgba(255,255,255,.55);letter-spacing:.4px">JPG · PNG · SVG · PDF — o usa la imagen de IA</div>
         <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(58,74,216,.4)" onclick="$('scaler-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
       </div>
       <div class="sp-hint-bar hide" id="sp-hint-bar"></div>
@@ -2550,7 +2672,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
         <summary class="sp-sec-h"><h3>Guías</h3><span class="sp-fold-n" id="sc-guides-n"></span></summary>
         <div class="sp-sec-b">
           <p style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:11px">Marca dónde termina un diseño y empieza otro. Cada guía se mueve arrastrando su <b>pestaña del borde</b>, así el resto de la imagen queda libre para medir.</p>
-          <div style="display:flex;gap:8px">
+          <div class="btn-fila">
             <button class="btn btn-gho" id="sc-btn-guide-h" onclick="scAddGuide('h')" disabled style="flex:1"><svg class="svgi" aria-hidden="true"><use href="#i-horiz"/></svg> Horizontal</button>
             <button class="btn btn-gho" id="sc-btn-guide-v" onclick="scAddGuide('v')" disabled style="flex:1"><svg class="svgi" aria-hidden="true"><use href="#i-vert"/></svg> Vertical</button>
           </div>
@@ -2563,7 +2685,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
       <!-- Medidas -->
       <div style="padding:14px 20px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)">
         <h3 style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--brand);display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:3px;height:14px;background:var(--brand-grd);border-radius:2px;flex-shrink:0"></span>Medidas</h3>
-        <span style="font-size:11px;font-weight:700;background:var(--soft-2);color:var(--brand);padding:2px 10px;border-radius:20px;border:1px solid rgba(58,74,216,.12)" id="sc-mcount">0</span>
+        <span style="font-size:11px;font-weight:700;background:var(--soft-2);color:var(--a-fuerte);padding:2px 10px;border-radius:20px;border:1px solid rgba(58,74,216,.12)" id="sc-mcount">0</span>
       </div>
       <div class="sp-mlist" id="sc-medidas-list"></div>
       <div class="sp-actions">
@@ -2745,10 +2867,11 @@ function irA(el,extra=12){
 function ajustarTopbarMovil(){
   const tb=document.querySelector('.topbar'), marca=$('brandLogo');
   if(!tb||!marca) return;
-  if(!window.matchMedia('(max-width:560px)').matches){ tb.style.top=''; return; }
+  if(!window.matchMedia('(max-width:560px)').matches){ tb.style.top=''; document.documentElement.style.setProperty('--top-fijo',altoTopbarFija()+'px'); return; }
   const fila=tb.querySelector('.topbar-in');
   const hueco=parseFloat(getComputedStyle(fila).rowGap)||0;
   tb.style.top=(3-Math.round(marca.offsetHeight+hueco))+'px';
+  document.documentElement.style.setProperty('--top-fijo',altoTopbarFija()+'px');
 }
 window.addEventListener('resize',ajustarTopbarMovil);
 /* Las cotas del escalador se miden y se dibujan en el lienzo con Inter. Si la fuente
@@ -2773,7 +2896,11 @@ function aplicarBlurPrecios(){
   document.body.classList.toggle('precios-ocultos',tapar);
   if(!tapar) document.body.classList.remove('precios-a-la-vista');
   const b=$('precios-ver');
-  if(b) b.setAttribute('aria-pressed',document.body.classList.contains('precios-a-la-vista')?'true':'false');
+  /* La nota y la etiqueta del botón se resincronizan aquí: al volver a borrador se quedaba
+     un «Ocultar precios» rancio al lado de unos precios ya tapados. */
+  const vista=document.body.classList.contains('precios-a-la-vista');
+  if(b){ b.setAttribute('aria-pressed',vista?'true':'false'); b.textContent=vista?'Ocultar precios':'Ver precios'; }
+  const n=$('precios-nota-txt'); if(n) n.textContent=vista?'Los precios están a la vista':'Mantén tocado para ver un importe';
 }
 /* La misma cosa que hace el gesto de mantener tocado, pero sin depender de un dedo: se
    queda destapado hasta que se vuelve a pulsar, porque un teclado no tiene «soltar». */
@@ -2781,6 +2908,7 @@ function togglePreciosALaVista(){
   const v=document.body.classList.toggle('precios-a-la-vista');
   const b=$('precios-ver');
   if(b){ b.setAttribute('aria-pressed',v?'true':'false'); b.textContent=v?'Ocultar precios':'Ver precios'; }
+  const n=$('precios-nota-txt'); if(n) n.textContent=v?'Los precios están a la vista':'Mantén tocado para ver un importe';
   voz(v?'Precios a la vista':'Precios ocultos');
 }
 /* Espiar: se destapan mientras se mantiene tocado y se vuelven a tapar al soltar.
@@ -3370,6 +3498,12 @@ function delItem(id){
   // Su precio autorizado se va con ella: si no, queda en el mapa y vuelve a sumar
   if(Q.itemsAuth) delete Q.itemsAuth[id];
   renderItems();
+  /* Sin esto el foco se caía al <body> y el «Deshacer» del aviso quedaba a decenas de
+     tabulaciones. Va al ▾ de la partida vecina y no a su ×: dejar el cursor sobre un
+     botón destructivo justo después de borrar convierte un segundo Enter en otra pérdida. */
+  const _sig=Q.items[Math.min(idx,Q.items.length-1)];
+  const _b=_sig?document.querySelector('#p-'+_sig.id+' .pfold'):$('addbtn');
+  if(_b){ try{ _b.focus({preventScroll:true}); }catch(_){ _b.focus(); } }
   toast('Partida '+(idx+1)+' eliminada','',6000,{label:'Deshacer',fn:deshacerBorrado});
 }
 /* Deshacer un borrado queda FUERA del candado nuevo, y no es un olvido: restituir no es
@@ -3405,6 +3539,9 @@ function setItem(id,k,v){
 function typeItem(id,k,v){
   if(capturaBloqueada())return;
   const it=Q.items.find(x=>x.id===id); if(!it)return; it[k]=v;
+  /* El «N letras» de al lado es el espejo de n y solo se pintaba en el primer repintado:
+     se teclea 8 y sigue diciendo «0 letras». El span no existe con la partida bloqueada. */
+  if(k==='n'){ const c=$('acnt-'+it.id); if(c) c.textContent=(v||0)+(it.tipo==='recorte'?' piezas':' letras'); }
   if(k==='desc') it.descAi=false;
   const f=$('formula-'+id), l=$('lt-'+id);
   if(f) f.innerHTML=formulaHTML(it);
@@ -3505,12 +3642,14 @@ function autoContarLetras(id,texto){
 function _focoDeItems(){
   const a=document.activeElement;
   if(!a||!a.closest||!a.closest('#items')) return null;
-  return a.getAttribute('onclick')||null;
+  /* El ojo del PDF y los dos interruptores llevan su marca en data-foco: en los tres el
+     onclick es justo lo que cambia al pulsarlos, así que la marca no sobrevivía. */
+  return a.getAttribute('data-foco')||a.getAttribute('onclick')||null;
 }
 function _devolverFocoItems(marca){
   if(!marca) return;
   const c=$('items'); if(!c) return;
-  const el=Array.prototype.find.call(c.querySelectorAll('[onclick]'),e=>e.getAttribute('onclick')===marca);
+  const el=c.querySelector('[data-foco="'+CSS.escape(marca)+'"]')||Array.prototype.find.call(c.querySelectorAll('[onclick]'),e=>e.getAttribute('onclick')===marca);
   if(el){ try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); } }
 }
 
@@ -3568,13 +3707,13 @@ function renderItems(){
           ${!capturaBloqueada()?'<span class="drag-handle" title="Arrastra para reordenar" aria-hidden="true">'+ico('i-asa')+'</span>':''}
           <div class="n">${i+1}</div>
         </div>
-        <span class="ptipo">${TIPO_NOMBRE[it.tipo]||''}</span>
+        <span class="ptipo"><span class="lg">${TIPO_NOMBRE[it.tipo]||''}</span><span class="sm">${TIPO_CORTO[it.tipo]||''}</span></span>
         <div class="tipo-seg" role="group" aria-label="Tipo de la partida ${i+1}">
           ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button class="${it.tipo===t?'on':''}" aria-pressed="${it.tipo===t?'true':'false'}" ${_off} onclick="setTipo(${it.id},'${t}')"><span class="lg">${TIPO_NOMBRE[t]}</span><span class="sm">${TIPO_CORTO[t]}</span></button>`).join('')}
         </div>
         <div class="ptop-actions">
           ${!capturaBloqueada()?`<button class="dup" onclick="dupItem(${it.id})" title="Duplicar partida" aria-label="Duplicar partida">${ico('i-copiar')}</button>`:''}
-          <button class="pdf-vis${pdfVis?'':' off'}" onclick="setShowInPdf(${it.id},${!pdfVis})" title="${pdfVis?'Ocultar del PDF — la partida sigue sumando al total':'Mostrar en PDF'}" aria-label="${pdfVis?'Ocultar del PDF':'Mostrar en PDF'}">${ico('i-ojo')}</button>
+          <button data-foco="pdf-${it.id}" class="pdf-vis${pdfVis?'':' off'}" onclick="setShowInPdf(${it.id},${!pdfVis})" title="${pdfVis?'Ocultar del PDF — la partida sigue sumando al total':'Mostrar en PDF'}" aria-label="${pdfVis?'Ocultar del PDF':'Mostrar en PDF'}">${ico('i-ojo')}</button>
           <button class="del" ${_off} onclick="delItem(${it.id})" title="Eliminar" aria-label="Eliminar la partida ${i+1}"><span aria-hidden="true">×</span></button>
         </div>
       </div>
@@ -3930,7 +4069,7 @@ function bodyFor(it){
       ${descFld(it)}
       ${grupo(matTitulo,mat?mat.label:'',matChips,avisos)}
       ${grupo('Iluminación',it.luz?(tono?'Cálida 3000K':'Fría 6500K'):'Sin iluminación · −20%',
-        `<button type="button" class="switch" role="switch" aria-checked="${it.luz?'true':'false'}" style="margin:0 6px 0 0" ${capturaBloqueada()?'disabled':`onclick="setItem(${it.id},'luz',${!it.luz})"`}><span class="tg ${it.luz?'on':''}" aria-hidden="true"></span> Con iluminación</button>${luzChips}`)}
+        `<button type="button" class="switch" role="switch" data-foco="luz-${it.id}" aria-checked="${it.luz?'true':'false'}" style="margin:0 6px 0 0" ${capturaBloqueada()?'disabled':`onclick="setItem(${it.id},'luz',${!it.luz})"`}><span class="tg ${it.luz?'on':''}" aria-hidden="true"></span> Con iluminación</button>${luzChips}`)}
       ${grupo('Complejidad',compOf(it.comp)?compOf(it.comp).label:'',compChips)}
       <div class="grid3">
         <div class="fld">
@@ -3939,7 +4078,7 @@ function bodyFor(it){
         </div>
         <div class="fld">
           <label for="n-${it.id}"># Letras</label>
-          <input id="n-${it.id}" type="number" inputmode="decimal" min="0" value="${it.n||''}" ${dis} oninput="typeItem(${it.id},'n',+this.value)">
+          <input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="typeItem(${it.id},'n',+this.value)" onchange="this.value=Math.max(0,Math.round(+this.value||0))||'';typeItem(${it.id},'n',+this.value)">
         </div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
@@ -3952,7 +4091,7 @@ function bodyFor(it){
     const hint='<div class="hintnote">Por cm de altura × pieza</div>';
     const compRow = it.acab==='sandwich'
       ? grupo('Complejidad',it.recComp?'Con complejidad +$5/cm':'Sencilla',
-          `<button type="button" class="switch" role="switch" aria-checked="${it.recComp?'true':'false'}" style="margin:0" ${capturaBloqueada()?'disabled':`onclick="setItem(${it.id},'recComp',${!it.recComp})"`}><span class="tg ${it.recComp?'on':''}" aria-hidden="true"></span> Con complejidad (+$5/cm)</button>`)
+          `<button type="button" class="switch" role="switch" data-foco="reccomp-${it.id}" aria-checked="${it.recComp?'true':'false'}" style="margin:0" ${capturaBloqueada()?'disabled':`onclick="setItem(${it.id},'recComp',${!it.recComp})"`}><span class="tg ${it.recComp?'on':''}" aria-hidden="true"></span> Con complejidad (+$5/cm)</button>`)
       : '';
     return `
       ${descFld(it)}
@@ -3963,8 +4102,7 @@ function bodyFor(it){
           <label for="h-${it.id}">Altura (cm)</label>
           <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="typeItem(${it.id},'altura',+this.value)">
         </div>
-        <div class="fld"><label for="n-${it.id}"># Piezas</label><input id="n-${it.id}" type="number" inputmode="decimal" min="0" value="${it.n||''}" ${dis} oninput="typeItem(${it.id},'n',+this.value)">
-        </div>
+        <div class="fld"><label for="n-${it.id}"># Piezas</label><input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="typeItem(${it.id},'n',+this.value)" onchange="this.value=Math.max(0,Math.round(+this.value||0))||'';typeItem(${it.id},'n',+this.value)"></div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
       ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las piezas" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} piezas</span></div>`:''}`;
@@ -3997,7 +4135,7 @@ function bodyFor(it){
   return `
     <div class="fld"><label for="d-${it.id}">Descripción ${it.descAi?'<span class="ai-tag">'+ico('i-ia')+' IA</span>':''}</label><input id="d-${it.id}" value="${esc(it.desc)}" placeholder="Ej. Rotulación vehicular, instalación, viáticos…" ${dis} oninput="typeItem(${it.id},'desc',this.value)"></div>
     <div class="grid2">
-      <div class="fld"><label for="pz-${it.id}">Piezas</label><input id="pz-${it.id}" type="number" inputmode="decimal" min="1" value="${it.pz||''}" ${dis} oninput="typeItem(${it.id},'pz',+this.value)"></div>
+      <div class="fld"><label for="pz-${it.id}">Piezas</label><input id="pz-${it.id}" type="number" inputmode="numeric" min="1" value="${it.pz||''}" ${dis} oninput="typeItem(${it.id},'pz',+this.value)" onchange="this.value=Math.max(1,Math.round(+this.value||0))||'';typeItem(${it.id},'pz',+this.value)"></div>
       <div class="fld"><label for="pu-${it.id}">Precio unitario</label><div class="inp-money"><input id="pu-${it.id}" type="number" inputmode="decimal" min="0" value="${it.pu||''}" ${dis} oninput="typeItem(${it.id},'pu',+this.value)"></div></div>
     </div>`;
 }
@@ -4254,7 +4392,7 @@ function renderAuth(){
               ${descHTML}
               <div class="authnote" style="border-color:var(--amber-ico);background:var(--amber-bg);color:var(--amber);margin-top:8px"><svg class="svgi" aria-hidden="true"><use href="#i-lapiz"/></svg> Modo edición activo — usa <svg class="svgi" aria-hidden="true"><use href="#i-ojo"/></svg> para mostrar u ocultar partidas del PDF.</div>
               <button class="btn btn-ok" onclick="guardarCambiosEdicion()"><svg class="svgi" aria-hidden="true"><use href="#i-guardar"/></svg> Guardar y salir de edición</button>
-              <button class="btn btn-pri" onclick="generarPDF()"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> Generar PDF</button>
+              <button class="btn btn-gho" onclick="generarPDF()"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> Generar PDF</button>
               <button class="btn btn-gho" onclick="copiarParaCanva()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar datos para Canva</button>
               <button class="btn btn-gho" onclick="copiarParaGemini()"><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg> Prompt para imagen (Gemini)</button>`;
       } else {
@@ -4262,7 +4400,7 @@ function renderAuth(){
               ${descHTML}
               <button class="btn btn-pri" onclick="generarPDF()"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> Generar PDF</button>
               <button class="btn btn-wa" onclick="enviarPorWhatsApp()"><svg class="svgi" aria-hidden="true"><use href="#i-chat"/></svg> Enviar por WhatsApp</button>
-              <button class="btn btn-ok" onclick="abrirRegistrarVenta()"><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg> Registrar venta</button>
+              <button class="btn btn-vta" onclick="abrirRegistrarVenta()"><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg> Registrar venta</button>
               <button class="btn btn-gho" onclick="toggleEditMode()"><svg class="svgi" aria-hidden="true"><use href="#i-lapiz"/></svg> Editar partidas</button>
               <button class="btn btn-gho" onclick="copiarParaCanva()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar datos para Canva</button>
               <button class="btn btn-gho" onclick="copiarParaGemini()"><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg> Prompt para imagen (Gemini)</button>
@@ -4584,12 +4722,15 @@ function exigirDatosDesdeModal(cerrar){
    deduce de lo que hay: con los tres datos puestos se abre en partidas —estabas cotizando—,
    sin ellos en cliente, que es donde toca empezar. */
 let _pantalla='cliente';
-function pantallaSegunDatos(){ return (!faltanDatosCliente()||locked())?'partidas':'cliente'; }
+function pantallaSegunDatos(){ return (!faltanDatosCliente()||locked()||Q.rol==='autorizador')?'partidas':'cliente'; }
 function irAPantalla(cual,opts){
   /* Ir a partidas pasa por el mismo filtro que capturarlas: la pestaña no es una puerta de
      servicio. Al revés —volver a cliente— nunca se frena: corregir un dato es justo lo que
      se viene a hacer. */
-  if(cual==='partidas'&&!(opts&&opts.forzar)&&!exigirDatosParaPartidas()) return;
+  /* El autorizador no captura: su cola de pendientes vive en el panel de la derecha, que
+     solo existe en esta pantalla. Exigirle el cliente de una cotización que no es suya lo
+     dejaba encerrado sin puerta. Escribir sigue frenado por capturaBloqueada(). */
+  if(cual==='partidas'&&Q.rol!=='autorizador'&&!(opts&&opts.forzar)&&!exigirDatosParaPartidas()) return;
   _pantalla=cual;
   pintarPantalla();
   /* Arriba de todo: cambiar de pantalla a media página deja al usuario mirando el hueco por
@@ -4791,7 +4932,7 @@ function reabrir(){
 function autorizar(){ revisarAntesDe(autorizarConfirmado,'Autorizar de todos modos'); }
 function autorizarConfirmado(){
   const nombre=($('a-name')?.value||'').trim();
-  Q.autorizador=nombre||prefGet(PREF_AUTORIZADOR,'')||'Autorizador';
+  Q.autorizador=nombre||prefGet(PREF_AUTORIZADOR,'');
   if(nombre) prefSet(PREF_AUTORIZADOR,nombre);
   Q.nota=($('a-note')?.value||'').trim();
   _selfAuth=false;
@@ -4821,7 +4962,7 @@ function autorizarConfirmado(){
 }
 function rechazar(){
   const nombre=($('a-name')?.value||'').trim();
-  Q.autorizador=nombre||prefGet(PREF_AUTORIZADOR,'')||'Autorizador';
+  Q.autorizador=nombre||prefGet(PREF_AUTORIZADOR,'');
   if(nombre) prefSet(PREF_AUTORIZADOR,nombre);
   Q.nota=($('a-note')?.value||'').trim();
   Q.estado='rechazada'; _selfAuth=false; paBorradorLimpiar();
@@ -4840,7 +4981,7 @@ function pedirConfNueva(){
   const badge=`<span class="badge ${Q.estado}"><span class="dot"></span>${LABELS[Q.estado]}</span>`;
   box.innerHTML=`<div class="statusrow"><span class="lab">Autorización</span>${badge}</div>
     <div style="background:var(--red-bg);border:1.5px solid rgba(216,69,63,.3);border-radius:var(--r-sm);padding:13px">
-      <p style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:11px">¿Borrar toda la cotización y empezar de nuevo? No se puede deshacer.</p>
+      <p style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:11px">¿Borrar toda la cotización y empezar de nuevo? Vas a tener unos segundos para deshacerlo.</p>
       <button class="btn btn-dgr" onclick="nueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Sí, borrar todo</button>
       <button class="btn btn-gho" style="margin-top:9px" onclick="renderAuth()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Cancelar</button>
     </div>`;
@@ -4868,7 +5009,7 @@ function nueva(){
   _marcarOblig=false;
   $('f-anti').value='';
   updDirRaw('');
-  $('mapsbtn').disabled=true;
+  updMaps('');
   Q.folio=nextFolio(); pintarFolio();
   Q.fecha=hoy();
   scReset();
@@ -4992,7 +5133,11 @@ function upd(k,v){
   Q[k]=v; saveState(); updProg();   // updProg ya repinta el encabezado plegado
   if(k==='cliente') autocompletarCliente(v);
 }
-function updMaps(v){ Q.maps=(v||'').trim(); const ok=/^https?:\/\//i.test(Q.maps); $('mapsbtn').disabled=!ok; }
+function updMaps(v){ Q.maps=(v||'').trim(); const ok=/^https?:\/\//i.test(Q.maps); const b=$('mapsbtn'); b.disabled=!ok;
+  /* Un botón que se niega sin decir por qué manda a adivinar, y el motivo es casi siempre
+     el mismo: se pegó el link sin «https://». El hermano de arriba ya tenía su nota. */
+  b.title=(!ok&&Q.maps)?'Pega el link completo, empezando con https://':'';
+  const h=$('maps-hint'); if(h) h.style.display=(!ok&&Q.maps)?'':'none'; }
 function abrirMaps(){ if(/^https?:\/\//i.test(Q.maps)) window.open(Q.maps,'_blank','noopener'); }
 function dirRawMapsUrl(){ return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent((Q.dirRaw||'').trim()); }
 function updDirRaw(v){
@@ -5885,7 +6030,7 @@ function copiarParaCanva(){
     let d='';
     if(it.tipo==='letras')    d=`Letras Individuales 3D: Caras en Acrílico, Cantos en ${MAT[it.material]||'Aluminio'}${it.luz?` con Iluminación LED ${it.ilumTipo==='calida'?'Cálida (3000K)':'Fría (6500K)'}`:' sin iluminación'}.`;
     else if(it.tipo==='recorte')  d=`Recorte de Acrílico: ${ACAB[it.acab]||''}.`;
-    else if(it.tipo==='bastidor') d=`Bastidor para Letras 3D: estructura tubular 1"pulg forrada de ${BAS[it.bas]||'lámina galvanizada'}.`;
+    else if(it.tipo==='bastidor') d=`Bastidor para Letras 3D: estructura tubular de 1" forrada de ${BAS[it.bas]||'lámina galvanizada'}.`;
     else if(it.tipo==='caja'){const tp=it.tarifa>=4600?'Tipo Nube / Silueta':'Estándar'; d=`Caja de Luz: ${tp}, Caras en Acrílico con Iluminación LED Fría.`;}
     if(it.desc) d+=(d?' — ':'')+it.desc;
     return d||'—';
@@ -6038,7 +6183,7 @@ function generarPDF(){
     else if(it.tipo==='recorte')  d=ACAB[it.acab]
       ? `<b>Recorte de Acrílico:</b> ${ACAB[it.acab]}.`
       : `<b>Recorte de Acrílico.</b>`;   // sin acabado elegido salía «Recorte de Acrílico: .»
-    else if(it.tipo==='bastidor') d=`<b>Bastidor para Letras 3D:</b> estructura tubular 1"pulg forrada de ${BAS[it.bas]||'lámina galvanizada'}.`;
+    else if(it.tipo==='bastidor') d=`<b>Bastidor para Letras 3D:</b> estructura tubular de 1" forrada de ${BAS[it.bas]||'lámina galvanizada'}.`;
     else if(it.tipo==='caja'){const tp=it.tarifa>=4600?'Tipo Nube / Silueta':'Estándar'; d=`<b>Caja de Luz:</b> ${tp}, Caras en Acrílico con Iluminación LED Fría.`;}
     if(it.desc) d+=(d?'<br>':'')+esc(it.desc);
     return d||'—';
@@ -6208,13 +6353,17 @@ function generarPDF(){
         <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${val}</span>
       </div>`;
     const marco=contenido=>`<div style="display:flex;margin-bottom:6px;border:1.5px solid #3a4ad8;border-radius:4px;overflow:hidden">${contenido}</div>`;
+    const dirPdf=esc(direccionPdf()).trim();
+    /* Sin dirección capturada esta celda salía con la etiqueta azul puesta y el valor en
+       blanco, en las tres hojas que reutilizan esta fila: el cliente recibía un documento
+       con un campo rotulado y vacío. Sin dato no hay celda, y «Proyecto:» toma el ancho. */
     return marco(celda('Cliente:',esc(Q.cliente)))
       +`<div style="margin-bottom:12px">`+marco(
         celda('Proyecto:',esc(Q.proy))
-        +`<div style="display:flex;flex:1;border-left:1.5px solid #3a4ad8">
-        <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Dirección</span>
-        <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(direccionPdf())}</span>
-      </div>`)+`</div>`;
+        +(dirPdf?`<div style="display:flex;flex:1;border-left:1.5px solid #3a4ad8">
+        <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Dirección:</span>
+        <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${dirPdf}</span>
+      </div>`:''))+`</div>`;
   }
 
   /* Footer reutilizable, con el número de hoja: un juego de hojas que se desordena
@@ -6373,15 +6522,17 @@ ${hayInstal?`
   <div style="text-align:center;font-size:15px;font-weight:800;color:#3a4ad8;margin:2px 0 4px;letter-spacing:.06em">ORDEN DE INSTALACIÓN</div>
   <div style="width:130px;height:2px;background:#3a4ad8;margin:0 auto 14px"></div>
   ${prowProyDir()}
+  <!-- hayInstal es un O: con solo uno de los dos datos, la otra celda salía rotulada y en
+       blanco. Cada mitad aparece si trae algo, y sola toma el ancho entero. -->
   <div style="display:flex;margin-bottom:8px;border:1.5px solid #3a4ad8;border-radius:4px;overflow:hidden">
-    <div style="display:flex;flex:1">
+    ${(Q.tel||'').trim()?`<div style="display:flex;flex:1">
       <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Teléfono:</span>
       <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(Q.tel)}</span>
-    </div>
-    <div style="display:flex;flex:1;border-left:1.5px solid #3a4ad8">
+    </div>`:''}
+    ${(Q.entrecalles||'').trim()?`<div style="display:flex;flex:1${(Q.tel||'').trim()?';border-left:1.5px solid #3a4ad8':''}">
       <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Entre calles:</span>
       <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(Q.entrecalles)}</span>
-    </div>
+    </div>`:''}
   </div>
   ${footerCot(HOJA_INSTAL)}
 </div>`:''}
@@ -6902,7 +7053,7 @@ function loadQueueEntry(folio){
   Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
   updDirRaw(Q.dirRaw||'');
   pintarFolio();
-  if(Q.maps) $('mapsbtn').disabled=!/^https?:\/\//i.test(Q.maps);
+  updMaps(Q.maps||'');
   sincronizarPlegado();
   saveState(); renderItems();
   /* El autorizador entra a revisar un precio, no a capturar un cliente: la pantalla que le
@@ -8288,10 +8439,10 @@ function scUpdateList(){
       <div style="flex:1;min-width:0">
         <div style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;background:var(--brand-grd);color:#fff;font-size:9px;font-weight:800;margin-bottom:4px;box-shadow:0 2px 6px rgba(58,74,216,.25)">${i+1}</div>
         <div class="sp-mitem-cm">${scFmtCm(m.cm)}<small> cm</small></div>
-        <input class="sp-mitem-label" placeholder="Letras, logo, fachada…" value="${scEsc(m.label)}"
+        <input class="sp-mitem-label" placeholder="Letras, logo, fachada…" value="${scEsc(m.label)}" aria-label="Nombre de la medida ${i+1}"
           onclick="event.stopPropagation()" oninput="scSetLabel(${m.id},this.value)">
         <button class="sp-mitem-add${m.usada?' done':''}"
-          onclick="event.stopPropagation();scUsarMedida(${m.id})">${m.usada?'<svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Agregada · agregar otra vez':'→ Agregar como partida'}</button>
+          onclick="event.stopPropagation();scUsarMedida(${m.id})" aria-label="${m.usada?'Agregada · agregar otra vez':'Agregar como partida'} — medida ${i+1} de ${scFmtCm(m.cm)} cm">${m.usada?'<svg class=\'svgi\' aria-hidden=\'true\'><use href=\'#i-check\'/></svg> Agregada · agregar otra vez':'→ Agregar como partida'}</button>
       </div>
       <div class="sp-mitem-actions">
         <button class="sp-ibtn" onclick="event.stopPropagation();scDelMedida(${m.id})" title="Eliminar medida ${i+1}" aria-label="Eliminar medida ${i+1}">×</button>
@@ -8515,7 +8666,7 @@ function init(){
        marcando el mismo rol que está pintando el panel de autorización. */
     setRol(Q.rol==='autorizador'?'autorizador':'vendedor');
     pintarFolio();
-    if(Q.maps) $('mapsbtn').disabled=!/^https?:\/\//i.test(Q.maps);
+    updMaps(Q.maps||'');
     if(Q.dirRaw) updDirRaw(Q.dirRaw);
     sincronizarPlegado();
     renderItems();
@@ -8586,7 +8737,7 @@ function abrirRegistrarVenta(){
   }
   document.getElementById('rv-proyecto').value=(Q.cliente?Q.cliente+' - ':'')+Q.proy;
   document.getElementById('rv-fecha').value=Q.fecha||hoy;
-  document.getElementById('rv-iva').value=Q.iva?'Yes':'No';
+  document.getElementById('rv-iva').value=Q.iva?'Sí':'No';
   document.getElementById('rv-anticipo').value=Q.anti||0;
   /* La comisión y la cuenta casi nunca cambian y se volvían a poner en cada venta. */
   document.getElementById('rv-pct').value=prefGet(PREF_RV_PCT,'10');
@@ -8620,7 +8771,7 @@ function copiarFilaVenta(){
   const sub=t.sub, neto=t.neto;
   const proyecto=document.getElementById('rv-proyecto').value.trim();
   const fecha=document.getElementById('rv-fecha').value.trim();
-  const iva=document.getElementById('rv-iva').value;
+  const iva=Q.iva?'Yes':'No';
   const anti=parseFloat(document.getElementById('rv-anticipo').value)||0;
   const pct=parseFloat(document.getElementById('rv-pct').value)||0;
   const cuenta=document.getElementById('rv-cuenta').value;
@@ -8771,7 +8922,7 @@ async function vtLoadPDF(f){
     await page.render({canvasContext:cx,viewport:vp}).promise;
     const url=await new Promise(res=>{try{oc.toBlob(b=>res(b?URL.createObjectURL(b):oc.toDataURL()),'image/png');}catch(_){res(oc.toDataURL());}});
     vtLoadImgSrc(url,f.name);
-  }catch(e){ toast('Error PDF: '+e.message,'err',4000); }
+  }catch(e){ toast('No se pudo abrir el PDF: '+((e&&e.message)||'el archivo no se pudo leer'),'err',7000); }
 }
 function vtLoadImgSrc(src,name){
   const img=new Image();
@@ -8876,6 +9027,7 @@ function vtSetModo(m){
     VT.opts.despeckle=v;
     $('vt-ruido').value=v;
     $('vt-ruido-v').textContent=v?v+' px':'nada';
+    $('vt-ruido').setAttribute('aria-valuetext',v?v+' px':'nada');
   }
   $('vt-modo-help').textContent=VT_MODO_HELP[m];
   vtSucio();
@@ -8884,9 +9036,9 @@ function vtOpt(k,v){
   VT.opts[k]=v;
   if(k==='despeckle') VT.ruidoManual=true;
   if(k==='colores')  {$('vt-colores-v').textContent=v; $('vt-colores').value=v;}
-  if(k==='detalle')  $('vt-detalle-v').textContent=VT_DETALLE[v];
-  if(k==='despeckle')$('vt-ruido-v').textContent=v?v+' px':'nada';
-  if(k==='esquinas') $('vt-esq-v').textContent=VT_ESQ[v];
+  if(k==='detalle')  {$('vt-detalle-v').textContent=VT_DETALLE[v]; $('vt-detalle').setAttribute('aria-valuetext',VT_DETALLE[v]);}
+  if(k==='despeckle'){$('vt-ruido-v').textContent=v?v+' px':'nada'; $('vt-ruido').setAttribute('aria-valuetext',v?v+' px':'nada');}
+  if(k==='esquinas') {$('vt-esq-v').textContent=VT_ESQ[v]; $('vt-esq').setAttribute('aria-valuetext',VT_ESQ[v]);}
   vtSucio();
 }
 function vtToggleFondo(e){ if(e)e.preventDefault(); VT.opts.quitarFondo=!VT.opts.quitarFondo; $('vt-fondo-tg').classList.toggle('on',VT.opts.quitarFondo); tgAria('vt-fondo-tg'); vtSucio(); }
@@ -9912,7 +10064,7 @@ function vtUsarComoPartidas(){
       </div>
     </div>
     <div class="rv-footer">
-      <div class="rv-copied" id="rv-copied"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Fila copiada — pégala en la hoja <b>Ventas</b> de Google Sheets con Ctrl+Shift+V</div>
+      <div class="rv-copied" id="rv-copied"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg><span>Fila copiada — pégala en la hoja <b>Ventas</b> de Google Sheets</span></div>
       <button class="btn btn-pri" onclick="copiarFilaVenta()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar fila para Google Sheets</button>
       <button class="btn btn-gho" onclick="cerrarRegistrarVenta()">Cancelar</button>
     </div>
