@@ -112,6 +112,14 @@
 - **Registrar venta** — anticipo, comisión, estatus y saldo pendiente, calculados sobre el precio realmente autorizado. El porcentaje de comisión y la cuenta se recuerdan.
 - **Historial** de cotizaciones guardado en el propio dispositivo, con los importes **congelados** al momento de autorizar —el catálogo de precios se edita a mano en este mismo archivo, y sin congelarlos subir el precio del aluminio reescribía hacia atrás lo que ya se le había cotizado a un cliente—, con buscador y dos maneras de reusar una cotización: **↻ Abrir y editar** la trae tal cual, autorizada, para regenerar su PDF o para modificarla —al cambiar las partidas el precio autorizado se suelta y hay que volver a autorizarlo, porque el que aprobó una persona ya no corresponde a ese trabajo—, **con la imagen con la que se cotizó**: se ponía en blanco al abrirla y, al volver a autorizar, ese blanco se escribía encima de la imagen guardada. La cotización se conservaba completa y la foto del letrero desaparecía para siempre, que es justo la que hace falta semanas después, cuando el cliente pregunta por lo que se le cotizó. Guardar encima ya nunca la borra: si la de la pantalla se perdió por el camino se conserva la que ya tenía ese folio, y para quitarla del historial hay que borrar la cotización. La ✕ de la vista previa, que en un borrador tira la única copia que existe, sale con **Deshacer**; **⧉ Duplicar** copia los datos del cliente y las partidas a una cotización **nueva** —folio nuevo, en borrador, con el precio recalculado y sin arrastrar nada de la autorización anterior—, que es lo que se necesita cuando el mismo cliente pide otro letrero o el local de junto quiere lo mismo con otra medida. Tus plantillas son tus cotizaciones anteriores.
 
+- **Cuadernos de cliente** — el historial contesta «¿qué cotizamos?»; los cuadernos contestan la otra pregunta, la que se hace cuando suena el teléfono: «¿quién es este y qué le hemos hecho?». El botón **Clientes** de la barra de arriba abre la lista de todos, con cuántas cotizaciones lleva cada uno y cuánto suma lo autorizado; al entrar a uno están sus datos, sus cotizaciones —cada una con *Abrir* y *Duplicar*, las mismas del historial—, sus cifras y una **nota del cuaderno** que se guarda sola: cómo paga, con quién se habla, qué quedó pendiente. Lo que no cabe en ninguna cotización.
+
+  **No hay alta de clientes que llenar**: el cuaderno se arma solo con lo que ya guarda cada cotización autorizada. Quién es quién lo decide el **teléfono**, en sus últimos diez dígitos, que es lo único que el cliente no cambia de una cotización a otra —el nombre se teclea «Farmacia San Juan» un martes y «farmacia san juan suc. centro» el jueves, y son el mismo señor—; así «33 1234 5678», «+52 33 1234 5678» y «521 33 1234 5678» caen en el mismo cuaderno, y el nombre viejo se sigue enseñando como *también capturado como…* para que quien lo busque así lo reconozca. Sin teléfono manda el **nombre**, porque el historial trae cotizaciones de cuando el teléfono no era obligatorio y ésas no se pueden quedar fuera; y una cotización sin teléfono cuyo nombre sí aparece en un cuaderno con teléfono se une a ese cuaderno —es el mismo cliente, capturado antes—, pero **solo si ese nombre apunta a un único teléfono**: si el mismo nombre aparece con dos números distintos, adivinar sería mezclar dos clientes, así que se quedan separados y a la vista para que decida quien sabe. Lo que no tiene ni nombre ni teléfono cae en *Sin identificar*: la suma de los cuadernos es siempre el historial completo, nada se esconde.
+
+  **Cotizarle algo nuevo** empieza una cotización en blanco con el cliente, el teléfono y la dirección ya puestos, y el cursor en lo único que falta, el proyecto —es *Duplicar* pero sin partidas, para cuando el cliente que regresa quiere otra cosa—. Y en la pantalla del cliente, en cuanto tecleas un nombre o un teléfono que ya tiene cuaderno, sale el aviso **«Ya tiene cuaderno · 3 cotizaciones · $30,000.00»** con la liga para verlo: saber que es un cliente que vuelve, y por cuánto, es justo lo que hay que saber *antes* de poner el precio.
+
+  Se exporta a CSV por cliente —sus cotizaciones— o de la cartera entera: un renglón por cliente con teléfono, totales, primera y última cotización y la nota del cuaderno.
+
 ## Uso
 
 Todo corre en el navegador, sin instalar nada. Desde el celular conviene abrir la liga y agregarla a la pantalla de inicio (Chrome → menú → *Agregar a pantalla principal*; en iPhone, Safari → *Compartir* → *Agregar a inicio*) para que quede como aplicación, a pantalla completa y sin la barra del navegador.
@@ -128,13 +136,14 @@ En el teléfono la pantalla se acomoda sola y se aprovecha completa:
 
 ## Respaldar y mover los datos
 
-Los datos —historial, folios, cotización en curso, logotipo— se guardan localmente en cada dispositivo y no se sincronizan entre ellos. Eso se pierde al borrar los datos del navegador, al cambiar de teléfono o cuando iOS limpia los sitios que llevan semanas sin abrirse.
+Los datos —historial, folios, cotización en curso, notas de los cuadernos, logotipo— se guardan localmente en cada dispositivo y no se sincronizan entre ellos. Eso se pierde al borrar los datos del navegador, al cambiar de teléfono o cuando iOS limpia los sitios que llevan semanas sin abrirse.
 
-En el pie del historial hay tres botones:
+En el pie del historial hay cuatro botones:
 
 - **⬇ Respaldar** descarga un archivo con todo lo que la app guarda en ese teléfono.
 - **⬆ Restaurar** lo devuelve. Reemplaza lo que haya, así que antes de escribir nada descarga solo un respaldo de lo que estaba, por si acaso.
 - **📄 CSV** exporta el historial completo —folio, cliente, teléfono, proyecto, quién autorizó, totales y el detalle de partidas— para pegarlo en Google Sheets.
+- **📓 Clientes** cruza al otro lado de los mismos datos: las cotizaciones agrupadas por cliente.
 
 El respaldo **no incluye las API keys** a propósito: un respaldo se manda por WhatsApp o por correo, y una key que viaja así deja de ser secreta. Se vuelven a pegar en el teléfono nuevo, que es un minuto.
 
