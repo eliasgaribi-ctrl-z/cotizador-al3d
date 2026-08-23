@@ -995,7 +995,9 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   font-weight:700;padding:7px 12px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap;transition:.12s}
 .cua-det-acts button:hover{border-color:var(--brand);background:var(--soft-2)}
 .cua-cifras{display:flex;gap:9px;padding:13px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-.cua-cifra{flex:1;min-width:96px;background:var(--soft);border:1px solid var(--line);border-radius:var(--rr1);padding:9px 11px}
+/* 124 y no 96: con 96 caben tres tarjetas en un renglón a 390 px y «$1,254,567.00» se
+   derrama por encima del borde. Con 124 se envuelven, que es lo que ya hacían a 320. */
+.cua-cifra{flex:1;min-width:124px;background:var(--soft);border:1px solid var(--line);border-radius:var(--rr1);padding:9px 11px}
 .cua-cifra b{display:block;font-size:15px;font-weight:800;color:var(--ink);line-height:1.2}
 .cua-cifra span{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px}
 .cua-nota-wrap{padding:14px 20px;border-bottom:1px solid var(--line)}
@@ -1707,6 +1709,15 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
   .ai-pick-x{min-width:44px;min-height:44px}
   .toast-act,.falt-quitar,.key-btn,.sp-gclear,.hist-foot button,
   .card-fold,.btn-maps,.chip,.seg button,.tipo-seg button{min-height:44px}
+  /* Los controles de los cuadernos entran a la misma regla de la casa. Medidos con el dedo
+     antes de esto: «Cotizarle algo nuevo» 29 px, «Abrir» y «Duplicar» 26 con 5 de
+     separación —tocar Duplicar creyendo tocar Abrir era cuestión de tiempo—, «‹ Todos los
+     clientes» 20, y «Ver cuaderno» 12 px, que es el único camino de la pantalla de captura
+     al cuaderno del cliente. */
+  .cua-det-acts button,.cua-cot-acts button,.cua-volver{min-height:44px}
+  .cua-aviso button{min-height:44px;display:inline-flex;align-items:center;padding:0 4px}
+  .cua-cot-acts{gap:8px}
+  .cua-card{min-height:60px}
   .key-btn,.falt-quitar{padding-left:14px;padding-right:14px}
   .hentry-del{min-width:44px;min-height:44px}
   .del,.dup,.pdf-vis{width:40px;height:40px;padding:0;font-size:19px;
@@ -2314,7 +2325,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
           <div class="fld" id="fld-cli"><label for="f-cli">Cliente<span class="req" aria-hidden="true">*</span></label><input id="f-cli" list="clientes-conocidos" placeholder="Nombre del cliente" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('cliente',this.value)"><datalist id="clientes-conocidos"></datalist></div>
           <div class="fld" id="fld-tel"><label for="f-tel">Teléfono<span class="req" aria-hidden="true">*</span></label><input id="f-tel" type="tel" inputmode="tel" placeholder="33 0000 0000" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('tel',this.value)"></div>
         </div>
-        <div class="cua-aviso" id="cua-aviso" style="display:none"></div>
+        <div class="cua-aviso" id="cua-aviso" role="status" aria-live="polite" style="display:none"></div>
         <div class="fld" id="fld-proy"><label for="f-proy">Proyecto<span class="req" aria-hidden="true">*</span></label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('proy',this.value)">
           <!-- El asterisco de la etiqueta ya dice que es obligatorio, y el paso 2 lo dice otra
                vez —con los campos que falten por nombre— en el momento en que estorba. Un
@@ -3341,7 +3352,14 @@ function prefSet(k,v){ try{ localStorage.setItem(k,String(v)); }catch(_){} }
    pero el campo Cliente arrancaba vacío siempre: el cliente que regresaba por su
    segundo letrero se tecleaba completo otra vez. Se sugieren los del historial y, al
    elegir uno, se llenan los campos que estén VACÍOS —nunca se pisa lo ya escrito. */
-function normNom(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
+/* Se pliegan los acentos: para los cuadernos que se arman por nombre —los de las
+   cotizaciones sin teléfono— «Rotulos Élite» tecleado con acento desde la computadora y
+   sin él desde el celular eran dos clientes, con dos notas separadas, y ni buscando
+   aparecía el otro. El resto del archivo ya sabía quitarlos cuando le convenía. */
+function normNom(s){
+  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .trim().toLowerCase().replace(/\s+/g,' ');
+}
 function clientesConocidos(){
   const m=new Map();
   /* El historial está ordenado de lo más reciente a lo más viejo, así que el primero
@@ -4930,6 +4948,13 @@ function irAPantalla(cual,opts){
 }
 function continuarAPartidas(){ irAPantalla('partidas'); }
 function pintarPantalla(){
+  /* El aviso «ya tiene cuaderno» cuelga de las teclas de Cliente y Teléfono, pero hay seis
+     caminos que cambian esos campos sin pasar por upd() —reabrir del historial, duplicar,
+     vaciar, deshacer el vaciado, cargar un pendiente de la cola y cotizarle algo nuevo a un
+     cliente—, y los seis terminan aquí. Sin esto el aviso se quedaba con los datos del
+     cliente anterior y «Ver cuaderno» abría el cuaderno equivocado. Se fuerza el
+     recálculo porque la caché podría ver la misma clave con otro cliente en pantalla. */
+  if(_pantalla==='cliente'){ _cuaAvisoClave=null; actualizarAvisoCuaderno(); }
   const enCliente=_pantalla==='cliente';
   const w=$('wrap'); if(w) w.classList.toggle('p-cliente',enCliente);
   const proy=$('card-proy'), part=$('card-partidas'), side=$('sidebox'), cierre=$('p1-cierre');
@@ -7089,6 +7114,8 @@ function openHistImg(folio){
 function borrarDeHistorial(folio){
   if(!confirm('¿Eliminar '+folio+' del historial?\n\nEsta acción no se puede deshacer.')) return;
   saveHistorial(getHistorial().filter(x=>x.folio!==folio));
+  /* La nota del cuaderno se va con su cliente. */
+  podarNotasCuadernos();
   _histData=getHistorial();
   pintarClientes();
   pintarHistorial(); // se conserva lo que el usuario tenía escrito en el buscador
@@ -7227,7 +7254,7 @@ function reabrirDeHistorial(folio){
   /* Abrir una cotización guardada es entrar a verla, no a capturarla de nuevo: se abre en
      partidas, que es donde está el trabajo y desde donde se reimprime. */
   irAPantalla(pantallaSegunDatos(),{forzar:true});
-  cerrarHistorial();
+  cerrarHistorial(); cerrarCuadernos();
   toast('Cotización '+e.folio+' abierta — reimprime su PDF, o toca «Editar partidas» para cambiarla','ok',5200);
 }
 
@@ -7265,7 +7292,7 @@ function usarComoBase(folio){
   sincronizarPlegado();
   pintarFolio(); saveState(); renderItems();
   irAPantalla(pantallaSegunDatos(),{forzar:true});
-  cerrarHistorial();
+  cerrarHistorial(); cerrarCuadernos();
   const n=Q.items.length;
   /* La cotización que se copia puede venir sin teléfono —el historial guarda entradas de
      cuando no se pedía—, y entonces la copia nace con el candado puesto. Decirle «ajusta
@@ -7329,9 +7356,19 @@ function cuadernos(){
      a los que la pasada 2 puede unirse. */
   hist.forEach(e=>{
     const d=telClave(e.tel); if(!d) return;
-    dame('tel:'+d).cots.push(e);
+    const g=dame('tel:'+d);
+    g.cots.push(e);
     const n=normNom(e.cliente);
-    if(n){ if(!nomTels.has(n)) nomTels.set(n,new Set()); nomTels.get(n).add('tel:'+d); }
+    if(n){
+      if(!nomTels.has(n)) nomTels.set(n,new Set()); nomTels.get(n).add('tel:'+d);
+      /* El nombre de esta cotización también es una identidad de este cuaderno, aunque la
+         cotización SÍ traiga teléfono: si a este cliente se le escribió una nota cuando
+         todavía se capturaba sin celular, esa nota vive bajo «nom:» y hay que poder
+         alcanzarla. Antes solo se apuntaba la clave vieja cuando sobrevivía en el historial
+         una cotización sin teléfono con ese nombre, así que capturarle el teléfono a la
+         única cotización del cliente dejaba la nota escrita pero inalcanzable. */
+      if(g.claves.indexOf('nom:'+n)<0) g.claves.push('nom:'+n);
+    }
   });
   /* Pasada 2: las que no lo traen. */
   hist.forEach(e=>{
@@ -7382,14 +7419,23 @@ function cuadernoDe(clave){ return cuadernos().find(g=>g.clave===clave)||null; }
 /* El cuaderno al que pertenecería lo que hay ahora en pantalla, con la misma regla de
    arriba: primero el teléfono, luego el nombre. */
 function cuadernoDeQ(){
-  const d=telClave(Q.tel);
   const todos=cuadernos();
-  if(d){ const g=todos.find(x=>x.clave==='tel:'+d); if(g) return g; }
+  const d=telClave(Q.tel);
+  /* Un teléfono completo decide, y decide también cuando NO encuentra nada: si estos diez
+     dígitos no están en ningún cuaderno, esto es un cliente nuevo aunque se llame igual que
+     uno viejo —la otra sucursal, el tocayo—. Antes se ignoraba el teléfono y se caía al
+     nombre, y el aviso decía «Ya tiene cuaderno» de alguien que no era. */
+  if(d) return todos.find(x=>x.clave==='tel:'+d)||null;
   const n=normNom(Q.cliente);
   if(!n) return null;
-  return todos.find(g=>g.clave==='nom:'+n)
-      || todos.find(g=>normNom(g.nombre)===n||g.alias.some(a=>normNom(a)===n))
-      || null;
+  const propio=todos.find(g=>g.clave==='nom:'+n);
+  if(propio) return propio;
+  /* Sin teléfono, la misma regla de la pasada 2 de cuadernos(): solo se contesta si ese
+     nombre apunta a UN cuaderno. Si apunta a dos, cuadernos() se niega a adivinar a
+     propósito, y este aviso no puede permitirse elegir uno y esconder el otro. */
+  const cand=todos.filter(g=>g.clave.startsWith('tel:')
+    &&(normNom(g.nombre)===n||g.alias.some(a=>normNom(a)===n)));
+  return cand.length===1?cand[0]:null;
 }
 
 /* ----- La nota del cuaderno -----
@@ -7398,22 +7444,54 @@ function cuadernoDeQ(){
 const CUA_NOTAS='al3d_cuadernos';
 const CUA_NOTA_MAX=1200;
 function getCuaNotas(){ try{ const o=JSON.parse(localStorage.getItem(CUA_NOTAS)||'{}'); return (o&&typeof o==='object')?o:{}; }catch(_){ return {}; } }
+/* Se busca bajo TODAS las identidades del cuaderno, no solo bajo la de hoy: un cliente
+   que empezó sin teléfono tiene su nota escrita bajo «nom:».
+   Y si hay más de una —el mismo cliente capturado con dos nombres distintos, cada uno con
+   su nota, que después se funden en un solo cuaderno por el teléfono— se devuelven las
+   DOS, pegadas y rotuladas. Antes se devolvía la primera y, en cuanto el vendedor tocaba
+   el textarea, guardarNotaCuaderno borraba de localStorage la que nunca llegó a ver: se
+   perdía sin aviso y sin rastro, ni siquiera en el respaldo. Que sobren dos renglones y
+   el vendedor recorte es barato; que desaparezca lo que escribió, no. */
 function notaCuaderno(g){
   const notas=getCuaNotas();
-  /* Se busca también bajo las claves viejas: un cliente que empezó sin teléfono tiene su
-     nota escrita bajo «nom:» y no se puede perder por haberle capturado el celular. */
-  for(const k of g.claves){ const v=notas[k]; if(v&&String(v).trim()) return String(v); }
-  return '';
+  const partes=[];
+  g.claves.forEach(k=>{
+    const v=notas[k];
+    if(v&&String(v).trim()) partes.push({k,txt:String(v).trim()});
+  });
+  if(!partes.length) return '';
+  if(partes.length===1) return partes[0].txt;
+  return partes.map((x,i)=>i===0?x.txt
+    :'\n--- También estaba escrito bajo «'+x.k.replace(/^nom:/,'').replace(/^tel:/,'tel. ')+'» ---\n'+x.txt
+  ).join('\n');
 }
 function guardarNotaCuaderno(g,txt){
   const notas=getCuaNotas();
   const limpio=String(txt||'').slice(0,CUA_NOTA_MAX);
-  /* Se escribe bajo la clave de hoy y se sueltan las viejas: si no, la nota quedaría
-     duplicada y la de «nom:» seguiría ganando en cuanto se vaciara la nueva. */
+  /* Se escribe bajo la clave de hoy y se sueltan las viejas. Soltarlas es correcto porque
+     notaCuaderno() ya le enseñó al vendedor TODO lo que había bajo las otras claves: lo que
+     quede en el textarea es lo que él decidió conservar. */
   g.claves.forEach(k=>{ if(k!==g.clave) delete notas[k]; });
   if(limpio.trim()) notas[g.clave]=limpio; else delete notas[g.clave];
   try{ localStorage.setItem(CUA_NOTAS,JSON.stringify(notas)); return true; }
   catch(_){ return false; }
+}
+/* Las notas de clientes que ya no existen no se van solas: borrar la última cotización de
+   un cliente lo quita de la pantalla, pero su nota —que es donde se escribe «debe tanto»,
+   «no darle crédito»— se quedaba en el aparato, invisible, sin manera de borrarla, y
+   viajando en cada respaldo, que es un archivo que se manda por WhatsApp. Peor: si otro
+   cliente reusaba ese teléfono, la nota del anterior reaparecía pegada a él.
+   Se poda solo cuando queda historial: con el historial en cero no hay cuadernos y se
+   arrasaría con todo por un vaciado temporal. */
+function podarNotasCuadernos(){
+  if(!getHistorial().length) return;
+  const vivas=new Set();
+  cuadernos().forEach(g=>g.claves.forEach(k=>vivas.add(k)));
+  const notas=getCuaNotas();
+  let sobran=false;
+  Object.keys(notas).forEach(k=>{ if(!vivas.has(k)){ delete notas[k]; sobran=true; } });
+  if(!sobran) return;
+  try{ localStorage.setItem(CUA_NOTAS,JSON.stringify(notas)); }catch(_){}
 }
 
 /* ----- Pantalla -----
@@ -7444,6 +7522,12 @@ function cuaIniciales(nom){
 function cuaTitulo(g){ return g.clave==='?' ? 'Sin identificar' : (g.nombre||'Sin nombre'); }
 
 function pintarCuadernos(){
+  /* Antes de tirar el textarea, guardar lo que traiga pendiente el temporizador de medio
+     segundo. cerrarCuadernos() ya lo hacía —y Escape entra por ahí—, pero «‹ Todos los
+     clientes» no: se tecleaba una nota y se volvía a la lista, y lo escrito en el último
+     medio segundo se iba sin avisar. Va ANTES de soltar _cuaAbierto, que es de lo que
+     depende la guarda de cuaGuardarNotaYa. */
+  cuaGuardarNotaYa();
   _cuaAbierto=null;
   const lv=$('cua-lista-vista'); if(lv) lv.style.display='';
   $('cua-titulo').textContent='Cuadernos de cliente';
@@ -7455,7 +7539,12 @@ function pintarCuadernos(){
         if(g.alias.some(a=>a.toLowerCase().includes(q))) return true;
         /* Buscar por teléfono se hace tecleando dígitos sueltos, sin los espacios con los
            que se capturó: se comparan los dígitos contra los dígitos. */
-        return !!qd && telClave(g.tel).includes(qd);
+        /* La rama del teléfono solo corre si lo tecleado es de verdad un teléfono. Medio
+           catálogo de nombres lleva número —«Sucursal 3», «Farmacia 5 de Mayo»— y como
+           todo celular de Guadalajara empieza con 33, el dígito «3» estaba en el teléfono
+           de todos: buscar «Sucursal 3» devolvía la lista entera. Buscar empeoraba cuanto
+           más se tecleaba. */
+        return qd.length>=4 && !/[a-záéíóúñ]/i.test(q) && telClave(g.tel).includes(qd);
       })
     : _cuaData;
   const cnt=$('cua-count');
@@ -7488,14 +7577,27 @@ function pintarCuadernos(){
   $('cua-body').innerHTML=html;
   accionar($('cua-body'),{abrir:abrirCuaderno,cot:cuaAbrirCot,dup:cuaDuplicarCot,
                           nueva:cuaNuevaCotizacion,wa:cuaWhatsApp,csv:cuaCSV});
+  cuaEnfocar('#cua-search',true);
+  $('climodal').setAttribute('aria-label','Cuadernos de cliente');
   $('cua-foot').innerHTML=
     `<button onclick="exportarClientesCSV()" title="Descarga un renglón por cliente para Google Sheets">${ico('i-doc')} CSV de clientes</button>
      <button onclick="cerrarCuadernos();abrirHistorial()" title="Ver las cotizaciones una por una">${ico('i-historial')} Ver el historial</button>
      <p class="foot-nota">Los cuadernos se arman solos con las cotizaciones autorizadas. Todo vive en este dispositivo: respalda desde el historial.</p>`;
 }
 
+/* Solo se recoloca el foco si el que había se quedó huérfano por el repintado; si el
+   usuario ya lo movió a otra cosa —o si nunca estuvo dentro—, no se le quita. */
+function cuaEnfocar(sel,fuera){
+  const a=document.activeElement;
+  if(a&&a!==document.body&&document.contains(a)) return;
+  const el=fuera?$(sel.replace('#','')):$('cua-body').querySelector(sel);
+  if(el) try{ el.focus({preventScroll:true}); }catch(_){}
+}
 function abrirCuaderno(clave){
   const g=cuadernoDe(clave); if(!g) return;
+  /* Lo mismo al saltar de un cuaderno a otro, que es lo que hace «Ver cuaderno» del aviso
+     cuando ya había una ficha abierta. */
+  cuaGuardarNotaYa();
   _cuaAbierto=clave;
   const lv=$('cua-lista-vista'); if(lv) lv.style.display='none';
   $('cua-titulo').textContent=cuaTitulo(g);
@@ -7509,11 +7611,17 @@ function abrirCuaderno(clave){
       </div>
       <div class="cua-cot-tot">${money(totalFinalHist(e))}</div>
       <div class="cua-cot-acts">
-        <button data-acc="cot" data-val="${esc(e.folio)}" title="Cargarla en el cotizador para reimprimir su PDF">Abrir</button>
-        <button data-acc="dup" data-val="${esc(e.folio)}" title="Empezar una cotización nueva con estas mismas partidas">Duplicar</button>
+        <button data-acc="cot" data-val="${esc(e.folio)}" aria-label="Abrir ${esc(e.folio)}" title="Cargarla en el cotizador para reimprimir su PDF">Abrir</button>
+        <button data-acc="dup" data-val="${esc(e.folio)}" aria-label="Duplicar ${esc(e.folio)}" title="Empezar una cotización nueva con estas mismas partidas">Duplicar</button>
       </div>
     </div>`).join('');
-  const datos=[
+  /* «Sin identificar» no es un cliente: es el cajón de las cotizaciones que no traen ni
+     nombre ni teléfono y que no tienen nada que ver entre sí. Su «teléfono» y su
+     «dirección» salen de la primera del montón que traiga algo, o sea de un desconocido,
+     así que aquí no se enseñan ni se copian a ninguna parte, y no hay a quién cotizarle
+     ni a quién mandarle WhatsApp. Lo único que tiene sentido es ver la lista y bajarla. */
+  const anon=(g.clave==='?');
+  const datos=anon?'':[
     g.tel?ico('i-chat')+' '+esc(g.tel):'',
     g.dirRaw?ico('i-pin')+' '+esc(g.dirRaw.replace(/\s*\n\s*/g,' ')):''
   ].filter(Boolean).join('<br>');
@@ -7522,17 +7630,18 @@ function abrirCuaderno(clave){
       <button class="cua-volver" onclick="pintarCuadernos()">${ico('i-atras')} Todos los clientes</button>
       <div class="cua-det-nom">${esc(cuaTitulo(g))}</div>
       ${datos?`<div class="cua-det-datos">${datos}</div>`:''}
+      ${anon?`<div class="cua-det-datos">Cotizaciones que se guardaron sin nombre y sin teléfono. No son un mismo cliente: están juntas porque no hay con qué distinguirlas.</div>`:''}
       ${g.alias.length?`<div class="cua-alias">También capturado como ${g.alias.map(a=>'«'+esc(a)+'»').join(', ')}</div>`:''}
       <div class="cua-det-acts">
-        <button data-acc="nueva" data-val="${esc(g.clave)}" title="Empieza una cotización en blanco con estos datos de cliente ya puestos">${ico('i-lapiz')} Cotizarle algo nuevo</button>
-        ${g.tel?`<button data-acc="wa" data-val="${esc(g.clave)}" title="Abre el chat de WhatsApp con este cliente">${ico('i-chat')} WhatsApp</button>`:''}
+        ${anon?'':`<button data-acc="nueva" data-val="${esc(g.clave)}" title="Empieza una cotización en blanco con estos datos de cliente ya puestos">${ico('i-lapiz')} Cotizarle algo nuevo</button>`}
+        ${(!anon&&telWhatsApp(g.tel))?`<button data-acc="wa" data-val="${esc(g.clave)}" title="Abre el chat de WhatsApp con este cliente">${ico('i-chat')} WhatsApp</button>`:''}
         <button data-acc="csv" data-val="${esc(g.clave)}" title="Descarga las cotizaciones de este cliente">${ico('i-doc')} CSV</button>
       </div>
     </div>
     <div class="cua-cifras">
       <div class="cua-cifra"><b>${n}</b><span>${n===1?'Cotización':'Cotizaciones'}</span></div>
       <div class="cua-cifra"><b>${money(g.vendido)}</b><span>Autorizado</span></div>
-      <div class="cua-cifra"><b>${money(prom)}</b><span>Promedio</span></div>
+      ${n>1?`<div class="cua-cifra"><b>${money(prom)}</b><span>Promedio</span></div>`:''}
     </div>
     <div class="cua-nota-wrap">
       <label for="cua-nota">Nota del cuaderno</label>
@@ -7543,10 +7652,19 @@ function abrirCuaderno(clave){
     ${cots}`;
   $('cua-foot').innerHTML=
     `<button onclick="pintarCuadernos()">${ico('i-atras')} Todos los clientes</button>
-     <p class="foot-nota">La primera fue el ${esc(cuaFecha(g.cots[g.cots.length-1]))||'—'}; la última, el ${esc(cuaFecha(g.cots[0]))||'—'}.</p>`;
+     <p class="foot-nota">${n===1
+       ?`Su única cotización es del ${esc(cuaFecha(g.cots[0]))||'—'}.`
+       :`La primera fue el ${esc(cuaFecha(g.cots[g.cots.length-1]))||'—'}; la última, el ${esc(cuaFecha(g.cots[0]))||'—'}.`}</p>`;
   accionar($('cua-body'),{abrir:abrirCuaderno,cot:cuaAbrirCot,dup:cuaDuplicarCot,
                           nueva:cuaNuevaCotizacion,wa:cuaWhatsApp,csv:cuaCSV});
   $('cua-body').scrollTop=0;
+  /* El botón que se acaba de tocar se fue con el innerHTML y el foco cayó al <body>: el
+     siguiente Tab arrancaba desde arriba del panel. Se recoloca en lo primero de la vista
+     nueva, que es lo mismo que hace _modalAbierto al abrir la capa. Y el nombre del
+     diálogo sigue al título visible: el aria-label es fijo y seguía diciendo «Cuadernos de
+     cliente» con la ficha de un cliente en pantalla. */
+  cuaEnfocar('.cua-volver');
+  $('climodal').setAttribute('aria-label',cuaTitulo(g));
 }
 
 /* La nota se guarda sola, medio segundo después de dejar de teclear: guardar en cada
@@ -7570,8 +7688,13 @@ function cuaGuardarNotaYa(){
 /* Desde el cuaderno se llega a las mismas dos acciones del historial: son las mismas
    cotizaciones, así que se llaman las mismas funciones —no hay una segunda manera de
    abrir una cotización que pueda dejar la pantalla distinta. */
-function cuaAbrirCot(folio){ _histData=getHistorial(); cerrarCuadernos(); reabrirDeHistorial(folio); }
-function cuaDuplicarCot(folio){ _histData=getHistorial(); cerrarCuadernos(); usarComoBase(folio); }
+/* No se cierra el cuaderno antes de llamar: las dos funciones empiezan preguntando
+   «tienes una cotización sin autorizar en pantalla, ¿continuar?» y, si el usuario cancela,
+   se van sin tocar nada. Cerrando antes, cancelar dejaba la pantalla pelada y había que
+   volver a entrar al cliente. Cierran ellas al final, que es donde ya cierran el
+   historial —y ese cierre se lleva también esta capa. */
+function cuaAbrirCot(folio){ _histData=getHistorial(); reabrirDeHistorial(folio); }
+function cuaDuplicarCot(folio){ _histData=getHistorial(); usarComoBase(folio); }
 
 /* Cotizarle algo nuevo: en blanco, pero sin volver a teclear quién es. No se pregunta
    nada antes porque nueva() ya deja «Deshacer» puesto sobre lo que había. */
@@ -7580,16 +7703,24 @@ function cuaNuevaCotizacion(clave){
   const habia=Q.items.some(it=>!itemVacio(it))||!!(Q.cliente||'').trim()||!!(Q.proy||'').trim();
   cerrarCuadernos();
   nueva();
-  Q.cliente=(g.clave==='?')?'':(g.nombre||'');
-  Q.tel=g.tel||'';
+  /* El cuaderno «?» no es un cliente, así que de ahí no se copia NADA. Su nombre ya se
+     exceptuaba; su teléfono y su dirección no, y salen de la primera cotización anónima
+     del montón que traiga algo: la cotización nueva nacía con el domicilio y el enlace de
+     Maps de otra persona, ya escritos y con pinta de capturados, y de ahí al PDF. */
+  const anon=(g.clave==='?');
+  Q.cliente=anon?'':(g.nombre||'');
+  Q.tel=anon?'':(g.tel||'');
   if($('f-cli')) $('f-cli').value=Q.cliente;
   if($('f-tel')) $('f-tel').value=Q.tel;
-  if(g.dirRaw){ if($('f-dir-raw')) $('f-dir-raw').value=g.dirRaw; updDirRaw(g.dirRaw); }
-  if(g.maps){ if($('f-maps')) $('f-maps').value=g.maps; updMaps(g.maps); }
+  if(!anon&&g.dirRaw){ if($('f-dir-raw')) $('f-dir-raw').value=g.dirRaw; updDirRaw(g.dirRaw); }
+  if(!anon&&g.maps){ if($('f-maps')) $('f-maps').value=g.maps; updMaps(g.maps); }
   saveState(); updProg(); actualizarAvisoCuaderno();
   irAPantalla('cliente',{forzar:true});
-  /* Se le devuelve el foco a lo único que falta: el proyecto. */
-  const fp=$('f-proy'); if(fp) try{ fp.focus(); }catch(_){}
+  /* Se le devuelve el foco a lo único que falta: el proyecto. En el fotograma siguiente,
+     igual que hace irAPartida(): el foco de los modales lo repone _modalCerrado al terminar
+     esta tarea, así que un focus() síncrono se perdía y el cursor acababa en el botón
+     «Clientes» de la barra de arriba. */
+  const fp=$('f-proy'); if(fp) requestAnimationFrame(()=>{ try{ fp.focus(); }catch(_){} });
   const nom=cuaTitulo(g);
   if(habia) toast('Cotización nueva para '+nom+' — la anterior se vació','',7000,{label:'Deshacer',fn:deshacerVaciado});
   else toast('Cotización nueva para '+nom+' — falta el proyecto','ok',3600);
@@ -7647,7 +7778,10 @@ function actualizarAvisoCuaderno(){
   /* El cuaderno del cliente al que ya se le está cotizando ESTE folio no es noticia: si
      lo único que tiene es esta misma cotización, ya reabierta, no hay nada que contar. */
   const util=g&&g.cots.length&&!(g.cots.length===1&&g.cots[0].folio===Q.folio);
-  const clave=util?g.clave+'|'+g.cots.length:'';
+  /* El importe entra en la clave: es lo que el aviso enseña en grande, y reautorizar una
+     cotización ya guardada reescribe la misma entrada —cambia el dinero y no la cuenta—,
+     así que sin él el aviso se quedaba enseñando el total viejo. */
+  const clave=util?g.clave+'|'+g.cots.length+'|'+g.vendido.toFixed(2):'';
   if(clave===_cuaAvisoClave) return;
   _cuaAvisoClave=clave;
   if(!util){ el.style.display='none'; el.innerHTML=''; return; }

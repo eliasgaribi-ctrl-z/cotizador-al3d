@@ -118,6 +118,12 @@
 
   **Cotizarle algo nuevo** empieza una cotización en blanco con el cliente, el teléfono y la dirección ya puestos, y el cursor en lo único que falta, el proyecto —es *Duplicar* pero sin partidas, para cuando el cliente que regresa quiere otra cosa—. Y en la pantalla del cliente, en cuanto tecleas un nombre o un teléfono que ya tiene cuaderno, sale el aviso **«Ya tiene cuaderno · 3 cotizaciones · $30,000.00»** con la liga para verlo: saber que es un cliente que vuelve, y por cuánto, es justo lo que hay que saber *antes* de poner el precio.
 
+  **La nota no se pierde por cambiar de identidad.** Un cliente que empezó sin teléfono tiene su nota escrita bajo su nombre; el día que se le captura el celular, el cuaderno cambia de clave y la nota se sigue alcanzando igual. Y cuando dos cuadernos se funden en uno —el mismo cliente capturado con dos nombres, unidos después por el teléfono— se conservan **las dos notas**, pegadas y rotuladas, para que el vendedor recorte lo que sobre: antes se enseñaba una y la otra se borraba en silencio la primera vez que se tocaba el textarea. Al borrar del historial la última cotización de un cliente, su nota se va con él en vez de quedarse invisible en el aparato y viajando en cada respaldo.
+
+  El nombre se compara **sin acentos**, así que «Rotulos Élite» tecleado desde la computadora y «Rotulos Elite» desde el celular son el mismo cuaderno y no dos con dos notas separadas. El buscador solo interpreta lo tecleado como teléfono si son cuatro dígitos o más y no trae letras: buscar «Sucursal 3» encontraba la cartera entera, porque todo celular de Guadalajara lleva un 3.
+
+  **«Sin identificar» no finge ser un cliente.** Es el cajón de las cotizaciones que se guardaron sin nombre y sin teléfono, que no tienen nada que ver entre sí, y lo dice con esas palabras: no enseña «su» dirección —sería la de un desconocido— ni ofrece cotizarle ni mandarle WhatsApp. Solo verlas y bajarlas a CSV.
+
   Se exporta a CSV por cliente —sus cotizaciones— o de la cartera entera: un renglón por cliente con teléfono, totales, primera y última cotización y la nota del cuaderno.
 
 ## Uso
