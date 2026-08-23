@@ -36,6 +36,19 @@ const PLURALES = { lamina: 'láminas', caja: 'cajas', bolsa: 'bolsas', unidad: '
                    litro: 'litros', metro: 'metros', pieza: 'piezas', 'm²': 'm²', m: 'm', cm: 'cm' };
 export const plural = u => PLURALES[u] || (u ? u + 's' : '');
 
+/* ----- Cuánto hay en el almacén -----
+   La existencia es la suma de movimientos sobre el último conteo, así que puede salir
+   NEGATIVA: significa que se consumió material que nunca se registró como entrada. Es un
+   dato correcto y útil —dice que el libro está incompleto—, pero «hay -0.31 láminas» se lee
+   como un error del programa y hace que alguien deje de creerle a la pantalla. Se dice con
+   palabras: no hay nada, y de cuánto va el hueco. */
+export const cantHay = (n, u) => {
+  const v = Number(n || 0);
+  if (v > 0) return cant(v, u);
+  if (v === 0) return 'nada';
+  return 'nada (y el libro va ' + cant(-v, u) + ' abajo)';
+};
+
 export const ico = (n, cls) =>
   '<svg class="svgi' + (cls ? ' ' + cls : '') + '" aria-hidden="true"><use href="#' + n + '"/></svg>';
 

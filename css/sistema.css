@@ -396,11 +396,14 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:calc
   .topbar-in .btn-pf{order:5;padding:0;width:42px;display:inline-flex;align-items:center;justify-content:center}
   .topbar-in{row-gap:7px}
 }
-/* En las pantallas angostas —iPhone SE, 13 mini— la palabra «Historial» era justo lo
-   que hacía que el selector de rol ya no cupiera y se fuera a un tercer renglón, que
-   es el que se queda pegado y cuesta pantalla. Se queda el icono con su nombre
-   accesible: el destino sigue siendo el mismo y la fila cabe entera. */
-@media(max-width:385px){
+/* En el celular la palabra «Historial» era justo lo que hacía que el selector de rol ya
+   no cupiera y se fuera a un tercer renglón, que es el que se queda pegado y cuesta
+   pantalla. Con «Clientes» al lado, esa cuenta ya no sale en NINGÚN teléfono: dos botones
+   con texto empujan al tercer renglón hasta en un iPhone de 390 px. Así que en toda la
+   maqueta de móvil —el mismo corte de arriba, no un número nuevo— se quedan los dos
+   iconos con su nombre accesible: el destino sigue siendo el mismo y la fila cabe entera.
+   De 560 px para arriba caben los dos con su palabra y se lee la palabra. */
+@media(max-width:560px){
   .topbar-in .btn-hist .lbl{display:none}
   .topbar-in .btn-hist{padding:0;width:42px;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
   /* Y aquí ya no cabe ni el icono. Se midió: el renglón útil de una pantalla de 360 px son
@@ -867,6 +870,44 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .ai-src-b{flex:1;min-width:0}
 .ai-src-t{font-size:12.5px;font-weight:800;color:var(--green)}
 .ai-src-n{font-size:11.5px;color:#1c6e3d;line-height:1.45;margin:3px 0 8px}
+/* ----- Entregarle el archivo a la IA: arrastrarlo, tocarlo o pegarlo -----
+   El archivo entraba solo por el selector nativo, así que un diseño que el cliente manda
+   por WhatsApp había que bajarlo al disco primero y después ir a buscarlo a la carpeta de
+   descargas. El recuadro punteado es lo que dice «suéltalo aquí»; el arrastre se acepta en
+   todo el modal, pero lo que se resalta es esto, para que se vea dónde va a caer. */
+#ai-file-fld{position:relative}
+.ai-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  padding:20px 16px;border:2px dashed var(--a-borde);border-radius:var(--r-sm);
+  background:var(--soft);cursor:pointer;text-align:center;transition:border-color .12s,background .12s,box-shadow .12s}
+.ai-drop:hover{border-color:var(--brand);background:var(--a-suave)}
+.ai-drop:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.ai-drop.sobre{border-color:var(--brand);border-style:solid;background:var(--a-suave);box-shadow:0 0 0 4px rgba(64,96,248,.16)}
+.ai-drop .ico{font-size:26px;color:var(--brand)}
+.ai-drop .t{font-size:13.5px;font-weight:800;color:var(--n7)}
+.ai-drop .s{font-size:11.5px;color:var(--muted);line-height:1.5}
+/* En un celular no hay nada que arrastrar, así que el recuadro dice ahí lo que ahí sí se
+   puede hacer. Se elige por tipo de puntero y no por ancho de pantalla, igual que el resto
+   de la hoja: el mismo archivo abierto en la laptop sigue diciendo «arrastra». */
+.ai-drop .solo-dedo{display:none}
+.ai-drop>*{pointer-events:none}
+/* El <input type=file> sigue ahí y sigue siendo el que abre la galería del celular: lo que
+   se le quita es la caja, porque el recuadro de arriba ya es su botón. No se oculta con
+   display:none para que el navegador lo siga tomando por un control de verdad. */
+.ai-file-in{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+/* El archivo ya elegido. El selector nativo lo decía con su propio texto gris; con el
+   recuadro ese texto ya no está, y analizar a ciegas es justo el error que cuesta una
+   llamada a la API y el viaje de vuelta. */
+.ai-pick{display:flex;gap:10px;align-items:center;background:var(--green-bg);border:1.5px solid rgba(21,160,106,.28);border-radius:var(--r-sm);padding:9px 11px;margin-top:9px}
+.ai-pick-img{width:52px;height:52px;object-fit:contain;border-radius:8px;border:1px solid rgba(21,160,106,.25);background:#fff;flex-shrink:0;padding:2px}
+.ai-pick-ph{width:52px;height:52px;display:flex;align-items:center;justify-content:center;border-radius:8px;border:1.5px dashed var(--red);background:var(--red-bg);color:var(--red);flex-shrink:0;font-size:20px}
+.ai-pick-b{flex:1;min-width:0}
+.ai-pick-n{font-size:12.5px;font-weight:800;color:var(--green);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai-pick-m{font-size:11.5px;color:#1c6e3d;margin-top:2px}
+.ai-pick-x{border:none;background:none;color:#1c6e3d;font-size:18px;line-height:1;cursor:pointer;padding:3px 7px;border-radius:6px;flex-shrink:0;font-family:inherit}
+.ai-pick-x:hover{color:var(--red);background:var(--red-bg)}
+/* Con el archivo encima del modal, el modal entero se anuncia como destino: quien suelta
+   ve que la ventana correcta es la que va a recibirlo. */
+#aimodal.arrastrando .modal{box-shadow:0 0 0 3px var(--brand),0 24px 60px rgba(23,29,74,.28)}
 /* Segunda entrada a lo mismo, desde la vista previa que queda junto a las partidas */
 .sc-prev-ia{width:100%;margin-top:9px;padding:9px 12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 10px rgba(58,74,216,.25)}
 .sc-prev-ia:hover{filter:brightness(1.06)}
@@ -932,6 +973,63 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .htable td:last-child{text-align:right;font-weight:700;color:var(--ink);white-space:nowrap}
 .htable tr:last-child td{border-bottom:none}
 .hentry-total{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:800;padding:9px 7px 0;border-top:1.5px solid var(--line);color:var(--ink)}
+
+/* ----- Cuadernos de cliente -----
+   Reaprovechan la caja del historial (.hist-panel, .hist-head, .hist-body): es el mismo
+   gesto —abrir una libreta encima del cotizador— y dos cajas distintas para lo mismo se
+   ven como dos apps. Lo que cambia es lo de adentro. */
+.cua-card{display:flex;align-items:center;gap:13px;width:100%;text-align:left;border:none;background:none;font-family:inherit;
+  border-bottom:1px solid var(--line);padding:15px 20px;cursor:pointer;transition:.12s}
+.cua-card:last-child{border-bottom:none}
+.cua-card:hover{background:var(--soft)}
+.cua-ini{display:flex;width:42px;height:42px;flex-shrink:0;border-radius:12px;background:var(--soft-2);color:var(--a-fuerte);
+  display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;letter-spacing:.5px}
+.cua-card-meta{display:block;flex:1;min-width:0}
+.cua-nombre{display:block;font-size:14px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cua-sub{display:block;font-size:11.5px;color:var(--muted);line-height:1.55;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cua-card-num{text-align:right;flex-shrink:0}
+.cua-card-num b{display:block;font-size:13px;font-weight:800;color:var(--green)}
+.cua-card-num span{display:block;font-size:10.5px;color:var(--muted);font-weight:600}
+.cua-flecha{color:var(--muted);flex-shrink:0;font-size:15px}
+
+/* Ficha de un cliente */
+.cua-det-head{padding:17px 20px;border-bottom:1px solid var(--line);background:var(--soft)}
+.cua-volver{border:none;background:none;font-family:inherit;font-size:11.5px;font-weight:700;color:var(--brand);
+  cursor:pointer;padding:4px 0;margin-bottom:9px;display:inline-flex;align-items:center;gap:6px}
+.cua-volver:hover{text-decoration:underline}
+.cua-det-nom{font-size:17px;font-weight:800;color:var(--ink);line-height:1.25}
+.cua-det-datos{font-size:12px;color:var(--muted);line-height:1.65;margin-top:5px}
+.cua-alias{font-size:11px;color:var(--muted);margin-top:4px;font-style:italic}
+.cua-det-acts{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+.cua-det-acts button{border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:11.5px;
+  font-weight:700;padding:7px 12px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap;transition:.12s}
+.cua-det-acts button:hover{border-color:var(--brand);background:var(--soft-2)}
+.cua-cifras{display:flex;gap:9px;padding:13px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.cua-cifra{flex:1;min-width:96px;background:var(--soft);border:1px solid var(--line);border-radius:var(--rr1);padding:9px 11px}
+.cua-cifra b{display:block;font-size:15px;font-weight:800;color:var(--ink);line-height:1.2}
+.cua-cifra span{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.cua-nota-wrap{padding:14px 20px;border-bottom:1px solid var(--line)}
+.cua-nota-wrap label{display:block;font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.cua-nota-wrap textarea{width:100%;min-height:70px;resize:vertical}
+.cua-nota-estado{font-size:10.5px;color:var(--muted);margin-top:5px;min-height:14px}
+.cua-cots-tit{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;padding:14px 20px 0}
+.cua-cot{display:flex;align-items:center;gap:11px;padding:12px 20px;border-bottom:1px solid var(--line)}
+.cua-cot:last-child{border-bottom:none}
+.cua-cot-meta{flex:1;min-width:0}
+.cua-cot-folio{font-size:10px;font-weight:800;color:var(--brand);letter-spacing:.5px;text-transform:uppercase}
+.cua-cot-proy{font-size:13px;font-weight:700;color:var(--ink);margin:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cua-cot-fecha{font-size:11px;color:var(--muted)}
+.cua-cot-tot{font-size:13px;font-weight:800;color:var(--green);white-space:nowrap;flex-shrink:0}
+.cua-cot-acts{display:flex;gap:5px;flex-shrink:0}
+.cua-cot-acts button{border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:11px;
+  font-weight:700;padding:6px 9px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap;transition:.12s}
+.cua-cot-acts button:hover{border-color:var(--brand);background:var(--soft-2)}
+
+/* El aviso que sale bajo el campo Cliente cuando el que se está capturando ya tiene cuaderno */
+.cua-aviso{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 13px;padding:8px 11px;border-radius:var(--rr1);
+  background:var(--soft-2);border:1px solid rgba(58,74,216,.14);font-size:11.5px;color:var(--a-fuerte);line-height:1.45}
+.cua-aviso button{border:none;background:none;font-family:inherit;font-size:11.5px;font-weight:800;color:var(--brand);
+  cursor:pointer;padding:0;text-decoration:underline;white-space:nowrap}
 /* ----- Dirección raw del cliente ----- */
 .dir-raw-actions{display:flex;gap:8px;margin-top:7px}
 .btn-maps{flex:1;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff;color:var(--brand);font-size:12px;font-weight:700;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:5px}
@@ -1533,6 +1631,15 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
   .hentry-img,.hentry-img-ph{width:74px;height:74px}
   .hentry-acts{order:9;flex-basis:100%;flex-direction:row;align-items:stretch;gap:6px}
   .hentry-acts .hentry-open{flex:1;padding:9px 6px;text-align:center}
+  /* En el celular la fila de una cotización no cabe en una línea: el importe y los
+     botones bajan y quedan a lo ancho, como ya hacen los del historial. */
+  .cua-cot{flex-wrap:wrap}
+  .cua-cot-meta{flex-basis:100%}
+  .cua-cot-tot{order:1}
+  .cua-cot-acts{order:2;margin-left:auto}
+  .cua-card{padding:14px 16px;gap:11px}
+  .cua-det-head,.cua-nota-wrap,.cua-cot,.cua-cifras{padding-left:16px;padding-right:16px}
+  .cua-cots-tit{padding-left:16px;padding-right:16px}
   .hentry-del{align-self:stretch;padding:5px 10px}
   /* El contenido del panel tenía tres bordes izquierdos distintos: 20 px la cabecera, la
      ayuda y la búsqueda; 13 px la entrada y el pie. En el teléfono se veía el escalón. */
@@ -1604,7 +1711,10 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
    pantallas del Fold 6, sin depender de en qué lado del punto de corte caiga cada una.
    Lo que sube es la caja, nunca la letra. */
 @media(hover:none),(pointer:coarse){
+  .ai-drop .solo-raton{display:none}
+  .ai-drop .solo-dedo{display:inline}
   .modal-h button{width:44px;height:44px}
+  .ai-pick-x{min-width:44px;min-height:44px}
   .toast-act,.falt-quitar,.key-btn,.sp-gclear,.hist-foot button,
   .card-fold,.btn-maps,.chip,.seg button,.tipo-seg button{min-height:44px}
   .key-btn,.falt-quitar{padding-left:14px;padding-right:14px}

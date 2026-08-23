@@ -19,9 +19,29 @@
 .pf-wrap{grid-template-columns:minmax(0,1fr)}
 .pf-wrap>main{min-width:0}
 
+/* Al cambiar de módulo se le manda el foco a <main> para que quien navega con teclado no
+   tenga que recorrer otra vez las seis pestañas. Pero <main> lleva tabindex="-1" y el
+   navegador le dibuja su halo: un recuadro azul de 2 px alrededor de TODA la pantalla, en
+   las seis. Se quita el halo y no se pierde nada: lo que informa del cambio es el foco en
+   sí —el lector de pantalla anuncia la región— no el dibujo. El halo de los controles de
+   verdad, que sí hace falta, no se toca. */
+#pf-contenido:focus{outline:none}
+
 /* La barra fija del teléfono publica su alto para que el aviso emergente se pose encima y
    no debajo. Cuando no hay barra, la variable es 0 y nada se mueve. */
 :root{--mbar-h:0px}
+
+/* ----- `hidden` tiene que ganar -----
+   Esto es un error clásico y aquí ya se cometió: la banda de degradación se pinta con
+   `hidden=true` y seguía ocupando 26 px de alto. La regla del navegador es
+   `[hidden]{display:none}`, y cualquier regla de autor que ponga `display` —como el
+   `display:flex` de .pf-banda— le gana, porque una clase pesa más que el selector del
+   navegador. El resultado era una píldora ámbar vacía arriba de las seis pantallas.
+
+   Va aquí arriba, una sola vez y para todo, en vez de repetirlo en cada componente: los
+   tres elementos que se apagan con `hidden` son la banda, la barra del teléfono y la
+   navegación, y el siguiente que alguien añada también lo va a necesitar. */
+[hidden]{display:none!important}
 
 /* ----- La barra de módulos -----
    No es la escalera numerada del cotizador: eso es una secuencia —primero el cliente,
@@ -329,3 +349,260 @@
 /* La barra fija del teléfono. Mismo esqueleto que la del cotizador. */
 .pf-mbar{gap:var(--e2)}
 .pf-mbar .btn{flex:1;margin:0}
+
+/* ============================================================================
+   Inicio — lo que la pantalla de «Hoy» necesitaba y no existía todavía
+   ============================================================================ */
+
+/* La banda de frescura cuando NO hay nada que advertir. La versión de ámbar ya existe y es
+   .pf-banda; esta es su cara tranquila, y tranquila quiere decir chica y sin caja: una
+   franja verde con borde diciendo «al día» todos los días es una felicitación diaria que se
+   deja de leer, y el día que se vuelva ámbar nadie va a notar el cambio. */
+.pf-frescura{display:flex;align-items:center;gap:var(--e2);margin-bottom:var(--e4);
+  font:500 var(--t2)/1.4 inherit;color:var(--muted)}
+
+/* La tarjeta de A6 reusa .cand-partidas del cotizador completa —el ámbar, el barro y el
+   latido de 2.6 s— porque es exactamente el mismo mensaje: «esto pide que hagas algo antes
+   de seguir». Lo único que cambia es la caja: allá es UN renglón que se toca completo, aquí
+   son N cotizaciones con dos botones cada una, así que deja de ser una línea flex y deja de
+   ser un botón. El latido tampoco se apaga al pasar el ratón, porque aquí el ratón no
+   activa la tarjeta: lo que se toca son los botones de adentro, y quitarle el latido al
+   pasar por encima haría creer que ya se atendió. */
+.pf-decidir{display:block;cursor:default}
+.pf-decidir:hover{transform:none;animation:latido 2.6s ease-in-out infinite}
+.pf-decidir .pf-fila{border-top-color:var(--av-borde)}
+/* El cuadro del icono va en el tono de tarjeta y no en --av-bg: sobre el ámbar de esta
+   tarjeta, ámbar sobre ámbar no se distingue y el icono desaparecía. */
+.pf-decidir .pf-fila-ico{background:var(--card)}
+
+/* Dos botones en un renglón: el margen de arriba de .btn+.btn los descuadra —el hermano sin
+   margen se estira al alto de la fila y el otro queda 8 px más abajo y 8 px más chico—, que
+   es el mismo problema que .btn-fila resuelve en el cotizador. Estos dos contenedores ya
+   separan con `gap`, así que el margen sobra en los dos ejes. */
+.pf-fila-acc .btn+.btn,.pf-panel-f .btn+.btn{margin-top:0}
+
+/* La verdad del final, en letra chica y sin adornos. Con la caja gris de .hintnote se
+   leería como un consejo, y esto no es un consejo: es cómo funciona el sistema. */
+.pf-nota{margin-top:var(--e4);font:400 var(--t1)/1.55 inherit;color:var(--muted)}
+
+/* ============================================================================
+   Proyectos — lo que el tablero por etapa necesitaba
+   ============================================================================ */
+
+/* La etapa que faltaba de las ocho. Ámbar, que en la leyenda de arriba es «está en el
+   taller», que es exactamente lo que es «en diseño»: ya se vendió y todavía no se corta.
+   `garantia` y `cancelado` no llevan clase propia porque no son pasos del camino sino
+   salidas de él, y para eso ya está el gris de `.pf-etapa.cerrado`. */
+.pf-etapa.en_diseno{background:var(--av-bg);color:var(--av)}
+
+/* El semáforo de un renglón: el material del proyecto y la fecha que le falta. Existe
+   .mat-conf, del mismo tamaño y con las mismas cajas de color, pero contesta otra pregunta
+   —qué tan confiable es un cálculo— y reusarla obligaba a leer «requiere_dato» como «falta
+   material». Y hacía falta el rojo: a tres días de instalar, «faltan 2 materiales» ya no es
+   un aviso, es un problema. Siempre con palabra: el color solo no dice nada a uno de cada
+   doce hombres, y esto se lee para decidir si hay que ir a la vidriería hoy. */
+.pf-sem{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:var(--rr1);
+  font:700 var(--t1)/17px inherit;white-space:nowrap}
+.pf-sem.ok{background:var(--ok-bg);color:var(--ok)}
+.pf-sem.falta{background:var(--av-bg);color:var(--av)}
+.pf-sem.grave{background:var(--mal-bg);color:var(--mal)}
+.pf-sem.nada{background:var(--n2);color:var(--n7)}
+
+/* ----- Imprimir la orden de trabajo -----
+   El @media print de más arriba esconde .pf-modal-bg, y con razón: imprimir la app con el
+   velo azul encima no es imprimir nada. Pero la orden de trabajo VIVE en un modal, así que
+   fabricación apretaba imprimir y salía una hoja en blanco. La clase se pone en <body>
+   justo antes de window.print() y se quita en 'afterprint': mientras está, se imprime SOLO
+   el panel —sin velo, sin sombra, sin los dos botones del pie— y el resto del documento no
+   existe. Sin `position:static` el panel sale recortado al alto de la ventana, que es lo
+   que hace un `position:fixed` en papel. */
+@media print{
+  body.pf-print-hoja>*{display:none!important}
+  body.pf-print-hoja>#pf-hoja{display:block!important;position:static;inset:auto;padding:0;
+    background:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+  body.pf-print-hoja #pf-hoja .pf-panel{max-width:none;max-height:none;box-shadow:none;
+    border-radius:0;overflow:visible}
+  body.pf-print-hoja #pf-hoja .pf-panel-b{overflow:visible;padding:0}
+  body.pf-print-hoja #pf-hoja .pf-panel-h{padding-left:0;padding-right:0}
+  body.pf-print-hoja #pf-hoja .pf-panel-f,
+  body.pf-print-hoja #pf-hoja .pf-cerrar{display:none!important}
+}
+
+/* ============================================================================
+   Material — lo que las tres pestañas necesitaban y no existía todavía
+   ============================================================================ */
+
+/* Los botones de un renglón de material. `.mat-fila` es una rejilla de dos columnas —el
+   nombre y la cantidad— y los dos botones de «En almacén» no caben en ninguna de las dos:
+   en la del número lo empujan fuera de la vista, y debajo del nombre quedan pegados al
+   texto que describen. Cruzan la rejilla completa, y el `display:flex` con su `gap` lo pone
+   `.btn-fila` del sistema, que es la clase que ya resuelve dos botones en un renglón. */
+.mat-acc{grid-column:1/-1;margin-top:var(--e1)}
+
+/* Lo que no va al papel. El @media print de más arriba ya esconde la barra, la banda y los
+   modales, pero la hoja de compra que fabricación se lleva a la vidriería seguía saliendo
+   con las pestañas, con la tarjeta de calibración, con los botones de cada renglón y con la
+   lista de lo que YA está en el taller. Un renglón que dice «no compres esto» en una hoja
+   de compra se lee mal en el mostrador: se pide lo que está tachado. */
+@media print{
+  .no-papel{display:none!important}
+}
+
+/* ============================================================================
+   Agenda — lo que el calendario necesitaba y no existía todavía
+   ============================================================================ */
+
+/* El día que está abierto. La rejilla ya marca HOY con el borde de acento, y el día que se
+   está mirando necesita su propia marca: sin ella, tocar un día y que la lista apareciera
+   trescientos píxeles más abajo dejaba sin saber cuál se había tocado —y en un mes con
+   quince días agendados eso se resuelve tocando otro, que abre otra lista—. Fondo tenue del
+   acento, el mismo recurso de `.pf-tab.on`, y el `aria-current="date"` lo dice para quien no
+   ve el fondo. */
+.cal-dia[aria-current="date"]{background:var(--a-suave);border-color:var(--a-borde)}
+
+/* Dos casos que se quedaron sin filete. `en_diseno` va en ámbar por lo mismo que en
+   `.pf-etapa`: ya se vendió y todavía no se corta. Y una instalación CANCELADA no se pinta
+   igual que una viva —el mes estaría prometiendo una visita que no va a pasar—: se tacha,
+   que es lo único que se lee igual sin distinguir colores. */
+.cal-ev.en_diseno{border-left-color:var(--amber-ico)}
+.cal-ev.off{border-left-color:var(--n3);color:var(--muted);text-decoration:line-through}
+
+/* El semáforo del día, con su palabra y su frase completa. No cabe dentro de `.dia-t`
+   porque ese lleva `text-transform:capitalize` y «Falta acrílico blanco 3 mm» salía como
+   «Falta Acrílico Blanco 3 Mm», que se lee como un nombre propio y no como una advertencia. */
+.ag-sem{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2);margin-bottom:var(--e3);
+  font:400 var(--t2)/1.45 inherit;color:var(--muted)}
+
+/* La tira de filtros de arriba del calendario. `.chips` ya existe pero nace pegada a su
+   etiqueta (`margin-top:4px`) porque vive dentro de un `.fld`; aquí es una tira suelta y lo
+   que necesita es separación abajo, no arriba. */
+.ag-filtros{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--e4)}
+
+/* La columna de acciones de una ficha. Existe `.pf-fila-acc`, pero en el teléfono se
+   convierte en una fila horizontal con relleno a la izquierda —tiene todo el sentido dentro
+   de un `.pf-fila`, donde se alinea debajo del texto— y aquí son hasta seis botones dentro
+   de un panel: quedaban de cuarenta píxeles de ancho con el texto cortado. */
+.pf-acciones{display:flex;flex-direction:column;gap:var(--e2);margin-top:var(--e4)}
+.pf-acciones>*{width:100%}
+.pf-acciones .btn+.btn,.pf-acciones .btn-wa+.btn{margin-top:0}
+
+/* Un botón que no ocupa el ancho completo. `.btn` es ancho completo a propósito —es LA
+   acción de una tarjeta— y estos son acciones sueltas dentro de un párrafo: «Agendar el 3
+   de septiembre» de borde a borde se lee como la acción principal de la pantalla, y no lo es. */
+.pf-btn-corto{width:auto;display:inline-flex;align-items:center;justify-content:center;
+  gap:var(--e2)}
+
+/* ============================================================================
+   AJUSTES — mod/ajustes.js
+   ============================================================================ */
+
+/* Ajustes es la única pantalla que no sirve para trabajar, así que es la única que puede
+   permitirse párrafos: aquí se explica por qué hace falta un Worker y qué se ve en la
+   pantalla de consentimiento de Google. `.vacio-d` no sirve —centra el texto, porque nace
+   de un estado vacío— y cuatro renglones centrados no se leen. */
+.aj-p{margin:var(--e3) 0 0;font:400 var(--t2)/1.6 inherit;color:var(--n7);max-width:62ch}
+
+/* Un bloque de campos que abre un tema nuevo dentro de la misma tarjeta. Sin la
+   separación, el campo del Client ID se leía como parte del último paso. */
+.aj-bloque{margin-top:var(--e5)}
+
+/* `.hintnote` nace inline-block y sin margen porque vive pegada a un campo. En esta
+   pantalla van varias seguidas y sin esto se tocan, y tres avisos pegados se leen como un
+   solo párrafo de tres colores. */
+.aj-nota{display:block;margin-top:var(--e3)}
+.aj-nota:first-child{margin-top:0}
+
+/* Los pasos de Fase 2 son doce pantallas de Google Cloud en un orden que no se puede
+   alterar, así que van numerados de verdad: una lista de viñetas invita a leerlos
+   salteados, y saltarse el que dice «déjalo en Testing» cuesta la cuenta. El reset del
+   sistema pone padding:0 en todo, y sin este relleno los números se pintan fuera de la
+   tarjeta. */
+.aj-pasos{margin:var(--e3) 0 0;padding-left:1.5em;font:400 var(--t2)/1.6 inherit;color:var(--n7)}
+.aj-pasos li{margin-bottom:var(--e2)}
+.aj-pasos li::marker{color:var(--muted);font-weight:700}
+
+/* Elegir rol con su descripción completa. No cabe en `.tipo-seg` —son tres palabras por
+   opción, no dos— ni en un `.chip`: elegir un rol sin saber qué te va a esconder es
+   elegir a ciegas, y el que se equivoca aquí acaba creyendo que la plataforma no trae
+   pantalla de cobranza. El elegido lleva fondo tenue del acento y su tinta, como todo lo
+   elegido del sistema. */
+.aj-rol{display:flex;align-items:flex-start;gap:var(--e3);width:100%;text-align:left;
+  padding:var(--e3);margin-bottom:var(--e2);border:1px solid var(--n3);border-radius:var(--rr1);
+  background:var(--card);color:var(--n7);font:400 var(--t2)/1.5 inherit;font-family:inherit;
+  cursor:pointer;transition:border-color .12s,background .12s}
+.aj-rol:hover{border-color:var(--n4)}
+.aj-rol .svgi{flex-shrink:0;margin-top:1px}
+.aj-rol b{display:block;font:700 var(--t3)/1.35 inherit;color:var(--ink);margin-bottom:2px}
+.aj-rol.on{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-fuerte)}
+.aj-rol.on b{color:var(--a-fuerte)}
+
+/* El tercer tono de `.hintnote`. Ya existían `nota-av` y `nota-ok`; el rojo faltaba, y el
+   único lugar del sistema que lo necesita es el cordón de borrar todo, donde el aviso no
+   es «ten cuidado» sino «esto no se puede deshacer». */
+.hintnote.nota-mal{background:var(--mal-bg);border:1px solid var(--mal-borde);color:var(--mal)}
+
+/* ============================================================================
+   Mapa — lo que el pin necesitaba y no existía todavía
+   ============================================================================ */
+
+/* El pin. Es un `L.divIcon`, así que Leaflet le pone el ancho y el alto como estilo en
+   línea (`iconSize`) y le REEMPLAZA la clase por la que se le pase: no queda nada del
+   cuadrito blanco de `.leaflet-div-icon`, y por eso todo lo que se ve del pin se define
+   aquí. `box-sizing` explícito porque el borde de 2 px tiene que caber DENTRO de los 26 px
+   del `iconSize`; sin él el pin queda descentrado de su propia coordenada.
+
+   Las tres formas son las de `.mapa-leyenda`, y la letra de adentro es el cuarto indicio
+   después de la forma, el relleno y el color: uno de cada doce hombres no distingue el
+   verde del ámbar, y este mapa se lee para decidir a dónde manejar. */
+.mapa-pin{box-sizing:border-box;display:grid;place-items:center;border:2px solid;
+  background:var(--card);font:800 11px/1 inherit;letter-spacing:0;box-shadow:var(--clay)}
+/* Vendido y sin empezar: gris, que en `.pf-etapa` es exactamente lo que significa. No se
+   pinta ámbar porque ámbar es «está en el taller» y esto todavía no entró. */
+.mapa-pin.ganado{border-color:var(--n4);color:var(--n7);border-radius:3px}
+.mapa-pin.taller{border-color:var(--amber-ico);color:var(--av);border-radius:3px}
+.mapa-pin.listo{border-color:var(--a);color:var(--a-fuerte);border-radius:50%}
+/* El relleno es el indicio de «ya está puesto»: se ve incluso reducido a cuatro píxeles,
+   que es como se ve un pin cuando el mapa está en toda la ciudad. El aro conserva el verde
+   de la leyenda para que el cuadrito de abajo y el pin sean la misma cosa, pero el relleno
+   va con --ok y no con --green-ico: la letra es blanca de 11 px, y sobre --green-ico el
+   contraste es 3,39:1 —debajo del mínimo para texto chico— mientras que sobre --ok es
+   5,19:1. Es el mismo par que ya usa `.btn-ok`. */
+.mapa-pin.instalado{border-color:var(--green-ico);background:var(--ok);color:#fff;
+  border-radius:50%}
+/* En la ruta del día la letra se cambia por el número de la parada, y el pin se levanta del
+   resto con un aro del acento: la numeración tiene que leerse como un conjunto. */
+.mapa-pin.ruta{box-shadow:0 0 0 3px var(--a-borde),var(--clay)}
+/* El pin que se está poniendo a mano: mismo tamaño, borde punteado y el icono de pin
+   adentro. Punteado porque todavía no está guardado, y eso hay que verlo. */
+.mapa-pin.mano{border-color:var(--a);border-style:dashed;color:var(--a-fuerte);
+  border-radius:50%;background:var(--card)}
+.mapa-pin.mano .svgi{width:14px;height:14px}
+
+/* La cuarta entrada de la leyenda. Las tres que ya estaban no cubrían «vendido, sin
+   empezar», y ese es el estado en el que un proyecto pasa más días. */
+.mapa-leyenda i.ganado{border-color:var(--n4);border-radius:2px}
+
+/* La línea de la ruta. Leaflet pinta el trazo con atributos de presentación (`stroke`,
+   `stroke-width`), que pierden contra cualquier regla de hoja de estilos: por eso la
+   polilínea se crea con `className` y su color se decide aquí, con el acento del sistema,
+   en vez de quedarse con el azul suelto de la librería. Punteada porque es un orden
+   sugerido, no un trazado por calles. */
+.mapa-ruta-linea{stroke:var(--a);stroke-width:3;stroke-dasharray:7 7;fill:none;opacity:.85}
+
+/* Mientras se pone un pin a mano, el cursor deja de ser la manita de arrastrar el mapa: lo
+   que se va a hacer es apuntar. Va con el id porque vendor/leaflet.css se carga DESPUÉS de
+   esta hoja y su `.leaflet-container{cursor:grab}` le gana a una sola clase. */
+#mapa-lienzo.poniendo .leaflet-container{cursor:crosshair}
+
+/* La barra del modo «pin a mano». Es `.hintnote.nota-av` —el mismo ámbar de «esto que
+   estás viendo tiene una condición»— pero lleva dos botones adentro, y `.hintnote` es un
+   inline-block pensado para texto suelto: los botones quedaban pegados a la última palabra
+   y en el teléfono partían el renglón a la mitad. */
+.mapa-modo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2);width:100%;
+  margin-bottom:var(--e3)}
+.mapa-modo>span{flex:1 1 12ch;min-width:0}
+
+/* La dirección tal como la escribieron, con sus renglones. Reacomodarla en un párrafo es lo
+   que convierte «interior 4, atrás de la farmacia» en una calle que no existe, y esa
+   dirección es lo único que tiene quien va a poner el pin a mano. */
+.mapa-dir{display:block;white-space:pre-line}

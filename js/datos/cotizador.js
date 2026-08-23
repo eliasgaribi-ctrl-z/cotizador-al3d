@@ -194,23 +194,122 @@ export async function drenarBuzon() {
   return { creados, repetidos, fallidos };
 }
 
-/* ----- Clientes ya conocidos -----
-   Misma idea que `clientesConocidos()` del cotizador: el historial ES la lista de
-   clientes. La plataforma no pide una entidad cliente y no la va a pedir: la base
-   «Registro de clientes» de Notion tiene UNA fila después de tres años. */
-export function clientes() {
-  const m = new Map();
-  for (const e of historial()) {
-    const n = String(e.cliente || '').trim();
-    if (!n) continue;
-    const k = n.toLowerCase();
-    if (!m.has(k)) m.set(k, { nombre: n, tel: e.tel || '', trabajos: 0, ultimo: 0 });
-    const c = m.get(k);
-    c.trabajos++;
-    if (!c.tel && e.tel) c.tel = e.tel;
-    if ((Number(e.ts) || 0) > c.ultimo) c.ultimo = Number(e.ts) || 0;
+/* ----- Clientes: los cuadernos del cotizador, no una lista propia -----
+   El cotizador agrupa sus cotizaciones en «cuadernos de cliente» con una regla de dos
+   pasadas: primero por teléfono normalizado a diez dígitos —que es el dato confiable,
+   porque el nombre se escribe distinto cada vez— y después por nombre, uniéndose al
+   cuaderno del teléfono cuando el nombre solo apunta a uno.
+
+   Esta es una RÉPLICA de esa regla, no una versión propia. La primera versión de este
+   módulo agrupaba por nombre en minúsculas, que es más simple y está mal: «Andrey» y
+   «Andrey Healthylicious» quedaban como dos clientes en la plataforma y como uno en el
+   cotizador, y a la primera pregunta de «¿cuánto le hemos vendido a este cliente?» habría
+   dos respuestas distintas en la misma app. Si esta regla cambia allá, cambia aquí. */
+const telClave = t => { const d = String(t || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : ''; };
+const normNom  = s2 => String(s2 || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+/** El total que de verdad se cobró en una cotización: el autorizado si difiere del calculado. */
+const totalFinalHist = e => totalVendido(e);
+
+export function cuadernos() {
+  const hist = historial();
+  const grupos = new Map();
+  const nomTels = new Map();
+  const dame = clave => {
+    let g = grupos.get(clave);
+    if (!g) { g = { clave, claves: [clave], cots: [] }; grupos.set(clave, g); }
+    return g;
+  };
+  /* Pasada 1: las que traen teléfono. Van primero porque son las que forman los cuadernos
+     a los que la pasada 2 puede unirse. */
+  for (const e of hist) {
+    const d = telClave(e.tel); if (!d) continue;
+    dame('tel:' + d).cots.push(e);
+    const n = normNom(e.cliente);
+    if (n) { if (!nomTels.has(n)) nomTels.set(n, new Set()); nomTels.get(n).add('tel:' + d); }
   }
-  return Array.from(m.values()).sort((a, b) => b.ultimo - a.ultimo);
+  /* Pasada 2: las que no lo traen. */
+  for (const e of hist) {
+    if (telClave(e.tel)) continue;
+    const n = normNom(e.cliente);
+    if (!n) { dame('?').cots.push(e); continue; }
+    const cand = nomTels.get(n);
+    if (cand && cand.size === 1) {
+      const g = grupos.get([...cand][0]);
+      g.cots.push(e);
+      if (g.claves.indexOf('nom:' + n) < 0) g.claves.push('nom:' + n);
+      continue;
+    }
+    dame('nom:' + n).cots.push(e);
+  }
+  const prim = (g, campo) => {
+    const e = g.cots.find(x => String(x[campo] || '').trim());
+    return e ? String(e[campo]).trim() : '';
+  };
+  for (const g of grupos.values()) {
+    /* Las dos pasadas rompen el orden del historial dentro del grupo: se rehace, porque de
+       «la más reciente manda» dependen el nombre, el teléfono y la dirección. */
+    g.cots.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    g.nombre = prim(g, 'cliente');
+    const conTel = g.cots.find(x => telClave(x.tel));
+    g.tel = conTel ? String(conTel.tel).trim() : prim(g, 'tel');
+    g.dirRaw = prim(g, 'dirRaw');
+    g.maps = prim(g, 'maps');
+    const vistos = new Set([normNom(g.nombre)]);
+    g.alias = [];
+    for (const e of g.cots) {
+      const n = normNom(e.cliente);
+      if (n && !vistos.has(n)) { vistos.add(n); g.alias.push(String(e.cliente).trim()); }
+    }
+    g.vendido = g.cots.reduce((a, e) => a + totalFinalHist(e), 0);
+    g.ultima = g.cots.reduce((a, e) => Math.max(a, e.ts || 0), 0);
+    g.primera = g.cots.reduce((a, e) => Math.min(a, e.ts || Infinity), Infinity);
+    if (!isFinite(g.primera)) g.primera = 0;
+  }
+  /* El cliente con el que se habló hace menos, arriba: es el que se va a buscar. */
+  return [...grupos.values()].sort((a, b) => b.ultima - a.ultima);
+}
+
+/** El cuaderno al que pertenece una cotización, con la misma regla: primero teléfono. */
+export function cuadernoDeEntrada(entrada) {
+  if (!entrada) return null;
+  const todos = cuadernos();
+  const d = telClave(entrada.tel);
+  if (d) { const g = todos.find(x => x.clave === 'tel:' + d); if (g) return g; }
+  const n = normNom(entrada.cliente);
+  if (!n) return null;
+  return todos.find(g => g.clave === 'nom:' + n)
+      || todos.find(g => normNom(g.nombre) === n || g.alias.some(a => normNom(a) === n))
+      || null;
+}
+
+/* ----- La nota del cuaderno -----
+   Lo único del cliente que no sale de ninguna cotización: cómo paga, con quién se habla,
+   qué quedó pendiente. La escribe el cotizador y la plataforma solo la lee, como todo lo
+   demás de ese lado. Se lee por CUALQUIERA de las claves del grupo, porque la nota pudo
+   escribirse cuando el cliente todavía no tenía teléfono y vivía bajo «nom:». */
+const CUA_NOTAS = 'al3d_cuadernos';
+export function notaDeCuaderno(g) {
+  if (!g) return '';
+  try {
+    const o = JSON.parse(localStorage.getItem(CUA_NOTAS) || '{}');
+    if (!o || typeof o !== 'object') return '';
+    for (const k of (g.claves || [g.clave])) {
+      const v = o[k];
+      if (typeof v === 'string' && v.trim()) return v;
+      if (v && typeof v === 'object' && typeof v.texto === 'string' && v.texto.trim()) return v.texto;
+    }
+  } catch (_) {}
+  return '';
+}
+
+/** Lista plana de clientes, la forma que las pantallas piden. Sale de los cuadernos. */
+export function clientes() {
+  return cuadernos().filter(g => g.clave !== '?').map(g => ({
+    clave: g.clave, nombre: g.nombre, tel: g.tel, dirRaw: g.dirRaw, maps: g.maps,
+    alias: g.alias, trabajos: g.cots.length, vendido: g.vendido,
+    ultimo: g.ultima, primera: g.primera,
+  }));
 }
 
 /** ¿Hay cotizador en este dispositivo? Si el historial está vacío y el folio en 0, no. */
