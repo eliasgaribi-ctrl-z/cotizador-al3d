@@ -427,3 +427,47 @@
 @media print{
   .no-papel{display:none!important}
 }
+
+/* ============================================================================
+   Agenda — lo que el calendario necesitaba y no existía todavía
+   ============================================================================ */
+
+/* El día que está abierto. La rejilla ya marca HOY con el borde de acento, y el día que se
+   está mirando necesita su propia marca: sin ella, tocar un día y que la lista apareciera
+   trescientos píxeles más abajo dejaba sin saber cuál se había tocado —y en un mes con
+   quince días agendados eso se resuelve tocando otro, que abre otra lista—. Fondo tenue del
+   acento, el mismo recurso de `.pf-tab.on`, y el `aria-current="date"` lo dice para quien no
+   ve el fondo. */
+.cal-dia[aria-current="date"]{background:var(--a-suave);border-color:var(--a-borde)}
+
+/* Dos casos que se quedaron sin filete. `en_diseno` va en ámbar por lo mismo que en
+   `.pf-etapa`: ya se vendió y todavía no se corta. Y una instalación CANCELADA no se pinta
+   igual que una viva —el mes estaría prometiendo una visita que no va a pasar—: se tacha,
+   que es lo único que se lee igual sin distinguir colores. */
+.cal-ev.en_diseno{border-left-color:var(--amber-ico)}
+.cal-ev.off{border-left-color:var(--n3);color:var(--muted);text-decoration:line-through}
+
+/* El semáforo del día, con su palabra y su frase completa. No cabe dentro de `.dia-t`
+   porque ese lleva `text-transform:capitalize` y «Falta acrílico blanco 3 mm» salía como
+   «Falta Acrílico Blanco 3 Mm», que se lee como un nombre propio y no como una advertencia. */
+.ag-sem{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2);margin-bottom:var(--e3);
+  font:400 var(--t2)/1.45 inherit;color:var(--muted)}
+
+/* La tira de filtros de arriba del calendario. `.chips` ya existe pero nace pegada a su
+   etiqueta (`margin-top:4px`) porque vive dentro de un `.fld`; aquí es una tira suelta y lo
+   que necesita es separación abajo, no arriba. */
+.ag-filtros{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--e4)}
+
+/* La columna de acciones de una ficha. Existe `.pf-fila-acc`, pero en el teléfono se
+   convierte en una fila horizontal con relleno a la izquierda —tiene todo el sentido dentro
+   de un `.pf-fila`, donde se alinea debajo del texto— y aquí son hasta seis botones dentro
+   de un panel: quedaban de cuarenta píxeles de ancho con el texto cortado. */
+.pf-acciones{display:flex;flex-direction:column;gap:var(--e2);margin-top:var(--e4)}
+.pf-acciones>*{width:100%}
+.pf-acciones .btn+.btn,.pf-acciones .btn-wa+.btn{margin-top:0}
+
+/* Un botón que no ocupa el ancho completo. `.btn` es ancho completo a propósito —es LA
+   acción de una tarjeta— y estos son acciones sueltas dentro de un párrafo: «Agendar el 3
+   de septiembre» de borde a borde se lee como la acción principal de la pantalla, y no lo es. */
+.pf-btn-corto{width:auto;display:inline-flex;align-items:center;justify-content:center;
+  gap:var(--e2)}

@@ -42,6 +42,9 @@ import {
 let cont = null;
 let CTX = null;
 
+/* La pestaña sobrevive a salir del módulo y volver, a propósito: fabricación entra a
+   «En almacén», va al estante, se distrae con un aviso de Inicio y regresa. Volver siempre
+   a «Por comprar» le haría buscar dos veces el renglón donde iba. */
 let TAB = 'comprar';            // comprar | almacen | proyecto
 
 let COMPRA = [];                // Stock.listaCompra()
@@ -433,7 +436,7 @@ function textoRecibi(pedir) {
 
 function notaCompra(pedir) {
   const sinCosto = Prefs.veDinero() && pedir.every(l => l.costo === null || l.costo === undefined);
-  return '<p class="pf-nota">Las cantidades se suman de TODOS los proyectos abiertos antes de ' +
+  return '<p class="pf-nota no-papel">Las cantidades se suman de TODOS los proyectos abiertos antes de ' +
     'redondear: dos proyectos que piden 0.48 y 0.70 láminas con media en el estante son una ' +
     'lámina, no dos. Si algo llegó incompleto, arréglalo en <b>En almacén</b> con «Corregir»: ' +
     'un conteo manda sobre el libro.' +
@@ -652,7 +655,10 @@ function cardProyecto(p) {
 
   return '<div class="card">' + cab + '<div class="card-b">' + sub + cuerpo +
     (reqs.length
-      ? '<button type="button" class="btn btn-gho no-papel" data-recalcular="' + esc(p.id) +
+      ? '<p class="mat-sello">Calculado con las constantes ' +
+          esc(reqs[0].constantes_version || 'sin versión') + '. La versión se congela en cada ' +
+          'línea: cambiar una constante hoy no reescribe lo que ya se compró.</p>' +
+        '<button type="button" class="btn btn-gho no-papel" data-recalcular="' + esc(p.id) +
         '">Recalcular con las partidas de hoy</button>'
       : '') +
     '</div></div>';
@@ -690,7 +696,6 @@ function filaReq(p, r) {
         esc(cant(r.cantidad_ajustada)) + ' por ' + esc(r.ajustado_por || 'alguien') +
         (r.motivo_ajuste ? ': ' + esc(r.motivo_ajuste) : ' — sin razón escrita') + '</div>'
       : '') +
-    '<div class="mat-nota">Calculado con las constantes ' + esc(r.constantes_version || 'sin versión') + '</div>' +
     '<div class="mat-acc btn-fila no-papel">' +
       '<button type="button" class="btn btn-gho" data-ajustar="' + esc(r.id) + '">' +
         ico('i-ajustar') + ' Ajustar</button>' +
@@ -706,7 +711,7 @@ const estadoReq = e => ESTADO_REQ[e] || String(e || '');
    sin decirlo alguien va a comparar un precio de la plataforma con el ejemplo de su propia
    página de Notion y va a creer que hay un error de $10. */
 function laVerdad() {
-  return '<p class="pf-nota">Los dos tarifarios de AL3D cobran por ejes distintos: el ' +
+  return '<p class="pf-nota no-papel">Los dos tarifarios de AL3D cobran por ejes distintos: el ' +
     '<b>catálogo del cotizador</b> cobra por MATERIAL —$30 el aluminio pintado, $55 el acero, ' +
     'más $5 la cursiva o $10 la compleja—, y la página <b>«¿Cómo Cotizar?»</b> de Notion cobra ' +
     'por TIPO DE LETRA —$30 / $35 / $40 / $50, con −20 % sin iluminación—. Manda el catálogo ' +
@@ -736,7 +741,10 @@ function pintarMbar() {
   b.innerHTML = '<button type="button" class="btn btn-ok" data-recibi>' +
     esc(textoRecibi(pedir)) + '</button>';
   b.hidden = false;
-  b.onclick = ev => { if (ev.target.closest('[data-recibi]')) recibirTodo(); };
+  b.onclick = ev => {
+    const btn = ev.target.closest('[data-recibi]');
+    if (btn) conBoton(btn, recibirTodo);
+  };
   ajustarAltoBarra();
 }
 
@@ -757,7 +765,8 @@ async function clicCuerpo(ev) {
   if (hoja) { abrirHoja(hoja.dataset.hoja); return; }
 
   if (t.closest('[data-imprimir]')) { imprimir(); return; }
-  if (t.closest('[data-recibi]')) { await conBoton(t, recibirTodo); return; }
+  const rb = t.closest('[data-recibi]');
+  if (rb) { await conBoton(rb, recibirTodo); return; }
 
   const asi = t.closest('[data-asi]');
   if (asi) { await conBoton(asi, () => aceptarDerivado(asi.dataset.asi)); return; }
@@ -1065,7 +1074,6 @@ async function guardarConstantes() {
      cambian los cálculos, y dejar la lista vieja enseñando el número anterior es la forma
      más rápida de que alguien lo escriba dos veces. */
   await cargar();
-  CTES = (await DB.listar('constantes')).filter(c => c && c.clave && !String(c.clave).startsWith('_'));
   repintarHoja();
 
   if (malas.length) {

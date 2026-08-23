@@ -263,11 +263,15 @@ function pintar() {
   if (!_cont || !_d) return;
   const d = _d;
 
+  /* El segmento de vista y los filtros van en la MISMA tira. Son la misma cosa —qué de la
+     agenda estoy viendo— y en dos renglones separados el de abajo se lee como si filtrara
+     otra pantalla. */
   _cont.innerHTML =
     pintarCuentas(d) +
-    segmento([{ v: 'mes', t: 'Mes' }, { v: 'semana', t: 'Semana' }, { v: 'lista', t: 'Lista' }],
-             _vista, 'data-vista') +
-    pintarFiltros() +
+    '<div class="ag-filtros">' +
+      segmento([{ v: 'mes', t: 'Mes' }, { v: 'semana', t: 'Semana' }, { v: 'lista', t: 'Lista' }],
+               _vista, 'data-vista') + pintarFiltros() +
+    '</div>' +
     '<div class="card"><div class="card-b">' +
       (_vista === 'mes' ? pintarMes(d) : _vista === 'semana' ? pintarSemana(d) : pintarLista(d)) +
     '</div></div>' +
@@ -302,7 +306,7 @@ function pintarFiltros() {
      —«no hay nada agendado»— que además es falsa. */
   if (Prefs.rol() === 'pagos') c.push(chip('Solo los días con cobro', _soloCobro, 'data-cobro="1"'));
   if (_vista === 'lista') c.push(chip('Incluir lo que ya pasó', _pasadas, 'data-pasadas="1"'));
-  return c.length ? '<div class="ag-filtros">' + c.join('') + '</div>' : '';
+  return c.join('');
 }
 
 /* ----- Vista de mes -----
@@ -330,17 +334,25 @@ function pintarMes(d) {
   return '<div class="cal-cab">' +
       '<h2 class="cal-mes">' + esc(etiquetaMes(primero)) + '</h2>' +
       '<button type="button" class="cal-nav" data-hoy aria-label="Ir al mes de hoy">' + ico('i-hoy') + '</button>' +
-      '<button type="button" class="cal-nav" data-mueve="-1" aria-label="Mes anterior">' + ico('i-atras') + '</button>' +
-      '<button type="button" class="cal-nav" data-mueve="1" aria-label="Mes siguiente">' + ico('i-horiz') + '</button>' +
+      nav(-1, 'Mes anterior') + nav(1, 'Mes siguiente') +
     '</div>' +
     '<div class="cal-rej">' +
       DOW.map(x => '<div class="cal-dow" aria-hidden="true">' + x + '</div>').join('') +
       celdas.join('') +
     '</div>' +
-    (mes.total ? '' : '<p class="hintnote" style="margin-top:var(--e3)">No hay nada agendado en ' +
+    (mes.total ? '' : '<p class="pf-nota">No hay nada agendado en ' +
       esc(etiquetaMes(primero)) + '. Toca un día para agendar en él.</p>') +
     pintarDiaAbierto(d);
 }
+
+/* Adelante y atrás con chevrones de texto y no con iconos. El sprite trae `i-atras` pero no
+   su espejo, y la flecha de dos puntas de `i-horiz` no dice hacia dónde: apuntando a los dos
+   lados en el botón de «mes siguiente» es peor que no tener icono. Añadir un símbolo nuevo
+   sería tocar plataforma.html, que no es de este módulo. El nombre del botón va en su
+   aria-label, que es donde de todas formas tenía que estar. */
+const nav = (n, etiqueta) =>
+  '<button type="button" class="cal-nav" data-mueve="' + n + '" aria-label="' + esc(etiqueta) +
+  '"><span aria-hidden="true">' + (n < 0 ? '\u2039' : '\u203A') + '</span></button>';
 
 const celdaFuera = n =>
   '<button type="button" class="cal-dia fuera" disabled aria-hidden="true">' +
@@ -459,8 +471,7 @@ function pintarSemana(d) {
   return '<div class="cal-cab">' +
       '<h2 class="cal-mes">' + esc(fmtFecha(ini) + ' — ' + fmtFecha(fin)) + '</h2>' +
       '<button type="button" class="cal-nav" data-hoy aria-label="Ir a esta semana">' + ico('i-hoy') + '</button>' +
-      '<button type="button" class="cal-nav" data-mueve="-1" aria-label="Semana anterior">' + ico('i-atras') + '</button>' +
-      '<button type="button" class="cal-nav" data-mueve="1" aria-label="Semana siguiente">' + ico('i-horiz') + '</button>' +
+      nav(-1, 'Semana anterior') + nav(1, 'Semana siguiente') +
     '</div>' + cuerpo;
 }
 
@@ -547,7 +558,12 @@ function fila(i, sem) {
 /** El link al mapa, con lo que haya: el pin real primero, la búsqueda por texto al final.
  *  Una dirección escrita a mano deja al instalador en la cuadra, y eso ya es más que nada. */
 function linkMapa(p) {
-  if (p.maps_url) return String(p.maps_url);
+  /* Solo http y https. `maps_url` viene de `origen.maps`, que es un campo que el usuario
+     pega a mano en el cotizador y que además puede llegar de un respaldo restaurado: un
+     `javascript:` ahí se convertiría en código al tocar «Ver en Maps», y `esc()` no lo
+     detiene porque un href es un contexto de URL, no de HTML. Del teclado nadie lo escribe
+     a propósito; de un archivo que viajó por WhatsApp, sí. */
+  if (/^https?:\/\//i.test(String(p.maps_url || ''))) return String(p.maps_url);
   if (p.lat !== null && p.lng !== null && isFinite(p.lat) && isFinite(p.lng)) {
     return 'https://www.google.com/maps/search/?api=1&query=' + p.lat + ',' + p.lng;
   }
@@ -560,11 +576,13 @@ function linkMapa(p) {
    ayuda escondida: quien no sabe que las alarmas las dispara el teléfono no entiende por qué
    tiene que bajar un archivo, y sin bajarlo la agenda no avisa de nada. */
 function pintarExportar(d) {
-  const hay = _vista === 'mes'
-    ? !!(d.mes && d.mes.total)
-    : (d.filas || []).some(i => i.estado !== 'cancelada');
+  /* Se habilita con la MISMA cuenta que usa `bajarVarias`, canceladas fuera. Con
+     `d.mes.total`, un mes cuya única instalación se canceló dejaba el botón activo y al
+     apretarlo salía «no hay nada que bajar»: un botón que se enciende para decir que no. */
+  const hay = paraBajar(d).length > 0;
   const titulo = _vista === 'mes' && d.mes ? 'Todo ' + etiquetaMes(d.mes.desde)
-               : _vista === 'semana' ? 'Toda la semana' : 'Todo lo que viene';
+               : _vista === 'semana' ? 'Toda la semana'
+               : _pasadas ? 'Toda la agenda' : 'Todo lo que viene';
 
   let gcalHtml = '';
   if (Gcal.disponible() && Prefs.rol() === 'direccion') {
@@ -763,12 +781,18 @@ async function compartirIcs(texto, nombre, quien) {
   }
 }
 
+/** Lo que entra en el .ics de «todo»: exactamente lo que se está viendo, sin las canceladas.
+ *  Una cancelada en el archivo reviviría el evento en el teléfono de quien lo importe. */
+function paraBajar(d) {
+  const todas = _vista === 'mes' && d.mes
+    ? (d.mes.dias || []).flatMap(x => x.instalaciones || [])
+    : (d.filas || []);
+  return visibles(todas).filter(i => i.estado !== 'cancelada');
+}
+
 async function bajarVarias() {
   if (!_d) return;
-  const todas = _vista === 'mes' && _d.mes
-    ? (_d.mes.dias || []).flatMap(x => x.instalaciones || [])
-    : (_d.filas || []);
-  const vivas = visibles(todas).filter(i => i.estado !== 'cancelada');
+  const vivas = paraBajar(_d);
   if (!vivas.length) { toast('No hay instalaciones que bajar en lo que estás viendo.', '', 3400); return; }
   const sello = _vista === 'mes' && _d.mes ? _d.mes.anio + '-' + p2(_d.mes.mes) : hoyISO();
   await compartirIcs(Ics.calendario(vivas.map(i => Agenda.paraIcs(i, i.proyecto || {}))),
