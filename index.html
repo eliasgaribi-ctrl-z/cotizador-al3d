@@ -409,11 +409,14 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:calc
   .topbar-in .btn-pf{order:5;padding:0;width:42px;display:inline-flex;align-items:center;justify-content:center}
   .topbar-in{row-gap:7px}
 }
-/* En las pantallas angostas —iPhone SE, 13 mini— la palabra «Historial» era justo lo
-   que hacía que el selector de rol ya no cupiera y se fuera a un tercer renglón, que
-   es el que se queda pegado y cuesta pantalla. Se queda el icono con su nombre
-   accesible: el destino sigue siendo el mismo y la fila cabe entera. */
-@media(max-width:385px){
+/* En el celular la palabra «Historial» era justo lo que hacía que el selector de rol ya
+   no cupiera y se fuera a un tercer renglón, que es el que se queda pegado y cuesta
+   pantalla. Con «Clientes» al lado, esa cuenta ya no sale en NINGÚN teléfono: dos botones
+   con texto empujan al tercer renglón hasta en un iPhone de 390 px. Así que en toda la
+   maqueta de móvil —el mismo corte de arriba, no un número nuevo— se quedan los dos
+   iconos con su nombre accesible: el destino sigue siendo el mismo y la fila cabe entera.
+   De 560 px para arriba caben los dos con su palabra y se lee la palabra. */
+@media(max-width:560px){
   .topbar-in .btn-hist .lbl{display:none}
   .topbar-in .btn-hist{padding:0;width:42px;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
   /* Y aquí ya no cabe ni el icono. Se midió: el renglón útil de una pantalla de 360 px son
@@ -880,6 +883,44 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .ai-src-b{flex:1;min-width:0}
 .ai-src-t{font-size:12.5px;font-weight:800;color:var(--green)}
 .ai-src-n{font-size:11.5px;color:#1c6e3d;line-height:1.45;margin:3px 0 8px}
+/* ----- Entregarle el archivo a la IA: arrastrarlo, tocarlo o pegarlo -----
+   El archivo entraba solo por el selector nativo, así que un diseño que el cliente manda
+   por WhatsApp había que bajarlo al disco primero y después ir a buscarlo a la carpeta de
+   descargas. El recuadro punteado es lo que dice «suéltalo aquí»; el arrastre se acepta en
+   todo el modal, pero lo que se resalta es esto, para que se vea dónde va a caer. */
+#ai-file-fld{position:relative}
+.ai-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  padding:20px 16px;border:2px dashed var(--a-borde);border-radius:var(--r-sm);
+  background:var(--soft);cursor:pointer;text-align:center;transition:border-color .12s,background .12s,box-shadow .12s}
+.ai-drop:hover{border-color:var(--brand);background:var(--a-suave)}
+.ai-drop:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.ai-drop.sobre{border-color:var(--brand);border-style:solid;background:var(--a-suave);box-shadow:0 0 0 4px rgba(64,96,248,.16)}
+.ai-drop .ico{font-size:26px;color:var(--brand)}
+.ai-drop .t{font-size:13.5px;font-weight:800;color:var(--n7)}
+.ai-drop .s{font-size:11.5px;color:var(--muted);line-height:1.5}
+/* En un celular no hay nada que arrastrar, así que el recuadro dice ahí lo que ahí sí se
+   puede hacer. Se elige por tipo de puntero y no por ancho de pantalla, igual que el resto
+   de la hoja: el mismo archivo abierto en la laptop sigue diciendo «arrastra». */
+.ai-drop .solo-dedo{display:none}
+.ai-drop>*{pointer-events:none}
+/* El <input type=file> sigue ahí y sigue siendo el que abre la galería del celular: lo que
+   se le quita es la caja, porque el recuadro de arriba ya es su botón. No se oculta con
+   display:none para que el navegador lo siga tomando por un control de verdad. */
+.ai-file-in{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+/* El archivo ya elegido. El selector nativo lo decía con su propio texto gris; con el
+   recuadro ese texto ya no está, y analizar a ciegas es justo el error que cuesta una
+   llamada a la API y el viaje de vuelta. */
+.ai-pick{display:flex;gap:10px;align-items:center;background:var(--green-bg);border:1.5px solid rgba(21,160,106,.28);border-radius:var(--r-sm);padding:9px 11px;margin-top:9px}
+.ai-pick-img{width:52px;height:52px;object-fit:contain;border-radius:8px;border:1px solid rgba(21,160,106,.25);background:#fff;flex-shrink:0;padding:2px}
+.ai-pick-ph{width:52px;height:52px;display:flex;align-items:center;justify-content:center;border-radius:8px;border:1.5px dashed var(--red);background:var(--red-bg);color:var(--red);flex-shrink:0;font-size:20px}
+.ai-pick-b{flex:1;min-width:0}
+.ai-pick-n{font-size:12.5px;font-weight:800;color:var(--green);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai-pick-m{font-size:11.5px;color:#1c6e3d;margin-top:2px}
+.ai-pick-x{border:none;background:none;color:#1c6e3d;font-size:18px;line-height:1;cursor:pointer;padding:3px 7px;border-radius:6px;flex-shrink:0;font-family:inherit}
+.ai-pick-x:hover{color:var(--red);background:var(--red-bg)}
+/* Con el archivo encima del modal, el modal entero se anuncia como destino: quien suelta
+   ve que la ventana correcta es la que va a recibirlo. */
+#aimodal.arrastrando .modal{box-shadow:0 0 0 3px var(--brand),0 24px 60px rgba(23,29,74,.28)}
 /* Segunda entrada a lo mismo, desde la vista previa que queda junto a las partidas */
 .sc-prev-ia{width:100%;margin-top:9px;padding:9px 12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 10px rgba(58,74,216,.25)}
 .sc-prev-ia:hover{filter:brightness(1.06)}
@@ -945,6 +986,63 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .htable td:last-child{text-align:right;font-weight:700;color:var(--ink);white-space:nowrap}
 .htable tr:last-child td{border-bottom:none}
 .hentry-total{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:800;padding:9px 7px 0;border-top:1.5px solid var(--line);color:var(--ink)}
+
+/* ----- Cuadernos de cliente -----
+   Reaprovechan la caja del historial (.hist-panel, .hist-head, .hist-body): es el mismo
+   gesto —abrir una libreta encima del cotizador— y dos cajas distintas para lo mismo se
+   ven como dos apps. Lo que cambia es lo de adentro. */
+.cua-card{display:flex;align-items:center;gap:13px;width:100%;text-align:left;border:none;background:none;font-family:inherit;
+  border-bottom:1px solid var(--line);padding:15px 20px;cursor:pointer;transition:.12s}
+.cua-card:last-child{border-bottom:none}
+.cua-card:hover{background:var(--soft)}
+.cua-ini{display:flex;width:42px;height:42px;flex-shrink:0;border-radius:12px;background:var(--soft-2);color:var(--a-fuerte);
+  display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;letter-spacing:.5px}
+.cua-card-meta{display:block;flex:1;min-width:0}
+.cua-nombre{display:block;font-size:14px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cua-sub{display:block;font-size:11.5px;color:var(--muted);line-height:1.55;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cua-card-num{text-align:right;flex-shrink:0}
+.cua-card-num b{display:block;font-size:13px;font-weight:800;color:var(--green)}
+.cua-card-num span{display:block;font-size:10.5px;color:var(--muted);font-weight:600}
+.cua-flecha{color:var(--muted);flex-shrink:0;font-size:15px}
+
+/* Ficha de un cliente */
+.cua-det-head{padding:17px 20px;border-bottom:1px solid var(--line);background:var(--soft)}
+.cua-volver{border:none;background:none;font-family:inherit;font-size:11.5px;font-weight:700;color:var(--brand);
+  cursor:pointer;padding:4px 0;margin-bottom:9px;display:inline-flex;align-items:center;gap:6px}
+.cua-volver:hover{text-decoration:underline}
+.cua-det-nom{font-size:17px;font-weight:800;color:var(--ink);line-height:1.25}
+.cua-det-datos{font-size:12px;color:var(--muted);line-height:1.65;margin-top:5px}
+.cua-alias{font-size:11px;color:var(--muted);margin-top:4px;font-style:italic}
+.cua-det-acts{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+.cua-det-acts button{border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:11.5px;
+  font-weight:700;padding:7px 12px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap;transition:.12s}
+.cua-det-acts button:hover{border-color:var(--brand);background:var(--soft-2)}
+.cua-cifras{display:flex;gap:9px;padding:13px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.cua-cifra{flex:1;min-width:96px;background:var(--soft);border:1px solid var(--line);border-radius:var(--rr1);padding:9px 11px}
+.cua-cifra b{display:block;font-size:15px;font-weight:800;color:var(--ink);line-height:1.2}
+.cua-cifra span{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.cua-nota-wrap{padding:14px 20px;border-bottom:1px solid var(--line)}
+.cua-nota-wrap label{display:block;font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.cua-nota-wrap textarea{width:100%;min-height:70px;resize:vertical}
+.cua-nota-estado{font-size:10.5px;color:var(--muted);margin-top:5px;min-height:14px}
+.cua-cots-tit{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;padding:14px 20px 0}
+.cua-cot{display:flex;align-items:center;gap:11px;padding:12px 20px;border-bottom:1px solid var(--line)}
+.cua-cot:last-child{border-bottom:none}
+.cua-cot-meta{flex:1;min-width:0}
+.cua-cot-folio{font-size:10px;font-weight:800;color:var(--brand);letter-spacing:.5px;text-transform:uppercase}
+.cua-cot-proy{font-size:13px;font-weight:700;color:var(--ink);margin:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cua-cot-fecha{font-size:11px;color:var(--muted)}
+.cua-cot-tot{font-size:13px;font-weight:800;color:var(--green);white-space:nowrap;flex-shrink:0}
+.cua-cot-acts{display:flex;gap:5px;flex-shrink:0}
+.cua-cot-acts button{border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:11px;
+  font-weight:700;padding:6px 9px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap;transition:.12s}
+.cua-cot-acts button:hover{border-color:var(--brand);background:var(--soft-2)}
+
+/* El aviso que sale bajo el campo Cliente cuando el que se está capturando ya tiene cuaderno */
+.cua-aviso{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 13px;padding:8px 11px;border-radius:var(--rr1);
+  background:var(--soft-2);border:1px solid rgba(58,74,216,.14);font-size:11.5px;color:var(--a-fuerte);line-height:1.45}
+.cua-aviso button{border:none;background:none;font-family:inherit;font-size:11.5px;font-weight:800;color:var(--brand);
+  cursor:pointer;padding:0;text-decoration:underline;white-space:nowrap}
 /* ----- Dirección raw del cliente ----- */
 .dir-raw-actions{display:flex;gap:8px;margin-top:7px}
 .btn-maps{flex:1;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff;color:var(--brand);font-size:12px;font-weight:700;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:5px}
@@ -1546,6 +1644,15 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
   .hentry-img,.hentry-img-ph{width:74px;height:74px}
   .hentry-acts{order:9;flex-basis:100%;flex-direction:row;align-items:stretch;gap:6px}
   .hentry-acts .hentry-open{flex:1;padding:9px 6px;text-align:center}
+  /* En el celular la fila de una cotización no cabe en una línea: el importe y los
+     botones bajan y quedan a lo ancho, como ya hacen los del historial. */
+  .cua-cot{flex-wrap:wrap}
+  .cua-cot-meta{flex-basis:100%}
+  .cua-cot-tot{order:1}
+  .cua-cot-acts{order:2;margin-left:auto}
+  .cua-card{padding:14px 16px;gap:11px}
+  .cua-det-head,.cua-nota-wrap,.cua-cot,.cua-cifras{padding-left:16px;padding-right:16px}
+  .cua-cots-tit{padding-left:16px;padding-right:16px}
   .hentry-del{align-self:stretch;padding:5px 10px}
   /* El contenido del panel tenía tres bordes izquierdos distintos: 20 px la cabecera, la
      ayuda y la búsqueda; 13 px la entrada y el pie. En el teléfono se veía el escalón. */
@@ -1617,7 +1724,10 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
    pantallas del Fold 6, sin depender de en qué lado del punto de corte caiga cada una.
    Lo que sube es la caja, nunca la letra. */
 @media(hover:none),(pointer:coarse){
+  .ai-drop .solo-raton{display:none}
+  .ai-drop .solo-dedo{display:inline}
   .modal-h button{width:44px;height:44px}
+  .ai-pick-x{min-width:44px;min-height:44px}
   .toast-act,.falt-quitar,.key-btn,.sp-gclear,.hist-foot button,
   .card-fold,.btn-maps,.chip,.seg button,.tipo-seg button{min-height:44px}
   .key-btn,.falt-quitar{padding-left:14px;padding-right:14px}
@@ -2142,6 +2252,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 <symbol id="i-carpeta" viewBox="0 0 24 24"><path d="M4 20a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4.1a2 2 0 0 1 1.6.8l1 1.4a2 2 0 0 0 1.6.8H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2z"/><path d="M2 10.5h20"/></symbol>
 <symbol id="i-ia" viewBox="0 0 24 24"><path d="M10 2.5l1.7 4.3 4.3 1.7-4.3 1.7L10 14.5 8.3 10.2 4 8.5l4.3-1.7z"/><path d="M17.5 14l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></symbol>
 <symbol id="i-vector" viewBox="0 0 24 24"><path d="M4 19.5C12 19.5 15.5 16 15.5 8"/><rect x="1.5" y="17" width="5" height="5" rx="1.2"/><rect x="13" y="2" width="5" height="5" rx="1.2"/></symbol>
+<symbol id="i-cuaderno" viewBox="0 0 24 24"><path d="M7 3.2h11.8A1.2 1.2 0 0 1 20 4.4v15.2a1.2 1.2 0 0 1-1.2 1.2H7"/><path d="M7 3.2A2.4 2.4 0 0 0 4.6 5.6v12.8A2.4 2.4 0 0 0 7 20.8"/><path d="M4.6 8.4h3.2M4.6 12h3.2M4.6 15.6h3.2"/><path d="M11.4 8.2h5.2M11.4 12h5.2M11.4 15.8h3"/></symbol>
 <symbol id="i-historial" viewBox="0 0 24 24"><path d="M3.2 12a8.8 8.8 0 1 0 2.7-6.3"/><path d="M3 3.2v4h4"/><path d="M12 7.6V12l3.2 2"/></symbol>
 <symbol id="i-copiar" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="12.5" height="12.5" rx="2.2"/><path d="M16 8.5V5.2A2.2 2.2 0 0 0 13.8 3H5.2A2.2 2.2 0 0 0 3 5.2v8.6A2.2 2.2 0 0 0 5.2 16h3.3"/></symbol>
 <symbol id="i-basura" viewBox="0 0 24 24"><path d="M3 6.2h18"/><path d="M8.2 6.2V4.3c0-.7.6-1.3 1.3-1.3h5c.7 0 1.3.6 1.3 1.3v1.9"/><path d="M18.7 6.2 17.8 20a2 2 0 0 1-2 1.9H8.2a2 2 0 0 1-2-1.9L5.3 6.2"/><path d="M10.2 10.8v6.4M13.8 10.8v6.4"/></symbol>
@@ -2178,6 +2289,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
       <h1 class="t">Cotizador <small>Anuncios Luminosos 3D</small></h1>
     </div>
     <div class="rolewrap">
+      <button class="btn-hist" onclick="abrirCuadernos()" title="Cuadernos de cliente" aria-label="Cuadernos de cliente"><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg><span class="lbl"> Clientes</span></button>
       <button class="btn-hist" onclick="abrirHistorial()" title="Historial de cotizaciones" aria-label="Historial de cotizaciones"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg><span class="lbl"> Historial</span></button>
       <!-- La plataforma es donde vive lo que pasa DESPUÉS de cotizar: la agenda de
            instalación, el material del almacén, el mapa de obra. Es un <a> y no un iframe:
@@ -2231,6 +2343,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
           <div class="fld" id="fld-cli"><label for="f-cli">Cliente<span class="req" aria-hidden="true">*</span></label><input id="f-cli" list="clientes-conocidos" placeholder="Nombre del cliente" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('cliente',this.value)"><datalist id="clientes-conocidos"></datalist></div>
           <div class="fld" id="fld-tel"><label for="f-tel">Teléfono<span class="req" aria-hidden="true">*</span></label><input id="f-tel" type="tel" inputmode="tel" placeholder="33 0000 0000" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('tel',this.value)"></div>
         </div>
+        <div class="cua-aviso" id="cua-aviso" style="display:none"></div>
         <div class="fld" id="fld-proy"><label for="f-proy">Proyecto<span class="req" aria-hidden="true">*</span></label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('proy',this.value)">
           <!-- El asterisco de la etiqueta ya dice que es obligatorio, y el paso 2 lo dice otra
                vez —con los campos que falten por nombre— en el momento en que estorba. Un
@@ -2375,7 +2488,8 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
   </aside>
 
 </div>
-<div class="modal-bg" id="aimodal" role="dialog" aria-modal="true" aria-label="Cotizar con IA">
+<div class="modal-bg" id="aimodal" role="dialog" aria-modal="true" aria-label="Cotizar con IA"
+  ondragenter="aiDragEntra(event)" ondragover="aiDragSobre(event)" ondragleave="aiDragSale(event)" ondrop="aiSoltar(event)">
   <div class="modal">
     <div class="modal-h"><b><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar con IA</b><button onclick="aiClose()" aria-label="Cerrar">×</button></div>
     <div class="modal-b">
@@ -2418,7 +2532,19 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
           <p class="key-note"><svg class="svgi" aria-hidden="true"><use href="#i-candado"/></svg> Las API keys no están escritas en el código del cotizador: las pegas una sola vez, se guardan ofuscadas en <b>este</b> dispositivo y después solo se muestran sus últimos 4 caracteres. Cada una se envía directo a su proveedor. Si el dispositivo es compartido, usa <b>Borrar</b> al terminar.</p>
         </div>
       </details>
-      <div class="fld" id="ai-file-fld"><label for="ai-file">Archivo (JPG o PDF)</label><input id="ai-file" type="file" accept="image/*,application/pdf"></div>
+      <div class="fld" id="ai-file-fld">
+        <div class="fld-lab" id="lab-ai-file">Archivo (JPG o PDF)</div>
+        <div class="ai-drop" id="ai-drop" role="button" tabindex="0" aria-describedby="ai-drop-s"
+          onclick="$('ai-file').click()"
+          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();$('ai-file').click();}">
+          <svg class="svgi ico" aria-hidden="true"><use href="#i-carpeta"/></svg>
+          <div class="t"><span class="solo-raton">Arrastra aquí la foto o el PDF</span><span class="solo-dedo">Toca para elegir la foto o el PDF</span></div>
+          <div class="s" id="ai-drop-s"><span class="solo-raton">o <b>toca para elegirlo</b> · si ya lo tienes copiado, <b>pégalo</b> con Ctrl+V</span><span class="solo-dedo">de tu galería, de Archivos o de lo que te mandaron</span></div>
+        </div>
+        <input id="ai-file" class="ai-file-in" type="file" accept="image/*,application/pdf"
+          aria-labelledby="lab-ai-file" onchange="aiArchivoElegido(this.files[0])">
+        <div class="ai-pick" id="ai-pick" style="display:none"></div>
+      </div>
       <div class="ai-merge" id="ai-merge-box" style="display:none">
         <button type="button" class="switch" role="switch" aria-checked="false" style="margin:0" onclick="toggleAiMerge()"><span class="tg" id="ai-merge-tg" aria-hidden="true"></span> Conservar las partidas que ya capturé</button>
         <div class="ai-merge-note" id="ai-merge-note"></div>
@@ -2432,6 +2558,28 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 <div class="modal-bg" id="lightbox" onclick="closeLightbox()" role="dialog" aria-modal="true" aria-label="Vista a pantalla completa">
   <button class="lightbox-close" onclick="closeLightbox()" aria-label="Cerrar">×</button>
   <div id="lightboxBody"></div>
+</div>
+<!-- ----- Cuadernos de cliente -----
+     El historial lista cotizaciones; esto lista CLIENTES. Un cliente es un teléfono —y
+     si no hay teléfono, un nombre—, y su cuaderno junta todo lo que se le ha cotizado
+     más una nota que no cabe en ninguna cotización: cómo paga, con quién se habla, qué
+     quedó pendiente. Se arma solo del historial, así que no hay nada que dar de alta. -->
+<div class="modal-bg" id="climodal" onclick="if(event.target===this)cerrarCuadernos()" role="dialog" aria-modal="true" aria-label="Cuadernos de cliente" style="align-items:flex-start;padding-top:calc(32px + env(safe-area-inset-top,0px))">
+  <div class="hist-panel">
+    <div class="hist-head">
+      <b style="font-size:15px;font-weight:800"><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg> <span id="cua-titulo">Cuadernos de cliente</span></b>
+      <button class="hist-close" onclick="cerrarCuadernos()" aria-label="Cerrar"><svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg></button>
+    </div>
+    <div id="cua-lista-vista">
+      <p class="hist-ayuda">Cada cliente es un <b>teléfono</b>; sin teléfono, el <b>nombre</b>. Se agrupan solas las cotizaciones que ya autorizaste.</p>
+      <div class="hist-search-bar">
+        <input id="cua-search" type="search" placeholder="Buscar por cliente o teléfono…" autocomplete="off" oninput="pintarCuadernos()">
+        <span class="hist-count" id="cua-count"></span>
+      </div>
+    </div>
+    <div class="hist-body" id="cua-body"></div>
+    <div class="hist-foot" id="cua-foot"></div>
+  </div>
 </div>
 <div class="modal-bg" id="histmodal" onclick="if(event.target===this)cerrarHistorial()" role="dialog" aria-modal="true" aria-label="Cotizaciones autorizadas" style="align-items:flex-start;padding-top:calc(32px + env(safe-area-inset-top,0px))">
   <div class="hist-panel">
@@ -2449,6 +2597,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
       <button onclick="respaldar()" title="Descarga un archivo con el historial, los folios y la cotización en curso"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> Respaldar</button>
       <button onclick="pedirRestaurar()" title="Reemplaza los datos de este dispositivo con los de un respaldo"><svg class="svgi" aria-hidden="true"><use href="#i-subir"/></svg> Restaurar</button>
       <button onclick="exportarHistorialCSV()" title="Descarga el historial como CSV para Google Sheets"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> CSV</button>
+      <button onclick="cerrarHistorial();abrirCuadernos()" title="Las mismas cotizaciones, agrupadas por cliente"><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg> Clientes</button>
       <p class="foot-nota">Todo se guarda solo en este dispositivo. El respaldo <b>no</b> incluye tus API keys.</p>
     </div>
     <input type="file" id="restaurarin" accept="application/json,.json" style="display:none">
@@ -2818,6 +2967,7 @@ let pid=0, dragId=null;
 
 /* ===================== Helpers ===================== */
 const $=id=>document.getElementById(id);
+const plCot=n=>n+(n===1?' cotización':' cotizaciones');
 const money=n=>'$'+Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
 /* El apóstrofo también: los cinco onclick que pasan un folio lo delimitan con comilla
    simple —onclick="reabrirDeHistorial('${esc(e.folio)}')"—, así que un folio con apóstrofo
@@ -2978,6 +3128,7 @@ const _CAPAS=[
   ['faltmodal',  ()=>cerrarFaltantes()],
   ['aimodal',    ()=>aiClose()],
   ['histmodal',  ()=>cerrarHistorial()],
+  ['climodal',   ()=>cerrarCuadernos()],
   ['vectormodal',()=>cerrarVector()],
   ['scalermodal',()=>cerrarScaler()],
 ];
@@ -3209,8 +3360,11 @@ function clientesConocidos(){
   return [...m.values()];
 }
 function pintarClientes(){
-  const dl=$('clientes-conocidos'); if(!dl) return;
-  dl.innerHTML=clientesConocidos().map(c=>`<option value="${esc(c.cliente)}"></option>`).join('');
+  const dl=$('clientes-conocidos');
+  if(dl) dl.innerHTML=clientesConocidos().map(c=>`<option value="${esc(c.cliente)}"></option>`).join('');
+  /* Esta función ya corría después de cada escritura del historial y al arrancar, que es
+     exactamente cuando el aviso de «ya tiene cuaderno» puede haber cambiado. */
+  actualizarAvisoCuaderno();
 }
 function autocompletarCliente(v){
   if(locked()) return;
@@ -4212,7 +4366,7 @@ function renderAiPreview(){
   el.innerHTML=`<div class="ai-prev-big">
     <div class="ai-prev-head">
       <span class="ttl"><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Archivo analizado por IA · revisa que ningún elemento haya quedado fuera antes de autorizar</span>
-      <button class="x" onclick="clearAiFile()" title="Quitar vista previa">×</button>
+      <button class="x" onclick="clearAiFile()" title="Quitar la imagen de esta pantalla" aria-label="Quitar la imagen de esta pantalla">×</button>
     </div>
     ${big}
     <div class="sub">${esc(f.name||'archivo')} ${isImg?'· clic en la imagen para verla a pantalla completa':''}</div>
@@ -4228,7 +4382,17 @@ function openAiFile(){
   $('lightbox').classList.add('show');
 }
 function closeLightbox(){ $('lightbox').classList.remove('show'); $('lightboxBody').innerHTML=''; }
-function clearAiFile(){ Q.aiFile=null; saveState(); renderAiPreview(); }
+/* En un borrador esta es la ÚNICA copia de la imagen —la del historial nace al autorizar—, y
+   el ✕ está a un dedo de la miniatura, con el archivo original quizá ya fuera del teléfono.
+   Así que sale con Deshacer, igual que borrar una partida. */
+function clearAiFile(){
+  const previa=Q.aiFile;
+  Q.aiFile=null; saveState(); renderAiPreview();
+  if(!previa) return;
+  toast('Imagen quitada de la pantalla','',5600,{label:'Deshacer',fn:()=>{
+    Q.aiFile=previa; saveState(); renderAiPreview();
+  }});
+}
 
 /* ===================== Auth por partida ===================== */
 function shortDescAuth(it){
@@ -5161,6 +5325,8 @@ function aplicarFoldProy(){
 function upd(k,v){
   Q[k]=v; saveState(); updProg();   // updProg ya repinta el encabezado plegado
   if(k==='cliente') autocompletarCliente(v);
+  /* Los dos campos que dicen de quién es esto son los dos que pueden destapar un cuaderno. */
+  if(k==='cliente'||k==='tel') actualizarAvisoCuaderno();
 }
 function updMaps(v){ Q.maps=(v||'').trim(); const ok=/^https?:\/\//i.test(Q.maps); const b=$('mapsbtn'); b.disabled=!ok;
   /* Un botón que se niega sin decir por qué manda a adivinar, y el motivo es casi siempre
@@ -5502,7 +5668,8 @@ function aiOpen(fuente){
   /* El <input type=file> conserva su selección entre aperturas: sin limpiarlo, volver a
      abrir el modal y darle a Analizar re-analizaba —y volvía a pagar— el archivo del
      análisis anterior, sin que nada en pantalla dijera cuál era. */
-  const fi=$('ai-file'); if(fi) fi.value='';
+  aiOlvidarArchivo();
+  _aiDragN=0; aiPintarArrastre(false);
   $('ai-model-gemini').value=localStorage.getItem('ai_model_gemini')||localStorage.getItem('ai_model')||AI_DEFAULTS.gemini;
   $('ai-model-groq').value=localStorage.getItem('ai_model_groq')||AI_DEFAULTS.groq;
   $('ai-model-openrouter').value=localStorage.getItem('ai_model_openrouter')||AI_DEFAULTS.openrouter;
@@ -5520,6 +5687,7 @@ function aiOpen(fuente){
    sin ninguna explicación, y no había forma de cancelar. */
 function aiClose(){
   $('aimodal').classList.remove('show');
+  aiThumbsSoltarTodas();
   if(aiTrabajando){
     _aiCancelado=true;
     if(_aiAbort){ try{_aiAbort.abort();}catch(_){} }
@@ -5530,7 +5698,7 @@ function aiClose(){
 /* Con la imagen del escalador el modal cambia de cara: en vez de pedir un archivo
    enseña lo que se va a analizar, y deja la puerta abierta por si el usuario prefiere
    subir otra cosa. */
-const AI_INTRO_ARCHIVO='Sube una foto (JPG) o PDF del diseño/boceto. La IA detecta texto, medidas, material e iluminación, <b>describe qué está cotizando en cada partida</b> y muestra una miniatura del archivo para que lo compares. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo.';
+const AI_INTRO_ARCHIVO='Dale una foto (JPG) o PDF del diseño/boceto. La IA detecta texto, medidas, material e iluminación, <b>describe qué está cotizando en cada partida</b> y muestra una miniatura del archivo para que lo compares. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo.';
 const AI_INTRO_ESCALADOR='Se analiza la imagen que acabas de medir, con tus cotas dibujadas encima. Como las medidas ya están calibradas, la IA <b>no tiene que estimar tamaños</b>: los usa tal cual y dedica su trabajo a reconocer qué es cada elemento, de qué material y con cuántas letras. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo.';
 function aiPintarFuente(){
   const box=$('ai-src-box'), fld=$('ai-file-fld'), btn=$('ai-go-btn'), intro=$('ai-intro');
@@ -5546,7 +5714,222 @@ function aiPintarFuente(){
 }
 /* Al pasar de «la imagen medida» a «subir un archivo» también se limpia la selección
    anterior, por lo mismo que en aiOpen. */
-function aiUsarArchivo(){ aiSrc=null; const fi=$('ai-file'); if(fi) fi.value=''; aiPintarFuente(); }
+function aiUsarArchivo(){ aiSrc=null; aiOlvidarArchivo(); aiPintarFuente(); }
+
+/* ===================== El archivo que se va a analizar =====================
+   El análisis leía directo de $('ai-file').files[0], y eso lo ataba al selector nativo: la
+   única manera de entregarle un archivo a la IA era buscarlo en el disco. Un diseño que el
+   cliente manda por WhatsApp había entonces que bajarlo primero y después ir a encontrarlo
+   entre las descargas, con el cliente esperando. Ahora los tres caminos que un navegador
+   ofrece para dar un archivo —elegirlo, arrastrarlo y pegarlo— escriben en aiArchivo, y
+   aiAnalyze() lee solo de ahí. Todos pasan por aiArchivoElegido(), que es el único lugar
+   donde se valida: el <input> filtraba por su accept=, y lo que se suelta no pasa por
+   ningún filtro. */
+let aiArchivo=null;
+/* Las urls blob: de las miniaturas que están vivas. Se sueltan cuando el navegador YA cargó
+   su imagen —ahí la url deja de hacer falta, la imagen ya está decodificada en pantalla— y
+   no al pintar la siguiente: revocarla en ese momento la mataba mientras todavía se estaba
+   cargando, y el navegador la reportaba como archivo no encontrado. La lista es la red para
+   las que nunca lleguen a cargar; se vacía al cerrar el modal, que es el único momento en
+   que con seguridad ninguna se está viendo. */
+let _aiThumbs=[];
+function aiThumbSoltar(u){
+  if(!u||String(u).indexOf('blob:')!==0) return;
+  const i=_aiThumbs.indexOf(u); if(i<0) return;
+  _aiThumbs.splice(i,1);
+  try{ URL.revokeObjectURL(u); }catch(_){}
+}
+function aiThumbLista(img){ aiThumbSoltar(img&&img.src); }
+function aiThumbsSoltarTodas(){ _aiThumbs.slice().forEach(aiThumbSoltar); }
+const AI_TIPOS_OK=/^(image\/|application\/pdf$)/i;
+/* Lo que se suelta puede llegar sin type —pasa con algunos gestores de archivos y con lo que
+   viene de otras apps—, y ahí lo único que queda es la extensión. El mapa sirve para las dos
+   cosas: decidir si se acepta y, si se acepta, ponerle el tipo que le falta. */
+const AI_MIME_EXT={jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',
+  gif:'image/gif',bmp:'image/bmp',avif:'image/avif',heic:'image/heic',heif:'image/heif',
+  svg:'image/svg+xml',pdf:'application/pdf'};
+/* La lista de extensiones se saca del mismo mapa para que las dos no se puedan separar:
+   aceptar una extensión cuyo tipo no se sepa es dejar entrar un archivo que más abajo se
+   clasifica mal. */
+const AI_EXT_OK=new RegExp('\\.('+Object.keys(AI_MIME_EXT).join('|')+')$','i');
+function aiTipoAceptado(f){
+  if(!f) return false;
+  return f.type ? AI_TIPOS_OK.test(f.type) : AI_EXT_OK.test(f.name||'');
+}
+function aiEsImagen(f){
+  if(!f) return false;
+  return f.type ? f.type.indexOf('image/')===0 : !/\.pdf$/i.test(f.name||'');
+}
+function aiPeso(b){
+  const kb=(b||0)/1024;
+  return kb<1024 ? Math.max(1,Math.round(kb))+' KB' : (kb/1024).toFixed(1)+' MB';
+}
+/* Un solo punto de entrada para el selector, el arrastre y el pegado. `comoLlego` es para
+   confirmar por dónde entró: soltar algo y que la pantalla no diga nada se lee como que no
+   se soltó. */
+function aiArchivoElegido(f,comoLlego){
+  if(!f) return false;
+  /* Arrastrar una CARPETA da una entrada de tamaño 0 y sin tipo, igual que un archivo que
+     el sistema no alcanzó a entregar. Se mira antes que el tipo: una carpeta tampoco trae
+     extensión, así que la guarda de abajo la atrapaba primero y contestaba «no es una
+     imagen ni un PDF» —cierto, pero deja a quien la soltó sin saber qué hacer—. */
+  if(!f.size){
+    aiStatus('«'+(f.name||'eso')+'» llegó vacío — si es una carpeta, arrastra el archivo de dentro.','err');
+    return false;
+  }
+  if(!aiTipoAceptado(f)){
+    aiStatus('«'+(f.name||'ese archivo')+'» no es una imagen ni un PDF · la IA lee JPG, PNG y PDF.','err');
+    return false;
+  }
+  /* Sin type, todo lo de más abajo se equivoca: en aiAnalyze() esPdf sale falso y un PDF se
+     iría a un proveedor que solo lee imágenes; aiImagen() lo etiquetaría como JPEG; y
+     Q.aiFile guardaría una data: url sin tipo, que urlImagenSegura() —con razón— no deja
+     pintar, así que la vista previa saldría en blanco. Se le pone el de su extensión una
+     sola vez, aquí, en vez de repetir la adivinanza en cada uno de esos lugares. */
+  if(!f.type){
+    const m=/\.([a-z0-9]+)$/i.exec(f.name||'');
+    const tipo=AI_MIME_EXT[((m&&m[1])||'').toLowerCase()];
+    if(tipo){ try{ f=new File([f],f.name,{type:tipo}); }catch(_){} }
+  }
+  aiArchivo=f;
+  /* Soltar un archivo mientras se enseñaba la imagen del escalador es decir «analiza esto
+     otro»: el modal cambia de cara solo, sin obligar a tocar «Analizar otro archivo». */
+  if(aiSrc){ aiSrc=null; aiPintarFuente(); }
+  aiPintarArchivo();
+  aiStatus(comoLlego?('Archivo '+comoLlego+' · ya puedes analizarlo'):'', comoLlego?'ok':'');
+  return true;
+}
+/* Suelta el archivo y la miniatura sin tocar el aviso en pantalla: lo usan aiOpen() y
+   aiUsarArchivo(), que ponen su propio texto. */
+function aiOlvidarArchivo(){
+  aiArchivo=null;
+  const fi=$('ai-file'); if(fi) fi.value='';
+  aiPintarArchivo();
+}
+function aiQuitarArchivo(){
+  aiOlvidarArchivo();
+  aiStatus('','');
+  const z=$('ai-drop'); if(z) try{ z.focus(); }catch(_){}
+}
+function aiPintarArchivo(){
+  const el=$('ai-pick'); if(!el) return;
+  if(!aiArchivo){ el.style.display='none'; el.innerHTML=''; return; }
+  const f=aiArchivo, esImg=aiEsImagen(f);
+  let mini='<div class="ai-pick-ph">'+ico('i-doc')+'</div>';
+  if(esImg){
+    try{
+      const u=URL.createObjectURL(f); _aiThumbs.push(u);
+      mini='<img class="ai-pick-img" src="'+u+'" alt="" onload="aiThumbLista(this)" onerror="aiThumbLista(this)">';
+    }catch(_){}
+  }
+  el.style.display='flex';
+  el.innerHTML=mini
+    +'<div class="ai-pick-b"><div class="ai-pick-n">'+esc(f.name||'archivo')+'</div>'
+    +'<div class="ai-pick-m">'+(esImg?'Imagen':'PDF')+' · '+aiPeso(f.size)+'</div></div>'
+    +'<button type="button" class="ai-pick-x" onclick="aiQuitarArchivo()" title="Quitar este archivo" aria-label="Quitar el archivo elegido">×</button>';
+}
+
+/* ----- Arrastrar y pegar -----
+   El arrastre se acepta en TODO el modal, no solo dentro del recuadro punteado: errarle al
+   recuadro por veinte píxeles no tiene por qué costar el intento y volver a buscar el
+   archivo. Lo que se resalta sí es el recuadro, que es donde se ve que va a caer. */
+function aiTraeArchivo(e){
+  const t=e.dataTransfer&&e.dataTransfer.types; if(!t) return false;
+  const tiene=x=>Array.prototype.indexOf.call(t,x)>=0;
+  return tiene('Files')||tiene('text/uri-list');
+}
+let _aiDragN=0;                 // dragleave también salta al pasar de un hijo a otro
+function aiPintarArrastre(on){
+  const z=$('ai-drop'); if(z) z.classList.toggle('sobre',!!on);
+  const m=$('aimodal'); if(m) m.classList.toggle('arrastrando',!!on);
+}
+function aiDragEntra(e){ if(!aiTraeArchivo(e)) return; e.preventDefault(); _aiDragN++; aiPintarArrastre(true); }
+function aiDragSobre(e){
+  if(!aiTraeArchivo(e)) return;
+  e.preventDefault();
+  try{ e.dataTransfer.dropEffect='copy'; }catch(_){}
+  /* Si el resaltado se apagó por un dragleave de más, aquí se vuelve a encender: sin esto
+     el recuadro se apaga a media pasada y parece que ya no acepta nada. */
+  if(!_aiDragN){ _aiDragN=1; aiPintarArrastre(true); }
+}
+function aiDragSale(e){
+  if(!aiTraeArchivo(e)) return;
+  _aiDragN=Math.max(0,_aiDragN-1);
+  if(!_aiDragN) aiPintarArrastre(false);
+}
+function aiSoltar(e){
+  if(!aiTraeArchivo(e)) return;
+  e.preventDefault();
+  _aiDragN=0; aiPintarArrastre(false);
+  const dt=e.dataTransfer;
+  const f=dt.files&&dt.files[0];
+  if(f){
+    /* Soltar varios a la vez es fácil sin querer. Se avisa dentro del mismo aviso que
+       confirma el archivo: puesto aparte, el de aiArchivoElegido() lo pisaba enseguida. */
+    const varios=dt.files.length>1?' (de '+dt.files.length+', se analiza el primero)':'';
+    aiArchivoElegido(f,'soltado'+varios);
+    return;
+  }
+  /* Una imagen arrastrada DESDE otra página no viaja como archivo: viaja como su
+     dirección. Se intenta traerla —que es justo lo que ahorra el viaje al disco— y si el
+     sitio no lo permite se dice qué sí funciona, en vez de un «no se pudo» a secas. */
+  let url='';
+  try{ url=(dt.getData('text/uri-list')||dt.getData('text/plain')||'').trim().split(/\s+/)[0]; }catch(_){}
+  if(url) aiTraerDeUrl(url);
+  else aiStatus('Eso que soltaste no traía ningún archivo.','err');
+}
+async function aiTraerDeUrl(url){
+  if(!/^(https?:|data:|blob:)/i.test(url)){
+    aiStatus('Eso que soltaste no es un archivo ni una imagen.','err'); return;
+  }
+  aiStatus('Trayendo la imagen de la página…','work');
+  try{
+    const r=await fetch(url,{mode:'cors'});
+    if(!r.ok) throw new Error('respondió '+r.status);
+    const b=await r.blob();
+    if(!AI_TIPOS_OK.test(b.type||'')) throw new Error('no es una imagen');
+    let nom='imagen';
+    try{ nom=decodeURIComponent((url.split(/[?#]/)[0].split('/').pop()||'')).slice(0,80)||'imagen'; }catch(_){}
+    aiArchivoElegido(new File([b],nom,{type:b.type}),'traído de la página');
+  }catch(_){
+    /* Casi siempre es CORS, y decir «CORS» no le sirve a nadie: lo que sirve es el camino
+       que sí funciona con una imagen de otra página. */
+    aiStatus('Ese sitio no deja traer la imagen directo. Cópiala (clic derecho › Copiar imagen) y pégala aquí.','err');
+  }
+}
+/* Pegar es el camino que de verdad ahorra el viaje al disco: en WhatsApp Web o en el correo
+   se copia la imagen y se pega aquí. Solo se atiende cuando el portapapeles trae un
+   ARCHIVO, así que pegar una API key en su campo —o cualquier texto— sigue igual. */
+document.addEventListener('paste',e=>{
+  const m=$('aimodal'); if(!m||!m.classList.contains('show')) return;
+  const cd=e.clipboardData; if(!cd) return;
+  let f=cd.files&&cd.files[0];
+  if(!f&&cd.items){
+    for(let i=0;i<cd.items.length;i++){
+      if(cd.items[i].kind==='file'){ f=cd.items[i].getAsFile(); if(f) break; }
+    }
+  }
+  if(!f) return;
+  e.preventDefault();
+  /* Lo pegado del portapapeles casi nunca trae nombre («image.png» a secas o vacío), y en
+     la miniatura y en la vista previa de la cotización ese nombre es lo único que lo
+     identifica. */
+  if(!f.name||f.name==='image.png'||f.name==='blob'){
+    const ext=(f.type||'image/png').split('/')[1].replace('jpeg','jpg');
+    try{ f=new File([f],'pegado.'+ext,{type:f.type||'image/png'}); }catch(_){}
+  }
+  aiArchivoElegido(f,'pegado');
+});
+/* Arrastrar un archivo a la ventana y errarle a la zona que lo espera hace que el navegador
+   ABRA el archivo en su lugar: la app se va con él y con ella la cotización de la pantalla,
+   sin un «atrás» que la devuelva. Se bloquea en toda la app, y solo para arrastres que
+   traen archivos —el de reordenar partidas mueve texto y no se entera de esto—. Es una red
+   por debajo: si algo ya lo atendió, aquí no se hace nada. */
+['dragover','drop'].forEach(ev=>document.addEventListener(ev,e=>{
+  if(e.defaultPrevented) return;
+  const t=e.dataTransfer&&e.dataTransfer.types;
+  if(t&&Array.prototype.indexOf.call(t,'Files')>=0) e.preventDefault();
+}));
 function aiStatus(msg,cls=''){
   const e=$('ai-status'); e.textContent=msg; e.className='ai-status '+cls;
   /* Por vozAlert los errores (role=alert, assertive) y por vozStatus el progreso, igual
@@ -5786,8 +6169,8 @@ async function aiAnalyze(){
      cotización autorizada la devolvía a borrador y le borraba el precio: había que volver
      a pedir la autorización con el cliente enfrente. */
   if(locked()){ aiStatus('La cotización está autorizada · usa «Editar partidas» antes de analizar','err'); return; }
-  const f=$('ai-file').files[0];
-  if(!aiSrc && !f){ aiStatus('Selecciona un archivo JPG o PDF.','err'); return; }
+  const f=aiArchivo;
+  if(!aiSrc && !f){ aiStatus('Arrastra aquí el archivo, pégalo, o toca el recuadro para elegirlo.','err'); return; }
   const esPdf=!aiSrc && f.type==='application/pdf';
   /* Con un PDF y Groq/OpenRouter elegidos, antes esto era un callejón sin salida:
      había que entrar a Configuración y cambiar de proveedor a mano. Si la key de
@@ -6629,6 +7012,10 @@ function cerrarEnlacePDF(){
 /* ===================== Historial de cotizaciones autorizadas ===================== */
 function getHistorial(){ try{return JSON.parse(localStorage.getItem('al3d_historial')||'[]');}catch(_){return [];} }
 function saveHistorial(arr){
+  /* El historial es la única fuente de los cuadernos: si cambia, lo que hay en memoria
+     dejó de valer. Va aquí arriba y no en el camino del éxito porque incluso cuando la
+     escritura falla se puede haber soltado una imagen y reordenado la copia. */
+  invalidarCuadernos();
   const escribir=a=>{ try{ localStorage.setItem('al3d_historial',JSON.stringify(a)); return true; }catch(_){ return false; } };
   if(escribir(arr)) return true;
   /* No cupo. Antes se vaciaban de golpe las imágenes de TODAS las cotizaciones —incluidas
@@ -6655,6 +7042,15 @@ function saveHistorial(arr){
 }
 function guardarEnHistorial(){
   const t=totals();
+  const arr=getHistorial();
+  const idx=arr.findIndex(x=>x.folio===Q.folio);
+  /* La imagen con la que se cotizó es lo que el vendedor vuelve a mirar cuando el cliente
+     pregunta tres semanas después, y volver a guardar NUNCA debe ser lo que la borre. Si la
+     de la pantalla se perdió por el camino —un pendiente que volvió de la cola, una entrada
+     guardada por una versión anterior de la app, o la ✕ de la vista previa— se conserva la
+     que ya tenía este folio. Para cambiarla hay que traer otra; para quitarla del historial,
+     borrar la cotización. */
+  const imgPrevia=(idx>=0&&arr[idx].aiFile)?arr[idx].aiFile:null;
   const entry={
     folio:Q.folio, proy:Q.proy, cliente:Q.cliente, tel:Q.tel||'', dirRaw:Q.dirRaw||'',
     // Se guarda todo lo que hace falta para volver a abrirla y regenerar su PDF igual.
@@ -6675,11 +7071,9 @@ function guardarEnHistorial(){
        historial enseñaba renglones que no sumaban su propio «Total autorizado». */
     items:Q.items.map(it=>Object.assign(JSON.parse(JSON.stringify(it)),{_lt:+lineTotal(it).toFixed(2)})),
     itemsAuth:JSON.parse(JSON.stringify(Q.itemsAuth||{})),
-    aiFile:Q.aiFile?{name:Q.aiFile.name,type:Q.aiFile.type,url:Q.aiFile.url}:null,
+    aiFile:(Q.aiFile&&Q.aiFile.url)?{name:Q.aiFile.name,type:Q.aiFile.type,url:Q.aiFile.url}:imgPrevia,
     ts:Date.now()
   };
-  const arr=getHistorial();
-  const idx=arr.findIndex(x=>x.folio===Q.folio);
   if(idx>=0) arr[idx]=entry; else arr.unshift(entry);
   const ok=saveHistorial(arr);
   /* El historial es de donde salen las sugerencias de cliente: al crecer, crecen. */
@@ -6730,7 +7124,7 @@ function pintarHistorial(){
     : _histData;
   const cnt=$('hist-count');
   if(cnt) cnt.textContent=_histData.length
-    ? (q?`${lista.length} de ${_histData.length}`:`${_histData.length} cotización${_histData.length===1?'':'es'}`)
+    ? (q?`${lista.length} de ${_histData.length}`:plCot(_histData.length))
     : '';
   let html='';
   if(!_histData.length){
@@ -6748,7 +7142,7 @@ function pintarHistorial(){
                  :(it._lt!==undefined?it._lt:lineTotal(it));
         return `<tr><td>${i+1}</td><td>${esc(dsc(it))}</td><td>${money(ia)}</td></tr>`;
       }).join('');
-      const pFin=(e.precioAuth>0&&Math.abs(e.precioAuth-e.neto)>0.01)?e.precioAuth:e.neto;
+      const pFin=totalFinalHist(e);
       const ajuste=+(e.neto-pFin).toFixed(2);
       return `<div class="hentry">
         <div class="hentry-top">
@@ -6802,7 +7196,18 @@ function reabrirDeHistorial(folio){
   Q.estado='autorizada'; Q.editMode=false; _selfAuth=false; _marcarOblig=false;
   /* El anticipo pactado vuelve como se guardó. Solo «Duplicar» lo reinicia, porque ahí
      la cotización es nueva y el anticipo se vuelve a pactar. */
-  Q.anti=e.anti||0; Q.antiManual=!!e.antiManual; Q.aiFile=null;
+  Q.anti=e.anti||0; Q.antiManual=!!e.antiManual;
+  /* La imagen con la que se cotizó vuelve con la cotización. Aquí se ponía en null, y ahí
+     estaba la fuga: quien abría un folio viejo para cambiarle una medida se quedaba sin la
+     referencia en pantalla y, al volver a autorizar, guardarEnHistorial() escribía ese null
+     encima de la imagen guardada. La cotización se conservaba completa y la foto del letrero
+     desaparecía para siempre — justo la que hace falta semanas después, que es cuando el
+     cliente pregunta por lo que se le cotizó.
+     Solo se repone si trae url: saveHistorial() puede haberla soltado por falta de espacio,
+     y esas entradas guardan el nombre pero ya no la imagen. */
+  Q.aiFile=(e.aiFile&&e.aiFile.url)
+    ? {name:e.aiFile.name||'',type:e.aiFile.type||'',url:e.aiFile.url}
+    : null;
   /* Si el catálogo cambió desde que se autorizó, manda el importe congelado: el PDF que se
      reimprime tiene que ser idéntico al que el cliente ya tiene en la mano. Solo se
      reponen las partidas que de verdad cambiaron de precio, para no llenar itemsAuth de
@@ -6873,6 +7278,389 @@ function usarComoBase(folio){
   toast(`${Q.folio} · ${n} ${n===1?'partida copiada':'partidas copiadas'} de ${e.folio}${falta}`,'ok',4600);
 }
 
+/* ===================== Cuadernos de cliente =====================
+   El historial contesta «¿qué cotizamos?». Esto contesta la otra pregunta, la que se
+   hace cuando suena el teléfono: «¿quién es este y qué le hemos hecho?». No hay un alta
+   de clientes que llenar —eso sería capturar dos veces lo mismo—: el cuaderno se arma
+   solo con lo que ya guarda cada cotización autorizada.
+
+   Quién es quién:
+   · Manda el TELÉFONO, en sus últimos 10 dígitos. Es lo único que el cliente no cambia
+     de una cotización a otra; el nombre se teclea «Farmacia San Juan» un martes y «farmacia
+     san juan suc. centro» el jueves, y son el mismo señor.
+   · Sin teléfono manda el NOMBRE normalizado. El historial trae cotizaciones de cuando el
+     teléfono no era obligatorio y esas no se pueden quedar fuera.
+   · Una cotización sin teléfono cuyo nombre SÍ aparece en un cuaderno con teléfono se une a
+     ese cuaderno —es el mismo cliente, capturado antes—, pero solo si ese nombre apunta a un
+     único teléfono. Si el mismo nombre aparece con dos teléfonos distintos, adivinar sería
+     mezclar dos clientes: se queda en su propio cuaderno, a la vista, para que quien sabe
+     decida.
+   · Lo que no tiene ni nombre ni teléfono cae en un cuaderno «Sin identificar». Nada se
+     esconde: la suma de los cuadernos es siempre el historial completo. */
+
+/* Los últimos 10 dígitos: así «33 1234 5678», «+52 33 1234 5678» y «521 33 1234 5678»
+   son el mismo cliente. Con menos de 10 no se agrupa por teléfono —un «33 12» a medias
+   juntaría clientes que no tienen nada que ver. */
+function telClave(t){
+  const d=String(t||'').replace(/\D/g,'');
+  return d.length>=10 ? d.slice(-10) : '';
+}
+/* El precio que de verdad se cobró: el autorizado si difiere del calculado. La misma
+   regla que ya usaban el historial y el CSV, en un solo sitio. */
+function totalFinalHist(e){
+  return (e.precioAuth>0&&Math.abs(e.precioAuth-e.neto)>0.01)?e.precioAuth:(e.neto||0);
+}
+
+/* Se arma recorriendo el historial entero, y el historial se recorre en cada tecla del
+   campo Cliente para el aviso de abajo. Se guarda el resultado hasta que el historial
+   cambie: escribir es lo único que puede moverlo. */
+let _cuaCache=null;
+function invalidarCuadernos(){ _cuaCache=null; }
+function cuadernos(){
+  if(_cuaCache) return _cuaCache;
+  const hist=getHistorial();
+  const grupos=new Map();
+  const nomTels=new Map();   // nombre normalizado -> teléfonos con los que se ha visto
+  const dame=clave=>{
+    let g=grupos.get(clave);
+    if(!g){ g={clave,claves:[clave],cots:[]}; grupos.set(clave,g); }
+    return g;
+  };
+  /* Pasada 1: las que traen teléfono. Van primero porque son las que forman los cuadernos
+     a los que la pasada 2 puede unirse. */
+  hist.forEach(e=>{
+    const d=telClave(e.tel); if(!d) return;
+    dame('tel:'+d).cots.push(e);
+    const n=normNom(e.cliente);
+    if(n){ if(!nomTels.has(n)) nomTels.set(n,new Set()); nomTels.get(n).add('tel:'+d); }
+  });
+  /* Pasada 2: las que no lo traen. */
+  hist.forEach(e=>{
+    if(telClave(e.tel)) return;
+    const n=normNom(e.cliente);
+    if(!n){ dame('?').cots.push(e); return; }
+    const cand=nomTels.get(n);
+    if(cand&&cand.size===1){
+      const g=grupos.get([...cand][0]);
+      g.cots.push(e);
+      /* La clave vieja se recuerda: la nota del cuaderno pudo escribirse cuando este
+         cliente todavía no tenía teléfono y vivía bajo «nom:». */
+      if(g.claves.indexOf('nom:'+n)<0) g.claves.push('nom:'+n);
+      return;
+    }
+    dame('nom:'+n).cots.push(e);
+  });
+  const prim=(g,campo)=>{ const e=g.cots.find(x=>String(x[campo]||'').trim()); return e?String(e[campo]).trim():''; };
+  grupos.forEach(g=>{
+    /* Las dos pasadas rompen el orden del historial dentro del grupo: se rehace, porque
+       de «la más reciente manda» dependen el nombre, el teléfono y la dirección. */
+    g.cots.sort((a,b)=>(b.ts||0)-(a.ts||0));
+    g.nombre=prim(g,'cliente');
+    /* El teléfono que se enseña es uno completo; el de 4 dígitos que alguien dejó a medias
+       sirve de respaldo pero no manda. */
+    const conTel=g.cots.find(x=>telClave(x.tel));
+    g.tel=conTel?String(conTel.tel).trim():prim(g,'tel');
+    g.dirRaw=prim(g,'dirRaw');
+    g.maps=prim(g,'maps');
+    /* Los otros nombres con los que se ha capturado a este mismo cliente. Se enseñan
+       para que quien lo busque por el nombre viejo lo reconozca. */
+    const vistos=new Set([normNom(g.nombre)]);
+    g.alias=[];
+    g.cots.forEach(e=>{
+      const n=normNom(e.cliente);
+      if(n&&!vistos.has(n)){ vistos.add(n); g.alias.push(String(e.cliente).trim()); }
+    });
+    g.vendido=g.cots.reduce((a,e)=>a+totalFinalHist(e),0);
+    g.ultima=g.cots.reduce((a,e)=>Math.max(a,e.ts||0),0);
+    g.primera=g.cots.reduce((a,e)=>Math.min(a,e.ts||Infinity),Infinity);
+    if(!isFinite(g.primera)) g.primera=0;
+  });
+  /* El cliente con el que se habló hace menos, arriba: es el que se va a buscar. */
+  _cuaCache=[...grupos.values()].sort((a,b)=>b.ultima-a.ultima);
+  return _cuaCache;
+}
+function cuadernoDe(clave){ return cuadernos().find(g=>g.clave===clave)||null; }
+/* El cuaderno al que pertenecería lo que hay ahora en pantalla, con la misma regla de
+   arriba: primero el teléfono, luego el nombre. */
+function cuadernoDeQ(){
+  const d=telClave(Q.tel);
+  const todos=cuadernos();
+  if(d){ const g=todos.find(x=>x.clave==='tel:'+d); if(g) return g; }
+  const n=normNom(Q.cliente);
+  if(!n) return null;
+  return todos.find(g=>g.clave==='nom:'+n)
+      || todos.find(g=>normNom(g.nombre)===n||g.alias.some(a=>normNom(a)===n))
+      || null;
+}
+
+/* ----- La nota del cuaderno -----
+   Lo único del cliente que no sale de ninguna cotización: cómo paga, con quién se habla,
+   qué quedó pendiente. Vive en su propia clave y entra al respaldo. */
+const CUA_NOTAS='al3d_cuadernos';
+const CUA_NOTA_MAX=1200;
+function getCuaNotas(){ try{ const o=JSON.parse(localStorage.getItem(CUA_NOTAS)||'{}'); return (o&&typeof o==='object')?o:{}; }catch(_){ return {}; } }
+function notaCuaderno(g){
+  const notas=getCuaNotas();
+  /* Se busca también bajo las claves viejas: un cliente que empezó sin teléfono tiene su
+     nota escrita bajo «nom:» y no se puede perder por haberle capturado el celular. */
+  for(const k of g.claves){ const v=notas[k]; if(v&&String(v).trim()) return String(v); }
+  return '';
+}
+function guardarNotaCuaderno(g,txt){
+  const notas=getCuaNotas();
+  const limpio=String(txt||'').slice(0,CUA_NOTA_MAX);
+  /* Se escribe bajo la clave de hoy y se sueltan las viejas: si no, la nota quedaría
+     duplicada y la de «nom:» seguiría ganando en cuanto se vaciara la nueva. */
+  g.claves.forEach(k=>{ if(k!==g.clave) delete notas[k]; });
+  if(limpio.trim()) notas[g.clave]=limpio; else delete notas[g.clave];
+  try{ localStorage.setItem(CUA_NOTAS,JSON.stringify(notas)); return true; }
+  catch(_){ return false; }
+}
+
+/* ----- Pantalla -----
+   Dos vistas en la misma caja: la lista de clientes y el cuaderno de uno. */
+let _cuaData=[], _cuaAbierto=null, _cuaNotaTimer=null;
+function abrirCuadernos(){
+  _cuaData=cuadernos();
+  _cuaAbierto=null;
+  const s=$('cua-search'); if(s) s.value='';
+  pintarCuadernos();
+  $('climodal').classList.add('show');
+}
+function cerrarCuadernos(){
+  /* Si se cierra con la nota a medio escribir, el temporizador todavía no la guardó. */
+  cuaGuardarNotaYa();
+  $('climodal').classList.remove('show');
+}
+function cuaFecha(e){
+  if(e.fechaAuth) return e.fechaAuth;
+  if(!e.ts) return '';
+  try{ return new Date(e.ts).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}); }catch(_){ return ''; }
+}
+function cuaIniciales(nom){
+  const p=String(nom||'').trim().split(/\s+/).filter(Boolean);
+  if(!p.length) return '—';
+  return (p[0][0]+(p.length>1?p[1][0]:'')).toUpperCase();
+}
+function cuaTitulo(g){ return g.clave==='?' ? 'Sin identificar' : (g.nombre||'Sin nombre'); }
+
+function pintarCuadernos(){
+  _cuaAbierto=null;
+  const lv=$('cua-lista-vista'); if(lv) lv.style.display='';
+  $('cua-titulo').textContent='Cuadernos de cliente';
+  const q=($('cua-search')?.value||'').trim().toLowerCase();
+  const qd=q.replace(/\D/g,'');
+  const lista=q
+    ? _cuaData.filter(g=>{
+        if(cuaTitulo(g).toLowerCase().includes(q)) return true;
+        if(g.alias.some(a=>a.toLowerCase().includes(q))) return true;
+        /* Buscar por teléfono se hace tecleando dígitos sueltos, sin los espacios con los
+           que se capturó: se comparan los dígitos contra los dígitos. */
+        return !!qd && telClave(g.tel).includes(qd);
+      })
+    : _cuaData;
+  const cnt=$('cua-count');
+  if(cnt) cnt.textContent=_cuaData.length
+    ? (q?`${lista.length} de ${_cuaData.length}`:`${_cuaData.length} cliente${_cuaData.length===1?'':'s'}`)
+    : '';
+  let html='';
+  if(!_cuaData.length){
+    html='<div class="hist-empty">Todavía no hay clientes.<br><span style="font-size:12px">Cada cotización que autorices abre o alimenta el cuaderno de su cliente.</span></div>';
+  } else if(!lista.length){
+    html=`<div class="hist-empty">Ningún cliente coincide con «${esc(q)}».</div>`;
+  } else {
+    html=lista.map(g=>{
+      const n=g.cots.length;
+      const sub=[g.tel||'', g.alias.length?('también «'+g.alias[0]+'»'):''].filter(Boolean).join(' · ');
+      return `<button class="cua-card" onclick="abrirCuaderno('${esc(g.clave)}')" title="Abrir el cuaderno de ${esc(cuaTitulo(g))}">
+        <span class="cua-ini" aria-hidden="true">${esc(cuaIniciales(cuaTitulo(g)))}</span>
+        <span class="cua-card-meta">
+          <span class="cua-nombre">${esc(cuaTitulo(g))}</span>
+          <span class="cua-sub">${esc(sub||'Sin teléfono')}</span>
+        </span>
+        <span class="cua-card-num">
+          <b>${money(g.vendido)}</b>
+          <span>${plCot(n)}</span>
+        </span>
+        <span class="cua-flecha" aria-hidden="true">›</span>
+      </button>`;
+    }).join('');
+  }
+  $('cua-body').innerHTML=html;
+  $('cua-foot').innerHTML=
+    `<button onclick="exportarClientesCSV()" title="Descarga un renglón por cliente para Google Sheets">${ico('i-doc')} CSV de clientes</button>
+     <button onclick="cerrarCuadernos();abrirHistorial()" title="Ver las cotizaciones una por una">${ico('i-historial')} Ver el historial</button>
+     <p class="foot-nota">Los cuadernos se arman solos con las cotizaciones autorizadas. Todo vive en este dispositivo: respalda desde el historial.</p>`;
+}
+
+function abrirCuaderno(clave){
+  const g=cuadernoDe(clave); if(!g) return;
+  _cuaAbierto=clave;
+  const lv=$('cua-lista-vista'); if(lv) lv.style.display='none';
+  $('cua-titulo').textContent=cuaTitulo(g);
+  const n=g.cots.length;
+  const prom=n?g.vendido/n:0;
+  const cots=g.cots.map(e=>`<div class="cua-cot">
+      <div class="cua-cot-meta">
+        <div class="cua-cot-folio">${esc(e.folio)}</div>
+        <div class="cua-cot-proy">${esc(e.proy||e.cliente||'Sin nombre')}</div>
+        <div class="cua-cot-fecha">${esc(cuaFecha(e))}${e.autorizador?' · '+esc(e.autorizador):''}</div>
+      </div>
+      <div class="cua-cot-tot">${money(totalFinalHist(e))}</div>
+      <div class="cua-cot-acts">
+        <button onclick="cuaAbrirCot('${esc(e.folio)}')" title="Cargarla en el cotizador para reimprimir su PDF">Abrir</button>
+        <button onclick="cuaDuplicarCot('${esc(e.folio)}')" title="Empezar una cotización nueva con estas mismas partidas">Duplicar</button>
+      </div>
+    </div>`).join('');
+  const datos=[
+    g.tel?ico('i-chat')+' '+esc(g.tel):'',
+    g.dirRaw?ico('i-pin')+' '+esc(g.dirRaw.replace(/\s*\n\s*/g,' ')):''
+  ].filter(Boolean).join('<br>');
+  $('cua-body').innerHTML=`
+    <div class="cua-det-head">
+      <button class="cua-volver" onclick="pintarCuadernos()">${ico('i-atras')} Todos los clientes</button>
+      <div class="cua-det-nom">${esc(cuaTitulo(g))}</div>
+      ${datos?`<div class="cua-det-datos">${datos}</div>`:''}
+      ${g.alias.length?`<div class="cua-alias">También capturado como ${g.alias.map(a=>'«'+esc(a)+'»').join(', ')}</div>`:''}
+      <div class="cua-det-acts">
+        <button onclick="cuaNuevaCotizacion('${esc(g.clave)}')" title="Empieza una cotización en blanco con estos datos de cliente ya puestos">${ico('i-lapiz')} Cotizarle algo nuevo</button>
+        ${g.tel?`<button onclick="cuaWhatsApp('${esc(g.clave)}')" title="Abre el chat de WhatsApp con este cliente">${ico('i-chat')} WhatsApp</button>`:''}
+        <button onclick="cuaCSV('${esc(g.clave)}')" title="Descarga las cotizaciones de este cliente">${ico('i-doc')} CSV</button>
+      </div>
+    </div>
+    <div class="cua-cifras">
+      <div class="cua-cifra"><b>${n}</b><span>${n===1?'Cotización':'Cotizaciones'}</span></div>
+      <div class="cua-cifra"><b>${money(g.vendido)}</b><span>Autorizado</span></div>
+      <div class="cua-cifra"><b>${money(prom)}</b><span>Promedio</span></div>
+    </div>
+    <div class="cua-nota-wrap">
+      <label for="cua-nota">Nota del cuaderno</label>
+      <textarea id="cua-nota" maxlength="${CUA_NOTA_MAX}" placeholder="Lo que no cabe en una cotización — cómo paga, con quién se habla, qué quedó pendiente." oninput="cuaNotaEscrita()">${esc(notaCuaderno(g))}</textarea>
+      <div class="cua-nota-estado" id="cua-nota-estado">Se guarda sola en este dispositivo.</div>
+    </div>
+    <div class="cua-cots-tit">Cotizaciones autorizadas</div>
+    ${cots}`;
+  $('cua-foot').innerHTML=
+    `<button onclick="pintarCuadernos()">${ico('i-atras')} Todos los clientes</button>
+     <p class="foot-nota">La primera fue el ${esc(cuaFecha(g.cots[g.cots.length-1]))||'—'}; la última, el ${esc(cuaFecha(g.cots[0]))||'—'}.</p>`;
+  $('cua-body').scrollTop=0;
+}
+
+/* La nota se guarda sola, medio segundo después de dejar de teclear: guardar en cada
+   letra escribe en el almacenamiento decenas de veces por frase, y un botón «Guardar»
+   es una cosa más que se olvida antes de cerrar. */
+function cuaNotaEscrita(){
+  const est=$('cua-nota-estado'); if(est) est.textContent='Escribiendo…';
+  clearTimeout(_cuaNotaTimer);
+  _cuaNotaTimer=setTimeout(cuaGuardarNotaYa,500);
+}
+function cuaGuardarNotaYa(){
+  clearTimeout(_cuaNotaTimer); _cuaNotaTimer=null;
+  const ta=$('cua-nota'); if(!ta||!_cuaAbierto) return;
+  const g=cuadernoDe(_cuaAbierto); if(!g) return;
+  const ok=guardarNotaCuaderno(g,ta.value);
+  const est=$('cua-nota-estado');
+  if(est) est.textContent=ok?'Guardada en este dispositivo.':'No hubo espacio para guardar la nota — respalda y borra cotizaciones viejas.';
+  if(!ok) toast('No hubo espacio para guardar la nota','err',4200,{label:'Respaldar',fn:()=>respaldar()});
+}
+
+/* Desde el cuaderno se llega a las mismas dos acciones del historial: son las mismas
+   cotizaciones, así que se llaman las mismas funciones —no hay una segunda manera de
+   abrir una cotización que pueda dejar la pantalla distinta. */
+function cuaAbrirCot(folio){ _histData=getHistorial(); cerrarCuadernos(); reabrirDeHistorial(folio); }
+function cuaDuplicarCot(folio){ _histData=getHistorial(); cerrarCuadernos(); usarComoBase(folio); }
+
+/* Cotizarle algo nuevo: en blanco, pero sin volver a teclear quién es. No se pregunta
+   nada antes porque nueva() ya deja «Deshacer» puesto sobre lo que había. */
+function cuaNuevaCotizacion(clave){
+  const g=cuadernoDe(clave); if(!g) return;
+  const habia=Q.items.some(it=>!itemVacio(it))||!!(Q.cliente||'').trim()||!!(Q.proy||'').trim();
+  cerrarCuadernos();
+  nueva();
+  Q.cliente=(g.clave==='?')?'':(g.nombre||'');
+  Q.tel=g.tel||'';
+  if($('f-cli')) $('f-cli').value=Q.cliente;
+  if($('f-tel')) $('f-tel').value=Q.tel;
+  if(g.dirRaw){ if($('f-dir-raw')) $('f-dir-raw').value=g.dirRaw; updDirRaw(g.dirRaw); }
+  if(g.maps){ if($('f-maps')) $('f-maps').value=g.maps; updMaps(g.maps); }
+  saveState(); updProg(); actualizarAvisoCuaderno();
+  irAPantalla('cliente',{forzar:true});
+  /* Se le devuelve el foco a lo único que falta: el proyecto. */
+  const fp=$('f-proy'); if(fp) try{ fp.focus(); }catch(_){}
+  const nom=cuaTitulo(g);
+  if(habia) toast('Cotización nueva para '+nom+' — la anterior se vació','',7000,{label:'Deshacer',fn:deshacerVaciado});
+  else toast('Cotización nueva para '+nom+' — falta el proyecto','ok',3600);
+}
+
+function cuaWhatsApp(clave){
+  const g=cuadernoDe(clave); if(!g) return;
+  const num=telWhatsApp(g.tel);
+  if(!num){ toast('El teléfono guardado de este cliente no parece un número válido','err',3400); return; }
+  const w=window.open('https://wa.me/'+num,'_blank');
+  if(!w) toast('Permite ventanas emergentes para abrir WhatsApp','err',3400);
+}
+
+/* ----- CSV -----
+   Un renglón por cotización del cliente, con las mismas columnas del historial para que
+   las dos hojas se peguen una debajo de otra. */
+function cuaCSV(clave){
+  const g=cuadernoDe(clave); if(!g) return;
+  const enc=['Folio','Fecha de autorización','Cliente','Teléfono','Proyecto','Autorizador','Partidas','Total autorizado'];
+  const filas=g.cots.map(e=>[e.folio,cuaFecha(e),e.cliente||'',e.tel||'',e.proy||'',e.autorizador||'',
+    (e.items||[]).length,totalFinalHist(e).toFixed(2)].map(csvCampo).join(','));
+  const csv='﻿'+[enc.map(csvCampo).join(',')].concat(filas).join('\r\n');
+  /* El nombre del archivo sale del cliente y puede traer lo que sea: se deja en letras,
+     números y guiones para que baje igual en Android, en iOS y en Windows. */
+  const slug=cuaTitulo(g).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'').toLowerCase().slice(0,40)||'cliente';
+  if(descargarArchivo(csv,`cotizador-al3d-${slug}-${selloFecha()}.csv`,'text/csv;charset=utf-8')){
+    toast(`${g.cots.length} ${g.cots.length===1?'cotización exportada':'cotizaciones exportadas'} de ${cuaTitulo(g)}`,'ok',3400);
+  }
+}
+/* Un renglón por cliente: la cartera entera, que es lo que se le enseña a alguien más. */
+function exportarClientesCSV(){
+  const gs=cuadernos();
+  if(!gs.length){ toast('Todavía no hay clientes','',2600); return; }
+  const enc=['Cliente','Teléfono','Otros nombres','Dirección','Cotizaciones','Total autorizado',
+    'Promedio','Primera','Última','Nota del cuaderno'];
+  const filas=gs.map(g=>[cuaTitulo(g),g.tel||'',g.alias.join(' / '),(g.dirRaw||'').replace(/\s*\n\s*/g,' '),
+    g.cots.length,g.vendido.toFixed(2),(g.cots.length?g.vendido/g.cots.length:0).toFixed(2),
+    cuaFecha(g.cots[g.cots.length-1]),cuaFecha(g.cots[0]),
+    notaCuaderno(g).replace(/\s*\n\s*/g,' ')].map(csvCampo).join(','));
+  const csv='﻿'+[enc.map(csvCampo).join(',')].concat(filas).join('\r\n');
+  if(descargarArchivo(csv,`cotizador-al3d-clientes-${selloFecha()}.csv`,'text/csv;charset=utf-8')){
+    toast(`${gs.length} ${gs.length===1?'cliente exportado':'clientes exportados'} a CSV`,'ok',3400);
+  }
+}
+
+/* ----- El aviso bajo el campo Cliente -----
+   Que el cliente ya tenga cuaderno es justo lo que hay que saber ANTES de cotizar —es un
+   cliente que regresa, no uno nuevo—, y la única pantalla donde eso se decide es esta.
+   Se pinta solo cuando cambia, porque cuelga de cada tecla del nombre y del teléfono. */
+let _cuaAvisoClave=null;
+function actualizarAvisoCuaderno(){
+  const el=$('cua-aviso'); if(!el) return;
+  const g=cuadernoDeQ();
+  /* El cuaderno del cliente al que ya se le está cotizando ESTE folio no es noticia: si
+     lo único que tiene es esta misma cotización, ya reabierta, no hay nada que contar. */
+  const util=g&&g.cots.length&&!(g.cots.length===1&&g.cots[0].folio===Q.folio);
+  const clave=util?g.clave+'|'+g.cots.length:'';
+  if(clave===_cuaAvisoClave) return;
+  _cuaAvisoClave=clave;
+  if(!util){ el.style.display='none'; el.innerHTML=''; return; }
+  const n=g.cots.length;
+  el.innerHTML=`${ico('i-cuaderno')} <span>Ya tiene cuaderno · ${plCot(n)} · ${money(g.vendido)}</span>`
+    +` <button type="button" onclick="verCuadernoDe('${esc(g.clave)}')">Ver cuaderno</button>`;
+  el.style.display='flex';
+}
+/* Entrar al cuaderno de un cliente sin pasar por la lista. _cuaData tiene que quedar
+   cargado igual: es de donde sale la lista cuando se toca «Todos los clientes». */
+function verCuadernoDe(clave){
+  _cuaData=cuadernos();
+  abrirCuaderno(clave);
+  $('climodal').classList.add('show');
+}
+
 /* ===================== Respaldo, restauración y CSV =====================
    Todo lo que hace esta app —historial, folios, cotización en curso, logotipo— vive
    en el almacenamiento local de ESTE navegador. Se pierde al borrar los datos del
@@ -6883,7 +7671,7 @@ function usarComoBase(folio){
    WhatsApp o por correo, y una key que viaja así deja de ser secreta. Se vuelve a
    pegar en el teléfono nuevo, que es un minuto. */
 const RESPALDO_KEYS=['al3d_historial','al3d_folio','al3d_q','al3d_queue','al3d_logo',
-  'al3d_fold_proy',AI_FILE_KEY,PREF_AUTORIZADOR,PREF_MATERIAL,PREF_RV_PCT,PREF_RV_CUENTA];
+  'al3d_fold_proy',CUA_NOTAS,AI_FILE_KEY,PREF_AUTORIZADOR,PREF_MATERIAL,PREF_RV_PCT,PREF_RV_CUENTA];
 function selloFecha(){
   const d=new Date(), p=n=>String(n).padStart(2,'0');
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
@@ -7009,7 +7797,7 @@ function exportarHistorialCSV(){
   const enc=['Folio','Fecha de autorización','Cliente','Teléfono','Proyecto','Dirección',
     'Autorizador','Partidas','Subtotal','IVA','Total calculado','Precio autorizado','Ajuste','Detalle'];
   const filas=arr.map(e=>{
-    const pFin=(e.precioAuth>0&&Math.abs(e.precioAuth-e.neto)>0.01)?e.precioAuth:e.neto;
+    const pFin=totalFinalHist(e);
     const ajuste=+(e.neto-pFin).toFixed(2);
     const detalle=(e.items||[]).map((it,i)=>`${i+1}. ${histDsc(it)}`).join(' · ');
     return [e.folio,e.fechaAuth||'',e.cliente||'',e.tel||'',e.proy||'',(e.dirRaw||'').replace(/\s*\n\s*/g,' '),
@@ -7140,6 +7928,13 @@ function sincronizarAiFile(){
     localStorage.setItem(AI_FILE_KEY,s);
     _aiFileGuardada=url; _aiFileFallo=null;
   }catch(_){ _aiFileGuardada=null; _aiFileFallo=url; }
+}
+/* ¿La imagen que está en pantalla ya tiene su copia en el historial? Se pregunta al salir de
+   la app, no en cada tecla, así que recorrer el historial ahí sale gratis y ahorra llevar una
+   bandera sincronizada en los seis lugares que tocan Q.aiFile. */
+function aiFileYaEnHistorial(){
+  const u=Q.aiFile&&Q.aiFile.url; if(!u) return false;
+  try{ return getHistorial().some(e=>e.aiFile&&e.aiFile.url===u); }catch(_){ return false; }
 }
 function cargarAiFile(){
   try{
@@ -8744,6 +9539,8 @@ function registrarSW(){
    avisar; se avisa una vez por sesión para no convertirlo en ruido. */
 let _avisoOtraPestana=false;
 window.addEventListener('storage',ev=>{
+  /* Lo escribió la otra pestaña: los cuadernos que hay en memoria son de antes. */
+  if(ev.key==='al3d_historial') invalidarCuadernos();
   if(!ev.key||['al3d_q','al3d_historial','al3d_queue'].indexOf(ev.key)<0) return;
   if(_avisoOtraPestana) return;
   _avisoOtraPestana=true;
@@ -8759,7 +9556,12 @@ window.addEventListener('beforeunload',e=>{
      cuando hay medidas del escalador sin usar: SC vive solo en memoria y no se persiste,
      así que una recarga se las llevaba sin preguntar. */
   const hayMedidas=(typeof SC!=='undefined')&&SC.img&&SC.items&&SC.items.length>0;
-  if((Q.aiFile&&_aiFileGuardada===null)||!_saveOk||hayMedidas){e.preventDefault();return e.returnValue='';}
+  /* Que no haya cabido en su clave aparte no quiere decir que se vaya a perder: una
+     cotización ya autorizada tiene su copia en el historial —y las que vuelven del historial
+     entran por ahí—. Avisar en ese caso es espantar por una pérdida que no existe, y un
+     aviso que salta de más deja de leerse justo cuando sí importa. */
+  const imgEnRiesgo=Q.aiFile&&_aiFileGuardada===null&&!aiFileYaEnHistorial();
+  if(imgEnRiesgo||!_saveOk||hayMedidas){e.preventDefault();return e.returnValue='';}
 });
 
 init();
