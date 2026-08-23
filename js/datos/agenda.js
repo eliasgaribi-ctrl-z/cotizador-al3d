@@ -615,7 +615,7 @@ function dictamen(instalaciones, ctx, hoy) {
 
   const faltantes = [];
   const vistos = new Set();
-  let sinCalcular = [];
+  const sinCalcular = [];
   for (const i of insts) {
     const pid = i.proyecto_id;
     if (!pid) continue;

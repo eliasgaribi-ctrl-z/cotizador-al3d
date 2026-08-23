@@ -894,7 +894,13 @@ Y la pantalla **no dice "0.54 láminas"**. Dice lo que se pregunta:
 
 **El bucle de calibración, que es lo que hace que ninguna constante sea un campo obligatorio.** Cada vez que FABRICACIÓN corrige una salida derivada, `Material.ajustar()` guarda la razón `real/calculado` por familia. Al quinto ajuste con desviación media >15 %, Inicio muestra una fila:
 
-> El acrílico rinde 18 % menos de lo calculado en los últimos 6 proyectos. Subir la merma de 25 % a 31 %. **[Actualizar]**
+> El acrílico rinde 18 % menos de lo calculado en los últimos 6 proyectos. Subir la merma de 25 % a 36 %. **[Actualizar]**
+
+> **Corrección al documento (23/ago/2026).** Aquí decía 31 %, y no sale de la aritmética.
+> Si el consumo real es 1.18 veces el calculado, la merma que lo absorbe es
+> `1 − 0.75/1.18 = 0.364`, o sea **36 %**, no 31 %. Por eso `calibracion()` **calcula** la
+> palanca en vez de traer un número escrito: un porcentaje sugerido a ojo, en la pantalla
+> que la gente va a tocar con un botón, se convierte en el valor del sistema.
 
 Un toque. Si nadie lo toca nunca, el sistema sigue funcionando con los valores del repo y con su error **a la vista**.
 
