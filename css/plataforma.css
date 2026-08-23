@@ -1,0 +1,331 @@
+/* ============================================================================
+   Solo lo que la plataforma añade.
+
+   Todo lo demás —los azules del logotipo, el barro, la escala de siete tamaños de letra,
+   los tres radios, las dos sombras, las curvas de movimiento— sale de css/sistema.css, que
+   es la copia generada del <style> del cotizador. Aquí no se define ni un color nuevo ni un
+   tamaño de letra nuevo: si algo hiciera falta y no estuviera en la escala, la respuesta es
+   usar el paso de la escala que más se acerque, no añadir un paso.
+
+   Las dos reglas de contraste del sistema se respetan sin excepción:
+     · de --n5 hacia arriba, ningún tono de la rampa lleva texto;
+     · --a-claro y --a3 son DECORACIÓN —sombra, lienzo, borde, trazo— y nunca fondo de texto.
+   ============================================================================ */
+
+/* ----- La página: una columna -----
+   El cotizador es de dos columnas porque tiene un resumen que acompaña a las partidas. Aquí
+   no hay nada que acompañe: cada módulo es una cosa, y una columna ancha se lee de un solo
+   barrido. Se conserva el ancho máximo y el relleno con áreas seguras del original. */
+.pf-wrap{grid-template-columns:minmax(0,1fr)}
+.pf-wrap>main{min-width:0}
+
+/* La barra fija del teléfono publica su alto para que el aviso emergente se pose encima y
+   no debajo. Cuando no hay barra, la variable es 0 y nada se mueve. */
+:root{--mbar-h:0px}
+
+/* ----- La barra de módulos -----
+   No es la escalera numerada del cotizador: eso es una secuencia —primero el cliente,
+   después las partidas— y esto son seis lugares donde a cualquiera se llega desde
+   cualquiera. Así que pestañas, y con scroll horizontal en el teléfono en vez de apretarlas
+   hasta que el texto no se lea. */
+.pf-nav{display:flex;gap:var(--e2);margin-bottom:var(--e5);overflow-x:auto;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+.pf-nav::-webkit-scrollbar{display:none}
+.pf-tab{flex:0 0 auto;display:inline-flex;align-items:center;gap:var(--e2);
+  min-height:44px;padding:0 var(--e4);border:1px solid var(--line);border-radius:var(--rr2);
+  background:var(--card);color:var(--n7);font:600 var(--t3)/1 inherit;cursor:pointer;
+  box-shadow:var(--clay);transition:transform var(--mv-r),box-shadow var(--mv-s),color var(--mv-s)}
+.pf-tab:hover{transform:translateY(-1px)}
+.pf-tab:active{transform:translateY(1px);box-shadow:var(--clay-in)}
+/* El elegido lleva fondo tenue del acento y su tinta, no una píldora azul con degradado.
+   Es la regla del sistema: el azul sólido significa «esta es LA acción», y seis pestañas no
+   pueden ser todas la acción. */
+.pf-tab.on{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-fuerte);
+  box-shadow:var(--clay-in)}
+.pf-tab .svgi{flex-shrink:0}
+/* La cuenta de lo que reclama atención. Va en ámbar y no en rojo: son cosas que hay que
+   ver hoy, no cosas que ya se rompieron. */
+.pf-tab .cta{min-width:20px;height:20px;padding:0 6px;border-radius:10px;
+  background:var(--av-bg);border:1px solid var(--av-borde);color:var(--av);
+  font:700 var(--t1)/20px inherit;text-align:center}
+.pf-tab.on .cta{background:#fff}
+@media(max-width:560px){
+  .pf-nav{margin:0 calc(-1 * max(24px,env(safe-area-inset-left,0px))) var(--e4);
+    padding:0 max(24px,env(safe-area-inset-left,0px)) 2px}
+  .pf-tab{padding:0 var(--e3);font-size:var(--t2)}
+  /* En el teléfono el texto de la pestaña que no está elegida se va: seis palabras en una
+     tira que se desliza son seis palabras que nadie lee. El icono queda, y el nombre
+     aparece en la elegida, que es la única que hace falta nombrar. */
+  .pf-tab:not(.on) .tx{display:none}
+}
+
+/* ----- La banda de degradación -----
+   Dice lo que es verdad en las seis pantallas: que la base no abrió, que lo que se ve del
+   almacén tiene tres días, que no hay respaldo desde el 12. Va arriba de todo y con el
+   mismo ámbar del candado del cotizador, porque es el mismo tipo de mensaje: no es un
+   error, es «esto que estás viendo tiene una condición». */
+.pf-banda{display:flex;align-items:flex-start;gap:var(--e2);margin-bottom:var(--e4);
+  padding:var(--e3) var(--e4);border:1px solid var(--av-borde);border-radius:var(--rr2);
+  background:var(--av-bg);color:var(--av);font:500 var(--t2)/1.45 inherit}
+.pf-banda.mal{border-color:var(--mal-borde);background:var(--mal-bg);color:var(--mal)}
+.pf-banda .svgi{flex-shrink:0;margin-top:1px}
+.pf-banda b{font-weight:700}
+.pf-banda button{margin-left:auto;flex-shrink:0;min-height:32px;padding:0 var(--e3);
+  border:1px solid currentColor;border-radius:var(--rr1);background:transparent;
+  color:inherit;font:700 var(--t2)/1 inherit;cursor:pointer}
+
+/* ----- El renglón, la primitiva de la plataforma -----
+   Inicio, la lista de faltantes, la de proyectos sin fecha y la de cobranza son todas la
+   misma forma: un icono, un texto de dos renglones y una acción. Se define una vez. Que
+   las cuatro se vean iguales no es economía de CSS: es que el ojo aprende UNA forma y
+   después lee cualquiera de las cuatro sin volver a mirar dónde está el botón. */
+.pf-fila{display:flex;align-items:flex-start;gap:var(--e3);padding:var(--e3) 0;
+  border-top:1px solid var(--line)}
+.pf-fila:first-child{border-top:0}
+.pf-fila-ico{flex-shrink:0;width:36px;height:36px;display:grid;place-items:center;
+  border-radius:var(--rr1);background:var(--n1);color:var(--n7)}
+.pf-fila-ico.urge{background:var(--av-bg);color:var(--av)}
+.pf-fila-ico.mal{background:var(--mal-bg);color:var(--mal)}
+.pf-fila-ico.bien{background:var(--ok-bg);color:var(--ok)}
+.pf-fila-tx{flex:1;min-width:0}
+.pf-fila-t{font:600 var(--t3)/1.35 inherit;color:var(--ink)}
+.pf-fila-d{margin-top:2px;font:400 var(--t2)/1.45 inherit;color:var(--muted)}
+.pf-fila-acc{flex-shrink:0;display:flex;flex-direction:column;gap:var(--e1);align-items:stretch}
+@media(max-width:560px){
+  .pf-fila{flex-wrap:wrap}
+  .pf-fila-acc{width:100%;flex-direction:row;padding-left:calc(36px + var(--e3))}
+  .pf-fila-acc>*{flex:1}
+}
+
+/* Cuándo pasa algo. Un dato de tres caracteres que se lee antes que el texto: «hoy» en
+   ámbar salta sin necesidad de leer el renglón. */
+.pf-cuando{display:inline-block;padding:1px 8px;border-radius:var(--rr1);
+  font:700 var(--t1)/18px inherit;background:var(--n2);color:var(--n7)}
+.pf-cuando.hoy{background:var(--av-bg);color:var(--av)}
+.pf-cuando.tarde{background:var(--mal-bg);color:var(--mal)}
+.pf-cuando.lejos{background:var(--n1);color:var(--muted)}
+
+/* ----- Estado vacío -----
+   La única clase que el cotizador no tenía y que aquí hace falta seis veces: una plataforma
+   nueva arranca con las seis pantallas vacías, y «vacío» tiene que decir por qué y qué
+   hacer, no solo estar en blanco. */
+.vacio{padding:var(--e6) var(--e4);text-align:center;color:var(--muted)}
+.vacio .svgi{width:32px;height:32px;color:var(--n4)}
+.vacio-t{margin-top:var(--e3);font:600 var(--t4)/1.35 inherit;color:var(--n7)}
+.vacio-d{margin-top:var(--e2);font:400 var(--t3)/1.5 inherit;max-width:42ch;
+  margin-left:auto;margin-right:auto}
+.vacio .btn{margin-top:var(--e4);width:auto;display:inline-flex}
+
+/* ----- Etapa de obra -----
+   Ámbar es «está en el taller», azul «se puede instalar», verde «terminado», gris
+   «archivado». Nunca solo color: cada ficha lleva su palabra, por lo mismo que los pines
+   del mapa llevan forma además de color. */
+.pf-etapa{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;
+  border-radius:var(--rr1);font:700 var(--t1)/18px inherit;white-space:nowrap}
+.pf-etapa.ganado   {background:var(--n2);      color:var(--n7)}
+.pf-etapa.cortado  {background:var(--av-bg);   color:var(--av)}
+.pf-etapa.armado   {background:var(--av-bg);   color:var(--av)}
+.pf-etapa.listo    {background:var(--a-suave); color:var(--a-fuerte)}
+.pf-etapa.instalado{background:var(--ok-bg);   color:var(--ok)}
+.pf-etapa.cerrado  {background:var(--n1);      color:var(--muted)}
+
+/* ============================================================================
+   Calendario
+   ============================================================================ */
+.cal-cab{display:flex;align-items:center;gap:var(--e2);margin-bottom:var(--e4)}
+.cal-mes{flex:1;font:700 var(--t5)/1.2 inherit;color:var(--ink);text-transform:capitalize}
+.cal-nav{width:40px;height:40px;display:grid;place-items:center;border:1px solid var(--line);
+  border-radius:var(--rr1);background:var(--card);color:var(--n7);cursor:pointer;
+  box-shadow:var(--clay)}
+.cal-nav:active{box-shadow:var(--clay-in);transform:translateY(1px)}
+
+.cal-rej{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--e1)}
+.cal-dow{padding:var(--e1) 0;text-align:center;font:700 var(--t1)/1 inherit;
+  color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.cal-dia{position:relative;min-height:76px;padding:var(--e1);border:1px solid var(--line);
+  border-radius:var(--rr1);background:var(--card);text-align:left;cursor:pointer;
+  display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.cal-dia:disabled{cursor:default}
+.cal-dia.fuera{background:var(--n1);border-color:transparent}
+.cal-dia.fuera .cal-n{color:var(--n4)}
+.cal-dia.hoy{border-color:var(--a-borde);box-shadow:inset 0 0 0 1px var(--a-borde)}
+.cal-n{font:700 var(--t2)/1 inherit;color:var(--n7)}
+.cal-dia.hoy .cal-n{color:var(--a-fuerte)}
+/* Cada instalación del día, con la etapa a la izquierda como filete de color. El texto va
+   sobre el lienzo claro, no sobre el color: es la regla de --n5 hacia arriba. */
+.cal-ev{display:block;width:100%;padding:2px 4px 2px 6px;border-radius:6px;
+  background:var(--n1);border-left:3px solid var(--n4);
+  font:600 var(--t1)/1.3 inherit;color:var(--n8);text-align:left;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-ev.cortado,.cal-ev.armado{border-left-color:var(--amber-ico)}
+.cal-ev.listo{border-left-color:var(--a)}
+.cal-ev.instalado{border-left-color:var(--green-ico)}
+.cal-ev.ganado{border-left-color:var(--n4)}
+/* El semáforo de material: un punto. Es la pregunta de fabricación mirando el mes —¿llego?—
+   y tiene que contestarse sin abrir nada. Va acompañado del title y del texto de la ficha:
+   un punto de color solo no es una respuesta accesible. */
+.cal-sem{position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%}
+.cal-sem.ok{background:var(--green-ico)}
+.cal-sem.falta{background:var(--amber-ico)}
+.cal-sem.grave{background:var(--red)}
+.cal-mas{font:600 var(--t1)/1.3 inherit;color:var(--muted);padding-left:6px}
+@media(max-width:560px){
+  .cal-dia{min-height:58px;padding:3px}
+  .cal-ev{padding:1px 3px;font-size:9.5px}
+  /* En el teléfono el mes cabe pero los títulos no. Se enseña el punto de la etapa y la
+     cuenta; el detalle está a un toque, en la lista del día. */
+  .cal-ev .tx{display:none}
+}
+
+/* ----- Lista del día -----
+   Lo que el mes no puede decir. Se abre tocando un día. */
+.dia-lista{margin-top:var(--e4)}
+.dia-t{font:700 var(--t4)/1.3 inherit;color:var(--ink);margin-bottom:var(--e2);
+  text-transform:capitalize}
+
+/* ============================================================================
+   Material
+   ============================================================================ */
+.mat-fila{display:grid;grid-template-columns:1fr auto;gap:var(--e2) var(--e3);
+  padding:var(--e3) 0;border-top:1px solid var(--line);align-items:start}
+.mat-fila:first-child{border-top:0}
+.mat-n{font:600 var(--t3)/1.35 inherit;color:var(--ink)}
+.mat-med{font:400 var(--t1)/1.4 inherit;color:var(--muted)}
+/* La cantidad. Es el número que se viene a leer, así que la jerarquía la hace el TAMAÑO,
+   no el color: pintar de color un número no lo vuelve más importante. */
+.mat-cant{font:700 var(--t5)/1 inherit;color:var(--ink);text-align:right;white-space:nowrap}
+.mat-cant small{display:block;margin-top:2px;font:500 var(--t1)/1 inherit;color:var(--muted)}
+.mat-cant.falta{color:var(--av)}
+.mat-cant.cero{color:var(--muted)}
+
+/* La fórmula. Es la mitad del valor del módulo: un número que no se puede auditar no se
+   corrige nunca, y estas cantidades salen de factores supuestos que HAY que corregir.
+   Va en tipografía de máquina y en el tono tenue del acento, que es decoración. */
+.mat-formula{grid-column:1/-1;padding:var(--e2) var(--e3);border-radius:var(--rr1);
+  background:var(--a-suave);border:1px solid var(--a-borde);
+  font:500 var(--t1)/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:var(--n8);overflow-x:auto;white-space:nowrap}
+.mat-nota{grid-column:1/-1;font:400 var(--t1)/1.45 inherit;color:var(--muted)}
+
+/* La confianza del cálculo, dicha con palabras. «Estimado» no es un adorno: es la
+   diferencia entre comprar con esto y comprar con esto sabiendo qué se supuso. */
+.mat-conf{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:var(--rr1);
+  font:700 var(--t1)/17px inherit}
+.mat-conf.exacta{background:var(--ok-bg);color:var(--ok)}
+.mat-conf.estimada{background:var(--n2);color:var(--n7)}
+.mat-conf.requiere_dato{background:var(--av-bg);color:var(--av)}
+
+/* El sello de frescura de una existencia. Un número de almacén sin fecha es una opinión. */
+.mat-sello{font:400 var(--t1)/1.4 inherit;color:var(--muted)}
+.mat-sello.viejo{color:var(--av)}
+
+@media(max-width:385px){
+  .mat-fila{grid-template-columns:1fr}
+  .mat-cant{text-align:left}
+}
+
+/* ----- La lista de compra en papel -----
+   Fabricación va a la vidriería con esto. No se imprime la app: se imprime la lista. */
+@media print{
+  .topbar,.pf-nav,.pf-mbar,.pf-banda,.toast,.pf-modal-bg,#pf-ajustes-btn{display:none!important}
+  .pf-wrap{padding:0;max-width:none}
+  .card{border:1px solid #ddd!important;box-shadow:none!important;break-inside:avoid}
+  .mat-fila{break-inside:avoid}
+  .mat-formula{background:#fff!important;border-color:#ddd!important}
+  /* Lo que en pantalla es un renglón para tocar, en papel es un renglón para tachar. */
+  .mat-fila::after{content:"";display:block;grid-column:1/-1;height:0}
+  .compra-check{display:inline-block!important;width:14px;height:14px;border:1.5px solid #333;
+    border-radius:3px;margin-right:8px;vertical-align:-2px}
+}
+.compra-check{display:none}
+
+/* ============================================================================
+   Mapa
+   ============================================================================ */
+/* Leaflet usa z-index 400 en sus paneles y 1000 en sus controles. Sin aislar, el botón de
+   zoom se pinta encima del filete de marca (200) y encima del aviso que dice que algo no se
+   pudo guardar. `isolation:isolate` crea un contexto de apilamiento propio: sus 1000 se
+   quedan dentro de esta caja. */
+#mapa-lienzo{position:relative;isolation:isolate;z-index:1;height:60vh;min-height:320px;
+  border-radius:var(--rr2);overflow:hidden;border:1px solid var(--line);background:var(--n1)}
+@media(max-width:560px){#mapa-lienzo{height:52vh}}
+/* Leaflet trae su propia tipografía y sus propios grises. Se le imponen los de la app: un
+   mapa con la letra del sistema operativo dentro de una app con Inter se ve incrustado. */
+.leaflet-container{font-family:inherit;background:var(--n1)}
+.leaflet-popup-content-wrapper{border-radius:var(--rr1);box-shadow:var(--clay)}
+.leaflet-popup-content{margin:var(--e3);font:400 var(--t2)/1.5 inherit;color:var(--ink)}
+.leaflet-popup-content b{font-weight:700}
+.leaflet-bar a{color:var(--n7)}
+/* La atribución de OpenStreetMap es obligatoria por su licencia y se queda visible.
+   No se esconde ni se encoge hasta que no se lea. */
+.leaflet-control-attribution{font-size:10px;background:rgba(255,255,255,.85)}
+
+/* La leyenda del mapa: forma Y palabra, nunca color solo. Uno de cada doce hombres no
+   distingue el verde del ámbar, y este mapa se lee para decidir a dónde va la camioneta. */
+.mapa-leyenda{display:flex;flex-wrap:wrap;gap:var(--e2) var(--e4);margin-top:var(--e3);
+  font:500 var(--t2)/1 inherit;color:var(--muted)}
+.mapa-leyenda span{display:inline-flex;align-items:center;gap:6px}
+.mapa-leyenda i{width:12px;height:12px;border:2px solid;display:inline-block}
+.mapa-leyenda i.listo{border-color:var(--a);border-radius:50%}
+.mapa-leyenda i.taller{border-color:var(--amber-ico);border-radius:2px}
+.mapa-leyenda i.instalado{border-color:var(--green-ico);border-radius:50%;background:var(--green-ico)}
+/* El pin de una obra sin ubicar no existe: no hay pin en medio del océano. Van en una lista
+   aparte, y la lista lo dice. */
+.mapa-sinubicar{margin-top:var(--e4)}
+
+/* ============================================================================
+   Modales de la plataforma
+   ============================================================================ */
+/* Se apoyan en .modal-bg del sistema —el velo, el desenfoque de atrás, la entrada desde
+   abajo— y solo cambian el panel. */
+.pf-modal-bg{align-items:flex-start;padding-top:calc(32px + env(safe-area-inset-top,0px))}
+.pf-panel{width:100%;max-width:640px;max-height:calc(100vh - 64px - env(safe-area-inset-top,0px));
+  display:flex;flex-direction:column;background:var(--card);border-radius:var(--rr3);
+  box-shadow:var(--clay-alto);overflow:hidden}
+.pf-panel-h{display:flex;align-items:center;gap:var(--e3);padding:var(--e4);
+  border-bottom:1px solid var(--line);flex-shrink:0}
+.pf-panel-h h2{flex:1;font:700 var(--t4)/1.3 inherit;color:var(--ink);min-width:0}
+.pf-panel-b{padding:var(--e4);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.pf-panel-f{display:flex;gap:var(--e2);padding:var(--e4);border-top:1px solid var(--line);
+  flex-shrink:0;padding-bottom:calc(var(--e4) + env(safe-area-inset-bottom,0px))}
+.pf-panel-f .btn{flex:1}
+.pf-cerrar{width:40px;height:40px;display:grid;place-items:center;border:0;border-radius:var(--rr1);
+  background:var(--n1);color:var(--n7);cursor:pointer;flex-shrink:0}
+@media(max-width:560px){
+  .pf-modal-bg{padding:0;align-items:flex-end}
+  .pf-panel{max-width:none;border-radius:var(--rr3) var(--rr3) 0 0;
+    max-height:calc(100vh - 32px - env(safe-area-inset-top,0px))}
+}
+
+/* ============================================================================
+   Detalles
+   ============================================================================ */
+/* Dos números uno junto al otro, para las cabeceras de módulo: «6 por instalar · 2 sin
+   fecha». Es la primera cosa que se lee al entrar a una pantalla. */
+.pf-cuentas{display:flex;flex-wrap:wrap;gap:var(--e1) var(--e4);margin-bottom:var(--e4)}
+.pf-cuenta{font:400 var(--t2)/1.4 inherit;color:var(--muted)}
+.pf-cuenta b{display:block;font:700 var(--t6)/1.1 inherit;color:var(--ink)}
+.pf-cuenta.urge b{color:var(--av)}
+
+/* Un renglón de dato, para las fichas: etiqueta chica arriba, valor abajo. */
+.pf-dato{padding:var(--e2) 0;border-top:1px solid var(--line)}
+.pf-dato:first-child{border-top:0}
+.pf-dato dt{font:500 var(--t1)/1.4 inherit;color:var(--muted)}
+.pf-dato dd{margin-top:1px;font:600 var(--t3)/1.4 inherit;color:var(--ink);word-break:break-word}
+
+/* La rejilla de dos columnas de las fichas. Se cae a una en el teléfono. */
+.pf-2col{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--e4)}
+@media(max-width:560px){.pf-2col{grid-template-columns:1fr}}
+
+/* El botón de WhatsApp. Lleva el verde del sistema porque es el color de la marca a la que
+   manda, y es la única excepción de color de toda la plataforma: cualquier otra cosa verde
+   aquí querría decir «terminado». */
+.btn-wa{display:inline-flex;align-items:center;justify-content:center;gap:var(--e2);
+  min-height:44px;padding:0 var(--e4);border:1px solid var(--ok-borde);border-radius:var(--rr2);
+  background:var(--ok-bg);color:var(--ok);font:700 var(--t3)/1 inherit;cursor:pointer;
+  text-decoration:none;box-shadow:var(--clay)}
+.btn-wa:active{box-shadow:var(--clay-in);transform:translateY(1px)}
+
+/* La barra fija del teléfono. Mismo esqueleto que la del cotizador. */
+.pf-mbar{gap:var(--e2)}
+.pf-mbar .btn{flex:1;margin:0}
