@@ -6699,6 +6699,23 @@ function generarPDF(){
     return money(tot);
   }
 
+  /* ---- La imagen del trabajo ----
+     22 de las 25 cotizaciones de Canva que se revisaron llevan, DESPUÉS de la nota, el plano
+     cotado del anuncio y una o dos fotos del anuncio instalado. No es adorno: es lo que hace
+     que el cliente entienda qué está comprando, y era lo único del documento original que este
+     PDF no tenía. La imagen ya la trae la app —es la que leyó la IA, o la que salió del
+     escalador con las cotas ya dibujadas encima, que es exactamente lo que pegan en Canva— y
+     hasta ahora solo se veía en pantalla.
+
+     Solo imágenes. Si el archivo de referencia es un PDF no se incrusta: un <iframe> dentro de
+     la hoja que se manda a imprimir sale en blanco en casi todos los navegadores, y una hoja
+     con un recuadro vacío es peor que una hoja sin recuadro. */
+  const imgTrabajo = (Q.aiFile && Q.aiFile.type && Q.aiFile.type.indexOf('image/')===0)
+    ? urlImagenSegura(Q.aiFile.url) : '';
+  const bloqueImagen = alto => imgTrabajo
+    ? `<div style="text-align:center"><img src="${imgTrabajo}" alt="Plano del anuncio cotizado" style="max-width:100%;max-height:${alto}px;object-fit:contain;border:1px solid #d0d4e8;border-radius:6px"></div>`
+    : '';
+
   /* ---- Reparto de las filas por hoja ----
      El .pg pone min-height:100vh pero ningún techo, y el pie va en position:absolute
      respecto al .pg: al crecer la tabla el bloque se pasaba de la hoja carta y el pie
@@ -6719,7 +6736,14 @@ function generarPDF(){
      totales creció con el anticipo y el subtotal descontado (~54 px en el peor caso).
      Se le quita a lo que se reparte, que es lo que evita que la tabla empuje al pie
      fuera de la hoja. */
-  const ALTO_TBODY=760, ALTO_TBODY_ULT=556;
+  /* La imagen se come alto de la última hoja, y hay que quitárselo a lo que se reparte o
+     empuja el pie fuera de la carta —que es justo el fallo que este reparto vino a arreglar—.
+     300 px de imagen más 12 de margen. Con una o dos partidas, que es la mediana real
+     (1 partida en 14 de las 25 cotizaciones revisadas), la hoja queda igual que la de Canva;
+     con muchas, las filas de más se van solas a una hoja anterior y la última cierra con
+     totales, nota e imagen. */
+  const ALTO_IMG = imgTrabajo ? 312 : 0;
+  const ALTO_TBODY=760, ALTO_TBODY_ULT=556-ALTO_IMG;
   function altoFila(it){
     /* Alto de una fila medido: 14 px de padding más 13 px por renglón (una fila de un
        renglón mide 27 px y de dos, 39). En la columna de descripción, que mide 286 px,
@@ -6731,20 +6755,25 @@ function generarPDF(){
     return 14+Math.max(1,renglones)*13;
   }
   const trozos=[];
-  { let hoja=[], alto=0;
-    itemsForPDF.forEach(it=>{
-      const h=altoFila(it);
-      if(hoja.length && alto+h>ALTO_TBODY){ trozos.push(hoja); hoja=[]; alto=0; }
-      hoja.push(it); alto+=h;
-    });
-    trozos.push(hoja);
-    /* La última hoja lleva además totales y nota, así que le caben menos filas: las que
-       se pasan de los 640 px se van a una hoja nueva, que es la que cierra. Como el
-       trozo ya cabía en 790 px, lo que se mueve nunca pasa de 790-640=150 px. */
-    const ult=trozos[trozos.length-1];
-    let acc=0, corte=ult.length;
-    for(let i=0;i<ult.length;i++){ acc+=altoFila(ult[i]); if(acc>ALTO_TBODY_ULT){ corte=i; break; } }
-    if(corte>0 && corte<ult.length){ trozos[trozos.length-1]=ult.slice(0,corte); trozos.push(ult.slice(corte)); }
+  /* Se reparte de ATRÁS HACIA ADELANTE, y eso es lo que cambió al entrar la imagen.
+
+     La hoja que cierra es la que menos filas admite: lleva los totales, la nota y ahora
+     también el plano. Así que se llena primero ella, con las últimas partidas, y las de más
+     arriba van completando las hojas anteriores, que sí admiten los 760 px enteros.
+
+     Antes se repartía de adelante hacia atrás y al final se le recortaba el sobrante a la
+     última hoja, de un solo tijeretazo. Eso funcionaba mientras el tope de la última hoja
+     fuera 556 px, porque de una hoja de 760 nunca sobraban más de 204. Con la imagen el tope
+     baja a 244 y pueden sobrar más de 500: 14 partidas armaban una última hoja de 1 107 px
+     sobre una carta de 1 056, con el pie fuera del papel. Repartir desde el final no tiene
+     ese caso: ninguna hoja se llena por encima de su propio tope. */
+  { let hoja=[], alto=0, tope=ALTO_TBODY_ULT;
+    for(let i=itemsForPDF.length-1;i>=0;i--){
+      const it=itemsForPDF[i], h=altoFila(it);
+      if(hoja.length && alto+h>tope){ trozos.unshift(hoja); hoja=[]; alto=0; tope=ALTO_TBODY; }
+      hoja.unshift(it); alto+=h;
+    }
+    trozos.unshift(hoja);
   }
 
   /* ----- Qué hojas se imprimen -----
@@ -6754,17 +6783,41 @@ function generarPDF(){
      con una fecha sola en medio y otra con nada más que el teléfono. Peor: sin límite de
      fabricación, la hoja imprimía una instrucción interna dirigida al vendedor en el
      papel que sustenta un precio. Una hoja que no lleva nada que decir no se imprime. */
-  const hayLimite = !!(Q.entrega||'').trim();   // hoja del límite de fabricación
+  const hayLimite = !!(Q.entrega||'').trim();   // hoja de orden de trabajo
   /* Sin fecha, esa hoja imprimía en gris una instrucción de la app dirigida al vendedor
      —le decía en qué tarjeta capturar el dato, y encima con el nombre que esa tarjeta
      tenía antes del rediseño de dos pantallas— en el papel que sustenta un precio.
      La de instalación, vacía, era una hoja entera con dos recuadros en blanco y sin
      título que dijera qué era. */
   const hayInstal = !!((Q.tel||'').trim()||(Q.entrecalles||'').trim());
-  const TOTAL_HOJAS = trozos.length + 1 + (hayLimite?1:0) + (hayInstal?1:0);
+  /* El recibo sale cuando hay anticipo pactado, que es el momento en que el dinero se mueve y
+     en que hace falta darle un papel al cliente. Sin anticipo sería una hoja de formato en
+     blanco pegada a una cotización que todavía nadie aprobó. */
+  const hayRecibo = Q.anti > 0;
+
+  /* ----- Por qué la hoja del límite se volvió una orden de trabajo -----
+     Antes era una hoja con la fecha sola dentro de un recuadro en medio del papel. Esa hoja no
+     existe en la realidad: de las 25 cotizaciones de Canva que se revisaron, 18 la traen y las
+     18 salen EN BLANCO, con los placeholders de la plantilla puestos («6 ago 2025»,
+     «MIERCOLES 05 DE MARZO»). Lo que sí existe —en 7 de las 25— es una copia de la cotización
+     con las dos columnas de precio borradas, el límite estampado en verde y rojo, y el plano.
+     Es la hoja del taller, y el taller no tiene que ver el precio.
+
+     Esa hoja se arma con Q.items y no con itemsForPDF a propósito: «ocultar del PDF» esconde
+     una partida de los ojos del cliente, no de los de quien la tiene que fabricar. Y aquí no
+     hay precio que esconder, que era la única razón de ocultarla.
+
+     ----- Y por qué el recibo no lleva encabezado -----
+     El recibo de Canva (Adila Spa, hoja 3) es una hoja limpia: sin logo arriba, sin cintillos
+     de folio y fecha, y sin la cinta azul. Tiene sentido y no es descuido: es un formato para
+     escribir encima y para cortar por la mitad, y la cinta se transparentaba justo por el
+     hueco vacío del campo «Fecha». Lo único que se le deja es el pie, por el número de hoja:
+     un juego de hojas que se desordena sobre un escritorio no se vuelve a armar. */
+  const TOTAL_HOJAS = trozos.length + 1 + (hayLimite?1:0) + (hayInstal?1:0) + (hayRecibo?1:0);
   const HOJA_TERMINOS = trozos.length + 1;
-  const HOJA_LIMITE   = HOJA_TERMINOS + 1;
-  const HOJA_INSTAL   = HOJA_LIMITE + (hayLimite?1:0);
+  const HOJA_TRABAJO  = HOJA_TERMINOS + 1;
+  const HOJA_INSTAL   = HOJA_TRABAJO + (hayLimite?1:0);
+  const HOJA_RECIBO   = HOJA_INSTAL + (hayInstal?1:0);
 
   /* La cebra lleva índice global: si se reiniciara en cada hoja, dos filas seguidas
      saldrían del mismo color al cambiar de página. */
@@ -6943,7 +6996,8 @@ ${trozos.map((trozo,ti)=>{
   <div style="text-align:center;font-size:10px;margin-bottom:12px">
     <u style="font-weight:700">Nota:</u><br>
     ${esc(notaCliente())}${hayProrrateo?`<br><span style="font-size:9px">* Precio unitario prorrateado: el total de la partida es el que manda.</span>`:''}
-  </div>`:`<div style="text-align:center;font-size:9.5px;color:#6b7189;margin-bottom:12px">Las partidas continúan en la hoja siguiente. Los totales van al final.</div>`}
+  </div>
+  ${bloqueImagen(300)}`:`<div style="text-align:center;font-size:9.5px;color:#6b7189;margin-bottom:12px">Las partidas continúan en la hoja siguiente. Los totales van al final.</div>`}
   ${footerCot(ti+1)}
 </div>`;
 }).join('')}
@@ -6980,20 +7034,36 @@ ${trozos.map((trozo,ti)=>{
   ${footer([{label:'WhatsApp',val:esc(EMPRESA.whatsapp)},{label:'Dirección de la oficina',val:esc(EMPRESA.oficina)}],HOJA_TERMINOS)}
 </div>
 
-<!-- HOJA DE LÍMITE DE FABRICACIÓN · solo si hay fecha (ver hayLimite) -->
-${hayLimite?`
+<!-- HOJA DE ORDEN DE TRABAJO · la del taller, sin precios · solo si hay límite (hayLimite) -->
+${hayLimite?(()=>{
+  /* La imagen solo si le queda hoja. Cuando la tabla es larga se omite y no se pierde nada:
+     la misma imagen ya va impresa en la hoja de cotización, unas páginas antes. */
+  const altoFilas = Q.items.reduce((s,it)=>s+altoFila(it),0);
+  const imgTrab = altoFilas<=420 ? bloqueImagen(240) : '';
+  return `
 <div class="pg">
   ${deco}
   ${hdr(Q.fecha)}
+  <div style="text-align:center;font-size:15px;font-weight:800;color:#3a4ad8;margin:2px 0 4px;letter-spacing:.06em">ORDEN DE TRABAJO</div>
+  <div style="width:130px;height:2px;background:#3a4ad8;margin:0 auto 14px"></div>
   ${prowProyDir()}
-  <div style="display:flex;align-items:center;justify-content:center;padding:120px 0">
-    <div style="border:2.5px solid #3a4ad8;border-radius:14px;padding:24px 44px;text-align:center;display:inline-block">
-      <div style="font-size:12px;font-weight:700;color:#3a4ad8;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">Límite de fabricación</div>
-      <div style="font-size:26px;font-weight:900;color:#1a1a2e;line-height:1.15">${esc((Q.entrega||'').trim())}</div>
-    </div>
+  <table>
+    <thead><tr>
+      <th style="width:60%">Descripción:</th>
+      <th class="c" style="width:25%">Medidas:</th>
+      <th class="c" style="width:15%">Pzas.</th>
+    </tr></thead>
+    <tbody>${Q.items.map((it,i)=>`
+      <tr class="${i%2===0?'re':'ro'}"><td>${desc(it)}</td><td class="c">${med(it)}</td><td class="c">${pzas(it)}</td></tr>`).join('')}</tbody>
+  </table>
+  <div style="text-align:center;font-size:10px;margin-bottom:14px"><u style="font-weight:700">Nota:</u><br>${esc(notaCliente())}</div>
+  <div style="text-align:center;margin-bottom:14px">
+    <span style="display:inline-block;background:#8ef29b;color:#12331a;font-weight:800;font-size:12.5px;padding:5px 18px;border-radius:5px">Límite de fabricación</span><br>
+    <span style="display:inline-block;background:#8ef29b;color:#d92626;font-weight:800;font-size:13.5px;padding:5px 18px;border-radius:5px;margin-top:4px">${esc((Q.entrega||'').trim())}</span>
   </div>
-  ${footerCot(HOJA_LIMITE)}
-</div>`:''}
+  ${imgTrab}
+  ${footerCot(HOJA_TRABAJO)}
+</div>`;})():''}
 
 <!-- HOJA DE ORDEN DE INSTALACIÓN · solo si trae teléfono o entre calles (ver hayInstal) -->
 ${hayInstal?`
@@ -7017,6 +7087,60 @@ ${hayInstal?`
   </div>
   ${footerCot(HOJA_INSTAL)}
 </div>`:''}
+
+<!-- HOJA DE RECIBO DE PAGO · dos recibos con talón · solo si hay anticipo (hayRecibo) -->
+${hayRecibo?(()=>{
+  const casilla = etq => `<span style="display:inline-block;width:9px;height:9px;border:1.2px solid #1a1a2e;margin:0 5px -1px 0"></span><span style="font-size:9.5px">${etq}</span>`;
+  const campo = (etq,val,ancho) => `<div style="margin-bottom:8px;font-size:9.5px;white-space:nowrap">${etq} <span style="display:inline-block;border-bottom:1px solid #1a1a2e;width:${ancho};padding:0 4px;font-weight:600;font-size:9.5px">${val||'&nbsp;'}</span></div>`;
+  const recibo = () => `
+  <div style="display:flex;gap:0;border:1px solid #d0d4e8;border-radius:8px;overflow:hidden;min-height:452px">
+    <!-- Talón, copia del negocio -->
+    <div style="width:23%;background:#f2f4fb;padding:12px 11px;border-right:1.5px dashed #9999bb">
+      <div style="margin-bottom:9px">${logoH}</div>
+      <div style="background:#3a4ad8;color:#fff;font-size:8px;font-weight:700;padding:3px 6px;border-radius:3px;display:inline-block;margin-bottom:11px">TALÓN — COPIA NEGOCIO</div>
+      <div style="font-size:8.5px;font-weight:700;margin-bottom:1px">FECHA</div>
+      <div style="border-bottom:1px solid #1a1a2e;height:13px;margin-bottom:9px"></div>
+      <div style="font-size:8.5px;font-weight:700;margin-bottom:1px">CLIENTE</div>
+      <div style="border-bottom:1px solid #1a1a2e;height:13px;margin-bottom:9px;font-size:8.5px;font-weight:600;overflow:hidden">${esc(Q.cliente)}</div>
+      <div style="font-size:8.5px;font-weight:700;margin-bottom:1px">MONTO $</div>
+      <div style="border-bottom:1px solid #1a1a2e;height:13px;margin-bottom:11px"></div>
+      ${Q.folio?`<div style="font-size:8px;color:#6b7189;margin-bottom:6px">${esc(Q.folio)}</div>`:''}
+      <div style="font-size:8px;color:#6b7189">Conserve este talón.</div>
+    </div>
+    <!-- Recibo, copia del cliente -->
+    <div style="flex:1;padding:12px 14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:9px">${logoH}<span style="font-size:14px;font-weight:800;color:#1a1a2e">Recibo de Pago</span></div>
+        <div style="display:flex;align-items:center;border:1.5px solid #3a4ad8;border-radius:6px;overflow:hidden">
+          <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10px;padding:5px 11px">Fecha</span>
+          <span style="background:#fff;width:112px;padding:5px 8px">&nbsp;</span>
+        </div>
+      </div>
+      <div style="height:2px;background:#3a4ad8;margin-bottom:10px"></div>
+      <div style="margin-bottom:9px;font-size:9.5px"><b>Concepto:</b> &nbsp;${casilla('Anticipo')} &nbsp;&nbsp;${casilla('Liquidación')}</div>
+      ${campo('<b>Recibí de:</b>',esc(Q.cliente),'330px')}
+      ${campo('<b>La cantidad de $</b>','','300px')}
+      ${campo('<b>(con letra):</b>','','330px')}
+      ${campo('<b>Proyecto:</b>',esc(Q.proy),'340px')}
+      <div style="margin-bottom:9px;font-size:9.5px"><b>Forma de pago:</b> &nbsp;${casilla('Efectivo')} &nbsp;&nbsp;${casilla('Transferencia')} &nbsp;&nbsp;${casilla('Tarjeta')}</div>
+      ${campo('<b>Saldo pendiente: $</b>','','290px')}
+      <div style="display:flex;justify-content:space-around;margin-top:100px;gap:26px">
+        <div style="flex:1;text-align:center"><div style="border-top:1px solid #1a1a2e;padding-top:3px;font-size:8.5px">Entregué (cliente)</div></div>
+        <div style="flex:1;text-align:center"><div style="border-top:1px solid #1a1a2e;padding-top:3px;font-size:8.5px">Recibí — AL3D</div></div>
+      </div>
+      <div style="text-align:center;font-size:8px;color:#6b7189;margin-top:9px">Este recibo no sustituye comprobante fiscal · Whatsapp ${esc(EMPRESA.whatsapp)}</div>
+    </div>
+  </div>`;
+  return `
+<div class="pg">
+  ${recibo()}
+  <div style="border-top:1.5px dashed #9999bb;margin:16px 0"></div>
+  ${recibo()}
+  ${footer([
+    {label:'Vendedor:',val:esc(vendedorPdf)},
+    {label:'WhatsApp',val:esc(EMPRESA.whatsapp)}
+  ],HOJA_RECIBO)}
+</div>`;})():''}
 
 </body></html>`;
 
