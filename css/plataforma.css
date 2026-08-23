@@ -407,3 +407,23 @@
   body.pf-print-hoja #pf-hoja .pf-panel-f,
   body.pf-print-hoja #pf-hoja .pf-cerrar{display:none!important}
 }
+
+/* ============================================================================
+   Material — lo que las tres pestañas necesitaban y no existía todavía
+   ============================================================================ */
+
+/* Los botones de un renglón de material. `.mat-fila` es una rejilla de dos columnas —el
+   nombre y la cantidad— y los dos botones de «En almacén» no caben en ninguna de las dos:
+   en la del número lo empujan fuera de la vista, y debajo del nombre quedan pegados al
+   texto que describen. Cruzan la rejilla completa, y el `display:flex` con su `gap` lo pone
+   `.btn-fila` del sistema, que es la clase que ya resuelve dos botones en un renglón. */
+.mat-acc{grid-column:1/-1;margin-top:var(--e1)}
+
+/* Lo que no va al papel. El @media print de más arriba ya esconde la barra, la banda y los
+   modales, pero la hoja de compra que fabricación se lleva a la vidriería seguía saliendo
+   con las pestañas, con la tarjeta de calibración, con los botones de cada renglón y con la
+   lista de lo que YA está en el taller. Un renglón que dice «no compres esto» en una hoja
+   de compra se lee mal en el mostrador: se pide lo que está tachado. */
+@media print{
+  .no-papel{display:none!important}
+}

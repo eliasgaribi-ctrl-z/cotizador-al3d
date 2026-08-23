@@ -96,16 +96,39 @@ self.addEventListener('install', ev => {
     } catch (_) { /* si ni la caché del cotizador abre, la app sigue funcionando con red */ }
 
     /* La plataforma: todo o nada, y con {cache:'reload'} para no bajar de la caché HTTP del
-       navegador lo mismo que se está intentando actualizar. */
-    const c = await caches.open(APP);
-    const peticiones = APP_FILES.map(u => new Request(u, { cache: 'reload' }));
-    /* addAll rechaza si CUALQUIERA falla, y eso hace que install falle, que hace que este
-       service worker no active, que hace que el anterior siga sirviendo su conjunto
-       completo. Es la promoción atómica, y sale gratis. */
-    await c.addAll(peticiones);
+       navegador lo mismo que se está intentando actualizar.
 
-    /* skipWaiting va DESPUÉS del addAll, dentro del waitUntil: si se pusiera antes, un
-       conjunto a medio bajar podría empezar a servir. */
+       addAll rechaza si CUALQUIERA falla, y eso es lo que se quiere: el conjunto de módulos
+       se promociona completo o no se promociona, porque un módulo nuevo con uno viejo no es
+       una app vieja, es una app rota.
+
+       PERO ese fallo NO puede tumbar la instalación entera, y esto se aprendió publicando:
+       si `install` falla, este service worker no activa, y para quien instala la app POR
+       PRIMERA VEZ eso significa quedarse SIN service worker — o sea sin el cotizador sin
+       señal, que es la única razón por la que este archivo existe. El cotizador se usa en la
+       calle, delante del cliente, y su garantía de abrir sin red no puede depender de que la
+       plataforma esté completa.
+
+       Así que el conjunto de la plataforma se intenta y, si no llega entero, se borra lo que
+       alcanzó a bajar —para no dejar una mezcla a medias— y la instalación sigue adelante
+       con el cotizador a salvo. La plataforma se servirá de la red mientras haya, y volverá
+       a intentar cachearse en la siguiente instalación. */
+    let appCompleta = false;
+    try {
+      const c = await caches.open(APP);
+      await c.addAll(APP_FILES.map(u => new Request(u, { cache: 'reload' })));
+      appCompleta = true;
+    } catch (e) {
+      try { await caches.delete(APP); } catch (_) {}
+      /* Queda en la consola del navegador, que es donde alguien lo va a buscar el día que
+         el mapa no abra sin señal. */
+      console.warn('[al3d] la plataforma no se pudo guardar completa; el cotizador sí. ' +
+                   'Falta algún archivo de APP_FILES:', e && e.message);
+    }
+    void appCompleta;
+
+    /* skipWaiting va al final, dentro del waitUntil: si se pusiera antes, un conjunto a
+       medio bajar podría empezar a servir. */
     await self.skipWaiting();
   })());
 });
