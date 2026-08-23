@@ -862,6 +862,44 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .ai-src-b{flex:1;min-width:0}
 .ai-src-t{font-size:12.5px;font-weight:800;color:var(--green)}
 .ai-src-n{font-size:11.5px;color:#1c6e3d;line-height:1.45;margin:3px 0 8px}
+/* ----- Entregarle el archivo a la IA: arrastrarlo, tocarlo o pegarlo -----
+   El archivo entraba solo por el selector nativo, así que un diseño que el cliente manda
+   por WhatsApp había que bajarlo al disco primero y después ir a buscarlo a la carpeta de
+   descargas. El recuadro punteado es lo que dice «suéltalo aquí»; el arrastre se acepta en
+   todo el modal, pero lo que se resalta es esto, para que se vea dónde va a caer. */
+#ai-file-fld{position:relative}
+.ai-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  padding:20px 16px;border:2px dashed var(--a-borde);border-radius:var(--r-sm);
+  background:var(--soft);cursor:pointer;text-align:center;transition:border-color .12s,background .12s,box-shadow .12s}
+.ai-drop:hover{border-color:var(--brand);background:var(--a-suave)}
+.ai-drop:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.ai-drop.sobre{border-color:var(--brand);border-style:solid;background:var(--a-suave);box-shadow:0 0 0 4px rgba(64,96,248,.16)}
+.ai-drop .ico{font-size:26px;color:var(--brand)}
+.ai-drop .t{font-size:13.5px;font-weight:800;color:var(--n7)}
+.ai-drop .s{font-size:11.5px;color:var(--muted);line-height:1.5}
+/* En un celular no hay nada que arrastrar, así que el recuadro dice ahí lo que ahí sí se
+   puede hacer. Se elige por tipo de puntero y no por ancho de pantalla, igual que el resto
+   de la hoja: el mismo archivo abierto en la laptop sigue diciendo «arrastra». */
+.ai-drop .solo-dedo{display:none}
+.ai-drop>*{pointer-events:none}
+/* El <input type=file> sigue ahí y sigue siendo el que abre la galería del celular: lo que
+   se le quita es la caja, porque el recuadro de arriba ya es su botón. No se oculta con
+   display:none para que el navegador lo siga tomando por un control de verdad. */
+.ai-file-in{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+/* El archivo ya elegido. El selector nativo lo decía con su propio texto gris; con el
+   recuadro ese texto ya no está, y analizar a ciegas es justo el error que cuesta una
+   llamada a la API y el viaje de vuelta. */
+.ai-pick{display:flex;gap:10px;align-items:center;background:var(--green-bg);border:1.5px solid rgba(21,160,106,.28);border-radius:var(--r-sm);padding:9px 11px;margin-top:9px}
+.ai-pick-img{width:52px;height:52px;object-fit:contain;border-radius:8px;border:1px solid rgba(21,160,106,.25);background:#fff;flex-shrink:0;padding:2px}
+.ai-pick-ph{width:52px;height:52px;display:flex;align-items:center;justify-content:center;border-radius:8px;border:1.5px dashed var(--red);background:var(--red-bg);color:var(--red);flex-shrink:0;font-size:20px}
+.ai-pick-b{flex:1;min-width:0}
+.ai-pick-n{font-size:12.5px;font-weight:800;color:var(--green);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai-pick-m{font-size:11.5px;color:#1c6e3d;margin-top:2px}
+.ai-pick-x{border:none;background:none;color:#1c6e3d;font-size:18px;line-height:1;cursor:pointer;padding:3px 7px;border-radius:6px;flex-shrink:0;font-family:inherit}
+.ai-pick-x:hover{color:var(--red);background:var(--red-bg)}
+/* Con el archivo encima del modal, el modal entero se anuncia como destino: quien suelta
+   ve que la ventana correcta es la que va a recibirlo. */
+#aimodal.arrastrando .modal{box-shadow:0 0 0 3px var(--brand),0 24px 60px rgba(23,29,74,.28)}
 /* Segunda entrada a lo mismo, desde la vista previa que queda junto a las partidas */
 .sc-prev-ia{width:100%;margin-top:9px;padding:9px 12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 10px rgba(58,74,216,.25)}
 .sc-prev-ia:hover{filter:brightness(1.06)}
@@ -1594,7 +1632,10 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
    pantallas del Fold 6, sin depender de en qué lado del punto de corte caiga cada una.
    Lo que sube es la caja, nunca la letra. */
 @media(hover:none),(pointer:coarse){
+  .ai-drop .solo-raton{display:none}
+  .ai-drop .solo-dedo{display:inline}
   .modal-h button{width:44px;height:44px}
+  .ai-pick-x{min-width:44px;min-height:44px}
   .toast-act,.falt-quitar,.key-btn,.sp-gclear,.hist-foot button,
   .card-fold,.btn-maps,.chip,.seg button,.tipo-seg button{min-height:44px}
   .key-btn,.falt-quitar{padding-left:14px;padding-right:14px}
@@ -2346,7 +2387,8 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
   </aside>
 
 </div>
-<div class="modal-bg" id="aimodal" role="dialog" aria-modal="true" aria-label="Cotizar con IA">
+<div class="modal-bg" id="aimodal" role="dialog" aria-modal="true" aria-label="Cotizar con IA"
+  ondragenter="aiDragEntra(event)" ondragover="aiDragSobre(event)" ondragleave="aiDragSale(event)" ondrop="aiSoltar(event)">
   <div class="modal">
     <div class="modal-h"><b><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar con IA</b><button onclick="aiClose()" aria-label="Cerrar">×</button></div>
     <div class="modal-b">
@@ -2389,7 +2431,19 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
           <p class="key-note"><svg class="svgi" aria-hidden="true"><use href="#i-candado"/></svg> Las API keys no están escritas en el código del cotizador: las pegas una sola vez, se guardan ofuscadas en <b>este</b> dispositivo y después solo se muestran sus últimos 4 caracteres. Cada una se envía directo a su proveedor. Si el dispositivo es compartido, usa <b>Borrar</b> al terminar.</p>
         </div>
       </details>
-      <div class="fld" id="ai-file-fld"><label for="ai-file">Archivo (JPG o PDF)</label><input id="ai-file" type="file" accept="image/*,application/pdf"></div>
+      <div class="fld" id="ai-file-fld">
+        <div class="fld-lab" id="lab-ai-file">Archivo (JPG o PDF)</div>
+        <div class="ai-drop" id="ai-drop" role="button" tabindex="0" aria-describedby="ai-drop-s"
+          onclick="$('ai-file').click()"
+          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();$('ai-file').click();}">
+          <svg class="svgi ico" aria-hidden="true"><use href="#i-carpeta"/></svg>
+          <div class="t"><span class="solo-raton">Arrastra aquí la foto o el PDF</span><span class="solo-dedo">Toca para elegir la foto o el PDF</span></div>
+          <div class="s" id="ai-drop-s"><span class="solo-raton">o <b>toca para elegirlo</b> · si ya lo tienes copiado, <b>pégalo</b> con Ctrl+V</span><span class="solo-dedo">de tu galería, de Archivos o de lo que te mandaron</span></div>
+        </div>
+        <input id="ai-file" class="ai-file-in" type="file" accept="image/*,application/pdf"
+          aria-labelledby="lab-ai-file" onchange="aiArchivoElegido(this.files[0])">
+        <div class="ai-pick" id="ai-pick" style="display:none"></div>
+      </div>
       <div class="ai-merge" id="ai-merge-box" style="display:none">
         <button type="button" class="switch" role="switch" aria-checked="false" style="margin:0" onclick="toggleAiMerge()"><span class="tg" id="ai-merge-tg" aria-hidden="true"></span> Conservar las partidas que ya capturé</button>
         <div class="ai-merge-note" id="ai-merge-note"></div>
@@ -4183,7 +4237,7 @@ function renderAiPreview(){
   el.innerHTML=`<div class="ai-prev-big">
     <div class="ai-prev-head">
       <span class="ttl"><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Archivo analizado por IA · revisa que ningún elemento haya quedado fuera antes de autorizar</span>
-      <button class="x" onclick="clearAiFile()" title="Quitar vista previa">×</button>
+      <button class="x" onclick="clearAiFile()" title="Quitar la imagen de esta pantalla" aria-label="Quitar la imagen de esta pantalla">×</button>
     </div>
     ${big}
     <div class="sub">${esc(f.name||'archivo')} ${isImg?'· clic en la imagen para verla a pantalla completa':''}</div>
@@ -4199,7 +4253,17 @@ function openAiFile(){
   $('lightbox').classList.add('show');
 }
 function closeLightbox(){ $('lightbox').classList.remove('show'); $('lightboxBody').innerHTML=''; }
-function clearAiFile(){ Q.aiFile=null; saveState(); renderAiPreview(); }
+/* En un borrador esta es la ÚNICA copia de la imagen —la del historial nace al autorizar—, y
+   el ✕ está a un dedo de la miniatura, con el archivo original quizá ya fuera del teléfono.
+   Así que sale con Deshacer, igual que borrar una partida. */
+function clearAiFile(){
+  const previa=Q.aiFile;
+  Q.aiFile=null; saveState(); renderAiPreview();
+  if(!previa) return;
+  toast('Imagen quitada de la pantalla','',5600,{label:'Deshacer',fn:()=>{
+    Q.aiFile=previa; saveState(); renderAiPreview();
+  }});
+}
 
 /* ===================== Auth por partida ===================== */
 function shortDescAuth(it){
@@ -5473,7 +5537,8 @@ function aiOpen(fuente){
   /* El <input type=file> conserva su selección entre aperturas: sin limpiarlo, volver a
      abrir el modal y darle a Analizar re-analizaba —y volvía a pagar— el archivo del
      análisis anterior, sin que nada en pantalla dijera cuál era. */
-  const fi=$('ai-file'); if(fi) fi.value='';
+  aiOlvidarArchivo();
+  _aiDragN=0; aiPintarArrastre(false);
   $('ai-model-gemini').value=localStorage.getItem('ai_model_gemini')||localStorage.getItem('ai_model')||AI_DEFAULTS.gemini;
   $('ai-model-groq').value=localStorage.getItem('ai_model_groq')||AI_DEFAULTS.groq;
   $('ai-model-openrouter').value=localStorage.getItem('ai_model_openrouter')||AI_DEFAULTS.openrouter;
@@ -5491,6 +5556,7 @@ function aiOpen(fuente){
    sin ninguna explicación, y no había forma de cancelar. */
 function aiClose(){
   $('aimodal').classList.remove('show');
+  aiThumbsSoltarTodas();
   if(aiTrabajando){
     _aiCancelado=true;
     if(_aiAbort){ try{_aiAbort.abort();}catch(_){} }
@@ -5501,7 +5567,7 @@ function aiClose(){
 /* Con la imagen del escalador el modal cambia de cara: en vez de pedir un archivo
    enseña lo que se va a analizar, y deja la puerta abierta por si el usuario prefiere
    subir otra cosa. */
-const AI_INTRO_ARCHIVO='Sube una foto (JPG) o PDF del diseño/boceto. La IA detecta texto, medidas, material e iluminación, <b>describe qué está cotizando en cada partida</b> y muestra una miniatura del archivo para que lo compares. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo.';
+const AI_INTRO_ARCHIVO='Dale una foto (JPG) o PDF del diseño/boceto. La IA detecta texto, medidas, material e iluminación, <b>describe qué está cotizando en cada partida</b> y muestra una miniatura del archivo para que lo compares. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo.';
 const AI_INTRO_ESCALADOR='Se analiza la imagen que acabas de medir, con tus cotas dibujadas encima. Como las medidas ya están calibradas, la IA <b>no tiene que estimar tamaños</b>: los usa tal cual y dedica su trabajo a reconocer qué es cada elemento, de qué material y con cuántas letras. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo.';
 function aiPintarFuente(){
   const box=$('ai-src-box'), fld=$('ai-file-fld'), btn=$('ai-go-btn'), intro=$('ai-intro');
@@ -5517,7 +5583,222 @@ function aiPintarFuente(){
 }
 /* Al pasar de «la imagen medida» a «subir un archivo» también se limpia la selección
    anterior, por lo mismo que en aiOpen. */
-function aiUsarArchivo(){ aiSrc=null; const fi=$('ai-file'); if(fi) fi.value=''; aiPintarFuente(); }
+function aiUsarArchivo(){ aiSrc=null; aiOlvidarArchivo(); aiPintarFuente(); }
+
+/* ===================== El archivo que se va a analizar =====================
+   El análisis leía directo de $('ai-file').files[0], y eso lo ataba al selector nativo: la
+   única manera de entregarle un archivo a la IA era buscarlo en el disco. Un diseño que el
+   cliente manda por WhatsApp había entonces que bajarlo primero y después ir a encontrarlo
+   entre las descargas, con el cliente esperando. Ahora los tres caminos que un navegador
+   ofrece para dar un archivo —elegirlo, arrastrarlo y pegarlo— escriben en aiArchivo, y
+   aiAnalyze() lee solo de ahí. Todos pasan por aiArchivoElegido(), que es el único lugar
+   donde se valida: el <input> filtraba por su accept=, y lo que se suelta no pasa por
+   ningún filtro. */
+let aiArchivo=null;
+/* Las urls blob: de las miniaturas que están vivas. Se sueltan cuando el navegador YA cargó
+   su imagen —ahí la url deja de hacer falta, la imagen ya está decodificada en pantalla— y
+   no al pintar la siguiente: revocarla en ese momento la mataba mientras todavía se estaba
+   cargando, y el navegador la reportaba como archivo no encontrado. La lista es la red para
+   las que nunca lleguen a cargar; se vacía al cerrar el modal, que es el único momento en
+   que con seguridad ninguna se está viendo. */
+let _aiThumbs=[];
+function aiThumbSoltar(u){
+  if(!u||String(u).indexOf('blob:')!==0) return;
+  const i=_aiThumbs.indexOf(u); if(i<0) return;
+  _aiThumbs.splice(i,1);
+  try{ URL.revokeObjectURL(u); }catch(_){}
+}
+function aiThumbLista(img){ aiThumbSoltar(img&&img.src); }
+function aiThumbsSoltarTodas(){ _aiThumbs.slice().forEach(aiThumbSoltar); }
+const AI_TIPOS_OK=/^(image\/|application\/pdf$)/i;
+/* Lo que se suelta puede llegar sin type —pasa con algunos gestores de archivos y con lo que
+   viene de otras apps—, y ahí lo único que queda es la extensión. El mapa sirve para las dos
+   cosas: decidir si se acepta y, si se acepta, ponerle el tipo que le falta. */
+const AI_MIME_EXT={jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',
+  gif:'image/gif',bmp:'image/bmp',avif:'image/avif',heic:'image/heic',heif:'image/heif',
+  svg:'image/svg+xml',pdf:'application/pdf'};
+/* La lista de extensiones se saca del mismo mapa para que las dos no se puedan separar:
+   aceptar una extensión cuyo tipo no se sepa es dejar entrar un archivo que más abajo se
+   clasifica mal. */
+const AI_EXT_OK=new RegExp('\\.('+Object.keys(AI_MIME_EXT).join('|')+')$','i');
+function aiTipoAceptado(f){
+  if(!f) return false;
+  return f.type ? AI_TIPOS_OK.test(f.type) : AI_EXT_OK.test(f.name||'');
+}
+function aiEsImagen(f){
+  if(!f) return false;
+  return f.type ? f.type.indexOf('image/')===0 : !/\.pdf$/i.test(f.name||'');
+}
+function aiPeso(b){
+  const kb=(b||0)/1024;
+  return kb<1024 ? Math.max(1,Math.round(kb))+' KB' : (kb/1024).toFixed(1)+' MB';
+}
+/* Un solo punto de entrada para el selector, el arrastre y el pegado. `comoLlego` es para
+   confirmar por dónde entró: soltar algo y que la pantalla no diga nada se lee como que no
+   se soltó. */
+function aiArchivoElegido(f,comoLlego){
+  if(!f) return false;
+  /* Arrastrar una CARPETA da una entrada de tamaño 0 y sin tipo, igual que un archivo que
+     el sistema no alcanzó a entregar. Se mira antes que el tipo: una carpeta tampoco trae
+     extensión, así que la guarda de abajo la atrapaba primero y contestaba «no es una
+     imagen ni un PDF» —cierto, pero deja a quien la soltó sin saber qué hacer—. */
+  if(!f.size){
+    aiStatus('«'+(f.name||'eso')+'» llegó vacío — si es una carpeta, arrastra el archivo de dentro.','err');
+    return false;
+  }
+  if(!aiTipoAceptado(f)){
+    aiStatus('«'+(f.name||'ese archivo')+'» no es una imagen ni un PDF · la IA lee JPG, PNG y PDF.','err');
+    return false;
+  }
+  /* Sin type, todo lo de más abajo se equivoca: en aiAnalyze() esPdf sale falso y un PDF se
+     iría a un proveedor que solo lee imágenes; aiImagen() lo etiquetaría como JPEG; y
+     Q.aiFile guardaría una data: url sin tipo, que urlImagenSegura() —con razón— no deja
+     pintar, así que la vista previa saldría en blanco. Se le pone el de su extensión una
+     sola vez, aquí, en vez de repetir la adivinanza en cada uno de esos lugares. */
+  if(!f.type){
+    const m=/\.([a-z0-9]+)$/i.exec(f.name||'');
+    const tipo=AI_MIME_EXT[((m&&m[1])||'').toLowerCase()];
+    if(tipo){ try{ f=new File([f],f.name,{type:tipo}); }catch(_){} }
+  }
+  aiArchivo=f;
+  /* Soltar un archivo mientras se enseñaba la imagen del escalador es decir «analiza esto
+     otro»: el modal cambia de cara solo, sin obligar a tocar «Analizar otro archivo». */
+  if(aiSrc){ aiSrc=null; aiPintarFuente(); }
+  aiPintarArchivo();
+  aiStatus(comoLlego?('Archivo '+comoLlego+' · ya puedes analizarlo'):'', comoLlego?'ok':'');
+  return true;
+}
+/* Suelta el archivo y la miniatura sin tocar el aviso en pantalla: lo usan aiOpen() y
+   aiUsarArchivo(), que ponen su propio texto. */
+function aiOlvidarArchivo(){
+  aiArchivo=null;
+  const fi=$('ai-file'); if(fi) fi.value='';
+  aiPintarArchivo();
+}
+function aiQuitarArchivo(){
+  aiOlvidarArchivo();
+  aiStatus('','');
+  const z=$('ai-drop'); if(z) try{ z.focus(); }catch(_){}
+}
+function aiPintarArchivo(){
+  const el=$('ai-pick'); if(!el) return;
+  if(!aiArchivo){ el.style.display='none'; el.innerHTML=''; return; }
+  const f=aiArchivo, esImg=aiEsImagen(f);
+  let mini='<div class="ai-pick-ph">'+ico('i-doc')+'</div>';
+  if(esImg){
+    try{
+      const u=URL.createObjectURL(f); _aiThumbs.push(u);
+      mini='<img class="ai-pick-img" src="'+u+'" alt="" onload="aiThumbLista(this)" onerror="aiThumbLista(this)">';
+    }catch(_){}
+  }
+  el.style.display='flex';
+  el.innerHTML=mini
+    +'<div class="ai-pick-b"><div class="ai-pick-n">'+esc(f.name||'archivo')+'</div>'
+    +'<div class="ai-pick-m">'+(esImg?'Imagen':'PDF')+' · '+aiPeso(f.size)+'</div></div>'
+    +'<button type="button" class="ai-pick-x" onclick="aiQuitarArchivo()" title="Quitar este archivo" aria-label="Quitar el archivo elegido">×</button>';
+}
+
+/* ----- Arrastrar y pegar -----
+   El arrastre se acepta en TODO el modal, no solo dentro del recuadro punteado: errarle al
+   recuadro por veinte píxeles no tiene por qué costar el intento y volver a buscar el
+   archivo. Lo que se resalta sí es el recuadro, que es donde se ve que va a caer. */
+function aiTraeArchivo(e){
+  const t=e.dataTransfer&&e.dataTransfer.types; if(!t) return false;
+  const tiene=x=>Array.prototype.indexOf.call(t,x)>=0;
+  return tiene('Files')||tiene('text/uri-list');
+}
+let _aiDragN=0;                 // dragleave también salta al pasar de un hijo a otro
+function aiPintarArrastre(on){
+  const z=$('ai-drop'); if(z) z.classList.toggle('sobre',!!on);
+  const m=$('aimodal'); if(m) m.classList.toggle('arrastrando',!!on);
+}
+function aiDragEntra(e){ if(!aiTraeArchivo(e)) return; e.preventDefault(); _aiDragN++; aiPintarArrastre(true); }
+function aiDragSobre(e){
+  if(!aiTraeArchivo(e)) return;
+  e.preventDefault();
+  try{ e.dataTransfer.dropEffect='copy'; }catch(_){}
+  /* Si el resaltado se apagó por un dragleave de más, aquí se vuelve a encender: sin esto
+     el recuadro se apaga a media pasada y parece que ya no acepta nada. */
+  if(!_aiDragN){ _aiDragN=1; aiPintarArrastre(true); }
+}
+function aiDragSale(e){
+  if(!aiTraeArchivo(e)) return;
+  _aiDragN=Math.max(0,_aiDragN-1);
+  if(!_aiDragN) aiPintarArrastre(false);
+}
+function aiSoltar(e){
+  if(!aiTraeArchivo(e)) return;
+  e.preventDefault();
+  _aiDragN=0; aiPintarArrastre(false);
+  const dt=e.dataTransfer;
+  const f=dt.files&&dt.files[0];
+  if(f){
+    /* Soltar varios a la vez es fácil sin querer. Se avisa dentro del mismo aviso que
+       confirma el archivo: puesto aparte, el de aiArchivoElegido() lo pisaba enseguida. */
+    const varios=dt.files.length>1?' (de '+dt.files.length+', se analiza el primero)':'';
+    aiArchivoElegido(f,'soltado'+varios);
+    return;
+  }
+  /* Una imagen arrastrada DESDE otra página no viaja como archivo: viaja como su
+     dirección. Se intenta traerla —que es justo lo que ahorra el viaje al disco— y si el
+     sitio no lo permite se dice qué sí funciona, en vez de un «no se pudo» a secas. */
+  let url='';
+  try{ url=(dt.getData('text/uri-list')||dt.getData('text/plain')||'').trim().split(/\s+/)[0]; }catch(_){}
+  if(url) aiTraerDeUrl(url);
+  else aiStatus('Eso que soltaste no traía ningún archivo.','err');
+}
+async function aiTraerDeUrl(url){
+  if(!/^(https?:|data:|blob:)/i.test(url)){
+    aiStatus('Eso que soltaste no es un archivo ni una imagen.','err'); return;
+  }
+  aiStatus('Trayendo la imagen de la página…','work');
+  try{
+    const r=await fetch(url,{mode:'cors'});
+    if(!r.ok) throw new Error('respondió '+r.status);
+    const b=await r.blob();
+    if(!AI_TIPOS_OK.test(b.type||'')) throw new Error('no es una imagen');
+    let nom='imagen';
+    try{ nom=decodeURIComponent((url.split(/[?#]/)[0].split('/').pop()||'')).slice(0,80)||'imagen'; }catch(_){}
+    aiArchivoElegido(new File([b],nom,{type:b.type}),'traído de la página');
+  }catch(_){
+    /* Casi siempre es CORS, y decir «CORS» no le sirve a nadie: lo que sirve es el camino
+       que sí funciona con una imagen de otra página. */
+    aiStatus('Ese sitio no deja traer la imagen directo. Cópiala (clic derecho › Copiar imagen) y pégala aquí.','err');
+  }
+}
+/* Pegar es el camino que de verdad ahorra el viaje al disco: en WhatsApp Web o en el correo
+   se copia la imagen y se pega aquí. Solo se atiende cuando el portapapeles trae un
+   ARCHIVO, así que pegar una API key en su campo —o cualquier texto— sigue igual. */
+document.addEventListener('paste',e=>{
+  const m=$('aimodal'); if(!m||!m.classList.contains('show')) return;
+  const cd=e.clipboardData; if(!cd) return;
+  let f=cd.files&&cd.files[0];
+  if(!f&&cd.items){
+    for(let i=0;i<cd.items.length;i++){
+      if(cd.items[i].kind==='file'){ f=cd.items[i].getAsFile(); if(f) break; }
+    }
+  }
+  if(!f) return;
+  e.preventDefault();
+  /* Lo pegado del portapapeles casi nunca trae nombre («image.png» a secas o vacío), y en
+     la miniatura y en la vista previa de la cotización ese nombre es lo único que lo
+     identifica. */
+  if(!f.name||f.name==='image.png'||f.name==='blob'){
+    const ext=(f.type||'image/png').split('/')[1].replace('jpeg','jpg');
+    try{ f=new File([f],'pegado.'+ext,{type:f.type||'image/png'}); }catch(_){}
+  }
+  aiArchivoElegido(f,'pegado');
+});
+/* Arrastrar un archivo a la ventana y errarle a la zona que lo espera hace que el navegador
+   ABRA el archivo en su lugar: la app se va con él y con ella la cotización de la pantalla,
+   sin un «atrás» que la devuelva. Se bloquea en toda la app, y solo para arrastres que
+   traen archivos —el de reordenar partidas mueve texto y no se entera de esto—. Es una red
+   por debajo: si algo ya lo atendió, aquí no se hace nada. */
+['dragover','drop'].forEach(ev=>document.addEventListener(ev,e=>{
+  if(e.defaultPrevented) return;
+  const t=e.dataTransfer&&e.dataTransfer.types;
+  if(t&&Array.prototype.indexOf.call(t,'Files')>=0) e.preventDefault();
+}));
 function aiStatus(msg,cls=''){
   const e=$('ai-status'); e.textContent=msg; e.className='ai-status '+cls;
   /* Por vozAlert los errores (role=alert, assertive) y por vozStatus el progreso, igual
@@ -5757,8 +6038,8 @@ async function aiAnalyze(){
      cotización autorizada la devolvía a borrador y le borraba el precio: había que volver
      a pedir la autorización con el cliente enfrente. */
   if(locked()){ aiStatus('La cotización está autorizada · usa «Editar partidas» antes de analizar','err'); return; }
-  const f=$('ai-file').files[0];
-  if(!aiSrc && !f){ aiStatus('Selecciona un archivo JPG o PDF.','err'); return; }
+  const f=aiArchivo;
+  if(!aiSrc && !f){ aiStatus('Arrastra aquí el archivo, pégalo, o toca el recuadro para elegirlo.','err'); return; }
   const esPdf=!aiSrc && f.type==='application/pdf';
   /* Con un PDF y Groq/OpenRouter elegidos, antes esto era un callejón sin salida:
      había que entrar a Configuración y cambiar de proveedor a mano. Si la key de
@@ -6626,6 +6907,15 @@ function saveHistorial(arr){
 }
 function guardarEnHistorial(){
   const t=totals();
+  const arr=getHistorial();
+  const idx=arr.findIndex(x=>x.folio===Q.folio);
+  /* La imagen con la que se cotizó es lo que el vendedor vuelve a mirar cuando el cliente
+     pregunta tres semanas después, y volver a guardar NUNCA debe ser lo que la borre. Si la
+     de la pantalla se perdió por el camino —un pendiente que volvió de la cola, una entrada
+     guardada por una versión anterior de la app, o la ✕ de la vista previa— se conserva la
+     que ya tenía este folio. Para cambiarla hay que traer otra; para quitarla del historial,
+     borrar la cotización. */
+  const imgPrevia=(idx>=0&&arr[idx].aiFile)?arr[idx].aiFile:null;
   const entry={
     folio:Q.folio, proy:Q.proy, cliente:Q.cliente, tel:Q.tel||'', dirRaw:Q.dirRaw||'',
     // Se guarda todo lo que hace falta para volver a abrirla y regenerar su PDF igual.
@@ -6646,11 +6936,9 @@ function guardarEnHistorial(){
        historial enseñaba renglones que no sumaban su propio «Total autorizado». */
     items:Q.items.map(it=>Object.assign(JSON.parse(JSON.stringify(it)),{_lt:+lineTotal(it).toFixed(2)})),
     itemsAuth:JSON.parse(JSON.stringify(Q.itemsAuth||{})),
-    aiFile:Q.aiFile?{name:Q.aiFile.name,type:Q.aiFile.type,url:Q.aiFile.url}:null,
+    aiFile:(Q.aiFile&&Q.aiFile.url)?{name:Q.aiFile.name,type:Q.aiFile.type,url:Q.aiFile.url}:imgPrevia,
     ts:Date.now()
   };
-  const arr=getHistorial();
-  const idx=arr.findIndex(x=>x.folio===Q.folio);
   if(idx>=0) arr[idx]=entry; else arr.unshift(entry);
   const ok=saveHistorial(arr);
   /* El historial es de donde salen las sugerencias de cliente: al crecer, crecen. */
@@ -6773,7 +7061,18 @@ function reabrirDeHistorial(folio){
   Q.estado='autorizada'; Q.editMode=false; _selfAuth=false; _marcarOblig=false;
   /* El anticipo pactado vuelve como se guardó. Solo «Duplicar» lo reinicia, porque ahí
      la cotización es nueva y el anticipo se vuelve a pactar. */
-  Q.anti=e.anti||0; Q.antiManual=!!e.antiManual; Q.aiFile=null;
+  Q.anti=e.anti||0; Q.antiManual=!!e.antiManual;
+  /* La imagen con la que se cotizó vuelve con la cotización. Aquí se ponía en null, y ahí
+     estaba la fuga: quien abría un folio viejo para cambiarle una medida se quedaba sin la
+     referencia en pantalla y, al volver a autorizar, guardarEnHistorial() escribía ese null
+     encima de la imagen guardada. La cotización se conservaba completa y la foto del letrero
+     desaparecía para siempre — justo la que hace falta semanas después, que es cuando el
+     cliente pregunta por lo que se le cotizó.
+     Solo se repone si trae url: saveHistorial() puede haberla soltado por falta de espacio,
+     y esas entradas guardan el nombre pero ya no la imagen. */
+  Q.aiFile=(e.aiFile&&e.aiFile.url)
+    ? {name:e.aiFile.name||'',type:e.aiFile.type||'',url:e.aiFile.url}
+    : null;
   /* Si el catálogo cambió desde que se autorizó, manda el importe congelado: el PDF que se
      reimprime tiene que ser idéntico al que el cliente ya tiene en la mano. Solo se
      reponen las partidas que de verdad cambiaron de precio, para no llenar itemsAuth de
@@ -7111,6 +7410,13 @@ function sincronizarAiFile(){
     localStorage.setItem(AI_FILE_KEY,s);
     _aiFileGuardada=url; _aiFileFallo=null;
   }catch(_){ _aiFileGuardada=null; _aiFileFallo=url; }
+}
+/* ¿La imagen que está en pantalla ya tiene su copia en el historial? Se pregunta al salir de
+   la app, no en cada tecla, así que recorrer el historial ahí sale gratis y ahorra llevar una
+   bandera sincronizada en los seis lugares que tocan Q.aiFile. */
+function aiFileYaEnHistorial(){
+  const u=Q.aiFile&&Q.aiFile.url; if(!u) return false;
+  try{ return getHistorial().some(e=>e.aiFile&&e.aiFile.url===u); }catch(_){ return false; }
 }
 function cargarAiFile(){
   try{
@@ -8717,7 +9023,12 @@ window.addEventListener('beforeunload',e=>{
      cuando hay medidas del escalador sin usar: SC vive solo en memoria y no se persiste,
      así que una recarga se las llevaba sin preguntar. */
   const hayMedidas=(typeof SC!=='undefined')&&SC.img&&SC.items&&SC.items.length>0;
-  if((Q.aiFile&&_aiFileGuardada===null)||!_saveOk||hayMedidas){e.preventDefault();return e.returnValue='';}
+  /* Que no haya cabido en su clave aparte no quiere decir que se vaya a perder: una
+     cotización ya autorizada tiene su copia en el historial —y las que vuelven del historial
+     entran por ahí—. Avisar en ese caso es espantar por una pérdida que no existe, y un
+     aviso que salta de más deja de leerse justo cuando sí importa. */
+  const imgEnRiesgo=Q.aiFile&&_aiFileGuardada===null&&!aiFileYaEnHistorial();
+  if(imgEnRiesgo||!_saveOk||hayMedidas){e.preventDefault();return e.returnValue='';}
 });
 
 init();
