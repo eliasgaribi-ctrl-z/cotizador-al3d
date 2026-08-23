@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Plataforma AL3D</title>
+<meta name="description" content="Agenda de instalaciones, material en almacén, proyectos y mapa de obra de AL3D.">
+<link rel="manifest" href="manifest-plataforma.webmanifest">
+<meta name="theme-color" content="#3a4ad8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="AL3D">
+<link rel="apple-touch-icon" href="logo-al3d.png">
+<link rel="icon" href="logo-al3d.png">
+
+<!-- Las fuentes van antes que las hojas para que el navegador empiece a bajarlas mientras
+     lee el CSS. Mismas dos familias que el cotizador: si la plataforma cargara otra, la
+     misma app tendría dos tipografías según la pantalla. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- sistema.css es la COPIA GENERADA del <style> de index.html: los mismos azules
+     muestreados del logotipo, el mismo barro, la misma escala de siete tamaños de letra.
+     plataforma.css es solo lo que el cotizador no tiene: rejilla de calendario, renglones
+     de almacén, marco del mapa. En ese orden, porque el segundo se apoya en los tokens
+     del primero. -->
+<link rel="stylesheet" href="css/sistema.css">
+<link rel="stylesheet" href="css/plataforma.css">
+<link rel="stylesheet" href="vendor/leaflet.css">
+</head>
+<body class="pf">
+
+<!-- El primer tabulador de la página tiene que llevar al contenido, no recorrer los seis
+     módulos de la barra. Misma solución que el cotizador. -->
+<a href="#pf-contenido" class="salto">Ir al contenido</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<symbol id="i-escalar" viewBox="0 0 24 24"><path d="M2.5 21.5h19L2.5 2.5z"/><path d="M7 21.5v-2.6M11 21.5v-4.2M15 21.5v-5.8"/></symbol>
+<symbol id="i-regla" viewBox="0 0 24 24"><rect x="2" y="7.5" width="20" height="9" rx="1.6"/><path d="M6.5 7.5v3.2M10.5 7.5v4.4M14.5 7.5v3.2M18.5 7.5v4.4"/></symbol>
+<symbol id="i-carpeta" viewBox="0 0 24 24"><path d="M4 20a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4.1a2 2 0 0 1 1.6.8l1 1.4a2 2 0 0 0 1.6.8H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2z"/><path d="M2 10.5h20"/></symbol>
+<symbol id="i-ia" viewBox="0 0 24 24"><path d="M10 2.5l1.7 4.3 4.3 1.7-4.3 1.7L10 14.5 8.3 10.2 4 8.5l4.3-1.7z"/><path d="M17.5 14l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/></symbol>
+<symbol id="i-vector" viewBox="0 0 24 24"><path d="M4 19.5C12 19.5 15.5 16 15.5 8"/><rect x="1.5" y="17" width="5" height="5" rx="1.2"/><rect x="13" y="2" width="5" height="5" rx="1.2"/></symbol>
+<symbol id="i-historial" viewBox="0 0 24 24"><path d="M3.2 12a8.8 8.8 0 1 0 2.7-6.3"/><path d="M3 3.2v4h4"/><path d="M12 7.6V12l3.2 2"/></symbol>
+<symbol id="i-copiar" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="12.5" height="12.5" rx="2.2"/><path d="M16 8.5V5.2A2.2 2.2 0 0 0 13.8 3H5.2A2.2 2.2 0 0 0 3 5.2v8.6A2.2 2.2 0 0 0 5.2 16h3.3"/></symbol>
+<symbol id="i-basura" viewBox="0 0 24 24"><path d="M3 6.2h18"/><path d="M8.2 6.2V4.3c0-.7.6-1.3 1.3-1.3h5c.7 0 1.3.6 1.3 1.3v1.9"/><path d="M18.7 6.2 17.8 20a2 2 0 0 1-2 1.9H8.2a2 2 0 0 1-2-1.9L5.3 6.2"/><path d="M10.2 10.8v6.4M13.8 10.8v6.4"/></symbol>
+<symbol id="i-ojo" viewBox="0 0 24 24"><path d="M2 12s3.7-6.8 10-6.8S22 12 22 12s-3.7 6.8-10 6.8S2 12 2 12z"/><circle cx="12" cy="12" r="2.9"/></symbol>
+<symbol id="i-lapiz" viewBox="0 0 24 24"><path d="M16.8 3.2 20.8 7.2 8 20H4v-4z"/><path d="M14.6 5.4 18.6 9.4"/></symbol>
+<symbol id="i-aviso" viewBox="0 0 24 24"><path d="M12 3.2 22 20.4H2z"/><path d="M12 9.6v4.6M12 17.4v.6"/></symbol>
+<symbol id="i-imagen" viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="16" rx="2.2"/><circle cx="8.4" cy="9.6" r="1.8"/><path d="M21.5 15.5 16 10 6.5 19.5"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21.6s7-6.2 7-11.8a7 7 0 1 0-14 0c0 5.6 7 11.8 7 11.8z"/><circle cx="12" cy="9.8" r="2.6"/></symbol>
+<symbol id="i-bajar" viewBox="0 0 24 24"><path d="M12 3v12.5"/><path d="M6.8 10.6 12 15.8l5.2-5.2"/><path d="M4 20.6h16"/></symbol>
+<symbol id="i-subir" viewBox="0 0 24 24"><path d="M12 18V5.5"/><path d="M6.8 10.7 12 5.5l5.2 5.2"/><path d="M4 20.6h16"/></symbol>
+<symbol id="i-doc" viewBox="0 0 24 24"><path d="M13.8 3v5.2H19"/><path d="M19 8.4V19a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6.8z"/><path d="M8.6 13.2h6.8M8.6 16.8h4.6"/></symbol>
+<symbol id="i-horiz" viewBox="0 0 24 24"><path d="M2.8 12h18.4"/><path d="M6.6 8.2 2.8 12l3.8 3.8"/><path d="M17.4 8.2 21.2 12l-3.8 3.8"/></symbol>
+<symbol id="i-vert" viewBox="0 0 24 24"><path d="M12 2.8v18.4"/><path d="M8.2 6.6 12 2.8l3.8 3.8"/><path d="M8.2 17.4 12 21.2l3.8-3.8"/></symbol>
+<symbol id="i-libre" viewBox="0 0 24 24"><path d="M4.5 19.5 19.5 4.5"/><path d="M11.5 4.5h8v8"/></symbol>
+<symbol id="i-ajustar" viewBox="0 0 24 24"><path d="M14.5 3H21v6.5"/><path d="M21 3l-7.5 7.5"/><path d="M9.5 21H3v-6.5"/><path d="M3 21l7.5-7.5"/></symbol>
+<symbol id="i-recalibrar" viewBox="0 0 24 24"><path d="M20.8 12a8.8 8.8 0 1 1-2.7-6.3"/><path d="M21 3.2v4h-4"/></symbol>
+<symbol id="i-candado" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2.2"/><path d="M7.8 10V7.2a4.2 4.2 0 0 1 8.4 0V10"/></symbol>
+<symbol id="i-rayo" viewBox="0 0 24 24"><path d="M13.4 2 4.6 14h5.6l-1.6 8L19.4 10h-5.6z"/></symbol>
+<symbol id="i-asa" viewBox="0 0 24 24"><circle fill="currentColor" stroke="none" cx="9" cy="5.5" r="1.5"/><circle fill="currentColor" stroke="none" cx="15" cy="5.5" r="1.5"/><circle fill="currentColor" stroke="none" cx="9" cy="12" r="1.5"/><circle fill="currentColor" stroke="none" cx="15" cy="12" r="1.5"/><circle fill="currentColor" stroke="none" cx="9" cy="18.5" r="1.5"/><circle fill="currentColor" stroke="none" cx="15" cy="18.5" r="1.5"/></symbol>
+<symbol id="i-corte" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.1"/><path fill="currentColor" stroke="none" d="M12 2.9a9.1 9.1 0 0 1 0 18.2z"/></symbol>
+<symbol id="i-colores" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.1"/><circle fill="currentColor" stroke="none" cx="8.6" cy="9.4" r="1.5"/><circle fill="currentColor" stroke="none" cx="15.2" cy="9" r="1.5"/><circle fill="currentColor" stroke="none" cx="9.2" cy="15.6" r="1.5"/><circle fill="currentColor" stroke="none" cx="15.4" cy="15.2" r="1.5"/></symbol>
+<symbol id="i-guardar" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M8 3v5.4h7V3"/><path d="M8 21v-5.6h8V21"/></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 11.6a8.4 8.4 0 0 1-12.3 7.5L3.6 20.6l1.4-4.6A8.4 8.4 0 1 1 21 11.6z"/></symbol>
+<symbol id="i-venta" viewBox="0 0 24 24"><path d="M3 20.8h18"/><path d="M6.4 20.8V12M11.4 20.8V5.6M16.4 20.8v-6.2M21 20.8V9"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.8 9.5 17.8 19.8 6.6"/></symbol>
+<symbol id="i-cerrar" viewBox="0 0 24 24"><path d="M5.5 5.5 18.5 18.5M18.5 5.5 5.5 18.5"/></symbol>
+<symbol id="i-atras" viewBox="0 0 24 24"><path d="M20.5 12H4"/><path d="M10.2 5.8 4 12l6.2 6.2"/></symbol>
+<!-- Los que la plataforma añade. Mismo dibujo de trazo abierto de 24×24 y mismo peso que
+     los 31 del cotizador: si uno solo se dibujara con relleno o con otro grosor, se vería
+     como pegado de otra app. -->
+<symbol id="i-hoy" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2.2"/><path d="M3 10h18M8 3v4M16 3v4"/><circle fill="currentColor" stroke="none" cx="8.5" cy="14.5" r="1.4"/></symbol>
+<symbol id="i-agenda" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2.2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M7.5 14h3M13.5 14h3M7.5 17.5h3M13.5 17.5h3"/></symbol>
+<symbol id="i-mapa" viewBox="0 0 24 24"><path d="M9 3.2 3 5.6v15.2l6-2.4 6 2.4 6-2.4V2.6l-6 2.4z"/><path d="M9 3.2v15.2M15 5.6v15.2"/></symbol>
+<symbol id="i-material" viewBox="0 0 24 24"><path d="M3 8.4 12 3.4l9 5v7.2l-9 5-9-5z"/><path d="M3 8.4l9 5 9-5M12 13.4v8.2"/></symbol>
+<symbol id="i-proyectos" viewBox="0 0 24 24"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><path d="M2.5 9h19"/><path d="M7 13h4.5M7 16h7"/></symbol>
+<symbol id="i-ajustes" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1"/></symbol>
+<symbol id="i-camion" viewBox="0 0 24 24"><path d="M1.5 6.5h13v10h-13z"/><path d="M14.5 10h4l3 3.2v3.3h-7z"/><circle cx="6" cy="18.5" r="2"/><circle cx="17.5" cy="18.5" r="2"/></symbol>
+<symbol id="i-wa" viewBox="0 0 24 24"><path d="M21 11.6a8.4 8.4 0 0 1-12.3 7.5L3.6 20.6l1.4-4.6A8.4 8.4 0 1 1 21 11.6z"/><path d="M8.8 9.2c0 3 2.2 5.2 5.2 5.2l.9-1.4-1.9-.7-.7.8a4 4 0 0 1-2.2-2.2l.8-.7-.7-1.9z"/></symbol>
+<symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.2"/><path d="M12 6.8V12l3.6 2.2"/></symbol>
+<symbol id="i-mas" viewBox="0 0 24 24"><path d="M12 4.5v15M4.5 12h15"/></symbol>
+<symbol id="i-menos" viewBox="0 0 24 24"><path d="M4.5 12h15"/></symbol>
+<symbol id="i-nube-off" viewBox="0 0 24 24"><path d="M6.5 18.5a4 4 0 0 1-.4-8 6 6 0 0 1 10.3-2.2"/><path d="M18 10.6a4 4 0 0 1 .5 7.9H10"/><path d="M3.5 3.5l17 17"/></symbol>
+<symbol id="i-nube" viewBox="0 0 24 24"><path d="M6.9 18.5a4 4 0 0 1 0-8 6 6 0 0 1 11.4 1.1 3.6 3.6 0 0 1-.7 6.9z"/></symbol>
+<symbol id="i-imprimir" viewBox="0 0 24 24"><path d="M6.5 9V3.5h11V9"/><rect x="3" y="9" width="18" height="7.5" rx="1.8"/><path d="M6.5 14h11v6.5h-11z"/></symbol>
+</defs></svg>
+
+<div class="topbar">
+  <div class="topbar-in">
+    <div class="brand">
+      <span class="logoslot" id="pf-logo" aria-hidden="true"><svg width="28" height="18" viewBox="0 0 46 28" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><circle cx="34" cy="13" r="11" fill="#2f39d6"/><circle cx="13" cy="14" r="13" fill="#4a63f0"/><circle cx="25" cy="15.5" r="8" fill="#7b9bf7"/></svg><span style="display:inline-block;width:1.5px;height:20px;background:#1e2340;margin:0 7px"></span><span class="lg-al">AL</span><span class="lg-3d">3D</span></span>
+      <h1 class="t">Plataforma <small id="pf-sub">Obra, material y agenda</small></h1>
+    </div>
+    <div class="rolewrap">
+      <a class="btn-hist" href="index.html" title="Abrir el cotizador"><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg><span class="lbl"> Cotizador</span></a>
+      <button class="btn-hist" id="pf-ajustes-btn" title="Ajustes de la plataforma" aria-label="Ajustes"><svg class="svgi" aria-hidden="true"><use href="#i-ajustes"/></svg></button>
+      <div class="seg" id="pf-rolseg" role="group" aria-label="Rol con el que trabajas"></div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap pf-wrap">
+
+  <!-- La banda de degradación. Vive fuera de los módulos porque lo que dice —«la base no
+       abrió», «lo que ves del almacén tiene tres días», «no hay respaldo desde el 12»— es
+       verdad en las seis pantallas, y repetirla en cada una era garantizar que en alguna
+       faltara. Nace oculta y solo la enciende app.js cuando hay algo que decir. -->
+  <div class="pf-banda" id="pf-banda" hidden role="status" aria-live="polite"></div>
+
+  <!-- La barra de módulos. No son pasos: son seis lugares, y a cualquiera se llega desde
+       cualquiera. Por eso es una barra de pestañas y no la escalera numerada del
+       cotizador, que sí es una secuencia. Se pinta desde JS porque no todos los roles ven
+       los mismos: pagos no tiene nada que hacer en el mapa. -->
+  <nav class="pf-nav" id="pf-nav" aria-label="Módulos de la plataforma"></nav>
+
+  <main id="pf-contenido" tabindex="-1">
+    <!-- Un <section> por módulo, todos vacíos. El router monta uno y desmonta el anterior.
+         Cero lógica en este archivo: si algo de aquí decidiera algo, habría dos lugares
+         donde buscar por qué una pantalla se ve como se ve. -->
+    <section class="pf-mod" id="mod-hoy"        data-mod="inicio"    hidden aria-label="Hoy"></section>
+    <section class="pf-mod" id="mod-proyectos"  data-mod="proyectos" hidden aria-label="Proyectos"></section>
+    <section class="pf-mod" id="mod-agenda"     data-mod="agenda"    hidden aria-label="Agenda"></section>
+    <section class="pf-mod" id="mod-material"   data-mod="material"  hidden aria-label="Material"></section>
+    <section class="pf-mod" id="mod-mapa"       data-mod="mapa"      hidden aria-label="Mapa"></section>
+    <section class="pf-mod" id="mod-ajustes"    data-mod="ajustes"   hidden aria-label="Ajustes"></section>
+  </main>
+</div>
+
+<!-- Modales. El contenedor va en el HTML y el contenido lo escribe cada módulo: así el
+     registro de capas de ui.js —Escape, cerco de tabulador, botón atrás del teléfono— se
+     da de alta una vez al arrancar y no depende de que un módulo se acuerde. El orden de
+     estos tres ES su z-index, de arriba hacia abajo. -->
+<div class="modal-bg pf-modal-bg" id="pf-ficha" role="dialog" aria-modal="true" aria-label="Detalle"></div>
+<div class="modal-bg pf-modal-bg" id="pf-hoja"  role="dialog" aria-modal="true" aria-label="Hoja de trabajo"></div>
+<div class="modal-bg pf-modal-bg" id="pf-pide"  role="dialog" aria-modal="true" aria-label="Confirmar"></div>
+
+<!-- La barra fija del teléfono. Su contenido cambia con el módulo. -->
+<div class="mbar pf-mbar" id="pf-mbar" hidden></div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Dos regiones que nunca se ocultan. El aviso emergente se escribe estando invisible, o
+     sea fuera del árbol de accesibilidad, así que volverlo visible con el texto ya puesto
+     no es una mutación que el lector de pantalla vea. Por eso el mensaje se repite aquí. -->
+<div id="vozStatus" class="solo-voz" role="status" aria-live="polite"></div>
+<div id="vozAlert"  class="solo-voz" role="alert"  aria-live="assertive"></div>
+
+<!-- Un solo punto de entrada. Módulos ES nativos, sin build y sin bundler: GitHub Pages
+     sirve .js como text/javascript y el navegador resuelve los import relativos.
+     Advertencia real: esto NO funciona por file://. Para probar en local hace falta un
+     servidor. El cotizador, que es script en línea, sigue abriéndose con doble clic. -->
+<script type="module" src="./js/app.js"></script>
+</body>
+</html>

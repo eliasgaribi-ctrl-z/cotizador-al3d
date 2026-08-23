@@ -1,0 +1,22 @@
+{
+  "id": "/cotizador-al3d/plataforma",
+  "name": "Plataforma AL3D",
+  "short_name": "AL3D",
+  "description": "Agenda de instalaciones, material en almacén, proyectos y mapa de obra.",
+  "start_url": "./plataforma.html#/hoy",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f2f3fe",
+  "theme_color": "#3a4ad8",
+  "lang": "es-MX",
+  "dir": "ltr",
+  "icons": [
+    { "src": "logo-al3d.png", "sizes": "any", "type": "image/png", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Hoy",      "url": "./plataforma.html#/hoy" },
+    { "name": "Material", "url": "./plataforma.html#/material" },
+    { "name": "Agenda",   "url": "./plataforma.html#/agenda" }
+  ]
+}

@@ -1,0 +1,346 @@
+/* ============================================================================
+   Primitivas de interfaz de la plataforma.
+
+   Son las mismas del cotizador, reescritas como módulo ES. No es una reimplementación
+   "parecida": el aviso emergente tiene la misma firma de cuatro parámetros, el mismo
+   mínimo de 8 segundos cuando trae botón y la misma región que habla; los modales usan
+   el mismo registro de capas con Escape, cerco de tabulador y botón atrás del teléfono.
+   Si divergieran, la plataforma se sentiría como otra app, y de ahí sale la sensación de
+   que uno de los dos está a medias.
+
+   Lo que NO se copió: nada que dependa de Q, de las partidas o del PDF. Esto solo sabe
+   de pantalla.
+   ============================================================================ */
+
+export const $ = id => document.getElementById(id);
+
+/* Mismo escapado que el cotizador, con el apóstrofo incluido: la plataforma también arma
+   HTML por interpolación y también pasa folios dentro de onclick="f('${...}')". */
+export const esc = s => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+export const money = n => '$' + Number(n || 0).toLocaleString('es-MX',
+  { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/* Cantidades de material. El dinero lleva dos decimales siempre porque son pesos; una
+   cantidad de material NO: «2 láminas» y «2.00 láminas» dicen lo mismo y la segunda se
+   lee como si alguien hubiera medido hasta el centésimo. Se enseñan hasta dos decimales
+   pero solo los que hacen falta. */
+export const cant = (n, u) => {
+  const v = Number(n || 0);
+  const t = (Math.round(v * 100) / 100).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+  return u ? t + ' ' + (Math.abs(v) === 1 ? u : plural(u)) : t;
+};
+const PLURALES = { lamina: 'láminas', caja: 'cajas', bolsa: 'bolsas', unidad: 'unidades',
+                   litro: 'litros', metro: 'metros', pieza: 'piezas', 'm²': 'm²', m: 'm', cm: 'cm' };
+export const plural = u => PLURALES[u] || (u ? u + 's' : '');
+
+export const ico = (n, cls) =>
+  '<svg class="svgi' + (cls ? ' ' + cls : '') + '" aria-hidden="true"><use href="#' + n + '"/></svg>';
+
+/* ----- Fechas -----
+   Todo lo que se guarda es 'YYYY-MM-DD'. Todo lo que se lee es es-MX. La conversión pasa
+   por aquí y por ningún otro lado, y NUNCA por `new Date('2026-08-23')`, que se interpreta
+   como UTC y en México devuelve el día anterior. Ese error costó un día de instalación en
+   más de un sistema y aquí no cabe: se parte la cadena. */
+export const hoyISO = () => {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+};
+export const partesISO = iso => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  return m ? { a: +m[1], m: +m[2], d: +m[3] } : null;
+};
+/** Date local a mediodía: inmune a horario de verano y a redondeos de zona. */
+export const fechaLocal = iso => {
+  const p = partesISO(iso);
+  return p ? new Date(p.a, p.m - 1, p.d, 12, 0, 0, 0) : null;
+};
+const MES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const DIA_CORTO = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+export const fmtFecha = iso => {
+  const p = partesISO(iso); if (!p) return '';
+  return p.d + ' ' + MES_CORTO[p.m - 1] + ' ' + p.a;
+};
+export const fmtFechaDia = iso => {
+  const f = fechaLocal(iso); if (!f) return '';
+  return DIA_CORTO[f.getDay()] + ' ' + fmtFecha(iso);
+};
+/** Días de hoy a `iso`. Negativo = ya pasó. */
+export const diasHasta = iso => {
+  const f = fechaLocal(iso); if (!f) return null;
+  const h = fechaLocal(hoyISO());
+  return Math.round((f - h) / 86400000);
+};
+/** «hoy», «mañana», «en 3 días», «hace 2 días». Es lo que se lee en las tarjetas. */
+export const cuando = iso => {
+  const d = diasHasta(iso);
+  if (d === null) return '';
+  if (d === 0) return 'hoy';
+  if (d === 1) return 'mañana';
+  if (d === -1) return 'ayer';
+  return d > 0 ? 'en ' + d + ' días' : 'hace ' + (-d) + ' días';
+};
+export const fmtHora = h => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(h || '')); if (!m) return '';
+  const H = +m[1], ap = H < 12 ? 'a.m.' : 'p.m.', h12 = H % 12 === 0 ? 12 : H % 12;
+  return h12 + ':' + m[2] + ' ' + ap;
+};
+
+/* ----- Lo que habla -----
+   Dos regiones que nunca se ocultan. El aviso emergente se escribe con el elemento
+   todavía en visibility:hidden —o sea fuera del árbol de accesibilidad—, así que
+   volverlo visible con el texto ya puesto no es una mutación que el lector de pantalla
+   vea. Por eso el mensaje se repite aquí. Es la misma razón y el mismo arreglo que en el
+   cotizador. */
+export function voz(msg, urgente) {
+  const el = $(urgente ? 'vozAlert' : 'vozStatus'); if (!el) return;
+  el.textContent = '';
+  requestAnimationFrame(() => { el.textContent = String(msg || ''); });
+}
+
+let _toastT = 0;
+/**
+ * Aviso emergente. Misma firma que el del cotizador.
+ * @param {string} msg
+ * @param {''|'ok'|'err'} type
+ * @param {number} dur ms
+ * @param {{label:string, fn:Function}|null} accion
+ */
+export function toast(msg, type = '', dur = 2600, accion = null) {
+  /* Con botón, 8 s como mínimo: quien lo oye en vez de verlo tiene que encontrar el
+     botón deslizando, y 2.6 s no alcanzan ni para llegar. Si el llamador pide más, se
+     respeta lo que pida. */
+  if (accion && dur < 8000) dur = 8000;
+  const t = $('toast'); if (!t) return;
+  t.innerHTML = '';
+  const sp = document.createElement('span');
+  sp.textContent = msg;
+  t.appendChild(sp);
+  if (accion && accion.label && typeof accion.fn === 'function') {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'toast-act'; b.textContent = accion.label;
+    b.onclick = () => { clearTimeout(_toastT); t.classList.remove('show'); accion.fn(); };
+    t.appendChild(b);
+  }
+  t.className = 'toast ' + type;
+  void t.offsetWidth;
+  t.classList.add('show');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => t.classList.remove('show'), dur);
+  voz(msg + (accion && accion.label ? ' — ' + accion.label + ' disponible' : ''), type === 'err');
+}
+
+/** Todo `Resultado` fallido se enseña igual. El mensaje ya viene escrito por la capa de datos. */
+export function avisarResultado(r, msgOk) {
+  if (r && r.ok) { if (msgOk) toast(msgOk, 'ok', 3200); return true; }
+  toast((r && r.mensaje) || 'No se pudo completar', 'err', 4600);
+  return false;
+}
+
+/* ============================================================================
+   Capas: modales, Escape, cerco de tabulador y el botón atrás del teléfono.
+
+   El registro está ordenado de arriba hacia abajo por z-index, igual que en el
+   cotizador. Escape cierra la de arriba, no todas.
+   ============================================================================ */
+
+const _CAPAS = [];   // [{id, cerrar}]
+
+/** Se llama una vez por modal, al arrancar. El orden de registro ES el z-index. */
+export function registrarCapa(id, cerrar) {
+  if (!_CAPAS.some(c => c.id === id)) _CAPAS.unshift({ id, cerrar });
+}
+
+const _visible = id => { const e = $(id); return !!(e && e.classList.contains('show')); };
+const _capaDeArriba = () => { for (const c of _CAPAS) if (_visible(c.id)) return $(c.id); return null; };
+
+const _SEL_FOCO = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),' +
+                  'textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+function _focablesDe(cont) {
+  return Array.from(cont.querySelectorAll(_SEL_FOCO))
+    .filter(e => e.offsetWidth || e.offsetHeight || e.getClientRects().length);
+}
+
+/* Devolver el foco al cerrar. Sin esto el foco se cae al <body> y quien navega con teclado
+   vuelve al principio del documento: en la plataforma eso son seis módulos de distancia. */
+let _focoPrevio = null;
+
+/**
+ * Abre un modal. `volverA` es lo que recupera el foco al cerrar; si no se pasa, se usa
+ * lo que estaba enfocado.
+ * @param {string} id
+ * @param {{volverA?:Element, hist?:boolean}} opts  hist=true empuja una entrada de
+ *        historial para que el botón atrás del teléfono cierre el modal en vez de salir
+ *        de la app. Es el mismo patrón que el escalador y el vectorizador.
+ */
+export function abrirCapa(id, opts = {}) {
+  const el = $(id); if (!el) return false;
+  _focoPrevio = opts.volverA || (document.activeElement !== document.body ? document.activeElement : null);
+  el.classList.add('show');
+  if (opts.hist) { try { history.pushState({ capa: id }, ''); el.dataset.hist = '1'; } catch (_) {} }
+  const f = _focablesDe(el);
+  /* Al primer elemento tocable, no al contenedor: un contenedor enfocado no anuncia nada
+     y el primer Tab se va al principio del modal de todas formas. */
+  if (f.length) requestAnimationFrame(() => { try { f[0].focus(); } catch (_) {} });
+  return true;
+}
+
+export function cerrarCapa(id) {
+  const el = $(id); if (!el) return;
+  el.classList.remove('show');
+  if (el.dataset.hist === '1') {
+    delete el.dataset.hist;
+    /* history.back() es asíncrono. Si quien cierra abre otra cosa enseguida, se cruzan y
+       el atrás del teléfono cierra lo recién abierto. Por eso el consumo de la entrada
+       vive aquí y en el oyente de popstate, y en ningún otro lado. */
+    try { if (history.state && history.state.capa === id) history.back(); } catch (_) {}
+  }
+  const prev = _focoPrevio; _focoPrevio = null;
+  /* Solo se devuelve el foco si el elemento sigue existiendo Y sigue a la vista: el botón
+     que abrió un modal a veces deja de existir mientras el modal está abierto —se repinta
+     la lista de abajo—, y enfocar un huérfano es lo mismo que no enfocar nada. */
+  if (prev && prev.isConnected && (prev.offsetWidth || prev.offsetHeight)) {
+    requestAnimationFrame(() => { try { prev.focus(); } catch (_) {} });
+  }
+}
+
+export function cerrarCapaDeArriba() {
+  for (const c of _CAPAS) if (_visible(c.id)) { try { c.cerrar(); } catch (_) {} return true; }
+  return false;
+}
+
+/** Una vez, desde app.js. */
+export function vigilarCapas() {
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { if (cerrarCapaDeArriba()) e.preventDefault(); return; }
+    if (e.key !== 'Tab') return;
+    /* El tabulador se escapa del modal al primer golpe y sigue recorriendo la plataforma
+       que está detrás del velo. Solo se interviene en los dos extremos, así que dentro del
+       modal el orden natural no cambia. */
+    const m = _capaDeArriba(); if (!m) return;
+    const f = _focablesDe(m); if (!f.length) return;
+    const pri = f[0], ult = f[f.length - 1], act = document.activeElement;
+    if (e.shiftKey && (act === pri || !m.contains(act))) { e.preventDefault(); ult.focus(); }
+    else if (!e.shiftKey && (act === ult || !m.contains(act))) { e.preventDefault(); pri.focus(); }
+  });
+  window.addEventListener('popstate', () => {
+    /* El atrás del teléfono ya consumió la entrada: aquí solo se cierra, sin volver a
+       llamar a history.back(). */
+    for (const c of _CAPAS) {
+      const el = $(c.id);
+      if (el && el.classList.contains('show') && el.dataset.hist === '1') {
+        delete el.dataset.hist;
+        try { c.cerrar(); } catch (_) {}
+        return;
+      }
+    }
+  });
+}
+
+/* ----- Chips y grupos de opciones -----
+   El elegido se marca con fondo tenue del acento y su tinta, no con una píldora azul con
+   degradado: multiplicado por cada opción de cada renglón, lo ya decidido era lo más
+   ruidoso de la pantalla justo por estar decidido. Es la regla del sistema y se respeta. */
+export function chip(txt, on, attrs = '') {
+  return '<button type="button" class="chip' + (on ? ' on' : '') + '" aria-pressed="' +
+    (on ? 'true' : 'false') + '" ' + attrs + '>' + esc(txt) + '</button>';
+}
+export function segmento(opciones, actual, atributo) {
+  return '<div class="tipo-seg" role="group">' + opciones.map(o =>
+    '<button type="button" class="' + (o.v === actual ? 'on' : '') + '" aria-pressed="' +
+    (o.v === actual ? 'true' : 'false') + '" ' + atributo + '="' + esc(o.v) + '">' +
+    esc(o.t) + '</button>').join('') + '</div>';
+}
+
+/* ----- Copiar al portapapeles, con respaldo -----
+   En iOS y en páginas no seguras la API moderna falla. Mismo respaldo que el cotizador:
+   sin él, copiar dependía del botón que tocaras. */
+export function copiarTexto(txt, msgOk, extra) {
+  const ok = () => { if (msgOk) toast(msgOk, 'ok', 3400); if (typeof extra === 'function') extra(); };
+  const manual = () => {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = txt;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select(); ta.setSelectionRange(0, txt.length);
+      const bien = document.execCommand('copy');
+      ta.remove();
+      bien ? ok() : toast('Este navegador no dejó copiar — selecciona el texto a mano', 'err', 4200);
+    } catch (_) { toast('Este navegador no dejó copiar', 'err', 3600); }
+  };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(ok).catch(manual);
+    } else manual();
+  } catch (_) { manual(); }
+}
+
+/* ----- Descargar un archivo generado en el momento -----
+   `<a download>` es lo único que funciona igual en Android y en iOS moderno. Mismo código
+   que el cotizador, incluido el `return false` cuando no se pudo: quien llame tiene que
+   poder enterarse, porque hay flujos que prometen un respaldo antes de reemplazar algo. */
+export function descargarArchivo(texto, nombre, tipo) {
+  try {
+    const blob = texto instanceof Blob ? texto : new Blob([texto], { type: tipo });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    if ('download' in a) {
+      a.href = url; a.download = nombre; a.style.display = 'none';
+      document.body.appendChild(a); a.click(); a.remove();
+    } else window.open(url, '_blank');
+    setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000);
+    return true;
+  } catch (_) {
+    toast('Este navegador no permitió descargar el archivo', 'err', 3400);
+    return false;
+  }
+}
+
+/** Compartir un archivo. wa.me solo lleva texto, así que un .ics va por aquí o se descarga. */
+export async function compartirArchivo(texto, nombre, tipo) {
+  try {
+    const f = new File([texto], nombre, { type: tipo });
+    if (navigator.canShare && navigator.canShare({ files: [f] })) {
+      await navigator.share({ files: [f], title: nombre });
+      return true;
+    }
+  } catch (_) { /* el usuario canceló, o el navegador dijo que sí y luego no */ }
+  return descargarArchivo(texto, nombre, tipo);
+}
+
+/* ----- WhatsApp -----
+   Un `<a>` a wa.me. Cero infraestructura, y es la única manera de que el instalador
+   reciba la orden de trabajo sin tener acceso a la plataforma, que es lo que el director
+   pidió expresamente. Solo texto: wa.me no adjunta archivos. */
+export function linkWa(tel, texto) {
+  const d = String(tel || '').replace(/\D/g, '');
+  /* Diez dígitos son un número nacional; se le pone 52 porque wa.me lo exige con lada de
+     país y nadie lo escribe así. Doce que empiezan con 521 son el formato viejo de México
+     y también funcionan. Lo que ya trae 52 se deja como está. */
+  const num = d.length === 10 ? '52' + d : d;
+  return 'https://wa.me/' + num + (texto ? '?text=' + encodeURIComponent(texto) : '');
+}
+
+/* La barra fija del teléfono se mide después de pintar y se publica como variable: el
+   aviso emergente se posa encima y no debajo, donde no se ve. Mismo truco que el
+   escalador y el vectorizador. */
+export function ajustarAltoBarra() {
+  const b = document.querySelector('.mbar');
+  if (!b) { document.documentElement.style.setProperty('--mbar-h', '0px'); return; }
+  requestAnimationFrame(() => {
+    const h = Math.round(b.getBoundingClientRect().height);
+    document.documentElement.style.setProperty('--mbar-h', (h > 0 ? h : 0) + 'px');
+  });
+}
+
+/** Estado vacío. Uno solo, para que las seis pantallas digan «no hay nada» igual. */
+export function vacio(titulo, detalle, accionHTML) {
+  return '<div class="vacio">' + ico('i-carpeta') +
+    '<p class="vacio-t">' + esc(titulo) + '</p>' +
+    (detalle ? '<p class="vacio-d">' + esc(detalle) + '</p>' : '') +
+    (accionHTML || '') + '</div>';
+}

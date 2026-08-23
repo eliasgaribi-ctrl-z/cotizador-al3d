@@ -401,6 +401,12 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:calc
   .topbar-in .seg{order:3;flex:1 1 150px;width:auto}
   .topbar-in .seg button{flex:1;padding:0 10px;min-height:40px;font-size:12.5px}
   .topbar-in .btn-hist{order:4;flex:0 0 auto;padding:0 12px;min-height:40px}
+  /* El enlace a la plataforma pierde su palabra en cuanto la pantalla es de teléfono, no a
+     los 385 px como «Historial»: son dos controles y con los dos escritos el renglón del
+     folio y el selector de rol ya no cabía. Un tercer renglón en esta barra es el error que
+     esta hoja ya arregló una vez —está tres bloques más abajo— y no se vuelve a cometer. */
+  .topbar-in .btn-pf .lbl{display:none}
+  .topbar-in .btn-pf{order:5;padding:0;width:42px;display:inline-flex;align-items:center;justify-content:center}
   .topbar-in{row-gap:7px}
 }
 /* En el celular la palabra «Historial» era justo lo que hacía que el selector de rol ya
@@ -413,6 +419,18 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:calc
 @media(max-width:560px){
   .topbar-in .btn-hist .lbl{display:none}
   .topbar-in .btn-hist{padding:0;width:42px;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
+  /* Y aquí ya no cabe ni el icono. Se midió: el renglón útil de una pantalla de 360 px son
+     336 px, y el selector de rol solo —con la palabra «Autorizador» dentro— pide 190 px de
+     contenido mínimo que ningún flex-basis puede bajar. Sumando el folio y el historial,
+     el enlace a la plataforma no entra.
+
+     Así que en la pantalla más angosta el enlace se va, y NO se queda sin camino: al
+     registrar una venta el aviso trae su propio botón «Abrir plataforma», que es el momento
+     en que de verdad se quiere saltar; y la plataforma se agrega a la pantalla de inicio
+     con su propio icono, porque tiene su propio manifiesto. Preferir un tercer renglón
+     pegado arriba de TODAS las pantallas, para siempre, a cambio de un atajo que se usa una
+     vez por venta, es el mal negocio que esta hoja ya hizo una vez. */
+  .topbar-in .btn-pf{display:none}
 }
 /* Nada de zoom por doble toque ni destello gris al tocar: en el celular ese medio
    segundo de espera del navegador hace que la app se sienta lenta. */
@@ -928,6 +946,11 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 /* ----- Historial ----- */
 .btn-hist{background:none;border:1.5px solid var(--line);border-radius:10px;padding:6px 13px;font-size:12px;font-weight:700;color:var(--brand);cursor:pointer;transition:.15s;white-space:nowrap}
 .btn-hist:hover{background:var(--soft-2);border-color:var(--brand)}
+/* El enlace a la plataforma es un <a> para que se pueda abrir en otra pestaña y para que el
+   lector de pantalla lo anuncie como lo que es. Pero el navegador le pone su subrayado y su
+   azul de enlace con a:link, que es más específico que .btn-hist: sin esto, dos controles
+   que hacen lo mismo se ven distintos y el de la derecha parece de otra app. */
+a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .hist-panel{background:#fff;border-radius:20px;max-width:720px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;
   max-height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
 .hist-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),#fff);border-radius:var(--rr4) var(--rr4) 0 0;flex-shrink:0}
@@ -2268,6 +2291,12 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
     <div class="rolewrap">
       <button class="btn-hist" onclick="abrirCuadernos()" title="Cuadernos de cliente" aria-label="Cuadernos de cliente"><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg><span class="lbl"> Clientes</span></button>
       <button class="btn-hist" onclick="abrirHistorial()" title="Historial de cotizaciones" aria-label="Historial de cotizaciones"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg><span class="lbl"> Historial</span></button>
+      <!-- La plataforma es donde vive lo que pasa DESPUÉS de cotizar: la agenda de
+           instalación, el material del almacén, el mapa de obra. Es un <a> y no un iframe:
+           este archivo tiene 27 declaraciones env(safe-area-inset-*) y dentro de un iframe
+           todas valen 0, así que el botón principal quedaría debajo del indicador de inicio
+           del iPhone. Y son 690 KB duplicados en la memoria de un celular. -->
+      <a class="btn-hist btn-pf" href="plataforma.html#/hoy" title="Agenda, material y mapa de obra" aria-label="Abrir la plataforma: agenda, material y mapa de obra"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg><span class="lbl"> Plataforma</span></a>
       <span class="folio" id="folio">COT-0001</span>
       <div class="seg" id="roleseg" role="group" aria-label="Rol con el que trabajas" title="Cambia de rol para ver el flujo de autorización">
         <button class="on" aria-pressed="true" data-rol="vendedor" onclick="setRol('vendedor')">Vendedor</button>
@@ -9278,6 +9307,19 @@ function scAgregarPartida(m){
   const it=addItem({enfocar:false});
   if(!it) return 0;   // no creó: escribir aquí le pisaría la altura a la partida anterior
   it.altura=h;
+  /* El escalador ya sabe si la medida se trazó en horizontal o en vertical —lo guarda en
+     m.type desde que se dibujó la cota— y hasta hoy lo tiraba a la basura. Para el PRECIO
+     da igual: la regla del negocio es $/cm × altura × piezas, y el propio PROMPT_IA manda
+     usar el número del corchete tal cual, sea horizontal o vertical. Para el MATERIAL no da
+     igual: sin el ancho hay que suponerlo con un factor, y un ancho supuesto se equivoca en
+     el acrílico de la cara, que es el renglón más caro de la lista de compra.
+
+     La altura NO se toca: sigue recibiendo m.cm como siempre. El modo se guarda APARTE, y
+     ninguno de los dos campos está en _CAMPOS_PRECIO, así que huellaTrabajo() no cambia y
+     no se suelta ninguna autorización. Desviar una medida horizontal a otro campo en vez de
+     a la altura dejaría la partida en $0. */
+  it.medidaTipo=m.type||'';
+  if(m.type==='h') it.anchoMedido=m.cm;
   if(m.label){ it.desc=m.label; }
   m.usada=true;
   return h;
@@ -9525,8 +9567,16 @@ window.addEventListener('beforeunload',e=>{
 init();
 
 // ----- Registrar Venta -----
+/* Hoy en ISO. El <input type="date"> solo acepta YYYY-MM-DD, y armarlo con toISOString()
+   sería un error de un día: eso convierte a UTC y en México, de la tarde en adelante,
+   devuelve el día siguiente. Se arma con los campos locales. */
+function hoyISO(){ const d=new Date(),p=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+/* De 'YYYY-MM-DD' a 'DD/MM/YYYY', que es el formato de la columna de Notion. Se parte la
+   cadena en vez de pasar por Date por lo mismo de arriba. */
+function isoADmy(iso){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso||''));
+  return m?m[3]+'/'+m[2]+'/'+m[1]:String(iso||''); }
 function abrirRegistrarVenta(){
-  const hoy=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});
   // Si el autorizador ajustó el precio, se avisa aquí: la venta se registra por ese
   // precio, no por el calculado.
   const aj=ajusteAuth(), avisoEl=document.getElementById('rv-aviso-auth');
@@ -9538,7 +9588,9 @@ function abrirRegistrarVenta(){
     } else avisoEl.style.display='none';
   }
   document.getElementById('rv-proyecto').value=(Q.cliente?Q.cliente+' - ':'')+Q.proy;
-  document.getElementById('rv-fecha').value=Q.fecha||hoy;
+  /* En ISO, que es lo que un <input type="date"> entiende. Q.fecha está en es-MX y no se
+     toca: es lo que se imprime en el PDF. */
+  document.getElementById('rv-fecha').value=hoyISO();
   document.getElementById('rv-iva').value=Q.iva?'Sí':'No';
   document.getElementById('rv-anticipo').value=Q.anti||0;
   /* La comisión y la cuenta casi nunca cambian y se volvían a poner en cada venta. */
@@ -9546,7 +9598,7 @@ function abrirRegistrarVenta(){
   const selCuenta=document.getElementById('rv-cuenta');
   const cuentaPref=prefGet(PREF_RV_CUENTA,'');
   if(cuentaPref&&[...selCuenta.options].some(o=>o.value===cuentaPref)) selCuenta.value=cuentaPref;
-  document.getElementById('rv-estatus').value='ANTICIPO';
+  document.getElementById('rv-estatus').value='FABRICACION';
   document.getElementById('rv-copied').classList.remove('show');
   rvRecalc();
   document.getElementById('rv-modal-bg').classList.add('show');
@@ -9572,7 +9624,8 @@ function copiarFilaVenta(){
   const t=desgloseFinal();
   const sub=t.sub, neto=t.neto;
   const proyecto=document.getElementById('rv-proyecto').value.trim();
-  const fecha=document.getElementById('rv-fecha').value.trim();
+  /* La columna de Notion es de tipo *date* con formato DD/MM/YYYY. El campo ya guarda ISO. */
+  const fecha=isoADmy(document.getElementById('rv-fecha').value.trim());
   const iva=Q.iva?'Yes':'No';
   const anti=parseFloat(document.getElementById('rv-anticipo').value)||0;
   const pct=parseFloat(document.getElementById('rv-pct').value)||0;
@@ -9593,8 +9646,70 @@ function copiarFilaVenta(){
     proyecto,abonoComision,anti,comRestante,com,cuenta,estatus,
     fecha,'',fechaLiq,iva,liquidacion,pend,neto,sub
   ].join('\t');
-  copiarTexto(row,'Fila copiada — pégala en la hoja Ventas',()=>{ document.getElementById('rv-copied').classList.add('show'); });
+  copiarTexto(row,'Fila copiada — pégala en la base Ventas - AL3D de Notion',()=>{ document.getElementById('rv-copied').classList.add('show'); });
 }
+/* ----- «Esta cotización se ganó» -----
+   El evento que no existía en ningún sistema. El modal ya capturaba todo lo que hace falta
+   —la fecha, la cuenta, el estatus, el anticipo, la comisión— y todo se iba al portapapeles:
+   si alguien no pegaba la fila, no quedaba rastro de que la cotización se hubiera vendido.
+   De ahí sale que la base de Notion tenga 199 proyectos sin una sola dirección y sin un
+   solo tipo de trabajo: los datos que el cotizador SÍ tiene nunca llegaban.
+
+   Aquí solo se deja constancia en una clave propia, `al3d_pf_ganadas`. La plataforma la
+   recoge al abrir y la convierte en proyecto —con su dirección, su tipo derivado de las
+   partidas y su material calculado—. Es una clave de localStorage y no una transacción de
+   IndexedDB a propósito: este archivo no tiene módulos ni dependencias, y meterle una base
+   de datos para escribir un renglón de constancia sería la inserción más frágil de las
+   siete que se le hacen.
+
+   El botón de copiar la fila se queda para siempre. Si la plataforma no está, si el
+   teléfono es otro, si algo falla: pegar la fila a mano es el camino que ya funciona y no
+   se retira. */
+function registrarGanada(){
+  const t=desgloseFinal();
+  const g={
+    folio:Q.folio,
+    disp:(function(){ try{ return localStorage.getItem('al3d_pf_disp')||''; }catch(_){ return ''; } })(),
+    /* La huella del trabajo al momento de ganar. La plataforma la compara contra la
+       cotización de hoy: si alguien edita las partidas después de vendida, el material
+       calculado ya no corresponde y hay que decirlo en vez de comprar de más. */
+    huella:Q.huellaAuth||'',
+    fecha_instalacion:(document.getElementById('rv-fecha').value||''),
+    cuenta:document.getElementById('rv-cuenta').value,
+    estatus:document.getElementById('rv-estatus').value,
+    pct_comision:parseFloat(document.getElementById('rv-pct').value)||0,
+    sub:t.sub, neto:t.neto,
+    anti:parseFloat(document.getElementById('rv-anticipo').value)||0,
+    ts:Date.now()
+  };
+  try{
+    const arr=JSON.parse(localStorage.getItem('al3d_pf_ganadas')||'[]');
+    const lista=Array.isArray(arr)?arr:[];
+    /* Apretar dos veces no crea dos proyectos. La plataforma también deduplica por folio,
+       pero decirlo aquí evita que el segundo toque parezca que no hizo nada. */
+    if(lista.some(x=>x&&x.folio===g.folio&&(x.disp||'')===g.disp)){
+      toast('Esta cotización ya estaba registrada como proyecto ganado','',3600,
+        {label:'Abrir plataforma',fn:()=>{ location.href='plataforma.html#/proyectos'; }});
+      return;
+    }
+    lista.push(g);
+    localStorage.setItem('al3d_pf_ganadas',JSON.stringify(lista));
+  }catch(_){
+    /* Sin espacio o almacenamiento bloqueado. Se dice, y se ofrece lo único que sigue
+       funcionando: la fila para pegar a mano. */
+    toast('No hubo espacio para registrar el proyecto — copia la fila y pégala a mano','err',6000,
+      {label:'Copiar fila',fn:copiarFilaVenta});
+    return;
+  }
+  /* La guarda de obligatorios ya corrió para llegar aquí (el modal solo se abre con la
+     cotización autorizada), así que si falta la fecha es porque el usuario la borró. No se
+     frena por eso: un proyecto sin fecha aparece en la plataforma como «sin fecha», que es
+     justo el aviso que hay que ver. */
+  const sinFecha=!g.fecha_instalacion;
+  toast('Registrada como proyecto ganado'+(sinFecha?' — le falta la fecha de instalación':''),
+    'ok',5200,{label:'Abrir plataforma',fn:()=>{ location.href='plataforma.html#/'+(sinFecha?'agenda':'proyectos'); }});
+}
+
 /* Respaldo de copiado para navegadores sin API de portapapeles (o contextos no seguros) */
 function _copiaManual(txt,cb){
   try{
@@ -10801,7 +10916,7 @@ function vtUsarComoPartidas(){
 <div class="rv-modal-bg" id="rv-modal-bg" onclick="if(event.target===this)cerrarRegistrarVenta()" role="dialog" aria-modal="true" aria-label="Registrar venta en Google Sheets">
   <div class="rv-modal">
     <div class="rv-header">
-      <h2><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg> Registrar Venta en Google Sheets</h2>
+      <h2><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg> Registrar venta</h2>
       <button class="btn btn-gho" onclick="cerrarRegistrarVenta()" aria-label="Cerrar"><svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg></button>
     </div>
     <div class="rv-body">
@@ -10812,8 +10927,14 @@ function vtUsarComoPartidas(){
           <input type="text" id="rv-proyecto" placeholder="Cliente - Proyecto">
         </div>
         <div class="rv-field">
-          <label for="rv-fecha">Fecha Anticipo</label>
-          <input type="text" id="rv-fecha">
+          <!-- La columna de Notion se llama «Fecha Anticipo e Instalacion» y es de tipo
+               *date* con formato DD/MM/YYYY. Aquí era un <input type="text"> precargado con
+               Q.fecha, que viene en es-MX («22 ago 2026»): no hay forma de que Notion lo
+               parsee, y esa misma fecha es la que la plataforma usa para agendar la
+               instalación. Ahora es una fecha de verdad, se guarda en ISO y se convierte a
+               DD/MM/YYYY solo al armar la fila. -->
+          <label for="rv-fecha">Fecha de anticipo e instalación</label>
+          <input type="date" id="rv-fecha">
         </div>
         <div class="rv-field">
           <label for="rv-iva">IVA</label>
@@ -10829,20 +10950,32 @@ function vtUsarComoPartidas(){
         </div>
         <div class="rv-field">
           <label for="rv-cuenta">Cuenta</label>
+          <!-- Las cinco cuentas que existen en la propiedad «Cuenta » de Notion (sí, con
+               espacio al final: es su nombre real). Faltaban Rul HSBC y Tatis BNT, y sobraba
+               «Otra», que allá no existe. La preferencia guardada se sigue leyendo con el
+               guardia de más abajo, así que un teléfono que tenía «Otra» simplemente no la
+               aplica y se queda con la primera. -->
           <select id="rv-cuenta">
             <option>Elias BBVA</option>
-            <option>Moni MPago</option>
             <option>Constru BNT</option>
-            <option>Otra</option>
+            <option>Moni MPago</option>
+            <option>Rul HSBC</option>
+            <option>Tatis BNT</option>
           </select>
         </div>
         <div class="rv-field">
           <label for="rv-estatus">Estatus</label>
+          <!-- Estos son los cuatro valores que de verdad existen en la propiedad Estatus de
+               la base «Ventas - AL3D» de Notion. Antes decían ANTICIPO, CANCELADO y
+               PENDIENTE, que no existen allá: coincidía uno de cuatro. Y pegar una opción
+               inexistente en una propiedad de tipo *status* NO falla —Notion la CREA—, así
+               que cada venta registrada ensuciaba el esquema en silencio y las siete vistas
+               empezaban a filtrar sobre valores inventados. -->
           <select id="rv-estatus" onchange="rvRecalc()">
-            <option>ANTICIPO</option>
+            <option>FABRICACION</option>
+            <option>COBRANDO</option>
             <option>LIQUIDADO</option>
-            <option>CANCELADO</option>
-            <option>PENDIENTE</option>
+            <option>REPARANDO</option>
           </select>
         </div>
       </div>
@@ -10866,8 +10999,13 @@ function vtUsarComoPartidas(){
       </div>
     </div>
     <div class="rv-footer">
-      <div class="rv-copied" id="rv-copied"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg><span>Fila copiada — pégala en la hoja <b>Ventas</b> de Google Sheets</span></div>
-      <button class="btn btn-pri" onclick="copiarFilaVenta()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar fila para Google Sheets</button>
+      <div class="rv-copied" id="rv-copied"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg><span>Fila copiada — pégala en la base <b>Ventas - AL3D</b> de Notion</span></div>
+      <!-- Este botón va ANTES del de copiar porque es el que de verdad hay que apretar: el
+           de copiar deja la fila en el portapapeles y nada más; este deja constancia de que
+           la cotización se ganó, que es el dato que no existía en ningún sistema. Se queda
+           el de copiar, para siempre, como camino manual: es lo que ya funciona. -->
+      <button class="btn btn-pri" onclick="registrarGanada()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Registrar como proyecto ganado</button>
+      <button class="btn btn-gho" onclick="copiarFilaVenta()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar fila para Notion</button>
       <button class="btn btn-gho" onclick="cerrarRegistrarVenta()">Cancelar</button>
     </div>
   </div>
