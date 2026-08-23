@@ -6658,16 +6658,33 @@ function generarPDF(){
   const ACAB = {'sencillo':'Sencillo','vinil':'Rotulación de Vinil','sandwich':'Tipo Sándwich con Iluminación'};
   const BAS  = {'lamina':'Lámina Galvanizada','alucobond':'Alucobond'};
 
+  /* El concepto y su especificación en dos renglones y no en uno.
+     Antes iba todo seguido —«<b>Letras Individuales 3D:</b> Caras en Acrílico, Cantos en…»—
+     y con tres partidas la columna era un párrafo de negritas intercaladas donde había que
+     buscar dónde empieza cada cosa. Ahora el nombre del concepto es su propio renglón, en
+     negro, y la especificación va debajo en gris: se puede leer solo la columna de conceptos
+     de un barrido y bajar al detalle nada más en el que interesa. Las palabras son las mismas.
+     Lo único que cambió de texto es la «e» de «estructura tubular», que ahora abre renglón. */
   function desc(it){
-    let d='';
-    if(it.tipo==='letras')    d=`<b>Letras Individuales 3D:</b> Caras en Acrílico, Cantos en ${MAT[it.material]||'Aluminio'}${it.luz?` con Iluminación LED ${it.ilumTipo==='calida'?'Cálida (3000K)':'Fría (6500K)'}`:' sin iluminación'}.`;
-    else if(it.tipo==='recorte')  d=ACAB[it.acab]
-      ? `<b>Recorte de Acrílico:</b> ${ACAB[it.acab]}.`
-      : `<b>Recorte de Acrílico.</b>`;   // sin acabado elegido salía «Recorte de Acrílico: .»
-    else if(it.tipo==='bastidor') d=`<b>Bastidor para Letras 3D:</b> estructura tubular de 1" forrada de ${BAS[it.bas]||'lámina galvanizada'}.`;
-    else if(it.tipo==='caja'){const tp=it.tarifa>=4600?'Tipo Nube / Silueta':'Estándar'; d=`<b>Caja de Luz:</b> ${tp}, Caras en Acrílico con Iluminación LED Fría.`;}
-    if(it.desc) d+=(d?'<br>':'')+esc(it.desc);
-    return d||'—';
+    let tit='', esp='';
+    if(it.tipo==='letras'){
+      tit='Letras Individuales 3D';
+      esp=`Caras en Acrílico, Cantos en ${MAT[it.material]||'Aluminio'}${it.luz?` con Iluminación LED ${it.ilumTipo==='calida'?'Cálida (3000K)':'Fría (6500K)'}`:' sin iluminación'}.`;
+    }else if(it.tipo==='recorte'){
+      tit='Recorte de Acrílico';
+      esp=ACAB[it.acab]?`${ACAB[it.acab]}.`:'';   // sin acabado elegido salía «Recorte de Acrílico: .»
+    }else if(it.tipo==='bastidor'){
+      tit='Bastidor para Letras 3D';
+      esp=`Estructura tubular de 1" forrada de ${BAS[it.bas]||'lámina galvanizada'}.`;
+    }else if(it.tipo==='caja'){
+      tit='Caja de Luz';
+      esp=`${it.tarifa>=4600?'Tipo Nube / Silueta':'Estándar'}, Caras en Acrílico con Iluminación LED Fría.`;
+    }
+    const libre = it.desc ? esc(it.desc) : '';
+    if(!tit) return libre ? `<span class="cs">${libre}</span>` : '<span class="cs">—</span>';
+    return `<span class="cn">${tit}</span>`
+      + (esp  ? `<span class="cs">${esp}</span>`  : '')
+      + (libre? `<span class="cs">${libre}</span>`: '');
   }
   function med(it){
     if(it.tipo==='letras')  return `${it.altura}cm alt.`;
@@ -6712,9 +6729,6 @@ function generarPDF(){
      con un recuadro vacío es peor que una hoja sin recuadro. */
   const imgTrabajo = (Q.aiFile && Q.aiFile.type && Q.aiFile.type.indexOf('image/')===0)
     ? urlImagenSegura(Q.aiFile.url) : '';
-  const bloqueImagen = alto => imgTrabajo
-    ? `<div style="text-align:center"><img src="${imgTrabajo}" alt="Plano del anuncio cotizado" style="max-width:100%;max-height:${alto}px;object-fit:contain;border:1px solid #d0d4e8;border-radius:6px"></div>`
-    : '';
 
   /* ---- Reparto de las filas por hoja ----
      El .pg pone min-height:100vh pero ningún techo, y el pie va en position:absolute
@@ -6736,45 +6750,55 @@ function generarPDF(){
      totales creció con el anticipo y el subtotal descontado (~54 px en el peor caso).
      Se le quita a lo que se reparte, que es lo que evita que la tabla empuje al pie
      fuera de la hoja. */
-  /* La imagen se come alto de la última hoja, y hay que quitárselo a lo que se reparte o
+  /* La figura se come alto de la última hoja, y hay que quitárselo a lo que se reparte o
      empuja el pie fuera de la carta —que es justo el fallo que este reparto vino a arreglar—.
-     300 px de imagen más 12 de margen. Con una o dos partidas, que es la mediana real
-     (1 partida en 14 de las 25 cotizaciones revisadas), la hoja queda igual que la de Canva;
-     con muchas, las filas de más se van solas a una hoja anterior y la última cierra con
-     totales, nota e imagen. */
+     Son 312 px: el MÍNIMO que se le reserva. La figura crece por encima de eso cuando la hoja
+     le deja hueco —con una sola partida, que es la mediana real, se lleva media hoja— porque
+     va en flex:1; lo que no puede es bajar de aquí, que es donde un plano deja de leerse. */
   const ALTO_IMG = imgTrabajo ? 312 : 0;
-  const ALTO_TBODY=760, ALTO_TBODY_ULT=556-ALTO_IMG;
+  /* Medido sobre el diseño nuevo, en la caja útil de 942 px (1 056 menos 30 de padding
+     arriba y 84 abajo): el bloque de identidad con sus dos reglas ocupa 67, la ficha de
+     datos 75 con la dirección en dos renglones, el encabezado de la tabla 25 y su margen 14.
+     A la hoja que cierra hay que quitarle además la fila de cierre —la nota y los totales,
+     172 con I.V.A. y plan de pago— y los 312 de plano. A las demás, el renglón que avisa que
+     las partidas siguen. */
+  const ALTO_TBODY=727, ALTO_TBODY_ULT=588-ALTO_IMG;
   function altoFila(it){
-    /* Alto de una fila medido: 14 px de padding más 13 px por renglón (una fila de un
-       renglón mide 27 px y de dos, 39). En la columna de descripción, que mide 286 px,
-       los cortes de renglón caen a los 52 caracteres: se midió 51 en un renglón, 66 en
-       dos, 117 en tres y 167 en cuatro. Se redondea a la alza a propósito: equivocarse
-       de más solo gasta papel, equivocarse de menos parte la hoja. */
-    const txt=desc(it).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]*>/g,'');
-    const renglones=txt.split('\n').reduce((n,l)=>n+Math.max(1,Math.ceil(l.trim().length/52)),0);
-    return 14+Math.max(1,renglones)*13;
+    /* Alto de una fila: 18 px de padding (9 arriba y 9 abajo) más 13 px por renglón.
+       Ahora la descripción son bloques —el nombre del concepto y su especificación— y cada
+       uno abre su propio renglón, así que se cuentan por separado: el nombre va a 10 px en
+       negrita y corta a los 44 caracteres, la especificación a 9.5 px en gris y corta a los
+       54, en una columna de 300 px. Se redondea a la alza a propósito: equivocarse de más
+       solo gasta papel, equivocarse de menos parte la hoja. */
+    const bloques = desc(it).split(/<span class="c[ns]">/).slice(1)
+      .map(b=>b.replace(/<[^>]*>/g,'').trim());
+    const renglones = bloques.reduce((n,b,i)=>n+Math.max(1,Math.ceil(b.length/(i===0?44:54))),0);
+    return 18+Math.max(1,renglones)*13;
   }
-  const trozos=[];
-  /* Se reparte de ATRÁS HACIA ADELANTE, y eso es lo que cambió al entrar la imagen.
+  /* Reparte una lista de partidas en hojas.
 
-     La hoja que cierra es la que menos filas admite: lleva los totales, la nota y ahora
-     también el plano. Así que se llena primero ella, con las últimas partidas, y las de más
-     arriba van completando las hojas anteriores, que sí admiten los 760 px enteros.
+     Se reparte de ATRÁS HACIA ADELANTE, y eso es lo que cambió al entrar la figura del plano.
+     La hoja que cierra es la que menos filas admite —lleva los totales, la nota, el sello o el
+     plano—, así que se llena primero ella y las de más arriba van completando las anteriores,
+     que sí admiten el alto entero.
 
      Antes se repartía de adelante hacia atrás y al final se le recortaba el sobrante a la
-     última hoja, de un solo tijeretazo. Eso funcionaba mientras el tope de la última hoja
-     fuera 556 px, porque de una hoja de 760 nunca sobraban más de 204. Con la imagen el tope
-     baja a 244 y pueden sobrar más de 500: 14 partidas armaban una última hoja de 1 107 px
-     sobre una carta de 1 056, con el pie fuera del papel. Repartir desde el final no tiene
-     ese caso: ninguna hoja se llena por encima de su propio tope. */
-  { let hoja=[], alto=0, tope=ALTO_TBODY_ULT;
-    for(let i=itemsForPDF.length-1;i>=0;i--){
-      const it=itemsForPDF[i], h=altoFila(it);
-      if(hoja.length && alto+h>tope){ trozos.unshift(hoja); hoja=[]; alto=0; tope=ALTO_TBODY; }
-      hoja.unshift(it); alto+=h;
+     última hoja, de un solo tijeretazo. Eso valía mientras el tope de la última fuera 556 px,
+     porque de una hoja de 760 nunca sobraban más de 204. Con el plano el tope baja a 244 y
+     pueden sobrar más de 500: 14 partidas armaban una última hoja de 1 107 px sobre una carta
+     de 1 056, con el pie fuera del papel. Repartiendo desde el final ninguna hoja se llena por
+     encima de su propio tope, y da igual cuánto se le reste a la que cierra. */
+  function repartir(items,tope,topeUlt){
+    const hojas=[]; let hoja=[], alto=0, t=topeUlt;
+    for(let i=items.length-1;i>=0;i--){
+      const h=altoFila(items[i]);
+      if(hoja.length && alto+h>t){ hojas.unshift(hoja); hoja=[]; alto=0; t=tope; }
+      hoja.unshift(items[i]); alto+=h;
     }
-    trozos.unshift(hoja);
+    hojas.unshift(hoja);
+    return hojas;
   }
+  const trozos = repartir(itemsForPDF,ALTO_TBODY,ALTO_TBODY_ULT);
 
   /* ----- Qué hojas se imprimen -----
      Las dos últimas salían siempre, aunque sus campos —los dos opcionales, y los dos
@@ -6794,6 +6818,12 @@ function generarPDF(){
      en que hace falta darle un papel al cliente. Sin anticipo sería una hoja de formato en
      blanco pegada a una cotización que todavía nadie aprobó. */
   const hayRecibo = Q.anti > 0;
+  /* La orden de trabajo es la misma tabla y se parte igual. Su columna de descripción mide
+     58 % y no 40 %, así que altoFila() —calibrada para la estrecha— le sobreestima el alto
+     y le caben menos filas de las que caben de verdad. Se deja así: pasarse de largo solo
+     gasta una hoja, quedarse corto le corta el pie a la hoja del taller. A la que cierra se
+     le restan la nota, el sello y 200 px de plano; si no cupiera, el plano se encoge solo. */
+  const trozosOT = hayLimite ? repartir(Q.items,727,395) : [];
 
   /* ----- Por qué la hoja del límite se volvió una orden de trabajo -----
      Antes era una hoja con la fecha sola dentro de un recuadro en medio del papel. Esa hoja no
@@ -6813,10 +6843,10 @@ function generarPDF(){
      escribir encima y para cortar por la mitad, y la cinta se transparentaba justo por el
      hueco vacío del campo «Fecha». Lo único que se le deja es el pie, por el número de hoja:
      un juego de hojas que se desordena sobre un escritorio no se vuelve a armar. */
-  const TOTAL_HOJAS = trozos.length + 1 + (hayLimite?1:0) + (hayInstal?1:0) + (hayRecibo?1:0);
+  const TOTAL_HOJAS = trozos.length + 1 + trozosOT.length + (hayInstal?1:0) + (hayRecibo?1:0);
   const HOJA_TERMINOS = trozos.length + 1;
   const HOJA_TRABAJO  = HOJA_TERMINOS + 1;
-  const HOJA_INSTAL   = HOJA_TRABAJO + (hayLimite?1:0);
+  const HOJA_INSTAL   = HOJA_TRABAJO + trozosOT.length;
   const HOJA_RECIBO   = HOJA_INSTAL + (hayInstal?1:0);
 
   /* La cebra lleva índice global: si se reiniciara en cada hoja, dos filas seguidas
@@ -6827,8 +6857,8 @@ function generarPDF(){
         <td>${desc(it)}</td>
         <td class="c">${med(it)}</td>
         <td class="c">${pzas(it)}</td>
-        <td class="r">${pu(it)}</td>
-        <td class="r">${money(itemPrecio(it))}</td>
+        <td class="r num">${pu(it)}</td>
+        <td class="r num tot">${money(itemPrecio(it))}</td>
       </tr>`;
 
   /* Logo */
@@ -6841,75 +6871,79 @@ function generarPDF(){
         <span style="font-size:18px;font-weight:900;line-height:1.02"><span style="display:block;color:#2b2f3a">AL</span><span style="display:block;color:#3a4ad8">3D</span></span>
       </div>`;
 
-  /* Decorativo esquina superior derecha · cinta curva estilo plantilla Canva */
-  const deco=`<svg style="position:absolute;top:0;right:0;width:190px;height:135px;pointer-events:none" viewBox="0 0 190 135" xmlns="http://www.w3.org/2000/svg">
+  /* Marca de esquina. Antes eran dos trazos que arrancaban en el borde y morían a media
+     hoja, y le pasaban por encima a la fecha y al final de la dirección. Ahora vive dentro
+     de la banda del encabezado, entra por la esquina y se hunde debajo de la regla azul:
+     ocupa el hueco que dejó el logotipo y no se cruza con ningún texto, porque el bloque
+     de identidad del documento se movió todo a la izquierda. */
+  const deco=`<svg class="deco" width="218" height="80" viewBox="0 0 218 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <defs>
-      <linearGradient id="decoGrad" x1="100%" y1="0%" x2="20%" y2="100%">
-        <stop offset="0%" stop-color="#1c2456"/>
-        <stop offset="45%" stop-color="#3a4ad8"/>
-        <stop offset="100%" stop-color="#9aa8ff"/>
+      <linearGradient id="decoGrad" x1="100%" y1="0%" x2="12%" y2="100%">
+        <stop offset="0%" stop-color="#1b2470"/>
+        <stop offset="52%" stop-color="#3a4ad8"/>
+        <stop offset="100%" stop-color="#a9b5ff"/>
       </linearGradient>
     </defs>
-    <path d="M190,0 C128,6 78,32 60,66 C45,94 60,118 98,126" stroke="url(#decoGrad)" stroke-width="36" fill="none" stroke-linecap="round"/>
-    <path d="M190,20 C138,26 100,48 88,74" stroke="#c7cffb" stroke-width="9" fill="none" stroke-linecap="round" opacity=".75"/>
+    <path d="M238,-16 C162,-10 112,16 92,58 C87,70 85,77 85,88" stroke="url(#decoGrad)" stroke-width="30" fill="none" stroke-linecap="butt"/>
+    <path d="M238,20 C188,25 156,41 143,70 C141,77 140,82 140,88" stroke="#c9d2fb" stroke-width="8" fill="none" stroke-linecap="butt" opacity=".9"/>
   </svg>`;
 
-  /* Header reutilizable.
-     El folio va aquí, en las cuatro hojas. No estaba en ninguna: se escribía una sola
-     vez en el <title>, que no se imprime. Es el identificador de toda la app —nombra la
-     entrada del historial, encabeza el mensaje de WhatsApp, es la primera columna del
-     CSV y tiene su propio contador— y el papel que sustenta un precio salía sin él, así
-     que un cliente con dos cotizaciones de la misma semana no podía decir cuál autoriza. */
-  const cintillo=(etq,val)=>`<div style="display:flex;align-items:center;border:1.5px solid #3a4ad8;border-radius:6px;overflow:hidden">
-        <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:11px;padding:5px 11px">${etq}</span>
-        <span style="padding:5px 13px;font-size:11px;font-weight:600;min-width:86px">${esc(val)}</span>
-      </div>`;
-  function hdr(fecha){
-    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px">
-      <div>${logoH}</div>
-      <div style="display:flex;align-items:center;gap:8px">
-        ${Q.folio?cintillo('Folio',Q.folio):''}
-        ${fecha?cintillo('Fecha',fecha):''}
+  /* Encabezado.
+     El folio va aquí, en todas las hojas. No estaba en ninguna: se escribía una sola vez en
+     el <title>, que no se imprime. Es el identificador de toda la app —nombra la entrada del
+     historial, encabeza el mensaje de WhatsApp, es la primera columna del CSV y tiene su
+     propio contador— y el papel que sustenta un precio salía sin él, así que un cliente con
+     dos cotizaciones de la misma semana no podía decir cuál autoriza.
+
+     Antes el folio y la fecha eran dos píldoras azules pegadas a la derecha y el tipo de
+     documento se anunciaba con un título centrado más abajo, en las hojas que lo tenían: dos
+     lugares distintos para decir qué es esta hoja. Ahora es un solo bloque de identidad
+     —logotipo, tipo de documento, folio y fecha— alineado a la izquierda, y las hojas ya no
+     llevan título suelto. Eso además libera la esquina derecha para la marca. */
+  function hdr(titulo,fecha){
+    const meta=[Q.folio?`<b>${esc(Q.folio)}</b>`:'',fecha?esc(fecha):''].filter(Boolean).join(' &nbsp;·&nbsp; ');
+    return `<div class="mh">
+      <div class="mh-logo">${logoH}</div>
+      <div class="mh-bar"></div>
+      <div>
+        <div class="mh-t">${titulo}</div>
+        ${meta?`<div class="mh-m">${meta}</div>`:''}
       </div>
     </div>
-    <div style="height:3px;background:#3a4ad8;margin-bottom:10px"></div>`;
+    <div class="rule"></div><div class="rule2"></div>`;
   }
 
-  /* Fila proyecto/dirección */
-  /* El nombre del cliente no aparecía en ninguna hoja del PDF, aunque es obligatorio para
-     autorizar: la cotización llegaba sin decir de quién era. Va en su propio renglón porque
-     esta fila se reutiliza en las tres hojas —cotización, límite de fabricación y orden de
-     instalación— y en las tres hace falta. */
-  function prowProyDir(){
-    const celda=(etq,val)=>`
-      <div style="display:flex;flex:1">
-        <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">${etq}</span>
-        <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${val}</span>
-      </div>`;
-    const marco=contenido=>`<div style="display:flex;margin-bottom:6px;border:1.5px solid #3a4ad8;border-radius:4px;overflow:hidden">${contenido}</div>`;
+  /* Ficha de datos del proyecto.
+     Eran tres barras con etiqueta azul y relleno lavanda que ocupaban tres renglones enteros
+     y hacían que el documento pareciera un formulario por llenar. Ahora es una tarjeta con
+     acento azul a la izquierda y las etiquetas en versalitas encima de su valor: cabe en un
+     renglón, se lee de un barrido y el azul de la marca sigue puesto donde se ve.
+
+     El nombre del cliente no aparecía en ninguna hoja del PDF, aunque es obligatorio para
+     autorizar: la cotización llegaba sin decir de quién era. Y sin dirección capturada, la
+     celda salía rotulada y vacía —un campo con nombre y nada dentro— en las tres hojas que
+     reutilizan esta ficha: si no hay dato no hay celda, y las otras dos toman el ancho. */
+  function fichaDatos(){
+    const celda=(etq,val)=>`<div class="dato"><span class="lbl">${etq}</span><span class="val">${val}</span></div>`;
     const dirPdf=esc(direccionPdf()).trim();
-    /* Sin dirección capturada esta celda salía con la etiqueta azul puesta y el valor en
-       blanco, en las tres hojas que reutilizan esta fila: el cliente recibía un documento
-       con un campo rotulado y vacío. Sin dato no hay celda, y «Proyecto:» toma el ancho. */
-    return marco(celda('Cliente:',esc(Q.cliente)))
-      +`<div style="margin-bottom:12px">`+marco(
-        celda('Proyecto:',esc(Q.proy))
-        +(dirPdf?`<div style="display:flex;flex:1;border-left:1.5px solid #3a4ad8">
-        <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Dirección:</span>
-        <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${dirPdf}</span>
-      </div>`:''))+`</div>`;
+    return `<div class="datos">
+      ${celda('Cliente',esc(Q.cliente)||'&mdash;')}
+      ${celda('Proyecto',esc(Q.proy)||'&mdash;')}
+      ${dirPdf?celda('Dirección',dirPdf):''}
+    </div>`;
   }
 
-  /* Footer reutilizable, con el número de hoja: un juego de hojas que se desordena
-     sobre un escritorio no se volvía a armar. */
+  /* Pie, con el número de hoja: un juego de hojas que se desordena sobre un escritorio no se
+     volvía a armar. La barra azul se fue al borde mismo del papel, a sangre, en vez de flotar
+     redondeada a 26 px del canto. */
   function footer(cols,hoja){
-    const colsHTML = cols.map(c=>`<div style="text-align:center"><b style="display:block;font-size:10.5px">${c.label}</b><span style="font-size:10px">${c.val}</span></div>`).join('');
-    return `<div style="position:absolute;bottom:26px;left:32px;right:32px">
-      <div style="border-top:1.5px dashed #9999bb;margin-bottom:10px"></div>
-      <div style="display:flex;justify-content:space-around;align-items:flex-end">${colsHTML}</div>
-      ${hoja?`<div style="text-align:center;font-size:9px;color:#6b7189;margin-top:7px">Hoja ${hoja} de ${TOTAL_HOJAS} · ${esc(Q.folio)}</div>`:''}
-      <div style="height:8px;background:#3a4ad8;border-radius:2px;margin-top:8px"></div>
-    </div>`;
+    const colsHTML = cols.map(c=>`<div class="pie-c"><span class="lbl">${c.label}</span><span>${c.val}</span></div>`).join('');
+    return `<div class="pie">
+      <div class="pie-hr"></div>
+      <div class="pie-cols">${colsHTML}</div>
+      ${hoja?`<div class="pie-h">Hoja ${hoja} de ${TOTAL_HOJAS} &nbsp;·&nbsp; ${esc(Q.folio)}</div>`:''}
+    </div>
+    <div class="barra"></div>`;
   }
 
   /* Quién firma la cotización. Estaba escrito en el código —EMPRESA.vendedor—, así que
@@ -6917,41 +6951,230 @@ function generarPDF(){
      recuerde el nombre de quien autoriza en este dispositivo. */
   const vendedorPdf = (Q.autorizador||'').trim() || prefGet(PREF_AUTORIZADOR,'') || EMPRESA.vendedor;
   const footerCot = hoja => footer([
-    {label:'Vendedor:',val:esc(vendedorPdf)},
+    {label:'Vendedor',val:esc(vendedorPdf)},
     {label:'Dirección del taller',val:esc(EMPRESA.taller)},
     {label:'WhatsApp',val:esc(EMPRESA.whatsapp)}
   ],hoja);
+
+  /* La figura del plano, con su rótulo. Antes era una imagen suelta centrada debajo de la
+     nota, con media hoja en blanco por debajo: la partida más común es una sola —14 de las 25
+     cotizaciones que se revisaron traen una— así que la hoja quedaba con un tercio de tinta
+     arriba y dos tercios de nada. Ahora la figura CRECE hasta ocupar el hueco que le quede a
+     la hoja, con la imagen centrada y sin deformarse. La composición se cierra sola. */
+  const figura = () => imgTrabajo
+    ? `<div class="fig">
+      <span class="lbl">Plano y referencia del proyecto</span>
+      <div class="fig-box"><img src="${imgTrabajo}" alt="Plano del anuncio cotizado"></div>
+    </div>`
+    : '';
+
+  /* Los ocho apartados de términos, como datos y no como ocho bloques de HTML repetido.
+     El texto es el mismo, carácter por carácter, que el que se venía imprimiendo: solo salió
+     del marcado para que los ocho se pinten con la misma plantilla y no haya un apartado con
+     el margen de otro. Las etiquetas <u> son literales del documento, no dato de nadie. */
+  const TERMINOS = [
+    ['Pagos y Facturación',['50% de anticipo para comenzar fabricación.','50% al finalizar, debe liquidar en máximo 2 días posterior a la instalación.','<u>Excepción: proyectos mayores a $60,000 MXN.</u>','Si requiere factura, el anticipo es más IVA.','La cotización es válida por 10 días.']],
+    ['Requisitos para Instalación',['En caso de que el proyecto lleve iluminación, el cliente debe proporcionar salida eléctrica detrás de donde se instalará el anuncio.','Área limpia, accesible y segura.','El cliente debe gestionar accesos, permisos y condiciones necesarias.','Cualquier retraso por falta de esto será responsabilidad del cliente.']],
+    ['Modificaciones',['Cambios al diseño aprobado pueden generar costos y retrasos.','Deben ser autorizados previamente.','AL3D no responde por fallas si el cliente exige cambios fuera de especificación.']],
+    ['Garantías',['1 año en material eléctrico.','2 años en colorimetría.','Se atiende según disponibilidad del equipo.','No aplica si fue instalado/modificado por terceros o expuesto a condiciones extremas.']],
+    ['Cancelaciones y Penalizaciones',['El anticipo no es reembolsable.','Si se cancela con el proyecto iniciado o materiales comprados, se debe pagar el 100%.','Después de 10 días sin pago, AL3D puede retirar el anuncio.']],
+    ['Uso y Responsabilidad',['Uso indebido o manipulación externa a nosotros.','Clima extremo.','Fallas estructurales del inmueble.'],'AL3D no se hace responsable por:'],
+    ['Permisos',['El cliente debe tramitar los permisos.','AL3D no se hace responsable por multas o clausuras.']],
+    ['Consentimiento y Uso de Imágenes',['<u>El depósito implica aceptación de todos estos términos.</u>','El cliente autoriza a AL3D a usar imágenes del proyecto con fines promocionales y de portafolio.']],
+  ];
+  const tsec = (n,[titulo,puntos,intro]) => `<div class="tsec">
+      <div class="tsec-h"><div class="tsec-n">${n}</div><div class="tsec-t">${titulo}</div></div>
+      ${intro?`<p>${intro}</p>`:''}
+      <ul>${puntos.map(p=>`<li>${p}</li>`).join('')}</ul>
+    </div>`;
 
   const html = `<!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8">
 <title>Cotización ${esc(Q.folio)} · AL3D</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a2e;font-size:11px;background:#fff}
-.pg{page-break-after:always;padding:28px 32px 80px;min-height:100vh;position:relative;overflow:hidden}
+/* Una escala, no veinte tamaños sueltos. El documento entero se apoya en estos valores:
+   7 px para versalitas de etiqueta, 9 px para lo secundario, 9.5 px para el cuerpo de tabla,
+   10 px para el nombre de un concepto, 14 px para el total y 17 px para el tipo de documento.
+   Y una rampa de grises de tres pasos —tinta, secundario, terciario— en vez de un gris por
+   ocasión: lo que se lee siempre a #171a2b, lo que acompaña a #5a6076 y los rótulos a #8a90a6.
+   Medido sobre blanco: 14.6:1, 6.4:1 y 3.4:1. El terciario solo rotula, nunca informa. */
+:root{
+  --ink:#171a2b; --ink2:#5a6076; --ink3:#8a90a6;
+  --brand:#3a4ad8; --brandd:#232d8f; --brandl:#eef1fd;
+  --line:#dfe3f0; --line2:#c4cae0; --wash:#f7f8fd;
+}
+body{font-family:'Segoe UI',-apple-system,Roboto,Arial,sans-serif;color:var(--ink);font-size:10px;background:#fff;-webkit-font-smoothing:antialiased}
+.pg{page-break-after:always;padding:30px 34px 84px;min-height:100vh;position:relative;overflow:hidden;display:flex;flex-direction:column}
 .pg:last-child{page-break-after:auto}
-/* La cinta decorativa está posicionada, así que se pintaba ENCIMA del contenido y
-   tapaba la fecha y el final de la dirección. Va al fondo; el contenido, arriba. */
-.pg>svg{z-index:0}
+/* La marca de esquina está posicionada, así que se pintaba ENCIMA del contenido y tapaba la
+   fecha y el final de la dirección. Va al fondo; el contenido, arriba. El pie y la barra son
+   la excepción: van posicionados a propósito y necesitan una regla más específica, porque el
+   selector de arriba les ganaba y les devolvía position:relative. */
+.pg>svg.deco{position:absolute;top:0;right:0;z-index:0;pointer-events:none}
 .pg>*:not(svg){position:relative;z-index:1}
-th{background:#3a4ad8;color:#fff;font-size:10.5px;font-weight:700;padding:8px 10px;text-align:left}
-th.c,td.c{text-align:center} th.r,td.r{text-align:right}
-td{padding:7px 10px;font-size:10.5px;border-bottom:1px solid #d0d4e8;vertical-align:top}
-/* La alternancia re/ro existía desde siempre en generarPDF pero las dos clases
-   pintaban el mismo #fff, o sea que no pintaba nada: las filas se distinguían solo por
-   el borde de 1 px y con descripciones de dos y tres renglones costaba seguir a qué
-   fila pertenece cada total. El fondo sí sale impreso porque el @media print de abajo
-   ya trae print-color-adjust:exact. */
-.re td{background:#fff}
-.ro td{background:#f2f4fb}
-/* Una fila partida a la mitad entre dos hojas es ilegible en papel, y el thead se
-   repite en cada hoja de la tabla (es el valor por omisión, pero explícito no estorba). */
-tbody tr{page-break-inside:avoid}
+.pg>.pie,.pg>.barra{position:absolute}
+
+/* Bloque de identidad del documento */
+.mh{display:flex;align-items:flex-start;gap:13px;margin-bottom:10px}
+.mh-logo{flex:0 0 auto;padding-top:1px}
+.mh-bar{width:1.5px;align-self:stretch;background:var(--line2)}
+.mh-t{font-size:17px;font-weight:800;color:var(--brandd);letter-spacing:.13em;line-height:1.08;text-transform:uppercase}
+.mh-m{font-size:9px;color:var(--ink2);letter-spacing:.05em;margin-top:4px}
+.mh-m b{color:var(--ink);font-weight:700}
+.rule{height:2.5px;background:var(--brand)}
+.rule2{height:1px;background:var(--line);margin-bottom:14px}
+
+/* Ficha de datos */
+.datos{display:flex;border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:6px;background:var(--wash);margin-bottom:14px;overflow:hidden}
+.dato{flex:1;padding:9px 12px;min-width:0}
+.dato+.dato{border-left:1px solid var(--line)}
+.lbl{display:block;font-size:7px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--brand)}
+.val{display:block;font-size:10.5px;font-weight:600;color:var(--ink);line-height:1.35;margin-top:3px}
+
+/* Tabla de partidas */
+table{width:100%;border-collapse:collapse;margin-bottom:14px}
 thead{display:table-header-group}
-table{width:100%;border-collapse:collapse;margin-bottom:8px}
-.t-row{display:flex;justify-content:space-between;padding:5px 10px;font-size:10.5px;border:1px solid #d0d4e8;border-top:none}
-.t-row:first-child{border-top:1px solid #d0d4e8}
-.t-row b{font-weight:700}
+th{background:var(--brand);color:#fff;font-size:7.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:8px 10px;text-align:left}
+td{padding:9px 10px;font-size:9.5px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.37}
+th.c,td.c{text-align:center} th.r,td.r{text-align:right}
+/* La alternancia re/ro existía desde siempre pero las dos clases pintaban el mismo #fff, o
+   sea que no pintaba nada. Ahora sí alterna, con un tinte apenas perceptible: con la columna
+   de conceptos en dos alturas, el tinte es para seguir el renglón, no para gritar. El fondo
+   sale impreso porque el @media print de abajo trae print-color-adjust:exact. */
+.re td{background:#fff}
+.ro td{background:var(--wash)}
+tbody tr{page-break-inside:avoid}
+.cn{display:block;font-size:10px;font-weight:700;color:var(--ink);line-height:1.3}
+.cs{display:block;font-size:9.5px;color:var(--ink2);line-height:1.37;margin-top:2px}
+td.c{color:var(--ink2)}
+/* Cifras de ancho fijo. Sin esto el 1 mide menos que el 8 y una columna de importes
+   alineada a la derecha queda con los puntos decimales bailando. */
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap}
+.tot{font-weight:700;color:var(--ink)}
+
+/* Cierre de la cotización · la nota a la izquierda y los totales a la derecha.
+   Iban uno debajo del otro y dejaban vacío medio ancho de hoja al lado de los totales
+   —470 px por 160— mientras la nota, que es el campo que más trabaja del documento, se
+   apretaba abajo en un renglón centrado. Compartiendo el renglón se llena el hueco y le
+   quedan 70 px más de alto al plano. */
+.cierre{display:flex;align-items:stretch;gap:16px;margin-bottom:14px}
+.tot-card{flex:0 0 288px;border:1px solid var(--line);border-radius:8px;overflow:hidden;align-self:flex-start}
+.trow{display:flex;justify-content:space-between;align-items:baseline;padding:6px 13px;font-size:9.5px}
+.trow>span:first-child{color:var(--ink2)}
+.trow>span:last-child{font-variant-numeric:tabular-nums;font-feature-settings:"tnum";font-weight:600;white-space:nowrap}
+.trow-ok{background:#eaf7f0} .trow-ok>span{color:#0a6b3f!important;font-weight:700}
+.trow-av{background:#fdf4e3} .trow-av>span{color:#8a5c0a!important;font-weight:700}
+.trow-iva{background:var(--brandl)}
+.neto{display:flex;justify-content:space-between;align-items:center;background:var(--brand);color:#fff;padding:10px 13px}
+.neto>span:first-child{font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.neto>span:last-child{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap}
+/* El plan de pago iba como dos renglones más de la misma lista, con el mismo peso que el
+   subtotal: el cliente leía cinco cifras seguidas sin saber cuáles suman y cuáles se pagan.
+   Va aparte, después del total, con su propio rótulo. */
+.pago{border-top:1px solid var(--line);background:var(--wash);padding:8px 13px 9px}
+.pago>.lbl{color:var(--ink3);margin-bottom:4px}
+
+/* Nota */
+/* La nota crece solo cuando comparte renglón con los totales. Suelta en una hoja —la del
+   taller, la de instalación— el .pg es una columna flex y un flex:1 la estiraba a 240 px con
+   un renglón de texto flotando en medio. */
+.nota{flex:0 0 auto;min-width:0;border-left:3px solid var(--brand);background:var(--brandl);border-radius:0 6px 6px 0;padding:10px 14px;margin-bottom:14px}
+.cierre>.nota{flex:1 1 auto;margin-bottom:0;display:flex;flex-direction:column;justify-content:center}
+.nota>.lbl{color:var(--brandd);margin-bottom:4px}
+.nota p{font-size:9.5px;line-height:1.5;color:var(--ink)}
+.nota small{display:block;font-size:8px;color:var(--ink2);margin-top:5px}
+
+/* Figura del plano · crece hasta llenar el hueco que le quede a la hoja */
+.fig{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;margin-bottom:4px}
+.fig>.lbl{color:var(--ink3);margin-bottom:5px}
+/* Fondo blanco y con techo. Con fondo gris y sin techo, un plano ancho dentro de una caja
+   de 600 px de alto dejaba dos bandas grises arriba y abajo de la imagen: la caja se leía
+   como un hueco por llenar en vez de como un marco. Blanca es un marco, y a 430 px el plano
+   ya se ve a tamaño de trabajo sin comerse la hoja entera. */
+.fig-box{flex:1 1 auto;min-height:0;max-height:430px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;background:#fff;padding:9px}
+.fig-box img{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px}
+.sigue{text-align:center;font-size:9px;color:var(--ink3);letter-spacing:.03em;margin-bottom:12px}
+
+/* Pie */
+.pie{bottom:26px;left:34px;right:34px;z-index:1}
+.pie-hr{height:1px;background:var(--line);margin-bottom:10px}
+.pie-cols{display:flex;gap:18px}
+.pie-c{flex:1;text-align:center}
+.pie-c>.lbl{color:var(--ink3)}
+.pie-c>span{display:block;font-size:9px;color:var(--ink);font-weight:600;margin-top:2px}
+.pie-h{text-align:center;font-size:8px;color:var(--ink3);letter-spacing:.07em;margin-top:9px}
+.barra{left:0;right:0;bottom:0;height:7px;background:var(--brand)}
+
+/* Términos y condiciones */
+/* Las dos columnas se estiran a lo alto de la hoja y sus apartados se reparten el hueco,
+   así que las dos acaban a ras del bloque de aceptación en vez de dejar 250 px de papel en
+   blanco en medio del documento que más importa leer. */
+.tt{display:grid;grid-template-columns:1fr 1px 1fr;gap:0 26px;margin-top:2px;flex:1 1 auto;min-height:0;margin-bottom:16px}
+.tt-col{align-content:start}
+.tt-div{background:var(--line)}
+/* Los términos estaban a 8.8 px. Es letra de contrato en papel: la parte del documento
+   que más importa leer bien era la más chica de todas, y encima dejaba media hoja en
+   blanco. A 9.8 px con interlínea de 1.68 se leen y la hoja se llena. */
+.tsec{margin-bottom:26px}
+.tsec:last-child{margin-bottom:0}
+.tsec-h{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.tsec-n{flex:0 0 auto;width:17px;height:17px;border-radius:4px;background:var(--brand);color:#fff;font-size:9.5px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.tsec-t{font-size:11px;font-weight:700;color:var(--brandd)}
+.tsec ul{padding-left:25px;list-style-position:outside;font-size:10.4px;line-height:1.7;color:var(--ink2)}
+.tsec li{margin-bottom:4px;padding-left:2px}
+.tsec>p{font-size:10.4px;line-height:1.7;color:var(--ink2);padding-left:25px;margin-bottom:5px}
+.tsec u{color:var(--ink);font-weight:600}
+
+/* Aceptación. El apartado 8 dice que el depósito implica la aceptación de todos estos
+   términos, así que la firma no hace falta: se ofrece para quien la quiera. Va al pie de
+   la hoja de términos porque es donde acaba lo que se acepta, y porque ahí quedaban 300 px
+   de papel en blanco al final del documento más importante del paquete. */
+.acepta{flex:0 0 auto;border:1px solid var(--line);border-top:3px solid var(--brand);border-radius:0 0 8px 8px;background:var(--wash);padding:13px 16px 14px}
+.acepta>.lbl{color:var(--brandd)}
+.acepta p{font-size:9.5px;line-height:1.55;color:var(--ink2);margin:5px 0 34px;max-width:640px}
+.acepta-f{display:flex;gap:30px}
+.acepta-f>div{flex:1;border-top:1px solid var(--ink);padding-top:4px;font-size:8.5px;color:var(--ink2)}
+.acepta-f>div:last-child{flex:0 0 160px}
+.acepta-m{font-size:8.5px;color:var(--ink3);margin-top:12px;letter-spacing:.03em}
+
+/* Sello del límite de fabricación · el verde y el rojo son los del taller, no un capricho */
+.sello{display:flex;justify-content:center;margin-bottom:15px}
+.sello-in{border:1.5px solid #8fd3a2;background:#eef9f1;border-radius:9px;padding:11px 30px;text-align:center}
+.sello-in>.lbl{color:#1c6b3c}
+.sello-f{font-size:16px;font-weight:800;color:#c62828;letter-spacing:.05em;line-height:1.15;margin-top:5px}
+
+/* Recibo de pago */
+.rec{display:flex;flex:1 1 auto;min-height:420px;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.rec-tal{width:22%;background:var(--wash);border-right:1.5px dashed var(--line2);padding:13px 12px;display:flex;flex-direction:column}
+/* Los renglones se reparten en el alto del recibo en vez de amontonarse arriba con un
+   vacío de 150 px debajo. Un formato que se llena a mano quiere renglones separados. */
+.rec-campos{flex:1 1 auto;display:flex;flex-direction:column;justify-content:space-evenly;padding:4px 0}
+.rec-campos>*{margin-bottom:0}
+.rec-tal-campos{flex:1 1 auto;display:flex;flex-direction:column;justify-content:space-evenly}
+.rec-tal-campos>.rec-f{margin-bottom:0}
+.rec-logo{flex:0 0 auto}
+.rec-badge{display:inline-block;align-self:flex-start;background:var(--brand);color:#fff;font-size:6.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;padding:3px 7px;border-radius:3px;margin:9px 0 13px}
+.rec-f{margin-bottom:11px}
+.rec-f>.lbl{color:var(--ink3);margin-bottom:3px}
+.rec-l{border-bottom:1px solid var(--ink);min-height:15px;font-size:9px;font-weight:600;overflow:hidden;white-space:nowrap}
+.rec-tal>.pie-h{margin-top:auto;text-align:left;letter-spacing:.03em}
+.rec-b{flex:1;padding:13px 15px;display:flex;flex-direction:column;min-width:0}
+.rec-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
+.rec-t{font-size:13px;font-weight:800;color:var(--ink);letter-spacing:.01em}
+.rec-fecha{display:flex;align-items:stretch;border:1.5px solid var(--brand);border-radius:6px;overflow:hidden;flex:0 0 auto}
+.rec-fecha>b{background:var(--brand);color:#fff;font-size:7.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 10px}
+.rec-fecha>i{background:#fff;width:106px}
+.cas{display:inline-flex;align-items:center;gap:5px;font-size:9px;color:var(--ink);margin-right:15px}
+.cas>b{width:9px;height:9px;border:1.2px solid var(--ink);border-radius:2px;flex:0 0 auto}
+.rline{display:flex;align-items:baseline;gap:7px;margin-bottom:10px;font-size:9px}
+.rline>b{font-weight:700;white-space:nowrap;color:var(--ink)}
+.rline>span{flex:1;border-bottom:1px solid var(--ink);min-height:15px;font-size:9px;font-weight:600;padding:0 4px;overflow:hidden;white-space:nowrap}
+.rfirmas{display:flex;gap:26px;margin-top:auto;padding-top:16px}
+.rfirma{flex:1;text-align:center;border-top:1px solid var(--ink);padding-top:4px;font-size:8px;color:var(--ink2)}
+.rpie{text-align:center;font-size:7.5px;color:var(--ink3);margin-top:9px}
+.rcut{height:1px;border-top:1.5px dashed var(--line2);margin:15px 0;flex:0 0 auto}
+
 @media print{@page{margin:0;size:letter portrait}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style></head><body>
 
@@ -6963,183 +7186,166 @@ ${trozos.map((trozo,ti)=>{
   const filas = trozo.map(filaHTML).join('');
   /* Lo que se cobra sin desglosar, para que la columna de totales cuadre con el subtotal. */
   const filaOculta = (ultima && Math.abs(subOculto)>0.01) ? `
-      <tr class="${idxFila++%2===0?'re':'ro'}"><td>Conceptos adicionales</td><td class="c">—</td><td class="c">—</td><td class="r">—</td><td class="r">${money(subOculto)}</td></tr>` : '';
+      <tr class="${idxFila++%2===0?'re':'ro'}"><td><span class="cn">Conceptos adicionales</span></td><td class="c">—</td><td class="c">—</td><td class="r num">—</td><td class="r num tot">${money(subOculto)}</td></tr>` : '';
   /* La tabla ya no se rellena hasta cuatro filas. Con tres partidas quedaba una banda
      rayada vacía al final que se lee como un renglón que se perdió al imprimir. */
   return `
 <div class="pg">
   ${deco}
-  ${hdr(Q.fecha)}
-  ${prowProyDir()}
+  ${hdr('Cotización',Q.fecha)}
+  ${fichaDatos()}
   <table>
     <thead><tr>
-      <th style="width:38%">Descripción:</th>
-      <th class="c" style="width:16%">Medidas:</th>
-      <th class="c" style="width:9%">Pzas.</th>
+      <th style="width:40%">Descripción</th>
+      <th class="c" style="width:15%">Medidas</th>
+      <th class="c" style="width:8%">Pzas.</th>
       <th class="r" style="width:18%">Precio unitario</th>
       <th class="r" style="width:19%">Total</th>
     </tr></thead>
     <tbody>${filas}${filaOculta}</tbody>
   </table>
-  ${ultima?`<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
-    <div style="width:265px">
-      <div class="t-row"><b>Subtotal:</b><span>${money(subPdf)}</span></div>
-      ${hayAjuste&&ajuste>0.01?`<div class="t-row" style="background:#e5f6ee;color:#0a6b3f;font-weight:700"><b>Descuento:</b><span>− ${money(descSinIva)}</span></div>`:''}
-      ${hayAjuste&&ajuste<-0.01?`<div class="t-row" style="background:#fbf1dd;color:#8a5c0a;font-weight:700"><b>Ajuste:</b><span>+ ${money(-descSinIva)}</span></div>`:''}
-      ${hayAjuste?`<div class="t-row"><b>Subtotal ${ajuste>0?'con descuento':'ajustado'}:</b><span>${money(dFin.sub)}</span></div>`:''}
-      ${Q.iva?`<div class="t-row" style="background:#d8d8f8"><b>I.V.A.:</b><span>${money(dFin.iva)}</span></div>`:''}
-      <div class="t-row" style="background:#3a4ad8;color:#fff;font-weight:700;font-size:12px"><b>${Q.iva?'Total Neto:':'Total:'}</b><span>${money(dFin.neto)}</span></div>
-      ${Q.anti>0?`<div class="t-row" style="background:#eef0fb"><b>Anticipo para arrancar:</b><span>${money(Q.anti)}</span></div>
-      <div class="t-row"><b>Resta al entregar:</b><span>${money(Math.max(0,dFin.neto-Q.anti))}</span></div>`:''}
+  ${ultima?`<div class="cierre">
+    <div class="nota">
+      <span class="lbl">Nota</span>
+      <p>${esc(notaCliente())}</p>
+      ${hayProrrateo?`<small>* Precio unitario prorrateado: el total de la partida es el que manda.</small>`:''}
+    </div>
+    <div class="tot-card">
+      <div class="trow"><span>Subtotal</span><span>${money(subPdf)}</span></div>
+      ${hayAjuste&&ajuste>0.01?`<div class="trow trow-ok"><span>Descuento</span><span>− ${money(descSinIva)}</span></div>`:''}
+      ${hayAjuste&&ajuste<-0.01?`<div class="trow trow-av"><span>Ajuste</span><span>+ ${money(-descSinIva)}</span></div>`:''}
+      ${hayAjuste?`<div class="trow"><span>Subtotal ${ajuste>0?'con descuento':'ajustado'}</span><span>${money(dFin.sub)}</span></div>`:''}
+      ${Q.iva?`<div class="trow trow-iva"><span>I.V.A. 16%</span><span>${money(dFin.iva)}</span></div>`:''}
+      <div class="neto"><span>${Q.iva?'Total neto':'Total'}</span><span>${money(dFin.neto)}</span></div>
+      ${Q.anti>0?`<div class="pago">
+        <span class="lbl">Plan de pago</span>
+        <div class="trow" style="padding:3px 0"><span>Anticipo para arrancar</span><span>${money(Q.anti)}</span></div>
+        <div class="trow" style="padding:3px 0"><span>Resta al entregar</span><span>${money(Math.max(0,dFin.neto-Q.anti))}</span></div>
+      </div>`:''}
     </div>
   </div>
-  <div style="text-align:center;font-size:10px;margin-bottom:12px">
-    <u style="font-weight:700">Nota:</u><br>
-    ${esc(notaCliente())}${hayProrrateo?`<br><span style="font-size:9px">* Precio unitario prorrateado: el total de la partida es el que manda.</span>`:''}
-  </div>
-  ${bloqueImagen(300)}`:`<div style="text-align:center;font-size:9.5px;color:#6b7189;margin-bottom:12px">Las partidas continúan en la hoja siguiente. Los totales van al final.</div>`}
+  ${figura()}`:`<div class="sigue">Las partidas continúan en la hoja siguiente. Los totales van al final.</div>`}
   ${footerCot(ti+1)}
 </div>`;
 }).join('')}
 
-<!-- HOJA DE TÉRMINOS Y CONDICIONES -->
+<!-- HOJA DE TÉRMINOS Y CONDICIONES · los ocho apartados, palabra por palabra.
+     Antes eran ocho párrafos en negrita seguidos de sus viñetas, a 9.5 px, en dos columnas sin
+     separación: una mancha de texto donde no se distinguía dónde acaba un apartado y empieza
+     el siguiente. Ahora cada uno lleva su número en un cuadro azul y las dos columnas van
+     partidas por una línea. El texto no cambió ni una palabra. -->
 <div class="pg">
   ${deco}
-  ${hdr('')}
-  <div style="text-align:center;font-size:17px;font-weight:800;color:#3a4ad8;margin:16px 0 5px;letter-spacing:1px">TÉRMINOS Y CONDICIONES</div>
-  <div style="width:160px;height:2px;background:#3a4ad8;margin:0 auto 18px"></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 26px;font-size:9.5px;line-height:1.55">
-    <div>
-      <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">1. Pagos y Facturación</p>
-      <ul style="padding-left:12px;margin-bottom:12px"><li>50% de anticipo para comenzar fabricación.</li><li>50% al finalizar, debe liquidar en máximo 2 días posterior a la instalación.</li><li><u>Excepción: proyectos mayores a $60,000 MXN.</u></li><li>Si requiere factura, el anticipo es más IVA.</li><li>La cotización es válida por 10 días.</li></ul>
-      <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">2. Requisitos para Instalación</p>
-      <ul style="padding-left:12px;margin-bottom:12px"><li>En caso de que el proyecto lleve iluminación, el cliente debe proporcionar salida eléctrica detrás de donde se instalará el anuncio.</li><li>Área limpia, accesible y segura.</li><li>El cliente debe gestionar accesos, permisos y condiciones necesarias.</li><li>Cualquier retraso por falta de esto será responsabilidad del cliente.</li></ul>
-      <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">3. Modificaciones</p>
-      <ul style="padding-left:12px;margin-bottom:12px"><li>Cambios al diseño aprobado pueden generar costos y retrasos.</li><li>Deben ser autorizados previamente.</li><li>AL3D no responde por fallas si el cliente exige cambios fuera de especificación.</li></ul>
-      <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">4. Garantías</p>
-      <ul style="padding-left:12px"><li>1 año en material eléctrico.</li><li>2 años en colorimetría.</li><li>Se atiende según disponibilidad del equipo.</li><li>No aplica si fue instalado/modificado por terceros o expuesto a condiciones extremas.</li></ul>
+  ${hdr('Términos y condiciones','')}
+  <div class="tt">
+    <div class="tt-col">${TERMINOS.slice(0,4).map((t,i)=>tsec(i+1,t)).join('')}</div>
+    <div class="tt-div"></div>
+    <div class="tt-col">${TERMINOS.slice(4).map((t,i)=>tsec(i+5,t)).join('')}</div>
+  </div>
+  <div class="acepta">
+    <span class="lbl">Aceptación</span>
+    <p>El depósito del anticipo implica la aceptación de estos términos (apartado 8). Si prefieres dejarla firmada, aquí:</p>
+    <div class="acepta-f">
+      <div>Nombre y firma del cliente</div>
+      <div>Fecha</div>
     </div>
-    <div>
-      <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">5. Cancelaciones y Penalizaciones</p>
-      <ul style="padding-left:12px;margin-bottom:12px"><li>El anticipo no es reembolsable.</li><li>Si se cancela con el proyecto iniciado o materiales comprados, se debe pagar el 100%.</li><li>Después de 10 días sin pago, AL3D puede retirar el anuncio.</li></ul>
-      <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">6. Uso y Responsabilidad</p>
-      <p style="margin-bottom:3px">AL3D no se hace responsable por:</p>
-      <ul style="padding-left:12px;margin-bottom:12px"><li>Uso indebido o manipulación externa a nosotros.</li><li>Clima extremo.</li><li>Fallas estructurales del inmueble.</li></ul>
-      <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">7. Permisos</p>
-      <ul style="padding-left:12px;margin-bottom:12px"><li>El cliente debe tramitar los permisos.</li><li>AL3D no se hace responsable por multas o clausuras.</li></ul>
-      <p style="font-weight:700;font-size:10.5px;margin-bottom:4px">8. Consentimiento y Uso de Imágenes</p>
-      <ul style="padding-left:12px"><li><u>El depósito implica aceptación de todos estos términos.</u></li><li>El cliente autoriza a AL3D a usar imágenes del proyecto con fines promocionales y de portafolio.</li></ul>
-    </div>
+    <div class="acepta-m">${esc(Q.folio)}${Q.folio?' &nbsp;·&nbsp; ':''}${Q.iva?'Total neto':'Total'} ${money(dFin.neto)}</div>
   </div>
   ${footer([{label:'WhatsApp',val:esc(EMPRESA.whatsapp)},{label:'Dirección de la oficina',val:esc(EMPRESA.oficina)}],HOJA_TERMINOS)}
 </div>
 
-<!-- HOJA DE ORDEN DE TRABAJO · la del taller, sin precios · solo si hay límite (hayLimite) -->
-${hayLimite?(()=>{
-  /* La imagen solo si le queda hoja. Cuando la tabla es larga se omite y no se pierde nada:
-     la misma imagen ya va impresa en la hoja de cotización, unas páginas antes. */
-  const altoFilas = Q.items.reduce((s,it)=>s+altoFila(it),0);
-  const imgTrab = altoFilas<=420 ? bloqueImagen(240) : '';
+<!-- HOJAS DE ORDEN DE TRABAJO · la del taller, sin precios · solo si hay límite (hayLimite)
+     La nota, el sello del límite y el plano cierran en la última, igual que los totales en la
+     cotización: repetir el sello en cada hoja es la forma de que dos hojas de la misma orden
+     digan fechas distintas cuando alguien corrige una y no la otra. -->
+${trozosOT.map((trozo,ti)=>{
+  const ultima = ti===trozosOT.length-1;
   return `
 <div class="pg">
   ${deco}
-  ${hdr(Q.fecha)}
-  <div style="text-align:center;font-size:15px;font-weight:800;color:#3a4ad8;margin:2px 0 4px;letter-spacing:.06em">ORDEN DE TRABAJO</div>
-  <div style="width:130px;height:2px;background:#3a4ad8;margin:0 auto 14px"></div>
-  ${prowProyDir()}
+  ${hdr('Orden de trabajo',Q.fecha)}
+  ${fichaDatos()}
   <table>
     <thead><tr>
-      <th style="width:60%">Descripción:</th>
-      <th class="c" style="width:25%">Medidas:</th>
-      <th class="c" style="width:15%">Pzas.</th>
+      <th style="width:58%">Descripción</th>
+      <th class="c" style="width:26%">Medidas</th>
+      <th class="c" style="width:16%">Pzas.</th>
     </tr></thead>
-    <tbody>${Q.items.map((it,i)=>`
+    <tbody>${trozo.map((it,i)=>`
       <tr class="${i%2===0?'re':'ro'}"><td>${desc(it)}</td><td class="c">${med(it)}</td><td class="c">${pzas(it)}</td></tr>`).join('')}</tbody>
   </table>
-  <div style="text-align:center;font-size:10px;margin-bottom:14px"><u style="font-weight:700">Nota:</u><br>${esc(notaCliente())}</div>
-  <div style="text-align:center;margin-bottom:14px">
-    <span style="display:inline-block;background:#8ef29b;color:#12331a;font-weight:800;font-size:12.5px;padding:5px 18px;border-radius:5px">Límite de fabricación</span><br>
-    <span style="display:inline-block;background:#8ef29b;color:#d92626;font-weight:800;font-size:13.5px;padding:5px 18px;border-radius:5px;margin-top:4px">${esc((Q.entrega||'').trim())}</span>
-  </div>
-  ${imgTrab}
-  ${footerCot(HOJA_TRABAJO)}
-</div>`;})():''}
+  ${ultima?`<div class="nota"><span class="lbl">Nota</span><p>${esc(notaCliente())}</p></div>
+  <div class="sello"><div class="sello-in">
+    <span class="lbl">Límite de fabricación</span>
+    <div class="sello-f">${esc((Q.entrega||'').trim())}</div>
+  </div></div>
+  ${figura()}`:`<div class="sigue">Las partidas continúan en la hoja siguiente.</div>`}
+  ${footerCot(HOJA_TRABAJO+ti)}
+</div>`;}).join('')}
 
-<!-- HOJA DE ORDEN DE INSTALACIÓN · solo si trae teléfono o entre calles (ver hayInstal) -->
+<!-- HOJA DE ORDEN DE INSTALACIÓN · solo si trae teléfono o entre calles (ver hayInstal)
+     Lleva el plano: quien va a instalar necesita ver qué está instalando, y sin él la hoja
+     eran dos datos arriba y tres cuartos de papel en blanco. Es la misma imagen del documento,
+     no una nueva. hayInstal es un O, así que con solo uno de los dos datos la otra celda
+     desaparece en vez de salir rotulada y vacía. -->
 ${hayInstal?`
 <div class="pg">
   ${deco}
-  ${hdr(Q.fecha)}
-  <div style="text-align:center;font-size:15px;font-weight:800;color:#3a4ad8;margin:2px 0 4px;letter-spacing:.06em">ORDEN DE INSTALACIÓN</div>
-  <div style="width:130px;height:2px;background:#3a4ad8;margin:0 auto 14px"></div>
-  ${prowProyDir()}
-  <!-- hayInstal es un O: con solo uno de los dos datos, la otra celda salía rotulada y en
-       blanco. Cada mitad aparece si trae algo, y sola toma el ancho entero. -->
-  <div style="display:flex;margin-bottom:8px;border:1.5px solid #3a4ad8;border-radius:4px;overflow:hidden">
-    ${(Q.tel||'').trim()?`<div style="display:flex;flex:1">
-      <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Teléfono:</span>
-      <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(Q.tel)}</span>
-    </div>`:''}
-    ${(Q.entrecalles||'').trim()?`<div style="display:flex;flex:1${(Q.tel||'').trim()?';border-left:1.5px solid #3a4ad8':''}">
-      <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10.5px;padding:7px 10px;white-space:nowrap">Entre calles:</span>
-      <span style="background:#d8d8f8;padding:7px 10px;flex:1;font-size:10.5px">${esc(Q.entrecalles)}</span>
-    </div>`:''}
+  ${hdr('Orden de instalación',Q.fecha)}
+  ${fichaDatos()}
+  <div class="datos">
+    ${(Q.tel||'').trim()?`<div class="dato"><span class="lbl">Teléfono</span><span class="val">${esc(Q.tel)}</span></div>`:''}
+    ${(Q.entrecalles||'').trim()?`<div class="dato"><span class="lbl">Entre calles</span><span class="val">${esc(Q.entrecalles)}</span></div>`:''}
   </div>
+  <div class="nota"><span class="lbl">Nota</span><p>${esc(notaCliente())}</p></div>
+  ${figura()}
   ${footerCot(HOJA_INSTAL)}
 </div>`:''}
 
 <!-- HOJA DE RECIBO DE PAGO · dos recibos con talón · solo si hay anticipo (hayRecibo) -->
 ${hayRecibo?(()=>{
-  const casilla = etq => `<span style="display:inline-block;width:9px;height:9px;border:1.2px solid #1a1a2e;margin:0 5px -1px 0"></span><span style="font-size:9.5px">${etq}</span>`;
-  const campo = (etq,val,ancho) => `<div style="margin-bottom:8px;font-size:9.5px;white-space:nowrap">${etq} <span style="display:inline-block;border-bottom:1px solid #1a1a2e;width:${ancho};padding:0 4px;font-weight:600;font-size:9.5px">${val||'&nbsp;'}</span></div>`;
+  const cas = etq => `<span class="cas"><b></b>${etq}</span>`;
+  const rl  = (etq,val) => `<div class="rline"><b>${etq}</b><span>${val||''}</span></div>`;
   const recibo = () => `
-  <div style="display:flex;gap:0;border:1px solid #d0d4e8;border-radius:8px;overflow:hidden;min-height:452px">
-    <!-- Talón, copia del negocio -->
-    <div style="width:23%;background:#f2f4fb;padding:12px 11px;border-right:1.5px dashed #9999bb">
-      <div style="margin-bottom:9px">${logoH}</div>
-      <div style="background:#3a4ad8;color:#fff;font-size:8px;font-weight:700;padding:3px 6px;border-radius:3px;display:inline-block;margin-bottom:11px">TALÓN — COPIA NEGOCIO</div>
-      <div style="font-size:8.5px;font-weight:700;margin-bottom:1px">FECHA</div>
-      <div style="border-bottom:1px solid #1a1a2e;height:13px;margin-bottom:9px"></div>
-      <div style="font-size:8.5px;font-weight:700;margin-bottom:1px">CLIENTE</div>
-      <div style="border-bottom:1px solid #1a1a2e;height:13px;margin-bottom:9px;font-size:8.5px;font-weight:600;overflow:hidden">${esc(Q.cliente)}</div>
-      <div style="font-size:8.5px;font-weight:700;margin-bottom:1px">MONTO $</div>
-      <div style="border-bottom:1px solid #1a1a2e;height:13px;margin-bottom:11px"></div>
-      ${Q.folio?`<div style="font-size:8px;color:#6b7189;margin-bottom:6px">${esc(Q.folio)}</div>`:''}
-      <div style="font-size:8px;color:#6b7189">Conserve este talón.</div>
+  <div class="rec">
+    <div class="rec-tal">
+      <div class="rec-logo">${logoH}</div>
+      <span class="rec-badge">Talón — copia negocio</span>
+      <div class="rec-tal-campos">
+        <div class="rec-f"><span class="lbl">Fecha</span><div class="rec-l"></div></div>
+        <div class="rec-f"><span class="lbl">Cliente</span><div class="rec-l">${esc(Q.cliente)}</div></div>
+        <div class="rec-f"><span class="lbl">Monto $</span><div class="rec-l"></div></div>
+      </div>
+      <div class="pie-h">${Q.folio?esc(Q.folio)+' · ':''}Conserve este talón.</div>
     </div>
-    <!-- Recibo, copia del cliente -->
-    <div style="flex:1;padding:12px 14px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <div style="display:flex;align-items:center;gap:9px">${logoH}<span style="font-size:14px;font-weight:800;color:#1a1a2e">Recibo de Pago</span></div>
-        <div style="display:flex;align-items:center;border:1.5px solid #3a4ad8;border-radius:6px;overflow:hidden">
-          <span style="background:#3a4ad8;color:#fff;font-weight:700;font-size:10px;padding:5px 11px">Fecha</span>
-          <span style="background:#fff;width:112px;padding:5px 8px">&nbsp;</span>
-        </div>
+    <div class="rec-b">
+      <div class="rec-h">
+        <div style="display:flex;align-items:center;gap:10px">${logoH}<span class="rec-t">Recibo de pago</span></div>
+        <div class="rec-fecha"><b>Fecha</b><i></i></div>
       </div>
-      <div style="height:2px;background:#3a4ad8;margin-bottom:10px"></div>
-      <div style="margin-bottom:9px;font-size:9.5px"><b>Concepto:</b> &nbsp;${casilla('Anticipo')} &nbsp;&nbsp;${casilla('Liquidación')}</div>
-      ${campo('<b>Recibí de:</b>',esc(Q.cliente),'330px')}
-      ${campo('<b>La cantidad de $</b>','','300px')}
-      ${campo('<b>(con letra):</b>','','330px')}
-      ${campo('<b>Proyecto:</b>',esc(Q.proy),'340px')}
-      <div style="margin-bottom:9px;font-size:9.5px"><b>Forma de pago:</b> &nbsp;${casilla('Efectivo')} &nbsp;&nbsp;${casilla('Transferencia')} &nbsp;&nbsp;${casilla('Tarjeta')}</div>
-      ${campo('<b>Saldo pendiente: $</b>','','290px')}
-      <div style="display:flex;justify-content:space-around;margin-top:100px;gap:26px">
-        <div style="flex:1;text-align:center"><div style="border-top:1px solid #1a1a2e;padding-top:3px;font-size:8.5px">Entregué (cliente)</div></div>
-        <div style="flex:1;text-align:center"><div style="border-top:1px solid #1a1a2e;padding-top:3px;font-size:8.5px">Recibí — AL3D</div></div>
+      <div class="rule"></div><div class="rule2" style="margin-bottom:11px"></div>
+      <div class="rec-campos">
+        <div class="rline"><b>Concepto</b><span style="border:0;flex:0 0 auto;padding:0">${cas('Anticipo')}${cas('Liquidación')}</span></div>
+        ${rl('Recibí de',esc(Q.cliente))}
+        ${rl('La cantidad de $','')}
+        ${rl('(con letra)','')}
+        ${rl('Proyecto',esc(Q.proy))}
+        <div class="rline"><b>Forma de pago</b><span style="border:0;flex:0 0 auto;padding:0">${cas('Efectivo')}${cas('Transferencia')}${cas('Tarjeta')}</span></div>
+        ${rl('Saldo pendiente $','')}
       </div>
-      <div style="text-align:center;font-size:8px;color:#6b7189;margin-top:9px">Este recibo no sustituye comprobante fiscal · Whatsapp ${esc(EMPRESA.whatsapp)}</div>
+      <div class="rfirmas">
+        <div class="rfirma">Entregué (cliente)</div>
+        <div class="rfirma">Recibí — AL3D</div>
+      </div>
+      <div class="rpie">Este recibo no sustituye comprobante fiscal &nbsp;·&nbsp; Whatsapp ${esc(EMPRESA.whatsapp)}</div>
     </div>
   </div>`;
   return `
 <div class="pg">
   ${recibo()}
-  <div style="border-top:1.5px dashed #9999bb;margin:16px 0"></div>
+  <div class="rcut"></div>
   ${recibo()}
-  ${footer([
-    {label:'Vendedor:',val:esc(vendedorPdf)},
-    {label:'WhatsApp',val:esc(EMPRESA.whatsapp)}
-  ],HOJA_RECIBO)}
+  ${footer([{label:'Vendedor',val:esc(vendedorPdf)},{label:'WhatsApp',val:esc(EMPRESA.whatsapp)}],HOJA_RECIBO)}
 </div>`;})():''}
 
 </body></html>`;
