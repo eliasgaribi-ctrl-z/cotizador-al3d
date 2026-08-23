@@ -329,3 +329,81 @@
 /* La barra fija del teléfono. Mismo esqueleto que la del cotizador. */
 .pf-mbar{gap:var(--e2)}
 .pf-mbar .btn{flex:1;margin:0}
+
+/* ============================================================================
+   Inicio — lo que la pantalla de «Hoy» necesitaba y no existía todavía
+   ============================================================================ */
+
+/* La banda de frescura cuando NO hay nada que advertir. La versión de ámbar ya existe y es
+   .pf-banda; esta es su cara tranquila, y tranquila quiere decir chica y sin caja: una
+   franja verde con borde diciendo «al día» todos los días es una felicitación diaria que se
+   deja de leer, y el día que se vuelva ámbar nadie va a notar el cambio. */
+.pf-frescura{display:flex;align-items:center;gap:var(--e2);margin-bottom:var(--e4);
+  font:500 var(--t2)/1.4 inherit;color:var(--muted)}
+
+/* La tarjeta de A6 reusa .cand-partidas del cotizador completa —el ámbar, el barro y el
+   latido de 2.6 s— porque es exactamente el mismo mensaje: «esto pide que hagas algo antes
+   de seguir». Lo único que cambia es la caja: allá es UN renglón que se toca completo, aquí
+   son N cotizaciones con dos botones cada una, así que deja de ser una línea flex y deja de
+   ser un botón. El latido tampoco se apaga al pasar el ratón, porque aquí el ratón no
+   activa la tarjeta: lo que se toca son los botones de adentro, y quitarle el latido al
+   pasar por encima haría creer que ya se atendió. */
+.pf-decidir{display:block;cursor:default}
+.pf-decidir:hover{transform:none;animation:latido 2.6s ease-in-out infinite}
+.pf-decidir .pf-fila{border-top-color:var(--av-borde)}
+/* El cuadro del icono va en el tono de tarjeta y no en --av-bg: sobre el ámbar de esta
+   tarjeta, ámbar sobre ámbar no se distingue y el icono desaparecía. */
+.pf-decidir .pf-fila-ico{background:var(--card)}
+
+/* Dos botones en un renglón: el margen de arriba de .btn+.btn los descuadra —el hermano sin
+   margen se estira al alto de la fila y el otro queda 8 px más abajo y 8 px más chico—, que
+   es el mismo problema que .btn-fila resuelve en el cotizador. Estos dos contenedores ya
+   separan con `gap`, así que el margen sobra en los dos ejes. */
+.pf-fila-acc .btn+.btn,.pf-panel-f .btn+.btn{margin-top:0}
+
+/* La verdad del final, en letra chica y sin adornos. Con la caja gris de .hintnote se
+   leería como un consejo, y esto no es un consejo: es cómo funciona el sistema. */
+.pf-nota{margin-top:var(--e4);font:400 var(--t1)/1.55 inherit;color:var(--muted)}
+
+/* ============================================================================
+   Proyectos — lo que el tablero por etapa necesitaba
+   ============================================================================ */
+
+/* La etapa que faltaba de las ocho. Ámbar, que en la leyenda de arriba es «está en el
+   taller», que es exactamente lo que es «en diseño»: ya se vendió y todavía no se corta.
+   `garantia` y `cancelado` no llevan clase propia porque no son pasos del camino sino
+   salidas de él, y para eso ya está el gris de `.pf-etapa.cerrado`. */
+.pf-etapa.en_diseno{background:var(--av-bg);color:var(--av)}
+
+/* El semáforo de un renglón: el material del proyecto y la fecha que le falta. Existe
+   .mat-conf, del mismo tamaño y con las mismas cajas de color, pero contesta otra pregunta
+   —qué tan confiable es un cálculo— y reusarla obligaba a leer «requiere_dato» como «falta
+   material». Y hacía falta el rojo: a tres días de instalar, «faltan 2 materiales» ya no es
+   un aviso, es un problema. Siempre con palabra: el color solo no dice nada a uno de cada
+   doce hombres, y esto se lee para decidir si hay que ir a la vidriería hoy. */
+.pf-sem{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:var(--rr1);
+  font:700 var(--t1)/17px inherit;white-space:nowrap}
+.pf-sem.ok{background:var(--ok-bg);color:var(--ok)}
+.pf-sem.falta{background:var(--av-bg);color:var(--av)}
+.pf-sem.grave{background:var(--mal-bg);color:var(--mal)}
+.pf-sem.nada{background:var(--n2);color:var(--n7)}
+
+/* ----- Imprimir la orden de trabajo -----
+   El @media print de más arriba esconde .pf-modal-bg, y con razón: imprimir la app con el
+   velo azul encima no es imprimir nada. Pero la orden de trabajo VIVE en un modal, así que
+   fabricación apretaba imprimir y salía una hoja en blanco. La clase se pone en <body>
+   justo antes de window.print() y se quita en 'afterprint': mientras está, se imprime SOLO
+   el panel —sin velo, sin sombra, sin los dos botones del pie— y el resto del documento no
+   existe. Sin `position:static` el panel sale recortado al alto de la ventana, que es lo
+   que hace un `position:fixed` en papel. */
+@media print{
+  body.pf-print-hoja>*{display:none!important}
+  body.pf-print-hoja>#pf-hoja{display:block!important;position:static;inset:auto;padding:0;
+    background:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+  body.pf-print-hoja #pf-hoja .pf-panel{max-width:none;max-height:none;box-shadow:none;
+    border-radius:0;overflow:visible}
+  body.pf-print-hoja #pf-hoja .pf-panel-b{overflow:visible;padding:0}
+  body.pf-print-hoja #pf-hoja .pf-panel-h{padding-left:0;padding-right:0}
+  body.pf-print-hoja #pf-hoja .pf-panel-f,
+  body.pf-print-hoja #pf-hoja .pf-cerrar{display:none!important}
+}
