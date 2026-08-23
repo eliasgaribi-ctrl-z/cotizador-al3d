@@ -401,6 +401,12 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:calc
   .topbar-in .seg{order:3;flex:1 1 150px;width:auto}
   .topbar-in .seg button{flex:1;padding:0 10px;min-height:40px;font-size:12.5px}
   .topbar-in .btn-hist{order:4;flex:0 0 auto;padding:0 12px;min-height:40px}
+  /* El enlace a la plataforma pierde su palabra en cuanto la pantalla es de teléfono, no a
+     los 385 px como «Historial»: son dos controles y con los dos escritos el renglón del
+     folio y el selector de rol ya no cabía. Un tercer renglón en esta barra es el error que
+     esta hoja ya arregló una vez —está tres bloques más abajo— y no se vuelve a cometer. */
+  .topbar-in .btn-pf .lbl{display:none}
+  .topbar-in .btn-pf{order:5;padding:0;width:42px;display:inline-flex;align-items:center;justify-content:center}
   .topbar-in{row-gap:7px}
 }
 /* En las pantallas angostas —iPhone SE, 13 mini— la palabra «Historial» era justo lo
@@ -410,6 +416,18 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:calc
 @media(max-width:385px){
   .topbar-in .btn-hist .lbl{display:none}
   .topbar-in .btn-hist{padding:0;width:42px;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
+  /* Y aquí ya no cabe ni el icono. Se midió: el renglón útil de una pantalla de 360 px son
+     336 px, y el selector de rol solo —con la palabra «Autorizador» dentro— pide 190 px de
+     contenido mínimo que ningún flex-basis puede bajar. Sumando el folio y el historial,
+     el enlace a la plataforma no entra.
+
+     Así que en la pantalla más angosta el enlace se va, y NO se queda sin camino: al
+     registrar una venta el aviso trae su propio botón «Abrir plataforma», que es el momento
+     en que de verdad se quiere saltar; y la plataforma se agrega a la pantalla de inicio
+     con su propio icono, porque tiene su propio manifiesto. Preferir un tercer renglón
+     pegado arriba de TODAS las pantallas, para siempre, a cambio de un atajo que se usa una
+     vez por venta, es el mal negocio que esta hoja ya hizo una vez. */
+  .topbar-in .btn-pf{display:none}
 }
 /* Nada de zoom por doble toque ni destello gris al tocar: en el celular ese medio
    segundo de espera del navegador hace que la app se sienta lenta. */
@@ -887,6 +905,11 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 /* ----- Historial ----- */
 .btn-hist{background:none;border:1.5px solid var(--line);border-radius:10px;padding:6px 13px;font-size:12px;font-weight:700;color:var(--brand);cursor:pointer;transition:.15s;white-space:nowrap}
 .btn-hist:hover{background:var(--soft-2);border-color:var(--brand)}
+/* El enlace a la plataforma es un <a> para que se pueda abrir en otra pestaña y para que el
+   lector de pantalla lo anuncie como lo que es. Pero el navegador le pone su subrayado y su
+   azul de enlace con a:link, que es más específico que .btn-hist: sin esto, dos controles
+   que hacen lo mismo se ven distintos y el de la derecha parece de otra app. */
+a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .hist-panel{background:#fff;border-radius:20px;max-width:720px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;
   max-height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
 .hist-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),#fff);border-radius:var(--rr4) var(--rr4) 0 0;flex-shrink:0}
@@ -2161,7 +2184,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
            este archivo tiene 27 declaraciones env(safe-area-inset-*) y dentro de un iframe
            todas valen 0, así que el botón principal quedaría debajo del indicador de inicio
            del iPhone. Y son 690 KB duplicados en la memoria de un celular. -->
-      <a class="btn-hist" href="plataforma.html#/hoy" title="Agenda, material y mapa de obra"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg><span class="lbl"> Plataforma</span></a>
+      <a class="btn-hist btn-pf" href="plataforma.html#/hoy" title="Agenda, material y mapa de obra" aria-label="Abrir la plataforma: agenda, material y mapa de obra"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg><span class="lbl"> Plataforma</span></a>
       <span class="folio" id="folio">COT-0001</span>
       <div class="seg" id="roleseg" role="group" aria-label="Rol con el que trabajas" title="Cambia de rol para ver el flujo de autorización">
         <button class="on" aria-pressed="true" data-rol="vendedor" onclick="setRol('vendedor')">Vendedor</button>
@@ -8821,7 +8844,7 @@ function copiarFilaVenta(){
     proyecto,abonoComision,anti,comRestante,com,cuenta,estatus,
     fecha,'',fechaLiq,iva,liquidacion,pend,neto,sub
   ].join('\t');
-  copiarTexto(row,'Fila copiada — pégala en la hoja Ventas',()=>{ document.getElementById('rv-copied').classList.add('show'); });
+  copiarTexto(row,'Fila copiada — pégala en la base Ventas - AL3D de Notion',()=>{ document.getElementById('rv-copied').classList.add('show'); });
 }
 /* ----- «Esta cotización se ganó» -----
    El evento que no existía en ningún sistema. El modal ya capturaba todo lo que hace falta
@@ -10091,7 +10114,7 @@ function vtUsarComoPartidas(){
 <div class="rv-modal-bg" id="rv-modal-bg" onclick="if(event.target===this)cerrarRegistrarVenta()" role="dialog" aria-modal="true" aria-label="Registrar venta en Google Sheets">
   <div class="rv-modal">
     <div class="rv-header">
-      <h2><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg> Registrar Venta en Google Sheets</h2>
+      <h2><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg> Registrar venta</h2>
       <button class="btn btn-gho" onclick="cerrarRegistrarVenta()" aria-label="Cerrar"><svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg></button>
     </div>
     <div class="rv-body">
@@ -10131,11 +10154,11 @@ function vtUsarComoPartidas(){
                guardia de más abajo, así que un teléfono que tenía «Otra» simplemente no la
                aplica y se queda con la primera. -->
           <select id="rv-cuenta">
+            <option>Elias BBVA</option>
+            <option>Constru BNT</option>
             <option>Moni MPago</option>
             <option>Rul HSBC</option>
             <option>Tatis BNT</option>
-            <option>Constru BNT</option>
-            <option>Elias BBVA</option>
           </select>
         </div>
         <div class="rv-field">
@@ -10174,13 +10197,13 @@ function vtUsarComoPartidas(){
       </div>
     </div>
     <div class="rv-footer">
-      <div class="rv-copied" id="rv-copied"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg><span>Fila copiada — pégala en la hoja <b>Ventas</b> de Google Sheets</span></div>
+      <div class="rv-copied" id="rv-copied"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg><span>Fila copiada — pégala en la base <b>Ventas - AL3D</b> de Notion</span></div>
       <!-- Este botón va ANTES del de copiar porque es el que de verdad hay que apretar: el
            de copiar deja la fila en el portapapeles y nada más; este deja constancia de que
            la cotización se ganó, que es el dato que no existía en ningún sistema. Se queda
            el de copiar, para siempre, como camino manual: es lo que ya funciona. -->
-      <button class="btn btn-ok" onclick="registrarGanada()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Registrar como proyecto ganado</button>
-      <button class="btn btn-pri" onclick="copiarFilaVenta()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar fila para Google Sheets</button>
+      <button class="btn btn-pri" onclick="registrarGanada()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Registrar como proyecto ganado</button>
+      <button class="btn btn-gho" onclick="copiarFilaVenta()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar fila para Notion</button>
       <button class="btn btn-gho" onclick="cerrarRegistrarVenta()">Cancelar</button>
     </div>
   </div>

@@ -850,6 +850,12 @@ Dos proyectos que piden 0.484 y 0.700 láminas con 0.5 en almacén: agregado = *
 
 ### 6.6 El ejemplo obligado, de punta a punta
 
+> **Corrección al documento (23/ago/2026).** Las dos filas de piezas contadas —LED y
+> separadores— decían 0.44 y 0.64: se habían escrito sin el paso de la merma, aunque el
+> §6.4 dice que la conversión es pareja para todo material y la semilla les declara 3% con
+> su origen. Los valores correctos son **0.45 caja** y **0.66 bolsa**, y son los que la
+> prueba `pruebas/material.mjs` exige. Un módulo LED sí se rompe al soldarlo.
+
 **8 letras de 40 cm de acero inoxidable, rectas, con luz fría.** Venta: `$55 × 40 × 8 = $17,600`.
 
 | paso | cuenta | resultado |
@@ -861,9 +867,9 @@ Dos proyectos que piden 0.484 y 0.700 láminas con 0.5 en almacén: agregado = *
 | Perímetro | 4.0 × 40 × 8 | 1 280 cm |
 | Canto (aprov tiras 0.90) | 12.8 / 0.90 | 14.22 m |
 | + merma 15 % | 14.22 / 0.85 | 16.73 m → **0.29 lámina** de `fleje-inox` |
-| Módulos LED 6500 K | ceil(0.96 × 45) | 44 → **0.44 caja** |
+| Módulos LED 6500 K | ceil(0.96 × 45) = 44, ÷ 0.97 merma | 45.36 → **0.45 caja** |
 | Fuentes | ceil(44 × 0.72 / 48) | **1 pza** |
-| Separadores | 4 × 8 = 32 pza | **0.64 bolsa** |
+| Separadores | 4 × 8 = 32 pza, ÷ 0.97 merma | 32.99 → **0.66 bolsa** |
 | Silicón | 12.8 m / 12 | **1.07 unidad** |
 
 Y la pantalla **no dice "0.54 láminas"**. Dice lo que se pregunta:
