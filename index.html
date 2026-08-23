@@ -971,7 +971,19 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
    regla que ya sigue el resto de la app: un botón que se queda a la vista para negarse
    sigue diciendo «esto ya se puede». Va después de las media queries de la barra a
    propósito: con la misma especificidad, el que manda es el último. */
-.btn-undo{padding:6px 11px}
+/* ----- Solo el icono, en todos los anchos -----
+   En esta barra ya conviven Clientes, Historial y Plataforma, cada uno con su palabra, más el
+   folio y el selector de rol. Medido: con «Deshacer» escrito la fila se parte a 921 y a
+   960 px —la barra fija pasa de 64 a 116— y la palabra solo cabe de 1000 px para arriba.
+   Solo el icono cabe en TODOS los anchos, así que se queda el icono y no un umbral más que
+   volver a ajustar la próxima vez que alguien agregue un botón aquí; que es exactamente lo
+   que acaba de pasar dos veces.
+   Y no es un consuelo: la flecha que vuelve es de los pocos iconos que se leen sin etiqueta
+   —está en todos los editores del mundo—, mientras que Clientes, Historial y Plataforma son
+   destinos y sí necesitan su palabra para distinguirse. El nombre completo, con el atajo, va
+   en el title y en el aria-label. */
+.btn-undo{padding:0;width:42px;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
+.btn-undo .lbl{display:none}
 .btn-undo.oculto{display:none}
 /* ----- Por qué deshacer NO vive arriba en el teléfono -----
    Se midió: a 375 px la fila de controles ya va con 8 px de sobra —folio 73, selector de rol
