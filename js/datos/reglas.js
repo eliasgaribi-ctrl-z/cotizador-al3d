@@ -459,7 +459,13 @@ function a9(E, out) {
     out.push(aviso('A9', String(id), {
       tono: 'av',
       titulo: (x.nombre || id) + ' está bajo mínimo',
-      detalle: 'Quedan ' + cuanto(hay, x.unidad_compra) + ' y el mínimo es ' + min + '.' +
+      /* «Quedan -1.47 unidades» es aritméticamente correcto y se lee como un error del
+         programa. Si el libro está bajo cero, lo que hay que decir es que no hay nada y que
+         el libro está incompleto, no un número negativo. */
+      detalle: (hay > 0
+        ? 'Quedan ' + cuanto(hay, x.unidad_compra) + ' y el mínimo es ' + min + '.'
+        : 'No queda nada' + (hay < 0 ? ' (y el libro va ' + cuanto(-hay, x.unidad_compra) + ' abajo)' : '') +
+          ' y el mínimo es ' + min + '.') +
         (x.derivado ? ' Y nunca se ha contado, así que puede ser peor.' : ''),
       cuando: x.sello || '',
       plazo: 0,

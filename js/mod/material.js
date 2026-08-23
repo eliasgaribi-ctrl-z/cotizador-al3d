@@ -32,8 +32,7 @@ import * as Proy from '../datos/proyectos.js';
 import * as Agenda from '../datos/agenda.js';
 import {
   $, esc, money, cant, plural, ico, toast, avisarResultado, vacio, segmento,
-  abrirCapa, cerrarCapa, linkWa, fmtFecha, cuando, diasHasta, hoyISO, ajustarAltoBarra,
-} from '../nucleo/ui.js';
+  abrirCapa, cerrarCapa, linkWa, fmtFecha, cuando, diasHasta, hoyISO, ajustarAltoBarra, cantHay } from '../nucleo/ui.js';
 
 /* ============================================================================
    Estado del módulo. Todo aquí, y todo se suelta en desmontar().
@@ -469,7 +468,9 @@ function filaCompra(l) {
     ? '<div class="mat-cant falta">?<small>falta un dato</small></div>'
     : '<div class="mat-cant' + (comprar > 0 ? ' falta' : ' cero') + '">' +
         esc(comprar > 0 ? uc(comprar, l.unidad_compra) : '0 ' + un(0, l.unidad_compra)) +
-        '<small>' + esc('hay ' + cant(l.disponible) + ' · piden ' + cant(l.requerido)) + '</small>' +
+        /* `cantHay` y no `cant`: la existencia puede ser negativa —material consumido que nunca
+           se registró como entrada— y «hay -0.31» se lee como un error del programa. */
+        '<small>' + esc('hay ' + cantHay(l.disponible) + ' · piden ' + cant(l.requerido)) + '</small>' +
       '</div>';
 
   return '<div class="mat-fila">' +
