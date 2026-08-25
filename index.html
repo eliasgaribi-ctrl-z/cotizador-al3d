@@ -2162,7 +2162,12 @@ body{
     0 0 0 1px rgba(var(--pc-rgb),.22);
   font-weight:650;
 }
-.partida .chip.on small{color:var(--pc);opacity:.8}
+/* La tarifa del catálogo dentro del chip elegido, sin opacidad. Al 80 % quedaba en 4,01:1
+   sobre el relleno del propio chip —medido, y falla en cinco de los seis matices— y es un
+   número con dinero: de lo que más se lee de un chip. La jerarquía contra la etiqueta ya la
+   hacía el tamaño, así que la opacidad no ordenaba nada, solo quitaba contraste. Sin ella
+   el peor caso es 5,90:1. */
+.partida .chip.on small{color:var(--pc)}
 .partida .chip.on .ck{color:var(--pc)}
 .partida .chip:hover:not(.on):not([aria-disabled]){background:linear-gradient(168deg,#fff,var(--pc-sv))}
 /* Dentro del hueco, el chip sin elegir tiene que verse SALIENDO de él: es la cuarta capa
@@ -2220,7 +2225,16 @@ body{
   border:1px solid rgba(255,255,255,.6);
 }
 .partida .pbody>:is(.grid2,.grid3)>.fld{margin-bottom:var(--e2)}
-.partida .pbody>.fld>label,.partida .pbody :is(.grid2,.grid3)>.fld>label{color:var(--n6)}
+/* --n7 y no el --n6 de todas las etiquetas de la app, y es una corrección de contraste, no
+   de gusto: --n6 valía sobre blanco, pero el hueco de las medidas ya no es blanco —lleva un
+   7 % del matiz encima del relleno tenue— y ahí --n6 se queda entre 4,22:1 y 4,60:1, o sea
+   por debajo del 4,5 exigido en tres de los seis matices. Y «Altura», «# Letras» y «Tarifa»
+   son justo las palabras que dicen qué se está tecleando.
+   Lo que se mueve es la tinta y no el hueco: aclarar el hueco para salvar el contraste
+   desharía la mitad del arreglo, que es separar el continente de su contenido. Con --n7 el
+   peor caso sube a 7,49:1 y la jerarquía se conserva igual, porque el valor del campo va en
+   --n8 y el título del bloque va en el matiz. */
+.partida .pbody>.fld>label,.partida .pbody :is(.grid2,.grid3)>.fld>label{color:var(--n7)}
 
 /* ---------- Campos: hundidos, como una huella en el barro ---------- */
 input,select,textarea,.inp-money{
@@ -2690,6 +2704,21 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 @media(max-width:1000px){
   /* Un deslizador de 733 a 860 px de largo para elegir entre tres valores. */
   .vt-modal-bg input[type=range]{max-width:400px}
+}
+
+/* ----- Arrastrar una partida: el filete que dejó de verse -----
+   `.partida.drag-over{box-shadow:inset 0 2px 0 var(--a)}` lleva escrito desde antes de todo
+   esto y ahora no se aplica: pesa lo mismo (0,2,0) que `.partida:not(.folded)` y que
+   `.partida.folded`, y esos dos viven más abajo en la hoja, así que su box-shadow gana y se
+   lleva el filete por delante. Comprobado en el navegador: al arrastrar sobre una partida no
+   cambiaba nada. Repetido aquí, al final, gana él.
+
+   Y ya que se reescribe, se pinta del matiz de la partida sobre la que se suelta en vez del
+   azul fijo de la app. La pregunta mientras uno arrastra es «¿entre cuáles va a caer?», y el
+   color de la de abajo la contesta sin leer el número. Conserva la sombra exterior teñida
+   para que la pieza no se aplaste justo cuando la estás señalando. */
+.partida.drag-over{
+  box-shadow:inset 0 4px 0 var(--pc),0 14px 28px -8px rgba(var(--pc-rgb),.28);
 }
 
 /* ---------- En papel no hay barro ----------
