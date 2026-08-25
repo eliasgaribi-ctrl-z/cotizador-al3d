@@ -36,9 +36,10 @@ import * as Prefs from '../datos/prefs.js';
 import * as Sync from '../datos/sync.js';
 import * as Geo from '../datos/geo.js';
 import * as Gcal from '../nucleo/gcal.js';
+import * as Puente from '../datos/puente.js';
 import {
   $, esc, ico, toast, avisarResultado, abrirCapa, cerrarCapa,
-  descargarArchivo, fmtFechaDia, cuando, ajustarAltoBarra,
+  descargarArchivo, fmtFechaDia, cuando, ajustarAltoBarra, copiarTexto,
 } from '../nucleo/ui.js';
 
 /* ============================================================================
@@ -50,6 +51,14 @@ let CTX = null;
 
 let ESPACIO = null;      // DB.espacio() o null si el navegador no lo dice
 let PEND = 0;            // operaciones en la bandeja de salida
+let APARTADAS = 0;       // las que este puente no sabe llevar. Ni se mandan ni se pierden
+
+/* Lo que el puente contestó la última vez que se apretó un botón. Vive en memoria y muere
+   al salir de la pantalla, a propósito: es el estado de una prueba, no una preferencia, y
+   guardarlo haría que mañana la pantalla dijera «en verde» sin haber preguntado. */
+let SALUD = null;        // {ok, mensaje, rol, escribibles}
+let ESQ = null;          // {ok, faltan, nota}
+let TOKS = null;         // los tres tokens recién generados, hasta salir de la pantalla
 
 /* El rol elegido en la presentación, todavía sin guardar. Existe porque aplicar el rol al
    instante ahí remontaría la pantalla y se llevaría el nombre a medio escribir. */
@@ -88,9 +97,11 @@ export async function montar(c, ctx) {
   /* Las dos lecturas que tocan la base van antes de pintar y en paralelo: son las únicas
      asíncronas de la pantalla y esperarlas en serie se nota en un celular viejo. Ninguna
      lanza: `espacio()` devuelve null y `pendientes()` devuelve [] si la base no abrió. */
-  const [esp, cola] = await Promise.all([DB.espacio(), Sync.pendientes()]);
+  const [esp, cola, sinDest] = await Promise.all([
+    DB.espacio(), Sync.pendientes(), Sync.sinDestino()]);
   ESPACIO = esp;
   PEND = cola.length;
+  APARTADAS = sinDest.length;
 
   pintar();
   on(cont, 'click', clic);
@@ -121,7 +132,8 @@ export function desmontar() {
     capa.innerHTML = '';
   }
 
-  ESPACIO = null; PEND = 0; ROL_GATE = null;
+  ESPACIO = null; PEND = 0; APARTADAS = 0; ROL_GATE = null;
+  SALUD = null; ESQ = null; TOKS = null;
   cont = null; CTX = null;
 }
 
@@ -476,19 +488,103 @@ function cardGcal() {
 function cardPuente() {
   const p = Prefs.puente() || {};
   const s = Sync.estado();
+  const ins = Puente.instrucciones();
+
+  /* Los pasos y las notas se le piden a `puente.js` y no se escriben aquí, aunque sean
+     texto de pantalla: el día que cambie el nombre de una variable del Worker tiene que
+     cambiar en el mismo archivo donde está el código que la usa. */
+  const pasos = '<ol class="aj-pasos">' + ins.pasos.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol>';
+  const notas = ins.notas.map(n => '<p class="pf-nota">' + esc(n) + '</p>').join('');
+
+  const cuentaPend = PEND
+    ? 'En la bandeja de salida hay ' + PEND + (PEND === 1 ? ' operación' : ' operaciones') + ' esperando.'
+    : 'La bandeja de salida está vacía.';
+  /* Lo apartado se dice aparte y con su razón. Sumarlo a los pendientes daría un contador
+     que nunca baja, y un número que nunca baja se aprende a ignorar. */
+  const cuentaApart = APARTADAS
+    ? ' Además hay ' + APARTADAS + (APARTADAS === 1 ? ' cambio apartado' : ' cambios apartados') +
+      ' que este puente no lleva: el almacén y el catálogo se quedan en este dispositivo ' +
+      'hasta que existan sus bases. No se pierden.'
+    : '';
 
   const estado = s.configurado
     ? nota(ico('i-check') + ' Puente enchufado' + (s.adaptador ? ' (' + esc(s.adaptador) + ')' : '') +
-      '. En la bandeja de salida hay ' + PEND + (PEND === 1 ? ' operación' : ' operaciones') +
-      ' esperando.', 'ok')
-    : nota('<b>Sin puente, y en fase 1 eso es lo normal.</b> No hay servidor todavía: la ' +
-      'plataforma funciona completa en este dispositivo, y el camino manual —«Copiar fila ' +
-      'para Google Sheets» en el cotizador— sigue siendo el que se usa para pasar una venta ' +
-      'a Notion. Ese camino no se retira nunca.' +
-      (PEND ? ' Hay ' + PEND + (PEND === 1 ? ' operación' : ' operaciones') +
-        ' guardadas esperando a que haya a dónde mandarlas.' : ''));
+      '. ' + cuentaPend + cuentaApart, 'ok')
+    : nota('<b>Sin puente.</b> La plataforma funciona completa en este dispositivo, y el ' +
+      'camino manual —«Copiar fila para Notion» en el cotizador— sigue siendo el que se usa ' +
+      'para pasar una venta. Ese camino no se retira nunca.' +
+      (PEND ? ' Hay ' + PEND + (PEND === 1 ? ' operación guardada esperando' : ' operaciones guardadas esperando') +
+        ' a que haya a dónde mandarlas.' : ''));
 
-  return tarjeta('i-nube-off', 'El puente a Notion · Fase 3',
+  /* ----- El resultado de la última prueba ----- */
+  let prueba = '';
+  if (SALUD) {
+    prueba = SALUD.ok
+      ? nota(ico('i-check') + ' El puente contesta y reconoce este teléfono' +
+          (SALUD.rol ? ' como <b>' + esc(Prefs.ROL_NOMBRE[SALUD.rol] || SALUD.rol) + '</b>' : '') + '.' +
+          (Array.isArray(SALUD.escribibles) && SALUD.escribibles.length
+            ? ' Con ese token puede escribir en Notion: ' +
+              SALUD.escribibles.map(x => '<b>' + esc(x.trim()) + '</b>').join(', ') + '.'
+            : ''), 'ok')
+      : nota(ico('i-aviso') + ' ' + esc(SALUD.mensaje || 'El puente no contestó.'), 'mal');
+    /* Que el rol del puente y el de este teléfono no coincidan NO es un error: el rol de
+       aquí decide qué pantallas ves y el del token decide qué puedes escribir. Pero si no
+       se dice, el día que una escritura rebote nadie va a saber por dónde empezar. */
+    if (SALUD.ok && SALUD.rol && SALUD.rol !== Prefs.rol()) {
+      prueba += nota('<b>Ojo, y no está roto:</b> en este teléfono elegiste el tablero de ' +
+        esc(Prefs.ROL_NOMBRE[Prefs.rol()]) + ', y el token que le pegaste es de ' +
+        esc(Prefs.ROL_NOMBRE[SALUD.rol] || SALUD.rol) + '. Vas a ver las pantallas de uno y ' +
+        'a poder escribir en Notion lo del otro. El que manda para escribir es el token: esa ' +
+        'es la única frontera de permisos de verdad del sistema, y vive en el servidor.', 'av');
+    }
+  }
+
+  /* ----- Lo que le falta a la base de Notion ----- */
+  let esquema = '';
+  if (ESQ) {
+    if (!ESQ.ok) {
+      esquema = nota(ico('i-aviso') + ' ' + esc(ESQ.mensaje || 'No se pudo leer el esquema.'), 'mal');
+    } else if (!ESQ.faltan.length) {
+      esquema = nota(ico('i-check') + ' La base «Ventas - AL3D» ya tiene las siete ' +
+        'propiedades que la plataforma necesita.', 'ok');
+    } else {
+      esquema = nota('<b>A la base le faltan ' + ESQ.faltan.length +
+          (ESQ.faltan.length === 1 ? ' propiedad' : ' propiedades') + ', y hay que crearlas ' +
+          'a mano en Notion.</b> El puente las detecta y no las crea: es la única garantía de ' +
+          'que no se rompan las siete vistas ni las cinco fórmulas de una base con tres años ' +
+          'encima. Mientras falte una, dar de alta una venta va a rebotar.', 'av') +
+        '<ul class="aj-faltan">' + ESQ.faltan.map(x =>
+          '<li><b>' + esc(x.nombre) + '</b> · tipo <b>' + esc(x.tipo) + '</b>' +
+          (x.para ? ' — ' + esc(x.para) : '') +
+          (Array.isArray(x.opciones) && x.opciones.length
+            ? '<br><span class="pf-nota">Opciones: ' + esc(x.opciones.join(' · ')) + '</span>'
+            : '') + '</li>').join('') + '</ul>' +
+        '<div class="pf-acciones"><button type="button" class="btn btn-gho" ' +
+        'data-act="puente-copiar-faltan">' + ico('i-copiar') + ' Copiar la lista</button></div>';
+    }
+  }
+
+  /* ----- Los tres tokens recién generados ----- */
+  let tokens = '';
+  if (TOKS) {
+    tokens = nota('<b>Estos tres son las llaves de los tres teléfonos.</b> Pega el JSON de ' +
+        'abajo en la variable <b>TOKENS</b> del Worker, como <b>Secret</b>. Después dale a ' +
+        '«Usar el de …» al que le toque a ESTE teléfono, y manda los otros dos a sus dueños ' +
+        'por donde se mandan las llaves, no por el chat del grupo.', 'av') +
+      '<pre class="aj-tokens">' + esc(TOKS.json) + '</pre>' +
+      '<div class="pf-acciones">' +
+      '<button type="button" class="btn btn-gho" data-act="puente-copiar-tokens">' +
+      ico('i-copiar') + ' Copiar el JSON</button>' +
+      ['direccion', 'fabricacion', 'pagos'].map(r =>
+        '<button type="button" class="btn btn-gho" data-act="puente-usar-token" data-rol-tok="' + r + '">' +
+        'Usar el de ' + esc(Prefs.ROL_NOMBRE[r]) + '</button>').join('') +
+      '</div>' +
+      '<p class="pf-nota">Se ven una sola vez: al salir de esta pantalla se olvidan. No se ' +
+      'guardan en ningún lado más que en la variable del Worker y en el teléfono de cada ' +
+      'quien, y no entran en el respaldo.</p>';
+  }
+
+  return tarjeta('i-nube-off', ins.titulo + ' · Fase 3',
     estado +
 
     '<p class="aj-p"><b>Por qué hace falta un Worker y no se llama a Notion directo.</b> Uno: la API de Notion no manda cabeceras ' +
@@ -498,10 +594,19 @@ function cardPuente() {
     'del servidor, y este dispositivo solo guarda una URL y un token propio que el Worker ' +
     'reconoce.</p>' +
 
+    '<p class="aj-p">Son unos ' + ins.minutos + ' minutos, una vez. Los pasos completos van ' +
+    'aquí para que nadie tenga que buscarlos en otro lado:</p>' +
+    pasos +
+
+    '<div class="pf-acciones">' +
+    '<button type="button" class="btn btn-gho" data-act="puente-tokens">' + ico('i-candado') +
+    ' Generar los tres tokens</button></div>' +
+    tokens +
+
     '<div class="fld aj-bloque">' +
     '<label for="aj-worker-url">URL del Worker</label>' +
     '<input type="url" id="aj-worker-url" autocomplete="off" spellcheck="false" ' +
-    'placeholder="https://al3d-puente.tu-cuenta.workers.dev" value="' + esc(p.url || '') + '"></div>' +
+    'placeholder="https://puente-al3d.tu-cuenta.workers.dev" value="' + esc(p.url || '') + '"></div>' +
 
     '<div class="fld"><label for="aj-worker-tok">Token de este dispositivo</label>' +
     /* El token guardado NO se vuelve a pintar. Es la única cosa de esta pantalla que sirve
@@ -517,9 +622,17 @@ function cardPuente() {
     '<div class="pf-acciones">' +
     '<button type="button" class="btn btn-pri" data-act="puente-guardar">' + ico('i-guardar') +
     ' Guardar el puente</button>' +
+    (p.url && p.token
+      ? '<button type="button" class="btn btn-gho" data-act="puente-probar">' + ico('i-nube') +
+        ' Probar</button>' +
+        '<button type="button" class="btn btn-gho" data-act="puente-esquema">' + ico('i-doc') +
+        ' Revisar el esquema</button>'
+      : '') +
     (s.configurado
       ? '<button type="button" class="btn btn-gho" data-act="puente-bombear">' + ico('i-subir') +
-        ' Mandar lo que está pendiente</button>'
+        ' Mandar lo que está pendiente</button>' +
+        '<button type="button" class="btn btn-gho" data-act="puente-jalar">' + ico('i-bajar') +
+        ' Traer el dinero de Notion</button>'
       : '') +
     (p.url || p.token
       ? '<button type="button" class="btn btn-dgr" data-act="puente-quitar">Quitar el puente de ' +
@@ -527,11 +640,17 @@ function cardPuente() {
       : '') +
     '</div>' +
 
+    prueba + esquema +
+
     '<p class="pf-nota">Notion no tiene forma de decir «solo escribe si nadie lo cambió ' +
-    'antes»: no hay ETag, ni versión, ni unicidad. El puente estrecha esa ventana, no la ' +
-    'cierra, y cuando algo cambió allá mientras no había señal la plataforma lo dice con esas ' +
-    'palabras. Para el libro del almacén sí es a prueba de balas: el id lo pone este ' +
-    'dispositivo y un reintento no resta el material dos veces.</p>');
+    'antes»: no hay ETag, ni versión, ni unicidad. Lo que este puente escribe son ' +
+    'propiedades que nadie teclea a mano del otro lado —la etapa, la dirección, el punto en ' +
+    'el mapa, el tipo de trabajo— y un cambio de Notion es por propiedad, no por fila, así ' +
+    'que no puede pisar el dinero que alguien acabe de capturar allá. Para el libro del ' +
+    'almacén la garantía sí es total: el id lo pone este dispositivo y un reintento no resta ' +
+    'el material dos veces.</p>' +
+
+    notas);
 }
 
 /* ----- 6. Lo que esta pantalla tiene que decir ----- */
@@ -620,6 +739,17 @@ async function clic(ev) {
   if (t.closest('[data-act="puente-guardar"]')) { guardarPuente(); return; }
   if (t.closest('[data-act="puente-quitar"]')) { quitarPuente(); return; }
   if (t.closest('[data-act="puente-bombear"]')) { bombear(); return; }
+  if (t.closest('[data-act="puente-probar"]')) { probarPuente(); return; }
+  if (t.closest('[data-act="puente-esquema"]')) { revisarEsquema(); return; }
+  if (t.closest('[data-act="puente-jalar"]')) { jalar(); return; }
+  if (t.closest('[data-act="puente-tokens"]')) { generarTokens(); return; }
+  if (t.closest('[data-act="puente-copiar-tokens"]')) {
+    copiarTexto((TOKS && TOKS.json) || '', 'JSON copiado — pégalo en la variable TOKENS del Worker');
+    return;
+  }
+  if (t.closest('[data-act="puente-copiar-faltan"]')) { copiarFaltan(); return; }
+  const ut = t.closest('[data-rol-tok]');
+  if (ut) { usarToken(ut.dataset.rolTok); return; }
   if (t.closest('[data-act="borrar"]')) { abrirCordon(); return; }
 }
 
@@ -753,9 +883,35 @@ async function conectarGcal() {
   if (CTX.refrescar) CTX.refrescar();
 }
 
-/* ----- Fase 3 ----- */
+/* ----- Fase 3, el puente -----
+   Las seis acciones repintan con `repintar()` y no con `CTX.refrescar()`, y la diferencia
+   importa: refrescar REMONTA el módulo, y montar limpia `SALUD`, `ESQ` y `TOKS` a
+   propósito —los tres tokens se ven una sola vez—. Con refrescar, apretar «Probar» habría
+   borrado su propia respuesta antes de pintarla. */
 
-function guardarPuente() {
+/** Vuelve a leer los dos contadores de la bandeja y repinta, sin remontar. */
+async function repintar() {
+  const [cola, sinDest] = await Promise.all([Sync.pendientes(), Sync.sinDestino()]);
+  PEND = cola.length;
+  APARTADAS = sinDest.length;
+  pintar();
+}
+
+/* Un solo botón del puente a la vez. Todos tocan la red y ninguno es instantáneo: sin
+   esto, tres toques impacientes son tres peticiones en vuelo y la última en contestar es
+   la que se pinta, que no es la última que se pidió. */
+let _ocupado = false;
+async function conElPuente(etiqueta, fn) {
+  if (_ocupado) return;
+  const rel = Puente.desdePrefs();
+  if (!rel) { toast('Primero guarda la URL y el token del Worker', 'err', 4200); return; }
+  _ocupado = true;
+  toast(etiqueta, '', 2000);
+  try { await fn(rel); } finally { _ocupado = false; }
+  await repintar();
+}
+
+async function guardarPuente() {
   const url = ($('aj-worker-url') && $('aj-worker-url').value || '').trim();
   const nuevo = ($('aj-worker-tok') && $('aj-worker-tok').value || '').trim();
   const prev = Prefs.puente() || {};
@@ -770,30 +926,127 @@ function guardarPuente() {
     toast('Falta el token de este dispositivo. Sin él el Worker no sabe quién le habla y contesta 401.', 'err', 5600);
     return;
   }
-  if (!Prefs.setPuente({ ...prev, url, token })) {
+  if (!Prefs.setPuente({ ...prev, url: Puente.normalizarUrl(url), token })) {
     toast('Este navegador no dejó guardar el puente', 'err', 4200);
     return;
   }
-  /* Se dice qué se guardó y qué no pasa todavía. Guardar la URL no enciende nada por sí
-     solo: el relevo que habla con el Worker es fase 3, y prometer aquí que ya sincroniza
-     sería la mentira más cara de esta pantalla. */
-  toast('Puente guardado. La sincronización se enciende en fase 3; por ahora esto queda escrito.', 'ok', 5600);
-  if (CTX.refrescar) CTX.refrescar();
+
+  /* Enchufar y probar de corrido. Guardar una URL y NO decir si sirve es cómo alguien se
+     va del taller creyendo que ya sincroniza, y se entera tres días después de que el
+     token traía un espacio pegado. */
+  if (CTX.enchufarPuente) await CTX.enchufarPuente();
+  await probarPuente();
 }
 
-function quitarPuente() {
+async function quitarPuente() {
   if (!Prefs.setPuente(null)) { toast('No se pudo quitar el puente', 'err', 4200); return; }
+  Sync.registrar(null);
+  SALUD = null; ESQ = null;
   toast('Se quitó el puente de este dispositivo. Lo que estaba en la bandeja se queda esperando.', 'ok', 4600);
-  if (CTX.refrescar) CTX.refrescar();
+  await repintar();
+}
+
+/** GET /salud. Guarda el rol que el Worker reconoció, que es el que de verdad manda. */
+async function probarPuente() {
+  await conElPuente('Preguntándole al puente…', async rel => {
+    SALUD = await rel.salud();
+    if (SALUD.ok) {
+      /* El rol se recuerda junto a la URL para que la pantalla pueda decir de qué es este
+         token sin volver a preguntar. El token NO se vuelve a escribir aquí: ya está. */
+      const prev = Prefs.puente() || {};
+      Prefs.setPuente({ ...prev, rol: SALUD.rol || '', probado: Date.now() });
+      toast('El puente contesta', 'ok', 3000);
+    } else {
+      toast(SALUD.mensaje || 'El puente no contestó', 'err', 5600);
+    }
+  });
+}
+
+/** GET /esquema. Detecta lo que falta en Notion; NO lo crea, y eso es a propósito. */
+async function revisarEsquema() {
+  await conElPuente('Leyendo el esquema de Notion…', async rel => {
+    ESQ = await rel.esquema();
+    if (!ESQ.ok) { toast(ESQ.mensaje || 'No se pudo leer el esquema', 'err', 5600); return; }
+    toast(ESQ.faltan.length
+      ? 'Le faltan ' + ESQ.faltan.length + (ESQ.faltan.length === 1 ? ' propiedad' : ' propiedades') + ' a la base'
+      : 'La base ya tiene todo lo que hace falta', ESQ.faltan.length ? '' : 'ok', 4200);
+  });
+}
+
+function copiarFaltan() {
+  if (!ESQ || !ESQ.faltan || !ESQ.faltan.length) return;
+  /* Se copia con el tipo y las opciones porque eso es justo lo que hay que teclear del
+     otro lado, y una propiedad creada con el tipo equivocado es media hora de arreglar. */
+  const txt = ESQ.faltan.map(x => x.nombre + '  —  tipo: ' + x.tipo +
+    (Array.isArray(x.opciones) && x.opciones.length ? '  —  opciones: ' + x.opciones.join(', ') : '')).join('\n');
+  copiarTexto(txt, 'Lista copiada — créalas a mano en la base Ventas - AL3D');
 }
 
 async function bombear() {
-  const r = await Sync.bombear();
-  if (!avisarResultado(r)) return;
+  if (_ocupado) return;
+  _ocupado = true;
+  let r;
+  try { r = await Sync.bombear(); } finally { _ocupado = false; }
+  if (!avisarResultado(r)) { await repintar(); return; }
   const v = r.valor || {};
   const n = Number(v.subidas || v.mandadas) || 0;
-  toast(n ? 'Se mandaron ' + n + (n === 1 ? ' operación' : ' operaciones') : 'No había nada que mandar', 'ok', 3600);
-  if (CTX.refrescar) CTX.refrescar();
+  const partes = [];
+  if (n) partes.push('Se ' + (n === 1 ? 'mandó 1 operación' : 'mandaron ' + n + ' operaciones'));
+  if (v.fallidas) partes.push(v.fallidas + (v.fallidas === 1 ? ' no se pudo' : ' no se pudieron'));
+  if (v.conflictos) partes.push(v.conflictos + (v.conflictos === 1 ? ' cambió en Notion' : ' cambiaron en Notion'));
+  if (v.sin_destino) partes.push(v.sin_destino + ' se apartaron: este puente no las lleva');
+  toast(partes.length ? partes.join(' · ') : 'No había nada que mandar',
+        v.fallidas ? 'err' : 'ok', 4600);
+  await repintar();
+}
+
+/**
+ * Trae el espejo del dinero. Da varias vueltas a propósito: el Worker pagina de 50 en 50 y
+ * la base arrastra 199 filas anteriores a la plataforma que se miran y se descartan una por
+ * una. Con una sola vuelta por toque, alguien tendría que apretar el botón cinco veces sin
+ * que la pantalla le dijera por qué.
+ */
+async function jalar() {
+  if (_ocupado) return;
+  _ocupado = true;
+  toast('Trayendo lo de Notion…', '', 2000);
+  let nuevos = 0, actualizados = 0, vueltas = 0, error = null;
+  try {
+    /* Tope de veinte vueltas —mil filas— para que un cursor que no avanza no deje esto
+       dando vueltas para siempre contra una API que sí cobra peticiones. */
+    while (vueltas < 20) {
+      const r = await Sync.jalar();
+      vueltas++;
+      if (!r.ok) { error = r.mensaje; break; }
+      const v = r.valor || {};
+      nuevos += Number(v.nuevos) || 0;
+      actualizados += Number(v.actualizados) || 0;
+      if (!((Number(v.nuevos) || 0) + (Number(v.actualizados) || 0) + (Number(v.descartados) || 0))) break;
+    }
+  } finally { _ocupado = false; }
+  if (error) toast(error, 'err', 5200);
+  else toast(nuevos + actualizados
+    ? 'Se actualizaron ' + (nuevos + actualizados) + (nuevos + actualizados === 1 ? ' proyecto' : ' proyectos') + ' con lo que hay en Notion'
+    : 'No había nada nuevo en Notion para los proyectos de este dispositivo', 'ok', 4600);
+  await repintar();
+}
+
+/** Los tres tokens de dispositivo, hechos aquí para no teclear el JSON a mano. */
+function generarTokens() {
+  TOKS = Puente.tokensNuevos();
+  pintar();
+  toast('Tres tokens nuevos. Pega el JSON en la variable TOKENS del Worker.', '', 5600);
+}
+
+/** Mete en el campo el token del rol que le toca a ESTE teléfono. No lo guarda: lo escribe,
+ *  y se guarda con el botón de siempre, para que el paso no ocurra sin que nadie lo vea. */
+function usarToken(rol) {
+  if (!TOKS || !TOKS.tokens[rol]) return;
+  const c = $('aj-worker-tok');
+  if (!c) return;
+  c.value = TOKS.tokens[rol];
+  c.focus();
+  toast('Token de ' + (Prefs.ROL_NOMBRE[rol] || rol) + ' puesto en el campo. Dale a «Guardar el puente».', 'ok', 5200);
 }
 
 /* ============================================================================

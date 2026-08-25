@@ -521,6 +521,25 @@
 .aj-pasos li{margin-bottom:var(--e2)}
 .aj-pasos li::marker{color:var(--muted);font-weight:700}
 
+/* Lo que le falta a la base de Notion. Es una lista para COPIAR a mano en otra pestaña, no
+   para leer de corrido: cada renglón tiene que poder localizarse de un vistazo mientras se
+   mira la otra ventana, y por eso el nombre va suelto y en negritas en vez de dentro de una
+   frase. Sin viñeta, que aquí solo estorba: el nombre ya es el ancla. */
+.aj-faltan{list-style:none;margin:var(--e3) 0 0;padding:0;
+  font:400 var(--t2)/1.5 inherit;color:var(--n7)}
+.aj-faltan li{padding:var(--e2) var(--e3);margin-bottom:var(--e2);
+  border:1px solid var(--n3);border-radius:var(--rr1);background:var(--fondo)}
+.aj-faltan b{color:var(--ink)}
+
+/* Los tres tokens, una sola vez. Va en `pre` porque es JSON que se pega tal cual en otra
+   pantalla y un espacio de más lo rompe, y con `break-all` porque un UUID no tiene dónde
+   partirse: sin eso, en un teléfono se sale de la tarjeta y el botón de copiar queda fuera
+   de alcance. */
+.aj-tokens{margin:var(--e3) 0 0;padding:var(--e3);border:1px solid var(--n3);
+  border-radius:var(--rr1);background:var(--fondo);color:var(--n7);
+  font:400 var(--t1)/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;
+  white-space:pre-wrap;word-break:break-all;-webkit-user-select:all;user-select:all}
+
 /* Elegir rol con su descripción completa. No cabe en `.tipo-seg` —son tres palabras por
    opción, no dos— ni en un `.chip`: elegir un rol sin saber qué te va a esconder es
    elegir a ciegas, y el que se equivoca aquí acaba creyendo que la plataforma no trae

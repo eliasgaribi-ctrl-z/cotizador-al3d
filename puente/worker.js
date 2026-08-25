@@ -22,7 +22,7 @@
    escribir etapa de obra y movimientos, y este Worker le rechaza `Anticipo` con 403 aunque
    el teléfono diga «Dirección».
 
-   ── Tres cosas que este Worker NO hace, y no es descuido ───────────────────────
+   ── Cuatro cosas que este Worker NO hace, y no es descuido ─────────────────────
    1. NO altera el esquema de Notion. `/esquema` DETECTA lo que falta y devuelve la lista
       con nombre y tipo exactos para que una persona la cree a mano. Es la única garantía
       de que no se rompan las siete vistas ni las cinco fórmulas de una base con tres años
@@ -32,6 +32,10 @@
       la misma fórmula divergen en semanas y el sistema empieza a dar dos respuestas.
    3. NO escribe en propiedades que no estén en la lista blanca del rol, ni siquiera si el
       cliente las manda.
+   4. NO acepta un valor inventado en NINGÚN campo de lista. Estatus, Cuenta, Etapa de obra
+      y Tipo de trabajo se validan contra la lista real de la base, porque pegar un valor
+      inexistente en un *select*, un *status* o un *multi_select* NO FALLA: Notion LO CREA.
+      Así se ensucia un esquema, una venta a la vez, hasta que las vistas dejan de cuadrar.
 
    ── Secretos (Settings → Variables → Encrypt) ──────────────────────────────────
    NOTION_TOKEN   el token de la integración interna (empieza con ntn_ o secret_)
@@ -45,7 +49,7 @@
 
 const NOTION = 'https://api.notion.com/v1';
 const NOTION_VERSION = '2022-06-28';
-const VERSION = 'puente-1';
+const VERSION = 'puente-2';
 const DS_VENTAS_POR_OMISION = '56fa21d8-8e7d-4e16-b874-455fd6c65643';
 
 /* ── Los nombres REALES de las propiedades ──────────────────────────────────────
@@ -80,20 +84,36 @@ const FORMULAS = new Set([P.neto, P.pendiente, P.comisiones, P.comRestante, P.fe
 const ESTATUS = new Set(['REPARANDO', 'COBRANDO', 'FABRICACION', 'LIQUIDADO']);
 const CUENTAS = new Set(['Moni MPago', 'Rul HSBC', 'Tatis BNT', 'Constru BNT', 'Elias BBVA']);
 
+/* Las ocho etapas de obra, con el nombre que se lee en el tablero de Notion. Van validadas
+   por lo mismo que el estatus, y el riesgo es idéntico: un *select* acepta cualquier cosa y
+   la CREA. La diferencia es que aquí nadie lo escribe a mano —lo manda la plataforma— así
+   que un cambio de vocabulario del lado del cliente ensuciaría el esquema en silencio, una
+   venta a la vez, hasta que el tablero tuviera doce columnas y ninguna cuadrara.
+   Esta lista y el mapa ETAPA_A_NOTION de js/datos/puente.js tienen que decir lo mismo. */
+const ETAPAS = ['Ganado', 'En diseño', 'Cortado', 'Armado', 'Listo para instalar',
+                'Instalado', 'En garantía', 'No se dio'];
+const ETAPAS_SET = new Set(ETAPAS);
+
+/* Los siete tipos de trabajo. Un *multi_select* tiene el mismo defecto que un *select*:
+   crea la opción que no conoce. Y este campo es el criterio de éxito número 1 del proyecto
+   —el que murió en la copia OMAR con 0 filas llenas de 142— así que se valida. */
+const TIPOS = ['Caja de luz con iluminacion', 'Caja de luz sin iluminacion',
+               'Letras 3D con iluminacion', 'Letras 3D sin iluminacion',
+               'Rotulacion de vinil', 'Recorte acrilico', 'Custome / Proyecto Especial'];
+const TIPOS_SET = new Set(TIPOS);
+
 /* Las siete propiedades que la plataforma necesita y que la base todavía no tiene.
    /esquema devuelve las que falten, con su tipo, para que una persona las cree a mano. */
 const PROPIEDADES_NUEVAS = [
   { nombre: 'Folio cotizacion', tipo: 'rich_text', para: 'atar la fila al folio del cotizador (COT-0042@K7QM)' },
-  { nombre: 'Etapa de obra',    tipo: 'select',    para: 'ganado / cortado / armado / listo / instalado / cerrado',
-    opciones: ['ganado', 'cortado', 'armado', 'listo', 'instalado', 'cerrado'] },
+  { nombre: 'Etapa de obra',    tipo: 'select',    para: 'en qué va la obra, que NO es el Estatus: ese es de dinero',
+    opciones: ETAPAS },
   { nombre: 'Fecha instalacion',tipo: 'date',      para: 'la instalación de VERDAD, separada del anticipo' },
   { nombre: 'Hora instalacion', tipo: 'rich_text', para: 'HH:MM, o vacío si todavía no se sabe' },
   { nombre: 'Ubicacion',        tipo: 'rich_text', para: 'lat,lng resueltos del link de Maps' },
   { nombre: 'Direccion',        tipo: 'rich_text', para: 'la dirección como la mandó el cliente' },
   { nombre: 'Tipo de trabajo',  tipo: 'multi_select', para: 'derivado de las partidas, no capturado',
-    opciones: ['Caja de luz con iluminacion', 'Caja de luz sin iluminacion',
-               'Letras 3D con iluminacion', 'Letras 3D sin iluminacion',
-               'Rotulacion de vinil', 'Recorte acrilico', 'Custome / Proyecto Especial'] },
+    opciones: TIPOS },
 ];
 
 /* ── La lista blanca por rol ────────────────────────────────────────────────────
@@ -160,6 +180,33 @@ async function notion(env, ruta, opciones) {
   return { estado: r.status, cuerpo, reintentar: r.headers.get('Retry-After') };
 }
 
+/**
+ * La fila que ya tiene ese folio, si existe. Devuelve su id de página o null.
+ *
+ * Es lo único que hay contra la fila duplicada, y hace falta porque Notion NO TIENE
+ * restricciones de unicidad: no se le puede pedir «crea esta fila solo si no está». El
+ * caso real no es raro —el teléfono manda el alta, Notion la crea, la respuesta se pierde
+ * en un elevador, la bandeja reintenta— y el resultado sería la misma venta dos veces en
+ * la base del dinero, con dos anticipos y dos comisiones sumando en las siete vistas.
+ *
+ * No cierra la ventana del todo: dos altas simultáneas del mismo folio desde dos teléfonos
+ * seguirían pasando las dos. La estrecha de «cada reintento duplica» a «solo un empate
+ * exacto», que con tres personas y un alta por venta es otra cosa.
+ *
+ * Si la propiedad todavía no existe, Notion contesta 400 y esto devuelve null: se sigue
+ * como antes y el alta va a fallar igual, diciendo cuál falta.
+ */
+async function buscarPorFolio(env, ds, folio) {
+  const r = await notion(env, '/data_sources/' + ds + '/query', {
+    method: 'POST',
+    body: JSON.stringify({ page_size: 1,
+      filter: { property: 'Folio cotizacion', rich_text: { equals: String(folio) } } }),
+  });
+  if (r.estado >= 400) return null;
+  const res = (r.cuerpo && r.cuerpo.results) || [];
+  return res.length ? res[0].id : null;
+}
+
 /* Los mensajes salen de aquí ya escritos en español, porque el cliente los pinta tal cual
    en un aviso y «Notion API error 429» no le dice nada a nadie. */
 function traducir(estado, cuerpo) {
@@ -209,10 +256,13 @@ function armarPropiedades(datos, rol) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(valor))) { rechazadas.push({ nombre, por: 'la fecha tiene que venir como YYYY-MM-DD' }); continue; }
       props[nombre] = { date: { start: String(valor) } };
     } else if (nombre === 'Etapa de obra') {
+      if (!ETAPAS_SET.has(valor)) { rechazadas.push({ nombre, por: '«' + valor + '» no es una etapa de la base; pegarla la crearía' }); continue; }
       props[nombre] = { select: { name: String(valor) } };
     } else if (nombre === 'Tipo de trabajo') {
-      const arr = Array.isArray(valor) ? valor : [valor];
-      props[nombre] = { multi_select: arr.filter(Boolean).map(v => ({ name: String(v) })) };
+      const arr = (Array.isArray(valor) ? valor : [valor]).filter(Boolean).map(String);
+      const malos = arr.filter(v => !TIPOS_SET.has(v));
+      if (malos.length) { rechazadas.push({ nombre, por: 'no son tipos de la base y pegarlos los crearía: ' + malos.join(', ') }); continue; }
+      props[nombre] = { multi_select: arr.map(v => ({ name: v })) };
     } else {
       props[nombre] = { rich_text: [{ text: { content: String(valor == null ? '' : valor).slice(0, 2000) } }] };
     }
@@ -333,8 +383,16 @@ export default {
               rechazadas });
             continue;
           }
+          /* Antes de crear, se busca. Ver `buscarPorFolio`: un reintento después de una
+             respuesta perdida no puede costar una venta duplicada en la base del dinero. */
+          let idPagina = op.id_notion || null;
+          if (!idPagina) {
+            const folio = String((op.datos && op.datos['Folio cotizacion']) || '').trim();
+            if (folio) idPagina = await buscarPorFolio(env, ds, folio);
+          }
+
           let r;
-          if (op.tipo === 'crear' || !op.id_notion) {
+          if (!idPagina) {
             r = await notion(env, '/pages', { method: 'POST',
               body: JSON.stringify({ parent: { type: 'data_source_id', data_source_id: ds }, properties: props }) });
           } else {
@@ -343,7 +401,7 @@ export default {
                la pantalla de conflictos tenga qué comparar. Sin el remoto en la respuesta solo
                se podría decir «no se pudo», que no sirve para decidir. */
             if (op.esperado && op.esperado.editado) {
-              const act = await notion(env, '/pages/' + op.id_notion, { method: 'GET' });
+              const act = await notion(env, '/pages/' + idPagina, { method: 'GET' });
               if (act.estado < 400 && act.cuerpo && act.cuerpo.last_edited_time !== op.esperado.editado) {
                 resultados.push({ id: op.id, ok: false, codigo: 'CONFLICTO',
                   mensaje: 'Esa fila cambió en Notion desde la última vez que este teléfono la vio.',
@@ -351,7 +409,7 @@ export default {
                 continue;
               }
             }
-            r = await notion(env, '/pages/' + op.id_notion, { method: 'PATCH', body: JSON.stringify({ properties: props }) });
+            r = await notion(env, '/pages/' + idPagina, { method: 'PATCH', body: JSON.stringify({ properties: props }) });
           }
           if (r.estado >= 400) {
             const t = traducir(r.estado, r.cuerpo);
