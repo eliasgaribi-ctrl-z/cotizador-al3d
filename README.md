@@ -174,7 +174,9 @@ El sitio se sirve desde `index.html` en la rama `main`. Para publicar cambios:
 2. Subirlo en [/upload/main](https://github.com/eliasgaribi-ctrl-z/cotizador-al3d/upload/main) y hacer commit a `main`.
 3. Esperar entre 30 y 60 segundos a que GitHub Pages redespliegue.
 
-Sigue siendo un solo archivo el que se edita. Junto a él viven dos piezas que se subieron una vez y no hay que volver a tocar: **`sw.js`**, que es lo que hace que la app abra sin señal, y **`manifest.webmanifest`**, que es lo que hace que Android la instale como aplicación y no como acceso directo. Si alguna vez se borran, la app sigue funcionando con conexión.
+Sigue siendo un solo archivo el que se edita. Junto a él viven tres piezas que se subieron una vez y no hay que volver a tocar: **`sw.js`**, que es lo que hace que la app abra sin señal; **`manifest.webmanifest`**, que es lo que hace que Android la instale como aplicación y no como acceso directo; y **`.nojekyll`**, un archivo vacío que le pide a GitHub publicar el repositorio tal cual. Si se borran los dos primeros, la app sigue funcionando con conexión.
+
+Si se borra el tercero es peor, porque no se nota: GitHub vuelve a pasar todo por Jekyll, Jekyll se atora con el primer `{{` que encuentre en la documentación —hoy hay cuatro en `docs/ARQUITECTURA.md` y cuatro más en `docs/INVESTIGACION-TECNICA.md`, dentro de bloques de código que igual lo tumban— y **deja de publicar**. El repositorio se ve al día, los commits están, y el sitio se queda congelado en la última versión que sí compiló. Cuando un cambio no aparece por más que recargues, ahí es donde hay que ver: [Actions](https://github.com/eliasgaribi-ctrl-z/cotizador-al3d/actions) → *pages build and deployment*.
 
 Si el celular sigue mostrando la versión anterior, es la caché: recargar forzando o abrir la liga con `?v=2` al final. La copia local no estorba a esto —pide siempre la versión del servidor primero y solo usa la guardada cuando no hay red—, así que publicar y recargar alcanza.
 
