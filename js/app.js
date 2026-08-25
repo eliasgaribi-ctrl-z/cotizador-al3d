@@ -309,5 +309,26 @@ function registrarSW() {
   try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (_) {}
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arrancar, { once: true });
-else arrancar();
+/* ----- Arrancar, y arrancar de todas formas -----
+   Un <script type="module"> es diferido, así que normalmente esto corre con el documento ya
+   parseado y `arrancar()` se llama de inmediato. Pero el arranque llegó a no ocurrir NUNCA
+   por una razón que no se ve: una hoja de estilos pendiente bloquea la ejecución de los
+   scripts, y con la petición de las fuentes de Google colgada el módulo no se evaluaba y la
+   plataforma se quedaba en blanco, sin un solo error en la consola.
+
+   Eso ya se arregló donde tocaba —en plataforma.html las fuentes se cargan sin bloquear—,
+   pero la lección se queda escrita en código: arrancar no depende de UNA señal. Se intenta
+   en la que llegue primero y `_arranco` garantiza que solo pase una vez. */
+let _arranco = false;
+function arrancarUnaVez() {
+  if (_arranco) return;
+  _arranco = true;
+  arrancar();
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', arrancarUnaVez, { once: true });
+  /* Y si por lo que sea DOMContentLoaded ya pasó de largo, `load` lo recoge. */
+  window.addEventListener('load', arrancarUnaVez, { once: true });
+} else {
+  arrancarUnaVez();
+}

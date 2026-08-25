@@ -310,11 +310,18 @@ function a6(E, out) {
 
     const total = Cot.totalVendido(e);
     const quien = [e.cliente, e.proy].filter(Boolean).join(' — ') || 'sin cliente';
+    const prop = Cot.propuestaDe(folio);
+    const diaProp = prop ? isoDeSello(prop.primera) : null;
+    const diasProp = diaProp ? diasEntre(diaProp, E.hoy) : null;
 
     out.push(aviso('A6', folio, {
       tono: dias >= DIAS_SIN_DECIDIR_URGE ? 'urge' : 'av',
       titulo: folio + ' se autorizó ' + frase(-dias) + ' y nadie dijo si se ganó',
+      /* Si ya se le hizo la propuesta, se dice: no es lo mismo «lleva nueve días
+         autorizada» que «lleva nueve días autorizada y siete desde que le mandaste el
+         documento». La segunda ya es una llamada al cliente, no una decisión pendiente. */
       detalle: quien + (E.veDinero && total > 0 ? ' · ' + money(total) : '') +
+        (prop ? '. Le mandaste propuesta ' + frase(-diasProp) : '') +
         '. Si se ganó, se convierte en proyecto con su material y su fecha; si no, queda la constancia y no se vuelve a preguntar.',
       cuando: frase(-dias),
       plazo: -dias,          // lo más viejo primero: llevan más tiempo sin decidirse

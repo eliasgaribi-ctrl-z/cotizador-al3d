@@ -13,12 +13,24 @@
 <link rel="apple-touch-icon" href="logo-al3d.png">
 <link rel="icon" href="logo-al3d.png">
 
-<!-- Las fuentes van antes que las hojas para que el navegador empiece a bajarlas mientras
-     lee el CSS. Mismas dos familias que el cotizador: si la plataforma cargara otra, la
-     misma app tendría dos tipografías según la pantalla. -->
+<!-- Mismas dos familias que el cotizador: si la plataforma cargara otra, la misma app
+     tendría dos tipografías según la pantalla.
+
+     Y se cargan SIN BLOQUEAR, con el mismo truco que index.html ya usaba y que yo no copié
+     la primera vez. Una hoja de estilos pendiente bloquea la ejecución de los scripts, así
+     que un `<link rel="stylesheet">` normal a fonts.googleapis.com significa que si esa
+     petición se cuelga —mala señal, un firewall, un país donde Google no responde—
+     `js/app.js` NUNCA CORRE y la plataforma se queda en blanco. Costó un rato encontrarlo
+     porque falla solo cuando la petición tarda, no cuando falla rápido.
+
+     Con media="print" el navegador la baja sin bloquear nada, y al terminar se pasa a
+     media="all" y la letra aparece. Se ve la tipografía de reserva unas décimas: eso es
+     mucho mejor que una app que no arranca. El <noscript> es para quien tenga el JS
+     apagado, que nunca va a ejecutar ese onload. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 
 <!-- sistema.css es la COPIA GENERADA del <style> de index.html: los mismos azules
      muestreados del logotipo, el mismo barro, la misma escala de siete tamaños de letra.

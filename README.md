@@ -135,6 +135,48 @@
 
   Se exporta a CSV por cliente —sus cotizaciones— o de la cartera entera: un renglón por cliente con teléfono, totales, primera y última cotización y la nota del cuaderno.
 
+## La plataforma
+
+El cotizador termina en «autorizada» y ahí se detiene. Todo lo que pasa después —que el
+cliente diga sí, cuándo se instala, qué material hay que comprar, si ya se instaló, cuánto
+deben— vivía en la cabeza de alguien. La plataforma es eso, y se abre desde el botón
+**Plataforma** de la barra de arriba, o directo en
+[/plataforma.html](https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/plataforma.html).
+
+**El eslabón que faltaba.** En *Registrar venta* hay un botón nuevo, **Registrar como
+proyecto ganado**, al lado del que copia la fila para Notion. Un toque, y del otro lado
+aparece el proyecto completo: cliente, teléfono, dirección, el punto en el mapa sacado del
+link de Google Maps, el tipo de trabajo derivado de las partidas, la fecha de instalación y
+**el material que hay que comprar**. Nada de eso se captura. Es todo el invento; lo demás
+son seis pantallas que se alimentan de ahí.
+
+- **Hoy** — lo que se rompe primero, en orden: «falta material y esto se instala en 2 días»,
+  «esta cotización lleva nueve días autorizada y nadie dijo si se ganó».
+- **Proyectos** — el tablero por etapa de obra (ganado, cortado, armado, listo, instalado),
+  con la orden de trabajo de fabricación, que incluye la temperatura del LED.
+- **Agenda** — el calendario de instalaciones, con un semáforo por día que contesta la
+  pregunta de fabricación mirando el mes: ¿llego?
+- **Material** — de «8 letras de 40 cm de acero» a «1 lámina de acrílico, 1 de fleje inox,
+  44 módulos LED, 1 fuente». **Con la cuenta a la vista** y su etiqueta de confianza, porque
+  un número que no se puede auditar no se corrige nunca.
+- **Mapa** — las obras por instalar y las instaladas, con el orden de ruta del día.
+- **Ajustes** — el rol de este dispositivo, el respaldo, y la verdad del sistema escrita.
+
+**Los recordatorios que sí suenan.** Una app en el teléfono no se puede despertar sola sin
+pagar un servidor, así que no se finge: cada instalación **descarga un evento para el
+calendario del teléfono**, con alarmas a 3 días, 1 día y 30 minutos. Esas alarmas las dispara
+el calendario, no la app, y por eso suenan aunque nadie abra nada. Los demás avisos —material
+que falta, cobranza, cotizaciones sin decidir— **se calculan al abrir la plataforma**: si
+nadie la abre en cinco días, nadie los ve. Está dicho así en Ajustes.
+
+**Notion sigue siendo el libro mayor.** Los proyectos ganados, las fórmulas de comisión y la
+cobranza se quedan donde están. La plataforma es la capa operativa que Notion no puede dar,
+y `puente/README.md` explica cómo conectarlas el día que haga falta que los tres
+departamentos vean lo mismo.
+
+**Los datos viven en el dispositivo**, igual que el cotizador, y tiene su propio respaldo
+—aparte del del cotizador— en Ajustes.
+
 ## Uso
 
 Todo corre en el navegador, sin instalar nada. Desde el celular conviene abrir la liga y agregarla a la pantalla de inicio (Chrome → menú → *Agregar a pantalla principal*; en iPhone, Safari → *Compartir* → *Agregar a inicio*) para que quede como aplicación, a pantalla completa y sin la barra del navegador.
@@ -168,17 +210,75 @@ Dentro de *Datos del proyecto* hay un bloque plegable, **Datos que salen en el P
 
 ## Actualizar la versión publicada
 
-El sitio se sirve desde `index.html` en la rama `main`. Para publicar cambios:
+El sitio se sirve desde la rama `main`. **Ya no es un solo archivo**, y esa es la diferencia
+que importa: el cotizador sigue siendo `index.html`, pero la plataforma son unos treinta
+archivos que se importan entre sí.
+
+**Para publicar un cambio del cotizador** (`index.html`), como siempre:
 
 1. Renombrar el HTML nuevo a **`index.html`**.
 2. Subirlo en [/upload/main](https://github.com/eliasgaribi-ctrl-z/cotizador-al3d/upload/main) y hacer commit a `main`.
 3. Esperar entre 30 y 60 segundos a que GitHub Pages redespliegue.
 
-Sigue siendo un solo archivo el que se edita. Junto a él viven tres piezas que se subieron una vez y no hay que volver a tocar: **`sw.js`**, que es lo que hace que la app abra sin señal; **`manifest.webmanifest`**, que es lo que hace que Android la instale como aplicación y no como acceso directo; y **`.nojekyll`**, un archivo vacío que le pide a GitHub publicar el repositorio tal cual. Si se borran los dos primeros, la app sigue funcionando con conexión.
+**Para publicar un cambio de la plataforma** hay un paso más, y sin él el cambio no llega a
+los teléfonos que ya tienen la app:
+
+4. En **`sw.js`**, subir **`APP_VERSION`** una unidad. Es la primera línea de código del
+   archivo y está señalada con un recuadro.
+
+La razón es la estrategia de caché, y es a propósito. El cotizador se sirve *red primero*:
+quien tiene señal ve siempre lo último. La plataforma se sirve *caché primero*, porque son
+treinta módulos que se importan entre sí y con mala señal llegarían mezclados —unos nuevos y
+otros viejos—, el `import` fallaría y quedaría una pantalla blanca, justo en el escenario
+para el que el service worker existe. Un módulo nuevo con uno viejo no es una app vieja: es
+una app rota. Así que el conjunto se cambia completo, y lo que dispara el cambio es ese
+número.
+
+Si el cotizador se toca por cualquier razón, hay que regenerar sus dos copias:
+
+    herramientas/extraer-estilo.sh      # css/sistema.css
+    herramientas/extraer-catalogo.sh    # js/datos/catalogo-precios.js
+
+Son copias generadas del `<style>` y del catálogo de precios de `index.html`, para que la
+plataforma se vea y cobre igual que el cotizador sin volver a decidir un token ni copiar un
+precio a mano. Los scripts avisan si algo cambió.
+
+Y antes de subir, `pruebas/correr.sh` corre en unos segundos con node y nada más. Una de sus
+pruebas es justo la que revisa que el sitio *se pueda publicar*.
+
+Junto a los archivos de la app viven tres piezas que se subieron una vez y no hay que volver a tocar: **`sw.js`**, que es lo que hace que la app abra sin señal; **`manifest.webmanifest`**, que es lo que hace que Android la instale como aplicación y no como acceso directo; y **`.nojekyll`**, un archivo vacío que le pide a GitHub publicar el repositorio tal cual. Si se borran los dos primeros, la app sigue funcionando con conexión.
 
 Si se borra el tercero es peor, porque no se nota: GitHub vuelve a pasar todo por Jekyll, Jekyll se atora con el primer `{{` que encuentre en la documentación —hoy hay cuatro en `docs/ARQUITECTURA.md` y cuatro más en `docs/INVESTIGACION-TECNICA.md`, dentro de bloques de código que igual lo tumban— y **deja de publicar**. El repositorio se ve al día, los commits están, y el sitio se queda congelado en la última versión que sí compiló. Cuando un cambio no aparece por más que recargues, ahí es donde hay que ver: [Actions](https://github.com/eliasgaribi-ctrl-z/cotizador-al3d/actions) → *pages build and deployment*.
 
 Si el celular sigue mostrando la versión anterior, es la caché: recargar forzando o abrir la liga con `?v=2` al final. La copia local no estorba a esto —pide siempre la versión del servidor primero y solo usa la guardada cuando no hay red—, así que publicar y recargar alcanza.
+
+## Pendientes
+
+Lo que se sabe que falta, escrito aquí para no tener que buscarlo a media frase en otra
+sección.
+
+- **Los folios se repiten entre dispositivos.** El contador es local a cada teléfono, así
+  que dos aparatos empiezan en `COT-0001` y acaban emitiendo el mismo folio para trabajos
+  distintos. La plataforma lo mitiga por dentro —le pega el identificador del dispositivo al
+  folio para no confundir dos proyectos— pero el folio que el cliente tiene en la mano sigue
+  pudiendo repetirse. **El arreglo completo es el puente de Notion**, ya escrito y sin
+  encender: ver `puente/README.md`. Mientras tanto, conviene cotizar siempre desde el mismo
+  aparato.
+
+- **Los modales traen tamaños del sistema viejo.** El escalador, el vectorizador y el
+  historial heredan los tokens nuevos, pero sus medidas internas son de antes de la escala de
+  siete tamaños. Se ve bien; solo no está alineado al sistema.
+
+- **El neón flex se vende y no está en ningún catálogo.** Hay proyectos reales de neón flex y
+  el cotizador no tiene tarifa para él, así que cae en partida *manual* — que es justo la que
+  el módulo de material excluye por diseño. Es un hueco de negocio, no de programa: para que
+  la lista de compra lo incluya hace falta decidir cómo se cobra.
+
+- **La tarifa documentada no coincide con la del cotizador.** La página *¿Cómo Cotizar?* de
+  Notion cobra por **tipo de letra** ($30 sin luz, $35 recta, $40 puntas, $50 manuscrita, con
+  −20 % sin iluminación); el cotizador cobra por **material** ($30 el aluminio pintado hasta
+  $55 el acero) más $5 de cursiva o $10 de compleja. Manda el cotizador, que es más nuevo y
+  está en producción. La documentación de Notion es la que está desactualizada.
 
 ---
 
