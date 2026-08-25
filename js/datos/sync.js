@@ -249,11 +249,28 @@ export async function encolar(op) {
   return DB.poner('pendientes', guardada);
 }
 
-/** La bandeja de salida en orden de emisión, sin los conflictos apartados y sin la marca.
- *  Lectura: nunca lanza, devuelve [] si la base no abrió. */
+/** La bandeja de salida en orden de emisión: sin los conflictos, sin lo que este relevo no
+ *  sabe llevar y sin la marca. Lectura: nunca lanza, devuelve [] si la base no abrió. */
 export async function pendientes() {
   const todas = await DB.listar('pendientes', { indice: 'porTs' });
-  return todas.filter(o => !esMarca(o) && o.estado !== 'conflicto');
+  return todas.filter(o => !esMarca(o) && o.estado !== 'conflicto' && o.estado !== 'sin_destino');
+}
+
+/**
+ * Lo que se apartó porque el relevo de hoy no tiene a dónde llevarlo.
+ *
+ * Ni se descarta ni se cuenta como pendiente, y las dos cosas son a propósito. Descartarlo
+ * perdería la historia el día que sí exista la base del otro lado —que es justo lo que la
+ * bandeja llena desde el primer día vino a comprar—. Contarlo como pendiente haría que
+ * Ajustes dijera «47 esperando» para siempre, y un contador que nunca baja se aprende a
+ * ignorar igual que un aviso rojo que no significa nada.
+ *
+ * Cada renglón trae en `ultimo_error` la razón escrita por el relevo, con el nombre del
+ * almacén, para que la pantalla no tenga que inventar la lista.
+ */
+export async function sinDestino() {
+  const todas = await DB.listar('pendientes', { indice: 'porTs' });
+  return todas.filter(o => !esMarca(o) && o.estado === 'sin_destino');
 }
 
 /** Lo que se apartó porque el `esperado` no cuadró. Es la lista de la pantalla de
@@ -298,10 +315,27 @@ export function bombear() {
 }
 
 const conteoVacio = extra => ({
-  mandadas: 0, subidas: 0, fallidas: 0, conflictos: 0, pendientes: 0, ...extra,
+  mandadas: 0, subidas: 0, fallidas: 0, conflictos: 0, pendientes: 0, sin_destino: 0, ...extra,
 });
 
+/* Lo apartado vuelve solo. Un relevo nuevo —o el mismo, enseñado a llevar el almacén— no
+   obliga a nadie a apretar nada: en el primer bombeo, lo que este sí lleva se reincorpora
+   a la cola en su orden original, porque `ts` nunca se tocó. */
+async function revivirSinDestino() {
+  if (!_adaptador || typeof _adaptador.lleva !== 'function') return 0;
+  const apartadas = await sinDestino();
+  let n = 0;
+  for (const op of apartadas) {
+    if (!_adaptador.lleva(op.almacen)) continue;
+    await DB.poner('pendientes', { ...op, estado: 'pendiente', ultimo_error: '' });
+    n++;
+  }
+  return n;
+}
+
 async function bombearDeVerdad() {
+  if (configurado()) await revivirSinDestino();
+
   const cola = await pendientes();
 
   if (!configurado()) {
@@ -320,9 +354,23 @@ async function bombearDeVerdad() {
 
   if (!cola.length) return ok(conteoVacio({ motivo: 'nada_que_mandar' }));
 
-  let subidas = 0, fallidas = 0, enConflicto = 0;
+  let subidas = 0, fallidas = 0, enConflicto = 0, apartadas = 0;
 
   for (const op of cola) {
+    /* Se pregunta ANTES de gastar una petición. Mandar al Worker una salida de acrílico
+       para que conteste que no sabe qué hacer con ella es una vuelta de red por cada
+       renglón del libro, cada vez que alguien aprieta bombear. */
+    if (typeof _adaptador.lleva === 'function' && !_adaptador.lleva(op.almacen)) {
+      await DB.poner('pendientes', {
+        ...op, estado: 'sin_destino',
+        ultimo_error: typeof _adaptador.motivo === 'function'
+          ? _adaptador.motivo(op.almacen)
+          : 'Este puente no lleva «' + op.almacen + '». Se queda en este dispositivo.',
+      });
+      apartadas++;
+      continue;
+    }
+
     let respuesta;
     try {
       const r = await _adaptador.subir([op]);
@@ -377,6 +425,7 @@ async function bombearDeVerdad() {
   const quedan = (await pendientes()).length;
   return ok({
     mandadas: subidas, subidas, fallidas, conflictos: enConflicto, pendientes: quedan,
+    sin_destino: apartadas,
     motivo: subidas ? 'ok' : (fallidas ? 'con_fallas' : 'ok'),
   });
 }

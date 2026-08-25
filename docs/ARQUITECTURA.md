@@ -82,7 +82,9 @@ Se enciende: los eventos entran solos al calendario, con las tres personas como 
 3. Crear **a mano** en `Ventas - AL3D` las siete propiedades nuevas (la plataforma detecta las que faltan y muestra la lista con nombre y tipo exactos, listos para copiar). **La plataforma no altera el esquema por API, a propósito**: es la única garantía de que no se rompan las siete vistas ni las cinco fórmulas.
 4. Pegar la URL del Worker y el token de dispositivo en cada teléfono.
 
-Se enciende: espejo del dinero desde Notion, creación automática de la página del proyecto al ganar, y sincronización de proyectos y movimientos entre los tres dispositivos a través del adaptador de sync, **sin que ningún módulo cambie una línea**.
+Se enciende: espejo del dinero desde Notion, creación automática de la fila de la venta al ganar, y sincronización entre los tres dispositivos a través del adaptador de sync, **sin que ningún módulo cambie una línea**. Cumplido: el relevo es `datos/puente.js` y ninguna pantalla se tocó para enchufarlo.
+
+**Estado.** El código de los dos lados está escrito y probado —`puente/worker.js`, `datos/puente.js`, el arranque y la pantalla de Ajustes— y lo que falta es únicamente lo de los cuatro puntos de arriba, que son cuentas y clics de una persona. Y una acotación honesta: **el relevo de hoy lleva `proyectos` e `instalaciones`, no los diez almacenes**. Las dos bases nuevas (`Movimientos - AL3D` y `Materiales - AL3D`) no existen todavía, así que lo que iría a ellas se aparta en la bandeja con su razón y se reincorpora solo el día que existan. Ver §5.13.
 
 ---
 
@@ -698,6 +700,34 @@ export function crearEvento(ev:Object): Promise<Resultado>   // valor = {eventId
 export function actualizarEvento(eventId:string, ev:Object): Promise<Resultado>
 export function cancelarEvento(eventId:string): Promise<Resultado>
 ```
+
+### 5.13 `datos/puente.js` — EL RELEVO. Fase 3, lado del navegador.
+
+El único archivo de la plataforma que sabe que existe un Worker y el único que sabe cómo se llaman las propiedades de Notion. No lo importa ningún módulo: lo enchufa `app.js` al arrancar y lo desenchufa Ajustes. Si mañana el relevo dejara de ser Notion, se reescribe este archivo y nada más.
+
+```js
+export function crear(cfg:{url,token}): AdaptadorSync|null   // no toca la red al construirse
+export function desdePrefs(): AdaptadorSync|null
+
+/** Puros, sin red y sin base: es lo que la prueba de node corre entero. */
+export function aNotion(proyecto, instalacion|null): Object   // -> propiedades de Notion
+export function instalacionANotion(instalacion): Object
+export function deNotion(fila): Object|null                   // -> parche de espejo, o null sin folio
+
+export function instrucciones(): {titulo, minutos, pasos:string[], notas:string[]}
+export function tokensNuevos(): {tokens:{direccion,fabricacion,pagos}, json:string}
+export const ALMACENES = ['proyectos', 'instalaciones']
+```
+
+Cinco decisiones, y ninguna es de estilo:
+
+1. **Lleva `proyectos` e `instalaciones`, y lo dice.** El adaptador expone `lleva(almacen)`, `sync.bombear` pregunta ANTES de gastar una petición, y lo que no lleva se aparta con `estado:'sin_destino'` y la razón escrita. Ni se descarta —perdería el día que exista la base— ni se cuenta como pendiente —daría un contador que nunca baja—. `sync.sinDestino()` lo cuenta aparte y el primer bombeo de un relevo que sí lo lleve lo reincorpora solo.
+2. **No viaja `esperado`.** Un PATCH de Notion es por propiedad, no por fila, y este relevo escribe solo propiedades que nadie teclea a mano allá. El control de concurrencia protegería contra un choque que no puede ocurrir, a cambio de un GET por operación y de un campo nuevo en el modelo congelado de §4.4. Las excepciones son `Estatus` y `Cuenta `, que las manda PAGOS apretando un botón: ahí gana el último, que es lo que quiso decir.
+3. **`bajar()` no crea filas locales.** La base arrastra 199 filas anteriores a la plataforma, sin partidas y sin material: convertirlas llenaría el tablero de proyectos que nadie puede fabricar. Solo se espeja la fila que ya tiene proyecto de este lado, atada por `Folio cotizacion`.
+4. **El espejo gana el empate.** `sync.fusionar` deja ganar al más nuevo y el registro local se toca cada vez que alguien mueve la etapa, así que `bajar()` iguala el sello al local. Sin eso, un `pago_pendiente` recién bajado perdería contra el `null` local porque alguien avanzó la obra hace un rato, y la cobranza se quedaría vacía para siempre. De esos campos la dueña es Notion por definición (§4.0).
+5. **El id de la página se escribe al vuelo y sin encolar.** Encolar desde el relevo que está vaciando la cola es un bucle que se manda a sí mismo. Se escribe con `DB` directo, y solo campos de los que la dueña es Notion: `notion_page_id` y `notion_estado`.
+
+El vocabulario está duplicado a propósito entre este archivo y el Worker —el Worker no se importa, se pega en un editor— y `pruebas/puente.mjs` lee el Worker como texto y compara las listas, porque una duplicación que nadie compara es una duplicación que se separa.
 
 ---
 

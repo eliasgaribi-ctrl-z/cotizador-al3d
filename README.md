@@ -170,9 +170,20 @@ que falta, cobranza, cotizaciones sin decidir— **se calculan al abrir la plata
 nadie la abre en cinco días, nadie los ve. Está dicho así en Ajustes.
 
 **Notion sigue siendo el libro mayor.** Los proyectos ganados, las fórmulas de comisión y la
-cobranza se quedan donde están. La plataforma es la capa operativa que Notion no puede dar,
-y `puente/README.md` explica cómo conectarlas el día que haga falta que los tres
-departamentos vean lo mismo.
+cobranza se quedan donde están. La plataforma es la capa operativa que Notion no puede dar.
+
+**Y el puente ya está de los dos lados.** En **Ajustes → El puente** se pega la dirección de
+un Worker de Cloudflare y el token de este teléfono, y a partir de ahí la venta ganada
+**sale sola** hacia la base `Ventas - AL3D` —con la dirección, el punto del mapa, el tipo de
+trabajo derivado y el folio, que es justo lo que el cotizador siempre tuvo y nunca
+llegaba— y el **espejo del dinero** (pago pendiente, comisión restante, estatus y cuenta)
+baja solo. Nadie aprieta nada: se manda al abrir la plataforma y cada vez que vuelve la
+señal. Montarlo son unos 25 minutos de cuentas, una vez, y los pasos están en la propia
+pantalla de Ajustes y en `puente/README.md`.
+
+Sin puente no se rompe nada: la plataforma funciona completa en un dispositivo y el botón
+**Copiar fila para Notion** del cotizador sigue siendo el camino manual. Ese botón no se
+retira nunca.
 
 **Los datos viven en el dispositivo**, igual que el cotizador, y tiene su propio respaldo
 —aparte del del cotizador— en Ajustes.
@@ -244,7 +255,14 @@ plataforma se vea y cobre igual que el cotizador sin volver a decidir un token n
 precio a mano. Los scripts avisan si algo cambió.
 
 Y antes de subir, `pruebas/correr.sh` corre en unos segundos con node y nada más. Una de sus
-pruebas es justo la que revisa que el sitio *se pueda publicar*.
+pruebas es justo la que revisa que el sitio *se pueda publicar*, y otra corre el Worker del
+puente entero contra una Notion de mentiras, sin cuenta y sin red.
+
+Las dos pruebas de navegador van aparte porque necesitan levantar el sitio:
+
+    node pruebas/navegador/puente.mjs        # el camino completo con el puente encendido
+    python3 -m http.server 8814 &
+    PUERTO=8814 node pruebas/navegador/camino-completo.mjs
 
 Junto a los archivos de la app viven tres piezas que se subieron una vez y no hay que volver a tocar: **`sw.js`**, que es lo que hace que la app abra sin señal; **`manifest.webmanifest`**, que es lo que hace que Android la instale como aplicación y no como acceso directo; y **`.nojekyll`**, un archivo vacío que le pide a GitHub publicar el repositorio tal cual. Si se borran los dos primeros, la app sigue funcionando con conexión.
 
@@ -261,9 +279,14 @@ sección.
   que dos aparatos empiezan en `COT-0001` y acaban emitiendo el mismo folio para trabajos
   distintos. La plataforma lo mitiga por dentro —le pega el identificador del dispositivo al
   folio para no confundir dos proyectos— pero el folio que el cliente tiene en la mano sigue
-  pudiendo repetirse. **El arreglo completo es el puente de Notion**, ya escrito y sin
-  encender: ver `puente/README.md`. Mientras tanto, conviene cotizar siempre desde el mismo
-  aparato.
+  pudiendo repetirse. Mientras el puente no esté montado, conviene cotizar siempre desde el
+  mismo aparato.
+
+- **El puente lleva la venta, y por ahora nada más.** El almacén, el catálogo de material y
+  las listas de compra no tienen todavía una base de Notion a la que ir, así que se quedan en
+  cada dispositivo. No se pierden: se apartan en la bandeja con la razón escrita, Ajustes lo
+  dice con su número, y el día que existan esas bases se reincorporan solos. Lo que sí viaja
+  hoy es lo que importaba primero, que es la venta.
 
 - **Los modales traen tamaños del sistema viejo.** El escalador, el vectorizador y el
   historial heredan los tokens nuevos, pero sus medidas internas son de antes de la escala de

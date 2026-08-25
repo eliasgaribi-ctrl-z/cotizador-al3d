@@ -14,6 +14,7 @@
 import * as DB from './datos/db.js';
 import * as Prefs from './datos/prefs.js';
 import * as Cot from './datos/cotizador.js';
+import * as Sync from './datos/sync.js';
 import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, cerrarCapa, ajustarAltoBarra }
   from './nucleo/ui.js';
 
@@ -296,9 +297,61 @@ async function arrancar() {
     if (['al3d_historial', 'al3d_queue'].includes(ev.key)) montar(_actual, { forzar: true });
   });
 
+  /* El puente va al final del arranque, después de pintar. Enchufarlo es leer una clave y
+     construir un objeto —no toca la red— pero el módulo que lo construye se carga aparte, y
+     esperar una descarga antes de la primera pantalla sería pagar en la calle, sin señal,
+     por algo que ni siquiera hace falta para trabajar. */
+  await enchufarPuente();
+  sincronizarCallado();
+
+  /* Al recuperar señal se manda lo que quedó, sin que nadie apriete nada. Es la mitad que
+     le faltaba a la bandeja: guardar sin señal ya funcionaba desde fase 1, y lo que no
+     existía era el momento en que eso sale solo. */
+  window.addEventListener('online', () => sincronizarCallado());
+
   window.addEventListener('resize', ajustarAltoBarra);
   registrarSW();
 }
+
+/* ============================================================================
+   El puente — fase 3
+   ============================================================================ */
+
+/** Enchufa el relevo de Notion si este dispositivo ya tiene URL y token en Ajustes. */
+export async function enchufarPuente() {
+  if (!Prefs.hayPuente()) { Sync.registrar(null); return false; }
+  try {
+    const Puente = await import('./datos/puente.js');
+    Sync.registrar(Puente.desdePrefs());
+    return Sync.configurado();
+  } catch (e) {
+    /* Un relevo que no se pudo cargar no puede llevarse por delante la plataforma: sin él
+       todo sigue funcionando en este dispositivo, que es exactamente el estado de fase 1. */
+    console.warn('no se pudo enchufar el puente', e);
+    return false;
+  }
+}
+ctx.enchufarPuente = enchufarPuente;
+
+/**
+ * Manda lo que quedó y trae lo que cambió, sin decir nada.
+ *
+ * Callado a propósito: esto corre al arrancar y cada vez que vuelve la señal, y un aviso
+ * en cada una sería un aviso que se aprende a ignorar. Lo que sí se hace es repintar, y
+ * SOLO si algo cambió: repintar por costumbre tira el scroll y el filtro que la persona
+ * acababa de poner.
+ */
+async function sincronizarCallado() {
+  if (!Sync.configurado()) return;
+  let movio = 0;
+  try { const r = await Sync.bombear(); if (r.ok) movio += Number(r.valor.subidas) || 0; } catch (_) {}
+  try {
+    const r = await Sync.jalar();
+    if (r.ok) movio += (Number(r.valor.nuevos) || 0) + (Number(r.valor.actualizados) || 0);
+  } catch (_) {}
+  if (movio && _actual) montar(_actual, { forzar: true });
+}
+ctx.sincronizar = sincronizarCallado;
 
 /* El service worker guarda una copia de la app para que abra sin señal. Va al final del
    arranque y en su propio try: si el navegador no lo soporta —o el sitio se abrió como
