@@ -110,6 +110,64 @@
   --clay-in:
     inset 0 3px 7px rgba(64,96,248,.13),
     inset 0 -2px 4px rgba(255,255,255,.9);
+  /* Hundido y teñido del matiz de la partida. Es la misma huella, pero la del bloque de
+     opciones tiene que leerse como un hueco DENTRO de una pieza de color, no como un hueco
+     genérico repetido seis veces. */
+  --clay-in-pc:
+    inset 0 3px 8px rgba(var(--pc-rgb),.16),
+    inset 0 -2px 4px rgba(255,255,255,.92);
+
+  /* ===================== Los seis matices de partida =====================
+     El problema que resuelven: seis partidas seguidas eran seis rectángulos blancos
+     idénticos, y dentro de cada una los chips, los campos y los grupos también eran
+     blancos. Al abrir la tercera no había nada que dijera «esta es la tercera» ni dónde
+     terminaba ella y empezaba lo que lleva dentro. Se contaban los renglones.
+
+     Ahora cada partida trae un matiz propio y ese matiz tiñe TODO lo suyo: el número, el
+     lomo de la izquierda, la banda del encabezado, su sombra, y —esto es lo que de verdad
+     ata las cosas— los chips que están elegidos DENTRO de ella. Lo que se eligió en la
+     partida 3 se ve del color de la partida 3.
+
+     Tres decisiones que no son de gusto:
+
+     · Solo la mitad fría del círculo, de cian a magenta. El verde, el ámbar y el rojo ya
+       significan algo en esta app —autorizado, falta, error— y un matiz de partida que
+       cayera ahí convertiría «la partida 4» en «la partida con problema».
+
+     · El orden NO es el del arcoíris. Puestos en orden de tono, dos partidas vecinas se
+       parecerían; puestos así, entre una y la siguiente hay como mínimo 47° de tono y casi
+       siempre más de 70°. Lo que importa no es que la paleta se vea bonita en una fila de
+       muestras: es que la 2 no se confunda con la 3.
+
+     · El color NUNCA va solo. El número, la ficha del tipo y la descripción siguen
+       distinguiendo las partidas sin él, porque hay quien no ve estos seis tonos como seis
+       cosas distintas —y porque en papel no hay color.
+
+     MEDIDO, uno por uno, con la fórmula de contraste de la WCAG: cada tinta da entre 6,5:1
+     y 8:1 sobre blanco y no baja de 5,7:1 sobre su propio relleno tenue, que es donde de
+     verdad se lee (el chip elegido es tinta sobre relleno). El tono medio, que es el que
+     entra en los degradados y lleva blanco encima, da 4,59:1 o más. Nada de esto se puede
+     cambiar «un poco» sin volver a medirlo. */
+  --pc-1:#3018f8; --pc-1-md:#4060f8; --pc-1-bd:#b9c5fe; --pc-1-sv:#e9edff; --pc-1-rgb:64,96,248;
+  --pc-2:#ab1c77; --pc-2-md:#cf2d94; --pc-2-bd:#e7b6d5; --pc-2-sv:#fbeef7; --pc-2-rgb:207,45,148;
+  --pc-3:#086581; --pc-3-md:#0a7fa2; --pc-3-bd:#b1deec; --pc-3-sv:#edf9fd; --pc-3-rgb:10,127,162;
+  /* La 4 es ciruela y no violeta, y esto sí es una decisión y no un gusto: el violeta de
+     esta app ya está tomado. El botón de «Cotizar con IA» es #7b3ff8 —el único color que la
+     hoja reserva a propósito, para lo único que trae algo de fuera— y el violeta que le
+     tocaba a esta partida quedaba a ΔE76 = 9,8 de él, o sea el mismo color para el ojo.
+     Ponerle a una partida cualquiera el color que significa «esto lo hizo la IA» gasta el
+     único color con significado propio de la pantalla. En ciruela se va a ΔE 41,6 del botón,
+     se queda a 25,1 de la púrpura de la 6 —que estaba a 23,7, así que la paleta ni siquiera
+     se aprieta— y a 69,5 y 39,9 de sus dos vecinas reales, la 3 y la 5. */
+  --pc-4:#873ba0; --pc-4-md:#a350be; --pc-4-bd:#d6bfde; --pc-4-sv:#f7f1f9; --pc-4-rgb:163,80,190;
+  --pc-5:#0c59bd; --pc-5-md:#1470dd; --pc-5-bd:#b1cbec; --pc-5-sv:#edf4fd; --pc-5-rgb:20,112,221;
+  --pc-6:#9f17a8; --pc-6-md:#bd23c8; --pc-6-bd:#e5b5e8; --pc-6-sv:#fbeefc; --pc-6-rgb:189,35,200;
+  /* El matiz por omisión es el de la marca. Existe para que nada de lo que use --pc se
+     rompa fuera de una partida: en CSS, un rgba(var(--x),.1) con --x sin definir no cae a
+     un color por defecto, tira la declaración entera y la superficie se queda sin fondo.
+     Con esto, el bloque de opciones y el hueco teñido se pueden reusar en cualquier sitio
+     y salen azules, que es lo correcto donde no hay partida a la que pertenecer. */
+  --pc:var(--a-fuerte); --pc-md:var(--a); --pc-bd:var(--a-borde); --pc-sv:var(--a-suave); --pc-rgb:64,96,248;
 
   /* ----- Movimiento -----
      Dos curvas: una para lo que responde al dedo, con un rebote corto —el barro es blando,
@@ -1667,7 +1725,9 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
      proyecto» se iba a dos renglones y el encabezado crecía el doble. Lo que cede el
      ancho es el botón, y para eso necesita min-width:0 —sin él un elemento flexible
      no baja de lo que mide su texto y termina empujando la página a lo ancho. */
-  .card-h{padding:13px 13px 0;gap:9px}
+  /* El relleno de .card-h vive ahora en el bloque «Cierre de la hoja»: aquí perdía por
+     orden contra la capa de color. Lo que sí sigue vivo de esta regla es el hueco. */
+  .card-h{gap:9px}
   .card-h :is(h2,h3){white-space:nowrap;flex-shrink:0}
   .card-h .card-fold{min-width:0}
   .card-b{padding:11px 13px 15px}
@@ -1886,22 +1946,295 @@ body{
 }
 .card:hover,.sum:hover{box-shadow:var(--clay-alto)}
 
-/* La partida vuelve a ser una pieza, pero hundida en la tarjeta en vez de
-   apilada encima: así se distingue sin sumar una tercera sombra saliente. */
-.partida{
-  border-top:none;
-  background:linear-gradient(168deg,rgba(255,255,255,.75),rgba(242,243,254,.55));
+/* ---------- El encabezado de una tarjeta, teñido ----------
+   El mismo recurso que la partida abierta: la pieza lleva una banda de color arriba y el
+   cuerpo se queda limpio. No es el filete decorativo que esta hoja quitó en su día —aquel
+   era un adorno al lado de un título en mayúsculas diminutas—: es la banda que dice dónde
+   empieza la pieza, y ahora la llevan las dos cosas que son piezas, la tarjeta y la
+   partida, así que la pantalla tiene UN lenguaje en vez de dos.
+
+   El fondo va a .card-h y no a la tarjeta entera porque el cuerpo es donde se lee y se
+   escribe: teñir eso es lo que convierte un formulario en un cartel. */
+.card-h{
+  padding:var(--e4) var(--e5);
+  background:linear-gradient(168deg,rgba(64,96,248,.11),rgba(64,96,248,.03));
+  border-bottom:1px solid rgba(64,96,248,.14);
+  box-shadow:inset 0 -1px 0 rgba(255,255,255,.85);
+}
+.card-b{padding-top:var(--e5)}
+.card.folded .card-h{border-bottom:none}
+
+/* ---------- La bandeja y las piezas ----------
+   El error de la versión anterior: la partida estaba HUNDIDA en la tarjeta y la tarjeta
+   era blanca, así que una pieza casi blanca hundida en un fondo blanco no se veía ni
+   hundida ni salida. Seis de esas, apiladas, eran seis renglones sin frontera.
+
+   Ahora hay cuatro niveles de profundidad y se alternan, que es lo único que hace legible
+   un diseño de este tipo:
+     bandeja hundida  →  partida saliente  →  bloque de opciones hundido  →  chip saliente
+   Así, dentro de una partida, el continente y el contenido nunca están al mismo nivel: se
+   distinguen sin leer nada. */
+/* La bandeja se sale hacia los lados EXACTAMENTE lo que mete de relleno, para no robarle
+   ancho a las partidas. No es cosmético: el encabezado de una partida abierta cabe en un
+   renglón por 2 px, así que ocho píxeles de marco tiraban los tres iconos de acción a una
+   segunda línea. */
+#items:not(:empty){
+  padding:var(--e3);
+  margin:0 calc(var(--e3) * -1) var(--e2);
   border-radius:var(--rr3);
-  padding:var(--e5);
-  margin-bottom:var(--e4);
-  box-shadow:var(--clay-in);
+  background:linear-gradient(180deg,rgba(198,203,242,.62),rgba(226,229,250,.5));
+  box-shadow:inset 0 5px 12px rgba(64,96,248,.17),inset 0 -2px 4px rgba(255,255,255,.65);
+}
+
+/* La partida: una pieza de barro SALIENTE, con su matiz. El lomo de la izquierda y la
+   sombra teñida son lo que la separa de la de arriba y de la de abajo; el relleno casi
+   blanco es lo que la separa de la bandeja en la que está metida. */
+.partida{
+  --pc:var(--pc-1); --pc-md:var(--pc-1-md); --pc-bd:var(--pc-1-bd);
+  --pc-sv:var(--pc-1-sv); --pc-rgb:var(--pc-1-rgb);
+  /* El relleno se declara UNA vez y de aquí lo leen el lomo y la banda del encabezado, que
+     tienen que salirse justo hasta el canto. Sin esto, cada ancho de pantalla obligaba a
+     acertar tres números a la vez: el del relleno y los dos márgenes negativos que lo
+     compensan. --lomo es lo mismo para el ancho de la tira. */
+  --pp:var(--e5);
+  --lomo:6px;
+  border-top:none;
+  background:linear-gradient(168deg,#fff 0%,var(--n0) 52%,var(--pc-sv) 100%);
+  border:1px solid rgba(255,255,255,.9);
+  border-radius:var(--rr3);
+  /* El lomo se pinta ENCIMA del relleno izquierdo, no antes de él. Sumárselo le quitaba
+     6 px de ancho útil a cada partida y con eso el encabezado de la abierta se partía en
+     dos renglones: los tres iconos de acción se caían solos a una segunda línea. */
+  padding:var(--pp);
+  margin-bottom:var(--e3);
+  overflow:hidden;
+  box-shadow:
+    inset 0 3px 6px rgba(255,255,255,.95),
+    inset 0 -5px 11px rgba(var(--pc-rgb),.13),
+    0 3px 6px rgba(35,39,68,.05),
+    0 14px 28px -8px rgba(var(--pc-rgb),.28);
   transition:box-shadow var(--mv),transform var(--mv);
 }
-#items>.partida:first-of-type{padding-top:var(--e5)}
-.partida:hover{box-shadow:inset 0 3px 8px rgba(64,96,248,.16),inset 0 -2px 4px rgba(255,255,255,.95)}
-.partida.folded{background:linear-gradient(168deg,rgba(255,255,255,.85),rgba(242,243,254,.4))}
-.items-cand .partida{background:linear-gradient(168deg,rgba(231,233,251,.9),rgba(216,219,246,.6))}
-.partida.hidden-pdf{background:linear-gradient(168deg,rgba(231,233,251,.7),rgba(231,233,251,.4))}
+.partida:last-child{margin-bottom:0}
+#items>.partida:first-of-type{padding-top:var(--pp)}
+
+/* El lomo. Es el elemento que más trabaja de todo esto: seis tiras de color, una por
+   pieza, leídas de un vistazo por el rabillo del ojo mientras se desplaza la página.
+   Va pegado al borde izquierdo y no flotando dentro, porque una tira separada del canto
+   se lee como decoración y una pegada se lee como el lomo de una carpeta. */
+.partida::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:var(--lomo);
+  background:linear-gradient(180deg,var(--pc-md),var(--pc));
+  box-shadow:inset -1px 0 3px rgba(20,22,43,.18),inset 1px 0 2px rgba(255,255,255,.35);
+  transition:width var(--mv),background var(--mv);
+}
+
+/* Abierta = la que estoy usando. Se levanta, el lomo engorda y el encabezado se tiñe:
+   con cinco plegadas alrededor, esa diferencia es la que dice dónde estoy parado.
+   Antes abierta y plegada se pintaban igual y había que buscar el ▾. */
+.partida:not(.folded){
+  box-shadow:
+    inset 0 3px 7px rgba(255,255,255,.95),
+    inset 0 -6px 13px rgba(var(--pc-rgb),.16),
+    0 5px 10px rgba(35,39,68,.06),
+    0 24px 44px -10px rgba(var(--pc-rgb),.40);
+}
+.partida:not(.folded)::before{width:calc(var(--lomo) + 3px)}
+.partida:not(.folded) .partida-top{
+  margin:calc(var(--pp) * -1) calc(var(--pp) * -1) var(--e4);
+  padding:var(--e3) var(--pp);
+  background:linear-gradient(168deg,rgba(var(--pc-rgb),.13),rgba(var(--pc-rgb),.05));
+  border-bottom:1px solid rgba(var(--pc-rgb),.16);
+  box-shadow:inset 0 -1px 0 rgba(255,255,255,.8);
+}
+.partida:hover{transform:translateY(-1px)}
+.partida:hover::before{width:calc(var(--lomo) + 3px)}
+/* Dentro de la partida hay diez sitios donde se puede estar escribiendo. Que la pieza
+   entera responda al foco de cualquiera de ellos es lo que convierte «hay un cursor en
+   algún campo» en «estoy en la partida 3». */
+.partida:focus-within{
+  box-shadow:
+    inset 0 3px 7px rgba(255,255,255,.95),
+    inset 0 -6px 13px rgba(var(--pc-rgb),.16),
+    0 0 0 2px rgba(var(--pc-rgb),.35),
+    0 26px 48px -10px rgba(var(--pc-rgb),.46);
+}
+/* Plegada: la misma pieza, más delgada. No pierde el color —es lo único que la distingue
+   de las otras cinco plegadas— pero sí pierde altura, que es lo que dice «esta está
+   guardada». */
+.partida.folded{
+  background:linear-gradient(168deg,#fff 0%,#fff 62%,var(--pc-sv) 100%);
+  box-shadow:
+    inset 0 2px 5px rgba(255,255,255,.95),
+    inset 0 -3px 8px rgba(var(--pc-rgb),.10),
+    0 2px 4px rgba(35,39,68,.04),
+    0 8px 18px -6px rgba(var(--pc-rgb),.24);
+}
+/* Las partidas que no se pueden tocar todavía —faltan los datos del cliente— y las que no
+   salen en el PDF pierden el matiz a propósito: en gris se leen como lo que son, algo que
+   está ahí pero fuera de juego. Es la única vez que quitar color informa. */
+.items-cand .partida,.partida.hidden-pdf{
+  background:linear-gradient(168deg,rgba(242,243,254,.95),rgba(216,219,246,.7));
+  box-shadow:inset 0 3px 7px rgba(64,96,248,.10),inset 0 -2px 4px rgba(255,255,255,.8);
+}
+.items-cand .partida::before,.partida.hidden-pdf::before{background:linear-gradient(180deg,var(--n4),var(--n5))}
+.items-cand .partida:not(.folded) .partida-top,.partida.hidden-pdf:not(.folded) .partida-top{
+  background:linear-gradient(168deg,rgba(182,187,230,.28),rgba(182,187,230,.12));
+  border-bottom-color:var(--n3);
+}
+
+/* ----- A qué matiz le toca cada partida -----
+   Lo pone renderItems con data-tono, no un :nth-child, y por una razón: dentro de #items
+   pueden ir por delante la banda de «modo edición» y el recuadro de «aún no hay partidas»,
+   así que contar hijos daría el color equivocado justo cuando aparecen. Con el índice
+   puesto a mano el color y el número SIEMPRE dicen lo mismo, que es de lo que depende todo
+   esto: si el 3 es cian, lo cian es del 3. Al reordenar se recolorean, y está bien: lo que
+   identifica a una partida en una cotización es su posición, no su historia. */
+.partida[data-tono="2"]{--pc:var(--pc-2);--pc-md:var(--pc-2-md);--pc-bd:var(--pc-2-bd);--pc-sv:var(--pc-2-sv);--pc-rgb:var(--pc-2-rgb)}
+.partida[data-tono="3"]{--pc:var(--pc-3);--pc-md:var(--pc-3-md);--pc-bd:var(--pc-3-bd);--pc-sv:var(--pc-3-sv);--pc-rgb:var(--pc-3-rgb)}
+.partida[data-tono="4"]{--pc:var(--pc-4);--pc-md:var(--pc-4-md);--pc-bd:var(--pc-4-bd);--pc-sv:var(--pc-4-sv);--pc-rgb:var(--pc-4-rgb)}
+.partida[data-tono="5"]{--pc:var(--pc-5);--pc-md:var(--pc-5-md);--pc-bd:var(--pc-5-bd);--pc-sv:var(--pc-5-sv);--pc-rgb:var(--pc-5-rgb)}
+.partida[data-tono="6"]{--pc:var(--pc-6);--pc-md:var(--pc-6-md);--pc-bd:var(--pc-6-bd);--pc-sv:var(--pc-6-sv);--pc-rgb:var(--pc-6-rgb)}
+
+/* ----- El número, relleno -----
+   Era una pastilla blanca con el número en azul: la misma pastilla blanca seis veces. Es
+   el sitio donde el color cuesta menos y rinde más, porque el número y el matiz dicen lo
+   mismo y se refuerzan. Blanco encima del tono medio da 4,6:1 como mínimo —medido arriba,
+   uno por uno— y el brillo interior es una banda de 2 px arriba, lejos de la cifra. */
+.pnum .n{
+  background:linear-gradient(160deg,var(--pc-md),var(--pc));
+  border:1px solid rgba(255,255,255,.35);
+  color:#fff;font-weight:700;border-radius:999px;width:26px;height:26px;
+  text-shadow:0 1px 2px rgba(20,22,43,.3);
+  box-shadow:inset 0 2px 4px rgba(255,255,255,.32),inset 0 -3px 6px rgba(20,22,43,.22),
+    0 3px 7px -1px rgba(var(--pc-rgb),.5);
+}
+.items-cand .pnum .n,.partida.hidden-pdf .pnum .n{
+  background:linear-gradient(160deg,var(--n4),var(--n5));box-shadow:var(--clay-in);text-shadow:none;
+}
+/* El ▾ y el asa también son de la partida, no de la app. */
+.partida .pfold,.partida .drag-handle{color:var(--pc)}
+.partida .pfold:hover,.partida .pfold:active{background:rgba(var(--pc-rgb),.12)}
+
+/* La ficha del tipo, plegada: el segundo sitio donde el matiz sale gratis. Con seis
+   partidas guardadas, «Letras 3D» en índigo y «Letras 3D» en cian son dos partidas, y eso
+   se lee antes que el número. */
+.partida.folded .ptipo{
+  background:linear-gradient(168deg,#fff,var(--pc-sv));
+  border:1px solid var(--pc-bd);
+  color:var(--pc);
+}
+
+/* ---------- El bloque de opciones: un hueco DENTRO de la pieza ----------
+   Esta es la mitad de la queja: «me confundo entre las partidas y los elementos dentro de
+   ella». Los grupos de opciones no tenían caja ninguna —solo una etiqueta y espacio— así
+   que «Material / acabado» de la partida 2 y «Complejidad» de la partida 2 y el borde de
+   la partida 3 eran el mismo blanco a la misma altura. Ahora cada grupo es un hueco
+   excavado en la pieza, teñido de su matiz: se ve que está DENTRO, y se ve de cuál. */
+.optgrp{
+  padding:var(--e3) var(--e4) var(--e4);
+  border-radius:var(--rr2);
+  background:linear-gradient(180deg,rgba(var(--pc-rgb),.09),rgba(255,255,255,.42));
+  box-shadow:var(--clay-in-pc);
+  border:1px solid rgba(255,255,255,.65);
+  margin-bottom:var(--e3);
+}
+/* Un grupo sin nada elegido ya se decía con las dos palabras «Sin elegir» en ámbar. Dicho
+   además con el hueco entero en ámbar, se encuentra sin buscarlo —y el ámbar es el mismo
+   de todo lo que falta en esta app, así que no hay un código nuevo que aprender. */
+.optgrp.falta{
+  background:linear-gradient(180deg,rgba(200,140,20,.11),rgba(255,255,255,.45));
+  box-shadow:inset 0 3px 8px rgba(200,140,20,.18),inset 0 -2px 4px rgba(255,255,255,.92);
+  border-color:rgba(255,244,224,.8);
+}
+.optgrp-t{color:var(--pc);font-weight:700;letter-spacing:.1px}
+.optgrp.falta .optgrp-t{color:var(--av)}
+
+/* ---------- El chip elegido lleva el color de SU partida ----------
+   Antes todo lo elegido era del mismo azul de marca, en las seis partidas. Ese azul decía
+   «esto está elegido» pero no decía dónde, y con dos partidas abiertas era imposible
+   saber a cuál pertenecía lo que estabas mirando. Ahora lo elegido en la 4 es violeta
+   porque la 4 es violeta: el chip pertenece a algo, y se ve a qué. */
+.partida .chip.on{
+  background:linear-gradient(168deg,#fff,var(--pc-sv));
+  color:var(--pc);border-color:var(--pc-bd);
+  box-shadow:inset 0 3px 7px rgba(var(--pc-rgb),.15),inset 0 -2px 4px rgba(255,255,255,.9),
+    0 0 0 1px rgba(var(--pc-rgb),.22);
+  font-weight:650;
+}
+/* La tarifa del catálogo dentro del chip elegido, sin opacidad. Al 80 % quedaba en 4,01:1
+   sobre el relleno del propio chip —medido, y falla en cinco de los seis matices— y es un
+   número con dinero: de lo que más se lee de un chip. La jerarquía contra la etiqueta ya la
+   hacía el tamaño, así que la opacidad no ordenaba nada, solo quitaba contraste. Sin ella
+   el peor caso es 5,90:1. */
+.partida .chip.on small{color:var(--pc)}
+.partida .chip.on .ck{color:var(--pc)}
+.partida .chip:hover:not(.on):not([aria-disabled]){background:linear-gradient(168deg,#fff,var(--pc-sv))}
+/* Dentro del hueco, el chip sin elegir tiene que verse SALIENDO de él: es la cuarta capa
+   de la escalera y la que hace que un hueco lleno de botones no se lea como un bloque. */
+.optgrp .chip{
+  background:linear-gradient(168deg,#fff,var(--n0));
+  box-shadow:0 2px 4px rgba(35,39,68,.06),0 8px 16px -6px rgba(var(--pc-rgb),.24),
+    inset 0 2px 3px rgba(255,255,255,.95);
+}
+/* El interruptor de iluminación vive dentro de un grupo y es el único control con relleno
+   de marca ahí dentro: encendido toma el matiz, o sería lo único azul en una partida
+   magenta. */
+.partida .tg.on{
+  background:linear-gradient(160deg,var(--pc-md),var(--pc));
+  box-shadow:inset 0 2px 5px rgba(20,22,43,.22),0 4px 12px -2px rgba(var(--pc-rgb),.45);
+}
+/* Y el campo que se está tecleando se ilumina del color de su partida, no del azul de la
+   app: es el mismo dato —dónde estoy— dicho por tercera vez sin costar un píxel. */
+.partida :is(input,select,textarea):focus{
+  box-shadow:inset 0 3px 7px rgba(var(--pc-rgb),.12),0 0 0 4px rgba(var(--pc-rgb),.2),
+    0 8px 20px -4px rgba(var(--pc-rgb),.3);
+}
+/* El total de la partida: no se pinta del matiz —el dinero se lee como dinero— pero sí se
+   apoya en una línea de su color, que es lo que cierra la pieza por abajo. */
+.partida .pline{border-top:1px solid rgba(var(--pc-rgb),.2)}
+/* El encabezado cabía en un renglón por dos píxeles, y eso no es que quepa: es que todavía
+   no se ha roto. Dos puntos de holgura —los huecos de la barra y los del bloque del número—
+   le devuelven ocho, que es lo que hacía falta para que el borde de la pieza y el marco de
+   la bandeja no volvieran a tirar los tres iconos a una segunda línea. Aprieta, además, un
+   encabezado que estaba suelto. */
+.partida .partida-top{gap:8px}
+.partida .pnum{gap:6px}
+/* El selector de tipo también es de la partida. Dejarlo en azul de marca dentro de una
+   partida cian ponía en el mismo encabezado el único azul que no significaba nada ahí, y
+   además decía «marca» donde tenía que decir «esta partida». */
+.partida .tipo-seg{
+  background:linear-gradient(180deg,rgba(var(--pc-rgb),.14),rgba(255,255,255,.5));
+  box-shadow:var(--clay-in-pc);
+}
+.partida .tipo-seg button.on{
+  color:var(--pc);
+  box-shadow:0 2px 4px rgba(35,39,68,.06),0 8px 16px -4px rgba(var(--pc-rgb),.3),inset 0 2px 4px rgba(255,255,255,.95);
+}
+.items-cand .tipo-seg button.on,.partida.hidden-pdf .tipo-seg button.on{color:var(--n7)}
+/* Las medidas van en su propio hueco por la misma razón que las opciones: son un grupo de
+   controles, y un grupo de controles suelto sobre la pieza se lee como parte de la pieza.
+   La descripción NO —se queda flotando justo debajo del encabezado, que es donde se lee
+   como el titular de la partida y no como un campo más de un formulario. */
+.partida .pbody>:is(.grid2,.grid3){
+  padding:var(--e3) var(--e4) var(--e2);
+  margin-bottom:var(--e3);
+  border-radius:var(--rr2);
+  background:linear-gradient(180deg,rgba(var(--pc-rgb),.07),rgba(255,255,255,.4));
+  box-shadow:var(--clay-in-pc);
+  border:1px solid rgba(255,255,255,.6);
+}
+.partida .pbody>:is(.grid2,.grid3)>.fld{margin-bottom:var(--e2)}
+/* --n7 y no el --n6 de todas las etiquetas de la app, y es una corrección de contraste, no
+   de gusto: --n6 valía sobre blanco, pero el hueco de las medidas ya no es blanco —lleva un
+   7 % del matiz encima del relleno tenue— y ahí --n6 se queda entre 4,22:1 y 4,60:1, o sea
+   por debajo del 4,5 exigido en tres de los seis matices. Y «Altura», «# Letras» y «Tarifa»
+   son justo las palabras que dicen qué se está tecleando.
+   Lo que se mueve es la tinta y no el hueco: aclarar el hueco para salvar el contraste
+   desharía la mitad del arreglo, que es separar el continente de su contenido. Con --n7 el
+   peor caso sube a 7,49:1 y la jerarquía se conserva igual, porque el valor del campo va en
+   --n8 y el título del bloque va en el matiz. */
+.partida .pbody>.fld>label,.partida .pbody :is(.grid2,.grid3)>.fld>label{color:var(--n7)}
 
 /* ---------- Campos: hundidos, como una huella en el barro ---------- */
 input,select,textarea,.inp-money{
@@ -2066,10 +2399,16 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 /* ---------- Barra de pasos ---------- */
 .paso-tab{border-radius:999px;transition:transform var(--mv-r),box-shadow var(--mv),background var(--mv-s),color var(--mv-s)}
 .paso-tab:hover{transform:translateY(-1px)}
+/* El paso en el que estás va relleno de marca, no blanco. Eran dos pastillas casi iguales
+   —la de «Cliente» y la de «Partidas»— y la única diferencia era el número: en una barra
+   de dos pasos, que es toda la navegación que tiene la app, eso es poco. */
 .paso-tab.on{
-  background:linear-gradient(168deg,#fff,var(--n0));border-color:rgba(255,255,255,.9);
-  box-shadow:var(--clay);
+  background:linear-gradient(168deg,var(--a-suave),#dfe6ff);
+  border-color:var(--a-borde);color:var(--a-fuerte);
+  box-shadow:inset 0 2px 5px rgba(255,255,255,.9),0 3px 6px rgba(35,39,68,.05),
+    0 12px 24px -8px rgba(64,96,248,.4);
 }
+.paso-tab.on .tx small{color:var(--a-fuerte);opacity:.72}
 .paso-tab .n{border-radius:999px;box-shadow:var(--clay-in);border:1px solid rgba(255,255,255,.8);transition:background var(--mv),color var(--mv)}
 .paso-tab.on .n{background:var(--brand-grd);color:#fff;border-color:rgba(255,255,255,.35);box-shadow:inset 0 2px 4px rgba(255,255,255,.4),inset 0 -3px 6px rgba(20,22,43,.25),0 4px 10px -2px rgba(48,24,248,.42)}
 .paso-tab.hecho .n{background:linear-gradient(160deg,#22c98a,#0a7d4a);color:#fff;border-color:rgba(255,255,255,.35);box-shadow:inset 0 2px 4px rgba(255,255,255,.4),0 4px 10px -2px rgba(10,125,74,.4);animation:barro-pop var(--mv)}
@@ -2088,6 +2427,64 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
   border-top:1px solid rgba(255,255,255,.9);
   box-shadow:0 -10px 30px -10px rgba(64,96,248,.28);
 }
+
+/* ---------- La columna del dinero ----------
+   Era un solo rectángulo blanco con seis renglones separados por filetes de un píxel: la
+   parte de la pantalla que más se mira y la única sin relieve ninguno. Un filete no dice
+   jerarquía, dice tabla.
+
+   Ahora la columna tiene tres piezas con tres profundidades, y cada una es una pregunta
+   distinta: cuánto falta por capturar (hueco), cuánto es (placa saliente), y cómo se paga
+   (hueco). Los renglones sueltos —IVA, subtotal— se quedan planos, que es lo que son. */
+.sum{padding:var(--e2)}
+.sum>*{border-top:none}
+.prog-box{
+  border-radius:var(--rr2);
+  background:linear-gradient(180deg,rgba(64,96,248,.09),rgba(255,255,255,.4));
+  box-shadow:var(--clay-in);
+  border:1px solid rgba(255,255,255,.7);
+  margin-bottom:var(--e2);
+}
+.prog-box:hover{background:linear-gradient(180deg,rgba(64,96,248,.13),rgba(255,255,255,.45))}
+.sum-rows,.sum-rows-2{padding-left:var(--e4);padding-right:var(--e4)}
+.sum-rows-2{margin-top:0;border-top:1px solid var(--n2)}
+
+/* La placa del total. Es lo único de la columna que sale hacia afuera, y sale de verdad:
+   con la sombra teñida y el brillo interior se lee como una pieza puesta encima del
+   resumen, no como el último renglón de una lista. */
+.neto{
+  margin:var(--e2) 0;
+  padding:var(--e4);
+  border-top:none;
+  border-radius:var(--rr2);
+  background:linear-gradient(160deg,#fff 0%,var(--a-suave) 100%);
+  border:1px solid rgba(255,255,255,.9);
+  box-shadow:
+    inset 0 3px 7px rgba(255,255,255,.95),
+    inset 0 -6px 13px rgba(64,96,248,.14),
+    0 4px 8px rgba(35,39,68,.05),
+    0 18px 34px -10px rgba(64,96,248,.32);
+}
+.neto .lab{color:var(--a-fuerte);font-weight:600}
+
+/* El anticipo es el otro dinero: el que entra hoy. Aguamarina —el tercer color del
+   sistema, el que informa sin ser acción— para que no se lea como una segunda versión del
+   total. Hundido, porque aquí se ESCRIBE. */
+.anti{
+  border-top:none;
+  margin-bottom:var(--e2);
+  padding:var(--e3) var(--e4) var(--e4);
+  border-radius:var(--rr2);
+  background:linear-gradient(180deg,rgba(24,182,216,.11),rgba(255,255,255,.4));
+  box-shadow:inset 0 3px 8px rgba(24,182,216,.2),inset 0 -2px 4px rgba(255,255,255,.9);
+  border:1px solid rgba(255,255,255,.7);
+}
+.anti label{color:#0b6e85;font-weight:600}
+/* La tarjeta ganó 8 px de relleno propio, así que todo lo de dentro descuenta esos 8 de
+   los suyos: sin esto el resumen se metía 32 px por la izquierda y los renglones dejaban
+   de alinearse con el título de la tarjeta de al lado. */
+.auth,.auth-adj,.precios-nota{padding-left:var(--e4);padding-right:var(--e4)}
+.auth{border-top:1px solid var(--n2);margin-top:var(--e2)}
 
 /* ---------- El total ----------
    El número más grande de la app, y el único que late cuando cambia. */
@@ -2143,7 +2540,16 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 #card-proy,#card-partidas{animation-delay:.08s}
 .p1-cierre{animation-delay:.16s}
 #sidebox .sum{animation-delay:.14s}
-.partida{animation:barro-entra .44s cubic-bezier(.22,1,.36,1) both}
+/* `backwards` y no `both`, y no es un detalle: con `both` el fotograma final de la entrada
+   —opacity:1, transform:none— se sigue aplicando PARA SIEMPRE desde el origen de
+   animación, que en la cascada va por encima de cualquier declaración normal del autor.
+   O sea que .partida:hover{transform:...} y .partida.dragging{opacity:.35} estaban
+   escritas y no se veían nunca: medido en el navegador, la partida no se movía al pasar el
+   ratón y arrastrarla no la difuminaba. Con `backwards` el fotograma inicial se aplica
+   durante el retardo —que es lo único que hacía falta para que no parpadee— y al terminar
+   la pieza vuelve a obedecer a la hoja. Que ceda al tocarla es la mitad de que se lea como
+   barro; sin esto la pieza era una calcomanía. */
+.partida{animation:barro-entra .44s cubic-bezier(.22,1,.36,1) backwards}
 #items>.partida:nth-child(1){animation-delay:.04s}
 #items>.partida:nth-child(2){animation-delay:.09s}
 #items>.partida:nth-child(3){animation-delay:.14s}
@@ -2182,12 +2588,9 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 }
 .ai-btn:disabled{animation:none;opacity:.5}
 
-/* El número de la partida, con su propia pieza de barro. */
-.pnum .n{
-  background:linear-gradient(168deg,#fff,var(--n2));border:1px solid rgba(255,255,255,.9);
-  color:var(--a-fuerte);font-weight:700;border-radius:999px;width:26px;height:26px;
-  box-shadow:0 2px 4px rgba(35,39,68,.06),0 6px 12px -3px rgba(64,96,248,.24),inset 0 2px 3px rgba(255,255,255,.95);
-}
+/* El número de la partida se pinta arriba, con el resto de lo que lleva su matiz. Aquí
+   había una segunda definición —pastilla blanca, número azul— y al vivir más abajo era la
+   que ganaba: el número volvía a ser igual en las seis partidas. */
 
 /* Los importes de cada partida, con el peso que les toca. */
 .pline .lt{font-size:var(--t5);font-weight:700;letter-spacing:-.4px;color:var(--n8)}
@@ -2201,8 +2604,20 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
    barra fija que justifique la regla. */
 @media screen and (max-width:920px){ .pline .lt{font-size:var(--t4);font-weight:650} }
 
-/* La cara plegada se levanta al pasar por encima: dice que se puede abrir. */
-.partida.folded .psum:hover .pdsc{color:var(--a-fuerte)}
+/* La cara plegada se levanta al pasar por encima: dice que se puede abrir. En el color de
+   su partida, no en el de la marca: es lo mismo que hace el ▾ que está justo encima. */
+.partida.folded .psum:hover .pdsc{color:var(--pc)}
+/* Las fichas de lo elegido se quedan neutras —son datos, no selecciones, y eso ya estaba
+   decidido y medido— pero la palomita toma el matiz: basta para que la cara plegada se lea
+   como parte de SU pieza y no como una tira de etiquetas genéricas. */
+.partida .ptok::before{color:var(--pc)}
+.partida .ptok.falta::before{color:var(--av)}
+.partida .ptok.off::before{color:var(--n5)}
+/* El aro de foco, del color de la partida. Con seis piezas en pantalla y el teclado como
+   único medio de navegación, un aro azul idéntico en las seis no dice en cuál estás. */
+.partida :where(button,summary,a[href],input,select,textarea,[tabindex]):focus-visible{
+  outline-color:var(--pc);
+}
 
 /* ---------- Aro de foco ---------- */
 :where(button,summary,a[href],input,select,textarea,[tabindex]):focus-visible{
@@ -2229,9 +2644,23 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
      24px/16px y no los 11/10 que pedía el bloque del teléfono, 209 líneas más arriba. Son
      303 px de página en el iPhone y 521 px en la portada del Fold —una partida plegada más
      a la vista—, y es lo que partía en dos renglones el encabezado de la partida plegada a
-     344 px. El :first-of-type hace falta porque la regla de la capa lleva un id. */
-  .partida{padding:11px 11px 12px;margin-bottom:10px}
-  #items>.partida:first-of-type{padding-top:11px}
+     344 px. El :first-of-type hace falta porque la regla de la capa lleva un id.
+
+     Ya no se toca `padding` directo: se cambia --pp y con eso se recolocan solos el lomo y
+     los márgenes negativos de la banda del encabezado, que es lo que antes había que
+     acertar a mano tres veces. El lomo también adelgaza —6 px de tira en una pantalla de
+     360 px son otra cosa que en una de 1 180. */
+  .partida{--pp:11px;--lomo:5px;margin-bottom:10px}
+  /* El bloque de opciones aprieta igual que antes; la capa de color le puso relleno de
+     escritorio y vive más abajo en la hoja, así que gana ella si no se dice aquí. */
+  .optgrp{padding:8px 9px 9px;margin-bottom:8px}
+  /* La bandeja se queda casi al ras: en el teléfono el marco es lo primero que sobra. */
+  #items:not(:empty){padding:6px;margin-left:-6px;margin-right:-6px}
+  /* La banda teñida del encabezado de la tarjeta y el relleno del cuerpo se declaran en la
+     capa de color, que vive más abajo en la hoja: las copias del bloque del teléfono, 500
+     líneas más arriba, perdían por orden. */
+  .card-h{padding:11px 13px}
+  .card-b{padding:11px 13px 15px}
 }
 @media(min-width:385px) and (max-width:560px){
   /* La caja de luz es el único tipo con tercer campo de verdad —la tarifa—: mandarlo a su
@@ -2260,8 +2689,9 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
      no le quita la columna a la rejilla. Se colapsa solo cuando no hay tercer campo real. */
   .grid3:not(:has(>.fld:nth-child(3):not(.fld-relleno))){grid-template-columns:1fr 1fr}
   /* El relleno de escritorio en una columna de 773 px cuesta 120 px de página. */
-  .partida{padding:16px;margin-bottom:12px}
-  #items>.partida:first-of-type{padding-top:16px}
+  .partida{--pp:16px;margin-bottom:12px}
+  .optgrp{padding:9px 11px 11px;margin-bottom:10px}
+  #items:not(:empty){padding:8px}
   /* El chip crecía sin tope y el reparto salía invertido: las dos etiquetas más cortas se
      llevaban las dos cajas más anchas. Que cada uno mida lo que dice. */
   /* Y cinco rangos distintos de la partida se pintaban todos a 12.5 px, así que el chip
@@ -2276,13 +2706,51 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
   .vt-modal-bg input[type=range]{max-width:400px}
 }
 
+/* ----- Arrastrar una partida: el filete que dejó de verse -----
+   `.partida.drag-over{box-shadow:inset 0 2px 0 var(--a)}` lleva escrito desde antes de todo
+   esto y ahora no se aplica: pesa lo mismo (0,2,0) que `.partida:not(.folded)` y que
+   `.partida.folded`, y esos dos viven más abajo en la hoja, así que su box-shadow gana y se
+   lleva el filete por delante. Comprobado en el navegador: al arrastrar sobre una partida no
+   cambiaba nada. Repetido aquí, al final, gana él.
+
+   Y ya que se reescribe, se pinta del matiz de la partida sobre la que se suelta en vez del
+   azul fijo de la app. La pregunta mientras uno arrastra es «¿entre cuáles va a caer?», y el
+   color de la de abajo la contesta sin leer el número. Conserva la sombra exterior teñida
+   para que la pieza no se aplaste justo cuando la estás señalando. */
+.partida.drag-over{
+  box-shadow:inset 0 4px 0 var(--pc),0 14px 28px -8px rgba(var(--pc-rgb),.28);
+}
+
 /* ---------- En papel no hay barro ----------
    Las sombras y los degradados de texto no se imprimen bien: el total con
-   relleno de degradado sale hueco en una impresora de tinta. */
+   relleno de degradado sale hueco en una impresora de tinta.
+
+   Los seis matices tampoco sobreviven: media oficina imprime en blanco y negro, y seis
+   tonos de relleno pasados a gris son seis grises que ya no distinguen nada —solo
+   ensucian—. En papel las partidas se separan como se han separado siempre las listas
+   largas: una línea y el número. El lomo se queda, en negro y de 2 px, porque una tira
+   fina sí sobrevive a la escala de grises y sigue diciendo dónde empieza cada partida. */
 @media print{
   *{box-shadow:none!important;animation:none!important;text-shadow:none!important}
   body{background:#fff!important}
   .card,.sum,.partida{background:#fff!important;border:1px solid #ddd!important}
+  #items:not(:empty){background:none!important;padding:0!important;margin:0!important}
+  .partida::before{background:#2b2f4d!important;width:2px!important}
+  .partida:not(.folded) .partida-top{background:none!important;border-bottom:1px solid #ddd!important}
+  .optgrp,.partida .pbody>.grid2,.partida .pbody>.grid3,.partida .tipo-seg{background:none!important;border:1px solid #eee!important}
+  /* La columna del dinero también: la placa del total y el hueco del anticipo son relieve,
+     y en papel el relieve es una caja gris que no dice nada. */
+  .prog-box,.neto,.anti{background:none!important;border:1px solid #ddd!important}
+  .neto .lab,.anti label,.optgrp-t{color:#2b2f4d!important}
+  /* Lo que quedaba de color dentro de la partida: el interruptor encendido, el tipo
+     elegido, el ▾, el asa y la palomita de las fichas. Ninguno sale en el PDF —ese se arma
+     en su propio documento— pero un Ctrl+P sobre la app con «gráficos de fondo» activado
+     sí los imprimía. */
+  .partida .tg.on{background:#2b2f4d!important}
+  .partida .tipo-seg button.on,.partida .pfold,.partida .drag-handle,.partida .ptok::before{color:#12162b!important}
+  .card-h,.paso-tab.on{background:none!important;border-color:#ddd!important}
+  .pnum .n{background:none!important;border:1px solid #999!important;color:#12162b!important}
+  .partida .chip.on{background:none!important;border:1.5px solid #12162b!important;color:#12162b!important}
   .neto .amt{-webkit-text-fill-color:initial;color:#12162b!important;filter:none}
 }
 </style>
@@ -3922,6 +4390,14 @@ function renderItems(){
   }
   Q.items.forEach((it,i)=>{
     const d=document.createElement('div'); d.className='partida'; d.id='p-'+it.id;
+    /* El matiz de la partida. Va por POSICIÓN y no por id: lo que hay que poder distinguir
+       de un vistazo es la de arriba de la de abajo, así que el color tiene que decir lo
+       mismo que el número —y con seis tonos, dos vecinas nunca coinciden—. Por id, borrar
+       la segunda de tres dejaría dos partidas del mismo color pegadas.
+       Se pone aquí y no con :nth-child porque dentro de #items pueden ir por delante la
+       banda de «modo edición» y el recuadro de «aún no hay partidas», y contar hijos daría
+       el color corrido justo cuando esos aparecen. */
+    d.dataset.tono=(i%6)+1;
     if(it.showInPdf===false) d.classList.add('hidden-pdf');
     /* De aquí para abajo se pregunta por capturaBloqueada() y no por locked(): reordenar,
        cambiar el tipo, duplicar y borrar son maneras de meter datos en las partidas, y el
