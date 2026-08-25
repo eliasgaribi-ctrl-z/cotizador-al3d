@@ -274,11 +274,17 @@ sección.
   el módulo de material excluye por diseño. Es un hueco de negocio, no de programa: para que
   la lista de compra lo incluya hace falta decidir cómo se cobra.
 
-- **La tarifa documentada no coincide con la del cotizador.** La página *¿Cómo Cotizar?* de
-  Notion cobra por **tipo de letra** ($30 sin luz, $35 recta, $40 puntas, $50 manuscrita, con
-  −20 % sin iluminación); el cotizador cobra por **material** ($30 el aluminio pintado hasta
-  $55 el acero) más $5 de cursiva o $10 de compleja. Manda el cotizador, que es más nuevo y
-  está en producción. La documentación de Notion es la que está desactualizada.
+- **La tarifa de Notion ya se corrigió, pero se va a volver a desfasar.** Las tres copias de
+  *¿Cómo Cotizar?* —había tres, idénticas, en tres lugares distintos— ahora dicen la tarifa
+  por material, los extras de forma y el −20 % sin luz, igual que el catálogo. Antes cobraban
+  por **tipo de letra** y **no tenían manera de cotizar acero inoxidable**: quien cotizara a
+  mano con esa nota vendía acero a precio de aluminio, hasta 57 % por debajo.
+
+  Lo que queda pendiente es el mecanismo, no el contenido: **el catálogo vive en
+  `index.html` y la nota de Notion es una copia a mano.** El día que cambie un precio hay que
+  acordarse de actualizar las tres páginas, y nadie se va a acordar. El arreglo de fondo es
+  que la nota lea del catálogo en vez de repetirlo — y eso requiere el mismo puente de Notion
+  que los folios.
 
 ---
 
