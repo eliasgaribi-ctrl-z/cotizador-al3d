@@ -312,6 +312,51 @@ export function clientes() {
   }));
 }
 
+/* ----- ¿Ya se le hizo propuesta? -----
+   El cotizador registra cuándo se apretó «Copiar datos para Canva», que es el momento en
+   que alguien va a armar el documento que ve el cliente. Ese hecho no estaba escrito en
+   ningún lado.
+
+   Con esto se contesta la pregunta que hoy no tiene respuesta: de las que presentamos,
+   ¿cuántas se ganaron? Y se contesta sin cruzar nombres contra Canva —los diseños se llaman
+   como los nombró quien los hizo, y ese cruce falla seguido— y sin pedirle a nadie que
+   capture nada. Es el mismo truco que «se ganó»: sacar el dato del botón que ya se aprieta. */
+const CANVA_KEY = 'al3d_canva';
+
+export function propuestas() {
+  try {
+    const o = JSON.parse(localStorage.getItem(CANVA_KEY) || '{}');
+    return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+  } catch (_) { return {}; }
+}
+
+/** @returns {{primera:number, ultima:number, veces:number}|null} */
+export function propuestaDe(folio) {
+  const p = propuestas()[folio];
+  return (p && p.primera) ? p : null;
+}
+
+/**
+ * La conversión de verdad. `ganados` es el Set de folios que ya son proyecto.
+ * Solo cuenta cotizaciones AUTORIZADAS: un borrador no se presentó ni se perdió.
+ * `tasa` es null cuando no hay presentadas todavía — cero de cero no es 0%, es «no se sabe».
+ */
+export function conversion(ganados) {
+  const pres = propuestas();
+  let autorizadas = 0, presentadas = 0, ganadas = 0;
+  for (const e of historial()) {
+    const f = String(e.folio || '').trim();
+    if (!f) continue;
+    if (e.estado && e.estado !== 'autorizada') continue;
+    autorizadas++;
+    const conProp = !!(pres[f] && pres[f].primera);
+    if (conProp) presentadas++;
+    if (ganados && ganados.has(f)) { if (conProp) ganadas++; }
+  }
+  return { autorizadas, presentadas, ganadas,
+           tasa: presentadas > 0 ? ganadas / presentadas : null };
+}
+
 /** ¿Hay cotizador en este dispositivo? Si el historial está vacío y el folio en 0, no. */
 export function hayCotizador() {
   return historial().length > 0 || cola().length > 0 || folioConfirmados() > 0;

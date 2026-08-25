@@ -379,6 +379,28 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:calc
    Los selectores van acotados a .topbar-in: la píldora del folio comparte clase con
    el contador de partidas, y un `order` suelto se lo llevaba también a él, que vive
    en otra caja y con otro orden. */
+/* En las pantallas angostas —iPhone SE, 13 mini— la palabra «Historial» era justo lo
+   que hacía que el selector de rol ya no cupiera y se fuera a un tercer renglón, que
+   es el que se queda pegado y cuesta pantalla. Se queda el icono con su nombre
+   accesible: el destino sigue siendo el mismo y la fila cabe entera. */
+@media(max-width:385px){
+  .topbar-in .btn-hist .lbl{display:none}
+  .topbar-in .btn-hist{padding:0;width:42px;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
+  /* Aquí no caben los dos iconos junto al selector de rol: se midió, el renglón útil de una
+     pantalla de 360 px son 336 px y el selector solo —con la palabra «Autorizador» dentro—
+     pide 190 px de contenido mínimo que ningún flex-basis puede bajar.
+
+     El primer intento fue esconder el enlace a la plataforma, para no meter un tercer
+     renglón. Estuvo mal, y se supo en cuanto se publicó: el propio director no encontró la
+     plataforma en su teléfono. Un atajo que no se ve no es un atajo, y «está en la pantalla
+     de inicio como otra app» no sirve de nada si nadie lo sabe.
+
+     Así que el que se baja de renglón es el SELECTOR DE ROL, que es lo correcto: se elige
+     una vez y no se vuelve a tocar en semanas, mientras que ir a la plataforma es
+     navegación de todos los días. El renglón de arriba se queda con lo que se usa —folio,
+     historial, plataforma— y el rol se va abajo, donde estorba menos. */
+  .topbar-in .seg{order:6;flex:1 1 100%}
+}
 @media(max-width:560px){
   .rolewrap{display:contents}
   .topbar-in .brand{order:1;flex:1 1 100%;min-width:0;gap:8px}
@@ -406,18 +428,6 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:calc
 @media(max-width:560px){
   .topbar-in .btn-hist .lbl{display:none}
   .topbar-in .btn-hist{padding:0;width:42px;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
-  /* Y aquí ya no cabe ni el icono. Se midió: el renglón útil de una pantalla de 360 px son
-     336 px, y el selector de rol solo —con la palabra «Autorizador» dentro— pide 190 px de
-     contenido mínimo que ningún flex-basis puede bajar. Sumando el folio y el historial,
-     el enlace a la plataforma no entra.
-
-     Así que en la pantalla más angosta el enlace se va, y NO se queda sin camino: al
-     registrar una venta el aviso trae su propio botón «Abrir plataforma», que es el momento
-     en que de verdad se quiere saltar; y la plataforma se agrega a la pantalla de inicio
-     con su propio icono, porque tiene su propio manifiesto. Preferir un tercer renglón
-     pegado arriba de TODAS las pantallas, para siempre, a cambio de un atajo que se usa una
-     vez por venta, es el mal negocio que esta hoja ya hizo una vez. */
-  .topbar-in .btn-pf{display:none}
 }
 /* Nada de zoom por doble toque ni destello gris al tocar: en el celular ese medio
    segundo de espera del navegador hace que la app se sienta lenta. */
@@ -462,6 +472,16 @@ button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-
    de la primera pantalla salía usando 224 px de una barra de 390 y dejando el resto en
    blanco. */
 .mbar-btn:only-child{max-width:100%}
+/* Deshacer en la barra de abajo. Cuadrado y sin etiqueta: al lado del botón que dice el
+   siguiente paso, dos textos compitiendo dejan a los dos sin leer. */
+.mbar-undo{flex:0 0 auto;width:46px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid var(--n3);border-radius:var(--rr1);background:#fff;color:var(--brand);
+  font-size:17px;cursor:pointer;font-family:inherit;padding:0}
+.mbar-undo:active{transform:scale(.96)}
+/* Con el deshacer al lado, el botón principal deja de ser hijo único y perdía su ancho
+   completo contra el tope del 62%: en la pantalla del cliente, «Continuar a partidas» se
+   encogía a dos tercios en cuanto había algo que deshacer, sin que nada más cambiara. */
+.mbar-undo+.mbar-btn:last-child{max-width:none;flex:1 1 auto}
 .mbar-btn:disabled{opacity:.42;box-shadow:none;cursor:not-allowed}
 .mbar-btn.ok{background:var(--ok)}
 .mbar-btn.gho{background:#fff;color:var(--n7);border-color:var(--n3)}
@@ -932,6 +952,40 @@ details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-wei
 .lightbox-iframe{width:min(88vw,calc(100vw - 36px));height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));border:0;border-radius:8px;background:#fff}
 /* ----- Historial ----- */
 .btn-hist{background:none;border:1.5px solid var(--line);border-radius:10px;padding:6px 13px;font-size:12px;font-weight:700;color:var(--brand);cursor:pointer;transition:.15s;white-space:nowrap}
+/* ----- Deshacer, junto al historial -----
+   Comparte clase con el botón del historial para heredar su relieve, su hover y su
+   pulsación: son dos controles del mismo rango en la misma barra, y darles estilo aparte es
+   la manera de que en la siguiente pasada se vean distintos sin que nadie lo decidiera.
+   Lo que agrega esta clase es que DESAPARECE cuando no hay nada que deshacer. Es la misma
+   regla que ya sigue el resto de la app: un botón que se queda a la vista para negarse
+   sigue diciendo «esto ya se puede». Va después de las media queries de la barra a
+   propósito: con la misma especificidad, el que manda es el último. */
+/* ----- Solo el icono, en todos los anchos -----
+   En esta barra ya conviven Clientes, Historial y Plataforma, cada uno con su palabra, más el
+   folio y el selector de rol. Medido: con «Deshacer» escrito la fila se parte a 921 y a
+   960 px —la barra fija pasa de 64 a 116— y la palabra solo cabe de 1000 px para arriba.
+   Solo el icono cabe en TODOS los anchos, así que se queda el icono y no un umbral más que
+   volver a ajustar la próxima vez que alguien agregue un botón aquí; que es exactamente lo
+   que acaba de pasar dos veces.
+   Y no es un consuelo: la flecha que vuelve es de los pocos iconos que se leen sin etiqueta
+   —está en todos los editores del mundo—, mientras que Clientes, Historial y Plataforma son
+   destinos y sí necesitan su palabra para distinguirse. El nombre completo, con el atajo, va
+   en el title y en el aria-label. */
+.btn-undo{padding:0;width:42px;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
+.btn-undo .lbl{display:none}
+.btn-undo.oculto{display:none}
+/* ----- Por qué deshacer NO vive arriba en el teléfono -----
+   Se midió: a 375 px la fila de controles ya va con 8 px de sobra —folio 73, selector de rol
+   178 de contenido mínimo, Historial 42— y 42 px más la partían, dejando la barra fija en
+   158 px en vez de 111 en un iPhone SE, un 13 mini y un 15 Pro. Y peor que el alto: como el
+   botón aparece y desaparece según haya algo que deshacer, la pantalla habría dado un salto
+   de 47 px en cada cambio. Recortar píxeles del folio, del rol y de los dos botones daba los
+   ocho justos y se rompía con la siguiente etiqueta que creciera.
+   Así que en el teléfono deshacer se va a la barra de abajo, que es donde esta app ya pone
+   «lo que sigue» y donde hay lugar de sobra. No es un consuelo: en una pantalla que se
+   sostiene con una mano, el pulgar llega abajo y no arriba. El corte es el mismo en el que
+   aparece esa barra, así que el botón existe exactamente en un lugar a cada ancho. */
+@media(max-width:920px){ .topbar-in .btn-undo{display:none} }
 .btn-hist:hover{background:var(--soft-2);border-color:var(--brand)}
 /* El enlace a la plataforma es un <a> para que se pueda abrir en otra pestaña y para que el
    lector de pantalla lo anuncie como lo que es. Pero el navegador le pone su subrayado y su
