@@ -12,6 +12,52 @@
      · --a-claro y --a3 son DECORACIÓN —sombra, lienzo, borde, trazo— y nunca fondo de texto.
    ============================================================================ */
 
+/* ============================================================================
+   POR QUÉ AQUÍ NO SE USA EL ATAJO `font:`
+
+   Hasta esta auditoría, 41 de las 43 declaraciones de tipografía de este archivo estaban
+   escritas así:
+
+       font:600 var(--t3)/1.35 inherit
+
+   y NINGUNA de las 41 hacía nada. El atajo `font` exige una familia de verdad al final, e
+   `inherit` no lo es. Normalmente eso sería un error de sintaxis y el navegador tiraría la
+   declaración al leerla; pero como la línea trae un `var()`, la especificación obliga a
+   aplazar el análisis hasta el momento de calcular el valor, y lo que no se puede analizar
+   entonces se declara «inválido en tiempo de cómputo»: cada propiedad que el atajo tocaba
+   —tamaño, peso y alto de línea— se queda con lo heredado.
+
+   Medido en el navegador antes de arreglarlo, sobre .pf-fila-t, que es el título de un
+   renglón y la pieza más repetida de la plataforma:
+
+       declarado   600  ·  14 px  ·  interlínea 1,35   (18,9 px)
+       real        400  ·  16 px  ·  interlínea 1,5    (24 px)
+
+   O sea: la escala de siete tamaños que este archivo dice respetar nunca se aplicó en la
+   plataforma. Los títulos salían más grandes y más ligeros que sus descripciones —sin
+   contraste de peso entre uno y otra—, y cada renglón medía un 27 % más de alto del que se
+   diseñó. Eso es de dónde salía buena parte de «se ve muy apretado todo»: no era falta de
+   aire, era que todo estaba un paso más grande de lo que debía y no cabía.
+
+   El cotizador nunca tuvo el problema: sus 0 declaraciones `font:` con `inherit` lo dicen.
+   Por eso las dos apps se veían distintas aunque compartan la hoja de tokens.
+
+   Ahora se escriben las tres propiedades por separado. Las dos únicas `font:` que quedan en
+   el archivo son las de la tipografía monoespaciada, que sí traen familia de verdad y sí
+   son válidas.
+
+   Y AQUÍ VA EL DETALLE QUE CASI SE ESCAPA. El atajo roto estaba arreglando otra cosa sin
+   querer: un <button> no hereda la familia tipográfica, la coge del navegador —Arial—, y
+   como una declaración inválida en tiempo de cómputo deja cada propiedad en `unset`, la
+   familia de esos botones caía en «heredar» y acababa siendo Inter por accidente. Al
+   escribir las tres propiedades buenas, el accidente desaparece y los botones se iban a
+   Arial. Se vio al medir, no al leer.
+
+   Así que la familia se declara de una vez para todos los controles, que es lo que el
+   `inherit` del atajo intentaba decir y lo que el cotizador viene diciendo componente por
+   componente en catorce sitios distintos. Una regla, y no se vuelve a olvidar. */
+button,input,select,textarea,optgroup{font-family:inherit}
+
 /* ----- La página: una columna -----
    El cotizador es de dos columnas porque tiene un resumen que acompaña a las partidas. Aquí
    no hay nada que acompañe: cada módulo es una cosa, y una columna ancha se lee de un solo
@@ -48,12 +94,18 @@
    después las partidas— y esto son seis lugares donde a cualquiera se llega desde
    cualquiera. Así que pestañas, y con scroll horizontal en el teléfono en vez de apretarlas
    hasta que el texto no se lea. */
+/* El relleno vertical de 5 px no es aire: es SITIO PARA EL ANILLO DE FOCO. `overflow-x:auto`
+   obliga a `overflow-y:auto` por especificación, así que esta tira recorta lo que se salga
+   por arriba y por abajo, y el anillo del sistema son 2 px de trazo con 3 px de separación:
+   5 px justos fuera de la pestaña. Con 0 arriba y 2 abajo se recortaba entero por arriba y
+   casi entero por abajo, o sea que quien navega con teclado no veía en qué pestaña estaba.
+   El margen negativo devuelve esos 5 px para que la tira siga cayendo donde caía. */
 .pf-nav{display:flex;gap:var(--e2);margin-bottom:var(--e5);overflow-x:auto;
-  scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+  scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:5px 0;margin-top:-5px}
 .pf-nav::-webkit-scrollbar{display:none}
 .pf-tab{flex:0 0 auto;display:inline-flex;align-items:center;gap:var(--e2);
-  min-height:44px;padding:0 var(--e4);border:1px solid var(--line);border-radius:var(--rr2);
-  background:var(--card);color:var(--n7);font:600 var(--t3)/1 inherit;cursor:pointer;
+  min-height:44px;min-width:44px;justify-content:center;padding:0 var(--e4);border:1px solid var(--line);border-radius:var(--rr2);
+  background:var(--card);color:var(--n7);font-weight:600;font-size:var(--t3);line-height:1;cursor:pointer;
   box-shadow:var(--clay);transition:transform var(--mv-r),box-shadow var(--mv-s),color var(--mv-s)}
 .pf-tab:hover{transform:translateY(-1px)}
 .pf-tab:active{transform:translateY(1px);box-shadow:var(--clay-in)}
@@ -62,21 +114,40 @@
    pueden ser todas la acción. */
 .pf-tab.on{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-fuerte);
   box-shadow:var(--clay-in)}
-.pf-tab .svgi{flex-shrink:0}
+/* El glifo de la pestaña NO hereda la letra de la etiqueta. Con `1em` medía los 12,5 px
+   de --t2 dentro de un botón de 44 px de alto: un punto en medio de una pieza grande, y en
+   las pestañas sin nombre —que eran cuatro de cinco— ese punto era TODO lo que había para
+   distinguir Agenda de Material. */
+.pf-tab .svgi{flex-shrink:0;width:var(--ico2);height:var(--ico2)}
 /* La cuenta de lo que reclama atención. Va en ámbar y no en rojo: son cosas que hay que
    ver hoy, no cosas que ya se rompieron. */
 .pf-tab .cta{min-width:20px;height:20px;padding:0 6px;border-radius:10px;
   background:var(--av-bg);border:1px solid var(--av-borde);color:var(--av);
-  font:700 var(--t1)/20px inherit;text-align:center}
+  font-weight:700;font-size:var(--t1);line-height:20px;text-align:center}
 .pf-tab.on .cta{background:#fff}
 @media(max-width:560px){
-  .pf-nav{margin:0 calc(-1 * max(24px,env(safe-area-inset-left,0px))) var(--e4);
-    padding:0 max(24px,env(safe-area-inset-left,0px)) 2px}
+  /* A sangre: la tira se sale hasta el filo de la pantalla para que se vea que hay más
+     pestañas que las que caben. Lo que resta TIENE que ser el relleno real de .wrap, no un
+     número parecido: `--pad-lat` lo publica .wrap y aquí se lee. Antes esto decía 24 px
+     mientras la página ponía 10, y el resultado eran 444 px de contenido en una pantalla
+     de 430: las seis pantallas de la plataforma se deslizaban en horizontal, la topbar y
+     las tarjetas se cortaban al llegar al filo, y en un iPhone eso se siente como que la
+     app está rota. El fallback de 10 px es por si la variable no llegara. */
+  .pf-nav{margin:-5px calc(-1 * var(--pad-lat-der,10px)) var(--e4) calc(-1 * var(--pad-lat,10px));
+    padding:5px var(--pad-lat-der,10px) 5px var(--pad-lat,10px)}
+  /* La pestaña conserva su nombre SIEMPRE. Antes solo lo llevaba la elegida, con el
+     argumento de que seis palabras en una tira que se desliza no las lee nadie; el precio
+     era peor de lo que parecía. Primero, en Ajustes —que es una ruta oculta de la barra—
+     ninguna pestaña está elegida, así que la tira entera se quedaba en cinco círculos sin
+     una sola palabra. Y segundo, un icono solo, de 12,5 px dentro de un botón de 38 px, no
+     dice «Material»: obliga a tocar para averiguarlo. La tira ya se desliza; eso es
+     justamente lo que resuelve que los nombres no quepan. */
   .pf-tab{padding:0 var(--e3);font-size:var(--t2)}
-  /* En el teléfono el texto de la pestaña que no está elegida se va: seis palabras en una
-     tira que se desliza son seis palabras que nadie lee. El icono queda, y el nombre
-     aparece en la elegida, que es la única que hace falta nombrar. */
-  .pf-tab:not(.on) .tx{display:none}
+}
+/* Por debajo de 380 px —Galaxy A54 y S23 a 360, portada del Fold a 344— la letra baja un
+   paso más para que quepan tres nombres completos antes de tener que deslizar. */
+@media(max-width:380px){
+  .pf-tab{padding:0 10px;gap:var(--e1);font-size:var(--t1)}
 }
 
 /* ----- La banda de degradación -----
@@ -86,13 +157,13 @@
    error, es «esto que estás viendo tiene una condición». */
 .pf-banda{display:flex;align-items:flex-start;gap:var(--e2);margin-bottom:var(--e4);
   padding:var(--e3) var(--e4);border:1px solid var(--av-borde);border-radius:var(--rr2);
-  background:var(--av-bg);color:var(--av);font:500 var(--t2)/1.45 inherit}
+  background:var(--av-bg);color:var(--av);font-weight:500;font-size:var(--t2);line-height:1.45}
 .pf-banda.mal{border-color:var(--mal-borde);background:var(--mal-bg);color:var(--mal)}
-.pf-banda .svgi{flex-shrink:0;margin-top:1px}
+.pf-banda .svgi{flex-shrink:0;margin-top:1px;width:var(--ico2);height:var(--ico2)}
 .pf-banda b{font-weight:700}
-.pf-banda button{margin-left:auto;flex-shrink:0;min-height:32px;padding:0 var(--e3);
+.pf-banda button{margin-left:auto;flex-shrink:0;min-height:44px;padding:0 var(--e3);
   border:1px solid currentColor;border-radius:var(--rr1);background:transparent;
-  color:inherit;font:700 var(--t2)/1 inherit;cursor:pointer}
+  color:inherit;font-weight:700;font-size:var(--t2);line-height:1;cursor:pointer}
 
 /* ----- El renglón, la primitiva de la plataforma -----
    Inicio, la lista de faltantes, la de proyectos sin fecha y la de cobranza son todas la
@@ -102,14 +173,15 @@
 .pf-fila{display:flex;align-items:flex-start;gap:var(--e3);padding:var(--e3) 0;
   border-top:1px solid var(--line)}
 .pf-fila:first-child{border-top:0}
-.pf-fila-ico{flex-shrink:0;width:36px;height:36px;display:grid;place-items:center;
+.pf-fila-ico .svgi{width:var(--ico2);height:var(--ico2)}
+.pf-fila-ico{flex-shrink:0;width:40px;height:40px;display:grid;place-items:center;
   border-radius:var(--rr1);background:var(--n1);color:var(--n7)}
 .pf-fila-ico.urge{background:var(--av-bg);color:var(--av)}
 .pf-fila-ico.mal{background:var(--mal-bg);color:var(--mal)}
 .pf-fila-ico.bien{background:var(--ok-bg);color:var(--ok)}
 .pf-fila-tx{flex:1;min-width:0}
-.pf-fila-t{font:600 var(--t3)/1.35 inherit;color:var(--ink)}
-.pf-fila-d{margin-top:2px;font:400 var(--t2)/1.45 inherit;color:var(--muted)}
+.pf-fila-t{font-weight:600;font-size:var(--t3);line-height:1.35;color:var(--ink)}
+.pf-fila-d{margin-top:2px;font-weight:400;font-size:var(--t2);line-height:1.45;color:var(--muted)}
 .pf-fila-acc{flex-shrink:0;display:flex;flex-direction:column;gap:var(--e1);align-items:stretch}
 @media(max-width:560px){
   .pf-fila{flex-wrap:wrap}
@@ -120,7 +192,7 @@
 /* Cuándo pasa algo. Un dato de tres caracteres que se lee antes que el texto: «hoy» en
    ámbar salta sin necesidad de leer el renglón. */
 .pf-cuando{display:inline-block;padding:1px 8px;border-radius:var(--rr1);
-  font:700 var(--t1)/18px inherit;background:var(--n2);color:var(--n7)}
+  font-weight:700;font-size:var(--t1);line-height:18px;background:var(--n2);color:var(--n7)}
 .pf-cuando.hoy{background:var(--av-bg);color:var(--av)}
 .pf-cuando.tarde{background:var(--mal-bg);color:var(--mal)}
 .pf-cuando.lejos{background:var(--n1);color:var(--muted)}
@@ -130,9 +202,13 @@
    nueva arranca con las seis pantallas vacías, y «vacío» tiene que decir por qué y qué
    hacer, no solo estar en blanco. */
 .vacio{padding:var(--e6) var(--e4);text-align:center;color:var(--muted)}
-.vacio .svgi{width:32px;height:32px;color:var(--n4)}
-.vacio-t{margin-top:var(--e3);font:600 var(--t4)/1.35 inherit;color:var(--n7)}
-.vacio-d{margin-top:var(--e2);font:400 var(--t3)/1.5 inherit;max-width:42ch;
+/* `>` y no descendiente. Con el selector abierto, este 32 px gris se metía TAMBIÉN en el
+   icono del botón que el estado vacío lleva dentro: en Proyectos, «Abrir el cotizador»
+   salía con un glifo de 32 px en gris --n4 sobre el azul sólido, al lado de otros botones
+   con iconos de 14. El botón trae su propio tamaño desde `.btn`. */
+.vacio > .svgi{width:var(--ico4);height:var(--ico4);color:var(--n4)}
+.vacio-t{margin-top:var(--e3);font-weight:600;font-size:var(--t4);line-height:1.35;color:var(--n7)}
+.vacio-d{margin-top:var(--e2);font-weight:400;font-size:var(--t3);line-height:1.5;max-width:42ch;
   margin-left:auto;margin-right:auto}
 .vacio .btn{margin-top:var(--e4);width:auto;display:inline-flex}
 
@@ -141,7 +217,7 @@
    «archivado». Nunca solo color: cada ficha lleva su palabra, por lo mismo que los pines
    del mapa llevan forma además de color. */
 .pf-etapa{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;
-  border-radius:var(--rr1);font:700 var(--t1)/18px inherit;white-space:nowrap}
+  border-radius:var(--rr1);font-weight:700;font-size:var(--t1);line-height:18px;white-space:nowrap}
 .pf-etapa.ganado   {background:var(--n2);      color:var(--n7)}
 .pf-etapa.cortado  {background:var(--av-bg);   color:var(--av)}
 .pf-etapa.armado   {background:var(--av-bg);   color:var(--av)}
@@ -153,14 +229,17 @@
    Calendario
    ============================================================================ */
 .cal-cab{display:flex;align-items:center;gap:var(--e2);margin-bottom:var(--e4)}
-.cal-mes{flex:1;font:700 var(--t5)/1.2 inherit;color:var(--ink);text-transform:capitalize}
+.cal-mes{flex:1;font-weight:700;font-size:var(--t5);line-height:1.2;color:var(--ink);text-transform:capitalize}
 .cal-nav{width:40px;height:40px;display:grid;place-items:center;border:1px solid var(--line);
   border-radius:var(--rr1);background:var(--card);color:var(--n7);cursor:pointer;
   box-shadow:var(--clay)}
 .cal-nav:active{box-shadow:var(--clay-in);transform:translateY(1px)}
+/* 40x40 se queda 4 px por debajo del mínimo táctil, y el glifo heredaba 13,3 px. */
+.cal-nav{width:44px;height:44px}
+.cal-nav .svgi{width:var(--ico2);height:var(--ico2)}
 
 .cal-rej{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--e1)}
-.cal-dow{padding:var(--e1) 0;text-align:center;font:700 var(--t1)/1 inherit;
+.cal-dow{padding:var(--e1) 0;text-align:center;font-weight:700;font-size:var(--t1);line-height:1;
   color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .cal-dia{position:relative;min-height:76px;padding:var(--e1);border:1px solid var(--line);
   border-radius:var(--rr1);background:var(--card);text-align:left;cursor:pointer;
@@ -169,13 +248,13 @@
 .cal-dia.fuera{background:var(--n1);border-color:transparent}
 .cal-dia.fuera .cal-n{color:var(--n4)}
 .cal-dia.hoy{border-color:var(--a-borde);box-shadow:inset 0 0 0 1px var(--a-borde)}
-.cal-n{font:700 var(--t2)/1 inherit;color:var(--n7)}
+.cal-n{font-weight:700;font-size:var(--t2);line-height:1;color:var(--n7)}
 .cal-dia.hoy .cal-n{color:var(--a-fuerte)}
 /* Cada instalación del día, con la etapa a la izquierda como filete de color. El texto va
    sobre el lienzo claro, no sobre el color: es la regla de --n5 hacia arriba. */
 .cal-ev{display:block;width:100%;padding:2px 4px 2px 6px;border-radius:6px;
   background:var(--n1);border-left:3px solid var(--n4);
-  font:600 var(--t1)/1.3 inherit;color:var(--n8);text-align:left;
+  font-weight:600;font-size:var(--t1);line-height:1.3;color:var(--n8);text-align:left;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cal-ev.cortado,.cal-ev.armado{border-left-color:var(--amber-ico)}
 .cal-ev.listo{border-left-color:var(--a)}
@@ -188,7 +267,7 @@
 .cal-sem.ok{background:var(--green-ico)}
 .cal-sem.falta{background:var(--amber-ico)}
 .cal-sem.grave{background:var(--red)}
-.cal-mas{font:600 var(--t1)/1.3 inherit;color:var(--muted);padding-left:6px}
+.cal-mas{font-weight:600;font-size:var(--t1);line-height:1.3;color:var(--muted);padding-left:6px}
 @media(max-width:560px){
   .cal-dia{min-height:58px;padding:3px}
   .cal-ev{padding:1px 3px;font-size:9.5px}
@@ -200,7 +279,7 @@
 /* ----- Lista del día -----
    Lo que el mes no puede decir. Se abre tocando un día. */
 .dia-lista{margin-top:var(--e4)}
-.dia-t{font:700 var(--t4)/1.3 inherit;color:var(--ink);margin-bottom:var(--e2);
+.dia-t{font-weight:700;font-size:var(--t4);line-height:1.3;color:var(--ink);margin-bottom:var(--e2);
   text-transform:capitalize}
 
 /* ============================================================================
@@ -209,12 +288,12 @@
 .mat-fila{display:grid;grid-template-columns:1fr auto;gap:var(--e2) var(--e3);
   padding:var(--e3) 0;border-top:1px solid var(--line);align-items:start}
 .mat-fila:first-child{border-top:0}
-.mat-n{font:600 var(--t3)/1.35 inherit;color:var(--ink)}
-.mat-med{font:400 var(--t1)/1.4 inherit;color:var(--muted)}
+.mat-n{font-weight:600;font-size:var(--t3);line-height:1.35;color:var(--ink)}
+.mat-med{font-weight:400;font-size:var(--t1);line-height:1.4;color:var(--muted)}
 /* La cantidad. Es el número que se viene a leer, así que la jerarquía la hace el TAMAÑO,
    no el color: pintar de color un número no lo vuelve más importante. */
-.mat-cant{font:700 var(--t5)/1 inherit;color:var(--ink);text-align:right;white-space:nowrap}
-.mat-cant small{display:block;margin-top:2px;font:500 var(--t1)/1 inherit;color:var(--muted)}
+.mat-cant{font-weight:700;font-size:var(--t5);line-height:1;color:var(--ink);text-align:right;white-space:nowrap}
+.mat-cant small{display:block;margin-top:2px;font-weight:500;font-size:var(--t1);line-height:1;color:var(--muted)}
 .mat-cant.falta{color:var(--av)}
 .mat-cant.cero{color:var(--muted)}
 
@@ -225,18 +304,18 @@
   background:var(--a-suave);border:1px solid var(--a-borde);
   font:500 var(--t1)/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   color:var(--n8);overflow-x:auto;white-space:nowrap}
-.mat-nota{grid-column:1/-1;font:400 var(--t1)/1.45 inherit;color:var(--muted)}
+.mat-nota{grid-column:1/-1;font-weight:400;font-size:var(--t1);line-height:1.45;color:var(--muted)}
 
 /* La confianza del cálculo, dicha con palabras. «Estimado» no es un adorno: es la
    diferencia entre comprar con esto y comprar con esto sabiendo qué se supuso. */
 .mat-conf{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:var(--rr1);
-  font:700 var(--t1)/17px inherit}
+  font-weight:700;font-size:var(--t1);line-height:17px}
 .mat-conf.exacta{background:var(--ok-bg);color:var(--ok)}
 .mat-conf.estimada{background:var(--n2);color:var(--n7)}
 .mat-conf.requiere_dato{background:var(--av-bg);color:var(--av)}
 
 /* El sello de frescura de una existencia. Un número de almacén sin fecha es una opinión. */
-.mat-sello{font:400 var(--t1)/1.4 inherit;color:var(--muted)}
+.mat-sello{font-weight:400;font-size:var(--t1);line-height:1.4;color:var(--muted)}
 .mat-sello.viejo{color:var(--av)}
 
 @media(max-width:385px){
@@ -273,7 +352,7 @@
    mapa con la letra del sistema operativo dentro de una app con Inter se ve incrustado. */
 .leaflet-container{font-family:inherit;background:var(--n1)}
 .leaflet-popup-content-wrapper{border-radius:var(--rr1);box-shadow:var(--clay)}
-.leaflet-popup-content{margin:var(--e3);font:400 var(--t2)/1.5 inherit;color:var(--ink)}
+.leaflet-popup-content{margin:var(--e3);font-weight:400;font-size:var(--t2);line-height:1.5;color:var(--ink)}
 .leaflet-popup-content b{font-weight:700}
 .leaflet-bar a{color:var(--n7)}
 /* La atribución de OpenStreetMap es obligatoria por su licencia y se queda visible.
@@ -283,7 +362,7 @@
 /* La leyenda del mapa: forma Y palabra, nunca color solo. Uno de cada doce hombres no
    distingue el verde del ámbar, y este mapa se lee para decidir a dónde va la camioneta. */
 .mapa-leyenda{display:flex;flex-wrap:wrap;gap:var(--e2) var(--e4);margin-top:var(--e3);
-  font:500 var(--t2)/1 inherit;color:var(--muted)}
+  font-weight:500;font-size:var(--t2);line-height:1;color:var(--muted)}
 .mapa-leyenda span{display:inline-flex;align-items:center;gap:6px}
 .mapa-leyenda i{width:12px;height:12px;border:2px solid;display:inline-block}
 .mapa-leyenda i.listo{border-color:var(--a);border-radius:50%}
@@ -304,7 +383,7 @@
   box-shadow:var(--clay-alto);overflow:hidden}
 .pf-panel-h{display:flex;align-items:center;gap:var(--e3);padding:var(--e4);
   border-bottom:1px solid var(--line);flex-shrink:0}
-.pf-panel-h h2{flex:1;font:700 var(--t4)/1.3 inherit;color:var(--ink);min-width:0}
+.pf-panel-h h2{flex:1;font-weight:700;font-size:var(--t4);line-height:1.3;color:var(--ink);min-width:0}
 .pf-panel-b{padding:var(--e4);overflow-y:auto;-webkit-overflow-scrolling:touch}
 .pf-panel-f{display:flex;gap:var(--e2);padding:var(--e4);border-top:1px solid var(--line);
   flex-shrink:0;padding-bottom:calc(var(--e4) + env(safe-area-inset-bottom,0px))}
@@ -323,15 +402,15 @@
 /* Dos números uno junto al otro, para las cabeceras de módulo: «6 por instalar · 2 sin
    fecha». Es la primera cosa que se lee al entrar a una pantalla. */
 .pf-cuentas{display:flex;flex-wrap:wrap;gap:var(--e1) var(--e4);margin-bottom:var(--e4)}
-.pf-cuenta{font:400 var(--t2)/1.4 inherit;color:var(--muted)}
-.pf-cuenta b{display:block;font:700 var(--t6)/1.1 inherit;color:var(--ink)}
+.pf-cuenta{font-weight:400;font-size:var(--t2);line-height:1.4;color:var(--muted)}
+.pf-cuenta b{display:block;font-weight:700;font-size:var(--t6);line-height:1.1;color:var(--ink)}
 .pf-cuenta.urge b{color:var(--av)}
 
 /* Un renglón de dato, para las fichas: etiqueta chica arriba, valor abajo. */
 .pf-dato{padding:var(--e2) 0;border-top:1px solid var(--line)}
 .pf-dato:first-child{border-top:0}
-.pf-dato dt{font:500 var(--t1)/1.4 inherit;color:var(--muted)}
-.pf-dato dd{margin-top:1px;font:600 var(--t3)/1.4 inherit;color:var(--ink);word-break:break-word}
+.pf-dato dt{font-weight:500;font-size:var(--t1);line-height:1.4;color:var(--muted)}
+.pf-dato dd{margin-top:1px;font-weight:600;font-size:var(--t3);line-height:1.4;color:var(--ink);word-break:break-word}
 
 /* La rejilla de dos columnas de las fichas. Se cae a una en el teléfono. */
 .pf-2col{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--e4)}
@@ -342,7 +421,7 @@
    aquí querría decir «terminado». */
 .btn-wa{display:inline-flex;align-items:center;justify-content:center;gap:var(--e2);
   min-height:44px;padding:0 var(--e4);border:1px solid var(--ok-borde);border-radius:var(--rr2);
-  background:var(--ok-bg);color:var(--ok);font:700 var(--t3)/1 inherit;cursor:pointer;
+  background:var(--ok-bg);color:var(--ok);font-weight:700;font-size:var(--t3);line-height:1;cursor:pointer;
   text-decoration:none;box-shadow:var(--clay)}
 .btn-wa:active{box-shadow:var(--clay-in);transform:translateY(1px)}
 
@@ -359,7 +438,7 @@
    franja verde con borde diciendo «al día» todos los días es una felicitación diaria que se
    deja de leer, y el día que se vuelva ámbar nadie va a notar el cambio. */
 .pf-frescura{display:flex;align-items:center;gap:var(--e2);margin-bottom:var(--e4);
-  font:500 var(--t2)/1.4 inherit;color:var(--muted)}
+  font-weight:500;font-size:var(--t2);line-height:1.4;color:var(--muted)}
 
 /* La tarjeta de A6 reusa .cand-partidas del cotizador completa —el ámbar, el barro y el
    latido de 2.6 s— porque es exactamente el mismo mensaje: «esto pide que hagas algo antes
@@ -383,7 +462,7 @@
 
 /* La verdad del final, en letra chica y sin adornos. Con la caja gris de .hintnote se
    leería como un consejo, y esto no es un consejo: es cómo funciona el sistema. */
-.pf-nota{margin-top:var(--e4);font:400 var(--t1)/1.55 inherit;color:var(--muted)}
+.pf-nota{margin-top:var(--e4);font-weight:400;font-size:var(--t1);line-height:1.55;color:var(--muted)}
 
 /* ============================================================================
    Proyectos — lo que el tablero por etapa necesitaba
@@ -402,7 +481,7 @@
    un aviso, es un problema. Siempre con palabra: el color solo no dice nada a uno de cada
    doce hombres, y esto se lee para decidir si hay que ir a la vidriería hoy. */
 .pf-sem{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:var(--rr1);
-  font:700 var(--t1)/17px inherit;white-space:nowrap}
+  font-weight:700;font-size:var(--t1);line-height:17px;white-space:nowrap}
 .pf-sem.ok{background:var(--ok-bg);color:var(--ok)}
 .pf-sem.falta{background:var(--av-bg);color:var(--av)}
 .pf-sem.grave{background:var(--mal-bg);color:var(--mal)}
@@ -471,7 +550,7 @@
    porque ese lleva `text-transform:capitalize` y «Falta acrílico blanco 3 mm» salía como
    «Falta Acrílico Blanco 3 Mm», que se lee como un nombre propio y no como una advertencia. */
 .ag-sem{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2);margin-bottom:var(--e3);
-  font:400 var(--t2)/1.45 inherit;color:var(--muted)}
+  font-weight:400;font-size:var(--t2);line-height:1.45;color:var(--muted)}
 
 /* La tira de filtros de arriba del calendario. `.chips` ya existe pero nace pegada a su
    etiqueta (`margin-top:4px`) porque vive dentro de un `.fld`; aquí es una tira suelta y lo
@@ -500,7 +579,7 @@
    permitirse párrafos: aquí se explica por qué hace falta un Worker y qué se ve en la
    pantalla de consentimiento de Google. `.vacio-d` no sirve —centra el texto, porque nace
    de un estado vacío— y cuatro renglones centrados no se leen. */
-.aj-p{margin:var(--e3) 0 0;font:400 var(--t2)/1.6 inherit;color:var(--n7);max-width:62ch}
+.aj-p{margin:var(--e3) 0 0;font-weight:400;font-size:var(--t2);line-height:1.6;color:var(--n7);max-width:62ch}
 
 /* Un bloque de campos que abre un tema nuevo dentro de la misma tarjeta. Sin la
    separación, el campo del Client ID se leía como parte del último paso. */
@@ -517,7 +596,7 @@
    salteados, y saltarse el que dice «déjalo en Testing» cuesta la cuenta. El reset del
    sistema pone padding:0 en todo, y sin este relleno los números se pintan fuera de la
    tarjeta. */
-.aj-pasos{margin:var(--e3) 0 0;padding-left:1.5em;font:400 var(--t2)/1.6 inherit;color:var(--n7)}
+.aj-pasos{margin:var(--e3) 0 0;padding-left:1.5em;font-weight:400;font-size:var(--t2);line-height:1.6;color:var(--n7)}
 .aj-pasos li{margin-bottom:var(--e2)}
 .aj-pasos li::marker{color:var(--muted);font-weight:700}
 
@@ -526,7 +605,7 @@
    mira la otra ventana, y por eso el nombre va suelto y en negritas en vez de dentro de una
    frase. Sin viñeta, que aquí solo estorba: el nombre ya es el ancla. */
 .aj-faltan{list-style:none;margin:var(--e3) 0 0;padding:0;
-  font:400 var(--t2)/1.5 inherit;color:var(--n7)}
+  font-weight:400;font-size:var(--t2);line-height:1.5;color:var(--n7)}
 .aj-faltan li{padding:var(--e2) var(--e3);margin-bottom:var(--e2);
   border:1px solid var(--n3);border-radius:var(--rr1);background:var(--fondo)}
 .aj-faltan b{color:var(--ink)}
@@ -547,11 +626,15 @@
    elegido del sistema. */
 .aj-rol{display:flex;align-items:flex-start;gap:var(--e3);width:100%;text-align:left;
   padding:var(--e3);margin-bottom:var(--e2);border:1px solid var(--n3);border-radius:var(--rr1);
-  background:var(--card);color:var(--n7);font:400 var(--t2)/1.5 inherit;font-family:inherit;
+  background:var(--card);color:var(--n7);font-weight:400;font-size:var(--t2);line-height:1.5;font-family:inherit;
   cursor:pointer;transition:border-color .12s,background .12s}
 .aj-rol:hover{border-color:var(--n4)}
-.aj-rol .svgi{flex-shrink:0;margin-top:1px}
-.aj-rol b{display:block;font:700 var(--t3)/1.35 inherit;color:var(--ink);margin-bottom:2px}
+/* La ficha de rol mide 364x84: es una pieza grande y el glifo que marca cuál está elegido
+   es lo primero que se busca en ella. Heredaba los 12,5 px de la descripción —cuando la
+   tipografía empezó a aplicarse de verdad— y se perdía. Es el caso de --ico2: el icono ES
+   la pieza, no un adorno dentro de una frase. */
+.aj-rol .svgi{flex-shrink:0;margin-top:1px;width:var(--ico2);height:var(--ico2)}
+.aj-rol b{display:block;font-weight:700;font-size:var(--t3);line-height:1.35;color:var(--ink);margin-bottom:2px}
 .aj-rol.on{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-fuerte)}
 .aj-rol.on b{color:var(--a-fuerte)}
 
@@ -574,7 +657,7 @@
    después de la forma, el relleno y el color: uno de cada doce hombres no distingue el
    verde del ámbar, y este mapa se lee para decidir a dónde manejar. */
 .mapa-pin{box-sizing:border-box;display:grid;place-items:center;border:2px solid;
-  background:var(--card);font:800 11px/1 inherit;letter-spacing:0;box-shadow:var(--clay)}
+  background:var(--card);font-weight:800;font-size:11px;line-height:1;letter-spacing:0;box-shadow:var(--clay)}
 /* Vendido y sin empezar: gris, que en `.pf-etapa` es exactamente lo que significa. No se
    pinta ámbar porque ámbar es «está en el taller» y esto todavía no entró. */
 .mapa-pin.ganado{border-color:var(--n4);color:var(--n7);border-radius:3px}
@@ -625,3 +708,24 @@
    que convierte «interior 4, atrás de la farmacia» en una calle que no existe, y esa
    dirección es lo único que tiene quien va a poner el pin a mano. */
 .mapa-dir{display:block;white-space:pre-line}
+
+/* ----- El mueble de la plataforma tampoco es texto que se edita -----
+   La regla del sistema (css/sistema.css, «El texto de la interfaz no es texto que se
+   edita») nombra encabezados, etiquetas y controles. Eso cubre al cotizador, que titula con
+   <h2>. La plataforma NO: sus títulos de renglón los pinta el JS como `.pf-fila-t` —17
+   sitios— y el resto del rótulo va en `.vacio-t`, `.mat-n`, `.dia-t`, `.cal-n` y los `<dt>`
+   de `.pf-dato`. Ninguno es un encabezado, así que ninguno estaba cubierto: el título de
+   «Silicón estructural está bajo mínimo» seguía dando `user-select:auto`, o sea que seguía
+   sacando las manijas de selección y la barra de Cortar al mantenerlo pulsado. Justo donde
+   se reportó.
+
+   El reparto es el mismo de allá: el mueble no se selecciona, el DATO sí. Por eso los `<dd>`
+   de `.pf-dato` —el id del dispositivo, un folio, un teléfono— quedan fuera de la lista y
+   se pueden copiar; lo que no se selecciona es el `<dt>`, que es la etiqueta. */
+.pf-fila-t,.pf-fila-d,.vacio-t,.vacio-d,.mat-n,.dia-t,.cal-n,.cal-dow,.cal-mes,
+.pf-dato dt,.pf-cuenta,.pf-cuando,.pf-etapa,.pf-nota,.pf-frescura,.aj-nota{
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent;
+}
+/* La escotilla, igual que en el cotizador: lo que lleve `.dato` vuelve a ser copiable. */
+.pf-dato dd,.dato,.selec{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}

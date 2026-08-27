@@ -355,6 +355,7 @@ async function bombearDeVerdad() {
   if (!cola.length) return ok(conteoVacio({ motivo: 'nada_que_mandar' }));
 
   let subidas = 0, fallidas = 0, enConflicto = 0, apartadas = 0;
+  const rechazos = [];
 
   for (const op of cola) {
     /* Se pregunta ANTES de gastar una petición. Mandar al Worker una salida de acrílico
@@ -386,6 +387,13 @@ async function bombearDeVerdad() {
     }
 
     if (respuesta && respuesta.ok) {
+      /* Se guardó, pero puede que no entero. `rechazadas` trae las propiedades que el otro
+         lado NO escribió y el motivo de cada una. Se acumula para que quien llamó al bombeo
+         lo pueda decir: un «guardado» sobre una fila a medias es la falla más cara de este
+         puente, porque nadie la busca. */
+      if (Array.isArray(respuesta.rechazadas) && respuesta.rechazadas.length) {
+        rechazos.push({ op: op.id, tipo: op.tipo || '', lista: respuesta.rechazadas });
+      }
       await DB.borrar('pendientes', op.id);
       subidas++;
       continue;
@@ -425,8 +433,8 @@ async function bombearDeVerdad() {
   const quedan = (await pendientes()).length;
   return ok({
     mandadas: subidas, subidas, fallidas, conflictos: enConflicto, pendientes: quedan,
-    sin_destino: apartadas,
-    motivo: subidas ? 'ok' : (fallidas ? 'con_fallas' : 'ok'),
+    sin_destino: apartadas, rechazos,
+    motivo: subidas ? (rechazos.length ? 'ok_incompleto' : 'ok') : (fallidas ? 'con_fallas' : 'ok'),
   });
 }
 
@@ -625,6 +633,31 @@ export async function frescura() {
   if (!configurado()) return vacia;
 
   const ahora = Date.now();
+
+  /* PRIMERO hacia adentro, y por eso va antes que la revisión de los demás.
+     `frescura()` solo se preguntaba si los OTROS teléfonos llevaban días sin compartir.
+     Nunca si ESTE lleva días sin poder mandar. Con el token vencido, el Worker caído o el
+     dominio fuera de ORIGENES, todas las operaciones fallan, se quedan en la bandeja con su
+     `ultimo_error`, y lo primero que se leía al abrir la plataforma era «Al día». Es la
+     peor clase de aviso: el que dice que todo está bien mientras la cola crece. Y es lo que
+     más caro sale aquí, porque el que lo lee deja de respaldar. */
+  const err = String(estado().ultimo_error || '');
+  const envio = Number(m.ultimo_envio) || 0;
+  const horasSinEnviar = envio ? Math.floor((ahora - envio) / 3600000) : null;
+  if (cola.length && (err || horasSinEnviar === null || horasSinEnviar >= HORAS_VIEJO)) {
+    const n = cola.length;
+    const cuanto = horasSinEnviar === null
+      ? 'todavía no ha salido nada de este teléfono'
+      : `van ${Math.max(1, Math.round(horasSinEnviar / 24))} día(s) desde el último envío`;
+    const texto = `Este teléfono no ha podido mandar ${n} ${n === 1 ? 'cambio' : 'cambios'}: ` +
+      cuanto + (err ? ` (${err})` : '') + '. Lo que capturaste aquí no lo ve nadie más todavía.';
+    return {
+      al_dia: false, dispositivos: [], texto, mensaje: texto, atascado: true,
+      ultimo_envio: m.ultimo_envio, ultima_bajada: m.ultima_bajada,
+      pendientes: n, edad_horas: horasSinEnviar,
+    };
+  }
+
   const atrasados = Object.keys(m.vistos)
     .filter(d => d && d !== Prefs.dispositivo())
     .map(d => ({ disp: d, ts: Number(m.vistos[d]) || 0 }))

@@ -470,7 +470,12 @@ function filaCompra(l) {
         esc(comprar > 0 ? uc(comprar, l.unidad_compra) : '0 ' + un(0, l.unidad_compra)) +
         /* `cantHay` y no `cant`: la existencia puede ser negativa —material consumido que nunca
            se registró como entrada— y «hay -0.31» se lee como un error del programa. */
-        '<small>' + esc('hay ' + cantHay(l.disponible) + ' · piden ' + cant(l.requerido)) + '</small>' +
+        /* «no hay nada», no «hay nada»: cantHay devuelve la CANTIDAD y en cero esa cantidad
+           es la palabra «nada», que en español pide la negación delante. En la lista de
+           compra —que es la pantalla que se lleva impresa a la vidriería— se leía
+           «hay nada · piden 0». */
+        '<small>' + esc((num(l.disponible) <= 0 ? 'no hay ' : 'hay ') +
+          cantHay(l.disponible) + ' · piden ' + cant(l.requerido)) + '</small>' +
       '</div>';
 
   return '<div class="mat-fila">' +

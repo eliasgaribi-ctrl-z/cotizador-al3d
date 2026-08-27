@@ -177,8 +177,26 @@ function _focablesDe(cont) {
 }
 
 /* Devolver el foco al cerrar. Sin esto el foco se cae al <body> y quien navega con teclado
-   vuelve al principio del documento: en la plataforma eso son seis módulos de distancia. */
-let _focoPrevio = null;
+   vuelve al principio del documento: en la plataforma eso son seis módulos de distancia.
+
+   Un MAPA por id de capa, no una variable suelta. Con una sola, al apilar dos capas —la
+   ficha de un proyecto y encima el «¿seguro?» de #pf-pide, que es el camino normal— la
+   segunda pisaba lo guardado por la primera; al cerrar la segunda se restauraba y se
+   ponía a null, y al cerrar la primera ya no quedaba nada que restaurar: el cursor se
+   caía al principio del documento, a seis módulos de donde estaba. El cotizador ya usaba
+   un Map (index.html, _focoAntes) y esta era la misma pieza sin esa corrección. */
+const _focoPrevio = new Map();
+
+/* El fondo entero detrás del velo: no solo el contenido, también las dos barras. Sin
+   `inert`, el lector de pantalla seguía recorriendo la plataforma de atrás y leyéndola
+   como si fuera del modal, y el tabulador se escapaba por la barra de arriba. La clase en
+   <html> es la que bloquea el scroll del fondo, que en un teléfono es lo que hace que al
+   deslizar dentro de una ficha se mueva la página de abajo. Mismo arreglo que el
+   cotizador ya tenía en _fondoInerte(). */
+function _fondoInerte(v) {
+  document.querySelectorAll('.wrap,.topbar,.mbar').forEach(e => { try { e.inert = v; } catch (_) {} });
+  document.documentElement.classList.toggle('modal-abierto', v);
+}
 
 /**
  * Abre un modal. `volverA` es lo que recupera el foco al cerrar; si no se pasa, se usa
@@ -190,8 +208,13 @@ let _focoPrevio = null;
  */
 export function abrirCapa(id, opts = {}) {
   const el = $(id); if (!el) return false;
-  _focoPrevio = opts.volverA || (document.activeElement !== document.body ? document.activeElement : null);
+  /* Antes de inertar, o ya se perdió. Y no se guarda algo que viva dentro de OTRA capa:
+     al cerrar esta, aquello va a estar desconectado o inerte. */
+  const prev = opts.volverA || (document.activeElement !== document.body ? document.activeElement : null);
+  const enOtraCapa = prev && prev.closest && _CAPAS.some(c => { const x = $(c.id); return x && x.contains(prev); });
+  _focoPrevio.set(id, enOtraCapa ? null : prev);
   el.classList.add('show');
+  _fondoInerte(true);
   if (opts.hist) { try { history.pushState({ capa: id }, ''); el.dataset.hist = '1'; } catch (_) {} }
   const f = _focablesDe(el);
   /* Al primer elemento tocable, no al contenedor: un contenedor enfocado no anuncia nada
@@ -210,7 +233,11 @@ export function cerrarCapa(id) {
        vive aquí y en el oyente de popstate, y en ningún otro lado. */
     try { if (history.state && history.state.capa === id) history.back(); } catch (_) {}
   }
-  const prev = _focoPrevio; _focoPrevio = null;
+  const prev = _focoPrevio.get(id); _focoPrevio.delete(id);
+  /* El velo solo se levanta cuando no queda NINGUNA capa: con la ficha abierta debajo del
+     «¿seguro?», quitar el inerte al cerrar el de arriba dejaba el fondo navegable con un
+     modal todavía puesto. */
+  if (!_capaDeArriba()) _fondoInerte(false);
   /* Solo se devuelve el foco si el elemento sigue existiendo Y sigue a la vista: el botón
      que abrió un modal a veces deja de existir mientras el modal está abierto —se repinta
      la lista de abajo—, y enfocar un huérfano es lo mismo que no enfocar nada. */

@@ -72,7 +72,42 @@ export function ir(ruta) {
   location.hash = '#/' + r.ruta;
 }
 
-async function montar(ruta, opts = {}) {
+/* ----- Los montajes van en fila -----
+   `montar` es async y ninguno de sus llamadores la esperaba: ni el clic de la barra, ni el
+   `hashchange`, ni el botón de ajustes. Dos toques seguidos —que en una barra que se
+   desliza es lo normal— se solapaban, porque la única guarda que hay arriba deduplica la
+   MISMA ruta y no dos rutas distintas.
+
+   Lo que se rompe no son oyentes duplicados: los cuatro manejadores de cada módulo son
+   funciones de nivel de módulo, así que `addEventListener` con la misma referencia es un
+   no-op y no se acumulan. Lo que se rompe es `_vivo`. El prefijo síncrono de `montar` lo
+   pone en null antes del primer `await`, así que el segundo toque entra y NO desmonta a
+   nadie; después gana la asignación del montaje que acabe último. El resultado reproducible
+   es `_vivo` apuntando a un módulo que no está en pantalla, y el otro montado para siempre
+   sin nadie que lo desmonte.
+
+   Y eso tiene una cara concreta: `agenda.desmontar()` es lo único que limpia `#pf-mbar`, y
+   su propio comentario dice para qué —«el botón de agendar se quedaría flotando encima de
+   su pantalla y el primer dedo del día lo apretaría creyendo que es de lo que está
+   viendo»—. Con Material de huérfano el botón que se queda pegado es «Recibí lo de la
+   lista», que escribe en el libro del almacén. Con Mapa, no corre `destruirMapa()` y queda
+   un Leaflet vivo con sus oyentes.
+
+   La fila lo cierra: mientras uno monta, el siguiente espera. Y si mientras esperaba turno
+   se pidió otra pantalla, el suyo ya no sirve y se descarta —salvo un refresco forzado, que
+   siempre pasa. */
+let _cola = Promise.resolve();
+let _pedida = null;
+
+function montar(ruta, opts = {}) {
+  _pedida = ruta;
+  _cola = _cola
+    .then(() => (_pedida !== ruta && !opts.forzar) ? undefined : montarDeVerdad(ruta, opts))
+    .catch(e => { console.error('montar falló', e); });
+  return _cola;
+}
+
+async function montarDeVerdad(ruta, opts = {}) {
   const r = rutaPorNombre(ruta);
   if (!r) return;
   if (_actual === ruta && !opts.forzar) return;
@@ -111,8 +146,13 @@ async function montar(ruta, opts = {}) {
 
   try {
     cont.innerHTML = '';
-    await mod.montar(cont, ctx);
+    /* ANTES de montar, no después. Si `mod.montar` revienta a mitad, el módulo ya dejó
+       oyentes puestos y su barra escrita; con la asignación después, `_vivo` se quedaba en
+       null y ese módulo no se desmontaba nunca. Los seis toleran que les llamen a
+       `desmontar()` sin haber terminado de montar: los tres que guardan oyentes iteran una
+       lista que puede estar vacía y los demás hacen `$(id)` con guarda. */
     _vivo = mod;
+    await mod.montar(cont, ctx);
   } catch (e) {
     console.error('el módulo ' + r.mod + ' falló al montar', e);
     cont.innerHTML = '<div class="vacio">' + ico('i-aviso') +
@@ -188,12 +228,20 @@ function cambiarRol(r) {
    La banda de degradación
    ============================================================================ */
 
-/** @param {{tono?:'av'|'mal', texto:string, accion?:{label:string,fn:Function}}|null} msg */
+/* `texto` es TEXTO y se escapa; `html` es marcado y no. Antes había un solo campo,
+   `texto`, y se metía crudo en el innerHTML. Hoy no se puede explotar —los cuatro que
+   llaman a esto pasan literales de este archivo—, pero `ctx.banda` está en el contexto que
+   reciben los seis módulos, y el día que uno pase el nombre de un proyecto o el motivo que
+   escribió alguien, la banda lo interpreta como marcado. El camino por defecto tiene que
+   ser el seguro; el crudo, el que hay que pedir a propósito.
+
+   @param {{tono?:'av'|'mal', texto?:string, html?:string, accion?:{label:string,fn:Function}}|null} msg */
 export function pintarBanda(msg) {
   const b = $('pf-banda'); if (!b) return;
-  if (!msg || !msg.texto) { b.hidden = true; b.innerHTML = ''; return; }
+  const cuerpo = msg ? (msg.html != null ? msg.html : (msg.texto != null ? esc(msg.texto) : '')) : '';
+  if (!cuerpo) { b.hidden = true; b.innerHTML = ''; return; }
   b.className = 'pf-banda' + (msg.tono === 'mal' ? ' mal' : '');
-  b.innerHTML = ico('i-aviso') + '<span>' + msg.texto + '</span>' +
+  b.innerHTML = ico('i-aviso') + '<span>' + cuerpo + '</span>' +
     (msg.accion ? '<button type="button" id="pf-banda-acc">' + esc(msg.accion.label) + '</button>' : '');
   b.hidden = false;
   if (msg.accion) { const x = $('pf-banda-acc'); if (x) x.onclick = msg.accion.fn; }
@@ -203,7 +251,7 @@ export function pintarBanda(msg) {
 function revisarDispositivo() {
   const e = DB.estado();
   if (!e.ok) {
-    pintarBanda({ tono: 'mal', texto: '<b>' + esc(DB.motivoTexto()) + '</b>',
+    pintarBanda({ tono: 'mal', html: '<b>' + esc(DB.motivoTexto()) + '</b>',
       accion: { label: 'Recargar', fn: () => location.reload() } });
     return;
   }
@@ -215,7 +263,7 @@ function revisarDispositivo() {
     pintarBanda({ texto: 'Nunca has respaldado la plataforma. Si el navegador limpia este sitio, se va todo lo del almacén y la agenda.',
       accion: { label: 'Respaldar', fn: respaldar } });
   } else if (d >= 9) {
-    pintarBanda({ texto: 'Van <b>' + d + ' días</b> sin respaldo de la plataforma.',
+    pintarBanda({ html: 'Van <b>' + d + ' días</b> sin respaldo de la plataforma.',
       accion: { label: 'Respaldar', fn: respaldar } });
   } else {
     pintarBanda(null);
