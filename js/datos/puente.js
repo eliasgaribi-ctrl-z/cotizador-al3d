@@ -499,10 +499,14 @@ export function crear(cfg0) {
             notion_page_id: (res.remoto && res.remoto.id_notion) || idNotion || null,
             notion_estado: 'enviado',
           });
-          if (Array.isArray(res.rechazadas) && res.rechazadas.length) {
-            console.warn('el puente rechazó ' + res.rechazadas.map(x => x.nombre).join(', '), res.rechazadas);
-          }
-          salida.push({ id: op.id, ok: true, remoto: res.remoto || null });
+          /* La lista SUBE. El Worker se toma el trabajo de devolver qué propiedades no
+             escribió y por qué, y su propio comentario dice para qué: «una escritura que se
+             descarta sin decirlo es la peor clase de falla — el usuario cree que guardó»
+             (puente/worker.js:228). Aquí se quedaba en un console.warn, que en un teléfono
+             no lo ve nadie: el proyecto se marcaba `enviado`, el renglón salía de la
+             bandeja y la mitad de la fila no había llegado a Notion. */
+          salida.push({ id: op.id, ok: true, remoto: res.remoto || null,
+                        rechazadas: Array.isArray(res.rechazadas) ? res.rechazadas : [] });
           continue;
         }
 

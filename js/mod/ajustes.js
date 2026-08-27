@@ -39,7 +39,7 @@ import * as Gcal from '../nucleo/gcal.js';
 import * as Puente from '../datos/puente.js';
 import {
   $, esc, ico, toast, avisarResultado, abrirCapa, cerrarCapa,
-  descargarArchivo, fmtFechaDia, cuando, ajustarAltoBarra, copiarTexto,
+  descargarArchivo, fmtFechaDia, cuando, ajustarAltoBarra, copiarTexto, voz,
 } from '../nucleo/ui.js';
 
 /* ============================================================================
@@ -995,8 +995,20 @@ async function bombear() {
   if (v.fallidas) partes.push(v.fallidas + (v.fallidas === 1 ? ' no se pudo' : ' no se pudieron'));
   if (v.conflictos) partes.push(v.conflictos + (v.conflictos === 1 ? ' cambió en Notion' : ' cambiaron en Notion'));
   if (v.sin_destino) partes.push(v.sin_destino + ' se apartaron: este puente no las lleva');
+  /* Lo que se mandó pero no se escribió entero. El Worker devuelve qué propiedad rechazó y
+     por qué; hasta ahora eso moría en un console.warn y el aviso decía «se mandó» a secas.
+     Va en rojo y dura más: es la única señal de que una fila de Notion quedó a medias. */
+  const rech = Array.isArray(v.rechazos) ? v.rechazos : [];
+  if (rech.length) {
+    const props = [...new Set(rech.flatMap(x => (x.lista || []).map(y => y.nombre)))];
+    partes.push('pero Notion no aceptó ' + props.join(', '));
+  }
   toast(partes.length ? partes.join(' · ') : 'No había nada que mandar',
-        v.fallidas ? 'err' : 'ok', 4600);
+        (v.fallidas || rech.length) ? 'err' : 'ok', rech.length ? 7000 : 4600);
+  if (rech.length) {
+    const detalle = rech.flatMap(x => (x.lista || []).map(y => y.nombre + ': ' + y.por));
+    voz('Notion no escribió ' + detalle.length + ' propiedades. ' + detalle.join('. '), true);
+  }
   await repintar();
 }
 

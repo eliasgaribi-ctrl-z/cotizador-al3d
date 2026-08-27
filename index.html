@@ -3869,6 +3869,45 @@ function _capaDeArriba(){
   }
   return null;
 }
+/* ----- El «atrás» del teléfono cierra la capa, no la app -----
+   En Android el gesto de atrás es el «cerrar» universal: no se aprende, se hace. Y son
+   justo los teléfonos que el reporte nombra. El escalador y el vectorizador ya lo
+   respetaban, cada uno con su propio pushState y su propio popstate; las otras siete capas
+   —Historial, Cuadernos, IA, Registrar venta, el aviso de partidas sin terminar, el visor
+   de imagen y el respaldo del PDF— no, así que el gesto navegaba el historial del navegador
+   y sacaba de la cotización con todo lo capturado a medias.
+
+   No hace falta tocar las siete: el MutationObserver de aquí abajo ya vigila la clase
+   'show' de TODAS y llama a _modalAbierto/_modalCerrado. Ese es el único sitio donde hay
+   que engancharlo, que es la misma razón por la que el foco y el inerte viven ahí.
+
+   El escalador y el vectorizador se quedan fuera: ya lo hacen ellos y hacerlo dos veces
+   metería dos entradas por una capa, o sea dos golpes de atrás para cerrar una cosa. */
+const _CAPAS_CON_HIST_PROPIA=new Set(['scalermodal','vectormodal']);
+/* Las que se están cerrando PORQUE el usuario dio atrás. Sin esto, _histAlCerrar llamaría
+   a history.back() otra vez y el segundo retroceso sí saca de la página. */
+const _cerrandoPorAtras=new Set();
+function _histAlAbrir(m){
+  if(_CAPAS_CON_HIST_PROPIA.has(m.id))return;
+  if(m.dataset.hist==='1')return;
+  try{ history.pushState({capa:m.id},''); m.dataset.hist='1'; }catch(_){}
+}
+function _histAlCerrar(m){
+  if(m.dataset.hist!=='1')return;
+  m.dataset.hist='';
+  if(_cerrandoPorAtras.has(m.id)){ _cerrandoPorAtras.delete(m.id); return; }
+  /* Se cerró con la ×, con Escape o desde el código: hay que consumir la entrada que se
+     empujó al abrir, o el historial se llena de escalones muertos y el atrás no hace nada
+     visible las primeras veces. */
+  try{ history.back(); }catch(_){}
+}
+window.addEventListener('popstate',()=>{
+  const arriba=_capaDeArriba();
+  if(!arriba||arriba.dataset.hist!=='1')return;
+  _cerrandoPorAtras.add(arriba.id);
+  const par=_CAPAS.find(([id])=>id===arriba.id);
+  if(par){ try{ par[1](); }catch(_){ _cerrandoPorAtras.delete(arriba.id); } }
+});
 const _focoAntes=new Map();
 /* El fondo entero queda detrás del velo, y no es solo .wrap: la barra de arriba y la
    barra de abajo del celular también. Con inert VoiceOver deja de recorrerlas y el
@@ -3888,6 +3927,7 @@ function _modalAbierto(m){
     const c=document.getElementById(id); return c&&c.contains(prev);
   });
   _focoAntes.set(m.id,dentroDeUnaCapa?null:prev);
+  _histAlAbrir(m);
   _fondoInerte(true);
   const f=_focablesDe(m);
   const d=f[0]||m;
@@ -3901,6 +3941,7 @@ function _modalAbierto(m){
   });
 }
 function _modalCerrado(m){
+  _histAlCerrar(m);
   const arriba=_capaDeArriba();
   if(!arriba) _fondoInerte(false);
   const a=_focoAntes.get(m.id); _focoAntes.delete(m.id);
@@ -10859,6 +10900,10 @@ function abrirRegistrarVenta(){
   /* En ISO, que es lo que un <input type="date"> entiende. Q.fecha está en es-MX y no se
      toca: es lo que se imprime en el PDF. */
   document.getElementById('rv-fecha').value=hoyISO();
+  /* El de instalación NO se precarga: precargarlo con hoy es lo que agendaba cada venta
+     para el mismo día. Vacío significa «todavía no se sabe», que es la verdad casi siempre
+     en el momento de cobrar el anticipo. */
+  document.getElementById('rv-fecha-inst').value='';
   document.getElementById('rv-iva').value=Q.iva?'Sí':'No';
   document.getElementById('rv-anticipo').value=Q.anti||0;
   /* La comisión y la cuenta casi nunca cambian y se volvían a poner en cada venta. */
@@ -10942,7 +10987,8 @@ function registrarGanada(){
        cotización de hoy: si alguien edita las partidas después de vendida, el material
        calculado ya no corresponde y hay que decirlo en vez de comprar de más. */
     huella:Q.huellaAuth||'',
-    fecha_instalacion:(document.getElementById('rv-fecha').value||''),
+    /* La del campo de instalación, NO la del anticipo. Ver el comentario del modal. */
+    fecha_instalacion:(document.getElementById('rv-fecha-inst').value||''),
     cuenta:document.getElementById('rv-cuenta').value,
     estatus:document.getElementById('rv-estatus').value,
     pct_comision:parseFloat(document.getElementById('rv-pct').value)||0,
@@ -12201,8 +12247,27 @@ function vtUsarComoPartidas(){
                parsee, y esa misma fecha es la que la plataforma usa para agendar la
                instalación. Ahora es una fecha de verdad, se guarda en ISO y se convierte a
                DD/MM/YYYY solo al armar la fila. -->
-          <label for="rv-fecha">Fecha de anticipo e instalación</label>
+          <label for="rv-fecha">Fecha del anticipo</label>
           <input type="date" id="rv-fecha">
+        </div>
+        <div class="rv-field">
+          <!-- SEPARADO del anticipo, y vacío a propósito.
+
+               Eran el mismo campo, «Fecha de anticipo e instalación», precargado con hoy.
+               Precargar con hoy es correcto para el anticipo —el anticipo se cobra hoy— y
+               el vendedor no tiene ningún motivo para tocarlo. Pero ese mismo valor viajaba
+               al buzón como `fecha_instalacion`, y proyectos.js:413 lo mete en la agenda
+               de verdad en cuanto es una fecha ISO válida. O sea: TODA venta registrada sin
+               tocar el campo nacía agendada para instalar HOY. La agenda se llenaba de
+               instalaciones fantasma, el contador «Se instalan hoy» de la pantalla Inicio
+               mentía, y la cuadrilla veía trabajo que nadie había programado.
+
+               Vacío es un estado que la plataforma YA sabe manejar: proyectos.js solo agenda
+               si `esISO(...)`, y la regla A7 nombra a las 48 horas al proyecto ganado que
+               sigue sin fecha. Eso es la degradación diseñada; agendar para hoy no lo era. -->
+          <label for="rv-fecha-inst">¿Qué día se instala?</label>
+          <input type="date" id="rv-fecha-inst">
+          <div class="hintnote">Déjalo vacío si todavía no se sabe. Se puede poner después desde la plataforma, y si pasan dos días sin fecha ella lo recuerda.</div>
         </div>
         <div class="rv-field">
           <label for="rv-iva">IVA</label>
