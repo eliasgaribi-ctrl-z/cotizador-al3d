@@ -52,7 +52,7 @@
   scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
 .pf-nav::-webkit-scrollbar{display:none}
 .pf-tab{flex:0 0 auto;display:inline-flex;align-items:center;gap:var(--e2);
-  min-height:44px;padding:0 var(--e4);border:1px solid var(--line);border-radius:var(--rr2);
+  min-height:44px;min-width:44px;justify-content:center;padding:0 var(--e4);border:1px solid var(--line);border-radius:var(--rr2);
   background:var(--card);color:var(--n7);font:600 var(--t3)/1 inherit;cursor:pointer;
   box-shadow:var(--clay);transition:transform var(--mv-r),box-shadow var(--mv-s),color var(--mv-s)}
 .pf-tab:hover{transform:translateY(-1px)}
@@ -62,7 +62,11 @@
    pueden ser todas la acción. */
 .pf-tab.on{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-fuerte);
   box-shadow:var(--clay-in)}
-.pf-tab .svgi{flex-shrink:0}
+/* El glifo de la pestaña NO hereda la letra de la etiqueta. Con `1em` medía los 12,5 px
+   de --t2 dentro de un botón de 44 px de alto: un punto en medio de una pieza grande, y en
+   las pestañas sin nombre —que eran cuatro de cinco— ese punto era TODO lo que había para
+   distinguir Agenda de Material. */
+.pf-tab .svgi{flex-shrink:0;width:var(--ico2);height:var(--ico2)}
 /* La cuenta de lo que reclama atención. Va en ámbar y no en rojo: son cosas que hay que
    ver hoy, no cosas que ya se rompieron. */
 .pf-tab .cta{min-width:20px;height:20px;padding:0 6px;border-radius:10px;
@@ -70,13 +74,28 @@
   font:700 var(--t1)/20px inherit;text-align:center}
 .pf-tab.on .cta{background:#fff}
 @media(max-width:560px){
-  .pf-nav{margin:0 calc(-1 * max(24px,env(safe-area-inset-left,0px))) var(--e4);
-    padding:0 max(24px,env(safe-area-inset-left,0px)) 2px}
+  /* A sangre: la tira se sale hasta el filo de la pantalla para que se vea que hay más
+     pestañas que las que caben. Lo que resta TIENE que ser el relleno real de .wrap, no un
+     número parecido: `--pad-lat` lo publica .wrap y aquí se lee. Antes esto decía 24 px
+     mientras la página ponía 10, y el resultado eran 444 px de contenido en una pantalla
+     de 430: las seis pantallas de la plataforma se deslizaban en horizontal, la topbar y
+     las tarjetas se cortaban al llegar al filo, y en un iPhone eso se siente como que la
+     app está rota. El fallback de 10 px es por si la variable no llegara. */
+  .pf-nav{margin:0 calc(-1 * var(--pad-lat-der,10px)) var(--e4) calc(-1 * var(--pad-lat,10px));
+    padding:0 var(--pad-lat-der,10px) 2px var(--pad-lat,10px)}
+  /* La pestaña conserva su nombre SIEMPRE. Antes solo lo llevaba la elegida, con el
+     argumento de que seis palabras en una tira que se desliza no las lee nadie; el precio
+     era peor de lo que parecía. Primero, en Ajustes —que es una ruta oculta de la barra—
+     ninguna pestaña está elegida, así que la tira entera se quedaba en cinco círculos sin
+     una sola palabra. Y segundo, un icono solo, de 12,5 px dentro de un botón de 38 px, no
+     dice «Material»: obliga a tocar para averiguarlo. La tira ya se desliza; eso es
+     justamente lo que resuelve que los nombres no quepan. */
   .pf-tab{padding:0 var(--e3);font-size:var(--t2)}
-  /* En el teléfono el texto de la pestaña que no está elegida se va: seis palabras en una
-     tira que se desliza son seis palabras que nadie lee. El icono queda, y el nombre
-     aparece en la elegida, que es la única que hace falta nombrar. */
-  .pf-tab:not(.on) .tx{display:none}
+}
+/* Por debajo de 380 px —Galaxy A54 y S23 a 360, portada del Fold a 344— la letra baja un
+   paso más para que quepan tres nombres completos antes de tener que deslizar. */
+@media(max-width:380px){
+  .pf-tab{padding:0 10px;gap:var(--e1);font-size:var(--t1)}
 }
 
 /* ----- La banda de degradación -----
@@ -88,9 +107,9 @@
   padding:var(--e3) var(--e4);border:1px solid var(--av-borde);border-radius:var(--rr2);
   background:var(--av-bg);color:var(--av);font:500 var(--t2)/1.45 inherit}
 .pf-banda.mal{border-color:var(--mal-borde);background:var(--mal-bg);color:var(--mal)}
-.pf-banda .svgi{flex-shrink:0;margin-top:1px}
+.pf-banda .svgi{flex-shrink:0;margin-top:1px;width:var(--ico2);height:var(--ico2)}
 .pf-banda b{font-weight:700}
-.pf-banda button{margin-left:auto;flex-shrink:0;min-height:32px;padding:0 var(--e3);
+.pf-banda button{margin-left:auto;flex-shrink:0;min-height:44px;padding:0 var(--e3);
   border:1px solid currentColor;border-radius:var(--rr1);background:transparent;
   color:inherit;font:700 var(--t2)/1 inherit;cursor:pointer}
 
@@ -102,7 +121,8 @@
 .pf-fila{display:flex;align-items:flex-start;gap:var(--e3);padding:var(--e3) 0;
   border-top:1px solid var(--line)}
 .pf-fila:first-child{border-top:0}
-.pf-fila-ico{flex-shrink:0;width:36px;height:36px;display:grid;place-items:center;
+.pf-fila-ico .svgi{width:var(--ico2);height:var(--ico2)}
+.pf-fila-ico{flex-shrink:0;width:40px;height:40px;display:grid;place-items:center;
   border-radius:var(--rr1);background:var(--n1);color:var(--n7)}
 .pf-fila-ico.urge{background:var(--av-bg);color:var(--av)}
 .pf-fila-ico.mal{background:var(--mal-bg);color:var(--mal)}
@@ -130,7 +150,11 @@
    nueva arranca con las seis pantallas vacías, y «vacío» tiene que decir por qué y qué
    hacer, no solo estar en blanco. */
 .vacio{padding:var(--e6) var(--e4);text-align:center;color:var(--muted)}
-.vacio .svgi{width:32px;height:32px;color:var(--n4)}
+/* `>` y no descendiente. Con el selector abierto, este 32 px gris se metía TAMBIÉN en el
+   icono del botón que el estado vacío lleva dentro: en Proyectos, «Abrir el cotizador»
+   salía con un glifo de 32 px en gris --n4 sobre el azul sólido, al lado de otros botones
+   con iconos de 14. El botón trae su propio tamaño desde `.btn`. */
+.vacio > .svgi{width:var(--ico4);height:var(--ico4);color:var(--n4)}
 .vacio-t{margin-top:var(--e3);font:600 var(--t4)/1.35 inherit;color:var(--n7)}
 .vacio-d{margin-top:var(--e2);font:400 var(--t3)/1.5 inherit;max-width:42ch;
   margin-left:auto;margin-right:auto}
@@ -158,6 +182,9 @@
   border-radius:var(--rr1);background:var(--card);color:var(--n7);cursor:pointer;
   box-shadow:var(--clay)}
 .cal-nav:active{box-shadow:var(--clay-in);transform:translateY(1px)}
+/* 40x40 se queda 4 px por debajo del mínimo táctil, y el glifo heredaba 13,3 px. */
+.cal-nav{width:44px;height:44px}
+.cal-nav .svgi{width:var(--ico2);height:var(--ico2)}
 
 .cal-rej{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--e1)}
 .cal-dow{padding:var(--e1) 0;text-align:center;font:700 var(--t1)/1 inherit;

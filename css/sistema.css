@@ -62,6 +62,25 @@
   /* ----- Espacio ----- múltiplos de 4. */
   --e1:4px; --e2:8px; --e3:12px; --e4:16px; --e5:24px; --e6:32px; --e7:48px;
 
+  /* ----- Iconos ----- cuatro tamaños, y de aquí salen todos.
+     Faltaba la escala y se notaba. `.svgi` mide 1em, así que hasta ahora el tamaño del
+     icono lo decidía por accidente el font-size de quien lo tuviera dentro: medido en una
+     sola pantalla de la plataforma había iconos de 12,5, 13,3, 14, 16 y 32 px a la vez.
+     El de 12,5 vivía dentro de un botón de 44 px de alto —un glifo perdido en el centro de
+     una pieza grande— y el de 32 estaba en un botón azul al lado de otros de 14. Ninguno
+     de esos cinco números lo eligió nadie: salieron de la letra de la etiqueta.
+
+     Que un icono siga a su texto ESTÁ BIEN cuando el icono va dentro de una frase o de un
+     título: ahí crece y encoge con ella y eso es lo que se quiere. Deja de estar bien en
+     cuanto el icono es la pieza y no el adorno —una pestaña, un botón de solo icono, el
+     signo de un estado vacío—, porque entonces su tamaño tiene que salir de la CAJA que lo
+     contiene, no de una etiqueta que a lo mejor ni existe. Estos cuatro son para ese caso;
+     el resto se queda en 1em a propósito. */
+  --ico1:16px;   /* dentro de un renglón: la ficha de un dato, un aviso, un chip */
+  --ico2:18px;   /* la pieza es el icono: pestaña, botón de solo icono, paso del calendario */
+  --ico3:20px;   /* acción grande: los botones de 46-58 px de alto y los encabezados de panel */
+  --ico4:32px;   /* estado vacío: aquí el icono es la ilustración, no una etiqueta */
+
   /* ----- Radios -----
      Grandes. El radio generoso es la mitad de lo que hace que una superficie se lea como
      una pieza de barro y no como un rectángulo: con 8 px el mismo juego de sombras se ve
@@ -217,7 +236,7 @@ body::before{
 .brand{display:flex;align-items:center;gap:12px}
 /* El logotipo cargado es lo que dispara el selector de archivos; antes el onclick vivía
    en .brand y en la portada del Fold 6 eso era el renglón entero. */
-.logobtn{display:flex;align-items:center;border:none;background:none;padding:0;margin:0;border-radius:10px;font-family:inherit;cursor:pointer;flex-shrink:0}
+.logobtn{display:flex;align-items:center;min-height:44px;border:none;background:none;padding:0;margin:0;border-radius:10px;font-family:inherit;cursor:pointer;flex-shrink:0}
 .brand svg{width:50px;height:32px}
 .logoslot{display:flex;align-items:center;gap:1px;padding:7px 12px;border:1.5px dashed var(--line);border-radius:10px;background:var(--soft);transition:.15s;font-family:inherit;text-align:left;cursor:pointer;flex-shrink:0}
 .logoslot:hover{border-color:var(--brand);background:var(--soft-2)}
@@ -232,7 +251,7 @@ body::before{
 /* Folio aún no confirmado: no cuenta todavía en el contador de cotizaciones */
 #folio.prov{color:var(--muted);background:var(--soft);border-color:var(--line);border-style:dashed}
 .seg{display:inline-flex;background:var(--n1);border:1px solid var(--n2);border-radius:var(--rr1);padding:3px;gap:2px}
-.seg button{border:none;background:none;padding:7px 14px;font-size:var(--t2);font-weight:500;color:var(--n6);border-radius:6px;cursor:pointer;transition:background .12s,color .12s}
+.seg button{border:none;background:none;min-height:44px;padding:7px 14px;font-size:var(--t2);font-weight:500;color:var(--n6);border-radius:6px;cursor:pointer;transition:background .12s,color .12s}
 .seg button.on{background:#fff;color:var(--n8);font-weight:600;box-shadow:0 1px 2px rgba(18,20,28,.07)}
 
 /* ===================== Iconos =====================
@@ -345,7 +364,7 @@ body.precios-ocultos .precios-nota{display:flex}
    las partidas de la izquierda y separarlos costaría un desplazamiento por cada cambio. */
 .wrap.p-cliente{grid-template-columns:minmax(0,660px);justify-content:center}
 .pasos{grid-column:1/-1;display:flex;align-items:stretch;gap:4px;margin-bottom:2px}
-.paso-tab{display:flex;align-items:center;gap:9px;padding:9px 15px 9px 11px;border:1px solid transparent;border-radius:var(--r-sm);
+.paso-tab{display:flex;align-items:center;gap:9px;min-height:44px;padding:9px 15px 9px 11px;border:1px solid transparent;border-radius:var(--r-sm);
   background:rgba(255,255,255,.7);cursor:pointer;text-align:left;color:var(--muted);font-family:inherit;transition:.15s;min-width:0}
 .paso-tab .tx{display:flex;flex-direction:column;min-width:0;font-size:var(--t2);font-weight:550;line-height:1.25}
 /* El nombre del cliente debajo del paso 1: es el único dato de la pantalla que se acaba de
@@ -443,7 +462,8 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:calc
    accesible: el destino sigue siendo el mismo y la fila cabe entera. */
 @media(max-width:385px){
   .topbar-in .btn-hist .lbl{display:none}
-  .topbar-in .btn-hist{padding:0;width:42px;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
+  .topbar-in .btn-hist{padding:0;width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+  .topbar-in .btn-hist .svgi{width:var(--ico2);height:var(--ico2)}
   /* Aquí no caben los dos iconos junto al selector de rol: se midió, el renglón útil de una
      pantalla de 360 px son 336 px y el selector solo —con la palabra «Autorizador» dentro—
      pide 190 px de contenido mínimo que ningún flex-basis puede bajar.
@@ -466,14 +486,14 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:calc
   /* Base de 150 px: si con el folio y el historial ya no cabe —pantallas de 320 px—
      el selector de rol se pasa solo al renglón de abajo en vez de partir su texto. */
   .topbar-in .seg{order:3;flex:1 1 150px;width:auto}
-  .topbar-in .seg button{flex:1;padding:0 10px;min-height:40px;font-size:12.5px}
-  .topbar-in .btn-hist{order:4;flex:0 0 auto;padding:0 12px;min-height:40px}
+  .topbar-in .seg button{flex:1;padding:0 10px;min-height:44px;font-size:12.5px}
+  .topbar-in .btn-hist{order:4;flex:0 0 auto;padding:0 12px;min-height:44px}
   /* El enlace a la plataforma pierde su palabra en cuanto la pantalla es de teléfono, no a
      los 385 px como «Historial»: son dos controles y con los dos escritos el renglón del
      folio y el selector de rol ya no cabía. Un tercer renglón en esta barra es el error que
      esta hoja ya arregló una vez —está tres bloques más abajo— y no se vuelve a cometer. */
   .topbar-in .btn-pf .lbl{display:none}
-  .topbar-in .btn-pf{order:5;padding:0;width:42px;display:inline-flex;align-items:center;justify-content:center}
+  .topbar-in .btn-pf{order:5;padding:0;width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
   .topbar-in{row-gap:7px}
 }
 /* En el celular la palabra «Historial» era justo lo que hacía que el selector de rol ya
@@ -485,11 +505,42 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:calc
    De 560 px para arriba caben los dos con su palabra y se lee la palabra. */
 @media(max-width:560px){
   .topbar-in .btn-hist .lbl{display:none}
-  .topbar-in .btn-hist{padding:0;width:42px;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
+  .topbar-in .btn-hist{padding:0;width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+  .topbar-in .btn-hist .svgi{width:var(--ico2);height:var(--ico2)}
 }
 /* Nada de zoom por doble toque ni destello gris al tocar: en el celular ese medio
    segundo de espera del navegador hace que la app se sienta lenta. */
 button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+
+/* ---------- El texto de la interfaz no es texto que se edita ----------
+   Reporte textual: «los textos de los títulos se pueden borrar como si fuese un texto
+   modificable». Se comprobó y borrarse no se borran —no hay un solo contenteditable en
+   todo el repositorio, y con el título entero seleccionado la tecla de retroceso no
+   cambia nada—. Lo que pasa es peor de explicar y igual de real: se COMPORTAN como si lo
+   fueran.
+
+   Un título es texto suelto en el documento, así que hasta ahora tenía la conducta que el
+   navegador le da a cualquier párrafo. En un Samsung, tocarlo pintaba encima el rectángulo
+   celeste de Android —el `-webkit-tap-highlight-color` de fábrica, rgba(51,181,229,.4), que
+   esta hoja ya apagaba para los botones y no para los títulos—; mantenerlo pulsado abría la
+   selección con sus dos manijas y la barra de Cortar · Copiar · Compartir. En un iPhone,
+   la lupa y el menú Copiar · Buscar. Eso es, gesto por gesto, lo mismo que hace un campo de
+   captura. Quien ve su nombre resaltado en azul con dos manijas encima no tiene forma de
+   saber que no lo está a punto de borrar.
+
+   Así que el reparto es explícito: el CHROME —títulos, etiquetas, nombres de pestaña, los
+   días de la semana— no se selecciona, porque no es contenido, es el mueble. El DATO sí:
+   el nombre del cliente, un teléfono, una dirección, un folio, un importe son cosas que
+   uno quiere copiar y pegar en WhatsApp, y quitarles la selección sería cambiar un problema
+   por otro peor. Por eso la lista de abajo son selectores de mueble y no `body`. */
+:is(h1,h2,h3,h4,label,legend,summary,.fld-lab,.cal-dow,.paso-tab,.pf-tab,.seg button,
+   .chip,.tg,.tipo-seg button,.btn,.btn-hist,.vacio-t,.vacio-d,.hintnote,.badge,.pf-etapa){
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent;
+}
+/* Pero dentro de un título puede ir el dato —«Orden de trabajo — Farmacia San Juan»— y ese
+   sí se copia. Lo que lleve `.dato` vuelve a ser seleccionable aunque esté en un h2. */
+.dato,.selec{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 .chip:active,.tipo-seg button:active,.seg button:active{transform:scale(.97)}
 
 /* ---------- Barra de acción de abajo (solo móvil) ----------
@@ -594,7 +645,7 @@ label,.fld-lab{display:block;font-size:var(--t2);font-weight:500;color:var(--n6)
    con aria-labelledby. */
 /* Campos: borde de un píxel y fondo blanco. El borde de píxel y medio con fondo azulado
    engordaba cada campo y, con quince en pantalla, era medio dibujo de más. */
-input,select,textarea{width:100%;border:1px solid var(--n3);border-radius:var(--rr1);padding:11px 13px;font-size:var(--t3);color:var(--n8);background:#fff;outline:none;font-family:inherit;transition:border-color .12s,box-shadow .12s}
+input,select,textarea{width:100%;min-height:44px;border:1px solid var(--n3);border-radius:var(--rr1);padding:11px 13px;font-size:var(--t3);color:var(--n8);background:#fff;outline:none;font-family:inherit;transition:border-color .12s,box-shadow .12s}
 input::placeholder,textarea::placeholder{color:var(--n6)}
 input:hover:not(:disabled),textarea:hover:not(:disabled){border-color:var(--n4)}
 input:focus,select:focus,textarea:focus{border-color:var(--a);box-shadow:0 0 0 3px var(--a-suave)}
@@ -636,7 +687,7 @@ textarea{resize:vertical;min-height:46px}
    sobre un carril gris. Sin relleno de marca ni sombra de 10 px: dentro de una partida es
    una elección entre cinco, no la acción principal de la pantalla. */
 .tipo-seg{display:inline-flex;background:var(--n1);border:1px solid var(--n2);border-radius:var(--rr1);padding:3px;flex-wrap:wrap;gap:2px}
-.tipo-seg button{border:none;background:none;padding:6px 11px;font-size:var(--t2);font-weight:500;color:var(--n6);border-radius:6px;cursor:pointer;transition:background .12s,color .12s}
+.tipo-seg button{border:none;background:none;min-height:44px;padding:6px 11px;font-size:var(--t2);font-weight:500;color:var(--n6);border-radius:6px;cursor:pointer;transition:background .12s,color .12s}
 .tipo-seg button.on{background:#fff;color:var(--n8);font-weight:600;box-shadow:0 1px 2px rgba(18,20,28,.07)}
 /* Cada tipo trae su nombre largo y uno corto; en el teléfono se cambia al corto para
    que los cinco quepan en un solo renglón (ver el bloque del final de la hoja). */
@@ -646,7 +697,7 @@ textarea{resize:vertical;min-height:46px}
    regla base porque una media query no gana por sí sola cuando la especificidad empata.) */
 @media(max-width:760px){
   .tipo-seg{order:9;flex-basis:100%;width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
-  .tipo-seg button{padding:10px 5px;font-size:11.5px;line-height:1.25;text-align:center;min-height:42px}
+  .tipo-seg button{padding:10px 5px;font-size:11.5px;line-height:1.25;text-align:center;min-height:44px}
 }
 .del{border:none;background:none;color:#8a90a6;font-size:19px;cursor:pointer;line-height:1;padding:3px 6px;border-radius:7px;transition:.12s}
 .del:hover{color:var(--red);background:var(--red-bg)}
@@ -830,6 +881,10 @@ textarea{resize:vertical;min-height:46px}
    hacer. Los demás son neutros con borde. Cuando todos gritan, ninguno dirige. */
 .btn{width:100%;padding:12px 16px;border-radius:var(--rr1);font-size:var(--t3);font-weight:550;border:1px solid transparent;cursor:pointer;
   transition:background .12s,border-color .12s,color .12s;display:flex;align-items:center;justify-content:center;gap:var(--e2)}
+/* El icono de un botón grande no sigue a la letra del botón. Con `1em` heredaba los 14 px
+   de --t3 y quedaba un glifo de 14 dentro de una pieza de 46 a 58 px de alto: se leía como
+   una errata, no como parte del botón. */
+.btn .svgi{width:var(--ico3);height:var(--ico3)}
 .btn+.btn{margin-top:var(--e2)}
 /* Dos botones en un renglón: el margen de arriba los descuadra —el hermano sin margen se
    estira al alto de la fila y el otro queda 8 px más abajo y 8 px más chico—. Apilados el
@@ -921,7 +976,12 @@ textarea{resize:vertical;min-height:46px}
 .ai-status.err{color:var(--red)} .ai-status.ok{color:var(--green)} .ai-status.work{color:var(--brand)}
 .ai-link{color:var(--brand);font-weight:600;text-decoration:none}.ai-link:hover{text-decoration:underline}
 details.ai-cfg{margin-bottom:13px;border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 12px;background:var(--soft)}
-details.ai-cfg summary{font-size:12px;color:var(--brand);cursor:pointer;font-weight:700}
+/* El renglón que abre el pliegue medía 18 px de alto: la mitad del pulgar de cualquiera.
+   Es el control que descubre los campos que salen en el PDF y el de la clave de la IA, o
+   sea que fallar el toque cuesta buscar dónde se abre. Con `display:flex` el <summary>
+   deja de encoger al alto de su letra y el triángulo se alinea con ella. */
+details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:44px;
+  font-size:12px;color:var(--brand);cursor:pointer;font-weight:700}
 .ai-merge{margin-top:11px;background:var(--amber-bg);border:1.5px solid rgba(207,138,18,.28);border-radius:var(--r-sm);padding:11px 13px}
 .ai-merge .switch{font-size:12.5px;font-weight:700;color:#7a5800}
 .ai-merge-note{font-size:11.5px;color:#7a5800;line-height:1.5;margin-top:7px}
@@ -1705,7 +1765,14 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
      Entre el ancho de la página, la tarjeta, la partida y el bloque de opciones se
      iban 50 px por lado antes de llegar al primer chip; ahora son 30. */
   .wrap{padding:12px 10px calc(84px + env(safe-area-inset-bottom,0px));gap:14px}
-  .wrap{padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px))}
+  /* El relleno lateral se PUBLICA como variable, no solo se aplica. Cualquier tira que
+     quiera salirse a sangre —la barra de módulos de la plataforma es la única hoy— tiene
+     que restar exactamente esto, y con el número escrito a mano en el otro archivo ya
+     pasó: la barra restaba 24 px donde la página pone 10, se salía 14 px por cada lado y
+     las seis pantallas de la plataforma se movían en horizontal en todos los teléfonos.
+     Con la variable no hay dos números que puedan divergir. */
+  .wrap{--pad-lat:max(10px,env(safe-area-inset-left,0px));--pad-lat-der:max(10px,env(safe-area-inset-right,0px))}
+  .wrap{padding-left:var(--pad-lat);padding-right:var(--pad-lat-der)}
   .topbar-in{padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
   .card+.card{margin-top:12px}
   /* El título no se parte: si compite por el ancho con el botón de plegar, «Datos del
@@ -1876,7 +1943,7 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
    enlace que no se ve al llegar a él no sirve de nada. Se mueve con transform y no
    con left:-9999px para no ensanchar el área desplazable a lo ancho, que es justo lo
    que el min-width:0 de .wrap está evitando. */
-.salto{position:fixed;top:8px;left:8px;z-index:200;background:#fff;color:var(--brand-strong);
+.salto{position:fixed;top:8px;left:8px;z-index:200;min-height:44px;display:inline-flex;align-items:center;background:#fff;color:var(--brand-strong);
   padding:10px 16px;border-radius:10px;font-size:13px;font-weight:800;text-decoration:none;
   box-shadow:0 8px 30px rgba(0,0,0,.28);transform:translateY(calc(-100% - 16px));transition:transform .15s}
 .salto:focus{transform:translateY(0)}
@@ -2360,16 +2427,51 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 .tg.on::after{left:23px}
 .switch:active .tg::after{transform:scale(.9)}
 
-/* ---------- Fichas, insignias y avisos ---------- */
-.ptok,.ptipo,.folio,.badge{border-radius:999px;box-shadow:var(--clay-in);border:1px solid rgba(255,255,255,.8)}
+/* ---------- Fichas, insignias y avisos ----------
+
+   AQUÍ FALTABA LA TERCERA SUPERFICIE, y de eso salió el reporte «en la plataforma los
+   textos de los títulos se pueden borrar como si fuese un texto modificable».
+
+   El barro tenía dos estados y los dos están escritos arriba, en :root:
+     · salido  (--clay)     «esto se aprieta»
+     · hundido (--clay-in)  «lo que se aprieta o LO QUE RECIBE TEXTO»
+
+   Y no había un tercero para lo que solo informa. Así que lo que informa se pintó hundido,
+   que era lo único que quedaba. Puestas una debajo de otra las dos recetas, la coincidencia
+   deja de ser una interpretación:
+
+     input,select,textarea   borde rgba(255,255,255,.85) · --clay-in · degradado n1→blanco
+     .hintnote               borde rgba(255,255,255,.80) · --clay-in · degradado blanco→n1
+
+   Son la MISMA pieza con el degradado girado. Y el color de la letra de .hintnote es --n6,
+   que es exactamente el gris del placeholder. Un `.hintnote` es, píxel por píxel, un campo
+   de captura vacío con su texto de ejemplo dentro.
+
+   Lo mismo con `.folio`: cápsula hundida con borde casi blanco. Y `.folio` no vive en una
+   esquina —va DENTRO de los <h2> de los seis módulos de la plataforma: «Qué atender ⟨2⟩»,
+   «Este dispositivo ⟨UW8L⟩», «Hay que comprar ⟨4⟩»—. Es decir: dentro del título hay una
+   cápsula pintada como un campo, y debajo del título un párrafo pintado como un textarea.
+   La plataforma se apoya en `.hintnote` 37 veces contra 21 del cotizador, y por eso el
+   reporte llegó de la plataforma y no del cotizador.
+
+   La tercera superficie es A RAS: relleno sólido de la rampa, borde de la rampa —visible,
+   no el casi-blanco de los campos— y sin sombra de ninguna dirección. Ni sale ni se hunde:
+   no se aprieta y no recibe texto. Los que SÍ se aprietan —.ptok y .ptipo, que son fichas
+   de partida y responden al toque— se quedan como estaban. */
+.ptok,.ptipo{border-radius:999px;box-shadow:var(--clay-in);border:1px solid rgba(255,255,255,.8)}
+.folio,.badge{border-radius:999px;box-shadow:none;border:1px solid var(--n3);background:var(--n1)}
 .ptok{background:linear-gradient(168deg,#fff,var(--n1))}
 .ptok.falta{background:linear-gradient(168deg,#fff8ec,var(--av-bg))}
-.badge.pendiente{background:linear-gradient(168deg,#fff8ec,var(--av-bg))}
-.badge.autorizada{background:linear-gradient(168deg,#eefaf3,var(--ok-bg))}
-.badge.borrador{background:linear-gradient(168deg,#fff,var(--n2))}
-.hintnote{border-radius:var(--rr1);box-shadow:var(--clay-in);border:1px solid rgba(255,255,255,.8);background:linear-gradient(168deg,#fff,var(--n1))}
-.hintnote.nota-av{background:linear-gradient(168deg,#fffaf0,var(--av-bg))}
-.hintnote.nota-ok{background:linear-gradient(168deg,#f2fbf6,var(--ok-bg))}
+.badge.pendiente{background:var(--av-bg);border-color:var(--av-borde)}
+.badge.autorizada{background:var(--ok-bg);border-color:var(--ok-borde)}
+.badge.borrador{background:var(--n2);border-color:var(--n3)}
+/* La nota deja de ser una caja y pasa a ser una acotación al margen: filete de color a la
+   izquierda y el mismo fondo tenue. Es la forma que la propia hoja ya le daba en el teléfono
+   —`border-radius:0 6px 6px 0` en el bloque de 560 px— y que esta capa le tapaba. */
+.hintnote{border-radius:0 var(--rr1) var(--rr1) 0;box-shadow:none;border:1px solid var(--n2);
+  border-left:3px solid var(--n4);background:var(--n1)}
+.hintnote.nota-av{background:var(--av-bg);border-color:var(--av-borde);border-left-color:var(--av)}
+.hintnote.nota-ok{background:var(--ok-bg);border-color:var(--ok-borde);border-left-color:var(--ok)}
 .cand-partidas,.edit-mode-banner{
   border-radius:var(--rr2);border:1px solid rgba(255,255,255,.75);
   background:linear-gradient(168deg,#fffaf0,var(--av-bg));
