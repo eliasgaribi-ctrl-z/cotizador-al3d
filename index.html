@@ -1932,6 +1932,18 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
   .ai-drop .solo-dedo{display:inline}
   .modal-h button{width:44px;height:44px}
   .ai-pick-x{min-width:44px;min-height:44px}
+  /* ----- 16 px o iOS hace zoom -----
+     Safari amplía la página al enfocar un campo cuya letra mide menos de 16 px, y luego se
+     queda ampliada: el resto del formulario se captura en una ventana desplazada. Los
+     bloques de teléfono ya subían la letra a 16, pero se acaban en 560 px de ancho y el
+     último general en 920, y un iPhone 15 Pro Max ACOSTADO mide 932 —el 16 Pro Max, 956—.
+     Los dos teléfonos más anchos que existen se salían por arriba de todos los cortes de
+     móvil y volvían a los 14 px de --t3. Medido: de pie, 16 px; acostado, 14 y zoom.
+
+     Va en el bloque de lo táctil y no en un corte de ancho nuevo, porque la condición no es
+     el ancho: es que se toque con el dedo. Un Fold abierto, una tableta o un teléfono
+     acostado son todos el mismo caso. */
+  input,select,textarea{font-size:max(16px,var(--t3))}
   .toast-act,.falt-quitar,.key-btn,.sp-gclear,.hist-foot button,
   .card-fold,.btn-maps,.chip,.seg button,.tipo-seg button{min-height:44px}
   .key-btn,.falt-quitar{padding-left:14px;padding-right:14px}
