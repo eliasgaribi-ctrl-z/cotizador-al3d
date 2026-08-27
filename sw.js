@@ -126,7 +126,40 @@ self.addEventListener('install', ev => {
       console.warn('[al3d] la plataforma no se pudo guardar completa; el cotizador sí. ' +
                    'Falta algún archivo de APP_FILES:', e && e.message);
     }
-    void appCompleta;
+    /* Aquí estaba `void appCompleta;`: la bandera se calculaba y se tiraba. Con ella tirada,
+       la promesa de la cabecera —«Si falta uno, la versión anterior sigue completa y
+       sirviendo»— era FALSA por todos los caminos, y por uno que nadie miraba:
+
+         1. addAll falla por un archivo · el catch borra al3d-app-3 (la que se bajaba)
+         2. el catch se traga el fallo · install resuelve · corre skipWaiting()
+         3. activate borra toda caché que no sea CACHE ni APP · borra al3d-app-2
+         4. al3d-app-2 era la copia COMPLETA que estaba sirviendo. Ya no hay ninguna.
+
+       O sea que un archivo que falte al publicar no degrada la plataforma: la apaga entera
+       en los teléfonos que la tenían funcionando. El cotizador sí sobrevive —activate
+       conserva `al3d-v1` explícitamente— pero la plataforma se queda con el 503 de texto
+       plano de más abajo, sin señal y delante del cliente.
+
+       El arreglo es dejar que la instalación FALLE, que es el contrato normal de un service
+       worker: un install que falla no activa, el worker viejo sigue en su sitio y sigue
+       sirviendo su caché completa. Nada se borra y en la siguiente visita se reintenta.
+
+       Con una excepción, y es la que explica por qué esto se escribió al revés: en la
+       PRIMERA instalación no hay worker viejo que siga sirviendo, así que un fallo aquí
+       deja el teléfono sin service worker —o sea sin el cotizador sin señal, que es la
+       única razón por la que este archivo existe—. Ese es el incidente que documenta
+       pruebas/navegador/service-worker.mjs. Así que ahí sí se sigue adelante.
+
+       La diferencia entre los dos casos se pregunta a las cachés y no a una variable: el
+       worker puede reiniciarse entre install y activate y una bandera en memoria se pierde. */
+    if (!appCompleta) {
+      const nombres = await caches.keys();
+      const hayAnterior = nombres.some(k => k !== APP && k.indexOf('al3d-app-') === 0);
+      if (hayAnterior) {
+        throw new Error('la plataforma no bajó completa; se deja servir a la versión anterior');
+      }
+      /* Primera instalación: el cotizador vale más que la plataforma. Se sigue. */
+    }
 
     /* skipWaiting va al final, dentro del waitUntil: si se pusiera antes, un conjunto a
        medio bajar podría empezar a servir. */

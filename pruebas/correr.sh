@@ -35,17 +35,18 @@ if [ "$1" = "--navegador" ] || [ "$NAVEGADOR" = "1" ]; then
   echo "── navegador (Chromium en :$PUERTO) ────────────────"
   ( cd .. && npx --yes http-server -p "$PUERTO" -c-1 --silent >/dev/null 2>&1 & echo $! > /tmp/al3d-srv.pid )
   sleep 3
-  # `puente.mjs` LEVANTA SU PROPIO servidor —se inventa respuestas del Worker— así que no
-  # puede recibir el puerto del de aquí: chocaría contra sí mismo con EADDRINUSE. Las otras
-  # dos sí consumen este. Se supo corriéndolas juntas por primera vez.
+  # Algunas LEVANTAN SU PROPIO servidor —puente.mjs se inventa respuestas del Worker, y la
+  # de actualización necesita decidir qué archivo devuelve 404—, así que no pueden recibir
+  # el puerto del de aquí: chocarían contra sí mismas con EADDRINUSE. Se pregunta al archivo
+  # en vez de mantener una lista de nombres: la lista se olvida de actualizar y el fallo que
+  # produce —EADDRINUSE en mitad de la tanda— no se parece en nada a su causa.
   for f in navegador/*.mjs; do
     [ -f "$f" ] || continue
     echo ""
     echo "── $f ─────────────────────────────────────────"
-    case "$f" in
-      *puente.mjs) ok=0; node "$f" || ok=1 ;;
-      *)           ok=0; PUERTO="$PUERTO" node "$f" || ok=1 ;;
-    esac
+    ok=0
+    if grep -q "createServer" "$f"; then node "$f" || ok=1
+    else PUERTO="$PUERTO" node "$f" || ok=1; fi
     [ "$ok" -eq 0 ] || fallos=$((fallos+1))
   done
   [ -f /tmp/al3d-srv.pid ] && kill "$(cat /tmp/al3d-srv.pid)" 2>/dev/null
@@ -58,6 +59,6 @@ if [ "$1" = "--navegador" ] || [ "$NAVEGADOR" = "1" ]; then
   echo "Todas las pruebas pasan, las de navegador incluidas."
 else
   echo ""
-  echo "Faltan las 3 de navegador (camino-completo, puente, service-worker)."
+  echo "Faltan las 4 de navegador (camino-completo, puente, service-worker y su actualización)."
   echo "Piden Chromium y un servidor:  pruebas/correr.sh --navegador"
 fi

@@ -72,7 +72,42 @@ export function ir(ruta) {
   location.hash = '#/' + r.ruta;
 }
 
-async function montar(ruta, opts = {}) {
+/* ----- Los montajes van en fila -----
+   `montar` es async y ninguno de sus llamadores la esperaba: ni el clic de la barra, ni el
+   `hashchange`, ni el botón de ajustes. Dos toques seguidos —que en una barra que se
+   desliza es lo normal— se solapaban, porque la única guarda que hay arriba deduplica la
+   MISMA ruta y no dos rutas distintas.
+
+   Lo que se rompe no son oyentes duplicados: los cuatro manejadores de cada módulo son
+   funciones de nivel de módulo, así que `addEventListener` con la misma referencia es un
+   no-op y no se acumulan. Lo que se rompe es `_vivo`. El prefijo síncrono de `montar` lo
+   pone en null antes del primer `await`, así que el segundo toque entra y NO desmonta a
+   nadie; después gana la asignación del montaje que acabe último. El resultado reproducible
+   es `_vivo` apuntando a un módulo que no está en pantalla, y el otro montado para siempre
+   sin nadie que lo desmonte.
+
+   Y eso tiene una cara concreta: `agenda.desmontar()` es lo único que limpia `#pf-mbar`, y
+   su propio comentario dice para qué —«el botón de agendar se quedaría flotando encima de
+   su pantalla y el primer dedo del día lo apretaría creyendo que es de lo que está
+   viendo»—. Con Material de huérfano el botón que se queda pegado es «Recibí lo de la
+   lista», que escribe en el libro del almacén. Con Mapa, no corre `destruirMapa()` y queda
+   un Leaflet vivo con sus oyentes.
+
+   La fila lo cierra: mientras uno monta, el siguiente espera. Y si mientras esperaba turno
+   se pidió otra pantalla, el suyo ya no sirve y se descarta —salvo un refresco forzado, que
+   siempre pasa. */
+let _cola = Promise.resolve();
+let _pedida = null;
+
+function montar(ruta, opts = {}) {
+  _pedida = ruta;
+  _cola = _cola
+    .then(() => (_pedida !== ruta && !opts.forzar) ? undefined : montarDeVerdad(ruta, opts))
+    .catch(e => { console.error('montar falló', e); });
+  return _cola;
+}
+
+async function montarDeVerdad(ruta, opts = {}) {
   const r = rutaPorNombre(ruta);
   if (!r) return;
   if (_actual === ruta && !opts.forzar) return;
@@ -111,8 +146,13 @@ async function montar(ruta, opts = {}) {
 
   try {
     cont.innerHTML = '';
-    await mod.montar(cont, ctx);
+    /* ANTES de montar, no después. Si `mod.montar` revienta a mitad, el módulo ya dejó
+       oyentes puestos y su barra escrita; con la asignación después, `_vivo` se quedaba en
+       null y ese módulo no se desmontaba nunca. Los seis toleran que les llamen a
+       `desmontar()` sin haber terminado de montar: los tres que guardan oyentes iteran una
+       lista que puede estar vacía y los demás hacen `$(id)` con guarda. */
     _vivo = mod;
+    await mod.montar(cont, ctx);
   } catch (e) {
     console.error('el módulo ' + r.mod + ' falló al montar', e);
     cont.innerHTML = '<div class="vacio">' + ico('i-aviso') +
