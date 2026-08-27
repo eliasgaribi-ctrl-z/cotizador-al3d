@@ -306,7 +306,61 @@ const foco = await p.evaluate(()=>{ const a=document.activeElement;
 foco.en ? bien('ir a lo que falta deja el cursor en el primer hueco de la partida, no en su marco')
         : mal('el foco quedó en «'+foco.cls+'», fuera del grupo en ámbar');
 
-// ── 7. Nada se rompió por el camino ─────────────────────────────────────────
+// ── 7. Lo que la app recuerda y lo que avisa antes de que duela ─────────────
+console.log('\nMEMORIA Y AVISOS: el respaldo, el buscador, el aparato y el «sin guardar»');
+await conCliente();
+await unaPartidaCompleta();
+await p.waitForTimeout(400);
+await p.evaluate(()=>{autorizarYoMismo();}); await p.waitForTimeout(500);
+await p.evaluate(()=>{const a=document.getElementById('a-name');if(a){a.value='Elías';Q.autorizador='Elías';}autorizar();});
+await p.waitForTimeout(900);
+
+/* El buscador del historial encuentra por fecha, por partida y por total: los tres datos que
+   se ven en el renglón y que el filtro ignoraba. */
+await p.evaluate(()=>abrirHistorial()); await p.waitForTimeout(600);
+const busca = async q => { await p.fill('#hist-search',q); await p.waitForTimeout(300);
+  return p.$$eval('.hentry',e=>e.length); };
+const mes = (await p.evaluate(()=>Q.fechaAuth)).split(' ')[1] || 'ago';
+(await busca(mes))===1 ? bien('busca por el mes que el propio renglón imprime: «'+mes+'»')
+                       : mal('teclear «'+mes+'» no encuentra la cotización, y la fecha está a la vista');
+(await busca('acero'))===1 ? bien('y por lo que se cotizó: «acero»')
+                           : mal('teclear «acero» no encuentra la partida de acero inoxidable');
+(await busca('20,416'))===1 ? bien('y por el total: «20,416»') : mal('teclear el total no encuentra nada');
+(await busca('zzzz'))===0 ? bien('y lo que no existe no aparece') : mal('el filtro devuelve cosas que no coinciden');
+await p.fill('#hist-search','');
+
+/* El pie dice cuánto lleva sin respaldarse, que antes no estaba en ninguna parte. */
+const nota = await p.$eval('#hist-nota',e=>e.textContent.trim());
+/respald/i.test(nota) ? bien('el pie del historial dice el estado del respaldo: «'+nota+'»')
+                      : mal('el pie no dice nada del respaldo: «'+nota+'»');
+await p.evaluate(()=>cerrarHistorial()); await p.waitForTimeout(300);
+
+/* La entrada guardada sabe de qué aparato salió: es lo que desempata dos COT-0001. */
+const disp = await p.evaluate(()=>{const h=JSON.parse(localStorage.getItem('al3d_historial')||'[]'); return h[0]&&h[0].disp||'';});
+/^[0-9A-Z]{4}$/.test(disp) ? bien('la cotización guardada sabe de qué aparato salió: '+disp)
+                           : mal('la entrada del historial no trae el identificador del aparato: «'+disp+'»');
+
+/* «Sin guardar» se queda puesto mientras el problema esté puesto. */
+await p.evaluate(()=>{ _saveOk=false; pintarFolio(); }); await p.waitForTimeout(300);
+const folio = await p.evaluate(()=>({txt:document.getElementById('folio').textContent,
+  cls:document.getElementById('folio').className, t:document.getElementById('folio').title}));
+/sin guardar/i.test(folio.txt) && /nosave/.test(folio.cls)
+  ? bien('con el teléfono lleno, el folio lo dice y no se va: «'+folio.txt.trim()+'»')
+  : mal('la condición «no se está guardando» sigue sin dejar marca: '+JSON.stringify(folio));
+/espacio/i.test(folio.t) ? bien('y explica qué hacer al detenerse encima') : mal('el title no explica nada');
+await p.evaluate(()=>{ _saveOk=true; pintarFolio(); }); await p.waitForTimeout(200);
+!/sin guardar/i.test(await p.$eval('#folio',e=>e.textContent))
+  ? bien('y se quita en cuanto vuelve a guardar') : mal('la marca de «sin guardar» se quedó pegada');
+
+/* Cambiar de rol lleva a la pantalla de ese rol. */
+await p.evaluate(()=>irAPaso(1)); await p.waitForTimeout(400);
+await p.evaluate(()=>cambiarRol('autorizador')); await p.waitForTimeout(500);
+!(await p.evaluate(()=>document.getElementById('sidebox').hidden))
+  ? bien('el autorizador que cambia el rol llega a la pantalla donde vive su cola')
+  : mal('la cola del autorizador quedó dentro de un elemento oculto');
+await p.evaluate(()=>cambiarRol('vendedor')); await p.waitForTimeout(400);
+
+// ── 8. Nada se rompió por el camino ─────────────────────────────────────────
 console.log('');
 errs.length ? mal('errores de página: '+[...new Set(errs)].slice(0,3).join(' | '))
             : bien('cero errores de página en todo el recorrido');

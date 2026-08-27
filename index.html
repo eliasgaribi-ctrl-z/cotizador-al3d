@@ -270,6 +270,11 @@ body::before{
 .folio{font-size:var(--t2);color:var(--n6);font-weight:500;background:var(--n1);padding:6px 12px;border-radius:var(--rr1);border:1px solid var(--n2);font-variant-numeric:tabular-nums}
 /* Folio aún no confirmado: no cuenta todavía en el contador de cotizaciones */
 #folio.prov{color:var(--muted);background:var(--soft);border-color:var(--line);border-style:dashed}
+/* Y la condición que no puede pasar callada: este teléfono ya no está guardando. Rojo, no
+   ámbar: el ámbar de esta app significa «falta un dato», y aquí no falta nada, se está
+   perdiendo. Gana sobre `.prov`, que va antes. */
+#folio.nosave{color:var(--mal);background:var(--mal-bg);border-color:var(--mal-borde);border-style:solid}
+.folio-mal{font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.4px;margin-left:2px}
 .seg{display:inline-flex;background:var(--n1);border:1px solid var(--n2);border-radius:var(--rr1);padding:3px;gap:2px}
 .seg button{border:none;background:none;min-height:44px;padding:7px 14px;font-size:var(--t2);font-weight:500;color:var(--n6);border-radius:6px;cursor:pointer;transition:background .12s,color .12s}
 .seg button.on{background:#fff;color:var(--n8);font-weight:600;box-shadow:0 1px 2px rgba(18,20,28,.07)}
@@ -956,6 +961,13 @@ textarea{resize:vertical;min-height:46px}
    secundario de la app —5,5:1 sobre blanco—, porque son un dato al margen y no la acción. */
 .hito-ok{color:var(--ok)}
 .hito-fecha{font-size:var(--t1);font-weight:400;color:var(--muted);white-space:nowrap}
+/* La pista va DENTRO del botón de relleno, así que hereda su tinta blanca. Sin opacidad: la
+   separan el tamaño y el peso, que es como este proyecto hace la jerarquía, y así no hay nada
+   que medir — blanco sobre el degradado de marca son 10:1 de sobra. Con un 82 % de opacidad
+   quedaba en 5,1:1, que pasa, pero pagar contraste por una diferencia que ya está hecha con
+   el cuerpo de la letra es pagar de más. */
+.hito-pista{font-size:var(--t1);font-weight:400;color:var(--muted);white-space:nowrap}
+.btn-pri .hito-pista{color:inherit}
 /* Sin relleno y con la palomita, el nombre del botón ya no es lo primero que se lee, así que
    se le devuelve el peso: es el nombre de la acción, y sigue siendo tocable. */
 .hito-hecho{color:var(--n7)}
@@ -964,7 +976,11 @@ textarea{resize:vertical;min-height:46px}
    secundario y no en azul de marca —el azul es de lo que se elige y de lo que se hace— y el
    selector lleva el `details` delante porque `details.ai-cfg summary` gana por especificidad. */
 .otras-salidas{margin-top:var(--e2)}
-details.otras-salidas summary{color:var(--muted);font-weight:550}
+/* Tres clases y no dos: `details.ai-cfg summary` tiene la MISMA especificidad y vive más
+   abajo en la hoja, así que empataba y ganaba ella. Se veía: el resumen salía en azul de
+   marca sobre el lienzo del pliegue, MEDIDO en 4,48:1 — por debajo del mínimo de esta app, y
+   además el azul aquí no significa nada, porque no es una selección ni la acción principal. */
+details.ai-cfg.otras-salidas summary{color:var(--muted);font-weight:550}
 /* `display:flex` en el <summary> se lleva el triangulito del navegador, así que el pliegue no
    parecía un pliegue: aquí es el único camino a Canva y al prompt de imagen, y un control que
    no se ve que abre algo es una función escondida. */
@@ -2611,7 +2627,11 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
   box-shadow:inset 0 2px 5px rgba(255,255,255,.9),0 3px 6px rgba(35,39,68,.05),
     0 12px 24px -8px rgba(64,96,248,.4);
 }
-.paso-tab.on .tx small{color:var(--a-fuerte);opacity:.72}
+/* Sin opacidad. Esta regla existía desde antes pero nunca dibujó una letra: la pestaña actual
+   siempre vaciaba su renglón chico, y el nombre del cliente vivía fijo en la pestaña 1. Al
+   mudarlo a la pestaña actual la regla empezó a aplicarse de verdad y salió MEDIDA en 4,26:1,
+   por debajo del mínimo de esta app. Lo separan el tamaño y el peso, que ya los trae. */
+.paso-tab.on .tx small{color:var(--a-fuerte)}
 .paso-tab .n{border-radius:999px;box-shadow:var(--clay-in);border:1px solid rgba(255,255,255,.8);transition:background var(--mv),color var(--mv)}
 .paso-tab.on .n{background:var(--brand-grd);color:#fff;border-color:rgba(255,255,255,.35);box-shadow:inset 0 2px 4px rgba(255,255,255,.4),inset 0 -3px 6px rgba(20,22,43,.25),0 4px 10px -2px rgba(48,24,248,.42)}
 .paso-tab.hecho .n{background:linear-gradient(160deg,#22c98a,#0a7d4a);color:#fff;border-color:rgba(255,255,255,.35);box-shadow:inset 0 2px 4px rgba(255,255,255,.4),0 4px 10px -2px rgba(10,125,74,.4);animation:barro-pop var(--mv)}
@@ -3060,8 +3080,8 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
       <a class="btn-hist btn-pf" href="plataforma.html#/hoy" title="Agenda, material y mapa de obra" aria-label="Abrir la plataforma: agenda, material y mapa de obra"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg><span class="lbl"> Plataforma</span></a>
       <span class="folio" id="folio">COT-0001</span>
       <div class="seg" id="roleseg" role="group" aria-label="Rol con el que trabajas" title="Cambia de rol para ver el flujo de autorización">
-        <button class="on" aria-pressed="true" data-rol="vendedor" onclick="setRol('vendedor')">Vendedor</button>
-        <button aria-pressed="false" data-rol="autorizador" onclick="setRol('autorizador')">Autorizador</button>
+        <button class="on" aria-pressed="true" data-rol="vendedor" onclick="cambiarRol('vendedor')">Vendedor</button>
+        <button aria-pressed="false" data-rol="autorizador" onclick="cambiarRol('autorizador')">Autorizador</button>
       </div>
     </div>
   </div>
@@ -3371,7 +3391,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
     </div>
     <p class="hist-ayuda"><b>Duplicar</b> copia el cliente y las partidas a una cotización nueva, en borrador: es la de cotizar lo mismo con otro material o otra medida sin capturar de nuevo.</p>
     <div class="hist-search-bar">
-      <input id="hist-search" type="search" aria-label="Buscar en el historial por folio, cliente o proyecto" placeholder="Buscar por folio, cliente o proyecto…" autocomplete="off" oninput="pintarHistorial()">
+      <input id="hist-search" type="search" aria-label="Buscar en el historial por folio, cliente, fecha, partida o total" placeholder="Buscar por folio, cliente, fecha o partida…" autocomplete="off" oninput="pintarHistorial()">
       <span class="hist-count" id="hist-count"></span>
     </div>
     <div class="hist-body" id="hist-body"></div>
@@ -3380,7 +3400,12 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
       <button onclick="pedirRestaurar()" title="Reemplaza los datos de este dispositivo con los de un respaldo"><svg class="svgi" aria-hidden="true"><use href="#i-subir"/></svg> Restaurar</button>
       <button onclick="exportarHistorialCSV()" title="Descarga el historial como CSV para Google Sheets"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> CSV</button>
       <button onclick="cerrarHistorial();abrirCuadernos()" title="Las mismas cotizaciones, agrupadas por cliente"><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg> Clientes</button>
-      <p class="foot-nota">Todo se guarda solo en este dispositivo. El respaldo <b>no</b> incluye tus API keys.</p>
+      <!-- «Todo se guarda solo en este dispositivo» ya lo dicen el pie de cuadernos y la nota
+           de la cola de autorización. En su lugar va el dato que no está en ninguna parte:
+           cuánto lleva sin respaldarse. La segunda frase se queda tal cual: el README la
+           defiende, porque un respaldo se manda por WhatsApp y una key que viaja así deja de
+           ser secreta. -->
+      <p class="foot-nota" id="hist-nota">El respaldo <b>no</b> incluye tus API keys.</p>
     </div>
     <input type="file" id="restaurarin" accept="application/json,.json" style="display:none">
   </div>
@@ -5645,7 +5670,8 @@ function entregaHTML(){
       +(ts?`<svg class="svgi hito-ok" aria-hidden="true"><use href="#i-check"/></svg>`
           :`<svg class="svgi" aria-hidden="true"><use href="#${x.ico}"/></svg>`)
       +` ${x.label}`
-      +(ts?`<small class="hito-fecha">${esc(x.hecho)} · ${esc(hitoFecha(ts))}</small>`:'')
+      +(ts?`<small class="hito-fecha">${esc(x.hecho)} · ${esc(hitoFecha(ts))}</small>`
+          :(toca&&x.pista?`<small class="hito-pista">${esc(x.pista)}</small>`:''))
       +`</button>`;
   }).join('');
 }
@@ -6271,6 +6297,7 @@ function autorizarYoMismo(){
 function cancelarAutoAutorizacion(){ _selfAuth=false; reabrir(); }
 function reabrir(){
   const eraPendiente=Q.estado==='pendiente';
+  const habiaPrecio=paBorrador()!==null||!!(Q.nota||'').trim()||!!(Q.autorizador||'').trim();
   Q.estado='borrador'; Q.autorizador=''; Q.nota=''; _selfAuth=false; paBorradorLimpiar();
   /* El precio autorizado NO se tira aquí. Ya no hace falta: precioFinal() e itemPrecio()
      solo lo usan cuando el estado es 'autorizada', y soltarAuthSiCambio() lo borra en
@@ -6278,7 +6305,14 @@ function reabrir(){
      —el aviso de «partidas sin terminar» reabre para poder editarla— en la pérdida
      silenciosa de todos los ajustes que el autorizador acababa de capturar. */
   if(eraPendiente) removeFromQueue(Q.folio);
-  saveState(); renderItems(); toast('Cotización reabierta para editar');
+  saveState(); renderItems();
+  /* Decir todo lo que hizo. Este mismo `reabrir()` se dispara sin que nadie lo pida cuando
+     desde el aviso de partidas sin terminar se toca una partida, y lo que se lleva por el
+     camino —la solicitud de la cola, el nombre y la nota de quien iba a autorizar, y el
+     precio que llevaba escrito— se anunciaba como «reabierta para editar». */
+  toast('Cotización reabierta para editar'
+    +(eraPendiente?' — se canceló la solicitud':'')
+    +(habiaPrecio?(eraPendiente?' y el precio que llevabas escrito':' — se borró el precio que llevabas escrito'):''));
 }
 /* Autorizar es el momento en que el precio se vuelve el que se cobra: es aquí donde
    conviene avisar de las partidas sin terminar, sin importar por cuál de los dos
@@ -6312,7 +6346,9 @@ function autorizarConfirmado(){
      Un «✓ guardada en historial» incondicional borraba justo el aviso de que no se guardó
      —con su botón de Respaldar—, que es el único momento en que se podía rescatar. Si algo
      falló, el que se queda es el que lo dice. */
-  if(guardada&&_saveOk) toast('✓ Cotización autorizada — guardada en historial','ok',3200);
+  const _r=respaldoEstado();
+  if(guardada&&_saveOk&&_r.vencido) toast('✓ Autorizada · '+(_r.sinRespaldar||_r.total)+' sin respaldar en este teléfono','',6000,{label:'Respaldar',fn:()=>respaldar()});
+  else if(guardada&&_saveOk) toast('✓ Cotización autorizada — guardada en historial','ok',3200);
   else if(guardada) toast('Autorizada y guardada, pero la cotización en curso ya no cabe en este teléfono — respalda y borra cotizaciones viejas','err',9000,{label:'Respaldar',fn:()=>respaldar()});
 }
 function rechazar(){
@@ -6350,16 +6386,28 @@ function pedirConfNueva(){
    Solo se ofrece cuando de verdad había algo: en una cotización en blanco el botón
    sería ruido, y la partida con el material heredado no cuenta como algo capturado. */
 let _vaciada=null;
-function nueva(){
-  const habia=Q.items.some(it=>!itemVacio(it))||!!(Q.cliente||'').trim()||!!(Q.proy||'').trim();
-  /* La imagen analizada va en el respaldo: es serializable —es lo mismo que se guarda en su
-     propia clave— y sin ella «Deshacer» devolvía la cotización sin la foto de la que
-     salieron sus partidas, ya borrada del almacenamiento y sin manera de recuperarla. */
-  /* El escalador va en el respaldo por lo mismo que la imagen analizada: scReset(), unas
-     líneas más abajo, borra la foto y sus cotas, y sin esto «Deshacer» devolvía la
-     cotización sin nada de eso y sin manera de recuperarlo. */
+/* Las OTRAS dos puertas por las que se pierde el borrador en pantalla. `nueva()` protege el
+   suyo desde hace tiempo —copia de Q, del contador de partidas y del escalador, y «Deshacer»
+   siete segundos—; abrir o duplicar una del historial hacía exactamente lo mismo al borrador
+   y solo tenía el `confirm()` del navegador, que es una sola oportunidad de decir no y
+   ninguna de arrepentirse. Y como el folio cambia, la pila de Ctrl+Z se corta ahí: no quedaba
+   ninguna vía de recuperación.
+
+   El `scSnapshot()` no es opcional: las dos llaman a `scReset()` inmediatamente después, y sin
+   él «Deshacer» devolvería la cotización sin la foto ni las cotas de las que salieron sus
+   partidas — que es el mismo error que `nueva()` ya arregló una vez. */
+function guardarParaDeshacer(){
+  const habia=Q.items.some(it=>!itemVacio(it))||hayDatosCliente();
   const scAntes=scSnapshot();
   _vaciada=(habia||scAntes)?{q:JSON.parse(JSON.stringify(Q)),pid,rol:Q.rol,sc:scAntes}:null;
+  return !!_vaciada;
+}
+function nueva(){
+  /* La copia la hace `guardarParaDeshacer()`, que es la misma de las otras dos puertas: aquí
+     vivía escrita aparte y con una condición más estrecha —solo miraba el cliente y el
+     proyecto—, así que un borrador con el teléfono y la dirección puestos y nada más se
+     vaciaba sin ofrecer vuelta atrás. Una regla, un sitio. */
+  guardarParaDeshacer();
   Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};Q.huellaAuth='';
   Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth='';
   Q.editMode=false; _selfAuth=false; Q.sinEstrenar=true;
@@ -6557,20 +6605,32 @@ function toggleIva(e){
      corresponder (en renderSummary) y guarda al final; renderAuth refresca el panel. */
   Q.iva=!Q.iva; renderItems(); renderAuth();
 }
-/* Cambiar de rol lleva a la pantalla de ese rol. Antes repintaba el panel y la barra fija y
-   nada más: si la app estaba en la pantalla del cliente —lo normal en un aparato en blanco—
-   `#sidebox` está en `hidden`, así que la cola del autorizador se pintaba dentro de un
-   elemento invisible y en el teléfono lo único que quedaba era una barra que decía «Continuar
-   a partidas». Se recuperaba tocando la pestaña «Partidas», o sea que todo el trabajo del
-   autorizador vivía detrás de una pestaña que él no usa nunca. Es la misma línea que ya usan
-   `nueva()` y `reabrirDeHistorial`. */
 function setRol(r){
   Q.rol=r;
   document.querySelectorAll('#roleseg button').forEach(b=>b.classList.toggle('on',b.dataset.rol===r));
   segAria('#roleseg button');
   aplicarBlurPrecios();
-  irAPantalla(pantallaSegunDatos(),{forzar:true,subir:false});
   renderAuth(); renderMobileBar();
+  /* La barra de pasos también: el «N por revisar» que va debajo del paso 3 es de la cola del
+     autorizador, así que al cambiar de rol se quedaba con la cuenta del rol anterior. */
+  pintarPasos();
+}
+/* ----- Cambiar de rol lleva a la pantalla de ese rol -----
+   `setRol` repintaba el panel y la barra fija y nada más. Si la app estaba en la pantalla del
+   cliente —lo normal en un aparato en blanco, y lo que deja `nueva()`— `#sidebox` está en
+   `hidden`, así que la cola del autorizador se pintaba dentro de un elemento invisible: el
+   jefe elegía «Autorizador» y lo único que veía era una barra fija que decía «Continuar a
+   partidas», con toda su cola detrás de una pestaña que se llama Partidas y que él no captura
+   nunca.
+
+   El salto va en el camino del CLIC y no dentro de `setRol`, y eso importa: `init` llama a
+   `setRol` dieciséis líneas antes de fijar `_pantalla`, así que metérselo dentro haría un
+   `window.scrollTo` y un repintado de más en cada arranque, sobre una pantalla que todavía no
+   está decidida. `{forzar:true}` sí hace falta: sin él, un autorizador en un aparato con una
+   cotización sin los tres datos se topa con el freno que es del vendedor. */
+function cambiarRol(r){
+  setRol(r);
+  irAPantalla(pantallaSegunDatos(),{forzar:true,subir:false});
 }
 /* renderSummary reescribe «Resta al entregar», que si no se queda con el número del
    anticipo anterior mientras se teclea el nuevo. Respeta el foco, así que no pisa lo que
@@ -7162,7 +7222,11 @@ function extractJSON(txt){
      primera llave hasta la última. */
   const a=txt.indexOf('{'), b=txt.lastIndexOf('}');
   if(a>=0&&b>a){ try{ return JSON.parse(txt.slice(a,b+1)); }catch(_){} }
-  throw new Error('No se pudo interpretar la respuesta de la IA.');
+  /* Con la salida escrita: el análisis ya se gastó y volver a apretar el mismo botón con la
+     misma foto vuelve a fallar. Lo que arregla esto es otra foto o el archivo recortado, y
+     eso no se adivina desde «no se pudo interpretar». La nota de cuántos intentos se hicieron
+     se queda: ésa sí sirve para decidir si hace falta otra key. */
+  throw new Error('La IA contestó algo que no es una cotización. Suele arreglarse con otra foto más nítida, o con el archivo recortado a lo que se va a cotizar.');
 }
 
 /* ===== Reintentos, respaldo entre proveedores e imágenes más ligeras =====
@@ -7644,10 +7708,14 @@ function enviarPorWhatsApp(){
      adjunta a mano y desde aquí no hay manera de saber si se mandó. */
   marcarHito('wa');
   const teniaTel=String(Q.tel||'').replace(/\D/g,'').length>0;
-  toast(num?'WhatsApp abierto — falta adjuntar el PDF'
-    :(teniaTel?'El teléfono capturado no parece un número válido — elige el chat en WhatsApp'
-             :'Sin teléfono capturado: elige el chat en WhatsApp'),
-    num?'':'err',num?4200:5200);
+  /* El aviso de éxito se fue: se pintaba en la pestaña que el vendedor acaba de abandonar, así
+     que nadie lo leía. Lo que decía —«falta adjuntar el PDF»— ahora vive en el renglón del
+     paso, donde se lee ANTES de tocarlo. Los dos avisos de error se quedan: ésos sí dicen que
+     algo salió mal, y quien los tiene que leer sigue en esta pestaña porque WhatsApp abrió
+     sin chat. */
+  if(!num) toast(teniaTel
+    ?'El teléfono capturado no parece un número válido — elige el chat en WhatsApp'
+    :'Sin teléfono capturado: elige el chat en WhatsApp','err',5200);
 }
 
 /* ----- Dejar constancia de que se hizo la propuesta -----
@@ -7680,6 +7748,41 @@ function marcarPropuesta(){
   }catch(_){ /* si no cupo, se pierde la constancia y no pasa nada más: no bloquea el copiado */ }
 }
 
+/* ===================== Qué aparato es este =====================
+   El contador de folios es local a cada teléfono, así que dos aparatos empiezan en COT-0001 y
+   acaban emitiendo el mismo folio para trabajos distintos. Está escrito en los «Pendientes»
+   del README y la recomendación es cotizar siempre desde el mismo aparato.
+
+   La plataforma ya resolvió su mitad: `js/datos/prefs.js` tiene un `dispositivo()` que
+   guarda cuatro letras en `al3d_pf_disp` —«desambiguar folios, porque dos teléfonos pueden
+   emitir COT-0042 el mismo día y sin esto serían el mismo proyecto»— y el cotizador solo la
+   LEÍA, una vez, al registrar una venta ganada. Aquí está la misma función, con la misma
+   clave, para que los dos lados vean lo mismo.
+
+   Se usa en los dos sitios donde de verdad desempata y en ninguno más: el CSV del historial
+   —que es el que se pega en un Sheet donde acaban dos COT-0042 juntos— y la entrada guardada,
+   para que esa columna tenga qué decir. El folio que el cliente tiene en la mano no se toca:
+   cambiarlo sería cambiar el número de un documento firmado.
+
+   Y NO entra en RESPALDO_KEYS, a propósito y por la misma razón que en la plataforma: es la
+   identidad del aparato, no un dato de la empresa. Restaurar un respaldo en un teléfono nuevo
+   no puede convertirlo en el viejo. */
+const DISP_KEY='al3d_pf_disp';
+function dispositivo(){
+  let d=prefGet(DISP_KEY,'');
+  if(d) return d;
+  const AB='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';   // sin 0/O ni 1/I: esto se dicta por teléfono
+  try{
+    const b=new Uint8Array(4);
+    crypto.getRandomValues(b);
+    d=Array.from(b,x=>AB[x%AB.length]).join('');
+  }catch(_){
+    d='D'+String(Date.now()%10000).padStart(4,'0');
+  }
+  prefSet(DISP_KEY,d);
+  return d;
+}
+
 /* ===================== Los hitos de la entrega =====================
    Autorizar no es terminar. Después vienen tres cosas que se hacen SIEMPRE y en este orden
    —armar el documento, mandárselo al cliente, registrar la venta— y la app no se acordaba
@@ -7703,9 +7806,17 @@ function marcarPropuesta(){
    wa.me y el PDF se adjunta a mano, así que saber que se mandó es justo lo que no puede
    saber. Decir «enviada» sería la app afirmando algo que no vio. */
 const HITOS_KEY='al3d_hitos';
+/* `pista` es lo que hay que saber ANTES de tocar el botón, y va en el renglón del paso que
+   toca. Las dos son mudanzas, no texto nuevo: lo que la app llama «PDF» es una página que se
+   manda a imprimir, y la única frase que lo explicaba —«usa Compartir → Imprimir / Guardar en
+   PDF»— vivía en el aviso de emergencia que solo sale cuando el navegador bloquea la ventana.
+   Y el recordatorio de adjuntar el PDF se pintaba DESPUÉS de abrir WhatsApp, o sea en la
+   pestaña que el vendedor acaba de abandonar: en el celular wa.me se va a la app y cuando
+   vuelve, el aviso ya caducó — y el mensaje le promete al cliente un archivo que nadie
+   adjuntó. Puestas aquí se leen a tiempo, en el teléfono y en el escritorio. */
 const HITOS=[
-  {k:'pdf',  label:'Generar PDF',        hecho:'PDF generado',  fn:'generarPDF()',        cls:'btn-pri', ico:'i-doc'},
-  {k:'wa',   label:'Enviar por WhatsApp',hecho:'Chat abierto',  fn:'enviarPorWhatsApp()', cls:'btn-wa',  ico:'i-chat'},
+  {k:'pdf',  label:'Generar PDF',        hecho:'PDF generado',  pista:'elige «Guardar como PDF»',  fn:'generarPDF()',        cls:'btn-pri', ico:'i-doc'},
+  {k:'wa',   label:'Enviar por WhatsApp',hecho:'Chat abierto',  pista:'adjunta el PDF que guardaste', fn:'enviarPorWhatsApp()', cls:'btn-wa',  ico:'i-chat'},
   {k:'venta',label:'Registrar venta',    hecho:'Venta registrada',fn:'abrirRegistrarVenta()',cls:'btn-vta',ico:'i-venta'},
 ];
 function getHitos(){
@@ -8715,6 +8826,9 @@ function guardarEnHistorial(){
     items:Q.items.map(it=>Object.assign(JSON.parse(JSON.stringify(it)),{_lt:+lineTotal(it).toFixed(2)})),
     itemsAuth:JSON.parse(JSON.stringify(Q.itemsAuth||{})),
     aiFile:(Q.aiFile&&Q.aiFile.url)?{name:Q.aiFile.name,type:Q.aiFile.type,url:Q.aiFile.url}:imgPrevia,
+    /* Qué aparato emitió este folio. Es lo único que desempata dos COT-0042 pegados en el
+       mismo Sheet, que es el escenario real del CSV. */
+    disp:dispositivo(),
     ts:Date.now()
   };
   if(idx>=0) arr[idx]=entry; else arr.unshift(entry);
@@ -8734,7 +8848,7 @@ function openHistImg(folio){
 function borrarDeHistorial(folio){
   if(!confirm('¿Eliminar '+folio+' del historial?\n\nEsta acción no se puede deshacer.')) return;
   saveHistorial(getHistorial().filter(x=>x.folio!==folio));
-  _histData=getHistorial();
+  _histData=getHistorial(); indexarHistorial();
   pintarClientes();
   pintarHistorial(); // se conserva lo que el usuario tenía escrito en el buscador
 }
@@ -8750,9 +8864,28 @@ function histDsc(it){
   if(it.tipo==='caja')      return 'Caja de luz '+(it.ancho||0)+'×'+(it.alto||0)+'cm';
   return 'Partida manual';
 }
+/* ----- El buscador ignoraba la fecha que él mismo imprime -----
+   Filtraba sobre seis campos: folio, proyecto, cliente, teléfono, dirección y autorizador. La
+   fecha de autorización SÍ se imprime en cada renglón —«✓ Elías · 27 ago 2026»— y no estaba en
+   el filtro, así que teclear «ago» no devolvía nada aunque la fecha estuviera a la vista, que
+   es lo peor que puede hacer un buscador: ignorar un dato que se ve. Tampoco entraba lo que se
+   cotizó, aunque la descripción de cada partida ya se calcula para pintar su tabla, ni el
+   total, que es como se busca «la de treinta y cinco mil».
+
+   La cadena se arma UNA vez al abrir el modal y no dentro del filtro: ahí correría sobre todas
+   las partidas de todas las entradas en cada tecla. */
+function indexarHistorial(){
+  _histData.forEach(e=>{
+    e._busca=[e.folio,e.proy,e.cliente,e.tel,e.dirRaw,e.autorizador,e.fechaAuth,
+      money(totalFinalHist(e)),(e.items||[]).map(histDsc).join(' ')]
+      .map(v=>String(v||'')).join(' ').toLowerCase();
+  });
+}
 function abrirHistorial(){
   _histData=getHistorial();
+  indexarHistorial();
   const s=$('hist-search'); if(s) s.value='';
+  pintarPieHistorial();
   pintarHistorial();
   $('histmodal').classList.add('show');
 }
@@ -8761,10 +8894,7 @@ function abrirHistorial(){
 function pintarHistorial(){
   const dsc=histDsc;
   const q=($('hist-search')?.value||'').trim().toLowerCase();
-  const lista=q
-    ? _histData.filter(e=>[e.folio,e.proy,e.cliente,e.tel,e.dirRaw,e.autorizador]
-        .some(v=>String(v||'').toLowerCase().includes(q)))
-    : _histData;
+  const lista=q ? _histData.filter(e=>(e._busca||'').includes(q)) : _histData;
   const cnt=$('hist-count');
   if(cnt) cnt.textContent=_histData.length
     ? (q?`${lista.length} de ${_histData.length}`:plCot(_histData.length))
@@ -8821,6 +8951,7 @@ function reabrirDeHistorial(folio){
   const e=_histData.find(x=>x.folio===folio); if(!e) return;
   const hayTrabajo=Q.estado!=='autorizada'&&(Q.items.some(it=>!itemVacio(it))||hayDatosCliente());
   if(hayTrabajo&&!confirm('Tienes una cotización sin autorizar en pantalla. Si abres '+folio+', se perderá. ¿Continuar?')) return;
+  guardarParaDeshacer();
   scReset();
   Q.folio=e.folio;
   Q.proy=e.proy||''; Q.cliente=e.cliente||''; Q.tel=e.tel||'';
@@ -8872,7 +9003,8 @@ function reabrirDeHistorial(folio){
      partidas, que es donde está el trabajo y desde donde se reimprime. */
   irAPantalla(pantallaSegunDatos(),{forzar:true});
   cerrarHistorial();
-  toast('Cotización '+e.folio+' abierta — reimprime su PDF, o toca «Editar partidas» para cambiarla','ok',5200);
+  toast('Cotización '+e.folio+' abierta — reimprime su PDF, o toca «Editar partidas» para cambiarla','ok',
+    _vaciada?7000:5200, _vaciada?{label:'Deshacer',fn:deshacerVaciado}:null);
 }
 
 /* ----- Recotizar algo parecido -----
@@ -8886,6 +9018,7 @@ function usarComoBase(folio){
   const e=_histData.find(x=>x.folio===folio); if(!e) return;
   const hayTrabajo=Q.estado!=='autorizada'&&(Q.items.some(it=>!itemVacio(it))||hayDatosCliente());
   if(hayTrabajo&&!confirm('Tienes una cotización sin autorizar en pantalla. Si empiezas una nueva a partir de '+folio+', se perderá. ¿Continuar?')) return;
+  guardarParaDeshacer();
   scReset();
   Q.folio=nextFolio();
   Q.proy=e.proy||''; Q.cliente=e.cliente||''; Q.tel=e.tel||'';
@@ -8918,7 +9051,8 @@ function usarComoBase(folio){
   const falta=!locked()&&faltanDatosCliente()
     ? ' — '+(datosFaltantes().length===1?'falta ':'faltan ')+listaY(datosFaltantes().map(c=>c.corto))+' para poder ajustarlas'
     : ' — ajusta medidas y autoriza';
-  toast(`${Q.folio} · ${n} ${n===1?'partida copiada':'partidas copiadas'} de ${e.folio}${falta}`,'ok',4600);
+  toast(`${Q.folio} · ${n} ${n===1?'partida copiada':'partidas copiadas'} de ${e.folio}${falta}`,'ok',
+    _vaciada?7000:4600, _vaciada?{label:'Deshacer',fn:deshacerVaciado}:null);
 }
 
 /* ===================== Cuadernos de cliente =====================
@@ -9313,8 +9447,13 @@ function verCuadernoDe(clave){
    La API key se queda fuera del respaldo a propósito: un respaldo se manda por
    WhatsApp o por correo, y una key que viaja así deja de ser secreta. Se vuelve a
    pegar en el teléfono nuevo, que es un minuto. */
+/* Van aquí arriba y no junto a `respaldar()` porque RESPALDO_KEYS es un `const` que se
+   inicializa al cargar el archivo y las nombra: declararlas después reventaba el script. */
+const RESP_TS='al3d_respaldo_ts', RESP_N='al3d_respaldo_n';
+const RESP_DIAS=30, RESP_COTS=10;
 const RESPALDO_KEYS=['al3d_historial','al3d_folio','al3d_q','al3d_queue','al3d_logo',CANVA_KEY,HITOS_KEY,'al3d_pf_ganadas',
-  'al3d_fold_proy',CUA_NOTAS,AI_FILE_KEY,PREF_AUTORIZADOR,PREF_MATERIAL,PREF_RV_PCT,PREF_RV_CUENTA];
+  'al3d_fold_proy',CUA_NOTAS,AI_FILE_KEY,PREF_AUTORIZADOR,PREF_MATERIAL,PREF_RV_PCT,PREF_RV_CUENTA,
+  RESP_TS,RESP_N];
 function selloFecha(){
   const d=new Date(), p=n=>String(n).padStart(2,'0');
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
@@ -9340,11 +9479,51 @@ function armarRespaldo(){
   RESPALDO_KEYS.forEach(k=>{ try{ const v=localStorage.getItem(k); if(v!==null) datos[k]=v; }catch(_){} });
   return JSON.stringify({app:'cotizador-al3d',formato:1,fecha:new Date().toISOString(),datos});
 }
+/* ----- El respaldo no se pedía nunca, y no se sabía cuánto llevaba sin hacerse -----
+   Los datos —historial, folios, cotización en curso, notas, logotipo— viven solo en este
+   aparato y se pierden al borrar los datos del navegador, al cambiar de teléfono o cuando iOS
+   limpia los sitios que llevan semanas sin abrirse. Y el respaldo era manual, en el pie de un
+   modal, sin que la app lo mencionara jamás: de los siete sitios que llaman a `respaldar()`,
+   seis son avisos de «no hubo espacio», o sea que se ofrecía cuando ya se estaba perdiendo
+   algo. Tampoco quedaba rastro de haberlo hecho, así que ni siquiera se podía saber cuánto
+   llevaba sin uno.
+
+   Ahora se apunta la fecha y cuántas cotizaciones se llevó, y de ahí salen dos cosas: el pie
+   del historial dice cuándo fue el último —donde antes decía por tercera vez que todo se
+   guarda en este dispositivo—, y el aviso de «autorizada» lo nombra cuando está vencido. NO es
+   un aviso nuevo: es el que ya sale al autorizar, con el botón que `toast()` ya sabe pintar.
+   Autorizar es el único momento del día en que se acaba de crear algo que dolería perder. */
+function respaldoEstado(){
+  const ts=parseInt(prefGet(RESP_TS,'0'),10)||0;
+  const n=parseInt(prefGet(RESP_N,'0'),10)||0;
+  const total=getHistorial().length;
+  const sinRespaldar=Math.max(0,total-n);
+  const dias=ts?Math.floor((Date.now()-ts)/86400000):null;
+  /* Nunca respaldado con algo que perder ya es vencido: el caso peor es justo el del primer
+     mes de uso, cuando nadie ha abierto todavía el pie del historial. */
+  const vencido=total>0&&(!ts||sinRespaldar>=RESP_COTS||dias>=RESP_DIAS);
+  return {ts,dias,total,sinRespaldar,vencido};
+}
+function respaldoTexto(){
+  const r=respaldoEstado();
+  if(!r.total) return '';
+  if(!r.ts) return 'Nunca has respaldado este dispositivo.';
+  const cuando=r.dias===0?'hoy':r.dias===1?'ayer':'hace '+r.dias+' días';
+  return 'Último respaldo '+cuando+(r.sinRespaldar?' · '+r.sinRespaldar+' sin respaldar':'')+'.';
+}
 function respaldar(nombre){
   const n=getHistorial().length;
   if(descargarArchivo(armarRespaldo(),nombre||`cotizador-al3d-respaldo-${selloFecha()}.json`,'application/json')){
+    prefSet(RESP_TS,Date.now()); prefSet(RESP_N,n);
+    pintarPieHistorial();
     toast(`Respaldo descargado · ${n} ${n===1?'cotización':'cotizaciones'}`,'ok',3600);
   }
+}
+/* El pie del historial es un nodo fijo del HTML, así que se reescribe solo su renglón. */
+function pintarPieHistorial(){
+  const el=$('hist-nota'); if(!el) return;
+  const t=respaldoTexto();
+  el.innerHTML=(t?esc(t)+' ':'')+'El respaldo <b>no</b> incluye tus API keys.';
 }
 function pedirRestaurar(){ $('restaurarin').click(); }
 function restaurarDesde(texto){
@@ -9438,7 +9617,8 @@ function exportarHistorialCSV(){
   const arr=getHistorial();
   if(!arr.length){ toast('Todavía no hay cotizaciones autorizadas','',2600); return; }
   const enc=['Folio','Fecha de autorización','Cliente','Teléfono','Proyecto','Dirección',
-    'Autorizador','Partidas','Subtotal','IVA','Total calculado','Precio autorizado','Ajuste','Detalle'];
+    'Autorizador','Partidas','Subtotal','IVA','Total calculado','Precio autorizado','Ajuste','Detalle',
+    'Dispositivo'];
   const filas=arr.map(e=>{
     const pFin=totalFinalHist(e);
     const ajuste=+(e.neto-pFin).toFixed(2);
@@ -9446,7 +9626,8 @@ function exportarHistorialCSV(){
     return [e.folio,e.fechaAuth||'',e.cliente||'',e.tel||'',e.proy||'',(e.dirRaw||'').replace(/\s*\n\s*/g,' '),
       e.autorizador||'',(e.items||[]).length,
       (e.sub||0).toFixed(2),(e.iva?((e.neto||0)-(e.sub||0)):0).toFixed(2),
-      (e.neto||0).toFixed(2),pFin.toFixed(2),ajuste.toFixed(2),detalle].map(csvCampo).join(',');
+      (e.neto||0).toFixed(2),pFin.toFixed(2),ajuste.toFixed(2),detalle,
+      e.disp||''].map(csvCampo).join(',');
   });
   const csv='﻿'+[enc.map(csvCampo).join(',')].concat(filas).join('\r\n');
   if(descargarArchivo(csv,`cotizador-al3d-historial-${selloFecha()}.csv`,'text/csv;charset=utf-8')){
@@ -9542,6 +9723,12 @@ function saveState(){
     if(_saveOk){
       _saveOk=false;
       toast('No hay espacio para guardar la cotización — respalda y borra cotizaciones viejas','err',9000,{label:'Respaldar',fn:()=>respaldar()});
+      /* Un aviso que se va no puede representar una condición que sigue. Salía una vez y
+         después la pantalla quedaba idéntica a una que sí está guardando: se seguía capturando
+         delante del cliente durante media hora creyendo que estaba a salvo. El único rastro
+         posterior era el diálogo del navegador al cerrar la pestaña, que no explica nada.
+         Ahora la marca se queda puesta mientras el problema esté puesto. */
+      pintarFolio();
     }
   }
   sincronizarAiFile();
@@ -9764,12 +9951,21 @@ function sincronizarAiFile(){
     if(!Q.aiFile){ localStorage.removeItem(AI_FILE_KEY); _aiFileGuardada=null; _aiFileFallo=null; return; }
     /* El tamaño se mide sobre la url, que es el 99% del peso, antes de construir la
        cadena completa: no vale la pena armar 11 MB de JSON para descartarlos. */
-    if(url.length>AI_FILE_MAX){ localStorage.removeItem(AI_FILE_KEY); _aiFileGuardada=null; _aiFileFallo=url; return; }
+    /* Los dos cortes por tamaño eran `return` completamente mudos: la foto de la que salieron
+       las partidas no se guardaba, y al recargar —o al abrir esa cotización del historial
+       semanas después, que es cuando de verdad hace falta— no estaba, sin que nada lo hubiera
+       dicho. Se avisa una vez por archivo: `_aiFileFallo` ya garantiza que no se repita en
+       cada tecla. Y con lo que se puede hacer, que es volver a tomarla más chica. */
+    if(url.length>AI_FILE_MAX){ localStorage.removeItem(AI_FILE_KEY); _aiFileGuardada=null; _aiFileFallo=url; avisoAiFileGrande(url.length); return; }
     const s=JSON.stringify(Q.aiFile);
-    if(s.length>AI_FILE_MAX){ localStorage.removeItem(AI_FILE_KEY); _aiFileGuardada=null; _aiFileFallo=url; return; }
+    if(s.length>AI_FILE_MAX){ localStorage.removeItem(AI_FILE_KEY); _aiFileGuardada=null; _aiFileFallo=url; avisoAiFileGrande(s.length); return; }
     localStorage.setItem(AI_FILE_KEY,s);
     _aiFileGuardada=url; _aiFileFallo=null;
-  }catch(_){ _aiFileGuardada=null; _aiFileFallo=url; }
+  }catch(_){ _aiFileGuardada=null; _aiFileFallo=url; avisoAiFileGrande(0); }
+}
+function avisoAiFileGrande(bytes){
+  const mb=bytes?(bytes/1048576).toFixed(1)+' MB':'demasiado';
+  toast('La imagen del análisis pesa '+mb+' y no se va a guardar con la cotización — vuelve a tomarla más chica si la quieres conservar','',7000);
 }
 /* ¿La imagen que está en pantalla ya tiene su copia en el historial? Se pregunta al salir de
    la app, no en cada tecla, así que recorrer el historial ahí sale gratis y ahorra llevar una
@@ -9861,9 +10057,15 @@ function folioConfirmado(){ return Q.estado==='autorizada'; }
 function pintarFolio(){
   const el=$('folio'); if(!el) return;
   const conf=folioConfirmado();
-  el.textContent=Q.folio||'';
+  /* La píldora del folio ya significa provisional/confirmado, así que «sin guardar» va como
+     marca APARTE y no reescribiendo su texto: son dos cosas distintas y confundirlas sería
+     peor que no decir nada. */
+  el.innerHTML=esc(Q.folio||'')+(_saveOk?'':' <b class="folio-mal">sin guardar</b>');
   el.classList.toggle('prov',!conf);
-  el.title=conf
+  el.classList.toggle('nosave',!_saveOk);
+  el.title=!_saveOk
+    ? 'No hay espacio en este teléfono: lo que captures ahora no se está guardando. Respalda desde el historial y borra cotizaciones viejas.'
+    : conf
     ? 'Folio confirmado — cuenta en el contador de cotizaciones'
     : 'Folio provisional — el contador solo avanza cuando la cotización se autoriza';
 }
@@ -10016,6 +10218,19 @@ function scPuedeCambiarImagen(){
   const n=SC.items.length;
   return confirm('El escalador tiene '+n+(n===1?' medida':' medidas')+' de la imagen actual. Al cargar otra se borran. ¿Continuar?');
 }
+/* ----- Un error que dice qué hacer, no solo qué falló -----
+   Los dos <input> aceptan `image/*`, así que un .HEIC que llegó por AirDrop o por correo se
+   puede elegir en Android y en escritorio — y ningún navegador de escritorio lo decodifica.
+   Lo que salía era «No se pudo cargar la imagen», que es un callejón sin salida: no dice qué
+   pasó, no dice qué formato sí funciona y no dice cómo convertirla. En el mismo archivo, a
+   veinte renglones, el error del lector de PDF ya está escrito como debe: dice qué hacer.
+   Sin inventar la causa: el nombre del archivo ya llega como parámetro, así que se nombra. */
+function errImagen(name){
+  const n=String(name||'');
+  return /\.hei[cf]$/i.test(n)
+    ? `No se pudo abrir «${n}» — este navegador no lee ese formato. Ábrela en Fotos y guárdala como JPG, o mándala por WhatsApp, que la convierte`
+    : `No se pudo abrir «${n||'la imagen'}» — puede estar dañada o ser demasiado grande. Guárdala como JPG y vuelve a intentar`;
+}
 function scLoadImgSrc(src,name,alCargar){
   const img=new Image();
   img.onload=()=>{
@@ -10038,7 +10253,7 @@ function scLoadImgSrc(src,name,alCargar){
        que quede en pantalla. */
     if(alCargar){ try{ alCargar(); }catch(_){} }
   };
-  img.onerror=()=>toast('No se pudo cargar la imagen','err');
+  img.onerror=()=>toast(errImagen(name),'err',6400);
   img.src=src;
 }
 async function scLoadPDF(f){
@@ -11230,7 +11445,10 @@ function scUsarMedida(id){
   // El aviso lleva la salida al cotizador: es justo lo que se quiere hacer después de
   // agregar y en el celular ahorra buscar el botón.
   if(m.cm<0.5){toast('Esa medida da menos de medio centímetro — se agregó con 0.5 cm, revisa la calibración de escala','err',5000);}
-  else toast(`Partida con altura ${h} cm agregada — sigue midiendo`,'ok',4200,{label:'Ir al cotizador',fn:cerrarScaler});
+  /* «Falta el material» y no «sigue midiendo»: la partida que acaba de nacer trae su altura y
+     nada más, y el material es el dato que multiplica el precio. El aviso lo dice con el mismo
+     criterio con el que la partida se pinta en ámbar por dentro. */
+  else toast(`Partida con altura ${h} cm agregada — falta elegir el material`,'ok',4200,{label:'Ir al cotizador',fn:cerrarScaler});
 }
 function scUsarTodas(){
   if(locked()){toast('La cotización está bloqueada','err');return;}
@@ -11241,8 +11459,13 @@ function scUsarTodas(){
   pend.forEach(scAgregarPartida);
   renderItems();
   scUpdateList();
-  if(cortas){toast(`${cortas} ${cortas===1?'medida da':'medidas dan'} menos de 1 cm — se agregaron con 1 cm, revisa la calibración de escala`,'err',5600);}
-  else toast(`${pend.length} ${pend.length===1?'partida agregada':'partidas agregadas'} a la cotización`,'ok',4200,{label:'Ir al cotizador',fn:cerrarScaler});
+  /* El número decía 1 cm y el código escribe 0.5: el filtro de arriba es `m.cm<0.5` y la
+     altura se clava en `Math.max(0.5,…)`. Es un número equivocado sobre el campo que
+     multiplica el precio y sobre la calibración, así que quien lo leyera se iba a buscar una
+     altura de 1 cm que no existe. La frase buena ya estaba escrita dos renglones arriba, en
+     el camino de una sola medida. */
+  if(cortas){toast(`${cortas} ${cortas===1?'medida da':'medidas dan'} menos de medio centímetro — se ${cortas===1?'agregó':'agregaron'} con 0.5 cm, revisa la calibración de escala`,'err',5600);}
+  else toast(`${pend.length} ${pend.length===1?'partida agregada':'partidas agregadas'} — falta elegir el material en ${pend.length===1?'ella':'ellas'}`,'ok',4200,{label:'Ir al cotizador',fn:cerrarScaler});
 }
 /* ===================== Del escalador a la IA =====================
    Eran dos caminos sueltos que resolvían mitades distintas del mismo problema: el
@@ -11518,7 +11741,28 @@ function rvRecalc(){
   document.getElementById('rv-com-disp').textContent=money(com);
   document.getElementById('rv-pend-disp').textContent=money(pend);
 }
+/* ----- Una sola cifra de anticipo -----
+   Se capturaba en dos sitios. El de la columna del resumen escribe `Q.anti`, y de ahí salen el
+   PDF, su hoja de recibo, el WhatsApp y el texto de Canva. El del modal de registrar venta se
+   precargaba con esa misma cifra y NADIE la escribía de vuelta: corregirla ahí —que es cuando
+   se pacta de verdad, al cobrar— movía la comisión y el pago pendiente que se registran, y
+   dejaba el papel y el mensaje al cliente con el número viejo. Dos cifras para el mismo trato,
+   sobre el mismo folio.
+
+   Se escribe en los dos puntos que COMPROMETEN y no en cada tecla: el modal tiene «Cancelar»,
+   y un write-through por teclazo convertiría un cierre por accidente en un cambio del papel.
+   `antiManual` queda en true porque a partir de ahí la cifra la puso una persona y el 50 %
+   automático no debe volver a pisarla. */
+function rvComprometerAnticipo(){
+  const v=parseFloat(document.getElementById('rv-anticipo').value)||0;
+  if(Math.abs(v-(Q.anti||0))<0.01) return;
+  Q.anti=v; Q.antiManual=true;
+  saveState(); renderSummary();
+  if(Q.estado==='autorizada') guardarEnHistorial();
+  toast('Anticipo actualizado a '+money(v)+' — el PDF y el WhatsApp ya lo traen','',4200);
+}
 function copiarFilaVenta(){
+  rvComprometerAnticipo();
   const t=desgloseFinal();
   const sub=t.sub, neto=t.neto;
   const proyecto=document.getElementById('rv-proyecto').value.trim();
@@ -11568,10 +11812,11 @@ function copiarFilaVenta(){
    teléfono es otro, si algo falla: pegar la fila a mano es el camino que ya funciona y no
    se retira. */
 function registrarGanada(){
+  rvComprometerAnticipo();
   const t=desgloseFinal();
   const g={
     folio:Q.folio,
-    disp:(function(){ try{ return localStorage.getItem('al3d_pf_disp')||''; }catch(_){ return ''; } })(),
+    disp:dispositivo(),
     /* La huella del trabajo al momento de ganar. La plataforma la compara contra la
        cotización de hoy: si alguien edita las partidas después de vendida, el material
        calculado ya no corresponde y hay que decirlo en vez de comprar de más. */
@@ -11768,7 +12013,7 @@ function vtLoadImgSrc(src,name){
     vtFit(); vtRender();
     toast('Imagen cargada · '+(name||''),'ok');
   };
-  img.onerror=()=>toast('No se pudo cargar la imagen','err');
+  img.onerror=()=>toast(errImagen(name),'err',6400);
   img.src=src;
 }
 
