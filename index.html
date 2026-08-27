@@ -5943,7 +5943,11 @@ function nueva(){
   /* La imagen analizada va en el respaldo: es serializable —es lo mismo que se guarda en su
      propia clave— y sin ella «Deshacer» devolvía la cotización sin la foto de la que
      salieron sus partidas, ya borrada del almacenamiento y sin manera de recuperarla. */
-  _vaciada=habia?{q:JSON.parse(JSON.stringify(Q)),pid,rol:Q.rol}:null;
+  /* El escalador va en el respaldo por lo mismo que la imagen analizada: scReset(), unas
+     líneas más abajo, borra la foto y sus cotas, y sin esto «Deshacer» devolvía la
+     cotización sin nada de eso y sin manera de recuperarlo. */
+  const scAntes=scSnapshot();
+  _vaciada=(habia||scAntes)?{q:JSON.parse(JSON.stringify(Q)),pid,rol:Q.rol,sc:scAntes}:null;
   Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};Q.huellaAuth='';
   Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth='';
   Q.editMode=false; _selfAuth=false; Q.sinEstrenar=true;
@@ -5959,7 +5963,9 @@ function nueva(){
   addItem({enfocar:false,heredar:true}); aplicarFoldProy();
   /* Una cotización en blanco empieza donde empieza: por el cliente. */
   irAPantalla('cliente',{forzar:true});
-  if(_vaciada) toast('Cotización vaciada','',7000,{label:'Deshacer',fn:deshacerVaciado});
+  if(_vaciada) toast(_vaciada.sc&&_vaciada.sc.items.length
+      ? 'Cotización vaciada — y las '+_vaciada.sc.items.length+' medidas del escalador'
+      : 'Cotización vaciada','',7000,{label:'Deshacer',fn:deshacerVaciado});
   else toast('Nueva cotización lista');
 }
 function deshacerVaciado(){
@@ -5971,7 +5977,9 @@ function deshacerVaciado(){
   Q.rol=rolActual;
   Q.editMode=false; _selfAuth=false;
   pid=Math.max(pid,_vaciada.pid||0);
+  const scVuelve=_vaciada.sc;
   _vaciada=null;
+  if(scVuelve) scRestaurar(scVuelve);
   Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
   updDirRaw(Q.dirRaw||''); updMaps(Q.maps||'');
   $('f-anti').value=Q.anti||'';
@@ -9441,6 +9449,54 @@ function scReset(){
   SC.img=null; SC.items=[]; SC.guides=[]; SC.sel=null; SC.nid=1; SC.nc=0;
   SC.building=false; SC.tapA=null; SC.dragH=null; SC.down=false;
   try{ scResetCalib(false); }catch(_){}
+  try{ renderScalerPreview(); }catch(_){}
+}
+/* ----- Respaldo del escalador para las rutas que reponen la cotización -----
+   `nueva()` guardaba Q en _vaciada y llamaba a scReset(), que borra la foto, las cotas, las
+   guías y la calibración. `deshacerVaciado()` repone Q y no toca SC ni una vez: la
+   cotización volvía sin la imagen de la que salieron sus medidas y sin las medidas.
+
+   No es un dato más. Calibrar contra una referencia real y trazar seis cotas sobre una foto
+   con el dedo son varios minutos de trabajo fino, y la app lo sabe —scPuedeCambiarImagen(),
+   aquí abajo, pregunta antes de dejar cargar otra foto—. Lo que faltaba era que la misma
+   guarda existiera en el camino que sí borra: vaciar.
+
+   SC no se persiste en ningún lado, así que sin esto lo borrado no queda en ninguna parte.
+   Se guardan también nid, gid y nc: sin ellos las cotas restauradas conservan sus ids y la
+   siguiente que se trace nace repetida. */
+function scSnapshot(){
+  if(typeof SC==='undefined'||!SC.img) return null;
+  return {img:SC.img,imgW:SC.imgW,imgH:SC.imgH,objUrl:SC.objUrl,
+    items:SC.items.slice(),guides:SC.guides.slice(),
+    nid:SC.nid,nc:SC.nc,gid:SC.gid,
+    refLine:SC.refLine?Object.assign({},SC.refLine):null,
+    refCm:SC.refCm,nativePxPerCm:SC.nativePxPerCm,mMode:SC.mMode};
+}
+function scRestaurar(s){
+  if(!s||typeof SC==='undefined') return;
+  SC.img=s.img;SC.imgW=s.imgW;SC.imgH=s.imgH;SC.objUrl=s.objUrl;
+  SC.items=s.items.slice();SC.guides=s.guides.slice();
+  SC.nid=s.nid;SC.nc=s.nc;SC.gid=s.gid;
+  SC.refLine=s.refLine;SC.refCm=s.refCm;SC.nativePxPerCm=s.nativePxPerCm;SC.mMode=s.mMode;
+  SC.sel=null;SC.building=false;SC.tapA=null;SC.dragH=null;SC.down=false;
+  /* La caché de mosaicos es de la imagen anterior: sin tirarla, el lienzo pinta lo viejo
+     encima de lo restaurado. */
+  try{ scDropCache(); }catch(_){}
+  /* Y la pantalla de calibración vuelve a decir lo que dice cuando hay escala. Son las
+     mismas seis líneas que deja scConfirmCalib; si algún día cambian allá, cambian aquí. */
+  if(SC.nativePxPerCm>0){
+    try{
+      $('sc-ref-confirm-row').style.display='none';
+      $('sc-calib-done').style.display='';
+      $('sc-calib-help').style.display='none';
+      $('sc-btn-calib').style.display='none';
+      $('sc-calib-badge').className='sp-calib-badge ok';
+      $('sc-calib-txt').textContent='Escala calibrada';
+    }catch(_){}
+  }
+  try{ scUpdateList(); }catch(_){}
+  try{ scUpdateGuideList(); }catch(_){}
+  try{ scRender(); }catch(_){}
   try{ renderScalerPreview(); }catch(_){}
 }
 function scPuedeCambiarImagen(){
