@@ -755,7 +755,15 @@ textarea{resize:vertical;min-height:46px}
 .del:is(:disabled,[aria-disabled="true"]){cursor:default;color:#a8aec0}
 .del:is(:disabled,[aria-disabled="true"]):hover{color:#a8aec0;background:none}
 @keyframes chipPop{0%{transform:scale(.84)}65%{transform:scale(1.07)}100%{transform:scale(1)}}
-.hintnote{font-size:var(--t2);color:var(--n6);background:var(--n1);border-radius:var(--rr1);padding:8px 12px;display:inline-block;line-height:1.5}
+/* `inline-flex` y no `inline-block`: la nota casi siempre empieza con un icono, y como
+   caja de bloque el único separador entre el icono y el texto era un espacio de texto
+   literal —' ' en el JS— que a 12,5 px mide 3,3 px, contra los 8 del resto del sistema. Era
+   el único par icono/etiqueta de la app con un hueco distinto, y además el texto que pasaba
+   de un renglón volvía a empezar DEBAJO del icono en vez de alinearse con la primera línea.
+   Con flex el hueco sale del mismo --e2 que todo lo demás, el espacio literal deja de
+   contar —el flex ignora los nodos de solo espacio— y el texto se acomoda en su columna. */
+.hintnote{font-size:var(--t2);color:var(--n6);background:var(--n1);border-radius:var(--rr1);padding:8px 12px;display:inline-flex;align-items:flex-start;gap:var(--e2);line-height:1.5}
+.hintnote>.svgi{flex-shrink:0;margin-top:.15em}
 /* Los avisos con color van con el mismo relleno tenue y borde de un píxel que todo lo
    demás; el filete de tres píxeles a la izquierda era el único elemento de la hoja que se
    dibujaba así, y con tres colores distintos. */
@@ -1855,11 +1863,20 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
   /* ----- Tipo de partida: los cinco de un vistazo -----
      En rejilla de tres se iban dos renglones y 102 px por partida, con «Recorte
      acrílico» partido a la mitad y un hueco muerto al final. Con el nombre corto
-     caben los cinco en un renglón de 40 px. */
-  .tipo-seg{grid-template-columns:repeat(5,1fr);gap:2px;padding:2px}
-  .tipo-seg button{padding:9px 2px;font-size:10.5px;line-height:1.15;letter-spacing:-.1px;min-height:40px}
-  .tipo-seg .lg{display:none}
-  .tipo-seg .sm{display:inline}
+     caben los cinco en un renglón de 40 px.
+
+     ACOTADO A `.partida`, y esto no es cosmética. `.tipo-seg` es también la clase que
+     `segmento()` de la plataforma emite para TODAS sus tiras de filtro: «Todas» en
+     Proyectos, «Mes · Semana · Lista» en Agenda, «Por comprar · En almacén · Por proyecto»
+     en Material. Son dos o tres opciones con sitio de sobra, y estaban heredando el
+     apretón que se calculó para meter CINCO tipos de partida en un renglón: 40 px de alto
+     —cuatro por debajo del mínimo— y letra de 10,5 px, que ni siquiera es un paso de la
+     escala. Se veían apretadas porque llevaban puesta la ropa de otro. Sin el prefijo, el
+     bloque de 760 px les da 44 px y 11,5, que es lo que les toca. */
+  .partida .tipo-seg{grid-template-columns:repeat(5,1fr);gap:2px;padding:2px}
+  .partida .tipo-seg button{padding:9px 2px;font-size:10.5px;line-height:1.15;letter-spacing:-.1px;min-height:40px}
+  .partida .tipo-seg .lg{display:none}
+  .partida .tipo-seg .sm{display:inline}
 
   /* El encabezado de la partida plegada se partía en dos renglones en TODO teléfono de
      320 a 390 px —y hasta 414 con «Recorte acrílico»—: 44 px pasaban a 94 y cada partida
@@ -3254,7 +3271,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
     <div id="cua-lista-vista">
       <p class="hist-ayuda">Cada cliente es un <b>teléfono</b>; sin teléfono, el <b>nombre</b>. Se agrupan solas las cotizaciones que ya autorizaste.</p>
       <div class="hist-search-bar">
-        <input id="cua-search" type="search" placeholder="Buscar por cliente o teléfono…" autocomplete="off" oninput="pintarCuadernos()">
+        <input id="cua-search" type="search" aria-label="Buscar un cuaderno por cliente o teléfono" placeholder="Buscar por cliente o teléfono…" autocomplete="off" oninput="pintarCuadernos()">
         <span class="hist-count" id="cua-count"></span>
       </div>
     </div>
@@ -3270,7 +3287,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
     </div>
     <p class="hist-ayuda"><b>Duplicar</b> copia el cliente y las partidas a una cotización nueva, en borrador: es la de cotizar lo mismo con otro material o otra medida sin capturar de nuevo.</p>
     <div class="hist-search-bar">
-      <input id="hist-search" type="search" placeholder="Buscar por folio, cliente o proyecto…" autocomplete="off" oninput="pintarHistorial()">
+      <input id="hist-search" type="search" aria-label="Buscar en el historial por folio, cliente o proyecto" placeholder="Buscar por folio, cliente o proyecto…" autocomplete="off" oninput="pintarHistorial()">
       <span class="hist-count" id="hist-count"></span>
     </div>
     <div class="hist-body" id="hist-body"></div>

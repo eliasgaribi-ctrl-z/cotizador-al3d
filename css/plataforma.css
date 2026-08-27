@@ -48,8 +48,14 @@
    después las partidas— y esto son seis lugares donde a cualquiera se llega desde
    cualquiera. Así que pestañas, y con scroll horizontal en el teléfono en vez de apretarlas
    hasta que el texto no se lea. */
+/* El relleno vertical de 5 px no es aire: es SITIO PARA EL ANILLO DE FOCO. `overflow-x:auto`
+   obliga a `overflow-y:auto` por especificación, así que esta tira recorta lo que se salga
+   por arriba y por abajo, y el anillo del sistema son 2 px de trazo con 3 px de separación:
+   5 px justos fuera de la pestaña. Con 0 arriba y 2 abajo se recortaba entero por arriba y
+   casi entero por abajo, o sea que quien navega con teclado no veía en qué pestaña estaba.
+   El margen negativo devuelve esos 5 px para que la tira siga cayendo donde caía. */
 .pf-nav{display:flex;gap:var(--e2);margin-bottom:var(--e5);overflow-x:auto;
-  scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+  scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:5px 0;margin-top:-5px}
 .pf-nav::-webkit-scrollbar{display:none}
 .pf-tab{flex:0 0 auto;display:inline-flex;align-items:center;gap:var(--e2);
   min-height:44px;min-width:44px;justify-content:center;padding:0 var(--e4);border:1px solid var(--line);border-radius:var(--rr2);
@@ -81,8 +87,8 @@
      de 430: las seis pantallas de la plataforma se deslizaban en horizontal, la topbar y
      las tarjetas se cortaban al llegar al filo, y en un iPhone eso se siente como que la
      app está rota. El fallback de 10 px es por si la variable no llegara. */
-  .pf-nav{margin:0 calc(-1 * var(--pad-lat-der,10px)) var(--e4) calc(-1 * var(--pad-lat,10px));
-    padding:0 var(--pad-lat-der,10px) 2px var(--pad-lat,10px)}
+  .pf-nav{margin:-5px calc(-1 * var(--pad-lat-der,10px)) var(--e4) calc(-1 * var(--pad-lat,10px));
+    padding:5px var(--pad-lat-der,10px) 5px var(--pad-lat,10px)}
   /* La pestaña conserva su nombre SIEMPRE. Antes solo lo llevaba la elegida, con el
      argumento de que seis palabras en una tira que se desliza no las lee nadie; el precio
      era peor de lo que parecía. Primero, en Ajustes —que es una ruta oculta de la barra—
