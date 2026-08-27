@@ -953,7 +953,15 @@ textarea{resize:vertical;min-height:46px}
    que medir — blanco sobre el degradado de marca son 10:1 de sobra. Con un 82 % de opacidad
    quedaba en 5,1:1, que pasa, pero pagar contraste por una diferencia que ya está hecha con
    el cuerpo de la letra es pagar de más. */
-.hito-pista{font-size:var(--t1);font-weight:400;color:var(--muted);white-space:nowrap}
+/* La pista va en su propio renglón dentro del botón: al lado le robaba el ancho al nombre y lo
+   partía en dos —«Enviar por / WhatsApp  adjunta el PDF…»—, que es peor que no decir nada,
+   porque lo primero que hay que leer de un botón es qué hace.
+   El `flex-wrap` se pone SOLO en estos tres botones y no en `.btn`, que es la clase de todos
+   los botones grandes de las dos apps: `css/sistema.css` se genera de esta hoja y la plataforma
+   la hereda, así que envolver ahí habría cambiado el alto de botones de seis pantallas que no
+   tienen nada que ver con esto. */
+.btn.hito{flex-wrap:wrap}
+.hito-pista{flex-basis:100%;font-size:var(--t1);font-weight:400;color:var(--muted);text-align:center;margin-top:1px}
 .btn-pri .hito-pista{color:inherit}
 /* Sin relleno y con la palomita, el nombre del botón ya no es lo primero que se lee, así que
    se le devuelve el peso: es el nombre de la acción, y sigue siendo tocable. */

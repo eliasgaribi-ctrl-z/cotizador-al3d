@@ -966,7 +966,15 @@ textarea{resize:vertical;min-height:46px}
    que medir — blanco sobre el degradado de marca son 10:1 de sobra. Con un 82 % de opacidad
    quedaba en 5,1:1, que pasa, pero pagar contraste por una diferencia que ya está hecha con
    el cuerpo de la letra es pagar de más. */
-.hito-pista{font-size:var(--t1);font-weight:400;color:var(--muted);white-space:nowrap}
+/* La pista va en su propio renglón dentro del botón: al lado le robaba el ancho al nombre y lo
+   partía en dos —«Enviar por / WhatsApp  adjunta el PDF…»—, que es peor que no decir nada,
+   porque lo primero que hay que leer de un botón es qué hace.
+   El `flex-wrap` se pone SOLO en estos tres botones y no en `.btn`, que es la clase de todos
+   los botones grandes de las dos apps: `css/sistema.css` se genera de esta hoja y la plataforma
+   la hereda, así que envolver ahí habría cambiado el alto de botones de seis pantallas que no
+   tienen nada que ver con esto. */
+.btn.hito{flex-wrap:wrap}
+.hito-pista{flex-basis:100%;font-size:var(--t1);font-weight:400;color:var(--muted);text-align:center;margin-top:1px}
 .btn-pri .hito-pista{color:inherit}
 /* Sin relleno y con la palomita, el nombre del botón ya no es lo primero que se lee, así que
    se le devuelve el peso: es el nombre de la acción, y sigue siendo tocable. */
@@ -5703,7 +5711,7 @@ function entregaHTML(){
 
        El hecho se dice con la palomita y la fecha, no cambiando el nombre del botón: quien
        vuelva a tocarlo tiene que seguir sabiendo qué hace. */
-    return `<button class="btn ${ts?'btn-gho hito-hecho':(toca?'btn-pri':x.cls)}" onclick="${x.fn}">`
+    return `<button class="btn hito ${ts?'btn-gho hito-hecho':(toca?'btn-pri':x.cls)}" onclick="${x.fn}">`
       +(ts?`<svg class="svgi hito-ok" aria-hidden="true"><use href="#i-check"/></svg>`
           :`<svg class="svgi" aria-hidden="true"><use href="#${x.ico}"/></svg>`)
       +` ${x.label}`
@@ -7910,9 +7918,11 @@ function marcarHito(k){
     o[Q.folio]=y;
     localStorage.setItem(HITOS_KEY,JSON.stringify(o));
   }catch(_){ /* sin espacio: se pierde la constancia y nada más. No frena la entrega. */ }
-  /* El repintado es la mitad del valor: sin esto el renglón sigue diciendo «Generar PDF» en
-     azul después de haberlo generado. */
-  renderSummary(); pintarPasos();
+  /* El repintado es la mitad del valor, y son TRES los sitios que leen los hitos: el panel
+     (renderSummary → renderAuth), la barra de pasos, y el renglón de «qué sigue», que vive en
+     updProg. Con los dos primeros el panel decía «✓ PDF generado» y la barra de completitud,
+     dos dedos más arriba, seguía ofreciendo «Generar PDF ›». */
+  renderSummary(); pintarPasos(); updProg();
 }
 /* «27 ago» — la fecha corta, que es toda la que hace falta al lado de una palomita. */
 function hitoFecha(ts){
@@ -9540,7 +9550,7 @@ function verCuadernoDe(clave){
 /* Van aquí arriba y no junto a `respaldar()` porque RESPALDO_KEYS es un `const` que se
    inicializa al cargar el archivo y las nombra: declararlas después reventaba el script. */
 const RESP_TS='al3d_respaldo_ts', RESP_N='al3d_respaldo_n';
-const RESP_DIAS=30, RESP_COTS=10;
+const RESP_DIAS=30, RESP_COTS=10, RESP_PRIMERAS=3;
 const RESPALDO_KEYS=['al3d_historial','al3d_folio','al3d_q','al3d_queue','al3d_logo',CANVA_KEY,HITOS_KEY,'al3d_pf_ganadas',
   'al3d_fold_proy',CUA_NOTAS,AI_FILE_KEY,PREF_AUTORIZADOR,PREF_MATERIAL,PREF_RV_PCT,PREF_RV_CUENTA,
   RESP_TS,RESP_N];
@@ -9589,9 +9599,12 @@ function respaldoEstado(){
   const total=getHistorial().length;
   const sinRespaldar=Math.max(0,total-n);
   const dias=ts?Math.floor((Date.now()-ts)/86400000):null;
-  /* Nunca respaldado con algo que perder ya es vencido: el caso peor es justo el del primer
-     mes de uso, cuando nadie ha abierto todavía el pie del historial. */
-  const vencido=total>0&&(!ts||sinRespaldar>=RESP_COTS||dias>=RESP_DIAS);
+  /* Nunca respaldado también vence, porque el caso peor es el del primer mes de uso, cuando
+     nadie ha abierto todavía el pie del historial. Pero no en la primera cotización: ahí lo que
+     importa es la confirmación de que se guardó, y avisar de «1 sin respaldar» encima de la
+     primera venta de la vida del aparato es cambiar una buena noticia por un regaño. Desde la
+     tercera, la app ya se explicó sola y sí hay algo que dolería perder. */
+  const vencido=total>0&&((!ts&&total>=RESP_PRIMERAS)||sinRespaldar>=RESP_COTS||dias>=RESP_DIAS);
   return {ts,dias,total,sinRespaldar,vencido};
 }
 function respaldoTexto(){

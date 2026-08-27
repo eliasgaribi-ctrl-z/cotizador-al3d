@@ -206,6 +206,11 @@ e = await proceso();
 e.sig && /whatsapp/i.test(e.sig.txt)
   ? bien('y «qué sigue» avanza al siguiente: «'+e.sig.txt+'»')
   : mal('con el PDF hecho, «qué sigue» dice '+JSON.stringify(e.sig));
+/* Y el renglón PINTADO también, no solo lo que devuelve la función: son tres sitios distintos
+   los que leen los hitos y uno se quedaba con «Generar PDF» ya generado. */
+/whatsapp/i.test(e.renglon)
+  ? bien('y el renglón de la pantalla dice lo mismo: «'+e.renglon.trim()+'»')
+  : mal('la barra de completitud sigue pintando «'+e.renglon.trim()+'» con el PDF ya generado');
 
 await p.reload({waitUntil:'load'});
 await p.waitForTimeout(1200);
