@@ -161,8 +161,14 @@ await p.waitForTimeout(700);
 await p.evaluate(() => abrirRegistrarVenta());
 await p.waitForTimeout(600);
 /* La fecha de instalación es la única captura humana real del sistema, y es la que hace que
-   la fila de Notion tenga por fin una fecha de verdad. */
-await p.evaluate(() => { const f = document.getElementById('rv-fecha'); if (f) f.value = '2026-09-01'; });
+   la fila de Notion tenga por fin una fecha de verdad.
+
+   Va en `rv-fecha-inst` y NO en `rv-fecha`. Eran el mismo campo, precargado con hoy, y por
+   eso toda venta registrada sin tocarlo nacía agendada para instalar el mismo día. Ahora
+   son dos: `rv-fecha` es el anticipo —sigue precargado con hoy, que es cuando se cobra— y
+   `rv-fecha-inst` la instalación, que nace vacía porque casi nunca se sabe todavía. Esta
+   prueba llena la segunda, que es la que la fila de Notion espera. */
+await p.evaluate(() => { const f = document.getElementById('rv-fecha-inst'); if (f) f.value = '2026-09-01'; });
 const btn = await p.$('button:has-text("Registrar como proyecto ganado")');
 if (!btn) mal('no está el botón de ganar'); else { await btn.click(); await p.waitForTimeout(800); }
 const buzon = await p.evaluate(() => JSON.parse(localStorage.getItem('al3d_pf_ganadas') || '[]'));
