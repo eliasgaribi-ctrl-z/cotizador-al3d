@@ -629,7 +629,11 @@ button,input,select,textarea,optgroup{font-family:inherit}
   background:var(--card);color:var(--n7);font-weight:400;font-size:var(--t2);line-height:1.5;font-family:inherit;
   cursor:pointer;transition:border-color .12s,background .12s}
 .aj-rol:hover{border-color:var(--n4)}
-.aj-rol .svgi{flex-shrink:0;margin-top:1px}
+/* La ficha de rol mide 364x84: es una pieza grande y el glifo que marca cuál está elegido
+   es lo primero que se busca en ella. Heredaba los 12,5 px de la descripción —cuando la
+   tipografía empezó a aplicarse de verdad— y se perdía. Es el caso de --ico2: el icono ES
+   la pieza, no un adorno dentro de una frase. */
+.aj-rol .svgi{flex-shrink:0;margin-top:1px;width:var(--ico2);height:var(--ico2)}
 .aj-rol b{display:block;font-weight:700;font-size:var(--t3);line-height:1.35;color:var(--ink);margin-bottom:2px}
 .aj-rol.on{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-fuerte)}
 .aj-rol.on b{color:var(--a-fuerte)}
