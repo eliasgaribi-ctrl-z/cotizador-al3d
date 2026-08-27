@@ -829,11 +829,17 @@ textarea{resize:vertical;min-height:46px}
    lo que dice que están puestos; el color se guarda para lo que falta y para lo apagado,
    que son los dos casos en los que hace falta mirar. */
 .ptok{display:inline-flex;align-items:center;gap:var(--e1);font-size:var(--t2);font-weight:500;padding:4px 10px;border-radius:var(--rr1);background:var(--n1);color:var(--n7);border:1px solid var(--n2);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ptok::before{content:'✓';font-size:10px;font-weight:400;color:var(--n5)}
+/* MEDIDO: --n5 sobre el blanco de la tarjeta da 3,02:1, y a 10 px eso no se lee en la
+   calle. Y no es un adorno: en la cara plegada de la partida, el ✓ y el — son LO ÚNICO que
+   distingue una opción puesta de una apagada —los dos fondos, --n1 y transparente, se
+   diferencian en 1,02:1 sobre blanco, o sea nada—. Con --n6 son 5,43:1 y el tamaño sube al
+   primer paso de la escala, que es 11 px. Es la superficie que se le enseña al cliente del
+   otro lado de la mesa. */
+.ptok::before{content:'✓';font-size:var(--t1);font-weight:600;color:var(--n6)}
 .ptok.falta{background:var(--av-bg);color:var(--av);border-color:var(--av-borde)}
 .ptok.falta::before{content:'!';font-weight:700;color:var(--av)}
 .ptok.off{background:transparent;color:var(--n6);border-color:var(--n2)}
-.ptok.off::before{content:'—';font-weight:500;color:var(--n5)}
+.ptok.off::before{content:'—';font-weight:700;color:var(--n6)}
 /* Cada bloque de opciones va encerrado y con su valor elegido en el encabezado */
 /* ----- El grupo de opciones -----
    Era un recuadro con borde y fondo dentro de la partida, que a su vez era una tarjeta
@@ -1913,8 +1919,23 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
   .card-fold,.btn-maps,.chip,.seg button,.tipo-seg button{min-height:44px}
   .key-btn,.falt-quitar{padding-left:14px;padding-right:14px}
   .hentry-del{min-width:44px;min-height:44px}
+  /* 40x40 con 2 px de hueco eran tres cajas pegadas de las que UNA BORRA la partida. El
+     dedo medio tiene 11 mm y en 2 px no hay margen de error: se erraba. Borrar se deshace
+     —_borrada guarda la partida y su índice—, pero ver desaparecer un renglón que costó
+     capturar no lo arregla el deshacer.
+
+     El hueco sube a 6 px aquí y el que borra se separa un paso más: su vecino de la
+     izquierda es el ojo del PDF, que se toca a menudo. El TAMAÑO sube a 44 unos renglones
+     más abajo y solo de 376 px para arriba, no aquí: se midió una variante por una y a
+     344 px —la portada del Fold— el encabezado aguanta hueco de 4 y no de 6, y con los
+     botones a 44 se parte en dos renglones (92 px en vez de 44). Esa es exactamente la
+     regresión contra la que avisa el comentario del bloque de 560, así que aquí el techo
+     es 40x40 con hueco de 4: sigue muy por encima de los 24x24 del criterio 2.5.8 de WCAG
+     y el que borra ya no está pegado a su vecino. */
   .del,.dup,.pdf-vis{width:40px;height:40px;padding:0;font-size:19px;
     display:inline-flex;align-items:center;justify-content:center;border-radius:9px}
+  .ptop-actions{gap:4px}
+  .ptop-actions .del{margin-left:2px}
   .sp-ibtn{min-width:44px;min-height:44px}
   .optgrp .chip{min-height:44px}
   .vt-sw{width:32px;height:32px}
@@ -2714,7 +2735,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
    como parte de SU pieza y no como una tira de etiquetas genéricas. */
 .partida .ptok::before{color:var(--pc)}
 .partida .ptok.falta::before{color:var(--av)}
-.partida .ptok.off::before{color:var(--n5)}
+.partida .ptok.off::before{color:var(--n6)}
 /* El aro de foco, del color de la partida. Con seis piezas en pantalla y el teclado como
    único medio de navegación, un aro azul idéntico en las seis no dice en cuál estás. */
 .partida :where(button,summary,a[href],input,select,textarea,[tabindex]):focus-visible{
@@ -2777,6 +2798,40 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
   /* Cliente y teléfono a renglón completo: en dos columnas de 140 px el nombre se leía al
      59 % mientras quedaban 143 px de blanco muerto justo debajo. */
   #fld-cli,#fld-tel{grid-column:1/-1}
+}
+
+/* ----- El teléfono grande no es un teléfono chico -----
+   Faltaba este escalón y es de donde sale, literalmente, «en un iPhone 15 Pro Max y varios
+   Samsung se ve muy apretado todo». Entre 385 px y 561 px no había NINGÚN corte: el bloque
+   del teléfono, que empieza en 560, le daba los mismos 10 px de relleno de página y los
+   mismos 11/13 de tarjeta a un iPhone SE de 320 y a un 15 Pro Max de 430. Esos números se
+   afinaron contra la portada del Fold, que son 344 px y donde cada píxel de marco es una
+   línea de texto menos; en 430 px sobran 86 px de ancho y lo que se siente es que la app
+   está apretada contra el filo.
+
+   El corte va en 390 y no en 400 para que el iPhone 14/15/16 normal, que mide 393, caiga
+   del lado ancho: es el teléfono más común de la oficina. Abajo quedan el SE (375), el
+   A54 y el S23 (360) y la portada del Fold (344), donde el ahorro sí paga.
+
+   Va después del bloque de 560 y después de la capa de color, que es donde viven
+   .card-h y .card-b: con la misma especificidad gana la última, y la última tiene que ser
+   esta. */
+/* De 376 px para arriba sí cabe el mínimo de la guía de Apple en las tres acciones de la
+   partida sin partir el encabezado en dos renglones. Medido: a 375 el encabezado se queda
+   en 44 px de alto con los botones a 44; a 360 se va a 96. */
+@media(min-width:376px){
+  .del,.dup,.pdf-vis{width:44px;height:44px}
+  .ptop-actions{gap:var(--e2)}
+}
+
+@media(min-width:390px) and (max-width:560px){
+  .wrap{--pad-lat:max(var(--e4),env(safe-area-inset-left,0px));--pad-lat-der:max(var(--e4),env(safe-area-inset-right,0px));gap:var(--e4)}
+  .card+.card{margin-top:var(--e4)}
+  .card-h{padding:14px 16px}
+  .card-b{padding:14px 16px 18px}
+  .partida{--pp:14px;margin-bottom:12px}
+  .optgrp{padding:10px 12px 12px;margin-bottom:10px}
+  .fld{margin-bottom:12px}
 }
 @media screen and (min-width:561px) and (max-width:920px){
   /* ----- El Fold 6 abierto: 773 y 900 px -----
