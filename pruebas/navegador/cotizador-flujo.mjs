@@ -237,7 +237,76 @@ await p.evaluate(()=>Q.editMode) ? bien('tocarla abre el modo edición') : mal('
 (await p.evaluate(()=>{const e=document.getElementById('paso2-addrow'); const r=e.getBoundingClientRect(); return r.width>0;}))
   ? bien('y ahí sí vuelven los botones de agregar') : mal('en modo edición los botones de agregar siguen escondidos');
 
-// ── 6. Nada se rompió por el camino ─────────────────────────────────────────
+// ── 6. La partida: lo que se teclea una vez y lo que no se pisa ─────────────
+console.log('\nCAPTURAR UNA PARTIDA: nada se teclea dos veces y nada de lo que puso una persona se pisa');
+await conCliente();
+/* La caja del contador siembra la descripción, que antes había que volver a teclear. */
+await p.fill('.autoctr input','FARMACIA GDL');
+await p.waitForTimeout(500);
+let it = await p.evaluate(()=>({desc:Q.items[0].desc, n:Q.items[0].n, auto:!!Q.items[0].descAuto}));
+it.desc==='FARMACIA GDL' && it.auto
+  ? bien('el texto del letrero siembra la descripción: «'+it.desc+'»')
+  : mal('la descripción no se sembró: '+JSON.stringify(it));
+it.n===11 ? bien('y cuenta 11 letras') : mal('contó '+it.n+', esperaba 11');
+
+/* Corregir «# Letras» a mano manda: volver a tocar el texto ya no se lo lleva. */
+await p.fill('#n-1','13');
+await p.waitForTimeout(400);
+await p.fill('.autoctr input','FARMACIA GDLX');
+await p.waitForTimeout(500);
+it = await p.evaluate(()=>({n:Q.items[0].n, manual:!!Q.items[0].nManual,
+  campo:document.getElementById('n-1').value,
+  contador:(document.getElementById('acnt-1')||{}).textContent||''}));
+it.n===13 ? bien('la cuenta corregida a mano sobrevive a seguir tecleando el texto')
+          : mal('la cuenta se pisó: quedó en '+it.n+' y se había corregido a 13');
+it.contador.startsWith('13') ? bien('y el contador de al lado dice lo mismo que el campo: «'+it.contador+'»')
+                             : mal('el contador dice «'+it.contador+'» y el campo «'+it.campo+'»: dos números distintos');
+await p.fill('.autoctr input','');
+await p.waitForTimeout(400);
+!(await p.evaluate(()=>Q.items[0].nManual)) ? bien('vaciar el texto le devuelve el mando al contador')
+                                           : mal('con el texto vacío la cuenta sigue trabada a mano');
+
+/* Escribir la descripción a mano apaga el sembrado. */
+await p.fill('#d-1','Letrero de fachada, dos caras');
+await p.waitForTimeout(400);
+!(await p.evaluate(()=>Q.items[0].descAuto)) ? bien('escribir la descripción a mano apaga el sembrado')
+                                            : mal('la app sigue creyendo que la descripción es suya');
+
+/* La caja de luz ya no se autoelige la tarifa. */
+await p.evaluate(()=>setTipo(Q.items[0].id,'caja'));
+await p.waitForTimeout(500);
+const caja = await p.evaluate(()=>({tarifa:Q.items[0].tarifa||0,
+  sinElegir:!!document.querySelector('#p-1 .optgrp.falta'),
+  falta:resumenPartida(Q.items[0]).filter(f=>f.estado==='falta').map(f=>f.txt)}));
+!caja.tarifa ? bien('la caja de luz arranca sin tarifa: $3,900 dejó de ser una decisión que la app toma sola')
+             : mal('la caja se autoeligió tarifa '+caja.tarifa);
+caja.falta.some(t=>/tipo de caja/i.test(t)) ? bien('y lo dice: «'+caja.falta.join(' · ')+'»')
+                                            : mal('la caja no reporta que falta el tipo: '+JSON.stringify(caja.falta));
+
+/* Un campo numérico que el navegador no puede leer se reescribe con lo que la app leyó. */
+await p.evaluate(()=>setTipo(Q.items[0].id,'letras'));
+await p.waitForTimeout(400);
+await p.evaluate(()=>{ const h=document.getElementById('h-1'); h.focus(); h.value='40 cm'; h.dispatchEvent(new Event('input',{bubbles:true})); h.blur(); });
+await p.waitForTimeout(400);
+const num = await p.evaluate(()=>({campo:document.getElementById('h-1').value, alt:Q.items[0].altura||0}));
+num.campo==='' && !num.alt
+  ? bien('«40 cm» no se queda en pantalla valiendo 0 por dentro: el campo se reescribe con lo que la app leyó')
+  : mal('el campo dice «'+num.campo+'» y por dentro vale '+num.alt);
+await p.evaluate(()=>{ const h=document.getElementById('h-1'); h.focus(); h.value='40.3'; h.dispatchEvent(new Event('input',{bubbles:true})); h.blur(); });
+await p.waitForTimeout(400);
+(await p.evaluate(()=>Q.items[0].altura))===40.5
+  ? bien('y la altura se acomoda al medio centímetro que declara su propio step')
+  : mal('40.3 quedó en '+(await p.evaluate(()=>Q.items[0].altura))+', esperaba 40.5');
+
+/* El aviso de «falta material» deja el cursor EN el hueco, no en el marco. */
+await p.evaluate(()=>{ Q.items[0].material=''; Q.items[0].matAuto=false; renderItems(); irAPendiente(); });
+await p.waitForTimeout(700);
+const foco = await p.evaluate(()=>{ const a=document.activeElement;
+  return {cls:a?a.className:'', en:!!(a&&a.closest&&a.closest('.optgrp.falta'))}; });
+foco.en ? bien('ir a lo que falta deja el cursor en el primer hueco de la partida, no en su marco')
+        : mal('el foco quedó en «'+foco.cls+'», fuera del grupo en ámbar');
+
+// ── 7. Nada se rompió por el camino ─────────────────────────────────────────
 console.log('');
 errs.length ? mal('errores de página: '+[...new Set(errs)].slice(0,3).join(' | '))
             : bien('cero errores de página en todo el recorrido');

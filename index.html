@@ -4566,8 +4566,10 @@ function typeItem(id,k,v){
   it[k]=v;
   /* El «N letras» de al lado es el espejo de n y solo se pintaba en el primer repintado:
      se teclea 8 y sigue diciendo «0 letras». El span no existe con la partida bloqueada. */
-  if(k==='n'){ const c=$('acnt-'+it.id); if(c) c.textContent=(v||0)+(it.tipo==='recorte'?' piezas':' letras'); }
-  if(k==='desc') it.descAi=false;
+  /* Corregir la cuenta a mano la vuelve la buena: el contador de al lado deja de escribirla.
+     Ver autoContarLetras. */
+  if(k==='n'){ it.nManual=true; const c=$('acnt-'+it.id); if(c) c.textContent=(v||0)+(it.tipo==='recorte'?' piezas':' letras'); }
+  if(k==='desc'){ it.descAi=false; it.descAuto=false; }
   const f=$('formula-'+id), l=$('lt-'+id);
   if(f) f.innerHTML=formulaHTML(it);
   if(l) l.innerHTML=ltHTML(it);
@@ -4578,7 +4580,39 @@ function typeItem(id,k,v){
      ya escrita, hasta que otra cosa repintara. */
   renderSummary(); updProg(); saveState();
 }
-function setTipo(id,t){ if(capturaBloqueada())return; const it=Q.items.find(x=>x.id===id); if(!it)return; it.tipo=t; if(t==='caja'&&!it.tarifa) it.tarifa=3900; renderItems(); }
+/* Tocar «Caja de luz» metía `tarifa=3900` de una vez, y con eso el chip «Estándar» salía con
+   su palomita y el encabezado del grupo decía «Estándar» en vez de «Sin elegir»: exactamente
+   igual que si lo hubiera elegido una persona. Una caja tipo nube capturada por quien solo
+   teclea las medidas se cobraba a estándar —en 1.6 m² son $11,200 de menos— y el ámbar de
+   «Falta tipo de caja» era inalcanzable, porque solo aparecía si alguien borraba la tarifa a
+   mano. Es la doctrina que este archivo ya tiene escrita para la IA: lo predeterminado no
+   decide el precio. Ahora la caja arranca en $0, el grupo dice «Sin elegir» en ámbar, la
+   fórmula dice «Falta: tipo de caja» y la partida entra en el aviso de partidas sin terminar;
+   elegir Estándar es un toque, y el chip ya trae su $3,900 escrito.
+   El camino de la IA no cambia: ahí el número lo propone un análisis y la insignia lo dice. */
+/* ----- Lo que el campo no pudo leer no se guarda como 0 en silencio -----
+   Todos los numéricos escriben `+this.value`, y un `type=number` con contenido que el
+   navegador no valida devuelve cadena vacía: pegar «40 cm» de un mensaje, o teclear la coma
+   decimal en vez del punto, deja la altura en 0 mientras el campo se ve escrito, y la fórmula
+   acaba diciendo «Falta: altura» justo encima de un campo lleno — que es la manera más rápida
+   de perderle la confianza a la app.
+
+   Va en `onblur` y no en `onchange`, y no es un detalle: si el campo estaba vacío y se pega
+   texto inválido, `value` es '' antes y después, así que el navegador nunca dispara `change`
+   y el texto se queda en pantalla. `blur` siempre corre. El valor entero del cambio es que el
+   campo se reescriba con lo que la app leyó DE VERDAD.
+
+   Solo la altura redondea al medio centímetro, porque es la única que declara ese paso en su
+   `step` y la que ya aplica el escalador al bajar sus medidas. En ancho, alto, tarifa y
+   unitario no se redondea nada: inventarles una precisión que nunca declararon movería el
+   importe de una cotización a espaldas de quien la teclea. */
+function saneaNum(el,id,k,paso){
+  const v=+el.value;
+  const n=(v>0)?(paso?Math.round(v/paso)*paso:v):0;
+  el.value=n||'';
+  typeItem(id,k,n);
+}
+function setTipo(id,t){ if(capturaBloqueada())return; const it=Q.items.find(x=>x.id===id); if(!it)return; it.tipo=t; renderItems(); }
 function dupItem(id){
   if(locked())return;
   if(!exigirDatosParaPartidas()) return;
@@ -4645,11 +4679,38 @@ function autoContarLetras(id,texto){
   const n=texto.replace(/\s/g,'').length;
   const it=Q.items.find(x=>x.id===id); if(!it)return;
   undoJuntar('it:'+id+':texto');
-  it.n=n; it.textoAuto=texto;
-  const inp=$('n-'+id); if(inp) inp.value=n||'';
+  it.textoAuto=texto;
+  /* ----- El texto se teclea una vez, no dos -----
+     `textoAuto` se guardaba con la cotización y no se leía en ningún otro sitio: ni en la
+     cara plegada, ni en la fórmula, ni en el PDF, ni en el WhatsApp, ni en Canva. Así que el
+     vendedor tecleaba «FARMACIA GDL» aquí para que saliera el 11, y lo volvía a teclear en
+     Descripción para que el renglón del PDF dijera cuál es cuál. Con seis partidas son seis
+     textos capturados dos veces.
+
+     Ahora siembra la descripción, con el mismo contrato que ya tienen el material heredado y
+     el autocompletado de cliente: solo si está vacía o si la puso la app, y en cuanto la
+     escribe una persona deja de tocarse. Bandera propia y NO `descAi`, que pinta la insignia
+     de IA y aquí sería mentira. */
+  if(!(it.desc||'').trim()||it.descAuto){
+    const t=texto.trim();
+    it.desc=t; it.descAuto=!!t;
+    const d=$('d-'+id); if(d&&d.value!==it.desc) d.value=it.desc;
+  }
+  /* ----- Y una cuenta corregida a mano no se pisa -----
+     `it.n` se reescribía en cada teclazo del texto. Corregir «# Letras» a 17 sobre un texto
+     que cuenta 19 y volver a tocar la caja —para arreglar una letra del propio texto—
+     devolvía el 19 y se llevaba la corrección, sin nada que dijera que ese número lo había
+     puesto una persona. En letras de acero a 40 cm cada pieza son $2,200. Vaciar la caja de
+     texto le devuelve el mando al contador: sin eso, un `n` viejo se queda pegado para
+     siempre. */
+  if(!texto) it.nManual=false;
+  if(!it.nManual) it.n=n;
+  const inp=$('n-'+id); if(inp&&!it.nManual) inp.value=n||'';
   /* En un recorte el mismo campo cuenta piezas, no letras: el contador dice lo que
      dice la etiqueta de arriba. */
-  const cnt=$('acnt-'+id); if(cnt) cnt.textContent=n+(it.tipo==='recorte'?' piezas':' letras');
+  /* El contador dice SIEMPRE lo que está guardado, nunca dos números distintos: con la
+     cuenta corregida a mano, lo guardado es la corrección. */
+  const cnt=$('acnt-'+id); if(cnt) cnt.textContent=(it.n||0)+(it.tipo==='recorte'?' piezas':' letras');
   const f=$('formula-'+id),l=$('lt-'+id);
   if(f) f.innerHTML=formulaHTML(it);
   if(l) l.innerHTML=ltHTML(it);
@@ -5179,7 +5240,7 @@ function bodyFor(it){
       <div class="grid3">
         <div class="fld">
           <label for="h-${it.id}">Altura (cm)</label>
-          <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="typeItem(${it.id},'altura',+this.value)">
+          <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="typeItem(${it.id},'altura',+this.value)" onblur="saneaNum(this,${it.id},'altura',0.5)">
         </div>
         <div class="fld">
           <label for="n-${it.id}"># Letras</label>
@@ -5205,7 +5266,7 @@ function bodyFor(it){
       <div class="grid3" style="margin-top:12px">
         <div class="fld">
           <label for="h-${it.id}">Altura (cm)</label>
-          <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="typeItem(${it.id},'altura',+this.value)">
+          <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="typeItem(${it.id},'altura',+this.value)" onblur="saneaNum(this,${it.id},'altura',0.5)">
         </div>
         <div class="fld"><label for="n-${it.id}"># Piezas</label><input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="typeItem(${it.id},'n',+this.value)" onchange="this.value=Math.max(0,Math.round(+this.value||0))||'';typeItem(${it.id},'n',+this.value)"></div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
@@ -5219,8 +5280,8 @@ function bodyFor(it){
       ${descFld(it)}
       ${grupo('Material del bastidor',basOf(it.bas)?basOf(it.bas).label:'',chips,hint)}
       <div class="grid2" style="margin-top:12px">
-        <div class="fld"><label for="an-${it.id}">Ancho (cm)</label><input id="an-${it.id}" type="number" inputmode="decimal" min="0" value="${it.ancho||''}" ${dis} oninput="typeItem(${it.id},'ancho',+this.value)"></div>
-        <div class="fld"><label for="al-${it.id}">Alto (cm)</label><input id="al-${it.id}" type="number" inputmode="decimal" min="0" value="${it.alto||''}" ${dis} oninput="typeItem(${it.id},'alto',+this.value)"></div>
+        <div class="fld"><label for="an-${it.id}">Ancho (cm)</label><input id="an-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.ancho||''}" ${dis} oninput="typeItem(${it.id},'ancho',+this.value)" onblur="saneaNum(this,${it.id},'ancho')"></div>
+        <div class="fld"><label for="al-${it.id}">Alto (cm)</label><input id="al-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.alto||''}" ${dis} oninput="typeItem(${it.id},'alto',+this.value)" onblur="saneaNum(this,${it.id},'alto')"></div>
       </div>`;
   }
   if(it.tipo==='caja'){
@@ -5231,9 +5292,9 @@ function bodyFor(it){
       ${descFld(it)}
       ${grupo('Tipo de caja',cajaSel?cajaSel.label:(it.tarifa>0?'Tarifa personalizada · $'+it.tarifa+'/m²':''),chips,hint)}
       <div class="grid3" style="margin-top:12px">
-        <div class="fld"><label for="an-${it.id}">Ancho (cm)</label><input id="an-${it.id}" type="number" inputmode="decimal" min="0" value="${it.ancho||''}" ${dis} oninput="typeItem(${it.id},'ancho',+this.value)"></div>
-        <div class="fld"><label for="al-${it.id}">Alto (cm)</label><input id="al-${it.id}" type="number" inputmode="decimal" min="0" value="${it.alto||''}" ${dis} oninput="typeItem(${it.id},'alto',+this.value)"></div>
-        <div class="fld"><label for="ta-${it.id}">Tarifa ($/m²)</label><div class="inp-money"><input id="ta-${it.id}" type="number" inputmode="decimal" min="0" value="${it.tarifa||''}" ${dis} oninput="typeItem(${it.id},'tarifa',+this.value)"></div></div>
+        <div class="fld"><label for="an-${it.id}">Ancho (cm)</label><input id="an-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.ancho||''}" ${dis} oninput="typeItem(${it.id},'ancho',+this.value)" onblur="saneaNum(this,${it.id},'ancho')"></div>
+        <div class="fld"><label for="al-${it.id}">Alto (cm)</label><input id="al-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.alto||''}" ${dis} oninput="typeItem(${it.id},'alto',+this.value)" onblur="saneaNum(this,${it.id},'alto')"></div>
+        <div class="fld"><label for="ta-${it.id}">Tarifa ($/m²)</label><div class="inp-money"><input id="ta-${it.id}" type="number" inputmode="decimal" min="0" step="1" value="${it.tarifa||''}" ${dis} oninput="typeItem(${it.id},'tarifa',+this.value)" onblur="saneaNum(this,${it.id},'tarifa')"></div></div>
       </div>`;
   }
   // manual
@@ -5241,7 +5302,7 @@ function bodyFor(it){
     <div class="fld"><label for="d-${it.id}">Descripción ${it.descAi?'<span class="ai-tag">'+ico('i-ia')+' IA</span>':''}</label><input id="d-${it.id}" value="${esc(it.desc)}" placeholder="Ej. Rotulación vehicular, instalación, viáticos…" ${dis} oninput="typeItem(${it.id},'desc',this.value)"></div>
     <div class="grid2">
       <div class="fld"><label for="pz-${it.id}">Piezas</label><input id="pz-${it.id}" type="number" inputmode="numeric" min="1" value="${it.pz||''}" ${dis} oninput="typeItem(${it.id},'pz',+this.value)" onchange="this.value=Math.max(1,Math.round(+this.value||0))||'';typeItem(${it.id},'pz',+this.value)"></div>
-      <div class="fld"><label for="pu-${it.id}">Precio unitario</label><div class="inp-money"><input id="pu-${it.id}" type="number" inputmode="decimal" min="0" value="${it.pu||''}" ${dis} oninput="typeItem(${it.id},'pu',+this.value)"></div></div>
+      <div class="fld"><label for="pu-${it.id}">Precio unitario</label><div class="inp-money"><input id="pu-${it.id}" type="number" inputmode="decimal" min="0" step="1" value="${it.pu||''}" ${dis} oninput="typeItem(${it.id},'pu',+this.value)" onblur="saneaNum(this,${it.id},'pu')"></div></div>
     </div>`;
 }
 
@@ -5728,7 +5789,34 @@ function faltSeguir(){
 function llevarAPartida(id){
   _plegadas.delete(id);
   renderItems();
-  requestAnimationFrame(()=>irA('p-'+id));
+  requestAnimationFrame(()=>{ irA('p-'+id); enfocarHueco(id); });
+}
+/* ----- Y al llegar, el cursor en el hueco -----
+   Para los tres datos del cliente el aviso abre lo plegado y pone el cursor DENTRO del campo
+   (`irACampoProy`); para una partida solo hacía scroll al marco, y el vendedor tenía que
+   recorrer los tres grupos otra vez buscando cuál quedó en ámbar. Peor: lo primero que ve al
+   llegar es Descripción, que es justo el único campo que no cuenta en lo que falta. Las dos
+   cosas salen del mismo aviso, así que la misma barra conducía hasta el campo cuando faltaba
+   la dirección y te soltaba en el marco cuando faltaba el material.
+
+   El orden ya lo sabe la app: es el de `resumenPartida`, el mismo que dice la fórmula. Se
+   busca primero un grupo de opciones en ámbar y si no hay, el primer campo vacío de los que
+   cuentan para ese tipo. La guarda de `disabled` no sobra: esto también corre por el camino
+   del autorizador y sobre partidas congeladas, donde los chips salen con `aria-disabled` y
+   sin `tabindex` y no hay nada que enfocar; ahí se queda el scroll de siempre. */
+const _HUECOS={letras:['h-','n-'],recorte:['h-','n-'],bastidor:['an-','al-'],caja:['an-','al-','ta-'],manual:['pz-','pu-']};
+function enfocarHueco(id){
+  const caja=$('p-'+id); if(!caja) return;
+  const chip=caja.querySelector('.optgrp.falta .chip[tabindex]');
+  if(chip){ try{ chip.focus({preventScroll:true}); }catch(_){} return; }
+  const it=Q.items.find(x=>x.id===id); if(!it) return;
+  for(const pre of (_HUECOS[it.tipo]||[])){
+    const el=$(pre+id);
+    if(el&&!el.disabled&&!String(el.value||'').trim()){
+      try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); }
+      return;
+    }
+  }
 }
 function irAPartida(id){
   $('faltmodal').classList.remove('show'); _faltSeguir=null;
