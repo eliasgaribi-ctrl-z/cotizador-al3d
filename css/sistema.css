@@ -1743,6 +1743,11 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .hist-foot button{flex:1;min-width:104px;border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:12px;font-weight:700;padding:9px 8px;border-radius:var(--rr1);cursor:pointer;transition:.14s;white-space:nowrap}
 .hist-foot button:hover{border-color:var(--brand);background:var(--soft-2)}
 .hist-foot .foot-nota{flex-basis:100%;font-size:10.5px;color:var(--muted);line-height:1.45;text-align:center;margin-top:2px}
+/* Lo que ya se hizo con esta cotización. Va entre la tabla y el total, en el secundario de la
+   app: es un dato al margen y no una acción. */
+.hentry-hitos{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:7px;
+  font-size:var(--t1);color:var(--muted);line-height:1.5}
+.hentry-hitos .svgi{width:13px;height:13px;color:var(--ok);flex-shrink:0}
 
 /* ===================== WhatsApp ===================== */
 .btn-wa{background:#fff;color:#0f7a6c;border:1.5px solid rgba(18,140,126,.32)}

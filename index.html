@@ -1756,6 +1756,11 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .hist-foot button{flex:1;min-width:104px;border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:12px;font-weight:700;padding:9px 8px;border-radius:var(--rr1);cursor:pointer;transition:.14s;white-space:nowrap}
 .hist-foot button:hover{border-color:var(--brand);background:var(--soft-2)}
 .hist-foot .foot-nota{flex-basis:100%;font-size:10.5px;color:var(--muted);line-height:1.45;text-align:center;margin-top:2px}
+/* Lo que ya se hizo con esta cotización. Va entre la tabla y el total, en el secundario de la
+   app: es un dato al margen y no una acción. */
+.hentry-hitos{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:7px;
+  font-size:var(--t1);color:var(--muted);line-height:1.5}
+.hentry-hitos .svgi{width:13px;height:13px;color:var(--ok);flex-shrink:0}
 
 /* ===================== WhatsApp ===================== */
 .btn-wa{background:#fff;color:#0f7a6c;border:1.5px solid rgba(18,140,126,.32)}
@@ -3744,6 +3749,20 @@ const BASTIDORES = [
 const TIPO_NOMBRE={letras:'Letras 3D',recorte:'Recorte acrílico',bastidor:'Bastidor',caja:'Caja de luz',manual:'Manual'};
 const TIPO_CORTO ={letras:'Letras',   recorte:'Recorte',         bastidor:'Bastidor',caja:'Caja',       manual:'Manual'};
 const matOf=k=>MATERIALES.find(m=>m.key===k);
+/* El tipo de caja se guarda como su tarifa, no como su clave, así que para saber cuál es hay
+   que buscarla en el catálogo. Vivía escrito tres veces —en el PDF, en su descripción y en el
+   texto de Canva— como `it.tarifa>=4600?'Tipo Nube / Silueta':'Estándar'`, y ese umbral
+   inventado decía «Estándar» de tres cosas que no lo son: una tarifa personalizada por debajo
+   de 4600, una por encima —que quedaba como «nube» sin serlo— y, desde que la caja dejó de
+   autoelegirse su tarifa, una caja a la que nadie le ha elegido el tipo todavía. El papel que
+   firma el cliente no puede nombrar un tipo que nadie escogió: si la tarifa no está en el
+   catálogo, la caja se describe sin apellido. */
+const cajaOf=t=>CAJAS.find(c=>c.tarifa===Number(t))||null;
+/* «Tipo Nube / Silueta» / «Estándar» — con las mayúsculas del papel, que no son las del chip. */
+function cajaTipoPdf(it){
+  const c=cajaOf(it&&it.tarifa);
+  return c?(c.key==='nube'?'Tipo Nube / Silueta':'Estándar'):'';
+}
 const compOf=k=>COMPLEJIDAD.find(c=>c.key===k);
 const recOf=k=>RECORTES.find(r=>r.key===k);
 const basOf=k=>BASTIDORES.find(b=>b.key===k);
@@ -4299,9 +4318,20 @@ function sellarAuth(){ Q.huellaAuth=huellaTrabajo(); }
 function authVigente(){ return !!Q.huellaAuth && Q.huellaAuth===huellaTrabajo(); }
 /* Suelta lo autorizado cuando ya no corresponde. Devuelve true solo si había algo que
    soltar, para que quien la llame lo diga en voz alta. Es el único lugar que lo suelta. */
+/* «¿Hay algo puesto a mano por el autorizador?» — el total, o un ajuste partida por partida.
+   Escrito una sola vez porque lo leen dos preguntas distintas, y ahí estaba el error: el aviso
+   de entrar a modo edición miraba solo el total, así que la cotización cuyo autorizador ajustó
+   partida por partida sin mover el total entraba a edición con el aviso suave y perdía todos
+   esos ajustes al primer tecleo, avisada después. */
+function hayAjusteAuth(){ return Q.precioAuth>0||Object.keys(Q.itemsAuth||{}).length>0; }
+/* Lo que se perdería AHORA si se tocan las partidas: la autorización sigue valiendo y trae
+   algo puesto. Lo lee el aviso de `toggleEditMode`, que avisa ANTES. */
+function hayAuthQueSoltar(){ return authVigente()&&hayAjusteAuth(); }
 function soltarAuthSiCambio(){
   if(!Q.huellaAuth || authVigente()) return false;
-  const habia = Q.precioAuth>0 || Object.keys(Q.itemsAuth||{}).length>0;
+  /* Aquí `authVigente()` ya es false —por eso se está soltando—, así que la pregunta es la de
+     dentro: si había algo que se está perdiendo, para poder decirlo. */
+  const habia = hayAjusteAuth();
   Q.precioAuth=0; Q.itemsAuth={}; Q.huellaAuth='';
   return habia;
 }
@@ -4677,8 +4707,7 @@ function toggleEditMode(){
      —Q.precioAuth queda en 0 y Q.itemsAuth lleno, que es media pantalla del formulario de
      revisión— entraba a edición con el aviso suave y perdía todos esos ajustes al primer
      tecleo, avisada después. El aviso que cuesta se da donde se decide, no cuando ya pasó. */
-  const hayAuth=authVigente()&&(Q.precioAuth>0||Object.keys(Q.itemsAuth||{}).length>0);
-  toast(hayAuth
+  toast(hayAuthQueSoltar()
     ? 'Modo edición activado — si cambias las partidas habrá que volver a autorizar el precio'
     : 'Modo edición activado — modifica y guarda cuando termines','',4600);
 }
@@ -5416,6 +5445,8 @@ function toggleItemAuth(id){
   if(!body) return;
   const open=body.style.display!=='none';
   body.style.display=open?'none':'';
+  /* Se apunta, para que el siguiente repintado del formulario lo devuelva abierto. */
+  if(open) _authAbiertas.delete(id); else _authAbiertas.add(id);
   if(arrow) arrow.textContent=open?'▸':'▾';
   /* El estado lo carga aria-expanded, no el ▸/▾, que va aria-hidden. */
   const hdr=arrow&&arrow.closest('.ia-hdr');
@@ -5603,7 +5634,7 @@ function renderAuth(){
       } else {
         body=`${authNote}
               ${descHTML}
-              ${entregaHTML()}
+              <div id="entrega">${entregaHTML()}</div>
               <button class="btn btn-gho" onclick="toggleEditMode()"><svg class="svgi" aria-hidden="true"><use href="#i-lapiz"/></svg> Editar partidas</button>
               <!-- Canva y el prompt de Gemini son salidas que se usan a veces, no pasos de la
                    entrega: sacadas de la fila de arriba dejan de competir con lo que sí se
@@ -5627,7 +5658,13 @@ function renderAuth(){
     }
   }
 
+  /* `renderAuth` reconstruye el panel entero desde un string, así que un `<details>` abierto
+     se cerraba en cada repintado — y el panel se repinta al teclear el anticipo, que está a un
+     renglón de distancia: abrir «otras salidas», bajar a corregir el anticipo y ver el pliegue
+     cerrarse solo. Se lee antes y se devuelve después. */
+  const _abierto=box.querySelector('details.otras-salidas')?.open;
   box.innerHTML=`<div class="statusrow"><span class="lab">Autorización</span>${badge}</div>${body}`;
+  if(_abierto){ const d=box.querySelector('details.otras-salidas'); if(d) d.open=true; }
   // Inicializar display de descuento tras render
   if(Q.estado==='pendiente'&&(Q.rol==='autorizador'||_selfAuth)){
     updPrecioAuth(parseFloat($('a-precio')?.value)||0, totals().neto);
@@ -5702,7 +5739,10 @@ function authRevisionHTML(soloAutorizar){
   const itemRows=Q.items.map((it,i)=>{
     const orig=lineTotal(it);
     const authVal=ia[it.id]!==undefined?ia[it.id]:orig;
-    const isOpen=ia[it.id]!==undefined&&Math.abs(ia[it.id]-orig)>0.01;
+    /* Abierto porque tiene un ajuste puesto, o porque el autorizador lo abrió a mano para
+       comparar. Lo segundo no se recordaba, y el formulario se reconstruye entero en cada
+       repintado: abrir tres renglones, teclear el precio final y verlos cerrarse todos. */
+    const isOpen=_authAbiertas.has(it.id)||(ia[it.id]!==undefined&&Math.abs(ia[it.id]-orig)>0.01);
     const diff=authVal-orig;
     const diffTxt=Math.abs(diff)<0.01?'':(diff<0?'Descuento: '+money(-diff):'Aumento: '+money(diff));
     const diffCls=diff>0.01?' inc':'';
@@ -6067,7 +6107,11 @@ function irAPaso(n){
     toast(Q.estado==='pendiente'?'La entrega se abre cuando el precio queda autorizado.'
                                 :'Primero autoriza el precio.','err',3600);
   }
-  irAResumen();
+  /* Cada paso a su sitio. Los dos acababan en el mismo scroll al principio de la columna, así
+     que tocar «4 · Entrega» sobre una cotización autorizada dejaba mirando el IVA. */
+  if(n===4&&$('entrega')) irA('entrega');
+  else if(n===3&&$('authbox')&&Q.estado!=='borrador') irA('authbox');
+  else irAResumen();
 }
 /* El renglón chico de cada pestaña. Lleva solo lo que no se puede leer en otra parte de la
    pantalla: el cliente que se dejó atrás, la cuenta de partidas cuando se está en el paso 1,
@@ -6135,6 +6179,14 @@ function pintarPasos(){
     t.classList.toggle('hecho',ok);
     t.classList.toggle('espera',!esta&&espera[p.n]);
     t.setAttribute('aria-current',esta?'step':'false');
+    /* El nombre accesible, escrito. En el corte angosto las pestañas que no son la actual
+       esconden su `.tx` para que las cuatro caigan en 320 px, y su número es `aria-hidden`
+       porque es decoración del dibujo: sin esto, tres de las cuatro se anunciaban «botón» y a
+       secas. Va también el renglón chico, que es donde vive el nombre del cliente y lo que le
+       falta a la entrega — y el estado, que un lector de pantalla no ve en el color. */
+    const etiq='Paso '+p.n+' de 4 · '+p.nombre+(sub[p.n]?' · '+sub[p.n]:'')
+      +(esta?'':ok?' · hecho':espera[p.n]?' · todavía no':'');
+    if(t.getAttribute('aria-label')!==etiq) t.setAttribute('aria-label',etiq);
     const n=$('tab-'+p.n+'-n'); if(n) n.textContent=ok?'':String(p.n);
     /* Solo si cambió: la barra se repinta en cada tecla de los tres obligatorios, y
        reescribir un nodo de texto vivo le repite la misma frase al oído a quien teclea. */
@@ -6277,9 +6329,13 @@ let _selfAuth=false;
    pueda colar en otra cotización; se limpia al cerrar la revisión, que es cuando
    Q.precioAuth pasa a ser la verdad. */
 let _paDraft=null;   // {folio, val} — nunca es el precio autorizado, solo lo tecleado
+/* Los renglones del formulario de revisión que están abiertos, con el mismo patrón que
+   `_plegadas` usa para las partidas: es cómo se está viendo la pantalla, no un dato de la
+   cotización, así que no se guarda ni viaja al historial. */
+const _authAbiertas=new Set();
 function paBorrador(){ return (_paDraft&&_paDraft.folio===Q.folio)?_paDraft.val:null; }
 function paBorradorSet(v){ _paDraft={folio:Q.folio,val:v}; }
-function paBorradorLimpiar(){ _paDraft=null; }
+function paBorradorLimpiar(){ _paDraft=null; _authAbiertas.clear(); }
 function autorizarYoMismo(){
   if(Q.estado==='borrador'){
     /* El atajo pasa por el mismo filtro que solicitar: autorizarse a uno mismo no es
@@ -6614,6 +6670,10 @@ function setRol(r){
   /* La barra de pasos también: el «N por revisar» que va debajo del paso 3 es de la cola del
      autorizador, así que al cambiar de rol se quedaba con la cuenta del rol anterior. */
   pintarPasos();
+  /* Y se guarda. `Q.rol` sí se serializa —entra en el `...rest` de saveState— pero nada
+     escribía al cambiarlo, así que el autorizador que elegía su rol y no tecleaba nada más
+     volvía al día siguiente como vendedor, sin su cola. */
+  saveState();
 }
 /* ----- Cambiar de rol lleva a la pantalla de ese rol -----
    `setRol` repintaba el panel y la barra fija y nada más. Si la app estaba en la pantalla del
@@ -7648,6 +7708,16 @@ const EMPRESA = {
   oficina:   'Naranjos #648 Col. Lindavista Cp. 45169'
 };
 
+/* ----- Quién firma esto -----
+   El PDF ya resolvió esto: quien autorizó, o el nombre recordado en el dispositivo, y solo si
+   no hay ninguno el del código. Pero el mensaje de WhatsApp y el texto que se pega en Canva
+   seguían con `EMPRESA.vendedor` a secas, así que la misma cotización salía firmada por dos
+   personas distintas según por dónde llegara al cliente: el papel por quien la autorizó y el
+   mensaje que lo acompaña por quien está escrito en el archivo. Una definición, tres usos. */
+function vendedorActual(){
+  return (Q.autorizador||'').trim() || prefGet(PREF_AUTORIZADOR,'') || EMPRESA.vendedor;
+}
+
 /* ===================== Enviar la cotización por WhatsApp =====================
    El teléfono del cliente se capturaba al principio de cada cotización y no se usaba
    para nada. Aquí abre su chat con el mensaje ya escrito —folio, proyecto, total
@@ -7692,7 +7762,7 @@ function mensajeWhatsApp(){
   if(nota){ L.push(''); L.push(nota); }
   L.push('');
   L.push('Le adjunto el PDF con el desglose. Quedo al pendiente de cualquier duda.');
-  L.push(`${EMPRESA.vendedor} · AL3D Anuncios Luminosos 3D`);
+  L.push(`${vendedorActual()} · AL3D Anuncios Luminosos 3D`);
   return L.join('\n');
 }
 function enviarPorWhatsApp(){
@@ -7861,7 +7931,7 @@ function copiarParaCanva(){
     if(it.tipo==='letras')    d=`Letras Individuales 3D: Caras en Acrílico, Cantos en ${MAT[it.material]||'Aluminio'}${it.luz?` con Iluminación LED ${it.ilumTipo==='calida'?'Cálida (3000K)':'Fría (6500K)'}`:' sin iluminación'}.`;
     else if(it.tipo==='recorte')  d=`Recorte de Acrílico: ${ACAB[it.acab]||''}.`;
     else if(it.tipo==='bastidor') d=`Bastidor para Letras 3D: estructura tubular de 1" forrada de ${BAS[it.bas]||'lámina galvanizada'}.`;
-    else if(it.tipo==='caja'){const tp=it.tarifa>=4600?'Tipo Nube / Silueta':'Estándar'; d=`Caja de Luz: ${tp}, Caras en Acrílico con Iluminación LED Fría.`;}
+    else if(it.tipo==='caja'){const tp=cajaTipoPdf(it); d=`Caja de Luz:${tp?' '+tp+',':''} Caras en Acrílico con Iluminación LED Fría.`;}
     if(it.desc) d+=(d?' — ':'')+it.desc;
     return d||'—';
   }
@@ -7910,7 +7980,7 @@ Límite de fabricación: ${Q.entrega||'—'}
 Teléfono: ${Q.tel||'—'}
 Entre calles: ${Q.entrecalles||'—'}
 
-Vendedor: ${EMPRESA.vendedor}
+Vendedor: ${vendedorActual()}
 Whatsapp: ${EMPRESA.whatsapp}`;
 
   copiarTexto(txt,'Datos copiados · listos para pegar en Canva');
@@ -7947,9 +8017,9 @@ function copiarParaGemini(){
       return `Bastidor${label} — Estructura Tubular Forrada de ${bas}${med}`;
     }
     if(it.tipo==='caja'){
-      const tipo=it.tarifa>=4600?'Tipo Nube / Silueta':'Estándar';
+      const tipo=cajaTipoPdf(it);
       const med=(it.ancho&&it.alto)?`, ${it.ancho}×${it.alto}cm`:'';
-      return `Caja de Luz ${tipo}${label} — Cara en Acrílico con Iluminación LED Fría${med}`;
+      return `Caja de Luz${tipo?' '+tipo:''}${label} — Cara en Acrílico con Iluminación LED Fría${med}`;
     }
     return null; // partidas manuales no se incluyen en el render visual
   }
@@ -8028,7 +8098,8 @@ function generarPDF(){
       esp=`Estructura tubular de 1" forrada de ${BAS[it.bas]||'lámina galvanizada'}.`;
     }else if(it.tipo==='caja'){
       tit='Caja de Luz';
-      esp=`${it.tarifa>=4600?'Tipo Nube / Silueta':'Estándar'}, Caras en Acrílico con Iluminación LED Fría.`;
+      const tp=cajaTipoPdf(it);
+      esp=`${tp?tp+', ':''}Caras en Acrílico con Iluminación LED Fría.`;
     }
     const libre = it.desc ? esc(it.desc) : '';
     if(!tit) return libre ? `<span class="cs">${libre}</span>` : '<span class="cs">—</span>';
@@ -8296,10 +8367,7 @@ function generarPDF(){
     <div class="barra"></div>`;
   }
 
-  /* Quién firma la cotización. Estaba escrito en el código —EMPRESA.vendedor—, así que
-     todas salían firmadas por la misma persona aunque la app tenga selector de rol y ya
-     recuerde el nombre de quien autoriza en este dispositivo. */
-  const vendedorPdf = (Q.autorizador||'').trim() || prefGet(PREF_AUTORIZADOR,'') || EMPRESA.vendedor;
+  const vendedorPdf = vendedorActual();
   const footerCot = hoja => footer([
     {label:'Vendedor',val:esc(vendedorPdf)},
     {label:'Dirección del taller',val:esc(EMPRESA.taller)},
@@ -8877,7 +8945,8 @@ function histDsc(it){
 function indexarHistorial(){
   _histData.forEach(e=>{
     e._busca=[e.folio,e.proy,e.cliente,e.tel,e.dirRaw,e.autorizador,e.fechaAuth,
-      money(totalFinalHist(e)),(e.items||[]).map(histDsc).join(' ')]
+      money(totalFinalHist(e)),(e.items||[]).map(histDsc).join(' '),
+      HITOS.filter(x=>hitosDe(e.folio)[x.k]).map(x=>x.hecho).join(' ')]
       .map(v=>String(v||'')).join(' ').toLowerCase();
   });
 }
@@ -8933,6 +9002,7 @@ function pintarHistorial(){
           </div>
         </div>
         <table class="htable">${rows}</table>
+        ${hitosHist(e.folio)}
         <div class="hentry-total">
           <span>Total autorizado</span>
           <span style="color:var(--green)">${money(pFin)}${ajuste>0.01?`&nbsp;<small style="font-weight:500;color:var(--muted);font-size:11px">(ahorro ${money(ajuste)})</small>`:''}${ajuste<-0.01?`&nbsp;<small style="font-weight:500;color:var(--amber);font-size:11px">(aumento ${money(-ajuste)})</small>`:''}</span>
@@ -8942,6 +9012,26 @@ function pintarHistorial(){
     }).join('');
   }
   $('hist-body').innerHTML=html;
+}
+/* ----- Qué se hizo con cada cotización, en el historial -----
+   Los hitos se guardaban por folio y no se enseñaban en ninguna lista: solo en la cotización
+   que estuviera cargada en pantalla. Así que la pregunta que el propio código dice querer
+   contestar —«de las que presentamos, ¿cuántas se ganaron?»— seguía sin respuesta: había que
+   abrir las cotizaciones una por una.
+
+   Solo lo que ESTÁ puesto. Un renglón que enumerara los tres huecos de cada cotización vieja
+   convertiría el historial en una lista de regaños; lo que hace falta saber de un folio de
+   hace tres semanas es qué se le hizo, no qué le falta. Y la propuesta de Canva entra aquí
+   también, que era la otra constancia que se escribía y nadie leía. */
+function hitosHist(folio){
+  const h=hitosDe(folio);
+  const marcas=HITOS.filter(x=>h[x.k]).map(x=>x.hecho+' · '+hitoFecha(h[x.k]));
+  try{
+    const pr=getPropuestas()[folio];
+    if(pr&&pr.primera) marcas.unshift('Propuesta · '+hitoFecha(pr.primera));
+  }catch(_){}
+  if(!marcas.length) return '';
+  return `<div class="hentry-hitos">${ico('i-check')} ${esc(marcas.join('  ·  '))}</div>`;
 }
 function cerrarHistorial(){ $('histmodal').classList.remove('show'); }
 

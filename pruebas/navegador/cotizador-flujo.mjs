@@ -360,7 +360,81 @@ await p.evaluate(()=>cambiarRol('autorizador')); await p.waitForTimeout(500);
   : mal('la cola del autorizador quedó dentro de un elemento oculto');
 await p.evaluate(()=>cambiarRol('vendedor')); await p.waitForTimeout(400);
 
-// ── 8. Nada se rompió por el camino ─────────────────────────────────────────
+// ── 8. Lo que el proceso tiene que recordar y nombrar ───────────────────────
+console.log('\nEL PROCESO SE ACUERDA Y SE DEJA LEER');
+await conCliente();
+await unaPartidaCompleta();
+await p.waitForTimeout(400);
+
+/* Las cuatro pestañas tienen nombre accesible: en el corte angosto tres esconden su texto. */
+const etiquetas = await p.$$eval('.paso-tab',e=>e.map(t=>t.getAttribute('aria-label')||''));
+etiquetas.every(t=>/^Paso [1-4] de 4 · \S/.test(t))
+  ? bien('las cuatro pestañas se anuncian con su nombre: «'+etiquetas[2]+'»')
+  : mal('alguna pestaña se anuncia sin nombre: '+JSON.stringify(etiquetas));
+
+/* El rol se guarda: antes se volvía vendedor al recargar. */
+await p.evaluate(()=>cambiarRol('autorizador')); await p.waitForTimeout(500);
+await p.reload({waitUntil:'load'}); await p.waitForTimeout(1300);
+(await p.evaluate(()=>Q.rol))==='autorizador'
+  ? bien('el rol elegido sobrevive a recargar') : mal('el rol volvió a vendedor al recargar');
+await p.evaluate(()=>cambiarRol('vendedor')); await p.waitForTimeout(500);
+
+await p.evaluate(()=>{autorizarYoMismo();}); await p.waitForTimeout(600);
+/* Los renglones que el autorizador abre para comparar no se cierran al teclear. */
+const idItem = await p.evaluate(()=>Q.items[0].id);
+await p.evaluate(id=>toggleItemAuth(id),idItem); await p.waitForTimeout(300);
+await p.fill('#a-precio','19000'); await p.waitForTimeout(500);
+(await p.evaluate(id=>{const b=document.getElementById('ia-body-'+id);return b&&b.style.display!=='none';},idItem))
+  ? bien('el renglón que se abrió para comparar sigue abierto al teclear el precio')
+  : mal('el renglón se cerró solo: el formulario se reconstruye y no se acordaba');
+/* Y el precio tecleado sigue ahí después de un repintado. */
+await p.evaluate(()=>renderAuth()); await p.waitForTimeout(300);
+(await p.$eval('#a-precio',e=>e.value))==='19000'
+  ? bien('y el precio tecleado sobrevive al repintado') : mal('el precio tecleado se perdió');
+
+await p.evaluate(()=>{const a=document.getElementById('a-name');if(a){a.value='Elías';Q.autorizador='Elías';}autorizar();});
+await p.waitForTimeout(900);
+
+/* El pliegue de otras salidas no se cierra al teclear el anticipo, que está al lado. */
+await p.evaluate(()=>{const d=document.querySelector('details.otras-salidas'); if(d) d.open=true;});
+await p.waitForTimeout(200);
+await p.fill('#f-anti','6000'); await p.waitForTimeout(500);
+(await p.evaluate(()=>!!document.querySelector('details.otras-salidas')?.open))
+  ? bien('«otras salidas» sigue abierto después de teclear el anticipo')
+  : mal('el pliegue se cerró solo al teclear el anticipo, que está a un renglón');
+
+/* Los pasos 3 y 4 llevan a sitios distintos. */
+await p.evaluate(()=>window.scrollTo(0,0)); await p.waitForTimeout(300);
+await p.evaluate(()=>irAPaso(4)); await p.waitForTimeout(600);
+const yEntrega = await p.evaluate(()=>{const e=document.getElementById('entrega'); if(!e) return null;
+  const r=e.getBoundingClientRect(); return r.top>=-5&&r.top<innerHeight;});
+yEntrega ? bien('la pestaña 4 lleva a la entrega, no al principio de la columna')
+         : mal('la pestaña 4 no dejó la entrega a la vista');
+
+/* La caja de luz sin tipo elegido ya no se hace pasar por «Estándar» en el papel. */
+const etiquetaCaja = await p.evaluate(()=>({sin:cajaTipoPdf({tarifa:0}), std:cajaTipoPdf({tarifa:3900}),
+  nube:cajaTipoPdf({tarifa:4600}), custom:cajaTipoPdf({tarifa:5200})}));
+etiquetaCaja.sin==='' && etiquetaCaja.std==='Estándar' && etiquetaCaja.nube==='Tipo Nube / Silueta' && etiquetaCaja.custom===''
+  ? bien('el papel solo nombra el tipo de caja cuando alguien lo eligió: '+JSON.stringify(etiquetaCaja))
+  : mal('el tipo de caja se inventa: '+JSON.stringify(etiquetaCaja));
+
+/* Una sola firma para el papel, el WhatsApp y Canva. */
+(await p.evaluate(()=>vendedorActual()))==='Elías'
+  ? bien('el papel, el WhatsApp y Canva los firma quien autorizó') : mal('la firma no sigue a quien autorizó');
+
+/* Y el historial dice qué se hizo con cada folio. */
+await p.evaluate(()=>marcarHito('pdf')); await p.waitForTimeout(400);
+await p.evaluate(()=>abrirHistorial()); await p.waitForTimeout(600);
+const marca = await p.$$eval('.hentry-hitos',e=>e.map(x=>x.textContent.trim()));
+marca.length===1 && /PDF generado/.test(marca[0])
+  ? bien('el renglón del historial dice qué se hizo: «'+marca[0]+'»')
+  : mal('el historial no enseña los hitos: '+JSON.stringify(marca));
+await p.fill('#hist-search','PDF generado'); await p.waitForTimeout(300);
+(await p.$$eval('.hentry',e=>e.length))===1
+  ? bien('y se puede buscar por eso') : mal('buscar por el hito no encuentra la cotización');
+await p.evaluate(()=>cerrarHistorial()); await p.waitForTimeout(300);
+
+// ── 9. Nada se rompió por el camino ─────────────────────────────────────────
 console.log('');
 errs.length ? mal('errores de página: '+[...new Set(errs)].slice(0,3).join(' | '))
             : bien('cero errores de página en todo el recorrido');
