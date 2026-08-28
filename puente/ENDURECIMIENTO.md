@@ -1,9 +1,41 @@
 
 # Endurecimiento de `puente/worker.js`
 
+> ## LOS DIEZ PARCHES YA ESTÁN APLICADOS EN `puente/worker.js`
+>
+> Este documento pasó de ser una propuesta a ser la explicación de por qué el archivo dice lo
+> que dice. Se conserva entero —con el «antes», el «después» y el razonamiento de cada uno—
+> porque el código guarda el resultado y no el motivo, y dentro de un año el motivo es lo que
+> va a hacer falta.
+>
+> **Lo que falta es pegarlo en Cloudflare, y ahí el orden no es negociable:**
+>
+> 1. **Primero** `ORIGENES` en el panel del Worker con los **dos** dominios separados por
+>    coma, sin barra final, y **Deploy** (guardar la variable no basta). Con el parche 1
+>    puesto, un origen que no está en la lista ya no recibe cabecera de CORS: si pegas el
+>    código antes de arreglar la variable, los tres teléfonos dejan de sincronizar.
+> 2. Después el código: *Edit code*, borrar todo, pegar `puente/worker.js` entero, *Deploy*.
+> 3. Después `Ajustes → El puente → Probar` en los tres teléfonos, uno por uno, comprobando
+>    que cada uno reconoce **su** rol.
+> 4. Y una vez en `Workers → Logs`, para ver el rastro del parche 9: tiene que traer nombres
+>    de propiedad y ni un solo importe.
+>
+> `pruebas/worker.mjs` cubre los diez y creció de 88 a 121 aserciones: la travesía de ruta con
+> `../databases/`, el alta desde fabricación, los importes negativos, el `TOKENS` roto, el
+> origen ajeno, el `no-store` y el `/expandir` que ya devuelve 404.
+>
+> **Un cambio tiene consecuencia visible y conviene saberlo antes:** `/jalar` ya no manda los
+> importes crudos. Ver el parche 8 — no cambia ninguna pantalla, porque el cliente no los
+> leía, pero es el único que altera lo que cruza la red.
+
 **Regla que gobierna todo el documento:** `pruebas/worker.mjs` importa el Worker de verdad y lo corre contra una Notion de mentiras, y `pruebas/puente.mjs` lo lee **como texto** y le saca `ETAPAS`, `TIPOS`, `ESTATUS` y `CUENTAS` con expresiones regulares (`pruebas/puente.mjs:173-181`). Cada parche de abajo dice si rompe alguna de las dos. **Uno rompe** (el 7) y lleva su parche de prueba al lado.
 
 Orden de despliegue obligatorio antes de tocar nada: **primero** pon `ORIGENES` en el Worker con los **dos** dominios (`https://eliasgaribi-ctrl-z.github.io,https://<nuevo>.pages.dev`) y redespliega. El parche 1 sin eso deja a los tres teléfonos sin sincronizar.
+
+**Dos cosas se aplicaron distinto de como están escritas abajo, y las dos a la baja:**
+
+- **Parche 4.** Solo se aplicó la mitad del Worker (el rango de los importes). La mitad del cliente —dejar de mandar `Anticipo: 0`— **no**, porque exige decidir antes qué significa `Anticipo` en la base: lo pactado o lo recibido. Esa decisión es del negocio y no se toma desde un parche.
+- **Parche 8.** La lista de `/jalar` quedó **más estricta** que la propuesta de abajo, y por una razón mejor: no salió de una opinión sobre qué debería ver cada rol, sino de leer qué consume el cliente. `deNotion` usa seis campos y `bajar` añade el sello; nada más. Así que el filtro es **el mismo para los tres roles** y no cambia una sola pantalla, en vez de recortarle a fabricación un espejo de cobranza que el dueño había decidido darle a propósito.
 
 ---
 

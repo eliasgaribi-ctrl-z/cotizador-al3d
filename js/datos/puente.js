@@ -404,17 +404,6 @@ export function crear(cfg0) {
       }
     },
 
-    /** Las cuatro líneas que del lado del navegador son imposibles. */
-    async expandir(u) {
-      try {
-        const r = await pedir(cfg, '/expandir?u=' + encodeURIComponent(String(u || '')), { method: 'GET' });
-        return r.cuerpo.ok ? { ok: true, url: r.cuerpo.url }
-                           : { ok: false, mensaje: r.cuerpo.mensaje || 'Ese link corto no llevó a ningún mapa.' };
-      } catch (e) {
-        return { ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message };
-      }
-    },
-
     /**
      * Sube. `sync.js` manda de una en una, así que este arreglo trae una y el bucle está
      * escrito para más por si eso cambia.

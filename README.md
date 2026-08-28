@@ -325,7 +325,13 @@ Tres documentos, y conviene leerlos en este orden:
   no se puede invertir: `ORIGENES` del Worker con los **dos** dominios antes de mover a nadie.
 - **`docs/SEGURIDAD.md`** — la auditoría. 99 hallazgos que sobrevivieron a un juez adversarial,
   ordenados por lo que hay que hacer y no por dónde aparecieron, más lo que se revisó y está
-  bien —para no volver a auditarlo— y lo que se refutó, para que nadie lo reviva.
+  bien —para no volver a auditarlo— y lo que se refutó, para que nadie lo reviva. Abre con lo
+  que ya está cerrado y con prueba, que es casi todo lo grave, y con lo que sigue abierto a
+  propósito.
+- **`privacidad.html`** — el aviso de privacidad, **en borrador**. Lo que describe del
+  tratamiento salió de leer el código y es exacto; los datos de identidad del negocio están
+  marcados como `[COMPLETAR]` y solo los tiene el dueño. No se enlaza desde el PDF del cliente
+  hasta que estén puestos: publicar un aviso a medias es peor que no tener ninguno.
 - **`puente/ENDURECIMIENTO.md`** — diez parches al Worker, cada uno con su antes, su después y
   si rompe alguna de las dos pruebas que lo cubren. **No están aplicados a propósito**: el
   Worker no se despliega desde este repositorio y el primero de ellos, sin `ORIGENES` puesta

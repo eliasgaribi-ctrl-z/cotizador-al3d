@@ -525,6 +525,19 @@ vacío. Está explicado en §3.
 
 ## 12. Lo que esta mudanza NO arregla
 
+> **Nota, puesta después.** Esta sección se escribió cuando la lista de abajo estaba entera
+> por hacer. Después se hizo casi todo: los diez parches del Worker están aplicados en
+> `puente/worker.js` (falta pegarlo en Cloudflare, y el orden está en
+> `puente/ENDURECIMIENTO.md`), los doce `onclick` ya no interpolan, pdf.js vive en
+> `vendor/pdfjs/` y `cdnjs` salió de la política, `urlMapa()` filtra el esquema, y hay un
+> aviso de privacidad en borrador. El estado al día está en `docs/SEGURIDAD.md`, en «Qué se
+> arregló, y qué sigue abierto». Lo de abajo se conserva porque explica **por qué** cada cosa
+> importaba, que es lo que no se puede reconstruir leyendo el código ya arreglado.
+>
+> Lo que de verdad sigue abierto y depende de la mudanza es lo primero de la lista, y no es
+> código: **`docs/` se publica con el sitio**, con los UUID de la base de Notion, cifras de
+> facturación y nombres de clientes reales.
+
 Mudarse a Cloudflare arregla **las cabeceras**, y eso es real: hoy el sitio se sirve sin política de contenido, sin HSTS, enmarcable desde cualquier página del mundo e indexable por Google, y no era descuido — es que GitHub Pages no deja poner una sola cabecera. En Cloudflare sí se puede y `_headers` ya lo hace.
 
 **No arregla nada más.** Lo que sigue abierto, con su archivo y su línea, para que nadie dé por cubierto lo que no lo está:

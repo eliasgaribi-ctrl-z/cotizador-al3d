@@ -79,14 +79,12 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
         Notion, y si el cliente lo interpretara, cambiar de relevo obligaría a tocar el
         cliente. Se guarda tal cual y se devuelve tal cual.
 
-   GET  /expandir?u=<url corta de Google Maps>
-     -> 200 { url } | 422 { ok:false, mensaje }
-        Existe porque desde el navegador es imposible: la 30x de maps.app.goo.gl no manda
-        Access-Control-Allow-Origin, en `no-cors` la respuesta es opaca y su lista de
-        headers está vacía por especificación. Del lado servidor son cuatro líneas.
-        Esto es lo único del Worker que no tiene nada que ver con sincronizar, y está
-        aquí porque montar una segunda pieza de infraestructura para cuatro líneas sería
-        peor.
+   Aquí se documentaba un cuarto camino, `GET /expandir`, que resolvía un link corto de
+   Google Maps del lado servidor. Se borró del Worker y no se sustituyó: no lo llamaba
+   nadie —una definición y cero invocaciones— y era un `fetch` con `redirect: 'follow'`
+   donde un tercero elegía los saltos, sin tope y sin reloj, alcanzable con cualquiera de
+   los tres tokens. El link corto se sigue resolviendo como siempre: pidiéndole a la
+   persona que lo abra y copie la dirección de la barra (js/mod/mapa.js).
    ============================================================================ */
 
 /**

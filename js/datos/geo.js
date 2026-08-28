@@ -49,7 +49,10 @@ export const AVISO_CORTO =
  *  manda Access-Control-Allow-Origin, en `no-cors` la respuesta es opaca y por
  *  especificación su lista de headers está vacía (no hay `Location` que leer, y
  *  `response.url` viene en blanco), y `redirect:'manual'` da una opaque-redirect igual
- *  de ilegible. Con el puente de Fase 3 un endpoint /expandir lo hace del lado servidor. */
+ *  de ilegible. El puente tuvo un endpoint /expandir que lo hacía del lado servidor; se
+ *  borró porque no lo llamaba nadie y su `redirect:'follow'` dejaba que un tercero eligiera
+ *  los saltos. Se resuelve como siempre: se le pide a la persona que abra el link y copie
+ *  la dirección de la barra (js/mod/mapa.js). */
 export function esAcortado(u) {
   return /^(?:https?:\/\/)?(?:maps\.app\.goo\.gl\/|goo\.gl\/maps\/)/i.test(String(u || '').trim());
 }

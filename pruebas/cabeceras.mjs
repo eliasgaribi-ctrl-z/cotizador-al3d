@@ -96,7 +96,6 @@ function permite(directiva, origen) {
    siga ahí. Así, quitar un proveedor del código hace fallar esta prueba y recuerda podar
    la CSP, que es el sentido que casi nunca se cubre. */
 const CARGAS = [
-  ['https://cdnjs.cloudflare.com',              'script-src',  'index.html',        'pdf.js, el lector de PDF que se baja la primera vez'],
   ['https://accounts.google.com',               'script-src',  'js/nucleo/gcal.js', 'Google Identity, para el calendario'],
   ['https://fonts.googleapis.com',              'style-src',   'index.html',        'la hoja de la tipografía Inter'],
   ['https://fonts.gstatic.com',                 'font-src',    'index.html',        'los archivos .woff2 que pide esa hoja'],
@@ -139,6 +138,17 @@ for (const [origen, directiva, archivo, porque] of CARGAS) {
    que no hay un dominio que buscar en el código. Lo que sí se puede exigir es que la CSP
    deje pasar el dominio por omisión de Cloudflare Workers; sin eso, sincronizar con Notion
    muere en el primer intento y la pantalla del puente diría «sin red» sin que falte red. */
+/* Y el que ya no está, que es la mejora: pdf.js se copió a vendor/ y cdnjs salió de la
+   política. Esto falla si alguien lo vuelve a meter sin pensarlo — era el único origen con
+   permiso de EJECUTAR CÓDIGO en esta app que no controlábamos, y corría sobre archivos que
+   manda el cliente. */
+if (permite('script-src', 'https://cdnjs.cloudflare.com'))
+  mal("`script-src` volvió a permitir cdnjs.cloudflare.com. pdf.js vive en `vendor/pdfjs/`\n" +
+      '      desde que se copió a mano; si hizo falta volver a la CDN, dilo aquí y en\n' +
+      '      vendor/pdfjs/PROCEDENCIA.md, porque es un origen que puede ejecutar código sobre\n' +
+      '      los PDF que manda el cliente.');
+else bien('cdnjs YA NO está en script-src: pdf.js se sirve desde vendor/pdfjs/');
+
 console.log('\nEl puente a Notion');
 if (permite('connect-src', 'https://puente-al3d.ejemplo.workers.dev'))
   bien('connect-src deja salir al Worker en *.workers.dev');

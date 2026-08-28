@@ -55,7 +55,56 @@ De ahí salen las tres consecuencias que ordenan todo lo demás:
 
 ---
 
-## Qué se arregló en esta pasada
+## Qué se arregló, y qué sigue abierto
+
+**Este informe se escribió antes de arreglar nada, y después se arregló casi todo lo grave.**
+Se conserva completo —los 99 hallazgos, no solo los que quedan— porque un informe podado no
+deja ver qué se decidió no hacer, y eso es la mitad de lo que hay que saber dentro de un año.
+Lo que ya no aplica se marca aquí arriba; lo de abajo se lee sabiendo esto.
+
+### Los dos críticos
+
+Los dos son el mismo hecho visto por dos lados —el navegador guarda por origen, y `github.io`
+y `pages.dev` son dos— y **no son de código: son de procedimiento**. Siguen abiertos porque
+solo se cierran haciendo la mudanza bien, y el procedimiento teléfono por teléfono está en
+`docs/CLOUDFLARE.md` §5.
+
+### Lo que ya está cerrado, con prueba
+
+| Estaba | Ahora |
+|---|---|
+| Doce `onclick` armados por interpolación con el folio o la clave del cliente. `esc()` no protegía: el analizador de HTML decodifica el `&#39;` antes de compilar el atributo como JavaScript | El dato viaja en `data-folio`/`data-clave` y el manejador lo lee con `this.dataset`. `pruebas/navegador/inyeccion.mjs` envenena `localStorage` como lo haría un respaldo manipulado y comprueba que no ejecuta |
+| Un decimotercer sitio que no estaba en el informe: `it.id`, en una treintena de manejadores por partida, entrando crudo desde el archivo por tres puertas | `sanearIds()` lo convierte en número en las tres puertas y otra vez al pintar |
+| pdf.js 3.11.174 desde cdnjs, sin integridad, con el CVE que ejecuta JavaScript desde un PDF preparado — y los PDF los manda el cliente | pdf.js 4.10.38 en `vendor/pdfjs/`, copiado a mano como Leaflet, con `isEvalSupported:false`. `cdnjs` salió de `script-src`. Leer un PDF ahora funciona sin señal, que antes no. `pruebas/navegador/pdf.mjs` abre uno de verdad |
+| `/jalar` devolvía la fila entera del dinero a cualquier rol | Manda solo los seis campos que el cliente consume. Los importes crudos no salen de Notion por ninguno de los tres tokens |
+| `op.id_notion` se concatenaba crudo a la ruta de la API de Notion; `../databases/` convertía un PATCH de fila en otra cosa | Se exige forma de UUID, y se dice cuando no la tiene en vez de callarlo |
+| Dar de alta una venta solo estaba prohibido en el cliente | El candado está en el Worker |
+| Un origen fuera de `ORIGENES` recibía el primero de la lista, así que un dominio mal escrito se veía igual que «no hay señal» | Se niega. El diagnóstico existe |
+| `TOKENS` con una coma de más daba 401 mudo a los tres teléfonos | Da 500 nombrando el problema, y nombra también el rol mal escrito |
+| Importes sin rango: negativos y `1e21` entraban a la base del dinero | Rango, con el motivo escrito |
+| `/expandir` — riesgo sin función: `redirect:'follow'` con los saltos elegidos por un tercero | Borrado. Nadie lo llamaba |
+| Restaurar un respaldo escribía en la bandeja de salida, y el relevo la bombea sola a Notion | `importar()` la salta, como `exportar()` ya hacía |
+| `Gcal.pedirToken()` devolvía el access_token de Google en claro a cualquier módulo del origen | Devuelve solo la caducidad. Y ya no deja la promesa colgada: tiene `error_callback` y tope de reloj |
+| `urlMapa()` no filtraba el esquema; `agenda.js` sí, dos archivos más allá | Filtrado, con `pruebas/enlaces.mjs` corriendo los dos constructores contra seis esquemas |
+| La key de Gemini viajaba en la query | En cabecera, como las otras dos |
+| Ni una cabecera de seguridad, porque GitHub Pages no las deja poner | `_headers`, validado en Chromium con cero violaciones |
+| No existía aviso de privacidad, y la app trata datos que la LFPDPPP considera personales | `privacidad.html` en borrador, y la advertencia de a dónde va la foto del cliente puesta en la pantalla donde alguien decide usar la IA |
+| El runner de pruebas salía con código 1 con todo en verde, de forma intermitente | Arreglado |
+
+### Lo que sigue abierto a propósito
+
+- **La mudanza de origen** (los dos críticos). Procedimiento, no código.
+- **La mitad del cliente del rango de importes**: dejar de mandar `Anticipo: 0` exige decidir
+  antes si `Anticipo` significa lo pactado o lo recibido. Es una decisión del negocio.
+- **Los datos de identidad del aviso de privacidad**, que solo los tiene el dueño.
+- **Los topes de gasto de OpenRouter y Groq**, que se ponen del lado del proveedor.
+- **La verificación en dos pasos de Cloudflare**, que sigue siendo lo más valioso por minuto
+  invertido de todo este documento.
+- Y las **bajas e informativas** de abajo, que son deuda e higiene y están donde deben estar.
+
+---
+
+## Qué se arregló en la primera pasada
 
 Cuatro cosas, todas en el repositorio y todas con prueba:
 

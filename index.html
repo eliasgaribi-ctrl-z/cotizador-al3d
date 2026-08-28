@@ -3343,6 +3343,19 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
             <div class="fld"><label for="ai-model-openrouter">Modelo</label><input id="ai-model-openrouter" value="meta-llama/llama-4-scout:free"></div>
             <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Acceso a muchos modelos · solo JPG (no PDF). Su catálogo cambia seguido: si dice que no reconoce el modelo, copia el nombre exacto de <a class="ai-link" href="https://openrouter.ai/models?fmt=cards&input_modalities=image&max_price=0" target="_blank" rel="noopener">openrouter.ai/models</a> (los gratuitos terminan en <code>:free</code>).</p>
           </div>
+          <!-- Dónde acaba la foto del cliente, dicho aquí y no en un documento que nadie abre.
+               Esta es la pantalla donde alguien decide usar la IA, así que es donde tiene que
+               estar la consecuencia. Y el matiz del plan gratuito no es un detalle: el modelo
+               por omisión de OpenRouter es uno `:free`, y en los planes gratuitos de Gemini y
+               de OpenRouter el proveedor puede quedarse con lo que se le manda. -->
+          <p class="key-note"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg>
+            <b>La foto o el plano que analices sale del taller.</b> Se manda al proveedor que
+            elijas arriba, que está fuera de México. No se le manda el nombre, el teléfono ni
+            la dirección del cliente: solo la imagen. En los planes gratuitos de Gemini y de
+            OpenRouter el proveedor puede usarla para entrenar sus modelos; Groq no lo hace, y
+            un plan de pago lo cambia en los otros dos. Si el plano trae algo que el cliente no
+            querría fuera, recórtalo antes o cotiza esa partida a mano.
+            <a class="ai-link" href="./privacidad.html" target="_blank" rel="noopener">Ver el aviso de privacidad</a></p>
           <p class="key-note" id="ai-respaldo"></p>
           <p class="key-note"><svg class="svgi" aria-hidden="true"><use href="#i-candado"/></svg> Las API keys no están escritas en el código del cotizador: las pegas una sola vez, se guardan ofuscadas en <b>este</b> dispositivo y después solo se muestran sus últimos 4 caracteres. Cada una se envía directo a su proveedor. Si el dispositivo es compartido, usa <b>Borrar</b> al terminar.</p>
         </div>
@@ -10408,18 +10421,43 @@ function scLoadImgSrc(src,name,alCargar){
   img.onerror=()=>toast(errImagen(name),'err',6400);
   img.src=src;
 }
+/* ----- El lector de PDF -----
+   Vive en `vendor/pdfjs/`, copiado a mano como Leaflet, y no en una CDN. La procedencia y
+   los tres motivos están en vendor/pdfjs/PROCEDENCIA.md; el que manda es que **los PDF los
+   manda el cliente**: se abren en el escalador y en el vectorizador, y la versión que se
+   bajaba de cdnjs —3.11.174— es anterior al parche de CVE-2024-4367, con el que un PDF
+   preparado ejecuta JavaScript en el origen de esta app, donde están el historial, las API
+   keys y el token del puente.
+
+   Se carga la primera vez que hace falta y no al arrancar: son 1.8 MB y el 90 % de las
+   aperturas no abren ningún PDF. La promesa se guarda para que dos llamadas seguidas —el
+   escalador y el vectorizador— no lo bajen dos veces.
+
+   `import()` en vez de un <script>: pdfjs-dist 4.x ya no publica UMD, todo es ESM. Y el
+   mensaje de error dejó de mentir: antes decía «se necesita conexión» porque era cierto;
+   ahora el archivo es del sitio y el service worker lo guarda, así que lo que puede fallar
+   es otra cosa y se dice como otra cosa. */
+let _pdfjs=null;
+function cargarPdfJs(){
+  if(!_pdfjs) _pdfjs=import('./vendor/pdfjs/pdf.min.mjs').then(m=>{
+    m.GlobalWorkerOptions.workerSrc='./vendor/pdfjs/pdf.worker.min.mjs';
+    return m;
+  }).catch(e=>{
+    _pdfjs=null;   // que el siguiente intento vuelva a probar en vez de heredar el fallo
+    throw new Error('no se pudo cargar el lector de PDF. Exporta el plano como JPG o PNG y vuelve a intentar');
+  });
+  return _pdfjs;
+}
+
 async function scLoadPDF(f){
   toast('Cargando PDF…','',8000);
   try{
-    if(!window.pdfjsLib){
-      /* s.onerror no trae mensaje, así que el catch de abajo imprimía «Error PDF: undefined»
-         —el caso más común es simplemente estar sin señal, porque el lector se descarga la
-         primera vez— y no había forma de saber qué había pasado ni qué hacer. */
-      await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=res;s.onerror=()=>rej(new Error('se necesita conexión para leer un PDF: el lector se descarga la primera vez. Exporta el plano como JPG o PNG y vuelve a intentar'));document.head.appendChild(s);});
-      pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    }
+    const pdfjsLib=await cargarPdfJs();
     const ab=await f.arrayBuffer();
-    const pdf=await pdfjsLib.getDocument({data:ab}).promise;
+    /* `isEvalSupported:false` es el cinturón además del tirante: la versión nueva ya no
+       tiene el fallo, y aun así no hay ninguna razón para dejarle a un PDF del cliente la
+       puerta de `new Function`. Cuesta cero y no cambia nada de lo que se ve. */
+    const pdf=await pdfjsLib.getDocument({data:ab,isEvalSupported:false}).promise;
     const page=await pdf.getPage(1);
     // Resolución acorde a la pantalla en vez de un 2.5 fijo: los planos grandes conservan el detalle
     const base=page.getViewport({scale:1});
@@ -12124,14 +12162,8 @@ function vtUsarImagenScaler(){ if(SC.img) vtLoadImgSrc(SC.img.src,'imagen del es
 async function vtLoadPDF(f){
   toast('Cargando PDF…','',8000);
   try{
-    if(!window.pdfjsLib){
-      /* s.onerror no trae mensaje, así que el catch de abajo imprimía «Error PDF: undefined»
-         —el caso más común es simplemente estar sin señal, porque el lector se descarga la
-         primera vez— y no había forma de saber qué había pasado ni qué hacer. */
-      await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=res;s.onerror=()=>rej(new Error('se necesita conexión para leer un PDF: el lector se descarga la primera vez. Exporta el plano como JPG o PNG y vuelve a intentar'));document.head.appendChild(s);});
-      pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    }
-    const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;
+    const pdfjsLib=await cargarPdfJs();
+    const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer(),isEvalSupported:false}).promise;
     const page=await pdf.getPage(1);
     const base=page.getViewport({scale:1});
     // Menos resolución que en el escalador: aquí cada píxel se cuantiza y se recorre,

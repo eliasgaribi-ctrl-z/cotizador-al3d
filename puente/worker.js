@@ -22,6 +22,14 @@
    escribir etapa de obra y movimientos, y este Worker le rechaza `Anticipo` con 403 aunque
    el teléfono diga «Dirección».
 
+   ── Y la lista de LECTURA, que es la que faltaba ───────────────────────────────
+   Durante un tiempo aquí solo hubo lista blanca de ESCRITURA, y en la base del dinero la que
+   importa es la otra: `/jalar` devolvía la fila entera a cualquier rol, así que con el token
+   de fabricación un `curl` de una línea se bajaba el subtotal, el anticipo, las comisiones y
+   la cuenta de cobro de todas las ventas. Ahora `/jalar` manda solo lo que el espejo del
+   cliente consume —seis campos y el sello— y los importes crudos no salen de Notion por
+   ninguno de los tres tokens.
+
    ── Cuatro cosas que este Worker NO hace, y no es descuido ─────────────────────
    1. NO altera el esquema de Notion. `/esquema` DETECTA lo que falta y devuelve la lista
       con nombre y tipo exactos para que una persona la cree a mano. Es la única garantía
@@ -43,14 +51,28 @@
                   por omisión: 56fa21d8-8e7d-4e16-b874-455fd6c65643
    TOKENS         JSON: {"<token largo>":"direccion","<otro>":"fabricacion","<otro>":"pagos"}
                   Se generan con  crypto.randomUUID()  y se pegan uno en cada teléfono.
-   ORIGENES       opcional. Lista separada por comas de orígenes permitidos.
+   ORIGENES       opcional. Lista separada por comas de orígenes permitidos, sin barra final.
                   por omisión: https://eliasgaribi-ctrl-z.github.io
+                  AL MUDAR DE DOMINIO: pon los DOS —el viejo y el nuevo— antes de mover a
+                  nadie, y redespliega (guardar la variable no basta). Un origen que no está
+                  en la lista ya no recibe cabecera de CORS, así que el diagnóstico existe:
+                  si la respuesta no trae `Access-Control-Allow-Origin`, es esto y no la red.
    ============================================================================ */
 
 const NOTION = 'https://api.notion.com/v1';
 const NOTION_VERSION = '2022-06-28';
 const VERSION = 'puente-2';
 const DS_VENTAS_POR_OMISION = '56fa21d8-8e7d-4e16-b874-455fd6c65643';
+
+/* La forma de un id de página de Notion. Existe porque ese id se PEGA a la ruta de la API:
+   sin esto, quien tenga cualquiera de los tres tokens elige a qué endpoint del workspace le
+   pega el Worker con el token que puede escribirlo todo. Y `fetch` normaliza el `..` del
+   camino, así que un `id_notion` de `../databases/<otra>` convertía un PATCH de fila en un
+   PATCH contra otro objeto, y el GET del control de concurrencia en una lectura de cualquier
+   página que la integración vea, devuelta al cliente dentro de `conflicto`. Los ids
+   legítimos salen siempre de Notion —`aplanar()` los toma de `pagina.id`—, así que exigirles
+   forma de UUID no le quita nada a nadie. */
+const ID_NOTION = /^[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}$/;
 
 /* ── Los nombres REALES de las propiedades ──────────────────────────────────────
    Con el espacio final incluido donde lo tienen. No son erratas: `Precio Neto ` y
@@ -130,6 +152,43 @@ const ESCRIBIBLES = {
   pagos: [P.anticipo, P.liquidacion, P.abonoCom, P.estatus, P.cuenta, P.fechaLiq],
 };
 
+/* ── Y la lista blanca de LECTURA ───────────────────────────────────────────────
+   `/jalar` devolvía la fila ENTERA a cualquier rol. Con el token de fabricación —el que la
+   cabecera de este archivo presume de que no puede tocar el dinero— un `curl` de una línea
+   se bajaba el subtotal, el anticipo, la liquidación, las comisiones y la cuenta de cobro de
+   todas las ventas. El permiso de escritura estaba; el de lectura no existía. En la base del
+   dinero el que importa es el de lectura.
+
+   La lista de `/jalar` no salió de una opinión sobre qué debería ver cada quien: salió de
+   leer qué CONSUME el cliente. `deNotion` (js/datos/puente.js:230-247) usa seis campos y
+   `bajar` (js/datos/puente.js:535-545) añade `editado` para el sello. Nada más. Todo lo
+   demás cruzaba la red para que el navegador lo tirara. Por eso el filtro es el mismo para
+   los tres roles y no cambia una sola pantalla: los importes crudos simplemente dejan de
+   salir de Notion.
+
+   OJO con `Folio cotizacion`: sin él `deNotion` devuelve null y la fila entera se descarta,
+   o sea que se apagaría el espejo. Y sin `id_notion` se pierde lo único que evita la segunda
+   fila en la base del dinero. Las dos son llaves, no datos. */
+const LEGIBLES_JALAR = new Set([
+  'id_notion', 'editado',
+  'Folio cotizacion', P.estatus, P.cuenta, P.pendiente, P.comRestante,
+]);
+
+/* Para `remoto` y `conflicto` la cuenta es otra. Esos dos alimentan la pantalla que enseña
+   las dos versiones de una fila para que una persona elija, así que recortarlos de más deja
+   a alguien decidiendo a ciegas. Dirección y pagos ven todo —es su base y su trabajo—; a
+   fabricación se le da lo que puede escribir más lo que necesita para fabricar, que es
+   exactamente sobre lo que puede tener un conflicto. `null` significa «todo». */
+const LEGIBLES = {
+  direccion: null,
+  fabricacion: new Set(['id_notion', 'url', 'editado',
+    'Folio cotizacion', P.proyecto, 'Etapa de obra', 'Fecha instalacion', 'Hora instalacion',
+    'Ubicacion', 'Direccion', 'Tipo de trabajo', P.fecha]),
+  pagos: null,
+};
+const soloLegibles = (datos, permitidas) => (!permitidas ? datos
+  : Object.fromEntries(Object.entries(datos).filter(([k]) => permitidas.has(k))));
+
 /* ── CORS ───────────────────────────────────────────────────────────────────────
    Se responde con el origen concreto, no con `*`: con Authorization de por medio,
    un comodín es una invitación abierta a que cualquier página del mundo use este token. */
@@ -137,31 +196,92 @@ function origenPermitido(req, env) {
   const lista = String(env.ORIGENES || 'https://eliasgaribi-ctrl-z.github.io')
     .split(',').map(s => s.trim()).filter(Boolean);
   const o = req.headers.get('Origin') || '';
-  return lista.includes(o) ? o : (lista[0] || '');
+  /* Si el origen no está en la lista NO se contesta con otro. Devolver `lista[0]` no dejaba
+     que nadie leyera la respuesta —el navegador la bloquea igual— pero hacía indistinguible
+     un dominio mal escrito de una falla de red: el teléfono decía «puede que no haya señal»
+     (js/datos/puente.js:283-285) y un `curl -X OPTIONS` de diagnóstico contestaba 204 con
+     unas cabeceras que se veían bien. Vacío significa vacío, y así el diagnóstico existe. */
+  return lista.includes(o) ? o : '';
 }
 function cabecerasCors(origen) {
-  return {
-    'Access-Control-Allow-Origin': origen,
+  const h = {
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization,Content-Type',
     'Access-Control-Max-Age': '86400',
-    'Vary': 'Origin',
+    /* Varía por Authorization además de por Origin: la respuesta DEPENDE del token — el rol,
+       los escribibles, y ahora hasta qué columnas se devuelven. */
+    'Vary': 'Origin, Authorization',
   };
+  /* Sin origen permitido, ninguna cabecera de CORS. Nunca `*`: con Authorization de por
+     medio, un comodín es una invitación abierta a que cualquier página del mundo use este
+     token desde el navegador de alguien del taller. */
+  if (origen) h['Access-Control-Allow-Origin'] = origen;
+  return h;
 }
 const json = (cuerpo, estado, origen, extra) => new Response(JSON.stringify(cuerpo), {
   status: estado || 200,
-  headers: { 'Content-Type': 'application/json; charset=utf-8', ...cabecerasCors(origen), ...(extra || {}) },
+  headers: {
+    'Content-Type': 'application/json; charset=utf-8',
+    /* Por aquí sale el dinero y las direcciones de los clientes. Que no se guarde en ningún
+       lado: ni en el borde de Cloudflare el día que alguien encienda una Cache Rule sobre un
+       dominio propio, ni en el Cache Storage del service worker si el puente acaba viviendo
+       en el mismo dominio — sw.js solo descarta lo de OTRO origen, así que ese día este
+       `no-store` es lo único que separa las dos cosas. */
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    ...cabecerasCors(origen), ...(extra || {}),
+  },
 });
 
+/** Lee TOKENS y dice qué tiene de malo, en español. Va aparte del token a propósito: antes
+ *  «tu token no está» y «el JSON de TOKENS está roto» eran el mismo 401 mudo, y el segundo
+ *  manda a tres personas a re-pegar tres tokens que estaban bien. Es el paso que más se
+ *  rompe de los doce del montaje: una coma de más, o una comilla curva del teclado del
+ *  celular, y el Worker contestaba 401 a todo sin poder decir por qué. */
+function revisarTokens(env) {
+  let mapa;
+  try { mapa = JSON.parse(env.TOKENS || ''); } catch (_) {
+    return { error: 'El JSON de TOKENS en Cloudflare está roto: revisa las comas y que las comillas sean rectas, no curvas. Ningún teléfono va a poder entrar hasta arreglarlo.' };
+  }
+  if (!mapa || typeof mapa !== 'object' || Array.isArray(mapa)) {
+    return { error: 'TOKENS tiene que ser un objeto {"<token>":"<rol>"}, y es otra cosa.' };
+  }
+  /* Y el otro error de pegar desde el teclado del celular, que también daba el 401 mudo: un
+     rol mal escrito. Se nombra el que está mal. */
+  for (const rol of Object.values(mapa)) {
+    if (!ESCRIBIBLES[rol]) {
+      return { error: 'TOKENS tiene un rol que no existe: «' + rol + '». Los tres válidos son direccion, fabricacion y pagos, en minúsculas y sin acento.' };
+    }
+  }
+  return { mapa };
+}
+
+/* Comparación que no se corta en la primera diferencia. Seamos honestos con lo que compra:
+   contra un ataque de tiempo por internet, casi nada — el token es un UUID de 122 bits y el
+   ruido de la red tapa mil veces lo que se mediría. Está por dos razones concretas: cuesta
+   cinco líneas, y quita el `mapa[t]` de antes, que buscaba en la cadena de prototipos (un
+   `Authorization: Bearer constructor` llegaba hasta Object.prototype). Hoy no se colaba
+   nadie por ahí —la guarda de ESCRIBIBLES lo atajaba— pero era una trampa puesta para el
+   siguiente que tocara estas líneas. */
+function igualExacto(a, b) {
+  if (a.length !== b.length) return false;   // el largo de un UUID no es un secreto
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+
 /** El token de dispositivo → rol. Devuelve null si no lo conoce. */
-function rolDe(req, env) {
+function rolDe(req, mapa) {
   const h = req.headers.get('Authorization') || '';
   const t = h.startsWith('Bearer ') ? h.slice(7).trim() : '';
   if (!t) return null;
-  let mapa;
-  try { mapa = JSON.parse(env.TOKENS || '{}'); } catch (_) { return null; }
-  const rol = mapa[t];
-  return (rol && ESCRIBIBLES[rol]) ? rol : null;
+  let encontrado = null;
+  /* Sin `return` dentro del bucle: se recorren los tres siempre, para que el tiempo de
+     respuesta tampoco diga CUÁL de los tres acertó. */
+  for (const [tok, rol] of Object.entries(mapa)) {
+    if (igualExacto(t, tok) && ESCRIBIBLES[rol]) encontrado = rol;
+  }
+  return encontrado;
 }
 
 async function notion(env, ruta, opciones) {
@@ -221,6 +341,12 @@ function traducir(estado, cuerpo) {
   if (estado >= 500)
     return { codigo: 'SIN_RED', mensaje: 'Notion no está respondiendo. Lo que hiciste quedó guardado en el teléfono y se manda cuando vuelva.' };
   const m = (cuerpo && (cuerpo.message || cuerpo.mensaje)) || '';
+  /* El detalle crudo va TAMBIÉN al log, no en vez de a la pantalla. Los informes pedían
+     dejar de devolverlo al cliente, y no: ese texto —«property does not exist», «is expected
+     to be status»— es la única pista de quien está montando el esquema, y el runbook de
+     puente/README.md depende literalmente de leerlo. Quien lo ve ya tiene un token válido, y
+     con un token válido ya se lee la base. */
+  if (m) console.log('notion-rechazo', m);
   return { codigo: 'DESCONOCIDO', mensaje: m ? 'Notion rechazó el cambio: ' + m : 'Notion rechazó el cambio y no dijo por qué.' };
 }
 
@@ -248,6 +374,13 @@ function armarPropiedades(datos, rol) {
     } else if ([P.subtotal, P.anticipo, P.liquidacion, P.abonoCom].includes(nombre)) {
       const n = Number(valor);
       if (!isFinite(n)) { rechazadas.push({ nombre, por: 'no es un número' }); continue; }
+      /* Un importe negativo no es un cobro: es una resta silenciosa en la base del dinero, y
+         las cinco fórmulas la propagan a las siete vistas sin que se vea de dónde salió. El
+         tope de arriba no le estorba a un negocio con $3.7M acumulados, y ataja las dos
+         formas reales de meter basura: el dedo gordo —un cero de más son $60,000— y el
+         1e21 que `Number` acepta feliz y Notion guarda. */
+      if (n < 0) { rechazadas.push({ nombre, por: 'un importe no puede ser negativo' }); continue; }
+      if (n > 10000000) { rechazadas.push({ nombre, por: 'ese importe está fuera de rango; si es correcto, captúralo en Notion a mano' }); continue; }
       props[nombre] = { number: n };
     } else if ([P.fecha, P.fechaLiq, 'Fecha instalacion'].includes(nombre)) {
       /* Solo YYYY-MM-DD. Una fecha en es-MX aquí es el error que ya se arregló del otro
@@ -312,7 +445,14 @@ export default {
         mensaje: 'Al puente le faltan sus secretos. Revisa NOTION_TOKEN y TOKENS en Cloudflare.' }, 500, origen);
     }
 
-    const rol = rolDe(req, env);
+    /* TOKENS roto no es un token malo: es una variable mal pegada. Un 500 que lo dice es la
+       diferencia entre una tarde perdida y dos minutos. */
+    const revision = revisarTokens(env);
+    if (revision.error) {
+      return json({ ok: false, codigo: 'DESCONOCIDO', mensaje: revision.error }, 500, origen);
+    }
+
+    const rol = rolDe(req, revision.mapa);
     if (!rol) {
       return json({ ok: false, codigo: 'ROL_SIN_PERMISO',
         mensaje: 'Este teléfono no tiene un token válido del puente. Pégalo otra vez en Ajustes.' }, 401, origen);
@@ -359,7 +499,8 @@ export default {
           return json({ ok: false, ...t }, r.estado === 429 ? 429 : 503, origen,
             r.reintentar ? { 'Retry-After': r.reintentar } : undefined);
         }
-        const registros = (r.cuerpo.results || []).map(p => ({ almacen: 'proyectos', datos: aplanar(p) }));
+        const registros = (r.cuerpo.results || [])
+          .map(p => ({ almacen: 'proyectos', datos: soloLegibles(aplanar(p), LEGIBLES_JALAR) }));
         return json({ ok: true, registros, cursor: r.cuerpo.next_cursor || null,
                       hay_mas: !!r.cuerpo.has_more }, 200, origen);
       }
@@ -385,6 +526,14 @@ export default {
           }
           /* Antes de crear, se busca. Ver `buscarPorFolio`: un reintento después de una
              respuesta perdida no puede costar una venta duplicada en la base del dinero. */
+          /* Si venía algo y no tiene forma de id de Notion, se DICE. Silenciarlo lo
+             convertiría en un alta duplicada: `idPagina` quedaría en null y la fila se
+             crearía otra vez, con su anticipo y su comisión sumando en las siete vistas. */
+          if (op.id_notion && !ID_NOTION.test(String(op.id_notion))) {
+            resultados.push({ id: op.id, ok: false, codigo: 'DATO_INVALIDO',
+              mensaje: 'Ese id de página de Notion no tiene forma de id de Notion.' });
+            continue;
+          }
           let idPagina = op.id_notion || null;
           if (!idPagina) {
             const folio = String((op.datos && op.datos['Folio cotizacion']) || '').trim();
@@ -393,6 +542,25 @@ export default {
 
           let r;
           if (!idPagina) {
+            /* Primero el caso que va a pasar de verdad, que no es el malicioso: el cliente
+               mandó un CAMBIO de una fila que cree que existe y aquí no se encontró por su
+               folio. Crearla sería inventar una venta a partir de un cambio parcial — una
+               fila con la etapa movida y sin precio. El cliente ya manda `tipo`
+               (js/datos/puente.js) y hasta hoy el Worker lo tiraba a la basura. */
+            if (op.tipo === 'actualizar') {
+              resultados.push({ id: op.id, ok: false, codigo: 'NO_ENCONTRADO',
+                mensaje: 'No encontré esa venta en Notion por su folio. Revisa que la fila siga ahí.', rechazadas });
+              continue;
+            }
+            /* Y el candado de verdad. Vivía SOLO en el cliente, o sea que no era un candado:
+               era un aviso anticipado, y un aviso del lado del navegador lo salta un `curl`.
+               Dar de alta una venta es escribir una fila nueva en la base del dinero, y eso
+               sale del teléfono de Dirección. Aquí es donde se decide; allá, donde se avisa. */
+            if (!ESCRIBIBLES[rol].includes(P.proyecto) || !props[P.proyecto]) {
+              resultados.push({ id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO',
+                mensaje: 'Este teléfono no puede dar de alta ventas: eso sale del de Dirección.', rechazadas });
+              continue;
+            }
             r = await notion(env, '/pages', { method: 'POST',
               body: JSON.stringify({ parent: { type: 'data_source_id', data_source_id: ds }, properties: props }) });
           } else {
@@ -405,12 +573,19 @@ export default {
               if (act.estado < 400 && act.cuerpo && act.cuerpo.last_edited_time !== op.esperado.editado) {
                 resultados.push({ id: op.id, ok: false, codigo: 'CONFLICTO',
                   mensaje: 'Esa fila cambió en Notion desde la última vez que este teléfono la vio.',
-                  conflicto: aplanar(act.cuerpo) });
+                  conflicto: soloLegibles(aplanar(act.cuerpo), LEGIBLES[rol]) });
                 continue;
               }
             }
             r = await notion(env, '/pages/' + idPagina, { method: 'PATCH', body: JSON.stringify({ properties: props }) });
           }
+          /* Lo único que hay para saber qué teléfono escribió qué: en Notion toda escritura
+             aparece firmada por la integración, sin distinguir de quién vino. Se ve en el
+             panel (Workers → Logs). Van los NOMBRES de las propiedades y NUNCA sus valores
+             —con los valores acabas con los importes de los clientes guardados en el panel de
+             Cloudflare— y nunca, bajo ninguna circunstancia, el token. */
+          console.log(JSON.stringify({ rol, op: op.id, pagina: idPagina || 'nueva',
+                                       props: Object.keys(props), estado: r.estado }));
           if (r.estado >= 400) {
             const t = traducir(r.estado, r.cuerpo);
             resultados.push({ id: op.id, ok: false, ...t, rechazadas });
@@ -422,21 +597,24 @@ export default {
             }
             continue;
           }
-          resultados.push({ id: op.id, ok: true, remoto: aplanar(r.cuerpo), rechazadas });
+          resultados.push({ id: op.id, ok: true, remoto: soloLegibles(aplanar(r.cuerpo), LEGIBLES[rol]), rechazadas });
         }
         return json({ ok: true, resultados }, 200, origen);
       }
 
-      /* ── /expandir ── cuatro líneas que del lado del navegador son imposibles ── */
-      if (ruta === '/expandir' && req.method === 'GET') {
-        const u = url.searchParams.get('u') || '';
-        if (!/^https:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps)\//.test(u)) {
-          return json({ ok: false, mensaje: 'Eso no es un link corto de Google Maps.' }, 422, origen);
-        }
-        const r = await fetch(u, { redirect: 'follow' });
-        if (!r.url || r.url === u) return json({ ok: false, mensaje: 'Ese link corto no llevó a ningún mapa.' }, 422, origen);
-        return json({ ok: true, url: r.url }, 200, origen);
-      }
+      /* Aquí vivía `/expandir`, que resolvía un link corto de Google Maps. Se borró y no se
+         sustituyó por nada. No lo llamaba NADIE —una definición en js/datos/puente.js y cero
+         invocaciones; js/mod/mapa.js resuelve el link por el otro camino, pidiéndole a la
+         persona que lo abra y copie— así que era riesgo sin función: un `fetch` con
+         `redirect: 'follow'` donde un tercero elegía los otros veinte saltos, sin tope y sin
+         reloj, alcanzable con cualquiera de los tres tokens.
+
+         Y se borró en vez de blindarse a propósito. La validación del PRIMER salto era
+         correcta y no hay que aflojarla nunca; lo que no se puede validar bien es el destino,
+         porque Google mueve sus cortos entre google.com/maps, maps.google.com y hosts
+         regionales, y una lista blanca de destino acabaría rechazando un pin legítimo
+         delante del cliente con un 422 que miente. Escribir validaciones para un endpoint
+         muerto es trabajo que solo puede salir mal. */
 
       return json({ ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'Ese camino no existe en el puente.' }, 404, origen);
     } catch (e) {

@@ -142,15 +142,70 @@ pendiente daría un contador que nunca baja, y un número que nunca baja se apre
 
 | Lo que ves | Qué pasó | Qué hacer |
 |---|---|---|
-| «Este teléfono no tiene un token válido» (401) | El token no está en `TOKENS`, o se pegó con un espacio | Vuelve a pegarlo en Ajustes. Revisa que `TOKENS` sea JSON válido |
+| «Este teléfono no tiene un token válido» (401) | El token de ESE teléfono no está en `TOKENS`, o se pegó con un espacio | Vuelve a pegarlo en Ajustes |
+| «El JSON de TOKENS en Cloudflare está roto…» (500), en los tres | Una coma de más o una comilla curva del teclado del celular | Es el paso que más se rompe de los doce. Vuelve a pegar el JSON entero, sin editarlo a mano |
+| «TOKENS tiene un rol que no existe: «X»» (500) | Un rol mal escrito. Los tres son `direccion`, `fabricacion` y `pagos`, en minúsculas y sin acento | Corrígelo y redespliega |
+| «Este teléfono no puede dar de alta ventas» | Un alta salió de fabricación o de pagos | Se da de alta desde el de Dirección. Desde ese ya puedes mover la obra |
+| «No encontré esa venta en Notion por su folio» | Se mandó un cambio de una fila que ya no está | Revisa que la fila siga en la base. El puente no la vuelve a crear a partir de un cambio parcial, a propósito: saldría una venta sin precio |
+| «Ese id de página de Notion no tiene forma de id de Notion» | El teléfono mandó un `id_notion` que no es un UUID | No debería pasar nunca desde la app. Si pasa, borra los datos del sitio en ese teléfono y vuelve a sincronizar |
+| «un importe no puede ser negativo» / «fuera de rango» | Un anticipo o una liquidación con signo, o con un cero de más | Captúralo bien. El tope es de diez millones y ataja el dedo gordo |
 | «El puente no tiene acceso a esa página» (403) | La integración no está conectada a la página | Notion → `···` → *Connections* → conecta la integración |
 | «Notion está limitando las peticiones» (429) | Se pasó el límite | Nada. La bandeja lo reintenta sola, respetando el `Retry-After` |
 | «Notion no está respondiendo» (5xx) | Notion caído | Nada. Todo quedó en el teléfono y se manda al volver |
 | «Al puente le faltan sus secretos» (500) | Falta `NOTION_TOKEN` o `TOKENS` | Cloudflare → Settings → Variables |
-| El navegador dice CORS | Tu dominio no está en `ORIGENES` | Agrégalo, separado por comas, sin barra final |
+| El navegador dice CORS, o «puede ser que no haya señal» y sí hay | Tu dominio no está en `ORIGENES` | Agrégalo, separado por comas, sin barra final, **y redespliega el Worker**: guardar la variable no basta. Para distinguirlo de una falla de red de verdad, mira si la respuesta trae `Access-Control-Allow-Origin`: si no la trae, es esto |
 | «Esa fila cambió en Notion» | Alguien la editó al mismo tiempo | La pantalla de conflictos te enseña las dos y tú eliges |
 | Notion rechaza el alta y nombra una propiedad | Falta crearla a mano en la base | Ajustes → *Revisar el esquema* → créala con ese nombre y ese tipo |
 | «Este teléfono no puede dar de alta la venta» | El token es de fabricación o de pagos | Se da de alta desde el de Dirección. Desde ese ya puedes mover la obra |
+
+---
+
+## Un teléfono perdido, y por qué el JSON se guarda
+
+**Guarda el JSON de los tres tokens en un gestor de contraseñas el día que lo generes.** La
+pantalla de Ajustes ya lo pide con esas palabras, y no es higiene: es la diferencia entre dos
+minutos y una tarde.
+
+En Cloudflare, `TOKENS` va como **Secret**, y un Secret **no se puede volver a leer** desde el
+panel. Se puede sobrescribir, no leer. Los tres tokens se ven **una sola vez**, cuando se
+generan.
+
+Así que:
+
+- **Con el JSON guardado**, revocar el token de un teléfono perdido es borrar su renglón —o
+  cambiarle el rol por cualquier cosa— pegar el JSON y **Deploy**. Los otros dos teléfonos ni
+  se enteran. El Worker ya lo maneja: una entrada borrada da el 401 de siempre, y un rol que
+  no existe da un 500 que lo nombra.
+- **Sin el JSON**, hay que **regenerar los tres**, pegar el JSON nuevo y repartirlo. Eso es un
+  momento coordinado con las tres personas juntas, no algo que se haga a lo largo de la
+  semana — y suele tocar justo cuando alguien acaba de perder un teléfono.
+
+**No hay caducidad automática y es a propósito.** Un token que vence solo es una app que un día
+deja de sincronizar sin nadie de guardia, en un taller donde la única persona que sabe repegar
+el JSON puede estar arriba de una escalera. Cambiar una pérdida rara por una falla programada
+es mal negocio aquí.
+
+---
+
+## Lo que cada rol puede LEER, que no es lo mismo que lo que puede escribir
+
+La lista blanca de escritura estaba desde el principio. La de lectura no existía: `/jalar`
+devolvía la fila entera a cualquier rol, así que con el token de fabricación —el que este
+Worker presume de que no toca el dinero— un `curl` de una línea se bajaba el subtotal, el
+anticipo, las comisiones y la cuenta de cobro de todas las ventas.
+
+Ahora `/jalar` manda **solo lo que el espejo usa**: el folio, el id de la página, el estatus,
+la cuenta, el pago pendiente, la comisión restante y el sello de edición. La lista no salió de
+una opinión sobre qué debería ver cada quien, sino de leer qué consume el cliente —`deNotion`
+usa seis campos y `bajar` añade el sello, y nada más—, así que **no cambia una sola pantalla**:
+lo que se quitó cruzaba la red para que el navegador lo tirara.
+
+Los importes crudos —`Anticipo`, `Liquidacion`, `Precio Subtotal`, `Abono Comision`,
+`Comisiones`, `Precio Neto `— ya no salen de Notion por ninguno de los tres tokens.
+
+**Ojo con lo que esto NO arregla:** las filas que un teléfono ya bajó siguen en su IndexedDB.
+Para limpiarlas hay que borrar los datos del sitio en ese aparato y volver a sincronizar, con
+respaldo previo.
 
 ---
 

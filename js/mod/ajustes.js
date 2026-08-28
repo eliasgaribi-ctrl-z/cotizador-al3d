@@ -579,6 +579,13 @@ function cardPuente() {
         '<button type="button" class="btn btn-gho" data-act="puente-usar-token" data-rol-tok="' + r + '">' +
         'Usar el de ' + esc(Prefs.ROL_NOMBRE[r]) + '</button>').join('') +
       '</div>' +
+      '<p class="pf-nota"><strong>Guarda este JSON completo en tu gestor de contraseñas ' +
+      'antes de salir de esta pantalla.</strong> No es una recomendación de higiene: es lo ' +
+      'único que hace barata la revocación. Con el JSON guardado, quitarle el acceso a un ' +
+      'teléfono perdido es borrar su renglón y volver a desplegar el Worker. Sin él no se ' +
+      'puede, porque en Cloudflare TOKENS va como <em>Secret</em> y un Secret no se vuelve a ' +
+      'leer nunca desde el panel: hay que regenerar los tres y visitar los tres aparatos, ' +
+      'coordinando a tres personas en el peor momento posible.</p>' +
       '<p class="pf-nota">Se ven una sola vez: al salir de esta pantalla se olvidan. No se ' +
       'guardan en ningún lado más que en la variable del Worker y en el teléfono de cada ' +
       'quien, y no entran en el respaldo.</p>';
@@ -1047,7 +1054,7 @@ async function jalar() {
 function generarTokens() {
   TOKS = Puente.tokensNuevos();
   pintar();
-  toast('Tres tokens nuevos. Pega el JSON en la variable TOKENS del Worker.', '', 5600);
+  toast('Tres tokens nuevos. Copia el JSON al gestor de contraseñas ANTES de salir, y pégalo en la variable TOKENS del Worker.', '', 7000);
 }
 
 /** Mete en el campo el token del rol que le toca a ESTE teléfono. No lo guarda: lo escribe,
