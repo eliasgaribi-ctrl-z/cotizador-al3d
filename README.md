@@ -306,6 +306,38 @@ Si se borra el tercero es peor, porque no se nota: GitHub vuelve a pasar todo po
 
 Si el celular sigue mostrando la versión anterior, es la caché: recargar forzando o abrir la liga con `?v=2` al final. La copia local no estorba a esto —pide siempre la versión del servidor primero y solo usa la guardada cuando no hay red—, así que publicar y recargar alcanza.
 
+## Publicar en Cloudflare, y la seguridad
+
+El sitio se sirve hoy desde GitHub Pages, y ahí **no se puede poner ni una sola cabecera**. Por
+eso lleva dos años sin política de contenido, sin HSTS, enmarcable desde cualquier página del
+mundo e indexable por Google. No era descuido: no se podía. En Cloudflare Pages sí, y ya está
+escrito: `_headers` en la raíz trae la política y las seis cabeceras, con el motivo de cada
+línea al lado.
+
+Tres documentos, y conviene leerlos en este orden:
+
+- **`docs/CLOUDFLARE.md`** — la mudanza entera, en el orden en que hay que hacerla, desde el
+  navegador y sin terminal. Lo que más importa de ese documento no es la configuración del
+  panel: es que **el navegador guarda por origen**, y `github.io` y `pages.dev` son dos. El
+  historial, los folios, la agenda y el libro del almacén **no cruzan solos**, y lo que esté
+  sin mandar a Notion no entra en ningún respaldo. Hay un procedimiento teléfono por teléfono
+  para que nadie descubra eso con la app nueva instalada y la vieja ya borrada. Y el orden que
+  no se puede invertir: `ORIGENES` del Worker con los **dos** dominios antes de mover a nadie.
+- **`docs/SEGURIDAD.md`** — la auditoría. 99 hallazgos que sobrevivieron a un juez adversarial,
+  ordenados por lo que hay que hacer y no por dónde aparecieron, más lo que se revisó y está
+  bien —para no volver a auditarlo— y lo que se refutó, para que nadie lo reviva.
+- **`puente/ENDURECIMIENTO.md`** — diez parches al Worker, cada uno con su antes, su después y
+  si rompe alguna de las dos pruebas que lo cubren. **No están aplicados a propósito**: el
+  Worker no se despliega desde este repositorio y el primero de ellos, sin `ORIGENES` puesta
+  antes, deja a los tres teléfonos sin sincronizar.
+
+Y dos pruebas nuevas vigilan que la política y el código no se separen, porque una CSP a la que
+le falta un origen **no da error de red, no pinta un aviso y no aparece en ningún log** —el mapa
+sale gris y quien está enfrente supone que no hay señal—:
+
+    pruebas/cabeceras.mjs           las dos listas, en los dos sentidos
+    pruebas/navegador/csp.mjs       Chromium, con las cabeceras reales, cazando violaciones
+
 ## Pendientes
 
 Lo que se sabe que falta, escrito aquí para no tener que buscarlo a media frase en otra

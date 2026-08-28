@@ -75,9 +75,11 @@
   #   worker-src blob:            pdf.js, cuando su worker vive en otro dominio, se
   #                               arma un envoltorio en un Blob. Sin esto el lector
   #                               de PDF cae al hilo principal y congela la pantalla.
-  #   child-src                   lo mismo que worker-src y frame-src, repetido para
-  #                               los Safari anteriores al 15.4, que no entienden
-  #                               `worker-src` y caen a esta.
+  #   child-src 'self' blob:      solo por los Safari anteriores al 15.4, que no
+  #                               entienden `worker-src` y caen a esta. Lleva lo
+  #                               mínimo para que el worker de pdf.js siga armándose:
+  #                               lo de los marcos ya lo dice `frame-src`, que esos
+  #                               Safari sí entienden.
   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org https://*.basemaps.cartocdn.com; connect-src 'self' blob: data: https://openrouter.ai https://api.groq.com https://generativelanguage.googleapis.com https://www.googleapis.com https://accounts.google.com https://nominatim.openstreetmap.org https://*.workers.dev; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' blob: data: https://accounts.google.com; manifest-src 'self'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
 
   # ── El resto ───────────────────────────────────────────────────────────────
@@ -117,9 +119,12 @@
   Permissions-Policy: accelerometer=(), autoplay=(), browsing-topics=(), camera=(), display-capture=(), encrypted-media=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()
 
   # El cotizador es una herramienta interna con nombres, teléfonos y direcciones de
-  # clientes dentro. No tiene por qué salir en una búsqueda de Google. `robots.txt`
-  # dice lo mismo, pero esta cabecera es la que obedecen los buscadores cuando alguien
-  # llega al archivo por una liga directa.
+  # clientes dentro. No tiene por qué salir en una búsqueda de Google. Y ESTA es la
+  # cabecera que lo consigue, no `robots.txt`: por eso `robots.txt` dice `Allow`, que
+  # parece lo contrario de lo que debería decir y no lo es. Un buscador que obedece un
+  # `Disallow: /` nunca pide la página, así que nunca lee este `noindex` — y la URL
+  # puede acabar en los resultados como una liga pelada si alguien la enlaza. Las dos
+  # formas de pedir «no me indexes» se estorban entre sí, y esta es la que funciona.
   X-Robots-Tag: noindex, nofollow
 
 # ── Caché ────────────────────────────────────────────────────────────────────
