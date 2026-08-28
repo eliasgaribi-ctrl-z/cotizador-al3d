@@ -163,6 +163,15 @@ for (const [directiva, valor, porque] of EXIGIDAS) {
 if (fuentes('default-src').includes("'self'")) bien("default-src 'self' — lo que no se nombra, no se carga");
 else mal("falta `default-src 'self'`: lo que ninguna directiva nombre quedaría permitido");
 
+/* Esta se comprueba AQUÍ y no en la prueba de navegador, y la razón está escrita en
+   pruebas/navegador/csp.mjs: aquella sirve por http para no depender de un certificado, y
+   sobre http esta directiva sola tumba la instalación del service worker. Se le quita allá
+   y se exige aquí, que es donde de verdad cuenta. Sobre https no asciende nada y no cuesta
+   nada; lo que tapa es el día que alguien enlace el sitio con http:// desde un WhatsApp. */
+if (/(^|;)\s*upgrade-insecure-requests\s*(;|$)/.test(CSP)) bien('upgrade-insecure-requests — nada del sitio se pide por http');
+else mal('falta `upgrade-insecure-requests`: una liga http:// mandada por WhatsApp pediría\n' +
+         '      subrecursos en claro en vez de ascenderlos.');
+
 /* ---------------------------------------------------------------------------
    3. Los esquemas que la app necesita de verdad
    --------------------------------------------------------------------------- */
@@ -173,7 +182,13 @@ const ESQUEMAS = [
   ['frame-src',  'data:', 'ese mismo visor acepta `data:application/pdf;` (urlPdfSegura, index.html:3825)'],
   ['img-src',    'blob:', 'las fotos y planos que se cargan para analizar con IA'],
   ['img-src',    'data:', 'el logotipo que sube el usuario y los iconos incrustados'],
+  ['connect-src','data:', 'aiTraerDeUrl (index.html:7223) le hace fetch a una imagen arrastrada como data: URI'],
 ];
+/* Y la que se cierra del todo, que también es una decisión que alguien puede deshacer sin
+   querer: no hay un solo <video>, <audio> ni `new Audio` en el repositorio. */
+if (fuentes('media-src').includes("'none'")) bien("media-src 'none' — la app no reproduce nada, así que no se hereda de default-src");
+else mal("`media-src` debería ser 'none': no hay <video>, <audio> ni `new Audio` en el repo.\n" +
+         '      Si se agregó alguno, di cuál aquí y ajústala.');
 for (const [directiva, esquema, porque] of ESQUEMAS) {
   if (fuentes(directiva).includes(esquema)) bien(`${directiva} permite ${esquema}`);
   else mal(`\`${directiva}\` no permite \`${esquema}\`: ${porque}`);
@@ -288,6 +303,23 @@ if (coop && coop[1].toLowerCase() === 'same-origin')
       '      Rompe dos: el popup de Google que devuelve el token del calendario, y la pestaña del PDF.\n' +
       '      Lo que se quiere aquí es `same-origin-allow-popups`.');
 else bien('COOP deja vivir los popups: el de Google Identity y el del PDF');
+
+/* ---------------------------------------------------------------------------
+   7. robots.txt y la cabecera tienen que apuntar al mismo lado
+   --------------------------------------------------------------------------- */
+console.log('\nrobots.txt y X-Robots-Tag');
+const robots = leer('robots.txt');
+const pideNoindex = /X-Robots-Tag:.*noindex/i.test(HEADERS);
+const prohibeRastreo = /^\s*Disallow:\s*\/\s*$/mi.test(robots);
+if (pideNoindex && prohibeRastreo)
+  mal('`robots.txt` dice `Disallow: /` y `_headers` dice `noindex`, y se anulan: el buscador que\n' +
+      '      obedece el Disallow nunca pide la página, así que nunca ve el noindex — y la URL puede\n' +
+      '      acabar en los resultados como liga pelada si alguien la enlaza. Deja rastrear y que el\n' +
+      '      noindex haga el trabajo, o quita el noindex; las dos juntas dan lo contrario de lo que\n' +
+      '      se quería.');
+else if (pideNoindex && robots) bien('robots.txt deja rastrear para que el `noindex` de la cabecera se llegue a leer');
+else if (!robots) mal('no existe robots.txt');
+else bien('robots.txt y las cabeceras no se contradicen');
 
 console.log(fallos ? '\n' + fallos + ' FALLO(S)' : '\nLa CSP y el código dicen lo mismo.');
 process.exit(fallos ? 1 : 0);

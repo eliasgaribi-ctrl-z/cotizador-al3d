@@ -1,16 +1,20 @@
 # El cotizador es una herramienta interna de AL3D. Adentro hay nombres, teléfonos y
 # direcciones de clientes, y precios que no son públicos. No tiene por qué salir en una
-# búsqueda de Google, y hasta ahora salía: GitHub Pages no permitía poner este archivo
-# con efecto real ni la cabecera que lo acompaña.
+# búsqueda de Google, y hasta ahora salía: GitHub Pages no permitía poner la cabecera que
+# lo impide, y este archivo solo no alcanza.
 #
-# Esto no es una medida de seguridad y no se debe leer como tal: robots.txt le pide a los
-# buscadores que se abstengan, y los buscadores serios obedecen. Quien quiera entrar,
-# entra igual: la URL es pública. Lo que de verdad guarda los datos es que los datos NO
-# ESTÁN AQUÍ — viven en el teléfono de cada quien, y el único secreto del sistema, el
-# token de Notion, vive en Cloudflare, no en este sitio.
+# Y por eso este archivo dice `Allow`, que es justo lo contrario de lo que parece que
+# debería decir. La razón es que las dos formas de pedir «no me indexes» se estorban entre
+# sí: un buscador que obedece un `Disallow: /` NUNCA PIDE la página, así que nunca ve la
+# cabecera `X-Robots-Tag: noindex` que sí la saca del índice — y una URL bloqueada por
+# robots.txt puede acabar en los resultados como una liga pelada, sin título ni descripción,
+# si alguien la enlaza desde otro lado. O sea que `Disallow: /` da lo contrario de lo que se
+# quería. Dejar rastrear y contestar `noindex` en la cabecera sí lo da.
 #
-# La cabecera `X-Robots-Tag: noindex, nofollow` de `_headers` dice lo mismo y es la que
-# obedecen cuando alguien llega por una liga directa en vez de por la raíz.
+# Nada de esto es una medida de seguridad y no se debe leer como tal. Quien quiera entrar,
+# entra: la URL es pública. Lo que de verdad guarda los datos es que los datos NO ESTÁN AQUÍ
+# —viven en el teléfono de cada quien— y que el único secreto del sistema, el token de
+# Notion, vive en el Worker de Cloudflare y no en este sitio.
 
 User-agent: *
-Disallow: /
+Allow: /

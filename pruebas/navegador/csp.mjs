@@ -54,6 +54,26 @@ function bloques() {
 }
 const BLOQUES = bloques();
 
+/* `upgrade-insecure-requests` se le quita a la política ANTES de servirla, y solo aquí.
+   Este servidor habla http en 127.0.0.1 porque una prueba que necesita generar un
+   certificado deja de correr con «node y nada más», que es la regla de pruebas/correr.sh.
+   Y sobre http esa directiva sola hace fallar la instalación del service worker: Chromium
+   asciende a https los `fetch` que el worker hace desde dentro, este servidor no habla
+   https, `addAll` rechaza, el catch de sw.js:126 borra la caché entera y la plataforma se
+   queda sin nada guardado. Cero de 34.
+
+   Se comprobó que es artefacto de la prueba y NO un problema de la política: sirviendo lo
+   mismo por https con un certificado que el navegador acepta —que es como sirve Cloudflare
+   Pages, que no habla http— la CSP completa, `upgrade-insecure-requests` incluida, deja los
+   34 archivos guardados. Sobre https no hay nada que ascender.
+
+   La directiva no se pierde de vista por quitarla aquí: `pruebas/cabeceras.mjs` comprueba
+   que siga escrita en `_headers`, que es donde importa. */
+for (const b of BLOQUES)
+  for (const c of b.cabeceras)
+    if (/^content-security-policy$/i.test(c[0]))
+      c[1] = c[1].split(';').map(x => x.trim()).filter(x => x !== 'upgrade-insecure-requests').join('; ');
+
 function casa(patron, ruta) {
   if (patron === ruta) return true;
   if (patron.endsWith('/*')) return ruta.startsWith(patron.slice(0, -1));
@@ -70,8 +90,16 @@ const TIPOS = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.txt': 'text/plain; charset=utf-8',
 };
 
+/* El servidor imita a Cloudflare Pages, no a un servidor de archivos cualquiera, y la
+   diferencia no es cosmética: Pages sirve `plataforma.html` en `/plataforma` y manda un 308
+   de la ruta con extensión a la limpia. Servir plano aquí probaría un espacio de URLs que
+   Pages nunca va a producir, y las reglas de caché de `_headers` —que se escriben contra las
+   rutas limpias— quedarían sin probar. */
 const servidor = createServer((req, res) => {
   let ruta = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  if (ruta === '/index.html') { res.writeHead(308, { Location: '/' }); res.end(); return; }
+  if (ruta.endsWith('.html')) { res.writeHead(308, { Location: ruta.slice(0, -5) }); res.end(); return; }
+  if (!extname(ruta) && !ruta.endsWith('/') && existsSync(join(RAIZ, ruta + '.html'))) ruta += '.html';
   if (ruta.endsWith('/')) ruta += 'index.html';
   /* Sin esto, cualquiera de las pruebas podría pedir ../../etc/passwd. Es un servidor de
      pruebas y aun así se cierra: un servidor de pruebas es el que acaba corriendo en la
@@ -81,7 +109,11 @@ const servidor = createServer((req, res) => {
     res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('404'); return;
   }
   const cabeceras = { 'Content-Type': TIPOS[extname(abs)] || 'application/octet-stream' };
-  for (const b of BLOQUES) if (casa(b.patron, ruta)) for (const [k, v] of b.cabeceras) cabeceras[k] = v;
+  /* Las reglas se buscan por la ruta que pidió el visitante, no por el archivo que se acabó
+     leyendo: en Pages `/plataforma` sirve `plataforma.html` y la regla que aplica es la de
+     `/plataforma`. Buscar por el archivo daría un verde que en producción no existe. */
+  const pedida = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  for (const b of BLOQUES) if (casa(b.patron, pedida)) for (const [k, v] of b.cabeceras) cabeceras[k] = v;
   res.writeHead(200, cabeceras);
   res.end(readFileSync(abs));
 });
@@ -161,7 +193,7 @@ function resumir(vs) {
    --------------------------------------------------------------------------- */
 console.log('\nEL COTIZADOR con la CSP puesta');
 {
-  const { vistas, errores } = await violaciones(B + '/index.html', async p => {
+  const { vistas, errores } = await violaciones(B + '/', async p => {
     /* El camino que de verdad se usa: los tres datos del cliente, saltar a partidas y
        capturar una. Si la CSP hubiera matado el JavaScript inline, nada de esto pasaría. */
     await p.fill('#f-cli', 'Farmacia San Juan');
@@ -191,9 +223,9 @@ console.log('\nEL COTIZADOR con la CSP puesta');
      lleva por delante los bloques que faltan— y este es justo el archivo que va a correr
      alguien que acaba de tocar la política. */
   try {
-    await p.goto(B + '/index.html', { waitUntil: 'load' });
+    await p.goto(B + '/', { waitUntil: 'load' });
     await p.evaluate(() => { try { localStorage.clear(); } catch (_) {} });
-    await p.goto(B + '/index.html', { waitUntil: 'load' });
+    await p.goto(B + '/', { waitUntil: 'load' });
     await p.waitForTimeout(1200);
     await p.fill('#f-cli', 'Farmacia San Juan');
     await p.fill('#f-tel', '33 1234 5678');
@@ -224,7 +256,7 @@ console.log('\nEL COTIZADOR con la CSP puesta');
    --------------------------------------------------------------------------- */
 console.log('\nLA PLATAFORMA con la CSP puesta');
 {
-  const { vistas, errores } = await violaciones(B + '/plataforma.html', async p => {
+  const { vistas, errores } = await violaciones(B + '/plataforma', async p => {
     /* El mapa es el que más orígenes toca: Leaflet desde vendor/, las teselas de OSM y,
        si alguien cambió el proveedor, las de CARTO. */
     for (const t of ['Mapa', 'Agenda', 'Material', 'Ajustes']) {
@@ -246,7 +278,7 @@ console.log('\nLA PLATAFORMA con la CSP puesta');
 console.log('\nEL SERVICE WORKER');
 {
   const p = await ctx.newPage();
-  await p.goto(B + '/plataforma.html', { waitUntil: 'load' });
+  await p.goto(B + '/plataforma', { waitUntil: 'load' });
   await p.waitForTimeout(2500);
   const reg = await p.evaluate(async () => {
     try {
@@ -266,7 +298,7 @@ console.log('\nEL SERVICE WORKER');
 console.log('\nLAS CABECERAS QUE SALIERON POR EL CABLE');
 {
   const p = await ctx.newPage();
-  const r = await p.goto(B + '/index.html', { waitUntil: 'load' });
+  const r = await p.goto(B + '/', { waitUntil: 'load' });
   const h = r.headers();
   for (const c of ['content-security-policy', 'strict-transport-security', 'x-content-type-options',
                    'x-frame-options', 'referrer-policy', 'permissions-policy']) {
@@ -278,6 +310,68 @@ console.log('\nLAS CABECERAS QUE SALIERON POR EL CABLE');
     bien('sw.js llegó con Cache-Control que obliga a revalidar');
   else mal('sw.js llegó SIN Cache-Control de revalidación: un teléfono se puede quedar con una\n' +
            '      versión vieja del service worker y no hay forma de alcanzarlo después');
+  await p.close();
+}
+
+/* ---------------------------------------------------------------------------
+   5. Sin señal, con las URL limpias de Pages
+   --------------------------------------------------------------------------- */
+/* Este es el bloque que justifica todo el archivo. La mudanza a Cloudflare cambia las URL
+   —`/plataforma` en vez de `/plataforma.html`— y el service worker guardó sus archivos bajo
+   las viejas. Si la portada quedara fuera de alcance por el cambio de nombre, la app dejaría
+   de abrir sin señal SIN NINGÚN AVISO: instala bien, se ve bien, y falla el día que alguien
+   está en un local sin cobertura. Que es el día para el que existe. */
+console.log('\nSIN SEÑAL, con las URL que sirve Pages');
+{
+  const p = await ctx.newPage();
+  await p.goto(B + '/plataforma', { waitUntil: 'load' });
+  await p.waitForTimeout(4000);
+  /* Se espera a que la precarga TERMINE en vez de leer a los cuatro segundos: el conjunto de
+     la plataforma son 34 archivos y medirlo a media instalación da un número que no significa
+     nada y que además cambia entre corridas. Se sondea hasta que deje de crecer. */
+  const esperados = (readFileSync(join(RAIZ, 'sw.js'), 'utf8')
+    .match(/const APP_FILES = \[([\s\S]*?)\];/) || [, ''])[1].match(/'[^']+'/g).length;
+  let guardados = 0;
+  for (let i = 0; i < 30; i++) {
+    const n = await p.evaluate(async () => {
+      const k = (await caches.keys()).find(x => x.startsWith('al3d-app-'));
+      return k ? (await (await caches.open(k)).keys()).length : 0;
+    });
+    if (n >= esperados) { guardados = n; break; }
+    guardados = n;
+    await p.waitForTimeout(500);
+  }
+  if (guardados >= esperados)
+    bien(`el service worker guardó los ${esperados} archivos de la plataforma con las URL limpias`);
+  else
+    mal(`la plataforma se guardó a medias: ${guardados} de ${esperados} archivos de APP_FILES.\n` +
+        '      Con el conjunto incompleto sw.js borra la caché y la plataforma se queda sin abrir\n' +
+        '      sin señal, y lo único que queda es un console.warn que nadie mira.');
+  await p.goto(B + '/', { waitUntil: 'load' });
+  await p.waitForTimeout(2500);
+
+  await ctx.setOffline(true);
+  try {
+    await p.goto(B + '/plataforma', { waitUntil: 'load' });
+    const texto = await p.locator('body').innerText().catch(() => '');
+    const titulo = await p.title();
+    if (/Sin conexión y sin copia/.test(texto) || !titulo)
+      mal('la plataforma NO abre sin señal en `/plataforma`. El service worker guardó la portada\n' +
+          '      como `/plataforma.html` y la URL que sirve Pages es la limpia: si el respaldo de\n' +
+          '      navegación de sw.js dejara de alcanzarla, la app deja de abrir en la calle.');
+    else bien(`la plataforma abre sin señal en /plataforma («${titulo}»)`);
+  } catch (e) {
+    mal('la plataforma no cargó sin señal en `/plataforma`: ' + String(e.message).split('\n')[0]);
+  }
+  try {
+    await p.goto(B + '/', { waitUntil: 'load' });
+    const titulo = await p.title();
+    titulo ? bien(`el cotizador abre sin señal en / («${titulo}»)`)
+           : mal('el cotizador no abrió sin señal en `/`');
+  } catch (e) {
+    mal('el cotizador no cargó sin señal en `/`: ' + String(e.message).split('\n')[0]);
+  }
+  await ctx.setOffline(false);
   await p.close();
 }
 

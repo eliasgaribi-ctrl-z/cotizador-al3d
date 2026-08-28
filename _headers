@@ -60,6 +60,13 @@
   #                               nombrar una sola. Si algún día el puente se mueve a
   #                               un dominio propio (puente.al3d.mx), hay que AGREGARLO
   #                               a esta línea o la sincronización muere en silencio.
+  #   data: en connect-src        `aiTraerDeUrl` (index.html:7223) acepta que le arrastren
+  #                               una imagen cuyo src es un data: URI —pasa al arrastrarla
+  #                               desde un correo o desde otra pestaña— y le hace fetch. No
+  #                               abre ninguna vía de fuga: del otro lado de un data: no hay
+  #                               red, solo bytes que ya estaban en la página.
+  #   media-src 'none'            no hay un solo <video>, <audio> ni `new Audio` en el repo,
+  #                               así que la directiva se cierra del todo en vez de heredar.
   #   blob: y data:               el PDF que se genera, el que manda el cliente para
   #                               analizar, el logotipo subido y el respaldo que se
   #                               descarga. `frame-src` los lleva por el visor de
@@ -71,7 +78,7 @@
   #   child-src                   lo mismo que worker-src y frame-src, repetido para
   #                               los Safari anteriores al 15.4, que no entienden
   #                               `worker-src` y caen a esta.
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org https://*.basemaps.cartocdn.com; connect-src 'self' blob: https://openrouter.ai https://api.groq.com https://generativelanguage.googleapis.com https://www.googleapis.com https://accounts.google.com https://nominatim.openstreetmap.org https://*.workers.dev; worker-src 'self' blob:; child-src 'self' blob: data: https://accounts.google.com; frame-src 'self' blob: data: https://accounts.google.com; manifest-src 'self'; media-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org https://*.basemaps.cartocdn.com; connect-src 'self' blob: data: https://openrouter.ai https://api.groq.com https://generativelanguage.googleapis.com https://www.googleapis.com https://accounts.google.com https://nominatim.openstreetmap.org https://*.workers.dev; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' blob: data: https://accounts.google.com; manifest-src 'self'; media-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
 
   # ── El resto ───────────────────────────────────────────────────────────────
   #
@@ -103,8 +110,10 @@
   # Se apaga lo que la app no usa. Se verificó leyendo el código, no de memoria: no
   # hay `navigator.geolocation` ni `getUserMedia` en ninguna parte —el pin del mapa
   # entra por link de Google Maps o arrastrado, y las fotos por <input type=file>,
-  # que esto no toca—. `clipboard-write` NO se apaga: «Copiar fila para Notion» y el
-  # generador de los tres tokens del puente lo necesitan.
+  # que esto no toca—. Lo que SÍ se usa y por eso no aparece en la lista: `clipboard-write`
+  # («Copiar fila para Notion», el generador de los tres tokens), `clipboard-read`
+  # (js/mod/mapa.js:946, pegar un link de Maps) y `web-share` (js/nucleo/ui.js:348, mandar el
+  # PDF por WhatsApp desde el celular). Apagar cualquiera de las tres rompe algo que se usa.
   Permissions-Policy: accelerometer=(), autoplay=(), browsing-topics=(), camera=(), display-capture=(), encrypted-media=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()
 
   # El cotizador es una herramienta interna con nombres, teléfonos y direcciones de
@@ -131,21 +140,42 @@
 # deja escrito para que ninguna regla de caché de Cloudflare lo pise después.
 /sw.js
   Cache-Control: public, max-age=0, must-revalidate
-  Service-Worker-Allowed: /
 
 # Los manifiestos deciden cómo se instala la app en la pantalla de inicio. Cambian poco
 # y cuando cambian tienen que llegar.
 /*.webmanifest
   Cache-Control: public, max-age=0, must-revalidate
 
-# El HTML y el JavaScript: revalidar siempre, por lo dicho arriba de las huellas.
-/*.html
+# El HTML. Cloudflare Pages sirve `plataforma.html` en `/plataforma` y manda un 308 de la
+# ruta con extensión a la limpia, así que una regla `/*.html` sola no casaría con ninguna de
+# las URL que la gente abre. Van las cuatro: las limpias porque son las que se sirven, y las
+# de extensión porque GitHub Pages sigue publicando en paralelo durante la mudanza.
+#
+# (Ese 308 se probó antes de escribir esto, porque es el que asusta: se sirvió el sitio con
+# URL limpias y el service worker guardó sus 34 archivos completos y la plataforma abrió sin
+# señal. `cache.addAll` acepta una respuesta que vino de una redirección; lo que rechaza es
+# una respuesta `opaqueredirect`, que es otra cosa y aquí no aparece.)
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/plataforma
+  Cache-Control: public, max-age=0, must-revalidate
+
+/plataforma.html
   Cache-Control: public, max-age=0, must-revalidate
 
 /js/*
   Cache-Control: public, max-age=0, must-revalidate
 
 /css/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+# `datos/semilla.json` está en APP_FILES: es el libro de costos de arranque del almacén y
+# cambia cuando cambian los precios del proveedor.
+/datos/*
   Cache-Control: public, max-age=0, must-revalidate
 
 # Leaflet y sus imágenes están fijados a una versión que se copió a mano y no cambia
@@ -156,18 +186,10 @@
 
 # ── Lo que se publica pero no es la app ──────────────────────────────────────
 #
-# Cloudflare Pages sirve el repositorio entero, así que la documentación, las pruebas,
-# las herramientas y el código del Worker quedan a la vista igual que en GitHub. No es
-# una fuga —el repositorio es público y ahí están de todos modos— pero tampoco tienen
-# por qué estar en el índice de Google atados al dominio de la herramienta.
-/docs/*
-  X-Robots-Tag: noindex, nofollow
-
-/pruebas/*
-  X-Robots-Tag: noindex, nofollow
-
-/herramientas/*
-  X-Robots-Tag: noindex, nofollow
-
-/puente/*
-  X-Robots-Tag: noindex, nofollow
+# `docs/`, `pruebas/`, `herramientas/` y `puente/` se publican con el sitio porque Pages
+# sirve el repositorio entero, igual que GitHub Pages. Aquí no hay nada que agregar y es a
+# propósito: el `X-Robots-Tag: noindex` del bloque `/*` de arriba ya los cubre —cubre todo—,
+# y repetirlo en cuatro bloques más no cambiaría un solo byte de ninguna respuesta. Lo único
+# que de verdad los sacaría del sitio es un Build command que copie a un directorio de
+# salida nada más lo que es la app; el día que se ponga, tiene que copiar también `_headers`
+# y `robots.txt`, porque Pages los lee del directorio de SALIDA y no de la raíz.

@@ -740,7 +740,14 @@ const dato = (etiqueta, valorHTML, esHtml) =>
    pin donde el cliente lo puso. Un `search?query=` con el texto de una dirección de
    Tlajomulco cae a media colonia, y ahí es donde la camioneta da vueltas. */
 function urlMapa(p) {
-  if (p.maps_url) return p.maps_url;
+  /* Solo http y https, igual que `linkMapa` de js/mod/agenda.js:566 — y esta línea faltaba
+     justo aquí, que es el otro de los dos sitios donde el mismo dato acaba en un `href`.
+     `maps_url` lo pega a mano el usuario en el cotizador, puede llegar de un respaldo
+     restaurado y puede bajar de Notion por el puente: un `javascript:` ahí se convierte en
+     código al tocar «Ver en Maps». `esc()` no lo detiene, y no es su culpa: escapa HTML, y
+     un href es un contexto de URL. Del teclado nadie lo escribe a propósito; de un archivo
+     que viajó por WhatsApp, sí. */
+  if (/^https?:\/\//i.test(String(p.maps_url || ''))) return String(p.maps_url);
   if (p.lat !== null && p.lng !== null && isFinite(p.lat) && isFinite(p.lng)) {
     return 'https://www.google.com/maps/search/?api=1&query=' + p.lat + ',' + p.lng;
   }
