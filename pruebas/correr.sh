@@ -49,7 +49,19 @@ if [ "$1" = "--navegador" ] || [ "$NAVEGADOR" = "1" ]; then
     else PUERTO="$PUERTO" node "$f" || ok=1; fi
     [ "$ok" -eq 0 ] || fallos=$((fallos+1))
   done
-  [ -f /tmp/al3d-srv.pid ] && kill "$(cat /tmp/al3d-srv.pid)" 2>/dev/null
+  # El `|| true` no es adorno y costó encontrarlo. Este archivo corre con `set -e`, y la
+  # regla de POSIX es que -e se ignora dentro de una lista `&&` SALVO en su último comando.
+  # Aquí el último era el `kill`: cuando el servidor ya se había ido solo —`npx` termina y
+  # deja huérfano al servidor, así que el pid guardado apunta a un proceso muerto— el kill
+  # devolvía 1, `set -e` mataba el guion en esa línea, y la tanda salía con código 1 SIN
+  # imprimir «Todas las pruebas pasan» y sin una sola prueba fallida.
+  #
+  # Lo que lo hacía caro es que dependía de si al servidor le daba tiempo de morirse: la
+  # misma tanda, con las mismas pruebas en verde, unas veces decía que sí y otras que no.
+  # Un runner que reporta fallo cuando todo pasó es peor que uno que no reporta nada,
+  # porque enseña a ignorar el código de salida — y el código de salida es lo único que
+  # mira quien corre esto antes de publicar.
+  if [ -f /tmp/al3d-srv.pid ]; then kill "$(cat /tmp/al3d-srv.pid)" 2>/dev/null || true; fi
   rm -f /tmp/al3d-srv.pid
   echo ""
   if [ "$fallos" -gt 0 ]; then
