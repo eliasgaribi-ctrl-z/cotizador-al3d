@@ -1,0 +1,173 @@
+# ============================================================================
+#  LAS CABECERAS QUE CLOUDFLARE PAGES LE PONE A CADA RESPUESTA
+#
+#  Este archivo no hace nada en GitHub Pages. GitHub Pages no deja poner una sola
+#  cabecera: por eso el sitio lleva dos años sirviéndose sin política de contenido,
+#  sin HSTS y enmarcable desde cualquier página del mundo. No era descuido, era que
+#  no se podía. En Cloudflare Pages sí se puede, y esto es lo que se puso.
+#
+#  CÓMO SE LEE: una línea con el patrón de ruta, y debajo las cabeceras indentadas
+#  con dos espacios. Gana la regla MÁS ESPECÍFICA, y las de `/*` se aplican además
+#  de las específicas, no en vez de ellas.
+#
+#  ANTES DE TOCAR LA CSP DE ABAJO, LEE ESTO: cada origen de esa lista está ahí
+#  porque hay una línea de código que lo pide, y está anotada con su archivo y su
+#  número. Quitar uno «porque se ve de más» deja la app en blanco delante de un
+#  cliente, y el navegador no dice qué falta salvo que alguien tenga la consola
+#  abierta. `pruebas/cabeceras.mjs` revisa que esta lista y el código sigan
+#  diciendo lo mismo; córrela antes de publicar.
+# ============================================================================
+
+/*
+  # ── La política de contenido ───────────────────────────────────────────────
+  #
+  # `script-src` lleva 'unsafe-inline' y no es pereza: son TRES cosas distintas
+  # las que lo obligan, y ninguna se quita sin reescribir el cotizador entero.
+  #   1. index.html tiene 267 manejadores `onclick="..."`, `oninput="..."` y demás
+  #      escritos en el HTML. Un nonce no los cubre —los nonces valen para las
+  #      etiquetas <script>, no para los atributos—, y 'unsafe-hashes' pediría las
+  #      267 huellas a mano y volvería a pedirlas con cada cambio.
+  #   2. Todo el JavaScript del cotizador vive en un solo <script> dentro del mismo
+  #      archivo. Son 893 KB: separarlo es otro proyecto.
+  #   3. Y la que no se ve: el PDF (index.html:8784) se arma como una página HTML
+  #      con un <script> adentro que llama a window.print(), se mete en un Blob y se
+  #      abre en otra pestaña. Un documento `blob:` HEREDA la política de quien lo
+  #      creó, así que sin 'unsafe-inline' el PDF abriría y no se imprimiría solo.
+  #
+  # Lo que sigue valiendo con 'unsafe-inline' puesto —y es bastante— son las otras
+  # directivas: `connect-src` dice a dónde puede salir un dato, y esa es la lista
+  # que de verdad importa cuando lo que se teme es que algo se lleve la información
+  # de los clientes; `frame-ancestors` impide que alguien enmarque el cotizador para
+  # robar clics; `base-uri` y `form-action` cierran dos caminos clásicos de secuestro
+  # de formularios; `object-src 'none'` mata Flash, Java y los plugins de PDF viejos.
+  #
+  # Cada origen, con la línea que lo pide:
+  #   cdnjs.cloudflare.com        pdf.js 3.11.174    index.html:10369 y :12082
+  #   accounts.google.com         Google Identity    js/nucleo/gcal.js:46
+  #   fonts.googleapis.com        la hoja de Inter   index.html:15
+  #   fonts.gstatic.com           los archivos .woff2 que pide esa hoja
+  #   tile.openstreetmap.org      teselas del mapa   js/datos/geo.js:131
+  #   *.basemaps.cartocdn.com     el proveedor alterno CARTO, que se elige en
+  #                               Ajustes y por eso tiene que estar aunque hoy
+  #                               nadie lo use            js/datos/geo.js:139
+  #   openrouter.ai / api.groq.com / generativelanguage.googleapis.com
+  #                               los tres proveedores de IA  index.html:7416-7424
+  #   www.googleapis.com          Calendar v3        js/nucleo/gcal.js:48
+  #   nominatim.openstreetmap.org geocodificar       js/datos/geo.js:248
+  #   *.workers.dev               EL PUENTE. Esta es la única entrada floja de la
+  #                               lista y se explica sola: la URL del Worker la pega
+  #                               el usuario en Ajustes, así que aquí no se puede
+  #                               nombrar una sola. Si algún día el puente se mueve a
+  #                               un dominio propio (puente.al3d.mx), hay que AGREGARLO
+  #                               a esta línea o la sincronización muere en silencio.
+  #   blob: y data:               el PDF que se genera, el que manda el cliente para
+  #                               analizar, el logotipo subido y el respaldo que se
+  #                               descarga. `frame-src` los lleva por el visor de
+  #                               index.html:5426, que solo acepta esos dos esquemas
+  #                               (urlPdfSegura, index.html:3825).
+  #   worker-src blob:            pdf.js, cuando su worker vive en otro dominio, se
+  #                               arma un envoltorio en un Blob. Sin esto el lector
+  #                               de PDF cae al hilo principal y congela la pantalla.
+  #   child-src                   lo mismo que worker-src y frame-src, repetido para
+  #                               los Safari anteriores al 15.4, que no entienden
+  #                               `worker-src` y caen a esta.
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org https://*.basemaps.cartocdn.com; connect-src 'self' blob: https://openrouter.ai https://api.groq.com https://generativelanguage.googleapis.com https://www.googleapis.com https://accounts.google.com https://nominatim.openstreetmap.org https://*.workers.dev; worker-src 'self' blob:; child-src 'self' blob: data: https://accounts.google.com; frame-src 'self' blob: data: https://accounts.google.com; manifest-src 'self'; media-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+
+  # ── El resto ───────────────────────────────────────────────────────────────
+  #
+  # HSTS: un año, y SIN `preload`. El preload se pide una vez y se quita en meses,
+  # así que se enciende cuando el dominio definitivo esté decidido, no antes.
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+  # Que el navegador no adivine el tipo de un archivo. Un .json que alguien logre
+  # servir como HTML es un XSS de origen propio.
+  X-Content-Type-Options: nosniff
+
+  # Nadie enmarca el cotizador. `frame-ancestors 'none'` ya lo dice arriba; esto es
+  # para los navegadores que no la entienden.
+  X-Frame-Options: DENY
+
+  # `strict-origin-when-cross-origin` y NO `no-referrer`, a propósito, y está
+  # explicado en js/datos/geo.js:180: la política de uso de OpenStreetMap EXIGE que
+  # el navegador mande un Referer que identifique a la aplicación. Sin él el uso de
+  # las teselas es indebido y pueden cortarlo sin aviso. Esta política manda el
+  # origen —`https://…pages.dev`— y nunca la ruta, que es lo que hacía falta.
+  Referrer-Policy: strict-origin-when-cross-origin
+
+  # `same-origin-allow-popups` y no `same-origin`, también a propósito: la versión
+  # estricta corta el lazo entre una ventana y la que la abrió, y aquí hay dos que
+  # dependen de ese lazo — el popup de Google Identity que devuelve el token del
+  # calendario, y la pestaña del PDF. Con `same-origin` las dos se rompen.
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
+
+  # Se apaga lo que la app no usa. Se verificó leyendo el código, no de memoria: no
+  # hay `navigator.geolocation` ni `getUserMedia` en ninguna parte —el pin del mapa
+  # entra por link de Google Maps o arrastrado, y las fotos por <input type=file>,
+  # que esto no toca—. `clipboard-write` NO se apaga: «Copiar fila para Notion» y el
+  # generador de los tres tokens del puente lo necesitan.
+  Permissions-Policy: accelerometer=(), autoplay=(), browsing-topics=(), camera=(), display-capture=(), encrypted-media=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()
+
+  # El cotizador es una herramienta interna con nombres, teléfonos y direcciones de
+  # clientes dentro. No tiene por qué salir en una búsqueda de Google. `robots.txt`
+  # dice lo mismo, pero esta cabecera es la que obedecen los buscadores cuando alguien
+  # llega al archivo por una liga directa.
+  X-Robots-Tag: noindex, nofollow
+
+# ── Caché ────────────────────────────────────────────────────────────────────
+#
+# La regla de fondo: aquí NINGÚN archivo lleva huella en el nombre. `js/mod/agenda.js`
+# se llama igual antes y después de cambiarlo, así que cualquier caché larga del
+# navegador es un teléfono servido con una versión vieja y sin forma de avisarle.
+# `no-cache` no significa «no guardes»: significa «guarda, pero pregunta antes de
+# usarlo». La respuesta normal es un 304 de doscientos bytes, así que no cuesta nada,
+# y a cambio publicar vuelve a significar publicar.
+#
+# La copia rápida de verdad —la que hace que la app abra sin señal— no es esta: es el
+# service worker, y esa la maneja APP_VERSION.
+
+# sw.js es el que NO se puede equivocar. Es el archivo que decide qué versión ve cada
+# teléfono, y un service worker cacheado es un teléfono congelado en una versión vieja
+# para siempre, sin manera de alcanzarlo. Los navegadores ya lo tratan aparte; esto lo
+# deja escrito para que ninguna regla de caché de Cloudflare lo pise después.
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+  Service-Worker-Allowed: /
+
+# Los manifiestos deciden cómo se instala la app en la pantalla de inicio. Cambian poco
+# y cuando cambian tienen que llegar.
+/*.webmanifest
+  Cache-Control: public, max-age=0, must-revalidate
+
+# El HTML y el JavaScript: revalidar siempre, por lo dicho arriba de las huellas.
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/js/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+/css/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Leaflet y sus imágenes están fijados a una versión que se copió a mano y no cambia
+# sola. Una hora de caché ahorra la revalidación en cada apertura y no arriesga nada:
+# el día que se actualice el vendor, se sube APP_VERSION y el service worker lo trae.
+/vendor/*
+  Cache-Control: public, max-age=3600
+
+# ── Lo que se publica pero no es la app ──────────────────────────────────────
+#
+# Cloudflare Pages sirve el repositorio entero, así que la documentación, las pruebas,
+# las herramientas y el código del Worker quedan a la vista igual que en GitHub. No es
+# una fuga —el repositorio es público y ahí están de todos modos— pero tampoco tienen
+# por qué estar en el índice de Google atados al dominio de la herramienta.
+/docs/*
+  X-Robots-Tag: noindex, nofollow
+
+/pruebas/*
+  X-Robots-Tag: noindex, nofollow
+
+/herramientas/*
+  X-Robots-Tag: noindex, nofollow
+
+/puente/*
+  X-Robots-Tag: noindex, nofollow

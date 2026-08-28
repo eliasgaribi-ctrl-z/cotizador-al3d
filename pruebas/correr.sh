@@ -59,6 +59,9 @@ if [ "$1" = "--navegador" ] || [ "$NAVEGADOR" = "1" ]; then
   echo "Todas las pruebas pasan, las de navegador incluidas."
 else
   echo ""
-  echo "Faltan las 4 de navegador (camino-completo, puente, service-worker y su actualización)."
+  # El número se cuenta, no se escribe: decía «4» cuando ya eran seis, y un recordatorio que
+  # miente sobre cuántas faltan es un recordatorio que se deja de leer.
+  n=$(ls navegador/*.mjs 2>/dev/null | wc -l | tr -d ' ')
+  echo "Faltan las $n de navegador: $(ls navegador/*.mjs 2>/dev/null | sed 's|navegador/||;s|\.mjs||' | tr '\n' ' ')"
   echo "Piden Chromium y un servidor:  pruebas/correr.sh --navegador"
 fi

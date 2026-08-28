@@ -1,0 +1,16 @@
+# El cotizador es una herramienta interna de AL3D. Adentro hay nombres, teléfonos y
+# direcciones de clientes, y precios que no son públicos. No tiene por qué salir en una
+# búsqueda de Google, y hasta ahora salía: GitHub Pages no permitía poner este archivo
+# con efecto real ni la cabecera que lo acompaña.
+#
+# Esto no es una medida de seguridad y no se debe leer como tal: robots.txt le pide a los
+# buscadores que se abstengan, y los buscadores serios obedecen. Quien quiera entrar,
+# entra igual: la URL es pública. Lo que de verdad guarda los datos es que los datos NO
+# ESTÁN AQUÍ — viven en el teléfono de cada quien, y el único secreto del sistema, el
+# token de Notion, vive en Cloudflare, no en este sitio.
+#
+# La cabecera `X-Robots-Tag: noindex, nofollow` de `_headers` dice lo mismo y es la que
+# obedecen cuando alguien llega por una liga directa en vez de por la raíz.
+
+User-agent: *
+Disallow: /
