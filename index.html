@@ -3826,8 +3826,14 @@ const money=n=>'$'+Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,
 
    Ninguno de los doce interpola ya. El dato viaja en un `data-folio`/`data-clave` y el
    manejador lo lee con `this.dataset`, que es un atributo de HTML de principio a fin: ahí
-   esc() SÍ basta, porque el valor no se compila nunca como código. Es el mismo patrón que
-   la plataforma usa con `data-mover` y `data-hoja`, y lo vigila pruebas/enlaces.mjs.
+   esc() SÍ basta, porque el valor no se compila nunca como código. Es la misma idea que la
+   plataforma usa con `data-mover` y `data-hoja` —el dato viaja en un data-* escapado— aunque
+   allá el mecanismo sea delegación y aquí siga siendo un manejador en línea.
+
+   Lo vigilan dos pruebas y conviene saber cuál hace qué: `pruebas/enlaces.mjs` corre en la
+   tanda rápida de node y falla si vuelve a aparecer un `onclick="fn('${…}')"` en este
+   archivo; `pruebas/navegador/inyeccion.mjs` es la de Chromium y es la que de verdad lo
+   demuestra — envenena localStorage como lo haría un respaldo manipulado y toca los botones.
 
    Y no es un caso de laboratorio: los folios los genera folioFmt, pero llegan también de un
    respaldo restaurado —un archivo que viajó por WhatsApp— y las claves de cliente salen del
@@ -4853,18 +4859,33 @@ function _devolverFocoItems(marca){
    que ejecutarla, y de todos modos con un id así ya estaba rota. */
 function sanearIds(arr){
   if(!Array.isArray(arr)) return [];
+  /* DOS pasadas, y la primera no es un lujo. En una sola, al renumerar todavía no se sabe qué
+     ids están tomados MÁS ADELANTE en el mismo arreglo: con `[{id:3},{id:4},{id:null},{id:5}]`
+     y pid en 0, el `null` se lleva el 5 y la última partida conserva el suyo. Dos partidas con
+     el mismo id son dos renglones que se editan a la vez, y `Q.itemsAuth` —indexado por id—
+     les da a las dos el mismo precio autorizado. */
   for(const it of arr){
     if(!it||typeof it!=='object') continue;
     const n=Number(it.id);
-    it.id=(isFinite(n)&&n>0)?n:++pid;
-    if(it.id>pid) pid=it.id;
+    if(isFinite(n)&&n>0&&n>pid) pid=n;
+  }
+  /* Y el `vistos` cubre el duplicado que ya venía en el archivo, que también existe: dos
+     respaldos fusionados a mano, o una versión vieja que no reseteaba el contador. */
+  const vistos=new Set();
+  for(const it of arr){
+    if(!it||typeof it!=='object') continue;
+    const n=Number(it.id);
+    it.id=(isFinite(n)&&n>0&&!vistos.has(n))?n:++pid;
+    vistos.add(it.id);
   }
   return arr;
 }
 
 function renderItems(){
-  /* Red de seguridad: si alguna vez entra una partida por una cuarta puerta, aquí se le
-     quita el filo antes de que su id llegue a un manejador. */
+  /* Red de seguridad: si alguna vez entra una partida por una cuarta puerta, aquí se le quita
+     el filo antes de que su id llegue a un manejador. La misma línea está al principio de
+     `renderAuth`, que es la otra pantalla que mete un id en un manejador y a la que se llega
+     sin pasar por aquí. */
   sanearIds(Q.items);
   const _focoPrevio=_focoDeItems();
   renderAiPreview();
@@ -5615,6 +5636,11 @@ function renderSummary(){
 }
 
 function renderAuth(){
+  /* La pantalla del autorizador interpola `it.id` en sus propios manejadores
+     (`toggleItemAuth`, `updItemAuth`) y se llega a ella sin pasar por `renderItems` — `setRol`
+     la pinta directo. La red de seguridad tiene que estar en las DOS pantallas que meten un id
+     en un manejador, no solo en la de partidas. */
+  sanearIds(Q.items);
   const box=$('authbox');
   const LABELS={borrador:'Borrador',pendiente:'Pendiente de autorización',autorizada:'Autorizada',rechazada:'Rechazada'};
   const badge=`<span class="badge ${Q.estado}"><span class="dot"></span>${LABELS[Q.estado]}</span>`;
@@ -9146,10 +9172,15 @@ function reabrirDeHistorial(folio){
      reimprime tiene que ser idéntico al que el cliente ya tiene en la mano. Solo se
      reponen las partidas que de verdad cambiaron de precio, para no llenar itemsAuth de
      ajustes que nadie hizo. */
-  (e.items||[]).forEach(it=>{
-    const actual=Q.items.find(x=>x.id===it.id);
+  /* Por ÍNDICE y no por id, y es exacto porque `Q.items` es una copia profunda de `e.items` y
+     conserva el orden. Buscar por id con `===` dejó de funcionar en cuanto `sanearIds` empezó
+     a convertir el id a número: la copia queda con `3` y el original del historial sigue con
+     `"3"` si así se guardó, `3 === "3"` es falso, y el importe congelado de esa partida se
+     perdía en silencio — el cliente tiene un precio en la mano y la app enseña otro. */
+  (e.items||[]).forEach((it,i)=>{
+    const actual=Q.items[i];
     if(!actual||it._lt===undefined) return;
-    if(Math.abs(it._lt-lineTotal(actual))>0.01) Q.itemsAuth[it.id]=it._lt;
+    if(Math.abs(it._lt-lineTotal(actual))>0.01) Q.itemsAuth[actual.id]=it._lt;
   });
   if(!Q.precioAuth&&e.neto>0&&Math.abs(e.neto-totals().neto)>0.01) Q.precioAuth=e.neto;
   // Los ids se reutilizan tal cual, así que el contador tiene que quedar por encima
@@ -10433,18 +10464,44 @@ function scLoadImgSrc(src,name,alCargar){
    aperturas no abren ningún PDF. La promesa se guarda para que dos llamadas seguidas —el
    escalador y el vectorizador— no lo bajen dos veces.
 
-   `import()` en vez de un <script>: pdfjs-dist 4.x ya no publica UMD, todo es ESM. Y el
-   mensaje de error dejó de mentir: antes decía «se necesita conexión» porque era cierto;
-   ahora el archivo es del sitio y el service worker lo guarda, así que lo que puede fallar
-   es otra cosa y se dice como otra cosa. */
-let _pdfjs=null;
+   `import()` en vez de un <script>: pdfjs-dist 4.x ya no publica UMD, todo es ESM. */
+let _pdfjs=null, _pdfIntento=0;
 function cargarPdfJs(){
-  if(!_pdfjs) _pdfjs=import('./vendor/pdfjs/pdf.min.mjs').then(m=>{
-    m.GlobalWorkerOptions.workerSrc='./vendor/pdfjs/pdf.worker.min.mjs';
+  if(_pdfjs) return _pdfjs;
+  /* El `?reintento=N` es lo único que hace que un reintento sea un reintento, y costó
+     descubrirlo: el navegador guarda los módulos que FALLARON en su mapa de módulos, así que
+     un `import()` del mismo especificador que ya falló se rechaza al instante y sin volver a
+     salir a la red, durante toda la vida del documento. Poner `_pdfjs=null` no servía de
+     nada. El camino real es el de siempre en esta app: alguien en la calle, sin señal,
+     arrastra el PDF del cliente; falla; vuelve la señal; lo intenta otra vez y sigue
+     fallando, ahora sin motivo visible, hasta cerrar y volver a abrir la app.
+     Una URL distinta esquiva el mapa, y el service worker no se despista porque `plataforma()`
+     hace `match` con `ignoreSearch:true`: la copia guardada sigue casando.
+
+     `new URL(..., document.baseURI)` para el worker, y tampoco es adorno. pdf.js resuelve esa
+     ruta en DOS bases distintas según el camino: `new Worker(ruta)` la resuelve contra el
+     documento, pero su modo de respaldo hace `import(this.workerSrc)` DENTRO de pdf.min.mjs,
+     que es un módulo, así que la resolvería contra `/vendor/pdfjs/` y pediría
+     `/vendor/pdfjs/vendor/pdfjs/pdf.worker.min.mjs`. Absoluta, da igual quién la resuelva. */
+  const url='./vendor/pdfjs/pdf.min.mjs'+(_pdfIntento?('?reintento='+_pdfIntento):'');
+  _pdfjs=import(url).then(m=>{
+    m.GlobalWorkerOptions.workerSrc=new URL('./vendor/pdfjs/pdf.worker.min.mjs',document.baseURI).href;
     return m;
   }).catch(e=>{
-    _pdfjs=null;   // que el siguiente intento vuelva a probar en vez de heredar el fallo
-    throw new Error('no se pudo cargar el lector de PDF. Exporta el plano como JPG o PNG y vuelve a intentar');
+    _pdfjs=null; _pdfIntento++;
+    /* Queda en la consola, que es donde alguien lo va a buscar el día que un teléfono no abra
+       un PDF. El mensaje de pantalla no puede llevar el detalle: lo lee un cliente por encima
+       del hombro. */
+    try{ console.error('[al3d] no cargó pdf.js:', e && e.message); }catch(_){}
+    /* Y el mensaje distingue el caso, porque «no se pudo cargar» a secas invita a reintentar
+       y sin señal no hay reintento que valga: el lector son 1.8 MB que no están en la
+       precarga del service worker —van con `addAll`, que es todo-o-nada, y jugarse ahí la
+       caché entera de la app por el lector sería cambiar lo primero por lo segundo—, así que
+       se guardan la primera vez que alguien abre un PDF CON señal, y hay que volver a bajarlos
+       después de cada subida de APP_VERSION. */
+    throw new Error(navigator.onLine===false
+      ? 'sin conexión no se puede abrir un PDF la primera vez: el lector se descarga y se queda guardado. Exporta el plano como JPG o PNG y vuelve a intentar'
+      : 'no se pudo cargar el lector de PDF. Exporta el plano como JPG o PNG y vuelve a intentar');
   });
   return _pdfjs;
 }

@@ -67,6 +67,9 @@ const ctx = await nav.newContext({ viewport: { width: 1440, height: 1000 }, loca
    línea para que lo que quede detrás no rompa la sintaxis y delate el intento. */
 const CARGA = "X');window.__COLADO='folio';//";
 const CARGA_ID = "1);window.__COLADO='id';//";
+/* Que no ejecute no basta: el botón tiene que seguir SIRVIENDO. Un arreglo que rompe «Abrir y
+   editar» se quita a la semana y vuelve el agujero. */
+const CARGA_ESPERADA = CARGA;
 
 /** Una entrada de historial con la forma que guarda el cotizador. */
 function entrada(folio, idPartida) {
@@ -76,7 +79,11 @@ function entrada(folio, idPartida) {
     dirRaw: '', direccion: 'Av. Vallarta 100', maps: '', entrecalles: '',
     entrega: '', notaCliente: '', iva: true, estado: 'autorizada',
     autorizador: 'Elias', nota: '', fechaAuth: '2026-01-15', precioAuth: 0,
-    itemsAuth: {}, aiFile: null,
+    /* Con imagen para que se pinte la <img class="hentry-img">, que es uno de los doce y solo
+       existe cuando la entrada tiene archivo. Un PNG de 1×1 en data:. */
+    itemsAuth: {},
+    aiFile: { name: 'plano.png', type: 'image/png',
+              url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' },
     items: [{ id: idPartida, tipo: 'letras', material: 'acero', comp: 'recta', luz: true,
               ilumTipo: 'fria', altura: 40, n: 8, tarifa: 0, ancho: 0, alto: 0, acab: '',
               recComp: false, bas: '', desc: 'Letras de prueba', descAi: false,
@@ -116,12 +123,31 @@ console.log('\nUN FOLIO CON CÓDIGO ADENTRO, LLEGADO DE UN RESPALDO');
                     '      Revisa que la forma de la entrada siga siendo la que guarda el cotizador.');
   else bien(`el historial pintó la entrada envenenada (${pintado} renglón/es)`);
 
-  /* Los tres botones del renglón, uno por uno. Cada uno era uno de los doce sinks. */
-  for (const sel of ['#histmodal .hentry-open', '#histmodal .hentry-del']) {
-    const b = p.locator(sel).first();
-    if (await b.count()) { await b.click({ timeout: 3000 }).catch(() => {}); await p.waitForTimeout(400); }
+  /* TODOS los botones del renglón, no el primero de cada clase: «Abrir y editar» y «Duplicar»
+     comparten la clase `.hentry-open`, así que un `.first()` dejaba `usarComoBase` sin tocar.
+     Y la miniatura, que es el sink de `openHistImg`. */
+  const botones = await p.locator('#histmodal .hentry-open, #histmodal .hentry-del, #histmodal .hentry-img').all();
+  bien(`se van a tocar ${botones.length} elementos del renglón, no solo el primero de cada clase`);
+
+  /* «Abrir y editar» va PRIMERO y por su TEXTO, no por posición: los cuatro elementos salen en
+     orden del DOM y ahí la miniatura va antes que los botones. Se comprueba aquí mismo, antes
+     de tocar los demás, porque «Duplicar» emite un folio nuevo y «Eliminar» se lleva la
+     entrada: mirar `Q.folio` al final del recorrido no diría nada sobre este botón. */
+  await p.locator('#histmodal .hentry-open', { hasText: 'Abrir' }).first()
+    .click({ timeout: 3000 }).catch(() => {});
+  await p.waitForTimeout(600);
+  const abrio = await p.evaluate(() => { try { return String(Q.folio || ''); } catch (_) { return ''; } });
+  if (abrio === CARGA_ESPERADA) bien('y «Abrir y editar» sí funcionó: cargó la cotización con su folio entero');
+  else mal(`«Abrir y editar» no cargó la cotización: Q.folio quedó en ${JSON.stringify(abrio)}.\n` +
+           '      El dato tiene que llegar completo al manejador, no solo dejar de ejecutarse.');
+
+  /* Y ahora los cuatro, que es donde puede ejecutar lo que sea. Se vuelven a pedir porque
+     abrir la cotización repinta el modal y los nodos de antes ya no están. */
+  for (const b of await p.locator('#histmodal .hentry-open, #histmodal .hentry-del, #histmodal .hentry-img').all()) {
+    await b.click({ timeout: 3000 }).catch(() => {});
+    await p.waitForTimeout(350);
   }
-  /* Y el título del renglón, que también llevaba el folio. */
+  /* Y el renglón entero, que también llevaba el folio. */
   await p.locator('#histmodal .hentry').first().click({ timeout: 3000 }).catch(() => {});
   await p.waitForTimeout(600);
 
@@ -132,12 +158,6 @@ console.log('\nUN FOLIO CON CÓDIGO ADENTRO, LLEGADO DE UN RESPALDO');
                   '      `data-folio` y leerlo con `this.dataset.folio`.');
   else bien('no ejecutó: el folio viajó por `data-folio` y nunca se compiló como código');
 
-  /* Que no ejecute no basta: el botón tiene que seguir sirviendo. Un arreglo que rompe
-     «Abrir y editar» se quita a la semana y vuelve el agujero. */
-  const abrio = await p.evaluate(() => { try { return String(Q.folio || ''); } catch (_) { return ''; } });
-  if (abrio === CARGA) bien('y «Abrir y editar» sí funcionó: cargó la cotización con su folio entero');
-  else mal(`«Abrir y editar» no cargó la cotización: Q.folio quedó en ${JSON.stringify(abrio)}.\n` +
-           '      El dato tiene que llegar completo al manejador, no solo dejar de ejecutarse.');
   await p.close();
 }
 
@@ -205,6 +225,50 @@ console.log('\nUN NOMBRE DE CLIENTE CON CÓDIGO ADENTRO, EN LOS CUADERNOS');
   if (colado) mal(`EJECUTÓ. \`window.__COLADO\` quedó en «${colado}»: la clave del cliente corre\n` +
                   '      como código en los cuadernos.');
   else bien('no ejecutó: la clave del cliente viajó por `data-clave`');
+  await p.close();
+}
+
+/* ---------------------------------------------------------------------------
+   4. La cola del autorizador
+   --------------------------------------------------------------------------- */
+/* `loadQueueEntry` es el único de los doce que no vive en un <button> sino en un <div> con
+   role="button" y el `onkeydown` de `_ABRIBLE`, que hace `this.click()`. O sea que tiene dos
+   caminos —ratón y teclado— y los dos pasan por el mismo `this`. Va aparte porque su dato no
+   sale del historial sino de `al3d_queue`, que ninguna otra prueba escribe. */
+console.log('\nUN FOLIO ENVENENADO EN LA COLA DEL AUTORIZADOR');
+{
+  const p = await ctx.newPage();
+  await p.goto(B + '/index.html', { waitUntil: 'load' });
+  await p.evaluate(carga => {
+    localStorage.clear();
+    localStorage.setItem('al3d_queue', JSON.stringify([{
+      folio: carga, ts: 1750000000000, cliente: 'Farmacia San Juan',
+      proy: 'Letrero de fachada', q: { folio: carga, items: [], cliente: 'Farmacia San Juan' },
+    }]));
+  }, CARGA);
+  await p.addInitScript(() => { window.__COLADO = ''; });
+  await p.goto(B + '/index.html', { waitUntil: 'load' });
+  await p.waitForTimeout(1300);
+  /* La cola se pinta para el rol que autoriza. */
+  await p.evaluate(() => { try { setRol('autorizador'); } catch (_) {} }).catch(() => {});
+  await p.waitForTimeout(700);
+
+  const renglones = await p.locator('.queue-item').count();
+  if (!renglones) {
+    console.log('  · la cola no pintó ningún renglón en este recorrido; el folio envenenado\n' +
+                '    queda cubierto por el bloque 1, que usa la misma técnica');
+  } else {
+    bien(`la cola pintó ${renglones} renglón/es con el folio envenenado`);
+    await p.locator('.queue-item').first().click({ timeout: 3000 }).catch(() => {});
+    await p.waitForTimeout(500);
+    /* Y por teclado, que es el otro camino de `_ABRIBLE` y el que conserva `this`. */
+    await p.locator('.queue-item').first().press('Enter').catch(() => {});
+    await p.waitForTimeout(500);
+  }
+  const colado = await p.evaluate(() => window.__COLADO || '');
+  if (colado) mal(`EJECUTÓ. \`window.__COLADO\` quedó en «${colado}»: el folio de la cola corre\n` +
+                  '      como código. Es `loadQueueEntry`, el único de los doce en un <div>.');
+  else bien('no ejecutó: el folio de la cola viajó por `data-folio`, con ratón y con teclado');
   await p.close();
 }
 

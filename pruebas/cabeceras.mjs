@@ -187,7 +187,9 @@ else mal('falta `upgrade-insecure-requests`: una liga http:// mandada por WhatsA
    --------------------------------------------------------------------------- */
 console.log('\nLos esquemas que el PDF, el mapa y el lector necesitan');
 const ESQUEMAS = [
-  ['worker-src', 'blob:', 'pdf.js arma su worker en un Blob cuando el archivo vive en otro dominio (index.html:10370).\n      Sin esto el lector cae al hilo principal y la pantalla se congela al abrir un PDF'],
+  ['worker-src', "'self'", 'pdf.js arranca su worker desde vendor/pdfjs/, que es del mismo origen.\n      ESTA es la que sostiene el lector: si se cae, pdf.js NO falla, rasteriza en el hilo\n      principal y congela la pantalla con el plano de un cliente'],
+  ['script-src', "'self'", 'el import() de pdf.js y los ~30 módulos ES de la plataforma'],
+  ['worker-src', 'blob:', 'cinturón: pdf.js usa blob: en algunos caminos internos. Ya NO es por el\n      envoltorio de CDN —ese solo se armaba con el worker en otro dominio— pero quitarlo no\n      compra nada medible'],
   ['frame-src',  'blob:', 'el visor de PDF de index.html:5426 enseña el archivo en un <iframe> con una URL blob:'],
   ['frame-src',  'data:', 'ese mismo visor acepta `data:application/pdf;` (urlPdfSegura, index.html:3825)'],
   ['img-src',    'blob:', 'las fotos y planos que se cargan para analizar con IA'],

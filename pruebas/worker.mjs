@@ -469,10 +469,27 @@ console.log('\nTOKENS MAL PEGADO YA NO ES UN 401 MUDO');
   cierto('  y nombra el problema', /TOKENS/.test(roto.cuerpo.mensaje || ''));
   cierto('  y dice qué mirar', /comas|comillas/.test(roto.cuerpo.mensaje || ''));
 
-  const rolMalo = await pedir('/salud', { env: { ...ENV, TOKENS: '{"a":"Direccion"}' } });
-  eq('un rol mal escrito también', rolMalo.estado, 500);
-  cierto('  y se nombra el que está mal', /Direccion/.test(rolMalo.cuerpo.mensaje || ''));
-  cierto('  con los tres que sí valen', /fabricacion/.test(rolMalo.cuerpo.mensaje || ''));
+  /* Un rol mal escrito es OTRA cosa, y la diferencia es la que evita un desastre: se contesta
+     SOLO a quien trae ese token. Rechazar el mapa entero apagaría los tres teléfonos, y sería
+     justo en el momento en que menos se puede permitir — el runbook de revocar un teléfono
+     perdido dice «borra su renglón, o cámbiale el rol», y la segunda variante habría dejado
+     sin sincronizar a las otras dos personas en el mismo Deploy. */
+  const CON_UNO_MALO = JSON.stringify({ [TOK.dir]: 'direccion', [TOK.fab]: 'Fabricacion', [TOK.pag]: 'pagos' });
+  const suyo = await pedir('/salud', { token: TOK.fab, env: { ...ENV, TOKENS: CON_UNO_MALO } });
+  eq('el del rol mal escrito recibe 401, no un 500 global', suyo.estado, 401);
+  cierto('  y se le nombra el rol que está mal', /Fabricacion/.test(suyo.cuerpo.mensaje || ''));
+  cierto('  con los tres que sí valen', /fabricacion/.test(suyo.cuerpo.mensaje || ''));
+
+  const otro = await pedir('/salud', { token: TOK.dir, env: { ...ENV, TOKENS: CON_UNO_MALO } });
+  eq('Y LOS OTROS DOS SIGUEN SINCRONIZANDO', otro.estado, 200);
+  eq('con su rol de siempre', otro.cuerpo.rol, 'direccion');
+
+  /* Y la forma limpia de revocar —borrar el renglón— sigue dando el 401 de siempre. */
+  const sinEl = JSON.stringify({ [TOK.dir]: 'direccion', [TOK.pag]: 'pagos' });
+  const borrado = await pedir('/salud', { token: TOK.fab, env: { ...ENV, TOKENS: sinEl } });
+  eq('un token borrado del JSON queda fuera', borrado.estado, 401);
+  eq('y los demás no se enteran',
+     (await pedir('/salud', { token: TOK.pag, env: { ...ENV, TOKENS: sinEl } })).estado, 200);
 }
 
 console.log('\nEL ORIGEN QUE NO ESTÁ EN LA LISTA SE NIEGA, NO SE SUSTITUYE');
@@ -487,6 +504,37 @@ console.log('\nEL ORIGEN QUE NO ESTÁ EN LA LISTA SE NIEGA, NO SE SUSTITUYE');
   eq('y al segundo de la lista sí, con SU dominio', bueno.cabeceras.get('access-control-allow-origin'), 'https://otro.mx');
   cierto('varía también por Authorization: la respuesta depende del token',
     /Authorization/i.test(bueno.cabeceras.get('vary') || ''));
+}
+
+console.log('\nEL PREFLIGHT DE UN ORIGEN AJENO SE NIEGA CON UN NÚMERO QUE SE LEE');
+{
+  /* El navegador bloquea igual por la ausencia de la cabecera; esto es para la persona que
+     está diagnosticando con curl por qué un teléfono no sincroniza. Un 204 con las cabeceras
+     «casi bien» se lee como que todo está en orden. */
+  const ajeno = await pedir('/salud', { metodo: 'OPTIONS', origen: 'https://sitio-ajeno.mx' });
+  eq('403 al preflight de un origen que no está en la lista', ajeno.estado, 403);
+  const propio = await pedir('/salud', { metodo: 'OPTIONS' });
+  eq('204 al de un origen permitido', propio.estado, 204);
+  /* Sin cabecera Origin no es el preflight de nadie: un curl a secas sigue siendo 204. */
+  const sinOrigen = await pedir('/salud', { metodo: 'OPTIONS', origen: '' });
+  eq('204 sin cabecera Origin, que no es el preflight de nadie', sinOrigen.estado, 204);
+}
+
+console.log('\nUNA OPERACIÓN QUE REVIENTA NO SE LLEVA EL ACUSE DE LAS DEMÁS');
+{
+  /* Sin el try/catch por operación, una excepción a mitad del lote se llevaba `resultados`
+     entero y la bandeja perdía el acuse de las que SÍ se escribieron. */
+  const r = await pedir('/empujar', { metodo: 'POST', cuerpo: { ops: [
+    { id: 'op-a', tipo: 'crear', datos: { ...VENTA } },
+    /* `datos` no es un objeto: `Object.entries(null)` lanza dentro del bucle. */
+    { id: 'op-b', datos: 7 },
+    { id: 'op-c', tipo: 'crear', datos: { ...VENTA, 'Folio cotizacion': 'COT-0777@ZZZZ' } },
+  ] } });
+  eq('vuelven las tres, no una', r.cuerpo.resultados.length, 3);
+  eq('la primera se escribió', r.cuerpo.resultados[0].ok, true);
+  eq('la tercera también, pese a la de en medio', r.cuerpo.resultados[2].ok, true);
+  eq('y la que reventó vuelve nombrada', r.cuerpo.resultados[1].id, 'op-b');
+  eq('con un código que la bandeja entiende', r.cuerpo.resultados[1].ok, false);
 }
 
 console.log('\nPOR AQUÍ SALE DINERO: que no se quede guardado en ningún lado');

@@ -33,7 +33,24 @@ if [ "$1" = "--navegador" ] || [ "$NAVEGADOR" = "1" ]; then
   PUERTO=${PUERTO:-8814}
   echo ""
   echo "── navegador (Chromium en :$PUERTO) ────────────────"
-  ( cd .. && npx --yes http-server -p "$PUERTO" -c-1 --silent >/dev/null 2>&1 & echo $! > /tmp/al3d-srv.pid )
+  # `setsid` y matar por GRUPO, no por PID. El PID que se guardaba era el de `npx`, no el del
+  # servidor: npx termina en cuanto arranca a su hijo, así que el kill de abajo apuntaba a un
+  # proceso muerto y el http-server se quedaba sirviendo el repositorio entero —incluido todo
+  # lo que hay en él— hasta reiniciar la máquina. Se comprobó: después del kill, un curl al
+  # puerto seguía contestando 200.
+  #
+  # Y va al `trap`, no solo al final: si la tanda se corta con Ctrl-C a mitad de una prueba de
+  # navegador —que es cuando más se corta, porque son las lentas— el final no se ejecuta nunca.
+  ( cd .. && setsid npx --yes http-server -p "$PUERTO" -a 127.0.0.1 -c-1 --silent >/dev/null 2>&1 & echo $! > /tmp/al3d-srv.pid )
+  limpiar_servidor() {
+    if [ -f /tmp/al3d-srv.pid ]; then
+      kill -- "-$(cat /tmp/al3d-srv.pid)" 2>/dev/null || kill "$(cat /tmp/al3d-srv.pid)" 2>/dev/null || true
+      rm -f /tmp/al3d-srv.pid
+    fi
+    # Cinturón: si algo se escapó del grupo, se busca por lo que es.
+    pkill -f "http-server -p $PUERTO" 2>/dev/null || true
+  }
+  trap limpiar_servidor EXIT INT TERM
   sleep 3
   # Algunas LEVANTAN SU PROPIO servidor —puente.mjs se inventa respuestas del Worker, y la
   # de actualización necesita decidir qué archivo devuelve 404—, así que no pueden recibir
@@ -49,20 +66,16 @@ if [ "$1" = "--navegador" ] || [ "$NAVEGADOR" = "1" ]; then
     else PUERTO="$PUERTO" node "$f" || ok=1; fi
     [ "$ok" -eq 0 ] || fallos=$((fallos+1))
   done
-  # El `|| true` no es adorno y costó encontrarlo. Este archivo corre con `set -e`, y la
-  # regla de POSIX es que -e se ignora dentro de una lista `&&` SALVO en su último comando.
-  # Aquí el último era el `kill`: cuando el servidor ya se había ido solo —`npx` termina y
-  # deja huérfano al servidor, así que el pid guardado apunta a un proceso muerto— el kill
-  # devolvía 1, `set -e` mataba el guion en esa línea, y la tanda salía con código 1 SIN
-  # imprimir «Todas las pruebas pasan» y sin una sola prueba fallida.
-  #
-  # Lo que lo hacía caro es que dependía de si al servidor le daba tiempo de morirse: la
-  # misma tanda, con las mismas pruebas en verde, unas veces decía que sí y otras que no.
-  # Un runner que reporta fallo cuando todo pasó es peor que uno que no reporta nada,
-  # porque enseña a ignorar el código de salida — y el código de salida es lo único que
-  # mira quien corre esto antes de publicar.
-  if [ -f /tmp/al3d-srv.pid ]; then kill "$(cat /tmp/al3d-srv.pid)" 2>/dev/null || true; fi
-  rm -f /tmp/al3d-srv.pid
+  # El `|| true` de `limpiar_servidor` no es adorno y costó encontrarlo. Este archivo corre con
+  # `set -e`, y la regla de POSIX es que -e se ignora dentro de una lista `&&` SALVO en su
+  # último comando. Aquí el último era un `kill` que fallaba cada vez que el servidor ya se
+  # había ido solo, así que la tanda salía con código 1 SIN imprimir «Todas las pruebas pasan»
+  # y sin una sola prueba fallida. Y dependía de si al servidor le daba tiempo de morirse: la
+  # misma tanda, en verde, unas veces decía que sí y otras que no. Un runner que reporta fallo
+  # cuando todo pasó enseña a ignorar el código de salida, que es lo único que mira quien corre
+  # esto antes de publicar.
+  limpiar_servidor
+  trap - EXIT INT TERM
   echo ""
   if [ "$fallos" -gt 0 ]; then
     echo "$fallos archivo(s) de prueba con fallos."

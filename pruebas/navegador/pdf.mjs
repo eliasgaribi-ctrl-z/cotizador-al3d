@@ -70,8 +70,14 @@ const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; ch
    un <script> CLÁSICO, así que la ruta se resuelve contra la URL del DOCUMENTO — y en
    producción esa URL es `/`, no `/index.html`. Probarlo solo en `/index.html` dejaría sin
    cubrir exactamente el caso que se sirve. */
+/* Un interruptor para caer SOLO el lector, no la app: es el caso real —la app ya está en el
+   teléfono, el lector son 1.8 MB que no van en la precarga y son justo lo que falta cuando
+   falta la red—. Se hace así y no con `setOffline` del navegador porque el service worker se
+   mete en medio y el resultado deja de ser determinista. */
+let LECTOR_CAIDO = false;
 const servidor = createServer((req, res) => {
   const pedida = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  if (LECTOR_CAIDO && pedida.startsWith('/vendor/pdfjs/')) { res.writeHead(503); res.end('sin señal'); return; }
   if (pedida === '/index.html') { res.writeHead(308, { Location: '/' }); res.end(); return; }
   if (pedida.endsWith('.html')) { res.writeHead(308, { Location: pedida.slice(0, -5) }); res.end(); return; }
   let ruta = pedida.endsWith('/') ? pedida + 'index.html' : pedida;
@@ -206,6 +212,65 @@ console.log('\nLO QUE PASÓ POR DEBAJO');
 
   if (errores.length) for (const e of errores.slice(0, 3)) mal('error de JavaScript: ' + e);
   else bien('ningún error de JavaScript en la página');
+}
+
+/* ---------------------------------------------------------------------------
+   3. Falla sin señal, vuelve la señal, y tiene que funcionar SIN cerrar la app
+   --------------------------------------------------------------------------- */
+/* Este bloque existe por un fallo que ninguna prueba veía y que el navegador provoca solo: el
+   mapa de módulos GUARDA los módulos que fallaron, así que un `import()` del mismo
+   especificador que ya falló se rechaza al instante, sin volver a salir a la red, durante toda
+   la vida del documento. El camino es el de todos los días en este taller: alguien en la calle
+   sin señal arrastra el PDF del cliente, falla, vuelve la señal, lo intenta otra vez — y
+   seguía fallando, ahora sin motivo visible, hasta cerrar y volver a abrir la app. */
+console.log('\nSIN SEÑAL PRIMERO, CON SEÑAL DESPUÉS, SIN CERRAR LA APP');
+{
+  /* Contexto NUEVO, no una pestaña más: el bloque de arriba ya cargó pdf.min.mjs con un 200 y
+     la caché HTTP del navegador es del contexto, así que una pestaña nueva lo serviría de ahí
+     sin tocar el servidor y este bloque no probaría nada. */
+  const ctx2 = await nav.newContext({ viewport: { width: 1024, height: 800 }, locale: 'es-MX' });
+  const q = await ctx2.newPage();
+  const avisos = [];
+  q.on('console', m => { if (/al3d/i.test(m.text())) avisos.push(m.text()); });
+  /* `navigator.onLine` se fuerza a false porque es la señal por la que el código decide QUÉ
+     mensaje dar, y el servidor que devuelve 503 no la cambia. Aquí no se está fingiendo el
+     fallo —ese es de verdad, el lector no baja— sino poniendo al navegador en el estado en el
+     que de verdad estaría el teléfono. */
+  await q.addInitScript(() => {
+    try { Object.defineProperty(navigator, 'onLine', { get: () => false, configurable: true }); } catch (_) {}
+  });
+  LECTOR_CAIDO = true;
+  await q.goto(B + '/', { waitUntil: 'load' });
+  await q.evaluate(() => { try { localStorage.clear(); } catch (_) {} });
+  await q.goto(B + '/', { waitUntil: 'load' });
+  await q.waitForTimeout(1400);
+
+  const falla = await q.evaluate(() => cargarPdfJs().then(() => 'CARGÓ').catch(e => 'ERR: ' + e.message));
+  if (/^ERR/.test(falla)) bien('sin señal falla, como debe');
+  else mal('sin señal NO falló, así que este bloque no está probando nada: ' + falla);
+
+  LECTOR_CAIDO = false;
+  const segunda = await q.evaluate(() => cargarPdfJs().then(() => 'CARGÓ').catch(e => 'ERR: ' + e.message));
+  if (segunda === 'CARGÓ')
+    bien('y al volver la señal carga al segundo intento, sin recargar la app');
+  else
+    mal('al volver la señal SIGUE fallando sin recargar la app: ' + segunda + '\n' +
+        '      Es el mapa de módulos del navegador: guarda los módulos que fallaron y un\n' +
+        '      `import()` del mismo especificador ya no sale a la red. El reintento tiene que\n' +
+        '      usar una URL distinta (`?reintento=N`), no basta con limpiar la variable.');
+
+  /* Y que el mensaje de la primera vez no invite a reintentar sin decir que hace falta señal:
+     el lector son 1.8 MB que no van en la precarga, así que sin conexión no hay reintento. */
+  if (/^ERR/.test(falla) && !/conexi[oó]n/i.test(falla))
+    mal('el mensaje de sin señal no nombra la conexión: «' + falla.slice(0, 90) + '»\n' +
+        '      Sin ella no hay reintento que valga, y el mensaje tiene que decirlo.');
+  else if (/^ERR/.test(falla)) bien('y el mensaje de la primera vez nombra la conexión');
+
+  if (avisos.some(a => /pdf\.js/.test(a))) bien('el detalle quedó en la consola para quien lo busque');
+  else mal('el fallo no dejó rastro en la consola: es lo único que va a quedar el día que\n' +
+           '      esto pase en un teléfono de verdad');
+  await q.close();
+  await ctx2.close();
 }
 
 await nav.close();

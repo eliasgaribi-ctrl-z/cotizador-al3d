@@ -59,6 +59,13 @@ const MSG = {
    vence en el vuelo devuelve 401 y el usuario ve un error por 40 segundos de reloj. */
 let _tok = null;         /* {token:string, expira:number} */
 let _cliente = null;     /* el tokenClient de GIS, se crea una vez */
+/* El sello de la petición en curso. `_cliente` es único para toda la pestaña y sus manejadores
+   se sobrescriben en cada petición, así que sin esto un evento tardío de una petición ya
+   muerta cae sobre la promesa nueva: la respuesta del intento que el usuario abandonó resuelve
+   el que acaba de empezar. Pasa de verdad — `llamar()` pide token en CADA operación del
+   calendario, y en un teléfono se toca dos veces lo que no responde a la primera. */
+let _gen = 0;
+let _alError = null;     /* el error_callback de la petición en curso, despachado desde el config */
 let _cargando = null;    /* la promesa de carga del script, para no meter dos <script> */
 let _correo = '';
 
@@ -152,11 +159,25 @@ export async function pedirToken(silencioso) {
        otra vez, y otra, y concluye que el botón no sirve.
        `resuelto` está porque ahora hay cuatro caminos y el primero que llegue manda: GIS
        puede llamar al callback justo cuando el reloj ya venció. */
+    const mio = ++_gen;
     let resuelto = false;
     const salir = r => { if (resuelto) return; resuelto = true; clearTimeout(reloj); resolve(r); };
-    /* El tope duro. Treinta segundos es más de lo que tarda cualquier consentimiento real y
-       menos de lo que una persona espera mirando una pantalla quieta. */
-    const reloj = setTimeout(() => salir(mal('SIN_RED', MSG.SIN_RED)), 30000);
+    /* El tope duro, y son DOS topes porque son dos situaciones que no se parecen en nada.
+       Uno solo de treinta segundos cortaba el consentimiento de verdad: la primera vez que
+       alguien conecta Google hay que elegir cuenta, escribir contraseña, quizá pasar el
+       segundo factor, y encima la pantalla de «Google no ha verificado esta app» con su
+       *Configuración avanzada → Ir a (no seguro)*, que en este proyecto sale SIEMPRE porque el
+       proyecto se queda en «Testing» a propósito. En un teléfono viejo con 3G eso son minutos.
+       A los treinta segundos la pantalla decía «no hay señal» y descartaba el permiso que la
+       persona estaba dando en ese momento.
+
+       Silencioso: treinta segundos. Ahí no hay ventana ni nadie tecleando, así que un cuelgue
+       es literalmente un botón muerto y cuanto antes se diga, mejor.
+       Interactivo: cinco minutos. No es para que alguien espere cinco minutos —para eso está
+       `error_callback`, que es quien avisa de lo que de verdad falla— sino para que una
+       promesa colgada no se quede colgada para siempre en la pestaña. */
+    const TOPE = silencioso ? 30000 : 300000;
+    const reloj = setTimeout(() => salir(mal('SIN_RED', silencioso ? MSG.SIN_RED : MSG.SIN_TOKEN)), TOPE);
 
     /* Un solo tokenClient para toda la vida de la pestaña. Crear uno por petición deja
        callbacks viejos colgando y el token acaba llegando al callback de la petición
@@ -165,6 +186,13 @@ export async function pedirToken(silencioso) {
       try {
         _cliente = window.google.accounts.oauth2.initTokenClient({
           client_id: c.clientId, scope: SCOPE, callback: () => {},
+          /* `error_callback` va AQUÍ, en el config, y no colgado del cliente después. GIS lo
+             documenta como miembro de TokenClientConfig —o sea del objeto que recibe
+             `initTokenClient`— y solo `callback` está documentado como reasignable sobre el
+             cliente devuelto. Colgarlo como propiedad dependía de que GIS lo releyera, que no
+             está escrito en ninguna parte; el despachador de módulo hace lo mismo por el
+             camino documentado. */
+          error_callback: e => { if (_alError) _alError(e); },
         });
       } catch (_) {
         return salir(mal('DATO_INVALIDO', MSG.RECHAZADO));
@@ -174,11 +202,17 @@ export async function pedirToken(silencioso) {
        entrega el token: no hay promesa que await-ear en su API. */
     _cliente.callback = resp => {
       if (!resp || !resp.access_token) {
+        /* De una petición vieja: no resuelve nada, y no hay token que guardar. */
+        if (mio !== _gen) return;
         return salir(mal('SIN_RED', resp && resp.error === 'access_denied'
           ? MSG.SIN_TOKEN : MSG.SIN_RED));
       }
       const seg = Number(resp.expires_in) > 0 ? Number(resp.expires_in) : 3600;
+      /* El token SÍ se guarda aunque llegue tarde: es válido una hora y `conectado()` lo va a
+         encontrar en la siguiente llamada. Lo que no puede hacer un evento tardío es resolver
+         una promesa que no es suya. */
       _tok = { token: resp.access_token, expira: Date.now() + (seg - 60) * 1000 };
+      if (mio !== _gen) return;
       salir(ok({ expira: _tok.expira }));
     };
     /* `error_callback` es por donde GIS reporta lo que NO es un rechazo de OAuth, y el caso
@@ -186,7 +220,7 @@ export async function pedirToken(silencioso) {
        puede tardar más que los segundos que el navegador conserva la activación del clic, y
        entonces el emergente se bloquea. Sin esta línea eso no llamaba a nada. Se reasigna en
        cada petición por el mismo motivo que el callback. */
-    _cliente.error_callback = () => salir(mal('SIN_RED', MSG.SIN_TOKEN));
+    _alError = () => { if (mio === _gen) salir(mal('SIN_RED', MSG.SIN_TOKEN)); };
     try {
       _cliente.requestAccessToken(silencioso ? { prompt: '' } : {});
     } catch (_) {

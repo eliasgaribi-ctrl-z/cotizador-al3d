@@ -38,7 +38,13 @@ const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
 /* Los del cotizador. Se guardan de uno en uno y con catch: el repo puede publicarse sin los
    logotipos, y con addAll un logo faltante tiraría la instalación entera. */
 const BASICOS = ['./', './index.html', './manifest.webmanifest',
-                 './logo-al3d.png', './logo-al3d-dark.png'];
+                 './logo-al3d.png', './logo-al3d-dark.png',
+                 /* El aviso de privacidad. Sin esto, tocarlo sin señal no daba un error: caía
+                    al respaldo de navegación y abría una SEGUNDA COPIA del cotizador en una
+                    pestaña nueva, con /privacidad.html en la barra. Va con los del cotizador
+                    porque se guardan de uno en uno y con catch: si algún día no está, la
+                    instalación sigue. */
+                 './privacidad.html'];
 
 /* Los de la plataforma. Estos SÍ van con addAll, que es todo-o-nada, porque eso es
    exactamente lo que se quiere: o está el conjunto completo o no se promociona nada. */

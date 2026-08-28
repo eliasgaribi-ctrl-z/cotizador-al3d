@@ -246,13 +246,13 @@ function revisarTokens(env) {
   if (!mapa || typeof mapa !== 'object' || Array.isArray(mapa)) {
     return { error: 'TOKENS tiene que ser un objeto {"<token>":"<rol>"}, y es otra cosa.' };
   }
-  /* Y el otro error de pegar desde el teclado del celular, que también daba el 401 mudo: un
-     rol mal escrito. Se nombra el que está mal. */
-  for (const rol of Object.values(mapa)) {
-    if (!ESCRIBIBLES[rol]) {
-      return { error: 'TOKENS tiene un rol que no existe: «' + rol + '». Los tres válidos son direccion, fabricacion y pagos, en minúsculas y sin acento.' };
-    }
-  }
+  /* Aquí solo va lo que de verdad tumba a TODOS, y la distinción costó un susto: un rol mal
+     escrito NO va aquí. Esta función corre antes de saber de quién es el token que llegó, así
+     que rechazar el mapa entero por un renglón malo apagaría el puente en los tres teléfonos
+     — y eso es exactamente lo que pasa al revocar, que es el momento en que menos se puede
+     permitir: el runbook dice «borra el renglón del teléfono perdido, o cámbiale el rol», y la
+     segunda variante habría dejado sin sincronizar a las otras dos personas en el mismo
+     Deploy. El rol inválido se juzga en `rolDe`, cuando ya se sabe a quién le toca. */
   return { mapa };
 }
 
@@ -270,7 +270,13 @@ function igualExacto(a, b) {
   return d === 0;
 }
 
-/** El token de dispositivo → rol. Devuelve null si no lo conoce. */
+/**
+ * El token de dispositivo → rol.
+ * @returns {{rol:string}|{rolInvalido:string}|null} `null` si no conoce el token;
+ *   `rolInvalido` si lo conoce pero su rol está mal escrito — eso último es un problema de
+ *   ESE renglón y de ESE teléfono, y por eso se distingue: apagar a los tres por una errata
+ *   en el renglón de uno es justo lo que no puede pasar al revocar un token.
+ */
 function rolDe(req, mapa) {
   const h = req.headers.get('Authorization') || '';
   const t = h.startsWith('Bearer ') ? h.slice(7).trim() : '';
@@ -279,7 +285,7 @@ function rolDe(req, mapa) {
   /* Sin `return` dentro del bucle: se recorren los tres siempre, para que el tiempo de
      respuesta tampoco diga CUÁL de los tres acertó. */
   for (const [tok, rol] of Object.entries(mapa)) {
-    if (igualExacto(t, tok) && ESCRIBIBLES[rol]) encontrado = rol;
+    if (igualExacto(t, tok)) encontrado = ESCRIBIBLES[rol] ? { rol } : { rolInvalido: String(rol) };
   }
   return encontrado;
 }
@@ -345,8 +351,13 @@ function traducir(estado, cuerpo) {
      dejar de devolverlo al cliente, y no: ese texto —«property does not exist», «is expected
      to be status»— es la única pista de quien está montando el esquema, y el runbook de
      puente/README.md depende literalmente de leerlo. Quien lo ve ya tiene un token válido, y
-     con un token válido ya se lee la base. */
-  if (m) console.log('notion-rechazo', m);
+     con un token válido ya se lee la base.
+
+     Al LOG va con los literales entrecomillados tapados, que es otra cosa. Notion nombra el
+     valor rechazado dentro del mensaje —«…should be a number, instead was "12000"»— y el log
+     del panel de Cloudflare no es sitio para los importes de los clientes. Lo que hace falta
+     para diagnosticar es qué propiedad y qué esperaba, y eso queda entero. */
+  if (m) console.log('notion-rechazo', String(m).replace(/"[^"]*"/g, '"…"').slice(0, 300));
   return { codigo: 'DESCONOCIDO', mensaje: m ? 'Notion rechazó el cambio: ' + m : 'Notion rechazó el cambio y no dijo por qué.' };
 }
 
@@ -434,7 +445,16 @@ function aplanar(pagina) {
 export default {
   async fetch(req, env) {
     const origen = origenPermitido(req, env);
-    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cabecerasCors(origen) });
+    if (req.method === 'OPTIONS') {
+      /* 403 y no 204 cuando venía un Origin y no está en la lista. El navegador bloquea igual
+         por la ausencia de la cabecera, así que esto no es para el navegador: es para la
+         persona que está diagnosticando con `curl -X OPTIONS` por qué un teléfono no
+         sincroniza. Un 204 con las cabeceras «casi bien» se lee como que todo está en orden;
+         un 403 se lee como lo que es. Sin cabecera Origin —un curl a secas— sigue siendo 204,
+         porque eso no es un preflight de nadie. */
+      const traeOrigen = !!req.headers.get('Origin');
+      return new Response(null, { status: (traeOrigen && !origen) ? 403 : 204, headers: cabecerasCors(origen) });
+    }
 
     const url = new URL(req.url);
     const ruta = url.pathname.replace(/\/+$/, '') || '/';
@@ -452,11 +472,20 @@ export default {
       return json({ ok: false, codigo: 'DESCONOCIDO', mensaje: revision.error }, 500, origen);
     }
 
-    const rol = rolDe(req, revision.mapa);
-    if (!rol) {
+    const quien = rolDe(req, revision.mapa);
+    /* El rol mal escrito se contesta SOLO a quien lo trae, y con su nombre. Antes daba el
+       mismo 401 mudo que un token desconocido, que es el mensaje que manda a tres personas a
+       re-pegar tres tokens que estaban bien. */
+    if (quien && quien.rolInvalido) {
+      return json({ ok: false, codigo: 'ROL_SIN_PERMISO',
+        mensaje: 'El token de este teléfono está en TOKENS con un rol que no existe: «' + quien.rolInvalido +
+                 '». Los tres válidos son direccion, fabricacion y pagos, en minúsculas y sin acento.' }, 401, origen);
+    }
+    if (!quien) {
       return json({ ok: false, codigo: 'ROL_SIN_PERMISO',
         mensaje: 'Este teléfono no tiene un token válido del puente. Pégalo otra vez en Ajustes.' }, 401, origen);
     }
+    const rol = quien.rol;
 
     try {
       /* ── /salud ── */
@@ -514,90 +543,101 @@ export default {
         const ops = Array.isArray(entrada && entrada.ops) ? entrada.ops.slice(0, 25) : [];
         const resultados = [];
         for (const op of ops) {
-          if (!op || !op.id) { resultados.push({ id: (op && op.id) || '?', ok: false, codigo: 'DATO_INVALIDO', mensaje: 'Operación sin id.' }); continue; }
-          const { props, rechazadas } = armarPropiedades(op.datos, rol);
-          if (!Object.keys(props).length) {
-            resultados.push({ id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO',
-              mensaje: rechazadas.length
-                ? 'Este teléfono no puede escribir: ' + rechazadas.map(x => x.nombre).join(', ')
-                : 'No había nada que escribir.',
-              rechazadas });
-            continue;
-          }
-          /* Antes de crear, se busca. Ver `buscarPorFolio`: un reintento después de una
-             respuesta perdida no puede costar una venta duplicada en la base del dinero. */
-          /* Si venía algo y no tiene forma de id de Notion, se DICE. Silenciarlo lo
-             convertiría en un alta duplicada: `idPagina` quedaría en null y la fila se
-             crearía otra vez, con su anticipo y su comisión sumando en las siete vistas. */
-          if (op.id_notion && !ID_NOTION.test(String(op.id_notion))) {
-            resultados.push({ id: op.id, ok: false, codigo: 'DATO_INVALIDO',
-              mensaje: 'Ese id de página de Notion no tiene forma de id de Notion.' });
-            continue;
-          }
-          let idPagina = op.id_notion || null;
-          if (!idPagina) {
-            const folio = String((op.datos && op.datos['Folio cotizacion']) || '').trim();
-            if (folio) idPagina = await buscarPorFolio(env, ds, folio);
-          }
-
-          let r;
-          if (!idPagina) {
-            /* Primero el caso que va a pasar de verdad, que no es el malicioso: el cliente
-               mandó un CAMBIO de una fila que cree que existe y aquí no se encontró por su
-               folio. Crearla sería inventar una venta a partir de un cambio parcial — una
-               fila con la etapa movida y sin precio. El cliente ya manda `tipo`
-               (js/datos/puente.js) y hasta hoy el Worker lo tiraba a la basura. */
-            if (op.tipo === 'actualizar') {
-              resultados.push({ id: op.id, ok: false, codigo: 'NO_ENCONTRADO',
-                mensaje: 'No encontré esa venta en Notion por su folio. Revisa que la fila siga ahí.', rechazadas });
-              continue;
-            }
-            /* Y el candado de verdad. Vivía SOLO en el cliente, o sea que no era un candado:
-               era un aviso anticipado, y un aviso del lado del navegador lo salta un `curl`.
-               Dar de alta una venta es escribir una fila nueva en la base del dinero, y eso
-               sale del teléfono de Dirección. Aquí es donde se decide; allá, donde se avisa. */
-            if (!ESCRIBIBLES[rol].includes(P.proyecto) || !props[P.proyecto]) {
+          /* Una excepción en la operación número tres se llevaba el `resultados` entero por
+             el catch de más abajo, y con él el acuse de las dos que SÍ se escribieron: la
+             bandeja las reintenta, y aunque reintentar es idempotente —el mismo PATCH con las
+             mismas propiedades, y `buscarPorFolio` cubre las altas— es una vuelta perdida y un
+             contador de pendientes que no baja. Un contador que no baja se aprende a ignorar. */
+          try {
+            if (!op || !op.id) { resultados.push({ id: (op && op.id) || '?', ok: false, codigo: 'DATO_INVALIDO', mensaje: 'Operación sin id.' }); continue; }
+            const { props, rechazadas } = armarPropiedades(op.datos, rol);
+            if (!Object.keys(props).length) {
               resultados.push({ id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO',
-                mensaje: 'Este teléfono no puede dar de alta ventas: eso sale del de Dirección.', rechazadas });
+                mensaje: rechazadas.length
+                  ? 'Este teléfono no puede escribir: ' + rechazadas.map(x => x.nombre).join(', ')
+                  : 'No había nada que escribir.',
+                rechazadas });
               continue;
             }
-            r = await notion(env, '/pages', { method: 'POST',
-              body: JSON.stringify({ parent: { type: 'data_source_id', data_source_id: ds }, properties: props }) });
-          } else {
-            /* El `esperado` es el control de concurrencia: si la fila cambió en Notion desde
-               que este teléfono la leyó, no se pisa — se devuelve el registro remoto para que
-               la pantalla de conflictos tenga qué comparar. Sin el remoto en la respuesta solo
-               se podría decir «no se pudo», que no sirve para decidir. */
-            if (op.esperado && op.esperado.editado) {
-              const act = await notion(env, '/pages/' + idPagina, { method: 'GET' });
-              if (act.estado < 400 && act.cuerpo && act.cuerpo.last_edited_time !== op.esperado.editado) {
-                resultados.push({ id: op.id, ok: false, codigo: 'CONFLICTO',
-                  mensaje: 'Esa fila cambió en Notion desde la última vez que este teléfono la vio.',
-                  conflicto: soloLegibles(aplanar(act.cuerpo), LEGIBLES[rol]) });
+            /* Antes de crear, se busca. Ver `buscarPorFolio`: un reintento después de una
+               respuesta perdida no puede costar una venta duplicada en la base del dinero. */
+            /* Si venía algo y no tiene forma de id de Notion, se DICE. Silenciarlo lo
+               convertiría en un alta duplicada: `idPagina` quedaría en null y la fila se
+               crearía otra vez, con su anticipo y su comisión sumando en las siete vistas. */
+            if (op.id_notion && !ID_NOTION.test(String(op.id_notion))) {
+              resultados.push({ id: op.id, ok: false, codigo: 'DATO_INVALIDO',
+                mensaje: 'Ese id de página de Notion no tiene forma de id de Notion.' });
+              continue;
+            }
+            let idPagina = op.id_notion || null;
+            if (!idPagina) {
+              const folio = String((op.datos && op.datos['Folio cotizacion']) || '').trim();
+              if (folio) idPagina = await buscarPorFolio(env, ds, folio);
+            }
+
+            let r;
+            if (!idPagina) {
+              /* Primero el caso que va a pasar de verdad, que no es el malicioso: el cliente
+                 mandó un CAMBIO de una fila que cree que existe y aquí no se encontró por su
+                 folio. Crearla sería inventar una venta a partir de un cambio parcial — una
+                 fila con la etapa movida y sin precio. El cliente ya manda `tipo`
+                 (js/datos/puente.js) y hasta hoy el Worker lo tiraba a la basura. */
+              if (op.tipo === 'actualizar') {
+                resultados.push({ id: op.id, ok: false, codigo: 'NO_ENCONTRADO',
+                  mensaje: 'No encontré esa venta en Notion por su folio. Revisa que la fila siga ahí.', rechazadas });
                 continue;
               }
+              /* Y el candado de verdad. Vivía SOLO en el cliente, o sea que no era un candado:
+                 era un aviso anticipado, y un aviso del lado del navegador lo salta un `curl`.
+                 Dar de alta una venta es escribir una fila nueva en la base del dinero, y eso
+                 sale del teléfono de Dirección. Aquí es donde se decide; allá, donde se avisa. */
+              if (!ESCRIBIBLES[rol].includes(P.proyecto) || !props[P.proyecto]) {
+                resultados.push({ id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO',
+                  mensaje: 'Este teléfono no puede dar de alta ventas: eso sale del de Dirección.', rechazadas });
+                continue;
+              }
+              r = await notion(env, '/pages', { method: 'POST',
+                body: JSON.stringify({ parent: { type: 'data_source_id', data_source_id: ds }, properties: props }) });
+            } else {
+              /* El `esperado` es el control de concurrencia: si la fila cambió en Notion desde
+                 que este teléfono la leyó, no se pisa — se devuelve el registro remoto para que
+                 la pantalla de conflictos tenga qué comparar. Sin el remoto en la respuesta solo
+                 se podría decir «no se pudo», que no sirve para decidir. */
+              if (op.esperado && op.esperado.editado) {
+                const act = await notion(env, '/pages/' + idPagina, { method: 'GET' });
+                if (act.estado < 400 && act.cuerpo && act.cuerpo.last_edited_time !== op.esperado.editado) {
+                  resultados.push({ id: op.id, ok: false, codigo: 'CONFLICTO',
+                    mensaje: 'Esa fila cambió en Notion desde la última vez que este teléfono la vio.',
+                    conflicto: soloLegibles(aplanar(act.cuerpo), LEGIBLES[rol]) });
+                  continue;
+                }
+              }
+              r = await notion(env, '/pages/' + idPagina, { method: 'PATCH', body: JSON.stringify({ properties: props }) });
             }
-            r = await notion(env, '/pages/' + idPagina, { method: 'PATCH', body: JSON.stringify({ properties: props }) });
-          }
-          /* Lo único que hay para saber qué teléfono escribió qué: en Notion toda escritura
-             aparece firmada por la integración, sin distinguir de quién vino. Se ve en el
-             panel (Workers → Logs). Van los NOMBRES de las propiedades y NUNCA sus valores
-             —con los valores acabas con los importes de los clientes guardados en el panel de
-             Cloudflare— y nunca, bajo ninguna circunstancia, el token. */
-          console.log(JSON.stringify({ rol, op: op.id, pagina: idPagina || 'nueva',
-                                       props: Object.keys(props), estado: r.estado }));
-          if (r.estado >= 400) {
-            const t = traducir(r.estado, r.cuerpo);
-            resultados.push({ id: op.id, ok: false, ...t, rechazadas });
-            /* Un 429 corta la vuelta entera: seguir pegándole es cómo se pasa de un límite
-               temporal a un bloqueo. Lo que queda se reintenta en la siguiente. */
-            if (r.estado === 429) {
-              return json({ ok: true, resultados }, 429, origen,
-                r.reintentar ? { 'Retry-After': r.reintentar } : { 'Retry-After': '30' });
+            /* Lo único que hay para saber qué teléfono escribió qué: en Notion toda escritura
+               aparece firmada por la integración, sin distinguir de quién vino. Se ve en el
+               panel (Workers → Logs). Van los NOMBRES de las propiedades y NUNCA sus valores
+               —con los valores acabas con los importes de los clientes guardados en el panel de
+               Cloudflare— y nunca, bajo ninguna circunstancia, el token. */
+            console.log(JSON.stringify({ rol, op: op.id, pagina: idPagina || 'nueva',
+                                         props: Object.keys(props), estado: r.estado }));
+            if (r.estado >= 400) {
+              const t = traducir(r.estado, r.cuerpo);
+              resultados.push({ id: op.id, ok: false, ...t, rechazadas });
+              /* Un 429 corta la vuelta entera: seguir pegándole es cómo se pasa de un límite
+                 temporal a un bloqueo. Lo que queda se reintenta en la siguiente. */
+              if (r.estado === 429) {
+                return json({ ok: true, resultados }, 429, origen,
+                  r.reintentar ? { 'Retry-After': r.reintentar } : { 'Retry-After': '30' });
+              }
+              continue;
             }
-            continue;
+            resultados.push({ id: op.id, ok: true, remoto: soloLegibles(aplanar(r.cuerpo), LEGIBLES[rol]), rechazadas });
+          } catch (e) {
+            console.error('empujar', op && op.id, e && e.message);
+            resultados.push({ id: (op && op.id) || '?', ok: false, codigo: 'SIN_RED',
+              mensaje: 'Ese cambio no se pudo mandar. Sigue guardado en el teléfono y se reintenta solo.' });
           }
-          resultados.push({ id: op.id, ok: true, remoto: soloLegibles(aplanar(r.cuerpo), LEGIBLES[rol]), rechazadas });
         }
         return json({ ok: true, resultados }, 200, origen);
       }

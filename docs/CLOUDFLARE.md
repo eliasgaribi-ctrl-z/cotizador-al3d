@@ -16,7 +16,7 @@ Cloudflare Pages sirve **el repositorio entero, tal cual**. Eso incluye la app:
 
 | Pieza | Qué es |
 |---|---|
-| `index.html` | El cotizador. 893 KB, todo el JavaScript adentro, un solo `<script>` |
+| `index.html` | El cotizador. 900 KB, todo el JavaScript adentro, un solo `<script>` |
 | `plataforma.html` + `js/` | La plataforma: unos treinta módulos ES que se importan entre sí |
 | `sw.js` | El service worker: lo que hace que las dos apps abran sin señal |
 | `css/`, `vendor/`, `datos/` | Estilos, Leaflet copiado a mano, la semilla de datos |
@@ -29,9 +29,15 @@ Y también, porque Pages no distingue: `docs/` (688 KB), `pruebas/` (220 KB), `h
 
 ### Lo que NO cambia
 
-**El Worker del puente ya vive en Cloudflare y no se toca.** `puente/worker.js` se pega a mano en el editor del panel —lo dice el propio archivo, `puente/worker.js:4-6`: «no hay node, no hay wrangler, no hay terminal»— y ahí seguirá. No se despliega con el sitio, no se despliega desde el repositorio, y esta mudanza no le cambia una sola línea de código.
+**El Worker del puente vive en Cloudflare y sigue sin desplegarse con el sitio.** `puente/worker.js` se pega a mano en el editor del panel —lo dice el propio archivo: «no hay node, no hay wrangler, no hay terminal»— y ahí seguirá. Publicar en Pages no lo toca.
 
-Lo único que hay que tocarle es **una variable**: `ORIGENES`. Eso es la §4, y va antes que mover a nadie.
+**Pero el archivo SÍ cambió en el repositorio, y hay que volver a pegarlo.** Lleva los diez parches de `puente/ENDURECIMIENTO.md` —entre ellos el que cierra la travesía de ruta contra la API de Notion y el que deja de entregarle los importes crudos a cualquier rol— y el orden no es negociable:
+
+1. Primero `ORIGENES` en el panel del Worker con los **dos** dominios, separados por coma y sin barra final, y **Deploy** (guardar la variable no basta). Con el código nuevo, un origen que no está en la lista deja de recibir cabecera de CORS: pegar el código antes de arreglar la variable deja a los tres teléfonos sin sincronizar.
+2. Después el código: *Edit code*, borrar todo, pegar `puente/worker.js` entero, *Deploy*.
+3. Después *Ajustes → El puente → Probar* en los tres teléfonos, uno por uno.
+
+Eso es la §4, y va antes que mover a nadie.
 
 Dentro de ese Worker viven los dos únicos secretos de todo el sistema (`puente/worker.js:40-47`):
 
@@ -159,7 +165,9 @@ curl -s -D- -o /dev/null -X OPTIONS \
   -H 'Access-Control-Request-Headers: authorization'
 ```
 
-y comprobar que `access-control-allow-origin` diga **el dominio nuevo**. Esto hay que leerlo con cuidado: por cómo está escrito hoy `puente/worker.js:140`, si el origen no está en la lista el Worker **no rechaza** — contesta con `lista[0]`, o sea con el primer dominio de la lista. Así que un dominio mal escrito igual devuelve `204` y las cabeceras se ven bien. Solo el valor delata el error.
+y comprobar que `access-control-allow-origin` diga **el dominio nuevo**. Con el Worker nuevo desplegado, un origen que no está en `ORIGENES` **no recibe ninguna cabecera de CORS**, y su preflight contesta **403**. Así que la comprobación es directa: si la respuesta no trae `access-control-allow-origin`, es `ORIGENES` y no la red.
+
+Esto antes no era así, y es la razón de que el parche exista: el Worker viejo contestaba con el primer dominio de la lista, así que un dominio mal escrito devolvía `204` con unas cabeceras que se veían bien — y desde el teléfono se leía igual que «no hay señal».
 
 **Paso 6. Ahora sí, mueve a la gente** (§5).
 
@@ -350,7 +358,7 @@ Los tres son **ajustes de zona**: hoy, en `*.pages.dev`, no existen y no hay nad
 
 **Speed** → *Optimization* → *Content Optimization* → **Rocket Loader: Off**
 
-Rocket Loader difiere la ejecución de todo el JavaScript hasta **después** del `DOMContentLoaded`. `index.html` tiene **un solo `<script>`** con los 893 KB adentro, y **267 manejadores escritos en el HTML** (`onclick="..."`, `oninput="..."` y demás). Esos atributos apuntan a funciones que están dentro de ese script.
+Rocket Loader difiere la ejecución de todo el JavaScript hasta **después** del `DOMContentLoaded`. `index.html` tiene **un solo `<script>`** con los 900 KB adentro, y **267 manejadores escritos en el HTML** (`onclick="..."`, `oninput="..."` y demás). Esos atributos apuntan a funciones que están dentro de ese script.
 
 Con Rocket Loader, hay una ventana en la que la pantalla ya está pintada, los botones ya se ven, y las funciones que llaman **todavía no existen**. Tocar cualquier cosa en esa ventana no hace nada: no da error visible, no pinta un aviso, simplemente no pasa nada.
 
@@ -362,7 +370,7 @@ Y hay que decirlo bien, porque cambia lo obedecible que es el consejo: **eso pas
 
 Cloudflare lo retiró del panel en agosto de 2024, así que en una zona nueva probablemente ni aparezca. Si la cuenta arrastra una zona vieja donde todavía se ve: **Off**, las tres casillas.
 
-Minificar 893 KB de HTML con **190 atributos `style=""`** y 267 atributos `on*` es el caso exacto donde un minificador se equivoca, y el resultado —un atributo mal recortado, una comilla comida— se ve como un pedazo de la interfaz que dejó de funcionar sin razón aparente.
+Minificar 900 KB de HTML con **190 atributos `style=""`** y 267 atributos `on*` es el caso exacto donde un minificador se equivoca, y el resultado —un atributo mal recortado, una comilla comida— se ve como un pedazo de la interfaz que dejó de funcionar sin razón aparente.
 
 ### Email Obfuscation — **Off**
 
@@ -425,7 +433,8 @@ Al estilo del de `puente/README.md:141-153`.
 | Ajustes → Probar: «No se pudo llegar al puente. Puede ser que no haya señal, o que a este dominio le falte estar en ORIGENES» | El dominio nuevo no está en `ORIGENES`, **o** se guardó la variable sin redesplegar el Worker | Worker → Settings → Variables → `ORIGENES` con los dos dominios, coma en medio, sin barra final → **Deploy** (§4) |
 | Lo mismo, pero solo en un teléfono y los otros dos sí sincronizan | No es CORS: es la señal, o la URL del Worker mal pegada en ese teléfono | Ajustes → El puente → revisar la URL. Si está bien, es la red: la bandeja lo reintenta sola |
 | «Este teléfono no tiene un token válido del puente» (401), en **un** teléfono | El token se pegó con un espacio o es el de otro dispositivo | Volver a pegarlo en Ajustes → El puente |
-| «Este teléfono no tiene un token válido» (401) en **los tres** | El JSON de `TOKENS` está roto —una coma de más, una comilla curva del teclado del celular— o un rol está mal escrito | Regenerar el JSON con Ajustes → *Generar los tres tokens*, pegarlo completo en el secreto `TOKENS`, desplegar, repartir los tres |
+| «El JSON de TOKENS en Cloudflare está roto…» (500), en **los tres** | Una coma de más o una comilla curva del teclado del celular | Volver a pegar el JSON entero, sin editarlo a mano, y **Deploy**. NO hace falta regenerar los tokens |
+| «El token de este teléfono está en TOKENS con un rol que no existe: «X»» (401), en **uno** | Un rol mal escrito en ESE renglón | Corregirlo —`direccion`, `fabricacion`, `pagos`, en minúsculas y sin acento— y desplegar. Los otros dos no se enteran, y eso es a propósito: así revocar un teléfono perdido no apaga a los demás |
 | «Al puente le faltan sus secretos» (500) | Falta `NOTION_TOKEN` o `TOKENS` en el Worker | Workers & Pages → `puente-al3d` → Settings → Variables and Secrets |
 | Google Calendar dice `origin_mismatch` | Falta el origen nuevo en Google Cloud | console.cloud.google.com → Credenciales → el ID de cliente → *Orígenes autorizados de JavaScript* → agregar el dominio nuevo, sin barra final (§4, paso 4) |
 | La app nueva abre **vacía**: sin historial, sin agenda, folio en `COT-0001` | Es otro origen. Los datos siguen en el teléfono, bajo `github.io` | Restaurar los dos respaldos (§5). Si no se bajaron, volver a abrir la app vieja —que sigue funcionando— y bajarlos |
@@ -463,7 +472,9 @@ Cada una nombra el origen bloqueado y la directiva que lo bloqueó. Si aparece u
 
 4. **El PDF.** Genera el PDF de esa cotización. Tiene que abrirse en otra pestaña **y lanzar el diálogo de impresión solo**. Si abre pero no imprime, es la CSP: el PDF se arma como una página HTML con un `<script>` adentro, se mete en un `Blob` y hereda la política de quien lo creó. Si no abre, mira `frame-src` y `blob:`.
 
-5. **Leer un PDF que manda el cliente.** Sube un PDF en el analizador. Esto carga pdf.js desde `cdnjs.cloudflare.com` (`index.html:10369-10370`), que es el origen más frágil de la lista. Ojo: **hoy esto necesita señal la primera vez** y el propio mensaje de error lo admite. Si falla con la consola limpia, es la red; si falla con un `Refused to load`, es `script-src`.
+5. **Leer un PDF que manda el cliente.** Sube un PDF en el analizador. El lector ya **no** se baja de una CDN: vive en `vendor/pdfjs/` y es un módulo del propio sitio, así que las directivas que lo sostienen son `script-src 'self'` y `worker-src 'self'`. Si aquí sale un `Refused to load`, **no** es que falte un origen externo —ya no hay ninguno— sino que `_headers` se rompió. **No le agregues `cdnjs.cloudflare.com` a nada**: es justo lo que se quitó, y `pruebas/cabeceras.mjs` falla si vuelve.
+
+    Y sigue necesitando señal **la primera vez**: son 1.8 MB que no van en la precarga del service worker, así que se guardan al abrir el primer PDF con conexión y hay que volver a bajarlos tras cada subida de `APP_VERSION`. El mensaje distingue el caso. Está explicado en `vendor/pdfjs/PROCEDENCIA.md`.
 
 6. **El mapa.** Plataforma → Mapa. Las teselas tienen que pintar (`img-src` con `tile.openstreetmap.org`). Prueba también cambiar el proveedor a CARTO en Ajustes, que es la otra entrada de `img-src`. Y busca una dirección: eso pega a `nominatim.openstreetmap.org` por `connect-src`. Este último vale la pena mirarlo con la consola de red abierta aunque no falle: nadie del proyecto ha verificado nunca que Nominatim mande la cabecera que el navegador necesita (`js/datos/geo.js:244-245`), y el origen acaba de cambiar.
 

@@ -358,6 +358,11 @@ export async function importar(texto) {
      éxito, dejando la app sin arrancar. */
   for (const [a, filas] of Object.entries(paquete.datos)) {
     if (!ALMACENES.includes(a)) continue;
+    /* `pendientes` se salta AQUÍ TAMBIÉN, no solo abajo. Si no, el archivo se rechaza entero
+       —ni proyectos, ni movimientos, ni las fotos— por la forma de un dato que tres líneas más
+       abajo se ignora sin leer. Y la persona vería «El respaldo está dañado» de un respaldo que
+       está perfectamente bien salvo por una clave que a nadie le importa. */
+    if (a === 'pendientes') continue;
     if (!Array.isArray(filas)) return mal('DATO_INVALIDO', 'El respaldo está dañado: «' + a + '» no es una lista.');
   }
   let almacenes = 0, registros = 0, descartados = 0;

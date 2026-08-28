@@ -28,7 +28,7 @@
   #      etiquetas <script>, no para los atributos—, y 'unsafe-hashes' pediría las
   #      267 huellas a mano y volvería a pedirlas con cada cambio.
   #   2. Todo el JavaScript del cotizador vive en un solo <script> dentro del mismo
-  #      archivo. Son 893 KB: separarlo es otro proyecto.
+  #      archivo. Son 900 KB: separarlo es otro proyecto.
   #   3. Y la que no se ve: el PDF (index.html:8784) se arma como una página HTML
   #      con un <script> adentro que llama a window.print(), se mete en un Blob y se
   #      abre en otra pestaña. Un documento `blob:` HEREDA la política de quien lo
@@ -75,9 +75,14 @@
   #                               descarga. `frame-src` los lleva por el visor de
   #                               index.html:5426, que solo acepta esos dos esquemas
   #                               (urlPdfSegura, index.html:3825).
-  #   worker-src blob:            pdf.js, cuando su worker vive en otro dominio, se
-  #                               arma un envoltorio en un Blob. Sin esto el lector
-  #                               de PDF cae al hilo principal y congela la pantalla.
+  #   worker-src 'self'           pdf.js arranca su worker desde vendor/pdfjs/, que es del
+  #                               mismo origen. ESTA es la fuente que sostiene el lector hoy;
+  #                               si se cae, pdf.js NO falla: rasteriza en el hilo principal y
+  #                               congela la pantalla con el plano de un cliente.
+  #   worker-src blob:            queda como cinturón, y el motivo cambió: mientras pdf.js se
+  #                               bajaba de cdnjs se envolvía en un Blob por ser de otro
+  #                               dominio, y eso ya no pasa. Se deja porque pdf.js usa `blob:`
+  #                               en otros caminos internos y quitarlo no compra nada medible.
   #   child-src 'self' blob:      solo por los Safari anteriores al 15.4, que no
   #                               entienden `worker-src` y caen a esta. Lleva lo
   #                               mínimo para que el worker de pdf.js siga armándose:
@@ -173,6 +178,12 @@
   Cache-Control: public, max-age=0, must-revalidate
 
 /plataforma.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/privacidad
+  Cache-Control: public, max-age=0, must-revalidate
+
+/privacidad.html
   Cache-Control: public, max-age=0, must-revalidate
 
 /js/*

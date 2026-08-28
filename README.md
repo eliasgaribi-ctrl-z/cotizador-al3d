@@ -333,9 +333,10 @@ Tres documentos, y conviene leerlos en este orden:
   marcados como `[COMPLETAR]` y solo los tiene el dueño. No se enlaza desde el PDF del cliente
   hasta que estén puestos: publicar un aviso a medias es peor que no tener ninguno.
 - **`puente/ENDURECIMIENTO.md`** — diez parches al Worker, cada uno con su antes, su después y
-  si rompe alguna de las dos pruebas que lo cubren. **No están aplicados a propósito**: el
-  Worker no se despliega desde este repositorio y el primero de ellos, sin `ORIGENES` puesta
-  antes, deja a los tres teléfonos sin sincronizar.
+  su motivo. **Ya están aplicados en `puente/worker.js`**; lo que falta es pegarlo en
+  Cloudflare, porque el Worker no se despliega desde este repositorio. Y ahí el orden no es
+  negociable: primero `ORIGENES` con los dos dominios y Deploy, después el código. Al revés
+  deja a los tres teléfonos sin sincronizar.
 
 Y dos pruebas nuevas vigilan que la política y el código no se separen, porque una CSP a la que
 le falta un origen **no da error de red, no pinta un aviso y no aparece en ningún log** —el mapa

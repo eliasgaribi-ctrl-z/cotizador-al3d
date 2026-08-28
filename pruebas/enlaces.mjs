@@ -121,5 +121,45 @@ console.log('\nEL LINK A WHATSAPP');
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Y el otro contexto en el que esc() tampoco basta: dentro de un manejador
+   --------------------------------------------------------------------------- */
+/* Un `href` es contexto de URL y por eso esc() no lo salva; un `onclick` es contexto de
+   JavaScript y tampoco. Y esta segunda es peor, porque parece resuelta: el analizador de HTML
+   DECODIFICA las referencias de carácter del valor de un atributo ANTES de compilarlo como
+   código, así que el `&#39;` que esc() produce vuelve a ser un apóstrofo por el camino y un
+   folio como `');alert(1);//` se sale del literal igual.
+
+   Los doce sitios que lo hacían ya no interpolan: el dato viaja en un `data-folio`/`data-clave`
+   y el manejador lo lee con `this.dataset`. Quien lo DEMUESTRA es pruebas/navegador/inyeccion.mjs,
+   que abre Chromium y toca los botones. Esto de aquí es el centinela barato: corre en la tanda
+   de node, en un segundo, y falla si el patrón vuelve. Los dos hacen falta — la prueba de
+   navegador es la que prueba, y esta es la que se corre siempre. */
+console.log('\nEL PATRÓN QUE NO PUEDE VOLVER: un dato interpolado dentro de un manejador');
+{
+  const html = readFileSync(join(RAIZ, 'index.html'), 'utf8');
+  /* Un `\${` dentro de un `on…="…"`. Se descartan los números y las expresiones fijas —`${it.id}`
+     ya va saneado a número, y `'${t}'` sale de una lista literal del propio archivo—: lo que se
+     busca es una cadena que venga de datos guardados metida entre comillas simples. */
+  const sospechosos = [...html.matchAll(/\son[a-z]+="[^"]*'\$\{[^"]*"/g)]
+    .map(m => m[0])
+    /* El comentario de esc() cita el patrón para explicarlo; no es código. */
+    .filter(t => !/fn\('\$\{esc\(folio\)\}'\)/.test(t))
+    /* `'${t}'` de setTipo: `t` recorre ['letras','recorte','bastidor','caja','manual'], escrito
+       literal dos líneas más arriba en el mismo archivo. */
+    .filter(t => !/setTipo\(/.test(t))
+    /* `aiDelKey('${p}',…)`: `p` recorre AI_PROVS, otra lista literal del archivo. */
+    .filter(t => !/aiDelKey\(/.test(t));
+
+  if (!sospechosos.length)
+    bien('ningún manejador de index.html interpola una cadena entre comillas simples');
+  else for (const t of sospechosos.slice(0, 6))
+    mal('volvió el patrón que se quitó: ' + t.trim().slice(0, 90) + '\n' +
+        '      esc() NO protege ahí: el analizador de HTML decodifica el &#39; antes de compilar\n' +
+        '      el atributo como JavaScript. Pasa el dato por un `data-…` y léelo con\n' +
+        '      `this.dataset`, como los otros doce. Y si de verdad es un valor de una lista fija\n' +
+        '      del propio archivo, añádelo a las excepciones de aquí con el motivo escrito.');
+}
+
 console.log(fallos ? '\n' + fallos + ' FALLO(S)' : '\nNingún dato del usuario llega crudo a un href.');
 process.exit(fallos ? 1 : 0);

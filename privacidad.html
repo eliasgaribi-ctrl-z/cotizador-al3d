@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Aviso de privacidad — AL3D</title>
+<!-- La misma tipografía y con la misma técnica que index.html: media="print" para que no
+     bloquee el pintado, y la pila de reserva del sistema mientras llega. Sin esta línea la
+     página se veía con otra letra que el resto de la app. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all';this.onload=null">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="./css/sistema.css">
 <style>
   /* Lo mínimo encima del sistema: esta página es una columna de texto y nada más. Toma los
@@ -22,8 +29,8 @@
   p,li{line-height:1.62;}
   li{margin-bottom:6px;}
   /* #5a6274 y no `--n5`: el gris tenue del sistema está pensado para ir sobre tarjeta y
-     acompañado de un título, y aquí es la única línea de contexto de la página. Da 6.12:1
-     sobre blanco —medido, no estimado—, y los enlaces 5.18:1. */
+     acompañado de un título, y aquí es la única línea de contexto de la página. Da 6,12:1
+     sobre blanco, medido. */
   .sub{color:#5a6274;margin:0 0 26px;}
   .completar{background:#fff4e5;border:1px solid #e0a34a;border-radius:var(--rr1,12px);
              padding:14px 16px;margin:0 0 26px;}
@@ -33,7 +40,10 @@
   th,td{border:1px solid #dcdfe6;padding:8px 10px;text-align:left;vertical-align:top;}
   th{background:#f6f7f9;}
   footer{margin-top:44px;padding-top:18px;border-top:1px solid #dcdfe6;color:#5a6274;font-size:.92em;}
-  a{color:var(--a,#1b6ec2);}
+  /* `--a` es #4060f8, el azul del sistema, y da 4,95:1 sobre blanco —medido—: pasa AA y es el
+     mismo que ya usa el resto de la app. Sin fallback a propósito: uno distinto sería un color
+     que nadie ve nunca y un número que nadie puede comprobar. */
+  a{color:var(--a);}
 </style>
 </head>
 <body>

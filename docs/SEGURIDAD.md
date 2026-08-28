@@ -75,8 +75,8 @@ solo se cierran haciendo la mudanza bien, y el procedimiento teléfono por telé
 |---|---|
 | Doce `onclick` armados por interpolación con el folio o la clave del cliente. `esc()` no protegía: el analizador de HTML decodifica el `&#39;` antes de compilar el atributo como JavaScript | El dato viaja en `data-folio`/`data-clave` y el manejador lo lee con `this.dataset`. `pruebas/navegador/inyeccion.mjs` envenena `localStorage` como lo haría un respaldo manipulado y comprueba que no ejecuta |
 | Un decimotercer sitio que no estaba en el informe: `it.id`, en una treintena de manejadores por partida, entrando crudo desde el archivo por tres puertas | `sanearIds()` lo convierte en número en las tres puertas y otra vez al pintar |
-| pdf.js 3.11.174 desde cdnjs, sin integridad, con el CVE que ejecuta JavaScript desde un PDF preparado — y los PDF los manda el cliente | pdf.js 4.10.38 en `vendor/pdfjs/`, copiado a mano como Leaflet, con `isEvalSupported:false`. `cdnjs` salió de `script-src`. Leer un PDF ahora funciona sin señal, que antes no. `pruebas/navegador/pdf.mjs` abre uno de verdad |
-| `/jalar` devolvía la fila entera del dinero a cualquier rol | Manda solo los seis campos que el cliente consume. Los importes crudos no salen de Notion por ninguno de los tres tokens |
+| pdf.js 3.11.174 desde cdnjs, sin integridad, con el CVE que ejecuta JavaScript desde un PDF preparado — y los PDF los manda el cliente | pdf.js 4.10.38 en `vendor/pdfjs/`, copiado a mano como Leaflet, con `isEvalSupported:false`. `cdnjs` salió de `script-src`. Leer un PDF **puede** funcionar sin señal, que antes nunca: el lector son 1.8 MB que NO van en la precarga —`addAll` es todo-o-nada y jugarse ahí la caché de la app por el lector sería cambiar lo primero por lo segundo— así que se guarda la primera vez que alguien abre un PDF **con** señal, y hay que volver a bajarlo tras cada subida de `APP_VERSION`. El mensaje distingue el caso. `pruebas/navegador/pdf.mjs` abre uno de verdad, con las URL limpias de Pages, y cubre además el reintento tras un fallo |
+| `/jalar` devolvía la fila entera del dinero a cualquier rol | Manda solo los seis campos que el cliente consume, y la lista salió de leer `deNotion`, no de una opinión. Los **importes crudos** —`Anticipo`, `Liquidacion`, `Precio Subtotal`, `Abono Comision`, `Comisiones`, `Precio Neto `— ya no salen de Notion por ninguno de los tres tokens. **Con una salvedad que hay que decidir, no tapar:** el espejo de cobranza (`Estatus`, `Cuenta `, `Pago Pendiente`, `Comision Restante`) le sigue llegando también a fabricación, porque el cliente lo pide para los tres teléfonos por decisión explícita del dueño (`js/datos/puente.js`). Si fabricación no debe ver cuánto debe cada cliente, hay que partir `LEGIBLES_JALAR` en dos — es un cambio de cinco líneas, pero es una decisión del negocio y no de una auditoría |
 | `op.id_notion` se concatenaba crudo a la ruta de la API de Notion; `../databases/` convertía un PATCH de fila en otra cosa | Se exige forma de UUID, y se dice cuando no la tiene en vez de callarlo |
 | Dar de alta una venta solo estaba prohibido en el cliente | El candado está en el Worker |
 | Un origen fuera de `ORIGENES` recibía el primero de la lista, así que un dominio mal escrito se veía igual que «no hay señal» | Se niega. El diagnóstico existe |
@@ -84,7 +84,7 @@ solo se cierran haciendo la mudanza bien, y el procedimiento teléfono por telé
 | Importes sin rango: negativos y `1e21` entraban a la base del dinero | Rango, con el motivo escrito |
 | `/expandir` — riesgo sin función: `redirect:'follow'` con los saltos elegidos por un tercero | Borrado. Nadie lo llamaba |
 | Restaurar un respaldo escribía en la bandeja de salida, y el relevo la bombea sola a Notion | `importar()` la salta, como `exportar()` ya hacía |
-| `Gcal.pedirToken()` devolvía el access_token de Google en claro a cualquier módulo del origen | Devuelve solo la caducidad. Y ya no deja la promesa colgada: tiene `error_callback` y tope de reloj |
+| `Gcal.pedirToken()` devolvía el access_token de Google en claro a cualquier módulo del origen | Devuelve solo la caducidad —`llamar()` usa `_tok` del ámbito del módulo, así que nadie lo perdía—. Y ya no deja la promesa colgada: tiene `error_callback` y dos topes de reloj, 30 s para la renovación silenciosa y 5 min para el consentimiento, porque la pantalla de «Google no ha verificado esta app» tarda minutos en un teléfono viejo y un tope único la cortaba a media aceptación. **Sin prueba automatizada: nada de `pruebas/` carga `js/nucleo/gcal.js`.** Y sigue abierto lo de abajo |
 | `urlMapa()` no filtraba el esquema; `agenda.js` sí, dos archivos más allá | Filtrado, con `pruebas/enlaces.mjs` corriendo los dos constructores contra seis esquemas |
 | La key de Gemini viajaba en la query | En cabecera, como las otras dos |
 | Ni una cabecera de seguridad, porque GitHub Pages no las deja poner | `_headers`, validado en Chromium con cero violaciones |
@@ -100,6 +100,11 @@ solo se cierran haciendo la mudanza bien, y el procedimiento teléfono por telé
 - **Los topes de gasto de OpenRouter y Groq**, que se ponen del lado del proveedor.
 - **La verificación en dos pasos de Cloudflare**, que sigue siendo lo más valioso por minuto
   invertido de todo este documento.
+- **`Gcal.pedirToken()` sigue exportada y sin mirar el rol.** Ya no devuelve el token, pero un
+  script del mismo origen puede llamarla y acuñar uno: `llamar()` lo toma de `_tok`, que queda
+  puesto. En el teléfono de Dirección eso es escribir y borrar eventos en el calendario del
+  director. Cerrarlo es una guarda de rol al principio de la función; no se puso porque hoy no
+  hay ninguna prueba que cargue ese módulo y tocarlo a ciegas es cómo se rompe el calendario.
 - Y las **bajas e informativas** de abajo, que son deuda e higiene y están donde deben estar.
 
 ---
@@ -124,11 +129,12 @@ Cuatro cosas, todas en el repositorio y todas con prueba:
   `pruebas/enlaces.mjs` (corre los constructores de enlaces contra seis esquemas peligrosos).
   Las tres se verificaron al revés: rompiendo lo que vigilan, para ver que fallan.
 
-**Lo que no se aplicó, y por qué.** Los diez parches del Worker están escritos con su antes y
-su después en `puente/ENDURECIMIENTO.md`, y no se tocó el archivo. El Worker no se despliega
-desde este repositorio —se pega a mano en el editor de Cloudflare— y el primero de los
-parches, aplicado antes de poner `ORIGENES`, deja a los tres teléfonos sin sincronizar. El
-orden está en ese documento y hay que respetarlo.
+**Los diez parches del Worker ya están aplicados en `puente/worker.js`**, con su antes, su
+después y su motivo en `puente/ENDURECIMIENTO.md`, y `pruebas/worker.mjs` pasó de 88 a 133
+aserciones cubriéndolos. Lo que falta es **pegarlo en Cloudflare**, porque el Worker no se
+despliega desde este repositorio, y ahí el orden no es negociable: primero `ORIGENES` con los
+dos dominios y Deploy, después el código. Al revés deja a los tres teléfonos sin sincronizar.
+El orden completo está al principio de ese documento.
 
 ---
 
@@ -578,7 +584,7 @@ nadie los reviva leyendo un informe viejo.
   mandó una sola petición al Worker real.
 - **No se auditó Notion.** Los permisos del workspace, quién más tiene acceso a la página
   «Finanzas - AL3D» y qué ve la integración quedan fuera.
-- **No se revisó el `index.html` renglón por renglón.** Son 893 KB; se buscó por patrones de
+- **No se revisó el `index.html` renglón por renglón.** Son 900 KB; se buscó por patrones de
   riesgo, y el crítico de completitud encontró cosas que las nueve revisiones no vieron, lo
   cual sugiere que quedan más.
 - **Nada de esto es una opinión legal.** Lo que dice de la LFPDPPP viene de leer la ley y su

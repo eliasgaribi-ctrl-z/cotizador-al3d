@@ -172,10 +172,16 @@ generan.
 
 Así que:
 
-- **Con el JSON guardado**, revocar el token de un teléfono perdido es borrar su renglón —o
-  cambiarle el rol por cualquier cosa— pegar el JSON y **Deploy**. Los otros dos teléfonos ni
-  se enteran. El Worker ya lo maneja: una entrada borrada da el 401 de siempre, y un rol que
-  no existe da un 500 que lo nombra.
+- **Con el JSON guardado**, revocar el token de un teléfono perdido es **borrar su renglón**,
+  pegar el JSON y **Deploy**. Los otros dos teléfonos ni se enteran: ese token pasa a dar el
+  401 de siempre y nada más cambia.
+
+  Si en vez de borrarlo le cambias el rol por cualquier cosa, también funciona —ese teléfono
+  recibe un 401 que le dice que su rol no existe— pero **borrar el renglón es más limpio**,
+  porque no deja una entrada muerta que el siguiente que lea el JSON tenga que interpretar.
+  Lo que el Worker sí garantiza es que un renglón mal escrito **no apaga a los demás**: el rol
+  se juzga cuando ya se sabe de quién es el token, no al leer el mapa. Eso costó descubrirlo, y
+  es justo lo que hace que revocar sea seguro hacerlo con prisa.
 - **Sin el JSON**, hay que **regenerar los tres**, pegar el JSON nuevo y repartirlo. Eso es un
   momento coordinado con las tres personas juntas, no algo que se haga a lo largo de la
   semana — y suele tocar justo cuando alguien acaba de perder un teléfono.

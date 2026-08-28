@@ -199,6 +199,24 @@ await p.evaluate(() => irAPaso(2));
 await p.waitForTimeout(500);
 await comprobar('el aviso del paso 2 congelado', '#cand-partidas');
 
+/* El aviso de privacidad es la tercera página del sitio y también la lee alguien: un cliente
+   que toca la liga desde el cotizador. Va aquí y no en una prueba propia porque el riesgo es el
+   mismo que el de las otras dos —un gris tenue que se decidió a ojo sobre un fondo que no era
+   el que se pensó— y porque el `body` del sistema pinta un degradado: un texto sin tarjeta
+   encima de él es exactamente donde el contraste se cae sin que nadie lo note. */
+console.log('\nEL AVISO DE PRIVACIDAD');
+await p.goto(B + '/privacidad.html', { waitUntil: 'load' });
+await p.waitForTimeout(700);
+await comprobar('el título', 'h1');
+await comprobar('la línea de contexto, que es el gris más tenue de la página', '.sub');
+await comprobar('un encabezado de sección', 'h2');
+await comprobar('el cuerpo del texto', 'h2 + p');
+await comprobar('el recuadro de «falta completar»', '.completar');
+await comprobar('el encabezado de la tabla', 'th');
+await comprobar('una celda', 'td');
+await comprobar('el pie', 'footer');
+await comprobar('el enlace de vuelta al cotizador', 'footer a');
+
 console.log(fallos ? '\n' + fallos + ' PIEZA(S) POR DEBAJO DE ' + MINIMO + ':1'
                    : '\nNada de lo que lleva texto baja de ' + MINIMO + ':1.');
 await nav.close();
