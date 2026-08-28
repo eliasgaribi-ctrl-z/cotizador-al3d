@@ -127,12 +127,17 @@ function cargarGis() {
  *
  * @param {boolean} [silencioso] true para renovar sin pantalla (`prompt:''`). Solo
  *        funciona si ya hubo un consentimiento antes y la sesión de Google está viva.
- * @returns {Promise<Resultado>} valor = {token, expira}
+ * @returns {Promise<Resultado>} valor = {expira}. **El token no sale de aquí**, y es a
+ *          propósito: esta función está exportada, así que cualquier módulo del origen
+ *          podía pedirle un Bearer con alcance sobre TODOS los calendarios del director
+ *          con una línea. Nadie lo necesitaba —`llamar()` usa `_tok.token` del ámbito de
+ *          este módulo, no lo que la promesa devuelve, y `conectar()` solo mira `ok`—, así
+ *          que devolverlo era regalar la credencial sin que nada a cambio la pidiera.
  */
 export async function pedirToken(silencioso) {
   const c = cfg();
   if (!c.clientId) return mal('DATO_INVALIDO', MSG.SIN_CONFIG);
-  if (conectado()) return ok({ ..._tok });
+  if (conectado()) return ok({ expira: _tok.expira });
 
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     return mal('SIN_RED', MSG.SIN_RED);
@@ -140,6 +145,19 @@ export async function pedirToken(silencioso) {
   if (!await cargarGis()) return mal('SIN_RED', MSG.SIN_RED);
 
   return new Promise(resolve => {
+    /* Esta promesa tenía DOS caminos de salida y hacían falta cuatro. Los que faltaban no
+       daban un error: dejaban la promesa colgada para siempre, y una promesa colgada aquí
+       es un botón que no hace absolutamente nada al tocarlo —ni error, ni aviso, ni el
+       `.ics` de respaldo, que es el camino que sí funciona sin cuenta—. La persona lo toca
+       otra vez, y otra, y concluye que el botón no sirve.
+       `resuelto` está porque ahora hay cuatro caminos y el primero que llegue manda: GIS
+       puede llamar al callback justo cuando el reloj ya venció. */
+    let resuelto = false;
+    const salir = r => { if (resuelto) return; resuelto = true; clearTimeout(reloj); resolve(r); };
+    /* El tope duro. Treinta segundos es más de lo que tarda cualquier consentimiento real y
+       menos de lo que una persona espera mirando una pantalla quieta. */
+    const reloj = setTimeout(() => salir(mal('SIN_RED', MSG.SIN_RED)), 30000);
+
     /* Un solo tokenClient para toda la vida de la pestaña. Crear uno por petición deja
        callbacks viejos colgando y el token acaba llegando al callback de la petición
        anterior, que ya nadie está esperando. */
@@ -149,24 +167,30 @@ export async function pedirToken(silencioso) {
           client_id: c.clientId, scope: SCOPE, callback: () => {},
         });
       } catch (_) {
-        return resolve(mal('DATO_INVALIDO', MSG.RECHAZADO));
+        return salir(mal('DATO_INVALIDO', MSG.RECHAZADO));
       }
     }
     /* El callback se reasigna en cada petición porque es el único punto donde GIS
        entrega el token: no hay promesa que await-ear en su API. */
     _cliente.callback = resp => {
       if (!resp || !resp.access_token) {
-        return resolve(mal('SIN_RED', resp && resp.error === 'access_denied'
+        return salir(mal('SIN_RED', resp && resp.error === 'access_denied'
           ? MSG.SIN_TOKEN : MSG.SIN_RED));
       }
       const seg = Number(resp.expires_in) > 0 ? Number(resp.expires_in) : 3600;
       _tok = { token: resp.access_token, expira: Date.now() + (seg - 60) * 1000 };
-      resolve(ok({ ..._tok }));
+      salir(ok({ expira: _tok.expira }));
     };
+    /* `error_callback` es por donde GIS reporta lo que NO es un rechazo de OAuth, y el caso
+       que se ve en la calle es `popup_failed_to_open`: bajar el script de GIS con mala señal
+       puede tardar más que los segundos que el navegador conserva la activación del clic, y
+       entonces el emergente se bloquea. Sin esta línea eso no llamaba a nada. Se reasigna en
+       cada petición por el mismo motivo que el callback. */
+    _cliente.error_callback = () => salir(mal('SIN_RED', MSG.SIN_TOKEN));
     try {
       _cliente.requestAccessToken(silencioso ? { prompt: '' } : {});
     } catch (_) {
-      resolve(mal('SIN_RED', MSG.SIN_RED));
+      salir(mal('SIN_RED', MSG.SIN_RED));
     }
   });
 }

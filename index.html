@@ -3803,10 +3803,22 @@ let pid=0, dragId=null;
 const $=id=>document.getElementById(id);
 const plCot=n=>n+(n===1?' cotización':' cotizaciones');
 const money=n=>'$'+Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
-/* El apóstrofo también: los cinco onclick que pasan un folio lo delimitan con comilla
-   simple —onclick="reabrirDeHistorial('${esc(e.folio)}')"—, así que un folio con apóstrofo
-   se salía del literal. Del teclado no hay camino (los folios los genera folioFmt), pero de
-   un respaldo restaurado sí. */
+/* Escapa para HTML, y SOLO para HTML. Esa frase importa porque durante un tiempo aquí
+   decía otra cosa: que escapar el apóstrofo cerraba el caso de los doce
+   onclick="fn('${esc(folio)}')" que pasaban un folio o una clave de cliente. No lo cerraba,
+   y el motivo es del navegador y no de esta función. El analizador de HTML DECODIFICA las
+   referencias de carácter del valor de un atributo ANTES de compilarlo como JavaScript: el
+   `&#39;` que sale de aquí vuelve a ser `'` en el camino, así que un folio como
+   `');alert(1);//` se salía del literal igual, con esc() puesto y todo.
+
+   Ninguno de los doce interpola ya. El dato viaja en un `data-folio`/`data-clave` y el
+   manejador lo lee con `this.dataset`, que es un atributo de HTML de principio a fin: ahí
+   esc() SÍ basta, porque el valor no se compila nunca como código. Es el mismo patrón que
+   la plataforma usa con `data-mover` y `data-hoja`, y lo vigila pruebas/enlaces.mjs.
+
+   Y no es un caso de laboratorio: los folios los genera folioFmt, pero llegan también de un
+   respaldo restaurado —un archivo que viajó por WhatsApp— y las claves de cliente salen del
+   nombre que alguien tecleó. */
 const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
 /* ----- URLs de imagen que vienen del almacenamiento -----
@@ -4810,7 +4822,37 @@ function _devolverFocoItems(marca){
 }
 
 /* ===================== Render partidas ===================== */
+/* ----- El id de una partida SIEMPRE es un número -----
+   `it.id` se interpola en una treintena de manejadores del HTML de cada partida
+   —onclick="togglePartida(${it.id})", oninput="typeItem(${it.id},…)"— y esos son contexto
+   de JavaScript, no de HTML: ahí esc() no sirve de nada y ningún escape sirve, porque el
+   valor se COMPILA. La única defensa es que no pueda ser otra cosa que un número.
+
+   Y podía serlo. Las partidas entran a Q por tres puertas que leen de localStorage —abrir
+   del historial, abrir un pendiente de la cola, y la cotización en curso que se restaura al
+   arrancar— y ninguna miraba el id: llegaba tal cual venía del archivo. Un respaldo con
+   `"id": "1);alert(1);//"` —y un respaldo es un .json que viajó por WhatsApp— convertía cada
+   renglón de partida en código al primer toque.
+
+   `Number('3')` es 3, así que una partida vieja cuyo id se guardó como texto conserva su
+   identidad y `Q.itemsAuth`, que va indexado por id, sigue encontrándola. Lo que no es un
+   número de verdad se renumera: perder el precio autorizado de esa partida es mucho mejor
+   que ejecutarla, y de todos modos con un id así ya estaba rota. */
+function sanearIds(arr){
+  if(!Array.isArray(arr)) return [];
+  for(const it of arr){
+    if(!it||typeof it!=='object') continue;
+    const n=Number(it.id);
+    it.id=(isFinite(n)&&n>0)?n:++pid;
+    if(it.id>pid) pid=it.id;
+  }
+  return arr;
+}
+
 function renderItems(){
+  /* Red de seguridad: si alguna vez entra una partida por una cuarta puerta, aquí se le
+     quita el filo antes de que su id llegue a un manejador. */
+  sanearIds(Q.items);
   const _focoPrevio=_focoDeItems();
   renderAiPreview();
   renderScalerPreview();
@@ -5581,7 +5623,7 @@ function renderAuth(){
       /* El renglón era un div con onclick y nada más: el autorizador que navega con teclado
          no podía cargar ninguna cotización pendiente, que es lo único que hace esta pantalla.
          aria-current marca la que está abierta, que hasta ahora solo se distinguía por color. */
-      const rows=pendientes.map(e=>`<div class="queue-item${e.folio===Q.folio?' active':''}" ${_ABRIBLE} ${e.folio===Q.folio?'aria-current="true"':''} aria-label="Revisar ${esc(e.folio)}${e.proy||e.cliente?', '+esc(e.proy||e.cliente):''}" onclick="loadQueueEntry('${esc(e.folio)}')">
+      const rows=pendientes.map(e=>`<div class="queue-item${e.folio===Q.folio?' active':''}" ${_ABRIBLE} ${e.folio===Q.folio?'aria-current="true"':''} aria-label="Revisar ${esc(e.folio)}${e.proy||e.cliente?', '+esc(e.proy||e.cliente):''}" data-folio="${esc(e.folio)}" onclick="loadQueueEntry(this.dataset.folio)">
         <span class="qi-dot"></span>
         <div class="qi-body">
           <div class="qi-folio">${esc(e.folio)}</div>
@@ -7413,8 +7455,13 @@ function aiVacio(prov,razon){
 async function aiLlamar(c,prompt,b64,mime,sinJson){
   if(c.prov==='gemini'){
     const body={contents:[{parts:[{text:prompt},{inline_data:{mime_type:mime,data:b64}}]}],generationConfig:{responseMimeType:'application/json',temperature:0.2}};
-    const url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.model)}:generateContent?key=${encodeURIComponent(c.key)}`;
-    const r=await aiFetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    /* La key va en cabecera, no en `?key=`, aunque Google acepte las dos. En la query se
+       queda escrita en sitios de los que ya no se puede sacar: la pestaña Red del navegador
+       la enseña entera, un HAR exportado para pedir ayuda se la lleva, y los registros de
+       acceso del propio Google la guardan. Los otros dos proveedores de esta misma función
+       ya usan `Authorization`; este era el que se salía de la fila. */
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.model)}:generateContent`;
+    const r=await aiFetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':c.key},body:JSON.stringify(body)});
     if(!r.res.ok||(r.data&&r.data.error)||!r.data) throw aiError(r,c.prov,c.model);
     const cand=(r.data.candidates||[])[0];
     const txt=((cand&&cand.content&&cand.content.parts)||[]).map(p=>p.text||'').join('').trim();
@@ -8987,7 +9034,7 @@ function pintarHistorial(){
     html=lista.map(e=>{
       const isImg=e.aiFile&&e.aiFile.type&&e.aiFile.type.indexOf('image/')===0&&e.aiFile.url;
       const imgHTML=isImg
-        ? `<img class="hentry-img" src="${urlImagenSegura(e.aiFile.url)}" ${_ABRIBLE} onclick="openHistImg('${esc(e.folio)}')" title="Ver imagen completa" alt="Referencia">`
+        ? `<img class="hentry-img" src="${urlImagenSegura(e.aiFile.url)}" ${_ABRIBLE} data-folio="${esc(e.folio)}" onclick="openHistImg(this.dataset.folio)" title="Ver imagen completa" alt="Referencia">`
         : `<div class="hentry-img-ph">${e.aiFile?ico('i-doc'):ico('i-imagen')}</div>`;
       const rows=e.items.map((it,i)=>{
         const ia=(e.itemsAuth&&e.itemsAuth[it.id]!==undefined)?e.itemsAuth[it.id]
@@ -9006,9 +9053,9 @@ function pintarHistorial(){
             <div class="hentry-auth"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> ${esc(e.autorizador||'—')} · ${esc(e.fechaAuth||'')}</div>
           </div>
           <div class="hentry-acts">
-            <button class="hentry-open" onclick="reabrirDeHistorial('${esc(e.folio)}')" title="Cargarla en el cotizador para reimprimir su PDF, o editarla con «Editar partidas»"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Abrir y editar</button>
-            <button class="hentry-open" onclick="usarComoBase('${esc(e.folio)}')" title="Empezar una cotización nueva con estas mismas partidas, para cambiarles el material o la medida sin recapturarlas"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Duplicar</button>
-            <button class="hentry-del" onclick="borrarDeHistorial('${esc(e.folio)}')" title="Eliminar" aria-label="Eliminar cotización">${ico('i-basura')}</button>
+            <button class="hentry-open" data-folio="${esc(e.folio)}" onclick="reabrirDeHistorial(this.dataset.folio)" title="Cargarla en el cotizador para reimprimir su PDF, o editarla con «Editar partidas»"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Abrir y editar</button>
+            <button class="hentry-open" data-folio="${esc(e.folio)}" onclick="usarComoBase(this.dataset.folio)" title="Empezar una cotización nueva con estas mismas partidas, para cambiarles el material o la medida sin recapturarlas"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Duplicar</button>
+            <button class="hentry-del" data-folio="${esc(e.folio)}" onclick="borrarDeHistorial(this.dataset.folio)" title="Eliminar" aria-label="Eliminar cotización">${ico('i-basura')}</button>
           </div>
         </div>
         <table class="htable">${rows}</table>
@@ -9058,7 +9105,7 @@ function reabrirDeHistorial(folio){
   Q.dirRaw=e.dirRaw||''; Q.direccion=e.direccion||''; Q.maps=e.maps||'';
   Q.entrecalles=e.entrecalles||''; Q.entrega=e.entrega||''; Q.notaCliente=e.notaCliente||'';
   Q.fecha=e.fecha||Q.fecha;
-  Q.items=JSON.parse(JSON.stringify(e.items||[]));
+  Q.items=sanearIds(JSON.parse(JSON.stringify(e.items||[])));
   Q.itemsAuth=JSON.parse(JSON.stringify(e.itemsAuth||{}));
   Q.iva=e.iva!==false;
   Q.precioAuth=e.precioAuth||0;
@@ -9349,7 +9396,7 @@ function pintarCuadernos(){
     html=lista.map(g=>{
       const n=g.cots.length;
       const sub=[g.tel||'', g.alias.length?('también «'+g.alias[0]+'»'):''].filter(Boolean).join(' · ');
-      return `<button class="cua-card" onclick="abrirCuaderno('${esc(g.clave)}')" title="Abrir el cuaderno de ${esc(cuaTitulo(g))}">
+      return `<button class="cua-card" data-clave="${esc(g.clave)}" onclick="abrirCuaderno(this.dataset.clave)" title="Abrir el cuaderno de ${esc(cuaTitulo(g))}">
         <span class="cua-ini" aria-hidden="true">${esc(cuaIniciales(cuaTitulo(g)))}</span>
         <span class="cua-card-meta">
           <span class="cua-nombre">${esc(cuaTitulo(g))}</span>
@@ -9385,8 +9432,8 @@ function abrirCuaderno(clave){
       </div>
       <div class="cua-cot-tot">${money(totalFinalHist(e))}</div>
       <div class="cua-cot-acts">
-        <button onclick="cuaAbrirCot('${esc(e.folio)}')" title="Cargarla en el cotizador para reimprimir su PDF">Abrir</button>
-        <button onclick="cuaDuplicarCot('${esc(e.folio)}')" title="Empezar una cotización nueva con estas mismas partidas">Duplicar</button>
+        <button data-folio="${esc(e.folio)}" onclick="cuaAbrirCot(this.dataset.folio)" title="Cargarla en el cotizador para reimprimir su PDF">Abrir</button>
+        <button data-folio="${esc(e.folio)}" onclick="cuaDuplicarCot(this.dataset.folio)" title="Empezar una cotización nueva con estas mismas partidas">Duplicar</button>
       </div>
     </div>`).join('');
   const datos=[
@@ -9400,9 +9447,9 @@ function abrirCuaderno(clave){
       ${datos?`<div class="cua-det-datos">${datos}</div>`:''}
       ${g.alias.length?`<div class="cua-alias">También capturado como ${g.alias.map(a=>'«'+esc(a)+'»').join(', ')}</div>`:''}
       <div class="cua-det-acts">
-        <button onclick="cuaNuevaCotizacion('${esc(g.clave)}')" title="Empieza una cotización en blanco con estos datos de cliente ya puestos">${ico('i-lapiz')} Cotizarle algo nuevo</button>
-        ${g.tel?`<button onclick="cuaWhatsApp('${esc(g.clave)}')" title="Abre el chat de WhatsApp con este cliente">${ico('i-chat')} WhatsApp</button>`:''}
-        <button onclick="cuaCSV('${esc(g.clave)}')" title="Descarga las cotizaciones de este cliente">${ico('i-doc')} CSV</button>
+        <button data-clave="${esc(g.clave)}" onclick="cuaNuevaCotizacion(this.dataset.clave)" title="Empieza una cotización en blanco con estos datos de cliente ya puestos">${ico('i-lapiz')} Cotizarle algo nuevo</button>
+        ${g.tel?`<button data-clave="${esc(g.clave)}" onclick="cuaWhatsApp(this.dataset.clave)" title="Abre el chat de WhatsApp con este cliente">${ico('i-chat')} WhatsApp</button>`:''}
+        <button data-clave="${esc(g.clave)}" onclick="cuaCSV(this.dataset.clave)" title="Descarga las cotizaciones de este cliente">${ico('i-doc')} CSV</button>
       </div>
     </div>
     <div class="cua-cifras">
@@ -9527,7 +9574,7 @@ function actualizarAvisoCuaderno(){
   if(!util){ el.style.display='none'; el.innerHTML=''; return; }
   const n=g.cots.length;
   el.innerHTML=`${ico('i-cuaderno')} <span>Ya tiene cuaderno · ${plCot(n)} · ${money(g.vendido)}</span>`
-    +` <button type="button" onclick="verCuadernoDe('${esc(g.clave)}')">Ver cuaderno</button>`;
+    +` <button type="button" data-clave="${esc(g.clave)}" onclick="verCuadernoDe(this.dataset.clave)">Ver cuaderno</button>`;
   el.style.display='flex';
 }
 /* Entrar al cuaderno de un cliente sin pasar por la lista. _cuaData tiene que quedar
@@ -9788,6 +9835,7 @@ function loadQueueEntry(folio){
   scReset();
   const rolActual=Q.rol;
   Object.assign(Q,entry.q);
+  sanearIds(Q.items);
   Q.rol=rolActual;
   Q.editMode=false; _selfAuth=false; _marcarOblig=false;
   Q.aiFile=null;
@@ -10106,6 +10154,7 @@ function loadState(){
        loadState devolviendo false como si no hubiera encontrado nada. */
     if(!saved||typeof saved!=='object'||!Array.isArray(saved.items)) return false;
     Object.assign(Q,saved);
+    sanearIds(Q.items);
     /* Una cotización guardada por una versión anterior no trae la bandera, y la que llega
        con partidas evidentemente ya se estrenó: se deduce de lo que hay en vez de confiar
        en un campo que puede no existir. */

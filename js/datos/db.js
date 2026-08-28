@@ -362,6 +362,15 @@ export async function importar(texto) {
   }
   let almacenes = 0, registros = 0, descartados = 0;
   for (const a of ALMACENES) {
+    /* La bandeja de salida no entra, igual que no sale (ver `exportar` arriba), y aquí la
+       razón es más fuerte que allá. Un respaldo es un `.json` que se manda por WhatsApp y
+       vuelve: si `pendientes` se escribiera desde el archivo, cualquier operación metida ahí
+       a mano se bombearía sola a Notion en el siguiente arranque —el relevo sube la bandeja
+       sin que nadie apriete nada— firmada con el token de ESTE teléfono y con su rol. Un
+       archivo pasaría a ser un canal de escritura contra la base del dinero.
+       No se pierde nada por saltarlo: `exportar()` nunca lo incluye, así que un respaldo
+       legítimo no trae esta clave. */
+    if (a === 'pendientes') continue;
     const filas = paquete.datos[a];
     if (!Array.isArray(filas) || !filas.length) continue;
     const clave = ESQUEMA[a].keyPath;
