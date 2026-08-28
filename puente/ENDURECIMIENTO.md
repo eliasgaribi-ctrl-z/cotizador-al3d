@@ -20,9 +20,12 @@
 > 4. Y una vez en `Workers → Logs`, para ver el rastro del parche 9: tiene que traer nombres
 >    de propiedad y ni un solo importe.
 >
-> `pruebas/worker.mjs` cubre los diez y creció de 88 a 121 aserciones: la travesía de ruta con
+> `pruebas/worker.mjs` cubre los diez y creció de 88 a 133 aserciones: la travesía de ruta con
 > `../databases/`, el alta desde fabricación, los importes negativos, el `TOKENS` roto, el
-> origen ajeno, el `no-store` y el `/expandir` que ya devuelve 404.
+> origen ajeno con su 403 al preflight, el `no-store`, la operación que revienta sin llevarse
+> el acuse de las demás, y el `/expandir` que ya devuelve 404. Y la que más importa de todas:
+> que un renglón mal escrito en `TOKENS` **no apague a los otros dos teléfonos**, que es lo
+> que hace que revocar un token perdido se pueda hacer con prisa.
 >
 > **Un cambio tiene consecuencia visible y conviene saberlo antes:** `/jalar` ya no manda los
 > importes crudos. Ver el parche 8 — no cambia ninguna pantalla, porque el cliente no los

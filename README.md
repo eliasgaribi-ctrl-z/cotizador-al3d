@@ -261,6 +261,12 @@ los teléfonos que ya tienen la app:
 4. En **`sw.js`**, subir **`APP_VERSION`** una unidad. Es la primera línea de código del
    archivo y está señalada con un recuadro.
 
+Ese cuarto paso es el que más se olvida, y no avisa de ninguna forma: el repositorio queda al
+día, el sitio se publica, y el cambio simplemente no llega a ningún teléfono que ya tenga la
+app. Ahora lo vigila `pruebas/publicacion.mjs`: si la rama toca `js/`, `css/`,
+`plataforma.html` o `sw.js` y el número sigue igual que en `main`, la prueba falla y lo dice
+con esas palabras.
+
 La razón es la estrategia de caché, y es a propósito. El cotizador se sirve *red primero*:
 quien tiene señal ve siempre lo último. La plataforma se sirve *caché primero*, porque son
 treinta módulos que se importan entre sí y con mala señal llegarían mezclados —unos nuevos y
