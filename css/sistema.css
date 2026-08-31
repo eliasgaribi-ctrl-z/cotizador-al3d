@@ -338,6 +338,12 @@ body.precios-ocultos .partida .inp-money:focus-within{filter:none}
    para que el precio no se lea desde el otro lado de la mesa, no para inutilizar la
    impresión. El @media print de más abajo ya revierte el plegado; esto revierte el blur. */
 @media print{
+  /* Carta vertical, que es el papel de México y de Estados Unidos. Sin esto, un Ctrl+P sobre la
+     app salía en A4 en cualquier configuración regional que no sea una de esas dos, y la maqueta
+     se recortaba por la derecha. Solo «size»: el «margin:0» que sí lleva el documento que se
+     genera es correcto allí —dibuja su propio margen— y aquí dejaría el contenido pegado al
+     borde no imprimible del papel. */
+  @page{size:letter portrait}
   body.precios-ocultos *{filter:none!important}
   /* La barra fija de abajo es de la maqueta táctil y al imprimir salía encima de la hoja,
      con el hueco que se le reserva al pie de la página. */

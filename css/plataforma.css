@@ -326,6 +326,10 @@ button,input,select,textarea,optgroup{font-family:inherit}
 /* ----- La lista de compra en papel -----
    Fabricación va a la vidriería con esto. No se imprime la app: se imprime la lista. */
 @media print{
+  /* Carta vertical, igual que el cotizador y que el documento que se manda al cliente. Los dos
+     caminos de impresión de la plataforma —la lista de compra y la orden de obra de más abajo—
+     salían en el tamaño que el navegador tuviera por omisión, o sea A4 fuera de MX y US. */
+  @page{size:letter portrait}
   .topbar,.pf-nav,.pf-mbar,.pf-banda,.toast,.pf-modal-bg,#pf-ajustes-btn{display:none!important}
   .pf-wrap{padding:0;max-width:none}
   .card{border:1px solid #ddd!important;box-shadow:none!important;break-inside:avoid}

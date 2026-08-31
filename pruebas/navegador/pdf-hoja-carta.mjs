@@ -1,7 +1,9 @@
-/* Comprueba que el PDF de la cotización no se pase de la hoja carta.
+/* Comprueba que el PDF de la cotización SEA una hoja carta y no se pase de ella.
  *
- * NO está en pruebas/correr.sh a propósito: eso corre con node y nada más, y esto necesita un
- * navegador de verdad. El reparto de filas entre hojas es aritmética sobre alturas medidas —
+ * Vivía en herramientas/ y no lo corría NADIE: pruebas/correr.sh solo recorre pruebas/*.mjs y
+ * pruebas/navegador/*.mjs, y este archivo no estaba en ninguno de los dos. O sea que la única
+ * prueba que vigila el reparto de filas entre hojas llevaba meses sin ejecutarse salvo que
+ * alguien se acordara de escribir su nombre a mano. Ahora vive donde se corre. El reparto de filas entre hojas es aritmética sobre alturas medidas —
  * cuántos píxeles mide una fila de tres renglones, cuánto ocupan los totales, cuánto la nota,
  * cuánto el plano— y equivocarse ahí no se ve: sale un documento plausible al que le falta el
  * pie, o con una hoja física de más en blanco. Solo se detecta midiendo el DOM ya maquetado.
@@ -10,7 +12,7 @@
  * de un solo tijeretazo dejó de alcanzar y una cotización de 14 partidas armaba una hoja de
  * 1 107 px sobre una carta de 1 056, con el pie fuera del papel.
  *
- * Uso:  node herramientas/probar-pdf.mjs
+ * Uso:  node pruebas/navegador/pdf-hoja-carta.mjs   (o pruebas/correr.sh --navegador)
  * Pide playwright. Si no está: npm i -g playwright  (el navegador ya suele venir en el sistema)
  */
 
@@ -18,7 +20,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ALTO_CARTA = 1056;   // 8.5 x 11 pulgadas a 96 ppp
 const ANCHO_CARTA = 816;
 
@@ -52,11 +54,13 @@ const CASOS = [
     plano: false, anti: 0,     entrega: '',                    tel: '',             partidas: 1,  hojasMin: 2 },
   { nombre: 'larga · 14 partidas con plano (la que parte hojas)',
     plano: true,  anti: 20000, entrega: 'VIERNES 04 DE SEPTIEMBRE', tel: '33-1122-3344', partidas: 14, hojasMin: 6 },
+  { nombre: 'orden de trabajo SIN plano (el reparto que reservaba hueco de más)',
+    plano: false, anti: 0,     entrega: 'LUNES 07 DE SEPTIEMBRE', tel: '',             partidas: 9,  hojasMin: 3 },
   { nombre: 'sin IVA y con partida oculta del PDF',
     plano: true,  anti: 0,     entrega: '',                    tel: '',             partidas: 4,  hojasMin: 2, sinIva: true, oculta: true },
 ];
 
-const nav = await chromium.launch();
+const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 let fallos = 0;
 
 for (const caso of CASOS) {
@@ -107,7 +111,9 @@ for (const caso of CASOS) {
     problemas.push('no se generó ningún documento');
   } else {
     const hoja = await nav.newPage({ viewport: { width: ANCHO_CARTA, height: ALTO_CARTA } });
-    /* Se le quita el auto-imprimir, que en un navegador sin usuario deja la página colgada. */
+    /* El documento ya no se auto-imprime —la barra del visor lo hace cuando el usuario lo pide—
+       así que no hay ningún script que quitar. El reemplazo se queda por si un documento viejo
+       llega hasta aquí desde una caché del service worker. */
     await hoja.setContent(doc.replace(/<scr'\+'ipt>[\s\S]*?<\/scr'\+'ipt>/g, ''));
     await hoja.emulateMedia({ media: 'print' });
     await hoja.waitForTimeout(350);
@@ -141,6 +147,38 @@ for (const caso of CASOS) {
         problemas.push('la orden de trabajo lleva precios');
       }
     }
+    /* Y ahora en PANTALLA, que es lo que de verdad mira una persona antes de imprimir. Esta
+       aserción no existía y por eso el defecto vivió tanto: durante mucho tiempo cada .pg medía
+       lo que midiera la ventana —1440x900 en un portátil— mientras el arnés, que fuerza
+       media:'print', las veía perfectas a 816x1056 y decía que todo estaba bien. El documento
+       cabía en la hoja y no se parecía a una hoja. */
+    await hoja.emulateMedia({ media: 'screen' });
+    await hoja.setViewportSize({ width: 1440, height: 900 });
+    await hoja.waitForTimeout(120);
+    const enPantalla = await hoja.$$('.pg');
+    for (let i = 0; i < enPantalla.length; i++) {
+      const caja = await enPantalla[i].boundingBox();
+      if (Math.round(caja.width) !== ANCHO_CARTA || Math.round(caja.height) !== ALTO_CARTA) {
+        problemas.push(`en pantalla la hoja ${i + 1} mide ${Math.round(caja.width)}x${Math.round(caja.height)}, no ${ANCHO_CARTA}x${ALTO_CARTA}`);
+        break;
+      }
+    }
+    /* Y en un teléfono se encoge en vez de salirse a lo ancho, que era la queja literal. */
+    await hoja.setViewportSize({ width: 430, height: 932 });
+    await hoja.waitForTimeout(120);
+    if (await hoja.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) {
+      problemas.push('en un teléfono de 430 px el documento se sale a lo ancho');
+    }
+    /* La barra del visor no puede salir en el papel, y tiene que ir ANTES de la primera hoja:
+       si fuera después, la última .pg deja de ser :last-child, recupera el salto de página y
+       cada cotización sale con una hoja de más en blanco. */
+    if (!/<div class="visor">[\s\S]*?<div class="pg"/.test(doc)) {
+      problemas.push('la barra del visor no está antes de la primera hoja');
+    }
+    await hoja.emulateMedia({ media: 'print' });
+    if (await hoja.evaluate(() => getComputedStyle(document.querySelector('.visor')).display) !== 'none') {
+      problemas.push('la barra del visor se imprimiría');
+    }
     await hoja.close();
   }
 
@@ -152,4 +190,4 @@ for (const caso of CASOS) {
 await nav.close();
 console.log('');
 if (fallos) { console.log(`${fallos} caso(s) con problemas.`); process.exit(1); }
-console.log('El PDF cabe en la hoja en los cuatro casos.');
+console.log(`El PDF es una hoja carta y cabe en ella, en los ${CASOS.length} casos.`);
