@@ -234,15 +234,13 @@ body::before{
 .topbar-in{max-width:1180px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
   padding:max(12px,env(safe-area-inset-top,0px)) max(24px,env(safe-area-inset-right,0px)) 12px max(24px,env(safe-area-inset-left,0px))}
 .brand{display:flex;align-items:center;gap:12px}
-/* El logotipo cargado es lo que dispara el selector de archivos; antes el onclick vivía
-   en .brand y en la portada del Fold 6 eso era el renglón entero. */
+/* El logotipo es lo que dispara el selector de archivos; antes el onclick vivía en .brand y en
+   la portada del Fold 6 eso era el renglón entero.
+   Aquí vivían además .logoslot, .lg-al y .lg-3d: la ranura punteada con el «AL 3D» escrito a
+   mano que se veía mientras no hubiera logotipo. Se fueron con ella —ahora la marca es
+   logo-al3d.svg desde el primer píxel pintado— y con ellas el salto de la barra al arrancar,
+   que venía de que la ranura medía 49 px de alto y lo que la sustituía 44. */
 .logobtn{display:flex;align-items:center;min-height:44px;border:none;background:none;padding:0;margin:0;border-radius:10px;font-family:inherit;cursor:pointer;flex-shrink:0}
-.brand svg{width:50px;height:32px}
-.logoslot{display:flex;align-items:center;gap:1px;padding:7px 12px;border:1.5px dashed var(--line);border-radius:10px;background:var(--soft);transition:.15s;font-family:inherit;text-align:left;cursor:pointer;flex-shrink:0}
-.logoslot:hover{border-color:var(--brand);background:var(--soft-2)}
-.logoslot .up{font-size:10px;font-weight:600;color:var(--muted);margin-left:7px;border-left:1px solid var(--line);padding-left:7px;line-height:1.1}
-.lg-al{font-size:17px;font-weight:900;color:#1e2340;letter-spacing:.3px}
-.lg-3d{font-size:17px;font-weight:900;color:var(--brand);letter-spacing:.3px}
 .logoimg{height:38px;width:auto;display:block;max-width:200px;object-fit:contain}
 .brand .t{font-size:var(--t4);font-weight:600;letter-spacing:-.2px}
 .brand .t small{display:block;font-size:10.5px;font-weight:500;color:var(--muted);letter-spacing:.2px}
@@ -440,8 +438,6 @@ body.precios-ocultos .precios-nota{display:flex}
   .topbar-in{padding:max(8px,env(safe-area-inset-top,0px)) 12px 8px;gap:8px}
   .brand .t{font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .brand .t small{display:none}
-  .logoslot{padding:5px 9px}
-  .logoslot .up{display:none}
 }
 /* ---------- Móvil: sin zoom automático de iOS al enfocar campos + áreas táctiles más grandes ----------
    Hasta 920 px, que es donde la página ya es de una sola columna y aparece la barra
@@ -1566,7 +1562,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
   /* El logotipo se va: con él, "Sin calibrar" y la salida no cabían en el mismo
      renglón y la barra se comía cuatro filas de pantalla. */
   .sp-topbar .brand{order:1;flex:1 1 auto;min-width:0;gap:0}
-  .sp-topbar .brand .logoslot{display:none}
+  .sp-topbar .brand .logoimg{display:none}
   .sp-topbar .brand>div{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sp-calib-badge{order:2}
   .sp-close{order:3}

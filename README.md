@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="logo-al3d-dark.png">
-    <img src="logo-al3d.png" alt="AL3D — Anuncios Luminosos 3D" width="320">
+    <source media="(prefers-color-scheme: dark)" srcset="logo-al3d-oscuro.svg">
+    <img src="logo-al3d.svg" alt="AL3D — Anuncios Luminosos 3D" width="320">
   </picture>
 </p>
 

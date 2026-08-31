@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="AL3D">
-<link rel="apple-touch-icon" href="logo-al3d.png">
-<link rel="icon" href="logo-al3d.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icono-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 
 <!-- Mismas dos familias que el cotizador: si la plataforma cargara otra, la misma app
      tendría dos tipografías según la pantalla.
@@ -102,7 +102,13 @@
 <div class="topbar">
   <div class="topbar-in">
     <div class="brand">
-      <span class="logoslot" id="pf-logo" aria-hidden="true"><svg width="28" height="18" viewBox="0 0 46 28" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><circle cx="34" cy="13" r="11" fill="#2f39d6"/><circle cx="13" cy="14" r="13" fill="#4a63f0"/><circle cx="25" cy="15.5" r="8" fill="#7b9bf7"/></svg><span style="display:inline-block;width:1.5px;height:20px;background:#1e2340;margin:0 7px"></span><span class="lg-al">AL</span><span class="lg-3d">3D</span></span>
+      <!-- El logotipo es el archivo, no un dibujo aparte. Aquí vivía un SVG de tres círculos
+           pegado a mano —el mismo que había en otros tres sitios del cotizador— con
+           #2f39d6/#4a63f0/#7b9bf7, que NO son los colores del logotipo (#341efd/#4267fe/
+           #6290ff). O sea que las dos mitades de la misma app enseñaban marcas distintas.
+           Y todo el bloque iba aria-hidden, así que la plataforma no se anunciaba con
+           ningún nombre. -->
+      <img class="logoimg" src="logo-al3d.svg" width="260" height="130" alt="AL3D">
       <h1 class="t">Plataforma <small id="pf-sub">Obra, material y agenda</small></h1>
     </div>
     <div class="rolewrap">
