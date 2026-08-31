@@ -59,7 +59,7 @@ let INST = new Map();       // proyecto_id -> {fecha, hora, estado, viva}
 let HOY = hoyISO();
 
 let GRUPOS_ON = new Set(['ganado', 'taller', 'listo', 'instalado']);
-let RANGO = 'todo';         // se fija en montar() según el rol
+let RANGO = null;           // lo fija el primer montar() según el rol, y luego manda el usuario
 let RUTA = null;            // {orden:[proyecto], km:number}
 let MANO = null;            // {id, nombre, lat, lng, marcador} — el modo «pin a mano»
 let PIDE = null;            // {id, nombre, aviso} — el panel de pegar el link
@@ -143,7 +143,11 @@ export async function montar(contenedor, ctx) {
 
   /* Fabricación entra con su tope puesto, no con «todo» y un aviso después: el primer
      dibujado ya es el que le toca. */
-  RANGO = Prefs.esFabricacion() ? '15' : 'todo';
+  /* El rango solo se fija la PRIMERA vez, y por rol. Antes se reimponía en cada montaje, así
+     que ir a Proyectos a mirar una dirección y volver deshacía la elección del usuario sin
+     decir nada. Su chip está en pantalla (pintarFiltros), así que puede sobrevivir: la regla es
+     que un filtro solo vive si su interruptor se ve. */
+  if (RANGO == null) RANGO = Prefs.esFabricacion() ? '15' : 'todo';
 
   /* Un oyente delegado en el contenedor y uno por capa. La lista de sin ubicar se repinta
      completa cada vez que se guarda un pin: un oyente por renglón se va a la basura con el
@@ -195,8 +199,12 @@ export function desmontar() {
   if (capa) capa.innerHTML = '';
 
   PROYS = []; INST = new Map();
+  /* RUTA y MANO sí se sueltan, y con razón: la ruta se calcula sobre los pines que acaban de
+     leerse y el pin a mano es un gesto a medio hacer, los dos atados a un mapa que se está
+     destruyendo. GRUPOS_ON, en cambio, se QUEDA: sus cuatro chips están en pantalla, así que
+     cumple la regla —el filtro cuyo interruptor se ve puede sobrevivir— y reponerlo por
+     omisión borraba en silencio lo que el usuario acababa de elegir. */
   RUTA = null; MANO = null; PIDE = null;
-  GRUPOS_ON = new Set(['ganado', 'taller', 'listo', 'instalado']);
   _armado = false;
   cont = null; CTX = null;
 }

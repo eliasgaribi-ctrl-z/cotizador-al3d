@@ -111,7 +111,11 @@ export function desmontar() {
   if (_hoja) cerrarHoja();
   if (_pide) cerrarPide();
   _cont = null; _ctx = null; _d = null; _dia = null; _oyendo = false;
-}
+  /* Y el filtro de cobro se suelta. Su chip solo se pinta para el rol PAGOS, así que un usuario
+     de pagos que lo encendía y cambiaba de rol se encontraba el calendario vacío —en fase 1
+     `pago_pendiente` es null en todas las filas— sin ningún control en pantalla para apagarlo.
+     Un filtro encendido sin su interruptor es una app rota que parece una app sin datos. */
+  _soloCobro = false;
 
 /* ============================================================================
    Fechas — sobre los campos, nunca con new Date(iso)
@@ -248,7 +252,9 @@ const veWa         = () => Prefs.rol() !== 'pagos';
 /** El filtro de PAGOS: solo los días con cobro. */
 function visibles(insts) {
   const l = (insts || []).filter(Boolean);
-  if (!_soloCobro) return l;
+  /* La guarda del rol va aquí y no solo en desmontar: el reset arregla el caso de hoy, esto
+     impide que el filtro pueda volver a existir sin el chip que lo apaga. */
+  if (!_soloCobro || Prefs.rol() !== 'pagos') return l;
   return l.filter(i => i.proyecto && Number(i.proyecto.pago_pendiente) > 0);
 }
 

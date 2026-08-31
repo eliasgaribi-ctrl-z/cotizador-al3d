@@ -49,8 +49,15 @@ if [ "$1" = "--navegador" ] || [ "$NAVEGADOR" = "1" ]; then
     else PUERTO="$PUERTO" node "$f" || ok=1; fi
     [ "$ok" -eq 0 ] || fallos=$((fallos+1))
   done
-  [ -f /tmp/al3d-srv.pid ] && kill "$(cat /tmp/al3d-srv.pid)" 2>/dev/null
-  rm -f /tmp/al3d-srv.pid
+  # El `&&` de aquí hacía MENTIR a la tanda entera. Con `set -e`, si el servidor ya se había
+  # ido —lo mata una de las pruebas que levanta el suyo, o se cayó solo—, `kill` devuelve 1, la
+  # cadena entera devuelve 1 y el script SALE en ese punto: con todas las pruebas en verde y sin
+  # llegar a imprimir el resumen, devolvía código 1. Costó un rato porque el síntoma —«falló
+  # algo»— no aparece por ningún lado en la salida.
+  if [ -f /tmp/al3d-srv.pid ]; then
+    kill "$(cat /tmp/al3d-srv.pid)" 2>/dev/null || true
+    rm -f /tmp/al3d-srv.pid
+  fi
   echo ""
   if [ "$fallos" -gt 0 ]; then
     echo "$fallos archivo(s) de prueba con fallos."
@@ -59,6 +66,7 @@ if [ "$1" = "--navegador" ] || [ "$NAVEGADOR" = "1" ]; then
   echo "Todas las pruebas pasan, las de navegador incluidas."
 else
   echo ""
-  echo "Faltan las 4 de navegador (camino-completo, puente, service-worker y su actualización)."
+  # La lista escrita a mano se quedó en cuatro cuando ya eran seis. Se cuentan.
+  echo "Faltan las $(ls navegador/*.mjs 2>/dev/null | wc -l | tr -d ' ') de navegador: $(ls navegador/*.mjs 2>/dev/null | xargs -n1 basename | sed 's/\.mjs$//' | tr '\n' ',' | sed 's/,$//;s/,/, /g')."
   echo "Piden Chromium y un servidor:  pruebas/correr.sh --navegador"
 fi

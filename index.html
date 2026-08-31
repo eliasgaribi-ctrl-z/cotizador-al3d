@@ -3413,7 +3413,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
       <button onclick="respaldar()" title="Descarga un archivo con el historial, los folios y la cotización en curso"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> Respaldar</button>
       <button onclick="pedirRestaurar()" title="Reemplaza los datos de este dispositivo con los de un respaldo"><svg class="svgi" aria-hidden="true"><use href="#i-subir"/></svg> Restaurar</button>
       <button onclick="exportarHistorialCSV()" title="Descarga el historial como CSV para Google Sheets"><svg class="svgi" aria-hidden="true"><use href="#i-doc"/></svg> CSV</button>
-      <button onclick="cerrarHistorial();abrirCuadernos()" title="Las mismas cotizaciones, agrupadas por cliente"><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg> Clientes</button>
+      <button onclick="delHistorialALosClientes()" title="Las mismas cotizaciones, agrupadas por cliente"><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg> Clientes</button>
       <!-- «Todo se guarda solo en este dispositivo» ya lo dicen el pie de cuadernos y la nota
            de la cola de autorización. En su lugar va el dato que no está en ninguna parte:
            cuánto lleva sin respaldarse. La segunda frase se queda tal cual: el README la
@@ -3909,6 +3909,15 @@ if(document.fonts&&document.fonts.ready){
 }
 window.addEventListener('orientationchange',()=>setTimeout(ajustarTopbarMovil,180));
 function irAResumen(){ irA('sidebox'); }
+/* Llevar la vista Y el foco. irA() solo hace scroll, y un destino al que el teclado no llega no
+   es un destino: el siguiente tabulador seguía saliendo de la pestaña que se tocó, arriba del
+   todo. tabIndex=-1 lo hace enfocable sin meterlo en el recorrido del tabulador. */
+function _anclarPaso(id){
+  const el=$(id); if(!el) return;
+  irA(id);
+  el.tabIndex=-1;
+  try{ el.focus({preventScroll:true}); }catch(_){ }
+}
 
 /* ----- Precios difuminados mientras es borrador -----
    La clase va en <body> y no en cada importe: las partidas y la barra de abajo se
@@ -4062,12 +4071,62 @@ function _histAlCerrar(m){
   if(_cerrandoPorAtras.has(m.id)){ _cerrandoPorAtras.delete(m.id); return; }
   /* Se cerró con la ×, con Escape o desde el código: hay que consumir la entrada que se
      empujó al abrir, o el historial se llena de escalones muertos y el atrás no hace nada
-     visible las primeras veces. */
-  try{ history.back(); }catch(_){}
+     visible las primeras veces.
+
+     La guarda es la misma que js/nucleo/ui.js:229-235 tiene desde hace tiempo, con su misma
+     razón: history.back() es ASÍNCRONO, así que si quien cierra abre otra cosa en el mismo
+     tick, el back se cruza y se come la entrada recién empujada. Aquí faltaba, y había dos
+     botones que hacen exactamente eso —«Clientes» dentro del Historial y «Ver el historial»
+     dentro de Cuadernos—, que son justo el gesto de cambiar de pestaña entre dos vistas de los
+     mismos datos: el panel nuevo se abría y se cerraba solo. */
+  try{ if(history.state&&history.state.capa===m.id) history.back(); }catch(_){}
 }
+/* La guarda sola no basta para esos dos botones: sin ella el back sobraba, con ella la entrada
+   se queda huérfana —la capa que cierra ya no la reclama y la que abre no empuja la suya porque
+   _histAlAbrir ve dataset.hist puesto—. Ceder es lo correcto: una sola entrada, que cambia de
+   dueño sin tocar el historial. Cero operaciones, y su state.capa diciendo la verdad para la ×
+   que venga después. */
+function cederEntrada(idCierra,idAbre){
+  const a=$(idCierra), b=$(idAbre);
+  if(!a||!b||a.dataset.hist!=='1') return;
+  if(!(history.state&&history.state.capa===idCierra)) return;
+  a.dataset.hist=''; b.dataset.hist='1';
+  try{ history.replaceState({...history.state,capa:idAbre},''); }catch(_){}
+}
+function delHistorialALosClientes(){ cederEntrada('histmodal','climodal'); cerrarHistorial(); abrirCuadernos(); }
+function deLosClientesAlHistorial(){ cederEntrada('climodal','histmodal'); cerrarCuadernos(); abrirHistorial(); }
+/* ----- El «atrás» también sabe volver de Partidas a Cliente -----
+   Las nueve capas modales ya respetaban el gesto de atrás desde hace tiempo (el bloque de aquí
+   arriba lo explica). Las DOS PANTALLAS no: `irAPantalla` nunca tocaba el historial, así que en
+   la app instalada —manifest.webmanifest dice "display":"standalone"— el gesto de atrás estando
+   en Partidas se salía de la cotización con todo lo capturado a medias. Medido antes de
+   arreglarlo: desde Partidas, un atrás dejaba la página en about:blank.
+
+   Este oyente va REGISTRADO ANTES que el de las capas, a propósito: los oyentes corren en orden
+   de registro, y solo corriendo primero puede ver una capa todavía abierta y cederle el gesto.
+   No depende de que ningún otro oyente le avise nada; sus dos guardas son suyas. */
+window.addEventListener('popstate',ev=>{
+  if(_capaDeArriba()) return;                 // la capa de arriba se queda con este atrás
+  const st=ev.state;
+  if(!st||!st.cot) return;                    // la entrada no es de las pantallas: no es nuestra
+  if(st.pantalla!==_pantalla){
+    /* `forzar` porque volver atrás no es capturar: el candado del paso 1 no puede frenar un
+       gesto que va HACIA los datos que faltan. `hist:false` porque esta entrada ya existe —la
+       estamos consumiendo, no creando— y escribirla otra vez duplicaría el escalón. */
+    irAPantalla(st.pantalla,{forzar:true,hist:false,y:st.y});
+  }else{
+    window.scrollTo({top:st.y||0,behavior:'auto'});
+  }
+  const c=$('contenido');
+  if(c){ c.tabIndex=-1; try{ c.focus({preventScroll:true}); }catch(_){ } }
+  voz(_pantalla==='cliente'?'Paso 1 de 4 · Cliente':'Paso 2 de 4 · Partidas');
+});
 window.addEventListener('popstate',()=>{
   const arriba=_capaDeArriba();
   if(!arriba||arriba.dataset.hist!=='1')return;
+  /* Una capa se cierra por este atrás, así que la entrada de pantallas que quedó pendiente
+     mientras la capa estaba abierta ya puede escribirse. */
+  _pilaPendiente=true;
   _cerrandoPorAtras.add(arriba.id);
   const par=_CAPAS.find(([id])=>id===arriba.id);
   if(par){ try{ par[1](); }catch(_){ _cerrandoPorAtras.delete(arriba.id); } }
@@ -4108,6 +4167,11 @@ function _modalCerrado(m){
   _histAlCerrar(m);
   const arriba=_capaDeArriba();
   if(!arriba) _fondoInerte(false);
+  /* Si mientras la capa estaba abierta se cambió de pantalla —el aviso de partidas sin terminar
+     lleva a una partida, «usar como base» abre una cotización nueva—, la entrada del historial
+     de pantallas quedó sin escribir para no pisarle la suya a la capa. Ya no hay capa: se
+     termina ahora. */
+  if(!arriba&&_pilaPendiente) sincronizarHistorial(true);
   const a=_focoAntes.get(m.id); _focoAntes.delete(m.id);
   /* Devolver el foco es SÍNCRONO a propósito: irAPartida() cierra el aviso de
      partidas sin terminar y enfoca el campo de la partida en el fotograma siguiente,
@@ -4252,14 +4316,30 @@ function pintarClientes(){
      exactamente cuando el aviso de «ya tiene cuaderno» puede haber cambiado. */
   actualizarAvisoCuaderno();
 }
+/* «Lo vacié yo, a propósito» — la diferencia que le faltaba a autocompletar.
+   Rellenar un campo vacío es lo correcto la primera vez y es un estorbo la segunda: el teléfono
+   del cliente estaba mal, vuelves al paso 1, lo borras para reteclearlo, tocas el nombre… y
+   autocompletar ve el campo vacío, reconoce al cliente y te devuelve el teléfono VIEJO, con su
+   toast de «se llenó el teléfono». La corrección se deshacía sola.
+   La marca se cuelga del evento 'input' y NO de upd/updMaps/updDirRaw: esas tres se llaman
+   también desde el código con cadena vacía —el propio arranque, deshacerVaciado,
+   reabrirDeHistorial, usarComoBase, loadQueueEntry— y marcarían campos que nadie tocó. 'input'
+   no se dispara al asignar .value por programa, que es justo la diferencia que hace falta.
+   Va por folio, como _paDraft: es de esta captura, no del aparato. */
+let _vaciadoAMano=null;
+function vaciadoAMano(k){ return !!(_vaciadoAMano&&_vaciadoAMano.folio===Q.folio&&_vaciadoAMano.set.has(k)); }
+function marcarVaciado(k,v){
+  if(!_vaciadoAMano||_vaciadoAMano.folio!==Q.folio) _vaciadoAMano={folio:Q.folio,set:new Set()};
+  if(String(v||'').trim()) _vaciadoAMano.set.delete(k); else _vaciadoAMano.set.add(k);
+}
 function autocompletarCliente(v){
   if(locked()) return;
   const c=clientesConocidos().find(x=>normNom(x.cliente)===normNom(v));
   if(!c) return;
   const puestos=[];
-  if(c.tel && !(Q.tel||'').trim()){ Q.tel=c.tel; if($('f-tel')) $('f-tel').value=c.tel; puestos.push('el teléfono'); }
-  if(c.dirRaw && !(Q.dirRaw||'').trim()){ if($('f-dir-raw')) $('f-dir-raw').value=c.dirRaw; updDirRaw(c.dirRaw); puestos.push('la dirección'); }
-  if(c.maps && !(Q.maps||'').trim()){ if($('f-maps')) $('f-maps').value=c.maps; updMaps(c.maps); Q.maps=c.maps; puestos.push('el link de Maps'); }
+  if(c.tel && !(Q.tel||'').trim() && !vaciadoAMano('tel')){ Q.tel=c.tel; if($('f-tel')) $('f-tel').value=c.tel; puestos.push('el teléfono'); }
+  if(c.dirRaw && !(Q.dirRaw||'').trim() && !vaciadoAMano('dirRaw')){ if($('f-dir-raw')) $('f-dir-raw').value=c.dirRaw; updDirRaw(c.dirRaw); puestos.push('la dirección'); }
+  if(c.maps && !(Q.maps||'').trim() && !vaciadoAMano('maps')){ if($('f-maps')) $('f-maps').value=c.maps; updMaps(c.maps); Q.maps=c.maps; puestos.push('el link de Maps'); }
   if(!puestos.length) return;   // ya estaban llenos: nada que avisar
   saveState(); updProg();
   toast('Cliente conocido — se '+(puestos.length===1?'llenó':'llenaron')+' '+listaY(puestos),'ok',3400);
@@ -6079,15 +6159,40 @@ function irAPantalla(cual,opts){
      solo existe en esta pantalla. Exigirle el cliente de una cotización que no es suya lo
      dejaba encerrado sin puerta. Escribir sigue frenado por capturaBloqueada(). */
   if(cual==='partidas'&&Q.rol!=='autorizador'&&!(opts&&opts.forzar)&&!exigirDatosParaPartidas()) return false;
+  /* Cualquier cambio de pantalla que no venga de tocar una pestaña olvida la que se pidió.
+     irAPaso fija el pedido DESPUÉS de llamar aquí, así que el orden se respeta solo. */
+  _pasoPedido=null;
   _pantalla=cual;
   pintarPantalla();
   /* Arriba de todo: cambiar de pantalla a media página deja al usuario mirando el hueco por
      el que venía bajando, no el principio de lo que acaba de abrir. */
-  if(!opts||opts.subir!==false) window.scrollTo({top:0,behavior:'auto'});
+  if(!opts||opts.subir!==false) window.scrollTo({top:(opts&&opts.y!=null)?opts.y:0,behavior:'auto'});
+  if(!opts||opts.hist!==false) sincronizarHistorial(!!(opts&&opts.forzar));
   /* Contesta si de verdad se movió. Lo lee `irAPaso`: los pasos 3 y 4 viven en la pantalla
      de partidas, así que si el candado del paso 1 frenó el salto, ahí se acaba el camino y
      el aviso que ya salió es todo lo que hay que decir. */
   return true;
+}
+/* El ÚNICO sitio que escribe el historial de las pantallas.
+   Los pasos 3 y 4 no llevan entrada propia a propósito: no son otra pantalla, son dos sitios de
+   la misma columna (index.html lo explica donde se dibuja la barra), y darles escalón obligaría
+   a dar tres golpes de atrás para salir de una cotización que solo tuvo una pantalla. */
+let _pilaPendiente=false;
+function sincronizarHistorial(forzar){
+  /* Mientras la entrada de arriba es de una capa —o su history.back() sigue en vuelo, que es lo
+     que delata history.state.capa— aquí no se escribe: reescribirla la dejaría sin forma de
+     cerrarse, y empujar encima se lo comería ese back(). Se apunta y se termina después. */
+  if(_capaDeArriba()||(history.state&&history.state.capa)){ _pilaPendiente=true; return; }
+  _pilaPendiente=false;
+  const st=history.state;
+  try{
+    if(forzar||!st||!st.cot){ history.replaceState({cot:1,pantalla:_pantalla,y:0},''); return; }
+    if(st.pantalla===_pantalla){ history.replaceState({...st,pantalla:_pantalla},''); return; }
+    /* Se sella el scroll de la pantalla que se abandona ANTES de empujar la nueva, para que el
+       atrás devuelva a donde se estaba mirando y no al principio. */
+    history.replaceState({...st,y:window.scrollY},'');
+    history.pushState({cot:1,pantalla:_pantalla,y:0},'');
+  }catch(_){}
 }
 function continuarAPartidas(){ irAPantalla('partidas'); }
 /* ===================== Los cuatro pasos del proceso =====================
@@ -6098,7 +6203,7 @@ function continuarAPartidas(){ irAPantalla('partidas'); }
    cuenta y por eso la barra de completitud se apagaba en el 100 % justo cuando la barra
    fija seguía ofreciendo un paso más. */
 const PASOS=[{n:1,nombre:'Cliente'},{n:2,nombre:'Partidas'},{n:3,nombre:'Precio'},{n:4,nombre:'Entrega'}];
-function pasoActual(){
+function pasoDerivado(){
   if(_pantalla==='cliente') return 1;
   if(Q.estado==='autorizada') return 4;
   /* El autorizador no captura: su trabajo es el precio, con cola cargada o sin ella. */
@@ -6106,6 +6211,30 @@ function pasoActual(){
   if(Q.estado==='pendiente'||Q.estado==='rechazada') return 3;
   return 2;
 }
+/* La barra de pasos contestaba con UNA sola función dos preguntas que no son la misma: «en qué
+   punto está la cotización» y «qué pestaña estoy mirando». La primera se deriva del estado, y por
+   eso, con la cotización ya autorizada, tocar «2 · Partidas» dejaba la pestaña 4 encendida y la 2
+   parpadeando: la barra contestaba la pregunta que nadie le hizo. Medido: pasoActual() devolvía 4
+   antes y después de tocar la 2 y la 3.
+
+   Ahora `pasoDerivado()` sigue diciendo dónde está la cotización —de ahí salen las palomitas de
+   «hecho» y los ámbares de «todavía no», que no pueden mentir— y `_pasoPedido` guarda la pestaña
+   que un dedo tocó. Es cómo se está MIRANDO la pantalla, no un dato de la cotización: no se
+   guarda, no viaja al historial y no sale en el PDF, igual que `_pantalla`.
+
+   Caduca sola. Guarda junto al número el paso derivado del instante en que se tocó, así que en
+   cuanto la cotización se mueve —se autoriza, se suelta la autorización, se vacía— el pedido deja
+   de valer y la barra vuelve a decir la verdad sin que nadie tenga que acordarse de limpiarlo. */
+let _pasoPedido=null;
+function pasoActual(){
+  return (_pasoPedido&&_pasoPedido.base===pasoDerivado()) ? _pasoPedido.n : pasoDerivado();
+}
+/* La caducidad se cobra aparte y no dentro de pasoActual(): el getter se llama en cada tecla de
+   los tres campos obligatorios, y un getter que muta es un sitio donde nadie espera un efecto. */
+function caducarPedido(){
+  if(_pasoPedido&&_pasoPedido.base!==pasoDerivado()) _pasoPedido=null;
+}
+
 /* ¿Hay ya un trabajo con precio que se pueda autorizar? Es la misma pregunta que decide los
    dos botones del panel, escrita una sola vez para que la pestaña 3 no pueda decir que sí
    mientras el botón dice que no. */
@@ -6113,24 +6242,46 @@ function hayTrabajoCotizado(){ return Q.items.length>0&&totals().sub>0; }
 /* Tocar una pestaña. El 1 y el 2 son pantallas de verdad; el 3 y el 4 son los dos momentos
    que viven en la columna del dinero de la pantalla 2, y llevan ahí. Ninguna se deshabilita:
    la que todavía no toca contesta qué falta, porque un botón gris no explica nada. */
-function irAPaso(n){
-  if(n===1){ irAPantalla('cliente'); return; }
-  if(!irAPantalla('partidas')) return;
-  if(n===2) return;
+/* Partida en dos porque son dos cosas: llevar, que puede no conseguirlo, y contar a dónde se
+   llegó. Devuelve el paso al que de verdad se llegó, o 0 si no se movió — y solo cuando se
+   movió se enciende la pestaña, que es lo que hacía que tocar una pestaña frenada la dejara
+   parpadeando. */
+function _llevarAlPaso(n){
+  if(n===1){ irAPantalla('cliente'); return 1; }
+  if(!irAPantalla('partidas')) return 0;
+  if(n===2) return 2;
   if(!hayTrabajoCotizado()){
     toast('Antes del precio hace falta una partida con precio mayor a cero.','err',3600);
     irA(Q.items.length?'items':'addbtn');
-    return;
+    return 0;
   }
   if(n===4&&Q.estado!=='autorizada'){
     toast(Q.estado==='pendiente'?'La entrega se abre cuando el precio queda autorizado.'
                                 :'Primero autoriza el precio.','err',3600);
+    /* Y se corrige el destino, que es lo que faltaba: #entrega solo lo pinta renderAuth con la
+       cotización autorizada, así que el camino real acababa en la columna del dinero —el paso
+       3— mientras la barra seguía diciendo 4. El aviso ya decía que la entrega no toca; ahora
+       la pestaña dice dónde se quedó. */
+    n=3;
   }
   /* Cada paso a su sitio. Los dos acababan en el mismo scroll al principio de la columna, así
      que tocar «4 · Entrega» sobre una cotización autorizada dejaba mirando el IVA. */
-  if(n===4&&$('entrega')) irA('entrega');
-  else if(n===3&&$('authbox')&&Q.estado!=='borrador') irA('authbox');
-  else irAResumen();
+  if(n===4&&$('entrega')) _anclarPaso('entrega');
+  else if(n===3&&$('authbox')&&Q.estado!=='borrador') _anclarPaso('authbox');
+  else _anclarPaso('sidebox');
+  return n;
+}
+function irAPaso(n){
+  caducarPedido();
+  const d=_llevarAlPaso(n);
+  if(!d) return;
+  _pasoPedido={n:d,base:pasoDerivado()};
+  pintarPasos();
+  renderMobileBar();
+  /* Quien no ve la pantalla no se entera de que se movió: el cambio de pestaña no mueve el
+     foco, así que sin esto un lector de pantalla se queda anunciando el botón que se tocó.
+     La plataforma ya lo hacía en js/app.js:163-168; esto es lo mismo de este lado. */
+  voz('Paso '+d+' de 4 · '+PASOS[d-1].nombre);
 }
 /* El renglón chico de cada pestaña. Lleva solo lo que no se puede leer en otra parte de la
    pantalla: el cliente que se dejó atrás, la cuenta de partidas cuando se está en el paso 1,
@@ -6160,6 +6311,23 @@ function subPasos(){
   }
   return s;
 }
+/* Qué sigue después de la pantalla del cliente. Vivía dentro de renderMobileBar y por eso solo
+   la barra del teléfono decía la verdad: el botón del escritorio (#p1-btn) es marcado estático y
+   nada reescribía su texto, así que sobre una cotización ya autorizada seguía ofreciendo
+   «Continuar a partidas» —el paso 2— cuando lo que faltaba era la entrega. Dos sitios que
+   contestaban la misma pregunta y solo uno se había arreglado. Ahora es una. */
+function vueltaDelPaso1(){
+  return Q.estado==='autorizada' ? {txt:'Volver a la entrega',paso:4}
+    : (Q.estado==='pendiente'||Q.estado==='rechazada') ? {txt:'Volver al precio',paso:3}
+    : {txt:'Continuar a partidas',paso:2};
+}
+function pintarCierrePaso1(){
+  const b=$('p1-btn'); if(!b) return;
+  const v=vueltaDelPaso1();
+  const t=esc(v.txt)+' <span aria-hidden="true">→</span>';
+  if(b.innerHTML!==t) b.innerHTML=t;
+  b.onclick=()=>irAPaso(v.paso);
+}
 function pintarPantalla(){
   const enCliente=_pantalla==='cliente';
   const w=$('wrap'); if(w) w.classList.toggle('p-cliente',enCliente);
@@ -6169,6 +6337,7 @@ function pintarPantalla(){
   if(part)   part.hidden=enCliente;
   if(side)   side.hidden=enCliente;
   pintarPasos();
+  pintarCierrePaso1();
   /* La barra fija del celular cambia de contenido con la pantalla —«Continuar» en la del
      cliente, el total y «Autorizar yo mismo» en la de partidas—, así que se repinta aquí.
      Sin esto se quedaba con la de la pantalla anterior hasta que otra cosa la repintara:
@@ -6183,6 +6352,7 @@ function pintarPantalla(){
    cuando todavía no le toca. Ninguno se deshabilita: tocar el que no toca dice qué falta,
    que es la mitad del trabajo; un botón gris no explica nada. */
 function pintarPasos(){
+  caducarPedido();
   const act=pasoActual();
   const faltaCli=faltanDatosCliente()&&!locked();
   const cotizado=hayTrabajoCotizado();
@@ -6308,7 +6478,12 @@ function pintarCandadoPartidas(){
     /* Y al cerrarse también. La ficha ámbar aparece, pero una región que se enciende con
        `hidden` no anuncia nada al aparecer, así que quien no la ve se encontraba con una
        tarjeta que dejó de responder sin que nada lo dijera. */
-    else if(cerrado) voz('Las partidas quedan bloqueadas: '+
+    /* `_pantalla!=='cliente'` porque en la pantalla del cliente #card-partidas está en hidden:
+       la ficha ámbar que esta frase narra no está a la vista, y los tres campos que faltan sí
+       lo están, con su asterisco y ya nombrados por updProg. Corrigiendo un teléfono se cruza
+       la frontera de «incompleto» al borrar y otra vez al reteclear, así que este aviso salía
+       dos veces por corrección para describir algo invisible. */
+    else if(cerrado&&_pantalla!=='cliente') voz('Las partidas quedan bloqueadas: '+
       (datosFaltantes().length===1?'falta ':'faltan ')+listaY(datosFaltantes().map(c=>c.corto)));
   } finally { _candPintando=false; }
 }
@@ -6564,9 +6739,7 @@ function renderMobileBar(){
        teléfono antes de mandarla se quedaba con «Continuar a partidas» como único siguiente
        paso, sobre unas partidas congeladas: la pieza que este proyecto encarga de nombrar el
        paso real en el teléfono volvía a decir algo que no era. */
-    const vuelta=Q.estado==='autorizada'?{txt:'Volver a la entrega',paso:4}
-      :(Q.estado==='pendiente'||Q.estado==='rechazada')?{txt:'Volver al precio',paso:3}
-      :{txt:'Continuar a partidas',paso:2};
+    const vuelta=vueltaDelPaso1();
     bar.innerHTML=undo+`<button class="mbar-btn" style="width:100%" onclick="irAPaso(${vuelta.paso})">${esc(vuelta.txt)} <span aria-hidden="true">→</span></button>`;
     return;
   }
@@ -6714,6 +6887,10 @@ function cambiarRol(r){
 /* renderSummary reescribe «Resta al entregar», que si no se queda con el número del
    anticipo anterior mientras se teclea el nuevo. Respeta el foco, así que no pisa lo que
    se está escribiendo. */
+/* Los tres campos que autocompletar puede rellenar apuntan cuándo los vació un dedo. */
+[['f-tel','tel'],['f-dir-raw','dirRaw'],['f-maps','maps']].forEach(([id,k])=>{
+  const el=$(id); if(el) el.addEventListener('input',()=>marcarVaciado(k,el.value));
+});
 $('f-anti').addEventListener('input',function(){undoJuntar('q:anti');Q.anti=parseFloat(this.value)||0;Q.antiManual=this.value.trim()!=='';saveState();renderSummary();});
 
 /* ===================== Logotipo ===================== */
@@ -9408,7 +9585,7 @@ function pintarCuadernos(){
   $('cua-body').innerHTML=html;
   $('cua-foot').innerHTML=
     `<button onclick="exportarClientesCSV()" title="Descarga un renglón por cliente para Google Sheets">${ico('i-doc')} CSV de clientes</button>
-     <button onclick="cerrarCuadernos();abrirHistorial()" title="Ver las cotizaciones una por una">${ico('i-historial')} Ver el historial</button>
+     <button onclick="deLosClientesAlHistorial()" title="Ver las cotizaciones una por una">${ico('i-historial')} Ver el historial</button>
      <p class="foot-nota">Los cuadernos se arman solos con las cotizaciones autorizadas. Todo vive en este dispositivo: respalda desde el historial.</p>`;
 }
 
@@ -11776,6 +11953,16 @@ function init(){
   /* La pantalla se deduce de lo que hay: con los tres datos puestos se estaba cotizando y se
      abre en partidas; sin ellos, en cliente. Va al final, cuando Q ya está cargado. */
   _pantalla=pantallaSegunDatos(); pintarPantalla();
+  /* La semilla del historial de pantallas. Son DOS entradas cuando se arranca en partidas —la
+     de cliente debajo— para que el primer atrás lleve a Cliente y no fuera de la app: al
+     recargar sobre una cotización empezada, «atrás» tiene que devolver a la pantalla anterior,
+     que es lo que hace en cualquier otra app. scrollRestoration en manual porque el scroll de
+     cada pantalla lo guardamos nosotros dentro de la entrada. */
+  try{ history.scrollRestoration='manual'; }catch(_){}
+  try{
+    history.replaceState({cot:1,pantalla:'cliente',y:0},'');
+    if(_pantalla==='partidas') history.pushState({cot:1,pantalla:'partidas',y:0},'');
+  }catch(_){}
   renderMobileBar();
   updProg();
   /* Al final: loadState(), la partida en blanco del arranque y los repintados de arriba

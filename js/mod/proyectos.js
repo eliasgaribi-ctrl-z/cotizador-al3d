@@ -132,7 +132,13 @@ export async function montar(c, ctx) {
     '<div class="card"><div class="card-h"><h2>' + ico('i-proyectos') + ' Proyectos</h2></div>' +
     '<div class="card-b">' +
       '<div class="fld"><label for="pj-q">Buscar por nombre, cliente, folio o dirección</label>' +
-      '<input type="search" id="pj-q" placeholder="Ej. Healthylicious, COT-0007, Tlajomulco" autocomplete="off"></div>' +
+      /* Con `value`: el filtro de texto SOBREVIVE al remontaje —los módulos ES se cachean, así
+         que `filtro` sigue vivo al volver— pero la caja se repintaba vacía. La lista salía
+         filtrada y no había en pantalla nada que dijera por qué; el chip de etapa, que sí se
+         restaura en pintarFiltros(), dejaba a las dos mitades del filtro contando cosas
+         distintas. O el control enseña el filtro, o el filtro no existe. */
+      '<input type="search" id="pj-q" placeholder="Ej. Healthylicious, COT-0007, Tlajomulco" autocomplete="off"' +
+      ' value="' + esc(filtro.texto || '') + '"></div>' +
       '<div id="pj-filtros"></div>' +
       '<div id="pj-lista"></div>' +
     '</div></div>';
