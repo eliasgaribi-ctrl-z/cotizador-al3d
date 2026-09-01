@@ -325,13 +325,34 @@ button,input,select,textarea,optgroup{font-family:inherit}
 
 /* ----- La lista de compra en papel -----
    Fabricación va a la vidriería con esto. No se imprime la app: se imprime la lista. */
+/* Los dos bloques del papel. Nacen apagados y solo los enciende el @media print de aquí abajo:
+   así no dependen de que un display:none llegue a tiempo, que es la clase de cosa que falla en
+   una impresora y no en la pantalla donde se probó. */
+.imp-marca,.imp-pie{display:none}
+
 @media print{
+  /* El encabezado y el pie, FIJOS: en papel eso significa que se repiten en todas las hojas, que
+     es justo lo que hace falta en una lista de compra de dos páginas. El margen de @page les
+     hace sitio; sin él se montarían encima de la primera fila. */
+  .imp-marca{display:flex!important;align-items:center;gap:9px;position:fixed;top:0;left:0;right:0;
+    padding-bottom:6px;border-bottom:2px solid var(--a)}
+  .imp-logo{height:26px;width:auto;display:block}
+  .imp-bar{width:1.5px;align-self:stretch;background:var(--n8);margin:0 3px}
+  .imp-t{font-size:12px;font-weight:800;letter-spacing:.04em;color:var(--n8)}
+  .imp-m{margin-left:auto;font-size:9px;color:var(--n6)}
+  .imp-pie{display:flex!important;justify-content:space-between;position:fixed;bottom:0;left:0;right:0;
+    padding-top:5px;border-top:1px solid var(--n3);font-size:8px;color:var(--n6)}
+
   /* Carta vertical, igual que el cotizador y que el documento que se manda al cliente. Los dos
      caminos de impresión de la plataforma —la lista de compra y la orden de obra de más abajo—
      salían en el tamaño que el navegador tuviera por omisión, o sea A4 fuera de MX y US. */
-  @page{size:letter portrait}
+  @page{size:letter portrait;margin:18mm 12mm 14mm}
   .topbar,.pf-nav,.pf-mbar,.pf-banda,.toast,.pf-modal-bg,#pf-ajustes-btn{display:none!important}
-  .pf-wrap{padding:0;max-width:none}
+  /* El hueco del encabezado y del pie fijos. Sin esto se pintan ENCIMA de la primera fila: en
+     papel un position:fixed se coloca dentro del área de la página, no fuera, así que el margen
+     de @page no le hace sitio por sí solo. Medido sobre la lista de compra: el encabezado tapaba
+     el renglón de totales y la fila de filtros. */
+  .pf-wrap{padding:38px 0 30px;max-width:none}
   .card{border:1px solid #ddd!important;box-shadow:none!important;break-inside:avoid}
   .mat-fila{break-inside:avoid}
   .mat-formula{background:#fff!important;border-color:#ddd!important}
@@ -500,12 +521,16 @@ button,input,select,textarea,optgroup{font-family:inherit}
    existe. Sin `position:static` el panel sale recortado al alto de la ventana, que es lo
    que hace un `position:fixed` en papel. */
 @media print{
-  body.pf-print-hoja>*{display:none!important}
+  /* La orden de obra esconde TODO menos su panel; el encabezado y el pie del papel son la
+     excepción, o esa hoja sale otra vez sin marca. */
+  body.pf-print-hoja>*:not(.imp-marca):not(.imp-pie){display:none!important}
   body.pf-print-hoja>#pf-hoja{display:block!important;position:static;inset:auto;padding:0;
     background:none;backdrop-filter:none;-webkit-backdrop-filter:none}
   body.pf-print-hoja #pf-hoja .pf-panel{max-width:none;max-height:none;box-shadow:none;
     border-radius:0;overflow:visible}
   body.pf-print-hoja #pf-hoja .pf-panel-b{overflow:visible;padding:0}
+  /* Y el mismo hueco para la orden de obra, que imprime su panel y no .pf-wrap. */
+  body.pf-print-hoja #pf-hoja{padding:38px 0 30px}
   body.pf-print-hoja #pf-hoja .pf-panel-h{padding-left:0;padding-right:0}
   body.pf-print-hoja #pf-hoja .pf-panel-f,
   body.pf-print-hoja #pf-hoja .pf-cerrar{display:none!important}
@@ -611,7 +636,12 @@ button,input,select,textarea,optgroup{font-family:inherit}
 .aj-faltan{list-style:none;margin:var(--e3) 0 0;padding:0;
   font-weight:400;font-size:var(--t2);line-height:1.5;color:var(--n7)}
 .aj-faltan li{padding:var(--e2) var(--e3);margin-bottom:var(--e2);
-  border:1px solid var(--n3);border-radius:var(--rr1);background:var(--fondo)}
+  /* --fondo NO EXISTE en ningún archivo del repositorio. Una var() sin definir y sin valor de
+     reserva invalida la declaración ENTERA en tiempo de cómputo, así que estas dos piezas se
+     quedaban sin fondo: se pintaban sobre el blanco de .card y eran texto con borde y nada
+     dentro. --n1 es el fondo tenue que el sistema ya usa para lo hundido (--soft y --bg salen
+     de él) y da el contraste que hace falta contra una tarjeta blanca. */
+  border:1px solid var(--n3);border-radius:var(--rr1);background:var(--n1)}
 .aj-faltan b{color:var(--ink)}
 
 /* Los tres tokens, una sola vez. Va en `pre` porque es JSON que se pega tal cual en otra
@@ -619,7 +649,7 @@ button,input,select,textarea,optgroup{font-family:inherit}
    partirse: sin eso, en un teléfono se sale de la tarjeta y el botón de copiar queda fuera
    de alcance. */
 .aj-tokens{margin:var(--e3) 0 0;padding:var(--e3);border:1px solid var(--n3);
-  border-radius:var(--rr1);background:var(--fondo);color:var(--n7);
+  border-radius:var(--rr1);background:var(--n1);color:var(--n7);
   font:400 var(--t1)/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;
   white-space:pre-wrap;word-break:break-all;-webkit-user-select:all;user-select:all}
 

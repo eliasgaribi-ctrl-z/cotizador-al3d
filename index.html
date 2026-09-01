@@ -26,7 +26,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="format-detection" content="telephone=no">
-<meta name="theme-color" content="#3a4ad8">
+<!-- El mismo número que --a en css/sistema.css. Un <meta> no entiende var(), así que aquí el
+     valor se repite a propósito; lo amarra pruebas/hojas-de-estilo.mjs. -->
+<meta name="theme-color" content="#4060f8">
 <link rel="manifest" href="manifest.webmanifest">
 <style>
 :root{
@@ -191,7 +193,11 @@
      un color por defecto, tira la declaración entera y la superficie se queda sin fondo.
      Con esto, el bloque de opciones y el hueco teñido se pueden reusar en cualquier sitio
      y salen azules, que es lo correcto donde no hay partida a la que pertenecer. */
-  --pc:var(--a-fuerte); --pc-md:var(--a); --pc-bd:var(--a-borde); --pc-sv:var(--a-suave); --pc-rgb:64,96,248;
+  /* El triplete de --a, en un solo sitio. Vivía aquí como número suelto y otras 24 veces
+     escrito a mano como rgba(var(--a-rgb),...), que además NO es --a (#4060f8) sino un cuarto azul
+     que no está en ningún token: el sistema tenía un color de marca declarado y otro pintado. */
+  --a-rgb:64,96,248;
+  --pc:var(--a-fuerte); --pc-md:var(--a); --pc-bd:var(--a-borde); --pc-sv:var(--a-suave); --pc-rgb:var(--a-rgb);
 
   /* ----- Movimiento -----
      Dos curvas: una para lo que responde al dedo, con un rebote corto —el barro es blando,
@@ -215,13 +221,13 @@
      justo lo que hace que un botón se vea de hace diez años. */
   /* Arranca en --a y no en --a-claro justo por lo de arriba: es el relleno de los chips
      elegidos, del botón principal y del interruptor encendido, y los tres llevan blanco. */
-  --brand-grd:linear-gradient(160deg,var(--a) 0%,#3a46ee 45%,var(--a-fuerte) 100%);
+  --brand-grd:linear-gradient(160deg,var(--a) 0%,var(--a) 45%,var(--a-fuerte) 100%);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(130,138,160,.22);border-radius:4px}
-::-webkit-scrollbar-thumb:hover{background:rgba(58,74,216,.32)}
+::-webkit-scrollbar-thumb:hover{background:rgba(var(--a-rgb),.32)}
 body{
   /* Las fuentes de emoji van nombradas y antes del genérico: los pocos emoji que
      quedan (los de las referencias rápidas, los avisos emergentes) salen del mismo
@@ -235,7 +241,7 @@ body{
   font-family:'Inter','Segoe UI',Roboto,Helvetica,Arial,'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Apple Symbols','Segoe UI Symbol','Noto Sans Symbols 2',sans-serif;
   background:var(--bg);
   background-image:
-    radial-gradient(ellipse 80% 55% at 15% 0%,rgba(58,74,216,.09) 0,transparent 60%),
+    radial-gradient(ellipse 80% 55% at 15% 0%,rgba(var(--a-rgb),.09) 0,transparent 60%),
     radial-gradient(ellipse 65% 50% at 90% 100%,rgba(92,109,240,.07) 0,transparent 60%);
   background-attachment:fixed;
   color:var(--ink);line-height:1.5;
@@ -243,7 +249,9 @@ body{
 }
 body::before{
   content:'';position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;height:3px;
-  background:linear-gradient(90deg,#3a4ad8 0%,#8090f8 50%,#3a4ad8 100%);
+  /* El filete es lo único de la marca que se ve SIEMPRE, en las dos apps, y estaba escrito con
+     dos hexadecimales que no existen en el sistema de tokens. */
+  background:linear-gradient(90deg,var(--a) 0%,var(--a-claro) 50%,var(--a) 100%);
   z-index:200;
 }
 
@@ -349,7 +357,7 @@ body.precios-ocultos .partida .inp-money:focus-within{filter:none}
 @media(prefers-reduced-motion:reduce){
   body.precios-ocultos .lt,body.precios-ocultos #s-sub,body.precios-ocultos #s-neto{transition:none}
 }
-.precios-ver{flex-shrink:0;margin-left:auto;border:1px solid var(--line-2,rgba(0,0,0,.15));background:transparent;
+.precios-ver{flex-shrink:0;margin-left:auto;border:1px solid var(--line);background:transparent;
   color:inherit;font-family:inherit;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:7px;cursor:pointer}
 .precios-ver:hover{background:rgba(255,255,255,.5)}
 /* Un Ctrl+P sobre el borrador salía con todos los importes borrosos: el difuminado existe
@@ -1065,7 +1073,7 @@ details.otras-salidas[open] .os-chev{transform:rotate(180deg)}
    morado. Tres pesos y tres colores para tres cosas iguales. Ahora los tres son el mismo
    botón neutro; el color se reserva para la acción principal de la pantalla. */
 .ai-btn{width:100%;padding:10px 14px;border:1px solid var(--n3);border-radius:var(--rr1);background:#fff;color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;margin-bottom:var(--e4);display:flex;align-items:center;justify-content:center;gap:var(--e2);transition:border-color .12s,background .12s}
-.ai-btn:hover{background:linear-gradient(135deg,#2e3dbf,#4d5ee8);box-shadow:0 4px 16px rgba(58,74,216,.35)}
+.ai-btn:hover{background:linear-gradient(135deg,#2e3dbf,#4d5ee8);box-shadow:0 4px 16px rgba(var(--a-rgb),.35)}
 .modal-bg{position:fixed;inset:0;background:rgba(17,22,46,.6);display:none;align-items:center;justify-content:center;z-index:60;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
   padding:calc(18px + env(safe-area-inset-top,0px)) calc(18px + env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) calc(18px + env(safe-area-inset-left,0px))}
 .modal-bg.show{display:flex}
@@ -1156,7 +1164,7 @@ details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:
    ve que la ventana correcta es la que va a recibirlo. */
 #aimodal.arrastrando .modal{box-shadow:0 0 0 3px var(--brand),0 24px 60px rgba(23,29,74,.28)}
 /* Segunda entrada a lo mismo, desde la vista previa que queda junto a las partidas */
-.sc-prev-ia{width:100%;margin-top:9px;padding:9px 12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 10px rgba(58,74,216,.25)}
+.sc-prev-ia{width:100%;margin-top:9px;padding:9px 12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 10px rgba(var(--a-rgb),.25)}
 .sc-prev-ia:hover{filter:brightness(1.06)}
 .ai-prev-big{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--soft);padding:12px;margin-bottom:14px}
 .ai-prev-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
@@ -1230,7 +1238,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .hist-close:active{background:var(--soft-2)}
 .hist-search-bar{display:flex;align-items:center;gap:10px;padding:11px 20px;border-bottom:1px solid var(--line);flex-shrink:0;background:#fff}
 .hist-search-bar input{flex:1;min-width:0}
-.hist-count{font-size:11px;font-weight:800;color:var(--a-fuerte);background:var(--soft-2);border:1px solid rgba(58,74,216,.12);padding:5px 12px;border-radius:20px;white-space:nowrap}
+.hist-count{font-size:11px;font-weight:800;color:var(--a-fuerte);background:var(--soft-2);border:1px solid rgba(var(--a-rgb),.12);padding:5px 12px;border-radius:20px;white-space:nowrap}
 .hist-body{overflow-y:auto;flex:1}
 .hentry-acts{display:flex;flex-direction:column;gap:5px;align-self:flex-start;flex-shrink:0}
 .hentry-open{border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap;transition:.12s}
@@ -1308,7 +1316,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 
 /* El aviso que sale bajo el campo Cliente cuando el que se está capturando ya tiene cuaderno */
 .cua-aviso{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 13px;padding:8px 11px;border-radius:var(--rr1);
-  background:var(--soft-2);border:1px solid rgba(58,74,216,.14);font-size:11.5px;color:var(--a-fuerte);line-height:1.45}
+  background:var(--soft-2);border:1px solid rgba(var(--a-rgb),.14);font-size:11.5px;color:var(--a-fuerte);line-height:1.45}
 .cua-aviso button{border:none;background:none;font-family:inherit;font-size:11.5px;font-weight:800;color:var(--brand);
   cursor:pointer;padding:0;text-decoration:underline;white-space:nowrap}
 /* ----- Dirección raw del cliente ----- */
@@ -1387,7 +1395,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .sp-mlist-empty{text-align:center;color:var(--muted);font-size:13px;padding:28px 12px;line-height:1.7;border:1.5px dashed var(--line);border-radius:var(--r-sm);background:var(--soft);margin-top:2px}
 .sp-mitem{border:1px solid rgba(224,228,240,.8);border-left:3px solid var(--brand);border-radius:var(--r-sm);padding:12px 11px;margin-bottom:9px;background:#fff;box-shadow:var(--sh-sm);display:flex;align-items:stretch;gap:9px;cursor:pointer;transition:box-shadow .15s}
 .sp-mitem:hover{box-shadow:0 2px 8px rgba(23,29,74,.06),0 8px 28px rgba(23,29,74,.1)}
-.sp-mitem.sel{border-color:var(--brand-strong);background:var(--soft-2);box-shadow:0 0 0 3px rgba(58,74,216,.12)}
+.sp-mitem.sel{border-color:var(--brand-strong);background:var(--soft-2);box-shadow:0 0 0 3px rgba(var(--a-rgb),.12)}
 .sp-mitem-cm{font-size:17px;font-weight:900;color:var(--brand-strong);line-height:1;letter-spacing:.1px;font-variant-numeric:tabular-nums}
 .sp-mitem-cm small{font-size:11px;font-weight:600;color:var(--muted);margin-left:2px}
 .sp-mitem-label{display:block;width:100%;border:none;background:transparent;padding:3px 0;font-size:12px;color:var(--ink);font-family:inherit;cursor:text;margin-top:4px;outline:none;border-bottom:1px solid transparent;transition:.15s}
@@ -1402,7 +1410,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .sp-addall-note{margin:0 14px 10px;font-size:11.5px;color:var(--green);font-weight:700;text-align:center}
 /* Del escalador a la IA: la otra salida de las medidas, la que devuelve la partida
    completa en vez de solo su altura. */
-.sp-ai{margin:0 14px 7px;padding:9px 12px;width:calc(100% - 28px);border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 10px rgba(58,74,216,.25);transition:.15s}
+.sp-ai{margin:0 14px 7px;padding:9px 12px;width:calc(100% - 28px);border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 10px rgba(var(--a-rgb),.25);transition:.15s}
 .sp-ai:hover{filter:brightness(1.06)}
 .sp-ai:disabled{opacity:.45;cursor:default;box-shadow:none}
 .sp-ai-note{margin:0 14px 10px;font-size:11px;color:var(--muted);line-height:1.45;text-align:center}
@@ -1429,7 +1437,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .sp-fold .sp-sec-b{padding-top:12px}
 /* Cuántas guías hay, para no tener que desplegar la sección para saberlo */
 .sp-fold-n{font-size:11px;font-weight:800;color:var(--brand);background:var(--soft-2);
-  border:1px solid rgba(58,74,216,.12);border-radius:20px;padding:2px 9px;flex-shrink:0}
+  border:1px solid rgba(var(--a-rgb),.12);border-radius:20px;padding:2px 9px;flex-shrink:0}
 .sp-fold-n:empty{display:none}
 /* ----- Guías del escalador ----- */
 .sp-gitem{display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;border:1px solid rgba(224,228,240,.8);border-left:3px solid var(--sc-guide);border-radius:var(--r-sm);background:#fff;font-size:12.5px}
@@ -1442,12 +1450,12 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .sp-calib-badge .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
 .tool-seg{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:var(--r-sm);padding:3px;gap:2px}
 .tool-seg button{border:none;background:none;padding:7px 13px;font-size:12.5px;font-weight:600;color:var(--muted);border-radius:9px;cursor:pointer;transition:.15s;font-family:inherit;white-space:nowrap}
-.tool-seg button:hover:not(.active){background:rgba(58,74,216,.06);color:var(--brand)}
-.tool-seg button.active{background:var(--brand-grd);color:#fff;box-shadow:0 2px 10px rgba(58,74,216,.3)}
+.tool-seg button:hover:not(.active){background:rgba(var(--a-rgb),.06);color:var(--brand)}
+.tool-seg button.active{background:var(--brand-grd);color:#fff;box-shadow:0 2px 10px rgba(var(--a-rgb),.3)}
 .tool-seg button:disabled{opacity:.38;pointer-events:none}
 .sp-tb-btn{border:1.5px solid var(--line);background:#fff;border-radius:var(--r-sm);padding:8px 14px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;transition:.14s;display:flex;align-items:center;gap:6px;white-space:nowrap;font-family:inherit}
 .sp-tb-btn:hover{border-color:var(--brand);color:var(--brand);background:var(--soft)}
-.sp-tb-btn.active{background:var(--brand-grd);color:#fff;border-color:var(--brand);box-shadow:0 2px 10px rgba(58,74,216,.28)}
+.sp-tb-btn.active{background:var(--brand-grd);color:#fff;border-color:var(--brand);box-shadow:0 2px 10px rgba(var(--a-rgb),.28)}
 .sp-tb-btn:disabled{opacity:.42;cursor:not-allowed;pointer-events:none}
 /* Salida del escalador. En el celular deja de ser una × suelta y se vuelve un botón
    con texto: es la manera obvia de regresar al cotizador. */
@@ -1460,7 +1468,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .scaler-ai-row{display:flex;gap:8px;margin-bottom:14px}
 .scaler-ai-row .ai-btn{flex:1;margin-bottom:0}
 .sc-flash{animation:scFlash 1.5s ease-out 1}
-@keyframes scFlash{0%,55%{box-shadow:0 0 0 3px rgba(58,74,216,.35);border-radius:var(--r-sm)}100%{box-shadow:0 0 0 3px rgba(58,74,216,0);border-radius:var(--r-sm)}}
+@keyframes scFlash{0%,55%{box-shadow:0 0 0 3px rgba(var(--a-rgb),.35);border-radius:var(--r-sm)}100%{box-shadow:0 0 0 3px rgba(var(--a-rgb),0);border-radius:var(--r-sm)}}
 .ref-known{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:8px}
 .ref-known-title{font-size:11px;font-weight:700;color:var(--muted);margin-right:2px;white-space:nowrap}
 .ref-known button{padding:5px 9px;border:1.5px solid var(--line);border-radius:8px;background:#fff;font-size:11.5px;font-weight:600;cursor:pointer;color:var(--ink);transition:.12s;white-space:nowrap;font-family:inherit}
@@ -1506,16 +1514,16 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 /* Controles del panel */
 .vt-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:11px}
 .vt-row>label{font-size:12.5px;font-weight:600;color:var(--ink);flex:1;min-width:0}
-.vt-val{font-size:12px;font-weight:800;color:var(--brand-strong);background:var(--soft-2);border:1px solid rgba(58,74,216,.14);border-radius:20px;padding:2px 10px;min-width:38px;text-align:center;flex-shrink:0}
+.vt-val{font-size:12px;font-weight:800;color:var(--brand-strong);background:var(--soft-2);border:1px solid rgba(var(--a-rgb),.14);border-radius:20px;padding:2px 10px;min-width:38px;text-align:center;flex-shrink:0}
 .vt-modal-bg input[type=range]{width:100%;accent-color:var(--brand);height:26px}
 .vt-modo{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .vt-modo button{padding:9px 4px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff;font-family:inherit;font-size:12px;font-weight:700;color:var(--ink);cursor:pointer;transition:.14s;display:flex;flex-direction:column;align-items:center;gap:3px;line-height:1.25}
 .vt-modo button .svgi{font-size:17px}
 .vt-modo button small{font-size:9.5px;font-weight:600;color:var(--muted);letter-spacing:.2px}
 .vt-modo button:hover{border-color:var(--brand);background:var(--soft)}
-.vt-modo button.on{background:var(--brand-grd);color:#fff;border-color:var(--brand);box-shadow:0 2px 10px rgba(58,74,216,.26)}
+.vt-modo button.on{background:var(--brand-grd);color:#fff;border-color:var(--brand);box-shadow:0 2px 10px rgba(var(--a-rgb),.26)}
 .vt-modo button.on small{color:rgba(255,255,255,.82)}
-.vt-go{width:100%;padding:12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:13.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 12px rgba(58,74,216,.3);transition:.16s;display:flex;align-items:center;justify-content:center;gap:7px}
+.vt-go{width:100%;padding:12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:13.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 12px rgba(var(--a-rgb),.3);transition:.16s;display:flex;align-items:center;justify-content:center;gap:7px}
 .vt-go:hover{filter:brightness(1.07)}
 .vt-go:disabled{opacity:.45;cursor:default;box-shadow:none}
 /* Ficha de resultados */
@@ -1524,7 +1532,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .vt-stat .k{display:block;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:3px}
 .vt-stat .v{font-size:15px;font-weight:900;color:var(--ink);line-height:1.15;letter-spacing:-.2px}
 .vt-stat .v small{font-size:10.5px;font-weight:700;color:var(--muted);margin-left:2px}
-.vt-stat.hl{background:var(--soft-2);border-color:rgba(58,74,216,.18)}
+.vt-stat.hl{background:var(--soft-2);border-color:rgba(var(--a-rgb),.18)}
 .vt-stat.hl .v{color:var(--brand-strong)}
 .vt-swatches{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
 .vt-sw{width:24px;height:24px;border-radius:7px;border:1.5px solid rgba(23,29,74,.14);cursor:pointer;position:relative;transition:.12s;padding:0;background-clip:padding-box}
@@ -1837,7 +1845,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
    información duplicada por partida. Se queda solo como cara de la partida plegada. */
 .partida:not(.folded) .psum{display:none}
 .partida.folded .ptipo{display:inline-flex;align-items:center;font-size:11px;font-weight:800;
-  color:var(--brand-strong);background:var(--soft-2);border:1px solid rgba(58,74,216,.16);
+  color:var(--brand-strong);background:var(--soft-2);border:1px solid rgba(var(--a-rgb),.16);
   padding:4px 9px;white-space:nowrap}
 #fold-all-btn{max-width:none;display:inline-flex}
 #fold-all-btn.oculto{display:none}
@@ -3489,7 +3497,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
         <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(106,59,216,.45))"><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg></div>
         <div style="font-size:16px;font-weight:700;color:rgba(255,255,255,.82)">Carga el logotipo del cliente</div>
         <div style="font-size:12px;color:rgba(255,255,255,.55);letter-spacing:.4px">JPG · PNG · PDF — lo convierte en trazo vectorial para cortar</div>
-        <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(58,74,216,.4)" onclick="$('vt-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
+        <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(var(--a-rgb),.4)" onclick="$('vt-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
       </div>
       <div class="vt-prog" id="vt-prog">
         <div class="vt-prog-txt" id="vt-prog-txt">Vectorizando…</div>
@@ -3632,10 +3640,10 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
         ontouchstart="scDown(event)" ontouchmove="scMove(event)" ontouchend="scUp(event)" ontouchcancel="scUp(event)">
       </canvas>
       <div class="sp-overlay" id="sp-overlay">
-        <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(58,74,216,.4))"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg></div>
+        <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(var(--a-rgb),.4))"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg></div>
         <div style="font-size:16px;font-weight:700;color:rgba(255,255,255,.82)">Carga una imagen para medir</div>
         <div style="font-size:12px;color:rgba(255,255,255,.55);letter-spacing:.4px">JPG · PNG · SVG · PDF — o usa la imagen de IA</div>
-        <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(58,74,216,.4)" onclick="$('scaler-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
+        <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(var(--a-rgb),.4)" onclick="$('scaler-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
       </div>
       <div class="sp-hint-bar hide" id="sp-hint-bar"></div>
       <div class="sp-zoom" id="sp-zoom">
@@ -3690,7 +3698,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
       <!-- Medidas -->
       <div style="padding:14px 20px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)">
         <h3 style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--brand);display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:3px;height:14px;background:var(--brand-grd);border-radius:2px;flex-shrink:0"></span>Medidas</h3>
-        <span style="font-size:11px;font-weight:700;background:var(--soft-2);color:var(--a-fuerte);padding:2px 10px;border-radius:20px;border:1px solid rgba(58,74,216,.12)" id="sc-mcount">0</span>
+        <span style="font-size:11px;font-weight:700;background:var(--soft-2);color:var(--a-fuerte);padding:2px 10px;border-radius:20px;border:1px solid rgba(var(--a-rgb),.12)" id="sc-mcount">0</span>
       </div>
       <div class="sp-mlist" id="sc-medidas-list"></div>
       <div class="sp-actions">
@@ -8535,7 +8543,7 @@ function generarPDF(){
     <defs>
       <linearGradient id="decoGrad" x1="100%" y1="0%" x2="12%" y2="100%">
         <stop offset="0%" stop-color="#1b2470"/>
-        <stop offset="52%" stop-color="#3a4ad8"/>
+        <stop offset="52%" stop-color="var(--brand)"/>
         <stop offset="100%" stop-color="#a9b5ff"/>
       </linearGradient>
     </defs>
@@ -8643,6 +8651,11 @@ function generarPDF(){
   const html = `<!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8">
 <title>Cotización ${esc(Q.folio)} · AL3D</title>
+<!-- Inter, sin bloquear, igual que en las dos apps. Sin señal no llega y el documento cae a la
+     misma reserva que la app: las dos superficies siguen coincidiendo, que es lo que se pedía. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all';this.onload=null">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 /* Una escala, no veinte tamaños sueltos. El documento entero se apoya en estos valores:
@@ -8652,11 +8665,26 @@ function generarPDF(){
    ocasión: lo que se lee siempre a #171a2b, lo que acompaña a #5a6076 y los rótulos a #8a90a6.
    Medido sobre blanco: 14.6:1, 6.4:1 y 3.4:1. El terciario solo rotula, nunca informa. */
 :root{
+  /* Lo declara la app (index.html:42) y el documento no lo hacía, siendo la superficie que más
+     lo necesita: con el tema oscuro automático de Chrome en Android, la cotización que se manda
+     al cliente se invertía A MEDIAS —las tarjetas y los grises sí, los degradados de marca no—. */
+  color-scheme:only light;
   --ink:#171a2b; --ink2:#5a6076; --ink3:#8a90a6;
-  --brand:#3a4ad8; --brandd:#232d8f; --brandl:#eef1fd;
+  /* El azul del papel era un CUARTO azul: ni --a (#4060f8) ni --a-fuerte (#3018f8), sino un
+     #3a4ad8 que no está en ningún token. El cliente veía en el papel un azul distinto del que
+     hay en la pantalla y del que tiene el logotipo 13 px más allá, en el mismo encabezado.
+     Se elige --a-fuerte y no --a porque en este documento TODO lo que lleva blanco encima es
+     letra chica —th a 7.5 px, .neto a 8, .tsec-n a 9.5, .rec-badge a 6.5— y sobre blanco --a da
+     4.95:1 mientras --a-fuerte da 8.04:1. Es la regla de contraste que el propio sistema ya
+     escribió. --brandd era un tercer azul del documento y no lo justifica nada. */
+  --brand:#3018f8; --brandd:#3018f8; --brandl:#eef1fd;
   --line:#dfe3f0; --line2:#c4cae0; --wash:#f7f8fd;
 }
-body{font-family:'Segoe UI',-apple-system,Roboto,Arial,sans-serif;color:var(--ink);font-size:10px;background:#fff;-webkit-font-smoothing:antialiased}
+/* La MISMA cadena de tipografía que la app, carácter por carácter. El documento era la única
+   superficie del producto puesta en otra letra: la app en Inter y lo que ve el cliente en Segoe
+   UI. Y la reserva es la misma, así que sin señal las dos caen al mismo tipo — que es lo que
+   importa: con red o sin ella, las dos coinciden. */
+body{font-family:'Inter','Segoe UI',Roboto,Helvetica,Arial,'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Apple Symbols','Segoe UI Symbol','Noto Sans Symbols 2',sans-serif;color:var(--ink);font-size:10px;background:#fff;-webkit-font-smoothing:antialiased}
 .pg{page-break-after:always;padding:30px 34px 84px;min-height:100vh;position:relative;overflow:hidden;display:flex;flex-direction:column}
 .pg:last-child{page-break-after:auto}
 /* La marca de esquina está posicionada, así que se pintaba ENCIMA del contenido y tapaba la
@@ -9105,10 +9133,10 @@ function mostrarEnlacePDF(url){
   ov.style.cssText='position:fixed;inset:0;z-index:120;background:rgba(12,15,38,.7);display:flex;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)';
   ov.innerHTML='<div style="background:#fff;border-radius:18px;max-width:360px;width:100%;padding:24px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.3)">'
     +'<div style="font-size:40px;margin-bottom:8px">'+ico('i-doc')+'</div>'
-    +'<div style="font-size:15px;font-weight:800;color:#161c2e;margin-bottom:6px">Tu PDF está listo</div>'
-    +'<div style="font-size:12.5px;color:#7f88a0;margin-bottom:16px;line-height:1.5">Ábrelo y usa <b>Compartir → Imprimir / Guardar en PDF</b>.</div>'
-    +'<a href="'+url+'" target="_blank" rel="noopener" onclick="cerrarEnlacePDF()" style="display:block;padding:14px;border-radius:11px;background:linear-gradient(135deg,#3a4ad8,#5c6df0);color:#fff;font-size:14px;font-weight:700;text-decoration:none;margin-bottom:9px">'+ico('i-doc')+' Abrir PDF</a>'
-    +'<button onclick="cerrarEnlacePDF()" style="width:100%;padding:12px;border-radius:11px;background:#fff;border:1.5px solid #e0e4f0;color:#3a4ad8;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Cerrar</button>'
+    +'<div style="font-size:15px;font-weight:800;color:var(--n9);margin-bottom:6px">Tu PDF está listo</div>'
+    +'<div style="font-size:12.5px;color:var(--n6);margin-bottom:16px;line-height:1.5">Ábrelo y usa <b>Compartir → Imprimir / Guardar en PDF</b>.</div>'
+    +'<a href="'+url+'" target="_blank" rel="noopener" onclick="cerrarEnlacePDF()" style="display:block;padding:14px;border-radius:11px;background:linear-gradient(135deg,var(--a),var(--a-claro));color:#fff;font-size:14px;font-weight:700;text-decoration:none;margin-bottom:9px">'+ico('i-doc')+' Abrir PDF</a>'
+    +'<button onclick="cerrarEnlacePDF()" style="width:100%;padding:12px;border-radius:11px;background:#fff;border:1.5px solid var(--n3);color:var(--a);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Cerrar</button>'
     +'</div>';
   ov.setAttribute('role','dialog');
   ov.setAttribute('aria-modal','true');
@@ -10475,7 +10503,19 @@ const SC={
   z:1, tx:0, ty:0, gesture:false,
   vw:0, vh:0, rs:1, rsDpr:1, full:null, fullW:0, tile:null, tileR:null, tileS:0, objUrl:null,
 };
-const SC_COLORS=['#3a4ad8','#d32f2f','#2e7d32','#e65100','#6a1b9a','#0277bd','#558b2f','#4e342e'];
+/* El azul de la marca, para lo que se pinta en <canvas>.
+   Aquí no sirve var(): ctx.strokeStyle='var(--a)' no da error, se IGNORA en silencio y el trazo
+   sale negro. Se lee una vez del propio sistema, en perezoso —así no depende de que la hoja esté
+   aplicada cuando este módulo arranca— y con el número por si acaso. */
+let _azulMarca='';
+function azulMarca(){
+  if(!_azulMarca){
+    try{ _azulMarca=(getComputedStyle(document.documentElement).getPropertyValue('--a')||'').trim(); }catch(_){ }
+    if(!_azulMarca) _azulMarca='#4060f8';
+  }
+  return _azulMarca;
+}
+const SC_COLORS=[azulMarca(),'#d32f2f','#2e7d32','#e65100','#6a1b9a','#0277bd','#558b2f','#4e342e'];
 const SC_GUIDE_COLOR='#00b8d9';
 /* Centro y aumento de la vista en coordenadas lógicas. Lo usan por igual el dibujo y
    la detección de toques, para que nunca se desincronicen. */
@@ -10928,7 +10968,7 @@ function scLoupe(e){
   // ampliar el lienzo ya dibujado: así enseña detalle real de la foto, no píxeles estirados.
   scScene(lctx,size,size,src.x,src.y,(SC.z||1)*mag,dpr,false,true);
   lctx.setTransform(dpr,0,0,dpr,0,0);
-  lctx.strokeStyle='rgba(58,74,216,.95)';lctx.lineWidth=1.5;
+  lctx.strokeStyle='rgba(var(--a-rgb),.95)';lctx.lineWidth=1.5;
   lctx.beginPath();lctx.moveTo(size/2-16,size/2);lctx.lineTo(size/2+16,size/2);
   lctx.moveTo(size/2,size/2-16);lctx.lineTo(size/2,size/2+16);lctx.stroke();
 }
@@ -10991,10 +11031,10 @@ function scSceneLite(ctx,k){
     ctx.beginPath();ctx.arc(p.x,p.y,px(4),0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();};
   if(SC.down&&SC.sp&&SC.cp){
     const ep=scSnap(SC.sp,SC.cp),ref=(SC.mode==='ref'||SC.mode==='ref-drawn');
-    linea(SC.sp,ep,ref?'#f59e0b':'#3a4ad8',true);
-    punto(SC.sp,ref?'#f59e0b':'#3a4ad8');
+    linea(SC.sp,ep,ref?'#f59e0b':azulMarca(),true);
+    punto(SC.sp,ref?'#f59e0b':azulMarca());
   }
-  if(SC.tapA&&SC.building)punto(SC.tapA,SC.mode==='measure'?'#3a4ad8':'#f59e0b');
+  if(SC.tapA&&SC.building)punto(SC.tapA,SC.mode==='measure'?azulMarca():'#f59e0b');
 }
 function scScene(ctx,w,h,cx,cy,k,dpr,shadow,lupa){
   ctx.setTransform(1,0,0,1,0,0);
@@ -11046,23 +11086,23 @@ function scScene(ctx,w,h,cx,cy,k,dpr,shadow,lupa){
         const cm=SC.nativePxPerCm>0?(pxD*SC.scaleFactor)/SC.nativePxPerCm:0;
         scDimAnnot(ctx,anchor.x,anchor.y,ep.x,ep.y,{text:cm>0?scFmtCm(cm)+' cm':'…',color:SC_COLORS[SC.nc%SC_COLORS.length],sel:false,offset:scDimOffset(SC.cvsW,SC.cvsH),dashed:true,s:scIsMobile()?1.25:1});
       }
-      [anchor,ep].forEach(p=>scPunto(ctx,p,'#3a4ad8',4.5/k,k,false));
+      [anchor,ep].forEach(p=>scPunto(ctx,p,azulMarca(),4.5/k,k,false));
     }else{
       // Colocando el primer punto con el dedo: solo el punto, sin línea — todavía no
       // hay medida, y así se ve que deslizar afina el punto en vez de trazar.
-      scPunto(ctx,ep,SC.mode==='measure'?'#3a4ad8':'#f59e0b',6.5/k,k,true);
+      scPunto(ctx,ep,SC.mode==='measure'?azulMarca():'#f59e0b',6.5/k,k,true);
     }
   }
   if(SC.dragH&&SC.cp){
     const h=SC.dragH,p=h.kind==='ref'
       ?(h.end===1?{x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH}:{x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH})
       :(h.end===1?{x:h.item.nx1*SC.cvsW,y:h.item.ny1*SC.cvsH}:{x:h.item.nx2*SC.cvsW,y:h.item.ny2*SC.cvsH});
-    scPunto(ctx,p,h.kind==='ref'?'#f59e0b':(h.item.color||'#3a4ad8'),6.5/k,k,true);
+    scPunto(ctx,p,h.kind==='ref'?'#f59e0b':(h.item.color||azulMarca()),6.5/k,k,true);
   }
   // Marcador del primer punto colocado (modo tocar-por-toque), visible entre un toque y otro
   if(SC.building&&SC.tapA&&!SC.down){
     const p=SC.tapA;ctx.save();
-    ctx.fillStyle=SC.mode==='measure'?'#3a4ad8':'#f59e0b';ctx.strokeStyle='#fff';ctx.lineWidth=2.5;
+    ctx.fillStyle=SC.mode==='measure'?azulMarca():'#f59e0b';ctx.strokeStyle='#fff';ctx.lineWidth=2.5;
     ctx.beginPath();ctx.arc(p.x,p.y,6.5,0,Math.PI*2);ctx.fill();ctx.stroke();
     ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=1.5;ctx.globalAlpha=.5;
     ctx.beginPath();ctx.arc(p.x,p.y,12,0,Math.PI*2);ctx.stroke();
@@ -11181,7 +11221,7 @@ function scDimOffset(w,h){return Math.min(w,h)*.026;}
    Ocupa bastante menos y deja leer varias medidas juntas sin que se tapen.
    s: escala de trazos y texto (>1 al exportar a la resolución nativa de la foto). */
 function scDimAnnot(ctx,x1,y1,x2,y2,opts){
-  const{offset=50,color='#3a4ad8',sel=false,text='',dashed=false,s=1}=opts;
+  const{offset=50,color=azulMarca(),sel=false,text='',dashed=false,s=1}=opts;
   const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy);if(len<4)return;
   const ux=dx/len,uy=dy/len,nx=-uy,ny=ux;
   const col=sel?'#e03060':color;
@@ -11758,7 +11798,7 @@ function scUpdateList(){
     el.onclick=()=>{SC.sel=SC.sel===m.id?null:m.id;scUpdateList();scRender();};
     el.innerHTML=`
       <div style="flex:1;min-width:0">
-        <div style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;background:var(--brand-grd);color:#fff;font-size:9px;font-weight:800;margin-bottom:4px;box-shadow:0 2px 6px rgba(58,74,216,.25)">${i+1}</div>
+        <div style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;background:var(--brand-grd);color:#fff;font-size:9px;font-weight:800;margin-bottom:4px;box-shadow:0 2px 6px rgba(var(--a-rgb),.25)">${i+1}</div>
         <div class="sp-mitem-cm">${scFmtCm(m.cm)}<small> cm</small></div>
         <input class="sp-mitem-label" placeholder="Letras, logo, fachada…" value="${scEsc(m.label)}" aria-label="Nombre de la medida ${i+1}"
           onclick="event.stopPropagation()" oninput="scSetLabel(${m.id},this.value)">

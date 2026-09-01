@@ -942,7 +942,7 @@ Un toque. Si nadie lo toca nunca, el sistema sigue funcionando con los valores d
 index.html                          EL COTIZADOR. Cinco inserciones aditivas, ~55 líneas en total
 sw.js                               MODIFICADO: dos estrategias, promoción atómica, respaldo por ruta
 manifest.webmanifest                INTACTO
-logo-al3d.png · logo-al3d-dark.png  INTACTOS
+logo-al3d.svg · logo-al3d-oscuro.svg · los cuatro iconos  (generados desde logo-al3d.png)
 
 plataforma.html                     Cascarón único: sprite SVG, topbar, nav de 6 módulos, un <section> por módulo. Cero lógica
 manifest-plataforma.webmanifest     id propio, start_url ./plataforma.html#/hoy, shortcuts a #/hoy #/material #/agenda
@@ -1021,7 +1021,8 @@ Ficha lateral del mapa → **40** (entre `.mbar` 45 y `.topbar` 30). Cajón de f
 ```js
 const CACHE = 'al3d-v1';        // el cotizador. Red-primero. SU COMPORTAMIENTO NO CAMBIA
 const APP   = 'al3d-app-1';     // la plataforma. Se sube UNA LÍNEA al publicar
-const BASICOS = ['./','./index.html','./manifest.webmanifest','./logo-al3d.png','./logo-al3d-dark.png'];
+const BASICOS = ['./','./index.html','./manifest.webmanifest','./logo-al3d.svg','./logo-al3d-oscuro.svg',
+                 './icono-192.png','./icono-512.png','./icono-maskable-512.png','./apple-touch-icon.png'];
 const APP_FILES = ['./plataforma.html','./manifest-plataforma.webmanifest',
   './css/sistema.css','./css/plataforma.css',
   './js/app.js', /* … los 18 módulos … */

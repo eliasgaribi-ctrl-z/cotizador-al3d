@@ -29,7 +29,7 @@ import { matOf, basOf, recOf, cajaOf } from '../datos/catalogo-precios.js';
 import {
   $, esc, money, cant, ico, toast, avisarResultado, vacio, segmento, chip,
   abrirCapa, cerrarCapa, copiarTexto, linkWa, fmtFecha, fmtFechaDia, fmtHora, cuando,
-  diasHasta, hoyISO, partesISO,
+  diasHasta, hoyISO, partesISO, rotularPapel,
 } from '../nucleo/ui.js';
 
 /* ============================================================================
@@ -1090,6 +1090,10 @@ function clicHoja(ev) {
    regla para esta impresión y solo para esta: sale el panel, sin velo, sin botones. */
 function imprimir() {
   if (_imprimiendo) return;
+  /* Quién es esta hoja y de cuándo es. El encabezado del papel vive en plataforma.html y solo se
+     enciende al imprimir; aquí se le pone el rótulo, que es lo único que cambia entre los dos
+     caminos de impresión de la plataforma. */
+  rotularPapel('Orden de trabajo');
   _imprimiendo = true;
   document.body.classList.add('pf-print-hoja');
   /* Se quita en 'afterprint', y también por reloj: Safari de iOS no siempre dispara

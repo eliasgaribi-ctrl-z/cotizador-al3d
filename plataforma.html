@@ -6,7 +6,8 @@
 <title>Plataforma AL3D</title>
 <meta name="description" content="Agenda de instalaciones, material en almacén, proyectos y mapa de obra de AL3D.">
 <link rel="manifest" href="manifest-plataforma.webmanifest">
-<meta name="theme-color" content="#3a4ad8">
+<!-- El mismo número que --a en css/sistema.css. Un <meta> no entiende var(). -->
+<meta name="theme-color" content="#4060f8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="AL3D">
@@ -46,6 +47,24 @@
 <!-- El primer tabulador de la página tiene que llevar al contenido, no recorrer los seis
      módulos de la barra. Misma solución que el cotizador. -->
 <a href="#pf-contenido" class="salto">Ir al contenido</a>
+
+<!-- Los dos «finales» de la plataforma —la lista de compra y la orden de obra— salían del
+     mismo papel que la cotización que se manda al cliente y no se parecían en nada: sin
+     logotipo, sin pie, sin número de hoja y en el tamaño que el navegador tuviera por
+     omisión. Medido emulando media:print: .topbar y .pf-nav en display:none y cero marca en
+     la hoja, mientras el documento del cotizador lleva encabezado, filete, pie y «Hoja X de Y».
+     Estos dos bloques no existen en pantalla; solo los enciende el @media print, y van fijos
+     para que se repitan en todas las hojas de una lista larga. -->
+<div class="imp-marca" aria-hidden="true">
+  <img class="imp-logo" src="logo-al3d.svg" width="260" height="130" alt="">
+  <span class="imp-bar"></span>
+  <span class="imp-t" id="imp-titulo">AL3D</span>
+  <span class="imp-m" id="imp-fecha"></span>
+</div>
+<div class="imp-pie" aria-hidden="true">
+  <span>Naranjos #648 Col. Lindavista Cp. 45169</span>
+  <span>WhatsApp 33-2813-0092</span>
+</div>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
 <symbol id="i-escalar" viewBox="-0.667 -0.667 25.333 25.333" style="stroke-width:2.006"><path d="M2.5 21.5h19L2.5 2.5z"/><path d="M7 21.5v-2.6M11 21.5v-4.2M15 21.5v-5.8"/></symbol>
