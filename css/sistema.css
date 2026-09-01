@@ -1254,8 +1254,19 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .cua-ini{display:flex;width:42px;height:42px;flex-shrink:0;border-radius:12px;background:var(--soft-2);color:var(--a-fuerte);
   display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;letter-spacing:.5px}
 .cua-card-meta{display:block;flex:1;min-width:0}
-.cua-nombre{display:block;font-size:14px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Flex y no un bloque con ellipsis a secas: el nombre puede traer al lado la marca de
+   homónimo, y con `overflow:hidden` sobre todo el renglón la marca era lo primero que se
+   cortaba —justo el dato que dice que ese renglón no es el que parece. Se trunca el
+   nombre, que se reconoce a medias; la marca no se toca. */
+.cua-nombre{display:flex;align-items:center;gap:2px;min-width:0;font-size:14px;font-weight:800;color:var(--ink)}
+.cua-nombre-txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .cua-sub{display:block;font-size:11.5px;color:var(--muted);line-height:1.55;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Dos clientes que se llaman igual son dos renglones iguales. La marca dice que no es un
+   duplicado por arreglar —son dos personas— y que lo que hay que mirar es el teléfono. */
+.cua-homo{flex-shrink:0;margin-left:5px;padding:1px 6px;border-radius:999px;
+  background:var(--soft-2);color:var(--a-fuerte);font-size:9.5px;font-weight:800;letter-spacing:.2px;text-transform:uppercase}
+.cua-homo-nota{font-size:11.5px;color:var(--a-fuerte);line-height:1.5;margin-top:7px;padding:7px 10px;border-radius:var(--rr1);
+  background:var(--soft-2);border:1px solid rgba(var(--a-rgb),.14)}
 .cua-card-num{text-align:right;flex-shrink:0}
 .cua-card-num b{display:block;font-size:13px;font-weight:800;color:var(--green)}
 .cua-card-num span{display:block;font-size:10.5px;color:var(--muted);font-weight:600}

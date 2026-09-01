@@ -1274,8 +1274,19 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .cua-ini{display:flex;width:42px;height:42px;flex-shrink:0;border-radius:12px;background:var(--soft-2);color:var(--a-fuerte);
   display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;letter-spacing:.5px}
 .cua-card-meta{display:block;flex:1;min-width:0}
-.cua-nombre{display:block;font-size:14px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Flex y no un bloque con ellipsis a secas: el nombre puede traer al lado la marca de
+   homónimo, y con `overflow:hidden` sobre todo el renglón la marca era lo primero que se
+   cortaba —justo el dato que dice que ese renglón no es el que parece. Se trunca el
+   nombre, que se reconoce a medias; la marca no se toca. */
+.cua-nombre{display:flex;align-items:center;gap:2px;min-width:0;font-size:14px;font-weight:800;color:var(--ink)}
+.cua-nombre-txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .cua-sub{display:block;font-size:11.5px;color:var(--muted);line-height:1.55;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Dos clientes que se llaman igual son dos renglones iguales. La marca dice que no es un
+   duplicado por arreglar —son dos personas— y que lo que hay que mirar es el teléfono. */
+.cua-homo{flex-shrink:0;margin-left:5px;padding:1px 6px;border-radius:999px;
+  background:var(--soft-2);color:var(--a-fuerte);font-size:9.5px;font-weight:800;letter-spacing:.2px;text-transform:uppercase}
+.cua-homo-nota{font-size:11.5px;color:var(--a-fuerte);line-height:1.5;margin-top:7px;padding:7px 10px;border-radius:var(--rr1);
+  background:var(--soft-2);border:1px solid rgba(var(--a-rgb),.14)}
 .cua-card-num{text-align:right;flex-shrink:0}
 .cua-card-num b{display:block;font-size:13px;font-weight:800;color:var(--green)}
 .cua-card-num span{display:block;font-size:10.5px;color:var(--muted);font-weight:600}
@@ -3403,7 +3414,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
     <div id="cua-lista-vista">
       <p class="hist-ayuda">Cada cliente es un <b>teléfono</b>; sin teléfono, el <b>nombre</b>. Se agrupan solas las cotizaciones que ya autorizaste.</p>
       <div class="hist-search-bar">
-        <input id="cua-search" type="search" aria-label="Buscar un cuaderno por cliente o teléfono" placeholder="Buscar por cliente o teléfono…" autocomplete="off" oninput="pintarCuadernos()">
+        <input id="cua-search" type="search" aria-label="Buscar un cuaderno por cliente, teléfono o proyecto" placeholder="Buscar por cliente, teléfono o proyecto…" autocomplete="off" oninput="pintarCuadernos()">
         <span class="hist-count" id="cua-count"></span>
       </div>
     </div>
@@ -4307,16 +4318,34 @@ function prefSet(k,v){ try{ localStorage.setItem(k,String(v)); }catch(_){} }
    El historial ya guardaba nombre, teléfono y dirección de cada cliente autorizado,
    pero el campo Cliente arrancaba vacío siempre: el cliente que regresaba por su
    segundo letrero se tecleaba completo otra vez. Se sugieren los del historial y, al
-   elegir uno, se llenan los campos que estén VACÍOS —nunca se pisa lo ya escrito. */
+   elegir uno, se llenan los campos que estén VACÍOS —nunca se pisa lo ya escrito.
+
+   Quién es un cliente aquí es la MISMA pregunta que en los cuadernos, y se contesta
+   igual: manda el teléfono, y el nombre solo cuando no hay teléfono. Agrupar por nombre
+   —como se hacía— junta a dos clientes que se llaman igual en un solo registro, y
+   entonces teclear «Farmacia San Juan» rellenaba el teléfono y la dirección del OTRO
+   señor que se llama así. Esa es la manera en que dos clientes distintos terminan con
+   sus proyectos en el mismo cuaderno: no se cruzan al agruparlos, se cruzan al
+   capturarlos, porque el formulario ya trajo puesto el teléfono equivocado. */
 function normNom(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
 function clientesConocidos(){
   const m=new Map();
   /* El historial está ordenado de lo más reciente a lo más viejo, así que el primero
      que aparece manda; de los demás solo se toman los huecos que dejó. */
   getHistorial().forEach(e=>{
-    const k=normNom(e.cliente); if(!k) return;
+    const nom=normNom(e.cliente); if(!nom) return;
+    const d=telClave(e.tel);
+    /* Con teléfono, el teléfono es la identidad; sin él, el nombre. Dos «Juan» con dos
+       teléfonos son dos registros y el que se llene depende de cuál de los dos se está
+       capturando —eso lo decide autocompletarCliente(), no esta lista. */
+    const k=d?('tel:'+d):('nom:'+nom);
     const prev=m.get(k);
-    if(!prev){ m.set(k,{cliente:e.cliente,tel:e.tel||'',dirRaw:e.dirRaw||'',maps:e.maps||''}); return; }
+    if(!prev){ m.set(k,{clave:k,cliente:e.cliente,nombres:[e.cliente],tel:e.tel||'',dirRaw:e.dirRaw||'',maps:e.maps||''}); return; }
+    /* Todos los nombres con los que se ha capturado a ESTE teléfono, no solo el último.
+       Agrupando por nombre, «Andrey» y «Andrey Healthylicious» eran dos registros y los dos
+       autocompletaban; agrupando por teléfono son uno, y sin esta lista teclear el nombre
+       viejo dejaría de reconocer a un cliente que la app sí conoce. */
+    if(!prev.nombres.some(x=>normNom(x)===nom)) prev.nombres.push(e.cliente);
     if(!prev.tel&&e.tel) prev.tel=e.tel;
     if(!prev.dirRaw&&e.dirRaw) prev.dirRaw=e.dirRaw;
     if(!prev.maps&&e.maps) prev.maps=e.maps;
@@ -4325,7 +4354,19 @@ function clientesConocidos(){
 }
 function pintarClientes(){
   const dl=$('clientes-conocidos');
-  if(dl) dl.innerHTML=clientesConocidos().map(c=>`<option value="${esc(c.cliente)}"></option>`).join('');
+  /* La lista desplegable es de NOMBRES —todos los que se han usado, que es como los busca
+     quien teclea—. Dos homónimos ofrecen la misma opción una sola vez: dos renglones
+     idénticos no ayudan a elegir, y quién es cuál lo resuelve el teléfono, que es el campo
+     de al lado. */
+  if(dl){
+    const vistos=new Set(); const ops=[];
+    clientesConocidos().forEach(c=>c.nombres.forEach(nom=>{
+      const n=normNom(nom);
+      if(!n||vistos.has(n)) return;
+      vistos.add(n); ops.push(`<option value="${esc(nom)}"></option>`);
+    }));
+    dl.innerHTML=ops.join('');
+  }
   /* Esta función ya corría después de cada escritura del historial y al arrancar, que es
      exactamente cuando el aviso de «ya tiene cuaderno» puede haber cambiado. */
   actualizarAvisoCuaderno();
@@ -4346,10 +4387,28 @@ function marcarVaciado(k,v){
   if(!_vaciadoAMano||_vaciadoAMano.folio!==Q.folio) _vaciadoAMano={folio:Q.folio,set:new Set()};
   if(String(v||'').trim()) _vaciadoAMano.set.delete(k); else _vaciadoAMano.set.add(k);
 }
+/* Se llama al teclear el nombre Y al teclear el teléfono. Lo segundo importa cuando dos
+   clientes se llaman igual: con el nombre solo no se puede decidir y no se rellena nada;
+   en cuanto aparece el teléfono ya se sabe cuál de los dos es y ahí sí se completa. */
 function autocompletarCliente(v){
   if(locked()) return;
-  const c=clientesConocidos().find(x=>normNom(x.cliente)===normNom(v));
-  if(!c) return;
+  const n=normNom(v); if(!n) return;
+  const mismos=clientesConocidos().filter(x=>x.nombres.some(nom=>normNom(nom)===n));
+  if(!mismos.length) return;
+  const d=telClave(Q.tel);
+  let c;
+  if(d){
+    /* Hay teléfono escrito: MANDA él. Si no es el de ninguno de los homónimos, es un
+       cliente nuevo que se llama como uno viejo y no hay nada que copiarle. */
+    c=mismos.find(x=>telClave(x.tel)===d);
+    if(!c) return;
+  } else {
+    /* Sin teléfono, un solo homónimo se puede dar por bueno; dos, no: adivinar aquí es
+       exactamente lo que mete el proyecto de un cliente en el cuaderno del otro. El aviso
+       de abajo lo dice y ofrece los teléfonos para elegir. */
+    if(mismos.length>1) return;
+    c=mismos[0];
+  }
   const puestos=[];
   if(c.tel && !(Q.tel||'').trim() && !vaciadoAMano('tel')){ Q.tel=c.tel; if($('f-tel')) $('f-tel').value=c.tel; puestos.push('el teléfono'); }
   if(c.dirRaw && !(Q.dirRaw||'').trim() && !vaciadoAMano('dirRaw')){ if($('f-dir-raw')) $('f-dir-raw').value=c.dirRaw; updDirRaw(c.dirRaw); puestos.push('la dirección'); }
@@ -6829,7 +6888,9 @@ function aplicarFoldProy(){
 function upd(k,v){
   undoJuntar('q:'+k);
   Q[k]=v; saveState(); updProg();   // updProg ya repinta el encabezado plegado
-  if(k==='cliente') autocompletarCliente(v);
+  /* El teléfono también: es el que desempata entre dos clientes que se llaman igual, y
+     hasta que se escribe, autocompletarCliente() no rellena nada a propósito. */
+  if(k==='cliente'||k==='tel') autocompletarCliente(k==='cliente'?v:Q.cliente);
   /* Los dos campos que dicen de quién es esto son los dos que pueden destapar un cuaderno. */
   if(k==='cliente'||k==='tel') actualizarAvisoCuaderno();
 }
@@ -9486,11 +9547,18 @@ function usarComoBase(folio){
      teléfono no era obligatorio y esas no se pueden quedar fuera.
    · Una cotización sin teléfono cuyo nombre SÍ aparece en un cuaderno con teléfono se une a
      ese cuaderno —es el mismo cliente, capturado antes—, pero solo si ese nombre apunta a un
-     único teléfono. Si el mismo nombre aparece con dos teléfonos distintos, adivinar sería
-     mezclar dos clientes: se queda en su propio cuaderno, a la vista, para que quien sabe
-     decida.
+     único teléfono y si los dígitos sueltos que traiga no lo desmienten. Si el mismo nombre
+     aparece con dos teléfonos distintos, adivinar sería mezclar dos clientes: se queda en su
+     propio cuaderno, a la vista, para que quien sabe decida.
    · Lo que no tiene ni nombre ni teléfono cae en un cuaderno «Sin identificar». Nada se
-     esconde: la suma de los cuadernos es siempre el historial completo. */
+     esconde: la suma de los cuadernos es siempre el historial completo.
+
+   Y lo que NO se hace, que es la mitad que importa: el nombre nunca reclama un cuaderno que
+   tiene teléfono cuando el teléfono de enfrente es otro. Dos clientes se llaman igual más
+   seguido de lo que parece —«Farmacia San Juan» hay una en cada colonia— y un cuaderno con
+   los proyectos de dos personas distintas no se nota hasta que alguien le cobra a quien no
+   era. Cuando el nombre señala a dos cuadernos, la app dice que son dos y pide el teléfono;
+   no elige uno. */
 
 /* Los últimos 10 dígitos: así «33 1234 5678», «+52 33 1234 5678» y «521 33 1234 5678»
    son el mismo cliente. Con menos de 10 no se agrupa por teléfono —un «33 12» a medias
@@ -9498,6 +9566,13 @@ function usarComoBase(folio){
 function telClave(t){
   const d=String(t||'').replace(/\D/g,'');
   return d.length>=10 ? d.slice(-10) : '';
+}
+/* Un teléfono a medias no forma cuaderno, pero sí puede DESMENTIR uno: «33 12» no es el
+   cliente cuyo teléfono termina en 99 88, aunque se llamen igual. Sin dígitos no hay nada
+   que desmentir y el nombre decide solo. */
+function telCompatible(parcial,clave){
+  const d=String(parcial||'').replace(/\D/g,'');
+  return !d || String(clave||'').includes(d);
 }
 /* El precio que de verdad se cobró: el autorizado si difiere del calculado. La misma
    regla que ya usaban el historial y el CSV, en un solo sitio. */
@@ -9534,7 +9609,7 @@ function cuadernos(){
     const n=normNom(e.cliente);
     if(!n){ dame('?').cots.push(e); return; }
     const cand=nomTels.get(n);
-    if(cand&&cand.size===1){
+    if(cand&&cand.size===1&&telCompatible(e.tel,[...cand][0].slice(4))){
       const g=grupos.get([...cand][0]);
       g.cots.push(e);
       /* La clave vieja se recuerda: la nota del cuaderno pudo escribirse cuando este
@@ -9568,23 +9643,45 @@ function cuadernos(){
     g.ultima=g.cots.reduce((a,e)=>Math.max(a,e.ts||0),0);
     g.primera=g.cots.reduce((a,e)=>Math.min(a,e.ts||Infinity),Infinity);
     if(!isFinite(g.primera)) g.primera=0;
+    /* El proyecto más reciente. Cuando dos cuadernos se llaman igual, el nombre del
+       cliente ya no distingue nada y este sí: «Farmacia San Juan · Letrero fachada» no se
+       confunde con «Farmacia San Juan · Toldo». */
+    g.proy=prim(g,'proy');
   });
+  /* Los homónimos, marcados. No se juntan —son clientes distintos— pero tampoco se dejan
+     iguales en pantalla: quien los vea tiene que poder decir cuál es cuál sin abrirlos. */
+  const porNombre=new Map();
+  grupos.forEach(g=>{
+    if(g.clave==='?') return;
+    const n=normNom(g.nombre); if(!n) return;
+    porNombre.set(n,(porNombre.get(n)||0)+1);
+  });
+  grupos.forEach(g=>{ g.homonimo=g.clave!=='?'&&(porNombre.get(normNom(g.nombre))||0)>1; });
   /* El cliente con el que se habló hace menos, arriba: es el que se va a buscar. */
   _cuaCache=[...grupos.values()].sort((a,b)=>b.ultima-a.ultima);
   return _cuaCache;
 }
 function cuadernoDe(clave){ return cuadernos().find(g=>g.clave===clave)||null; }
-/* El cuaderno al que pertenecería lo que hay ahora en pantalla, con la misma regla de
-   arriba: primero el teléfono, luego el nombre. */
-function cuadernoDeQ(){
+/* Los cuadernos que lo que hay en pantalla PODRÍA señalar: ninguno, uno o —cuando el
+   nombre está escrito y el teléfono todavía no— varios.
+
+   El teléfono cierra la pregunta. Si está completo y no hay cuaderno con él, es un cliente
+   nuevo y punto: buscar entonces por nombre era el camino por el que un cliente estrenado
+   heredaba el cuaderno del homónimo, con su historial y su nota, y desde ahí sus proyectos
+   empezaban a mezclarse. */
+function cuadernosDeQ(){
   const d=telClave(Q.tel);
   const todos=cuadernos();
-  if(d){ const g=todos.find(x=>x.clave==='tel:'+d); if(g) return g; }
+  if(d){ const g=todos.find(x=>x.clave==='tel:'+d); return g?[g]:[]; }
   const n=normNom(Q.cliente);
-  if(!n) return null;
-  return todos.find(g=>g.clave==='nom:'+n)
-      || todos.find(g=>normNom(g.nombre)===n||g.alias.some(a=>normNom(a)===n))
-      || null;
+  if(!n) return [];
+  return todos.filter(g=>g.clave!=='?'&&(g.clave==='nom:'+n||normNom(g.nombre)===n||g.alias.some(a=>normNom(a)===n)));
+}
+/* El cuaderno, cuando no hay duda de cuál es. Con dos candidatos la respuesta honesta es
+   «no se sabe»: quien pregunta necesita el teléfono, no una de las dos al azar. */
+function cuadernoDeQ(){
+  const c=cuadernosDeQ();
+  return c.length===1?c[0]:null;
 }
 
 /* ----- La nota del cuaderno -----
@@ -9648,6 +9745,9 @@ function pintarCuadernos(){
     ? _cuaData.filter(g=>{
         if(cuaTitulo(g).toLowerCase().includes(q)) return true;
         if(g.alias.some(a=>a.toLowerCase().includes(q))) return true;
+        /* Por proyecto también: cuando dos clientes se llaman igual, el nombre no sirve
+           para buscar y lo que se recuerda es el letrero que se le hizo. */
+        if(g.cots.some(e=>String(e.proy||'').toLowerCase().includes(q))) return true;
         /* Buscar por teléfono se hace tecleando dígitos sueltos, sin los espacios con los
            que se capturó: se comparan los dígitos contra los dígitos. */
         return !!qd && telClave(g.tel).includes(qd);
@@ -9665,11 +9765,16 @@ function pintarCuadernos(){
   } else {
     html=lista.map(g=>{
       const n=g.cots.length;
-      const sub=[g.tel||'', g.alias.length?('también «'+g.alias[0]+'»'):''].filter(Boolean).join(' · ');
-      return `<button class="cua-card" onclick="abrirCuaderno('${esc(g.clave)}')" title="Abrir el cuaderno de ${esc(cuaTitulo(g))}">
+      /* En un homónimo el nombre ya no dice nada —hay otro renglón idéntico más abajo— y
+         lo que distingue es el teléfono y el último proyecto. Se enseñan los dos, y el
+         alias, que ahí no ayuda, se cede. */
+      const sub=g.homonimo
+        ? [g.tel||'Sin teléfono', g.proy||''].filter(Boolean).join(' · ')
+        : [g.tel||'', g.alias.length?('también «'+g.alias[0]+'»'):''].filter(Boolean).join(' · ');
+      return `<button class="cua-card" onclick="abrirCuaderno('${esc(g.clave)}')" title="Abrir el cuaderno de ${esc(cuaTitulo(g))}${g.tel?' · '+esc(g.tel):''}">
         <span class="cua-ini" aria-hidden="true">${esc(cuaIniciales(cuaTitulo(g)))}</span>
         <span class="cua-card-meta">
-          <span class="cua-nombre">${esc(cuaTitulo(g))}</span>
+          <span class="cua-nombre"><span class="cua-nombre-txt">${esc(cuaTitulo(g))}</span>${g.homonimo?'<span class="cua-homo">otro teléfono</span>':''}</span>
           <span class="cua-sub">${esc(sub||'Sin teléfono')}</span>
         </span>
         <span class="cua-card-num">
@@ -9715,6 +9820,7 @@ function abrirCuaderno(clave){
       <button class="cua-volver" onclick="pintarCuadernos()">${ico('i-atras')} Todos los clientes</button>
       <div class="cua-det-nom">${esc(cuaTitulo(g))}</div>
       ${datos?`<div class="cua-det-datos">${datos}</div>`:''}
+      ${g.homonimo?`<div class="cua-homo-nota">Hay otro cliente con este mismo nombre y otro teléfono. Este cuaderno es solo el de ${esc(g.tel||'este teléfono')}: sus cotizaciones no se mezclan con las del otro.</div>`:''}
       ${g.alias.length?`<div class="cua-alias">También capturado como ${g.alias.map(a=>'«'+esc(a)+'»').join(', ')}</div>`:''}
       <div class="cua-det-acts">
         <button onclick="cuaNuevaCotizacion('${esc(g.clave)}')" title="Empieza una cotización en blanco con estos datos de cliente ya puestos">${ico('i-lapiz')} Cotizarle algo nuevo</button>
@@ -9834,7 +9940,22 @@ function exportarClientesCSV(){
 let _cuaAvisoClave=null;
 function actualizarAvisoCuaderno(){
   const el=$('cua-aviso'); if(!el) return;
-  const g=cuadernoDeQ();
+  const cand=cuadernosDeQ();
+  /* Dos cuadernos con este nombre y todavía sin teléfono. Antes se enseñaba el primero de
+     los dos como si fuera «el» cuaderno del cliente —de ahí «tengo cuadernos guardados de
+     un cliente» que nunca compró nada—. Ahora se dice lo que de verdad se sabe: son dos, y
+     el teléfono es lo que dice cuál. Se ofrecen los dos para tocar uno. */
+  if(cand.length>1){
+    const clave='dudoso|'+cand.map(g=>g.clave).join(',');
+    if(clave===_cuaAvisoClave) return;
+    _cuaAvisoClave=clave;
+    el.innerHTML=`${ico('i-cuaderno')} <span>${cand.length} clientes se llaman así — el teléfono dice cuál es:</span>`
+      +cand.map(g=>` <button type="button" onclick="cuaElegirCliente('${esc(g.clave)}')" title="Usar el teléfono de este cliente">`
+        +`${esc(g.tel||'sin teléfono')}${g.proy?' · '+esc(g.proy):''}</button>`).join('');
+    el.style.display='flex';
+    return;
+  }
+  const g=cand[0]||null;
   /* El cuaderno del cliente al que ya se le está cotizando ESTE folio no es noticia: si
      lo único que tiene es esta misma cotización, ya reabierta, no hay nada que contar. */
   const util=g&&g.cots.length&&!(g.cots.length===1&&g.cots[0].folio===Q.folio);
@@ -9846,6 +9967,20 @@ function actualizarAvisoCuaderno(){
   el.innerHTML=`${ico('i-cuaderno')} <span>Ya tiene cuaderno · ${plCot(n)} · ${money(g.vendido)}</span>`
     +` <button type="button" onclick="verCuadernoDe('${esc(g.clave)}')">Ver cuaderno</button>`;
   el.style.display='flex';
+}
+/* Desempatar entre homónimos: se escribe el teléfono del que se eligió y con eso la app ya
+   sabe de quién se trata —el aviso se vuelve el de siempre y autocompletar rellena lo que
+   falte, ahora sí del cliente correcto. */
+function cuaElegirCliente(clave){
+  if(locked()) return;
+  const g=cuadernoDe(clave); if(!g||!g.tel) return;
+  Q.tel=g.tel;
+  const inp=$('f-tel'); if(inp) inp.value=g.tel;
+  marcarVaciado('tel',g.tel);
+  saveState(); updProg();
+  autocompletarCliente(Q.cliente);
+  actualizarAvisoCuaderno();
+  toast('Teléfono de '+cuaTitulo(g)+' — ya no se confunde con el otro cliente del mismo nombre','ok',3600);
 }
 /* Entrar al cuaderno de un cliente sin pasar por la lista. _cuaData tiene que quedar
    cargado igual: es de donde sale la lista cuando se toca «Todos los clientes». */

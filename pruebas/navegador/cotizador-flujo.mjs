@@ -473,6 +473,99 @@ for (const bueno of ['logo-al3d.svg', 'data:image/png;base64,iVBORw0KGgo=', 'blo
   ? bien('y lo que no es una imagen sigue saliendo vacío')
   : mal('dejó pasar un javascript:');
 
+// ── 8ter. Dos clientes que se llaman igual ─────────────────────────────────
+/* El cruce que se vio en la calle: dos «Farmacia San Juan» con teléfonos distintos, y los
+   proyectos de una apareciendo en el cuaderno de la otra. La causa no estaba al agrupar el
+   historial —ahí la regla ya separaba por teléfono— sino ANTES, al capturar: se tecleaba el
+   nombre, autocompletar reconocía «un» cliente conocido y rellenaba el teléfono del otro, y
+   a partir de ahí la cotización nacía ya en el cuaderno equivocado. Se prueba desde el
+   formulario, que es donde ocurre. */
+console.log('');
+await enBlanco();
+await p.evaluate(() => {
+  localStorage.setItem('al3d_historial', JSON.stringify([
+    {folio:'COT-0102',cliente:'Farmacia San Juan',tel:'33 4444 5555',proy:'Letrero fachada',
+     dirRaw:'Av. Vallarta 100',estado:'autorizada',ts:2000,neto:7000,precioAuth:0,items:[]},
+    {folio:'COT-0101',cliente:'Farmacia San Juan',tel:'33 6666 7777',proy:'Toldo',
+     dirRaw:'Calle Colón 55',estado:'autorizada',ts:1000,neto:4000,precioAuth:0,items:[]},
+    /* El mismo teléfono capturado antes con otro nombre: el cliente que se teclea distinto
+       cada vez, que es la razón de que mande el teléfono y no el nombre. */
+    {folio:'COT-0100',cliente:'Farmacia SJ Centro',tel:'33 6666 7777',proy:'Rótulo',
+     dirRaw:'Calle Colón 55',estado:'autorizada',ts:500,neto:1000,precioAuth:0,items:[]},
+  ]));
+});
+await p.goto(B+'/index.html',{waitUntil:'load'});
+await p.waitForTimeout(1100);
+await p.fill('#f-cli','Farmacia San Juan');
+await p.waitForTimeout(500);
+
+(await p.inputValue('#f-tel'))===''
+  ? bien('con dos clientes del mismo nombre, autocompletar NO inventa un teléfono')
+  : mal('rellenó el teléfono de uno de los dos homónimos: '+(await p.inputValue('#f-tel')));
+(await p.inputValue('#f-dir-raw'))===''
+  ? bien('ni la dirección') : mal('rellenó la dirección de uno de los dos');
+
+const avisoDudoso = (await p.textContent('#cua-aviso')||'').replace(/\s+/g,' ').trim();
+/2 clientes se llaman así/.test(avisoDudoso)
+  ? bien('y el aviso dice que son dos: «'+avisoDudoso.slice(0,60)+'…»')
+  : mal('el aviso no advierte del homónimo: «'+avisoDudoso+'»');
+const opciones = await p.$$eval('#cua-aviso button', b=>b.map(x=>x.textContent.trim()));
+opciones.length===2 && opciones.every(o=>/\d{2} \d{4} \d{4}/.test(o))
+  ? bien('y ofrece los dos teléfonos para elegir: '+JSON.stringify(opciones))
+  : mal('no ofreció los teléfonos: '+JSON.stringify(opciones));
+opciones.some(o=>/Toldo/.test(o))
+  ? bien('con el proyecto de cada uno, que es lo que de verdad los distingue')
+  : mal('las opciones no dicen de qué proyecto es cada teléfono');
+
+/* Se elige uno: a partir de ahí ya no hay duda y la app se comporta como siempre. */
+await p.click('#cua-aviso button:has-text("33 6666 7777")');
+await p.waitForTimeout(500);
+(await p.inputValue('#f-tel'))==='33 6666 7777'
+  ? bien('al elegir uno se escribe SU teléfono') : mal('elegir no puso el teléfono');
+(await p.inputValue('#f-dir-raw'))==='Calle Colón 55'
+  ? bien('y ahora sí se completa la dirección, la del cliente correcto')
+  : mal('la dirección no es la del elegido: '+(await p.inputValue('#f-dir-raw')));
+const avisoUno = (await p.textContent('#cua-aviso')||'').replace(/\s+/g,' ').trim();
+/Ya tiene cuaderno · 2 cotizaciones/.test(avisoUno)
+  ? bien('y el aviso pasa a ser el de siempre: «'+avisoUno.slice(0,44)+'…»')
+  : mal('el aviso no volvió al normal: «'+avisoUno+'»');
+
+/* El nombre VIEJO del mismo teléfono sigue reconociendo al cliente: agrupar por teléfono
+   junta las dos capturas en un registro, y sin eso teclear el nombre de antes dejaría de
+   autocompletar a alguien que la app sí conoce. */
+await p.evaluate(()=>{ nueva(); });
+await p.waitForTimeout(400);
+await p.fill('#f-cli','Farmacia SJ Centro');
+await p.waitForTimeout(500);
+(await p.inputValue('#f-tel'))==='33 6666 7777'
+  ? bien('el nombre con el que se capturó antes sigue autocompletando su teléfono')
+  : mal('el nombre viejo dejó de reconocer al cliente: teléfono «'+(await p.inputValue('#f-tel'))+'»');
+
+/* Un cliente nuevo que se llama como uno viejo: no hereda nada de nadie. */
+await p.fill('#f-cli','Farmacia San Juan');
+await p.fill('#f-tel','33 8888 9999');
+await p.waitForTimeout(500);
+(await p.textContent('#cua-aviso')||'').trim()===''
+  ? bien('un teléfono nuevo con nombre repetido no hereda el cuaderno del homónimo')
+  : mal('le colgó un cuaderno ajeno: «'+(await p.textContent('#cua-aviso')).trim()+'»');
+
+/* Y en la lista de cuadernos los dos se ven, distintos. */
+await p.evaluate(()=>abrirCuadernos()); await p.waitForTimeout(600);
+const tarjetas = await p.$$eval('.cua-card',e=>e.map(x=>x.textContent.replace(/\s+/g,' ').trim()));
+tarjetas.length===2
+  ? bien('los dos homónimos son dos cuadernos en la lista, no uno')
+  : mal('la lista enseña '+tarjetas.length+' cuaderno(s): '+JSON.stringify(tarjetas));
+(await p.$$eval('.cua-homo',e=>e.length))===2
+  ? bien('los dos van marcados «otro teléfono»') : mal('falta la marca de homónimo');
+tarjetas.every(t=>/33 4444 5555|33 6666 7777/.test(t))
+  ? bien('y cada tarjeta enseña su teléfono, que es lo que los separa')
+  : mal('las tarjetas no enseñan el teléfono: '+JSON.stringify(tarjetas));
+await p.fill('#cua-search','Toldo'); await p.waitForTimeout(400);
+(await p.$$eval('.cua-card',e=>e.length))===1
+  ? bien('buscar por proyecto llega al cuaderno que se busca')
+  : mal('buscar «Toldo» no filtró a uno solo');
+await p.evaluate(()=>cerrarCuadernos()); await p.waitForTimeout(300);
+
 // ── 9. Nada se rompió por el camino ─────────────────────────────────────────
 console.log('');
 errs.length ? mal('errores de página: '+[...new Set(errs)].slice(0,3).join(' | '))

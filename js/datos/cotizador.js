@@ -204,9 +204,20 @@ export async function drenarBuzon() {
    módulo agrupaba por nombre en minúsculas, que es más simple y está mal: «Andrey» y
    «Andrey Healthylicious» quedaban como dos clientes en la plataforma y como uno en el
    cotizador, y a la primera pregunta de «¿cuánto le hemos vendido a este cliente?» habría
-   dos respuestas distintas en la misma app. Si esta regla cambia allá, cambia aquí. */
+   dos respuestas distintas en la misma app. Si esta regla cambia allá, cambia aquí.
+
+   La otra mitad de la regla, la que dice qué NO se une: el nombre nunca reclama un cuaderno
+   que tiene teléfono cuando el teléfono de enfrente es otro. Dos clientes se llaman igual
+   más seguido de lo que parece, y un cuaderno con los proyectos de dos personas distintas
+   no se nota hasta que alguien le cobra a quien no era. */
 const telClave = t => { const d = String(t || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : ''; };
 const normNom  = s2 => String(s2 || '').trim().toLowerCase().replace(/\s+/g, ' ');
+/* Un teléfono a medias no forma cuaderno, pero sí puede DESMENTIR uno: «33 12» no es el
+   cliente cuyo teléfono termina en 99 88, aunque se llamen igual. */
+const telCompatible = (parcial, clave) => {
+  const d = String(parcial || '').replace(/\D/g, '');
+  return !d || String(clave || '').includes(d);
+};
 
 /** El total que de verdad se cobró en una cotización: el autorizado si difiere del calculado. */
 const totalFinalHist = e => totalVendido(e);
@@ -234,7 +245,7 @@ export function cuadernos() {
     const n = normNom(e.cliente);
     if (!n) { dame('?').cots.push(e); continue; }
     const cand = nomTels.get(n);
-    if (cand && cand.size === 1) {
+    if (cand && cand.size === 1 && telCompatible(e.tel, [...cand][0].slice(4))) {
       const g = grupos.get([...cand][0]);
       g.cots.push(e);
       if (g.claves.indexOf('nom:' + n) < 0) g.claves.push('nom:' + n);
@@ -265,22 +276,43 @@ export function cuadernos() {
     g.ultima = g.cots.reduce((a, e) => Math.max(a, e.ts || 0), 0);
     g.primera = g.cots.reduce((a, e) => Math.min(a, e.ts || Infinity), Infinity);
     if (!isFinite(g.primera)) g.primera = 0;
+    /* El proyecto más reciente: cuando dos cuadernos se llaman igual, el nombre del cliente
+       ya no distingue nada y este sí. */
+    g.proy = prim(g, 'proy');
+  }
+  /* Los homónimos, marcados. No se juntan —son clientes distintos— pero tampoco se dejan
+     iguales en pantalla: quien los vea tiene que poder decir cuál es cuál. */
+  const porNombre = new Map();
+  for (const g of grupos.values()) {
+    if (g.clave === '?') continue;
+    const n = normNom(g.nombre); if (!n) continue;
+    porNombre.set(n, (porNombre.get(n) || 0) + 1);
+  }
+  for (const g of grupos.values()) {
+    g.homonimo = g.clave !== '?' && (porNombre.get(normNom(g.nombre)) || 0) > 1;
   }
   /* El cliente con el que se habló hace menos, arriba: es el que se va a buscar. */
   return [...grupos.values()].sort((a, b) => b.ultima - a.ultima);
 }
 
-/** El cuaderno al que pertenece una cotización, con la misma regla: primero teléfono. */
+/**
+ * El cuaderno al que pertenece una cotización, con la misma regla: manda el teléfono.
+ *
+ * Con teléfono completo la respuesta es ese cuaderno o ninguno: buscar entonces por nombre
+ * —como se hacía— le colgaba a una cotización el cuaderno del cliente homónimo, con su
+ * historial y su nota. Sin teléfono decide el nombre, y solo cuando señala a uno: con dos
+ * candidatos la respuesta honesta es null, no una de las dos al azar.
+ */
 export function cuadernoDeEntrada(entrada) {
   if (!entrada) return null;
   const todos = cuadernos();
   const d = telClave(entrada.tel);
-  if (d) { const g = todos.find(x => x.clave === 'tel:' + d); if (g) return g; }
+  if (d) return todos.find(x => x.clave === 'tel:' + d) || null;
   const n = normNom(entrada.cliente);
   if (!n) return null;
-  return todos.find(g => g.clave === 'nom:' + n)
-      || todos.find(g => normNom(g.nombre) === n || g.alias.some(a => normNom(a) === n))
-      || null;
+  const cand = todos.filter(g => g.clave !== '?' &&
+    (g.clave === 'nom:' + n || normNom(g.nombre) === n || g.alias.some(a => normNom(a) === n)));
+  return cand.length === 1 ? cand[0] : null;
 }
 
 /* ----- La nota del cuaderno -----
@@ -309,6 +341,9 @@ export function clientes() {
     clave: g.clave, nombre: g.nombre, tel: g.tel, dirRaw: g.dirRaw, maps: g.maps,
     alias: g.alias, trabajos: g.cots.length, vendido: g.vendido,
     ultimo: g.ultima, primera: g.primera,
+    /* `homonimo` y `proy` viajan porque sin ellos una pantalla que liste clientes enseña
+       dos renglones idénticos y no hay manera de decir cuál es cuál. */
+    proy: g.proy, homonimo: g.homonimo,
   }));
 }
 
