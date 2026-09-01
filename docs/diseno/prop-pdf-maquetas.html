@@ -1,0 +1,1412 @@
+<title>La hoja que se manda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800;900&display=swap">
+<style>
+/* ============================================================================
+   CHROME — la mesa de pruebas. Paleta sacada de la rampa real de AL3D
+   (css/sistema.css:15-80): los neutros "fríos, con lavanda" y los tres azules
+   muestreados del logotipo. El fondo claro es el #e9eaf0 que el visor del PDF
+   ya usa para "papel sobre una mesa"; el oscuro es --n9.
+   ========================================================================= */
+:root{
+  --sup:#e9eaf0; --sup2:#f7f8fd; --sup3:#ffffff;
+  --tinta:#232744; --tinta2:#565b80; --tinta3:#7e83a8;
+  --linea:#cfd3e6; --linea2:#b6bbe6;
+  --ac:#3018f8; --ac2:#4060f8; --ac-suave:#e4e9ff; --ac-borde:#b9c5fe;
+  --ok:#0a7d4a; --ok-bg:#e2f8ec; --av:#8a5100; --av-bg:#fff2dd; --mal:#b02020; --mal-bg:#ffeceb;
+  --sombra:0 1px 2px rgba(20,22,43,.10), 0 14px 34px -10px rgba(20,22,43,.28);
+  --r:14px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --sup:#14162b; --sup2:#1d2039; --sup3:#252950;
+    --tinta:#eef0ff; --tinta2:#aeb4dc; --tinta3:#7f86b4;
+    --linea:#333963; --linea2:#464d7d;
+    --ac:#6090f8; --ac2:#8fb0ff; --ac-suave:#232a53; --ac-borde:#3c4780;
+    --ok:#3ad695; --ok-bg:#0f3a29; --av:#ffce7a; --av-bg:#3d2c0c; --mal:#ff9d97; --mal-bg:#43181a;
+    --sombra:0 1px 2px rgba(0,0,0,.5), 0 18px 44px -12px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --sup:#14162b; --sup2:#1d2039; --sup3:#252950;
+  --tinta:#eef0ff; --tinta2:#aeb4dc; --tinta3:#7f86b4;
+  --linea:#333963; --linea2:#464d7d;
+  --ac:#6090f8; --ac2:#8fb0ff; --ac-suave:#232a53; --ac-borde:#3c4780;
+  --ok:#3ad695; --ok-bg:#0f3a29; --av:#ffce7a; --av-bg:#3d2c0c; --mal:#ff9d97; --mal-bg:#43181a;
+  --sombra:0 1px 2px rgba(0,0,0,.5), 0 18px 44px -12px rgba(0,0,0,.7);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--sup); color:var(--tinta);
+  font-family:'Archivo','Segoe UI',Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.env{max-width:1240px;margin:0 auto;padding:0 24px 96px}
+h1,h2,h3{margin:0;text-wrap:balance;letter-spacing:-.015em}
+p{margin:0}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.rot{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--tinta3)}
+a{color:var(--ac)}
+:focus-visible{outline:2.5px solid var(--ac);outline-offset:3px;border-radius:4px}
+
+/* ---- Cabecera ---- */
+.cab{padding:64px 0 40px;display:grid;gap:26px}
+.cab-marca{display:flex;align-items:center;gap:14px}
+.cab-marca svg{height:30px;width:auto;color:var(--tinta)}
+.cab-marca .rot{padding-left:14px;border-left:1.5px solid var(--linea2)}
+h1{font-size:clamp(32px,5.2vw,54px);font-weight:800;line-height:1.02;max-width:20ch}
+.cab-bajada{font-size:18px;line-height:1.55;color:var(--tinta2);max-width:62ch}
+.cab-bajada b{color:var(--tinta);font-weight:600}
+
+/* ---- Cifras de campo ---- */
+.cifras{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:1px;
+  background:var(--linea);border:1px solid var(--linea);border-radius:var(--r);overflow:hidden}
+.cifra{background:var(--sup2);padding:15px 17px}
+.cifra b{display:block;font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;
+  letter-spacing:-.02em;color:var(--ac);font-variant-numeric:tabular-nums;line-height:1.1}
+.cifra span{display:block;font-size:12.5px;line-height:1.4;color:var(--tinta2);margin-top:5px}
+
+/* ---- Barra de lentes ---- */
+.lentes{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--sup) 88%,transparent);
+  backdrop-filter:blur(12px) saturate(1.3);-webkit-backdrop-filter:blur(12px) saturate(1.3);
+  border-bottom:1px solid var(--linea);margin-bottom:44px}
+.lentes-in{max-width:1240px;margin:0 auto;padding:11px 24px;display:flex;flex-wrap:wrap;
+  align-items:center;gap:10px 20px}
+.grupo{display:flex;align-items:center;gap:9px}
+.seg{display:inline-flex;background:var(--sup2);border:1px solid var(--linea);border-radius:999px;padding:3px;gap:2px}
+.seg button{font:inherit;font-size:12.5px;font-weight:500;border:0;background:none;color:var(--tinta2);
+  padding:6px 13px;border-radius:999px;cursor:pointer;transition:background .15s,color .15s}
+.seg button:hover{color:var(--tinta)}
+.seg button[aria-pressed="true"]{background:var(--ac);color:#fff;font-weight:600}
+.sw{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:500;color:var(--tinta2);
+  background:var(--sup2);border:1px solid var(--linea);border-radius:999px;padding:6px 14px 6px 11px;cursor:pointer;
+  font-family:inherit;transition:border-color .15s,color .15s}
+.sw:hover{border-color:var(--linea2);color:var(--tinta)}
+.sw .tg{width:32px;height:18px;border-radius:999px;background:var(--linea2);position:relative;transition:background .2s;flex:0 0 auto}
+.sw .tg::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+  background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.sw[aria-pressed="true"]{color:var(--tinta);border-color:var(--ac-borde);background:var(--ac-suave)}
+.sw[aria-pressed="true"] .tg{background:var(--ac)}
+.sw[aria-pressed="true"] .tg::after{left:16px}
+
+/* ---- Leyes ---- */
+.leyes{border:1px solid var(--linea);border-radius:var(--r);background:var(--sup2);
+  padding:26px 28px;margin-bottom:60px}
+.leyes h2{font-size:21px;font-weight:700;margin-bottom:7px}
+.leyes>p{font-size:14.5px;color:var(--tinta2);max-width:76ch;margin-bottom:22px}
+.leyes ol{margin:0;padding:0;list-style:none;display:grid;gap:16px;
+  grid-template-columns:repeat(auto-fit,minmax(275px,1fr))}
+.leyes li{display:grid;grid-template-columns:26px 1fr;gap:12px;align-items:start}
+.leyes li>.n{font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:600;color:#fff;
+  background:var(--ac);width:22px;height:22px;border-radius:6px;display:grid;place-items:center;margin-top:2px}
+.leyes li b{display:block;font-size:14.5px;font-weight:600;line-height:1.35;margin-bottom:3px}
+.leyes li span{font-size:13.5px;line-height:1.5;color:var(--tinta2)}
+.leyes code{font-family:'IBM Plex Mono',monospace;font-size:.88em;background:var(--sup3);
+  border:1px solid var(--linea);border-radius:4px;padding:.5px 4px}
+
+/* ---- Estación ---- */
+.est{margin-bottom:78px;scroll-margin-top:80px}
+.est-cab{display:grid;grid-template-columns:auto 1fr auto;gap:0 18px;align-items:start;
+  padding-bottom:18px;margin-bottom:22px;border-bottom:2px solid var(--tinta)}
+.est-n{font-family:'IBM Plex Mono',monospace;font-size:38px;font-weight:600;line-height:.9;
+  color:var(--linea2);letter-spacing:-.04em}
+.est-tit h2{font-size:29px;font-weight:800;line-height:1.08}
+.est-lema{font-size:15.5px;color:var(--tinta2);line-height:1.5;max-width:66ch;margin-top:7px;font-style:italic}
+.est-pts{text-align:right;flex:0 0 auto}
+.est-pts b{display:block;font-family:'IBM Plex Mono',monospace;font-size:27px;font-weight:600;
+  line-height:1;letter-spacing:-.02em}
+.est-pts span{display:block;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--tinta3);margin-top:4px}
+.reco{display:inline-flex;align-items:center;gap:7px;background:var(--ok-bg);color:var(--ok);
+  border:1px solid color-mix(in srgb,var(--ok) 40%,transparent);border-radius:999px;
+  font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:5px 12px;margin-top:9px}
+
+.est-cuerpo{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:34px;align-items:start}
+@media(max-width:1080px){.est-cuerpo{grid-template-columns:minmax(0,1fr)}}
+.est-txt{display:grid;gap:15px}
+.est-txt p{font-size:15px;line-height:1.62;color:var(--tinta2);max-width:66ch}
+.est-txt p b,.est-txt p strong{color:var(--tinta);font-weight:600}
+.est-txt code{font-family:'IBM Plex Mono',monospace;font-size:.87em;background:var(--sup2);
+  border:1px solid var(--linea);border-radius:4px;padding:1px 5px;color:var(--tinta)}
+
+/* ficha de costo */
+.ficha{border:1px solid var(--linea);border-radius:var(--r);overflow:hidden;background:var(--sup2)}
+.ficha-h{padding:12px 16px;border-bottom:1px solid var(--linea);background:var(--sup3)}
+.frow{display:grid;grid-template-columns:1fr auto;gap:14px;padding:10px 16px;
+  border-bottom:1px solid var(--linea);font-size:13.5px;align-items:baseline}
+.frow:last-child{border-bottom:0}
+.frow>span:first-child{color:var(--tinta2)}
+.frow>span:last-child{font-family:'IBM Plex Mono',monospace;font-weight:500;text-align:right;
+  font-variant-numeric:tabular-nums}
+.frow.g0>span:last-child{color:var(--ok)}
+.frow.g1>span:last-child{color:var(--av)}
+.frow.g2>span:last-child{color:var(--mal)}
+.arreglos{margin-top:16px;border:1px solid var(--linea);border-radius:var(--r);
+  background:var(--sup2);padding:15px 17px}
+.arreglos .rot{margin-bottom:9px}
+.arreglos ul{margin:0;padding-left:17px;display:grid;gap:8px}
+.arreglos li{font-size:13px;line-height:1.5;color:var(--tinta2)}
+.arreglos li b{color:var(--tinta);font-weight:600}
+.arreglos code{font-family:'IBM Plex Mono',monospace;font-size:.88em}
+
+/* ---- El escenario de la hoja ---- */
+.esc{margin-top:26px;border:1px solid var(--linea);border-radius:var(--r);overflow:hidden;background:var(--sup2)}
+.esc-barra{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:10px 15px;
+  border-bottom:1px solid var(--linea);background:var(--sup3)}
+.esc-barra .rot{margin-right:auto}
+.esc-mesa{padding:30px 20px;display:flex;justify-content:center;overflow-x:auto;
+  background:
+    linear-gradient(color-mix(in srgb,var(--sup) 55%,transparent),color-mix(in srgb,var(--sup) 55%,transparent)),
+    repeating-linear-gradient(45deg,transparent 0 9px,color-mix(in srgb,var(--linea) 45%,transparent) 9px 10px)}
+.esc-pie{padding:11px 15px;border-top:1px solid var(--linea);font-size:12.5px;color:var(--tinta2);
+  background:var(--sup3);line-height:1.5}
+.esc-pie b{color:var(--tinta);font-weight:600}
+
+/* ============================================================================
+   LA HOJA — CSS portado verbatim de generarPDF() (index.html:8660-8907).
+   Los tokens, la escala tipográfica y las medidas son los del documento real,
+   no los del chrome. Todo va bajo .hoja para que no se peleen las cascadas.
+   El papel es BLANCO en los dos temas, porque el papel es papel.
+   ========================================================================= */
+.hoja{
+  /* verbatim de index.html:8667-8682 */
+  --ink:#171a2b; --ink2:#5a6076; --ink3:#8a90a6;
+  --brand:#3018f8; --brandd:#3018f8; --brandl:#eef1fd;
+  --line:#dfe3f0; --line2:#c4cae0; --wash:#f7f8fd;
+  /* 816x1056 son 8.5x11 pulgadas a 96 ppp (index.html:8894) */
+  width:816px; height:1056px; flex:0 0 auto;
+  padding:30px 34px 84px;
+  position:relative; overflow:hidden;
+  display:flex; flex-direction:column;
+  background:#fff; color:var(--ink);
+  font-family:'Inter','Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  font-size:10px; line-height:1.5;
+  box-shadow:0 1px 3px rgba(20,22,43,.10),0 10px 28px rgba(20,22,43,.16);
+  -webkit-font-smoothing:antialiased;
+}
+.hoja *{box-sizing:border-box;margin:0;padding:0}
+.hoja>svg.deco{position:absolute;top:0;right:0;z-index:0;pointer-events:none}
+.hoja>*:not(svg){position:relative;z-index:1}
+.hoja>.pie,.hoja>.barra{position:absolute}
+
+/* bloque de identidad */
+.hoja .mh{display:flex;align-items:flex-start;gap:13px;margin-bottom:10px}
+.hoja .mh-logo{flex:0 0 auto;padding-top:1px}
+.hoja .marca{height:38px;width:auto;max-width:180px;display:block;color:var(--ink)}
+.hoja .mh-bar{width:1.5px;align-self:stretch;background:var(--line2)}
+.hoja .mh-t{font-size:17px;font-weight:800;color:var(--brandd);letter-spacing:.13em;line-height:1.08;text-transform:uppercase}
+.hoja .mh-m{font-size:9px;color:var(--ink2);letter-spacing:.05em;margin-top:4px}
+.hoja .mh-m b{color:var(--ink);font-weight:700}
+.hoja .rule{height:2.5px;background:var(--brand)}
+.hoja .rule2{height:1px;background:var(--line);margin-bottom:14px}
+
+/* ficha de datos */
+.hoja .datos{display:flex;border:1px solid var(--line);border-left:3px solid var(--brand);
+  border-radius:6px;background:var(--wash);margin-bottom:14px;overflow:hidden}
+.hoja .dato{flex:1;padding:9px 12px;min-width:0}
+.hoja .dato+.dato{border-left:1px solid var(--line)}
+.hoja .lbl{display:block;font-size:7px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--brand)}
+.hoja .val{display:block;font-size:10.5px;font-weight:600;color:var(--ink);line-height:1.35;margin-top:3px}
+
+/* tabla de partidas */
+.hoja table{width:100%;border-collapse:collapse;margin-bottom:14px}
+.hoja th{background:var(--brand);color:#fff;font-size:7.5px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;padding:8px 10px;text-align:left}
+.hoja td{padding:9px 10px;font-size:9.5px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.37}
+.hoja th.c,.hoja td.c{text-align:center} .hoja th.r,.hoja td.r{text-align:right}
+.hoja .re td{background:#fff}
+.hoja .ro td{background:var(--wash)}
+.hoja .cn{display:block;font-size:10px;font-weight:700;color:var(--ink);line-height:1.3}
+.hoja .cs{display:block;font-size:9.5px;color:var(--ink2);line-height:1.37;margin-top:2px}
+.hoja td.c{color:var(--ink2)}
+.hoja .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap}
+.hoja .tot{font-weight:700;color:var(--ink)}
+
+/* cierre: nota + totales */
+.hoja .cierre{display:flex;align-items:stretch;gap:16px;margin-bottom:14px}
+.hoja .tot-card{flex:0 0 288px;border:1px solid var(--line);border-radius:8px;overflow:hidden;align-self:flex-start}
+.hoja .trow{display:flex;justify-content:space-between;align-items:baseline;padding:6px 13px;font-size:9.5px}
+.hoja .trow>span:first-child{color:var(--ink2)}
+.hoja .trow>span:last-child{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.hoja .trow-iva{background:var(--brandl)}
+.hoja .neto{display:flex;justify-content:space-between;align-items:center;background:var(--brand);color:#fff;padding:10px 13px}
+.hoja .neto>span:first-child{font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.hoja .neto>span:last-child{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.hoja .pago{border-top:1px solid var(--line);background:var(--wash);padding:8px 13px 9px}
+.hoja .pago>.lbl{color:var(--ink3);margin-bottom:4px}
+.hoja .nota{flex:0 0 auto;min-width:0;border-left:3px solid var(--brand);background:var(--brandl);
+  border-radius:0 6px 6px 0;padding:10px 14px;margin-bottom:14px}
+.hoja .cierre>.nota{flex:1 1 auto;margin-bottom:0;display:flex;flex-direction:column;justify-content:center}
+.hoja .nota>.lbl{color:var(--brandd);margin-bottom:4px}
+.hoja .nota p{font-size:9.5px;line-height:1.5;color:var(--ink)}
+
+/* figura del plano — la de hoy */
+.hoja .fig{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;margin-bottom:4px}
+.hoja .fig>.lbl{color:var(--ink3);margin-bottom:5px}
+.hoja .fig-box{flex:1 1 auto;min-height:0;max-height:430px;display:flex;align-items:center;
+  justify-content:center;border:1px solid var(--line);border-radius:8px;background:#fff;padding:9px}
+.hoja .fig-box img{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px}
+
+/* pie */
+.hoja .pie{bottom:26px;left:34px;right:34px;z-index:1}
+.hoja .pie-hr{height:1px;background:var(--line);margin-bottom:10px}
+.hoja .pie-cols{display:flex;gap:18px}
+.hoja .pie-c{flex:1;text-align:center}
+.hoja .pie-c>.lbl{color:var(--ink3)}
+.hoja .pie-c>span{display:block;font-size:9px;color:var(--ink);font-weight:600;margin-top:2px}
+.hoja .pie-h{text-align:center;font-size:8px;color:var(--ink3);letter-spacing:.07em;margin-top:9px}
+.hoja .barra{left:0;right:0;bottom:0;height:7px;background:var(--brand)}
+
+/* el descargo — LEY 3: lo escribe la app, siempre */
+.hoja .desc-legal{font-size:9px;line-height:1.45;color:var(--ink2);margin-top:6px}
+
+/* ---------- P1 · El carrete del taller ---------- */
+.hoja .ev{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;margin-bottom:4px}
+.hoja .ev>.lbl{color:var(--ink3);margin-bottom:5px}
+.hoja .ev-caja{flex:1 1 auto;min-height:0;max-height:430px;display:flex;align-items:center;
+  justify-content:center;border:1px solid var(--line);border-radius:8px;background:#fff;padding:9px}
+.hoja .ev-caja img{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px}
+.hoja .ev-tira{flex:0 0 auto;margin-top:7px}
+.hoja .ev-tira>.lbl{color:var(--brandd);margin-bottom:4px}
+.hoja .ev-fila{display:flex;gap:32px;align-items:stretch}
+.hoja .ev-foto{flex:0 0 auto;width:358px;height:120px;object-fit:cover;border:1px solid var(--line);border-radius:6px;display:block}
+.hoja .ev-foto.uno{width:494px}
+/* La garantía y el descargo comparten renglón: una es la promesa, el otro el
+   límite. Emparejados miden 26 px en vez de los 42 que costaban apilados, y la
+   garantía deja de depender del ancho que sobre en la fila de fotos —que con dos
+   celdas de 358 px es exactamente cero. */
+.hoja .ev-cierre{display:flex;gap:14px;align-items:stretch;margin-top:7px;flex:0 0 auto}
+.hoja .ev-gar{flex:0 0 auto;border-left:3px solid var(--brand);background:var(--brandl);
+  border-radius:0 4px 4px 0;padding:5px 11px;display:flex;align-items:baseline;gap:7px}
+.hoja .ev-gar>.lbl{color:var(--brandd);display:inline}
+.hoja .ev-gar p{font-size:9px;line-height:1.35;color:var(--ink);font-weight:600;white-space:nowrap}
+.hoja .ev-cierre .desc-legal{flex:1 1 auto;min-width:0;margin-top:0;align-self:center}
+
+/* ---------- P2 · Renglón con cara ---------- */
+.hoja .fl-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.hoja .fl-h>.lbl{color:var(--brand)}
+.hoja .fl-h>.lbl.d{color:var(--ink3)}
+.hoja .ficha-p{border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:10px;
+  display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+.hoja .fp-datos{display:flex;gap:12px;padding:11px 12px;align-items:flex-start;flex:0 0 auto}
+.hoja .fp-n{flex:0 0 auto;width:17px;height:17px;border-radius:4px;background:var(--brand);color:#fff;
+  font-size:9.5px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.hoja .fp-cuerpo{flex:1 1 auto;min-width:0}
+.hoja .fp-med{display:block;font-size:9px;color:var(--ink2);margin-top:3px;font-variant-numeric:tabular-nums}
+.hoja .fp-imp{flex:0 0 auto;font-size:12px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+.hoja .fp-vis{border-top:1px solid var(--line);padding:9px 12px 11px;background:var(--wash);
+  flex:1 1 auto;min-height:150px;display:flex;flex-direction:column;gap:8px}
+.hoja .vfila{display:flex;flex-direction:column;min-height:0}
+.hoja .vfila>.lbl{color:var(--ink3);margin-bottom:4px}
+.hoja .vplano{flex:1 1 auto;min-height:0;border:1px solid var(--line);border-radius:5px;background:#fff;
+  padding:7px;display:flex;align-items:center;justify-content:center}
+.hoja .vplano img{max-width:100%;max-height:100%;object-fit:contain}
+.hoja .vfotos{display:flex;gap:10px;flex:0 0 auto}
+.hoja .vfotos img{flex:1 1 0;min-width:0;height:200px;object-fit:cover;border-radius:5px;border:1px solid var(--line);display:block}
+
+/* ---------- P3 · Tira de acabados ---------- */
+.hoja .res{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;margin-bottom:4px}
+.hoja .res-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+.hoja .res-h>.lbl{color:var(--brandd)}
+.hoja .res-h>.proc{font-size:8px;color:var(--ink3)}
+.hoja .res-t{flex:1 1 auto;min-height:0;max-height:383px;display:flex;border:1px solid var(--line);
+  border-radius:8px;overflow:hidden;background:#fff;margin:0 auto;width:100%}
+.hoja .res-t.centro{max-width:468px}
+.hoja .res-c{flex:1 1 0;min-width:0;display:flex;flex-direction:column;padding:6px}
+.hoja .res-c+.res-c{border-left:1px solid var(--line)}
+.hoja .res-i{flex:1 1 auto;min-height:0;background-size:cover;background-position:50% 50%;border-radius:3px}
+.hoja .res-n{flex:0 0 auto;font-size:9px;font-weight:700;color:var(--ink);padding:7px 3px 2px;line-height:1.3}
+.hoja .res-n i{font-style:normal;font-weight:400;color:var(--ink2)}
+
+/* ---------- P4 · Banda Noche ---------- */
+.hoja.noche .mh{background:var(--ink);margin:-30px -34px 0;padding:20px 34px 16px;align-items:center}
+.hoja.noche .mh .marca{color:#fff}
+.hoja.noche .mh-bar{background:rgba(255,255,255,.3)}
+.hoja.noche .mh-t{color:#fff}
+.hoja.noche .mh-m{color:#a8aec6}
+.hoja.noche .mh-m b{color:#fff}
+.hoja.noche .rule,.hoja.noche .rule2{display:none}
+.hoja.noche .datos{margin-top:14px}
+.hoja.noche .neto>span:last-child{font-size:26px;letter-spacing:-.02em}
+.hoja.noche .tot-card{flex:0 0 300px}
+.hoja .mos{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;margin-bottom:4px}
+.hoja .mos>.lbl{color:var(--ink3);margin-bottom:5px}
+.hoja .mos-g{flex:1 1 auto;min-height:0;max-height:520px;display:flex;flex-direction:column;
+  background:var(--ink);padding:1px;gap:4px;border-radius:4px}
+.hoja .mos-p{flex:1 1 auto;min-height:0;background:#fff;display:flex;align-items:center;justify-content:center;padding:8px}
+.hoja .mos-p img{max-width:100%;max-height:100%;object-fit:contain}
+.hoja .mos-f{flex:0 0 140px;display:flex;gap:4px}
+.hoja .mos-f img{flex:1 1 0;min-width:0;object-fit:cover;display:block;height:100%}
+/* variante de contorno — la que sale por OMISIÓN (arreglo del juez) */
+.hoja.noche:not(.plena) .mh{background:none;border-bottom:2.5px solid var(--ink);padding-bottom:14px}
+.hoja.noche:not(.plena) .mh .marca{color:var(--ink)}
+.hoja.noche:not(.plena) .mh-t{color:var(--ink)}
+.hoja.noche:not(.plena) .mh-m{color:var(--ink2)}
+.hoja.noche:not(.plena) .mh-bar{background:var(--line2)}
+.hoja.noche:not(.plena) th{background:none;color:var(--ink);border-bottom:1.5px solid var(--ink)}
+.hoja.noche:not(.plena) .neto{background:none;color:var(--ink);border-top:1.5px solid var(--ink)}
+.hoja.noche:not(.plena) .mos-g{background:var(--line2)}
+.hoja.noche:not(.plena) .barra{background:var(--ink)}
+
+/* ---------- P5 · Lámina y margen ---------- */
+.hoja.edit{padding:34px 40px 84px}
+.hoja.edit .ed-cab{display:grid;grid-template-columns:476px 24px 1fr;margin-bottom:20px}
+.hoja.edit .ed-cli{font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1.1;color:var(--ink)}
+.hoja.edit .ed-sub{font-size:10px;color:var(--ink2);margin-top:6px;line-height:1.5}
+.hoja.edit .ed-meta{grid-column:3;text-align:right}
+.hoja.edit .ed-meta .marca{height:26px;margin-left:auto}
+.hoja.edit .ed-meta .m{font-size:8px;color:var(--ink3);letter-spacing:.08em;text-transform:uppercase;margin-top:8px;line-height:1.6}
+.hoja.edit th{background:none;color:var(--ink3);border-bottom:1px solid var(--ink);font-size:7px}
+.hoja.edit .lam{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;margin-bottom:4px}
+.hoja.edit .lam-h{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}
+.hoja.edit .lam-n{font-family:'Inter',sans-serif;font-size:6.5px;font-weight:800;color:#fff;background:var(--brand);
+  width:13px;height:13px;border-radius:3px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.hoja.edit .lam-box{flex:1 1 auto;min-height:0;max-height:446px;display:flex;align-items:center;
+  justify-content:center;border:1px solid var(--line);border-radius:6px;background:#fff;padding:8px;overflow:hidden}
+.hoja.edit .lam-box img{max-width:100%;max-height:100%;object-fit:contain;border-radius:3px}
+.hoja.edit .lam-box.cover{padding:0}
+.hoja.edit .lam-box.cover img{width:100%;height:100%;object-fit:cover;border-radius:5px}
+.hoja.edit .lam-pie{flex:0 0 auto;border-top:1px solid var(--line);margin-top:6px;padding-top:5px;
+  max-width:476px;font-size:10px;line-height:1.5;color:var(--ink)}
+.hoja.edit .lam-pie i{display:block;font-style:normal;font-size:9px;color:var(--ink2);margin-top:2px}
+.hoja.edit .lam-fila{display:flex;gap:16px;flex:0 0 auto}
+.hoja.edit .lam-fila>div{flex:1 1 0;min-width:0;display:flex;flex-direction:column}
+
+/* ============================================================================
+   LOS ESTADOS — cuántas fotos, y las dos lentes de verificación.
+   El conteo se declara con data-n en el envoltorio de la hoja y se resuelve
+   ocultando, nunca con display de autor dentro de la hoja.
+   ========================================================================= */
+/* Las ranuras de foto solo se OCULTAN, nunca se muestran, y por una razón que
+   este repo ya tiene escrita: «`hidden` pierde contra cualquier display de
+   autor». Una regla `.f2{display:none}` (0,1,0) perdía contra
+   `.hoja.edit .lam-fila{display:flex}` (0,2,1) y la fila salía siempre. Ocultando
+   nada más, el elemento conserva su display natural y no hay que adivinarlo.
+   Y va anclada al `.hoja-wrap` —que es donde vive el atributo— para llegar a
+   (0,4,0): `[data-n] .hoja [data-slot]` es (0,3,0) y todavía perdía contra
+   `.hoja.edit .lam-fila>div`, que es (0,3,1). Dos veces el mismo error, así que
+   la regla queda por encima de cualquier display de autor de la maqueta. */
+.hoja-wrap[data-n="0"] .hoja [data-slot],
+.hoja-wrap[data-n="1"] .hoja [data-slot],
+.hoja-wrap[data-n="2"] .hoja [data-slot="3"]{display:none}
+/* con 1 sola foto la celda se ensancha; con 3 se aprieta a 242 y la garantía se va */
+[data-n="1"] .ev-foto{width:494px}
+[data-n="3"] .ev-foto{width:242px}
+[data-n="3"] .ev-fila{gap:11px}
+[data-n="0"] .ev-tira,[data-n="0"] .vfotos,[data-n="0"] .mos-f,
+[data-n="0"] .res-h .proc,[data-n="0"] .solo-con-fotos{display:none}
+/* con 0 fotos: NO queda rótulo huérfano — ley 3 del panel, y regla del propio
+   producto: «si no hay dato no hay celda» */
+[data-n="0"] .rot-fotos{display:none}
+/* P3 · sin fotos la tira desaparece entera y vuelve el plano a la hoja del
+   precio, que es lo que la propuesta promete: «banda() devuelve exactamente el
+   figura() de hoy y la hoja de plano no se emite». Sin esto quedaba una celda
+   suelta de la tira, o sea un hueco rotulado y vacío — el pecado de la ley 3. */
+[data-n="0"] .res-h,[data-n="0"] .res-t{display:none}
+[data-n="1"] .solo0,[data-n="2"] .solo0,[data-n="3"] .solo0{display:none}
+[data-n="0"] .desc-legal{display:none}
+/* La garantía ya no depende del conteo: vive en su propio renglón. Con 0 fotos
+   se va entera, porque el documento sin fotos es el de hoy y nada más. */
+[data-n="0"] .ev-cierre{display:none}
+/* P5 · la hoja de Referencias usa las alturas EXACTAS que la propuesta declara,
+   no un flex:1 que crezca: con flex:1 la lámina mayor se estiraba 615 px, sus
+   hijos solo llenaban 350, y el hueco de 265 px quedaba en medio del documento
+   mientras los pies de la fila de abajo se metían debajo del pie de la hoja.
+   Con alturas explícitas la holgura se junta al final, donde se lee como margen.
+   El suelo real de contenido no son los 972 px del padding, son 967: el pie va
+   en position:absolute a bottom:26 y su filete empieza ahí. */
+.hoja.edit.ref .lam{flex:0 0 auto}
+[data-n="1"] .ref .lam>.lam-box{height:500px;max-height:none}
+[data-n="2"] .ref .lam>.lam-box{height:388px;max-height:none}
+[data-n="3"] .ref .lam>.lam-box{height:420px;max-height:none}
+.hoja.edit .lam-fila .lam-box{height:244px;max-height:none;flex:0 0 auto}
+/* con 2 fotos, la segunda lámina va DESPLAZADA a la derecha: empieza en x=272 y
+   mide 476. Es la rejilla asimétrica 476+24+248 haciendo trabajo de verdad. */
+[data-n="2"] .ref .lam-fila>div{flex:0 0 476px;margin-left:272px}
+/* Banda Noche · con 3 fotos el mosaico se muda a su propia hoja de Propuesta
+   visual, y la hoja del precio se queda SOLO con el plano: es la especificación
+   que sustenta la cifra y no se va a ninguna parte. */
+.solo3{display:none}
+[data-n="3"] .solo3{display:flex}
+[data-n="3"] .mos-f-inline{display:none}
+/* el logotipo, reversado sobre la banda maciza — para eso el repo ya trae
+   logo-al3d-oscuro.svg; aquí se consigue con un filtro sobre el mismo dibujo */
+.hoja.noche.plena .marca{filter:grayscale(1) brightness(0) invert(1)}
+
+/* la tira de acabados cambia de proporción, no solo de conteo */
+[data-n="1"] .res-t{max-width:468px}
+[data-n="2"] .res-t,[data-n="3"] .res-t{max-width:none}
+
+/* ---- Lente: láser blanco y negro ----
+   print-color-adjust:exact significa que lo que se pinta SE IMPRIME. Esto es
+   lo que sale de una láser monocromática, que es donde el relleno macizo saca
+   bandeado y se come el tóner. */
+body.laser .hoja{filter:grayscale(1) contrast(1.06)}
+body.laser .esc-mesa{background:repeating-linear-gradient(45deg,transparent 0 9px,
+  color-mix(in srgb,var(--linea) 45%,transparent) 9px 10px)}
+
+/* ---- Lente: escala ----
+   «zoom» y no «transform:scale»: scale no encoge la caja de maqueta, así que la
+   página seguiría desbordando por debajo del dibujo. Es la misma razón por la
+   que la app usa zoom en index.html:8905. */
+.esc-mesa{--z:.62}
+.esc-mesa>.hoja-wrap{zoom:var(--z)}
+body[data-esc="1"] .esc-mesa{--z:1}
+body[data-esc="52"] .esc-mesa{--z:.52}
+.hoja-wrap{display:flex;gap:22px;flex:0 0 auto}
+
+/* En pantallas chicas la hoja no cabe ni al 62 %: se encoge más en vez de
+   salirse a lo ancho, que es la queja literal de la que salió todo esto. */
+@media(max-width:900px){ .esc-mesa{--z:.42} body[data-esc="1"] .esc-mesa{--z:.7} }
+@media(max-width:620px){ .esc-mesa{--z:.32} body[data-esc="1"] .esc-mesa{--z:.5} }
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
+}
+
+/* ---- Cierre ---- */
+.cierre-pag{border:1px solid var(--linea);border-radius:var(--r);background:var(--sup2);padding:30px 32px;margin-top:20px}
+.cierre-pag h2{font-size:25px;font-weight:800;margin-bottom:14px}
+.cierre-pag p{font-size:15.5px;line-height:1.62;color:var(--tinta2);max-width:70ch;margin-bottom:14px}
+.cierre-pag p b{color:var(--tinta);font-weight:600}
+.cierre-pag code{font-family:'IBM Plex Mono',monospace;font-size:.87em;background:var(--sup3);
+  border:1px solid var(--linea);border-radius:4px;padding:1px 5px;color:var(--tinta)}
+.pasos{list-style:none;margin:22px 0 0;padding:0;display:grid;gap:11px;counter-reset:p}
+.pasos li{display:grid;grid-template-columns:26px 1fr;gap:13px;align-items:start;font-size:14.5px;
+  line-height:1.55;color:var(--tinta2)}
+.pasos li::before{counter-increment:p;content:counter(p);font-family:'IBM Plex Mono',monospace;
+  font-size:11.5px;font-weight:600;color:var(--ac);background:var(--ac-suave);
+  border:1px solid var(--ac-borde);width:23px;height:23px;border-radius:6px;display:grid;place-items:center;margin-top:2px}
+.pasos li b{color:var(--tinta);font-weight:600}
+.tabla-wrap{overflow-x:auto;margin:24px 0 0;border:1px solid var(--linea);border-radius:var(--r)}
+table.cmp{width:100%;border-collapse:collapse;font-size:13.5px;min-width:660px;background:var(--sup2)}
+table.cmp th{text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--tinta3);padding:12px 14px;border-bottom:1px solid var(--linea);background:var(--sup3);white-space:nowrap}
+table.cmp td{padding:12px 14px;border-bottom:1px solid var(--linea);color:var(--tinta2);vertical-align:top}
+table.cmp tr:last-child td{border-bottom:0}
+table.cmp td:first-child{color:var(--tinta);font-weight:600;white-space:nowrap}
+table.cmp td.n{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.cmp td.g0{color:var(--ok);font-weight:600}
+table.cmp td.g1{color:var(--av);font-weight:600}
+table.cmp td.g2{color:var(--mal);font-weight:600}
+.nota-tema{font-size:13px;color:var(--tinta3);margin-top:26px;line-height:1.55;max-width:70ch}
+</style>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="marca-al3d" viewBox="0 0 3120 1560"><path d="M0 0 C1 0 1 0 8 1 C30 2 50 4 71 12 C78 13 84 14 91 15 C101 19 101 19 109 24 C115 26 120 27 126 28 C130 31 134 34 138 36 C140 37 143 37 145 38 C153 40 157 43 164 48 C169 50 174 51 179 52 C181 53 181 53 188 59 C194 61 201 63 207 65 C209 67 211 68 213 69 C221 73 221 73 230 75 C238 77 238 77 247 83 C253 85 253 85 261 86 C264 87 267 87 270 88 C279 89 283 89 291 86 C292 85 294 83 295 81 C300 75 300 75 308 70 C311 68 313 66 316 63 C320 61 324 60 328 58 C329 57 329 57 336 52 C342 50 347 49 353 47 C357 45 360 43 364 41 C371 39 378 38 385 37 C394 35 394 35 403 33 C417 29 430 28 445 28 C448 28 450 28 453 28 C468 28 480 31 494 35 C498 36 503 37 507 38 C517 39 524 43 533 48 C535 49 537 50 540 50 C547 52 551 56 557 60 C559 61 559 61 567 65 C570 67 572 70 575 72 C577 73 577 73 584 78 C586 80 587 81 589 83 C590 84 590 84 595 88 C596 90 596 90 602 96 C604 98 605 99 607 101 C612 106 616 111 620 117 C623 121 623 121 628 125 C629 126 629 126 631 130 C634 136 634 136 641 143 C643 147 645 151 647 154 C648 156 648 156 654 162 C656 165 658 168 660 171 C662 173 663 174 665 176 C666 178 666 178 671 186 C674 189 676 192 679 195 C683 201 683 201 683 203 C684 204 686 205 687 205 C690 209 693 212 696 216 C711 224 724 222 741 221 C743 221 746 221 749 221 C752 220 755 220 758 220 C760 220 763 219 766 219 C802 216 802 216 814 212 C824 209 834 208 845 206 C855 205 864 203 873 200 C889 194 906 194 923 192 C931 191 938 190 945 189 C976 184 1007 188 1038 193 C1042 194 1047 194 1051 195 C1059 196 1066 198 1073 201 C1081 204 1081 204 1092 206 C1102 209 1102 209 1111 215 C1112 216 1112 216 1120 218 C1127 220 1131 222 1138 227 C1141 228 1143 229 1146 230 C1154 233 1154 233 1163 240 C1165 241 1167 242 1169 243 C1175 245 1175 245 1182 252 C1184 253 1184 253 1192 257 C1195 259 1197 262 1200 264 C1202 265 1202 265 1209 270 C1212 273 1215 275 1218 278 C1223 282 1228 287 1233 291 C1239 296 1239 296 1245 303 C1247 305 1250 307 1252 309 C1255 312 1257 316 1260 319 C1263 322 1265 325 1268 328 C1274 335 1278 341 1283 348 C1284 350 1284 350 1290 356 C1292 359 1293 362 1295 365 C1297 367 1299 370 1301 372 C1302 374 1303 376 1304 378 C1306 383 1306 383 1313 392 C1315 397 1316 402 1318 406 C1320 409 1323 412 1325 415 C1327 421 1328 427 1330 433 C1332 436 1334 438 1336 441 C1338 448 1339 454 1341 460 C1343 468 1343 468 1348 478 C1350 485 1351 492 1352 499 C1354 511 1356 521 1359 532 C1365 571 1365 613 1355 651 C1353 660 1352 669 1351 677 C1349 686 1348 692 1344 699 C1340 710 1340 710 1339 718 C1337 725 1334 730 1330 736 C1329 739 1328 742 1328 745 C1325 754 1322 758 1317 765 C1316 767 1316 770 1315 772 C1313 779 1310 782 1305 788 C1304 790 1303 793 1302 795 C1300 801 1300 801 1293 808 C1291 811 1290 815 1288 818 C1286 821 1283 823 1281 826 C1279 830 1277 833 1275 837 C1274 838 1273 839 1272 840 C1271 840 1271 840 1270 840 C1269 842 1269 843 1268 844 C1263 852 1263 852 1258 856 C1257 858 1256 859 1255 861 C1251 866 1251 866 1245 871 C1243 874 1240 876 1238 879 C1232 885 1226 891 1219 896 C1217 898 1216 899 1214 901 C1211 903 1209 904 1206 906 C1203 908 1201 911 1198 913 C1194 915 1190 917 1186 919 C1185 920 1185 920 1180 924 C1178 925 1176 926 1174 927 C1167 929 1167 929 1162 933 C1155 937 1148 939 1140 941 C1139 942 1139 942 1131 947 C1126 949 1122 950 1117 951 C1107 954 1107 954 1098 959 C1093 960 1089 962 1084 963 C1075 965 1066 967 1056 970 C1046 973 1046 973 1035 975 C1025 977 1025 977 1017 982 C1009 984 1009 984 998 983 C996 982 994 980 992 978 C991 979 990 980 989 981 C985 981 982 981 978 980 C978 979 977 978 977 977 C974 977 971 977 968 977 C965 977 961 977 958 976 C957 977 956 977 955 977 C954 977 953 976 952 975 C952 977 951 980 951 982 C946 991 942 996 933 1001 C931 1003 929 1006 927 1008 C923 1010 919 1012 915 1014 C913 1016 910 1018 908 1020 C903 1022 898 1024 893 1025 C892 1026 892 1026 884 1031 C877 1033 870 1034 863 1035 C860 1035 858 1035 856 1036 C819 1039 774 1041 740 1025 C736 1024 732 1023 728 1023 C718 1021 711 1018 703 1013 C696 1011 690 1010 683 1008 C679 1006 675 1003 671 1000 C669 1000 666 999 664 998 C656 996 651 993 645 988 C643 988 641 987 639 986 C632 984 628 981 622 976 C618 975 613 973 609 971 C606 969 604 967 601 964 C598 963 594 962 591 960 C589 958 586 956 584 953 C580 951 576 949 572 947 C569 945 567 943 564 940 C559 938 555 936 550 934 C549 933 549 933 543 928 C538 927 533 925 528 923 C525 921 523 919 520 917 C510 914 510 914 503 913 C496 911 490 909 483 906 C474 904 466 904 456 904 C453 904 450 904 447 904 C437 904 430 906 421 910 C415 912 415 912 406 914 C397 916 397 916 388 923 C386 924 383 925 381 926 C374 928 374 928 367 935 C363 937 359 939 355 941 C352 944 349 947 346 949 C343 951 339 952 336 954 C334 956 333 958 331 960 C330 961 330 961 322 965 C320 967 317 970 315 972 C314 973 314 973 306 977 C304 979 301 982 299 984 C298 985 298 985 290 989 C288 991 285 994 283 996 C279 998 276 1000 272 1002 C271 1004 269 1005 268 1007 C263 1010 259 1012 254 1014 C252 1016 251 1017 249 1019 C244 1022 240 1024 235 1026 C233 1028 230 1030 228 1032 C226 1033 224 1034 222 1035 C215 1037 215 1037 207 1044 C203 1046 198 1047 194 1048 C193 1049 193 1049 186 1055 C180 1057 173 1059 167 1061 C164 1063 162 1065 159 1067 C155 1069 150 1070 146 1071 C135 1075 135 1075 127 1080 C124 1081 120 1082 116 1083 C105 1085 105 1085 98 1089 C88 1093 79 1094 68 1096 C60 1097 52 1100 44 1103 C30 1106 15 1107 0 1108 C-2 1108 -5 1108 -8 1108 C-16 1109 -24 1110 -32 1110 C-34 1110 -36 1110 -38 1111 C-58 1112 -77 1110 -97 1108 C-101 1108 -104 1108 -108 1108 C-146 1105 -146 1105 -164 1097 C-169 1096 -173 1096 -178 1095 C-190 1093 -199 1090 -210 1084 C-214 1083 -217 1082 -221 1082 C-230 1079 -234 1077 -242 1072 C-245 1072 -247 1071 -250 1070 C-258 1068 -258 1068 -267 1061 C-272 1059 -277 1058 -282 1056 C-287 1053 -287 1053 -291 1049 C-295 1048 -298 1047 -302 1045 C-307 1042 -307 1042 -314 1036 C-316 1035 -318 1035 -320 1034 C-326 1031 -326 1031 -334 1024 C-337 1023 -341 1021 -344 1019 C-347 1017 -349 1015 -352 1012 C-355 1011 -358 1009 -361 1007 C-362 1006 -362 1006 -366 1001 C-368 1000 -368 1000 -376 995 C-377 994 -377 994 -381 989 C-382 988 -382 988 -390 983 C-391 982 -391 982 -398 975 C-401 973 -403 971 -406 969 C-407 968 -407 968 -414 961 C-417 959 -419 957 -422 954 C-428 948 -434 943 -440 936 C-442 935 -443 934 -445 932 C-446 931 -446 931 -452 923 C-453 922 -455 920 -456 919 C-460 915 -463 910 -466 906 C-468 904 -471 901 -473 898 C-474 897 -474 897 -477 892 C-479 890 -482 887 -484 884 C-486 882 -487 879 -489 876 C-491 874 -493 872 -495 869 C-496 867 -497 866 -498 864 C-501 858 -501 858 -508 850 C-510 847 -511 844 -513 840 C-515 838 -517 836 -519 833 C-520 831 -521 829 -521 827 C-524 821 -524 821 -531 813 C-533 809 -534 804 -536 799 C-538 797 -541 794 -543 791 C-545 786 -546 781 -548 775 C-549 774 -549 774 -555 766 C-557 760 -558 754 -560 748 C-562 745 -564 742 -566 739 C-568 734 -569 729 -570 723 C-572 717 -572 717 -578 707 C-580 701 -581 694 -582 687 C-584 679 -584 679 -586 673 C-592 660 -593 645 -594 631 C-595 625 -595 625 -598 616 C-600 616 -603 615 -605 614 C-605 593 -605 571 -605 550 C-605 542 -605 535 -606 528 C-606 517 -606 506 -606 496 C-606 493 -606 489 -606 486 C-606 483 -606 480 -606 477 C-606 474 -606 471 -606 469 C-606 466 -605 464 -605 462 C-602 461 -600 459 -597 457 C-594 449 -594 441 -593 433 C-591 419 -588 408 -583 395 C-582 392 -582 388 -581 384 C-579 374 -579 374 -573 364 C-570 357 -570 357 -569 351 C-567 344 -567 344 -561 335 C-558 328 -558 328 -555 317 C-552 314 -550 311 -547 307 C-546 305 -546 303 -545 301 C-543 294 -539 291 -535 285 C-534 282 -532 278 -531 274 C-529 272 -526 270 -524 267 C-523 265 -522 263 -521 261 C-518 255 -518 255 -511 248 C-509 245 -508 242 -506 238 C-504 236 -501 234 -499 231 C-497 228 -495 225 -493 221 C-492 220 -492 220 -487 216 C-485 213 -483 210 -481 207 C-480 206 -480 206 -475 202 C-473 200 -471 197 -469 194 C-467 193 -465 191 -463 189 C-461 187 -458 184 -456 181 C-444 169 -444 169 -438 164 C-437 163 -435 161 -434 159 C-433 158 -433 158 -426 153 C-425 152 -423 150 -422 148 C-419 146 -416 144 -413 142 C-412 141 -410 139 -409 137 C-406 135 -402 133 -399 131 C-397 129 -394 127 -392 124 C-389 123 -386 121 -383 119 C-381 117 -378 115 -376 112 C-372 110 -369 108 -365 106 C-364 105 -362 103 -361 101 C-357 99 -353 97 -349 95 C-346 93 -344 91 -341 88 C-340 88 -340 88 -335 86 C-329 83 -329 83 -322 76 C-318 75 -313 73 -309 71 C-306 69 -304 67 -301 64 C-297 63 -293 61 -289 60 C-283 56 -283 56 -278 52 C-275 51 -273 51 -270 50 C-262 47 -262 47 -254 41 C-250 40 -245 38 -241 37 C-233 34 -233 34 -223 28 C-221 28 -221 28 -212 26 C-201 23 -201 23 -194 20 C-185 15 -175 14 -165 12 C-157 11 -149 8 -141 5 C-124 2 -107 2 -90 1 C-88 0 -88 0 -80 -0 C-53 -2 -27 -2 0 0 Z " fill="#4267fe" transform="translate(604.9375,225.8125)"/>
+
+<path d="M0 0 C1 0 1 0 8 1 C30 2 50 4 71 12 C78 13 84 14 91 15 C101 19 101 19 109 24 C115 26 120 27 126 28 C130 31 134 34 138 36 C140 37 143 37 145 38 C153 40 157 43 164 48 C169 50 174 51 179 52 C181 53 181 53 188 59 C194 61 201 63 207 65 C209 67 211 68 213 69 C221 73 221 73 230 75 C238 77 238 77 247 83 C253 85 253 85 261 86 C264 87 267 87 270 88 C279 89 283 89 291 86 C292 85 294 83 295 81 C300 75 300 75 308 70 C311 68 313 66 316 63 C320 61 324 60 328 58 C329 57 329 57 336 52 C342 50 347 49 353 47 C357 45 360 43 364 41 C371 39 378 38 385 37 C394 35 394 35 403 33 C417 29 430 28 445 28 C448 28 450 28 453 28 C468 28 480 31 494 35 C498 36 503 37 507 38 C517 39 524 43 533 48 C535 49 537 50 540 50 C547 52 551 56 557 60 C559 61 559 61 567 65 C570 67 572 70 575 72 C577 73 577 73 584 78 C586 80 587 81 589 83 C590 84 590 84 595 88 C596 90 596 90 602 96 C604 98 605 99 607 101 C612 106 616 111 620 117 C623 121 623 121 628 125 C629 126 629 126 631 130 C634 136 634 136 641 143 C643 147 645 151 647 154 C648 156 648 156 654 162 C656 165 658 168 660 171 C662 173 663 174 665 176 C666 178 666 178 671 186 C674 189 676 192 679 195 C683 201 683 201 683 203 C684 204 686 205 687 205 C690 209 693 212 696 216 C711 224 724 222 741 221 C743 221 746 221 749 221 C752 220 755 220 758 220 C760 220 763 219 766 219 C802 216 802 216 814 212 C824 209 834 208 845 206 C855 205 864 203 873 200 C889 194 906 194 923 192 C931 191 938 190 945 189 C976 184 1007 188 1038 193 C1042 194 1047 194 1051 195 C1059 196 1066 198 1073 201 C1081 204 1081 204 1092 206 C1102 209 1102 209 1111 215 C1112 216 1112 216 1120 218 C1127 220 1131 222 1138 227 C1141 228 1143 229 1146 230 C1154 233 1154 233 1163 240 C1165 241 1167 242 1169 243 C1175 245 1175 245 1182 252 C1184 253 1184 253 1192 257 C1195 259 1197 262 1200 264 C1202 265 1202 265 1209 270 C1212 273 1215 275 1218 278 C1223 282 1228 287 1233 291 C1239 296 1239 296 1245 303 C1247 305 1250 307 1252 309 C1255 312 1257 316 1260 319 C1263 322 1265 325 1268 328 C1274 335 1278 341 1283 348 C1284 350 1284 350 1290 356 C1292 359 1293 362 1295 365 C1297 367 1299 370 1301 372 C1302 374 1303 376 1304 378 C1306 383 1306 383 1313 392 C1315 397 1316 402 1318 406 C1320 409 1323 412 1325 415 C1327 421 1328 427 1330 433 C1332 436 1334 438 1336 441 C1338 448 1339 454 1341 460 C1343 468 1343 468 1348 478 C1350 485 1351 492 1352 499 C1354 511 1356 521 1359 532 C1365 571 1365 613 1355 651 C1353 660 1352 669 1351 677 C1349 686 1348 692 1344 699 C1340 710 1340 710 1339 718 C1337 725 1334 730 1330 736 C1329 739 1328 742 1328 745 C1325 754 1322 758 1317 765 C1316 767 1316 770 1315 772 C1313 779 1310 782 1305 788 C1304 790 1303 793 1302 795 C1300 801 1300 801 1293 808 C1291 811 1290 815 1288 818 C1286 821 1283 823 1281 826 C1279 830 1277 833 1275 837 C1274 838 1273 839 1272 840 C1271 840 1271 840 1270 840 C1269 842 1269 843 1268 844 C1263 852 1263 852 1258 856 C1257 858 1256 859 1255 861 C1251 866 1251 866 1245 871 C1243 874 1240 876 1238 879 C1232 885 1226 891 1219 896 C1217 898 1216 899 1214 901 C1211 903 1209 904 1206 906 C1203 908 1201 911 1198 913 C1194 915 1190 917 1186 919 C1185 920 1185 920 1180 924 C1178 925 1176 926 1174 927 C1167 929 1167 929 1162 933 C1155 937 1148 939 1140 941 C1139 942 1139 942 1131 947 C1126 949 1122 950 1117 951 C1107 954 1107 954 1098 959 C1093 960 1089 962 1084 963 C1075 965 1066 967 1056 970 C1046 973 1046 973 1035 975 C1025 977 1025 977 1017 982 C1009 984 1009 984 998 983 C993 979 993 979 992 976 C994 974 997 971 999 968 C1001 964 1002 960 1004 955 C1006 954 1007 952 1009 950 C1012 946 1012 946 1016 937 C1018 935 1021 933 1023 931 C1024 928 1026 925 1027 921 C1029 920 1030 918 1032 916 C1036 911 1036 911 1041 902 C1043 900 1046 897 1048 894 C1050 891 1051 888 1053 884 C1055 882 1058 879 1060 876 C1061 873 1063 870 1064 867 C1066 865 1069 862 1071 859 C1072 857 1072 855 1073 853 C1075 847 1075 847 1080 842 C1085 835 1086 829 1088 821 C1090 818 1093 815 1095 812 C1097 805 1098 798 1100 791 C1102 788 1103 785 1105 782 C1109 772 1110 761 1111 751 C1114 726 1114 726 1115 720 C1115 704 1114 690 1112 674 C1111 666 1111 658 1110 650 C1109 641 1107 633 1103 625 C1099 616 1098 608 1096 599 C1093 594 1090 590 1087 585 C1086 583 1086 580 1085 578 C1083 570 1081 567 1075 561 C1074 557 1072 553 1071 549 C1069 547 1066 545 1064 542 C1062 538 1060 534 1058 530 C1056 529 1054 527 1052 525 C1051 523 1050 522 1049 520 C1046 514 1046 514 1039 508 C1034 500 1034 500 1034 498 C1032 498 1031 497 1029 496 C1028 495 1026 493 1025 491 C1020 485 1020 485 1015 482 C1013 480 1011 477 1009 474 C1006 473 1004 471 1001 469 C999 467 997 465 995 462 C992 460 988 458 985 456 C984 455 982 453 981 451 C979 450 977 449 975 448 C968 444 968 444 963 438 C961 437 959 437 957 436 C950 433 950 433 943 426 C941 426 941 426 933 423 C926 420 926 420 918 414 C912 412 912 412 905 411 C897 409 890 406 882 402 C864 399 847 399 828 399 C826 399 823 399 820 399 C770 399 770 399 752 406 C739 410 727 411 713 412 C703 413 694 416 684 420 C652 426 618 426 586 424 C584 424 582 424 579 424 C567 423 559 422 549 414 C548 414 548 414 541 412 C533 409 533 409 525 402 C523 401 521 400 519 399 C514 396 514 396 510 390 C509 389 509 389 501 384 C499 381 496 378 494 375 C492 374 491 373 489 372 C487 369 484 365 482 361 C480 360 478 358 476 356 C470 346 470 346 470 344 C469 344 467 343 466 342 C462 337 462 337 458 329 C457 328 457 328 451 322 C449 318 447 314 445 310 C443 309 442 307 440 305 C439 303 438 301 437 299 C434 293 434 293 429 289 C427 285 424 280 422 275 C420 273 417 270 415 267 C414 266 414 266 410 257 C408 255 405 252 403 249 C401 246 400 243 398 239 C397 239 397 239 393 235 C392 234 392 234 390 229 C386 222 386 222 380 217 C379 216 379 216 375 208 C373 207 371 205 369 203 C366 199 364 195 361 191 C360 191 359 190 358 189 C358 189 358 188 358 187 C357 187 357 187 356 187 C349 178 349 178 349 176 C348 176 346 175 345 174 C340 170 340 170 334 163 C331 161 327 158 324 156 C323 155 323 155 316 149 C313 148 309 147 306 145 C305 144 305 144 301 139 C294 135 288 132 281 128 C281 128 280 128 280 127 C280 117 280 117 282 106 C280 101 280 101 276 99 C274 99 271 99 269 99 C258 98 251 95 241 89 C235 88 229 86 223 85 C219 83 214 80 210 77 C207 77 205 76 202 75 C194 73 189 70 182 65 C180 65 177 64 175 63 C167 61 167 61 162 57 C155 52 147 51 139 48 C137 46 134 44 132 42 C125 40 119 38 112 36 C111 35 109 34 107 33 C99 28 92 27 83 25 C76 24 70 21 64 18 C51 15 37 14 24 13 C15 12 7 10 -2 8 C-33 5 -63 6 -94 11 C-108 14 -122 14 -136 15 C-148 17 -156 19 -167 24 C-171 25 -176 26 -181 27 C-192 29 -200 32 -210 37 C-213 38 -216 38 -219 39 C-228 41 -233 44 -241 49 C-246 51 -251 52 -256 53 C-257 54 -257 54 -264 59 C-270 62 -270 62 -276 64 C-283 66 -283 66 -291 73 C-295 75 -299 76 -303 77 C-305 79 -306 80 -308 82 C-315 86 -315 86 -325 90 C-326 92 -328 93 -329 95 C-334 98 -340 101 -345 103 C-346 105 -348 106 -349 108 C-353 110 -357 112 -361 114 C-362 116 -364 117 -365 119 C-367 120 -369 121 -371 123 C-377 126 -377 126 -384 133 C-387 135 -391 137 -394 139 C-396 141 -399 144 -401 146 C-404 148 -406 149 -409 151 C-411 153 -413 156 -415 158 C-417 160 -419 161 -421 162 C-423 164 -425 167 -427 169 C-429 171 -431 172 -433 173 C-435 176 -438 178 -440 181 C-442 183 -444 184 -446 185 C-448 188 -450 190 -452 193 C-454 195 -457 197 -459 199 C-460 201 -462 203 -463 205 C-468 209 -468 209 -470 209 C-471 211 -471 212 -472 214 C-476 219 -476 219 -482 224 C-484 227 -485 229 -487 232 C-489 235 -492 237 -494 240 C-496 243 -497 246 -499 249 C-501 251 -504 254 -506 256 C-507 258 -507 258 -511 266 C-512 268 -514 269 -515 270 C-516 270 -516 270 -517 270 C-518 273 -519 276 -520 279 C-524 287 -524 287 -529 292 C-529 293 -529 293 -531 298 C-534 304 -534 304 -538 310 C-542 316 -544 321 -546 328 C-549 332 -551 336 -554 340 C-555 343 -555 345 -556 348 C-558 356 -558 356 -562 362 C-567 371 -568 379 -570 389 C-571 391 -571 391 -574 398 C-579 408 -580 416 -581 427 C-582 435 -584 442 -586 449 C-593 468 -592 489 -592 509 C-593 512 -593 515 -593 518 C-593 538 -593 558 -592 579 C-592 581 -592 583 -592 585 C-591 600 -590 615 -585 630 C-582 639 -581 649 -580 659 C-578 670 -577 675 -571 685 C-570 690 -569 695 -568 700 C-566 710 -563 716 -558 724 C-557 730 -555 736 -554 742 C-553 743 -553 743 -550 748 C-546 754 -546 754 -544 762 C-541 771 -541 771 -534 780 C-534 781 -534 781 -531 788 C-529 795 -529 795 -522 803 C-520 808 -519 812 -517 816 C-515 819 -512 821 -510 824 C-510 825 -510 825 -507 830 C-505 836 -505 836 -498 843 C-496 847 -494 851 -492 855 C-490 857 -489 858 -487 860 C-486 862 -485 864 -484 866 C-481 871 -481 871 -474 878 C-472 881 -470 885 -468 888 C-467 889 -467 889 -462 893 C-460 896 -458 900 -456 903 C-454 905 -453 906 -451 907 C-448 911 -446 915 -443 918 C-441 920 -440 921 -438 923 C-437 924 -437 924 -433 929 C-427 935 -427 935 -419 942 C-415 946 -410 951 -406 955 C-402 959 -402 959 -393 966 C-390 968 -388 971 -385 973 C-383 975 -381 976 -379 977 C-378 978 -378 978 -374 983 C-372 984 -372 984 -365 989 C-364 991 -362 992 -361 994 C-358 996 -355 997 -352 999 C-350 1001 -347 1004 -345 1006 C-340 1009 -336 1011 -331 1013 C-330 1015 -328 1016 -327 1018 C-322 1021 -318 1023 -313 1025 C-312 1026 -312 1026 -306 1031 C-304 1032 -302 1033 -300 1034 C-293 1036 -293 1036 -285 1043 C-280 1045 -275 1047 -270 1048 C-267 1050 -264 1053 -261 1055 C-256 1057 -251 1058 -246 1059 C-243 1061 -239 1064 -236 1066 C-230 1068 -225 1069 -219 1070 C-213 1072 -213 1072 -208 1076 C-199 1080 -192 1081 -183 1082 C-175 1084 -168 1087 -161 1090 C-150 1092 -138 1094 -127 1095 C-113 1096 -99 1098 -85 1101 C-74 1102 -64 1102 -53 1102 C-52 1102 -52 1102 -47 1102 C-31 1102 -16 1101 -0 1098 C13 1095 26 1094 40 1093 C48 1092 55 1091 63 1087 C73 1083 82 1082 92 1081 C100 1079 104 1076 111 1072 C118 1070 125 1069 132 1067 C136 1065 141 1062 145 1059 C150 1058 156 1057 161 1055 C163 1054 165 1053 167 1051 C173 1047 179 1045 186 1043 C192 1039 192 1039 197 1035 C199 1035 201 1034 203 1033 C210 1031 213 1028 219 1023 C223 1022 228 1020 232 1018 C234 1016 235 1014 237 1012 C242 1010 246 1008 251 1006 C253 1004 254 1002 256 1000 C258 999 260 998 262 997 C268 994 268 994 274 987 C277 986 281 984 284 982 C286 980 289 978 291 975 C293 974 295 973 297 972 C302 969 302 969 307 963 C310 961 314 959 317 957 C318 956 320 954 321 952 C325 950 329 948 333 945 C336 943 338 941 341 938 C349 934 349 934 351 934 C352 933 352 932 353 930 C361 925 361 925 369 921 C371 919 374 917 376 915 C381 914 386 912 391 910 C393 909 394 908 396 907 C402 902 407 902 415 900 C424 899 434 897 443 894 C454 892 464 893 474 896 C483 898 492 900 501 901 C512 903 517 905 526 911 C529 912 531 913 534 913 C541 915 541 915 550 922 C552 923 554 924 557 925 C563 927 567 930 572 935 C575 937 579 938 582 939 C584 941 587 944 589 946 C594 949 598 951 603 953 C605 955 607 957 609 959 C611 960 613 961 615 962 C622 964 622 964 630 971 C635 973 639 975 644 976 C645 977 645 977 651 982 C654 983 657 984 660 985 C669 988 669 988 672 990 C672 991 672 992 672 992 C681 996 689 998 698 1000 C700 1001 701 1002 703 1004 C711 1009 720 1009 729 1011 C735 1014 741 1017 747 1019 C755 1020 763 1021 771 1022 C782 1023 792 1026 802 1028 C810 1029 817 1029 825 1029 C827 1029 830 1029 832 1029 C841 1029 849 1028 857 1025 C865 1023 865 1023 875 1022 C885 1020 890 1018 898 1011 C899 1011 899 1011 904 1009 C910 1007 910 1007 915 1002 C919 1000 924 997 928 995 C930 992 930 992 932 982 C940 976 940 976 948 974 C949 975 951 975 952 975 C951 984 947 989 941 996 C938 998 936 999 933 1001 C931 1003 929 1006 927 1008 C923 1010 919 1012 915 1014 C913 1016 910 1018 908 1020 C903 1022 898 1024 893 1025 C892 1026 892 1026 884 1031 C877 1033 870 1034 863 1035 C860 1035 858 1035 856 1036 C819 1039 774 1041 740 1025 C736 1024 732 1023 728 1023 C718 1021 711 1018 703 1013 C696 1011 690 1010 683 1008 C679 1006 675 1003 671 1000 C669 1000 666 999 664 998 C656 996 651 993 645 988 C643 988 641 987 639 986 C632 984 628 981 622 976 C618 975 613 973 609 971 C606 969 604 967 601 964 C598 963 594 962 591 960 C589 958 586 956 584 953 C580 951 576 949 572 947 C569 945 567 943 564 940 C559 938 555 936 550 934 C549 933 549 933 543 928 C538 927 533 925 528 923 C525 921 523 919 520 917 C510 914 510 914 503 913 C496 911 490 909 483 906 C474 904 466 904 456 904 C453 904 450 904 447 904 C437 904 430 906 421 910 C415 912 415 912 406 914 C397 916 397 916 388 923 C386 924 383 925 381 926 C374 928 374 928 367 935 C363 937 359 939 355 941 C352 944 349 947 346 949 C343 951 339 952 336 954 C334 956 333 958 331 960 C330 961 330 961 322 965 C320 967 317 970 315 972 C314 973 314 973 306 977 C304 979 301 982 299 984 C298 985 298 985 290 989 C288 991 285 994 283 996 C279 998 276 1000 272 1002 C271 1004 269 1005 268 1007 C263 1010 259 1012 254 1014 C252 1016 251 1017 249 1019 C244 1022 240 1024 235 1026 C233 1028 230 1030 228 1032 C226 1033 224 1034 222 1035 C215 1037 215 1037 207 1044 C203 1046 198 1047 194 1048 C193 1049 193 1049 186 1055 C180 1057 173 1059 167 1061 C164 1063 162 1065 159 1067 C155 1069 150 1070 146 1071 C135 1075 135 1075 127 1080 C124 1081 120 1082 116 1083 C105 1085 105 1085 98 1089 C88 1093 79 1094 68 1096 C60 1097 52 1100 44 1103 C30 1106 15 1107 0 1108 C-2 1108 -5 1108 -8 1108 C-16 1109 -24 1110 -32 1110 C-34 1110 -36 1110 -38 1111 C-58 1112 -77 1110 -97 1108 C-101 1108 -104 1108 -108 1108 C-146 1105 -146 1105 -164 1097 C-169 1096 -173 1096 -178 1095 C-190 1093 -199 1090 -210 1084 C-214 1083 -217 1082 -221 1082 C-230 1079 -234 1077 -242 1072 C-245 1072 -247 1071 -250 1070 C-258 1068 -258 1068 -267 1061 C-272 1059 -277 1058 -282 1056 C-287 1053 -287 1053 -291 1049 C-295 1048 -298 1047 -302 1045 C-307 1042 -307 1042 -314 1036 C-316 1035 -318 1035 -320 1034 C-326 1031 -326 1031 -334 1024 C-337 1023 -341 1021 -344 1019 C-347 1017 -349 1015 -352 1012 C-355 1011 -358 1009 -361 1007 C-362 1006 -362 1006 -366 1001 C-368 1000 -368 1000 -376 995 C-377 994 -377 994 -381 989 C-382 988 -382 988 -390 983 C-391 982 -391 982 -398 975 C-401 973 -403 971 -406 969 C-407 968 -407 968 -414 961 C-417 959 -419 957 -422 954 C-428 948 -434 943 -440 936 C-442 935 -443 934 -445 932 C-446 931 -446 931 -452 923 C-453 922 -455 920 -456 919 C-460 915 -463 910 -466 906 C-468 904 -471 901 -473 898 C-474 897 -474 897 -477 892 C-479 890 -482 887 -484 884 C-486 882 -487 879 -489 876 C-491 874 -493 872 -495 869 C-496 867 -497 866 -498 864 C-501 858 -501 858 -508 850 C-510 847 -511 844 -513 840 C-515 838 -517 836 -519 833 C-520 831 -521 829 -521 827 C-524 821 -524 821 -531 813 C-533 809 -534 804 -536 799 C-538 797 -541 794 -543 791 C-545 786 -546 781 -548 775 C-549 774 -549 774 -555 766 C-557 760 -558 754 -560 748 C-562 745 -564 742 -566 739 C-568 734 -569 729 -570 723 C-572 717 -572 717 -578 707 C-580 701 -581 694 -582 687 C-584 679 -584 679 -586 673 C-592 660 -593 645 -594 631 C-595 625 -595 625 -598 616 C-600 616 -603 615 -605 614 C-605 593 -605 571 -605 550 C-605 542 -605 535 -606 528 C-606 517 -606 506 -606 496 C-606 493 -606 489 -606 486 C-606 483 -606 480 -606 477 C-606 474 -606 471 -606 469 C-606 466 -605 464 -605 462 C-602 461 -600 459 -597 457 C-594 449 -594 441 -593 433 C-591 419 -588 408 -583 395 C-582 392 -582 388 -581 384 C-579 374 -579 374 -573 364 C-570 357 -570 357 -569 351 C-567 344 -567 344 -561 335 C-558 328 -558 328 -555 317 C-552 314 -550 311 -547 307 C-546 305 -546 303 -545 301 C-543 294 -539 291 -535 285 C-534 282 -532 278 -531 274 C-529 272 -526 270 -524 267 C-523 265 -522 263 -521 261 C-518 255 -518 255 -511 248 C-509 245 -508 242 -506 238 C-504 236 -501 234 -499 231 C-497 228 -495 225 -493 221 C-492 220 -492 220 -487 216 C-485 213 -483 210 -481 207 C-480 206 -480 206 -475 202 C-473 200 -471 197 -469 194 C-467 193 -465 191 -463 189 C-461 187 -458 184 -456 181 C-444 169 -444 169 -438 164 C-437 163 -435 161 -434 159 C-433 158 -433 158 -426 153 C-425 152 -423 150 -422 148 C-419 146 -416 144 -413 142 C-412 141 -410 139 -409 137 C-406 135 -402 133 -399 131 C-397 129 -394 127 -392 124 C-389 123 -386 121 -383 119 C-381 117 -378 115 -376 112 C-372 110 -369 108 -365 106 C-364 105 -362 103 -361 101 C-357 99 -353 97 -349 95 C-346 93 -344 91 -341 88 C-340 88 -340 88 -335 86 C-329 83 -329 83 -322 76 C-318 75 -313 73 -309 71 C-306 69 -304 67 -301 64 C-297 63 -293 61 -289 60 C-283 56 -283 56 -278 52 C-275 51 -273 51 -270 50 C-262 47 -262 47 -254 41 C-250 40 -245 38 -241 37 C-233 34 -233 34 -223 28 C-221 28 -221 28 -212 26 C-201 23 -201 23 -194 20 C-185 15 -175 14 -165 12 C-157 11 -149 8 -141 5 C-124 2 -107 2 -90 1 C-88 0 -88 0 -80 -0 C-53 -2 -27 -2 0 0 Z " fill="#341efd" transform="translate(604.9375,225.8125)"/>
+<path d="M0 0 C2 1 4 2 6 4 C8 5 10 6 13 8 C20 12 20 12 28 19 C29 20 31 21 32 22 C42 31 51 40 59 50 C61 52 63 55 66 58 C67 60 69 62 71 65 C72 66 72 66 76 70 C78 73 80 76 83 80 C85 82 87 85 89 88 C105 112 105 112 105 114 C106 114 107 114 108 115 C110 118 112 122 114 126 C114 127 114 127 118 132 C118 132 118 133 118 134 C119 134 120 134 121 135 C125 141 125 141 129 149 C131 151 133 153 135 156 C137 159 139 163 141 167 C143 170 145 173 148 176 C150 179 152 182 154 186 C155 188 157 190 159 192 C161 195 163 198 165 201 C167 204 170 207 173 211 C173 212 173 212 177 217 C178 218 179 220 181 221 C185 226 185 226 189 232 C190 233 190 233 197 239 C199 241 201 244 204 247 C206 248 208 249 210 251 C212 253 214 255 216 258 C218 259 221 260 224 262 C224 262 224 262 228 265 C228 265 228 266 228 267 C231 268 235 270 239 271 C246 274 246 274 256 280 C299 292 353 291 396 278 C409 274 423 272 436 270 C447 269 447 269 457 266 C480 260 504 260 528 260 C531 259 533 259 536 259 C554 259 572 261 590 267 C591 267 591 267 596 269 C599 269 601 270 603 271 C604 271 604 271 610 272 C617 275 622 278 628 282 C632 283 636 284 641 286 C643 288 646 290 649 292 C651 293 653 294 656 295 C663 299 663 299 670 305 C673 307 676 309 680 311 C681 312 681 312 688 318 C689 319 689 319 697 324 C697 324 697 325 697 326 C697 326 698 326 699 326 C700 327 702 329 704 331 C705 332 707 334 709 335 C711 337 712 338 714 340 C714 340 714 341 714 342 C715 342 716 343 718 344 C726 352 734 361 742 371 C744 373 746 375 748 378 C749 379 749 379 754 387 C756 389 758 391 760 394 C761 395 761 395 765 404 C767 406 769 409 771 412 C773 416 775 421 778 426 C779 427 779 427 783 434 C785 439 787 444 789 449 C790 451 791 454 792 456 C796 464 798 472 800 481 C801 483 802 485 803 488 C816 523 815 565 811 602 C810 604 810 606 810 608 C808 623 804 637 799 652 C798 654 797 657 796 660 C794 667 791 672 788 679 C787 680 787 680 785 686 C782 693 779 699 775 705 C774 707 773 709 772 711 C770 717 770 717 763 726 C762 727 762 727 758 736 C756 738 754 740 752 743 C750 746 748 750 746 754 C744 755 743 757 742 759 C741 759 740 759 740 759 C739 760 738 762 738 764 C733 772 733 772 727 779 C725 782 723 785 722 788 C721 789 720 790 719 792 C718 792 717 792 717 792 C716 793 715 795 715 797 C711 803 707 809 703 815 C702 816 702 816 698 823 C694 831 694 831 689 837 C688 838 688 839 688 840 C685 839 682 839 679 839 C678 838 678 837 678 836 C675 836 672 836 669 836 C659 835 659 835 656 832 C643 828 630 826 616 825 C607 825 598 823 589 821 C581 820 574 819 566 818 C558 816 550 814 543 810 C539 809 536 808 532 807 C522 805 514 801 505 797 C502 796 500 795 497 794 C490 792 490 792 483 787 C483 786 483 785 483 785 C480 784 477 783 475 783 C467 779 467 779 462 774 C459 773 457 771 455 770 C448 767 448 767 444 762 C440 760 436 758 432 756 C431 755 430 754 429 753 C429 752 429 751 429 751 C427 750 426 749 425 749 C416 743 416 743 408 736 C408 735 408 734 408 734 C406 733 404 732 403 732 C400 729 397 726 394 723 C394 722 394 721 394 721 C393 721 392 721 392 721 C392 720 392 719 392 719 C390 718 389 717 388 717 C380 708 372 700 366 691 C364 689 362 687 360 686 C358 683 356 680 355 677 C353 675 351 674 350 673 C347 668 344 663 342 658 C340 655 338 653 336 651 C333 646 331 641 329 637 C327 634 325 631 324 629 C323 627 322 625 322 622 C320 616 320 616 316 610 C311 601 310 592 308 583 C304 576 304 576 302 572 C300 567 300 567 298 556 C294 534 294 534 290 528 C287 520 286 513 285 505 C284 495 282 487 278 477 C276 470 276 470 274 460 C272 449 268 441 263 431 C262 429 262 426 261 424 C259 418 256 414 252 409 C250 406 249 403 248 400 C247 398 246 397 246 396 C245 396 244 396 244 396 C241 392 238 389 236 386 C235 385 234 384 233 384 C233 383 233 382 233 382 C232 381 231 381 230 381 C228 379 227 377 226 376 C222 374 219 372 216 370 C213 368 211 366 209 364 C204 362 200 360 196 359 C194 358 192 357 190 356 C182 352 173 351 164 350 C153 348 142 347 131 344 C116 341 101 340 86 338 C76 337 67 334 57 331 C50 328 43 326 36 325 C31 323 31 323 27 319 C22 316 17 314 12 312 C11 311 10 310 9 310 C9 309 9 308 9 308 C8 308 7 308 7 308 C6 307 5 306 4 305 C0 303 -3 301 -6 299 C-6 298 -6 297 -6 297 C-8 296 -9 295 -10 295 C-13 292 -16 290 -18 288 C-20 286 -22 285 -23 284 C-23 283 -23 282 -23 282 C-24 282 -25 282 -25 282 C-32 274 -37 267 -41 259 C-44 256 -46 253 -48 251 C-50 247 -52 243 -53 239 C-54 237 -56 235 -57 233 C-61 225 -63 217 -65 209 C-66 207 -67 205 -68 203 C-72 195 -73 187 -75 178 C-77 170 -78 161 -80 152 C-84 137 -85 122 -85 106 C-85 102 -85 99 -85 95 C-84 80 -81 67 -76 52 C-76 49 -75 46 -74 42 C-72 34 -70 30 -64 23 C-63 21 -62 19 -61 16 C-58 11 -58 11 -49 5 C-48 4 -48 4 -41 -2 C-25 -8 -15 -9 0 0 Z " fill="#6290ff" transform="translate(904.3125,367.25)"/>
+<path fill-rule="evenodd" d="M0 0 C3 -0 5 -0 8 -0 C14 -0 19 -0 25 0 C34 0 42 0 51 -0 C77 -0 103 0 129 1 C130 1 130 1 135 1 C153 1 170 3 187 6 C190 7 193 8 196 8 C207 11 215 14 224 20 C226 21 228 22 230 23 C236 26 236 26 244 33 C246 35 249 36 251 38 C253 41 256 43 258 46 C260 48 261 49 263 51 C266 54 269 58 272 61 C272 62 272 62 275 64 C277 67 278 71 280 74 C282 76 283 79 285 81 C287 88 289 94 291 101 C295 107 295 107 300 110 C301 118 301 118 301 128 C301 132 301 135 301 139 C301 144 301 148 301 152 C301 157 301 161 301 166 C301 178 301 190 301 202 C301 213 301 223 301 233 C301 257 301 281 301 305 C301 330 301 355 301 379 C301 401 301 422 301 443 C301 456 301 469 301 481 C301 493 301 505 301 517 C301 522 301 526 301 530 C301 536 301 542 301 548 C301 552 301 555 301 559 C300 561 300 564 300 566 C298 567 296 569 294 570 C290 578 290 578 288 585 C286 592 283 597 279 603 C278 605 277 607 275 609 C272 614 272 614 265 621 C263 624 260 627 258 630 C254 633 251 636 247 639 C245 641 242 643 240 645 C237 647 233 649 230 651 C227 653 224 655 221 657 C216 659 211 661 206 662 C204 663 202 664 201 665 C173 677 135 672 106 672 C102 672 98 672 94 672 C86 672 78 672 70 672 C60 672 50 672 39 672 C29 673 20 672 10 672 C6 673 2 673 -1 673 C-5 673 -8 673 -12 673 C-13 673 -13 673 -21 673 C-28 672 -28 672 -34 669 C-38 661 -36 649 -36 640 C-36 637 -36 634 -36 632 C-36 623 -36 614 -36 605 C-36 598 -36 592 -36 585 C-36 568 -36 550 -36 533 C-36 518 -36 503 -36 489 C-36 454 -36 420 -36 385 C-36 350 -36 314 -36 278 C-36 248 -36 217 -36 187 C-36 168 -36 150 -36 132 C-36 115 -36 98 -36 80 C-36 74 -36 68 -36 61 C-36 53 -36 44 -36 36 C-36 33 -36 31 -36 28 C-36 11 -36 11 -33 4 C-24 -3 -11 -0 0 0 Z  M167.973 116.133 C170.973 118.133 172.973 119.133 175.973 121.133 C177.973 123.133 179.973 126.133 181.973 128.133 C183.973 131.133 186.973 133.133 188.973 136.133 C191.973 142.133 193.973 146.133 195.973 153.133 C195.973 155.133 196.973 157.133 196.973 159.133 C201.973 183.133 200.973 209.133 200.973 233.133 C200.973 239.133 200.973 246.133 200.973 252.133 C200.973 270.133 200.973 288.133 199.973 306.133 C199.973 316.133 199.973 325.133 199.973 334.133 C199.973 338.133 199.973 341.133 199.973 345.133 C199.973 354.133 199.973 362.133 199.973 370.133 C200.973 390.133 200.973 409.133 200.973 428.133 C200.973 434.133 200.973 441.133 200.973 447.133 C200.973 524.133 200.973 524.133 181.973 546.133 C179.973 548.133 178.973 550.133 176.973 552.133 C167.973 560.133 162.973 563.133 151.973 567.133 C149.973 568.133 149.973 568.133 141.973 571.133 C86.9727 579.133 86.9727 579.133 69.9727 570.133 C62.9727 562.133 64.9727 555.133 64.9727 545.133 C64.9727 541.133 64.9727 537.133 64.9727 533.133 C64.9727 529.133 64.9727 525.133 64.9727 520.133 C64.9727 516.133 64.9727 512.133 64.9727 507.133 C64.9727 495.133 64.9727 483.133 64.9727 471.133 C64.9727 463.133 64.9727 456.133 64.9727 448.133 C64.9727 425.133 64.9727 401.133 64.9727 378.133 C64.9727 351.133 64.9727 324.133 64.9727 296.133 C64.9727 275.133 64.9727 254.133 64.9727 233.133 C64.9727 221.133 64.9727 208.133 64.9727 196.133 C64.9727 184.133 64.9727 172.133 64.9727 160.133 C64.9727 156.133 64.9727 152.133 64.9727 147.133 C64.9727 141.133 64.9727 136.133 64.9727 130.133 C64.9727 126.133 64.9727 123.133 64.9727 120.133 C64.9727 112.133 64.9727 112.133 67.9727 107.133 C90.9727 94.1328 146.973 101.133 167.973 116.133 Z " fill="#4267fe" transform="translate(2820.02734375,793.8671875)"/>
+<path fill-rule="evenodd" d="M0 0 C7 12 10 23 12 37 C14 46 16 54 18 63 C21 72 23 80 24 89 C26 97 28 105 30 113 C34 124 36 134 38 146 C39 156 43 165 46 174 C47 179 48 184 48 188 C50 197 52 205 54 213 C58 225 60 236 63 249 C64 257 67 265 70 273 C71 278 72 282 72 287 C74 300 78 311 82 323 C83 330 85 337 86 344 C87 351 87 351 90 362 C94 374 96 385 98 398 C100 405 102 411 105 418 C106 425 108 433 109 440 C110 448 112 455 115 462 C117 470 119 478 120 486 C122 499 126 510 130 522 C131 529 133 536 134 543 C136 553 139 562 142 572 C143 576 144 581 144 585 C146 593 148 600 151 608 C155 619 156 630 158 642 C159 646 160 649 161 653 C161 660 161 660 158 665 C149 669 142 668 131 668 C130 668 130 668 120 668 C117 668 113 668 109 668 C105 668 101 668 97 668 C94 668 90 668 86 668 C83 668 79 668 76 668 C68 668 68 668 63 665 C59 656 57 648 54 639 C53 637 53 637 50 628 C49 624 48 619 48 615 C46 606 44 598 42 589 C38 577 36 566 34 553 C31 543 28 537 20 531 C14 530 14 530 7 530 C4 530 2 530 -1 530 C-4 530 -7 530 -10 530 C-13 530 -16 530 -19 530 C-25 530 -31 530 -38 530 C-47 530 -57 530 -67 530 C-73 530 -79 530 -85 530 C-88 530 -91 530 -94 530 C-96 530 -99 530 -102 530 C-104 530 -106 530 -109 530 C-115 530 -115 530 -124 533 C-131 542 -131 551 -133 562 C-135 570 -135 570 -138 578 C-141 587 -142 595 -144 604 C-146 616 -149 626 -153 637 C-154 643 -155 650 -156 656 C-159 662 -159 662 -164 666 C-176 670 -192 667 -205 667 C-211 667 -217 667 -223 667 C-227 667 -231 667 -235 667 C-237 667 -237 667 -246 667 C-255 667 -255 667 -260 663 C-261 661 -261 661 -261 652 C-261 651 -261 651 -258 645 C-255 637 -254 631 -253 622 C-251 608 -247 596 -243 583 C-241 574 -240 565 -238 556 C-237 547 -234 539 -231 530 C-230 523 -228 515 -227 508 C-226 500 -224 493 -221 485 C-219 476 -217 466 -215 457 C-213 446 -213 446 -210 438 C-207 430 -206 423 -205 415 C-203 402 -199 391 -195 379 C-194 374 -193 370 -192 365 C-190 353 -187 342 -183 330 C-181 322 -180 314 -178 306 C-177 298 -174 290 -171 282 C-170 277 -169 273 -169 268 C-167 256 -163 245 -159 233 C-157 225 -156 217 -154 209 C-153 201 -150 193 -147 185 C-146 180 -145 176 -145 171 C-143 159 -139 148 -135 136 C-134 131 -133 127 -132 122 C-131 113 -129 106 -126 98 C-123 87 -121 77 -119 66 C-118 59 -118 59 -114 49 C-111 37 -109 26 -107 14 C-106 8 -105 5 -100 0 C-92 -3 -85 -2 -77 -2 C-73 -2 -70 -2 -66 -3 C-63 -3 -59 -3 -55 -3 C-51 -3 -48 -3 -44 -3 C-8 -3 -8 -3 0 0 Z  M-47 224 C-45 224 -43 224 -41 224 C-35 230 -35 235 -35 243 C-34 254 -31 264 -28 275 C-26 284 -25 292 -24 301 C-22 314 -19 327 -16 339 C-14 347 -13 355 -11 363 C-10 378 -6 391 -2 405 C0 413 1 418 1 426 C-3 431 -3 431 -5 432 C-17 432 -29 432 -42 432 C-48 432 -54 432 -60 432 C-64 432 -68 432 -72 432 C-75 432 -79 432 -82 432 C-91 432 -91 432 -98 429 C-100 426 -100 426 -99 417 C-98 415 -98 412 -97 410 C-96 406 -96 403 -95 399 C-94 391 -93 385 -90 377 C-87 369 -86 362 -85 354 C-83 341 -79 329 -75 317 C-74 312 -73 307 -73 303 C-71 291 -68 281 -64 270 C-62 264 -61 258 -59 251 C-57 240 -55 232 -47 224 Z " fill="#363435" transform="translate(2580,85)"/>
+<path d="M0 0 C3 0 5 1 8 1 C17 3 24 7 32 11 C33 11 33 11 39 14 C45 16 45 16 53 22 C55 23 57 24 58 25 C64 28 68 32 73 36 C76 38 79 41 82 43 C85 47 88 50 91 54 C93 56 94 58 96 60 C98 64 100 67 102 71 C104 74 106 76 108 79 C110 85 111 91 113 97 C114 98 114 98 116 105 C130 140 127 198 118 235 C116 239 114 243 112 247 C111 249 111 251 110 254 C108 261 105 265 100 271 C98 274 96 277 94 280 C91 283 88 287 84 290 C83 292 81 293 79 295 C72 302 65 307 55 312 C53 313 51 314 49 315 C49 317 48 320 48 322 C52 326 52 326 62 331 C71 337 79 342 87 349 C89 351 92 352 94 354 C96 357 99 360 101 363 C103 366 106 368 108 371 C110 376 112 380 114 385 C116 387 117 390 119 392 C134 449 142 536 112 589 C111 593 109 596 108 600 C105 604 102 607 99 611 C97 614 95 617 93 620 C90 623 86 626 83 629 C81 631 80 632 78 634 C74 637 71 639 67 642 C64 644 62 646 59 648 C54 650 50 653 45 655 C44 656 44 656 37 660 C31 662 25 663 19 665 C17 666 15 667 13 668 C-27 684 -96 682 -135 666 C-137 666 -137 666 -143 663 C-145 662 -147 662 -150 661 C-155 660 -155 660 -163 655 C-169 652 -174 649 -180 646 C-183 643 -187 641 -190 638 C-193 636 -195 635 -198 633 C-200 630 -203 628 -205 625 C-206 624 -206 624 -212 619 C-214 616 -217 612 -219 609 C-221 607 -223 604 -225 602 C-227 598 -229 594 -231 590 C-233 588 -234 585 -236 583 C-237 578 -239 572 -240 567 C-241 564 -242 560 -244 557 C-249 540 -255 511 -247 495 C-239 491 -229 492 -220 491 C-199 490 -178 488 -157 485 C-148 484 -143 484 -135 487 C-129 497 -131 509 -130 521 C-129 542 -129 542 -122 552 C-121 553 -121 553 -119 557 C-115 562 -111 565 -105 569 C-104 570 -104 570 -99 574 C-74 581 -45 583 -21 572 C-6 561 2 551 9 533 C11 522 11 511 11 500 C11 498 11 498 11 490 C11 487 11 483 11 480 C11 477 11 473 11 470 C11 467 11 463 11 460 C11 459 11 459 11 451 C11 438 9 426 5 414 C4 411 4 409 3 407 C-0 400 -4 396 -9 391 C-10 389 -12 388 -13 386 C-17 384 -20 382 -24 380 C-25 379 -25 379 -30 376 C-44 373 -57 372 -71 372 C-73 372 -75 372 -78 372 C-83 372 -88 372 -93 372 C-94 372 -94 372 -100 371 C-102 371 -104 371 -106 371 C-112 371 -112 371 -119 368 C-129 355 -125 336 -125 320 C-125 317 -125 314 -125 310 C-125 307 -125 304 -125 300 C-125 297 -125 294 -125 291 C-125 284 -125 284 -121 279 C-112 276 -106 276 -97 275 C-94 275 -91 275 -87 275 C-85 275 -82 275 -79 275 C-59 274 -43 270 -24 262 C-22 260 -21 258 -19 256 C-16 254 -14 251 -11 249 C8 214 4 169 0 130 C-5 116 -13 104 -27 97 C-31 96 -35 94 -39 93 C-43 92 -46 90 -50 89 C-68 86 -82 89 -98 96 C-99 96 -99 96 -106 99 C-121 111 -127 126 -129 145 C-129 147 -129 150 -129 152 C-129 160 -129 165 -135 171 C-149 176 -165 173 -179 173 C-186 173 -192 173 -199 173 C-203 173 -207 173 -211 173 C-214 173 -218 173 -222 173 C-231 173 -237 172 -245 166 C-250 150 -243 128 -240 112 C-239 107 -238 102 -238 98 C-236 90 -232 85 -228 78 C-227 74 -225 71 -224 67 C-222 65 -221 64 -219 62 C-218 60 -216 58 -215 56 C-211 50 -211 50 -205 45 C-203 42 -200 40 -198 37 C-195 35 -193 33 -190 31 C-189 30 -187 28 -186 27 C-182 25 -179 23 -175 21 C-172 19 -170 17 -167 15 C-162 13 -156 11 -151 9 C-150 9 -150 9 -146 6 C-137 2 -128 0 -118 -2 C-115 -3 -111 -3 -107 -4 C-71 -11 -36 -8 0 0 Z " fill="#4267fe" transform="translate(2614,803)"/>
+<path d="M0 0 C3 -0 7 -0 10 -0 C14 -0 18 0 22 0 C23 0 23 0 32 -0 C36 -0 39 -0 43 0 C45 0 45 0 53 0 C68 0 68 0 75 7 C76 18 76 28 76 38 C76 40 76 42 76 45 C76 52 76 60 76 67 C76 72 76 78 76 83 C76 95 76 106 76 118 C76 136 76 154 76 172 C76 224 76 276 76 327 C76 356 76 385 76 413 C76 428 76 443 75 458 C75 473 75 487 75 501 C75 506 75 512 75 517 C75 524 75 531 75 538 C75 540 75 542 75 544 C75 559 75 559 79 564 C87 568 92 568 101 568 C104 568 108 568 111 568 C115 568 119 568 123 568 C126 568 130 568 134 568 C148 568 162 568 177 568 C190 568 204 568 218 568 C220 568 220 568 229 568 C233 568 236 568 240 568 C243 568 246 568 249 568 C256 568 256 568 261 571 C268 584 264 604 264 618 C264 622 264 626 264 630 C264 634 264 637 264 641 C264 645 264 648 264 652 C264 660 264 660 260 668 C235 680 193 672 166 672 C143 671 121 671 98 671 C95 671 91 671 88 671 C75 671 61 671 47 671 C37 671 27 672 17 672 C14 672 11 672 8 672 C5 672 2 672 -1 672 C-3 672 -5 672 -8 672 C-14 671 -14 671 -21 668 C-28 659 -25 647 -25 636 C-25 633 -25 631 -25 628 C-25 619 -25 610 -25 601 C-25 595 -25 588 -25 582 C-25 564 -25 547 -25 529 C-25 518 -25 507 -25 496 C-25 462 -25 428 -25 394 C-25 354 -25 315 -26 275 C-26 245 -26 214 -26 184 C-26 165 -26 147 -26 129 C-26 112 -26 95 -26 77 C-26 71 -26 65 -26 58 C-26 50 -26 41 -26 33 C-26 30 -26 28 -26 25 C-26 8 -26 8 -22 2 C-15 -1 -8 0 0 0 Z " fill="#363435" transform="translate(2809.234375,80.734375)"/>
+<path d="M0 0 C1 0 1 0 8 1 C30 2 50 4 71 12 C78 13 84 14 91 15 C101 19 101 19 109 24 C115 26 120 27 126 28 C130 31 134 34 138 36 C140 37 143 37 145 38 C153 40 157 43 164 48 C169 50 174 51 179 52 C181 53 181 53 188 59 C194 61 201 63 207 65 C209 67 211 68 213 69 C221 73 221 73 230 75 C238 77 238 77 247 83 C253 85 253 85 261 86 C264 87 267 87 270 88 C279 89 283 89 291 86 C292 85 294 83 295 81 C300 75 300 75 308 70 C311 68 313 66 316 63 C320 61 324 60 328 58 C329 57 329 57 336 52 C342 50 347 49 353 47 C357 45 360 43 364 41 C371 39 378 38 385 37 C394 35 394 35 403 33 C417 29 430 28 445 28 C448 28 450 28 453 28 C468 28 480 31 494 35 C498 36 503 37 507 38 C517 39 524 43 533 48 C535 49 537 50 540 50 C547 52 551 56 557 60 C559 61 559 61 567 65 C570 67 572 70 575 72 C577 73 577 73 584 78 C586 80 587 81 589 83 C590 84 590 84 595 88 C596 90 596 90 602 96 C604 98 605 99 607 101 C612 106 616 111 620 117 C623 121 623 121 628 125 C629 126 629 126 631 130 C634 136 634 136 641 143 C643 147 645 151 647 154 C648 156 648 156 654 162 C656 165 658 168 660 171 C662 173 663 174 665 176 C666 178 666 178 671 186 C674 189 676 192 679 195 C683 201 683 201 683 203 C684 204 686 205 687 205 C690 209 693 212 696 216 C711 224 724 222 741 221 C743 221 746 221 749 221 C752 220 755 220 758 220 C760 220 763 219 766 219 C802 216 802 216 814 212 C824 209 834 208 845 206 C855 205 864 203 873 200 C889 194 906 194 923 192 C931 191 938 190 945 189 C976 184 1007 188 1038 193 C1042 194 1047 194 1051 195 C1059 196 1066 198 1073 201 C1081 204 1081 204 1092 206 C1102 209 1102 209 1111 215 C1112 216 1112 216 1120 218 C1127 220 1131 222 1138 227 C1141 228 1143 229 1146 230 C1154 233 1154 233 1163 240 C1165 241 1167 242 1169 243 C1175 245 1175 245 1182 252 C1184 253 1184 253 1192 257 C1195 259 1197 262 1200 264 C1202 265 1202 265 1209 270 C1212 273 1215 275 1218 278 C1223 282 1228 287 1233 291 C1239 296 1239 296 1245 303 C1247 305 1250 307 1252 309 C1255 312 1257 316 1260 319 C1263 322 1265 325 1268 328 C1274 335 1278 341 1283 348 C1284 350 1284 350 1290 356 C1292 359 1293 362 1295 365 C1297 367 1299 370 1301 372 C1302 374 1303 376 1304 378 C1306 383 1306 383 1313 392 C1315 397 1316 402 1318 406 C1320 409 1323 412 1325 415 C1327 421 1328 427 1330 433 C1332 436 1334 438 1336 441 C1338 448 1339 454 1341 460 C1343 468 1343 468 1348 478 C1350 485 1351 492 1352 499 C1354 511 1356 521 1359 532 C1365 571 1365 613 1355 651 C1353 660 1352 669 1351 677 C1349 686 1348 692 1344 699 C1340 710 1340 710 1339 718 C1337 725 1334 730 1330 736 C1329 739 1328 742 1328 745 C1325 754 1322 758 1317 765 C1316 767 1316 770 1315 772 C1313 779 1310 782 1305 788 C1304 790 1303 793 1302 795 C1300 801 1300 801 1293 808 C1291 811 1290 815 1288 818 C1286 821 1283 823 1281 826 C1279 830 1277 833 1275 837 C1274 838 1273 839 1272 840 C1271 840 1271 840 1270 840 C1269 842 1269 843 1268 844 C1263 852 1263 852 1258 856 C1257 858 1256 859 1255 861 C1251 866 1251 866 1245 871 C1243 874 1240 876 1238 879 C1232 885 1226 891 1219 896 C1217 898 1216 899 1214 901 C1211 903 1209 904 1206 906 C1203 908 1201 911 1198 913 C1194 915 1190 917 1186 919 C1185 920 1185 920 1180 924 C1178 925 1176 926 1174 927 C1167 929 1167 929 1162 933 C1155 937 1148 939 1140 941 C1139 942 1139 942 1131 947 C1126 949 1122 950 1117 951 C1107 954 1107 954 1098 959 C1093 960 1089 962 1084 963 C1075 965 1066 967 1056 970 C1046 973 1046 973 1035 975 C1025 977 1025 977 1017 982 C1009 984 1009 984 998 983 C993 979 993 979 992 976 C994 974 997 971 999 968 C1001 964 1002 960 1004 955 C1006 954 1007 952 1009 950 C1012 946 1012 946 1016 937 C1018 935 1021 933 1023 931 C1024 928 1026 925 1027 921 C1029 920 1030 918 1032 916 C1036 911 1036 911 1041 902 C1043 900 1046 897 1048 894 C1050 891 1051 888 1053 884 C1055 882 1058 879 1060 876 C1061 873 1063 870 1064 867 C1066 865 1069 862 1071 859 C1072 857 1072 855 1073 853 C1075 847 1075 847 1080 842 C1085 835 1086 829 1088 821 C1090 818 1093 815 1095 812 C1097 805 1098 798 1100 791 C1102 788 1103 785 1105 782 C1109 772 1110 761 1111 751 C1114 726 1114 726 1115 720 C1115 704 1114 690 1112 674 C1111 666 1111 658 1110 650 C1109 641 1107 633 1103 625 C1099 616 1098 608 1096 599 C1093 594 1090 590 1087 585 C1086 583 1086 580 1085 578 C1083 570 1081 567 1075 561 C1074 557 1072 553 1071 549 C1069 547 1066 545 1064 542 C1062 538 1060 534 1058 530 C1056 529 1054 527 1052 525 C1051 523 1050 522 1049 520 C1046 514 1046 514 1039 508 C1034 500 1034 500 1034 498 C1032 498 1031 497 1029 496 C1028 495 1026 493 1025 491 C1020 485 1020 485 1015 482 C1013 480 1011 477 1009 474 C1006 473 1004 471 1001 469 C999 467 997 465 995 462 C992 460 988 458 985 456 C984 455 982 453 981 451 C979 450 977 449 975 448 C968 444 968 444 963 438 C961 437 959 437 957 436 C950 433 950 433 943 426 C941 426 941 426 933 423 C926 420 926 420 918 414 C912 412 912 412 905 411 C897 409 890 406 882 402 C864 399 847 399 828 399 C826 399 823 399 820 399 C770 399 770 399 752 406 C739 410 727 411 713 412 C703 413 694 416 684 420 C652 426 618 426 586 424 C584 424 582 424 579 424 C567 423 559 422 549 414 C548 414 548 414 541 412 C533 409 533 409 525 402 C523 401 521 400 519 399 C514 396 514 396 510 390 C509 389 509 389 501 384 C499 381 496 378 494 375 C492 374 491 373 489 372 C487 369 484 365 482 361 C480 360 478 358 476 356 C470 346 470 346 470 344 C469 344 467 343 466 342 C462 337 462 337 458 329 C457 328 457 328 451 322 C449 318 447 314 445 310 C443 309 442 307 440 305 C439 303 438 301 437 299 C434 293 434 293 429 289 C427 285 424 280 422 275 C420 273 417 270 415 267 C414 266 414 266 410 257 C408 255 405 252 403 249 C401 246 400 243 398 239 C397 239 397 239 393 235 C392 234 392 234 390 229 C386 222 386 222 380 217 C379 216 379 216 375 208 C373 207 371 205 369 203 C366 199 364 195 361 191 C360 191 359 190 358 189 C358 189 358 188 358 187 C357 187 357 187 356 187 C349 178 349 178 349 176 C348 176 346 175 345 174 C340 170 340 170 334 163 C331 161 327 158 324 156 C323 155 323 155 316 149 C313 148 309 147 306 145 C305 144 305 144 301 139 C294 135 288 132 281 128 C281 128 280 128 280 127 C280 117 280 117 282 106 C280 101 280 101 276 99 C274 99 271 99 269 99 C258 98 251 95 241 89 C235 88 229 86 223 85 C219 83 214 80 210 77 C207 77 205 76 202 75 C194 73 189 70 182 65 C180 65 177 64 175 63 C167 61 167 61 162 57 C155 52 147 51 139 48 C137 46 134 44 132 42 C125 40 119 38 112 36 C111 35 109 34 107 33 C99 28 92 27 83 25 C76 24 70 21 64 18 C51 15 37 14 24 13 C15 12 7 10 -2 8 C-33 5 -63 6 -94 11 C-108 14 -122 14 -136 15 C-148 17 -156 19 -167 24 C-171 25 -176 26 -181 27 C-192 29 -200 32 -210 37 C-213 38 -216 38 -219 39 C-228 41 -233 44 -241 49 C-246 51 -251 52 -256 53 C-257 54 -257 54 -264 59 C-270 62 -270 62 -276 64 C-283 66 -283 66 -291 73 C-295 75 -299 76 -303 77 C-305 79 -306 80 -308 82 C-315 86 -315 86 -325 90 C-326 92 -328 93 -329 95 C-334 98 -340 101 -345 103 C-346 105 -348 106 -349 108 C-353 110 -357 112 -361 114 C-362 116 -364 117 -365 119 C-367 120 -369 121 -371 123 C-377 126 -377 126 -384 133 C-387 135 -391 137 -394 139 C-396 141 -399 144 -401 146 C-404 148 -406 149 -409 151 C-411 153 -413 156 -415 158 C-417 160 -419 161 -421 162 C-423 164 -425 167 -427 169 C-429 171 -431 172 -433 173 C-435 176 -438 178 -440 181 C-442 183 -444 184 -446 185 C-448 188 -450 190 -452 193 C-454 195 -457 197 -459 199 C-460 201 -462 203 -463 205 C-468 209 -468 209 -470 209 C-471 211 -471 212 -472 214 C-476 219 -476 219 -482 224 C-484 227 -485 229 -487 232 C-489 235 -492 237 -494 240 C-496 243 -497 246 -499 249 C-501 251 -504 254 -506 256 C-507 258 -507 258 -511 266 C-512 268 -514 269 -515 270 C-516 270 -516 270 -517 270 C-518 273 -519 276 -520 279 C-524 287 -524 287 -529 292 C-529 293 -529 293 -531 298 C-534 304 -534 304 -538 310 C-542 316 -544 321 -546 328 C-549 332 -551 336 -554 340 C-555 343 -555 345 -556 348 C-558 356 -558 356 -562 362 C-567 371 -568 379 -570 389 C-571 391 -571 391 -574 398 C-579 408 -580 416 -581 427 C-582 435 -584 442 -586 449 C-593 468 -592 489 -592 509 C-593 512 -593 515 -593 518 C-593 538 -593 558 -592 579 C-592 581 -592 583 -592 585 C-591 600 -590 615 -585 630 C-582 639 -581 649 -580 659 C-578 670 -577 675 -571 685 C-570 690 -569 695 -568 700 C-566 710 -563 716 -558 724 C-557 730 -555 736 -554 742 C-553 743 -553 743 -550 748 C-546 754 -546 754 -544 762 C-541 771 -541 771 -534 780 C-534 781 -534 781 -531 788 C-529 795 -529 795 -522 803 C-520 808 -519 812 -517 816 C-515 819 -512 821 -510 824 C-510 825 -510 825 -507 830 C-505 836 -505 836 -498 843 C-496 847 -494 851 -492 855 C-490 857 -489 858 -487 860 C-486 862 -485 864 -484 866 C-481 871 -481 871 -474 878 C-472 881 -470 885 -468 888 C-467 889 -467 889 -462 893 C-460 896 -458 900 -456 903 C-454 905 -453 906 -451 907 C-448 911 -446 915 -443 918 C-441 920 -440 921 -438 923 C-437 924 -437 924 -433 929 C-427 935 -427 935 -419 942 C-415 946 -410 951 -406 955 C-402 959 -402 959 -393 966 C-390 968 -388 971 -385 973 C-383 975 -381 976 -379 977 C-378 978 -378 978 -374 983 C-372 984 -372 984 -365 989 C-364 991 -362 992 -361 994 C-358 996 -355 997 -352 999 C-350 1001 -347 1004 -345 1006 C-340 1009 -336 1011 -331 1013 C-330 1015 -328 1016 -327 1018 C-322 1021 -318 1023 -313 1025 C-312 1026 -312 1026 -306 1031 C-304 1032 -302 1033 -300 1034 C-293 1036 -293 1036 -285 1043 C-280 1045 -275 1047 -270 1048 C-267 1050 -264 1053 -261 1055 C-256 1057 -251 1058 -246 1059 C-243 1061 -239 1064 -236 1066 C-230 1068 -225 1069 -219 1070 C-213 1072 -213 1072 -208 1076 C-199 1080 -192 1081 -183 1082 C-175 1084 -168 1087 -161 1090 C-150 1092 -138 1094 -127 1095 C-113 1096 -99 1098 -85 1101 C-74 1102 -64 1102 -53 1102 C-52 1102 -52 1102 -47 1102 C-31 1102 -16 1101 -0 1098 C13 1095 26 1094 40 1093 C48 1092 55 1091 63 1087 C73 1083 82 1082 92 1081 C100 1079 104 1076 111 1072 C118 1070 125 1069 132 1067 C136 1065 141 1062 145 1059 C150 1058 156 1057 161 1055 C163 1054 165 1053 167 1051 C173 1047 179 1045 186 1043 C192 1039 192 1039 197 1035 C199 1035 201 1034 203 1033 C210 1031 213 1028 219 1023 C223 1022 228 1020 232 1018 C234 1016 235 1014 237 1012 C242 1010 246 1008 251 1006 C253 1004 254 1002 256 1000 C258 999 260 998 262 997 C268 994 268 994 274 987 C277 986 281 984 284 982 C286 980 289 978 291 975 C293 974 295 973 297 972 C302 969 302 969 307 963 C310 961 314 959 317 957 C318 956 320 954 321 952 C325 950 329 948 333 945 C336 943 338 941 341 938 C349 934 349 934 351 934 C352 933 352 932 353 930 C361 925 361 925 369 921 C371 919 374 917 376 915 C381 914 386 912 391 910 C393 909 394 908 396 907 C402 902 407 902 415 900 C424 899 434 897 443 894 C454 892 464 893 474 896 C483 898 492 900 501 901 C512 903 517 905 526 911 C529 912 531 913 534 913 C541 915 541 915 550 922 C552 923 554 924 557 925 C563 927 567 930 572 935 C575 937 579 938 582 939 C584 941 587 944 589 946 C594 949 598 951 603 953 C605 955 607 957 609 959 C611 960 613 961 615 962 C622 964 622 964 630 971 C635 973 639 975 644 976 C645 977 645 977 651 982 C654 983 657 984 660 985 C669 988 669 988 672 990 C672 991 672 992 672 992 C681 996 689 998 698 1000 C700 1001 701 1002 703 1004 C711 1009 720 1009 729 1011 C735 1014 741 1017 747 1019 C755 1020 763 1021 771 1022 C782 1023 792 1026 802 1028 C810 1029 817 1029 825 1029 C827 1029 830 1029 832 1029 C841 1029 849 1028 857 1025 C865 1023 865 1023 875 1022 C885 1020 890 1018 898 1011 C899 1011 899 1011 904 1009 C910 1007 910 1007 915 1002 C919 1000 924 997 928 995 C930 992 930 992 932 982 C940 976 940 976 948 974 C949 975 951 975 952 975 C951 984 947 989 941 996 C938 998 936 999 933 1001 C931 1003 929 1006 927 1008 C923 1010 919 1012 915 1014 C913 1016 910 1018 908 1020 C903 1022 898 1024 893 1025 C892 1026 892 1026 884 1031 C877 1033 870 1034 863 1035 C860 1035 858 1035 856 1036 C819 1039 774 1041 740 1025 C736 1024 732 1023 728 1023 C718 1021 711 1018 703 1013 C696 1011 690 1010 683 1008 C679 1006 675 1003 671 1000 C669 1000 666 999 664 998 C656 996 651 993 645 988 C643 988 641 987 639 986 C632 984 628 981 622 976 C618 975 613 973 609 971 C606 969 604 967 601 964 C598 963 594 962 591 960 C589 958 586 956 584 953 C580 951 576 949 572 947 C569 945 567 943 564 940 C559 938 555 936 550 934 C549 933 549 933 543 928 C538 927 533 925 528 923 C525 921 523 919 520 917 C510 914 510 914 503 913 C496 911 490 909 483 906 C474 904 466 904 456 904 C453 904 450 904 447 904 C437 904 430 906 421 910 C415 912 415 912 406 914 C397 916 397 916 388 923 C386 924 383 925 381 926 C374 928 374 928 367 935 C363 937 359 939 355 941 C352 944 349 947 346 949 C343 951 339 952 336 954 C334 956 333 958 331 960 C330 961 330 961 322 965 C320 967 317 970 315 972 C314 973 314 973 306 977 C304 979 301 982 299 984 C298 985 298 985 290 989 C288 991 285 994 283 996 C279 998 276 1000 272 1002 C271 1004 269 1005 268 1007 C263 1010 259 1012 254 1014 C252 1016 251 1017 249 1019 C244 1022 240 1024 235 1026 C233 1028 230 1030 228 1032 C226 1033 224 1034 222 1035 C215 1037 215 1037 207 1044 C203 1046 198 1047 194 1048 C193 1049 193 1049 186 1055 C180 1057 173 1059 167 1061 C164 1063 162 1065 159 1067 C155 1069 150 1070 146 1071 C135 1075 135 1075 127 1080 C124 1081 120 1082 116 1083 C105 1085 105 1085 98 1089 C88 1093 79 1094 68 1096 C60 1097 52 1100 44 1103 C30 1106 15 1107 0 1108 C-2 1108 -5 1108 -8 1108 C-16 1109 -24 1110 -32 1110 C-34 1110 -36 1110 -38 1111 C-58 1112 -77 1110 -97 1108 C-101 1108 -104 1108 -108 1108 C-146 1105 -146 1105 -164 1097 C-169 1096 -173 1096 -178 1095 C-190 1093 -199 1090 -210 1084 C-214 1083 -217 1082 -221 1082 C-230 1079 -234 1077 -242 1072 C-245 1072 -247 1071 -250 1070 C-258 1068 -258 1068 -267 1061 C-272 1059 -277 1058 -282 1056 C-287 1053 -287 1053 -291 1049 C-295 1048 -298 1047 -302 1045 C-307 1042 -307 1042 -314 1036 C-316 1035 -318 1035 -320 1034 C-326 1031 -326 1031 -334 1024 C-337 1023 -341 1021 -344 1019 C-347 1017 -349 1015 -352 1012 C-355 1011 -358 1009 -361 1007 C-362 1006 -362 1006 -366 1001 C-368 1000 -368 1000 -376 995 C-377 994 -377 994 -381 989 C-382 988 -382 988 -390 983 C-391 982 -391 982 -398 975 C-401 973 -403 971 -406 969 C-407 968 -407 968 -414 961 C-417 959 -419 957 -422 954 C-428 948 -434 943 -440 936 C-442 935 -443 934 -445 932 C-446 931 -446 931 -452 923 C-453 922 -455 920 -456 919 C-460 915 -463 910 -466 906 C-468 904 -471 901 -473 898 C-474 897 -474 897 -477 892 C-479 890 -482 887 -484 884 C-486 882 -487 879 -489 876 C-491 874 -493 872 -495 869 C-496 867 -497 866 -498 864 C-501 858 -501 858 -508 850 C-510 847 -511 844 -513 840 C-515 838 -517 836 -519 833 C-520 831 -521 829 -521 827 C-524 821 -524 821 -531 813 C-533 809 -534 804 -536 799 C-538 797 -541 794 -543 791 C-545 786 -546 781 -548 775 C-549 774 -549 774 -555 766 C-557 760 -558 754 -560 748 C-562 745 -564 742 -566 739 C-568 734 -569 729 -570 723 C-572 717 -572 717 -578 707 C-580 701 -581 694 -582 687 C-584 679 -584 679 -586 673 C-592 660 -593 645 -594 631 C-595 625 -595 625 -598 616 C-600 616 -603 615 -605 614 C-605 593 -605 571 -605 550 C-605 542 -605 535 -606 528 C-606 517 -606 506 -606 496 C-606 493 -606 489 -606 486 C-606 483 -606 480 -606 477 C-606 474 -606 471 -606 469 C-606 466 -605 464 -605 462 C-602 461 -600 459 -597 457 C-594 449 -594 441 -593 433 C-591 419 -588 408 -583 395 C-582 392 -582 388 -581 384 C-579 374 -579 374 -573 364 C-570 357 -570 357 -569 351 C-567 344 -567 344 -561 335 C-558 328 -558 328 -555 317 C-552 314 -550 311 -547 307 C-546 305 -546 303 -545 301 C-543 294 -539 291 -535 285 C-534 282 -532 278 -531 274 C-529 272 -526 270 -524 267 C-523 265 -522 263 -521 261 C-518 255 -518 255 -511 248 C-509 245 -508 242 -506 238 C-504 236 -501 234 -499 231 C-497 228 -495 225 -493 221 C-492 220 -492 220 -487 216 C-485 213 -483 210 -481 207 C-480 206 -480 206 -475 202 C-473 200 -471 197 -469 194 C-467 193 -465 191 -463 189 C-461 187 -458 184 -456 181 C-444 169 -444 169 -438 164 C-437 163 -435 161 -434 159 C-433 158 -433 158 -426 153 C-425 152 -423 150 -422 148 C-419 146 -416 144 -413 142 C-412 141 -410 139 -409 137 C-406 135 -402 133 -399 131 C-397 129 -394 127 -392 124 C-389 123 -386 121 -383 119 C-381 117 -378 115 -376 112 C-372 110 -369 108 -365 106 C-364 105 -362 103 -361 101 C-357 99 -353 97 -349 95 C-346 93 -344 91 -341 88 C-340 88 -340 88 -335 86 C-329 83 -329 83 -322 76 C-318 75 -313 73 -309 71 C-306 69 -304 67 -301 64 C-297 63 -293 61 -289 60 C-283 56 -283 56 -278 52 C-275 51 -273 51 -270 50 C-262 47 -262 47 -254 41 C-250 40 -245 38 -241 37 C-233 34 -233 34 -223 28 C-221 28 -221 28 -212 26 C-201 23 -201 23 -194 20 C-185 15 -175 14 -165 12 C-157 11 -149 8 -141 5 C-124 2 -107 2 -90 1 C-88 0 -88 0 -80 -0 C-53 -2 -27 -2 0 0 Z M388 44 C381 47 375 48 368 50 C359 51 353 54 346 59 C345 60 345 60 339 61 C331 64 327 67 321 72 C319 73 319 73 311 77 C308 80 306 83 303 86 C301 88 299 89 297 90 C294 99 294 107 294 116 C301 127 309 132 320 137 C323 140 327 142 330 145 C333 147 336 149 339 151 C341 153 342 155 344 157 C347 159 349 161 352 163 C355 166 358 170 361 173 C362 174 362 174 365 177 C367 180 369 182 371 185 C372 186 372 186 375 187 C376 189 376 190 377 191 C383 201 383 201 388 205 C389 207 389 207 394 215 C396 218 399 220 401 223 C403 226 404 229 406 232 C408 235 411 237 413 240 C415 243 416 247 418 250 C420 253 423 255 425 258 C426 260 426 260 430 268 C432 271 435 273 437 276 C439 280 441 284 443 288 C445 290 447 293 449 295 C450 297 451 299 452 301 C455 306 455 306 459 308 C460 310 460 311 461 313 C465 320 469 325 474 331 C475 332 475 332 478 338 C481 341 483 344 486 347 C488 350 489 352 491 355 C493 357 495 358 497 360 C499 363 501 366 503 369 C506 372 510 375 513 377 C515 379 516 381 518 383 C521 385 525 387 528 389 C530 391 533 394 535 396 C539 398 542 399 546 400 C554 404 554 404 562 409 C603 416 655 419 694 405 C702 402 708 401 716 400 C745 397 745 397 756 393 C779 386 804 387 827 387 C828 387 828 387 834 387 C876 387 876 387 892 395 C899 397 899 397 909 399 C918 401 921 403 928 408 C931 409 933 410 936 411 C944 413 944 413 953 420 C955 421 957 422 959 423 C965 425 965 425 972 432 C976 434 980 436 984 438 C985 440 987 441 988 443 C990 444 992 445 994 447 C1000 450 1000 450 1006 457 C1008 459 1010 460 1012 461 C1014 464 1017 466 1019 469 C1021 471 1023 472 1025 473 C1026 475 1028 477 1029 479 C1032 481 1034 483 1037 485 C1039 488 1041 490 1043 493 C1044 494 1045 495 1046 496 C1047 496 1047 496 1048 496 C1049 498 1049 499 1050 500 C1055 508 1055 508 1060 512 C1062 516 1064 520 1066 523 C1068 526 1071 528 1073 531 C1075 535 1077 539 1079 543 C1080 544 1082 545 1083 545 C1085 549 1086 553 1087 557 C1090 563 1090 563 1096 570 C1098 576 1099 582 1101 587 C1103 590 1105 592 1107 595 C1110 605 1110 605 1111 613 C1113 620 1113 620 1118 629 C1121 640 1122 651 1123 662 C1124 672 1125 682 1126 692 C1128 712 1125 732 1123 751 C1123 754 1123 756 1122 759 C1121 772 1118 782 1112 793 C1111 796 1111 799 1110 802 C1108 811 1106 814 1101 821 C1100 824 1099 827 1099 830 C1096 838 1096 838 1089 847 C1088 850 1087 852 1087 854 C1084 861 1084 861 1077 868 C1076 870 1075 872 1075 874 C1072 880 1072 880 1065 887 C1064 889 1063 891 1063 893 C1060 898 1060 898 1053 905 C1052 907 1052 907 1048 915 C1046 917 1043 920 1041 922 C1039 926 1037 930 1035 934 C1033 937 1030 939 1028 942 C1026 945 1025 947 1023 950 C1021 952 1020 953 1018 954 C1015 959 1015 959 1014 967 C1017 972 1017 972 1019 973 C1021 973 1024 973 1026 973 C1027 973 1027 973 1030 969 C1038 963 1045 963 1055 962 C1065 961 1072 958 1080 953 C1088 952 1095 951 1103 949 C1109 946 1109 946 1117 941 C1118 941 1118 941 1125 939 C1134 937 1139 934 1147 929 C1152 928 1157 926 1162 924 C1165 922 1169 920 1172 917 C1174 916 1176 916 1178 915 C1184 912 1188 909 1193 904 C1196 903 1200 901 1203 899 C1205 897 1206 895 1208 893 C1211 891 1214 889 1217 887 C1219 885 1221 883 1223 880 C1225 879 1227 878 1229 876 C1232 873 1234 870 1237 867 C1239 866 1240 864 1242 862 C1247 857 1251 852 1255 847 C1257 845 1260 842 1262 839 C1270 829 1270 829 1272 823 C1273 823 1274 823 1275 822 C1276 820 1278 818 1279 816 C1283 808 1283 808 1290 800 C1291 797 1293 794 1294 790 C1296 787 1299 784 1301 781 C1303 776 1305 771 1307 766 C1309 764 1311 762 1313 759 C1315 754 1316 749 1318 743 C1319 742 1319 742 1322 738 C1326 730 1328 721 1330 712 C1332 708 1335 704 1337 699 C1338 694 1339 689 1340 683 C1341 675 1343 668 1346 660 C1354 636 1352 609 1352 584 C1352 582 1352 579 1352 577 C1352 527 1352 527 1345 507 C1342 498 1340 489 1339 479 C1338 471 1334 464 1330 456 C1330 455 1330 455 1328 448 C1326 439 1326 439 1321 431 C1316 421 1316 421 1313 410 C1311 407 1308 404 1306 401 C1305 399 1304 397 1303 394 C1300 387 1300 387 1293 379 C1292 376 1290 373 1289 369 C1287 367 1284 365 1282 362 C1281 360 1280 358 1279 357 C1276 351 1276 351 1270 346 C1268 343 1266 340 1264 336 C1262 334 1259 332 1257 329 C1256 328 1254 326 1253 324 C1249 319 1249 319 1241 311 C1239 309 1238 307 1236 305 C1235 304 1235 304 1228 298 C1225 295 1221 292 1218 289 C1210 282 1210 282 1201 276 C1200 275 1200 275 1196 271 C1191 267 1191 267 1182 262 C1181 261 1181 261 1174 255 C1171 254 1168 253 1165 251 C1162 249 1159 247 1156 244 C1154 243 1152 243 1150 242 C1143 239 1143 239 1134 232 C1129 230 1123 229 1118 227 C1116 226 1115 225 1113 224 C1105 219 1096 217 1087 215 C1085 214 1082 213 1080 212 C1072 208 1065 206 1056 205 C1047 204 1038 202 1029 200 C1012 195 995 195 978 195 C975 195 973 195 971 195 C951 195 933 197 914 202 C903 204 891 205 880 206 C870 207 861 210 851 214 C841 216 831 217 820 219 C810 220 801 223 791 226 C761 231 724 235 694 227 C693 226 693 225 692 223 C690 222 689 220 687 218 C681 213 681 213 675 204 C673 202 670 199 668 196 C666 193 664 190 662 187 C660 185 658 183 656 180 C654 177 652 174 650 171 C648 170 647 168 645 166 C643 163 642 160 640 157 C638 155 635 152 633 149 C631 146 630 143 628 140 C626 138 623 136 621 133 C619 130 617 127 615 123 C613 122 612 121 610 119 C608 116 605 113 603 109 C601 108 600 107 598 105 C596 103 593 100 591 97 C589 96 588 95 586 93 C584 91 583 89 581 87 C578 85 575 83 572 81 C571 80 571 80 568 76 C564 74 561 72 557 70 C555 68 552 66 550 64 C545 62 540 60 535 58 C532 56 530 54 527 52 C521 50 521 50 515 49 C506 47 499 44 490 40 C459 34 418 33 388 44 Z " fill="#363435" transform="translate(604.9375,225.8125)"/>
+<path d="M0 0 C12 0 24 0 37 0 C38 13 38 26 38 39 C38 41 38 44 38 46 C38 55 38 64 38 73 C38 79 38 85 38 92 C38 109 38 127 38 144 C38 163 38 182 38 201 C38 235 38 270 38 305 C38 337 38 369 38 401 C38 403 38 405 38 407 C38 416 38 425 38 433 C38 514 38 595 38 676 C38 748 38 820 38 892 C38 973 38 1054 38 1134 C38 1143 38 1152 38 1160 C38 1162 38 1165 38 1167 C38 1199 38 1231 38 1263 C38 1299 38 1336 38 1372 C38 1391 38 1409 38 1428 C38 1445 38 1462 38 1479 C38 1485 38 1491 38 1498 C38 1506 38 1514 38 1523 C38 1525 38 1527 38 1530 C38 1540 38 1550 37 1560 C25 1560 13 1560 0 1560 C-2 1550 -1 1540 -1 1530 C-1 1528 -1 1525 -1 1522 C-1 1514 -1 1505 -1 1496 C-1 1489 -1 1483 -1 1477 C-1 1459 -1 1442 -1 1424 C-1 1405 -1 1386 -1 1367 C-1 1332 -1 1297 -1 1262 C-1 1230 -1 1198 -1 1165 C-1 1163 -1 1161 -1 1159 C-1 1150 -1 1141 -1 1133 C-1 1051 -1 970 -1 888 C-1 816 -1 743 -1 671 C-1 589 -1 508 -1 426 C-1 418 -1 409 -1 400 C-1 399 -1 399 -1 394 C-1 362 -1 329 -1 297 C-1 260 -1 224 -1 187 C-1 168 -1 149 -1 131 C-1 114 -1 96 -1 79 C-1 73 -1 67 -1 61 C-1 52 -1 44 -1 35 C-1 33 -1 30 -1 28 C-1 19 -1 9 0 0 Z " fill="#363435" transform="translate(2150,0)"/></symbol></defs></svg>
+
+<div class="env">
+  <header class="cab">
+    <div class="cab-marca">
+      <svg viewBox="0 0 3120 1560" role="img" aria-label="AL3D"><use href="#marca-al3d"/></svg>
+      <span class="rot">Cotizador &middot; propuestas de hoja</span>
+    </div>
+    <h1>Cinco maneras de meter la foto del producto en la hoja</h1>
+    <p class="cab-bajada">Hoy el PDF imprime <b>una sola imagen</b>: el plano cotado. Esa imagen es la
+      especificaci&oacute;n, no la prueba comercial. Estas cinco maquetas son hojas carta de verdad
+      —816 &times; 1056 px, los tokens del documento real, la escala de 7/9/9.5/10/15/17 px— y cada una
+      resuelve el bloque de <b>1, 2 y 3 fotos</b> de un modo distinto. Toca el conteo en cada
+      estaci&oacute;n; el <b>0</b> tambi&eacute;n est&aacute;, porque una hoja sin fotos tiene que
+      seguir siendo un documento correcto y no uno mutilado.</p>
+    <div class="cifras">
+      <div class="cifra"><b>22/25</b><span>cotizaciones reales de Canva llevan imagen del anuncio</span></div>
+      <div class="cifra"><b>1</b><span>mediana de partidas por hoja: sobra media hoja de papel</span></div>
+      <div class="cifra"><b>942 px</b><span>caja &uacute;til de la hoja, contra la que se cuenta todo</span></div>
+      <div class="cifra"><b>312 px</b><span><span class="mono">ALTO_IMG</span>, el m&iacute;nimo que hoy se reserva a la figura</span></div>
+      <div class="cifra"><b>5/5</b><span>la prueba de hoja carta, verde en la l&iacute;nea base</span></div>
+    </div>
+  </header>
+</div>
+<div class="lentes">
+  <div class="lentes-in">
+    <span class="rot">Lentes</span>
+    <div class="grupo">
+      <span class="rot">Escala</span>
+      <div class="seg" role="group" aria-label="Escala de la hoja">
+        <button type="button" data-esc="62" aria-pressed="true">62&nbsp;%</button>
+        <button type="button" data-esc="1" aria-pressed="false">Tamaño real</button>
+        <button type="button" data-esc="52" aria-pressed="false">Teléfono&nbsp;·&nbsp;52&nbsp;%</button>
+      </div>
+    </div>
+    <button type="button" class="sw" data-laser aria-pressed="false">
+      <span class="tg" aria-hidden="true"></span> Láser blanco y negro
+    </button>
+    <button type="button" class="sw" data-plena aria-pressed="false">
+      <span class="tg" aria-hidden="true"></span> Banda a color (P4)
+    </button>
+  </div>
+</div>
+
+<div class="env">
+
+  <section class="leyes">
+    <h2>Cinco leyes, antes de mirar las maquetas</h2>
+    <p>Se diseñaron ocho direcciones en paralelo y a cada una la juzgaron tres lentes independientes
+      —viabilidad en papel y código, impacto comercial, calidad tipográfica—. Los puntajes salieron
+      apretadísimos, 19 a 22 sobre 30, así que lo útil no fue el ranking sino <b>dónde coincidieron
+      jueces que no se hablaron entre sí</b>. Eso valen para las cinco.</p>
+    <ol>
+      <li><span class="n mono">1</span><div>
+        <b>Las fotos son dato de la empresa, no de la cotización</b>
+        <span>Tres jueces distintos escribieron por su cuenta la misma corrección: llave aparte,
+        cargadas una vez en el taller. <b>0 a 3 toques</b> en la calle, contra los 18 de subir y
+        rotular tres fotos con el cliente esperando.</span></div></li>
+      <li><span class="n mono">2</span><div>
+        <b>El bloque va elástico, la constante es el PISO</b>
+        <span>Declararlo con <code>height</code> fijo reintroduce el defecto que
+        <code>repartir()</code>-desde-el-final vino a matar: el pie fuera del papel. Va
+        <code>flex:1 1 auto; min-height:0; max-height:X</code>.</span></div></li>
+      <li><span class="n mono">3</span><div>
+        <b>El descargo lo escribe la app, siempre</b>
+        <span>Un pie de foto opcional se queda vacío en la calle, y una foto de portafolio
+        presentada como el anuncio del cliente es una queja esperando. Se imprime solo, a 9 px.</span></div></li>
+      <li><span class="n mono">4</span><div>
+        <b>Tres fotos en línea en la hoja del precio no caben</b>
+        <span>Salen a <b>6.4 × 2.9 cm</b>. «Ya no es evidencia, es textura.» O la tercera se va a
+        hoja propia, o van en fila a lo ancho — nunca en columna al lado del plano.</span></div></li>
+      <li><span class="n mono">5</span><div>
+        <b>El plano va <code>contain</code>; las fotos, <code>cover</code></b>
+        <span>Una cota recortada es una cota equivocada. Y el plano nunca baja de 450 px de ancho:
+        una cota de 14 px se imprime a <b>6.5 px</b> si la celda cae a 234.</span></div></li>
+    </ol>
+  </section>
+
+  <section class="est" id="p1">
+    <div class="est-cab">
+      <div class="est-n mono">01</div>
+      <div class="est-tit"><h2>El carrete del taller</h2><p class="est-lema">«Las fotos no son de esta cotización: son el historial de AL3D, con fecha, y se pagan una sola vez en bytes.»</p><div class="reco"><span aria-hidden="true">◆</span> La que recomiendo</div></div>
+      <div class="est-pts"><b class="mono">22</b><span>de 30</span></div>
+    </div>
+    <div class="est-cuerpo">
+      <div class="est-txt"><p>Una tira cosida debajo del plano, dentro de una <b>banda de evidencia</b>. Y al lado de las
+  fotos, la frase que hoy está sepultada en la viñeta 1 del apartado 4 de los términos:
+  <b>«1 año en material eléctrico · 2 años en colorimetría»</b>. Es la única línea del documento que
+  contesta la pregunta que el cliente no hace en voz alta —si en dos años esto va a seguir prendido—
+  y hoy vive en la hoja que nadie lee.</p>
+  <p><b>Lo que la hace ganar es aritmética.</b> La tira no le quita alto a la tabla: sale del aire que
+  el plano ya desperdiciaba dentro de su propia caja. Un plano de 3.3:1 en una caja de 730 px se
+  dibuja a 730 × 221 y deja <b>209 px de blanco</b> debajo. Por eso es la única de las cinco que
+  puede entrar sin recalcular el reparto.</p>
+  <p>Con <b>0 fotos</b> el documento sale byte por byte como el de hoy. Eso no es un detalle: es la
+  garantía de que ponerla no puede romper nada de lo que ya funciona.</p></div>
+      <div>
+        <div class="ficha">
+          <div class="ficha-h"><span class="rot">Lo que cuesta</span></div>
+          <div class="frow g0"><span>Constantes de reparto</span><span>1 · ALTO_IMG 312→350</span></div>
+  <div class="frow g0"><span>Hojas que añade</span><span>0 · +1 solo con 3 fotos</span></div>
+  <div class="frow g0"><span>Tinta que añade</span><span>~0 cm²</span></div>
+  <div class="frow g0"><span>Toques del vendedor</span><span>0 · precargadas</span></div>
+  <div class="frow g0"><span>Riesgo principal</span><span>ninguno grave</span></div>
+        </div>
+        <div class="arreglos"><div class="rot">Arreglos de los jueces, ya aplicados</div><ul>
+    <li><b>Los 7 px de desborde.</b> <code>.ev-caja{min-height:0}</code> en vez de 185 — una
+      declaración, confirmada por el juez de papel.</li>
+    <li><b>De 3 fotos en línea a 2 de 358×120.</b> A <code>zoom:.52</code> una celda de 242×82 se
+      vuelve de 126×43 y <i>no se lee el letrero</i>, que es todo el punto. Cuesta una fila de tabla:
+      se paga. La tercera se va a la hoja de respaldo.</li>
+    <li><b>Fuera el QR y los «pasos»</b> de la hoja de respaldo: −222 px y ~200 líneas de código.</li>
+  </ul></div>
+      </div>
+    </div>
+    <div class="esc">
+      <div class="esc-barra">
+        <span class="rot">Bloque de fotos</span>
+        <div class="seg" role="group" aria-label="Cuántas fotos, en El carrete del taller"><button type="button" data-n="1" aria-pressed="true">1 foto</button><button type="button" data-n="2" aria-pressed="false">2 fotos</button><button type="button" data-n="3" aria-pressed="false">3 fotos</button><button type="button" data-n="0" aria-pressed="false">Sin fotos</button></div>
+      </div>
+      <div class="esc-mesa"><div class="hoja-wrap" data-n="1"><div class="hoja">
+  <svg class="deco" width="218" height="80" viewBox="0 0 218 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="dg" x1="100%" y1="0%" x2="12%" y2="100%"><stop offset="0%" stop-color="#1b2470"/><stop offset="52%" stop-color="#3018f8"/><stop offset="100%" stop-color="#a9b5ff"/></linearGradient></defs><path d="M238,-16 C162,-10 112,16 92,58 C87,70 85,77 85,88" stroke="url(#dg)" stroke-width="30" fill="none"/><path d="M238,20 C188,25 156,41 143,70 C141,77 140,82 140,88" stroke="#c9d2fb" stroke-width="8" fill="none" opacity=".9"/></svg><div class="mh">
+      <div class="mh-logo"><svg class="marca" viewBox="0 0 3120 1560" role="img" aria-label="AL3D"><use href="#marca-al3d"/></svg></div>
+      <div class="mh-bar"></div>
+      <div><div class="mh-t">Cotización</div>
+        <div class="mh-m"><b>COT-0142</b> &nbsp;·&nbsp; 1 sep 2026</div></div>
+    </div><div class="rule"></div><div class="rule2"></div><div class="datos">
+      <div class="dato"><span class="lbl">Cliente</span><span class="val">Juan Carlos Ramírez</span></div>
+      <div class="dato"><span class="lbl">Proyecto</span><span class="val">Juan Carlos - Centro Dental</span></div>
+      <div class="dato"><span class="lbl">Dirección</span><span class="val">Av. Vallarta 1234, Col. Americana</span></div>
+    </div><table><thead><tr>
+      <th style="width:40%">Descripción</th><th class="c" style="width:15%">Medidas</th>
+      <th class="c" style="width:8%">Pzas.</th><th class="r" style="width:18%">Precio unitario</th>
+      <th class="r" style="width:19%">Total</th></tr></thead><tbody><tr class="re"><td><span class="cn">Letras Individuales 3D</span>
+        <span class="cs">Caras en Acrílico, Cantos en Aluminio Brush Cepillado con Iluminación LED Cálida, volumen de 6 cm.</span></td>
+        <td class="c">2.16m × 0.66m</td><td class="c">7</td>
+        <td class="r num">$3,928.57</td><td class="r num tot">$27,500.00</td></tr></tbody></table><div class="cierre">
+      <div class="nota"><span class="lbl">Nota</span>
+        <p>El cliente debe proporcionar salidas eléctricas. Toda la iluminación es posterior.</p></div>
+      <div class="tot-card">
+        <div class="trow"><span>Subtotal</span><span>$27,500.00</span></div>
+        <div class="trow trow-iva"><span>I.V.A. 16%</span><span>$4,400.00</span></div>
+        <div class="neto"><span>Total neto</span><span>$31,900.00</span></div><div class="pago"><span class="lbl">Plan de pago</span>
+        <div class="trow" style="padding:3px 0"><span>Anticipo para arrancar</span><span>$15,950.00</span></div>
+        <div class="trow" style="padding:3px 0"><span>Resta al entregar</span><span>$15,950.00</span></div></div>
+      </div></div>
+  <div class="ev">
+    <span class="lbl">Plano y referencia del proyecto</span>
+    <div class="ev-caja"><img data-img="plano-ancho" alt="Plano cotado del anuncio, cotas en cm"></div>
+    <div class="ev-tira rot-fotos">
+      <span class="lbl">Así se ve instalado</span>
+      <div class="ev-fila">
+        <img class="ev-foto" data-img="foto-tira" alt="Letras 3D instaladas, luz posterior">
+        <img class="ev-foto" data-slot="2" data-img="foto-tira-b" alt="Caja de luz instalada, luz frontal">
+        <img class="ev-foto" data-slot="3" data-img="foto-16-9-c" alt="Letras 3D sin iluminación">
+      </div>
+      <div class="ev-cierre">
+        <div class="ev-gar"><span class="lbl">Garantía AL3D</span>
+          <p>1 año en material eléctrico &nbsp;·&nbsp; 2 años en colorimetría</p></div>
+        <p class="desc-legal">Trabajo anterior de AL3D. Referencia de acabado y calidad de fabricación — no es el anuncio cotizado.</p>
+      </div>
+    </div>
+  </div>
+  <div class="pie"><div class="pie-hr"></div>
+      <div class="pie-cols">
+        <div class="pie-c"><span class="lbl">Vendedor</span><span>Elias Guerrero</span></div>
+        <div class="pie-c"><span class="lbl">Dirección del taller</span><span>Naranjos #648 Col. Lindavista</span></div>
+        <div class="pie-c"><span class="lbl">WhatsApp</span><span>33-2813-0092</span></div>
+      </div>
+      <div class="pie-h">Hoja 1 de 5 &nbsp;·&nbsp; COT-0142</div>
+    </div><div class="barra"></div>
+</div></div></div>
+      <div class="esc-pie" data-pie data-pie-1="<b>1 foto · 494 × 120 px.</b> La celda se ensancha y la garantía toma el resto. La tira mide 146 px y sale del blanco que el plano ya dejaba." data-pie-2="<b>2 fotos · 358 × 120 px cada una.</b> Es la configuración de referencia tras el arreglo del juez: al doble de área que las 242×82 originales, el letrero se lee a <code>zoom:.52</code>." data-pie-3="<b>3 fotos · 242 × 82 px.</b> Aquí se ve por qué el juez pidió bajar a dos: a <code>zoom:.52</code> esto queda en 126 × 43 px y el letrero deja de leerse. La garantía sobrevive porque tiene renglón propio. Enciende el láser." data-pie-0="<b>Sin fotos.</b> No hay tira, no hay rótulo, no hay descargo. Es exactamente el documento de hoy — <code>ALTO_IMG</code> vuelve a 312 y el reparto no se entera."><b>1 foto · 494 × 120 px.</b> La celda se ensancha y la garantía toma el resto. La tira mide 146 px y sale del blanco que el plano ya dejaba.</div>
+    </div>
+  </section>
+  <section class="est" id="p2">
+    <div class="est-cab">
+      <div class="est-n mono">02</div>
+      <div class="est-tit"><h2>Renglón con cara</h2><p class="est-lema">«Cada partida imprime su propia foto dentro de su propio renglón: el cliente deja de emparejar precios con imágenes a ojo.»</p></div>
+      <div class="est-pts"><b class="mono">22</b><span>de 30</span></div>
+    </div>
+    <div class="est-cuerpo">
+      <div class="est-txt"><p>La tabla de cinco columnas se parte en <b>fichas de concepto</b>: una tarjeta por partida, con
+  su número, su especificación, un renglón de <code>2.16 m × 0.66 m · 7 pzas · $3,928.57 c/u</code> y
+  su importe. Y bajo eso, dentro de la misma tarjeta, la banda visual. La foto no es un bloque al
+  final del documento: <b>es parte del renglón que la cobra</b>.</p>
+  <p>Con una partida —la mediana real— <b>el 62 % de la tinta de la hoja pasa a ser el producto</b>;
+  hoy es el 9 %. Mata la pregunta «¿y esto cuál es?», que es la que abre la negociación del precio.
+  Y la evidencia de campo ya lo pedía: la rejilla 2×2 de plano+foto <i>por producto</i> de Muno
+  Academy existe porque la cotización cubría dos anuncios y la tabla no sabía decir cuál era cuál.</p>
+  <p>Las tres columnas que se pierden no se pierden: Medidas, Pzas. y Precio unitario eran el 41 %
+  del ancho para tres datos que caben en 45 caracteres, y le devuelven <b>300 px de ancho</b> a la
+  descripción.</p></div>
+      <div>
+        <div class="ficha">
+          <div class="ficha-h"><span class="rot">Lo que cuesta</span></div>
+          <div class="frow g0"><span>Constantes de reparto</span><span>0 · ninguna</span></div>
+  <div class="frow g0"><span>Hojas que añade</span><span>0</span></div>
+  <div class="frow g0"><span>Tinta que añade</span><span>~0 cm²</span></div>
+  <div class="frow g1"><span>Toques del vendedor</span><span>1 por foto · marcar partida</span></div>
+  <div class="frow g2"><span>Riesgo principal</span><span>dos documentos distintos</span></div>
+        </div>
+        <div class="arreglos"><div class="rot">Arreglos de los jueces, ya aplicados</div><ul>
+    <li><b>La fila de fotos necesita altura propia</b> y el plano absorbe el error:
+      <code>.vfila--fotos{flex:0 0 200px}</code> y la banda a <code>flex:1 1 auto</code> con
+      <code>max-height</code> — nunca <code>height</code> fijo (ley 2).</li>
+    <li><b>Las fotos de portafolio salen de <code>al3d_portafolio</code></b>, no de <code>Q</code>,
+      y entran premarcadas: 0 toques, y 1 para desmarcarlas.</li>
+    <li><b>El importe de la ficha a 11 px</b> (el peldaño de <code>.tsec-t</code>), para que el
+      <code>.neto</code> de 15 px siga siendo sin discusión la única cifra fuerte de la hoja.</li>
+  </ul></div>
+      </div>
+    </div>
+    <div class="esc">
+      <div class="esc-barra">
+        <span class="rot">Bloque de fotos</span>
+        <div class="seg" role="group" aria-label="Cuántas fotos, en Renglón con cara"><button type="button" data-n="1" aria-pressed="true">1 foto</button><button type="button" data-n="2" aria-pressed="false">2 fotos</button><button type="button" data-n="3" aria-pressed="false">3 fotos</button><button type="button" data-n="0" aria-pressed="false">Sin fotos</button></div>
+      </div>
+      <div class="esc-mesa"><div class="hoja-wrap" data-n="1"><div class="hoja">
+  <svg class="deco" width="218" height="80" viewBox="0 0 218 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="dg" x1="100%" y1="0%" x2="12%" y2="100%"><stop offset="0%" stop-color="#1b2470"/><stop offset="52%" stop-color="#3018f8"/><stop offset="100%" stop-color="#a9b5ff"/></linearGradient></defs><path d="M238,-16 C162,-10 112,16 92,58 C87,70 85,77 85,88" stroke="url(#dg)" stroke-width="30" fill="none"/><path d="M238,20 C188,25 156,41 143,70 C141,77 140,82 140,88" stroke="#c9d2fb" stroke-width="8" fill="none" opacity=".9"/></svg><div class="mh">
+      <div class="mh-logo"><svg class="marca" viewBox="0 0 3120 1560" role="img" aria-label="AL3D"><use href="#marca-al3d"/></svg></div>
+      <div class="mh-bar"></div>
+      <div><div class="mh-t">Cotización</div>
+        <div class="mh-m"><b>COT-0142</b> &nbsp;·&nbsp; 1 sep 2026</div></div>
+    </div><div class="rule"></div><div class="rule2"></div><div class="datos">
+      <div class="dato"><span class="lbl">Cliente</span><span class="val">Juan Carlos Ramírez</span></div>
+      <div class="dato"><span class="lbl">Proyecto</span><span class="val">Juan Carlos - Centro Dental</span></div>
+      <div class="dato"><span class="lbl">Dirección</span><span class="val">Av. Vallarta 1234, Col. Americana</span></div>
+    </div>
+  <div class="fl-h"><span class="lbl">Partidas cotizadas</span><span class="lbl d">Importe</span></div>
+  <div class="ficha-p">
+    <div class="fp-datos">
+      <div class="fp-n">1</div>
+      <div class="fp-cuerpo">
+        <span class="cn">Letras Individuales 3D</span>
+        <span class="cs">Caras en Acrílico, Cantos en Aluminio Brush Cepillado con Iluminación LED Cálida, volumen de 6 cm.</span>
+        <span class="fp-med">2.16 m × 0.66 m &nbsp;·&nbsp; 7 pzas &nbsp;·&nbsp; $3,928.57 c/u</span>
+      </div>
+      <div class="fp-imp">$27,500.00</div>
+    </div>
+    <div class="fp-vis">
+      <div class="vfila"><span class="lbl">Plano y cotas</span>
+        <div class="vplano"><img data-img="plano-ancho" alt="Plano cotado de la partida 1"></div></div>
+      <div class="vfila rot-fotos"><span class="lbl">Referencias de trabajos entregados</span>
+        <div class="vfotos">
+          <img data-img="foto-16-9-a" alt="Letras 3D instaladas, luz posterior">
+          <img data-slot="2" data-img="foto-16-9-b" alt="Letras 3D instaladas, luz frontal">
+          <img data-slot="3" data-img="foto-16-9-c" alt="Letras 3D sin iluminación">
+        </div></div>
+    </div>
+  </div>
+  <p class="desc-legal">Trabajo anterior de AL3D. Referencia de acabado y calidad de fabricación — no es el anuncio cotizado.</p><div class="cierre">
+      <div class="nota"><span class="lbl">Nota</span>
+        <p>El cliente debe proporcionar salidas eléctricas. Toda la iluminación es posterior.</p></div>
+      <div class="tot-card">
+        <div class="trow"><span>Subtotal</span><span>$27,500.00</span></div>
+        <div class="trow trow-iva"><span>I.V.A. 16%</span><span>$4,400.00</span></div>
+        <div class="neto"><span>Total neto</span><span>$31,900.00</span></div>
+      </div></div>
+  <div class="pie"><div class="pie-hr"></div>
+      <div class="pie-cols">
+        <div class="pie-c"><span class="lbl">Vendedor</span><span>Elias Guerrero</span></div>
+        <div class="pie-c"><span class="lbl">Dirección del taller</span><span>Naranjos #648 Col. Lindavista</span></div>
+        <div class="pie-c"><span class="lbl">WhatsApp</span><span>33-2813-0092</span></div>
+      </div>
+      <div class="pie-h">Hoja 1 de 4 &nbsp;·&nbsp; COT-0142</div>
+    </div><div class="barra"></div>
+</div></div></div>
+      <div class="esc-pie" data-pie data-pie-1="<b>1 foto · 722 × 200 px.</b> La proporción tan ancha no es accidente: es la forma de un anuncio en una fachada, así que el <code>cover</code> casi no recorta." data-pie-2="<b>2 fotos · 356 × 200 px.</b> 16:9 casi exacto. Es el patrón literal de campo — «plano de línea cotado + 1 o 2 fotos del anuncio instalado», el caso normal de Iron Mountain, Lavarama y Bésame Glow." data-pie-3="<b>3 fotos · 234 × 200 px.</b> Aquí sí caben tres, porque están dentro de la ficha y no compiten con la tabla — la excepción a la ley 4, y funciona porque la banda tiene 480 px de alto." data-pie-0="<b>Sin fotos.</b> La caja del plano se queda el interior completo con techo de 430 px, que es exactamente el <code>max-height</code> de la <code>.fig-box</code> de hoy."><b>1 foto · 722 × 200 px.</b> La proporción tan ancha no es accidente: es la forma de un anuncio en una fachada, así que el <code>cover</code> casi no recorta.</div>
+    </div>
+  </section>
+  <section class="est" id="p3">
+    <div class="est-cab">
+      <div class="est-n mono">03</div>
+      <div class="est-tit"><h2>Tira de acabados</h2><p class="est-lema">«El precio arriba y el resultado abajo: de 1 a 3 acabados en una sola tira bajo el total.»</p></div>
+      <div class="est-pts"><b class="mono">21</b><span>de 30</span></div>
+    </div>
+    <div class="est-cuerpo">
+      <div class="est-txt"><p>Las fotos <b>no son tres ángulos: son tres acabados</b> — «Sin iluminación», «Luz posterior»,
+  «Luz frontal». Pone en el papel la conversación que ya gana ventas hoy: <b>14 de las 25</b>
+  cotizaciones de Canva traen dos a cuatro versiones del mismo proyecto a distintos precios, y eso
+  hoy no cabe en el documento.</p>
+  <p>El precio y el resultado quedan <b>a 250 px uno del otro</b>, en el mismo campo de visión. Y es
+  un <b>marco único con tabiques</b>, no una rejilla con huecos: con hueco entre cajas y una sola
+  foto, la fila se lee como dos huecos vacíos al lado de la imagen.</p>
+  <p>El plano se muda a <b>hoja propia</b>, y la razón es medible: una cota dibujada a 14 px en un
+  plano de 600 se imprime a <b>6.5 px</b> cuando la celda baja a 234 —el ancho que le tocaría junto a
+  tres fotos— y a 6.5 px en papel no se lee nada.</p></div>
+      <div>
+        <div class="ficha">
+          <div class="ficha-h"><span class="rot">Lo que cuesta</span></div>
+          <div class="frow g1"><span>Constantes de reparto</span><span>1 · ALTO_IMG {1:420,2:350,3:256}</span></div>
+  <div class="frow g2"><span>Hojas que añade</span><span>1 · la del plano</span></div>
+  <div class="frow g0"><span>Tinta que añade</span><span>~0 cm²</span></div>
+  <div class="frow g1"><span>Toques del vendedor</span><span>3 · uno por acabado</span></div>
+  <div class="frow g2"><span>Riesgo principal</span><span>1 foto = 3 partidas por hoja</span></div>
+        </div>
+        <div class="arreglos"><div class="rot">Arreglos de los jueces, ya aplicados</div><ul>
+    <li><b>La tira pasa a elástica</b> (ley 2): <code>flex:1 1 auto; min-height:0; max-height:383px</code>
+      en vez de <code>aspect-ratio</code> fijo. Así <code>ALTO_IMG</code> sigue siendo el
+      <i>mínimo reservado</i> —la misma semántica del 312 de hoy— y <code>repartir()</code> queda intacto.</li>
+    <li><b>Fuera el 6.5 px gris y los chips de relleno.</b> La procedencia se dice una vez, dentro de
+      la misma línea del acabado, con dos grises de la rampa y ninguno terciario.</li>
+    <li><b>Portafolio fijo, no fotos por cotización:</b> 3 toques en vez de 18, y 780 KB fijos en vez
+      de 300-480 KB por cada cotización.</li>
+  </ul></div>
+      </div>
+    </div>
+    <div class="esc">
+      <div class="esc-barra">
+        <span class="rot">Bloque de fotos</span>
+        <div class="seg" role="group" aria-label="Cuántas fotos, en Tira de acabados"><button type="button" data-n="1" aria-pressed="true">1 foto</button><button type="button" data-n="2" aria-pressed="false">2 fotos</button><button type="button" data-n="3" aria-pressed="false">3 fotos</button><button type="button" data-n="0" aria-pressed="false">Sin fotos</button></div>
+      </div>
+      <div class="esc-mesa"><div class="hoja-wrap" data-n="1"><div class="hoja">
+  <svg class="deco" width="218" height="80" viewBox="0 0 218 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="dg" x1="100%" y1="0%" x2="12%" y2="100%"><stop offset="0%" stop-color="#1b2470"/><stop offset="52%" stop-color="#3018f8"/><stop offset="100%" stop-color="#a9b5ff"/></linearGradient></defs><path d="M238,-16 C162,-10 112,16 92,58 C87,70 85,77 85,88" stroke="url(#dg)" stroke-width="30" fill="none"/><path d="M238,20 C188,25 156,41 143,70 C141,77 140,82 140,88" stroke="#c9d2fb" stroke-width="8" fill="none" opacity=".9"/></svg><div class="mh">
+      <div class="mh-logo"><svg class="marca" viewBox="0 0 3120 1560" role="img" aria-label="AL3D"><use href="#marca-al3d"/></svg></div>
+      <div class="mh-bar"></div>
+      <div><div class="mh-t">Cotización</div>
+        <div class="mh-m"><b>COT-0142</b> &nbsp;·&nbsp; 1 sep 2026</div></div>
+    </div><div class="rule"></div><div class="rule2"></div><div class="datos">
+      <div class="dato"><span class="lbl">Cliente</span><span class="val">Juan Carlos Ramírez</span></div>
+      <div class="dato"><span class="lbl">Proyecto</span><span class="val">Juan Carlos - Centro Dental</span></div>
+      <div class="dato"><span class="lbl">Dirección</span><span class="val">Av. Vallarta 1234, Col. Americana</span></div>
+    </div><table><thead><tr>
+      <th style="width:40%">Descripción</th><th class="c" style="width:15%">Medidas</th>
+      <th class="c" style="width:8%">Pzas.</th><th class="r" style="width:18%">Precio unitario</th>
+      <th class="r" style="width:19%">Total</th></tr></thead><tbody><tr class="re"><td><span class="cn">Letras Individuales 3D</span>
+        <span class="cs">Caras en Acrílico, Cantos en Aluminio Brush Cepillado con Iluminación LED Cálida, volumen de 6 cm.</span></td>
+        <td class="c">2.16m × 0.66m</td><td class="c">7</td>
+        <td class="r num">$3,928.57</td><td class="r num tot">$27,500.00</td></tr></tbody></table><div class="cierre">
+      <div class="nota"><span class="lbl">Nota</span>
+        <p>El cliente debe proporcionar salidas eléctricas. Toda la iluminación es posterior.</p></div>
+      <div class="tot-card">
+        <div class="trow"><span>Subtotal</span><span>$27,500.00</span></div>
+        <div class="trow trow-iva"><span>I.V.A. 16%</span><span>$4,400.00</span></div>
+        <div class="neto"><span>Total neto</span><span>$31,900.00</span></div><div class="pago"><span class="lbl">Plan de pago</span>
+        <div class="trow" style="padding:3px 0"><span>Anticipo para arrancar</span><span>$15,950.00</span></div>
+        <div class="trow" style="padding:3px 0"><span>Resta al entregar</span><span>$15,950.00</span></div></div>
+      </div></div>
+  <div class="res">
+    <div class="res-h rot-fotos"><span class="lbl">Así se va a ver instalado</span>
+      <span class="proc">Trabajos similares ya instalados</span></div>
+    <div class="res-t">
+      <div class="res-c"><div class="res-i" data-img="foto-4-3-a"></div>
+        <span class="res-n">Sin iluminación <i>· trabajo ya instalado</i></span></div>
+      <div class="res-c" data-slot="2"><div class="res-i" data-img="foto-4-3-b"></div>
+        <span class="res-n">Luz posterior <i>· trabajo ya instalado</i></span></div>
+      <div class="res-c" data-slot="3"><div class="res-i" data-img="foto-4-3-c"></div>
+        <span class="res-n">Luz frontal <i>· trabajo ya instalado</i></span></div>
+    </div>
+    <p class="desc-legal">Trabajo anterior de AL3D. Referencia de acabado y calidad de fabricación — no es el anuncio cotizado.</p>
+  </div>
+  <div class="fig solo0">
+    <span class="lbl">Plano y referencia del proyecto</span>
+    <div class="fig-box"><img data-img="plano-ancho" alt="Plano cotado del anuncio"></div>
+  </div>
+  <div class="pie"><div class="pie-hr"></div>
+      <div class="pie-cols">
+        <div class="pie-c"><span class="lbl">Vendedor</span><span>Elias Guerrero</span></div>
+        <div class="pie-c"><span class="lbl">Dirección del taller</span><span>Naranjos #648 Col. Lindavista</span></div>
+        <div class="pie-c"><span class="lbl">WhatsApp</span><span>33-2813-0092</span></div>
+      </div>
+      <div class="pie-h">Hoja 1 de 6 &nbsp;·&nbsp; COT-0142</div>
+    </div><div class="barra"></div>
+</div></div></div>
+      <div class="esc-pie" data-pie data-pie-1="<b>1 foto · 452 × 339 px (4:3), marco de 468 centrado.</b> No ocupa los 748 a propósito. Pero es el <b>peor caso</b>: la banda mide 420 px y a la hoja le quedan 168 px de tabla, o sea 3 partidas contra las 6 de hoy." data-pie-2="<b>2 fotos · 358 × 269 px.</b> Banda de 350 px. El equilibrio: se lee el acabado y la tabla conserva 5 partidas." data-pie-3="<b>3 fotos · 234 × 176 px.</b> Banda de 256 px — la más chica de las tres, así que aquí caben 7 partidas. Es el conteo que la dirección pide de verdad: los tres acabados del mismo anuncio, rotulados." data-pie-0="<b>Sin fotos.</b> <code>banda()</code> devuelve exactamente el <code>figura()</code> de hoy y la hoja de plano <b>no se emite</b>: el paquete vuelve a 5 hojas."><b>1 foto · 452 × 339 px (4:3), marco de 468 centrado.</b> No ocupa los 748 a propósito. Pero es el <b>peor caso</b>: la banda mide 420 px y a la hoja le quedan 168 px de tabla, o sea 3 partidas contra las 6 de hoy.</div>
+    </div>
+  </section>
+  <section class="est" id="p4">
+    <div class="est-cab">
+      <div class="est-n mono">04</div>
+      <div class="est-tit"><h2>Banda Noche</h2><p class="est-lema">«La cabecera se pone oscura, el mosaico se pega al hueso y el total se lee de pie.»</p></div>
+      <div class="est-pts"><b class="mono">21</b><span>de 30</span></div>
+    </div>
+    <div class="est-cuerpo">
+      <div class="est-txt"><p>La única que cambia <b>el registro visual entero</b> del documento. Un <b>mosaico</b> sustituye
+  a la figura: cama oscura con celdas blancas encima y juntas de 4 px — <b>la junta es la línea</b>,
+  no hay un solo borde por celda. Y el total a 26 px. Está pensada para leerse de un barrido
+  <i>desde el otro lado de la mesa de una clínica dental</i>, sin que el vendedor señale nada.</p>
+  <p><b>Lo que ves por omisión es la variante de contorno</b>, y eso es el arreglo del juez, no una
+  concesión: así lo que sale sin que nadie toque nada son 24.5 cm² de tinta por hoja — <b>un 23 %
+  menos que el documento de hoy</b>, porque los 13.1 cm² de la barra azul del <code>thead</code> no
+  vuelven en ninguna variante. Enciende «Banda a color» arriba para ver la maciza.</p>
+  <p>El riesgo es medible y no lo tapo: la banda maciza añade <b>+33.5 cm² por hoja, +167 por
+  paquete</b>. Y 21.6 × 2.1 cm de casi negro cruzando la parte más visible de cada hoja es donde un
+  tóner bajo saca bandeado y una láser dúplex riza el papel. Enciende el láser y la banda a la vez.</p></div>
+      <div>
+        <div class="ficha">
+          <div class="ficha-h"><span class="rot">Lo que cuesta</span></div>
+          <div class="frow g1"><span>Constantes de reparto</span><span>3 · ALTO_MOS, TBODY, ULT</span></div>
+  <div class="frow g1"><span>Hojas que añade</span><span>0 · +1 con 3 fotos</span></div>
+  <div class="frow g0"><span>Tinta, por omisión</span><span>−23 % vs. hoy</span></div>
+  <div class="frow g2"><span>Tinta, banda maciza</span><span>+33.5 cm²/hoja</span></div>
+  <div class="frow g1"><span>Riesgo principal</span><span>bandeado en láser</span></div>
+        </div>
+        <div class="arreglos"><div class="rot">Arreglos de los jueces, ya aplicados</div><ul>
+    <li><b>Se invierte el defecto:</b> contorno por omisión, banda maciza <i>opt-in</i>. Es lo que la
+      salva, y encima imprime menos que hoy.</li>
+    <li><b>Fuera <code>--noche</code>:</b> se usa <code>--ink</code> (#171a2b), que ya es token del
+      documento y da 17.23:1 con blanco. De cinco colores nuevos a dos.</li>
+    <li><b>Las fotos en fila debajo del plano</b>, nunca en columna al lado (ley 4): las tres
+      proporciones quedan apaisadas, que es la forma de un anuncio en una fachada.</li>
+  </ul></div>
+      </div>
+    </div>
+    <div class="esc">
+      <div class="esc-barra">
+        <span class="rot">Bloque de fotos</span>
+        <div class="seg" role="group" aria-label="Cuántas fotos, en Banda Noche"><button type="button" data-n="1" aria-pressed="true">1 foto</button><button type="button" data-n="2" aria-pressed="false">2 fotos</button><button type="button" data-n="3" aria-pressed="false">3 fotos</button><button type="button" data-n="0" aria-pressed="false">Sin fotos</button></div>
+      </div>
+      <div class="esc-mesa"><div class="hoja-wrap" data-n="1"><div class="hoja noche">
+  <div class="mh">
+      <div class="mh-logo"><svg class="marca" viewBox="0 0 3120 1560" role="img" aria-label="AL3D"><use href="#marca-al3d"/></svg></div>
+      <div class="mh-bar"></div>
+      <div><div class="mh-t">Cotización</div>
+        <div class="mh-m"><b>COT-0142</b> &nbsp;·&nbsp; 1 sep 2026</div></div>
+    </div><div class="rule"></div><div class="rule2"></div><div class="datos">
+      <div class="dato"><span class="lbl">Cliente</span><span class="val">Juan Carlos Ramírez</span></div>
+      <div class="dato"><span class="lbl">Proyecto</span><span class="val">Juan Carlos - Centro Dental</span></div>
+      <div class="dato"><span class="lbl">Dirección</span><span class="val">Av. Vallarta 1234, Col. Americana</span></div>
+    </div><table><thead><tr>
+      <th style="width:40%">Descripción</th><th class="c" style="width:15%">Medidas</th>
+      <th class="c" style="width:8%">Pzas.</th><th class="r" style="width:18%">Precio unitario</th>
+      <th class="r" style="width:19%">Total</th></tr></thead><tbody><tr class="re"><td><span class="cn">Letras Individuales 3D</span>
+        <span class="cs">Caras en Acrílico, Cantos en Aluminio Brush Cepillado con Iluminación LED Cálida, volumen de 6 cm.</span></td>
+        <td class="c">2.16m × 0.66m</td><td class="c">7</td>
+        <td class="r num">$3,928.57</td><td class="r num tot">$27,500.00</td></tr></tbody></table><div class="cierre">
+      <div class="nota"><span class="lbl">Nota</span>
+        <p>El cliente debe proporcionar salidas eléctricas. Toda la iluminación es posterior.</p></div>
+      <div class="tot-card">
+        <div class="trow"><span>Subtotal</span><span>$27,500.00</span></div>
+        <div class="trow trow-iva"><span>I.V.A. 16%</span><span>$4,400.00</span></div>
+        <div class="neto"><span>Total neto</span><span>$31,900.00</span></div><div class="pago"><span class="lbl">Plan de pago</span>
+        <div class="trow" style="padding:3px 0"><span>Anticipo para arrancar</span><span>$15,950.00</span></div>
+        <div class="trow" style="padding:3px 0"><span>Resta al entregar</span><span>$15,950.00</span></div></div>
+      </div></div>
+  <div class="mos">
+    <span class="lbl rot-fotos">Así queda instalado</span>
+    <div class="mos-g">
+      <div class="mos-p"><img data-img="plano-medio" alt="Plano cotado del anuncio"></div>
+      <div class="mos-f mos-f-inline">
+        <img data-img="foto-band-a" alt="Letras 3D instaladas, luz posterior">
+        <img data-slot="2" data-img="foto-band-b" alt="Caja de luz instalada, luz frontal">
+      </div>
+    </div>
+    <p class="desc-legal">Trabajo anterior de AL3D. Referencia de acabado y calidad de fabricación — no es el anuncio cotizado.</p>
+  </div>
+  <div class="pie"><div class="pie-hr"></div>
+      <div class="pie-cols">
+        <div class="pie-c"><span class="lbl">Vendedor</span><span>Elias Guerrero</span></div>
+        <div class="pie-c"><span class="lbl">Dirección del taller</span><span>Naranjos #648 Col. Lindavista</span></div>
+        <div class="pie-c"><span class="lbl">WhatsApp</span><span>33-2813-0092</span></div>
+      </div>
+      <div class="pie-h">Hoja 1 de 5 &nbsp;·&nbsp; COT-0142</div>
+    </div><div class="barra"></div>
+</div>
+<div class="hoja noche solo3">
+  <div class="mh">
+      <div class="mh-logo"><svg class="marca" viewBox="0 0 3120 1560" role="img" aria-label="AL3D"><use href="#marca-al3d"/></svg></div>
+      <div class="mh-bar"></div>
+      <div><div class="mh-t">Propuesta visual</div>
+        <div class="mh-m"><b>COT-0142</b> &nbsp;·&nbsp; 1 sep 2026</div></div>
+    </div><div class="rule"></div><div class="rule2"></div>
+  <div class="mos" style="margin-top:4px">
+    <span class="lbl">Así queda instalado</span>
+    <div class="mos-g" style="max-height:none;margin:0 -34px">
+      <div class="mos-p" style="padding:0"><img data-img="foto-grande" alt="Letras 3D instaladas de noche" style="width:100%;height:100%;object-fit:cover;max-width:none;max-height:none"></div>
+      <div class="mos-f" style="flex:0 0 200px">
+        <img data-img="foto-band-a" alt="Luz posterior">
+        <img data-img="foto-band-b" alt="Luz frontal">
+        <img data-img="foto-band-c" alt="Sin iluminación">
+      </div>
+    </div>
+    <p class="desc-legal">Trabajo anterior de AL3D. Referencia de acabado y calidad de fabricación — no es el anuncio cotizado.</p>
+  </div>
+  <div class="pie"><div class="pie-hr"></div>
+      <div class="pie-cols">
+        <div class="pie-c"><span class="lbl">Vendedor</span><span>Elias Guerrero</span></div>
+        <div class="pie-c"><span class="lbl">Dirección del taller</span><span>Naranjos #648 Col. Lindavista</span></div>
+        <div class="pie-c"><span class="lbl">WhatsApp</span><span>33-2813-0092</span></div>
+      </div>
+      <div class="pie-h">Hoja 5 de 6 &nbsp;·&nbsp; COT-0142</div>
+    </div><div class="barra"></div>
+</div></div></div>
+      <div class="esc-pie" data-pie data-pie-1="<b>1 foto · 746 × 140 px, en fila bajo el plano.</b> 5.3:1 — casi no recorta. El plano se queda arriba a ancho completo, <code>contain</code>, con su cota legible." data-pie-2="<b>2 fotos · 371 × 140 px.</b> 2.65:1. En papel 6.5 × 3.7 cm cada una: chicas, pero se ve el anuncio completo, que es lo que vende." data-pie-3="<b>3 fotos · 246 × 140 px.</b> Aquí se enciende <code>hayVisual</code> y el mosaico <b>se muda a una hoja «Propuesta visual»</b> a sangre — que es la hoja que 2 de las 25 cotizaciones de campo ya traían hecha a mano. El plano se queda en la hoja del precio: es la especificación que sustenta la cifra." data-pie-0="<b>Sin fotos.</b> El mosaico degrada a una celda: el plano tapa la cama al 100 % y lo único que queda es un marco de 1 px — más limpio que el borde de hoy."><b>1 foto · 746 × 140 px, en fila bajo el plano.</b> 5.3:1 — casi no recorta. El plano se queda arriba a ancho completo, <code>contain</code>, con su cota legible.</div>
+    </div>
+  </section>
+  <section class="est" id="p5">
+    <div class="est-cab">
+      <div class="est-n mono">05</div>
+      <div class="est-tit"><h2>Lámina y margen</h2><p class="est-lema">«El plano justifica el precio y va con el precio; las fotos convencen y van después.»</p></div>
+      <div class="est-pts"><b class="mono">21</b><span>de 30</span></div>
+    </div>
+    <div class="est-cuerpo">
+      <div class="est-txt"><p>La editorial. Rejilla asimétrica de <b>476 + 24 + 248</b>, el nombre del cliente a 26 px
+  abriendo la hoja, el precio como <b>lo único relleno de color de toda la página</b>, y las fotos
+  tratadas como <b>láminas numeradas</b> con pie colgado de una regla de 1 px. Y el pie
+  <b>no rotula: informa</b> — qué es, qué mide, de qué material, con qué acabado, dónde y cuándo.</p>
+  <p>El paquete <b>cierra con una hoja entera de Referencias</b>, y la cuenta es la que lo decide, no
+  el gusto: a la hoja que cierra le quedan 592 px para láminas, y el plano pide 312 más la tira 244
+  más 16 de aire = <b>572</b>… con una sola partida. Con dos ya no. Es la hoja de «Propuesta visual»
+  que <b>2 de las 25</b> cotizaciones de campo ya traían hecha a mano, ahora con folio y sin
+  placeholders de 2025.</p>
+  <p><b>Cuesta una hoja de papel</b> cada vez que hay plano y fotos — de 3 a 4. No hay forma de
+  evitarlo, y lo que sí evita es que la tabla se parta, que es peor. La ves aquí a la derecha.</p></div>
+      <div>
+        <div class="ficha">
+          <div class="ficha-h"><span class="rot">Lo que cuesta</span></div>
+          <div class="frow g1"><span>Constantes de reparto</span><span>2 · ALTO_IMG, TBODY_ULT 609</span></div>
+  <div class="frow g2"><span>Hojas que añade</span><span>1 · Referencias</span></div>
+  <div class="frow g1"><span>Tinta que añade</span><span>la hoja entera de fotos</span></div>
+  <div class="frow g2"><span>Toques del vendedor</span><span>3 + escribir cada pie</span></div>
+  <div class="frow g1"><span>Riesgo principal</span><span>el pie vacío mata la hoja</span></div>
+        </div>
+        <div class="arreglos"><div class="rot">Arreglos de los jueces, ya aplicados</div><ul>
+    <li><b>El descargo, automático y no opcional</b> (ley 3). Era su falla fatal: el pie era opcional
+      y sin él la hoja de Referencias «es una queja esperando». Ahora la app lo escribe y el pie que
+      teclee el vendedor se <i>agrega</i> encima.</li>
+    <li><b>La foto grande se vuelve elástica:</b>
+      <code>flex:1 1 auto; max-height:420px; min-height:300px</code> — una línea que mata el desborde
+      en los tres casos.</li>
+    <li><b>El ordinal deja de ser terciario.</b> <code>--ink3</code> informando está prohibido: pasa
+      al cuadro azul de <code>.tsec-n</code> reducido, 8.04:1.</li>
+  </ul></div>
+      </div>
+    </div>
+    <div class="esc">
+      <div class="esc-barra">
+        <span class="rot">Bloque de fotos</span>
+        <div class="seg" role="group" aria-label="Cuántas fotos, en Lámina y margen"><button type="button" data-n="1" aria-pressed="true">1 foto</button><button type="button" data-n="2" aria-pressed="false">2 fotos</button><button type="button" data-n="3" aria-pressed="false">3 fotos</button><button type="button" data-n="0" aria-pressed="false">Sin fotos</button></div>
+      </div>
+      <div class="esc-mesa"><div class="hoja-wrap" data-n="1">
+  <div class="hoja edit">
+    <div class="ed-cab">
+      <div><div class="ed-cli">Juan Carlos<br>Centro Dental</div>
+        <div class="ed-sub">Letras Individuales 3D · Aluminio Brush Cepillado · Iluminación LED Cálida posterior<br>
+        Av. Vallarta 1234, Col. Americana, Guadalajara</div></div>
+      <div></div>
+      <div class="ed-meta"><svg class="marca" viewBox="0 0 3120 1560" role="img" aria-label="AL3D"><use href="#marca-al3d"/></svg><div class="m">Cotización<br>COT-0142<br>1 sep 2026</div></div>
+    </div><table><thead><tr>
+      <th style="width:40%">Descripción</th><th class="c" style="width:15%">Medidas</th>
+      <th class="c" style="width:8%">Pzas.</th><th class="r" style="width:18%">Precio unitario</th>
+      <th class="r" style="width:19%">Total</th></tr></thead><tbody><tr class="re"><td><span class="cn">Letras Individuales 3D</span>
+        <span class="cs">Caras en Acrílico, Cantos en Aluminio Brush Cepillado con Iluminación LED Cálida, volumen de 6 cm.</span></td>
+        <td class="c">2.16m × 0.66m</td><td class="c">7</td>
+        <td class="r num">$3,928.57</td><td class="r num tot">$27,500.00</td></tr></tbody></table><div class="cierre">
+      <div class="nota"><span class="lbl">Nota</span>
+        <p>El cliente debe proporcionar salidas eléctricas. Toda la iluminación es posterior.</p></div>
+      <div class="tot-card">
+        <div class="trow"><span>Subtotal</span><span>$27,500.00</span></div>
+        <div class="trow trow-iva"><span>I.V.A. 16%</span><span>$4,400.00</span></div>
+        <div class="neto"><span>Total neto</span><span>$31,900.00</span></div><div class="pago"><span class="lbl">Plan de pago</span>
+        <div class="trow" style="padding:3px 0"><span>Anticipo para arrancar</span><span>$15,950.00</span></div>
+        <div class="trow" style="padding:3px 0"><span>Resta al entregar</span><span>$15,950.00</span></div></div>
+      </div></div>
+    <div class="lam">
+      <div class="lam-h"><span class="lam-n">1</span><span class="lbl">Plano cotado</span></div>
+      <div class="lam-box"><img data-img="plano-medio" alt="Plano cotado del anuncio"></div>
+      <div class="lam-pie">Huella de 2.16 × 0.66 m, volumen de 6 cm.
+        <i>Cotas en centímetros. La medida impresa en la tabla es la que manda.</i></div>
+    </div>
+    <div class="pie"><div class="pie-hr"></div>
+      <div class="pie-cols">
+        <div class="pie-c"><span class="lbl">Vendedor</span><span>Elias Guerrero</span></div>
+        <div class="pie-c"><span class="lbl">Dirección del taller</span><span>Naranjos #648 Col. Lindavista</span></div>
+        <div class="pie-c"><span class="lbl">WhatsApp</span><span>33-2813-0092</span></div>
+      </div>
+      <div class="pie-h">Hoja 1 de 4 &nbsp;·&nbsp; COT-0142</div>
+    </div><div class="barra"></div>
+  </div>
+  <div class="hoja edit ref solo-con-fotos">
+    <div class="ed-cab">
+      <div><div class="ed-cli">Referencias</div>
+        <div class="ed-sub">Trabajos entregados por AL3D · acabado y calidad de fabricación</div></div>
+      <div></div>
+      <div class="ed-meta"><svg class="marca" viewBox="0 0 3120 1560" role="img" aria-label="AL3D"><use href="#marca-al3d"/></svg><div class="m">Propuesta visual<br>COT-0142<br>1 sep 2026</div></div>
+    </div>
+    <div class="lam">
+      <div class="lam-h"><span class="lam-n">2</span><span class="lbl">Referencia del producto final</span></div>
+      <div class="lam-box cover"><img data-img="foto-grande" alt="Letras 3D instaladas de noche, luz posterior"></div>
+      <div class="lam-pie">Letras Individuales 3D de 2.40 m, Aluminio Brush Cepillado, LED cálida posterior.
+        <i>Zapopan · ago 2026. Trabajo anterior de AL3D — no es el anuncio cotizado.</i></div>
+    </div>
+    <div class="lam-fila" data-slot="2" style="margin-top:16px">
+      <div><div class="lam-h"><span class="lam-n">3</span><span class="lbl">Referencia</span></div>
+        <div class="lam-box cover"><img data-img="foto-med-a" alt="Caja de luz instalada, luz frontal"></div>
+        <div class="lam-pie" style="max-width:none">Caja de luz tipo nube, 1.20 × 0.68 m, LED fría frontal.
+          <i>Tlajomulco · jul 2026. Trabajo anterior de AL3D.</i></div></div>
+      <div data-slot="3"><div class="lam-h"><span class="lam-n">4</span><span class="lbl">Referencia</span></div>
+        <div class="lam-box cover"><img data-img="foto-med-b" alt="Recorte de acrílico sin iluminación"></div>
+        <div class="lam-pie" style="max-width:none">Recorte de Acrílico Negro, 40 cm de altura, sin iluminación.
+          <i>Guadalajara · jun 2026. Trabajo anterior de AL3D.</i></div></div>
+    </div>
+    <div class="pie"><div class="pie-hr"></div>
+      <div class="pie-cols">
+        <div class="pie-c"><span class="lbl">Vendedor</span><span>Elias Guerrero</span></div>
+        <div class="pie-c"><span class="lbl">Dirección del taller</span><span>Naranjos #648 Col. Lindavista</span></div>
+        <div class="pie-c"><span class="lbl">WhatsApp</span><span>33-2813-0092</span></div>
+      </div>
+      <div class="pie-h">Hoja 4 de 4 &nbsp;·&nbsp; COT-0142</div>
+    </div><div class="barra"></div>
+  </div>
+</div></div>
+      <div class="esc-pie" data-pie data-pie-1="<b>1 foto · 748 × 500 px</b> en la hoja de Referencias, con pie a dos líneas. Sobran 248 px en blanco: es la lámina que más respira, y la que mejor enseña un acabado." data-pie-2="<b>2 fotos.</b> Una de 748 × 388 y una segunda <b>desplazada a la derecha</b> — empieza en x=272 y mide 476, con su rótulo al costado y no encima. Es la rejilla asimétrica funcionando de verdad." data-pie-3="<b>3 fotos.</b> Una de 748 × 420 (16:9) y una fila de dos módulos de 366 × 244 (3:2), gap 16 — 366 + 16 + 366 = 748 exactos. Cada una con su propio pie a su propio ancho." data-pie-0="<b>Sin fotos.</b> No hay lámina, no hay <code>FIG. n</code>, <b>no hay hoja de Referencias</b> —el paquete vuelve a 3 hojas— y <code>ALTO_TBODY_ULT</code> sube 40 px sobre hoy. Fíjate que la segunda hoja desaparece."><b>1 foto · 748 × 500 px</b> en la hoja de Referencias, con pie a dos líneas. Sobran 248 px en blanco: es la lámina que más respira, y la que mejor enseña un acabado.</div>
+    </div>
+  </section>
+  <section class="cierre-pag">
+    <h2>Recomendación</h2>
+    <p><b>Empieza por «El carrete del taller».</b> No por el puntaje —empata con «Renglón con cara»—
+      sino por tres razones que se pueden medir.</p>
+    <p><b>No toca la aritmética que más ha sangrado.</b> Las fotos salen del blanco que el plano ya
+      desperdiciaba dentro de su propia caja. Las otras cuatro mueven de una a tres constantes de
+      reparto, y el propio historial del repo dice cómo se ve eso cuando falla: «una cotización de 14
+      partidas armaba una hoja de 1&nbsp;107 px sobre una carta de 1&nbsp;056, con el pie fuera del papel».</p>
+    <p><b>Es la única cuyo modelo de datos es el que el panel pidió tres veces.</b> Las fotos son
+      historial de AL3D, no dato del cliente: se pagan una vez en bytes, no una por cotización, y
+      cuestan <b>0 toques</b> en la calle. A las demás hay que reescribirles el modelo para llegar ahí
+      — es literalmente el arreglo que los jueces les recetaron.</p>
+    <p><b>Y saca a la superficie el único argumento que no se negocia a la baja.</b> «1 año en
+      material eléctrico, 2 años en colorimetría» hoy vive en la viñeta 1 del apartado 4 de los
+      términos, que es la hoja que nadie lee.</p>
+    <p>«Renglón con cara» no es una alternativa: es <b>la fase 2</b>. Su idea real es el
+      <code>itemId</code> en cada foto, y eso se injerta encima del carrete sin rediseñar nada, el día
+      que una cotización de dos anuncios distintos lo necesite. Y si lo que quieres es que el papel se
+      vea de otra empresa, ésa es «Banda Noche» con el contorno por omisión.</p>
+
+    <div class="tabla-wrap">
+      <table class="cmp">
+        <thead><tr><th>Propuesta</th><th>Dónde vive la foto</th><th>Constantes</th><th>Hojas</th>
+          <th>Tinta</th><th>Toques</th><th>Cuándo conviene</th></tr></thead>
+        <tbody>
+          <tr><td>El carrete del taller</td><td>tira cosida bajo el plano</td>
+            <td class="n g0">1</td><td class="n g0">+0</td><td class="n g0">~0</td><td class="n g0">0</td>
+            <td>para empezar: el menor riesgo</td></tr>
+          <tr><td>Renglón con cara</td><td>dentro de la partida que la cobra</td>
+            <td class="n g0">0</td><td class="n g0">+0</td><td class="n g0">~0</td><td class="n g1">1/foto</td>
+            <td>varios anuncios en una cotización</td></tr>
+          <tr><td>Tira de acabados</td><td>bajo el total, como 3 acabados</td>
+            <td class="n g1">1</td><td class="n g2">+1</td><td class="n g0">~0</td><td class="n g1">3</td>
+            <td>cuando se venden variantes de luz</td></tr>
+          <tr><td>Banda Noche</td><td>mosaico al ras, junta de 4 px</td>
+            <td class="n g1">3</td><td class="n g1">+0/+1</td><td class="n g0">−23 %</td><td class="n g1">3</td>
+            <td>que el papel se vea caro</td></tr>
+          <tr><td>Lámina y margen</td><td>hoja de Referencias que cierra</td>
+            <td class="n g1">2</td><td class="n g2">+1</td><td class="n g2">+1 hoja</td><td class="n g2">3 + pies</td>
+            <td>proyectos grandes, cliente de marca</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 style="margin-top:34px;font-size:21px">Y después de que elijas</h2>
+    <ol class="pasos">
+      <li><b>La galería.</b> Base <code>al3d_fotos</code> en IndexedDB —unas 40 líneas, copiando el
+        patrón de <code>js/datos/db.js</code>, sin compartir su base—, el reductor a 1200 px q0.82 y la
+        detección <code>h &gt; w</code> al subir, para la foto vertical.</li>
+      <li><b>El respaldo, en el mismo paso.</b> <code>armarRespaldo()</code> y
+        <code>restaurarDesde()</code> pasan a <code>async</code>: hoy son sincrónicas sobre llaves de
+        localStorage, así que <b>una galería en IndexedDB se cae del respaldo</b> — y el respaldo es lo
+        único que sobrevive a un teléfono perdido. Más un botón de «Respaldo ligero», porque 12 fotos
+        suben el archivo a ~4 MB y eso viaja por WhatsApp.</li>
+      <li><b>El selector</b> dentro de «Datos que salen en el PDF», que es el bloque que ya sigue
+        editable después de autorizar.</li>
+      <li><b>El PDF:</b> <code>Q.fotos</code>, <code>generarPDF()</code> a <code>async</code>, el
+        descargo automático y la constante nueva. <b>Y <code>await generarPDF()</code> en la prueba, en
+        el mismo commit</b> — si se olvida, la prueba no falla ruidosamente: dice «no se generó ningún
+        documento», que se lee como otra cosa.</li>
+      <li><b>Los 8 casos nuevos</b> de <code>pdf-hoja-carta.mjs</code>: 0/1/2/3 fotos × 1 y 7 partidas.
+        Es lo único que atrapa un pie fuera del papel.</li>
+    </ol>
+
+    <p class="nota-tema">Las hojas son blancas en los dos temas porque el papel es papel; lo que se
+      adapta es la mesa. Las fotos y los planos están dibujados con Canvas en tu propio navegador —no
+      son fotos reales de AL3D— porque un rectángulo gris no contesta la pregunta que estas maquetas
+      existen para contestar: si una foto de 242 × 82 px deja ver el letrero. El plano lleva las cotas
+      en rojo y en centímetros, que es la convención literal de las 25 cotizaciones de campo.</p>
+  </section>
+</div>
+<script>
+/* ============================================================================
+   Las imágenes se dibujan aquí, no se traen de ningún sitio.
+   No es capricho: un rectángulo gris no contesta la pregunta que estas maquetas
+   existen para contestar —si una foto de 242x82 deja ver el letrero o no—, y sin
+   una foto que se parezca a una foto, comparar cinco bloques de fotos no sirve.
+   Se dibuja lo que AL3D fotografía: una fachada de noche con el anuncio prendido.
+   ========================================================================= */
+const DPR = Math.min(2, window.devicePixelRatio || 1);
+
+/* PRNG con semilla: la misma fachada sale igual en cada recarga, así que dos
+   maquetas que enseñan "la misma foto" enseñan de verdad la misma. */
+function rng(semilla){
+  let s = semilla >>> 0;
+  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+const ROTULOS = ['CENTRO DENTAL','CoCo Café','ADILA SPA','Lavarama','IRON MOUNTAIN','Bésame'];
+
+/* Una fachada de noche con el anuncio instalado.
+   luz: 'frontal' | 'posterior' | 'sin'  ·  temp: 'calida' | 'fria' */
+function fachada(w, h, semilla, luz='posterior', temp='calida'){
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * DPR); c.height = Math.round(h * DPR);
+  const g = c.getContext('2d');
+  g.scale(DPR, DPR);
+  const r = rng(semilla);
+  const tinte = temp === 'calida' ? [255, 214, 160] : [214, 234, 255];
+  const rgb = (a) => `rgba(${tinte[0]},${tinte[1]},${tinte[2]},${a})`;
+
+  /* cielo de noche */
+  const cielo = g.createLinearGradient(0, 0, 0, h);
+  cielo.addColorStop(0, '#0a0d1c'); cielo.addColorStop(1, '#1b2036');
+  g.fillStyle = cielo; g.fillRect(0, 0, w, h);
+
+  /* el muro: ocupa de la mitad hacia abajo, con textura */
+  const muroY = h * (0.16 + r() * 0.1);
+  const muro = g.createLinearGradient(0, muroY, 0, h);
+  muro.addColorStop(0, '#2b3047'); muro.addColorStop(.55, '#22273c'); muro.addColorStop(1, '#171b2c');
+  g.fillStyle = muro; g.fillRect(0, muroY, w, h - muroY);
+  for (let i = 0; i < Math.round(w * h / 950); i++){
+    g.fillStyle = `rgba(255,255,255,${r() * 0.028})`;
+    g.fillRect(r() * w, muroY + r() * (h - muroY), 1.4, 1.4);
+  }
+  /* junta horizontal del cantilever, da escala de edificio */
+  g.strokeStyle = 'rgba(0,0,0,.4)'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(0, muroY + 1); g.lineTo(w, muroY + 1); g.stroke();
+
+  /* el anuncio */
+  const texto = ROTULOS[semilla % ROTULOS.length];
+  const cy = muroY + (h - muroY) * 0.42;
+  let px = Math.min(h * 0.30, w / (texto.length * 0.62));
+  px = Math.max(px, 7);
+  g.font = `800 ${px}px Archivo, 'Segoe UI', sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const anchoTxt = g.measureText(texto).width;
+
+  if (luz === 'posterior'){
+    /* halo detrás: la luz rebota en el muro y las letras quedan casi en silueta */
+    const halo = g.createRadialGradient(w / 2, cy, px * 0.15, w / 2, cy, Math.max(anchoTxt * 0.75, px * 3));
+    halo.addColorStop(0, rgb(.55)); halo.addColorStop(.45, rgb(.20)); halo.addColorStop(1, rgb(0));
+    g.fillStyle = halo; g.fillRect(0, muroY, w, h - muroY);
+    g.shadowColor = rgb(.9); g.shadowBlur = px * 0.5;
+    g.fillStyle = '#e9ecf6'; g.fillText(texto, w / 2, cy);
+    g.shadowBlur = 0;
+    g.fillStyle = 'rgba(20,22,34,.45)'; g.fillText(texto, w / 2, cy);
+    g.strokeStyle = rgb(.85); g.lineWidth = Math.max(.8, px * 0.035); g.strokeText(texto, w / 2, cy);
+  } else if (luz === 'frontal'){
+    g.shadowColor = rgb(.95); g.shadowBlur = px * 0.75;
+    g.fillStyle = rgb(.97); g.fillText(texto, w / 2, cy);
+    g.shadowBlur = px * 1.5; g.fillText(texto, w / 2, cy);
+    g.shadowBlur = 0;
+  } else {
+    /* sin iluminación: se lee por el reflejo del alumbrado de la calle */
+    g.fillStyle = '#8e94ab'; g.fillText(texto, w / 2, cy);
+    g.strokeStyle = 'rgba(255,255,255,.30)'; g.lineWidth = Math.max(.6, px * 0.028);
+    g.strokeText(texto, w / 2, cy);
+  }
+
+  /* dos ventanas encendidas y el reflejo del piso, que es lo que hace que se
+     lea como fotografía y no como render */
+  for (let i = 0; i < 2; i++){
+    const vw = w * (.06 + r() * .05), vh = (h - muroY) * (.1 + r() * .07);
+    g.fillStyle = `rgba(255,236,190,${.1 + r() * .13})`;
+    g.fillRect(r() * (w - vw), muroY + (h - muroY) * (.62 + r() * .3), vw, vh);
+  }
+  if (luz !== 'sin'){
+    const refl = g.createLinearGradient(0, h * .84, 0, h);
+    refl.addColorStop(0, rgb(.11)); refl.addColorStop(1, rgb(0));
+    g.fillStyle = refl; g.fillRect(0, h * .84, w, h * .16);
+  }
+  /* viñeta: ninguna foto de celular sale plana */
+  const vig = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * .28, w / 2, h / 2, Math.max(w, h) * .78);
+  vig.addColorStop(0, 'rgba(0,0,0,0)'); vig.addColorStop(1, 'rgba(0,0,0,.42)');
+  g.fillStyle = vig; g.fillRect(0, 0, w, h);
+  return c.toDataURL('image/jpeg', 0.86);
+}
+
+/* El plano cotado. Cotas en ROJO y en cm, que es la convención literal de las
+   25 cotizaciones de campo (docs/ESTRUCTURA-COTIZACION-CANVA.md). */
+function plano(w, h){
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * DPR); c.height = Math.round(h * DPR);
+  const g = c.getContext('2d'); g.scale(DPR, DPR);
+  g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);
+
+  const m = Math.min(w, h) * 0.17;
+  const x0 = m * 1.5, y0 = m, x1 = w - m * 0.7, y1 = h - m * 1.15;
+  const bw = x1 - x0, bh = y1 - y0;
+
+  /* el rótulo, en contorno: un plano no lleva relleno */
+  const texto = 'CENTRO DENTAL';
+  let px = Math.min(bh * 0.52, bw / (texto.length * 0.60));
+  g.font = `800 ${px}px Archivo, sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.strokeStyle = '#171a2b'; g.lineWidth = Math.max(1, px * 0.045);
+  g.strokeText(texto, x0 + bw / 2, y0 + bh * 0.46);
+
+  /* caja de la huella */
+  g.setLineDash([4, 3]); g.strokeStyle = '#9aa0b5'; g.lineWidth = 1;
+  g.strokeRect(x0, y0, bw, bh); g.setLineDash([]);
+
+  /* cotas */
+  const R = '#c62828';
+  g.strokeStyle = R; g.fillStyle = R; g.lineWidth = 1;
+  const cotaPx = Math.max(7, Math.min(11, h * 0.075));
+  g.font = `700 ${cotaPx}px 'IBM Plex Mono', monospace`;
+
+  function flecha(x, y, dx, dy){
+    const t = 3.2;
+    g.beginPath(); g.moveTo(x, y);
+    g.lineTo(x + dx * t - dy * t * .55, y + dy * t + dx * t * .55);
+    g.lineTo(x + dx * t + dy * t * .55, y + dy * t - dx * t * .55);
+    g.closePath(); g.fill();
+  }
+  /* horizontal, abajo */
+  const yh = y1 + m * 0.5;
+  g.beginPath(); g.moveTo(x0, yh); g.lineTo(x1, yh); g.stroke();
+  flecha(x0, yh, 1, 0); flecha(x1, yh, -1, 0);
+  g.beginPath(); g.moveTo(x0, y1); g.lineTo(x0, yh + 4); g.moveTo(x1, y1); g.lineTo(x1, yh + 4); g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'bottom';
+  g.fillStyle = '#fff'; const t1 = '216 cm';
+  const m1 = g.measureText(t1).width;
+  g.fillRect(x0 + bw / 2 - m1 / 2 - 3, yh - cotaPx - 3, m1 + 6, cotaPx + 4);
+  g.fillStyle = R; g.fillText(t1, x0 + bw / 2, yh - 2);
+  /* vertical, izquierda */
+  const xv = x0 - m * 0.62;
+  g.beginPath(); g.moveTo(xv, y0); g.lineTo(xv, y1); g.stroke();
+  flecha(xv, y0, 0, 1); flecha(xv, y1, 0, -1);
+  g.beginPath(); g.moveTo(x0, y0); g.lineTo(xv - 4, y0); g.moveTo(x0, y1); g.lineTo(xv - 4, y1); g.stroke();
+  g.save(); g.translate(xv - 3, y0 + bh / 2); g.rotate(-Math.PI / 2);
+  g.textBaseline = 'bottom'; const t2 = '66 cm'; const m2 = g.measureText(t2).width;
+  g.fillStyle = '#fff'; g.fillRect(-m2 / 2 - 3, -cotaPx - 3, m2 + 6, cotaPx + 4);
+  g.fillStyle = R; g.fillText(t2, 0, -1); g.restore();
+  /* volumen, que 14 de 25 cotizaciones dicen explícito */
+  g.textAlign = 'left'; g.textBaseline = 'top';
+  g.font = `700 ${cotaPx * 0.92}px 'IBM Plex Mono', monospace`;
+  g.fillText('vol. 6 cm', x0 + 2, y1 + 4);
+  return c.toDataURL('image/png');
+}
+
+/* ---- Reparto de las imágenes a los <img data-img> de la página ---- */
+const RECETA = {
+  'plano-ancho':  () => plano(730, 222),
+  'plano-alto':   () => plano(500, 340),
+  'plano-medio':  () => plano(640, 280),
+  'foto-tira':    () => fachada(716, 240, 3, 'posterior', 'calida'),
+  'foto-tira-b':  () => fachada(716, 240, 5, 'frontal',  'fria'),
+  'foto-ancha':   () => fachada(988, 240, 3, 'posterior', 'calida'),
+  'foto-16-9-a':  () => fachada(712, 400, 3, 'posterior', 'calida'),
+  'foto-16-9-b':  () => fachada(712, 400, 5, 'frontal',  'fria'),
+  'foto-16-9-c':  () => fachada(712, 400, 1, 'sin',      'calida'),
+  'foto-4-3-a':   () => fachada(904, 678, 3, 'sin',       'calida'),
+  'foto-4-3-b':   () => fachada(716, 538, 5, 'posterior','calida'),
+  'foto-4-3-c':   () => fachada(468, 352, 1, 'frontal',  'fria'),
+  'foto-col':     () => fachada(488, 684, 3, 'posterior','calida'),
+  'foto-band-a':  () => fachada(500, 280, 3, 'posterior','calida'),
+  'foto-band-b':  () => fachada(500, 280, 5, 'frontal',  'fria'),
+  'foto-band-c':  () => fachada(500, 280, 1, 'sin',      'calida'),
+  'foto-grande':  () => fachada(1496, 1000, 3, 'posterior','calida'),
+  'foto-med-a':   () => fachada(732, 488, 5, 'frontal',  'fria'),
+  'foto-med-b':   () => fachada(732, 488, 1, 'sin',      'calida'),
+};
+
+function pintar(){
+  const cache = {};
+  document.querySelectorAll('[data-img]').forEach(el => {
+    const k = el.getAttribute('data-img');
+    if (!RECETA[k]) return;
+    if (!cache[k]) cache[k] = RECETA[k]();
+    if (el.tagName === 'IMG') el.src = cache[k];
+    else el.style.backgroundImage = `url(${cache[k]})`;
+  });
+}
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(pintar);
+else window.addEventListener('load', pintar);
+
+/* ---- Controles ---- */
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-n]');
+  if (b){
+    const esc = b.closest('.esc');
+    esc.querySelectorAll('button[data-n]').forEach(x =>
+      x.setAttribute('aria-pressed', String(x === b)));
+    esc.querySelectorAll('.hoja-wrap').forEach(w => w.setAttribute('data-n', b.dataset.n));
+    const pie = esc.querySelector('[data-pie]');
+    if (pie) pie.innerHTML = pie.getAttribute('data-pie-' + b.dataset.n) || '';
+    return;
+  }
+  const z = e.target.closest('button[data-esc]');
+  if (z){
+    document.querySelectorAll('button[data-esc]').forEach(x =>
+      x.setAttribute('aria-pressed', String(x === z)));
+    document.body.setAttribute('data-esc', z.dataset.esc);
+    return;
+  }
+  const l = e.target.closest('button[data-laser]');
+  if (l){
+    const on = l.getAttribute('aria-pressed') !== 'true';
+    l.setAttribute('aria-pressed', String(on));
+    document.body.classList.toggle('laser', on);
+    return;
+  }
+  const p = e.target.closest('button[data-plena]');
+  if (p){
+    const on = p.getAttribute('aria-pressed') !== 'true';
+    p.setAttribute('aria-pressed', String(on));
+    document.querySelectorAll('.hoja.noche').forEach(h => h.classList.toggle('plena', on));
+  }
+});
+</script>
