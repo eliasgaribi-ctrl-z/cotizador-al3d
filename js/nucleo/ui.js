@@ -384,3 +384,18 @@ export function vacio(titulo, detalle, accionHTML) {
     (detalle ? '<p class="vacio-d">' + esc(detalle) + '</p>' : '') +
     (accionHTML || '') + '</div>';
 }
+
+/* ----- El rótulo del papel -----
+   Los dos caminos de impresión de la plataforma —la lista de compra y la orden de obra—
+   comparten el encabezado que vive en plataforma.html. Lo único que cambia entre ellos es qué
+   dice y de cuándo es, y eso se pone aquí para que ninguno de los dos tenga que saber cómo está
+   hecho el encabezado. */
+export function rotularPapel(titulo) {
+  const t = document.getElementById('imp-titulo');
+  if (t) t.textContent = titulo;
+  const f = document.getElementById('imp-fecha');
+  if (f) {
+    const d = new Date();
+    f.textContent = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+}

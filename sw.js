@@ -30,7 +30,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 4;
+const APP_VERSION = 6;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -38,7 +38,9 @@ const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
 /* Los del cotizador. Se guardan de uno en uno y con catch: el repo puede publicarse sin los
    logotipos, y con addAll un logo faltante tiraría la instalación entera. */
 const BASICOS = ['./', './index.html', './manifest.webmanifest',
-                 './logo-al3d.png', './logo-al3d-dark.png'];
+                 './logo-al3d.svg', './logo-al3d-oscuro.svg',
+                 './icono-192.png', './icono-512.png', './icono-maskable-512.png',
+                 './apple-touch-icon.png'];
 
 /* Los de la plataforma. Estos SÍ van con addAll, que es todo-o-nada, porque eso es
    exactamente lo que se quiere: o está el conjunto completo o no se promociona nada. */
@@ -90,10 +92,15 @@ function esDeLaPlataforma(url) {
 
 self.addEventListener('install', ev => {
   ev.waitUntil((async () => {
-    /* El cotizador: de uno en uno, tolerante a que falte alguno. */
+    /* El cotizador: de uno en uno, tolerante a que falte alguno.
+       Con {cache:'reload'}, igual que la plataforma. Sin eso, `c.add(u)` se sirve de la caché
+       HTTP del navegador, así que un teléfono que ya tenía instalada la app se quedaba con el
+       logotipo y los iconos VIEJOS aunque hubiera un sw.js nuevo: el install decía que había
+       bajado todo y había bajado su propia copia rancia. Se notó justo al cambiar la marca,
+       que es cuando por fin uno de estos archivos cambió de contenido. */
     try {
       const c = await caches.open(CACHE);
-      await Promise.all(BASICOS.map(u => c.add(u).catch(() => null)));
+      await Promise.all(BASICOS.map(u => c.add(new Request(u, { cache: 'reload' })).catch(() => null)));
     } catch (_) { /* si ni la caché del cotizador abre, la app sigue funcionando con red */ }
 
     /* La plataforma: todo o nada, y con {cache:'reload'} para no bajar de la caché HTTP del

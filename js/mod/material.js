@@ -32,7 +32,7 @@ import * as Proy from '../datos/proyectos.js';
 import * as Agenda from '../datos/agenda.js';
 import {
   $, esc, money, cant, plural, ico, toast, avisarResultado, vacio, segmento,
-  abrirCapa, cerrarCapa, linkWa, fmtFecha, cuando, diasHasta, hoyISO, ajustarAltoBarra, cantHay } from '../nucleo/ui.js';
+  abrirCapa, cerrarCapa, linkWa, fmtFecha, cuando, diasHasta, hoyISO, ajustarAltoBarra, cantHay, rotularPapel } from '../nucleo/ui.js';
 
 /* ============================================================================
    Estado del módulo. Todo aquí, y todo se suelta en desmontar().
@@ -1342,6 +1342,10 @@ async function hacerMaterial() {
 
 function imprimir() {
   if (_imprimiendo) return;
+  /* Quién es esta hoja y de cuándo es. El encabezado del papel vive en plataforma.html y solo se
+     enciende al imprimir; aquí se le pone el rótulo, que es lo único que cambia entre los dos
+     caminos de impresión de la plataforma. */
+  rotularPapel('Lista de compra');
   if (TAB !== 'comprar') { TAB = 'comprar'; pintar(); }
   _imprimiendo = true;
   /* También por reloj: Safari de iOS no siempre dispara 'afterprint', y un candado que se

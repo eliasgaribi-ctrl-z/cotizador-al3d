@@ -439,6 +439,40 @@ await p.fill('#hist-search','PDF generado'); await p.waitForTimeout(300);
   ? bien('y se puede buscar por eso') : mal('buscar por el hito no encuentra la cotización');
 await p.evaluate(()=>cerrarHistorial()); await p.waitForTimeout(300);
 
+// ── 8bis. El saneador de imágenes no deja salirse del atributo ──────────────
+/* urlImagenSegura() comprobaba solo el PREFIJO y devolvía el resto crudo dentro de
+   src="${...}". El comentario de su bloque decía que ese agujero estaba cerrado y no lo
+   estaba: cualquier valor que EMPEZARA por un tipo permitido pasaba entero, comillas
+   incluidas. El camino de entrada es real y está documentado en el README: un respaldo que
+   llegó por WhatsApp y se restauró, con las API keys de la IA en el mismo localStorage. */
+console.log('');
+const veneno = String.raw`data:image/png;" onerror="window.__colado=1`;
+const saneado = await p.evaluate(v => urlImagenSegura(v), veneno);
+!/[<>"]/.test(saneado)
+  ? bien('el saneador escapa lo que devuelve: «' + saneado.slice(0, 46) + '…»')
+  : mal('el saneador devolvió comillas sin escapar: ' + saneado);
+
+const colado = await p.evaluate(v => {
+  const caja = document.createElement('div');
+  caja.innerHTML = `<img src="${urlImagenSegura(v)}" alt="prueba">`;
+  document.body.appendChild(caja);
+  const img = caja.querySelector('img');
+  const salio = !!(img && img.getAttribute('onerror'));
+  caja.remove();
+  return salio;
+}, veneno);
+!colado ? bien('y con él puesto no nace ningún onerror en el marcado')
+        : mal('el valor se salió del atributo y montó un onerror');
+
+for (const bueno of ['logo-al3d.svg', 'data:image/png;base64,iVBORw0KGgo=', 'blob:https://x/y']) {
+  (await p.evaluate(v => urlImagenSegura(v), bueno)) === bueno
+    ? bien('sigue dejando pasar lo legítimo: ' + bueno.slice(0, 30))
+    : mal('rompió una imagen buena: ' + bueno);
+}
+(await p.evaluate(() => urlImagenSegura('javascript:alert(1)'))) === ''
+  ? bien('y lo que no es una imagen sigue saliendo vacío')
+  : mal('dejó pasar un javascript:');
+
 // ── 9. Nada se rompió por el camino ─────────────────────────────────────────
 console.log('');
 errs.length ? mal('errores de página: '+[...new Set(errs)].slice(0,3).join(' | '))

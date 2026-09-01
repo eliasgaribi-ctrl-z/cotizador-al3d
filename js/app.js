@@ -107,10 +107,18 @@ function montar(ruta, opts = {}) {
   return _cola;
 }
 
+/* Dónde se había quedado cada pestaña. El router desmonta y vuelve a montar entera la que se
+   abandona, así que nada del DOM sobrevive —ni el scroll—: volver a Proyectos desde Agenda
+   aterrizaba arriba del todo aunque se estuviera mirando el proyecto número doce. Se guarda al
+   salir y se repone SOLO al volver por el botón de atrás o por la barra, no al entrar por un
+   enlace, que es una llegada nueva y empieza donde empiezan las llegadas nuevas. */
+const _scrollPorRuta = new Map();
+
 async function montarDeVerdad(ruta, opts = {}) {
   const r = rutaPorNombre(ruta);
   if (!r) return;
   if (_actual === ruta && !opts.forzar) return;
+  if (_actual) _scrollPorRuta.set(_actual, window.scrollY);
 
   /* Desmontar antes de montar. Los módulos que se cuelgan de algo global —el mapa se
      suscribe a resize, la agenda a un temporizador— tienen que soltarlo o se acumulan: seis
@@ -164,7 +172,7 @@ async function montarDeVerdad(ruta, opts = {}) {
      dejaba al usuario recorriendo otra vez las seis pestañas. */
   const main = $('pf-contenido');
   if (main && opts.foco !== false) { try { main.focus({ preventScroll: true }); } catch (_) {} }
-  window.scrollTo({ top: 0, behavior: 'auto' });
+  window.scrollTo({ top: _scrollPorRuta.get(ruta) || 0, behavior: 'auto' });
   voz(r.nombre);
   pintarCuentasNav();
   ajustarAltoBarra();
