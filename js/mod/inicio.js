@@ -33,7 +33,8 @@ import * as Proyectos from '../datos/proyectos.js';
 import * as Agenda from '../datos/agenda.js';
 import * as Stock from '../datos/stock.js';
 import * as Material from '../datos/material.js';
-import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, fechaLocal,
+import { masDias } from '../nucleo/fechas.js';
+import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO,
          fmtFecha, fmtFechaDia, abrirCapa, cerrarCapa, copiarTexto, ajustarAltoBarra }
   from '../nucleo/ui.js';
 
@@ -95,16 +96,6 @@ export function desmontar() {
 /* ============================================================================
    Leer
    ============================================================================ */
-
-/** Sumar días sin pasar por `new Date(iso)`, que se lee como UTC y en México devuelve el
- *  día anterior. `fechaLocal` ancla a mediodía, así que sumar días es seguro. */
-function masDias(iso, n) {
-  const f = fechaLocal(iso);
-  if (!f) return iso;
-  f.setDate(f.getDate() + n);
-  const p = x => String(x).padStart(2, '0');
-  return f.getFullYear() + '-' + p(f.getMonth() + 1) + '-' + p(f.getDate());
-}
 
 const VIVAS_SIN_MARCAR = ['propuesta', 'confirmada', 'reagendada'];
 

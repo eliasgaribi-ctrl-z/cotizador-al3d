@@ -30,7 +30,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 6;
+const APP_VERSION = 7;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -51,6 +51,7 @@ const APP_FILES = [
   './css/plataforma.css',
   './js/app.js',
   './js/nucleo/ui.js',
+  './js/nucleo/fechas.js',
   './js/nucleo/ics.js',
   './js/nucleo/gcal.js',
   './js/datos/db.js',

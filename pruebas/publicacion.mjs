@@ -63,6 +63,28 @@ if (!archivos.length) mal('no pude leer APP_FILES de sw.js: ¿cambió el formato
 else if (faltantes.length) mal(faltantes.length + ' archivo(s) que sw.js promete cachear NO existen: ' + faltantes.join(', '));
 else bien('los ' + archivos.length + ' archivos que sw.js promete cachear existen');
 
+/* Y al revés, que es el fallo que de verdad pasa. La comprobación de arriba mira que no
+   sobre nada en la lista; esta mira que no FALTE nada. Un módulo nuevo que nadie añade a
+   APP_FILES funciona perfectamente mientras haya señal —lo sirve la red— y desaparece sin
+   señal, que es el único escenario para el que el service worker existe. Y no se descubre
+   probando: se descubre en la calle, delante del cliente.
+   Se cuentan los .js de js/, que es donde viven los módulos que la plataforma importa. */
+function jsDe(dir, out = []) {
+  for (const n of readdirSync(dir)) {
+    const p = join(dir, n);
+    if (statSync(p).isDirectory()) jsDe(p, out);
+    else if (n.endsWith('.js')) out.push(p.replace(RAIZ + '/', ''));
+  }
+  return out;
+}
+const enDisco = jsDe(join(RAIZ, 'js'));
+const sinCachear = enDisco.filter(f => !archivos.includes(f));
+if (sinCachear.length) {
+  mal(sinCachear.length + ' módulo(s) existen y sw.js NO los cachea: ' + sinCachear.join(', ') + '\n' +
+      '      Con señal funcionan; sin señal la plataforma no abre.\n' +
+      '      Arreglo: añadirlos a APP_FILES en sw.js y subir APP_VERSION.');
+} else bien('los ' + enDisco.length + ' módulos de js/ están todos en APP_FILES');
+
 /* Y que APP_VERSION exista, porque es la línea que hay que subir al publicar. */
 if (!/const APP_VERSION = \d+;/.test(sw)) mal('sw.js no tiene APP_VERSION: sin eso, publicar un cambio de la plataforma no llega a los teléfonos');
 else bien('sw.js tiene APP_VERSION (súbela al publicar cambios de la plataforma)');

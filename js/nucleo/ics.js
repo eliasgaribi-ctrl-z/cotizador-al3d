@@ -30,6 +30,7 @@
    ============================================================================ */
 
 import { partesISO, descargarArchivo } from './ui.js';
+import { masDias } from './fechas.js';
 
 const CRLF = '\r\n';
 
@@ -84,22 +85,13 @@ export function uid(identificador) {
   return 'inst-' + raw + '@al3d.mx';
 }
 
-/* ----- Aritmética de fechas sobre los campos, sin Date ----- */
-const bisiesto = a => (a % 4 === 0 && a % 100 !== 0) || a % 400 === 0;
-const diasDelMes = (a, m) =>
-  m === 2 ? (bisiesto(a) ? 29 : 28) : ([4, 6, 9, 11].includes(m) ? 30 : 31);
+/* ----- Aritmética de fechas sobre los campos, sin Date -----
+   `sumarDias` vivía aquí y era la única de las seis copias del repo que estaba probada. Se
+   subió a `nucleo/fechas.js` tal cual —el mismo bucle sobre los campos, el mismo `null`
+   cuando no entra una fecha— y ahora la usan las seis. Este archivo se queda con lo suyo:
+   convertir a los formatos de RFC 5545. */
 const p2 = n => String(n).padStart(2, '0');
-
-/** Suma días a un 'YYYY-MM-DD' y devuelve 'YYYY-MM-DD'. Null si la fecha no es válida. */
-function sumarDias(iso, n) {
-  const p = partesISO(iso);
-  if (!p) return null;
-  let { a, m, d } = p;
-  d += Math.trunc(n || 0);
-  while (d > diasDelMes(a, m)) { d -= diasDelMes(a, m); if (++m > 12) { m = 1; a++; } }
-  while (d < 1) { if (--m < 1) { m = 12; a--; } d += diasDelMes(a, m); }
-  return a + '-' + p2(m) + '-' + p2(d);
-}
+const sumarDias = masDias;
 
 const compacta = iso => { const p = partesISO(iso); return p ? p.a + p2(p.m) + p2(p.d) : ''; };
 

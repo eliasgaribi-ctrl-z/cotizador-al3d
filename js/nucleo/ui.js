@@ -12,6 +12,8 @@
    de pantalla.
    ============================================================================ */
 
+import { partesISO, hoyISO, fechaLocal, diasEntre } from './fechas.js';
+
 export const $ = id => document.getElementById(id);
 
 /* Mismo escapado que el cotizador, con el apóstrofo incluido: la plataforma también arma
@@ -56,20 +58,13 @@ export const ico = (n, cls) =>
    Todo lo que se guarda es 'YYYY-MM-DD'. Todo lo que se lee es es-MX. La conversión pasa
    por aquí y por ningún otro lado, y NUNCA por `new Date('2026-08-23')`, que se interpreta
    como UTC y en México devuelve el día anterior. Ese error costó un día de instalación en
-   más de un sistema y aquí no cabe: se parte la cadena. */
-export const hoyISO = () => {
-  const d = new Date(), p = n => String(n).padStart(2, '0');
-  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
-};
-export const partesISO = iso => {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
-  return m ? { a: +m[1], m: +m[2], d: +m[3] } : null;
-};
-/** Date local a mediodía: inmune a horario de verano y a redondeos de zona. */
-export const fechaLocal = iso => {
-  const p = partesISO(iso);
-  return p ? new Date(p.a, p.m - 1, p.d, 12, 0, 0, 0) : null;
-};
+   más de un sistema y aquí no cabe: se parte la cadena.
+
+   La ARITMÉTICA —sumar días, contar días, el fin de mes, el bisiesto— vive en `fechas.js`,
+   que es la capa de abajo y la que tiene pruebas. Aquí queda lo de PANTALLA: cómo se lee una
+   fecha en español. Las tres primitivas se reexportan con el mismo nombre que tenían para
+   que los seis módulos que ya piden `partesISO` a este archivo no cambien una línea. */
+export { partesISO, hoyISO, fechaLocal } from './fechas.js';
 const MES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const DIA_CORTO = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 export const fmtFecha = iso => {
@@ -80,12 +75,10 @@ export const fmtFechaDia = iso => {
   const f = fechaLocal(iso); if (!f) return '';
   return DIA_CORTO[f.getDay()] + ' ' + fmtFecha(iso);
 };
-/** Días de hoy a `iso`. Negativo = ya pasó. */
-export const diasHasta = iso => {
-  const f = fechaLocal(iso); if (!f) return null;
-  const h = fechaLocal(hoyISO());
-  return Math.round((f - h) / 86400000);
-};
+/** Días de hoy a `iso`. Negativo = ya pasó. Contra el reloj del dispositivo, que es lo
+ *  correcto para pintar una tarjeta; lo que se tiene que poder probar usa `diasEntre` con
+ *  un `hoy` que entra. */
+export const diasHasta = iso => diasEntre(hoyISO(), iso);
 /** «hoy», «mañana», «en 3 días», «hace 2 días». Es lo que se lee en las tarjetas. */
 export const cuando = iso => {
   const d = diasHasta(iso);

@@ -38,7 +38,8 @@ import * as Proyectos from '../datos/proyectos.js';
 import * as Agenda from '../datos/agenda.js';
 import * as Geo from '../datos/geo.js';
 import * as Cot from '../datos/cotizador.js';
-import { $, esc, ico, money, toast, avisarResultado, vacio, chip, hoyISO, fechaLocal,
+import { masDias } from '../nucleo/fechas.js';
+import { $, esc, ico, money, toast, avisarResultado, vacio, chip, hoyISO,
          fmtFecha, fmtFechaDia, fmtHora, cuando, diasHasta, abrirCapa, cerrarCapa,
          copiarTexto, ajustarAltoBarra } from '../nucleo/ui.js';
 
@@ -116,21 +117,6 @@ const rangoActual = () => RANGOS.find(r => r.v === RANGO) || RANGOS[1];
    ayer ya no es trabajo; una `confirmada` de ayer que nadie marcó, sí, y por eso sigue
    apareciendo aunque el filtro sea «hoy». */
 const VIVAS = new Set(['propuesta', 'confirmada', 'reagendada']);
-
-/* ============================================================================
-   Fechas — siempre sobre los campos, nunca con new Date(iso)
-   ============================================================================ */
-
-const p2 = n => String(n).padStart(2, '0');
-
-/** `new Date('2026-08-23')` se lee como UTC y en México devuelve el día anterior: ese
- *  error cuesta un día de instalación. Se suma con `fechaLocal`, que ancla a mediodía. */
-function masDias(iso, n) {
-  const f = fechaLocal(iso);
-  if (!f) return iso;
-  f.setDate(f.getDate() + n);
-  return f.getFullYear() + '-' + p2(f.getMonth() + 1) + '-' + p2(f.getDate());
-}
 
 /* ============================================================================
    Montar y desmontar

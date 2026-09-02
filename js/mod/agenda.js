@@ -33,6 +33,7 @@ import * as Proyectos from '../datos/proyectos.js';
 import * as Reglas from '../datos/reglas.js';
 import * as Ics from '../nucleo/ics.js';
 import * as Gcal from '../nucleo/gcal.js';
+import { masDias, masMeses, iniSemana, ultimoDia } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, partesISO, fechaLocal,
          fmtFecha, fmtFechaDia, fmtHora, cuando, diasHasta, segmento, chip, abrirCapa,
          cerrarCapa, compartirArchivo, copiarTexto, linkWa, ajustarAltoBarra }
@@ -130,33 +131,8 @@ const MES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio
    domingo es la que nadie ve. */
 const DOW = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
 
-/** Sumar días con `fechaLocal`, que ancla a mediodía. `new Date('2026-08-23')` se lee como
- *  UTC y en México devuelve el día anterior: ese error cuesta un día de instalación. */
-function masDias(iso, n) {
-  const f = fechaLocal(iso);
-  if (!f) return iso;
-  f.setDate(f.getDate() + n);
-  return f.getFullYear() + '-' + p2(f.getMonth() + 1) + '-' + p2(f.getDate());
-}
-
-/** Sumar meses cayendo siempre en el día 1. Sin eso, del 31 de enero un mes es el 3 de
- *  marzo, y avanzar mes por mes desde una fecha alta se salta febrero entero. */
-function masMeses(iso, n) {
-  const p = partesISO(iso);
-  if (!p) return iso;
-  let m = p.m - 1 + n;
-  const a = p.a + Math.floor(m / 12);
-  m = ((m % 12) + 12) % 12;
-  return a + '-' + p2(m + 1) + '-01';
-}
-
-const ultimoDia = (a, m) => new Date(Date.UTC(a, m, 0)).getUTCDate();
-
-/** El lunes de la semana que contiene `iso`. */
-function iniSemana(iso) {
-  const f = fechaLocal(iso);
-  return f ? masDias(iso, -((f.getDay() + 6) % 7)) : iso;
-}
+/* `masDias`, `masMeses`, `ultimoDia` e `iniSemana` vienen de `nucleo/fechas.js`. La razón por
+   la que la semana empieza en LUNES está escrita allá, junto a la función. */
 
 const etiquetaMes = iso => {
   const p = partesISO(iso);
