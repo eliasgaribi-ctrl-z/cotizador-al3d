@@ -129,7 +129,7 @@ const p = await ctx.newPage();
 const errs = []; p.on('pageerror', e => errs.push(e.message));
 
 // ── 1. Cotizar y ganar ────────────────────────────────────────────────────────
-await p.goto(B + '/index.html', { waitUntil: 'load' });
+await p.goto(B + '/cotizador.html', { waitUntil: 'load' });
 await p.waitForTimeout(1200);
 await p.fill('#f-cli', 'Andrey');
 await p.fill('#f-tel', '33 1234 5678');
@@ -175,7 +175,7 @@ const buzon = await p.evaluate(() => JSON.parse(localStorage.getItem('al3d_pf_ga
 buzon.length === 1 ? bien('quedó constancia en el buzón: ' + buzon[0].folio) : mal('el buzón tiene ' + buzon.length);
 
 // ── 2. Abrir la plataforma. Aquí NADIE aprieta nada más ───────────────────────
-await p.goto(B + '/plataforma.html#/proyectos', { waitUntil: 'load' });
+await p.goto(B + '/#/proyectos', { waitUntil: 'load' });
 await p.waitForTimeout(5000);
 
 console.log('\nLA VENTA SALIÓ SOLA HACIA NOTION');

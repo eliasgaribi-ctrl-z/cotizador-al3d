@@ -67,7 +67,7 @@ for (const caso of CASOS) {
   const pag = await nav.newPage({ viewport: { width: 1000, height: 1300 } });
   const erroresJs = [];
   pag.on('pageerror', e => erroresJs.push(e.message));
-  await pag.goto('file://' + path.join(RAIZ, 'index.html'));
+  await pag.goto('file://' + path.join(RAIZ, 'cotizador.html'));
   await pag.waitForTimeout(900);
 
   const doc = await pag.evaluate(async ({ c, plano }) => {

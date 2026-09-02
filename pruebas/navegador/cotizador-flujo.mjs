@@ -44,9 +44,9 @@ const errs = []; p.on('pageerror', e => errs.push(e.message));
 /* Cada bloque arranca de cero: la app guarda en localStorage y una cotización a medias
    arrastrada del bloque anterior convierte cualquier fallo en un misterio. */
 async function enBlanco(){
-  await p.goto(B+'/index.html',{waitUntil:'load'});
+  await p.goto(B+'/cotizador.html',{waitUntil:'load'});
   await p.evaluate(()=>{ try{ localStorage.clear(); }catch(_){} });
-  await p.goto(B+'/index.html',{waitUntil:'load'});
+  await p.goto(B+'/cotizador.html',{waitUntil:'load'});
   await p.waitForTimeout(1100);
 }
 /* Los tres obligatorios y el salto a partidas: es la puerta por la que pasa todo lo demás. */

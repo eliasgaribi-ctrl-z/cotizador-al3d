@@ -35,8 +35,8 @@ El repositorio son **dos aplicaciones** que atacan las dos mitades de eso:
 
 | | Qué es | Dónde vive | Tamaño |
 |---|---|---|---|
-| **Cotizador** | La hoja de Canva convertida en formulario: captura, calcula con la regla real, autoriza, imprime el PDF y guarda el historial | `index.html` — un solo archivo, en producción | 11 617 líneas |
-| **Plataforma** | La capa operativa que Notion no puede dar: agenda, material derivado de las partidas, stock, mapa y avisos | `plataforma.html` + `js/` + `css/` | ~19 000 líneas |
+| **Cotizador** | La hoja de Canva convertida en formulario: captura, calcula con la regla real, autoriza, imprime el PDF y guarda el historial | `cotizador.html` — un solo archivo, en producción (hasta sep/2026 se llamaba `index.html`) | 13 628 líneas |
+| **Plataforma** | La capa operativa que Notion no puede dar: agenda, material derivado de las partidas, stock, mapa y avisos | `index.html` + `js/` + `css/` — **es la raíz del sitio** desde sep/2026 | ~19 000 líneas |
 
 Las dos son **sitio estático en GitHub Pages**: sin compilación, sin servidor, sin cuentas y
 sin llaves para empezar. Se abren sin señal, porque `sw.js` guarda una copia de la app en el

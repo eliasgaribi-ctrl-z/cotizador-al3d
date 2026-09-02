@@ -283,7 +283,7 @@ def trazar():
 
 
 def incrustar_en_index(svg, solo_diff):
-    """Escribe el dibujo dentro de index.html, en la constante MARCA_SVG.
+    """Escribe el dibujo dentro de cotizador.html, en la constante MARCA_SVG.
 
     Hace falta porque el documento que se manda a imprimir se arma como un Blob, y dentro de un
     Blob una ruta relativa no resuelve contra nada: `logo-al3d.svg` no existe desde ahí. Es la
@@ -292,7 +292,7 @@ def incrustar_en_index(svg, solo_diff):
 
     Se guarda el SVG en una sola línea y sin la cabecera XML: va dentro de un literal de
     JavaScript y de ahí a innerHTML, donde <?xml ... ?> no pinta nada."""
-    ruta = os.path.join(RAIZ, 'index.html')
+    ruta = os.path.join(RAIZ, 'cotizador.html')
     html = open(ruta).read()
     cuerpo = re.sub(r'<\?xml[^>]*\?>\s*', '', svg)
     cuerpo = re.sub(r'<!--.*?-->\s*', '', cuerpo, flags=re.S).strip()
@@ -303,15 +303,15 @@ def incrustar_en_index(svg, solo_diff):
 
     viejas = [l for l in html.split('\n') if l.startswith('const MARCA_SVG=')]
     if not viejas:
-        raise SystemExit('No encontré la línea `const MARCA_SVG=` en index.html.')
+        raise SystemExit('No encontré la línea `const MARCA_SVG=` en cotizador.html.')
     if viejas[0] == linea:
-        print('  = index.html ya lleva esta marca incrustada')
+        print('  = cotizador.html ya lleva esta marca incrustada')
         return False
     if solo_diff:
-        print('  ~ index.html cambiaría (MARCA_SVG)')
+        print('  ~ cotizador.html cambiaría (MARCA_SVG)')
         return True
     open(ruta, 'w').write(html.replace(viejas[0], linea, 1))
-    print('  ✓ index.html actualizado (MARCA_SVG, %d bytes)' % len(cuerpo))
+    print('  ✓ cotizador.html actualizado (MARCA_SVG, %d bytes)' % len(cuerpo))
     return True
 
 

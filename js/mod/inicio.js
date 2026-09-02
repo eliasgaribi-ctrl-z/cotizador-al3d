@@ -369,7 +369,7 @@ function tarjetaCola(veDinero) {
     ' Esperando precio <span class="folio">' + cola.length + '</span></h2></div>' +
     '<div class="card-b">' + filas + mas +
     '<p class="pf-nota">Se autorizan en el cotizador, que es donde vive el precio. La plataforma solo lee esta cola: nunca la escribe.</p>' +
-    '<a class="btn btn-pri" href="index.html">Abrir el cotizador</a></div></div>';
+    '<a class="btn btn-pri" href="cotizador.html">Abrir el cotizador</a></div></div>';
 }
 
 /* ----- El puente y la bandeja -----

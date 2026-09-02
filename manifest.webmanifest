@@ -1,8 +1,9 @@
 {
+  "id": "/cotizador-al3d/",
   "name": "Cotizador AL3D",
   "short_name": "Cotizador",
   "description": "Cotizador de anuncios luminosos: letras 3D, recorte de acrílico, bastidores y cajas de luz.",
-  "start_url": "./",
+  "start_url": "./cotizador.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",

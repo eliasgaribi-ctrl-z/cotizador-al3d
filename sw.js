@@ -14,8 +14,14 @@
    están en ESE teléfono— quedaban inalcanzables por no poder cargar el HTML que los lee.
 
    Su estrategia sigue siendo «red primero, caché de respaldo», y es a propósito: el sitio se
-   publica subiendo index.html a la rama main, así que una caché que mande siempre serviría
-   la versión vieja después de publicar y el problema sería peor que el que se quiso arreglar.
+   publica subiendo cotizador.html a la rama main, así que una caché que mande siempre
+   serviría la versión vieja después de publicar y el problema sería peor que el que se quiso
+   arreglar.
+
+   QUIÉN ES QUIÉN, desde el cambio de puerta de entrada: la RAÍZ del sitio (`./`,
+   `index.html`) es la plataforma —el calendario, la obra, el material— y `cotizador.html` es
+   el cotizador. Antes era al revés. `plataforma.html` sigue existiendo como reenvío de diez
+   líneas, porque hay marcadores e iconos instalados que apuntan ahí.
 
    Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 25 módulos ES que
    se importan entre sí: con mala señal, `app.js` llega de la red (versión nueva) y
@@ -30,14 +36,14 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 7;
+const APP_VERSION = 8;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
 
 /* Los del cotizador. Se guardan de uno en uno y con catch: el repo puede publicarse sin los
    logotipos, y con addAll un logo faltante tiraría la instalación entera. */
-const BASICOS = ['./', './index.html', './manifest.webmanifest',
+const BASICOS = ['./cotizador.html', './manifest.webmanifest',
                  './logo-al3d.svg', './logo-al3d-oscuro.svg',
                  './icono-192.png', './icono-512.png', './icono-maskable-512.png',
                  './apple-touch-icon.png'];
@@ -45,7 +51,9 @@ const BASICOS = ['./', './index.html', './manifest.webmanifest',
 /* Los de la plataforma. Estos SÍ van con addAll, que es todo-o-nada, porque eso es
    exactamente lo que se quiere: o está el conjunto completo o no se promociona nada. */
 const APP_FILES = [
-  './plataforma.html',
+  './',                 // la portada: AHORA es la app
+  './index.html',       // y su nombre de archivo, por si alguien entra por ahí
+  './plataforma.html',  // el reenvío de la dirección vieja
   './manifest-plataforma.webmanifest',
   './css/sistema.css',
   './css/plataforma.css',
@@ -83,10 +91,17 @@ const APP_FILES = [
 ];
 
 /* ¿Esta petición es de la plataforma? Se decide por ruta y no por una lista, para que un
-   archivo nuevo dentro de estas carpetas no se quede fuera por olvido. */
+   archivo nuevo dentro de estas carpetas no se quede fuera por olvido.
+
+   Se AMPLÍA a la raíz, no se invierte a «todo lo que no sea el cotizador»: los logotipos y
+   los iconos viven en BASICOS y no en APP_FILES, y si cayeran aquí, sin señal devolverían el
+   503 de más abajo — o sea la barra de la app con la imagen rota. Lo que no está en esta
+   lista sigue por la ruta del cotizador, byte por byte como antes. */
 function esDeLaPlataforma(url) {
   const p = url.pathname;
-  return p.endsWith('/plataforma.html') ||
+  return p.endsWith('/') ||                    // la portada del sitio
+         p.endsWith('/index.html') ||
+         p.endsWith('/plataforma.html') ||     // el reenvío
          p.endsWith('/manifest-plataforma.webmanifest') ||
          /\/(css|js|vendor|datos)\//.test(p);
 }
@@ -184,6 +199,18 @@ self.addEventListener('activate', ev => {
       if (k === CACHE || k === APP) return null;
       return caches.delete(k);
     }));
+    /* Las dos entradas rancias del cambio de puerta de entrada. En un teléfono que ya tenía
+       la app, `al3d-v1` guarda `./` y `./index.html` con el COTIZADOR VIEJO dentro, que es
+       justo la dirección donde ahora vive la plataforma. Hoy no se sirven —esas dos rutas las
+       atiende la caché de la app—, pero dejarlas es dejar armada la trampa para el día que
+       alguien vuelva a tocar el respaldo de navegación de abajo con un `caches.match` sin
+       caché nombrada. Se borran una vez y no se pierde nada: el cotizador ahora se guarda como
+       `./cotizador.html`. */
+    try {
+      const c = await caches.open(CACHE);
+      await c.delete('./');
+      await c.delete('./index.html');
+    } catch (_) {}
     await self.clients.claim();
   })());
 });
@@ -231,11 +258,11 @@ async function plataforma(req) {
     if (res && res.ok) { try { await c.put(req, res.clone()); } catch (_) {} }
     return res;
   } catch (_) {
-    /* Navegación sin señal y sin copia: se devuelve la portada DE LA PLATAFORMA. Antes
-       cualquier navegación sin copia devolvía index.html, así que abrir la plataforma sin
-       señal mandaba al cotizador y parecía que la app se había roto. */
+    /* Navegación sin señal y sin copia: se devuelve la portada DE LA PLATAFORMA, que ahora
+       es index.html. Antes cualquier navegación sin copia devolvía el cotizador, así que
+       abrir la plataforma sin señal parecía que la app se había roto. */
     if (req.mode === 'navigate') {
-      const portada = await c.match('./plataforma.html');
+      const portada = await c.match('./index.html') || await c.match('./');
       if (portada) return portada;
     }
     return new Response('Sin conexión y sin copia guardada de la plataforma.',
@@ -255,9 +282,8 @@ function revalidar(req) {
 }
 
 /* ----- El cotizador: red primero, caché de respaldo -----
-   Idéntico a como estaba, sin tocar una coma. Sigue siendo lo correcto para un archivo que
-   se publica subiéndolo a main: quien tiene señal ve siempre lo último; quien no la tiene,
-   ve lo último que alcanzó a guardar. */
+   Sigue siendo lo correcto para un archivo que se publica subiéndolo a main: quien tiene
+   señal ve siempre lo último; quien no la tiene, ve lo último que alcanzó a guardar. */
 async function cotizador(req) {
   try {
     const res = await fetch(req);
@@ -267,10 +293,17 @@ async function cotizador(req) {
     }
     return res;
   } catch (_) {
-    const guardada = await caches.match(req);
+    /* Se busca en LA caché del cotizador, nombrada, y no con `caches.match(req)` a secas.
+       Sin nombre, `caches.match` busca en TODAS, y desde el cambio de puerta `./index.html`
+       existe en la caché de la app con la plataforma dentro: alguien sin señal tocaría
+       «Cotizador», la copia de cotizador.html no estaría, y el respaldo le devolvería LA
+       PLATAFORMA con la URL del cotizador. La app se vería rota y no habría un solo error en
+       ninguna consola. */
+    const c = await caches.open(CACHE);
+    const guardada = await c.match(req);
     if (guardada) return guardada;
     if (req.mode === 'navigate') {
-      const portada = await caches.match('./index.html') || await caches.match('./');
+      const portada = await c.match('./cotizador.html');
       if (portada) return portada;
     }
     throw new Error('sin conexión y sin copia guardada');

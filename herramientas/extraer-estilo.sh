@@ -1,12 +1,12 @@
 #!/bin/sh
-# Regenera css/sistema.css a partir del <style> de index.html.
+# Regenera css/sistema.css a partir del <style> de cotizador.html.
 #
 # El sistema de diseño —los tokens, el barro, las seis capas de cascada— vive en el
-# <style> de index.html porque el cotizador es un solo archivo y así se publica. La
+# <style> de cotizador.html porque el cotizador es un solo archivo y así se publica. La
 # plataforma necesita el mismo sistema, y copiarlo a mano garantizaba que divergieran.
 #
-# Esto lo copia. No es la solución bonita: la bonita es que index.html apunte a este
-# archivo con un <link>, y ese cambio está programado para la próxima vez que index.html
+# Esto lo copia. No es la solución bonita: la bonita es que cotizador.html apunte a este
+# archivo con un <link>, y ese cambio está programado para la próxima vez que cotizador.html
 # se toque por otra razón. Reordenar seis capas de cascada donde gana la última regla, en
 # un archivo de 10 000 líneas que está en producción, no es un cambio que se haga "de
 # paso".
@@ -17,10 +17,10 @@
 set -e
 cd "$(dirname "$0")/.."
 
-INI=$(grep -n '^<style>$' index.html | head -1 | cut -d: -f1)
-FIN=$(grep -n '^</style>$' index.html | head -1 | cut -d: -f1)
+INI=$(grep -n '^<style>$' cotizador.html | head -1 | cut -d: -f1)
+FIN=$(grep -n '^</style>$' cotizador.html | head -1 | cut -d: -f1)
 if [ -z "$INI" ] || [ -z "$FIN" ]; then
-  echo "No encontré el bloque <style> de index.html. ¿Cambió el formato?" >&2
+  echo "No encontré el bloque <style> de cotizador.html. ¿Cambió el formato?" >&2
   exit 1
 fi
 INI=$((INI + 1)); FIN=$((FIN - 1))
@@ -28,9 +28,9 @@ INI=$((INI + 1)); FIN=$((FIN - 1))
 TMP=$(mktemp)
 cat > "$TMP" <<'CAB'
 /* ============================================================================
-   COPIA GENERADA de index.html — el bloque <style> completo.
+   COPIA GENERADA de cotizador.html — el bloque <style> completo.
 
-   NO LA EDITES AQUÍ. Edítala en index.html y corre herramientas/extraer-estilo.sh.
+   NO LA EDITES AQUÍ. Edítala en cotizador.html y corre herramientas/extraer-estilo.sh.
 
    Existe para que la plataforma se vea de la misma app que el cotizador sin volver
    a decidir un solo token: los mismos azules muestreados del logotipo, el mismo
@@ -41,7 +41,7 @@ cat > "$TMP" <<'CAB'
    ============================================================================ */
 
 CAB
-sed -n "${INI},${FIN}p" index.html >> "$TMP"
+sed -n "${INI},${FIN}p" cotizador.html >> "$TMP"
 
 if [ "$1" = "--diff" ]; then
   diff -u css/sistema.css "$TMP" && echo "css/sistema.css está al día." || true
@@ -55,4 +55,4 @@ fi
 
 mkdir -p css
 mv "$TMP" css/sistema.css
-echo "css/sistema.css regenerado desde index.html:${INI}-${FIN} ($((FIN - INI + 1)) líneas)."
+echo "css/sistema.css regenerado desde cotizador.html:${INI}-${FIN} ($((FIN - INI + 1)) líneas)."

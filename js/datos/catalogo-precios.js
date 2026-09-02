@@ -1,10 +1,10 @@
 /* ============================================================================
    Copia del catálogo de precios del cotizador.
 
-   GENERADA. No la edites aquí: el catálogo vive en index.html y se edita allá.
+   GENERADA. No la edites aquí: el catálogo vive en cotizador.html y se edita allá.
    Corre herramientas/extraer-catalogo.sh para regenerarla.
 
-   Existe por un caso concreto: la plataforma se puede abrir sin que index.html se haya
+   Existe por un caso concreto: la plataforma se puede abrir sin que cotizador.html se haya
    cargado nunca en esa pestaña —es su propio documento—, así que no puede contar con que
    MATERIALES exista en window. Y necesita el catálogo para dos cosas que NO son dinero:
    poner la etiqueta legible de un material y derivar de qué está hecha una partida.

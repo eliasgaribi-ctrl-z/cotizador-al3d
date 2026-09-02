@@ -386,7 +386,7 @@ function pintarLista() {
         'Todavía no has marcado ninguna cotización como ganada',
         'Cuando cierres una venta, abre Registrar Venta en el cotizador y aprieta «Esta cotización se ganó». ' +
         'El proyecto entra aquí con su dirección, su tipo de trabajo y su material ya calculado.',
-        '<a class="btn btn-pri" href="index.html">' + ico('i-venta') + ' Abrir el cotizador</a>');
+        '<a class="btn btn-pri" href="cotizador.html">' + ico('i-venta') + ' Abrir el cotizador</a>');
       return;
     }
     if (filtro.texto.trim()) {
