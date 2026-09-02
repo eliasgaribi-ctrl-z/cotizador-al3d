@@ -153,8 +153,8 @@ await comprobar('una pestaña ya hecha', '.paso-tab.hecho');
 await comprobar('el nombre del cliente debajo de la pestaña', '.paso-tab.on .tx small');
 
 console.log('\nPANTALLA 2 · PARTIDAS');
-await comprobar('el chip elegido', '.chip.on');
-await comprobar('un chip sin elegir', '.chips .chip:not(.on)');
+await comprobar('el chip elegido', '#items .chip.on' /* de una partida: los chips del plazo viven en un <details> plegado y no se pueden medir */);
+await comprobar('un chip sin elegir', '#items .chips .chip:not(.on)');
 await comprobar('el título de un grupo de opciones', '.optgrp-t');
 await comprobar('la fórmula de la partida, ya completa', '.formula');
 await comprobar('el nombre de una herramienta neutra', '.btn-scaler-open');

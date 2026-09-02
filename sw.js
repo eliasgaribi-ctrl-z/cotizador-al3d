@@ -36,7 +36,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 9;
+const APP_VERSION = 10;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -77,7 +77,7 @@ const APP_FILES = [
   './js/datos/puente.js',
   './js/mod/inicio.js',
   './js/mod/proyectos.js',
-  './js/mod/agenda.js',
+  './js/mod/fabricacion.js',
   './js/mod/material.js',
   './js/mod/mapa.js',
   './js/mod/ajustes.js',

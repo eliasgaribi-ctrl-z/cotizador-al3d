@@ -170,12 +170,15 @@ link de Google Maps, el tipo de trabajo derivado de las partidas, la fecha de in
 **el material que hay que comprar**. Nada de eso se captura. Es todo el invento; lo demás
 son seis pantallas que se alimentan de ahí.
 
+- **Calendario** — la pantalla que abre. Dos lentes: **Taller**, la fila de lo que está en
+  fabricación con su ventana —cuándo empezar, cuándo tiene que estar el material, cuándo
+  listo— contada hacia atrás desde el día de instalación con el plazo de 1 a 3+ semanas, y si
+  va tarde por cuántos días; e **Instalaciones**, el calendario de siempre con el semáforo
+  por día que contesta la pregunta de fabricación mirando el mes: ¿llego?
 - **Hoy** — lo que se rompe primero, en orden: «falta material y esto se instala en 2 días»,
   «esta cotización lleva nueve días autorizada y nadie dijo si se ganó».
 - **Proyectos** — el tablero por etapa de obra (ganado, cortado, armado, listo, instalado),
   con la orden de trabajo de fabricación, que incluye la temperatura del LED.
-- **Agenda** — el calendario de instalaciones, con un semáforo por día que contesta la
-  pregunta de fabricación mirando el mes: ¿llego?
 - **Material** — de «8 letras de 40 cm de acero» a «1 lámina de acrílico, 1 de fleje inox,
   44 módulos LED, 1 fuente». **Con la cuenta a la vista** y su etiqueta de confianza, porque
   un número que no se puede auditar no se corrige nunca.

@@ -1141,6 +1141,14 @@ Tablero por **`etapa`**, nunca por `estatus_notion`: son ejes distintos y mezcla
 Dep: `Proyectos.*`, `Material.requerimientos`, `Cotizador.historial/estadoOrigen`.
 
 ### 8.3 Agenda — `#/agenda`
+
+> **Sep/2026: es la pantalla que abre, se llama «Calendario» y tiene dos lentes.** El módulo
+> es `js/mod/fabricacion.js` (era `agenda.js`); la ruta sigue siendo `#/agenda`. La lente
+> **Taller** pinta la fila del taller desde `js/datos/taller.js` —la ventana de cada proyecto
+> contada hacia atrás desde la instalación con el plazo de 1 a 3+ semanas (`proyectos.plazo_k`,
+> null = manda el propuesto)—; la lente **Instalaciones** es lo que sigue abajo, sin cambios.
+> Dos constantes nuevas, grupo `plazo`: `PLAZO_COLCHON_DIAS` y `PLAZO_PROVEEDOR_DIAS`.
+
 Mes, semana y lista. **La única captura humana real del sistema vive aquí.**
 
 | | DIRECCIÓN | FABRICACIÓN | PAGOS |

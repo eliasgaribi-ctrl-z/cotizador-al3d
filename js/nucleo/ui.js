@@ -280,8 +280,11 @@ export function chip(txt, on, attrs = '') {
   return '<button type="button" class="chip' + (on ? ' on' : '') + '" aria-pressed="' +
     (on ? 'true' : 'false') + '" ' + attrs + '>' + esc(txt) + '</button>';
 }
-export function segmento(opciones, actual, atributo) {
-  return '<div class="tipo-seg" role="group">' + opciones.map(o =>
+/* `etiqueta` es el nombre del grupo. Un `role="group"` sin nombre no se expone: quien navega
+   con lector oye tres botones sueltos y no sabe qué eligen. Es opcional para no tocar a los
+   que ya llaman, pero todo segmento nuevo lo lleva. */
+export function segmento(opciones, actual, atributo, etiqueta) {
+  return '<div class="tipo-seg" role="group"' + (etiqueta ? ' aria-label="' + esc(etiqueta) + '"' : '') + '>' + opciones.map(o =>
     '<button type="button" class="' + (o.v === actual ? 'on' : '') + '" aria-pressed="' +
     (o.v === actual ? 'true' : 'false') + '" ' + atributo + '="' + esc(o.v) + '">' +
     esc(o.t) + '</button>').join('') + '</div>';
