@@ -12,6 +12,7 @@
 */
 import * as T from '../js/datos/taller.js';
 import { diasEntre, masDias, partesISO } from '../js/nucleo/fechas.js';
+import { readFileSync } from 'fs';
 
 let fallos = 0;
 const eq = (nombre, real, esperado) => {
@@ -283,6 +284,24 @@ console.log('\nG · LA CARGA DE UN DÍA');
     const V = T.ventanaTaller(proy({ id: 'v', nombre: 'V', plazo_k: 5 }), inst({ fecha: '2026-10-10' }), { hoy });  // 19 sep – 9 oct
     eq('una ventana que arrancó en septiembre cuenta el 1 de octubre', T.cargaDeDia('2026-10-01', [V]).total, 1);
   }
+}
+
+console.log('\nH · EL COTIZADOR DICE LO MISMO');
+{
+  /* El cotizador es un solo archivo sin módulos y lleva su propio eco de la tabla y de la
+     regla de propuesta. Si se separan, el vendedor ve «2 semanas» al capturar y la plataforma
+     pinta otra cosa al ganar. Es la misma clase de prueba que ata catalogo-precios.js al
+     catálogo del cotizador, en la otra dirección. */
+  const html = readFileSync(new URL('../cotizador.html', import.meta.url), 'utf8');
+  const tabla = (/const PLAZOS_COT=\[([\s\S]*?)\];/.exec(html) || [, ''])[1];
+  const filas = [...tabla.matchAll(/\{k:(\d),etiqueta:'([^']+)'\}/g)].map(m => ({ k: +m[1], etiqueta: m[2] }));
+  eq('el cotizador tiene los cinco cubos', filas.length, 5);
+  eq('con las mismas llaves y las mismas palabras', filas, T.PLAZOS.map(p => ({ k: p.k, etiqueta: p.etiqueta })));
+  const mapa = (/const CUBO_POR_TIPO_COT=\{([\s\S]*?)\};/.exec(html) || [, ''])[1];
+  const cubos = Object.fromEntries([...mapa.matchAll(/'([^']+)':(\d)/g)].map(m => [m[1], +m[2]]));
+  eq('y los siete tipos proponen el mismo cubo que la plataforma',
+     cubos, Object.fromEntries(Object.keys(cubos).map(t => [t, T.plazoSugerido([t]).k])));
+  eq('los siete, no seis', Object.keys(cubos).length, 7);
 }
 
 console.log(fallos ? '\n' + fallos + ' FALLO(S)' : '\nLa ventana de taller cuadra.');

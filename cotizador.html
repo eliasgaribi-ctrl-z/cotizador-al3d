@@ -3205,6 +3205,17 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
               <div class="fld"><label for="f-entrecalles">Entre calles</label><input id="f-entrecalles" autocomplete="off" placeholder="Ej. entre Av. Vallarta y López Mateos" oninput="upd('entrecalles',this.value)"></div>
               <div class="fld"><label for="f-entrega">Límite de fabricación</label><input id="f-entrega" autocomplete="off" placeholder="Ej. Viernes 15 de Agosto" oninput="upd('entrega',this.value)"></div>
             </div>
+            <!-- El plazo de taller, en cubos. El «Límite de fabricación» de arriba es lo que se le
+                 dijo al cliente y se queda como texto: la plataforma tiene prohibido parsearlo,
+                 con razón. Esto es otro dato: cuánto tarda el trabajo, en la escala con la que
+                 se cotiza —1, 1.5, 2, 2.5 o 3+ semanas—, y es lo que pinta la ventana de taller
+                 en el calendario. Llega con uno propuesto por el tipo de trabajo; un toque lo
+                 corrige, cero toques lo aceptan. No mueve un peso: no está en _CAMPOS_PRECIO. -->
+            <div class="fld">
+              <label id="f-plazo-l">Plazo de taller</label>
+              <div class="chips" id="f-plazo" role="group" aria-labelledby="f-plazo-l"></div>
+              <div class="hintnote" id="f-plazo-h" style="margin-top:7px"></div>
+            </div>
             <div class="fld" style="margin-bottom:0">
               <label for="f-nota-cli">Nota para el cliente</label>
               <textarea id="f-nota-cli" rows="2" placeholder="El cliente debe proporcionar salidas eléctricas." oninput="upd('notaCliente',this.value)"></textarea>
@@ -3795,6 +3806,9 @@ const factorOf=it=>((matOf(it.material)?.precio||0)+(compOf(it.comp)?.extra||0))
 const Q = {
   proy:'', cliente:'', tel:'', direccion:'', fecha:'', maps:'', folio:'', entrecalles:'', entrega:'', dirRaw:'',
   notaCliente:'',
+  /* El plazo de taller elegido a mano: 1 a 5, o null cuando nadie lo tocó y manda el que se
+     propone desde las partidas. Ver pintarPlazo(). */
+  plazoK:null,
   items:[], iva:true,
   estado:'borrador', rol:'vendedor',
   autorizador:'', nota:'', fechaAuth:'',
@@ -5045,6 +5059,7 @@ function renderItems(){
     fab.setAttribute('aria-expanded',hayAbiertas?'true':'false');
     $('fold-all-txt').textContent=hayAbiertas?'Plegar todas':'Abrir todas';
   }
+  pintarPlazo();
   renderSummary(); updProg(); saveState();
   _devolverFocoItems(_focoPrevio);
 }
@@ -5231,8 +5246,11 @@ function irACampoProy(id){
 /* ----- Opciones de la partida: chip y grupo -----
    Un solo lugar donde se decide cómo se ve una opción elegida, para que material,
    complejidad, acabado, bastidor y caja se lean todos igual. */
-function chip(on,click,label,extra){
-  const dis=capturaBloqueada();
+function chip(on,click,label,extra,libre){
+  /* `libre` es para los chips que no son de una partida —el plazo de taller— y que por eso no
+     llevan ni el candado del precio autorizado ni el de los datos del cliente: no mueven el
+     total y se pactan hasta el final, igual que los campos de _FM_PDF. */
+  const dis=!libre&&capturaBloqueada();
   return `<div class="chip${on?' on':''}" role="button" aria-pressed="${on?'true':'false'}"`+
     (dis?' aria-disabled="true"':` tabindex="0" onclick="${click}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"`)+
     `><span class="ck" aria-hidden="true"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg></span>${label}${extra?` <small>${extra}</small>`:''}</div>`;
@@ -6673,7 +6691,7 @@ function nueva(){
      vaciaba sin ofrecer vuelta atrás. Una regla, un sitio. */
   guardarParaDeshacer();
   Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};Q.huellaAuth='';
-  Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth='';
+  Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth=''; Q.plazoK=null;
   Q.editMode=false; _selfAuth=false; Q.sinEstrenar=true;
   Object.values(_FM).forEach(id=>{if($(id))$(id).value='';});
   // Una cotización en blanco no arranca regañada: el ámbar se apaga con ella.
@@ -9205,6 +9223,7 @@ function guardarEnHistorial(){
     // Se guarda todo lo que hace falta para volver a abrirla y regenerar su PDF igual.
     direccion:Q.direccion||'', maps:Q.maps||'', entrecalles:Q.entrecalles||'',
     entrega:Q.entrega||'', notaCliente:Q.notaCliente||'', fecha:Q.fecha||'',
+    plazoK:(Q.plazoK>=1&&Q.plazoK<=5)?Q.plazoK:null,
     fechaAuth:Q.fechaAuth, autorizador:Q.autorizador, nota:Q.nota,
     precioAuth:Q.precioAuth, neto:t.neto, sub:t.sub, iva:Q.iva,
     /* La huella viaja con la cotización: sin ella, reabrirla del historial parecería un
@@ -9374,6 +9393,7 @@ function reabrirDeHistorial(folio){
   Q.proy=e.proy||''; Q.cliente=e.cliente||''; Q.tel=e.tel||'';
   Q.dirRaw=e.dirRaw||''; Q.direccion=e.direccion||''; Q.maps=e.maps||'';
   Q.entrecalles=e.entrecalles||''; Q.entrega=e.entrega||''; Q.notaCliente=e.notaCliente||'';
+  Q.plazoK=(e.plazoK>=1&&e.plazoK<=5)?e.plazoK:null;
   Q.fecha=e.fecha||Q.fecha;
   Q.items=JSON.parse(JSON.stringify(e.items||[]));
   Q.itemsAuth=JSON.parse(JSON.stringify(e.itemsAuth||{}));
@@ -9442,8 +9462,9 @@ function usarComoBase(folio){
   Q.dirRaw=e.dirRaw||''; Q.direccion=e.direccion||''; Q.maps=e.maps||'';
   Q.entrecalles=e.entrecalles||''; Q.notaCliente=e.notaCliente||'';
   /* El límite de fabricación se pacta en cada trabajo: copiarlo sería prometer una
-     fecha del proyecto pasado. */
-  Q.entrega='';
+     fecha del proyecto pasado. Y el plazo elegido a mano tampoco viaja: se vuelve a proponer
+     desde las partidas de la cotización nueva. */
+  Q.entrega=''; Q.plazoK=null;
   Q.fecha=hoy();
   /* Ids nuevos: los del historial pueden chocar con los de la cotización en pantalla. */
   /* El importe congelado no se copia: la cotización es nueva y su precio se calcula con el
@@ -10413,6 +10434,76 @@ const _FM={proy:'f-proy',cliente:'f-cli',tel:'f-tel',maps:'f-maps',dirRaw:'f-dir
    se pacta justo al cerrar y no mueve el total. Bloquearlo obligaba a entrar al modo
    edición —soltando el precio autorizado— para corregir una cifra que no lo afecta. */
 const _FM_PDF=['f-entrecalles','f-entrega','f-nota-cli','f-anti'];
+
+/* ===================== El plazo de taller =====================
+   Cinco cubos, con las palabras con las que se cotiza. La tabla que MANDA es la de
+   js/datos/taller.js —ahí viven los días—; ésta es su eco para que el cotizador, que es un
+   solo archivo sin módulos, pueda pintarlos. pruebas/taller.mjs comprueba que las dos
+   digan lo mismo, igual que hace con el catálogo de precios en la otra dirección.
+
+   La propuesta sale de las partidas con la misma regla que la plataforma usa sobre el tipo
+   de trabajo: el vinil y el recorte se cortan y se pegan; letras y cajas sin luz se cortan,
+   se dobla el canto y se pegan; con luz, la conexión es la mitad del tiempo; y de lo que no
+   se sabe qué es (manual, bastidor) tampoco se sabe el tiempo. Cada tipo distinto de más
+   suma un cubo, y una pieza que no cabe en una lámina de 244 cm suma otro. */
+const PLAZOS_COT=[
+  {k:1,etiqueta:'1 semana'},
+  {k:2,etiqueta:'1.5 semanas'},
+  {k:3,etiqueta:'2 semanas'},
+  {k:4,etiqueta:'2.5 semanas'},
+  {k:5,etiqueta:'3 semanas o más'},
+];
+const CUBO_POR_TIPO_COT={
+  'Rotulacion de vinil':1,'Recorte acrilico':1,
+  'Letras 3D sin iluminacion':2,'Caja de luz sin iluminacion':2,
+  'Letras 3D con iluminacion':3,'Caja de luz con iluminacion':3,
+  'Custome / Proyecto Especial':4,
+};
+/* El tipo de trabajo de una partida, con los siete valores exactos de Notion (sin acentos y
+   con el «Custome» tal cual): es la misma traducción de tiposDerivados() en la plataforma. */
+function tipoTrabajoCot(it){
+  const luz=it.luz!==false;
+  switch(it.tipo){
+    case 'letras': return luz?'Letras 3D con iluminacion':'Letras 3D sin iluminacion';
+    case 'caja':   return luz?'Caja de luz con iluminacion':'Caja de luz sin iluminacion';
+    case 'recorte':return it.acab==='vinil'?'Rotulacion de vinil':'Recorte acrilico';
+    default:       return 'Custome / Proyecto Especial';
+  }
+}
+function plazoSugeridoCot(items){
+  const tipos=new Set(), n=x=>(isFinite(Number(x))&&Number(x)>0)?Number(x):0;
+  let mayor=0;
+  for(const it of (items||[])){
+    if(!it||typeof it!=='object') continue;
+    tipos.add(tipoTrabajoCot(it));
+    const lado=(it.tipo==='letras'||it.tipo==='recorte')?n(it.altura):(it.tipo==='caja'||it.tipo==='bastidor')?Math.max(n(it.ancho),n(it.alto)):0;
+    if(lado>mayor) mayor=lado;
+  }
+  if(!tipos.size) return 4;
+  let k=Math.max(...[...tipos].map(t=>CUBO_POR_TIPO_COT[t]||4));
+  k+=tipos.size-1;
+  if(mayor>244) k+=1;
+  return Math.min(5,k);
+}
+/* Los chips. El marcado es el propuesto salvo que alguien haya elegido; la nota de abajo dice
+   cuál de los dos casos es, para que «2 semanas» resaltado no se lea como una decisión que
+   nadie tomó. Se repinta desde renderItems, porque la propuesta depende de las partidas. */
+function pintarPlazo(){
+  const box=$('f-plazo'), h=$('f-plazo-h'); if(!box) return;
+  const sug=plazoSugeridoCot(Q.items);
+  const elegido=(Q.plazoK>=1&&Q.plazoK<=5)?Q.plazoK:null;
+  const on=elegido!==null?elegido:sug;
+  box.innerHTML=PLAZOS_COT.map(p=>chip(p.k===on,`setPlazo(${p.k})`,esc(p.etiqueta),'',true)).join('');
+  if(h) h.textContent=elegido!==null
+    ?'Elegido a mano. Tócalo otra vez para volver al propuesto.'
+    :(Q.items.length?'Propuesto por el tipo de trabajo. Toca otro si sabes que tarda más.':'Se propone en cuanto haya partidas. Toca uno si ya lo sabes.');
+}
+/* Tocar el que ya está elegido lo suelta: vuelve a mandar el propuesto. */
+function setPlazo(k){
+  undoJuntar('q:plazoK');
+  Q.plazoK=(Q.plazoK===k)?null:k;
+  saveState(); pintarPlazo();
+}
 function loadState(){
   try{
     const s=localStorage.getItem('al3d_q');
@@ -12265,6 +12356,10 @@ function registrarGanada(){
     huella:Q.huellaAuth||'',
     /* La del campo de instalación, NO la del anticipo. Ver el comentario del modal. */
     fecha_instalacion:(document.getElementById('rv-fecha-inst').value||''),
+    /* El plazo de taller si alguien lo eligió; null si no, y la plataforma lo propone igual
+       que aquí, desde el tipo de trabajo. Se manda el elegido y no el propuesto para que del
+       otro lado se sepa cuál de los dos es. */
+    plazo_k:(Q.plazoK>=1&&Q.plazoK<=5)?Q.plazoK:null,
     cuenta:document.getElementById('rv-cuenta').value,
     estatus:document.getElementById('rv-estatus').value,
     pct_comision:parseFloat(document.getElementById('rv-pct').value)||0,
