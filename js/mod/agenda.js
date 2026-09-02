@@ -116,6 +116,7 @@ export function desmontar() {
      `pago_pendiente` es null en todas las filas— sin ningún control en pantalla para apagarlo.
      Un filtro encendido sin su interruptor es una app rota que parece una app sin datos. */
   _soloCobro = false;
+}
 
 /* ============================================================================
    Fechas — sobre los campos, nunca con new Date(iso)
