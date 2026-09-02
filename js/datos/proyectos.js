@@ -258,6 +258,12 @@ export function nombreDerivado(origen, tipos) {
 
 const esISO = s => !!partesISO(s);
 const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
+/* Un cubo de plazo válido (entero de 1 a 5) o null. La tabla vive en datos/taller.js; aquí
+   solo se valida la forma, para no importar el módulo entero por un rango. */
+const plazoValido = v => {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= 5 ? n : null;
+};
 
 /* La copia congelada, con una sola cosa fuera: la imagen.
 
@@ -339,6 +345,12 @@ function armarProyecto(entrada, extra, etapa) {
        manda y tirarlo obligaría a volver a preguntarlo; la comisión que SALE de él la
        sigue calculando Notion. */
     pct_comision: num(extra.pct_comision),
+    /* El plazo de taller, en cubos de 1 a 5 (ver datos/taller.js). `null` es el estado
+       normal y significa «nadie lo tocó: manda el propuesto desde el tipo de trabajo». Es
+       el mismo patrón de `cantidad_ajustada` en material y de `hora` en la instalación: la
+       corrección humana gana cuando existe, y no se pide nunca. Si viene del buzón —el
+       cotizador ya lo propone al capturar— se respeta. */
+    plazo_k: plazoValido(extra.plazo_k),
     origen,
     notas: '',
     creado_en: Date.now(),
@@ -567,7 +579,7 @@ const ESCRIBIBLES = new Set([
   'nombre', 'contacto', 'negocio', 'tel', 'notas', 'tipo_trabajo', 'compromiso_texto',
   'dir_texto', 'entrecalles', 'maps_url', 'lat', 'lng', 'geo_fuente', 'anti_pactado',
   'cuenta', 'estatus_notion', 'notion_page_id', 'notion_estado', 'pct_comision',
-  'fecha_ganado', 'sync',
+  'fecha_ganado', 'plazo_k', 'sync',
 ]);
 
 /* Cada bloqueo con su razón escrita, porque el mensaje se le enseña a una persona que está
@@ -593,7 +605,7 @@ const BLOQUEADOS = {
    que fabricación no mueva por accidente la cuenta de cobro y que pagos no mueva un pin. */
 const CAMPOS_ROL = {
   direccion: null,   // todo lo escribible
-  fabricacion: new Set(['notas', 'lat', 'lng', 'geo_fuente', 'maps_url', 'entrecalles', 'sync']),
+  fabricacion: new Set(['notas', 'lat', 'lng', 'geo_fuente', 'maps_url', 'entrecalles', 'plazo_k', 'sync']),
   pagos: new Set(['notas', 'cuenta', 'estatus_notion', 'notion_page_id', 'notion_estado',
                   'pct_comision', 'sync']),
 };
@@ -641,6 +653,13 @@ export async function actualizar(id, parche) {
       v = num(v);
     } else if (k === 'fecha_ganado') {
       if (!esISO(v)) return mal('DATO_INVALIDO', 'La fecha va como año-mes-día.');
+    } else if (k === 'plazo_k') {
+      /* Vacío o null es «vuelve al propuesto», y es una respuesta válida. Lo demás tiene que
+         ser uno de los cinco cubos. */
+      if (v === null || v === '' || v === undefined) v = null;
+      else if (plazoValido(v) === null) {
+        return mal('DATO_INVALIDO', 'El plazo es uno de los cinco: 1, 1.5, 2, 2.5 o 3+ semanas (1 a 5). Para volver al propuesto, déjalo vacío.');
+      } else v = plazoValido(v);
     }
     fila[k] = v;
   }
@@ -861,9 +880,11 @@ function diasHastaDesde(iso, base) {
  * cambiar, y por eso está: sin ella, corregir una cotización mal autorizada dejaría al
  * proyecto mostrando para siempre un número que ya nadie firma.
  *
- * Lo que NO pisa: `etapa`, `notas`, el espejo de Notion, y el pin si alguien lo puso a
- * mano. Un pin movido con el dedo es la única ubicación que un humano midió; volver a
- * sacarlo del link sería tirar el dato bueno y quedarse con el que ya había fallado.
+ * Lo que NO pisa: `etapa`, `notas`, `plazo_k`, el espejo de Notion, y el pin si alguien lo
+ * puso a mano. Un pin movido con el dedo es la única ubicación que un humano midió; volver
+ * a sacarlo del link sería tirar el dato bueno y quedarse con el que ya había fallado. Y
+ * `plazo_k` es de la misma clase: si fabricación dijo que son tres semanas, recalcular el
+ * material no tiene por qué olvidarlo.
  *
  * @returns {Promise<Resultado>} valor = {proyecto, cambio:boolean, lineas:number}
  */
