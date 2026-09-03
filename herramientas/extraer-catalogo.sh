@@ -1,9 +1,9 @@
 #!/bin/sh
-# Regenera js/datos/catalogo-precios.js desde los catálogos de index.html.
+# Regenera js/datos/catalogo-precios.js desde los catálogos de cotizador.html.
 #
-# La plataforma es su propio documento: se puede abrir sin que index.html se haya cargado
+# La plataforma es su propio documento: se puede abrir sin que cotizador.html se haya cargado
 # nunca en esa pestaña, así que no puede contar con que MATERIALES exista en window. Pero
-# el catálogo tiene UN dueño —index.html, que se edita a mano cuando sube el aluminio— y
+# el catálogo tiene UN dueño —cotizador.html, que se edita a mano cuando sube el aluminio— y
 # esto lo copia en vez de transcribirlo, que es donde se cuelan los errores de un dígito.
 #
 # Uso:
@@ -15,17 +15,17 @@ DEST=js/datos/catalogo-precios.js
 TMP=$(mktemp)
 
 bloque() {  # bloque <nombre>  ->  el interior del array, sin la línea de apertura ni el ];
-  sed -n "/^const $1 = \[/,/^\];/p" index.html | sed '1d;$d'
+  sed -n "/^const $1 = \[/,/^\];/p" cotizador.html | sed '1d;$d'
 }
 
 cat > "$TMP" <<'CAB'
 /* ============================================================================
    Copia del catálogo de precios del cotizador.
 
-   GENERADA. No la edites aquí: el catálogo vive en index.html y se edita allá.
+   GENERADA. No la edites aquí: el catálogo vive en cotizador.html y se edita allá.
    Corre herramientas/extraer-catalogo.sh para regenerarla.
 
-   Existe por un caso concreto: la plataforma se puede abrir sin que index.html se haya
+   Existe por un caso concreto: la plataforma se puede abrir sin que cotizador.html se haya
    cargado nunca en esa pestaña —es su propio documento—, así que no puede contar con que
    MATERIALES exista en window. Y necesita el catálogo para dos cosas que NO son dinero:
    poner la etiqueta legible de un material y derivar de qué está hecha una partida.
@@ -44,11 +44,11 @@ CAB
   echo "export const CAJAS = ["; bloque CAJAS; echo "];"
   echo "/* Recorte de acrílico: precio por cm de altura × pieza (igual que letras) */"
   echo "export const RECORTES = ["; bloque RECORTES; echo "];"
-  grep '^const RECORTE_COMP_EXTRA' index.html | sed 's/^const /export const /'
+  grep '^const RECORTE_COMP_EXTRA' cotizador.html | sed 's/^const /export const /'
   echo "/* Bastidores: precio por metro cuadrado */"
   echo "export const BASTIDORES = ["; bloque BASTIDORES; echo "];"
-  grep '^const TIPO_NOMBRE=' index.html | sed 's/^const /export const /'
-  grep '^const TIPO_CORTO ' index.html | sed 's/^const /export const /'
+  grep '^const TIPO_NOMBRE=' cotizador.html | sed 's/^const /export const /'
+  grep '^const TIPO_CORTO ' cotizador.html | sed 's/^const /export const /'
 } >> "$TMP"
 
 cat >> "$TMP" <<'PIE'
@@ -76,7 +76,7 @@ PIE
 # silencio—. Se cuenta antes de escribir.
 for n in MATERIALES COMPLEJIDAD CAJAS RECORTES BASTIDORES; do
   if ! grep -q "export const $n = \[" "$TMP" || [ "$(bloque $n | grep -c "key:")" -lt 2 ]; then
-    echo "El bloque $n salió vacío o incompleto. ¿Cambió el formato de index.html?" >&2
+    echo "El bloque $n salió vacío o incompleto. ¿Cambió el formato de cotizador.html?" >&2
     rm -f "$TMP"; exit 1
   fi
 done
@@ -89,4 +89,4 @@ if [ -f "$DEST" ] && cmp -s "$DEST" "$TMP"; then
   echo "$DEST ya estaba al día."; rm -f "$TMP"; exit 0
 fi
 mv "$TMP" "$DEST"
-echo "$DEST regenerado desde index.html."
+echo "$DEST regenerado desde cotizador.html."

@@ -27,10 +27,16 @@ import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, cerrarCapa, ajust
    el almacén sin querer. Y el mapa no le aparece a pagos porque un módulo que un rol no
    necesita no debe estar en su barra: cada pestaña de más es una decisión de más cada vez
    que se abre la app. */
+/* El calendario va PRIMERO porque es la pantalla que abre: `rutaDelHash()` cae en la primera
+   ruta del rol cuando el hash no dice nada, así que el orden de esta lista ES el default. La
+   ruta se llama «agenda» aunque la pestaña diga «Calendario» y el archivo fabricacion.js:
+   cotizador.html publica `./#/agenda` en producción y el manifiesto instalado tiene ese
+   shortcut. Y la pestaña no dice «Fabricación» porque esa palabra ya está ocho píxeles más
+   arriba, en el segmento de rol, significando otra cosa. */
 const RUTAS = [
+  { ruta: 'agenda',    mod: 'fabricacion', seccion: 'mod-fabricacion', icono: 'i-agenda',   nombre: 'Calendario', roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'hoy',       mod: 'inicio',    seccion: 'mod-hoy',       icono: 'i-hoy',        nombre: 'Hoy',       roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'proyectos', mod: 'proyectos', seccion: 'mod-proyectos', icono: 'i-proyectos',  nombre: 'Proyectos', roles: ['direccion', 'fabricacion', 'pagos'] },
-  { ruta: 'agenda',    mod: 'agenda',    seccion: 'mod-agenda',    icono: 'i-agenda',     nombre: 'Agenda',    roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'material',  mod: 'material',  seccion: 'mod-material',  icono: 'i-material',   nombre: 'Material',  roles: ['direccion', 'fabricacion'] },
   { ruta: 'mapa',      mod: 'mapa',      seccion: 'mod-mapa',      icono: 'i-mapa',       nombre: 'Mapa',      roles: ['direccion', 'fabricacion'] },
   { ruta: 'ajustes',   mod: 'ajustes',   seccion: 'mod-ajustes',   icono: 'i-ajustes',    nombre: 'Ajustes',   roles: ['direccion', 'fabricacion', 'pagos'], oculto: true },

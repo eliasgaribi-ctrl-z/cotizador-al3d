@@ -585,6 +585,58 @@ button,input,select,textarea,optgroup{font-family:inherit}
    etiqueta (`margin-top:4px`) porque vive dentro de un `.fld`; aquí es una tira suelta y lo
    que necesita es separación abajo, no arriba. */
 .ag-filtros{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--e4)}
+/* `.tipo-seg` se lleva `order:9` por debajo de 760 px (css/sistema.css) para irse al final
+   de la fila de la partida, que es donde tiene sentido allá. Aquí no: en `.ag-filtros` eso
+   pintaba el chip «Solo los días con cobro» ENCIMA de Mes/Semana/Lista en cualquier teléfono
+   — el filtro antes que lo que filtra. Se devuelve al principio. */
+.ag-filtros .tipo-seg{order:0}
+
+/* ----- La lente: Taller / Instalaciones / Todo -----
+   En su propio renglón y a ancho completo, arriba del segmento de vista. Son dos preguntas
+   distintas —qué miro y cómo lo miro— y en la misma tira la de arriba se lee como si filtrara
+   a la de abajo. A ancho completo porque es el estado principal de la pantalla. */
+.ag-lente{display:flex;margin-bottom:var(--e2)}
+.ag-lente .tipo-seg{flex:1 1 100%;width:100%}
+.ag-lente .tipo-seg button{flex:1;min-width:0}
+
+/* El rótulo de un grupo dentro del calendario o del día. En versalitas y --t1, como
+   `.cal-dow`, para que se lea como rótulo y no como título: «En el taller» compitiendo en
+   tamaño con «lun 1 sep» son dos encabezados y ninguno manda. */
+.ag-grupo{display:flex;align-items:center;gap:var(--e2);margin:var(--e3) 0 var(--e1);
+  font-weight:700;font-size:var(--t1);line-height:1;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.04em}
+.ag-grupo .svgi{width:var(--ico1);height:var(--ico1)}
+.ag-grupo .n{margin-left:auto;font-variant-numeric:tabular-nums}
+
+/* ----- La fila del taller -----
+   La ventana de una a tres semanas NO se dibuja sobre la rejilla del mes: en celdas de 76 px
+   —39 en el teléfono— no cabe, y partir la rejilla para meterle una capa es el cambio más
+   caro y frágil del plan. Aquí cabe entera: un renglón `.pf-fila` de siempre con una pista
+   debajo del texto —empezar ─ hoy ─ listo— que es un riel de 6 px con un punto. El riel
+   nunca es la única fuente: la frase de arriba dice lo mismo con palabras. */
+.tal-pista{display:flex;align-items:center;gap:var(--e2);margin-top:6px;
+  font-weight:500;font-size:var(--t1);line-height:1;color:var(--muted);white-space:nowrap}
+.tal-fecha{flex-shrink:0;font-variant-numeric:tabular-nums}
+.tal-riel{position:relative;flex:1;min-width:40px;height:6px;border-radius:999px;
+  background:var(--a-suave);border:1px solid var(--a-borde)}
+.tal-riel.tarde{background:var(--av-bg);border-color:var(--av-borde)}
+/* La ventana sin fecha de instalación es una hipótesis, y se ve: punteada. */
+.tal-riel.propuesta{background:none;border-style:dashed;border-color:var(--n4)}
+.tal-hoy{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;
+  background:var(--a);border:2px solid #fff;box-shadow:0 0 0 1px var(--a-borde)}
+.tal-riel.tarde .tal-hoy{background:var(--amber-ico)}
+
+/* ----- La ficha del plazo -----
+   Hoy es una etiqueta; el siguiente paso la vuelve el botón que corrige el plazo, y por eso
+   ya tiene la forma de uno. «Puesto a mano» manda sobre lo calculado, y se ve: el fondo tenue
+   del acento con el que el sistema marca todo lo elegido. */
+.cal-plazo{display:inline-flex;align-items:center;gap:var(--e1);
+  min-height:28px;padding:0 10px;border:1px solid var(--n3);border-radius:999px;
+  background:linear-gradient(168deg,#fff,var(--n1));
+  color:var(--n7);font-weight:600;font-size:var(--t1);line-height:1;white-space:nowrap}
+.cal-plazo .svgi{width:var(--ico1);height:var(--ico1);color:var(--n6)}
+.cal-plazo.mano{border-color:var(--a-borde);background:var(--a-suave);color:var(--a-fuerte)}
+.cal-plazo.mano .svgi{color:var(--a)}
 
 /* La columna de acciones de una ficha. Existe `.pf-fila-acc`, pero en el teléfono se
    convierte en una fila horizontal con relleno a la izquierda —tiene todo el sentido dentro

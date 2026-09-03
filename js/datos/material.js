@@ -152,6 +152,8 @@ const CTS_BASE = {
   APROV_TIRAS: 0.90, PROF_CANTO_CM: 5.0, PROF_CAJA_CM: 15.0, MOD_POR_M2: 45,
   MOD_POR_M2_CAJA: 30, W_MODULO: 0.72, CAP_FUENTE_W: 60, DERATE_FUENTE: 0.80,
   TRAVESANO_CM: 60, REMACHE_CM: 15, SEPARADORES_LETRA: 4,
+  /* Las dos de tiempo, que usa la ventana de taller (datos/taller.js). */
+  PLAZO_COLCHON_DIAS: 1, PLAZO_PROVEEDOR_DIAS: 3,
 };
 
 const VERSION_BASE = 'c-2026-08';
@@ -167,6 +169,7 @@ const LIMITES = {
   MOD_POR_M2_CAJA: [5, 400], W_MODULO: [0.05, 20], CAP_FUENTE_W: [10, 600],
   DERATE_FUENTE: [0.3, 1], TRAVESANO_CM: [10, 300], REMACHE_CM: [3, 100],
   SEPARADORES_LETRA: [1, 20],
+  PLAZO_COLCHON_DIAS: [0, 7], PLAZO_PROVEEDOR_DIAS: [0, 30],
 };
 
 /* ============================================================================

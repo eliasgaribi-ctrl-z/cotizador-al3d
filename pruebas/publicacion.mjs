@@ -57,15 +57,62 @@ else if (conLlaves.length) {
    queda sin funcionar sin señal y nadie se entera hasta que alguien está sin red. */
 const sw = readFileSync(join(RAIZ, 'sw.js'), 'utf8');
 const lista = (/const APP_FILES = \[([\s\S]*?)\];/.exec(sw) || [, ''])[1];
-const archivos = [...lista.matchAll(/'([^']+)'/g)].map(m => m[1].replace(/^\.\//, ''));
-const faltantes = archivos.filter(f => !existsSync(join(RAIZ, f)));
+/* `./` es la portada: en Pages es index.html. Sin esta traducción, `join(RAIZ, '')` es la
+   carpeta del repo, `existsSync` dice que sí, y la entrada pasa sin comprobar nada. */
+const archivos = [...lista.matchAll(/'([^']+)'/g)].map(m => m[1].replace(/^\.\//, '')).map(f => f === '' ? 'index.html' : f);
+const faltantes = archivos.filter(f => { const p = join(RAIZ, f); return !existsSync(p) || !statSync(p).isFile(); });
 if (!archivos.length) mal('no pude leer APP_FILES de sw.js: ¿cambió el formato?');
 else if (faltantes.length) mal(faltantes.length + ' archivo(s) que sw.js promete cachear NO existen: ' + faltantes.join(', '));
 else bien('los ' + archivos.length + ' archivos que sw.js promete cachear existen');
 
+/* Y al revés, que es el fallo que de verdad pasa. La comprobación de arriba mira que no
+   sobre nada en la lista; esta mira que no FALTE nada. Un módulo nuevo que nadie añade a
+   APP_FILES funciona perfectamente mientras haya señal —lo sirve la red— y desaparece sin
+   señal, que es el único escenario para el que el service worker existe. Y no se descubre
+   probando: se descubre en la calle, delante del cliente.
+   Se cuentan los .js de js/, que es donde viven los módulos que la plataforma importa. */
+function jsDe(dir, out = []) {
+  for (const n of readdirSync(dir)) {
+    const p = join(dir, n);
+    if (statSync(p).isDirectory()) jsDe(p, out);
+    else if (n.endsWith('.js')) out.push(p.replace(RAIZ + '/', ''));
+  }
+  return out;
+}
+const enDisco = jsDe(join(RAIZ, 'js'));
+const sinCachear = enDisco.filter(f => !archivos.includes(f));
+if (sinCachear.length) {
+  mal(sinCachear.length + ' módulo(s) existen y sw.js NO los cachea: ' + sinCachear.join(', ') + '\n' +
+      '      Con señal funcionan; sin señal la plataforma no abre.\n' +
+      '      Arreglo: añadirlos a APP_FILES en sw.js y subir APP_VERSION.');
+} else bien('los ' + enDisco.length + ' módulos de js/ están todos en APP_FILES');
+
 /* Y que APP_VERSION exista, porque es la línea que hay que subir al publicar. */
 if (!/const APP_VERSION = \d+;/.test(sw)) mal('sw.js no tiene APP_VERSION: sin eso, publicar un cambio de la plataforma no llega a los teléfonos');
 else bien('sw.js tiene APP_VERSION (súbela al publicar cambios de la plataforma)');
+
+/* ----- Quién es quién en la puerta -----
+   Desde el cambio de puerta de entrada, index.html es la PLATAFORMA y cotizador.html es el
+   COTIZADOR. Antes era al revés, y durante un año el ritual de publicar fue «renombrar el HTML
+   nuevo a index.html y subirlo». Hacer eso hoy sobrescribe el cascarón de la app con el
+   cotizador y borra la puerta de entrada en un commit, sin que nada avise. No es un riesgo
+   técnico: es de memoria muscular. Este es el candado.
+   Se distingue por lo único que no puede estar en los dos: el cascarón carga js/app.js como
+   módulo; el cotizador es un solo archivo con el script en línea y no importa nada. */
+const portada = existsSync(join(RAIZ, 'index.html')) ? readFileSync(join(RAIZ, 'index.html'), 'utf8') : '';
+const cotiz   = existsSync(join(RAIZ, 'cotizador.html')) ? readFileSync(join(RAIZ, 'cotizador.html'), 'utf8') : '';
+const MODULO  = '<script type="module" src="./js/app.js"></script>';
+if (!portada) mal('no existe index.html: el sitio no tiene portada');
+else if (!portada.includes(MODULO)) {
+  mal('index.html NO es la plataforma: no carga js/app.js. ' +
+      (portada.includes('const MATERIALES') ? '¡Es el cotizador! ' : '') +
+      'Alguien subió el cotizador como index.html y la puerta de entrada se perdió.\n' +
+      '      El cotizador se publica como cotizador.html; la raíz es la plataforma.');
+} else bien('index.html es la plataforma (carga js/app.js)');
+if (!cotiz) mal('no existe cotizador.html: el cotizador desapareció del sitio');
+else if (cotiz.includes(MODULO)) mal('cotizador.html carga js/app.js: es la plataforma, no el cotizador');
+else if (!cotiz.includes('const MATERIALES')) mal('cotizador.html no trae el catálogo de precios: no es el cotizador');
+else bien('cotizador.html es el cotizador (script en línea, con su catálogo)');
 
 console.log(fallos ? '\n' + fallos + ' FALLO(S)' : '\nEl sitio se puede publicar.');
 process.exit(fallos ? 1 : 0);

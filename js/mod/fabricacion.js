@@ -1,10 +1,37 @@
 /* ============================================================================
-   Agenda — el calendario de instalaciones, y la única captura humana del sistema.
+   Calendario — la pantalla que abre la app. Dos lentes sobre el mismo mes: TALLER, que
+   contesta «¿qué se trabaja hoy y en qué voy tarde?», e INSTALACIONES, que es la agenda de
+   siempre y la única captura humana del sistema.
 
-   Todo lo demás en la plataforma se deriva de algo que ya existía. Aquí no: el día que se
-   instala lo sabe una persona y nadie más. Por eso esta pantalla se escribió con una sola
-   obsesión, que es no pedir un segundo dato, y con tres decisiones que se ven en todo el
-   archivo:
+   Hasta septiembre de 2026 este archivo se llamaba agenda.js y era la tercera pestaña. La
+   ruta sigue siendo «agenda» a propósito: cotizador.html publica `./#/agenda` en producción,
+   mod/proyectos.js llama `ir('agenda')` y el manifiesto instalado tiene ese shortcut.
+   Cambiar la cadena por estética costaría tocar producción para no ganar nada.
+
+   ----- LO QUE FALTA, para quien pinte encima (el contrato ya está probado) -----
+   La lente de Taller lee `Taller.ventanaTaller()` —js/datos/taller.js, con pruebas— y pinta
+   la fila del taller: un renglón por proyecto ordenado por cuándo tiene que estar listo. Lo
+   que este cascarón deja escrito y NO conecta todavía, en orden de valor:
+     1. Corregir el plazo con un toque: la ficha `.cal-plazo` de cada renglón abre pf-pide
+        con los cinco cubos y llama `Proyectos.actualizar(id, {plazo_k})`. Tocar el elegido
+        lo suelta (null = manda el propuesto). Con aviso y «Deshacer», como todo lo demás.
+     2. El mes de la lente Taller como mapa de VENCIMIENTOS: cada día pinta con `.cal-ev` lo
+        que vence ese día —empezar, cortar, armar, listo— a partir de `hitos`. Máximo tres y
+        «+N», igual que las instalaciones. La rejilla no se toca: una barra que cruce columnas
+        no cabe en celdas de 76 px y en el teléfono son 39.
+     3. `Taller.cargaDeDia()` en `Agenda.delMes()`, como `dias[].carga`, con UNA lectura por
+        mes: ensanchar `desde` en PLAZO_TOPE_DIAS + 1 para atrapar lo que arrancó el mes
+        anterior.
+     4. La tarjeta que late —«Se ganó / No se dio», regla A6— sube aquí desde inicio.js, con
+        `abrirGanar`/`abrirDescartar` tal cual. Es el eslabón que no existe en ningún otro
+        sistema; sin ese toque este calendario está vacío por construcción. Y nada más late.
+     5. La lente «Todo»: el calendario de instalaciones con la fila del taller debajo.
+     6. La barra fija por rol: dirección «Decidir N cotizaciones» → «Agendar (N sin fecha)»;
+        fabricación «Proponer un día»; pagos sin barra.
+
+   Lo que la agenda ya tenía y se conserva entero —el punto de semáforo, el panel del día, la
+   hoja de agendar, el .ics— vive en la lente de Instalaciones y no se tocó. Sus tres
+   decisiones siguen valiendo:
 
    1. AGENDAR ES UN TOQUE Y MEDIO. Se toca un día libre de la rejilla —o el botón de la
       barra— y la fecha ya viene puesta; el proyecto se elige de la lista de los que no
@@ -33,6 +60,9 @@ import * as Proyectos from '../datos/proyectos.js';
 import * as Reglas from '../datos/reglas.js';
 import * as Ics from '../nucleo/ics.js';
 import * as Gcal from '../nucleo/gcal.js';
+import * as Taller from '../datos/taller.js';
+import * as Material from '../datos/material.js';
+import { masDias, masMeses, iniSemana, ultimoDia, diasEntre } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, partesISO, fechaLocal,
          fmtFecha, fmtFechaDia, fmtHora, cuando, diasHasta, segmento, chip, abrirCapa,
          cerrarCapa, compartirArchivo, copiarTexto, linkWa, ajustarAltoBarra }
@@ -43,6 +73,10 @@ import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, partesISO, f
    guardado en atributos se iría con el nodo que lo llevaba. */
 let _cont = null;
 let _ctx = null;
+/* La lente: qué parte del calendario se mira. Taller de entrada para dirección y
+   fabricación; pagos aterriza en Instalaciones y no ve el segmentado, porque una ventana de
+   taller no le dice nada que pueda accionar y un segmentado de una opción es un control mudo. */
+let _lente = null;           // taller|instalaciones|todo — se decide en montar() por el rol
 let _vista = 'mes';          // mes|semana|lista
 let _ancla = hoyISO();       // el mes o la semana que se está viendo
 let _dia = null;             // el día abierto debajo de la rejilla
@@ -67,6 +101,8 @@ const VIVAS_SIN_MARCAR = ['propuesta', 'confirmada', 'reagendada'];
 export async function montar(contenedor, ctx) {
   _cont = contenedor;
   _ctx = ctx;
+  if (!_lente) _lente = Prefs.rol() === 'pagos' ? 'instalaciones' : 'taller';
+  if (Prefs.rol() === 'pagos') _lente = 'instalaciones';
 
   /* Un oyente delegado por contenedor y uno por capa. La rejilla del mes son cuarenta y dos
      botones que se rehacen cada vez que se toca uno: un oyente por celda serían cuarenta y
@@ -116,6 +152,7 @@ export function desmontar() {
      `pago_pendiente` es null en todas las filas— sin ningún control en pantalla para apagarlo.
      Un filtro encendido sin su interruptor es una app rota que parece una app sin datos. */
   _soloCobro = false;
+}
 
 /* ============================================================================
    Fechas — sobre los campos, nunca con new Date(iso)
@@ -129,33 +166,8 @@ const MES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio
    domingo es la que nadie ve. */
 const DOW = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
 
-/** Sumar días con `fechaLocal`, que ancla a mediodía. `new Date('2026-08-23')` se lee como
- *  UTC y en México devuelve el día anterior: ese error cuesta un día de instalación. */
-function masDias(iso, n) {
-  const f = fechaLocal(iso);
-  if (!f) return iso;
-  f.setDate(f.getDate() + n);
-  return f.getFullYear() + '-' + p2(f.getMonth() + 1) + '-' + p2(f.getDate());
-}
-
-/** Sumar meses cayendo siempre en el día 1. Sin eso, del 31 de enero un mes es el 3 de
- *  marzo, y avanzar mes por mes desde una fecha alta se salta febrero entero. */
-function masMeses(iso, n) {
-  const p = partesISO(iso);
-  if (!p) return iso;
-  let m = p.m - 1 + n;
-  const a = p.a + Math.floor(m / 12);
-  m = ((m % 12) + 12) % 12;
-  return a + '-' + p2(m + 1) + '-01';
-}
-
-const ultimoDia = (a, m) => new Date(Date.UTC(a, m, 0)).getUTCDate();
-
-/** El lunes de la semana que contiene `iso`. */
-function iniSemana(iso) {
-  const f = fechaLocal(iso);
-  return f ? masDias(iso, -((f.getDay() + 6) % 7)) : iso;
-}
+/* `masDias`, `masMeses`, `ultimoDia` e `iniSemana` vienen de `nucleo/fechas.js`. La razón por
+   la que la semana empieza en LUNES está escrita allá, junto a la función. */
 
 const etiquetaMes = iso => {
   const p = partesISO(iso);
@@ -222,6 +234,24 @@ async function leer() {
   }
 
   if (_dia) d.dia = await Agenda.delDia(_dia, { incluirCanceladas: true });
+
+  /* Las ventanas de taller, solo cuando la lente las va a pintar. Una lectura de proyectos
+     vivos, una de instalaciones vivas y una de constantes; la aritmética es pura y corre
+     aquí, en el módulo, con el `hoy` de arriba —el mismo para todas las filas, para que no
+     cambie a media pintada si se cruza la medianoche—. */
+  d.ventanas = [];
+  if (_lente !== 'instalaciones') {
+    const [proys, insts, cts] = await Promise.all([
+      Proyectos.listar({ vivos: true }),
+      Agenda.listar({ vivas: true }),
+      Material.constantes(),
+    ]);
+    const instDe = new Map();
+    for (const i of (insts || [])) if (i && i.proyecto_id && !instDe.has(i.proyecto_id)) instDe.set(i.proyecto_id, i);
+    d.ventanas = (proys || [])
+      .map(p => Taller.ventanaTaller(p, instDe.get(p.id) || null, { hoy, cts }))
+      .filter(v => v.estado !== 'cancelado' && v.estado !== 'hecho');
+  }
   return d;
 }
 
@@ -272,21 +302,117 @@ function pintar() {
   /* El segmento de vista y los filtros van en la MISMA tira. Son la misma cosa —qué de la
      agenda estoy viendo— y en dos renglones separados el de abajo se lee como si filtrara
      otra pantalla. */
-  _cont.innerHTML =
-    pintarCuentas(d) +
+  const calendario =
     '<div class="ag-filtros">' +
       segmento([{ v: 'mes', t: 'Mes' }, { v: 'semana', t: 'Semana' }, { v: 'lista', t: 'Lista' }],
-               _vista, 'data-vista') + pintarFiltros() +
+               _vista, 'data-vista', 'Cómo ves las instalaciones') + pintarFiltros() +
     '</div>' +
     '<div class="card"><div class="card-b">' +
       (_vista === 'mes' ? pintarMes(d) : _vista === 'semana' ? pintarSemana(d) : pintarLista(d)) +
-    '</div></div>' +
+    '</div></div>';
+
+  _cont.innerHTML =
+    pintarCuentas(d) +
+    pintarLente() +
+    (_lente === 'taller' ? pintarTaller(d)
+     : _lente === 'todo' ? calendario + pintarTaller(d)
+     : calendario) +
     pintarExportar(d);
 
   pintarMbar(d);
   publicarCuentas(d);
 }
 
+/* ----- La lente -----
+   En su propio renglón y a ancho completo, ARRIBA del segmento de vista. Son dos preguntas
+   distintas —«qué miro» y «cómo lo miro»— y en la misma tira la de arriba se lee como si
+   filtrara a la de abajo. Pagos no la ve: con una sola lente no hay nada que elegir. */
+function pintarLente() {
+  if (Prefs.rol() === 'pagos') return '';
+  return '<div class="ag-lente">' +
+    segmento([{ v: 'taller', t: 'Taller' }, { v: 'instalaciones', t: 'Instalaciones' }, { v: 'todo', t: 'Todo' }],
+             _lente, 'data-lente', 'Qué parte del calendario ves') +
+    '</div>';
+}
+
+/* ----- La fila del taller -----
+   Un renglón por proyecto, ordenado por cuándo tiene que estar listo. La barra de una a tres
+   semanas NO se dibuja sobre la rejilla del mes: en celdas de 76 px —39 en el teléfono— no
+   cabe, y partir la rejilla para meterle una capa es el cambio más caro y frágil del plan.
+   Aquí cabe entera, con su pista, y se lee en un teléfono, que es donde se va a leer. Es la
+   misma decisión que la vista de semana ya tomó: «siete columnas de 45 px, y ahí no cabe una
+   hora ni un nombre». */
+const VERBO_TALLER = {
+  ganado: 'hay que ponerlo en diseño', en_diseno: 'hay que cortar', cortado: 'hay que armar',
+  armado: 'falta dejarlo listo', listo: 'ya está listo',
+};
+const TONO_TALLER = { no_llega: 'mal', tarde: 'urge', justo: 'urge', a_tiempo: '', sin_fecha: '' };
+
+function pintarTaller(d) {
+  const vs = (d.ventanas || []).slice().sort((a, b) => {
+    /* Lo que ya va tarde primero; después por el día en que tiene que estar listo; lo que
+       no tiene fecha, al final, con su reloj corriendo. */
+    const ta = a.atraso_dias > 0 ? 0 : 1, tb = b.atraso_dias > 0 ? 0 : 1;
+    if (ta !== tb) return ta - tb;
+    return String(a.listo || '9999') < String(b.listo || '9999') ? -1 : 1;
+  });
+
+  if (!vs.length) {
+    if (!d.sinFecha.length && !vs.length && !(d.mes && d.mes.total)) {
+      return vacio('Todavía no hay nada que fabricar',
+        'Cuando marques una cotización como ganada en el cotizador, el proyecto aparece aquí con su ventana de taller y su día de instalación. Es el único toque que la plataforma te pide.',
+        '<a class="btn btn-pri" href="cotizador.html">Abrir el cotizador</a>');
+    }
+    return vacio('Nada en el taller',
+      'Lo que hay este mes ya está listo o instalado. En «Instalaciones» lo ves con su día.',
+      '<button type="button" class="btn btn-gho pf-btn-corto" data-lente="instalaciones">Ver las instalaciones</button>');
+  }
+
+  const conFecha = vs.filter(v => v.ancla === 'instalacion');
+  const sinFecha = vs.filter(v => v.ancla !== 'instalacion');
+  let html = '<div class="card"><div class="card-b">';
+  if (conFecha.length) {
+    html += '<div class="ag-grupo">' + ico('i-taller') + 'En el taller <span class="n">' + conFecha.length + '</span></div>' +
+            conFecha.map(filaTaller).join('');
+  }
+  if (sinFecha.length) {
+    html += '<div class="ag-grupo">' + ico('i-reloj') + 'Ganados sin fecha, con el reloj corriendo <span class="n">' + sinFecha.length + '</span></div>' +
+            sinFecha.map(filaTaller).join('');
+  }
+  return html + '</div></div>';
+}
+
+/* Fecha corta para la pista: «16 sep». */
+function corta(iso) {
+  const p = partesISO(iso); if (!p) return '';
+  return p.d + ' ' + ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][p.m - 1];
+}
+
+function filaTaller(v) {
+  const hoy = _d ? _d.hoy : hoyISO();
+  /* Dónde va hoy dentro de la ventana, de 0 a 100. Fuera de ella se pega a los bordes. */
+  const largo = Math.max(1, diasEntre(v.empezar, v.listo) || 1);
+  const pos = Math.max(0, Math.min(100, Math.round((diasEntre(v.empezar, hoy) || 0) / largo * 100)));
+  const tono = TONO_TALLER[v.estado] || '';
+  const verbo = VERBO_TALLER[v.etapa_real] || '';
+  return '<div class="pf-fila tal-fila" data-proyecto="' + esc(v.proyecto_id || '') + '">' +
+    '<div class="pf-fila-ico' + (tono ? ' ' + tono : '') + '">' + ico('i-taller') + '</div>' +
+    '<div class="pf-fila-tx">' +
+      '<div class="pf-fila-t">' + esc(v.titulo || 'Proyecto sin nombre') + (verbo ? ' · ' + esc(verbo) : '') + '</div>' +
+      '<div class="pf-fila-d">' + esc(v.texto) + '</div>' +
+      '<div class="tal-pista" aria-hidden="true">' +
+        '<span class="tal-fecha">' + esc(corta(v.empezar)) + '</span>' +
+        '<span class="tal-riel' + (v.ancla === 'ganado' ? ' propuesta' : '') + (tono === 'mal' || tono === 'urge' ? ' tarde' : '') + '">' +
+          '<i class="tal-hoy" style="left:' + pos + '%"></i></span>' +
+        '<span class="tal-fecha">' + esc(corta(v.listo)) + (v.instalacion ? ' · instala ' + esc(corta(v.instalacion)) : '') + '</span>' +
+      '</div>' +
+      '<div class="pf-fila-d">' +
+        '<span class="cal-plazo' + (v.plazo_fuente === 'elegido' ? ' mano' : '') + '" title="' + esc(v.plazo_razon) + '">' +
+          ico('i-reloj') + esc(v.plazo_etiqueta) + ' · ' + (v.plazo_fuente === 'elegido' ? 'a mano' : 'calculado') + '</span>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
 /* ----- Las cuentas de arriba -----
    Lo primero que se lee al entrar: «6 por instalar · 2 sin fecha» contesta la pantalla
    entera antes de mirar la rejilla. */
@@ -659,6 +785,9 @@ function publicarCuentas(d) {
 
 async function alTocar(ev) {
   if (ev.target.closest('[data-recargar]')) { location.reload(); return; }
+
+  const lente = ev.target.closest('[data-lente]');
+  if (lente) { _lente = lente.dataset.lente; _dia = null; await recargar(); return; }
 
   const vista = ev.target.closest('[data-vista]');
   if (vista) { _vista = vista.dataset.vista; _dia = null; await recargar(); return; }

@@ -36,6 +36,7 @@
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
 import { partesISO, hoyISO, fmtFecha, fmtFechaDia, fmtHora } from '../nucleo/ui.js';
+import { diasEntre, ultimoDia } from '../nucleo/fechas.js';
 
 /** @typedef {{ok:true, valor:*}|{ok:false, codigo:string, mensaje:string}} Resultado */
 const ok  = valor => ({ ok: true, valor });
@@ -182,17 +183,9 @@ function normHora(h) {
   return String(H).padStart(2, '0') + ':' + m[2];
 }
 
-/* Días entre dos fechas de calendario, sobre los campos. Nunca `new Date('2026-08-23')`:
-   eso se lee como UTC y en México devuelve el día anterior. Y contra un `hoy` que entra,
-   no contra el reloj, para que el semáforo se pueda probar sin cambiarle la hora al
-   teléfono. */
-function diasEntre(desde, hasta) {
-  const a = partesISO(desde), b = partesISO(hasta);
-  if (!a || !b) return null;
-  return Math.round((Date.UTC(b.a, b.m - 1, b.d) - Date.UTC(a.a, a.m - 1, a.d)) / 86400000);
-}
-
-const ultimoDia = (a, m) => new Date(Date.UTC(a, m, 0)).getUTCDate();
+/* `diasEntre` y `ultimoDia` viven en `nucleo/fechas.js`, con sus pruebas. Se piden contra un
+   `hoy` que ENTRA y no contra el reloj, que es lo que deja probar el semáforo sin cambiarle
+   la hora al teléfono. */
 const p2 = n => String(n).padStart(2, '0');
 
 /* ============================================================================

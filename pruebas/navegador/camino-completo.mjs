@@ -40,7 +40,7 @@ let fallos=0; const mal=m=>{console.log('  ✗ '+m);fallos++;}; const bien=m=>co
 const errs=[]; p.on('pageerror',e=>errs.push(e.message));
 
 // ── 1. El cotizador, en blanco ────────────────────────────────────────────────
-await p.goto(B+'/index.html',{waitUntil:'load'});
+await p.goto(B+'/cotizador.html',{waitUntil:'load'});
 await p.waitForTimeout(1200);
 bien('el cotizador abre');
 
@@ -114,11 +114,15 @@ const enlace = await p.$('a.btn-pf');
 const visible = enlace ? await enlace.isVisible() : false;
 visible ? bien('el enlace a la plataforma se ve en un teléfono de 430 px') : mal('el enlace a la plataforma NO se ve');
 if (visible) { await enlace.click(); await p.waitForTimeout(4000); }
-else { await p.goto(B+'/plataforma.html#/proyectos',{waitUntil:'load'}); await p.waitForTimeout(4000); }
+else { await p.goto(B+'/#/proyectos',{waitUntil:'load'}); await p.waitForTimeout(4000); }
 
 // ── 7. ¿Llegó el proyecto, con su material? ───────────────────────────────────
+/* Antes se miraba la URL buscando «plataforma.html»; desde el cambio de puerta la plataforma
+   es la raíz y su URL es «/#/hoy», así que se pregunta por lo que solo la plataforma pinta:
+   su barra de módulos. */
 const url = p.url();
-/plataforma\.html/.test(url) ? bien('el enlace llevó a la plataforma') : mal('acabé en '+url);
+const hayNav = await p.$('#pf-nav');
+hayNav ? bien('el enlace llevó a la plataforma') : mal('acabé en '+url+' y no hay barra de módulos');
 await p.evaluate(()=>{location.hash='#/proyectos';});
 await p.waitForTimeout(2500);
 const r = await p.evaluate(async () => {

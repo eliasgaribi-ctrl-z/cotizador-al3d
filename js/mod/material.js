@@ -113,6 +113,8 @@ const CTE_TITULO = {
   TRAVESANO_CM: 'Separación entre travesaños del bastidor',
   REMACHE_CM: 'Separación entre remaches',
   SEPARADORES_LETRA: 'Separadores por letra',
+  PLAZO_COLCHON_DIAS: 'Días entre «listo» y la instalación',
+  PLAZO_PROVEEDOR_DIAS: 'Lo que tarda en llegar el material',
 };
 
 const CTE_GRUPO = {
@@ -124,6 +126,7 @@ const CTE_GRUPO = {
   MOD_POR_M2: 'iluminacion', MOD_POR_M2_CAJA: 'iluminacion', W_MODULO: 'iluminacion',
   CAP_FUENTE_W: 'iluminacion', DERATE_FUENTE: 'iluminacion',
   TRAVESANO_CM: 'estructura', REMACHE_CM: 'estructura', SEPARADORES_LETRA: 'estructura',
+  PLAZO_COLCHON_DIAS: 'plazo', PLAZO_PROVEEDOR_DIAS: 'plazo',
 };
 const GRUPOS = [
   ['taller', 'Del taller'],
@@ -131,6 +134,7 @@ const GRUPOS = [
   ['aprovechamiento', 'Cuánto se aprovecha de una lámina'],
   ['iluminacion', 'Iluminación'],
   ['estructura', 'Estructura y herraje'],
+  ['plazo', 'Cuánto tarda un trabajo'],
 ];
 
 /* Las dos constantes que el documento marca con `confirmar:true`. La tercera cosa que

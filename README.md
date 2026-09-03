@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/"><b>▶ Abrir el cotizador</b></a>
+  <a href="https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/cotizador.html"><b>▶ Abrir el cotizador</b></a>
 </p>
 
 ---
@@ -161,7 +161,7 @@ El cotizador termina en «autorizada» y ahí se detiene. Todo lo que pasa despu
 cliente diga sí, cuándo se instala, qué material hay que comprar, si ya se instaló, cuánto
 deben— vivía en la cabeza de alguien. La plataforma es eso, y se abre desde el botón
 **Plataforma** de la barra de arriba, o directo en
-[/plataforma.html](https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/plataforma.html).
+[la raíz del sitio](https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/) — es lo que abre la liga de siempre.
 
 **El eslabón que faltaba.** En *Registrar venta* hay un botón nuevo, **Registrar como
 proyecto ganado**, al lado del que copia la fila para Notion. Un toque, y del otro lado
@@ -170,12 +170,15 @@ link de Google Maps, el tipo de trabajo derivado de las partidas, la fecha de in
 **el material que hay que comprar**. Nada de eso se captura. Es todo el invento; lo demás
 son seis pantallas que se alimentan de ahí.
 
+- **Calendario** — la pantalla que abre. Dos lentes: **Taller**, la fila de lo que está en
+  fabricación con su ventana —cuándo empezar, cuándo tiene que estar el material, cuándo
+  listo— contada hacia atrás desde el día de instalación con el plazo de 1 a 3+ semanas, y si
+  va tarde por cuántos días; e **Instalaciones**, el calendario de siempre con el semáforo
+  por día que contesta la pregunta de fabricación mirando el mes: ¿llego?
 - **Hoy** — lo que se rompe primero, en orden: «falta material y esto se instala en 2 días»,
   «esta cotización lleva nueve días autorizada y nadie dijo si se ganó».
 - **Proyectos** — el tablero por etapa de obra (ganado, cortado, armado, listo, instalado),
   con la orden de trabajo de fabricación, que incluye la temperatura del LED.
-- **Agenda** — el calendario de instalaciones, con un semáforo por día que contesta la
-  pregunta de fabricación mirando el mes: ¿llego?
 - **Material** — de «8 letras de 40 cm de acero» a «1 lámina de acrílico, 1 de fleje inox,
   44 módulos LED, 1 fuente». **Con la cuenta a la vista** y su etiqueta de confianza, porque
   un número que no se puede auditar no se corrige nunca.
@@ -246,12 +249,18 @@ Dentro de *Datos del proyecto* hay un bloque plegable, **Datos que salen en el P
 ## Actualizar la versión publicada
 
 El sitio se sirve desde la rama `main`. **Ya no es un solo archivo**, y esa es la diferencia
-que importa: el cotizador sigue siendo `index.html`, pero la plataforma son unos treinta
-archivos que se importan entre sí.
+que importa: la plataforma son unos treinta archivos que se importan entre sí, y el cotizador
+es uno solo.
 
-**Para publicar un cambio del cotizador** (`index.html`), como siempre:
+> **Quién es quién, desde el cambio de puerta de entrada.** La raíz del sitio —`index.html`—
+> es **la plataforma**: el calendario, la obra, el material. El cotizador es
+> **`cotizador.html`**. Antes era al revés, y durante un año publicar fue «renombrar el HTML
+> nuevo a `index.html`». **Hacer eso hoy sobrescribe la app con el cotizador y borra la puerta
+> de entrada.** `pruebas/publicacion.mjs` lo detecta antes de subir, pero solo si se corre.
 
-1. Renombrar el HTML nuevo a **`index.html`**.
+**Para publicar un cambio del cotizador** (`cotizador.html`):
+
+1. Renombrar el HTML nuevo a **`cotizador.html`** — no a `index.html`.
 2. Subirlo en [/upload/main](https://github.com/eliasgaribi-ctrl-z/cotizador-al3d/upload/main) y hacer commit a `main`.
 3. Esperar entre 30 y 60 segundos a que GitHub Pages redespliegue.
 
@@ -274,7 +283,7 @@ Si el cotizador se toca por cualquier razón, hay que regenerar sus dos copias:
     herramientas/extraer-estilo.sh      # css/sistema.css
     herramientas/extraer-catalogo.sh    # js/datos/catalogo-precios.js
 
-Son copias generadas del `<style>` y del catálogo de precios de `index.html`, para que la
+Son copias generadas del `<style>` y del catálogo de precios de `cotizador.html`, para que la
 plataforma se vea y cobre igual que el cotizador sin volver a decidir un token ni copiar un
 precio a mano. Los scripts avisan si algo cambió.
 

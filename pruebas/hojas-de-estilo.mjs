@@ -28,7 +28,7 @@ const cierto = (cond, que) => {
   if (!cond) fallas++;
 };
 
-const html = leer('index.html');
+const html = leer('cotizador.html');
 const sistema = leer('css/sistema.css');
 const plataforma = leer('css/plataforma.css');
 
@@ -36,7 +36,7 @@ console.log('\nLA COPIA GENERADA SIGUE SIENDO UNA COPIA');
 const lineas = html.split('\n');
 const ini = lineas.findIndex(l => l === '<style>');
 const fin = lineas.findIndex(l => l === '</style>');
-cierto(ini > -1 && fin > ini, 'index.html tiene su bloque <style>');
+cierto(ini > -1 && fin > ini, 'cotizador.html tiene su bloque <style>');
 const dentro = lineas.slice(ini + 1, fin).join('\n');
 /* La copia lleva una cabecera propia de 13 renglones que dice de dónde salió. */
 const copia = sistema.split('\n').slice(13).join('\n');
@@ -64,7 +64,7 @@ console.log('\nUN SOLO AZUL DE MARCA');
    theme-color de las dos apps — o sea que el color que se veía no era el que el sistema
    declaraba. Se comprueba fuera de los comentarios, que sí lo nombran para contar la historia. */
 const sinComentarios = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '');
-for (const [archivo, t] of [['index.html', html], ['plataforma.html', leer('plataforma.html')],
+for (const [archivo, t] of [['cotizador.html', html], ['index.html', leer('index.html')],
                             ['css/sistema.css', sistema], ['css/plataforma.css', plataforma]]) {
   const n = (sinComentarios(t).match(/#3a4ad8/gi) || []).length;
   cierto(n === 0, `${archivo} ya no escribe #3a4ad8 (${n})`);
@@ -78,7 +78,7 @@ cierto(/--pc-rgb:\s*var\(--a-rgb\)/.test(sistema), 'y --pc-rgb sale de él en ve
    Lo que sí se puede exigir es que repita el número BUENO. */
 const a = (sistema.match(/--a:\s*(#[0-9a-f]{6})/i) || [])[1];
 cierto(!!a, 'el sistema declara --a');
-for (const f of ['index.html', 'plataforma.html', 'manifest.webmanifest', 'manifest-plataforma.webmanifest']) {
+for (const f of ['cotizador.html', 'index.html', 'manifest.webmanifest', 'manifest-plataforma.webmanifest']) {
   const t = leer(f);
   const m = [...t.matchAll(/theme[-_]color"?[^#]*(#[0-9a-f]{6})/gi)].map(x => x[1].toLowerCase());
   cierto(m.length > 0 && m.every(v => v === a), `${f} declara el color de tema igual que --a (${m.join(', ') || 'ninguno'})`);
@@ -99,7 +99,7 @@ cierto(/@page\{size:letter portrait/.test(plataforma), 'la plataforma imprime en
 cierto(/@page\{size:letter portrait\}/.test(sistema), 'y el Ctrl+P sobre la app, también');
 cierto(/\.imp-marca\{display:flex!important/.test(plataforma), 'sus impresos llevan encabezado de marca');
 cierto(/\.imp-pie\{display:flex!important/.test(plataforma), 'y pie');
-cierto(leer('plataforma.html').includes('class="imp-logo" src="logo-al3d.svg"'),
+cierto(leer('index.html').includes('class="imp-logo" src="logo-al3d.svg"'),
   'con el MISMO archivo de logotipo que la barra de las dos apps');
 
 console.log(`\n${fallas === 0 ? 'Un solo sistema de diseño, en las tres superficies.' : fallas + ' fallo(s).'}`);

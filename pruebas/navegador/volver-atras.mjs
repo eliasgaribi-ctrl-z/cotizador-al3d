@@ -34,7 +34,7 @@ const errs = []; p.on('pageerror', e => errs.push(e.message));
 const encendida = () => p.evaluate(() =>
   [...document.querySelectorAll('#pasos .paso-tab')].findIndex(e => e.classList.contains('on')) + 1);
 
-await p.goto(B + '/index.html', { waitUntil: 'load' });
+await p.goto(B + '/cotizador.html', { waitUntil: 'load' });
 await p.waitForTimeout(1200);
 await p.fill('#f-cli', 'Andrey');
 await p.fill('#f-tel', '33 1234 5678');

@@ -34,8 +34,8 @@ const cierto = (cond, que) => {
 const sinComentarios = t => t.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
 
 const svg = leer('logo-al3d.svg');
-const html = sinComentarios(leer('index.html'));
-const plataforma = sinComentarios(leer('plataforma.html'));
+const html = sinComentarios(leer('cotizador.html'));
+const plataforma = sinComentarios(leer('index.html'));
 
 console.log('\nUN SOLO DIBUJO');
 cierto(existe('logo-al3d.svg'), 'logo-al3d.svg existe');

@@ -37,6 +37,7 @@
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
 import * as Cot from './cotizador.js';
+import { diasEntre } from '../nucleo/fechas.js';
 import { hoyISO, partesISO, fmtFecha, fmtFechaDia, fmtHora, money, cant, linkWa }
   from '../nucleo/ui.js';
 
@@ -125,15 +126,10 @@ const SEVERIDAD = { urge: 'urgente', av: 'aviso', info: 'info' };
 
 const esISO = x => !!partesISO(x);
 
-/* Contra el `hoy` que entra y no contra el reloj. `cuando()` y `diasHasta()` de ui.js miden
-   contra el día del dispositivo, que es lo correcto para pintar una tarjeta y lo incorrecto
-   para una función que se tiene que poder probar. Y la resta va sobre los campos: nunca
-   `new Date('2026-08-23')`, que se lee como UTC y en México devuelve el día anterior. */
-function diasEntre(desde, hasta) {
-  const a = partesISO(desde), b = partesISO(hasta);
-  if (!a || !b) return null;
-  return Math.round((Date.UTC(b.a, b.m - 1, b.d) - Date.UTC(a.a, a.m - 1, a.d)) / 86400000);
-}
+/* `diasEntre` viene de `nucleo/fechas.js`. Aquí se pide siempre contra el `hoy` que ENTRA y
+   no contra el reloj: `cuando()` y `diasHasta()` de ui.js miden contra el día del
+   dispositivo, que es lo correcto para pintar una tarjeta y lo incorrecto para una función
+   que se tiene que poder probar. */
 
 /** Sello epoch → 'YYYY-MM-DD' LOCAL. Con `toISOString().slice(0,10)` una cotización
  *  autorizada a las siete de la noche se contaría como del día siguiente. */

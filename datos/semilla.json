@@ -11,6 +11,14 @@
   ],
   "version": "s-2026-08",
   "unidades_compra": ["unidad", "bolsa", "caja", "lamina", "litro", "metro"],
+  "plazos": [
+    { "k": 1, "semanas": 1,   "dias": 7,  "etiqueta": "1 semana" },
+    { "k": 2, "semanas": 1.5, "dias": 11, "etiqueta": "1.5 semanas" },
+    { "k": 3, "semanas": 2,   "dias": 14, "etiqueta": "2 semanas" },
+    { "k": 4, "semanas": 2.5, "dias": 18, "etiqueta": "2.5 semanas" },
+    { "k": 5, "semanas": 3,   "dias": 21, "etiqueta": "3 semanas o más" }
+  ],
+  "_plazos_origen": "Las palabras textuales del dueño: «1 semana - 1.5 semanas - 2 semanas - 2.5 semanas - 3 o + semanas». 1.5 semanas son 10.5 días y se redondean a 11, y 2.5 a 18: SIEMPRE hacia arriba, porque el plazo se cuenta hacia atrás desde la instalación, un plazo más largo hace arrancar antes, y el sesgo declarado del proyecto es preferir el falso positivo. La tabla que manda es la de js/datos/taller.js; ésta es su eco, para que quien lea la semilla sepa que existe.",
   "materiales": [
     { "id": "acr-3mm", "nombre": "Acrílico blanco/opal 3 mm", "familia": "acrilico",
       "unidad_compra": "lamina", "medida": "1.22 × 2.44 m", "unidad_consumo": "m²",
@@ -191,6 +199,12 @@
       "origen": "Un remache cada 15 cm de perímetro." },
     { "clave": "SEPARADORES_LETRA", "valor": 4, "unidad": "pza/letra", "grupo": "estructura",
       "titulo": "Separadores por letra",
-      "origen": "Cuatro por letra para montaje a muro. Una letra chica lleva 2 y una grande 6; 4 es la media y es lo que se pide de más sin que sobre una bolsa." }
+      "origen": "Cuatro por letra para montaje a muro. Una letra chica lleva 2 y una grande 6; 4 es la media y es lo que se pide de más sin que sobre una bolsa." },
+    { "clave": "PLAZO_COLCHON_DIAS", "valor": 1, "unidad": "días", "grupo": "plazo",
+      "titulo": "Días entre «listo» y la instalación",
+      "origen": "El anuncio no se termina el mismo día que se instala: se carga y se amarra el día antes. Una cita de las 7 de la mañana con la camioneta cargándose a las 6 es como se sale sin los tornillos. Y es EL MISMO día que la plataforma ya usa: emitirSalidasDerivadas() da por salido el material cuando la instalación está a 1 día o menos (js/datos/proyectos.js). Un solo número para los dos mecanismos, en vez de dos números en dos archivos que se separan sin que nadie lo note." },
+    { "clave": "PLAZO_PROVEEDOR_DIAS", "valor": 3, "unidad": "días", "grupo": "plazo",
+      "titulo": "Lo que tarda en llegar el material",
+      "origen": "Es el mismo 3 que ya vive en dos lugares: el corte de «grave» del semáforo (DIAS_GRAVE en js/datos/agenda.js) y la alarma A1 del .ics (TRIGGER:-P3D), escrito allá con estas palabras: «es lo que el usuario tarda en conseguir material con sus proveedores». Se saca aquí para que un taller con un proveedor de 5 días lo cambie UNA vez. La ventana de taller lo usa para decir cuándo hay que COMPRAR: el día que el material tiene que estar, menos estos días." }
   ]
 }

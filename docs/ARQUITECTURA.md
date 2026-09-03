@@ -938,6 +938,15 @@ Un toque. Si nadie lo toca nunca, el sistema sigue funcionando con los valores d
 
 ## 7. ARQUITECTURA DE ARCHIVOS DEFINITIVA
 
+> **Cambio de puerta de entrada (sep/2026).** Los dos HTML intercambiaron nombre: lo que abajo
+> se llama `index.html` (el cotizador) es hoy **`cotizador.html`**, y lo que se llama
+> `plataforma.html` (el cascarón de la app) es hoy **`index.html`, la raíz del sitio**.
+> `plataforma.html` sigue existiendo como reenvío de diez líneas a `./`, conservando el hash,
+> porque hay marcadores e iconos instalados que apuntan ahí. `sw.js` decide la ruta por la
+> raíz y no por «lo que no sea cotizador» (los logotipos viven en la caché del cotizador). El
+> resto de este árbol sigue vigente con esa traducción; se deja escrito con los nombres de
+> cuando se decidió, con fecha, para que el documento no mienta sobre cuándo se escribió.
+
 ```
 index.html                          EL COTIZADOR. Cinco inserciones aditivas, ~55 líneas en total
 sw.js                               MODIFICADO: dos estrategias, promoción atómica, respaldo por ruta
@@ -1132,6 +1141,14 @@ Tablero por **`etapa`**, nunca por `estatus_notion`: son ejes distintos y mezcla
 Dep: `Proyectos.*`, `Material.requerimientos`, `Cotizador.historial/estadoOrigen`.
 
 ### 8.3 Agenda — `#/agenda`
+
+> **Sep/2026: es la pantalla que abre, se llama «Calendario» y tiene dos lentes.** El módulo
+> es `js/mod/fabricacion.js` (era `agenda.js`); la ruta sigue siendo `#/agenda`. La lente
+> **Taller** pinta la fila del taller desde `js/datos/taller.js` —la ventana de cada proyecto
+> contada hacia atrás desde la instalación con el plazo de 1 a 3+ semanas (`proyectos.plazo_k`,
+> null = manda el propuesto)—; la lente **Instalaciones** es lo que sigue abajo, sin cambios.
+> Dos constantes nuevas, grupo `plazo`: `PLAZO_COLCHON_DIAS` y `PLAZO_PROVEEDOR_DIAS`.
+
 Mes, semana y lista. **La única captura humana real del sistema vive aquí.**
 
 | | DIRECCIÓN | FABRICACIÓN | PAGOS |

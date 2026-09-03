@@ -184,6 +184,7 @@ export async function drenarBuzon() {
       pct_comision: Number(g.pct_comision) || 0,
       sub: Number(g.sub) || 0, neto: Number(g.neto) || 0,
       anti_pactado: Number(g.anti) || 0,
+      plazo_k: g.plazo_k,          // el cubo que propuso o eligió el cotizador; null si no vino
       disp: g.disp || '',
     });
     if (r.ok) { creados++; procesadas.push(g); }
