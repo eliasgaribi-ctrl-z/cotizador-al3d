@@ -35,12 +35,18 @@ const TIPOS = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; char
 
 const servidor = createServer((req, res) => {
   const ruta = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-  const rel = normalize(ruta).replace(/^(\.\.[/\\])+/, '').replace(/^\//, '') || 'index.html';
+  let rel = normalize(ruta).replace(/^(\.\.[/\\])+/, '').replace(/^\//, '') || 'index.html';
 
   /* El archivo que esta vuelta tiene que faltar. Es lo que provoca que addAll reviente. */
   if (estado.romper && rel === estado.romper) { res.writeHead(404).end('no está'); return; }
 
-  const abs = join(RAIZ, rel);
+  let abs = join(RAIZ, rel);
+  /* Una carpeta se sirve por su index.html, como hacen GitHub Pages y http-server. APP_FILES
+     pide `./anidador-vectores/` con su barra —igual que pide `./`— porque así es como se
+     navega a la página y así tiene que estar guardada; sin esta línea el servidor de aquí
+     contestaba 404 a la carpeta, addAll reventaba y la prueba medía un fallo que en el sitio
+     publicado no existe. */
+  if (existsSync(abs) && statSync(abs).isDirectory()) { rel = join(rel, 'index.html'); abs = join(RAIZ, rel); }
   if (!existsSync(abs) || !statSync(abs).isFile()) { res.writeHead(404).end('no está'); return; }
 
   let cuerpo = readFileSync(abs);
