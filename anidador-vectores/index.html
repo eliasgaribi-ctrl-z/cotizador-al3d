@@ -28,6 +28,14 @@
 </head>
 <body class="an">
 
+<!-- Empotrado dentro del Taller de la plataforma. Va aquí y no en js/app.js para que la clase
+     esté puesta ANTES de que el CSS pinte: si se añadiera desde el guion grande, la barra de
+     arriba se vería un instante y desaparecería, que es peor que no esconderla.
+     `parent !== window` y no una query string: así la página suelta —anidador-vectores/, la que
+     está en APP_FILES y la que prueba pruebas/navegador/anidador.mjs— se comporta byte por byte
+     como hoy, y el service worker nunca ve dos URLs para el mismo archivo. -->
+<script>if(parent!==window)document.documentElement.classList.add('empotrado');</script>
+
 <a href="#an-contenido" class="salto">Ir al contenido</a>
 
 <!-- Los iconos son los mismos trazos de 24×24 del sprite del cotizador; el único nuevo es

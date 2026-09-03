@@ -85,16 +85,10 @@ const CUENTAS = ['Moni MPago', 'Rul HSBC', 'Tatis BNT', 'Constru BNT', 'Elias BB
    de Notion, no etapa: por eso su ficha no trae el segmento de etapas. */
 const ESTATUS_DE_PAGOS = ['COBRANDO', 'LIQUIDADO'];
 
-const ICO_ETAPA = {
-  ganado: 'i-venta', en_diseno: 'i-lapiz', cortado: 'i-corte', armado: 'i-material',
-  listo: 'i-check', instalado: 'i-pin', garantia: 'i-aviso', cancelado: 'i-cerrar',
-};
-
-/* `.pf-etapa` trae seis cajas de color y ocho etapas. Garantía y cancelado caen en
-   `cerrado`, que es el gris de «archivado», que es lo que son: salidas del camino, no
-   pasos de él. `en_diseno` es la única que hacía falta y se añadió al final de
-   plataforma.css con el ámbar de «está en el taller». */
-const claseEtapa = e => (e === 'garantia' || e === 'cancelado') ? 'cerrado' : String(e || 'ganado');
+/* `ICO_ETAPA` y `claseEtapa` viven en datos/proyectos.js, junto a `ETAPA_NOMBRE`: tres
+   pantallas enseñan la etapa y con una copia por pantalla, dos acaban dibujando cosas
+   distintas para el mismo hecho. */
+const { ICO_ETAPA, claseEtapa } = Proy;
 
 const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
 /* Las dos fórmulas de Notion arrancan en `null` y en un registro viejo pueden no venir. La

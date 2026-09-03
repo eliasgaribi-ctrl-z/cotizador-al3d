@@ -27,19 +27,36 @@ import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, cerrarCapa, ajust
    el almacén sin querer. Y el mapa no le aparece a pagos porque un módulo que un rol no
    necesita no debe estar en su barra: cada pestaña de más es una decisión de más cada vez
    que se abre la app. */
-/* El calendario va PRIMERO porque es la pantalla que abre: `rutaDelHash()` cae en la primera
-   ruta del rol cuando el hash no dice nada, así que el orden de esta lista ES el default. La
-   ruta se llama «agenda» aunque la pestaña diga «Calendario» y el archivo fabricacion.js:
-   cotizador.html publica `./#/agenda` en producción y el manifiesto instalado tiene ese
-   shortcut. Y la pestaña no dice «Fabricación» porque esa palabra ya está ocho píxeles más
-   arriba, en el segmento de rol, significando otra cosa. */
+/* El TABLERO va PRIMERO porque es la pantalla que abre: `rutaDelHash()` cae en la primera
+   ruta del rol cuando el hash no dice nada, así que el orden de esta lista ES el default, y
+   `cambiarRol()` reenvía al mismo sitio.
+
+   La ruta se sigue llamando «hoy» aunque la pestaña diga «Tablero» y el archivo tablero.js.
+   No es descuido: `./#/hoy` es la única dirección de la plataforma grabada en cosas que no
+   controlamos —el start_url y el atajo del manifiesto YA INSTALADO, el icono de la pantalla
+   de inicio del iPhone (que guarda la URL con la que se agregó, no la que diga el manifiesto
+   de hoy; ver plataforma.html), cotizador.html y anidador-vectores/index.html—. Renombrarla
+   no daría error: abriría otra pantalla, en silencio, y la barra de direcciones seguiría
+   diciendo lo que ya no es. Es la misma decisión que ya se tomó con «agenda»/«Calendario».
+
+   La lista de avisos —lo que antes era «Hoy»— sigue existiendo entera como ruta `atender`,
+   con el mismo módulo inicio.js. Es un nombre de ruta NUEVO, así que ninguna URL publicada
+   depende de él, y va oculta: se entra por la puerta que el Tablero pone al pie.
+
+   `padre` es para las ocultas: `pintarNav()` prende la pestaña de la madre, así que estar en
+   «Qué atender» deja «Tablero» encendido en vez de dejar la tira entera apagada.
+
+   `roles` no es seguridad —en fase 1 no hay servidor y cualquiera cambia su rol— es modo de
+   trabajo: que fabricación no tenga enfrente la pantalla de cobranza y que pagos no mueva el
+   almacén sin querer. El mapa sigue sin aparecerle a pagos. */
 const RUTAS = [
-  { ruta: 'agenda',    mod: 'fabricacion', seccion: 'mod-fabricacion', icono: 'i-agenda',   nombre: 'Calendario', roles: ['direccion', 'fabricacion', 'pagos'] },
-  { ruta: 'hoy',       mod: 'inicio',    seccion: 'mod-hoy',       icono: 'i-hoy',        nombre: 'Hoy',       roles: ['direccion', 'fabricacion', 'pagos'] },
-  { ruta: 'proyectos', mod: 'proyectos', seccion: 'mod-proyectos', icono: 'i-proyectos',  nombre: 'Proyectos', roles: ['direccion', 'fabricacion', 'pagos'] },
-  { ruta: 'material',  mod: 'material',  seccion: 'mod-material',  icono: 'i-material',   nombre: 'Material',  roles: ['direccion', 'fabricacion'] },
-  { ruta: 'mapa',      mod: 'mapa',      seccion: 'mod-mapa',      icono: 'i-mapa',       nombre: 'Mapa',      roles: ['direccion', 'fabricacion'] },
-  { ruta: 'ajustes',   mod: 'ajustes',   seccion: 'mod-ajustes',   icono: 'i-ajustes',    nombre: 'Ajustes',   roles: ['direccion', 'fabricacion', 'pagos'], oculto: true },
+  { ruta: 'hoy',       mod: 'tablero',     seccion: 'mod-tablero',     icono: 'i-taller',    nombre: 'Tablero',     roles: ['direccion', 'fabricacion', 'pagos'] },
+  { ruta: 'agenda',    mod: 'fabricacion', seccion: 'mod-fabricacion', icono: 'i-agenda',    nombre: 'Calendario',  roles: ['direccion', 'fabricacion', 'pagos'] },
+  { ruta: 'proyectos', mod: 'proyectos',   seccion: 'mod-proyectos',   icono: 'i-proyectos', nombre: 'Proyectos',   roles: ['direccion', 'fabricacion', 'pagos'] },
+  { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    roles: ['direccion', 'fabricacion'] },
+  { ruta: 'mapa',      mod: 'mapa',        seccion: 'mod-mapa',        icono: 'i-mapa',      nombre: 'Mapa',        roles: ['direccion', 'fabricacion'] },
+  { ruta: 'atender',   mod: 'inicio',      seccion: 'mod-atender',     icono: 'i-aviso',     nombre: 'Qué atender', roles: ['direccion', 'fabricacion', 'pagos'], oculto: true, padre: 'hoy' },
+  { ruta: 'ajustes',   mod: 'ajustes',     seccion: 'mod-ajustes',     icono: 'i-ajustes',   nombre: 'Ajustes',     roles: ['direccion', 'fabricacion', 'pagos'], oculto: true },
 ];
 
 const rutasDeRol = () => RUTAS.filter(r => r.roles.includes(Prefs.rol()));
@@ -53,10 +70,40 @@ const ctx = {
   refrescar: () => montar(_actual, { forzar: true }),
   cuentas: pintarCuentasNav, // un módulo puede pedir que se repinten las cuentas de la barra
   banda: pintarBanda,
+  /* Navegar DEJÁNDOLE algo al de allá. `recibir()` devuelve el dato una sola vez y solo si
+     el pase era para la ruta que está montando: un pase que quedó suelto porque alguien se
+     fue a otro lado no puede aparecer tres pantallas después. */
+  pasar: (ruta, dato) => { _pase = { ruta, dato }; ir(ruta); },
+  recibir: () => { const p = (_pase && _pase.ruta === _actual) ? _pase.dato : null; _pase = null; return p; },
+  sinRemonte: v => { _sinRemonte = !!v; },
 };
 
 let _actual = null;      // nombre de ruta
 let _vivo = null;        // el módulo montado, para desmontarlo
+
+/* ----- El buzón de un solo uso -----
+   Lo que un módulo le deja al siguiente: «abre la ficha de ESTE proyecto», «abre la hoja de
+   agendar con ESTE ya elegido». Va en memoria y NO por el hash, y eso es una decisión con
+   evidencia: `rutaDelHash()` corta en '?' y `rutaPorNombre()` exige igualdad exacta de un
+   solo segmento, así que `#/proyectos?id=x` no casa con nada, cae al default Y ADEMÁS deja
+   la barra de direcciones mintiendo, porque `montarDeVerdad` nunca reescribe location.hash.
+   Es el mismo idioma que `al3d_anidar`, que ya funciona entre el cotizador y el anidador:
+   se escribe, se lee UNA vez y se borra.
+
+   Es lo que quita los saltos: sin esto, «Abrir» te deja en una lista donde hay que volver a
+   buscar lo que ya estabas mirando. */
+let _pase = null;
+
+/* ----- La guarda del remonte -----
+   Un módulo que sostiene un <iframe> vivo pide que no se le remonte por debajo. El oyente de
+   'storage' remonta el módulo actual cuando el cotizador guarda, y eso es correcto para los
+   módulos que pintan DOM… y catastrófico para uno que pinta un marco: `montarDeVerdad` hace
+   `cont.innerHTML = ''`, el iframe muere y vuelve a cargar 933 KB justo después de que
+   alguien apretó Guardar. Y con el cotizador empotrado el evento SÍ llega, porque 'storage'
+   dispara en todos los documentos del mismo origen menos el que escribió.
+
+   Se apaga en cada montaje, así que no puede quedarse pegada. */
+let _sinRemonte = false;
 
 /* ============================================================================
    Router
@@ -125,6 +172,10 @@ async function montarDeVerdad(ruta, opts = {}) {
   if (!r) return;
   if (_actual === ruta && !opts.forzar) return;
   if (_actual) _scrollPorRuta.set(_actual, window.scrollY);
+  /* En el prefijo síncrono, antes del primer await: la guarda es de quien está montado, y
+     el que se va ya no manda. Si se apagara en `desmontar()` y un módulo reventara a mitad,
+     se quedaría pegada para siempre. */
+  _sinRemonte = false;
 
   /* Desmontar antes de montar. Los módulos que se cuelgan de algo global —el mapa se
      suscribe a resize, la agenda a un temporizador— tienen que soltarlo o se acumulan: seis
@@ -179,6 +230,11 @@ async function montarDeVerdad(ruta, opts = {}) {
   const main = $('pf-contenido');
   if (main && opts.foco !== false) { try { main.focus({ preventScroll: true }); } catch (_) {} }
   window.scrollTo({ top: _scrollPorRuta.get(ruta) || 0, behavior: 'auto' });
+  /* La miga del encabezado. Es lo único que dice dónde estás cuando la pestaña de la barra
+     no puede decirlo —las rutas ocultas— y de paso deja de mentir: decía «Obra, material y
+     agenda» en las seis pantallas. */
+  const sub = $('pf-sub');
+  if (sub) sub.textContent = r.nombre;
   voz(r.nombre);
   pintarCuentasNav();
   ajustarAltoBarra();
@@ -190,9 +246,14 @@ async function montarDeVerdad(ruta, opts = {}) {
 
 function pintarNav() {
   const nav = $('pf-nav'); if (!nav) return;
+  /* Una ruta oculta prende la pestaña de su madre. Sin esto, estar en «Qué atender» dejaba
+     la tira ENTERA apagada: la pantalla no dice dónde estás y la única salida visible es
+     adivinar. Es el defecto que Ajustes ya tenía y que aquí se arregla para las dos. */
+  const madre = (rutaPorNombre(_actual) || {}).padre || null;
+  const activa = r => r.ruta === _actual || r.ruta === madre;
   nav.innerHTML = rutasDeRol().filter(r => !r.oculto).map((r, i) =>
-    '<button type="button" class="pf-tab' + (r.ruta === _actual ? ' on' : '') + '"' +
-    ' data-ruta="' + r.ruta + '" aria-current="' + (r.ruta === _actual ? 'page' : 'false') + '"' +
+    '<button type="button" class="pf-tab' + (activa(r) ? ' on' : '') + '"' +
+    ' data-ruta="' + r.ruta + '" aria-current="' + (activa(r) ? 'page' : 'false') + '"' +
     /* El atajo va en el title, que es lo que lee el ratón en la computadora. En el teléfono
        no hay teclado y el title no molesta. */
     ' title="' + esc(r.nombre) + ' · tecla ' + (i + 1) + '">' +
@@ -383,10 +444,16 @@ async function arrancar() {
     if (!ev.key) return;
     if (ev.key === Prefs.CLAVES.GANADAS) {
       const r = await Cot.drenarBuzon();
-      if (r.creados) { toast('Llegó ' + (r.creados === 1 ? 'un proyecto ganado' : r.creados + ' proyectos ganados') + ' del cotizador', 'ok', 4200); montar(_actual, { forzar: true }); }
+      if (r.creados) {
+        toast('Llegó ' + (r.creados === 1 ? 'un proyecto ganado' : r.creados + ' proyectos ganados') + ' del cotizador', 'ok', 4200);
+        /* Drenar el buzón SIEMPRE corre y el aviso siempre sale: lo único que se salta es el
+           repintado, porque debajo puede haber un marco vivo. Al salir de esa pantalla el
+           módulo monta fresco y el proyecto nuevo ya está ahí. */
+        if (!_sinRemonte) montar(_actual, { forzar: true });
+      }
       return;
     }
-    if (['al3d_historial', 'al3d_queue'].includes(ev.key)) montar(_actual, { forzar: true });
+    if (['al3d_historial', 'al3d_queue'].includes(ev.key) && !_sinRemonte) montar(_actual, { forzar: true });
   });
 
   /* El puente va al final del arranque, después de pintar. Enchufarlo es leer una clave y
@@ -401,7 +468,14 @@ async function arrancar() {
      existía era el momento en que eso sale solo. */
   window.addEventListener('online', () => sincronizarCallado());
 
-  window.addEventListener('resize', ajustarAltoBarra);
+  /* El resize dispara decenas de veces mientras se gira el teléfono o se abre el teclado, y
+     `ajustarAltoBarra` lee geometría: leer y escribir el layout en cada evento es el camino
+     corto al tirón. Un cuadro de por medio basta y se nota. */
+  let _rz = 0;
+  window.addEventListener('resize', () => {
+    if (_rz) return;
+    _rz = requestAnimationFrame(() => { _rz = 0; ajustarAltoBarra(); });
+  });
   registrarSW();
 }
 

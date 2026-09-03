@@ -275,3 +275,21 @@
   .an-mesa.corriendo::after{animation:none;display:none}
   .an-gauge-fg,.an-prog-bar,.an-tile,.an-tile-hoja{transition:none}
 }
+
+/* ============================================================================
+   Modo empotrado: dentro del apartado Taller de la plataforma
+
+   Aquí SÍ se apaga la .topbar entera, y es lo contrario de lo que se hace en el cotizador.
+   La razón es la diferencia real entre las dos barras: la del cotizador lleva Deshacer,
+   Clientes, Historial —la única puerta a al3d_historial, el dato irrecuperable—, el folio y
+   el segmento Vendedor/Autorizador, y sin eso no se puede autorizar una cotización. Esta
+   solo lleva el logotipo y dos enlaces de salida, y los tres los pone ya el documento padre:
+   apagarla quita el doble encabezado sin quitar ninguna función.
+
+   Y .an-wrap y .an-pie sueltan su ancho máximo de 1180 px y su relleno de área segura, que
+   dentro de la .wrap de la plataforma se sumarían al de ella y dejarían la mesa de corte
+   estrujada en el centro. El relleno inferior de zona insegura lo pone el padre, en
+   .pf-marco-caja: dentro de un marco env(safe-area-inset-*) vale 0.
+   ============================================================================ */
+html.empotrado .topbar{display:none}
+html.empotrado .an-wrap,html.empotrado .an-pie{max-width:none;padding-left:var(--e3);padding-right:var(--e3)}

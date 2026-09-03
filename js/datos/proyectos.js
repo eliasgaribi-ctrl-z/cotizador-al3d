@@ -83,7 +83,25 @@ export const ETAPA_NOMBRE = {
   cancelado: 'No se dio',
 };
 
-const ORDEN = { ganado: 0, en_diseno: 1, cortado: 2, armado: 3, listo: 4, instalado: 5 };
+/** El icono de cada etapa. Vive aquí y no en una pantalla por lo mismo que `ETAPA_NOMBRE`:
+ *  tres vistas enseñan la etapa —la ficha del proyecto, el renglón del taller y el bloque de
+ *  la estación en el Tablero— y con el icono escrito en cada una, dos de ellas acaban
+ *  dibujando cosas distintas para el mismo hecho. */
+export const ICO_ETAPA = {
+  ganado: 'i-venta', en_diseno: 'i-lapiz', cortado: 'i-corte', armado: 'i-material',
+  listo: 'i-check', instalado: 'i-pin', garantia: 'i-aviso', cancelado: 'i-cerrar',
+};
+
+/** La clase de color de `.pf-etapa`. Trae seis cajas de color y aquí hay ocho etapas:
+ *  garantía y cancelado caen en `cerrado`, que es el gris de «archivado», que es lo que son:
+ *  salidas del camino, no pasos de él. */
+export const claseEtapa = e => (e === 'garantia' || e === 'cancelado') ? 'cerrado' : String(e || 'ganado');
+
+/** El lugar de cada etapa en la línea del proceso. Se exporta porque el Tablero compara
+ *  `ORDEN[etapa_real] < ORDEN[etapa_esperada]` para decir «2 atrasados», y porque la
+ *  confirmación de «esto cruza corte» es `ORDEN[nueva] >= ORDEN.cortado`. Reescribir esa
+ *  tabla en la vista sería tener dos órdenes del mismo proceso. */
+export const ORDEN = { ganado: 0, en_diseno: 1, cortado: 2, armado: 3, listo: 4, instalado: 5 };
 const VIVAS = ETAPAS.filter(e => e !== 'cancelado');
 
 /* ----- Los siete valores, escritos EXACTAMENTE como existen -----
@@ -680,7 +698,10 @@ export async function actualizar(id, parche) {
    `estatus_notion`, que es el otro eje. */
 const TOPE_ROL = { direccion: null, fabricacion: 'listo', pagos: false };
 
-function puedeMover(rol, etapa) {
+/** Si este rol puede marcar esta etapa. Se exporta para que una pantalla pueda preguntar
+ *  ANTES de pintar el botón, y así enseñar la razón en vez de un botón apagado. La política
+ *  sigue viviendo aquí: `avanzarEtapa` la vuelve a preguntar y es la que manda. */
+export function puedeMover(rol, etapa) {
   const tope = TOPE_ROL[rol];
   if (tope === null || tope === undefined) return true;
   if (tope === false) return false;
