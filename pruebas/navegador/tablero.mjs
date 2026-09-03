@@ -294,6 +294,133 @@ await p.waitForTimeout(600);
   ? bien('al volver a la carga, el marco se destruye — y con él sus Web Workers')
   : mal('el marco sigue en el DOM después de salir de la mesa de corte');
 
+// ── 6c. El Cotizador, empotrado ────────────────────────────────────────────
+/* Los cuatro casos que importan, y ninguno se ve mirando la pantalla:
+   · que el marco cargue y su script corra (273 manejadores en línea dependen de que el
+     ámbito superior siga siendo el global);
+   · que se apaguen SOLO el logotipo y el enlace de vuelta, y que Historial —la única puerta
+     a al3d_historial, el dato irrecuperable— siga visible y tocable;
+   · que un `storage` de al3d_historial NO remonte la ruta, porque eso mataría el marco y
+     recargaría 933 KB justo después de apretar Guardar;
+   · y que el alto lo mida el padre, porque dentro del marco 100dvh describe el iframe. */
+let dentro_hist = null;
+console.log('\nEL COTIZADOR, COMO APARTADO');
+await irA('#/cotizador');
+(await montada()) === 'mod-cotizador'
+  ? bien('#/cotizador monta su sección')
+  : mal('#/cotizador montó ' + (await montada()));
+(await pestana()) === 'Cotizador'
+  ? bien('y su pestaña está encendida')
+  : mal('la pestaña encendida dice «' + (await pestana()) + '»');
+
+await p.waitForTimeout(2600);
+const cot = p.frames().find(x => x.url().includes('cotizador.html'));
+if (!cot) mal('el marco del cotizador no cargó');
+else {
+  bien('el marco carga cotizador.html');
+  const dentro = await cot.evaluate(() => ({
+    /* `Q` es la cotización viva. Que exista prueba que el guion de 645 KB corrió Y que los
+       manejadores en línea siguen resolviendo contra el global. */
+    tieneQ: typeof Q !== 'undefined',
+    /* Y esto documenta la razón de no portarlo a módulo: una declaración de función SÍ cuelga
+       de window, un `let` de nivel superior NO. En un módulo ES ninguna de las dos lo haría. */
+    funcionGlobal: typeof window.irAPaso === 'function',
+    letNoGlobal: typeof window._pantalla === 'undefined',
+    empotrado: document.documentElement.classList.contains('empotrado'),
+    pasos: document.querySelectorAll('.paso-tab').length,
+    brand: (() => { const e = document.querySelector('.brand'); return e ? getComputedStyle(e).display : null; })(),
+    btnPf: (() => { const e = document.querySelector('.btn-pf'); return e ? getComputedStyle(e).display : null; })(),
+    /* No se compara contra un tamaño inventado: se mide, y más abajo se compara con la
+       MISMA medida de la página suelta. Un umbral absoluto aquí solo probaría lo que yo creí
+       que medía el botón —28 px, no 44— y no lo que importa, que es que empotrarlo no lo
+       cambió. Los 28 px son diseño de siempre del cotizador, anterior a esto. */
+    historial: (() => {
+      const b = [...document.querySelectorAll('.btn-hist')].find(x => (x.getAttribute('aria-label') || '').includes('Historial'));
+      if (!b) return null;
+      const r = b.getBoundingClientRect();
+      return { display: getComputedStyle(b).display, w: Math.round(r.width), h: Math.round(r.height) };
+    })(),
+    /* Sin `sandbox`: por window.open sale el PDF, WhatsApp y Maps. */
+    puedeAbrir: typeof window.open === 'function',
+  }));
+  dentro.tieneQ ? bien('su script corrió dentro del marco: la cotización viva existe')
+                : mal('el script del cotizador NO corrió dentro del marco');
+  dentro.funcionGlobal && dentro.letNoGlobal
+    ? bien('y el ámbito superior sigue siendo el global (irAPaso sí cuelga de window, _pantalla no) — que es justo lo que un módulo ES rompería en silencio')
+    : mal('el ámbito no es el esperado: ' + JSON.stringify(dentro));
+  dentro.empotrado ? bien('el cotizador se sabe empotrado') : mal('no puso la clase .empotrado');
+  dentro.pasos >= 4 ? bien('su escalera pinta ' + dentro.pasos + ' pasos') : mal('la escalera pintó ' + dentro.pasos);
+  dentro.brand === 'none' ? bien('el logotipo con su título está apagado: un solo encabezado')
+                          : mal('.brand sigue visible (display:' + dentro.brand + '): dos encabezados apilados');
+  dentro.btnPf === 'none' ? bien('y el enlace de vuelta también: dentro del marco navegaría el marco')
+                          : mal('.btn-pf sigue visible: al tocarlo anidaría la plataforma dentro de sí misma');
+  dentro.historial && dentro.historial.display !== 'none' && dentro.historial.w > 40 && dentro.historial.h > 20
+    ? bien('HISTORIAL sigue visible (' + dentro.historial.w + '×' + dentro.historial.h + ') — la única puerta al dato irrecuperable no se apagó')
+    : mal('el botón de Historial quedó ' + JSON.stringify(dentro.historial) + ': apagar la barra entera habría apagado el trabajo');
+  dentro_hist = dentro.historial;
+  dentro.puedeAbrir ? bien('window.open sigue disponible: el PDF, WhatsApp y Maps siguen saliendo')
+                    : mal('window.open no está: ¿se le puso sandbox al marco?');
+
+  const alto = await p.evaluate(() => {
+    const m = document.getElementById('pf-cot-marco');
+    return m ? Math.round(m.getBoundingClientRect().height) : null;
+  });
+  alto > 350 ? bien('el padre le midió ' + alto + ' px de alto, no los 150 de la especificación')
+             : mal('el marco quedó en ' + alto + ' px');
+
+  /* LA GUARDA. cotizador.html escribe al3d_historial en cada guardado. */
+  const urlAntes = await p.evaluate(() => {
+    const m = document.getElementById('pf-cot-marco');
+    return m ? m.contentWindow.location.href : null;
+  });
+  await p.evaluate(() => window.dispatchEvent(
+    new StorageEvent('storage', { key: 'al3d_historial', newValue: '[]' })));
+  await p.waitForTimeout(1300);
+  const trasStorage = await p.evaluate(() => {
+    const m = document.getElementById('pf-cot-marco');
+    return { existe: !!m, href: m ? m.contentWindow.location.href : null };
+  });
+  trasStorage.existe && trasStorage.href === urlAntes
+    ? bien('un storage de al3d_historial NO mata el marco: nadie pierde lo que acababa de guardar')
+    : mal('el marco se remontó con un storage — 933 KB recargados tras apretar Guardar: ' + JSON.stringify(trasStorage));
+
+  /* Y la vuelta por postMessage, que es lo que reemplaza al location.href que navegaría el
+     marco. Se manda como lo haría irAPlataforma() desde dentro. */
+  await cot.evaluate(() => parent.postMessage({ al3d: 'ir', ruta: 'proyectos' }, location.origin));
+  await p.waitForTimeout(1200);
+  (await montada()) === 'mod-proyectos'
+    ? bien('un postMessage {al3d:"ir"} desde dentro navega EL PADRE, no el marco')
+    : mal('el postMessage de vuelta no navegó: quedó en ' + (await montada()));
+}
+
+/* La página suelta NO cambió de comportamiento: sigue siendo una URL de primera clase, y sin
+   marco no se apaga nada. Es lo que mantiene verdes las cuatro pruebas del cotizador. */
+const suelto = await ctx.newPage();
+await suelto.goto(B + '/cotizador.html', { waitUntil: 'load' });
+await suelto.waitForTimeout(1600);
+const solo = await suelto.evaluate(() => ({
+  empotrado: document.documentElement.classList.contains('empotrado'),
+  brand: (() => { const e = document.querySelector('.brand'); return e ? getComputedStyle(e).display : null; })(),
+  btnPf: (() => { const e = document.querySelector('.btn-pf'); return e ? getComputedStyle(e).display : null; })(),
+  historial: (() => {
+    const b = [...document.querySelectorAll('.btn-hist')].find(x => (x.getAttribute('aria-label') || '').includes('Historial'));
+    if (!b) return null;
+    const r = b.getBoundingClientRect();
+    return { display: getComputedStyle(b).display, w: Math.round(r.width), h: Math.round(r.height) };
+  })(),
+}));
+!solo.empotrado && solo.brand !== 'none' && solo.btnPf !== 'none'
+  ? bien('y la página suelta se comporta como siempre: sin clase, con logotipo y con su enlace a la plataforma')
+  : mal('la página suelta cambió de comportamiento: ' + JSON.stringify(solo));
+/* LA comparación que vale: el botón que abre el historial mide LO MISMO empotrado que
+   suelto. Así, si alguien apaga de más en el modo empotrado, esto se cae. */
+if (cot && solo.historial && dentro_hist) {
+  solo.historial.w === dentro_hist.w && solo.historial.h === dentro_hist.h
+    ? bien('y Historial mide exactamente lo mismo empotrado que suelto (' + solo.historial.w + '×' + solo.historial.h + '): el modo empotrado no encogió nada')
+    : mal('Historial mide ' + JSON.stringify(dentro_hist) + ' empotrado y ' + JSON.stringify(solo.historial) + ' suelto');
+}
+await suelto.close();
+
 // ── 7. El teléfono ─────────────────────────────────────────────────────────
 console.log('\nEN EL TELÉFONO');
 const tel = await ctx.newPage();

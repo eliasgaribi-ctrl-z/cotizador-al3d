@@ -3038,9 +3038,33 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
   .partida .chip.on{background:none!important;border:1.5px solid #12162b!important;color:#12162b!important}
   .neto .amt{-webkit-text-fill-color:initial;color:#12162b!important;filter:none}
 }
+/* ----- Modo empotrado: dentro del apartado Cotizador de la plataforma -----
+   NO se apaga la .topbar entera, y es lo contrario de lo que se hace en el anidador. La
+   diferencia es qué lleva cada barra: en la del anidador solo hay logotipo y dos enlaces de
+   salida, y aquí viven Deshacer, Clientes, Historial —la única puerta a al3d_historial, el
+   dato irrecuperable del sistema—, la píldora del folio y el segmento Vendedor/Autorizador.
+   Sin ellos no se puede autorizar una cotización, o sea que apagar la barra apagaría el
+   trabajo.
+
+   Lo que sobra son las dos cosas que la plataforma ya pone: el logotipo con su título, que
+   apilado daría dos encabezados en la misma pantalla, y el enlace de vuelta, que navegaría
+   EL MARCO y acabaría con la plataforma anidada dentro de sí misma. Con esas dos apagadas la
+   barra queda como un renglón delgado de controles y no hay doble cromo.
+
+   Se escriben como `html.empotrado` y no `.empotrado` a secas porque estas reglas terminan
+   en css/sistema.css —la copia generada— y de ahí las carga index.html, donde son inertes
+   porque el <html> de la plataforma nunca lleva esa clase. */
+html.empotrado .brand{display:none}
+html.empotrado .btn-pf{display:none}
 </style>
 </head>
 <body>
+<!-- Empotrado dentro del apartado Cotizador de la plataforma. `parent !== window` y no una
+     cadena de consulta: así la página suelta se comporta BYTE POR BYTE como hoy —lo que
+     mantiene verdes su manifiesto, el candado de pruebas/publicacion.mjs y la ruta sin señal
+     del service worker, que resuelve el respaldo del cotizador SIN ignoreSearch—. Y va antes
+     que todo el marcado para que el CSS pinte ya con la clase puesta. -->
+<script>if(parent!==window)document.documentElement.classList.add('empotrado');</script>
 <!-- Primer elemento del recorrido: con la barra de arriba entera por delante, llegar a
      las partidas con teclado o con VoiceOver costaba una docena de pasos. -->
 <a class="salto" href="#contenido">Saltar al contenido</a>
@@ -3103,11 +3127,32 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
       <button class="btn-hist btn-undo oculto" id="undobtn" onclick="deshacer()" title="Deshacer el último cambio (Ctrl+Z)" aria-label="Deshacer el último cambio"><svg class="svgi" aria-hidden="true"><use href="#i-deshacer"/></svg><span class="lbl"> Deshacer</span></button>
       <button class="btn-hist" onclick="abrirCuadernos()" title="Cuadernos de cliente" aria-label="Cuadernos de cliente"><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg><span class="lbl"> Clientes</span></button>
       <button class="btn-hist" onclick="abrirHistorial()" title="Historial de cotizaciones" aria-label="Historial de cotizaciones"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg><span class="lbl"> Historial</span></button>
-      <!-- La plataforma es donde vive lo que pasa DESPUÉS de cotizar: la agenda de
-           instalación, el material del almacén, el mapa de obra. Es un <a> y no un iframe:
-           este archivo tiene 27 declaraciones env(safe-area-inset-*) y dentro de un iframe
-           todas valen 0, así que el botón principal quedaría debajo del indicador de inicio
-           del iPhone. Y son 690 KB duplicados en la memoria de un celular. -->
+      <!-- La plataforma es donde vive lo que pasa DESPUÉS de cotizar: el tablero del taller,
+           la agenda de instalación, el material del almacén, el mapa de obra.
+
+           AQUÍ DECÍA que esto tenía que ser un <a> y no un iframe, por dos razones que
+           siguen siendo verdad y que hoy están resueltas o pagadas. Se reescribe porque
+           dejarlo en pie era sembrar la próxima regresión: alguien lo lee, cree que
+           arregla un bug y revierte el reacomodo.
+
+           1. «Este archivo tiene declaraciones env(safe-area-inset-*) y dentro de un iframe
+              todas valen 0, así que el botón principal quedaría debajo del indicador de
+              inicio del iPhone.» Son TREINTA y es cierto. Se resuelve en el PADRE, no aquí:
+              `.pf-marco-caja{padding-bottom:env(safe-area-inset-bottom,0px)}` en
+              css/plataforma.css encoge la caja del marco, así que su visor termina ARRIBA de
+              la franja del gesto y la .mbar fija queda por encima de ella sola. Dentro del
+              marco no hay zona insegura que proteger, y las treinta en 0 son correctas.
+              Y el alto lo mide el padre con visualViewport, en js/mod/cotizador.js, porque
+              aquí dentro 100dvh describe el iframe y no el visor: sin eso, el teclado del
+              teléfono taparía los modales altos.
+           2. «Son 690 KB duplicados en la memoria de un celular.» Se paga a cambio de que el
+              flujo sea uno. El marco se destruye al cambiar de pestaña, y no se pierde nada
+              porque este archivo autoguarda al3d_q en cada tecla.
+
+           Este <a> se queda para la página suelta, que sigue siendo una URL de primera clase:
+           manifest.webmanifest arranca aquí, y quien tenga la PWA «Cotizador» instalada entra
+           directo. Empotrado se apaga con `html.empotrado .btn-pf` —navegaría el marco— y la
+           vuelta la hace irAPlataforma() por postMessage. -->
       <a class="btn-hist btn-pf" href="./#/hoy" title="Agenda, material y mapa de obra" aria-label="Abrir la plataforma: agenda, material y mapa de obra"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg><span class="lbl"> Plataforma</span></a>
       <span class="folio" id="folio">COT-0001</span>
       <div class="seg" id="roleseg" role="group" aria-label="Rol con el que trabajas" title="Cambia de rol para ver el flujo de autorización">
@@ -12436,7 +12481,7 @@ function registrarGanada(){
          —o si el respaldo trajo las ganadas y no los hitos—, y lo que manda es el hecho. */
       marcarHito('venta');
       toast('Esta cotización ya estaba registrada como proyecto ganado','',3600,
-        {label:'Abrir plataforma',fn:()=>{ location.href='./#/proyectos'; }});
+        {label:'Abrir plataforma',fn:()=>{ irAPlataforma('proyectos'); }});
       return;
     }
     lista.push(g);
@@ -12455,7 +12500,20 @@ function registrarGanada(){
   marcarHito('venta');
   const sinFecha=!g.fecha_instalacion;
   toast('Registrada como proyecto ganado'+(sinFecha?' — le falta la fecha de instalación':''),
-    'ok',5200,{label:'Abrir plataforma',fn:()=>{ location.href='./#/'+(sinFecha?'agenda':'proyectos'); }});
+    'ok',5200,{label:'Abrir plataforma',fn:()=>{ irAPlataforma(sinFecha?'agenda':'proyectos'); }});
+}
+
+/* ----- La vuelta a la plataforma -----
+   Suelto, `location.href` navega la página, que es lo correcto. EMPOTRADO navegaría el
+   MARCO: la plataforma acabaría anidada dentro de sí misma, con dos barras y dos routers.
+   Así que se le avisa al padre y él navega de verdad. Se manda con `location.origin` como
+   destino, no con '*': el mensaje lleva una ruta que mueve la navegación de la app.
+
+   El try/catch es por si `parent` es inalcanzable —no debería, es el mismo origen— y en ese
+   caso se cae al comportamiento de siempre, que funciona. */
+function irAPlataforma(ruta){
+  try{ if(parent!==window){ parent.postMessage({al3d:'ir',ruta:ruta},location.origin); return; } }catch(_){}
+  location.href='./#/'+ruta;
 }
 
 /* Respaldo de copiado para navegadores sin API de portapapeles (o contextos no seguros) */
@@ -13609,7 +13667,13 @@ function vtAnidar(){
     dejado=true;
   }catch(_){ dejado=false; }
   if(dejado){
-    window.open(url,'_blank','noopener');
+    /* Empotrado no se abre una pestaña: el trazo ya quedó en `al3d_anidar` —el canal que
+       lleva funcionando entre las dos apps y que no se toca— y se le pide al padre que
+       cambie a la mesa de corte, que la tiene ahí mismo. Suelto, sigue abriendo pestaña
+       como siempre. */
+    let empotrado=false;
+    try{ if(parent!==window){ parent.postMessage({al3d:'anidar'},location.origin); empotrado=true; } }catch(_){}
+    if(!empotrado) window.open(url,'_blank','noopener');
     toast(VT.cmPorPx>0?'El anidador abrió con el trazo a escala real':'El anidador abrió con el trazo — ahí te pide la medida real','ok',3600);
   }else{
     vtDescargarSVG();

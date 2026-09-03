@@ -45,7 +45,12 @@ if [ "$1" = "--navegador" ] || [ "$NAVEGADOR" = "1" ]; then
     echo ""
     echo "── $f ─────────────────────────────────────────"
     ok=0
-    if grep -q "createServer" "$f"; then node "$f" || ok=1
+    # `env -u PUERTO` y no solo «no pasarlo»: si quien invoca este guion trae PUERTO en su
+    # entorno —cosa razonable, para elegir el puerto del servidor de arriba— las que levantan
+    # el suyo lo HEREDAN y chocan contra ese mismo servidor con EADDRINUSE. Pasó, y el
+    # síntoma no se parece a la causa: dos pruebas «fallando» sin una sola línea de fallo,
+    # con todo lo demás en verde. Aquí se les quita explícitamente.
+    if grep -q "createServer" "$f"; then env -u PUERTO node "$f" || ok=1
     else PUERTO="$PUERTO" node "$f" || ok=1; fi
     [ "$ok" -eq 0 ] || fallos=$((fallos+1))
   done

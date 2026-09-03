@@ -138,7 +138,11 @@
       <h1 class="t">AL3D <small id="pf-sub">Tablero</small></h1>
     </div>
     <div class="rolewrap">
-      <a class="btn-hist" href="cotizador.html" title="Abrir el cotizador"><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg><span class="lbl"> Cotizador</span></a>
+      <!-- Aquí vivía el <a> a cotizador.html. Se fue porque el Cotizador ya es una pestaña
+           de la barra de módulos: tenerlo en los dos sitios enseñaba dos puertas al mismo
+           cuarto, y en el teléfono costaba 44 px del renglón. La página suelta NO se retira
+           —manifest.webmanifest arranca ahí y quien tenga esa PWA instalada entra directo—,
+           solo deja de tener una segunda entrada desde aquí. -->
       <button class="btn-hist" id="pf-ajustes-btn" title="Ajustes de la plataforma" aria-label="Ajustes"><svg class="svgi" aria-hidden="true"><use href="#i-ajustes"/></svg></button>
       <div class="seg" id="pf-rolseg" role="group" aria-label="Rol con el que trabajas"></div>
     </div>
@@ -167,6 +171,7 @@
     <section class="pf-mod" id="mod-fabricacion" data-mod="fabricacion" hidden aria-label="Calendario"></section>
     <section class="pf-mod" id="mod-proyectos"  data-mod="proyectos"  hidden aria-label="Proyectos"></section>
     <section class="pf-mod" id="mod-material"   data-mod="material"   hidden aria-label="Material"></section>
+    <section class="pf-mod" id="mod-cotizador"  data-mod="cotizador"  hidden aria-label="Cotizador"></section>
     <section class="pf-mod" id="mod-mapa"       data-mod="mapa"       hidden aria-label="Mapa"></section>
     <section class="pf-mod" id="mod-atender"    data-mod="inicio"     hidden aria-label="Qué atender"></section>
     <section class="pf-mod" id="mod-ajustes"    data-mod="ajustes"    hidden aria-label="Ajustes"></section>

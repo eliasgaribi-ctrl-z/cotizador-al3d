@@ -36,7 +36,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 15;
+const APP_VERSION = 16;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -76,6 +76,7 @@ const APP_FILES = [
   './js/datos/sync.js',
   './js/datos/puente.js',
   './js/mod/tablero.js',
+  './js/mod/cotizador.js',
   './js/mod/inicio.js',
   './js/mod/proyectos.js',
   './js/mod/fabricacion.js',

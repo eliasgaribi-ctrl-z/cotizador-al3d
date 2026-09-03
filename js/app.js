@@ -54,6 +54,7 @@ const RUTAS = [
   { ruta: 'agenda',    mod: 'fabricacion', seccion: 'mod-fabricacion', icono: 'i-agenda',    nombre: 'Calendario',  roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'proyectos', mod: 'proyectos',   seccion: 'mod-proyectos',   icono: 'i-proyectos', nombre: 'Proyectos',   roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    roles: ['direccion', 'fabricacion'] },
+  { ruta: 'cotizador', mod: 'cotizador',   seccion: 'mod-cotizador',   icono: 'i-venta',     nombre: 'Cotizador',   roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'mapa',      mod: 'mapa',        seccion: 'mod-mapa',        icono: 'i-mapa',      nombre: 'Mapa',        roles: ['direccion', 'fabricacion'] },
   { ruta: 'atender',   mod: 'inicio',      seccion: 'mod-atender',     icono: 'i-aviso',     nombre: 'Qué atender', roles: ['direccion', 'fabricacion', 'pagos'], oculto: true, padre: 'hoy' },
   { ruta: 'ajustes',   mod: 'ajustes',     seccion: 'mod-ajustes',     icono: 'i-ajustes',   nombre: 'Ajustes',     roles: ['direccion', 'fabricacion', 'pagos'], oculto: true },
