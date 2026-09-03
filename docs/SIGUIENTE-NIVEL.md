@@ -22,7 +22,7 @@ se escribió. Consecuencias que ya se ven:
 
 | Lo que pasa | Por qué | Lo que hay hoy |
 |---|---|---|
-| Lo que cotizas en el teléfono no aparece en la computadora | no hay servidor | el **respaldo** (Ajustes → Respaldar) se manda por WhatsApp y se restaura en el otro aparato |
+| Lo que cotizas en el teléfono no aparece en la computadora | no hay servidor | el **respaldo completo** (Ajustes → Respaldar todo) baja un solo archivo con plataforma y cotizador; se manda por WhatsApp y se restaura en Ajustes del otro aparato, y el cotizador toma su parte al abrir |
 | Dos aparatos emiten el mismo folio `COT-0042` | el contador es local | la plataforma le pega el id del aparato por dentro; el folio del cliente sigue pudiendo repetirse. **Cotiza siempre del mismo aparato** |
 | Fabricación no ve lo que dirección agendó | cada teléfono su base | el `.ics` que se descarga al agendar llega al calendario del teléfono, pero la plataforma del otro aparato no se entera |
 | Los avisos solo se ven al abrir la app | una PWA no se despierta sola sin servidor | las alarmas del `.ics` sí suenan; lo demás se calcula al abrir |
@@ -115,11 +115,13 @@ lo pide al autorizar, con respaldo al contador local si no hay señal (marcado c
 provisional). **Compra:** que dos aparatos puedan cotizar. **Tamaño:** medio día. Depende de
 la fase 3.
 
-### 4.3 El calendario, lo que quedó numerado
-En la cabecera de `js/mod/fabricacion.js` hay seis puntos sobre un contrato ya probado. Los
-dos que más se notan: el mes de la lente Taller como **mapa de vencimientos** (cada día pinta
-lo que vence ese día: empezar, cortar, armar, listo) y la tarjeta que late —«Se ganó / No se
-dio»— subiendo de «Hoy» al calendario. **Tamaño:** un día entre los seis.
+### 4.3 El calendario — hecho el 3 de septiembre
+Los seis puntos que quedaron numerados en la cabecera de `js/mod/fabricacion.js` ya están:
+el plazo se corrige con un toque, el mes de Taller es un mapa de vencimientos (cada día pinta
+lo que vence: empezar, cortar, armar, listo, con la carga del día en el aria-label y en la
+lista del día), la tarjeta que late «Se ganó / No se dio» está en el calendario con la fecha y
+el plazo en el mismo panel, las tres lentes comparten la rejilla, y la barra fija cambia por
+rol. Lo que sigue aquí es opcional: arrastrar una instalación de un día a otro en el mes.
 
 ### 4.4 Avisos que lleguen con la app cerrada
 Hoy solo suenan las alarmas del `.ics`. Para que «falta acrílico para el jueves» llegue al
@@ -150,8 +152,7 @@ pierda: instalar la plataforma como app de escritorio (Chrome lo ofrece solo; fa
 2. **4.1, el material viajando.** Un día. Con eso los tres aparatos ven todo lo que importa.
 3. **Fase 2, Google Calendar.** 15 minutos. Quita el paso del `.ics`.
 4. **4.2, el folio del servidor.** Medio día. Ya se puede cotizar de dos aparatos.
-5. **4.3 y 4.4** según haga falta: el calendario cuando fabricación lo pida; los push cuando
-   alguien se pierda un aviso por no abrir la app.
+5. **4.4, los avisos push**, cuando alguien se pierda un aviso por no abrir la app.
 
 Y lo que **no** se va a hacer, con su razón en `docs/ARQUITECTURA.md` §11: no se migran los
 199 proyectos fuera de Notion, no se llama a la API de Notion desde el navegador, no se usa

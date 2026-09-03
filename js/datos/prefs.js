@@ -29,6 +29,10 @@ export const CLAVES = {
   PUENTE:     'al3d_pf_puente',
   ULT_EXPORT: 'al3d_pf_ult_export',
   EMPRESA:    'al3d_pf_empresa',
+  /* La mitad del cotizador de un respaldo completo, esperando a que el cotizador la tome. La
+     plataforma tiene prohibido escribir las claves del cotizador (§4.1); esto es una clave
+     SUYA que el cotizador lee, ofrece con un botón y borra al restaurar. */
+  RESTAURAR:  'al3d_pf_restaurar',
 };
 
 export const ROLES = ['direccion', 'fabricacion', 'pagos'];
@@ -47,7 +51,7 @@ export const ROL_DESC = {
 };
 
 const CRUDAS = new Set([CLAVES.DISP, CLAVES.ROL, CLAVES.NOMBRE, CLAVES.TILES,
-                        CLAVES.ULT_EXPORT, CLAVES.EMPRESA]);
+                        CLAVES.ULT_EXPORT, CLAVES.EMPRESA, CLAVES.RESTAURAR]);
 
 /** Lee. Nunca lanza. Devuelve `def` si no está, si no se pudo leer o si el JSON está roto. */
 export function get(clave, def = null) {
@@ -135,6 +139,11 @@ export function setTiles(t) { return set(CLAVES.TILES, t); }
 
 /** Sello del último respaldo de la plataforma. Alimenta el aviso de desalojo. */
 export function ultExport() { return get(CLAVES.ULT_EXPORT, ''); }
+/** Deja la mitad del cotizador de un respaldo completo (el JSON como texto) para que el
+ *  cotizador la ofrezca al abrir. `false` si no cupo: un historial de tres años con imágenes
+ *  puede no caber junto a lo que ya hay, y eso se dice en vez de perderse en silencio. */
+export function dejarRestauracion(texto) { return set(CLAVES.RESTAURAR, String(texto || '')); }
+export function restauracionPendiente() { return get(CLAVES.RESTAURAR, '') || ''; }
 export function marcarExport() { return set(CLAVES.ULT_EXPORT, new Date().toISOString()); }
 export function diasSinRespaldo() {
   const s = ultExport(); if (!s) return null;

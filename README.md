@@ -213,8 +213,11 @@ Sin puente no se rompe nada: la plataforma funciona completa en un dispositivo y
 **Copiar fila para Notion** del cotizador sigue siendo el camino manual. Ese botón no se
 retira nunca.
 
-**Los datos viven en el dispositivo**, igual que el cotizador, y tiene su propio respaldo
-—aparte del del cotizador— en Ajustes.
+**Los datos viven en el dispositivo**, igual que el cotizador. El respaldo de Ajustes baja
+**un solo archivo con todo** —plataforma y cotizador— y es la forma de mover la app a otro
+aparato: se manda por WhatsApp o correo, se restaura en Ajustes del otro lado, y el cotizador
+toma su parte al abrir. Mientras no haya servidor, es el puente entre el teléfono y la
+computadora.
 
 ## Uso
 

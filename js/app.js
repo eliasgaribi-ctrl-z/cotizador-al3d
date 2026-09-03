@@ -287,15 +287,24 @@ function revisarDispositivo() {
   }
 }
 
+/* El respaldo baja COMPLETO: la plataforma y el cotizador en un solo archivo. Antes eran dos
+   archivos que no se cruzaban, y mover la app a otro aparato —que es la única forma de usarla
+   en el teléfono y en la computadora mientras no haya servidor— era bajar dos cosas de dos
+   pantallas y restaurarlas en otras dos. Ahora es un archivo: cada lado toma su mitad al
+   restaurar, y un respaldo viejo de la plataforma sola sigue entrando igual. */
 export async function respaldar() {
-  const txt = await DB.exportar();
+  const plataforma = JSON.parse(await DB.exportar());
+  const cotizador = Cot.armarRespaldoCotizador();
+  const txt = JSON.stringify({ app: 'al3d-completo', formato: 1, fecha: new Date().toISOString(),
+    plataforma, cotizador });
   const d = new Date(), p = n => String(n).padStart(2, '0');
   const sello = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + '-' +
                 p(d.getHours()) + p(d.getMinutes());
   const { descargarArchivo } = await import('./nucleo/ui.js');
-  if (descargarArchivo(txt, 'plataforma-al3d-respaldo-' + sello + '.json', 'application/json')) {
+  if (descargarArchivo(txt, 'al3d-respaldo-completo-' + sello + '.json', 'application/json')) {
     Prefs.marcarExport();
-    toast('Respaldo de la plataforma descargado', 'ok', 3600);
+    const n = (() => { try { return JSON.parse(cotizador.datos.al3d_historial || '[]').length; } catch (_) { return 0; } })();
+    toast('Respaldo completo descargado: plataforma y cotizador (' + n + (n === 1 ? ' cotización' : ' cotizaciones') + ')', 'ok', 4600);
     revisarDispositivo();
   }
 }

@@ -659,6 +659,20 @@ button.cal-plazo:active{transform:translateY(1px) scale(.98)}
   .ag-cuerpo.dos{grid-template-columns:minmax(0,1fr) minmax(380px,440px)}
   .ag-cuerpo.dos>.card{position:sticky;top:calc(3px + 78px + var(--e3))}
 }
+/* En la lente Taller, en el teléfono, la fila va PRIMERO: es la pregunta de la mañana. En el
+   monitor las dos columnas ya la ponen al lado, y el orden no hace falta. */
+@media(max-width:1099px){ .ag-cuerpo.dos.taller-primero>.card{order:-1} }
+
+/* ----- Lo que vence en el taller, en la celda del mes -----
+   Un chip por hito —empezar, cortar, armar, listo— con el nombre corto y el verbo. Se
+   distingue de una instalación por la FORMA, no solo por el color: el filete va punteado y
+   el fondo es el tenue del acento. Tarde va en rojo con la palabra en la lista del día. */
+.cal-ev.tal{border-left-style:dotted;background:var(--a-suave);color:var(--a-fuerte)}
+.cal-ev.tal.empezar{border-left-color:var(--n5)}
+.cal-ev.tal.cortar,.cal-ev.tal.armar{border-left-color:var(--amber-ico)}
+.cal-ev.tal.listo{border-left-color:var(--a)}
+.cal-ev.tal.tarde{background:var(--mal-bg);color:var(--mal);border-left-color:var(--red)}
+.tal-fila-dia .pf-fila-t{font-size:var(--t3)}
 
 /* La columna de acciones de una ficha. Existe `.pf-fila-acc`, pero en el teléfono se
    convierte en una fila horizontal con relleno a la izquierda —tiene todo el sentido dentro
