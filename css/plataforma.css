@@ -626,17 +626,39 @@ button,input,select,textarea,optgroup{font-family:inherit}
   background:var(--a);border:2px solid #fff;box-shadow:0 0 0 1px var(--a-borde)}
 .tal-riel.tarde .tal-hoy{background:var(--amber-ico)}
 
-/* ----- La ficha del plazo -----
-   Hoy es una etiqueta; el siguiente paso la vuelve el botón que corrige el plazo, y por eso
-   ya tiene la forma de uno. «Puesto a mano» manda sobre lo calculado, y se ve: el fondo tenue
-   del acento con el que el sistema marca todo lo elegido. */
+/* ----- La ficha del plazo, que además es el botón que lo corrige -----
+   El plazo sale de una tabla y una tabla se equivoca con el proyecto que la contradice. Si
+   corregirlo costara abrir otra pantalla nadie lo corregiría y la ventana mentiría para
+   siempre. Así que leerlo y corregirlo son el mismo gesto. «Puesto a mano» manda sobre lo
+   calculado, y se ve: el fondo tenue del acento con el que el sistema marca lo elegido. Para
+   pagos es un <span> con la misma cara y sin cursor: no tiene nada que cambiar ahí. */
 .cal-plazo{display:inline-flex;align-items:center;gap:var(--e1);
   min-height:28px;padding:0 10px;border:1px solid var(--n3);border-radius:999px;
-  background:linear-gradient(168deg,#fff,var(--n1));
-  color:var(--n7);font-weight:600;font-size:var(--t1);line-height:1;white-space:nowrap}
+  background:linear-gradient(168deg,#fff,var(--n1));box-shadow:var(--clay-in);
+  color:var(--n7);font-family:inherit;font-weight:600;font-size:var(--t1);line-height:1;white-space:nowrap}
+button.cal-plazo{cursor:pointer}
+button.cal-plazo::after{content:'▾';font-size:9px;color:var(--muted)}
+button.cal-plazo:active{transform:translateY(1px) scale(.98)}
 .cal-plazo .svgi{width:var(--ico1);height:var(--ico1);color:var(--n6)}
 .cal-plazo.mano{border-color:var(--a-borde);background:var(--a-suave);color:var(--a-fuerte)}
 .cal-plazo.mano .svgi{color:var(--a)}
+/* Los 44 px van por puntero grueso Y por ancho de teléfono: en el navegador de un escritorio
+   angosto sigue siendo cómodo, y así lo mide igual quien lo prueba emulando el ancho. */
+@media(hover:none),(pointer:coarse),(max-width:560px){ button.cal-plazo{min-height:44px;padding:0 14px} }
+
+/* ----- La computadora: dos columnas cuando caben -----
+   En el teléfono el calendario y la fila del taller van uno debajo del otro. En un monitor
+   eso deja la mitad derecha vacía y el panel del día trescientos píxeles más abajo. De
+   1 100 px para arriba —la .wrap tope en 1 180 y quita 48 de relleno— la lente «Todo» pone el
+   calendario a la izquierda y la fila del taller a la derecha, con el mismo marcado: es la
+   misma pantalla, solo cambia dónde cae cada cosa. La columna derecha se pega arriba al
+   desplazarse porque es la que se lee mientras se mira el mes. */
+.ag-cuerpo.dos{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--e4);align-items:start}
+.ag-cuerpo.dos>*{min-width:0}
+@media(min-width:1100px){
+  .ag-cuerpo.dos{grid-template-columns:minmax(0,1fr) minmax(380px,440px)}
+  .ag-cuerpo.dos>.card{position:sticky;top:calc(3px + 78px + var(--e3))}
+}
 
 /* La columna de acciones de una ficha. Existe `.pf-fila-acc`, pero en el teléfono se
    convierte en una fila horizontal con relleno a la izquierda —tiene todo el sentido dentro

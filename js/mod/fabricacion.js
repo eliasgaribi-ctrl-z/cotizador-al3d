@@ -101,8 +101,16 @@ const VIVAS_SIN_MARCAR = ['propuesta', 'confirmada', 'reagendada'];
 export async function montar(contenedor, ctx) {
   _cont = contenedor;
   _ctx = ctx;
-  if (!_lente) _lente = Prefs.rol() === 'pagos' ? 'instalaciones' : 'taller';
+  /* La primera vez se decide por el rol y por la pantalla: en un monitor caben el calendario
+     y la fila del taller lado a lado, así que ahí se abre «Todo»; en el teléfono, donde no
+     caben, se abre Taller, que es la pregunta de la mañana. Después manda lo que la persona
+     haya tocado, aunque cambie de módulo y vuelva. */
+  if (!_lente) {
+    const ancho = typeof matchMedia === 'function' && matchMedia('(min-width:1100px)').matches;
+    _lente = Prefs.rol() === 'pagos' ? 'instalaciones' : (ancho ? 'todo' : 'taller');
+  }
   if (Prefs.rol() === 'pagos') _lente = 'instalaciones';
+  window.addEventListener('keydown', alTeclear);
 
   /* Un oyente delegado por contenedor y uno por capa. La rejilla del mes son cuarenta y dos
      botones que se rehacen cada vez que se toca uno: un oyente por celda serían cuarenta y
@@ -132,6 +140,7 @@ export async function montar(contenedor, ctx) {
 
 export function desmontar() {
   if (_cont && _oyendo) _cont.removeEventListener('click', alTocar);
+  window.removeEventListener('keydown', alTeclear);
   const hoja = $('pf-hoja');
   if (hoja) { hoja.removeEventListener('click', alTocarHoja); hoja.removeEventListener('input', alEscribirHoja); }
   const pide = $('pf-pide');
@@ -311,11 +320,14 @@ function pintar() {
       (_vista === 'mes' ? pintarMes(d) : _vista === 'semana' ? pintarSemana(d) : pintarLista(d)) +
     '</div></div>';
 
+  /* «Todo» pone el calendario y la fila del taller en dos columnas cuando la pantalla da
+     —de 1 100 px para arriba—, y uno debajo del otro cuando no. Es la misma pantalla en el
+     monitor y en el teléfono, con el mismo marcado; solo cambia dónde cae cada cosa. */
   _cont.innerHTML =
     pintarCuentas(d) +
     pintarLente() +
     (_lente === 'taller' ? pintarTaller(d)
-     : _lente === 'todo' ? calendario + pintarTaller(d)
+     : _lente === 'todo' ? '<div class="ag-cuerpo dos"><div class="ag-col">' + calendario + '</div>' + pintarTaller(d) + '</div>'
      : calendario) +
     pintarExportar(d);
 
@@ -407,8 +419,12 @@ function filaTaller(v) {
         '<span class="tal-fecha">' + esc(corta(v.listo)) + (v.instalacion ? ' · instala ' + esc(corta(v.instalacion)) : '') + '</span>' +
       '</div>' +
       '<div class="pf-fila-d">' +
-        '<span class="cal-plazo' + (v.plazo_fuente === 'elegido' ? ' mano' : '') + '" title="' + esc(v.plazo_razon) + '">' +
-          ico('i-reloj') + esc(v.plazo_etiqueta) + ' · ' + (v.plazo_fuente === 'elegido' ? 'a mano' : 'calculado') + '</span>' +
+        (puedeCorregirPlazo()
+          ? '<button type="button" class="cal-plazo' + (v.plazo_fuente === 'elegido' ? ' mano' : '') + '" data-plazo="' + esc(v.proyecto_id || '') + '"' +
+            ' title="Cambiar cuánto tarda en el taller" aria-label="Plazo de taller: ' + esc(v.plazo_etiqueta) + ', ' + (v.plazo_fuente === 'elegido' ? 'puesto a mano' : 'calculado') + '. Tocar para cambiarlo">' +
+            ico('i-reloj') + esc(v.plazo_etiqueta) + ' · ' + (v.plazo_fuente === 'elegido' ? 'a mano' : 'calculado') + '</button>'
+          : '<span class="cal-plazo' + (v.plazo_fuente === 'elegido' ? ' mano' : '') + '" title="' + esc(v.plazo_razon) + '">' +
+            ico('i-reloj') + esc(v.plazo_etiqueta) + ' · ' + (v.plazo_fuente === 'elegido' ? 'a mano' : 'calculado') + '</span>') +
       '</div>' +
     '</div>' +
   '</div>';
@@ -788,6 +804,9 @@ async function alTocar(ev) {
 
   const lente = ev.target.closest('[data-lente]');
   if (lente) { _lente = lente.dataset.lente; _dia = null; await recargar(); return; }
+
+  const plazo = ev.target.closest('[data-plazo]');
+  if (plazo) { abrirPlazo(plazo.dataset.plazo); return; }
 
   const vista = ev.target.closest('[data-vista]');
   if (vista) { _vista = vista.dataset.vista; _dia = null; await recargar(); return; }
@@ -1305,6 +1324,54 @@ function abrirMover(i) {
     '</div>');
 }
 
+/* ----- El plazo, con un toque -----
+   Es el número que más se va a equivocar —sale de una tabla, y una tabla se equivoca con el
+   proyecto que la contradice— y por eso leerlo y corregirlo son el mismo gesto: la ficha del
+   renglón es el botón. Lo corrigen dirección y fabricación; cuánto tarda un trabajo lo sabe
+   quien lo hace, no quien lo vendió. Pagos no. */
+const puedeCorregirPlazo = () => Prefs.rol() !== 'pagos';
+
+function abrirPlazo(id) {
+  if (!puedeCorregirPlazo()) { toast('El plazo lo cambian dirección y fabricación.', 'err', 4200); return; }
+  const v = ((_d && _d.ventanas) || []).find(x => x.proyecto_id === id);
+  if (!v) return;
+  const elegido = v.plazo_fuente === 'elegido' ? v.plazo_k : null;
+  _pide = { modo: 'plazo', id, k: elegido };
+  const chips = Taller.PLAZOS.map(p =>
+    chip(p.etiqueta, p.k === v.plazo_k, 'data-pide="plazo" data-k="' + p.k + '"')).join('');
+  ponerEnCapa('pf-pide',
+    cabeza('¿Cuánto tarda en el taller?', 'data-pide="cerrar"') +
+    '<div class="pf-panel-b">' +
+      '<p class="pf-cuenta">' + esc(v.titulo || 'Proyecto sin nombre') +
+        (v.instalacion ? ' · se instala el ' + esc(fmtFecha(v.instalacion)) : ' · sin fecha de instalación') + '</p>' +
+      '<div class="chips" role="group" aria-label="Plazo de taller">' + chips + '</div>' +
+      '<p class="hintnote">' + (elegido !== null
+        ? 'Puesto a mano. Toca el marcado para volver al propuesto.'
+        : 'Propuesto por el tipo de trabajo: ' + esc(v.plazo_razon) + '. Toca otro si sabes que tarda más.') + '</p>' +
+      '<p class="hintnote">El plazo se cuenta hacia atrás desde el día de la instalación: si mueves la fecha, la ventana se mueve con ella. Lo que elijas aquí manda sobre lo calculado y se queda.</p>' +
+    '</div>' +
+    '<div class="pf-panel-f"><button type="button" class="btn btn-gho" data-pide="cerrar">Cerrar</button></div>');
+}
+
+/* ----- El teclado, para la computadora -----
+   Flechas para moverse de mes o de semana y «t» para volver a hoy. Solo cuando no se está
+   escribiendo en un campo y no hay un panel abierto: dentro de un <input type="date"> las
+   flechas ya hacen otra cosa. Los números cambian de módulo y viven en app.js. */
+function alTeclear(ev) {
+  if (!_cont || ev.altKey || ev.ctrlKey || ev.metaKey) return;
+  const t = ev.target;
+  if (t && t.closest && t.closest('input,textarea,select,[contenteditable="true"]')) return;
+  if (document.querySelector('.modal-bg.show')) return;
+  if (_lente === 'taller') return;
+  if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
+    const n = ev.key === 'ArrowLeft' ? -1 : 1;
+    _ancla = _vista === 'semana' ? masDias(iniSemana(_ancla), n * 7) : masMeses(_ancla, n);
+    _dia = null; ev.preventDefault(); recargar();
+  } else if (ev.key === 't' || ev.key === 'T') {
+    _ancla = hoyISO(); _dia = null; ev.preventDefault(); recargar();
+  }
+}
+
 function abrirCancelar(i) {
   _pide = { modo: 'cancelar', id: i.id };
   ponerEnCapa('pf-pide',
@@ -1334,6 +1401,24 @@ async function alTocarPide(ev) {
   ev.preventDefault();
 
   if (q === 'cerrar') { cerrarPide(); return; }
+
+  if (q === 'plazo') {
+    /* El chip commitea: no hay botón de guardar, hay «Deshacer» en el aviso, que es el patrón
+       del sistema. Tocar el que ya está elegido lo suelta y vuelve a mandar el propuesto. */
+    const id = _pide.id, anterior = _pide.k;
+    const k = Number(b.dataset.k);
+    const nuevo = anterior === k ? null : k;
+    b.disabled = true;
+    const r = await Proyectos.actualizar(id, { plazo_k: nuevo });
+    if (!r.ok) { avisarResultado(r); if (b.isConnected) b.disabled = false; return; }
+    cerrarPide();
+    await recargar();
+    const v = ((_d && _d.ventanas) || []).find(x => x.proyecto_id === id);
+    toast(nuevo === null ? 'Vuelve a mandar el propuesto' + (v ? ': ' + v.plazo_etiqueta : '')
+                         : 'Ahora son ' + Taller.plazo(nuevo).etiqueta + (v && v.empezar ? ' · entra al taller el ' + fmtFecha(v.empezar) : ''),
+      'ok', 8000, { label: 'Deshacer', fn: async () => { await Proyectos.actualizar(id, { plazo_k: anterior }); await recargar(); } });
+    return;
+  }
 
   if (q === 'copiar') {
     copiarTexto((_pide && _pide.texto) || '', 'Orden copiada. Pégala en el chat del instalador.');
