@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Anidador de vectores · AL3D</title>
+<meta name="description" content="Acomoda las piezas de un SVG en la lámina para gastar el menor material posible antes de mandarlas al láser o al CNC.">
+<!-- El mismo número que --a en css/sistema.css. Un <meta> no entiende var(). -->
+<meta name="theme-color" content="#4060f8">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" sizes="192x192" href="../icono-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+
+<!-- Mismas dos familias que el cotizador y la plataforma, cargadas SIN BLOQUEAR: una hoja
+     de estilos pendiente detiene los scripts, y si fonts.googleapis.com se cuelga el motor
+     nunca arrancaría. Con media="print" se baja sin bloquear y al terminar se enciende. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+
+<!-- sistema.css es la COPIA GENERADA del <style> del cotizador: los mismos azules del
+     logotipo, el mismo barro, la misma escala de letra. anidador.css es solo lo que el
+     cotizador no tiene: la rejilla de dos columnas, el lienzo de la vista previa y la lámina.
+     La primera versión de esta herramienta traía su propia hoja —fondo negro, naranja—: era
+     la única pantalla de AL3D que no parecía de AL3D. -->
+<link rel="stylesheet" href="../css/sistema.css">
+<link rel="stylesheet" href="css/anidador.css">
+</head>
+<body class="an">
+
+<a href="#an-contenido" class="salto">Ir al contenido</a>
+
+<!-- Los iconos son los mismos trazos de 24×24 del sprite del cotizador; el único nuevo es
+     i-anidar (cuatro piezas acomodadas), que también se dio de alta allá y en la plataforma. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<symbol id="i-venta" viewBox="0 1.2 24 24"><path d="M3 20.8h18"/><path d="M6.4 20.8V12M11.4 20.8V5.6M16.4 20.8v-6.2M21 20.8V9"/></symbol>
+<symbol id="i-carpeta" viewBox="-1.333 -1.333 26.667 26.667" style="stroke-width:2.111"><path d="M4 20a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4.1a2 2 0 0 1 1.6.8l1 1.4a2 2 0 0 0 1.6.8H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2z"/><path d="M2 10.5h20"/></symbol>
+<symbol id="i-subir" viewBox="1.333 2.383 21.333 21.333" style="stroke-width:1.689"><path d="M12 18V5.5"/><path d="M6.8 10.7 12 5.5l5.2 5.2"/><path d="M4 20.6h16"/></symbol>
+<symbol id="i-bajar" viewBox="0 0 24 24"><path d="M12 3v12.5"/><path d="M6.8 10.6 12 15.8l5.2-5.2"/><path d="M4 20.6h16"/></symbol>
+<symbol id="i-horiz" viewBox="0 0 24 24"><path d="M2.8 12h18.4"/><path d="M6.6 8.2 2.8 12l3.8 3.8"/><path d="M17.4 8.2 21.2 12l-3.8 3.8"/></symbol>
+<symbol id="i-recalibrar" viewBox="0 0 24 24"><path d="M20.8 12a8.8 8.8 0 1 1-2.7-6.3"/><path d="M21 3.2v4h-4"/></symbol>
+<symbol id="i-aviso" viewBox="-1.333 -1.533 26.667 26.667" style="stroke-width:2.111"><path d="M12 3.2 22 20.4H2z"/><path d="M12 9.6v4.6M12 17.4v.6"/></symbol>
+<symbol id="i-check" viewBox="1.95 2 20.4 20.4" style="stroke-width:1.615"><path d="M4.5 12.8 9.5 17.8 19.8 6.6"/></symbol>
+<symbol id="i-anidar" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="11" rx="1.6"/><rect x="13" y="3" width="8" height="6" rx="1.6"/><rect x="13" y="11" width="8" height="10" rx="1.6"/><rect x="3" y="16" width="8" height="5" rx="1.6"/></symbol>
+</defs></svg>
+
+<div class="topbar">
+  <div class="topbar-in">
+    <div class="brand" id="brandLogo">
+      <img class="logoimg" src="../logo-al3d.svg" width="260" height="130" alt="AL3D">
+      <h1 class="t">Anidador <small>Acomodo de piezas para corte</small></h1>
+    </div>
+    <div class="rolewrap">
+      <a class="btn-hist" href="../cotizador.html" title="Abrir el cotizador" aria-label="Abrir el cotizador"><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg><span class="lbl"> Cotizador</span></a>
+      <a class="btn-hist" href="../#/hoy" title="Abrir la plataforma" aria-label="Abrir la plataforma: agenda, material y mapa de obra"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg><span class="lbl"> Plataforma</span></a>
+    </div>
+  </div>
+</div>
+
+<div class="an-wrap" id="an-contenido" tabindex="-1">
+
+  <!-- Cuando el trazo llega del vectorizador del cotizador se dice de dónde vino y de qué
+       folio, porque esta pestaña se abre sola y una pantalla que ya trae un archivo cargado
+       sin decir cuál es parece la de la última vez. -->
+  <div class="an-banda" id="an-origen" hidden role="status" aria-live="polite"></div>
+
+  <main class="an-main">
+
+    <section class="card" aria-labelledby="h-piezas">
+      <div class="card-h"><h2 id="h-piezas">1 · Las piezas</h2></div>
+      <div class="card-b">
+        <label class="ai-drop" id="an-drop" for="an-file">
+          <span class="ico" aria-hidden="true"><svg class="svgi"><use href="#i-subir"/></svg></span>
+          <span class="t" id="an-drop-t">Arrastra el SVG aquí, pégalo con Ctrl+V o toca para elegirlo</span>
+          <span class="s">El que exporta Illustrator o Inkscape, o el que baja el vectorizador del cotizador. Solo contornos: los textos se convierten en trazos antes.</span>
+        </label>
+        <input type="file" id="an-file" class="solo-voz" accept=".svg,image/svg+xml" aria-label="Elegir el archivo SVG">
+
+        <div class="an-archivo" id="an-archivo" hidden>
+          <div class="an-archivo-n"><b id="an-nombre"></b><span class="an-dim" id="an-peso"></span></div>
+          <div class="vt-stats an-stats">
+            <div class="vt-stat hl"><span class="k">Piezas</span><span class="v" id="an-st-piezas">—</span></div>
+            <div class="vt-stat"><span class="k">Diseño</span><span class="v" id="an-st-diseno">—</span></div>
+          </div>
+          <div class="an-avisos" id="an-avisos"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Solo aparece cuando hay archivo. Si el archivo trae sus unidades, los dos campos
+         llegan llenos y se pueden corregir; si no las trae, llegan vacíos y en ámbar. -->
+    <section class="card" aria-labelledby="h-medida" id="an-sec-medida" hidden>
+      <div class="card-h"><h2 id="h-medida">2 · La medida real</h2></div>
+      <div class="card-b">
+        <p class="an-nota" id="an-medida-txt"></p>
+        <div class="grid2">
+          <div class="fld" id="fld-ancho-d"><label for="an-ancho-d">Ancho del diseño (mm)</label><input id="an-ancho-d" type="number" inputmode="decimal" min="1" step="any" placeholder="Ej. 1200"></div>
+          <div class="fld" id="fld-alto-d"><label for="an-alto-d">Alto del diseño (mm)</label><input id="an-alto-d" type="number" inputmode="decimal" min="1" step="any" placeholder="Ej. 400"></div>
+        </div>
+        <div class="hintnote an-hint">Es la medida de lo dibujado —el letrero completo, de orilla a orilla—, no la del lienzo. Con una de las dos basta: la otra se calcula.</div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="h-material">
+      <div class="card-h"><h2 id="h-material">3 · La lámina</h2></div>
+      <div class="card-b">
+        <div class="fld">
+          <label for="an-preset">Material</label>
+          <select id="an-preset">
+            <option value="1220x2440">Lámina de 1.22 × 2.44 m — acrílico, aluminio, galvanizada</option>
+            <option value="1250x2500">Alucobond de 1.25 × 2.50 m</option>
+            <option value="1220x1220">Media lámina — 1.22 × 1.22 m</option>
+            <option value="otra">Otra medida</option>
+          </select>
+        </div>
+        <div class="grid3">
+          <div class="fld" id="fld-ancho"><label for="an-ancho">Ancho (mm)</label><input id="an-ancho" type="number" inputmode="decimal" min="1" step="any" value="1220"></div>
+          <div class="fld" id="fld-alto"><label for="an-alto">Alto (mm)</label><input id="an-alto" type="number" inputmode="decimal" min="1" step="any" value="2440"></div>
+          <div class="fld" id="fld-sep"><label for="an-sep">Separación (mm)</label><input id="an-sep" type="number" inputmode="decimal" min="0" step="any" value="3"></div>
+        </div>
+        <button type="button" class="btn btn-gho an-girar" id="an-girar" title="Intercambiar el ancho y el alto de la lámina"><svg class="svgi" aria-hidden="true"><use href="#i-horiz"/></svg> Girar la lámina</button>
+
+        <details class="an-avanzado" id="an-avanzado">
+          <summary>Giros, huecos y contorno</summary>
+          <div class="an-avanzado-b">
+            <div class="fld">
+              <label for="an-rot">Giros permitidos por pieza</label>
+              <select id="an-rot">
+                <option value="1">Ninguno — como vienen</option>
+                <option value="2">2 — 0° y 180°</option>
+                <option value="4" selected>4 — cada 90°</option>
+                <option value="8">8 — cada 45°</option>
+              </select>
+            </div>
+            <button type="button" class="switch" role="switch" aria-checked="false" id="an-huecos"><span class="tg" aria-hidden="true"></span> Meter piezas chicas en los huecos grandes</button>
+            <div class="hintnote an-hint">El centro de una «O» o de una «D» grande puede recibir un punto o una letra chica. Tarda más en calcular.</div>
+            <button type="button" class="switch" role="switch" aria-checked="true" id="an-contorno"><span class="tg on" aria-hidden="true"></span> Incluir el contorno de la lámina en el SVG</button>
+            <div class="hintnote an-hint">Sale en azul y en su propia capa. En el software de corte se pone en «no cortar» o se borra; sirve para colocar el archivo en la cama.</div>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <div class="an-acciones">
+      <button type="button" class="btn btn-pri" id="an-ir" disabled>Acomodar las piezas</button>
+      <button type="button" class="btn btn-gho" id="an-seguir" hidden><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Seguir buscando un acomodo mejor</button>
+      <button type="button" class="btn btn-gho" id="an-dl" disabled><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> Descargar el SVG acomodado</button>
+      <div class="an-dl-hojas" id="an-dl-hojas" hidden></div>
+    </div>
+    <div class="an-msg" id="an-msg" role="status" aria-live="polite"></div>
+  </main>
+
+  <aside class="an-side">
+    <section class="card an-vista" aria-labelledby="h-vista">
+      <div class="card-h"><h2 id="h-vista">Vista previa</h2><span class="an-vista-tab" id="an-vista-tab">Las piezas, como vienen</span></div>
+      <div class="an-progreso" id="an-prog" hidden>
+        <div class="prog-track" aria-hidden="true"><div class="an-prog-bar" id="an-prog-bar"></div></div>
+        <div class="vt-stats an-stats-res">
+          <div class="vt-stat hl"><span class="k">Uso de material</span><span class="v" id="an-st-uso">—</span></div>
+          <div class="vt-stat"><span class="k">Colocadas</span><span class="v" id="an-st-col">—</span></div>
+          <div class="vt-stat"><span class="k">Láminas</span><span class="v" id="an-st-hojas">—</span></div>
+          <div class="vt-stat"><span class="k">Intentos</span><span class="v" id="an-st-int">—</span></div>
+        </div>
+      </div>
+      <div class="an-lienzo" id="an-orig"><p class="an-vacio">Sube un SVG para verlo aquí.</p></div>
+      <div class="an-lienzo an-lienzo-res" id="an-res" hidden></div>
+    </section>
+  </aside>
+</div>
+
+<footer class="an-pie">
+  <p>Corre completo en este navegador: el archivo no se sube a ningún servidor. El acomodo lo calcula el motor de código abierto <a href="https://github.com/Jack000/SVGnest" target="_blank" rel="noopener">SVGnest</a> (licencia MIT, en <code>js/SVGNEST-LICENSE.txt</code>), el mismo de svgnest.com.</p>
+</footer>
+
+<div class="toast" id="toast"></div>
+<div id="vozStatus" class="solo-voz" role="status" aria-live="polite"></div>
+
+<!-- El motor vendorizado y sus dependencias, en este orden (importa). -->
+<script src="js/lib/pathsegpolyfill.js"></script>
+<script src="js/lib/matrix.js"></script>
+<script src="js/lib/clipper.js"></script>
+<script src="js/lib/parallel.js"></script>
+<script src="js/lib/geometryutil.js"></script>
+<script src="js/lib/placementworker.js"></script>
+<script src="js/svgparser.js"></script>
+<script src="js/svgnest.js"></script>
+<!-- Lo nuestro: la aritmética de unidades (probada en node) y la interfaz. -->
+<script src="js/medidas.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -815,3 +815,18 @@ button,input,select,textarea,optgroup{font-family:inherit}
 }
 /* La escotilla, igual que en el cotizador: lo que lleve `.dato` vuelve a ser copiable. */
 .pf-dato dd,.dato,.selec{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+
+/* ----- El anidador, en la barra de arriba -----
+   Es un <a> al lado de «Cotizador» y lleva su palabra, porque es un destino y los destinos se
+   distinguen por su nombre. En el teléfono NO se enseña, y se midió antes de decidirlo: a
+   390 px el renglón de abajo lleva el selector de rol —300 px de contenido mínimo que ningún
+   flex-basis baja— más el icono del cotizador y el engrane, 352 px en un renglón útil de
+   366. El primer intento fue dejarlo como icono solo: 44 px más y el engrane se iba a un
+   tercer renglón, que es el error que esta hoja ya arregló una vez y que cuesta pantalla fija
+   en cada teléfono. Esconderlo es distinto de esconder la plataforma en el cotizador —que
+   estuvo mal, porque la plataforma sí se usa en el teléfono—: el anidador acomoda un SVG que
+   se exporta en la computadora y alimenta un láser; en un teléfono no hay ni una cosa ni la
+   otra. De 561 px para arriba está, con su palabra. */
+@media(max-width:560px){
+  .topbar-in .btn-anidar{display:none}
+}

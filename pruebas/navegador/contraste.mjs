@@ -199,6 +199,42 @@ await p.evaluate(() => irAPaso(2));
 await p.waitForTimeout(500);
 await comprobar('el aviso del paso 2 congelado', '#cand-partidas');
 
+/* ---------- El anidador de vectores ----------
+   Hereda el sistema por css/sistema.css y agrega su propia hoja. Lo propio es lo que hay que
+   medir: la banda azul de origen, la nota ámbar de la medida, las fichas y el lienzo. Se le
+   deja un trazo «del cotizador» para que la banda exista, y un SVG en px para que la nota
+   ámbar exista. */
+console.log('\nEL ANIDADOR DE VECTORES');
+await p.evaluate(() => localStorage.setItem('al3d_anidar', JSON.stringify({
+  svg: '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200"><rect width="150" height="200"/><text x="200" y="100">AL3D</text></svg>',
+  nombre: 'al3d-prueba.svg', folio: 'COT-0042', cliente: 'Farmacia San Juan' })));
+await p.goto(B + '/anidador-vectores/', {waitUntil:'load'});
+await p.waitForTimeout(700);
+await comprobar('el título de una tarjeta', '#h-piezas');
+await comprobar('el recuadro para soltar el archivo', '#an-drop .t');
+await comprobar('su segundo renglón', '#an-drop .s');
+await comprobar('la banda de «trazo recibido del cotizador»', '#an-origen');
+await comprobar('el nombre del archivo cargado', '#an-nombre');
+await comprobar('la ficha de piezas', '.an-stats .vt-stat.hl');
+await comprobar('la ficha del diseño', '.an-stats .vt-stat:not(.hl)');
+await comprobar('un aviso ámbar de lo que se queda fuera', '#an-avisos .hintnote.nota-av');
+await comprobar('la nota ámbar de la medida que falta', '#an-medida-txt.falta');
+await comprobar('la etiqueta de un campo en ámbar', '#fld-ancho-d.falta label');
+await comprobar('la etiqueta de un campo de la lámina', '#fld-ancho label');
+await comprobar('el material elegido', '#an-preset');
+await comprobar('el resumen del pliegue avanzado', '.an-avanzado summary');
+await comprobar('el botón neutro de girar la lámina', '#an-girar');
+await comprobar('un enlace de la barra', '.topbar-in .btn-hist');
+await comprobar('la leyenda de la vista previa', '#an-vista-tab');
+await comprobar('el mensaje de estado en ámbar', '.an-msg.av');
+await comprobar('el pie', '.an-pie');
+await p.fill('#an-ancho-d', '800');
+await p.waitForTimeout(300);
+await comprobar('el botón principal, ya encendido', '#an-ir');
+await comprobar('el mensaje de estado en verde', '.an-msg.ok');
+await comprobar('la nota gris de la medida ya puesta', '#an-medida-txt');
+await p.evaluate(() => { try { localStorage.removeItem('al3d_anidador_material'); } catch (_) {} });
+
 console.log(fallos ? '\n' + fallos + ' PIEZA(S) POR DEBAJO DE ' + MINIMO + ':1'
                    : '\nNada de lo que lleva texto baja de ' + MINIMO + ':1.');
 await nav.close();

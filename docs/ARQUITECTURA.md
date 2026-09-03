@@ -986,6 +986,13 @@ vendor/leaflet.css                  VENDORIZADO, no CDN
 vendor/leaflet-src.esm.js           idem. `import * as L` (no tiene default export)
 vendor/images/*                     los marcadores de Leaflet
 
+anidador-vectores/index.html        EL ANIDADOR (sep/2026). Página propia: acomoda las piezas de un SVG en la lámina antes de cortar. Toma css/sistema.css y el logotipo de la raíz
+anidador-vectores/css/anidador.css  Solo lo suyo: la rejilla de dos columnas, el lienzo, la lámina. Dep: sistema.css
+anidador-vectores/js/app.js         La interfaz: cargar (arrastrar, pegar, elegir, o lo que deja el cotizador en localStorage `al3d_anidar`), medir, acomodar, descargar. Dep: medidas, SvgNest
+anidador-vectores/js/medidas.js     Unidades del archivo → mm, PURO, también CommonJS para node. Dep: ninguna
+anidador-vectores/js/svgnest.js · svgparser.js · lib/*   VENDORIZADOS de SVGnest (MIT). El motor: genético + NFP, en Web Workers creados por URL (lib/eval.js). No se tocan
+                                    Va en APP_FILES de sw.js con la plataforma: caché primero, el conjunto completo, y APP_VERSION para publicar
+
 puente/worker.js                    FASE 3. NO se publica. Se pega en el editor de Cloudflare
 puente/README.md                    Runbook de 3 líneas por falla
 herramientas/extraer-estilo.sh      Regenera css/sistema.css desde index.html L26-2101 y hace diff

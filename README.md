@@ -211,6 +211,64 @@ retira nunca.
 **Los datos viven en el dispositivo**, igual que el cotizador, y tiene su propio respaldo
 —aparte del del cotizador— en Ajustes.
 
+## Anidador de vectores
+
+Antes de mandar las piezas de acrílico o aluminio al láser o al CNC conviene acomodarlas
+para gastar el menor material posible — el *nesting* que antes se hacía a mano en
+svgnest.com. Vive en su propia página,
+[`/anidador-vectores/`](https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/anidador-vectores/),
+porque es del taller y no de la venta, y se llega a ella desde dos sitios: el botón
+**Anidador** de la barra de la plataforma —en computadora y tableta; en el teléfono no se
+enseña, porque ahí no hay SVG que acomodar ni láser que alimentar, y un botón más partía la
+barra en tres renglones— y, en el cotizador, **Acomodar en lámina** dentro del vectorizador,
+que abre el anidador **con el trazo ya puesto** —sin bajar el SVG al disco y sin ir a
+buscarlo a las descargas—. Subes el SVG de las piezas (arrastrado, pegado con
+Ctrl+V o elegido), dices en qué lámina va y la herramienta las acomoda sola, probando giros,
+con el motor open source [SVGnest](https://github.com/Jack000/SVGnest). Corre completo en el
+navegador; ningún archivo se sube a un servidor.
+
+**Trabaja en milímetros, y lo que no es una medida lo pregunta.** El motor acomoda números y
+no sabe si son milímetros o píxeles: con un archivo que dice `width="300mm"` y un `viewBox`
+de 1 200, para él la pieza mide 1 200, y en una lámina de 1 220 «cabe justo una» — cuando
+mide 300 mm y caben cuatro. El resultado sale plausible, se ve bien en pantalla y se
+descubre en la máquina. La primera versión lo resolvía con un aviso —«las medidas deben ir en
+las mismas unidades que tu archivo»— que es la clase de aviso que se lee una vez y se olvida
+cincuenta. Ahora el archivo se lee: si declara mm, cm, pulgadas o puntos, se convierte solo y
+la pantalla dice cuánto mide el diseño; si viene en `px` o sin unidades —que en SVG no es
+una medida: Illustrator escribe px a 72 por pulgada y el estándar dice 96— **no se adivina**:
+se pide el ancho o el alto real del diseño, igual que en el vectorizador, y con uno de los
+dos basta. El trazo que llega del vectorizador con su medida real entra ya a escala; el que
+llega sin ella, la pide ahí. La aritmética vive aparte y se prueba en node.
+
+**Dice lo que se va a quedar fuera antes de empezar, no después de diez minutos.** El motor
+solo acomoda contornos, y lo que no lo es lo descarta callado: un texto sin convertir en
+trazos, un símbolo reutilizado con `<use>`, una imagen incrustada. Al cargar el archivo se
+nombran, con su cuenta y con el remedio («Texto → Crear contornos»). Y antes de arrancar se
+comprueba qué piezas no caben en la lámina ni giradas: si no cabe ninguna no se arranca, y
+si son algunas se dice cuántas.
+
+**Se detiene solo.** El algoritmo genético no termina nunca: mientras nadie lo pare, sigue
+buscando un acomodo mejor, y la primera versión dependía de que alguien se acordara de
+volver a la pestaña. Ahora, cuando lleva 25 intentos y 40 segundos seguidos sin mejorar, se
+detiene y lo dice; **Seguir buscando** continúa desde donde iba, y **Detener** para antes
+si el resultado ya convence. Mientras corre se ve cuánto material aprovecha, cuántas piezas
+van colocadas y en cuántas láminas.
+
+**La lámina se elige de las que compra el taller** —1.22 × 2.44 m para acrílico, aluminio y
+galvanizada, 1.25 × 2.50 m para alucobond, media lámina— o se teclea otra medida; **Girar la
+lámina** la acuesta, y la última usada se recuerda en el aparato. El SVG que sale va **a
+escala real** —`width="1220mm"`—, con una capa por lámina, todas en un archivo o una lámina
+sola, y el contorno de la lámina en azul en su propia capa, para colocar el archivo en la
+cama del láser y ponerlo en «no cortar». El interruptor que lo quita se lee al descargar, no
+al arrancar: quien ve el resultado y decide que el contorno no lo quiere no tiene por qué
+volver a acomodar para quitarlo.
+
+Y se ve de AL3D: la primera versión traía su propia hoja de estilos —fondo negro, naranja—
+y era la única pantalla del sitio que no parecía del sitio. Ahora toma `css/sistema.css`,
+la misma copia del sistema que usa la plataforma, y su contraste se mide en la misma prueba
+que el del cotizador. Los detalles de cómo correrla en local están en su propio
+[`anidador-vectores/README.md`](anidador-vectores/README.md).
+
 ## Uso
 
 Todo corre en el navegador, sin instalar nada. Desde el celular conviene abrir la liga y agregarla a la pantalla de inicio (Chrome → menú → *Agregar a pantalla principal*; en iPhone, Safari → *Compartir* → *Agregar a inicio*) para que quede como aplicación, a pantalla completa y sin la barra del navegador.
@@ -264,8 +322,8 @@ es uno solo.
 2. Subirlo en [/upload/main](https://github.com/eliasgaribi-ctrl-z/cotizador-al3d/upload/main) y hacer commit a `main`.
 3. Esperar entre 30 y 60 segundos a que GitHub Pages redespliegue.
 
-**Para publicar un cambio de la plataforma** hay un paso más, y sin él el cambio no llega a
-los teléfonos que ya tienen la app:
+**Para publicar un cambio de la plataforma o del anidador de vectores** hay un paso más, y
+sin él el cambio no llega a los teléfonos que ya tienen la app:
 
 4. En **`sw.js`**, subir **`APP_VERSION`** una unidad. Es la primera línea de código del
    archivo y está señalada con un recuadro.
@@ -276,7 +334,9 @@ treinta módulos que se importan entre sí y con mala señal llegarían mezclado
 otros viejos—, el `import` fallaría y quedaría una pantalla blanca, justo en el escenario
 para el que el service worker existe. Un módulo nuevo con uno viejo no es una app vieja: es
 una app rota. Así que el conjunto se cambia completo, y lo que dispara el cambio es ese
-número.
+número. El anidador va en ese mismo conjunto por la misma razón: son diez guiones que se
+cargan en orden y se llaman entre sí, más los Web Workers, que piden sus archivos por su
+cuenta.
 
 Si el cotizador se toca por cualquier razón, hay que regenerar sus dos copias:
 
@@ -291,7 +351,7 @@ Y antes de subir, `pruebas/correr.sh` corre en unos segundos con node y nada má
 pruebas es justo la que revisa que el sitio *se pueda publicar*, y otra corre el Worker del
 puente entero contra una Notion de mentiras, sin cuenta y sin red.
 
-Las seis de navegador van aparte porque piden Chromium y un servidor, y se corren de una vez:
+Las de navegador van aparte porque piden Chromium y un servidor, y se corren de una vez:
 
     pruebas/correr.sh --navegador
 
@@ -308,6 +368,13 @@ Las dos aparecieron cuando se escribieron estas dos:
 La de contraste es la que este documento decía tener y no estaba en el repositorio: rasteriza
 cada pieza y cuenta sus píxeles, porque con degradados por todos lados leer `backgroundColor`
 devuelve «transparent». Escrita, encontró tres reglas de color nuevas que a ojo pasaban.
+Desde el anidador también mide su pantalla.
+
+**El anidador tiene las suyas**, por la misma razón que la aritmética de material: un error
+de unidades no se ve, sale un número plausible.
+
+    pruebas/anidador-medidas.mjs             cada unidad del SVG a milímetros, en node
+    pruebas/navegador/anidador.mjs           acomoda de verdad, con los Web Workers, y mide lo que sale
 
 Junto a los archivos de la app viven tres piezas que se subieron una vez y no hay que volver a tocar: **`sw.js`**, que es lo que hace que la app abra sin señal; **`manifest.webmanifest`**, que es lo que hace que Android la instale como aplicación y no como acceso directo; y **`.nojekyll`**, un archivo vacío que le pide a GitHub publicar el repositorio tal cual. Si se borran los dos primeros, la app sigue funcionando con conexión.
 
