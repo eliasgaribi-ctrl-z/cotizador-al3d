@@ -58,7 +58,26 @@ const CASOS = [
     plano: false, anti: 0,     entrega: 'LUNES 07 DE SEPTIEMBRE', tel: '',             partidas: 9,  hojasMin: 3 },
   { nombre: 'sin IVA y con partida oculta del PDF',
     plano: true,  anti: 0,     entrega: '',                    tel: '',             partidas: 4,  hojasMin: 2, sinIva: true, oculta: true },
+  /* El autorizador SUBIÓ el precio. Lo que el cliente no puede ver es que lo subieron: ni un
+     renglón de «Ajuste» debajo del subtotal, ni la nota de prorrateo al pie. El aumento va
+     repartido entre las partidas, así que la tabla tiene que sumar el subtotal ella sola. */
+  { nombre: 'aumento autorizado · repartido entre las partidas, sin renglón de ajuste',
+    plano: true,  anti: 0,     entrega: '',                    tel: '',             partidas: 3,  hojasMin: 2, aumento: true },
+  { nombre: 'aumento autorizado sin IVA, con partida ajustada a mano y otra oculta del PDF',
+    plano: false, anti: 9000,  entrega: '',                    tel: '',             partidas: 5,  hojasMin: 2, aumento: true, sinIva: true, ajustePartida: true, oculta: true },
+  /* Y el descuento, que sí se enseña: es un argumento de venta. */
+  { nombre: 'descuento autorizado · su renglón sigue saliendo',
+    plano: false, anti: 0,     entrega: '',                    tel: '',             partidas: 2,  hojasMin: 2, descuento: true },
 ];
+
+/* «$1,234.50» → 1234.5 · la única forma de comprobar lo que de verdad se imprimió. */
+const aNumero = s => Number(String(s).replace(/[$,\s]/g, '').replace(/ /g, ''));
+/* Los importes de la columna «Total» de la tabla de cotización. */
+const filasTotal = doc => [...doc.matchAll(/class="r num tot">([^<]+)</g)].map(m => aNumero(m[1]));
+const renglonTotales = (doc, etiqueta) => {
+  const m = doc.match(new RegExp('<span>' + etiqueta + '</span><span>([^<]+)</span>'));
+  return m ? aNumero(m[1]) : null;
+};
 
 const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 let fallos = 0;
@@ -70,7 +89,7 @@ for (const caso of CASOS) {
   await pag.goto('file://' + path.join(RAIZ, 'cotizador.html'));
   await pag.waitForTimeout(900);
 
-  const doc = await pag.evaluate(async ({ c, plano }) => {
+  const res = await pag.evaluate(async ({ c, plano }) => {
     /* generarPDF() abre una pestaña con un blob. Aquí se le quita la pestaña y se le
        queda el blob, que es lo único que hay que medir. */
     let blob = null;
@@ -97,12 +116,23 @@ for (const caso of CASOS) {
       showInPdf: (c.oculta && i === 1) ? false : undefined,
     }));
     if (typeof recalc === 'function') recalc();
-    Q.itemsAuth = {}; Q.items.forEach(it => { Q.itemsAuth[it.id] = 9000; });
+    Q.itemsAuth = {};
+    /* Un ajuste por partida es la BASE del reparto, no lo repartido: se le baja el precio a la
+       primera y el aumento global tiene que repartirse encima de ese precio ya ajustado. */
+    if (c.ajustePartida) Q.itemsAuth[Q.items[0].id] = Math.round(lineTotal(Q.items[0]) * 0.6);
+    /* sellarAuth() es lo que hace que la autorización corresponda a ESTE trabajo. Sin él
+       authVigente() es false y todo lo que puso el autorizador se ignora, así que un caso
+       que no lo llame no está probando ningún ajuste. */
+    sellarAuth();
+    const netoAjus = netoAjustado();
+    if (c.aumento)   Q.precioAuth = Math.ceil(netoAjus * 1.14 / 100) * 100;
+    if (c.descuento) Q.precioAuth = Math.floor(netoAjus * 0.88 / 100) * 100;
 
     generarPDF();
     URL.createObjectURL = crear;
-    return blob ? await blob.text() : null;
+    return { doc: blob ? await blob.text() : null, precioAuth: Q.precioAuth, netoAjus };
   }, { c: caso, plano: PLANO });
+  const doc = res.doc;
 
   const problemas = [];
   if (erroresJs.length) problemas.push('errores de JS: ' + erroresJs.join(' / '));
@@ -130,6 +160,64 @@ for (const caso of CASOS) {
     const declaradas = (doc.match(/Hoja \d+ de (\d+)/) || [])[1];
     if (String(hojas.length) !== declaradas) {
       problemas.push(`salieron ${hojas.length} hojas pero el pie dice «de ${declaradas}»`);
+    }
+    /* ---- Que el papel cuadre consigo mismo ----
+       De las 25 cotizaciones de Canva que se revisaron, 4 traen una tabla que no suma lo que
+       dice abajo, porque son celdas tecleadas a mano. Aquí las suma la máquina, así que tiene
+       que cuadrar siempre: los renglones de la columna «Total» contra el Subtotal impreso, y
+       subtotal más I.V.A. contra el total neto. Sin esto, un reparto mal hecho pasa como un
+       documento perfectamente plausible. */
+    const filas = filasTotal(doc);
+    const sub = renglonTotales(doc, 'Subtotal');
+    const neto = renglonTotales(doc, caso.sinIva ? 'Total' : 'Total neto');
+    const sumaFilas = Math.round(filas.reduce((s, v) => s + v, 0) * 100) / 100;
+    if (sub === null || neto === null) problemas.push('no se encontraron los renglones de totales');
+    else {
+      if (Math.abs(sumaFilas - sub) > 0.005) {
+        problemas.push(`los ${filas.length} renglones suman ${sumaFilas.toFixed(2)} y el subtotal impreso dice ${sub.toFixed(2)}`);
+      }
+      const subFinal = renglonTotales(doc, 'Subtotal con descuento') ?? renglonTotales(doc, 'Subtotal ajustado') ?? sub;
+      const iva = caso.sinIva ? 0 : renglonTotales(doc, 'I.V.A. 16%');
+      if (Math.abs(subFinal + (iva || 0) - neto) > 0.02) {
+        problemas.push(`subtotal ${subFinal} + I.V.A. ${iva} no da el total impreso ${neto}`);
+      }
+      /* Y el total impreso es el que autorizó una persona, no otro. */
+      const esperado = res.precioAuth || res.netoAjus;
+      if (Math.abs(neto - esperado) > 0.02) problemas.push(`el total impreso es ${neto} y lo autorizado fue ${esperado}`);
+    }
+    /* ---- Un aumento no se le anuncia al cliente ---- */
+    if (caso.aumento) {
+      if (/<span>Ajuste<\/span>/.test(doc)) problemas.push('el documento del cliente lleva un renglón de «Ajuste»: el aumento tenía que ir repartido en las partidas');
+      if (/Subtotal ajustado/.test(doc)) problemas.push('el documento lleva «Subtotal ajustado», que delata el aumento');
+    }
+    /* ---- Que el unitario impreso multiplique, o que lo diga ----
+       «Precio unitario» es el total entre las piezas. Cuando no divide al centavo, la fila
+       lleva un `*` y el pie explica que el total de la partida es el que manda: la única
+       cosa que no puede pasar es que imprima un unitario que no multiplica y NO lo diga.
+       El reparto del aumento se hace justo sobre el unitario para que esto casi nunca haga
+       falta —a lo sumo una fila por documento, y solo cuando ninguna partida tiene una
+       pieza sola—, y esta comprobación es la que vigila que casi nunca no se vuelva a veces.
+       Las celdas se leen renglón por renglón y no columna por columna: la fila agrupada de
+       «Conceptos adicionales» imprime «—» en piezas y en unitario, así que dos regex por
+       separado se desalinean y comparan el unitario de una fila con las piezas de otra. */
+    let marcadas = 0;
+    [...doc.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].forEach(([, fila], i) => {
+      const celdas = [...fila.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map(m => m[1].trim());
+      if (celdas.length !== 5 || !/num tot/.test(fila)) return;   // solo la tabla con precios
+      const [, , pzTxt, u, t] = celdas;
+      if (u === '—' || !/^\d+$/.test(pzTxt)) return;              // la fila agrupada
+      const marcada = u.endsWith('*');
+      if (marcada) marcadas++;
+      const cuadra = Math.abs(aNumero(u) * Number(pzTxt) - aNumero(t)) < 0.005;
+      if (!cuadra && !marcada) problemas.push(`la fila ${i + 1} imprime ${u} × ${pzTxt} piezas y un total de ${t}: no multiplica y no lo dice`);
+      if (cuadra && marcada) problemas.push(`la fila ${i + 1} lleva asterisco y sí multiplica: la nota del pie sobra`);
+    });
+    if (marcadas > 1) problemas.push(`${marcadas} filas con asterisco: el reparto reparte sobre el unitario justo para que a lo sumo quede una`);
+    if (marcadas > 0 && !/prorrateado/.test(doc)) problemas.push('una fila lleva asterisco y el pie no explica qué significa');
+    if (marcadas === 0 && /prorrateado/.test(doc)) problemas.push('salió la nota del prorrateo sin ninguna fila marcada');
+    /* ---- Un descuento sí ---- */
+    if (caso.descuento && !/<span>Descuento<\/span>/.test(doc)) {
+      problemas.push('el descuento autorizado no salió en su renglón, y es un argumento de venta');
     }
     if (hojas.length < caso.hojasMin) {
       problemas.push(`se esperaban al menos ${caso.hojasMin} hojas y salieron ${hojas.length}`);

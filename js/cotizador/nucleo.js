@@ -717,15 +717,151 @@ function itemPrecio(it){
   const v=Q.itemsAuth&&Q.itemsAuth[it.id];
   return v!==undefined?v:lineTotal(it);
 }
-/* ¿Esta partida trae un precio puesto a mano por el autorizador? Lo usa la pantalla para
+/* ----- Cuántas piezas lleva una partida -----
+   Lo que imprime la columna «Pzas.» del PDF y lo que usa el reparto de abajo para sacar un
+   unitario que multiplique limpio. Vivía duplicado en generarPDF y en copiarParaCanva. */
+function piezasDe(it){
+  if(it.tipo==='letras'||it.tipo==='recorte') return it.n||0;
+  if(it.tipo==='bastidor'||it.tipo==='caja') return 1;
+  return it.pz||1;
+}
+
+/* ----- Lo que ve el cliente cuando el autorizador SUBIÓ el precio -----
+   Un descuento se imprime como renglón: «Descuento − $500» es un argumento de venta y el
+   cliente lo agradece. Un aumento no. El PDF sacaba «Ajuste + $646.90» debajo del subtotal,
+   y ese renglón es una invitación a preguntar por qué, con la tabla de arriba como prueba
+   de que el precio «de verdad» era otro. El aumento es una decisión del autorizador sobre
+   el trabajo completo —redondear a $7,200, cobrar la dificultad de una instalación— y el
+   documento del cliente tiene que decir precios, no correcciones.
+
+   Así que el aumento se REPARTE entre las partidas, en proporción a lo que cada una vale:
+   la que es el 90 % del trabajo absorbe el 90 % del aumento. No se le carga todo a la más
+   barata —pasaría de $560 a $1,200 y sería la primera que el cliente cuestione— ni a partes
+   iguales, que a la más barata le pesa igual de raro. Las filas suman EXACTAMENTE el
+   subtotal que corresponde al precio autorizado, así que el renglón «Ajuste» ya no existe:
+   subtotal, I.V.A. y total, como en cualquier cotización.
+
+   El reparto se hace sobre el PRECIO UNITARIO y en centavos enteros, no sobre el total de
+   la partida, y eso es lo que evita el otro delator. La columna «Precio unitario» del PDF
+   es el total entre las piezas: si al repartir queda un total que no divide —$625.17 entre
+   2— el documento imprime «$312.59 *» y una nota al pie que dice que el unitario va
+   prorrateado. Esa nota existe por una razón vieja y buena, pero aquí sería un letrero
+   señalando justo lo que no se quiere señalar. Así que a cada partida se le da el unitario
+   truncado al centavo y los centavos que faltan para cerrar se reparten DE UNO EN UNO sobre
+   los unitarios —cada centavo de unitario cuesta tantos centavos de total como piezas
+   tenga la partida—, empezando por las que quedaron más cerca del siguiente centavo. Así
+   unitario × piezas da el total del renglón sin residuo y el asterisco no aparece.
+
+   Los centavos que no caben en ningún unitario se cierran con un trueque entre dos partidas
+   —abajo, con su ejemplo—. Lo que ni así cierra se le suma al total de la partida más cara, y
+   ahí sí sale su asterisco: es la única marca que puede quedar, y no se puede quitar. Con una
+   sola partida el subtotal tiene que ser múltiplo de sus piezas y no hay con quién truequear,
+   así que sale marcada tres veces de cada cuatro; con dos partidas, una de cada dos; con
+   cinco o más, casi nunca. Tres cosas no pueden ser verdad a la vez: que las filas sumen el
+   subtotal, que el subtotal sea el que corresponde al precio autorizado, y que todos los
+   unitarios multipliquen. La que cede es la tercera, porque es la única que el papel puede
+   confesar sin mentir —para eso está el asterisco, que existía desde antes de este reparto—.
+   Mover el subtotal unos centavos taparía la marca a cambio de un I.V.A. que no cuadra con
+   su base, y un cliente con calculadora sí encuentra eso.
+
+   Lo que se reparte es solo el aumento GLOBAL: el precio final que el autorizador puso por
+   encima de lo que suman las partidas ya ajustadas una por una. Esos ajustes por partida
+   son la base del reparto, no lo repartido. La pantalla del vendedor sigue diciendo
+   «Aumento: $646.90»: quien vende sí tiene que saberlo; quien compra, no.
+
+   Si ninguna partida vale nada —todas sin terminar— no hay proporción que guardar, así que
+   no se reparte y el PDF vuelve al renglón de ajuste, que al menos suma. */
+function hayAumentoAuth(){ return ajusteAuth()<-0.01 && subAjustado()>0.005; }
+function preciosCliente(){
+  const out={};
+  Q.items.forEach(it=>{ out[it.id]=itemPrecio(it); });
+  if(!hayAumentoAuth()) return out;
+  const subBase=subAjustado(), subFinal=desgloseFinal().sub, factor=subFinal/subBase;
+  /* Todo en centavos ENTEROS. El reparto tiene que cerrar exacto contra el subtotal, y en
+     flotante «cerrar exacto» no existe: 0.1+0.2 no es 0.3 y una tabla de ocho renglones
+     acaba a un centavo del total por aritmética, no por reparto. */
+  const objetivo=Math.round(subFinal*100);
+  const rep=[]; let suma=0;
+  Q.items.forEach(it=>{
+    const base=itemPrecio(it);
+    /* Una partida en $0 —sin material, sin altura— se queda en $0: si recibiera su parte
+       del aumento, el PDF llevaría un renglón con precio y sin trabajo descrito. */
+    if(base<=0.005) return;
+    const pz=Math.max(1,piezasDe(it));
+    const exacto=base*factor*100/pz;      // el unitario que le toca, en centavos
+    const u=Math.floor(exacto);
+    rep.push({it,pz,u,frac:exacto-u,base});
+    suma+=u*pz;
+  });
+  /* Lo que falta para cerrar, por haber truncado todos los unitarios. Siempre es positivo y
+     siempre menos de un centavo por pieza de toda la cotización. */
+  let resto=objetivo-suma;
+  /* Quien quedó más cerca del siguiente centavo cobra primero, que es lo que mantiene el
+     reparto proporcional. Se dan varias pasadas porque un centavo de unitario cuesta tantos
+     centavos como piezas tenga la partida: al final quedan las de pocas piezas, que son las
+     que caben en lo poco que sobra. */
+  rep.sort((a,b)=>b.frac-a.frac||b.base-a.base);
+  let cupo=true;
+  while(resto>0&&cupo){
+    cupo=false;
+    for(const r of rep){
+      if(r.pz>resto) continue;
+      r.u++; resto-=r.pz; cupo=true;
+      if(!resto) break;
+    }
+  }
+  /* Lo que sobra después de eso son menos centavos que piezas tiene la partida más chica, y
+     por eso ya no cabe en ningún unitario. Pero casi siempre cabe si a otra partida se le
+     QUITA un centavo de unitario: dos partidas de 2 y 3 piezas con un centavo suelto no
+     pueden repartirlo, y en cambio quitar un centavo a la de 3 (−$0.03) y dar dos a la de 2
+     (+$0.04) cierra el centavo exacto. Se buscan las dos partidas más caras que lo permitan:
+     el trueque mueve unos pocos centavos y donde menos pesan es en los renglones grandes.
+     Con esto cierran limpias 4 de cada 5 cotizaciones en vez de la mitad; de las que no,
+     casi todas son de una sola partida, donde no hay pareja y el subtotal simplemente no es
+     divisible entre las piezas: eso ya pasaba antes de este reparto y para eso está el
+     asterisco. */
+  if(resto>0&&rep.length>1){
+    const porPrecio=rep.slice().sort((a,b)=>b.base-a.base);
+    buscar:
+    for(const quita of porPrecio){
+      if(quita.u<1) continue;   // no se le puede bajar el unitario a quien está en un centavo
+      for(const pone of porPrecio){
+        if(pone===quita) continue;
+        const falta=resto+quita.pz;
+        if(falta%pone.pz) continue;
+        quita.u--; pone.u+=falta/pone.pz; resto=0;
+        break buscar;
+      }
+    }
+  }
+  rep.forEach(r=>{ out[r.it.id]=+(r.u*r.pz/100).toFixed(2); });
+  /* Y si ni con eso —una sola partida, o piezas que no dan— los centavos van al total de la
+     más cara. Es el único renglón que puede salir con asterisco, y es el que menos lo canta.
+     `resto` no puede ser negativo —los unitarios se truncan, así que el reparto siempre queda
+     corto—, y aun así se cierra por los dos lados: lo que no puede pasar es que las filas del
+     PDF no sumen el subtotal, y esa es la única línea que lo garantiza. */
+  if(resto!==0&&rep.length){
+    const dest=rep.reduce((a,b)=>b.base>a.base?b:a);
+    out[dest.it.id]=+(out[dest.it.id]+resto/100).toFixed(2);
+  }
+  return out;
+}
+/* El precio de una partida tal como lo ve el cliente: el ajustado por el autorizador y,
+   si además subió el total, con su parte de ese aumento. Es el que imprimen el PDF y el
+   texto de Canva, y por eso también el que enseña la pantalla (ltHTML). */
+function itemPrecioCliente(it){ const p=preciosCliente()[it.id]; return p===undefined?itemPrecio(it):p; }
+
+/* ¿Esta partida se imprime con un precio distinto del calculado? Por un ajuste del
+   autorizador a esa partida o por su parte de un aumento global. Lo usa la pantalla para
    no decir un número distinto del que va a salir impreso. */
-function itemAjustada(it){ return Math.abs(itemPrecio(it)-lineTotal(it))>0.01; }
+function itemAjustada(it){ return Math.abs(itemPrecioCliente(it)-lineTotal(it))>0.01; }
 /* El importe que se enseña de una partida tiene que ser el que va a salir impreso. La
    pantalla pintaba money(lineTotal(it)) mientras el PDF y el texto de Canva usaban
    money(itemPrecio(it)): con un ajuste del autorizador por partida, el vendedor leía en
-   voz alta un número y el cliente recibía otro, sin nada que dijera que eran dos. */
+   voz alta un número y el cliente recibía otro, sin nada que dijera que eran dos. Con el
+   aumento repartido pasa lo mismo, así que aquí va el precio del cliente. */
 function ltHTML(it){
-  const fin=itemPrecio(it);
+  const fin=itemPrecioCliente(it);
   if(!itemAjustada(it)) return money(fin);
   return `<span class="lt-calc" title="Calculado ${money(lineTotal(it))}">${money(lineTotal(it))}</span>${money(fin)}`;
 }

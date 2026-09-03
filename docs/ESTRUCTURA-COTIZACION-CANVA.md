@@ -257,9 +257,11 @@ Tres renglones, siempre los mismos, pegados a la derecha bajo las dos últimas c
 - **IVA en 25 de 25.** Nunca se emitió una sin IVA. El interruptor `Q.iva` del cotizador existe,
   pero en la práctica siempre va encendido.
 - **No existe renglón de anticipo, ni de resta al entregar, ni de descuento.** El cotizador
-  imprime «Anticipo para arrancar» y «Resta al entregar» cuando `Q.anti > 0`, y
-  Descuento/Ajuste cuando el autorizador movió el precio. Nada de eso está en Canva. El 50/50
-  vive solo en los términos.
+  imprime «Anticipo para arrancar» y «Resta al entregar» cuando `Q.anti > 0`, y el renglón de
+  «Descuento» cuando el autorizador **bajó** el precio. Nada de eso está en Canva. El 50/50
+  vive solo en los términos. Cuando el autorizador **subió** el precio, el cotizador tampoco
+  imprime nada: el aumento va repartido entre las partidas y los tres renglones de abajo son
+  los mismos tres de Canva (ver `preciosCliente()` en el modelo de datos, §9.5).
 - **La aritmética falla en 4 de 25.** Adila Spa (IVA impreso $2,180 contra $2,160 que exige el
   total), Lonches Mero ($3,152 contra $2,992), Muno Academy p3 (subtotal $14,000 con partidas
   que suman $12,000), Nestlé p1 (subtotal $90,565 con partidas que suman $76,965). Son celdas

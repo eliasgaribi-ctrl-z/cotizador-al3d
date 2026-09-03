@@ -92,7 +92,10 @@ necesita.
 4. **Autorizar.** Quien autoriza ajusta el total o partida por partida, hacia arriba o hacia
    abajo. Se emite el folio (`COT-0001`, consecutivo **por dispositivo**).
 5. **Entregar.** PDF con logotipo, desglose, IVA, descuento autorizado, anticipo y resta al
-   entregar. O WhatsApp, con el mensaje ya escrito al teléfono capturado.
+   entregar. O WhatsApp, con el mensaje ya escrito al teléfono capturado. Un **aumento** no se
+   imprime como renglón: se reparte entre las partidas en proporción a lo que vale cada una
+   (`preciosCliente`), porque un «Ajuste + $646.90» debajo del subtotal es una invitación a
+   preguntar por qué. El descuento sí, que es un argumento de venta.
 6. **Registrar venta.** Anticipo, comisión, estatus y saldo, sobre el precio realmente
    autorizado. De aquí sale la fila TSV de 15 columnas para pegar en Notion.
 7. **Historial**, con los importes **congelados** (`_lt` por partida, `itemsAuth` por
