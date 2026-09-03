@@ -61,6 +61,7 @@ import * as Reglas from '../datos/reglas.js';
 import * as Ics from '../nucleo/ics.js';
 import * as Gcal from '../nucleo/gcal.js';
 import * as Taller from '../datos/taller.js';
+import * as Cot from '../datos/cotizador.js';
 import * as Material from '../datos/material.js';
 import { masDias, masMeses, iniSemana, ultimoDia, diasEntre } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, partesISO, fechaLocal,
@@ -101,8 +102,16 @@ const VIVAS_SIN_MARCAR = ['propuesta', 'confirmada', 'reagendada'];
 export async function montar(contenedor, ctx) {
   _cont = contenedor;
   _ctx = ctx;
-  if (!_lente) _lente = Prefs.rol() === 'pagos' ? 'instalaciones' : 'taller';
+  /* La primera vez se decide por el rol y por la pantalla: en un monitor caben el calendario
+     y la fila del taller lado a lado, así que ahí se abre «Todo»; en el teléfono, donde no
+     caben, se abre Taller, que es la pregunta de la mañana. Después manda lo que la persona
+     haya tocado, aunque cambie de módulo y vuelva. */
+  if (!_lente) {
+    const ancho = typeof matchMedia === 'function' && matchMedia('(min-width:1100px)').matches;
+    _lente = Prefs.rol() === 'pagos' ? 'instalaciones' : (ancho ? 'todo' : 'taller');
+  }
   if (Prefs.rol() === 'pagos') _lente = 'instalaciones';
+  window.addEventListener('keydown', alTeclear);
 
   /* Un oyente delegado por contenedor y uno por capa. La rejilla del mes son cuarenta y dos
      botones que se rehacen cada vez que se toca uno: un oyente por celda serían cuarenta y
@@ -132,6 +141,7 @@ export async function montar(contenedor, ctx) {
 
 export function desmontar() {
   if (_cont && _oyendo) _cont.removeEventListener('click', alTocar);
+  window.removeEventListener('keydown', alTeclear);
   const hoja = $('pf-hoja');
   if (hoja) { hoja.removeEventListener('click', alTocarHoja); hoja.removeEventListener('input', alEscribirHoja); }
   const pide = $('pf-pide');
@@ -252,6 +262,38 @@ async function leer() {
       .map(p => Taller.ventanaTaller(p, instDe.get(p.id) || null, { hoy, cts }))
       .filter(v => v.estado !== 'cancelado' && v.estado !== 'hecho');
   }
+
+  /* El mes como mapa de VENCIMIENTOS: por cada día, qué le toca a qué proyecto —empezar,
+     cortar, armar, dejar listo—. Sale de los hitos de las ventanas ancladas en una
+     instalación; las que cuentan desde la venta son una hipótesis y van en la fila, no en la
+     rejilla. Y la carga: cuántos trabajos tienen ese día adentro. Todo sobre lo ya leído:
+     cero lecturas más. */
+  d.vencen = new Map();
+  d.carga = new Map();
+  if (d.ventanas.length) {
+    const QUE = [['en_diseno', 'empezar'], ['cortado', 'cortar'], ['armado', 'armar'], ['listo', 'listo']];
+    for (const v of d.ventanas) {
+      if (v.ancla !== 'instalacion') continue;
+      for (const [h, que] of QUE) {
+        const f = v.hitos[h]; if (!f) continue;
+        if (!d.vencen.has(f)) d.vencen.set(f, []);
+        d.vencen.get(f).push({ id: v.proyecto_id, titulo: v.titulo, que, tarde: v.atraso_dias > 0 && f < hoy });
+      }
+    }
+    const dias = d.mes ? (d.mes.dias || []).map(x => x.fecha) : (d.rango ? [] : []);
+    if (d.rango) for (let f = d.rango.ini; f <= d.rango.fin; f = masDias(f, 1)) dias.push(f);
+    for (const f of dias) d.carga.set(f, Taller.cargaDeDia(f, d.ventanas));
+  }
+
+  /* Las cotizaciones autorizadas que nadie ha decidido —la regla A6—. Es lo que hay que
+     contestar antes que nada: sin ese toque no hay proyecto, ni agenda, ni material, y este
+     calendario está vacío por construcción. Solo dirección decide. */
+  d.pendientes = [];
+  if (Prefs.rol() === 'direccion') {
+    const todos = await Proyectos.listar({});
+    const ganados = new Set((todos || []).map(p => p.folio_global));
+    d.pendientes = Cot.sinDecidir(ganados, 0);
+  }
   return d;
 }
 
@@ -311,16 +353,65 @@ function pintar() {
       (_vista === 'mes' ? pintarMes(d) : _vista === 'semana' ? pintarSemana(d) : pintarLista(d)) +
     '</div></div>';
 
+  /* Tres lentes sobre el MISMO calendario. Instalaciones: la agenda de siempre. Taller: la
+     rejilla con lo que vence cada día y la fila del taller —en el teléfono la fila primero,
+     que es la pregunta de la mañana—. Todo: las dos clases de chips en la rejilla y la fila
+     al lado. De 1 100 px para arriba, Taller y Todo van en dos columnas; abajo, uno debajo
+     del otro. Mismo marcado en el monitor y en el teléfono: solo cambia dónde cae cada cosa. */
   _cont.innerHTML =
     pintarCuentas(d) +
+    (d.pendientes.length ? pintarDecidir(d) : '') +
     pintarLente() +
-    (_lente === 'taller' ? pintarTaller(d)
-     : _lente === 'todo' ? calendario + pintarTaller(d)
-     : calendario) +
+    (_lente === 'instalaciones'
+      ? calendario
+      : '<div class="ag-cuerpo dos' + (_lente === 'taller' ? ' taller-primero' : '') + '">' +
+          '<div class="ag-col">' + calendario + '</div>' + pintarTaller(d) + '</div>') +
     pintarExportar(d);
 
   pintarMbar(d);
   publicarCuentas(d);
+}
+
+/* ----- La tarjeta que late: «Se ganó / No se dio» -----
+   Es el eslabón que no existe en ningún otro sistema —una cotización autorizada no dice en
+   ninguna parte si se vendió— y sin ese toque este calendario está vacío por construcción.
+   Por eso va arriba de todo y por eso es lo único de la plataforma que late (`.cand-partidas`,
+   la forma que el cotizador usa para lo que pide una decisión antes de seguir). Nada más
+   late: dos cosas latiendo son cero cosas latiendo. Vive también en «Hoy», con la misma
+   forma; aquí está porque es donde su consecuencia se ve. */
+function pintarDecidir(d) {
+  const lista = d.pendientes || [];
+  const n = lista.length;
+  const veDinero = Prefs.veDinero();
+  return '<div class="cand-partidas pf-decidir" id="ag-decidir">' +
+    '<p class="cp-txt">' + ico('i-venta') + ' <b>' +
+    (n === 1 ? 'Una cotización autorizada' : n + ' cotizaciones autorizadas') +
+    '</b> sin decidir. Sin este toque no hay proyecto, ni ventana de taller, ni fecha: es lo único de esta pantalla que nadie más puede contestar.</p>' +
+    lista.slice(0, 6).map(e => {
+      const quien = [e.cliente, e.proy].filter(Boolean).join(' — ') || 'sin cliente';
+      const total = veDinero ? Cot.totalVendido(e) : 0;
+      return '<div class="pf-fila">' +
+        '<span class="pf-fila-ico">' + ico('i-doc') + '</span>' +
+        '<div class="pf-fila-tx">' +
+          '<p class="pf-fila-t">' + esc(String(e.folio)) + ' · ' + esc(quien) + '</p>' +
+          '<p class="pf-fila-d">' + (total > 0 ? esc(money(total)) + ' · ' : '') + 'autorizada ' + esc(cuando(isoDeSello(e.ts))) +
+            (e.entrega ? ' · prometido: ' + esc(e.entrega) : '') + '</p>' +
+        '</div>' +
+        '<div class="pf-fila-acc">' +
+          '<button type="button" class="btn btn-ok" data-decidir="ganar" data-folio="' + esc(String(e.folio)) + '">Se ganó</button>' +
+          '<button type="button" class="btn btn-gho" data-decidir="descartar" data-folio="' + esc(String(e.folio)) + '">No se dio</button>' +
+        '</div>' +
+      '</div>';
+    }).join('') +
+    (n > 6 ? '<p class="pf-nota">Y ' + (n - 6) + ' más en «Hoy».</p>' : '') +
+  '</div>';
+}
+
+/** Sello epoch → 'YYYY-MM-DD' local, para decir «hace 3 días» sin pasar por UTC. */
+function isoDeSello(ts) {
+  const n = Number(ts); if (!isFinite(n) || n <= 0) return '';
+  const d = new Date(n);
+  return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
 }
 
 /* ----- La lente -----
@@ -407,8 +498,12 @@ function filaTaller(v) {
         '<span class="tal-fecha">' + esc(corta(v.listo)) + (v.instalacion ? ' · instala ' + esc(corta(v.instalacion)) : '') + '</span>' +
       '</div>' +
       '<div class="pf-fila-d">' +
-        '<span class="cal-plazo' + (v.plazo_fuente === 'elegido' ? ' mano' : '') + '" title="' + esc(v.plazo_razon) + '">' +
-          ico('i-reloj') + esc(v.plazo_etiqueta) + ' · ' + (v.plazo_fuente === 'elegido' ? 'a mano' : 'calculado') + '</span>' +
+        (puedeCorregirPlazo()
+          ? '<button type="button" class="cal-plazo' + (v.plazo_fuente === 'elegido' ? ' mano' : '') + '" data-plazo="' + esc(v.proyecto_id || '') + '"' +
+            ' title="Cambiar cuánto tarda en el taller" aria-label="Plazo de taller: ' + esc(v.plazo_etiqueta) + ', ' + (v.plazo_fuente === 'elegido' ? 'puesto a mano' : 'calculado') + '. Tocar para cambiarlo">' +
+            ico('i-reloj') + esc(v.plazo_etiqueta) + ' · ' + (v.plazo_fuente === 'elegido' ? 'a mano' : 'calculado') + '</button>'
+          : '<span class="cal-plazo' + (v.plazo_fuente === 'elegido' ? ' mano' : '') + '" title="' + esc(v.plazo_razon) + '">' +
+            ico('i-reloj') + esc(v.plazo_etiqueta) + ' · ' + (v.plazo_fuente === 'elegido' ? 'a mano' : 'calculado') + '</span>') +
       '</div>' +
     '</div>' +
   '</div>';
@@ -421,8 +516,15 @@ function pintarCuentas(d) {
   const todas = d.mes ? (d.mes.dias || []).flatMap(x => x.instalaciones || []) : d.filas;
   const porVenir = visibles(todas).filter(i => i.fecha >= hoy && i.estado !== 'cancelada').length;
 
-  const c = [unaCuenta(porVenir, _vista === 'mes' ? 'Por instalar este mes' : 'Por instalar', false),
-             unaCuenta(d.sinFecha.length, 'Ganados sin fecha', d.sinFecha.length > 0)];
+  const c = [];
+  if (_lente !== 'instalaciones' && d.ventanas) {
+    const enTaller = d.ventanas.filter(v => v.ancla === 'instalacion' && v.empezar <= hoy && v.listo >= hoy).length;
+    const tarde = d.ventanas.filter(v => v.atraso_dias > 0).length;
+    c.push(unaCuenta(enTaller, 'En el taller hoy', false));
+    if (tarde) c.push(unaCuenta(tarde, tarde === 1 ? 'Va tarde' : 'Van tarde', true));
+  }
+  c.push(unaCuenta(porVenir, _vista === 'mes' ? 'Por instalar este mes' : 'Por instalar', false));
+  c.push(unaCuenta(d.sinFecha.length, 'Ganados sin fecha', d.sinFecha.length > 0));
   if (d.vencidas.length) c.push(unaCuenta(d.vencidas.length, 'Ya pasaron y nadie las marcó', true));
   return '<div class="pf-cuentas">' + c.join('') + '</div>';
 }
@@ -497,10 +599,23 @@ function celdaDia(dia, d) {
   const abierto = _dia === dia.fecha;
   const libre = !insts.length && puedeAgendar() && dia.fecha >= d.hoy;
 
-  const evs = insts.slice(0, 3).map(i =>
+  /* Lo que la celda pinta depende de la lente. Instalaciones: sus chips de siempre. Taller:
+     lo que VENCE ese día en el taller —empezar, cortar, armar, listo—, con el nombre corto y
+     el verbo. Todo: las dos, dos y dos. Máximo tres renglones y «+N», que es lo que cabe en
+     76 px sin que el número del día se vaya abajo. */
+  const vencen = (_lente !== 'instalaciones' && d.vencen && d.vencen.get(dia.fecha)) || [];
+  const topeInst = _lente === 'taller' ? 0 : _lente === 'todo' ? 2 : 3;
+  const topeTal = _lente === 'instalaciones' ? 0 : _lente === 'todo' ? 2 : 3;
+  const chipsInst = insts.slice(0, topeInst).map(i =>
     '<span class="cal-ev ' + claseEv(i) + '"><span class="tx">' +
-      esc((i.hora ? i.hora + ' ' : '') + (i.titulo || '')) + '</span></span>').join('');
-  const mas = insts.length > 3 ? '<span class="cal-mas">+' + (insts.length - 3) + '</span>' : '';
+      esc((i.hora ? i.hora + ' ' : '') + (i.titulo || '')) + '</span></span>');
+  const chipsTal = vencen.slice(0, topeTal).map(x =>
+    '<span class="cal-ev tal ' + esc(x.que) + (x.tarde ? ' tarde' : '') + '"><span class="tx">' +
+      esc(nombreCorto(x.titulo) + ' · ' + x.que) + '</span></span>');
+  const evs = chipsInst.concat(chipsTal).join('');
+  const sobran = Math.max(0, insts.length - topeInst) + Math.max(0, vencen.length - topeTal);
+  const mas = sobran ? '<span class="cal-mas">+' + sobran + '</span>' : '';
+  const carga = d.carga && d.carga.get(dia.fecha);
 
   /* El aria-label lleva la respuesta completa: la fecha, cuántas instalaciones y qué dice el
      semáforo. El punto de color es un refuerzo, nunca la única manera de saberlo: uno de
@@ -508,7 +623,9 @@ function celdaDia(dia, d) {
      ir a la vidriería hoy. */
   const etiqueta = [fmtFechaDia(dia.fecha),
     insts.length ? (vivas.length === 1 ? '1 instalación' : vivas.length + ' instalaciones')
-                 : 'sin nada agendado',
+                 : (_lente === 'instalaciones' ? 'sin nada agendado' : ''),
+    _lente !== 'instalaciones' && carga ? carga.texto.replace(/\.$/, '') : '',
+    vencen.length ? vencen.slice(0, 3).map(x => x.titulo + ': ' + x.que).join(', ') + (vencen.length > 3 ? ' y ' + (vencen.length - 3) + ' más' : '') : '',
     sem ? sem.texto : '',
     libre ? 'Tocar para agendar' : '',
   ].filter(Boolean).join('. ');
@@ -520,6 +637,14 @@ function celdaDia(dia, d) {
         '" aria-hidden="true"></span>' : '') +
       '<span class="cal-n">' + dia.dia + '</span>' + evs + mas +
     '</button>';
+}
+
+/** El nombre del proyecto es «Contacto - Negocio (tipo)», y en un chip de 39 px caben tres
+ *  palabras: se queda con el negocio, que es lo que se reconoce de un vistazo. */
+function nombreCorto(nombre) {
+  const t = String(nombre || '');
+  const m = /^[^-]+ - ([^(]+)/.exec(t);
+  return (m ? m[1] : t.replace(/\s*\([^)]*\)\s*$/, '')).trim() || t;
 }
 
 /** La clase del filete de color: la etapa de obra del proyecto, y `off` si la instalación se
@@ -544,6 +669,24 @@ function pintarDiaAbierto(d) {
 
   if (veSemaforo() && sem && insts.length) html += renglonSem(sem);
 
+  /* Lo del taller ese día, cuando la lente lo mira: qué le toca a quién, y cuántos trabajos
+     tienen el día adentro. Va antes de las instalaciones porque es lo que se hace en el
+     taller antes de salir. */
+  const vencen = (_lente !== 'instalaciones' && d.vencen && d.vencen.get(_dia)) || [];
+  const carga = _lente !== 'instalaciones' && d.carga ? d.carga.get(_dia) : null;
+  if (vencen.length || (carga && carga.total)) {
+    html += '<div class="ag-grupo">' + ico('i-taller') + 'En el taller' +
+      (carga ? ' <span class="n">' + carga.total + '</span>' : '') + '</div>';
+    if (vencen.length) {
+      html += vencen.map(x =>
+        '<div class="pf-fila tal-fila-dia"><span class="pf-fila-ico' + (x.tarde ? ' mal' : '') + '">' + ico('i-taller') + '</span>' +
+        '<div class="pf-fila-tx"><p class="pf-fila-t">' + esc(x.titulo) + '</p>' +
+        '<p class="pf-fila-d">' + esc(VERBO_DIA[x.que] || x.que) + (x.tarde ? ' · ya pasó y no se marcó' : '') + '</p></div></div>').join('');
+    } else if (carga) {
+      html += '<p class="pf-cuenta">' + esc(carga.texto) + '</p>';
+    }
+  }
+
   if (!insts.length) {
     html += '<p class="pf-cuenta">Nada agendado este día.</p>' +
       (puedeAgendar()
@@ -559,6 +702,8 @@ function pintarDiaAbierto(d) {
   }
   return html + '</div>';
 }
+
+const VERBO_DIA = { empezar: 'Hay que empezarlo: entra al taller', cortar: 'Hay que cortar', armar: 'Hay que armar', listo: 'Tiene que quedar listo' };
 
 const renglonSem = sem =>
   '<p class="ag-sem"><span class="pf-sem ' + sem.estado + '">' +
@@ -759,16 +904,37 @@ function pintarExportar(d) {
    Una sola acción, la de esta pantalla: agendar. Cuando el rol no agenda, la barra no
    existe: un botón que no lleva a ningún lado ocupa el lugar donde el pulgar espera
    encontrar algo. */
+/* Una sola acción por pantalla, y por rol, en el orden de lo que se rompe primero. Dirección:
+   si hay cotizaciones sin decidir, decidir; si no, agendar. Fabricación: proponer un día, que
+   es lo que su rol puede. Pagos: sin barra. Nunca dos botones: cuando la tarjeta de decidir
+   está en pantalla con sus verdes, el de la barra es el mismo verde y APUNTA a ella. */
 function pintarMbar(d) {
   const b = $('pf-mbar');
   if (!b) return;
   if (!puedeAgendar()) { b.hidden = true; b.innerHTML = ''; b.onclick = null; ajustarAltoBarra(); return; }
-  const n = d.sinFecha.length;
-  b.innerHTML = '<button type="button" class="btn btn-pri" data-abrir-agendar>' +
-    (n ? (n === 1 ? 'Agendar el proyecto sin fecha' : 'Agendar (' + n + ' sin fecha)')
-       : 'Agendar una instalación') + '</button>';
+  const n = d.sinFecha.length, dec = (d.pendientes || []).length;
+  if (dec && Prefs.rol() === 'direccion') {
+    b.innerHTML = '<button type="button" class="btn btn-ok" data-ir-decidir>' +
+      (dec === 1 ? 'Decidir la cotización pendiente' : 'Decidir ' + dec + ' cotizaciones') + '</button>';
+  } else {
+    const propone = soloPropone();
+    b.innerHTML = '<button type="button" class="btn btn-pri" data-abrir-agendar>' +
+      (propone
+        ? (n ? 'Proponer un día (' + n + ' sin fecha)' : 'Proponer un día')
+        : (n ? (n === 1 ? 'Agendar el proyecto sin fecha' : 'Agendar (' + n + ' sin fecha)') : 'Agendar una instalación')) +
+      '</button>';
+  }
   b.hidden = false;
-  b.onclick = ev => { if (ev.target.closest('[data-abrir-agendar]')) abrirAgendar(null); };
+  b.onclick = ev => {
+    if (ev.target.closest('[data-abrir-agendar]')) { abrirAgendar(null); return; }
+    if (ev.target.closest('[data-ir-decidir]')) {
+      const card = _cont && _cont.querySelector('#ag-decidir');
+      if (!card) return;
+      card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      const primero = card.querySelector('[data-decidir]');
+      if (primero) { try { primero.focus({ preventScroll: true }); } catch (_) {} }
+    }
+  };
   ajustarAltoBarra();
 }
 
@@ -776,7 +942,7 @@ function pintarMbar(d) {
  *  que el globito no cambie de valor solo porque se cambió de módulo. */
 function publicarCuentas(d) {
   if (!_ctx || typeof _ctx.ponerCuenta !== 'function') return;
-  _ctx.ponerCuenta('agenda', d.sinFecha.length + d.vencidas.length);
+  _ctx.ponerCuenta('agenda', d.sinFecha.length + d.vencidas.length + (d.pendientes || []).length);
 }
 
 /* ============================================================================
@@ -788,6 +954,12 @@ async function alTocar(ev) {
 
   const lente = ev.target.closest('[data-lente]');
   if (lente) { _lente = lente.dataset.lente; _dia = null; await recargar(); return; }
+
+  const plazo = ev.target.closest('[data-plazo]');
+  if (plazo) { abrirPlazo(plazo.dataset.plazo); return; }
+
+  const dec = ev.target.closest('[data-decidir]');
+  if (dec) { (dec.dataset.decidir === 'ganar' ? abrirGanar : abrirDescartar)(dec.dataset.folio); return; }
 
   const vista = ev.target.closest('[data-vista]');
   if (vista) { _vista = vista.dataset.vista; _dia = null; await recargar(); return; }
@@ -1305,6 +1477,111 @@ function abrirMover(i) {
     '</div>');
 }
 
+/* ----- El plazo, con un toque -----
+   Es el número que más se va a equivocar —sale de una tabla, y una tabla se equivoca con el
+   proyecto que la contradice— y por eso leerlo y corregirlo son el mismo gesto: la ficha del
+   renglón es el botón. Lo corrigen dirección y fabricación; cuánto tarda un trabajo lo sabe
+   quien lo hace, no quien lo vendió. Pagos no. */
+const puedeCorregirPlazo = () => Prefs.rol() !== 'pagos';
+
+function abrirPlazo(id) {
+  if (!puedeCorregirPlazo()) { toast('El plazo lo cambian dirección y fabricación.', 'err', 4200); return; }
+  const v = ((_d && _d.ventanas) || []).find(x => x.proyecto_id === id);
+  if (!v) return;
+  const elegido = v.plazo_fuente === 'elegido' ? v.plazo_k : null;
+  _pide = { modo: 'plazo', id, k: elegido };
+  const chips = Taller.PLAZOS.map(p =>
+    chip(p.etiqueta, p.k === v.plazo_k, 'data-pide="plazo" data-k="' + p.k + '"')).join('');
+  ponerEnCapa('pf-pide',
+    cabeza('¿Cuánto tarda en el taller?', 'data-pide="cerrar"') +
+    '<div class="pf-panel-b">' +
+      '<p class="pf-cuenta">' + esc(v.titulo || 'Proyecto sin nombre') +
+        (v.instalacion ? ' · se instala el ' + esc(fmtFecha(v.instalacion)) : ' · sin fecha de instalación') + '</p>' +
+      '<div class="chips" role="group" aria-label="Plazo de taller">' + chips + '</div>' +
+      '<p class="hintnote">' + (elegido !== null
+        ? 'Puesto a mano. Toca el marcado para volver al propuesto.'
+        : 'Propuesto por el tipo de trabajo: ' + esc(v.plazo_razon) + '. Toca otro si sabes que tarda más.') + '</p>' +
+      '<p class="hintnote">El plazo se cuenta hacia atrás desde el día de la instalación: si mueves la fecha, la ventana se mueve con ella. Lo que elijas aquí manda sobre lo calculado y se queda.</p>' +
+    '</div>' +
+    '<div class="pf-panel-f"><button type="button" class="btn btn-gho" data-pide="cerrar">Cerrar</button></div>');
+}
+
+/* ----- «Se ganó», con la fecha y el plazo en el mismo panel -----
+   Pide UNA fecha, prellenada y borrable —el proyecto es el dato irrecuperable; si no hay día
+   todavía, A7 lo nombra a las 48 horas—, y ofrece el plazo ya propuesto desde las partidas,
+   por si quien gana ya sabe que son tres semanas. Cero toques lo aceptan. */
+function abrirGanar(folio, estado) {
+  const e = Cot.porFolio(folio);
+  if (!e) { toast('«' + folio + '» ya no está en el historial de este dispositivo. Ábrelo en el cotizador para ver qué pasó.', 'err', 5200); return; }
+  const tipos = Proyectos.tiposDerivados(e.items);
+  const sug = Taller.plazoSugerido(tipos, e.items);
+  const prev = estado || {};
+  _pide = { modo: 'ganar', folio: String(folio), k: prev.k !== undefined ? prev.k : (e.plazoK >= 1 && e.plazoK <= 5 ? e.plazoK : null),
+            fecha: prev.fecha !== undefined ? prev.fecha : hoyISO() };
+  const fechaVal = $('ag-ganar-fecha') ? $('ag-ganar-fecha').value : _pide.fecha;
+  const marcado = _pide.k !== null ? _pide.k : sug.k;
+  const quien = [e.cliente, e.proy].filter(Boolean).join(' — ') || 'sin cliente';
+  const total = Prefs.veDinero() ? Cot.totalVendido(e) : 0;
+  ponerEnCapa('pf-pide',
+    cabeza(String(folio) + ' se ganó', 'data-pide="cerrar"') +
+    '<div class="pf-panel-b">' +
+      '<dl class="pf-dato"><dt>De quién</dt><dd>' + esc(quien) + '</dd></dl>' +
+      (total > 0 ? '<dl class="pf-dato"><dt>Lo autorizado</dt><dd>' + esc(money(total)) + '</dd></dl>' : '') +
+      (e.entrega ? '<dl class="pf-dato"><dt>Lo que se le prometió</dt><dd>' + esc(e.entrega) + '</dd></dl>' : '') +
+      '<div class="fld"><label for="ag-ganar-fecha">¿Qué día se instala?</label>' +
+        '<input type="date" id="ag-ganar-fecha" value="' + esc(fechaVal || '') + '"></div>' +
+      '<p class="hintnote">Es la única fecha que la plataforma te pide. Si todavía no hay día, bórrala: el proyecto se guarda igual y te lo recuerda a las 48 horas.</p>' +
+      '<div class="fld"><label id="ag-ganar-plazo-l">¿Cuánto tarda en el taller?</label>' +
+        '<div class="chips" role="group" aria-labelledby="ag-ganar-plazo-l">' +
+          Taller.PLAZOS.map(p => chip(p.etiqueta, p.k === marcado, 'data-pide="ganar-plazo" data-k="' + p.k + '"')).join('') +
+        '</div></div>' +
+      '<p class="hintnote">' + (_pide.k !== null ? 'Elegido a mano. Toca el marcado para volver al propuesto.'
+                                                : 'Propuesto por el tipo de trabajo: ' + esc(sug.razon) + '.') + '</p>' +
+    '</div>' +
+    '<div class="pf-panel-f">' +
+      '<button type="button" class="btn btn-gho" data-pide="cerrar">Cancelar</button>' +
+      '<button type="button" class="btn btn-ok" data-pide="ganar">Guardar el proyecto</button>' +
+    '</div>');
+}
+
+/* ----- «No se dio» -----
+   Pregunta una vez porque cierra una venta: un dedo que resbala dejaría la cotización marcada
+   como perdida, y volver de ahí no es un botón. El motivo es opcional y sirve para lo que hoy
+   no se puede leer en ningún lado: cuánto se dejó de vender y por qué. */
+function abrirDescartar(folio) {
+  _pide = { modo: 'descartar', folio: String(folio) };
+  ponerEnCapa('pf-pide',
+    cabeza('¿' + String(folio) + ' no se dio?', 'data-pide="cerrar"') +
+    '<div class="pf-panel-b">' +
+      '<p class="pf-fila-d">Queda la constancia con su importe y sus partidas, y la plataforma deja de preguntarte por ella. No desaparece del cotizador.</p>' +
+      '<div class="fld"><label for="ag-desc-motivo">¿Por qué? (opcional)</label>' +
+        '<textarea id="ag-desc-motivo" rows="2" placeholder="Se fue con otro proveedor, ya no lo va a hacer, no contestó…"></textarea></div>' +
+    '</div>' +
+    '<div class="pf-panel-f">' +
+      '<button type="button" class="btn btn-gho" data-pide="cerrar">Mejor no</button>' +
+      '<button type="button" class="btn btn-dgr" data-pide="descartar">Sí, no se dio</button>' +
+    '</div>');
+}
+
+/* ----- El teclado, para la computadora -----
+   Flechas para moverse de mes o de semana y «t» para volver a hoy. Solo cuando no se está
+   escribiendo en un campo y no hay un panel abierto: dentro de un <input type="date"> las
+   flechas ya hacen otra cosa. Los números cambian de módulo y viven en app.js. */
+function alTeclear(ev) {
+  if (!_cont || ev.altKey || ev.ctrlKey || ev.metaKey) return;
+  const t = ev.target;
+  if (t && t.closest && t.closest('input,textarea,select,[contenteditable="true"]')) return;
+  if (document.querySelector('.modal-bg.show')) return;
+  if (_lente === 'taller') return;
+  if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
+    const n = ev.key === 'ArrowLeft' ? -1 : 1;
+    _ancla = _vista === 'semana' ? masDias(iniSemana(_ancla), n * 7) : masMeses(_ancla, n);
+    _dia = null; ev.preventDefault(); recargar();
+  } else if (ev.key === 't' || ev.key === 'T') {
+    _ancla = hoyISO(); _dia = null; ev.preventDefault(); recargar();
+  }
+}
+
 function abrirCancelar(i) {
   _pide = { modo: 'cancelar', id: i.id };
   ponerEnCapa('pf-pide',
@@ -1334,6 +1611,66 @@ async function alTocarPide(ev) {
   ev.preventDefault();
 
   if (q === 'cerrar') { cerrarPide(); return; }
+
+  if (q === 'ganar-plazo') {
+    /* Dentro de «se ganó», elegir el cubo solo cambia el estado del panel: se guarda con el
+       proyecto al apretar «Guardar». */
+    const k = Number(b.dataset.k);
+    _pide.k = _pide.k === k ? null : k;
+    abrirGanar(_pide.folio, _pide);
+    return;
+  }
+
+  if (q === 'ganar') {
+    const folio = _pide.folio;
+    const e = Cot.porFolio(folio);
+    if (!e) { toast('Esa cotización ya no está en el historial de este dispositivo', 'err', 4600); return; }
+    const f = $('ag-ganar-fecha');
+    const fecha = f ? String(f.value || '').trim() : '';
+    b.disabled = true;
+    const extra = {};
+    if (fecha) extra.fecha_instalacion = fecha;
+    if (_pide.k) extra.plazo_k = _pide.k;
+    const r = await Proyectos.ganar(e, extra);
+    if (!avisarResultado(r)) { if (b.isConnected) b.disabled = false; return; }
+    cerrarPide();
+    toast(fecha ? 'Ya es proyecto, con material calculado y con fecha del ' + fmtFecha(fecha)
+                : 'Ya es proyecto, con su material calculado. Falta la fecha.', 'ok', 4600);
+    if (fecha) { _ancla = fecha; _dia = fecha; }
+    await recargar();
+    if (_ctx && _ctx.cuentas) _ctx.cuentas();
+    return;
+  }
+
+  if (q === 'descartar') {
+    const folio = _pide.folio;
+    const t = $('ag-desc-motivo');
+    b.disabled = true;
+    const r = await Proyectos.descartar(folio, t ? String(t.value || '').trim() : '');
+    if (!avisarResultado(r)) { if (b.isConnected) b.disabled = false; return; }
+    cerrarPide();
+    toast(folio + ': queda la constancia y no vuelve a preguntar', 'ok', 4200);
+    await recargar();
+    return;
+  }
+
+  if (q === 'plazo') {
+    /* El chip commitea: no hay botón de guardar, hay «Deshacer» en el aviso, que es el patrón
+       del sistema. Tocar el que ya está elegido lo suelta y vuelve a mandar el propuesto. */
+    const id = _pide.id, anterior = _pide.k;
+    const k = Number(b.dataset.k);
+    const nuevo = anterior === k ? null : k;
+    b.disabled = true;
+    const r = await Proyectos.actualizar(id, { plazo_k: nuevo });
+    if (!r.ok) { avisarResultado(r); if (b.isConnected) b.disabled = false; return; }
+    cerrarPide();
+    await recargar();
+    const v = ((_d && _d.ventanas) || []).find(x => x.proyecto_id === id);
+    toast(nuevo === null ? 'Vuelve a mandar el propuesto' + (v ? ': ' + v.plazo_etiqueta : '')
+                         : 'Ahora son ' + Taller.plazo(nuevo).etiqueta + (v && v.empezar ? ' · entra al taller el ' + fmtFecha(v.empezar) : ''),
+      'ok', 8000, { label: 'Deshacer', fn: async () => { await Proyectos.actualizar(id, { plazo_k: anterior }); await recargar(); } });
+    return;
+  }
 
   if (q === 'copiar') {
     copiarTexto((_pide && _pide.texto) || '', 'Orden copiada. Pégala en el chat del instalador.');

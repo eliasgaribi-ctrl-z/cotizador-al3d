@@ -359,6 +359,25 @@ export function conversion(ganados) {
 }
 
 /** ¿Hay cotizador en este dispositivo? Si el historial está vacío y el folio en 0, no. */
+/* ----- El respaldo del cotizador, armado desde aquí -----
+   La plataforma LEE el almacenamiento del cotizador para meterlo en el respaldo completo, y
+   no escribe una sola de estas claves: la lista existe para leer. Es la misma RESPALDO_KEYS de
+   cotizador.html, con las constantes resueltas; pruebas/respaldo.mjs comprueba que las dos
+   listas digan lo mismo, porque una duplicación que nadie compara se separa. El formato es
+   el que `restaurarDesde()` del cotizador valida: {app, formato, fecha, datos:{clave:texto}}. */
+export const RESPALDO_KEYS = [
+  'al3d_historial', 'al3d_folio', 'al3d_q', 'al3d_queue', 'al3d_logo', 'al3d_canva', 'al3d_hitos',
+  'al3d_pf_ganadas', 'al3d_fold_proy', 'al3d_cuadernos', 'al3d_aifile', 'al3d_autorizador',
+  'al3d_ult_material', 'al3d_rv_pct', 'al3d_rv_cuenta', 'al3d_respaldo_ts', 'al3d_respaldo_n',
+];
+export function armarRespaldoCotizador() {
+  const datos = {};
+  for (const k of RESPALDO_KEYS) {
+    try { const v = localStorage.getItem(k); if (v !== null) datos[k] = v; } catch (_) {}
+  }
+  return { app: 'cotizador-al3d', formato: 1, fecha: new Date().toISOString(), datos };
+}
+
 export function hayCotizador() {
   return historial().length > 0 || cola().length > 0 || folioConfirmados() > 0;
 }

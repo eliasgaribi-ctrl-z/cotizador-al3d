@@ -354,23 +354,24 @@ function cardRespaldo(baseOk) {
 
     '<div class="pf-acciones">' +
     '<button type="button" class="btn btn-pri" data-act="respaldar"' + (baseOk ? '' : ' disabled') + '>' +
-    ico('i-bajar') + ' Respaldar ahora</button>' +
+    ico('i-bajar') + ' Respaldar todo: plataforma y cotizador</button>' +
     '</div>' +
 
     '<div class="fld aj-bloque">' +
-    '<label for="aj-archivo">Restaurar desde un respaldo de la plataforma</label>' +
+    '<label for="aj-archivo">Restaurar desde un respaldo</label>' +
     '<input type="file" id="aj-archivo" accept="application/json,.json"' +
     (baseOk ? '' : ' disabled') + '></div>' +
     '<p class="pf-nota">Restaurar <b>fusiona</b>, no reemplaza: lo que ya está se queda y lo ' +
     'que falta entra. Un renglón del libro del almacén que ya existe se descarta en vez de ' +
     'sumarse dos veces, así que el mismo archivo se puede meter dos veces sin miedo.</p>' +
 
-    nota('<b>Son dos archivos distintos y no se cruzan.</b> Éste es el respaldo de la ' +
-      'plataforma: proyectos, agenda, material y el libro del almacén. El del cotizador ' +
-      '—cotizaciones, historial e imágenes— se baja y se restaura desde el cotizador. ' +
-      'Meter uno en el otro no es un error inofensivo: el restaurar del cotizador es ' +
-      'todo-o-nada y aborta completo si algo no cabe, así que un archivo del tamaño ' +
-      'equivocado puede volver imposible restaurar tres años de cotizaciones.') +
+    nota('<b>Un solo archivo para mover todo a otro aparato.</b> El respaldo trae las dos ' +
+      'mitades: la plataforma —proyectos, agenda, material y el libro del almacén— y el ' +
+      'cotizador —cotizaciones, historial e imágenes—. Al restaurarlo aquí entra la de la ' +
+      'plataforma, y la del cotizador queda esperando: al abrir el cotizador la ofrece con un ' +
+      'botón, con su confirmación y su copia previa de siempre. Mándate el archivo por WhatsApp ' +
+      'o correo al otro aparato, y ábrelo ahí desde esta misma pantalla. Los respaldos viejos, ' +
+      'de la plataforma sola, siguen entrando igual.') +
 
     esp);
 }
@@ -826,14 +827,39 @@ async function restaurar(inp) {
     limpiar(); return;
   }
 
-  const r = await DB.importar(texto);
+  /* El respaldo completo trae las dos mitades. La de la plataforma entra aquí; la del
+     cotizador NO se escribe desde aquí —la plataforma tiene prohibido tocar sus claves— sino
+     que se deja en una clave propia y el cotizador la ofrece al abrir, con su confirmación y su
+     copia previa de siempre. Un respaldo viejo de la plataforma sola sigue entrando igual. */
+  let paquete = null;
+  try { paquete = JSON.parse(texto); } catch (_) {}
+  let textoPlataforma = texto, mitadCotizador = null;
+  if (paquete && paquete.app === 'al3d-completo') {
+    if (!paquete.plataforma || typeof paquete.plataforma !== 'object') {
+      toast('El respaldo completo viene sin la parte de la plataforma', 'err', 4600); limpiar(); return;
+    }
+    textoPlataforma = JSON.stringify(paquete.plataforma);
+    if (paquete.cotizador && typeof paquete.cotizador === 'object') mitadCotizador = JSON.stringify(paquete.cotizador);
+  }
+
+  const r = await DB.importar(textoPlataforma);
   limpiar();
   if (!avisarResultado(r)) return;
 
   const v = r.valor || {};
   const n = Number(v.registros) || 0, d = Number(v.descartados) || 0;
-  toast('Entraron ' + n + (n === 1 ? ' registro' : ' registros') +
-    (d ? ' y se descartaron ' + d + ' por estar ya en la base' : ''), 'ok', 5200);
+  let msg = 'Entraron ' + n + (n === 1 ? ' registro' : ' registros') +
+    (d ? ' y se descartaron ' + d + ' por estar ya en la base' : '');
+  if (mitadCotizador) {
+    if (Prefs.dejarRestauracion(mitadCotizador)) {
+      toast(msg + '. La parte del cotizador queda esperando: ábrelo y toca «Restaurar ahora».', 'ok', 9000,
+        { label: 'Abrir el cotizador', fn: () => { location.href = 'cotizador.html'; } });
+    } else {
+      toast(msg + '. La parte del cotizador NO cupo aquí: restáurala desde el cotizador con este mismo archivo.', 'err', 9000);
+    }
+  } else {
+    toast(msg, 'ok', 5200);
+  }
   if (CTX.refrescar) CTX.refrescar();
 }
 
