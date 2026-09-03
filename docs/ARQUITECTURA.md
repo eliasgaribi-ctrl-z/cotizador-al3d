@@ -956,7 +956,7 @@ logo-al3d.svg · logo-al3d-oscuro.svg · los cuatro iconos  (generados desde log
 plataforma.html                     Cascarón único: sprite SVG, topbar, nav de 6 módulos, un <section> por módulo. Cero lógica
 manifest-plataforma.webmanifest     id propio, start_url ./plataforma.html#/hoy, shortcuts a #/hoy #/material #/agenda
 
-css/sistema.css                     COPIA generada de index.html L26-2101. Las 6 capas en su orden. Dep: ninguna
+css/sistema.css                     EL sistema de diseño (sep/2026: ya no es copia; cotizador.html lo enlaza). 7 capas, la última es el tema oscuro. Dep: ninguna
 css/plataforma.css                  Solo lo nuevo: rejilla del calendario, renglones de stock, marco del mapa. Dep: sistema.css
 
 js/app.js                           Arranque, router por hash, alta de _CAPAS, registro del SW, ajustarTopbarMovil, oyente 'storage'. Dep: nucleo/*, datos/*
@@ -995,7 +995,8 @@ anidador-vectores/js/svgnest.js · svgparser.js · lib/*   VENDORIZADOS de SVGne
 
 puente/worker.js                    FASE 3. NO se publica. Se pega en el editor de Cloudflare
 puente/README.md                    Runbook de 3 líneas por falla
-herramientas/extraer-estilo.sh      Regenera css/sistema.css desde index.html L26-2101 y hace diff
+js/tema.js                          Clásico, en el <head> de las tres páginas: lee al3d_tema y pone data-tema antes del primer pintado
+js/cotizador/*.js                   Los once guiones clásicos del cotizador (catálogo, núcleo, partidas, proceso, IA, entrega, historial, escalador, venta, vectorizador, arranque). Orden fijado por cotizador.html
 ```
 
 ### Cómo se carga sin build
@@ -1016,7 +1017,7 @@ Va vendorizado y no por CDN por una razón leída en el código: `sw.js` hace `i
 
 **Un solo `plataforma.html` con rutas por hash**, no cinco HTML: navegar entre módulos sin señal no toca la red, el SW cachea un solo documento de navegación, `_CAPAS` vive en un lugar, y GitHub Pages no necesita el truco del `404.html`.
 
-**`css/sistema.css` es una copia y eso es deuda declarada.** Encabezado obligatorio: `/* COPIA GENERADA de index.html L26-2101. No la edites aquí. Edítala allá y corre herramientas/extraer-estilo.sh. */`. La herramienta la regenera y hace diff. Convergencia programada: la próxima vez que `index.html` se toque por otra razón, ese `<style>` se convierte en un `<link>` a este archivo.
+**`css/sistema.css` ya no es una copia (sep/2026).** La convergencia que aquí estaba programada se hizo: `cotizador.html` enlaza la hoja con un `<link>`, `herramientas/extraer-estilo.sh` se retiró y `pruebas/hojas-de-estilo.mjs` vigila que ningún HTML vuelva a declarar tokens. En el mismo cambio el `<script>` en línea del cotizador se repartió en `js/cotizador/*.js` (once guiones clásicos, mismo ámbito global, `arranque.js` al final) y `cotizador.html` entró al conjunto versionado del service worker.
 
 ### Pila de z-index — los huecos elegidos, documentados
 

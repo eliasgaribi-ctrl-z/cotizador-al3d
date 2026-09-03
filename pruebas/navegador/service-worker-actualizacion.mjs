@@ -88,7 +88,7 @@ const bien = m => console.log('  ✓ ' + m);
 
 /* ---- Mitad 1: se instala la versión 1 ENTERA ---- */
 console.log('\nPrimero se instala la versión 1 completa:\n');
-await p.goto(B + '/cotizador.html', { waitUntil:'load' });
+await p.goto(B + '/cotizador.html?solo=1', { waitUntil:'load' });
 await registrar();
 await p.waitForTimeout(2000);
 let c = await cachés();
@@ -100,7 +100,7 @@ else bien('al3d-app-1 tiene ' + v1 + ' archivos y está sirviendo');
 console.log('\nAhora se publica la versión 2 con js/mod/mapa.js devolviendo 404:\n');
 estado.version = 2;
 estado.romper = 'js/mod/mapa.js';
-await p.goto(B + '/cotizador.html', { waitUntil:'load' });
+await p.goto(B + '/cotizador.html?solo=1', { waitUntil:'load' });
 await registrar();
 await p.waitForTimeout(3000);
 c = await cachés();

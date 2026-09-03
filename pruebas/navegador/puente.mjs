@@ -129,7 +129,7 @@ const p = await ctx.newPage();
 const errs = []; p.on('pageerror', e => errs.push(e.message));
 
 // ── 1. Cotizar y ganar ────────────────────────────────────────────────────────
-await p.goto(B + '/cotizador.html', { waitUntil: 'load' });
+await p.goto(B + '/cotizador.html?solo=1', { waitUntil: 'load' });
 await p.waitForTimeout(1200);
 await p.fill('#f-cli', 'Andrey');
 await p.fill('#f-tel', '33 1234 5678');

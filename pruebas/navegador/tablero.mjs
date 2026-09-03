@@ -396,7 +396,7 @@ else {
 /* La página suelta NO cambió de comportamiento: sigue siendo una URL de primera clase, y sin
    marco no se apaga nada. Es lo que mantiene verdes las cuatro pruebas del cotizador. */
 const suelto = await ctx.newPage();
-await suelto.goto(B + '/cotizador.html', { waitUntil: 'load' });
+await suelto.goto(B + '/cotizador.html?solo=1', { waitUntil: 'load' });
 await suelto.waitForTimeout(1600);
 const solo = await suelto.evaluate(() => ({
   empotrado: document.documentElement.classList.contains('empotrado'),

@@ -1,11 +1,11 @@
-/* Un solo sistema de diseño, y las copias generadas que no pueden quedarse atrás.
+/* Un solo sistema de diseño, en una sola hoja.
  *
- * El sistema vive en el <style> de index.html —el cotizador es un solo archivo y así se
- * publica— y css/sistema.css es su COPIA, hecha por herramientas/extraer-estilo.sh. Una copia
- * generada que nadie comprueba es una copia que se queda atrás: basta con tocar el <style> y no
- * acordarse de regenerar. Y el fallo no se ve, porque cada superficie sigue funcionando con SU
- * versión: el cotizador con la nueva y la plataforma con la vieja. Se descubre el día que
- * alguien las pone una al lado de la otra.
+ * El sistema vive en css/sistema.css y las tres superficies —el cotizador, la plataforma y el
+ * anidador— la enlazan. Hasta septiembre de 2026 vivía en el <style> de cotizador.html y la
+ * hoja era una COPIA generada que había que regenerar a mano; una copia que nadie comprueba es
+ * una copia que se queda atrás, y el fallo no se veía porque cada superficie seguía funcionando
+ * con SU versión. Lo que esta prueba vigila ahora es que nadie vuelva a meter un <style> con
+ * tokens en cotizador.html: el día que eso pase habrá otra vez dos verdades.
  *
  * Aquí también viven las dos reglas de color que el sistema declara y no cumplía: que el azul de
  * la marca sea UNO, y que ningún token se use sin estar definido —una var() sin definir y sin
@@ -32,16 +32,23 @@ const html = leer('cotizador.html');
 const sistema = leer('css/sistema.css');
 const plataforma = leer('css/plataforma.css');
 
-console.log('\nLA COPIA GENERADA SIGUE SIENDO UNA COPIA');
-const lineas = html.split('\n');
-const ini = lineas.findIndex(l => l === '<style>');
-const fin = lineas.findIndex(l => l === '</style>');
-cierto(ini > -1 && fin > ini, 'cotizador.html tiene su bloque <style>');
-const dentro = lineas.slice(ini + 1, fin).join('\n');
-/* La copia lleva una cabecera propia de 13 renglones que dice de dónde salió. */
-const copia = sistema.split('\n').slice(13).join('\n');
-cierto(dentro.trim() === copia.trim(),
-  'y css/sistema.css es exactamente ese bloque (si falla: herramientas/extraer-estilo.sh)');
+console.log('\nUNA SOLA HOJA, ENLAZADA DESDE LAS TRES SUPERFICIES');
+for (const [f, href] of [['cotizador.html', 'css/sistema.css'], ['index.html', 'css/sistema.css'],
+                         ['anidador-vectores/index.html', '../css/sistema.css']]) {
+  cierto(leer(f).includes('<link rel="stylesheet" href="' + href + '">'), f + ' enlaza ' + href);
+}
+cierto(!/^<style>$/m.test(html), 'cotizador.html ya no trae un bloque <style> propio: el sistema vive en la hoja');
+cierto(/^:root\{/m.test(sistema) && !/^:root\{/m.test(html.replace(/<!--[\s\S]*?-->/g, '')),
+  'los tokens se declaran en css/sistema.css y en ningún HTML');
+/* El tema se decide antes del primer pintado, así que el guion va en el <head> y antes de la
+   hoja; si fuera después, cada apertura en oscuro parpadearía en claro un cuadro. */
+for (const [f, src] of [['cotizador.html', 'js/tema.js'], ['index.html', 'js/tema.js'],
+                        ['anidador-vectores/index.html', '../js/tema.js']]) {
+  const t = leer(f);
+  const iTema = t.indexOf('<script src="' + src + '"></script>');
+  const iHoja = t.indexOf('rel="stylesheet" href="' + (src.startsWith('../') ? '../' : '') + 'css/sistema.css"');
+  cierto(iTema > -1 && iHoja > iTema, f + ' carga js/tema.js antes que la hoja del sistema');
+}
 
 console.log('\nNINGÚN TOKEN SE USA SIN EXISTIR');
 const definidos = new Set([...sistema.matchAll(/(--[a-z0-9-]+)\s*:/gi)].map(m => m[1])
@@ -78,16 +85,26 @@ cierto(/--pc-rgb:\s*var\(--a-rgb\)/.test(sistema), 'y --pc-rgb sale de él en ve
    Lo que sí se puede exigir es que repita el número BUENO. */
 const a = (sistema.match(/--a:\s*(#[0-9a-f]{6})/i) || [])[1];
 cierto(!!a, 'el sistema declara --a');
-for (const f of ['cotizador.html', 'index.html', 'manifest.webmanifest', 'manifest-plataforma.webmanifest']) {
+for (const f of ['cotizador.html', 'index.html', 'anidador-vectores/index.html', 'manifest.webmanifest', 'manifest-plataforma.webmanifest']) {
   const t = leer(f);
   const m = [...t.matchAll(/theme[-_]color"?[^#]*(#[0-9a-f]{6})/gi)].map(x => x[1].toLowerCase());
   cierto(m.length > 0 && m.every(v => v === a), `${f} declara el color de tema igual que --a (${m.join(', ') || 'ninguno'})`);
 }
+/* js/tema.js reescribe ese <meta> al cambiar de tema: en claro tiene que volver a --a, y en
+   oscuro al fondo oscuro del sistema, que es lo que pinta la barra del navegador. */
+const tema = leer('js/tema.js');
+cierto(tema.includes("claro: '" + a + "'"), 'js/tema.js pone el mismo azul de tema en claro');
+const fondoOscuro = (sistema.match(/html\[data-tema="oscuro"\]\s*\{[^}]*--n1:\s*(#[0-9a-f]{6})/i) || [])[1];
+cierto(!!fondoOscuro && tema.includes("oscuro: '" + fondoOscuro + "'"),
+  'y en oscuro el color de tema es el fondo --n1 del tema oscuro (' + (fondoOscuro || '¿?') + ')');
+const manifiestos = ['manifest.webmanifest', 'manifest-plataforma.webmanifest'].map(f => JSON.parse(leer(f)));
+cierto(manifiestos[0].id === manifiestos[1].id && manifiestos[0].start_url === manifiestos[1].start_url,
+  'los dos manifiestos describen la MISMA app (mismo id, mismo start_url): una sola PWA, una sola puerta');
+cierto(manifiestos[0].start_url === './#/hoy', 'y la app instalada abre en el Tablero, no en el cotizador');
 
 console.log('\nEL DOCUMENTO DEL CLIENTE HABLA EL MISMO IDIOMA');
-/* El <style> del documento generado vive dentro del <script> de index.html, después del bloque
-   del sistema, así que se busca a partir de donde acaba éste. */
-const doc = html.slice(html.indexOf('</style>'));
+/* El <style> del documento generado vive en el generador de PDF, js/cotizador/entrega.js. */
+const doc = leer('js/cotizador/entrega.js');
 cierto(/--brand:#3018f8/.test(doc), 'su azul de marca es --a-fuerte, no un cuarto azul');
 cierto(/color-scheme:only light/.test(doc),
   'declara color-scheme:only light, o el auto-oscuro de Android invierte a medias lo que ve el cliente');

@@ -275,6 +275,7 @@ function pintar() {
       '</div></div>') +
 
     cardQuienEres() +
+    cardApariencia() +
     cardRespaldo(e.ok) +
     cardMapa() +
     cardGcal() +
@@ -320,6 +321,23 @@ function cardQuienEres() {
     '<p class="pf-nota">Los cuatro caracteres se generan una vez en la vida del teléfono y ' +
     'sirven para desempatar folios: el contador del cotizador es local, así que dos ' +
     'teléfonos pueden emitir COT-0042 el mismo día.</p>');
+}
+
+/* ----- 1b. Apariencia -----
+   El tema vive en js/tema.js —una clave, tres valores— y el interruptor de la barra de arriba
+   alterna entre claro y oscuro. Aquí está la tercera opción, «el del sistema», que el
+   interruptor no puede ofrecer con un solo toque. */
+
+function cardApariencia() {
+  const T = window.AL3D_TEMA;
+  const pref = T ? T.preferencia() : 'auto';
+  return tarjeta('i-luna', 'Apariencia',
+    '<div class="fld"><div class="fld-lab" id="aj-tema-lab">Tema</div>' +
+    seg([{ v: 'claro', t: 'Claro' }, { v: 'oscuro', t: 'Oscuro' }, { v: 'auto', t: 'El del sistema' }],
+        pref, 'data-tema-elegir', 'aj-tema-lab') + '</div>' +
+    '<p class="pf-nota">Se guarda en este dispositivo y aplica a la app entera: el tablero, el ' +
+    'calendario, el cotizador y el anidador. El sol y la luna de la barra de arriba hacen lo mismo ' +
+    'con un toque. El PDF que se manda al cliente siempre sale en claro.</p>');
 }
 
 /* ----- 2. Respaldo ----- */
@@ -730,6 +748,15 @@ async function clic(ev) {
   const rol = t.closest('[data-rol]');
   if (rol) { guardarNombreCallado(); aplicarRol(rol.dataset.rol); return; }
 
+  const tema = t.closest('[data-tema-elegir]');
+  if (tema) {
+    if (window.AL3D_TEMA) window.AL3D_TEMA.poner(tema.dataset.temaElegir);
+    guardarNombreCallado();
+    pintar();
+    voz('Tema: ' + tema.textContent.trim());
+    return;
+  }
+
   const tile = t.closest('[data-tile]');
   if (tile) { elegirTiles(tile.dataset.tile); return; }
 
@@ -853,7 +880,7 @@ async function restaurar(inp) {
   if (mitadCotizador) {
     if (Prefs.dejarRestauracion(mitadCotizador)) {
       toast(msg + '. La parte del cotizador queda esperando: ábrelo y toca «Restaurar ahora».', 'ok', 9000,
-        { label: 'Abrir el cotizador', fn: () => { location.href = 'cotizador.html'; } });
+        { label: 'Abrir el cotizador', fn: () => { if (CTX && CTX.ir) CTX.ir('cotizador'); else location.hash = '#/cotizador'; } });
     } else {
       toast(msg + '. La parte del cotizador NO cupo aquí: restáurala desde el cotizador con este mismo archivo.', 'err', 9000);
     }

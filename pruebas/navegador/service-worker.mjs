@@ -23,7 +23,7 @@ const nav = await chromium.launch({executablePath:'/opt/pw-browsers/chromium-119
 const ctx = await nav.newContext({ serviceWorkers:'allow', locale:'es-MX' });
 const p = await ctx.newPage();
 const avisos=[]; p.on('console', m => { if(m.text().includes('[al3d]')) avisos.push(m.text()); });
-await p.goto('http://127.0.0.1:'+PUERTO+'/cotizador.html', { waitUntil:'load' });
+await p.goto('http://127.0.0.1:'+PUERTO+'/cotizador.html?solo=1', { waitUntil:'load' });
 const listo = await p.evaluate(async () => {
   try {
     const reg = await navigator.serviceWorker.register('sw.js');

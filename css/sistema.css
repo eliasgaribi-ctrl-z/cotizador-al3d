@@ -1,14 +1,19 @@
 /* ============================================================================
-   COPIA GENERADA de cotizador.html — el bloque <style> completo.
+   El sistema de diseño de AL3D — una sola hoja para las tres superficies.
 
-   NO LA EDITES AQUÍ. Edítala en cotizador.html y corre herramientas/extraer-estilo.sh.
+   Aquí viven los tokens (los azules muestreados del logotipo, la rampa de neutros, la
+   escala de siete tamaños de letra, los tres radios, el barro), y todo el estilo del
+   cotizador. La plataforma (css/plataforma.css) y el anidador (anidador-vectores/css/
+   anidador.css) añaden encima solo lo que el cotizador no tiene, y nunca redefinen un token.
 
-   Existe para que la plataforma se vea de la misma app que el cotizador sin volver
-   a decidir un solo token: los mismos azules muestreados del logotipo, el mismo
-   barro, la misma escala de siete tamaños de letra, los mismos tres radios. Lo que
-   se rompe si esto diverge no es la estética: es que la plataforma y el cotizador
-   dejen de parecer el mismo producto, y de ahí sale la sensación de que uno de los
-   dos está a medias.
+   Hasta septiembre de 2026 este archivo era una COPIA GENERADA del <style> de
+   cotizador.html, y había que acordarse de regenerarla. Ya no: esta es la única fuente, y
+   cotizador.html la enlaza como cualquier otra página.
+
+   Ley de la hoja: entre dos reglas con la misma especificidad gana la ÚLTIMA, y una media
+   query no pesa más por ser más estrecha. La hoja va en capas —(1) estructura, (2) teléfono,
+   (3) dedo, (4) barro, (5) lo que tiene que ganar por orden, (6) impresión, (7) tema
+   oscuro— y una regla nueva va en la capa que le toca, no al final.
    ============================================================================ */
 
 :root{
@@ -26,7 +31,7 @@
      automático —invierte las tarjetas y los grises, pero no los degradados de marca ni
      el lienzo del escalador— y queda a medias. También deja en claro los controles
      nativos de iOS: datalist, teclado numérico, selector de archivo y autorrelleno. */
-  color-scheme:only light;
+  color-scheme:light;
 
   /* ----- Neutros -----
      Fríos y con un toque de lavanda, no grises puros: en claymorphism el lienzo tiene que
@@ -101,10 +106,10 @@
     0 3px 6px rgba(35,39,68,.05),
     0 14px 30px -6px rgba(64,96,248,.16);
   --clay-alto:
-    inset 0 3px 7px rgba(255,255,255,.95),
-    inset 0 -6px 12px rgba(64,96,248,.13),
-    0 5px 10px rgba(35,39,68,.06),
-    0 24px 44px -8px rgba(64,96,248,.24);
+    inset 0 3px 7px rgba(var(--luz-rgb),.95),
+    inset 0 -6px 12px rgba(var(--a-rgb),.13),
+    0 5px 10px rgba(var(--tinta-rgb),.06),
+    0 24px 44px -8px rgba(var(--a-rgb),.24);
   /* Barro de color: la luz interior es más fuerte porque compite con el relleno. */
   --clay-a:
     inset 0 3px 7px rgba(255,255,255,.42),
@@ -177,6 +182,21 @@
      escrito a mano como rgba(var(--a-rgb),...), que además NO es --a (#4060f8) sino un cuarto azul
      que no está en ningún token: el sistema tenía un color de marca declarado y otro pintado. */
   --a-rgb:64,96,248;
+  /* ----- Superficie, luz y tinta -----
+     Tres tokens que antes eran «#fff» y «rgba(255,255,255,…)» repetidos 130 veces: la
+     SUPERFICIE de una tarjeta, la LUZ del barro (el brillo de arriba de cada pieza) y la
+     TINTA de las sombras. Son tres cosas distintas que en claro casualmente valen blanco,
+     blanco y azul-marino; en oscuro no, y por eso tienen nombre. */
+  --sup:#ffffff; --sup-rgb:255,255,255;
+  --luz-rgb:255,255,255;
+  --tinta-rgb:35,39,68;
+  --n1-rgb:242,243,254; --n2-rgb:231,233,251; --n3-rgb:216,219,246; --n4-rgb:182,187,230; --n5-rgb:139,144,192;
+  --af-rgb:48,24,248; --ac-rgb:96,144,248; --a2-rgb:123,63,248; --a3-rgb:24,182,216;
+  --ok-rgb:21,160,106; --av-rgb:200,140,20; --av-borde-rgb:255,215,156; --mal-rgb:216,69,63;
+  --a-suave-2:#dfe6ff; --a2-suave:#f1ecfd;
+  --a3-texto:#0b6e85;                 /* el aguamarina, oscurecido hasta poder ser texto */
+  --wa:#0f7a6c; --wa-rgb:18,140,126;  /* el verde de WhatsApp, medido sobre blanco */
+
   --pc:var(--a-fuerte); --pc-md:var(--a); --pc-bd:var(--a-borde); --pc-sv:var(--a-suave); --pc-rgb:var(--a-rgb);
 
   /* ----- Movimiento -----
@@ -206,7 +226,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:rgba(130,138,160,.22);border-radius:4px}
+::-webkit-scrollbar-thumb{background:rgba(var(--n5-rgb),.22);border-radius:4px}
 ::-webkit-scrollbar-thumb:hover{background:rgba(var(--a-rgb),.32)}
 body{
   /* Las fuentes de emoji van nombradas y antes del genérico: los pocos emoji que
@@ -222,7 +242,7 @@ body{
   background:var(--bg);
   background-image:
     radial-gradient(ellipse 80% 55% at 15% 0%,rgba(var(--a-rgb),.09) 0,transparent 60%),
-    radial-gradient(ellipse 65% 50% at 90% 100%,rgba(92,109,240,.07) 0,transparent 60%);
+    radial-gradient(ellipse 65% 50% at 90% 100%,rgba(var(--a-rgb),.07) 0,transparent 60%);
   background-attachment:fixed;
   color:var(--ink);line-height:1.5;
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
@@ -236,7 +256,7 @@ body::before{
 }
 
 /* ---------- Topbar ---------- */
-.topbar{background:rgba(255,255,255,.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--n2);position:sticky;top:3px;z-index:30}
+.topbar{background:rgba(var(--sup-rgb),.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--n2);position:sticky;top:3px;z-index:30}
 .topbar-in{max-width:1180px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
   padding:max(12px,env(safe-area-inset-top,0px)) max(24px,env(safe-area-inset-right,0px)) 12px max(24px,env(safe-area-inset-left,0px))}
 .brand{display:flex;align-items:center;gap:12px}
@@ -268,7 +288,7 @@ body::before{
 .folio-mal{font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.4px;margin-left:2px}
 .seg{display:inline-flex;background:var(--n1);border:1px solid var(--n2);border-radius:var(--rr1);padding:3px;gap:2px}
 .seg button{border:none;background:none;min-height:44px;padding:7px 14px;font-size:var(--t2);font-weight:500;color:var(--n6);border-radius:6px;cursor:pointer;transition:background .12s,color .12s}
-.seg button.on{background:#fff;color:var(--n8);font-weight:600;box-shadow:0 1px 2px rgba(18,20,28,.07)}
+.seg button.on{background:var(--sup);color:var(--n8);font-weight:600;box-shadow:0 1px 2px rgba(var(--tinta-rgb),.07)}
 
 /* ===================== Iconos =====================
    Un icono mide 1 em —el alto de la letra que lleva al lado— y se pinta con el color
@@ -339,7 +359,7 @@ body.precios-ocultos .partida .inp-money:focus-within{filter:none}
 }
 .precios-ver{flex-shrink:0;margin-left:auto;border:1px solid var(--line);background:transparent;
   color:inherit;font-family:inherit;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:7px;cursor:pointer}
-.precios-ver:hover{background:rgba(255,255,255,.5)}
+.precios-ver:hover{background:rgba(var(--sup-rgb),.5)}
 /* Un Ctrl+P sobre el borrador salía con todos los importes borrosos: el difuminado existe
    para que el precio no se lea desde el otro lado de la mesa, no para inutilizar la
    impresión. El @media print de más abajo ya revierte el plegado; esto revierte el blur. */
@@ -387,7 +407,7 @@ body.precios-ocultos .precios-nota{display:flex}
 .wrap.p-cliente{grid-template-columns:minmax(0,660px);justify-content:center}
 .pasos{grid-column:1/-1;display:flex;align-items:stretch;gap:4px;margin-bottom:2px}
 .paso-tab{display:flex;align-items:center;gap:9px;min-height:44px;padding:9px 15px 9px 11px;border:1px solid transparent;border-radius:var(--r-sm);
-  background:rgba(255,255,255,.7);cursor:pointer;text-align:left;color:var(--muted);font-family:inherit;transition:.15s;min-width:0}
+  background:rgba(var(--sup-rgb),.7);cursor:pointer;text-align:left;color:var(--muted);font-family:inherit;transition:.15s;min-width:0}
 .paso-tab .tx{display:flex;flex-direction:column;min-width:0;font-size:var(--t2);font-weight:550;line-height:1.25}
 /* El nombre del cliente debajo del paso 1: es el único dato de la pantalla que se acaba de
    dejar atrás y que hace falta no perder de vista mientras se captura la otra. Nunca
@@ -395,8 +415,8 @@ body.precios-ocultos .precios-nota{display:flex}
 .paso-tab .tx small{font-size:var(--t1);font-weight:400;color:var(--n6);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:22ch}
 .paso-tab .n{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex-shrink:0;border-radius:7px;
   background:var(--n2);color:var(--n6);font-size:var(--t2);font-weight:600}
-.paso-tab:hover{background:#fff;border-color:var(--line)}
-.paso-tab.on{background:#fff;border-color:var(--n3);color:var(--n8)}
+.paso-tab:hover{background:var(--sup);border-color:var(--line)}
+.paso-tab.on{background:var(--sup);border-color:var(--n3);color:var(--n8)}
 .paso-tab.on .n{background:var(--a);color:#fff}
 .paso-tab.hecho .n{background:var(--ok-bg);color:var(--ok)}
 .paso-tab.hecho .n::after{content:'✓'}
@@ -590,8 +610,8 @@ button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-
 @media(max-width:920px){
   .mbar{
     display:flex;position:fixed;left:0;right:0;bottom:0;z-index:45;gap:10px;align-items:center;
-    background:rgba(255,255,255,.97);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
-    border-top:1px solid var(--line);box-shadow:0 -3px 18px rgba(23,29,74,.11);
+    background:rgba(var(--sup-rgb),.97);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border-top:1px solid var(--line);box-shadow:0 -3px 18px rgba(var(--tinta-rgb),.11);
     padding:9px 14px;padding-bottom:calc(9px + env(safe-area-inset-bottom,0px));
     padding-left:max(14px,env(safe-area-inset-left,0px));
     padding-right:max(14px,env(safe-area-inset-right,0px));
@@ -623,7 +643,7 @@ button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-
 /* Deshacer en la barra de abajo. Cuadrado y sin etiqueta: al lado del botón que dice el
    siguiente paso, dos textos compitiendo dejan a los dos sin leer. */
 .mbar-undo{flex:0 0 auto;width:46px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;
-  border:1px solid var(--n3);border-radius:var(--rr1);background:#fff;color:var(--brand);
+  border:1px solid var(--n3);border-radius:var(--rr1);background:var(--sup);color:var(--brand);
   font-size:17px;cursor:pointer;font-family:inherit;padding:0}
 .mbar-undo:active{transform:scale(.96)}
 /* Con el deshacer al lado, el botón principal deja de ser hijo único y perdía su ancho
@@ -644,7 +664,7 @@ button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-
    por ancho es solo QUIÉN se ve: plegar los datos del proyecto sigue siendo cosa del
    celular, donde esa tarjeta estorba después de capturarla; plegar las partidas sirve
    en cualquier pantalla y su botón (#fold-all-btn, más abajo) se enseña siempre. */
-.card-fold{display:none;align-items:center;gap:7px;border:1.5px solid var(--line);background:#fff;
+.card-fold{display:none;align-items:center;gap:7px;border:1.5px solid var(--line);background:var(--sup);
   color:var(--brand-strong);border-radius:9px;padding:7px 11px;font-family:inherit;font-size:11.5px;
   font-weight:700;cursor:pointer;max-width:60%;min-height:40px}
 /* min-width:0 para que el «…» funcione de verdad: un elemento flexible no baja de
@@ -684,13 +704,13 @@ label,.fld-lab{display:block;font-size:var(--t2);font-weight:500;color:var(--n6)
    con aria-labelledby. */
 /* Campos: borde de un píxel y fondo blanco. El borde de píxel y medio con fondo azulado
    engordaba cada campo y, con quince en pantalla, era medio dibujo de más. */
-input,select,textarea{width:100%;min-height:44px;border:1px solid var(--n3);border-radius:var(--rr1);padding:11px 13px;font-size:var(--t3);color:var(--n8);background:#fff;outline:none;font-family:inherit;transition:border-color .12s,box-shadow .12s}
+input,select,textarea{width:100%;min-height:44px;border:1px solid var(--n3);border-radius:var(--rr1);padding:11px 13px;font-size:var(--t3);color:var(--n8);background:var(--sup);outline:none;font-family:inherit;transition:border-color .12s,box-shadow .12s}
 input::placeholder,textarea::placeholder{color:var(--n6)}
 input:hover:not(:disabled),textarea:hover:not(:disabled){border-color:var(--n4)}
 input:focus,select:focus,textarea:focus{border-color:var(--a);box-shadow:0 0 0 3px var(--a-suave)}
 /* El autorrelleno de Safari pinta el campo de amarillo y el texto de negro sobre él */
 input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-text-fill-color:var(--ink);
-  -webkit-box-shadow:0 0 0 100px #fff inset;caret-color:var(--ink)}
+  -webkit-box-shadow:0 0 0 100px var(--sup) inset;caret-color:var(--ink)}
 input:disabled,select:disabled,textarea:disabled{background:var(--n1);border-color:var(--n2);color:var(--n6);cursor:not-allowed}
 textarea{resize:vertical;min-height:46px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -705,7 +725,7 @@ textarea{resize:vertical;min-height:46px}
 .fld label .req{color:var(--amber-ico);font-weight:800;margin-left:1px}
 .fld.falta label{color:var(--amber)}
 .fld.falta input,.fld.falta textarea{border-color:var(--amber-ico);background:var(--amber-bg)}
-.fld.falta input:focus,.fld.falta textarea:focus{border-color:var(--brand);background:#fff}
+.fld.falta input:focus,.fld.falta textarea:focus{border-color:var(--brand);background:var(--sup)}
 
 /* ---------- Partidas ---------- */
 .empty{text-align:center;color:var(--muted);font-size:13px;padding:30px 10px;border:1.5px dashed var(--line);border-radius:var(--r-sm);background:var(--soft)}
@@ -727,7 +747,7 @@ textarea{resize:vertical;min-height:46px}
    una elección entre cinco, no la acción principal de la pantalla. */
 .tipo-seg{display:inline-flex;background:var(--n1);border:1px solid var(--n2);border-radius:var(--rr1);padding:3px;flex-wrap:wrap;gap:2px}
 .tipo-seg button{border:none;background:none;min-height:44px;padding:6px 11px;font-size:var(--t2);font-weight:500;color:var(--n6);border-radius:6px;cursor:pointer;transition:background .12s,color .12s}
-.tipo-seg button.on{background:#fff;color:var(--n8);font-weight:600;box-shadow:0 1px 2px rgba(18,20,28,.07)}
+.tipo-seg button.on{background:#fff;color:var(--n8);font-weight:600;box-shadow:0 1px 2px rgba(var(--tinta-rgb),.07)}
 /* Cada tipo trae su nombre largo y uno corto; en el teléfono se cambia al corto para
    que los cinco quepan en un solo renglón (ver el bloque del final de la hoja). */
 .tipo-seg .sm,.ptipo .sm{display:none}
@@ -738,7 +758,7 @@ textarea{resize:vertical;min-height:46px}
   .tipo-seg{order:9;flex-basis:100%;width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
   .tipo-seg button{padding:10px 5px;font-size:11.5px;line-height:1.25;text-align:center;min-height:44px}
 }
-.del{border:none;background:none;color:#8a90a6;font-size:19px;cursor:pointer;line-height:1;padding:3px 6px;border-radius:7px;transition:.12s}
+.del{border:none;background:none;color:var(--n5);font-size:19px;cursor:pointer;line-height:1;padding:3px 6px;border-radius:7px;transition:.12s}
 .del:hover{color:var(--red);background:var(--red-bg)}
 
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
@@ -751,7 +771,7 @@ textarea{resize:vertical;min-height:46px}
    decidido. Ahora es un botón plano de esquina suave; el elegido se marca con fondo tenue
    del acento, su borde y su tinta —queda claro sin gritar— y el ✓ hace el resto. */
 .chip{display:inline-flex;align-items:center;gap:var(--e2);padding:9px 14px;border:1px solid var(--n3);border-radius:var(--rr1);
-  font-size:var(--t2);font-weight:500;cursor:pointer;background:#fff;color:var(--n7);transition:background .12s,border-color .12s,color .12s;user-select:none}
+  font-size:var(--t2);font-weight:500;cursor:pointer;background:var(--sup);color:var(--n7);transition:background .12s,border-color .12s,color .12s;user-select:none}
 .chip small{font-weight:500;color:var(--n6);font-variant-numeric:tabular-nums}
 .chip .ck{display:none}
 .chip.on{border-color:var(--a-borde);background:var(--a-suave);color:var(--a-fuerte);font-weight:600}
@@ -778,8 +798,8 @@ textarea{resize:vertical;min-height:46px}
 .tipo-seg button:is(:disabled,[aria-disabled="true"]){cursor:default}
 .tipo-seg button:is(:disabled,[aria-disabled="true"]):active{transform:none}
 .tipo-seg button:is(:disabled,[aria-disabled="true"]).on{background:var(--gray-bg);color:var(--ink);box-shadow:none;animation:none}
-.del:is(:disabled,[aria-disabled="true"]){cursor:default;color:#a8aec0}
-.del:is(:disabled,[aria-disabled="true"]):hover{color:#a8aec0;background:none}
+.del:is(:disabled,[aria-disabled="true"]){cursor:default;color:var(--n4)}
+.del:is(:disabled,[aria-disabled="true"]):hover{color:var(--n4);background:none}
 @keyframes chipPop{0%{transform:scale(.84)}65%{transform:scale(1.07)}100%{transform:scale(1)}}
 /* `inline-flex` y no `inline-block`: la nota casi siempre empieza con un icono, y como
    caja de bloque el único separador entre el icono y el texto era un espacio de texto
@@ -812,9 +832,9 @@ textarea{resize:vertical;min-height:46px}
    o sea exactamente igual que uno vivo. Mismo criterio que los chips —el estado se lee,
    pero no promete que se pueda tocar—: el encendido se queda encendido, en gris de
    reposo, y el texto conserva su color de siempre. */
-.switch:disabled .tg{background:#b6bdd0;box-shadow:none}
-.switch:disabled .tg.on{background:#8a90a6}
-.tg{width:42px;height:24px;background:#8a90a6;border-radius:13px;position:relative;transition:.2s;flex-shrink:0}
+.switch:disabled .tg{background:var(--n4);box-shadow:none}
+.switch:disabled .tg.on{background:var(--n5)}
+.tg{width:42px;height:24px;background:var(--n5);border-radius:13px;position:relative;transition:.2s;flex-shrink:0}
 /* La perilla se ve de 42×24, pero se toca en 50×44: la capa invisible crece la zona
    sensible sin mover nada de sitio. Es el control del IVA, de la iluminación y del
    pegado a guías; con 24 px de alto se erraba. */
@@ -838,10 +858,10 @@ textarea{resize:vertical;min-height:46px}
 .addbtn:disabled{opacity:.45;cursor:not-allowed}
 
 /* Duplicate button */
-.dup{border:none;background:none;color:#8a90a6;font-size:16px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px}
+.dup{border:none;background:none;color:var(--n5);font-size:16px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px}
 .dup:hover{color:var(--brand);background:var(--soft-2)}
 /* Drag & drop reorder */
-.drag-handle{cursor:grab;color:#8a90a6;font-size:18px;padding:0 5px 0 0;user-select:none;line-height:1;display:inline-flex;align-items:center}
+.drag-handle{cursor:grab;color:var(--n5);font-size:18px;padding:0 5px 0 0;user-select:none;line-height:1;display:inline-flex;align-items:center}
 .drag-handle:active,.drag-handle:hover{cursor:grabbing;color:var(--brand)}
 /* ----- La cara de la partida plegada -----
    Lo que se está cotizando en esa partida, y nada más: la descripción arriba y debajo
@@ -946,8 +966,8 @@ textarea{resize:vertical;min-height:46px}
 .btn-fila .btn+.btn,.vt-dl .btn+.btn{margin-top:0}
 .btn-pri{background:var(--a);color:#fff}.btn-pri:hover{background:var(--a-fuerte)}
 .btn-ok{background:var(--ok);color:#fff}.btn-ok:hover{filter:brightness(1.08)}
-.btn-dgr{background:#fff;color:var(--mal);border-color:var(--mal-borde)}.btn-dgr:hover{background:var(--mal-bg)}
-.btn-gho{background:#fff;color:var(--n7);border-color:var(--n3)}.btn-gho:hover{border-color:var(--n4);background:var(--n1)}
+.btn-dgr{background:var(--sup);color:var(--mal);border-color:var(--mal-borde)}.btn-dgr:hover{background:var(--mal-bg)}
+.btn-gho{background:var(--sup);color:var(--n7);border-color:var(--n3)}.btn-gho:hover{border-color:var(--n4);background:var(--n1)}
 .btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
 /* ----- Los tres pasos de la entrega -----
    Un renglón por paso, en el orden en que se hacen. El que toca lleva el único relleno de la
@@ -993,7 +1013,7 @@ details.otras-salidas[open] .os-chev{transform:rotate(180deg)}
    lo que se hace con ESTA cotización. */
 .auth-cierre{margin-top:var(--e3);padding-top:var(--e3);border-top:1px solid var(--line)}
 .auth-cierre .btn{margin-top:0}
-.authnote{font-size:12.5px;color:#4b5269;line-height:1.55;background:#fff;border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 13px;margin-bottom:10px}
+.authnote{font-size:12.5px;color:var(--n7);line-height:1.55;background:var(--sup);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 13px;margin-bottom:10px}
 .authnote b{color:var(--ink)}
 .mini{font-size:11.5px;color:var(--muted);margin-top:9px;text-align:center;line-height:1.5}
 
@@ -1023,7 +1043,7 @@ details.otras-salidas[open] .os-chev{transform:rotate(180deg)}
 /* ----- Cola de autorización ----- */
 .queue-list{border:1.5px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-bottom:11px}
 .queue-empty{font-size:12.5px;color:var(--muted);text-align:center;padding:16px 10px;background:var(--soft)}
-.queue-item{display:flex;align-items:center;gap:9px;padding:10px 13px;cursor:pointer;border-bottom:1px solid var(--line);transition:.12s;background:#fff}
+.queue-item{display:flex;align-items:center;gap:9px;padding:10px 13px;cursor:pointer;border-bottom:1px solid var(--line);transition:.12s;background:var(--sup)}
 .queue-item:last-child{border-bottom:none}
 .queue-item:hover:not(.active){background:var(--soft)}
 .queue-item.active{background:var(--soft-2);border-left:3px solid var(--brand);padding-left:10px}
@@ -1062,9 +1082,9 @@ details.otras-salidas[open] .os-chev{transform:rotate(180deg)}
    panel por ir después en el documento — la pantalla se oscurecía y no se veía nada.
    El 80 está libre (modales 60, vectorizador 56, escalador 55, aviso 100). */
 #lightbox{z-index:80}
-.modal{background:#fff;border-radius:20px;max-width:460px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.28);overflow:hidden;
+.modal{background:var(--sup);border-radius:20px;max-width:460px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.28);overflow:hidden;
   display:flex;flex-direction:column;max-height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
-.modal-h{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),#fff);flex-shrink:0}
+.modal-h{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),var(--sup));flex-shrink:0}
 .modal-h b{font-size:15px;font-weight:700}
 .modal-h button{border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:.12s}
 .modal-h button:hover{background:var(--soft);color:var(--ink)}
@@ -1079,32 +1099,32 @@ details.ai-cfg{margin-bottom:13px;border:1px solid var(--line);border-radius:var
    deja de encoger al alto de su letra y el triángulo se alinea con ella. */
 details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:44px;
   font-size:12px;color:var(--brand);cursor:pointer;font-weight:700}
-.ai-merge{margin-top:11px;background:var(--amber-bg);border:1.5px solid rgba(207,138,18,.28);border-radius:var(--r-sm);padding:11px 13px}
-.ai-merge .switch{font-size:12.5px;font-weight:700;color:#7a5800}
-.ai-merge-note{font-size:11.5px;color:#7a5800;line-height:1.5;margin-top:7px}
+.ai-merge{margin-top:11px;background:var(--amber-bg);border:1.5px solid rgba(var(--av-rgb),.28);border-radius:var(--r-sm);padding:11px 13px}
+.ai-merge .switch{font-size:12.5px;font-weight:700;color:var(--av)}
+.ai-merge-note{font-size:11.5px;color:var(--av);line-height:1.5;margin-top:7px}
 /* Campo de API key: se oculta con text-security en vez de type="password" para que
    el navegador no lo tome por una contraseña y ofrezca guardarla. */
 .key-in{-webkit-text-security:disc;text-security:disc;font-family:inherit;letter-spacing:.08em}
-.key-saved{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--green-bg);border:1px solid rgba(21,160,106,.22);border-radius:var(--r-sm);padding:8px 11px}
+.key-saved{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--green-bg);border:1px solid rgba(var(--ok-rgb),.22);border-radius:var(--r-sm);padding:8px 11px}
 .key-list{display:flex;flex-direction:column;gap:6px}
 .key-list:not(:empty){margin-bottom:7px}
 .key-add{display:flex;gap:7px;align-items:stretch}
 .key-add .key-in{flex:1;min-width:0}
 .key-btn.add{white-space:nowrap;padding:0 13px;background:var(--soft-2)}
 .key-mask{flex:1;min-width:0;font-size:12px;font-weight:700;color:var(--green);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.key-btn{border:1px solid var(--line);background:#fff;color:var(--a-fuerte);border-radius:8px;padding:4px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit}
+.key-btn{border:1px solid var(--line);background:var(--sup);color:var(--a-fuerte);border-radius:8px;padding:4px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit}
 .key-btn:hover{background:var(--soft-2)}
 .key-btn.del{color:var(--red)}
 .key-note{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:9px;border-top:1px dashed var(--line);padding-top:9px}
-.ai-tag{display:inline-block;font-size:9.5px;font-weight:700;color:var(--a-fuerte);background:#eef0fe;border-radius:5px;padding:1px 5px;margin-left:5px;vertical-align:middle;text-transform:none;letter-spacing:0}
+.ai-tag{display:inline-block;font-size:9.5px;font-weight:700;color:var(--a-fuerte);background:var(--a-suave);border-radius:5px;padding:1px 5px;margin-left:5px;vertical-align:middle;text-transform:none;letter-spacing:0}
 /* Origen del análisis cuando no es un archivo suelto sino lo que se acaba de medir */
-.ai-src{display:flex;gap:11px;align-items:flex-start;background:var(--green-bg);border:1.5px solid rgba(21,160,106,.28);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:13px}
+.ai-src{display:flex;gap:11px;align-items:flex-start;background:var(--green-bg);border:1.5px solid rgba(var(--ok-rgb),.28);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:13px}
 /* contain, no cover: de un plano o un boceto hay que reconocer el conjunto, y
    recortarlo a un cuadrado deja fuera justo lo que se va a cotizar. */
-.ai-src-img{width:76px;height:76px;object-fit:contain;border-radius:9px;border:1px solid rgba(21,160,106,.25);flex-shrink:0;background:#fff;padding:3px}
+.ai-src-img{width:76px;height:76px;object-fit:contain;border-radius:9px;border:1px solid rgba(var(--ok-rgb),.25);flex-shrink:0;background:var(--sup);padding:3px}
 .ai-src-b{flex:1;min-width:0}
 .ai-src-t{font-size:12.5px;font-weight:800;color:var(--green)}
-.ai-src-n{font-size:11.5px;color:#1c6e3d;line-height:1.45;margin:3px 0 8px}
+.ai-src-n{font-size:11.5px;color:var(--ok);line-height:1.45;margin:3px 0 8px}
 /* ----- Entregarle el archivo a la IA: arrastrarlo, tocarlo o pegarlo -----
    El archivo entraba solo por el selector nativo, así que un diseño que el cliente manda
    por WhatsApp había que bajarlo al disco primero y después ir a buscarlo a la carpeta de
@@ -1116,7 +1136,7 @@ details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:
   background:var(--soft);cursor:pointer;text-align:center;transition:border-color .12s,background .12s,box-shadow .12s}
 .ai-drop:hover{border-color:var(--brand);background:var(--a-suave)}
 .ai-drop:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
-.ai-drop.sobre{border-color:var(--brand);border-style:solid;background:var(--a-suave);box-shadow:0 0 0 4px rgba(64,96,248,.16)}
+.ai-drop.sobre{border-color:var(--brand);border-style:solid;background:var(--a-suave);box-shadow:0 0 0 4px rgba(var(--a-rgb),.16)}
 .ai-drop .ico{font-size:26px;color:var(--brand)}
 .ai-drop .t{font-size:13.5px;font-weight:800;color:var(--n7)}
 .ai-drop .s{font-size:11.5px;color:var(--muted);line-height:1.5}
@@ -1132,26 +1152,26 @@ details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:
 /* El archivo ya elegido. El selector nativo lo decía con su propio texto gris; con el
    recuadro ese texto ya no está, y analizar a ciegas es justo el error que cuesta una
    llamada a la API y el viaje de vuelta. */
-.ai-pick{display:flex;gap:10px;align-items:center;background:var(--green-bg);border:1.5px solid rgba(21,160,106,.28);border-radius:var(--r-sm);padding:9px 11px;margin-top:9px}
-.ai-pick-img{width:52px;height:52px;object-fit:contain;border-radius:8px;border:1px solid rgba(21,160,106,.25);background:#fff;flex-shrink:0;padding:2px}
+.ai-pick{display:flex;gap:10px;align-items:center;background:var(--green-bg);border:1.5px solid rgba(var(--ok-rgb),.28);border-radius:var(--r-sm);padding:9px 11px;margin-top:9px}
+.ai-pick-img{width:52px;height:52px;object-fit:contain;border-radius:8px;border:1px solid rgba(var(--ok-rgb),.25);background:var(--sup);flex-shrink:0;padding:2px}
 .ai-pick-ph{width:52px;height:52px;display:flex;align-items:center;justify-content:center;border-radius:8px;border:1.5px dashed var(--red);background:var(--red-bg);color:var(--red);flex-shrink:0;font-size:20px}
 .ai-pick-b{flex:1;min-width:0}
 .ai-pick-n{font-size:12.5px;font-weight:800;color:var(--green);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ai-pick-m{font-size:11.5px;color:#1c6e3d;margin-top:2px}
-.ai-pick-x{border:none;background:none;color:#1c6e3d;font-size:18px;line-height:1;cursor:pointer;padding:3px 7px;border-radius:6px;flex-shrink:0;font-family:inherit}
+.ai-pick-m{font-size:11.5px;color:var(--ok);margin-top:2px}
+.ai-pick-x{border:none;background:none;color:var(--ok);font-size:18px;line-height:1;cursor:pointer;padding:3px 7px;border-radius:6px;flex-shrink:0;font-family:inherit}
 .ai-pick-x:hover{color:var(--red);background:var(--red-bg)}
 /* Con el archivo encima del modal, el modal entero se anuncia como destino: quien suelta
    ve que la ventana correcta es la que va a recibirlo. */
-#aimodal.arrastrando .modal{box-shadow:0 0 0 3px var(--brand),0 24px 60px rgba(23,29,74,.28)}
+#aimodal.arrastrando .modal{box-shadow:0 0 0 3px var(--brand),0 24px 60px rgba(var(--tinta-rgb),.28)}
 /* Segunda entrada a lo mismo, desde la vista previa que queda junto a las partidas */
 .sc-prev-ia{width:100%;margin-top:9px;padding:9px 12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 10px rgba(var(--a-rgb),.25)}
 .sc-prev-ia:hover{filter:brightness(1.06)}
 .ai-prev-big{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--soft);padding:12px;margin-bottom:14px}
 .ai-prev-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
 .ai-prev-head .ttl{font-size:11.5px;font-weight:700;color:var(--brand);line-height:1.4}
-.ai-prev-head .x{border:none;background:none;color:#8a90a6;font-size:18px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px;flex-shrink:0;transition:.12s}
+.ai-prev-head .x{border:none;background:none;color:var(--n5);font-size:18px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px;flex-shrink:0;transition:.12s}
 .ai-prev-head .x:hover{color:var(--red);background:var(--red-bg)}
-.ai-prev-img{display:block;width:100%;max-height:440px;object-fit:contain;border-radius:9px;border:1px solid var(--line);background:repeating-conic-gradient(#f4f5f9 0% 25%,#fff 0% 50%) 50%/16px 16px;cursor:zoom-in}
+.ai-prev-img{display:block;width:100%;max-height:440px;object-fit:contain;border-radius:9px;border:1px solid var(--line);background:repeating-conic-gradient(var(--n1) 0% 25%,var(--sup) 0% 50%) 50%/16px 16px;cursor:zoom-in}
 .ai-prev-pdf{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:130px;border-radius:9px;border:1.5px dashed var(--red);background:var(--red-bg);color:var(--red);font-weight:700;font-size:13px;cursor:pointer;text-align:center;padding:10px}
 .ai-prev-big .sub{font-size:11px;color:var(--muted);margin-top:8px;text-align:center}
 /* ----- Vista previa de la imagen del escalador, junto a las partidas ----- */
@@ -1159,7 +1179,7 @@ details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:
 .sc-prev-head{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;user-select:none}
 .sc-prev-head .ttl{font-size:11.5px;font-weight:700;color:var(--brand);line-height:1.4}
 .sc-prev-head .chev{font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;flex-shrink:0}
-.sc-prev-img{display:block;width:100%;height:auto;max-height:420px;margin-top:9px;border-radius:9px;border:1px solid var(--line);background:repeating-conic-gradient(#f4f5f9 0% 25%,#fff 0% 50%) 50%/16px 16px;cursor:pointer;object-fit:contain}
+.sc-prev-img{display:block;width:100%;height:auto;max-height:420px;margin-top:9px;border-radius:9px;border:1px solid var(--line);background:repeating-conic-gradient(var(--n1) 0% 25%,var(--sup) 0% 50%) 50%/16px 16px;cursor:pointer;object-fit:contain}
 .sc-prev-box .sub{font-size:11px;color:var(--muted);margin-top:8px;text-align:center}
 .lightbox-close{position:fixed;top:max(20px,calc(env(safe-area-inset-top,0px) + 8px));right:max(24px,calc(env(safe-area-inset-right,0px) + 8px));width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:70;transition:.12s}
 .lightbox-close:hover{background:rgba(255,255,255,.28)}
@@ -1207,37 +1227,37 @@ details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:
    azul de enlace con a:link, que es más específico que .btn-hist: sin esto, dos controles
    que hacen lo mismo se ven distintos y el de la derecha parece de otra app. */
 a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
-.hist-panel{background:#fff;border-radius:20px;max-width:720px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;
+.hist-panel{background:var(--sup);border-radius:20px;max-width:720px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;
   max-height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
-.hist-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),#fff);border-radius:var(--rr4) var(--rr4) 0 0;flex-shrink:0}
+.hist-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--soft),var(--sup));border-radius:var(--rr4) var(--rr4) 0 0;flex-shrink:0}
 /* Cerrar el historial. El tamaño venía de un style= en línea de 32×32 px que ninguna
    hoja podía subir; como clase sí la alcanza el bloque de puntero grueso del final. */
 .hist-close{border:none;background:none;font-size:19px;color:var(--muted);cursor:pointer;
   line-height:1;width:36px;height:36px;border-radius:var(--rr1);display:flex;align-items:center;
   justify-content:center;flex:0 0 auto;padding:0}
 .hist-close:active{background:var(--soft-2)}
-.hist-search-bar{display:flex;align-items:center;gap:10px;padding:11px 20px;border-bottom:1px solid var(--line);flex-shrink:0;background:#fff}
+.hist-search-bar{display:flex;align-items:center;gap:10px;padding:11px 20px;border-bottom:1px solid var(--line);flex-shrink:0;background:var(--sup)}
 .hist-search-bar input{flex:1;min-width:0}
 .hist-count{font-size:11px;font-weight:800;color:var(--a-fuerte);background:var(--soft-2);border:1px solid rgba(var(--a-rgb),.12);padding:5px 12px;border-radius:20px;white-space:nowrap}
 .hist-body{overflow-y:auto;flex:1}
 .hentry-acts{display:flex;flex-direction:column;gap:5px;align-self:flex-start;flex-shrink:0}
-.hentry-open{border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap;transition:.12s}
+.hentry-open{border:1.5px solid var(--line);background:var(--sup);color:var(--brand);font-family:inherit;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap;transition:.12s}
 .hentry-open:hover{border-color:var(--brand);background:var(--soft-2)}
 .hist-empty{text-align:center;color:var(--muted);font-size:13px;padding:50px 20px}
 .hentry{border-bottom:1px solid var(--line);padding:18px 20px}
 .hentry:last-child{border-bottom:none}
 .hentry-top{display:flex;align-items:flex-start;gap:13px;margin-bottom:12px}
-.hentry-img{width:96px;height:96px;object-fit:cover;border-radius:11px;border:1px solid var(--line);cursor:zoom-in;flex-shrink:0;background:repeating-conic-gradient(#f4f5f9 0% 25%,#fff 0% 50%) 50%/12px 12px}
+.hentry-img{width:96px;height:96px;object-fit:cover;border-radius:11px;border:1px solid var(--line);cursor:zoom-in;flex-shrink:0;background:repeating-conic-gradient(var(--n1) 0% 25%,var(--sup) 0% 50%) 50%/12px 12px}
 .hentry-img-ph{width:96px;height:96px;border-radius:11px;border:1.5px dashed var(--line);background:var(--soft);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:30px;flex-shrink:0}
 .hentry-meta{flex:1;min-width:0}
 .hentry-folio{font-size:10px;font-weight:800;color:var(--brand);letter-spacing:.5px;text-transform:uppercase}
 .hentry-name{font-size:14px;font-weight:800;color:var(--ink);margin:3px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hentry-sub{font-size:11.5px;color:var(--muted);line-height:1.6}
 .hentry-auth{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;background:var(--green-bg);color:var(--green);padding:3px 11px;border-radius:20px;margin-top:6px}
-.hentry-del{border:none;background:none;color:#8a90a6;cursor:pointer;font-size:16px;padding:5px 7px;border-radius:9px;transition:.12s;align-self:flex-start;flex-shrink:0}
+.hentry-del{border:none;background:none;color:var(--n5);cursor:pointer;font-size:16px;padding:5px 7px;border-radius:9px;transition:.12s;align-self:flex-start;flex-shrink:0}
 .hentry-del:hover{color:var(--red);background:var(--red-bg)}
 .htable{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:10px}
-.htable td{padding:5px 7px;border-bottom:1px solid var(--line);color:#4b5269;vertical-align:top}
+.htable td{padding:5px 7px;border-bottom:1px solid var(--line);color:var(--n7);vertical-align:top}
 .htable td:first-child{width:28px;font-weight:800;color:var(--brand);text-align:center}
 .htable td:last-child{text-align:right;font-weight:700;color:var(--ink);white-space:nowrap}
 .htable tr:last-child td{border-bottom:none}
@@ -1270,7 +1290,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .cua-det-datos{font-size:12px;color:var(--muted);line-height:1.65;margin-top:5px}
 .cua-alias{font-size:11px;color:var(--muted);margin-top:4px;font-style:italic}
 .cua-det-acts{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
-.cua-det-acts button{border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:11.5px;
+.cua-det-acts button{border:1.5px solid var(--line);background:var(--sup);color:var(--brand);font-family:inherit;font-size:11.5px;
   font-weight:700;padding:7px 12px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap;transition:.12s}
 .cua-det-acts button:hover{border-color:var(--brand);background:var(--soft-2)}
 .cua-cifras{display:flex;gap:9px;padding:13px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
@@ -1290,7 +1310,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .cua-cot-fecha{font-size:11px;color:var(--muted)}
 .cua-cot-tot{font-size:13px;font-weight:800;color:var(--green);white-space:nowrap;flex-shrink:0}
 .cua-cot-acts{display:flex;gap:5px;flex-shrink:0}
-.cua-cot-acts button{border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:11px;
+.cua-cot-acts button{border:1.5px solid var(--line);background:var(--sup);color:var(--brand);font-family:inherit;font-size:11px;
   font-weight:700;padding:6px 9px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap;transition:.12s}
 .cua-cot-acts button:hover{border-color:var(--brand);background:var(--soft-2)}
 
@@ -1301,9 +1321,9 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
   cursor:pointer;padding:0;text-decoration:underline;white-space:nowrap}
 /* ----- Dirección raw del cliente ----- */
 .dir-raw-actions{display:flex;gap:8px;margin-top:7px}
-.btn-maps{flex:1;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff;color:var(--brand);font-size:12px;font-weight:700;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:5px}
+.btn-maps{flex:1;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--sup);color:var(--brand);font-size:12px;font-weight:700;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:5px}
 .btn-maps:hover{border-color:var(--brand);background:var(--soft-2)}
-.btn-maps.copy{color:var(--green);border-color:rgba(21,160,106,.25)}.btn-maps.copy:hover{background:var(--green-bg);border-color:var(--green)}
+.btn-maps.copy{color:var(--green);border-color:rgba(var(--ok-rgb),.25)}.btn-maps.copy:hover{background:var(--green-bg);border-color:var(--green)}
 /* ----- AI preview en sidebar ----- */
 .side #aiPreview:not(:empty){margin-bottom:14px}
 .side .ai-prev-big{border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
@@ -1314,7 +1334,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .inp-money::before{content:'$';position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-weight:700;font-size:13px;pointer-events:none;z-index:1}
 .inp-money input{padding-left:26px}
 /* ----- Auth por partida ----- */
-.ia-row{border:1px solid var(--line);border-radius:8px;margin-bottom:5px;overflow:hidden;background:#fff}
+.ia-row{border:1px solid var(--line);border-radius:8px;margin-bottom:5px;overflow:hidden;background:var(--sup)}
 .ia-hdr{display:flex;align-items:center;gap:7px;padding:8px 10px;cursor:pointer;user-select:none;transition:.1s}
 .ia-hdr:hover{background:var(--soft)}
 .ia-num{width:20px;height:20px;border-radius:6px;background:var(--brand-grd);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -1325,7 +1345,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .ia-adj{font-size:11px;color:var(--green);font-weight:600;margin-top:4px;min-height:14px}
 .ia-adj.inc{color:var(--amber)}
 .ia-total{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700;padding:8px 10px;background:var(--soft-2);border-radius:8px;margin-top:6px;border:1px solid var(--line);margin-bottom:10px}
-.ia-total.soft{background:#fff;color:var(--brand);margin-top:-5px}
+.ia-total.soft{background:var(--sup);color:var(--brand);margin-top:-5px}
 /* ----- Barra de progreso ----- */
 /* La barra de completitud es un botón: decía cuánto falta pero no qué, y ahora lleva a
    lo primero pendiente. Se conserva el aspecto que ya tenía de bloque, no de botón. */
@@ -1344,7 +1364,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
    solo inset:0 el pie del panel quedaba fuera de la pantalla, sin manera de volver. */
 .scaler-modal-bg{position:fixed;inset:0;height:100dvh;background:rgba(12,15,38,.75);display:none;z-index:55;flex-direction:column;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);overscroll-behavior:contain}
 .scaler-modal-bg.show{display:flex}
-.sp-topbar{background:rgba(255,255,255,.96);backdrop-filter:blur(14px);border-bottom:1px solid rgba(224,228,240,.7);flex-shrink:0;padding:0 20px;height:56px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 8px rgba(23,29,74,.06)}
+.sp-topbar{background:rgba(var(--sup-rgb),.96);backdrop-filter:blur(14px);border-bottom:1px solid rgba(var(--n3-rgb),.7);flex-shrink:0;padding:0 20px;height:56px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 8px rgba(var(--tinta-rgb),.06)}
 .sp-main{flex:1;display:flex;overflow:hidden;min-height:0}
 .sp-canvas-area{flex:1;position:relative;overflow:hidden;background:#181c2e;background-image:radial-gradient(rgba(255,255,255,.04) 1px,transparent 1px);background-size:22px 22px;display:flex;align-items:center;justify-content:center;min-width:0;touch-action:none;overscroll-behavior:contain}
 /* El lienzo cubre toda el área: el zoom se aplica dentro del canvas, no con transform
@@ -1365,7 +1385,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 /* overflow-y:auto y no hidden: con una pantalla ancha y baja —el Fold 6 abierto tiene
    716 px de alto— el contenido del panel no cabe y con `hidden` se recortaba sin manera
    de llegar al final. */
-.sp-side{width:306px;flex-shrink:0;background:#fff;border-left:1px solid var(--line);display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;box-shadow:-2px 0 12px rgba(23,29,74,.04)}
+.sp-side{width:306px;flex-shrink:0;background:var(--sup);border-left:1px solid var(--line);display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;box-shadow:-2px 0 12px rgba(var(--tinta-rgb),.04)}
 .sp-sec{border-bottom:1px solid var(--line)}
 .sp-sec-h{padding:16px 20px 0}
 .sp-sec-h h3{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--brand);display:flex;align-items:center;gap:8px}
@@ -1373,19 +1393,19 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .sp-sec-b{padding:14px 20px 18px}
 .sp-mlist{flex:1;overflow-y:auto;min-height:0;padding:10px 14px 8px}
 .sp-mlist-empty{text-align:center;color:var(--muted);font-size:13px;padding:28px 12px;line-height:1.7;border:1.5px dashed var(--line);border-radius:var(--r-sm);background:var(--soft);margin-top:2px}
-.sp-mitem{border:1px solid rgba(224,228,240,.8);border-left:3px solid var(--brand);border-radius:var(--r-sm);padding:12px 11px;margin-bottom:9px;background:#fff;box-shadow:var(--sh-sm);display:flex;align-items:stretch;gap:9px;cursor:pointer;transition:box-shadow .15s}
-.sp-mitem:hover{box-shadow:0 2px 8px rgba(23,29,74,.06),0 8px 28px rgba(23,29,74,.1)}
+.sp-mitem{border:1px solid rgba(var(--n3-rgb),.8);border-left:3px solid var(--brand);border-radius:var(--r-sm);padding:12px 11px;margin-bottom:9px;background:var(--sup);box-shadow:var(--sh-sm);display:flex;align-items:stretch;gap:9px;cursor:pointer;transition:box-shadow .15s}
+.sp-mitem:hover{box-shadow:0 2px 8px rgba(var(--tinta-rgb),.06),0 8px 28px rgba(var(--tinta-rgb),.1)}
 .sp-mitem.sel{border-color:var(--brand-strong);background:var(--soft-2);box-shadow:0 0 0 3px rgba(var(--a-rgb),.12)}
 .sp-mitem-cm{font-size:17px;font-weight:900;color:var(--brand-strong);line-height:1;letter-spacing:.1px;font-variant-numeric:tabular-nums}
 .sp-mitem-cm small{font-size:11px;font-weight:600;color:var(--muted);margin-left:2px}
 .sp-mitem-label{display:block;width:100%;border:none;background:transparent;padding:3px 0;font-size:12px;color:var(--ink);font-family:inherit;cursor:text;margin-top:4px;outline:none;border-bottom:1px solid transparent;transition:.15s}
 .sp-mitem-label:focus{color:var(--ink);border-bottom-color:var(--line)}
-.sp-mitem-label::placeholder{color:#8a90a6}
+.sp-mitem-label::placeholder{color:var(--n5)}
 .sp-mitem-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0;padding-top:2px}
 .sp-mitem-add{margin-top:8px;width:100%;padding:7px 10px;background:var(--brand-grd);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px}
-.sp-mitem-add.done{background:var(--green-bg);color:var(--green);border:1px solid rgba(21,160,106,.25);font-weight:600}
+.sp-mitem-add.done{background:var(--green-bg);color:var(--green);border:1px solid rgba(var(--ok-rgb),.25);font-weight:600}
 .sp-addall{margin:0 14px 10px;padding:9px 12px;width:calc(100% - 28px);border:1.5px solid var(--brand);border-radius:var(--r-sm);background:var(--soft-2);color:var(--brand-strong);font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;transition:.15s}
-.sp-addall:hover{background:#e5e9ff}
+.sp-addall:hover{background:var(--a-suave)}
 .sp-addall:disabled{opacity:.45;cursor:default}
 .sp-addall-note{margin:0 14px 10px;font-size:11.5px;color:var(--green);font-weight:700;text-align:center}
 /* Del escalador a la IA: la otra salida de las medidas, la que devuelve la partida
@@ -1397,7 +1417,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 /* Volver al cotizador desde el pie del panel: en el celular es el botón que se queda
    pegado abajo, siempre a la vista aunque la lista de medidas crezca. */
 .sp-back-m{display:none}
-.sp-ibtn{border:none;background:none;color:#8a90a6;font-size:15px;cursor:pointer;padding:3px 6px;border-radius:6px;line-height:1;transition:.12s}
+.sp-ibtn{border:none;background:none;color:var(--n5);font-size:15px;cursor:pointer;padding:3px 6px;border-radius:6px;line-height:1;transition:.12s}
 .sp-ibtn:hover{color:var(--red);background:var(--red-bg)}
 /* ----- Secciones plegables del panel -----
    El panel del escalador es una columna de 412 px visibles en el teléfono y su
@@ -1420,20 +1440,20 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
   border:1px solid rgba(var(--a-rgb),.12);border-radius:20px;padding:2px 9px;flex-shrink:0}
 .sp-fold-n:empty{display:none}
 /* ----- Guías del escalador ----- */
-.sp-gitem{display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;border:1px solid rgba(224,228,240,.8);border-left:3px solid var(--sc-guide);border-radius:var(--r-sm);background:#fff;font-size:12.5px}
+.sp-gitem{display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;border:1px solid rgba(var(--n3-rgb),.8);border-left:3px solid var(--sc-guide);border-radius:var(--r-sm);background:var(--sup);font-size:12.5px}
 .sp-gitem .ico{color:var(--sc-guide);width:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px}
 .sp-gitem .lbl{flex:1;color:var(--ink);font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sp-gclear{display:block;width:100%;margin-top:2px;padding:6px;border:none;background:none;color:var(--muted);font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;border-radius:7px;transition:.12s}
 .sp-gclear:hover{color:var(--red);background:var(--red-bg)}
-.sp-calib-badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:20px;white-space:nowrap;flex-shrink:0;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(207,138,18,.2)}
-.sp-calib-badge.ok{background:var(--green-bg);color:var(--green);border-color:rgba(21,160,106,.2)}
+.sp-calib-badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:20px;white-space:nowrap;flex-shrink:0;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(var(--av-rgb),.2)}
+.sp-calib-badge.ok{background:var(--green-bg);color:var(--green);border-color:rgba(var(--ok-rgb),.2)}
 .sp-calib-badge .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
 .tool-seg{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:var(--r-sm);padding:3px;gap:2px}
 .tool-seg button{border:none;background:none;padding:7px 13px;font-size:12.5px;font-weight:600;color:var(--muted);border-radius:9px;cursor:pointer;transition:.15s;font-family:inherit;white-space:nowrap}
 .tool-seg button:hover:not(.active){background:rgba(var(--a-rgb),.06);color:var(--brand)}
 .tool-seg button.active{background:var(--brand-grd);color:#fff;box-shadow:0 2px 10px rgba(var(--a-rgb),.3)}
 .tool-seg button:disabled{opacity:.38;pointer-events:none}
-.sp-tb-btn{border:1.5px solid var(--line);background:#fff;border-radius:var(--r-sm);padding:8px 14px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;transition:.14s;display:flex;align-items:center;gap:6px;white-space:nowrap;font-family:inherit}
+.sp-tb-btn{border:1.5px solid var(--line);background:var(--sup);border-radius:var(--r-sm);padding:8px 14px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;transition:.14s;display:flex;align-items:center;gap:6px;white-space:nowrap;font-family:inherit}
 .sp-tb-btn:hover{border-color:var(--brand);color:var(--brand);background:var(--soft)}
 .sp-tb-btn.active{background:var(--brand-grd);color:#fff;border-color:var(--brand);box-shadow:0 2px 10px rgba(var(--a-rgb),.28)}
 .sp-tb-btn:disabled{opacity:.42;cursor:not-allowed;pointer-events:none}
@@ -1443,20 +1463,20 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .sp-close:hover{background:var(--soft);color:var(--ink)}
 .sp-close .ico{font-size:19px;line-height:1;display:flex}
 .sp-close .back,.sp-close .lbl{display:none}
-.btn-scaler-open{display:flex;align-items:center;justify-content:center;gap:var(--e2);padding:10px 14px;border:1px solid var(--n3);border-radius:var(--rr1);background:#fff;color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;transition:border-color .12s,background .12s;white-space:nowrap}
-.btn-scaler-open:hover{background:#e8f9ee;border-color:#1c6e3d}
+.btn-scaler-open{display:flex;align-items:center;justify-content:center;gap:var(--e2);padding:10px 14px;border:1px solid var(--n3);border-radius:var(--rr1);background:var(--sup);color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;transition:border-color .12s,background .12s;white-space:nowrap}
+.btn-scaler-open:hover{background:var(--ok-bg);border-color:var(--ok)}
 .scaler-ai-row{display:flex;gap:8px;margin-bottom:14px}
 .scaler-ai-row .ai-btn{flex:1;margin-bottom:0}
 .sc-flash{animation:scFlash 1.5s ease-out 1}
 @keyframes scFlash{0%,55%{box-shadow:0 0 0 3px rgba(var(--a-rgb),.35);border-radius:var(--r-sm)}100%{box-shadow:0 0 0 3px rgba(var(--a-rgb),0);border-radius:var(--r-sm)}}
 .ref-known{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:8px}
 .ref-known-title{font-size:11px;font-weight:700;color:var(--muted);margin-right:2px;white-space:nowrap}
-.ref-known button{padding:5px 9px;border:1.5px solid var(--line);border-radius:8px;background:#fff;font-size:11.5px;font-weight:600;cursor:pointer;color:var(--ink);transition:.12s;white-space:nowrap;font-family:inherit}
+.ref-known button{padding:5px 9px;border:1.5px solid var(--line);border-radius:8px;background:var(--sup);font-size:11.5px;font-weight:600;cursor:pointer;color:var(--ink);transition:.12s;white-space:nowrap;font-family:inherit}
 .ref-known button:hover{border-color:var(--brand);background:var(--soft-2);color:var(--brand)}
 /* ----- Zoom / desplazamiento y lupa del escalador ----- */
 .sp-zoom{position:absolute;right:12px;bottom:52px;display:none;flex-direction:column;gap:7px;z-index:6}
 .sp-zoom button{width:42px;height:42px;border:none;border-radius:11px;background:rgba(255,255,255,.95);color:var(--ink);font-size:20px;font-weight:800;cursor:pointer;box-shadow:0 3px 14px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;line-height:1;font-family:inherit}
-.sp-zoom button:active{background:#eef1ff;transform:scale(.94)}
+.sp-zoom button:active{background:var(--a-suave);transform:scale(.94)}
 .sp-loupe{position:fixed;width:132px;height:132px;border-radius:50%;border:3px solid rgba(255,255,255,.92);box-shadow:0 6px 26px rgba(0,0,0,.45);display:none;pointer-events:none;z-index:60;overflow:hidden;background:#181c2e}
 .sp-loupe canvas{display:block}
 /* ===================== Vectorizador =====================
@@ -1475,7 +1495,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .vt-stage canvas{position:absolute;top:0;left:0;display:block;width:100%;height:100%}
 .vt-stage canvas.base{position:relative}
 /* Cuadrícula de transparencia: el vector puede salir sin fondo y sin esto no se nota */
-.vt-stage{background:repeating-conic-gradient(#dfe3ee 0% 25%,#fff 0% 50%) 50%/18px 18px;box-shadow:0 10px 44px rgba(0,0,0,.42)}
+.vt-stage{background:repeating-conic-gradient(var(--n3) 0% 25%,#fff 0% 50%) 50%/18px 18px;box-shadow:0 10px 44px rgba(0,0,0,.42)}
 #vt-cvs-out{clip-path:inset(0 0 0 0)}
 /* Cortina de comparación */
 .vt-split{position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,.95);box-shadow:0 0 0 1px rgba(12,15,38,.35);z-index:4;display:none;cursor:ew-resize;touch-action:none}
@@ -1497,7 +1517,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .vt-val{font-size:12px;font-weight:800;color:var(--brand-strong);background:var(--soft-2);border:1px solid rgba(var(--a-rgb),.14);border-radius:20px;padding:2px 10px;min-width:38px;text-align:center;flex-shrink:0}
 .vt-modal-bg input[type=range]{width:100%;accent-color:var(--brand);height:26px}
 .vt-modo{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.vt-modo button{padding:9px 4px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff;font-family:inherit;font-size:12px;font-weight:700;color:var(--ink);cursor:pointer;transition:.14s;display:flex;flex-direction:column;align-items:center;gap:3px;line-height:1.25}
+.vt-modo button{padding:9px 4px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--sup);font-family:inherit;font-size:12px;font-weight:700;color:var(--ink);cursor:pointer;transition:.14s;display:flex;flex-direction:column;align-items:center;gap:3px;line-height:1.25}
 .vt-modo button .svgi{font-size:17px}
 .vt-modo button small{font-size:9.5px;font-weight:600;color:var(--muted);letter-spacing:.2px}
 .vt-modo button:hover{border-color:var(--brand);background:var(--soft)}
@@ -1515,18 +1535,18 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .vt-stat.hl{background:var(--soft-2);border-color:rgba(var(--a-rgb),.18)}
 .vt-stat.hl .v{color:var(--brand-strong)}
 .vt-swatches{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
-.vt-sw{width:24px;height:24px;border-radius:7px;border:1.5px solid rgba(23,29,74,.14);cursor:pointer;position:relative;transition:.12s;padding:0;background-clip:padding-box}
+.vt-sw{width:24px;height:24px;border-radius:7px;border:1.5px solid rgba(var(--tinta-rgb),.14);cursor:pointer;position:relative;transition:.12s;padding:0;background-clip:padding-box}
 .vt-sw:hover{transform:scale(1.12)}
 .vt-sw.off{opacity:.25}
 .vt-sw.off::after{content:'';position:absolute;left:1px;right:1px;top:50%;height:2px;background:var(--red);transform:rotate(-45deg)}
 .vt-empty{text-align:center;color:var(--muted);font-size:12.5px;padding:22px 12px;line-height:1.65;border:1.5px dashed var(--line);border-radius:var(--r-sm);background:var(--soft)}
 .vt-esc-note{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:8px}
-.vt-esc-ok{background:var(--green-bg);border:1px solid rgba(21,160,106,.2);border-radius:var(--r-sm);padding:9px 11px;font-size:12px;color:var(--green);font-weight:700;margin-bottom:10px;line-height:1.45}
-.vt-warn{background:var(--amber-bg);border:1px solid rgba(207,138,18,.22);border-radius:var(--r-sm);padding:9px 11px;font-size:11.5px;color:var(--amber);font-weight:600;line-height:1.5;margin-top:9px}
+.vt-esc-ok{background:var(--green-bg);border:1px solid rgba(var(--ok-rgb),.2);border-radius:var(--r-sm);padding:9px 11px;font-size:12px;color:var(--green);font-weight:700;margin-bottom:10px;line-height:1.45}
+.vt-warn{background:var(--amber-bg);border:1px solid rgba(var(--av-rgb),.22);border-radius:var(--r-sm);padding:9px 11px;font-size:11.5px;color:var(--amber);font-weight:600;line-height:1.5;margin-top:9px}
 .vt-dl{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:9px}
 .vt-modal-bg .sp-actions{padding:10px 14px 12px}
-.btn-vector-open{display:flex;align-items:center;justify-content:center;gap:var(--e2);padding:10px 14px;border:1px solid var(--n3);border-radius:var(--rr1);background:#fff;color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;transition:border-color .12s,background .12s;white-space:nowrap;font-family:inherit}
-.btn-vector-open:hover{background:#f1ecfd;border-color:#5227b8}
+.btn-vector-open{display:flex;align-items:center;justify-content:center;gap:var(--e2);padding:10px 14px;border:1px solid var(--n3);border-radius:var(--rr1);background:var(--sup);color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;transition:border-color .12s,background .12s;white-space:nowrap;font-family:inherit}
+.btn-vector-open:hover{background:var(--a2-suave);border-color:#5227b8}
 /* Los dos modales de pantalla completa —escalador y vectorizador— cambian a diseño de
    teléfono a los 1000 px y no a los 760. Su barra de herramientas necesita 982 px para
    caber en un renglón, así que entre 761 y 981 px desbordaba por la derecha y dejaba
@@ -1596,7 +1616,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
   .sp-mitem-label{padding:6px 0;font-size:13px}
   .ref-known button{min-height:40px;padding:8px 12px;font-size:12.5px}
   .sp-zoom button{width:46px;height:46px}
-  .sp-close{width:auto;height:44px;padding:0 12px;border:1.5px solid var(--line);background:#fff;color:var(--ink)}
+  .sp-close{width:auto;height:44px;padding:0 12px;border:1.5px solid var(--line);background:var(--sup);color:var(--ink)}
   .sp-close .ico{display:none}
   .sp-close .back{display:flex;font-size:18px;line-height:1}
   .sp-close .lbl{display:inline;font-size:13px;font-weight:800}
@@ -1609,7 +1629,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
      (.vt-modal-bg .sp-actions) tiene dos clases y ganaba por especificidad, así que su pie
      pegado perdía el margen de la franja de gestos del iPhone y los botones quedaban donde
      el gesto de volver a inicio se los come. */
-  .sp-actions,.vt-modal-bg .sp-actions{order:9;position:sticky;bottom:0;z-index:4;background:#fff;border-top:1px solid var(--line);box-shadow:0 -7px 16px rgba(23,29,74,.08);margin-top:4px;
+  .sp-actions,.vt-modal-bg .sp-actions{order:9;position:sticky;bottom:0;z-index:4;background:var(--sup);border-top:1px solid var(--line);box-shadow:0 -7px 16px rgba(var(--tinta-rgb),.08);margin-top:4px;
     padding:9px 14px calc(10px + env(safe-area-inset-bottom,0px));
     padding-left:max(14px,env(safe-area-inset-left,0px));
     padding-right:max(14px,env(safe-area-inset-right,0px))}
@@ -1624,7 +1644,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
      botón que explica ya lo dice. En el teléfono el alto es de la lista de medidas. */
   .sp-actions .sp-ai-note{display:none}
   .sp-actions .sp-addall-note{margin:8px 0 0}
-  .sp-back-m{display:block;width:100%;min-height:46px;margin-top:8px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:#fff;color:var(--brand-strong);font-size:13px;font-weight:800;font-family:inherit;cursor:pointer}
+  .sp-back-m{display:block;width:100%;min-height:46px;margin-top:8px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--sup);color:var(--brand-strong);font-size:13px;font-weight:800;font-family:inherit;cursor:pointer}
   .sp-back-m:active{background:var(--soft-2)}
   /* El aviso emergente se sube por encima de esa barra: tapaba justo el botón de volver.
      El alto lo mide scAjustarToast() y lo publica en --sc-acc-h; con los 104 px fijos que
@@ -1694,20 +1714,20 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .rv-field input,.rv-field select{background:var(--soft);border:1.5px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;font-size:13px;color:var(--fg);width:100%;outline:none;box-sizing:border-box;font-family:inherit}
 .rv-field input:focus,.rv-field select:focus{border-color:var(--brand)}
 .rv-field input[readonly]{opacity:.65;cursor:default}
-.rv-aviso{background:var(--green-bg);border:1px solid rgba(21,160,106,.25);color:var(--green);border-radius:var(--r-sm);padding:10px 13px;font-size:12px;font-weight:600;line-height:1.5;margin-bottom:14px}
+.rv-aviso{background:var(--green-bg);border:1px solid rgba(var(--ok-rgb),.25);color:var(--green);border-radius:var(--r-sm);padding:10px 13px;font-size:12px;font-weight:600;line-height:1.5;margin-bottom:14px}
 .rv-calc{background:var(--soft);border-radius:var(--r-sm);padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
 .rv-calc-item{display:flex;flex-direction:column;gap:3px}
 .rv-calc-item span:first-child{font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .rv-calc-item span:last-child{font-size:14px;font-weight:700;color:var(--fg)}
 .rv-calc-item.accent span:last-child{color:var(--brand)}
 .rv-footer{padding:10px 20px 20px;display:flex;flex-direction:column;gap:9px}
-.rv-copied{display:none;align-items:center;gap:7px;background:#e8faf0;border:1px solid #4caf50;border-radius:var(--r-sm);padding:10px 14px;font-size:12.5px;color:#2e7d32;font-weight:600}
+.rv-copied{display:none;align-items:center;gap:7px;background:var(--ok-bg);border:1px solid var(--ok-borde);border-radius:var(--r-sm);padding:10px 14px;font-size:12.5px;color:var(--ok);font-weight:600}
 .rv-copied.show{display:flex}
 
 /* ===================== Material heredado =====================
    Marca visible de que el material lo puso la app —heredado de la partida anterior—
    y no la persona. Es un dato que mueve el precio: tiene que verse. */
-.heredado{display:inline-block;font-size:9.5px;font-weight:700;color:#7a5800;background:#fff8e1;border:1px solid rgba(207,138,18,.35);border-radius:5px;padding:0 5px;margin-left:6px;vertical-align:middle;text-transform:none;letter-spacing:0}
+.heredado{display:inline-block;font-size:9.5px;font-weight:700;color:var(--av);background:var(--av-bg);border:1px solid rgba(var(--av-rgb),.35);border-radius:5px;padding:0 5px;margin-left:6px;vertical-align:middle;text-transform:none;letter-spacing:0}
 
 /* ===================== Agregar partida =====================
    Duplicar la anterior ya existía en el ⧉ del encabezado de cada partida, pero
@@ -1735,20 +1755,20 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
    terminar aunque el atributo estuviera puesto. */
 .addrow[hidden]{display:none}
 .addrow .addbtn{flex:2 1 auto;width:auto;min-width:0}
-.addbtn.igual{flex:1 1 auto;white-space:nowrap;border-style:solid;border-color:var(--line);background:#fff;color:var(--brand)}
+.addbtn.igual{flex:1 1 auto;white-space:nowrap;border-style:solid;border-color:var(--line);background:var(--sup);color:var(--brand)}
 .addbtn.igual:hover{border-color:var(--brand);background:var(--soft-2)}
 
 /* ===================== Revisión previa: partidas sin terminar ===================== */
 .falt-intro{font-size:12.5px;color:var(--muted);line-height:1.5;margin-bottom:13px}
 .falt-list{display:flex;flex-direction:column;gap:8px;margin-bottom:15px}
-.falt-row{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1.5px solid rgba(207,138,18,.45);background:var(--amber-bg);border-radius:var(--r-sm);width:100%;text-align:left;font-family:inherit;transition:.14s}
+.falt-row{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1.5px solid rgba(var(--av-rgb),.45);background:var(--amber-bg);border-radius:var(--r-sm);width:100%;text-align:left;font-family:inherit;transition:.14s}
 .falt-ir{flex:1;min-width:0;display:flex;align-items:center;gap:11px;border:none;background:none;font-family:inherit;text-align:left;cursor:pointer;padding:0}
 .falt-n{width:26px;height:26px;border-radius:8px;background:var(--amber);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .falt-b{flex:1;min-width:0}
 .falt-t{display:block;font-size:12.5px;font-weight:800;color:var(--ink);line-height:1.35}
-.falt-d{display:block;font-size:11.5px;color:#7a5800;line-height:1.45;margin-top:2px}
+.falt-d{display:block;font-size:11.5px;color:var(--av);line-height:1.45;margin-top:2px}
 .falt-go{font-size:14px;color:var(--amber);flex-shrink:0;font-weight:800}
-.falt-quitar{border:1.5px solid rgba(216,69,63,.3);background:#fff;color:var(--red);font-family:inherit;font-size:11px;font-weight:700;padding:6px 10px;border-radius:8px;cursor:pointer;flex-shrink:0;transition:.14s}
+.falt-quitar{border:1.5px solid rgba(var(--mal-rgb),.3);background:var(--sup);color:var(--red);font-family:inherit;font-size:11px;font-weight:700;padding:6px 10px;border-radius:8px;cursor:pointer;flex-shrink:0;transition:.14s}
 .falt-quitar:hover{background:var(--red-bg);border-color:var(--red)}
 
 .hist-ayuda{margin:0;padding:0 20px 12px;font-size:11.5px;color:var(--muted);line-height:1.5}
@@ -1756,7 +1776,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 
 /* ===================== Respaldo, restauración y CSV ===================== */
 .hist-foot{display:flex;gap:8px;padding:11px 20px 13px;border-top:1px solid var(--line);flex-shrink:0;background:var(--soft);flex-wrap:wrap;border-radius:0 0 var(--rr4) var(--rr4)}
-.hist-foot button{flex:1;min-width:104px;border:1.5px solid var(--line);background:#fff;color:var(--brand);font-family:inherit;font-size:12px;font-weight:700;padding:9px 8px;border-radius:var(--rr1);cursor:pointer;transition:.14s;white-space:nowrap}
+.hist-foot button{flex:1;min-width:104px;border:1.5px solid var(--line);background:var(--sup);color:var(--brand);font-family:inherit;font-size:12px;font-weight:700;padding:9px 8px;border-radius:var(--rr1);cursor:pointer;transition:.14s;white-space:nowrap}
 .hist-foot button:hover{border-color:var(--brand);background:var(--soft-2)}
 .hist-foot .foot-nota{flex-basis:100%;font-size:10.5px;color:var(--muted);line-height:1.45;text-align:center;margin-top:2px}
 /* Lo que ya se hizo con esta cotización. Va entre la tabla y el total, en el secundario de la
@@ -1766,8 +1786,8 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .hentry-hitos .svgi{width:13px;height:13px;color:var(--ok);flex-shrink:0}
 
 /* ===================== WhatsApp ===================== */
-.btn-wa{background:#fff;color:#0f7a6c;border:1.5px solid rgba(18,140,126,.32)}
-.btn-wa:hover{background:#e9f8f5;border-color:#128c7e}
+.btn-wa{background:var(--sup);color:var(--wa);border:1.5px solid rgba(var(--wa-rgb),.32)}
+.btn-wa:hover{background:var(--ok-bg);border-color:var(--wa)}
 
 /* ===================== Teléfono: aprovechar la pantalla =====================
    Este bloque va al final de la hoja a propósito. Varias reglas de aquí repiten
@@ -2121,17 +2141,17 @@ body{
      blanca sobre un fondo casi blanco no sobresale por más sombra que le pongas: lo que
      hace que el barro se vea salido es el contraste con lo que tiene detrás. */
   background:
-    radial-gradient(1200px 680px at 6% -10%, rgba(96,144,248,.34), transparent 58%),
-    radial-gradient(980px 600px at 102% 4%, rgba(123,63,248,.26), transparent 60%),
-    radial-gradient(820px 560px at 44% 110%, rgba(24,182,216,.20), transparent 62%),
+    radial-gradient(1200px 680px at 6% -10%, rgba(var(--ac-rgb),.34), transparent 58%),
+    radial-gradient(980px 600px at 102% 4%, rgba(var(--a2-rgb),.26), transparent 60%),
+    radial-gradient(820px 560px at 44% 110%, rgba(var(--a3-rgb),.20), transparent 62%),
     var(--n2);
   background-attachment:fixed;
 }
 
 /* ---------- Superficies ---------- */
 .card,.sum{
-  background:linear-gradient(168deg,#fff 0%,var(--n0) 58%,#f7f8ff 100%);
-  border:1px solid rgba(255,255,255,.9);
+  background:linear-gradient(168deg,var(--sup) 0%,var(--n0) 58%,var(--n0) 100%);
+  border:1px solid rgba(var(--luz-rgb),.9);
   border-radius:var(--rr4);
   box-shadow:var(--clay);
   transition:box-shadow var(--mv),transform var(--mv);
@@ -2149,9 +2169,9 @@ body{
    escribe: teñir eso es lo que convierte un formulario en un cartel. */
 .card-h{
   padding:var(--e4) var(--e5);
-  background:linear-gradient(168deg,rgba(64,96,248,.11),rgba(64,96,248,.03));
-  border-bottom:1px solid rgba(64,96,248,.14);
-  box-shadow:inset 0 -1px 0 rgba(255,255,255,.85);
+  background:linear-gradient(168deg,rgba(var(--a-rgb),.11),rgba(var(--a-rgb),.03));
+  border-bottom:1px solid rgba(var(--a-rgb),.14);
+  box-shadow:inset 0 -1px 0 rgba(var(--luz-rgb),.85);
 }
 .card-b{padding-top:var(--e5)}
 .card.folded .card-h{border-bottom:none}
@@ -2174,8 +2194,8 @@ body{
   padding:var(--e3);
   margin:0 calc(var(--e3) * -1) var(--e2);
   border-radius:var(--rr3);
-  background:linear-gradient(180deg,rgba(198,203,242,.62),rgba(226,229,250,.5));
-  box-shadow:inset 0 5px 12px rgba(64,96,248,.17),inset 0 -2px 4px rgba(255,255,255,.65);
+  background:linear-gradient(180deg,rgba(var(--n3-rgb),.62),rgba(var(--n2-rgb),.5));
+  box-shadow:inset 0 5px 12px rgba(var(--a-rgb),.17),inset 0 -2px 4px rgba(var(--luz-rgb),.65);
 }
 
 /* La partida: una pieza de barro SALIENTE, con su matiz. El lomo de la izquierda y la
@@ -2191,8 +2211,8 @@ body{
   --pp:var(--e5);
   --lomo:6px;
   border-top:none;
-  background:linear-gradient(168deg,#fff 0%,var(--n0) 52%,var(--pc-sv) 100%);
-  border:1px solid rgba(255,255,255,.9);
+  background:linear-gradient(168deg,var(--sup) 0%,var(--n0) 52%,var(--pc-sv) 100%);
+  border:1px solid rgba(var(--luz-rgb),.9);
   border-radius:var(--rr3);
   /* El lomo se pinta ENCIMA del relleno izquierdo, no antes de él. Sumárselo le quitaba
      6 px de ancho útil a cada partida y con eso el encabezado de la abierta se partía en
@@ -2201,9 +2221,9 @@ body{
   margin-bottom:var(--e3);
   overflow:hidden;
   box-shadow:
-    inset 0 3px 6px rgba(255,255,255,.95),
+    inset 0 3px 6px rgba(var(--luz-rgb),.95),
     inset 0 -5px 11px rgba(var(--pc-rgb),.13),
-    0 3px 6px rgba(35,39,68,.05),
+    0 3px 6px rgba(var(--tinta-rgb),.05),
     0 14px 28px -8px rgba(var(--pc-rgb),.28);
   transition:box-shadow var(--mv),transform var(--mv);
 }
@@ -2217,7 +2237,7 @@ body{
 .partida::before{
   content:'';position:absolute;left:0;top:0;bottom:0;width:var(--lomo);
   background:linear-gradient(180deg,var(--pc-md),var(--pc));
-  box-shadow:inset -1px 0 3px rgba(20,22,43,.18),inset 1px 0 2px rgba(255,255,255,.35);
+  box-shadow:inset -1px 0 3px rgba(var(--tinta-rgb),.18),inset 1px 0 2px rgba(255,255,255,.35);
   transition:width var(--mv),background var(--mv);
 }
 
@@ -2226,9 +2246,9 @@ body{
    Antes abierta y plegada se pintaban igual y había que buscar el ▾. */
 .partida:not(.folded){
   box-shadow:
-    inset 0 3px 7px rgba(255,255,255,.95),
+    inset 0 3px 7px rgba(var(--luz-rgb),.95),
     inset 0 -6px 13px rgba(var(--pc-rgb),.16),
-    0 5px 10px rgba(35,39,68,.06),
+    0 5px 10px rgba(var(--tinta-rgb),.06),
     0 24px 44px -10px rgba(var(--pc-rgb),.40);
 }
 .partida:not(.folded)::before{width:calc(var(--lomo) + 3px)}
@@ -2237,7 +2257,7 @@ body{
   padding:var(--e3) var(--pp);
   background:linear-gradient(168deg,rgba(var(--pc-rgb),.13),rgba(var(--pc-rgb),.05));
   border-bottom:1px solid rgba(var(--pc-rgb),.16);
-  box-shadow:inset 0 -1px 0 rgba(255,255,255,.8);
+  box-shadow:inset 0 -1px 0 rgba(var(--luz-rgb),.8);
 }
 .partida:hover{transform:translateY(-1px)}
 .partida:hover::before{width:calc(var(--lomo) + 3px)}
@@ -2246,7 +2266,7 @@ body{
    algún campo» en «estoy en la partida 3». */
 .partida:focus-within{
   box-shadow:
-    inset 0 3px 7px rgba(255,255,255,.95),
+    inset 0 3px 7px rgba(var(--luz-rgb),.95),
     inset 0 -6px 13px rgba(var(--pc-rgb),.16),
     0 0 0 2px rgba(var(--pc-rgb),.35),
     0 26px 48px -10px rgba(var(--pc-rgb),.46);
@@ -2255,23 +2275,23 @@ body{
    de las otras cinco plegadas— pero sí pierde altura, que es lo que dice «esta está
    guardada». */
 .partida.folded{
-  background:linear-gradient(168deg,#fff 0%,#fff 62%,var(--pc-sv) 100%);
+  background:linear-gradient(168deg,var(--sup) 0%,var(--sup) 62%,var(--pc-sv) 100%);
   box-shadow:
-    inset 0 2px 5px rgba(255,255,255,.95),
+    inset 0 2px 5px rgba(var(--luz-rgb),.95),
     inset 0 -3px 8px rgba(var(--pc-rgb),.10),
-    0 2px 4px rgba(35,39,68,.04),
+    0 2px 4px rgba(var(--tinta-rgb),.04),
     0 8px 18px -6px rgba(var(--pc-rgb),.24);
 }
 /* Las partidas que no se pueden tocar todavía —faltan los datos del cliente— y las que no
    salen en el PDF pierden el matiz a propósito: en gris se leen como lo que son, algo que
    está ahí pero fuera de juego. Es la única vez que quitar color informa. */
 .items-cand .partida,.partida.hidden-pdf{
-  background:linear-gradient(168deg,rgba(242,243,254,.95),rgba(216,219,246,.7));
-  box-shadow:inset 0 3px 7px rgba(64,96,248,.10),inset 0 -2px 4px rgba(255,255,255,.8);
+  background:linear-gradient(168deg,rgba(var(--n1-rgb),.95),rgba(var(--n3-rgb),.7));
+  box-shadow:inset 0 3px 7px rgba(var(--a-rgb),.10),inset 0 -2px 4px rgba(var(--luz-rgb),.8);
 }
 .items-cand .partida::before,.partida.hidden-pdf::before{background:linear-gradient(180deg,var(--n4),var(--n5))}
 .items-cand .partida:not(.folded) .partida-top,.partida.hidden-pdf:not(.folded) .partida-top{
-  background:linear-gradient(168deg,rgba(182,187,230,.28),rgba(182,187,230,.12));
+  background:linear-gradient(168deg,rgba(var(--n4-rgb),.28),rgba(var(--n4-rgb),.12));
   border-bottom-color:var(--n3);
 }
 
@@ -2298,7 +2318,7 @@ body{
   border:1px solid rgba(255,255,255,.35);
   color:#fff;font-weight:700;border-radius:999px;width:26px;height:26px;
   text-shadow:0 1px 2px rgba(20,22,43,.3);
-  box-shadow:inset 0 2px 4px rgba(255,255,255,.32),inset 0 -3px 6px rgba(20,22,43,.22),
+  box-shadow:inset 0 2px 4px rgba(255,255,255,.32),inset 0 -3px 6px rgba(var(--tinta-rgb),.22),
     0 3px 7px -1px rgba(var(--pc-rgb),.5);
 }
 .items-cand .pnum .n,.partida.hidden-pdf .pnum .n{
@@ -2312,7 +2332,7 @@ body{
    partidas guardadas, «Letras 3D» en índigo y «Letras 3D» en cian son dos partidas, y eso
    se lee antes que el número. */
 .partida.folded .ptipo{
-  background:linear-gradient(168deg,#fff,var(--pc-sv));
+  background:linear-gradient(168deg,var(--sup),var(--pc-sv));
   border:1px solid var(--pc-bd);
   color:var(--pc);
 }
@@ -2326,18 +2346,18 @@ body{
 .optgrp{
   padding:var(--e3) var(--e4) var(--e4);
   border-radius:var(--rr2);
-  background:linear-gradient(180deg,rgba(var(--pc-rgb),.09),rgba(255,255,255,.42));
+  background:linear-gradient(180deg,rgba(var(--pc-rgb),.09),rgba(var(--sup-rgb),.42));
   box-shadow:var(--clay-in-pc);
-  border:1px solid rgba(255,255,255,.65);
+  border:1px solid rgba(var(--luz-rgb),.65);
   margin-bottom:var(--e3);
 }
 /* Un grupo sin nada elegido ya se decía con las dos palabras «Sin elegir» en ámbar. Dicho
    además con el hueco entero en ámbar, se encuentra sin buscarlo —y el ámbar es el mismo
    de todo lo que falta en esta app, así que no hay un código nuevo que aprender. */
 .optgrp.falta{
-  background:linear-gradient(180deg,rgba(200,140,20,.11),rgba(255,255,255,.45));
-  box-shadow:inset 0 3px 8px rgba(200,140,20,.18),inset 0 -2px 4px rgba(255,255,255,.92);
-  border-color:rgba(255,244,224,.8);
+  background:linear-gradient(180deg,rgba(var(--av-rgb),.11),rgba(var(--sup-rgb),.45));
+  box-shadow:inset 0 3px 8px rgba(var(--av-rgb),.18),inset 0 -2px 4px rgba(var(--luz-rgb),.92);
+  border-color:rgba(var(--av-borde-rgb),.8);
 }
 .optgrp-t{color:var(--pc);font-weight:700;letter-spacing:.1px}
 .optgrp.falta .optgrp-t{color:var(--av)}
@@ -2347,34 +2367,40 @@ body{
    «esto está elegido» pero no decía dónde, y con dos partidas abiertas era imposible
    saber a cuál pertenecía lo que estabas mirando. Ahora lo elegido en la 4 es violeta
    porque la 4 es violeta: el chip pertenece a algo, y se ve a qué. */
+/* ----- Lo elegido se ve elegido -----
+   Antes el chip elegido era blanco con un tinte al 15 % y un borde de color: al lado de los
+   no elegidos —blancos también— había que buscar la palomita para saber cuál era. Con cinco
+   materiales, tres complejidades y dos luces por partida, eso es adivinar tres veces por
+   partida. Ahora lo elegido va RELLENO del color de su partida con el texto en blanco, y lo no
+   elegido se queda de barro claro: se distingue de lejos, y en el teléfono, y sin leer. Medido:
+   blanco sobre --pc da de 6,2:1 (el magenta) a 8:1 (el azul). */
 .partida .chip.on{
-  background:linear-gradient(168deg,#fff,var(--pc-sv));
-  color:var(--pc);border-color:var(--pc-bd);
-  box-shadow:inset 0 3px 7px rgba(var(--pc-rgb),.15),inset 0 -2px 4px rgba(255,255,255,.9),
-    0 0 0 1px rgba(var(--pc-rgb),.22);
+  background:linear-gradient(168deg,var(--pc-md) 0%,var(--pc) 70%);
+  color:#fff;border-color:transparent;
+  box-shadow:inset 0 2px 4px rgba(255,255,255,.35),inset 0 -3px 6px rgba(var(--tinta-rgb),.22),
+    0 4px 10px -2px rgba(var(--pc-rgb),.45);
+  text-shadow:0 1px 2px rgba(20,22,43,.25);
   font-weight:650;
 }
-/* La tarifa del catálogo dentro del chip elegido, sin opacidad. Al 80 % quedaba en 4,01:1
-   sobre el relleno del propio chip —medido, y falla en cinco de los seis matices— y es un
-   número con dinero: de lo que más se lee de un chip. La jerarquía contra la etiqueta ya la
-   hacía el tamaño, así que la opacidad no ordenaba nada, solo quitaba contraste. Sin ella
-   el peor caso es 5,90:1. */
-.partida .chip.on small{color:var(--pc)}
-.partida .chip.on .ck{color:var(--pc)}
-.partida .chip:hover:not(.on):not([aria-disabled]){background:linear-gradient(168deg,#fff,var(--pc-sv))}
+/* La tarifa del catálogo dentro del chip elegido va en el mismo blanco que la etiqueta, sin
+   opacidad: es un número con dinero, de lo que más se lee de un chip, y la jerarquía contra la
+   etiqueta ya la hace el tamaño. Blanco pleno sobre --pc: el peor caso (el magenta) da 6,2:1. */
+.partida .chip.on small{color:#fff}
+.partida .chip.on .ck{color:#fff}
+.partida .chip:hover:not(.on):not([aria-disabled]){background:linear-gradient(168deg,var(--sup),var(--pc-sv))}
 /* Dentro del hueco, el chip sin elegir tiene que verse SALIENDO de él: es la cuarta capa
    de la escalera y la que hace que un hueco lleno de botones no se lea como un bloque. */
 .optgrp .chip{
-  background:linear-gradient(168deg,#fff,var(--n0));
-  box-shadow:0 2px 4px rgba(35,39,68,.06),0 8px 16px -6px rgba(var(--pc-rgb),.24),
-    inset 0 2px 3px rgba(255,255,255,.95);
+  background:linear-gradient(168deg,var(--sup),var(--n0));
+  box-shadow:0 2px 4px rgba(var(--tinta-rgb),.06),0 8px 16px -6px rgba(var(--pc-rgb),.24),
+    inset 0 2px 3px rgba(var(--luz-rgb),.95);
 }
 /* El interruptor de iluminación vive dentro de un grupo y es el único control con relleno
    de marca ahí dentro: encendido toma el matiz, o sería lo único azul en una partida
    magenta. */
 .partida .tg.on{
   background:linear-gradient(160deg,var(--pc-md),var(--pc));
-  box-shadow:inset 0 2px 5px rgba(20,22,43,.22),0 4px 12px -2px rgba(var(--pc-rgb),.45);
+  box-shadow:inset 0 2px 5px rgba(var(--tinta-rgb),.22),0 4px 12px -2px rgba(var(--pc-rgb),.45);
 }
 /* Y el campo que se está tecleando se ilumina del color de su partida, no del azul de la
    app: es el mismo dato —dónde estoy— dicho por tercera vez sin costar un píxel. */
@@ -2396,12 +2422,14 @@ body{
    partida cian ponía en el mismo encabezado el único azul que no significaba nada ahí, y
    además decía «marca» donde tenía que decir «esta partida». */
 .partida .tipo-seg{
-  background:linear-gradient(180deg,rgba(var(--pc-rgb),.14),rgba(255,255,255,.5));
+  background:linear-gradient(180deg,rgba(var(--pc-rgb),.14),rgba(var(--sup-rgb),.5));
   box-shadow:var(--clay-in-pc);
 }
+/* El tipo de partida elegido, con la misma regla: relleno del color de la partida. */
 .partida .tipo-seg button.on{
-  color:var(--pc);
-  box-shadow:0 2px 4px rgba(35,39,68,.06),0 8px 16px -4px rgba(var(--pc-rgb),.3),inset 0 2px 4px rgba(255,255,255,.95);
+  background:linear-gradient(168deg,var(--pc-md) 0%,var(--pc) 70%);
+  color:#fff;text-shadow:0 1px 2px rgba(20,22,43,.25);
+  box-shadow:inset 0 2px 4px rgba(255,255,255,.3),inset 0 -3px 6px rgba(var(--tinta-rgb),.2),0 6px 14px -4px rgba(var(--pc-rgb),.5);
 }
 .items-cand .tipo-seg button.on,.partida.hidden-pdf .tipo-seg button.on{color:var(--n7)}
 /* Las medidas van en su propio hueco por la misma razón que las opciones: son un grupo de
@@ -2412,9 +2440,9 @@ body{
   padding:var(--e3) var(--e4) var(--e2);
   margin-bottom:var(--e3);
   border-radius:var(--rr2);
-  background:linear-gradient(180deg,rgba(var(--pc-rgb),.07),rgba(255,255,255,.4));
+  background:linear-gradient(180deg,rgba(var(--pc-rgb),.07),rgba(var(--sup-rgb),.4));
   box-shadow:var(--clay-in-pc);
-  border:1px solid rgba(255,255,255,.6);
+  border:1px solid rgba(var(--luz-rgb),.6);
 }
 .partida .pbody>:is(.grid2,.grid3)>.fld{margin-bottom:var(--e2)}
 /* --n7 y no el --n6 de todas las etiquetas de la app, y es una corrección de contraste, no
@@ -2430,22 +2458,22 @@ body{
 
 /* ---------- Campos: hundidos, como una huella en el barro ---------- */
 input,select,textarea,.inp-money{
-  border:1px solid rgba(255,255,255,.85);
+  border:1px solid rgba(var(--luz-rgb),.85);
   border-radius:var(--rr1);
-  background:linear-gradient(180deg,var(--n1),#fff);
+  background:linear-gradient(180deg,var(--n1),var(--sup));
   box-shadow:var(--clay-in);
   transition:box-shadow var(--mv-s),border-color var(--mv-s);
 }
 input:hover:not(:disabled),textarea:hover:not(:disabled){
-  box-shadow:inset 0 3px 8px rgba(64,96,248,.17),inset 0 -2px 4px rgba(255,255,255,.9);
+  box-shadow:inset 0 3px 8px rgba(var(--a-rgb),.17),inset 0 -2px 4px rgba(var(--luz-rgb),.9);
 }
 input:focus,select:focus,textarea:focus{
-  border-color:rgba(255,255,255,.95);
-  box-shadow:inset 0 3px 7px rgba(64,96,248,.1),0 0 0 4px rgba(64,96,248,.18),0 8px 20px -4px rgba(64,96,248,.28);
+  border-color:rgba(var(--luz-rgb),.95);
+  box-shadow:inset 0 3px 7px rgba(var(--a-rgb),.1),0 0 0 4px rgba(var(--a-rgb),.18),0 8px 20px -4px rgba(var(--a-rgb),.28);
   animation:foco-brote var(--mv-r);
 }
-@keyframes foco-brote{from{box-shadow:inset 0 3px 7px rgba(64,96,248,.1),0 0 0 0 rgba(64,96,248,.30),0 8px 20px -4px rgba(64,96,248,.28)}}
-input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow:inset 0 2px 5px rgba(64,96,248,.09);color:var(--n6)}
+@keyframes foco-brote{from{box-shadow:inset 0 3px 7px rgba(var(--a-rgb),.1),0 0 0 0 rgba(var(--a-rgb),.30),0 8px 20px -4px rgba(var(--a-rgb),.28)}}
+input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow:inset 0 2px 5px rgba(var(--a-rgb),.09);color:var(--n6)}
 
 /* ---------- Botones ----------
    El primario es barro de color; los demás, barro claro. Los dos ceden. */
@@ -2460,15 +2488,15 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 .btn-pri:hover,.mbar-btn:not(.gho):not(.ok):hover{
   background:linear-gradient(160deg,#4c6afa 0%,#3540ea 42%,#2a12e8 100%);
   transform:translateY(-2px);
-  box-shadow:inset 0 3px 7px rgba(255,255,255,.45),inset 0 -6px 12px rgba(20,22,43,.28),0 6px 12px rgba(48,24,248,.2),0 22px 40px -8px rgba(48,24,248,.5);
+  box-shadow:inset 0 3px 7px rgba(255,255,255,.45),inset 0 -6px 12px rgba(var(--tinta-rgb),.28),0 6px 12px rgba(var(--af-rgb),.2),0 22px 40px -8px rgba(var(--af-rgb),.5);
 }
 .btn-ok,.mbar-btn.ok{
-  background:linear-gradient(160deg,#22c98a 0%,#12a86c 45%,#0a7d4a 100%);color:#fff;border:1px solid rgba(255,255,255,.28);
-  box-shadow:inset 0 3px 7px rgba(255,255,255,.4),inset 0 -6px 12px rgba(6,60,36,.3),0 4px 8px rgba(10,125,74,.2),0 16px 30px -6px rgba(10,125,74,.42);
+  background:linear-gradient(160deg,#22c98a 0%,#12a86c 45%,var(--ok) 100%);color:#fff;border:1px solid rgba(255,255,255,.28);
+  box-shadow:inset 0 3px 7px rgba(255,255,255,.4),inset 0 -6px 12px rgba(6,60,36,.3),0 4px 8px rgba(var(--ok-rgb),.2),0 16px 30px -6px rgba(var(--ok-rgb),.42);
 }
 .btn-gho,.btn-dgr,.ai-btn,.btn-scaler-open,.btn-vector-open,.precios-ver,.btn-maps,.card-fold,.btn-hist,.mbar-btn.gho{
-  background:linear-gradient(168deg,#fff,var(--n1));
-  border:1px solid rgba(255,255,255,.9);
+  background:linear-gradient(168deg,var(--sup),var(--n1));
+  border:1px solid rgba(var(--luz-rgb),.9);
   box-shadow:var(--clay);
 }
 .btn-gho:hover,.btn-dgr:hover,.ai-btn:hover,.btn-scaler-open:hover,.btn-vector-open:hover,.precios-ver:hover,.btn-maps:hover,.card-fold:hover,.btn-hist:hover,.mbar-btn.gho:hover{
@@ -2477,9 +2505,9 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 /* WhatsApp y Registrar venta: barro claro con su propia tinta, para que se encuentren sin
    pelearse con el único relleno de la pantalla. Van DESPUÉS de la lista de arriba porque
    esa declara border:1px solid rgba(255,255,255,.9) con la misma especificidad y ganaría. */
-.btn-wa{background:linear-gradient(168deg,#fff,#eafaf6);border:1px solid rgba(18,140,126,.35);box-shadow:var(--clay)}
-.btn-wa:hover{transform:translateY(-2px);box-shadow:var(--clay-alto);background:linear-gradient(168deg,#fff,#e2f7f2)}
-.btn-vta{background:linear-gradient(168deg,#fff,#eafaf3);border:1px solid rgba(10,125,74,.32);color:#0a7d4a;box-shadow:var(--clay)}
+.btn-wa{background:linear-gradient(168deg,var(--sup),var(--ok-bg));border:1px solid rgba(var(--wa-rgb),.35);box-shadow:var(--clay)}
+.btn-wa:hover{transform:translateY(-2px);box-shadow:var(--clay-alto);background:linear-gradient(168deg,var(--sup),var(--ok-bg))}
+.btn-vta{background:linear-gradient(168deg,var(--sup),var(--ok-bg));border:1px solid rgba(var(--ok-rgb),.32);color:#0a7d4a;box-shadow:var(--clay)}
 .btn-vta:hover{transform:translateY(-2px);box-shadow:var(--clay-alto)}
 /* .btn-dgr entra en la lista de barro de arriba y ahí perdía su borde rojo. */
 .btn-dgr{border-color:var(--mal-borde)}
@@ -2487,31 +2515,31 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 .btn:active:not(:disabled),.mbar-btn:active:not(:disabled),.ai-btn:active,.btn-scaler-open:active,
 .btn-vector-open:active,.addbtn:active,.precios-ver:active,.btn-maps:active,.card-fold:active,.btn-hist:active{
   transform:translateY(1px) scale(.975);
-  box-shadow:inset 0 4px 9px rgba(64,96,248,.2),inset 0 -1px 3px rgba(255,255,255,.75);
+  box-shadow:inset 0 4px 9px rgba(var(--a-rgb),.2),inset 0 -1px 3px rgba(var(--luz-rgb),.75);
 }
 .btn-pri:active:not(:disabled),.mbar-btn:not(.gho):active:not(:disabled){
-  box-shadow:inset 0 5px 11px rgba(20,22,43,.36),inset 0 -1px 3px rgba(255,255,255,.28);
+  box-shadow:inset 0 5px 11px rgba(var(--tinta-rgb),.36),inset 0 -1px 3px rgba(255,255,255,.28);
 }
 .btn:disabled,.mbar-btn:disabled{box-shadow:var(--clay-in);transform:none;opacity:.55}
 .addbtn{
-  background:linear-gradient(168deg,rgba(255,255,255,.7),rgba(233,237,255,.55));
+  background:linear-gradient(168deg,rgba(var(--sup-rgb),.7),rgba(233,237,255,.55));
   border:1.5px dashed var(--a-borde);color:var(--a-fuerte);font-weight:550;
-  box-shadow:inset 0 2px 5px rgba(255,255,255,.9);
+  box-shadow:inset 0 2px 5px rgba(var(--luz-rgb),.9);
 }
 .addbtn:hover{
-  background:linear-gradient(168deg,#fff,var(--a-suave));border-color:var(--a);color:var(--a-fuerte);
+  background:linear-gradient(168deg,var(--sup),var(--a-suave));border-color:var(--a);color:var(--a-fuerte);
   transform:translateY(-2px);box-shadow:var(--clay);
 }
 
 /* ---------- Chips: pastillas de barro ---------- */
 .chip{
   border-radius:999px;padding:10px 16px;
-  background:linear-gradient(168deg,#fff,var(--n1));
-  border:1px solid rgba(255,255,255,.9);
+  background:linear-gradient(168deg,var(--sup),var(--n1));
+  border:1px solid rgba(var(--luz-rgb),.9);
   box-shadow:var(--clay);
   transition:transform var(--mv-r),box-shadow var(--mv),background var(--mv-s),color var(--mv-s);
 }
-.chip:hover:not(.on):not([aria-disabled]){transform:translateY(-2px);box-shadow:var(--clay-alto);background:linear-gradient(168deg,#fff,var(--a-suave))}
+.chip:hover:not(.on):not([aria-disabled]){transform:translateY(-2px);box-shadow:var(--clay-alto);background:linear-gradient(168deg,var(--sup),var(--a-suave))}
 .chip:active:not([aria-disabled]){transform:translateY(1px) scale(.97);box-shadow:var(--clay-in)}
 /* El chip elegido va hundido y en tinta, no relleno de marca: con el degradado, la sombra
    teñida y el rebote quedaba pintado EXACTAMENTE igual que el botón principal —mismo
@@ -2520,11 +2548,12 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
    dos valores por omisión en una partida sin material, sin altura y sin letras.
    Es lo que el comentario del chip de más arriba decidió y midió; esta capa lo deshacía. */
 .chip.on{
-  background:var(--a-suave);color:var(--a-fuerte);border-color:var(--a-borde);
-  box-shadow:var(--clay-in);font-weight:600;
+  background:var(--brand-grd);color:#fff;border-color:transparent;
+  box-shadow:inset 0 2px 4px rgba(255,255,255,.35),inset 0 -3px 6px rgba(var(--tinta-rgb),.22),0 4px 10px -2px rgba(var(--af-rgb),.42);
+  text-shadow:0 1px 2px rgba(20,22,43,.25);font-weight:600;
 }
-.chip.on small{color:var(--a-fuerte);opacity:.75}
-.chip.on .ck{color:var(--a)}
+.chip.on small{color:#fff}
+.chip.on .ck{color:#fff}
 @keyframes barro-pop{
   0%{transform:scale(.9)}
   45%{transform:scale(1.055)}
@@ -2538,13 +2567,13 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 .tipo-seg,.seg{
   border-radius:999px;padding:4px;gap:2px;
   background:linear-gradient(180deg,var(--n2),var(--n1));
-  border:1px solid rgba(255,255,255,.85);
+  border:1px solid rgba(var(--luz-rgb),.85);
   box-shadow:var(--clay-in);
 }
 .tipo-seg button,.seg button{border-radius:999px;transition:transform var(--mv-r),box-shadow var(--mv),background var(--mv-s),color var(--mv-s)}
 .tipo-seg button.on,.seg button.on{
-  background:linear-gradient(168deg,#fff,var(--n0));color:var(--a-fuerte);font-weight:600;
-  box-shadow:0 2px 4px rgba(35,39,68,.06),0 8px 16px -4px rgba(64,96,248,.28),inset 0 2px 4px rgba(255,255,255,.95);
+  background:linear-gradient(168deg,var(--sup),var(--n0));color:var(--a-fuerte);font-weight:600;
+  box-shadow:0 2px 4px rgba(var(--tinta-rgb),.06),0 8px 16px -4px rgba(var(--a-rgb),.28),inset 0 2px 4px rgba(var(--luz-rgb),.95);
   animation:barro-pop var(--mv);
 }
 .tipo-seg button:active,.seg button:active{transform:scale(.94)}
@@ -2558,10 +2587,10 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 }
 .tg::after{
   width:20px;height:20px;top:3px;left:3px;
-  box-shadow:0 2px 5px rgba(35,39,68,.22),inset 0 -2px 4px rgba(64,96,248,.12),inset 0 2px 3px rgba(255,255,255,.95);
+  box-shadow:0 2px 5px rgba(var(--tinta-rgb),.22),inset 0 -2px 4px rgba(var(--a-rgb),.12),inset 0 2px 3px rgba(255,255,255,.95);
   transition:left var(--mv),transform var(--mv-r);
 }
-.tg.on{background:var(--brand-grd);box-shadow:inset 0 2px 5px rgba(20,22,43,.22),0 4px 12px -2px rgba(48,24,248,.45)}
+.tg.on{background:var(--brand-grd);box-shadow:inset 0 2px 5px rgba(var(--tinta-rgb),.22),0 4px 12px -2px rgba(var(--af-rgb),.45)}
 .tg.on::after{left:23px}
 .switch:active .tg::after{transform:scale(.9)}
 
@@ -2596,10 +2625,10 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
    no el casi-blanco de los campos— y sin sombra de ninguna dirección. Ni sale ni se hunde:
    no se aprieta y no recibe texto. Los que SÍ se aprietan —.ptok y .ptipo, que son fichas
    de partida y responden al toque— se quedan como estaban. */
-.ptok,.ptipo{border-radius:999px;box-shadow:var(--clay-in);border:1px solid rgba(255,255,255,.8)}
+.ptok,.ptipo{border-radius:999px;box-shadow:var(--clay-in);border:1px solid rgba(var(--luz-rgb),.8)}
 .folio,.badge{border-radius:999px;box-shadow:none;border:1px solid var(--n3);background:var(--n1)}
-.ptok{background:linear-gradient(168deg,#fff,var(--n1))}
-.ptok.falta{background:linear-gradient(168deg,#fff8ec,var(--av-bg))}
+.ptok{background:linear-gradient(168deg,var(--sup),var(--n1))}
+.ptok.falta{background:linear-gradient(168deg,var(--av-bg),var(--av-bg))}
 .badge.pendiente{background:var(--av-bg);border-color:var(--av-borde)}
 .badge.autorizada{background:var(--ok-bg);border-color:var(--ok-borde)}
 .badge.borrador{background:var(--n2);border-color:var(--n3)}
@@ -2611,16 +2640,16 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 .hintnote.nota-av{background:var(--av-bg);border-color:var(--av-borde);border-left-color:var(--av)}
 .hintnote.nota-ok{background:var(--ok-bg);border-color:var(--ok-borde);border-left-color:var(--ok)}
 .cand-partidas,.edit-mode-banner{
-  border-radius:var(--rr2);border:1px solid rgba(255,255,255,.75);
-  background:linear-gradient(168deg,#fffaf0,var(--av-bg));
-  box-shadow:inset 0 3px 6px rgba(255,255,255,.9),inset 0 -4px 9px rgba(200,140,20,.13),0 10px 22px -6px rgba(200,140,20,.22);
+  border-radius:var(--rr2);border:1px solid rgba(var(--luz-rgb),.75);
+  background:linear-gradient(168deg,var(--av-bg),var(--av-bg));
+  box-shadow:inset 0 3px 6px rgba(var(--luz-rgb),.9),inset 0 -4px 9px rgba(var(--av-rgb),.13),0 10px 22px -6px rgba(var(--av-rgb),.22);
 }
 /* Late despacio: es lo único de la pantalla que pide que hagas algo antes de seguir. */
 .cand-partidas{animation:latido 2.6s ease-in-out infinite}
-.cand-partidas:hover{transform:translateY(-2px);box-shadow:inset 0 3px 6px rgba(255,255,255,.9),inset 0 -4px 9px rgba(200,140,20,.15),0 16px 30px -6px rgba(200,140,20,.32);animation:none}
+.cand-partidas:hover{transform:translateY(-2px);box-shadow:inset 0 3px 6px rgba(var(--luz-rgb),.9),inset 0 -4px 9px rgba(var(--av-rgb),.15),0 16px 30px -6px rgba(var(--av-rgb),.32);animation:none}
 @keyframes latido{
-  0%,100%{box-shadow:inset 0 3px 6px rgba(255,255,255,.9),inset 0 -4px 9px rgba(200,140,20,.13),0 10px 22px -6px rgba(200,140,20,.22)}
-  50%{box-shadow:inset 0 3px 6px rgba(255,255,255,.9),inset 0 -4px 9px rgba(200,140,20,.13),0 14px 28px -6px rgba(200,140,20,.36)}
+  0%,100%{box-shadow:inset 0 3px 6px rgba(var(--luz-rgb),.9),inset 0 -4px 9px rgba(var(--av-rgb),.13),0 10px 22px -6px rgba(var(--av-rgb),.22)}
+  50%{box-shadow:inset 0 3px 6px rgba(var(--luz-rgb),.9),inset 0 -4px 9px rgba(var(--av-rgb),.13),0 14px 28px -6px rgba(var(--av-rgb),.36)}
 }
 
 /* ---------- Barra de pasos ---------- */
@@ -2630,33 +2659,33 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
    —la de «Cliente» y la de «Partidas»— y la única diferencia era el número: en una barra
    de dos pasos, que es toda la navegación que tiene la app, eso es poco. */
 .paso-tab.on{
-  background:linear-gradient(168deg,var(--a-suave),#dfe6ff);
+  background:linear-gradient(168deg,var(--a-suave),var(--a-suave-2));
   border-color:var(--a-borde);color:var(--a-fuerte);
-  box-shadow:inset 0 2px 5px rgba(255,255,255,.9),0 3px 6px rgba(35,39,68,.05),
-    0 12px 24px -8px rgba(64,96,248,.4);
+  box-shadow:inset 0 2px 5px rgba(var(--luz-rgb),.9),0 3px 6px rgba(var(--tinta-rgb),.05),
+    0 12px 24px -8px rgba(var(--a-rgb),.4);
 }
 /* Sin opacidad. Esta regla existía desde antes pero nunca dibujó una letra: la pestaña actual
    siempre vaciaba su renglón chico, y el nombre del cliente vivía fijo en la pestaña 1. Al
    mudarlo a la pestaña actual la regla empezó a aplicarse de verdad y salió MEDIDA en 4,26:1,
    por debajo del mínimo de esta app. Lo separan el tamaño y el peso, que ya los trae. */
 .paso-tab.on .tx small{color:var(--a-fuerte)}
-.paso-tab .n{border-radius:999px;box-shadow:var(--clay-in);border:1px solid rgba(255,255,255,.8);transition:background var(--mv),color var(--mv)}
-.paso-tab.on .n{background:var(--brand-grd);color:#fff;border-color:rgba(255,255,255,.35);box-shadow:inset 0 2px 4px rgba(255,255,255,.4),inset 0 -3px 6px rgba(20,22,43,.25),0 4px 10px -2px rgba(48,24,248,.42)}
-.paso-tab.hecho .n{background:linear-gradient(160deg,#22c98a,#0a7d4a);color:#fff;border-color:rgba(255,255,255,.35);box-shadow:inset 0 2px 4px rgba(255,255,255,.4),0 4px 10px -2px rgba(10,125,74,.4);animation:barro-pop var(--mv)}
+.paso-tab .n{border-radius:999px;box-shadow:var(--clay-in);border:1px solid rgba(var(--luz-rgb),.8);transition:background var(--mv),color var(--mv)}
+.paso-tab.on .n{background:var(--brand-grd);color:#fff;border-color:rgba(255,255,255,.35);box-shadow:inset 0 2px 4px rgba(255,255,255,.4),inset 0 -3px 6px rgba(var(--tinta-rgb),.25),0 4px 10px -2px rgba(var(--af-rgb),.42)}
+.paso-tab.hecho .n{background:linear-gradient(160deg,#22c98a,var(--ok));color:#fff;border-color:rgba(255,255,255,.35);box-shadow:inset 0 2px 4px rgba(255,255,255,.4),0 4px 10px -2px rgba(var(--ok-rgb),.4);animation:barro-pop var(--mv)}
 .paso-tab:active{transform:scale(.97)}
 
 /* ---------- Barra fija y encabezado ---------- */
 .topbar{
-  background:rgba(255,255,255,.72);
+  background:rgba(var(--sup-rgb),.72);
   backdrop-filter:blur(20px) saturate(1.5);-webkit-backdrop-filter:blur(20px) saturate(1.5);
-  border-bottom:1px solid rgba(255,255,255,.9);
-  box-shadow:0 1px 0 rgba(255,255,255,.7),0 8px 24px -12px rgba(64,96,248,.2);
+  border-bottom:1px solid rgba(var(--luz-rgb),.9);
+  box-shadow:0 1px 0 rgba(var(--luz-rgb),.7),0 8px 24px -12px rgba(var(--a-rgb),.2);
 }
 .mbar{
-  background:rgba(255,255,255,.8);
+  background:rgba(var(--sup-rgb),.8);
   backdrop-filter:blur(22px) saturate(1.5);-webkit-backdrop-filter:blur(22px) saturate(1.5);
-  border-top:1px solid rgba(255,255,255,.9);
-  box-shadow:0 -10px 30px -10px rgba(64,96,248,.28);
+  border-top:1px solid rgba(var(--luz-rgb),.9);
+  box-shadow:0 -10px 30px -10px rgba(var(--a-rgb),.28);
 }
 
 /* ---------- La columna del dinero ----------
@@ -2671,12 +2700,12 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 .sum>*{border-top:none}
 .prog-box{
   border-radius:var(--rr2);
-  background:linear-gradient(180deg,rgba(64,96,248,.09),rgba(255,255,255,.4));
+  background:linear-gradient(180deg,rgba(var(--a-rgb),.09),rgba(var(--sup-rgb),.4));
   box-shadow:var(--clay-in);
-  border:1px solid rgba(255,255,255,.7);
+  border:1px solid rgba(var(--luz-rgb),.7);
   margin-bottom:var(--e2);
 }
-.prog-box:hover{background:linear-gradient(180deg,rgba(64,96,248,.13),rgba(255,255,255,.45))}
+.prog-box:hover{background:linear-gradient(180deg,rgba(var(--a-rgb),.13),rgba(var(--sup-rgb),.45))}
 .sum-rows,.sum-rows-2{padding-left:var(--e4);padding-right:var(--e4)}
 .sum-rows-2{margin-top:0;border-top:1px solid var(--n2)}
 
@@ -2688,13 +2717,13 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
   padding:var(--e4);
   border-top:none;
   border-radius:var(--rr2);
-  background:linear-gradient(160deg,#fff 0%,var(--a-suave) 100%);
-  border:1px solid rgba(255,255,255,.9);
+  background:linear-gradient(160deg,var(--sup) 0%,var(--a-suave) 100%);
+  border:1px solid rgba(var(--luz-rgb),.9);
   box-shadow:
-    inset 0 3px 7px rgba(255,255,255,.95),
-    inset 0 -6px 13px rgba(64,96,248,.14),
-    0 4px 8px rgba(35,39,68,.05),
-    0 18px 34px -10px rgba(64,96,248,.32);
+    inset 0 3px 7px rgba(var(--luz-rgb),.95),
+    inset 0 -6px 13px rgba(var(--a-rgb),.14),
+    0 4px 8px rgba(var(--tinta-rgb),.05),
+    0 18px 34px -10px rgba(var(--a-rgb),.32);
 }
 .neto .lab{color:var(--a-fuerte);font-weight:600}
 
@@ -2706,11 +2735,11 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
   margin-bottom:var(--e2);
   padding:var(--e3) var(--e4) var(--e4);
   border-radius:var(--rr2);
-  background:linear-gradient(180deg,rgba(24,182,216,.11),rgba(255,255,255,.4));
-  box-shadow:inset 0 3px 8px rgba(24,182,216,.2),inset 0 -2px 4px rgba(255,255,255,.9);
-  border:1px solid rgba(255,255,255,.7);
+  background:linear-gradient(180deg,rgba(var(--a3-rgb),.11),rgba(var(--sup-rgb),.4));
+  box-shadow:inset 0 3px 8px rgba(var(--a3-rgb),.2),inset 0 -2px 4px rgba(var(--luz-rgb),.9);
+  border:1px solid rgba(var(--luz-rgb),.7);
 }
-.anti label{color:#0b6e85;font-weight:600}
+.anti label{color:var(--a3-texto);font-weight:600}
 /* La tarjeta ganó 8 px de relleno propio, así que todo lo de dentro descuenta esos 8 de
    los suyos: sin esto el resumen se metía 32 px por la izquierda y los renglones dejaban
    de alinearse con el título de la tarjeta de al lado. */
@@ -2722,7 +2751,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 .neto .amt{
   background:linear-gradient(160deg,var(--a-claro),var(--a) 45%,var(--a-fuerte));
   -webkit-background-clip:text;background-clip:text;color:transparent;
-  filter:drop-shadow(0 3px 8px rgba(64,96,248,.28));
+  filter:drop-shadow(0 3px 8px rgba(var(--a-rgb),.28));
 }
 .neto .amt.cambio{animation:total-late var(--mv)}
 @keyframes total-late{
@@ -2731,7 +2760,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 
 /* ---------- Barra de completitud ----------
    Con brillo que recorre: es lo que dice que la app está trabajando contigo. */
-#prog-bar{border-radius:999px;box-shadow:0 2px 8px -2px rgba(64,96,248,.5);position:relative;overflow:hidden;transition:width var(--mv)}
+#prog-bar{border-radius:999px;box-shadow:0 2px 8px -2px rgba(var(--a-rgb),.5);position:relative;overflow:hidden;transition:width var(--mv)}
 #prog-bar::after{
   content:'';position:absolute;inset:0;border-radius:999px;
   background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.6) 50%,transparent 80%);
@@ -2743,7 +2772,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 /* ---------- Modales ---------- */
 .modal,.rv-modal,.sc-modal,.vt-modal,.hist-panel,.lightbox-body{
   border-radius:var(--rr4);
-  box-shadow:inset 0 3px 8px rgba(255,255,255,.85),0 32px 70px -12px rgba(20,22,43,.42);
+  box-shadow:inset 0 3px 8px rgba(var(--luz-rgb),.85),0 32px 70px -12px rgba(var(--tinta-rgb),.42);
   animation:modal-entra var(--mv);
 }
 @keyframes modal-entra{
@@ -2755,7 +2784,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 @keyframes vela{from{opacity:0}to{opacity:1}}
 
 /* ---------- Aviso emergente ---------- */
-#toast{border-radius:999px;box-shadow:inset 0 2px 5px rgba(255,255,255,.2),0 16px 36px -8px rgba(20,22,43,.5)}
+#toast{border-radius:999px;box-shadow:inset 0 2px 5px rgba(255,255,255,.2),0 16px 36px -8px rgba(var(--tinta-rgb),.5)}
 #toast.show{animation:toast-sube var(--mv)}
 @keyframes toast-sube{from{opacity:0;transform:translate(-50%,22px) scale(.92)}}
 
@@ -2807,7 +2836,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
   background:linear-gradient(115deg,var(--a2) 0%,var(--a) 48%,var(--a-fuerte) 100%);
   background-size:220% 100%;
   color:#fff;border:1px solid rgba(255,255,255,.3);
-  box-shadow:inset 0 3px 7px rgba(255,255,255,.4),inset 0 -6px 12px rgba(20,22,43,.26),0 4px 8px rgba(123,63,248,.2),0 16px 32px -6px rgba(123,63,248,.45);
+  box-shadow:inset 0 3px 7px rgba(255,255,255,.4),inset 0 -6px 12px rgba(var(--tinta-rgb),.26),0 4px 8px rgba(var(--a2-rgb),.2),0 16px 32px -6px rgba(var(--a2-rgb),.45);
   text-shadow:0 1px 2px rgba(20,22,43,.24);
   animation:ia-respira 7s ease-in-out infinite;
 }
@@ -2815,7 +2844,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 .ai-btn:hover{
   background:linear-gradient(115deg,var(--a2) 0%,var(--a) 48%,var(--a-fuerte) 100%);
   transform:translateY(-2px);
-  box-shadow:inset 0 3px 7px rgba(255,255,255,.45),inset 0 -6px 12px rgba(20,22,43,.28),0 6px 12px rgba(123,63,248,.24),0 24px 44px -8px rgba(123,63,248,.55);
+  box-shadow:inset 0 3px 7px rgba(255,255,255,.45),inset 0 -6px 12px rgba(var(--tinta-rgb),.28),0 6px 12px rgba(var(--a2-rgb),.24),0 24px 44px -8px rgba(var(--a2-rgb),.55);
 }
 .ai-btn:disabled{animation:none;opacity:.5}
 
@@ -3032,7 +3061,140 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
    barra queda como un renglón delgado de controles y no hay doble cromo.
 
    Se escriben como `html.empotrado` y no `.empotrado` a secas porque estas reglas terminan
-   en css/sistema.css —la copia generada— y de ahí las carga index.html, donde son inertes
+   en css/sistema.css —esta hoja— y de ahí las carga index.html, donde son inertes
    porque el <html> de la plataforma nunca lleva esa clase. */
 html.empotrado .brand{display:none}
 html.empotrado .btn-pf{display:none}
+
+/* ============================================================================
+   (7) TEMA OSCURO
+
+   Se enciende con html[data-tema="oscuro"], que pone js/tema.js antes del primer pintado
+   leyendo la clave al3d_tema (claro, oscuro o el del sistema). No hay una segunda hoja ni
+   reglas repetidas: el tema es OTRO JUEGO DE TOKENS y las mil reglas de arriba no se enteran.
+   Por eso arriba no queda ningún «#fff» de superficie ni ningún «rgba(255,255,255,…)» de
+   brillo suelto: los que quedan son texto blanco sobre un relleno de color, que es blanco en
+   los dos temas.
+
+   Las mismas dos reglas de contraste que en claro, medidas al revés: aquí el texto es claro
+   sobre fondo oscuro, así que los acentos —el azul, el verde, el ámbar, los seis matices de
+   partida— SUBEN de luminosidad para seguir siendo legibles como texto, y los degradados de
+   los botones rellenos (--brand-grd, --grd-deco) se quedan saturados y oscuros para que el
+   texto blanco de encima siga leyéndose. Es el único sitio donde --a y --brand-grd no salen
+   del mismo número, y es a propósito.
+   ============================================================================ */
+html[data-tema="oscuro"]{
+  color-scheme:dark;
+  --n0:#1d2140; --n1:#12142a; --n2:#262b4f; --n3:#343a66; --n4:#4a5288;
+  --n5:#737bb3; --n6:#a2a8d6; --n7:#c6cbeb; --n8:#e6e8fb; --n9:#f7f8ff;
+  --sup:#212548; --sup-rgb:33,37,72;
+  --luz-rgb:120,132,210;
+  --tinta-rgb:0,0,0;
+  --n1-rgb:18,20,42; --n2-rgb:38,43,79; --n3-rgb:52,58,102; --n4-rgb:74,82,136; --n5-rgb:115,123,179;
+  --a:#7d93ff; --a-fuerte:#a5b4ff; --a-claro:#5f7dff; --a-suave:#232a5c; --a-suave-2:#2a3372; --a-borde:#3e4d9e;
+  --a2:#b48cff; --a2-suave:#2c2450; --a3:#4fcbe6; --a3-texto:#7fd6ea;
+  --brand-grd:linear-gradient(160deg,#4c6afa 0%,#3f5cf5 45%,#3018f8 100%);
+  --grd-deco:linear-gradient(160deg,#5f7dff,#3f5cf5 55%,#3018f8);
+  --ok:#5fd699; --ok-bg:#12331f; --ok-borde:#1f6b42; --green-ico:#3fc282;
+  --av:#f5b54a; --av-bg:#3a2a0d; --av-borde:#7a5a1a; --amber-ico:#e0a232; --av-rgb:245,181,74; --av-borde-rgb:122,90,26;
+  --mal:#ff8a82; --mal-bg:#3d1a1a; --mal-borde:#7a2f2f; --mal-rgb:255,138,130;
+  --wa:#5ad0bd; --wa-rgb:90,208,189;
+  --pc-1:#a5b4ff; --pc-1-md:#6d86ff; --pc-1-bd:#3e4d9e; --pc-1-sv:#232a5c; --pc-1-rgb:109,134,255;
+  --pc-2:#ff8fd2; --pc-2-md:#e259ad; --pc-2-bd:#7a2f5e; --pc-2-sv:#3a1a30; --pc-2-rgb:226,89,173;
+  --pc-3:#78d8f0; --pc-3-md:#2fa9cc; --pc-3-bd:#1e5a6e; --pc-3-sv:#12303d; --pc-3-rgb:47,169,204;
+  --pc-4:#dba6f3; --pc-4-md:#b46fd6; --pc-4-bd:#5f3a75; --pc-4-sv:#2e1d3a; --pc-4-rgb:180,111,214;
+  --pc-5:#98bfff; --pc-5-md:#4d8ff0; --pc-5-bd:#234a80; --pc-5-sv:#142640; --pc-5-rgb:77,143,240;
+  --pc-6:#f097f6; --pc-6-md:#cf5ad8; --pc-6-bd:#6a2f70; --pc-6-sv:#341a38; --pc-6-rgb:207,90,216;
+  --sc-guide:#2fc2dd;
+}
+html[data-tema="oscuro"] body{
+  background:
+    radial-gradient(1200px 680px at 6% -10%, rgba(var(--ac-rgb),.16), transparent 58%),
+    radial-gradient(980px 600px at 102% 4%, rgba(var(--a2-rgb),.14), transparent 60%),
+    radial-gradient(820px 560px at 44% 110%, rgba(var(--a3-rgb),.10), transparent 62%),
+    var(--n1);
+  background-attachment:fixed;
+}
+/* Lo que lleva texto blanco sobre un relleno que en oscuro es CLARO: los chips elegidos y el
+   tipo elegido van rellenos del matiz de su partida, y el matiz subió para poder ser texto.
+   Entonces el texto de encima baja a tinta. Medido: #12142a sobre --pc-1-md da 5,2:1. */
+html[data-tema="oscuro"] .partida .chip.on,
+html[data-tema="oscuro"] .partida .tipo-seg button.on,
+html[data-tema="oscuro"] .chip.on{color:var(--n1);text-shadow:none}
+html[data-tema="oscuro"] .partida .chip.on small,html[data-tema="oscuro"] .chip.on small{color:rgba(18,20,42,.8)}
+html[data-tema="oscuro"] .partida .chip.on .ck,html[data-tema="oscuro"] .chip.on .ck{color:var(--n1)}
+html[data-tema="oscuro"] .pnum .n{color:var(--n1);text-shadow:none}
+html[data-tema="oscuro"] .falt-n{color:var(--n1)}
+html[data-tema="oscuro"] .mapa-pin.instalado{color:var(--n1)}
+/* El barro en oscuro: la luz de arriba es más tenue y la sombra de abajo, más honda. */
+html[data-tema="oscuro"]{
+  --clay:
+    inset 0 2px 5px rgba(var(--luz-rgb),.22),
+    inset 0 -5px 10px rgba(0,0,0,.28),
+    0 3px 6px rgba(0,0,0,.25),
+    0 14px 30px -6px rgba(0,0,0,.5);
+  --clay-alto:
+    inset 0 2px 5px rgba(var(--luz-rgb),.26),
+    inset 0 -6px 12px rgba(0,0,0,.32),
+    0 5px 10px rgba(0,0,0,.28),
+    0 24px 44px -8px rgba(0,0,0,.6);
+  --clay-in:
+    inset 0 3px 7px rgba(0,0,0,.35),
+    inset 0 -2px 4px rgba(var(--luz-rgb),.16);
+  --clay-in-pc:
+    inset 0 3px 8px rgba(0,0,0,.35),
+    inset 0 -2px 4px rgba(var(--luz-rgb),.16);
+}
+/* El aviso emergente era azul marino sobre blanco; sobre un fondo marino se perdería. */
+html[data-tema="oscuro"] .toast:not(.ok):not(.err){background:var(--n8);color:var(--n1)}
+html[data-tema="oscuro"] .toast:not(.ok):not(.err) .toast-act{border-color:rgba(18,20,42,.35);background:rgba(18,20,42,.08);color:var(--n1)}
+html[data-tema="oscuro"] .toast:not(.ok):not(.err) .toast-act:hover{background:rgba(18,20,42,.18);border-color:var(--n1)}
+/* Los campos: el degradado claro→blanco se vuelve hondo→superficie. */
+html[data-tema="oscuro"] input:-webkit-autofill,html[data-tema="oscuro"] input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100px var(--sup) inset}
+html[data-tema="oscuro"] .topbar{box-shadow:0 1px 0 rgba(var(--luz-rgb),.12),0 8px 24px -12px rgba(0,0,0,.6)}
+html[data-tema="oscuro"] .mbar{box-shadow:0 -10px 30px -10px rgba(0,0,0,.6)}
+html[data-tema="oscuro"] .neto .amt{filter:drop-shadow(0 3px 8px rgba(0,0,0,.4))}
+/* El logotipo con el «AL3D» en claro. La ruta es relativa a ESTA hoja (css/), así que sirve
+   igual desde la raíz y desde anidador-vectores/. Solo se cambia el logotipo de la casa: el que
+   alguien subió en el cotizador (src distinto) se respeta. */
+html[data-tema="oscuro"] .logoimg[src$="logo-al3d.svg"]{content:url("../logo-al3d-oscuro.svg")}
+/* Los alias viejos que apuntaban a un color fijo. */
+html[data-tema="oscuro"]{--card:var(--sup)}
+/* El botón de IA mezcla los tres acentos, que en oscuro subieron para ser texto: aquí se queda
+   con los saturados, porque lleva texto blanco encima. */
+html[data-tema="oscuro"] .ai-btn,html[data-tema="oscuro"] .ai-btn:hover{background:linear-gradient(115deg,#7b3ff8 0%,#4060f8 48%,#3018f8 100%);background-size:220% 100%}
+
+/* ----- El interruptor -----
+   Luna en claro («toca para oscuro»), sol en oscuro. Empotrado en la plataforma se apaga:
+   manda el de la barra de arriba, y los dos documentos se enteran por el evento storage. */
+.btn-tema{padding:0;width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+.btn-tema .svgi{width:var(--ico2);height:var(--ico2)}
+.btn-tema .sol{display:none}
+html[data-tema="oscuro"] .btn-tema .luna{display:none}
+html[data-tema="oscuro"] .btn-tema .sol{display:inline-block}
+html.empotrado .btn-tema{display:none}
+
+/* Al imprimir, el papel es blanco: el tema oscuro se apaga y vuelven los tokens de claro. Un
+   @media no puede «quitar» un atributo, así que se redeclaran los que el oscuro tocó. */
+@media print{
+  html[data-tema="oscuro"]{
+    color-scheme:light;
+    --n0:#fdfdff; --n1:#f2f3fe; --n2:#e7e9fb; --n3:#d8dbf6; --n4:#b6bbe6;
+    --n5:#8b90c0; --n6:#61668f; --n7:#3d4166; --n8:#232744; --n9:#14162b;
+    --sup:#ffffff; --sup-rgb:255,255,255; --luz-rgb:255,255,255; --tinta-rgb:35,39,68;
+    --a:#4060f8; --a-fuerte:#3018f8; --a-claro:#6090f8; --a-suave:#e9edff; --a-suave-2:#dfe6ff; --a-borde:#b9c5fe;
+    --a2:#7b3ff8; --a2-suave:#f1ecfd; --a3:#18b6d8; --a3-texto:#0b6e85;
+    --ok:#0a7d4a; --ok-bg:#e2f8ec; --ok-borde:#a9e8c6; --green-ico:#15a06a;
+    --av:#8a5100; --av-bg:#fff2dd; --av-borde:#ffd79c; --amber-ico:#c1830f;
+    --mal:#c62828; --mal-bg:#ffeceb; --mal-borde:#ffc4c1; --wa:#0f7a6c;
+    --pc-1:#3018f8; --pc-1-md:#4060f8; --pc-1-bd:#b9c5fe; --pc-1-sv:#e9edff;
+    --pc-2:#ab1c77; --pc-2-md:#cf2d94; --pc-2-bd:#e7b6d5; --pc-2-sv:#fbeef7;
+    --pc-3:#086581; --pc-3-md:#0a7fa2; --pc-3-bd:#b1deec; --pc-3-sv:#edf9fd;
+    --pc-4:#873ba0; --pc-4-md:#a350be; --pc-4-bd:#d6bfde; --pc-4-sv:#f7f1f9;
+    --pc-5:#0c59bd; --pc-5-md:#1470dd; --pc-5-bd:#b1cbec; --pc-5-sv:#edf4fd;
+    --pc-6:#9f17a8; --pc-6-md:#bd23c8; --pc-6-bd:#e5b5e8; --pc-6-sv:#fbeefc;
+  }
+  html[data-tema="oscuro"] .logoimg[src$="logo-al3d.svg"]{content:url("../logo-al3d.svg")}
+  html[data-tema="oscuro"] .partida .chip.on,html[data-tema="oscuro"] .chip.on,
+  html[data-tema="oscuro"] .partida .tipo-seg button.on,html[data-tema="oscuro"] .pnum .n{color:#12162b}
+}

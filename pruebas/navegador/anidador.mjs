@@ -258,7 +258,7 @@ await p.click('#an-avanzado summary'); await p.click('#an-concavas');
 console.log('\nDESDE EL VECTORIZADOR DEL COTIZADOR, DE PUNTA A PUNTA');
 const cot = await ctx.newPage();
 const errsCot = []; cot.on('pageerror', e => errsCot.push(e.message));
-await cot.goto(B + '/cotizador.html', { waitUntil: 'load' });
+await cot.goto(B + '/cotizador.html?solo=1', { waitUntil: 'load' });
 await cot.waitForTimeout(1200);
 await cot.fill('#f-cli', 'Farmacia San Juan'); await cot.fill('#f-tel', '33 1234 5678'); await cot.fill('#f-proy', 'Letrero de fachada');
 await cot.waitForTimeout(300);

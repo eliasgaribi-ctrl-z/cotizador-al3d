@@ -1,11 +1,12 @@
 /* ============================================================================
-   Service worker de AL3D. Dos apps, dos estrategias.
+   Service worker de AL3D. Una app, un conjunto versionado.
 
    ┌─────────────────────────────────────────────────────────────────────────┐
-   │ AL PUBLICAR UN CAMBIO DE LA PLATAFORMA: SUBE APP_VERSION UNA UNIDAD.    │
+   │ AL PUBLICAR CUALQUIER CAMBIO: SUBE APP_VERSION UNA UNIDAD.              │
    │ Es la única línea que hay que tocar. Sin eso, los teléfonos que ya      │
    │ tienen la app siguen sirviendo la versión de la caché.                  │
-   │ (El cotizador NO necesita esto: sigue siendo red-primero.)              │
+   │ Desde septiembre de 2026 esto incluye al cotizador: cotizador.html y    │
+   │ js/cotizador/ van en el mismo conjunto que la plataforma.               │
    └─────────────────────────────────────────────────────────────────────────┘
 
    El cotizador existe por una sola razón, que sigue igual: la app se agrega a la pantalla
@@ -13,10 +14,13 @@
    pantalla de error del navegador y el historial, los folios y la cotización en curso —que
    están en ESE teléfono— quedaban inalcanzables por no poder cargar el HTML que los lee.
 
-   Su estrategia sigue siendo «red primero, caché de respaldo», y es a propósito: el sitio se
-   publica subiendo cotizador.html a la rama main, así que una caché que mande siempre
-   serviría la versión vieja después de publicar y el problema sería peor que el que se quiso
-   arreglar.
+   Durante un año su estrategia fue «red primero, caché de respaldo», porque era UN archivo
+   que se publicaba subiéndolo a main. Ya no es un archivo: es cotizador.html más once guiones
+   en js/cotizador/ y la hoja css/sistema.css que comparte con la plataforma. Un HTML nuevo con
+   un guion viejo no es un cotizador viejo: es uno roto —exactamente el problema que se
+   describe abajo para la plataforma—. Así que el cotizador entra al conjunto versionado y se
+   promociona de golpe con todo lo demás. Lo que queda en la caché de siempre, red primero,
+   son los archivos que no cambian con la versión: logotipos, iconos y manifiesto.
 
    QUIÉN ES QUIÉN, desde el cambio de puerta de entrada: la RAÍZ del sitio (`./`,
    `index.html`) es la plataforma —el calendario, la obra, el material— y `cotizador.html` es
@@ -36,14 +40,14 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 17;
+const APP_VERSION = 18;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
 
-/* Los del cotizador. Se guardan de uno en uno y con catch: el repo puede publicarse sin los
-   logotipos, y con addAll un logo faltante tiraría la instalación entera. */
-const BASICOS = ['./cotizador.html', './manifest.webmanifest',
+/* La marca: lo que no lleva versión. Se guardan de uno en uno y con catch: el repo puede
+   publicarse sin los logotipos, y con addAll un logo faltante tiraría la instalación entera. */
+const BASICOS = ['./manifest.webmanifest',
                  './logo-al3d.svg', './logo-al3d-oscuro.svg',
                  './icono-192.png', './icono-512.png', './icono-maskable-512.png',
                  './apple-touch-icon.png'];
@@ -57,6 +61,21 @@ const APP_FILES = [
   './manifest-plataforma.webmanifest',
   './css/sistema.css',
   './css/plataforma.css',
+  './js/tema.js',
+  /* El cotizador: la página y sus once guiones. Van juntos porque se cargan en orden y se
+     llaman entre sí; uno nuevo con uno viejo no arranca. */
+  './cotizador.html',
+  './js/cotizador/catalogo.js',
+  './js/cotizador/nucleo.js',
+  './js/cotizador/partidas.js',
+  './js/cotizador/proceso.js',
+  './js/cotizador/ia.js',
+  './js/cotizador/entrega.js',
+  './js/cotizador/historial.js',
+  './js/cotizador/escalador.js',
+  './js/cotizador/venta.js',
+  './js/cotizador/vectorizador.js',
+  './js/cotizador/arranque.js',
   './js/app.js',
   './js/nucleo/ui.js',
   './js/nucleo/fechas.js',
@@ -123,6 +142,7 @@ function esDeLaPlataforma(url) {
   const p = url.pathname;
   return p.endsWith('/') ||                    // la portada del sitio
          p.endsWith('/index.html') ||
+         p.endsWith('/cotizador.html') ||      // el cotizador, desde que va con el conjunto
          p.endsWith('/plataforma.html') ||     // el reenvío
          p.endsWith('/manifest-plataforma.webmanifest') ||
          p.indexOf('/anidador-vectores/') >= 0 ||   // el anidador entero, con sus workers
@@ -288,6 +308,12 @@ async function plataforma(req) {
       const portada = await c.match('./index.html') || await c.match('./');
       if (portada) return portada;
     }
+    /* Un teléfono que tenía la app de antes de que el cotizador entrara al conjunto guarda
+       cotizador.html y sus guiones en la caché vieja. Se mira ahí antes de rendirse. */
+    try {
+      const vieja = await (await caches.open(CACHE)).match(req, { ignoreSearch: true });
+      if (vieja) return vieja;
+    } catch (_) {}
     return new Response('Sin conexión y sin copia guardada de la plataforma.',
       { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }

@@ -3,7 +3,7 @@
 
    Todo lo demás —los azules del logotipo, el barro, la escala de siete tamaños de letra,
    los tres radios, las dos sombras, las curvas de movimiento— sale de css/sistema.css, que
-   es la copia generada del <style> del cotizador. Aquí no se define ni un color nuevo ni un
+   es el sistema de diseño de las tres superficies. Aquí no se define ni un color nuevo ni un
    tamaño de letra nuevo: si algo hiciera falta y no estuviera en la escala, la respuesta es
    usar el paso de la escala que más se acerque, no añadir un paso.
 
@@ -129,7 +129,7 @@ button,input,select,textarea,optgroup{font-family:inherit}
 .pf-tab .cta{min-width:20px;height:20px;padding:0 6px;border-radius:10px;
   background:var(--av-bg);border:1px solid var(--av-borde);color:var(--av);
   font-weight:700;font-size:var(--t1);line-height:20px;text-align:center}
-.pf-tab.on .cta{background:#fff}
+.pf-tab.on .cta{background:var(--sup)}
 @media(max-width:560px){
   /* A sangre: la tira se sale hasta el filo de la pantalla para que se vea que hay más
      pestañas que las que caben. Lo que resta TIENE que ser el relleno real de .wrap, no un
@@ -387,7 +387,7 @@ button,input,select,textarea,optgroup{font-family:inherit}
 .leaflet-bar a{color:var(--n7)}
 /* La atribución de OpenStreetMap es obligatoria por su licencia y se queda visible.
    No se esconde ni se encoge hasta que no se lea. */
-.leaflet-control-attribution{font-size:10px;background:rgba(255,255,255,.85)}
+.leaflet-control-attribution{font-size:10px;background:rgba(var(--sup-rgb),.85)}
 
 /* La leyenda del mapa: forma Y palabra, nunca color solo. Uno de cada doce hombres no
    distingue el verde del ámbar, y este mapa se lee para decidir a dónde va la camioneta. */
@@ -640,7 +640,7 @@ button,input,select,textarea,optgroup{font-family:inherit}
    pagos es un <span> con la misma cara y sin cursor: no tiene nada que cambiar ahí. */
 .cal-plazo{display:inline-flex;align-items:center;gap:var(--e1);
   min-height:28px;padding:0 10px;border:1px solid var(--n3);border-radius:999px;
-  background:linear-gradient(168deg,#fff,var(--n1));box-shadow:var(--clay-in);
+  background:linear-gradient(168deg,var(--sup),var(--n1));box-shadow:var(--clay-in);
   color:var(--n7);font-family:inherit;font-weight:600;font-size:var(--t1);line-height:1;white-space:nowrap}
 button.cal-plazo{cursor:pointer}
 button.cal-plazo::after{content:'▾';font-size:9px;color:var(--muted)}

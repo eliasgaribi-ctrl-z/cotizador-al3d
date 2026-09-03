@@ -20,7 +20,10 @@ const eq = (nombre, real, esperado) => {
   if (!ok) fallos++;
 };
 
-const html = readFileSync(new URL('../cotizador.html', import.meta.url), 'utf8');
+/* La lista vive en js/cotizador/historial.js; las constantes que nombra pueden estar en cualquiera
+   de los once guiones, así que se leen todos, en el orden en que los carga cotizador.html. */
+const html = ['catalogo','nucleo','partidas','proceso','ia','entrega','historial','escalador','venta','vectorizador','arranque']
+  .map(n => readFileSync(new URL('../js/cotizador/' + n + '.js', import.meta.url), 'utf8')).join('\n');
 
 console.log('\nLAS DOS LISTAS DE CLAVES');
 /* La lista del cotizador nombra constantes (CANVA_KEY, PREF_RV_PCT…). Se resuelven buscando

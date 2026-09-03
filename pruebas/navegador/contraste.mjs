@@ -107,9 +107,9 @@ let fallos = 0;
 const mal = m => { console.log('  ✗ ' + m); fallos++; };
 const bien = m => console.log('  ✓ ' + m);
 
-await p.goto(B + '/cotizador.html', {waitUntil:'load'});
+await p.goto(B + '/cotizador.html?solo=1', {waitUntil:'load'});
 await p.evaluate(() => { try { localStorage.clear(); } catch(_) {} });
-await p.goto(B + '/cotizador.html', {waitUntil:'load'});
+await p.goto(B + '/cotizador.html?solo=1', {waitUntil:'load'});
 await p.waitForTimeout(1100);
 await p.fill('#f-cli', 'Farmacia San Juan');
 await p.fill('#f-tel', '33 1234 5678');

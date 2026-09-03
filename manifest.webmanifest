@@ -1,18 +1,25 @@
 {
   "id": "/cotizador-al3d/",
-  "name": "Cotizador AL3D",
-  "short_name": "Cotizador",
-  "description": "Cotizador de anuncios luminosos: letras 3D, recorte de acrílico, bastidores y cajas de luz.",
-  "start_url": "./cotizador.html",
+  "name": "AL3D — taller y cotizador",
+  "short_name": "AL3D",
+  "description": "El taller de AL3D: qué se está fabricando, qué va tarde, el calendario, el material y el cotizador de anuncios luminosos.",
+  "start_url": "./#/hoy",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#f5f6fb",
+  "background_color": "#f2f3fe",
   "theme_color": "#4060f8",
   "lang": "es-MX",
+  "dir": "ltr",
   "icons": [
     { "src": "icono-192.png",          "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icono-512.png",          "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Tablero",    "url": "./#/hoy" },
+    { "name": "Cotizador",  "url": "./#/cotizador" },
+    { "name": "Material",   "url": "./#/material" },
+    { "name": "Calendario", "url": "./#/agenda" }
   ]
 }
