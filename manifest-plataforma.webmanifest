@@ -2,8 +2,8 @@
   "id": "/cotizador-al3d/plataforma",
   "name": "Plataforma AL3D",
   "short_name": "AL3D",
-  "description": "Agenda de instalaciones, material en almacén, proyectos y mapa de obra.",
-  "start_url": "./plataforma.html#/hoy",
+  "description": "El taller de AL3D: qué se está fabricando ahora, qué va tarde, el calendario, el material y el cotizador.",
+  "start_url": "./#/hoy",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
@@ -17,8 +17,9 @@
     { "src": "icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Hoy",      "url": "./plataforma.html#/hoy" },
-    { "name": "Material", "url": "./plataforma.html#/material" },
-    { "name": "Agenda",   "url": "./plataforma.html#/agenda" }
+    { "name": "Tablero",   "url": "./#/hoy" },
+    { "name": "Cotizador", "url": "./#/cotizador" },
+    { "name": "Material",  "url": "./#/material" },
+    { "name": "Calendario","url": "./#/agenda" }
   ]
 }

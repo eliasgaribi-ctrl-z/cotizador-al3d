@@ -107,6 +107,12 @@ export async function montar(c, ctx) {
   /* La base cerrada NO se pinta como «no hay proyectos». Son dos cosas distintas y la
      diferencia es la que decide si alguien se queda tranquilo o pierde la tarde buscando
      doscientos proyectos que están donde siempre. */
+  /* Lo que dejó el módulo anterior. Sin esto, el botón «Abrir» de un renglón del Tablero
+     te deja en esta lista y hay que volver a buscar el proyecto que ya estabas mirando: el
+     salto que este reacomodo existe para quitar. De un solo uso, así que volver por la barra
+     de pestañas SÍ da la lista, que es lo correcto —esa es una llegada nueva. */
+  const pase = (CTX && CTX.recibir) ? CTX.recibir() : null;
+
   const e = DB.estado();
   if (!e.ok) {
     cont.innerHTML =
@@ -157,6 +163,12 @@ export async function montar(c, ctx) {
   on(window, 'afterprint', trasImprimir);
 
   await cargar();
+
+  /* Después de `cargar()` y no antes: `abrirFicha` lee el proyecto y necesita la lista ya
+     pintada debajo para que cerrar la capa devuelva a algo. */
+  if (pase && pase.proyecto_id) {
+    try { await abrirFicha(pase.proyecto_id); } catch (_) { /* el proyecto ya no está: la lista sirve igual */ }
+  }
 }
 
 export function desmontar() {

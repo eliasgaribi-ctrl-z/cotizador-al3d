@@ -134,9 +134,30 @@ export async function montar(contenedor, ctx) {
     return;
   }
 
+  /* Lo que dejó el módulo anterior, ANTES de leer, para que la lectura ya salga con el mes
+     correcto en vez de leer dos veces. */
+  const pase = (ctx && ctx.recibir) ? ctx.recibir() : null;
+  if (pase) {
+    if (pase.lente === 'taller' || pase.lente === 'instalaciones' || pase.lente === 'todo') _lente = pase.lente;
+    if (pase.vista === 'mes' || pase.vista === 'semana' || pase.vista === 'lista') _vista = pase.vista;
+    if (pase.dia && /^\d{4}-\d{2}-\d{2}$/.test(pase.dia)) { _ancla = pase.dia; _dia = pase.dia; }
+  }
+
   _cont.innerHTML = '<div class="vacio">' + ico('i-reloj') +
     '<p class="vacio-t">Leyendo la agenda…</p></div>';
   await recargar();
+
+  /* Y la hoja de agendar CON EL PROYECTO YA ELEGIDO. Va después de `recargar()` porque
+     `pintarPaso2` necesita la lista de los que no tienen fecha, que sale de esa lectura.
+     Es el segundo salto que se quita: antes había que entrar a agendar y buscar el proyecto
+     en una lista donde ya sabías cuál era. */
+  if (pase && pase.hoja === 'agendar' && pase.proy) {
+    if (!puedeAgendar()) {
+      toast('Agendar es de dirección. Si te toca a ti, cambia de rol en Ajustes.', 'err', 4600);
+    } else {
+      try { await pintarPaso2(pase.proy); } catch (_) { abrirAgendar(pase.dia || null); }
+    }
+  }
 }
 
 export function desmontar() {
@@ -461,13 +482,25 @@ function pintarTaller(d) {
   let html = '<div class="card"><div class="card-b">';
   if (conFecha.length) {
     html += '<div class="ag-grupo">' + ico('i-taller') + 'En el taller <span class="n">' + conFecha.length + '</span></div>' +
-            conFecha.map(v => filaTaller(v, d.hoy, { plazoEditable: puedeCorregirPlazo() })).join('');
+            conFecha.map(v => filaTaller(v, d.hoy, { plazoEditable: puedeCorregirPlazo(),
+              accionesHTML: accionAnidar(v) })).join('');
   }
   if (sinFecha.length) {
     html += '<div class="ag-grupo">' + ico('i-reloj') + 'Ganados sin fecha, con el reloj corriendo <span class="n">' + sinFecha.length + '</span></div>' +
-            sinFecha.map(v => filaTaller(v, d.hoy, { plazoEditable: puedeCorregirPlazo() })).join('');
+            sinFecha.map(v => filaTaller(v, d.hoy, { plazoEditable: puedeCorregirPlazo(),
+              accionesHTML: accionAnidar(v) })).join('');
   }
   return html + '</div></div>';
+}
+
+/* De aquí a la mesa de corte, con el proyecto puesto. Es el paso que el taller da de verdad
+   —lo que hay que cortar se acomoda en la lámina antes de cortarlo— y hasta ahora era una
+   pestaña nueva del navegador. Solo en las etapas en que tiene sentido: acomodar piezas de
+   algo que ya se armó no es un paso, es una distracción. */
+function accionAnidar(v) {
+  if (v.etapa_real !== 'ganado' && v.etapa_real !== 'en_diseno') return '';
+  return '<button type="button" class="btn btn-gho pf-btn-corto" data-anidar="' +
+    esc(v.proyecto_id || '') + '">Acomodar en la lámina</button>';
 }
 
 /* ----- Las cuentas de arriba -----
@@ -922,6 +955,17 @@ async function alTocar(ev) {
 
   const dec = ev.target.closest('[data-decidir]');
   if (dec) { (dec.dataset.decidir === 'ganar' ? abrirGanar : abrirDescartar)(dec.dataset.folio); return; }
+
+  const anid = ev.target.closest('[data-anidar]');
+  if (anid) {
+    const id = anid.dataset.anidar;
+    const v = ((_d && _d.ventanas) || []).find(x => x && x.proyecto_id === id);
+    if (_ctx && _ctx.pasar) {
+      _ctx.pasar('hoy', { vista: 'anidador', proyecto_id: id,
+        nombre: (v && v.titulo) || '', folio: '' });
+    }
+    return;
+  }
 
   const vista = ev.target.closest('[data-vista]');
   if (vista) { _vista = vista.dataset.vista; _dia = null; await recargar(); return; }

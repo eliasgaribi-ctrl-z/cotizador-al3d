@@ -421,6 +421,81 @@ if (cot && solo.historial && dentro_hist) {
 }
 await suelto.close();
 
+// ── 6d. El aterrizaje: llegar al siguiente paso sin volver al menú ─────────
+/* Es EL criterio de aceptación del reacomodo. Los botones ya navegaban antes de esto; lo que
+   no hacían era aterrizar: «Abrir» te dejaba en la lista de proyectos, donde hay que volver a
+   buscar el que ya estabas mirando. Eso es el salto que había que quitar, y es lo único de
+   esta prueba que mide la queja original y no un detalle técnico. */
+console.log('\nEL ATERRIZAJE');
+await irA('#/hoy');
+await p.waitForTimeout(400);
+
+/* «Abrir» de un renglón del taller tiene que dejar la FICHA abierta, no la lista. */
+const abrir = await p.evaluateHandle(() => {
+  const f = document.querySelector('#mod-tablero .pf-fila.tal-fila');
+  if (!f) return null;
+  return [...f.querySelectorAll('button')].find(b => b.textContent.trim() === 'Abrir') || null;
+});
+if (!abrir || !(await abrir.evaluate(e => !!e))) mal('no hay botón «Abrir» en el primer renglón del taller');
+else {
+  await abrir.asElement().click();
+  await p.waitForTimeout(1400);
+  const tras = await p.evaluate(() => ({
+    montada: (() => { const s = [...document.querySelectorAll('.pf-mod')].find(x => !x.hidden); return s ? s.id : null; })(),
+    fichaAbierta: !!document.querySelector('#pf-ficha.show'),
+    titulo: (() => { const h = document.querySelector('#pf-ficha .pf-panel-h h2'); return h ? h.textContent.trim().slice(0, 40) : null; })(),
+  }));
+  tras.montada === 'mod-proyectos'
+    ? bien('«Abrir» lleva a Proyectos')
+    : mal('«Abrir» llevó a ' + tras.montada);
+  tras.fichaAbierta
+    ? bien('Y LA FICHA YA ESTÁ ABIERTA («' + tras.titulo + '»): no hay que volver a buscar lo que ya estabas mirando')
+    : mal('llegó a la lista con la ficha CERRADA: el salto sigue ahí, que es la queja original');
+
+  /* Y volver por la barra de pestañas SÍ da la lista: el pase es de un solo uso, y una
+     llegada nueva empieza donde empiezan las llegadas nuevas. */
+  await p.evaluate(() => { const c = document.querySelector('#pf-ficha .pf-cerrar'); if (c) c.click(); });
+  await p.waitForTimeout(500);
+  await p.click('.pf-tab[data-ruta="hoy"]');
+  await p.waitForTimeout(800);
+  await p.click('.pf-tab[data-ruta="proyectos"]');
+  await p.waitForTimeout(1000);
+  (await p.evaluate(() => !document.querySelector('#pf-ficha.show')))
+    ? bien('y entrar por la pestaña da la lista, con la ficha cerrada: el pase es de un solo uso')
+    : mal('el pase se quedó pegado: entrar por la pestaña reabrió una ficha vieja');
+}
+
+/* Del taller a la mesa de corte, con el proyecto puesto. */
+await irA('#/agenda');
+await p.waitForTimeout(600);
+const hayAnidar = await p.evaluate(() => {
+  const b = document.querySelector('[data-anidar]');
+  return b ? { existe: true, txt: b.textContent.trim() } : { existe: false };
+});
+if (!hayAnidar.existe) {
+  /* Puede no estar si la lente abierta no es Taller o si nada está en ganado/en_diseño. */
+  await p.evaluate(() => { const b = document.querySelector('[data-lente="taller"]'); if (b) b.click(); });
+  await p.waitForTimeout(900);
+}
+const anidarAhora = await p.evaluate(() => !!document.querySelector('[data-anidar]'));
+if (!anidarAhora) mal('la lente Taller no ofrece «Acomodar en la lámina» en ningún renglón');
+else {
+  bien('la lente Taller ofrece «Acomodar en la lámina»');
+  await p.click('[data-anidar]');
+  await p.waitForTimeout(2600);
+  const llegada = await p.evaluate(() => ({
+    montada: (() => { const s = [...document.querySelectorAll('.pf-mod')].find(x => !x.hidden); return s ? s.id : null; })(),
+    marco: !!document.getElementById('pf-anid-marco'),
+    dice: (() => { const h = document.querySelector('#mod-tablero .hintnote'); return h ? h.textContent.trim().slice(0, 60) : null; })(),
+  }));
+  llegada.montada === 'mod-tablero' && llegada.marco
+    ? bien('aterriza en la mesa de corte, sin pestaña nueva del navegador')
+    : mal('no llegó a la mesa de corte: ' + JSON.stringify(llegada));
+  llegada.dice && llegada.dice.includes('Vienes de')
+    ? bien('y dice de dónde vienes: «' + llegada.dice + '…»')
+    : mal('llegó sin decir de qué proyecto viene: ' + JSON.stringify(llegada.dice));
+}
+
 // ── 7. El teléfono ─────────────────────────────────────────────────────────
 console.log('\nEN EL TELÉFONO');
 const tel = await ctx.newPage();
