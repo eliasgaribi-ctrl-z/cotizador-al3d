@@ -228,16 +228,16 @@ svgnest.com. Vive en su propia página,
 porque es del taller y no de la venta, y se llega a ella desde dos sitios: el botón
 **Anidador** de la barra de la plataforma —en computadora y tableta; en el teléfono no se
 enseña, porque ahí no hay SVG que acomodar ni láser que alimentar, y un botón más partía la
-barra en tres renglones— y, en el cotizador, **Acomodar en lámina** dentro del vectorizador,
+barra en tres renglones— y, en el cotizador, **Acomodar en hoja** dentro del vectorizador,
 que abre el anidador **con el trazo ya puesto** —sin bajar el SVG al disco y sin ir a
 buscarlo a las descargas—. Subes el SVG de las piezas (arrastrado, pegado con
-Ctrl+V o elegido), dices en qué lámina va y la herramienta las acomoda sola, probando giros,
+Ctrl+V o elegido), dices en qué hoja va y la herramienta las acomoda sola, probando giros,
 con el motor open source [SVGnest](https://github.com/Jack000/SVGnest). Corre completo en el
 navegador; ningún archivo se sube a un servidor.
 
 **Trabaja en milímetros, y lo que no es una medida lo pregunta.** El motor acomoda números y
 no sabe si son milímetros o píxeles: con un archivo que dice `width="300mm"` y un `viewBox`
-de 1 200, para él la pieza mide 1 200, y en una lámina de 1 220 «cabe justo una» — cuando
+de 1 200, para él la pieza mide 1 200, y en una hoja de 1 220 «cabe justo una» — cuando
 mide 300 mm y caben cuatro. El resultado sale plausible, se ve bien en pantalla y se
 descubre en la máquina. La primera versión lo resolvía con un aviso —«las medidas deben ir en
 las mismas unidades que tu archivo»— que es la clase de aviso que se lee una vez y se olvida
@@ -252,7 +252,7 @@ llega sin ella, la pide ahí. La aritmética vive aparte y se prueba en node.
 solo acomoda contornos, y lo que no lo es lo descarta callado: un texto sin convertir en
 trazos, un símbolo reutilizado con `<use>`, una imagen incrustada. Al cargar el archivo se
 nombran, con su cuenta y con el remedio («Texto → Crear contornos»). Y antes de arrancar se
-comprueba qué piezas no caben en la lámina ni giradas: si no cabe ninguna no se arranca, y
+comprueba qué piezas no caben en la hoja ni giradas: si no cabe ninguna no se arranca, y
 si son algunas se dice cuántas.
 
 **Se detiene solo.** El algoritmo genético no termina nunca: mientras nadie lo pare, sigue
@@ -260,16 +260,31 @@ buscando un acomodo mejor, y la primera versión dependía de que alguien se aco
 volver a la pestaña. Ahora, cuando lleva 25 intentos y 40 segundos seguidos sin mejorar, se
 detiene y lo dice; **Seguir buscando** continúa desde donde iba, y **Detener** para antes
 si el resultado ya convence. Mientras corre se ve cuánto material aprovecha, cuántas piezas
-van colocadas y en cuántas láminas.
+van colocadas y en cuántas hojas.
 
-**La lámina se elige de las que compra el taller** —1.22 × 2.44 m para acrílico, aluminio y
-galvanizada, 1.25 × 2.50 m para alucobond, media lámina— o se teclea otra medida; **Girar la
-lámina** la acuesta, y la última usada se recuerda en el aparato. El SVG que sale va **a
-escala real** —`width="1220mm"`—, con una capa por lámina, todas en un archivo o una lámina
-sola, y el contorno de la lámina en azul en su propia capa, para colocar el archivo en la
-cama del láser y ponerlo en «no cortar». El interruptor que lo quita se lee al descargar, no
-al arrancar: quien ve el resultado y decide que el contorno no lo quiere no tiene por qué
-volver a acomodar para quitarlo.
+**La hoja se elige mirándola, y los retazos se guardan.** En este taller todas las hojas son
+de 1.20 × 2.40 m, así que las tarjetas son la completa, la media y el cuarto, cada una
+dibujada a proporción, y la cuarta es el **retazo**: la medida a mano del sobrante. Un
+sobrante se mide una vez, se guarda con su nombre —«sobrante acrílico 3 mm · 600 × 450»— y la
+próxima vez se elige de la lista, sin volver a medirlo; guardar dos veces la misma medida no
+lo duplica y la × lo quita. El **material** —acrílico, aluminio, galvanizada, alucobond,
+MDF— no cambia las medidas: cambia el acabado con el que se pinta la hoja en la mesa y el
+nombre con el que se descarga el archivo. **Girar la hoja** la acuesta, y la última hoja, el
+material y los retazos se recuerdan en el aparato. El SVG que sale va **a escala real**
+—`width="1200mm"`—, con una capa por hoja, todas en un archivo o una hoja sola, y el contorno
+de la hoja en azul en su propia capa, para colocar el archivo en la cama del láser y ponerlo
+en «no cortar». El interruptor que lo quita se lee al descargar, no al arrancar: quien ve el
+resultado y decide que el contorno no lo quiere no tiene por qué volver a acomodar para
+quitarlo.
+
+**Y se mira como una mesa de corte.** El acomodo es un cálculo de dos minutos que se queda
+mirando, así que la mesa es la cama de un láser —oscura, con su cuadrícula— y las hojas de
+material van encima con su acabado. Las piezas caen en su lugar, cada una de su color, cada
+vez que el motor encuentra un acomodo mejor; el **marcador** lleva el aprovechamiento en una
+aguja con su calificación —se puede mejorar, bien, muy bien, excelente— que late cuando sube,
+la merma, las piezas colocadas y las hojas; y mientras el motor trabaja un haz recorre la
+mesa, que es la señal de «estoy en eso» que una barra de progreso que va y viene no da.
+Quien tenga «reducir movimiento» en su sistema recibe la misma mesa, quieta.
 
 Y se ve de AL3D: la primera versión traía su propia hoja de estilos —fondo negro, naranja—
 y era la única pantalla del sitio que no parecía del sitio. Ahora toma `css/sistema.css`,

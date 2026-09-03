@@ -1,11 +1,11 @@
 # Anidador de vectores (AL3D)
 
-Acomoda las piezas de un SVG dentro de la lámina para gastar el menor material posible
+Acomoda las piezas de un SVG dentro de la hoja para gastar el menor material posible
 antes de mandarlas al láser o al CNC — el *nesting* que antes se hacía a mano en
 svgnest.com. Corre completo en el navegador: el archivo no se sube a ningún servidor.
 
 Vive en [`/anidador-vectores/`](https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/anidador-vectores/)
-y se llega a él desde el vectorizador del cotizador —**Acomodar en lámina**— o desde el botón
+y se llega a él desde el vectorizador del cotizador —**Acomodar en hoja**— o desde el botón
 **Anidador** de la plataforma.
 
 ## Qué hace
@@ -16,20 +16,28 @@ y se llega a él desde el vectorizador del cotizador —**Acomodar en lámina**�
    convierte solo; si viene en px o sin unidades —que en SVG no es una medida— pide el
    ancho o el alto real del diseño, igual que hace el vectorizador.
 3. Dice lo que se va a quedar fuera antes de empezar: textos sin convertir en contornos,
-   símbolos `<use>`, imágenes, y las piezas que no caben en la lámina ni giradas.
+   símbolos `<use>`, imágenes, y las piezas que no caben en la hoja ni giradas.
 4. Acomoda las piezas con el motor de código abierto [SVGnest](https://github.com/Jack000/SVGnest)
    (algoritmo genético + *no-fit polygon*), probando giros, y va enseñando el mejor
-   acomodo encontrado. Si no caben en una lámina, abre las que hagan falta.
+   acomodo encontrado. Si no caben en una hoja, abre las que hagan falta.
 5. **Se detiene solo** cuando lleva 25 intentos y 40 segundos seguidos sin mejorar, porque
    el algoritmo genético nunca termina por su cuenta. «Seguir buscando» continúa desde
    donde iba; «Detener» para cuando el resultado ya convence.
-6. Descarga el SVG acomodado **a escala real** (`width="1220mm"`), con una capa por lámina
-   —todas en un archivo, o una lámina sola— y el contorno de la lámina en azul en su propia
+6. Descarga el SVG acomodado **a escala real** (`width="1200mm"`), con una capa por hoja
+   —todas en un archivo, o una hoja sola— y el contorno de la hoja en azul en su propia
    capa, para colocar el archivo en la cama y ponerlo en «no cortar».
 
-La lámina se elige de las que compra el taller —1.22 × 2.44 m para acrílico, aluminio y
-galvanizada; 1.25 × 2.50 m para alucobond; media lámina— o se teclea otra medida. La
-última lámina usada se recuerda en el aparato.
+La hoja se elige mirándola: en este taller todas son de 1.20 × 2.40 m, así que las tarjetas
+son la completa, la media y el cuarto, y la cuarta es el retazo, que se mide a mano y se
+guarda con su nombre para la próxima vez. El material —acrílico, aluminio, galvanizada,
+alucobond, MDF— cambia el acabado con el que se pinta la hoja en la mesa y el nombre del
+archivo que se descarga. Hoja, material y retazos se recuerdan en el aparato
+(`al3d_anidador_material`, `al3d_anidador_retazos`).
+
+La mesa es la cama de un láser: oscura, con cuadrícula, y las hojas encima con su acabado.
+Las piezas caen en su lugar, cada una de su color, cada vez que el motor mejora; el marcador
+lleva el aprovechamiento en una aguja con su calificación, la merma, las colocadas y las
+hojas. Con «reducir movimiento» en el sistema, nada se mueve.
 
 ## Cómo correrla en local
 
@@ -88,7 +96,7 @@ así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se 
 
 - La medida que se pide es la del **diseño** —el letrero de orilla a orilla—, no la del
   lienzo o el artboard. Con el ancho o el alto basta.
-- La separación es la distancia mínima entre piezas **y** con la orilla de la lámina.
+- La separación es la distancia mínima entre piezas **y** con la orilla de la hoja.
 - «Meter piezas chicas en los huecos grandes» sirve cuando hay una «O» o una «D» lo bastante
   grande para recibir otra pieza dentro. Tarda más en calcular.
 - «Buscar también dentro de las concavidades» (el *Explore concave areas* del demo original)

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Anidador de vectores · AL3D</title>
-<meta name="description" content="Acomoda las piezas de un SVG en la lámina para gastar el menor material posible antes de mandarlas al láser o al CNC.">
+<meta name="description" content="Acomoda las piezas de un SVG en la hoja de material para gastar lo menos posible antes de mandarlas al láser o al CNC.">
 <!-- El mismo número que --a en css/sistema.css. Un <meta> no entiende var(). -->
 <meta name="theme-color" content="#4060f8">
 <meta name="robots" content="noindex">
@@ -20,10 +20,9 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 
 <!-- sistema.css es la COPIA GENERADA del <style> del cotizador: los mismos azules del
-     logotipo, el mismo barro, la misma escala de letra. anidador.css es solo lo que el
-     cotizador no tiene: la rejilla de dos columnas, el lienzo de la vista previa y la lámina.
-     La primera versión de esta herramienta traía su propia hoja —fondo negro, naranja—: era
-     la única pantalla de AL3D que no parecía de AL3D. -->
+     logotipo, el mismo barro, la misma escala de letra. anidador.css es lo que el cotizador
+     no tiene: la mesa de corte, las hojas de material, el marcador y el movimiento de las
+     piezas al caer. -->
 <link rel="stylesheet" href="../css/sistema.css">
 <link rel="stylesheet" href="css/anidador.css">
 </head>
@@ -42,6 +41,8 @@
 <symbol id="i-recalibrar" viewBox="0 0 24 24"><path d="M20.8 12a8.8 8.8 0 1 1-2.7-6.3"/><path d="M21 3.2v4h-4"/></symbol>
 <symbol id="i-aviso" viewBox="-1.333 -1.533 26.667 26.667" style="stroke-width:2.111"><path d="M12 3.2 22 20.4H2z"/><path d="M12 9.6v4.6M12 17.4v.6"/></symbol>
 <symbol id="i-check" viewBox="1.95 2 20.4 20.4" style="stroke-width:1.615"><path d="M4.5 12.8 9.5 17.8 19.8 6.6"/></symbol>
+<symbol id="i-cerrar" viewBox="3.333 3.333 17.333 17.333" style="stroke-width:1.372"><path d="M5.5 5.5 18.5 18.5M18.5 5.5 5.5 18.5"/></symbol>
+<symbol id="i-guardar" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M8 3v5.4h7V3"/><path d="M8 21v-5.6h8V21"/></symbol>
 <symbol id="i-anidar" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="11" rx="1.6"/><rect x="13" y="3" width="8" height="6" rx="1.6"/><rect x="13" y="11" width="8" height="10" rx="1.6"/><rect x="3" y="16" width="8" height="5" rx="1.6"/></symbol>
 </defs></svg>
 
@@ -49,7 +50,7 @@
   <div class="topbar-in">
     <div class="brand" id="brandLogo">
       <img class="logoimg" src="../logo-al3d.svg" width="260" height="130" alt="AL3D">
-      <h1 class="t">Anidador <small>Acomodo de piezas para corte</small></h1>
+      <h1 class="t">Anidador <small>Mesa de corte · acomodo de piezas</small></h1>
     </div>
     <div class="rolewrap">
       <a class="btn-hist" href="../cotizador.html" title="Abrir el cotizador" aria-label="Abrir el cotizador"><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg><span class="lbl"> Cotizador</span></a>
@@ -67,8 +68,8 @@
 
   <main class="an-main">
 
-    <section class="card" aria-labelledby="h-piezas">
-      <div class="card-h"><h2 id="h-piezas">1 · Las piezas</h2></div>
+    <section class="card an-paso" aria-labelledby="h-piezas">
+      <div class="card-h"><h2 id="h-piezas"><span class="an-num" aria-hidden="true">1</span>Las piezas</h2></div>
       <div class="card-b">
         <label class="ai-drop" id="an-drop" for="an-file">
           <span class="ico" aria-hidden="true"><svg class="svgi"><use href="#i-subir"/></svg></span>
@@ -90,8 +91,8 @@
 
     <!-- Solo aparece cuando hay archivo. Si el archivo trae sus unidades, los dos campos
          llegan llenos y se pueden corregir; si no las trae, llegan vacíos y en ámbar. -->
-    <section class="card" aria-labelledby="h-medida" id="an-sec-medida" hidden>
-      <div class="card-h"><h2 id="h-medida">2 · La medida real</h2></div>
+    <section class="card an-paso" aria-labelledby="h-medida" id="an-sec-medida" hidden>
+      <div class="card-h"><h2 id="h-medida"><span class="an-num" aria-hidden="true">2</span>La medida real</h2></div>
       <div class="card-b">
         <p class="an-nota" id="an-medida-txt"></p>
         <div class="grid2">
@@ -102,24 +103,61 @@
       </div>
     </section>
 
-    <section class="card" aria-labelledby="h-material">
-      <div class="card-h"><h2 id="h-material">3 · La lámina</h2></div>
+    <section class="card an-paso" aria-labelledby="h-material">
+      <div class="card-h"><h2 id="h-material"><span class="an-num" aria-hidden="true">3</span>La hoja</h2></div>
       <div class="card-b">
-        <div class="fld">
-          <label for="an-preset">Material</label>
-          <select id="an-preset">
-            <option value="1220x2440">Lámina de 1.22 × 2.44 m — acrílico, aluminio, galvanizada</option>
-            <option value="1250x2500">Alucobond de 1.25 × 2.50 m</option>
-            <option value="1220x1220">Media lámina — 1.22 × 1.22 m</option>
-            <option value="otra">Otra medida</option>
-          </select>
+
+        <!-- El material cambia cómo se ve la hoja en la mesa —acrílico blanco, aluminio
+             cepillado, galvanizada, alucobond, MDF— y con qué nombre se descarga. Las
+             medidas no dependen de él: en este taller todas las hojas son de 1.20 × 2.40. -->
+        <div class="fld-lab" id="lab-mat">Material</div>
+        <div class="chips an-mats" id="an-mats" role="radiogroup" aria-labelledby="lab-mat">
+          <button type="button" class="chip on" role="radio" aria-checked="true" data-mat="acrilico"><span class="an-sw" aria-hidden="true"></span>Acrílico</button>
+          <button type="button" class="chip" role="radio" aria-checked="false" data-mat="aluminio"><span class="an-sw" aria-hidden="true"></span>Aluminio</button>
+          <button type="button" class="chip" role="radio" aria-checked="false" data-mat="galvanizada"><span class="an-sw" aria-hidden="true"></span>Galvanizada</button>
+          <button type="button" class="chip" role="radio" aria-checked="false" data-mat="alucobond"><span class="an-sw" aria-hidden="true"></span>Alucobond</button>
+          <button type="button" class="chip" role="radio" aria-checked="false" data-mat="mdf"><span class="an-sw" aria-hidden="true"></span>MDF</button>
         </div>
-        <div class="grid3">
-          <div class="fld" id="fld-ancho"><label for="an-ancho">Ancho (mm)</label><input id="an-ancho" type="number" inputmode="decimal" min="1" step="any" value="1220"></div>
-          <div class="fld" id="fld-alto"><label for="an-alto">Alto (mm)</label><input id="an-alto" type="number" inputmode="decimal" min="1" step="any" value="2440"></div>
+
+        <!-- Las hojas se eligen mirándolas: cada tarjeta dibuja la proporción real de la
+             hoja, de la completa al cuarto, y la última es el retazo que se mide a mano. -->
+        <div class="fld-lab" id="lab-hoja">Hoja</div>
+        <div class="an-tiles" id="an-tiles" role="radiogroup" aria-labelledby="lab-hoja">
+          <button type="button" class="an-tile on" role="radio" aria-checked="true" data-hoja="1200x2400">
+            <span class="an-tile-fig" aria-hidden="true"><span class="an-tile-hoja" style="--w:.5;--h:1"></span></span>
+            <span class="an-tile-n">Hoja completa</span><span class="an-tile-d">1.20 × 2.40 m</span>
+          </button>
+          <button type="button" class="an-tile" role="radio" aria-checked="false" data-hoja="1200x1200">
+            <span class="an-tile-fig" aria-hidden="true"><span class="an-tile-hoja" style="--w:.5;--h:.5"></span></span>
+            <span class="an-tile-n">Media hoja</span><span class="an-tile-d">1.20 × 1.20 m</span>
+          </button>
+          <button type="button" class="an-tile" role="radio" aria-checked="false" data-hoja="600x1200">
+            <span class="an-tile-fig" aria-hidden="true"><span class="an-tile-hoja" style="--w:.25;--h:.5"></span></span>
+            <span class="an-tile-n">Cuarto de hoja</span><span class="an-tile-d">0.60 × 1.20 m</span>
+          </button>
+          <button type="button" class="an-tile an-tile-retazo" role="radio" aria-checked="false" data-hoja="retazo">
+            <span class="an-tile-fig" aria-hidden="true"><span class="an-tile-hoja retazo" style="--w:.42;--h:.3"></span></span>
+            <span class="an-tile-n">Retazo</span><span class="an-tile-d">otra medida</span>
+          </button>
+        </div>
+
+        <div class="grid3 an-medidas">
+          <div class="fld" id="fld-ancho"><label for="an-ancho">Ancho (mm)</label><input id="an-ancho" type="number" inputmode="decimal" min="1" step="any" value="1200"></div>
+          <div class="fld" id="fld-alto"><label for="an-alto">Alto (mm)</label><input id="an-alto" type="number" inputmode="decimal" min="1" step="any" value="2400"></div>
           <div class="fld" id="fld-sep"><label for="an-sep">Separación (mm)</label><input id="an-sep" type="number" inputmode="decimal" min="0" step="any" value="3"></div>
         </div>
-        <button type="button" class="btn btn-gho an-girar" id="an-girar" title="Intercambiar el ancho y el alto de la lámina"><svg class="svgi" aria-hidden="true"><use href="#i-horiz"/></svg> Girar la lámina</button>
+        <button type="button" class="btn btn-gho an-girar" id="an-girar" title="Intercambiar el ancho y el alto de la hoja"><svg class="svgi" aria-hidden="true"><use href="#i-horiz"/></svg> Girar la hoja</button>
+
+        <!-- Los retazos del taller. Un sobrante se mide una vez, se guarda con su nombre y
+             la próxima vez se elige de aquí, sin volver a medirlo. Viven en este aparato. -->
+        <div class="an-retazos" id="an-retazos" hidden>
+          <div class="an-retazos-h">Retazos guardados</div>
+          <div class="chips" id="an-retazo-lista" role="group" aria-label="Retazos guardados"></div>
+          <div class="an-retazo-nuevo">
+            <div class="fld"><label for="an-retazo-nombre">Guardar esta medida como retazo</label><input id="an-retazo-nombre" placeholder="Ej. sobrante acrílico 3 mm" maxlength="40"></div>
+            <button type="button" class="btn btn-gho" id="an-retazo-guardar"><svg class="svgi" aria-hidden="true"><use href="#i-guardar"/></svg> Guardar retazo</button>
+          </div>
+        </div>
 
         <details class="an-avanzado" id="an-avanzado">
           <summary>Giros, huecos y contorno</summary>
@@ -137,7 +175,7 @@
             <div class="hintnote an-hint">El centro de una «O» o de una «D» grande puede recibir un punto o una letra chica. Tarda más en calcular.</div>
             <button type="button" class="switch" role="switch" aria-checked="false" id="an-concavas"><span class="tg" aria-hidden="true"></span> Buscar también dentro de las concavidades</button>
             <div class="hintnote an-hint">Mete piezas en el hueco abierto de una «C», una «U» o una «G», que de entrada se trata como si estuviera lleno. Es la opción «Explore concave areas» del motor: tarda bastante más.</div>
-            <button type="button" class="switch" role="switch" aria-checked="true" id="an-contorno"><span class="tg on" aria-hidden="true"></span> Incluir el contorno de la lámina en el SVG</button>
+            <button type="button" class="switch" role="switch" aria-checked="true" id="an-contorno"><span class="tg on" aria-hidden="true"></span> Incluir el contorno de la hoja en el SVG</button>
             <div class="hintnote an-hint">Sale en azul y en su propia capa. En el software de corte se pone en «no cortar» o se borra; sirve para colocar el archivo en la cama.</div>
           </div>
         </details>
@@ -155,18 +193,37 @@
 
   <aside class="an-side">
     <section class="card an-vista" aria-labelledby="h-vista">
-      <div class="card-h"><h2 id="h-vista">Vista previa</h2><span class="an-vista-tab" id="an-vista-tab">Las piezas, como vienen</span></div>
-      <div class="an-progreso" id="an-prog" hidden>
-        <div class="prog-track" aria-hidden="true"><div class="an-prog-bar" id="an-prog-bar"></div></div>
-        <div class="vt-stats an-stats-res">
-          <div class="vt-stat hl"><span class="k">Uso de material</span><span class="v" id="an-st-uso">—</span></div>
-          <div class="vt-stat"><span class="k">Colocadas</span><span class="v" id="an-st-col">—</span></div>
-          <div class="vt-stat"><span class="k">Láminas</span><span class="v" id="an-st-hojas">—</span></div>
-          <div class="vt-stat"><span class="k">Intentos</span><span class="v" id="an-st-int">—</span></div>
+      <div class="card-h"><h2 id="h-vista">Mesa de corte</h2><span class="an-vista-tab" id="an-vista-tab">Las piezas, como vienen</span></div>
+
+      <!-- El marcador: el aprovechamiento es el número que se viene a mirar, así que va en
+           una aguja grande con su calificación; lo demás son fichas. Late cuando mejora. -->
+      <div class="an-marcador" id="an-prog" hidden>
+        <div class="an-gauge-wrap">
+          <svg class="an-gauge" viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="an-gauge-bg" cx="60" cy="60" r="52"/>
+            <circle class="an-gauge-fg" id="an-gauge-fg" cx="60" cy="60" r="52" stroke-dasharray="326.73" stroke-dashoffset="326.73"/>
+          </svg>
+          <div class="an-gauge-txt">
+            <span class="an-gauge-k">Aprovechamiento</span>
+            <span class="an-gauge-v" id="an-st-uso">—</span>
+            <span class="an-gauge-lbl" id="an-st-uso-lbl"></span>
+          </div>
         </div>
+        <div class="an-fichas">
+          <div class="an-ficha"><span class="k">Colocadas</span><span class="v" id="an-st-col">—</span></div>
+          <div class="an-ficha"><span class="k">Hojas</span><span class="v" id="an-st-hojas">—</span></div>
+          <div class="an-ficha"><span class="k">Merma</span><span class="v" id="an-st-merma">—</span></div>
+          <div class="an-ficha"><span class="k">Intentos</span><span class="v" id="an-st-int">—</span></div>
+        </div>
+        <div class="prog-track an-prog-track" aria-hidden="true"><div class="an-prog-bar" id="an-prog-bar"></div></div>
       </div>
-      <div class="an-lienzo" id="an-orig"><p class="an-vacio">Sube un SVG para verlo aquí.</p></div>
-      <div class="an-lienzo an-lienzo-res" id="an-res" hidden></div>
+
+      <!-- La mesa: fondo oscuro con cuadrícula, como la cama de un láser, y las hojas de
+           material encima con su acabado. -->
+      <div class="an-mesa" id="an-mesa" data-mat="acrilico">
+        <div class="an-lienzo" id="an-orig"><p class="an-vacio">Sube un SVG para verlo aquí, sobre la mesa.</p></div>
+        <div class="an-lienzo an-lienzo-res" id="an-res" hidden></div>
+      </div>
     </section>
   </aside>
 </div>

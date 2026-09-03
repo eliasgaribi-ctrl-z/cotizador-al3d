@@ -88,19 +88,27 @@ anchoD === '280' && altoD === '180'
 (await p.evaluate(() => document.getElementById('an-st-diseno').textContent)) === '280 × 180 mm'
   ? bien('y la ficha del diseño dice 280 × 180 mm') : mal('la ficha del diseño dice «' + await p.evaluate(() => document.getElementById('an-st-diseno').textContent) + '»');
 
-// ── 3. Una lámina chica para obligar a dos ─────────────────────────────────
-console.log('\nLA LÁMINA');
+// ── 3. Una hoja chica para obligar a dos ───────────────────────────────────
+console.log('\nLA HOJA');
+const hojaOn = () => p.evaluate(() => document.querySelector('.an-tile.on').getAttribute('data-hoja'));
+(await hojaOn()) === '1200x2400' ? bien('de entrada, la hoja completa de 1.20 × 2.40') : mal('la hoja de entrada es ' + await hojaOn());
+(await p.inputValue('#an-ancho')) === '1200' && (await p.inputValue('#an-alto')) === '2400' ? bien('con sus 1200 × 2400 mm en los campos') : mal('los campos dicen ' + await p.inputValue('#an-ancho') + ' × ' + await p.inputValue('#an-alto'));
 await escribir('#an-ancho', 100); await escribir('#an-alto', 100); await escribir('#an-sep', 2);
-(await p.inputValue('#an-preset')) === 'otra' ? bien('teclear una medida que no es de ningún material pone «Otra medida»') : mal('el selector no pasó a «Otra medida»');
-await p.selectOption('#an-preset', '1250x2500');
-(await p.inputValue('#an-ancho')) === '1250' && (await p.inputValue('#an-alto')) === '2500'
-  ? bien('elegir alucobond llena 1250 × 2500') : mal('el preset no llenó los campos: ' + await p.inputValue('#an-ancho') + ' × ' + await p.inputValue('#an-alto'));
+(await hojaOn()) === 'retazo' ? bien('teclear una medida que no es de ninguna hoja marca «Retazo»') : mal('la tarjeta no pasó a «Retazo»: ' + await hojaOn());
+(await p.evaluate(() => !document.getElementById('an-retazos').hidden)) ? bien('y aparece el bloque de retazos guardados') : mal('el bloque de retazos no apareció');
+await p.click('.an-tile[data-hoja="600x1200"]');
+(await p.inputValue('#an-ancho')) === '600' && (await p.inputValue('#an-alto')) === '1200'
+  ? bien('elegir «Cuarto de hoja» llena 600 × 1200') : mal('la tarjeta no llenó los campos: ' + await p.inputValue('#an-ancho') + ' × ' + await p.inputValue('#an-alto'));
 await p.click('#an-girar');
-(await p.inputValue('#an-ancho')) === '2500' && (await p.inputValue('#an-alto')) === '1250'
-  ? bien('«Girar la lámina» intercambia ancho y alto') : mal('girar no intercambió: ' + await p.inputValue('#an-ancho') + ' × ' + await p.inputValue('#an-alto'));
-(await p.inputValue('#an-preset')) === '1250x2500' ? bien('y sigue siendo alucobond, acostado') : mal('girar cambió el material a ' + await p.inputValue('#an-preset'));
+(await p.inputValue('#an-ancho')) === '1200' && (await p.inputValue('#an-alto')) === '600'
+  ? bien('«Girar la hoja» intercambia ancho y alto') : mal('girar no intercambió: ' + await p.inputValue('#an-ancho') + ' × ' + await p.inputValue('#an-alto'));
+(await hojaOn()) === '600x1200' ? bien('y sigue siendo el cuarto de hoja, acostado') : mal('girar cambió la hoja a ' + await hojaOn());
+await p.click('.an-tile[data-hoja="1200x2400"]');
+(await p.inputValue('#an-ancho')) === '2400' && (await p.inputValue('#an-alto')) === '1200' ? bien('la hoja completa respeta la orientación acostada: 2400 × 1200') : mal('la completa acostada dio ' + await p.inputValue('#an-ancho') + ' × ' + await p.inputValue('#an-alto'));
+await p.click('.an-mats .chip[data-mat="aluminio"]');
+(await p.evaluate(() => document.getElementById('an-mesa').getAttribute('data-mat'))) === 'aluminio' ? bien('elegir aluminio cambia el acabado de la mesa') : mal('la mesa no cambió de material');
 await escribir('#an-ancho', 100); await escribir('#an-alto', 100);
-(await p.evaluate(() => !document.getElementById('an-ir').disabled)) ? bien('con archivo, medida y lámina, el botón se encendió') : mal('el botón principal sigue apagado con todo puesto');
+(await p.evaluate(() => !document.getElementById('an-ir').disabled)) ? bien('con archivo, medida y hoja, el botón se encendió') : mal('el botón principal sigue apagado con todo puesto');
 
 // ── 4. Acomodar de verdad ──────────────────────────────────────────────────
 console.log('\nACOMODAR DE VERDAD, CON LOS WEB WORKERS');
@@ -116,14 +124,14 @@ else {
   e = await estado();
   bien('primer acomodo en ' + e.intentos + ' intento(s)');
   e.mejor.colocadas === 6 && e.mejor.total === 6 ? bien('colocó las 6 piezas') : mal('colocó ' + e.mejor.colocadas + ' de ' + e.mejor.total);
-  e.mejor.laminas >= 2 ? bien('en ' + e.mejor.laminas + ' láminas de 100 × 100: no cabían en una (14 800 mm² en 10 000)') : mal('dice ' + e.mejor.laminas + ' lámina(s) y no caben en una');
+  e.mejor.laminas >= 2 ? bien('en ' + e.mejor.laminas + ' hojas de 100 × 100: no cabían en una (14 800 mm² en 10 000)') : mal('dice ' + e.mejor.laminas + ' hoja(s) y no caben en una');
   const figs = await p.evaluate(() => document.querySelectorAll('#an-res figure.an-hoja').length);
-  figs === e.mejor.laminas ? bien('se pinta una lámina por hoja') : mal('se pintan ' + figs + ' figuras para ' + e.mejor.laminas + ' láminas');
+  figs === e.mejor.laminas ? bien('se pinta una figura por hoja') : mal('se pintan ' + figs + ' figuras para ' + e.mejor.laminas + ' hojas');
   const capt = await p.evaluate(() => document.querySelector('#an-res figcaption').textContent);
-  /^Lámina 1 · \d+ piezas?$/.test(capt) ? bien('con su leyenda: «' + capt + '»') : mal('leyenda rara: «' + capt + '»');
+  /^Hoja 1 · \d+ piezas? · 100\u00A0mm × 100\u00A0mm$/.test(capt) ? bien('con su leyenda: «' + capt + '»') : mal('leyenda rara: «' + capt + '»');
   (await p.evaluate(() => !document.getElementById('an-dl').disabled)) ? bien('y «Descargar» se encendió') : mal('«Descargar» sigue apagado con resultado');
   const botonesHoja = await p.evaluate(() => document.querySelectorAll('#an-dl-hojas button').length);
-  botonesHoja === e.mejor.laminas ? bien('con un botón por lámina para bajarla sola') : mal(botonesHoja + ' botones de lámina para ' + e.mejor.laminas + ' láminas');
+  botonesHoja === e.mejor.laminas ? bien('con un botón por hoja para bajarla sola') : mal(botonesHoja + ' botones de hoja para ' + e.mejor.laminas + ' hojas');
   (await p.evaluate(() => document.getElementById('an-st-col').textContent)) === '6/6' ? bien('la ficha dice 6/6') : mal('la ficha de colocadas dice ' + await p.evaluate(() => document.getElementById('an-st-col').textContent));
 }
 await p.evaluate(() => window.Anidador.detener());
@@ -141,22 +149,23 @@ if (e.mejor) {
   const todo = await p.evaluate(() => window.Anidador.armarSalida(null));
   const alto = 100 * n + 25 * (n - 1);
   todo.includes('width="100mm"') && todo.includes('height="' + alto + 'mm"')
-    ? bien('mide 100 mm de ancho y ' + alto + ' de alto: ' + n + ' láminas y 25 mm entre ellas, EN MILÍMETROS')
+    ? bien('mide 100 mm de ancho y ' + alto + ' de alto: ' + n + ' hojas y 25 mm entre ellas, EN MILÍMETROS')
     : mal('las medidas de salida no cuadran: ' + (todo.match(/<svg[^>]*>/) || [''])[0]);
   todo.includes('viewBox="0 0 100 ' + alto + '"') ? bien('con su viewBox en las mismas unidades') : mal('viewBox raro: ' + (todo.match(/viewBox="[^"]*"/) || [''])[0]);
-  (todo.match(/id="lamina-\d+"/g) || []).length === n ? bien('una capa por lámina') : mal('capas de lámina: ' + (todo.match(/id="lamina-\d+"/g) || []).length);
-  (todo.match(/id="contorno-lamina-\d+"/g) || []).length === n && todo.includes('stroke="#4060f8"') && todo.includes('fill="none"')
+  (todo.match(/id="hoja-\d+"/g) || []).length === n ? bien('una capa por hoja') : mal('capas de hoja: ' + (todo.match(/id="hoja-\d+"/g) || []).length);
+  (todo.match(/id="contorno-hoja-\d+"/g) || []).length === n && todo.includes('stroke="#4060f8"') && todo.includes('fill="none"')
     ? bien('cada una con su contorno en azul, sin relleno, por atributo y no por CSS') : mal('el contorno de la lámina no salió como se esperaba');
   (todo.match(/<g transform="translate\([^)]*\) rotate\(/g) || []).length === 6 ? bien('y las 6 piezas, cada una con su traslación y su giro') : mal('grupos de pieza: ' + (todo.match(/<g transform="translate\([^)]*\) rotate\(/g) || []).length);
   todo.includes('class="hole"') || todo.includes(' hole"') ? bien('el hueco de la «O» viene marcado como hueco') : mal('el hueco de la «O» no quedó marcado');
   const una = await p.evaluate(() => window.Anidador.armarSalida(0));
-  una.includes('height="100mm"') && (una.match(/id="lamina-\d+"/g) || []).length === 1 ? bien('una lámina sola sale con su alto de 100 mm y una sola capa') : mal('la salida de una lámina no cuadra');
+  una.includes('height="100mm"') && (una.match(/id="hoja-\d+"/g) || []).length === 1 ? bien('una hoja sola sale con su alto de 100 mm y una sola capa') : mal('la salida de una hoja no cuadra');
+  !/an-p\d|--i:/.test(todo) ? bien('y las clases de color y el turno de caída de la mesa no salen en el archivo') : mal('el archivo de corte trae clases de la mesa');
   /* El interruptor vive en el pliegue de lo avanzado, que nace cerrado: se abre como lo
      abriría una persona, tocando el resumen. */
   await p.click('#an-avanzado summary');
   await p.click('#an-contorno');
   const sinContorno = await p.evaluate(() => window.Anidador.armarSalida(null));
-  !/contorno-lamina/.test(sinContorno) ? bien('apagando el interruptor, el contorno no sale — sin volver a acomodar') : mal('el contorno sigue saliendo con el interruptor apagado');
+  !/contorno-hoja/.test(sinContorno) ? bien('apagando el interruptor, el contorno no sale — sin volver a acomodar') : mal('el contorno sigue saliendo con el interruptor apagado');
   await p.click('#an-contorno');
   (await p.evaluate(() => document.getElementById('an-contorno').getAttribute('aria-checked'))) === 'true'
     ? bien('y volviéndolo a tocar, vuelve') : mal('el interruptor no volvió a encenderse');
@@ -196,7 +205,7 @@ await p.waitForTimeout(300);
 e = await estado();
 const msg = await p.evaluate(() => ({ t: document.getElementById('an-msg').textContent, c: document.getElementById('an-msg').className }));
 !e.corriendo && /Ninguna/.test(msg.t) && /mal/.test(msg.c)
-  ? bien('una pieza de 150 × 150 en una lámina de 100 × 100 no arranca: «' + msg.t.slice(0, 60) + '…»')
+  ? bien('una pieza de 150 × 150 en una hoja de 100 × 100 no arranca: «' + msg.t.slice(0, 60) + '…»')
   : mal('con una pieza que no cabe: corriendo=' + e.corriendo + ' msg=«' + msg.t + '»');
 
 // ── 8. Lo que deja el cotizador ────────────────────────────────────────────
@@ -212,7 +221,28 @@ const banda = await p.evaluate(() => { const b = document.getElementById('an-ori
 (await p.evaluate(() => localStorage.getItem('al3d_anidar'))) === null ? bien('la entrega se borró: era una entrega, no un guardado') : mal('al3d_anidar sigue en localStorage');
 await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(500);
 (await p.evaluate(() => document.getElementById('an-origen').hidden && !window.Anidador.estado().archivo)) ? bien('y al recargar no vuelve a aparecer') : mal('al recargar volvió el trazo de la vez pasada');
-(await p.inputValue('#an-ancho')) === '100' && (await p.inputValue('#an-alto')) === '100' ? bien('la última lámina usada se recordó (100 × 100)') : mal('la lámina no se recordó: ' + await p.inputValue('#an-ancho') + ' × ' + await p.inputValue('#an-alto'));
+(await p.inputValue('#an-ancho')) === '100' && (await p.inputValue('#an-alto')) === '100' ? bien('la última hoja usada se recordó (100 × 100)') : mal('la hoja no se recordó: ' + await p.inputValue('#an-ancho') + ' × ' + await p.inputValue('#an-alto'));
+(await p.evaluate(() => document.getElementById('an-mesa').getAttribute('data-mat'))) === 'aluminio' ? bien('y el material también: aluminio') : mal('el material no se recordó: ' + await p.evaluate(() => document.getElementById('an-mesa').getAttribute('data-mat')));
+
+// ── 8c. Los retazos del taller ─────────────────────────────────────────────
+console.log('\nLOS RETAZOS SE GUARDAN CON SU NOMBRE');
+await p.fill('#an-retazo-nombre', 'sobrante acrílico 3 mm');
+await p.click('#an-retazo-guardar');
+let ret = await p.evaluate(() => window.Anidador.estado().retazos);
+ret.length === 1 && ret[0].nombre === 'sobrante acrílico 3 mm' && ret[0].ancho === 100 && ret[0].alto === 100
+  ? bien('la medida de la hoja se guardó como retazo con su nombre') : mal('retazos: ' + JSON.stringify(ret));
+(await p.evaluate(() => document.querySelectorAll('#an-retazo-lista .chip').length)) === 1 ? bien('y aparece como chip') : mal('no apareció el chip del retazo');
+await p.click('#an-retazo-guardar');
+(await p.evaluate(() => window.Anidador.estado().retazos.length)) === 1 ? bien('guardarlo dos veces con la misma medida no lo duplica') : mal('se duplicó el retazo');
+await p.click('.an-tile[data-hoja="1200x1200"]');
+(await p.inputValue('#an-ancho')) === '1200' ? bien('se cambia a media hoja…') : mal('no cambió a media hoja');
+await p.click('#an-retazo-lista .chip');
+(await p.inputValue('#an-ancho')) === '100' && (await p.inputValue('#an-alto')) === '100' && (await hojaOn()) === 'retazo'
+  ? bien('…y tocar el retazo devuelve sus 100 × 100 y marca «Retazo»') : mal('tocar el retazo dejó ' + await p.inputValue('#an-ancho') + ' × ' + await p.inputValue('#an-alto') + ' / ' + await hojaOn());
+await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(500);
+(await p.evaluate(() => document.querySelectorAll('#an-retazo-lista .chip').length)) === 1 ? bien('el retazo sigue ahí al recargar') : mal('el retazo se perdió al recargar');
+await p.click('#an-retazo-lista .an-retazo-x');
+(await p.evaluate(() => window.Anidador.estado().retazos.length)) === 0 ? bien('y la × lo quita') : mal('la × no quitó el retazo');
 /* Los interruptores de lo avanzado también se recuerdan: son de este taller, no de este archivo. */
 await p.click('#an-avanzado summary'); await p.click('#an-concavas');
 (await p.evaluate(() => document.getElementById('an-concavas').getAttribute('aria-checked'))) === 'true' ? bien('«Buscar también dentro de las concavidades» se enciende') : mal('el interruptor de concavidades no encendió');
@@ -236,7 +266,7 @@ await cot.evaluate(() => { irAPaso(2); });
 await cot.waitForTimeout(300);
 await cot.evaluate(() => abrirVector());
 await cot.waitForTimeout(600);
-(await cot.evaluate(() => document.getElementById('vt-anidar').disabled)) ? bien('sin trazo, «Acomodar en lámina» está apagado') : mal('el botón del anidador está encendido sin trazo');
+(await cot.evaluate(() => document.getElementById('vt-anidar').disabled)) ? bien('sin trazo, «Acomodar en hoja» está apagado') : mal('el botón del anidador está encendido sin trazo');
 /* Un trazo como el que arma el vectorizador con medida real: cm en el width, píxeles en el viewBox. */
 const boton = await cot.evaluate(() => {
   VT.svg = '<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" width="40.000cm" height="20.000cm">\n  <title>logo</title>\n  <path fill="#000000" fill-rule="evenodd" d="M10 10L150 10L150 190L10 190Z"/>\n  <path fill="#000000" fill-rule="evenodd" d="M250 10L390 10L390 190L250 190ZM290 50L350 50L350 150L290 150Z"/>\n</svg>\n';
@@ -245,7 +275,7 @@ const boton = await cot.evaluate(() => {
   return { disabled: document.getElementById('vt-anidar').disabled, texto: document.getElementById('vt-anidar').textContent.trim() };
 });
 !boton.disabled ? bien('con trazo, se enciende') : mal('con trazo hecho, el botón sigue apagado');
-boton.texto === 'Acomodar en lámina · anidador' ? bien('y dice «' + boton.texto + '»') : mal('el botón dice «' + boton.texto + '»');
+boton.texto === 'Acomodar en hoja · anidador' ? bien('y dice «' + boton.texto + '»') : mal('el botón dice «' + boton.texto + '»');
 const [popup] = await Promise.all([ctx.waitForEvent('page', { timeout: 15000 }).catch(() => null), cot.evaluate(() => vtAnidar())]);
 if (!popup) mal('vtAnidar() no abrió ninguna pestaña');
 else {

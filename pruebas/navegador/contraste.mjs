@@ -221,7 +221,9 @@ await comprobar('un aviso ámbar de lo que se queda fuera', '#an-avisos .hintnot
 await comprobar('la nota ámbar de la medida que falta', '#an-medida-txt.falta');
 await comprobar('la etiqueta de un campo en ámbar', '#fld-ancho-d.falta label');
 await comprobar('la etiqueta de un campo de la lámina', '#fld-ancho label');
-await comprobar('el material elegido', '#an-preset');
+await comprobar('la hoja elegida', '.an-tile.on .an-tile-n');
+await comprobar('la medida de una hoja sin elegir', '.an-tile:not(.on) .an-tile-d');
+await comprobar('el material elegido', '.an-mats .chip.on');
 await comprobar('el resumen del pliegue avanzado', '.an-avanzado summary');
 await comprobar('el botón neutro de girar la lámina', '#an-girar');
 await comprobar('un enlace de la barra', '.topbar-in .btn-hist');

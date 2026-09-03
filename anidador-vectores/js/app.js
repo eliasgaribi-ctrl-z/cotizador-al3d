@@ -9,15 +9,22 @@
      · Unidades. El motor acomoda números; el archivo dice mm, cm, px o nada. Todo se pasa
        a milímetros antes de que el motor lo vea, y si el archivo no dice cuánto mide se
        pide la medida real, como en el vectorizador (js/medidas.js, probado en node).
+     · La hoja. En este taller todas las hojas son de 1.20 × 2.40 m: se elige la completa,
+       la media o el cuarto mirando su tarjeta, o un retazo medido a mano. Los retazos se
+       guardan con su nombre para no medirlos dos veces. El material cambia el acabado con
+       el que se pinta la hoja en la mesa.
      · Aviso de lo que se va a quedar fuera: textos sin convertir, símbolos <use>, piezas
-       más grandes que la lámina. El motor los descarta callado; aquí se dicen.
+       más grandes que la hoja. El motor los descarta callado; aquí se dicen.
      · Se detiene solo. El algoritmo genético no termina nunca: sigue buscando mejores
        acomodos mientras nadie lo pare. Cuando lleva 25 intentos y 40 segundos sin mejorar,
        se detiene y lo dice; «Seguir buscando» continúa desde donde iba.
+     · El marcador: el aprovechamiento en una aguja con su calificación, y las piezas caen
+       en su lugar cada vez que el motor encuentra algo mejor. Es lo que hace que un cálculo
+       de dos minutos se pueda mirar.
      · El trazo puede llegar del vectorizador del cotizador, por localStorage, sin pasar
        por el disco.
-     · El SVG sale en milímetros —width="1220mm"— para que LightBurn, RDWorks o Illustrator
-       lo abran a tamaño, con una capa por lámina.
+     · El SVG sale en milímetros —width="1200mm"— para que LightBurn, RDWorks o Illustrator
+       lo abran a tamaño, con una capa por hoja.
    ============================================================================ */
 (function () {
   'use strict';
@@ -25,13 +32,20 @@
   var M = window.AnidadorMedidas;
   var $ = function (id) { return document.getElementById(id); };
 
-  var LS_MATERIAL = 'al3d_anidador_material';   // la última lámina usada en este aparato
+  var LS_MATERIAL = 'al3d_anidador_material';   // la última hoja usada en este aparato
+  var LS_RETAZOS  = 'al3d_anidador_retazos';    // los sobrantes medidos, con su nombre
   var LS_ENTRADA  = 'al3d_anidar';              // lo que deja el vectorizador del cotizador
   var LIMITE_INTENTOS = 25;                     // intentos seguidos sin mejorar…
   var LIMITE_MS = 40000;                        // …y segundos sin mejorar: las dos, para parar
   var TOLERANCIA_MM = 0.3;                      // con qué fineza se convierten las curvas en rectas
-  var HUECO_ENTRE_LAMINAS_MM = 25;              // en el SVG de salida, una lámina debajo de otra
-  var PRESETS = { '1220x2440': [1220, 2440], '1250x2500': [1250, 2500], '1220x1220': [1220, 1220] };
+  var HUECO_ENTRE_HOJAS_MM = 25;                // en el SVG de salida, una hoja debajo de otra
+  var COLORES_PIEZA = 6;                        // cuántos tonos se turnan en la mesa
+
+  /* Las hojas del taller. Todas salen de la de 1.20 × 2.40 m: la completa, la media y el
+     cuarto. Lo demás es un retazo, que se mide a mano. */
+  var HOJAS = { '1200x2400': [1200, 2400], '1200x1200': [1200, 1200], '600x1200': [600, 1200] };
+  var MATERIALES = ['acrilico', 'aluminio', 'galvanizada', 'alucobond', 'mdf'];
+  var MAT_TXT = { acrilico: 'acrílico', aluminio: 'aluminio', galvanizada: 'galvanizada', alucobond: 'alucobond', mdf: 'MDF' };
 
   /* Lo que el motor deja fuera sin decirlo, y lo que aquí se le quita antes para que no
      confunda geometría de apoyo con piezas: un <clipPath> con un rectángulo dentro se
@@ -42,6 +56,9 @@
   /* ---------- Estado ---------- */
   var A = null;   // el archivo: texto, nombre, raíz parseada, bbox, escala, piezas
   var T = { corriendo: false, intentos: 0, sinMejora: 0, ultimaMejora: 0, mejor: null, detenidoSolo: false };
+  var R = [];     // los retazos guardados
+  var QUIETO = false;
+  try { QUIETO = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
 
   /* ---------- Utilidades de interfaz ---------- */
   var _toastT = null;
@@ -77,27 +94,81 @@
      quitar nodos mientras se recorre sin que la colección se mueva debajo del índice. */
   function lista(coleccion) { return Array.prototype.slice.call(coleccion); }
   function hijos(nodo) { return lista(nodo.childNodes); }
+  function fmt(n) { return String(Math.round(n * 1000) / 1000); }
+  function fmtMm(n) { return String(Math.round(n * 10) / 10); }
 
-  /* ---------- La lámina ---------- */
+  /* Un número que sube hasta su valor en vez de cambiar de golpe. Es lo que hace que «73 %»
+     se lea como una mejora y no como otro número. Con «reducir movimiento», va directo. */
+  var _tweens = {};
+  function contar(el, hasta, formato) {
+    var id = el.id || Math.random();
+    if (_tweens[id]) cancelAnimationFrame(_tweens[id]);
+    var desde = parseFloat(el.getAttribute('data-v')) || 0;
+    el.setAttribute('data-v', hasta);
+    if (QUIETO || !isFinite(desde)) { el.textContent = formato(hasta); return; }
+    var t0 = performance.now(), dur = 550;
+    (function paso(t) {
+      var k = Math.min(1, (t - t0) / dur); k = 1 - Math.pow(1 - k, 3);
+      el.textContent = formato(desde + (hasta - desde) * k);
+      if (k < 1) _tweens[id] = requestAnimationFrame(paso);
+    })(t0);
+  }
+
+  /* ---------- La hoja: material, tarjetas, medidas ---------- */
+  function materialElegido() {
+    var on = document.querySelector('#an-mats .chip.on');
+    return on ? on.getAttribute('data-mat') : 'acrilico';
+  }
+  function elegirMaterial(mat) {
+    if (MATERIALES.indexOf(mat) < 0) mat = 'acrilico';
+    lista(document.querySelectorAll('#an-mats .chip')).forEach(function (c) {
+      var on = c.getAttribute('data-mat') === mat;
+      c.classList.toggle('on', on); c.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+    $('an-mesa').setAttribute('data-mat', mat);
+  }
+  function hojaElegida() {
+    var on = document.querySelector('.an-tile.on');
+    return on ? on.getAttribute('data-hoja') : 'retazo';
+  }
+  function marcarHoja(clave) {
+    lista(document.querySelectorAll('.an-tile')).forEach(function (t) {
+      var on = t.getAttribute('data-hoja') === clave;
+      t.classList.toggle('on', on); t.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+    pintarRetazos();
+  }
+  /* Las tarjetas y los dos campos dicen lo mismo: elegir una hoja llena los campos, y
+     teclear una medida que no es de ninguna hoja marca «Retazo». */
+  function sincronizarHoja() {
+    var a = parseFloat($('an-ancho').value), h = parseFloat($('an-alto').value), hallada = 'retazo';
+    Object.keys(HOJAS).forEach(function (k) {
+      var p = HOJAS[k];
+      if ((p[0] === a && p[1] === h) || (p[0] === h && p[1] === a)) hallada = k;
+    });
+    marcarHoja(hallada);
+  }
   function leerMaterial(avisar) {
     var ancho = parseFloat($('an-ancho').value), alto = parseFloat($('an-alto').value), sep = parseFloat($('an-sep').value);
     var ok = true;
     marcarFalta('fld-ancho', !(ancho > 0)); marcarFalta('fld-alto', !(alto > 0)); marcarFalta('fld-sep', !(sep >= 0));
     if (!(ancho > 0) || !(alto > 0)) ok = false;
     if (!(sep >= 0)) { sep = 0; $('an-sep').value = '0'; }
-    if (!ok) { if (avisar) { mensaje('Falta el ancho o el alto de la lámina, en milímetros.', 'mal'); (ancho > 0 ? $('an-alto') : $('an-ancho')).focus(); } return null; }
+    if (!ok) { if (avisar) { mensaje('Falta el ancho o el alto de la hoja, en milímetros.', 'mal'); (ancho > 0 ? $('an-alto') : $('an-ancho')).focus(); } return null; }
     return { ancho: ancho, alto: alto, sep: sep, rot: parseInt($('an-rot').value, 10) || 4,
-             huecos: interruptor('an-huecos'), concavas: interruptor('an-concavas'), contorno: interruptor('an-contorno') };
+             huecos: interruptor('an-huecos'), concavas: interruptor('an-concavas'), contorno: interruptor('an-contorno'),
+             mat: materialElegido(), hoja: hojaElegida() };
   }
   function guardarMaterial() {
     try { localStorage.setItem(LS_MATERIAL, JSON.stringify({
       ancho: $('an-ancho').value, alto: $('an-alto').value, sep: $('an-sep').value, rot: $('an-rot').value,
-      huecos: interruptor('an-huecos'), concavas: interruptor('an-concavas'), contorno: interruptor('an-contorno') })); } catch (_) {}
+      huecos: interruptor('an-huecos'), concavas: interruptor('an-concavas'), contorno: interruptor('an-contorno'),
+      mat: materialElegido() })); } catch (_) {}
   }
   function cargarMaterial() {
     var g = null;
     try { g = JSON.parse(localStorage.getItem(LS_MATERIAL) || 'null'); } catch (_) {}
-    if (!g) return;
+    if (!g) { sincronizarHoja(); return; }
     if (g.ancho) $('an-ancho').value = g.ancho;
     if (g.alto) $('an-alto').value = g.alto;
     if (g.sep !== undefined && g.sep !== '') $('an-sep').value = g.sep;
@@ -105,30 +176,30 @@
     if (typeof g.huecos === 'boolean' && g.huecos !== interruptor('an-huecos')) alternar('an-huecos');
     if (typeof g.concavas === 'boolean' && g.concavas !== interruptor('an-concavas')) alternar('an-concavas');
     if (typeof g.contorno === 'boolean' && g.contorno !== interruptor('an-contorno')) alternar('an-contorno');
-    sincronizarPreset();
+    if (g.mat) elegirMaterial(g.mat);
+    sincronizarHoja();
   }
-  /* El selector y los dos campos dicen lo mismo: elegir un material llena los campos, y
-     teclear una medida que no es de ningún material pone el selector en «Otra medida». */
-  function sincronizarPreset() {
-    var a = parseFloat($('an-ancho').value), h = parseFloat($('an-alto').value), hallado = 'otra';
-    Object.keys(PRESETS).forEach(function (k) {
-      var p = PRESETS[k];
-      if ((p[0] === a && p[1] === h) || (p[0] === h && p[1] === a)) hallado = k;
+  lista(document.querySelectorAll('#an-mats .chip')).forEach(function (c) {
+    c.addEventListener('click', function () { elegirMaterial(c.getAttribute('data-mat')); guardarMaterial(); });
+  });
+  lista(document.querySelectorAll('.an-tile')).forEach(function (t) {
+    t.addEventListener('click', function () {
+      var clave = t.getAttribute('data-hoja'), p = HOJAS[clave];
+      if (p) {
+        /* Se respeta la orientación que ya tenía la hoja: si estaba acostada, sigue acostada. */
+        var acostada = parseFloat($('an-ancho').value) > parseFloat($('an-alto').value);
+        $('an-ancho').value = acostada ? p[1] : p[0];
+        $('an-alto').value = acostada ? p[0] : p[1];
+        marcarHoja(clave);
+      } else {
+        marcarHoja('retazo');
+        $('an-ancho').focus(); $('an-ancho').select();
+      }
+      leerMaterial(false); guardarMaterial(); habilitar();
     });
-    $('an-preset').value = hallado;
-  }
-  $('an-preset').addEventListener('change', function () {
-    var p = PRESETS[this.value];
-    if (p) {
-      /* Se respeta la orientación que ya tenía la lámina: si estaba acostada, sigue acostada. */
-      var acostada = parseFloat($('an-ancho').value) > parseFloat($('an-alto').value);
-      $('an-ancho').value = acostada ? p[1] : p[0];
-      $('an-alto').value = acostada ? p[0] : p[1];
-    }
-    leerMaterial(false); guardarMaterial(); habilitar();
   });
   ['an-ancho', 'an-alto', 'an-sep'].forEach(function (id) {
-    $(id).addEventListener('input', function () { sincronizarPreset(); leerMaterial(false); guardarMaterial(); habilitar(); });
+    $(id).addEventListener('input', function () { sincronizarHoja(); leerMaterial(false); guardarMaterial(); habilitar(); });
   });
   $('an-rot').addEventListener('change', guardarMaterial);
   $('an-huecos').addEventListener('click', function () { alternar('an-huecos'); guardarMaterial(); });
@@ -136,9 +207,61 @@
   $('an-contorno').addEventListener('click', function () { alternar('an-contorno'); guardarMaterial(); });
   $('an-girar').addEventListener('click', function () {
     var a = $('an-ancho').value; $('an-ancho').value = $('an-alto').value; $('an-alto').value = a;
-    sincronizarPreset(); guardarMaterial(); habilitar();
-    toast('Lámina girada: ' + $('an-ancho').value + ' × ' + $('an-alto').value + ' mm', 'ok', 2200);
+    sincronizarHoja(); guardarMaterial(); habilitar();
+    toast('Hoja girada: ' + $('an-ancho').value + ' × ' + $('an-alto').value + ' mm', 'ok', 2200);
   });
+
+  /* ---------- Los retazos ----------
+     Un sobrante se mide una vez y se guarda con su nombre; la próxima vez se elige de aquí.
+     Viven en este aparato, como la hoja. El bloque se enseña cuando la hoja es un retazo o
+     cuando ya hay alguno guardado: quien nunca ha guardado uno no tiene por qué verlo. */
+  function cargarRetazos() {
+    try { R = JSON.parse(localStorage.getItem(LS_RETAZOS) || '[]'); } catch (_) { R = []; }
+    if (!Array.isArray(R)) R = [];
+    R = R.filter(function (r) { return r && r.ancho > 0 && r.alto > 0; });
+  }
+  function guardarRetazos() { try { localStorage.setItem(LS_RETAZOS, JSON.stringify(R)); } catch (_) {} }
+  function pintarRetazos() {
+    var bloque = $('an-retazos'); if (!bloque) return;
+    bloque.hidden = !(hojaElegida() === 'retazo' || R.length > 0);
+    var cont = $('an-retazo-lista'); cont.innerHTML = '';
+    var a = parseFloat($('an-ancho').value), h = parseFloat($('an-alto').value);
+    R.forEach(function (r) {
+      var w = document.createElement('span'); w.className = 'an-retazo';
+      var b = document.createElement('button'); b.type = 'button';
+      var en = (r.ancho === a && r.alto === h) || (r.ancho === h && r.alto === a);
+      b.className = 'chip' + (en ? ' on' : ''); b.setAttribute('aria-pressed', en ? 'true' : 'false');
+      b.innerHTML = esc(r.nombre) + ' <small>' + fmtMm(r.ancho) + ' × ' + fmtMm(r.alto) + '</small>';
+      b.title = 'Usar este retazo como hoja';
+      b.addEventListener('click', function () { usarRetazo(r); });
+      var x = document.createElement('button'); x.type = 'button'; x.className = 'an-retazo-x';
+      x.setAttribute('aria-label', 'Quitar el retazo «' + r.nombre + '»'); x.title = 'Quitar de la lista';
+      x.innerHTML = '<svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg>';
+      x.addEventListener('click', function () { quitarRetazo(r); });
+      w.appendChild(b); w.appendChild(x); cont.appendChild(w);
+    });
+  }
+  function usarRetazo(r) {
+    $('an-ancho').value = r.ancho; $('an-alto').value = r.alto;
+    sincronizarHoja(); leerMaterial(false); guardarMaterial(); habilitar();
+    toast('Hoja: ' + r.nombre + ' · ' + fmtMm(r.ancho) + ' × ' + fmtMm(r.alto) + ' mm', 'ok', 2400);
+  }
+  function quitarRetazo(r) {
+    R = R.filter(function (x) { return x !== r; });
+    guardarRetazos(); pintarRetazos();
+    toast('Retazo «' + r.nombre + '» quitado', '', 2200);
+  }
+  $('an-retazo-guardar').addEventListener('click', function () {
+    var mat = leerMaterial(true); if (!mat) return;
+    var nombre = ($('an-retazo-nombre').value || '').trim() || ('Retazo de ' + MAT_TXT[mat.mat]);
+    var repetido = R.some(function (r) { return r.ancho === mat.ancho && r.alto === mat.alto; });
+    if (repetido) { mensaje('Ese retazo ya está guardado con esas medidas.', 'av'); return; }
+    R.push({ id: Date.now(), nombre: nombre.slice(0, 40), ancho: mat.ancho, alto: mat.alto, mat: mat.mat });
+    guardarRetazos(); $('an-retazo-nombre').value = '';
+    marcarHoja('retazo'); pintarRetazos();
+    toast('Retazo guardado: ' + nombre + ' · ' + fmtMm(mat.ancho) + ' × ' + fmtMm(mat.alto) + ' mm', 'ok', 2800);
+  });
+  $('an-retazo-nombre').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('an-retazo-guardar').click(); } });
 
   /* ---------- Cargar el archivo ---------- */
   function leerArchivo(file) {
@@ -187,9 +310,10 @@
 
     pintarArchivo(); pintarMedida(); pintarEstadoTrabajo(); habilitar();
     $('an-dl').disabled = true; $('an-dl-hojas').hidden = true; $('an-prog').hidden = true;
+    $('an-mesa').classList.remove('corriendo');
     $('an-vista-tab').textContent = 'Las piezas, como vienen';
 
-    if (A.piezas > 0 && A.k > 0) mensaje('Listo: ' + A.piezas + (A.piezas === 1 ? ' pieza' : ' piezas') + '. Revisa la lámina y toca «Acomodar las piezas».', 'ok');
+    if (A.piezas > 0 && A.k > 0) mensaje('Listo: ' + A.piezas + (A.piezas === 1 ? ' pieza' : ' piezas') + '. Revisa la hoja y toca «Acomodar las piezas».', 'ok');
     else if (A.piezas > 0) mensaje('Falta la medida real del diseño: escribe su ancho o su alto en milímetros.', 'av');
     else mensaje('');
     return true;
@@ -253,7 +377,7 @@
       ancho.value = ''; alto.value = ''; return;
     }
     if (A.k > 0 && A.escala.origen === 'archivo' && !ancho.value) {
-      ancho.value = redondear(A.bbox.w * A.k); alto.value = redondear(A.bbox.h * A.k);
+      ancho.value = fmtMm(A.bbox.w * A.k); alto.value = fmtMm(A.bbox.h * A.k);
     }
     if (falta) {
       var u = A.escala.unidad ? 'viene en «' + A.escala.unidad + '»' : 'no declara unidades';
@@ -266,22 +390,21 @@
     }
     $('an-st-diseno').textContent = A.k > 0 ? Math.round(A.bbox.w * A.k) + ' × ' + Math.round(A.bbox.h * A.k) + ' mm' : 'sin medida';
   }
-  function redondear(v) { return String(Math.round(v * 10) / 10); }
   function escalaDiseno(campo, val) {
     if (!A || !A.bbox) return;
     var v = parseFloat(val);
     if (!(v > 0)) {
       /* Se vació el campo. Si el archivo traía escala se vuelve a ella; si no, se queda sin. */
       A.k = A.escala.origen === 'archivo' ? A.escala.mmPorUnidad : null;
-      if (A.k > 0) { $('an-ancho-d').value = redondear(A.bbox.w * A.k); $('an-alto-d').value = redondear(A.bbox.h * A.k); }
+      if (A.k > 0) { $('an-ancho-d').value = fmtMm(A.bbox.w * A.k); $('an-alto-d').value = fmtMm(A.bbox.h * A.k); }
       else (campo === 'ancho' ? $('an-alto-d') : $('an-ancho-d')).value = '';
     } else {
       A.k = M.escalaPorDiseno(A.bbox, campo === 'ancho' ? v : null, campo === 'alto' ? v : null);
       A.escala.origen = 'mano';
-      (campo === 'ancho' ? $('an-alto-d') : $('an-ancho-d')).value = redondear((campo === 'ancho' ? A.bbox.h : A.bbox.w) * A.k);
+      (campo === 'ancho' ? $('an-alto-d') : $('an-ancho-d')).value = fmtMm((campo === 'ancho' ? A.bbox.h : A.bbox.w) * A.k);
     }
     pintarMedida(); habilitar();
-    if (A.k > 0 && A.piezas > 0) mensaje('Listo: ' + A.piezas + (A.piezas === 1 ? ' pieza' : ' piezas') + '. Revisa la lámina y toca «Acomodar las piezas».', 'ok');
+    if (A.k > 0 && A.piezas > 0) mensaje('Listo: ' + A.piezas + (A.piezas === 1 ? ' pieza' : ' piezas') + '. Revisa la hoja y toca «Acomodar las piezas».', 'ok');
   }
   $('an-ancho-d').addEventListener('input', function () { escalaDiseno('ancho', this.value); });
   $('an-alto-d').addEventListener('input', function () { escalaDiseno('alto', this.value); });
@@ -329,7 +452,7 @@
       return !M.cabe({ w: b.width, h: b.height }, { ancho: mat.ancho - mat.sep, alto: mat.alto - mat.sep }, mat.rot);
     }).length;
     if (fuera === partes.length) {
-      mensaje('Ninguna de las ' + partes.length + ' piezas cabe en una lámina de ' + mat.ancho + ' × ' + mat.alto + ' mm. Revisa la medida del diseño o la de la lámina.', 'mal');
+      mensaje('Ninguna de las ' + partes.length + ' piezas cabe en una hoja de ' + mat.ancho + ' × ' + mat.alto + ' mm. Revisa la medida del diseño o la de la hoja.', 'mal');
       return;
     }
 
@@ -342,25 +465,31 @@
     T = { corriendo: true, intentos: 0, sinMejora: 0, ultimaMejora: Date.now(), mejor: null, detenidoSolo: false, material: mat, fuera: fuera, total: partes.length };
     if (SN.start(alAvanzar, alMostrar) === false) {
       T.corriendo = false;
-      mensaje('El motor no pudo arrancar con esa lámina. Revisa que el ancho y el alto sean mayores que la separación.', 'mal');
+      mensaje('El motor no pudo arrancar con esa hoja. Revisa que el ancho y el alto sean mayores que la separación.', 'mal');
       return;
     }
     $('an-prog').hidden = false; $('an-prog-bar').style.width = '0%';
-    $('an-st-uso').textContent = '—'; $('an-st-col').textContent = '0/' + partes.length; $('an-st-hojas').textContent = '—'; $('an-st-int').textContent = '0';
+    ['an-st-uso', 'an-st-col', 'an-st-hojas', 'an-st-merma', 'an-st-int'].forEach(function (id) { $(id).textContent = '—'; $(id).removeAttribute('data-v'); });
+    $('an-st-col').textContent = '0/' + partes.length; $('an-st-int').textContent = '0';
+    $('an-st-uso-lbl').textContent = 'buscando…';
+    $('an-gauge-fg').style.strokeDashoffset = '326.73'; $('an-gauge-fg').className.baseVal = 'an-gauge-fg';
     $('an-res').innerHTML = '<p class="an-vacio">Calculando el primer acomodo…</p>';
     $('an-orig').hidden = true; $('an-res').hidden = false;
+    $('an-mesa').classList.add('corriendo');
+    $('an-mesa').style.setProperty('--an-mesa-h', $('an-mesa').offsetHeight + 'px');
     $('an-vista-tab').textContent = 'Acomodando…';
     $('an-dl').disabled = true; $('an-dl-hojas').hidden = true;
     pintarEstadoTrabajo();
-    mensaje((fuera ? fuera + (fuera === 1 ? ' pieza no cabe' : ' piezas no caben') + ' en la lámina ni girada' + (fuera === 1 ? '' : 's') + ' y se va' + (fuera === 1 ? '' : 'n') + ' a quedar fuera. ' : '') +
+    mensaje((fuera ? fuera + (fuera === 1 ? ' pieza no cabe' : ' piezas no caben') + ' en la hoja ni girada' + (fuera === 1 ? '' : 's') + ' y se va' + (fuera === 1 ? '' : 'n') + ' a quedar fuera. ' : '') +
       'El motor sigue buscando acomodos mejores mientras corre: detenlo cuando el resultado te convenza, o se detiene solo cuando deja de mejorar.', fuera ? 'av' : '');
-    /* En pantalla angosta el lienzo queda debajo de los controles: se baja a verlo. */
-    if (window.matchMedia('(max-width:900px)').matches) $('an-res').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    /* En pantalla angosta la mesa queda debajo de los controles: se baja a verla. */
+    if (window.matchMedia('(max-width:900px)').matches) $('an-mesa').scrollIntoView({ behavior: QUIETO ? 'auto' : 'smooth', block: 'start' });
   }
 
   function detener(solo) {
     window.SvgNest.stop();
     T.corriendo = false; T.detenidoSolo = !!solo;
+    $('an-mesa').classList.remove('corriendo');
     pintarEstadoTrabajo(); habilitar();
     $('an-vista-tab').textContent = T.mejor ? 'El mejor acomodo encontrado' : 'Las piezas, como vienen';
     if (!T.mejor) { mensaje('Detenido antes del primer acomodo.', ''); return; }
@@ -374,6 +503,7 @@
     if (!A || T.corriendo || !T.mejor) return;
     T.corriendo = true; T.sinMejora = 0; T.ultimaMejora = Date.now(); T.detenidoSolo = false;
     window.SvgNest.start(alAvanzar, alMostrar);
+    $('an-mesa').classList.add('corriendo');
     pintarEstadoTrabajo();
     $('an-vista-tab').textContent = 'Acomodando…';
     mensaje('Sigue buscando desde el mejor acomodo que llevaba.', '');
@@ -386,9 +516,10 @@
   function alMostrar(svglist, eficiencia, colocadas, total) {
     T.intentos++;
     if (svglist && svglist.length) {
+      var habia = !!T.mejor;
       T.mejor = { svglist: svglist, eficiencia: eficiencia, colocadas: colocadas, total: total };
       T.sinMejora = 0; T.ultimaMejora = Date.now();
-      pintarResultado();
+      pintarResultado(habia);
     } else if (T.corriendo && T.mejor) {
       T.sinMejora++;
       if (T.sinMejora >= LIMITE_INTENTOS && Date.now() - T.ultimaMejora >= LIMITE_MS) detener(true);
@@ -396,27 +527,52 @@
     pintarStats();
   }
 
+  /* La calificación del aprovechamiento. Umbrales de taller, no de laboratorio: en corte de
+     letras, arriba de 65 ya es un acomodo que a mano no se logra. */
+  function calificar(ef) {
+    if (!(ef >= 0)) return { txt: '', cls: '' };
+    if (ef < 0.5) return { txt: 'se puede mejorar', cls: 'mejorable' };
+    if (ef < 0.65) return { txt: 'bien', cls: 'bien' };
+    if (ef < 0.8) return { txt: 'muy bien', cls: 'muybien' };
+    return { txt: 'excelente', cls: 'excelente' };
+  }
   function pintarStats() {
     $('an-st-int').textContent = T.intentos;
     if (!T.mejor) return;
-    $('an-st-uso').textContent = M.formatoPct(T.mejor.eficiencia);
+    var ef = T.mejor.eficiencia || 0;
+    contar($('an-st-uso'), ef * 100, function (v) { return Math.round(v) + ' %'; });
+    contar($('an-st-merma'), (1 - ef) * 100, function (v) { return Math.round(v) + ' %'; });
     $('an-st-col').textContent = T.mejor.colocadas + '/' + T.mejor.total;
     $('an-st-hojas').textContent = T.mejor.svglist.length;
+    var cal = calificar(ef);
+    $('an-st-uso-lbl').textContent = cal.txt;
+    var fg = $('an-gauge-fg');
+    fg.style.strokeDashoffset = String(326.73 * (1 - Math.max(0, Math.min(1, ef))));
+    fg.setAttribute('class', 'an-gauge-fg ' + cal.cls);
   }
 
-  function pintarResultado() {
+  function pintarResultado(mejora) {
     var cont = $('an-res'); cont.innerHTML = '';
+    var W = 0, H = 0, idx = 0;
     T.mejor.svglist.forEach(function (s, i) {
       var vb = s.viewBox && s.viewBox.baseVal;
+      if (vb) { W = vb.width; H = vb.height; }
       var alta = vb ? vb.height > vb.width : false;
       var fig = document.createElement('figure'); fig.className = 'an-hoja' + (alta ? ' alta' : '');
       s.removeAttribute('width'); s.removeAttribute('height');
-      s.setAttribute('role', 'img'); s.setAttribute('aria-label', 'Lámina ' + (i + 1) + ' con las piezas acomodadas');
+      s.setAttribute('role', 'img'); s.setAttribute('aria-label', 'Hoja ' + (i + 1) + ' con las piezas acomodadas');
       var piezas = 0;
-      hijos(s).forEach(function (n) { if (n.tagName === 'g') piezas++; });
+      hijos(s).forEach(function (n) {
+        if (n.tagName !== 'g') return;
+        /* Cada pieza con su turno de color y su turno de caída. */
+        n.setAttribute('class', 'an-p' + (idx % COLORES_PIEZA));
+        n.style.setProperty('--i', String(piezas));
+        piezas++; idx++;
+      });
       fig.appendChild(s);
       var cap = document.createElement('figcaption');
-      cap.textContent = 'Lámina ' + (i + 1) + ' · ' + piezas + (piezas === 1 ? ' pieza' : ' piezas');
+      cap.innerHTML = '<b>Hoja ' + (i + 1) + '</b> · ' + piezas + (piezas === 1 ? ' pieza' : ' piezas') +
+        (vb ? ' · ' + esc(M.formatoMm(vb.width)) + ' × ' + esc(M.formatoMm(vb.height)) : '');
       fig.appendChild(cap);
       cont.appendChild(fig);
     });
@@ -426,12 +582,17 @@
     if (T.mejor.svglist.length > 1) {
       T.mejor.svglist.forEach(function (_, i) {
         var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-gho';
-        b.textContent = 'Solo la lámina ' + (i + 1);
+        b.textContent = 'Solo la hoja ' + (i + 1);
         b.addEventListener('click', function () { descargar(i); });
         hojas.appendChild(b);
       });
       hojas.hidden = false;
     } else hojas.hidden = true;
+    /* Cuando MEJORA —no la primera vez— el marcador late una vez. */
+    if (mejora && !QUIETO) {
+      var m = $('an-prog'); m.classList.remove('mejora');
+      void m.offsetWidth; m.classList.add('mejora');
+    }
   }
 
   function pintarEstadoTrabajo() {
@@ -444,41 +605,45 @@
   }
 
   /* ---------- Salida ---------- */
-  /* Un solo SVG en milímetros, una <g> por lámina, una debajo de otra. `indice` pide una
-     lámina sola. El contorno de la lámina va con sus atributos puestos —no con una clase—
-     porque RDWorks y compañía no leen CSS; los huecos van en blanco para que al abrirlo se
-     vea lo que es. */
+  /* Un solo SVG en milímetros, una <g> por hoja, una debajo de otra. `indice` pide una hoja
+     sola. El contorno de la hoja va con sus atributos puestos —no con una clase— porque
+     RDWorks y compañía no leen CSS; los huecos van en blanco para que al abrirlo se vea lo
+     que es. */
   function armarSalida(indice) {
     if (!T.mejor) return null;
     var ns = 'http://www.w3.org/2000/svg';
-    var laminas = (indice === null || indice === undefined) ? T.mejor.svglist : [T.mejor.svglist[indice]];
-    var vb0 = laminas[0].viewBox.baseVal;
-    var W = vb0.width, H = vb0.height, gap = HUECO_ENTRE_LAMINAS_MM;
-    var totalH = H * laminas.length + gap * (laminas.length - 1);
+    var hojas = (indice === null || indice === undefined) ? T.mejor.svglist : [T.mejor.svglist[indice]];
+    var vb0 = hojas[0].viewBox.baseVal;
+    var W = vb0.width, H = vb0.height, gap = HUECO_ENTRE_HOJAS_MM;
+    var totalH = H * hojas.length + gap * (hojas.length - 1);
 
     var out = document.createElementNS(ns, 'svg');
     out.setAttribute('xmlns', ns);
     out.setAttribute('viewBox', '0 0 ' + fmt(W) + ' ' + fmt(totalH));
     out.setAttribute('width', fmt(W) + 'mm'); out.setAttribute('height', fmt(totalH) + 'mm');
     var titulo = document.createElementNS(ns, 'title');
-    titulo.textContent = (A ? A.nombre.replace(/\.svg$/i, '') : 'diseño') + ' · acomodado en ' + laminas.length + (laminas.length === 1 ? ' lámina' : ' láminas') + ' de ' + fmt(W) + ' × ' + fmt(H) + ' mm · AL3D';
+    titulo.textContent = (A ? A.nombre.replace(/\.svg$/i, '') : 'diseño') + ' · acomodado en ' + hojas.length + (hojas.length === 1 ? ' hoja' : ' hojas') +
+      ' de ' + MAT_TXT[materialElegido()] + ' de ' + fmt(W) + ' × ' + fmt(H) + ' mm · AL3D';
     out.appendChild(titulo);
     if (window.SvgNest.style) out.appendChild(window.SvgNest.style.cloneNode(true));
 
     /* Se lee el interruptor AL DESCARGAR y no al arrancar: quien ve el resultado y decide que
        el contorno no lo quiere no tiene por qué volver a acomodar para quitarlo. */
     var contorno = interruptor('an-contorno');
-    laminas.forEach(function (hoja, i) {
+    hojas.forEach(function (hoja, i) {
       var g = document.createElementNS(ns, 'g');
-      g.setAttribute('id', 'lamina-' + (i + 1));
+      g.setAttribute('id', 'hoja-' + (i + 1));
       g.setAttribute('transform', 'translate(0 ' + fmt(i * (H + gap)) + ')');
       hijos(hoja).forEach(function (n) {
         if (!n.tagName) return;
         var c = n.cloneNode(true);
         if ((c.getAttribute('class') || '').indexOf('bin') >= 0) {
           if (!contorno) return;
-          c.setAttribute('id', 'contorno-lamina-' + (i + 1));
+          c.setAttribute('id', 'contorno-hoja-' + (i + 1));
           c.setAttribute('fill', 'none'); c.setAttribute('stroke', '#4060f8'); c.setAttribute('stroke-width', '0.5');
+        } else {
+          /* Las clases de color y el turno de caída son de la mesa, no del archivo de corte. */
+          c.removeAttribute('class'); c.removeAttribute('style');
         }
         lista(c.getElementsByTagName('*')).forEach(function (e) {
           var cls = e.getAttribute('class');
@@ -495,19 +660,18 @@
     });
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(out);
   }
-  function fmt(n) { return String(Math.round(n * 1000) / 1000); }
 
   function descargar(indice) {
     var txt = armarSalida(indice);
     if (!txt) { mensaje('Todavía no hay un acomodo que descargar.', 'mal'); return; }
     var base = (A ? A.nombre : 'diseño').replace(/\.svg$/i, '').replace(/[^\w\sáéíóúñÁÉÍÓÚÑ-]/g, '').replace(/\s+/g, '-').slice(0, 40) || 'diseño';
-    var nombre = base + '-acomodado' + (indice === null || indice === undefined ? '' : '-lamina-' + (indice + 1)) + '.svg';
+    var nombre = base + '-' + materialElegido() + '-acomodado' + (indice === null || indice === undefined ? '' : '-hoja-' + (indice + 1)) + '.svg';
     var blob = new Blob([txt], { type: 'image/svg+xml;charset=utf-8' });
     var u = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = u; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(u); }, 4000);
     var W = T.mejor.svglist[0].viewBox.baseVal.width, H = T.mejor.svglist[0].viewBox.baseVal.height;
-    toast('SVG descargado a escala real: ' + fmt(W) + ' × ' + fmt(H) + ' mm por lámina', 'ok', 3600);
+    toast('SVG descargado a escala real: ' + fmt(W) + ' × ' + fmt(H) + ' mm por hoja', 'ok', 3600);
   }
 
   $('an-ir').addEventListener('click', iniciar);
@@ -570,7 +734,9 @@
   }
 
   /* ---------- Arranque ---------- */
+  cargarRetazos();
   cargarMaterial();
+  pintarRetazos();
   recibirDelCotizador();
   habilitar();
 
@@ -582,7 +748,8 @@
     estado: function () {
       return { archivo: A ? { nombre: A.nombre, piezas: A.piezas, k: A.k, origen: A.escala && A.escala.origen, bbox: A.bbox, avisos: A.avisos.slice() } : null,
                corriendo: T.corriendo, intentos: T.intentos, sinMejora: T.sinMejora, detenidoSolo: T.detenidoSolo,
-               mejor: T.mejor ? { laminas: T.mejor.svglist.length, eficiencia: T.mejor.eficiencia, colocadas: T.mejor.colocadas, total: T.mejor.total } : null };
+               hoja: hojaElegida(), material: materialElegido(), retazos: R.slice(),
+               mejor: T.mejor ? { hojas: T.mejor.svglist.length, laminas: T.mejor.svglist.length, eficiencia: T.mejor.eficiencia, colocadas: T.mejor.colocadas, total: T.mejor.total } : null };
     }
   };
 })();
