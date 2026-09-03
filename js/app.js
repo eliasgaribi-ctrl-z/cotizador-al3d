@@ -190,9 +190,12 @@ async function montarDeVerdad(ruta, opts = {}) {
 
 function pintarNav() {
   const nav = $('pf-nav'); if (!nav) return;
-  nav.innerHTML = rutasDeRol().filter(r => !r.oculto).map(r =>
+  nav.innerHTML = rutasDeRol().filter(r => !r.oculto).map((r, i) =>
     '<button type="button" class="pf-tab' + (r.ruta === _actual ? ' on' : '') + '"' +
-    ' data-ruta="' + r.ruta + '" aria-current="' + (r.ruta === _actual ? 'page' : 'false') + '">' +
+    ' data-ruta="' + r.ruta + '" aria-current="' + (r.ruta === _actual ? 'page' : 'false') + '"' +
+    /* El atajo va en el title, que es lo que lee el ratón en la computadora. En el teléfono
+       no hay teclado y el title no molesta. */
+    ' title="' + esc(r.nombre) + ' · tecla ' + (i + 1) + '">' +
     ico(r.icono) + '<span class="tx">' + esc(r.nombre) + '</span>' +
     '<span class="cta" data-cta="' + r.ruta + '" hidden></span></button>'
   ).join('');
@@ -284,15 +287,24 @@ function revisarDispositivo() {
   }
 }
 
+/* El respaldo baja COMPLETO: la plataforma y el cotizador en un solo archivo. Antes eran dos
+   archivos que no se cruzaban, y mover la app a otro aparato —que es la única forma de usarla
+   en el teléfono y en la computadora mientras no haya servidor— era bajar dos cosas de dos
+   pantallas y restaurarlas en otras dos. Ahora es un archivo: cada lado toma su mitad al
+   restaurar, y un respaldo viejo de la plataforma sola sigue entrando igual. */
 export async function respaldar() {
-  const txt = await DB.exportar();
+  const plataforma = JSON.parse(await DB.exportar());
+  const cotizador = Cot.armarRespaldoCotizador();
+  const txt = JSON.stringify({ app: 'al3d-completo', formato: 1, fecha: new Date().toISOString(),
+    plataforma, cotizador });
   const d = new Date(), p = n => String(n).padStart(2, '0');
   const sello = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + '-' +
                 p(d.getHours()) + p(d.getMinutes());
   const { descargarArchivo } = await import('./nucleo/ui.js');
-  if (descargarArchivo(txt, 'plataforma-al3d-respaldo-' + sello + '.json', 'application/json')) {
+  if (descargarArchivo(txt, 'al3d-respaldo-completo-' + sello + '.json', 'application/json')) {
     Prefs.marcarExport();
-    toast('Respaldo de la plataforma descargado', 'ok', 3600);
+    const n = (() => { try { return JSON.parse(cotizador.datos.al3d_historial || '[]').length; } catch (_) { return 0; } })();
+    toast('Respaldo completo descargado: plataforma y cotizador (' + n + (n === 1 ? ' cotización' : ' cotizaciones') + ')', 'ok', 4600);
     revisarDispositivo();
   }
 }
@@ -320,6 +332,24 @@ async function arrancar() {
   });
   const aj = $('pf-ajustes-btn');
   if (aj) aj.onclick = () => ir('ajustes');
+
+  /* ----- El teclado, para la computadora -----
+     Los números cambian de módulo en el orden de la barra —el mismo que enseña el title de
+     cada pestaña—. Solo cuando no se está escribiendo en un campo y no hay un panel abierto:
+     un «3» dentro del campo de búsqueda es un tres, no Proyectos. Esc ya lo atiende ui.js. Las
+     flechas del calendario viven en su módulo, que es el único que sabe qué es «siguiente». */
+  window.addEventListener('keydown', ev => {
+    if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
+    const t = ev.target;
+    if (t && t.closest && t.closest('input,textarea,select,[contenteditable="true"]')) return;
+    if (document.querySelector('.modal-bg.show')) return;
+    if (!/^[1-9]$/.test(ev.key)) return;
+    const visibles = rutasDeRol().filter(r => !r.oculto);
+    const r = visibles[Number(ev.key) - 1];
+    if (!r) return;
+    ev.preventDefault();
+    ir(r.ruta);
+  });
 
   await DB.abrir();
   revisarDispositivo();

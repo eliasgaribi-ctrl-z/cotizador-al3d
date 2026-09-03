@@ -185,6 +185,11 @@ son seis pantallas que se alimentan de ahí.
 - **Mapa** — las obras por instalar y las instaladas, con el orden de ruta del día.
 - **Ajustes** — el rol de este dispositivo, el respaldo, y la verdad del sistema escrita.
 
+**En la computadora también.** De 1 100 px para arriba el calendario abre en «Todo»: el mes a
+la izquierda y la fila del taller a la derecha, con el mismo marcado que en el teléfono. Y se
+maneja con teclado: **1 a 5** cambian de módulo, **← →** mueven el mes o la semana, **t**
+vuelve a hoy y **Esc** cierra lo que esté abierto.
+
 **Los recordatorios que sí suenan.** Una app en el teléfono no se puede despertar sola sin
 pagar un servidor, así que no se finge: cada instalación **descarga un evento para el
 calendario del teléfono**, con alarmas a 3 días, 1 día y 30 minutos. Esas alarmas las dispara
@@ -208,8 +213,11 @@ Sin puente no se rompe nada: la plataforma funciona completa en un dispositivo y
 **Copiar fila para Notion** del cotizador sigue siendo el camino manual. Ese botón no se
 retira nunca.
 
-**Los datos viven en el dispositivo**, igual que el cotizador, y tiene su propio respaldo
-—aparte del del cotizador— en Ajustes.
+**Los datos viven en el dispositivo**, igual que el cotizador. El respaldo de Ajustes baja
+**un solo archivo con todo** —plataforma y cotizador— y es la forma de mover la app a otro
+aparato: se manda por WhatsApp o correo, se restaura en Ajustes del otro lado, y el cotizador
+toma su parte al abrir. Mientras no haya servidor, es el puente entre el teléfono y la
+computadora.
 
 ## Anidador de vectores
 
@@ -385,7 +393,8 @@ Si el celular sigue mostrando la versión anterior, es la caché: recargar forza
 ## Pendientes
 
 Lo que se sabe que falta, escrito aquí para no tener que buscarlo a media frase en otra
-sección.
+sección. **El mapa completo del siguiente nivel —Notion, Cloudflare, Google Calendar, qué
+cuesta y en qué orden— está en [`docs/SIGUIENTE-NIVEL.md`](docs/SIGUIENTE-NIVEL.md).**
 
 - **Los folios se repiten entre dispositivos.** El contador es local a cada teléfono, así
   que dos aparatos empiezan en `COT-0001` y acaban emitiendo el mismo folio para trabajos

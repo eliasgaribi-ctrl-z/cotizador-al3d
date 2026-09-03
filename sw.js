@@ -36,7 +36,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 11;
+const APP_VERSION = 13;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.

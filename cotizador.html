@@ -9979,9 +9979,18 @@ function restaurarDesde(texto){
   let paquete;
   try{ paquete=JSON.parse(texto); }
   catch(_){ toast('Ese archivo no se pudo leer — ¿es el respaldo?','err',3600); return; }
+  /* El respaldo COMPLETO —el que baja la plataforma— trae las dos mitades en un solo archivo.
+     Aquí se toma la del cotizador y se sigue igual que siempre; la otra mitad la restaura la
+     plataforma desde Ajustes. Un solo archivo para mover TODO de un aparato a otro, que es la
+     única forma de usar la app en el teléfono y en la computadora mientras no haya servidor. */
+  let completo=false;
+  if(paquete&&paquete.app==='al3d-completo'&&paquete.cotizador&&typeof paquete.cotizador==='object'){
+    paquete=paquete.cotizador; completo=true;
+  }
   if(!paquete||paquete.app!=='cotizador-al3d'||!paquete.datos){
     toast('Ese archivo no es un respaldo del cotizador','err',3600); return;
   }
+  if(completo) toast('Es un respaldo completo: aquí se restaura la parte del cotizador. La de la plataforma se restaura en Plataforma → Ajustes.','',6000);
   /* Antes solo se miraba la etiqueta 'app' y de ahí se escribía directo en el
      almacenamiento: un respaldo truncado o editado a mano pasaba el filtro, borraba lo que
      había y anunciaba éxito, dejando la app sin arrancar. Se revisa la FORMA de lo que
@@ -10036,9 +10045,43 @@ function restaurarDesde(texto){
     toast('No cupo el respaldo en este dispositivo ('+fallaron.length+' '+(fallaron.length===1?'clave':'claves')+') — no se cambió nada','err',6000);
     return;
   }
+  try{ localStorage.removeItem(RESTAURAR_PF_KEY); }catch(_){}
   toast('Respaldo restaurado — recargando…','ok',2000);
   setTimeout(()=>location.reload(),900);
 }
+/* ----- La restauración que deja la plataforma -----
+   Cuando en Plataforma → Ajustes se restaura un respaldo completo, la plataforma restaura su
+   mitad y deja la del cotizador aquí, en una clave suya, porque tiene prohibido escribir las
+   claves del cotizador. Al abrir, el cotizador la ofrece con un botón; restaurar sigue
+   pasando por restaurarDesde(), con su confirmación y su copia previa: nada se pisa solo. */
+const RESTAURAR_PF_KEY='al3d_pf_restaurar';
+/* Va como tarjeta fija arriba del contenido y NO como aviso emergente: el aviso es de una sola
+   instancia y cualquier otro del arranque —el del service worker, el del respaldo vencido— lo
+   tapa en un segundo, y una restauración que se ofreció y desapareció es una que nadie hizo.
+   La forma es la de «lo que hay que decidir antes de seguir», que el cotizador ya usa. */
+function ofrecerRestauracionPendiente(){
+  let t=null; try{ t=localStorage.getItem(RESTAURAR_PF_KEY); }catch(_){}
+  if(!t) return;
+  let fecha='', cuantas=0;
+  try{ const pq=JSON.parse(t); fecha=(pq.fecha||'').slice(0,10); cuantas=(JSON.parse((pq.datos||{}).al3d_historial||'[]')||[]).length; }catch(_){}
+  const main=$('contenido'); if(!main||$('pf-restaurar')) return;
+  const card=document.createElement('div');
+  card.className='cand-partidas'; card.id='pf-restaurar'; card.setAttribute('role','region'); card.setAttribute('aria-label','Respaldo pendiente de restaurar');
+  card.innerHTML='<p class="cp-txt"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg> <b>La plataforma dejó un respaldo completo'+(fecha?' del '+esc(fecha):'')+'</b>'
+    +(cuantas?' con '+cuantas+(cuantas===1?' cotización':' cotizaciones'):'')+', esperando la parte del cotizador. Restaurar reemplaza lo que hay aquí; antes se descarga una copia de lo actual.</p>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'
+    +'<button type="button" class="btn btn-ok" style="width:auto;padding:0 16px" onclick="restaurarPendiente()">Restaurar ahora</button>'
+    +'<button type="button" class="btn btn-gho" style="width:auto;padding:0 16px" onclick="ocultarRestauracionPendiente()">Ahora no</button></div>';
+  main.insertBefore(card,main.firstChild);
+}
+function restaurarPendiente(){
+  let t=null; try{ t=localStorage.getItem(RESTAURAR_PF_KEY); }catch(_){}
+  if(!t){ ocultarRestauracionPendiente(); toast('Ya no hay ningún respaldo esperando','',3200); return; }
+  restaurarDesde(t);
+}
+/* «Ahora no» esconde la tarjeta hasta la próxima vez que se abra la app; la clave se queda,
+   porque lo que espera ahí es el historial de otro aparato y tirarlo no es un toque. */
+function ocultarRestauracionPendiente(){ const c=$('pf-restaurar'); if(c) c.remove(); }
 $('restaurarin').addEventListener('change',e=>{
   const f=e.target.files[0]; e.target.value='';
   if(!f) return;
@@ -10497,14 +10540,20 @@ function plazoSugeridoCot(items){
    cuál de los dos casos es, para que «2 semanas» resaltado no se lea como una decisión que
    nadie tomó. Se repinta desde renderItems, porque la propuesta depende de las partidas. */
 function pintarPlazo(){
-  const box=$('f-plazo'), h=$('f-plazo-h'); if(!box) return;
   const sug=plazoSugeridoCot(Q.items);
   const elegido=(Q.plazoK>=1&&Q.plazoK<=5)?Q.plazoK:null;
   const on=elegido!==null?elegido:sug;
-  box.innerHTML=PLAZOS_COT.map(p=>chip(p.k===on,`setPlazo(${p.k})`,esc(p.etiqueta),'',true)).join('');
-  if(h) h.textContent=elegido!==null
+  const nota=elegido!==null
     ?'Elegido a mano. Tócalo otra vez para volver al propuesto.'
     :(Q.items.length?'Propuesto por el tipo de trabajo. Toca otro si sabes que tarda más.':'Se propone en cuanto haya partidas. Toca uno si ya lo sabes.');
+  /* Los mismos chips viven en dos sitios: el formulario del cliente y el modal de Registrar
+     venta, que es el momento natural de corregirlo —junto a la fecha de instalación—. Una sola
+     función los pinta a los dos para que nunca digan cosas distintas. */
+  for(const [boxId,hId] of [['f-plazo','f-plazo-h'],['rv-plazo','rv-plazo-h']]){
+    const box=$(boxId), h=$(hId); if(!box) continue;
+    box.innerHTML=PLAZOS_COT.map(p=>chip(p.k===on,`setPlazo(${p.k})`,esc(p.etiqueta),'',true)).join('');
+    if(h) h.textContent=nota;
+  }
 }
 /* Tocar el que ya está elegido lo suelta: vuelve a mandar el propuesto. */
 function setPlazo(k){
@@ -12179,6 +12228,7 @@ function init(){
      usuario, así que la app abre sin nada que deshacer. */
   undoBarrera();
   registrarSW();
+  ofrecerRestauracionPendiente();
 }
 /* El service worker guarda una copia de la app para que abra sin señal. Va al final del
    arranque y en su propio try: si el navegador no lo soporta —o el sitio se abrió como
@@ -12262,6 +12312,7 @@ function abrirRegistrarVenta(){
   if(cuentaPref&&[...selCuenta.options].some(o=>o.value===cuentaPref)) selCuenta.value=cuentaPref;
   document.getElementById('rv-estatus').value='FABRICACION';
   document.getElementById('rv-copied').classList.remove('show');
+  pintarPlazo();
   rvRecalc();
   document.getElementById('rv-modal-bg').classList.add('show');
 }
@@ -13675,6 +13726,11 @@ function vtUsarComoPartidas(){
           <label for="rv-fecha-inst">¿Qué día se instala?</label>
           <input type="date" id="rv-fecha-inst">
           <div class="hintnote">Déjalo vacío si todavía no se sabe. Se puede poner después desde la plataforma, y si pasan dos días sin fecha ella lo recuerda.</div>
+        <div class="rv-field full">
+          <label id="rv-plazo-l">¿Cuánto tarda en el taller?</label>
+          <div class="chips" id="rv-plazo" role="group" aria-labelledby="rv-plazo-l"></div>
+          <div class="hintnote" id="rv-plazo-h" style="margin-top:6px"></div>
+        </div>
         </div>
         <div class="rv-field">
           <label for="rv-iva">IVA</label>
