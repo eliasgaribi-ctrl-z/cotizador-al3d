@@ -326,28 +326,25 @@ function copiarParaCanva(){
     if(it.tipo==='bastidor'||it.tipo==='caja') return `${it.ancho}×${it.alto} cm`;
     return '—';
   }
-  function pzasTxt(it){
-    if(it.tipo==='letras'||it.tipo==='recorte') return it.n||0;
-    if(it.tipo==='bastidor'||it.tipo==='caja')  return 1;
-    return it.pz||1;
-  }
-  /* Mismos criterios que el PDF: solo las partidas visibles, con los precios que
-     autorizó el autorizador, para que el texto y el documento no se contradigan. */
+  const pzasTxt=piezasDe;
+  /* Mismos criterios que el PDF: solo las partidas visibles, con los precios que ve el
+     cliente —los que autorizó el autorizador y, si subió el total, con ese aumento ya
+     repartido entre las partidas (preciosCliente)—, para que el texto y el documento no se
+     contradigan. */
   const visibles=Q.items.filter(it=>it.showInPdf!==false);
-  const subC=Q.items.reduce((s,it)=>s+itemPrecio(it),0);
-  const ivaC=Q.iva?subC*0.16:0;
-  const netoC=subC+ivaC;
-  const pFinal=precioFinal();
-  const ajuste=+(netoC-pFinal).toFixed(2);
+  const pc=preciosCliente();
+  const subC=Q.items.reduce((s,it)=>s+pc[it.id],0);
   /* El mismo desglose coherente que el PDF: el descuento baja la base y el IVA sale de la
-     base descontada, para que los dos documentos digan lo mismo. */
-  const hayAjusteC=Math.abs(ajuste)>0.01;
+     base descontada, para que los dos documentos digan lo mismo. Lo que separa a lo que
+     suman los renglones de lo que se cobra, sin IVA: positivo es un descuento y se dice;
+     un aumento ya viene repartido en los renglones, así que aquí da cero y no se dice. */
   const dFinC=desgloseFinal();
-  const descSinIvaC=+(subC-dFinC.sub).toFixed(2);
+  const ajuste=+(subC-dFinC.sub).toFixed(2);
+  const hayAjusteC=Math.abs(ajuste)>0.01;
   /* Igual que el PDF: las ocultas se cobran, así que se enlistan agrupadas para que las
      líneas sumen el subtotal de abajo. */
-  const subOcultoC=+(subC-visibles.reduce((s,it)=>s+itemPrecio(it),0)).toFixed(2);
-  const lineas=visibles.map((it,i)=>`${i+1}. ${descTxt(it)}\n   Medidas: ${medTxt(it)}  ·  Pzas: ${pzasTxt(it)}  ·  Total: ${money(itemPrecio(it))}`).join('\n\n')
+  const subOcultoC=+(subC-visibles.reduce((s,it)=>s+pc[it.id],0)).toFixed(2);
+  const lineas=visibles.map((it,i)=>`${i+1}. ${descTxt(it)}\n   Medidas: ${medTxt(it)}  ·  Pzas: ${pzasTxt(it)}  ·  Total: ${money(pc[it.id])}`).join('\n\n')
     +(Math.abs(subOcultoC)>0.01?`\n\n${visibles.length+1}. Conceptos adicionales\n   Total: ${money(subOcultoC)}`:'');
   const txt=`PROYECTO: ${Q.proy||'—'}
 CLIENTE: ${Q.cliente||'—'}
@@ -357,7 +354,7 @@ FECHA: ${Q.fecha||'—'}
 PARTIDAS:
 ${lineas}
 
-Subtotal: ${money(subC)}${hayAjusteC&&ajuste>0.01?`\nDescuento: −${money(descSinIvaC)}`:''}${hayAjusteC&&ajuste<-0.01?`\nAjuste: +${money(-descSinIvaC)}`:''}${hayAjusteC?`\nSubtotal ${ajuste>0?'con descuento':'ajustado'}: ${money(dFinC.sub)}`:''}${Q.iva?`\nIVA (16%): ${money(dFinC.iva)}`:''}
+Subtotal: ${money(subC)}${hayAjusteC&&ajuste>0.01?`\nDescuento: −${money(ajuste)}`:''}${hayAjusteC&&ajuste<-0.01?`\nAjuste: +${money(-ajuste)}`:''}${hayAjusteC?`\nSubtotal ${ajuste>0?'con descuento':'ajustado'}: ${money(dFinC.sub)}`:''}${Q.iva?`\nIVA (16%): ${money(dFinC.iva)}`:''}
 ${Q.iva?'Total Neto':'Total'}: ${money(dFinC.neto)}${Q.anti>0?`\nAnticipo para arrancar: ${money(Q.anti)}\nResta al entregar: ${money(Math.max(0,dFinC.neto-Q.anti))}`:''}
 
 Nota: ${notaCliente()}
@@ -435,28 +432,31 @@ function generarPDF(){
   if(Q.items.length&&!itemsForPDF.length){
     toast('Todas las partidas están ocultas del PDF — muestra al menos una','err',4600); return;
   }
-  /* El PDF se arma con los precios ya ajustados por el autorizador, para que las
-     filas de la tabla siempre sumen lo que dice el total.
+  /* El PDF se arma con los precios que ve el cliente —preciosCliente(): los ajustados por
+     el autorizador y, si además subió el total, con ese aumento ya repartido entre las
+     partidas—, para que las filas de la tabla siempre sumen lo que dice el total.
 
      Las partidas ocultas del PDF siguen cobrándose —lo dice el propio botón: «Ocultar del
      PDF, la partida sigue sumando al total»—, así que su importe no se resta: se imprime
      agrupado en un renglón. Antes el subtotal las incluía pero los renglones no, y el
      cliente recibía una tabla que no sumaba lo que decía abajo. */
-  const subVis    = itemsForPDF.reduce((s,it)=>s+itemPrecio(it),0);
-  const subOculto = +(Q.items.reduce((s,it)=>s+itemPrecio(it),0)-subVis).toFixed(2);
+  const pc = preciosCliente();
+  const subVis    = itemsForPDF.reduce((s,it)=>s+pc[it.id],0);
+  const subOculto = +(Q.items.reduce((s,it)=>s+pc[it.id],0)-subVis).toFixed(2);
   const subPdf  = +(subVis+subOculto).toFixed(2);
-  const ivaPdf  = Q.iva ? subPdf*0.16 : 0;
-  const netoPdf = subPdf+ivaPdf;
-  const pFinal  = precioFinal();
-  const ajuste  = +(netoPdf-pFinal).toFixed(2); // >0 descuento · <0 aumento
-  const hayAjuste = Math.abs(ajuste)>0.01;
   /* El desglose que corresponde a lo que de verdad se cobra. Antes el I.V.A. impreso se
      calculaba sobre el subtotal SIN descuento, así que el documento decía
      «Subtotal 20,000 · I.V.A 3,200 · Descuento 1,200 · Total a pagar 22,000»: cuatro
      números de los que ninguna pareja cuadraba. Ahora el descuento baja la base, el I.V.A.
      sale de la base descontada y el total es exactamente subtotal + I.V.A. */
   const dFin = desgloseFinal();
-  const descSinIva = +(subPdf-dFin.sub).toFixed(2);
+  /* Lo que separa a lo que suman los renglones de lo que se cobra, sin IVA. Positivo es un
+     descuento y se imprime en su renglón verde. Un aumento ya viene repartido en las filas
+     —ver preciosCliente—, así que aquí da cero y el cliente no ve ningún «Ajuste»; la rama
+     del aumento se queda solo para la cotización sin ninguna partida con precio, donde no
+     hay nada entre lo que repartir y al menos así la hoja suma. */
+  const ajuste  = +(subPdf-dFin.sub).toFixed(2); // >0 descuento · <0 aumento
+  const hayAjuste = Math.abs(ajuste)>0.01;
 
   /* Etiquetas de catálogos */
   const MAT = {'al-paint':'Aluminio Blanco/Negro/Pintado','al-brush':'Aluminio Brush Cepillado','acr-vol':'Acrílico + Aluminio (Volumen)','acr-vinil':'Acrílico + Vinil','acero':'Acero Inoxidable'};
@@ -498,11 +498,7 @@ function generarPDF(){
     if(it.tipo==='bastidor'||it.tipo==='caja') return `${it.ancho}×${it.alto} cm`;
     return '—';
   }
-  function pzas(it){
-    if(it.tipo==='letras'||it.tipo==='recorte') return it.n||0;
-    if(it.tipo==='bastidor'||it.tipo==='caja')  return 1;
-    return it.pz||1;
-  }
+  const pzas=piezasDe;
   /* El unitario tenía dos fallas. La primera: la condición dejaba fuera el tipo
      'manual', que sí trae piezas (pzas() devuelve it.pz y lineTotal multiplica
      it.pz*it.pu), así que una partida manual de 5 piezas a $200 imprimía «Pzas. 5 ·
@@ -510,10 +506,12 @@ function generarPDF(){
      segunda: money() fija dos decimales, así que un precio ajustado por el
      autorizador a $5,000 entre 3 piezas imprime $1,666.67 y el cliente que
      multiplica obtiene $5,000.01. Cuando la división no cuadra al centavo se marca
-     con * y se explica abajo de la tabla; el total de la partida es el que manda. */
+     con * y se explica abajo de la tabla; el total de la partida es el que manda.
+     Con un aumento repartido casi nunca hace falta el asterisco: el reparto sube cada
+     partida por su unitario redondeado al centavo, justo para que multiplique limpio. */
   let hayProrrateo=false;
   function pu(it){
-    const tot=itemPrecio(it), p=pzas(it);
+    const tot=pc[it.id], p=pzas(it);
     if(p>1){
       const u=Math.round(tot/p*100)/100;
       if(Math.abs(u*p-tot)>=0.005){ hayProrrateo=true; return money(u)+' *'; }
@@ -668,7 +666,7 @@ function generarPDF(){
         <td class="c">${med(it)}</td>
         <td class="c">${pzas(it)}</td>
         <td class="r num">${pu(it)}</td>
-        <td class="r num tot">${money(itemPrecio(it))}</td>
+        <td class="r num tot">${money(pc[it.id])}</td>
       </tr>`;
 
   /* Logo */
@@ -1112,8 +1110,8 @@ ${trozos.map((trozo,ti)=>{
     </div>
     <div class="tot-card">
       <div class="trow"><span>Subtotal</span><span>${money(subPdf)}</span></div>
-      ${hayAjuste&&ajuste>0.01?`<div class="trow trow-ok"><span>Descuento</span><span>− ${money(descSinIva)}</span></div>`:''}
-      ${hayAjuste&&ajuste<-0.01?`<div class="trow trow-av"><span>Ajuste</span><span>+ ${money(-descSinIva)}</span></div>`:''}
+      ${hayAjuste&&ajuste>0.01?`<div class="trow trow-ok"><span>Descuento</span><span>− ${money(ajuste)}</span></div>`:''}
+      ${hayAjuste&&ajuste<-0.01?`<div class="trow trow-av"><span>Ajuste</span><span>+ ${money(-ajuste)}</span></div>`:''}
       ${hayAjuste?`<div class="trow"><span>Subtotal ${ajuste>0?'con descuento':'ajustado'}</span><span>${money(dFin.sub)}</span></div>`:''}
       ${Q.iva?`<div class="trow trow-iva"><span>I.V.A. 16%</span><span>${money(dFin.iva)}</span></div>`:''}
       <div class="neto"><span>${Q.iva?'Total neto':'Total'}</span><span>${money(dFin.neto)}</span></div>

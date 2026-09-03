@@ -145,7 +145,10 @@ function renderAuth(){
       const descHTML=Math.abs(aj)>0.01&&neto>0
         ? (aj>0
             ? `<div class="authnote" style="border-color:var(--green-ico);background:var(--green-bg);color:var(--green);margin-top:8px">Precio autorizado: <b>${money(precioFinal())}</b> · Ahorro: <b>${money(aj)}</b> (${Math.round(aj/neto*100)}%)</div>`
-            : `<div class="authnote" style="border-color:var(--amber-ico);background:var(--amber-bg);color:var(--amber);margin-top:8px">Precio autorizado: <b>${money(precioFinal())}</b> · Aumento: <b>${money(-aj)}</b> (${Math.round(-aj/neto*100)}%)</div>`)
+            /* El aumento se reparte entre las partidas y el cliente no lo ve como renglón (ver
+               preciosCliente). Se dice aquí, donde el vendedor lee «Aumento», para que no
+               busque en el PDF un «Ajuste» que ya no existe. */
+            : `<div class="authnote" style="border-color:var(--amber-ico);background:var(--amber-bg);color:var(--amber);margin-top:8px">Precio autorizado: <b>${money(precioFinal())}</b> · Aumento: <b>${money(-aj)}</b> (${Math.round(-aj/neto*100)}%) · repartido entre las partidas, sin renglón de ajuste en el PDF</div>`)
         : '';
       const authNote=`<div class="authnote">Autorizada por <b>${esc(Q.autorizador)||'—'}</b> el <b>${esc(Q.fechaAuth)}</b>.${Q.nota?'<br>Nota: '+esc(Q.nota):''}</div>`;
       if(Q.editMode){

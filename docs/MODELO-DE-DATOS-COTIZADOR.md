@@ -373,15 +373,23 @@ function formulaFor(it){
 }
 ```
 
-### 4.7 Precio efectivo de una partida (L3312–3319, verbatim)
+### 4.7 Precio efectivo de una partida (`js/cotizador/nucleo.js`, verbatim)
 ```js
 function itemPrecio(it){
   if(Q.estado!=='autorizada' || !authVigente()) return lineTotal(it);
   const v=Q.itemsAuth&&Q.itemsAuth[it.id];
   return v!==undefined?v:lineTotal(it);
 }
-function itemAjustada(it){ return Math.abs(itemPrecio(it)-lineTotal(it))>0.01; }
+function itemAjustada(it){ return Math.abs(itemPrecioCliente(it)-lineTotal(it))>0.01; }
 ```
+
+**Dos precios por partida, y son distintos a propósito.** `itemPrecio` es el precio *interno*:
+el calculado, o el que el autorizador puso a esa partida. `itemPrecioCliente` —de
+`preciosCliente()`, §9.5— es el que se imprime: el interno más su parte proporcional de un
+aumento global. Lo que sale del cotizador hacia el cliente (PDF, texto de Canva) y lo que
+enseña la pantalla del vendedor (`ltHTML`) usan el **del cliente**, para que nadie lea en voz
+alta un número distinto del impreso. Lo interno —el historial, el TSV de venta, el formulario
+de revisión— sigue con `itemPrecio`: ahí el aumento se registra como lo que es.
 
 ### 4.8 `itemVacio` — definición canónica de "partida sin capturar" (L5434)
 ```js
@@ -722,6 +730,45 @@ function desgloseFinal(){
 
 **`precioAuth`:** `0` significa "sin ajuste global" (no "gratis"). Solo cuenta si `estado==='autorizada'` **y** `authVigente()` **y** difiere del neto en >$0.01. Mientras se teclea, el borrador vive en `_paDraft={folio,val}` (L4899, memoria) — nunca en `Q.precioAuth`, porque "teclear un descuento no puede aplicarlo antes de que alguien apriete Autorizar".
 
+### 9.5 `preciosCliente()` — el aumento se reparte, no se anuncia
+
+Un **descuento** se imprime en su renglón: es un argumento de venta. Un **aumento** no. El PDF
+sacaba «Ajuste + $646.90» debajo del subtotal y ese renglón le pedía al cliente que preguntara
+por qué, con la tabla de arriba como prueba de que el precio "de verdad" era otro. Ahora el
+aumento global —lo que el precio autorizado va por encima de lo que suman las partidas ya
+ajustadas— se **reparte entre las partidas en proporción a lo que vale cada una**, y el renglón
+desaparece: subtotal, I.V.A. y total.
+
+- **Solo el aumento.** `hayAumentoAuth()` es `ajusteAuth()<-0.01 && subAjustado()>0.005`. Un
+  descuento sigue bajando la base en su renglón; sin ninguna partida con precio no hay
+  proporción que guardar y el PDF vuelve al renglón de ajuste, que al menos suma.
+- **La base del reparto son los precios ya ajustados** (`itemPrecio`), no los calculados: un
+  ajuste por partida del autorizador se respeta y el aumento se reparte encima.
+- **Se reparte sobre el precio unitario, en centavos enteros.** La columna "Precio unitario" es
+  el total entre las piezas: un total que no divide imprime `$312.59 *` y la nota de prorrateo
+  al pie, que aquí sería un letrero señalando lo que no se quiere señalar. Cada unitario se
+  trunca al centavo y los centavos que faltan se dan **de uno en uno** a los unitarios,
+  empezando por los que quedaron más cerca del siguiente centavo; cada centavo de unitario
+  cuesta tantos centavos de total como piezas tenga la partida.
+- **El trueque.** Lo que no cabe en ningún unitario (menos centavos que piezas tiene la partida
+  más chica) se cierra quitando un centavo al unitario de una partida y dando los que hagan
+  falta al de otra: 2 y 3 piezas con un centavo suelto se resuelven con −$0.03 y +$0.04. Cierran
+  limpias ~4 de cada 5 cotizaciones en vez de la mitad.
+- **El asterisco que sobrevive.** Los centavos que ni el trueque cierra van al total de la
+  partida más cara, y ese renglón sale marcado. Con una sola partida el subtotal tendría que ser
+  múltiplo de sus piezas y no hay pareja para el trueque: sale marcada ~3 de cada 4 veces; con
+  dos partidas, ~1 de cada 2; con cinco o más, casi nunca. **Es una imposibilidad, no un
+  pendiente:** de las tres —filas que suman el subtotal, subtotal que corresponde al precio
+  autorizado, unitarios que multiplican— solo dos pueden ser verdad. Cede la tercera porque es
+  la única que el papel puede confesar sin mentir; mover el subtotal unos centavos taparía la
+  marca a cambio de un I.V.A. que no cuadra con su base, que es el defecto que §9.2 arregló.
+  Una partida en `$0` nunca recibe nada (sería un renglón con precio y sin trabajo).
+- **Las filas suman EXACTAMENTE `desgloseFinal().sub`.** Es la invariante, y `pruebas/precios-cliente.mjs`
+  la comprueba en 400 cotizaciones al azar además de los bordes.
+- **La pantalla del vendedor sí lo dice**: `renderSummary` y `renderAuth` siguen anunciando
+  «Aumento: $750.40», y el panel aclara que va repartido y sin renglón en el PDF. Quien vende
+  tiene que saberlo; quien compra, no.
+
 ### 9.3 Anticipo (`renderSummary` L4279–4288, verbatim)
 ```js
 const pf=precioFinal();
@@ -887,7 +934,7 @@ Es decir: **la app delega el geocoding a Google al abrir el link. Nunca resuelve
 | `clientesConocidos` / `autocompletarCliente` | 3168–3196 |
 | `M2_MINIMO`, `m2Total`, `lineTotal`, `totals` | 3203–3235 |
 | `_CAMPOS_PRECIO`, `huellaTrabajo`, `sellarAuth`, `authVigente`, `soltarAuthSiCambio` | 3255–3280 |
-| `precioFinal`, `subAjustado`, `netoAjustado`, `ajusteAuth`, `desgloseFinal`, `itemPrecio`, `itemAjustada`, `ltHTML` | 3282–3331 |
+| `precioFinal`, `subAjustado`, `netoAjustado`, `ajusteAuth`, `desgloseFinal`, `itemPrecio`, `piezasDe`, `hayAumentoAuth`, `preciosCliente`, `itemPrecioCliente`, `itemAjustada`, `ltHTML` | 3282–3331 |
 | `notaCliente`, `direccionPdf` | 3333–3336 |
 | `addItem`, `setItem`, `typeItem`, `setTipo`, `dupItem`, `setShowInPdf` | 3430–3585 |
 | `toggleEditMode`, `guardarCambiosEdicion` | 3587–3610 |
