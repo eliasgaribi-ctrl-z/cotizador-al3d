@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>AL3D — taller</title>
 <meta name="description" content="El taller de AL3D: qué se está fabricando ahora, qué va tarde, el calendario de instalaciones, el material del almacén y el cotizador.">
-<link rel="manifest" href="manifest-plataforma.webmanifest">
+<link rel="manifest" href="manifest.webmanifest">
 <!-- El mismo número que --a en css/sistema.css. Un <meta> no entiende var(). -->
 <meta name="theme-color" content="#4060f8">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -33,11 +33,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 
-<!-- sistema.css es la COPIA GENERADA del <style> de index.html: los mismos azules
-     muestreados del logotipo, el mismo barro, la misma escala de siete tamaños de letra.
-     plataforma.css es solo lo que el cotizador no tiene: rejilla de calendario, renglones
-     de almacén, marco del mapa. En ese orden, porque el segundo se apoya en los tokens
-     del primero. -->
+<!-- sistema.css ES el sistema de diseño —los azules muestreados del logotipo, el barro, la
+     escala de siete tamaños de letra— y lo comparten el cotizador, esta plataforma y el
+     anidador. plataforma.css es solo lo que el cotizador no tiene: rejilla de calendario,
+     renglones de almacén, marco del mapa. En ese orden, porque el segundo se apoya en los
+     tokens del primero. Y js/tema.js va ANTES de las dos: decide claro u oscuro leyendo
+     localStorage y pone data-tema en <html> antes del primer pintado. -->
+<script src="js/tema.js"></script>
 <link rel="stylesheet" href="css/sistema.css">
 <link rel="stylesheet" href="css/plataforma.css">
 <link rel="stylesheet" href="vendor/leaflet.css">
@@ -107,7 +109,14 @@
 <symbol id="i-mapa" viewBox="0 0 24 24"><path d="M9 3.2 3 5.6v15.2l6-2.4 6 2.4 6-2.4V2.6l-6 2.4z"/><path d="M9 3.2v15.2M15 5.6v15.2"/></symbol>
 <symbol id="i-material" viewBox="-0.133 0.367 24.267 24.267" style="stroke-width:1.921"><path d="M3 8.4 12 3.4l9 5v7.2l-9 5-9-5z"/><path d="M3 8.4l9 5 9-5M12 13.4v8.2"/></symbol>
 <symbol id="i-proyectos" viewBox="-0.667 -0.667 25.333 25.333" style="stroke-width:2.006"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><path d="M2.5 9h19"/><path d="M7 13h4.5M7 16h7"/></symbol>
-<symbol id="i-ajustes" viewBox="-0.667 -0.667 25.333 25.333" style="stroke-width:2.006"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1"/></symbol>
+<!-- Ajustes. Antes era un círculo con ocho rayos que se leía como un SOL —y con el
+     interruptor de tema al lado, como el botón de «claro»—. Ahora son tres deslizadores. -->
+<symbol id="i-ajustes" viewBox="0 0 24 24"><path d="M3.5 6.5h17M3.5 12h17M3.5 17.5h17"/><circle fill="var(--card,#fff)" cx="9" cy="6.5" r="2.2"/><circle fill="var(--card,#fff)" cx="15.5" cy="12" r="2.2"/><circle fill="var(--card,#fff)" cx="8" cy="17.5" r="2.2"/></symbol>
+<!-- El tema. Sol para «estás en oscuro, toca para claro», luna para lo contrario; el CSS
+     enseña uno u otro según html[data-tema]. -->
+<symbol id="i-sol" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5.3 5.3l1.7 1.7M17 17l1.7 1.7M18.7 5.3 17 7M7 17l-1.7 1.7"/></symbol>
+<symbol id="i-luna" viewBox="0 0 24 24"><path d="M20.2 14.6A8.6 8.6 0 0 1 9.4 3.8a8.6 8.6 0 1 0 10.8 10.8z"/></symbol>
+
 <symbol id="i-camion" viewBox="-1.833 0.167 26.667 26.667" style="stroke-width:2.111"><path d="M1.5 6.5h13v10h-13z"/><path d="M14.5 10h4l3 3.2v3.3h-7z"/><circle cx="6" cy="18.5" r="2"/><circle cx="17.5" cy="18.5" r="2"/></symbol>
 <symbol id="i-wa" viewBox="0.7 0.768 23.2 23.2" style="stroke-width:1.837"><path d="M21 11.6a8.4 8.4 0 0 1-12.3 7.5L3.6 20.6l1.4-4.6A8.4 8.4 0 1 1 21 11.6z"/><path d="M8.8 9.2c0 3 2.2 5.2 5.2 5.2l.9-1.4-1.9-.7-.7.8a4 4 0 0 1-2.2-2.2l.8-.7-.7-1.9z"/></symbol>
 <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.2"/><path d="M12 6.8V12l3.6 2.2"/></symbol>
@@ -143,6 +152,7 @@
            cuarto, y en el teléfono costaba 44 px del renglón. La página suelta NO se retira
            —manifest.webmanifest arranca ahí y quien tenga esa PWA instalada entra directo—,
            solo deja de tener una segunda entrada desde aquí. -->
+      <button type="button" class="btn-hist btn-tema" data-tema-btn aria-pressed="false" title="Cambiar a tema oscuro" aria-label="Cambiar a tema oscuro"><svg class="svgi sol" aria-hidden="true"><use href="#i-sol"/></svg><svg class="svgi luna" aria-hidden="true"><use href="#i-luna"/></svg></button>
       <button class="btn-hist" id="pf-ajustes-btn" title="Ajustes de la plataforma" aria-label="Ajustes"><svg class="svgi" aria-hidden="true"><use href="#i-ajustes"/></svg></button>
       <div class="seg" id="pf-rolseg" role="group" aria-label="Rol con el que trabajas"></div>
     </div>

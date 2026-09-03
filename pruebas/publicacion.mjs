@@ -120,7 +120,7 @@ else bien('sw.js tiene APP_VERSION (súbela al publicar cambios de la plataforma
    cotizador y borra la puerta de entrada en un commit, sin que nada avise. No es un riesgo
    técnico: es de memoria muscular. Este es el candado.
    Se distingue por lo único que no puede estar en los dos: el cascarón carga js/app.js como
-   módulo; el cotizador es un solo archivo con el script en línea y no importa nada. */
+   módulo; el cotizador carga sus guiones clásicos de js/cotizador/, con el catálogo al frente. */
 const portada = existsSync(join(RAIZ, 'index.html')) ? readFileSync(join(RAIZ, 'index.html'), 'utf8') : '';
 const cotiz   = existsSync(join(RAIZ, 'cotizador.html')) ? readFileSync(join(RAIZ, 'cotizador.html'), 'utf8') : '';
 const MODULO  = '<script type="module" src="./js/app.js"></script>';
@@ -133,8 +133,15 @@ else if (!portada.includes(MODULO)) {
 } else bien('index.html es la plataforma (carga js/app.js)');
 if (!cotiz) mal('no existe cotizador.html: el cotizador desapareció del sitio');
 else if (cotiz.includes(MODULO)) mal('cotizador.html carga js/app.js: es la plataforma, no el cotizador');
-else if (!cotiz.includes('const MATERIALES')) mal('cotizador.html no trae el catálogo de precios: no es el cotizador');
-else bien('cotizador.html es el cotizador (script en línea, con su catálogo)');
+else if (!cotiz.includes('<script src="js/cotizador/catalogo.js"></script>')) mal('cotizador.html no carga js/cotizador/catalogo.js: no es el cotizador');
+else if (!readFileSync(join(RAIZ, 'js/cotizador/catalogo.js'), 'utf8').includes('const MATERIALES')) mal('js/cotizador/catalogo.js no trae el catálogo de precios');
+else bien('cotizador.html es el cotizador (carga js/cotizador/, con su catálogo)');
+/* Y los once guiones se cargan en el orden que arranque.js exige: él va al final, porque init()
+   llama a funciones de todos los demás y en un script clásico solo existen las ya cargadas. */
+const guiones = [...cotiz.matchAll(/<script src="js\/cotizador\/([a-z]+)\.js"><\/script>/g)].map(m => m[1]);
+if (guiones.length < 11) mal('cotizador.html carga ' + guiones.length + ' guiones de js/cotizador/: faltan');
+else if (guiones[guiones.length - 1] !== 'arranque') mal('arranque.js no es el último guion del cotizador: init() correría antes de que existan las funciones que llama');
+else bien('los ' + guiones.length + ' guiones del cotizador se cargan con arranque.js al final');
 
 console.log(fallos ? '\n' + fallos + ' FALLO(S)' : '\nEl sitio se puede publicar.');
 process.exit(fallos ? 1 : 0);

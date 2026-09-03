@@ -292,7 +292,7 @@ console.log('\nH · EL COTIZADOR DICE LO MISMO');
      regla de propuesta. Si se separan, el vendedor ve «2 semanas» al capturar y la plataforma
      pinta otra cosa al ganar. Es la misma clase de prueba que ata catalogo-precios.js al
      catálogo del cotizador, en la otra dirección. */
-  const html = readFileSync(new URL('../cotizador.html', import.meta.url), 'utf8');
+  const html = readFileSync(new URL('../js/cotizador/historial.js', import.meta.url), 'utf8');
   const tabla = (/const PLAZOS_COT=\[([\s\S]*?)\];/.exec(html) || [, ''])[1];
   const filas = [...tabla.matchAll(/\{k:(\d),etiqueta:'([^']+)'\}/g)].map(m => ({ k: +m[1], etiqueta: m[2] }));
   eq('el cotizador tiene los cinco cubos', filas.length, 5);

@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/cotizador.html"><b>▶ Abrir el cotizador</b></a>
+  <a href="https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/"><b>▶ Abrir la app</b></a> · abre en el Tablero del taller; el Cotizador es una de sus pestañas
 </p>
 
 ---
@@ -327,48 +327,93 @@ Un aviso: el contador de folios también es por dispositivo. Si cotizas desde do
 
 Dentro de *Datos del proyecto* hay un bloque plegable, **Datos que salen en el PDF**, con las entre calles, el límite de fabricación y la nota que se imprime para el cliente. Esos tres campos siguen editables después de autorizar, porque normalmente la fecha de entrega se define justo en ese momento. La nota que escribe el autorizador es interna y no aparece en el documento del cliente.
 
+## Una sola puerta, y cómo está acomodado el código
+
+**La liga abre la app, y la app abre en el Tablero.** Hasta septiembre de 2026 había dos
+apps que se apuntaban una a la otra: la liga de este README llevaba al cotizador, el manifiesto
+del cotizador instalaba una PWA aparte, y el Tablero —que es la pantalla que el dueño quiere
+ver al abrir— quedaba detrás de un botón. Ahora la entrada es una:
+
+| Por dónde se entra | A dónde llega |
+|---|---|
+| La liga de siempre, `…/cotizador-al3d/` | El **Tablero** del taller, con el Cotizador como pestaña |
+| El icono de la app instalada (cualquiera de los dos manifiestos, que ahora describen la misma app) | El Tablero |
+| Una liga vieja o un marcador a `cotizador.html` | Reenvía a `./#/cotizador`, el mismo cotizador dentro de la app |
+| `cotizador.html?solo=1` | El cotizador solo, sin la app alrededor: es la salida de emergencia si el marco no abre, y lo que usan las pruebas |
+| Doble clic en `cotizador.html` desde el disco (`file://`) | El cotizador solo, como siempre |
+
+**Y el código dice lo mismo que la pantalla.** El cotizador dejó de ser un archivo de 13 800
+líneas con su CSS y su JavaScript en línea:
+
+    cotizador.html            solo el marcado (900 líneas)
+    css/sistema.css           EL sistema de diseño: tokens, barro, las siete capas. Lo comparten las tres páginas
+    css/plataforma.css        lo que solo la plataforma tiene (calendario, almacén, mapa)
+    js/tema.js                claro, oscuro o el del sistema; corre antes del primer pintado en las tres páginas
+    js/cotizador/             el cotizador, repartido por dominio y en el orden en que se carga:
+      catalogo.js               precios — lo único que se edita a mano cuando sube el aluminio
+      nucleo.js                 estado, modales, preferencias, clientes conocidos, cálculo
+      partidas.js               agregar, plegar, heredar, pintar, chips y resumen de cada partida
+      proceso.js                los cuatro pasos, la autorización, la barra fija del teléfono
+      ia.js                     cotizar con IA: proveedores, keys, archivo, reintentos
+      entrega.js                logotipo, empresa, WhatsApp, hitos, Canva y el generador de PDF
+      historial.js              historial, cuadernos, respaldo, cola, persistencia, deshacer, plazo, folio
+      escalador.js              medir sobre la foto
+      venta.js                  registrar la venta y la vuelta a la plataforma
+      vectorizador.js           imagen a trazo de corte
+      arranque.js               init(), al final, porque llama a todos los demás
+    js/app.js + js/mod/       la plataforma: router y sus módulos ES
+    js/datos/, js/nucleo/     la capa de datos y las primitivas de pantalla de la plataforma
+
+Los once de `js/cotizador/` son scripts **clásicos** que comparten el ámbito global, como
+cuando eran un solo `<script>`: los 273 manejadores en línea del marcado (`onclick`, `oninput`…)
+dependen de eso, y portarlos a módulos ES los dejaría mudos sin un solo error. Ninguna línea
+de lógica cambió al repartirlos; `pruebas/sintaxis.mjs` compila los once y
+`pruebas/publicacion.mjs` vigila que `arranque.js` siga siendo el último.
+
+**Tema oscuro.** El sol y la luna de la barra de arriba lo alternan con un toque, en las tres
+páginas y en el cotizador empotrado a la vez; en Ajustes está la tercera opción, «el del
+sistema». No es una segunda hoja: es otro juego de tokens bajo `html[data-tema="oscuro"]` al
+final de `css/sistema.css`, y por eso la hoja ya no tiene ningún blanco de superficie escrito a
+mano —los que quedan son texto blanco sobre un relleno de color, que es blanco en los dos
+temas. El PDF que se manda al cliente sale siempre en claro. Y el estado *elegido* de las
+opciones de una partida —material, complejidad, luz— ahora va relleno del color de la partida
+con el texto en blanco: antes era blanco con un tinte y al lado de los no elegidos había que
+buscar la palomita.
+
 ## Actualizar la versión publicada
 
-El sitio se sirve desde la rama `main`. **Ya no es un solo archivo**, y esa es la diferencia
-que importa: la plataforma son unos treinta archivos que se importan entre sí, y el cotizador
-es uno solo.
+El sitio se sirve desde la rama `main`, y **es un solo conjunto de archivos que se promociona
+completo**: la plataforma, el cotizador, el anidador y la hoja que comparten.
 
-> **Quién es quién, desde el cambio de puerta de entrada.** La raíz del sitio —`index.html`—
-> es **la plataforma**: el calendario, la obra, el material. El cotizador es
-> **`cotizador.html`**. Antes era al revés, y durante un año publicar fue «renombrar el HTML
-> nuevo a `index.html`». **Hacer eso hoy sobrescribe la app con el cotizador y borra la puerta
-> de entrada.** `pruebas/publicacion.mjs` lo detecta antes de subir, pero solo si se corre.
+> **Quién es quién.** La raíz del sitio —`index.html`— es **la app**: el Tablero, el
+> calendario, el material, y el Cotizador como una de sus pestañas. `cotizador.html` es el
+> cotizador, que la app empotra. Subir el cotizador como `index.html` sobrescribe la app y
+> borra la puerta de entrada; `pruebas/publicacion.mjs` lo detecta antes de subir, pero solo
+> si se corre.
 
-**Para publicar un cambio del cotizador** (`cotizador.html`):
+**Para publicar cualquier cambio:**
 
-1. Renombrar el HTML nuevo a **`cotizador.html`** — no a `index.html`.
-2. Subirlo en [/upload/main](https://github.com/eliasgaribi-ctrl-z/cotizador-al3d/upload/main) y hacer commit a `main`.
+1. Hacer commit a `main` (o fusionar el PR).
+2. En **`sw.js`**, subir **`APP_VERSION`** una unidad. Es la primera línea de código del
+   archivo y está señalada con un recuadro. Sin eso, los teléfonos que ya tienen la app siguen
+   sirviendo la versión guardada.
 3. Esperar entre 30 y 60 segundos a que GitHub Pages redespliegue.
 
-**Para publicar un cambio de la plataforma o del anidador de vectores** hay un paso más, y
-sin él el cambio no llega a los teléfonos que ya tienen la app:
+La razón del número es la estrategia de caché, y es a propósito: todo se sirve *caché
+primero* y el conjunto se cambia completo. Son cuarenta archivos que se cargan en orden y se
+llaman entre sí —los módulos de la plataforma, los once guiones del cotizador, los diez del
+anidador con sus Web Workers— y con mala señal llegarían mezclados, unos nuevos y otros
+viejos: un guion nuevo con uno viejo no es una app vieja, es una app rota. Lo único que sigue
+*red primero* es lo que no cambia con la versión: logotipos, iconos y manifiesto.
 
-4. En **`sw.js`**, subir **`APP_VERSION`** una unidad. Es la primera línea de código del
-   archivo y está señalada con un recuadro.
+Si cambia el catálogo de precios (`js/cotizador/catalogo.js`), hay que regenerar su copia para
+la plataforma:
 
-La razón es la estrategia de caché, y es a propósito. El cotizador se sirve *red primero*:
-quien tiene señal ve siempre lo último. La plataforma se sirve *caché primero*, porque son
-treinta módulos que se importan entre sí y con mala señal llegarían mezclados —unos nuevos y
-otros viejos—, el `import` fallaría y quedaría una pantalla blanca, justo en el escenario
-para el que el service worker existe. Un módulo nuevo con uno viejo no es una app vieja: es
-una app rota. Así que el conjunto se cambia completo, y lo que dispara el cambio es ese
-número. El anidador va en ese mismo conjunto por la misma razón: son diez guiones que se
-cargan en orden y se llaman entre sí, más los Web Workers, que piden sus archivos por su
-cuenta.
-
-Si el cotizador se toca por cualquier razón, hay que regenerar sus dos copias:
-
-    herramientas/extraer-estilo.sh      # css/sistema.css
     herramientas/extraer-catalogo.sh    # js/datos/catalogo-precios.js
 
-Son copias generadas del `<style>` y del catálogo de precios de `cotizador.html`, para que la
-plataforma se vea y cobre igual que el cotizador sin volver a decidir un token ni copiar un
-precio a mano. Los scripts avisan si algo cambió.
+Es una copia generada para que la plataforma etiquete los materiales igual que el cotizador
+sin copiar un precio a mano; el script avisa si algo cambió. (La otra copia que había —la del
+`<style>` del cotizador hacia `css/sistema.css`— ya no existe: la hoja es la fuente.)
 
 Y antes de subir, `pruebas/correr.sh` corre en unos segundos con node y nada más. Una de sus
 pruebas es justo la que revisa que el sitio *se pueda publicar*, y otra corre el Worker del
@@ -399,11 +444,11 @@ de unidades no se ve, sale un número plausible.
     pruebas/anidador-medidas.mjs             cada unidad del SVG a milímetros, en node
     pruebas/navegador/anidador.mjs           acomoda de verdad, con los Web Workers, y mide lo que sale
 
-Junto a los archivos de la app viven tres piezas que se subieron una vez y no hay que volver a tocar: **`sw.js`**, que es lo que hace que la app abra sin señal; **`manifest.webmanifest`**, que es lo que hace que Android la instale como aplicación y no como acceso directo; y **`.nojekyll`**, un archivo vacío que le pide a GitHub publicar el repositorio tal cual. Si se borran los dos primeros, la app sigue funcionando con conexión.
+Junto a los archivos de la app viven tres piezas que casi nunca se tocan: **`sw.js`**, que es lo que hace que la app abra sin señal (y donde vive `APP_VERSION`); **`manifest.webmanifest`**, que es lo que hace que Android la instale como aplicación y no como acceso directo (`manifest-plataforma.webmanifest` es el mismo manifiesto con otro nombre, para las instalaciones que ya lo tenían); y **`.nojekyll`**, un archivo vacío que le pide a GitHub publicar el repositorio tal cual. Si se borran los dos primeros, la app sigue funcionando con conexión.
 
 Si se borra el tercero es peor, porque no se nota: GitHub vuelve a pasar todo por Jekyll, Jekyll se atora con el primer `{{` que encuentre en la documentación —hoy hay cuatro en `docs/ARQUITECTURA.md` y cuatro más en `docs/INVESTIGACION-TECNICA.md`, dentro de bloques de código que igual lo tumban— y **deja de publicar**. El repositorio se ve al día, los commits están, y el sitio se queda congelado en la última versión que sí compiló. Cuando un cambio no aparece por más que recargues, ahí es donde hay que ver: [Actions](https://github.com/eliasgaribi-ctrl-z/cotizador-al3d/actions) → *pages build and deployment*.
 
-Si el celular sigue mostrando la versión anterior, es la caché: recargar forzando o abrir la liga con `?v=2` al final. La copia local no estorba a esto —pide siempre la versión del servidor primero y solo usa la guardada cuando no hay red—, así que publicar y recargar alcanza.
+Si el celular sigue mostrando la versión anterior, casi siempre es que faltó subir `APP_VERSION`: la copia guardada sigue sirviendo hasta que un `sw.js` nuevo baja el conjunto completo y lo promociona de golpe. Con el número subido, abrir la app dos veces alcanza: la primera nota la versión nueva y la baja en segundo plano; la segunda ya la sirve.
 
 ## Pendientes
 

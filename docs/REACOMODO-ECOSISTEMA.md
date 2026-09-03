@@ -1,5 +1,7 @@
 # Reacomodo del ecosistema AL3D — contrato de implementación
 
+> **Nota (sep/2026).** Este documento es el plan con el que se hizo el reacomodo y se conserva como historia. Dos cosas que describe ya no son así: `css/sistema.css` **no** es una copia generada (es la hoja que `cotizador.html` enlaza, y `herramientas/extraer-estilo.sh` se retiró), y el `<script>` en línea del cotizador vive repartido en `js/cotizador/*.js`. Lo vigente está en `README.md` («Una sola puerta, y cómo está acomodado el código») y en `docs/ARQUITECTURA.md`.
+
 > Este documento es el contrato. Quien lo ejecute no tiene que volver a decidir nada: cada
 > archivo, cada renglón y cada prueba están nombrados. Donde dice «lock» es una decisión
 > tomada y no se reabre sin escribir aquí por qué.

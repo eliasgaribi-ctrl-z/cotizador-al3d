@@ -1,8 +1,8 @@
 {
-  "id": "/cotizador-al3d/plataforma",
-  "name": "Plataforma AL3D",
+  "id": "/cotizador-al3d/",
+  "name": "AL3D — taller y cotizador",
   "short_name": "AL3D",
-  "description": "El taller de AL3D: qué se está fabricando ahora, qué va tarde, el calendario, el material y el cotizador.",
+  "description": "El taller de AL3D: qué se está fabricando, qué va tarde, el calendario, el material y el cotizador de anuncios luminosos.",
   "start_url": "./#/hoy",
   "scope": "./",
   "display": "standalone",
@@ -17,9 +17,9 @@
     { "src": "icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Tablero",   "url": "./#/hoy" },
-    { "name": "Cotizador", "url": "./#/cotizador" },
-    { "name": "Material",  "url": "./#/material" },
-    { "name": "Calendario","url": "./#/agenda" }
+    { "name": "Tablero",    "url": "./#/hoy" },
+    { "name": "Cotizador",  "url": "./#/cotizador" },
+    { "name": "Material",   "url": "./#/material" },
+    { "name": "Calendario", "url": "./#/agenda" }
   ]
 }

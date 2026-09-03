@@ -34,7 +34,9 @@ const cierto = (cond, que) => {
 const sinComentarios = t => t.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
 
 const svg = leer('logo-al3d.svg');
-const html = sinComentarios(leer('cotizador.html'));
+/* El cotizador es su HTML más sus once guiones de js/cotizador/: la marca dibujada a mano podía
+   estar en cualquiera de los dos. */
+const html = sinComentarios(leer('cotizador.html') + '\n' + leer('js/cotizador/entrega.js') + '\n' + leer('js/cotizador/nucleo.js'));
 const plataforma = sinComentarios(leer('index.html'));
 
 console.log('\nUN SOLO DIBUJO');
@@ -62,7 +64,7 @@ cierto(svg.includes('fill-rule="evenodd"'),
 
 console.log('\nLA COPIA INCRUSTADA DEL DOCUMENTO');
 const linea = html.split('\n').find(l => l.startsWith('const MARCA_SVG='));
-cierto(!!linea, 'index.html declara MARCA_SVG');
+cierto(!!linea, 'js/cotizador/entrega.js declara MARCA_SVG');
 if (linea) {
   const dentro = linea.slice("const MARCA_SVG='".length, -2);
   const esperado = svg

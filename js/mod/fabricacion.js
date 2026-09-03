@@ -470,7 +470,7 @@ function pintarTaller(d) {
     if (!d.sinFecha.length && !vs.length && !(d.mes && d.mes.total)) {
       return vacio('Todavía no hay nada que fabricar',
         'Cuando marques una cotización como ganada en el cotizador, el proyecto aparece aquí con su ventana de taller y su día de instalación. Es el único toque que la plataforma te pide.',
-        '<a class="btn btn-pri" href="cotizador.html">Abrir el cotizador</a>');
+        '<a class="btn btn-pri" href="#/cotizador">Abrir el cotizador</a>');
     }
     return vacio('Nada en el taller',
       'Lo que hay este mes ya está listo o instalado. En «Instalaciones» lo ves con su día.',

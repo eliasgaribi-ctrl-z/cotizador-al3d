@@ -40,7 +40,7 @@ let fallos=0; const mal=m=>{console.log('  ✗ '+m);fallos++;}; const bien=m=>co
 const errs=[]; p.on('pageerror',e=>errs.push(e.message));
 
 // ── 1. El cotizador, en blanco ────────────────────────────────────────────────
-await p.goto(B+'/cotizador.html',{waitUntil:'load'});
+await p.goto(B+'/cotizador.html?solo=1',{waitUntil:'load'});
 await p.waitForTimeout(1200);
 bien('el cotizador abre');
 

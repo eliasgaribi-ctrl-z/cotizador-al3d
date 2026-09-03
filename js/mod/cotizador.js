@@ -63,13 +63,11 @@ export async function montar(contenedor, ctx) {
      todos los documentos del mismo origen menos el que escribió — que es el iframe. */
   if (ctx && ctx.sinRemonte) ctx.sinRemonte(true);
 
-  /* `src` SIN cadena de consulta, y esto es una decisión con evidencia, no estética.
-     `esDeLaPlataforma()` no reconoce `cotizador.html`, así que sus peticiones van por la
-     estrategia del cotizador, que resuelve el respaldo con `c.match(req)` SIN `ignoreSearch`
-     —al contrario que la de la plataforma, que sí lo lleva—. Con `?empotrado=1` la copia
-     guardada bajo `./cotizador.html` no casaría, se cachearía una segunda entrada y el
-     respaldo sin señal quedaría dependiendo de que el navegador marque la petición del marco
-     como navegación. El modo empotrado se detecta DENTRO, con `parent !== window`.
+  /* `src` SIN cadena de consulta. Desde septiembre de 2026 cotizador.html va con el conjunto
+     versionado de la plataforma (caché primero, `ignoreSearch`), así que una consulta ya no
+     rompería el respaldo sin señal; se sigue sin ella porque el modo empotrado se detecta
+     DENTRO, con `parent !== window`, y porque la página suelta reenvía a `./#/cotizador`
+     salvo con `?solo=1`, que es la salida de emergencia de abajo y lo que usan las pruebas.
 
      Y SIN atributo `sandbox`: mataría `window.open`, y por ahí sale el PDF —Blob más
      `URL.createObjectURL` más `window.open`—, WhatsApp y Google Maps. */
@@ -210,6 +208,6 @@ function rendirse() {
   if (!_cont) return;
   _cont.innerHTML = vacio('El Cotizador no se pudo abrir aquí',
     'Puede ser que la app se haya actualizado a medias, o que este navegador no deje empotrar la página. El cotizador funciona igual en su propia pestaña, con todo tu historial.',
-    '<a class="btn btn-pri" href="cotizador.html">Abrirlo en su propia pestaña</a>');
+    '<a class="btn btn-pri" href="cotizador.html?solo=1">Abrirlo en su propia pestaña</a>');
   toast('El Cotizador no abrió empotrado; se ofrece en su propia pestaña', 'err', 5200);
 }

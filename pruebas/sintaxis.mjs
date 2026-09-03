@@ -87,27 +87,21 @@ const anidadorRotos = guionesAnidador.filter(p => !guionClasico(relative(RAIZ, p
 if (!guionesAnidador.length) mal('no encontré los guiones del anidador en anidador-vectores/');
 else if (!anidadorRotos.length) bien('los ' + guionesAnidador.length + ' guiones del anidador parsean');
 
-/* El cotizador son 13 600 líneas sin una sola prueba de unidad, y su lógica vive entera en
-   un <script> en línea. Se recorta por sus etiquetas —hay exactamente una de cada— y se
-   compila. El desfase es para que, si truena, el número de línea que sale sea el de
-   cotizador.html y no el del recorte. */
-const COT = 'cotizador.html';
-let cot = '';
-try { cot = readFileSync(join(RAIZ, COT), 'utf8'); }
-catch (_) { try { cot = readFileSync(join(RAIZ, 'index.html'), 'utf8'); } catch (_) {} }
-if (!cot) mal('no encontré el cotizador para comprobarlo');
+/* El cotizador son diez mil líneas sin una sola prueba de unidad, repartidas en los once
+   guiones clásicos de js/cotizador/ que cotizador.html carga en orden. Se compila cada uno; el
+   número de línea que sale si truena es el del archivo, que es donde hay que ir. Y el tema, que
+   es el otro guion clásico que comparten las tres páginas. */
+const cot = readFileSync(join(RAIZ, 'cotizador.html'), 'utf8');
+const guionesCot = [...cot.matchAll(/<script src="(js\/cotizador\/[a-z]+\.js)"><\/script>/g)].map(m => m[1]);
+if (guionesCot.length < 11) mal('cotizador.html carga ' + guionesCot.length + ' guiones de js/cotizador/: ¿cambió el formato?');
 else {
-  const ini = cot.indexOf('\n<script>\n');
-  const fin = cot.indexOf('\n</script>', ini + 1);
-  if (ini < 0 || fin < 0) mal('no encontré el <script> en línea del cotizador: ¿cambió el formato?');
-  else {
-    const antes = cot.slice(0, ini + 10).split('\n').length - 1;
-    if (guionClasico('el <script> del cotizador', cot.slice(ini + 10, fin), antes)) {
-      bien('el <script> en línea del cotizador parsea (' +
-           (cot.slice(ini + 10, fin).split('\n').length) + ' líneas)');
-    }
+  const rotos = guionesCot.filter(p => !guionClasico(p, readFileSync(join(RAIZ, p), 'utf8')));
+  if (!rotos.length) {
+    const lineas = guionesCot.reduce((n, p) => n + readFileSync(join(RAIZ, p), 'utf8').split('\n').length, 0);
+    bien('los ' + guionesCot.length + ' guiones del cotizador parsean (' + lineas + ' líneas)');
   }
 }
+if (guionClasico('js/tema.js', readFileSync(join(RAIZ, 'js/tema.js'), 'utf8'))) bien('js/tema.js parsea');
 
 console.log(fallos ? '\n' + fallos + ' FALLO(S)' : '\nTodo lo que se publica compila.');
 process.exit(fallos ? 1 : 0);
