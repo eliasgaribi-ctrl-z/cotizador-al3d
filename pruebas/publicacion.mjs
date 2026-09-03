@@ -58,8 +58,10 @@ else if (conLlaves.length) {
 const sw = readFileSync(join(RAIZ, 'sw.js'), 'utf8');
 const lista = (/const APP_FILES = \[([\s\S]*?)\];/.exec(sw) || [, ''])[1];
 /* `./` es la portada: en Pages es index.html. Sin esta traducción, `join(RAIZ, '')` es la
-   carpeta del repo, `existsSync` dice que sí, y la entrada pasa sin comprobar nada. */
-const archivos = [...lista.matchAll(/'([^']+)'/g)].map(m => m[1].replace(/^\.\//, '')).map(f => f === '' ? 'index.html' : f);
+   carpeta del repo, `existsSync` dice que sí, y la entrada pasa sin comprobar nada. Lo mismo
+   para cualquier carpeta que termine en «/», como `./anidador-vectores/`. */
+const archivos = [...lista.matchAll(/'([^']+)'/g)].map(m => m[1].replace(/^\.\//, ''))
+  .map(f => (f === '' || f.endsWith('/')) ? f + 'index.html' : f);
 const faltantes = archivos.filter(f => { const p = join(RAIZ, f); return !existsSync(p) || !statSync(p).isFile(); });
 if (!archivos.length) mal('no pude leer APP_FILES de sw.js: ¿cambió el formato?');
 else if (faltantes.length) mal(faltantes.length + ' archivo(s) que sw.js promete cachear NO existen: ' + faltantes.join(', '));
@@ -86,6 +88,26 @@ if (sinCachear.length) {
       '      Con señal funcionan; sin señal la plataforma no abre.\n' +
       '      Arreglo: añadirlos a APP_FILES en sw.js y subir APP_VERSION.');
 } else bien('los ' + enDisco.length + ' módulos de js/ están todos en APP_FILES');
+
+/* El anidador de vectores va con la plataforma —caché primero, el conjunto completo— y son
+   diez guiones que se cargan en orden y se llaman entre sí, más los Web Workers, que piden
+   sus archivos por su cuenta: uno que falte en la caché no rompe la página, rompe el
+   motor a medio cálculo y sin un solo error visible. Se cuenta todo lo que hay en la
+   carpeta y no una lista: la lista es lo que se olvida. */
+const anidador = [
+  'anidador-vectores/index.html', 'anidador-vectores/css/anidador.css',
+  ...jsDe(join(RAIZ, 'anidador-vectores')),
+];
+const anidadorFuera = anidador.filter(f => !archivos.includes(f));
+if (anidadorFuera.length) {
+  mal(anidadorFuera.length + ' archivo(s) del anidador NO están en APP_FILES: ' + anidadorFuera.join(', ') + '\n' +
+      '      Con señal funciona; sin señal el motor se queda sin sus workers.\n' +
+      '      Arreglo: añadirlos a APP_FILES en sw.js y subir APP_VERSION.');
+} else bien('los ' + anidador.length + ' archivos del anidador están todos en APP_FILES');
+if (!/anidador-vectores/.test((/function esDeLaPlataforma[\s\S]*?\n\}/.exec(sw) || [''])[0])) {
+  mal('esDeLaPlataforma() en sw.js no reconoce /anidador-vectores/: sus archivos irían por la ruta del cotizador ' +
+      'y la caché del anidador no se usaría nunca');
+} else bien('sw.js manda el anidador por la ruta de la plataforma');
 
 /* Y que APP_VERSION exista, porque es la línea que hay que subir al publicar. */
 if (!/const APP_VERSION = \d+;/.test(sw)) mal('sw.js no tiene APP_VERSION: sin eso, publicar un cambio de la plataforma no llega a los teléfonos');

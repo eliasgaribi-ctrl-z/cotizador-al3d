@@ -979,6 +979,7 @@ El sprite vive en `<svg width="0" height="0" style="position:absolute" aria-hidd
 | `i-carpeta` | carpeta — cargar archivo |
 | `i-ia` | dos destellos — IA |
 | `i-vector` | curva Bézier con nodos — vectorizador |
+| `i-anidar` | cuatro piezas acomodadas en una lámina — anidador de vectores (vive también en el sprite de la plataforma y en el del anidador) |
 | `i-historial` | flecha circular con reloj |
 | `i-copiar` | dos hojas — duplicar |
 | `i-basura` | bote — eliminar |

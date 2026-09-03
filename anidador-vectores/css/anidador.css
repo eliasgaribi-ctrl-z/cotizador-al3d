@@ -1,0 +1,277 @@
+/* ============================================================================
+   Anidador de vectores — la mesa de corte. Solo lo que el sistema no tiene.
+
+   Se apoya en css/sistema.css, que va antes: de ahí salen los tokens, la barra de arriba,
+   las tarjetas, los campos, los chips, los botones y el barro. Aquí vive lo propio de esta
+   pantalla: la rejilla de dos columnas, las tarjetas de hoja, la mesa oscura con su
+   cuadrícula, el acabado de cada material, el marcador con su aguja y el movimiento de las
+   piezas al caer en su lugar.
+
+   Por qué se mueve: acomodar piezas es un trabajo que se mira. El motor prueba acomodos y
+   cada uno mejor que el anterior es una noticia; si la pantalla se reescribe sin avisar, la
+   noticia no se nota. Quien tenga «reducir movimiento» en su sistema recibe la misma
+   pantalla y cero animación, al final de esta hoja.
+   ============================================================================ */
+
+/* ----- La rejilla -----
+   Controles en 420 y la mesa con lo que sobre: la hoja es lo que se viene a mirar mientras
+   el motor trabaja. Debajo de 900 px se apilan, controles primero. */
+.an-wrap{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);
+  gap:var(--e5);align-items:start;
+  padding:var(--e5) max(24px,env(safe-area-inset-right,0px)) 70px max(24px,env(safe-area-inset-left,0px))}
+.an-wrap>*{min-width:0}
+.an-banda{grid-column:1/-1}
+@media(max-width:900px){
+  .an-wrap{grid-template-columns:1fr;gap:var(--e4);
+    padding:var(--e4) max(12px,env(safe-area-inset-right,0px)) 60px max(12px,env(safe-area-inset-left,0px))}
+}
+.an-main .card+.card{margin-top:var(--e4)}
+.an .card-h h2{font-size:var(--t4);font-weight:600;letter-spacing:-.2px;color:var(--n8);display:flex;align-items:center;gap:var(--e2)}
+/* El número del paso: una ficha, no un título. Como los números de partida del cotizador. */
+.an-num{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;
+  background:var(--a-suave);color:var(--a-fuerte);font-size:var(--t2);font-weight:700;box-shadow:var(--clay-in);flex:0 0 auto}
+
+/* Las tarjetas entran en escalera, como las del cotizador. */
+.an-paso,.an-vista{animation:an-entra .5s var(--mv-s) both}
+.an-paso:nth-child(2){animation-delay:60ms}.an-paso:nth-child(3){animation-delay:120ms}
+.an-vista{animation-delay:90ms}
+@keyframes an-entra{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* ----- La banda de origen ----- */
+.an-banda{display:flex;align-items:flex-start;gap:var(--e2);
+  padding:var(--e3) var(--e4);border:1px solid var(--a-borde);border-radius:var(--rr2);
+  background:var(--a-suave);color:var(--a-fuerte);font-weight:500;font-size:var(--t2);line-height:1.45;
+  animation:an-entra .45s var(--mv-s) both}
+.an-banda[hidden]{display:none}
+.an-banda .svgi{flex-shrink:0;margin-top:2px;width:var(--ico2);height:var(--ico2)}
+.an-banda b{font-weight:700}
+
+/* ----- El archivo cargado ----- */
+.an-archivo{margin-top:var(--e4);animation:an-entra .4s var(--mv-s) both}
+.an-archivo[hidden]{display:none}
+.an-archivo-n{display:flex;align-items:baseline;gap:var(--e2);flex-wrap:wrap;font-size:var(--t3);min-width:0}
+.an-archivo-n b{font-weight:600;color:var(--n8);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.an-dim{font-size:var(--t2);color:var(--n6);font-variant-numeric:tabular-nums}
+.an-stats{margin-top:var(--e3)}
+.an-avisos:empty{display:none}
+.an-avisos .hintnote{display:flex;width:100%;margin-top:var(--e2)}
+.an-hint{display:flex;width:100%;margin-top:var(--e3)}
+.an-nota{font-size:var(--t2);color:var(--n6);line-height:1.5;margin-bottom:var(--e3)}
+.an-nota.falta{color:var(--av);font-weight:500}
+
+/* ----- El material: chips con su muestra -----
+   El puntito lleva el acabado del material, el mismo con el que se pinta la hoja en la mesa,
+   para que elegirlo ya diga cómo se va a ver. */
+.an-mats{margin-bottom:var(--e4)}
+.an-mats .chip{gap:var(--e2)}
+.an-sw{width:14px;height:14px;border-radius:4px;flex:0 0 auto;border:1px solid rgba(35,39,68,.18);box-shadow:inset 0 1px 2px rgba(255,255,255,.8)}
+[data-mat="acrilico"] .an-sw,.an-sw.acrilico{background:linear-gradient(135deg,#ffffff,#e9eeff)}
+[data-mat="aluminio"] .an-sw{background:repeating-linear-gradient(90deg,#c9ccd6 0 1px,#e6e8ee 1px 3px)}
+[data-mat="galvanizada"] .an-sw{background:linear-gradient(135deg,#b9c0c9,#e3e7eb 45%,#aeb5be)}
+[data-mat="alucobond"] .an-sw{background:linear-gradient(180deg,#f3f3f6,#d9dae0)}
+[data-mat="mdf"] .an-sw{background:linear-gradient(135deg,#c39a70,#dcb894 55%,#b8895e)}
+
+/* ----- Las hojas: se eligen mirándolas -----
+   Cada tarjeta dibuja la hoja a proporción —la completa es el doble de alta que de ancha—
+   dentro del mismo marco, así que a un vistazo se ve cuánto material es cada una. Barro:
+   se levantan al pasar y se hunden al elegirse, como los chips. */
+.an-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--e2);margin-bottom:var(--e4)}
+@media(max-width:420px){.an-tiles{grid-template-columns:repeat(2,1fr)}}
+.an-tile{display:flex;flex-direction:column;align-items:center;gap:3px;padding:var(--e3) var(--e2) var(--e2);min-height:44px;
+  border-radius:var(--rr1);border:1px solid rgba(255,255,255,.9);background:linear-gradient(168deg,#fff,var(--n1));
+  box-shadow:var(--clay);color:var(--n7);font-family:inherit;cursor:pointer;text-align:center;
+  transition:transform var(--mv-r),box-shadow var(--mv),background var(--mv-s),color var(--mv-s)}
+.an-tile:hover{transform:translateY(-2px);box-shadow:var(--clay-alto);background:linear-gradient(168deg,#fff,var(--a-suave))}
+.an-tile:active{transform:translateY(1px) scale(.97);box-shadow:var(--clay-in)}
+.an-tile:focus-visible{outline:2.5px solid var(--brand);outline-offset:2px}
+.an-tile.on{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-fuerte);box-shadow:var(--clay-in);transform:none}
+.an-tile-fig{display:flex;align-items:flex-end;justify-content:center;width:100%;height:46px}
+.an-tile-hoja{display:block;width:calc(var(--w) * 44px);height:calc(var(--h) * 44px);border-radius:2px;
+  background:linear-gradient(135deg,#ffffff,#dfe5ff);border:1px solid var(--a-borde);box-shadow:0 2px 6px -2px rgba(64,96,248,.35);
+  transition:transform var(--mv-r)}
+.an-tile-hoja.retazo{border-style:dashed;border-color:var(--n5);background:linear-gradient(135deg,#fff,var(--n2));
+  clip-path:polygon(0 0,100% 0,100% 62%,74% 62%,74% 100%,0 100%)}
+.an-tile:hover .an-tile-hoja{transform:translateY(-2px)}
+.an-tile.on .an-tile-hoja{background:linear-gradient(135deg,#fff,var(--a-borde));border-color:var(--a)}
+.an-tile-n{font-size:var(--t2);font-weight:600;line-height:1.2}
+.an-tile-d{font-size:var(--t1);color:var(--n6);font-variant-numeric:tabular-nums}
+.an-tile.on .an-tile-d{color:var(--a-fuerte)}
+
+.an-girar{margin-top:var(--e3)}
+
+/* ----- Los retazos guardados -----
+   Aparecen cuando la hoja es un retazo o cuando ya hay alguno guardado. Cada uno es un chip
+   con su × al lado —dos botones y no uno con otro adentro, que no vale—. */
+.an-retazos{margin-top:var(--e4);padding:var(--e3) var(--e4);border-radius:var(--rr2);
+  background:linear-gradient(168deg,#fff,var(--n1));box-shadow:var(--clay-in);border:1px solid rgba(255,255,255,.8);
+  animation:an-entra .35s var(--mv-s) both}
+.an-retazos[hidden]{display:none}
+.an-retazos-h{font-size:var(--t2);font-weight:600;color:var(--n6);margin-bottom:var(--e2)}
+#an-retazo-lista:empty::before{content:'Todavía no hay retazos guardados. Mide el sobrante, escribe su nombre y guárdalo: la próxima vez se elige de aquí.';
+  font-size:var(--t2);color:var(--n6);line-height:1.5;font-weight:400}
+.an-retazo{display:inline-flex;align-items:center;gap:2px}
+.an-retazo .chip{padding-right:10px}
+.an-retazo .chip small{font-variant-numeric:tabular-nums}
+.an-retazo-x{width:32px;height:32px;border-radius:50%;border:1px solid transparent;background:none;color:var(--n6);
+  font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:background var(--mv-s),color var(--mv-s)}
+.an-retazo-x:hover{background:var(--mal-bg);color:var(--mal)}
+.an-retazo-x:focus-visible{outline:2.5px solid var(--brand);outline-offset:1px}
+.an-retazo-x .svgi{width:var(--ico1);height:var(--ico1)}
+.an-retazo-nuevo{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--e2);align-items:end;margin-top:var(--e3)}
+.an-retazo-nuevo .fld{margin:0}
+.an-retazo-nuevo .btn{width:auto;white-space:nowrap;margin:0}
+@media(max-width:420px){.an-retazo-nuevo{grid-template-columns:1fr}.an-retazo-nuevo .btn{width:100%}}
+
+/* ----- Lo avanzado, plegado ----- */
+.an-avanzado{margin-top:var(--e4)}
+.an-avanzado summary{cursor:pointer;list-style:none;font-size:var(--t2);font-weight:600;color:var(--n6);
+  padding:var(--e2) 0;display:flex;align-items:center;gap:var(--e2);min-height:44px}
+.an-avanzado summary::-webkit-details-marker{display:none}
+.an-avanzado summary::before{content:'▸';font-size:11px;color:var(--n6);transition:transform var(--mv-s)}
+.an-avanzado[open] summary::before{transform:rotate(90deg)}
+.an-avanzado summary:hover{color:var(--n8)}
+.an-avanzado summary:focus-visible{outline:2.5px solid var(--brand);outline-offset:2px;border-radius:var(--rr1)}
+.an-avanzado-b{padding-top:var(--e2)}
+.an-avanzado-b .switch{margin-top:var(--e3)}
+
+/* ----- Acciones y mensaje ----- */
+.an-acciones{margin-top:var(--e4)}
+.an-acciones .btn[hidden]{display:none}
+.an-dl-hojas{display:flex;flex-wrap:wrap;gap:var(--e2);margin-top:var(--e2)}
+.an-dl-hojas[hidden]{display:none}
+.an-dl-hojas .btn{width:auto;flex:1 1 140px;margin:0;font-size:var(--t2);padding:10px 12px}
+/* Sobre blanco, no suelto sobre el lienzo: el verde del sistema sobre el lavanda del fondo
+   daba 4,30:1; sobre blanco, 5,6:1. */
+.an-msg{margin-top:var(--e3);padding:var(--e2) var(--e3);font-size:var(--t2);color:var(--n6);line-height:1.5;
+  background:#fff;border:1px solid var(--n2);border-radius:var(--rr1)}
+.an-msg:empty{display:none}
+.an-msg.mal{color:var(--mal);font-weight:500}
+.an-msg.ok{color:var(--ok);font-weight:500}
+.an-msg.av{color:var(--av);font-weight:500}
+
+/* ----- El marcador -----
+   El aprovechamiento es el número que se viene a mirar: va en una aguja grande, con su
+   calificación debajo. Las demás cifras son fichas. Cuando mejora, late una vez. */
+.an-vista .card-h{align-items:center}
+.an-vista-tab{font-size:var(--t2);color:var(--n6);font-weight:500;white-space:nowrap}
+.an-marcador{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--e4);align-items:center;
+  padding:var(--e4) var(--e5) 0}
+.an-marcador[hidden]{display:none}
+.an-marcador.mejora .an-gauge-wrap{animation:an-late .7s var(--mv) both}
+@keyframes an-late{0%{transform:scale(1)}35%{transform:scale(1.07)}100%{transform:scale(1)}}
+.an-gauge-wrap{position:relative;width:132px;height:132px;flex:0 0 auto}
+.an-gauge{width:132px;height:132px;transform:rotate(-90deg)}
+.an-gauge-bg{fill:none;stroke:var(--n2);stroke-width:10}
+.an-gauge-fg{fill:none;stroke:var(--a);stroke-width:10;stroke-linecap:round;
+  transition:stroke-dashoffset .7s cubic-bezier(.22,1,.36,1),stroke .4s}
+.an-gauge-fg.bien{stroke:var(--a)}
+.an-gauge-fg.muybien{stroke:#15a06a}
+.an-gauge-fg.excelente{stroke:var(--ok)}
+.an-gauge-fg.mejorable{stroke:#e0862d}
+.an-gauge-txt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;text-align:center}
+.an-gauge-k{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--n6)}
+.an-gauge-v{font-size:var(--t6);font-weight:700;letter-spacing:-.8px;color:var(--n9);line-height:1;font-variant-numeric:tabular-nums}
+.an-gauge-lbl{font-size:var(--t1);font-weight:600;color:var(--a-fuerte);min-height:1.2em}
+.an-fichas{display:grid;grid-template-columns:1fr 1fr;gap:var(--e2)}
+.an-ficha{background:var(--n1);border:1px solid var(--n2);border-radius:var(--rr1);padding:8px 10px;box-shadow:var(--clay-in)}
+.an-ficha .k{display:block;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--n6);margin-bottom:2px}
+.an-ficha .v{font-size:var(--t4);font-weight:700;color:var(--n8);line-height:1.15;font-variant-numeric:tabular-nums}
+.an-prog-track{grid-column:1/-1}
+.an-prog-bar{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--a-claro),var(--a));
+  box-shadow:0 2px 8px -2px rgba(64,96,248,.5);transition:width .25s ease-out}
+@media(max-width:560px){.an-marcador{grid-template-columns:1fr;justify-items:center;padding:var(--e3) var(--e3) 0}.an-fichas{width:100%}}
+
+/* ----- La mesa -----
+   La cama de un láser: fondo oscuro con cuadrícula fina cada 10 y gruesa cada 50, y las
+   hojas encima con su acabado. Lo que lleva texto aquí va en claro sobre oscuro y se midió:
+   #c9cef0 sobre #1b1f33 da 11:1. */
+.an-mesa{margin:var(--e4) var(--e5) var(--e5);border-radius:var(--rr2);position:relative;overflow:hidden;
+  background-color:#1b1f33;
+  background-image:
+    linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px),
+    linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.08) 1px,transparent 1px);
+  background-size:10px 10px,10px 10px,50px 50px,50px 50px;
+  box-shadow:inset 0 2px 12px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.06)}
+@media(max-width:560px){.an-mesa{margin:var(--e3)}}
+/* Mientras el motor corre, un haz recorre la mesa. Es la señal de «estoy trabajando» que
+   una barra de progreso que va y viene no da. */
+.an-mesa.corriendo::after{content:'';position:absolute;left:0;right:0;top:0;height:3px;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(24,182,216,.9) 30%,#fff 50%,rgba(24,182,216,.9) 70%,transparent);
+  box-shadow:0 0 14px 3px rgba(24,182,216,.55);animation:an-laser 2.6s ease-in-out infinite}
+@keyframes an-laser{0%{transform:translateY(0)}50%{transform:translateY(calc(var(--an-mesa-h,400px) - 3px))}100%{transform:translateY(0)}}
+
+.an-lienzo{min-height:380px;padding:var(--e5);display:flex;flex-direction:column;gap:var(--e5);align-items:center;overflow:auto}
+.an-lienzo[hidden]{display:none}
+@media(max-width:560px){.an-lienzo{padding:var(--e3);min-height:240px;gap:var(--e3)}}
+.an-vacio{color:#c9cef0;font-size:var(--t2);margin:auto;text-align:center;padding:var(--e6) var(--e4);line-height:1.5}
+
+/* El SVG original se pinta sobre una hoja blanca, al ancho de la mesa, con techo de alto;
+   una hoja alta (1 200 × 2 400) se pinta por su alto y deja que el ancho siga la proporción. */
+.an-lienzo>svg{display:block;width:100%;height:auto;max-height:70vh;background:#fff;border-radius:6px;
+  box-shadow:0 1px 3px rgba(0,0,0,.4),0 14px 30px -10px rgba(0,0,0,.6)}
+.an-hoja{margin:0;width:100%;display:flex;flex-direction:column;align-items:center;gap:var(--e2);animation:an-hoja-entra .55s var(--mv) both}
+@keyframes an-hoja-entra{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+.an-hoja>svg{display:block;width:100%;height:auto;max-height:70vh;border-radius:6px;
+  background:var(--an-hoja-fondo,#fff);
+  box-shadow:0 1px 3px rgba(0,0,0,.4),0 14px 30px -10px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.6)}
+.an-hoja.alta>svg{width:auto;height:min(70vh,820px);max-width:100%}
+.an-hoja figcaption{font-size:var(--t2);color:#c9cef0;font-weight:500;font-variant-numeric:tabular-nums;text-align:center}
+.an-hoja figcaption b{color:#fff;font-weight:700}
+
+/* El acabado de cada material, en la hoja. Es una lectura, no una foto: el acrílico blanco
+   con su brillo frío, el aluminio cepillado, la galvanizada con su gris tornasol, el
+   alucobond mate y el MDF de madera. --an-hueco es con lo que se rellena el hueco de una
+   letra, para que se vea la hoja a través. */
+.an-mesa[data-mat="acrilico"]{--an-hoja-fondo:linear-gradient(135deg,#ffffff 0%,#f3f6ff 55%,#e8eeff 100%);--an-hueco:#f4f7ff}
+.an-mesa[data-mat="aluminio"]{--an-hoja-fondo:repeating-linear-gradient(90deg,#d3d6de 0 1px,#e9ebf1 1px 3px,#dfe2e9 3px 4px);--an-hueco:#e2e4eb}
+.an-mesa[data-mat="galvanizada"]{--an-hoja-fondo:linear-gradient(135deg,#c4cad2 0%,#e6eaee 38%,#b9c0c9 62%,#dde2e7 100%);--an-hueco:#d5dae0}
+.an-mesa[data-mat="alucobond"]{--an-hoja-fondo:linear-gradient(180deg,#f5f5f7,#e0e1e6);--an-hueco:#ebecf0}
+.an-mesa[data-mat="mdf"]{--an-hoja-fondo:repeating-linear-gradient(100deg,#c69d74 0 6px,#d3ac84 6px 11px,#bf9268 11px 19px);--an-hueco:#c9a077}
+
+/* El original, como silueta: lo que ocupa la pieza, no cómo venía pintada. */
+#an-orig svg *{fill:var(--n8);stroke:none}
+
+/* Las piezas acomodadas, cada una de su color, como fichas sobre la mesa. Seis tonos del
+   sistema que se van turnando; el trazo fino las separa cuando quedan pegadas. Los huecos
+   dejan ver la hoja. El contorno de la hoja va en el azul de marca y no escala con ella. */
+.an-hoja g>*{stroke:rgba(20,22,43,.35);stroke-width:.8px;vector-effect:non-scaling-stroke;
+  transform-box:fill-box;transform-origin:center;
+  animation:an-cae .55s cubic-bezier(.34,1.32,.5,1) both;animation-delay:calc(var(--i,0) * 45ms)}
+@keyframes an-cae{from{opacity:0;transform:translateY(-14px) scale(.7)}60%{opacity:1}to{opacity:1;transform:none}}
+.an-hoja g.an-p0>*{fill:#4060f8}
+.an-hoja g.an-p1>*{fill:#7b3ff8}
+.an-hoja g.an-p2>*{fill:#18b6d8}
+.an-hoja g.an-p3>*{fill:#15a06a}
+.an-hoja g.an-p4>*{fill:#e0862d}
+.an-hoja g.an-p5>*{fill:#e0507a}
+.an-hoja g>.hole{fill:var(--an-hueco,#fff);stroke:rgba(20,22,43,.25)}
+.an-hoja svg>.bin{fill:none;stroke:var(--a);stroke-width:1.5px;vector-effect:non-scaling-stroke;animation:none}
+
+/* ----- El pie ----- */
+.an-pie{max-width:1180px;margin:0 auto;padding:0 max(24px,env(safe-area-inset-right,0px)) 48px max(24px,env(safe-area-inset-left,0px));
+  font-size:var(--t1);color:var(--n6);line-height:1.6}
+.an-pie a{color:var(--a-fuerte)}
+.an-pie code{font-size:var(--t1);background:var(--n1);padding:1px 5px;border-radius:5px}
+
+/* ----- La barra en el teléfono -----
+   El sistema esconde la palabra de los .btn-hist de 560 px para abajo porque en el cotizador
+   comparten renglón con el folio y el selector de rol. Aquí el renglón es de los dos enlaces
+   y de nadie más: caben con su palabra hasta en 320 px, y son destinos. */
+@media(max-width:560px){
+  .an .topbar-in{justify-content:flex-end}
+  .an .topbar-in .btn-hist{width:auto;padding:0 12px;gap:6px}
+  .an .topbar-in .btn-hist .lbl{display:inline}
+}
+
+/* Mientras se arrastra un archivo encima de la página, el recuadro punteado se enciende
+   aunque el puntero no esté sobre él. */
+.an.arrastrando .ai-drop{border-color:var(--brand);border-style:solid;background:var(--a-suave);box-shadow:0 0 0 4px rgba(64,96,248,.16)}
+
+/* Quien pidió menos movimiento recibe la misma pantalla, quieta. */
+@media(prefers-reduced-motion:reduce){
+  .an-paso,.an-vista,.an-banda,.an-archivo,.an-retazos,.an-hoja,.an-hoja g>*,.an-marcador.mejora .an-gauge-wrap{animation:none}
+  .an-mesa.corriendo::after{animation:none;display:none}
+  .an-gauge-fg,.an-prog-bar,.an-tile,.an-tile-hoja{transition:none}
+}

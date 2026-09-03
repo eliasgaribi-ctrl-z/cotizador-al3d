@@ -36,7 +36,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 12;
+const APP_VERSION = 13;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -89,6 +89,25 @@ const APP_FILES = [
   './vendor/images/marker-shadow.png',
   './vendor/images/layers.png',
   './vendor/images/layers-2x.png',
+  /* El anidador de vectores. Va con la plataforma y no con el cotizador por la misma razón
+     que los módulos: son diez guiones que se cargan en orden y se llaman entre sí, y la
+     interfaz habla con el motor por una API concreta. Uno nuevo con uno viejo no es un
+     anidador viejo: es uno que no arranca. Así que caché primero y el conjunto completo. */
+  './anidador-vectores/',
+  './anidador-vectores/index.html',
+  './anidador-vectores/css/anidador.css',
+  './anidador-vectores/js/app.js',
+  './anidador-vectores/js/medidas.js',
+  './anidador-vectores/js/svgnest.js',
+  './anidador-vectores/js/svgparser.js',
+  './anidador-vectores/js/lib/pathsegpolyfill.js',
+  './anidador-vectores/js/lib/matrix.js',
+  './anidador-vectores/js/lib/clipper.js',
+  './anidador-vectores/js/lib/parallel.js',
+  './anidador-vectores/js/lib/geometryutil.js',
+  './anidador-vectores/js/lib/placementworker.js',
+  './anidador-vectores/js/lib/eval.js',
+  './anidador-vectores/js/lib/json.js',
 ];
 
 /* ¿Esta petición es de la plataforma? Se decide por ruta y no por una lista, para que un
@@ -104,6 +123,7 @@ function esDeLaPlataforma(url) {
          p.endsWith('/index.html') ||
          p.endsWith('/plataforma.html') ||     // el reenvío
          p.endsWith('/manifest-plataforma.webmanifest') ||
+         p.indexOf('/anidador-vectores/') >= 0 ||   // el anidador entero, con sus workers
          /\/(css|js|vendor|datos)\//.test(p);
 }
 

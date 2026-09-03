@@ -3088,6 +3088,9 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 <symbol id="i-check" viewBox="1.95 2 20.4 20.4" style="stroke-width:1.615"><path d="M4.5 12.8 9.5 17.8 19.8 6.6"/></symbol>
 <symbol id="i-cerrar" viewBox="3.333 3.333 17.333 17.333" style="stroke-width:1.372"><path d="M5.5 5.5 18.5 18.5M18.5 5.5 5.5 18.5"/></symbol>
 <symbol id="i-atras" viewBox="1.25 1 22 22" style="stroke-width:1.742"><path d="M20.5 12H4"/><path d="M10.2 5.8 4 12l6.2 6.2"/></symbol>
+<!-- Cuatro piezas acomodadas en una lámina: el anidador de vectores. Mismo trazo abierto de
+     24×24 que los demás. -->
+<symbol id="i-anidar" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="11" rx="1.6"/><rect x="13" y="3" width="8" height="6" rx="1.6"/><rect x="13" y="11" width="8" height="10" rx="1.6"/><rect x="3" y="16" width="8" height="5" rx="1.6"/></symbol>
 </defs></svg>
 
 <div class="topbar">
@@ -3608,6 +3611,11 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
         <div class="sp-sec-h"><h3>Exportar</h3></div>
         <div class="sp-sec-b">
           <button class="btn btn-gho" id="vt-copy-svg" onclick="vtCopiarSVG()" disabled><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar el código SVG</button>
+          <!-- El paso que sigue al trazo cuando el trabajo ya se vendió: acomodar las letras
+               en la hoja de material para cortarlas. El anidador vive en su propia página —es del
+               taller, no de la venta— y el trazo le llega sin pasar por el disco. -->
+          <button class="btn btn-gho" id="vt-anidar" onclick="vtAnidar()" disabled style="margin-top:9px"><svg class="svgi" aria-hidden="true"><use href="#i-anidar"/></svg> Acomodar en hoja · anidador</button>
+          <div class="hintnote" style="margin-top:8px">Abre el anidador con este trazo puesto para acomodar las piezas en la hoja de material antes de cortar.</div>
           <button class="btn btn-gho" onclick="cerrarVector()" style="margin-top:9px"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver al cotizador</button>
         </div>
       </div>
@@ -13518,7 +13526,7 @@ function vtUsarEscalaScaler(){
 const VT_MAX_PIEZAS=60;
 function vtHabilitarSalidas(){
   const hay=VT.hecho;
-  ['vt-dl-svg','vt-dl-png','vt-copy-svg','vt-btn-scaler'].forEach(id=>{const e=$(id); if(e)e.disabled=!hay;});
+  ['vt-dl-svg','vt-dl-png','vt-copy-svg','vt-btn-scaler','vt-anidar'].forEach(id=>{const e=$(id); if(e)e.disabled=!hay;});
   const bp=$('vt-btn-partidas');
   if(bp){
     /* VT.ink es el recuadro de lo que quedó dibujado: apagando todos los colores el trazo se
@@ -13584,6 +13592,30 @@ function vtDescargarPNG(){
 function vtCopiarSVG(){
   if(!VT.svg)return;
   copiarTexto(VT.svg,'Código SVG copiado — pégalo en Illustrator, Inkscape o CorelDRAW');
+}
+/* Al anidador, con el trazo puesto. Se entrega por localStorage —una clave que el anidador
+   lee al abrir y borra— y no por la URL, porque un SVG de una foto vectorizada pesa cientos
+   de KB y una URL de ese tamaño el navegador la corta sin avisar. Va en otra pestaña: la
+   cotización se queda en esta. Si no hubo espacio para dejarlo —el teléfono lleno, que aquí
+   ya tiene su aviso—, se descarga el SVG y se dice qué hacer con él, en vez de abrir un
+   anidador vacío que parezca que no recibió nada. */
+function vtAnidar(){
+  if(!VT.svg)return;
+  const url='anidador-vectores/';
+  let dejado=false;
+  try{
+    localStorage.setItem('al3d_anidar',JSON.stringify({svg:VT.svg,nombre:vtNombreArchivo('svg'),
+      folio:(Q&&Q.folio)||'',cliente:(Q&&Q.cliente)||'',proyecto:(Q&&Q.proy)||'',ts:Date.now()}));
+    dejado=true;
+  }catch(_){ dejado=false; }
+  if(dejado){
+    window.open(url,'_blank','noopener');
+    toast(VT.cmPorPx>0?'El anidador abrió con el trazo a escala real':'El anidador abrió con el trazo — ahí te pide la medida real','ok',3600);
+  }else{
+    vtDescargarSVG();
+    window.open(url,'_blank','noopener');
+    toast('No hubo espacio para pasarle el trazo al anidador: se descargó el SVG, arrástralo ahí','err',5200);
+  }
 }
 /* Al escalador con la escala ya puesta: se le pasa el trazo limpio y, si aquí ya se dio
    la medida real, se le arma la línea de referencia sobre el ancho del diseño para que

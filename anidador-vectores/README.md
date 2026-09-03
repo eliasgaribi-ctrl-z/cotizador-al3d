@@ -1,0 +1,111 @@
+# Anidador de vectores (AL3D)
+
+Acomoda las piezas de un SVG dentro de la hoja para gastar el menor material posible
+antes de mandarlas al láser o al CNC — el *nesting* que antes se hacía a mano en
+svgnest.com. Corre completo en el navegador: el archivo no se sube a ningún servidor.
+
+Vive en [`/anidador-vectores/`](https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/anidador-vectores/)
+y se llega a él desde el vectorizador del cotizador —**Acomodar en hoja**— o desde el botón
+**Anidador** de la plataforma.
+
+## Qué hace
+
+1. Recibe el SVG de las piezas: arrastrado, pegado con Ctrl+V, elegido del disco, o
+   directo del vectorizador del cotizador sin pasar por el disco.
+2. Lo pasa a **milímetros**. Si el archivo declara sus medidas (mm, cm, in, pt) se
+   convierte solo; si viene en px o sin unidades —que en SVG no es una medida— pide el
+   ancho o el alto real del diseño, igual que hace el vectorizador.
+3. Dice lo que se va a quedar fuera antes de empezar: textos sin convertir en contornos,
+   símbolos `<use>`, imágenes, y las piezas que no caben en la hoja ni giradas.
+4. Acomoda las piezas con el motor de código abierto [SVGnest](https://github.com/Jack000/SVGnest)
+   (algoritmo genético + *no-fit polygon*), probando giros, y va enseñando el mejor
+   acomodo encontrado. Si no caben en una hoja, abre las que hagan falta.
+5. **Se detiene solo** cuando lleva 25 intentos y 40 segundos seguidos sin mejorar, porque
+   el algoritmo genético nunca termina por su cuenta. «Seguir buscando» continúa desde
+   donde iba; «Detener» para cuando el resultado ya convence.
+6. Descarga el SVG acomodado **a escala real** (`width="1200mm"`), con una capa por hoja
+   —todas en un archivo, o una hoja sola— y el contorno de la hoja en azul en su propia
+   capa, para colocar el archivo en la cama y ponerlo en «no cortar».
+
+La hoja se elige mirándola: en este taller todas son de 1.20 × 2.40 m, así que las tarjetas
+son la completa, la media y el cuarto, y la cuarta es el retazo, que se mide a mano y se
+guarda con su nombre para la próxima vez. El material —acrílico, aluminio, galvanizada,
+alucobond, MDF— cambia el acabado con el que se pinta la hoja en la mesa y el nombre del
+archivo que se descarga. Hoja, material y retazos se recuerdan en el aparato
+(`al3d_anidador_material`, `al3d_anidador_retazos`).
+
+La mesa es la cama de un láser: oscura, con cuadrícula, y las hojas encima con su acabado.
+Las piezas caen en su lugar, cada una de su color, cada vez que el motor mejora; el marcador
+lleva el aprovechamiento en una aguja con su calificación, la merma, las colocadas y las
+hojas. Con «reducir movimiento» en el sistema, nada se mueve.
+
+## Cómo correrla en local
+
+El cálculo corre en Web Workers, y los navegadores no dejan crear Web Workers desde un
+archivo abierto con doble clic (`file://`). Hay que servir la carpeta **raíz del repo** —no
+esta carpeta, porque la página toma la hoja de estilos y el logotipo de arriba—:
+
+```bash
+# desde la raíz del repositorio
+python3 -m http.server 8000
+# abre http://localhost:8000/anidador-vectores/
+```
+
+No requiere `npm install` ni ninguna dependencia.
+
+## Estructura
+
+```
+anidador-vectores/
+├── index.html               la interfaz
+├── README.md                este archivo
+├── css/
+│   └── anidador.css         solo lo que css/sistema.css no tiene: la rejilla y el lienzo
+└── js/
+    ├── app.js               la interfaz: cargar, medir, acomodar, descargar
+    ├── medidas.js           unidades del archivo → milímetros; puro, probado en node
+    ├── svgnest.js           motor de anidamiento (genético + NFP)       ┐
+    ├── svgparser.js         formas SVG → polígonos                       │ vendorizados de
+    ├── SVGNEST-LICENSE.txt  licencia MIT del motor                       │ SVGnest (MIT),
+    └── lib/                 dependencias del motor:                      │ sin tocar el
+        ├── clipper.js         booleanas de polígonos                     │ algoritmo
+        ├── geometryutil.js    áreas, NFP, rotaciones                     │
+        ├── matrix.js          matrices de transformación SVG             │
+        ├── placementworker.js coloca las piezas dado un conjunto de NFPs │
+        ├── parallel.js        arma los Web Workers                       │
+        ├── eval.js            punto de entrada de los Web Workers        │
+        ├── json.js            polyfill de JSON para los workers          │
+        └── pathsegpolyfill.js pathSegList, que Chrome quitó              ┘
+```
+
+El único cambio al motor original es la ruta de `eval.js` en `svgnest.js` (`util/eval.js` →
+`js/lib/eval.js`), para que coincida con esta carpeta. El algoritmo no se tocó.
+
+Se sirve **caché primero** con el resto de la plataforma (está en `APP_FILES` de `sw.js`),
+así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se sube
+`APP_VERSION`**, como con cualquier archivo de la plataforma.
+
+## Pruebas
+
+- `pruebas/anidador-medidas.mjs` — la aritmética de unidades, en node y nada más.
+- `pruebas/navegador/anidador.mjs` — carga un SVG, lo acomoda de verdad con los Web Workers,
+  comprueba las piezas colocadas y que el SVG de salida esté en milímetros; y que el trazo
+  que deja el cotizador se recoge y se borra. Pide Chromium: `pruebas/correr.sh --navegador`.
+
+## Notas para el taller
+
+- La medida que se pide es la del **diseño** —el letrero de orilla a orilla—, no la del
+  lienzo o el artboard. Con el ancho o el alto basta.
+- La separación es la distancia mínima entre piezas **y** con la orilla de la hoja.
+- «Meter piezas chicas en los huecos grandes» sirve cuando hay una «O» o una «D» lo bastante
+  grande para recibir otra pieza dentro. Tarda más en calcular.
+- «Buscar también dentro de las concavidades» (el *Explore concave areas* del demo original)
+  mete piezas en el hueco abierto de una «C», una «U» o una «G», que de entrada se trata
+  como lleno. Tarda bastante más; nace apagado, igual que en svgnest.com.
+- Lo vendorizado es byte por byte el `master` de SVGnest, salvo la ruta de `eval.js`; los
+  parámetros que el demo original expone y aquí no se piden —tolerancia de curva, tamaño de
+  población y mutación del genético— van con sus valores por omisión (0.3, 10 y 10 %),
+  porque en mm la tolerancia de 0.3 ya es fina para rotulación y los otros dos no cambian
+  el resultado en trabajos de este tamaño.
+- El motor solo lee contornos: `path`, `polygon`, `polyline`, `rect`, `circle`, `ellipse`,
+  `line`. Un texto sin convertir se queda fuera y la app lo avisa al cargar.
