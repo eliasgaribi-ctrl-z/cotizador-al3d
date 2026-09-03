@@ -553,7 +553,7 @@ const DIAS_GRAVE = 3;
  * Lee una vez lo que el semáforo necesita: qué falta, por proyecto, y de qué proyectos
  * hay material calculado.
  */
-async function contextoMaterial() {
+export async function contextoMaterial() {
   const ctx = { faltantes: new Map(), conReq: new Set(), leido: false };
 
   const reqs = await DB.listar('requerimientos');
@@ -594,7 +594,7 @@ async function contextoMaterial() {
  * sola y la que se corre treinta veces para pintar un mes.
  * @param {Object[]} instalaciones las vivas del día (o la sola que se preguntó)
  */
-function dictamen(instalaciones, ctx, hoy) {
+export function dictamen(instalaciones, ctx, hoy) {
   const insts = (instalaciones || []).filter(Boolean);
   if (!insts.length) {
     return { estado: 'ok', codigo: 'sin_agenda', faltantes: [], dias: null,

@@ -123,6 +123,10 @@ const VIVAS = new Set(['propuesta', 'confirmada', 'reagendada']);
    ============================================================================ */
 
 export async function montar(contenedor, ctx) {
+  /* Este módulo NO drena el pase, a propósito. Drenarlo sin usarlo sería borrar un recado
+     que nadie leyó, y declarar la variable para no usarla es prometer un aterrizaje que no
+     existe. Al mapa se llega hoy con un `ir()` limpio y se ve todo, que para «ver la ruta
+     del día» es lo correcto. Cuando haya un filtro al que aterrizar, se lee aquí. */
   cont = contenedor;
   CTX = ctx;
   HOY = hoyISO();

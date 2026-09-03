@@ -66,7 +66,7 @@ import * as Material from '../datos/material.js';
 import { masDias, masMeses, iniSemana, ultimoDia, diasEntre } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, partesISO, fechaLocal,
          fmtFecha, fmtFechaDia, fmtHora, cuando, diasHasta, segmento, chip, abrirCapa,
-         cerrarCapa, compartirArchivo, copiarTexto, linkWa, ajustarAltoBarra }
+         cerrarCapa, compartirArchivo, copiarTexto, linkWa, ajustarAltoBarra, filaTaller }
   from '../nucleo/ui.js';
 
 /* ----- Estado del módulo -----
@@ -134,9 +134,30 @@ export async function montar(contenedor, ctx) {
     return;
   }
 
+  /* Lo que dejó el módulo anterior, ANTES de leer, para que la lectura ya salga con el mes
+     correcto en vez de leer dos veces. */
+  const pase = (ctx && ctx.recibir) ? ctx.recibir() : null;
+  if (pase) {
+    if (pase.lente === 'taller' || pase.lente === 'instalaciones' || pase.lente === 'todo') _lente = pase.lente;
+    if (pase.vista === 'mes' || pase.vista === 'semana' || pase.vista === 'lista') _vista = pase.vista;
+    if (pase.dia && /^\d{4}-\d{2}-\d{2}$/.test(pase.dia)) { _ancla = pase.dia; _dia = pase.dia; }
+  }
+
   _cont.innerHTML = '<div class="vacio">' + ico('i-reloj') +
     '<p class="vacio-t">Leyendo la agenda…</p></div>';
   await recargar();
+
+  /* Y la hoja de agendar CON EL PROYECTO YA ELEGIDO. Va después de `recargar()` porque
+     `pintarPaso2` necesita la lista de los que no tienen fecha, que sale de esa lectura.
+     Es el segundo salto que se quita: antes había que entrar a agendar y buscar el proyecto
+     en una lista donde ya sabías cuál era. */
+  if (pase && pase.hoja === 'agendar' && pase.proy) {
+    if (!puedeAgendar()) {
+      toast('Agendar es de dirección. Si te toca a ti, cambia de rol en Ajustes.', 'err', 4600);
+    } else {
+      try { await pintarPaso2(pase.proy); } catch (_) { abrirAgendar(pase.dia || null); }
+    }
+  }
 }
 
 export function desmontar() {
@@ -433,11 +454,8 @@ function pintarLente() {
    Aquí cabe entera, con su pista, y se lee en un teléfono, que es donde se va a leer. Es la
    misma decisión que la vista de semana ya tomó: «siete columnas de 45 px, y ahí no cabe una
    hora ni un nombre». */
-const VERBO_TALLER = {
-  ganado: 'hay que ponerlo en diseño', en_diseno: 'hay que cortar', cortado: 'hay que armar',
-  armado: 'falta dejarlo listo', listo: 'ya está listo',
-};
-const TONO_TALLER = { no_llega: 'mal', tarde: 'urge', justo: 'urge', a_tiempo: '', sin_fecha: '' };
+/* `VERBO_TALLER`, `TONO_TALLER`, `corta()` y `filaTaller()` viven en nucleo/ui.js: el mismo
+   renglón lo pinta el Tablero, y con una copia aquí los dos habrían divergido. */
 
 function pintarTaller(d) {
   const vs = (d.ventanas || []).slice().sort((a, b) => {
@@ -464,50 +482,27 @@ function pintarTaller(d) {
   let html = '<div class="card"><div class="card-b">';
   if (conFecha.length) {
     html += '<div class="ag-grupo">' + ico('i-taller') + 'En el taller <span class="n">' + conFecha.length + '</span></div>' +
-            conFecha.map(filaTaller).join('');
+            conFecha.map(v => filaTaller(v, d.hoy, { plazoEditable: puedeCorregirPlazo(),
+              accionesHTML: accionAnidar(v) })).join('');
   }
   if (sinFecha.length) {
     html += '<div class="ag-grupo">' + ico('i-reloj') + 'Ganados sin fecha, con el reloj corriendo <span class="n">' + sinFecha.length + '</span></div>' +
-            sinFecha.map(filaTaller).join('');
+            sinFecha.map(v => filaTaller(v, d.hoy, { plazoEditable: puedeCorregirPlazo(),
+              accionesHTML: accionAnidar(v) })).join('');
   }
   return html + '</div></div>';
 }
 
-/* Fecha corta para la pista: «16 sep». */
-function corta(iso) {
-  const p = partesISO(iso); if (!p) return '';
-  return p.d + ' ' + ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][p.m - 1];
+/* De aquí a la mesa de corte, con el proyecto puesto. Es el paso que el taller da de verdad
+   —lo que hay que cortar se acomoda en la lámina antes de cortarlo— y hasta ahora era una
+   pestaña nueva del navegador. Solo en las etapas en que tiene sentido: acomodar piezas de
+   algo que ya se armó no es un paso, es una distracción. */
+function accionAnidar(v) {
+  if (v.etapa_real !== 'ganado' && v.etapa_real !== 'en_diseno') return '';
+  return '<button type="button" class="btn btn-gho pf-btn-corto" data-anidar="' +
+    esc(v.proyecto_id || '') + '">Acomodar en la lámina</button>';
 }
 
-function filaTaller(v) {
-  const hoy = _d ? _d.hoy : hoyISO();
-  /* Dónde va hoy dentro de la ventana, de 0 a 100. Fuera de ella se pega a los bordes. */
-  const largo = Math.max(1, diasEntre(v.empezar, v.listo) || 1);
-  const pos = Math.max(0, Math.min(100, Math.round((diasEntre(v.empezar, hoy) || 0) / largo * 100)));
-  const tono = TONO_TALLER[v.estado] || '';
-  const verbo = VERBO_TALLER[v.etapa_real] || '';
-  return '<div class="pf-fila tal-fila" data-proyecto="' + esc(v.proyecto_id || '') + '">' +
-    '<div class="pf-fila-ico' + (tono ? ' ' + tono : '') + '">' + ico('i-taller') + '</div>' +
-    '<div class="pf-fila-tx">' +
-      '<div class="pf-fila-t">' + esc(v.titulo || 'Proyecto sin nombre') + (verbo ? ' · ' + esc(verbo) : '') + '</div>' +
-      '<div class="pf-fila-d">' + esc(v.texto) + '</div>' +
-      '<div class="tal-pista" aria-hidden="true">' +
-        '<span class="tal-fecha">' + esc(corta(v.empezar)) + '</span>' +
-        '<span class="tal-riel' + (v.ancla === 'ganado' ? ' propuesta' : '') + (tono === 'mal' || tono === 'urge' ? ' tarde' : '') + '">' +
-          '<i class="tal-hoy" style="left:' + pos + '%"></i></span>' +
-        '<span class="tal-fecha">' + esc(corta(v.listo)) + (v.instalacion ? ' · instala ' + esc(corta(v.instalacion)) : '') + '</span>' +
-      '</div>' +
-      '<div class="pf-fila-d">' +
-        (puedeCorregirPlazo()
-          ? '<button type="button" class="cal-plazo' + (v.plazo_fuente === 'elegido' ? ' mano' : '') + '" data-plazo="' + esc(v.proyecto_id || '') + '"' +
-            ' title="Cambiar cuánto tarda en el taller" aria-label="Plazo de taller: ' + esc(v.plazo_etiqueta) + ', ' + (v.plazo_fuente === 'elegido' ? 'puesto a mano' : 'calculado') + '. Tocar para cambiarlo">' +
-            ico('i-reloj') + esc(v.plazo_etiqueta) + ' · ' + (v.plazo_fuente === 'elegido' ? 'a mano' : 'calculado') + '</button>'
-          : '<span class="cal-plazo' + (v.plazo_fuente === 'elegido' ? ' mano' : '') + '" title="' + esc(v.plazo_razon) + '">' +
-            ico('i-reloj') + esc(v.plazo_etiqueta) + ' · ' + (v.plazo_fuente === 'elegido' ? 'a mano' : 'calculado') + '</span>') +
-      '</div>' +
-    '</div>' +
-  '</div>';
-}
 /* ----- Las cuentas de arriba -----
    Lo primero que se lee al entrar: «6 por instalar · 2 sin fecha» contesta la pantalla
    entera antes de mirar la rejilla. */
@@ -960,6 +955,17 @@ async function alTocar(ev) {
 
   const dec = ev.target.closest('[data-decidir]');
   if (dec) { (dec.dataset.decidir === 'ganar' ? abrirGanar : abrirDescartar)(dec.dataset.folio); return; }
+
+  const anid = ev.target.closest('[data-anidar]');
+  if (anid) {
+    const id = anid.dataset.anidar;
+    const v = ((_d && _d.ventanas) || []).find(x => x && x.proyecto_id === id);
+    if (_ctx && _ctx.pasar) {
+      _ctx.pasar('hoy', { vista: 'anidador', proyecto_id: id,
+        nombre: (v && v.titulo) || '', folio: '' });
+    }
+    return;
+  }
 
   const vista = ev.target.closest('[data-vista]');
   if (vista) { _vista = vista.dataset.vista; _dia = null; await recargar(); return; }

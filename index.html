@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Plataforma AL3D</title>
-<meta name="description" content="Agenda de instalaciones, material en almacén, proyectos y mapa de obra de AL3D.">
+<title>AL3D — taller</title>
+<meta name="description" content="El taller de AL3D: qué se está fabricando ahora, qué va tarde, el calendario de instalaciones, el material del almacén y el cotizador.">
 <link rel="manifest" href="manifest-plataforma.webmanifest">
 <!-- El mismo número que --a en css/sistema.css. Un <meta> no entiende var(). -->
 <meta name="theme-color" content="#4060f8">
@@ -135,16 +135,14 @@
            Y todo el bloque iba aria-hidden, así que la plataforma no se anunciaba con
            ningún nombre. -->
       <img class="logoimg" src="logo-al3d.svg" width="260" height="130" alt="AL3D">
-      <h1 class="t">Plataforma <small id="pf-sub">Obra, material y agenda</small></h1>
+      <h1 class="t">AL3D <small id="pf-sub">Tablero</small></h1>
     </div>
     <div class="rolewrap">
-      <a class="btn-hist" href="cotizador.html" title="Abrir el cotizador"><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg><span class="lbl"> Cotizador</span></a>
-      <!-- El anidador es del taller: acomoda las piezas en la lámina antes de cortar. Es un
-           <a> y no un módulo porque carga su propio motor —diez guiones y Web Workers— y no
-           tiene nada que hacer dentro del router de la plataforma. En el teléfono no se
-           enseña (css/plataforma.css dice por qué, con la medida): ahí no hay SVG que
-           acomodar ni láser que alimentar, y un botón más partía la barra en tres renglones. -->
-      <a class="btn-hist btn-anidar" href="anidador-vectores/" title="Abrir el anidador de vectores" aria-label="Abrir el anidador de vectores: acomodar piezas en la lámina"><svg class="svgi" aria-hidden="true"><use href="#i-anidar"/></svg><span class="lbl"> Anidador</span></a>
+      <!-- Aquí vivía el <a> a cotizador.html. Se fue porque el Cotizador ya es una pestaña
+           de la barra de módulos: tenerlo en los dos sitios enseñaba dos puertas al mismo
+           cuarto, y en el teléfono costaba 44 px del renglón. La página suelta NO se retira
+           —manifest.webmanifest arranca ahí y quien tenga esa PWA instalada entra directo—,
+           solo deja de tener una segunda entrada desde aquí. -->
       <button class="btn-hist" id="pf-ajustes-btn" title="Ajustes de la plataforma" aria-label="Ajustes"><svg class="svgi" aria-hidden="true"><use href="#i-ajustes"/></svg></button>
       <div class="seg" id="pf-rolseg" role="group" aria-label="Rol con el que trabajas"></div>
     </div>
@@ -169,12 +167,14 @@
     <!-- Un <section> por módulo, todos vacíos. El router monta uno y desmonta el anterior.
          Cero lógica en este archivo: si algo de aquí decidiera algo, habría dos lugares
          donde buscar por qué una pantalla se ve como se ve. -->
+    <section class="pf-mod" id="mod-tablero"    data-mod="tablero"    hidden aria-label="Tablero"></section>
     <section class="pf-mod" id="mod-fabricacion" data-mod="fabricacion" hidden aria-label="Calendario"></section>
-    <section class="pf-mod" id="mod-hoy"        data-mod="inicio"    hidden aria-label="Hoy"></section>
-    <section class="pf-mod" id="mod-proyectos"  data-mod="proyectos" hidden aria-label="Proyectos"></section>
-    <section class="pf-mod" id="mod-material"   data-mod="material"  hidden aria-label="Material"></section>
-    <section class="pf-mod" id="mod-mapa"       data-mod="mapa"      hidden aria-label="Mapa"></section>
-    <section class="pf-mod" id="mod-ajustes"    data-mod="ajustes"   hidden aria-label="Ajustes"></section>
+    <section class="pf-mod" id="mod-proyectos"  data-mod="proyectos"  hidden aria-label="Proyectos"></section>
+    <section class="pf-mod" id="mod-material"   data-mod="material"   hidden aria-label="Material"></section>
+    <section class="pf-mod" id="mod-cotizador"  data-mod="cotizador"  hidden aria-label="Cotizador"></section>
+    <section class="pf-mod" id="mod-mapa"       data-mod="mapa"       hidden aria-label="Mapa"></section>
+    <section class="pf-mod" id="mod-atender"    data-mod="inicio"     hidden aria-label="Qué atender"></section>
+    <section class="pf-mod" id="mod-ajustes"    data-mod="ajustes"    hidden aria-label="Ajustes"></section>
   </main>
 </div>
 

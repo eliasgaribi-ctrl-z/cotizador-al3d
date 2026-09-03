@@ -195,7 +195,7 @@ function enteroSano(v, clave) {
 /* La etapa que sigue a cada una: es el hito contra el que se mide el atraso. `listo` sigue
    con `instalado`, que es la fecha real. Las que no están —garantia, cancelado, instalado—
    no tienen siguiente porque ya salieron del camino. */
-const SIGUIENTE = { ganado: 'en_diseno', en_diseno: 'cortado', cortado: 'armado', armado: 'listo', listo: 'instalado' };
+export const SIGUIENTE = { ganado: 'en_diseno', en_diseno: 'cortado', cortado: 'armado', armado: 'listo', listo: 'instalado' };
 const ORDEN = ETAPAS.reduce((m, e, i) => { m[e] = i; return m; }, {});
 
 /** La ventana vacía, con la forma completa: quien la lea no tiene que preguntar si existe

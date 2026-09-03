@@ -35,7 +35,8 @@ import * as Stock from '../datos/stock.js';
 import * as Material from '../datos/material.js';
 import { masDias } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO,
-         fmtFecha, fmtFechaDia, abrirCapa, cerrarCapa, copiarTexto, ajustarAltoBarra }
+         fmtFecha, fmtFechaDia, abrirCapa, cerrarCapa, copiarTexto, ajustarAltoBarra,
+         bandaFrescura }
   from '../nucleo/ui.js';
 
 /* ----- Estado del módulo -----
@@ -156,7 +157,7 @@ function pintar() {
   const resto = d.avisos.filter(a => a.regla !== idA6);
 
   const partes = [];
-  partes.push(bandaFrescura(d.fres));
+  partes.push(bandaFrescura(d.fres, Sync.disponible()));
   partes.push(cuentas(d, rol, veDinero));
   if (decidir.length) partes.push(tarjetaDecidir(decidir));
   partes.push(tarjetaAvisos(resto, decidir.length));
@@ -172,27 +173,7 @@ function pintar() {
   pintarMbar(decidir.length);
 }
 
-/* ----- La banda de frescura -----
-   §8.1 la pide «en ámbar con el patrón .cand-partidas». Se le deja el ámbar y se le quita
-   el latido: el latido es de la tarjeta de decisión y de nada más, porque lo que late y no
-   se atiende enseña a no mirar lo que late. Con ámbar y arriba ya se ve. */
-function bandaFrescura(f) {
-  if (!Sync.disponible()) {
-    /* Fase 1: no hay puente, así que no hay nada viejo de nadie. Decir «al día» aquí sería
-       prometer que se está viendo lo de los tres teléfonos, y lo que se está viendo es lo
-       de este. */
-    return '<p class="pf-frescura">' + ico('i-nube-off') +
-      '<span>Todo lo que ves vive en este dispositivo. Lo que Fabricación mueva en su teléfono no llega aquí todavía.</span></p>';
-  }
-  if (f && f.al_dia) {
-    return '<p class="pf-frescura">' + ico('i-nube') + '<span>Al día' +
-      (Number(f.pendientes) > 0
-        ? ' · quedan ' + Number(f.pendientes) + ' cambios de este dispositivo por mandar'
-        : '') + '</span></p>';
-  }
-  const txt = (f && (f.texto || f.mensaje)) || 'Hay datos de otro dispositivo que llevan días sin llegar.';
-  return '<div class="pf-banda" role="status">' + ico('i-aviso') + '<span>' + esc(txt) + '</span></div>';
-}
+/* `bandaFrescura()` vive en nucleo/ui.js: la pinta también el Tablero. */
 
 /* ----- Las cuentas -----
    Los números que importan, grandes y arriba. Cuáles son depende del rol, y no por

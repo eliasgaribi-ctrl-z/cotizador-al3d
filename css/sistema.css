@@ -3018,3 +3018,21 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
   .partida .chip.on{background:none!important;border:1.5px solid #12162b!important;color:#12162b!important}
   .neto .amt{-webkit-text-fill-color:initial;color:#12162b!important;filter:none}
 }
+/* ----- Modo empotrado: dentro del apartado Cotizador de la plataforma -----
+   NO se apaga la .topbar entera, y es lo contrario de lo que se hace en el anidador. La
+   diferencia es qué lleva cada barra: en la del anidador solo hay logotipo y dos enlaces de
+   salida, y aquí viven Deshacer, Clientes, Historial —la única puerta a al3d_historial, el
+   dato irrecuperable del sistema—, la píldora del folio y el segmento Vendedor/Autorizador.
+   Sin ellos no se puede autorizar una cotización, o sea que apagar la barra apagaría el
+   trabajo.
+
+   Lo que sobra son las dos cosas que la plataforma ya pone: el logotipo con su título, que
+   apilado daría dos encabezados en la misma pantalla, y el enlace de vuelta, que navegaría
+   EL MARCO y acabaría con la plataforma anidada dentro de sí misma. Con esas dos apagadas la
+   barra queda como un renglón delgado de controles y no hay doble cromo.
+
+   Se escriben como `html.empotrado` y no `.empotrado` a secas porque estas reglas terminan
+   en css/sistema.css —la copia generada— y de ahí las carga index.html, donde son inertes
+   porque el <html> de la plataforma nunca lleva esa clase. */
+html.empotrado .brand{display:none}
+html.empotrado .btn-pf{display:none}

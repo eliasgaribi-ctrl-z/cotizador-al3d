@@ -395,3 +395,160 @@ export function rotularPapel(titulo) {
     f.textContent = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 }
+
+/* ============================================================================
+   El renglón del taller, y lo que lo acompaña
+
+   Vive aquí y no en un módulo porque lo pintan DOS pantallas: la lente de Taller del
+   Calendario y la lista del Tablero. Estaba escrito solo en fabricacion.js, y copiarlo al
+   Tablero habría garantizado que el mismo trabajo se lea distinto según por dónde se
+   entre —el mismo defecto que ya se evitó subiendo `ETAPA_NOMBRE` a la capa de datos—.
+
+   No calcula NADA del taller: recibe la ventana que `datos/taller.js` ya resolvió y la
+   pinta. Si aquí se decidiera cuándo algo va tarde habría dos respuestas a la misma
+   pregunta, y la que se ve sería la que nadie probó.
+   ============================================================================ */
+
+/** El verbo de lo que toca hacer, no el nombre del estado: «hay que cortar», no «cortado».
+ *  Quien lee el renglón está decidiendo qué hacer hoy, no clasificando. */
+export const VERBO_TALLER = {
+  ganado: 'hay que ponerlo en diseño', en_diseno: 'hay que cortar', cortado: 'hay que armar',
+  armado: 'falta dejarlo listo', listo: 'ya está listo',
+};
+
+/** El tono del icono según el estado que devolvió `ventanaTaller`. Vacío es a tiempo: un
+ *  renglón sin color es el caso normal y no hay que gritarlo. */
+export const TONO_TALLER = { no_llega: 'mal', tarde: 'urge', justo: 'urge', a_tiempo: '', sin_fecha: '' };
+
+/** Fecha corta para la pista: «16 sep». Por `partesISO` y nunca por `new Date(iso)`, que
+ *  interpreta la cadena como UTC y en México devuelve el día anterior. */
+export function corta(iso) {
+  const p = partesISO(iso); if (!p) return '';
+  return p.d + ' ' + ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][p.m - 1];
+}
+
+/**
+ * Un renglón de trabajo del taller.
+ *
+ * @param {Object} v      la ventana de `Taller.ventanaTaller()`
+ * @param {string} hoy    ISO. Se pasa y no se lee del reloj: las treinta filas de una lista
+ *                        tienen que compartir el MISMO hoy, o la que se pinte a medianoche
+ *                        sale de otro día que la de arriba.
+ * @param {{icono?:string, plazoEditable?:boolean, accionesHTML?:string, extraHTML?:string}} [opts]
+ *        `icono` por omisión es `i-taller` (el Calendario pinta el banco de trabajo); el
+ *        Tablero le pasa el de la etapa. `plazoEditable` decide si la ficha del plazo es un
+ *        botón o un rótulo: corregir el plazo se hace en el Calendario, que es quien tiene
+ *        el modal.
+ */
+export function filaTaller(v, hoy, opts = {}) {
+  const dia = partesISO(hoy) ? hoy : hoyISO();
+  /* Dónde va hoy dentro de la ventana, de 0 a 100. Fuera de ella se pega a los bordes. */
+  const largo = Math.max(1, diasEntre(v.empezar, v.listo) || 1);
+  const pos = Math.max(0, Math.min(100, Math.round((diasEntre(v.empezar, dia) || 0) / largo * 100)));
+  const tono = TONO_TALLER[v.estado] || '';
+  const verbo = VERBO_TALLER[v.etapa_real] || '';
+  const mano = v.plazo_fuente === 'elegido';
+  const plazo = mano ? 'a mano' : 'calculado';
+  return '<div class="pf-fila tal-fila" data-proyecto="' + esc(v.proyecto_id || '') + '">' +
+    '<div class="pf-fila-ico' + (tono ? ' ' + tono : '') + '">' + ico(opts.icono || 'i-taller') + '</div>' +
+    '<div class="pf-fila-tx">' +
+      '<div class="pf-fila-t">' + esc(v.titulo || 'Proyecto sin nombre') + (verbo ? ' · ' + esc(verbo) : '') + '</div>' +
+      '<div class="pf-fila-d">' + esc(v.texto) + '</div>' +
+      (opts.extraHTML || '') +
+      '<div class="tal-pista" aria-hidden="true">' +
+        '<span class="tal-fecha">' + esc(corta(v.empezar)) + '</span>' +
+        '<span class="tal-riel' + (v.ancla === 'ganado' ? ' propuesta' : '') + (tono === 'mal' || tono === 'urge' ? ' tarde' : '') + '">' +
+          '<i class="tal-hoy" style="left:' + pos + '%"></i></span>' +
+        '<span class="tal-fecha">' + esc(corta(v.listo)) + (v.instalacion ? ' · instala ' + esc(corta(v.instalacion)) : '') + '</span>' +
+      '</div>' +
+      '<div class="pf-fila-d">' +
+        (opts.plazoEditable
+          ? '<button type="button" class="cal-plazo' + (mano ? ' mano' : '') + '" data-plazo="' + esc(v.proyecto_id || '') + '"' +
+            ' title="Cambiar cuánto tarda en el taller" aria-label="Plazo de taller: ' + esc(v.plazo_etiqueta) + ', ' + (mano ? 'puesto a mano' : 'calculado') + '. Tocar para cambiarlo">' +
+            ico('i-reloj') + esc(v.plazo_etiqueta) + ' · ' + plazo + '</button>'
+          : '<span class="cal-plazo' + (mano ? ' mano' : '') + '" title="' + esc(v.plazo_razon) + '">' +
+            ico('i-reloj') + esc(v.plazo_etiqueta) + ' · ' + plazo + '</span>') +
+      '</div>' +
+    '</div>' +
+    (opts.accionesHTML ? '<div class="pf-fila-acc">' + opts.accionesHTML + '</div>' : '') +
+  '</div>';
+}
+
+/* ----- La línea de frescura -----
+   Qué tan al día está lo que se está viendo. La pintan el Tablero y «Qué atender», y estaba
+   escrita solo en inicio.js. Cuando todo está al día NO devuelve nada: «una franja verde
+   diciendo al día todos los días es una felicitación diaria que se deja de leer».
+
+   @param {Object|null} f       lo que devolvió `Sync.frescura()`
+   @param {boolean} disponible  `Sync.disponible()`. Se pasa para que este archivo no
+                                importe la capa de datos y siga siendo puro de pintado. */
+export function bandaFrescura(f, disponible) {
+  if (!disponible) {
+    /* Fase 1: no hay puente, así que no hay nada viejo de nadie. Decir «al día» aquí sería
+       prometer que se está viendo lo de los tres teléfonos, y lo que se está viendo es lo
+       de este. */
+    return '<p class="pf-frescura">' + ico('i-nube-off') +
+      '<span>Todo lo que ves vive en este dispositivo. Lo que Fabricación mueva en su teléfono no llega aquí todavía.</span></p>';
+  }
+  if (f && f.al_dia) {
+    return '<p class="pf-frescura">' + ico('i-nube') + '<span>Al día' +
+      (Number(f.pendientes) > 0
+        ? ' · quedan ' + Number(f.pendientes) + ' cambios de este dispositivo por mandar'
+        : '') + '</span></p>';
+  }
+  const txt = (f && (f.texto || f.mensaje)) || 'Hay datos de otro dispositivo que llevan días sin llegar.';
+  return '<div class="pf-banda" role="status">' + ico('i-aviso') + '<span>' + esc(txt) + '</span></div>';
+}
+
+/* ============================================================================
+   Los marcos empotrados
+
+   El Cotizador y el Anidador viven dentro de un <iframe> del mismo origen. Un iframe no
+   tiene alto propio: sin esto se queda en los 150 px que manda la especificación, y con
+   `height:100%` se queda en cero porque su padre no tiene alto fijo. Se mide.
+
+   Y aquí está la razón por la que existe `insetInferior()`, que es el defecto que este
+   reacomodo tenía que resolver: DENTRO de un iframe todas las `env(safe-area-inset-*)`
+   valen 0. El cotizador tiene treinta, y su barra fija de teléfono cuelga de ellas: sin
+   compensar, su botón principal quedaría debajo del indicador de inicio del iPhone. La
+   compensación no puede ir dentro del documento hijo —ahí `env()` ya es 0—: la pone el
+   PADRE, apartando la caja del marco de la zona insegura. Así, dentro del marco no hay
+   zona insegura que proteger y sus treinta declaraciones en 0 son correctas.
+   ============================================================================ */
+
+/** El inset inferior de verdad, en píxeles. Se lee de un elemento de prueba porque
+ *  `env()` no se puede leer desde JS. Devuelve 0 donde no hay muesca, que es lo normal. */
+export function insetInferior() {
+  try {
+    const s = document.createElement('div');
+    s.style.cssText = 'position:fixed;left:-9999px;bottom:0;height:env(safe-area-inset-bottom,0px)';
+    document.body.appendChild(s);
+    const h = s.getBoundingClientRect().height || 0;
+    s.remove();
+    return Math.max(0, Math.round(h));
+  } catch (_) { return 0; }
+}
+
+/**
+ * Le da al marco el alto que le queda a la ventana debajo del encabezado, ya descontada la
+ * barra fija del teléfono y la zona insegura de abajo.
+ *
+ * Escribe una variable CSS en `:root` en vez del `style` del iframe a propósito: cambiar el
+ * atributo `style` de un `<iframe>` no lo recarga, pero cambiar el alto por una variable
+ * deja que la hoja de estilos decida el resto (radio, sombra, fondo) sin que este archivo
+ * sepa nada de eso.
+ *
+ * @param {string} id el id del <iframe>
+ */
+export function medirMarco(id) {
+  const m = document.getElementById(id);
+  if (!m) return;
+  const arriba = m.getBoundingClientRect().top;
+  const mbar = parseInt(getComputedStyle(document.documentElement)
+    .getPropertyValue('--mbar-h') || '0', 10) || 0;
+  /* El piso de 320 px es para que un teclado abierto en el teléfono —que encoge el
+     viewport a la mitad— no deje el marco en veinte píxeles de alto justo mientras
+     alguien escribe dentro de él. */
+  const alto = Math.max(320, Math.round(window.innerHeight - arriba - mbar - insetInferior() - 8));
+  document.documentElement.style.setProperty('--pf-marco-h', alto + 'px');
+}
