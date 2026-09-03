@@ -87,12 +87,12 @@
     if (!(sep >= 0)) { sep = 0; $('an-sep').value = '0'; }
     if (!ok) { if (avisar) { mensaje('Falta el ancho o el alto de la lámina, en milímetros.', 'mal'); (ancho > 0 ? $('an-alto') : $('an-ancho')).focus(); } return null; }
     return { ancho: ancho, alto: alto, sep: sep, rot: parseInt($('an-rot').value, 10) || 4,
-             huecos: interruptor('an-huecos'), contorno: interruptor('an-contorno') };
+             huecos: interruptor('an-huecos'), concavas: interruptor('an-concavas'), contorno: interruptor('an-contorno') };
   }
   function guardarMaterial() {
     try { localStorage.setItem(LS_MATERIAL, JSON.stringify({
       ancho: $('an-ancho').value, alto: $('an-alto').value, sep: $('an-sep').value, rot: $('an-rot').value,
-      huecos: interruptor('an-huecos'), contorno: interruptor('an-contorno') })); } catch (_) {}
+      huecos: interruptor('an-huecos'), concavas: interruptor('an-concavas'), contorno: interruptor('an-contorno') })); } catch (_) {}
   }
   function cargarMaterial() {
     var g = null;
@@ -103,6 +103,7 @@
     if (g.sep !== undefined && g.sep !== '') $('an-sep').value = g.sep;
     if (g.rot) $('an-rot').value = String(g.rot);
     if (typeof g.huecos === 'boolean' && g.huecos !== interruptor('an-huecos')) alternar('an-huecos');
+    if (typeof g.concavas === 'boolean' && g.concavas !== interruptor('an-concavas')) alternar('an-concavas');
     if (typeof g.contorno === 'boolean' && g.contorno !== interruptor('an-contorno')) alternar('an-contorno');
     sincronizarPreset();
   }
@@ -131,6 +132,7 @@
   });
   $('an-rot').addEventListener('change', guardarMaterial);
   $('an-huecos').addEventListener('click', function () { alternar('an-huecos'); guardarMaterial(); });
+  $('an-concavas').addEventListener('click', function () { alternar('an-concavas'); guardarMaterial(); });
   $('an-contorno').addEventListener('click', function () { alternar('an-contorno'); guardarMaterial(); });
   $('an-girar').addEventListener('click', function () {
     var a = $('an-ancho').value; $('an-ancho').value = $('an-alto').value; $('an-alto').value = a;
@@ -311,7 +313,10 @@
     if (!(A.k > 0)) { mensaje('Falta la medida real del diseño: escribe su ancho o su alto en milímetros.', 'mal'); $('an-ancho-d').focus(); return; }
 
     var SN = window.SvgNest;
-    SN.config({ spacing: mat.sep, rotations: mat.rot, useHoles: mat.huecos, curveTolerance: TOLERANCIA_MM });
+    /* exploreConcave es «Explore concave areas» del demo original: sin él, el hueco abierto
+       de una «C» cuenta como lleno y nada se acomoda dentro. Tarda bastante más, por eso
+       nace apagado, igual que allá. */
+    SN.config({ spacing: mat.sep, rotations: mat.rot, useHoles: mat.huecos, exploreConcave: mat.concavas, curveTolerance: TOLERANCIA_MM });
     var svg;
     try { svg = SN.parsesvg(svgParaMotor(A.k)); }
     catch (e) { mensaje('No se pudo procesar el SVG: ' + (e && e.message || e), 'mal'); return; }

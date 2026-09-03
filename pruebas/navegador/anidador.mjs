@@ -213,6 +213,13 @@ const banda = await p.evaluate(() => { const b = document.getElementById('an-ori
 await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(500);
 (await p.evaluate(() => document.getElementById('an-origen').hidden && !window.Anidador.estado().archivo)) ? bien('y al recargar no vuelve a aparecer') : mal('al recargar volvió el trazo de la vez pasada');
 (await p.inputValue('#an-ancho')) === '100' && (await p.inputValue('#an-alto')) === '100' ? bien('la última lámina usada se recordó (100 × 100)') : mal('la lámina no se recordó: ' + await p.inputValue('#an-ancho') + ' × ' + await p.inputValue('#an-alto'));
+/* Los interruptores de lo avanzado también se recuerdan: son de este taller, no de este archivo. */
+await p.click('#an-avanzado summary'); await p.click('#an-concavas');
+(await p.evaluate(() => document.getElementById('an-concavas').getAttribute('aria-checked'))) === 'true' ? bien('«Buscar también dentro de las concavidades» se enciende') : mal('el interruptor de concavidades no encendió');
+await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(500);
+(await p.evaluate(() => document.getElementById('an-concavas').getAttribute('aria-checked'))) === 'true' ? bien('y sigue encendido al recargar') : mal('el interruptor de concavidades no se recordó');
+await p.click('#an-avanzado summary'); await p.click('#an-concavas');
+(await p.evaluate(() => document.getElementById('an-concavas').getAttribute('aria-checked'))) === 'false' ? bien('y se apaga') : mal('el interruptor de concavidades no se apagó');
 
 // ── 8b. De punta a punta: el botón del vectorizador ────────────────────────
 /* Lo de arriba planta la clave a mano. Esto la planta como la planta el cotizador: con su

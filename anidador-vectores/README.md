@@ -91,5 +91,13 @@ así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se 
 - La separación es la distancia mínima entre piezas **y** con la orilla de la lámina.
 - «Meter piezas chicas en los huecos grandes» sirve cuando hay una «O» o una «D» lo bastante
   grande para recibir otra pieza dentro. Tarda más en calcular.
+- «Buscar también dentro de las concavidades» (el *Explore concave areas* del demo original)
+  mete piezas en el hueco abierto de una «C», una «U» o una «G», que de entrada se trata
+  como lleno. Tarda bastante más; nace apagado, igual que en svgnest.com.
+- Lo vendorizado es byte por byte el `master` de SVGnest, salvo la ruta de `eval.js`; los
+  parámetros que el demo original expone y aquí no se piden —tolerancia de curva, tamaño de
+  población y mutación del genético— van con sus valores por omisión (0.3, 10 y 10 %),
+  porque en mm la tolerancia de 0.3 ya es fina para rotulación y los otros dos no cambian
+  el resultado en trabajos de este tamaño.
 - El motor solo lee contornos: `path`, `polygon`, `polyline`, `rect`, `circle`, `ellipse`,
   `line`. Un texto sin convertir se queda fuera y la app lo avisa al cargar.
