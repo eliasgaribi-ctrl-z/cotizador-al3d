@@ -57,18 +57,44 @@ import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, cerrarCapa, ajust
    botones en una pantalla de 360 px cada uno mide 60 y el nombre no cabe debajo del icono.
    Se llega a Material desde el Tablero, que es de donde se sale a comprar. */
 const RUTAS = [
-  { ruta: 'hoy',       mod: 'tablero',     seccion: 'mod-tablero',     icono: 'i-taller',    nombre: 'Tablero',     sub: 'qué hay en el taller y qué se atrasa', movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
+  /* `vistaBase` es la lente que este módulo enseña cuando se le pide DE FRENTE. La necesita
+     porque el Tablero recuerda la última —quien estaba en la mesa de corte y fue a ver un
+     proyecto, al volver sigue en la mesa, y eso está bien—, pero con las lentes en la barra
+     tocar «Tablero» pasa a ser una petición explícita de la carga del taller y no «llévame a
+     lo último que viera». Sin esto, volver por «Tablero» aterrizaba en el vectorizador. */
+  { ruta: 'hoy',       mod: 'tablero',     seccion: 'mod-tablero',     icono: 'i-taller',    nombre: 'Tablero',     sub: 'qué hay en el taller y qué se atrasa', movil: true, vistaBase: 'tablero', roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'agenda',    mod: 'fabricacion', seccion: 'mod-fabricacion', icono: 'i-agenda',    nombre: 'Calendario',  sub: 'taller e instalaciones',               movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'proyectos', mod: 'proyectos',   seccion: 'mod-proyectos',   icono: 'i-proyectos', nombre: 'Proyectos',   sub: 'por etapa de obra',                    movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    sub: 'lista de compra y almacén',                         roles: ['direccion', 'fabricacion'] },
   { ruta: 'cotizador', mod: 'cotizador',   seccion: 'mod-cotizador',   icono: 'i-venta',     nombre: 'Cotizador',   sub: 'capturar y autorizar una cotización',  movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'mapa',      mod: 'mapa',        seccion: 'mod-mapa',        icono: 'i-mapa',      nombre: 'Mapa',        sub: 'obras por instalar e instaladas',      movil: true, roles: ['direccion', 'fabricacion'] },
+  /* ----- Las dos lentes del taller, en la barra -----
+     El Vectorizador y la Mesa de corte NO pueden ser rutas —los Web Workers del anidador
+     resuelven `js/lib/eval.js` contra la URL del DOCUMENTO, así que van empotrados; ver §5 de
+     js/mod/tablero.js— pero sí pueden ser ENTRADAS de la barra, que es otra cosa: lo que la
+     barra necesita de una entrada es un icono, un nombre y a dónde llevar.
+
+     `vista` es lo que las distingue. Al tocarlas se navega a `hoy` DEJÁNDOLE un pase, que es el
+     mismo camino que ya usaban el cotizador y el calendario para llegar a la mesa de corte.
+     Están aquí y no en una lista aparte porque entonces habría dos sitios donde agregar un
+     destino, y la promesa de RUTAS es que un módulo nuevo aparece en la barra con un renglón.
+
+     Sin `movil`: en el teléfono no hay SVG que acomodar ni láser que alimentar —lo dice el
+     propio aviso de esas dos pantallas— y la barra de abajo ya va en sus cinco. Y sin `pagos`
+     en los roles, por lo mismo que Material: quien cobra no corta acrílico. */
+  { ruta: 'hoy', vista: 'vector',   mod: 'tablero', seccion: 'mod-tablero', icono: 'i-vector', nombre: 'Vectorizador', sub: 'el logotipo, en trazo de corte',        roles: ['direccion', 'fabricacion'] },
+  { ruta: 'hoy', vista: 'anidador', mod: 'tablero', seccion: 'mod-tablero', icono: 'i-anidar', nombre: 'Mesa de corte', sub: 'las piezas acomodadas en la lámina',   roles: ['direccion', 'fabricacion'] },
   { ruta: 'atender',   mod: 'inicio',      seccion: 'mod-atender',     icono: 'i-aviso',     nombre: 'Qué atender', sub: 'avisos ordenados por lo que truena antes',                  roles: ['direccion', 'fabricacion', 'pagos'], oculto: true, padre: 'hoy' },
   { ruta: 'ajustes',   mod: 'ajustes',     seccion: 'mod-ajustes',     icono: 'i-ajustes',   nombre: 'Ajustes',     sub: 'este dispositivo, respaldo y relevo',  roles: ['direccion', 'fabricacion', 'pagos'], oculto: true },
 ];
 
 const rutasDeRol = () => RUTAS.filter(r => r.roles.includes(Prefs.rol()));
-const rutaPorNombre = n => RUTAS.find(r => r.ruta === n) || null;
+/* Sin `vista`: hay tres entradas con `ruta:'hoy'` y el router monta una RUTA, no una lente. La
+   que manda es la entrada de módulo, que es la única de las tres sin `vista`. */
+const rutaPorNombre = n => RUTAS.find(r => r.ruta === n && !r.vista) || null;
+/* La identidad de una ENTRADA de la barra, que no es la de una ruta: tres comparten `hoy`, y
+   comparando por ruta las tres se encendían juntas. */
+const claveDe = r => r.vista ? r.ruta + ':' + r.vista : r.ruta;
 
 /* El contexto que reciben los módulos. Es explícito a propósito: un módulo que necesite
    algo que no esté aquí no lo saca de una variable global, se añade a esta lista y se ve
@@ -84,6 +110,10 @@ const ctx = {
   pasar: (ruta, dato) => { _pase = { ruta, dato }; ir(ruta); },
   recibir: () => { const p = (_pase && _pase.ruta === _actual) ? _pase.dato : null; _pase = null; return p; },
   sinRemonte: v => { _sinRemonte = !!v; },
+  /* Qué sub-vista está enseñando, para que la barra encienda la entrada correcta. Lo llama el
+     módulo que tenga más de una —hoy solo el Tablero— en cada pintado; los demás nunca, y por
+     eso el router lo deja en null al montar y no hace falta que nadie lo apague. */
+  lente: v => { const n = v || null; if (n === _lente) return; _lente = n; pintarNav(); },
   /* Las acciones contextuales del encabezado: «COT-0152 · Clientes · Historial» en el
      cotizador, las teclas del calendario. Se pasa marcado ya escapado y se recibe el nodo
      para colgarle los oyentes. El router las vacía en cada montaje, así que un módulo que no
@@ -100,6 +130,10 @@ const ctx = {
 
 let _actual = null;      // nombre de ruta
 let _vivo = null;        // el módulo montado, para desmontarlo
+/* Qué sub-vista está enseñando el módulo montado, cuando tiene varias. Lo REPORTA el módulo
+   con `ctx.lente()`: la barra necesita saberlo para encender la entrada correcta, y el estado
+   de la lente es del módulo, no del router. Se lee y no se escribe desde aquí. */
+let _lente = null;
 
 /* ----- El buzón de un solo uso -----
    Lo que un módulo le deja al siguiente: «abre la ficha de ESTE proyecto», «abre la hoja de
@@ -143,6 +177,29 @@ export function ir(ruta) {
   if (!r) return;
   if (location.hash === '#/' + r.ruta) { montar(r.ruta, { forzar: true }); return; }
   location.hash = '#/' + r.ruta;
+}
+
+/* ----- Ir a una LENTE de un módulo -----
+   Las entradas de la barra que traen `vista` no son rutas: llevan a su módulo con un pase, y
+   el módulo decide qué enseñar.
+
+   NO se copia el `if (location.hash === …) forzar; else escribir el hash` de `ir()`, y por un
+   caso que se ve al primer toque: `montarDeVerdad` NUNCA reescribe location.hash (está
+   documentado arriba), así que recién arrancada la app el hash puede venir VACÍO con el
+   Tablero ya montado. Por esa rama se escribía el hash, el `hashchange` montaba SIN forzar,
+   `montarDeVerdad` salía temprano porque `_actual` ya era la ruta… y el pase se quedaba sin
+   leer, esperando a la siguiente visita. Se veía así: el primer clic en «Mesa de corte» no
+   hacía nada y el segundo sí.
+
+   Así que se ponen las dos cosas por separado: el hash para que la barra de direcciones diga
+   la verdad, y el montaje forzado para que el pase se lea. El `hashchange` que dispara el
+   primero encola un montaje sin forzar que sale temprano, porque el forzado ya corrió. */
+function irConVista(ruta, vista) {
+  const r = rutaPorNombre(ruta);
+  if (!r) return;
+  _pase = { ruta: r.ruta, dato: { vista } };
+  if (location.hash !== '#/' + r.ruta) location.hash = '#/' + r.ruta;
+  montar(r.ruta, { forzar: true });
 }
 
 /* ----- Los montajes van en fila -----
@@ -213,6 +270,9 @@ async function montarDeVerdad(ruta, opts = {}) {
 
   for (const x of RUTAS) { const s = $(x.seccion); if (s) s.hidden = x.ruta !== ruta; }
   _actual = ruta;
+  /* La lente es del módulo que se va: sin esto, salir del Tablero con la mesa de corte puesta
+     dejaba «Mesa de corte» encendida encima del Mapa. El que llega la reporta si la tiene. */
+  _lente = null;
   pintarNav();
 
   const cont = $(r.seccion);
@@ -279,18 +339,34 @@ function pintarNav() {
      la tira ENTERA apagada: la pantalla no dice dónde estás y la única salida visible es
      adivinar. Es el defecto que Ajustes ya tenía y que aquí se arregla para las dos. */
   const madre = (rutaPorNombre(_actual) || {}).padre || null;
-  const activa = r => r.ruta === _actual || r.ruta === madre;
   const visibles = rutasDeRol().filter(r => !r.oculto);
+  /* Cuál de las entradas está encendida, con las lentes en la mezcla. Tres reglas y en este
+     orden, porque se pisan: una entrada de lente se enciende cuando su módulo está montado Y
+     está enseñando su lente; y la entrada del módulo se apaga mientras otra de sus lentes
+     manda —si no, «Tablero» y «Mesa de corte» salían encendidas las dos y la barra decía que
+     estás en dos sitios—. */
+  const enLente = _lente && visibles.some(r => r.vista === _lente && r.ruta === _actual);
+  const activa = r => r.vista
+    ? (r.ruta === _actual && r.vista === _lente)
+    : ((r.ruta === _actual || r.ruta === madre) && !(r.ruta === _actual && enLente));
 
   const nav = $('pf-nav');
   if (nav) nav.innerHTML = visibles.map((r, i) =>
-    '<button type="button" class="pf-tab' + (activa(r) ? ' on' : '') + '"' +
-    ' data-ruta="' + r.ruta + '" aria-current="' + (activa(r) ? 'page' : 'false') + '"' +
+    '<button type="button" class="pf-tab' + (activa(r) ? ' on' : '') +
+    (r.vista ? ' pf-tab-lente' : '') + '"' +
+    /* `data-lente` la llevan las tres entradas de `hoy`, la del módulo incluida: tocar
+       «Tablero» es pedir su lente base, no «lo último que viera». */
+    ' data-ruta="' + r.ruta + '"' +
+    ((r.vista || r.vistaBase) ? ' data-lente="' + (r.vista || r.vistaBase) + '"' : '') +
+    ' aria-current="' + (activa(r) ? 'page' : 'false') + '"' +
     /* El atajo va en el title, que es lo que lee el ratón en la computadora. En el teléfono
        no hay teclado y el title no molesta. */
     ' title="' + esc(r.nombre) + ' · tecla ' + (i + 1) + '">' +
     ico(r.icono) + '<span class="tx">' + esc(r.nombre) + '</span>' +
-    '<span class="cta" data-cta="' + r.ruta + '" hidden></span></button>'
+    /* La cuenta de atención es del MÓDULO: con tres entradas de `hoy`, un `data-cta="hoy"` en
+       las tres pintaba el mismo número tres veces en la barra. */
+    (r.vista ? '' : '<span class="cta" data-cta="' + r.ruta + '" hidden></span>') +
+    '</button>'
   ).join('');
 
   /* La barra de abajo. Es la MISMA lista y el mismo `data-ruta`, así que un módulo nuevo
@@ -300,7 +376,7 @@ function pintarNav() {
      barra lateral; lo que hace que solo se anuncie una es que la otra está en `display:none`
      a su ancho, y eso el árbol de accesibilidad ya lo respeta. */
   const ab = $('pf-abajo');
-  if (ab) ab.innerHTML = visibles.filter(r => r.movil).map(r =>
+  if (ab) ab.innerHTML = visibles.filter(r => r.movil && !r.vista).map(r =>
     '<button type="button" class="' + (activa(r) ? 'on' : '') + '"' +
     ' data-ruta="' + r.ruta + '" aria-current="' + (activa(r) ? 'page' : 'false') + '">' +
     '<span class="pil">' + ico(r.icono) +
@@ -442,7 +518,13 @@ async function arrancar() {
   for (const id of ['pf-nav', 'pf-abajo']) {
     const nav = $(id);
     if (nav) nav.addEventListener('click', ev => {
-      const b = ev.target.closest('[data-ruta]'); if (b) ir(b.dataset.ruta);
+      const b = ev.target.closest('[data-ruta]');
+      if (!b) return;
+      /* Una entrada de lente navega a su módulo DEJÁNDOLE un pase, que es el mismo camino que
+         ya usaban el cotizador y el calendario para abrir la mesa de corte. `ir()` sin más
+         reutilizaría el módulo ya montado y se quedaría en la lente anterior. */
+      if (b.dataset.lente) irConVista(b.dataset.ruta, b.dataset.lente);
+      else ir(b.dataset.ruta);
     });
   }
   const aj = $('pf-ajustes-btn');
@@ -463,7 +545,10 @@ async function arrancar() {
     const r = visibles[Number(ev.key) - 1];
     if (!r) return;
     ev.preventDefault();
-    ir(r.ruta);
+    /* El número lleva a la entrada N de la barra, y con las lentes eso incluye las suyas: el
+       title de cada pestaña dice qué tecla es, así que la cuenta y la barra no se pueden
+       separar. */
+    if (r.vista) irConVista(r.ruta, r.vista); else ir(r.ruta);
   });
 
   await DB.abrir();

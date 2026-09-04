@@ -245,6 +245,18 @@ porque es del taller y no de la venta, y **dentro de la plataforma vive en el Ta
 segmento de arriba: *Carga del taller · Vectorizador · **Mesa de corte***. Tres lentes sobre el
 mismo momento del trabajo, en el orden en que se hace.
 
+**Y las dos últimas tienen su entrada en la barra lateral**, agrupadas al final después de los
+seis módulos. No son rutas y no pueden serlo —los Web Workers del anidador resuelven
+`js/lib/eval.js` contra la URL del documento, así que van empotradas—, pero sí pueden ser
+entradas de la barra: lo que la barra necesita de una entrada es un icono, un nombre y a dónde
+llevar, y al tocarlas se navega al Tablero **dejándole un pase** con la lente pedida. Van al
+final y no junto a su Tablero por una razón de dedos: los números del teclado siguen el orden de
+la barra, y meterlas en medio movería Calendario del 2 al 4 para quien ya se los aprendió. Lo que
+las separa de los seis módulos es el **espacio** y nada más: bajarles el peso sería devolverles
+el problema que se vino a arreglar, que era que no se encontraban. En el teléfono no bajan —ahí
+no hay SVG que acomodar ni láser que alimentar, y la barra de abajo ya va en sus cinco— y el rol
+de *Pagos* no las ve, por lo mismo que Material: quien cobra no corta acrílico.
+
 **Vectorizar y anidar son una sola faena partida en dos** —el logotipo del cliente se convierte
 en trazo y ese trazo se acomoda en la lámina— y hasta septiembre de 2026 estaban en dos sitios
 distintos: el anidador en el Tablero y el vectorizador enterrado en el paso 2 del cotizador, así

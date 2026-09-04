@@ -286,6 +286,17 @@ body.pf::before{display:none}
 .pf-tab .cta{flex:0 0 auto;min-width:20px;height:18px;padding:0 6px;border-radius:9px;
   background:var(--av);color:var(--nav);
   font-weight:700;font-size:var(--t1);line-height:18px;text-align:center}
+/* ----- Las dos lentes del taller, agrupadas -----
+   El Vectorizador y la Mesa de corte son herramientas y no secciones: viven dentro del
+   Tablero, se llega a ellas desde su segmento y ahora también desde aquí. Van al FINAL y no
+   junto a su Tablero por una razón de dedos: los números del teclado siguen el orden de la
+   barra, y meterlas en medio movería Calendario del 2 al 4 para quien ya se los aprendió.
+
+   Lo que las separa de los seis módulos es el ESPACIO y nada más —ni un filete ni una tinta
+   más apagada—: es la misma decisión que quitó los recuadros de los grupos de opciones del
+   cotizador, y bajarles el peso sería devolverles el problema que se vino a arreglar, que era
+   que no se encontraban. El espacio lo pone la primera, que es la que sigue a un módulo. */
+.pf-tab:not(.pf-tab-lente)+.pf-tab-lente{margin-top:var(--e4)}
 /* El anillo de foco por dentro: la barra lateral no tiene aire alrededor de un ítem, y un
    anillo de 2 px con 2 de separación se recortaría contra el canto. */
 .pf-tab:focus-visible,.pf-lat-item:focus-visible{outline:2px solid #fff;outline-offset:-3px}

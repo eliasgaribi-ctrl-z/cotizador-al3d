@@ -252,6 +252,11 @@ function pintar() {
 
   _acciones = [];
 
+  /* Se le dice a la barra qué lente está puesta: sus entradas de Vectorizador y Mesa de corte
+     se encienden con esto, y sin ello «Tablero» se quedaba encendido en las tres. Va antes de
+     los dos returns porque los tres caminos tienen que reportar. */
+  if (_ctx && _ctx.lente) _ctx.lente(_vista === 'tablero' ? null : _vista);
+
   if (_vista === 'anidador') { pintarAnidador(); return; }
   if (_vista === 'vector') { pintarVector(); return; }
 

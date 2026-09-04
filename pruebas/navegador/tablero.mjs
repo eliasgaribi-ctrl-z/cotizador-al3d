@@ -377,6 +377,79 @@ else {
     : mal('tras el aviso quedó ' + JSON.stringify(tras));
 }
 
+// ── 6b-ter. Las dos lentes, en la barra lateral ────────────────────────────
+/* Se llegaba a ellas solo por el segmento del Tablero, y quien mira la barra —seis módulos
+   por su nombre— concluía que no existen: es el mismo problema de descubrimiento por el que
+   el vectorizador estaba escondido en el paso 2 del cotizador.
+   NO son rutas y no pueden serlo, así que su entrada navega a `hoy` dejándole un pase. Lo que
+   se prueba es lo que se rompió al armarlo. */
+console.log('\nLAS DOS LENTES, EN LA BARRA LATERAL');
+await irA('#/hoy');
+const barra = await p.$$eval('#pf-nav .pf-tab', ns => ns.map(n => ({
+  nombre: n.querySelector('.tx').textContent.trim(),
+  lente: n.dataset.lente || null,
+  on: n.classList.contains('on'),
+})));
+barra.length === 8 && barra[6].nombre === 'Vectorizador' && barra[7].nombre === 'Mesa de corte'
+  ? bien('ocho entradas: los seis módulos y las dos lentes al final')
+  : mal('la barra quedó ' + JSON.stringify(barra.map(x => x.nombre)));
+
+/* EL FALLO DEL PRIMER TOQUE. `montarDeVerdad` nunca reescribe location.hash, así que recién
+   arrancada la app el hash puede venir vacío con el Tablero ya montado; por la rama que
+   escribe el hash, el `hashchange` monta SIN forzar, se sale temprano porque `_actual` ya es
+   la ruta, y el pase se queda sin leer. Se veía así: el primer clic no hacía nada y el
+   segundo sí. Por eso esta prueba toca UNA vez, sobre una app recién cargada. */
+const virgen = await ctx.newPage();
+await virgen.goto(B + '/', { waitUntil: 'load' });
+await virgen.waitForTimeout(1400);
+await virgen.click('#pf-nav [data-lente="anidador"]');
+await virgen.waitForTimeout(3000);
+const alPrimerToque = await virgen.evaluate(() => ({
+  marco: !!document.getElementById('pf-anid-marco'),
+  on: (document.querySelector('#pf-nav .pf-tab.on .tx') || {}).textContent?.trim() || null,
+}));
+alPrimerToque.marco && alPrimerToque.on === 'Mesa de corte'
+  ? bien('el PRIMER toque abre la mesa de corte, con la app recién cargada')
+  : mal('al primer toque quedó ' + JSON.stringify(alPrimerToque));
+
+/* Y una sola entrada encendida a la vez: comparando por ruta, las tres de `hoy` se prendían
+   juntas y la barra decía que estás en tres sitios. */
+await virgen.click('#pf-nav [data-lente="vector"]');
+await virgen.waitForTimeout(3000);
+const unaSola = await virgen.evaluate(() => ({
+  encendidas: [...document.querySelectorAll('#pf-nav .pf-tab.on .tx')].map(n => n.textContent.trim()),
+  cuentas: document.querySelectorAll('#pf-nav [data-cta="hoy"]').length,
+}));
+unaSola.encendidas.length === 1 && unaSola.encendidas[0] === 'Vectorizador'
+  ? bien('y solo una entrada encendida: «Vectorizador», no también «Tablero»')
+  : mal('encendidas: ' + JSON.stringify(unaSola.encendidas));
+unaSola.cuentas === 1
+  ? bien('y la cuenta de atención de `hoy` vive en una sola entrada, no en las tres')
+  : mal('hay ' + unaSola.cuentas + ' nodos con data-cta="hoy"');
+
+/* Salir a otra ruta apaga la lente: si no, «Vectorizador» se quedaba encendido encima del
+   Mapa. Y volver por «Tablero» es pedir la carga del taller, no «lo último que viera» —el
+   Tablero recuerda su lente a propósito, y esa memoria es para el segmento, no para la
+   barra—. */
+await virgen.click('#pf-nav [data-ruta="mapa"]');
+await virgen.waitForTimeout(1600);
+const enMapa = await virgen.evaluate(() =>
+  [...document.querySelectorAll('#pf-nav .pf-tab.on .tx')].map(n => n.textContent.trim()));
+enMapa.length === 1 && enMapa[0] === 'Mapa'
+  ? bien('en el Mapa no queda ninguna lente encendida')
+  : mal('en el Mapa está encendido ' + JSON.stringify(enMapa));
+
+await virgen.click('#pf-nav [data-ruta="hoy"]');
+await virgen.waitForTimeout(2200);
+const volviendo = await virgen.evaluate(() => ({
+  on: [...document.querySelectorAll('#pf-nav .pf-tab.on .tx')].map(n => n.textContent.trim()),
+  marcos: !!document.getElementById('pf-vect-marco') || !!document.getElementById('pf-anid-marco'),
+}));
+volviendo.on.length === 1 && volviendo.on[0] === 'Tablero' && !volviendo.marcos
+  ? bien('y tocar «Tablero» devuelve la carga del taller, no la última lente')
+  : mal('al volver quedó ' + JSON.stringify(volviendo));
+await virgen.close();
+
 /* La × del vectorizador no puede limitarse a esconder su modal: debajo hay un cotizador
    entero, y enseñarlo dentro de Fabricación sería una app dentro de otra. */
 await p.click('[data-vista="vector"]');
@@ -610,7 +683,18 @@ const enTel = await tel.evaluate(() => {
   return {
     monta: !!s && !s.hidden,
     scrollH: doc.scrollWidth > doc.clientWidth,
-    tabs: document.querySelectorAll('.pf-tab').length,
+    /* La barra de ABAJO y no `.pf-tab`, que es la lateral. En 375 px la lateral está en
+       `display:none` y sus nodos siguen en el DOM, así que contarlos medía una barra que
+       nadie ve — y daba un tope falso el día que la lateral dejó de ser la misma lista: hoy
+       lleva dos entradas más, el Vectorizador y la Mesa de corte, que a propósito NO bajan
+       al teléfono porque ahí no hay SVG que acomodar ni láser que alimentar. */
+    tabs: document.querySelectorAll('#pf-abajo button').length,
+    /* Por NOMBRE y no por `data-lente`: la barra de abajo nunca pinta ese atributo, así que
+       contarlo pasaría aunque el filtro estuviera mal. Lo que se comprueba es que las dos
+       lentes no aparezcan ahí. */
+    lentesAbajo: [...document.querySelectorAll('#pf-abajo button')]
+      .map(b => b.textContent.trim())
+      .filter(t => /Vectorizador|Mesa de corte/.test(t)).length,
     /* En 375 px la columna del taller va primero: es la pregunta de la mañana. */
     primero: (() => {
       const c = s && s.querySelector('.tb-cuerpo');
@@ -623,8 +707,11 @@ const enTel = await tel.evaluate(() => {
 enTel.monta ? bien('el tablero monta en 375 px') : mal('el tablero no monta en el teléfono');
 enTel.scrollH === false ? bien('y no hay desplazamiento horizontal')
                         : mal('en 375 px la página se desplaza a lo ancho');
-enTel.tabs <= 6 ? bien('la barra tiene ' + enTel.tabs + ' pestañas (tope de 6 en el teléfono)')
-                : mal('la barra tiene ' + enTel.tabs + ' pestañas: son demasiadas para 375 px');
+enTel.tabs <= 5 ? bien('la barra de abajo tiene ' + enTel.tabs + ' botones (tope de 5 en el teléfono)')
+                : mal('la barra de abajo tiene ' + enTel.tabs + ' botones: son demasiados para 375 px');
+enTel.lentesAbajo === 0
+  ? bien('y las dos lentes del taller no bajan al teléfono: son de computadora')
+  : mal('hay ' + enTel.lentesAbajo + ' lente(s) en la barra de abajo');
 await tel.close();
 
 // ── 8. Sin errores de página ───────────────────────────────────────────────
