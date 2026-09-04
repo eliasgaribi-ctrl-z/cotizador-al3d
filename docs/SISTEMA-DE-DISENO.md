@@ -1,8 +1,14 @@
-# Sistema de diseño — Cotizador AL3D
+# Sistema de diseño — AL3D
 ### Especificación exacta y copiable para módulos nuevos
-Fuente única: **`css/sistema.css`** (desde sep/2026; antes vivía en el `<style>` de `cotizador.html` y la hoja era una copia generada). Las tres superficies —`cotizador.html`, `index.html` y `anidador-vectores/index.html`— la enlazan, y `js/tema.js` pone `data-tema` en `<html>` antes de que pinte. El tema oscuro es la capa (7) al final de la hoja: otro juego de tokens bajo `html[data-tema="oscuro"]`, sin reglas repetidas. Los números de línea de este documento envejecen en cuanto alguien toca el archivo —los anteriores llevaban 3 200 líneas de retraso—, así que **busca por el selector, no por la línea**: cuando este documento y el CSS no coincidan, manda el CSS. `css/sistema.css` es una copia generada de ese bloque por `herramientas/extraer-estilo.sh`, y `pruebas/hojas-de-estilo.mjs` falla si se separan. Vanilla JS, sin build, un solo archivo. No hay clases utilitarias: todo es clase semántica o `style=` en línea para lo irrepetible.
+Fuente única: **`css/sistema.css`**. Las tres superficies —`cotizador.html`, `index.html` y `anidador-vectores/index.html`— la enlazan, y `js/tema.js` pone `data-tema` en `<html>` antes de que pinte. El tema oscuro es la capa (7) al final de la hoja: otro juego de tokens bajo `html[data-tema="oscuro"]`, sin reglas repetidas. Los números de línea de este documento envejecen en cuanto alguien toca el archivo, así que **busca por el selector, no por la línea**: cuando este documento y el CSS no coincidan, manda el CSS. Vanilla JS, sin build. No hay clases utilitarias: todo es clase semántica o `style=` en línea para lo irrepetible.
 
-**Ley de la hoja, respétala o tu CSS no aplica:** entre dos reglas con la misma especificidad gana **la última**; una media query **no** pesa más por ser más estrecha. La hoja está ordenada en capas: (1) estructura, (2) bloque de teléfono `≤560px`, (3) `@media(hover:none),(pointer:coarse)`, (4) **capa de barro** (claymorphism, líneas 1666–2033), (5) bloque de cierre "lo que tiene que ganar por orden" (2036–2090), (6) `@media print`. Si escribes una regla base nueva y la pones al final, **pisas la capa de barro**. Pon lo nuevo en la capa que le toca.
+> **Septiembre de 2026 · el rediseño responsive.** La app era de BARRO —radios de 38 px, cuatro capas de sombra por pieza, degradados de marca, el lienzo teñido con manchas radiales y un matiz de color por partida—. Ahora es **híbrida**: la estructura y la sobriedad de la guía THIQA con los azules del logotipo AL3D. Superficie plana, un borde de 1 px, esquinas casi rectas, **una** sombra y solo donde algo flota de verdad, y **un botón de color por pantalla**. Lo que sigue describe esa dirección; lo que cuenta el barro se conserva solo donde explica por qué algo es como es.
+>
+> El cambio se hizo **en la capa de tokens**, no regla por regla: los nombres viejos (`--card`, `--line`, `--muted`, `--r`, `--sh`) cuelgan hoy de los nuevos (`--sup`, `--linea`, `--tinta2`, `--rr3`, `--sombra`), así que las mil reglas que ya los pedían pintan la dirección nueva sin haberse tocado. Si vas a cambiar el aspecto de algo transversal, **cámbialo ahí**.
+
+**Ley de la hoja, respétala o tu CSS no aplica:** entre dos reglas con la misma especificidad gana **la última**; una media query **no** pesa más por ser más estrecha. La hoja está ordenada en capas: (1) estructura, (2) bloque de teléfono `≤560px`, (3) `@media(hover:none),(pointer:coarse)`, (4) **capa de estructura y movimiento** (la que sustituyó a la capa de estructura; empieza en el banner `CAPA DE ESTRUCTURA Y MOVIMIENTO`), (5) bloque de cierre «lo que tiene que ganar por orden», (6) `@media print`, (7) tema oscuro. Si escribes una regla base nueva y la pones al final, **pisas la capa (4)**. Pon lo nuevo en la capa que le toca.
+
+**Y una que costó tres veces:** `[hidden]{display:none!important}` vive al principio de la hoja porque la regla del navegador —`[hidden]{display:none}`— la pisa **cualquier** clase de autor que ponga `display`. Sin ella, `el.hidden = true` sobre algo con `display:flex` no esconde nada.
 
 ---
 
@@ -10,113 +16,110 @@ Fuente única: **`css/sistema.css`** (desde sep/2026; antes vivía en el `<style
 
 ```css
 :root{
-  color-scheme:only light;
+  color-scheme:light;
 
-  /* ----- Neutros ----- fríos, con lavanda; salen del azul del logo desaturado */
-  --n0:#fdfdff; --n1:#f2f3fe; --n2:#e7e9fb; --n3:#d8dbf6; --n4:#b6bbe6;
-  --n5:#8b90c0; --n6:#61668f; --n7:#3d4166; --n8:#232744; --n9:#14162b;
+  /* ----- Los tokens del traspaso ----- la fuente; la rampa sale de ellos */
+  --fondo:#f3f4fb;                    /* el lienzo, plano */
+  --sup2:#f7f8fd;                     /* superficie hundida: un hueco dentro de una tarjeta */
+  --linea:#dcdff2; --linea2:#eceef8;  /* el borde de una pieza y el renglón de dentro */
+  --tinta:#1a1d33; --tinta2:#5c6184;  /* la tinta y la segunda tinta */
+  --nav:#171a33; --nav2:#232744;      /* la barra lateral y su ítem encendido */
+  --tinta3:#666d9b;                   /* la tercera tinta; ver la nota de contraste de abajo */
+
+  /* ----- Neutros ----- los mismos números: --n1 es --fondo, --n3 es --linea, --n8 es --tinta */
+  --n0:#fbfcff; --n1:#f3f4fb; --n2:#eceef8; --n3:#dcdff2; --n4:#b9bede;
+  --n5:#8b90b8; --n6:#5c6184; --n7:#3d4166; --n8:#1a1d33; --n9:#171a33;
 
   /* ----- El acento, sacado del logotipo ----- */
   --a:#4060f8; --a-fuerte:#3018f8; --a-claro:#6090f8; --a-suave:#e9edff; --a-borde:#b9c5fe;
-  --a2:#7b3ff8;            /* violeta: el mismo azul girado, para el segundo acento */
-  --a3:#18b6d8;            /* aguamarina: para lo que informa sin ser acción */
-  --grd-deco:linear-gradient(160deg,var(--a-claro),var(--a) 55%,var(--a-fuerte));
+  --a-fill:#4060f8;   /* RELLENO de lo elegido y del botón de color: lleva blanco encima */
+  --a-tx:#3018f8;     /* el azul cuando es TEXTO o filete */
+  --a2:#7b3ff8;       /* violeta: el mismo azul girado, para el segundo acento */
+  --a3:#18b6d8;       /* aguamarina: para lo que informa sin ser acción */
+  --grd-deco:var(--a-fill);           /* era un degradado; hoy es un color */
 
   /* ----- Estados ----- vivos, no apagados; medidos contra su relleno. */
   --ok:#0a7d4a; --ok-bg:#e2f8ec; --ok-borde:#a9e8c6;
   --av:#8a5100; --av-bg:#fff2dd; --av-borde:#ffd79c;
   --mal:#c62828; --mal-bg:#ffeceb; --mal-borde:#ffc4c1;
 
-  /* ----- Tipografía ----- siete pasos. */
-  --t1:11px; --t2:12.5px; --t3:14px; --t4:16px; --t5:20px; --t6:26px; --t7:34px;
+  /* ----- Tipografía ----- siete pasos y dos familias. */
+  --t1:11px; --t2:12.5px; --t3:14px; --t4:15px; --t5:20px; --t6:24px; --t7:28px;
+  --f-texto:'Figtree',…;   /* todo el texto */
+  --f-cifra:'Outfit',…;    /* títulos, cifras, folios, números de paso */
 
   /* ----- Espacio ----- múltiplos de 4. */
   --e1:4px; --e2:8px; --e3:12px; --e4:16px; --e5:24px; --e6:32px; --e7:48px;
 
-  /* ----- Radios ----- Grandes. */
-  --rr1:16px; --rr2:22px; --rr3:30px; --rr4:38px;
+  /* ----- Radios ----- casi rectos: ficha, control, tarjeta. */
+  --rr1:3px; --rr2:4px; --rr3:6px; --rr4:6px;
 
-  /* ===================== Barro ===================== */
-  --clay:
-    inset 0 3px 6px rgba(255,255,255,.95),
-    inset 0 -5px 10px rgba(64,96,248,.10),
-    0 3px 6px rgba(35,39,68,.05),
-    0 14px 30px -6px rgba(64,96,248,.16);
-  --clay-alto:
-    inset 0 3px 7px rgba(255,255,255,.95),
-    inset 0 -6px 12px rgba(64,96,248,.13),
-    0 5px 10px rgba(35,39,68,.06),
-    0 24px 44px -8px rgba(64,96,248,.24);
-  /* Barro de color: la luz interior es más fuerte porque compite con el relleno. */
-  --clay-a:
-    inset 0 3px 7px rgba(255,255,255,.42),
-    inset 0 -6px 12px rgba(20,22,43,.26),
-    0 4px 8px rgba(48,24,248,.18),
-    0 16px 30px -6px rgba(48,24,248,.42);
-  /* Hundido: lo que se aprieta o lo que recibe texto. */
-  --clay-in:
-    inset 0 3px 7px rgba(64,96,248,.13),
-    inset 0 -2px 4px rgba(255,255,255,.9);
+  /* ===================== La sombra, una sola =====================
+     Significa «esta pieza flota por encima de las demás». La llevan las tarjetas del
+     tablero de proyectos y los controles sueltos encima del mapa. Nada más. */
+  --sombra:0 1px 2px rgba(35,39,68,.06),0 8px 24px -12px rgba(48,24,248,.18);
+  --sombra-alta:0 2px 6px rgba(35,39,68,.08),0 24px 48px -16px rgba(48,24,248,.28);
+  /* Los cuatro nombres del barro siguen existiendo porque los piden ~200 reglas: */
+  --clay:var(--sombra); --clay-alto:var(--sombra-alta); --clay-a:var(--sombra);
+  --clay-in:none; --clay-in-pc:none;   /* lo hundido hoy se dice con --sup2 y un borde */
 
-  /* ----- Movimiento ----- */
-  --mv:.42s cubic-bezier(.34,1.32,.5,1);      /* responde al dedo, rebote corto */
-  --mv-r:.2s cubic-bezier(.34,1.56,.64,1);    /* rebote rápido */
-  --mv-s:.16s cubic-bezier(.4,0,.2,1);        /* limpia, lo que solo aparece */
+  /* ----- Movimiento ----- una curva, la del rediseño. */
+  --mv:.32s cubic-bezier(.2,.8,.2,1);     /* lo que aparece */
+  --mv-r:.2s cubic-bezier(.2,.8,.2,1);    /* un cambio de estado */
+  --mv-s:.16s cubic-bezier(.2,.8,.2,1);   /* un color */
+  --mv-t:.5s cubic-bezier(.2,.8,.2,1);    /* la transición de elemento compartido */
 
-  /* ----- Alias de los nombres viejos ----- */
-  --bg:var(--n1); --card:#ffffff; --ink:var(--n8); --fg:var(--n8); --muted:var(--n6); --line:var(--n3);
-  --brand:var(--a); --brand-2:var(--a); --brand-strong:var(--a-fuerte); --navy:var(--n9);
-  --soft:var(--n1); --soft-2:var(--n2);
-  --green:var(--ok); --green-ico:#15a06a; --green-bg:var(--ok-bg);
-  --amber:var(--av); --amber-ico:#c1830f; --amber-bg:var(--av-bg);
-  --red:var(--mal); --red-bg:var(--mal-bg); --gray:var(--n6); --gray-bg:var(--n2);
-  --sc-guide:#0093ad;
+  /* ----- Alias de los nombres viejos ----- ESTO es el rediseño, para las mil reglas de abajo */
+  --bg:var(--fondo); --card:var(--sup); --ink:var(--tinta); --fg:var(--tinta);
+  --muted:var(--tinta2); --line:var(--linea);
+  --brand:var(--a); --brand-strong:var(--a-fuerte); --navy:var(--nav);
+  --soft:var(--sup2); --soft-2:var(--linea2);
   --r:var(--rr4); --r-sm:var(--rr2); --r-xs:var(--rr1); --r-lg:var(--rr4);
-  --sh:var(--clay); --sh-sm:var(--clay);
-  --sh1:var(--clay); --sh2:var(--clay-alto);
-  --brand-grd:linear-gradient(160deg,var(--a) 0%,#3a46ee 45%,var(--a-fuerte) 100%);
+  --sh:var(--sombra); --sh1:var(--sombra); --sh2:var(--sombra-alta);
+  --brand-grd:var(--a-fill);
 }
 ```
 
-**Variables publicadas desde JS** (no viven en `:root`, se escriben en runtime):
-`--top-fijo` (alto de la barra fija, la escribe `ajustarTopbarMovil()`; default `70px` en `scroll-padding-top`), `--sc-acc-h` (alto del pie del escalador, `scAjustarToast()`, default `150px`), `--vt-acc-h` (idem vectorizador, `vtAjustarToast()`, default `150px`).
+**Los seis matices de partida son uno.** `--pc-1..--pc-6` (y sus `-md`, `-bd`, `-sv`, `-rgb`) siguen declarados porque los piden ~200 reglas, y los seis apuntan al mismo azul. El rediseño lo pide con una frase —«el azul solo significa ELEGIDO»— y la partida rediseñada contesta mejor la pregunta que los matices resolvían: el **resumen fijo** del encabezado dice de quién es cada cosa, y lo dice también en papel y para quien no distingue seis tonos.
 
-**No hay tema oscuro.** `color-scheme:only light` es deliberado: Chrome Android invertía tarjetas y grises pero no los degradados de marca ni el lienzo del escalador.
+**La tercera tinta se aparta del traspaso, y es medido.** El documento la da como `#8b90b8` y a la vez pone la regla «nada con texto encima baja de 4,5:1». Las dos cosas no pueden ser verdad: `#8b90b8` sobre blanco da **3,10:1** y en el diseño lleva texto de verdad. Se conserva el papel y se oscurece hasta que pueda serlo: `#666d9b` da 4,97:1 sobre `--sup`, 4,68:1 sobre `--sup2` y 4,53:1 sobre `--fondo`. En oscuro, `#6f76a8` daba 3,80:1 y se sube a `#8b92c0`, que da 5,48:1. El tono de la muestra se queda en `--n5`, que es el escalón que no lleva texto.
+
+**`--a` y `--a-fill` son el mismo número en claro y NO en oscuro.** De noche `--a` (`#6d86ff`) es el azul que se lee como texto sobre marino (5,11:1 sobre `--sup`) y con blanco encima daría 3,0:1; `--a-fill` (`#3b57e6`) es el que aguanta blanco (5,69:1). Uno es tinta y el otro es fondo.
+
+**Variables publicadas desde JS** (no viven en `:root`, se escriben en runtime):
+`--top-fijo` (alto de la barra fija del cotizador, `ajustarTopbarMovil()`), `--mbar-h` (alto de la barra fija, `ajustarAltoBarra()`), `--pf-marco-h` (alto de los marcos empotrados, `medirMarco()`), `--sc-acc-h` y `--vt-acc-h` (pies del escalador y del vectorizador).
+
+**Sí hay tema oscuro**, desde la auditoría de septiembre de 2026: `js/tema.js` escribe `data-tema` en `<html>` antes del primer pintado leyendo `al3d_tema` (`claro`, `oscuro` o el del sistema), y la capa (7) de la hoja cambia los tokens. Ninguna regla de arriba se entera.
 
 ### Cimientos que dependen de las variables
 
 ```css
 *{box-sizing:border-box;margin:0;padding:0}
-::-webkit-scrollbar{width:6px;height:6px}
-::-webkit-scrollbar-thumb{background:rgba(130,138,160,.22);border-radius:4px}
-::-webkit-scrollbar-thumb:hover{background:rgba(58,74,216,.32)}
+[hidden]{display:none!important}          /* obligatoria; ver la ley de la hoja */
 
 body{
-  font-family:'Inter','Segoe UI',Roboto,Helvetica,Arial,'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Apple Symbols','Segoe UI Symbol','Noto Sans Symbols 2',sans-serif;
-  color:var(--ink);line-height:1.5;
+  font-family:var(--f-texto);
+  background:var(--fondo);                /* PLANO: aquí vivían dos manchas radiales */
+  color:var(--ink);line-height:1.45;font-size:var(--t3);
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
-  /* El lienzo (capa de barro, gana por orden) */
-  background:
-    radial-gradient(1200px 680px at 6% -10%, rgba(96,144,248,.34), transparent 58%),
-    radial-gradient(980px 600px at 102% 4%, rgba(123,63,248,.26), transparent 60%),
-    radial-gradient(820px 560px at 44% 110%, rgba(24,182,216,.20), transparent 62%),
-    var(--n2);
-  background-attachment:fixed;
 }
-/* Filete de marca de 3 px pegado arriba, siempre visible */
+h1,h2,h3,.brand .t,.cifra{font-family:var(--f-cifra);letter-spacing:-.1px}
+.cifra,.folio,[data-shared="total"]{font-variant-numeric:tabular-nums}
+
+/* Filete de marca de 3 px pegado arriba. En la PLATAFORMA se apaga
+   (css/plataforma.css: body.pf::before): allí la marca es la barra lateral, y una raya
+   azul cruzando por encima la corta en dos. */
 body::before{content:'';position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;height:3px;
-  background:linear-gradient(90deg,#3a4ad8 0%,#8090f8 50%,#3a4ad8 100%);z-index:200}
+  background:var(--a);z-index:200}
 
-html{-webkit-text-size-adjust:100%;text-size-adjust:100%;
-  scroll-padding-top:calc(var(--top-fijo,70px) + 12px)}
-
-.wrap{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:1fr 385px;gap:24px;align-items:start;
+.wrap{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;
+  gap:16px;align-items:start;
   padding:26px max(24px,env(safe-area-inset-right,0px)) 70px max(24px,env(safe-area-inset-left,0px))}
 .wrap>main,.wrap>aside{min-width:0}   /* obligatorio: sin esto la página se desplaza a lo ancho */
-.wrap.p-cliente{grid-template-columns:minmax(0,660px);justify-content:center}
+.wrap.p-cliente{grid-template-columns:minmax(0,560px);justify-content:center}
 ```
 
-**Pila de z-index (memorízala, está agotada casi entera):** filete `body::before` y `.salto` → **200**; `#toast` → **100**; `.modal-bg` (IA, historial, faltantes, lightbox base, `.rv-modal-bg`) → **60**; `#lightbox` → **80**; `.lightbox-close` → **70**; `.vt-modal-bg` → **56**; `.scaler-modal-bg` → **55**; `.mbar` → **45**; `.topbar` → **30**. Un módulo nuevo con capa propia debe elegir un hueco y documentarlo.
+**Pila de z-index (memorízala, está agotada casi entera):** filete `body::before` y `.salto` → **200**; `#toast` → **100**; `#lightbox` → **80**; `.lightbox-close` → **70**; `.modal-bg` → **60**; `.vt-modal-bg` → **56**; `.scaler-modal-bg` → **55**; `.pf-lat` (barra lateral) → **50**; `.mbar` → **45**; `.pf-abajo` (barra de módulos del teléfono) → **40**; `.topbar` y `.pf-cab` → **30**; el resumen fijo de una partida (`.pcab`) y el encabezado de una columna → **5**. Un módulo nuevo con capa propia debe elegir un hueco y documentarlo.
 
 ---
 
@@ -131,16 +134,16 @@ Toda sección de contenido va en una tarjeta. Título en `<h2>`/`<h3>` dentro de
 .card-h{padding:var(--e5) var(--e5) 0;display:flex;align-items:baseline;justify-content:space-between;gap:var(--e3)}
 .card-h :is(h2,h3){font-size:var(--t4);font-weight:650;letter-spacing:-.2px;color:var(--n8);display:flex;align-items:center;gap:var(--e2)}
 .card-b{padding:var(--e4) var(--e5) var(--e5)}
-/* Capa de barro (gana): */
+/* Capa de estructura (gana): */
 .card,.sum{
-  background:linear-gradient(168deg,#fff 0%,var(--n0) 58%,#f7f8ff 100%);
-  border:1px solid rgba(255,255,255,.9);
-  border-radius:var(--rr4);
-  box-shadow:var(--clay);
-  transition:box-shadow var(--mv),transform var(--mv);
+  background:var(--sup);
+  border:1px solid var(--linea);
+  border-radius:var(--rr3);
+  box-shadow:none;                 /* la sombra la llevan solo las piezas que flotan */
 }
-.card:hover,.sum:hover{box-shadow:var(--clay-alto)}
-.card,.sum,.pasos,.p1-cierre{animation:barro-entra .5s cubic-bezier(.22,1,.36,1) both}
+.card:hover,.sum:hover{box-shadow:none}   /* 35 tarjetas que se levantan son un tablero que se mueve solo */
+.card-h{padding:var(--e3) var(--e4);background:transparent;border-bottom:1px solid var(--linea2)}
+.card,.sum,.pasos,.p1-cierre{animation:entra .32s cubic-bezier(.2,.8,.2,1) both}
 ```
 
 ```html
@@ -194,11 +197,11 @@ Plegado de tarjeta (opcional, `.card-fold` + clase `.folded` en `.card`, solo `�
 .btn-wa:hover{background:#e9f8f5;border-color:#128c7e}
 ```
 
-Capa de barro (la que de verdad se ve):
+Capa de estructura (la que de verdad se ve):
 ```css
 .btn,.mbar-btn,.ai-btn,.btn-scaler-open,.btn-vector-open,.addbtn,.precios-ver,.btn-maps,.card-fold,.btn-hist{
-  border-radius:var(--rr1);
-  transition:transform var(--mv-r),box-shadow var(--mv),background var(--mv-s),color var(--mv-s),border-color var(--mv-s);
+  border-radius:var(--rr2);
+  transition:background var(--mv-s),color var(--mv-s),border-color var(--mv-s),transform var(--mv-s);
 }
 .btn-pri,.mbar-btn:not(.gho):not(.ok){
   background:var(--brand-grd);color:#fff;border:1px solid rgba(255,255,255,.28);
@@ -211,18 +214,19 @@ Capa de barro (la que de verdad se ve):
 }
 .btn-ok,.mbar-btn.ok{
   background:linear-gradient(160deg,#22c98a 0%,#12a86c 45%,#0a7d4a 100%);color:#fff;border:1px solid rgba(255,255,255,.28);
-  box-shadow:inset 0 3px 7px rgba(255,255,255,.4),inset 0 -6px 12px rgba(6,60,36,.3),0 4px 8px rgba(10,125,74,.2),0 16px 30px -6px rgba(10,125,74,.42);
+  box-shadow:none;
 }
 .btn-gho,.btn-dgr,.ai-btn,.btn-scaler-open,.btn-vector-open,.precios-ver,.btn-maps,.card-fold,.btn-hist,.mbar-btn.gho{
-  background:linear-gradient(168deg,#fff,var(--n1));
-  border:1px solid rgba(255,255,255,.9);
-  box-shadow:var(--clay);
+  background:var(--sup);
+  border:1px solid var(--linea);
+  color:var(--tinta);
+  box-shadow:none;
 }
-.btn-gho:hover,…,.mbar-btn.gho:hover{transform:translateY(-2px);box-shadow:var(--clay-alto)}
-.btn-dgr{border-color:var(--mal-borde)}   /* recupera su borde rojo tras la lista de arriba */
-/* El pellizco. Es lo que convierte una superficie con sombra en barro. */
-.btn:active:not(:disabled),…{transform:translateY(1px) scale(.975);
-  box-shadow:inset 0 4px 9px rgba(64,96,248,.2),inset 0 -1px 3px rgba(255,255,255,.75)}
+.btn-gho:hover,…,.mbar-btn.gho:hover{transform:none;box-shadow:none;border-color:var(--a-borde)}
+.btn-dgr{border-color:var(--mal-borde);color:var(--mal)}
+.btn-dgr:hover{background:var(--mal-bg);border-color:var(--mal)}
+/* Cede 1 px al tocar, y nada más. El pellizco de escala era del barro. */
+.btn:active:not(:disabled),…{transform:translateY(1px);box-shadow:none}
 .btn-pri:active:not(:disabled),.mbar-btn:not(.gho):active:not(:disabled){
   box-shadow:inset 0 5px 11px rgba(20,22,43,.36),inset 0 -1px 3px rgba(255,255,255,.28)}
 .btn:disabled,.mbar-btn:disabled{box-shadow:var(--clay-in);transform:none;opacity:.55}
@@ -243,12 +247,11 @@ Botón de agregar (acción secundaria, discontinua):
 .addbtn{width:100%;padding:12px;border:1px dashed var(--n4);border-radius:var(--rr1);background:none;
   color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;transition:border-color .12s,background .12s}
 .addbtn:disabled{opacity:.45;cursor:not-allowed}
-/* capa de barro */
-.addbtn{background:linear-gradient(168deg,rgba(255,255,255,.7),rgba(233,237,255,.55));
-  border:1.5px dashed var(--a-borde);color:var(--a-fuerte);font-weight:550;
-  box-shadow:inset 0 2px 5px rgba(255,255,255,.9)}
-.addbtn:hover{background:linear-gradient(168deg,#fff,var(--a-suave));border-color:var(--a);
-  color:var(--a-fuerte);transform:translateY(-2px);box-shadow:var(--clay)}
+/* capa de estructura */
+.addbtn{background:var(--sup);border:1px dashed var(--a-borde);color:var(--a-tx);font-weight:600;
+  box-shadow:none}
+.addbtn:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-tx);
+  transform:none;box-shadow:none}
 .addrow{display:flex;flex-wrap:wrap;gap:9px;align-items:stretch}
 .addrow[hidden]{display:none}          /* `hidden` pierde contra cualquier display de autor */
 .addrow .addbtn{flex:2 1 auto;width:auto;min-width:0}   /* reparto 2:1 a favor de la acción principal */
@@ -266,12 +269,11 @@ El botón de IA es **el único con color propio** (violeta→azul, respira):
 .ai-btn{width:100%;padding:10px 14px;border:1px solid var(--n3);border-radius:var(--rr1);background:#fff;
   color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;margin-bottom:var(--e4);
   display:flex;align-items:center;justify-content:center;gap:var(--e2)}
-/* capa de barro: */
-.ai-btn{background:linear-gradient(115deg,var(--a2) 0%,var(--a) 48%,var(--a-fuerte) 100%);
-  background-size:220% 100%;color:#fff;border:1px solid rgba(255,255,255,.3);
-  box-shadow:inset 0 3px 7px rgba(255,255,255,.4),inset 0 -6px 12px rgba(20,22,43,.26),0 4px 8px rgba(123,63,248,.2),0 16px 32px -6px rgba(123,63,248,.45);
-  text-shadow:0 1px 2px rgba(20,22,43,.24);animation:ia-respira 7s ease-in-out infinite}
-@keyframes ia-respira{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+/* capa de estructura: sigue siendo el ÚNICO botón de color de su fila, y deja de respirar —
+   en un botón de 44 px un degradado que se mueve solo es ruido, y el violeta ya distingue. */
+.ai-btn{background:var(--a-fill);color:#fff;border:1px solid var(--a-fill);
+  box-shadow:none;text-shadow:none;animation:none}
+.ai-btn:hover{background:var(--a-fuerte);border-color:var(--a-fuerte);transform:none}
 .ai-btn:disabled{animation:none;opacity:.5}
 ```
 
@@ -293,12 +295,19 @@ El botón de IA es **el único con color propio** (violeta→azul, respira):
 .chip[aria-disabled="true"]{cursor:default;background:transparent;border-color:var(--n2);color:var(--n6)}
 .chip[aria-disabled="true"]:hover:not(.on){background:transparent;border-color:var(--n2);color:var(--n6)}
 .chip[aria-disabled="true"].on{background:var(--n2);border-color:var(--n3);color:var(--n7)}
-/* capa de barro: píldora */
-.chip{border-radius:999px;padding:10px 16px;background:linear-gradient(168deg,#fff,var(--n1));
-  border:1px solid rgba(255,255,255,.9);box-shadow:var(--clay);
-  transition:transform var(--mv-r),box-shadow var(--mv),background var(--mv-s),color var(--mv-s)}
-.chip:hover:not(.on):not([aria-disabled]){transform:translateY(-2px);box-shadow:var(--clay-alto);
-  background:linear-gradient(168deg,#fff,var(--a-suave))}
+/* capa de estructura: caja de 4 px, no píldora. Una píldora se lee como un botón, y estos
+   son opciones de un grupo. */
+.chip{border-radius:var(--rr2);padding:0 var(--e3);min-height:40px;background:var(--sup);
+  border:1px solid var(--linea);color:var(--tinta);font-weight:500;font-size:var(--t3);
+  box-shadow:none;transition:border-color var(--mv-s),background var(--mv-s),color var(--mv-s)}
+.chip:hover:not(.on):not([aria-disabled]){transform:none;box-shadow:none;border-color:var(--a-borde)}
+/* Elegido = --a-fill con blanco. Es LA regla de color de la app, escrita una sola vez para el
+   chip suelto y para el de dentro de una partida. */
+.chip.on,.partida .chip.on{background:var(--a-fill);color:var(--a-fill-tx);border-color:var(--a-fill)}
+/* El catálogo (los cinco materiales) va en rejilla; los grupos de tres chips cortos, en fila. */
+.chips-catalogo{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px}
+.chips-catalogo .chip{min-height:44px;justify-content:flex-start;text-align:left}
+.chips-catalogo .chip small{margin-left:auto;padding-left:var(--e2)}
 .chip:active:not([aria-disabled]){transform:translateY(1px) scale(.97);box-shadow:var(--clay-in)}
 .chip.on{background:var(--a-suave);color:var(--a-fuerte);border-color:var(--a-borde);
   box-shadow:var(--clay-in);font-weight:600}   /* HUNDIDO, no relleno de marca */
@@ -365,10 +374,10 @@ textarea{resize:vertical;min-height:46px}
 .fld.falta label{color:var(--amber)}
 .fld.falta input,.fld.falta textarea{border-color:var(--amber-ico);background:var(--amber-bg)}
 .fld.falta input:focus,.fld.falta textarea:focus{border-color:var(--brand);background:#fff}
-/* capa de barro: campos hundidos, como una huella */
+/* capa de estructura: 42 px, un borde de 1 px, y al foco el anillo de 3 px del azul tenue */
 input,select,textarea,.inp-money{
-  border:1px solid rgba(255,255,255,.85);border-radius:var(--rr1);
-  background:linear-gradient(180deg,var(--n1),#fff);box-shadow:var(--clay-in);
+  border:1px solid var(--linea);border-radius:var(--rr2);
+  background:var(--sup);color:var(--tinta);box-shadow:none;
   transition:box-shadow var(--mv-s),border-color var(--mv-s)}
 input:focus,select:focus,textarea:focus{border-color:rgba(255,255,255,.95);
   box-shadow:inset 0 3px 7px rgba(64,96,248,.1),0 0 0 4px rgba(64,96,248,.18),0 8px 20px -4px rgba(64,96,248,.28);
@@ -415,16 +424,16 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
 .tipo-seg button:is(:disabled,[aria-disabled="true"]){cursor:default}
 .tipo-seg button:is(:disabled,[aria-disabled="true"]):active{transform:none}
 .tipo-seg button:is(:disabled,[aria-disabled="true"]).on{background:var(--gray-bg);color:var(--ink);box-shadow:none;animation:none}
-/* capa de barro */
-.tipo-seg,.seg{border-radius:999px;padding:4px;gap:2px;
-  background:linear-gradient(180deg,var(--n2),var(--n1));border:1px solid rgba(255,255,255,.85);
-  box-shadow:var(--clay-in)}
-.tipo-seg button,.seg button{border-radius:999px;
-  transition:transform var(--mv-r),box-shadow var(--mv),background var(--mv-s),color var(--mv-s)}
-.tipo-seg button.on,.seg button.on{background:linear-gradient(168deg,#fff,var(--n0));color:var(--a-fuerte);font-weight:600;
-  box-shadow:0 2px 4px rgba(35,39,68,.06),0 8px 16px -4px rgba(64,96,248,.28),inset 0 2px 4px rgba(255,255,255,.95);
-  animation:barro-pop var(--mv)}
-.tipo-seg button:active,.seg button:active{transform:scale(.94)}
+/* capa de estructura. El elegido va en MARINO, no en azul: el azul significa «esto está
+   elegido» y el marino «esta es la vista que estás mirando». Son dos preguntas distintas y en
+   la misma pantalla conviven —la lente del calendario contra el material de una partida—. */
+.tipo-seg,.seg{border-radius:var(--rr2);padding:0;gap:0;
+  background:var(--sup);border:1px solid var(--linea);box-shadow:none;overflow:hidden}
+.tipo-seg button,.seg button{border-radius:0;min-height:34px;color:var(--tinta2);font-weight:500;
+  transition:background var(--mv-s),color var(--mv-s)}
+.tipo-seg button.on,.seg button.on{background:var(--nav);color:#fff;font-weight:600;
+  box-shadow:none;animation:none}
+.tipo-seg button:active,.seg button:active{transform:none}
 ```
 ```html
 <div class="seg" id="roleseg" role="group" aria-label="Rol con el que trabajas">
@@ -453,12 +462,13 @@ Es un **`<button role="switch">`**, no un `<label>` (sin `for` y sin control den
 .tg::after{content:'';width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:3px;left:3px;
   transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .tg.on::after{left:21px}
-/* capa de barro (gana): 46×26, perilla 20 px, desplazamiento 23 px */
-.tg{width:46px;height:26px;border-radius:999px;background:linear-gradient(180deg,var(--n3),var(--n2));
-  box-shadow:var(--clay-in);transition:background var(--mv),box-shadow var(--mv)}
-.tg::after{width:20px;height:20px;top:3px;left:3px;
-  box-shadow:0 2px 5px rgba(35,39,68,.22),inset 0 -2px 4px rgba(64,96,248,.12),inset 0 2px 3px rgba(255,255,255,.95);
-  transition:left var(--mv),transform var(--mv-r)}
+/* capa de estructura (gana): 32×18, perilla 14 px, desplazamiento 16 px. Los 46×26 del barro
+   pesaban más que el renglón que gobierna, y este vive en la columna del dinero. */
+.tg{width:32px;height:18px;border-radius:999px;background:var(--linea);
+  box-shadow:none;transition:background .2s}
+.tg::after{width:14px;height:14px;top:2px;left:2px;background:#fff;
+  box-shadow:0 1px 2px rgba(var(--tinta-rgb),.25);transition:left .2s}
+.tg.on{background:var(--a-fill)}   .tg.on::after{left:16px}
 .tg.on{background:var(--brand-grd);box-shadow:inset 0 2px 5px rgba(20,22,43,.22),0 4px 12px -2px rgba(48,24,248,.45)}
 .tg.on::after{left:23px}
 .switch:active .tg::after{transform:scale(.9)}
@@ -487,10 +497,10 @@ Es un **`<button role="switch">`**, no un `<label>` (sin `for` y sin control den
 .toast.ok{background:linear-gradient(135deg,#0d8050,var(--green))}
 .toast.err{background:linear-gradient(135deg,#bf3730,var(--red))}
 @media(max-width:920px){ .toast{bottom:calc(20px + 66px + env(safe-area-inset-bottom,0px))} }
-/* capa de barro */
-#toast{border-radius:999px;box-shadow:inset 0 2px 5px rgba(255,255,255,.2),0 16px 36px -8px rgba(20,22,43,.5)}
-#toast.show{animation:toast-sube var(--mv)}
-@keyframes toast-sube{from{opacity:0;transform:translate(-50%,22px) scale(.92)}}
+/* capa de estructura */
+#toast{border-radius:var(--rr2);box-shadow:var(--sombra-alta)}
+#toast.show{animation:toast-sube var(--mv-s)}
+@keyframes toast-sube{from{opacity:0;transform:translate(-50%,10px)}}
 /* subidas por modal de pantalla completa: */
 .scaler-modal-bg.show+.toast{bottom:calc(16px + var(--sc-acc-h,150px))}   /* ≤1000px */
 .vt-modal-bg.show~.toast{bottom:calc(26px + var(--vt-acc-h,150px))}       /* ≤1000px */
@@ -518,11 +528,12 @@ Es un **`<button role="switch">`**, no un `<label>` (sin `for` y sin control den
   width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:.12s}
 .modal-h button:hover{background:var(--soft);color:var(--ink)}
 .modal-b{padding:18px 20px 20px;overflow-y:auto;flex:1 1 auto;min-height:0;-webkit-overflow-scrolling:touch}
-/* capa de barro: la ENTRADA DESDE ABAJO */
+/* capa de estructura: la ENTRADA DESDE ABAJO, con la misma `entra` que todo lo demás */
 .modal,.rv-modal,.sc-modal,.vt-modal,.hist-panel,.lightbox-body{
-  border-radius:var(--rr4);
-  box-shadow:inset 0 3px 8px rgba(255,255,255,.85),0 32px 70px -12px rgba(20,22,43,.42);
-  animation:modal-entra var(--mv);
+  border-radius:var(--rr3);
+  border:1px solid var(--linea);
+  box-shadow:var(--sombra-alta);
+  animation:entra .32s cubic-bezier(.2,.8,.2,1) both;
 }
 @keyframes modal-entra{from{opacity:0;transform:translateY(18px) scale(.94)} to{opacity:1;transform:none}}
 .modal-bg,.rv-modal-bg{backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2)}
@@ -552,8 +563,15 @@ Modal de pantalla completa (escalador/vectorizador): armazón reutilizable `.sp-
 .folio{font-size:var(--t2);color:var(--n6);font-weight:500;background:var(--n1);padding:6px 12px;
   border-radius:var(--rr1);border:1px solid var(--n2);font-variant-numeric:tabular-nums}
 #folio.prov{color:var(--muted);background:var(--soft);border-color:var(--line);border-style:dashed}
-/* capa de barro */
-.ptok,.ptipo,.folio,.badge{border-radius:999px;box-shadow:var(--clay-in);border:1px solid rgba(255,255,255,.8)}
+/* capa de estructura: 3 px de radio, no píldora. Una ficha con 999 px se lee como un botón,
+   y estas no se tocan. */
+.ptok,.ptipo{border-radius:var(--rr1);box-shadow:none;border:1px solid var(--linea);
+  background:var(--sup2);color:var(--tinta2);font-size:var(--t2);font-weight:600}
+.folio,.badge{border-radius:var(--rr1);box-shadow:none;border:1px solid var(--linea);background:var(--sup2)}
+.folio{font-family:var(--f-cifra);font-weight:600}
+/* Lo elegido, lo que falta y lo apagado a propósito: tres estados, tres colores. */
+.ptok.ok,.ptok.on{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-tx)}
+.ptok.falta{background:var(--av-bg);border-color:var(--av-borde);color:var(--av)}
 ```
 ```html
 <span class="folio" id="folio">COT-0001</span>
@@ -567,11 +585,11 @@ Modal de pantalla completa (escalador/vectorizador): armazón reutilizable `.sp-
   display:inline-block;line-height:1.5}
 .hintnote.nota-av{background:var(--av-bg);border:1px solid var(--av-borde);color:var(--av)}
 .hintnote.nota-ok{background:var(--ok-bg);border:1px solid var(--ok-borde);color:var(--ok)}
-/* capa de barro */
-.hintnote{border-radius:var(--rr1);box-shadow:var(--clay-in);border:1px solid rgba(255,255,255,.8);
-  background:linear-gradient(168deg,#fff,var(--n1))}
-.hintnote.nota-av{background:linear-gradient(168deg,#fffaf0,var(--av-bg))}
-.hintnote.nota-ok{background:linear-gradient(168deg,#f2fbf6,var(--ok-bg))}
+/* capa de estructura: una acotación al margen, con su filete a la izquierda */
+.hintnote{border-radius:0 var(--rr2) var(--rr2) 0;box-shadow:none;border:1px solid var(--linea);
+  border-left:3px solid var(--n5);background:var(--sup2)}
+.hintnote.nota-av{background:var(--av-bg);border-color:var(--av-borde);border-left-color:var(--av)}
+.hintnote.nota-ok{background:var(--ok-bg);border-color:var(--ok-borde);border-left-color:var(--ok)}
 ```
 ```html
 <div class="hintnote">Se imprime en la cotización. Vacía, sale la de arriba.</div>
@@ -608,7 +626,7 @@ Avisos grandes que **piden acción** (mismo ámbar, con latido): `.cand-partidas
   transition:width .5s cubic-bezier(.22,1,.36,1),background .5s;width:0%}
 .prog-next{font-size:11px;color:var(--brand);font-weight:700;margin-top:6px;display:flex;align-items:center;gap:5px}
 .prog-next:empty{display:none}
-/* capa de barro: brillo que recorre */
+/* capa de estructura: brillo que recorre */
 .prog-track{border-radius:999px;box-shadow:var(--clay-in);background:var(--n2)}
 #prog-bar{border-radius:999px;box-shadow:0 2px 8px -2px rgba(64,96,248,.5);position:relative;overflow:hidden;
   transition:width var(--mv)}
@@ -655,7 +673,7 @@ Son **datos, no selecciones**: neutros, con `✓` que dice que están puestos. E
 .ptok.falta::before{content:'!';font-weight:700;color:var(--av)}
 .ptok.off{background:transparent;color:var(--n6);border-color:var(--n2)}
 .ptok.off::before{content:'—';font-weight:500;color:var(--n5)}
-/* capa de barro */
+/* capa de estructura */
 .ptok{background:linear-gradient(168deg,#fff,var(--n1))}
 .ptok.falta{background:linear-gradient(168deg,#fff8ec,var(--av-bg))}
 ```
@@ -766,7 +784,7 @@ Tres patrones, elige por semántica:
 .neto .lab{font-size:var(--t2);font-weight:500;color:var(--n6)}
 .neto .amt{font-size:var(--t7);font-weight:650;letter-spacing:-1px;color:var(--n9);
   font-variant-numeric:tabular-nums;line-height:1}
-/* capa de barro: el número más grande de la app, y el único que late cuando cambia */
+/* capa de estructura: el número más grande de la app, y el único que late cuando cambia */
 .neto .amt{background:linear-gradient(160deg,var(--a-claro),var(--a) 45%,var(--a-fuerte));
   -webkit-background-clip:text;background-clip:text;color:transparent;
   filter:drop-shadow(0 3px 8px rgba(64,96,248,.28))}
@@ -780,20 +798,24 @@ Tres patrones, elige por semántica:
 
 | Consulta | Qué cambia |
 |---|---|
-| `@media print` (5 bloques, el último manda) | Sin pantallas ni barras: `.pasos,.p1-cierre{display:none}`, `.wrap{grid-template-columns:1fr}`, `#card-proy,#card-partidas,#sidebox{display:block}`, `.mbar{display:none}`, `.topbar{position:static}`, `.wrap{padding-bottom:0}`, se revierte el difuminado de precios (`body.precios-ocultos *{filter:none}`), se despliega todo lo plegado (`.card.folded .card-b{display:block}`, `.partida.folded .pbody{display:block}`, `.pfold{display:none}`), `.cand-partidas{display:none}`, y **fuera el barro**: `*{box-shadow:none;animation:none;text-shadow:none}`, `body{background:#fff}`, `.card,.sum,.partida{background:#fff;border:1px solid #ddd}`, `.neto .amt{color:#12162b;filter:none}`. `@page{margin:0;size:letter portrait}` en el PDF generado. |
+| `@media print` (5 bloques, el último manda) | Sin pantallas ni barras: `.pasos,.p1-cierre{display:none}`, `.wrap{grid-template-columns:1fr}`, `#card-proy,#card-partidas,#sidebox{display:block}`, `.mbar{display:none}`, `.topbar{position:static}`, `.wrap{padding-bottom:0}`, se revierte el difuminado de precios (`body.precios-ocultos *{filter:none}`), se despliega todo lo plegado (`.card.folded .card-b{display:block}`, `.partida.folded .pbody{display:block}`, `.pfold{display:none}`), `.cand-partidas{display:none}`, y **fuera el relieve y lo pegajoso**: `*{box-shadow:none;animation:none;text-shadow:none}`, `body{background:#fff}`, `.card,.sum,.partida{background:#fff;border:1px solid #ddd}`, `.pcab{position:static}` —un `sticky` en una hoja no se queda arriba pero sí se sale del flujo—, y lo que lleva relleno de color pasa a borde (`.partida .chip.on`, `.paso-tab.on`, `.partida .tg.on`), porque media oficina imprime en blanco y negro. `@page{margin:0;size:letter portrait}` en el PDF generado. |
 | `max-width:1000px` | **Solo escalador y vectorizador** (su barra necesita 982 px en un renglón; la pantalla interna del Fold 6 son 832 px). `.sp-topbar` envuelve con `order` 1..5, se esconde el logotipo, `.sp-main{flex-direction:column}`, `.sp-side{width:100%;max-height:54%}`, `.sp-actions` pegado al pie con `env(safe-area-inset-bottom)`, `.sp-close` pasa de × a botón «← Cotizador», `.vt-modal-bg .sp-side{width:100%}`, controles a ≥44/46 px, `input[type=range]{max-width:400px}`. |
 | `max-width:1000px` **y** `max-height:820px` **y** `orientation:landscape` | Teléfono acostado: `.sp-main{flex-direction:row}`, `.sp-side{width:46%;max-width:340px;height:100%}`, el toast vuelve a `bottom:16px`, `.sp-hint-bar` recupera la franja de gestos. |
-| `max-width:920px` | **El corte real de "teléfono"** (incluye el Fold 6 abierto). `.wrap{grid-template-columns:1fr}`; aparece `.mbar` fija abajo; `.wrap{padding-bottom:calc(84px + env(safe-area-inset-bottom))}` y `html{scroll-padding-bottom:` igual `}`; **campos a 16 px** para que iOS no haga zoom (`input,select,textarea,.rv-field input,.rv-field select,.autoctr input{font-size:16px}` — repetido al final de la hoja para ganar por orden); `.btn,.addbtn,.ai-btn{min-height:46px}`; `.chip{padding:9px 14px;font-size:13px}`; `.seg button{padding:9px 14px}`; `.del,.dup,.pdf-vis` a 40×40; `.optgrp .chip{flex:1 1 auto;min-height:44px}`; `.fld-relleno{display:none}`; `.card-fold{display:inline-flex}` + reglas de `.card.folded`; `.drag-handle{display:none}` (el arrastre HTML no existe al tocar); `.p1-cierre{display:none}`; `.toast{bottom:calc(20px + 66px + safe-area)}`; `.pline .lt{font-size:var(--t4);font-weight:650}` (con `screen and`). |
-| `screen and (min-width:561px) and (max-width:920px)` | **Fold 6 abierto (773 y 900 px)**: `.wrap>aside{width:100%;max-width:385px;margin-left:auto}`; nombre corto del tipo (`.tipo-seg .lg{display:none};.tipo-seg .sm{display:inline}`); `.grid3:not(:has(>.fld:nth-child(3):not(.fld-relleno))){grid-template-columns:1fr 1fr}`; `.partida{padding:16px;margin-bottom:12px}`; `.optgrp .chip{flex:0 1 auto;max-width:100%;font-size:11.5px}`; `.tipo-seg button{font-size:11.5px}`; `.hintnote{font-size:11px}`. |
+| `max-width:920px` | **Retoques de dedo**, que se quedan en 920 a propósito: campos, alturas mínimas y zonas táctiles no dependen de si hay una o dos columnas. **campos a 16 px** para que iOS no haga zoom (`input,select,textarea,.rv-field input,.rv-field select,.autoctr input{font-size:16px}` — repetido al final de la hoja para ganar por orden); `.btn,.addbtn,.ai-btn{min-height:46px}`; `.chip{padding:9px 14px;font-size:13px}`; `.seg button{padding:9px 14px}`; `.del,.dup,.pdf-vis` a 40×40; `.optgrp .chip{flex:1 1 auto;min-height:44px}`; `.fld-relleno{display:none}`; `.card-fold{display:inline-flex}` + reglas de `.card.folded`; `.drag-handle{display:none}` (el arrastre HTML no existe al tocar). |
+| `max-width:759px` | **El corte real de «una columna»**, y desde el rediseño ya NO incluye al Fold 6 abierto (880 px), que conserva sus dos columnas. `.wrap{grid-template-columns:minmax(0,1fr)}`; aparece `.mbar` fija abajo; `.wrap{padding-bottom:calc(84px + env(safe-area-inset-bottom))}` y `html{scroll-padding-bottom:` igual `}`; `.p1-cierre{display:none}` (la acción se muda a la barra fija); `.toast{bottom:calc(20px + 66px + safe-area)}`. En la PLATAFORMA: se apaga la barra lateral y aparecen el encabezado marino y `.pf-abajo` con cinco módulos; Proyectos cambia de tablero de columnas a lista de tarjetas; el mapa apila mapa y ruta. |
+| `min-width:760px` | **Hay barra lateral.** `:root{--lat:168px}` y `.pf-wrap,.pf-cab{padding-left:calc(var(--lat) + var(--e4))}`; el encabezado pasa a blanco de 64 px con subtítulo y acciones; `#pj-filtros{display:none}` (las columnas del tablero SON el filtro). |
+| `min-width:1024px` | La barra lateral crece a `--lat:216px` y el logotipo a 30 px. |
+| `screen and (min-width:760px) and (max-width:920px)` | **Fold 6 abierto (880 px)**: `.wrap{grid-template-columns:minmax(0,1fr) 272px}` — con 320 px la rejilla de materiales pasa de tres opciones por fila a dos. |
+| `screen and (min-width:561px) and (max-width:759px)` | **Tableta angosta / Fold cerrado en horizontal**: `.wrap>aside{width:100%;max-width:320px;margin-left:auto}`; nombre corto del tipo (`.tipo-seg .lg{display:none};.tipo-seg .sm{display:inline}`); `.grid3:not(:has(>.fld:nth-child(3):not(.fld-relleno))){grid-template-columns:1fr 1fr}`; `.partida{padding:16px;margin-bottom:12px}`; `.optgrp .chip{flex:0 1 auto;max-width:100%;font-size:11.5px}`; `.tipo-seg button{font-size:11.5px}`; `.hintnote{font-size:11px}`. |
 | `max-width:760px` | `.tipo-seg` pasa a rejilla de 3 columnas (`grid-template-columns:repeat(3,1fr)`, `min-height:42px`). |
 | `min-width:400px` and `max-width:760px` | La fila de tres accesos NO envuelve: `.scaler-ai-row{flex-wrap:nowrap}`, `.ai-btn{flex:1 1 auto;width:auto}`. |
-| `max-width:560px` | **Teléfono propiamente.** Recorta el marco, nunca lo tocable: `.wrap{padding:12px 10px calc(84px+safe-area);gap:14px}`; `.card-h{padding:13px 13px 0}`, `.card-b{padding:11px 13px 15px}`, `.card+.card{margin-top:12px}`; `.partida{padding:11px 11px 12px;margin-bottom:10px}` (re-declarado en el bloque de cierre para ganarle a la capa de barro); `.grid2,.grid3{grid-template-columns:1fr 1fr;gap:9px}`; `.tipo-seg{grid-template-columns:repeat(5,1fr)}` con nombre corto; `.optgrp .chip{flex:1 1 calc(50% - 3px);min-height:42px}` (dos columnas); `.neto .amt{font-size:24px}`; **topbar en dos renglones** (ver 3.1); `.brand .t small{display:none}`; `.logoslot .up{display:none}`. |
+| `max-width:560px` | **Teléfono propiamente.** Recorta el marco, nunca lo tocable: `.wrap{padding:12px 10px calc(84px+safe-area);gap:14px}`; `.card-h{padding:13px 13px 0}`, `.card-b{padding:11px 13px 15px}`, `.card+.card{margin-top:12px}`; `.partida{padding:11px 11px 12px;margin-bottom:10px}` (re-declarado en el bloque de cierre para ganarle a la capa de estructura); `.grid2,.grid3{grid-template-columns:1fr 1fr;gap:9px}`; `.tipo-seg{grid-template-columns:repeat(5,1fr)}` con nombre corto; `.optgrp .chip{flex:1 1 calc(50% - 3px);min-height:42px}` (dos columnas); `.neto .amt{font-size:24px}`; **topbar en dos renglones** (ver 3.1); `.brand .t small{display:none}`; `.logoslot .up{display:none}`. |
 | `min-width:385px` and `max-width:560px` | `.grid3:has(>.fld:nth-child(3):not(.fld-relleno)){grid-template-columns:repeat(3,1fr);gap:7px}` — tres columnas solo si hay tercer campo real. |
 | `max-width:385px` | Portada del Fold: `.topbar-in .btn-hist .lbl{display:none}` y el botón a 42 px cuadrado; `.sp-topbar .brand{flex:1 1 0;min-width:0}`; `#fld-cli,#fld-tel{grid-column:1/-1}`. |
 | `max-width:340px` | `.mbar-btn{white-space:normal;line-height:1.15;padding:0 12px;text-align:center}`. |
 | `max-width:399px` | Los tres accesos envuelven: `.scaler-ai-row{flex-wrap:wrap}`, `.ai-btn{flex:1 1 100%}`. |
 | `@media(hover:none),(pointer:coarse)` | **Por tipo de puntero, no por ancho** — vale igual en iPhone y en las dos pantallas del Fold. Sube la **caja**, nunca la letra: `.modal-h button{44×44}`; `.toast-act,.falt-quitar,.key-btn,.sp-gclear,.hist-foot button,.card-fold,.btn-maps,.chip,.seg button,.tipo-seg button{min-height:44px}`; `.hentry-del,.sp-ibtn{44×44}`; `.del,.dup,.pdf-vis{40×40}`; `.optgrp .chip{min-height:44px}`; `.hist-close{44×44}`; `.autoctr input{min-height:44px}`; `.pfold{44×44}`; `.vt-sw{32×32}`; `.vt-split::after{48×48}`. |
-| `@media(prefers-reduced-motion:reduce)` (3 bloques) | `*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}`; `#prog-bar::after,.cand-partidas{animation:none!important}`; `.btn:hover,.chip:hover,.paso-tab:hover,.ai-btn:hover{transform:none!important}`; `.chip:active,…,.mbar-btn:active{transform:none}`; `body{background-attachment:scroll}`. |
+| `@media(prefers-reduced-motion:reduce)` (3 bloques) | `*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}`; `#prog-bar::after,.cand-partidas{animation:none!important}`; `.btn:hover,.chip:hover,.paso-tab:hover,.ai-btn:hover{transform:none!important}`; `.chip:active,…,.mbar-btn:active{transform:none}`. Y la **transición de elemento compartido** no se acorta: se apaga entera en su propio código (`_medirTotal()` en `js/cotizador/proceso.js` no mide, así que no hay vuelo). |
 
 **Sin zoom por doble toque ni destello gris** (base): `button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-action:manipulation;-webkit-tap-highlight-color:transparent}`.
 
@@ -818,7 +840,7 @@ Tres patrones, elige por semántica:
 }
 @media(max-width:385px){ .topbar-in .btn-hist .lbl{display:none}
   .topbar-in .btn-hist{padding:0;width:42px;font-size:16px;display:inline-flex;align-items:center;justify-content:center} }
-/* capa de barro */
+/* capa de estructura */
 .topbar{background:rgba(255,255,255,.72);backdrop-filter:blur(20px) saturate(1.5);
   border-bottom:1px solid rgba(255,255,255,.9);
   box-shadow:0 1px 0 rgba(255,255,255,.7),0 8px 24px -12px rgba(64,96,248,.2)}
@@ -871,7 +893,7 @@ document.fonts.ready.then(()=>ajustarTopbarMovil());   // Inter llega después d
 .mbar-btn:disabled{opacity:.42;box-shadow:none;cursor:not-allowed}
 .mbar-btn.ok{background:var(--ok)}
 .mbar-btn.gho{background:#fff;color:var(--n7);border-color:var(--n3)}
-/* capa de barro */
+/* capa de estructura */
 .mbar{background:rgba(255,255,255,.8);backdrop-filter:blur(22px) saturate(1.5);
   border-top:1px solid rgba(255,255,255,.9);box-shadow:0 -10px 30px -10px rgba(64,96,248,.28)}
 ```
@@ -886,6 +908,60 @@ bar.innerHTML=`<button class="mbar-tot" onclick="irAResumen()" title="Ir al resu
   </button>${btn}`;
 ```
 Reserva de hueco obligatoria si tu módulo tiene barra fija propia: `.wrap{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}` **y** `html{scroll-padding-bottom:` lo mismo `}` — sin lo segundo, 13 de 58 paradas del recorrido con Tab quedan debajo de la barra.
+
+### 3.2 El esqueleto de la plataforma: barra lateral, encabezado y barra de abajo
+
+Vive en `css/plataforma.css` y lo pinta `js/app.js` desde la lista `RUTAS`, que es la única: de ahí salen la barra lateral, la barra de abajo y el router. **Añadir un módulo es añadir un renglón.**
+
+| Ancho | Forma |
+|---|---|
+| ≥ 1024 px | Barra lateral `--lat:216px` · encabezado blanco de 64 px con título, subtítulo y acciones |
+| 760–1023 px | Barra lateral `--lat:168px` (el Fold abierto mide 880) · el mismo encabezado |
+| ≤ 759 px | Sin barra lateral · encabezado **marino** con logotipo, título y tema · `.pf-abajo` con **cinco** módulos |
+
+```html
+<aside class="pf-lat" id="pf-lat">
+  <div class="pf-lat-marca"><img src="logo-al3d-oscuro.svg" alt="AL3D"><span class="pf-lat-t">Taller</span></div>
+  <nav class="pf-nav" id="pf-nav" aria-label="Módulos de la plataforma"></nav>   <!-- lo pinta pintarNav() -->
+  <div class="pf-lat-pie">…tema · ajustes · rol del dispositivo…</div>
+</aside>
+<header class="pf-cab">
+  <img class="pf-cab-logo" src="logo-al3d-oscuro.svg" alt="AL3D">   <!-- solo en el teléfono -->
+  <h1 class="pf-cab-t" id="pf-sub">Tablero</h1>
+  <span class="pf-cab-d" id="pf-cab-sub"></span>                    <!-- solo de 760 px para arriba -->
+  <div class="pf-cab-acc" id="pf-cab-acc"></div>                    <!-- lo escribe el módulo: ctx.acciones(html) -->
+  <button class="pf-cab-tema btn-tema" data-tema-btn>…</button>
+</header>
+…
+<nav class="pf-abajo" id="pf-abajo" aria-label="Módulos"></nav>      <!-- lo pinta pintarNav() -->
+```
+
+**Tres decisiones que no son de gusto:**
+
+1. **La barra lateral es `position:fixed`, no un contenedor con `overflow:auto`.** La maqueta la hace con scroll propio; hacerlo así aquí se lleva por delante el guardado y la reposición del scroll por ruta que hace el router, los `position:sticky` (la columna del dinero, el resumen de cada partida) y la impresión, porque un contenedor con scroll sale recortado al alto de la ventana. Fija, con el hueco hecho por `padding-left`, se ve igual y no cuesta nada de eso.
+2. **El logotipo de la barra lateral y el del encabezado del teléfono NO llevan `.logoimg`.** Esa clase es justo la que `js/tema.js` intercambia por el de tinta cuando el tema es claro, y las dos superficies son marinas en los dos temas: con ella puesta, el «AL3D» negro desaparecía sobre el marino.
+3. **La barra de abajo lleva cinco módulos, no seis.** Material se queda fuera: con seis, cada botón mide 60 px en una pantalla de 360 y el nombre no cabe debajo del icono. Se llega a Material desde el Tablero, que es de donde se sale a comprar. Lo decide `movil:true` en `RUTAS`.
+
+El módulo elegido lleva `--nav2` con un **filete de 3 px del acento a la izquierda** (`box-shadow:inset 3px 0 0 var(--a)`), no un relleno azul: el azul sólido significa «esta es LA acción» en toda la app, y seis lugares no pueden ser todos la acción. En la barra de abajo, el icono va dentro de una píldora de 44×26 que se enciende con `--a-fill` — un icono de 19 px cambiando solo de color no se ve encendido de un vistazo en una pantalla al sol.
+
+### 3.3 La transición de elemento compartido
+
+El total vive en dos sitios: **chiquito** en la barra de pasos mientras se captura al cliente (`.paso-total`) y **grande** en la columna del dinero mientras se capturan las partidas (`.neto .amt`). Los dos llevan `data-shared="total"`, y al cambiar de paso el número **vuela** de uno al otro en vez de desaparecer aquí y aparecer allá.
+
+Es un FLIP y vive en `js/cotizador/proceso.js` (`_medirTotal()` / `_volarTotal()`), llamado desde `irAPaso()`:
+
+```js
+_medirTotal();                 // 1. el rect del que se va, ANTES de cambiar de pantalla
+const d=_llevarAlPaso(n);      // 2. cambia la pantalla; el navegador coloca al que llega
+_volarTotal();                 // 3. transformación inversa sin transición, y 4. quitarla con transición
+```
+
+Tres detalles que cuestan si faltan:
+- **La escala sale del ALTO, no del ancho.** Son la misma cifra con distinto tamaño de letra, y el ancho de `$1,234.00` a 15 px y a 28 px no guarda la misma proporción por culpa del interletraje: con el ancho, el número llega estirado.
+- **Dos `requestAnimationFrame` anidados**, no uno: con uno solo, Chrome agrupa la escritura sin transición y la que sí la lleva en el mismo recálculo de estilo y no anima nada.
+- **Se limpia el `transform` al terminar** (`transitionend`): un `transform` vacío pero declarado deja al elemento con su propio contexto de apilamiento, y el resumen fijo de una partida le pasaba por encima.
+
+`prefers-reduced-motion` lo apaga **entero** —`_medirTotal()` no mide, así que no hay vuelo—, y no dejándolo en 1 ms: aquí no hay nada que apagar a medias.
 
 ---
 
@@ -932,7 +1008,7 @@ Lo mismo para el chip apagado: *«El apagado se hace con color y no con opacidad
 ```css
 /* Sin border-radius: el contorno sigue por sí solo el radio real del elemento */
 :where(button,summary,a[href],input,select,textarea,[tabindex]):focus-visible{
-  outline:2.5px solid var(--a);outline-offset:3px;     /* capa de barro, la que gana */
+  outline:2px solid var(--a);outline-offset:2px;       /* capa de estructura, la que gana */
 }
 ```
 Nunca dejes un `outline:none` sin sustituto visible.
@@ -1015,7 +1091,7 @@ El sprite vive en `<svg width="0" height="0" style="position:absolute" aria-hidd
    pointer-events:none para que el toque siempre lo reciba el botón y no el trazo. */
 .svgi{width:1em;height:1em;flex:0 0 auto;vertical-align:-.135em;pointer-events:none;
   fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-/* capa de barro */
+/* capa de estructura */
 .svgi{transition:transform var(--mv-r)}
 .btn:hover .svgi,.ai-btn:hover .svgi,.btn-hist:hover .svgi{transform:scale(1.12)}
 ```
@@ -1317,7 +1393,7 @@ es que no eran un sistema, eran decisiones sueltas tomadas de una en una a lo la
 meses. Una pantalla hecha así se siente desordenada aunque cada pieza esté bien.
 ```
 
-2. *(línea 84, la receta del barro)*
+2. *(la receta de la sombra, en los tokens)*
 ```
 Y el truco que casi nadie aplica: la sombra exterior va en dos pasos, una corta y
 apretada y otra larga y abierta. Con una sola, la pieza flota; con dos, se apoya.
@@ -1374,4 +1450,4 @@ Más muestras: `Mantén tocado para ver un importe` · `No falta nada por captur
 7. `min-width:0` en todo hijo de flex/grid que reciba texto largo; recorte con `overflow:hidden;text-overflow:ellipsis;white-space:nowrap`.
 8. `≥44px` de zona táctil en `@media(hover:none),(pointer:coarse)`; nunca subas la letra para conseguirlo.
 9. Nada de `opacity` sobre bloques con texto. Apagado por color. `--n5` hacia arriba no lleva texto. `--a-claro`/`--a3` solo decoración.
-10. Si añades una regla base al final de la hoja, comprueba en el navegador que no estás pisando la capa de barro — y si tu regla tiene que ganar por orden, va en el bloque de cierre (línea 2036) con su comentario diciendo por qué.
+10. Si añades una regla base al final de la hoja, comprueba en el navegador que no estás pisando la capa de estructura y movimiento — y si tu regla tiene que ganar por orden, va en el bloque de cierre («lo que tiene que ganar por orden») con su comentario diciendo por qué.

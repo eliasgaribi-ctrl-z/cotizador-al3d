@@ -161,6 +161,11 @@ export async function montar(c, ctx) {
   on($('pf-hoja'), 'click', clicHoja);
   on($('pf-pide'), 'click', clicPide);
   on(window, 'afterprint', trasImprimir);
+  /* Cruzar los 760 px cambia el marcado, no solo el estilo: de un lado hay un tablero de
+     cinco columnas y del otro una lista de renglones. Sin este oyente, girar un Fold —que es
+     cruzar de 344 a 880 px— dejaba la lista de teléfono estirada a lo ancho de la pantalla
+     grande. Se apunta con `on()`, que es lo que lo desengancha al desmontar. */
+  on(ANCHO, 'change', pintarLista);
 
   await cargar();
 
@@ -407,7 +412,94 @@ function pintarLista() {
     return;
   }
 
-  el.innerHTML = VISTA.map(fila).join('');
+  /* La MISMA tarjeta en las dos vistas. En el teléfono va en una columna y con un lomo de
+     4 px del color de su etapa —lo que en el tablero dice la columna, aquí lo dice el lomo—;
+     en la computadora, repartida en cinco columnas. Una sola pieza que mantener, y lo que se
+     ve en una pantalla se reconoce en la otra.
+
+     `fila()` sigue existiendo: la usan la ficha y el Tablero para el renglón con icono y
+     acción, que es otra forma para otra pregunta. */
+  el.innerHTML = ANCHO.matches
+    ? tablero()
+    : '<div class="pj-lista-movil">' + VISTA.map(tarjeta).join('') + '</div>';
+}
+
+/* ============================================================================
+   El tablero de columnas — de 760 px para arriba
+   ============================================================================
+   La lista de renglones contesta «cuáles hay». Lo que no contestaba —y es la pregunta con
+   la que se abre esta pantalla— es «cómo va la obra»: cuántos están parados en diseño,
+   cuántos ya se pueden instalar, dónde se está haciendo tapón. Eso es una FORMA, no un
+   filtro, y por eso el rediseño lo pone en columnas: la cola más alta se ve sin leer un
+   número.
+
+   En el teléfono no hay tablero, y no es una renuncia: cinco columnas en 360 px son cinco
+   tiras de 60 px donde no cabe el nombre de un cliente. Ahí manda la tira de etapas —que ya
+   existía y hace exactamente lo mismo, una etapa a la vez— y la lista de renglones. Las dos
+   vistas leen los mismos datos y comparten `data-abrir`, así que el oyente de la lista sirve
+   para las dos sin una línea más.
+
+   La media query vive en JS Y en CSS, y eso es a propósito: la de CSS esconde la tira de
+   etapas cuando hay tablero —las columnas ya son el filtro— y esta decide qué marcado se
+   escribe. Una sola no puede hacer las dos cosas sin pintar el doble de nodos. */
+const ANCHO = window.matchMedia('(min-width:760px)');
+
+/* Las cinco columnas del tablero son las etapas VIVAS del proceso, en orden. `instalado`,
+   `garantia` y `cancelado` no son pasos del camino sino salidas de él: una columna de
+   instalados crecería para siempre y empujaría a las cinco que sí se miran. Salen de ETAPAS
+   y no de una lista escrita a mano, para que meter una etapa nueva sea un renglón allá. */
+const COLUMNAS = () => Proy.ETAPAS.slice(0, Proy.ETAPAS.indexOf('listo') + 1);
+
+function tablero() {
+  /* El tablero enseña TODAS las etapas vivas: el filtro de etapa es de la vista de teléfono
+     y aplicarlo aquí dejaría el tablero con una columna. El de texto sí manda —es una
+     búsqueda, y buscar en un tablero es ver en qué columna cayó lo que buscas—. */
+  const base = filtro.texto.trim()
+    ? VISTA
+    : TODOS.filter(p => p.etapa !== 'cancelado');
+
+  return '<div class="pj-tablero">' + COLUMNAS().map(e => {
+    const items = base.filter(p => p.etapa === e);
+    return '<div class="pj-col" data-col="' + esc(e) + '">' +
+      '<div class="pj-col-h ' + claseEtapa(e) + '">' +
+        '<span class="pj-col-t">' + esc(Proy.ETAPA_NOMBRE[e] || e) + '</span>' +
+        '<span class="pj-col-n">' + items.length + '</span>' +
+      '</div>' +
+      (items.length ? items.map(tarjeta).join('')
+        : '<p class="pj-col-vacia">Nada aquí</p>') +
+    '</div>';
+  }).join('') + '</div>';
+}
+
+function tarjeta(p) {
+  const inst = FECHA.get(p.id) || null;
+  const sem = SEM.get(p.id) || null;
+  const tipos = Array.isArray(p.tipo_trabajo) ? p.tipo_trabajo : [];
+  const dinero = Prefs.veDinero() ? esc(money(p.precio_auth || p.neto)) : '';
+
+  /* La tarjeta entera es el botón. En un tablero, el destino de un clic en cualquier parte
+     de una tarjeta es abrirla; un botón «Abrir» dentro de una tarjeta de 200 px de ancho
+     gasta un renglón para decir lo que el cursor ya dice. */
+  return '<button type="button" class="pj-tarj ' + claseEtapa(p.etapa) + '" data-abrir="' + esc(p.id) + '"' +
+      ' aria-label="Abrir ' + esc(p.nombre || p.folio_local || 'proyecto') + '">' +
+    '<span class="pj-tarj-t">' + esc(p.nombre || p.folio_local || 'Proyecto sin nombre') + '</span>' +
+    '<span class="pj-tarj-d">' + (tipos.length ? esc(tipos.join(' · ')) : 'Sin tipo derivado') + '</span>' +
+    '<span class="pj-tarj-f">' +
+      /* En el teléfono no hay columna que diga en qué etapa está, así que la ficha de etapa
+         viaja dentro de la tarjeta. En el tablero sobra —la columna ya lo dice— y el CSS la
+         apaga ahí. */
+      '<span class="pf-etapa pj-tarj-etapa ' + claseEtapa(p.etapa) + '">' +
+        esc(Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) + '</span>' +
+      (sem ? '<span class="pf-sem ' + sem.estado + '">' + esc(sem.palabra) + '</span>' : '') +
+      (inst
+        ? '<span class="pj-tarj-inst">' + ico('i-camion') + esc(fmtFecha(inst.fecha)) + '</span>'
+        : '<span class="pj-tarj-inst">' + ico('i-camion') + 'sin fecha</span>') +
+    '</span>' +
+    '<span class="pj-tarj-pie">' +
+      '<span class="pj-tarj-folio">' + esc(Cot.folioVisible(p.folio_global) || p.folio_local || '—') + '</span>' +
+      (dinero ? '<span class="pj-tarj-monto">' + dinero + '</span>' : '') +
+    '</span>' +
+  '</button>';
 }
 
 function fila(p) {

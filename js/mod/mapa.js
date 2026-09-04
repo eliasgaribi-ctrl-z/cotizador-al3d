@@ -84,11 +84,18 @@ function on(el, tipo, fn) {
    `vivos:true` y un proyecto que no se dio no es un lugar a donde ir.
    ============================================================================ */
 
+/* `corta` es el nombre para el teléfono. Los cuatro filtros con su palabra larga —«G ·
+   Vendido, sin empezar (1)»— ocupaban CUATRO renglones de chips encima del mapa en una
+   pantalla de 390 px: doscientos treinta píxeles de filtros antes de ver un solo pin, o sea
+   el mapa entero debajo del doblez. Con el nombre corto caben en dos, y la palabra larga
+   sigue viva en el `title` y en la leyenda de debajo del mapa, que es donde se consulta qué
+   significa una marca. Es la misma solución que el selector de tipo de una partida ya usa con
+   `.lg`/`.sm`. */
 const GRUPOS = [
-  { g: 'ganado',    marca: 'G', palabra: 'Vendido, sin empezar', etapas: ['ganado'] },
-  { g: 'taller',    marca: 'T', palabra: 'En el taller',         etapas: ['en_diseno', 'cortado', 'armado'] },
-  { g: 'listo',     marca: 'L', palabra: 'Listo para instalar',  etapas: ['listo'] },
-  { g: 'instalado', marca: 'I', palabra: 'Instalado',            etapas: ['instalado', 'garantia'] },
+  { g: 'ganado',    marca: 'G', palabra: 'Vendido, sin empezar', corta: 'Vendido',  etapas: ['ganado'] },
+  { g: 'taller',    marca: 'T', palabra: 'En el taller',         corta: 'Taller',   etapas: ['en_diseno', 'cortado', 'armado'] },
+  { g: 'listo',     marca: 'L', palabra: 'Listo para instalar',  corta: 'Listo',    etapas: ['listo'] },
+  { g: 'instalado', marca: 'I', palabra: 'Instalado',            corta: 'Instalado',etapas: ['instalado', 'garantia'] },
 ];
 
 const GRUPO_DE = new Map();
@@ -316,25 +323,42 @@ function armazon() {
   /* `innerHTML` se lleva el nodo del lienzo, y un Leaflet apuntando a un nodo huérfano
      sigue con sus oyentes puestos y sus cuadros a medio bajar. Se destruye antes. */
   destruirMapa();
+  /* Dos columnas: el mapa a la izquierda y la ruta del día a la derecha.
+     Estaban una debajo de la otra, y eso significaba que la ruta —que es la razón por la que
+     alguien abre esta pantalla por la mañana— vivía SEISCIENTOS píxeles más abajo del mapa,
+     fuera de la vista. Y las dos se leen juntas: se mira una parada en la lista y se busca su
+     pin, y al revés. En el teléfono siguen apiladas, con el mapa en 45 vh —que es la mitad de
+     la pantalla, suficiente para ver dónde caen las paradas— y la ruta debajo, que es el
+     orden en que se usan con una mano.
+
+     Los filtros se quedan ARRIBA del mapa y no flotando encima como en la maqueta: allí son
+     dos («Por instalar · 5 / Instaladas · 6») y aquí son tres tiras —etapas, hasta cuándo, y
+     las acciones—, y tres tiras flotando taparían el mapa que filtran. */
   cont.innerHTML =
     '<div class="pf-cuentas" id="mapa-cuentas"></div>' +
-    '<div class="chips" id="mapa-etapas" role="group" aria-label="Etapas que se pintan"></div>' +
-    '<div class="chips" id="mapa-rango" role="group" aria-label="Hasta cuándo se pinta"></div>' +
-    '<div class="btn-fila" id="mapa-acc"></div>' +
-    '<div id="mapa-modo"></div>' +
-    '<div id="mapa-lienzo"></div>' +
-    /* La leyenda es estática y va debajo del lienzo, no encima: lo primero que se busca al
-       entrar es el mapa, y la leyenda se consulta cuando ya se vio un pin y no se sabe qué
-       es. La forma va en el cuadrito y la letra en el texto, que es la que se lee en el pin. */
-    '<p class="mapa-leyenda">' +
-      '<span><i class="ganado"></i>G — vendido, sin empezar</span>' +
-      '<span><i class="taller"></i>T — en el taller</span>' +
-      '<span><i class="listo"></i>L — listo para instalar</span>' +
-      '<span><i class="instalado"></i>I — instalado</span>' +
-    '</p>' +
-    '<p class="pf-nota" id="mapa-oculto"></p>' +
-    '<div id="mapa-ruta"></div>' +
-    '<div id="mapa-faltan"></div>' +
+    '<div class="mapa-2col">' +
+      '<div class="mapa-col">' +
+        '<div class="chips" id="mapa-etapas" role="group" aria-label="Etapas que se pintan"></div>' +
+        '<div class="chips" id="mapa-rango" role="group" aria-label="Hasta cuándo se pinta"></div>' +
+        '<div class="btn-fila" id="mapa-acc"></div>' +
+        '<div id="mapa-modo"></div>' +
+        '<div id="mapa-lienzo"></div>' +
+        /* La leyenda es estática y va debajo del lienzo, no encima: lo primero que se busca al
+           entrar es el mapa, y la leyenda se consulta cuando ya se vio un pin y no se sabe qué
+           es. La forma va en el cuadrito y la letra en el texto, que es la que se lee en el pin. */
+        '<p class="mapa-leyenda">' +
+          '<span><i class="ganado"></i>G — vendido, sin empezar</span>' +
+          '<span><i class="taller"></i>T — en el taller</span>' +
+          '<span><i class="listo"></i>L — listo para instalar</span>' +
+          '<span><i class="instalado"></i>I — instalado</span>' +
+        '</p>' +
+        '<p class="pf-nota" id="mapa-oculto"></p>' +
+      '</div>' +
+      '<div class="mapa-col">' +
+        '<div id="mapa-ruta"></div>' +
+        '<div id="mapa-faltan"></div>' +
+      '</div>' +
+    '</div>' +
     /* La verdad de este módulo, en letra chica y sin adornos. No es un consejo: es cómo
        funciona, y saberlo es la diferencia entre «se rompió» y «no hay señal». */
     '<p class="pf-nota">El mapa se baja de internet: sin señal se queda gris y los pines no ' +
@@ -367,9 +391,23 @@ function refrescarPiezas() {
       const g = grupoDe(p.etapa).g;
       porGrupo.set(g, (porGrupo.get(g) || 0) + 1);
     }
-    et.innerHTML = GRUPOS.map(g =>
-      chip(g.marca + ' · ' + g.palabra + ' (' + (porGrupo.get(g.g) || 0) + ')',
-        GRUPOS_ON.has(g.g), 'data-g="' + g.g + '"')).join('');
+    /* El botón se arma aquí y no con `chip()` porque este lleva DOS nombres —el largo para
+       la computadora y el corto para el teléfono, en el par `.lg`/`.sm` que la hoja ya
+       conoce— y `chip()` escapa su etiqueta, que es exactamente lo que tiene que hacer para
+       los otros veinte sitios que la llaman. Lo único que cambia es el interior; la clase, el
+       estado y el `aria-pressed` son los mismos. El nombre accesible va entero en el
+       `aria-label`: quien no ve la pantalla no se entera de cuál de los dos se está pintando. */
+    et.innerHTML = GRUPOS.map(g => {
+      const n = porGrupo.get(g.g) || 0;
+      const etiq = g.marca + ' · ' + g.palabra + ' (' + n + ')';
+      const on = GRUPOS_ON.has(g.g);
+      return '<button type="button" class="chip' + (on ? ' on' : '') + '"' +
+        ' aria-pressed="' + (on ? 'true' : 'false') + '" data-g="' + g.g + '"' +
+        ' title="' + esc(etiq) + '" aria-label="' + esc(etiq) + '">' +
+        '<span class="lg">' + esc(g.marca + ' · ' + g.palabra) + '</span>' +
+        '<span class="sm">' + esc(g.marca + ' · ' + g.corta) + '</span>' +
+        ' (' + n + ')</button>';
+    }).join('');
   }
 
   const ra = $('mapa-rango');

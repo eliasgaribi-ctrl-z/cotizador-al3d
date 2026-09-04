@@ -424,7 +424,7 @@ function cuentas(d, rol, veDinero) {
       return s + (isFinite(n) ? n : 0);
     }, 0);
     if (suma > 0) {
-      c.push('<p class="pf-cuenta"><b>' + esc(money(suma)) + '</b>En el taller</p>');
+      c.push('<p class="pf-cuenta dinero"><b>' + esc(money(suma)) + '</b>En el taller</p>');
     }
   }
   return '<div class="pf-cuentas">' + c.join('') + '</div>';

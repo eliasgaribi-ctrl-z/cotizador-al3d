@@ -113,6 +113,17 @@ export async function montar(contenedor, ctx) {
   if (Prefs.rol() === 'pagos') _lente = 'instalaciones';
   window.addEventListener('keydown', alTeclear);
 
+  /* Los atajos, escritos en el encabezado. Existían desde siempre —← → cambian de mes, `t`
+     vuelve a hoy— y no estaban dichos en ningún sitio: un atajo que nadie sabe que existe es
+     un atajo que nadie usa. Van al hueco de acciones del encabezado, que solo se pinta de
+     760 px para arriba, y eso es exactamente lo correcto: es donde hay teclado. */
+  if (_ctx && typeof _ctx.acciones === 'function') {
+    _ctx.acciones(
+      '<span class="pf-teclas">Teclas' +
+      '<kbd>←</kbd><kbd>→</kbd><span>mes</span>' +
+      '<kbd>t</kbd><span>hoy</span></span>');
+  }
+
   /* Un oyente delegado por contenedor y uno por capa. La rejilla del mes son cuarenta y dos
      botones que se rehacen cada vez que se toca uno: un oyente por celda serían cuarenta y
      dos oyentes tirados a la basura en cada repintado, y los del repintado anterior siguen
@@ -362,14 +373,26 @@ function pintar() {
   if (!_cont || !_d) return;
   const d = _d;
 
-  /* El segmento de vista y los filtros van en la MISMA tira. Son la misma cosa —qué de la
-     agenda estoy viendo— y en dos renglones separados el de abajo se lee como si filtrara
-     otra pantalla. */
+  /* La lente, el segmento de vista y los filtros, en UNA sola tira.
+     Eran tres renglones apilados —«Taller · Instalaciones · Todo» a todo lo ancho, debajo
+     «Mes · Semana · Lista», debajo los chips— y esos tres renglones medían 130 px de alto
+     antes de que empezara el calendario: en un teléfono, media pantalla para llegar al mes.
+     Y peor: apilados, cada uno se lee como si filtrara al de abajo, cuando son la misma
+     pregunta hecha tres veces —qué parte de la agenda estoy mirando—.
+
+     En una tira caben porque la lente y la vista son segmentos compactos, no barras. El
+     `margin-left:auto` del CSS manda la vista a la derecha, que es donde la pone la maqueta. */
+  const barra =
+    '<div class="ag-barra">' +
+      pintarLente() +
+      '<div class="ag-barra-der">' +
+        segmento([{ v: 'mes', t: 'Mes' }, { v: 'semana', t: 'Semana' }, { v: 'lista', t: 'Lista' }],
+                 _vista, 'data-vista', 'Cómo ves las instalaciones') +
+      '</div>' +
+      pintarFiltros() +
+    '</div>';
+
   const calendario =
-    '<div class="ag-filtros">' +
-      segmento([{ v: 'mes', t: 'Mes' }, { v: 'semana', t: 'Semana' }, { v: 'lista', t: 'Lista' }],
-               _vista, 'data-vista', 'Cómo ves las instalaciones') + pintarFiltros() +
-    '</div>' +
     '<div class="card"><div class="card-b">' +
       (_vista === 'mes' ? pintarMes(d) : _vista === 'semana' ? pintarSemana(d) : pintarLista(d)) +
     '</div></div>';
@@ -382,7 +405,7 @@ function pintar() {
   _cont.innerHTML =
     pintarCuentas(d) +
     (d.pendientes.length ? pintarDecidir(d) : '') +
-    pintarLente() +
+    barra +
     (_lente === 'instalaciones'
       ? calendario
       : '<div class="ag-cuerpo dos' + (_lente === 'taller' ? ' taller-primero' : '') + '">' +
@@ -436,15 +459,18 @@ function isoDeSello(ts) {
 }
 
 /* ----- La lente -----
-   En su propio renglón y a ancho completo, ARRIBA del segmento de vista. Son dos preguntas
-   distintas —«qué miro» y «cómo lo miro»— y en la misma tira la de arriba se lee como si
-   filtrara a la de abajo. Pagos no la ve: con una sola lente no hay nada que elegir. */
+   Devuelve el segmento pelado, sin contenedor: lo coloca `.ag-barra`, que lo pone a la
+   IZQUIERDA de la tira y manda el de vista a la derecha. Antes iba en su propio renglón y a
+   ancho completo arriba del de vista, con el argumento de que son dos preguntas distintas
+   —«qué miro» y «cómo lo miro»— y que apiladas la de arriba se lee como si filtrara a la de
+   abajo. Apiladas pasaba justo eso, y encima costaban tres renglones de alto antes del
+   calendario. En una tira, separadas por el hueco y con la de vista pegada al otro extremo,
+   se leen como dos controles y no como uno dentro del otro.
+   Pagos no la ve: con una sola lente no hay nada que elegir. */
 function pintarLente() {
   if (Prefs.rol() === 'pagos') return '';
-  return '<div class="ag-lente">' +
-    segmento([{ v: 'taller', t: 'Taller' }, { v: 'instalaciones', t: 'Instalaciones' }, { v: 'todo', t: 'Todo' }],
-             _lente, 'data-lente', 'Qué parte del calendario ves') +
-    '</div>';
+  return segmento([{ v: 'taller', t: 'Taller' }, { v: 'instalaciones', t: 'Instalaciones' }, { v: 'todo', t: 'Todo' }],
+                  _lente, 'data-lente', 'Qué parte del calendario ves');
 }
 
 /* ----- La fila del taller -----

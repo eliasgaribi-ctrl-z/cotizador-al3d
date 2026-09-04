@@ -12,8 +12,8 @@
      al terminar de bajar se pasa a all y la tipografía entra. La pila de reserva del body
      ya nombra Segoe UI, Roboto y Helvetica, así que mientras tanto se lee bien, y
      ajustarTopbarMovil() ya se re-ejecuta en document.fonts.ready. -->
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all';this.onload=null">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"></noscript>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all';this.onload=null">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
 <!-- Los iconos son archivos, no dos data-URI de 15 KB pegados uno detrás del otro. El que
      había era el mismo string dos veces —31 KB en la cabecera de cada carga— sobre un lienzo
      de 180x180 donde el dibujo solo ocupaba 180x104, así que en una pestaña se veía un sello
@@ -198,6 +198,19 @@
       <span class="n" id="tab-4-n" aria-hidden="true">4</span>
       <span class="tx">Entrega<small id="tab-4-sub"></small></span>
     </button>
+    <!-- El total, en chiquito, mientras se está en el paso del cliente.
+         En esa pantalla la columna del dinero está oculta —son cinco campos y no hay nada que
+         sumar todavía— y sobre una cotización que se abre del historial eso significaba entrar
+         a una cotización de $23,664 sin un solo número en pantalla. Aquí está, pequeño y sin
+         pesar.
+         Y es el MISMO elemento conceptual que el total grande de la columna: los dos llevan
+         `data-shared="total"`, que es lo que engancha la transición de elemento compartido.
+         Al pasar a partidas, este se mide antes y el otro después, y el número VUELA de un
+         sitio al otro en vez de desaparecer aquí y aparecer allá. Es la única animación de la
+         app que enseña una relación en vez de decorar un cambio. -->
+    <span class="paso-total" id="paso-total" data-shared="total" hidden>
+      <small>Total</small><span id="paso-total-v">$0.00</span>
+    </span>
   </nav>
 
   <!-- ===== IZQUIERDA: FORM ===== -->
@@ -349,7 +362,8 @@
           <span class="lab">Total neto</span>
           <div class="neto-calc" id="s-calc">Subtotal × 1.16</div>
         </div>
-        <span class="amt" id="s-neto">$0.00</span>
+        <!-- El otro extremo del vuelo. Ver el comentario del #paso-total, arriba. -->
+        <span class="amt" id="s-neto" data-shared="total">$0.00</span>
       </div>
       <div class="anti">
         <label for="f-anti">Anticipo sugerido (50%)</label>

@@ -200,7 +200,7 @@ function cuentas(d, rol, veDinero) {
     c.push(unaCuenta(d.conSaldo.length, 'Proyectos con saldo', d.conSaldo.length > 0));
     const costo = d.compra.reduce((s, f) => s + (Number(f.costo) || 0), 0);
     if (veDinero && costo > 0) {
-      c.push('<p class="pf-cuenta"><b>' + esc(money(costo)) + '</b>Costo de lo que hay que comprar</p>');
+      c.push('<p class="pf-cuenta dinero"><b>' + esc(money(costo)) + '</b>Costo de lo que hay que comprar</p>');
     } else {
       c.push(unaCuenta(d.porComprar.length, 'Materiales por comprar', false));
     }
