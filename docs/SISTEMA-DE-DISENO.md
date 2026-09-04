@@ -968,9 +968,9 @@ Mínimo **44 px** en `@media(hover:none),(pointer:coarse)`; 40 px para los tres 
 
 ## 5. Sprite de iconos SVG
 
-El sprite vive en `<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>…</defs></svg>` justo después de `<body>` (líneas 2116–2149). Todos los símbolos son `viewBox="0 0 24 24"`, trazo abierto (`fill:none;stroke:currentColor`) salvo los que declaran `fill="currentColor" stroke="none"` en primitivas concretas (`i-asa`, `i-corte`, `i-colores`).
+El sprite vive en `<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>…</defs></svg>` justo después de `<body>` (líneas 69–112). Todos los símbolos son `viewBox="0 0 24 24"`, trazo abierto (`fill:none;stroke:currentColor`) salvo los que declaran `fill="currentColor" stroke="none"` en primitivas concretas (`i-asa`, `i-corte`, `i-colores`).
 
-**Los 32 ids disponibles, completos:**
+**Los 38 ids disponibles, completos:**
 
 | id | dibuja |
 |---|---|
@@ -983,7 +983,12 @@ El sprite vive en `<svg width="0" height="0" style="position:absolute" aria-hidd
 | `i-historial` | flecha circular con reloj |
 | `i-copiar` | dos hojas — duplicar |
 | `i-basura` | bote — eliminar |
-| `i-ojo` | ojo — visibilidad en PDF |
+| `i-ojo` | ojo — visibilidad en PDF, y cotas a la vista en el escalador |
+| `i-ojo-off` | ojo tachado — cotas apagadas en el escalador |
+| `i-cuaderno` | libreta — cuadernos de cliente |
+| `i-deshacer` | flecha circular hacia atrás |
+| `i-sol` | sol — tema claro |
+| `i-luna` | luna — tema oscuro |
 | `i-lapiz` | lápiz — editar |
 | `i-aviso` | triángulo con ! |
 | `i-imagen` | marco con sol y montaña |
