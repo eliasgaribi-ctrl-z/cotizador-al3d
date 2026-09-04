@@ -252,14 +252,24 @@ que quien corta tenía que salirse de Fabricación, entrar al Cotizador y encont
 pantalla de partidas. Este mismo repositorio lo decía en `js/mod/tablero.js`, ofreciendo un botón
 llamado «Vectorizar en el Cotizador» que te echaba a otra pestaña. Hoy es la lente de al lado.
 
-**No se movió el aparato, se movió la puerta**, y la diferencia importa: `vectorizador.js` son
-1 227 líneas que leen tres cosas que solo existen dentro de `cotizador.html` — `SC`, el
-escalador, en doce sitios, porque le PIDE PRESTADA SU CALIBRACIÓN y de ahí salen los milímetros
-de verdad y no los píxeles; `Q.aiFile`, para vectorizar la imagen que acabó de analizar la IA; y
-`addItem()`, porque el vector se convierte en una partida con su medida real. Fuera de ese
-documento las tres se caen **en silencio**. Así que la plataforma empotra el mismo documento con
-`?abrir=vector` y el aparato llega entero. Al terminar, **Acomodar en hoja** ya no abre otra
-pestaña: pasa a la Mesa de corte con el trazo puesto.
+**No se movió el aparato, se movió la puerta.** `vectorizador.js` son 1 227 líneas que leen tres
+cosas que solo existen dentro de `cotizador.html` — `SC`, el escalador, en doce sitios;
+`Q.aiFile`, la imagen que acabó de analizar la IA; y `addItem()`, que convierte el vector en una
+partida — y fuera de ese documento las tres se caen **en silencio**, que es el modo de fallo que
+este repositorio ya documenta para los 273 manejadores en línea. Así que la plataforma empotra el
+mismo documento con `?abrir=vector` y el aparato llega entero, con una sola copia del código.
+
+**Y aun llegando entero, no enseña todo.** Esas tres dependencias son de COTIZACIÓN, no de
+taller: el escalador se usa para sacarle la medida a una foto sin cotas y ponerle precio, y no
+existe en ningún otro sitio de la app; la IA tampoco; y una partida, por definición, tampoco. Así
+que desde la Mesa de corte se apagan las cinco salidas que el vectorizador comparte con la
+cotización —traer la imagen de la IA o del escalador, pedirle prestada su calibración, devolverle
+el vector como partida o como medida—. La peor de las cinco era «Agregar como partida»:
+escribiría un renglón en la cotización que estuviera abierta, **desde la pestaña de
+Fabricación**. Quedan la carga del archivo, los ajustes del trazo, la escala escrita a mano, la
+exportación y **Acomodar en hoja**, que es el camino por el que se vino. Se apaga con `hidden` y
+no con `style.display` porque varias funciones del aparato vuelven a encender esos nodos solas, y
+`[hidden]{display:none!important}` gana a todas.
 
 También se llega desde el cotizador, con **Acomodar en hoja** dentro del vectorizador, que abre
 el anidador **con el trazo ya puesto** —sin bajar el SVG al disco y sin ir a

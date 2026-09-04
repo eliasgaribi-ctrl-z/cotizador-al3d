@@ -402,9 +402,10 @@ function pintarVector() {
   _cont.innerHTML =
     segLente() +
     '<p class="hintnote">' + ico('i-vector') +
-    ' <span>El mismo Vectorizador Pro del Cotizador, con su escalador y la cotización que ' +
-    'tengas abierta. Al terminar, <b>Acomodar en hoja</b> pasa el trazo a la Mesa de ' +
-    'corte.</span></p>' +
+    ' <span>El logotipo del cliente convertido en trazo de corte. Al terminar, ' +
+    '<b>Acomodar en hoja</b> lo pasa a la Mesa de corte. Lo que sale de aquí para una ' +
+    'cotización —medirlo en el escalador, agregarlo como partida— vive en el ' +
+    'Cotizador.</span></p>' +
     '<div class="pf-marco-caja">' +
       '<iframe class="pf-marco" id="pf-vect-marco" src="cotizador.html?abrir=vector" ' +
       'title="Vectorizador Pro — el logotipo del cliente convertido en trazo de corte"></iframe>' +

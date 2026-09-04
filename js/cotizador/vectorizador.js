@@ -97,10 +97,27 @@ function _abiertoComoAparato(){
     return new URLSearchParams(location.search).get('abrir')==='vector';
   }catch(_){ return false; }
 }
-/* Los dos botones de salida dicen «Cotizador» porque de ahí se venía siempre. Abierto como
-   aparato desde la Mesa de corte se vuelve al Taller, y un botón que nombra un destino que no
-   es el suyo es peor que uno sin etiqueta: se aprende una vez y se equivoca siempre. La
-   etiqueta se corrige aquí y no en el HTML porque el mismo marcado sirve a los dos modos. */
+/* ----- Lo que este aparato NO es cuando se abre desde el Taller -----
+   El escalador es una herramienta de COTIZACIÓN: se usa para sacarle la medida a una foto sin
+   cotas y ponerle precio, y no existe en ningún otro sitio de la app. La IA también, y una
+   partida —definición— también. Así que las cuatro salidas que el vectorizador comparte con
+   la cotización no son de quien corta:
+
+     · «Imagen de IA» y «La del escalador» — traer la imagen de la captura.
+     · «Usar la escala calibrada del escalador» — pedirle prestada su calibración.
+     · «Agregar como partida de letras 3D» y «Medir el vector en el escalador» — devolverle
+       el resultado a la cotización. La primera es la peor de las cuatro: escribiría un
+       renglón en la cotización que estuviera abierta, desde la pestaña de Fabricación.
+
+   Abierto desde la Mesa de corte quedan la carga del archivo, los ajustes del trazo, la
+   escala escrita a mano, la exportación y «Acomodar en hoja» — que es el camino por el que se
+   vino—. Se apagan aquí y no en el HTML porque el MISMO marcado sirve a los dos modos.
+
+   Y los dos botones de salida dicen «Cotizador» porque de ahí se venía siempre; desde aquí se
+   vuelve al Taller, y un botón que nombra un destino que no es el suyo es peor que uno sin
+   etiqueta: se aprende una vez y se equivoca siempre. */
+const VT_SOLO_COTIZANDO = ['vt-use-ai-btn', 'vt-use-sc-btn', 'vt-esc-usar-sc',
+                           'vt-btn-partidas', 'vt-btn-scaler'];
 function vtEtiquetarSalida(){
   if(!_abiertoComoAparato()) return;
   const l=document.querySelector('#vectormodal .sp-close .lbl');
@@ -110,6 +127,11 @@ function vtEtiquetarSalida(){
   document.querySelectorAll('#vectormodal .sp-close').forEach(x=>{
     x.title='Volver al taller'; x.setAttribute('aria-label','Volver al taller');
   });
+  /* `hidden` y no `style.display`: son cinco nodos que varias funciones del aparato vuelven a
+     encender solas —vtPintarEscalaSc, abrirVector, vtPintarResultado— y escribirles el display
+     aquí lo perdería en el siguiente repintado. `[hidden]{display:none!important}` vive al
+     principio de css/sistema.css y gana a todas. */
+  VT_SOLO_COTIZANDO.forEach(id=>{ const n=$(id); if(n) n.hidden=true; });
 }
 window.addEventListener('popstate',()=>{
   if(!$('vectormodal').classList.contains('show'))return;

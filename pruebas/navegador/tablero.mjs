@@ -329,6 +329,33 @@ else {
     ? bien('y llega ENTERO: SC (la calibración del escalador), Q y addItem() están en pie')
     : mal('el aparato llegó incompleto: ' + JSON.stringify(dentro));
 
+  /* Y AUN LLEGANDO ENTERO, NO ENSEÑA TODO. El escalador y la IA son herramientas de
+     COTIZACIÓN —no existen en ningún otro sitio de la app— y una partida, por definición,
+     también. Las cinco salidas que el vectorizador comparte con la cotización no son de quien
+     corta, y «Agregar como partida» es la peor: escribiría un renglón en la cotización que
+     estuviera abierta, desde la pestaña de Fabricación.
+     Se comprueba el ALTO y no el `display`: varias funciones del aparato vuelven a encender
+     esos nodos solas, y lo que los mantiene apagados es `hidden` con el `!important` de la
+     hoja. Si alguien cambia el `hidden` por un `style.display`, esto lo dice. */
+  const soloCotizando = ['vt-use-ai-btn', 'vt-use-sc-btn', 'vt-esc-usar-sc',
+                         'vt-btn-partidas', 'vt-btn-scaler'];
+  const visibles = await mv.evaluate(ids => {
+    if (typeof vtPintarEscalaSc === 'function') vtPintarEscalaSc();
+    return ids.filter(id => {
+      const n = document.getElementById(id);
+      return n && n.getBoundingClientRect().height > 0;
+    });
+  }, soloCotizando);
+  visibles.length === 0
+    ? bien('y las cinco salidas de cotización quedan apagadas, incluso tras repintar el panel')
+    : mal('desde el Taller siguen a la vista: ' + visibles.join(', '));
+
+  const etiqueta = await mv.evaluate(() =>
+    (document.querySelector('#vectormodal .sp-close') || {}).getAttribute?.('aria-label'));
+  etiqueta === 'Volver al taller'
+    ? bien('y la salida dice «Volver al taller», no «al cotizador»')
+    : mal('la salida sigue diciendo ' + JSON.stringify(etiqueta));
+
   const altoV = await p.evaluate(() => {
     const m = document.getElementById('pf-vect-marco');
     return m ? Math.round(m.getBoundingClientRect().height) : null;
