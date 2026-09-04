@@ -241,11 +241,28 @@ Antes de mandar las piezas de acrílico o aluminio al láser o al CNC conviene a
 para gastar el menor material posible — el *nesting* que antes se hacía a mano en
 svgnest.com. Vive en su propia página,
 [`/anidador-vectores/`](https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/anidador-vectores/),
-porque es del taller y no de la venta, y se llega a ella desde dos sitios: el botón
-**Anidador** de la barra de la plataforma —en computadora y tableta; en el teléfono no se
-enseña, porque ahí no hay SVG que acomodar ni láser que alimentar, y un botón más partía la
-barra en tres renglones— y, en el cotizador, **Acomodar en hoja** dentro del vectorizador,
-que abre el anidador **con el trazo ya puesto** —sin bajar el SVG al disco y sin ir a
+porque es del taller y no de la venta, y **dentro de la plataforma vive en el Tablero**, en el
+segmento de arriba: *Carga del taller · Vectorizador · **Mesa de corte***. Tres lentes sobre el
+mismo momento del trabajo, en el orden en que se hace.
+
+**Vectorizar y anidar son una sola faena partida en dos** —el logotipo del cliente se convierte
+en trazo y ese trazo se acomoda en la lámina— y hasta septiembre de 2026 estaban en dos sitios
+distintos: el anidador en el Tablero y el vectorizador enterrado en el paso 2 del cotizador, así
+que quien corta tenía que salirse de Fabricación, entrar al Cotizador y encontrar un botón en la
+pantalla de partidas. Este mismo repositorio lo decía en `js/mod/tablero.js`, ofreciendo un botón
+llamado «Vectorizar en el Cotizador» que te echaba a otra pestaña. Hoy es la lente de al lado.
+
+**No se movió el aparato, se movió la puerta**, y la diferencia importa: `vectorizador.js` son
+1 227 líneas que leen tres cosas que solo existen dentro de `cotizador.html` — `SC`, el
+escalador, en doce sitios, porque le PIDE PRESTADA SU CALIBRACIÓN y de ahí salen los milímetros
+de verdad y no los píxeles; `Q.aiFile`, para vectorizar la imagen que acabó de analizar la IA; y
+`addItem()`, porque el vector se convierte en una partida con su medida real. Fuera de ese
+documento las tres se caen **en silencio**. Así que la plataforma empotra el mismo documento con
+`?abrir=vector` y el aparato llega entero. Al terminar, **Acomodar en hoja** ya no abre otra
+pestaña: pasa a la Mesa de corte con el trazo puesto.
+
+También se llega desde el cotizador, con **Acomodar en hoja** dentro del vectorizador, que abre
+el anidador **con el trazo ya puesto** —sin bajar el SVG al disco y sin ir a
 buscarlo a las descargas—. Subes el SVG de las piezas (arrastrado, pegado con
 Ctrl+V o elegido), dices en qué hoja va y la herramienta las acomoda sola, probando giros,
 con el motor open source [SVGnest](https://github.com/Jack000/SVGnest). Corre completo en el

@@ -69,6 +69,7 @@ function abrirVector(){
   $('vt-zoom').style.display=VT.img?'flex':'none';
   if(!VT.img) $('vt-overlay').classList.remove('hide');
   $('vectormodal').classList.add('show');
+  vtEtiquetarSalida();
   // Una entrada de historial, igual que el escalador: en el celular el gesto para
   // regresar es el botón "atrás" del teléfono y sin esto se salía de la cotización.
   if(!VT.hist){ try{history.pushState({vt:1},'');VT.hist=true;}catch(_){} }
@@ -78,8 +79,37 @@ function abrirVector(){
 }
 function vtOcultar(){ $('vectormodal').classList.remove('show'); }
 function cerrarVector(){
+  /* ----- Cerrar cuando este documento ES el vectorizador -----
+     La Mesa de corte de la plataforma empota cotizador.html con `?abrir=vector`, así que aquí
+     el aparato no es un modal encima de la cotización: es TODO lo que se vino a ver. Sin esto,
+     la × escondía el modal y dejaba a la vista un cotizador entero dentro de la pestaña de
+     Fabricación —una app dentro de otra, sin nada que dijera cómo salir—. Se avisa al padre y
+     el padre vuelve a su lente. Si nadie escucha, se cierra como siempre. */
+  if(_abiertoComoAparato()){
+    try{ parent.postMessage({al3d:'cerrar-vector'},location.origin); return; }catch(_){}
+  }
   vtOcultar();
   if(VT.hist){ VT.hist=false; try{history.back();}catch(_){} }
+}
+function _abiertoComoAparato(){
+  try{
+    if(parent===window) return false;
+    return new URLSearchParams(location.search).get('abrir')==='vector';
+  }catch(_){ return false; }
+}
+/* Los dos botones de salida dicen «Cotizador» porque de ahí se venía siempre. Abierto como
+   aparato desde la Mesa de corte se vuelve al Taller, y un botón que nombra un destino que no
+   es el suyo es peor que uno sin etiqueta: se aprende una vez y se equivoca siempre. La
+   etiqueta se corrige aquí y no en el HTML porque el mismo marcado sirve a los dos modos. */
+function vtEtiquetarSalida(){
+  if(!_abiertoComoAparato()) return;
+  const l=document.querySelector('#vectormodal .sp-close .lbl');
+  if(l) l.textContent='Taller';
+  const b=document.querySelector('#vectormodal .sp-back-m');
+  if(b) b.innerHTML='<svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver al taller';
+  document.querySelectorAll('#vectormodal .sp-close').forEach(x=>{
+    x.title='Volver al taller'; x.setAttribute('aria-label','Volver al taller');
+  });
 }
 window.addEventListener('popstate',()=>{
   if(!$('vectormodal').classList.contains('show'))return;

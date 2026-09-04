@@ -63,7 +63,34 @@ function init(){
      usuario, así que la app abre sin nada que deshacer. */
   undoBarrera();
   registrarSW();
+  /* Antes de ofrecer la restauración y no después: `pruebas/respaldo.mjs` comprueba que
+     `ofrecerRestauracionPendiente()` sea lo ÚLTIMO del arranque, y tiene razón en cuidarlo —es
+     la única puerta por la que entra el respaldo que dejó la plataforma—. Aquí el orden no
+     cambia nada: esa función inserta una tarjeta en `#contenido`, no un modal, así que espera
+     detrás del aparato y está puesta al cerrarlo. */
+  abrirLoQuePidieron();
   ofrecerRestauracionPendiente();
+}
+/* ----- Llegar con una herramienta ya abierta -----
+   `?abrir=vector` deja el Vectorizador Pro puesto al terminar de arrancar. Existe por una
+   razón concreta: la Mesa de corte de la plataforma —Tablero → «Mesa de corte»— empotra el
+   anidador, y hasta ahora el vectorizador, que es la mitad anterior de ese mismo trabajo,
+   solo se alcanzaba desde el paso 2 del cotizador. Quien corta tenía que salirse de
+   Fabricación, entrar al Cotizador y buscar un botón en la pantalla de partidas.
+
+   No se movió el vectorizador: son 1 227 líneas que leen `SC` —la calibración del escalador,
+   que es de donde salen los milímetros de verdad—, `Q.aiFile` y `addItem()`, así que fuera de
+   cotizador.html perdería las tres cosas en silencio. Lo que se movió es la PUERTA: la
+   plataforma empotra este mismo documento con este parámetro, y el aparato sigue siendo el
+   mismo con su mismo estado.
+
+   Va al final de init() a propósito: `abrirVector()` lee `Q.aiFile` y `SC.img` para decidir
+   qué botones de origen enseña, y los dos existen recién cuando loadState() ya corrió. */
+function abrirLoQuePidieron(){
+  let cual='';
+  try{ cual=new URLSearchParams(location.search).get('abrir')||''; }catch(_){ return; }
+  if(cual==='vector'&&typeof abrirVector==='function') abrirVector();
+  else if(cual==='escalar'&&typeof abrirScaler==='function') abrirScaler();
 }
 /* El service worker guarda una copia de la app para que abra sin señal. Va al final del
    arranque y en su propio try: si el navegador no lo soporta —o el sitio se abrió como

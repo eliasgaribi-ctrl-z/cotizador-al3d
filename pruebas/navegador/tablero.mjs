@@ -294,6 +294,80 @@ await p.waitForTimeout(600);
   ? bien('al volver a la carga, el marco se destruye — y con él sus Web Workers')
   : mal('el marco sigue en el DOM después de salir de la mesa de corte');
 
+// ── 6b-bis. El vectorizador, la otra mitad de la faena ─────────────────────
+/* Vectorizar y anidar son un trabajo partido en dos, y el vectorizador solo se alcanzaba
+   desde el paso 2 del cotizador: quien corta tenía que salirse de Fabricación. Se empotra el
+   MISMO cotizador.html con `?abrir=vector` porque el aparato lee `SC` —la calibración del
+   escalador—, `Q.aiFile` y `addItem()`, y fuera de ese documento las tres se caen en
+   silencio. Lo que se prueba aquí es lo que no se ve mirando la pantalla. */
+console.log('\nEL VECTORIZADOR, AL LADO DE LA MESA DE CORTE');
+const lentes = await p.$$eval('[data-vista]', ns => ns.map(n => n.dataset.vista));
+lentes.join(',') === 'tablero,vector,anidador'
+  ? bien('tres lentes, en el orden en que se trabaja: ' + lentes.join(' · '))
+  : mal('el segmento tiene ' + JSON.stringify(lentes));
+
+await p.click('[data-vista="vector"]');
+await p.waitForTimeout(3800);
+const mv = p.frames().find(x => x.url().includes('cotizador.html'));
+if (!mv) mal('la sub-vista Vectorizador no cargó su marco');
+else {
+  bien('el marco carga ' + mv.url().replace(B, ''));
+  /* El caso que caza el fallo mudo de ESTA lente: `?abrir=vector` corre al final de init(),
+     cuando loadState() ya dejó Q y SC en pie. Si se adelantara, el modal abriría sin saber
+     qué botones de origen enseñar y nadie lo notaría hasta usarlo. */
+  const dentro = await mv.evaluate(() => ({
+    abierto: document.getElementById('vectormodal').classList.contains('show'),
+    empotrado: document.documentElement.classList.contains('empotrado'),
+    tieneSC: typeof SC !== 'undefined' && !!SC,
+    tieneQ: typeof Q !== 'undefined' && !!Q && typeof Q.folio === 'string',
+    puedePartida: typeof addItem === 'function',
+  }));
+  dentro.abierto ? bien('el Vectorizador Pro abre puesto, sin un clic más')
+                 : mal('el modal no quedó abierto: ' + JSON.stringify(dentro));
+  dentro.empotrado ? bien('el cotizador se sabe empotrado') : mal('no puso la clase .empotrado');
+  dentro.tieneSC && dentro.tieneQ && dentro.puedePartida
+    ? bien('y llega ENTERO: SC (la calibración del escalador), Q y addItem() están en pie')
+    : mal('el aparato llegó incompleto: ' + JSON.stringify(dentro));
+
+  const altoV = await p.evaluate(() => {
+    const m = document.getElementById('pf-vect-marco');
+    return m ? Math.round(m.getBoundingClientRect().height) : null;
+  });
+  altoV > 400 ? bien('el marco mide ' + altoV + ' px: alRedimensionar mide el marco que está puesto')
+              : mal('el marco quedó en ' + altoV + ' px — ¿se midió el del anidador?');
+
+  /* «Acomodar en hoja» avisaba al padre para que abriera otra pestaña. Con las dos lentes
+     juntas, es pasar al segmento de al lado. */
+  await mv.evaluate(() => parent.postMessage({ al3d: 'anidar' }, location.origin));
+  await p.waitForTimeout(1400);
+  const tras = await p.evaluate(() => ({
+    lente: (document.querySelector('[data-vista].on') || {}).dataset?.vista || null,
+    anid: !!document.getElementById('pf-anid-marco'),
+    vect: !!document.getElementById('pf-vect-marco'),
+  }));
+  tras.lente === 'anidador' && tras.anid && !tras.vect
+    ? bien('«Acomodar en hoja» pasa a la Mesa de corte y se lleva su marco')
+    : mal('tras el aviso quedó ' + JSON.stringify(tras));
+}
+
+/* La × del vectorizador no puede limitarse a esconder su modal: debajo hay un cotizador
+   entero, y enseñarlo dentro de Fabricación sería una app dentro de otra. */
+await p.click('[data-vista="vector"]');
+await p.waitForTimeout(3800);
+const mv2 = p.frames().find(x => x.url().includes('cotizador.html'));
+if (!mv2) mal('el Vectorizador no volvió a cargar');
+else {
+  await mv2.evaluate(() => cerrarVector());
+  await p.waitForTimeout(900);
+  const cerrado = await p.evaluate(() => ({
+    lente: (document.querySelector('[data-vista].on') || {}).dataset?.vista || null,
+    vect: !!document.getElementById('pf-vect-marco'),
+  }));
+  cerrado.lente === 'tablero' && !cerrado.vect
+    ? bien('la × devuelve a la carga del taller y destruye el marco, no deja un cotizador suelto')
+    : mal('al cerrar quedó ' + JSON.stringify(cerrado));
+}
+
 // ── 6c. El Cotizador, empotrado ────────────────────────────────────────────
 /* Los cuatro casos que importan, y ninguno se ve mirando la pantalla:
    · que el marco cargue y su script corra (273 manejadores en línea dependen de que el

@@ -59,11 +59,19 @@ let _cont = null;
 let _ctx = null;
 let _d = null;            // lo último que se leyó
 let _etapa = null;        // el filtro de la línea de estaciones. null = todo
-/* Qué se está viendo del taller: la carga, o la mesa de corte. NO es una ruta y no vive en el
-   hash: `rutaPorNombre()` exige igualdad exacta de un solo segmento, así que `#/hoy/anidador`
-   no casa con nada, cae al default Y deja la barra de direcciones mintiendo. Es lo único que
-   se quiere RECORDAR entre visitas, así que `desmontar()` lo deja en pie a propósito: quien
-   estaba en la mesa de corte y fue a ver un proyecto, al volver sigue en la mesa. */
+/* Qué se está viendo del taller: la carga, el vectorizador o la mesa de corte. NO es una ruta
+   y no vive en el hash: `rutaPorNombre()` exige igualdad exacta de un solo segmento, así que
+   `#/hoy/anidador` no casa con nada, cae al default Y deja la barra de direcciones mintiendo.
+   Es lo único que se quiere RECORDAR entre visitas, así que `desmontar()` lo deja en pie a
+   propósito: quien estaba en la mesa de corte y fue a ver un proyecto, al volver sigue en la
+   mesa.
+
+   La lista es UNA: el segmento, el pase que llega de otro módulo y el clic salían de tres
+   ternarios `=== 'anidador' ? … : 'tablero'` distintos, y con una lente más eso significa que
+   agregar la cuarta se olvida en dos de los tres sitios y la vista cae en silencio al
+   tablero. */
+const VISTAS = ['tablero', 'vector', 'anidador'];
+const VISTA_NOMBRE = { tablero: 'Carga del taller', vector: 'Vectorizador', anidador: 'Mesa de corte' };
 let _vista = 'tablero';
 let _origen = null;       // de qué proyecto se viene, cuando se entró con un pase
 let _pide = null;         // qué está preguntando el modal, si está abierto
@@ -102,7 +110,7 @@ export async function montar(contenedor, ctx) {
 
   /* El pase que dejó el módulo anterior. De un solo uso: `recibir()` lo borra al leerlo. */
   const pase = (ctx && ctx.recibir) ? ctx.recibir() : null;
-  if (pase && pase.vista) _vista = pase.vista === 'anidador' ? 'anidador' : 'tablero';
+  if (pase && pase.vista) _vista = VISTAS.indexOf(pase.vista) >= 0 ? pase.vista : 'tablero';
   _origen = (pase && pase.proyecto_id) ? pase : null;
 
   _cont.addEventListener('click', alClic);
@@ -148,6 +156,9 @@ export function desmontar() {
      tirantes, no la única defensa. */
   if (_ctx && _ctx.sinRemonte) _ctx.sinRemonte(false);
   window.removeEventListener('resize', alRedimensionar);
+  /* El oyente del marco es del DOCUMENTO, no del contenedor: sin quitarlo aquí sobrevive al
+     cambio de pestaña y un `postMessage` tardío pintaría este módulo con `_cont` en null. */
+  dejarDeOirMarco();
   _cont = null; _ctx = null; _d = null; _etapa = null; _oyendo = false; _acciones = [];
   /* `_vista` NO se anula: es lo único que se quiere recordar entre visitas. */
 }
@@ -242,6 +253,7 @@ function pintar() {
   _acciones = [];
 
   if (_vista === 'anidador') { pintarAnidador(); return; }
+  if (_vista === 'vector') { pintarVector(); return; }
 
   /* Se suelta la guarda del remonte al volver de la mesa de corte: aquí no hay marco que
      proteger, y dejarla puesta significaría que un proyecto ganado en el cotizador ya no
@@ -277,11 +289,21 @@ function pintar() {
 }
 
 /* ----- El segmento de sub-vista -----
-   Dos lentes sobre el mismo taller: la carga —qué hay y qué se atrasa— y la mesa de corte
-   —cómo caen las piezas en la lámina—. Es un segmento y no dos rutas porque son dos formas
-   de mirar el mismo momento del trabajo, y porque el Anidador no puede ser una ruta: ver §5. */
+   TRES lentes sobre el mismo taller, en el orden en que se trabaja: la carga —qué hay y qué
+   se atrasa—, el vectorizador —el logotipo del cliente convertido en trazo— y la mesa de
+   corte —cómo caen esas piezas en la lámina—. Es un segmento y no tres rutas porque son tres
+   formas de mirar el mismo momento del trabajo, y porque ni el Anidador ni el Vectorizador
+   pueden ser una ruta: ver §5 y `abrirLoQuePidieron()` en js/cotizador/arranque.js.
+
+   El vectorizador estaba solo en el paso 2 del cotizador, y vectorizar y anidar son la misma
+   faena partida en dos: se convierte el logotipo en trazo y se acomoda en la hoja. Quien
+   corta tenía que salirse de Fabricación, entrar al Cotizador y encontrar un botón en la
+   pantalla de partidas —y este archivo ya lo decía en `origenHTML()`, ofreciendo un botón que
+   te echaba a otra pestaña—. */
 function segLente() {
-  return segmento([{ v: 'tablero', t: 'Carga del taller' }, { v: 'anidador', t: 'Mesa de corte' }],
+  return segmento([{ v: 'tablero', t: 'Carga del taller' },
+                   { v: 'vector', t: 'Vectorizador' },
+                   { v: 'anidador', t: 'Mesa de corte' }],
     _vista, 'data-vista', 'Qué ves del taller');
 }
 
@@ -342,16 +364,109 @@ function pintarAnidador() {
      Se mide después de que el navegador colocó la caja, no en el mismo tick. */
   requestAnimationFrame(() => medirMarco('pf-anid-marco'));
   window.addEventListener('resize', alRedimensionar);
+  /* Aquí no hay marco del vectorizador que escuchar, y dejar el oyente puesto significaría que
+     un `postMessage` de un marco que ya murió mueve la lente. */
+  dejarDeOirMarco();
 
   const b = $('pf-mbar');
   if (b) { b.hidden = true; b.innerHTML = ''; b.onclick = null; ajustarAltoBarra(); }
   if (_ctx && _ctx.ponerCuenta) _ctx.ponerCuenta('hoy', 0);
 }
 
+/* ----- El vectorizador, aquí y no en otra pestaña -----
+   La otra mitad de la faena: el logotipo del cliente convertido en trazo de corte, que es lo
+   que después se acomoda en la lámina de al lado.
+
+   NO SE PORTÓ EL APARATO, Y NO SE PUEDE. `js/cotizador/vectorizador.js` son 1 227 líneas que
+   leen tres cosas que solo existen dentro de cotizador.html:
+
+     · `SC` —el escalador— en doce sitios: toma su imagen, PIDE PRESTADA SU CALIBRACIÓN
+       (`SC.nativePxPerCm`, de donde salen los milímetros de verdad y no los píxeles) y le
+       escribe de vuelta una línea de referencia. Medir y vectorizar son un trabajo partido en
+       dos, no dos herramientas.
+     · `Q.aiFile` — «usa la imagen que acabó de analizar la IA».
+     · `addItem()` y `renderItems()` — el vector se convierte en una PARTIDA de la cotización,
+       con su medida real.
+
+   Fuera de ese documento las tres se caen en silencio, que es exactamente el modo de fallo
+   que este repositorio documenta en js/mod/cotizador.js para los 273 manejadores en línea.
+   Así que se empotra el MISMO documento con `?abrir=vector` —ver `abrirLoQuePidieron()` en
+   js/cotizador/arranque.js— y el aparato llega entero, con su escalador y su cotización.
+
+   Y el marco escucha `al3d:'anidar'`: «Acomodar en hoja» desde el vectorizador ya escribía el
+   trazo en `al3d_anidar` y avisaba al padre para que navegara. Con las dos lentes juntas ese
+   aviso deja de ser un salto a otra pestaña y es pasar al segmento de al lado. */
+function pintarVector() {
+  if (_ctx && _ctx.sinRemonte) _ctx.sinRemonte(true);
+
+  _cont.innerHTML =
+    segLente() +
+    '<p class="hintnote">' + ico('i-vector') +
+    ' <span>El mismo Vectorizador Pro del Cotizador, con su escalador y la cotización que ' +
+    'tengas abierta. Al terminar, <b>Acomodar en hoja</b> pasa el trazo a la Mesa de ' +
+    'corte.</span></p>' +
+    '<div class="pf-marco-caja">' +
+      '<iframe class="pf-marco" id="pf-vect-marco" src="cotizador.html?abrir=vector" ' +
+      'title="Vectorizador Pro — el logotipo del cliente convertido en trazo de corte"></iframe>' +
+    '</div>';
+
+  requestAnimationFrame(() => medirMarco('pf-vect-marco'));
+  window.addEventListener('resize', alRedimensionar);
+  oirMarco();
+
+  const b = $('pf-mbar');
+  if (b) { b.hidden = true; b.innerHTML = ''; b.onclick = null; ajustarAltoBarra(); }
+  if (_ctx && _ctx.ponerCuenta) _ctx.ponerCuenta('hoy', 0);
+}
+
+/* ----- «Acomodar en hoja», desde dentro del marco -----
+   Se validan el origen Y la fuente, igual que en js/mod/cotizador.js: `message` lo puede
+   disparar cualquier ventana que tenga una referencia a esta, y sin las dos comprobaciones
+   cualquier página abierta desde aquí podría mover la navegación de la app. */
+let _oyeMarco = null;
+function oirMarco() {
+  dejarDeOirMarco();
+  _oyeMarco = ev => {
+    if (ev.origin !== location.origin) return;
+    const m = $('pf-vect-marco');
+    if (!m || ev.source !== m.contentWindow) return;
+    const d = ev.data;
+    if (!d || typeof d !== 'object') return;
+    if (d.al3d === 'anidar') {
+      _vista = 'anidador';
+      pintar();
+      voz('Mesa de corte, con el trazo puesto');
+      return;
+    }
+    /* La × del vectorizador. Dentro del marco no puede limitarse a esconder su modal: debajo
+       hay un cotizador entero, y enseñarlo aquí sería una app dentro de otra. */
+    if (d.al3d === 'cerrar-vector') {
+      _vista = 'tablero';
+      _origen = null;
+      pintar();
+      voz('Carga del taller');
+    }
+  };
+  window.addEventListener('message', _oyeMarco);
+}
+function dejarDeOirMarco() {
+  if (!_oyeMarco) return;
+  window.removeEventListener('message', _oyeMarco);
+  _oyeMarco = null;
+}
+
+/* El id del marco que está puesto, si hay alguno: `alRedimensionar` pedía siempre el del
+   anidador, así que con la lente del vectorizador arriba el alto se medía sobre un nodo que
+   no existe y el iframe se quedaba en los 150 px de la especificación. */
+const MARCO = { anidador: 'pf-anid-marco', vector: 'pf-vect-marco' };
 let _rzMarco = 0;
 function alRedimensionar() {
   if (_rzMarco) return;
-  _rzMarco = requestAnimationFrame(() => { _rzMarco = 0; medirMarco('pf-anid-marco'); });
+  _rzMarco = requestAnimationFrame(() => {
+    _rzMarco = 0;
+    const id = MARCO[_vista];
+    if (id) medirMarco(id);
+  });
 }
 
 /* ----- De dónde vienes, y el límite dicho con palabras -----
@@ -360,7 +475,11 @@ function alRedimensionar() {
    cotizador.html. Así que un pase desde un proyecto NO puede escribir `al3d_anidar`: el
    anidador lo leería, no encontraría `svg` y se quedaría vacío, pareciendo que no recibió
    nada. Se dice de dónde vienes y se ofrece el único camino que de verdad trae el trazo.
-   Prometer más sería inventar un dato. */
+   Prometer más sería inventar un dato.
+
+   Lo que cambia es a DÓNDE lleva ese camino: era un botón que te echaba a la pestaña del
+   Cotizador —salir de Fabricación para volver— y hoy es la lente de al lado, que empotra el
+   mismo vectorizador. El límite es el mismo; el viaje ya no. */
 function origenHTML() {
   const enTelefono = '<p class="hintnote">' + ico('i-aviso') +
     ' <span>El acomodo se calcula en la computadora, que es donde se exporta el SVG y se ' +
@@ -369,10 +488,11 @@ function origenHTML() {
   return '<p class="hintnote">' + ico('i-anidar') +
     ' <span>Vienes de <b>' + esc(_origen.nombre || 'un proyecto') + '</b>' +
     (_origen.folio ? ' — folio ' + esc(_origen.folio) : '') +
-    '. Suelta aquí el SVG, o tráelo del vectorizador del Cotizador: el proyecto guarda el ' +
-    'nombre del archivo, no el trazo.</span></p>' +
+    '. Suelta aquí el SVG, o hazlo en el <b>Vectorizador</b> de al lado: el proyecto guarda ' +
+    'el nombre del archivo, no el trazo.</span></p>' +
     '<p class="no-papel">' +
-    btn('Vectorizar en el Cotizador', 'btn btn-gho pf-btn-corto', { tipo: 'ir', ruta: 'cotizador' }) +
+    '<button type="button" class="btn btn-gho pf-btn-corto" data-vista="vector">' +
+    ico('i-vector') + ' Vectorizar aquí</button>' +
     '</p>' + enTelefono;
 }
 
@@ -860,7 +980,7 @@ async function alClic(ev) {
 
   const lente = ev.target.closest('[data-vista]');
   if (lente) {
-    const v = lente.dataset.vista === 'anidador' ? 'anidador' : 'tablero';
+    const v = VISTAS.indexOf(lente.dataset.vista) >= 0 ? lente.dataset.vista : 'tablero';
     if (v === _vista) return;
     _vista = v;
     /* Al salir de la mesa de corte se olvida de dónde se venía: el aviso de origen es de esa
@@ -868,7 +988,7 @@ async function alClic(ev) {
        de un proyecto que ya nadie está mirando. */
     if (v === 'tablero') _origen = null;
     pintar();
-    voz(v === 'anidador' ? 'Mesa de corte' : 'Carga del taller');
+    voz(VISTA_NOMBRE[v]);
     return;
   }
 
