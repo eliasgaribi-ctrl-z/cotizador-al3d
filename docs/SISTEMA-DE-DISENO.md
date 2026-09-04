@@ -40,6 +40,7 @@ Fuente única: **`css/sistema.css`**. Las tres superficies —`cotizador.html`, 
 
   /* ----- Estados ----- vivos, no apagados; medidos contra su relleno. */
   --ok:#0a7d4a; --ok-bg:#e2f8ec; --ok-borde:#a9e8c6;
+  --ok-fill:#0a7d4a;  /* RELLENO verde: el único de la app, y el que aguanta blanco encima */
   --av:#8a5100; --av-bg:#fff2dd; --av-borde:#ffd79c;
   --mal:#c62828; --mal-bg:#ffeceb; --mal-borde:#ffc4c1;
 
@@ -85,6 +86,10 @@ Fuente única: **`css/sistema.css`**. Las tres superficies —`cotizador.html`, 
 **La tercera tinta se aparta del traspaso, y es medido.** El documento la da como `#8b90b8` y a la vez pone la regla «nada con texto encima baja de 4,5:1». Las dos cosas no pueden ser verdad: `#8b90b8` sobre blanco da **3,10:1** y en el diseño lleva texto de verdad. Se conserva el papel y se oscurece hasta que pueda serlo: `#666d9b` da 4,97:1 sobre `--sup`, 4,68:1 sobre `--sup2` y 4,53:1 sobre `--fondo`. En oscuro, `#6f76a8` daba 3,80:1 y se sube a `#8b92c0`, que da 5,48:1. El tono de la muestra se queda en `--n5`, que es el escalón que no lleva texto.
 
 **`--a` y `--a-fill` son el mismo número en claro y NO en oscuro.** De noche `--a` (`#6d86ff`) es el azul que se lee como texto sobre marino (5,11:1 sobre `--sup`) y con blanco encima daría 3,0:1; `--a-fill` (`#3b57e6`) es el que aguanta blanco (5,69:1). Uno es tinta y el otro es fondo.
+
+**El verde tiene la misma separación, y por el mismo motivo.** `--ok` es TINTA —el verde que se lee sobre una superficie clara— y `--ok-fill` es RELLENO. De día coinciden (blanco sobre `#0a7d4a` da 5,21:1); de noche `--ok` sube a `#6fd6a4` para poder ser tinta y con blanco encima daría **1,78:1**, así que el relleno se queda oscuro: `#0e7a4d`, 5,37:1. `.btn-ok` —«Autorizar precio», «Guardar y salir de edición», «Restaurar ahora»— pedía `--ok`, o sea que en oscuro era ilegible; hoy pide `--ok-fill`. Su hover aclara un 6 % y no un 8 %: con `brightness(1.08)` el blanco de encima quedaba en 4,29:1. Lo mide `pruebas/navegador/contraste.mjs`, sección «PASO 3 · REVISAR EL PRECIO».
+
+**`--nav-rgb`** es `--nav` en partes, para el velo de los modales: `rgba(var(--nav-rgb),.55)` en los seis flotantes y `.75` en los dos aparatos de pantalla completa. Ningún modal desenfoca el fondo — lo que lo separa son su borde, su sombra y el velo, y un `backdrop-filter` sobre un lienzo que se repinta al arrastrar una cota cuesta una capa de composición por cuadro justo ahí.
 
 **Variables publicadas desde JS** (no viven en `:root`, se escriben en runtime):
 `--top-fijo` (alto de la barra fija del cotizador, `ajustarTopbarMovil()`), `--mbar-h` (alto de la barra fija, `ajustarAltoBarra()`), `--pf-marco-h` (alto de los marcos empotrados, `medirMarco()`), `--sc-acc-h` y `--vt-acc-h` (pies del escalador y del vectorizador).
@@ -204,18 +209,19 @@ Capa de estructura (la que de verdad se ve):
   transition:background var(--mv-s),color var(--mv-s),border-color var(--mv-s),transform var(--mv-s);
 }
 .btn-pri,.mbar-btn:not(.gho):not(.ok){
-  background:var(--brand-grd);color:#fff;border:1px solid rgba(255,255,255,.28);
-  box-shadow:var(--clay-a);text-shadow:0 1px 2px rgba(20,22,43,.22);
+  background:var(--a-fill);color:#fff;border:1px solid var(--a-fill);
+  box-shadow:none;text-shadow:none;font-weight:600;
 }
 .btn-pri:hover,.mbar-btn:not(.gho):not(.ok):hover{
-  background:linear-gradient(160deg,#4c6afa 0%,#3540ea 42%,#2a12e8 100%);
-  transform:translateY(-2px);
-  box-shadow:inset 0 3px 7px rgba(255,255,255,.45),inset 0 -6px 12px rgba(20,22,43,.28),0 6px 12px rgba(48,24,248,.2),0 22px 40px -8px rgba(48,24,248,.5);
+  background:var(--a-fuerte);border-color:var(--a-fuerte);transform:none;box-shadow:none;
 }
+/* El verde se queda —autorizar un precio no es «continuar»— pero pasa al relleno que aguanta
+   blanco. Es el único verde de relleno de la app. */
 .btn-ok,.mbar-btn.ok{
-  background:linear-gradient(160deg,#22c98a 0%,#12a86c 45%,#0a7d4a 100%);color:#fff;border:1px solid rgba(255,255,255,.28);
-  box-shadow:none;
+  background:var(--ok-fill);color:#fff;border:1px solid var(--ok-fill);
+  box-shadow:none;text-shadow:none;font-weight:600;
 }
+.btn-ok:hover,.mbar-btn.ok:hover{filter:brightness(1.06);transform:none;box-shadow:none}
 .btn-gho,.btn-dgr,.ai-btn,.btn-scaler-open,.btn-vector-open,.precios-ver,.btn-maps,.card-fold,.btn-hist,.mbar-btn.gho{
   background:var(--sup);
   border:1px solid var(--linea);
@@ -225,11 +231,15 @@ Capa de estructura (la que de verdad se ve):
 .btn-gho:hover,…,.mbar-btn.gho:hover{transform:none;box-shadow:none;border-color:var(--a-borde)}
 .btn-dgr{border-color:var(--mal-borde);color:var(--mal)}
 .btn-dgr:hover{background:var(--mal-bg);border-color:var(--mal)}
+/* Los dos hitos de la entrega que todavía no tocan: neutros, con su tinta en el ICONO.
+   Eran dos rellenos verdes debajo del relleno azul del hito que sí toca, así que la columna
+   tenía tres botones de color y el que decía «esto es lo que sigue» no se distinguía. */
+.btn-wa,.btn-vta{background:var(--sup);border:1px solid var(--linea);color:var(--tinta);box-shadow:none}
+.btn-wa:hover,.btn-vta:hover{border-color:var(--ok-borde);background:var(--ok-bg);color:var(--ok)}
+.btn-wa .svgi{color:var(--wa)}   .btn-vta .svgi{color:var(--ok)}
 /* Cede 1 px al tocar, y nada más. El pellizco de escala era del barro. */
 .btn:active:not(:disabled),…{transform:translateY(1px);box-shadow:none}
-.btn-pri:active:not(:disabled),.mbar-btn:not(.gho):active:not(:disabled){
-  box-shadow:inset 0 5px 11px rgba(20,22,43,.36),inset 0 -1px 3px rgba(255,255,255,.28)}
-.btn:disabled,.mbar-btn:disabled{box-shadow:var(--clay-in);transform:none;opacity:.55}
+.btn:disabled,.mbar-btn:disabled{box-shadow:none;transform:none;opacity:.55}
 ```
 
 ```html

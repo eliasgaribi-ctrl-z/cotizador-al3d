@@ -609,9 +609,13 @@ function updProg(){
   if(!bar||!pctEl)return;
   bar.style.width=pct+'%';
   pctEl.textContent=pct+'%';
-  if(pct<40)bar.style.background='linear-gradient(90deg,#f59e0b,#fb923c)';
-  else if(pct<80)bar.style.background='linear-gradient(90deg,var(--a-fuerte),var(--a-claro))';
-  else bar.style.background='linear-gradient(90deg,#15a06a,#22c55e)';
+  /* El color lo pone la hoja: aquí solo se dice si ya está completa. Antes se escribían tres
+     degradados como estilo EN LÍNEA, que gana a cualquier regla de css/sistema.css, así que el
+     color de esta barra era lo único de la app que el tema no podía cambiar —de noche seguía
+     saliendo el ámbar y el verde de día— y las reglas de la hoja estaban muertas. Y eran tres
+     colores para una medida: el ámbar en esta app significa «falta un dato obligatorio», no
+     «vas por el 30 %». */
+  bar.classList.toggle('lleno',pct>=100);
   pintarPendiente();
 }
 

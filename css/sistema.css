@@ -59,6 +59,7 @@
   --linea:#dcdff2; --linea2:#eceef8;  /* el borde de una pieza y el renglón de dentro */
   --tinta:#1a1d33; --tinta2:#5c6184;  /* la tinta y la segunda tinta */
   --nav:#171a33; --nav2:#232744;      /* la barra lateral y su ítem encendido */
+  --nav-rgb:23,26,51;                 /* el mismo, en partes, para el velo de los modales */
 
   /* La TERCERA tinta, y aquí hay una decisión medida que se aparta del traspaso.
      El documento la da como #8b90b8 y a la vez pone la regla —«nada con texto encima baja de
@@ -108,6 +109,12 @@
 
   /* ----- Estados ----- vivos, no apagados; medidos contra su relleno. */
   --ok:#0a7d4a; --ok-bg:#e2f8ec; --ok-borde:#a9e8c6;
+  /* El verde tiene la misma separación que el azul: --ok es TINTA —el que se lee sobre una
+     superficie clara— y --ok-fill es RELLENO —el que aguanta texto blanco encima—. De día
+     coinciden (blanco sobre #0a7d4a da 5,21:1); de noche --ok sube a #6fd6a4 para poder ser
+     tinta y con blanco encima daría 1,78:1, así que el relleno se queda oscuro. Es la trampa
+     que --a y --a-fill ya documentan, y `.btn-ok` estaba cayendo en ella. */
+  --ok-fill:#0a7d4a;
   --av:#8a5100; --av-bg:#fff2dd; --av-borde:#ffd79c;
   --mal:#c62828; --mal-bg:#ffeceb; --mal-borde:#ffc4c1;
 
@@ -343,10 +350,22 @@ body::before{
   z-index:200;
 }
 
-/* ---------- Topbar ---------- */
-.topbar{background:rgba(var(--sup-rgb),.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--n2);position:sticky;top:3px;z-index:30}
-.topbar-in{max-width:1180px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
-  padding:max(12px,env(safe-area-inset-top,0px)) max(24px,env(safe-area-inset-right,0px)) 12px max(24px,env(safe-area-inset-left,0px))}
+/* ---------- Topbar ----------
+   La barra del cotizador SUELTO. Dentro de la plataforma este documento va empotrado y quien
+   manda es el encabezado de allá; aquí es lo único que dice de qué app se trata y qué se
+   puede hacer sin bajar a la pantalla.
+
+   Se alinea con el encabezado del rediseño —el de la plataforma, `.pf-cab`—: 64 px de alto,
+   blanco con un borde abajo, el título a la izquierda con su línea al lado, y a la derecha
+   las acciones como controles de 36 px con borde. Antes eran píldoras de 10 px de radio con
+   la letra en azul y en negrita 700: cuatro botones azules seguidos, que en una barra donde
+   nada es LA acción es cuatro veces el color que en esta app significa «esto es la acción».
+   Ahora el azul de esa barra queda para una sola cosa: el enlace a la plataforma. */
+.topbar{background:var(--sup);backdrop-filter:none;-webkit-backdrop-filter:none;
+  border-bottom:1px solid var(--linea);position:sticky;top:3px;z-index:30}
+.topbar-in{max-width:1240px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:var(--e3);flex-wrap:wrap;
+  min-height:64px;
+  padding:max(10px,env(safe-area-inset-top,0px)) max(var(--e5),env(safe-area-inset-right,0px)) 10px max(var(--e5),env(safe-area-inset-left,0px))}
 .brand{display:flex;align-items:center;gap:12px}
 /* El logotipo es lo que dispara el selector de archivos; antes el onclick vivía en .brand y en
    la portada del Fold 6 eso era el renglón entero.
@@ -356,8 +375,14 @@ body::before{
    que venía de que la ranura medía 49 px de alto y lo que la sustituía 44. */
 .logobtn{display:flex;align-items:center;min-height:44px;border:none;background:none;padding:0;margin:0;border-radius:10px;font-family:inherit;cursor:pointer;flex-shrink:0}
 .logoimg{height:38px;width:auto;display:block;max-width:200px;object-fit:contain}
-.brand .t{font-size:var(--t4);font-weight:600;letter-spacing:-.2px}
-.brand .t small{display:block;font-size:10.5px;font-weight:500;color:var(--muted);letter-spacing:.2px}
+/* El título de la app, a la medida del encabezado de la plataforma: 20 px con la letra de las
+   cifras. Y su línea al LADO, no debajo: debajo obligaba a que la barra midiera dos renglones
+   de texto y la subtitulaba como si fuera un dato; al lado es lo que es, una aclaración de
+   qué app es ésta, y cabe en los 64 px. En el teléfono se cae debajo por falta de ancho, que
+   es donde tener dos renglones sí se paga. */
+.brand .t{font-family:var(--f-cifra);font-size:var(--t5);font-weight:600;letter-spacing:-.1px;
+  display:flex;align-items:baseline;gap:var(--e2);flex-wrap:wrap;line-height:1.2}
+.brand .t small{font-family:var(--f-texto);font-size:var(--t2);font-weight:400;color:var(--tinta3);letter-spacing:0}
 /* MEDIDO: entre 561 y 594 px la página entera se desplazaba de lado. `.topbar-in` sí
    envuelve, así que este bloque se bajaba de renglón completo — pero él no envolvía, y sus
    seis hijos (deshacer, Clientes, Historial, Plataforma, folio y el selector de rol) miden
@@ -1297,7 +1322,18 @@ details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:
 .lightbox-img{max-width:calc(100vw - 36px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px));max-height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.5);display:block}
 .lightbox-iframe{width:min(88vw,calc(100vw - 36px));height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));border:0;border-radius:8px;background:#fff}
 /* ----- Historial ----- */
-.btn-hist{background:none;border:1.5px solid var(--line);border-radius:10px;padding:6px 13px;font-size:12px;font-weight:700;color:var(--brand);cursor:pointer;transition:.15s;white-space:nowrap}
+/* El control de la barra de arriba: 36 px, borde de 1 px, radio de 4 y la SEGUNDA tinta.
+   Era una píldora de 10 px de radio con la letra en azul y en 700, y en esa barra hay cuatro
+   seguidos —Deshacer, Clientes, Historial, el tema— más el enlace a la plataforma: cinco
+   veces el color que en esta app significa «esta es LA acción». Con borde y tinta neutra, el
+   azul de la barra queda para el enlace a la plataforma, que es el único destino. */
+.btn-hist{display:inline-flex;align-items:center;gap:var(--e2);
+  min-height:36px;padding:0 12px;
+  background:var(--sup);border:1px solid var(--linea);border-radius:var(--rr2);
+  font-size:var(--t2);font-weight:500;color:var(--tinta2);
+  cursor:pointer;transition:border-color var(--mv-s),color var(--mv-s);white-space:nowrap}
+.btn-hist:hover{border-color:var(--a-borde);color:var(--tinta);background:var(--sup)}
+.btn-hist .svgi{width:var(--ico1);height:var(--ico1)}
 /* ----- Deshacer, junto al historial -----
    Comparte clase con el botón del historial para heredar su relieve, su hover y su
    pulsación: son dos controles del mismo rango en la misma barra, y darles estilo aparte es
@@ -1317,7 +1353,7 @@ details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:
    —está en todos los editores del mundo—, mientras que Clientes, Historial y Plataforma son
    destinos y sí necesitan su palabra para distinguirse. El nombre completo, con el atajo, va
    en el title y en el aria-label. */
-.btn-undo{padding:0;width:42px;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
+.btn-undo{padding:0;width:36px;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
 .btn-undo .lbl{display:none}
 .btn-undo.oculto{display:none}
 /* ----- Por qué deshacer NO vive arriba en el teléfono -----
@@ -1332,13 +1368,15 @@ details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:
    sostiene con una mano, el pulgar llega abajo y no arriba. El corte es el mismo en el que
    aparece esa barra, así que el botón existe exactamente en un lugar a cada ancho. */
 @media(max-width:920px){ .topbar-in .btn-undo{display:none} }
-.btn-hist:hover{background:var(--soft-2);border-color:var(--brand)}
 /* El enlace a la plataforma es un <a> para que se pueda abrir en otra pestaña y para que el
    lector de pantalla lo anuncie como lo que es. Pero el navegador le pone su subrayado y su
    azul de enlace con a:link, que es más específico que .btn-hist: sin esto, dos controles
    que hacen lo mismo se ven distintos y el de la derecha parece de otra app. */
-a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
-.hist-panel{background:var(--sup);border-radius:20px;max-width:720px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;
+/* Y es el ÚNICO azul de esta barra: los demás controles bajan a tinta neutra con su borde,
+   así que el azul vuelve a significar «esto lleva a otro sitio». */
+a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-color:var(--a-borde)}
+a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-tx)}
+.hist-panel{background:var(--sup);border-radius:var(--rr3);max-width:720px;width:100%;display:flex;flex-direction:column;overflow:hidden;
   max-height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
 .hist-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--sup);border-radius:var(--rr3) var(--rr3) 0 0;flex-shrink:0}
 /* Cerrar el historial. El tamaño venía de un style= en línea de 32×32 px que ninguna
@@ -2562,9 +2600,15 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
 .btn-pri:hover,.mbar-btn:not(.gho):not(.ok):hover{
   background:var(--a-fuerte);border-color:var(--a-fuerte);transform:none;box-shadow:none;
 }
+/* El verde se queda —autorizar un precio no es «continuar», y quien revisa quince
+   cotizaciones seguidas encuentra el botón por el color antes que por el texto— pero pasa al
+   relleno que aguanta blanco. Es el único verde de relleno de la app. */
 .btn-ok,.mbar-btn.ok{
-  background:var(--ok);color:#fff;border:1px solid var(--ok);box-shadow:none;text-shadow:none;
+  background:var(--ok-fill);color:#fff;border:1px solid var(--ok-fill);box-shadow:none;text-shadow:none;font-weight:600;
 }
+/* El hover aclara un 6 % y no más: el 8 % de antes dejaba el blanco de encima en 4,29:1, por
+   debajo del mínimo de esta app. Con 1,06 son 4,69:1 de día y 4,8:1 de noche. */
+.btn-ok:hover,.mbar-btn.ok:hover{filter:brightness(1.06);transform:none;box-shadow:none}
 .btn-gho,.btn-dgr,.ai-btn,.btn-scaler-open,.btn-vector-open,.precios-ver,.btn-maps,.card-fold,.btn-hist,.mbar-btn.gho{
   background:var(--sup);
   border:1px solid var(--linea);
@@ -2574,10 +2618,19 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
 .btn-gho:hover,.btn-dgr:hover,.btn-scaler-open:hover,.btn-vector-open:hover,.precios-ver:hover,.btn-maps:hover,.card-fold:hover,.btn-hist:hover,.mbar-btn.gho:hover{
   transform:none;box-shadow:none;border-color:var(--a-borde);
 }
-.btn-wa{background:var(--ok-bg);border:1px solid var(--ok-borde);color:var(--ok);box-shadow:none}
-.btn-wa:hover{transform:none;box-shadow:none;border-color:var(--ok)}
-.btn-vta{background:var(--ok-bg);border:1px solid var(--ok-borde);color:var(--ok);box-shadow:none}
-.btn-vta:hover{transform:none;box-shadow:none;border-color:var(--ok)}
+/* ----- Los dos hitos que todavía no tocan -----
+   Eran dos rellenos verdes debajo del relleno azul del hito que sí toca, así que la columna
+   de la entrega tenía TRES botones de color y el que decía «esto es lo que sigue» no se
+   distinguía de los que decían «esto viene después». Con la superficie plana ese verde ya no
+   se lee como una tinta suave sino como un relleno más.
+   El código de arriba pedía que se encontraran «sin gritar», y eso se conserva: la tinta se
+   va del botón entero y se queda en el ICONO —el verde de WhatsApp, el mismo de la venta—,
+   que es donde el color señala sin pesar. El botón es neutro como los demás. */
+.btn-wa,.btn-vta{background:var(--sup);border:1px solid var(--linea);color:var(--tinta);box-shadow:none}
+.btn-wa:hover,.btn-vta:hover{transform:none;box-shadow:none;border-color:var(--ok-borde);background:var(--ok-bg);color:var(--ok)}
+.btn-wa .svgi{color:var(--wa)}
+.btn-vta .svgi{color:var(--ok)}
+.btn-wa:hover .svgi,.btn-vta:hover .svgi{color:inherit}
 .btn-dgr{border-color:var(--mal-borde);color:var(--mal)}
 .btn-dgr:hover{background:var(--mal-bg);border-color:var(--mal)}
 /* Cede 1 px al tocar, y nada más. El pellizco de escala era del barro. */
@@ -2824,9 +2877,19 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
 
 /* ---------- Barra de completitud ----------
    6 px de alto y un brillo que la recorre: es lo que dice que la app está
-   trabajando contigo mientras se captura. */
-#prog-bar{border-radius:3px;box-shadow:none;position:relative;overflow:hidden;background:var(--a);
-  transition:width .4s cubic-bezier(.2,.8,.2,1)}
+   trabajando contigo mientras se captura.
+
+   El color lo pone AQUÍ y no js/cotizador/partidas.js, que lo escribía como estilo en línea
+   —tres degradados según el porcentaje— y por eso todas las reglas de esta hoja quedaban
+   muertas. Y eran tres colores para una medida: ámbar por debajo de 40, azul hasta 80, verde
+   arriba. El ámbar en esta app significa «falta un dato obligatorio» —lo dicen las pestañas
+   de paso y las fichas `.ptok.falta`—, no «vas por el 30 %», así que una cotización recién
+   empezada gritaba lo mismo que una a la que le falta el material. Queda una barra en el
+   acento mientras se captura y verde cuando ya está: el mismo semáforo que la barra de pasos,
+   y el bloque de al lado sigue diciendo con palabras QUÉ falta. */
+#prog-bar{border-radius:3px;box-shadow:none;position:relative;overflow:hidden;background:var(--a-fill);
+  transition:width .4s cubic-bezier(.2,.8,.2,1),background var(--mv)}
+#prog-bar.lleno{background:var(--ok-fill)}
 #prog-bar::after{
   content:'';position:absolute;inset:0;width:30%;
   background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);
@@ -2835,16 +2898,433 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
 @keyframes brillo{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
 .prog-track{border-radius:3px;box-shadow:none;background:var(--linea);height:6px}
 
-/* ---------- Modales ---------- */
+/* =====================================================================
+   ================  PRECIO Y ENTREGA  =================================
+
+   Los pasos 3 y 4 heredaban la barra y los tokens y nada más, que era el trato del traspaso.
+   Con la superficie plana eso ya no alcanza, porque las señales que estos dos pasos usaban
+   eran todas de RELLENO —un bloque verde para el descuento, uno ámbar para el aumento, dos
+   botones teñidos para los hitos que faltan— y sobre una hoja donde ya no hay relieve un
+   relleno de color no es un matiz: es la cosa más fuerte de la pantalla. La columna del
+   dinero tenía cuatro.
+
+   La regla es la misma que en las otras seis pantallas: el color va en el DATO —la cifra, la
+   ficha, el icono— y la superficie se queda plana con su borde. Así vuelve a haber un solo
+   relleno por pantalla, y es el botón que hace lo que se vino a hacer: «Autorizar yo mismo»
+   en el paso 3 del vendedor, «Autorizar precio» en el del autorizador, y el primero de los
+   tres hitos que falte en el 4.
+   ===================================================================== */
+
+/* ---------- El rótulo que parte la columna ----------
+   `.auth-divider` separa «Autorizando tú mismo» y «Ajuste por partida». Era 10,5 px en negrita
+   máxima con 0,7 de espaciado —un rótulo que pesaba más que los datos que encabezaba—. Baja al
+   escalón chico de la escala y a la tercera tinta, que es la que esta hoja mide en 4,97:1. */
+.auth-divider{
+  font-size:var(--t1);font-weight:600;letter-spacing:.6px;text-transform:uppercase;
+  color:var(--tinta3);
+  border-top:1px solid var(--linea2);
+  margin:var(--e4) 0 var(--e3);padding-top:var(--e4);
+}
+
+/* ---------- La nota de la autorización ----------
+   Es el bloque que dice quién autorizó y cuándo, o qué falta para poder autorizar. Superficie
+   hundida y borde: ya no compite con el botón que tiene debajo. */
+.authnote{
+  font-size:var(--t2);line-height:1.55;color:var(--tinta2);
+  background:var(--sup2);border:1px solid var(--linea);border-radius:var(--rr2);
+  padding:var(--e3) var(--e4);margin-bottom:var(--e3);box-shadow:none;
+}
+.authnote b{color:var(--tinta);font-weight:600}
+.mini,.anti-rest{font-size:var(--t1);color:var(--tinta3);line-height:1.5}
+.anti-rest{font-weight:500;margin-top:var(--e2)}
+
+/* ---------- El ajuste del autorizador ----------
+   Un descuento se decía pintando el bloque entero de verde y un aumento pintándolo de ámbar.
+   Ahora el bloque es el mismo en los dos casos —plano, con su filete arriba— y lo que cambia
+   de color es la CIFRA, que es el dato que se vino a leer. El verde y el ámbar siguen
+   significando lo mismo que en el resto de la app y ya no tapan al botón de autorizar. */
+.auth-adj{
+  border-top:1px solid var(--linea2);border-bottom:0;
+  padding:var(--e3) 0 var(--e2);background:none;
+}
+.auth-adj .adj-label{font-size:var(--t2);font-weight:600;color:var(--tinta2)}
+.auth-adj .adj-amt{
+  font-family:var(--f-cifra);font-size:var(--t5);font-weight:600;color:var(--ok);
+  font-variant-numeric:tabular-nums;
+}
+.auth-adj .adj-desc{font-size:var(--t1);color:var(--tinta3);padding-bottom:var(--e3)}
+.auth-adj.inc{background:none}
+.auth-adj.inc .adj-label{color:var(--tinta2)}
+.auth-adj.inc .adj-amt{color:var(--av)}
+.auth-adj.inc .adj-desc{color:var(--tinta3)}
+/* Lo mismo debajo del campo del precio final: la frase «Descuento: $2,400 (12%)» lleva el
+   color, no una caja. */
+.descuento-info{font-size:var(--t2);font-weight:600;color:var(--ok);margin-top:var(--e2);min-height:16px}
+.descuento-info.inc{color:var(--av)}
+
+/* ---------- La cola del autorizador ----------
+   La lista de lo que hay por revisar. Era una caja de borde de 1,5 px con el folio en
+   mayúsculas azules a 10 px; ahora es la misma lista de renglones que el resto de la app, con
+   el filete del acento marcando el que se está revisando. El azul aquí significa lo de
+   siempre: esto es lo elegido. */
+.queue-list{border:1px solid var(--linea);border-radius:var(--rr3);overflow:hidden;margin-bottom:var(--e3)}
+.queue-empty{
+  font-size:var(--t2);color:var(--tinta3);text-align:center;
+  padding:var(--e5) var(--e4);background:var(--sup2);
+}
+.queue-item{
+  gap:var(--e3);padding:var(--e3) var(--e4);
+  border-bottom:1px solid var(--linea2);background:var(--sup);
+  transition:background var(--mv-s);
+}
+.queue-item:hover:not(.active){background:var(--sup2)}
+.queue-item.active{
+  background:var(--a-suave);
+  border-left:0;padding-left:var(--e4);
+  box-shadow:inset 3px 0 0 var(--a-fill);
+}
+.qi-dot{width:8px;height:8px;border:2px solid var(--a-borde);margin-top:0}
+.queue-item.active .qi-dot{background:var(--a-fill);border-color:var(--a-fill)}
+.qi-folio{
+  font-family:var(--f-cifra);font-size:var(--t1);font-weight:600;
+  color:var(--tinta3);letter-spacing:.4px;
+}
+.queue-item.active .qi-folio{color:var(--a-tx)}
+.qi-name{font-size:var(--t2);font-weight:600;color:var(--tinta)}
+.qi-fecha{font-size:var(--t1);color:var(--tinta3)}
+.qi-total{font-family:var(--f-cifra);font-size:var(--t2);font-weight:600;color:var(--tinta);font-variant-numeric:tabular-nums}
+
+/* ---------- El ajuste partida por partida ----------
+   Un renglón plegable por partida, con su número, su cálculo y el campo del precio
+   autorizado. El número deja el degradado de marca por el relleno liso, y el cuerpo abierto
+   se hunde a --sup2 en vez de teñirse. */
+.ia-row{border:1px solid var(--linea);border-radius:var(--rr2);margin-bottom:var(--e2);background:var(--sup)}
+.ia-hdr{gap:var(--e2);padding:var(--e2) var(--e3);min-height:38px;transition:background var(--mv-s)}
+.ia-hdr:hover{background:var(--sup2)}
+.ia-num{
+  width:20px;height:20px;border-radius:var(--rr1);
+  background:var(--a-fill);color:#fff;
+  font-family:var(--f-cifra);font-size:var(--t1);font-weight:600;
+}
+.ia-desc{font-size:var(--t2);font-weight:500;color:var(--tinta)}
+.ia-calc{font-family:var(--f-cifra);font-size:var(--t1);color:var(--tinta3);font-weight:500;font-variant-numeric:tabular-nums}
+.ia-arrow{font-size:var(--t1);color:var(--tinta3)}
+.ia-body{padding:var(--e3);border-top:1px solid var(--linea2);background:var(--sup2)}
+.ia-adj{font-size:var(--t1);font-weight:600;color:var(--ok);margin-top:var(--e2);min-height:14px}
+.ia-adj.inc{color:var(--av)}
+/* Los dos renglones de suma: el subtotal ajustado y el mismo con IVA. Eran dos cajas de
+   colores distintos —una gris y otra azul— para dos cifras del mismo rango. Ahora son dos
+   renglones de la misma lista y lo que los separa es el peso de la letra. */
+.ia-total{
+  font-size:var(--t2);font-weight:600;color:var(--tinta);
+  padding:var(--e3) var(--e4);margin:var(--e3) 0 0;
+  background:var(--sup2);border:1px solid var(--linea);border-radius:var(--rr2);
+}
+.ia-total span:last-child{font-family:var(--f-cifra);font-variant-numeric:tabular-nums}
+.ia-total.soft{
+  background:none;border-color:transparent;color:var(--tinta2);
+  margin-top:0;margin-bottom:var(--e3);padding-top:var(--e2);padding-bottom:var(--e2);
+}
+
+/* ---------- El prefijo del peso ----------
+   El «$» de los campos de dinero iba en negrita a 13 px, más pesado que la cifra que
+   introduce. Es una unidad, no un dato. */
+.inp-money::before{color:var(--tinta3);font-weight:500;font-size:var(--t3);left:11px}
+
+/* ---------- Los tres hitos de la entrega ----------
+   La fecha de un hito hecho y la pista del que toca van al escalón chico y a la tercera
+   tinta; dentro del botón relleno heredan el blanco, que es lo que ya hacía la regla de
+   arriba. El nombre del hito hecho vuelve a la tinta principal: lo que dice que está hecho
+   son la palomita y la fecha, no un texto apagado. */
+.hito-fecha,.hito-pista{font-size:var(--t1);font-weight:400;color:var(--tinta3)}
+.btn-pri .hito-pista,.btn-ok .hito-pista{color:#fff}
+.hito-hecho{color:var(--tinta)}
+.hito-ok{color:var(--ok)}
+/* El pliegue de «otras salidas» es el último renglón de la columna y no una caja más: la
+   misma decisión que «Datos que salen en el PDF» en la pantalla del cliente. */
+details.ai-cfg.otras-salidas{
+  background:none;border:0;border-top:1px solid var(--linea2);border-radius:0;
+  padding:var(--e3) 0 0;margin-top:var(--e3);
+}
+details.ai-cfg.otras-salidas summary{
+  min-height:34px;font-size:var(--t2);font-weight:600;color:var(--tinta2);padding:0;
+}
+details.ai-cfg.otras-salidas summary:hover{color:var(--tinta)}
+.os-chev{color:var(--tinta3)}
+/* «Nueva cotización» cierra ésta y abre otra: la línea que la separa de lo que se hace con la
+   de encima se queda, con el aire de la escala. */
+.auth-cierre{margin-top:var(--e4);padding-top:var(--e4);border-top:1px solid var(--linea)}
+
+/* ---------- Modales ----------
+   `.modal` traía su propio radio de 20 px y su propia sombra en línea con la regla base, así
+   que el radio del rediseño solo lo alcanzaba aquí; ahora las seis superficies flotantes de la
+   app —IA, registrar venta, escalador, vectorizador, historial y la imagen a pantalla
+   completa— salen de una sola declaración. */
 .modal,.rv-modal,.sc-modal,.vt-modal,.hist-panel,.lightbox-body{
   border-radius:var(--rr3);
   border:1px solid var(--linea);
   box-shadow:var(--sombra-alta);
   animation:entra .32s cubic-bezier(.2,.8,.2,1) both;
 }
-.modal-bg,.rv-modal-bg{backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.modal{border-radius:var(--rr3);box-shadow:var(--sombra-alta)}
+/* El velo se queda; el desenfoque se va. Es la misma atmósfera que el barro: cuesta una capa
+   de composición por cuadro en un teléfono, y lo que separa el modal del fondo son su borde,
+   su sombra y el velo, que ya lo hacen sin desenfocar nada. */
+.modal-bg,.rv-modal-bg,.sc-modal-bg,.vt-modal-bg,#lightbox{
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+  background:rgba(var(--nav-rgb),.55);
+}
 .modal-bg.show,.rv-modal-bg.show{animation:vela var(--mv-s)}
 @keyframes vela{from{opacity:0}to{opacity:1}}
+
+/* ----- El encabezado y el cierre, una sola vez -----
+   `.modal-h` y `.hist-head` son el mismo renglón y venían con dos alturas, dos tamaños de
+   letra y dos botones de cerrar de 30 y 36 px. Un modal no debería verse distinto según cuál
+   de los seis se abrió. */
+.modal-h,.hist-head,.cua-det-head{
+  min-height:56px;padding:var(--e3) var(--e5);
+  border-bottom:1px solid var(--linea);background:var(--sup);
+}
+.modal-h b,.hist-head b{font-family:var(--f-cifra);font-size:var(--t4);font-weight:600;color:var(--tinta);letter-spacing:-.1px}
+.modal-h button,.hist-close{
+  width:36px;height:36px;border-radius:var(--rr2);font-size:var(--t5);
+  color:var(--tinta2);background:none;border:0;
+  transition:background var(--mv-s),color var(--mv-s);
+}
+.modal-h button:hover,.hist-close:hover{background:var(--sup2);color:var(--tinta)}
+.modal-b,.hist-search-bar{background:var(--sup)}
+
+/* ----- El pie del historial -----
+   Cuatro botones azules en fila para respaldar, restaurar, exportar y abrir los clientes. El
+   azul aquí no elegía nada ni era la acción de la pantalla: eran cuatro salidas del mismo
+   rango, y pintadas todas de marca no se distinguían entre sí ni de lo que sí manda. */
+.hist-foot{
+  gap:var(--e2);padding:var(--e3) var(--e5);
+  border-top:1px solid var(--linea);background:var(--sup2);border-radius:0 0 var(--rr3) var(--rr3);
+}
+.hist-foot button{
+  min-height:38px;border:1px solid var(--linea);background:var(--sup);color:var(--tinta2);
+  font-size:var(--t2);font-weight:500;border-radius:var(--rr2);
+  transition:border-color var(--mv-s),color var(--mv-s);
+}
+.hist-foot button:hover{border-color:var(--a-borde);color:var(--tinta);background:var(--sup)}
+/* Dos clases y no una: `.hist-foot .foot-nota` vive más arriba en la hoja y con la misma
+   especificidad ganaría, así que el renglón se quedaba en 10,5 px, que no es un escalón de
+   esta escala. */
+.hist-foot .foot-nota{font-size:var(--t1);color:var(--tinta3);line-height:1.5}
+/* La cuenta de resultados de la búsqueda: una ficha, no una píldora. */
+.hist-count{
+  font-family:var(--f-cifra);font-size:var(--t1);font-weight:600;
+  color:var(--tinta2);background:var(--sup2);border:1px solid var(--linea);
+  padding:4px 10px;border-radius:var(--rr1);
+}
+.hist-empty,.cua-vacio{color:var(--tinta3);font-size:var(--t3);padding:var(--e7) var(--e5)}
+
+/* ----- Un renglón del historial -----
+   Cada cotización guardada. La miniatura baja a 6 px de radio como el resto de las piezas, el
+   folio pasa a la cifra y la insignia de autorizada deja de ser una píldora verde rellena para
+   ser la misma ficha que usa la barra de estado del paso 3. */
+.hentry{border-bottom:1px solid var(--linea2);padding:var(--e4) var(--e5)}
+.hentry-img,.hentry-img-ph{border-radius:var(--rr2);border:1px solid var(--linea)}
+.hentry-img-ph{background:var(--sup2);color:var(--tinta3)}
+.hentry-folio,.cua-cot-folio{
+  font-family:var(--f-cifra);font-size:var(--t1);font-weight:600;
+  color:var(--tinta3);letter-spacing:.4px;text-transform:none;
+}
+.hentry-name{font-size:var(--t3);font-weight:600;color:var(--tinta)}
+.hentry-sub{font-size:var(--t2);color:var(--tinta2)}
+.hentry-auth{
+  font-size:var(--t1);font-weight:500;border-radius:var(--rr1);padding:3px 9px;
+  background:var(--ok-bg);border:1px solid var(--ok-borde);color:var(--ok);
+}
+.hentry-open,.hentry-del{border-radius:var(--rr2)}
+.hentry-open,.cua-det-acts button,.cua-cot-acts button{
+  border:1px solid var(--linea);background:var(--sup);color:var(--tinta2);
+  font-size:var(--t2);font-weight:500;border-radius:var(--rr2);
+  transition:border-color var(--mv-s),color var(--mv-s);
+}
+.hentry-open:hover,.cua-det-acts button:hover,.cua-cot-acts button:hover{
+  border-color:var(--a-borde);color:var(--tinta);background:var(--sup);
+}
+.htable{font-size:var(--t2)}
+.htable td{border-bottom:1px solid var(--linea2);color:var(--tinta2)}
+.htable td:first-child{font-family:var(--f-cifra);font-weight:600;color:var(--tinta3)}
+.htable td:last-child{font-family:var(--f-cifra);font-weight:600;color:var(--tinta);font-variant-numeric:tabular-nums}
+.hentry-total{
+  font-size:var(--t3);font-weight:600;color:var(--tinta);
+  border-top:1px solid var(--linea);padding-top:var(--e3);
+}
+.hentry-total span:last-child{font-family:var(--f-cifra);font-variant-numeric:tabular-nums}
+/* El ahorro o el aumento que dejó el autorizador, al lado del total. Verde si el cliente pagó
+   menos y ámbar si pagó más: es el único sitio del renglón donde el color compara algo. */
+.hentry-ajuste{font-family:var(--f-texto);font-size:var(--t1);font-weight:500;color:var(--ok)}
+.hentry-ajuste.inc{color:var(--av)}
+
+/* ----- Los cuadernos de cliente -----
+   La misma lista, con las mismas piezas. La inicial del cliente era un cuadro de 12 px de
+   radio con la letra en azul de marca: se lee como un botón y el azul no elige nada. */
+.cua-card{padding:var(--e3) var(--e5);border-bottom:1px solid var(--linea2)}
+.cua-card:hover{background:var(--sup2)}
+.cua-ini{
+  width:38px;height:38px;border-radius:var(--rr2);
+  background:var(--sup2);border:1px solid var(--linea);color:var(--tinta2);
+  font-family:var(--f-cifra);font-weight:600;
+}
+.cua-nombre{font-size:var(--t3);font-weight:600;color:var(--tinta)}
+.cua-sub,.cua-cot-fecha{font-size:var(--t2);color:var(--tinta2)}
+.cua-alias{font-size:var(--t1);color:var(--tinta3)}
+.cua-flecha,.cua-card-num span{color:var(--tinta3)}
+.cua-card-num b,.cua-cot-tot{font-family:var(--f-cifra);font-size:var(--t3);font-weight:600;color:var(--tinta);font-variant-numeric:tabular-nums}
+.cua-card-num span{font-size:var(--t1);font-weight:500;letter-spacing:.3px}
+.cua-det-head{background:var(--sup2);border-bottom:1px solid var(--linea)}
+.cua-volver{font-size:var(--t2);font-weight:600;color:var(--a-tx)}
+.cua-det-nom{font-family:var(--f-cifra);font-size:var(--t5);font-weight:600;color:var(--tinta)}
+.cua-det-datos{font-size:var(--t2);color:var(--tinta2)}
+.cua-cifras{padding:var(--e3) var(--e5);border-bottom:1px solid var(--linea2)}
+.cua-cifra{background:var(--sup2);border:1px solid var(--linea);border-radius:var(--rr2);padding:var(--e3)}
+.cua-cifra b{font-family:var(--f-cifra);font-size:var(--t4);font-weight:600;color:var(--tinta);font-variant-numeric:tabular-nums}
+.cua-cifra span,.cua-nota-wrap label,.cua-cots-tit{
+  font-size:var(--t1);font-weight:600;color:var(--tinta3);
+  text-transform:uppercase;letter-spacing:.6px;
+}
+.cua-nota-wrap{border-bottom:1px solid var(--linea2)}
+.cua-nota-estado{font-size:var(--t1);color:var(--tinta3)}
+.cua-cot{border-bottom:1px solid var(--linea2)}
+.cua-cot-proy{font-size:var(--t3);font-weight:600;color:var(--tinta)}
+
+/* ----- El panel de la IA -----
+   El pliegue de la configuración, el campo de la clave y los dos avisos. Cuatro superficies
+   teñidas —verde la clave guardada, verde el origen del análisis, ámbar el interruptor de
+   conservar partidas, azul el resumen del pliegue— en un modal de 460 px. El tinte se queda
+   solo donde dice un ESTADO: la clave que ya está guardada y el aviso de que se van a
+   conservar las partidas. El resto pasa a la superficie hundida. */
+details.ai-cfg{border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup2);padding:var(--e3) var(--e4)}
+details.ai-cfg summary{font-size:var(--t2);font-weight:600;color:var(--tinta2)}
+details.ai-cfg summary:hover{color:var(--tinta)}
+.ai-status{font-size:var(--t2);font-weight:500}
+.ai-status.work{color:var(--a-tx)}
+.ai-link{color:var(--a-tx);font-weight:500}
+.key-btn{
+  border:1px solid var(--linea);background:var(--sup);color:var(--tinta2);
+  border-radius:var(--rr2);font-size:var(--t2);font-weight:500;min-height:34px;
+  transition:border-color var(--mv-s),color var(--mv-s);
+}
+.key-btn:hover{border-color:var(--a-borde);color:var(--tinta);background:var(--sup)}
+.key-btn.add{background:var(--sup);padding:0 14px}
+.key-btn.del{color:var(--mal);border-color:var(--mal-borde)}
+.key-btn.del:hover{background:var(--mal-bg);border-color:var(--mal);color:var(--mal)}
+.key-saved{background:var(--ok-bg);border:1px solid var(--ok-borde);border-radius:var(--rr2)}
+.key-mask{font-family:var(--f-cifra);font-size:var(--t2);font-weight:600;color:var(--ok)}
+.key-note{font-size:var(--t1);color:var(--tinta3);border-top:1px solid var(--linea2)}
+.ai-tag{
+  font-size:var(--t1);font-weight:500;color:var(--tinta2);
+  background:var(--sup);border:1px solid var(--linea);border-radius:var(--rr1);padding:1px 6px;
+}
+.ai-merge{background:var(--av-bg);border:1px solid var(--av-borde);border-radius:var(--rr2)}
+.ai-merge .switch{font-size:var(--t2);font-weight:600;color:var(--av)}
+.ai-merge-note{font-size:var(--t1);color:var(--av)}
+/* El origen del análisis no es un estado: es la miniatura de lo que se acaba de medir. */
+.ai-src{background:var(--sup2);border:1px solid var(--linea);border-radius:var(--rr2)}
+.ai-src-img{border-radius:var(--rr2);border:1px solid var(--linea)}
+
+/* ---------- Los dos aparatos de pantalla completa ----------
+   El escalador y el vectorizador son herramientas, no pantallas, y su lienzo oscuro se queda:
+   una foto sin cotas se mide mejor sobre fondo hondo, y un trazo de corte se ve mejor. Lo que
+   entra a la dirección nueva es su CHROME —la barra, el panel de la derecha y sus fichas—, que
+   es lo que comparte lenguaje con el resto de la app.
+
+   Los desenfoques se van, por lo mismo que en los modales y por una razón más aquí: estas dos
+   barras están encima de un lienzo que se repinta en cada movimiento del dedo mientras se
+   arrastra una cota, y un `backdrop-filter` cuesta una capa de composición por cuadro justo
+   ahí. Superficie sólida y borde hacen el mismo trabajo. */
+.scaler-modal-bg,.vt-modal-bg{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(var(--nav-rgb),.75)}
+.sp-topbar{
+  background:var(--sup);backdrop-filter:none;-webkit-backdrop-filter:none;
+  border-bottom:1px solid var(--linea);box-shadow:none;height:64px;
+}
+.sp-hint-bar{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(var(--nav-rgb),.9);font-size:var(--t2);font-weight:500}
+.sp-hint-act{border-radius:var(--rr2);font-size:var(--t2);font-weight:500}
+.sp-side{border-left:1px solid var(--linea);box-shadow:none}
+.sp-sec{border-bottom:1px solid var(--linea)}
+/* ----- Un rótulo por sección, y un solo azul -----
+   Cuatro encabezados en azul de marca, cada uno con su filete de 3 px del acento, en un panel
+   de 306 px: cuatro veces el color que en esta app significa «esto está elegido». Ahora el
+   rótulo es el mismo de la columna del dinero —chico, en versalitas, en la tercera tinta— y el
+   filete se queda gris; el acento marca la sección ABIERTA, que es la única de las cuatro sobre
+   la que se está trabajando. */
+.sp-sec-h h3{
+  font-size:var(--t1);font-weight:600;letter-spacing:.6px;color:var(--tinta3);
+  gap:var(--e2);
+}
+.sp-sec-h h3::before{width:3px;height:12px;background:var(--linea);border-radius:0}
+.sp-fold[open]>summary h3{color:var(--tinta2)}
+.sp-fold[open]>summary h3::before{background:var(--a-fill)}
+.sp-fold>summary::after{color:var(--tinta3);font-weight:400}
+.sp-fold>summary:active{background:var(--sup2)}
+/* Las fichas de cuenta y de valor —cuántas guías hay, cuánto detalle— eran píldoras de 20 px
+   de radio en azul y 800: la misma ficha que el resto de la app, que no se toca. */
+.sp-fold-n,.vt-val{
+  font-family:var(--f-cifra);font-size:var(--t1);font-weight:600;
+  color:var(--tinta2);background:var(--sup2);border:1px solid var(--linea);
+  border-radius:var(--rr1);padding:3px 9px;
+}
+/* Una medida de la lista. El filete del acento se queda —dice «esto es una cota tuya» y lo
+   distingue del aguamarina de las guías— y se va el relieve. */
+.sp-mitem{
+  border:1px solid var(--linea);border-left:3px solid var(--a-fill);
+  border-radius:var(--rr2);box-shadow:none;transition:border-color var(--mv-s),background var(--mv-s);
+}
+.sp-mitem:hover{box-shadow:none;background:var(--sup2)}
+.sp-mitem.sel{border-color:var(--a-borde);border-left-color:var(--a-fill);background:var(--a-suave);box-shadow:none}
+.sp-mitem-cm{font-family:var(--f-cifra);font-size:var(--t4);font-weight:600;color:var(--tinta);letter-spacing:0}
+.sp-mitem-cm small{font-family:var(--f-texto);font-size:var(--t1);font-weight:400;color:var(--tinta3)}
+.sp-mitem-label{font-size:var(--t2);color:var(--tinta)}
+.sp-mlist-empty{
+  color:var(--tinta3);font-size:var(--t2);
+  border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup2);
+}
+.sp-gitem{border:1px solid var(--linea);border-left:3px solid var(--sc-guide);border-radius:var(--rr2);font-size:var(--t2)}
+.sp-gitem .lbl{color:var(--tinta);font-weight:500}
+.sp-gclear,.sp-ai-note{font-size:var(--t1);color:var(--tinta3);font-weight:500}
+.sp-ibtn,.sp-gclear{border-radius:var(--rr2)}
+.sp-ibtn{color:var(--tinta3)}
+/* ----- La salida del aparato, y la de al lado -----
+   El botón relleno era «Cotizar esta medida con IA» y el de contorno «Agregar todas las
+   medidas como partidas». Está al revés: quien abre el escalador viene a medir para cotizar, y
+   pasar las medidas al cotizador es la salida por la que sale siempre; la IA es el atajo que se
+   usa a veces. El relleno se muda al que hace lo que se vino a hacer, y la IA se queda neutra
+   como las otras dos herramientas de su fila. */
+.sp-addall{
+  border:1px solid var(--a-fill);border-radius:var(--rr2);
+  background:var(--a-fill);color:#fff;font-size:var(--t2);font-weight:600;min-height:38px;
+  transition:background var(--mv-s),border-color var(--mv-s);
+}
+.sp-addall:hover{background:var(--a-fuerte);border-color:var(--a-fuerte)}
+.sp-ai{
+  border:1px solid var(--linea);border-radius:var(--rr2);
+  background:var(--sup);color:var(--tinta2);font-size:var(--t2);font-weight:500;min-height:38px;
+  box-shadow:none;transition:border-color var(--mv-s),color var(--mv-s);
+}
+.sp-ai:hover{filter:none;background:var(--sup);border-color:var(--a-borde);color:var(--tinta)}
+.sp-addall-note{font-size:var(--t1);color:var(--ok);font-weight:500}
+/* Y el botón que agrega UNA medida, uno por renglón de la lista: cinco medidas eran cinco
+   rellenos de marca dentro de un panel que ya tiene el suyo abajo. */
+.sp-mitem-add{
+  border:1px solid var(--a-borde);border-radius:var(--rr2);
+  background:var(--sup);color:var(--a-tx);font-size:var(--t2);font-weight:600;min-height:34px;
+}
+.sp-mitem-add:hover{background:var(--a-suave)}
+.sp-mitem-add.done{background:var(--ok-bg);border-color:var(--ok-borde);color:var(--ok);font-weight:500}
+/* La barra de herramientas de los dos aparatos: el mismo botón neutro de la app, y el activo
+   con el relleno del acento porque ahí sí es una selección —qué se está midiendo, qué vista
+   del vector se está viendo—. */
+.sp-tb-btn{
+  border:1px solid var(--linea);border-radius:var(--rr2);
+  font-size:var(--t2);font-weight:500;color:var(--tinta2);min-height:36px;padding:0 14px;
+  transition:border-color var(--mv-s),color var(--mv-s),background var(--mv-s);
+}
+.sp-tb-btn:hover{border-color:var(--a-borde);color:var(--tinta);background:var(--sup)}
+.sp-tb-btn.active{background:var(--a-fill);color:#fff;border-color:var(--a-fill);box-shadow:none}
 
 /* ---------- Aviso emergente ---------- */
 #toast{border-radius:var(--rr2);box-shadow:var(--sombra-alta)}
@@ -3124,7 +3604,7 @@ html[data-tema="oscuro"]{
   --fondo:#0f1124; --sup2:#20244a;
   --linea:#2f3562; --linea2:#262b4f;
   --tinta:#eceefb; --tinta2:#a7acd6;
-  --nav:#0a0c1c; --nav2:#141731;
+  --nav:#0a0c1c; --nav2:#141731; --nav-rgb:10,12,28;
   /* Y la tercera tinta, medida otra vez y por el mismo motivo: el #6f76a8 del traspaso da
      3,80:1 sobre --sup y 3,4:1 sobre --sup2, o sea que de noche falla más que de día.
      #8b92c0 da 5,48:1 sobre --sup y 4,93:1 sobre --sup2. El tono de la muestra se queda,
@@ -3150,6 +3630,9 @@ html[data-tema="oscuro"]{
   --sombra:0 1px 2px rgba(0,0,0,.4),0 10px 28px -14px rgba(0,0,0,.6);
   --sombra-alta:0 2px 8px rgba(0,0,0,.5),0 28px 56px -18px rgba(0,0,0,.75);
   --ok:#6fd6a4; --ok-bg:#10331f; --ok-borde:#1f6b42; --green-ico:#3fc282;
+  /* Y el relleno verde, por lo mismo que --a-fill: #0e7a4d aguanta blanco (5,37:1) y se
+     distingue del marino de la superficie. */
+  --ok-fill:#0e7a4d;
   --av:#f5c26b; --av-bg:#3a2a10; --av-borde:#6b4a14; --amber-ico:#e0a232; --av-rgb:245,194,107; --av-borde-rgb:107,74,20;
   --mal:#ff8a80; --mal-bg:#3a1414; --mal-borde:#7a2f2f; --mal-rgb:255,138,128;
   --wa:#5ad0bd; --wa-rgb:90,208,189;
@@ -3198,7 +3681,7 @@ html.empotrado .btn-tema{display:none}
   html[data-tema="oscuro"]{
     color-scheme:light;
     --fondo:#f3f4fb; --sup2:#f7f8fd; --linea:#dcdff2; --linea2:#eceef8;
-    --tinta:#1a1d33; --tinta2:#5c6184; --tinta3:#666d9b; --nav:#171a33; --nav2:#232744;
+    --tinta:#1a1d33; --tinta2:#5c6184; --tinta3:#666d9b; --nav:#171a33; --nav2:#232744; --nav-rgb:23,26,51;
     --n0:#fbfcff; --n1:#f3f4fb; --n2:#eceef8; --n3:#dcdff2; --n4:#b9bede;
     --n5:#8b90b8; --n6:#5c6184; --n7:#3d4166; --n8:#1a1d33; --n9:#171a33;
     --sup:#ffffff; --sup-rgb:255,255,255; --luz-rgb:255,255,255; --tinta-rgb:35,39,68;
@@ -3206,7 +3689,7 @@ html.empotrado .btn-tema{display:none}
     --a:#4060f8; --a-fill:#4060f8; --a-tx:#3018f8;
     --a-fuerte:#3018f8; --a-claro:#6090f8; --a-suave:#e9edff; --a-suave-2:#dfe6ff; --a-borde:#b9c5fe;
     --a2:#7b3ff8; --a2-suave:#f1ecfd; --a3:#18b6d8; --a3-texto:#0b6e85;
-    --ok:#0a7d4a; --ok-bg:#e2f8ec; --ok-borde:#a9e8c6; --green-ico:#15a06a;
+    --ok:#0a7d4a; --ok-bg:#e2f8ec; --ok-borde:#a9e8c6; --green-ico:#15a06a; --ok-fill:#0a7d4a;
     --av:#8a5100; --av-bg:#fff2dd; --av-borde:#ffd79c; --amber-ico:#c1830f;
     --mal:#c62828; --mal-bg:#ffeceb; --mal-borde:#ffc4c1; --wa:#0f7a6c;
     --pc-1:#3018f8; --pc-1-md:#4060f8; --pc-1-bd:#b9c5fe; --pc-1-sv:#e9edff;
