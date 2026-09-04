@@ -427,6 +427,44 @@ unaSola.cuentas === 1
   ? bien('y la cuenta de atención de `hoy` vive en una sola entrada, no en las tres')
   : mal('hay ' + unaSola.cuentas + ' nodos con data-cta="hoy"');
 
+/* EL ENCABEZADO TIENE QUE DECIR DÓNDE ESTÁS. `rutaPorNombre()` filtra `!r.vista`, así que
+   pintándolo desde la ruta el Vectorizador y la Mesa de corte seguían diciendo «Tablero · qué
+   hay en el taller y qué se atrasa» —la misma mentira que ese bloque de js/app.js dice haber
+   quitado, de vuelta por la puerta de atrás—. Y la descripción de las dos entradas era código
+   muerto: existía en RUTAS y no se pintaba en ningún sitio.
+   Se comprueba por LOS DOS caminos, porque son dos mecanismos distintos: por la barra la
+   cabecera se pinta al montar, y por el segmento cuando el módulo reporta su lente. */
+const cabecera = () => virgen.evaluate(() => ({
+  t: (document.getElementById('pf-sub') || {}).textContent,
+  d: (document.getElementById('pf-cab-sub') || {}).textContent,
+}));
+const porBarra = await cabecera();
+porBarra.t === 'Vectorizador' && porBarra.d === 'el logotipo, en trazo de corte'
+  ? bien('el encabezado dice «Vectorizador · el logotipo, en trazo de corte», no «Tablero»')
+  : mal('el encabezado dice ' + JSON.stringify(porBarra));
+
+await virgen.click('[data-vista="anidador"]');
+await virgen.waitForTimeout(2600);
+const porSegmento = await cabecera();
+porSegmento.t === 'Mesa de corte' && porSegmento.d === 'las piezas acomodadas en la lámina'
+  ? bien('y cambiando de lente POR EL SEGMENTO también se repinta')
+  : mal('por el segmento quedó ' + JSON.stringify(porSegmento));
+
+await virgen.click('[data-vista="tablero"]');
+await virgen.waitForTimeout(1200);
+const deVuelta = await cabecera();
+deVuelta.t === 'Tablero'
+  ? bien('y al volver a la carga vuelve a decir «Tablero»')
+  : mal('al volver quedó ' + JSON.stringify(deVuelta));
+
+/* La ruta oculta no tiene entrada en la barra, así que su cabecera sale de la ruta: es el
+   respaldo de `entradaActiva()` y se rompería si alguien la quitara. */
+await irA('#/atender', virgen);
+const oculta = await cabecera();
+oculta.t === 'Qué atender'
+  ? bien('y una ruta oculta —sin entrada en la barra— sigue poniendo su propio título')
+  : mal('#/atender puso ' + JSON.stringify(oculta));
+
 /* Salir a otra ruta apaga la lente: si no, «Vectorizador» se quedaba encendido encima del
    Mapa. Y volver por «Tablero» es pedir la carga del taller, no «lo último que viera» —el
    Tablero recuerda su lente a propósito, y esa memoria es para el segmento, no para la

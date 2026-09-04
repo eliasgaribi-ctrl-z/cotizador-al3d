@@ -113,7 +113,15 @@ const ctx = {
   /* Qué sub-vista está enseñando, para que la barra encienda la entrada correcta. Lo llama el
      módulo que tenga más de una —hoy solo el Tablero— en cada pintado; los demás nunca, y por
      eso el router lo deja en null al montar y no hace falta que nadie lo apague. */
-  lente: v => { const n = v || null; if (n === _lente) return; _lente = n; pintarNav(); },
+  lente: v => {
+    const n = v || null;
+    if (n === _lente) return;
+    _lente = n;
+    pintarNav();
+    /* Y el encabezado, que es la otra cosa que dice dónde estás. No se anuncia por voz aquí:
+       lo hace el módulo al cambiar de lente, y decirlo dos veces es peor que no decirlo. */
+    pintarCabecera();
+  },
   /* Las acciones contextuales del encabezado: «COT-0152 · Clientes · Historial» en el
      cotizador, las teclas del calendario. Se pasa marcado ya escapado y se recibe el nodo
      para colgarle los oyentes. El router las vacía en cada montaje, así que un módulo que no
@@ -316,18 +324,41 @@ async function montarDeVerdad(ruta, opts = {}) {
   const main = $('pf-contenido');
   if (main && opts.foco !== false) { try { main.focus({ preventScroll: true }); } catch (_) {} }
   window.scrollTo({ top: _scrollPorRuta.get(ruta) || 0, behavior: 'auto' });
-  /* El encabezado. Es lo único que dice dónde estás cuando la pestaña de la barra no puede
-     decirlo —las rutas ocultas— y de paso deja de mentir: decía «Obra, material y agenda» en
-     las seis pantallas. El título y su línea son de la ruta; las acciones las escribe el
-     módulo, y se vacían aquí para que las del anterior no se queden puestas encima del
-     siguiente. */
+  pintarCabecera();
+  voz(r.nombre);
+  pintarCuentasNav();
+  ajustarAltoBarra();
+}
+
+/* ----- Qué entrada de la barra manda ahora mismo -----
+   Con las lentes ya no es siempre la del módulo: en la Mesa de corte manda la suya. La del
+   módulo es el respaldo, y es la que se usa en las rutas ocultas, que no tienen entrada. */
+function entradaActiva() {
+  if (_lente) {
+    const l = RUTAS.find(x => x.ruta === _actual && x.vista === _lente);
+    if (l) return l;
+  }
+  return rutaPorNombre(_actual);
+}
+
+/* ----- El encabezado -----
+   Es lo único que dice dónde estás cuando la pestaña de la barra no puede decirlo —las rutas
+   ocultas— y de paso dejó de mentir: decía «Obra, material y agenda» en las seis pantallas.
+   Las acciones las escribe el módulo y se vacían al montar, para que las del anterior no se
+   queden puestas encima del siguiente.
+
+   El título y su línea salen de la ENTRADA activa y no de la ruta, y esa distinción nació con
+   las lentes: `rutaPorNombre()` filtra `!r.vista`, así que en el Vectorizador y en la Mesa de
+   corte el encabezado seguía diciendo «Tablero · qué hay en el taller y qué se atrasa» —la
+   misma mentira que este bloque dice haber quitado, de vuelta por la puerta de atrás—. Se
+   repinta también cuando el módulo reporta su lente, que es cuando se sabe. */
+function pintarCabecera() {
+  const r = entradaActiva();
+  if (!r) return;
   const sub = $('pf-sub');
   if (sub) sub.textContent = r.nombre;
   const cabsub = $('pf-cab-sub');
   if (cabsub) cabsub.textContent = r.sub || '';
-  voz(r.nombre);
-  pintarCuentasNav();
-  ajustarAltoBarra();
 }
 
 /* ============================================================================
