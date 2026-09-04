@@ -77,6 +77,7 @@
 <symbol id="i-copiar" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="12.5" height="12.5" rx="2.2"/><path d="M16 8.5V5.2A2.2 2.2 0 0 0 13.8 3H5.2A2.2 2.2 0 0 0 3 5.2v8.6A2.2 2.2 0 0 0 5.2 16h3.3"/></symbol>
 <symbol id="i-basura" viewBox="-0.6 -0.15 25.2 25.2" style="stroke-width:1.995"><path d="M3 6.2h18"/><path d="M8.2 6.2V4.3c0-.7.6-1.3 1.3-1.3h5c.7 0 1.3.6 1.3 1.3v1.9"/><path d="M18.7 6.2 17.8 20a2 2 0 0 1-2 1.9H8.2a2 2 0 0 1-2-1.9L5.3 6.2"/><path d="M10.2 10.8v6.4M13.8 10.8v6.4"/></symbol>
 <symbol id="i-ojo" viewBox="-1.333 -1.333 26.667 26.667" style="stroke-width:2.111"><path d="M2 12s3.7-6.8 10-6.8S22 12 22 12s-3.7 6.8-10 6.8S2 12 2 12z"/><circle cx="12" cy="12" r="2.9"/></symbol>
+<symbol id="i-ojo-off" viewBox="-1.333 -1.333 26.667 26.667" style="stroke-width:2.111"><path d="M4.7 6.9C2.9 8.7 2 12 2 12s3.7 6.8 10 6.8c1.5 0 2.9-.3 4.1-.8"/><path d="M9.7 5.5c.7-.2 1.5-.3 2.3-.3 6.3 0 10 6.8 10 6.8s-1.1 2-3.1 3.7"/><path d="M9.9 9.9a2.9 2.9 0 0 0 4.2 4.2"/><path d="M3.2 3.2 20.8 20.8"/></symbol>
 <symbol id="i-lapiz" viewBox="1.2 0.4 22.4 22.4" style="stroke-width:1.773"><path d="M16.8 3.2 20.8 7.2 8 20H4v-4z"/><path d="M14.6 5.4 18.6 9.4"/></symbol>
 <symbol id="i-aviso" viewBox="-1.333 -1.533 26.667 26.667" style="stroke-width:2.111"><path d="M12 3.2 22 20.4H2z"/><path d="M12 9.6v4.6M12 17.4v.6"/></symbol>
 <symbol id="i-imagen" viewBox="-0.667 -0.667 25.333 25.333" style="stroke-width:2.006"><rect x="2.5" y="4" width="19" height="16" rx="2.2"/><circle cx="8.4" cy="9.6" r="1.8"/><path d="M21.5 15.5 16 10 6.5 19.5"/></symbol>
@@ -706,6 +707,13 @@
         <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(var(--a-rgb),.4)" onclick="$('scaler-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
       </div>
       <div class="sp-hint-bar hide" id="sp-hint-bar"></div>
+      <!-- Cuánto se enseña de las cotas ya trazadas. Va en el lienzo y no solo en el
+           panel porque es ahí donde estorban: en el celular el panel queda debajo y hay
+           que desplazarlo, justo con la mano que está midiendo. Aparece con la segunda
+           medida (scUpdateCotasUI). -->
+      <div class="sp-cotas-fab" id="sc-cotas-fab">
+        <button type="button" id="sc-btn-cotas" onclick="scCotasCiclo()" title="Cotas: todas — toca para cambiar" aria-label="Cotas: todas — toca para cambiar"><svg class="svgi" aria-hidden="true"><use href="#i-ojo"/></svg></button>
+      </div>
       <div class="sp-zoom" id="sp-zoom">
         <button onclick="scZoomBy(1.5)" title="Acercar" aria-label="Acercar la foto">+</button>
         <button onclick="scZoomBy(1/1.5)" title="Alejar" aria-label="Alejar la foto">−</button>
@@ -759,6 +767,21 @@
       <div style="padding:14px 20px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)">
         <h3 style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--brand);display:flex;align-items:center;gap:8px"><span style="display:inline-block;width:3px;height:14px;background:var(--brand-grd);border-radius:2px;flex-shrink:0"></span>Medidas</h3>
         <span style="font-size:11px;font-weight:700;background:var(--soft-2);color:var(--a-fuerte);padding:2px 10px;border-radius:20px;border:1px solid rgba(var(--a-rgb),.12)" id="sc-mcount">0</span>
+      </div>
+      <!-- El mismo mando que el ojo del lienzo, pero con los tres modos escritos: es este
+           el que los enseña. Nace oculto y aparece con la segunda medida. -->
+      <div class="sp-cotas" id="sc-cotas-fila" style="display:none">
+        <span class="sp-cotas-lbl">Cotas sobre la imagen</span>
+        <div class="tool-seg" role="group" aria-label="Cuánto se enseña de las cotas sobre la imagen">
+          <button type="button" id="sc-cotas-todas" aria-pressed="true" class="active" onclick="scSetCotas('todas')">Todas</button>
+          <button type="button" id="sc-cotas-foco" aria-pressed="false" onclick="scSetCotas('foco')">La elegida</button>
+          <button type="button" id="sc-cotas-ninguna" aria-pressed="false" onclick="scSetCotas('ninguna')">Ninguna</button>
+        </div>
+        <!-- La tranquilidad de que no se borró nada. En el celular no va: ahí el panel
+             mide poco más de la mitad de la pantalla y esta nota le comía tres renglones
+             a la lista de medidas, que es a lo que se viene. El aviso del lienzo —«Cotas:
+             ninguna — la foto queda limpia»— dice lo mismo donde sí se está mirando. -->
+        <div class="hintnote hide" id="sc-cotas-nota">No borra nada: la lista sigue completa y la imagen que descargas lleva todas las cotas.</div>
       </div>
       <div class="sp-mlist" id="sc-medidas-list"></div>
       <div class="sp-actions">

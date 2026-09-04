@@ -22,7 +22,7 @@ const SC={
   tapA:null, building:false, dragH:null, hist:false,
   items:[], sel:null, nid:1, nc:0,
   guides:[], gid:1, draggingGuide:null, _guideRelease:null, previewCollapsed:false,
-  snapOn:true, snapH:null, snapV:null,
+  snapOn:true, snapH:null, snapV:null, cotas:'todas',
   z:1, tx:0, ty:0, gesture:false,
   vw:0, vh:0, rs:1, rsDpr:1, full:null, fullW:0, tile:null, tileR:null, tileS:0, objUrl:null,
 };
@@ -117,7 +117,9 @@ function scReset(){
   if(typeof SC==='undefined') return;
   SC.img=null; SC.items=[]; SC.guides=[]; SC.sel=null; SC.nid=1; SC.nc=0;
   SC.building=false; SC.tapA=null; SC.dragH=null; SC.down=false;
+  SC.cotas='todas';
   try{ scResetCalib(false); }catch(_){}
+  try{ scUpdateCotasUI(); }catch(_){}
   try{ renderScalerPreview(); }catch(_){}
 }
 /* ----- Respaldo del escalador para las rutas que reponen la cotización -----
@@ -139,7 +141,7 @@ function scSnapshot(){
     items:SC.items.slice(),guides:SC.guides.slice(),
     nid:SC.nid,nc:SC.nc,gid:SC.gid,
     refLine:SC.refLine?Object.assign({},SC.refLine):null,
-    refCm:SC.refCm,nativePxPerCm:SC.nativePxPerCm,mMode:SC.mMode};
+    refCm:SC.refCm,nativePxPerCm:SC.nativePxPerCm,mMode:SC.mMode,cotas:SC.cotas};
 }
 function scRestaurar(s){
   if(!s||typeof SC==='undefined') return;
@@ -147,6 +149,7 @@ function scRestaurar(s){
   SC.items=s.items.slice();SC.guides=s.guides.slice();
   SC.nid=s.nid;SC.nc=s.nc;SC.gid=s.gid;
   SC.refLine=s.refLine;SC.refCm=s.refCm;SC.nativePxPerCm=s.nativePxPerCm;SC.mMode=s.mMode;
+  SC.cotas=s.cotas||'todas';
   SC.sel=null;SC.building=false;SC.tapA=null;SC.dragH=null;SC.down=false;
   /* La caché de mosaicos es de la imagen anterior: sin tirarla, el lienzo pinta lo viejo
      encima de lo restaurado. */
@@ -165,6 +168,7 @@ function scRestaurar(s){
   }
   try{ scUpdateList(); }catch(_){}
   try{ scUpdateGuideList(); }catch(_){}
+  try{ scUpdateCotasUI(); }catch(_){}
   try{ scRender(); }catch(_){}
   try{ renderScalerPreview(); }catch(_){}
 }
@@ -198,6 +202,9 @@ function scLoadImgSrc(src,name,alCargar){
     scResetCalib(false);
     SC.items=[];SC.sel=null;SC.nid=1;SC.nc=0;_scBorrada=null;
     SC.guides=[];SC.gid=1;SC.draggingGuide=null;SC.dragH=null;
+    /* Las cotas vuelven a verse enteras: una foto nueva empieza sin medidas, y heredar
+       «ninguna» de la anterior dejaba al que mide trazando líneas que no aparecían. */
+    SC.cotas='todas';
     $('sp-overlay').classList.add('hide');
     $('sp-zoom').style.display='flex';
     scEnableTools(true);scFitCanvas();scRender();scUpdateList();scUpdateGuideList();
@@ -410,7 +417,11 @@ function scFitCanvas(preservar){
   }else{SC.z=1;SC.tx=0;SC.ty=0;}
   // Los botones de zoom se apoyan encima de la barra de pistas: con 46 px de alto en el
   // celular y bottom:52px, el de abajo montaba 6 px sobre una barra de 58.
-  const zb=$('sp-zoom');if(zb)zb.style.bottom=Math.max(52,ah-vh+10)+'px';
+  const abajo=Math.max(52,ah-vh+10)+'px';
+  const zb=$('sp-zoom');if(zb)zb.style.bottom=abajo;
+  // El ojo de las cotas va en la esquina de enfrente y a la misma altura: si se queda con
+  // los 52 px de la hoja, se le mete debajo a la barra de pistas igual que hacía el zoom.
+  const cb=$('sc-cotas-fab');if(cb)cb.style.bottom=abajo;
 }
 /* ----- Zoom y desplazamiento (pan) ----- */
 function scApplyTransform(){scRender();}
@@ -549,7 +560,10 @@ function scSceneLite(ctx,k){
   });
   if(SC.refLine)linea({x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH},
                       {x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH},'#f59e0b',true);
-  SC.items.forEach(m=>linea({x:m.nx1*SC.cvsW,y:m.ny1*SC.cvsH},{x:m.nx2*SC.cvsW,y:m.ny2*SC.cvsH},m.color,false));
+  // Las medidas apagadas tampoco vuelven por la lupa: si la foto se dejó limpia, se ve
+  // limpia también bajo el dedo.
+  if(scCotasVisibles())
+    SC.items.forEach(m=>linea({x:m.nx1*SC.cvsW,y:m.ny1*SC.cvsH},{x:m.nx2*SC.cvsW,y:m.ny2*SC.cvsH},m.color,false));
   const punto=(p,col)=>{ctx.save();ctx.fillStyle=col;ctx.strokeStyle='#fff';ctx.lineWidth=px(1.5);
     ctx.beginPath();ctx.arc(p.x,p.y,px(4),0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();};
   if(SC.down&&SC.sp&&SC.cp){
@@ -587,16 +601,21 @@ function scScene(ctx,w,h,cx,cy,k,dpr,shadow,lupa){
      cabiendo dentro de la línea igual que en escritorio. El tamaño base se queda en
      10.5: es una decisión tomada a propósito para que varias cotas en la misma
      fachada no se encimen, y la cota además crece sola al acercar la foto. */
-  scDrawDims(ctx,SC.cvsW,SC.cvsH,{selId:SC.sel,s:scIsMobile()?1.25:1});
+  scDrawDims(ctx,SC.cvsW,SC.cvsH,{selId:SC.sel,s:scIsMobile()?1.25:1,vista:SC.cotas});
   // Agarraderas: los extremos de cada medida se ven como puntos para que se note que
   // se pueden mover. Van a tamaño de pantalla (÷k) para no crecer con el acercamiento.
-  if(!SC.down){
+  // Con las cotas apagadas no se pintan: un punto suelto sobre la foto, sin su línea ni
+  // su número, no se lee como el extremo de nada.
+  if(!SC.down&&scCotasVisibles()){
     SC.items.forEach(m=>{
-      const s=m.id===SC.sel, r=(s?6:4.5)/k;
+      const sel=m.id===SC.sel, fantasma=(SC.cotas==='foco'&&!sel), r=(sel?6:fantasma?3.4:4.5)/k;
+      ctx.save();
+      if(fantasma)ctx.globalAlpha=.5;
       [[m.nx1,m.ny1],[m.nx2,m.ny2]].forEach(([nx,ny])=>{
         const arr=SC.dragH&&SC.dragH.kind==='item'&&SC.dragH.item===m;
-        scPunto(ctx,{x:nx*SC.cvsW,y:ny*SC.cvsH},m.color,r,k,arr||s);
+        scPunto(ctx,{x:nx*SC.cvsW,y:ny*SC.cvsH},m.color,r,k,arr||sel);
       });
+      ctx.restore();
     });
   }
   if(SC.down&&SC.cp){
@@ -735,6 +754,64 @@ function scDrawRef(ctx,a,b,k=1){
   ctx.restore();
   [a,b].forEach(p=>scPunto(ctx,p,'#f59e0b',5/k,k,false));
 }
+/* ----- Cuánto se enseña de las cotas ya trazadas -----
+   Medir tres o cuatro elementos de la misma fachada llena la foto de cotas, y a partir de
+   la tercera estorban justo donde hay que trazar la siguiente: el número de una queda
+   encima del borde que se está apuntando y sus líneas de extensión cruzan el elemento de
+   al lado. Antes no había manera de bajarles el volumen — o estaban todas o había que
+   borrar medidas que costaron su trabajo—. Aquí se elige cuánto se ENSEÑA, sin tocar nada:
+
+     todas   — como siempre; si hay una elegida, las demás bajan de intensidad
+     foco    — solo la elegida lleva número y flechas; las demás quedan de rayita
+     ninguna — la foto limpia; las medidas siguen enteras en la lista del panel
+
+   Dos cosas quedan fuera a propósito. La línea de calibración: es una sola, es naranja y
+   la sección de calibrar habla de ella, así que esconderla confundiría más de lo que
+   despeja. Y lo que sale del escalador —la imagen que se descarga y la que se le manda a
+   la IA— lleva SIEMPRE todas las cotas: esto es cómo se ve mientras se mide, no lo que se
+   entrega. */
+const SC_COTAS=['todas','foco','ninguna'];
+const SC_COTAS_TXT={todas:'Cotas: todas',foco:'Cotas: solo la elegida',ninguna:'Cotas: ninguna — la foto queda limpia'};
+function scCotasVisibles(){return SC.cotas!=='ninguna';}
+function scSetCotas(modo,avisar){
+  if(SC_COTAS.indexOf(modo)<0)modo='todas';
+  SC.cotas=modo;
+  /* Un extremo que no se ve no se puede seguir moviendo: si se estaban apagando las cotas
+     con uno agarrado, se suelta donde va en vez de quedarse pegado a un dedo a ciegas. */
+  if(modo==='ninguna'&&SC.dragH&&SC.dragH.kind==='item')scEndHandle();
+  scUpdateCotasUI();
+  scRender();
+  if(avisar!==false&&SC.img)scSetHint(SC_COTAS_TXT[modo],null,2600);
+}
+function scCotasCiclo(){scSetCotas(SC_COTAS[(SC_COTAS.indexOf(SC.cotas)+1)%SC_COTAS.length]);}
+/* El botón del lienzo y el selector del panel son el mismo interruptor visto desde dos
+   sitios: el del lienzo está donde están las manos mientras se mide, el del panel es el
+   que NOMBRA los tres modos y por lo tanto el que los enseña. */
+function scUpdateCotasUI(){
+  /* Con una sola medida no hay nada que estorbe, así que el mando no aparece: sería un
+     botón más en la esquina y tres renglones menos de lista en el celular. Vuelve en
+     cuanto hay dos —o si quedó en un modo distinto de «todas», para poder regresar—. */
+  const util=SC.items.length>1||SC.cotas!=='todas';
+  const fab=$('sc-cotas-fab');
+  if(fab)fab.style.display=(SC.img&&util)?'flex':'none';
+  const b=$('sc-btn-cotas');
+  if(b){
+    b.classList.toggle('foco',SC.cotas==='foco');
+    b.classList.toggle('off',SC.cotas==='ninguna');
+    b.innerHTML=ico(SC.cotas==='ninguna'?'i-ojo-off':'i-ojo');
+    const t=SC_COTAS_TXT[SC.cotas]+' — toca para cambiar';
+    b.title=t;b.setAttribute('aria-label',t);
+  }
+  const fila=$('sc-cotas-fila');
+  if(fila)fila.style.display=util?'':'none';
+  const ids={todas:'sc-cotas-todas',foco:'sc-cotas-foco',ninguna:'sc-cotas-ninguna'};
+  Object.keys(ids).forEach(k=>{const el=$(ids[k]);if(el)el.classList.toggle('active',SC.cotas===k);});
+  segAria('#sc-cotas-todas,#sc-cotas-foco,#sc-cotas-ninguna');
+  // Por clase y no por style: en el celular la nota no va nunca, y eso lo decide una
+  // regla de la hoja. Con un display en línea, la regla no podría ganarle.
+  const nota=$('sc-cotas-nota');
+  if(nota)nota.classList.toggle('hide',SC.cotas==='todas');
+}
 /* Separación entre lo medido y su línea de cota. Antes era .045 del lado menor: con
    varias medidas en la misma foto las cotas se iban lejos del elemento y se encimaban
    entre ellas. */
@@ -791,14 +868,41 @@ function scDimAnnot(ctx,x1,y1,x2,y2,opts){
 /* La cota dice la medida y nada más. La etiqueta que el vendedor le pone a cada línea
    sirve para identificarla en la lista del panel, pero encima de la imagen solo
    estorba: alarga el texto sobre el propio dibujo y tapa lo que se está midiendo. */
+/* vista: cuánto se enseña (ver SC_COTAS). Solo la manda el lienzo del escalador; la
+   imagen que se descarga, la miniatura y la que va a la IA no la pasan, así que siempre
+   salen con todas las cotas puestas. */
 function scDrawDims(ctx,w,h,opt){
-  const{s=1,selId=null}=opt||{};
+  const{s=1,selId=null,vista='todas'}=opt||{};
+  if(vista==='ninguna')return;
   const off=scDimOffset(w,h);
-  SC.items.forEach(m=>{
+  const elegidaHay=selId!=null&&SC.items.some(m=>m.id===selId);
+  /* La elegida se pinta al final. Pintada en su turno, la cota de una medida trazada
+     después le cruzaba el número por encima justo a la que se estaba mirando. */
+  const orden=elegidaHay
+    ? SC.items.filter(m=>m.id!==selId).concat(SC.items.filter(m=>m.id===selId))
+    : SC.items;
+  orden.forEach(m=>{
+    const esta=m.id===selId;
+    if(vista==='foco'&&!esta){scDimRaya(ctx,m,w,h,s);return;}
+    ctx.save();
+    /* Con una elegida, las demás bajan de intensidad: se siguen leyendo —a veces es justo
+       lo que se quiere, comparar dos medidas— pero la que se está trabajando salta primero. */
+    if(elegidaHay&&!esta)ctx.globalAlpha=.5;
     scDimAnnot(ctx,m.nx1*w,m.ny1*h,m.nx2*w,m.ny2*h,{
       text:scFmtCm(m.cm)+' cm',
-      color:m.color,sel:m.id===selId,offset:off,s});
+      color:m.color,sel:esta,offset:off,s});
+    ctx.restore();
   });
+}
+/* La medida «de rayita»: el segmento medido y nada más, sin número, sin flechas y sin
+   líneas de extensión. Dice DÓNDE ya se midió —que es lo que hace falta para no repetir
+   una medida ni cruzarse con ella— sin competir con lo que se está midiendo ahora. */
+function scDimRaya(ctx,m,w,h,s){
+  ctx.save();
+  ctx.globalAlpha=.42;ctx.strokeStyle=m.color;ctx.lineWidth=1.1*s;
+  ctx.setLineDash([5*s,4*s]);ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(m.nx1*w,m.ny1*h);ctx.lineTo(m.nx2*w,m.ny2*h);ctx.stroke();
+  ctx.restore();
 }
 
 /* Cuántos dedos hay SOBRE EL LIENZO. `e.touches` cuenta los de toda la pantalla, así
@@ -897,15 +1001,19 @@ function scHandleHit(pt){
   const probar=(x,y,h)=>{const d=Math.hypot(pt.x-x,pt.y-y);if(d<bestD){bestD=d;best={...h,dx:x-pt.x,dy:y-pt.y};}};
   // La seleccionada se prueba al final: con dos extremos encimados gana la que ya se
   // estaba trabajando solo si queda igual de cerca.
-  SC.items.forEach(m=>{
-    if(m.id===SC.sel)return;
-    probar(m.nx1*SC.cvsW,m.ny1*SC.cvsH,{kind:'item',item:m,end:1});
-    probar(m.nx2*SC.cvsW,m.ny2*SC.cvsH,{kind:'item',item:m,end:2});
-  });
-  const sel=SC.items.find(m=>m.id===SC.sel);
-  if(sel){
-    probar(sel.nx1*SC.cvsW,sel.ny1*SC.cvsH,{kind:'item',item:sel,end:1});
-    probar(sel.nx2*SC.cvsW,sel.ny2*SC.cvsH,{kind:'item',item:sel,end:2});
+  // Con las cotas apagadas no se prueba ninguna: lo que no se ve no se agarra, y si no,
+  // el toque para empezar una medida nueva se lo comía el extremo invisible de otra.
+  if(scCotasVisibles()){
+    SC.items.forEach(m=>{
+      if(m.id===SC.sel)return;
+      probar(m.nx1*SC.cvsW,m.ny1*SC.cvsH,{kind:'item',item:m,end:1});
+      probar(m.nx2*SC.cvsW,m.ny2*SC.cvsH,{kind:'item',item:m,end:2});
+    });
+    const sel=SC.items.find(m=>m.id===SC.sel);
+    if(sel){
+      probar(sel.nx1*SC.cvsW,sel.ny1*SC.cvsH,{kind:'item',item:sel,end:1});
+      probar(sel.nx2*SC.cvsW,sel.ny2*SC.cvsH,{kind:'item',item:sel,end:2});
+    }
   }
   if(SC.refLine){
     probar(SC.refLine.nx1*SC.cvsW,SC.refLine.ny1*SC.cvsH,{kind:'ref',end:1});
@@ -1147,9 +1255,17 @@ function scCommitLine(a,b){
     const c01=v=>Math.max(0,Math.min(1,v));
     SC.items.push({id:SC.nid++,nx1:c01(a.x/SC.cvsW),ny1:c01(a.y/SC.cvsH),nx2:c01(ep.x/SC.cvsW),ny2:c01(ep.y/SC.cvsH),cm,label:'',color:SC_COLORS[SC.nc++%SC_COLORS.length],type:SC.mMode});
     SC.sel=SC.items[SC.items.length-1].id;scUpdateList();
+    /* Con las cotas apagadas la medida se guarda igual pero no aparece, y lo que se ve es
+       una foto que no reacciona: se dice, y se deja el camino de vuelta a un toque. */
+    if(SC.cotas==='ninguna')
+      toast('Medida guardada — las cotas están ocultas','',4200,{label:'Mostrar cotas',fn:()=>scSetCotas('todas')});
     // Que los extremos se corrigen arrastrándolos se avisa una vez, de paso: como pista
     // fija no cabía en un renglón y la barra crecía a 58 px sobre las cotas de abajo.
     if(SC.items.length===1)scSetHint('Puedes arrastrar un extremo para corregirlo',null,4200);
+    /* Y a la tercera es cuando la foto empieza a llenarse: es el momento en que el mando
+       de las cotas sirve para algo, así que es cuando se nombra. Una sola vez. */
+    else if(SC.items.length===3&&SC.cotas==='todas')
+      scSetHint('¿Estorban las cotas? El ojo de la esquina deja solo la elegida',null,5200);
     else scSetHint(scModeHint());
   }
   return true;
@@ -1208,7 +1324,9 @@ function scModeHint(){
     return 'Toca los dos extremos de algo de medida conocida';
   if(SC.mode==='measure'){
     const mn={'libre':'Libre · cualquier ángulo','h':'Horizontal','v':'Vertical'};
-    return 'Modo: '+mn[SC.mMode]+' — toca los dos extremos';
+    /* Que las cotas estén apagadas se dice mientras dure: si no, la pista invita a medir
+       y lo medido no aparece, y eso se lee como que la app dejó de funcionar. */
+    return 'Modo: '+mn[SC.mMode]+' — toca los dos extremos'+(SC.cotas==='ninguna'?' · cotas ocultas':'');
   }
   return '';
 }
@@ -1309,6 +1427,9 @@ function scUpdateList(){
   $('sc-mcount').textContent=SC.items.length;
   list.innerHTML='';
   scUpdateAddAll();
+  // El mando de las cotas aparece con la segunda medida y se va con ella: depende de
+  // cuántas hay, así que se recalcula aquí, que es por donde pasa todo cambio de la lista.
+  scUpdateCotasUI();
   renderScalerPreview();
   if(!SC.items.length){
     list.innerHTML='<div class="sp-mlist-empty">'+(SC.nativePxPerCm>0?'Traza líneas sobre los elementos<br>para registrar sus medidas.':'Calibra la escala primero,<br>luego traza líneas para medir.')+'</div>';

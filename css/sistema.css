@@ -1473,6 +1473,25 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
 .ref-known-title{font-size:11px;font-weight:700;color:var(--muted);margin-right:2px;white-space:nowrap}
 .ref-known button{padding:5px 9px;border:1.5px solid var(--line);border-radius:8px;background:var(--sup);font-size:11.5px;font-weight:600;cursor:pointer;color:var(--ink);transition:.12s;white-space:nowrap;font-family:inherit}
 .ref-known button:hover{border-color:var(--brand);background:var(--soft-2);color:var(--brand)}
+/* ----- Cuánto se enseña de las cotas -----
+   El botón vive en la esquina de abajo a la izquierda, a la misma altura que los de zoom
+   y en el lado contrario: es el otro mando del lienzo y así ninguno tapa al otro. Toma
+   prestada la pinta de los de zoom —mismo tamaño, mismo redondeo, misma sombra— porque
+   son la misma familia de botones flotantes sobre la foto.
+   Los tres estados se distinguen a un vistazo: claro (todas), azul de marca (solo la
+   elegida) y oscuro con el ojo tachado (ninguna). */
+.sp-cotas-fab{position:absolute;left:12px;bottom:52px;display:none;z-index:6}
+.sp-cotas-fab button{width:42px;height:42px;border:none;border-radius:11px;background:rgba(255,255,255,.95);color:var(--ink);font-size:19px;cursor:pointer;box-shadow:0 3px 14px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;line-height:1;font-family:inherit}
+.sp-cotas-fab button.foco{background:var(--brand-grd);color:#fff}
+.sp-cotas-fab button.off{background:rgba(20,24,44,.92);color:rgba(255,255,255,.78);box-shadow:0 3px 14px rgba(0,0,0,.34),inset 0 0 0 1px rgba(255,255,255,.22)}
+.sp-cotas-fab button:active{transform:scale(.94)}
+/* El mismo mando en el panel, con los tres modos escritos */
+.sp-cotas{padding:10px 14px 11px;border-bottom:1px solid var(--line);background:var(--soft)}
+.sp-cotas-lbl{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px}
+.sp-cotas .tool-seg{display:flex;width:100%;background:var(--sup)}
+.sp-cotas .tool-seg button{flex:1;padding:7px 4px;font-size:11.5px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sp-cotas .hintnote{margin-top:8px}
+.sp-cotas .hintnote.hide{display:none}
 /* ----- Zoom / desplazamiento y lupa del escalador ----- */
 .sp-zoom{position:absolute;right:12px;bottom:52px;display:none;flex-direction:column;gap:7px;z-index:6}
 .sp-zoom button{width:42px;height:42px;border:none;border-radius:11px;background:rgba(255,255,255,.95);color:var(--ink);font-size:20px;font-weight:800;cursor:pointer;box-shadow:0 3px 14px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;line-height:1;font-family:inherit}
@@ -1616,6 +1635,10 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--brand)}
   .sp-mitem-label{padding:6px 0;font-size:13px}
   .ref-known button{min-height:40px;padding:8px 12px;font-size:12.5px}
   .sp-zoom button{width:46px;height:46px}
+  .sp-cotas-fab button{width:46px;height:46px}
+  /* Ver el comentario de la nota en cotizador.html: en el celular el panel no da para
+     tres renglones de tranquilidad, y el aviso del lienzo ya dice lo mismo. */
+  .sp-cotas .hintnote{display:none}
   .sp-close{width:auto;height:44px;padding:0 12px;border:1.5px solid var(--line);background:var(--sup);color:var(--ink)}
   .sp-close .ico{display:none}
   .sp-close .back{display:flex;font-size:18px;line-height:1}
@@ -2111,7 +2134,7 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
     transition-duration:.001ms!important;scroll-behavior:auto!important}
   .chip:active,.tipo-seg button:active,.seg button:active,.mbar-btn:active,
-  .sp-zoom button:active{transform:none}
+  .sp-zoom button:active,.sp-cotas-fab button:active{transform:none}
   body{background-attachment:scroll}
 }
 
