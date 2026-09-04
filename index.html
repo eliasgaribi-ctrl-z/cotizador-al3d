@@ -30,12 +30,12 @@
      apagado, que nunca va a ejecutar ese onload. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
 
-<!-- sistema.css ES el sistema de diseño —los azules muestreados del logotipo, el barro, la
-     escala de siete tamaños de letra— y lo comparten el cotizador, esta plataforma y el
-     anidador. plataforma.css es solo lo que el cotizador no tiene: rejilla de calendario,
+<!-- sistema.css ES el sistema de diseño —los azules muestreados del logotipo, la superficie
+     y el borde, la escala de siete tamaños de letra— y lo comparten el cotizador, esta
+     plataforma y el anidador. plataforma.css es solo lo que el cotizador no tiene: rejilla de calendario,
      renglones de almacén, marco del mapa. En ese orden, porque el segundo se apoya en los
      tokens del primero. Y js/tema.js va ANTES de las dos: decide claro u oscuro leyendo
      localStorage y pone data-tema en <html> antes del primer pintado. -->
@@ -53,7 +53,8 @@
 <!-- Los dos «finales» de la plataforma —la lista de compra y la orden de obra— salían del
      mismo papel que la cotización que se manda al cliente y no se parecían en nada: sin
      logotipo, sin pie, sin número de hoja y en el tamaño que el navegador tuviera por
-     omisión. Medido emulando media:print: .topbar y .pf-nav en display:none y cero marca en
+     omisión. Medido emulando media:print: el esqueleto entero —barra lateral, encabezado y
+     barra de abajo— en display:none y cero marca en
      la hoja, mientras el documento del cotizador lleva encabezado, filete, pie y «Hoja X de Y».
      Estos dos bloques no existen en pantalla; solo los enciende el @media print, y van fijos
      para que se repitan en todas las hojas de una lista larga. -->
@@ -134,30 +135,72 @@
 <symbol id="i-anidar" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="11" rx="1.6"/><rect x="13" y="3" width="8" height="6" rx="1.6"/><rect x="13" y="11" width="8" height="10" rx="1.6"/><rect x="3" y="16" width="8" height="5" rx="1.6"/></symbol>
 </defs></svg>
 
-<div class="topbar">
-  <div class="topbar-in">
-    <div class="brand">
-      <!-- El logotipo es el archivo, no un dibujo aparte. Aquí vivía un SVG de tres círculos
-           pegado a mano —el mismo que había en otros tres sitios del cotizador— con
-           #2f39d6/#4a63f0/#7b9bf7, que NO son los colores del logotipo (#341efd/#4267fe/
-           #6290ff). O sea que las dos mitades de la misma app enseñaban marcas distintas.
-           Y todo el bloque iba aria-hidden, así que la plataforma no se anunciaba con
-           ningún nombre. -->
-      <img class="logoimg" src="logo-al3d.svg" width="260" height="130" alt="AL3D">
-      <h1 class="t">AL3D <small id="pf-sub">Tablero</small></h1>
-    </div>
-    <div class="rolewrap">
-      <!-- Aquí vivía el <a> a cotizador.html. Se fue porque el Cotizador ya es una pestaña
-           de la barra de módulos: tenerlo en los dos sitios enseñaba dos puertas al mismo
-           cuarto, y en el teléfono costaba 44 px del renglón. La página suelta NO se retira
-           —manifest.webmanifest arranca ahí y quien tenga esa PWA instalada entra directo—,
-           solo deja de tener una segunda entrada desde aquí. -->
-      <button type="button" class="btn-hist btn-tema" data-tema-btn aria-pressed="false" title="Cambiar a tema oscuro" aria-label="Cambiar a tema oscuro"><svg class="svgi sol" aria-hidden="true"><use href="#i-sol"/></svg><svg class="svgi luna" aria-hidden="true"><use href="#i-luna"/></svg></button>
-      <button class="btn-hist" id="pf-ajustes-btn" title="Ajustes de la plataforma" aria-label="Ajustes"><svg class="svgi" aria-hidden="true"><use href="#i-ajustes"/></svg></button>
+<!-- ============================================================================
+     LA BARRA LATERAL
+
+     Aquí vivía una barra de arriba con el logotipo y, debajo, una tira horizontal con las
+     seis pestañas de módulo. Funcionaba, y tenía dos problemas que solo se ven midiendo:
+
+     · En una computadora, las seis pestañas ocupaban un renglón entero de 1 180 px de ancho
+       para decir seis palabras, y ese renglón se lo quitaban al contenido. Un tablero de
+       proyectos de cinco columnas no cabe en lo que queda.
+     · Y la tira NO decía dónde estabas cuando la pestaña quedaba fuera de la vista: se
+       desliza en el teléfono, así que con «Mapa» elegido y la tira al principio no había en
+       pantalla una sola cosa encendida.
+
+     La barra lateral resuelve las dos: las seis caben en vertical sin robarle ancho a nada,
+     y la encendida siempre se ve. Va `position:fixed` y NO dentro de un contenedor con
+     `overflow:auto`, que es como está hecha la maqueta: con scroll propio se pierden el
+     guardado y la reposición del scroll por ruta que hace el router, el `position:sticky` de
+     la columna del dinero y del resumen de cada partida, y la impresión —un contenedor con
+     scroll sale recortado a la altura de la ventana—. Fija por la izquierda, con el hueco
+     hecho por `padding-left` en el cuerpo, se ve igual y no cuesta nada de eso.
+
+     En el teléfono se apaga entera y manda la barra de abajo. ============================ -->
+<aside class="pf-lat" id="pf-lat">
+  <div class="pf-lat-marca">
+    <!-- El logotipo es el archivo, no un dibujo aparte. Aquí vivía un SVG de tres círculos
+         pegado a mano —el mismo que había en otros tres sitios del cotizador— con
+         #2f39d6/#4a63f0/#7b9bf7, que NO son los colores del logotipo (#341efd/#4267fe/
+         #6290ff). En la barra lateral va el de fondo oscuro en los DOS temas, porque la barra
+         es marino de día y de noche; por eso este no lleva la clase .logoimg, que es
+         justamente la que js/tema.js intercambia según el tema. -->
+    <img src="logo-al3d-oscuro.svg" width="260" height="130" alt="AL3D">
+    <span class="pf-lat-t">Taller</span>
+  </div>
+
+  <!-- La barra de módulos. No son pasos: son seis lugares, y a cualquiera se llega desde
+       cualquiera. Se pinta desde JS porque no todos los roles ven los mismos: pagos no tiene
+       nada que hacer en el mapa. -->
+  <nav class="pf-nav" id="pf-nav" aria-label="Módulos de la plataforma"></nav>
+
+  <div class="pf-lat-pie">
+    <button type="button" class="pf-lat-item btn-tema" data-tema-btn aria-pressed="false" title="Cambiar a tema oscuro" aria-label="Cambiar a tema oscuro"><svg class="svgi sol" aria-hidden="true"><use href="#i-sol"/></svg><svg class="svgi luna" aria-hidden="true"><use href="#i-luna"/></svg><span class="tx tx-luna">Tema oscuro</span><span class="tx tx-sol">Tema claro</span></button>
+    <button type="button" class="pf-lat-item" id="pf-ajustes-btn" title="Ajustes de la plataforma"><svg class="svgi" aria-hidden="true"><use href="#i-ajustes"/></svg><span class="tx">Ajustes</span></button>
+    <!-- El rol de este aparato. En la maqueta este bloque es el nombre de quien usa la app;
+         aquí dice lo que esta app de verdad sabe —con qué rol trabaja el dispositivo— y sigue
+         siendo tocable, que es para lo que existe. -->
+    <div class="pf-lat-rol">
+      <span class="pf-lat-rol-t">Este dispositivo</span>
       <div class="seg" id="pf-rolseg" role="group" aria-label="Rol con el que trabajas"></div>
     </div>
   </div>
-</div>
+</aside>
+
+<!-- El encabezado. Blanco de 64 px en la computadora, marino en el teléfono —donde es lo
+     único que lleva la marca, porque la barra lateral no está—. Dice en qué pantalla estás,
+     con una línea de qué se ve en ella, y guarda un hueco para las acciones que cada módulo
+     quiera poner: #pf-cab-acc nace vacío y lo escribe quien monta. -->
+<header class="pf-cab">
+  <!-- El de fondo oscuro, y SIN la clase .logoimg: en el teléfono este encabezado es marino
+       en los dos temas, y .logoimg es justo lo que js/tema.js intercambia por el de tinta
+       cuando el tema es claro. Con ella puesta, el «AL3D» negro desaparecía sobre el marino. -->
+  <img class="pf-cab-logo" src="logo-al3d-oscuro.svg" width="260" height="130" alt="AL3D">
+  <h1 class="pf-cab-t" id="pf-sub">Tablero</h1>
+  <span class="pf-cab-d" id="pf-cab-sub"></span>
+  <div class="pf-cab-acc" id="pf-cab-acc"></div>
+  <button type="button" class="pf-cab-tema btn-tema" data-tema-btn aria-pressed="false" title="Cambiar a tema oscuro" aria-label="Cambiar a tema oscuro"><svg class="svgi sol" aria-hidden="true"><use href="#i-sol"/></svg><svg class="svgi luna" aria-hidden="true"><use href="#i-luna"/></svg></button>
+</header>
 
 <div class="wrap pf-wrap">
 
@@ -166,12 +209,6 @@
        verdad en las seis pantallas, y repetirla en cada una era garantizar que en alguna
        faltara. Nace oculta y solo la enciende app.js cuando hay algo que decir. -->
   <div class="pf-banda" id="pf-banda" hidden role="status" aria-live="polite"></div>
-
-  <!-- La barra de módulos. No son pasos: son seis lugares, y a cualquiera se llega desde
-       cualquiera. Por eso es una barra de pestañas y no la escalera numerada del
-       cotizador, que sí es una secuencia. Se pinta desde JS porque no todos los roles ven
-       los mismos: pagos no tiene nada que hacer en el mapa. -->
-  <nav class="pf-nav" id="pf-nav" aria-label="Módulos de la plataforma"></nav>
 
   <main id="pf-contenido" tabindex="-1">
     <!-- Un <section> por módulo, todos vacíos. El router monta uno y desmonta el anterior.
@@ -196,8 +233,20 @@
 <div class="modal-bg pf-modal-bg" id="pf-hoja"  role="dialog" aria-modal="true" aria-label="Hoja de trabajo"></div>
 <div class="modal-bg pf-modal-bg" id="pf-pide"  role="dialog" aria-modal="true" aria-label="Confirmar"></div>
 
-<!-- La barra fija del teléfono. Su contenido cambia con el módulo. -->
+<!-- La barra fija del teléfono. Su contenido cambia con el módulo. Va ENCIMA de la barra de
+     módulos de abajo, que es lo que hace la maqueta: primero la acción de esta pantalla,
+     debajo el sitio al que se puede ir. -->
 <div class="mbar pf-mbar" id="pf-mbar" hidden></div>
+
+<!-- ============================================================================
+     LA BARRA DE ABAJO, solo en el teléfono.
+
+     Cinco módulos y no seis: Material se queda fuera. No es que sobre —es la lista de
+     compra, y es de las pantallas que más se abren— sino que con seis, cada botón mide 60 px
+     en una pantalla de 360 y el nombre no cabe debajo del icono. Se llega a Material desde
+     el Tablero, que es de donde se sale a comprar. La lista de qué módulos entran la decide
+     app.js, que es donde ya vive la lista de rutas. ============================ -->
+<nav class="pf-abajo" id="pf-abajo" aria-label="Módulos"></nav>
 
 <div class="toast" id="toast"></div>
 

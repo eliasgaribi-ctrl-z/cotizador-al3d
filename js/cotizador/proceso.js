@@ -591,11 +591,20 @@ function irAPantalla(cual,opts){
   /* Cualquier cambio de pantalla que no venga de tocar una pestaña olvida la que se pidió.
      irAPaso fija el pedido DESPUÉS de llamar aquí, así que el orden se respeta solo. */
   _pasoPedido=null;
+  /* El total vuela de un sitio al otro, y se mide AQUÍ porque este es el único punto por el
+     que pasan todos los caminos: la pestaña, el botón de «Continuar a partidas», la barra
+     fija del teléfono y el botón de atrás del navegador. Ponerlo en `irAPaso` dejaba fuera a
+     tres de los cuatro. Solo cuando la pantalla de verdad cambia: `irAPantalla` también se
+     llama al arrancar y para reafirmar la que ya está puesta, y ahí no hay vuelo que hacer. */
+  const cambia=(_pantalla!==cual);
+  if(cambia) _medirTotal();
   _pantalla=cual;
   pintarPantalla();
   /* Arriba de todo: cambiar de pantalla a media página deja al usuario mirando el hueco por
      el que venía bajando, no el principio de lo que acaba de abrir. */
   if(!opts||opts.subir!==false) window.scrollTo({top:(opts&&opts.y!=null)?opts.y:0,behavior:'auto'});
+  /* Después del scroll, no antes: el vuelo se calcula contra la posición final. */
+  if(cambia) _volarTotal(); else _vuelo=null;
   if(!opts||opts.hist!==false) sincronizarHistorial(!!(opts&&opts.forzar));
   /* Contesta si de verdad se movió. Lo lee `irAPaso`: los pasos 3 y 4 viven en la pantalla
      de partidas, así que si el candado del paso 1 frenó el salto, ahí se acaba el camino y
@@ -700,6 +709,76 @@ function _llevarAlPaso(n){
   else _anclarPaso('sidebox');
   return n;
 }
+/* ----- La transición de elemento compartido -----
+   El total vive en dos sitios: chiquito en la barra de pasos mientras se captura al cliente,
+   y grande en la columna del dinero mientras se capturan las partidas. Son el mismo número, y
+   sin esto el primero desaparece de golpe y el segundo aparece de la nada media pantalla más
+   allá: dos números, y hay que volver a leer para saber que son el mismo.
+
+   Es un FLIP —First, Last, Invert, Play— y se hace en cuatro líneas porque no hace falta más:
+     1. se MIDE el rectángulo del que se va, antes de cambiar de pantalla;
+     2. se cambia de pantalla, y el navegador coloca el que llega donde le toca;
+     3. se le aplica la transformación INVERSA —lo que haga falta para que se pinte
+        exactamente donde estaba el otro— sin transición, o sea que el ojo no ve el salto;
+     4. se quita la transformación con transición, y el número recorre el camino.
+
+   La escala sale del ALTO y no del ancho: los dos textos son la misma cifra con distinto
+   tamaño de letra, y el ancho de «$1,234.00» a 15 px y a 28 px no guarda la misma proporción
+   que el alto por culpa del interletraje. Con el ancho, el número llega estirado.
+
+   `prefers-reduced-motion` lo apaga entero, y no dejándolo en 1 ms: aquí no hay nada que
+   apagar a medias — o vuela o no vuela. */
+let _vuelo=null;
+const _menosMovimiento=()=>{
+  try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(_){ return false; }
+};
+function _totalCompartido(){ return document.querySelector('[data-shared="total"]:not([hidden])'); }
+/* Se mide en coordenadas del DOCUMENTO, no de la ventana. Entre medir y volar, `irAPantalla`
+   sube la página al principio; con un rect de ventana, ese scroll se sumaría entero al
+   desplazamiento y el número saldría volando desde fuera de la pantalla. */
+function _medirTotal(){
+  _vuelo=null;
+  if(_menosMovimiento()) return;
+  const el=_totalCompartido(); if(!el) return;
+  const r=el.getBoundingClientRect(); if(!r.height) return;
+  _vuelo={top:r.top+window.scrollY, left:r.left+window.scrollX, height:r.height};
+}
+function _volarTotal(){
+  const r=_vuelo; _vuelo=null;
+  if(!r) return;
+  const el=_totalCompartido(); if(!el) return;
+  const n=el.getBoundingClientRect(); if(!n.height) return;
+  /* De vuelta a coordenadas de ventana, ya con el scroll nuevo puesto. */
+  const rl=r.left-window.scrollX, rt=r.top-window.scrollY;
+  /* El mismo elemento en el mismo sitio no vuela: pasa cuando se toca la pestaña en la que ya
+     se está, y una cifra que se encoge y vuelve a crecer sin moverse se lee como un parpadeo. */
+  if(Math.abs(rl-n.left)<1&&Math.abs(rt-n.top)<1&&Math.abs(r.height-n.height)<1) return;
+  const dx=rl-n.left, dy=rt-n.top, s=r.height/n.height;
+  el.style.transition='none';
+  el.style.transformOrigin='left top';
+  el.style.transform='translate('+dx+'px,'+dy+'px) scale('+s+')';
+  el.style.opacity='.6';
+  /* Dos cuadros y no uno: con uno solo, Chrome agrupa la escritura sin transición y la que sí
+     la lleva en el mismo recálculo de estilo, y no anima nada. Es el mismo truco que ya usa
+     la maqueta del rediseño. */
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    el.style.transition='transform var(--mv-t),opacity .4s';
+    el.style.transform='';
+    el.style.opacity='';
+    /* Se limpia al terminar: un `transform` vacío pero declarado deja al elemento con su
+       propio contexto de apilamiento, y el resumen fijo de una partida pasaba por encima.
+       Y se espera al `transform`, NO al primer `transitionend` que llegue: la opacidad dura
+       .4 s y el vuelo .5, así que el evento de la opacidad llegaba primero, borraba la
+       transición y el número daba un tirón en el último décimo del camino. */
+    const fin=ev=>{
+      if(ev.propertyName!=='transform') return;
+      el.style.transition=''; el.style.transformOrigin='';
+      el.removeEventListener('transitionend',fin);
+    };
+    el.addEventListener('transitionend',fin);
+  }));
+}
+
 function irAPaso(n){
   caducarPedido();
   const d=_llevarAlPaso(n);
@@ -811,6 +890,19 @@ function pintarPasos(){
     const sb=$('tab-'+p.n+'-sub');
     if(sb){ const v=sub[p.n]||''; if(sb.textContent!==v) sb.textContent=v; }
   });
+  pintarTotalDePaso();
+}
+
+/* El total chiquito de la barra, solo en la pantalla del cliente: en la de partidas el grande
+   ya está a la vista, y dos veces el mismo número es un número que se puede quedar atrás. */
+function pintarTotalDePaso(){
+  const caja=$('paso-total'); if(!caja) return;
+  const enCliente=_pantalla==='cliente';
+  caja.hidden=!enCliente;
+  if(!enCliente) return;
+  const v=$('paso-total-v');
+  const t=money(totals().neto);
+  if(v&&v.textContent!==t) v.textContent=t;
 }
 
 /* Pintar el candado: la ficha ámbar de la tarjeta de Partidas y el repintado de las

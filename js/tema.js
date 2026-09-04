@@ -19,7 +19,7 @@
    Sin localStorage —Safari privado— funciona igual, sin recordar. */
 (function () {
   var CLAVE = 'al3d_tema';
-  var COLOR = { claro: '#4060f8', oscuro: '#12142a' };
+  var COLOR = { claro: '#4060f8', oscuro: '#0f1124' };
   var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
   function guardado() {

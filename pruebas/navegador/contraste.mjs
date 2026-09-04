@@ -175,6 +175,25 @@ await p.waitForTimeout(300);
 
 await p.evaluate(() => { autorizarYoMismo(); });
 await p.waitForTimeout(500);
+
+/* El formulario de revisión del precio es lo que ve quien autoriza, y es la única columna de
+   la app con un relleno que NO es azul: `--ok-fill`. `--ok` no puede llevar blanco encima —de
+   noche es #6fd6a4 y daría 1,78:1—, que es justo la trampa que --a y --a-fill ya documentan y
+   en la que `.btn-ok` estuvo cayendo. Se mide aquí para que no se vuelva a colar. */
+console.log('\nPASO 3 · REVISAR EL PRECIO');
+await comprobar('el botón de autorizar', '#authbox .btn-ok');
+await comprobar('el rótulo que parte la columna', '#authbox .auth-divider');
+await comprobar('el total calculado', '#authbox .precio-auth-orig');
+await p.evaluate(() => { const i = document.getElementById('a-precio'); if (i) { i.value = 18000; updPrecioAuth(18000, totals().neto); } });
+await p.waitForTimeout(300);
+await comprobar('el descuento que acaba de teclear', '#descuento-info');
+await p.evaluate(() => { const i = document.getElementById('a-precio'); if (i) { i.value = 23000; updPrecioAuth(23000, totals().neto); } });
+await p.waitForTimeout(300);
+await comprobar('y el aumento, en ámbar', '#descuento-info');
+await comprobar('el cálculo de una partida', '#authbox .ia-calc');
+await comprobar('el subtotal ajustado', '#authbox .ia-total');
+await comprobar('el mismo con IVA', '#authbox .ia-total.soft');
+
 await p.evaluate(() => { const a = document.getElementById('a-name'); if (a) { a.value = 'Elías'; Q.autorizador = 'Elías'; } autorizar(); });
 await p.waitForTimeout(900);
 

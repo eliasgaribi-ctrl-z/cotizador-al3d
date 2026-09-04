@@ -332,7 +332,7 @@ function cuentas() {
     /* Sin un solo costo capturado no se pinta «$0.00»: eso se lee como que la compra sale
        gratis. Se pinta el renglón que dice qué falta para que ese número exista. */
     c.push(costo > 0
-      ? '<p class="pf-cuenta"><b>' + esc(money(costo)) + '</b>Costo de lo que hay que comprar</p>'
+      ? '<p class="pf-cuenta dinero"><b>' + esc(money(costo)) + '</b>Costo de lo que hay que comprar</p>'
       : '<p class="pf-cuenta"><b>—</b>Sin costos capturados</p>');
   }
   return '<div class="pf-cuentas">' + c.join('') + '</div>';

@@ -188,7 +188,12 @@ function pintarHistorial(){
         ${hitosHist(e.folio)}
         <div class="hentry-total">
           <span>Total autorizado</span>
-          <span style="color:var(--green)">${money(pFin)}${ajuste>0.01?`&nbsp;<small style="font-weight:500;color:var(--muted);font-size:11px">(ahorro ${money(ajuste)})</small>`:''}${ajuste<-0.01?`&nbsp;<small style="font-weight:500;color:var(--amber);font-size:11px">(aumento ${money(-ajuste)})</small>`:''}</span>
+          <!-- El importe va en la tinta de la app y no en verde. En este historial hay diez
+               renglones y cada uno decía su total en verde, que es el color con el que la app
+               dice «hecho» en todas partes; aquí no decía nada, porque TODAS las cotizaciones
+               del historial están autorizadas. Lo que lo hace el número importante del renglón
+               son la cifra y el peso, y el verde queda libre para la insignia de arriba, que sí
+               dice un estado. El ahorro y el aumento conservan su color: esos sí comparan. --><span>${money(pFin)}${ajuste>0.01?`&nbsp;<small class="hentry-ajuste">(ahorro ${money(ajuste)})</small>`:''}${ajuste<-0.01?`&nbsp;<small class="hentry-ajuste inc">(aumento ${money(-ajuste)})</small>`:''}</span>
         </div>
         ${e.nota?`<div style="font-size:11.5px;color:var(--muted);margin-top:7px;padding-top:7px;border-top:1px solid var(--line)">${ico('i-chat')} ${esc(e.nota)}</div>`:''}
       </div>`;

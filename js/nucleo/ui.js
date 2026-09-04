@@ -186,8 +186,15 @@ const _focoPrevio = new Map();
    <html> es la que bloquea el scroll del fondo, que en un teléfono es lo que hace que al
    deslizar dentro de una ficha se mueva la página de abajo. Mismo arreglo que el
    cotizador ya tenía en _fondoInerte(). */
+/* La lista incluye el esqueleto NUEVO de la plataforma —la barra lateral, el encabezado y la
+   barra de módulos del teléfono—, que sustituyeron a `.topbar`. `.topbar` se queda porque el
+   cotizador suelto y el anidador la siguen teniendo. Sin las tres nuevas, con una ficha de
+   proyecto abierta el tabulador se escapaba por la barra lateral y el lector de pantalla leía
+   los seis módulos como si fueran del modal: exactamente el defecto que esta función existe
+   para no tener. */
 function _fondoInerte(v) {
-  document.querySelectorAll('.wrap,.topbar,.mbar').forEach(e => { try { e.inert = v; } catch (_) {} });
+  document.querySelectorAll('.wrap,.topbar,.mbar,.pf-lat,.pf-cab,.pf-abajo')
+    .forEach(e => { try { e.inert = v; } catch (_) {} });
   document.documentElement.classList.toggle('modal-abierto', v);
 }
 

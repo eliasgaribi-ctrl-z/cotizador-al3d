@@ -58,12 +58,166 @@
    componente en catorce sitios distintos. Una regla, y no se vuelve a olvidar. */
 button,input,select,textarea,optgroup{font-family:inherit}
 
-/* ----- La página: una columna -----
-   El cotizador es de dos columnas porque tiene un resumen que acompaña a las partidas. Aquí
-   no hay nada que acompañe: cada módulo es una cosa, y una columna ancha se lee de un solo
-   barrido. Se conserva el ancho máximo y el relleno con áreas seguras del original. */
-.pf-wrap{grid-template-columns:minmax(0,1fr)}
+/* ============================================================================
+   EL ESQUELETO: barra lateral, encabezado y barra de abajo
+   ============================================================================
+   Tres anchos y tres formas, y las tres salen de la misma pieza de marcado:
+
+     ≥ 1024 px  barra lateral de 216 px · encabezado blanco de 64 px
+     760–1023   barra lateral de 168 px (el Fold abierto mide 880) · el mismo encabezado
+     ≤ 759 px   sin barra lateral · encabezado marino · barra de módulos abajo
+
+   La barra lateral es `position:fixed` y el hueco lo hace un `padding-left` en `.pf-wrap` y
+   en el encabezado. El porqué está escrito en index.html: un contenedor con scroll propio se
+   lleva por delante el scroll por ruta, los `position:sticky` y la impresión. */
+/* El ancho de la barra lateral. Vale 0 mientras no hay barra —el teléfono— y las dos medias
+   queries de abajo lo suben; `.pf-wrap` y `.pf-cab` leen de aquí el hueco que tienen que
+   dejar, así que el ancho se cambia en UN sitio y no en tres. */
+:root{--lat:0px}
+
+.pf-lat{display:none}
+.pf-abajo{display:none}
+
+/* El filete de marca de arriba no cruza la plataforma. En la computadora la marca es la
+   barra lateral y una raya azul por encima la corta en dos; en el teléfono el encabezado ya
+   es marino, y tres píxeles de azul encima de él se leen como un borde mal puesto. En el
+   cotizador suelto y en el anidador se queda, que es donde no hay ni barra ni encabezado
+   marino que lo digan. */
+body.pf::before{display:none}
+
+/* ----- El encabezado ----- */
+.pf-cab{
+  position:sticky;top:0;z-index:30;
+  display:flex;align-items:center;gap:var(--e3);
+  height:56px;flex:0 0 auto;
+  padding:0 max(var(--e4),env(safe-area-inset-right,0px)) 0 max(var(--e4),env(safe-area-inset-left,0px));
+  background:var(--nav);color:#fff;
+}
+.pf-cab-logo{height:24px;width:auto;flex:0 0 auto}
+.pf-cab-t{flex:0 1 auto;min-width:0;font-size:17px;font-weight:600;line-height:1.2;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
+/* La línea de debajo del título solo existe donde hay sitio para leerla. */
+.pf-cab-d{display:none}
+.pf-cab-acc{display:flex;align-items:center;gap:var(--e2);margin-left:auto}
+.pf-cab-tema{margin-left:auto;width:36px;height:36px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
+  border:0;border-radius:var(--rr2);background:rgba(255,255,255,.08);color:#fff;cursor:pointer}
+.pf-cab-tema:hover{background:rgba(255,255,255,.16)}
+.pf-cab-tema .svgi{width:var(--ico2);height:var(--ico2)}
+/* En el teléfono el encabezado es lo único que lleva la marca, y las acciones contextuales
+   de un módulo no caben ahí junto al título: las escribe cada módulo dentro de su pantalla. */
+@media(max-width:759px){ .pf-cab-acc{display:none} }
+
+/* ----- La página ----- */
+.pf-wrap{grid-template-columns:minmax(0,1fr);padding-top:var(--e4)}
 .pf-wrap>main{min-width:0}
+
+/* ----- La barra de abajo, en el teléfono -----
+   52 px por botón, el icono dentro de una píldora de 44×26 que se enciende con el acento, y
+   el nombre debajo en 10,5 px. La píldora existe por una razón medible: un icono de 19 px
+   cambiando solo de color no se ve encendido de un vistazo en una pantalla al sol, y un
+   fondo de 44×26 sí.
+
+   El relleno de abajo lo pone el área segura: en un iPhone son los 28 px del indicador de
+   inicio, y en un Android sin indicador, 8. */
+@media(max-width:759px){
+  .pf-abajo{
+    display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;
+    background:var(--nav);
+    padding:6px 4px calc(8px + env(safe-area-inset-bottom,0px));
+  }
+  .pf-abajo button{
+    flex:1;min-width:0;height:52px;border:0;background:transparent;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    font-family:inherit;font-size:10.5px;font-weight:600;letter-spacing:.2px;
+    color:rgba(255,255,255,.55);
+  }
+  .pf-abajo button .pil{
+    width:44px;height:26px;border-radius:13px;display:inline-flex;align-items:center;justify-content:center;
+    background:transparent;transition:background .2s;
+  }
+  .pf-abajo button .svgi{width:19px;height:19px}
+  .pf-abajo button.on{color:#fff}
+  .pf-abajo button.on .pil{background:var(--a-fill)}
+  /* La cuenta de lo que reclama atención, en el filo de la píldora. */
+  .pf-abajo .cta{
+    position:absolute;transform:translate(14px,-9px);
+    min-width:16px;height:16px;padding:0 4px;border-radius:8px;
+    background:var(--av);color:var(--nav);
+    font-size:10px;font-weight:700;line-height:16px;text-align:center;
+  }
+  /* El hueco para la barra: lo que mide más el área segura. Sin esto, el último renglón de
+     cualquier lista se queda debajo de ella y no hay forma de llegar a él. */
+  .pf-wrap{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px) + var(--mbar-h,0px))}
+  /* Y la barra de acción del módulo se posa ENCIMA de la de módulos, no debajo. */
+  .pf-mbar{bottom:calc(66px + env(safe-area-inset-bottom,0px))}
+}
+
+/* ----- La barra lateral, de 760 px para arriba ----- */
+@media(min-width:760px){
+  :root{--lat:168px}
+  .pf-lat{
+    display:flex;flex-direction:column;gap:2px;
+    position:fixed;left:0;top:0;bottom:0;width:var(--lat);z-index:50;
+    padding:20px 10px 14px;
+    background:var(--nav);color:rgba(255,255,255,.72);
+    overflow-y:auto;overscroll-behavior:contain;
+  }
+  .pf-lat-marca{display:flex;align-items:center;gap:10px;padding:2px 8px 18px;
+    white-space:nowrap;overflow:hidden}
+  .pf-lat-marca img{height:26px;width:auto;display:block}
+  .pf-lat-t{font-family:var(--f-cifra);font-weight:600;font-size:var(--t4);color:#fff;letter-spacing:.2px}
+  .pf-lat-pie{margin-top:auto;padding-top:var(--e3)}
+  .pf-lat-item{
+    display:flex;align-items:center;gap:12px;width:100%;
+    height:40px;padding:0 10px;border:0;border-radius:var(--rr3);
+    background:transparent;color:rgba(255,255,255,.72);
+    font-family:inherit;font-size:var(--t2);font-weight:500;text-align:left;cursor:pointer;
+  }
+  .pf-lat-item:hover{background:rgba(255,255,255,.06);color:#fff}
+  .pf-lat-item .svgi{width:var(--ico2);height:var(--ico2);flex:0 0 auto}
+  /* El interruptor de tema dice A DÓNDE va, no dónde estás: en claro, «Tema oscuro» con la
+     luna; en oscuro, «Tema claro» con el sol. La hoja del sistema ya enseña un glifo u otro
+     según html[data-tema]; aquí hace falta lo mismo con la palabra, que en la barra lateral
+     sí cabe. Sin esto salían las dos, una al lado de la otra. */
+  .pf-lat-item .tx-sol{display:none}
+  html[data-tema="oscuro"] .pf-lat-item .tx-luna{display:none}
+  html[data-tema="oscuro"] .pf-lat-item .tx-sol{display:inline}
+  .pf-lat-rol{margin-top:10px;padding:12px 10px 4px;border-top:1px solid rgba(255,255,255,.08)}
+  .pf-lat-rol-t{display:block;font-size:var(--t1);font-weight:600;color:#fff;margin-bottom:6px}
+  /* El segmento de rol dentro de la barra: marino sobre marino, con el elegido en claro. */
+  .pf-lat-rol .seg{width:100%;background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.12)}
+  .pf-lat-rol .seg button{flex:1;min-width:0;min-height:30px;padding:0 4px;font-size:var(--t1);
+    color:rgba(255,255,255,.7)}
+  .pf-lat-rol .seg button.on{background:rgba(255,255,255,.16);color:#fff}
+
+  /* El hueco de la barra, y el encabezado que se vuelve blanco. */
+  .pf-wrap,.pf-cab{padding-left:calc(var(--lat) + var(--e4))}
+  .pf-cab{
+    height:64px;
+    background:var(--sup);color:var(--tinta);
+    border-bottom:1px solid var(--linea);
+    padding-right:max(var(--e5),env(safe-area-inset-right,0px));
+    gap:var(--e4);
+  }
+  .pf-cab-logo{display:none}
+  .pf-cab-tema{margin-left:0}
+  .pf-cab-t{font-size:var(--t5);color:var(--tinta)}
+  .pf-cab-d{display:block;flex:1;min-width:0;color:var(--tinta3);font-size:var(--t2);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pf-cab-acc{margin-left:0}
+  .pf-cab-tema{background:transparent;color:var(--tinta2);border:1px solid var(--linea)}
+  .pf-cab-tema:hover{background:var(--sup2);color:var(--tinta)}
+}
+/* Los atajos de teclado escritos, en el encabezado. Solo donde hay teclado: el hueco de
+   acciones ya está apagado en el teléfono, así que esto no necesita su propia media query. */
+.pf-teclas{display:inline-flex;align-items:center;gap:6px;font-size:var(--t2);color:var(--tinta3)}
+.pf-teclas kbd{font:inherit;padding:1px 6px;border:1px solid var(--linea);border-radius:var(--rr1);
+  color:var(--tinta2);background:var(--sup)}
+@media(min-width:1024px){
+  :root{--lat:216px}
+  .pf-lat{padding:20px 12px 16px}
+  .pf-lat-marca img{height:30px}
+}
 
 /* Al cambiar de módulo se le manda el foco a <main> para que quien navega con teclado no
    tenga que recorrer otra vez las seis pestañas. Pero <main> lleva tabindex="-1" y el
@@ -72,6 +226,17 @@ button,input,select,textarea,optgroup{font-family:inherit}
    sí —el lector de pantalla anuncia la región— no el dibujo. El halo de los controles de
    verdad, que sí hace falta, no se toca. */
 #pf-contenido:focus{outline:none}
+
+/* Cambiar de módulo es un movimiento, no un corte: la pantalla nueva entra desde 10 px abajo
+   en .32 s. Va en la sección —que es lo que el router enciende— y no en cada módulo, así que
+   los ocho entran igual sin tener que acordarse. El `@media` de movimiento reducido de
+   css/sistema.css lo apaga con los demás. */
+.pf-mod{animation:entra .32s cubic-bezier(.2,.8,.2,1) both}
+
+/* El ancho de las pantallas de la plataforma. La maqueta las topa en 1 240 px y la .wrap del
+   cotizador venía topando en 1 180; con la barra lateral fuera del flujo, el contenido puede
+   usar los 1 240 sin apretar nada. */
+.pf-wrap{max-width:calc(1240px + var(--lat))}
 
 /* La barra fija del teléfono publica su alto para que el aviso emergente se pose encima y
    no debajo. Cuando no hay barra, la variable es 0 y nada se mueve. */
@@ -94,66 +259,36 @@ button,input,select,textarea,optgroup{font-family:inherit}
    navegación, y el siguiente que alguien añada también lo va a necesitar. */
 [hidden]{display:none!important}
 
-/* ----- La barra de módulos -----
+/* ----- La barra de módulos, dentro de la barra lateral -----
    No es la escalera numerada del cotizador: eso es una secuencia —primero el cliente,
    después las partidas— y esto son seis lugares donde a cualquiera se llega desde
-   cualquiera. Así que pestañas, y con scroll horizontal en el teléfono en vez de apretarlas
-   hasta que el texto no se lea. */
-/* El relleno vertical de 5 px no es aire: es SITIO PARA EL ANILLO DE FOCO. `overflow-x:auto`
-   obliga a `overflow-y:auto` por especificación, así que esta tira recorta lo que se salga
-   por arriba y por abajo, y el anillo del sistema son 2 px de trazo con 3 px de separación:
-   5 px justos fuera de la pestaña. Con 0 arriba y 2 abajo se recortaba entero por arriba y
-   casi entero por abajo, o sea que quien navega con teclado no veía en qué pestaña estaba.
-   El margen negativo devuelve esos 5 px para que la tira siga cayendo donde caía. */
-.pf-nav{display:flex;gap:var(--e2);margin-bottom:var(--e5);overflow-x:auto;
-  scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:5px 0;margin-top:-5px}
-.pf-nav::-webkit-scrollbar{display:none}
-.pf-tab{flex:0 0 auto;display:inline-flex;align-items:center;gap:var(--e2);
-  min-height:44px;min-width:44px;justify-content:center;padding:0 var(--e4);border:1px solid var(--line);border-radius:var(--rr2);
-  background:var(--card);color:var(--n7);font-weight:600;font-size:var(--t3);line-height:1;cursor:pointer;
-  box-shadow:var(--clay);transition:transform var(--mv-r),box-shadow var(--mv-s),color var(--mv-s)}
-.pf-tab:hover{transform:translateY(-1px)}
-.pf-tab:active{transform:translateY(1px);box-shadow:var(--clay-in)}
-/* El elegido lleva fondo tenue del acento y su tinta, no una píldora azul con degradado.
-   Es la regla del sistema: el azul sólido significa «esta es LA acción», y seis pestañas no
-   pueden ser todas la acción. */
-.pf-tab.on{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-fuerte);
-  box-shadow:var(--clay-in)}
-/* El glifo de la pestaña NO hereda la letra de la etiqueta. Con `1em` medía los 12,5 px
-   de --t2 dentro de un botón de 44 px de alto: un punto en medio de una pieza grande, y en
-   las pestañas sin nombre —que eran cuatro de cinco— ese punto era TODO lo que había para
-   distinguir Agenda de Material. */
+   cualquiera.
+
+   El elegido lleva `--nav2` con un filete de 3 px del acento a la izquierda, y no un relleno
+   azul: el azul sólido significa «esta es LA acción» en toda la app, y seis lugares no
+   pueden ser todos la acción. El filete es lo que hace que se lea como una pestaña activa y
+   no como un botón encendido — y es la misma señal que ya usa la app para «esto está
+   seleccionado» sin gastar el color. */
+.pf-nav{display:flex;flex-direction:column;gap:2px}
+.pf-tab{
+  display:flex;align-items:center;gap:12px;width:100%;
+  height:42px;padding:0 12px;border:0;border-radius:var(--rr3);
+  background:transparent;color:rgba(255,255,255,.72);
+  font-family:inherit;font-weight:500;font-size:var(--t3);line-height:1;text-align:left;cursor:pointer;
+  transition:background var(--mv-s),color var(--mv-s);
+}
+.pf-tab:hover{background:rgba(255,255,255,.06);color:#fff}
+.pf-tab.on{background:var(--nav2);color:#fff;font-weight:600;box-shadow:inset 3px 0 0 var(--a)}
+.pf-tab .tx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pf-tab .svgi{flex-shrink:0;width:var(--ico2);height:var(--ico2)}
 /* La cuenta de lo que reclama atención. Va en ámbar y no en rojo: son cosas que hay que
    ver hoy, no cosas que ya se rompieron. */
-.pf-tab .cta{min-width:20px;height:20px;padding:0 6px;border-radius:10px;
-  background:var(--av-bg);border:1px solid var(--av-borde);color:var(--av);
-  font-weight:700;font-size:var(--t1);line-height:20px;text-align:center}
-.pf-tab.on .cta{background:var(--sup)}
-@media(max-width:560px){
-  /* A sangre: la tira se sale hasta el filo de la pantalla para que se vea que hay más
-     pestañas que las que caben. Lo que resta TIENE que ser el relleno real de .wrap, no un
-     número parecido: `--pad-lat` lo publica .wrap y aquí se lee. Antes esto decía 24 px
-     mientras la página ponía 10, y el resultado eran 444 px de contenido en una pantalla
-     de 430: las seis pantallas de la plataforma se deslizaban en horizontal, la topbar y
-     las tarjetas se cortaban al llegar al filo, y en un iPhone eso se siente como que la
-     app está rota. El fallback de 10 px es por si la variable no llegara. */
-  .pf-nav{margin:-5px calc(-1 * var(--pad-lat-der,10px)) var(--e4) calc(-1 * var(--pad-lat,10px));
-    padding:5px var(--pad-lat-der,10px) 5px var(--pad-lat,10px)}
-  /* La pestaña conserva su nombre SIEMPRE. Antes solo lo llevaba la elegida, con el
-     argumento de que seis palabras en una tira que se desliza no las lee nadie; el precio
-     era peor de lo que parecía. Primero, en Ajustes —que es una ruta oculta de la barra—
-     ninguna pestaña está elegida, así que la tira entera se quedaba en cinco círculos sin
-     una sola palabra. Y segundo, un icono solo, de 12,5 px dentro de un botón de 38 px, no
-     dice «Material»: obliga a tocar para averiguarlo. La tira ya se desliza; eso es
-     justamente lo que resuelve que los nombres no quepan. */
-  .pf-tab{padding:0 var(--e3);font-size:var(--t2)}
-}
-/* Por debajo de 380 px —Galaxy A54 y S23 a 360, portada del Fold a 344— la letra baja un
-   paso más para que quepan tres nombres completos antes de tener que deslizar. */
-@media(max-width:380px){
-  .pf-tab{padding:0 10px;gap:var(--e1);font-size:var(--t1)}
-}
+.pf-tab .cta{flex:0 0 auto;min-width:20px;height:18px;padding:0 6px;border-radius:9px;
+  background:var(--av);color:var(--nav);
+  font-weight:700;font-size:var(--t1);line-height:18px;text-align:center}
+/* El anillo de foco por dentro: la barra lateral no tiene aire alrededor de un ítem, y un
+   anillo de 2 px con 2 de separación se recortaría contra el canto. */
+.pf-tab:focus-visible,.pf-lat-item:focus-visible{outline:2px solid #fff;outline-offset:-3px}
 
 /* ----- La banda de degradación -----
    Dice lo que es verdad en las seis pantallas: que la base no abrió, que lo que se ve del
@@ -175,7 +310,14 @@ button,input,select,textarea,optgroup{font-family:inherit}
    misma forma: un icono, un texto de dos renglones y una acción. Se define una vez. Que
    las cuatro se vean iguales no es economía de CSS: es que el ojo aprende UNA forma y
    después lee cualquiera de las cuatro sin volver a mirar dónde está el botón. */
-.pf-fila{display:flex;align-items:flex-start;gap:var(--e3);padding:var(--e3) 0;
+/* `flex-wrap` en todos los anchos, y `flex-basis` en el texto. La regla del teléfono ya
+   envolvía; lo que faltaba era que envolviera también cuando el renglón vive en una COLUMNA
+   estrecha de una pantalla ancha —la de «En el taller» del calendario mide 380 px—. Ahí, un
+   botón de «Acomodar en la lámina» dejaba al título 180 px y el nombre de un cliente salía en
+   cinco renglones de dos palabras. Con `1 1 220px`, el texto pide 220 y si no los tiene, la
+   acción se baja sola a su propio renglón. Es lo mismo que ya hacía el teléfono, dicho por
+   el espacio disponible en vez de por el ancho de la ventana. */
+.pf-fila{display:flex;flex-wrap:wrap;align-items:flex-start;gap:var(--e3);padding:var(--e3) 0;
   border-top:1px solid var(--line)}
 .pf-fila:first-child{border-top:0}
 .pf-fila-ico .svgi{width:var(--ico2);height:var(--ico2)}
@@ -184,7 +326,7 @@ button,input,select,textarea,optgroup{font-family:inherit}
 .pf-fila-ico.urge{background:var(--av-bg);color:var(--av)}
 .pf-fila-ico.mal{background:var(--mal-bg);color:var(--mal)}
 .pf-fila-ico.bien{background:var(--ok-bg);color:var(--ok)}
-.pf-fila-tx{flex:1;min-width:0}
+.pf-fila-tx{flex:1 1 220px;min-width:0}
 .pf-fila-t{font-weight:600;font-size:var(--t3);line-height:1.35;color:var(--ink)}
 .pf-fila-d{margin-top:2px;font-weight:400;font-size:var(--t2);line-height:1.45;color:var(--muted)}
 .pf-fila-acc{flex-shrink:0;display:flex;flex-direction:column;gap:var(--e1);align-items:stretch}
@@ -233,28 +375,67 @@ button,input,select,textarea,optgroup{font-family:inherit}
 /* ============================================================================
    Calendario
    ============================================================================ */
-.cal-cab{display:flex;align-items:center;gap:var(--e2);margin-bottom:var(--e4)}
-.cal-mes{flex:1;font-weight:700;font-size:var(--t5);line-height:1.2;color:var(--ink);text-transform:capitalize}
-.cal-nav{width:40px;height:40px;display:grid;place-items:center;border:1px solid var(--line);
-  border-radius:var(--rr1);background:var(--card);color:var(--n7);cursor:pointer;
-  box-shadow:var(--clay)}
-.cal-nav:active{box-shadow:var(--clay-in);transform:translateY(1px)}
-/* 40x40 se queda 4 px por debajo del mínimo táctil, y el glifo heredaba 13,3 px. */
-.cal-nav{width:44px;height:44px}
-.cal-nav .svgi{width:var(--ico2);height:var(--ico2)}
+/* La tira de controles del calendario: la lente a la izquierda, la vista a la derecha, y los
+   chips de filtro debajo cuando los hay. Eran tres renglones apilados —el porqué está escrito
+   en el módulo—. `--e2` de hueco y `flex-wrap`: en un teléfono, la lente ocupa el primer
+   renglón entero y la vista cae debajo, que es exactamente donde tiene que caer. */
+.ag-barra{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2);margin-bottom:var(--e3)}
+.ag-barra-der{margin-left:auto}
+.ag-barra .ag-filtros{flex:1 1 100%;margin-bottom:0}
+/* Por debajo de 760 px, `css/sistema.css` le da a `.tipo-seg` un `order:9` para mandarlo al
+   final de la fila de una partida, que es donde tiene sentido allá. Aquí no: la lente ES un
+   `.tipo-seg` suelto, y con ese orden se iba DEBAJO del segmento de vista —el filtro pintado
+   después de lo que filtra—. Se le devuelve su sitio, igual que `.ag-filtros .tipo-seg` ya
+   hacía por lo mismo. */
+.ag-barra>.tipo-seg{order:0}
 
-.cal-rej{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--e1)}
-.cal-dow{padding:var(--e1) 0;text-align:center;font-weight:700;font-size:var(--t1);line-height:1;
-  color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-.cal-dia{position:relative;min-height:76px;padding:var(--e1);border:1px solid var(--line);
-  border-radius:var(--rr1);background:var(--card);text-align:left;cursor:pointer;
-  display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.cal-cab{display:flex;align-items:center;gap:6px;margin-bottom:var(--e3)}
+/* El mes va CENTRADO entre sus dos flechas, que es como se lee un control de mes: el nombre
+   crece y encoge —«Mayo» contra «Septiembre»— y con el texto pegado a la izquierda las dos
+   flechas bailaban de sitio cada vez que se cambiaba de mes. El ancho mínimo lo fija en un
+   sitio. */
+.cal-mes{order:2;min-width:150px;text-align:center;font-family:var(--f-cifra);font-weight:600;
+  font-size:var(--t4);line-height:1.2;color:var(--ink);text-transform:capitalize}
+.cal-cab .cal-nav[data-mueve="-1"]{order:1}
+.cal-cab .cal-nav[data-mueve="1"]{order:3}
+.cal-cab [data-hoy]{order:4;margin-left:var(--e2)}
+.cal-nav{width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--linea);
+  border-radius:var(--rr2);background:var(--sup);color:var(--tinta2);cursor:pointer;
+  box-shadow:none;font-size:var(--t4)}
+.cal-nav:hover{border-color:var(--a-borde);color:var(--tinta)}
+.cal-nav:active{box-shadow:none;transform:translateY(1px)}
+.cal-nav .svgi{width:var(--ico1);height:var(--ico1)}
+/* Los 44 px del mínimo táctil, donde de verdad se toca con el dedo. En un monitor con ratón
+   un botón de 34 px es cómodo y es el que pide la maqueta. */
+@media(hover:none),(pointer:coarse){ .cal-nav{width:44px;height:44px} }
+
+/* La rejilla del mes: sin hueco entre celdas y con las líneas de dentro de 1 px, que es lo
+   que la hace leerse como una tabla de calendario y no como treinta y cinco tarjetas. El
+   `gap:4px` de antes multiplicaba por 35 el aire y dejaba las celdas flotando. */
+.cal-rej{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0;
+  border:1px solid var(--linea);border-radius:var(--rr3);overflow:hidden;background:var(--sup)}
+.cal-dow{padding:var(--e2) 0;text-align:center;font-weight:600;font-size:var(--t1);line-height:1;
+  color:var(--tinta3);text-transform:uppercase;letter-spacing:.08em;
+  border-bottom:1px solid var(--linea)}
+.cal-dia{position:relative;min-height:92px;padding:6px;border:0;
+  border-right:1px solid var(--linea2);border-bottom:1px solid var(--linea2);
+  border-radius:0;background:var(--sup);text-align:left;cursor:pointer;
+  display:flex;flex-direction:column;gap:3px;overflow:hidden;min-width:0}
+.cal-rej>.cal-dia:nth-child(7n+7){border-right:0}
 .cal-dia:disabled{cursor:default}
-.cal-dia.fuera{background:var(--n1);border-color:transparent}
-.cal-dia.fuera .cal-n{color:var(--n4)}
-.cal-dia.hoy{border-color:var(--a-borde);box-shadow:inset 0 0 0 1px var(--a-borde)}
-.cal-n{font-weight:700;font-size:var(--t2);line-height:1;color:var(--n7)}
-.cal-dia.hoy .cal-n{color:var(--a-fuerte)}
+.cal-dia.fuera{background:var(--sup2)}
+.cal-dia.fuera .cal-n{color:var(--tinta3)}
+/* El número del día vive en un círculo de 24 px y centrado, y HOY es ese círculo relleno del
+   acento con la cifra en blanco. Antes «hoy» era un borde azul alrededor de la celda entera,
+   que a un metro de distancia se confunde con el día que está abierto —que también lleva
+   fondo azul tenue— y con la celda que tiene el foco del teclado. Tres señales azules para
+   tres cosas distintas. Ahora hoy es el círculo, el día abierto es el fondo, y el foco es el
+   anillo del sistema. */
+.cal-n{align-self:center;width:24px;height:24px;display:inline-flex;align-items:center;
+  justify-content:center;border-radius:12px;
+  font-family:var(--f-cifra);font-weight:600;font-size:var(--t2);line-height:1;color:var(--tinta)}
+.cal-dia.hoy{border-color:var(--linea2)}
+.cal-dia.hoy .cal-n{background:var(--a-fill);color:#fff}
 /* Cada instalación del día, con la etapa a la izquierda como filete de color. El texto va
    sobre el lienzo claro, no sobre el color: es la regla de --n5 hacia arriba. */
 .cal-ev{display:block;width:100%;padding:2px 4px 2px 6px;border-radius:6px;
@@ -274,11 +455,29 @@ button,input,select,textarea,optgroup{font-family:inherit}
 .cal-sem.grave{background:var(--red)}
 .cal-mas{font-weight:600;font-size:var(--t1);line-height:1.3;color:var(--muted);padding-left:6px}
 @media(max-width:560px){
-  .cal-dia{min-height:58px;padding:3px}
+  /* 48 px de celda, que es lo que pide la maqueta: en siete columnas de una pantalla de 360
+     una celda mide 47 de ancho, y más alto que ancho se lee como una columna, no como un mes. */
+  .cal-dia{min-height:48px;padding:3px;gap:2px}
   .cal-ev{padding:1px 3px;font-size:9.5px}
-  /* En el teléfono el mes cabe pero los títulos no. Se enseña el punto de la etapa y la
-     cuenta; el detalle está a un toque, en la lista del día. */
+  /* En el teléfono el mes cabe pero los títulos no: cada evento se vuelve un PUNTO de 6 px
+     del color de su tipo. El chip con el texto recortado a dos letras no dice nada y ocupa
+     tres veces más; el punto dice «aquí pasa algo» y el detalle está a un toque, en la lista
+     del día. Se apagan el relleno, el borde y el filete de color del chip para que no quede
+     una caja de 6 px con un borde de 3. */
+  .cal-ev{width:6px;height:6px;min-width:6px;flex:0 0 auto;padding:0;border-radius:3px;
+    border-left:0;background:var(--n5);overflow:hidden;text-indent:-99em}
+  .cal-ev.cortado,.cal-ev.armado,.cal-ev.en_diseno{background:var(--av)}
+  .cal-ev.listo,.cal-ev.tal{background:var(--a)}
+  .cal-ev.instalado{background:var(--ok)}
+  .cal-ev.tal.tarde{background:var(--mal)}
+  .cal-ev.off{background:var(--linea)}
+  /* La celda pasa a fila que envuelve: el número se lleva un renglón entero con
+     `flex-basis:100%` y los puntos fluyen debajo, centrados. En columna —como está en
+     escritorio— los puntos saldrían uno debajo de otro y en 48 px caben dos. */
+  .cal-dia{flex-flow:row wrap;justify-content:center;align-content:flex-start;gap:3px}
+  .cal-n{flex:0 0 100%}
   .cal-ev .tx{display:none}
+  .cal-mas{flex:0 0 100%;text-align:center;padding-left:0;font-size:9.5px}
 }
 
 /* ----- Lista del día -----
@@ -352,7 +551,9 @@ button,input,select,textarea,optgroup{font-family:inherit}
      caminos de impresión de la plataforma —la lista de compra y la orden de obra de más abajo—
      salían en el tamaño que el navegador tuviera por omisión, o sea A4 fuera de MX y US. */
   @page{size:letter portrait;margin:18mm 12mm 14mm}
-  .topbar,.pf-nav,.pf-mbar,.pf-banda,.toast,.pf-modal-bg,#pf-ajustes-btn{display:none!important}
+  .topbar,.pf-lat,.pf-cab,.pf-abajo,.pf-nav,.pf-mbar,.pf-banda,.toast,.pf-modal-bg,#pf-ajustes-btn{display:none!important}
+  /* Y sin barra lateral, el hueco que se le reservaba tampoco. */
+  .pf-wrap{padding-left:0!important}
   /* El hueco del encabezado y del pie fijos. Sin esto se pintan ENCIMA de la primera fila: en
      papel un position:fixed se coloca dentro del área de la página, no fuera, así que el margen
      de @page no le hace sitio por sí solo. Medido sobre la lista de compra: el encabezado tapaba
@@ -375,9 +576,35 @@ button,input,select,textarea,optgroup{font-family:inherit}
    zoom se pinta encima del filete de marca (200) y encima del aviso que dice que algo no se
    pudo guardar. `isolation:isolate` crea un contexto de apilamiento propio: sus 1000 se
    quedan dentro de esta caja. */
+/* El mapa y la ruta, uno al lado del otro. `minmax(0,1.5fr)` y no `1.5fr` a secas: un mapa de
+   Leaflet mide lo que le den y sin el mínimo en 0 la columna crece con su contenido y empuja
+   la ruta fuera de la pantalla. La ruta se pega arriba al desplazarse porque es lo que se lee
+   mientras se mira el mapa. */
+.mapa-2col{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr);
+  gap:var(--e4);align-items:start}
+.mapa-2col>.mapa-col{min-width:0}
+@media(max-width:759px){
+  .mapa-2col{grid-template-columns:minmax(0,1fr)}
+}
+@media(min-width:1100px){
+  .mapa-2col>.mapa-col:last-child{position:sticky;top:calc(64px + var(--e3))}
+}
+/* Los cuatro filtros de etapa llevan dos nombres, el largo y el corto, en el mismo par
+   `.lg`/`.sm` que el selector de tipo de una partida. En la computadora se lee «G · Vendido,
+   sin empezar (1)»; en el teléfono, «G · Vendido (1)», porque con el largo los cuatro chips
+   ocupaban cuatro renglones y el mapa empezaba debajo del doblez. El nombre entero sigue
+   viviendo en el `aria-label` y en la leyenda de debajo del mapa. */
+#mapa-etapas .sm{display:none}
+@media(max-width:759px){
+  #mapa-etapas .lg{display:none}
+  #mapa-etapas .sm{display:inline}
+}
 #mapa-lienzo{position:relative;isolation:isolate;z-index:1;height:60vh;min-height:320px;
-  border-radius:var(--rr2);overflow:hidden;border:1px solid var(--line);background:var(--n1)}
-@media(max-width:560px){#mapa-lienzo{height:52vh}}
+  border-radius:var(--rr3);overflow:hidden;border:1px solid var(--linea);background:var(--sup2)}
+/* En el teléfono, 45 vh: la mitad de la pantalla para el mapa y la otra mitad para la ruta,
+   que es la que se lee parada por parada. Con 52 vh la primera parada quedaba justo debajo
+   del doblez. */
+@media(max-width:759px){#mapa-lienzo{height:45vh;min-height:280px}}
 /* Leaflet trae su propia tipografía y sus propios grises. Se le imponen los de la app: un
    mapa con la letra del sistema operativo dentro de una app con Inter se ve incrustado. */
 .leaflet-container{font-family:inherit;background:var(--n1)}
@@ -431,11 +658,43 @@ button,input,select,textarea,optgroup{font-family:inherit}
    ============================================================================ */
 /* Dos números uno junto al otro, para las cabeceras de módulo: «6 por instalar · 2 sin
    fecha». Es la primera cosa que se lee al entrar a una pantalla. */
-.pf-cuentas{display:flex;flex-wrap:wrap;gap:var(--e1) var(--e4);margin-bottom:var(--e4)}
-.pf-cuenta{font-weight:400;font-size:var(--t2);line-height:1.4;color:var(--muted)}
-.pf-cuenta b{display:block;font-weight:700;font-size:var(--t6);line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
+/* Eran una cinta de texto suelto: los números y sus nombres flotando sobre el lienzo, uno al
+   lado del otro, separados por 16 px de aire. A un ancho de escritorio eso deja «5 En el
+   taller hoy» y «$106,504 En el taller» a doscientos píxeles uno de otro y con nada que diga
+   dónde acaba uno y empieza el siguiente: se leían como una frase.
+
+   Ahora cada cuenta es una tarjeta de la rejilla del rediseño —`auto-fit` desde 150 px— y así
+   se reparten solas: seis en una fila a 1 440 px, tres a 880, dos en un teléfono. La cifra
+   sube a 28 px con la letra de las cifras, que es el paso que el rediseño le reserva al
+   número más grande de una pantalla.
+
+   El filete de 3 px de arriba es lo que dice de qué tipo es la cuenta sin gastar el relleno:
+   ámbar en la que reclama atención, azul en la del dinero. Va como `inset box-shadow` y no
+   como `border-top`, que sumaría 3 px de alto solo a las que lo llevan y descuadraría la
+   fila. */
+.pf-cuentas{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:var(--e3);margin-bottom:var(--e4)}
+.pf-cuenta{margin:0;padding:14px var(--e4);background:var(--sup);border:1px solid var(--linea);
+  border-radius:var(--rr3);font-weight:400;font-size:var(--t2);line-height:1.35;color:var(--tinta2)}
+.pf-cuenta b{display:block;margin-bottom:6px;font-family:var(--f-cifra);font-weight:600;
+  font-size:var(--t7);line-height:1;color:var(--tinta);font-variant-numeric:tabular-nums}
+.pf-cuenta.urge{box-shadow:inset 0 3px 0 var(--av)}
 .pf-cuenta.urge b{color:var(--av)}
+.pf-cuenta.mal{box-shadow:inset 0 3px 0 var(--mal)}
 .pf-cuenta.mal b{color:var(--mal)}
+/* La del dinero lleva el filete azul y la cifra en la tinta del acento. Es el único sitio de
+   la app donde el azul se usa sobre un número que no es una acción, y se gana el permiso: en
+   una fila de cuentas que se leen de un barrido, «cuánto» es otra pregunta que «cuántos». */
+.pf-cuenta.dinero{box-shadow:inset 0 3px 0 var(--a)}
+.pf-cuenta.dinero b{color:var(--a-tx)}
+/* Y en un teléfono estrecho, dos por fila: a 150 px de mínimo cabrían dos justas en 360 px
+   con el relleno de la página, pero la etiqueta de tres palabras se parte en tres renglones y
+   las tarjetas de la fila crecen todas al alto de la peor. */
+@media(max-width:400px){
+  .pf-cuentas{grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:var(--e2)}
+  .pf-cuenta{padding:10px var(--e3)}
+  .pf-cuenta b{font-size:var(--t6)}
+}
 
 /* Un renglón de dato, para las fichas: etiqueta chica arriba, valor abajo. */
 .pf-dato{padding:var(--e2) 0;border-top:1px solid var(--line)}
@@ -479,11 +738,15 @@ button,input,select,textarea,optgroup{font-family:inherit}
    activa la tarjeta: lo que se toca son los botones de adentro, y quitarle el latido al
    pasar por encima haría creer que ya se atendió. */
 .pf-decidir{display:block;cursor:default}
-.pf-decidir:hover{transform:none;animation:latido 2.6s ease-in-out infinite}
-.pf-decidir .pf-fila{border-top-color:var(--av-borde)}
-/* El cuadro del icono va en el tono de tarjeta y no en --av-bg: sobre el ámbar de esta
-   tarjeta, ámbar sobre ámbar no se distingue y el icono desaparecía. */
-.pf-decidir .pf-fila-ico{background:var(--card)}
+.pf-decidir:hover{transform:none;animation:latido 2.8s ease-in-out infinite}
+/* Los renglones de dentro se separan con el borde de la tarjeta, que desde el rediseño es
+   azul y no ámbar: el latido de esta tarjeta ya no es una sombra ámbar que crece, es el aro
+   del acento —el mismo que usa la maqueta— y un filete ámbar dentro de una pieza azul se
+   lee como un aviso distinto al de la pieza que lo contiene. */
+.pf-decidir .pf-fila{border-top-color:var(--a-borde)}
+/* El cuadro del icono va en el tono de tarjeta y no en el de la pieza: sobre el azul tenue
+   de esta tarjeta, azul sobre azul no se distingue y el icono desaparecía. */
+.pf-decidir .pf-fila-ico{background:var(--sup);color:var(--a-tx)}
 
 /* Dos botones en un renglón: el margen de arriba de .btn+.btn los descuadra —el hermano sin
    margen se estira al alto de la fila y el otro queda 8 px más abajo y 8 px más chico—, que
@@ -601,9 +864,14 @@ button,input,select,textarea,optgroup{font-family:inherit}
    En su propio renglón y a ancho completo, arriba del segmento de vista. Son dos preguntas
    distintas —qué miro y cómo lo miro— y en la misma tira la de arriba se lee como si filtrara
    a la de abajo. A ancho completo porque es el estado principal de la pantalla. */
-.ag-lente{display:flex;margin-bottom:var(--e2)}
-.ag-lente .tipo-seg{flex:1 1 100%;width:100%}
-.ag-lente .tipo-seg button{flex:1;min-width:0}
+/* La lente ya no es una barra a ancho completo: vive en `.ag-barra` con la vista al lado.
+   El bloque que la estiraba se fue con ella; lo que queda es que en el teléfono, donde la
+   tira envuelve, la lente ocupe su renglón entero y sus tres botones se repartan. */
+@media(max-width:559px){
+  .ag-barra>.tipo-seg:first-child{flex:1 1 100%}
+  .ag-barra>.tipo-seg:first-child button{flex:1;min-width:0}
+  .ag-barra-der{margin-left:0}
+}
 
 /* El rótulo de un grupo dentro del calendario o del día. En versalitas y --t1, como
    `.cal-dow`, para que se lea como rótulo y no como título: «En el taller» compitiendo en
@@ -849,18 +1117,107 @@ button.cal-plazo:active{transform:translateY(1px) scale(.98)}
 
    El gap es propio porque aquí los bloques son cajas con borde y el `gap:var(--e1) var(--e4)`
    de la cinta —pensado para texto suelto— los deja pegados. */
-.tb-linea{gap:var(--e2)}
-.tb-etapa{min-height:44px;padding:var(--e2) var(--e3);text-align:left;
-  border:1px solid var(--line);border-radius:var(--rr1);background:var(--card);
-  box-shadow:var(--clay);cursor:pointer;transition:background var(--mv-s),border-color var(--mv-s),transform var(--mv-r)}
-.tb-etapa:hover{transform:translateY(-1px)}
-.tb-etapa:active{box-shadow:var(--clay-in);transform:translateY(1px)}
-.tb-etapa.on{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-fuerte);box-shadow:var(--clay-in)}
-.tb-etapa.on b{color:var(--a-fuerte)}
+/* Cinco bloques más chicos que las cuentas de arriba: son un filtro, no el titular de la
+   pantalla, así que su cifra baja un escalón —24 px— y el mínimo de la rejilla baja a 110 px
+   para que los cinco quepan en una fila hasta en el Fold. El fondo es la superficie hundida,
+   que es lo que dice «esto es un control» sin gastar borde de color; el elegido toma el azul
+   tenue, que es la marca de «esta es la vista que estás mirando». */
+.tb-linea{grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:var(--e2)}
+.tb-etapa{min-height:44px;padding:12px 12px 10px;text-align:left;
+  border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup2);
+  box-shadow:none;cursor:pointer;transition:background var(--mv-s),border-color var(--mv-s)}
+.tb-etapa b{font-size:var(--t6);margin-bottom:5px}
+.tb-etapa:hover{transform:none;border-color:var(--a-borde)}
+.tb-etapa:active{box-shadow:none;transform:translateY(1px)}
+.tb-etapa.on{background:var(--a-suave);border-color:var(--a-borde);color:var(--tinta2);box-shadow:none}
+.tb-etapa.on b{color:var(--tinta)}
 /* «2 atrasados» va en ámbar y en su propio renglón. Es el dato que no existía en ninguna
-   pantalla: qué debería estar cortado y sigue en diseño. */
-.tb-etapa em{display:block;margin-top:2px;font-style:normal;font-weight:600;
+   pantalla: qué debería estar cortado y sigue en diseño. El `min-height` reserva su renglón
+   también en las estaciones que no lo tienen: sin eso, las cinco cajas de la fila miden
+   distinto según cuál vaya tarde hoy, y la fila entera se mueve al avanzar una etapa. */
+.tb-etapa em{display:block;margin-top:2px;min-height:15px;font-style:normal;font-weight:600;
   font-size:var(--t1);line-height:1.3;color:var(--av)}
+
+/* ============================================================================
+   PROYECTOS — el tablero de columnas
+   ============================================================================ */
+
+/* Cinco columnas de 200 px como mínimo, y la fila se desliza en horizontal cuando no caben:
+   a 880 px —el Fold abierto— cinco por 200 más los gaps dan 1 048, así que ahí SÍ se
+   desliza, y está bien. Lo que no puede pasar es que se aprieten hasta que el nombre de un
+   cliente no quepa, que es lo que haría un `1fr` sin mínimo. */
+.pj-tablero{display:grid;grid-template-columns:repeat(5,minmax(200px,1fr));gap:var(--e3);
+  overflow-x:auto;padding-bottom:var(--e1)}
+.pj-col{display:flex;flex-direction:column;gap:var(--e2);min-width:0}
+/* El encabezado de columna lleva un filete de 2 px del color de su etapa: es lo único de
+   color del tablero, y es lo que hace que las cinco colas se distingan de un vistazo sin
+   pintar treinta y cinco tarjetas de colores. Los colores salen de `.pf-etapa`, que es donde
+   ya viven —ganado gris, en diseño y taller ámbar, listo azul—: una etapa no se puede pintar
+   de un color en la ficha y de otro en la columna. */
+.pj-col-h{display:flex;align-items:center;gap:var(--e2);padding:6px 4px;
+  border-bottom:2px solid var(--n5)}
+.pj-col-h.en_diseno,.pj-col-h.cortado,.pj-col-h.armado{border-bottom-color:var(--av)}
+.pj-col-h.listo{border-bottom-color:var(--a)}
+.pj-col-h.instalado{border-bottom-color:var(--ok)}
+.pj-col-t{font-family:var(--f-cifra);font-weight:600;font-size:var(--t3);color:var(--ink)}
+.pj-col-n{margin-left:auto;font-size:var(--t2);font-weight:600;color:var(--tinta3);
+  font-variant-numeric:tabular-nums}
+.pj-col-vacia{padding:var(--e3) 4px;font-size:var(--t2);color:var(--tinta3)}
+
+/* La tarjeta. Es lo único de la app que lleva sombra además de los controles del mapa, y se
+   la gana: en un tablero, una tarjeta es una pieza que se mueve de columna, y una pieza que
+   se mueve tiene que verse despegada de su columna. */
+.pj-tarj{display:flex;flex-direction:column;gap:3px;width:100%;text-align:left;
+  padding:var(--e3);border:1px solid var(--linea);border-radius:var(--rr3);
+  background:var(--sup);box-shadow:var(--sombra);cursor:pointer;font-family:inherit;
+  transition:border-color var(--mv-s)}
+.pj-tarj:hover{border-color:var(--a-borde)}
+.pj-tarj:active{transform:translateY(1px)}
+.pj-tarj-t{font-weight:600;font-size:var(--t3);line-height:1.3;color:var(--ink)}
+.pj-tarj-d{font-size:var(--t2);line-height:1.35;color:var(--tinta2)}
+.pj-tarj-f{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:7px}
+.pj-tarj-inst{display:inline-flex;align-items:center;gap:4px;font-size:var(--t1);color:var(--tinta3)}
+.pj-tarj-inst .svgi{width:12px;height:12px}
+.pj-tarj-pie{display:flex;justify-content:space-between;align-items:baseline;gap:var(--e2);
+  margin-top:7px;padding-top:var(--e2);border-top:1px solid var(--linea2)}
+.pj-tarj-folio{font-size:var(--t1);color:var(--tinta3)}
+.pj-tarj-monto{font-family:var(--f-cifra);font-weight:600;font-size:var(--t3);
+  color:var(--ink);font-variant-numeric:tabular-nums}
+
+/* Con tablero, la tira de etapas sobra: las columnas SON el filtro, y dos filtros que
+   contestan la misma pregunta en la misma pantalla es el camino corto a que digan cosas
+   distintas. En el teléfono no hay tablero y la tira es lo único que filtra, así que se
+   queda. Y ahí la ficha de etapa de dentro de la tarjeta también sobra: la columna lo dice. */
+@media(min-width:760px){ #pj-filtros{display:none} .pj-tarj-etapa{display:none} }
+
+/* ----- La misma tarjeta, en una columna -----
+   El lomo de 4 px es lo que en el tablero dice la columna. Va como `border-left` y no como
+   sombra porque aquí sí tiene que ocupar sitio: separa el color del texto. */
+.pj-lista-movil{display:flex;flex-direction:column;gap:var(--e3)}
+.pj-lista-movil .pj-tarj{border-left:4px solid var(--n5);padding:14px}
+.pj-lista-movil .pj-tarj.en_diseno,
+.pj-lista-movil .pj-tarj.cortado,
+.pj-lista-movil .pj-tarj.armado{border-left-color:var(--av)}
+.pj-lista-movil .pj-tarj.listo{border-left-color:var(--a)}
+.pj-lista-movil .pj-tarj.instalado{border-left-color:var(--ok)}
+.pj-lista-movil .pj-tarj-t{font-size:14.5px}
+
+/* La tira de etapas del teléfono se DESLIZA, no envuelve. Con seis etapas envolviendo, el
+   filtro medía dos renglones y ochenta píxeles de alto encima de la lista que filtra, y la
+   segunda fila caía centrada y descuadrada respecto de la primera. Deslizándose ocupa uno.
+   `flex:0 0 auto` en los botones es lo que impide que se compriman en vez de desbordar, que
+   es lo que hace un flex por omisión. */
+@media(max-width:759px){
+  /* `display:flex` explícito: por debajo de 760 px, css/sistema.css convierte a `.tipo-seg` en
+     una rejilla de tres columnas —lo correcto para el selector de tipo de una partida, que
+     tiene exactamente cinco opciones cortas—. Aquí hay seis etapas con nombres de hasta cinco
+     palabras («Listo para instalar 1»), y en tres columnas eso son dos renglones de 68 px
+     encima de la lista que filtran. Sin volver a flex, el `flex-wrap` de abajo no hace nada. */
+  #pj-filtros .tipo-seg{display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;
+    -webkit-overflow-scrolling:touch}
+  #pj-filtros .tipo-seg::-webkit-scrollbar{display:none}
+  #pj-filtros .tipo-seg button{flex:0 0 auto;white-space:nowrap}
+}
 
 /* ----- Los marcos empotrados: el Cotizador y la mesa de corte -----
    Un <iframe> no tiene alto propio: sin `height` se queda en los 150 px que manda la

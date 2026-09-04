@@ -49,15 +49,22 @@ import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, cerrarCapa, ajust
    `roles` no es seguridad —en fase 1 no hay servidor y cualquiera cambia su rol— es modo de
    trabajo: que fabricación no tenga enfrente la pantalla de cobranza y que pagos no mueva el
    almacén sin querer. El mapa sigue sin aparecerle a pagos. */
+/* `sub` es la línea que va al lado del título en el encabezado de escritorio: qué se ve en
+   esta pantalla, en cinco palabras. No es decoración —el encabezado antes decía «Obra,
+   material y agenda» en las seis— y en el teléfono no se pinta, que es donde no cabe.
+
+   `movil` marca las cinco que entran en la barra de abajo. Material se queda fuera: con seis
+   botones en una pantalla de 360 px cada uno mide 60 y el nombre no cabe debajo del icono.
+   Se llega a Material desde el Tablero, que es de donde se sale a comprar. */
 const RUTAS = [
-  { ruta: 'hoy',       mod: 'tablero',     seccion: 'mod-tablero',     icono: 'i-taller',    nombre: 'Tablero',     roles: ['direccion', 'fabricacion', 'pagos'] },
-  { ruta: 'agenda',    mod: 'fabricacion', seccion: 'mod-fabricacion', icono: 'i-agenda',    nombre: 'Calendario',  roles: ['direccion', 'fabricacion', 'pagos'] },
-  { ruta: 'proyectos', mod: 'proyectos',   seccion: 'mod-proyectos',   icono: 'i-proyectos', nombre: 'Proyectos',   roles: ['direccion', 'fabricacion', 'pagos'] },
-  { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    roles: ['direccion', 'fabricacion'] },
-  { ruta: 'cotizador', mod: 'cotizador',   seccion: 'mod-cotizador',   icono: 'i-venta',     nombre: 'Cotizador',   roles: ['direccion', 'fabricacion', 'pagos'] },
-  { ruta: 'mapa',      mod: 'mapa',        seccion: 'mod-mapa',        icono: 'i-mapa',      nombre: 'Mapa',        roles: ['direccion', 'fabricacion'] },
-  { ruta: 'atender',   mod: 'inicio',      seccion: 'mod-atender',     icono: 'i-aviso',     nombre: 'Qué atender', roles: ['direccion', 'fabricacion', 'pagos'], oculto: true, padre: 'hoy' },
-  { ruta: 'ajustes',   mod: 'ajustes',     seccion: 'mod-ajustes',     icono: 'i-ajustes',   nombre: 'Ajustes',     roles: ['direccion', 'fabricacion', 'pagos'], oculto: true },
+  { ruta: 'hoy',       mod: 'tablero',     seccion: 'mod-tablero',     icono: 'i-taller',    nombre: 'Tablero',     sub: 'qué hay en el taller y qué se atrasa', movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
+  { ruta: 'agenda',    mod: 'fabricacion', seccion: 'mod-fabricacion', icono: 'i-agenda',    nombre: 'Calendario',  sub: 'taller e instalaciones',               movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
+  { ruta: 'proyectos', mod: 'proyectos',   seccion: 'mod-proyectos',   icono: 'i-proyectos', nombre: 'Proyectos',   sub: 'por etapa de obra',                    movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
+  { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    sub: 'lista de compra y almacén',                         roles: ['direccion', 'fabricacion'] },
+  { ruta: 'cotizador', mod: 'cotizador',   seccion: 'mod-cotizador',   icono: 'i-venta',     nombre: 'Cotizador',   sub: 'capturar y autorizar una cotización',  movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
+  { ruta: 'mapa',      mod: 'mapa',        seccion: 'mod-mapa',        icono: 'i-mapa',      nombre: 'Mapa',        sub: 'obras por instalar e instaladas',      movil: true, roles: ['direccion', 'fabricacion'] },
+  { ruta: 'atender',   mod: 'inicio',      seccion: 'mod-atender',     icono: 'i-aviso',     nombre: 'Qué atender', sub: 'avisos ordenados por lo que truena antes',                  roles: ['direccion', 'fabricacion', 'pagos'], oculto: true, padre: 'hoy' },
+  { ruta: 'ajustes',   mod: 'ajustes',     seccion: 'mod-ajustes',     icono: 'i-ajustes',   nombre: 'Ajustes',     sub: 'este dispositivo, respaldo y relevo',  roles: ['direccion', 'fabricacion', 'pagos'], oculto: true },
 ];
 
 const rutasDeRol = () => RUTAS.filter(r => r.roles.includes(Prefs.rol()));
@@ -77,6 +84,18 @@ const ctx = {
   pasar: (ruta, dato) => { _pase = { ruta, dato }; ir(ruta); },
   recibir: () => { const p = (_pase && _pase.ruta === _actual) ? _pase.dato : null; _pase = null; return p; },
   sinRemonte: v => { _sinRemonte = !!v; },
+  /* Las acciones contextuales del encabezado: «COT-0152 · Clientes · Historial» en el
+     cotizador, las teclas del calendario. Se pasa marcado ya escapado y se recibe el nodo
+     para colgarle los oyentes. El router las vacía en cada montaje, así que un módulo que no
+     llame a esto deja el encabezado limpio sin tener que acordarse. En el teléfono el hueco
+     está en `display:none` —no cabe al lado del título— así que lo que se ponga aquí tiene
+     que existir también dentro de la pantalla. */
+  acciones: html => {
+    const el = $('pf-cab-acc');
+    if (!el) return null;
+    el.innerHTML = html || '';
+    return el;
+  },
 };
 
 let _actual = null;      // nombre de ruta
@@ -186,6 +205,12 @@ async function montarDeVerdad(ruta, opts = {}) {
   }
   _vivo = null;
 
+  /* Las acciones del encabezado son del módulo que se va: se vacían ANTES de montar el
+     siguiente. Sin esto, «COT-0152 · Clientes · Historial» se quedaba puesto encima del
+     mapa, y son botones que hacen cosas. */
+  const acc = $('pf-cab-acc');
+  if (acc) acc.innerHTML = '';
+
   for (const x of RUTAS) { const s = $(x.seccion); if (s) s.hidden = x.ruta !== ruta; }
   _actual = ruta;
   pintarNav();
@@ -231,11 +256,15 @@ async function montarDeVerdad(ruta, opts = {}) {
   const main = $('pf-contenido');
   if (main && opts.foco !== false) { try { main.focus({ preventScroll: true }); } catch (_) {} }
   window.scrollTo({ top: _scrollPorRuta.get(ruta) || 0, behavior: 'auto' });
-  /* La miga del encabezado. Es lo único que dice dónde estás cuando la pestaña de la barra
-     no puede decirlo —las rutas ocultas— y de paso deja de mentir: decía «Obra, material y
-     agenda» en las seis pantallas. */
+  /* El encabezado. Es lo único que dice dónde estás cuando la pestaña de la barra no puede
+     decirlo —las rutas ocultas— y de paso deja de mentir: decía «Obra, material y agenda» en
+     las seis pantallas. El título y su línea son de la ruta; las acciones las escribe el
+     módulo, y se vacían aquí para que las del anterior no se queden puestas encima del
+     siguiente. */
   const sub = $('pf-sub');
   if (sub) sub.textContent = r.nombre;
+  const cabsub = $('pf-cab-sub');
+  if (cabsub) cabsub.textContent = r.sub || '';
   voz(r.nombre);
   pintarCuentasNav();
   ajustarAltoBarra();
@@ -246,13 +275,15 @@ async function montarDeVerdad(ruta, opts = {}) {
    ============================================================================ */
 
 function pintarNav() {
-  const nav = $('pf-nav'); if (!nav) return;
   /* Una ruta oculta prende la pestaña de su madre. Sin esto, estar en «Qué atender» dejaba
      la tira ENTERA apagada: la pantalla no dice dónde estás y la única salida visible es
      adivinar. Es el defecto que Ajustes ya tenía y que aquí se arregla para las dos. */
   const madre = (rutaPorNombre(_actual) || {}).padre || null;
   const activa = r => r.ruta === _actual || r.ruta === madre;
-  nav.innerHTML = rutasDeRol().filter(r => !r.oculto).map((r, i) =>
+  const visibles = rutasDeRol().filter(r => !r.oculto);
+
+  const nav = $('pf-nav');
+  if (nav) nav.innerHTML = visibles.map((r, i) =>
     '<button type="button" class="pf-tab' + (activa(r) ? ' on' : '') + '"' +
     ' data-ruta="' + r.ruta + '" aria-current="' + (activa(r) ? 'page' : 'false') + '"' +
     /* El atajo va en el title, que es lo que lee el ratón en la computadora. En el teléfono
@@ -260,6 +291,21 @@ function pintarNav() {
     ' title="' + esc(r.nombre) + ' · tecla ' + (i + 1) + '">' +
     ico(r.icono) + '<span class="tx">' + esc(r.nombre) + '</span>' +
     '<span class="cta" data-cta="' + r.ruta + '" hidden></span></button>'
+  ).join('');
+
+  /* La barra de abajo. Es la MISMA lista y el mismo `data-ruta`, así que un módulo nuevo
+     aparece en los dos sitios con un solo renglón —que es la promesa que hace RUTAS—. Lo
+     único suyo es que se queda en cinco y que el nombre va debajo del icono.
+     `aria-hidden` no: son botones de verdad y se navegan con el teclado igual que los de la
+     barra lateral; lo que hace que solo se anuncie una es que la otra está en `display:none`
+     a su ancho, y eso el árbol de accesibilidad ya lo respeta. */
+  const ab = $('pf-abajo');
+  if (ab) ab.innerHTML = visibles.filter(r => r.movil).map(r =>
+    '<button type="button" class="' + (activa(r) ? 'on' : '') + '"' +
+    ' data-ruta="' + r.ruta + '" aria-current="' + (activa(r) ? 'page' : 'false') + '">' +
+    '<span class="pil">' + ico(r.icono) +
+    '<span class="cta" data-cta-movil="' + r.ruta + '" hidden></span></span>' +
+    esc(r.nombre) + '</button>'
   ).join('');
 }
 
@@ -271,12 +317,15 @@ export function ponerCuenta(ruta, n) {
 }
 function pintarCuentasNav() {
   for (const r of RUTAS) {
-    const el = document.querySelector('[data-cta="' + r.ruta + '"]');
-    if (!el) continue;
     const n = _cuentas.get(r.ruta) || 0;
-    el.hidden = n <= 0;
-    el.textContent = n > 99 ? '99+' : String(n);
-    if (n > 0) el.setAttribute('aria-label', n + ' cosas que atender en ' + r.nombre);
+    /* Las dos barras —la lateral y la de abajo— llevan la misma cuenta. Antes solo existía
+       una y el `querySelector` devolvía la primera; con dos, la del teléfono se quedaba
+       siempre en blanco porque nadie la escribía. */
+    for (const el of document.querySelectorAll('[data-cta="' + r.ruta + '"],[data-cta-movil="' + r.ruta + '"]')) {
+      el.hidden = n <= 0;
+      el.textContent = n > 99 ? '99+' : String(n);
+      if (n > 0) el.setAttribute('aria-label', n + ' cosas que atender en ' + r.nombre);
+    }
   }
 }
 ctx.ponerCuenta = ponerCuenta;
@@ -388,10 +437,14 @@ async function arrancar() {
   if (seg) seg.addEventListener('click', ev => {
     const b = ev.target.closest('[data-rol]'); if (b) cambiarRol(b.dataset.rol);
   });
-  const nav = $('pf-nav');
-  if (nav) nav.addEventListener('click', ev => {
-    const b = ev.target.closest('[data-ruta]'); if (b) ir(b.dataset.ruta);
-  });
+  /* Las dos barras hablan el mismo idioma —`data-ruta`— así que el oyente es el mismo escrito
+     dos veces y no dos manejadores distintos que se puedan desincronizar. */
+  for (const id of ['pf-nav', 'pf-abajo']) {
+    const nav = $(id);
+    if (nav) nav.addEventListener('click', ev => {
+      const b = ev.target.closest('[data-ruta]'); if (b) ir(b.dataset.ruta);
+    });
+  }
   const aj = $('pf-ajustes-btn');
   if (aj) aj.onclick = () => ir('ajustes');
 

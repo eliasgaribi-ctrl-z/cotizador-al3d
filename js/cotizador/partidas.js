@@ -469,7 +469,22 @@ function renderItems(){
     const pdfVis=it.showInPdf!==false;
     const plegada=_plegadas.has(it.id);
     if(plegada) d.classList.add('folded');
+    /* ----- El encabezado, y por qué ahora se queda pegado arriba -----
+       `.partida-top` y `.psum` eran hermanos sueltos y `.psum` solo se veía plegada. Ahora
+       van los dos dentro de `.pcab`, que es lo que el CSS pega arriba mientras se hace
+       scroll DENTRO de una partida abierta —que con cinco materiales, tres complejidades,
+       tres luces y cuatro campos son unos 700 px—. Antes, a mitad de esa captura no había en
+       pantalla una sola cosa que dijera en cuál de las seis partidas se estaba ni qué llevaba
+       elegido; ahora el número, la descripción, el total y las fichas de lo elegido se quedan
+       a la vista. Es lo que sustituye al matiz de color por partida que el rediseño retiró:
+       dice más, y lo dice también en papel y para quien no distingue seis tonos.
+
+       El total se MUDA aquí desde `.pline`. Sigue fuera de `.pbody`, que era la razón por la
+       que vivía abajo —para no esconderse al plegar y para poder espiar el importe tapado—,
+       y ahora además se ve mientras se captura. Abajo se queda la fórmula sola, que es la
+       explicación del número y no el número. */
     d.innerHTML=`
+      <div class="pcab">
       <div class="partida-top">
         <div class="pnum">
           <!-- El nombre no cambia con el estado: quien lo cambiaba obligaba a conciliar
@@ -484,6 +499,7 @@ function renderItems(){
         <div class="tipo-seg" role="group" aria-label="Tipo de la partida ${i+1}">
           ${['letras','recorte','bastidor','caja','manual'].map(t=>`<button class="${it.tipo===t?'on':''}" aria-pressed="${it.tipo===t?'true':'false'}" ${_off} onclick="setTipo(${it.id},'${t}')"><span class="lg">${TIPO_NOMBRE[t]}</span><span class="sm">${TIPO_CORTO[t]}</span></button>`).join('')}
         </div>
+        <span class="lt" id="lt-${it.id}">${ltHTML(it)}</span>
         <div class="ptop-actions">
           ${!capturaBloqueada()?`<button class="dup" onclick="dupItem(${it.id})" title="Duplicar partida" aria-label="Duplicar partida">${ico('i-copiar')}</button>`:''}
           <button data-foco="pdf-${it.id}" class="pdf-vis${pdfVis?'':' off'}" onclick="setShowInPdf(${it.id},${!pdfVis})" title="${pdfVis?'Ocultar del PDF — la partida sigue sumando al total':'Mostrar en PDF'}" aria-label="${pdfVis?'Ocultar del PDF':'Mostrar en PDF'}">${ico('i-ojo')}</button>
@@ -491,14 +507,13 @@ function renderItems(){
         </div>
       </div>
       ${resumenHTML(it)}
+      </div>
       <div class="pbody" id="pbody-${it.id}">${bodyFor(it)}</div>
-      <!-- La fórmula y el total van FUERA de .pbody a propósito: son lo único del cuerpo
-           que se queda a la vista al plegar, y ahí es donde se espían los importes
-           tapados. Meterlos dentro los escondería; meterlos dentro del .psum haría que
-           cada intento de espiar el precio abriera la partida. -->
+      <!-- La fórmula va FUERA de .pbody a propósito: es lo único del cuerpo que se queda a la
+           vista al plegar. El total se subió al encabezado —ver arriba— y desde ahí sigue
+           fuera de .pbody y sigue siendo donde se espían los importes tapados. -->
       <div class="pline">
         <span class="formula" id="formula-${it.id}">${formulaHTML(it)}</span>
-        <span class="lt" id="lt-${it.id}">${ltHTML(it)}</span>
       </div>`;
     if(!capturaBloqueada()){
       d.addEventListener('dragstart',e=>{
@@ -594,9 +609,13 @@ function updProg(){
   if(!bar||!pctEl)return;
   bar.style.width=pct+'%';
   pctEl.textContent=pct+'%';
-  if(pct<40)bar.style.background='linear-gradient(90deg,#f59e0b,#fb923c)';
-  else if(pct<80)bar.style.background='linear-gradient(90deg,var(--a-fuerte),var(--a-claro))';
-  else bar.style.background='linear-gradient(90deg,#15a06a,#22c55e)';
+  /* El color lo pone la hoja: aquí solo se dice si ya está completa. Antes se escribían tres
+     degradados como estilo EN LÍNEA, que gana a cualquier regla de css/sistema.css, así que el
+     color de esta barra era lo único de la app que el tema no podía cambiar —de noche seguía
+     saliendo el ámbar y el verde de día— y las reglas de la hoja estaban muertas. Y eran tres
+     colores para una medida: el ámbar en esta app significa «falta un dato obligatorio», no
+     «vas por el 30 %». */
+  bar.classList.toggle('lleno',pct>=100);
   pintarPendiente();
 }
 
@@ -755,11 +774,18 @@ function chip(on,click,label,extra,libre){
    solo con el nombre del campo. Lo que sí sigue ahí es el «Sin elegir», que no se lee de
    ninguna otra parte —un grupo sin nada resaltado se confunde con uno que no miraste—, y
    la cara de la partida plegada sigue enseñando lo elegido, que es su trabajo. */
-function grupo(titulo,valor,chipsHTML,extraHTML=''){
+/* `catalogo` marca los grupos que son un CATÁLOGO —los cinco materiales, los tipos de caja—
+   frente a los que son dos o tres opciones cortas —complejidad, iluminación, acabado—. Los
+   primeros se pintan en rejilla, para que las cinco opciones midan lo mismo y sus tarifas
+   caigan en columna y se comparen de un barrido; los segundos se quedan en fila, porque una
+   rejilla de 180 px para «Recta · Cursiva · Compleja» son tres cajas medio vacías. Lo decide
+   quien llama y no un `:has()` sobre la cuenta de chips: «esto es un catálogo» es una cosa que
+   el código sabe, no algo que haya que adivinar del marcado. */
+function grupo(titulo,valor,chipsHTML,extraHTML='',catalogo=false){
   const falta=!valor;
   return `<div class="optgrp${falta?' falta':''}">
       <div class="optgrp-h"><span class="optgrp-t">${titulo}</span>${falta?'<span class="optgrp-v falta">Sin elegir</span>':''}</div>
-      <div class="chips" role="group" aria-label="${esc(titulo.replace(/<[^>]*>/g,'').trim())}">${chipsHTML}</div>${extraHTML}
+      <div class="chips${catalogo?' chips-catalogo':''}" role="group" aria-label="${esc(titulo.replace(/<[^>]*>/g,'').trim())}">${chipsHTML}</div>${extraHTML}
     </div>`;
 }
 
@@ -908,7 +934,7 @@ function bodyFor(it){
       : '';
     return `
       ${descFld(it)}
-      ${grupo(matTitulo,mat?mat.label:'',matChips,avisos)}
+      ${grupo(matTitulo,mat?mat.label:'',matChips,avisos,true)}
       ${grupo('Iluminación',it.luz?(tono?'Cálida 3000K':'Fría 6500K'):'Sin iluminación · −20%',
         `<button type="button" class="switch" role="switch" data-foco="luz-${it.id}" aria-checked="${it.luz?'true':'false'}" style="margin:0 6px 0 0" ${capturaBloqueada()?'disabled':`onclick="setItem(${it.id},'luz',${!it.luz})"`}><span class="tg ${it.luz?'on':''}" aria-hidden="true"></span> Con iluminación</button>${luzChips}`)}
       ${grupo('Complejidad',compOf(it.comp)?compOf(it.comp).label:'',compChips)}
@@ -953,7 +979,7 @@ function bodyFor(it){
     const hint='<div class="hintnote">Por área (ancho × alto), mínimo 1 m²</div>';
     return `
       ${descFld(it)}
-      ${grupo('Material del bastidor',basOf(it.bas)?basOf(it.bas).label:'',chips,hint)}
+      ${grupo('Material del bastidor',basOf(it.bas)?basOf(it.bas).label:'',chips,hint,true)}
       <div class="grid2" style="margin-top:12px">
         <div class="fld"><label for="an-${it.id}">Ancho (cm)</label><input id="an-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.ancho||''}" ${dis} oninput="typeItem(${it.id},'ancho',+this.value)" onblur="saneaNum(this,${it.id},'ancho')"></div>
         <div class="fld"><label for="al-${it.id}">Alto (cm)</label><input id="al-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.alto||''}" ${dis} oninput="typeItem(${it.id},'alto',+this.value)" onblur="saneaNum(this,${it.id},'alto')"></div>
@@ -965,7 +991,7 @@ function bodyFor(it){
     const cajaSel=CAJAS.find(c=>c.tarifa===it.tarifa);
     return `
       ${descFld(it)}
-      ${grupo('Tipo de caja',cajaSel?cajaSel.label:(it.tarifa>0?'Tarifa personalizada · $'+it.tarifa+'/m²':''),chips,hint)}
+      ${grupo('Tipo de caja',cajaSel?cajaSel.label:(it.tarifa>0?'Tarifa personalizada · $'+it.tarifa+'/m²':''),chips,hint,true)}
       <div class="grid3" style="margin-top:12px">
         <div class="fld"><label for="an-${it.id}">Ancho (cm)</label><input id="an-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.ancho||''}" ${dis} oninput="typeItem(${it.id},'ancho',+this.value)" onblur="saneaNum(this,${it.id},'ancho')"></div>
         <div class="fld"><label for="al-${it.id}">Alto (cm)</label><input id="al-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.alto||''}" ${dis} oninput="typeItem(${it.id},'alto',+this.value)" onblur="saneaNum(this,${it.id},'alto')"></div>
