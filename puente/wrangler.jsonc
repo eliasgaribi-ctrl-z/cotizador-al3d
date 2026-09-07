@@ -1,0 +1,29 @@
+{
+  // El puente a Notion — configuración de despliegue.
+  //
+  // Con esto el Worker se redespliega solo con cada push a main, igual que el sitio.
+  // El código sigue siendo `puente/worker.js`, sin tocar: este archivo solo dice
+  // cómo se llama, cuál es su entrada y qué variables NO son secretas.
+  //
+  // Los dos secretos (NOTION_TOKEN y TOKENS) NO van aquí y nunca van al repo:
+  // viven en Cloudflare → Worker `puente-al3d` → Settings → Variables and Secrets,
+  // como tipo Secret. `wrangler deploy` los respeta y no los borra.
+  //
+  // En Cloudflare, el build del Worker apunta a este directorio (`puente`).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "puente-al3d",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+
+  // Variables públicas. Se sobrescriben con lo que diga este archivo en cada deploy,
+  // así que el repo es la verdad: si agregas un dominio, agrégalo aquí.
+  "vars": {
+    // La base de datos de ventas en Notion.
+    "DS_VENTAS": "56fa21d8-8e7d-4e16-b874-455fd6c65643",
+    // Los orígenes que el puente acepta. Lista exacta, sin barra final:
+    // el sitio en Cloudflare Pages y el de GitHub Pages, que sigue vivo.
+    "ORIGENES": "https://cotizador-al3d.pages.dev,https://eliasgaribi-ctrl-z.github.io"
+  }
+}
