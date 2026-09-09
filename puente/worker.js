@@ -1,9 +1,10 @@
 /* ============================================================================
    El puente a Notion. Cloudflare Worker. FASE 3.
 
-   ESTE ARCHIVO NO SE PUBLICA CON EL SITIO. Se pega en el editor de Cloudflare. No hay
-   node, no hay wrangler, no hay terminal: es un archivo, se copia, se guarda. El runbook
-   está en puente/README.md.
+   ESTE ARCHIVO SE DESPLIEGA SOLO: el Worker está conectado al repositorio y Cloudflare lo
+   vuelve a publicar con cada push a main que toque puente/* (puente/DESPLIEGUE.md, con la
+   configuración en puente/wrangler.jsonc). Pegarlo a mano en el editor de Cloudflare sigue
+   sirviendo como camino de emergencia. El runbook de fallas está en puente/README.md.
 
    ── Por qué existe ─────────────────────────────────────────────────────────────
    Porque desde el navegador es imposible, y no por una restricción tonta:
@@ -43,12 +44,19 @@
                   por omisión: 56fa21d8-8e7d-4e16-b874-455fd6c65643
    TOKENS         JSON: {"<token largo>":"direccion","<otro>":"fabricacion","<otro>":"pagos"}
                   Se generan con  crypto.randomUUID()  y se pegan uno en cada teléfono.
-   ORIGENES       opcional. Lista separada por comas de orígenes permitidos.
-                  por omisión: https://eliasgaribi-ctrl-z.github.io
+   ORIGENES       lista separada por comas de orígenes permitidos. La verdad vive en
+                  puente/wrangler.jsonc (Cloudflare Pages y GitHub Pages); el valor por
+                  omisión de abajo solo aplica si la variable no llega.
    ============================================================================ */
 
 const NOTION = 'https://api.notion.com/v1';
-const NOTION_VERSION = '2022-06-28';
+/* 2025-09-03 y no 2022-06-28. Este Worker habla con Notion por sus «data sources» —
+   `/v1/data_sources/{id}`, `/v1/data_sources/{id}/query` y páginas con `parent.data_source_id`—
+   y esos caminos existen a partir de la versión 2025-09-03 de la API. Con la cabecera vieja los
+   endpoints nuevos no están: `/salud`, `/esquema`, `/jalar` y `/empujar` fallaban todos por la
+   misma razón y la Notion de mentiras de pruebas/worker.mjs no lo notaba porque solo miraba la
+   URL. Ahora la prueba también rechaza la versión vieja. */
+const NOTION_VERSION = '2025-09-03';
 const VERSION = 'puente-2';
 const DS_VENTAS_POR_OMISION = '56fa21d8-8e7d-4e16-b874-455fd6c65643';
 
@@ -144,13 +152,18 @@ function cabecerasCors(origen) {
     'Access-Control-Allow-Origin': origen,
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization,Content-Type',
+    /* Sin esto el navegador ESCONDE Retry-After a fetch(): el Worker lo mandaba y el cliente no
+       podía leerlo. */
+    'Access-Control-Expose-Headers': 'Retry-After',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin',
   };
 }
 const json = (cuerpo, estado, origen, extra) => new Response(JSON.stringify(cuerpo), {
   status: estado || 200,
-  headers: { 'Content-Type': 'application/json; charset=utf-8', ...cabecerasCors(origen), ...(extra || {}) },
+  /* no-store: lo que sale de aquí es el estado vivo de la base del dinero; una copia en una
+     caché intermedia sería un estado viejo servido como nuevo. */
+  headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...cabecerasCors(origen), ...(extra || {}) },
 });
 
 /** El token de dispositivo → rol. Devuelve null si no lo conoce. */
@@ -160,7 +173,7 @@ function rolDe(req, env) {
   if (!t) return null;
   let mapa;
   try { mapa = JSON.parse(env.TOKENS || '{}'); } catch (_) { return null; }
-  const rol = mapa[t];
+  const rol = Object.prototype.hasOwnProperty.call(mapa, t) ? mapa[t] : null;
   return (rol && ESCRIBIBLES[rol]) ? rol : null;
 }
 
@@ -202,15 +215,24 @@ async function buscarPorFolio(env, ds, folio) {
     body: JSON.stringify({ page_size: 1,
       filter: { property: 'Folio cotizacion', rich_text: { equals: String(folio) } } }),
   });
-  if (r.estado >= 400) return null;
+  /* Solo el 400 —la propiedad todavía no existe— se lee como «no está»: el alta va a fallar
+     igual, diciendo cuál falta. Cualquier otro tropiezo (429, 5xx, 401, un timeout) NO puede
+     leerse como «no está»: esta búsqueda era la única defensa contra la venta duplicada y
+     fallaba en abierto justo en el caso que dice cubrir —el reintento tras una respuesta
+     perdida—. Se devuelve el error y quien llama aborta la operación, que se queda en la
+     bandeja del teléfono para el siguiente bombeo. */
+  if (r.estado === 400) return { id: null };
+  if (r.estado >= 400) return { error: r };
   const res = (r.cuerpo && r.cuerpo.results) || [];
-  return res.length ? res[0].id : null;
+  return { id: res.length ? res[0].id : null };
 }
 
 /* Los mensajes salen de aquí ya escritos en español, porque el cliente los pinta tal cual
    en un aviso y «Notion API error 429» no le dice nada a nadie. */
 function traducir(estado, cuerpo) {
-  if (estado === 401 || estado === 403)
+  if (estado === 401)
+    return { codigo: 'ROL_SIN_PERMISO', mensaje: 'Notion no reconoce el token de la integración. Revisa NOTION_TOKEN en Cloudflare.' };
+  if (estado === 403)
     return { codigo: 'ROL_SIN_PERMISO', mensaje: 'El puente no tiene acceso a esa página de Notion. Compártele la base a la integración.' };
   if (estado === 404)
     return { codigo: 'NO_ENCONTRADO', mensaje: 'Esa fila ya no existe en Notion, o la integración no la puede ver.' };
@@ -259,7 +281,7 @@ function armarPropiedades(datos, rol) {
       if (!ETAPAS_SET.has(valor)) { rechazadas.push({ nombre, por: '«' + valor + '» no es una etapa de la base; pegarla la crearía' }); continue; }
       props[nombre] = { select: { name: String(valor) } };
     } else if (nombre === 'Tipo de trabajo') {
-      const arr = (Array.isArray(valor) ? valor : [valor]).filter(Boolean).map(String);
+      const arr = [...new Set((Array.isArray(valor) ? valor : [valor]).filter(Boolean).map(String))];
       const malos = arr.filter(v => !TIPOS_SET.has(v));
       if (malos.length) { rechazadas.push({ nombre, por: 'no son tipos de la base y pegarlos los crearía: ' + malos.join(', ') }); continue; }
       props[nombre] = { multi_select: arr.map(v => ({ name: v })) };
@@ -367,7 +389,15 @@ export default {
       /* ── /empujar ── */
       if (ruta === '/empujar' && req.method === 'POST') {
         let entrada;
-        try { entrada = await req.json(); } catch (_) {
+        try {
+          const texto = await req.text();
+          /* 25 operaciones con sus propiedades caben de sobra en 64 KB; más que eso no es la
+             bandeja de un teléfono. */
+          if (texto.length > 65536) {
+            return json({ ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El cuerpo es demasiado grande.' }, 413, origen);
+          }
+          entrada = JSON.parse(texto);
+        } catch (_) {
           return json({ ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El cuerpo no es JSON.' }, 400, origen);
         }
         const ops = Array.isArray(entrada && entrada.ops) ? entrada.ops.slice(0, 25) : [];
@@ -388,7 +418,21 @@ export default {
           let idPagina = op.id_notion || null;
           if (!idPagina) {
             const folio = String((op.datos && op.datos['Folio cotizacion']) || '').trim();
-            if (folio) idPagina = await buscarPorFolio(env, ds, folio);
+            if (folio) {
+              const b = await buscarPorFolio(env, ds, folio);
+              if (b.error) {
+                /* No se sabe si la fila ya existe: crearla a ciegas es la venta duplicada. La
+                   operación se queda en la bandeja y se reintenta. */
+                const t = traducir(b.error.estado, b.error.cuerpo);
+                resultados.push({ id: op.id, ok: false, ...t, rechazadas });
+                if (b.error.estado === 429) {
+                  return json({ ok: true, resultados }, 429, origen,
+                    b.error.reintentar ? { 'Retry-After': b.error.reintentar } : { 'Retry-After': '30' });
+                }
+                continue;
+              }
+              idPagina = b.id;
+            }
           }
 
           let r;
@@ -433,16 +477,20 @@ export default {
         if (!/^https:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps)\//.test(u)) {
           return json({ ok: false, mensaje: 'Eso no es un link corto de Google Maps.' }, 422, origen);
         }
-        const r = await fetch(u, { redirect: 'follow' });
+        /* Con tope de tiempo: un link corto que no contesta no puede colgar la petición. */
+        const r = await fetch(u, { redirect: 'follow', signal: AbortSignal.timeout(8000) });
         if (!r.url || r.url === u) return json({ ok: false, mensaje: 'Ese link corto no llevó a ningún mapa.' }, 422, origen);
         return json({ ok: true, url: r.url }, 200, origen);
       }
 
       return json({ ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'Ese camino no existe en el puente.' }, 404, origen);
     } catch (e) {
-      /* Nunca se devuelve una excepción cruda: el cliente pinta `mensaje` tal cual. */
+      /* Nunca se devuelve una excepción cruda: el cliente pinta `mensaje` tal cual, y el texto
+         de una excepción puede traer trozos de la respuesta de Notion. El detalle va al
+         registro del Worker (observability está encendida en wrangler.jsonc). */
+      console.error('puente: excepción sin atrapar', e);
       return json({ ok: false, codigo: 'DESCONOCIDO',
-        mensaje: 'El puente falló: ' + (e && e.message ? e.message : 'sin detalle') }, 500, origen);
+        mensaje: 'El puente falló por dentro. Quedó anotado en su registro de Cloudflare.' }, 500, origen);
     }
   },
 };

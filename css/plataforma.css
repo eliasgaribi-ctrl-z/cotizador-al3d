@@ -599,12 +599,14 @@ body.pf::before{display:none}
   #mapa-etapas .lg{display:none}
   #mapa-etapas .sm{display:inline}
 }
-#mapa-lienzo{position:relative;isolation:isolate;z-index:1;height:60vh;min-height:320px;
+/* dvh y no vh: con la barra de direcciones de Chrome a la vista, 100vh es el visor GRANDE y el
+   panel se salía del velo por abajo (los modales del cotizador ya miden en dvh). */
+#mapa-lienzo{position:relative;isolation:isolate;z-index:1;height:60dvh;min-height:320px;
   border-radius:var(--rr3);overflow:hidden;border:1px solid var(--linea);background:var(--sup2)}
 /* En el teléfono, 45 vh: la mitad de la pantalla para el mapa y la otra mitad para la ruta,
    que es la que se lee parada por parada. Con 52 vh la primera parada quedaba justo debajo
    del doblez. */
-@media(max-width:759px){#mapa-lienzo{height:45vh;min-height:280px}}
+@media(max-width:759px){#mapa-lienzo{height:45dvh;min-height:280px}}
 /* Leaflet trae su propia tipografía y sus propios grises. Se le imponen los de la app: un
    mapa con la letra del sistema operativo dentro de una app con Inter se ve incrustado. */
 .leaflet-container{font-family:inherit;background:var(--n1)}
@@ -635,7 +637,7 @@ body.pf::before{display:none}
 /* Se apoyan en .modal-bg del sistema —el velo, el desenfoque de atrás, la entrada desde
    abajo— y solo cambian el panel. */
 .pf-modal-bg{align-items:flex-start;padding-top:calc(32px + env(safe-area-inset-top,0px))}
-.pf-panel{width:100%;max-width:640px;max-height:calc(100vh - 64px - env(safe-area-inset-top,0px));
+.pf-panel{width:100%;max-width:640px;max-height:calc(100dvh - 64px - env(safe-area-inset-top,0px));
   display:flex;flex-direction:column;background:var(--card);border-radius:var(--rr3);
   box-shadow:var(--clay-alto);overflow:hidden}
 .pf-panel-h{display:flex;align-items:center;gap:var(--e3);padding:var(--e4);
@@ -650,7 +652,7 @@ body.pf::before{display:none}
 @media(max-width:560px){
   .pf-modal-bg{padding:0;align-items:flex-end}
   .pf-panel{max-width:none;border-radius:var(--rr3) var(--rr3) 0 0;
-    max-height:calc(100vh - 32px - env(safe-area-inset-top,0px))}
+    max-height:calc(100dvh - 32px - env(safe-area-inset-top,0px))}
 }
 
 /* ============================================================================
@@ -1268,3 +1270,56 @@ button.cal-plazo:active{transform:translateY(1px) scale(.98)}
    Su CSS ya estaba trabajado hasta 420 px; lo único escondido era la entrada. Ahora se ve, y
    arriba del marco se dice con palabras dónde se calcula. Explicar, no esconder en silencio. */
 
+
+/* ============================================================================
+   El teléfono y el Fold: lo que se midió después del reacomodo
+   ============================================================================ */
+@media(max-width:759px){
+  /* El aviso emergente se posa ENCIMA de la barra de acción del módulo, no dentro de ella:
+     `--mbar-h` la publica ajustarAltoBarra() y aquí nadie la estaba leyendo. */
+  body.pf .toast{bottom:calc(86px + env(safe-area-inset-bottom,0px) + var(--mbar-h,0px))}
+  /* La barra de acción va encima de la de módulos, que ya reserva el área segura: reservarla
+     otra vez la hacía 28 px más alta de lo necesario en un iPhone. */
+  .pf-mbar{padding-bottom:9px}
+  /* Lo que se enfoca con teclado no puede quedar debajo de las DOS barras. */
+  html:has(body.pf){scroll-padding-bottom:calc(76px + env(safe-area-inset-bottom,0px) + var(--mbar-h,0px))}
+}
+/* Se toca con el dedo: la pantalla interna del Fold es una tableta táctil de 760 a 920 px, y
+   ahí los controles de la barra lateral y del encabezado seguían con medidas de ratón. */
+@media(hover:none),(pointer:coarse){
+  .pf-lat-item{height:44px}
+  .pf-lat-rol .seg button{min-height:44px}
+  .pf-cab-tema{width:44px;height:44px}
+  .pf-cerrar{width:44px;height:44px}
+  /* Las pistas de teclas —← → mes, t hoy— son para quien tiene teclado. */
+  .pf-teclas{display:none}
+}
+/* El tablero de proyectos se desliza a lo ancho en el Fold abierto (1 048 px de columnas en
+   ~630 de contenido): que se detenga en una columna entera y no a media tarjeta. */
+@media(max-width:1023px){
+  .pj-tablero{scroll-snap-type:x proximity}
+  .pj-col{scroll-snap-align:start}
+}
+
+/* ----- El marco del cotizador, a sangre -----
+   Medido en el Fold cerrado emulado (384 px): el marco del cotizador perdía 20 px de ancho —10
+   de relleno de la plataforma por lado— y adentro el cotizador volvía a poner los suyos: 40 px
+   de los 384 se iban en marco, y la partida plegada partía su encabezado en dos renglones. A
+   sangre, el cotizador empotrado mide lo mismo que suelto. `--pad-lat` es exactamente el
+   relleno que la .wrap publica para quien quiera salirse a sangre; de 760 a 1023 el relleno
+   de la izquierda es el de la barra lateral más --e4, y a la derecha el de la .wrap (24 px).
+   Además, en la pantalla interna del Fold acostado (960 px) esos 40 px son la diferencia
+   entre 752 y 792 px de marco: con 792 el cotizador ya cae en su banda de dos columnas y
+   enseña la columna del dinero al lado de las partidas, sin barra fija.
+
+   Y con el marco montado la .wrap no reserva hueco abajo: el marco ya termina encima de la
+   barra de módulos —lo mide js/mod/cotizador.js— y los 76 px de reserva solo servían para que
+   la página de afuera se desplazara hacia una franja vacía. */
+body.pf-marco-lleno .pf-wrap{padding-bottom:0}
+@media(max-width:1023px){
+  #mod-cotizador .pf-marco-caja{margin-left:calc(-1 * var(--pad-lat,24px));margin-right:calc(-1 * var(--pad-lat-der,24px))}
+  #mod-cotizador .pf-marco{border-radius:0;box-shadow:none}
+}
+@media(min-width:760px) and (max-width:1023px){
+  #mod-cotizador .pf-marco-caja{margin-left:calc(-1 * var(--e4))}
+}

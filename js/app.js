@@ -565,9 +565,16 @@ async function sincronizarCallado() {
   if (!Sync.configurado()) return;
   let movio = 0;
   try { const r = await Sync.bombear(); if (r.ok) movio += Number(r.valor.subidas) || 0; } catch (_) {}
+  /* Página por página mientras el Worker diga que hay más, con tope: las 199 filas anteriores
+     a la plataforma van primero en el orden por edición y con una sola página por apertura
+     hacían falta cuatro aperturas para llegar a las nuevas. */
   try {
-    const r = await Sync.jalar();
-    if (r.ok) movio += (Number(r.valor.nuevos) || 0) + (Number(r.valor.actualizados) || 0);
+    for (let vuelta = 0; vuelta < 10; vuelta++) {
+      const r = await Sync.jalar();
+      if (!r.ok) break;
+      movio += (Number(r.valor.nuevos) || 0) + (Number(r.valor.actualizados) || 0);
+      if (!r.valor.hay_mas) break;
+    }
   } catch (_) {}
   if (movio && _actual) montar(_actual, { forzar: true });
 }

@@ -303,9 +303,29 @@ const _CAPAS_CON_HIST_PROPIA=new Set(['scalermodal','vectormodal']);
 /* Las que se están cerrando PORQUE el usuario dio atrás. Sin esto, _histAlCerrar llamaría
    a history.back() otra vez y el segundo retroceso sí saca de la página. */
 const _cerrandoPorAtras=new Set();
+/* ----- Cerrar un modal no puede mover la página -----
+   La entrada de la pantalla guarda su `y` solo al CAMBIAR de pantalla; abrir un modal encima
+   empujaba su propia entrada y, al cerrarlo con la × o con Escape, `history.back()` caía en la
+   entrada de la pantalla con el `y` viejo —casi siempre 0—: bajar hasta la partida 5, abrir el
+   historial y cerrarlo devolvía la página arriba del todo y TalkBack anunciaba «Paso 2 de 4».
+   Se sella el scroll en la entrada de la pantalla justo antes de empujar la del modal, y el
+   oyente de popstate sabe que ese atrás lo dio el código —no el dedo— para no robarle el foco
+   al botón que abrió el modal ni anunciar la pantalla como si se acabara de llegar a ella. */
+let _atrasPorCodigo=false;
+function _sellarScrollDePantalla(){
+  try{ if(history.state&&history.state.cot) history.replaceState({...history.state,y:window.scrollY},''); }catch(_){}
+}
+function _atrasDesdeElCodigo(){
+  _atrasPorCodigo=true;
+  /* Si el popstate no llegara —la entrada ya no era nuestra— la marca no puede quedarse
+     puesta para el siguiente atrás de verdad. */
+  setTimeout(()=>{_atrasPorCodigo=false;},400);
+  try{ history.back(); }catch(_){}
+}
 function _histAlAbrir(m){
   if(_CAPAS_CON_HIST_PROPIA.has(m.id))return;
   if(m.dataset.hist==='1')return;
+  _sellarScrollDePantalla();
   try{ history.pushState({capa:m.id},''); m.dataset.hist='1'; }catch(_){}
 }
 function _histAlCerrar(m){
@@ -322,7 +342,7 @@ function _histAlCerrar(m){
      botones que hacen exactamente eso —«Clientes» dentro del Historial y «Ver el historial»
      dentro de Cuadernos—, que son justo el gesto de cambiar de pestaña entre dos vistas de los
      mismos datos: el panel nuevo se abría y se cerraba solo. */
-  try{ if(history.state&&history.state.capa===m.id) history.back(); }catch(_){}
+  try{ if(history.state&&history.state.capa===m.id) _atrasDesdeElCodigo(); }catch(_){}
 }
 /* La guarda sola no basta para esos dos botones: sin ella el back sobraba, con ella la entrada
    se queda huérfana —la capa que cierra ya no la reclama y la que abre no empuja la suya porque
@@ -349,9 +369,13 @@ function deLosClientesAlHistorial(){ cederEntrada('climodal','histmodal'); cerra
    de registro, y solo corriendo primero puede ver una capa todavía abierta y cederle el gesto.
    No depende de que ningún otro oyente le avise nada; sus dos guardas son suyas. */
 window.addEventListener('popstate',ev=>{
+  const porCodigo=_atrasPorCodigo; _atrasPorCodigo=false;
   if(_capaDeArriba()) return;                 // la capa de arriba se queda con este atrás
   const st=ev.state;
   if(!st||!st.cot) return;                    // la entrada no es de las pantallas: no es nuestra
+  /* Un atrás que dio el código al cerrar un modal: se devuelve el scroll sellado y nada más.
+     El foco ya volvió al botón que abrió el modal, y no se llegó a ninguna pantalla nueva. */
+  if(porCodigo&&st.pantalla===_pantalla){ window.scrollTo({top:st.y||0,behavior:'auto'}); return; }
   if(st.pantalla!==_pantalla){
     /* `forzar` porque volver atrás no es capturar: el candado del paso 1 no puede frenar un
        gesto que va HACIA los datos que faltan. `hist:false` porque esta entrada ya existe —la
@@ -538,7 +562,14 @@ function prefSet(k,v){ try{ localStorage.setItem(k,String(v)); }catch(_){} }
    segundo letrero se tecleaba completo otra vez. Se sugieren los del historial y, al
    elegir uno, se llenan los campos que estén VACÍOS —nunca se pisa lo ya escrito. */
 function normNom(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
+/* Con caché, igual que los cuadernos. Se llamaba en CADA tecla del campo Cliente —upd →
+   autocompletarCliente— y cada llamada parseaba el historial entero, con sus imágenes en
+   base64 dentro: en un teléfono, con veinte cotizaciones con foto, eso es teclear a tirones.
+   El historial solo cambia por saveHistorial, que la invalida. */
+let _clientesCache=null;
+function invalidarClientes(){ _clientesCache=null; }
 function clientesConocidos(){
+  if(_clientesCache) return _clientesCache;
   const m=new Map();
   /* El historial está ordenado de lo más reciente a lo más viejo, así que el primero
      que aparece manda; de los demás solo se toman los huecos que dejó. */
@@ -550,7 +581,8 @@ function clientesConocidos(){
     if(!prev.dirRaw&&e.dirRaw) prev.dirRaw=e.dirRaw;
     if(!prev.maps&&e.maps) prev.maps=e.maps;
   });
-  return [...m.values()];
+  _clientesCache=[...m.values()];
+  return _clientesCache;
 }
 function pintarClientes(){
   const dl=$('clientes-conocidos');
@@ -596,7 +628,16 @@ const M2_MINIMO=1;
 function m2Total(tarifa,m2){ return (tarifa||0)*Math.max(m2||0,M2_MINIMO); }
 function m2EsMinimo(m2){ return (m2||0)>0 && (m2||0)<M2_MINIMO; }
 
-function lineTotal(it){
+/* ----- Cada partida cierra al centavo -----
+   El importe de una partida salía con fracciones de centavo —bastidor de 100,5 × 102 cm a $950/m²
+   son $973,845— y cada sitio lo redondeaba por su cuenta: el renglón del PDF con money(), el
+   subtotal con toFixed sobre la suma sin redondear, el IVA por separado. Medido: el documento
+   podía decir «Subtotal 4,873.85 + I.V.A. 779.82» y abajo «Total 5,653.66», que es la cuenta
+   que un cliente con calculadora sí hace. Se redondea UNA vez, aquí, en la única fuente del
+   importe de una partida; con las partidas en centavos exactos, la suma, el IVA y el total
+   cuadran entre sí en pantalla, en el PDF y en el registro de venta. */
+function lineTotal(it){ return Math.round(lineTotalCrudo(it)*100)/100; }
+function lineTotalCrudo(it){
   if(it.tipo==='letras'){
     let p=factorOf(it)*(it.altura||0)*(it.n||0);
     if(!it.luz) p*=0.8;
@@ -874,3 +915,100 @@ function notaCliente(){ return (Q.notaCliente||'').trim()||'El cliente debe prop
    respaldo de lo que haya detectado la IA. */
 function direccionPdf(){ return (Q.dirRaw||'').trim()||(Q.direccion||'').trim(); }
 
+
+/* ===================== El Fold a medio doblar =====================
+   Cuando un Galaxy Z Fold se usa medio abierto —como un libro (bisagra vertical) o apoyado en
+   la mesa como una laptop (bisagra horizontal, lo que Samsung llama Flex mode)— el navegador
+   parte el visor en dos segmentos y lo dice: `window.viewport.segments` (Chrome 135+) y las
+   variables `env(viewport-segment-*)` de CSS. Abierto del todo, como una tableta, no hay
+   segmentos y nada de esto aplica.
+
+   Aquí se lee esa geometría y se publica en <html> como dos clases y dos variables —
+   `html.pliegue-v` / `html.pliegue-h` y `--pliegue-a` / `--pliegue-b`, dónde empieza y dónde
+   termina la bisagra en píxeles del visor de ESTE documento— y css/sistema.css decide qué hacer
+   con eso (bloque «El Fold medio doblado»). Lo que hoy cambia: en Flex mode el lienzo del
+   escalador y del vectorizador se queda en la mitad de arriba y la barra y el panel bajan a la
+   mitad de la mesa, como el teclado de una laptop; de libro, las dos columnas del cotizador se
+   acomodan una en cada mitad.
+
+   Empotrado en la plataforma, el marco no ve el visor de verdad —sus segmentos son los del
+   iframe—, así que la geometría la manda el padre por postMessage, ya restada la posición del
+   marco (js/mod/cotizador.js, avisarPliegue). Suelto, se lee aquí. */
+function _segmentosDelVisor(){
+  try{
+    const s=window.viewport&&window.viewport.segments;
+    if(s&&s.length===2) return s;
+  }catch(_){}
+  return null;
+}
+function _pliegueDeSegmentos(seg){
+  if(!seg) return null;
+  const [s0,s1]=seg;
+  if(s1.left>=s0.left+s0.width-1) return {tipo:'v',a:s0.left+s0.width,b:s1.left};
+  if(s1.top>=s0.top+s0.height-1) return {tipo:'h',a:s0.top+s0.height,b:s1.top};
+  return null;
+}
+/* Sin la API, las variables de entorno de CSS: `env()` no se lee desde JS, así que se mide un
+   elemento de prueba puesto exactamente sobre la bisagra. */
+function _pliegueDeEnv(){
+  try{
+    const horiz=window.matchMedia('(horizontal-viewport-segments: 2)').matches;
+    const vert=!horiz&&window.matchMedia('(vertical-viewport-segments: 2)').matches;
+    if(!horiz&&!vert) return null;
+    const p=document.createElement('div');
+    p.style.cssText=horiz
+      ?'position:fixed;top:0;height:1px;left:env(viewport-segment-right 0 0,0px);width:calc(env(viewport-segment-left 1 0,0px) - env(viewport-segment-right 0 0,0px));visibility:hidden;pointer-events:none'
+      :'position:fixed;left:0;width:1px;top:env(viewport-segment-bottom 0 0,0px);height:calc(env(viewport-segment-top 0 1,0px) - env(viewport-segment-bottom 0 0,0px));visibility:hidden;pointer-events:none';
+    document.body.appendChild(p);
+    const r=p.getBoundingClientRect(); p.remove();
+    if(horiz) return r.left>0?{tipo:'v',a:r.left,b:r.right}:null;
+    return r.top>0?{tipo:'h',a:r.top,b:r.bottom}:null;
+  }catch(_){ return null; }
+}
+let _pliegueActual='';
+function aplicarPliegue(p){
+  const h=document.documentElement;
+  const W=window.innerWidth,H=window.innerHeight;
+  /* De libro solo cuando las dos mitades dan para algo: dentro de la plataforma la barra
+     lateral se come la izquierda y la mitad del cotizador puede quedar en 230 px; ahí partir
+     las columnas en la bisagra es peor que dejar que el contenido la cruce. De mesa, con que
+     cada mitad tenga 200 px: el lienzo de arriba y el panel de abajo caben en eso. */
+  const v=!!(p&&p.tipo==='v'&&p.a>=380&&(W-p.b)>=240);
+  const hz=!!(p&&p.tipo==='h'&&p.a>=200&&(H-p.b)>=200);
+  const firma=(v?'v':hz?'h':'')+(v||hz?':'+Math.round(p.a)+':'+Math.round(p.b):'');
+  if(firma===_pliegueActual) return;
+  _pliegueActual=firma;
+  h.classList.toggle('pliegue-v',v);
+  h.classList.toggle('pliegue-h',hz);
+  if(v||hz){ h.style.setProperty('--pliegue-a',Math.round(p.a)+'px'); h.style.setProperty('--pliegue-b',Math.round(p.b)+'px'); }
+  else{ h.style.removeProperty('--pliegue-a'); h.style.removeProperty('--pliegue-b'); }
+  /* El escalador y el vectorizador miden su lienzo contra el área que les queda, y el reparto
+     acaba de cambiar sin que haya habido ningún resize. Un cuadro después, con el CSS aplicado. */
+  setTimeout(()=>{
+    try{ if(typeof SC!=='undefined'&&SC.img&&$('scalermodal').classList.contains('show')){ scFitCanvas(true); scRender(); if(typeof scAjustarToast==='function') scAjustarToast(); } }catch(_){}
+    try{ if(typeof VT!=='undefined'&&VT.img&&$('vectormodal').classList.contains('show')){ vtFit(); vtRender(); if(typeof vtAjustarToast==='function') vtAjustarToast(); } }catch(_){}
+  },0);
+}
+function ajustarPliegue(){
+  if(parent!==window){
+    /* Empotrado: la geometría la manda el padre. Se le pide, por si este documento arrancó
+       después de que él midiera. */
+    try{ parent.postMessage({al3d:'pliegue?'},location.origin); }catch(_){}
+    return;
+  }
+  aplicarPliegue(_pliegueDeSegmentos(_segmentosDelVisor())||_pliegueDeEnv());
+}
+window.addEventListener('resize',ajustarPliegue);
+/* La postura cambia sin que cambie el tamaño del visor —el Fold pasa de plano a medio doblado
+   con los mismos 900 px de ancho—, así que `resize` no alcanza: se escuchan las consultas. */
+['(horizontal-viewport-segments: 2)','(vertical-viewport-segments: 2)','(device-posture: folded)'].forEach(q=>{
+  try{ window.matchMedia(q).addEventListener('change',ajustarPliegue); }catch(_){}
+});
+window.addEventListener('message',ev=>{
+  try{
+    if(parent===window||ev.origin!==location.origin||ev.source!==parent) return;
+    const d=ev.data;
+    if(!d||typeof d!=='object'||d.al3d!=='pliegue') return;
+    aplicarPliegue(d.pliegue||null);
+  }catch(_){}
+});

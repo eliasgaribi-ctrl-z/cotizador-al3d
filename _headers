@@ -1,0 +1,20 @@
+# Cabeceras para Cloudflare Pages (GitHub Pages ignora este archivo).
+#
+# Lo que hay dentro del repositorio que NO es la app —la documentación de diseño, las pruebas,
+# el código del Worker, las herramientas— se publica también, porque Pages sirve el repositorio
+# entero. No es secreto (el repo es público) pero tampoco es para que lo indexe un buscador ni
+# para que aparezca como resultado antes que la app.
+/docs/*
+  X-Robots-Tag: noindex
+/pruebas/*
+  X-Robots-Tag: noindex
+/puente/*
+  X-Robots-Tag: noindex
+/herramientas/*
+  X-Robots-Tag: noindex
+/README.md
+  X-Robots-Tag: noindex
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

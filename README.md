@@ -19,6 +19,15 @@
 
 ## Qué hace
 
+- **Hecho para el Galaxy Z Fold**, que es el teléfono con el que se cotiza en la calle. La portada
+  (344–384 px) recibe la maqueta de teléfono con todo lo tocable a 44 px; la pantalla interna se
+  trata como lo que es —una tableta táctil— y acostada el cotizador gana su columna del dinero.
+  Y a medio doblar, el navegador parte el visor en dos y la app se entera: de mesa (Flex mode)
+  el **escalador** y el **vectorizador** dejan la foto en la mitad de arriba y bajan la barra y el
+  panel a la mitad que descansa sobre la mesa; de libro, las partidas quedan en una hoja y el
+  dinero en la otra, con la bisagra en el hueco. Doblarlo y abrirlo es un resize: nada se mide
+  una sola vez al cargar. Lo vigila `pruebas/navegador/plegable.mjs` emulando las tres formas.
+
 - **Partidas por tipo** — letras 3D, recorte de acrílico, bastidor, caja de luz o captura manual, cada una con su catálogo de materiales y tarifas. En letras 3D los materiales van de aluminio pintado ($30/cm) a **acero inoxidable ($55/cm)**. Si borras una partida por error, el aviso trae **Deshacer** — y también lo trae *Vaciar y empezar cotización nueva*, que es lo que más duele perder.
 
   Capturando a mano, la partida nueva **hereda el material de la anterior** —el único campo que hay que elegir en todas y que casi nunca cambia dentro del mismo trabajo—. Va marcado con «↩ como la anterior» para que se vea que lo puso la app y no tú: es el dato que más pesa en el precio. En cuanto eliges uno a mano, la etiqueta se quita y ese pasa a ser el que hereden las siguientes. Las partidas que crean el escalador y el vectorizador siguen naciendo sin material, porque ahí nacen de una medida y el material sí sería una suposición con precio. Junto a *+ Agregar partida* está **⧉ Igual que la anterior**, que copia la última completa.

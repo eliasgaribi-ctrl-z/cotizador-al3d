@@ -51,7 +51,10 @@ terminal.
 
 ### 2. El Worker
 1. **dash.cloudflare.com** → *Workers & Pages* → *Create* → *Worker*. Ponle `puente-al3d`.
-2. *Edit code*, borra lo que trae y pega **todo** `puente/worker.js`. *Deploy*.
+2. El código lo publica Cloudflare solo, desde este repositorio, con cada push a `main` que
+   toque `puente/*` (ver `DESPLIEGUE.md`). Si el Worker todavía no está conectado al repo,
+   el camino a mano sigue sirviendo: *Edit code*, borra lo que trae y pega **todo**
+   `puente/worker.js`. *Deploy*.
 3. *Settings* → *Variables and Secrets*, y agrega estas cuatro. **Las tres primeras van como
    `Secret` (encriptado), no como `Text`:**
 
@@ -148,7 +151,7 @@ pendiente daría un contador que nunca baja, y un número que nunca baja se apre
 | «Notion no está respondiendo» (5xx) | Notion caído | Nada. Todo quedó en el teléfono y se manda al volver |
 | «Al puente le faltan sus secretos» (500) | Falta `NOTION_TOKEN` o `TOKENS` | Cloudflare → Settings → Variables |
 | El navegador dice CORS | Tu dominio no está en `ORIGENES` | Agrégalo, separado por comas, sin barra final |
-| «Esa fila cambió en Notion» | Alguien la editó al mismo tiempo | La pantalla de conflictos te enseña las dos y tú eliges |
+| «Esa fila cambió en Notion» | Alguien la editó al mismo tiempo | Hoy no puede pasar: la plataforma no manda `esperado` (ver `js/datos/puente.js`, cabecera) y un PATCH de Notion es por propiedad. El código del Worker que lo detecta queda reservado para cuando haga falta |
 | Notion rechaza el alta y nombra una propiedad | Falta crearla a mano en la base | Ajustes → *Revisar el esquema* → créala con ese nombre y ese tipo |
 | «Este teléfono no puede dar de alta la venta» | El token es de fabricación o de pagos | Se da de alta desde el de Dirección. Desde ese ya puedes mover la obra |
 
