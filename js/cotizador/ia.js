@@ -22,8 +22,8 @@ Analiza la imagen o PDF y DESGLOSA CADA ELEMENTO por separado en distintas parti
 === CÓMO DISTINGUIR tipos (LEE ESTO PRIMERO — ORDEN DE PRIORIDAD) ===
 - tipo "letras": ES EL TIPO POR DEFECTO. Texto, letras, iconos y logos con profundidad/volumen. Ante CUALQUIER DUDA entre letras y recorte, SIEMPRE elige letras. Es el tipo más común en todos los proyectos.
 - tipo "caja": cuando hay una SILUETA COMPLETA de logotipo, figura, mascota, animal o icono que funciona como una forma unica iluminada (no son letras individuales separadas). REGLA: si la imagen muestra un dibujo, figura o logo completo como silueta → SIEMPRE tipo "caja" con tarifa 4600 (tipo nube/silueta). Incluye ancho_cm y alto_cm.
-- tipo "recorte": ULTIMO RECURSO. Solo cuando el diseno especifica EXPLICITAMENTE que el elemento es plano/2D, sin profundidad, sin iluminacion interna. NUNCA uses recorte si tienes la minima duda — elige letras en su lugar.
-REGLA DE ORO: letras (default para todo texto e iconos) > caja (silueta o figura completa) > bastidor (panel de fondo) > recorte (solo si el cliente lo pide explicitamente, muy raro).
+- tipo "recorte": Dos casos, y solo dos. (a) OBLIGATORIO POR ALTURA: si el elemento mide MENOS DE 10 cm de alto, es recorte SIEMPRE, sin excepcion y aunque el plano diga "letras 3D", "cantos en aluminio" o "iluminado": a esa medida no hay volumen que fabricar, el taller lo corta plano en acrilico. (b) ULTIMO RECURSO: cuando el diseno especifica EXPLICITAMENTE que el elemento es plano/2D, sin profundidad y sin iluminacion interna. Fuera de esos dos casos NUNCA uses recorte si tienes la minima duda — elige letras en su lugar.
+REGLA DE ORO: letras (default para todo texto e iconos) > caja (silueta o figura completa) > bastidor (panel de fondo) > recorte (solo si el cliente lo pide explicitamente, muy raro). La regla de oro NO aplica por debajo de 10 cm de altura: ahi manda la regla de los 10 cm y el tipo es "recorte", venga de donde venga el elemento.
 
 === REGLA PRINCIPAL: DESGLOSA SIEMPRE ===
 NUNCA pongas un logotipo completo como una sola partida. Separa cada elemento:
@@ -32,6 +32,7 @@ NUNCA pongas un logotipo completo como una sola partida. Separa cada elemento:
 3. Si hay SLOGAN o texto secundario con diferente tamaño o tipografia → partida tipo "letras" SEPARADA.
 4. Si hay diferentes alturas en el mismo texto → crea una partida por cada grupo de altura distinta.
 5. Si hay diferentes materiales en el mismo diseno → una partida por material.
+6. PERO un bastidor o una caja de luz es UN elemento aunque lleve DOS cotas: su ancho y su alto van en la MISMA partida (ancho_cm y alto_cm), nunca en dos. Desglosar es separar elementos distintos, no partir un elemento por sus lados.
 
 Ejemplos de desglose correcto:
 - Logo "FARMACIA SAN JUAN" con cruz medica: → Partida 1: caja (cruz como silueta completa iluminada, tarifa 4600) + Partida 2: letras (FARMACIA = 8 letras) + Partida 3: letras (SANJUAN = 7 letras, si tienen altura diferente).
@@ -44,17 +45,19 @@ Ejemplos de desglose correcto:
 - n_letras para tipo "recorte": numero de piezas fisicas del elemento (icono, figura, silueta).
 - REGLA DE CORCHETES — PASO 1 OBLIGATORIO: Antes de generar el JSON, CUENTA cuantos corchetes, brackets o lineas de cota hay en la imagen. Ese numero exacto es la cantidad minima de partidas que debes generar. Anota internamente: "Veo N corchetes, debo crear N partidas".
 - REGLA DE CORCHETES — PASO 2: Aunque dos corchetes apunten a partes del mismo logotipo o elemento visual (por ejemplo: corchete de 92cm para las ondas Y corchete de 19cm para el circulo del mismo logo), CADA corchete con medida diferente = partida SEPARADA. Un logotipo con 2 corchetes = 2 partidas. NO los fusiones en una sola aunque sean del mismo logo.
-- REGLA DE CORCHETES — PASO 3: Verifica antes de responder que el numero de partidas en tu JSON coincide con el numero de corchetes que contaste. Si no coincide, agrega las partidas faltantes.
+- REGLA DE CORCHETES — LA UNICA EXCEPCION (EL PAR ANCHO + ALTO): un bastidor y una caja de luz NO se cobran por altura sino por AREA, asi que se acotan con DOS corchetes del MISMO elemento: uno horizontal (el ANCHO) y uno vertical (el ALTO). Ese par NO son dos partidas: es UNA SOLA partida con ancho_cm y alto_cm. Una caja de luz con un corchete de 200 cm horizontal y otro de 100 cm vertical = UNA partida tipo caja con ancho_cm=200 y alto_cm=100; NUNCA una partida de 200 y otra de 100. Al contar corchetes, cada par ancho+alto del mismo elemento cuenta como 1.
+- NUNCA devuelvas una partida de tipo bastidor o caja con una sola de las dos medidas. Si solo ves un corchete, busca el otro lado en la imagen; si de verdad no esta, deja el que falta en 0 y dilo en "notas" — pero no partas el elemento en dos partidas.
+- REGLA DE CORCHETES — PASO 3: Verifica antes de responder que el numero de partidas en tu JSON coincide con el numero de corchetes que contaste, contando cada par ancho+alto de un bastidor o una caja como uno solo. Si no coincide, agrega las partidas faltantes.
 - REGLA DE TEXTOS DESCRIPTIVOS: Los planos suelen tener bloques de texto con especificaciones (ej. "Letras Individuales 3D: Cara en Acrilico Blanco, Cantos en Aluminio Blanco"). Cada bloque de texto descriptivo aplica al elemento visual mas cercano o al que apunta. Cuando hay DOS bloques de texto distintos → son elementos distintos con especificaciones distintas. LEE y USA esos textos para rellenar material, tipo e iluminacion de CADA partida. NUNCA dejes una partida sin descripcion ni sin material si hay texto en la imagen que la describa.
 - REGLA ANTI-PARTIDA-VACIA: Una partida con todos los campos en 0 o vacios es invalida. Si creaste una partida para cumplir el conteo de corchetes pero no la llenaste, busca en la imagen el elemento visual y el texto descriptivo que corresponden a ese corchete y rellena todos sus campos.
-- altura_cm: el valor numerico que muestra el corchete apuntando a ese elemento. No importa si el corchete es vertical u horizontal: usa ese numero tal cual como centimetros. NUNCA ignores un corchete porque sea horizontal o apunte al ancho.
+- altura_cm: el valor numerico que muestra el corchete apuntando a ese elemento. En letras y recorte no importa si el corchete es vertical u horizontal: usa ese numero tal cual como centimetros. NUNCA ignores un corchete porque sea horizontal o apunte al ancho. En bastidor y caja SI importa: el corchete horizontal va en ancho_cm y el vertical en alto_cm, los dos en la MISMA partida (ver la excepcion del par ancho + alto).
 - Cuando hay MULTIPLES corchetes: asigna el valor de cada corchete al elemento al que apunta. NUNCA uses la misma medida para elementos distintos. NUNCA omitas un corchete.
 - Ejemplo para imagen con 2 bloques de texto + 3 corchetes (92cm ondas, 19cm circulo, 62cm letras): → Partida 1: ondas, acr-vinil, altura_cm=92, n_letras=4 (piezas de onda). Partida 2: circulo, acr-vinil, altura_cm=19, n_letras=1. Partida 3: letras "National", acr-vol, altura_cm=62, n_letras=8. TRES partidas completas, ninguna vacia.
 - Material de letras: al-paint=Aluminio pintado ($30/cm), al-brush=Aluminio brush cepillado ($35/cm), acr-vol=Acrilico+Aluminio con volumen ($40/cm), acr-vinil=Acrilico+Vinil ($45/cm), acero=Acero Inoxidable ($55/cm).
 - Deteccion de material por descripcion: "Cara en Acrilico" + "rotulacion de vinil" + "Cantos en Aluminio" → material="acr-vinil". "Cara en Acrilico" + "Cantos en Aluminio" sin vinil → material="acr-vol". "Cantos en Aluminio Blanco/Negro/Pintado" sin acrilico → material="al-paint". "Acero Inoxidable", "Inoxidable", "Inox", "Stainless" o "Acero Espejo" (en cantos o caras) → material="acero", tenga o no acrilico.
 - complejidad: recta (tipografia recta/imprenta), cursiva (manuscrita/script/italica), compleja (muy ornamentada o muy detallada).
 - iluminacion: true salvo que diga explicitamente "sin luz" o "sin iluminacion".
-- tipo "recorte": acabado sencillo=$20/cm, vinil=$25/cm, sandwich=$55/cm (+$5 si es compleja). Se cobra altura_cm x n_letras (piezas).
+- tipo "recorte": acabado sencillo=$20/cm, vinil=$25/cm, sandwich=$55/cm (+$5 si es compleja). Se cobra altura_cm x n_letras (piezas). Toda partida con altura_cm menor a 10 tiene que salir con tipo "recorte": revisalo antes de responder, elemento por elemento.
 - tipo "bastidor": bastidor lamina=$950/m2 o alucobond=$1500/m2. Incluye ancho_cm y alto_cm. Minimo 1 m2.
 - tipo "caja": tarifa 3900 (estandar) o 4600 (tipo nube/silueta). Incluye ancho_cm y alto_cm. Minimo 1 m2.
 - tipo "manual": para instalacion, viaticos, rotulacion vehicular u otros. Usa descripcion, piezas y precio_unitario solo si el precio aparece en el archivo.
@@ -80,7 +83,8 @@ PROCESO sin cotas: 1) Identifica el objeto de referencia mas obvio y claro en la
    cada elemento, de qué material y con cuántas letras—. */
 function promptMedidas(medidas){
   const n=medidas.length;
-  const lista=medidas.map((m,i)=>`${i+1}. ${scFmtCm(m.cm)} cm${m.label?' — '+m.label:''}`).join('\n');
+  const DIR={h:'horizontal (es un ANCHO)',v:'vertical (es un ALTO)'};
+  const lista=medidas.map((m,i)=>`${i+1}. ${scFmtCm(m.cm)} cm${DIR[m.dir]?' · '+DIR[m.dir]:''}${m.label?' — '+m.label:''}`).join('\n');
   return `
 
 === MEDIDAS YA CALIBRADAS — MANDAN SOBRE CUALQUIER ESTIMACION ===
@@ -93,13 +97,22 @@ ${lista}
 1. Usa EXACTAMENTE estos numeros. En las partidas de tipo letras y recorte van en
    altura_cm; en bastidor y caja, en el lado que corresponda (ancho_cm o alto_cm).
    No los redondees, no los cambies y no los sustituyas por una estimacion tuya.
-2. Genera una partida por cada medida de la lista y en el mismo orden:
-   ${n} medidas = ${n} partidas.
-3. El texto que acompaña a una medida lo escribio el vendedor sobre ese elemento:
+2. Genera una partida por cada medida de la lista y en el mismo orden —${n} medidas =
+   ${n} partidas— SALVO por el par ancho + alto de la regla 3, que es la unica excepcion.
+3. UNICA EXCEPCION a la regla 2 — EL PAR ANCHO + ALTO: cuando una medida horizontal
+   (ANCHO) y una vertical (ALTO) describen EL MISMO bastidor o LA MISMA caja de luz,
+   las dos van juntas en UNA SOLA partida: la horizontal en ancho_cm y la vertical en
+   alto_cm. Ese par cuenta como UNA partida, asi que salen menos partidas que medidas
+   y eso es CORRECTO. Ejemplo: medida 1 = 200 cm horizontal y medida 2 = 100 cm
+   vertical de la misma caja de luz -> UNA partida tipo caja con ancho_cm=200 y
+   alto_cm=100. NUNCA una partida de 200 y otra de 100.
+   Fuera de ese caso —dos alturas de letras, dos elementos distintos— sigue mandando
+   la regla 2: una partida por medida.
+4. El texto que acompaña a una medida lo escribio el vendedor sobre ese elemento:
    usalo para decidir el tipo de partida y para la descripcion.
-4. IGNORA por completo la seccion "CUANDO NO HAY CORCHETES NI COTAS": aqui si hay
+5. IGNORA por completo la seccion "CUANDO NO HAY CORCHETES NI COTAS": aqui si hay
    cotas y son fiables.
-5. Lo que si tienes que deducir de la imagen es QUE es cada elemento: tipo, material,
+6. Lo que si tienes que deducir de la imagen es QUE es cada elemento: tipo, material,
    complejidad, iluminacion y, en las de tipo letras, cuantas letras tiene el texto.`;
 }
 
@@ -846,14 +859,18 @@ async function aiAnalyze(){
     if(cambio) toast(`⚠️ ${aiEtq(cadena[0])} no respondió · lo resolvió ${aiEtq(usado)}`,'',5200);
     if(medidas){
       scMarcarMedidasUsadas();
-      /* Se le pidió una partida por medida, pero el modelo puede saltarse o juntar
-         elementos. Si las cuentas no cuadran conviene decirlo: quien midió sabe
-         cuántas cosas midió y es el único que puede notar la que falta. */
-      const dio=creadas;
-      toast(dio&&dio!==medidas
-        ? `⚠️ La IA devolvió ${dio} ${dio===1?'partida':'partidas'} para ${medidas} medidas — revisa cuál falta`
+      /* Se le pidió una partida por medida, pero el modelo puede saltarse elementos. Si
+         alguna medida se quedó sin partida conviene decirlo: quien midió sabe cuántas cosas
+         midió y es el único que puede notar la que falta.
+
+         Lo que se compara ya no son partidas contra medidas, sino MEDIDAS CUBIERTAS contra
+         medidas: desde que el ancho y el alto de una caja de luz caben en una sola partida,
+         menos partidas que medidas es el resultado correcto y no una advertencia. */
+      const faltan=Math.max(0,medidas-_aiCubiertas);
+      toast(faltan
+        ? `⚠️ La IA devolvió ${creadas} ${creadas===1?'partida':'partidas'} y ${faltan===1?'una medida se quedó':`${faltan} medidas se quedaron`} sin partida — revisa cuál falta`
         : `${medidas} ${medidas===1?'medida cotizada':'medidas cotizadas'} con IA (borrador)`,
-        dio&&dio!==medidas?'':'ok', dio&&dio!==medidas?6000:3200);
+        faltan?'':'ok', faltan?6000:3200);
     } else {
       toast('Cotización IA lista (borrador)','ok');
     }
@@ -888,6 +905,60 @@ async function aiAnalyze(){
    del total. */
 const aiTxt=v=>typeof v==='string'?v.trim():'';
 const aiNum=v=>{ const n=parseFloat(v); return Number.isFinite(n)&&n>0?n:0; };
+/* ----- Dos partidas que son un solo letrero -----
+   Un bastidor y una caja de luz se cobran por área, así que en el plano llevan dos cotas:
+   una horizontal —el ancho— y una vertical —el alto—. El modelo tiene una instrucción de
+   hierro que dice «cada corchete es una partida», y con ella una caja de luz de 2 × 1 m
+   volvía partida en dos: una de 200 cm de ancho sin alto y otra de 100 cm de alto sin
+   ancho. Las dos valen $0 —el área de cualquiera de ellas es cero— y la cotización enseña
+   dos letreros donde hay uno.
+
+   El prompt ya pide que ese par vaya junto. Esto lo junta pase lo que pase, que no es lo
+   mismo: el prompt es una petición a un modelo que puede tener un mal día, y de este lado
+   está la cotización que firma un cliente.
+
+   Se fusionan solo partidas SEGUIDAS, del MISMO tipo y con lados COMPLEMENTARIOS —una trae
+   el ancho y la otra el alto—, que es exactamente la forma que tiene un elemento partido en
+   dos. Dos cajas distintas, cada una con un solo lado, también caerían aquí; pero esas dos
+   partidas ya venían rotas —a las dos les falta la mitad de su medida y las dos valen $0—,
+   así que una caja completa con las dos medidas a la vista es mejor punto de partida que
+   dos mitades en cero, y corregirla es cambiar un número. */
+function fusionarParesDeArea(items){
+  const media=it=>(it.tipo==='bastidor'||it.tipo==='caja')&&((it.ancho>0)!==(it.alto>0));
+  let fusionadas=0;
+  /* De arriba hacia abajo, que es el orden en el que el modelo las escribió: para un
+     letrero manda el ancho y luego el alto, así que la primera de cada dos es la que se
+     queda. Con un número impar de mitades —tres cotas de área en la respuesta— la que sobra
+     es la última y no la primera, que es donde quien revisa la va a buscar.
+
+     La segunda se vacía dentro de la primera y se quita de la lista; al avanzar el índice
+     se cae justo en la siguiente pareja, y la ya completa no vuelve a entrar porque deja de
+     tener «media medida». */
+  for(let i=0;i<items.length-1;i++){
+    const a=items[i], b=items[i+1];
+    if(!media(a)||!media(b)||a.tipo!==b.tipo) continue;
+    if((a.ancho>0)===(b.ancho>0)) continue;   // las dos traen el mismo lado: no son un par
+    a.ancho=a.ancho||b.ancho;
+    a.alto =a.alto ||b.alto;
+    /* Lo que decía la segunda y a la primera le faltaba: el tipo de caja, el material del
+       bastidor y la descripción, que a veces es la única que nombra el elemento. */
+    if(!a.tarifa&&b.tarifa) a.tarifa=b.tarifa;
+    if(a.tipo==='bastidor'&&!basOf(a.bas)&&basOf(b.bas)) a.bas=b.bas;
+    if(!(a.desc||'').trim()&&(b.desc||'').trim()){ a.desc=b.desc; a.descAi=b.descAi; }
+    items.splice(i+1,1);
+    fusionadas++;
+  }
+  return fusionadas;
+}
+/* ----- Cuántas de las medidas enviadas quedan explicadas -----
+   El escalador manda N medidas y después se comprueba que vuelvan N partidas, para poder
+   avisar de la que falta. Con el par ancho + alto esa cuenta dejó de ser N a N: una partida
+   de área con sus dos lados puestos explica DOS medidas, y sin esto el aviso de «devolvió 1
+   partida para 2 medidas» saltaba justo cuando el modelo acertó. */
+let _aiCubiertas=0;
+function medidasCubiertas(items){
+  return items.reduce((s,it)=>s+((((it.tipo==='bastidor')||(it.tipo==='caja'))&&it.ancho>0&&it.alto>0)?2:1),0);
+}
 /* Excepción deliberada a «ninguna puerta abierta»: aquí NO se vuelve a preguntar por los
    datos del cliente. `aiOpen` ya los pidió al abrir el modal; la escritura ocurre medio
    minuto después, cuando el análisis ya se pagó y ya terminó, y frenarlo aquí lo tiraría a
@@ -898,6 +969,7 @@ const aiNum=v=>{ const n=parseFloat(v); return Number.isFinite(n)&&n>0?n:0; };
    se vuelve a cerrar sobre ellas si de verdad falta algo. No se pierde nada. */
 function applyAi(p){
   if(!p||typeof p!=='object') return 0;
+  _aiCubiertas=0;
   if(locked()) return 0;
   p.proyecto=aiTxt(p.proyecto); p.cliente=aiTxt(p.cliente); p.direccion=aiTxt(p.direccion);
   if(p.proyecto){ Q.proy=p.proyecto; if($('f-proy')) $('f-proy').value=p.proyecto; }
@@ -929,14 +1001,29 @@ function applyAi(p){
       } else if(it.tipo==='bastidor'){
         it.bas=['lamina','alucobond'].includes(x.bastidor)?x.bastidor:'lamina';
         it.ancho=aiNum(x.ancho_cm); it.alto=aiNum(x.alto_cm);
+        it.alto=it.alto||aiNum(x.altura_cm);
       } else if(it.tipo==='caja'){
         it.tarifa=aiNum(x.tarifa)||3900; it.ancho=aiNum(x.ancho_cm); it.alto=aiNum(x.alto_cm);
+        /* El alto de un elemento de área puede llegar en `altura_cm`: el prompt pide
+           ancho_cm y alto_cm, pero cuando el modelo ve un solo corchete escribe el número
+           en el campo de altura, que es el que usa en las otras tres cuartas partes de las
+           partidas. Se leía como cero y la medida se perdía —una caja sin alto vale $0—,
+           así que se recoge de ahí, y solo si el alto venía vacío. */
+        it.alto=it.alto||aiNum(x.altura_cm);
       } else {
         it.pz=Math.round(aiNum(x.piezas))||1; it.pu=aiNum(x.precio_unitario);
         if(!it.desc) it.desc=aiTxt(x.notas);
       }
+      /* La regla de los 10 cm se aplica AQUÍ y no solo en el prompt: el prompt es una
+         petición y esto es la regla. Un modelo que devuelve letras de 6 cm —porque el plano
+         dice «letras 3D» y él le hace caso— dejaría una partida imposible de fabricar
+         cotizada al catálogo equivocado. Ver ALTURA_MIN_LETRAS en catalogo.js. */
+      forzarRecortePorAltura(it);
       nuevos.push(it);
     });
+    /* Y lo mismo con el par ancho + alto: el prompt lo pide junto y esto lo junta. */
+    fusionarParesDeArea(nuevos);
+    _aiCubiertas=medidasCubiertas(nuevos);
     const conservadas=aiMerge?Q.items.filter(it=>!itemVacio(it)):[];
     Q.items=conservadas.concat(nuevos);
     // La cotización vuelve a borrador: cualquier precio autorizado antes ya no aplica

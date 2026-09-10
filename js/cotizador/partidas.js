@@ -283,8 +283,50 @@ function saneaNum(el,id,k,paso){
   const n=(v>0)?(paso?Math.round(v/paso)*paso:v):0;
   el.value=n||'';
   typeItem(id,k,n);
+  /* La regla de los 10 cm se aplica al SOLTAR el campo y no en cada tecla, y es lo que la
+     hace usable: tecleando «45» el primer dígito es un 4, y convertir ahí dejaría la partida
+     en recorte —con el material borrado de la pantalla— antes de que nadie haya terminado de
+     escribir la altura que quería. `blur` siempre corre, igual que para el saneo de arriba. */
+  if(k==='altura') revisarAlturaMinima(id);
 }
-function setTipo(id,t){ if(capturaBloqueada())return; const it=Q.items.find(x=>x.id===id); if(!it)return; it.tipo=t; renderItems(); }
+/* ----- La regla de los 10 cm, aplicada sobre una partida -----
+   Devuelve true si la convirtió. Lo devuelve porque una partida que cambia de tipo sola y
+   sin decirlo es una partida que quien cotiza ya no reconoce: cada camino que llama aquí
+   —la captura a mano, la IA, el escalador y el vectorizador— lo anuncia con sus palabras.
+
+   Convierte y NO borra: material, complejidad e iluminación se quedan escritos en la
+   partida, así que subir la altura por encima de los 10 cm y volver a «Letras 3D» devuelve
+   exactamente lo que había. El acabado del recorte sí se deja sin elegir —y con eso la
+   partida entra en ámbar y en el aviso de partidas sin terminar—, porque es el campo que
+   pone el precio y la app no lo supone. */
+function forzarRecortePorAltura(it){
+  if(!it||it.tipo!=='letras'||!alturaDeRecorte(it.altura)) return false;
+  it.tipo='recorte';
+  if(!recOf(it.acab)) it.acab='';
+  return true;
+}
+/* La conversión con su repintado y su aviso, para los caminos que escriben una altura y
+   siguen en la misma pantalla. Los que crean la partida desde un modal —escalador,
+   vectorizador, IA— llaman a forzarRecortePorAltura y lo cuentan en su propio aviso. */
+function revisarAlturaMinima(id){
+  const it=Q.items.find(x=>x.id===id);
+  if(!forzarRecortePorAltura(it)) return;
+  renderItems();
+  toast(`${it.altura} cm: por debajo de ${ALTURA_MIN_LETRAS} cm no se fabrica en 3D — la partida pasó a recorte de acrílico. Falta elegir el acabado.`,'',6400);
+  voz('La partida pasó a recorte de acrílico: mide menos de '+ALTURA_MIN_LETRAS+' centímetros');
+}
+function setTipo(id,t){
+  if(capturaBloqueada())return;
+  const it=Q.items.find(x=>x.id===id); if(!it)return;
+  /* La única puerta que quedaba abierta para saltarse la regla: capturar la altura y
+     después tocar «Letras 3D». Se dice por qué y qué hacer para poder elegirlo, porque un
+     botón que no responde y no explica se lee como una app rota. */
+  if(t==='letras'&&alturaDeRecorte(it.altura)){
+    toast(`${it.altura} cm no se fabrica en 3D: por debajo de ${ALTURA_MIN_LETRAS} cm va como recorte de acrílico. Sube la altura para poder cotizarla como letras.`,'err',6400);
+    return;
+  }
+  it.tipo=t; renderItems();
+}
 function dupItem(id){
   if(locked())return;
   if(!exigirDatosParaPartidas()) return;
@@ -955,7 +997,13 @@ function bodyFor(it){
     const recChips=RECORTES.map(r=>chip(it.acab===r.key,`setItem(${it.id},'acab','${r.key}')`,r.label,'$'+r.precio)).join('');
     /* Los tres precios ya van en los chips; repetirlos en una lista era decir dos veces lo
        mismo dentro del mismo recuadro. Lo único que los chips no dicen es CÓMO se cobra. */
-    const hint='<div class="hintnote">Por cm de altura × pieza</div>';
+    /* Y cuando el tipo lo puso la regla de los 10 cm, se dice aquí: es la respuesta a
+       «¿por qué esta partida es un recorte si yo pedí letras?», y está donde se pregunta.
+       Se deduce de la altura y no de una bandera guardada: subir la altura y quedarse en
+       recorte es una decisión legítima, y una bandera vieja seguiría explicando algo que
+       ya no manda. */
+    const hint='<div class="hintnote">Por cm de altura × pieza</div>'
+      +(alturaDeRecorte(it.altura)?`<div class="hintnote nota-av"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> ${it.altura} cm: por debajo de ${ALTURA_MIN_LETRAS} cm no hay letra 3D que fabricar — a esta altura el taller la corta en acrílico.</div>`:'');
     const compRow = it.acab==='sandwich'
       ? grupo('Complejidad',it.recComp?'Con complejidad +$5/cm':'Sencilla',
           `<button type="button" class="switch" role="switch" data-foco="reccomp-${it.id}" aria-checked="${it.recComp?'true':'false'}" style="margin:0" ${capturaBloqueada()?'disabled':`onclick="setItem(${it.id},'recComp',${!it.recComp})"`}><span class="tg ${it.recComp?'on':''}" aria-hidden="true"></span> Con complejidad (+$5/cm)</button>`)
