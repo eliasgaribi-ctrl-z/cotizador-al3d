@@ -3838,3 +3838,9 @@ html.pliegue-h .sp-hint-bar{padding-bottom:10px}
    «Restaur»—: a 344 px le tocan 59 px a cada uno y la palabra no cabe. En dos renglones de dos
    caben con su palabra y con sus 44 px de alto. */
 @media(max-width:385px){ .hist-foot button{flex:1 1 calc(50% - 4px)} }
+
+/* El bloque de 385 px de arriba manda el selector de rol a su propio renglón —«se elige una vez y
+   no se vuelve a tocar en semanas»— pero perdía por orden contra el bloque de 560 (order:3), que
+   viene después en la hoja: en la portada del Fold el selector se quedaba en el primer renglón y el
+   icono de Historial caía solo a un segundo renglón de 50 px. Repetido aquí, al cierre, gana. */
+@media(max-width:385px){ .topbar-in .seg{order:6;flex:1 1 100%} }
