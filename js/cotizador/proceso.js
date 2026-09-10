@@ -342,10 +342,32 @@ function partidasSinTerminar(){
     .map((it,i)=>({n:i+1,it,faltan:faltantesDe(it),vacia:itemVacio(it)}))
     .filter(x=>x.faltan.length);
 }
+/* ----- El último filtro de la regla de los 10 cm -----
+   La regla se aplica en los cuatro sitios donde entra una altura, y aun así hacía falta un
+   colador al final: deshacer con Ctrl+Z devuelve —con razón, restituir no es capturar— unas
+   letras de 6 cm tal como estaban antes de convertirse, y una cotización vieja del historial
+   se puede abrir y editar sin volver a tocar el campo de la altura. Cualquiera de las dos
+   llega a autorización cotizada al catálogo equivocado y prometiendo algo que el taller no
+   fabrica; aquí no pasa.
+
+   Solo con la cotización abierta. Con el candado puesto se está DECIDIENDO el precio, y
+   cambiarle el tipo a una partida por debajo del autorizador —que ya vio un total y a lo
+   mejor ya lo ajustó— sería peor que el problema: para entonces ya pasó por aquí una vez, al
+   solicitarla. Las convertidas caen enseguida en la lista de partidas sin terminar, que es
+   donde tienen que caer: les falta el acabado. */
+function revisarAlturasMinimas(){
+  if(locked()) return 0;
+  const n=Q.items.filter(it=>forzarRecortePorAltura(it)).length;
+  if(!n) return 0;
+  renderItems();
+  toast(`${n===1?'Una partida medía':n+' partidas medían'} menos de ${ALTURA_MIN_LETRAS} cm: no se ${n===1?'fabrica':'fabrican'} en 3D y ${n===1?'pasó':'pasaron'} a recorte de acrílico. Falta elegir el acabado.`,'',7000);
+  return n;
+}
 let _faltSeguir=null;
 /* Corre `accion` salvo que haya partidas sin terminar; si las hay, las enseña primero.
    `etiqueta` es lo que dirá el botón de continuar de todos modos. */
 function revisarAntesDe(accion,etiqueta){
+  revisarAlturasMinimas();
   const pend=partidasSinTerminar();
   if(!pend.length){ accion(); return; }
   _faltSeguir=accion;

@@ -3358,6 +3358,12 @@ details.ai-cfg summary:hover{color:var(--tinta)}
 }
 .sp-mitem-add:hover{background:var(--a-suave)}
 .sp-mitem-add.done{background:var(--ok-bg);border-color:var(--ok-borde);color:var(--ok);font-weight:500}
+/* Y el de unir dos medidas en una sola partida de ancho × alto, que aparece bajo el
+   anterior cuando el trazo dice que son el ancho y el alto de lo mismo. Va neutro y con el
+   borde punteado: la salida de siempre es la de arriba y ésta es la del caso —un bastidor,
+   una caja de luz—, así que se ofrece sin competirle. */
+.sp-mitem-add.par{border-style:dashed;border-color:var(--linea);color:var(--tinta2);font-weight:500;margin-top:5px}
+.sp-mitem-add.par:hover{background:var(--sup2);border-color:var(--a-borde);color:var(--tinta)}
 /* La barra de herramientas de los dos aparatos: el mismo botón neutro de la app, y el activo
    con el relleno del acento porque ahí sí es una selección —qué se está midiendo, qué vista
    del vector se está viendo—. */

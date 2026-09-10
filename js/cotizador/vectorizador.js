@@ -1220,8 +1220,16 @@ function vtUsarComoPartidas(){
      partir de una corazonada del programa. La altura y el conteo no son corazonada: se
      midieron contra una referencia real y se ven en pantalla. */
   it.tipo='letras'; it.altura=alto; it.n=n;
+  /* Un trazo de menos de 10 cm no son letras 3D: el taller lo corta plano en acrílico. La
+     medida salió del propio vector, calibrada, así que aquí la regla no supone nada — solo
+     nombra bien lo que se acaba de medir. Ver ALTURA_MIN_LETRAS en catalogo.js. */
+  const recorte=forzarRecortePorAltura(it);
   it.desc='Vectorizado del logotipo — '+VT.anchoCm.toFixed(0)+' × '+alto+' cm, '+n+(n===1?' pieza':' piezas');
   renderItems();
-  toast('Partida agregada · '+alto+' cm × '+n+(n===1?' letra':' letras')+
-        ' — falta elegir material y complejidad','ok',6000,{label:'Ir al cotizador',fn:cerrarVector});
+  toast(recorte
+        ? 'Recorte de acrílico agregado · '+alto+' cm × '+n+(n===1?' pieza':' piezas')+
+          ' — por debajo de '+ALTURA_MIN_LETRAS+' cm no se fabrica en 3D. Falta elegir el acabado.'
+        : 'Partida agregada · '+alto+' cm × '+n+(n===1?' letra':' letras')+
+          ' — falta elegir material y complejidad',
+        'ok',6000,{label:'Ir al cotizador',fn:cerrarVector});
 }

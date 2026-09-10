@@ -1437,6 +1437,9 @@ function scUpdateList(){
     $('sc-btn-export').disabled=true;return;
   }
   SC.items.forEach((m,i)=>{
+    /* La pareja de área —la medida de arriba, si es la otra dirección y ninguna se ha
+       usado— decide si este renglón enseña el segundo botón. Ver scParDeArea. */
+    const par=scParDeArea(i);
     const el=document.createElement('div');
     el.className='sp-mitem'+(m.id===SC.sel?' sel':'');
     el.style.borderLeftColor=m.color;
@@ -1449,6 +1452,8 @@ function scUpdateList(){
           onclick="event.stopPropagation()" oninput="scSetLabel(${m.id},this.value)">
         <button class="sp-mitem-add${m.usada?' done':''}"
           onclick="event.stopPropagation();scUsarMedida(${m.id})" aria-label="${m.usada?'Agregada · agregar otra vez':'Agregar como partida'} — medida ${i+1} de ${scFmtCm(m.cm)} cm">${m.usada?'<svg class=\'svgi\' aria-hidden=\'true\'><use href=\'#i-check\'/></svg> Agregada · agregar otra vez':'→ Agregar como partida'}</button>
+        ${par?`<button class="sp-mitem-add par"
+          onclick="event.stopPropagation();scUsarPar(${m.id})" aria-label="Unir con la medida ${i} de ${scFmtCm(par.cm)} cm en una sola partida de ancho por alto">${ico('i-ajustar')} Ancho × alto con la ${i}</button>`:''}
       </div>
       <div class="sp-mitem-actions">
         <button class="sp-ibtn" onclick="event.stopPropagation();scDelMedida(${m.id})" title="Eliminar medida ${i+1}" aria-label="Eliminar medida ${i+1}">×</button>
@@ -1503,8 +1508,63 @@ function scAgregarPartida(m){
   it.medidaTipo=m.type||'';
   if(m.type==='h') it.anchoMedido=m.cm;
   if(m.label){ it.desc=m.label; }
+  /* Menos de 10 cm no son letras 3D: son un recorte de acrílico. La medida está calibrada
+     contra una referencia real, así que la regla no supone nada aquí — dice de qué es la
+     partida que acaba de nacer. Ver ALTURA_MIN_LETRAS en catalogo.js. */
+  m.recorte=forzarRecortePorAltura(it);
   m.usada=true;
   return h;
+}
+/* ----- Dos medidas, UNA partida: el ancho y el alto del mismo letrero -----
+   Un bastidor y una caja de luz no se cobran por altura sino por área, así que se acotan
+   con DOS medidas —una horizontal y una vertical— del mismo elemento. Bajándolas una por
+   una salían dos partidas de 200 y de 100 cm, cada una sin la mitad de sus datos y las dos
+   en $0: la cotización decía dos letreros donde hay uno.
+
+   Es explícito y no adivinado, y por eso el botón solo aparece cuando el propio trazo lo
+   dice: una medida horizontal y una vertical seguidas, ninguna usada todavía. Con dos
+   anchos y dos altos en la misma foto, cuál va con cuál lo sabe quien midió, no la app.
+
+   El TIPO se deja en caja de luz y sin tarifa: caja y bastidor comparten los mismos dos
+   campos, cambiar de uno a otro es un toque en el selector, y ninguno de los dos entra con
+   precio puesto —«Falta tipo de caja» sale en ámbar hasta que alguien lo elija. */
+function scAgregarParArea(a,b){
+  const anchoM=a.type==='h'?a:b, altoM=a.type==='v'?a:b;
+  const it=addItem({enfocar:false});
+  if(!it) return null;
+  /* A un decimal, que es justo lo que enseña la lista de medidas: la partida dice el mismo
+     número que se leyó al trazarla. No se redondea al medio centímetro como la altura,
+     porque los campos de ancho y alto no lo hacen en ningún otro camino de la app. */
+  const cm=v=>Math.max(0.1,Math.round(v*10)/10);
+  it.tipo='caja'; it.tarifa=0;
+  it.ancho=cm(anchoM.cm); it.alto=cm(altoM.cm);
+  const et=[anchoM.label,altoM.label].map(x=>(x||'').trim()).filter(Boolean);
+  if(et.length) it.desc=et[0]===et[1]?et[0]:et.join(' · ');
+  anchoM.usada=true; altoM.usada=true;
+  return it;
+}
+/* ¿Esta medida y la anterior son el ancho y el alto de lo mismo? Solo se ofrece cuando las
+   dos se trazaron en un modo con dirección —Horizontal y Vertical, elegidos a propósito—,
+   son de direcciones distintas y ninguna se ha bajado todavía. En modo Libre no se pregunta
+   nada: ahí el trazo no dice si mide un ancho o un alto. */
+function scParDeArea(i){
+  const m=SC.items[i], p=SC.items[i-1];
+  if(!m||!p||m.usada||p.usada) return null;
+  const dir=x=>x==='h'||x==='v';
+  if(!dir(m.type)||!dir(p.type)||m.type===p.type) return null;
+  return p;
+}
+function scUsarPar(id){
+  if(locked()){toast('La cotización está bloqueada','err');return;}
+  if(!exigirDatosDesdeModal(cerrarScaler))return;
+  const i=SC.items.findIndex(x=>x.id===id);
+  const p=i<0?null:scParDeArea(i);
+  if(!p){ toast('Esas dos medidas ya no se pueden unir','err',3200); return; }
+  const it=scAgregarParArea(SC.items[i],p);
+  if(!it) return;
+  renderItems();
+  scUpdateList();
+  toast(`Caja de luz de ${it.ancho} × ${it.alto} cm agregada — si es un bastidor cámbialo en el tipo de la partida, y elige la tarifa`,'ok',6400,{label:'Ir al cotizador',fn:cerrarScaler});
 }
 function scUsarMedida(id){
   const m=SC.items.find(x=>x.id===id);if(!m)return;
@@ -1522,9 +1582,14 @@ function scUsarMedida(id){
   // El aviso lleva la salida al cotizador: es justo lo que se quiere hacer después de
   // agregar y en el celular ahorra buscar el botón.
   if(m.cm<0.5){toast('Esa medida da menos de medio centímetro — se agregó con 0.5 cm, revisa la calibración de escala','err',5000);}
+  /* Si la regla de los 10 cm la convirtió se dice aquí y no en el cotizador: el escalador
+     sigue encima, y quien acaba de bajar la medida tiene que enterarse de que lo que agregó
+     no es una partida de letras. */
+  else if(m.recorte) toast(`Recorte de acrílico de ${h} cm agregado — por debajo de ${ALTURA_MIN_LETRAS} cm no se fabrica en 3D. Falta elegir el acabado.`,'ok',6400,{label:'Ir al cotizador',fn:cerrarScaler});
   /* «Falta el material» y no «sigue midiendo»: la partida que acaba de nacer trae su altura y
      nada más, y el material es el dato que multiplica el precio. El aviso lo dice con el mismo
-     criterio con el que la partida se pinta en ámbar por dentro. */
+     criterio con el que la partida se pinta en ámbar por dentro. En un recorte el hueco es el
+     acabado, no el material, y por eso el aviso de arriba nombra otro. */
   else toast(`Partida con altura ${h} cm agregada — falta elegir el material`,'ok',4200,{label:'Ir al cotizador',fn:cerrarScaler});
 }
 function scUsarTodas(){
@@ -1541,8 +1606,13 @@ function scUsarTodas(){
      multiplica el precio y sobre la calibración, así que quien lo leyera se iba a buscar una
      altura de 1 cm que no existe. La frase buena ya estaba escrita dos renglones arriba, en
      el camino de una sola medida. */
+  /* Las que la regla de los 10 cm convirtió se cuentan y se dicen: sin esto, «5 partidas
+     agregadas — falta elegir el material» mandaba a buscar un material que dos de ellas ya
+     no tienen, y el cambio de tipo se descubría al abrirlas una por una. */
+  const recortes=pend.filter(m=>m.recorte).length;
+  const nota=recortes?` · ${recortes} ${recortes===1?'quedó':'quedaron'} como recorte de acrílico por medir menos de ${ALTURA_MIN_LETRAS} cm`:'';
   if(cortas){toast(`${cortas} ${cortas===1?'medida da':'medidas dan'} menos de medio centímetro — se ${cortas===1?'agregó':'agregaron'} con 0.5 cm, revisa la calibración de escala`,'err',5600);}
-  else toast(`${pend.length} ${pend.length===1?'partida agregada':'partidas agregadas'} — falta elegir el material en ${pend.length===1?'ella':'ellas'}`,'ok',4200,{label:'Ir al cotizador',fn:cerrarScaler});
+  else toast(`${pend.length} ${pend.length===1?'partida agregada':'partidas agregadas'}${nota} — falta elegir ${recortes?'el material o el acabado':'el material'} en ${pend.length===1?'ella':'ellas'}`,'ok',recortes?6400:4200,{label:'Ir al cotizador',fn:cerrarScaler});
 }
 /* ===================== Del escalador a la IA =====================
    Eran dos caminos sueltos que resolvían mitades distintas del mismo problema: el
@@ -1580,7 +1650,13 @@ function scCotizarConIA(){
     origen:'escalador',
     mime:'image/jpeg',
     url:scImagenParaIA(),
-    medidas:SC.items.map(m=>({cm:m.cm,label:(m.label||'').trim()})),
+    /* La DIRECCIÓN del trazo viaja con la medida desde que se pide la cotización con IA.
+       El escalador siempre la supo —está en m.type desde que se dibujó la cota— y se
+       quedaba aquí: sin ella, dos cotas de una caja de luz llegaban al modelo como «200 cm»
+       y «100 cm» sueltos, imposibles de reconocer como el ancho y el alto del mismo
+       letrero, y volvían convertidas en dos partidas. Con ella, el prompt puede pedir que
+       ese par vaya en UNA sola partida, con ancho_cm y alto_cm. */
+    medidas:SC.items.map(m=>({cm:m.cm,label:(m.label||'').trim(),dir:m.type||''})),
   };
   // El mismo botón vive en el escalador y en la vista previa del cotizador: solo hay
   // que cerrar el modal —y devolver su entrada de historial— si está abierto.

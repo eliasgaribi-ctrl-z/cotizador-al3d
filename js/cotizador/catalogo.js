@@ -37,6 +37,19 @@ const RECORTES = [
   {key:'sandwich', label:'Tipo sándwich c/iluminación', precio:55},
 ];
 const RECORTE_COMP_EXTRA = 5; // complejidad opcional, solo para tipo sándwich
+/* ----- Menos de 10 cm no son letras 3D: son recorte de acrílico -----
+   Una letra de menos de 10 cm no se fabrica con volumen. No hay canto que doblar, no cabe
+   el LED dentro y la cara no se sostiene sobre un costado de esa medida: el taller la corta
+   plana en acrílico. Así que a esa altura la partida no es «letras 3D» barata, es otro
+   producto, con otro catálogo y otro precio.
+
+   Es una regla de fabricación y no una preferencia de quien captura, así que la app la
+   aplica sola cada vez que una altura entra en una partida —a mano, desde la IA, desde el
+   escalador y desde el vectorizador— y «Letras 3D» se niega mientras la altura mida menos.
+   Lo que NO se elige de oficio es el acabado del recorte: $20, $25 o $55 el centímetro es
+   dinero, y el dinero lo decide una persona. */
+const ALTURA_MIN_LETRAS = 10;
+const alturaDeRecorte = h => { const v = +h || 0; return v > 0 && v < ALTURA_MIN_LETRAS; };
 /* Bastidores: precio por metro cuadrado */
 const BASTIDORES = [
   {key:'lamina',    label:'Lámina',    tarifa:950},
