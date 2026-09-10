@@ -3833,3 +3833,8 @@ html.pliegue-h .sp-hint-bar{padding-bottom:10px}
   html.pliegue-v .modal-bg:has(>.modal) .modal{max-width:min(460px,calc(var(--pliegue-a) - 36px))}
   html.pliegue-v .modal-bg:has(>.modal){justify-content:flex-start;padding-left:max(18px,calc((var(--pliegue-a) - min(460px,calc(var(--pliegue-a) - 36px))) / 2))}
 }
+
+/* En la portada del Fold los cuatro botones del pie del historial se recortaban —«Respald»,
+   «Restaur»—: a 344 px le tocan 59 px a cada uno y la palabra no cabe. En dos renglones de dos
+   caben con su palabra y con sus 44 px de alto. */
+@media(max-width:385px){ .hist-foot button{flex:1 1 calc(50% - 4px)} }
