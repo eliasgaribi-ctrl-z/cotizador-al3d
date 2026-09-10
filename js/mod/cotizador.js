@@ -39,13 +39,15 @@
    acepta a cambio de que el flujo sea uno, y el marco se destruye al cambiar de pestaña.
    ============================================================================ */
 
-import { $, ico, esc, vacio, toast, ajustarAltoBarra, insetInferior } from '../nucleo/ui.js';
+import { $, ico, esc, vacio, toast, ajustarAltoBarra, insetInferior, altoBarraAbajo, pliegueDelVisor } from '../nucleo/ui.js';
 
 let _cont = null;
 let _ctx = null;
 let _raf = 0;
 let _reloj = null;
 let _oyeMensaje = null;
+let _consultas = [];     // las matchMedia del pliegue, para soltarlas al desmontar
+let _ultimoPliegue = '';  // lo último que se le mandó al marco, para no repetirlo
 
 /* ============================================================================
    Montar y desmontar
@@ -79,6 +81,11 @@ export async function montar(contenedor, ctx) {
 
   const m = $('pf-cot-marco');
   if (!m) return;
+
+  /* Con el marco montado, la página de afuera no reserva hueco debajo: el marco ya termina
+     encima de la barra de módulos (lo mide `medir`) y el hueco solo daba scroll a una franja
+     vacía. css/plataforma.css lee esta clase. */
+  document.body.classList.add('pf-marco-lleno');
 
   /* ----- Salida de emergencia, y por qué NO se espera el evento `load` -----
      El primer intento gateaba la salud del marco en su `load`. Está mal, y falla justo
@@ -122,6 +129,13 @@ export async function montar(contenedor, ctx) {
   /* El teclado del teléfono encoge el visor pero NO la caja del marco: sin este oyente, los
      modales altos del cotizador —que miden con 100dvh— quedan tapados por el teclado. */
   if (window.visualViewport) window.visualViewport.addEventListener('resize', medir);
+  /* El Fold a medio doblar: la bisagra se mueve respecto del marco cuando la página de afuera
+     se desplaza, y aparece o desaparece cuando cambia la postura sin que cambie el tamaño del
+     visor —así que `resize` no basta—. */
+  window.addEventListener('scroll', medir, { passive: true });
+  _consultas = ['(horizontal-viewport-segments: 2)', '(vertical-viewport-segments: 2)', '(device-posture: folded)']
+    .map(q => { try { const mq = matchMedia(q); mq.addEventListener('change', medir); return mq; } catch (_) { return null; } })
+    .filter(Boolean);
 
   _oyeMensaje = ev => alMensaje(ev, m);
   window.addEventListener('message', _oyeMensaje);
@@ -135,8 +149,12 @@ export function desmontar() {
   if (_reloj) { clearTimeout(_reloj); _reloj = null; }
   if (_raf) { cancelAnimationFrame(_raf); _raf = 0; }
   window.removeEventListener('resize', medir);
+  window.removeEventListener('scroll', medir);
+  for (const mq of _consultas) { try { mq.removeEventListener('change', medir); } catch (_) {} }
+  _consultas = []; _ultimoPliegue = '';
   if (window.visualViewport) window.visualViewport.removeEventListener('resize', medir);
   if (_oyeMensaje) { window.removeEventListener('message', _oyeMensaje); _oyeMensaje = null; }
+  document.body.classList.remove('pf-marco-lleno');
   if (_ctx && _ctx.sinRemonte) _ctx.sinRemonte(false);
   _cont = null; _ctx = null;
   /* El marco se destruye porque el router vacía el contenedor, y ESO ESTÁ BIEN: reparentar un
@@ -163,12 +181,44 @@ function medir() {
     const m = $('pf-cot-marco'); if (!m) return;
     const vv = window.visualViewport;
     const alto = vv ? vv.height : window.innerHeight;
-    const arriba = m.getBoundingClientRect().top;
-    /* El piso de 360 px es para que un teclado abierto no deje el marco en veinte píxeles
+    const caja = m.getBoundingClientRect();
+    const arriba = caja.top;
+    /* El marco termina donde EMPIEZA la barra de módulos del teléfono, no donde termina el
+       visor. Medido en el Fold cerrado emulado antes de esto: el marco llegaba hasta el borde
+       de abajo, y la barra fija del cotizador —el total y «Continuar a partidas» / «Autorizar»—
+       quedaba 58 de sus 64 px debajo de la barra de módulos de la plataforma. Solo aparecía
+       si se desplazaba la página de afuera hasta el fondo, cosa que nadie sabe que hay que
+       hacer. La barra de módulos ya lleva dentro el área segura; donde no hay barra —la
+       pantalla grande— se resta el área segura a secas, como antes.
+
+       El piso de 360 px es para que un teclado abierto no deje el marco en veinte píxeles
        justo mientras alguien escribe dentro de él. */
-    const h = Math.max(360, Math.round(alto - arriba - insetInferior() - 8));
+    const abajo = altoBarraAbajo();
+    const h = Math.max(360, Math.round(alto - arriba - (abajo || (insetInferior() + 8))));
     document.documentElement.style.setProperty('--pf-marco-h', h + 'px');
+    avisarPliegue(m, caja);
   });
+}
+
+/* ----- El Fold a medio doblar, visto desde el marco -----
+   Dentro de un <iframe> los segmentos del visor describen el iframe, no la pantalla, así que
+   la bisagra la mide el padre y se la manda al cotizador ya en SUS coordenadas: restada la
+   posición del marco. El cotizador la publica en <html> (ajustarPliegue, nucleo.js) y el CSS
+   acomoda el escalador y el vectorizador para que la bisagra no parta la foto. Se manda solo
+   cuando cambia: `medir` corre en cada scroll. */
+function avisarPliegue(m, caja) {
+  let p = null;
+  try {
+    const v = pliegueDelVisor();
+    if (v) {
+      const off = v.tipo === 'v' ? caja.left : caja.top;
+      p = { tipo: v.tipo, a: Math.round(v.a - off), b: Math.round(v.b - off) };
+    }
+  } catch (_) { p = null; }
+  const firma = JSON.stringify(p);
+  if (firma === _ultimoPliegue) return;
+  _ultimoPliegue = firma;
+  try { if (m.contentWindow) m.contentWindow.postMessage({ al3d: 'pliegue', pliegue: p }, location.origin); } catch (_) {}
 }
 
 /* ============================================================================
@@ -186,7 +236,10 @@ function alMensaje(ev, m) {
   if (ev.origin !== location.origin) return;
   if (!m || ev.source !== m.contentWindow) return;
   const d = ev.data;
-  if (!d || typeof d !== 'object' || d.al3d !== 'ir' && d.al3d !== 'anidar') return;
+  if (!d || typeof d !== 'object') return;
+  /* El cotizador acaba de arrancar y pide la bisagra: se le contesta con una medición nueva. */
+  if (d.al3d === 'pliegue?') { _ultimoPliegue = ''; medir(); return; }
+  if (d.al3d !== 'ir' && d.al3d !== 'anidar') return;
   if (!_ctx) return;
   if (d.al3d === 'anidar') {
     /* «Acomodar en hoja» desde el vectorizador. El trazo ya quedó en `al3d_anidar`, que es el

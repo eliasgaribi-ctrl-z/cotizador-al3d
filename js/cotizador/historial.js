@@ -20,6 +20,7 @@ function saveHistorial(arr){
      dejó de valer. Va aquí arriba y no en el camino del éxito porque incluso cuando la
      escritura falla se puede haber soltado una imagen y reordenado la copia. */
   invalidarCuadernos();
+  invalidarClientes();
   const escribir=a=>{ try{ localStorage.setItem('al3d_historial',JSON.stringify(a)); return true; }catch(_){ return false; } };
   if(escribir(arr)) return true;
   /* No cupo. Antes se vaciaban de golpe las imágenes de TODAS las cotizaciones —incluidas

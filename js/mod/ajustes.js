@@ -1086,7 +1086,9 @@ async function jalar() {
       const v = r.valor || {};
       nuevos += Number(v.nuevos) || 0;
       actualizados += Number(v.actualizados) || 0;
-      if (!((Number(v.nuevos) || 0) + (Number(v.actualizados) || 0) + (Number(v.descartados) || 0))) break;
+      /* Se sigue mientras el Worker diga que hay más páginas: los contadores no sirven de
+         señal, porque una página entera de filas anteriores a la plataforma da 0/0/0. */
+      if (!v.hay_mas) break;
     }
   } finally { _ocupado = false; }
   if (error) toast(error, 'err', 5200);

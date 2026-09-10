@@ -1,9 +1,9 @@
 /* EL WORKER, CORRIENDO DE VERDAD. Contra una Notion falsa, en node y sin cuenta.
 
-   `puente/worker.js` es el único archivo del proyecto que no se publica con el sitio: se
-   pega a mano en el editor de Cloudflare. Eso lo dejaba sin ninguna prueba, y es justo el
-   archivo donde vive la frontera de permisos del sistema y las cuatro validaciones que
-   impiden que Notion CREE una opción inventada en una base con tres años encima.
+   `puente/worker.js` no corre en el navegador ni en el sitio: lo publica Cloudflare desde el
+   repositorio (puente/DESPLIEGUE.md). Eso lo dejaba sin ninguna prueba, y es justo el archivo
+   donde vive la frontera de permisos del sistema y las cuatro validaciones que impiden que
+   Notion CREE una opción inventada en una base con tres años encima.
 
    Aquí se importa tal cual —es un módulo ES estándar— y se le contesta con una Notion de
    mentiras interceptando `fetch`. Lo que se prueba es lo que no se puede revisar mirando:
@@ -34,6 +34,14 @@ let PAGINAS = [];
 let SIGUIENTE = 1;
 let ESQUEMA_COMPLETO = false;
 let LLAMADAS = [];
+/* Lo que la mentira sí tiene que saber de la API real: los data sources existen desde la
+   versión 2025-09-03. Con la cabecera vieja Notion no conoce esos caminos, y esta prueba pasaba
+   igual porque solo miraba la URL: así se coló un Worker que fallaba en todas sus rutas contra
+   la Notion de verdad. Se guarda la última versión que llegó y se rechaza la vieja. */
+let ULTIMA_VERSION = '';
+/* Cuando no es 0, la consulta por folio contesta con ese estado: es el caso del 429 o del 5xx
+   a media alta, que la búsqueda de duplicados tiene que tratar como «no sé», no como «no está». */
+let QUERY_FALLA = 0;
 
 const PROPS_BASE = {
   'Proyecto': { type: 'title' }, 'Precio Subtotal': { type: 'number' },
@@ -101,6 +109,16 @@ globalThis.fetch = async (url, opciones = {}) => {
   const ruta = u.slice('https://api.notion.com/v1'.length);
   const cuerpo = opciones.body ? JSON.parse(opciones.body) : null;
   const met = opciones.method || 'GET';
+  const version = String((opciones.headers && opciones.headers['Notion-Version']) || '');
+  ULTIMA_VERSION = version;
+  if (ruta.startsWith('/data_sources/') && version < '2025-09-03') {
+    return jsonResp({ object: 'error', status: 400, code: 'invalid_request_url',
+                      message: 'Los data sources existen desde Notion-Version 2025-09-03' }, 400);
+  }
+  if (QUERY_FALLA && ruta === '/data_sources/' + DS + '/query' && met === 'POST' && cuerpo && cuerpo.filter) {
+    return new Response(JSON.stringify({ message: 'rate limited' }),
+      { status: QUERY_FALLA, headers: { 'Content-Type': 'application/json', 'Retry-After': '12' } });
+  }
 
   if (ruta === '/data_sources/' + DS && met === 'GET') {
     return jsonResp({ id: DS, properties: propsDelDs() });
@@ -292,6 +310,36 @@ console.log('\nLA FILA DUPLICADA: el reintento después de una respuesta perdida
   eq('el reintento contesta ok', r.cuerpo.resultados[0].ok, true);
   eq('y NO hay una segunda venta en el libro mayor', PAGINAS.length, 1);
   eq('actualizó la que ya estaba', r.cuerpo.resultados[0].remoto.id_notion, 'pag-1');
+}
+
+console.log('\nLA VERSIÓN DE LA API: los data sources existen desde 2025-09-03');
+{
+  cierto('el Worker manda una versión que conoce los data sources (' + ULTIMA_VERSION + ')', ULTIMA_VERSION >= '2025-09-03');
+  const vieja = await (await globalThis.fetch('https://api.notion.com/v1/data_sources/' + DS,
+    { method: 'GET', headers: { 'Notion-Version': '2022-06-28' } })).json();
+  eq('y la Notion de mentiras rechaza la versión vieja, para que esta prueba no vuelva a mentir',
+     vieja.code, 'invalid_request_url');
+}
+
+console.log('\nLA BÚSQUEDA POR FOLIO FALLA CERRADA: sin saber si la fila existe, no se crea');
+{
+  const antes = PAGINAS.length;
+  QUERY_FALLA = 429;
+  const r = await empujar(VENTA, { tipo: 'crear' });
+  eq('la operación NO pasa', r.cuerpo.resultados[0].ok, false);
+  eq('con el código de red, para que la bandeja la reintente', r.cuerpo.resultados[0].codigo, 'SIN_RED');
+  eq('y NO se creó una segunda venta a ciegas', PAGINAS.length, antes);
+  eq('el 429 corta la vuelta entera', r.estado, 429);
+  cierto('con Retry-After', !!r.cabeceras.get('Retry-After'));
+  cierto('que el navegador SÍ puede leer', /Retry-After/i.test(r.cabeceras.get('Access-Control-Expose-Headers') || ''));
+  QUERY_FALLA = 503;
+  const r2 = await empujar(VENTA, { tipo: 'crear' });
+  eq('con Notion caída tampoco se crea', PAGINAS.length, antes);
+  eq('y la operación queda pendiente, no perdida', r2.cuerpo.resultados[0].ok, false);
+  QUERY_FALLA = 0;
+  const r3 = await empujar(VENTA, { tipo: 'crear' });
+  eq('y en cuanto Notion contesta, el reintento actualiza la que ya estaba', r3.cuerpo.resultados[0].remoto.id_notion, 'pag-1');
+  eq('sin duplicarla', PAGINAS.length, antes);
 }
 
 console.log('\nLO QUE NOTION CREARÍA EN SILENCIO, Y AQUÍ REBOTA');

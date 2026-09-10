@@ -39,6 +39,7 @@ function init(){
   pintarClientes();
   aplicarFoldProy();
   ajustarTopbarMovil();
+  ajustarPliegue();
   aplicarBlurPrecios();
   /* En #items y no en cada partida: renderItems reescribe su contenido entero en cada
      repintado, así que un oyente colgado de una partida se iría con ella. */

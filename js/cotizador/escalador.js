@@ -64,7 +64,7 @@ function abrirScaler(){
   $('scalermodal').classList.add('show');
   // Una entrada de historial por el escalador: en el celular el gesto natural para
   // regresar es el botón "atrás", y sin esto se salía de la cotización entera.
-  if(!SC.hist){ try{history.pushState({sc:1},'');SC.hist=true;}catch(_){} }
+  if(!SC.hist){ _sellarScrollDePantalla(); try{history.pushState({sc:1},'');SC.hist=true;}catch(_){} }
   if(SC.img){setTimeout(()=>{scFitCanvas();scRender();},60);}
   scUpdateList();scAjustarToast();
 }
@@ -75,7 +75,8 @@ function scOcultarScaler(){
 }
 function cerrarScaler(){
   scOcultarScaler();
-  if(SC.hist){ SC.hist=false; try{history.back();}catch(_){} }
+  /* El atrás lo da el código: la página vuelve al scroll que tenía, sin robar el foco. */
+  if(SC.hist){ SC.hist=false; _atrasDesdeElCodigo(); }
 }
 window.addEventListener('popstate',()=>{
   if(!$('scalermodal').classList.contains('show'))return;

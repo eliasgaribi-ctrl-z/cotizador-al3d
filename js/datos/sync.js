@@ -425,10 +425,15 @@ async function bombearDeVerdad() {
     /* Si fue la red o el puente, no tiene sentido intentar las otras 40: van a fallar
        igual y cada intento fallido sube el contador de reintentos de una operación que
        no tuvo la culpa, y con el retroceso exponencial eso la castiga por horas. */
-    if (codigo === 'SIN_RED' || codigo === 'DESCONOCIDO') break;
+    /* Y con un token que el puente no reconoce tampoco: las 40 darían 401 igual. */
+    if (codigo === 'SIN_RED' || codigo === 'DESCONOCIDO' || codigo === 'ROL_SIN_PERMISO') break;
   }
 
   if (subidas) await ponerMarcas({ ultimo_envio: Date.now() });
+  /* Un bombeo que salió limpio borra el último error: sin esto, la banda de «no ha podido
+     mandar N cambios (error)» se encendía con cada operación nueva por un tropiezo de hace
+     días que ya no existía. */
+  if (subidas && !fallidas) _ultimoError = '';
 
   const quedan = (await pendientes()).length;
   return ok({
@@ -471,7 +476,8 @@ export async function jalar() {
     lote = await _adaptador.bajar(m.cursor);
   } catch (e) {
     _ultimoError = String((e && e.message) || 'el puente no contestó');
-    return mal('SIN_RED', MSG.SIN_RED);
+    /* Con el motivo que dio el puente —un 401 no es «no hay señal»—. */
+    return mal((e && e.codigo) || 'SIN_RED', (e && e.message) || MSG.SIN_RED);
   }
 
   const registros = (lote && Array.isArray(lote.registros)) ? lote.registros : [];
@@ -519,7 +525,10 @@ export async function jalar() {
     vistos,
   });
 
-  return ok({ nuevos, actualizados, descartados, motivo: 'ok' });
+  /* `hay_mas`: el Worker pagina de 50 en 50 y quien llama decide si da otra vuelta. Antes se
+     adivinaba por los contadores, y una página entera de filas anteriores a la plataforma —que
+     se miran y se descartan en el relevo— daba 0/0/0 y cortaba el bucle en la primera vuelta. */
+  return ok({ nuevos, actualizados, descartados, hay_mas: !!(lote && lote.hay_mas), motivo: 'ok' });
 }
 
 /**

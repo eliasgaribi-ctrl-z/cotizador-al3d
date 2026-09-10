@@ -1053,7 +1053,11 @@ textarea{resize:vertical;min-height:46px}
 .autoctr .cnt{font-size:11px;color:var(--brand);font-weight:700;white-space:nowrap;min-width:42px;text-align:right}
 
 /* ---------- Resumen (sticky) ---------- */
-.side{position:sticky;top:calc(3px + 78px)}
+/* El tope es la medida REAL de la barra de arriba, no un número escrito a mano: en el
+   cotizador suelto la barra envuelve a dos renglones entre 760 y 920 px —el Fold abierto— y
+   con 81 px fijos el resumen quedaba metido 40 px debajo de ella. `--top-fijo` la publica
+   ajustarTopbarMovil() en cada resize, y es la misma que ya usa .pcab. */
+.side{position:sticky;top:calc(var(--top-fijo,74px) + 12px)}
 /* ----- El resumen -----
    Eran dos bloques de color a pantalla completa —uno azul de marca para el subtotal y uno
    marino con degradado para el total— apilados uno encima del otro. Pintar de color un
@@ -1367,7 +1371,9 @@ details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:
    «lo que sigue» y donde hay lugar de sobra. No es un consuelo: en una pantalla que se
    sostiene con una mano, el pulgar llega abajo y no arriba. El corte es el mismo en el que
    aparece esa barra, así que el botón existe exactamente en un lugar a cada ancho. */
-@media(max-width:920px){ .topbar-in .btn-undo{display:none} }
+/* 759 y no 920: la barra de abajo —con su propio deshacer— aparece a los 759, así que entre 760
+   y 920 px (el Fold abierto, sin teclado) no había NINGÚN deshacer que se pudiera tocar. */
+@media(max-width:759px){ .topbar-in .btn-undo{display:none} }
 /* El enlace a la plataforma es un <a> para que se pueda abrir en otra pestaña y para que el
    lector de pantalla lo anuncie como lo que es. Pero el navegador le pone su subrayado y su
    azul de enlace con a:link, que es más específico que .btn-hist: sin esto, dos controles
@@ -1376,8 +1382,11 @@ details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:
    así que el azul vuelve a significar «esto lleva a otro sitio». */
 a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-color:var(--a-borde)}
 a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-tx)}
+/* 50 px y no 36: el velo lleva 32 px arriba (padding en línea de #histmodal y #climodal) y 18
+   abajo, así que con 36 el pie del panel quedaba 14 px fuera del visor —en el Fold a medio
+   doblar, donde el marco mide 370 px de alto, eso era el botón de Respaldar. */
 .hist-panel{background:var(--sup);border-radius:var(--rr3);max-width:720px;width:100%;display:flex;flex-direction:column;overflow:hidden;
-  max-height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+  max-height:calc(100dvh - 50px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
 .hist-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--sup);border-radius:var(--rr3) var(--rr3) 0 0;flex-shrink:0}
 /* Cerrar el historial. El tamaño venía de un style= en línea de 32×32 px que ninguna
    hoja podía subir; como clase sí la alcanza el bloque de puntero grueso del final. */
@@ -1513,7 +1522,10 @@ a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-t
    solo inset:0 el pie del panel quedaba fuera de la pantalla, sin manera de volver. */
 .scaler-modal-bg{position:fixed;inset:0;height:100dvh;background:rgba(12,15,38,.75);display:none;z-index:55;flex-direction:column;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);overscroll-behavior:contain}
 .scaler-modal-bg.show{display:flex}
-.sp-topbar{background:rgba(var(--sup-rgb),.96);backdrop-filter:blur(14px);border-bottom:1px solid rgba(var(--n3-rgb),.7);flex-shrink:0;padding:0 20px;height:56px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 8px rgba(var(--tinta-rgb),.06)}
+/* min-height y no height: en el teléfono y en el Fold la barra ENVUELVE (bloque de 1000 px), y
+   con un alto fijo los renglones envueltos —Cargar imagen, Calibrar, Libre/Horizontal/Vertical—
+   se pintaban debajo del lienzo, sin verse ni recibir toques. */
+.sp-topbar{background:rgba(var(--sup-rgb),.96);backdrop-filter:blur(14px);border-bottom:1px solid rgba(var(--n3-rgb),.7);flex-shrink:0;padding:0 20px;min-height:56px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 8px rgba(var(--tinta-rgb),.06)}
 .sp-main{flex:1;display:flex;overflow:hidden;min-height:0}
 .sp-canvas-area{flex:1;position:relative;overflow:hidden;background:#181c2e;background-image:radial-gradient(rgba(255,255,255,.04) 1px,transparent 1px);background-size:22px 22px;display:flex;align-items:center;justify-content:center;min-width:0;touch-action:none;overscroll-behavior:contain}
 /* El lienzo cubre toda el área: el zoom se aplica dentro del canvas, no con transform
@@ -1880,6 +1892,8 @@ a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-t
 .rv-header h2{font-size:15px;font-weight:700;color:var(--fg);margin:0}
 .rv-body{padding:20px}
 .rv-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+/* En la portada del Fold (344 px) dos columnas dejan cada campo de fecha en 130 px: a una. */
+@media(max-width:400px){ .rv-grid{grid-template-columns:1fr} }
 .rv-field{display:flex;flex-direction:column;gap:5px}
 .rv-field.full{grid-column:1/-1}
 .rv-field label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
@@ -2811,8 +2825,12 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
    la escala sale de la letra, que es lo que se ve moverse. */
 .paso-total{margin-left:auto;align-self:center;display:inline-flex;align-items:baseline;gap:6px;padding:0 10px;
   font-family:var(--f-cifra);font-weight:600;font-size:var(--t4);color:var(--tinta2);
-  white-space:nowrap;font-variant-numeric:tabular-nums}
+  white-space:nowrap;font-variant-numeric:tabular-nums;min-width:0;flex:0 1 auto}
+/* La cifra cede antes que la barra: sin min-width:0 un total de seis dígitos en la portada del
+   Fold (344 px) empujaba la fila de pasos fuera de la página y la dejaba con scroll lateral. */
+.paso-total>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .paso-total small{font-family:var(--f-texto);font-weight:500;font-size:var(--t1);color:var(--tinta3)}
+@media(max-width:385px){ .paso-total small{display:none} }
 /* Que `hidden` lo esconda de verdad lo resuelve la regla `[hidden]` del principio de la hoja,
    para todo el documento y de una vez. */
 
@@ -3263,7 +3281,9 @@ details.ai-cfg summary:hover{color:var(--tinta)}
 .scaler-modal-bg,.vt-modal-bg{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(var(--nav-rgb),.75)}
 .sp-topbar{
   background:var(--sup);backdrop-filter:none;-webkit-backdrop-filter:none;
-  border-bottom:1px solid var(--linea);box-shadow:none;height:64px;
+  /* min-height: el alto fijo de aquí era el que tapaba los renglones envueltos de la barra
+     en el teléfono y en el Fold (ver la regla base de .sp-topbar). */
+  border-bottom:1px solid var(--linea);box-shadow:none;min-height:64px;
 }
 .sp-hint-bar{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(var(--nav-rgb),.9);font-size:var(--t2);font-weight:500}
 .sp-hint-act{border-radius:var(--rr2);font-size:var(--t2);font-weight:500}
@@ -3724,3 +3744,103 @@ html.empotrado .btn-tema{display:none}
   }
   html[data-tema="oscuro"] .logoimg[src$="logo-al3d.svg"]{content:url("../logo-al3d.svg")}
 }
+
+/* ============================================================================
+   (8) CIERRE TÁCTIL — lo que el dedo necesita y la capa visual había pisado
+
+   El bloque «Se toca con el dedo» (@media(hover:none),(pointer:coarse), arriba) subía a 44 px
+   los controles chicos. Pero la capa de estructura y movimiento vive DESPUÉS en la hoja y
+   repite varios de esos selectores con la misma especificidad —`.modal-h button` a 36, `.seg
+   button` a 34, `.chip` a 40, `.paso-tab` a 38, `.hist-foot button` a 38, `.key-btn` a 34,
+   `.sp-tb-btn` a 36, `.sp-mitem-add` a 34—, así que por orden ganaba ella y el dedo se
+   quedaba con las medidas del ratón. Medido en el Fold cerrado emulado: la × de los modales
+   36×36, el plegado de la partida 30×30, el interruptor del IVA 18 px de alto, «Ver precios»
+   22 px. Los comentarios de arriba que dicen «lo alcanza el bloque de puntero grueso del
+   final» tenían razón cuando ese bloque ERA el final.
+
+   Por eso esto va al cierre de la hoja y no se mueve de aquí: entre dos reglas con la misma
+   especificidad gana la última, y la última tiene que ser la del dedo. Solo se sube la caja;
+   la letra y el color son de la capa visual y no se tocan.
+   ============================================================================ */
+@media(hover:none),(pointer:coarse){
+  .modal-h button,.hist-close{width:44px;height:44px}
+  .tipo-seg button,.seg button{min-height:44px}
+  .chip{min-height:44px}
+  .paso-tab{min-height:44px}
+  .pfold{width:44px;height:44px}
+  .hist-foot button,.key-btn,.sp-mitem-add,.hentry-open,.cua-det-acts button,.cua-cot-acts button,
+  .sp-hint-act,.btn-maps{min-height:44px}
+  .cua-volver{min-height:44px;padding:0;margin-bottom:4px}
+  .sp-tb-btn{min-height:44px;padding:9px 13px}
+  /* «Ver precios» es EL control para destapar importes en el teléfono —«mantén tocado» no es
+     alternativa con el dedo— y medía 26 px. */
+  .precios-ver{min-height:44px;padding:0 14px}
+  /* El interruptor entero, no solo su perilla: el botón medía 19 px de alto y la zona
+     ampliada del ::before solo cubría la perilla, así que tocar la palabra «IVA 16%» erraba. */
+  .switch{min-height:44px}
+  .tg::before{inset:-13px -6px}
+  /* El nombre de una medida del escalador es un <input>: a 12,5 px iOS hace zoom y en Android
+     no se lee. La regla táctil general de `input` no lo alcanzaba por especificidad. */
+  .sp-mitem-label{font-size:16px}
+}
+
+/* ============================================================================
+   (9) EL FOLD MEDIO DOBLADO
+
+   Cuando un Galaxy Z Fold se usa a medio abrir, el navegador parte el visor en DOS segmentos y
+   lo dice: `window.viewport.segments` (Chrome 135+), las variables `env(viewport-segment-*)` y
+   las consultas `(horizontal-viewport-segments:2)` / `(vertical-viewport-segments:2)`. Abierto
+   del todo, como una tableta, no hay segmentos y nada de esto aplica.
+
+   La geometría la lee js/cotizador/nucleo.js (ajustarPliegue) y la publica en <html> como dos
+   clases y dos variables: `html.pliegue-v` cuando la bisagra es vertical —el teléfono abierto
+   como un libro— y `html.pliegue-h` cuando es horizontal —apoyado en la mesa como una laptop,
+   lo que Samsung llama Flex mode—; `--pliegue-a` y `--pliegue-b` son dónde empieza y dónde
+   termina la bisagra, en píxeles del visor de este documento. Empotrado en la plataforma el
+   marco no ve el visor de verdad, así que esa geometría la manda el padre por postMessage,
+   ya restada la posición del marco (js/mod/cotizador.js).
+
+   De mesa: el lienzo del escalador y del vectorizador se queda arriba, en la mitad que está de
+   pie —la foto se mira—, y la barra de herramientas más el panel bajan a la mitad que descansa
+   sobre la mesa —los controles se tocan—, como el teclado de una laptop. Sin esto, la bisagra
+   partía la foto por la mitad justo donde se está midiendo. `display:contents` en .sp-main
+   deja al lienzo y al panel como hijos directos del modal, que ya es una columna flex.
+   ============================================================================ */
+/* Las dos variables nacen en cero: las escribe nucleo.js en <html> cuando hay bisagra, y las
+   reglas de abajo solo aplican con la clase puesta. Declararlas aquí es para que un `var()` sin
+   dueño no exista en la hoja (pruebas/hojas-de-estilo.mjs lo vigila). */
+:root{--pliegue-a:0px;--pliegue-b:0px}
+html.pliegue-h :is(.scaler-modal-bg,.vt-modal-bg) .sp-main{display:contents}
+html.pliegue-h :is(.scaler-modal-bg,.vt-modal-bg) .sp-canvas-area{
+  order:1;flex:0 0 var(--pliegue-a);height:var(--pliegue-a);min-height:0;width:100%}
+html.pliegue-h :is(.scaler-modal-bg,.vt-modal-bg) .sp-topbar{
+  order:2;margin-top:calc(var(--pliegue-b) - var(--pliegue-a));border-top:1px solid var(--linea)}
+html.pliegue-h :is(.scaler-modal-bg,.vt-modal-bg) .sp-side{
+  order:3;width:100%;max-width:none;height:auto;max-height:none;flex:1 1 auto;min-height:0;border-left:0;border-top:0}
+/* En el lienzo de la mitad de arriba, la barra de pistas ya no toca el borde de la pantalla. */
+html.pliegue-h .sp-hint-bar{padding-bottom:10px}
+
+/* De libro: las dos columnas del cotizador se acomodan una en cada mitad —las partidas a la
+   izquierda, el dinero a la derecha— con la bisagra en el hueco entre ellas, en vez de que la
+   columna de partidas la cruce. Solo cuando las dos mitades dan para algo: la clase la pone
+   nucleo.js únicamente si la mitad izquierda mide al menos 380 px y la derecha 240, que es lo
+   que no pasa dentro de la plataforma con la barra lateral comiéndose la izquierda. */
+@media(min-width:760px){
+  html.pliegue-v .wrap:not(.p-cliente){
+    grid-template-columns:calc(var(--pliegue-a) - 24px) minmax(0,1fr);
+    column-gap:calc(var(--pliegue-b) - var(--pliegue-a) + 16px)}
+  /* Los diálogos chicos se leen en una sola mitad, no partidos por el lomo. */
+  html.pliegue-v .modal-bg:has(>.modal) .modal{max-width:min(460px,calc(var(--pliegue-a) - 36px))}
+  html.pliegue-v .modal-bg:has(>.modal){justify-content:flex-start;padding-left:max(18px,calc((var(--pliegue-a) - min(460px,calc(var(--pliegue-a) - 36px))) / 2))}
+}
+
+/* En la portada del Fold los cuatro botones del pie del historial se recortaban —«Respald»,
+   «Restaur»—: a 344 px le tocan 59 px a cada uno y la palabra no cabe. En dos renglones de dos
+   caben con su palabra y con sus 44 px de alto. */
+@media(max-width:385px){ .hist-foot button{flex:1 1 calc(50% - 4px)} }
+
+/* El bloque de 385 px de arriba manda el selector de rol a su propio renglón —«se elige una vez y
+   no se vuelve a tocar en semanas»— pero perdía por orden contra el bloque de 560 (order:3), que
+   viene después en la hoja: en la portada del Fold el selector se quedaba en el primer renglón y el
+   icono de Historial caía solo a un segundo renglón de 50 px. Repetido aquí, al cierre, gana. */
+@media(max-width:385px){ .topbar-in .seg{order:6;flex:1 1 100%} }

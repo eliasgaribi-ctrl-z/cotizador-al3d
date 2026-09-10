@@ -556,6 +556,58 @@ export function medirMarco(id) {
   /* El piso de 320 px es para que un teclado abierto en el teléfono —que encoge el
      viewport a la mitad— no deje el marco en veinte píxeles de alto justo mientras
      alguien escribe dentro de él. */
-  const alto = Math.max(320, Math.round(window.innerHeight - arriba - mbar - insetInferior() - 8));
+  /* La barra de módulos del teléfono es fija y va ENCIMA de todo: si el marco no termina donde
+     ella empieza, su borde de abajo —y lo que la app empotrada ponga fijo ahí— queda tapado. */
+  const alto = Math.max(320, Math.round(window.innerHeight - arriba - mbar - (altoBarraAbajo() || (insetInferior() + 8))));
   document.documentElement.style.setProperty('--pf-marco-h', alto + 'px');
+}
+
+/** Cuánto mide la barra de módulos del teléfono (`.pf-abajo`), o 0 donde no está —de 760 px
+ *  para arriba la sustituye la barra lateral—. Incluye el área segura, que ya lleva dentro. */
+export function altoBarraAbajo() {
+  const b = document.getElementById('pf-abajo');
+  if (!b) return 0;
+  try { if (getComputedStyle(b).display === 'none') return 0; } catch (_) { return 0; }
+  return Math.round(b.getBoundingClientRect().height) || 0;
+}
+
+/* ============================================================================
+   El Fold a medio doblar
+
+   Cuando un Galaxy Z Fold se usa medio abierto —como un libro, o apoyado en la mesa como una
+   laptop— el navegador parte el visor en dos segmentos y lo dice: `window.viewport.segments`
+   (Chrome 135+) y, para los que todavía no traen esa API, las variables `env(viewport-
+   segment-*)` de CSS. Abierto del todo no hay segmentos y esto devuelve null.
+
+   Devuelve dónde está la bisagra en píxeles del visor: `{tipo:'v', a, b}` si es vertical (libro)
+   y `{tipo:'h', a, b}` si es horizontal (mesa); `a` es donde empieza y `b` donde termina. Quien
+   la necesita en las coordenadas de un marco le resta la posición del marco.
+   ============================================================================ */
+export function pliegueDelVisor() {
+  let seg = null;
+  try {
+    const s = window.viewport && window.viewport.segments;
+    if (s && s.length === 2) seg = s;
+  } catch (_) {}
+  if (seg) {
+    const [s0, s1] = seg;
+    if (s1.left >= s0.left + s0.width - 1) return { tipo: 'v', a: s0.left + s0.width, b: s1.left };
+    if (s1.top >= s0.top + s0.height - 1) return { tipo: 'h', a: s0.top + s0.height, b: s1.top };
+    return null;
+  }
+  /* Sin la API, las variables de entorno: `env()` no se puede leer desde JS, así que se mide
+     un elemento de prueba puesto exactamente sobre la bisagra. */
+  try {
+    const horiz = matchMedia('(horizontal-viewport-segments: 2)').matches;
+    const vert = !horiz && matchMedia('(vertical-viewport-segments: 2)').matches;
+    if (!horiz && !vert) return null;
+    const p = document.createElement('div');
+    p.style.cssText = horiz
+      ? 'position:fixed;top:0;height:1px;left:env(viewport-segment-right 0 0,0px);width:calc(env(viewport-segment-left 1 0,0px) - env(viewport-segment-right 0 0,0px));visibility:hidden;pointer-events:none'
+      : 'position:fixed;left:0;width:1px;top:env(viewport-segment-bottom 0 0,0px);height:calc(env(viewport-segment-top 0 1,0px) - env(viewport-segment-bottom 0 0,0px));visibility:hidden;pointer-events:none';
+    document.body.appendChild(p);
+    const r = p.getBoundingClientRect(); p.remove();
+    if (horiz) return r.left > 0 ? { tipo: 'v', a: r.left, b: r.right } : null;
+    return r.top > 0 ? { tipo: 'h', a: r.top, b: r.bottom } : null;
+  } catch (_) { return null; }
 }

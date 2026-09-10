@@ -283,7 +283,7 @@ function authRevisionHTML(soloAutorizar){
       '</div>'+
       '<div class="ia-body" id="ia-body-'+it.id+'" style="'+(isOpen?'':'display:none')+'">'+
       '<label for="ia-in-'+it.id+'" style="font-size:11px;margin-bottom:4px">Precio autorizado</label>'+
-      '<div class="inp-money"><input id="ia-in-'+it.id+'" type="number" inputmode="decimal" min="0" step="50" value="'+authVal+'" oninput="updItemAuth('+it.id+',+this.value)"></div>'+
+      '<div class="inp-money"><input id="ia-in-'+it.id+'" type="number" inputmode="decimal" min="0" step="50" value="'+authVal+'" oninput="updItemAuth('+it.id+',this.value.length?+this.value:undefined)"></div>'+
       '<div class="ia-adj'+diffCls+'" id="ia-adj-'+it.id+'">'+diffTxt+'</div>'+
       '</div>'+
       '</div>';

@@ -33,6 +33,16 @@ Fuera del repo, en Cloudflare → Worker `puente-al3d` → *Settings* →
 pisa en cada deploy son las variables públicas, y es a propósito — el repo es la
 verdad de `ORIGENES`, no el dashboard.
 
+## Las cabeceras del sitio
+
+En la raíz del repo hay un `_headers`, que Cloudflare Pages lee y GitHub Pages ignora.
+Pages publica el repositorio entero, así que `docs/`, `pruebas/`, `puente/` y
+`herramientas/` también se sirven: no son secretos —el repo es público—, pero ese archivo
+les pone `X-Robots-Tag: noindex` para que un buscador no los enseñe antes que la app, y
+le pone a todo `X-Content-Type-Options: nosniff`. No lleva redirecciones a propósito: las
+rutas de la app son `#/…` y `plataforma.html` tiene que seguir siendo un archivo de verdad
+para que el service worker lo guarde.
+
 ## Si algo sale mal
 
 El build vive en Cloudflare → Workers & Pages → `puente-al3d` → *Deployments*.

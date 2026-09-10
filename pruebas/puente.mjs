@@ -217,6 +217,10 @@ console.log('\nDETALLES QUE ROMPEN EN LA CALLE');
      normalizarUrl('https://puente-al3d.x.workers.dev/'), 'https://puente-al3d.x.workers.dev');
   eq('y los espacios de un pegado con dedo gordo',
      normalizarUrl('  https://x.workers.dev//  '), 'https://x.workers.dev');
+  eq('la URL del runbook, pegada con su /esquema, queda en la raíz del Worker',
+     normalizarUrl('https://puente-al3d.x.workers.dev/esquema'), 'https://puente-al3d.x.workers.dev');
+  eq('y una cadena de consulta o una almohadilla pegadas del navegador se van',
+     normalizarUrl('https://x.workers.dev/?utm=1#salud'), 'https://x.workers.dev');
 
   const t = tokensNuevos();
   eq('son tres roles', Object.keys(t.tokens), ['direccion', 'fabricacion', 'pagos']);

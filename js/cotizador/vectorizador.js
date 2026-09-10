@@ -71,7 +71,7 @@ function abrirVector(){
   $('vectormodal').classList.add('show');
   // Una entrada de historial, igual que el escalador: en el celular el gesto para
   // regresar es el botón "atrás" del teléfono y sin esto se salía de la cotización.
-  if(!VT.hist){ try{history.pushState({vt:1},'');VT.hist=true;}catch(_){} }
+  if(!VT.hist){ _sellarScrollDePantalla(); try{history.pushState({vt:1},'');VT.hist=true;}catch(_){} }
   vtPintarEscalaSc();
   vtAjustarToast();
   if(VT.img) setTimeout(()=>{vtFit();vtRender();vtAjustarToast();},60);
@@ -79,7 +79,7 @@ function abrirVector(){
 function vtOcultar(){ $('vectormodal').classList.remove('show'); }
 function cerrarVector(){
   vtOcultar();
-  if(VT.hist){ VT.hist=false; try{history.back();}catch(_){} }
+  if(VT.hist){ VT.hist=false; _atrasDesdeElCodigo(); }
 }
 window.addEventListener('popstate',()=>{
   if(!$('vectormodal').classList.contains('show'))return;

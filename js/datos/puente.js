@@ -287,6 +287,12 @@ async function pedir(cfg, ruta, opciones = {}) {
   let cuerpo = null;
   try { cuerpo = await r.json(); } catch (_) { cuerpo = null; }
 
+  /* Un 2xx sin JSON no es el puente: es otra cosa que contestó en esa URL —una página, un
+     404 bonito, el editor de Cloudflare—. Antes se leía como éxito y «Probar» pintaba verde. */
+  if (r.status < 400 && cuerpo === null) {
+    throw falla('DESCONOCIDO', 'Esa URL contestó ' + r.status + ' pero no es el puente: no devolvió JSON. Revisa que sea la dirección del Worker, sin nada después de .workers.dev.');
+  }
+
   if (r.status === 401 || r.status === 403) {
     throw falla('ROL_SIN_PERMISO', (cuerpo && cuerpo.mensaje) ||
       'Este teléfono no tiene un token válido del puente. Pégalo otra vez aquí abajo.');
@@ -297,8 +303,15 @@ async function pedir(cfg, ruta, opciones = {}) {
   return { estado: r.status, cuerpo: cuerpo || {} };
 }
 
-/** La URL como la quiere `fetch`: sin barra final, para no pedir `//salud`. */
-export function normalizarUrl(u) { return String(u || '').trim().replace(/\/+$/, ''); }
+/** La URL como la quiere `fetch`: sin barra final, para no pedir `//salud`; sin cadena de
+ *  consulta ni almohadilla; y sin uno de los cinco caminos del puente pegado al final, porque
+ *  el runbook enseña `…/esquema` como ejemplo y más de uno la pega tal cual: las peticiones
+ *  iban a `/esquema/salud` y el Worker contestaba «Ese camino no existe», sin decir por qué. */
+export function normalizarUrl(u) {
+  let s = String(u || '').trim();
+  try { const x = new URL(s); x.search = ''; x.hash = ''; s = x.href; } catch (_) {}
+  return s.replace(/\/+(salud|esquema|jalar|empujar|expandir)\/*$/i, '').replace(/\/+$/, '');
+}
 
 /**
  * Arma el relevo. No toca la red al construirse: la primera petición es la que dice si el
@@ -383,8 +396,9 @@ export function crear(cfg0) {
       try {
         const r = await pedir(cfg, '/salud', { method: 'GET' });
         if (Array.isArray(r.cuerpo.escribibles)) escribibles = new Set(r.cuerpo.escribibles);
-        if (r.cuerpo.ok === false) {
-          return { ok: false, mensaje: r.cuerpo.mensaje || 'El puente contestó que no está bien.' };
+        /* `ok === true` y no «distinto de false»: un JSON cualquiera sin `ok` no es el puente. */
+        if (r.cuerpo.ok !== true) {
+          return { ok: false, mensaje: r.cuerpo.mensaje || 'Esa URL contesta, pero no como el puente: revisa que sea la del Worker.' };
         }
         return { ok: true, mensaje: 'El puente contesta y reconoce este teléfono.',
                  rol: r.cuerpo.rol || '', version: r.cuerpo.version || '',
