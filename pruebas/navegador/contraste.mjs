@@ -169,6 +169,12 @@ await p.evaluate(() => togglePreciosALaVista());
 await p.waitForTimeout(400);
 await comprobar('el total neto, destapado', '#s-neto');
 await comprobar('el subtotal, destapado', '#s-sub');
+/* El recuadro del subtotal es la otra pieza de la columna con superficie propia: --a-suave
+   con el rótulo en --a-tx, que es el azul que sí se lee encima. Es donde se mira el número
+   que se copia a Canva, así que su rótulo y su pista tienen que aguantar la medida. */
+await comprobar('el rótulo del recuadro del subtotal', '#s-sub-box .sub-lab');
+await comprobar('la pista de a dónde va', '#s-sub-box .sub-canva');
+await comprobar('el botón de copiarlo', '#s-sub-copiar');
 await comprobar('el importe de una partida', '.lt');
 await p.evaluate(() => togglePreciosALaVista());
 await p.waitForTimeout(300);
@@ -184,10 +190,13 @@ console.log('\nPASO 3 · REVISAR EL PRECIO');
 await comprobar('el botón de autorizar', '#authbox .btn-ok');
 await comprobar('el rótulo que parte la columna', '#authbox .auth-divider');
 await comprobar('el total calculado', '#authbox .precio-auth-orig');
-await p.evaluate(() => { const i = document.getElementById('a-precio'); if (i) { i.value = 18000; updPrecioAuth(18000, totals().neto); } });
+/* El campo pide SUBTOTAL desde que un descuento tecleado sobre el neto resultó ser un 16 %
+   más de lo que quien lo teclea cree estar regalando, así que la base es totals().sub. */
+await p.evaluate(() => { const i = document.getElementById('a-precio'); if (i) { i.value = 15000; updPrecioAuth(15000, totals().sub); } });
 await p.waitForTimeout(300);
 await comprobar('el descuento que acaba de teclear', '#descuento-info');
-await p.evaluate(() => { const i = document.getElementById('a-precio'); if (i) { i.value = 23000; updPrecioAuth(23000, totals().neto); } });
+await comprobar('el neto que le corresponde', '#a-precio-neto');
+await p.evaluate(() => { const i = document.getElementById('a-precio'); if (i) { i.value = 20000; updPrecioAuth(20000, totals().sub); } });
 await p.waitForTimeout(300);
 await comprobar('y el aumento, en ámbar', '#descuento-info');
 await comprobar('el cálculo de una partida', '#authbox .ia-calc');
@@ -196,6 +205,25 @@ await comprobar('el mismo con IVA', '#authbox .ia-total.soft');
 
 await p.evaluate(() => { const a = document.getElementById('a-name'); if (a) { a.value = 'Elías'; Q.autorizador = 'Elías'; } autorizar(); });
 await p.waitForTimeout(900);
+
+/* El candado de la pantalla del cliente: es el que dice cómo se corrigen los datos con el
+   precio ya cerrado, y su versión ámbar es la que avisa de que se está tecleando otro
+   cliente sobre un folio ajeno. Las dos llevan texto, así que las dos se miden. */
+console.log('\nEL CANDADO DE LA PANTALLA DEL CLIENTE');
+await p.evaluate(() => irAPaso(1));
+await p.waitForTimeout(500);
+await comprobar('el aviso de que está cerrada', '#cli-candado .cc-t');
+await comprobar('cómo se corrigen los datos', '#cli-candado .cc-acts .btn');
+await p.evaluate(() => abrirEdicionCliente());
+await p.waitForTimeout(400);
+await p.fill('#f-cli', 'Taquería El Güero');
+await p.fill('#f-tel', '33 9876 5432');
+await p.waitForTimeout(500);
+await comprobar('y el ámbar de «esto ya es otro cliente»', '#cli-candado.ojo .cc-t');
+await p.evaluate(() => { Q.cliente='Farmacia San Juan'; Q.tel='33 1234 5678';
+  document.getElementById('f-cli').value=Q.cliente; document.getElementById('f-tel').value=Q.tel;
+  cerrarEdicionCliente(); irAPaso(2); });
+await p.waitForTimeout(500);
 
 console.log('\nPASO 4 · LA ENTREGA');
 await comprobar('el paso que toca', '#authbox .btn-pri');

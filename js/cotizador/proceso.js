@@ -1,7 +1,7 @@
 /* ============================================================================
    Cotizador · proceso.js
 
-   El proceso de cuatro pasos: resumen y autorización, revisión previa, datos obligatorios, el candado, las dos pantallas, la barra de pasos, el flujo de autorizar, la barra fija del teléfono y los campos generales.
+   El proceso de cuatro pasos: resumen y autorización, revisión previa, datos obligatorios, el candado de las partidas y el de los datos del cliente, las dos pantallas, la barra de pasos, el flujo de autorizar, la barra fija del teléfono y los campos generales.
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
@@ -26,11 +26,27 @@ function renderSummary(){
   }
   aplicarBlurPrecios();
   const t=totals();
-  $('s-sub').textContent=money(t.sub);
+  /* El recuadro del subtotal enseña el que se va a COBRAR, no siempre el calculado: en cuanto
+     el autorizador mueve el precio, el que hay que teclear en la casilla «Subtotal» de Canva
+     es el suyo. El calculado se queda al lado, tachado, como en cada partida ajustada; si
+     enseñara el calculado a secas, la columna tendría dos subtotales sin decir cuál es cuál y
+     el grande sería el equivocado, que es exactamente el error que este recuadro existe para
+     no cometer. */
+  const subCanva=subParaCanva();
+  $('s-sub').textContent=money(subCanva.sub);
+  const subCalcEl=$('s-sub-calc');
+  if(subCalcEl){ subCalcEl.textContent=subCanva.ajustado?money(t.sub):''; subCalcEl.hidden=!subCanva.ajustado; }
+  const subLab=$('s-sub-lab');
+  if(subLab){ const v=subCanva.ajustado?'Precio Subtotal autorizado':'Precio Subtotal'; if(subLab.textContent!==v) subLab.textContent=v; }
   $('s-iva').textContent=money(t.iva);
   $('s-neto').textContent=money(t.neto);
-  latirTotal();
-  $('s-calc').textContent=Q.iva?`${money(t.sub)} × 1.16`:'Sin IVA (= subtotal)';
+  latirTotal(); latirSubtotal();
+  /* «Subtotal × 1.16» describe el total CALCULADO, y con un precio autorizado encima el
+     recuadro de arriba ya no enseña ese subtotal: la línea afirmaría una multiplicación que
+     los dos números de la pantalla no hacen. Cuando hay ajuste, dice lo que es y señala a
+     dónde mirar; el precio que se cobra vive en su propio renglón, dos más abajo. */
+  $('s-calc').textContent=subCanva.ajustado?'Calculado · el autorizado va abajo'
+    :(Q.iva?`${money(t.sub)} × 1.16`:'Sin IVA (= subtotal)');
   $('ivatg').classList.toggle('on',Q.iva); tgAria('ivatg');
   const ivaHint=$('s-iva-hint'); if(ivaHint) ivaHint.style.display=Q.iva?'':'none';
   // El anticipo se calcula sobre lo que realmente se va a cobrar, no sobre el
@@ -49,9 +65,15 @@ function renderSummary(){
     const aj=ajusteAuth(), neto=netoAjustado();
     if(Q.estado==='autorizada'&&Math.abs(aj)>0.01&&neto>0){
       $('s-auth').textContent=money(pf);
-      $('s-auth-desc').textContent= aj>0
-        ? `Descuento: ${money(aj)} (${Math.round(aj/neto*100)}%)`
-        : `Aumento: ${money(-aj)} (${Math.round(-aj/neto*100)}%)`;
+      /* El ajuste se dice en la base en la que se decidió, que es el subtotal. El porcentaje
+         sale igual en las dos —el 1,16 se va en la división—, pero el importe no: sobre el
+         neto este renglón anunciaba «Descuento: $3,016» de una rebaja que en lo que la casa
+         se queda son $2,600. El subtotal autorizado no se repite aquí: lo enseña el recuadro
+         de arriba, en grande y con el calculado tachado. */
+      const dFin=desgloseFinal(), subBase=+subAjustado().toFixed(2), ajSub=+(subBase-dFin.sub).toFixed(2);
+      $('s-auth-desc').textContent= ajSub>0
+        ? `Descuento: ${money(ajSub)} sobre el subtotal (${Math.round(ajSub/subBase*100)}%)`
+        : `Aumento: ${money(-ajSub)} sobre el subtotal (${Math.round(-ajSub/subBase*100)}%)`;
       authRow.classList.toggle('inc',aj<0);
       authRow.style.display='';
     } else { authRow.style.display='none'; }
@@ -65,7 +87,11 @@ function renderSummary(){
   /* Bloqueo de inputs generales. Los datos que solo salen en el PDF no mueven el
      precio, así que siguen editables después de autorizar: la fecha límite y la
      nota para el cliente normalmente se definen justo en ese momento. */
-  Object.values(_FM).concat('f-anti').forEach(id=>{ if($(id)) $(id).disabled=locked()&&!_FM_PDF.includes(id); });
+  /* Y los del cliente tampoco lo mueven —no están en _CAMPOS_PRECIO, y eso es a propósito:
+     ver huellaTrabajo()—, así que se pueden abrir sin soltar nada. Lo hace el candado de la
+     pantalla del cliente, no este renglón, porque abrirlos es una decisión y no un estado. */
+  const cliAbierto=editandoCliente();
+  Object.values(_FM).concat('f-anti').forEach(id=>{ if($(id)) $(id).disabled=locked()&&!_FM_PDF.includes(id)&&!cliAbierto; });
   $('addbtn').disabled=locked();
   if($('dupbtn')) $('dupbtn').disabled=locked();
   /* El IVA sí mueve el total, así que se bloquea con las partidas. Se quedaba fuera de
@@ -195,7 +221,7 @@ function renderAuth(){
   if(_abierto){ const d=box.querySelector('details.otras-salidas'); if(d) d.open=true; }
   // Inicializar display de descuento tras render
   if(Q.estado==='pendiente'&&(Q.rol==='autorizador'||_selfAuth)){
-    updPrecioAuth(parseFloat($('a-precio')?.value)||0, totals().neto);
+    updPrecioAuth(parseFloat($('a-precio')?.value)||0, totals().sub);
   }
 }
 
@@ -246,7 +272,7 @@ function entregaHTML(){
    mismo» dentro de la vista de vendedor. `soloAutorizar` quita el botón de rechazar:
    rechazarte a ti mismo no significa nada, para eso está volver a editar. */
 function authRevisionHTML(soloAutorizar){
-  const neto=totals().neto;
+  const t=totals(), neto=t.neto, subCalc=t.sub;
   const ia=Q.itemsAuth||{};
   /* Los ajustes por partida son montos SIN IVA (igual que lineTotal), mientras que
      el "precio final autorizado" es lo que paga el cliente CON IVA. Antes se
@@ -261,9 +287,11 @@ function authRevisionHTML(soloAutorizar){
      formulario. */
   /* Lo tecleado manda sobre lo calculado: si el autorizador ya escribió un precio, el
      formulario tiene que volver a pintarlo con ése y no con el total. Ver _paDraft. */
+  /* Todo lo que se teclea aquí es SUBTOTAL, sin IVA —el borrador, lo que ya está guardado y
+     lo que se propone—, así que `Q.precioAuth`, que se guarda en neto, entra por sinIva(). */
   const paTecleado=paBorrador();
   const paCurrent=paTecleado!==null?paTecleado
-    :(Q.precioAuth>0&&Math.abs(Q.precioAuth-neto)>0.01)?Q.precioAuth:+authNeto.toFixed(2);
+    :(Q.precioAuth>0&&Math.abs(Q.precioAuth-neto)>0.01)?sinIva(Q.precioAuth):+authSub.toFixed(2);
   const itemRows=Q.items.map((it,i)=>{
     const orig=lineTotal(it);
     const authVal=ia[it.id]!==undefined?ia[it.id]:orig;
@@ -291,10 +319,19 @@ function authRevisionHTML(soloAutorizar){
   /* El nombre de quien autoriza se recuerda en el dispositivo: es siempre el mismo y
      se estaba tecleando en cada cotización. */
   return `<div class="auth-divider">Revisando · ${esc(Q.folio)}${Q.proy||Q.cliente?' — '+esc(Q.proy||Q.cliente):''}</div>
+    <!-- ----- El precio se ajusta SOBRE EL SUBTOTAL -----
+         Este campo pedía el neto —el precio con I.V.A.— y ahí estaba el agujero: quien
+         teclea «19,000» está decidiendo cuánto va a cobrar por el trabajo, y sobre el neto
+         eso deja $16,379 de trabajo, no $19,000. El 16 % de diferencia no lo absorbe el
+         descuento: sale del subtotal, que es lo único de lo que la casa puede regalar. Un
+         descuento que se creía del 8 % era del 21 %, en cada cotización ajustada.
+         Ahora se teclea el subtotal y el neto se calcula debajo, a la vista, que es el mismo
+         orden en el que lo lee el documento del cliente: subtotal, I.V.A., total. -->
     <div class="fld">
-      <label for="a-precio">Precio final autorizado ${Q.iva?'(con IVA)':'(sin IVA)'}</label>
-      <div class="precio-auth-orig" style="font-size:11.5px;color:var(--muted);margin-bottom:4px">Total calculado: <b>${money(neto)}</b></div>
-      <div class="inp-money"><input id="a-precio" type="number" inputmode="decimal" min="0" step="100" value="${paCurrent}" oninput="updPrecioAuth(+this.value,${neto})"></div>
+      <label for="a-precio">Precio final autorizado ${Q.iva?'· subtotal, SIN IVA':'(sin IVA)'}</label>
+      <div class="precio-auth-orig" style="font-size:11.5px;color:var(--muted);margin-bottom:4px">${Q.iva?'Subtotal':'Total'} calculado: <b>${money(subCalc)}</b></div>
+      <div class="inp-money"><input id="a-precio" type="number" inputmode="decimal" min="0" step="100" value="${paCurrent}" oninput="updPrecioAuth(+this.value,${subCalc})"></div>
+      ${Q.iva?`<div class="precio-auth-neto" id="a-precio-neto">Con IVA 16%: <b>${money(conIva(paCurrent))}</b></div>`:''}
       <div class="descuento-info" id="descuento-info"></div>
     </div>
     <div class="auth-divider" style="margin-top:8px">Ajuste por partida ${Q.iva?'· montos sin IVA':''}</div>
@@ -313,16 +350,26 @@ function authRevisionHTML(soloAutorizar){
       : '<button class="btn btn-dgr" onclick="rechazar()">Rechazar</button>'}`;
 }
 
-function updPrecioAuth(pa, neto){
+/* `paSub` y `subCalc` son los dos SIN IVA: lo que se teclea y lo que sale de las partidas.
+   El porcentaje sale igual sobre cualquiera de las dos bases —las dos se multiplican por
+   1,16 y la razón no cambia—, así que lo que se corrige no es el porcentaje: es el IMPORTE.
+   Medido contra el neto, «Descuento: $3,480» describía una rebaja que en lo que la casa se
+   queda eran $3,000; el otro $480 es I.V.A. que nunca fue suyo. Ahora la cifra y la frase
+   dicen la misma base que el campo de arriba. */
+function updPrecioAuth(paSub, subCalc){
   /* Antes que nada, quedarse con lo tecleado: es lo que sobrevive al siguiente
      repintado del formulario. Va fuera del early return de abajo porque borrar el
      campo —dejarlo en cero— también es algo que el autorizador acaba de escribir. */
-  paBorradorSet(pa);
+  paBorradorSet(paSub);
+  /* El neto que le corresponde, pegado al campo. Es el número que acaba en el papel del
+     cliente, y no verlo mientras se teclea el subtotal es la mitad de la confusión. */
+  const netoEl=$('a-precio-neto');
+  if(netoEl) netoEl.innerHTML='Con IVA 16%: <b>'+money(conIva(paSub))+'</b>';
   const el=$('descuento-info'); if(!el) return;
-  const d=neto-pa;
-  if(!pa||pa<=0||neto<=0||Math.abs(d)<0.01){ el.textContent=''; el.classList.remove('inc'); return; }
-  if(d>0){ el.textContent=`Descuento: ${money(d)} (${Math.round(d/neto*100)}%)`; el.classList.remove('inc'); }
-  else   { el.textContent=`Aumento: ${money(-d)} (${Math.round(-d/neto*100)}%)`; el.classList.add('inc'); }
+  const d=+(subCalc-paSub).toFixed(2);
+  if(!paSub||paSub<=0||subCalc<=0||Math.abs(d)<0.01){ el.textContent=''; el.classList.remove('inc'); return; }
+  if(d>0){ el.textContent=`Descuento: ${money(d)} sobre el subtotal (${Math.round(d/subCalc*100)}%)`; el.classList.remove('inc'); }
+  else   { el.textContent=`Aumento: ${money(-d)} sobre el subtotal (${Math.round(-d/subCalc*100)}%)`; el.classList.add('inc'); }
 }
 
 /* ===================== Revisión previa: partidas sin terminar =====================
@@ -1031,6 +1078,134 @@ function pintarCandadoPartidas(){
   } finally { _candPintando=false; }
 }
 
+/* ===================== Los datos del cliente, siempre corregibles =====================
+   Con el precio cerrado, los cinco campos del paso 1 se apagaban y la pantalla no decía ni
+   por qué ni cómo. Lo único que los volvía a abrir era «Editar partidas», que se llama como
+   lo que no se quiere tocar, vive en la columna del resumen —en el teléfono, debajo de todas
+   las partidas— y de paso invita a mover el trabajo, que sí suelta el precio autorizado.
+
+   Y de ahí salía lo peor: quien quería empezar «la siguiente» no encontraba con qué vaciar
+   —«Nueva cotización» está al fondo del mismo panel— y acababa tecleando otro cliente encima
+   del que ya estaba, con el mismo folio. El precio, el trabajo y el cuaderno del cliente
+   anterior se iban con esa escritura. La red de abajo la pone reFoliarSiEsOtroCliente(); lo
+   que hace falta aquí es que las dos cosas que se querían hacer —corregir a quién se le
+   cotiza, y empezar una nueva— estén escritas en la pantalla en la que se buscan.
+
+   Corregir el cliente no toca el precio y no hace falta que lo toque: el cliente, el teléfono
+   y el proyecto no entran en la huella del trabajo, y eso está decidido desde que la huella
+   existe (ver huellaTrabajo). Por eso esto es su propio modo y no el modo edición. */
+let _editCliente=null;   // el folio cuyos datos de cliente están abiertos, o null
+/* Va por folio, como _paDraft: abrir un pendiente de la cola o una del historial no puede
+   heredar la puerta que se abrió sobre otra cotización. */
+function editandoCliente(){ return _editCliente===Q.folio&&locked(); }
+/* Lo guardado bajo ESTE folio cuando resulta ser de otro cliente, o null. Es la misma
+   pregunta que se hace reFoliarSiEsOtroCliente() al guardar; aquí se hace antes, para poder
+   decirlo mientras todavía se puede elegir. */
+function otroClienteEnEsteFolio(){
+  if(typeof guardadaDeEsteFolio!=='function') return null;
+  const previa=guardadaDeEsteFolio();
+  return (previa&&!mismoCliente(previa,Q))?previa:null;
+}
+function abrirEdicionCliente(){
+  _editCliente=Q.folio;
+  /* renderSummary abre los campos; updProg repinta el candado. Los dos, porque el candado se
+     pinta desde updProg y sin él la ficha se quedaba ofreciendo «Corregir datos del cliente»
+     encima de unos campos que ya estaban abiertos, hasta que alguien tecleara algo. */
+  renderSummary(); updProg();
+  irAPantalla('cliente',{forzar:true});
+  const el=$('f-cli'); if(el) try{ el.focus(); }catch(_){}
+  toast('Datos del cliente abiertos — el precio autorizado no se toca','',4200);
+}
+/* «Listo». Guarda donde corresponda: una autorizada vive en el historial y una pendiente en
+   la cola, y hasta ahora nada escribía la corrección en ninguno de los dos —se quedaba solo
+   en la cotización en curso y volvía a desaparecer al abrir otra—. */
+function cerrarEdicionCliente(){
+  _editCliente=null;
+  const antes=Q.folio;
+  if(Q.estado==='autorizada') guardarEnHistorial();
+  else if(Q.estado==='pendiente') updateQueueEntry(Q.folio,{proy:Q.proy,cliente:Q.cliente,
+    q:JSON.parse(JSON.stringify({...Q,aiFile:null,editMode:false}))});
+  saveState(); renderSummary(); updProg();
+  /* Si el folio se movió, reFoliarSiEsOtroCliente ya lo dijo con su propio aviso y con más
+     detalle: repetirlo aquí taparía el único mensaje que nombra las dos cotizaciones. */
+  if(Q.folio===antes) toast('Datos del cliente guardados','ok',2800);
+}
+/* Empezar la siguiente sin volver a teclear quién es. Es lo mismo que «Cotizarle algo nuevo»
+   del cuaderno, desde la pantalla en la que se descubre que hacía falta.
+
+   Quién es SÍ viaja —cliente, teléfono y dirección son de la persona, no del trabajo—; el
+   proyecto casi nunca, porque es el nombre de ESTE trabajo y arrastrarlo es la mitad de lo que
+   se vino a arreglar: una cotización nueva que nace llamándose como la anterior. La excepción
+   es que ya se haya reteclado, que es lo que pasa cuando se llega aquí desde el aviso ámbar
+   —ahí el proyecto de la pantalla ya es el nuevo—: tirarlo sería borrar lo que se acaba de
+   escribir. Se compara contra lo que el historial guarda de este folio, que es la única copia
+   de lo que decía antes. */
+function nuevaConEstosDatos(){
+  const previa=guardadaDeEsteFolio();
+  const proy=(!previa||(previa.proy||'').trim()===(Q.proy||'').trim())?'':(Q.proy||'');
+  const datos={cliente:Q.cliente,tel:Q.tel,dirRaw:Q.dirRaw,maps:Q.maps};
+  _editCliente=null;
+  nueva();   // deja «Deshacer» puesto sobre lo que había, y de ahí sale el aviso de abajo
+  Q.cliente=datos.cliente||''; Q.tel=datos.tel||''; Q.proy=proy;
+  Object.entries(_FM).forEach(([k,id])=>{ if($(id)) $(id).value=Q[k]||''; });
+  if(datos.dirRaw){ if($('f-dir-raw')) $('f-dir-raw').value=datos.dirRaw; updDirRaw(datos.dirRaw); }
+  if(datos.maps){ if($('f-maps')) $('f-maps').value=datos.maps; updMaps(datos.maps); }
+  saveState(); renderSummary(); updProg(); actualizarAvisoCuaderno();
+  irAPantalla('cliente',{forzar:true});
+  /* El foco, en lo único que falta. */
+  const hueco=$( (Q.proy||'').trim()?'f-cli':'f-proy' );
+  if(hueco&&!hueco.disabled) try{ hueco.focus(); }catch(_){}
+  const nom=(Q.cliente||'').trim();
+  toast(Q.folio+' · cotización nueva'+(nom?' para '+nom:'')+((Q.proy||'').trim()?'':' — falta el proyecto')
+    +' · la anterior quedó completa en el historial','ok',7000,
+    _vaciada?{label:'Deshacer',fn:deshacerVaciado}:null);
+}
+/* El candado de la pantalla del cliente. Tres estados y ni uno más: cerrado, corrigiendo, y
+   corrigiendo lo que ya es otro cliente. Se pinta desde updProg() —que corre en cada tecla de
+   los tres obligatorios— por lo mismo que el candado de las partidas: el aviso tiene que
+   cambiar cuando terminas de escribir, no en el siguiente repintado de otra cosa. */
+let _cliCandFirma=null;
+function pintarCandadoCliente(){
+  const box=$('cli-candado'); if(!box) return;
+  if(!locked()){
+    _editCliente=null;
+    if(_cliCandFirma!==''){ _cliCandFirma=''; box.hidden=true; box.innerHTML=''; }
+    return;
+  }
+  const editando=editandoCliente();
+  const otro=editando?otroClienteEnEsteFolio():null;
+  const quien=otro?((otro.cliente||'').trim()||'otro cliente'):'';
+  const firma=[Q.folio,Q.estado,editando?'1':'0',quien].join('|');
+  if(firma===_cliCandFirma) return;
+  _cliCandFirma=firma;
+  const ESTADO={pendiente:'mandada a autorización',autorizada:'autorizada',rechazada:'rechazada'};
+  /* Con el precio en juego la frase tiene que decir que corregir no lo toca, porque ése es el
+     miedo que hace no tocar nada. En una rechazada no hay precio que defender, así que
+     prometerlo sobraría. */
+  const sinTocar=Q.estado==='rechazada'?'Los datos del cliente se pueden corregir desde aquí.'
+    :'Los datos del cliente se pueden corregir sin tocar el precio.';
+  let html;
+  if(!editando){
+    html=`${ico('i-candado')}<div class="cc-b"><p class="cc-t"><b>${esc(Q.folio)}</b> está ${esc(ESTADO[Q.estado]||'cerrada')}. ${sinTocar}</p>
+      <div class="cc-acts">
+        <button type="button" class="btn btn-gho" onclick="abrirEdicionCliente()">${ico('i-lapiz')} Corregir datos del cliente</button>
+        <button type="button" class="btn btn-gho" onclick="nuevaConEstosDatos()">Empezar cotización nueva</button>
+      </div></div>`;
+  } else if(!otro){
+    html=`${ico('i-lapiz')}<div class="cc-b"><p class="cc-t">Corrigiendo los datos de <b>${esc(Q.folio)}</b>.${Q.estado==='rechazada'?'':' El precio autorizado no se toca.'}</p>
+      <div class="cc-acts"><button type="button" class="btn btn-pri" onclick="cerrarEdicionCliente()">${ico('i-check')} Listo</button></div></div>`;
+  } else {
+    html=`${ico('i-aviso')}<div class="cc-b"><p class="cc-t"><b>${esc(Q.folio)}</b> está ${esc(ESTADO[Q.estado]||'cerrada')} a nombre de <b>${esc(quien)}</b>, y esto ya es otro cliente. No se pisa: al guardar, ésta se lleva un folio nuevo y la de ${esc(quien)} se queda como está.</p>
+      <div class="cc-acts">
+        <button type="button" class="btn btn-pri" onclick="nuevaConEstosDatos()">Empezar cotización nueva con estos datos</button>
+        <button type="button" class="btn btn-gho" onclick="cerrarEdicionCliente()">Guardarla aparte, con las mismas partidas</button>
+      </div></div>`;
+  }
+  box.innerHTML=html;
+  box.className='cand-cliente'+(otro?' ojo':'');
+  box.hidden=false;
+}
+
 /* ===================== Flujo ===================== */
 function solicitar(){
   if(!exigirDatosCliente()) return;
@@ -1118,9 +1293,12 @@ function autorizarConfirmado(){
   if(nombre) prefSet(PREF_AUTORIZADOR,nombre);
   Q.nota=($('a-note')?.value||'').trim();
   _selfAuth=false;
-  const neto=totals().neto;
-  const pa=parseFloat($('a-precio')?.value)||0;
-  Q.precioAuth=(pa>0&&Math.abs(pa-neto)>0.01)?pa:0;
+  /* Lo que el autorizador tecleó es el SUBTOTAL; `Q.precioAuth` se guarda en neto porque es
+     lo que llevan leyendo el historial, la cola, el PDF y el registro de venta desde que
+     existen. La conversión pasa por conIva() y por ningún otro sitio. */
+  const subCalc=totals().sub;
+  const paSub=parseFloat($('a-precio')?.value)||0;
+  Q.precioAuth=(paSub>0&&Math.abs(paSub-subCalc)>0.01)?conIva(paSub):0;
   paBorradorLimpiar();   // a partir de aquí manda Q.precioAuth, no lo que se tecleó
   /* Queda registrado SOBRE QUÉ se autorizó este precio. Es lo que después permite notar
      que el trabajo cambió, sin depender de que nadie apriete «Guardar». */
@@ -1203,7 +1381,7 @@ function nueva(){
   guardarParaDeshacer();
   Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};Q.huellaAuth='';
   Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth=''; Q.plazoK=null;
-  Q.editMode=false; _selfAuth=false; Q.sinEstrenar=true;
+  Q.editMode=false; _selfAuth=false; Q.sinEstrenar=true; _editCliente=null;
   Object.values(_FM).forEach(id=>{if($(id))$(id).value='';});
   // Una cotización en blanco no arranca regañada: el ámbar se apaga con ella.
   _marcarOblig=false;
@@ -1228,7 +1406,7 @@ function deshacerVaciado(){
   const rolActual=Q.rol;
   Object.assign(Q,_vaciada.q);
   Q.rol=rolActual;
-  Q.editMode=false; _selfAuth=false;
+  Q.editMode=false; _selfAuth=false; _editCliente=null;
   pid=Math.max(pid,_vaciada.pid||0);
   const scVuelve=_vaciada.sc;
   _vaciada=null;
@@ -1261,6 +1439,45 @@ function latirTotal(){
     el.classList.add('cambio');
   }
   _netoPrev=ahora;
+}
+/* ----- Y el subtotal también late -----
+   Por una razón distinta a la del total, y la razón está en el otro extremo del trabajo: el
+   documento del cliente se arma a mano en Canva, y en la casilla «Subtotal» de esa plantilla
+   —que suma el 16 % ella sola— se estaba copiando el número grande de esta columna, que es el
+   NETO. La cotización salía un 16 % más cara con el I.V.A. cobrado dos veces, y el error no
+   se ve en ninguna de las dos pantallas: los dos números son plausibles.
+
+   Así que el subtotal dejó de ser un renglón. Lleva recuadro, dice a dónde va, se copia de un
+   toque y late cuando cambia. Los dos laten a la vez y no se estorban: son el mismo cambio
+   dicho en los dos sitios, y a cada uno le toca su propia manera de pesar —al total el
+   tamaño, al subtotal el color—. */
+let _subPrev=null;
+function latirSubtotal(){
+  const caja=$('s-sub-box'), el=$('s-sub');
+  if(!caja||!el) return;
+  const ahora=el.textContent;
+  if(_subPrev!==null&&_subPrev!==ahora){
+    caja.classList.remove('cambio');
+    void caja.offsetWidth;        // reinicia la animación: sin esto solo late la primera vez
+    caja.classList.add('cambio');
+  }
+  _subPrev=ahora;
+}
+/* El subtotal que va en el documento del cliente: el autorizado cuando lo hay y sigue
+   valiendo, el calculado cuando no. Una sola respuesta para el recuadro y para el botón de
+   copiar, porque enseñar un número y copiar otro sería peor que no enseñar ninguno. */
+function subParaCanva(){
+  const d=desgloseFinal();
+  const ajustado=Q.estado==='autorizada'&&authVigente()&&Math.abs(+(d.sub-totals().sub).toFixed(2))>0.01;
+  return {sub:ajustado?d.sub:totals().sub, ajustado};
+}
+/* Un toque y el número está en el portapapeles, con el formato con el que se pega. Es la
+   otra mitad de lo mismo: enseñar cuál es el bueno sirve de poco si al lado hay otro más
+   grande y hay que teclearlo a mano de todos modos. */
+function copiarSubtotal(){
+  const {sub,ajustado}=subParaCanva();
+  if(sub<=0){ toast('Todavía no hay subtotal que copiar','',2600); return; }
+  copiarTexto(money(sub),(ajustado?'Subtotal autorizado copiado: ':'Subtotal copiado: ')+money(sub)+' — va en «Subtotal» de Canva');
 }
 function renderMobileBar(){
   const bar=$('mbar'); if(!bar) return;

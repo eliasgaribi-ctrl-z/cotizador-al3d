@@ -473,6 +473,118 @@ for (const bueno of ['logo-al3d.svg', 'data:image/png;base64,iVBORw0KGgo=', 'blo
   ? bien('y lo que no es una imagen sigue saliendo vacío')
   : mal('dejó pasar un javascript:');
 
+// ── 8ter. Empezar la siguiente no puede borrar la anterior ─────────────────
+/* Lo que pasaba, medido: con una cotización ya autorizada, quien no encontraba con qué
+   vaciar entraba a editar y tecleaba el cliente siguiente encima del anterior. El folio no
+   cambia, `guardarEnHistorial()` reemplaza la entrada de ese folio, y la cotización de antes
+   —su trabajo, su precio, quién lo autorizó y su renglón en el cuaderno de aquel cliente—
+   desaparecía sin una sola pregunta. Es el fallo que no se ve mirando la pantalla: la de
+   arriba se queda idéntica y lo que falta está en otra vista.
+
+   Se prueban las dos mitades: que corregir al MISMO cliente siga corrigiendo la misma
+   cotización, y que teclear a OTRO se lleve un folio nuevo dejando la primera entera. */
+console.log('\nCORREGIR AL CLIENTE, SIN LLEVARSE POR DELANTE AL ANTERIOR');
+await conCliente();
+await unaPartidaCompleta();
+await p.evaluate(()=>autorizarYoMismo()); await p.waitForTimeout(600);
+await p.fill('#a-name','Elías');
+await p.click('button:has-text("Autorizar precio")'); await p.waitForTimeout(900);
+const folio1 = await p.evaluate(()=>Q.folio);
+await p.evaluate(()=>irAPaso(1)); await p.waitForTimeout(500);
+(await p.evaluate(()=>document.getElementById('f-cli').disabled))
+  ? bien('con el precio cerrado los datos del cliente nacen bloqueados')
+  : mal('los datos del cliente estaban abiertos con el precio ya cerrado');
+!(await p.evaluate(()=>document.getElementById('cli-candado').hidden))
+  ? bien('pero la pantalla dice cómo se abren, en vez de quedarse muda')
+  : mal('el candado de la pantalla del cliente no aparece');
+
+await p.click('#cli-candado button:has-text("Corregir datos del cliente")'); await p.waitForTimeout(500);
+const abierto = await p.evaluate(()=>({dis:document.getElementById('f-cli').disabled,pa:Q.precioAuth,est:Q.estado,huella:!!Q.huellaAuth,
+  ficha:document.getElementById('cli-candado').innerText.replace(/\n+/g,' · ')}));
+(!abierto.dis && abierto.est==='autorizada' && abierto.huella)
+  ? bien('se abren sin soltar la autorización: corregir a quién se le cotiza no toca el precio')
+  : mal('abrir los datos del cliente movió el estado: '+JSON.stringify(abierto));
+/* La ficha tiene que cambiar en el mismo toque: se pinta desde updProg, así que sin llamarlo
+   se quedaba ofreciendo «Corregir datos del cliente» encima de unos campos ya abiertos. */
+/Listo/.test(abierto.ficha)
+  ? bien('y la ficha pasa a «Listo» en el mismo toque, sin esperar a que se teclee algo')
+  : mal('la ficha se quedo en: '+abierto.ficha);
+/* Mismo teléfono, otro nombre: es una corrección, y tiene que seguir siendo la misma. */
+await p.fill('#f-cli','Farmacia San Juan Suc. Centro'); await p.waitForTimeout(500);
+!(await p.evaluate(()=>document.getElementById('cli-candado').classList.contains('ojo')))
+  ? bien('reescribir el nombre sobre el mismo teléfono no se confunde con otro cliente')
+  : mal('una corrección del nombre se leyó como un cliente distinto');
+await p.click('#cli-candado button:has-text("Listo")'); await p.waitForTimeout(700);
+let hCli = await p.evaluate(()=>JSON.parse(localStorage.getItem('al3d_historial')||'[]'));
+(hCli.length===1 && hCli[0].folio===folio1 && /Suc\. Centro/.test(hCli[0].cliente))
+  ? bien('la corrección se escribe en el historial, sobre la misma cotización')
+  : mal('la corrección no llegó al historial: '+JSON.stringify(hCli.map(e=>e.folio+':'+e.cliente)));
+
+/* Y ahora el caso que borraba: otro nombre Y otro teléfono sobre el mismo folio. */
+await p.click('#cli-candado button:has-text("Corregir datos del cliente")'); await p.waitForTimeout(400);
+await p.fill('#f-cli','Taquería El Güero');
+await p.fill('#f-tel','33 9999 0000'); await p.waitForTimeout(600);
+(await p.evaluate(()=>document.getElementById('cli-candado').classList.contains('ojo')))
+  ? bien('teclear otro cliente encima se avisa en ámbar ANTES de guardar')
+  : mal('no avisó de que se estaba tecleando otro cliente sobre un folio ajeno');
+await p.click('#cli-candado button:has-text("Guardarla aparte")'); await p.waitForTimeout(900);
+hCli = await p.evaluate(()=>JSON.parse(localStorage.getItem('al3d_historial')||'[]'));
+(hCli.length===2 && hCli.some(e=>e.folio===folio1 && /Farmacia/.test(e.cliente)))
+  ? bien('quedan las dos: la nueva con folio propio y '+folio1+' intacta a nombre de Farmacia San Juan')
+  : mal('se perdió una cotización: '+JSON.stringify(hCli.map(e=>e.folio+':'+e.cliente)));
+(await p.evaluate(()=>Q.folio))!==folio1
+  ? bien('y la que está en pantalla es la del folio nuevo')
+  : mal('la cotización en pantalla se quedó con el folio de la anterior');
+
+/* Empezar la siguiente desde el paso 1: en blanco, con quién ya puesto. */
+await p.evaluate(()=>irAPaso(1)); await p.waitForTimeout(400);
+await p.click('#cli-candado button:has-text("Empezar cotización nueva")'); await p.waitForTimeout(900);
+const nueva1 = await p.evaluate(()=>({est:Q.estado,cli:Q.cliente,tel:Q.tel,proy:Q.proy,folio:Q.folio}));
+(nueva1.est==='borrador' && nueva1.cli==='Taquería El Güero' && nueva1.tel && !nueva1.proy)
+  ? bien('«Empezar cotización nueva» arranca en borrador con quién ya puesto y el proyecto en blanco')
+  : mal('la cotización nueva salió '+JSON.stringify(nueva1));
+((await p.evaluate(()=>JSON.parse(localStorage.getItem('al3d_historial')||'[]'))).length===2)
+  ? bien('sin tocar ninguna de las dos que ya estaban guardadas')
+  : mal('empezar una nueva movió el historial');
+
+// ── 8quater. El precio se ajusta sobre el subtotal ──────────────────────────
+/* El campo pedía el neto. Un descuento tecleado ahí rebaja un 16% más de lo que quien lo
+   teclea cree estar regalando —el IVA se entrega igual, así que la diferencia sale del
+   subtotal—, y eso no se ve en la pantalla: los dos números son plausibles. La aritmética
+   la cubre pruebas/precios-cliente.mjs; aquí se comprueba el borde, que es donde vivía el
+   error: qué pide el campo, contra qué se compara y qué se guarda al apretar Autorizar. */
+console.log('\nEL PRECIO FINAL SE TECLEA SIN IVA');
+await conCliente();
+await unaPartidaCompleta();
+const calc = await p.evaluate(()=>totals());
+await p.evaluate(()=>autorizarYoMismo()); await p.waitForTimeout(600);
+Math.abs((await p.$eval('#a-precio',e=>+e.value)) - calc.sub) < 0.01
+  ? bien('el campo abre proponiendo el subtotal calculado, no el neto')
+  : mal('el campo abrió con '+(await p.$eval('#a-precio',e=>e.value))+' y el subtotal es '+calc.sub.toFixed(2));
+/SIN IVA/.test(await p.$eval('label[for="a-precio"]',e=>e.textContent))
+  ? bien('y la etiqueta lo dice con todas sus letras')
+  : mal('la etiqueta del campo no avisa de que va sin IVA');
+await p.fill('#a-precio','19000'); await p.waitForTimeout(500);
+/22,040/.test(await p.$eval('#a-precio-neto',e=>e.textContent))
+  ? bien('debajo se lee en vivo el neto que le corresponde: $22,040.00')
+  : mal('el neto en vivo dice «'+(await p.$eval('#a-precio-neto',e=>e.textContent))+'»');
+await p.fill('#a-name','Elías');
+await p.click('button:has-text("Autorizar precio")'); await p.waitForTimeout(900);
+const cerrado = await p.evaluate(()=>({d:desgloseFinal(),pa:Q.precioAuth}));
+(Math.abs(cerrado.d.sub-19000)<0.01 && Math.abs(cerrado.d.neto-22040)<0.01 && Math.abs(cerrado.d.sub+cerrado.d.iva-cerrado.d.neto)<0.005)
+  ? bien('autorizada: se cobra un subtotal de $19,000 y un neto de $22,040, y los tres cuadran')
+  : mal('el desglose autorizado salió '+JSON.stringify(cerrado));
+/* Y el recuadro de la columna tiene que enseñar ESE subtotal, no el calculado: es el número
+   que se copia a la casilla «Subtotal» de Canva, y enseñar ahí el calculado sería dejar el
+   error donde estaba, solo que en un recuadro más grande. */
+const recuadro = await p.evaluate(()=>({sub:document.getElementById('s-sub').textContent,
+  lab:document.getElementById('s-sub-lab').textContent,
+  tach:document.getElementById('s-sub-calc').hidden?'':document.getElementById('s-sub-calc').textContent,
+  copia:subParaCanva().sub}));
+(/19,000/.test(recuadro.sub) && /autorizado/.test(recuadro.lab) && recuadro.tach && Math.abs(recuadro.copia-19000)<0.01)
+  ? bien('y el recuadro de la columna enseña ese subtotal, con el calculado '+recuadro.tach+' tachado al lado')
+  : mal('el recuadro del subtotal quedó '+JSON.stringify(recuadro));
+
 // ── 9. Nada se rompió por el camino ─────────────────────────────────────────
 console.log('');
 errs.length ? mal('errores de página: '+[...new Set(errs)].slice(0,3).join(' | '))

@@ -45,7 +45,61 @@ function saveHistorial(arr){
   /* Nada quedó escrito. Quien llame tiene que enterarse: hay una copia que no se puede soltar. */
   return false;
 }
+/* ----- Un folio es de UN cliente -----
+   El historial se indexa por folio y la escritura de abajo REEMPLAZA la entrada que ya tenga
+   ese folio. Mientras el folio y el cliente van juntos eso es justo lo que se quiere: volver a
+   guardar corrige la misma cotización. Pero el folio no cambia solo, y los datos del cliente
+   sí: se abre una cotización ya autorizada, se teclean encima otro cliente y otro proyecto
+   —que es como se empieza «la siguiente» cuando no se encuentra el botón de vaciar—, y la de
+   antes desaparece. Con ella se va su trabajo, su precio, quién lo autorizó y su renglón en el
+   cuaderno de aquel cliente, sin una sola pregunta y sin manera de devolverla.
+
+   Así que aquí, en el único sitio por el que se escribe el historial, se pregunta antes: si
+   ese folio ya está ocupado por OTRO cliente, esta cotización no es esa cotización y se lleva
+   un folio nuevo. No hay nada que confirmar —guardar las dos no le cuesta nada a nadie— y la
+   que ya estaba no se toca. */
+function mismoCliente(a,b){
+  const ta=telClave(a&&a.tel), tb=telClave(b&&b.tel);
+  const na=normNom(a&&a.cliente), nb=normNom(b&&b.cliente);
+  /* Con que coincida UNO de los dos basta para llamarlo corrección: reescribir el nombre de un
+     teléfono que no se movió es arreglar cómo se escribe —«Farmacia San Juan» y «farmacia san
+     juan suc. centro» son el mismo señor, y así lo agrupan los cuadernos—, y corregir un dígito
+     del teléfono sin tocar el nombre es arreglar el número. Lo que no es una corrección es que
+     cambien los dos. */
+  if(ta&&tb&&ta===tb) return true;
+  if(na&&nb&&na===nb) return true;
+  /* No hay con qué comparar: a uno de los dos le falta el teléfono y al otro el nombre, o
+     están a medio teclear. Afirmar que son distintos partiría en dos algo que solo estaba
+     incompleto, y de las dos equivocaciones posibles ésa es la que no tiene vuelta. */
+  if(!(ta&&tb)&&!(na&&nb)) return true;
+  return false;
+}
+/* Lo que este folio tiene guardado, esté donde esté: el historial cuando ya se autorizó, la
+   cola mientras espera. Se devuelve en una sola forma —quién y qué trabajo— porque las dos
+   preguntas que se le hacen son ésas y cada almacén las guarda distinto: el renglón de la cola
+   no lleva teléfono, pero su copia de la cotización sí. */
+function guardadaDeEsteFolio(){
+  const h=getHistorial().find(x=>x.folio===Q.folio);
+  if(h) return {cliente:h.cliente||'',tel:h.tel||'',proy:h.proy||''};
+  const c=getQueue().find(x=>x.folio===Q.folio);
+  if(c) return {cliente:c.cliente||(c.q&&c.q.cliente)||'',tel:(c.q&&c.q.tel)||'',proy:c.proy||(c.q&&c.q.proy)||''};
+  return null;
+}
+/* Devuelve true si hubo que reetiquetar, para que quien guarde sepa que el folio se movió. */
+function reFoliarSiEsOtroCliente(){
+  const previa=getHistorial().find(x=>x.folio===Q.folio);
+  if(!previa||mismoCliente(previa,Q)) return false;
+  const antes=Q.folio, deQuien=(previa.cliente||'').trim()||'la cotización que ya estaba';
+  Q.folio=nextFolio();
+  /* La solicitud que quedara en la cola es del folio viejo, y el viejo ya no es este trabajo. */
+  removeFromQueue(antes);
+  if(Q.estado==='autorizada') confirmarFolio(Q.folio);
+  pintarFolio();
+  toast(antes+' sigue siendo de '+deQuien+' — ésta quedó como '+Q.folio,'',7000);
+  return true;
+}
 function guardarEnHistorial(){
+  reFoliarSiEsOtroCliente();
   const t=totals();
   const arr=getHistorial();
   const idx=arr.findIndex(x=>x.folio===Q.folio);

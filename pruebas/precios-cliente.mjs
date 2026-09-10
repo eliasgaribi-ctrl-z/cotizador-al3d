@@ -62,7 +62,7 @@ const Q = ev('Q');
 const F = {};
 for (const n of ['lineTotal', 'totals', 'sellarAuth', 'authVigente', 'precioFinal', 'subAjustado',
   'netoAjustado', 'ajusteAuth', 'desgloseFinal', 'itemPrecio', 'itemPrecioCliente', 'itemAjustada',
-  'preciosCliente', 'hayAumentoAuth', 'piezasDe', 'ltHTML']) F[n] = ev(n);
+  'preciosCliente', 'hayAumentoAuth', 'piezasDe', 'ltHTML', 'conIva', 'sinIva']) F[n] = ev(n);
 
 let fallas = 0;
 const cierto = (cond, que) => {
@@ -206,6 +206,42 @@ cierto(malas === 0, `400 cotizaciones al azar: todas suman su subtotal al centav
    de sus piezas—, pero sí tiene que ser la excepción. Si esta cuenta se desploma, el reparto
    dejó de repartir sobre el unitario y volvió a repartir sobre el total. */
 cierto(sinAsteriscoDeMas > 300, `y en la gran mayoría ninguna partida necesita asterisco (${sinAsteriscoDeMas} de 400)`);
+
+/* ---- El precio se decide SIN IVA ----
+   El formulario de revisión pide el SUBTOTAL desde que se midió lo que costaba pedir el neto:
+   quien teclea «19,000» cree estar decidiendo cuánto cobra por el trabajo, y sobre el neto eso
+   deja $16,379 de trabajo. El 16% no lo absorbe el descuento —el IVA se entrega igual—: sale
+   del subtotal. Por dentro Q.precioAuth se sigue guardando en neto, que es lo que leen el
+   historial, la cola, el PDF y la venta, así que lo que hay que probar es que el viaje de ida y
+   vuelta no pierda ni un centavo y que el desglose cierre entre sí. A ojo no se ve: los dos
+   números son plausibles y la diferencia aparece a fin de mes. */
+console.log('\nEL PRECIO SE TECLEA SIN IVA, Y EL DESGLOSE CIERRA AL CENTAVO');
+autorizada({ items: [manual(1, 5, 1000), manual(2, 2, 280)], precioAuth: 0 });
+Q.iva = true;
+cierto(cerca(F.conIva(19000), 22040), 'un subtotal de $19,000 son $22,040 con IVA');
+cierto(cerca(F.sinIva(22040), 19000), 'y de vuelta, $22,040 son $19,000 de subtotal');
+/* Los subtotales feos son los que delatan un redondeo mal puesto: 17.585,60 × 1,16 no cae en
+   un centavo redondo, así que si la ida y la vuelta no cuadran, cuadran aquí o en ningún lado. */
+let ida = 0;
+for (let v = 100; v <= 60000; v += 7.13) {
+  const sub = Math.round(v * 100) / 100;
+  if (!cerca(F.sinIva(F.conIva(sub)), sub)) { ida++; if (ida === 1) console.log(`         · ${sub} volvió como ${F.sinIva(F.conIva(sub))}`); }
+}
+cierto(ida === 0, `8.400 subtotales de ida y vuelta por el IVA, todos vuelven idénticos (${ida} perdidos)`);
+let noCuadran = 0;
+for (let v = 100; v <= 60000; v += 7.13) {
+  const sub = Math.round(v * 100) / 100;
+  autorizada({ items: [manual(1, 1, sub)], precioAuth: F.conIva(sub) });
+  const d = F.desgloseFinal();
+  if (!cerca(d.sub + d.iva, d.neto, 0.005)) { noCuadran++; if (noCuadran === 1) console.log(`         · ${sub}: ${d.sub} + ${d.iva} ≠ ${d.neto}`); }
+  if (!cerca(d.sub, sub, 0.005)) { noCuadran++; if (noCuadran === 1) console.log(`         · ${sub} salió como subtotal ${d.sub}`); }
+}
+cierto(noCuadran === 0, `y en las 8.400 el desglose cierra: subtotal + IVA es exactamente el neto, y el subtotal es el que se tecleó (${noCuadran} malos)`);
+/* Sin IVA los dos son el mismo número, y de eso depende que ninguna pantalla tenga que
+   preguntar cuál de los dos está mirando. */
+autorizada({ items: [manual(1, 1, 4321.99)], iva: false, precioAuth: 4000 });
+cierto(cerca(F.conIva(4000), 4000) && cerca(F.sinIva(4000), 4000), 'con el IVA apagado, subtotal y neto son la identidad');
+cierto(cerca(F.desgloseFinal().sub, 4000) && cerca(F.desgloseFinal().iva, 0), 'y el desglose no inventa un IVA que nadie va a cobrar');
 
 console.log('');
 if (fallas) { console.log(`${fallas} falla(s).`); process.exit(1); }
