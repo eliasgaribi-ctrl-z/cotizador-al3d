@@ -165,7 +165,7 @@ let pid=0, dragId=null;
 | `fechaAuth` | string | Fecha de autorización, `toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'})` | Sí |
 | `anti` | number | Anticipo en MXN. Si `!antiManual` se recalcula a `Math.round(precioFinal()*0.5)` en cada `renderSummary` | Sí |
 | `antiManual` | boolean | `true` en cuanto el input `#f-anti` tiene texto (L5169) | Sí |
-| `precioAuth` | number | Precio final fijado por el autorizador. `0` = "sin ajuste global" | Sí |
+| `precioAuth` | number | Precio final fijado por el autorizador, **en NETO** (con IVA cuando `iva` es `true`). `0` = "sin ajuste global". El formulario de revisión lo pide en **subtotal** desde sep/2026 —`#a-precio` es sin IVA— y `conIva()`/`sinIva()` (nucleo.js) son el único borde de conversión; el campo guardado no cambió de unidad, que es lo que deja intactos el historial, la cola, el PDF y el registro de venta | Sí |
 | `itemsAuth` | `{[itemId:number]: number}` | Precio por partida puesto a mano por el autorizador. Llaves = `it.id` (numéricas, se serializan como strings en JSON) | Sí |
 | `huellaAuth` | string | Huella del trabajo autorizado (§6) | Sí |
 | `aiFile` | `{name,type,url}\|null` | Imagen/PDF analizado | **Se excluye de `al3d_q`** (`aiFile:null`) y vuelve de `al3d_aifile` si cupo (≤2 MB) |
@@ -501,9 +501,10 @@ function autorizarConfirmado(){
   if(nombre) prefSet(PREF_AUTORIZADOR,nombre);
   Q.nota=($('a-note')?.value||'').trim();
   _selfAuth=false;
-  const neto=totals().neto;
-  const pa=parseFloat($('a-precio')?.value)||0;
-  Q.precioAuth=(pa>0&&Math.abs(pa-neto)>0.01)?pa:0;
+  // Lo tecleado es SUBTOTAL; Q.precioAuth se guarda en neto. La conversión, en conIva().
+  const subCalc=totals().sub;
+  const paSub=parseFloat($('a-precio')?.value)||0;
+  Q.precioAuth=(paSub>0&&Math.abs(paSub-subCalc)>0.01)?conIva(paSub):0;
   paBorradorLimpiar();   // a partir de aquí manda Q.precioAuth, no lo que se tecleó
   sellarAuth();
   Q.estado='autorizada';
@@ -915,6 +916,8 @@ Es decir: **la app delega el geocoding a Google al abrir el link. Nunca resuelve
 1. **No hay identidad de registro estable más que `folio`**, y `folio` solo es único por dispositivo (el contador `al3d_folio` es local). Si se van a fusionar datos de varios teléfonos, hace falta un id compuesto (`dispositivo+folio`) o un UUID nuevo.
 2. **Fechas legibles, no fechas de máquina.** `fecha`, `fechaAuth` y `entrega` son strings en español (`'22 ago 2026'`, `'Viernes 15 de Agosto'`). El único valor comparable es `ts` (epoch ms), y se sobrescribe cuando la entrada se reguarda.
 3. **`ts` no es inmutable.** `guardarEnHistorial` reemplaza la entrada completa (`arr[idx]=entry`) al reautorizar, al editar y al ocultar/mostrar una partida del PDF. No hay `createdAt` separado de `updatedAt`.
+
+   Lo que ese reemplazo **ya no puede** hacer es pisar a OTRO cliente. `guardarEnHistorial` empieza por `reFoliarSiEsOtroCliente()`: si la entrada que ocupa `Q.folio` es de un cliente distinto —misma regla de los cuadernos, `mismoCliente()`: basta con que coincida el teléfono de diez dígitos **o** el nombre normalizado para llamarlo corrección—, la cotización en curso toma `nextFolio()`, se suelta su renglón viejo de la cola y se avisa. La de antes queda intacta. Antes, teclear otro cliente encima de una autorizada la borraba entera, con su precio, su autorizador y su renglón en el cuaderno.
 4. **`items[].id` es local a la cotización** (`pid` se reinicia por cotización, y `usarComoBase` reasigna). No es una clave global de partida. Las llaves de `itemsAuth` son esos mismos ids **serializados como strings** en JSON: al leer, `e.itemsAuth[it.id]` funciona por coerción, pero `Object.keys()` da strings.
 5. **Las partidas ocultas del PDF (`showInPdf===false`) siguen cobrándose** (se agrupan como "Conceptos adicionales"). Un módulo que liste trabajo a fabricar **no debe** filtrar por `showInPdf`.
 6. **Solo entran al historial las cotizaciones autorizadas.** Borradores viven en `al3d_q` (uno solo, el actual) y pendientes en `al3d_queue`. No hay archivo de rechazadas: `rechazar()` las saca de la cola con todo su snapshot.

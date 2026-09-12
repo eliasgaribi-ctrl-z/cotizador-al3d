@@ -1069,8 +1069,14 @@ textarea{resize:vertical;min-height:46px}
 .srow{display:flex;justify-content:space-between;align-items:center;gap:var(--e3);font-size:var(--t3);color:var(--n6);padding:var(--e2) 0}
 .srow.ivt{border-top:1px solid var(--n2);margin-top:var(--e1)}
 .srow .v{font-weight:500;color:var(--n8);font-variant-numeric:tabular-nums}
-.srow.subtotal{font-size:var(--t3);font-weight:500;color:var(--n7);padding:var(--e2) 0}
-.srow.subtotal .v{font-size:var(--t4);font-weight:600;color:var(--n8)}
+/* De tres renglones y no de dos columnas: qué es, cuánto, y a dónde va. En la columna del
+   escritorio —que es angosta— el rótulo y la cifra en la misma línea se partían los dos. */
+.srow.subtotal{flex-direction:column;align-items:stretch;gap:2px;font-size:var(--t3);font-weight:500;color:var(--n7);padding:var(--e2) 0}
+.srow.subtotal .sub-top{display:flex;align-items:center;justify-content:space-between;gap:var(--e2)}
+.srow.subtotal .v{font-size:var(--t4);font-weight:600;color:var(--n8);display:flex;align-items:baseline;gap:var(--e2)}
+.srow.subtotal .sub-canva{font-size:var(--t1);font-weight:500;line-height:1.35}
+.sub-copiar{border:1px solid var(--line);background:transparent;color:inherit;font-family:inherit;
+  font-size:11px;font-weight:700;padding:3px 9px;border-radius:7px;cursor:pointer;flex-shrink:0}
 .neto{padding:var(--e4) var(--e5) var(--e5);border-top:1px solid var(--n2);display:flex;justify-content:space-between;align-items:flex-end;gap:var(--e3)}
 .neto .lab{font-size:var(--t2);font-weight:500;color:var(--n6)}
 .neto .neto-calc{font-size:var(--t1);color:var(--n6);margin-top:2px}
@@ -2100,6 +2106,12 @@ a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-t
      dice nada a quien recibe la hoja. */
   .items-cand .partida{background:#fff}
   .cand-partidas{display:none!important}
+  /* Lo mismo con el candado del paso 1 y el botón de copiar el subtotal: los dos son maneras
+     de tocar la pantalla, y el papel no se toca. El recuadro del subtotal SÍ se imprime —es
+     un importe de la cotización— pero sin su superficie de color, por lo mismo de arriba. */
+  .cand-cliente{display:none!important}
+  .sub-copiar{display:none!important}
+  .srow.subtotal{background:#fff;border-color:#e6e8f2}
   .partida.folded .pbody{display:block}
   .partida.folded .psum{display:none}
   /* Los datos del proyecto se pliegan en el celular y el estado se guarda: sin esto, un
@@ -2916,6 +2928,83 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
   0%{transform:scale(1)} 35%{transform:scale(1.04)} 70%{transform:scale(.995)} 100%{transform:scale(1)}
 }
 
+/* ---------- El recuadro del Precio Subtotal ----------
+   El total se lleva el TAMAÑO —28 px, el número más grande de la pantalla— y éste se lleva el
+   COLOR, que es la otra manera de pesar sin competir por la misma. No es decoración: el
+   documento del cliente se arma a mano en Canva, y en la casilla «Subtotal» de esa plantilla
+   —que suma el 16 % ella sola— se estaba copiando el número grande de aquí, que es el neto.
+   La cotización salía un 16 % más cara con el I.V.A. cobrado dos veces, y ninguna de las dos
+   pantallas puede notarlo: los dos números son plausibles. Así que el subtotal dice a dónde
+   va, se copia de un toque y late cuando cambia.
+
+   Todo sale de los tokens del acento, así que de noche se resuelve solo: --a-suave es la
+   superficie tenue y --a-tx el azul que SÍ se lee encima (6,9:1 de día, 7,1:1 de noche). */
+.sum-rows-2{
+  margin-top:var(--e3);
+  border-top:0;
+  padding:0;
+}
+.srow.subtotal{
+  border-radius:var(--rr3);
+  border:1px solid var(--a-borde);
+  background:var(--a-suave);
+  padding:var(--e3) var(--e4);
+  gap:5px;
+}
+.srow.subtotal .sub-lab{color:var(--a-tx);font-weight:700;font-size:var(--t2);letter-spacing:.3px;text-transform:uppercase}
+.srow.subtotal .sub-canva{color:var(--tinta2);font-weight:500;margin-top:1px}
+.srow.subtotal .v{color:var(--tinta)}
+.srow.subtotal .v #s-sub{
+  font-family:var(--f-cifra);font-weight:650;font-size:var(--t6);line-height:1;
+  font-variant-numeric:tabular-nums;color:var(--tinta);
+}
+.srow.subtotal .v small{color:var(--tinta2)}
+.srow.subtotal .sub-calc{text-decoration:line-through;font-weight:600;font-variant-numeric:tabular-nums}
+.srow.subtotal .sub-calc[hidden]{display:none}
+.sub-copiar{border-color:var(--a-borde);color:var(--a-tx)}
+.sub-copiar:hover{background:var(--sup)}
+/* El latido: el mismo aro del rediseño, una vez y al cambiar —no en bucle—. La regla de «una
+   pantalla, una cosa que se mueva sola» sigue en pie: esto no se mueve solo, contesta. */
+.srow.subtotal.cambio{animation:sub-late .52s cubic-bezier(.2,.8,.2,1)}
+@keyframes sub-late{
+  0%{box-shadow:0 0 0 0 rgba(var(--a-rgb),.55)}
+  100%{box-shadow:0 0 0 10px rgba(var(--a-rgb),0)}
+}
+
+/* ---------- El candado de la pantalla del cliente ----------
+   Misma familia que la ficha del candado de las partidas —es el mismo tipo de aviso: «esto
+   está cerrado y así se abre»— pero con sus botones dentro, porque aquí hay dos caminos y
+   no uno. En ámbar cuando lo que se está tecleando ya es OTRO cliente sobre un folio
+   ajeno, que es la única versión de esto que pide una decisión. */
+.cand-cliente{
+  display:flex;align-items:flex-start;gap:var(--e3);
+  border-radius:var(--rr3);border:1px solid var(--a-borde);background:var(--a-suave);
+  padding:12px 14px;margin:0 0 var(--e3);
+}
+.cand-cliente[hidden]{display:none}
+.cand-cliente>.svgi{flex-shrink:0;color:var(--a-tx);margin-top:1px}
+.cand-cliente .cc-b{flex:1;min-width:0}
+.cand-cliente .cc-t{font-size:var(--t2);font-weight:500;line-height:1.5;color:var(--tinta);margin:0}
+.cand-cliente .cc-t b{font-weight:800}
+.cand-cliente .cc-acts{display:flex;flex-wrap:wrap;gap:var(--e2);margin-top:10px}
+.cand-cliente .cc-acts .btn{width:auto;padding:0 14px;margin:0}
+/* El aro de `late`, en ámbar: es el único estado de esta ficha que pide una decisión —lo que
+   se está tecleando ya es otro cliente— y en la pantalla del cliente no hay nada más
+   moviéndose, porque la tarjeta de partidas y la columna del dinero están ocultas ahí. */
+@keyframes late-av{
+  0%,100%{box-shadow:0 0 0 0 rgba(var(--av-rgb),.35)}
+  60%{box-shadow:0 0 0 8px rgba(var(--av-rgb),0)}
+}
+.cand-cliente.ojo{border-color:var(--av-borde);background:var(--av-bg);animation:late-av 2.8s ease-in-out infinite}
+.cand-cliente.ojo>.svgi{color:var(--amber-ico)}
+
+/* ---------- El neto que corresponde al subtotal tecleado ----------
+   Debajo del campo de revisión: se teclea el subtotal y aquí se lee, en vivo, lo que va a
+   pagar el cliente. Sin esto, decidir el precio sin IVA obligaba a hacer la multiplicación
+   de cabeza justo en el momento en que no hay que equivocarse. */
+.precio-auth-neto{font-size:11.5px;color:var(--tinta2);margin-top:5px}
+.precio-auth-neto b{color:var(--tinta);font-weight:700}
+
 /* ---------- Barra de completitud ----------
    6 px de alto y un brillo que la recorre: es lo que dice que la app está
    trabajando contigo mientras se captura.
@@ -3446,7 +3535,7 @@ details.ai-cfg summary:hover{color:var(--tinta)}
    hace en su propio código: mide, y si esto está activo no anima. */
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
-  #prog-bar::after,.cand-partidas{animation:none!important}
+  #prog-bar::after,.cand-partidas,.cand-cliente.ojo,.srow.subtotal.cambio{animation:none!important}
   .btn:hover,.chip:hover,.paso-tab:hover,.ai-btn:hover{transform:none!important}
 }
 

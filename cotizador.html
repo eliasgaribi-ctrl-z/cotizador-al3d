@@ -227,6 +227,13 @@
              pantalla vacía. El botón se va; la lógica se queda por si algo la llama. -->
       </div>
       <div class="card-b" id="card-proy-b">
+        <!-- El candado del paso 1. Con el precio ya cerrado los cinco campos de abajo se
+             apagan, y hasta ahora nada decía por qué ni cómo se vuelven a abrir: lo único
+             que los destrababa era «Editar partidas», al fondo de la otra columna. Aquí
+             están las dos cosas que se vienen a hacer —corregir a quién se le cotiza y
+             empezar la siguiente—, escritas en la pantalla en la que se buscan. Lo pinta
+             pintarCandadoCliente(). -->
+        <div class="cand-cliente" id="cli-candado" role="region" aria-label="Estado de los datos del cliente" hidden></div>
         <div class="grid2">
           <div class="fld" id="fld-cli"><label for="f-cli">Cliente<span class="req" aria-hidden="true">*</span></label><input id="f-cli" list="clientes-conocidos" placeholder="Nombre del cliente" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('cliente',this.value)"><datalist id="clientes-conocidos"></datalist></div>
           <div class="fld" id="fld-tel"><label for="f-tel">Teléfono<span class="req" aria-hidden="true">*</span></label><input id="f-tel" type="tel" inputmode="tel" placeholder="33 0000 0000" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('tel',this.value)"></div>
@@ -349,13 +356,32 @@
       <!-- El subtotal y el total eran dos bloques de color a pantalla completa, apilados: uno
            azul de marca y uno marino con degradado. Pintar de color un número no lo vuelve
            más importante, lo vuelve más ruidoso, y ahí estaban los dos objetos más
-           llamativos de la pantalla compitiendo entre sí. Ahora son dos renglones: el
-           subtotal como cualquier otro y el total como EL número de la columna, que es lo
-           que de verdad se viene a leer. -->
+           llamativos de la pantalla compitiendo entre sí. Se dejaron dos renglones: el
+           subtotal como cualquier otro y el total como EL número de la columna.
+
+           Y así el subtotal se volvió invisible, con una consecuencia que costaba dinero. El
+           documento del cliente se arma a mano en Canva, y su bloque de totales es
+           «Subtotal / I.V.A. / Total Neto»: en la casilla de arriba va el subtotal y la
+           plantilla suma el 16 %. Lo que se copiaba de esta columna era el número grande —el
+           NETO— y la cotización salía un 16 % más cara de lo cotizado, con el I.V.A. cobrado
+           dos veces. Pasó lo bastante como para pedirlo por escrito.
+
+           Así que el subtotal recupera un recuadro propio: no por decoración, sino porque es
+           el número que se va a copiar, y dice a dónde va. Late cuando cambia, igual que el
+           total. El total sigue siendo el más grande de la pantalla; éste es el que lleva el
+           color, que es la otra manera de pesar. -->
       <div class="sum-rows sum-rows-2">
-        <div class="srow subtotal">
-          <span>Subtotal</span>
-          <span class="v"><span id="s-sub">$0.00</span> <small id="s-iva-hint">+ IVA</small></span>
+        <div class="srow subtotal" id="s-sub-box">
+          <div class="sub-top">
+            <span class="sub-lab" id="s-sub-lab">Precio Subtotal</span>
+            <button type="button" class="sub-copiar" id="s-sub-copiar" onclick="copiarSubtotal()" title="Copiar el subtotal para pegarlo en Canva" aria-label="Copiar el precio subtotal">Copiar</button>
+          </div>
+          <!-- Con el precio ya ajustado por el autorizador, el que va en el documento es el
+               subtotal AUTORIZADO y no el calculado: aquí manda ése y el calculado se queda al
+               lado, tachado. Es el mismo gesto con el que cada partida enseña su precio
+               ajustado, y evita que la columna tenga dos subtotales sin decir cuál es cuál. -->
+          <span class="v"><small class="sub-calc" id="s-sub-calc" hidden></small><span id="s-sub">$0.00</span> <small id="s-iva-hint">+ IVA</small></span>
+          <small class="sub-canva">el que va en Canva · la plantilla le suma el IVA</small>
         </div>
       </div>
       <div class="neto">

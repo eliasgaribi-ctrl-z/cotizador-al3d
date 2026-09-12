@@ -743,11 +743,28 @@ function netoAjustado(){ const sub=subAjustado(); return +((Q.iva?sub*1.16:sub))
    cliente no mencionaba. Los descuentos por partida se ven en su propio renglón —con el
    calculado tachado—, así que aquí solo cuenta el ajuste que va encima de todos. */
 function ajusteAuth(){ return +(netoAjustado()-precioFinal()).toFixed(2); }
+/* ----- El precio se decide SIN IVA -----
+   El I.V.A. no es dinero de la casa: es dinero que se cobra y se entrega. Un descuento
+   tecleado sobre el neto rebaja de más —el 16 % que se iba a entregar de todos modos sigue
+   saliendo del mismo bolsillo—, y quien lo teclea cree estar bajando el subtotal, que es lo
+   único que de verdad se puede regalar. Por eso el formulario de revisión pide el SUBTOTAL y
+   estos dos convierten en el borde: `Q.precioAuth` sigue guardándose en neto, que es lo que
+   leen el historial, la cola, el PDF y el registro de venta desde que existen.
+
+   Sin IVA las dos son la identidad, y eso importa: con el interruptor apagado el subtotal ES
+   el total, y ninguna pantalla tiene que preguntar cuál de los dos está mirando. */
+function conIva(sub){ return +((Q.iva?(sub||0)*1.16:(sub||0))).toFixed(2); }
+function sinIva(neto){ return +((Q.iva?(neto||0)/1.16:(neto||0))).toFixed(2); }
 /* Subtotal e IVA que corresponden al precio final (para el registro de venta). */
 function desgloseFinal(){
-  const neto=precioFinal();
-  const sub=Q.iva?neto/1.16:neto;
-  return {sub:+sub.toFixed(2), iva:+(neto-sub).toFixed(2), neto:+neto.toFixed(2)};
+  /* Los tres cierran entre sí: el I.V.A. sale de RESTAR el subtotal ya redondeado, no de
+     redondear la diferencia sin redondear. Con la resta cruda los tres podían salir a un
+     centavo de distancia —$17,585.60 + $2,813.69 contra un total de $20,399.30—, que es la
+     cuenta que un cliente con calculadora sí hace, y la misma razón por la que lineTotal()
+     redondea una sola vez. */
+  const neto=+precioFinal().toFixed(2);
+  const sub=+(Q.iva?neto/1.16:neto).toFixed(2);
+  return {sub, iva:+(neto-sub).toFixed(2), neto};
 }
 /* Precio de una partida: el ajustado por el autorizador si lo hay, si no el calculado.
    El ajuste solo cuenta mientras la autorización siga correspondiendo a este trabajo:

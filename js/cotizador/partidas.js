@@ -642,6 +642,10 @@ function updProg(){
   /* El candado de las partidas, por lo mismo y en el mismo sitio: es la otra cosa que
      cambia cuando cambian los tres obligatorios. */
   pintarCandadoPartidas();
+  /* Y el de la pantalla del cliente, que es el que dice cómo se corrigen esos tres datos con
+     el precio ya cerrado —y con qué se empieza la siguiente cotización, que era lo que no se
+     encontraba y acababa escribiéndose encima de la anterior. */
+  pintarCandadoCliente();
   /* El resumen del encabezado plegado de «Datos del proyecto» se quedaba con el cliente de
      la cotización anterior al abrir otra: se pintaba solo al plegar y desplegar, no cuando
      los datos cambiaban. Va aquí por el mismo motivo que pintarObligatorios. */
@@ -1166,18 +1170,25 @@ function updItemAuth(id,val){
     else if(diff<0){adjEl.textContent='Descuento: '+money(-diff);adjEl.className='ia-adj';}
     else{adjEl.textContent='Aumento: '+money(diff);adjEl.className='ia-adj inc';}
   }
-  // Los ajustes por partida van sin IVA; el precio final que se autoriza lo lleva.
+  // Los ajustes por partida van sin IVA, igual que el precio final de arriba desde que se
+  // teclea en subtotal: los dos campos del formulario hablan de lo mismo y ya no hay que
+  // traducir entre ellos de cabeza.
   const sub=Q.items.reduce((s,x)=>{const v=Q.itemsAuth[x.id];return s+(v!==undefined?v:lineTotal(x));},0);
   // Mismo criterio que el formulario: no se redondea, para no inventar un ajuste.
   const netoAj=+(Q.iva?sub*1.16:sub).toFixed(2);
   const sumEl=$('ia-sum'); if(sumEl) sumEl.textContent=money(sub);
   const sumNetoEl=$('ia-sum-neto'); if(sumNetoEl) sumNetoEl.textContent=money(Q.iva?sub*1.16:sub);
-  const gInput=$('a-precio'); if(gInput) gInput.value=netoAj;
+  // El campo de arriba lleva SUBTOTAL: escribirle el neto era volver a meter el 16 % por la
+  // puerta de atrás, y con un dígito más el ajuste por partida se convertía en un aumento.
+  // Al centavo, que es lo que el campo puede enseñar: la suma cruda de dos partidas entra
+  // como «17600.000000000004» y eso es lo que quedaría escrito.
+  const subAj=+sub.toFixed(2);
+  const gInput=$('a-precio'); if(gInput) gInput.value=subAj;
   // Se respeta el ajuste sea hacia abajo o hacia arriba: antes un aumento se veía
   // en pantalla pero se perdía al autorizar.
   Q.precioAuth=Math.abs(netoAj-neto)>0.01?netoAj:0;
   sellarAuth();
-  updPrecioAuth(netoAj,neto);
+  updPrecioAuth(subAj,totals().sub);
   saveState();
   /* El avance de la revisión vuelve a la cola. Antes updItemAuth solo llamaba a
      saveState(), así que el snapshot de la cola seguía con itemsAuth vacío: bastaba con
