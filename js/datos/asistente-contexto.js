@@ -140,7 +140,16 @@ export function armarResumen(d) {
     instalaciones_proximas: (d.instalaciones || []).filter(i => i && i.fecha && i.fecha >= hoy)
       .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))).slice(0, 15)
       .map(i => ({ fecha: i.fecha, hora: i.hora || '', estado: i.estado || '',
-        proyecto: (P.find(p => p.id === i.proyecto_id) || {}).nombre || i.proyecto_id })),
+        proyecto: (P.find(p => p.id === i.proyecto_id) || {}).nombre || i.proyecto_id,
+        folio: (P.find(p => p.id === i.proyecto_id) || {}).folio_local || '' })),
+    /* Las que ya pasaron y nadie marcó hecha ni cancelada: es la lista que el tablero llama
+       «ya pasaron y nadie las marcó», y es la pregunta que sigue a «¿qué se instala?». */
+    instalaciones_vencidas_sin_marcar: (d.instalaciones || [])
+      .filter(i => i && i.fecha && i.fecha < hoy && ['propuesta', 'confirmada', 'reagendada'].includes(i.estado))
+      .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))).slice(0, 15)
+      .map(i => ({ fecha: i.fecha, estado: i.estado || '',
+        proyecto: (P.find(p => p.id === i.proyecto_id) || {}).nombre || i.proyecto_id,
+        folio: (P.find(p => p.id === i.proyecto_id) || {}).folio_local || '' })),
     material_por_comprar: (d.faltantes || []).filter(l => l && num(l.comprar) > 0).slice(0, 25)
       .map(l => ({ material: l.nombre || l.material_id || '', comprar: num(l.comprar), unidad: l.unidad_compra || '',
         para: Array.isArray(l.proyectos) ? l.proyectos.map(x => (x && (x.nombre || x.proyecto_id)) || x).filter(Boolean).slice(0, 4).join(', ') : '',
@@ -292,4 +301,241 @@ export function cadenaIA(almacen) {
 
 /* Para la etiqueta del mes en las sugerencias. */
 export const mesActualEtiqueta = (hoy = hoyISO()) => etiquetaMes(String(hoy).slice(0, 7));
+
+/* ============================================================================
+   RESPUESTAS LOCALES — las siete preguntas de siempre, contestadas aquí y sin red.
+
+   La auditoría del asistente encontró que todo pasaba por la IA, incluidas preguntas que
+   tienen respuesta EXACTA en los datos del dispositivo: qué comisiones son abonables, quién
+   debe, qué va tarde. Mandar eso a un modelo es pagar latencia y cuota —y sacar datos del
+   teléfono— para recibir de vuelta una lista que ya estaba armada. Peor: un modelo puede
+   sumarla mal. Así que las preguntas con respuesta calculable se contestan de este lado,
+   con la misma aritmética de la pantalla de Control, al instante y también sin señal ni
+   llave. La IA queda para lo que de verdad la necesita: una pregunta con matices, un
+   «¿y si…?», una redacción.
+
+   Cada respuesta es texto en el mismo Markdown chico que pinta `mdLite`, para que una
+   respuesta local y una de la IA se vean iguales en el hilo.
+   ============================================================================ */
+
+export const INTENCIONES = {
+  hoy:         { titulo: 'Resumen de hoy',                          pregunta: '¿Cómo va el taller hoy?' },
+  comisiones:  { titulo: 'Comisiones abonables',                    pregunta: '¿Qué comisiones ya se pueden abonar y cuánto suman?', dinero: true },
+  cobranza:    { titulo: 'Quién nos debe',                          pregunta: '¿Quién nos debe y cuánto?', dinero: true },
+  tarde:       { titulo: 'Qué va tarde',                            pregunta: '¿Qué va tarde en el taller y por cuántos días?' },
+  semana:      { titulo: 'Instalaciones de la semana',              pregunta: '¿Qué se instala esta semana?' },
+  ventas:      { titulo: 'Ventas del mes',                          pregunta: '¿Cuánto vendimos este mes contra el anterior?', dinero: true },
+  material:    { titulo: 'Material por comprar',                    pregunta: '¿Qué material falta comprar y para qué proyecto?' },
+  sin_decidir: { titulo: 'Cotizaciones sin decidir',                pregunta: '¿Qué cotizaciones autorizadas siguen sin decidir?' },
+};
+
+/* Qué pregunta escrita cae en qué respuesta local. Palabras clave, no magia: si no casa
+   con ninguna, la pregunta va a la IA. Se prueba con las frases reales que se escriben. */
+const PATRONES = [
+  ['comisiones',  /comisi/i],
+  ['cobranza',    /\b(deben?|debe[nr]|cobrar|cobranza|saldo|adeud|pendiente de pago|por pagar|nos deben)/i],
+  ['tarde',       /\b(tarde|atras|retras|demor)/i],
+  ['semana',      /\b(instala|semana|agenda|calendario|cita)/i],
+  ['ventas',      /\b(vend|venta|factur|ingres|cu[aá]nto (llevamos|hicimos))/i],
+  ['material',    /\b(material|comprar|compra|almac[eé]n|acr[ií]lico|l[aá]mina|inventario|stock|m[ií]nimo)/i],
+  ['sin_decidir', /\b(sin decidir|autorizad|pendientes? de (decidir|respuesta)|no (han|ha) (decidido|contestado)|cotizaci[oó]n(es)? (autorizada|pendiente))/i],
+  ['hoy',         /\b(c[oó]mo va|resumen|hoy|panorama|estado del taller|qu[eé] hay)/i],
+];
+
+/** La intención de una pregunta escrita, o null si hay que preguntarle a la IA. */
+export function detectarIntencion(texto) {
+  const t = String(texto || '').trim();
+  if (!t || t.length > 140) return null;
+  /* Una pregunta larga o con condicionales es para la IA aunque nombre una comisión:
+     «¿si liquidan mañana cuánto de comisión tocaría?» no es la lista de abonables. */
+  if (/\b(si |cuando|cu[aá]ndo|por qu[eé]|c[oó]mo (le|se) |deber[ií]a|conviene|recomiend|explica|compara|qu[eé] pasa)/i.test(t)) return null;
+  for (const [intent, re] of PATRONES) if (re.test(t)) return intent;
+  return null;
+}
+
+const pesos = n => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const cuenta = (n, uno, varios) => n + ' ' + (n === 1 ? uno : varios);
+const sinDinero = 'Con tu rol no se ven importes. Eso lo contesta dirección o pagos desde su dispositivo.';
+const fechaCorta = iso => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  return m ? Number(m[3]) + ' ' + (MESES_CORTOS_ES[Number(m[2]) - 1] || m[2]) : String(iso || '');
+};
+const MESES_CORTOS_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/**
+ * La respuesta local a una intención, en Markdown chico. `null` si la intención no existe.
+ * Siempre termina con lo que se puede HACER, en la plataforma o en Notion.
+ */
+export function responderLocal(intent, r) {
+  if (!r || !INTENCIONES[intent]) return null;
+  const dinero = r.ve_dinero !== false;
+  const P = r.proyectos || [];
+  switch (intent) {
+    case 'comisiones': {
+      if (!dinero) return sinDinero;
+      const c = r.comisiones || { abonables_ya: [], pendientes_de_liquidar: [], total_abonable_ya: 0, total_pendiente: 0 };
+      const out = [];
+      if (c.abonables_ya.length) {
+        out.push('**Se pueden abonar ya: ' + pesos(c.total_abonable_ya) + '** en ' + cuenta(c.abonables_ya.length, 'proyecto liquidado', 'proyectos liquidados') + '.');
+        for (const x of c.abonables_ya) out.push('- ' + x.folio + ' · ' + x.nombre + ' · ' + x.pct + ' % · **' + pesos(x.comision) + '**');
+      } else {
+        out.push('**Hoy no hay ninguna comisión abonable.** Una comisión se abona cuando el proyecto queda LIQUIDADO en Notion, y ninguno con comisión lo está.');
+      }
+      if (c.pendientes_de_liquidar.length) {
+        out.push('');
+        out.push('Esperan a que el cliente liquide: ' + cuenta(c.pendientes_de_liquidar.length, 'proyecto', 'proyectos') + ' por **' + pesos(c.total_pendiente) + '**.');
+        for (const x of c.pendientes_de_liquidar.slice(0, 8)) {
+          out.push('- ' + x.folio + ' · ' + x.nombre + ' · ' + pesos(x.comision) + (x.saldo_del_cliente > 0 ? ' (el cliente debe ' + pesos(x.saldo_del_cliente) + ')' : '') + (x.estatus_notion ? ' · ' + x.estatus_notion : ''));
+        }
+        if (c.pendientes_de_liquidar.length > 8) out.push('- … y ' + (c.pendientes_de_liquidar.length - 8) + ' más');
+      }
+      out.push('');
+      out.push(c.abonables_ya.length
+        ? 'Registra el abono en la base **Ventas - AL3D** de Notion (columna Abono Comisión). La plataforma solo lo espeja.'
+        : 'Cuando un cliente liquide, marca LIQUIDADO en la ficha del proyecto y aquí aparece como abonable.');
+      return out.join('\n');
+    }
+    case 'cobranza': {
+      if (!dinero) return sinDinero;
+      const con = P.filter(p => Number(p.saldo_estimado) > 0)
+        .sort((a, b) => (Number(b.etapa === 'instalado') - Number(a.etapa === 'instalado')) || (b.saldo_estimado - a.saldo_estimado));
+      if (!con.length) return '**Nadie debe.** Todos los proyectos vivos tienen el anticipo igual al total o ya están liquidados en Notion.';
+      const total = con.reduce((s, p) => s + Number(p.saldo_estimado), 0);
+      const inst = con.filter(p => p.etapa === 'instalado');
+      const out = ['**Por cobrar: ' + pesos(total) + '** en ' + cuenta(con.length, 'proyecto', 'proyectos') +
+        (inst.length ? ', ' + cuenta(inst.length, 'ya instalado', 'ya instalados') + ' (' + pesos(inst.reduce((s, p) => s + Number(p.saldo_estimado), 0)) + ').' : '.')];
+      for (const p of con.slice(0, 10)) {
+        out.push('- ' + p.folio + ' · ' + p.nombre + ' · **' + pesos(p.saldo_estimado) + '**' +
+          (p.etapa === 'instalado' ? ' · ya instalado' : ' · ' + p.etapa) + (p.estatus_notion ? ' · ' + p.estatus_notion : ''));
+      }
+      if (con.length > 10) out.push('- … y ' + (con.length - 10) + ' más');
+      out.push('');
+      out.push('El saldo es el total menos el anticipo pactado (estimado; no sabe de abonos intermedios). En **Control → Por cobrar** cada renglón trae el WhatsApp de cobro ya escrito.');
+      return out.join('\n');
+    }
+    case 'tarde': {
+      const tarde = P.filter(p => Number(p.atraso_dias) > 0).sort((a, b) => b.atraso_dias - a.atraso_dias);
+      const enTaller = P.filter(p => p.taller).length;
+      if (!tarde.length) return '**Nada va tarde.** ' + (enTaller ? cuenta(enTaller, 'trabajo está', 'trabajos están') + ' en el taller y todos dentro de su ventana.' : 'No hay trabajos en el taller ahora.');
+      const out = ['**' + cuenta(tarde.length, 'trabajo va', 'trabajos van') + ' tarde:**'];
+      for (const p of tarde) out.push('- ' + p.folio + ' · ' + p.nombre + ' · **' + cuenta(p.atraso_dias, 'día', 'días') + '** · ' + (p.taller || p.etapa) + (p.instalacion && p.instalacion !== 'sin fecha' ? ' · instala ' + fechaCorta(p.instalacion) : ''));
+      out.push('');
+      out.push('Si el atraso es real, avanza la etapa desde el **Tablero**; si la fecha ya no se sostiene, muévela en **Calendario** o corrige el plazo con la ficha del renglón.');
+      return out.join('\n');
+    }
+    case 'semana': {
+      const hoy = r.hoy || hoyISO();
+      const fin = masDiasISO(hoy, 6);
+      const prox = (r.instalaciones_proximas || []).filter(i => i.fecha <= fin);
+      const venc = r.instalaciones_vencidas_sin_marcar || [];
+      const out = [];
+      if (prox.length) {
+        out.push('**' + cuenta(prox.length, 'instalación', 'instalaciones') + ' de hoy al ' + fechaCorta(fin) + ':**');
+        for (const i of prox) out.push('- ' + fechaCorta(i.fecha) + (i.hora ? ' ' + i.hora : '') + ' · ' + i.proyecto + (i.folio ? ' (' + i.folio + ')' : '') + ' · ' + i.estado);
+      } else {
+        out.push('**No hay instalaciones agendadas de hoy al ' + fechaCorta(fin) + '.**');
+      }
+      if (venc.length) {
+        out.push('');
+        out.push('Ya pasaron y nadie las marcó (' + venc.length + '):');
+        for (const i of venc) out.push('- ' + fechaCorta(i.fecha) + ' · ' + i.proyecto + (i.folio ? ' (' + i.folio + ')' : ''));
+        out.push('');
+        out.push('Márcalas como hechas o cancélalas en **Calendario**; mientras, el proyecto sigue contando como pendiente de instalar.');
+      }
+      return out.join('\n');
+    }
+    case 'ventas': {
+      if (!dinero) return sinDinero;
+      const v = r.ventas;
+      if (!v) return 'Todavía no hay ventas registradas en la plataforma.';
+      const claves = Object.keys(v).filter(k => v[k] && typeof v[k] === 'object' && 'vendido' in v[k]);
+      const [actual, anterior] = claves;
+      const out = [];
+      if (actual) out.push('**' + actual + ': ' + pesos(v[actual].vendido) + '** en ' + cuenta(v[actual].proyectos, 'proyecto', 'proyectos') + '.');
+      if (anterior) out.push('- ' + anterior + ': ' + pesos(v[anterior].vendido) + ' en ' + cuenta(v[anterior].proyectos, 'proyecto', 'proyectos') +
+        (v.variacion_pct === null || v.variacion_pct === undefined ? '' : ' → ' + (v.variacion_pct >= 0 ? '+' : '') + v.variacion_pct + ' % este mes'));
+      if (v.autorizado_sin_decidir) out.push('- Autorizado sin decidir: ' + pesos(v.autorizado_sin_decidir.total) + ' en ' + cuenta(v.autorizado_sin_decidir.n, 'cotización', 'cotizaciones'));
+      if (v.no_se_dio_este_mes && v.no_se_dio_este_mes.n) out.push('- No se dio este mes: ' + pesos(v.no_se_dio_este_mes.total) + ' en ' + cuenta(v.no_se_dio_este_mes.n, 'cotización', 'cotizaciones'));
+      if (v.ultimos_12_meses) out.push('- Últimos 12 meses: ' + pesos(v.ultimos_12_meses.total) + ' en ' + cuenta(v.ultimos_12_meses.n, 'proyecto', 'proyectos') + (v.ticket_promedio ? ' · ticket promedio ' + pesos(v.ticket_promedio) : ''));
+      if (r.conversion && r.conversion.tasa !== null && r.conversion.tasa !== undefined) out.push('- Conversión: ' + r.conversion.tasa + ' % (' + r.conversion.ganadas + ' ganadas de ' + (r.conversion.ganadas + r.conversion.perdidas) + ' decididas)');
+      out.push('');
+      out.push('«Vendido» suma el precio autorizado por la fecha en que se ganó cada proyecto. Los doce meses en barras están en **Control → Ventas**.');
+      return out.join('\n');
+    }
+    case 'material': {
+      const comprar = r.material_por_comprar || [];
+      const minimo = r.bajo_minimo || [];
+      if (!comprar.length && !minimo.length) return '**No hay nada que comprar.** El material de los proyectos abiertos está cubierto y nada está bajo su mínimo.';
+      const out = [];
+      if (comprar.length) {
+        out.push('**' + cuenta(comprar.length, 'material por comprar', 'materiales por comprar') + ':**');
+        for (const l of comprar) out.push('- **' + l.comprar + ' ' + l.unidad + '** de ' + l.material + (l.para ? ' · para ' + l.para : '') + (l.fecha ? ' · se necesita el ' + fechaCorta(l.fecha) : '') + (l.confianza === 'estimada' ? ' · estimado' : ''));
+      }
+      if (minimo.length) {
+        out.push('');
+        out.push('Bajo mínimo (' + minimo.length + '):');
+        for (const m of minimo) out.push('- ' + m.material + ' · hay ' + m.hay + (m.unidad ? ' ' + m.unidad : '') + ', mínimo ' + m.minimo + (m.proveedor ? ' · ' + m.proveedor : ''));
+      }
+      out.push('');
+      out.push('La lista completa, con cantidades redondeadas a lo que vende el proveedor, está en **Material → Por comprar**; se imprime y se marca como recibida ahí.');
+      return out.join('\n');
+    }
+    case 'sin_decidir': {
+      const s = r.cotizaciones_autorizadas_sin_decidir;
+      if (typeof s === 'number') return s ? '**' + cuenta(s, 'cotización autorizada sigue', 'cotizaciones autorizadas siguen') + ' sin decidir.** Dirección decide si se ganó o no desde Proyectos.' : '**No hay cotizaciones sin decidir.**';
+      if (!s || !s.length) return '**No hay cotizaciones autorizadas sin decidir.** Cada una ya es proyecto o ya se marcó como «no se dio».';
+      const total = s.reduce((a, e) => a + Number(e.total || 0), 0);
+      const out = ['**' + cuenta(s.length, 'cotización autorizada', 'cotizaciones autorizadas') + ' sin decidir, ' + pesos(total) + ' en juego:**'];
+      for (const e of s) out.push('- ' + e.folio + ' · ' + (e.cliente ? e.cliente + ' — ' : '') + e.proyecto + ' · ' + pesos(e.total) + (e.dias !== null && e.dias !== undefined ? ' · ' + cuenta(e.dias, 'día', 'días') : ''));
+      out.push('');
+      out.push('Mientras no se diga si se ganó, no hay proyecto, ni material, ni fecha. Se decide con «Se ganó» / «No se dio» en **Proyectos** o en el **Tablero**.');
+      return out.join('\n');
+    }
+    case 'hoy': {
+      const d = resumenDelDia(r);
+      const out = ['**Hoy, ' + fechaCorta(r.hoy) + ':**'];
+      out.push('- En el taller: ' + cuenta(d.enTaller, 'trabajo', 'trabajos') + (d.tarde ? ', **' + cuenta(d.tarde, 'va', 'van') + ' tarde**' : ', ninguno tarde'));
+      out.push('- Instalaciones de aquí a 7 días: ' + d.semana + (d.vencidas ? ' · **' + cuenta(d.vencidas, 'pasó sin marcarse', 'pasaron sin marcarse') + '**' : ''));
+      if (dinero) {
+        out.push('- Por cobrar: **' + pesos(d.porCobrar) + '** en ' + cuenta(d.conSaldo, 'proyecto', 'proyectos'));
+        out.push('- Comisiones abonables ya: ' + (d.comisionAbonable > 0 ? '**' + pesos(d.comisionAbonable) + '**' : 'ninguna'));
+        if (d.sinDecidir) out.push('- Autorizadas sin decidir: ' + cuenta(d.sinDecidir, 'cotización', 'cotizaciones') + ' por ' + pesos(d.sinDecidirTotal));
+      } else if (d.sinDecidir) out.push('- Autorizadas sin decidir: ' + cuenta(d.sinDecidir, 'cotización', 'cotizaciones'));
+      if (d.comprar) out.push('- Material por comprar: ' + cuenta(d.comprar, 'renglón', 'renglones') + (d.bajoMinimo ? ' · ' + d.bajoMinimo + ' bajo mínimo' : ''));
+      if (d.avisos.length) { out.push(''); out.push('Lo que truena antes:'); for (const a of d.avisos) out.push('- ' + a); }
+      return out.join('\n');
+    }
+    default: return null;
+  }
+}
+
+/** Los cinco números del encabezado del asistente. Puro, desde el resumen. */
+export function resumenDelDia(r) {
+  const P = (r && r.proyectos) || [];
+  const hoy = (r && r.hoy) || hoyISO();
+  const fin = masDiasISO(hoy, 6);
+  const conSaldo = P.filter(p => Number(p.saldo_estimado) > 0);
+  const sd = r && r.cotizaciones_autorizadas_sin_decidir;
+  return {
+    enTaller: P.filter(p => p.taller).length,
+    tarde: P.filter(p => Number(p.atraso_dias) > 0).length,
+    semana: ((r && r.instalaciones_proximas) || []).filter(i => i.fecha <= fin).length,
+    vencidas: ((r && r.instalaciones_vencidas_sin_marcar) || []).length,
+    porCobrar: conSaldo.reduce((s, p) => s + Number(p.saldo_estimado), 0),
+    conSaldo: conSaldo.length,
+    comisionAbonable: (r && r.comisiones && r.comisiones.total_abonable_ya) || 0,
+    sinDecidir: Array.isArray(sd) ? sd.length : (Number(sd) || 0),
+    sinDecidirTotal: Array.isArray(sd) ? sd.reduce((s, e) => s + Number(e.total || 0), 0) : 0,
+    comprar: ((r && r.material_por_comprar) || []).length,
+    bajoMinimo: ((r && r.bajo_minimo) || []).length,
+    avisos: ((r && r.avisos) || []).slice(0, 3).map(a => a.titulo + (a.cuando ? ' · ' + a.cuando : '')),
+  };
+}
+
+function masDiasISO(iso, n) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if (!m) return String(iso || '');
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + n));
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+}
 void diasEntre;

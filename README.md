@@ -232,13 +232,14 @@ son seis pantallas que se alimentan de ahí.
   primero, con el WhatsApp de cobro ya escrito— y la **bitácora**: quién movió qué y a qué hora,
   en proyectos, agenda, catálogo y almacén. Con el CSV completo de proyectos (saldo, cuenta,
   estatus, instalación) para pegar en una hoja.
-- **El asistente** — el botón «Preguntar» que flota en las ocho pantallas. «¿Qué comisiones ya
-  se pueden abonar?», «¿quién nos debe?», «¿qué va tarde?»: junta lo que hay en el dispositivo
-  —proyectos, cartera, comisiones, agenda, material, bitácora— y contesta con eso, en un
-  renglón. Solo lee; si hay que cambiar algo, dice en qué pantalla. Usa la misma llave de IA
-  que el cotizador (Gemini, Groq u OpenRouter), pide un «entendido» la primera vez porque el
-  resumen viaja al proveedor, y nunca manda teléfonos ni direcciones. Fabricación pregunta sin
-  importes, porque no los tiene.
+- **El asistente** — el botón «Preguntar» que flota en las ocho pantallas. Abre con el
+  resumen de hoy en cuatro cifras y las siete preguntas de siempre —quién nos debe, comisiones
+  abonables, ventas del mes, sin decidir, qué va tarde, instalaciones de la semana, material
+  por comprar—, que se contestan **aquí, al instante y sin IA**, con la misma aritmética de
+  Control; sirven sin señal y sin llave. Lo que no se puede calcular va a la IA con la misma
+  llave del cotizador (Gemini, Groq u OpenRouter), pidiendo un «entendido» la primera vez
+  porque un resumen viaja al proveedor; nunca salen teléfonos ni direcciones y fabricación
+  pregunta sin importes. Solo lee: si hay que cambiar algo, dice en qué pantalla.
 - **Ajustes** — el rol de este dispositivo, el respaldo, y la verdad del sistema escrita.
 
 **En la computadora también.** De 1 100 px para arriba el calendario abre en «Todo»: el mes a

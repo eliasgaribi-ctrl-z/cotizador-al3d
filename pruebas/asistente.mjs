@@ -8,7 +8,8 @@
  *
  * Uso:  node pruebas/asistente.mjs
  */
-import { comisionDe, resumirProyecto, armarResumen, promptSistema, mdLite, llavesDe, cadenaIA }
+import { comisionDe, resumirProyecto, armarResumen, promptSistema, mdLite, llavesDe, cadenaIA,
+         detectarIntencion, responderLocal, resumenDelDia, INTENCIONES }
   from '../js/datos/asistente-contexto.js';
 
 let bien = 0, mal = 0;
@@ -81,6 +82,55 @@ ok('para fabricación no viajan ventas, comisiones ni conversión', !('ventas' i
 eq('las autorizadas sin decidir son solo una cuenta', RF.cotizaciones_autorizadas_sin_decidir, 1);
 ok('y un aviso con importe pierde su detalle', !('detalle' in RF.avisos[0]));
 ok('ningún importe en todo el resumen de fabricación', !/11600|5800|9000|\$/.test(JSON.stringify(RF)));
+
+console.log('\nLAS RESPUESTAS LOCALES: las siete de siempre, sin IA');
+const RC = responderLocal('comisiones', R);
+ok('comisiones: la liquidada sale como abonable con su importe', RC.includes('COT-0030') && RC.includes('$500.00') && RC.includes('Se pueden abonar ya'));
+ok('y la otra espera liquidación con lo que debe el cliente', RC.includes('COT-0031') && RC.includes('$1,000.00') && RC.includes('el cliente debe $5,800.00'));
+ok('y dice dónde se registra el abono', RC.includes('Ventas - AL3D'));
+const RD = responderLocal('cobranza', R);
+ok('cobranza: total y renglones, el instalado marcado', RD.includes('Por cobrar: $5,800.00') && RD.includes('COT-0031') && RD.includes('ya instalado'));
+const RT = responderLocal('tarde', R);
+ok('tarde: el atrasado con sus días', RT.includes('1 trabajo va') && RT.includes('6 días') && RT.includes('COT-0030'));
+const RS = responderLocal('semana', R);
+ok('semana: la instalación de la semana con su día', RS.includes('18 sep') && RS.includes('Café - Caja') && RS.includes('confirmada'));
+const RV = responderLocal('ventas', R);
+ok('ventas: el mes, el anterior y la conversión', RV.includes('sep 2026: $11,600.00') && RV.includes('ago 2026: $0.00') && RV.includes('Conversión: 67 %'));
+const RM = responderLocal('material', R);
+ok('material: cantidad, unidad, proyecto y fecha', RM.includes('1.5 lamina') && RM.includes('Acrílico 6 mm') && RM.includes('Café - Caja') && RM.includes('18 sep'));
+ok('y lo bajo mínimo', RM.includes('Silicón') && RM.includes('mínimo 1'));
+const RX = responderLocal('sin_decidir', R);
+ok('sin decidir: folio, cliente, importe y días', RX.includes('COT-0032') && RX.includes('Vet') && RX.includes('$3,000.00') && RX.includes('4 días'));
+const RH = responderLocal('hoy', R);
+ok('hoy: taller, agenda, cobranza y comisiones en un resumen', RH.includes('En el taller: 1 trabajo') && RH.includes('1 va tarde') && RH.includes('Por cobrar: **$5,800.00**') && RH.includes('$500.00'));
+ok('para fabricación las de dinero dicen que no ven importes', responderLocal('comisiones', RF).includes('no se ven importes') && responderLocal('cobranza', RF).includes('no se ven importes'));
+ok('y el resumen de fabricación no trae dinero', !/\$/.test(responderLocal('hoy', RF)));
+eq('una intención que no existe da null', responderLocal('clima', R), null);
+const vacio = armarResumen({ hoy: '2026-09-14', rol: 'Dirección', veDinero: true, proyectos: [] });
+ok('sin proyectos, cada respuesta sigue teniendo sentido', responderLocal('cobranza', vacio).includes('Nadie debe') && responderLocal('tarde', vacio).includes('Nada va tarde') && responderLocal('comisiones', vacio).includes('ninguna comisión abonable'));
+ok('todas las intenciones declaradas contestan algo', Object.keys(INTENCIONES).every(k => typeof responderLocal(k, R) === 'string' && responderLocal(k, R).length > 20));
+
+console.log('\nLA INTENCIÓN DE UNA PREGUNTA ESCRITA');
+eq('comisiones', detectarIntencion('¿qué comisiones se pueden abonar?'), 'comisiones');
+eq('cobranza', detectarIntencion('quién nos debe'), 'cobranza');
+eq('cobranza por saldo', detectarIntencion('saldos pendientes'), 'cobranza');
+eq('tarde', detectarIntencion('qué va tarde?'), 'tarde');
+eq('semana', detectarIntencion('qué se instala esta semana'), 'semana');
+eq('ventas', detectarIntencion('cuánto vendimos este mes'), 'ventas');
+eq('material', detectarIntencion('qué material hay que comprar'), 'material');
+eq('sin decidir', detectarIntencion('cotizaciones autorizadas sin decidir'), 'sin_decidir');
+eq('hoy', detectarIntencion('cómo va el taller'), 'hoy');
+eq('una pregunta con condicional va a la IA aunque nombre comisiones', detectarIntencion('si La Perla liquida mañana, ¿cuánto de comisión tocaría?'), null);
+eq('una pregunta de consejo va a la IA', detectarIntencion('¿conviene comprar el acrílico ahora o esperar?'), null);
+eq('una pregunta larga va a la IA', detectarIntencion('x'.repeat(141)), null);
+eq('algo que no casa va a la IA', detectarIntencion('redacta un mensaje para el cliente de la óptica'), null);
+
+console.log('\nEL RESUMEN DEL DÍA, en cifras');
+eq('las cifras de la portada', (({ enTaller, tarde, semana, vencidas, porCobrar, conSaldo, comisionAbonable, sinDecidir, comprar, bajoMinimo }) =>
+  ({ enTaller, tarde, semana, vencidas, porCobrar, conSaldo, comisionAbonable, sinDecidir, comprar, bajoMinimo }))(resumenDelDia(R)),
+  { enTaller: 1, tarde: 1, semana: 1, vencidas: 0, porCobrar: 5800, conSaldo: 1, comisionAbonable: 500, sinDecidir: 1, comprar: 1, bajoMinimo: 1 });
+eq('las instalaciones vencidas sin marcar entran al resumen', armarResumen({ hoy: '2026-09-14', veDinero: true, proyectos: P,
+  instalaciones: [{ proyecto_id: 'p2', fecha: '2026-09-10', estado: 'confirmada' }, { proyecto_id: 'p1', fecha: '2026-09-01', estado: 'hecha' }] }).instalaciones_vencidas_sin_marcar.map(i => i.fecha), ['2026-09-10']);
 
 console.log('\nEL MENSAJE DE SISTEMA');
 const S = promptSistema(R);
