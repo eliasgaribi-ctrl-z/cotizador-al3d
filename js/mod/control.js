@@ -48,6 +48,9 @@ export async function montar(contenedor, ctx) {
   CTX = ctx;
   cont.addEventListener('click', alClic);
   cont.addEventListener('input', alEscribir);
+  /* El pase de quien manda aquí —el asistente, el tablero—: «abre en Por cobrar». */
+  const pase = (ctx && ctx.recibir) ? ctx.recibir() : null;
+  if (pase && ['ventas', 'cobrar', 'bitacora'].includes(pase.tab)) TAB = pase.tab;
 
   if (!DB.estado().ok) {
     cont.innerHTML = vacio('No se pudo abrir la base de este dispositivo', DB.motivoTexto());

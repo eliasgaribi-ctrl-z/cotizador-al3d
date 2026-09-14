@@ -32,7 +32,7 @@ import * as Material from '../datos/material.js';
 import * as Ventas from '../datos/ventas.js';
 import * as Bitacora from '../datos/bitacora.js';
 import { armarResumen, promptSistema, mdLite, cadenaIA, PROVEEDOR_NOMBRE, INTENCIONES,
-         detectarIntencion, responderLocal, resumenDelDia } from '../datos/asistente-contexto.js';
+         detectarIntencion, respuestaLocal, resumenDelDia, sugerirIntenciones } from '../datos/asistente-contexto.js';
 import { $, ico, esc, money, toast, abrirCapa, cerrarCapa, copiarTexto, hoyISO, fmtFecha } from './ui.js';
 
 const CAPA = 'pf-ia';
@@ -188,9 +188,28 @@ function hiloHTML() {
       ? '<span class="ia-fuente local" title="Calculado en este dispositivo, sin mandar nada a la IA">' + ico('i-candado') + ' Calculado aquí · ' + hora + '</span>'
       : '<span class="ia-fuente">' + ico('i-ia') + ' ' + esc(m.con || 'IA') + ' · ' + hora + '</span>';
     return '<div class="ia-msg bot"><div class="ia-burbuja">' + mdLite(m.texto) + '</div>' +
+      accionesHTML(m.acciones) +
       '<div class="ia-meta">' + fuente +
         (m.local && hayLlave ? '<button type="button" class="ia-copiar" data-ia-ampliar="' + esc(m.ts) + '" title="Mandar la misma pregunta a la IA, con estos datos">' + ico('i-ia') + ' Preguntarle a la IA</button>' : '') +
         '<button type="button" class="ia-copiar" data-ia-copiar="' + esc(m.ts) + '">' + ico('i-copiar') + ' Copiar</button></div></div>';
+  }).join('') + '</div>';
+}
+
+/* Los botones de una respuesta local: la pantalla que toca y los proyectos que nombra. Van
+   como acciones de verdad, no como texto: «Abrir COT-0038» abre la ficha, «Ver la cartera»
+   abre Control en Por cobrar. Un enlace de fuera (Notion) se abre en otra pestaña. */
+function accionesHTML(acciones) {
+  if (!Array.isArray(acciones) || !acciones.length) return '';
+  return '<div class="ia-acciones">' + acciones.map((a, i) => {
+    if (a.tipo === 'link') {
+      return '<a class="chip" href="' + esc(a.href) + '" target="_blank" rel="noopener">' + ico('i-libre') + ' ' + esc(a.label) + '</a>';
+    }
+    const datos = a.tipo === 'proyecto' ? 'data-ia-proyecto="' + esc(a.id) + '"'
+      : a.tipo === 'intent' ? 'data-ia-intent="' + esc(a.intent) + '"'
+      : a.tipo === 'pasar' ? 'data-ia-pasar="' + esc(a.ruta) + '" data-ia-dato="' + esc(JSON.stringify(a.dato || {})) + '"'
+      : 'data-ia-ir="' + esc(a.ruta) + '"';
+    return '<button type="button" class="chip' + (i === 0 && a.tipo !== 'proyecto' ? ' on' : '') + '" ' + datos + '>' +
+      (a.tipo === 'proyecto' ? ico('i-proyectos') + ' ' : '') + esc(a.label) + '</button>';
   }).join('') + '</div>';
 }
 
@@ -244,6 +263,15 @@ function alClic(ev) {
   }
   const intent = t.closest('[data-ia-intent]');
   if (intent) { preguntarLocal(intent.dataset.iaIntent); return; }
+  const proy = t.closest('[data-ia-proyecto]');
+  if (proy) { salirA('proyectos', { proyecto_id: proy.dataset.iaProyecto }); return; }
+  const pasar = t.closest('[data-ia-pasar]');
+  if (pasar) {
+    let dato = {}; try { dato = JSON.parse(pasar.dataset.iaDato || '{}'); } catch (_) {}
+    salirA(pasar.dataset.iaPasar, dato); return;
+  }
+  const ir = t.closest('[data-ia-ir]');
+  if (ir) { salirA(ir.dataset.iaIr, null); return; }
   const amp = t.closest('[data-ia-ampliar]');
   if (amp) {
     const i = _msgs.findIndex(x => String(x.ts) === amp.dataset.iaAmpliar);
@@ -257,6 +285,30 @@ function alClic(ev) {
     const m = _msgs.find(x => String(x.ts) === cp.dataset.iaCopiar);
     if (m) copiarTexto(m.texto, 'Respuesta copiada');
   }
+}
+
+/* Cerrar el panel y llegar a la pantalla con el dato en la mano: la ficha abierta, la
+   pestaña puesta. La conversación se queda: al volver a abrir, sigue donde estaba.
+
+   El panel se abrió con una entrada de historial (para que el botón atrás del teléfono lo
+   cierre), así que cerrarlo dispara `history.back()`, que es ASÍNCRONO: si se cambia el hash
+   antes de que llegue ese popstate, el back lo pisa y la pantalla se queda donde estaba.
+   Costó verlo: el botón «cerraba» y no iba a ningún lado. Se navega cuando el popstate
+   llegue, con un tope por si no llega. */
+function salirA(ruta, dato) {
+  const capa = $(CAPA);
+  const conHist = !!(capa && capa.dataset.hist === '1');
+  let hecho = false;
+  const irse = () => {
+    if (hecho) return; hecho = true;
+    if (!_ctx) { location.hash = '#/' + ruta; return; }
+    if (dato && _ctx.pasar) _ctx.pasar(ruta, dato);
+    else if (_ctx.ir) _ctx.ir(ruta);
+  };
+  if (!conHist) { cerrar(); irse(); return; }
+  const tope = setTimeout(irse, 450);
+  window.addEventListener('popstate', () => { clearTimeout(tope); setTimeout(irse, 0); }, { once: true });
+  cerrar();
 }
 
 function alTecla(ev) {
@@ -298,8 +350,12 @@ async function preguntar(texto) {
   if (intent) { await preguntarLocal(intent, q); return; }
   if (!hayLlave) {
     _msgs.push({ rol: 'yo', texto: q, ts: Date.now() });
-    _msgs.push({ rol: 'error', ts: Date.now(), texto: 'Esa pregunta no se puede calcular aquí y este dispositivo no tiene llave de IA. ' +
-      'Las preguntas rápidas de abajo sí se contestan sin IA. Para preguntas libres, pega una llave de Gemini, Groq u OpenRouter en el cotizador (Cotizar con IA → Configuración).' });
+    const cerca = sugerirIntenciones(q).filter(k => Prefs.veDinero() || !INTENCIONES[k].dinero);
+    _msgs.push({ rol: 'bot', local: true, ts: Date.now(),
+      texto: 'Eso no lo puedo calcular aquí, y este dispositivo no tiene llave de IA para preguntas libres. ' +
+        (cerca.length ? '¿Buscabas alguna de estas?' : '') +
+        '\n\nPara preguntas libres, pega una llave de Gemini, Groq u OpenRouter en el cotizador (Cotizar con IA → Configuración): sirve para las dos apps.',
+      acciones: cerca.map(k => ({ tipo: 'intent', intent: k, label: INTENCIONES[k].titulo })).concat([{ tipo: 'ir', ruta: 'cotizador', label: 'Ir al cotizador' }]) });
     pintar(); enfocarCampo();
     return;
   }
@@ -314,8 +370,9 @@ async function preguntarLocal(intent, textoPregunta) {
   pintar();
   try {
     await leerSiHaceFalta(true);
-    const texto = responderLocal(intent, _resumen);
-    _msgs.push({ rol: 'bot', local: true, intent, ts: Date.now(), texto: texto || 'No supe contestar eso con lo que hay aquí.' });
+    const r = respuestaLocal(intent, _resumen);
+    _msgs.push({ rol: 'bot', local: true, intent, ts: Date.now(),
+      texto: (r && r.texto) || 'No supe contestar eso con lo que hay aquí.', acciones: (r && r.acciones) || [] });
   } catch (e) {
     _msgs.push({ rol: 'error', ts: Date.now(), texto: 'No pude leer los datos de este dispositivo: ' + (e && e.message ? e.message : 'error desconocido') });
   }

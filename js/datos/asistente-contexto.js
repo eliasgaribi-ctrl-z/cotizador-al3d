@@ -54,6 +54,9 @@ export function resumirProyecto(p, extra = {}) {
   const v = extra.ventana || null;
   const inst = extra.instalacion || null;
   const o = {
+    /* El id es para los botones «Abrir» de las respuestas locales. No viaja a la IA:
+       `promptSistema` lo quita al serializar. */
+    id: p.id || '',
     folio: p.folio_local || '',
     nombre: p.nombre || '',
     cliente: p.contacto || '',
@@ -141,7 +144,7 @@ export function armarResumen(d) {
       .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))).slice(0, 15)
       .map(i => ({ fecha: i.fecha, hora: i.hora || '', estado: i.estado || '',
         proyecto: (P.find(p => p.id === i.proyecto_id) || {}).nombre || i.proyecto_id,
-        folio: (P.find(p => p.id === i.proyecto_id) || {}).folio_local || '' })),
+        folio: (P.find(p => p.id === i.proyecto_id) || {}).folio_local || '', id: i.proyecto_id || '' })),
     /* Las que ya pasaron y nadie marcó hecha ni cancelada: es la lista que el tablero llama
        «ya pasaron y nadie las marcó», y es la pregunta que sigue a «¿qué se instala?». */
     instalaciones_vencidas_sin_marcar: (d.instalaciones || [])
@@ -149,7 +152,7 @@ export function armarResumen(d) {
       .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))).slice(0, 15)
       .map(i => ({ fecha: i.fecha, estado: i.estado || '',
         proyecto: (P.find(p => p.id === i.proyecto_id) || {}).nombre || i.proyecto_id,
-        folio: (P.find(p => p.id === i.proyecto_id) || {}).folio_local || '' })),
+        folio: (P.find(p => p.id === i.proyecto_id) || {}).folio_local || '', id: i.proyecto_id || '' })),
     material_por_comprar: (d.faltantes || []).filter(l => l && num(l.comprar) > 0).slice(0, 25)
       .map(l => ({ material: l.nombre || l.material_id || '', comprar: num(l.comprar), unidad: l.unidad_compra || '',
         para: Array.isArray(l.proyectos) ? l.proyectos.map(x => (x && (x.nombre || x.proyecto_id)) || x).filter(Boolean).slice(0, 4).join(', ') : '',
@@ -179,9 +182,9 @@ export function armarResumen(d) {
     if (d.conversion) out.conversion = d.conversion;
     const com = vivos.map(p => ({ p, c: comisionDe(p) })).filter(x => x.c.comision > 0);
     out.comisiones = {
-      abonables_ya: com.filter(x => x.c.abonable > 0).map(x => ({ folio: x.p.folio_local, nombre: x.p.nombre,
+      abonables_ya: com.filter(x => x.c.abonable > 0).map(x => ({ id: x.p.id, folio: x.p.folio_local, nombre: x.p.nombre,
         comision: x.c.abonable, pct: num(x.p.pct_comision), estatus_notion: x.p.estatus_notion || '' })),
-      pendientes_de_liquidar: com.filter(x => x.c.abonable <= 0 && x.c.restante > 0).map(x => ({ folio: x.p.folio_local,
+      pendientes_de_liquidar: com.filter(x => x.c.abonable <= 0 && x.c.restante > 0).map(x => ({ id: x.p.id, folio: x.p.folio_local,
         nombre: x.p.nombre, comision: x.c.restante, pct: num(x.p.pct_comision), estatus_notion: x.p.estatus_notion || '',
         saldo_del_cliente: saldoDe(x.p) })),
       total_abonable_ya: red2(com.reduce((s, x) => s + x.c.abonable, 0)),
@@ -225,7 +228,7 @@ export function promptSistema(resumen) {
     '8. Si la pregunta es ambigua, contesta lo más probable y ofrece la otra lectura en una línea. No repitas la pregunta ni saludes; ve al dato.',
     '',
     'DATOS (JSON):',
-    JSON.stringify(resumen),
+    JSON.stringify(resumen, (k, v) => (k === 'id' ? undefined : v)),
   ].filter(l => l !== '').join('\n');
 }
 
@@ -329,28 +332,58 @@ export const INTENCIONES = {
   sin_decidir: { titulo: 'Cotizaciones sin decidir',                pregunta: '¿Qué cotizaciones autorizadas siguen sin decidir?' },
 };
 
-/* Qué pregunta escrita cae en qué respuesta local. Palabras clave, no magia: si no casa
-   con ninguna, la pregunta va a la IA. Se prueba con las frases reales que se escriben. */
-const PATRONES = [
-  ['comisiones',  /comisi/i],
-  ['cobranza',    /\b(deben?|debe[nr]|cobrar|cobranza|saldo|adeud|pendiente de pago|por pagar|nos deben)/i],
-  ['tarde',       /\b(tarde|atras|retras|demor)/i],
-  ['semana',      /\b(instala|semana|agenda|calendario|cita)/i],
-  ['ventas',      /\b(vend|venta|factur|ingres|cu[aá]nto (llevamos|hicimos))/i],
-  ['material',    /\b(material|comprar|compra|almac[eé]n|acr[ií]lico|l[aá]mina|inventario|stock|m[ií]nimo)/i],
-  ['sin_decidir', /\b(sin decidir|autorizad|pendientes? de (decidir|respuesta)|no (han|ha) (decidido|contestado)|cotizaci[oó]n(es)? (autorizada|pendiente))/i],
-  ['hoy',         /\b(c[oó]mo va|resumen|hoy|panorama|estado del taller|qu[eé] hay)/i],
-];
+/* ----- Qué pregunta escrita cae en qué respuesta local -----
+   Sin acentos y en minúsculas, y por PUNTAJE: cada intención tiene palabras fuertes (valen 2)
+   y débiles (valen 1); gana la que más suma, y solo si suma al menos 2. Así «¿qué debe la
+   óptica?» cae en cobranza aunque «óptica» no diga nada, y «material de la cotización
+   pendiente» no se va a material solo por la primera palabra. Lo que suene a condicional,
+   consejo o redacción va a la IA aunque nombre una comisión: «¿si liquidan mañana cuánto
+   tocaría?» no es la lista de abonables. Se prueba con las frases que la gente escribe. */
+const plano = s => String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const SENAS = {
+  comisiones:  { fuertes: [/comision/], debiles: [/abon/, /pagar(le|les)?\b/, /porcentaje/] },
+  cobranza:    { fuertes: [/\bdeb(e|en|emos|es)\b/, /cobr/, /saldo/, /adeud/, /cartera/, /por pagar/, /pendiente de pago/, /liquid/],
+                 debiles: [/cliente/, /anticipo/, /falta(n)? pagar/, /quien/] },
+  tarde:       { fuertes: [/tarde/, /atras/, /retras/, /demor/, /vencid/], debiles: [/taller/, /dias/, /urgente/, /apurad/] },
+  semana:      { fuertes: [/instala/, /agenda/, /calendario/, /\bcita/, /entrega/], debiles: [/semana/, /manana/, /hoy/, /cuando/, /fecha/, /proxim/] },
+  ventas:      { fuertes: [/vend/, /venta/, /factur/, /ingres/, /conversion/], debiles: [/\bmes\b/, /cuanto/, /llevamos/, /hicimos/, /anterior/, /pipeline/] },
+  material:    { fuertes: [/material/, /compr/, /almacen/, /inventario/, /stock/, /acrilic/, /lamina/, /\bled\b/, /fuente/, /vinil/, /aluminio/],
+                 debiles: [/falta/, /minimo/, /pedir/, /proveedor/, /surtir/] },
+  sin_decidir: { fuertes: [/sin decidir/, /autorizad/, /sin (respuesta|contestar|decision)/, /no (han|ha) (decidido|contestado|respondido)/, /se gano|no se dio/],
+                 debiles: [/cotizaci/, /pendiente/, /cliente/, /prospect/] },
+  hoy:         { fuertes: [/como va\b/, /resumen/, /panorama/, /estado (del|de el) taller/, /que hay\b/, /como estamos/, /como vamos/, /novedades/],
+                 debiles: [/hoy/, /taller/, /todo/] },
+};
+const PARA_LA_IA = /\b(si |cuando |cuando\b|por que|porque|como (le|se|les) |deberia|conviene|recomiend|explica|explicame|compara|que pasa|redact|escribe|escribeme|mensaje|dime como|opinas|sugier|estrateg|analiz|ayudame a)/;
+
+function puntajes(texto) {
+  const t = ' ' + plano(texto).replace(/[¿?¡!.,;:()]/g, ' ').replace(/\s+/g, ' ') + ' ';
+  const out = [];
+  for (const [intent, s] of Object.entries(SENAS)) {
+    let n = 0;
+    for (const re of s.fuertes) if (re.test(t)) n += 2;
+    for (const re of s.debiles) if (re.test(t)) n += 1;
+    if (n) out.push({ intent, n });
+  }
+  return out.sort((a, b) => b.n - a.n);
+}
 
 /** La intención de una pregunta escrita, o null si hay que preguntarle a la IA. */
 export function detectarIntencion(texto) {
   const t = String(texto || '').trim();
-  if (!t || t.length > 140) return null;
-  /* Una pregunta larga o con condicionales es para la IA aunque nombre una comisión:
-     «¿si liquidan mañana cuánto de comisión tocaría?» no es la lista de abonables. */
-  if (/\b(si |cuando|cu[aá]ndo|por qu[eé]|c[oó]mo (le|se) |deber[ií]a|conviene|recomiend|explica|compara|qu[eé] pasa)/i.test(t)) return null;
-  for (const [intent, re] of PATRONES) if (re.test(t)) return intent;
-  return null;
+  if (!t || t.length > 160) return null;
+  if (PARA_LA_IA.test(' ' + plano(t) + ' ')) return null;
+  const ps = puntajes(t);
+  if (!ps.length || ps[0].n < 2) return null;
+  /* Un empate entre dos intenciones es una pregunta ambigua: mejor sugerir que adivinar. */
+  if (ps.length > 1 && ps[1].n === ps[0].n && ps[0].n < 4) return null;
+  return ps[0].intent;
+}
+
+/** Hasta tres intenciones parecidas, para el «¿quisiste decir…?» cuando no hay IA. */
+export function sugerirIntenciones(texto) {
+  const ps = puntajes(texto).filter(p => p.n >= 1).slice(0, 3).map(p => p.intent);
+  return ps.length ? ps : ['hoy', 'cobranza', 'tarde'];
 }
 
 const pesos = n => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -361,6 +394,65 @@ const fechaCorta = iso => {
   return m ? Number(m[3]) + ' ' + (MESES_CORTOS_ES[Number(m[2]) - 1] || m[2]) : String(iso || '');
 };
 const MESES_CORTOS_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/* Las acciones que acompañan a una respuesta local: la pantalla que toca, y los proyectos
+   que nombra, para abrirlos con un toque. `tipo` es lo que entiende el panel:
+   'ir' (una ruta), 'pasar' (una ruta con dato), 'proyecto' (la ficha), 'link' (fuera). */
+const NOTION_COMISIONES = 'https://app.notion.com/p/9682b4043139497db6b02cf9ab726c72';
+const accProyectos = (lista, max = 6) => lista.filter(p => p && p.id).slice(0, max)
+  .map(p => ({ tipo: 'proyecto', id: p.id, label: (p.folio ? p.folio + ' · ' : '') + String(p.nombre || p.proyecto || '').split(' - ')[0].slice(0, 28) }));
+
+/**
+ * La respuesta local a una intención: `{texto, acciones}`. `null` si la intención no existe.
+ * El texto va en Markdown chico y siempre termina con lo que se puede HACER; las acciones
+ * son los botones para hacerlo sin salir a buscar.
+ */
+export function respuestaLocal(intent, r) {
+  const texto = responderLocal(intent, r);
+  if (texto === null) return null;
+  return { texto, acciones: accionesDe(intent, r) };
+}
+
+function accionesDe(intent, r) {
+  const dinero = r.ve_dinero !== false;
+  const P = r.proyectos || [];
+  switch (intent) {
+    case 'comisiones': {
+      if (!dinero) return [];
+      const c = r.comisiones || { abonables_ya: [], pendientes_de_liquidar: [] };
+      return [{ tipo: 'link', href: NOTION_COMISIONES, label: 'Comisiones en Notion' },
+        ...accProyectos(c.abonables_ya.concat(c.pendientes_de_liquidar), 5)];
+    }
+    case 'cobranza': {
+      if (!dinero) return [];
+      const con = P.filter(p => Number(p.saldo_estimado) > 0)
+        .sort((a, b) => (Number(b.etapa === 'instalado') - Number(a.etapa === 'instalado')) || (b.saldo_estimado - a.saldo_estimado));
+      return [{ tipo: 'pasar', ruta: 'control', dato: { tab: 'cobrar' }, label: 'Ver la cartera' }, ...accProyectos(con, 5)];
+    }
+    case 'tarde': {
+      const tarde = P.filter(p => Number(p.atraso_dias) > 0).sort((a, b) => b.atraso_dias - a.atraso_dias);
+      return [{ tipo: 'ir', ruta: 'hoy', label: 'Ver el Tablero' }, ...accProyectos(tarde, 5)];
+    }
+    case 'semana': {
+      const prox = (r.instalaciones_proximas || []).concat(r.instalaciones_vencidas_sin_marcar || []);
+      return [{ tipo: 'pasar', ruta: 'agenda', dato: { dia: r.hoy, vista: 'semana' }, label: 'Ver la semana' },
+        ...accProyectos(prox.map(i => ({ id: i.id, folio: i.folio, nombre: i.proyecto })), 5)];
+    }
+    case 'ventas': return dinero ? [{ tipo: 'pasar', ruta: 'control', dato: { tab: 'ventas' }, label: 'Ver Control' }] : [];
+    case 'material': return [{ tipo: 'ir', ruta: 'material', label: 'Ver la lista de compra' }];
+    case 'sin_decidir': {
+      const s = r.cotizaciones_autorizadas_sin_decidir;
+      return (Array.isArray(s) ? s.length : s) ? [{ tipo: 'ir', ruta: 'proyectos', label: 'Decidir en Proyectos' }] : [];
+    }
+    case 'hoy': {
+      const acc = [{ tipo: 'ir', ruta: 'hoy', label: 'Ver el Tablero' }];
+      if (dinero) acc.push({ tipo: 'pasar', ruta: 'control', dato: { tab: 'ventas' }, label: 'Ver Control' });
+      acc.push({ tipo: 'ir', ruta: 'atender', label: 'Qué atender' });
+      return acc;
+    }
+    default: return [];
+  }
+}
 
 /**
  * La respuesta local a una intención, en Markdown chico. `null` si la intención no existe.

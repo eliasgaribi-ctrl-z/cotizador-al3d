@@ -9,7 +9,7 @@
  * Uso:  node pruebas/asistente.mjs
  */
 import { comisionDe, resumirProyecto, armarResumen, promptSistema, mdLite, llavesDe, cadenaIA,
-         detectarIntencion, responderLocal, resumenDelDia, INTENCIONES }
+         detectarIntencion, responderLocal, respuestaLocal, resumenDelDia, INTENCIONES, sugerirIntenciones }
   from '../js/datos/asistente-contexto.js';
 
 let bien = 0, mal = 0;
@@ -110,7 +110,38 @@ const vacio = armarResumen({ hoy: '2026-09-14', rol: 'Dirección', veDinero: tru
 ok('sin proyectos, cada respuesta sigue teniendo sentido', responderLocal('cobranza', vacio).includes('Nadie debe') && responderLocal('tarde', vacio).includes('Nada va tarde') && responderLocal('comisiones', vacio).includes('ninguna comisión abonable'));
 ok('todas las intenciones declaradas contestan algo', Object.keys(INTENCIONES).every(k => typeof responderLocal(k, R) === 'string' && responderLocal(k, R).length > 20));
 
+console.log('\nLAS ACCIONES DE UNA RESPUESTA LOCAL: abrir el proyecto, ir a la pantalla');
+const AC = respuestaLocal('cobranza', R).acciones;
+eq('cobranza: primero la cartera, luego el proyecto con saldo', AC.map(a => a.tipo + ':' + (a.ruta || a.id)), ['pasar:control', 'proyecto:p1']);
+eq('y la cartera abre en Por cobrar', AC[0].dato, { tab: 'cobrar' });
+eq('el botón del proyecto lleva folio y nombre corto', AC[1].label, 'COT-0031 · Healthylicious');
+const ACc = respuestaLocal('comisiones', R).acciones;
+ok('comisiones: el enlace a Notion y los dos proyectos con comisión', ACc[0].tipo === 'link' && ACc[0].href.startsWith('https://app.notion.com/') && ACc.filter(a => a.tipo === 'proyecto').map(a => a.id).sort().join() === 'p1,p2');
+eq('tarde: el Tablero y el atrasado', respuestaLocal('tarde', R).acciones.map(a => a.tipo + ':' + (a.ruta || a.id)), ['ir:hoy', 'proyecto:p2']);
+eq('semana: el calendario en vista semana con el día de hoy', respuestaLocal('semana', R).acciones[0], { tipo: 'pasar', ruta: 'agenda', dato: { dia: '2026-09-14', vista: 'semana' }, label: 'Ver la semana' });
+eq('material: la lista de compra', respuestaLocal('material', R).acciones.map(a => a.ruta), ['material']);
+eq('sin decidir: Proyectos', respuestaLocal('sin_decidir', R).acciones.map(a => a.ruta), ['proyectos']);
+eq('fabricación no recibe acciones de dinero', respuestaLocal('cobranza', RF).acciones, []);
+ok('el id del proyecto está en el resumen local pero NO viaja en el prompt', R.proyectos[0].id === 'p2' && !promptSistema(R).includes('"id"'));
+ok('el texto sigue siendo el mismo que responderLocal', respuestaLocal('tarde', R).texto === responderLocal('tarde', R));
+
 console.log('\nLA INTENCIÓN DE UNA PREGUNTA ESCRITA');
+eq('«¿qué debe la óptica?» es cobranza aunque nombre un cliente', detectarIntencion('¿qué debe la óptica?'), 'cobranza');
+eq('«cuánto hay por cobrar»', detectarIntencion('cuánto hay por cobrar'), 'cobranza');
+eq('«qué comisiones puedo pagar ya»', detectarIntencion('qué comisiones puedo pagar ya'), 'comisiones');
+eq('«hay algo atrasado?»', detectarIntencion('hay algo atrasado?'), 'tarde');
+eq('«qué se instala mañana»', detectarIntencion('qué se instala mañana'), 'semana');
+eq('«cuánto vendimos en agosto»', detectarIntencion('cuánto vendimos en agosto'), 'ventas');
+eq('«cómo vamos este mes de ventas» es ventas, no el resumen', detectarIntencion('cómo vamos este mes de ventas'), 'ventas');
+eq('«hay que comprar acrílico?»', detectarIntencion('hay que comprar acrílico?'), 'material');
+eq('«qué cotizaciones autorizadas no han contestado»', detectarIntencion('qué cotizaciones autorizadas no han contestado'), 'sin_decidir');
+eq('sin acentos y en mayúsculas da lo mismo', detectarIntencion('QUIEN NOS DEBE'), 'cobranza');
+eq('una sola palabra débil no alcanza («pendiente»)', detectarIntencion('pendiente'), null);
+eq('un saludo va a la IA', detectarIntencion('hola'), null);
+eq('«redacta un mensaje» va a la IA', detectarIntencion('redacta un mensaje para el cliente'), null);
+eq('sugerencias para lo que no casa', sugerirIntenciones('pendiente'), ['sin_decidir']);
+ok('siempre hay al menos una sugerencia', sugerirIntenciones('hola').length >= 1);
+
 eq('comisiones', detectarIntencion('¿qué comisiones se pueden abonar?'), 'comisiones');
 eq('cobranza', detectarIntencion('quién nos debe'), 'cobranza');
 eq('cobranza por saldo', detectarIntencion('saldos pendientes'), 'cobranza');

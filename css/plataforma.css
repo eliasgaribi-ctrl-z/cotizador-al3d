@@ -1713,6 +1713,14 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
   background:var(--av-bg);color:var(--av)}
 .ia-permiso b{color:var(--tinta)}
 .ia-permiso .btn-fila{width:100%}
+/* Los botones de una respuesta local: la pantalla que toca (encendida, en marino) y los
+   proyectos que nombra. Píldoras chicas, que se envuelven. */
+.ia-acciones{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0}
+.ia-acciones .chip{min-height:32px;padding:0 12px;border-radius:999px;font-size:var(--t2);font-weight:500;
+  background:var(--sup);text-decoration:none;gap:6px}
+.ia-acciones .chip .svgi{width:var(--ico1);height:var(--ico1)}
+.ia-acciones .chip.on{background:var(--nav);border-color:var(--nav);color:#fff;font-weight:600}
+.ia-acciones .chip.on:hover{background:var(--nav2);border-color:var(--nav2)}
 .ia-meta{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2) var(--e3);margin:4px 6px 0;font-size:var(--t1);color:var(--tinta3)}
 .ia-fuente{display:inline-flex;align-items:center;gap:4px}
 .ia-fuente .svgi{width:12px;height:12px}
