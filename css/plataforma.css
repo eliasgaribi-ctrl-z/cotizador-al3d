@@ -1605,3 +1605,88 @@ body.pf .pf-lat-rol .seg{background:rgba(0,0,0,.25)}
 .ct-quien{margin-top:4px;font-size:var(--t1)}
 .ct-quien b{font-weight:600;color:var(--tinta2)}
 .ct-bit .pf-fila-t{font-weight:500}
+
+/* ============================================================================
+   EL ASISTENTE — nucleo/asistente.js
+   ============================================================================ */
+/* El botón flotante. Abajo a la derecha, con la sombra del acento: es la única pieza que
+   flota sobre las ocho pantallas y tiene que verse como tal. En el teléfono sube encima de
+   la barra de módulos y de la barra de acción, si la hay; y pierde la palabra, que ahí no
+   cabe sin taparle el renglón a la lista. */
+.pf-ia-btn{
+  position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:max(20px,env(safe-area-inset-bottom,0px));
+  z-index:45;display:inline-flex;align-items:center;gap:8px;
+  height:48px;padding:0 18px 0 14px;border:0;border-radius:999px;
+  background:var(--a-fill);color:#fff;font-family:inherit;font-weight:600;font-size:var(--t3);
+  box-shadow:var(--sombra-accion),0 1px 2px rgba(0,0,0,.12);cursor:pointer;
+  transition:transform var(--mv-s),box-shadow var(--mv-s),background var(--mv-s);
+}
+.pf-ia-btn .svgi{width:var(--ico3);height:var(--ico3)}
+.pf-ia-btn:hover{background:var(--a-fuerte);transform:translateY(-1px)}
+.pf-ia-btn:active{transform:translateY(0)}
+.pf-ia-btn:focus-visible{outline:2px solid #fff;outline-offset:2px;box-shadow:0 0 0 4px var(--a-borde)}
+html[data-tema="oscuro"] .pf-ia-btn:hover{background:var(--a-fill);filter:brightness(1.1)}
+@media(max-width:759px){
+  .pf-ia-btn{right:14px;bottom:calc(84px + env(safe-area-inset-bottom,0px) + var(--mbar-h,0px));
+    height:52px;width:52px;padding:0;justify-content:center}
+  .pf-ia-btn .tx{display:none}
+}
+/* Con un marco vivo (el cotizador o la mesa de corte) el botón le taparía el total al
+   cotizador, que ya tiene su propia barra fija: se esconde. */
+body.pf-marco-lleno .pf-ia-btn{display:none}
+@media print{.pf-ia-btn,#pf-ia{display:none!important}}
+
+/* El panel: más angosto que una ficha y alto como un chat. */
+.ia-panel{max-width:560px;height:min(720px,calc(100dvh - 64px - env(safe-area-inset-top,0px)))}
+@media(max-width:560px){ .ia-panel{height:calc(100dvh - 24px - env(safe-area-inset-top,0px))} }
+.ia-panel .pf-panel-h .ia-ico{box-sizing:content-box;width:var(--ico1);height:var(--ico1);padding:7px;border-radius:var(--rr2);
+  background:var(--a-fill);color:#fff;flex:0 0 auto}
+.ia-prov{max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--f-texto);font-weight:500;font-size:var(--t1)}
+.ia-panel .pf-panel-h h2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* En el teléfono el proveedor no cabe al lado del título sin partirlo en tres renglones: se
+   queda en la línea de cada respuesta, que es donde de verdad importa saber quién contestó. */
+@media(max-width:560px){ .ia-prov{display:none} }
+.ia-cuerpo{flex:1 1 auto;display:flex;flex-direction:column;gap:var(--e3);background:var(--fondo)}
+.ia-hola{margin:auto 0;text-align:center;padding:var(--e5) var(--e3)}
+.ia-hola>.svgi{box-sizing:content-box;width:var(--ico4);height:var(--ico4);padding:14px;border-radius:50%;
+  background:var(--a-suave);color:var(--a-tx);border:1px solid var(--a-borde)}
+.ia-hola .vacio-d{margin-left:auto;margin-right:auto}
+.ia-sugeridas{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:auto}
+.ia-sugeridas .chip{min-height:36px;border-radius:999px;font-size:var(--t2);font-weight:500;padding:0 12px;
+  background:var(--sup);white-space:normal;text-align:left;line-height:1.3}
+.ia-hilo{display:flex;flex-direction:column;gap:var(--e3)}
+.ia-msg{display:flex;flex-direction:column;max-width:88%}
+.ia-msg.yo{align-self:flex-end;align-items:flex-end}
+.ia-msg.bot{align-self:flex-start}
+.ia-burbuja{padding:10px 14px;border-radius:var(--rr3);font-size:var(--t3);line-height:1.5;color:var(--tinta);
+  background:var(--sup);border:1px solid var(--linea);box-shadow:var(--sombra-reposo);overflow-wrap:anywhere}
+.ia-msg.yo .ia-burbuja{background:var(--a-fill);color:#fff;border-color:var(--a-fill);border-bottom-right-radius:4px}
+.ia-msg.bot .ia-burbuja{border-bottom-left-radius:4px}
+.ia-burbuja p{margin:0}
+.ia-burbuja p+p,.ia-burbuja ul+p,.ia-burbuja p+ul{margin-top:8px}
+.ia-burbuja ul{margin:0;padding-left:1.15em}
+.ia-burbuja li{margin:3px 0}
+.ia-burbuja b{font-weight:700}
+.ia-burbuja code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em;
+  background:var(--sup2);border:1px solid var(--linea2);border-radius:4px;padding:0 4px}
+.ia-espera{color:var(--tinta2);display:inline-flex;align-items:center;gap:8px}
+.ia-espera .svgi{animation:ia-gira 1.4s linear infinite}
+@keyframes ia-gira{to{transform:rotate(360deg)}}
+.ia-mal{background:var(--mal-bg);border-color:var(--mal-borde);color:var(--mal);display:flex;gap:8px;align-items:flex-start}
+.ia-mal .svgi{flex:0 0 auto;margin-top:2px}
+.ia-meta{display:flex;align-items:center;gap:var(--e3);margin:4px 6px 0;font-size:var(--t1);color:var(--tinta3)}
+.ia-copiar{border:0;background:transparent;color:var(--tinta3);font-family:inherit;font-size:var(--t1);font-weight:600;
+  display:inline-flex;align-items:center;gap:4px;cursor:pointer;padding:4px 6px;border-radius:var(--rr1)}
+.ia-copiar:hover{background:var(--sup2);color:var(--tinta)}
+.ia-copiar .svgi{width:12px;height:12px}
+.ia-aviso{display:flex;flex-direction:column;gap:var(--e3);align-items:flex-start;margin:auto 0;
+  padding:var(--e4);border-radius:var(--rr3);background:var(--sup);border:1px solid var(--linea);
+  font-size:var(--t3);line-height:1.5;color:var(--tinta2)}
+.ia-aviso>.svgi{box-sizing:content-box;width:var(--ico2);height:var(--ico2);padding:8px;border-radius:var(--rr2);
+  background:var(--av-bg);color:var(--av)}
+.ia-aviso b{color:var(--tinta)}
+.ia-pie{align-items:flex-end;gap:var(--e2)}
+.ia-pie textarea{flex:1;min-height:44px;max-height:140px;resize:none;border-radius:var(--rr3);padding:11px 14px;line-height:1.4}
+.ia-enviar{flex:0 0 auto;width:44px;min-height:44px;padding:0;border-radius:var(--rr3);display:inline-flex;align-items:center;justify-content:center}
+.ia-enviar .svgi{width:var(--ico2);height:var(--ico2)}
+@media(prefers-reduced-motion:reduce){ .ia-espera .svgi{animation:none} .pf-ia-btn:hover{transform:none} }

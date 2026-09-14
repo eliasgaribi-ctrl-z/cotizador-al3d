@@ -236,6 +236,10 @@
 <div class="modal-bg pf-modal-bg" id="pf-ficha" role="dialog" aria-modal="true" aria-label="Detalle"></div>
 <div class="modal-bg pf-modal-bg" id="pf-hoja"  role="dialog" aria-modal="true" aria-label="Hoja de trabajo"></div>
 <div class="modal-bg pf-modal-bg" id="pf-pide"  role="dialog" aria-modal="true" aria-label="Confirmar"></div>
+<!-- El asistente. Su contenido lo escribe js/nucleo/asistente.js al abrir; la capa vive aquí
+     por lo mismo que las tres de arriba: el registro de Escape, cerco y botón atrás se da de
+     alta una vez. -->
+<div class="modal-bg pf-modal-bg" id="pf-ia" role="dialog" aria-modal="true" aria-label="Asistente del taller"></div>
 
 <!-- La barra fija del teléfono. Su contenido cambia con el módulo. Va ENCIMA de la barra de
      módulos de abajo, que es lo que hace la maqueta: primero la acción de esta pantalla,
@@ -251,6 +255,13 @@
      el Tablero, que es de donde se sale a comprar. La lista de qué módulos entran la decide
      app.js, que es donde ya vive la lista de rutas. ============================ -->
 <nav class="pf-abajo" id="pf-abajo" aria-label="Módulos"></nav>
+
+<!-- El botón del asistente. Flota abajo a la derecha, encima de la barra del teléfono; en la
+     computadora, en la esquina. Un solo botón para las ocho pantallas: la pregunta «¿quién nos
+     debe?» no es de ninguna en particular. -->
+<button type="button" class="pf-ia-btn" id="pf-ia-btn" title="Preguntarle al asistente" aria-label="Abrir el asistente del taller">
+  <svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg><span class="tx">Preguntar</span>
+</button>
 
 <div class="toast" id="toast"></div>
 

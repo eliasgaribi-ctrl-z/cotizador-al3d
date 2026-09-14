@@ -202,8 +202,10 @@ en el documento final.
   módulo **Control** (ventas por mes, pipeline valorizado, conversión, cartera con saldo
   estimado, CSV de proyectos), la **bitácora** append-only con quién hizo qué en proyectos,
   agenda, catálogo y almacén, la restauración que ya no pisa un registro con uno más viejo,
-  el anticipo acotado al total y la comisión al 100 %, y la pregunta antes de regresar una
-  etapa. Sin resolver, a ojos abiertos: el saldo por cobrar es **estimado** (total menos
+  el anticipo acotado al total y la comisión al 100 %, la pregunta antes de regresar una
+  etapa, y el **asistente**: un botón que contesta preguntas del taller con los datos del
+  dispositivo y la llave de IA del cotizador (`js/nucleo/asistente.js`,
+  `js/datos/asistente-contexto.js`), de solo lectura y con las reglas de comisión escritas. Sin resolver, a ojos abiertos: el saldo por cobrar es **estimado** (total menos
   anticipo pactado) hasta que el puente baje la fórmula de Notion; no hay abonos intermedios;
   un movimiento del almacén no se deshace, solo se corrige con un conteo; y la bitácora es
   memoria, no candado, mientras cualquiera pueda cambiar su rol en Ajustes.
