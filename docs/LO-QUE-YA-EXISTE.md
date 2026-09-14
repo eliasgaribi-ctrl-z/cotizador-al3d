@@ -3,7 +3,7 @@ No cree, modifiqué ni borré nada. Solo lectura.
 # Lo que ya existe de AL3D (y lo que no)
 
 ## Resumen en una línea
-AL3D **sí tiene una estructura montada en Notion** — bastante completa y con 3 años de historia real (199 proyectos, $3.7M MXN) — pero **está triplicada en copias divergentes**, y en **Google Drive no hay prácticamente nada de AL3D** (solo 2 auditorías de Google Ads). No existe en ninguna parte: proveedores, inventario/stock, catálogo de materiales con costos, ni calendario de cuadrillas.
+AL3D **sí tiene una estructura montada en Notion** — bastante completa y con 3 años de historia real (199 proyectos, $X.XM MXN) — pero **está triplicada en copias divergentes**, y en **Google Drive no hay prácticamente nada de AL3D** (solo 2 auditorías de Google Ads). No existe en ninguna parte: proveedores, inventario/stock, catálogo de materiales con costos, ni calendario de cuadrillas.
 
 ---
 
@@ -42,7 +42,7 @@ Esquema exacto:
 
 Vistas ya definidas: *Proyectos en Puerta* (filtra To-do + In progress), *Vendidos del Mes*, *Ventas del Año*, *Record de Ventas Totales*, un **calendario por Fecha Anticipo e Instalacion**, una galería y una tabla completa.
 
-Datos reales: **199 proyectos**, del 07/sep/2023 al 20/ago/2026, `Precio Subtotal` acumulado **$3,713,419.41**. Por estatus: LIQUIDADO 183 ($3.46M), FABRICACION 9 ($102,655), COBRANDO 6 ($131,817), REPARANDO 1 ($14,000).
+Datos reales: **199 proyectos**, del 07/sep/2023 al 20/ago/2026, `Precio Subtotal` acumulado **$X,XXX,XXX**. Por estatus: LIQUIDADO 183 ($3.46M), FABRICACION 9 ($102,655), COBRANDO 6 ($XXX,XXX), REPARANDO 1 ($14,000).
 
 El **cuerpo de cada página de proyecto es texto libre** con la memoria técnica del trabajo. Ejemplo textual (Andrey - Healthylicious): *"Instalacion de Panel de Aluminio (Alucobond): corte, doblez e instalacion de letras individuales 3D ya fabricadas. Sucursal La Perla (Genki) - Plaza Palma Real, Av. Sta. Margarita 3740 L5, Valle Real. Medidas 1 m x 2.95 m. Cotizacion 21/jul/2026 por $14,900. Instalacion nocturna, previamente armado en el taller."*
 
@@ -50,7 +50,7 @@ El **cuerpo de cada página de proyecto es texto libre** con la memoria técnica
 https://app.notion.com/p/6e801d42784f49f682c0714e579d05ad · `collection://fc0fc5d1-4d15-4f01-80ba-80d7cbfd59a6`
 - `Descripcion` (title), `Fecha` (date), `Cantidad ` (MXN), `Metodo de Pago` (relation a una colección a la que la integración **no tiene acceso**)
 - `Categoria` — select de 13: `Prestamo Eli`, `Viaticos`, `Carro`, `Nomina Constru`, `Seguro`, `Comision`, `Google ADS`, `Deuda Raul`, `Iluminacion`, `Laminas`, `Graficos`, `Maquila`, `Recarga`
-- **Está abandonada**: datos solo de 24/may/2024 a 16/oct/2025. Mayores: Nomina Constru $377,760 (39), Comision $105,122 (36), Deuda Raul $102,602 (23), Carro $40,299 (52), Laminas $33,280 (11), Graficos $22,577, Maquila $20,668, Google ADS $12,670, Iluminacion $12,372.
+- **Está abandonada**: datos solo de 24/may/2024 a 16/oct/2025. Mayores: Nomina Constru $377,760 (39), Comision $105,122 (36), Deuda Raul $102,602 (23), Carro $40,299 (52), Laminas $XX,XXX (11), Graficos $XX,XXX, Maquila $XX,XXX, Google ADS $12,670, Iluminacion $XX,XXX.
 - Nota de esquema relevante para un cotizador: las categorías de insumo real son solo `Laminas`, `Iluminacion`, `Graficos`, `Maquila` — no hay desglose por proyecto.
 
 **Vista de Ventas - AL3D / "Comisiones Elias"** — https://app.notion.com/p/9682b4043139497db6b02cf9ab726c72 — no es otra base, son vistas vinculadas al mismo data source: *Comisiones Pendientes* (filtro Comision Restante > 1), *Ultimas Comisiones*, *Record de Comisiones*, y un board agrupado por Estatus.

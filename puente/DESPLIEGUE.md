@@ -1,53 +1,61 @@
-# Cómo se despliega el puente — ya no se pega a mano
+# Cómo se monta el puente
 
-El runbook de `README.md` decía «se pega en el editor de Cloudflare». Eso sigue
-funcionando, pero ya no es el camino: el Worker está conectado a este repo.
+Diez minutos, una vez. Ya no hay cuenta de Cloudflare, ni `wrangler`, ni secretos que
+guardar fuera del repo: el puente vive dentro de la hoja.
 
 ## Lo que hay montado
 
 | Qué | Dónde |
 |---|---|
-| El sitio | Cloudflare Pages, proyecto `cotizador-al3d` → `https://cotizador-al3d.pages.dev` |
-| El puente | Cloudflare Worker `puente-al3d` → `https://puente-al3d.eliasgaribi.workers.dev` |
-| La configuración del puente | `puente/wrangler.jsonc` (este directorio) |
+| El sitio | GitHub Pages, desde `main` |
+| El puente | Apps Script de la hoja **«Finanzas AL3D — Ventas y Comisiones»**, publicado como aplicación web |
+| El código del puente | `puente/hoja-apps-script.gs` (este directorio), versionado para poder compararlo |
 
-Los dos se redespliegan solos con cada push a `main`. El Worker solo se rehace
-cuando el cambio toca `puente/*`, así que trabajar en el cotizador no gasta builds.
+El sitio se sigue redesplegando solo con cada push. **El puente no**: es código de Apps
+Script y se publica desde su editor.
 
-## Qué vive en el repo y qué no
+## Los pasos
 
-En el repo, en `wrangler.jsonc`, y por lo tanto versionado:
+1. Abre la hoja → **Extensiones → Apps Script**.
+2. Pega el contenido de `puente/hoja-apps-script.gs` en `Código.gs` y guarda.
+3. **Implementar → Nueva implementación → Aplicación web**, con:
+   - *Ejecutar como*: **Yo**. Es lo que le da acceso a la hoja sin pedirle nada a nadie.
+   - *Quién tiene acceso*: **Cualquier usuario**. Si queda en *Solo yo*, el teléfono recibe
+     la pantalla de inicio de sesión de Google en vez de JSON, y «Probar» lo dice.
+4. Copia la **URL** que termina en `/exec`.
+5. En la hoja: **⚡ AL3D → Tokens del puente**. Ahí están la liga y los tres tokens, uno por
+   rol. Se generan solos la primera vez.
+6. En cada teléfono: **Ajustes → El puente**, pega la liga y el token que le toca a ese
+   departamento. Dale **Probar**.
 
-- `DS_VENTAS` — la base de ventas en Notion.
-- `ORIGENES` — los dominios que el puente acepta. **Si publicas el sitio en otro
-  dominio, agrégalo aquí**, separado por comas y sin barra final, o el navegador
-  lo rechaza por CORS y el mensaje no dice por qué.
+## Dónde viven los secretos
 
-Fuera del repo, en Cloudflare → Worker `puente-al3d` → *Settings* →
-*Variables and Secrets*, tipo **Secret**:
+Los tres tokens de dispositivo se guardan en las **propiedades del script**
+(`PropertiesService`), no en el código, para que no acaben en el historial del repositorio.
+Se generan con `Utilities.getUuid()` y se rotan desde la misma pantalla con
+*Generar tokens nuevos* — ojo, eso deja fuera a los tres teléfonos hasta que pegues los
+nuevos.
 
-- `NOTION_TOKEN` — el token de la integración de Notion.
-- `TOKENS` — el JSON de los tres tokens de dispositivo.
+No hay nada más que esconder. El token de Notion, que era la razón de ser del Worker, ya no
+existe.
 
-`npx wrangler deploy` respeta los secrets: no los borra ni los pisa. Lo que sí
-pisa en cada deploy son las variables públicas, y es a propósito — el repo es la
-verdad de `ORIGENES`, no el dashboard.
+## Cuando cambies el código
+
+Guardar **no** publica. Hay que ir a **Implementar → Gestionar implementaciones → lápiz →
+Versión: Versión nueva → Implementar**. La URL no cambia: los teléfonos no se tocan.
+
+Y si tocas el `.gs` en el repo, acuérdate de que la copia que manda es la de la hoja: hay
+que pegarlo allá. `pruebas/puente.mjs` compara los dos lados y falla si los vocabularios se
+separan, pero no puede saber si la hoja tiene una versión vieja.
 
 ## Las cabeceras del sitio
 
 En la raíz del repo hay un `_headers`, que Cloudflare Pages lee y GitHub Pages ignora.
 Pages publica el repositorio entero, así que `docs/`, `pruebas/`, `puente/` y
 `herramientas/` también se sirven: no son secretos —el repo es público—, pero ese archivo
-les pone `X-Robots-Tag: noindex` para que un buscador no los enseñe antes que la app, y
-le pone a todo `X-Content-Type-Options: nosniff`. No lleva redirecciones a propósito: las
-rutas de la app son `#/…` y `plataforma.html` tiene que seguir siendo un archivo de verdad
-para que el service worker lo guarde.
+les pone `X-Robots-Tag: noindex` para que un buscador no los enseñe antes que la app, y le
+pone a todo `X-Content-Type-Options: nosniff`.
 
-## Si algo sale mal
-
-El build vive en Cloudflare → Workers & Pages → `puente-al3d` → *Deployments*.
-Ahí está el log completo. Un deploy que falla no tira el que está corriendo: el
-puente anterior sigue en pie hasta que uno nuevo entra bien.
-
-El runbook de fallas en tiempo de uso —los 401, los 403, el esquema de Notion—
-sigue siendo el de `README.md`. Este archivo solo cubre cómo llega el código.
+**Ojo con esto ahora que el `.gs` vive en el repo:** no contiene ningún secreto (los tokens
+están en las propiedades del script), pero sí describe el esquema completo de la hoja. Si
+eso te incomoda, el repo tendría que volverse privado; no se arregla con `_headers`.

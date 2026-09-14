@@ -15,7 +15,7 @@ El problema de este usuario no es que le falte esquema: **ya diseñó dos veces 
 
 Las razones, en orden de peso:
 
-1. **La API de Notion es imposible desde el navegador y además no la querrías.** No manda `Access-Control-Allow-Origin` — hay dos issues abiertos en su propio SDK por esto (`makenotion/notion-sdk-js` #96 y #408). Pero el problema mayor no es CORS: exige `Authorization: Bearer secret_…`, y ese es un token de **escritura completa sobre todo el workspace**. Ponerlo en un HTML publicado en GitHub Pages es publicar la llave de los 199 proyectos y $3.7M de historia. Aun si Notion arreglara CORS mañana, la respuesta seguiría siendo no.
+1. **La API de Notion es imposible desde el navegador y además no la querrías.** No manda `Access-Control-Allow-Origin` — hay dos issues abiertos en su propio SDK por esto (`makenotion/notion-sdk-js` #96 y #408). Pero el problema mayor no es CORS: exige `Authorization: Bearer secret_…`, y ese es un token de **escritura completa sobre todo el workspace**. Ponerlo en un HTML publicado en GitHub Pages es publicar la llave de los 199 proyectos y $X.XM de historia. Aun si Notion arreglara CORS mañana, la respuesta seguiría siendo no.
 2. **Los recordatorios de Notion llegan a una sola de las tres personas.** Fabricación y pagos no están en Notion; el director sí. Un recordatorio de Notion es una notificación *dentro* de Notion. La regla que importa —"tres días antes de la instalación, avisar a fabricación"— por definición no puede vivir ahí.
 3. **Google Calendar llega a la notificación nativa de los tres teléfonos, gratis, sin infraestructura, y por un archivo.** Un `.ics` es texto que se arma localmente: funciona sin señal, sin cuenta, sin llave, sin proyecto de Google Cloud, sin pantalla de "app no verificada". Se genera, se descarga, el sistema operativo lo abre en el calendario. Esa es la única pieza de la plataforma que puede sonar cuando la app está cerrada, y es lo que hace posible el módulo 1 completo.
 4. **La suscripción a un `.ics` publicado en el repo queda descartada, a propósito.** Google refresca calendarios suscritos cada **12–24 h** y *no hay forma de forzar un refresh*. Sirve para una agenda de consulta que tolere un día de atraso; no sirve para "acabo de agendar y quiero verlo". Por eso el camino es **descarga por evento** (importación inmediata) y, aparte, un `.ics` de "agenda completa" para cuando cambia mucho el plan.
@@ -324,7 +324,7 @@ Las seis unidades de compra que dijo el usuario, tal cual: **unidad, bolsa, caja
 | `solvente` | Limpiador / solvente | litro | — | m² limpiados | **25** | 1 |
 | `pintura` | Pintura automotiva | litro | — | m² a 2 manos | **8** | 1 |
 
-Los tres primeros aciertos de la categoría `Categoria` de `Gastos - AL3D` que sí eran insumo (`Laminas` $33,280 en 11 gastos, `Iluminacion` $12,372, `Graficos` $22,577) mapean 1:1 sobre este catálogo — y por primera vez con `pid`, es decir **con gasto por proyecto**, que es exactamente lo que esa base nunca tuvo.
+Los tres primeros aciertos de la categoría `Categoria` de `Gastos - AL3D` que sí eran insumo (`Laminas` $XX,XXX en 11 gastos, `Iluminacion` $XX,XXX, `Graficos` $XX,XXX) mapean 1:1 sobre este catálogo — y por primera vez con `pid`, es decir **con gasto por proyecto**, que es exactamente lo que esa base nunca tuvo.
 
 ### 4.4 Las reglas de consumo, tipo por tipo
 
@@ -759,7 +759,7 @@ Lo único que se le pide al usuario: **elegir su rol y su nombre la primera vez*
 
 ### Fase 1 — El usuario hace dos cosas, diez minutos, una sola vez.
 
-1. **Exportar `Ventas - AL3D` a CSV** desde Notion y soltarlo en el importador. Resultado: los 199 proyectos históricos con dinero, estatus y fechas; `$3,713,419.41` acumulado cuadrando; las comisiones pendientes en Inicio. *(Sin direcciones — el esquema no las tiene; §2.)* Si además exporta como *Markdown & CSV* y suelta los `.md`, salen los pines de las páginas que sí tienen memoria técnica escrita.
+1. **Exportar `Ventas - AL3D` a CSV** desde Notion y soltarlo en el importador. Resultado: los 199 proyectos históricos con dinero, estatus y fechas; `$X,XXX,XXX` acumulado cuadrando; las comisiones pendientes en Inicio. *(Sin direcciones — el esquema no las tiene; §2.)* Si además exporta como *Markdown & CSV* y suelta los `.md`, salen los pines de las páginas que sí tienen memoria técnica escrita.
 2. **Importar el `.ics` de ritmo** una vez en el calendario de cada quien: es el que trae las reglas 9 y 10 con `RRULE`. Es lo que convierte el teléfono en el cron del sistema.
 
 ### Fase 2 — Solo si la fricción del `.ics` resulta real. El usuario crea una cosa.

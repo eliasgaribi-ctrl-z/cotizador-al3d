@@ -261,46 +261,81 @@ function falla(codigo, mensaje) { const e = new Error(mensaje); e.codigo = codig
  */
 async function pedir(cfg, ruta, opciones = {}) {
   const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-  /* Sin tope, un Worker que no contesta deja el bombeo colgado para siempre y la pantalla
-     de Ajustes con el botón apretado. Quince segundos: un proxy a Notion con la red de un
+  /* Sin tope, un puente que no contesta deja el bombeo colgado para siempre y la pantalla
+     de Ajustes con el botón apretado. Quince segundos: Apps Script con la red de un
      teléfono en la calle tarda, pero no tanto. */
   const t = ctrl ? setTimeout(() => ctrl.abort(), MS_ESPERA) : 0;
+
+  /* ── Todo va por POST, y el token va en el cuerpo ────────────────────────────────
+     Apps Script no tiene dónde contestar un OPTIONS: un Web App solo expone doGet y
+     doPost. Así que toda petición tiene que quedarse dentro de las «simples» de CORS,
+     las que el navegador manda sin preflight — y `Authorization` no lo es.
+
+     Quedaban dos lugares para el token: la URL o el cuerpo de un POST con text/plain.
+     Va en el cuerpo. Un token en la URL se queda escrito en el historial del navegador,
+     en los registros de cualquier proxy que lo vea pasar, y se va en la cabecera
+     `Referer` si la página navega. En el cuerpo no le pasa nada de eso.
+
+     Por eso lo que antes eran GET con cadena de consulta ahora son POST: lo que venía
+     en `?cursor=` o `?u=` se dobla dentro del mismo cuerpo. */
+  const [camino, consulta] = String(ruta).split('?');
+  let cuerpo = {};
+  if (opciones.body) {
+    try { cuerpo = JSON.parse(opciones.body); } catch (_) { cuerpo = {}; }
+  }
+  if (consulta) {
+    new URLSearchParams(consulta).forEach((valor, clave) => { cuerpo[clave] = valor; });
+  }
+  cuerpo.token = cfg.token;
+  cuerpo.ruta = camino.replace(/^\/+/, '');
+
   let r;
   try {
-    r = await fetch(cfg.url + ruta, {
-      ...opciones,
+    /* Se manda a la URL pelona, sin pegarle el camino: Apps Script contesta 404 a
+       `/exec/salud` en un POST —`pathInfo` solo sirve en los GET— así que el camino
+       viaja como un campo más del cuerpo. Probado contra la implementación real. */
+    r = await fetch(cfg.url, {
+      method: 'POST',
       signal: ctrl ? ctrl.signal : undefined,
-      headers: { 'Authorization': 'Bearer ' + cfg.token,
-                 ...(opciones.body ? { 'Content-Type': 'application/json' } : {}),
-                 ...(opciones.headers || {}) },
+      body: JSON.stringify(cuerpo),
+      /* text/plain a propósito: es uno de los tres tipos que no disparan preflight. */
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      /* Apps Script siempre rebota de script.google.com a googleusercontent.com. */
+      redirect: 'follow',
     });
   } catch (e) {
-    /* Aquí caen las tres que se ven en la calle y se dicen distinto a propósito: el CORS
-       mal puesto se ve igual que «no hay señal» desde JavaScript —la especificación no
-       deja distinguirlos— así que el mensaje nombra las dos posibilidades en vez de
-       mentir con una. */
+    /* El CORS mal puesto se ve igual que «no hay señal» desde JavaScript —la
+       especificación no deja distinguirlos— así que el mensaje nombra las dos
+       posibilidades en vez de mentir con una. */
     throw falla('SIN_RED', (e && e.name === 'AbortError')
       ? 'El puente no contestó en 15 segundos. Lo que hiciste está guardado aquí y se manda solo.'
-      : 'No se pudo llegar al puente. Puede ser que no haya señal, o que a este dominio le falte estar en ORIGENES del Worker.');
+      : 'No se pudo llegar al puente. Puede ser que no haya señal, o que la implementación del Apps Script no esté publicada con acceso «Cualquier usuario».');
   } finally { if (t) clearTimeout(t); }
 
-  let cuerpo = null;
-  try { cuerpo = await r.json(); } catch (_) { cuerpo = null; }
+  let cuerpoRes = null;
+  try { cuerpoRes = await r.json(); } catch (_) { cuerpoRes = null; }
 
-  /* Un 2xx sin JSON no es el puente: es otra cosa que contestó en esa URL —una página, un
-     404 bonito, el editor de Cloudflare—. Antes se leía como éxito y «Probar» pintaba verde. */
-  if (r.status < 400 && cuerpo === null) {
-    throw falla('DESCONOCIDO', 'Esa URL contestó ' + r.status + ' pero no es el puente: no devolvió JSON. Revisa que sea la dirección del Worker, sin nada después de .workers.dev.');
+  /* Un 2xx sin JSON no es el puente: es otra cosa que contestó en esa URL —la pantalla
+     de inicio de sesión de Google, casi siempre, cuando la implementación quedó en
+     «Solo yo»—. Antes se leía como éxito y «Probar» pintaba verde. */
+  if (r.status < 400 && cuerpoRes === null) {
+    throw falla('DESCONOCIDO', 'Esa URL contestó ' + r.status + ' pero no es el puente: no devolvió JSON. Si te mandó a la pantalla de Google, la implementación está en «Solo yo» y tiene que estar en «Cualquier usuario».');
   }
 
-  if (r.status === 401 || r.status === 403) {
-    throw falla('ROL_SIN_PERMISO', (cuerpo && cuerpo.mensaje) ||
+  /* Apps Script contesta 200 aunque haya fallado: el error viene dentro del JSON. Se
+     traduce al estado que el resto del cliente ya sabía leer, para no tocar a quien
+     llama ni a la bandeja. */
+  const estado = (cuerpoRes && cuerpoRes.ok === false && cuerpoRes.codigo === 'ROL_SIN_PERMISO')
+    ? 401 : r.status;
+
+  if (estado === 401 || estado === 403) {
+    throw falla('ROL_SIN_PERMISO', (cuerpoRes && cuerpoRes.mensaje) ||
       'Este teléfono no tiene un token válido del puente. Pégalo otra vez aquí abajo.');
   }
-  if (r.status >= 400 && !cuerpo) {
-    throw falla('SIN_RED', 'El puente contestó ' + r.status + ' sin decir por qué.');
+  if (estado >= 400 && !cuerpoRes) {
+    throw falla('SIN_RED', 'El puente contestó ' + estado + ' sin decir por qué.');
   }
-  return { estado: r.status, cuerpo: cuerpo || {} };
+  return { estado, cuerpo: cuerpoRes || {} };
 }
 
 /** La URL como la quiere `fetch`: sin barra final, para no pedir `//salud`; sin cadena de
@@ -331,7 +366,7 @@ export function crear(cfg0) {
 
   async function asegurarEscribibles() {
     if (escribibles) return escribibles;
-    const r = await pedir(cfg, '/salud', { method: 'GET' });
+    const r = await pedir(cfg, '/salud');
     /* Solo se recuerda una lista de verdad. Un /salud que contestó 503 porque Notion está
        caído no trae `escribibles`, y cachear ese vacío dejaría a este teléfono mandando a
        ciegas el resto de la sesión: así, la siguiente subida vuelve a preguntar. */
@@ -394,7 +429,7 @@ export function crear(cfg0) {
 
     async salud() {
       try {
-        const r = await pedir(cfg, '/salud', { method: 'GET' });
+        const r = await pedir(cfg, '/salud');
         if (Array.isArray(r.cuerpo.escribibles)) escribibles = new Set(r.cuerpo.escribibles);
         /* `ok === true` y no «distinto de false»: un JSON cualquiera sin `ok` no es el puente. */
         if (r.cuerpo.ok !== true) {
@@ -410,7 +445,7 @@ export function crear(cfg0) {
 
     async esquema() {
       try {
-        const r = await pedir(cfg, '/esquema', { method: 'GET' });
+        const r = await pedir(cfg, '/esquema');
         return { ok: r.cuerpo.ok !== false, faltan: Array.isArray(r.cuerpo.faltan) ? r.cuerpo.faltan : [],
                  nota: r.cuerpo.nota || '', mensaje: r.cuerpo.mensaje || '' };
       } catch (e) {
@@ -421,7 +456,7 @@ export function crear(cfg0) {
     /** Las cuatro líneas que del lado del navegador son imposibles. */
     async expandir(u) {
       try {
-        const r = await pedir(cfg, '/expandir?u=' + encodeURIComponent(String(u || '')), { method: 'GET' });
+        const r = await pedir(cfg, '/expandir?u=' + encodeURIComponent(String(u || '')));
         return r.cuerpo.ok ? { ok: true, url: r.cuerpo.url }
                            : { ok: false, mensaje: r.cuerpo.mensaje || 'Ese link corto no llevó a ningún mapa.' };
       } catch (e) {
@@ -539,9 +574,8 @@ export function crear(cfg0) {
      * proyecto de este lado se descarta a propósito: ver la cabecera del archivo.
      */
     async bajar(cursor) {
-      const r = await pedir(cfg, '/jalar' + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''),
-                            { method: 'GET' });
-      if (r.cuerpo.ok === false) throw falla(r.cuerpo.codigo || 'SIN_RED', r.cuerpo.mensaje || 'El puente no pudo leer Notion.');
+      const r = await pedir(cfg, '/jalar' + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''));
+      if (r.cuerpo.ok === false) throw falla(r.cuerpo.codigo || 'SIN_RED', r.cuerpo.mensaje || 'El puente no pudo leer la hoja.');
 
       const filas = Array.isArray(r.cuerpo.registros) ? r.cuerpo.registros : [];
       const registros = [];
@@ -611,55 +645,29 @@ async function porFolioGlobal(fg) {
    `puente/README.md`. Esto son los pasos, en el orden en que se hacen.
    ============================================================================ */
 
-/** El data source de `Ventas - AL3D`, copia (A) ELIAS. Es el valor de `DS_VENTAS`. */
-export const DS_VENTAS = '56fa21d8-8e7d-4e16-b874-455fd6c65643';
-
 export function instrucciones() {
-  const origen = (typeof location !== 'undefined' && location.origin) ||
-                 'https://TU-USUARIO.github.io';
   return {
-    titulo: 'Conectar Notion',
-    minutos: 25,
+    titulo: 'Conectar la hoja',
+    minutos: 10,
     pasos: [
-      'Entra a notion.so/my-integrations y dale a "New integration". Tipo: Internal. Nómbrala AL3D.',
-      'Copia su token (empieza con ntn_). Es lo único secreto de todo esto y no se pega en ningún teléfono: va al Worker.',
-      'Abre en Notion la página "Finanzas - AL3D (ELIAS)" → menú ··· → "Connections" → conecta la integración. Compártele la PÁGINA PADRE, no solo la base: así hereda el acceso y no hay que repetirlo cada vez que agregues algo dentro.',
-      'Entra a dash.cloudflare.com → "Workers & Pages" → "Create" → "Worker". Nómbralo puente-al3d y créalo.',
-      'Dale a "Edit code", borra lo que trae y pega COMPLETO el archivo puente/worker.js del repositorio. Guarda y despliega.',
-      'Copia la URL que te queda (termina en .workers.dev) y pégala aquí abajo.',
-      'En el Worker: "Settings" → "Variables and Secrets". Agrega NOTION_TOKEN como Secret (encriptado) con el token ntn_ del paso 2.',
-      'Agrega TOKENS, también como Secret. Aquí abajo hay un botón que te arma su contenido: son tres llaves, una por teléfono, y son la única frontera de permisos real del sistema.',
-      'Agrega DS_VENTAS como Text, con este valor: ' + DS_VENTAS,
-      'Agrega ORIGENES como Text, con este valor exacto, sin barra al final: ' + origen,
-      'Vuelve aquí y dale a "Probar". Tiene que contestar en verde y decirte qué rol reconoció para este teléfono.',
-      'Dale a "Revisar el esquema". Te va a listar las propiedades que le faltan a la base con su nombre y su tipo exactos. CRÉALAS A MANO en Notion: el puente las detecta y no las crea, a propósito.',
+      'Abre la hoja «Finanzas AL3D — Ventas y Comisiones» en Google Sheets.',
+      'Menú Extensiones → Apps Script. Ahí vive el puente: es código que corre DENTRO de la hoja, con los permisos de su dueño.',
+      'Botón Implementar → Nueva implementación → Aplicación web.',
+      'Ejecutar como: Yo. Es lo que le da acceso a la hoja sin pedirle nada a los teléfonos.',
+      'Quién tiene acceso: Cualquier usuario. Si queda en «Solo yo», el teléfono recibe la pantalla de Google en vez de datos, y «Probar» te lo dice con esas palabras.',
+      'Copia la URL que termina en /exec y pégala aquí abajo.',
+      'De vuelta en la hoja: menú ⚡ AL3D → Tokens del puente. Ahí están los tres, uno por teléfono.',
+      'Pega aquí abajo el que le toca a ESTE teléfono, y manda los otros dos a sus dueños por donde se mandan las llaves, no por el chat del grupo.',
+      'Dale a «Probar». Tiene que contestar en verde y decirte qué rol reconoció para este teléfono.',
+      'Dale a «Revisar el esquema». Si le falta alguna columna a la hoja, te la lista con su nombre y su tipo.',
     ],
     notas: [
-      'El token de Notion da escritura total sobre el workspace. Por eso vive en el Worker como secreto del servidor y nunca en un teléfono: esto es un HTML publicado en GitHub Pages, donde cualquiera lee el código.',
-      'Las siete propiedades se crean a mano y no por API. Es la única garantía de que no se rompan las siete vistas ni las cinco fórmulas de una base con tres años encima: una propiedad creada con el tipo equivocado es media hora de arreglar y una vista que nadie nota que dejó de filtrar.',
-      'Cuesta cero y sin tarjeta: 100,000 peticiones al día en el plan gratuito de Workers. Tres personas sincronizando gastan del orden de cien.',
-      'Si el puente se cae, no pasa nada: la plataforma sigue funcionando con lo que tiene en el teléfono y el botón "Copiar fila para Notion" del cotizador sigue siendo el camino manual. Ese botón no se retira nunca.',
+      'Ya no hay token de Notion ni Worker de Cloudflare. El Worker existía solo para esconder un token que daba escritura total sobre el workspace de Notion; sin Notion, no hay secreto que esconder y el puente corre dentro de la propia hoja.',
+      'La dirección del puente es pública —cualquiera puede tocar la puerta— y la puerta es el token. Sin uno válido, el puente contesta que no y nada más. Alrededor hay tres candados más: todo entra por POST con el token en el cuerpo (nunca en una URL), hay tope de 60 peticiones por minuto por token, y toda escritura queda anotada en una bitácora dentro de la hoja.',
+      'El rol es del token, no de la pantalla. Cambiar el segmento de rol en Ajustes te da otro tablero, no te da permisos: el token de fabricación sigue sin poder tocar el dinero.',
+      'Si el puente se cae, no pasa nada: la plataforma sigue funcionando con lo que tiene en el teléfono y el botón «Copiar fila» del cotizador sigue siendo el camino manual. Ese botón no se retira nunca.',
     ],
   };
-}
-
-/**
- * Los tres tokens de dispositivo, ya en el JSON que `TOKENS` espera.
- *
- * Existe porque el paso que más se rompe de los doce es escribir ese JSON a mano: una coma
- * de más, una comilla curva del teclado del teléfono, y el Worker contesta 401 a todo sin
- * poder decir por qué. Se generan con `crypto.randomUUID` —no con `Math.random`, que en un
- * Safari recién abierto arranca sembrado igual en dos dispositivos— y son irrecuperables a
- * propósito: si se pierden, se generan otros tres y se vuelven a pegar.
- */
-export function tokensNuevos() {
-  const uno = () => (typeof crypto !== 'undefined' && crypto.randomUUID)
-    ? crypto.randomUUID()
-    : 'tok-' + Array.from({ length: 4 }, () => Math.random().toString(36).slice(2, 10)).join('-');
-  const t = { direccion: uno(), fabricacion: uno(), pagos: uno() };
-  const mapa = {};
-  for (const rol of ['direccion', 'fabricacion', 'pagos']) mapa[t[rol]] = rol;
-  return { tokens: t, json: JSON.stringify(mapa) };
 }
 
 /**

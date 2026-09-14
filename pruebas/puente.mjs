@@ -15,8 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { P, ETAPA_A_NOTION, ETAPA_DESDE_NOTION, ESTATUS, CUENTAS, ALMACENES,
-         aNotion, deNotion, instalacionANotion, normalizarUrl, tokensNuevos,
-         instrucciones, DS_VENTAS }
+         aNotion, deNotion, instalacionANotion, normalizarUrl, instrucciones }
   from '../js/datos/puente.js';
 
 let bien = 0, mal = 0;
@@ -156,6 +155,18 @@ console.log('\nEL ESPEJO QUE BAJA: solo lo que es de Notion');
     eq('NO baja «' + k + '»: de ese la dueña es la plataforma', p[k], undefined);
   }
 
+  /* El otro lado del filtrado de rol: a fabricación la hoja le manda la fila SIN los campos
+     de dinero. `deNotion` no puede tratar un campo ausente como un cero, porque eso pintaría
+     «ya no deben nada» en un proyecto que sí debe. */
+  const sinDinero = { 'Folio cotizacion': 'COT-0007', id_notion: 'pag-1', 'Estatus': 'COBRANDO',
+                      'Etapa de obra': 'Cortado', 'Direccion': 'Av. Vallarta 1234' };
+  const f = deNotion(sinDinero);
+  eq('la fila sin dinero sigue atando por folio', f.folio_global, 'COT-0007');
+  eq('el pendiente queda sin tocar, no en cero',  f.pago_pendiente, undefined);
+  eq('la comisión restante igual',                f.comision_restante, undefined);
+  eq('la cuenta ausente no baja',                 f.cuenta, undefined);
+  eq('el estatus, que no es dinero, sí baja',     f.estatus_notion, 'COBRANDO');
+
   eq('sin folio no hay nada que atar', deNotion({ id_notion: 'x', 'Estatus': 'COBRANDO' }), null);
   eq('null no revienta', deNotion(null), null);
   const raros = deNotion({ 'Folio cotizacion': 'COT-1@A', 'Estatus': 'INVENTADO', 'Cuenta ': 'Otra' });
@@ -163,53 +174,46 @@ console.log('\nEL ESPEJO QUE BAJA: solo lo que es de Notion');
   eq('una cuenta que no existe no baja', raros.cuenta, undefined);
 }
 
-console.log('\nCOHERENCIA CON EL WORKER — la duplicación que sí se compara');
+console.log('\nCOHERENCIA CON EL PUENTE — la duplicación que sí se compara');
 {
   const aqui = dirname(fileURLToPath(import.meta.url));
-  const w = readFileSync(join(aqui, '..', 'puente', 'worker.js'), 'utf8');
+  /* El puente ya no es un Worker de Cloudflare: es un Apps Script que vive dentro de la
+     hoja. El archivo se versiona aquí para que esta prueba pueda compararlo, igual que
+     antes comparaba el Worker. No se importa: es código de Apps Script, no un módulo. */
+  const w = readFileSync(join(aqui, '..', 'puente', 'hoja-apps-script.gs'), 'utf8');
 
-  /** Saca un literal de arreglo del texto del Worker. Sin importarlo: es un módulo de
-   *  Cloudflare y sus constantes no se exportan. */
   const arreglo = nombre => {
-    const m = new RegExp('const ' + nombre + '\\s*=\\s*(\\[[^\\]]*\\])').exec(w);
-    if (!m) return null;
-    return Function('"use strict";return ' + m[1])();
-  };
-  const conjunto = nombre => {
-    const m = new RegExp('const ' + nombre + '\\s*=\\s*new Set\\((\\[[^\\]]*\\])\\)').exec(w);
+    const m = new RegExp('(?:const|var) ' + nombre + '\\s*=\\s*(\\[[^\\]]*\\])').exec(w);
     if (!m) return null;
     return Function('"use strict";return ' + m[1])();
   };
 
-  const etapasW = arreglo('ETAPAS');
-  cierto('el Worker declara ETAPAS', etapasW);
-  eq('las ocho etapas del Worker son las ocho del cliente, en el mismo orden',
+  const etapasW = arreglo('ETAPAS_OBRA');
+  cierto('el puente declara ETAPAS_OBRA', etapasW);
+  eq('las ocho etapas del puente son las ocho del cliente, en el mismo orden',
      etapasW, Object.values(ETAPA_A_NOTION));
 
-  const estatusW = conjunto('ESTATUS');
-  eq('los cuatro estatus coinciden', estatusW, ESTATUS);
+  /* El orden de estas dos listas no significa nada —son catálogos, no secuencias—
+     así que se comparan ordenadas: lo que importa es que sean las mismas. */
+  const ordenado = x => [...x].sort();
 
-  const cuentasW = conjunto('CUENTAS');
-  eq('las cinco cuentas coinciden', cuentasW, CUENTAS);
+  const estatusW = arreglo('ESTATUS');
+  eq('los cuatro estatus coinciden', ordenado(estatusW), ordenado(ESTATUS));
 
-  const tiposW = arreglo('TIPOS');
-  cierto('el Worker declara TIPOS', tiposW);
+  const cuentasW = arreglo('CUENTAS');
+  eq('las cinco cuentas coinciden', ordenado(cuentasW), ordenado(CUENTAS));
+
+  const tiposW = arreglo('TIPOS_TRABAJO');
+  cierto('el puente declara TIPOS_TRABAJO', tiposW);
   eq('son siete', tiposW && tiposW.length, 7);
 
   /* Los nombres de propiedad, uno por uno, con el espacio final incluido. Es la clase de
-     erratas que no se ve leyendo: `Precio Neto ` sin su espacio crea una columna nueva y
-     vacía al lado de la que tiene tres años de datos. */
-  for (const [clave, nombre] of Object.entries(P)) {
-    if (['folio', 'etapa', 'fechaInst', 'horaInst', 'ubicacion', 'direccion', 'tipo'].includes(clave)) {
-      cierto('el Worker conoce «' + nombre + '»', w.includes("'" + nombre + "'"));
-    } else {
-      cierto('P.' + clave + ' es «' + nombre + '» de los dos lados',
-        new RegExp(clave + ":\\s*'" + nombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "'").test(w));
-    }
+     errata que no se ve leyendo: `Precio Neto ` sin su espacio apunta a otra columna. */
+  for (const nombre of Object.values(P)) {
+    cierto('el puente conoce «' + nombre + '»', w.includes("'" + nombre + "'"));
   }
-
-  cierto('el data source por omisión es el mismo', w.includes(DS_VENTAS));
 }
+
 
 console.log('\nDETALLES QUE ROMPEN EN LA CALLE');
 {
@@ -222,17 +226,15 @@ console.log('\nDETALLES QUE ROMPEN EN LA CALLE');
   eq('y una cadena de consulta o una almohadilla pegadas del navegador se van',
      normalizarUrl('https://x.workers.dev/?utm=1#salud'), 'https://x.workers.dev');
 
-  const t = tokensNuevos();
-  eq('son tres roles', Object.keys(t.tokens), ['direccion', 'fabricacion', 'pagos']);
-  const mapa = JSON.parse(t.json);
-  eq('el JSON de TOKENS va del token al rol', Object.values(mapa).sort(),
-     ['direccion', 'fabricacion', 'pagos']);
-  eq('tres tokens distintos', new Set(Object.keys(mapa)).size, 3);
-
   const ins = instrucciones();
-  cierto('los pasos nombran las cuatro variables del Worker',
-    ['NOTION_TOKEN', 'TOKENS', 'DS_VENTAS', 'ORIGENES']
-      .every(v => ins.pasos.some(p => p.includes(v))));
+  cierto('los pasos llevan a la hoja y no a Cloudflare',
+    ins.pasos.some(p => /Apps Script/i.test(p)) &&
+    ins.pasos.some(p => /Tokens del puente/i.test(p)) &&
+    !ins.pasos.some(p => /Cloudflare|workers\.dev|NOTION_TOKEN/i.test(p)));
+  cierto('y avisan del ajuste que rompe todo si queda mal',
+    ins.pasos.some(p => /Cualquier usuario/.test(p)));
+  cierto('las notas explican que la puerta es el token',
+    ins.notas.some(n => /token/i.test(n) && /p(ú|u)blica|puerta/i.test(n)));
 
   eq('el relevo de hoy lleva la venta y su instalación, y nada más',
      ALMACENES, ['proyectos', 'instalaciones']);

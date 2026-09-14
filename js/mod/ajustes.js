@@ -58,7 +58,6 @@ let APARTADAS = 0;       // las que este puente no sabe llevar. Ni se mandan ni 
    guardarlo haría que mañana la pantalla dijera «en verde» sin haber preguntado. */
 let SALUD = null;        // {ok, mensaje, rol, escribibles}
 let ESQ = null;          // {ok, faltan, nota}
-let TOKS = null;         // los tres tokens recién generados, hasta salir de la pantalla
 
 /* El rol elegido en la presentación, todavía sin guardar. Existe porque aplicar el rol al
    instante ahí remontaría la pantalla y se llevaría el nombre a medio escribir. */
@@ -133,7 +132,7 @@ export function desmontar() {
   }
 
   ESPACIO = null; PEND = 0; APARTADAS = 0; ROL_GATE = null;
-  SALUD = null; ESQ = null; TOKS = null;
+  SALUD = null; ESQ = null;
   cont = null; CTX = null;
 }
 
@@ -510,7 +509,7 @@ function cardPuente() {
   const ins = Puente.instrucciones();
 
   /* Los pasos y las notas se le piden a `puente.js` y no se escriben aquí, aunque sean
-     texto de pantalla: el día que cambie el nombre de una variable del Worker tiene que
+     texto de pantalla: el día que cambie un paso del puente tiene que
      cambiar en el mismo archivo donde está el código que la usa. */
   const pasos = '<ol class="aj-pasos">' + ins.pasos.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol>';
   const notas = ins.notas.map(n => '<p class="pf-nota">' + esc(n) + '</p>').join('');
@@ -583,49 +582,32 @@ function cardPuente() {
     }
   }
 
-  /* ----- Los tres tokens recién generados ----- */
-  let tokens = '';
-  if (TOKS) {
-    tokens = nota('<b>Estos tres son las llaves de los tres teléfonos.</b> Pega el JSON de ' +
-        'abajo en la variable <b>TOKENS</b> del Worker, como <b>Secret</b>. Después dale a ' +
-        '«Usar el de …» al que le toque a ESTE teléfono, y manda los otros dos a sus dueños ' +
-        'por donde se mandan las llaves, no por el chat del grupo.', 'av') +
-      '<pre class="aj-tokens">' + esc(TOKS.json) + '</pre>' +
-      '<div class="pf-acciones">' +
-      '<button type="button" class="btn btn-gho" data-act="puente-copiar-tokens">' +
-      ico('i-copiar') + ' Copiar el JSON</button>' +
-      ['direccion', 'fabricacion', 'pagos'].map(r =>
-        '<button type="button" class="btn btn-gho" data-act="puente-usar-token" data-rol-tok="' + r + '">' +
-        'Usar el de ' + esc(Prefs.ROL_NOMBRE[r]) + '</button>').join('') +
-      '</div>' +
-      '<p class="pf-nota">Se ven una sola vez: al salir de esta pantalla se olvidan. No se ' +
-      'guardan en ningún lado más que en la variable del Worker y en el teléfono de cada ' +
-      'quien, y no entran en el respaldo.</p>';
-  }
+  /* Los tokens ya no se generan aquí: los genera la hoja y viven en las propiedades
+     de su script. Uno generado en el teléfono no lo reconocería nadie. */
+  const tokens = '';
 
   return tarjeta('i-nube-off', ins.titulo + ' · Fase 3',
     estado +
 
-    '<p class="aj-p"><b>Por qué hace falta un Worker y no se llama a Notion directo.</b> Uno: la API de Notion no manda cabeceras ' +
-    'CORS, así que el navegador no la puede llamar y ningún truco lo cambia. Dos: su token ' +
-    'da escritura total sobre el workspace, y esto es un HTML publicado en GitHub Pages, ' +
-    'donde cualquiera lee el código. Tres: por eso el token vive en el Worker, como secreto ' +
-    'del servidor, y este dispositivo solo guarda una URL y un token propio que el Worker ' +
-    'reconoce.</p>' +
+    '<p class="aj-p"><b>Dónde vive el puente ahora.</b> Dentro de la propia hoja de Google, ' +
+    'como Apps Script, con los permisos de su dueño. Antes hacía falta un Worker de ' +
+    'Cloudflare por una sola razón: el token de Notion daba escritura total sobre el ' +
+    'workspace y no podía vivir en un HTML publicado, donde cualquiera lee el código. Sin ' +
+    'Notion no hay secreto que esconder, así que no hay dónde esconderlo. Este dispositivo ' +
+    'solo guarda una liga y un token propio que el puente reconoce.</p>' +
 
     '<p class="aj-p">Son unos ' + ins.minutos + ' minutos, una vez. Los pasos completos van ' +
     'aquí para que nadie tenga que buscarlos en otro lado:</p>' +
     pasos +
 
-    '<div class="pf-acciones">' +
-    '<button type="button" class="btn btn-gho" data-act="puente-tokens">' + ico('i-candado') +
-    ' Generar los tres tokens</button></div>' +
+    nota('<b>Los tres tokens salen de la hoja</b>, no de aquí: menú ' +
+         '<b>⚡ AL3D → Tokens del puente</b>. Pega abajo el que le toca a ESTE teléfono.', 'av') +
     tokens +
 
     '<div class="fld aj-bloque">' +
-    '<label for="aj-worker-url">URL del Worker</label>' +
+    '<label for="aj-worker-url">Liga del puente</label>' +
     '<input type="url" id="aj-worker-url" autocomplete="off" spellcheck="false" ' +
-    'placeholder="https://puente-al3d.tu-cuenta.workers.dev" value="' + esc(p.url || '') + '"></div>' +
+    'placeholder="https://script.google.com/macros/s/…/exec" value="' + esc(p.url || '') + '"></div>' +
 
     '<div class="fld"><label for="aj-worker-tok">Token de este dispositivo</label>' +
     /* El token guardado NO se vuelve a pintar. Es la única cosa de esta pantalla que sirve
@@ -651,7 +633,7 @@ function cardPuente() {
       ? '<button type="button" class="btn btn-gho" data-act="puente-bombear">' + ico('i-subir') +
         ' Mandar lo que está pendiente</button>' +
         '<button type="button" class="btn btn-gho" data-act="puente-jalar">' + ico('i-bajar') +
-        ' Traer el dinero de Notion</button>'
+        ' Traer el dinero de la hoja</button>'
       : '') +
     (p.url || p.token
       ? '<button type="button" class="btn btn-dgr" data-act="puente-quitar">Quitar el puente de ' +
@@ -770,14 +752,12 @@ async function clic(ev) {
   if (t.closest('[data-act="puente-probar"]')) { probarPuente(); return; }
   if (t.closest('[data-act="puente-esquema"]')) { revisarEsquema(); return; }
   if (t.closest('[data-act="puente-jalar"]')) { jalar(); return; }
-  if (t.closest('[data-act="puente-tokens"]')) { generarTokens(); return; }
   if (t.closest('[data-act="puente-copiar-tokens"]')) {
-    copiarTexto((TOKS && TOKS.json) || '', 'JSON copiado — pégalo en la variable TOKENS del Worker');
+    copiarTexto('', 'Los tokens salen de la hoja: menú ⚡ AL3D → Tokens del puente');
     return;
   }
   if (t.closest('[data-act="puente-copiar-faltan"]')) { copiarFaltan(); return; }
   const ut = t.closest('[data-rol-tok]');
-  if (ut) { usarToken(ut.dataset.rolTok); return; }
   if (t.closest('[data-act="borrar"]')) { abrirCordon(); return; }
 }
 
@@ -942,7 +922,7 @@ async function conectarGcal() {
 
 /* ----- Fase 3, el puente -----
    Las seis acciones repintan con `repintar()` y no con `CTX.refrescar()`, y la diferencia
-   importa: refrescar REMONTA el módulo, y montar limpia `SALUD`, `ESQ` y `TOKS` a
+   importa: refrescar REMONTA el módulo, y montar limpia `SALUD` y `ESQ` a
    propósito —los tres tokens se ven una sola vez—. Con refrescar, apretar «Probar» habría
    borrado su propia respuesta antes de pintarla. */
 
@@ -961,7 +941,7 @@ let _ocupado = false;
 async function conElPuente(etiqueta, fn) {
   if (_ocupado) return;
   const rel = Puente.desdePrefs();
-  if (!rel) { toast('Primero guarda la URL y el token del Worker', 'err', 4200); return; }
+  if (!rel) { toast('Primero guarda la liga y el token del puente', 'err', 4200); return; }
   _ocupado = true;
   toast(etiqueta, '', 2000);
   try { await fn(rel); } finally { _ocupado = false; }
@@ -973,14 +953,14 @@ async function guardarPuente() {
   const nuevo = ($('aj-worker-tok') && $('aj-worker-tok').value || '').trim();
   const prev = Prefs.puente() || {};
 
-  if (!url) { toast('Falta la URL del Worker', 'err', 4200); return; }
+  if (!url) { toast('Falta la liga del puente', 'err', 4200); return; }
   if (!/^https:\/\//i.test(url)) {
-    toast('La URL del Worker tiene que empezar con https:// — un token no viaja en claro', 'err', 5200);
+    toast('La liga del puente tiene que empezar con https:// — un token no viaja en claro', 'err', 5200);
     return;
   }
   const token = nuevo || prev.token || '';
   if (!token) {
-    toast('Falta el token de este dispositivo. Sin él el Worker no sabe quién le habla y contesta 401.', 'err', 5600);
+    toast('Falta el token de este dispositivo. Sin él el puente no sabe quién le habla y lo rechaza.', 'err', 5600);
     return;
   }
   if (!Prefs.setPuente({ ...prev, url: Puente.normalizarUrl(url), token })) {
@@ -1003,7 +983,7 @@ async function quitarPuente() {
   await repintar();
 }
 
-/** GET /salud. Guarda el rol que el Worker reconoció, que es el que de verdad manda. */
+/** /salud. Guarda el rol que el puente reconoció, que es el que de verdad manda. */
 async function probarPuente() {
   await conElPuente('Preguntándole al puente…', async rel => {
     SALUD = await rel.salud();
@@ -1052,7 +1032,7 @@ async function bombear() {
   if (v.fallidas) partes.push(v.fallidas + (v.fallidas === 1 ? ' no se pudo' : ' no se pudieron'));
   if (v.conflictos) partes.push(v.conflictos + (v.conflictos === 1 ? ' cambió en Notion' : ' cambiaron en Notion'));
   if (v.sin_destino) partes.push(v.sin_destino + ' se apartaron: este puente no las lleva');
-  /* Lo que se mandó pero no se escribió entero. El Worker devuelve qué propiedad rechazó y
+  /* Lo que se mandó pero no se escribió entero. El puente devuelve qué propiedad rechazó y
      por qué; hasta ahora eso moría en un console.warn y el aviso decía «se mandó» a secas.
      Va en rojo y dura más: es la única señal de que una fila de Notion quedó a medias. */
   const rech = Array.isArray(v.rechazos) ? v.rechazos : [];
@@ -1070,7 +1050,7 @@ async function bombear() {
 }
 
 /**
- * Trae el espejo del dinero. Da varias vueltas a propósito: el Worker pagina de 50 en 50 y
+ * Trae el espejo del dinero. Da varias vueltas a propósito: el puente pagina de 50 en 50 y
  * la base arrastra 199 filas anteriores a la plataforma que se miran y se descartan una por
  * una. Con una sola vuelta por toque, alguien tendría que apretar el botón cinco veces sin
  * que la pantalla le dijera por qué.
@@ -1090,34 +1070,16 @@ async function jalar() {
       const v = r.valor || {};
       nuevos += Number(v.nuevos) || 0;
       actualizados += Number(v.actualizados) || 0;
-      /* Se sigue mientras el Worker diga que hay más páginas: los contadores no sirven de
+      /* Se sigue mientras el puente diga que hay más páginas: los contadores no sirven de
          señal, porque una página entera de filas anteriores a la plataforma da 0/0/0. */
       if (!v.hay_mas) break;
     }
   } finally { _ocupado = false; }
   if (error) toast(error, 'err', 5200);
   else toast(nuevos + actualizados
-    ? 'Se actualizaron ' + (nuevos + actualizados) + (nuevos + actualizados === 1 ? ' proyecto' : ' proyectos') + ' con lo que hay en Notion'
-    : 'No había nada nuevo en Notion para los proyectos de este dispositivo', 'ok', 4600);
+    ? 'Se actualizaron ' + (nuevos + actualizados) + (nuevos + actualizados === 1 ? ' proyecto' : ' proyectos') + ' con lo que hay en la hoja'
+    : 'No había nada nuevo en la hoja para los proyectos de este dispositivo', 'ok', 4600);
   await repintar();
-}
-
-/** Los tres tokens de dispositivo, hechos aquí para no teclear el JSON a mano. */
-function generarTokens() {
-  TOKS = Puente.tokensNuevos();
-  pintar();
-  toast('Tres tokens nuevos. Pega el JSON en la variable TOKENS del Worker.', '', 5600);
-}
-
-/** Mete en el campo el token del rol que le toca a ESTE teléfono. No lo guarda: lo escribe,
- *  y se guarda con el botón de siempre, para que el paso no ocurra sin que nadie lo vea. */
-function usarToken(rol) {
-  if (!TOKS || !TOKS.tokens[rol]) return;
-  const c = $('aj-worker-tok');
-  if (!c) return;
-  c.value = TOKS.tokens[rol];
-  c.focus();
-  toast('Token de ' + (Prefs.ROL_NOMBRE[rol] || rol) + ' puesto en el campo. Dale a «Guardar el puente».', 'ok', 5200);
 }
 
 /* ============================================================================

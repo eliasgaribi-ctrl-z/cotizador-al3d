@@ -12,11 +12,10 @@ geometría de la tabla —filas, columnas, altos— pero las celdas vienen vací
 enseña las partidas, las medidas y los totales es el render. Y `export-design` no sirve aquí:
 `export-download.canva.com` está bloqueado por la política de egreso de la organización.
 
-Las 25: Centro Dental · Iron Mountain · Inhuman Movement · Armonizate · Club Las Lomas ·
-Fairmont Photos · Cardinali Uniformes · Nestlé Lagos Moreno · Fira Agricultura · Alma Vida
-Clinic · Lavarama · Coco Café · Adila Spa · Redinet Cloud · Lernen Books · Bésame Glow ·
-Crestón Water · Laboratorio DSL · Sirloin Stockade · Chilaricos · Lonches Mero · Cala Estudio ·
-Karine Crochet · Forte Maquinaria · Muno Academy.
+Las 25: Cliente 01 · Cliente 02 · Cliente 03 · Cliente 04 · Cliente 05 ·
+Cliente 06 · Cliente 07 · Cliente 08 · Cliente 09 · Cliente 10 · Cliente 11 · Cliente 12 · Cliente 13 · Cliente 14 · Cliente 15 · Cliente 16 ·
+Cliente 17 · Cliente 18 · Cliente 19 · Cliente 20 · Cliente 21 · Cliente 22 ·
+Cliente 23 · Cliente 24 · Cliente 25.
 
 ---
 
@@ -29,16 +28,16 @@ fecha, su propia nota y sus propias fotos.
 
 | Cotización | Hojas de cotización | Precios ofrecidos |
 |---|---|---|
-| Centro Dental | 3 | $31,900 · $17,284 · $13,340 |
-| Inhuman Movement | 4 | $8,512 · $17,110 · $17,632 · $20,068 |
-| Bésame Glow | 3 | $5,336 · $14,558 · $18,212 |
-| Sirloin Stockade | 3 | $20,300 · $15,950 · $17,632 |
-| Muno Academy | 3 | $8,004 · $16,240 · $8,352 |
-| Armonizate | 2 | $6,844 · $8,004 |
-| Nestlé Lagos Moreno | 2 | $105,055 · $64,368 |
+| Cliente 01 | 3 | $XX,XXX · $XX,XXX · $XX,XXX |
+| Cliente 03 | 4 | $X,XXX · $XX,XXX · $XX,XXX · $XX,XXX |
+| Cliente 16 | 3 | $X,XXX · $XX,XXX · $XX,XXX |
+| Cliente 19 | 3 | $XX,XXX · $XX,XXX · $XX,XXX |
+| Cliente 25 | 3 | $X,XXX · $XX,XXX · $X,XXX |
+| Cliente 04 | 2 | $X,XXX · $X,XXX |
+| Cliente 08 | 2 | $XXX,XXX · $XX,XXX |
 
 **14 de las 25 traen más de una hoja de cotización.** Y las versiones **no van en orden
-cronológico**: en Inhuman Movement las de 31/jul están *después* de las de 20/ago. Se apilan
+cronológico**: en Cliente 03 las de 31/jul están *después* de las de 20/ago. Se apilan
 como se van creando, no como se cuentan.
 
 El cotizador no tiene concepto de esto. Cada cotización es un folio con un precio. La forma en
@@ -61,8 +60,8 @@ Ninguna cotización sigue una plantilla fija. Esta es la estructura real, con la
 
 Tres cosas de esa tabla importan mucho:
 
-**Los términos van en medio, no al final.** En Inhuman Movement son la página 3 de 7; en
-Sirloin Stockade la 2 de 6; en Adila Spa la 4 de 6. Quedan enterrados entre versiones de
+**Los términos van en medio, no al final.** En Cliente 03 son la página 3 de 7; en
+Cliente 19 la 2 de 6; en Cliente 13 la 4 de 6. Quedan enterrados entre versiones de
 cotización porque las hojas nuevas se insertan antes.
 
 **Las hojas 4 y 5 se entregan en blanco.** Las 25 cotizaciones traen la hoja de *Orden de
@@ -78,7 +77,7 @@ Es el único punto donde el cotizador ya es mejor que el original, y conviene no
 **La orden de trabajo es lo que el «Límite de fabricación» quería ser.** No es una hoja con una
 fecha en medio: es **una copia de la cotización con las columnas de precio borradas**, con el
 sello del límite estampado, y con el plano y las fotos. Es la hoja del taller. Aparece en
-Armonizate, Club Las Lomas, Fairmont Photos, Lavarama, Coco Café, Redinet Cloud y Muno Academy.
+Cliente 04, Cliente 05, Cliente 06, Cliente 11, Cliente 12, Cliente 14 y Cliente 25.
 
 ```
 Encabezado (logo · Fecha · Proyecto/Dirección)
@@ -93,8 +92,8 @@ Plano cotado + fotos
 Pie
 ```
 
-El orden de la Nota y el sello **se invierte según la hoja**: en Armonizate y Fairmont va
-Nota → sello; en Coco Café y Muno Academy va sello → Nota. No hay convención.
+El orden de la Nota y el sello **se invierte según la hoja**: en Cliente 04 y Cliente 06 va
+Nota → sello; en Cliente 12 y Cliente 25 va sello → Nota. No hay convención.
 
 ## 3. La hoja de cotización, bloque por bloque
 
@@ -103,14 +102,14 @@ Carta vertical, 816 × 1056 px. Cinta curva azul degradada en la esquina superio
 ```
 ┌─ logo AL3D ──────────────────────── [Fecha][21 ago 2026] ─┐
 ├─ regla azul ──────────────────────────────────────────────┤
-│ [Proyecto:][ Juan Carlos - Centro Dental ][Dirección][ DESCONOCIDA ]
+│ [Proyecto:][ Contacto - Cliente 01 ][Dirección][ DESCONOCIDA ]
 ├───────────────────────────────────────────────────────────┤
 │ Descripción: │ Medidas: │ Pzas. │ Precio unitario │ Total │  ← thead azul
 │ ...partidas...                                            │
 │                              ┌──────────────────────────┐ │
-│                              │ Subtotal:      $27,500   │ │
-│                              │ I.V.A           $4,400   │ │
-│                              │ Total Neto:    $31,900   │ │  ← azul sólido
+│                              │ Subtotal:      $XX,XXX   │ │
+│                              │ I.V.A           $X,XXX   │ │
+│                              │ Total Neto:    $XX,XXX   │ │  ← azul sólido
 │                              └──────────────────────────┘ │
 │                        Nota:                              │  ← centrado, subrayado
 │         El cliente debe proporcionar salidas eléctricas.  │
@@ -135,35 +134,35 @@ imprime ninguna.**
 
 Cinco formas distintas de armar ese bloque, todas presentes:
 
-1. **Plano de línea cotado + 1 o 2 fotos** — el caso normal (Iron Mountain, Lavarama,
-   Bésame Glow, Chilaricos…). Cotas en rojo, en cm.
-2. **Render a color con las cotas encima** — Alma Vida Clinic (cotas en metros con decimales:
-   0.52 / 1.42 / 0.18), Adila Spa (foto real con cotas rojas rotuladas «1.20 MTS»).
-3. **Render 3D arquitectónico del sitio completo** — Coco Café: el modelo de la marquesina del
+1. **Plano de línea cotado + 1 o 2 fotos** — el caso normal (Cliente 02, Cliente 11,
+   Cliente 16, Cliente 20…). Cotas en rojo, en cm.
+2. **Render a color con las cotas encima** — Cliente 10 (cotas en metros con decimales:
+   0.52 / 1.42 / 0.18), Cliente 13 (foto real con cotas rojas rotuladas «1.20 MTS»).
+3. **Render 3D arquitectónico del sitio completo** — Cliente 12: el modelo de la marquesina del
    local con el anuncio colocado y ocho cotas en metros anotadas a color sobre el render.
-4. **Lámina de vistas ortográficas** — Fairmont Photos: fondo negro, tres vistas rotuladas en
+4. **Lámina de vistas ortográficas** — Cliente 06: fondo negro, tres vistas rotuladas en
    verde «VISTA FRONTAL» / «VISTA LATERAL» / «VISTA SUPERIOR», cada una con sus cotas.
-5. **Rejilla 2×2 de plano+foto por producto** — Muno Academy, cuando la cotización cubre dos
+5. **Rejilla 2×2 de plano+foto por producto** — Cliente 25, cuando la cotización cubre dos
    anuncios distintos.
 
 Las unidades del plano **no son consistentes ni dentro de una misma hoja**: cm en la mayoría,
-metros con decimales en Alma Vida y Coco Café, `MTS` en mayúsculas en Adila Spa, y
-**milímetros en Laboratorio DSL** («523 mm», «140 mm») en una hoja cuya tabla dice
+metros con decimales en Cliente 10 y Cliente 12, `MTS` en mayúsculas en Cliente 13, y
+**milímetros en Cliente 18** («523 mm», «140 mm») en una hoja cuya tabla dice
 «5.23m x 1.49m».
 
-**Tres cotizaciones no llevan imagen:** Lernen Books (dos hojas), Nestlé página 1 (la tabla de
-siete partidas se come la hoja), y Karine Crochet lleva foto pero sin plano.
+**Tres cotizaciones no llevan imagen:** Cliente 15 (dos hojas), Cliente 08 página 1 (la tabla de
+siete partidas se come la hoja), y Cliente 23 lleva foto pero sin plano.
 
 ### Encabezado
 
 - **No hay campo «Cliente»** y **no hay folio**. El nombre del contacto va dentro de
-  `Proyecto:`, con la convención `Contacto - Negocio`: «Juan Carlos - Centro Dental»,
-  «Denisse - Iron Mountain». Coincide con la convención de la base `Ventas - AL3D` de Notion.
+  `Proyecto:`, con la convención `Contacto - Negocio`: «Contacto - Cliente 01»,
+  «Contacto - Cliente 02». Coincide con la convención de la base `Ventas - AL3D` de Notion.
   El cotizador sí imprime Cliente y Folio en su propio renglón — eso es una mejora, no una
   divergencia que haya que deshacer.
 - El título del diseño y el campo `Proyecto:` **no siempre coinciden**: el diseño
-  «Fernanda - Fracc. Las Lomas» dice `Proyecto: Club Las Lomas`. Y hay uno cuyo título
-  arranca con el contacto vacío: `" - Adila Spa"`.
+  «Contacto - Fraccionamiento» dice `Proyecto: Cliente 05`. Y hay uno cuyo título
+  arranca con el contacto vacío: `" - Cliente 13"`.
 - **La `Dirección` casi nunca es una dirección.** De 25: **9 con dirección real**, y las otras
   16 con un literal que dice por qué no hay:
 
@@ -176,7 +175,7 @@ siete partidas se come la hoja), y Karine Crochet lleva foto pero sin plano.
   | `SIN INSTALACION (ENTREGA EN TALLER)` | 1 |
   | `DESCONOCIDA (ENTREGA POR ENVIO-OCURRE)` | 1 |
 
-  Y hay un patrón detrás: **la dirección se captura tarde**. En Lavarama la cotización dice
+  Y hay un patrón detrás: **la dirección se captura tarde**. En Cliente 11 la cotización dice
   `DESCONOCIDA` y la orden de trabajo, once días después, ya trae
   «Av. Dr. Roberto Michel 1003-Loc 002, La Aurora, 44460 Guadalajara, Jal.». La dirección no es
   un dato de la venta: es un dato de la instalación.
@@ -186,17 +185,17 @@ siete partidas se come la hoja), y Karine Crochet lleva foto pero sin plano.
 Columnas literales, en orden: `Descripción:` · `Medidas:` · `Pzas.` · `Precio unitario` ·
 `Total`. Nunca cambian.
 
-- **Rango de partidas por hoja: 1 a 7.** La mediana es 1. Nestlé es el techo con siete.
+- **Rango de partidas por hoja: 1 a 7.** La mediana es 1. Cliente 08 es el techo con siete.
 - **Celdas combinadas verticalmente.** Muy frecuente: 2 renglones de descripción comparten una
   sola celda de Medidas, una de Pzas y **un solo precio**. Son dos conceptos que se venden como
-  uno (Inhuman Movement, Fira, Alma Vida, Lonches Mero, Cala Estudio, Sirloin p4, DSL p2).
+  uno (Cliente 03, Cliente 09, Cliente 10, Cliente 21, Cliente 22, Cliente 19 p4, Cliente 18 p2).
   El cotizador no puede expresar esto: cada partida lleva su propio importe.
-- `Pzas.` es **1 en casi todas**. La única con piezas de verdad es Club Las Lomas: 8 señaléticas
-  × $1,200 = $9,600, y ahí sí cuadra el unitario.
+- `Pzas.` es **1 en casi todas**. La única con piezas de verdad es Cliente 05: 8 señaléticas
+  × $X,XXX = $X,XXX, y ahí sí cuadra el unitario.
 - **`Medidas` es la huella completa del anuncio en metros**, formato `A.AAm x B.BBm` —
   «2.16m x 0.66m», «5.23m x 1.49m». No es la altura de letra. Variantes vistas:
-  `0.80m diametro` (Cardinali), `1.20 x 0.68 cms` (Adila Spa), `196km` (los viáticos de
-  Nestlé), y **dos hojas con la celda vacía** (Lernen Books).
+  `0.80m diametro` (Cliente 07), `1.20 x 0.68 cms` (Cliente 13), `196km` (los viáticos de
+  Cliente 08), y **dos hojas con la celda vacía** (Cliente 15).
 - El cotizador imprime `{altura}cm alt.` para letras y `{ancho}×{alto} cm` para caja y
   bastidor. **No hay ni una cotización real que use ese formato.**
 
@@ -243,10 +242,10 @@ La iluminación se redacta de nueve formas distintas: `con Iluminación Led Frí
 **El paréntesis subrayado que dice el alcance.** Cuando una partida cubre solo parte del
 rótulo, se anota entre paréntesis y subrayado dentro de la descripción:
 
-- `(SOLO TEXTO "MERO")` y `(EL RESTANTE DE ELEMENTOS)` — Lonches Mero
+- `(SOLO TEXTO "MERO")` y `(EL RESTANTE DE ELEMENTOS)` — Cliente 21
 - `(MERO, LINEAS, RAYOS, ESTRELLAS Y PUNTOS)` y `(Lonches, Burritos, Aguachiles)` — idem, otra hoja
-- `(TODA LA ILUMINACION ES POSTERIOR)` — Centro Dental
-- `(rotulacion de vinil café para textos "Café & Brunch")` — Coco Café
+- `(TODA LA ILUMINACION ES POSTERIOR)` — Cliente 01
+- `(rotulacion de vinil café para textos "Café & Brunch")` — Cliente 12
 
 ### Totales
 
@@ -262,17 +261,16 @@ Tres renglones, siempre los mismos, pegados a la derecha bajo las dos últimas c
   vive solo en los términos. Cuando el autorizador **subió** el precio, el cotizador tampoco
   imprime nada: el aumento va repartido entre las partidas y los tres renglones de abajo son
   los mismos tres de Canva (ver `preciosCliente()` en el modelo de datos, §9.5).
-- **La aritmética falla en 4 de 25.** Adila Spa (IVA impreso $2,180 contra $2,160 que exige el
-  total), Lonches Mero ($3,152 contra $2,992), Muno Academy p3 (subtotal $14,000 con partidas
-  que suman $12,000), Nestlé p1 (subtotal $90,565 con partidas que suman $76,965). Son celdas
-  tecleadas a mano: nada las suma.
-- Y hay dos hojas **entregadas sin precio**: Crestón Water p2 con `Pzas 0`, `$0.00`,
-  `Total Neto $0.00`, y Muno Academy p4 con la segunda partida sin importe.
+- **La aritmética falla en 4 de 25.** En dos hojas el IVA impreso no es el 16 % del subtotal,
+  y en otras dos el subtotal no es la suma de sus propias partidas. Son celdas tecleadas a
+  mano: nada las suma.
+- Y hay dos hojas **entregadas sin precio**: Cliente 17 p2 con `Pzas 0`, `$0.00`,
+  `Total Neto $0.00`, y Cliente 25 p4 con la segunda partida sin importe.
 
 ### La nota
 
 Bloque centrado, `Nota:` en negrita y subrayado, luego 1 a 4 renglones. **24 de 25 la traen**
-(Adila Spa es la única sin nota). Es el campo más usado del documento y el que más trabaja.
+(Cliente 13 es la única sin nota). Es el campo más usado del documento y el que más trabaja.
 
 Las recurrentes:
 
@@ -303,7 +301,7 @@ qué se ilumina y qué no**, y **recomendación comercial**. El cotizador tiene 
 como texto libre con «El cliente debe proporcionar salidas eléctricas.» por omisión: la pieza
 está, y el default es exactamente el más usado.
 
-En Cala Estudio la nota **contradice la descripción**: la partida dice «con Iluminación Led
+En Cliente 22 la nota **contradice la descripción**: la partida dice «con Iluminación Led
 Fría» y la nota dice «No incluye iluminacion led».
 
 ### El pie
@@ -334,7 +332,7 @@ Aquí no hay nada que cambiar.
 
 ## 5. El recibo de pago
 
-Una sola cotización lo trae (Adila Spa, página 3) y es el hallazgo más aprovechable, porque
+Una sola cotización lo trae (Cliente 13, página 3) y es el hallazgo más aprovechable, porque
 conecta con algo que el cotizador **ya calcula** y hoy no puede entregar.
 
 Dos recibos por hoja, cada uno con su talón desprendible a la izquierda:

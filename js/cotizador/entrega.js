@@ -646,7 +646,7 @@ function generarPDF(){
      hay precio que esconder, que era la única razón de ocultarla.
 
      ----- Y por qué el recibo no lleva encabezado -----
-     El recibo de Canva (Adila Spa, hoja 3) es una hoja limpia: sin logo arriba, sin cintillos
+     El recibo de Canva (una de las 25, hoja 3) es una hoja limpia: sin logo arriba, sin cintillos
      de folio y fecha, y sin la cinta azul. Tiene sentido y no es descuido: es un formato para
      escribir encima y para cortar por la mitad, y la cinta se transparentaba justo por el
      hueco vacío del campo «Fecha». Lo único que se le deja es el pie, por el número de hoja:

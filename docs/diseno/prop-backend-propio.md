@@ -21,7 +21,7 @@ Las cuatro razones, en orden de peso:
 3. **Tres teléfonos distintos, un solo evento.** Calendar tiene `attendees` y calendarios compartidos. Notion requiere que los tres sean miembros del workspace con asiento.
 4. **La suscripción ICS no sustituye nada**: refresca cada 12–24 h y no hay forma de forzarla. Sirve para una agenda de consulta que tolere un día de atraso, no para «acabo de agendar y quiero verlo».
 
-**El papel exacto de Notion, que sí lo tiene y es importante:** ahí viven los 199 proyectos reales de tres años y $3,713,419.41 acumulados, y el usuario no va a dejar de abrir Notion. Si la plataforma no escribe ahí, él va a mantener las dos cosas a mano y volvemos al fracaso. Entonces:
+**El papel exacto de Notion, que sí lo tiene y es importante:** ahí viven los 199 proyectos reales de tres años y $X,XXX,XXX acumulados, y el usuario no va a dejar de abrir Notion. Si la plataforma no escribe ahí, él va a mantener las dos cosas a mano y volvemos al fracaso. Entonces:
 
 - Al marcar un proyecto ganado, la plataforma encola una fila para `Ventas - AL3D` de la copia **(A) ELIAS** — la viva, `collection://56fa21d8-8e7d-4e16-b874-455fd6c65643` — respetando los nombres tal cual, **incluidos los espacios finales de `Precio Neto ` y `Cuenta `**.
 - **Notion nunca es fuente de lectura.** Ninguna pantalla depende de un `fetch` a Notion. Si el Worker está caído, la plataforma funciona idéntica y la fila espera en la cola con un botón «copiar fila» de respaldo. Eso es lo que convierte al eslabón débil en eslabón desechable.
@@ -487,7 +487,7 @@ Esto es la corrección 2 del usuario, resuelta. `factor` = cuánto consumo rinde
 | `silicon-transp` | consumible | L | litro | **1** | — | Cartucho/bote de 1 L |
 | `separador-inox-20mm` | tornilleria | pza | bolsa | **100** | — | Bolsa de 100 |
 
-Nota de honestidad: las medidas de hoja son estándares del mercado mexicano, **no las leí de una factura de AL3D** — en Drive no hay ni una hoja de materiales, y en Notion las únicas categorías de insumo son `Laminas` ($33,280 en 11 gastos), `Iluminacion` ($12,372), `Graficos` ($22,577) y `Maquila` ($20,668), **sin desglose por proyecto**. Cada `factor` se confirma con el proveedor en la primera compra, y ahí es donde `factor_nota` gana su razón de ser.
+Nota de honestidad: las medidas de hoja son estándares del mercado mexicano, **no las leí de una factura de AL3D** — en Drive no hay ni una hoja de materiales, y en Notion las únicas categorías de insumo son `Laminas` ($XX,XXX en 11 gastos), `Iluminacion` ($XX,XXX), `Graficos` ($XX,XXX) y `Maquila` ($XX,XXX), **sin desglose por proyecto**. Cada `factor` se confirma con el proveedor en la primera compra, y ahí es donde `factor_nota` gana su razón de ser.
 
 ### 4.5 La cadena completa, con el ejemplo del brief
 
@@ -697,7 +697,7 @@ Es `index.html` sin tocar, en su propia pestaña, para los tres roles. No se ree
 | **R4** | Anticipo pactado y no recibido a 3 días de instalar | Al abrir: `anti_pactado>0 AND anti_recibido IS NULL AND fecha−hoy≤3` | PAGOS | Tarjeta urgente + GCal | PAGOS es el único que escribe `anti_recibido`: su ausencia **es** la señal |
 | **R5** | Material bajo mínimo | **Trigger de Postgres** en `movimiento_material` cuando `existencia < min_stock` | FABRICACIÓN | Fila en `recordatorio` + tarjeta con el WhatsApp del proveedor | Postgres corre triggers gratis. Es el único disparador servidor de la Fase 1 |
 | **R6** | Ganado hace 15 días sin instalación agendada | Al abrir | DIRECCIÓN | Tarjeta | El hueco que hoy nadie ve: se ganó y se olvidó |
-| **R7** | Instalado y sin cobrar a 7 días | Al abrir | PAGOS | Tarjeta + espejo `Estatus → COBRANDO` | Ataca los 6 proyectos en COBRANDO por $131,817 que hay hoy |
+| **R7** | Instalado y sin cobrar a 7 días | Al abrir | PAGOS | Tarjeta + espejo `Estatus → COBRANDO` | Ataca los 6 proyectos en COBRANDO por $XXX,XXX que hay hoy |
 | **R8** | **Autorizada hace 10 días sin decidir ganada/perdida** | Al abrir: `al3d_historial` local, `ts+10d < hoy`, sin `GanadaLocal` con ese folio | DIRECCIÓN | Tarjeta con dos botones: «ganamos» / «se perdió» | **La más valiosa del sistema**: es la única que fuerza el registro del eslabón perdido. Y **funciona 100 % offline, sin backend, en la Fase 0** |
 | **R9** | La huella de una ganada cambió | Al abrir: `huellaAuth` guardada ≠ `huellaTrabajo()` de hoy | DIRECCIÓN | Tarjeta | Reutiliza el mecanismo que ya existe (L3255-3280): el proyecto se editó después de ganarse y el material calculado ya no corresponde |
 | **R10** | Sobrante tras consumir | `cantidad_ajustada < cantidad_compra` | nadie (silencioso) | — | El delta vuelve a `existencia` como `devolucion` y alimenta la calibración de constantes |

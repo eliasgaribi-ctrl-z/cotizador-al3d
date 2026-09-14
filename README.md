@@ -254,17 +254,19 @@ el calendario, no la app, y por eso suenan aunque nadie abra nada. Los demás av
 que falta, cobranza, cotizaciones sin decidir— **se calculan al abrir la plataforma**: si
 nadie la abre en cinco días, nadie los ve. Está dicho así en Ajustes.
 
-**Notion sigue siendo el libro mayor.** Los proyectos ganados, las fórmulas de comisión y la
-cobranza se quedan donde están. La plataforma es la capa operativa que Notion no puede dar.
+**La hoja de cálculo es el libro mayor.** Los proyectos ganados, las fórmulas de comisión y
+la cobranza viven en **«Finanzas AL3D — Ventas y Comisiones»**. La plataforma es la capa
+operativa que una hoja no puede dar. Notion quedó fuera.
 
-**Y el puente ya está de los dos lados.** En **Ajustes → El puente** se pega la dirección de
-un Worker de Cloudflare y el token de este teléfono, y a partir de ahí la venta ganada
-**sale sola** hacia la base `Ventas - AL3D` —con la dirección, el punto del mapa, el tipo de
+**Y el puente ya está de los dos lados.** En **Ajustes → El puente** se pega la liga del
+Apps Script de la hoja y el token de este teléfono, y a partir de ahí la venta ganada
+**sale sola** hacia la pestaña `Ventas` —con la dirección, el punto del mapa, el tipo de
 trabajo derivado y el folio, que es justo lo que el cotizador siempre tuvo y nunca
 llegaba— y el **espejo del dinero** (pago pendiente, comisión restante, estatus y cuenta)
-baja solo. Nadie aprieta nada: se manda al abrir la plataforma y cada vez que vuelve la
-señal. Montarlo son unos 25 minutos de cuentas, una vez, y los pasos están en la propia
-pantalla de Ajustes y en `puente/README.md`.
+baja solo, **y solo a quien le toca verlo**: al teléfono de fabricación las cifras no le
+bajan. Nadie aprieta nada: se manda al abrir la plataforma y cada vez que vuelve la señal.
+Montarlo son unos diez minutos, una vez, y los pasos están en la propia pantalla de
+Ajustes y en `puente/README.md`.
 
 Sin puente no se rompe nada: la plataforma funciona completa en un dispositivo y el botón
 **Copiar fila para Notion** del cotizador sigue siendo el camino manual. Ese botón no se
@@ -520,8 +522,8 @@ Si el celular sigue mostrando la versión anterior, casi siempre es que faltó s
 ## Pendientes
 
 Lo que se sabe que falta, escrito aquí para no tener que buscarlo a media frase en otra
-sección. **El mapa completo del siguiente nivel —Notion, Cloudflare, Google Calendar, qué
-cuesta y en qué orden— está en [`docs/SIGUIENTE-NIVEL.md`](docs/SIGUIENTE-NIVEL.md).**
+sección. **El mapa completo del siguiente nivel —la hoja, Google Calendar, qué cuesta y en
+qué orden— está en [`docs/SIGUIENTE-NIVEL.md`](docs/SIGUIENTE-NIVEL.md).**
 
 - **Los folios se repiten entre dispositivos.** El contador es local a cada teléfono, así
   que dos aparatos empiezan en `COT-0001` y acaban emitiendo el mismo folio para trabajos

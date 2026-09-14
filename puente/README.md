@@ -1,188 +1,161 @@
-# El puente a Notion — fase 3
+# El puente — a Google Sheets
 
 **El lado del navegador ya está escrito.** El relevo vive en `js/datos/puente.js`, se
 enchufa solo al arrancar si este dispositivo tiene URL y token, y la pantalla de
 **Ajustes → El puente** trae los pasos, un generador de los tres tokens y los cuatro
-botones: *Probar*, *Revisar el esquema*, *Mandar lo que está pendiente* y *Traer el dinero
-de Notion*. Lo único que falta es lo de abajo: ~25 minutos de cuentas, una vez.
+botones: *Probar*, *Revisar el esquema*, *Mandar lo que está pendiente* y *Traer el dinero*.
 
 **No hace falta para usar la plataforma.** Sin puente, la plataforma funciona completa en un
 dispositivo: agenda, material, mapa, avisos y los `.ics` con sus alarmas. El puente añade dos
 cosas y solo dos:
 
 1. Que los **tres departamentos vean lo mismo** desde tres teléfonos distintos.
-2. Que el **espejo del dinero** venga de Notion en vez de teclearse.
-
-Si eso no hace falta todavía, no montes esto. La plataforma no se rompe sin él y lo dice en
-su pantalla de Ajustes.
+2. Que el **espejo del dinero** venga de la hoja en vez de teclearse.
 
 ---
 
-## Por qué hace falta un servidor para esto
+## Qué cambió, y por qué se fue Cloudflare
 
-Tres razones, y ninguna se arregla con más código del lado del navegador:
+Notion quedó fuera. El dinero vive ahora en la hoja de cálculo
+**«Finanzas AL3D — Ventas y Comisiones»**, y el puente es un **Apps Script** publicado como
+aplicación web desde esa misma hoja.
 
-1. La API de Notion **no manda `Access-Control-Allow-Origin`**. El navegador bloquea toda
-   petición cross-origin. Hay dos issues abiertos en el SDK oficial de Notion por esto.
-2. `Notion-Version` es una cabecera no simple, así que dispararía un preflight que tampoco
-   sería respondido.
-3. Y la de fondo: `Authorization: Bearer secret_…` es un token de **escritura total** sobre
-   todo tu workspace. Aunque Notion arreglara el CORS mañana, ese token no puede vivir en un
-   HTML publicado en GitHub Pages, donde cualquiera lo lee con «ver código fuente».
+El Worker de Cloudflare existía por una sola razón, y estaba escrita en su propio README:
 
-**El puente no es un rodeo al CORS. Es dónde vive el secreto.**
+> El puente no es un rodeo al CORS. Es dónde vive el secreto.
 
-Cloudflare Workers: 100,000 peticiones al día en el plan gratuito, sin tarjeta y sin cláusula
-de «no comercial». Un proxy es puro esperar red, así que el límite de 10 ms de CPU por
-invocación no se toca. Se edita en el navegador: no hace falta node, ni `wrangler`, ni
-terminal.
+Ese secreto era `Authorization: Bearer ntn_…`, un token de **escritura total** sobre todo el
+workspace de Notion, que no podía vivir en un HTML publicado en GitHub Pages. Con Notion
+fuera, el secreto desaparece: un Apps Script corre **dentro de la hoja**, con los permisos de
+su dueño, y no hay credencial que esconder. Una cuenta menos, un secreto menos, y sin el
+salto de red extra.
 
----
+Lo que **no** cambió: los caminos, sus formas de respuesta, los tres roles y sus listas
+blancas. La plataforma no nota la diferencia más allá de la URL.
 
-## Montarlo — una vez, ~25 minutos
+### El detalle que sí obligó a tocar el cliente
 
-### 1. La integración de Notion
-1. Ve a **notion.so/my-integrations** → *New integration*, tipo **Internal**.
-2. Cópiate el token (empieza con `ntn_`). Es lo único secreto de todo esto.
-3. Abre la página **Finanzas - AL3D (ELIAS)** en Notion → menú `···` → *Connections* →
-   *Connect to* → tu integración.
-   **Compártele la página padre, no solo la base:** así hereda el acceso y no hay que
-   repetirlo cada vez que agregues algo dentro.
+Apps Script no tiene dónde contestar un `OPTIONS`: un Web App solo expone `doGet` y `doPost`.
+Así que toda petición tiene que quedarse dentro de las **«simples» de CORS**, las que el
+navegador manda sin preflight. Tanto `Authorization` como `Content-Type: application/json`
+lo disparan.
 
-### 2. El Worker
-1. **dash.cloudflare.com** → *Workers & Pages* → *Create* → *Worker*. Ponle `puente-al3d`.
-2. El código lo publica Cloudflare solo, desde este repositorio, con cada push a `main` que
-   toque `puente/*` (ver `DESPLIEGUE.md`). Si el Worker todavía no está conectado al repo,
-   el camino a mano sigue sirviendo: *Edit code*, borra lo que trae y pega **todo**
-   `puente/worker.js`. *Deploy*.
-3. *Settings* → *Variables and Secrets*, y agrega estas cuatro. **Las tres primeras van como
-   `Secret` (encriptado), no como `Text`:**
-
-   | Nombre | Tipo | Qué va |
-   |---|---|---|
-   | `NOTION_TOKEN` | Secret | el token de la integración |
-   | `TOKENS` | Secret | `{"<token1>":"direccion","<token2>":"fabricacion","<token3>":"pagos"}` |
-   | `DS_VENTAS` | Text | `56fa21d8-8e7d-4e16-b874-455fd6c65643` |
-   | `ORIGENES` | Text | `https://eliasgaribi-ctrl-z.github.io` |
-
-   Los tres tokens de dispositivo **te los arma la plataforma** (ver el recuadro de abajo).
-   **Uno por teléfono.** Son la única frontera de permisos real del sistema: el de
-   fabricación puede escribir etapa de obra y no puede escribir el anticipo, aunque su
-   teléfono diga «Dirección».
-
-> **Los tres tokens no los teclees a mano.** En **Ajustes → El puente** hay un botón,
-> *Generar los tres tokens*, que arma el JSON de `TOKENS` ya listo para pegar y te deja
-> poner en este teléfono el que le toque. Es el paso que más se rompe de los doce: una coma
-> de más o una comilla curva del teclado del celular y el Worker contesta 401 a todo sin
-> poder decir por qué. Los tres se ven **una sola vez**: al salir de la pantalla se olvidan.
-
-### 3. Las siete propiedades que faltan en Notion
-Entra a **Ajustes → El puente** y aprieta *Revisar el esquema*. Te va a listar lo que falta
-con su nombre y su tipo exactos, y hay un botón para copiar la lista entera. (También sale
-en `https://puente-al3d.<tu-subdominio>.workers.dev/esquema` con su token.)
-
-**Mientras falte una sola, dar de alta una venta rebota**, y con razón: Notion contesta 400
-a un cambio contra una propiedad que no existe. La pantalla lo dice con esas palabras.
-
-**Créalas a mano.** El puente las detecta y **no las crea**, y es a propósito: es la única
-garantía de que no se rompan las siete vistas ni las cinco fórmulas de una base con tres años
-y $3.7 M encima. Una propiedad creada por API con el tipo equivocado es media hora de
-arreglar a mano y una vista que nadie nota que dejó de filtrar.
-
-### 4. Los teléfonos
-En cada uno: **Ajustes → El puente**, pega la URL del Worker y el token que le toca.
-*Probar* tiene que contestar en verde y decirte qué rol reconoció. Guardar ya prueba solo:
-guardar una URL sin decir si sirve es cómo alguien se va del taller creyendo que sincroniza.
-
-Y a partir de ahí **nadie tiene que apretar nada más**. Al abrir la plataforma, y cada vez
-que vuelve la señal, lo que está en la bandeja sale solo y el espejo del dinero baja solo.
-Los botones de mandar y traer siguen ahí para forzarlo.
+Quedaban dos lugares para el token: la URL o el cuerpo de un POST con `text/plain`. **Va en
+el cuerpo, y todo entra por POST.** Un token en la URL se queda escrito en el historial del
+navegador, en los registros de cualquier proxy que lo vea pasar, y se va en la cabecera
+`Referer` si la página navega. En el cuerpo no le pasa nada de eso. `doGet` no atiende nada:
+si alguien llega por GET, no es la plataforma.
 
 ---
 
-## Lo que el puente lleva hoy, y lo que no
+## Los caminos
 
-Lleva **la venta y su instalación**: el proyecto ganado se convierte en una fila de
-`Ventas - AL3D` con lo que el cotizador siempre tuvo y nunca llegaba —la dirección, el
-punto del mapa, el tipo de trabajo derivado, el folio— y la fecha de instalación cuando se
-agenda.
+| Camino | Qué hace |
+|---|---|
+| `GET /salud` | Estado y la lista de lo que **este rol** puede escribir |
+| `GET /esquema` | Qué columnas le faltan a la hoja. Las **detecta**, no las crea |
+| `GET /jalar` | El espejo, de 50 en 50, con cursor. **El dinero solo para quien lo ve** |
+| `POST /empujar` | Hasta 25 operaciones, filtradas por la lista blanca del rol |
+| `GET /expandir` | Sigue un link corto de Maps hasta el largo, el que trae coordenadas |
 
-**No lleva** el libro del almacén, el catálogo de material, las listas de compra, los avisos
-ni las constantes del taller: sus bases de Notion todavía no existen. Eso **no se descarta y
-no se cuenta como pendiente**. Se aparta en la bandeja con la razón escrita, se dice en
-Ajustes («3 cambios apartados que este puente no lleva»), y el día que exista su base se
-reincorpora solo en el primer bombeo. Descartarlo perdería la historia; contarlo como
-pendiente daría un contador que nunca baja, y un número que nunca baja se aprende a ignorar.
+Los tres roles y lo que cada uno puede escribir son los mismos de antes:
 
----
+- **dirección** — todo.
+- **fabricación** — mueve la obra y el almacén. **No toca dinero**: ni anticipo, ni
+  liquidación, ni cuenta, ni estatus de cobranza. Y desde `puente-sheets-3` tampoco lo
+  **ve**: las cifras no bajan a ese teléfono.
+- **pagos** — cobra. **No mueve la obra**.
 
-## Lo que el puente NO hace, y no es descuido
-
-1. **No altera el esquema de Notion.** Detecta y avisa. Ver arriba.
-2. **No recalcula ninguna fórmula de Notion.** `Precio Neto `, `Pago Pendiente`,
-   `Comisiones`, `Comision Restante` y `Fecha Comision` se leen. Si intentas escribirlas, las
-   rechaza con el motivo. Dos implementaciones de la misma fórmula divergen en semanas, y
-   entonces el sistema da dos respuestas a la misma pregunta.
-3. **No escribe nada fuera de la lista blanca del rol**, ni aunque el teléfono lo mande. Lo
-   rechazado se devuelve nombrado, nunca se descarta en silencio: una escritura que se ignora
-   sin decirlo es la peor falla posible, porque el usuario cree que guardó.
-4. **No acepta un valor inventado en ningún campo de lista.** Ni en `Estatus` (solo
-   `REPARANDO`, `COBRANDO`, `FABRICACION`, `LIQUIDADO`), ni en `Cuenta `, ni en
-   `Etapa de obra`, ni en `Tipo de trabajo`. Pegar un valor inexistente en un *status*, un
-   *select* o un *multi_select* **no falla**: Notion **lo crea**. Así se ensució el esquema
-   durante meses y así ya no. Lo rechazado vuelve nombrado, con su razón.
-5. **No crea la misma venta dos veces.** Antes de dar de alta busca por `Folio cotizacion`,
-   porque Notion no tiene restricciones de unicidad y no se le puede pedir «crea esto solo
-   si no está». El caso no es raro: el teléfono manda el alta, Notion la crea, la respuesta
-   se pierde en un elevador y la bandeja reintenta. Sin esa búsqueda serían dos ventas, con
-   dos anticipos y dos comisiones sumando en las siete vistas. No cierra la ventana del
-   todo —dos altas simultáneas del mismo folio desde dos teléfonos seguirían pasando— la
-   estrecha de «cada reintento duplica» a «solo un empate exacto».
+Cambiar el segmento de rol en Ajustes da otro tablero, **no da permisos**: el token de
+fabricación sigue recibiendo un rechazo si manda `Anticipo`, diga lo que diga el teléfono.
 
 ---
 
-## Cuando algo falle — el runbook
+## Tres diferencias de contrato contra la versión de Notion
 
-| Lo que ves | Qué pasó | Qué hacer |
-|---|---|---|
-| «Este teléfono no tiene un token válido» (401) | El token no está en `TOKENS`, o se pegó con un espacio | Vuelve a pegarlo en Ajustes. Revisa que `TOKENS` sea JSON válido |
-| «El puente no tiene acceso a esa página» (403) | La integración no está conectada a la página | Notion → `···` → *Connections* → conecta la integración |
-| «Notion está limitando las peticiones» (429) | Se pasó el límite | Nada. La bandeja lo reintenta sola, respetando el `Retry-After` |
-| «Notion no está respondiendo» (5xx) | Notion caído | Nada. Todo quedó en el teléfono y se manda al volver |
-| «Al puente le faltan sus secretos» (500) | Falta `NOTION_TOKEN` o `TOKENS` | Cloudflare → Settings → Variables |
-| El navegador dice CORS | Tu dominio no está en `ORIGENES` | Agrégalo, separado por comas, sin barra final |
-| «Esa fila cambió en Notion» | Alguien la editó al mismo tiempo | Hoy no puede pasar: la plataforma no manda `esperado` (ver `js/datos/puente.js`, cabecera) y un PATCH de Notion es por propiedad. El código del Worker que lo detecta queda reservado para cuando haga falta |
-| Notion rechaza el alta y nombra una propiedad | Falta crearla a mano en la base | Ajustes → *Revisar el esquema* → créala con ese nombre y ese tipo |
-| «Este teléfono no puede dar de alta la venta» | El token es de fabricación o de pagos | Se da de alta desde el de Dirección. Desde ese ya puedes mover la obra |
+1. **`Abono Comision` ya no es una celda.** En Notion se sobrescribía, y por eso solo
+   sobrevivía el último pago. En la hoja es la suma de la pestaña **Abonos comisión**, así
+   que escribirlo significa **agregar un renglón**. Se gana el historial de parcialidades
+   sin que el teléfono se entere.
 
----
+2. **`Fecha Anticipo e Instalacion` era un rango.** En la hoja son dos columnas: la del
+   anticipo y la de instalación, separadas.
 
-## Cómo se prueba sin cuenta
+3. **`Pago Pendiente` sale con el signo de Notion** —negativo cuando falta cobrar— para no
+   cambiarle el significado a una cifra que la plataforma ya pinta. Dentro de la hoja se ve
+   al derecho: positivo es lo que te deben.
 
-Dos pruebas cubren esto y corren sin Notion, sin Cloudflare y sin tarjeta:
+Las fórmulas siguen siendo de solo lectura, y por la misma razón de siempre: dos
+implementaciones de la misma fórmula divergen en semanas y el sistema empieza a dar dos
+respuestas. `Precio Neto `, `Pago Pendiente`, `Comisiones` y `Comision Restante` se **leen**.
+Una escritura contra ellas se rechaza **con su razón**, no en silencio.
 
-- `pruebas/worker.mjs` importa **este mismo Worker** y lo corre contra una Notion de
-  mentiras: los tokens, la lista blanca por rol, las cuatro validaciones, las fórmulas, las
-  fechas y la fila duplicada. Va en `pruebas/correr.sh` con todas las demás.
-- `pruebas/navegador/puente.mjs` levanta su propio servidor y recorre el camino entero con
-  clics de verdad: cotizar → autorizar → «Registrar como proyecto ganado» → abrir la
-  plataforma → y comprueba que la venta salió sola con su dirección y su tipo de trabajo, que
-  el id de la página se guardó, y que el espejo del dinero bajó.
-
-  ```
-  node pruebas/navegador/puente.mjs
-  ```
-
-Si tocas este archivo, corre las dos antes de pegarlo en Cloudflare.
-
-**La regla de oro cuando el puente esté caído:** no pasa nada. La plataforma sigue funcionando
-con lo que tiene en el teléfono, y el botón **Copiar fila para Notion** del cotizador sigue
-siendo el camino manual. Ese botón no se retira nunca, precisamente para esto.
+Y sigue sin aceptarse un valor inventado en ningún campo de lista: estatus, cuenta, etapa de
+obra y tipo de trabajo se validan contra la lista real antes de escribir.
 
 ---
 
-## Costo
+## Montarlo
 
-Cero, y sin tarjeta. 100,000 peticiones al día en el plan gratuito de Workers; tres personas
-sincronizando gastan del orden de cien. Si algún día se pasara, el aviso llega por correo de
-Cloudflare antes de que se corte nada.
+Los pasos están en [`DESPLIEGUE.md`](DESPLIEGUE.md). Son unos diez minutos, una vez.
+
+El código del puente se versiona aquí como [`hoja-apps-script.gs`](hoja-apps-script.gs) —es
+el proyecto completo de la hoja, no solo el puente— para que `pruebas/puente.mjs` pueda
+comparar los dos lados. Esa prueba es la que atrapa que las ocho etapas, los siete tipos de
+trabajo, los cuatro estatus y las cinco cuentas sigan diciendo exactamente lo mismo de los
+dos lados, con el espacio final de `Cuenta ` incluido.
+
+**La copia que manda es la de la hoja.** Si tocas `hoja-apps-script.gs` aquí, hay que pegarlo
+en el editor de Apps Script y volver a implementar: no se despliega solo como se desplegaba
+el Worker.
+
+## Cómo está cerrado
+
+La dirección del puente es pública —igual que lo era la del Worker— y **la puerta es el
+token**. Alrededor de eso hay cinco cosas más:
+
+1. **Todo por POST, el token en el cuerpo.** Nunca queda escrito en una URL. Ver arriba.
+2. **Sesenta peticiones por minuto por token.** Es más de lo que hacen tres teléfonos
+   trabajando, y mucho menos de lo que sirve para raspar la hoja entera con un token
+   robado.
+3. **Lista blanca de dominios en `/expandir`.** Ese camino hace que un servidor de Google
+   salga a internet con una dirección que mandó quien llama. Sin la lista, un token
+   cualquiera convertiría el puente en trampolín para tocar direcciones que quien llama no
+   alcanza. Solo Maps.
+4. **El texto que entra de afuera no puede volverse fórmula.** A lo que empieza con `=`,
+   `+`, `-` o `@` se le antepone un apóstrofo. Sin eso, un `=IMPORTXML(...)` metido en la
+   dirección de un proyecto haría que la hoja saliera a internet sola, o leyera otra
+   pestaña y la escupiera.
+5. **Bitácora.** Toda escritura que entra queda anotada en una pestaña oculta: cuándo, qué
+   rol, qué folio y qué campos. Es lo que convierte «algo se movió» en «esto se movió, el
+   martes, desde el teléfono de pagos».
+6. **El rol también cierra la lectura.** `/jalar` le quita a fabricación las diez columnas
+   de dinero —subtotal, neto, anticipo, liquidación, pendiente, comisiones, cuenta y fecha
+   de liquidación— antes de mandar la fila. El estatus sí baja, porque es una etiqueta de
+   estado y el tablero de obra la necesita para saber qué ya se cobró. Un rol que no esté
+   en la tabla tampoco ve el dinero: el default es cerrado.
+
+Y lo que el puente **no** puede hacer, por construcción: escribir una fórmula, escribir una
+columna que no esté en su mapa, mandar correo, o tocar otra hoja del Drive.
+
+### Lo que sigue abierto, y hay que saberlo
+
+- **El token vive en el teléfono.** Quien tenga un teléfono desbloqueado tiene ese rol.
+  Contra eso solo hay rotar: *Generar tokens nuevos* en la hoja invalida los tres.
+- **Dirección y pagos sí ven todo el dinero.** El filtrado de lectura protege al teléfono
+  de fabricación, que es el que anda en la calle y en el taller. Los otros dos tokens
+  valen lo que vale la hoja entera.
+- **La hoja puede quedarse con una versión vieja del código.** Guardar en Apps Script no
+  publica. `salud` contesta su `version` —hoy `puente-sheets-3`— justo para poder verlo.
+
+## Si algo falla
+
+- **«Probar» dice que no es el puente y menciona la pantalla de Google.** La implementación
+  quedó con acceso *Solo yo*. Tiene que estar en **Cualquier usuario**: Apps Script →
+  Implementar → Gestionar implementaciones → lápiz → Quién tiene acceso.
+- **401 en todo.** El token de ese teléfono no está en la lista. Vuelve a abrir
+  ⚡ AL3D → Tokens del puente en la hoja y pega el que le toca.
+- **Una escritura vuelve como rechazada.** El mensaje dice cuál propiedad y por qué. Casi
+  siempre es un rol que no puede escribir eso, o un valor que no está en la lista.
+- **Cambiaste el código y no pasa nada.** Guardar no publica: hay que implementar una
+  **versión nueva**.
