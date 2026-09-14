@@ -344,15 +344,23 @@ export function propuestaDe(folio) {
  */
 export function conversion(ganados) {
   const pres = propuestas();
+  const disp = Prefs.dispositivo();
   let autorizadas = 0, presentadas = 0, ganadas = 0;
   for (const e of historial()) {
     const f = String(e.folio || '').trim();
     if (!f) continue;
+    /* El historial no escribe `estado` —es «autorizadas» por construcción—, pero si algún
+       día lo escribiera, lo que no sea autorizada no cuenta. */
     if (e.estado && e.estado !== 'autorizada') continue;
     autorizadas++;
     const conProp = !!(pres[f] && pres[f].primera);
     if (conProp) presentadas++;
-    if (ganados && ganados.has(f)) { if (conProp) ganadas++; }
+    /* Global contra global. Los proyectos guardan `folio_global` (COT-0001@DISP), y hasta
+       septiembre de 2026 aquí se comparaba el folio VISIBLE contra ese Set: con la lista real
+       de proyectos daba siempre cero ganadas. Se acepta el Set de folios globales —que es como
+       lo arman las pantallas— y, por si alguien pasa el visible, también se prueba ese. */
+    const fg = folioGlobal(f, e.disp || disp);
+    if (ganados && (ganados.has(fg) || ganados.has(f))) { if (conProp) ganadas++; }
   }
   return { autorizadas, presentadas, ganadas,
            tasa: presentadas > 0 ? ganadas / presentadas : null };

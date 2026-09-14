@@ -166,7 +166,12 @@
      forma de pastilla. Tres pasos y ya: la ficha, el control, la tarjeta.
      El cuarto se queda apuntando al tercero porque hay ciento y pico de reglas que lo piden;
      lo que ya no hay es una cuarta forma. */
-  --rr1:3px; --rr2:4px; --rr3:6px; --rr4:6px;
+  /* Revisión de septiembre de 2026: los tres pasos suben un escalón —4 · 6 · 10— y el cuarto
+     se separa por fin del tercero (12, para los paneles que flotan). La estructura se sigue
+     leyendo en el borde y la superficie; lo que cambia es que una pieza de 6 px sobre un
+     lienzo plano se veía recortada, no construida. Medido en la tarjeta de lista del
+     teléfono (90 px de alto): con 10 px sigue siendo un rectángulo, no una pastilla. */
+  --rr1:4px; --rr2:6px; --rr3:10px; --rr4:12px;
 
   /* ===================== La sombra, una sola =====================
      Aquí vivía la receta del barro: tres capas por pieza —luz interior, sombra interior,
@@ -182,6 +187,21 @@
      --sup2 y un borde, que es lo que hace el diseño—. */
   --sombra:0 1px 2px rgba(35,39,68,.06),0 8px 24px -12px rgba(48,24,248,.18);
   --sombra-alta:0 2px 6px rgba(35,39,68,.08),0 24px 48px -16px rgba(48,24,248,.28);
+  /* La sombra de REPOSO: la que lleva una tarjeta que no flota pero tampoco está pintada
+     sobre el lienzo. Es casi nada —un píxel de tinta al 4 % y un halo de 12 px al 5 %— y es
+     lo que separa una pieza «puesta encima» de un rectángulo con borde. Se añade porque el
+     borde solo, sobre un lienzo casi del mismo tono, dejaba la pantalla plana de verdad: sin
+     profundidad ni jerarquía entre continente y contenido. */
+  --sombra-reposo:0 1px 1px rgba(35,39,68,.04),0 2px 12px -4px rgba(23,26,51,.06);
+  /* La sombra del botón de color, teñida del acento y corta: dice «esto se presiona». */
+  --sombra-accion:0 4px 14px -6px rgba(64,96,248,.55);
+  /* El velo del encabezado pegado: la superficie al 82 % con desenfoque detrás, para que lo
+     que pasa por debajo al hacer scroll se adivine sin competir con el título. */
+  --velo:rgba(255,255,255,.82);
+  /* La barra lateral: del marino al marino un paso más hondo. No es un degradado de
+     botón, es la luz cayendo sobre una superficie alta, y es lo único que la despega de un
+     rectángulo pintado. */
+  --nav-grd:linear-gradient(180deg,#1b1f3d 0%,var(--nav) 42%,#12142a 100%);
   --clay:var(--sombra);
   --clay-alto:var(--sombra-alta);
   --clay-a:var(--sombra);
@@ -3767,6 +3787,10 @@ html[data-tema="oscuro"]{
      no se ve, y lo que separa una pieza del lienzo es negro puro y un borde más claro. */
   --sombra:0 1px 2px rgba(0,0,0,.4),0 10px 28px -14px rgba(0,0,0,.6);
   --sombra-alta:0 2px 8px rgba(0,0,0,.5),0 28px 56px -18px rgba(0,0,0,.75);
+  --sombra-reposo:0 1px 1px rgba(0,0,0,.35),0 2px 12px -4px rgba(0,0,0,.45);
+  --sombra-accion:0 4px 14px -6px rgba(59,87,230,.7);
+  --velo:rgba(26,29,56,.82);
+  --nav-grd:linear-gradient(180deg,#0f1226 0%,var(--nav) 45%,#06070f 100%);
   --ok:#6fd6a4; --ok-bg:#10331f; --ok-borde:#1f6b42; --green-ico:#3fc282;
   /* Y el relleno verde, por lo mismo que --a-fill: #0e7a4d aguanta blanco (5,37:1) y se
      distingue del marino de la superficie. */

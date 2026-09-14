@@ -55,6 +55,14 @@ async function encolar(tipo, almacen, registro) {
   } catch (_) { /* la escritura local ya está; la cola se recupera en el próximo bombeo */ }
 }
 
+/* La bitácora: quién cambió el catálogo o una constante. Después de escribir y en un try. */
+async function anotar(hecho) {
+  try {
+    const B = await import('./bitacora.js');
+    await B.anotar(hecho);
+  } catch (_) {}
+}
+
 /* ============================================================================
    Vocabulario congelado
    ============================================================================ */
@@ -289,8 +297,25 @@ export async function guardarMaterial(mat) {
     activo: mat.activo === undefined ? true : !!mat.activo,
     sync: 0,
   };
+  const previo = await DB.obtener('materiales', id);
   const r = await DB.poner('materiales', fila);
-  if (r.ok) await encolar('actualizar', 'materiales', r.valor);
+  if (r.ok) {
+    await encolar('actualizar', 'materiales', r.valor);
+    /* Lo que cambió, campo por campo, para que «alguien tocó el factor de la lámina» se
+       pueda leer con el número de antes y el de después. */
+    const dif = [];
+    if (previo) {
+      for (const k of ['factor', 'merma_pct', 'min_compra', 'min_stock', 'costo_compra', 'proveedor', 'tel_proveedor', 'medida', 'nombre', 'activo']) {
+        const a = previo[k] === undefined ? null : previo[k], b = fila[k] === undefined ? null : fila[k];
+        if (String(a) !== String(b)) dif.push(k + ': ' + (a === null || a === '' ? '—' : a) + ' → ' + (b === null || b === '' ? '—' : b));
+      }
+    }
+    if (!previo || dif.length) {
+      await anotar({ accion: 'guardo', entidad: 'material', entidad_id: id,
+        titulo: previo ? 'Se editó ' + nombre + ' en el catálogo' : 'Se dio de alta ' + nombre + ' en el catálogo',
+        detalle: dif.join(' · ') });
+    }
+  }
   return r;
 }
 
@@ -377,7 +402,14 @@ export async function guardarConstante(clave, valor, nota) {
     actualizado_por: Prefs.sello(),
   };
   const r = await DB.poner('constantes', fila);
-  if (r.ok) await encolar('actualizar', 'constantes', r.valor);
+  if (r.ok) {
+    await encolar('actualizar', 'constantes', r.valor);
+    if (Math.abs(antes - v) >= 1e-12) {
+      await anotar({ accion: 'guardo', entidad: 'constante', entidad_id: k,
+        titulo: 'La constante ' + k + ' cambió de ' + num(antes, 4) + ' a ' + num(v, 4),
+        detalle: texto, antes, despues: v });
+    }
+  }
   return r;
 }
 

@@ -226,6 +226,20 @@ son seis pantallas que se alimentan de ahí.
   44 módulos LED, 1 fuente». **Con la cuenta a la vista** y su etiqueta de confianza, porque
   un número que no se puede auditar no se corrige nunca.
 - **Mapa** — las obras por instalar y las instaladas, con el orden de ruta del día.
+- **Control** — la pantalla del dinero, para dirección y pagos: lo vendido este mes contra el
+  anterior, lo autorizado que nadie ha decidido (valorizado), la conversión, lo que no se dio,
+  los últimos doce meses en barras, la **cartera** —cada proyecto con saldo, lo instalado
+  primero, con el WhatsApp de cobro ya escrito— y la **bitácora**: quién movió qué y a qué hora,
+  en proyectos, agenda, catálogo y almacén. Con el CSV completo de proyectos (saldo, cuenta,
+  estatus, instalación) para pegar en una hoja.
+- **El asistente** — el botón «Preguntar» que flota en las ocho pantallas. Abre con el
+  resumen de hoy en cuatro cifras y las siete preguntas de siempre —quién nos debe, comisiones
+  abonables, ventas del mes, sin decidir, qué va tarde, instalaciones de la semana, material
+  por comprar—, que se contestan **aquí, al instante y sin IA**, con la misma aritmética de
+  Control; sirven sin señal y sin llave. Lo que no se puede calcular va a la IA con la misma
+  llave del cotizador (Gemini, Groq u OpenRouter), pidiendo un «entendido» la primera vez
+  porque un resumen viaja al proveedor; nunca salen teléfonos ni direcciones y fabricación
+  pregunta sin importes. Solo lee: si hay que cambiar algo, dice en qué pantalla.
 - **Ajustes** — el rol de este dispositivo, el respaldo, y la verdad del sistema escrita.
 
 **En la computadora también.** De 1 100 px para arriba el calendario abre en «Todo»: el mes a

@@ -509,7 +509,10 @@ const enTel = await tel.evaluate(() => {
   return {
     monta: !!s && !s.hidden,
     scrollH: doc.scrollWidth > doc.clientWidth,
-    tabs: document.querySelectorAll('.pf-tab').length,
+    /* Lo que se ve en un teléfono es la barra de ABAJO: la lateral (.pf-tab) está en
+       display:none a este ancho, y contar sus pestañas medía un mueble que no existe ahí.
+       Con Control la lateral tiene 7 para dirección, y la de abajo sigue en 5. */
+    tabs: [...document.querySelectorAll('#pf-abajo button')].filter(b => b.offsetParent !== null).length,
     /* En 375 px la columna del taller va primero: es la pregunta de la mañana. */
     primero: (() => {
       const c = s && s.querySelector('.tb-cuerpo');
@@ -522,8 +525,8 @@ const enTel = await tel.evaluate(() => {
 enTel.monta ? bien('el tablero monta en 375 px') : mal('el tablero no monta en el teléfono');
 enTel.scrollH === false ? bien('y no hay desplazamiento horizontal')
                         : mal('en 375 px la página se desplaza a lo ancho');
-enTel.tabs <= 6 ? bien('la barra tiene ' + enTel.tabs + ' pestañas (tope de 6 en el teléfono)')
-                : mal('la barra tiene ' + enTel.tabs + ' pestañas: son demasiadas para 375 px');
+enTel.tabs > 0 && enTel.tabs <= 5 ? bien('la barra de abajo tiene ' + enTel.tabs + ' pestañas (tope de 5 en el teléfono)')
+                : mal('la barra de abajo tiene ' + enTel.tabs + ' pestañas: son demasiadas para 375 px');
 await tel.close();
 
 // ── 8. Sin errores de página ───────────────────────────────────────────────

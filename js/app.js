@@ -63,6 +63,10 @@ const RUTAS = [
   { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    sub: 'lista de compra y almacén',                         roles: ['direccion', 'fabricacion'] },
   { ruta: 'cotizador', mod: 'cotizador',   seccion: 'mod-cotizador',   icono: 'i-venta',     nombre: 'Cotizador',   sub: 'capturar y autorizar una cotización',  movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'mapa',      mod: 'mapa',        seccion: 'mod-mapa',        icono: 'i-mapa',      nombre: 'Mapa',        sub: 'obras por instalar e instaladas',      movil: true, roles: ['direccion', 'fabricacion'] },
+  /* La pantalla del dinero: ventas por mes, cartera y bitácora. Fabricación no la tiene —es
+     el rol que no ve importes— y en el teléfono no entra a la barra de abajo por lo mismo que
+     Material: se llega desde el Tablero. */
+  { ruta: 'control',   mod: 'control',     seccion: 'mod-control',     icono: 'i-control',   nombre: 'Control',     sub: 'ventas, cobranza y bitácora',                       roles: ['direccion', 'pagos'] },
   { ruta: 'atender',   mod: 'inicio',      seccion: 'mod-atender',     icono: 'i-aviso',     nombre: 'Qué atender', sub: 'avisos ordenados por lo que truena antes',                  roles: ['direccion', 'fabricacion', 'pagos'], oculto: true, padre: 'hoy' },
   { ruta: 'ajustes',   mod: 'ajustes',     seccion: 'mod-ajustes',     icono: 'i-ajustes',   nombre: 'Ajustes',     sub: 'este dispositivo, respaldo y relevo',  roles: ['direccion', 'fabricacion', 'pagos'], oculto: true },
 ];
@@ -432,6 +436,10 @@ async function arrancar() {
   registrarCapa('pf-ficha', () => cerrarCapa('pf-ficha'));
   registrarCapa('pf-hoja',  () => cerrarCapa('pf-hoja'));
   registrarCapa('pf-pide',  () => cerrarCapa('pf-pide'));
+  /* El asistente va ENCIMA de las tres: se abre desde cualquier pantalla, con una ficha
+     abierta o sin ella. Se carga aparte y después de pintar, como el puente: quien abre la
+     app a ver la agenda no paga la descarga de algo que a lo mejor no toca. */
+  registrarCapa('pf-ia', () => { import('./nucleo/asistente.js').then(m => m.cerrar()).catch(() => cerrarCapa('pf-ia')); });
 
   const seg = $('pf-rolseg');
   if (seg) seg.addEventListener('click', ev => {
@@ -516,6 +524,10 @@ async function arrancar() {
      por algo que ni siquiera hace falta para trabajar. */
   await enchufarPuente();
   sincronizarCallado();
+
+  /* El asistente: solo cuelga el oyente del botón; el panel se pinta al abrir. Si el módulo
+     no carga —service worker a medias— el botón no hace nada y la plataforma sigue igual. */
+  import('./nucleo/asistente.js').then(m => m.montar(ctx)).catch(e => console.warn('sin asistente', e));
 
   /* Al recuperar señal se manda lo que quedó, sin que nadie apriete nada. Es la mitad que
      le faltaba a la bandeja: guardar sin señal ya funcionaba desde fase 1, y lo que no

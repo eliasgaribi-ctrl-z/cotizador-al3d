@@ -109,6 +109,9 @@
 <symbol id="i-agenda" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2.2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M7.5 14h3M13.5 14h3M7.5 17.5h3M13.5 17.5h3"/></symbol>
 <symbol id="i-mapa" viewBox="0 0 24 24"><path d="M9 3.2 3 5.6v15.2l6-2.4 6 2.4 6-2.4V2.6l-6 2.4z"/><path d="M9 3.2v15.2M15 5.6v15.2"/></symbol>
 <symbol id="i-material" viewBox="-0.133 0.367 24.267 24.267" style="stroke-width:1.921"><path d="M3 8.4 12 3.4l9 5v7.2l-9 5-9-5z"/><path d="M3 8.4l9 5 9-5M12 13.4v8.2"/></symbol>
+<!-- Control: tres barras y la línea que las cruza hacia arriba. Es la pantalla del dinero, y
+     el dibujo dice «cuánto» antes de leer la palabra. -->
+<symbol id="i-control" viewBox="0 0 24 24"><path d="M3 20.5h18"/><path d="M6.5 16.5v-4.5M12 16.5v-8M17.5 16.5v-6"/><path d="M4 9.5l4.5-3.5 4 2.5 7.5-5.5"/></symbol>
 <symbol id="i-proyectos" viewBox="-0.667 -0.667 25.333 25.333" style="stroke-width:2.006"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><path d="M2.5 9h19"/><path d="M7 13h4.5M7 16h7"/></symbol>
 <!-- Ajustes. Antes era un círculo con ocho rayos que se leía como un SOL —y con el
      interruptor de tema al lado, como el botón de «claro»—. Ahora son tres deslizadores. -->
@@ -220,6 +223,7 @@
     <section class="pf-mod" id="mod-material"   data-mod="material"   hidden aria-label="Material"></section>
     <section class="pf-mod" id="mod-cotizador"  data-mod="cotizador"  hidden aria-label="Cotizador"></section>
     <section class="pf-mod" id="mod-mapa"       data-mod="mapa"       hidden aria-label="Mapa"></section>
+    <section class="pf-mod" id="mod-control"    data-mod="control"    hidden aria-label="Control"></section>
     <section class="pf-mod" id="mod-atender"    data-mod="inicio"     hidden aria-label="Qué atender"></section>
     <section class="pf-mod" id="mod-ajustes"    data-mod="ajustes"    hidden aria-label="Ajustes"></section>
   </main>
@@ -232,6 +236,10 @@
 <div class="modal-bg pf-modal-bg" id="pf-ficha" role="dialog" aria-modal="true" aria-label="Detalle"></div>
 <div class="modal-bg pf-modal-bg" id="pf-hoja"  role="dialog" aria-modal="true" aria-label="Hoja de trabajo"></div>
 <div class="modal-bg pf-modal-bg" id="pf-pide"  role="dialog" aria-modal="true" aria-label="Confirmar"></div>
+<!-- El asistente. Su contenido lo escribe js/nucleo/asistente.js al abrir; la capa vive aquí
+     por lo mismo que las tres de arriba: el registro de Escape, cerco y botón atrás se da de
+     alta una vez. -->
+<div class="modal-bg pf-modal-bg" id="pf-ia" role="dialog" aria-modal="true" aria-label="Asistente del taller"></div>
 
 <!-- La barra fija del teléfono. Su contenido cambia con el módulo. Va ENCIMA de la barra de
      módulos de abajo, que es lo que hace la maqueta: primero la acción de esta pantalla,
@@ -247,6 +255,13 @@
      el Tablero, que es de donde se sale a comprar. La lista de qué módulos entran la decide
      app.js, que es donde ya vive la lista de rutas. ============================ -->
 <nav class="pf-abajo" id="pf-abajo" aria-label="Módulos"></nav>
+
+<!-- El botón del asistente. Flota abajo a la derecha, encima de la barra del teléfono; en la
+     computadora, en la esquina. Un solo botón para las ocho pantallas: la pregunta «¿quién nos
+     debe?» no es de ninguna en particular. -->
+<button type="button" class="pf-ia-btn" id="pf-ia-btn" title="Preguntarle al asistente" aria-label="Abrir el asistente del taller">
+  <svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg><span class="tx">Preguntar</span>
+</button>
 
 <div class="toast" id="toast"></div>
 

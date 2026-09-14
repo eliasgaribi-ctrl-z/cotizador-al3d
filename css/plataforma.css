@@ -1323,3 +1323,425 @@ body.pf-marco-lleno .pf-wrap{padding-bottom:0}
 @media(min-width:760px) and (max-width:1023px){
   #mod-cotizador .pf-marco-caja{margin-left:calc(-1 * var(--e4))}
 }
+
+/* ============================================================================
+   PULIDO VISUAL — septiembre de 2026
+   ============================================================================
+   La auditoría de diseño dejó una plataforma bien ordenada y plana de más: todo era un
+   rectángulo blanco con un borde de 1 px sobre un lienzo casi del mismo tono, y la
+   jerarquía entre continente y contenido, entre la cifra y su nombre, entre la pieza que se
+   toca y la que solo se lee, la hacía únicamente el tamaño de letra. Funcionaba; no se veía
+   construido.
+
+   Lo que cambia aquí es la SUPERFICIE, no la estructura: el mismo marcado, las mismas
+   clases y las mismas reglas de contraste (ningún color de texto se toca). Las piezas ganan
+   una sombra de reposo, los radios suben un escalón (ver los tokens en css/sistema.css), la
+   barra lateral deja de ser un rectángulo pintado y pasa a ser una superficie alta con luz,
+   las cuentas del tablero se leen como indicadores y no como párrafos, y el lienzo lleva un
+   tinte muy leve del acento arriba a la izquierda —el mismo azul del logotipo, al 6 %— que
+   es lo que hace que el blanco de las tarjetas se lea como blanco.
+
+   Va al final del archivo a propósito: la mayoría de estas reglas tienen la misma
+   especificidad que las de arriba y ganan por orden. Lo que se escribe aquí manda. */
+
+/* ----- El lienzo ----- */
+body.pf{
+  background:
+    radial-gradient(1100px 520px at 6% -8%, rgba(var(--a-rgb),.075), transparent 62%),
+    radial-gradient(800px 420px at 100% 4%, rgba(var(--a2-rgb),.045), transparent 60%),
+    var(--fondo);
+  background-attachment:fixed;
+}
+html[data-tema="oscuro"] body.pf{
+  background:
+    radial-gradient(1100px 520px at 6% -8%, rgba(var(--a-rgb),.14), transparent 62%),
+    radial-gradient(800px 420px at 100% 4%, rgba(var(--a2-rgb),.08), transparent 60%),
+    var(--fondo);
+  background-attachment:fixed;
+}
+
+/* ----- Las piezas ----- */
+body.pf .card{border-radius:var(--rr3);box-shadow:var(--sombra-reposo)}
+body.pf .card-h{padding:var(--e4) var(--e5) var(--e3);gap:var(--e3)}
+body.pf .card-h h2,body.pf .card-h h3{
+  font-family:var(--f-cifra);font-size:var(--t4);font-weight:600;letter-spacing:-.15px;color:var(--tinta);
+}
+/* El icono del encabezado, en una ficha teñida: es la única marca de color de la pieza y
+   dice de qué trata antes de leer el título. */
+body.pf .card-h h2>.svgi,body.pf .card-h h3>.svgi{
+  box-sizing:content-box;width:var(--ico1);height:var(--ico1);padding:6px;
+  border-radius:var(--rr2);background:var(--a-suave);color:var(--a-tx);
+}
+/* La cuenta del encabezado («Qué atender 4») pasa de caja cuadrada a píldora. */
+body.pf .card-h .folio{
+  border-radius:999px;padding:2px 10px;min-width:26px;text-align:center;
+  font-size:var(--t2);line-height:20px;background:var(--sup2);border-color:var(--linea);color:var(--tinta2);
+}
+body.pf .pf-panel{border-radius:var(--rr4)}
+@media(max-width:560px){ body.pf .pf-panel{border-radius:var(--rr4) var(--rr4) 0 0} }
+
+/* ----- Las cuentas: de párrafo a indicador -----
+   La cifra sube de peso y se aprieta, la etiqueta baja de tamaño y sube a versalitas con
+   aire, y el tipo de la cuenta lo dice un lomo de 4 px a la izquierda en vez del filete de
+   arriba, que con el radio nuevo se leía como una tapa mal puesta. La del dinero se tiñe
+   entera del azul tenue: «cuánto» y «cuántos» son dos preguntas y se ven distintas. */
+.pf-cuenta{
+  position:relative;overflow:hidden;
+  padding:16px 18px 14px 20px;border-radius:var(--rr3);box-shadow:var(--sombra-reposo);
+  font-weight:600;font-size:var(--t1);line-height:1.3;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--tinta2);
+  transition:transform var(--mv-s),box-shadow var(--mv-s),border-color var(--mv-s);
+}
+.pf-cuenta b{font-weight:700;letter-spacing:-.8px;margin-bottom:8px;text-transform:none}
+.pf-cuenta::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--linea)}
+.pf-cuenta.urge,.pf-cuenta.mal,.pf-cuenta.dinero{box-shadow:var(--sombra-reposo)}
+.pf-cuenta.urge::before{background:var(--av)}
+.pf-cuenta.mal::before{background:var(--mal)}
+.pf-cuenta.dinero{background:linear-gradient(135deg,var(--sup) 0%,var(--a-suave) 100%);border-color:var(--a-borde)}
+.pf-cuenta.dinero::before{background:var(--a-fill)}
+.pf-cuenta.dinero b{letter-spacing:-.5px}
+/* La línea de estaciones se construye sobre .pf-cuenta y es un CONTROL, no un indicador:
+   sin lomo, sin versalitas, con la cifra un paso más chica y el elegido en el azul tenue. */
+.tb-etapa{padding:12px 14px 10px;text-transform:none;letter-spacing:0;font-weight:500;font-size:var(--t2);
+  box-shadow:none;background:var(--sup);border-radius:var(--rr2)}
+.tb-etapa::before{display:none}
+.tb-etapa b{font-size:var(--t6);letter-spacing:-.4px;margin-bottom:5px}
+.tb-etapa:hover{transform:none;box-shadow:var(--sombra-reposo);border-color:var(--a-borde)}
+.tb-etapa.on{background:var(--a-suave);border-color:var(--a-borde);box-shadow:inset 0 0 0 1px var(--a-borde)}
+.tb-etapa.on b{color:var(--a-tx)}
+
+/* ----- El renglón ----- */
+.pf-fila-ico{width:40px;height:40px;border-radius:var(--rr2);background:var(--sup2);
+  border:1px solid var(--linea2);color:var(--tinta2)}
+.pf-fila-ico.urge{border-color:var(--av-borde)}
+.pf-fila-ico.mal{border-color:var(--mal-borde)}
+.pf-fila-ico.bien{border-color:var(--ok-borde)}
+.pf-decidir .pf-fila-ico{border-color:var(--a-borde)}
+/* Lo que se lee como estado —etapa, semáforo, cuándo, confianza— es una píldora. Un dato de
+   tres letras con esquinas cuadradas se leía como un botón chico que no hace nada. */
+.pf-etapa,.pf-sem,.pf-cuando,.mat-conf,.pf-abajo .cta,.pf-tab .cta{border-radius:999px}
+.pf-etapa,.pf-sem,.mat-conf{padding-left:9px;padding-right:9px}
+body.pf .pf-decidir{border-radius:var(--rr3);padding:var(--e4)}
+
+/* ----- Botones -----
+   El de color gana una sombra corta teñida del acento y se levanta 1 px al pasar el ratón:
+   es la única pieza de la pantalla que se PRESIONA, y tiene que verse presionable. Los de
+   borde se hunden en la superficie hundida al pasar. */
+body.pf .btn{border-radius:var(--rr2);font-weight:600}
+body.pf .btn-pri{box-shadow:var(--sombra-accion)}
+body.pf .btn-pri:hover{box-shadow:var(--sombra-accion);transform:translateY(-1px)}
+body.pf .btn-pri:active:not(:disabled){transform:translateY(0);box-shadow:none}
+body.pf .btn-gho:hover,body.pf .btn-dgr:hover{background:var(--sup2)}
+body.pf .btn-dgr:hover{background:var(--mal-bg)}
+body.pf .btn-ok{box-shadow:0 4px 14px -6px rgba(var(--ok-rgb),.55)}
+.btn-wa{border-radius:var(--rr2);box-shadow:none}
+.pf-cerrar{border-radius:var(--rr2)}
+
+/* ----- La banda -----
+   Deja de ser una caja ámbar de borde a borde y pasa a ser un aviso con lomo: lo que dice
+   sigue siendo importante, pero no es la pantalla. */
+.pf-banda{align-items:center;border-radius:var(--rr3);border-left:4px solid var(--av);
+  padding:var(--e3) var(--e4);box-shadow:var(--sombra-reposo)}
+.pf-banda.mal{border-left-color:var(--mal)}
+.pf-banda button{border-radius:var(--rr2);background:var(--sup);border-color:var(--av-borde);min-height:40px}
+.pf-banda.mal button{border-color:var(--mal-borde)}
+
+/* ----- Estado vacío ----- el icono va en un círculo hundido, que es lo que lo vuelve
+   ilustración y no un glifo perdido en el centro de la nada. */
+.vacio>.svgi{box-sizing:content-box;padding:14px;border-radius:50%;background:var(--sup2);
+  border:1px solid var(--linea2);color:var(--n5)}
+
+/* ----- El encabezado -----
+   En la computadora, la superficie al 82 % con la pantalla desenfocada detrás: lo que pasa
+   por debajo al hacer scroll se adivina sin competir con el título, que sube a la letra de
+   las cifras en 700. En el teléfono sigue marino, con la misma luz que la barra lateral. */
+.pf-cab{background:linear-gradient(90deg,#1b1f3d,var(--nav))}
+.pf-cab-t{font-family:var(--f-cifra);font-weight:700;letter-spacing:-.3px}
+@media(min-width:760px){
+  .pf-cab{background:var(--velo);backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4)}
+  .pf-cab-t{font-size:var(--t5)}
+  .pf-cab-tema{border-radius:var(--rr2)}
+}
+
+/* ----- La barra lateral -----
+   Una superficie alta con luz arriba, no un rectángulo marino. La marca se separa de los
+   módulos con un filete al 7 %, la pestaña encendida es una ficha clara con el filete del
+   acento REDONDEADO y el icono en el azul claro del logotipo —que aquí es decoración, no
+   texto—, y el bloque del rol se vuelve una ficha propia al pie. */
+@media(min-width:760px){
+  .pf-lat{background:var(--nav-grd);box-shadow:inset -1px 0 0 rgba(255,255,255,.05)}
+  .pf-lat-marca{padding-bottom:16px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.07)}
+  .pf-lat-t{letter-spacing:.3px;text-transform:uppercase;font-size:var(--t1);font-weight:700;
+    color:rgba(255,255,255,.6);align-self:center;margin-top:2px}
+  .pf-tab{position:relative;height:44px;border-radius:var(--rr2)}
+  .pf-tab .svgi{color:rgba(255,255,255,.55);transition:color var(--mv-s)}
+  .pf-tab:hover .svgi{color:#fff}
+  .pf-tab.on{background:rgba(255,255,255,.09);box-shadow:none}
+  .pf-tab.on::before{content:'';position:absolute;left:0;top:11px;bottom:11px;width:3px;
+    border-radius:0 3px 3px 0;background:var(--a-claro)}
+  .pf-tab.on .svgi{color:var(--a-claro)}
+  .pf-lat-item{border-radius:var(--rr2)}
+  .pf-lat-item .svgi{color:rgba(255,255,255,.55)}
+  .pf-lat-item:hover .svgi{color:#fff}
+  .pf-lat-rol{margin-top:12px;padding:12px 10px 10px;border-top:0;border-radius:var(--rr3);
+    background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.06)}
+  .pf-lat-rol-t{color:rgba(255,255,255,.6);font-size:var(--t1);text-transform:uppercase;letter-spacing:.06em}
+  .pf-lat-rol .seg{border-radius:var(--rr2);background:rgba(0,0,0,.25);border-color:rgba(255,255,255,.08)}
+  .pf-lat-rol .seg button.on{background:rgba(255,255,255,.18)}
+}
+
+/* ----- La barra de abajo, en el teléfono -----
+   Cristal marino con la pantalla desenfocada detrás y la píldora encendida con la sombra
+   del acento: se ve encendida al sol, que es la prueba que tiene que pasar. */
+@media(max-width:759px){
+  .pf-abajo{background:rgba(var(--nav-rgb),.92);backdrop-filter:blur(16px) saturate(1.3);
+    -webkit-backdrop-filter:blur(16px) saturate(1.3);border-top:1px solid rgba(255,255,255,.06)}
+  .pf-abajo button.on .pil{background:var(--a-fill);box-shadow:var(--sombra-accion)}
+  .pf-abajo button .pil{transition:background var(--mv-s),box-shadow var(--mv-s)}
+}
+
+/* ----- El tablero de proyectos -----
+   El encabezado de columna deja el filete de abajo y pasa a ser una ficha hundida con un
+   punto del color de su etapa y la cuenta en píldora; las tarjetas se levantan al pasar el
+   ratón, que es lo que hace una pieza que se puede mover. */
+.pj-col-h{padding:8px 10px;border:1px solid var(--linea2);border-bottom:1px solid var(--linea2);
+  border-radius:var(--rr2);background:var(--sup2)}
+.pj-col-h::before{content:'';flex:0 0 auto;width:8px;height:8px;border-radius:50%;background:var(--n5)}
+.pj-col-h.en_diseno::before,.pj-col-h.cortado::before,.pj-col-h.armado::before{background:var(--amber-ico)}
+.pj-col-h.listo::before{background:var(--a)}
+.pj-col-h.instalado::before{background:var(--green-ico)}
+.pj-col-n{min-width:22px;padding:0 7px;line-height:20px;text-align:center;border-radius:999px;
+  background:var(--sup);border:1px solid var(--linea)}
+.pj-tarj{box-shadow:var(--sombra-reposo);transition:transform var(--mv-s),box-shadow var(--mv-s),border-color var(--mv-s)}
+.pj-tarj:hover{transform:translateY(-2px);box-shadow:var(--sombra)}
+.pj-tarj:active{transform:translateY(0);box-shadow:var(--sombra-reposo)}
+.pj-lista-movil .pj-tarj:hover{transform:none}
+
+/* ----- El calendario ----- */
+.cal-rej{border-radius:var(--rr3);box-shadow:var(--sombra-reposo)}
+.cal-dia.hoy .cal-n{box-shadow:0 0 0 3px var(--a-suave)}
+.cal-nav{border-radius:var(--rr2)}
+@media(min-width:561px){ .cal-ev{border-radius:4px} }
+
+/* ----- El material ----- */
+.mat-formula{border-radius:var(--rr2)}
+.aj-rol,.aj-faltan li,.aj-tokens{border-radius:var(--rr2)}
+.aj-rol.on{box-shadow:inset 0 0 0 1px var(--a-borde)}
+
+/* ----- Los segmentos ----- el elegido, en marino, con una sombra de un píxel que lo
+   despega del riel; y el riel en la superficie hundida, que es lo que dice «control». */
+body.pf .tipo-seg,body.pf .seg{border-radius:var(--rr2);background:var(--sup2)}
+body.pf .tipo-seg button,body.pf .seg button{border-radius:calc(var(--rr2) - 2px)}
+body.pf .tipo-seg{padding:2px;gap:2px}
+body.pf .tipo-seg button.on{box-shadow:0 1px 2px rgba(var(--tinta-rgb),.18)}
+body.pf .pf-lat-rol .seg{background:rgba(0,0,0,.25)}
+
+/* ----- La ficha (modal) ----- */
+.pf-panel-h h2{font-family:var(--f-cifra);font-weight:600;letter-spacing:-.15px}
+.pf-panel-h{background:var(--sup2)}
+
+/* ----- El marco del cotizador ----- la misma sombra de reposo que una tarjeta, para que el
+   documento empotrado se lea como una pieza más de la plataforma y no como un hueco. */
+@media(min-width:1024px){ .pf-marco{border-radius:var(--rr3);box-shadow:var(--sombra-reposo);border:1px solid var(--linea)} }
+
+/* Movimiento reducido: sin levantar nada. */
+@media(prefers-reduced-motion:reduce){
+  .pf-cuenta,.pj-tarj,body.pf .btn-pri{transition:none}
+  .pj-tarj:hover,body.pf .btn-pri:hover{transform:none}
+}
+
+/* ============================================================================
+   CONTROL — mod/control.js
+   ============================================================================ */
+/* La tercera línea de una cuenta: «4 proyectos · +12 % vs ago». En la tinta del cuerpo y sin
+   versalitas, que es lo que la distingue de la etiqueta. */
+.ct-cuenta em{display:block;margin-top:6px;font-style:normal;font-weight:500;font-size:var(--t2);
+  letter-spacing:0;text-transform:none;color:var(--tinta3)}
+.ct-cuenta.urge em,.ct-cuenta.mal em,.ct-cuenta.dinero em{color:var(--tinta2)}
+
+/* Las doce barras. Rejilla de tres columnas: el mes, la barra que crece, el importe. */
+.ct-grafica{display:grid;gap:6px}
+.ct-mes{display:grid;grid-template-columns:64px minmax(0,1fr) auto;align-items:center;gap:var(--e3);
+  padding:4px 0}
+.ct-mes-t{font-weight:600;font-size:var(--t2);color:var(--tinta2);text-transform:capitalize;white-space:nowrap}
+.ct-mes.actual .ct-mes-t{color:var(--a-tx)}
+.ct-barras{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ct-b{display:block;height:10px;min-width:2px;border-radius:999px;background:var(--a-fill);
+  transition:width var(--mv)}
+.ct-b.perdido{height:6px;background:var(--n4)}
+.ct-mes.actual .ct-b.vendido{background:var(--a-fuerte)}
+.ct-mes-v{text-align:right;font-family:var(--f-cifra);font-weight:600;font-size:var(--t3);color:var(--tinta);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.ct-mes-v small{display:block;font-family:var(--f-texto);font-weight:400;font-size:var(--t1);color:var(--tinta3)}
+.ct-leyenda{display:flex;align-items:center;gap:6px}
+.ct-leyenda .ct-b{display:inline-block;width:18px;height:8px}
+.ct-leyenda .ct-b.perdido{height:6px}
+@media(max-width:400px){
+  .ct-mes{grid-template-columns:52px minmax(0,1fr) auto;gap:var(--e2)}
+  .ct-mes-v{font-size:var(--t2)}
+}
+
+/* El importe de un renglón, en su columna: la cifra grande y debajo el saldo. */
+.ct-monto{flex:0 0 auto;text-align:right;font-family:var(--f-cifra);font-weight:600;font-size:var(--t4);
+  color:var(--tinta);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:2px}
+.ct-monto small{display:block;font-family:var(--f-texto);font-weight:500;font-size:var(--t1);color:var(--tinta3)}
+.ct-monto.cancelado{color:var(--tinta3);text-decoration:line-through}
+.ct-monto.saldo{color:var(--av)}
+.ct-monto.saldo small{color:var(--av)}
+.ct-total{margin-left:auto;font-family:var(--f-cifra);font-weight:600;font-size:var(--t4);color:var(--a-tx);
+  font-variant-numeric:tabular-nums}
+/* En el teléfono el importe baja debajo del texto y ANTES de los botones —en el orden del
+   marcado— alineado con el título, y el saldo se pone al lado en vez de debajo. */
+@media(max-width:560px){
+  .ct-fila .ct-monto{width:100%;text-align:left;padding:0 0 0 calc(40px + var(--e3))}
+  .ct-monto small{display:inline;margin-left:6px}
+}
+
+/* El campo de búsqueda al lado del segmento: crece lo que sobre, y en el teléfono baja solo. */
+.ct-busca{flex:1 1 220px;min-width:0;min-height:40px;padding:8px 12px}
+.ag-barra .chips{margin:0}
+
+/* Quién y cuándo, la tercera línea de un renglón de bitácora. */
+.ct-quien{margin-top:4px;font-size:var(--t1)}
+.ct-quien b{font-weight:600;color:var(--tinta2)}
+.ct-bit .pf-fila-t{font-weight:500}
+
+/* ============================================================================
+   EL ASISTENTE — nucleo/asistente.js
+   ============================================================================ */
+/* El botón flotante. Abajo a la derecha, con la sombra del acento: es la única pieza que
+   flota sobre las ocho pantallas y tiene que verse como tal. En el teléfono sube encima de
+   la barra de módulos y de la barra de acción, si la hay; y pierde la palabra, que ahí no
+   cabe sin taparle el renglón a la lista. */
+.pf-ia-btn{
+  position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:max(20px,env(safe-area-inset-bottom,0px));
+  z-index:45;display:inline-flex;align-items:center;gap:8px;
+  height:48px;padding:0 18px 0 14px;border:0;border-radius:999px;
+  background:var(--a-fill);color:#fff;font-family:inherit;font-weight:600;font-size:var(--t3);
+  box-shadow:var(--sombra-accion),0 1px 2px rgba(0,0,0,.12);cursor:pointer;
+  transition:transform var(--mv-s),box-shadow var(--mv-s),background var(--mv-s);
+}
+.pf-ia-btn .svgi{width:var(--ico3);height:var(--ico3)}
+.pf-ia-btn:hover{background:var(--a-fuerte);transform:translateY(-1px)}
+.pf-ia-btn:active{transform:translateY(0)}
+.pf-ia-btn:focus-visible{outline:2px solid #fff;outline-offset:2px;box-shadow:0 0 0 4px var(--a-borde)}
+html[data-tema="oscuro"] .pf-ia-btn:hover{background:var(--a-fill);filter:brightness(1.1)}
+@media(max-width:759px){
+  .pf-ia-btn{right:14px;bottom:calc(84px + env(safe-area-inset-bottom,0px) + var(--mbar-h,0px));
+    height:52px;width:52px;padding:0;justify-content:center}
+  .pf-ia-btn .tx{display:none}
+}
+/* Con un marco vivo (el cotizador o la mesa de corte) el botón le taparía el total al
+   cotizador, que ya tiene su propia barra fija: se esconde. */
+body.pf-marco-lleno .pf-ia-btn{display:none}
+@media print{.pf-ia-btn,#pf-ia{display:none!important}}
+
+/* ----- El panel ----- más angosto que una ficha y alto como un chat. */
+.ia-panel{max-width:600px;height:min(760px,calc(100dvh - 64px - env(safe-area-inset-top,0px)))}
+@media(max-width:560px){ .ia-panel{height:calc(100dvh - 24px - env(safe-area-inset-top,0px))} }
+.ia-panel .pf-panel-h{gap:var(--e3);padding:var(--e3) var(--e4)}
+.ia-panel .pf-panel-h .ia-ico{box-sizing:content-box;width:var(--ico1);height:var(--ico1);padding:7px;border-radius:var(--rr2);
+  background:var(--a-fill);color:#fff;flex:0 0 auto}
+.ia-titulo{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.ia-titulo h2{flex:none;font-family:var(--f-cifra);font-weight:600;font-size:var(--t4);letter-spacing:-.15px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ia-sub{font-size:var(--t1);color:var(--tinta3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ia-cuerpo{flex:1 1 auto;display:flex;flex-direction:column;gap:var(--e3);background:var(--fondo)}
+
+/* ----- La portada: hoy en cifras, y las preguntas de siempre ----- */
+.ia-hoy{padding:var(--e3) var(--e4) var(--e4);border-radius:var(--rr3);background:var(--sup);
+  border:1px solid var(--linea);box-shadow:var(--sombra-reposo)}
+.ia-hoy-t{display:flex;align-items:center;gap:var(--e2);margin:0 0 var(--e3);
+  font-weight:700;font-size:var(--t1);letter-spacing:.06em;text-transform:uppercase;color:var(--tinta2)}
+.ia-hoy-t .svgi{width:var(--ico1);height:var(--ico1);color:var(--a-tx)}
+.ia-hoy-mas{margin-left:auto;border:0;background:transparent;color:var(--a-tx);font-family:inherit;font-weight:600;
+  font-size:var(--t1);letter-spacing:0;text-transform:none;cursor:pointer;padding:4px 8px;border-radius:var(--rr1)}
+.ia-hoy-mas:hover{background:var(--a-suave)}
+.ia-hoy-cargando .ia-hoy-t{margin:0;color:var(--tinta3)}
+.ia-hoy-cargando .svgi{animation:ia-gira 1.4s linear infinite}
+.ia-cifras{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--e2)}
+.ia-cifra{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0;text-align:left;
+  padding:10px 12px;border:1px solid var(--linea2);border-radius:var(--rr2);background:var(--sup2);
+  font-family:inherit;cursor:pointer;transition:border-color var(--mv-s),background var(--mv-s)}
+.ia-cifra:hover{border-color:var(--a-borde);background:var(--sup)}
+.ia-cifra b{font-family:var(--f-cifra);font-weight:700;font-size:var(--t5);letter-spacing:-.4px;line-height:1.1;color:var(--tinta);
+  font-variant-numeric:tabular-nums;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ia-cifra span{font-size:var(--t1);color:var(--tinta2);line-height:1.3}
+.ia-cifra em{font-style:normal;font-weight:700;color:var(--av)}
+.ia-cifra.urge{border-color:var(--av-borde)}
+.ia-cifra.dinero b{color:var(--a-tx)}
+.ia-cifra.bien b{color:var(--ok)}
+.ia-frecuentes{display:flex;flex-direction:column;gap:6px}
+.ia-frecuentes .ag-grupo{margin:var(--e2) 0 2px}
+.ia-frecuente{display:flex;align-items:center;gap:var(--e3);width:100%;text-align:left;
+  padding:10px 12px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup);
+  font-family:inherit;cursor:pointer;box-shadow:var(--sombra-reposo);
+  transition:border-color var(--mv-s),transform var(--mv-s)}
+.ia-frecuente:hover{border-color:var(--a-borde);transform:translateY(-1px)}
+.ia-frecuente .pf-fila-ico{width:36px;height:36px}
+.ia-frecuente-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.ia-frecuente-tx b{font-weight:600;font-size:var(--t3);color:var(--tinta);line-height:1.3}
+.ia-frecuente-tx small{font-size:var(--t1);color:var(--tinta3);line-height:1.35}
+.ia-frecuente-ir{flex:0 0 auto;color:var(--n5);transform:rotate(180deg)}
+.ia-frecuente-ir .svgi{width:var(--ico1);height:var(--ico1)}
+
+/* ----- El hilo ----- */
+.ia-hilo{display:flex;flex-direction:column;gap:var(--e3)}
+.ia-msg{display:flex;flex-direction:column;max-width:90%}
+.ia-msg.yo{align-self:flex-end;align-items:flex-end}
+.ia-msg.bot{align-self:flex-start}
+.ia-burbuja{padding:10px 14px;border-radius:var(--rr3);font-size:var(--t3);line-height:1.5;color:var(--tinta);
+  background:var(--sup);border:1px solid var(--linea);box-shadow:var(--sombra-reposo);overflow-wrap:anywhere}
+.ia-msg.yo .ia-burbuja{background:var(--a-fill);color:#fff;border-color:var(--a-fill);border-bottom-right-radius:4px}
+.ia-msg.bot .ia-burbuja{border-bottom-left-radius:4px}
+.ia-burbuja p{margin:0}
+.ia-burbuja p+p,.ia-burbuja ul+p,.ia-burbuja p+ul{margin-top:8px}
+.ia-burbuja ul{margin:0;padding-left:1.15em}
+.ia-burbuja li{margin:3px 0}
+.ia-burbuja b{font-weight:700}
+.ia-burbuja code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em;
+  background:var(--sup2);border:1px solid var(--linea2);border-radius:4px;padding:0 4px}
+.ia-espera{color:var(--tinta2);display:inline-flex;align-items:center;gap:8px}
+.ia-espera .svgi{animation:ia-gira 1.4s linear infinite}
+@keyframes ia-gira{to{transform:rotate(360deg)}}
+.ia-mal{background:var(--mal-bg);border-color:var(--mal-borde);color:var(--mal);display:flex;gap:8px;align-items:flex-start}
+.ia-mal .svgi{flex:0 0 auto;margin-top:2px}
+/* El «entendido» va en el hilo, como un mensaje: no tapa la portada ni las preguntas rápidas,
+   que siguen sirviendo aunque se diga que no. */
+.ia-permiso{display:flex;flex-direction:column;gap:var(--e3);align-items:flex-start;color:var(--tinta2)}
+.ia-permiso>.svgi{box-sizing:content-box;width:var(--ico2);height:var(--ico2);padding:8px;border-radius:var(--rr2);
+  background:var(--av-bg);color:var(--av)}
+.ia-permiso b{color:var(--tinta)}
+.ia-permiso .btn-fila{width:100%}
+/* Los botones de una respuesta local: la pantalla que toca (encendida, en marino) y los
+   proyectos que nombra. Píldoras chicas, que se envuelven. */
+.ia-acciones{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0}
+.ia-acciones .chip{min-height:32px;padding:0 12px;border-radius:999px;font-size:var(--t2);font-weight:500;
+  background:var(--sup);text-decoration:none;gap:6px}
+.ia-acciones .chip .svgi{width:var(--ico1);height:var(--ico1)}
+.ia-acciones .chip.on{background:var(--nav);border-color:var(--nav);color:#fff;font-weight:600}
+.ia-acciones .chip.on:hover{background:var(--nav2);border-color:var(--nav2)}
+.ia-meta{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2) var(--e3);margin:4px 6px 0;font-size:var(--t1);color:var(--tinta3)}
+.ia-fuente{display:inline-flex;align-items:center;gap:4px}
+.ia-fuente .svgi{width:12px;height:12px}
+.ia-fuente.local{color:var(--ok)}
+.ia-copiar{border:0;background:transparent;color:var(--tinta3);font-family:inherit;font-size:var(--t1);font-weight:600;
+  display:inline-flex;align-items:center;gap:4px;cursor:pointer;padding:4px 6px;border-radius:var(--rr1)}
+.ia-copiar:hover{background:var(--sup2);color:var(--tinta)}
+.ia-copiar .svgi{width:12px;height:12px}
+
+/* ----- El pie: la tira de preguntas rápidas, el campo y el botón ----- */
+.ia-pie-caja{flex:0 0 auto;border-top:1px solid var(--linea);background:var(--sup)}
+.ia-tira{display:flex;gap:6px;padding:var(--e2) var(--e4) 0;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.ia-tira::-webkit-scrollbar{display:none}
+.ia-tira .chip{flex:0 0 auto;min-height:32px;padding:0 12px;border-radius:999px;font-size:var(--t2);font-weight:500;
+  background:var(--sup2);white-space:nowrap}
+.ia-pie{border-top:0;align-items:flex-end;gap:var(--e2);padding:var(--e3) var(--e4) var(--e2)}
+.ia-pie textarea{flex:1;min-height:44px;max-height:132px;resize:none;border-radius:var(--rr3);padding:11px 14px;line-height:1.4;
+  overflow-y:auto}
+.ia-pie .btn.ia-enviar{flex:0 0 44px;width:44px;min-height:44px;padding:0;border-radius:var(--rr3);
+  display:inline-flex;align-items:center;justify-content:center}
+.ia-enviar .svgi{width:var(--ico2);height:var(--ico2)}
+.ia-pista{margin:0;padding:0 var(--e4) calc(var(--e3) + env(safe-area-inset-bottom,0px));font-size:var(--t1);color:var(--tinta3)}
+@media(hover:none),(pointer:coarse){ .ia-pista{display:none} .ia-pie{padding-bottom:calc(var(--e3) + env(safe-area-inset-bottom,0px))} }
+@media(prefers-reduced-motion:reduce){ .ia-espera .svgi,.ia-hoy-cargando .svgi{animation:none} .pf-ia-btn:hover,.ia-frecuente:hover{transform:none} }

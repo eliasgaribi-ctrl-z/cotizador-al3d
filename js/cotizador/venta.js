@@ -58,6 +58,25 @@ function abrirRegistrarVenta(){
 function cerrarRegistrarVenta(){
   document.getElementById('rv-modal-bg').classList.remove('show');
 }
+/* ----- El anticipo y la comisión, acotados -----
+   Hasta septiembre de 2026 el modal aceptaba cualquier número: un anticipo mayor que el total
+   —un cero de más al teclear— dejaba el «pago pendiente» en $0.00 y la venta se registraba
+   como liquidada; uno negativo lo inflaba; y una comisión del 1000 % se copiaba tal cual a
+   Notion. Se acota en el mismo campo, con aviso, y el número corregido es el que se guarda. */
+function rvAcotar(){
+  const t=desgloseFinal();
+  const elA=document.getElementById('rv-anticipo'), elP=document.getElementById('rv-pct');
+  let anti=parseFloat(elA.value); if(!isFinite(anti)) anti=0;
+  let pct=parseFloat(elP.value); if(!isFinite(pct)) pct=0;
+  let aviso='';
+  if(anti<0){ anti=0; aviso='El anticipo no puede ser negativo: se puso en $0.00.'; }
+  if(t.neto>0 && anti>t.neto+0.005){ anti=Math.round(t.neto*100)/100; aviso='El anticipo era mayor que el total de '+money(t.neto)+': se dejó igual al total.'; }
+  if(pct<0){ pct=0; aviso=aviso||'La comisión no puede ser negativa: se puso en 0 %.'; }
+  if(pct>100){ pct=100; aviso=aviso||'La comisión no puede pasar del 100 %.'; }
+  if(Math.abs(anti-(parseFloat(elA.value)||0))>0.005) elA.value=anti;
+  if(Math.abs(pct-(parseFloat(elP.value)||0))>0.005) elP.value=pct;
+  return {anti,pct,aviso};
+}
 function rvRecalc(){
   // Se registra lo que realmente se va a cobrar (precio autorizado), no el calculado.
   const t=desgloseFinal();
@@ -85,7 +104,9 @@ function rvRecalc(){
    `antiManual` queda en true porque a partir de ahí la cifra la puso una persona y el 50 %
    automático no debe volver a pisarla. */
 function rvComprometerAnticipo(){
-  const v=parseFloat(document.getElementById('rv-anticipo').value)||0;
+  const acotado=rvAcotar();
+  if(acotado.aviso){ toast(acotado.aviso,'err',5200); rvRecalc(); }
+  const v=acotado.anti;
   if(Math.abs(v-(Q.anti||0))<0.01) return;
   Q.anti=v; Q.antiManual=true;
   saveState(); renderSummary();

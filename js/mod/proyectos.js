@@ -913,6 +913,20 @@ async function parchar(id, campos, msgOk) {
 
 async function moverEtapa(id, etapa) {
   if (!id) return;
+  /* Regresar una etapa no es lo mismo que avanzarla, y el segmento las ofrece igual: de
+     «instalado» a «ganado» era un toque sin pregunta. Y si vuelve a cruzar «cortado», el
+     material NO sale otra vez —los requerimientos ya están consumidos— así que el almacén se
+     queda como estaba y nadie lo dice. Aquí se dice, y se pregunta. */
+  const actual = await Proy.obtener(id);
+  const de = actual ? Proy.ORDEN[actual.etapa] : undefined, a = Proy.ORDEN[etapa];
+  if (actual && de !== undefined && a !== undefined && a < de) {
+    const cruzaCorte = de >= Proy.ORDEN.cortado && a < Proy.ORDEN.cortado;
+    const ok = window.confirm('¿Regresar «' + (actual.nombre || actual.folio_local) + '» de ' +
+      (Proy.ETAPA_NOMBRE[actual.etapa] || actual.etapa) + ' a ' + (Proy.ETAPA_NOMBRE[etapa] || etapa) + '?' +
+      (cruzaCorte ? '\n\nEl material que salió al cortar NO regresa al almacén, y al volver a cortar no se descuenta otra vez. Si de verdad no se cortó, corrige el almacén con un conteo.' : '') +
+      '\n\nQueda anotado en la bitácora con tu nombre.');
+    if (!ok) return;
+  }
   const r = await Proy.avanzarEtapa(id, etapa);
   if (!r.ok) { avisarResultado(r); return; }
 

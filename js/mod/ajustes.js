@@ -874,9 +874,13 @@ async function restaurar(inp) {
   if (!avisarResultado(r)) return;
 
   const v = r.valor || {};
-  const n = Number(v.registros) || 0, d = Number(v.descartados) || 0;
+  const n = Number(v.registros) || 0, d = Number(v.descartados) || 0, c = Number(v.conservados) || 0;
+  /* Se dice lo que de verdad pasó: lo que entró, lo que ya estaba (movimientos y bitácora,
+     que no se repiten) y lo que se dejó como estaba porque aquí era más nuevo que en el
+     archivo. Antes decía «descartados por estar ya en la base» mientras los pisaba. */
   let msg = 'Entraron ' + n + (n === 1 ? ' registro' : ' registros') +
-    (d ? ' y se descartaron ' + d + ' por estar ya en la base' : '');
+    (c ? '; ' + c + (c === 1 ? ' se quedó como estaba porque aquí era más nuevo' : ' se quedaron como estaban porque aquí eran más nuevos') : '') +
+    (d ? '; ' + d + (d === 1 ? ' ya estaba' : ' ya estaban') : '');
   if (mitadCotizador) {
     if (Prefs.dejarRestauracion(mitadCotizador)) {
       toast(msg + '. La parte del cotizador queda esperando: ábrelo y toca «Restaurar ahora».', 'ok', 9000,

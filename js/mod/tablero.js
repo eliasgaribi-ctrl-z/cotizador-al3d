@@ -783,7 +783,22 @@ function faltaMaterial(d, rol) {
 
    Y la verdad del final, que es lo que hace que se le crea al tablero. */
 function pie() {
+  /* La puerta a Control, para quien ve dinero. En el teléfono Control no está en la barra de
+     abajo —por lo mismo que Material— y esta es su entrada. */
+  const control = Prefs.veDinero()
+    ? '<div class="pf-fila">' +
+        '<span class="pf-fila-ico">' + ico('i-control') + '</span>' +
+        '<div class="pf-fila-tx">' +
+          '<p class="pf-fila-t">Control</p>' +
+          '<p class="pf-fila-d">Cuánto se vendió este mes, qué hay en la calle sin cobrar, y quién movió qué.</p>' +
+        '</div>' +
+        '<div class="pf-fila-acc">' +
+          btn('Abrir', 'btn btn-gho pf-btn-corto', { tipo: 'ir', ruta: 'control' }) +
+        '</div>' +
+      '</div>'
+    : '';
   return '<div class="card"><div class="card-b">' +
+    control +
     '<div class="pf-fila">' +
       '<span class="pf-fila-ico">' + ico('i-aviso') + '</span>' +
       '<div class="pf-fila-tx">' +

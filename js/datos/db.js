@@ -20,10 +20,14 @@
    ============================================================================ */
 
 export const NOMBRE = 'al3d_pf';
-export const VERSION = 1;
+/* Versión 2 (septiembre de 2026): nace el almacén `bitacora`. Subir el número es lo que hace
+   que `onupgradeneeded` corra en una base que ya existía y le cree el almacén que le falta;
+   los demás no se tocan, porque el bucle de abajo solo crea lo que no está. */
+export const VERSION = 2;
 
 export const ALMACENES = ['proyectos', 'instalaciones', 'materiales', 'movimientos',
-                          'requerimientos', 'avisos', 'constantes', 'pendientes', 'geo', 'blobs'];
+                          'requerimientos', 'avisos', 'constantes', 'pendientes', 'geo', 'blobs',
+                          'bitacora'];
 
 /** @typedef {{ok:true, valor:*}|{ok:false, codigo:string, mensaje:string}} Resultado */
 const ok  = valor => ({ ok: true, valor });
@@ -60,6 +64,10 @@ const ESQUEMA = {
   pendientes:     { keyPath: 'id', indices: [['porTs', 'ts']] },
   geo:            { keyPath: 'q', indices: [] },
   blobs:          { keyPath: 'id', indices: [] },
+  /* La bitácora: quién hizo qué y cuándo, en toda la plataforma. Append-only como el libro
+     del almacén; se pide por tiempo (la pantalla de Control) y por lo que se tocó (la ficha
+     de un proyecto). */
+  bitacora:       { keyPath: 'id', indices: [['porTs', 'ts'], ['porEntidad', 'entidad_id']] },
 };
 
 /**
@@ -341,7 +349,15 @@ function dataUrlABlob(fila) {
  * Fusiona por id. IDEMPOTENTE: reimportar el mismo archivo no cambia nada.
  * `movimientos` es la excepción que importa: un id repetido se DESCARTA, nunca se suma dos
  * veces. Un libro que suma dos veces la misma entrada de material deja de ser un libro.
- * @returns {Promise<Resultado>} valor = {almacenes, registros, descartados}
+ *
+ * Y LO NUEVO NO SE PISA CON LO VIEJO. Hasta septiembre de 2026 esto hacía `put` a ciegas:
+ * restaurar un respaldo de hace dos semanas devolvía a «en diseño» un proyecto que ya
+ * estaba instalado, y el aviso de la pantalla decía que se habían descartado registros
+ * «por estar ya en la base», que era justo lo contrario de lo que pasaba. Ahora, si el
+ * registro que ya está aquí se editó DESPUÉS que el del archivo, se queda el de aquí y se
+ * cuenta en `conservados`. Un registro sin sello de edición —un respaldo antiguo— entra
+ * como antes.
+ * @returns {Promise<Resultado>} valor = {almacenes, registros, descartados, conservados}
  */
 export async function importar(texto) {
   let paquete;
@@ -360,7 +376,7 @@ export async function importar(texto) {
     if (!ALMACENES.includes(a)) continue;
     if (!Array.isArray(filas)) return mal('DATO_INVALIDO', 'El respaldo está dañado: «' + a + '» no es una lista.');
   }
-  let almacenes = 0, registros = 0, descartados = 0;
+  let almacenes = 0, registros = 0, descartados = 0, conservados = 0;
   for (const a of ALMACENES) {
     const filas = paquete.datos[a];
     if (!Array.isArray(filas) || !filas.length) continue;
@@ -369,7 +385,11 @@ export async function importar(texto) {
     for (let fila of filas) {
       if (!fila || typeof fila !== 'object' || fila[clave] === undefined) { descartados++; continue; }
       if (a === 'blobs') fila = dataUrlABlob(fila);
-      if (a === 'movimientos' && await obtener('movimientos', fila.id)) { descartados++; continue; }
+      const previo = await obtener(a, fila[clave]);
+      /* Un renglón del libro o de la bitácora que ya está no se vuelve a escribir: son
+         hechos, y un hecho repetido suma dos veces. */
+      if ((a === 'movimientos' || a === 'bitacora') && previo) { descartados++; continue; }
+      if (previo && esMasNuevo(previo, fila)) { conservados++; continue; }
       nuevas.push(fila);
     }
     if (!nuevas.length) continue;
@@ -377,7 +397,16 @@ export async function importar(texto) {
     if (!r.ok) return r;
     almacenes++; registros += nuevas.length;
   }
-  return ok({ almacenes, registros, descartados });
+  return ok({ almacenes, registros, descartados, conservados });
+}
+
+/* El de la base es más nuevo que el del archivo solo si LOS DOS traen sello de edición y el de
+   aquí es posterior. Sin sello no hay con qué comparar y manda el archivo, que es lo que la
+   persona pidió al restaurar. */
+function esMasNuevo(previo, fila) {
+  const a = Number(previo && previo.actualizado_en) || 0;
+  const b = Number(fila && fila.actualizado_en) || 0;
+  return a > 0 && b > 0 && a > b;
 }
 
 /** Cuánto espacio queda, si el navegador lo dice. Para el aviso preventivo, no para decidir. */

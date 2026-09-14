@@ -193,11 +193,22 @@ en el documento final.
 - **Versiones de una cotización.** 14 de las 25 cotizaciones de Canva traen 2 a 4 precios del
   mismo proyecto: así se vende —tres precios sobre la mesa— y eso hoy no cabe en el modelo,
   donde una cotización es un folio con un precio. Es cambio de modelo de datos, no de PDF.
-- **Los cuatro defectos del puente que ya existe.** `copiarFilaVenta()` arma la fila de 15
-  columnas pero no persiste nada; ofrece cuatro estatus de los que **coincide uno** con los
-  reales de Notion —y pegar un estatus inexistente en una propiedad *status* la crea, así que
-  cada venta ensucia el esquema en silencio—; le faltan dos cuentas; y la fecha va como texto
-  es-MX donde la columna es *date*. Arreglarlo es fase 1 y no necesita ninguna cuenta.
+- **Del puente que ya existe** queda uno de los cuatro defectos que aquí se listaban:
+  `copiarFilaVenta()` arma la fila de 15 columnas y **no persiste nada en Notion** —lo único
+  que persiste es «Registrar como proyecto ganado», en la plataforma—. Los otros tres ya se
+  arreglaron: los cuatro estatus y las cinco cuentas coinciden con los reales de Notion, y la
+  fecha va como DD/MM/YYYY, que es lo que la columna *date* acepta al pegar.
+- **Lo que la auditoría de septiembre de 2026 dejó resuelto y lo que no.** Resuelto: el
+  módulo **Control** (ventas por mes, pipeline valorizado, conversión, cartera con saldo
+  estimado, CSV de proyectos), la **bitácora** append-only con quién hizo qué en proyectos,
+  agenda, catálogo y almacén, la restauración que ya no pisa un registro con uno más viejo,
+  el anticipo acotado al total y la comisión al 100 %, la pregunta antes de regresar una
+  etapa, y el **asistente**: un botón que contesta preguntas del taller con los datos del
+  dispositivo y la llave de IA del cotizador (`js/nucleo/asistente.js`,
+  `js/datos/asistente-contexto.js`), de solo lectura y con las reglas de comisión escritas. Sin resolver, a ojos abiertos: el saldo por cobrar es **estimado** (total menos
+  anticipo pactado) hasta que el puente baje la fórmula de Notion; no hay abonos intermedios;
+  un movimiento del almacén no se deshace, solo se corrige con un conteo; y la bitácora es
+  memoria, no candado, mientras cualquiera pueda cambiar su rol en Ajustes.
 - **Del papel:** el PDF no imprime ninguna imagen y 22 de 25 cotizaciones llevan plano o fotos;
   el formato de medidas no coincide con el que usan; falta el volumen de la letra, que 14 de 25
   dicen en la descripción.
