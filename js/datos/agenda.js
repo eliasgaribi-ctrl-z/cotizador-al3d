@@ -58,6 +58,14 @@ async function encolar(tipo, registro) {
   } catch (_) { /* la instalación ya está guardada; la bandeja se recupera al bombear */ }
 }
 
+/* La bitácora. Después de escribir y dentro de un try: no puede impedir agendar. */
+async function anotar(hecho) {
+  const B = await mod('bitacora');
+  if (!B || typeof B.anotar !== 'function') return;
+  try { await B.anotar({ entidad: 'instalacion', ...hecho }); } catch (_) {}
+}
+const nombreProy = p => (p && (p.nombre || p.folio_local)) || 'un proyecto';
+
 /* ============================================================================
    Vocabulario
    ============================================================================ */
@@ -283,6 +291,10 @@ export async function agendar(proyectoId, datos = {}) {
   const r = await DB.poner('instalaciones', fila);
   if (!r.ok) return r;
   await encolar('crear', r.valor);
+  await anotar({ accion: 'agendo', entidad_id: p.id,
+    titulo: nombreProy(p) + ' se agendó para el ' + fila.fecha + (fila.hora ? ' a las ' + fila.hora : ''),
+    detalle: (VENTANA_NOMBRE[fila.ventana] || '') + (fila.notas ? ' · ' + fila.notas : ''),
+    despues: fila.fecha });
   return ok(r.valor);
 }
 
@@ -358,6 +370,10 @@ export async function reagendar(instId, datos = {}) {
   const r = await DB.poner('instalaciones', fila);
   if (!r.ok) return r;
   await encolar('actualizar', r.valor);
+  await anotar({ accion: 'reagendo', entidad_id: i.proyecto_id,
+    titulo: 'La instalación de ' + nombreProy(await DB.obtener('proyectos', i.proyecto_id)) +
+      ' se movió al ' + fecha + (hora ? ' a las ' + hora : ''),
+    detalle: renglon, antes: i.fecha, despues: fecha });
   return ok(r.valor);
 }
 
@@ -401,6 +417,10 @@ export async function marcar(instId, estado, motivo = '') {
   const r = await DB.poner('instalaciones', fila);
   if (!r.ok) return r;
   await encolar('actualizar', r.valor);
+  await anotar({ accion: e === 'cancelada' ? 'cancelo' : 'marco', entidad_id: i.proyecto_id,
+    titulo: 'La instalación de ' + nombreProy(await DB.obtener('proyectos', i.proyecto_id)) +
+      ' del ' + i.fecha + ' quedó ' + (ESTADO_NOMBRE[e] || e).toLowerCase(),
+    detalle: nota, antes: i.estado, despues: e });
   return ok(r.valor);
 }
 

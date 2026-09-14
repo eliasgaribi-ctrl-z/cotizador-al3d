@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 24;
+const APP_VERSION = 25;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -93,6 +93,8 @@ const APP_FILES = [
   './js/datos/geo.js',
   './js/datos/reglas.js',
   './js/datos/sync.js',
+  './js/datos/ventas.js',
+  './js/datos/bitacora.js',
   './js/datos/puente.js',
   './js/mod/tablero.js',
   './js/mod/cotizador.js',
@@ -102,6 +104,7 @@ const APP_FILES = [
   './js/mod/material.js',
   './js/mod/mapa.js',
   './js/mod/ajustes.js',
+  './js/mod/control.js',
   './datos/semilla.json',
   './vendor/leaflet.css',
   './vendor/leaflet-src.esm.js',

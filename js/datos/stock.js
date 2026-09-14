@@ -48,6 +48,15 @@ async function encolar(mov) {
   } catch (_) { /* el renglón ya está escrito; la cola se recupera en el próximo bombeo */ }
 }
 
+/* La bitácora. El libro ya lleva el sello de cada movimiento; aquí se anota el HECHO que lo
+   produjo —un conteo, una compra recibida— para leerlo junto con lo demás que pasó ese día. */
+async function anotar(hecho) {
+  try {
+    const B = await import('./bitacora.js');
+    await B.anotar({ entidad: 'almacen', ...hecho });
+  } catch (_) {}
+}
+
 /* ============================================================================
    Vocabulario congelado (§4.7)
    ============================================================================ */
@@ -411,6 +420,12 @@ export async function contar(materialId, cantidad, nota) {
   if (!r.ok) return r;
 
   const ahora = await existencia(id);
+  await anotar({ accion: 'conteo', entidad_id: id,
+    titulo: 'Se contó ' + mat.nombre + ': ' + red(c) + ' ' + plural(mat.unidad_compra),
+    detalle: 'El libro decía ' + red(antes.cantidad) + (Math.abs(c - antes.cantidad) > TOL
+      ? ' · diferencia ' + (c - antes.cantidad > 0 ? '+' : '') + red(c - antes.cantidad) : ' · cuadró') +
+      (nota ? ' · ' + String(nota).trim() : ''),
+    antes: antes.cantidad, despues: c });
   return ok({
     movimiento: r.valor,
     antes: antes.cantidad,
@@ -757,6 +772,11 @@ export async function recibirCompra(lineas) {
   const r = await DB.ponerVarios('movimientos', movs);
   if (!r.ok) return r;
   for (const m of movs) await encolar(m);
+  await anotar({ accion: 'compra', entidad_id: '',
+    titulo: 'Se recibió la compra: ' + movs.length + (movs.length === 1 ? ' material' : ' materiales'),
+    detalle: movs.map(m => m.material_id + ' ' + m.cantidad + ' ' + plural(m.unidad_compra)).join(', ') +
+      (costoTotal !== null ? ' · ' + costoTotal.toFixed(2) + ' pesos' : ''),
+    despues: costoTotal });
 
   return ok({
     movimientos: movs.length,

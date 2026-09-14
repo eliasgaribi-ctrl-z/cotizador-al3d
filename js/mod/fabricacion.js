@@ -8,10 +8,11 @@
    mod/proyectos.js llama `ir('agenda')` y el manifiesto instalado tiene ese shortcut.
    Cambiar la cadena por estética costaría tocar producción para no ganar nada.
 
-   ----- LO QUE FALTA, para quien pinte encima (el contrato ya está probado) -----
+   ----- LO QUE ESTE ARCHIVO YA HACE (la lista de abajo nació como pendientes) -----
    La lente de Taller lee `Taller.ventanaTaller()` —js/datos/taller.js, con pruebas— y pinta
-   la fila del taller: un renglón por proyecto ordenado por cuándo tiene que estar listo. Lo
-   que este cascarón deja escrito y NO conecta todavía, en orden de valor:
+   la fila del taller: un renglón por proyecto ordenado por cuándo tiene que estar listo. Los
+   seis puntos siguientes se escribieron como «lo que falta» y hoy están conectados; se dejan
+   como mapa de qué hace cada pieza, no como pendientes (auditoría de septiembre de 2026):
      1. Corregir el plazo con un toque: la ficha `.cal-plazo` de cada renglón abre pf-pide
         con los cinco cubos y llama `Proyectos.actualizar(id, {plazo_k})`. Tocar el elegido
         lo suelta (null = manda el propuesto). Con aviso y «Deshacer», como todo lo demás.

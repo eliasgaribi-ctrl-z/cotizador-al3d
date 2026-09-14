@@ -226,6 +226,12 @@ son seis pantallas que se alimentan de ahí.
   44 módulos LED, 1 fuente». **Con la cuenta a la vista** y su etiqueta de confianza, porque
   un número que no se puede auditar no se corrige nunca.
 - **Mapa** — las obras por instalar y las instaladas, con el orden de ruta del día.
+- **Control** — la pantalla del dinero, para dirección y pagos: lo vendido este mes contra el
+  anterior, lo autorizado que nadie ha decidido (valorizado), la conversión, lo que no se dio,
+  los últimos doce meses en barras, la **cartera** —cada proyecto con saldo, lo instalado
+  primero, con el WhatsApp de cobro ya escrito— y la **bitácora**: quién movió qué y a qué hora,
+  en proyectos, agenda, catálogo y almacén. Con el CSV completo de proyectos (saldo, cuenta,
+  estatus, instalación) para pegar en una hoja.
 - **Ajustes** — el rol de este dispositivo, el respaldo, y la verdad del sistema escrita.
 
 **En la computadora también.** De 1 100 px para arriba el calendario abre en «Todo»: el mes a

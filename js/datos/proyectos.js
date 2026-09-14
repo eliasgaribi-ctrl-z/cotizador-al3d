@@ -65,6 +65,15 @@ async function encolar(tipo, registro) {
   } catch (_) { /* la escritura local ya está; la bandeja se recupera en el próximo bombeo */ }
 }
 
+/* La bitácora: quién hizo qué. Se anota DESPUÉS de escribir y dentro de un try, por lo mismo
+   que la bandeja: una bitácora que no pudo escribirse no puede deshacer una venta. */
+async function anotar(hecho) {
+  const B = await mod('bitacora');
+  if (!B || typeof B.anotar !== 'function') return;
+  try { await B.anotar({ entidad: 'proyecto', ...hecho }); } catch (_) {}
+}
+const pesos = n => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 /* ============================================================================
    Vocabulario congelado
    ============================================================================ */
@@ -425,6 +434,11 @@ export async function ganar(entradaHistorial, extra = {}) {
   const r = await DB.poner('proyectos', p);
   if (!r.ok) return r;
   await encolar('crear', r.valor);
+  await anotar({ accion: 'gano', entidad_id: r.valor.id,
+    titulo: (r.valor.nombre || r.valor.folio_local) + ' se ganó',
+    detalle: (r.valor.folio_local || '') + ' · ' + pesos(r.valor.precio_auth || r.valor.neto) +
+      (r.valor.anti_pactado ? ' · anticipo ' + pesos(r.valor.anti_pactado) : ''),
+    despues: 'ganado' });
 
   /* El material se deriva después de guardar, y si falla NO se deshace el proyecto. El
      proyecto es el dato que no se puede volver a deducir de nada —«esta cotización se
@@ -496,6 +510,10 @@ export async function descartar(ref, motivo = '') {
       const r = await DB.poner('proyectos', nuevo);
       if (!r.ok) return r;
       await encolar('crear', r.valor);
+      await anotar({ accion: 'descarto', entidad_id: r.valor.id,
+        titulo: (r.valor.nombre || r.valor.folio_local) + ' no se dio',
+        detalle: (r.valor.folio_local || '') + ' · ' + pesos(r.valor.precio_auth || r.valor.neto) +
+          (nota ? ' · ' + nota : ''), despues: 'cancelado' });
       return ok(r.valor);
     }
   } else {
@@ -508,6 +526,10 @@ export async function descartar(ref, motivo = '') {
   const r = await DB.poner('proyectos', fila);
   if (!r.ok) return r;
   await encolar('actualizar', r.valor);
+  await anotar({ accion: 'descarto', entidad_id: p.id,
+    titulo: (p.nombre || p.folio_local) + ' se canceló',
+    detalle: 'Estaba en ' + (ETAPA_NOMBRE[p.etapa] || p.etapa) + (nota ? ' · ' + nota : ''),
+    antes: p.etapa, despues: 'cancelado' });
   return ok(r.valor);
 }
 
@@ -686,8 +708,40 @@ export async function actualizar(id, parche) {
   const r = await DB.poner('proyectos', fila);
   if (!r.ok) return r;
   await encolar('actualizar', r.valor);
+  /* `sync` es plomería, no un cambio que alguien hizo. Lo demás sí se anota, con el valor de
+     antes y el de después cuando el parche toca UN campo, que es como se escribe casi siempre
+     (la cuenta, el estatus, el plazo). */
+  const tocados = campos.filter(k => k !== 'sync');
+  if (tocados.length) {
+    const uno = tocados.length === 1 ? tocados[0] : null;
+    await anotar({ accion: 'cambio', entidad_id: p.id,
+      titulo: (p.nombre || p.folio_local) + ': ' + (uno ? (CAMPO_NOMBRE[uno] || uno) : 'se cambiaron ' + tocados.length + ' datos'),
+      detalle: uno
+        ? textoValor(p[uno]) + ' → ' + textoValor(fila[uno])
+        : tocados.map(k => CAMPO_NOMBRE[k] || k).join(', '),
+      antes: uno ? (p[uno] === undefined ? null : p[uno]) : null,
+      despues: uno ? (fila[uno] === undefined ? null : fila[uno]) : null });
+  }
   return ok(r.valor);
 }
+
+/* Cómo se llama cada campo cuando se lee en la bitácora. Lo que no está aquí sale con su
+   clave, que es peor pero no miente. */
+const CAMPO_NOMBRE = {
+  cuenta: 'cuenta de cobro', estatus_notion: 'estatus de Notion', plazo_k: 'plazo de taller',
+  anti_pactado: 'anticipo pactado', pct_comision: '% de comisión', notas: 'notas',
+  fecha_ganado: 'fecha en que se ganó', lat: 'ubicación', lng: 'ubicación', maps_url: 'link de Maps',
+  geo_fuente: 'origen de la ubicación', entrecalles: 'entre calles', dir_texto: 'dirección',
+  nombre: 'nombre', contacto: 'contacto', negocio: 'negocio', tel: 'teléfono',
+  tipo_trabajo: 'tipo de trabajo', compromiso_texto: 'compromiso de entrega',
+  notion_page_id: 'página de Notion', notion_estado: 'estado en Notion',
+};
+const textoValor = v => {
+  if (v === null || v === undefined || v === '') return '—';
+  if (Array.isArray(v)) return v.join(', ');
+  if (typeof v === 'number') return String(v);
+  return String(v).slice(0, 80);
+};
 
 /* ============================================================================
    La etapa, y las salidas de material que cuelgan de ella
@@ -822,6 +876,12 @@ export async function avanzarEtapa(id, etapa) {
       'Salida al cortar ' + (p.folio_local || p.nombre) + ' · ' + Prefs.sello());
     movimientos = e.movimientos;
   }
+  const retrocede = antes !== undefined && ahora !== undefined && ahora < antes;
+  await anotar({ accion: 'etapa', entidad_id: p.id,
+    titulo: (p.nombre || p.folio_local) + (retrocede ? ' regresó a ' : ' pasó a ') + (ETAPA_NOMBRE[etapa] || etapa),
+    detalle: 'Estaba en ' + (ETAPA_NOMBRE[p.etapa] || p.etapa) +
+      (movimientos ? ' · salieron ' + movimientos + (movimientos === 1 ? ' material' : ' materiales') + ' del almacén' : ''),
+    antes: p.etapa, despues: etapa });
   return ok({ proyecto: r.valor, movimientos });
 }
 
