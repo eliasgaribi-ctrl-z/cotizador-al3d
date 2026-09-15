@@ -1307,6 +1307,19 @@ function autorizarYoMismo(){
        una puerta de servicio para saltarse los datos del cliente. */
     if(!exigirDatosCliente()) return;
     if(!Q.items.length||totals().sub<=0){toast('Agrega al menos una partida con precio mayor a cero.','err',3200);return;}
+    /* La regla de los 10 cm, AQUÍ, antes de cerrar el precio. `solicitar()` la aplica a
+       través de `revisarAntesDe`, en este mismo punto del orden: después de la guarda del
+       total y antes de pasar a pendiente. Este atajo no la llamaba nunca, y no es que la
+       llamara tarde: `revisarAlturasMinimas()` arranca con `if(locked()) return 0;`, o sea
+       que cuando el autorizador toca «Autorizar precio» y `autorizar()` la corre, la
+       cotización ya está en 'pendiente' y la función se va sin mirar nada.
+
+       El resultado era que los dos caminos cotizaban distinto el mismo trabajo: once
+       letras de 6 cm en acrílico+aluminio salen a $40/cm por «Autorizar yo mismo» y por
+       «Solicitar autorización a alguien más» pasan a recorte, que es lo que el taller de
+       verdad fabrica. Y el camino que se salta la regla es, según el propio comentario de
+       abajo, el que se usa casi siempre. */
+    revisarAlturasMinimas();
     /* Se pasa por «pendiente» y por la cola igual que el flujo normal: así el estado y
        el registro de la cola nunca dependen de por cuál de los dos caminos se llegó. */
     Q.estado='pendiente'; pushToQueue(); saveState();
