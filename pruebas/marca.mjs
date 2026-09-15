@@ -63,7 +63,9 @@ cierto(svg.includes('fill-rule="evenodd"'),
   'las contraformas de la A y la D son agujeros de verdad, no parches blancos');
 
 console.log('\nLA COPIA INCRUSTADA DEL DOCUMENTO');
-const linea = html.split('\n').find(l => l.startsWith('const MARCA_SVG='));
+/* Se parte por renglón quitando el \r: en Windows el archivo de trabajo puede estar en CRLF
+   —`core.autocrlf`—, y ese \r pegado al final se colaba dentro del recorte de abajo. */
+const linea = html.split(/\r?\n/).find(l => l.startsWith('const MARCA_SVG='));
 cierto(!!linea, 'js/cotizador/entrega.js declara MARCA_SVG');
 if (linea) {
   const dentro = linea.slice("const MARCA_SVG='".length, -2);

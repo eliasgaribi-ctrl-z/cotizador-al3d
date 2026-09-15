@@ -20,7 +20,7 @@
    Se corre con pruebas/correr.sh, como todas.
 */
 import { readdirSync, statSync, existsSync, readFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, sep } from 'path';
 import { fileURLToPath } from 'url';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -46,7 +46,7 @@ if (hayNojekyll) bien('.nojekyll existe: Pages sirve los archivos tal cual, sin 
 else if (conLlaves.length) {
   mal('.nojekyll NO existe y hay ' + conLlaves.length + ' documento(s) con «{{»: ' +
       'Jekyll los va a leer como plantilla y el sitio NO SE VA A PUBLICAR.\n' +
-      '      Los archivos son: ' + conLlaves.map(p => p.replace(RAIZ + '/', '')).join(', ') + '\n' +
+      '      Los archivos son: ' + conLlaves.map(relativa).join(', ') + '\n' +
       '      Arreglo: crear un archivo vacío llamado .nojekyll en la raíz del repo.');
 } else {
   bien('.nojekyll no existe, pero ningún documento trae «{{»: Jekyll no tiene con qué tropezar');
@@ -73,11 +73,16 @@ else bien('los ' + archivos.length + ' archivos que sw.js promete cachear existe
    señal, que es el único escenario para el que el service worker existe. Y no se descubre
    probando: se descubre en la calle, delante del cliente.
    Se cuentan los .js de js/, que es donde viven los módulos que la plataforma importa. */
+/* `join` usa la barra del sistema, y en Windows es la otra. Sin normalizar, la ruta
+   nunca empieza por RAIZ + '/', el recorte no recorta, y cada módulo del repo se
+   reporta como «no cacheado» con su ruta absoluta entera. El fallo era de la prueba,
+   no de sw.js. */
+const relativa = p => p.split(sep).join('/').replace(RAIZ.split(sep).join('/') + '/', '');
 function jsDe(dir, out = []) {
   for (const n of readdirSync(dir)) {
     const p = join(dir, n);
     if (statSync(p).isDirectory()) jsDe(p, out);
-    else if (n.endsWith('.js')) out.push(p.replace(RAIZ + '/', ''));
+    else if (n.endsWith('.js')) out.push(relativa(p));
   }
   return out;
 }
