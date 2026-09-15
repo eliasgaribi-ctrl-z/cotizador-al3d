@@ -529,7 +529,7 @@ function cardPuente() {
     ? nota(ico('i-check') + ' Puente enchufado' + (s.adaptador ? ' (' + esc(s.adaptador) + ')' : '') +
       '. ' + cuentaPend + cuentaApart, 'ok')
     : nota('<b>Sin puente.</b> La plataforma funciona completa en este dispositivo, y el ' +
-      'camino manual —«Copiar fila para Notion» en el cotizador— sigue siendo el que se usa ' +
+      'camino manual —«Copiar datos para la hoja» en el cotizador— sigue siendo el que se usa ' +
       'para pasar una venta. Ese camino no se retira nunca.' +
       (PEND ? ' Hay ' + PEND + (PEND === 1 ? ' operación guardada esperando' : ' operaciones guardadas esperando') +
         ' a que haya a dónde mandarlas.' : ''));
@@ -541,7 +541,7 @@ function cardPuente() {
       ? nota(ico('i-check') + ' El puente contesta y reconoce este teléfono' +
           (SALUD.rol ? ' como <b>' + esc(Prefs.ROL_NOMBRE[SALUD.rol] || SALUD.rol) + '</b>' : '') + '.' +
           (Array.isArray(SALUD.escribibles) && SALUD.escribibles.length
-            ? ' Con ese token puede escribir en Notion: ' +
+            ? ' Con ese token puede escribir en la hoja: ' +
               SALUD.escribibles.map(x => '<b>' + esc(x.trim()) + '</b>').join(', ') + '.'
             : ''), 'ok')
       : nota(ico('i-aviso') + ' ' + esc(SALUD.mensaje || 'El puente no contestó.'), 'mal');
@@ -552,7 +552,7 @@ function cardPuente() {
       prueba += nota('<b>Ojo, y no está roto:</b> en este teléfono elegiste el tablero de ' +
         esc(Prefs.ROL_NOMBRE[Prefs.rol()]) + ', y el token que le pegaste es de ' +
         esc(Prefs.ROL_NOMBRE[SALUD.rol] || SALUD.rol) + '. Vas a ver las pantallas de uno y ' +
-        'a poder escribir en Notion lo del otro. El que manda para escribir es el token: esa ' +
+        'a poder escribir en la hoja lo del otro. El que manda para escribir es el token: esa ' +
         'es la única frontera de permisos de verdad del sistema, y vive en el servidor.', 'av');
     }
   }
@@ -563,14 +563,14 @@ function cardPuente() {
     if (!ESQ.ok) {
       esquema = nota(ico('i-aviso') + ' ' + esc(ESQ.mensaje || 'No se pudo leer el esquema.'), 'mal');
     } else if (!ESQ.faltan.length) {
-      esquema = nota(ico('i-check') + ' La base «Ventas - AL3D» ya tiene las siete ' +
-        'propiedades que la plataforma necesita.', 'ok');
+      esquema = nota(ico('i-check') + ' La pestaña «Ventas» ya tiene las siete ' +
+        'columnas que la plataforma necesita.', 'ok');
     } else {
-      esquema = nota('<b>A la base le faltan ' + ESQ.faltan.length +
-          (ESQ.faltan.length === 1 ? ' propiedad' : ' propiedades') + ', y hay que crearlas ' +
-          'a mano en Notion.</b> El puente las detecta y no las crea: es la única garantía de ' +
-          'que no se rompan las siete vistas ni las cinco fórmulas de una base con tres años ' +
-          'encima. Mientras falte una, dar de alta una venta va a rebotar.', 'av') +
+      esquema = nota('<b>A la hoja le faltan ' + ESQ.faltan.length +
+          (ESQ.faltan.length === 1 ? ' columna' : ' columnas') + '.</b> El puente las detecta y ' +
+          'no las crea solo: córrele <b>prepararHojaParaElPuente()</b> en Apps Script y las crea ' +
+          'con su validación. Es la única garantía de que no se rompan las fórmulas ni las vistas ' +
+          'de una hoja con tres años encima. Mientras falte una, dar de alta una venta va a rebotar.', 'av') +
         '<ul class="aj-faltan">' + ESQ.faltan.map(x =>
           '<li><b>' + esc(x.nombre) + '</b> · tipo <b>' + esc(x.tipo) + '</b>' +
           (x.para ? ' — ' + esc(x.para) : '') +
@@ -591,9 +591,9 @@ function cardPuente() {
 
     '<p class="aj-p"><b>Dónde vive el puente ahora.</b> Dentro de la propia hoja de Google, ' +
     'como Apps Script, con los permisos de su dueño. Antes hacía falta un Worker de ' +
-    'Cloudflare por una sola razón: el token de Notion daba escritura total sobre el ' +
-    'workspace y no podía vivir en un HTML publicado, donde cualquiera lee el código. Sin ' +
-    'Notion no hay secreto que esconder, así que no hay dónde esconderlo. Este dispositivo ' +
+    'Cloudflare por una sola razón: el token de Notion daba escritura total sobre todo el ' +
+    'workspace y no podía vivir en un HTML publicado, donde cualquiera lee el código. Con el ' +
+    'dinero en la hoja no hay secreto que esconder, así que no hay dónde esconderlo. Este dispositivo ' +
     'solo guarda una liga y un token propio que el puente reconoce.</p>' +
 
     '<p class="aj-p">Son unos ' + ins.minutos + ' minutos, una vez. Los pasos completos van ' +

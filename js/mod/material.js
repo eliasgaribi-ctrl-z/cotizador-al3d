@@ -718,15 +718,15 @@ const estadoReq = e => ESTADO_REQ[e] || String(e || '');
 
 /* ----- La verdad del final -----
    Va siempre, en letra chica y sin caja. No es un consejo: es cómo funciona el sistema, y
-   sin decirlo alguien va a comparar un precio de la plataforma con el ejemplo de su propia
-   página de Notion y va a creer que hay un error de $10. */
+   sin decirlo alguien va a comparar un precio de la plataforma con el ejemplo del tarifario
+   viejo y va a creer que hay un error de $10. */
 function laVerdad() {
   return '<p class="pf-nota no-papel">Los dos tarifarios de AL3D cobran por ejes distintos: el ' +
     '<b>catálogo del cotizador</b> cobra por MATERIAL —$30 el aluminio pintado, $55 el acero, ' +
-    'más $5 la cursiva o $10 la compleja—, y la página <b>«¿Cómo Cotizar?»</b> de Notion cobra ' +
+    'más $5 la cursiva o $10 la compleja—, y el tarifario de <b>«¿Cómo Cotizar?»</b> cobra ' +
     'por TIPO DE LETRA —$30 / $35 / $40 / $50, con −20 % sin iluminación—. Manda el catálogo ' +
     'del cotizador, que es más nuevo y es el que está en producción: si un precio no cuadra con ' +
-    'el ejemplo de Notion, no es un error, son dos tarifarios. Y el material de esta pantalla ' +
+    'el otro ejemplo, no es un error, son dos tarifarios. Y el material de esta pantalla ' +
     'no sale de ninguno de los dos: sale de las medidas de las partidas.</p>' +
     '<div class="btn-fila no-papel">' +
       '<button type="button" class="btn btn-gho" data-hoja="catalogo">' +
@@ -961,7 +961,7 @@ function htmlCatalogo() {
   }).join('');
 
   return '<p class="hintnote">Cada factor dice cuánto rinde UNA unidad de compra, y debajo está ' +
-    'de dónde salió. Ninguno de estos números existía en Notion ni en Drive: son un punto de ' +
+    'de dónde salió. Ninguno de estos números existía en ningún sistema de AL3D: son un punto de ' +
     'partida razonado. Verifica el que toques con tu proveedor en la primera compra.</p>' +
     (veDinero
       ? '<p class="hintnote">Los costos son opcionales y arrancan vacíos. Sin costos la ' +

@@ -21,7 +21,7 @@
      PUERTO=8814 node pruebas/navegador/camino-completo.mjs
    
    Recorre: capturar cliente con el teclado → pasar a partidas → elegir material tocando su
-   chip → capturar medidas → autorizar → «Registrar como proyecto ganado» → clic en el
+   chip → capturar medidas → autorizar → «Registrar venta» → clic en el
    enlace de la plataforma, en un teléfono de 430 px → y comprueba que del otro lado el
    proyecto existe con su nombre derivado, su tipo de trabajo derivado (el campo que quedó
    vacío en 0 de 142 filas en Notion), sus coordenadas sacadas del link de Google Maps sin
@@ -29,7 +29,7 @@
 */
 
 /* El camino completo, con clics de verdad y sin sembrar nada:
-   cotizador → capturar → autorizar → «Registrar como proyecto ganado» → plataforma. */
+   cotizador → capturar → autorizar → «Registrar venta» → plataforma. */
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 const B = 'http://127.0.0.1:' + (process.env.PUERTO || '8814');
 const nav = await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome'});
@@ -96,10 +96,12 @@ estado==='autorizada' ? bien('la cotización quedó autorizada') : mal('estado q
 // ── 5. El botón nuevo ─────────────────────────────────────────────────────────
 await p.evaluate(()=>abrirRegistrarVenta());
 await p.waitForTimeout(700);
-const btnGanado = await p.$('button:has-text("Registrar como proyecto ganado")');
-if (!btnGanado) mal('no encontré el botón «Registrar como proyecto ganado»');
+/* Por id y no por texto: «Registrar venta» también es el nombre del hito que ABRE este
+   modal, y buscar por texto agarraba el de atrás. */
+const btnGanado = await p.$('#rv-registrar');
+if (!btnGanado) mal('no encontré el botón «Registrar venta» del modal');
 else {
-  bien('el botón «Registrar como proyecto ganado» está ahí');
+  bien('el botón «Registrar venta» está ahí');
   await btnGanado.click();
   await p.waitForTimeout(900);
   const buzon = await p.evaluate(()=>{ try{return JSON.parse(localStorage.getItem('al3d_pf_ganadas')||'[]');}catch(_){return[];} });

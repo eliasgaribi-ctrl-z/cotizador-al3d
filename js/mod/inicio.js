@@ -549,7 +549,7 @@ async function ejecutar(ac) {
        donde está el botón y se le dice qué apretar. */
     case 'tsv':
       if (_ctx) _ctx.ir('proyectos');
-      toast('Abre el proyecto y usa «Copiar fila para Notion»', '', 5200);
+      toast('Abre el proyecto y usa «Copiar datos para la hoja»', '', 5200);
       return;
 
     default:

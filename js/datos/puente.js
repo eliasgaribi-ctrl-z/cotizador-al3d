@@ -5,17 +5,17 @@
    pudiera escribir después sin tocar una línea de ninguna pantalla. Este es ese archivo, y
    por eso es el ÚNICO de la plataforma que sabe dos cosas:
 
-     1. que existe un Worker en Cloudflare, y
-     2. cómo se llaman las propiedades de Notion.
+     1. que del otro lado hay un Apps Script publicado dentro de la hoja de finanzas, y
+     2. cómo se llaman las propiedades del puente —el vocabulario que heredó de Notion y que
+        el Apps Script traduce a columnas de la pestaña Ventas.
 
    Ningún módulo importa este. Lo enchufa `app.js` al arrancar y lo desenchufa Ajustes. Si
-   mañana el relevo dejara de ser Notion, se reescribe este archivo y nada más.
+   mañana el relevo dejara de ser la hoja, se reescribe este archivo y nada más.
 
    ── Lo que este relevo LLEVA, y lo que no ──────────────────────────────────────
-   El Worker de hoy conoce una sola base: `Ventas - AL3D`. Así que este relevo lleva
-   `proyectos` y `instalaciones` —las dos caras de la misma fila de venta— y NO lleva el
-   almacén, el catálogo ni los avisos, porque todavía no existen las bases de Notion a las
-   que irían.
+   El puente de hoy conoce una sola pestaña: `Ventas`. Así que este relevo lleva `proyectos`
+   e `instalaciones` —las dos caras de la misma fila de venta— y NO lleva el almacén, el
+   catálogo ni los avisos, porque todavía no existen las pestañas a las que irían.
 
    Lo que no lleva NO se descarta y NO se cuenta como pendiente de mandar: `sync.js` lo
    aparta con el motivo escrito. Descartarlo perdería el día que sí haya destino; contarlo
@@ -45,14 +45,15 @@ import * as DB from './db.js';
 import * as Prefs from './prefs.js';
 
 /* ============================================================================
-   Los nombres de Notion. Con el espacio final incluido donde lo tienen.
+   El vocabulario del puente. Son los nombres que heredó de Notion —con el espacio final
+   incluido donde lo tenían— y que el Apps Script traduce a columnas de la pestaña Ventas.
 
-   `Precio Neto ` y `Cuenta ` se llaman así en la base. No son erratas y no se «limpian»:
-   escribir la versión sin el espacio crearía propiedades nuevas y vacías al lado de las
-   que tienen tres años de datos, y las siete vistas seguirían mirando las viejas.
+   No se «limpian» los espacios de `Precio Neto ` y `Cuenta `: el mapa de columnas del otro
+   lado busca por este nombre exacto, y cambiar uno aquí sin cambiarlo allá deja el campo
+   fuera sin decir nada.
 
-   Esta tabla y la del Worker tienen que decir lo mismo. Es la única duplicación a
-   propósito del sistema, y existe porque el Worker no se importa: se pega en un editor.
+   Esta tabla y la del Apps Script tienen que decir lo mismo. Es la única duplicación a
+   propósito del sistema, y existe porque el Apps Script no se importa: se pega en un editor.
    ============================================================================ */
 export const P = {
   proyecto:    'Proyecto',
@@ -115,8 +116,8 @@ export const ALMACENES = ['proyectos', 'instalaciones'];
    dispositivo». Una frase armada con pegamento no concuerda en plural, y este texto lo lee
    una persona que está intentando entender por qué su cambio no salió. */
 const NO_LLEVA = {
-  movimientos:    'El libro del almacén se queda en este dispositivo hasta que exista su base en Notion.',
-  materiales:     'El catálogo de material se queda en este dispositivo hasta que exista su base en Notion.',
+  movimientos:    'El libro del almacén se queda en este dispositivo hasta que exista su pestaña en la hoja.',
+  materiales:     'El catálogo de material se queda en este dispositivo hasta que exista su pestaña en la hoja.',
   requerimientos: 'Las listas de compra se quedan en este dispositivo: se derivan de las partidas y se vuelven a calcular solas.',
   avisos:         'Los avisos se calculan al abrir la plataforma, en cada dispositivo. No viajan y no hace falta que viajen.',
   constantes:     'Las constantes del taller se quedan en este dispositivo.',
@@ -126,8 +127,8 @@ const NO_LLEVA = {
 /** El texto que Ajustes pinta al lado de lo apartado. Sale de aquí para que la pantalla no
  *  invente una lista de almacenes que este archivo podría cambiar mañana. */
 export function motivoSinDestino(almacen) {
-  return 'El puente de hoy solo lleva la venta a Notion. ' +
-    (NO_LLEVA[almacen] || 'Eso se queda en este dispositivo hasta que exista su base.');
+  return 'El puente de hoy solo lleva la venta a la hoja. ' +
+    (NO_LLEVA[almacen] || 'Eso se queda en este dispositivo hasta que exista su pestaña.');
 }
 
 /* ============================================================================
@@ -184,20 +185,21 @@ export function aNotion(p, inst) {
 
   out[P.tipo] = Array.isArray(p.tipo_trabajo) ? p.tipo_trabajo.slice() : [];
 
-  /* Las dos fechas, y por qué son dos.
-     `Fecha Anticipo e Instalacion` es la columna vieja: es de la que cuelga la vista de
-     calendario que la base lleva usando tres años, así que se sigue llenando o esa vista
-     se queda vacía el día que empecemos a escribir por aquí.
-     `Fecha instalacion` es la nueva, y es la instalación de VERDAD. Cuando hay las dos, la
-     vieja lleva la de instalación —que es lo que ha significado siempre en la práctica— y
-     cuando todavía no hay instalación agendada, lleva el día en que se ganó. */
-  const fInst = inst && esISO(inst.fecha) ? inst.fecha : '';
-  if (fInst) {
-    out[P.fechaInst] = fInst;
-    out[P.fecha]     = fInst;
+  /* Las dos fechas, y por qué ya NO se pisan.
+     Con Notion, `Fecha Anticipo e Instalacion` era una sola columna que significaba las dos
+     cosas, y cuando había instalación se le ponía esa. En la hoja son dos columnas con dos
+     significados y dos cuentas colgando: la L es «Fecha anticipo» —de ella salen los días
+     de cobro (liquidación menos anticipo) y la antigüedad de lo que falta cobrar— y la M es
+     «Fecha instalación». Seguir metiendo la instalación en la del anticipo le movía la
+     antigüedad a toda la cartera y hacía que «días de cobro» contara desde el día que se
+     instaló, no desde el que se cobró.
+
+     Cada una lleva lo suyo: la del anticipo, el día en que se ganó; la de instalación, la
+     de la instalación, y solo si está agendada. */
+  if (esISO(p.fecha_ganado)) out[P.fecha] = p.fecha_ganado;
+  if (inst && esISO(inst.fecha)) {
+    out[P.fechaInst] = inst.fecha;
     out[P.horaInst]  = texto(inst.hora);
-  } else {
-    if (esISO(p.fecha_ganado)) out[P.fecha] = p.fecha_ganado;
   }
 
   return out;
@@ -210,9 +212,10 @@ export function aNotion(p, inst) {
  */
 export function instalacionANotion(inst) {
   if (!inst || typeof inst !== 'object' || !esISO(inst.fecha)) return {};
+  /* Solo la columna de instalación. La del anticipo es de la venta, no de la instalación:
+     ver el comentario de las dos fechas en `aNotion`. */
   const out = {};
   out[P.fechaInst] = inst.fecha;
-  out[P.fecha]     = inst.fecha;
   out[P.horaInst]  = texto(inst.hora);
   return out;
 }
@@ -507,13 +510,13 @@ export function crear(cfg0) {
            no se intenta: se dice de qué teléfono tiene que salir. */
         if (!idNotion && !enviables[P.proyecto]) {
           salida.push({ id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO',
-            mensaje: 'Este teléfono no puede dar de alta la venta en Notion: su token no escribe el nombre del proyecto. ' +
+            mensaje: 'Este teléfono no puede dar de alta la venta en la hoja: su token no escribe el nombre del proyecto. ' +
                      'Dala de alta desde el de Dirección y desde aquí ya podrás mover la obra.' });
           continue;
         }
         if (!Object.keys(enviables).length) {
           salida.push({ id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO',
-            mensaje: 'De ese cambio, este teléfono no puede escribir nada en Notion: ' + fuera.join(', ') + '.' });
+            mensaje: 'De ese cambio, este teléfono no puede escribir nada en la hoja: ' + fuera.join(', ') + '.' });
           continue;
         }
 
@@ -563,7 +566,7 @@ export function crear(cfg0) {
           await espejarLocal(proy.id, { notion_estado: 'fallido' });
         }
         salida.push({ id: op.id, ok: false, codigo: res.codigo || 'DESCONOCIDO',
-                      mensaje: res.mensaje || 'Notion rechazó el cambio.', conflicto: res.conflicto || null });
+                      mensaje: res.mensaje || 'La hoja rechazó el cambio.', conflicto: res.conflicto || null });
       }
 
       return salida;
@@ -662,10 +665,10 @@ export function instrucciones() {
       'Dale a «Revisar el esquema». Si le falta alguna columna a la hoja, te la lista con su nombre y su tipo.',
     ],
     notas: [
-      'Ya no hay token de Notion ni Worker de Cloudflare. El Worker existía solo para esconder un token que daba escritura total sobre el workspace de Notion; sin Notion, no hay secreto que esconder y el puente corre dentro de la propia hoja.',
+      'Ya no hay token de Notion ni Worker de Cloudflare. El Worker existía solo para esconder un token que daba escritura total sobre todo Notion; con el dinero en la hoja no hay secreto que esconder, y el puente corre dentro de la propia hoja.',
       'La dirección del puente es pública —cualquiera puede tocar la puerta— y la puerta es el token. Sin uno válido, el puente contesta que no y nada más. Alrededor hay tres candados más: todo entra por POST con el token en el cuerpo (nunca en una URL), hay tope de 60 peticiones por minuto por token, y toda escritura queda anotada en una bitácora dentro de la hoja.',
       'El rol es del token, no de la pantalla. Cambiar el segmento de rol en Ajustes te da otro tablero, no te da permisos: el token de fabricación sigue sin poder tocar el dinero.',
-      'Si el puente se cae, no pasa nada: la plataforma sigue funcionando con lo que tiene en el teléfono y el botón «Copiar fila» del cotizador sigue siendo el camino manual. Ese botón no se retira nunca.',
+      'Si el puente se cae, no pasa nada: la plataforma sigue funcionando con lo que tiene en el teléfono, y el botón «Copiar datos para la hoja» del cotizador sigue siendo el camino manual. Ese botón no se retira nunca.',
     ],
   };
 }

@@ -29,7 +29,7 @@ import { matOf, basOf, recOf, cajaOf } from '../datos/catalogo-precios.js';
 import {
   $, esc, money, cant, ico, toast, avisarResultado, vacio, segmento, chip,
   abrirCapa, cerrarCapa, copiarTexto, linkWa, fmtFecha, fmtFechaDia, fmtHora, cuando,
-  diasHasta, hoyISO, partesISO, rotularPapel,
+  diasHasta, hoyISO, rotularPapel,
 } from '../nucleo/ui.js';
 
 /* ============================================================================
@@ -731,7 +731,7 @@ function htmlFicha(p) {
   /* El espejo de Notion. Se pinta con su nombre y se dice qué es: el estatus de allá es de
      dinero y no de obra, y verlos juntos en la misma ficha es lo que impide que alguien
      empiece a usar uno como si fuera el otro. */
-  datos.push(dato('Estatus en Notion (dinero)', p.estatus_notion
+  datos.push(dato('Estatus en la hoja (dinero)', p.estatus_notion
     ? '<span class="pf-sem nada">' + esc(p.estatus_notion) + '</span>'
     : '<span class="pf-sem falta">Sin capturar</span>', true));
   datos.push(dato('Cuenta de cobro', p.cuenta || '<span class="pf-sem falta">Sin capturar</span>', !p.cuenta));
@@ -744,8 +744,8 @@ function htmlFicha(p) {
     if (p.pct_comision) datos.push(dato('Comisión pactada', p.pct_comision + ' %'));
     /* Las dos fórmulas de Notion. Se leen, jamás se calculan aquí: dos versiones de la
        misma fórmula empiezan a dar dos respuestas y nadie sabe cuál cobrar. */
-    if (hay(p.pago_pendiente)) datos.push(dato('Pago pendiente (fórmula de Notion)', money(p.pago_pendiente)));
-    if (hay(p.comision_restante)) datos.push(dato('Comisión restante (fórmula de Notion)', money(p.comision_restante)));
+    if (hay(p.pago_pendiente)) datos.push(dato('Pago pendiente (fórmula de la hoja)', money(p.pago_pendiente)));
+    if (hay(p.comision_restante)) datos.push(dato('Comisión restante (fórmula de la hoja)', money(p.comision_restante)));
   }
 
   const partes = [];
@@ -807,7 +807,7 @@ function htmlFicha(p) {
 
   if (rol === 'pagos' || rol === 'direccion') {
     const ests = rol === 'pagos' ? ESTATUS_DE_PAGOS : ESTATUS_NOTION;
-    partes.push('<div class="fld-lab">Estatus de Notion — el eje del dinero</div>' +
+    partes.push('<div class="fld-lab">Estatus en la hoja — el eje del dinero</div>' +
       segmento(ests.map(e => ({ v: e, t: e })), p.estatus_notion || '', 'data-estatus'));
     partes.push('<div class="fld-lab">Cuenta donde se cobra</div><div class="chips">' +
       CUENTAS.map(c => chip(c, p.cuenta === c, 'data-cuenta="' + esc(c) + '"')).join('') + '</div>');
@@ -820,7 +820,7 @@ function htmlFicha(p) {
   }
   if (rol === 'direccion' || rol === 'pagos') {
     pie.push('<button type="button" class="btn btn-gho" data-tsv="' + esc(p.id) + '">' +
-      ico('i-copiar') + ' Copiar fila para Notion</button>');
+      ico('i-copiar') + ' Copiar datos para la hoja</button>');
   }
   if (rol === 'direccion' && p.etapa !== 'cancelado') {
     pie.push('<button type="button" class="btn btn-dgr" data-cancelar="' + esc(p.id) + '">No se dio</button>');
@@ -963,64 +963,43 @@ async function resincronizar(id, boton) {
 }
 
 /* ============================================================================
-   La fila TSV para Notion — la misma que copia index.html
+   LOS DATOS PARA LA HOJA — el mismo respaldo que copia el cotizador
+
+   Esto armaba quince valores en el orden del CSV de Ventas de Notion. Notion ya no existe y
+   esa fila no se puede pegar en la hoja: entre las columnas que se capturan hay columnas de
+   FÓRMULA —Precio neto, Saldo por cobrar, Comisión, Antigüedad— y pegar encima de un
+   ARRAYFORMULA no escribe la venta, rompe la columna para las trescientas filas.
+
+   Lo que sí se puede pegar de un tirón son las seis seguidas que la hoja captura: Proyecto,
+   Cuenta, Estatus, Tipo de trabajo, IVA y Subtotal (B a G). El anticipo y la fecha viven dos
+   columnas más allá, con «Precio neto» en medio, así que se capturan a mano — o se usa el
+   puente, que es el camino bueno y no pide pegar nada.
+
+   Sigue siendo una RÉPLICA de `copiarDatosVenta()` del cotizador, y tiene que seguir
+   siéndolo: si divergieran, el mismo proyecto produciría dos renglones distintos según
+   desde dónde se copie, y alguien pegaría los dos.
    ============================================================================ */
 
-/* De 'YYYY-MM-DD' a 'DD/MM/YYYY', que es lo que la columna *date* de Notion acepta. Se
-   parte la cadena en vez de pasar por Date: `new Date('2026-08-23')` se lee como UTC y en
-   México devuelve el día anterior. */
-function isoADmy(iso) {
-  const p = partesISO(iso);
-  if (!p) return String(iso || '');
-  const dd = String(p.d).padStart(2, '0'), mm = String(p.m).padStart(2, '0');
-  return dd + '/' + mm + '/' + p.a;
-}
-
 /**
- * Las quince columnas en el orden del CSV de Ventas de Notion. Es una RÉPLICA de
- * `copiarFilaVenta()` de index.html —mismo orden, mismas cinco cuentas derivadas, misma
- * fecha DD/MM/YYYY, mismo `Yes`/`No`— y tiene que seguir siéndolo: si divergieran, el
- * mismo proyecto produciría dos filas distintas según desde dónde se copie, y alguien
- * pegaría las dos.
+ * Las seis columnas seguidas que la pestaña Ventas captura, en su orden (B a G).
  *
  * El nombre va como `Contacto - Negocio`, SIN el paréntesis con la pieza. El nombre
  * derivado de la plataforma sí lo lleva —«Ale - Parentesis (Caja Luz)» se reconoce en una
- * lista de doscientos— pero la celda de Notion tiene que quedar igual que la que pega el
+ * lista de doscientos— pero la celda de la hoja tiene que quedar igual que la que pega el
  * cotizador, o la misma venta aparece dos veces con dos nombres.
  */
 function filaTsv(p) {
-  const inst = FECHA.get(p.id) || null;
-  /* La columna es «Fecha Anticipo e Instalacion». En el cotizador es el campo `rv-fecha`
-     del modal de Registrar Venta; aquí es la fecha real de instalación si ya se capturó, y
-     si no, el día en que se ganó, que es exactamente lo que ese campo traía puesto. */
-  const dmy = isoADmy(inst ? inst.fecha : p.fecha_ganado);
-
-  const sub = num(p.sub), neto = num(p.neto);
-  const anti = num(p.anti_pactado);
-  const pct = num(p.pct_comision);
   /* Sin estatus capturado se usa FABRICACION, que es el que el modal del cotizador deja
-     puesto. Es la única forma de que las dos filas coincidan cuando nadie tocó el campo. */
+     puesto. Es la única forma de que los dos renglones coincidan cuando nadie tocó el campo. */
   const estatus = String(p.estatus_notion || 'FABRICACION');
   /* La cuenta NO se rellena con una de las cinco: inventar de dónde se va a cobrar es peor
      que dejar la celda vacía, y la celda vacía se ve al pegar. */
   const cuenta = String(p.cuenta || '');
-
-  const com = Math.round(sub * pct / 100);
-  const pend = estatus === 'LIQUIDADO' ? 0 : Math.max(0, neto - anti);
-  const liquidacion = estatus === 'LIQUIDADO' ? neto : '';
-  const abonoComision = estatus === 'LIQUIDADO' ? com : 0;
-  const comRestante = estatus === 'LIQUIDADO' ? 0 : com;
-  const fechaLiq = estatus === 'LIQUIDADO' ? dmy : '';
   const proyecto = (p.contacto ? p.contacto + ' - ' : '') + String(p.negocio || '');
-  const iva = p.iva !== false ? 'Yes' : 'No';
-
-  // Proyecto | Abono Comision | Anticipo | Comision Restante | Comisiones | Cuenta | Estatus
-  // Fecha Anticipo e Instalacion | Fecha Comision | Fecha Liquidacion | IVA | Liquidacion
-  // Pago Pendiente | Precio Neto | Precio Subtotal
-  return [
-    proyecto, abonoComision, anti, comRestante, com, cuenta, estatus,
-    dmy, '', fechaLiq, iva, liquidacion, pend, neto, sub,
-  ].join('\t');
+  /* El tipo de trabajo se deja vacío a propósito: la hoja lo clasifica sola desde el nombre
+     del proyecto, y el puente tampoco lo manda. Tres versiones de la misma regla es como se
+     consigue que los tres digan cosas distintas. */
+  return [proyecto, cuenta, estatus, '', p.iva !== false ? 'Sí' : 'No', num(p.sub)].join('\t');
 }
 
 async function copiarFila(id) {
@@ -1030,8 +1009,8 @@ async function copiarFila(id) {
   if (!p.cuenta) faltan.push('la cuenta');
   if (!p.estatus_notion) faltan.push('el estatus');
   copiarTexto(filaTsv(p), faltan.length
-    ? 'Fila copiada. Ojo: sin ' + faltan.join(' ni ') + ', esa celda va vacía.'
-    : 'Fila copiada — pégala en Ventas - AL3D de Notion');
+    ? 'Datos copiados. Ojo: sin ' + faltan.join(' ni ') + ', esa celda va vacía.'
+    : 'Datos copiados — pégalos en la columna Proyecto del primer renglón vacío de Ventas');
 }
 
 /* ============================================================================

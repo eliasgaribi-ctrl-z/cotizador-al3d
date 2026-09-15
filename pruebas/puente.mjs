@@ -69,17 +69,20 @@ console.log('\nLO QUE NUNCA SE MANDA: las fórmulas y lo que captura quien cobra
   }
 }
 
-console.log('\nLAS DOS FECHAS, Y POR QUÉ SON DOS');
+console.log('\nLAS DOS FECHAS, Y POR QUÉ NO SE PISAN');
 {
   const sinInst = aNotion(proy(), null);
-  eq('sin instalación, la columna vieja lleva el día que se ganó',
+  eq('la del anticipo lleva el día que se ganó',
      sinInst[P.fecha], '2026-08-23');
   eq('sin instalación no se inventa una fecha de instalación',
      sinInst[P.fechaInst], undefined);
 
   const conInst = aNotion(proy(), { fecha: '2026-09-01', hora: '10:00', estado: 'confirmada' });
-  eq('con instalación, la nueva la lleva',      conInst[P.fechaInst], '2026-09-01');
-  eq('y la vieja también, o su calendario se queda vacío', conInst[P.fecha], '2026-09-01');
+  eq('con instalación, la columna de instalación la lleva', conInst[P.fechaInst], '2026-09-01');
+  /* La que se rompía: en la hoja la columna del anticipo es «Fecha anticipo» y de ella
+     cuelgan los días de cobro y la antigüedad. Escribirle la instalación le movía la
+     antigüedad a toda la cartera. */
+  eq('y la del anticipo NO se pisa con la instalación', conInst[P.fecha], '2026-08-23');
   eq('la hora va aparte, como texto',           conInst[P.horaInst], '10:00');
 
   const fechaMala = aNotion(proy(), { fecha: '01/09/2026' });
@@ -120,9 +123,9 @@ eq('son las ocho de §4.4', Object.keys(ETAPA_A_NOTION),
 
 console.log('\nLA INSTALACIÓN SOLA, CONTRA LA MISMA FILA');
 {
-  eq('una instalación con fecha manda las tres',
+  eq('una instalación con fecha manda la suya y la hora, no la del anticipo',
      instalacionANotion({ fecha: '2026-09-01', hora: '10:00' }),
-     { 'Fecha instalacion': '2026-09-01', 'Fecha Anticipo e Instalacion': '2026-09-01', 'Hora instalacion': '10:00' });
+     { 'Fecha instalacion': '2026-09-01', 'Hora instalacion': '10:00' });
   eq('sin hora todavía, la hora va vacía y no se inventa',
      instalacionANotion({ fecha: '2026-09-01', hora: null })['Hora instalacion'], '');
   eq('sin fecha no hay nada que mandar', instalacionANotion({ hora: '10:00' }), {});

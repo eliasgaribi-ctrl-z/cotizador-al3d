@@ -190,7 +190,7 @@ export function csvCampo(v) {
 }
 
 export const COLUMNAS_CSV = ['Folio', 'Fecha ganado', 'Cliente', 'Negocio', 'Teléfono', 'Tipo de trabajo',
-  'Etapa', 'Subtotal', 'Total vendido', 'Anticipo', 'Saldo estimado', 'Cuenta', 'Estatus Notion',
+  'Etapa', 'Subtotal', 'Total vendido', 'Anticipo', 'Saldo estimado', 'Cuenta', 'Estatus en la hoja',
   '% comisión', 'Instalación', 'Dirección', 'Dispositivo', 'Notas'];
 
 /**

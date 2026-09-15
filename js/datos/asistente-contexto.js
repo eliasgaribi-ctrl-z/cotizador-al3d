@@ -398,7 +398,10 @@ const MESES_CORTOS_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago',
 /* Las acciones que acompañan a una respuesta local: la pantalla que toca, y los proyectos
    que nombra, para abrirlos con un toque. `tipo` es lo que entiende el panel:
    'ir' (una ruta), 'pasar' (una ruta con dato), 'proyecto' (la ficha), 'link' (fuera). */
-const NOTION_COMISIONES = 'https://app.notion.com/p/9682b4043139497db6b02cf9ab726c72';
+/* La hoja de finanzas. Es la misma para los tres teléfonos y no cambia: el id es el de
+   «Finanzas AL3D — Ventas y Comisiones». Antes aquí vivía una página de Notion que ya no
+   existe, y el asistente la seguía ofreciendo como si llevara a algún lado. */
+const HOJA_FINANZAS = 'https://docs.google.com/spreadsheets/d/1tTU_FXBlvl29diKaXQjSkxq3J9bWcQE6dx9xPSKKjHs/edit';
 const accProyectos = (lista, max = 6) => lista.filter(p => p && p.id).slice(0, max)
   .map(p => ({ tipo: 'proyecto', id: p.id, label: (p.folio ? p.folio + ' · ' : '') + String(p.nombre || p.proyecto || '').split(' - ')[0].slice(0, 28) }));
 
@@ -420,7 +423,7 @@ function accionesDe(intent, r) {
     case 'comisiones': {
       if (!dinero) return [];
       const c = r.comisiones || { abonables_ya: [], pendientes_de_liquidar: [] };
-      return [{ tipo: 'link', href: NOTION_COMISIONES, label: 'Comisiones en Notion' },
+      return [{ tipo: 'link', href: HOJA_FINANZAS, label: 'Comisiones en la hoja' },
         ...accProyectos(c.abonables_ya.concat(c.pendientes_de_liquidar), 5)];
     }
     case 'cobranza': {
@@ -483,7 +486,7 @@ export function responderLocal(intent, r) {
       }
       out.push('');
       out.push(c.abonables_ya.length
-        ? 'Registra el abono en la base **Ventas - AL3D** de Notion (columna Abono Comisión). La plataforma solo lo espeja.'
+        ? 'Registra el abono con ⚡ AL3D → Registrar abono de comisión en la hoja. La plataforma solo lo espeja.'
         : 'Cuando un cliente liquide, marca LIQUIDADO en la ficha del proyecto y aquí aparece como abonable.');
       return out.join('\n');
     }
@@ -491,7 +494,7 @@ export function responderLocal(intent, r) {
       if (!dinero) return sinDinero;
       const con = P.filter(p => Number(p.saldo_estimado) > 0)
         .sort((a, b) => (Number(b.etapa === 'instalado') - Number(a.etapa === 'instalado')) || (b.saldo_estimado - a.saldo_estimado));
-      if (!con.length) return '**Nadie debe.** Todos los proyectos vivos tienen el anticipo igual al total o ya están liquidados en Notion.';
+      if (!con.length) return '**Nadie debe.** Todos los proyectos vivos tienen el anticipo igual al total o ya están liquidados en la hoja.';
       const total = con.reduce((s, p) => s + Number(p.saldo_estimado), 0);
       const inst = con.filter(p => p.etapa === 'instalado');
       const out = ['**Por cobrar: ' + pesos(total) + '** en ' + cuenta(con.length, 'proyecto', 'proyectos') +

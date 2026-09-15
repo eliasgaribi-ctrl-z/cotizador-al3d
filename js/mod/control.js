@@ -156,8 +156,8 @@ function pintarVentas() {
   partes.push(listaProyectos());
 
   partes.push('<p class="pf-nota">«Vendido» suma el precio autorizado de los proyectos por la fecha en que se ganaron. ' +
-    '«Por cobrar» es el total menos el anticipo pactado, cero si Notion ya dice LIQUIDADO: es una estimación local hasta que el puente ' +
-    'baje la fórmula de Notion. El ticket promedio de los últimos doce meses es ' + esc(money(k.ticket)) +
+    '«Por cobrar» es el total menos el anticipo pactado, cero si la hoja ya dice LIQUIDADO: es una estimación local hasta que el puente ' +
+    'baje el saldo de la hoja. El ticket promedio de los últimos doce meses es ' + esc(money(k.ticket)) +
     (k.ultimos12.n ? ' sobre ' + k.ultimos12.n + ' proyectos' : '') + '.</p>');
   return partes.join('');
 }
@@ -284,14 +284,14 @@ function pintarCobrar() {
   ];
   const filas = D.cartera.length
     ? D.cartera.map(filaCobro).join('')
-    : vacio('No hay saldos pendientes', 'Cada proyecto vivo tiene su anticipo igual al total, o Notion ya lo marcó como liquidado.');
+    : vacio('No hay saldos pendientes', 'Cada proyecto vivo tiene su anticipo igual al total, o la hoja ya lo marcó como liquidado.');
   return '<div class="pf-cuentas">' + c.join('') + '</div>' +
     '<div class="card"><div class="card-h"><h2>' + ico('i-venta') + ' Cartera' +
       ' <span class="folio">' + D.cartera.length + '</span></h2></div>' +
     '<div class="card-b">' + filas + '</div></div>' +
     '<p class="pf-nota">Primero lo instalado: ese trabajo ya se entregó y ese dinero ya debía estar cobrado. El saldo es el ' +
-    'total vendido menos el anticipo pactado; si el puente de Notion baja el pago pendiente, manda ese número y aquí se marca ' +
-    'como «de Notion». Marcar LIQUIDADO en la ficha del proyecto lo saca de esta lista.</p>';
+    'total vendido menos el anticipo pactado; si el puente baja el saldo de la hoja, manda ese número y aquí se marca ' +
+    'como «de la hoja». Marcar LIQUIDADO en la ficha del proyecto lo saca de esta lista.</p>';
 }
 
 function filaCobro(x) {
@@ -307,7 +307,7 @@ function filaCobro(x) {
         esc(Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) + '</span>' +
         ' · vendido ' + esc(money(Ventas.vendidoDe(p))) + ' · anticipo ' + esc(money(p.anti_pactado)) +
         (p.cuenta ? ' · ' + esc(p.cuenta) : '') + (p.estatus_notion ? ' · ' + esc(p.estatus_notion) : '') +
-        (x.deNotion ? ' · saldo de Notion' : '') +
+        (x.deNotion ? ' · saldo de la hoja' : '') +
       '</p>' +
     '</div>' +
     '<div class="ct-monto saldo">' + esc(money(x.saldo)) + '<small>por cobrar</small></div>' +

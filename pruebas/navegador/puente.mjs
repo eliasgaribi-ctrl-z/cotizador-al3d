@@ -1,4 +1,4 @@
-/* EL PUENTE COMPLETO, CON CLICS DE VERDAD: del cotizador a «Notion».
+/* EL PUENTE COMPLETO, CON CLICS DE VERDAD: del cotizador a la hoja de finanzas.
 
    `pruebas/puente.mjs` prueba los mapeos y `pruebas/worker.mjs` prueba el Worker. Los dos
    pasan sin que el camino exista: entre ellos hay una plataforma, una bandeja en IndexedDB,
@@ -6,15 +6,15 @@
    Esa es la lección que ya costó una pantalla en blanco y por la que existe
    camino-completo.mjs. Esto es lo mismo, para la fase 3.
 
-   Levanta su propio servidor: sirve el repositorio Y un Worker de mentiras en la misma
-   dirección, así que no hace falta ni python ni una cuenta de Cloudflare.
+   Levanta su propio servidor: sirve el repositorio Y un puente de mentiras en la misma
+   dirección, así que no hace falta ni python ni tocar la hoja de verdad.
 
      node pruebas/navegador/puente.mjs          (o con PUERTO=8815)
 
-   Recorre: cotizar → autorizar → «Registrar como proyecto ganado» → abrir la plataforma con
-   el puente ya pegado → y comprueba que la venta SALIÓ SOLA hacia Notion con su dirección,
-   su ubicación y su tipo de trabajo, que el id de la página se guardó para no crear una
-   segunda fila, y que el espejo del dinero bajó a la ficha del proyecto. */
+   Recorre: cotizar → autorizar → «Registrar venta» → abrir la plataforma con el puente ya
+   pegado → y comprueba que la venta SALIÓ SOLA hacia la hoja con su dirección, su ubicación
+   y su tipo de trabajo, que el folio de la fila se guardó para no crear una segunda, y que
+   el espejo del dinero bajó a la ficha del proyecto. */
 
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, statSync } from 'node:fs';
@@ -31,11 +31,11 @@ const mal  = m => { console.log('  ✗ ' + m); fallos++; };
 const bien = m => console.log('  ✓ ' + m);
 
 /* ---------------------------------------------------------------------------
-   EL WORKER DE MENTIRAS
+   EL PUENTE DE MENTIRAS
 
-   Contesta lo mismo que `puente/worker.js` contestaría, con la lista blanca de DIRECCIÓN
-   tal como está allá: si se separaran, esta prueba pasaría con un relevo que en la vida
-   real mandaría propiedades que el rol no puede escribir.
+   Contesta lo mismo que contestaría el Apps Script de la hoja, con la lista blanca de
+   DIRECCIÓN tal como está allá: si se separaran, esta prueba pasaría con un relevo que en
+   la vida real mandaría propiedades que el rol no puede escribir.
    --------------------------------------------------------------------------- */
 const ESCRIBIBLES_DIRECCION = [
   'Proyecto', 'Precio Subtotal', 'IVA', 'Anticipo', 'Liquidacion', 'Abono Comision',
@@ -45,7 +45,7 @@ const ESCRIBIBLES_DIRECCION = [
 ];
 
 const RECIBIDO = { empujar: [], salud: 0, esquema: 0, jalar: 0 };
-let PAGINA = null;          // la única fila de la Notion de mentiras
+let FILA = null;            // la única fila de la hoja de mentiras
 
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -56,40 +56,53 @@ const servidor = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const json = (o, c = 200) => { res.writeHead(c, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
 
-  if (url.pathname.startsWith('/puente/')) {
-    const ruta = url.pathname.slice('/puente'.length);
-    const auth = req.headers.authorization || '';
-    if (auth !== 'Bearer ' + TOKEN) {
-      return json({ ok: false, codigo: 'ROL_SIN_PERMISO', mensaje: 'Token desconocido' }, 401);
+  /* ── Todo el puente entra por POST a la MISMA dirección ──────────────────────
+     No es un capricho de esta prueba: es lo que obliga Apps Script. Un Web App solo
+     expone doGet y doPost, no hay dónde contestar un OPTIONS, así que la petición tiene
+     que quedarse dentro de las «simples» de CORS: `Authorization` y `application/json`
+     disparan preflight y quedan fuera. Por eso el token viaja en el cuerpo y el camino
+     también, en vez de ir en la cabecera y en la ruta como iban con el Worker.
+
+     Esta prueba tenía el servidor del Worker viejo —rutas por path y Bearer— y por eso
+     fallaba entera contra un cliente que ya hablaba el otro idioma. */
+  if (url.pathname === '/puente' || url.pathname.startsWith('/puente/')) {
+    let crudo = '';
+    for await (const t of req) crudo += t;
+    let entrada = {};
+    try { entrada = JSON.parse(crudo || '{}'); } catch (_) { entrada = {}; }
+
+    /* El puente de verdad contesta 200 con ok:false; es el cliente quien lo traduce a 401.
+       Contestar 401 aquí probaría una traducción que en producción no ocurre. */
+    if (entrada.token !== TOKEN) {
+      return json({ ok: false, codigo: 'ROL_SIN_PERMISO', mensaje: 'Token desconocido' });
     }
-    if (ruta === '/salud') {
+    const ruta = String(entrada.ruta || 'salud').replace(/^\/+|\/+$/g, '');
+
+    if (ruta === 'salud') {
       RECIBIDO.salud++;
       return json({ ok: true, ts: Date.now(), version: 'falso-1', rol: 'direccion',
-                    escribibles: ESCRIBIBLES_DIRECCION });
+                    escribibles: ESCRIBIBLES_DIRECCION, destino: 'google-sheets' });
     }
-    if (ruta === '/esquema') { RECIBIDO.esquema++; return json({ ok: true, faltan: [], nota: 'ya está todo' }); }
-    if (ruta === '/jalar') {
+    if (ruta === 'esquema') { RECIBIDO.esquema++; return json({ ok: true, faltan: [], nota: 'ya está todo' }); }
+    if (ruta === 'jalar') {
       RECIBIDO.jalar++;
-      if (!PAGINA) return json({ ok: true, registros: [], cursor: null, hay_mas: false });
+      if (!FILA) return json({ ok: true, registros: [], cursor: null, hay_mas: false });
       return json({ ok: true, hay_mas: false, cursor: null, registros: [{ almacen: 'proyectos', datos: {
-        ...PAGINA.datos, id_notion: PAGINA.id, editado: PAGINA.editado,
+        ...FILA.datos, id_notion: FILA.id, editado: FILA.editado,
         /* Las dos fórmulas: es lo que el espejo del dinero viene a buscar. */
         'Pago Pendiente': 7920, 'Comision Restante': 1200,
         'Estatus': 'COBRANDO', 'Cuenta ': 'Rul HSBC',
       } }] });
     }
-    if (ruta === '/empujar') {
-      let cuerpo = '';
-      for await (const t of req) cuerpo += t;
-      const entrada = JSON.parse(cuerpo || '{}');
+    if (ruta === 'empujar') {
       const op = (entrada.ops || [])[0] || {};
       RECIBIDO.empujar.push(op);
-      PAGINA = { id: 'pag-falsa-1', editado: new Date().toISOString(),
-                 datos: { ...(PAGINA ? PAGINA.datos : {}), ...op.datos } };
+      FILA = { id: 'V-201', editado: new Date().toISOString(),
+               datos: { ...(FILA ? FILA.datos : {}), ...op.datos } };
       return json({ ok: true, resultados: [{ id: op.id, ok: true,
-        remoto: { id_notion: PAGINA.id, editado: PAGINA.editado, ...op.datos }, rechazadas: [] }] });
+        remoto: { id_notion: FILA.id, editado: FILA.editado, ...op.datos }, rechazadas: [] }] });
     }
-    return json({ ok: false, mensaje: 'ruta no simulada' }, 404);
+    return json({ ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'ruta no simulada' });
   }
 
   /* Estático. Sin listados y sin salirse de la raíz. */
@@ -106,7 +119,7 @@ const servidor = createServer(async (req, res) => {
 
 await new Promise(r => servidor.listen(PUERTO, '127.0.0.1', r));
 const B = 'http://127.0.0.1:' + PUERTO;
-console.log('\nservidor y Worker de mentiras en ' + B);
+console.log('\nservidor y puente de mentiras en ' + B);
 
 /* ---------------------------------------------------------------------------
    El navegador, con el puente ya pegado en este teléfono
@@ -167,9 +180,10 @@ await p.waitForTimeout(600);
    eso toda venta registrada sin tocarlo nacía agendada para instalar el mismo día. Ahora
    son dos: `rv-fecha` es el anticipo —sigue precargado con hoy, que es cuando se cobra— y
    `rv-fecha-inst` la instalación, que nace vacía porque casi nunca se sabe todavía. Esta
-   prueba llena la segunda, que es la que la fila de Notion espera. */
+   prueba llena la segunda, que es la que la columna «Fecha instalación» de la hoja espera. */
 await p.evaluate(() => { const f = document.getElementById('rv-fecha-inst'); if (f) f.value = '2026-09-01'; });
-const btn = await p.$('button:has-text("Registrar como proyecto ganado")');
+/* Por id y no por texto: «Registrar venta» es también el nombre del hito que ABRE el modal. */
+const btn = await p.$('#rv-registrar');
 if (!btn) mal('no está el botón de ganar'); else { await btn.click(); await p.waitForTimeout(800); }
 const buzon = await p.evaluate(() => JSON.parse(localStorage.getItem('al3d_pf_ganadas') || '[]'));
 buzon.length === 1 ? bien('quedó constancia en el buzón: ' + buzon[0].folio) : mal('el buzón tiene ' + buzon.length);
@@ -178,37 +192,70 @@ buzon.length === 1 ? bien('quedó constancia en el buzón: ' + buzon[0].folio) :
 await p.goto(B + '/#/proyectos', { waitUntil: 'load' });
 await p.waitForTimeout(5000);
 
-console.log('\nLA VENTA SALIÓ SOLA HACIA NOTION');
+console.log('\nLA VENTA SALIÓ SOLA HACIA LA HOJA');
 RECIBIDO.salud > 0 ? bien('el relevo preguntó qué puede escribir este token (/salud)')
                    : mal('nunca preguntó /salud: la lista blanca del rol no se consultó');
 if (!RECIBIDO.empujar.length) {
-  mal('NO se mandó nada a Notion al abrir la plataforma: el puente está enchufado y la bandeja no salió sola');
+  mal('NO se mandó nada a la hoja: el puente está enchufado y la bandeja no salió sola');
 } else {
   bien('se mandó ' + RECIBIDO.empujar.length + ' operación sin que nadie apretara un botón');
-  const d = RECIBIDO.empujar[0].datos || {};
-  RECIBIDO.empujar[0].tipo === 'crear' ? bien('como alta, no como cambio') : mal('fue «' + RECIBIDO.empujar[0].tipo + '»');
+
+  /* ── Quién manda qué, y por qué son dos ──────────────────────────────────────
+     La PRIMERA operación no es de la plataforma: la manda el cotizador en el momento de
+     apretar «Registrar venta», con lo que el modal tiene a la mano —el dinero, la cuenta,
+     el estatus y las dos fechas—. Es lo que hace que la venta esté en la hoja aunque nadie
+     abra la plataforma en tres días.
+
+     La de la PLATAFORMA viene después y trae lo que solo ella sabe derivar: la ubicación
+     resuelta del link de Maps y el tipo de trabajo sacado de las partidas. Las dos caen en
+     la MISMA fila porque las dos van con el mismo `Folio cotizacion`, que es la llave con
+     la que el puente busca antes de crear. */
+  const dCot = RECIBIDO.empujar[0].datos || {};
+  const opPlat = RECIBIDO.empujar.find(o => o && o.tipo === 'crear');
+  const d = (opPlat && opPlat.datos) || {};
+
+  console.log('\n  — lo que manda el cotizador al registrar la venta —');
+  dCot['Proyecto'] ? bien('lleva el nombre: «' + dCot['Proyecto'] + '»') : mal('sin nombre: sería una fila en blanco en el libro del dinero');
+  /^COT-\d+@/.test(dCot['Folio cotizacion'] || '') ? bien('lleva el folio con su dispositivo: ' + dCot['Folio cotizacion'])
+    : mal('sin folio global: nada ataría la fila al cotizador, y la plataforma crearía una segunda');
+  dCot['Precio Subtotal'] > 0 ? bien('lleva el subtotal, que es de lo que cuelgan el neto y la comisión')
+    : mal('sin subtotal: la hoja no podría calcular nada');
+  dCot['Estatus'] && dCot['Cuenta '] ? bien('y la cuenta de cobro con su estatus: ' + dCot['Cuenta '] + ' · ' + dCot['Estatus'])
+    : mal('sin cuenta o sin estatus');
+  dCot['Fecha instalacion'] === '2026-09-01' ? bien('la fecha de instalación va en SU columna')
+    : mal('la fecha de instalación llegó como «' + dCot['Fecha instalacion'] + '»');
+  /* La que se rompía: la columna del anticipo es «Fecha anticipo» y de ella cuelgan los
+     días de cobro y la antigüedad de la cartera. Si le llega la instalación, toda la
+     cobranza empieza a contar desde el día equivocado. */
+  dCot['Fecha Anticipo e Instalacion'] !== '2026-09-01'
+    ? bien('y la del anticipo NO se pisa con la instalación: ' + dCot['Fecha Anticipo e Instalacion'])
+    : mal('la instalación se escribió encima de «Fecha anticipo»: eso le mueve la antigüedad a toda la cartera');
+
+  console.log('\n  — y lo que agrega la plataforma, que es lo que solo ella deriva —');
+  opPlat ? bien('la plataforma mandó su alta') : mal('la plataforma no mandó ningún alta');
   d['Proyecto'] ? bien('lleva el nombre derivado: «' + d['Proyecto'] + '»') : mal('sin nombre: sería una fila en blanco en la base del dinero');
-  /^COT-\d+@/.test(d['Folio cotizacion'] || '') ? bien('lleva el folio con su dispositivo: ' + d['Folio cotizacion'])
-    : mal('sin folio global: nada podría atar la fila al cotizador');
+  (dCot['Folio cotizacion'] && d['Folio cotizacion'] === dCot['Folio cotizacion'])
+    ? bien('con el MISMO folio que mandó el cotizador  ← por eso caen en una sola fila y no en dos')
+    : mal('el folio no coincide con el del cotizador: serían dos ventas');
   d['Direccion'] ? bien('LLEVA LA DIRECCIÓN: «' + d['Direccion'] + '»  ← el hueco de las 199 filas')
                  : mal('sin dirección, que es el defecto que todo esto vino a arreglar');
   /^20\.71/.test(d['Ubicacion'] || '') ? bien('lleva la ubicación sacada del link de Maps: ' + d['Ubicacion'])
                                        : mal('sin ubicación (dio «' + d['Ubicacion'] + '»)');
   (Array.isArray(d['Tipo de trabajo']) && d['Tipo de trabajo'].length)
-    ? bien('lleva el tipo de trabajo DERIVADO: ' + JSON.stringify(d['Tipo de trabajo']) + '  ← el campo que murió en Notion')
+    ? bien('lleva el tipo de trabajo DERIVADO: ' + JSON.stringify(d['Tipo de trabajo']) + '  ← el campo que nunca se llenaba')
     : mal('tipo de trabajo vacío: es el criterio de éxito nº1');
   d['Fecha instalacion'] === '2026-09-01' ? bien('lleva la fecha de instalación de verdad')
     : mal('la fecha de instalación llegó como «' + d['Fecha instalacion'] + '»');
-  d['Fecha Anticipo e Instalacion'] === '2026-09-01'
-    ? bien('y también la columna vieja, de la que cuelga la vista de calendario de tres años')
-    : mal('la columna vieja llegó como «' + d['Fecha Anticipo e Instalacion'] + '»');
+  d['Fecha Anticipo e Instalacion'] !== '2026-09-01'
+    ? bien('y tampoco pisa la del anticipo: ' + d['Fecha Anticipo e Instalacion'])
+    : mal('la columna del anticipo llegó con la fecha de instalación');
   d['Etapa de obra'] === 'Ganado' ? bien('la etapa va con el nombre que se lee en el tablero')
-    : mal('la etapa llegó como «' + d['Etapa de obra'] + '», que Notion CREARÍA como opción nueva');
+    : mal('la etapa llegó como «' + d['Etapa de obra'] + '», que el puente rechazaría');
 
   const prohibidas = ['Precio Neto ', 'Pago Pendiente', 'Comisiones', 'Comision Restante', 'Fecha Comision']
     .filter(k => d[k] !== undefined);
-  prohibidas.length ? mal('mandó fórmulas de Notion: ' + prohibidas.join(', '))
-                    : bien('no mandó ni una fórmula de Notion');
+  prohibidas.length ? mal('mandó fórmulas de la hoja: ' + prohibidas.join(', '))
+                    : bien('no mandó ni una fórmula de la hoja');
   const fuera = Object.keys(d).filter(k => !ESCRIBIBLES_DIRECCION.includes(k));
   fuera.length ? mal('mandó propiedades fuera de la lista blanca del rol: ' + fuera.join(', '))
                : bien('todo lo que mandó está en la lista blanca de Dirección');
@@ -229,17 +276,17 @@ const est = await p.evaluate(async () => {
            nombre: proys[0] && proys[0].nombre };
 });
 console.log('\nLO QUE QUEDÓ GUARDADO DE ESTE LADO');
-est.pageId ? bien('se guardó el id de la página: ' + est.pageId + '  ← sin esto, el próximo cambio crearía otra fila')
-           : mal('NO se guardó notion_page_id');
+est.pageId ? bien('se guardó el folio de la fila: ' + est.pageId + '  ← sin esto, el próximo cambio crearía otra fila')
+           : mal('NO se guardó el id de la fila remota');
 est.estadoNotion === 'enviado' ? bien('el proyecto quedó marcado como enviado') : mal('notion_estado quedó en «' + est.estadoNotion + '»');
 est.pendientes === 0 ? bien('la bandeja de salida quedó vacía') : mal('quedaron ' + est.pendientes + ' pendientes');
 
 console.log('\nEL ESPEJO DEL DINERO BAJÓ');
-est.pagoPendiente === 7920 ? bien('el pago pendiente llegó de la fórmula de Notion: ' + est.pagoPendiente)
+est.pagoPendiente === 7920 ? bien('el pago pendiente llegó de la fórmula de la hoja: ' + est.pagoPendiente)
   : mal('pago_pendiente quedó en ' + JSON.stringify(est.pagoPendiente) + ', esperaba 7920');
 est.estatus === 'COBRANDO' ? bien('el estatus de dinero bajó: COBRANDO') : mal('estatus_notion: ' + est.estatus);
 est.cuenta === 'Rul HSBC' ? bien('la cuenta bajó: Rul HSBC') : mal('cuenta: ' + est.cuenta);
-/* Y lo que NO tiene que bajar: el nombre lo manda la plataforma, no Notion. */
+/* Y lo que NO tiene que bajar: el nombre lo manda la plataforma, no la hoja. */
 est.nombre && !/OTRO/.test(est.nombre) ? bien('el nombre del proyecto sigue siendo el de la plataforma: «' + est.nombre + '»')
   : mal('el nombre se lo comió el espejo');
 
@@ -257,8 +304,8 @@ await p.evaluate(async () => {
 await p.waitForTimeout(1500);
 const seg = RECIBIDO.empujar[RECIBIDO.empujar.length - 1];
 RECIBIDO.empujar.length > antesDelSegundo ? bien('se mandó') : mal('no se mandó el segundo cambio');
-seg && seg.id_notion === 'pag-falsa-1'
-  ? bien('con el id de la página que ya existía  ← la foto de la bandeja lo trae en null para siempre')
+seg && seg.id_notion === 'V-201'
+  ? bien('con el folio de la fila que ya existía  ← la foto de la bandeja lo trae en null para siempre')
   : mal('fue SIN id_notion (' + JSON.stringify(seg && seg.id_notion) + '): pediría un alta y serían dos ventas');
 seg && seg.tipo === 'actualizar' ? bien('y como cambio, no como alta') : mal('fue «' + (seg && seg.tipo) + '»');
 
@@ -278,7 +325,7 @@ const apart = await p.evaluate(async () => {
            pendientes: (await S.pendientes()).length, sinDestinoDelBombeo: r.valor && r.valor.sin_destino,
            sigueEnLaBase: !!(await DB.obtener('pendientes', 'op-mov-1')) };
 });
-apart.mio ? bien('un movimiento de almacén se aparta en vez de intentarse contra un Worker que no sabe qué hacer con él')
+apart.mio ? bien('un movimiento de almacén se aparta en vez de intentarse contra un puente que no sabe qué hacer con él')
           : mal('el movimiento no se apartó');
 apart.sigueEnLaBase ? bien('y NO se perdió: sigue en la bandeja para el día que exista su base') : mal('SE PERDIÓ');
 apart.pendientes === 0 ? bien('y deja de contarse como «pendiente de mandar», que nunca bajaría') : mal('sigue contándose: ' + apart.pendientes);
@@ -303,7 +350,7 @@ else {
   bien('el botón «Probar» está');
   await btnProbar.click();
   await p.waitForTimeout(1500);
-  RECIBIDO.salud > antesProbar ? bien('y de verdad le pregunta al Worker') : mal('el botón no llamó a /salud');
+  RECIBIDO.salud > antesProbar ? bien('y de verdad le pregunta al puente') : mal('el botón no llamó a /salud');
   const txt = await p.evaluate(() => document.querySelector('.pf-mod:not([hidden])').innerText);
   /reconoce este teléfono/i.test(txt) ? bien('pinta en verde que el puente contesta') : mal('no pintó el resultado');
   /Dirección/.test(txt) ? bien('y dice qué rol reconoció el token') : mal('no dice el rol');
@@ -314,7 +361,7 @@ else {
   bien('el botón «Revisar el esquema» está');
   await btnEsq.click();
   await p.waitForTimeout(1500);
-  RECIBIDO.esquema > 0 ? bien('y de verdad lee el esquema de Notion') : mal('no llamó a /esquema');
+  RECIBIDO.esquema > 0 ? bien('y de verdad lee el esquema de la hoja') : mal('no llamó a /esquema');
 }
 
 if (errs.length) mal('errores de página: ' + [...new Set(errs)].slice(0, 3).join(' | '));

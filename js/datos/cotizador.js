@@ -184,6 +184,10 @@ export async function drenarBuzon() {
       pct_comision: Number(g.pct_comision) || 0,
       sub: Number(g.sub) || 0, neto: Number(g.neto) || 0,
       anti_pactado: Number(g.anti) || 0,
+      /* La fecha en que se cobró el anticipo, tal como la capturó el cotizador. Si no
+         viene —un renglón de buzón viejo— `ganar` cae al día de hoy, que es lo que hacía
+         siempre. */
+      fecha_ganado: g.fecha_anticipo || '',
       plazo_k: g.plazo_k,          // el cubo que propuso o eligió el cotizador; null si no vino
       disp: g.disp || '',
     });

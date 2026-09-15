@@ -86,7 +86,7 @@ export const REGLAS = {
   A11: { id: 'A11_cobro', alias: 'R7_cobro', peso: 50,
          nombre: 'Instalado con saldo',
          roles: ['pagos', 'direccion'],
-         porque: 'El botón de copiar la fila para Notion ya existe y está probado en producción; lo que faltaba era acordarse de apretarlo.' },
+         porque: 'El botón de copiar los datos para la hoja ya existe y está probado en producción; lo que faltaba era acordarse de apretarlo.' },
   A12: { id: 'A12_huella', alias: 'R6_huella_cambio', peso: 25,
          nombre: 'La cotización cambió después de ganarse',
          roles: ['direccion'],
@@ -538,12 +538,12 @@ function a11(E, out) {
       tono: 'av',
       titulo: (p.nombre || p.folio_local || 'Proyecto') + ' se instaló ' + frase(-dias) + ' y tiene saldo',
       detalle: (E.veDinero ? 'Quedan ' + money(saldo) + ' por cobrar. ' : '') +
-        'Copia la fila para Notion con Estatus COBRANDO y mándale el mensaje.',
+        'Copia los datos para la hoja con Estatus COBRANDO y mándale el mensaje.',
       cuando: frase(-dias),
       plazo: -dias,
       entidad: 'proyecto', entidad_id: p.id,
       acciones: [
-        { label: 'Copiar fila para Notion', tipo: 'tsv', datos: { proyecto_id: p.id, estatus: 'COBRANDO' } },
+        { label: 'Copiar datos para la hoja', tipo: 'tsv', datos: { proyecto_id: p.id, estatus: 'COBRANDO' } },
         { label: 'Cobrar por WhatsApp', tipo: 'wa',
           datos: { clase: 'cobrar', tel: p.tel, contacto: p.contacto, negocio: p.negocio,
                    pago_pendiente: saldo } },

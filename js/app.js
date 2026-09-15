@@ -549,7 +549,7 @@ async function arrancar() {
    El puente — fase 3
    ============================================================================ */
 
-/** Enchufa el relevo de Notion si este dispositivo ya tiene URL y token en Ajustes. */
+/** Enchufa el relevo de la hoja si este dispositivo ya tiene URL y token en Ajustes. */
 export async function enchufarPuente() {
   if (!Prefs.hayPuente()) { Sync.registrar(null); return false; }
   try {

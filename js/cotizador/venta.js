@@ -1,7 +1,8 @@
 /* ============================================================================
    Cotizador · venta.js
 
-   Registrar la venta: la fila para Notion, «esta cotización se ganó» hacia la plataforma y la vuelta a ella.
+   Registrar la venta: la fila en la hoja de finanzas, «esta cotización se ganó» hacia la
+   plataforma y la vuelta a ella.
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
@@ -19,7 +20,7 @@
    devuelve el día siguiente. Se arma con los campos locales. */
 function hoyISO(){ const d=new Date(),p=n=>String(n).padStart(2,'0');
   return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
-/* De 'YYYY-MM-DD' a 'DD/MM/YYYY', que es el formato de la columna de Notion. Se parte la
+/* De 'YYYY-MM-DD' a 'DD/MM/YYYY', que es como se lee una fecha en la hoja. Se parte la
    cadena en vez de pasar por Date por lo mismo de arriba. */
 function isoADmy(iso){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso||''));
   return m?m[3]+'/'+m[2]+'/'+m[1]:String(iso||''); }
@@ -61,8 +62,8 @@ function cerrarRegistrarVenta(){
 /* ----- El anticipo y la comisión, acotados -----
    Hasta septiembre de 2026 el modal aceptaba cualquier número: un anticipo mayor que el total
    —un cero de más al teclear— dejaba el «pago pendiente» en $0.00 y la venta se registraba
-   como liquidada; uno negativo lo inflaba; y una comisión del 1000 % se copiaba tal cual a
-   Notion. Se acota en el mismo campo, con aviso, y el número corregido es el que se guarda. */
+   como liquidada; uno negativo lo inflaba; y una comisión del 1000 % se registraba tal cual.
+   Se acota en el mismo campo, con aviso, y el número corregido es el que se guarda. */
 function rvAcotar(){
   const t=desgloseFinal();
   const elA=document.getElementById('rv-anticipo'), elP=document.getElementById('rv-pct');
@@ -113,45 +114,195 @@ function rvComprometerAnticipo(){
   if(Q.estado==='autorizada') guardarEnHistorial();
   toast('Anticipo actualizado a '+money(v)+' — el PDF y el WhatsApp ya lo traen','',4200);
 }
-function copiarFilaVenta(){
+/* ============================================================================
+   EL PUENTE A LA HOJA DE FINANZAS
+
+   Hasta septiembre de 2026 esto armaba una fila de quince valores con el orden de columnas
+   del CSV de Ventas de Notion y la dejaba en el portapapeles. Notion ya no existe: el
+   dinero vive en la hoja «Finanzas AL3D — Ventas y Comisiones», y esa fila ya no se puede
+   pegar en ninguna parte. No es que quedara fea: la hoja INTERCALA columnas de fórmula
+   —Precio neto, Saldo por cobrar, Comisión, Antigüedad— entre las que sí se capturan, y
+   pegar valores encima de un ARRAYFORMULA no escribe la venta, rompe la columna para las
+   trescientas filas. El camino viejo no estaba desactualizado: estaba roto.
+
+   Así que el camino bueno deja de ser el portapapeles y pasa a ser el puente, el mismo
+   Apps Script que ya usa la plataforma y con la MISMA configuración: la clave
+   `al3d_pf_puente` del almacenamiento, que Ajustes escribe y este archivo solo lee. Una
+   venta registrada aquí aparece en la hoja en ese momento, con su folio, sin que nadie
+   abra la plataforma ni pegue nada.
+
+   Se habla el vocabulario del puente —los nombres de propiedad que heredó de Notion, con
+   el espacio final de `Cuenta ` incluido—, nunca las letras de columna: el puente es quien
+   sabe en qué letra vive cada una y esa tabla existe en un solo lado a propósito.
+   ============================================================================ */
+const PUENTE_KEY='al3d_pf_puente';
+const PUENTE_ESPERA=15000;      // lo mismo que espera la plataforma
+
+/* La configuración tal como la dejó Ajustes, o null. La URL se limpia igual que allá: sin
+   cadena de consulta, sin barra final y sin uno de los cinco caminos pegado al final, que
+   es el error de copiado de siempre. */
+function puenteCfg(){
+  try{
+    const c=JSON.parse(localStorage.getItem(PUENTE_KEY)||'null');
+    if(!c||!c.url||!c.token) return null;
+    let u=String(c.url).trim();
+    try{ const x=new URL(u); x.search=''; x.hash=''; u=x.href; }catch(_){}
+    u=u.replace(/\/+(salud|esquema|jalar|empujar|expandir)\/*$/i,'').replace(/\/+$/,'');
+    return u?{url:u,token:String(c.token)}:null;
+  }catch(_){ return null; }
+}
+
+/* Una petición al puente. Todo por POST y el token en el cuerpo, con `text/plain` para no
+   disparar el preflight que Apps Script no sabe contestar: un Web App solo expone doGet y
+   doPost, no hay dónde atender un OPTIONS. El camino viaja como un campo más del cuerpo
+   porque `pathInfo` solo funciona en los GET. Es la misma forma que usa la plataforma. */
+function puentePost(cfg,ruta,extra){
+  const ctrl=(typeof AbortController==='function')?new AbortController():null;
+  const t=ctrl?setTimeout(()=>ctrl.abort(),PUENTE_ESPERA):0;
+  const cuerpo=Object.assign({token:cfg.token,ruta:ruta},extra||{});
+  return fetch(cfg.url,{
+    method:'POST',
+    signal:ctrl?ctrl.signal:undefined,
+    body:JSON.stringify(cuerpo),
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    redirect:'follow'
+  }).then(r=>r.json().catch(()=>null).then(j=>{
+    /* Un 2xx sin JSON no es el puente: casi siempre es la pantalla de inicio de sesión de
+       Google, que aparece cuando la implementación quedó en «Solo yo». */
+    if(r.status<400&&j===null) throw new Error('Esa liga contestó pero no es el puente. Revisa que la implementación esté en «Cualquier usuario».');
+    if(j&&j.ok===false) throw new Error(j.mensaje||'El puente rechazó la operación.');
+    if(!j) throw new Error('El puente contestó '+r.status+' sin decir por qué.');
+    return j;
+  })).catch(e=>{
+    if(e&&e.name==='AbortError') throw new Error('El puente no contestó en 15 segundos. Vuelve a intentarlo o copia los datos.');
+    throw e;
+  }).finally(()=>{ if(t) clearTimeout(t); });
+}
+
+/* ----- Lo que viaja a la hoja -----
+   Solo lo que se CAPTURA. El neto, el saldo, la comisión y lo que queda de ella son
+   fórmulas de la hoja y el puente las rechaza con su razón: se calculan allá, y dos
+   implementaciones de la misma fórmula divergen en semanas.
+
+   Las dos fechas son dos de verdad: la columna L es «Fecha anticipo» —de ella cuelgan los
+   días de cobro y la antigüedad de la cobranza— y la M es «Fecha instalación». Meter la de
+   instalación en la del anticipo, que es lo que significaba la columna combinada de Notion,
+   le movería la antigüedad a toda la cartera.
+
+   `Tipo de trabajo` NO se manda a propósito: derivarlo de las partidas ya lo hace la
+   plataforma, y la hoja lo clasifica sola desde el nombre del proyecto. Escribirlo aquí
+   sería una tercera versión de la misma regla. */
+function datosParaLaHoja(){
+  const t=desgloseFinal();
+  const estatus=document.getElementById('rv-estatus').value;
+  const fecha=document.getElementById('rv-fecha').value.trim();
+  const fechaInst=document.getElementById('rv-fecha-inst').value.trim();
+  const anti=parseFloat(document.getElementById('rv-anticipo').value)||0;
+  const esISO=v=>/^\d{4}-\d{2}-\d{2}$/.test(v);
+  const d={
+    'Proyecto':         document.getElementById('rv-proyecto').value.trim(),
+    'Precio Subtotal':  t.sub,
+    'IVA':              !!Q.iva,
+    'Anticipo':         anti,
+    'Estatus':          estatus,
+    'Cuenta ':          document.getElementById('rv-cuenta').value,
+    /* La llave que ata la fila a esta cotización. Va con el aparato pegado: `al3d_folio` es
+       un contador local y dos teléfonos emiten COT-0042 el mismo día sin ser el mismo
+       trabajo. Es también lo que hace que apretar dos veces NO cree dos ventas: el puente
+       busca por este folio antes de crear. */
+    'Folio cotizacion': String(Q.folio||'')+'@'+dispositivo(),
+    'Etapa de obra':    'Ganado',
+    'Direccion':        direccionPdf()
+  };
+  if(esISO(fecha))     d['Fecha Anticipo e Instalacion']=fecha;   // columna L, el anticipo
+  if(esISO(fechaInst)) d['Fecha instalacion']=fechaInst;          // columna M, la instalación
+  /* LIQUIDADO en la hoja es anticipo + liquidación = neto, y el saldo sale de restar los
+     dos. La liquidación es el RESTO, no el total: ponerle el neto dejaría el saldo en
+     negativo por el valor del anticipo. */
+  if(estatus==='LIQUIDADO'){
+    const resto=Math.max(0,+(t.neto-anti).toFixed(2));
+    if(resto>0) d['Liquidacion']=resto;
+    d['Fecha Liquidacion']=esISO(fecha)?fecha:hoyISO();
+  }
+  return d;
+}
+
+/* ----- Registrar la venta en la hoja -----
+   Devuelve una promesa que nunca se rechaza: los caminos que fallan avisan y ofrecen el
+   respaldo, porque este botón se aprieta con el cliente enfrente. */
+function mandarALaHoja(cierre){
+  const cfg=puenteCfg();
+  if(!cfg){
+    toast('Este dispositivo todavía no tiene el puente a la hoja — se copian los datos para pegarlos','err',6000,
+      {label:'Copiar datos',fn:copiarDatosVenta});
+    return Promise.resolve(false);
+  }
+  rvComprometerAnticipo();
+  const datos=datosParaLaHoja();
+  if(!datos['Proyecto']){ toast('Ponle nombre al proyecto antes de registrarlo','err',4000); return Promise.resolve(false); }
+  prefSet(PREF_RV_PCT,parseFloat(document.getElementById('rv-pct').value)||0);
+  prefSet(PREF_RV_CUENTA,document.getElementById('rv-cuenta').value);
+  toast('Mandando la venta a la hoja…','',PUENTE_ESPERA);
+  return puentePost(cfg,'empujar',{ops:[{id:datos['Folio cotizacion'],datos:datos}]})
+    .then(j=>{
+      const r=(j&&j.resultados&&j.resultados[0])||null;
+      if(!r||r.ok!==true) throw new Error((r&&r.mensaje)||'El puente no pudo escribir la venta.');
+      marcarHito('venta');
+      const folio=(r.remoto&&(r.remoto['Folio']||r.remoto.id_notion))||'';
+      const rech=(r.rechazadas||[]).map(x=>x&&x.nombre).filter(Boolean);
+      const el=document.getElementById('rv-copied');
+      if(el){
+        el.querySelector('span').textContent=(r.creada?'Venta registrada en la hoja':'Venta actualizada en la hoja')+
+          (folio?' — '+folio:'');
+        el.classList.add('show');
+      }
+      toast((r.creada?'Venta registrada en la hoja':'Se actualizó la venta en la hoja')+(folio?' — '+folio:'')+
+        ((cierre&&cierre.sufijo)||''),'ok',5600,(cierre&&cierre.accion)||null);
+      /* Lo rechazado se dice con nombre. Un campo que no se escribió y nadie nombró es la
+         forma más cara de descubrir que este teléfono tiene el token de fabricación. */
+      if(rech.length) toast('No se escribió: '+rech.join(', ')+' — este teléfono no tiene permiso para esos campos','err',7000);
+      return true;
+    })
+    .catch(e=>{
+      toast((e&&e.message)||'No se pudo mandar la venta a la hoja','err',7000,
+        {label:'Copiar datos',fn:copiarDatosVenta});
+      return false;
+    });
+}
+
+/* ----- El respaldo, cuando no hay puente o falló -----
+   Las seis columnas que la hoja captura SEGUIDAS: Proyecto, Cuenta, Estatus, Tipo de
+   trabajo, IVA y Subtotal (B a G). Es todo lo que se puede pegar de un tirón sin tocar una
+   fórmula. El anticipo y la fecha van dos columnas más allá, con «Precio neto» en medio,
+   así que se capturan a mano — o se usa ⚡ AL3D → Registrar nueva venta en la hoja, que es
+   un formulario y no pide pegar nada. */
+function copiarDatosVenta(){
   rvComprometerAnticipo();
   const t=desgloseFinal();
-  const sub=t.sub, neto=t.neto;
-  const proyecto=document.getElementById('rv-proyecto').value.trim();
-  /* La columna de Notion es de tipo *date* con formato DD/MM/YYYY. El campo ya guarda ISO. */
-  const fecha=isoADmy(document.getElementById('rv-fecha').value.trim());
-  const iva=Q.iva?'Yes':'No';
-  const anti=parseFloat(document.getElementById('rv-anticipo').value)||0;
-  const pct=parseFloat(document.getElementById('rv-pct').value)||0;
-  const cuenta=document.getElementById('rv-cuenta').value;
-  const estatus=document.getElementById('rv-estatus').value;
-  // Se recuerdan al registrar, que es cuando ya son la decisión buena.
-  prefSet(PREF_RV_PCT,pct); prefSet(PREF_RV_CUENTA,cuenta);
-  const com=Math.round(sub*pct/100);
-  const pend=estatus==='LIQUIDADO'?0:Math.max(0,neto-anti);
-  const liquidacion=estatus==='LIQUIDADO'?neto:'';
-  const abonoComision=estatus==='LIQUIDADO'?com:0;
-  const comRestante=estatus==='LIQUIDADO'?0:com;
-  const fechaLiq=estatus==='LIQUIDADO'?fecha:'';
-  // Orden de columnas idéntico al CSV de Ventas de Notion:
-  // Proyecto | Abono Comision | Anticipo | Comision Restante | Comisiones | Cuenta | Estatus
-  // Fecha Anticipo e Instalacion | Fecha Comision | Fecha Liquidacion | IVA | Liquidacion | Pago Pendiente | Precio Neto | Precio Subtotal
   const row=[
-    proyecto,abonoComision,anti,comRestante,com,cuenta,estatus,
-    fecha,'',fechaLiq,iva,liquidacion,pend,neto,sub
+    document.getElementById('rv-proyecto').value.trim(),
+    document.getElementById('rv-cuenta').value,
+    document.getElementById('rv-estatus').value,
+    '',                       // Tipo de trabajo: lo clasifica la hoja
+    Q.iva?'Sí':'No',
+    t.sub
   ].join('\t');
-  /* Copiar la fila para pegarla en Notion ES registrar la venta cuando no hay plataforma
-     montada: el README dice que ese botón no se retira nunca, así que tampoco puede ser el
-     único camino que deje la entrega marcada como pendiente para siempre. */
   marcarHito('venta');
-  copiarTexto(row,'Fila copiada — pégala en la base Ventas - AL3D de Notion',()=>{ document.getElementById('rv-copied').classList.add('show'); });
+  const anti=parseFloat(document.getElementById('rv-anticipo').value)||0;
+  copiarTexto(row,'Datos copiados — pégalos en la columna Proyecto del primer renglón vacío de Ventas',()=>{
+    const el=document.getElementById('rv-copied');
+    if(el){
+      el.querySelector('span').innerHTML='Pégalos en la columna <b>Proyecto</b> del primer renglón vacío de <b>Ventas</b>. Falta capturar a mano el anticipo ('+money(anti)+') y la fecha.';
+      el.classList.add('show');
+    }
+  });
 }
 /* ----- «Esta cotización se ganó» -----
    El evento que no existía en ningún sistema. El modal ya capturaba todo lo que hace falta
    —la fecha, la cuenta, el estatus, el anticipo, la comisión— y todo se iba al portapapeles:
    si alguien no pegaba la fila, no quedaba rastro de que la cotización se hubiera vendido.
-   De ahí sale que la base de Notion tenga 199 proyectos sin una sola dirección y sin un
-   solo tipo de trabajo: los datos que el cotizador SÍ tiene nunca llegaban.
+   De ahí salen los 199 proyectos que la hoja heredó sin una sola dirección y sin un solo
+   tipo de trabajo: los datos que el cotizador SÍ tiene nunca llegaban.
 
    Aquí solo se deja constancia en una clave propia, `al3d_pf_ganadas`. La plataforma la
    recoge al abrir y la convierte en proyecto —con su dirección, su tipo derivado de las
@@ -175,6 +326,10 @@ function registrarGanada(){
     huella:Q.huellaAuth||'',
     /* La del campo de instalación, NO la del anticipo. Ver el comentario del modal. */
     fecha_instalacion:(document.getElementById('rv-fecha-inst').value||''),
+    /* Y la del anticipo, que es otra columna de la hoja y otra cuenta: de ella cuelgan los
+       días de cobro y la antigüedad de la cartera. Sin esto la plataforma ponía el día en
+       que ALGUIEN LA ABRIÓ, que puede ser una semana después de cobrar. */
+    fecha_anticipo:(document.getElementById('rv-fecha').value||''),
     /* El plazo de taller si alguien lo eligió; null si no, y la plataforma lo propone igual
        que aquí, desde el tipo de trabajo. Se manda el elegido y no el propuesto para que del
        otro lado se sepa cuál de los dos es. */
@@ -195,6 +350,14 @@ function registrarGanada(){
       /* Ya estaba registrada: el hito puede faltar si se registró antes de que existieran
          —o si el respaldo trajo las ganadas y no los hitos—, y lo que manda es el hecho. */
       marcarHito('venta');
+      /* Se reintenta la hoja aunque la constancia ya existiera: el puente busca por folio
+         antes de crear, así que no puede duplicar, y este es justo el camino de «se
+         registró pero ese día no había señal». */
+      if(puenteCfg()){
+        mandarALaHoja({sufijo:' — ya estaba registrada como proyecto ganado',
+          accion:{label:'Abrir plataforma',fn:()=>{ irAPlataforma('proyectos'); }}});
+        return;
+      }
       toast('Esta cotización ya estaba registrada como proyecto ganado','',3600,
         {label:'Abrir plataforma',fn:()=>{ irAPlataforma('proyectos'); }});
       return;
@@ -204,8 +367,8 @@ function registrarGanada(){
   }catch(_){
     /* Sin espacio o almacenamiento bloqueado. Se dice, y se ofrece lo único que sigue
        funcionando: la fila para pegar a mano. */
-    toast('No hubo espacio para registrar el proyecto — copia la fila y pégala a mano','err',6000,
-      {label:'Copiar fila',fn:copiarFilaVenta});
+    toast('No hubo espacio para registrar el proyecto — copia los datos y captúralos a mano','err',6000,
+      {label:'Copiar datos',fn:copiarDatosVenta});
     return;
   }
   /* La guarda de obligatorios ya corrió para llegar aquí (el modal solo se abre con la
@@ -214,8 +377,18 @@ function registrarGanada(){
      justo el aviso que hay que ver. */
   marcarHito('venta');
   const sinFecha=!g.fecha_instalacion;
+  const abrir={label:'Abrir plataforma',fn:()=>{ irAPlataforma(sinFecha?'agenda':'proyectos'); }};
+  /* Un solo botón hace las dos cosas que tiene que hacer una venta: dejar constancia para
+     la plataforma —de ahí salen el material, la agenda y el mapa— y escribir el renglón en
+     la hoja, que es el libro mayor del dinero. Se avisa UNA vez: dos avisos seguidos se
+     pisan y el segundo borra al primero antes de que nadie lo lea. */
+  if(puenteCfg()){
+    mandarALaHoja({sufijo:' · registrada como proyecto ganado'+(sinFecha?', le falta la fecha de instalación':''),
+      accion:abrir});
+    return;
+  }
   toast('Registrada como proyecto ganado'+(sinFecha?' — le falta la fecha de instalación':''),
-    'ok',5200,{label:'Abrir plataforma',fn:()=>{ irAPlataforma(sinFecha?'agenda':'proyectos'); }});
+    'ok',5200,abrir);
 }
 
 /* ----- La vuelta a la plataforma -----

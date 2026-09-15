@@ -26,7 +26,7 @@ const proy = (o = {}) => ({ id: 'p1', folio_local: 'COT-0031', folio_global: 'CO
   precio_auth: 11600, anti_pactado: 5800, pct_comision: 10, cuenta: 'BBVA', estatus_notion: 'COBRANDO', iva: true,
   pago_pendiente: null, comision_restante: null, origen: { items: [{ id: 1 }] }, ...o });
 
-console.log('\nLA COMISIÓN, con la aritmética de la fila de Notion');
+console.log('\nLA COMISIÓN, con la aritmética del registro de venta');
 eq('10 % de 10 000 de subtotal', comisionDe(proy()).comision, 1000);
 eq('sin liquidar: nada abonable, todo restante', [comisionDe(proy()).abonable, comisionDe(proy()).restante], [0, 1000]);
 eq('LIQUIDADO: todo abonable', [comisionDe(proy({ estatus_notion: 'LIQUIDADO' })).abonable, comisionDe(proy({ estatus_notion: 'LIQUIDADO' })).restante], [1000, 0]);
@@ -87,7 +87,7 @@ console.log('\nLAS RESPUESTAS LOCALES: las siete de siempre, sin IA');
 const RC = responderLocal('comisiones', R);
 ok('comisiones: la liquidada sale como abonable con su importe', RC.includes('COT-0030') && RC.includes('$500.00') && RC.includes('Se pueden abonar ya'));
 ok('y la otra espera liquidación con lo que debe el cliente', RC.includes('COT-0031') && RC.includes('$1,000.00') && RC.includes('el cliente debe $5,800.00'));
-ok('y dice dónde se registra el abono', RC.includes('Ventas - AL3D'));
+ok('y dice dónde se registra el abono', RC.includes('Registrar abono de comisión'));
 const RD = responderLocal('cobranza', R);
 ok('cobranza: total y renglones, el instalado marcado', RD.includes('Por cobrar: $5,800.00') && RD.includes('COT-0031') && RD.includes('ya instalado'));
 const RT = responderLocal('tarde', R);
@@ -116,7 +116,7 @@ eq('cobranza: primero la cartera, luego el proyecto con saldo', AC.map(a => a.ti
 eq('y la cartera abre en Por cobrar', AC[0].dato, { tab: 'cobrar' });
 eq('el botón del proyecto lleva folio y nombre corto', AC[1].label, 'COT-0031 · Healthylicious');
 const ACc = respuestaLocal('comisiones', R).acciones;
-ok('comisiones: el enlace a Notion y los dos proyectos con comisión', ACc[0].tipo === 'link' && ACc[0].href.startsWith('https://app.notion.com/') && ACc.filter(a => a.tipo === 'proyecto').map(a => a.id).sort().join() === 'p1,p2');
+ok('comisiones: el enlace a la hoja y los dos proyectos con comisión', ACc[0].tipo === 'link' && ACc[0].href.startsWith('https://docs.google.com/spreadsheets/') && ACc.filter(a => a.tipo === 'proyecto').map(a => a.id).sort().join() === 'p1,p2');
 eq('tarde: el Tablero y el atrasado', respuestaLocal('tarde', R).acciones.map(a => a.tipo + ':' + (a.ruta || a.id)), ['ir:hoy', 'proyecto:p2']);
 eq('semana: el calendario en vista semana con el día de hoy', respuestaLocal('semana', R).acciones[0], { tipo: 'pasar', ruta: 'agenda', dato: { dia: '2026-09-14', vista: 'semana' }, label: 'Ver la semana' });
 eq('material: la lista de compra', respuestaLocal('material', R).acciones.map(a => a.ruta), ['material']);

@@ -872,7 +872,7 @@
 <script src="js/cotizador/arranque.js"></script>
 
 <!-- Modal: Registrar Venta -->
-<div class="rv-modal-bg" id="rv-modal-bg" onclick="if(event.target===this)cerrarRegistrarVenta()" role="dialog" aria-modal="true" aria-label="Registrar venta en Google Sheets">
+<div class="rv-modal-bg" id="rv-modal-bg" onclick="if(event.target===this)cerrarRegistrarVenta()" role="dialog" aria-modal="true" aria-label="Registrar la venta en la hoja de finanzas">
   <div class="rv-modal">
     <div class="rv-header">
       <h2><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg> Registrar venta</h2>
@@ -886,12 +886,11 @@
           <input type="text" id="rv-proyecto" placeholder="Cliente - Proyecto">
         </div>
         <div class="rv-field">
-          <!-- La columna de Notion se llama «Fecha Anticipo e Instalacion» y es de tipo
-               *date* con formato DD/MM/YYYY. Aquí era un <input type="text"> precargado con
-               Q.fecha, que viene en es-MX («22 ago 2026»): no hay forma de que Notion lo
-               parsee, y esa misma fecha es la que la plataforma usa para agendar la
-               instalación. Ahora es una fecha de verdad, se guarda en ISO y se convierte a
-               DD/MM/YYYY solo al armar la fila. -->
+          <!-- Es la columna «Fecha anticipo» de la hoja (la L), de la que cuelgan los días
+               de cobro y la antigüedad de la cartera. Aquí era un <input type="text">
+               precargado con Q.fecha, que viene en es-MX («22 ago 2026»): no hay forma de
+               parsear eso, y esa misma fecha es la que la plataforma usa para agendar la
+               instalación. Ahora es una fecha de verdad y viaja en ISO. -->
           <label for="rv-fecha">Fecha del anticipo</label>
           <input type="date" id="rv-fecha">
         </div>
@@ -933,11 +932,11 @@
         </div>
         <div class="rv-field">
           <label for="rv-cuenta">Cuenta</label>
-          <!-- Las cinco cuentas que existen en la propiedad «Cuenta » de Notion (sí, con
-               espacio al final: es su nombre real). Faltaban Rul HSBC y Tatis BNT, y sobraba
-               «Otra», que allá no existe. La preferencia guardada se sigue leyendo con el
-               guardia de más abajo, así que un teléfono que tenía «Otra» simplemente no la
-               aplica y se queda con la primera. -->
+          <!-- Las cinco cuentas que existen en la columna «Cuenta» de la hoja. Faltaban Rul
+               HSBC y Tatis BNT, y sobraba «Otra», que allá no existe: el puente valida
+               contra la lista real y rechaza lo que no esté. La preferencia guardada se
+               sigue leyendo con el guardia de más abajo, así que un teléfono que tenía
+               «Otra» simplemente no la aplica y se queda con la primera. -->
           <select id="rv-cuenta">
             <option>Elias BBVA</option>
             <option>Constru BNT</option>
@@ -948,12 +947,10 @@
         </div>
         <div class="rv-field">
           <label for="rv-estatus">Estatus</label>
-          <!-- Estos son los cuatro valores que de verdad existen en la propiedad Estatus de
-               la base «Ventas - AL3D» de Notion. Antes decían ANTICIPO, CANCELADO y
-               PENDIENTE, que no existen allá: coincidía uno de cuatro. Y pegar una opción
-               inexistente en una propiedad de tipo *status* NO falla —Notion la CREA—, así
-               que cada venta registrada ensuciaba el esquema en silencio y las siete vistas
-               empezaban a filtrar sobre valores inventados. -->
+          <!-- Los cuatro valores que de verdad existen en la columna Estatus de la pestaña
+               Ventas. Antes decían ANTICIPO, CANCELADO y PENDIENTE, que no existen allá:
+               coincidía uno de cuatro, y una venta con un estatus inventado se queda fuera
+               de las vistas de cobranza sin avisar. Hoy el puente lo rechaza con su razón. -->
           <select id="rv-estatus" onchange="rvRecalc()">
             <option>FABRICACION</option>
             <option>COBRANDO</option>
@@ -982,13 +979,13 @@
       </div>
     </div>
     <div class="rv-footer">
-      <div class="rv-copied" id="rv-copied"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg><span>Fila copiada — pégala en la base <b>Ventas - AL3D</b> de Notion</span></div>
-      <!-- Este botón va ANTES del de copiar porque es el que de verdad hay que apretar: el
-           de copiar deja la fila en el portapapeles y nada más; este deja constancia de que
-           la cotización se ganó, que es el dato que no existía en ningún sistema. Se queda
-           el de copiar, para siempre, como camino manual: es lo que ya funciona. -->
-      <button class="btn btn-pri" onclick="registrarGanada()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Registrar como proyecto ganado</button>
-      <button class="btn btn-gho" onclick="copiarFilaVenta()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar fila para Notion</button>
+      <div class="rv-copied" id="rv-copied"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg><span>Listo</span></div>
+      <!-- Un solo botón: deja constancia de que la cotización se ganó —de ahí salen el
+           material, la agenda y el mapa— y escribe el renglón en la hoja de finanzas, que
+           es el libro mayor del dinero. El de copiar se queda como respaldo para el
+           teléfono que todavía no tiene el puente, o para el día que no haya señal. -->
+      <button class="btn btn-pri" id="rv-registrar" onclick="registrarGanada()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Registrar venta</button>
+      <button class="btn btn-gho" id="rv-copiar" onclick="copiarDatosVenta()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar datos para la hoja</button>
       <button class="btn btn-gho" onclick="cerrarRegistrarVenta()">Cancelar</button>
     </div>
   </div>
