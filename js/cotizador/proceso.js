@@ -202,9 +202,15 @@ function renderAuth(){
          $3,016.00» aquí. El porcentaje sale igual en las dos bases: el 1,16 se va en la
          división. */
       const _dA=desgloseFinal(), _subA=+subAjustado().toFixed(2), ajS=+(_subA-_dA.sub).toFixed(2);
+      /* El DESCUENTO ya no se repite aquí. Desde que la columna del dinero cierra consigo
+         misma, su renglón del total dice «Precio autorizado · $17,966.08» y el de abajo
+         «Descuento · $2,112.00 sobre el subtotal (12%)»: esta caja verde decía esos dos
+         mismos números tres centímetros más abajo, con otras palabras. El AUMENTO sí se
+         queda, porque dice algo que no está en ninguna otra parte: que se reparte entre las
+         partidas y que por eso el PDF no lleva un renglón de ajuste. */
       const descHTML=Math.abs(aj)>0.01&&neto>0
         ? (aj>0
-            ? `<div class="authnote" style="border-color:var(--green-ico);background:var(--green-bg);color:var(--green);margin-top:8px">Precio autorizado: <b>${money(precioFinal())}</b> · Ahorro: <b>${money(ajS)}</b> sobre el subtotal (${Math.round(ajS/_subA*100)}%)</div>`
+            ? ''
             /* El aumento se reparte entre las partidas y el cliente no lo ve como renglón (ver
                preciosCliente). Se dice aquí, donde el vendedor lee «Aumento», para que no
                busque en el PDF un «Ajuste» que ya no existe. */
