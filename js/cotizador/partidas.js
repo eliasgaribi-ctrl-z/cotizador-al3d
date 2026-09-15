@@ -753,6 +753,14 @@ function pintarPendiente(){
    rechazada. Es el mismo botón que en el panel del resumen; aquí solo está donde se mira. */
 function irAlCandado(){
   if(locked()&&!Q.editMode){
+    /* La misma guarda que ya lleva irAPartida —`locked()&&Q.rol!=='autorizador'`— y por la
+       misma razón: el autorizador revisa la de otro, y revisar no es editar. Sin ella, con
+       una cotización de la cola abierta la ficha ámbar decía «Mandada a autorización ·
+       volver a editar» —arriba de las partidas, lo primero que se ve al entrar— y tocarla
+       llamaba a reabrir(), que hace removeFromQueue(): le cancelaba al autorizador la
+       solicitud que estaba revisando, y con ella su nombre, su nota y el precio que llevara
+       tecleado. Su sitio es el formulario de revisión, no el de captura. */
+    if(Q.rol==='autorizador'){ irAResumen(); return; }
     if(Q.estado==='autorizada') toggleEditMode();
     else reabrir();
     return;

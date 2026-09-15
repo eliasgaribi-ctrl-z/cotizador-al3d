@@ -1068,7 +1068,12 @@ function pintarCandadoPartidas(){
     box.hidden=!cerrado&&!congelado;
     const txt=$('cand-partidas-txt');
     if(congelado&&!cerrado&&txt){
-      const frase=Q.estado==='autorizada'?'El precio está autorizado · editar partidas'
+      /* Y la frase dice lo que ESTE rol puede hacer. Las tres de abajo son del vendedor —las
+         tres ofrecen editar— y al autorizador se le enseñaban igual, encima de unas partidas
+         que no son suyas: «volver a editar» describía una acción que, en su caso, cancelaba
+         la solicitud que venía a revisar. */
+      const frase=Q.rol==='autorizador'?'Revisando la cotización · ir al precio'
+        :Q.estado==='autorizada'?'El precio está autorizado · editar partidas'
         :Q.estado==='rechazada'?'Rechazada · editar y volver a enviar'
         :'Mandada a autorización · volver a editar';
       if(txt.textContent!==frase) txt.textContent=frase;
@@ -1176,8 +1181,33 @@ function cerrarEdicionCliente(){
   _editCliente=null;
   const antes=Q.folio;
   if(Q.estado==='autorizada') guardarEnHistorial();
-  else if(Q.estado==='pendiente') updateQueueEntry(Q.folio,{proy:Q.proy,cliente:Q.cliente,
-    q:JSON.parse(JSON.stringify({...Q,aiFile:null,editMode:false}))});
+  else if(Q.estado==='pendiente'){
+    /* ----- Un folio es de UN cliente, también en la cola -----
+       La ficha ámbar promete, con estas palabras, que «al guardar, ésta se lleva un folio
+       nuevo y la de X se queda como está». Quien cumplía esa promesa era
+       reFoliarSiEsOtroCliente(), y esa función solo mira el HISTORIAL y solo la llama
+       guardarEnHistorial(). Para una cotización PENDIENTE el camino era updateQueueEntry,
+       que hace un Object.assign sobre el renglón de ese folio —incluido `q`, la copia
+       entera— sin preguntar de quién era. La solicitud del cliente anterior desaparecía
+       con su trabajo, su proyecto y su nombre, con el mismo folio y sin un aviso.
+       La ficha SÍ sale para una pendiente, porque otroClienteEnEsteFolio() usa
+       guardadaDeEsteFolio(), que sí mira los dos almacenes. O sea que la app prometía por
+       un camino lo que rompía por el otro.
+
+       Aquí se refolia a mano y se empuja un renglón NUEVO. No se reutiliza
+       reFoliarSiEsOtroCliente() aunque se le ampliara la búsqueda: lleva dentro
+       `removeFromQueue(antes)`, que borraría justo el renglón que se viene a proteger. */
+    const previa=otroClienteEnEsteFolio();
+    if(previa){
+      const deQuien=(previa.cliente||'').trim()||'la cotización que ya estaba';
+      Q.folio=nextFolio(); pintarFolio();
+      pushToQueue();       // busca por Q.folio, que ya es el nuevo: agrega, no pisa
+      toast(antes+' sigue siendo de '+deQuien+' — ésta quedó como '+Q.folio,'',7000);
+    } else {
+      updateQueueEntry(Q.folio,{proy:Q.proy,cliente:Q.cliente,
+        q:JSON.parse(JSON.stringify({...Q,aiFile:null,editMode:false}))});
+    }
+  }
   saveState(); renderSummary(); updProg();
   /* Si el folio se movió, reFoliarSiEsOtroCliente ya lo dijo con su propio aviso y con más
      detalle: repetirlo aquí taparía el único mensaje que nombra las dos cotizaciones. */
@@ -1720,4 +1750,29 @@ function cambiarRol(r){
   const el=$(id); if(el) el.addEventListener('input',()=>marcarVaciado(k,el.value));
 });
 $('f-anti').addEventListener('input',function(){undoJuntar('q:anti');Q.anti=parseFloat(this.value)||0;Q.antiManual=this.value.trim()!=='';saveState();renderSummary();});
+/* ----- El anticipo, acotado al soltar el campo -----
+   El `min="0"` del marcado es validación de formulario y aquí no hay formulario: nada lo
+   corre, así que un «-5000» —o un menos de más en el teclado del teléfono— entraba tal cual
+   y «Resta al entregar» salía MAYOR que el total, diciendo en pantalla que el cliente debe
+   más de lo que cuesta el trabajo. Y por arriba tampoco había techo: la pantalla avisaba en
+   chiquito, pero el PDF imprimía el anticipo tal cual con una resta clavada en $0.00 por el
+   Math.max(0,…), sin una palabra. Un cero de más en «Anticipo sugerido (50%)» se le entrega
+   al cliente en papel.
+
+   La regla es la que `rvAcotar()` ya escribió para el modal de venta, con sus mismas frases:
+   una regla, dos sitios. Va en `change` y no en `input` para no pelear con el tecleo —son
+   los mismos motivos por los que saneaNum vive en `blur`—. */
+$('f-anti').addEventListener('change',function(){
+  const t=desgloseFinal();
+  let v=parseFloat(this.value);
+  if(!isFinite(v)) v=0;
+  let aviso='';
+  if(v<0){ v=0; aviso='El anticipo no puede ser negativo: se puso en $0.00.'; }
+  else if(t.neto>0 && v>t.neto+0.005){ v=Math.round(t.neto*100)/100; aviso='El anticipo era mayor que el total de '+money(t.neto)+': se dejó igual al total.'; }
+  if(!aviso) return;
+  Q.anti=v; Q.antiManual=this.value.trim()!=='';
+  this.value=v||'';
+  saveState(); renderSummary();
+  toast(aviso,'err',4200);
+});
 

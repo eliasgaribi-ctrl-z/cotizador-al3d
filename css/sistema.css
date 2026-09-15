@@ -4051,6 +4051,11 @@ html.empotrado .btn-tema{display:none}
      esta capa no los nombraba. Medido en 820×1180 con dedo: Clientes, Historial, Plataforma
      y Deshacer a 36 px. Son los cuatro atajos de la barra. */
   .btn-hist{min-height:44px}
+  /* El renglón que el autorizador toca para ajustar una partida. Medía 38 px: es el control
+     que abre el campo del precio de cada partida, o sea el que se toca una vez por renglón
+     en la pantalla donde se decide cuánto se cobra, y con seis partidas son seis blancos de
+     38 px apilados. */
+  .ia-hdr{min-height:44px}
 }
 
 /* ============================================================================
