@@ -227,7 +227,11 @@ for (const caso of CASOS) {
     if (caso.plano && !conPlano) problemas.push('había plano capturado y no se imprimió');
     if (!caso.plano && conPlano) problemas.push('se imprimió un plano que no existe');
     /* El taller no debe ver el precio. */
-    const ot = doc.indexOf('>ORDEN DE TRABAJO<');
+    /* En MINÚSCULAS, que es como sale en el HTML: `hdr()` emite «Orden de trabajo» y las
+       mayúsculas las pone `.mh-t{text-transform:uppercase}`, que no cambia el texto del DOM.
+       Con la cadena en mayúsculas `ot` era SIEMPRE -1, así que todo este bloque —la única
+       aserción que vigila que el taller no vea el precio— no se ejecutó jamás. */
+    const ot = doc.indexOf('>Orden de trabajo<');
     if (ot > -1) {
       const finOt = doc.indexOf('class="pg"', ot);
       const hoja_ot = doc.slice(ot, finOt > -1 ? finOt : undefined);

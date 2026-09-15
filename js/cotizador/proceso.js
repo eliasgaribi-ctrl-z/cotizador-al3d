@@ -38,14 +38,37 @@ function renderSummary(){
   if(subCalcEl){ subCalcEl.textContent=subCanva.ajustado?money(t.sub):''; subCalcEl.hidden=!subCanva.ajustado; }
   const subLab=$('s-sub-lab');
   if(subLab){ const v=subCanva.ajustado?'Precio Subtotal autorizado':'Precio Subtotal'; if(subLab.textContent!==v) subLab.textContent=v; }
-  $('s-iva').textContent=money(t.iva);
-  $('s-neto').textContent=money(t.neto);
+  /* ----- La columna cierra consigo misma -----
+     El recuadro de arriba ya enseñaba el subtotal AUTORIZADO, y estos dos renglones se
+     habían quedado en el calculado. La columna decía, uno debajo de otro y delante del
+     cliente: «Precio Subtotal $17,400.00 · IVA 16% $3,200.00 · Total neto $23,200.00».
+     Medido: 17,400 + 3,200 son 20,600, el renglón de abajo decía 23,200, y más abajo
+     todavía un cuarto número, $20,184, se llamaba «Precio autorizado». Cuatro importes en
+     una columna y ninguna pareja sumaba. `desgloseFinal()` es justo la respuesta a «cuánto
+     es el subtotal, el IVA y el total de lo que se va a cobrar», y sus tres cierran entre
+     sí por construcción. */
+  const dCol=subCanva.ajustado?desgloseFinal():t;
+  $('s-iva').textContent=money(dCol.iva);
+  $('s-neto').textContent=money(dCol.neto);
+  /* Y el rótulo dice lo que hay debajo. Con ajuste, «Precio autorizado», igual que ya hacen
+     la barra fija del teléfono y el total de la barra de pasos. Sin ajuste, «Total neto» o
+     «Total» según el IVA: era marcado estático, así que con el interruptor apagado el
+     escritorio seguía llamando «neto» a un importe sin impuesto mientras el teléfono y el
+     PDF ya decían «Total». Tres pantallas del mismo folio, dos rótulos. */
+  const netoLab=$('s-neto-lab');
+  if(netoLab){
+    const v=subCanva.ajustado?'Precio autorizado':(Q.iva?'Total neto':'Total');
+    if(netoLab.textContent!==v) netoLab.textContent=v;
+  }
   latirTotal(); latirSubtotal();
   /* «Subtotal × 1.16» describe el total CALCULADO, y con un precio autorizado encima el
      recuadro de arriba ya no enseña ese subtotal: la línea afirmaría una multiplicación que
      los dos números de la pantalla no hacen. Cuando hay ajuste, dice lo que es y señala a
      dónde mirar; el precio que se cobra vive en su propio renglón, dos más abajo. */
-  $('s-calc').textContent=subCanva.ajustado?'Calculado · el autorizado va abajo'
+  /* Decía «el autorizado va abajo» cuando el autorizado vivía dos renglones más abajo; ahora
+     el renglón de encima YA es el autorizado, así que lo que falta aquí es el otro número:
+     el calculado, que sigue siendo el que se compara y el que el vendedor busca. */
+  $('s-calc').textContent=subCanva.ajustado?`Calculado: ${money(t.neto)}`
     :(Q.iva?`${money(t.sub)} × 1.16`:'Sin IVA (= subtotal)');
   $('ivatg').classList.toggle('on',Q.iva); tgAria('ivatg');
   const ivaHint=$('s-iva-hint'); if(ivaHint) ivaHint.style.display=Q.iva?'':'none';
@@ -64,16 +87,21 @@ function renderSummary(){
   if(authRow){
     const aj=ajusteAuth(), neto=netoAjustado();
     if(Q.estado==='autorizada'&&Math.abs(aj)>0.01&&neto>0){
-      $('s-auth').textContent=money(pf);
       /* El ajuste se dice en la base en la que se decidió, que es el subtotal. El porcentaje
          sale igual en las dos —el 1,16 se va en la división—, pero el importe no: sobre el
          neto este renglón anunciaba «Descuento: $3,016» de una rebaja que en lo que la casa
          se queda son $2,600. El subtotal autorizado no se repite aquí: lo enseña el recuadro
          de arriba, en grande y con el calculado tachado. */
       const dFin=desgloseFinal(), subBase=+subAjustado().toFixed(2), ajSub=+(subBase-dFin.sub).toFixed(2);
+      /* Esta ficha repetía «Precio autorizado: $20,184.00», que es palabra por palabra lo que
+         dice el renglón del total dos más arriba. Con el importe ya dicho arriba, aquí se
+         queda lo único que sólo esta ficha sabe: cuánto se movió y sobre qué base. */
+      const adjLab=authRow.querySelector('.adj-label');
+      if(adjLab) adjLab.textContent = ajSub>0?'Descuento':'Aumento';
+      $('s-auth').textContent=money(Math.abs(ajSub));
       $('s-auth-desc').textContent= ajSub>0
-        ? `Descuento: ${money(ajSub)} sobre el subtotal (${Math.round(ajSub/subBase*100)}%)`
-        : `Aumento: ${money(-ajSub)} sobre el subtotal (${Math.round(-ajSub/subBase*100)}%)`;
+        ? `sobre el subtotal (${Math.round(ajSub/subBase*100)}%) · se le enseña al cliente`
+        : `sobre el subtotal (${Math.round(-ajSub/subBase*100)}%) · repartido entre las partidas`;
       authRow.classList.toggle('inc',aj<0);
       authRow.style.display='';
     } else { authRow.style.display='none'; }
@@ -168,13 +196,25 @@ function renderAuth(){
     else if(Q.estado==='autorizada'){
       const neto=netoAjustado();
       const aj=ajusteAuth();
+      /* El importe se dice sobre el SUBTOTAL, igual que #s-auth-desc y que updPrecioAuth. Con
+         la base vieja —el neto— los dos se pintaban a la vez, un renglón debajo del otro, y
+         el mismo descuento salía como «$2,600.00 sobre el subtotal» arriba y «Ahorro:
+         $3,016.00» aquí. El porcentaje sale igual en las dos bases: el 1,16 se va en la
+         división. */
+      const _dA=desgloseFinal(), _subA=+subAjustado().toFixed(2), ajS=+(_subA-_dA.sub).toFixed(2);
+      /* El DESCUENTO ya no se repite aquí. Desde que la columna del dinero cierra consigo
+         misma, su renglón del total dice «Precio autorizado · $17,966.08» y el de abajo
+         «Descuento · $2,112.00 sobre el subtotal (12%)»: esta caja verde decía esos dos
+         mismos números tres centímetros más abajo, con otras palabras. El AUMENTO sí se
+         queda, porque dice algo que no está en ninguna otra parte: que se reparte entre las
+         partidas y que por eso el PDF no lleva un renglón de ajuste. */
       const descHTML=Math.abs(aj)>0.01&&neto>0
         ? (aj>0
-            ? `<div class="authnote" style="border-color:var(--green-ico);background:var(--green-bg);color:var(--green);margin-top:8px">Precio autorizado: <b>${money(precioFinal())}</b> · Ahorro: <b>${money(aj)}</b> (${Math.round(aj/neto*100)}%)</div>`
+            ? ''
             /* El aumento se reparte entre las partidas y el cliente no lo ve como renglón (ver
                preciosCliente). Se dice aquí, donde el vendedor lee «Aumento», para que no
                busque en el PDF un «Ajuste» que ya no existe. */
-            : `<div class="authnote" style="border-color:var(--amber-ico);background:var(--amber-bg);color:var(--amber);margin-top:8px">Precio autorizado: <b>${money(precioFinal())}</b> · Aumento: <b>${money(-aj)}</b> (${Math.round(-aj/neto*100)}%) · repartido entre las partidas, sin renglón de ajuste en el PDF</div>`)
+            : `<div class="authnote" style="border-color:var(--amber-ico);background:var(--amber-bg);color:var(--amber);margin-top:8px">Precio autorizado: <b>${money(precioFinal())}</b> · Aumento: <b>${money(-ajS)}</b> sobre el subtotal (${Math.round(-ajS/_subA*100)}%) · repartido entre las partidas, sin renglón de ajuste en el PDF</div>`)
         : '';
       const authNote=`<div class="authnote">Autorizada por <b>${esc(Q.autorizador)||'—'}</b> el <b>${esc(Q.fechaAuth)}</b>.${Q.nota?'<br>Nota: '+esc(Q.nota):''}</div>`;
       if(Q.editMode){
@@ -194,7 +234,7 @@ function renderAuth(){
                    entrega: sacadas de la fila de arriba dejan de competir con lo que sí se
                    hace siempre, y siguen a un toque de distancia. -->
               <details class="ai-cfg otras-salidas"${_hayPropuestas()?' open':''}>
-                <summary><span class="os-chev" aria-hidden="true">▾</span> Otras salidas de esta cotización</summary>
+                <summary>Otras salidas de esta cotización</summary>
                 <div style="margin-top:2px">
                   <button class="btn btn-gho" onclick="copiarParaCanva()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar datos para Canva</button>
                   <button class="btn btn-gho" onclick="copiarParaGemini()"><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg> Prompt para imagen (Gemini)</button>
@@ -931,12 +971,20 @@ function pintarPantalla(){
 function pintarPasos(){
   caducarPedido();
   const act=pasoActual();
-  const faltaCli=faltanDatosCliente()&&!locked();
+  /* Dos preguntas distintas, y compartían respuesta. «¿Están los tres datos?» es
+     `faltanDatosCliente()` a secas; el `&&!locked()` se añadió para no pintar en ámbar el
+     paso 2 de una cotización ya cerrada —correcto— pero al reutilizarse para `hecho[1]`
+     hacía que CUALQUIER cotización bloqueada marcara el paso 1 con la palomita, aunque no
+     tuviera ni cliente ni teléfono: una vieja del historial, guardada antes de que el
+     teléfono fuera obligatorio, salía «✓ Cliente» con el candado dos centímetros más abajo
+     diciendo justo lo contrario. El comentario de esta función promete que las palomitas
+     «no pueden mentir». */
+  const faltaCli=faltanDatosCliente();
   const cotizado=hayTrabajoCotizado();
   const autorizada=Q.estado==='autorizada';
   const h=autorizada?hitosDe(Q.folio):null;
   const hecho={1:!faltaCli, 2:cotizado, 3:autorizada, 4:!!(h&&h.pdf&&h.wa&&h.venta)};
-  const espera={1:false, 2:faltaCli, 3:!cotizado, 4:!autorizada};
+  const espera={1:false, 2:faltaCli&&!locked(), 3:!cotizado, 4:!autorizada};
   const sub=subPasos();
   PASOS.forEach(p=>{
     const t=$('tab-'+p.n); if(!t) return;
@@ -969,8 +1017,19 @@ function pintarTotalDePaso(){
   const enCliente=_pantalla==='cliente';
   caja.hidden=!enCliente;
   if(!enCliente) return;
+  /* La misma pareja que usa renderMobileBar, y por la misma razón. Con `totals().neto` esta
+     caja enseñaba el CALCULADO y lo rotulaba «Total» aunque el autorizador hubiera fijado
+     otro: con un descuento de $23,664 a $20,000, tocar «1 · Cliente» para corregir la
+     dirección dejaba en pantalla un solo importe —«Total $23,664.00»— que no es el que
+     llevan el PDF, el WhatsApp ni el registro de venta. El vuelo de elemento compartido no
+     se entera: mide el rectángulo, no el texto. */
+  const pf=precioFinal(), aj=ajusteAuth();
+  const hayAjuste=Q.estado==='autorizada'&&Math.abs(aj)>0.01;
+  const rot=$('paso-total').querySelector('small');
+  const lab=hayAjuste?'Precio autorizado':'Total';
+  if(rot&&rot.textContent!==lab) rot.textContent=lab;
   const v=$('paso-total-v');
-  const t=money(totals().neto);
+  const t=money(pf);
   if(v&&v.textContent!==t) v.textContent=t;
 }
 
@@ -1015,7 +1074,12 @@ function pintarCandadoPartidas(){
     box.hidden=!cerrado&&!congelado;
     const txt=$('cand-partidas-txt');
     if(congelado&&!cerrado&&txt){
-      const frase=Q.estado==='autorizada'?'El precio está autorizado · editar partidas'
+      /* Y la frase dice lo que ESTE rol puede hacer. Las tres de abajo son del vendedor —las
+         tres ofrecen editar— y al autorizador se le enseñaban igual, encima de unas partidas
+         que no son suyas: «volver a editar» describía una acción que, en su caso, cancelaba
+         la solicitud que venía a revisar. */
+      const frase=Q.rol==='autorizador'?'Revisando la cotización · ir al precio'
+        :Q.estado==='autorizada'?'El precio está autorizado · editar partidas'
         :Q.estado==='rechazada'?'Rechazada · editar y volver a enviar'
         :'Mandada a autorización · volver a editar';
       if(txt.textContent!==frase) txt.textContent=frase;
@@ -1123,8 +1187,33 @@ function cerrarEdicionCliente(){
   _editCliente=null;
   const antes=Q.folio;
   if(Q.estado==='autorizada') guardarEnHistorial();
-  else if(Q.estado==='pendiente') updateQueueEntry(Q.folio,{proy:Q.proy,cliente:Q.cliente,
-    q:JSON.parse(JSON.stringify({...Q,aiFile:null,editMode:false}))});
+  else if(Q.estado==='pendiente'){
+    /* ----- Un folio es de UN cliente, también en la cola -----
+       La ficha ámbar promete, con estas palabras, que «al guardar, ésta se lleva un folio
+       nuevo y la de X se queda como está». Quien cumplía esa promesa era
+       reFoliarSiEsOtroCliente(), y esa función solo mira el HISTORIAL y solo la llama
+       guardarEnHistorial(). Para una cotización PENDIENTE el camino era updateQueueEntry,
+       que hace un Object.assign sobre el renglón de ese folio —incluido `q`, la copia
+       entera— sin preguntar de quién era. La solicitud del cliente anterior desaparecía
+       con su trabajo, su proyecto y su nombre, con el mismo folio y sin un aviso.
+       La ficha SÍ sale para una pendiente, porque otroClienteEnEsteFolio() usa
+       guardadaDeEsteFolio(), que sí mira los dos almacenes. O sea que la app prometía por
+       un camino lo que rompía por el otro.
+
+       Aquí se refolia a mano y se empuja un renglón NUEVO. No se reutiliza
+       reFoliarSiEsOtroCliente() aunque se le ampliara la búsqueda: lleva dentro
+       `removeFromQueue(antes)`, que borraría justo el renglón que se viene a proteger. */
+    const previa=otroClienteEnEsteFolio();
+    if(previa){
+      const deQuien=(previa.cliente||'').trim()||'la cotización que ya estaba';
+      Q.folio=nextFolio(); pintarFolio();
+      pushToQueue();       // busca por Q.folio, que ya es el nuevo: agrega, no pisa
+      toast(antes+' sigue siendo de '+deQuien+' — ésta quedó como '+Q.folio,'',7000);
+    } else {
+      updateQueueEntry(Q.folio,{proy:Q.proy,cliente:Q.cliente,
+        q:JSON.parse(JSON.stringify({...Q,aiFile:null,editMode:false}))});
+    }
+  }
   saveState(); renderSummary(); updProg();
   /* Si el folio se movió, reFoliarSiEsOtroCliente ya lo dijo con su propio aviso y con más
      detalle: repetirlo aquí taparía el único mensaje que nombra las dos cotizaciones. */
@@ -1254,6 +1343,19 @@ function autorizarYoMismo(){
        una puerta de servicio para saltarse los datos del cliente. */
     if(!exigirDatosCliente()) return;
     if(!Q.items.length||totals().sub<=0){toast('Agrega al menos una partida con precio mayor a cero.','err',3200);return;}
+    /* La regla de los 10 cm, AQUÍ, antes de cerrar el precio. `solicitar()` la aplica a
+       través de `revisarAntesDe`, en este mismo punto del orden: después de la guarda del
+       total y antes de pasar a pendiente. Este atajo no la llamaba nunca, y no es que la
+       llamara tarde: `revisarAlturasMinimas()` arranca con `if(locked()) return 0;`, o sea
+       que cuando el autorizador toca «Autorizar precio» y `autorizar()` la corre, la
+       cotización ya está en 'pendiente' y la función se va sin mirar nada.
+
+       El resultado era que los dos caminos cotizaban distinto el mismo trabajo: once
+       letras de 6 cm en acrílico+aluminio salen a $40/cm por «Autorizar yo mismo» y por
+       «Solicitar autorización a alguien más» pasan a recorte, que es lo que el taller de
+       verdad fabrica. Y el camino que se salta la regla es, según el propio comentario de
+       abajo, el que se usa casi siempre. */
+    revisarAlturasMinimas();
     /* Se pasa por «pendiente» y por la cola igual que el flujo normal: así el estado y
        el registro de la cola nunca dependen de por cuál de los dos caminos se llegó. */
     Q.estado='pendiente'; pushToQueue(); saveState();
@@ -1654,4 +1756,29 @@ function cambiarRol(r){
   const el=$(id); if(el) el.addEventListener('input',()=>marcarVaciado(k,el.value));
 });
 $('f-anti').addEventListener('input',function(){undoJuntar('q:anti');Q.anti=parseFloat(this.value)||0;Q.antiManual=this.value.trim()!=='';saveState();renderSummary();});
+/* ----- El anticipo, acotado al soltar el campo -----
+   El `min="0"` del marcado es validación de formulario y aquí no hay formulario: nada lo
+   corre, así que un «-5000» —o un menos de más en el teclado del teléfono— entraba tal cual
+   y «Resta al entregar» salía MAYOR que el total, diciendo en pantalla que el cliente debe
+   más de lo que cuesta el trabajo. Y por arriba tampoco había techo: la pantalla avisaba en
+   chiquito, pero el PDF imprimía el anticipo tal cual con una resta clavada en $0.00 por el
+   Math.max(0,…), sin una palabra. Un cero de más en «Anticipo sugerido (50%)» se le entrega
+   al cliente en papel.
+
+   La regla es la que `rvAcotar()` ya escribió para el modal de venta, con sus mismas frases:
+   una regla, dos sitios. Va en `change` y no en `input` para no pelear con el tecleo —son
+   los mismos motivos por los que saneaNum vive en `blur`—. */
+$('f-anti').addEventListener('change',function(){
+  const t=desgloseFinal();
+  let v=parseFloat(this.value);
+  if(!isFinite(v)) v=0;
+  let aviso='';
+  if(v<0){ v=0; aviso='El anticipo no puede ser negativo: se puso en $0.00.'; }
+  else if(t.neto>0 && v>t.neto+0.005){ v=Math.round(t.neto*100)/100; aviso='El anticipo era mayor que el total de '+money(t.neto)+': se dejó igual al total.'; }
+  if(!aviso) return;
+  Q.anti=v; Q.antiManual=this.value.trim()!=='';
+  this.value=v||'';
+  saveState(); renderSummary();
+  toast(aviso,'err',4200);
+});
 

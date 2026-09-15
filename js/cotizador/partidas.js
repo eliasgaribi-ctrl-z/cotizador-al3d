@@ -274,8 +274,15 @@ function typeItem(id,k,v){
    y el texto se queda en pantalla. `blur` siempre corre. El valor entero del cambio es que el
    campo se reescriba con lo que la app leyó DE VERDAD.
 
-   Solo la altura redondea al medio centímetro, porque es la única que declara ese paso en su
-   `step` y la que ya aplica el escalador al bajar sus medidas. En ancho, alto, tarifa y
+   Los tres campos de CANTIDAD —# Letras, # Piezas y las Piezas de la partida manual— se
+   quedaron con `onchange` cuando el resto pasó a `onblur`, y eran justo el caso que este
+   párrafo describe: pegar «12 letras» copiado del mensaje del cliente en un campo vacío
+   dejaba «12 letras» en pantalla, `it.n` en 0 y la partida en $0.00 diciendo «Faltan: letras»,
+   sin manera de corregirlo salvo borrarlo a mano. Ahora también redondean al entero, que es
+   el paso que declaran.
+
+   Solo la altura redondea al medio centímetro entre las MEDIDAS, porque es la única que
+   declara ese paso en su `step` y la que ya aplica el escalador al bajar sus medidas. En ancho, alto, tarifa y
    unitario no se redondea nada: inventarles una precisión que nunca declararon movería el
    importe de una cotización a espaldas de quien la teclea. */
 function saneaNum(el,id,k,paso){
@@ -746,6 +753,14 @@ function pintarPendiente(){
    rechazada. Es el mismo botón que en el panel del resumen; aquí solo está donde se mira. */
 function irAlCandado(){
   if(locked()&&!Q.editMode){
+    /* La misma guarda que ya lleva irAPartida —`locked()&&Q.rol!=='autorizador'`— y por la
+       misma razón: el autorizador revisa la de otro, y revisar no es editar. Sin ella, con
+       una cotización de la cola abierta la ficha ámbar decía «Mandada a autorización ·
+       volver a editar» —arriba de las partidas, lo primero que se ve al entrar— y tocarla
+       llamaba a reabrir(), que hace removeFromQueue(): le cancelaba al autorizador la
+       solicitud que estaba revisando, y con ella su nombre, su nota y el precio que llevara
+       tecleado. Su sitio es el formulario de revisión, no el de captura. */
+    if(Q.rol==='autorizador'){ irAResumen(); return; }
     if(Q.estado==='autorizada') toggleEditMode();
     else reabrir();
     return;
@@ -988,7 +1003,7 @@ function bodyFor(it){
         </div>
         <div class="fld">
           <label for="n-${it.id}"># Letras</label>
-          <input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'n',+this.value)" onchange="this.value=Math.max(0,Math.round(+this.value||0))||'';typeItem(${it.id},'n',+this.value)">
+          <input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'n',+this.value)" onblur="saneaNum(this,${it.id},'n',1)">
         </div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
@@ -1018,7 +1033,7 @@ function bodyFor(it){
           <label for="h-${it.id}">Altura (cm)</label>
           <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'altura',+this.value)" onblur="saneaNum(this,${it.id},'altura',0.5)">
         </div>
-        <div class="fld"><label for="n-${it.id}"># Piezas</label><input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'n',+this.value)" onchange="this.value=Math.max(0,Math.round(+this.value||0))||'';typeItem(${it.id},'n',+this.value)"></div>
+        <div class="fld"><label for="n-${it.id}"># Piezas</label><input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'n',+this.value)" onblur="saneaNum(this,${it.id},'n',1)"></div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
       ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las piezas" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} piezas</span></div>`:''}`;
@@ -1051,7 +1066,7 @@ function bodyFor(it){
   return `
     <div class="fld"><label for="d-${it.id}">Descripción ${it.descAi?'<span class="ai-tag">'+ico('i-ia')+' IA</span>':''}</label><input id="d-${it.id}" value="${esc(it.desc)}" placeholder="Ej. Rotulación vehicular, instalación, viáticos…" ${dis} oninput="typeItem(${it.id},'desc',this.value)"></div>
     <div class="grid2">
-      <div class="fld"><label for="pz-${it.id}">Piezas</label><input id="pz-${it.id}" type="number" inputmode="numeric" min="1" value="${it.pz||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'pz',+this.value)" onchange="this.value=Math.max(1,Math.round(+this.value||0))||'';typeItem(${it.id},'pz',+this.value)"></div>
+      <div class="fld"><label for="pz-${it.id}">Piezas</label><input id="pz-${it.id}" type="number" inputmode="numeric" min="1" value="${it.pz||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'pz',+this.value)" onblur="saneaNum(this,${it.id},'pz',1)"></div>
       <div class="fld"><label for="pu-${it.id}">Precio unitario</label><div class="inp-money"><input id="pu-${it.id}" type="number" inputmode="decimal" min="0" step="1" value="${it.pu||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'pu',+this.value)" onblur="saneaNum(this,${it.id},'pu')"></div></div>
     </div>`;
 }
@@ -1090,7 +1105,10 @@ function formulaFor(it){
 /* ===================== Vista previa del archivo analizado por IA ===================== */
 function renderAiPreview(){
   const el=$('aiPreview'); if(!el)return;
-  if(!Q.aiFile){ el.innerHTML=''; return; }
+  /* La del escalador no se pinta aquí: ya está a la vista, con sus cotas, en la vista previa
+     del escalador que vive unos centímetros más arriba en esta misma columna. Se guarda de
+     todos modos porque el PDF y el historial la necesitan —ver el comentario de ia.js—. */
+  if(!Q.aiFile||Q.aiFile.deEscalador){ el.innerHTML=''; return; }
   const f=Q.aiFile;
   const isImg=f.type && f.type.indexOf('image/')===0;
   const big=isImg
@@ -1148,6 +1166,9 @@ function toggleItemAuth(id){
   const hdr=arrow&&arrow.closest('.ia-hdr');
   if(hdr) hdr.setAttribute('aria-expanded',open?'false':'true');
 }
+/* Lo último que updItemAuth escribió en #a-precio. Sirve para distinguir «este número lo
+   puso la función» de «este número lo tecleó una persona». */
+let _aPrecioDerivado=null;
 function updItemAuth(id,val){
   if(!Q.itemsAuth) Q.itemsAuth={};
   /* Vaciar el campo para reteclearlo NO es autorizar la partida en $0. Con `+''` el campo
@@ -1180,7 +1201,24 @@ function updItemAuth(id,val){
   // Al centavo, que es lo que el campo puede enseñar: la suma cruda de dos partidas entra
   // como «17600.000000000004» y eso es lo que quedaría escrito.
   const subAj=+sub.toFixed(2);
-  const gInput=$('a-precio'); if(gInput) gInput.value=subAj;
+  /* ----- Y si el autorizador ya llevaba un precio tecleado, se le dice -----
+     El campo de arriba es la SUMA de las partidas ajustadas, y eso es coherente: los dos
+     campos hablan de lo mismo y no se puede honrar a la vez un total libre y unas partidas
+     libres —alguna tiene que absorber la diferencia—. Lo que no era coherente es hacerlo
+     sin decirlo: el orden natural de una revisión es teclear primero cuánto va a quedar el
+     trato y después marcar en qué partida se ve, y al marcar la partida el número del trato
+     se borraba solo. Medido: se teclea 20000 de subtotal sobre $25,000, se baja la partida 2
+     a 4,500 y el campo global salta a 24,500 sin un aviso.
+     Se avisa UNA vez por cifra tecleada: `_aPrecioDerivado` guarda lo último que escribió
+     esta función, así que los tecleos siguientes de la misma partida no repiten el aviso, y
+     si el autorizador vuelve a escribir un global suyo, vuelve a avisarse. */
+  const gInput=$('a-precio');
+  const prevTxt=gInput?String(gInput.value).trim():'';
+  const prev=prevTxt===''?null:+prevTxt;
+  const eraSuyo=prev!==null&&isFinite(prev)&&(_aPrecioDerivado===null||Math.abs(prev-_aPrecioDerivado)>0.01);
+  if(gInput){ gInput.value=subAj; _aPrecioDerivado=subAj; }
+  if(eraSuyo&&Math.abs(prev-subAj)>0.01)
+    toast('El precio final que llevabas tecleado ('+money(conIva(prev))+') se ajustó a la suma de las partidas: '+money(conIva(subAj))+'.','',6000);
   // Se respeta el ajuste sea hacia abajo o hacia arriba: antes un aumento se veía
   // en pantalla pero se perdía al autorizar.
   Q.precioAuth=Math.abs(netoAj-neto)>0.01?netoAj:0;

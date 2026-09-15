@@ -1075,7 +1075,7 @@ function vtHabilitarSalidas(){
     bp.textContent=!hay?'→ Agregar como partida de letras 3D'
       :!conTrazo?'→ El trazo está vacío: enciende al menos un color'
       :demasiadas?'→ '+VT.formas+' formas: eso no son letras, revisa el modo'
-      :VT.cmPorPx>0?'→ Agregar como partida · '+VT.altoCm.toFixed(0)+' cm × '+VT.formas+(VT.formas===1?' letra':' letras')
+      :VT.cmPorPx>0?'→ Agregar como partida · '+vtAltoPartida().toFixed(1)+' cm × '+VT.formas+(VT.formas===1?' letra':' letras')
       :'→ Pon la medida real para poder agregarla';
   }
   vtAjustarToast();
@@ -1097,6 +1097,17 @@ function scAjustarToast(){
     if(h>0) document.documentElement.style.setProperty('--sc-acc-h',h+'px');
   });
 }
+/* ----- El alto que se le entrega a la partida -----
+   A MEDIO CENTÍMETRO, que es la precisión que declara el campo de altura (step="0.5"), la
+   que enseña este mismo panel (`toFixed(1)`) y la que el escalador ya redondea con su
+   razón escrita al lado. Aquí se redondeaba a CENTÍMETRO ENTERO, y es el mismo dinero que
+   el escalador nombra: el alto de letras multiplica el precio —factor × altura × piezas—,
+   así que medio centímetro por letra en acero inoxidable ($55/cm) son casi $28 por letra.
+   Un trazo que el panel anunciaba como «40.4 cm» entraba a la cotización como 40.
+
+   Y la usan los DOS sitios —el rótulo del botón y la partida— para que el botón prometa
+   exactamente la medida que va a crear. */
+function vtAltoPartida(){ return Math.max(0.5,Math.round((VT.altoCm||0)*2)/2); }
 function vtAjustarToast(){
   const acc=document.querySelector('#vectormodal .sp-actions');
   if(!acc) return;
@@ -1209,7 +1220,7 @@ function vtUsarComoPartidas(){
      y porque el estado puede haber cambiado desde el último repintado. */
   if(!VT.ink||!VT.formas){ toast('El trazo no tiene ninguna forma — enciende al menos un color','err',4200); return; }
   if(VT.formas>VT_MAX_PIEZAS){ toast('El trazo tiene '+VT.formas+' formas: eso no son letras. Prueba el modo Corte o Logotipo antes de cotizarlo.','err',6000); return; }
-  const alto=Math.max(1,Math.round(VT.altoCm));
+  const alto=vtAltoPartida();
   const n=Math.max(1,VT.formas);
   const it=addItem({enfocar:false});
   if(!it) return;
@@ -1224,7 +1235,7 @@ function vtUsarComoPartidas(){
      medida salió del propio vector, calibrada, así que aquí la regla no supone nada — solo
      nombra bien lo que se acaba de medir. Ver ALTURA_MIN_LETRAS en catalogo.js. */
   const recorte=forzarRecortePorAltura(it);
-  it.desc='Vectorizado del logotipo — '+VT.anchoCm.toFixed(0)+' × '+alto+' cm, '+n+(n===1?' pieza':' piezas');
+  it.desc='Vectorizado del logotipo — '+VT.anchoCm.toFixed(1)+' × '+alto+' cm, '+n+(n===1?' pieza':' piezas');
   renderItems();
   toast(recorte
         ? 'Recorte de acrílico agregado · '+alto+' cm × '+n+(n===1?' pieza':' piezas')+

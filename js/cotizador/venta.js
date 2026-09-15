@@ -26,10 +26,20 @@ function abrirRegistrarVenta(){
   const aj=ajusteAuth(), avisoEl=document.getElementById('rv-aviso-auth');
   if(avisoEl){
     if(Math.abs(aj)>0.01){
-      avisoEl.textContent=(aj>0?'Precio autorizado con descuento de '+money(aj):'Precio autorizado con aumento de '+money(-aj))
-        +' — la venta se registra por '+money(precioFinal())+'.';
+      /* Sobre el SUBTOTAL, que es la base en la que se decidió el ajuste y la misma en la que
+         se calcula la comisión dos campos más abajo. Con la base vieja —el neto— este aviso
+         decía «$3,016» de una rebaja que en lo que se queda la casa son $2,600, justo encima
+         de una comisión calculada sobre los $17,400. */
+      const dV=desgloseFinal(), subV=+subAjustado().toFixed(2), ajS=+(subV-dV.sub).toFixed(2);
+      avisoEl.textContent=(ajS>0?'Precio autorizado con descuento de '+money(ajS):'Precio autorizado con aumento de '+money(-ajS))
+        +' sobre el subtotal — la venta se registra por '+money(precioFinal())+'.';
+      /* Y un aumento no se anuncia en la caja verde del éxito. La misma información, dos
+         pantallas antes, ya distingue: en el panel del paso 3 el descuento va en verde y el
+         aumento en ámbar, con su comentario. Aquí los dos compartían la única piel que tiene
+         este nodo. */
+      avisoEl.classList.toggle('inc',ajS<0);
       avisoEl.style.display='';
-    } else avisoEl.style.display='none';
+    } else { avisoEl.classList.remove('inc'); avisoEl.style.display='none'; }
   }
   document.getElementById('rv-proyecto').value=(Q.cliente?Q.cliente+' - ':'')+Q.proy;
   /* En ISO, que es lo que un <input type="date"> entiende. Q.fecha está en es-MX y no se
@@ -81,7 +91,12 @@ function rvRecalc(){
   const anti=parseFloat(document.getElementById('rv-anticipo').value)||0;
   const pct=parseFloat(document.getElementById('rv-pct').value)||0;
   const estatus=document.getElementById('rv-estatus').value;
-  const com=Math.round(sub*pct/100);
+  /* Sin `Math.round`: a la hoja NO se le manda la comisión, se le manda el porcentaje, y la
+     columna la calcula allá con la cifra completa. Redondear a pesos aquí hacía que el modal
+     enseñara «$1,759.00» y la hoja escribiera $1,758.56, que es justo la discordancia que el
+     comentario de esa línea vino a arreglar. `money()` hace el suyo, el mismo que ya hace con
+     el subtotal y el neto de esta misma tarjeta. */
+  const com=sub*pct/100;
   const pend=estatus==='LIQUIDADO'?0:Math.max(0,neto-anti);
   document.getElementById('rv-sub-disp').textContent=money(sub);
   document.getElementById('rv-neto-disp').textContent=money(neto);

@@ -453,6 +453,10 @@ body.precios-ocultos #s-iva,
 body.precios-ocultos #s-neto,
 body.precios-ocultos #s-calc,
 body.precios-ocultos #s-anti-rest,
+/* El total chiquito de la barra de pasos. En la pantalla del cliente la columna del dinero
+   está oculta y la barra fija no trae total: ése es el único importe a la vista, y era el
+   único que se escapaba del difuminado. */
+body.precios-ocultos #paso-total-v,
 body.precios-ocultos .mbar-amt,
 body.precios-ocultos .anti .inp-money,
 /* El precio unitario de una partida manual y la tarifa a mano de una caja de luz son
@@ -1008,7 +1012,11 @@ textarea{resize:vertical;min-height:46px}
 /* Partida con precio puesto a mano por el autorizador: se enseña el que se va a cobrar y,
    al lado, el calculado tachado. Antes la pantalla decía el calculado y el PDF el
    autorizado, y nada avisaba de que eran dos números distintos. */
-.pline .lt .lt-calc{font-size:12.5px;font-weight:600;color:var(--muted);text-decoration:line-through;margin-right:5px}
+/* Iba acotado a `.pline .lt`, y el rediseño subió el total al encabezado: hoy vive en
+   `.partida-top>.lt` y en `.pline` sólo queda la fórmula, así que el selector no casaba con
+   nada. Se veía: la partida que el autorizador ajustó imprimía «$8,400.00$7,900.00» pegados,
+   al mismo tamaño y sin tachar. */
+.lt .lt-calc{font-size:12.5px;font-weight:600;color:var(--muted);text-decoration:line-through;margin-right:5px}
 .addbtn{width:100%;padding:12px;border:1px dashed var(--n4);border-radius:var(--rr1);background:none;color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;transition:border-color .12s,background .12s}
 .addbtn:hover{background:var(--n1);border-color:var(--n5);color:var(--n8)}
 .addbtn:disabled{opacity:.45;cursor:not-allowed}
@@ -1171,10 +1179,27 @@ textarea{resize:vertical;min-height:46px}
    además el azul aquí no significa nada, porque no es una selección ni la acción principal. */
 details.ai-cfg.otras-salidas summary{color:var(--muted);font-weight:550}
 /* `display:flex` en el <summary> se lleva el triangulito del navegador, así que el pliegue no
-   parecía un pliegue: aquí es el único camino a Canva y al prompt de imagen, y un control que
-   no se ve que abre algo es una función escondida. */
-.os-chev{display:inline-block;transition:transform var(--mv);color:var(--n5);font-size:11px}
-details.otras-salidas[open] .os-chev{transform:rotate(180deg)}
+   parecía un pliegue: un control que no se ve que abre algo es una función escondida.
+
+   Esto ya se sabía y se había arreglado DOS VECES por separado —con un `::after` en
+   `.sp-fold>summary` y con un <span class="os-chev">▾</span> escrito a mano en el pliegue de
+   «otras salidas»— y las dos veces solo para el pliegue que se estaba mirando. Los otros dos
+   `details.ai-cfg` del cotizador se quedaron mudos: «Datos que salen en el PDF (opcional)», que
+   es el único camino a las entrecalles, al límite de fabricación, al plazo de taller y a la
+   nota del cliente, y «Configuración · proveedores gratuitos de IA», que es el único camino a
+   la API key. Medido en Chromium: `::marker` sin pintar y `::after` en `none` en los dos —dos
+   rótulos que parecen títulos muertos.
+
+   Ahora la flecha sale de la clase y no del marcado, así que la lleva cualquier pliegue nuevo
+   sin que nadie tenga que acordarse. `margin-left:auto` la manda al extremo: el <summary> es
+   flex, y una flecha pegada al texto en un rótulo que ocupa todo el ancho no se lee como el
+   borde de una zona que se abre. */
+details.ai-cfg>summary{list-style:none}
+details.ai-cfg>summary::-webkit-details-marker{display:none}
+details.ai-cfg>summary::marker{content:''}
+details.ai-cfg>summary::after{content:'\25be';margin-left:auto;font-size:11px;font-weight:700;
+  color:var(--n5);transition:transform var(--mv);flex-shrink:0}
+details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
 /* «Nueva cotización» estaba a un dedo de «Registrar venta». Una línea y aire la separan de
    lo que se hace con ESTA cotización. */
 .auth-cierre{margin-top:var(--e3);padding-top:var(--e3);border-top:1px solid var(--line)}
@@ -1330,8 +1355,13 @@ details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:
    ve que la ventana correcta es la que va a recibirlo. */
 #aimodal.arrastrando .modal{box-shadow:0 0 0 3px var(--brand),0 24px 60px rgba(var(--tinta-rgb),.28)}
 /* Segunda entrada a lo mismo, desde la vista previa que queda junto a las partidas */
-.sc-prev-ia{width:100%;margin-top:9px;padding:9px 12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 10px rgba(var(--a-rgb),.25)}
-.sc-prev-ia:hover{filter:brightness(1.06)}
+/* Es el MISMO botón que dentro del panel del escalador es `.sp-ai` —los dos llaman a
+   scCotizarConIA()— y a aquél la capa (4) lo dejó neutro a propósito, con un párrafo
+   explicando que «el relleno se muda al que hace lo que se vino a hacer». Fuera del panel
+   se quedó relleno de degradado, con peso 800 y sombra teida: dos rellenos azules en la
+   misma columna, uno debajo del otro, para el mismo trabajo. */
+.sc-prev-ia{width:100%;margin-top:9px;padding:0 12px;min-height:38px;border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup);color:var(--tinta2);font-size:var(--t2);font-weight:500;font-family:inherit;cursor:pointer;box-shadow:none}
+.sc-prev-ia:hover{background:var(--sup);border-color:var(--a-borde);color:var(--tinta)}
 .ai-prev-big{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--soft);padding:12px;margin-bottom:14px}
 .ai-prev-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
 .ai-prev-head .ttl{font-size:11.5px;font-weight:700;color:var(--brand);line-height:1.4}
@@ -1651,7 +1681,13 @@ a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-t
 .sp-close .ico{font-size:19px;line-height:1;display:flex}
 .sp-close .back,.sp-close .lbl{display:none}
 .btn-scaler-open{display:flex;align-items:center;justify-content:center;gap:var(--e2);padding:10px 14px;border:1px solid var(--n3);border-radius:var(--rr1);background:var(--sup);color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;transition:border-color .12s,background .12s;white-space:nowrap}
-.btn-scaler-open:hover{background:var(--ok-bg);border-color:var(--ok)}
+/* El hover de estos dos se quedó de la era en que cada herramienta tenía su color —uno
+   verde, otro morado, la IA azul—. En reposo el rediseño ya los dejó idénticos y neutros,
+   con su comentario diciendo por qué: «Tres pesos y tres colores para tres cosas iguales».
+   Con el ratón encima volvían los tres colores, uno detrás de otro. El hover neutro de la
+   capa (4) ya los alcanza; la pista de color se queda donde el resto de la app la pone,
+   en el icono. */
+.btn-scaler-open .svgi{color:var(--ok)}
 .scaler-ai-row{display:flex;gap:8px;margin-bottom:14px}
 .scaler-ai-row .ai-btn{flex:1;margin-bottom:0}
 .sc-flash{animation:scFlash 1.5s ease-out 1}
@@ -1701,7 +1737,11 @@ a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-t
 .vt-stage canvas{position:absolute;top:0;left:0;display:block;width:100%;height:100%}
 .vt-stage canvas.base{position:relative}
 /* Cuadrícula de transparencia: el vector puede salir sin fondo y sin esto no se nota */
-.vt-stage{background:repeating-conic-gradient(var(--n3) 0% 25%,#fff 0% 50%) 50%/18px 18px;box-shadow:0 10px 44px rgba(0,0,0,.42)}
+/* Los mismos dos tokens que las otras tres cuadrículas de transparencia de la app
+   (.ai-prev-img, .sc-prev-img, .hentry-img). Con `#fff` fijo, de noche salía un damero de
+   blanco puro contra `--n3` —#2f3562— que competía con el trazo, mientras la vista previa
+   de la misma imagen, dos pantallas más allá, se resolvía sola. */
+.vt-stage{background:repeating-conic-gradient(var(--n1) 0% 25%,var(--sup) 0% 50%) 50%/18px 18px;box-shadow:0 10px 44px rgba(0,0,0,.42)}
 #vt-cvs-out{clip-path:inset(0 0 0 0)}
 /* Cortina de comparación */
 .vt-split{position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,.95);box-shadow:0 0 0 1px rgba(12,15,38,.35);z-index:4;display:none;cursor:ew-resize;touch-action:none}
@@ -1752,7 +1792,7 @@ a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-t
 .vt-dl{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:9px}
 .vt-modal-bg .sp-actions{padding:10px 14px 12px}
 .btn-vector-open{display:flex;align-items:center;justify-content:center;gap:var(--e2);padding:10px 14px;border:1px solid var(--n3);border-radius:var(--rr1);background:var(--sup);color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;transition:border-color .12s,background .12s;white-space:nowrap;font-family:inherit}
-.btn-vector-open:hover{background:var(--a2-suave);border-color:#5227b8}
+.btn-vector-open .svgi{color:var(--a2)}
 /* Los dos modales de pantalla completa —escalador y vectorizador— cambian a diseño de
    teléfono a los 1000 px y no a los 760. Su barra de herramientas necesita 982 px para
    caber en un renglón, así que entre 761 y 981 px desbordaba por la derecha y dejaba
@@ -1927,6 +1967,9 @@ a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-t
 .rv-field input:focus,.rv-field select:focus{border-color:var(--brand)}
 .rv-field input[readonly]{opacity:.65;cursor:default}
 .rv-aviso{background:var(--green-bg);border:1px solid rgba(var(--ok-rgb),.25);color:var(--green);border-radius:var(--r-sm);padding:10px 13px;font-size:12px;font-weight:600;line-height:1.5;margin-bottom:14px}
+/* Un AUMENTO no es una buena noticia: mismo modificador que ya usan el panel del paso 3 y el
+   renglón del ajuste de la columna. */
+.rv-aviso.inc{background:var(--av-bg);border-color:rgba(var(--av-rgb),.30);color:var(--av)}
 .rv-calc{background:var(--soft);border-radius:var(--r-sm);padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
 .rv-calc-item{display:flex;flex-direction:column;gap:3px}
 .rv-calc-item span:first-child{font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
@@ -2621,9 +2664,50 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
   box-shadow:none;animation:none;
 }
 .tipo-seg button:active,.seg button:active{transform:none}
+/* ----- Y el tercer segmentado, que se había quedado fuera -----
+   `.tool-seg` es el mismo control en los dos aparatos de pantalla completa: «Libre ·
+   Horizontal · Vertical» del escalador, «Original · Comparar · Vector» del vectorizador y
+   los tres modos de cota. La capa (4) redefinió `.tipo-seg` y `.seg` y no lo nombró, así
+   que se quedó entero en la era del barro: carril de 9 px de radio, relleno de degradado
+   con sombra teñida en el elegido, letra de 12,5 px —que no es un escalón de la escala— y
+   el apagado por opacidad, que deja el texto al 38 % y lo vuelve ilegible en vez de
+   callado. En la misma barra convivía con botones planos de borde: dos épocas a diez
+   píxeles una de otra.
+   Lleva `.active` donde los otros dos llevan `.on`; es lo único que no se unifica aquí,
+   porque el nombre lo escriben el escalador y el vectorizador en su marcado. */
+.tool-seg{
+  border-radius:var(--rr2);padding:0;gap:0;
+  background:var(--sup);
+  border:1px solid var(--linea);
+  box-shadow:none;
+  overflow:hidden;
+}
+.tool-seg button{
+  border-radius:0;min-height:34px;padding:0 13px;
+  font-size:var(--t2);color:var(--tinta2);font-weight:500;
+  transition:background var(--mv-s),color var(--mv-s);
+}
+.tool-seg button:hover:not(.active){background:var(--sup2);color:var(--tinta)}
+.tool-seg button.active{
+  background:var(--nav);color:#fff;font-weight:600;
+  box-shadow:none;
+}
+.tool-seg button:active{transform:none}
+/* Apagado como el resto del sistema: la superficie hundida y la tercera tinta, no un
+   velo de opacidad sobre el color de encendido. */
+.tool-seg button:disabled{opacity:1;background:var(--sup2);color:var(--tinta3);pointer-events:none}
+.tool-seg button:disabled.active{background:var(--tinta3);color:#fff}
 .partida .tipo-seg{background:var(--sup);box-shadow:none}
 .partida .tipo-seg button.on{background:var(--nav);color:#fff;text-shadow:none;box-shadow:none}
 .items-cand .tipo-seg button.on,.partida.hidden-pdf .tipo-seg button.on{background:var(--tinta3);color:#fff}
+/* Y el mismo apagado para la partida deshabilitada de una cotización ya cerrada. La hoja ya
+   lo tenía escrito arriba —`.tipo-seg button:is(:disabled,[aria-disabled="true"]).on`, con su
+   comentario— pero esa regla pesa (0,3,1) igual que `.partida .tipo-seg button.on` de dos
+   líneas más arriba, y entre iguales gana la de abajo. Medido: abierta del historial, una
+   autorizada enseñaba el botón «Letras» con el mismo relleno marino que una viva —el objeto
+   más llamativo de la partida— mientras los chips de material y la × sí salían en gris.
+   Con `.partida` delante pesa (0,4,1) y los dos candados se ven igual. */
+.partida .tipo-seg button:is(:disabled,[aria-disabled="true"]).on{background:var(--tinta3);color:#fff}
 /* Las medidas dejan de vivir en un hueco por lo mismo que las opciones. */
 .partida .pbody>:is(.grid2,.grid3){
   padding:0;margin-bottom:var(--e4);border-radius:0;
@@ -3007,7 +3091,12 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
 .cand-cliente .cc-t{font-size:var(--t2);font-weight:500;line-height:1.5;color:var(--tinta);margin:0}
 .cand-cliente .cc-t b{font-weight:800}
 .cand-cliente .cc-acts{display:flex;flex-wrap:wrap;gap:var(--e2);margin-top:10px}
-.cand-cliente .cc-acts .btn{width:auto;padding:0 14px;margin:0}
+/* `padding:0 14px` y nada más: `.btn` saca su alto del relleno y no tiene min-height de
+   base, así que estas dos quedaban en el line-height de su letra. Medido en un monitor:
+   227×22 y 205×22 px, con la letra de 14 tocando los dos bordes. De 920 px para abajo las
+   salvaba `.btn,.addbtn,.ai-btn{min-height:46px}`, o sea que el único sitio donde se veían
+   mal era la pantalla grande. 38 px es la altura de control del rediseño. */
+.cand-cliente .cc-acts .btn{width:auto;min-height:38px;padding:0 14px;margin:0}
 /* El aro de `late`, en ámbar: es el único estado de esta ficha que pide una decisión —lo que
    se está tecleando ya es otro cliente— y en la pantalla del cliente no hay nada más
    moviéndose, porque la tarjeta de partidas y la columna del dinero están ocultas ahí. */
@@ -3040,6 +3129,11 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
 #prog-bar{border-radius:3px;box-shadow:none;position:relative;overflow:hidden;background:var(--a-fill);
   transition:width .4s cubic-bezier(.2,.8,.2,1),background var(--mv)}
 #prog-bar.lleno{background:var(--ok-fill)}
+/* Al 100 % deja de brillar. El destello significa «la app está trabajando contigo mientras se
+   captura», y cuando ya no falta nada no tiene nada que anunciar: se quedaba corriendo en
+   bucle para siempre en una pantalla donde la capa de estructura pide «una pantalla, UNA cosa
+   que se mueva sola». El cambio a verde ya dice que está. */
+#prog-bar.lleno::after{animation:none;opacity:0}
 #prog-bar::after{
   content:'';position:absolute;inset:0;width:30%;
   background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);
@@ -3200,7 +3294,6 @@ details.ai-cfg.otras-salidas summary{
   min-height:34px;font-size:var(--t2);font-weight:600;color:var(--tinta2);padding:0;
 }
 details.ai-cfg.otras-salidas summary:hover{color:var(--tinta)}
-.os-chev{color:var(--tinta3)}
 /* «Nueva cotización» cierra ésta y abre otra: la línea que la separa de lo que se hace con la
    de encima se queda, con el aire de la escala. */
 .auth-cierre{margin-top:var(--e4);padding-top:var(--e4);border-top:1px solid var(--linea)}
@@ -3545,6 +3638,20 @@ details.ai-cfg summary:hover{color:var(--tinta)}
 :where(button,summary,a[href],input,select,textarea,[tabindex]):focus-visible{
   outline:2px solid var(--a);outline-offset:2px;
 }
+/* ----- Donde el aro se pinta hacia dentro -----
+   Los segmentados y la cola llevan `overflow:hidden` —es lo que les da la esquina
+   redondeada por fuera con los botones a ras— y un contorno con 2 px de separación cae
+   FUERA de la caja, justo donde el ancestro lo recorta. Comprobado: tabulando hasta el
+   segmento Vendedor/Autorizador el foco está ahí —Enter funciona— y no se ve un solo
+   píxel. Lo mismo al recorrer los cinco tipos de una partida.
+   Con desplazamiento negativo el anillo se dibuja por dentro del botón, que es la única
+   zona que no se recorta, y la forma del segmentado se conserva. */
+.seg button:focus-visible,.tipo-seg button:focus-visible,.tool-seg button:focus-visible,
+.queue-item:focus-visible{outline-offset:-2px}
+/* Y el ajuste por partida lo pinta como sombra interior: `.ia-row` tiene `overflow:hidden`
+   para redondear la cara de `.ia-body`, y `.ia-hdr` llena su caja entera, así que ahí no
+   queda ni un píxel por dentro donde dibujar un contorno. */
+.ia-hdr:focus-visible{outline:none;box-shadow:inset 0 0 0 2.5px var(--a)}
 
 /* ---------- Quien pida menos movimiento, recibe menos ----------
    No es un extra: hay gente a la que una pantalla que se mueve le provoca
@@ -3734,7 +3841,12 @@ details.ai-cfg summary:hover{color:var(--tinta)}
    Se escriben como `html.empotrado` y no `.empotrado` a secas porque estas reglas terminan
    en css/sistema.css —esta hoja— y de ahí las carga index.html, donde son inertes
    porque el <html> de la plataforma nunca lleva esa clase. */
-html.empotrado .brand{display:none}
+/* Acotado a `.topbar`. `.brand` no es sólo el bloque de marca de la barra de arriba: es
+   también el del escalador y el del vectorizador, que son pantalla completa y NO viven
+   dentro de la barra. Sin el acotado, abrir «Escalar» desde la plataforma dejaba su barra
+   sin logotipo y sin título, con «Sin calibrar» y «← Cotizador» apelotonados contra el
+   borde izquierdo: el reparto de ancho lo daba la marca que se había ido. */
+html.empotrado .topbar .brand{display:none}
 html.empotrado .btn-pf{display:none}
 
 /* ============================================================================
@@ -3792,6 +3904,12 @@ html[data-tema="oscuro"]{
   --velo:rgba(26,29,56,.82);
   --nav-grd:linear-gradient(180deg,#0f1226 0%,var(--nav) 45%,#06070f 100%);
   --ok:#6fd6a4; --ok-bg:#10331f; --ok-borde:#1f6b42; --green-ico:#3fc282;
+  /* Las partes de --ok de noche. Era el único token de estado que este bloque no
+     redefinía —--av-rgb, --mal-rgb y los cinco --nN-rgb sí están— y seis reglas lo usan
+     como borde: la ficha del archivo elegido en el modal de IA, la insignia «Escala
+     calibrada», el aviso de Registrar venta. Con el verde de día (21,160,106) esos bordes
+     salían más oscuros que su propio fondo de noche. */
+  --ok-rgb:111,214,164;
   /* Y el relleno verde, por lo mismo que --a-fill: #0e7a4d aguanta blanco (5,37:1) y se
      distingue del marino de la superficie. */
   --ok-fill:#0e7a4d;
@@ -3824,6 +3942,24 @@ html[data-tema="oscuro"] .logoimg[src$="logo-al3d.svg"]{content:url("../logo-al3
 html[data-tema="oscuro"]{--card:var(--sup)}
 /* El botón de IA mezcla los tres acentos, que en oscuro subieron para ser texto: aquí se queda
    con los saturados, porque lleva texto blanco encima. */
+/* ----- El tipo de partida, de noche -----
+   El relleno del elegido es --nav y su carril --sup. De día son #171a33 sobre #ffffff y la
+   pastilla se ve desde la otra punta de la mesa: 17,05:1. De noche son #0a0c1c sobre #1a1d38,
+   que medido da 1,18:1 —dos superficies que son la misma—, así que el selector de cinco
+   botones de cada partida se veía como cinco casillas iguales y saber si la partida 2 era
+   recorte o bastidor pedía leer cuál de los cinco textos estaba en blanco.
+   --a-fill (#3b57e6) es el relleno que el propio tema eligió para lo que va con blanco
+   encima, y es el mismo azul que ya marca lo elegido en el resto de la app. */
+html[data-tema="oscuro"] .tool-seg button.active{background:var(--a-fill);box-shadow:inset 0 0 0 1px var(--a)}
+html[data-tema="oscuro"] .partida .tipo-seg button.on{
+  background:var(--a-fill);
+  /* El relleno solo sube la separación con el carril a 2,89:1, y el 1.4.11 de la WCAG pide
+     3:1 para el borde que identifica un control. El aro de --a (#6d86ff) sobre el carril da
+     5,09:1 y cierra la cuenta sin inventar un color: --a es el azul de este tema para lo que
+     NO lleva blanco encima, que es exactamente un filete. El blanco del texto se queda sobre
+     el relleno, donde mide 5,69:1. */
+  box-shadow:inset 0 0 0 1px var(--a);
+}
 html[data-tema="oscuro"] .ai-btn{background:var(--a-fill);border-color:var(--a-fill)}
 html[data-tema="oscuro"] .ai-btn:hover{background:var(--a-fuerte);border-color:var(--a-fuerte)}
 
@@ -3901,6 +4037,33 @@ html.empotrado .btn-tema{display:none}
   /* El nombre de una medida del escalador es un <input>: a 12,5 px iOS hace zoom y en Android
      no se lee. La regla táctil general de `input` no lo alcanzaba por especificidad. */
   .sp-mitem-label{font-size:16px}
+  /* Los pliegues. Es el mismo caso que abre esta capa, con un nombre más: la regla base les
+     daba `min-height:44px` —y su comentario sigue ahí diciendo por qué— y la capa de
+     estructura los bajó a 34 px por densidad, en dos reglas que esta capa no nombraba.
+     Medido: 34 px de alto para el rótulo que descubre los campos del PDF y el que descubre
+     la API key. Con el dedo vuelven a 44; con el ratón se quedan en los 34 que quiso el
+     rediseño. Los dos selectores van escritos enteros porque el de la capa (4) lleva un
+     ID: con menos especificidad, esta regla no gana. */
+  details.ai-cfg>summary,#pdf-extra-box>summary,details.ai-cfg.otras-salidas summary{min-height:44px}
+  /* «Copiar» el subtotal: 55×20 px, medido en un iPhone de 390. Es el botón que existe
+     porque copiar el número de al lado —el neto— sacaba la cotización un 16 % más cara en
+     Canva, y el comentario del marcado dice que eso «pasó lo bastante como para pedirlo por
+     escrito». O sea: el control que se puso para dejar de perder dinero medía menos de la
+     mitad del mínimo, y justo en el aparato donde se copia delante del cliente. El relleno
+     lateral sube con el alto para que no salga una píldora larga y flaca. */
+  .sub-copiar{min-height:44px;padding:0 13px}
+  /* El total de la barra fija: es un botón —abre el desglose— y medía 40 px. */
+  .mbar-tot{min-height:44px;padding:0}
+  /* La barra de arriba entera, en tableta. De 561 a 920 px con puntero grueso —un iPad—
+     ninguna regla la alcanzaba: el bloque de 560 px que sube estos a 44 es de teléfono, y
+     esta capa no los nombraba. Medido en 820×1180 con dedo: Clientes, Historial, Plataforma
+     y Deshacer a 36 px. Son los cuatro atajos de la barra. */
+  .btn-hist{min-height:44px}
+  /* El renglón que el autorizador toca para ajustar una partida. Medía 38 px: es el control
+     que abre el campo del precio de cada partida, o sea el que se toca una vez por renglón
+     en la pantalla donde se decide cuánto se cobra, y con seis partidas son seis blancos de
+     38 px apilados. */
+  .ia-hdr{min-height:44px}
 }
 
 /* ============================================================================

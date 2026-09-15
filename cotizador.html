@@ -386,7 +386,7 @@
       </div>
       <div class="neto">
         <div>
-          <span class="lab">Total neto</span>
+          <span class="lab" id="s-neto-lab">Total neto</span>
           <div class="neto-calc" id="s-calc">Subtotal × 1.16</div>
         </div>
         <!-- El otro extremo del vuelo. Ver el comentario del #paso-total, arriba. -->
@@ -493,7 +493,7 @@
 <div class="modal-bg" id="climodal" onclick="if(event.target===this)cerrarCuadernos()" role="dialog" aria-modal="true" aria-label="Cuadernos de cliente" style="align-items:flex-start;padding-top:calc(32px + env(safe-area-inset-top,0px))">
   <div class="hist-panel">
     <div class="hist-head">
-      <b style="font-size:15px;font-weight:800"><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg> <span id="cua-titulo">Cuadernos de cliente</span></b>
+      <b><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg> <span id="cua-titulo">Cuadernos de cliente</span></b>
       <button class="hist-close" onclick="cerrarCuadernos()" aria-label="Cerrar"><svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg></button>
     </div>
     <div id="cua-lista-vista">
@@ -510,7 +510,7 @@
 <div class="modal-bg" id="histmodal" onclick="if(event.target===this)cerrarHistorial()" role="dialog" aria-modal="true" aria-label="Cotizaciones autorizadas" style="align-items:flex-start;padding-top:calc(32px + env(safe-area-inset-top,0px))">
   <div class="hist-panel">
     <div class="hist-head">
-      <b style="font-size:15px;font-weight:800"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg> Cotizaciones autorizadas</b>
+      <b><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg> Cotizaciones autorizadas</b>
       <button class="hist-close" onclick="cerrarHistorial()" aria-label="Cerrar"><svg class="svgi" aria-hidden="true"><use href="#i-cerrar"/></svg></button>
     </div>
     <p class="hist-ayuda"><b>Duplicar</b> copia el cliente y las partidas a una cotización nueva, en borrador: es la de cotizar lo mismo con otro material o otra medida sin capturar de nuevo.</p>
@@ -912,11 +912,16 @@
           <label for="rv-fecha-inst">¿Qué día se instala?</label>
           <input type="date" id="rv-fecha-inst">
           <div class="hintnote">Déjalo vacío si todavía no se sabe. Se puede poner después desde la plataforma, y si pasan dos días sin fecha ella lo recuerda.</div>
+        </div>
+        <!-- Va COLGADO de .rv-grid y no dentro del campo de arriba. Estaba anidado dentro del
+             .rv-field de la fecha de instalación, y ahí `grid-column:1/-1` no pinta nada:
+             `full` solo significa algo en un hijo directo de la rejilla. Los cubos del plazo
+             —cinco, y son los que dibujan la ventana de taller en el calendario— caían
+             apretados en la media columna derecha, debajo de la nota de la fecha. -->
         <div class="rv-field full">
           <label id="rv-plazo-l">¿Cuánto tarda en el taller?</label>
           <div class="chips" id="rv-plazo" role="group" aria-labelledby="rv-plazo-l"></div>
           <div class="hintnote" id="rv-plazo-h" style="margin-top:6px"></div>
-        </div>
         </div>
         <div class="rv-field">
           <label for="rv-iva">IVA</label>
