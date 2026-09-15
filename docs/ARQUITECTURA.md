@@ -75,16 +75,36 @@ Se enciende: los eventos entran solos al calendario, con las tres personas como 
 
 **También en Fase 2, y no antes: la geocodificación con Nominatim.** Requiere red y depende de que `nominatim.openstreetmap.org` mande `Access-Control-Allow-Origin: *` **[POR VERIFICAR en la pestaña de red antes de prometerlo]**. Cola estricta de 1 petición por segundo, caché obligatoria, `countrycodes=mx`, y **botón explícito: autocompletar desde el cliente está prohibido por su política**.
 
-### FASE 3 — el usuario crea una integración de Notion y una cuenta de Cloudflare. ~25 minutos, una vez.
+### FASE 3 — el usuario publica el puente desde su propia hoja de cálculo. ~10 minutos, una vez.
 
-1. Integración interna de Notion, compartirle la página *Finanzas - AL3D (ELIAS)*.
-2. Cuenta gratis de Cloudflare, crear un Worker, **pegar `puente/worker.js` en el editor del navegador**, guardar el token como *secret*. Sin node, sin `wrangler`, sin terminal.
-3. Crear **a mano** en `Ventas - AL3D` las siete propiedades nuevas (la plataforma detecta las que faltan y muestra la lista con nombre y tipo exactos, listos para copiar). **La plataforma no altera el esquema por API, a propósito**: es la única garantía de que no se rompan las siete vistas ni las cinco fórmulas.
-4. Pegar la URL del Worker y el token de dispositivo en cada teléfono.
+> **Septiembre de 2026: esta fase cambió de raíz.** Antes eran dos cuentas nuevas —una
+> integración de Notion y una cuenta de Cloudflare con un Worker— porque el token de Notion daba
+> escritura total sobre todo el workspace y no podía vivir en un HTML publicado. El dinero se
+> mudó a la hoja **«Finanzas AL3D — Ventas y Comisiones»** y con Notion fuera desapareció el
+> secreto: un Apps Script corre **dentro de la hoja**, con los permisos de su dueño. Una cuenta
+> menos, un secreto menos y un salto de red menos. `puente/worker.js` y `puente/wrangler.jsonc`
+> se borraron del repo. Los pasos completos están en [`puente/DESPLIEGUE.md`](../puente/DESPLIEGUE.md).
 
-Se enciende: espejo del dinero desde Notion, creación automática de la fila de la venta al ganar, y sincronización entre los tres dispositivos a través del adaptador de sync, **sin que ningún módulo cambie una línea**. Cumplido: el relevo es `datos/puente.js` y ninguna pantalla se tocó para enchufarlo.
+1. En la hoja: **Extensiones → Apps Script**, pegar `puente/hoja-apps-script.gs` y guardar.
+2. **Implementar → Nueva implementación → Aplicación web**, *Ejecutar como* **Yo** y *Quién tiene
+   acceso* **Cualquier usuario**. Si queda en *Solo yo*, el teléfono recibe la pantalla de inicio
+   de sesión de Google en vez de JSON.
+3. Copiar la URL que termina en `/exec`, y sacar los tres tokens —uno por rol— de
+   **⚡ AL3D → Tokens del puente**. Viven en las propiedades del script, no en el código.
+4. Pegar la liga y el token que le toca a cada teléfono en **Ajustes → El puente**, y dar **Probar**.
 
-**Estado.** El código de los dos lados está escrito y probado —`puente/worker.js`, `datos/puente.js`, el arranque y la pantalla de Ajustes— y lo que falta es únicamente lo de los cuatro puntos de arriba, que son cuentas y clics de una persona. Y una acotación honesta: **el relevo de hoy lleva `proyectos` e `instalaciones`, no los diez almacenes**. Las dos bases nuevas (`Movimientos - AL3D` y `Materiales - AL3D`) no existen todavía, así que lo que iría a ellas se aparta en la bandeja con su razón y se reincorpora solo el día que existan. Ver §5.13.
+Se enciende: espejo del dinero desde la hoja, creación automática de la fila de la venta al ganar,
+y sincronización entre los tres dispositivos a través del adaptador de sync, **sin que ningún
+módulo cambie una línea**. Cumplido: el relevo es `datos/puente.js` y ninguna pantalla se tocó
+para enchufarlo.
+
+**Estado.** Los dos lados están escritos y probados —`puente/hoja-apps-script.gs`,
+`datos/puente.js`, el arranque y la pantalla de Ajustes— y lo que falta es únicamente lo de los
+cuatro puntos de arriba, que son clics de una persona. La versión del contrato es
+`puente-sheets-4`; «Probar» compara la que contesta la hoja con la que la plataforma espera y
+avisa si la hoja se quedó atrás. Y una acotación honesta: **el relevo de hoy lleva `proyectos` e
+`instalaciones`, no los diez almacenes**. Lo que iría a las bases de movimientos y materiales se
+aparta en la bandeja con su razón y se reincorpora el día que existan. Ver §5.13.
 
 ---
 
@@ -106,7 +126,7 @@ Se enciende: espejo del dinero desde Notion, creación automática de la fila de
 | Constantes de taller | **la plataforma** (`constantes`) | dueña, y las calibra |
 | Existencias | **derivadas** de `movimientos` | dueña del cálculo. **Nunca un número guardado** |
 | Requerimiento de material | **derivado** de las partidas | recalculable. Solo se persiste la corrección humana |
-| Dinero, `Estatus`, `Cuenta `, comisiones | **Notion** (Fase 3) | espeja de solo lectura; PAGOS escribe vía puente |
+| Dinero, `Estatus`, `Cuenta `, comisiones | **La hoja «Finanzas AL3D»** (Fase 3) | espeja de solo lectura; PAGOS escribe vía puente |
 | Fórmulas `Precio Neto `, `Pago Pendiente`, `Comisiones`, `Comision Restante` | **La hoja de finanzas (antes Notion). Nadie más. Nunca se recalculan aquí** | las lee. `Pago Pendiente` baja positivo: lo que te deben |
 | `Porcentaje comision` (el % pactado, en puntos) | **el modal de Registrar Venta**, corregible en la hoja | lo guarda como `pct_comision`, lo sube en el alta y lo baja si cambió allá |
 | Memoria técnica del proyecto | **Notion** (cuerpo de página) | lee; agrega bloques al final |
@@ -134,7 +154,7 @@ Prefijo `al3d_pf_` (pf = plataforma). Todas son **cortas y de tamaño acotado**;
 | `al3d_pf_ganadas` | JSON array | **buzón de entrega** de `index.html` → plataforma. La plataforma lo drena a IndexedDB al abrir y lo vacía. Máximo unos KB | `[]` |
 | `al3d_pf_tiles` | string | `'osm'` \| `'carto'` \| `'google'` | `'osm'` |
 | `al3d_pf_gcal` | JSON | `{clientId, calendarioId}` (Fase 2) | `null` |
-| `al3d_pf_puente` | JSON | `{url, token}` del Worker, ofuscado con `keyPack()` (Fase 3) | `null` |
+| `al3d_pf_puente` | JSON | `{url, token}` del puente —la implementación `/exec` del Apps Script—, ofuscado con `keyPack()` (Fase 3) | `null` |
 | `al3d_pf_ult_export` | string ISO | último respaldo de la plataforma. Alimenta el aviso de desalojo | `''` |
 | `al3d_pf_empresa` | string | id de empresa activa. Se lee; hoy nadie la escribe | `'al3d'` |
 | `al3d_pf_restaurar` | string JSON | la mitad del cotizador de un respaldo completo, esperando a que el cotizador la tome al abrir. La plataforma la escribe; el cotizador la ofrece, restaura y borra | `''` |
@@ -1009,8 +1029,8 @@ anidador-vectores/js/medidas.js     Unidades del archivo → mm, PURO, también 
 anidador-vectores/js/svgnest.js · svgparser.js · lib/*   VENDORIZADOS de SVGnest (MIT). El motor: genético + NFP, en Web Workers creados por URL (lib/eval.js). No se tocan
                                     Va en APP_FILES de sw.js con la plataforma: caché primero, el conjunto completo, y APP_VERSION para publicar
 
-puente/worker.js                    FASE 3. NO se publica. Se pega en el editor de Cloudflare
-puente/README.md                    Runbook de 3 líneas por falla
+puente/hoja-apps-script.gs          FASE 3. NO se publica como sitio: se pega en el editor de Apps Script DE LA HOJA y se implementa desde ahí. Aquí se versiona para que pruebas/puente.mjs compare los dos vocabularios
+puente/README.md · DESPLIEGUE.md    Qué hace el puente y cómo se monta. Runbook de fallas al final
 js/tema.js                          Clásico, en el <head> de las tres páginas: lee al3d_tema y pone data-tema antes del primer pintado
 js/cotizador/*.js                   Los once guiones clásicos del cotizador (catálogo, núcleo, partidas, proceso, IA, entrega, historial, escalador, venta, vectorizador, arranque). Orden fijado por cotizador.html
 ```
@@ -1128,7 +1148,7 @@ function registrarGanada(){
 
 ## 8. LOS MÓDULOS
 
-**El rol no es seguridad, es modo de trabajo, y hay que decirlo en la pantalla de ajustes:** en Fase 1 no hay servidor y cualquiera puede cambiar su rol. Lo que se defiende no es el secreto, es el ruido: que FABRICACIÓN no vea la pantalla de cobranza y que PAGOS no mueva el almacén sin querer. En Fase 3, `sync.js` valida el rol contra el token del dispositivo en el Worker, y ahí sí es una frontera.
+**El rol no es seguridad, es modo de trabajo, y hay que decirlo en la pantalla de ajustes:** en Fase 1 no hay servidor y cualquiera puede cambiar su rol. Lo que se defiende no es el secreto, es el ruido: que FABRICACIÓN no vea la pantalla de cobranza y que PAGOS no mueva el almacén sin querer. En Fase 3, el rol se valida contra el token del dispositivo dentro del Apps Script de la hoja, y ahí sí es una frontera: cambiar el segmento de rol en Ajustes da otro tablero, no da permisos.
 
 **La frontera del dinero para FABRICACIÓN no es un difuminado.** Verificado que `aplicarBlurPrecios` (`:2894`) solo tapa cuando `Q.estado==='borrador'`, así que sería inerte para proyectos ganados, y sus selectores son ids del cotizador. Para FABRICACIÓN, **el importe no se pinta**: `mod/proyectos.js` y `mod/material.js` consultan `Prefs.rol()` y omiten los campos, no los tapan.
 
