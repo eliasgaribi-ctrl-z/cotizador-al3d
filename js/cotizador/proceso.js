@@ -931,12 +931,20 @@ function pintarPantalla(){
 function pintarPasos(){
   caducarPedido();
   const act=pasoActual();
-  const faltaCli=faltanDatosCliente()&&!locked();
+  /* Dos preguntas distintas, y compartían respuesta. «¿Están los tres datos?» es
+     `faltanDatosCliente()` a secas; el `&&!locked()` se añadió para no pintar en ámbar el
+     paso 2 de una cotización ya cerrada —correcto— pero al reutilizarse para `hecho[1]`
+     hacía que CUALQUIER cotización bloqueada marcara el paso 1 con la palomita, aunque no
+     tuviera ni cliente ni teléfono: una vieja del historial, guardada antes de que el
+     teléfono fuera obligatorio, salía «✓ Cliente» con el candado dos centímetros más abajo
+     diciendo justo lo contrario. El comentario de esta función promete que las palomitas
+     «no pueden mentir». */
+  const faltaCli=faltanDatosCliente();
   const cotizado=hayTrabajoCotizado();
   const autorizada=Q.estado==='autorizada';
   const h=autorizada?hitosDe(Q.folio):null;
   const hecho={1:!faltaCli, 2:cotizado, 3:autorizada, 4:!!(h&&h.pdf&&h.wa&&h.venta)};
-  const espera={1:false, 2:faltaCli, 3:!cotizado, 4:!autorizada};
+  const espera={1:false, 2:faltaCli&&!locked(), 3:!cotizado, 4:!autorizada};
   const sub=subPasos();
   PASOS.forEach(p=>{
     const t=$('tab-'+p.n); if(!t) return;
@@ -969,8 +977,19 @@ function pintarTotalDePaso(){
   const enCliente=_pantalla==='cliente';
   caja.hidden=!enCliente;
   if(!enCliente) return;
+  /* La misma pareja que usa renderMobileBar, y por la misma razón. Con `totals().neto` esta
+     caja enseñaba el CALCULADO y lo rotulaba «Total» aunque el autorizador hubiera fijado
+     otro: con un descuento de $23,664 a $20,000, tocar «1 · Cliente» para corregir la
+     dirección dejaba en pantalla un solo importe —«Total $23,664.00»— que no es el que
+     llevan el PDF, el WhatsApp ni el registro de venta. El vuelo de elemento compartido no
+     se entera: mide el rectángulo, no el texto. */
+  const pf=precioFinal(), aj=ajusteAuth();
+  const hayAjuste=Q.estado==='autorizada'&&Math.abs(aj)>0.01;
+  const rot=$('paso-total').querySelector('small');
+  const lab=hayAjuste?'Precio autorizado':'Total';
+  if(rot&&rot.textContent!==lab) rot.textContent=lab;
   const v=$('paso-total-v');
-  const t=money(totals().neto);
+  const t=money(pf);
   if(v&&v.textContent!==t) v.textContent=t;
 }
 

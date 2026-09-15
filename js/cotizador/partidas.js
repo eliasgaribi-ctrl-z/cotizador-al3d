@@ -274,8 +274,15 @@ function typeItem(id,k,v){
    y el texto se queda en pantalla. `blur` siempre corre. El valor entero del cambio es que el
    campo se reescriba con lo que la app leyó DE VERDAD.
 
-   Solo la altura redondea al medio centímetro, porque es la única que declara ese paso en su
-   `step` y la que ya aplica el escalador al bajar sus medidas. En ancho, alto, tarifa y
+   Los tres campos de CANTIDAD —# Letras, # Piezas y las Piezas de la partida manual— se
+   quedaron con `onchange` cuando el resto pasó a `onblur`, y eran justo el caso que este
+   párrafo describe: pegar «12 letras» copiado del mensaje del cliente en un campo vacío
+   dejaba «12 letras» en pantalla, `it.n` en 0 y la partida en $0.00 diciendo «Faltan: letras»,
+   sin manera de corregirlo salvo borrarlo a mano. Ahora también redondean al entero, que es
+   el paso que declaran.
+
+   Solo la altura redondea al medio centímetro entre las MEDIDAS, porque es la única que
+   declara ese paso en su `step` y la que ya aplica el escalador al bajar sus medidas. En ancho, alto, tarifa y
    unitario no se redondea nada: inventarles una precisión que nunca declararon movería el
    importe de una cotización a espaldas de quien la teclea. */
 function saneaNum(el,id,k,paso){
@@ -988,7 +995,7 @@ function bodyFor(it){
         </div>
         <div class="fld">
           <label for="n-${it.id}"># Letras</label>
-          <input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'n',+this.value)" onchange="this.value=Math.max(0,Math.round(+this.value||0))||'';typeItem(${it.id},'n',+this.value)">
+          <input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'n',+this.value)" onblur="saneaNum(this,${it.id},'n',1)">
         </div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
@@ -1018,7 +1025,7 @@ function bodyFor(it){
           <label for="h-${it.id}">Altura (cm)</label>
           <input id="h-${it.id}" type="number" inputmode="decimal" min="0" step="0.5" value="${it.altura||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'altura',+this.value)" onblur="saneaNum(this,${it.id},'altura',0.5)">
         </div>
-        <div class="fld"><label for="n-${it.id}"># Piezas</label><input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'n',+this.value)" onchange="this.value=Math.max(0,Math.round(+this.value||0))||'';typeItem(${it.id},'n',+this.value)"></div>
+        <div class="fld"><label for="n-${it.id}"># Piezas</label><input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'n',+this.value)" onblur="saneaNum(this,${it.id},'n',1)"></div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
       ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las piezas" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} piezas</span></div>`:''}`;
@@ -1051,7 +1058,7 @@ function bodyFor(it){
   return `
     <div class="fld"><label for="d-${it.id}">Descripción ${it.descAi?'<span class="ai-tag">'+ico('i-ia')+' IA</span>':''}</label><input id="d-${it.id}" value="${esc(it.desc)}" placeholder="Ej. Rotulación vehicular, instalación, viáticos…" ${dis} oninput="typeItem(${it.id},'desc',this.value)"></div>
     <div class="grid2">
-      <div class="fld"><label for="pz-${it.id}">Piezas</label><input id="pz-${it.id}" type="number" inputmode="numeric" min="1" value="${it.pz||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'pz',+this.value)" onchange="this.value=Math.max(1,Math.round(+this.value||0))||'';typeItem(${it.id},'pz',+this.value)"></div>
+      <div class="fld"><label for="pz-${it.id}">Piezas</label><input id="pz-${it.id}" type="number" inputmode="numeric" min="1" value="${it.pz||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'pz',+this.value)" onblur="saneaNum(this,${it.id},'pz',1)"></div>
       <div class="fld"><label for="pu-${it.id}">Precio unitario</label><div class="inp-money"><input id="pu-${it.id}" type="number" inputmode="decimal" min="0" step="1" value="${it.pu||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'pu',+this.value)" onblur="saneaNum(this,${it.id},'pu')"></div></div>
     </div>`;
 }

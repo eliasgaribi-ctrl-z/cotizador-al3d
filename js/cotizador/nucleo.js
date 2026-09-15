@@ -190,7 +190,12 @@ function togglePreciosALaVista(){
 /* Espiar: se destapan mientras se mantiene tocado y se vuelven a tapar al soltar.
    Los oyentes van en el documento —delegados— porque los importes se rehacen con cada
    cambio y volver a engancharlos en cada pintado se olvidaría en algún camino. */
-const _SEL_PRECIO='.lt,#s-sub,#s-iva,#s-neto,#s-calc,#s-anti-rest,.mbar-amt,.anti .inp-money,.partida .inp-money,.formula,.ptok.dinero';
+/* `#paso-total-v` va en la lista y no es un añadido de completitud: en la pantalla del
+   cliente la columna del dinero está oculta y la barra fija no trae total, así que ese
+   número chiquito es EL ÚNICO importe en pantalla —y era el único que no se difuminaba—.
+   Abrir una cotización de $23,664 y tocar «1 · Cliente» para corregir el teléfono la dejaba
+   escrita en claro justo enfrente de quien no tenía que leerla todavía. */
+const _SEL_PRECIO='.lt,#s-sub,#s-iva,#s-neto,#s-calc,#s-anti-rest,#paso-total-v,.mbar-amt,.anti .inp-money,.partida .inp-money,.formula,.ptok.dinero';
 function _espiarPrecios(e){
   if(!document.body.classList.contains('precios-ocultos'))return;
   const t=e.target.closest&&e.target.closest(_SEL_PRECIO);
@@ -691,9 +696,20 @@ const _CAMPOS_PRECIO=['tipo','material','comp','luz','altura','n','acab','recCom
    que falta en una cotización vieja —para poder editar sus partidas— no le suelte su
    precio autorizado. Meterlos aquí «por consistencia» rompería justo eso, y es de las
    cosas que solo se descubren cuando ya rompieron una cotización que el cliente firmó. */
+/* Y se ORDENAN antes de unirse, porque el orden de las partidas no es parte del trabajo.
+   Sin el sort, la huella era la de la FILA: arrastrar una partida para que salga primera en
+   el PDF —que no toca un solo campo de _CAMPOS_PRECIO— cambiaba la cadena, `authVigente()`
+   pasaba a falso y `soltarAuthSiCambio()` tiraba el precio autorizado y TODOS los ajustes por
+   partida. Medido sobre tres partidas con un descuento: $30,062.56 autorizados volvían a
+   $34,162.00 calculados y el ajuste de $7,900 de una partida regresaba a $8,250, con el aviso
+   de «cambiaron las partidas» acusando a un gesto que no cambió ninguna.
+
+   Cada entrada empieza por `it.id+':'`, y los id son únicos, así que el orden resultante es
+   estable y la huella queda siendo la del conjunto. Un cambio de verdad —otra medida, otro
+   material, una partida más— la sigue moviendo igual. */
 function huellaTrabajo(){
   return (Q.iva?'c':'s')+'|'+Q.items.map(it=>
-    it.id+':'+_CAMPOS_PRECIO.map(k=>it[k]===undefined?'':String(it[k])).join('~')).join(',');
+    it.id+':'+_CAMPOS_PRECIO.map(k=>it[k]===undefined?'':String(it[k])).join('~')).sort().join(',');
 }
 /* Sella el trabajo actual como el autorizado. Se llama donde se toma la decisión. */
 function sellarAuth(){ Q.huellaAuth=huellaTrabajo(); }

@@ -453,6 +453,10 @@ body.precios-ocultos #s-iva,
 body.precios-ocultos #s-neto,
 body.precios-ocultos #s-calc,
 body.precios-ocultos #s-anti-rest,
+/* El total chiquito de la barra de pasos. En la pantalla del cliente la columna del dinero
+   está oculta y la barra fija no trae total: ése es el único importe a la vista, y era el
+   único que se escapaba del difuminado. */
+body.precios-ocultos #paso-total-v,
 body.precios-ocultos .mbar-amt,
 body.precios-ocultos .anti .inp-money,
 /* El precio unitario de una partida manual y la tarifa a mano de una caja de luz son
@@ -1008,7 +1012,11 @@ textarea{resize:vertical;min-height:46px}
 /* Partida con precio puesto a mano por el autorizador: se enseña el que se va a cobrar y,
    al lado, el calculado tachado. Antes la pantalla decía el calculado y el PDF el
    autorizado, y nada avisaba de que eran dos números distintos. */
-.pline .lt .lt-calc{font-size:12.5px;font-weight:600;color:var(--muted);text-decoration:line-through;margin-right:5px}
+/* Iba acotado a `.pline .lt`, y el rediseño subió el total al encabezado: hoy vive en
+   `.partida-top>.lt` y en `.pline` sólo queda la fórmula, así que el selector no casaba con
+   nada. Se veía: la partida que el autorizador ajustó imprimía «$8,400.00$7,900.00» pegados,
+   al mismo tamaño y sin tachar. */
+.lt .lt-calc{font-size:12.5px;font-weight:600;color:var(--muted);text-decoration:line-through;margin-right:5px}
 .addbtn{width:100%;padding:12px;border:1px dashed var(--n4);border-radius:var(--rr1);background:none;color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;transition:border-color .12s,background .12s}
 .addbtn:hover{background:var(--n1);border-color:var(--n5);color:var(--n8)}
 .addbtn:disabled{opacity:.45;cursor:not-allowed}
