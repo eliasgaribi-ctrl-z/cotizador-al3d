@@ -38,14 +38,37 @@ function renderSummary(){
   if(subCalcEl){ subCalcEl.textContent=subCanva.ajustado?money(t.sub):''; subCalcEl.hidden=!subCanva.ajustado; }
   const subLab=$('s-sub-lab');
   if(subLab){ const v=subCanva.ajustado?'Precio Subtotal autorizado':'Precio Subtotal'; if(subLab.textContent!==v) subLab.textContent=v; }
-  $('s-iva').textContent=money(t.iva);
-  $('s-neto').textContent=money(t.neto);
+  /* ----- La columna cierra consigo misma -----
+     El recuadro de arriba ya enseñaba el subtotal AUTORIZADO, y estos dos renglones se
+     habían quedado en el calculado. La columna decía, uno debajo de otro y delante del
+     cliente: «Precio Subtotal $17,400.00 · IVA 16% $3,200.00 · Total neto $23,200.00».
+     Medido: 17,400 + 3,200 son 20,600, el renglón de abajo decía 23,200, y más abajo
+     todavía un cuarto número, $20,184, se llamaba «Precio autorizado». Cuatro importes en
+     una columna y ninguna pareja sumaba. `desgloseFinal()` es justo la respuesta a «cuánto
+     es el subtotal, el IVA y el total de lo que se va a cobrar», y sus tres cierran entre
+     sí por construcción. */
+  const dCol=subCanva.ajustado?desgloseFinal():t;
+  $('s-iva').textContent=money(dCol.iva);
+  $('s-neto').textContent=money(dCol.neto);
+  /* Y el rótulo dice lo que hay debajo. Con ajuste, «Precio autorizado», igual que ya hacen
+     la barra fija del teléfono y el total de la barra de pasos. Sin ajuste, «Total neto» o
+     «Total» según el IVA: era marcado estático, así que con el interruptor apagado el
+     escritorio seguía llamando «neto» a un importe sin impuesto mientras el teléfono y el
+     PDF ya decían «Total». Tres pantallas del mismo folio, dos rótulos. */
+  const netoLab=$('s-neto-lab');
+  if(netoLab){
+    const v=subCanva.ajustado?'Precio autorizado':(Q.iva?'Total neto':'Total');
+    if(netoLab.textContent!==v) netoLab.textContent=v;
+  }
   latirTotal(); latirSubtotal();
   /* «Subtotal × 1.16» describe el total CALCULADO, y con un precio autorizado encima el
      recuadro de arriba ya no enseña ese subtotal: la línea afirmaría una multiplicación que
      los dos números de la pantalla no hacen. Cuando hay ajuste, dice lo que es y señala a
      dónde mirar; el precio que se cobra vive en su propio renglón, dos más abajo. */
-  $('s-calc').textContent=subCanva.ajustado?'Calculado · el autorizado va abajo'
+  /* Decía «el autorizado va abajo» cuando el autorizado vivía dos renglones más abajo; ahora
+     el renglón de encima YA es el autorizado, así que lo que falta aquí es el otro número:
+     el calculado, que sigue siendo el que se compara y el que el vendedor busca. */
+  $('s-calc').textContent=subCanva.ajustado?`Calculado: ${money(t.neto)}`
     :(Q.iva?`${money(t.sub)} × 1.16`:'Sin IVA (= subtotal)');
   $('ivatg').classList.toggle('on',Q.iva); tgAria('ivatg');
   const ivaHint=$('s-iva-hint'); if(ivaHint) ivaHint.style.display=Q.iva?'':'none';
@@ -64,16 +87,21 @@ function renderSummary(){
   if(authRow){
     const aj=ajusteAuth(), neto=netoAjustado();
     if(Q.estado==='autorizada'&&Math.abs(aj)>0.01&&neto>0){
-      $('s-auth').textContent=money(pf);
       /* El ajuste se dice en la base en la que se decidió, que es el subtotal. El porcentaje
          sale igual en las dos —el 1,16 se va en la división—, pero el importe no: sobre el
          neto este renglón anunciaba «Descuento: $3,016» de una rebaja que en lo que la casa
          se queda son $2,600. El subtotal autorizado no se repite aquí: lo enseña el recuadro
          de arriba, en grande y con el calculado tachado. */
       const dFin=desgloseFinal(), subBase=+subAjustado().toFixed(2), ajSub=+(subBase-dFin.sub).toFixed(2);
+      /* Esta ficha repetía «Precio autorizado: $20,184.00», que es palabra por palabra lo que
+         dice el renglón del total dos más arriba. Con el importe ya dicho arriba, aquí se
+         queda lo único que sólo esta ficha sabe: cuánto se movió y sobre qué base. */
+      const adjLab=authRow.querySelector('.adj-label');
+      if(adjLab) adjLab.textContent = ajSub>0?'Descuento':'Aumento';
+      $('s-auth').textContent=money(Math.abs(ajSub));
       $('s-auth-desc').textContent= ajSub>0
-        ? `Descuento: ${money(ajSub)} sobre el subtotal (${Math.round(ajSub/subBase*100)}%)`
-        : `Aumento: ${money(-ajSub)} sobre el subtotal (${Math.round(-ajSub/subBase*100)}%)`;
+        ? `sobre el subtotal (${Math.round(ajSub/subBase*100)}%) · se le enseña al cliente`
+        : `sobre el subtotal (${Math.round(-ajSub/subBase*100)}%) · repartido entre las partidas`;
       authRow.classList.toggle('inc',aj<0);
       authRow.style.display='';
     } else { authRow.style.display='none'; }
@@ -168,13 +196,19 @@ function renderAuth(){
     else if(Q.estado==='autorizada'){
       const neto=netoAjustado();
       const aj=ajusteAuth();
+      /* El importe se dice sobre el SUBTOTAL, igual que #s-auth-desc y que updPrecioAuth. Con
+         la base vieja —el neto— los dos se pintaban a la vez, un renglón debajo del otro, y
+         el mismo descuento salía como «$2,600.00 sobre el subtotal» arriba y «Ahorro:
+         $3,016.00» aquí. El porcentaje sale igual en las dos bases: el 1,16 se va en la
+         división. */
+      const _dA=desgloseFinal(), _subA=+subAjustado().toFixed(2), ajS=+(_subA-_dA.sub).toFixed(2);
       const descHTML=Math.abs(aj)>0.01&&neto>0
         ? (aj>0
-            ? `<div class="authnote" style="border-color:var(--green-ico);background:var(--green-bg);color:var(--green);margin-top:8px">Precio autorizado: <b>${money(precioFinal())}</b> · Ahorro: <b>${money(aj)}</b> (${Math.round(aj/neto*100)}%)</div>`
+            ? `<div class="authnote" style="border-color:var(--green-ico);background:var(--green-bg);color:var(--green);margin-top:8px">Precio autorizado: <b>${money(precioFinal())}</b> · Ahorro: <b>${money(ajS)}</b> sobre el subtotal (${Math.round(ajS/_subA*100)}%)</div>`
             /* El aumento se reparte entre las partidas y el cliente no lo ve como renglón (ver
                preciosCliente). Se dice aquí, donde el vendedor lee «Aumento», para que no
                busque en el PDF un «Ajuste» que ya no existe. */
-            : `<div class="authnote" style="border-color:var(--amber-ico);background:var(--amber-bg);color:var(--amber);margin-top:8px">Precio autorizado: <b>${money(precioFinal())}</b> · Aumento: <b>${money(-aj)}</b> (${Math.round(-aj/neto*100)}%) · repartido entre las partidas, sin renglón de ajuste en el PDF</div>`)
+            : `<div class="authnote" style="border-color:var(--amber-ico);background:var(--amber-bg);color:var(--amber);margin-top:8px">Precio autorizado: <b>${money(precioFinal())}</b> · Aumento: <b>${money(-ajS)}</b> sobre el subtotal (${Math.round(-ajS/_subA*100)}%) · repartido entre las partidas, sin renglón de ajuste en el PDF</div>`)
         : '';
       const authNote=`<div class="authnote">Autorizada por <b>${esc(Q.autorizador)||'—'}</b> el <b>${esc(Q.fechaAuth)}</b>.${Q.nota?'<br>Nota: '+esc(Q.nota):''}</div>`;
       if(Q.editMode){
