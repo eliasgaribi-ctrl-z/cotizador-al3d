@@ -15,8 +15,10 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { P, ETAPA_A_NOTION, ETAPA_DESDE_NOTION, ESTATUS, CUENTAS, ALMACENES,
-         aNotion, deNotion, instalacionANotion, normalizarUrl, instrucciones }
+         aNotion, deNotion, instalacionANotion, normalizarUrl, instrucciones,
+         VERSION_ESPERADA, versionVieja, avisoVersion }
   from '../js/datos/puente.js';
+import { TIPOS_TRABAJO, ETAPA_NOMBRE } from '../js/datos/proyectos.js';
 
 let bien = 0, mal = 0;
 const eq = (que, dio, esperado) => {
@@ -63,10 +65,45 @@ console.log('\nEL PROYECTO, EN PROPIEDADES DE NOTION');
 console.log('\nLO QUE NUNCA SE MANDA: las fórmulas y lo que captura quien cobra');
 {
   const n = aNotion(proy({ pago_pendiente: 7920, comision_restante: 1200 }), null);
-  for (const k of [P.neto, P.pendiente, P.comisiones, P.comRestante, P.fechaCom,
+  for (const k of [P.neto, P.pendiente, P.comisiones, P.comRestante,
                    P.liquidacion, P.abonoCom, P.fechaLiq]) {
     eq('no manda «' + k.trim() + '»', n[k], undefined);
   }
+  eq('«Fecha Comision» ya no está en el vocabulario: la hoja no la tiene', P.fechaCom, undefined);
+}
+
+console.log('\nEL DINERO SOLO VIAJA EN EL ALTA O CUANDO FUE LO QUE CAMBIÓ');
+{
+  /* La hoja es el libro mayor: ahí PAGOS corrige el anticipo a mano. Cada subida —mover la
+     etapa, poner un pin— mandaba también el anticipo y el subtotal que este teléfono tenía
+     guardados, y pisaba la corrección. */
+  const alta = aNotion(proy({ pct_comision: 15 }), null, { alta: true, campos: [] });
+  eq('en el alta va el nombre',     alta[P.proyecto], 'Ale - Parentesis (Letras Luz)');
+  eq('en el alta va el subtotal',   alta[P.subtotal], 12000);
+  eq('en el alta va el anticipo',   alta[P.anticipo], 6000);
+  eq('en el alta va el IVA',        alta[P.iva], true);
+  eq('en el alta va la fecha del anticipo', alta[P.fecha], '2026-08-23');
+  eq('y el % pactado',              alta[P.pctCom], 15);
+
+  const etapa = aNotion(proy({ etapa: 'cortado', pct_comision: 15 }), null, { alta: false, campos: ['etapa'] });
+  eq('al mover la etapa NO va el nombre',    etapa[P.proyecto], undefined);
+  eq('ni el subtotal',                        etapa[P.subtotal], undefined);
+  eq('ni el anticipo',                        etapa[P.anticipo], undefined);
+  eq('ni el IVA',                             etapa[P.iva], undefined);
+  eq('ni la fecha del anticipo',              etapa[P.fecha], undefined);
+  eq('ni el % de comisión',                   etapa[P.pctCom], undefined);
+  eq('pero la etapa sí',                      etapa[P.etapa], 'Cortado');
+  eq('y la dirección, que es de la plataforma', etapa[P.direccion], 'Av. Vallarta 1234, Guadalajara');
+  eq('y el estatus que aprieta PAGOS',        etapa[P.estatus], 'FABRICACION');
+  eq('y el folio, que es la llave',           etapa[P.folio], 'COT-0042@K7QM');
+
+  const anti = aNotion(proy({ anti_pactado: 7000 }), null, { alta: false, campos: ['anti_pactado'] });
+  eq('si lo que cambió fue el anticipo, ése sí va', anti[P.anticipo], 7000);
+  eq('y solo ése: el subtotal no',                 anti[P.subtotal], undefined);
+
+  const sinPct = aNotion(proy({ pct_comision: 0 }), null);
+  eq('un % en cero no se manda: vacío en la hoja es «el de siempre»', sinPct[P.pctCom], undefined);
+  eq('sin opts es un alta: va todo, como siempre', aNotion(proy(), null)[P.subtotal], 12000);
 }
 
 console.log('\nLAS DOS FECHAS, Y POR QUÉ NO SE PISAN');
@@ -143,13 +180,16 @@ console.log('\nEL ESPEJO QUE BAJA: solo lo que es de Notion');
     'Tipo de trabajo': ['Recorte acrilico'],
     'Estatus': 'COBRANDO', 'Cuenta ': 'Rul HSBC',
     'Pago Pendiente': 7920, 'Comision Restante': 1200, 'Precio Neto ': 13920,
+    'Anticipo': 6500, 'Porcentaje comision': 12,
   };
   const p = deNotion(fila);
   eq('trae el id de la página',   p.notion_page_id, 'pag-1');
   eq('el estatus baja',           p.estatus_notion, 'COBRANDO');
   eq('la cuenta baja',            p.cuenta, 'Rul HSBC');
-  eq('el pago pendiente baja',    p.pago_pendiente, 7920);
+  eq('el pago pendiente baja, POSITIVO: lo que te deben', p.pago_pendiente, 7920);
   eq('la comisión restante baja', p.comision_restante, 1200);
+  eq('el anticipo corregido en la hoja baja', p.anti_pactado, 6500);
+  eq('y el % de comisión también',            p.pct_comision, 12);
   eq('queda marcado como enviado', p.notion_estado, 'enviado');
 
   /* Esto es lo que separa un espejo de una pelea por quién manda. De estos campos la dueña
@@ -167,6 +207,7 @@ console.log('\nEL ESPEJO QUE BAJA: solo lo que es de Notion');
   eq('la fila sin dinero sigue atando por folio', f.folio_global, 'COT-0007');
   eq('el pendiente queda sin tocar, no en cero',  f.pago_pendiente, undefined);
   eq('la comisión restante igual',                f.comision_restante, undefined);
+  eq('el anticipo ausente tampoco se vuelve cero', f.anti_pactado, undefined);
   eq('la cuenta ausente no baja',                 f.cuenta, undefined);
   eq('el estatus, que no es dinero, sí baja',     f.estatus_notion, 'COBRANDO');
 
@@ -196,25 +237,47 @@ console.log('\nCOHERENCIA CON EL PUENTE — la duplicación que sí se compara')
   eq('las ocho etapas del puente son las ocho del cliente, en el mismo orden',
      etapasW, Object.values(ETAPA_A_NOTION));
 
-  /* El orden de estas dos listas no significa nada —son catálogos, no secuencias—
-     así que se comparan ordenadas: lo que importa es que sean las mismas. */
-  const ordenado = x => [...x].sort();
-
+  /* EN EL MISMO ORDEN, no solo los mismos: el orden de la hoja es el del desplegable de la
+     columna y el del reporte «POR ESTATUS», y la plataforma pinta sus chips con esta lista.
+     Se comparaban ordenadas y así las cinco copias del sistema llegaron a tener cuatro
+     órdenes distintos sin que nadie lo notara. */
   const estatusW = arreglo('ESTATUS');
-  eq('los cuatro estatus coinciden', ordenado(estatusW), ordenado(ESTATUS));
+  eq('los cuatro estatus coinciden, en el orden de la hoja', estatusW, ESTATUS);
 
   const cuentasW = arreglo('CUENTAS');
-  eq('las cinco cuentas coinciden', ordenado(cuentasW), ordenado(CUENTAS));
+  eq('las cinco cuentas coinciden, en el orden de la hoja', cuentasW, CUENTAS);
 
+  /* Los siete tipos de trabajo, VALOR POR VALOR: antes solo se contaba que fueran siete.
+     El Apps Script los tiene dos veces (TIPOS para el desplegable, TIPOS_TRABAJO para
+     validar lo que entra) y la plataforma una; las tres tienen que ser la misma lista. */
   const tiposW = arreglo('TIPOS_TRABAJO');
-  cierto('el puente declara TIPOS_TRABAJO', tiposW);
-  eq('son siete', tiposW && tiposW.length, 7);
+  const tiposDesplegable = arreglo('TIPOS');
+  eq('los siete tipos del puente son los siete de la plataforma', tiposW, TIPOS_TRABAJO);
+  eq('y el desplegable de la hoja usa los mismos siete', tiposDesplegable, TIPOS_TRABAJO);
+
+  /* Las etapas: el nombre legible que enseña la plataforma es el que viaja a la hoja. */
+  eq('ETAPA_NOMBRE y ETAPA_A_NOTION dicen lo mismo, etapa por etapa', ETAPA_NOMBRE, ETAPA_A_NOTION);
 
   /* Los nombres de propiedad, uno por uno, con el espacio final incluido. Es la clase de
-     errata que no se ve leyendo: `Precio Neto ` sin su espacio apunta a otra columna. */
+     errata que no se ve leyendo: `Precio Neto ` sin su espacio apunta a otra columna. Se
+     busca dentro del mapa COL y no en cualquier parte del archivo: «Fecha Comision» pasaba
+     esta prueba apareciendo en la lista de lo que YA NO EXISTE. */
+  const colW = /var COL = \{([\s\S]*?)\};/.exec(w);
+  cierto('el puente declara COL', colW);
   for (const nombre of Object.values(P)) {
-    cierto('el puente conoce «' + nombre + '»', w.includes("'" + nombre + "'"));
+    cierto('la hoja tiene columna para «' + nombre + '»', colW && colW[1].includes("'" + nombre + "'"));
   }
+
+  /* La versión: la que el .gs declara es la que la plataforma espera. Si alguien sube una
+     sin la otra, «Probar» le diría al usuario que su hoja está vieja cuando no lo está, o
+     al revés. */
+  const versionW = /var PUENTE_VERSION = '([^']+)'/.exec(w);
+  eq('el .gs del repo declara la versión que la plataforma espera', versionW && versionW[1], VERSION_ESPERADA);
+  eq('una hoja con la versión anterior se detecta', versionVieja('puente-sheets-3'), true);
+  eq('sin versión también', versionVieja(''), true);
+  eq('la esperada no', versionVieja(VERSION_ESPERADA), false);
+  cierto('y el aviso dice qué hacer', /Apps Script/.test(avisoVersion('puente-sheets-3')));
+  eq('sin aviso cuando está al día', avisoVersion(VERSION_ESPERADA), '');
 }
 
 

@@ -41,6 +41,10 @@
 const p2 = n => String(n).padStart(2, '0');
 
 /** 'YYYY-MM-DD' → `{a, m, d}`, o `null` si no es eso exactamente. */
+/* Los doce meses en corto, en español. Una sola lista: la leen la pantalla (ui.js), las
+   ventas por mes, el texto del taller y el asistente. Había cinco copias iguales. */
+export const MES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
 export const partesISO = iso => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
   return m ? { a: +m[1], m: +m[2], d: +m[3] } : null;

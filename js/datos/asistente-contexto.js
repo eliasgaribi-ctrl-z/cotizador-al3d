@@ -22,7 +22,7 @@
    ============================================================================ */
 
 import { saldoDe, vendidoDe, etiquetaMes } from './ventas.js';
-import { hoyISO, esISO, diasEntre } from '../nucleo/fechas.js';
+import { hoyISO, esISO, diasEntre, MES_CORTO } from '../nucleo/fechas.js';
 
 const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
 const red2 = v => Math.round((num(v) + Number.EPSILON) * 100) / 100;
@@ -391,9 +391,8 @@ const cuenta = (n, uno, varios) => n + ' ' + (n === 1 ? uno : varios);
 const sinDinero = 'Con tu rol no se ven importes. Eso lo contesta dirección o pagos desde su dispositivo.';
 const fechaCorta = iso => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
-  return m ? Number(m[3]) + ' ' + (MESES_CORTOS_ES[Number(m[2]) - 1] || m[2]) : String(iso || '');
+  return m ? Number(m[3]) + ' ' + (MES_CORTO[Number(m[2]) - 1] || m[2]) : String(iso || '');
 };
-const MESES_CORTOS_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
 /* Las acciones que acompañan a una respuesta local: la pantalla que toca, y los proyectos
    que nombra, para abrirlos con un toque. `tipo` es lo que entiende el panel:

@@ -992,7 +992,12 @@ async function probarPuente() {
          token sin volver a preguntar. El token NO se vuelve a escribir aquí: ya está. */
       const prev = Prefs.puente() || {};
       Prefs.setPuente({ ...prev, rol: SALUD.rol || '', probado: Date.now() });
-      toast('El puente contesta', 'ok', 3000);
+      /* Contesta, pero ¿con el contrato que esta plataforma espera? Una hoja con el Apps
+         Script de antes manda el saldo al revés y no conoce el % de comisión, y «contesta»
+         no lo dice. Se dice aquí, con los pasos. */
+      const viejo = Puente.avisoVersion(SALUD.version);
+      if (viejo) toast(viejo, 'err', 12000);
+      else toast('El puente contesta', 'ok', 3000);
     } else {
       toast(SALUD.mensaje || 'El puente no contestó', 'err', 5600);
     }

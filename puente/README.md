@@ -81,9 +81,22 @@ fabricación sigue recibiendo un rechazo si manda `Anticipo`, diga lo que diga e
 2. **`Fecha Anticipo e Instalacion` era un rango.** En la hoja son dos columnas: la del
    anticipo y la de instalación, separadas.
 
-3. **`Pago Pendiente` sale con el signo de Notion** —negativo cuando falta cobrar— para no
-   cambiarle el significado a una cifra que la plataforma ya pinta. Dentro de la hoja se ve
-   al derecho: positivo es lo que te deben.
+3. **`Pago Pendiente` sale con el signo de la hoja:** positivo es lo que te deben. Hasta
+   `puente-sheets-3` se mandaba negado «con el signo de Notion», y la plataforma nunca pintó
+   ese signo —hace `Math.max(0, saldo)`—, así que toda la cartera se veía cobrada. Desde
+   `puente-sheets-4` las dos fórmulas de la fila, saldo y comisión restante, bajan con el
+   mismo criterio, y hay una prueba que encadena la celda, el Apps Script, el relevo y la
+   pantalla de Control sobre el mismo número.
+
+4. **`Porcentaje comision` es una columna nueva (AD).** El % que se pacta con quien trae el
+   trabajo se capturaba en el modal de Registrar Venta, se guardaba en la plataforma y la
+   hoja lo ignoraba: cobraba 10 % fijo. Ahora viaja, la fórmula de la comisión lo lee y una
+   celda vacía sigue significando «el de siempre, 10 %», así que las filas que ya estaban no
+   cambian ni un centavo. Lo escriben dirección y pagos; fabricación ni lo escribe ni lo ve.
+
+**La plataforma sabe qué versión corre la hoja.** «Probar» en Ajustes lee la `version` que
+contesta `/salud` y, si es anterior a la que la plataforma espera, lo dice con los pasos en
+vez de un «El puente contesta» que sería verdad y engañoso a la vez.
 
 Las fórmulas siguen siendo de solo lectura, y por la misma razón de siempre: dos
 implementaciones de la misma fórmula divergen en semanas y el sistema empieza a dar dos
@@ -134,6 +147,11 @@ token**. Alrededor de eso hay cinco cosas más:
    de liquidación— antes de mandar la fila. El estatus sí baja, porque es una etiqueta de
    estado y el tablero de obra la necesita para saber qué ya se cobró. Un rol que no esté
    en la tabla tampoco ve el dinero: el default es cerrado.
+7. **El dinero solo sube cuando cambió.** Mover la etapa o poner un pin desde el teléfono ya
+   no reescribe `Precio Subtotal`, `Anticipo`, `IVA` ni `Proyecto` con lo que el teléfono
+   tenía guardado: esas celdas viajan en el alta de la fila, o cuando la operación dice que
+   ese campo fue justo lo que se cambió. Y el anticipo corregido en la hoja **baja** al
+   teléfono, que antes seguía estimando el saldo con el viejo.
 
 Y lo que el puente **no** puede hacer, por construcción: escribir una fórmula, escribir una
 columna que no esté en su mapa, mandar correo, o tocar otra hoja del Drive.
@@ -146,7 +164,8 @@ columna que no esté en su mapa, mandar correo, o tocar otra hoja del Drive.
   de fabricación, que es el que anda en la calle y en el taller. Los otros dos tokens
   valen lo que vale la hoja entera.
 - **La hoja puede quedarse con una versión vieja del código.** Guardar en Apps Script no
-  publica. `salud` contesta su `version` —hoy `puente-sheets-3`— justo para poder verlo.
+  publica. `salud` contesta su `version` —hoy `puente-sheets-4`— justo para poder verlo, y
+  «Probar» lo compara con la que la plataforma espera.
 
 ## Si algo falla
 

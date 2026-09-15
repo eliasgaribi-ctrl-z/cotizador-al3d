@@ -1,7 +1,10 @@
-/* Que la plataforma y el cotizador agrupen a los clientes IGUAL.
-   Si divergen, la misma app da dos respuestas a «¿cuánto le hemos vendido a este cliente?».
-   La regla vive en index.html (función cuadernos()) y aquí hay una réplica; esta prueba es
-   lo que avisa cuando una de las dos se mueve. */
+/* Que la réplica de la plataforma agrupe a los clientes como dice la regla.
+   La regla vive en js/cotizador/historial.js (función cuadernos()) y js/datos/cotizador.js
+   la replica. Esta prueba fija el COMPORTAMIENTO esperado de la réplica sobre un historial
+   de mentiras; la que compara las dos implementaciones entre sí, corriendo la del cotizador
+   sobre los mismos datos, es pruebas/replicas.mjs. Durante un tiempo este encabezado decía
+   que aquí se avisaba cuando una de las dos se movía, y no era cierto: solo se importaba la
+   de la plataforma. */
 import { readFileSync } from 'fs';
 let fallos=0; const mal=m=>{console.log('  ✗ '+m);fallos++;}; const bien=m=>console.log('  ✓ '+m);
 

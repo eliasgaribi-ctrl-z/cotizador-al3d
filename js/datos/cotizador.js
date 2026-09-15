@@ -87,12 +87,21 @@ export function importeCongelado(entrada, it) {
   return null;
 }
 
-/** El total que se le cobró. `precioAuth` manda cuando difiere del neto: es el ajustado a mano. */
+/* ----- Lo que de verdad se cobró -----
+   UNA regla, escrita una vez: el precio autorizado manda cuando existe y difiere del
+   calculado (es el ajustado a mano); si no, el neto. Es la misma que `precioFinal()` y
+   `totalFinalHist()` aplican dentro del cotizador, y la que `ventas.vendidoDe` aplica a un
+   proyecto. Vivía escrita cuatro veces con el mismo 0.01; ahora las de la plataforma pasan
+   por aquí, y pruebas/replicas.mjs vigila la del cotizador. */
+export function cobrado(neto, precioAuth) {
+  const n = Number(neto) || 0;
+  const pa = Number(precioAuth) || 0;
+  return (pa > 0 && Math.abs(pa - n) > 0.01) ? pa : n;
+}
+/** El total que se le cobró en una cotización del historial. */
 export function totalVendido(entrada) {
   if (!entrada) return 0;
-  const neto = Number(entrada.neto) || 0;
-  const pa = Number(entrada.precioAuth) || 0;
-  return (pa > 0 && Math.abs(pa - neto) > 0.01) ? pa : neto;
+  return cobrado(entrada.neto, entrada.precioAuth);
 }
 
 /* ----- La huella -----
@@ -103,8 +112,8 @@ export function totalVendido(entrada) {
    NO incluye cliente, teléfono ni proyecto, y es a propósito: son datos de a quién se le
    cotiza, no del trabajo cotizado. De eso depende que escribir un teléfono que faltaba no
    parezca un cambio de trabajo. */
-const CAMPOS_PRECIO = ['tipo', 'material', 'comp', 'luz', 'altura', 'n', 'acab', 'recComp',
-                       'bas', 'ancho', 'alto', 'tarifa', 'pz', 'pu'];
+export const CAMPOS_PRECIO = ['tipo', 'material', 'comp', 'luz', 'altura', 'n', 'acab', 'recComp',
+                              'bas', 'ancho', 'alto', 'tarifa', 'pz', 'pu'];
 
 export function huellaDe(entrada) {
   if (!entrada || !Array.isArray(entrada.items)) return '';
@@ -136,7 +145,12 @@ export function sinDecidir(foliosGanados, diasMin = 0) {
   const disp = Prefs.dispositivo();
   return historial().filter(e => {
     if (!e || !e.folio) return false;
-    if (foliosGanados.has(folioGlobal(e.folio, disp))) return false;
+    /* Con el dispositivo que emitió la cotización, no con el de este aparato: el historial
+       lleva `disp` desde que el cotizador lo sella, y un respaldo restaurado en otro
+       teléfono trae proyectos con el folio global del aparato viejo. Comparar contra el
+       nuevo resucitaba como «sin decidir» ventas ya registradas. Misma regla que
+       `conversion()`; y por si el proyecto se guardó con el folio visible, también ése. */
+    if (foliosGanados.has(folioGlobal(e.folio, e.disp || disp)) || foliosGanados.has(e.folio)) return false;
     const dias = (ahora - (Number(e.ts) || ahora)) / 86400000;
     return dias >= diasMin;
   });
@@ -162,6 +176,7 @@ export const folioVisible = fg => String(fg || '').split('@')[0];
  *
  * @returns {Promise<{creados:number, repetidos:number, fallidos:number}>}
  */
+const hayNum = v => v !== undefined && v !== null && v !== '' && isFinite(Number(v));
 export async function drenarBuzon() {
   const buzon = Prefs.leerBuzon();
   if (!buzon.length) return { creados: 0, repetidos: 0, fallidos: 0 };
@@ -182,14 +197,25 @@ export async function drenarBuzon() {
       fecha_instalacion: g.fecha_instalacion || '',
       cuenta: g.cuenta || '', estatus_notion: g.estatus || '',
       pct_comision: Number(g.pct_comision) || 0,
-      sub: Number(g.sub) || 0, neto: Number(g.neto) || 0,
-      anti_pactado: Number(g.anti) || 0,
+      /* Solo lo que el renglón TRAE. Un renglón de buzón viejo sin `anti` no debe convertirse
+         en «anticipo cero»: `ganar` cae entonces al de la cotización. Y un cero que sí vino
+         es un cero, no una ausencia. */
+      sub: hayNum(g.sub) ? Number(g.sub) : undefined,
+      neto: hayNum(g.neto) ? Number(g.neto) : undefined,
+      anti_pactado: hayNum(g.anti) ? Number(g.anti) : undefined,
       /* La fecha en que se cobró el anticipo, tal como la capturó el cotizador. Si no
          viene —un renglón de buzón viejo— `ganar` cae al día de hoy, que es lo que hacía
          siempre. */
       fecha_ganado: g.fecha_anticipo || '',
       plazo_k: g.plazo_k,          // el cubo que propuso o eligió el cotizador; null si no vino
       disp: g.disp || '',
+      /* La huella del trabajo EN EL MOMENTO DE GANAR, tal como la selló el cotizador. Hasta
+         septiembre de 2026 se escribía en el buzón y nadie la leía: el origen se congelaba
+         con la entrada del historial tal como estaba al DRENAR, así que una edición hecha
+         entre el registro y la siguiente apertura de la plataforma —justo el hueco que el
+         buzón existe para cubrir— quedaba dentro de la copia congelada y el aviso R6 no
+         podía sonar nunca. Con la huella de aquel momento sí se nota. */
+      huella: g.huella || '',
     });
     if (r.ok) { creados++; procesadas.push(g); }
     else if (r.codigo === 'DUPLICADO') { repetidos++; procesadas.push(g); }
@@ -379,7 +405,7 @@ export function conversion(ganados) {
    el que `restaurarDesde()` del cotizador valida: {app, formato, fecha, datos:{clave:texto}}. */
 export const RESPALDO_KEYS = [
   'al3d_historial', 'al3d_folio', 'al3d_q', 'al3d_queue', 'al3d_logo', 'al3d_canva', 'al3d_hitos',
-  'al3d_pf_ganadas', 'al3d_fold_proy', 'al3d_cuadernos', 'al3d_aifile', 'al3d_autorizador',
+  'al3d_pf_ganadas', 'al3d_cuadernos', 'al3d_aifile', 'al3d_autorizador',
   'al3d_ult_material', 'al3d_rv_pct', 'al3d_rv_cuenta', 'al3d_respaldo_ts', 'al3d_respaldo_n',
 ];
 export function armarRespaldoCotizador() {

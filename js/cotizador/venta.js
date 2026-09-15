@@ -20,10 +20,6 @@
    devuelve el día siguiente. Se arma con los campos locales. */
 function hoyISO(){ const d=new Date(),p=n=>String(n).padStart(2,'0');
   return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
-/* De 'YYYY-MM-DD' a 'DD/MM/YYYY', que es como se lee una fecha en la hoja. Se parte la
-   cadena en vez de pasar por Date por lo mismo de arriba. */
-function isoADmy(iso){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso||''));
-  return m?m[3]+'/'+m[2]+'/'+m[1]:String(iso||''); }
 function abrirRegistrarVenta(){
   // Si el autorizador ajustó el precio, se avisa aquí: la venta se registra por ese
   // precio, no por el calculado.
@@ -198,6 +194,7 @@ function datosParaLaHoja(){
   const fecha=document.getElementById('rv-fecha').value.trim();
   const fechaInst=document.getElementById('rv-fecha-inst').value.trim();
   const anti=parseFloat(document.getElementById('rv-anticipo').value)||0;
+  const pct=parseFloat(document.getElementById('rv-pct').value)||0;
   const esISO=v=>/^\d{4}-\d{2}-\d{2}$/.test(v);
   const d={
     'Proyecto':         document.getElementById('rv-proyecto').value.trim(),
@@ -216,6 +213,11 @@ function datosParaLaHoja(){
   };
   if(esISO(fecha))     d['Fecha Anticipo e Instalacion']=fecha;   // columna L, el anticipo
   if(esISO(fechaInst)) d['Fecha instalacion']=fechaInst;          // columna M, la instalación
+  /* El % pactado con quien trajo el trabajo (columna AD). La hoja calculaba 10 % fijo y este
+     modal enseñaba la comisión con el % tecleado: dos cifras para la misma venta. Con cero
+     no se manda —vacío en la hoja significa «el de siempre»—; el 10 sí viaja, para que quede
+     escrito que se dijo. */
+  if(pct>0) d['Porcentaje comision']=pct;
   /* LIQUIDADO en la hoja es anticipo + liquidación = neto, y el saldo sale de restar los
      dos. La liquidación es el RESTO, no el total: ponerle el neto dejaría el saldo en
      negativo por el valor del anticipo. */
@@ -240,15 +242,16 @@ function mandarALaHoja(cierre){
   rvComprometerAnticipo();
   const datos=datosParaLaHoja();
   if(!datos['Proyecto']){ toast('Ponle nombre al proyecto antes de registrarlo','err',4000); return Promise.resolve(false); }
-  prefSet(PREF_RV_PCT,parseFloat(document.getElementById('rv-pct').value)||0);
-  prefSet(PREF_RV_CUENTA,document.getElementById('rv-cuenta').value);
+  rvRecordarPreferencias();
   toast('Mandando la venta a la hoja…','',PUENTE_ESPERA);
   return puentePost(cfg,'empujar',{ops:[{id:datos['Folio cotizacion'],datos:datos}]})
     .then(j=>{
       const r=(j&&j.resultados&&j.resultados[0])||null;
       if(!r||r.ok!==true) throw new Error((r&&r.mensaje)||'El puente no pudo escribir la venta.');
       marcarHito('venta');
-      const folio=(r.remoto&&(r.remoto['Folio']||r.remoto.id_notion))||'';
+      /* El folio interno de la hoja (V-042) viene como `id_notion`, el nombre que heredó
+         del relevo; aplanarFila no devuelve ninguna clave «Folio». */
+      const folio=(r.remoto&&r.remoto.id_notion)||'';
       const rech=(r.rechazadas||[]).map(x=>x&&x.nombre).filter(Boolean);
       const el=document.getElementById('rv-copied');
       if(el){
@@ -314,8 +317,17 @@ function copiarDatosVenta(){
    El botón de copiar la fila se queda para siempre. Si la plataforma no está, si el
    teléfono es otro, si algo falla: pegar la fila a mano es el camino que ya funciona y no
    se retira. */
+/* La comisión y la cuenta «casi nunca cambian y se volvían a poner en cada venta»: eso decía
+   el modal, y solo las recordaba el camino con puente. En un teléfono sin puente el registro
+   sale por el otro camino y las dos se volvían a elegir cada vez. Se recuerdan aquí, en un
+   solo sitio, y las llaman los dos caminos. */
+function rvRecordarPreferencias(){
+  prefSet(PREF_RV_PCT,parseFloat(document.getElementById('rv-pct').value)||0);
+  prefSet(PREF_RV_CUENTA,document.getElementById('rv-cuenta').value);
+}
 function registrarGanada(){
   rvComprometerAnticipo();
+  rvRecordarPreferencias();
   const t=desgloseFinal();
   const g={
     folio:Q.folio,

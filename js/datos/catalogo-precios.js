@@ -1,7 +1,7 @@
 /* ============================================================================
    Copia del catálogo de precios del cotizador.
 
-   GENERADA. No la edites aquí: el catálogo vive en cotizador.html y se edita allá.
+   GENERADA. No la edites aquí: el catálogo vive en js/cotizador/catalogo.js y se edita allá.
    Corre herramientas/extraer-catalogo.sh para regenerarla.
 
    Existe por un caso concreto: la plataforma se puede abrir sin que cotizador.html se haya

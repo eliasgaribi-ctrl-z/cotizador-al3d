@@ -92,7 +92,7 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
 /**
  * @typedef {{id:string, tipo:'crear'|'actualizar'|'apendice',
  *            almacen:string, entidad:string, registro_id:string, entidad_id:string,
- *            datos:Object, esperado:Object|null,
+ *            datos:Object, campos:string[]|null, esperado:Object|null,
  *            ts:number, disp:string, intentos:number, ultimo_error:string,
  *            estado:'pendiente'|'conflicto', conflicto:Object|null, sync:0}} Operacion
  */
@@ -234,6 +234,10 @@ export async function encolar(op) {
     id: op.id || DB.nuevoId('op'),
     tipo, almacen, entidad: almacen, registro_id, entidad_id: registro_id,
     datos: op.datos || {},
+    /* Qué campos cambió esta operación, si quien encoló lo sabe (`proyectos.actualizar` lo
+       sabe; un alta no lo dice). El relevo lo usa para NO mandar a la hoja el dinero y el
+       nombre que no cambiaron, que es como se pisaba una corrección hecha allá. */
+    campos: Array.isArray(op.campos) ? op.campos.map(String) : null,
     /* `esperado` es la foto del registro remoto que el emisor creía que había. No cierra
        la ventana de sobrescritura —Notion no tiene con qué cerrarla—, la estrecha. */
     esperado: op.esperado || null,

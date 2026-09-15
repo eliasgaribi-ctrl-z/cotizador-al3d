@@ -107,7 +107,8 @@ Se enciende: espejo del dinero desde Notion, creación automática de la fila de
 | Existencias | **derivadas** de `movimientos` | dueña del cálculo. **Nunca un número guardado** |
 | Requerimiento de material | **derivado** de las partidas | recalculable. Solo se persiste la corrección humana |
 | Dinero, `Estatus`, `Cuenta `, comisiones | **Notion** (Fase 3) | espeja de solo lectura; PAGOS escribe vía puente |
-| Fórmulas `Precio Neto `, `Pago Pendiente`, `Comisiones`, `Comision Restante`, `Fecha Comision` | **Notion. Nadie más. Nunca se recalculan aquí** | las lee |
+| Fórmulas `Precio Neto `, `Pago Pendiente`, `Comisiones`, `Comision Restante` | **La hoja de finanzas (antes Notion). Nadie más. Nunca se recalculan aquí** | las lee. `Pago Pendiente` baja positivo: lo que te deben |
+| `Porcentaje comision` (el % pactado, en puntos) | **el modal de Registrar Venta**, corregible en la hoja | lo guarda como `pct_comision`, lo sube en el alta y lo baja si cambió allá |
 | Memoria técnica del proyecto | **Notion** (cuerpo de página) | lee; agrega bloques al final |
 
 ### 4.1 Qué pasa cuando el cotizador reescribe una entrada del historial
@@ -135,9 +136,13 @@ Prefijo `al3d_pf_` (pf = plataforma). Todas son **cortas y de tamaño acotado**;
 | `al3d_pf_gcal` | JSON | `{clientId, calendarioId}` (Fase 2) | `null` |
 | `al3d_pf_puente` | JSON | `{url, token}` del Worker, ofuscado con `keyPack()` (Fase 3) | `null` |
 | `al3d_pf_ult_export` | string ISO | último respaldo de la plataforma. Alimenta el aviso de desalojo | `''` |
-| `al3d_pf_empresa` | string | id de empresa activa | `'al3d'` |
+| `al3d_pf_empresa` | string | id de empresa activa. Se lee; hoy nadie la escribe | `'al3d'` |
+| `al3d_pf_restaurar` | string JSON | la mitad del cotizador de un respaldo completo, esperando a que el cotizador la tome al abrir. La plataforma la escribe; el cotizador la ofrece, restaura y borra | `''` |
+| `al3d_pf_ia_ok` | JSON | «ya se entendió que lo que se pregunta a la IA viaja con un resumen». Del asistente | `null` |
 
-**Regla dura, y es una corrección a dos de las propuestas:** ninguna de estas claves se añade a `RESPALDO_KEYS` (`index.html:6856`). Verificado el mecanismo real: `restaurarDesde` hace `RESPALDO_KEYS.forEach(k => removeItem(k))` y **solo toca las claves de la lista**, así que una clave fuera de la lista sobrevive intacta a una restauración. Añadirlas tendría tres costos y ningún beneficio: (a) restaurar un respaldo viejo borraría el estado actual de la plataforma en silencio; (b) reinstalaría una cola de sync vieja que reenviaría operaciones ya aplicadas; (c) `restaurarDesde` es todo-o-nada con rollback y aborta completa si una clave no cabe, así que meter un espejo de tamaño arbitrario podría **volver imposible restaurar tres años de cotizaciones**. La plataforma tiene su propio archivo de respaldo, `{app:'plataforma-al3d', formato:1, …}`, que a su vez nunca toca claves `al3d_*` del cotizador.
+Las once están en `CLAVES` de `datos/prefs.js` y en ningún otro sitio: un módulo no escribe el literal.
+
+**Regla dura, con UNA excepción escrita:** ninguna de estas claves se añade a `RESPALDO_KEYS` (`js/cotizador/historial.js`), **salvo `al3d_pf_ganadas`**, el buzón. Lo escribe el cotizador —es su constancia de «esta cotización se vendió», y de ella sale el hito «venta registrada»—, así que viaja con el historial al que pertenece: un teléfono nuevo que restaura el historial completo tiene que saber cuáles de esas cotizaciones ya se vendieron. Reinstalar un buzón viejo no duplica nada porque la plataforma lo drena por folio global y descarta lo repetido. Para las demás, verificado el mecanismo real: `restaurarDesde` hace `RESPALDO_KEYS.forEach(k => removeItem(k))` y **solo toca las claves de la lista**, así que una clave fuera de la lista sobrevive intacta a una restauración. Añadirlas tendría tres costos y ningún beneficio: (a) restaurar un respaldo viejo borraría el estado actual de la plataforma en silencio; (b) reinstalaría una cola de sync vieja que reenviaría operaciones ya aplicadas; (c) `restaurarDesde` es todo-o-nada con rollback y aborta completa si una clave no cabe, así que meter un espejo de tamaño arbitrario podría **volver imposible restaurar tres años de cotizaciones**. La plataforma tiene su propio archivo de respaldo, `{app:'plataforma-al3d', formato:1, …}`, que a su vez nunca toca claves `al3d_*` del cotizador. `pruebas/respaldo.mjs` compara las dos listas de claves del respaldo (la del cotizador y la réplica de `datos/cotizador.js`).
 
 **`al3d_pf_puente` no entra en el respaldo de la plataforma.** `keyPack()` es XOR+base64, reversible en dos líneas, y el propio código lo dice en `:6849`: *"un respaldo se manda por WhatsApp o por correo, y una key que viaja así deja de ser secreta"*.
 
@@ -146,7 +151,7 @@ Prefijo `al3d_pf_` (pf = plataforma). Todas son **cortas y de tamaño acotado**;
 Verificado: `grep -c -i indexeddb index.html` = **0**. Es un recurso virgen en este origen. Y la razón por la que es obligatorio: `saveHistorial` (`:6602-6624`) ya degrada por falta de cuota soltando `aiFile.url` de la cotización más antigua a la más reciente hasta que quepa, y el usuario ve *"No hubo espacio para guardar en el historial — respalda y borra cotizaciones viejas"*. **Un libro de movimientos creciendo en localStorage destruiría imágenes del historial del cotizador, que es el único dato irrecuperable del sistema.**
 
 ```
-IndexedDB  'al3d_pf'  v1
+IndexedDB  'al3d_pf'  v2
   proyectos       keyPath 'id'    índices: porEtapa(etapa), porFecha(fecha_ganado), porFolio(folio_global)
   instalaciones   keyPath 'id'    índices: porFecha(fecha), porProyecto(proyecto_id)
   materiales      keyPath 'id'    índice: porFamilia(familia)
@@ -154,10 +159,13 @@ IndexedDB  'al3d_pf'  v1
   requerimientos  keyPath 'id'    índices: porProyecto(proyecto_id), porMaterial(material_id)
   avisos          keyPath 'rid'   índice: porEstado(estado)
   constantes      keyPath 'clave'
-  pendientes      keyPath 'id'    índice: porTs(ts)          // bandeja de salida de sync
+  pendientes      keyPath 'id'    índice: porTs(ts)          // bandeja de salida de sync. NO entra al respaldo
   geo             keyPath 'q'                                 // caché de geocodificación
   blobs           keyPath 'id'                                // fotos de obra como Blob, no base64
+  bitacora        keyPath 'id'    índices: porTs(ts), porEntidad(entidad_id)   // quién hizo qué (v2)
 ```
+
+La lista real es `ALMACENES` en `datos/db.js`; la migración crea lo que falte, sin borrar nada.
 
 ### 4.4 `proyecto`
 
@@ -167,7 +175,7 @@ IndexedDB  'al3d_pf'  v1
   empresa_id:    'al3d',
   folio_local:   'COT-0007',
   dispositivo:   'D7K2',                  // al3d_pf_disp del que ganó
-  folio_global:  'D7K2:COT-0007',         // derivado. El folio NO es único entre dispositivos
+  folio_global:  'COT-0007@D7K2',         // derivado (Cot.folioGlobal). El folio NO es único entre dispositivos
   nombre:        '',        // DERIVADO: `${contacto} - ${negocio} (${tipo_corto})`
   contacto:      '',        // origen.cliente
   negocio:       '',        // origen.proy
@@ -191,6 +199,7 @@ IndexedDB  'al3d_pf'  v1
   cuenta:         null,         // Moni MPago|Rul HSBC|Tatis BNT|Constru BNT|Elias BBVA
   pago_pendiente: null,         // FÓRMULA DE NOTION. Se lee, jamás se calcula
   comision_restante: null,      // FÓRMULA DE NOTION
+  pct_comision:   0,            // el % pactado, en puntos. Viene del modal de Registrar Venta; la hoja lo lee en su fórmula
   // la copia congelada
   origen: {
     fuente: 'cotizador',        // cotizador|manual|notion_csv
@@ -424,14 +433,21 @@ export function catalogos(): {MATERIALES, COMPLEJIDAD, RECORTES, BASTIDORES, CAJ
 /** Descripción textual canónica de una partida. Réplica de histDsc() de index.html. */
 export function descPartida(item:Object): string
 
-/** Drena al3d_pf_ganadas: convierte el buzón de index.html en proyectos y lo vacía.
+/** Drena al3d_pf_ganadas: convierte el buzón del cotizador en proyectos y lo vacía.
  *  Llamar en cada arranque y en cada evento 'storage'. Idempotente por folio_global.
- *  @returns {creados:number, repetidos:number} */
-export function drenarBuzon(): Promise<{creados:number, repetidos:number}>
+ *  La `huella` que trae cada renglón —la del trabajo al momento de ganar— se congela en
+ *  `origen.huellaAuth`, para que una edición hecha ANTES de drenar también se note.
+ *  `fallidos` son los renglones que nombran una cotización que no está en este aparato.
+ *  @returns {creados:number, repetidos:number, fallidos:number} */
+export function drenarBuzon(): Promise<{creados:number, repetidos:number, fallidos:number}>
 
 /** Compara origen.huellaAuth contra la entrada de hoy.
- *  @returns 'igual'|'cambio'|'desaparecio' */
+ *  @returns 'igual'|'cambio'|'desaparecio'|'sin_huella' */
 export function estadoOrigen(proyecto:Object): string
+
+/** La regla de «cuánto se cobró», escrita una vez: el autorizado si difiere del neto. La
+ *  usan totalVendido() (historial) y ventas.vendidoDe() (proyectos). */
+export function cobrado(neto:number, precioAuth:number): number
 ```
 
 ### 5.4 `datos/proyectos.js`

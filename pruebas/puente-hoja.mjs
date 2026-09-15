@@ -20,6 +20,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { deNotion } from '../js/datos/puente.js';
+import { saldoDe } from '../js/datos/ventas.js';
 
 let bien = 0, mal = 0;
 const eq = (que, dio, esperado) => {
@@ -35,16 +37,18 @@ const src = readFileSync(join(aqui, '..', 'puente', 'hoja-apps-script.gs'), 'utf
 /* Los servicios de Google no se tocan al cargar el archivo —no hay llamadas en el nivel
    de arriba— así que basta con que existan para que nada explote si algún día las hubiera. */
 const noImplementado = new Proxy({}, { get: () => () => { throw new Error('servicio de Google no disponible en la prueba'); } });
+/* `aplanarFila` sí se prueba ahora, y lo único de Google que toca es formatear una fecha. */
+const Utilities = { formatDate: d => d.toISOString().slice(0, 10) };
 const ctx = vm.createContext({
   SpreadsheetApp: noImplementado, PropertiesService: noImplementado,
-  Utilities: noImplementado, ScriptApp: noImplementado, MailApp: noImplementado,
+  Utilities, ScriptApp: noImplementado, MailApp: noImplementado,
   LockService: noImplementado, ContentService: noImplementado,
   HtmlService: noImplementado, Logger: noImplementado, console,
 });
 vm.runInContext(src, ctx);
 const api = vm.runInContext(
-  '({ armarCeldas, rutaExpandir, sinLoQueNoLeToca, PUENTE_ROLES, PUENTE_FORMULAS, COL,' +
-  '   ESTATUS, CUENTAS, ETAPAS_OBRA, TIPOS_TRABAJO, DOMINIOS_MAPS,' +
+  '({ armarCeldas, rutaExpandir, sinLoQueNoLeToca, aplanarFila, PUENTE_ROLES, PUENTE_FORMULAS, COL,' +
+  '   COL_FOLIO, ULTIMA_COL, HEAD, ESTATUS, CUENTAS, ETAPAS_OBRA, TIPOS_TRABAJO, DOMINIOS_MAPS,' +
   '   CAMPOS_DE_DINERO, VE_EL_DINERO, PUENTE_VERSION })',
   ctx);
 
@@ -171,9 +175,9 @@ console.log('\nLO QUE BAJA — el rol tambien cierra la lectura, no solo la escr
     id_notion: 'V-001', 'Proyecto': 'Anuncio X', 'Estatus': 'COBRANDO',
     'Etapa de obra': 'Cortado', 'Direccion': 'Av. Vallarta 1234',
     'Precio Subtotal': 12000, 'Precio Neto ': 13920, 'Anticipo': 6000,
-    'Liquidacion': 0, 'Pago Pendiente': -7920, 'Comisiones': 1200,
+    'Liquidacion': 0, 'Pago Pendiente': 7920, 'Comisiones': 1200,
     'Abono Comision': 0, 'Comision Restante': 1200, 'Cuenta ': 'Rul HSBC',
-    'Fecha Liquidacion': '2026-09-14',
+    'Fecha Liquidacion': '2026-09-14', 'Porcentaje comision': 10,
   });
 
   const fab = api.sinLoQueNoLeToca(espejo(), 'fabricacion');
@@ -189,7 +193,7 @@ console.log('\nLO QUE BAJA — el rol tambien cierra la lectura, no solo la escr
   for (const rol of ['direccion', 'pagos']) {
     const r = api.sinLoQueNoLeToca(espejo(), rol);
     eq(rol + ' sí ve el dinero', Object.keys(r).length, Object.keys(espejo()).length);
-    eq('  con el pendiente intacto', r['Pago Pendiente'], -7920);
+    eq('  con el pendiente intacto', r['Pago Pendiente'], 7920);
   }
 
   eq('quien ve el dinero son dos de tres',
@@ -200,7 +204,64 @@ console.log('\nLO QUE BAJA — el rol tambien cierra la lectura, no solo la escr
      api.sinLoQueNoLeToca(espejo(), 'inventado')['Anticipo'], undefined);
 
   /* La versión cambia cuando cambia el contrato: es como se sabe si la hoja quedó vieja. */
-  eq('la versión dice que el filtrado ya está', api.PUENTE_VERSION, 'puente-sheets-3');
+  eq('la versión dice que el saldo ya baja al derecho', api.PUENTE_VERSION, 'puente-sheets-4');
+}
+
+console.log('\nEL SALDO, DE LA CELDA AL TELÉFONO — la costura que nadie probaba');
+{
+  /* Hasta puente-sheets-3 `aplanarFila` NEGABA el saldo «con el signo de Notion» y la
+     plataforma —que nunca pintó ese signo— hacía Math.max(0, saldo): toda la cartera se veía
+     cobrada. Cada extremo tenía su prueba con su propio signo y nadie encadenaba los tres.
+     Aquí se arma una fila como la lee la hoja, se aplana como lo hace el Apps Script, se baja
+     como lo hace el relevo y se pregunta el saldo como lo hace Control. */
+  const fila = new Array(api.ULTIMA_COL).fill('');
+  const pon = (nombre, v) => { fila[api.COL[nombre] - 1] = v; };
+  fila[api.COL_FOLIO - 1] = 'V-042';
+  pon('Proyecto', 'Anuncio X'); pon('Estatus', 'COBRANDO'); pon('Cuenta ', 'Rul HSBC');
+  pon('IVA', 'Sí'); pon('Precio Subtotal', 12000); pon('Precio Neto ', 13920);
+  pon('Anticipo', 6000); pon('Liquidacion', 0);
+  pon('Pago Pendiente', 7920);                       // como la fórmula K: neto − anticipo − liquidación
+  pon('Comisiones', 1200); pon('Abono Comision', 0); pon('Comision Restante', 1200);
+  /* La fecha se crea DENTRO del contexto: `aplanarFila` pregunta `instanceof Date`, y el Date
+     de afuera es otra clase para el de adentro. En la hoja de verdad hay un solo realm. */
+  pon('Fecha Anticipo e Instalacion', vm.runInContext('new Date(Date.UTC(2026, 7, 23))', ctx));
+  pon('Folio cotizacion', 'COT-0042@K7QM'); pon('Etapa de obra', 'Instalado');
+  pon('Tipo de trabajo', 'Letras 3D con iluminacion, Recorte acrilico');
+  pon('Porcentaje comision', 15);
+
+  const plano = api.aplanarFila(fila, 'America/Mexico_City');
+  eq('el saldo sale de la hoja tal cual, positivo', plano['Pago Pendiente'], 7920);
+  eq('igual que la comisión restante: mismo criterio para las dos fórmulas', plano['Comision Restante'], 1200);
+  eq('la fecha baja en ISO', plano['Fecha Anticipo e Instalacion'], '2026-08-23');
+  eq('el tipo de trabajo baja como lista', plano['Tipo de trabajo'], ['Letras 3D con iluminacion', 'Recorte acrilico']);
+  eq('el % pactado baja', plano['Porcentaje comision'], 15);
+  eq('el folio interno hace de id', plano.id_notion, 'V-042');
+
+  const parche = deNotion(plano);
+  eq('el relevo lo convierte en pago_pendiente', parche.pago_pendiente, 7920);
+  eq('y trae el anticipo de la hoja', parche.anti_pactado, 6000);
+  eq('y el % pactado', parche.pct_comision, 15);
+  const proyecto = { etapa: 'instalado', neto: 13920, precio_auth: 13920, anti_pactado: 6000, ...parche };
+  eq('y Control lee lo que se debe: los mismos 7,920', saldoDe(proyecto), 7920);
+  eq('con la fila liquidada el saldo es cero aunque la celda diga otra cosa',
+     saldoDe({ ...proyecto, estatus_notion: 'LIQUIDADO' }), 0);
+
+  /* Y la columna nueva: quién puede escribirla y qué acepta. */
+  eq('la columna del % está después de las cinco del puente', api.COL['Porcentaje comision'], 30);
+  eq('y ULTIMA_COL la alcanza: si no, /jalar la dejaría fuera',
+     api.ULTIMA_COL, Math.max(...Object.values(api.COL)));
+  eq('dirección escribe el %', api.armarCeldas({ 'Porcentaje comision': 15 }, 'direccion').celdas.map(c => c.valor), [15]);
+  eq('pagos también', api.armarCeldas({ 'Porcentaje comision': 12.5 }, 'pagos').celdas.map(c => c.valor), [12.5]);
+  eq('fabricación no', api.armarCeldas({ 'Porcentaje comision': 15 }, 'fabricacion').rechazadas.map(x => x.nombre), ['Porcentaje comision']);
+  eq('150 % se rechaza con su razón', api.armarCeldas({ 'Porcentaje comision': 150 }, 'direccion').rechazadas.map(x => x.por), ['el porcentaje va de 0 a 100']);
+  eq('vacío borra la celda: vuelve al 10 % de siempre', api.armarCeldas({ 'Porcentaje comision': '' }, 'direccion').celdas.map(c => c.valor), ['']);
+  cierto('y fabricación tampoco lo VE bajar', api.CAMPOS_DE_DINERO.indexOf('Porcentaje comision') !== -1);
+
+  /* La guardia de idempotencia de mejorarTodo compara E1 contra lo que la misma función
+     escribe: HEAD[4]. Decía 'Tipo' y la segunda corrida corría la hoja entera una columna. */
+  eq('HEAD[4] es el encabezado real de E', api.HEAD[4], 'Tipo de trabajo');
+  cierto('y agregarColumnas se guarda contra ÉSE, no contra un nombre viejo',
+         /getValue\(\) !== HEAD\[4\]\) h\.insertColumnBefore\(5\)/.test(src));
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

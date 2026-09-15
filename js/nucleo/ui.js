@@ -65,7 +65,7 @@ export const ico = (n, cls) =>
    fecha en español. Las tres primitivas se reexportan con el mismo nombre que tenían para
    que los seis módulos que ya piden `partesISO` a este archivo no cambien una línea. */
 export { partesISO, hoyISO, fechaLocal } from './fechas.js';
-const MES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+import { MES_CORTO } from './fechas.js';
 const DIA_CORTO = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 export const fmtFecha = iso => {
   const p = partesISO(iso); if (!p) return '';
@@ -431,7 +431,7 @@ export const TONO_TALLER = { no_llega: 'mal', tarde: 'urge', justo: 'urge', a_ti
  *  interpreta la cadena como UTC y en México devuelve el día anterior. */
 export function corta(iso) {
   const p = partesISO(iso); if (!p) return '';
-  return p.d + ' ' + ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][p.m - 1];
+  return p.d + ' ' + MES_CORTO[p.m - 1];
 }
 
 /**

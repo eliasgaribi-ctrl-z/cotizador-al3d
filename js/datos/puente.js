@@ -66,7 +66,9 @@ export const P = {
   pendiente:   'Pago Pendiente',         // fórmula
   comisiones:  'Comisiones',             // fórmula
   comRestante: 'Comision Restante',      // fórmula
-  fechaCom:    'Fecha Comision',         // fórmula
+  /* «Fecha Comision» ya no está aquí: en la hoja no existe —la fecha de cada abono vive en la
+     pestaña de abonos— y la prueba que la buscaba en el Apps Script pasaba porque el nombre
+     aparece… en la lista de lo que ya no existe. */
   estatus:     'Estatus',
   cuenta:      'Cuenta ',                // con espacio final
   fecha:       'Fecha Anticipo e Instalacion',
@@ -79,12 +81,22 @@ export const P = {
   ubicacion:   'Ubicacion',
   direccion:   'Direccion',
   tipo:        'Tipo de trabajo',
+  /* El % pactado con quien trajo el trabajo, en puntos (10 = 10 %). Columna AD de la hoja
+     desde puente-sheets-4; antes la hoja cobraba 10 % fijo y el teléfono enseñaba otro. */
+  pctCom:      'Porcentaje comision',
 };
 
-/** Los cuatro valores que de verdad existen en la propiedad *status* de la base. */
-export const ESTATUS = ['REPARANDO', 'COBRANDO', 'FABRICACION', 'LIQUIDADO'];
+/* Los cuatro estatus y las cinco cuentas, EN EL ORDEN DE LA HOJA: es el orden del
+   desplegable de la columna D y C y del reporte «POR ESTATUS», y el mismo que enseña el
+   modal de Registrar Venta del cotizador. Las pantallas de la plataforma importan estas dos
+   listas —no tienen copia propia— y pruebas/replicas.mjs compara las cuatro copias que no se
+   pueden importar (el Apps Script y el <select> del cotizador) con este orden. */
+/** Los cuatro valores que de verdad existen en la columna Estatus de la hoja. */
+export const ESTATUS = ['FABRICACION', 'REPARANDO', 'COBRANDO', 'LIQUIDADO'];
 /** Las cinco cuentas que de verdad existen en `Cuenta `. */
-export const CUENTAS = ['Moni MPago', 'Rul HSBC', 'Tatis BNT', 'Constru BNT', 'Elias BBVA'];
+export const CUENTAS = ['Elias BBVA', 'Constru BNT', 'Moni MPago', 'Rul HSBC', 'Tatis BNT'];
+/** Los que mueve PAGOS: cobrar es pasar a cobrando o a liquidado. */
+export const ESTATUS_DE_PAGOS = ['COBRANDO', 'LIQUIDADO'];
 
 /* ----- Las ocho etapas, con el nombre que se lee en Notion -----
    La etapa es de OBRA y el `Estatus` de Notion es de DINERO: son dos ejes y no se mezclan.
@@ -149,18 +161,37 @@ const texto = v => String(v == null ? '' : v);
  * `Liquidacion`, `Abono Comision` ni `Fecha Liquidacion`, que las captura quien cobra,
  * del lado de Notion, y que la plataforma no guarda.
  *
+ * ── Qué viaja cuándo, y por qué no todo siempre ──
+ * La hoja es el libro mayor del dinero (§4.0) y ahí PAGOS corrige a mano el anticipo, el
+ * subtotal o el nombre del proyecto. Hasta septiembre de 2026 cada subida —mover la etapa,
+ * poner un pin— mandaba también `Precio Subtotal`, `Anticipo`, `IVA` y `Proyecto` con lo que
+ * este teléfono tenía guardado, y eso pisaba la corrección hecha allá: el saldo cambiaba sin
+ * que nadie hubiera tocado dinero. Ahora esos cuatro y la fecha del anticipo viajan en el
+ * ALTA (la fila no existe todavía) o cuando la operación dice que ese campo fue justo lo que
+ * cambió (`opts.campos`, que `proyectos.actualizar` anota). Lo que la plataforma sí es dueña
+ * —etapa, dirección, ubicación, tipo, fechas de instalación, estatus y cuenta que aprieta
+ * PAGOS— viaja siempre.
+ *
  * @param {Object} p proyecto de §4.4
  * @param {Object|null} inst su instalación, si ya tiene fecha
+ * @param {{alta?:boolean, campos?:string[]}} [opts] sin `opts` se manda todo (es un alta)
  * @returns {Object} nombre de propiedad de Notion -> valor
  */
-export function aNotion(p, inst) {
+export function aNotion(p, inst, opts) {
   if (!p || typeof p !== 'object') return {};
   const out = {};
+  const o = opts && typeof opts === 'object' ? opts : {};
+  const alta = o.alta === undefined ? true : !!o.alta;
+  const campos = new Set(Array.isArray(o.campos) ? o.campos : []);
+  const va = campo => alta || campos.has(campo);
 
-  out[P.proyecto] = texto(p.nombre);
-  out[P.subtotal] = num(p.sub);
-  out[P.iva]      = p.iva !== false;
-  out[P.anticipo] = num(p.anti_pactado);
+  if (va('nombre'))       out[P.proyecto] = texto(p.nombre);
+  if (va('sub'))          out[P.subtotal] = num(p.sub);
+  if (va('iva'))          out[P.iva]      = p.iva !== false;
+  if (va('anti_pactado')) out[P.anticipo] = num(p.anti_pactado);
+  /* El % pactado. Cero o vacío no se manda: en la hoja, la celda vacía significa «el de
+     siempre, 10 %», y un 0 escrito significaría que no hay comisión, que es otra cosa. */
+  if (va('pct_comision') && num(p.pct_comision) > 0) out[P.pctCom] = num(p.pct_comision);
 
   /* El folio ata la fila al cotizador, y va con el dispositivo pegado: `al3d_folio` es un
      contador local, dos teléfonos emiten COT-0042 el mismo día y no son el mismo trabajo.
@@ -196,7 +227,7 @@ export function aNotion(p, inst) {
 
      Cada una lleva lo suyo: la del anticipo, el día en que se ganó; la de instalación, la
      de la instalación, y solo si está agendada. */
-  if (esISO(p.fecha_ganado)) out[P.fecha] = p.fecha_ganado;
+  if (va('fecha_ganado') && esISO(p.fecha_ganado)) out[P.fecha] = p.fecha_ganado;
   if (inst && esISO(inst.fecha)) {
     out[P.fechaInst] = inst.fecha;
     out[P.horaInst]  = texto(inst.hora);
@@ -241,12 +272,38 @@ export function deNotion(fila) {
 
   if (ESTATUS.includes(fila[P.estatus])) parche.estatus_notion = fila[P.estatus];
   if (CUENTAS.includes(fila[P.cuenta]))  parche.cuenta = fila[P.cuenta];
+  /* El anticipo y el % de comisión también bajan: son celdas que PAGOS corrige a mano en la
+     hoja, y hasta septiembre de 2026 esa corrección no llegaba nunca al teléfono, que seguía
+     estimando el saldo con el anticipo viejo. La hoja es la dueña del dinero (§4.0). */
+  if (hay(fila[P.anticipo])) parche.anti_pactado = num(fila[P.anticipo]);
+  if (hay(fila[P.pctCom]))   parche.pct_comision = num(fila[P.pctCom]);
   /* Las dos fórmulas. Bajan y jamás se calculan de este lado: dos implementaciones de la
-     misma fórmula divergen en semanas y el sistema empieza a dar dos respuestas. */
+     misma fórmula divergen en semanas y el sistema empieza a dar dos respuestas. El saldo
+     llega con el signo de la hoja —positivo es lo que te deben—, que es el que `saldoDe`,
+     el aviso «instalado con saldo» y el filtro de cobro esperan. */
   if (hay(fila[P.pendiente]))   parche.pago_pendiente = num(fila[P.pendiente]);
   if (hay(fila[P.comRestante])) parche.comision_restante = num(fila[P.comRestante]);
 
   return parche;
+}
+
+/* ----- La versión de la hoja que esta plataforma espera -----
+   `salud` devuelve la versión del Apps Script publicado. Si la hoja se quedó con una
+   implementación anterior, el contrato que este archivo asume no es el que corre allá:
+   puente-sheets-3 mandaba el saldo negado y no conocía «Porcentaje comision». Ajustes lo
+   enseña con estas palabras; la prueba de node comprueba que el .gs del repo diga esta. */
+export const VERSION_ESPERADA = 'puente-sheets-4';
+export function versionVieja(version) {
+  const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
+  const n = m ? Number(m[1]) : 0;
+  const e = Number(/(\d+)$/.exec(VERSION_ESPERADA)[1]);
+  return n < e;
+}
+export function avisoVersion(version) {
+  if (!versionVieja(version)) return '';
+  return 'La hoja corre ' + (version ? '«' + version + '»' : 'una versión sin nombre') + ' y la plataforma espera «' +
+    VERSION_ESPERADA + '». Pega el puente/hoja-apps-script.gs de hoy en Apps Script, implementa una versión nueva ' +
+    'y corre mejorarTodo: hasta entonces el saldo por cobrar puede bajar al revés y el % de comisión no llega a la hoja.';
 }
 
 /* ============================================================================
@@ -495,14 +552,17 @@ export function crear(cfg0) {
           continue;
         }
 
+        const idNotion = proy.notion_page_id || null;
         let props;
         if (op.almacen === 'proyectos') {
-          props = aNotion(op.datos, await instalacionDe(proy.id));
+          /* Alta si la fila no existe todavía; si ya existe, el dinero y el nombre solo van
+             cuando la operación dice que eso fue lo que cambió. Ver aNotion. */
+          props = aNotion(op.datos, await instalacionDe(proy.id),
+                          { alta: !idNotion, campos: Array.isArray(op.campos) ? op.campos : [] });
         } else {
           props = instalacionANotion(op.datos);
         }
 
-        const idNotion = proy.notion_page_id || null;
         const { props: enviables, fuera } = filtrar(props, permitidas);
 
         /* Un alta sin título crearía en la base del dinero una fila en blanco que nadie

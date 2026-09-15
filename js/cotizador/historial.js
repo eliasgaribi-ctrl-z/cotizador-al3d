@@ -786,8 +786,15 @@ function verCuadernoDe(clave){
    inicializa al cargar el archivo y las nombra: declararlas después reventaba el script. */
 const RESP_TS='al3d_respaldo_ts', RESP_N='al3d_respaldo_n';
 const RESP_DIAS=30, RESP_COTS=10, RESP_PRIMERAS=3;
+/* `al3d_pf_ganadas` es la ÚNICA clave `al3d_pf_` que entra, y es a propósito: la escribe el
+   cotizador —es su constancia de «esta cotización se vendió»— y de ella sale el hito «venta
+   registrada». Sin ella, un teléfono nuevo restauraría el historial completo y no sabría
+   cuáles de esas cotizaciones ya se vendieron. La plataforma la drena por folio y descarta
+   lo repetido, así que reinstalar una vieja no duplica proyectos.
+   js/datos/cotizador.js lleva la MISMA lista para armar el respaldo completo desde la
+   plataforma; pruebas/respaldo.mjs comprueba que las dos digan lo mismo. */
 const RESPALDO_KEYS=['al3d_historial','al3d_folio','al3d_q','al3d_queue','al3d_logo',CANVA_KEY,HITOS_KEY,'al3d_pf_ganadas',
-  'al3d_fold_proy',CUA_NOTAS,AI_FILE_KEY,PREF_AUTORIZADOR,PREF_MATERIAL,PREF_RV_PCT,PREF_RV_CUENTA,
+  CUA_NOTAS,AI_FILE_KEY,PREF_AUTORIZADOR,PREF_MATERIAL,PREF_RV_PCT,PREF_RV_CUENTA,
   RESP_TS,RESP_N];
 function selloFecha(){
   const d=new Date(), p=n=>String(n).padStart(2,'0');

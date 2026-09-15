@@ -788,10 +788,7 @@ function irACampoProy(id){
   /* Antes que nada, la pantalla: enfocar un campo que está en la otra no enfoca nada, y el
      usuario se queda mirando la misma pantalla creyendo que el aviso no hizo caso. */
   if(_pantalla!=='cliente') irAPantalla('cliente',{subir:false});
-  if(_foldProy){
-    _foldProy=false; aplicarFoldProy();
-    try{ localStorage.setItem('al3d_fold_proy','0'); }catch(_){}
-  }
+  if(_foldProy){ _foldProy=false; aplicarFoldProy(); }
   irA('card-proy');
   const el=$(id);
   if(el&&!el.disabled) requestAnimationFrame(()=>{ try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); } });

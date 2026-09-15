@@ -306,16 +306,25 @@ function hitoFecha(ts){
   catch(_){ return ''; }
 }
 
+/* ===================== Cómo se nombra cada cosa en el papel =====================
+   Lo que lee el CLIENTE, en el PDF y en el texto para Canva. El material sale del catálogo
+   —matOf(), la misma etiqueta del chip que se tocó— y no de una copia: estaba transcrito
+   dos veces en este archivo, una para el PDF y otra para Canva, y una copia que se edita a
+   mano es la que un día dice «Brush» donde el catálogo ya dice otra cosa. El acabado del
+   recorte y el forro del bastidor sí llevan su nombre de papel —«Rotulación de Vinil»,
+   «Lámina Galvanizada»—, que es el nombre completo del producto y no la abreviatura del
+   chip; van una sola vez, aquí, para los dos documentos. */
+const PDF_ACAB={'sencillo':'Sencillo','vinil':'Rotulación de Vinil','sandwich':'Tipo Sándwich con Iluminación'};
+const PDF_BAS={'lamina':'Lámina Galvanizada','alucobond':'Alucobond'};
+function matPapel(it){ const m=matOf(it&&it.material); return m?m.label:'Aluminio'; }
+
 /* ===================== Copiar datos para pegar en Canva ===================== */
 function copiarParaCanva(){
-  const MAT={'al-paint':'Aluminio Blanco/Negro/Pintado','al-brush':'Aluminio Brush Cepillado','acr-vol':'Acrílico + Aluminio (Volumen)','acr-vinil':'Acrílico + Vinil','acero':'Acero Inoxidable'};
-  const ACAB={'sencillo':'Sencillo','vinil':'Rotulación de Vinil','sandwich':'Tipo Sándwich con Iluminación'};
-  const BAS={'lamina':'Lámina Galvanizada','alucobond':'Alucobond'};
   function descTxt(it){
     let d='';
-    if(it.tipo==='letras')    d=`Letras Individuales 3D: Caras en Acrílico, Cantos en ${MAT[it.material]||'Aluminio'}${it.luz?` con Iluminación LED ${it.ilumTipo==='calida'?'Cálida (3000K)':'Fría (6500K)'}`:' sin iluminación'}.`;
-    else if(it.tipo==='recorte')  d=`Recorte de Acrílico: ${ACAB[it.acab]||''}.`;
-    else if(it.tipo==='bastidor') d=`Bastidor para Letras 3D: estructura tubular de 1" forrada de ${BAS[it.bas]||'lámina galvanizada'}.`;
+    if(it.tipo==='letras')    d=`Letras Individuales 3D: Caras en Acrílico, Cantos en ${matPapel(it)}${it.luz?` con Iluminación LED ${it.ilumTipo==='calida'?'Cálida (3000K)':'Fría (6500K)'}`:' sin iluminación'}.`;
+    else if(it.tipo==='recorte')  d=`Recorte de Acrílico: ${PDF_ACAB[it.acab]||''}.`;
+    else if(it.tipo==='bastidor') d=`Bastidor para Letras 3D: estructura tubular de 1" forrada de ${PDF_BAS[it.bas]||'lámina galvanizada'}.`;
     else if(it.tipo==='caja'){const tp=cajaTipoPdf(it); d=`Caja de Luz:${tp?' '+tp+',':''} Caras en Acrílico con Iluminación LED Fría.`;}
     if(it.desc) d+=(d?' — ':'')+it.desc;
     return d||'—';
@@ -458,10 +467,8 @@ function generarPDF(){
   const ajuste  = +(subPdf-dFin.sub).toFixed(2); // >0 descuento · <0 aumento
   const hayAjuste = Math.abs(ajuste)>0.01;
 
-  /* Etiquetas de catálogos */
-  const MAT = {'al-paint':'Aluminio Blanco/Negro/Pintado','al-brush':'Aluminio Brush Cepillado','acr-vol':'Acrílico + Aluminio (Volumen)','acr-vinil':'Acrílico + Vinil','acero':'Acero Inoxidable'};
-  const ACAB = {'sencillo':'Sencillo','vinil':'Rotulación de Vinil','sandwich':'Tipo Sándwich con Iluminación'};
-  const BAS  = {'lamina':'Lámina Galvanizada','alucobond':'Alucobond'};
+  /* Etiquetas de catálogos: las del papel, PDF_ACAB y PDF_BAS, y el material tal como lo
+     nombra el catálogo (matPapel). Arriba, junto al texto de Canva, que las comparte. */
 
   /* El concepto y su especificación en dos renglones y no en uno.
      Antes iba todo seguido —«<b>Letras Individuales 3D:</b> Caras en Acrílico, Cantos en…»—
@@ -474,13 +481,13 @@ function generarPDF(){
     let tit='', esp='';
     if(it.tipo==='letras'){
       tit='Letras Individuales 3D';
-      esp=`Caras en Acrílico, Cantos en ${MAT[it.material]||'Aluminio'}${it.luz?` con Iluminación LED ${it.ilumTipo==='calida'?'Cálida (3000K)':'Fría (6500K)'}`:' sin iluminación'}.`;
+      esp=`Caras en Acrílico, Cantos en ${matPapel(it)}${it.luz?` con Iluminación LED ${it.ilumTipo==='calida'?'Cálida (3000K)':'Fría (6500K)'}`:' sin iluminación'}.`;
     }else if(it.tipo==='recorte'){
       tit='Recorte de Acrílico';
-      esp=ACAB[it.acab]?`${ACAB[it.acab]}.`:'';   // sin acabado elegido salía «Recorte de Acrílico: .»
+      esp=PDF_ACAB[it.acab]?`${PDF_ACAB[it.acab]}.`:'';   // sin acabado elegido salía «Recorte de Acrílico: .»
     }else if(it.tipo==='bastidor'){
       tit='Bastidor para Letras 3D';
-      esp=`Estructura tubular de 1" forrada de ${BAS[it.bas]||'lámina galvanizada'}.`;
+      esp=`Estructura tubular de 1" forrada de ${PDF_BAS[it.bas]||'lámina galvanizada'}.`;
     }else if(it.tipo==='caja'){
       tit='Caja de Luz';
       const tp=cajaTipoPdf(it);

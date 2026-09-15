@@ -26,6 +26,7 @@ import * as Material from '../datos/material.js';
 import * as Stock from '../datos/stock.js';
 import * as Agenda from '../datos/agenda.js';
 import { matOf, basOf, recOf, cajaOf } from '../datos/catalogo-precios.js';
+import { ESTATUS as ESTATUS_NOTION, CUENTAS, ESTATUS_DE_PAGOS } from '../datos/puente.js';
 import {
   $, esc, money, cant, ico, toast, avisarResultado, vacio, segmento, chip,
   abrirCapa, cerrarCapa, copiarTexto, linkWa, fmtFecha, fmtFechaDia, fmtHora, cuando,
@@ -68,22 +69,14 @@ function on(el, tipo, fn) {
 }
 
 /* ============================================================================
-   Vocabulario que no vive en la capa de datos
+   Vocabulario: todo importado, nada propio
    ============================================================================ */
 
-/* Los cuatro valores REALES de la propiedad *status* de `Ventas - AL3D`. Escritos tal
-   cual: pegar en una propiedad de tipo status una opción que no existe LA CREA, así que un
-   «Fabricación» con acento no es un error visible, es una quinta opción que ensucia el
-   esquema y deja las siete vistas reportando de menos. */
-const ESTATUS_NOTION = ['REPARANDO', 'COBRANDO', 'FABRICACION', 'LIQUIDADO'];
-
-/* Las cinco cuentas que existen en Notion. No hay «Otra»: una cuenta que no existe allá se
-   pega y se convierte en una cuenta nueva de la que nadie va a cobrar nada. */
-const CUENTAS = ['Moni MPago', 'Rul HSBC', 'Tatis BNT', 'Constru BNT', 'Elias BBVA'];
-
-/* PAGOS mueve el dinero, no la obra. §8.2 le da «→ cobrando/liquidado», y eso es estatus
-   de Notion, no etapa: por eso su ficha no trae el segmento de etapas. */
-const ESTATUS_DE_PAGOS = ['COBRANDO', 'LIQUIDADO'];
+/* Los estatus y las cuentas de la hoja se importan de datos/puente.js, que es donde el
+   relevo los valida antes de escribir: esta pantalla tenía su propia copia de las dos
+   listas, en otro orden, y una copia que nadie compara es la que un día enseña un botón que
+   el puente rechaza. PAGOS mueve el dinero, no la obra: §8.2 le da «→ cobrando/liquidado»,
+   y eso es estatus de la hoja, no etapa; por eso su ficha no trae el segmento de etapas. */
 
 /* `ICO_ETAPA` y `claseEtapa` viven en datos/proyectos.js, junto a `ETAPA_NOMBRE`: tres
    pantallas enseñan la etapa y con una copia por pantalla, dos acaban dibujando cosas
