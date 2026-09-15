@@ -1355,8 +1355,13 @@ details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:
    ve que la ventana correcta es la que va a recibirlo. */
 #aimodal.arrastrando .modal{box-shadow:0 0 0 3px var(--brand),0 24px 60px rgba(var(--tinta-rgb),.28)}
 /* Segunda entrada a lo mismo, desde la vista previa que queda junto a las partidas */
-.sc-prev-ia{width:100%;margin-top:9px;padding:9px 12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 10px rgba(var(--a-rgb),.25)}
-.sc-prev-ia:hover{filter:brightness(1.06)}
+/* Es el MISMO botón que dentro del panel del escalador es `.sp-ai` —los dos llaman a
+   scCotizarConIA()— y a aquél la capa (4) lo dejó neutro a propósito, con un párrafo
+   explicando que «el relleno se muda al que hace lo que se vino a hacer». Fuera del panel
+   se quedó relleno de degradado, con peso 800 y sombra teida: dos rellenos azules en la
+   misma columna, uno debajo del otro, para el mismo trabajo. */
+.sc-prev-ia{width:100%;margin-top:9px;padding:0 12px;min-height:38px;border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup);color:var(--tinta2);font-size:var(--t2);font-weight:500;font-family:inherit;cursor:pointer;box-shadow:none}
+.sc-prev-ia:hover{background:var(--sup);border-color:var(--a-borde);color:var(--tinta)}
 .ai-prev-big{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--soft);padding:12px;margin-bottom:14px}
 .ai-prev-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
 .ai-prev-head .ttl{font-size:11.5px;font-weight:700;color:var(--brand);line-height:1.4}
@@ -1676,7 +1681,13 @@ a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-t
 .sp-close .ico{font-size:19px;line-height:1;display:flex}
 .sp-close .back,.sp-close .lbl{display:none}
 .btn-scaler-open{display:flex;align-items:center;justify-content:center;gap:var(--e2);padding:10px 14px;border:1px solid var(--n3);border-radius:var(--rr1);background:var(--sup);color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;transition:border-color .12s,background .12s;white-space:nowrap}
-.btn-scaler-open:hover{background:var(--ok-bg);border-color:var(--ok)}
+/* El hover de estos dos se quedó de la era en que cada herramienta tenía su color —uno
+   verde, otro morado, la IA azul—. En reposo el rediseño ya los dejó idénticos y neutros,
+   con su comentario diciendo por qué: «Tres pesos y tres colores para tres cosas iguales».
+   Con el ratón encima volvían los tres colores, uno detrás de otro. El hover neutro de la
+   capa (4) ya los alcanza; la pista de color se queda donde el resto de la app la pone,
+   en el icono. */
+.btn-scaler-open .svgi{color:var(--ok)}
 .scaler-ai-row{display:flex;gap:8px;margin-bottom:14px}
 .scaler-ai-row .ai-btn{flex:1;margin-bottom:0}
 .sc-flash{animation:scFlash 1.5s ease-out 1}
@@ -1726,7 +1737,11 @@ a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-t
 .vt-stage canvas{position:absolute;top:0;left:0;display:block;width:100%;height:100%}
 .vt-stage canvas.base{position:relative}
 /* Cuadrícula de transparencia: el vector puede salir sin fondo y sin esto no se nota */
-.vt-stage{background:repeating-conic-gradient(var(--n3) 0% 25%,#fff 0% 50%) 50%/18px 18px;box-shadow:0 10px 44px rgba(0,0,0,.42)}
+/* Los mismos dos tokens que las otras tres cuadrículas de transparencia de la app
+   (.ai-prev-img, .sc-prev-img, .hentry-img). Con `#fff` fijo, de noche salía un damero de
+   blanco puro contra `--n3` —#2f3562— que competía con el trazo, mientras la vista previa
+   de la misma imagen, dos pantallas más allá, se resolvía sola. */
+.vt-stage{background:repeating-conic-gradient(var(--n1) 0% 25%,var(--sup) 0% 50%) 50%/18px 18px;box-shadow:0 10px 44px rgba(0,0,0,.42)}
 #vt-cvs-out{clip-path:inset(0 0 0 0)}
 /* Cortina de comparación */
 .vt-split{position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,.95);box-shadow:0 0 0 1px rgba(12,15,38,.35);z-index:4;display:none;cursor:ew-resize;touch-action:none}
@@ -1777,7 +1792,7 @@ a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-t
 .vt-dl{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:9px}
 .vt-modal-bg .sp-actions{padding:10px 14px 12px}
 .btn-vector-open{display:flex;align-items:center;justify-content:center;gap:var(--e2);padding:10px 14px;border:1px solid var(--n3);border-radius:var(--rr1);background:var(--sup);color:var(--n7);font-size:var(--t2);font-weight:500;cursor:pointer;transition:border-color .12s,background .12s;white-space:nowrap;font-family:inherit}
-.btn-vector-open:hover{background:var(--a2-suave);border-color:#5227b8}
+.btn-vector-open .svgi{color:var(--a2)}
 /* Los dos modales de pantalla completa —escalador y vectorizador— cambian a diseño de
    teléfono a los 1000 px y no a los 760. Su barra de herramientas necesita 982 px para
    caber en un renglón, así que entre 761 y 981 px desbordaba por la derecha y dejaba
@@ -2646,6 +2661,39 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
   box-shadow:none;animation:none;
 }
 .tipo-seg button:active,.seg button:active{transform:none}
+/* ----- Y el tercer segmentado, que se había quedado fuera -----
+   `.tool-seg` es el mismo control en los dos aparatos de pantalla completa: «Libre ·
+   Horizontal · Vertical» del escalador, «Original · Comparar · Vector» del vectorizador y
+   los tres modos de cota. La capa (4) redefinió `.tipo-seg` y `.seg` y no lo nombró, así
+   que se quedó entero en la era del barro: carril de 9 px de radio, relleno de degradado
+   con sombra teñida en el elegido, letra de 12,5 px —que no es un escalón de la escala— y
+   el apagado por opacidad, que deja el texto al 38 % y lo vuelve ilegible en vez de
+   callado. En la misma barra convivía con botones planos de borde: dos épocas a diez
+   píxeles una de otra.
+   Lleva `.active` donde los otros dos llevan `.on`; es lo único que no se unifica aquí,
+   porque el nombre lo escriben el escalador y el vectorizador en su marcado. */
+.tool-seg{
+  border-radius:var(--rr2);padding:0;gap:0;
+  background:var(--sup);
+  border:1px solid var(--linea);
+  box-shadow:none;
+  overflow:hidden;
+}
+.tool-seg button{
+  border-radius:0;min-height:34px;padding:0 13px;
+  font-size:var(--t2);color:var(--tinta2);font-weight:500;
+  transition:background var(--mv-s),color var(--mv-s);
+}
+.tool-seg button:hover:not(.active){background:var(--sup2);color:var(--tinta)}
+.tool-seg button.active{
+  background:var(--nav);color:#fff;font-weight:600;
+  box-shadow:none;
+}
+.tool-seg button:active{transform:none}
+/* Apagado como el resto del sistema: la superficie hundida y la tercera tinta, no un
+   velo de opacidad sobre el color de encendido. */
+.tool-seg button:disabled{opacity:1;background:var(--sup2);color:var(--tinta3);pointer-events:none}
+.tool-seg button:disabled.active{background:var(--tinta3);color:#fff}
 .partida .tipo-seg{background:var(--sup);box-shadow:none}
 .partida .tipo-seg button.on{background:var(--nav);color:#fff;text-shadow:none;box-shadow:none}
 .items-cand .tipo-seg button.on,.partida.hidden-pdf .tipo-seg button.on{background:var(--tinta3);color:#fff}
@@ -3582,6 +3630,20 @@ details.ai-cfg summary:hover{color:var(--tinta)}
 :where(button,summary,a[href],input,select,textarea,[tabindex]):focus-visible{
   outline:2px solid var(--a);outline-offset:2px;
 }
+/* ----- Donde el aro se pinta hacia dentro -----
+   Los segmentados y la cola llevan `overflow:hidden` —es lo que les da la esquina
+   redondeada por fuera con los botones a ras— y un contorno con 2 px de separación cae
+   FUERA de la caja, justo donde el ancestro lo recorta. Comprobado: tabulando hasta el
+   segmento Vendedor/Autorizador el foco está ahí —Enter funciona— y no se ve un solo
+   píxel. Lo mismo al recorrer los cinco tipos de una partida.
+   Con desplazamiento negativo el anillo se dibuja por dentro del botón, que es la única
+   zona que no se recorta, y la forma del segmentado se conserva. */
+.seg button:focus-visible,.tipo-seg button:focus-visible,.tool-seg button:focus-visible,
+.queue-item:focus-visible{outline-offset:-2px}
+/* Y el ajuste por partida lo pinta como sombra interior: `.ia-row` tiene `overflow:hidden`
+   para redondear la cara de `.ia-body`, y `.ia-hdr` llena su caja entera, así que ahí no
+   queda ni un píxel por dentro donde dibujar un contorno. */
+.ia-hdr:focus-visible{outline:none;box-shadow:inset 0 0 0 2.5px var(--a)}
 
 /* ---------- Quien pida menos movimiento, recibe menos ----------
    No es un extra: hay gente a la que una pantalla que se mueve le provoca
@@ -3771,7 +3833,12 @@ details.ai-cfg summary:hover{color:var(--tinta)}
    Se escriben como `html.empotrado` y no `.empotrado` a secas porque estas reglas terminan
    en css/sistema.css —esta hoja— y de ahí las carga index.html, donde son inertes
    porque el <html> de la plataforma nunca lleva esa clase. */
-html.empotrado .brand{display:none}
+/* Acotado a `.topbar`. `.brand` no es sólo el bloque de marca de la barra de arriba: es
+   también el del escalador y el del vectorizador, que son pantalla completa y NO viven
+   dentro de la barra. Sin el acotado, abrir «Escalar» desde la plataforma dejaba su barra
+   sin logotipo y sin título, con «Sin calibrar» y «← Cotizador» apelotonados contra el
+   borde izquierdo: el reparto de ancho lo daba la marca que se había ido. */
+html.empotrado .topbar .brand{display:none}
 html.empotrado .btn-pf{display:none}
 
 /* ============================================================================
@@ -3829,6 +3896,12 @@ html[data-tema="oscuro"]{
   --velo:rgba(26,29,56,.82);
   --nav-grd:linear-gradient(180deg,#0f1226 0%,var(--nav) 45%,#06070f 100%);
   --ok:#6fd6a4; --ok-bg:#10331f; --ok-borde:#1f6b42; --green-ico:#3fc282;
+  /* Las partes de --ok de noche. Era el único token de estado que este bloque no
+     redefinía —--av-rgb, --mal-rgb y los cinco --nN-rgb sí están— y seis reglas lo usan
+     como borde: la ficha del archivo elegido en el modal de IA, la insignia «Escala
+     calibrada», el aviso de Registrar venta. Con el verde de día (21,160,106) esos bordes
+     salían más oscuros que su propio fondo de noche. */
+  --ok-rgb:111,214,164;
   /* Y el relleno verde, por lo mismo que --a-fill: #0e7a4d aguanta blanco (5,37:1) y se
      distingue del marino de la superficie. */
   --ok-fill:#0e7a4d;
@@ -3869,6 +3942,7 @@ html[data-tema="oscuro"]{--card:var(--sup)}
    recorte o bastidor pedía leer cuál de los cinco textos estaba en blanco.
    --a-fill (#3b57e6) es el relleno que el propio tema eligió para lo que va con blanco
    encima, y es el mismo azul que ya marca lo elegido en el resto de la app. */
+html[data-tema="oscuro"] .tool-seg button.active{background:var(--a-fill);box-shadow:inset 0 0 0 1px var(--a)}
 html[data-tema="oscuro"] .partida .tipo-seg button.on{
   background:var(--a-fill);
   /* El relleno solo sube la separación con el carril a 2,89:1, y el 1.4.11 de la WCAG pide
