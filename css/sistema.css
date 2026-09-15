@@ -3106,6 +3106,10 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
 }
 .cand-cliente.ojo{border-color:var(--av-borde);background:var(--av-bg);animation:late-av 2.8s ease-in-out infinite}
 .cand-cliente.ojo>.svgi{color:var(--amber-ico)}
+/* La misma ficha, pero de la rejilla y no de la tarjeta: el aviso de «esto venía de antes»
+   cuelga de .wrap, encima de las dos columnas, porque tiene que leerse en las dos pantallas.
+   Cruza la rejilla entera igual que la barra de pasos. */
+.cot-antes{grid-column:1/-1}
 
 /* ---------- El neto que corresponde al subtotal tecleado ----------
    Debajo del campo de revisión: se teclea el subtotal y aquí se lee, en vivo, lo que va a

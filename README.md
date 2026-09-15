@@ -79,6 +79,11 @@ material que hay que comprar**. Nada de eso se captura.
   «¿quién es este y qué le hemos hecho?». No hay alta de clientes: se arma solo con lo capturado.
 - **Los importes salen difuminados mientras es borrador**, porque se captura delante del cliente.
   Se espían manteniendo tocado, o con *Ver precios*.
+- **Abrir la app no es recargar la página.** La cotización se guarda sola en cada tecla y una
+  recarga la devuelve entera; pero al ABRIR la app, la de antes ya no se hereda en silencio: si
+  ya estaba guardada en el historial, se empieza en blanco —con *Deshacer* a la mano—, y si es la
+  única copia que existe se queda en pantalla con un aviso que dice **de quién es**. Así el
+  trabajo nuevo deja de guardarse a nombre del cliente anterior.
 
 ## La plataforma
 

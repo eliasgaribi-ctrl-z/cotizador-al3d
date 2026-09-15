@@ -1485,6 +1485,72 @@ function loadState(){
   }catch(_){ return false; }
 }
 
+/* ----- Abrir la app no es recargar la página -----
+   `al3d_q` se guarda en cada tecla y `loadState()` lo devuelve entero al arrancar. Eso es lo
+   que salva la captura cuando se recarga sin querer, cuando el teléfono mata la app mientras
+   se adjunta el PDF en WhatsApp, o cuando la plataforma destruye el marco al cambiar de
+   pestaña. Es de lo mejor que tiene esta app y no se toca.
+
+   Pero devolverlo TODO, SIEMPRE y en silencio se paga del otro lado: al abrir la app horas
+   después, la pantalla vuelve con el cliente y el proyecto del último trabajo. Y el nombre
+   del cliente vive en el paso 1 mientras se captura en el paso 2, así que quien empieza «la
+   siguiente» no lo tiene delante: las partidas nuevas se terminan guardando a nombre del
+   cliente y del proyecto anteriores. Pasó. Y no deja rastro de que pasó, porque en el
+   historial queda una cotización perfectamente plausible del cliente equivocado.
+
+   Así que se separan dos cosas que hasta ahora eran una: volver a cargar la página DENTRO de
+   la misma sesión —se restaura tal cual y sin decir nada, que es para lo que existe el
+   autoguardado— y ABRIR la app otra vez, que es cuando empieza un trabajo nuevo.
+   `separarDeLaCotizacionAnterior()`, en arranque.js, es quien decide qué hacer con las dos.
+
+   `sessionStorage` es lo único que sabe la diferencia: se borra al cerrar la pestaña o la app
+   y sobrevive a una recarga, que es exactamente la línea que hay que trazar. Si el navegador
+   no lo deja usar —modo privado con el almacenamiento capado—, se contesta «la misma sesión»
+   y todo se comporta como siempre: antes se apaga este arreglo que quitarle a nadie de la
+   pantalla una cotización que creía tener. */
+const SESION_KEY='al3d_sesion';
+/* Tiene efecto: la primera llamada de la carga deja la marca puesta. Se llama UNA vez, desde
+   init(), y por eso no contesta una pregunta que se pueda hacer dos veces. */
+function sesionNueva(){
+  try{
+    if(sessionStorage.getItem(SESION_KEY)) return false;
+    sessionStorage.setItem(SESION_KEY,'1');
+    return true;
+  }catch(_){ return false; }
+}
+
+/* De quién es una cotización y qué trabajo lleva, en una cadena. Sirve para una sola
+   pregunta —«¿lo que hay en pantalla ya está escrito allá, igualito?»— y por eso es
+   estricta: cualquier diferencia cuenta como que NO lo está, y entonces no se suelta nada.
+
+   No se reutiliza huellaTrabajo(): esa describe el trabajo a propósito SIN el cliente —ver su
+   comentario, y la razón por la que tiene que seguir siendo así— y aquí el cliente es justo
+   la mitad de la pregunta. */
+function firmaDeCotizacion(o){
+  if(!o) return '';
+  return JSON.stringify([
+    (o.cliente||'').trim(), (o.tel||'').trim(), (o.proy||'').trim(),
+    o.iva!==false, Number(o.precioAuth)||0,
+    (o.items||[]).map(it=>_CAMPOS_PRECIO.map(k=>it[k]===undefined?'':String(it[k])).join('~')),
+  ]);
+}
+/* ¿Lo que hay en pantalla está guardado en otro sitio, tal cual? Solo entonces se puede
+   soltar sin perder nada, y se comprueba ANTES de soltarlo.
+
+   Solo una AUTORIZADA, y solo si el historial tiene su folio diciendo exactamente lo mismo.
+   Lo demás no se suelta, cada uno por su razón: un borrador no está escrito en ningún lado;
+   una rechazada sale de la cola con todo su snapshot al rechazarla, o sea que la pantalla es
+   su única copia; una pendiente sí tiene copia en la cola, pero es una decisión en vuelo —hay
+   alguien del otro lado a punto de ponerle precio— y soltarla sería quitarle la revisión de
+   enfrente. Y una autorizada que trae en pantalla algo que el historial todavía no tiene —una
+   edición a medias, que al recargar se queda sin su modo edición— tampoco: la firma no cuadra
+   y se queda. */
+function copiaGuardadaDeQ(){
+  if(Q.estado!=='autorizada') return null;
+  const e=getHistorial().find(x=>x.folio===Q.folio);
+  return (e&&firmaDeCotizacion(e)===firmaDeCotizacion(Q))?e:null;
+}
+
 /* ----- Folio / contador de cotizaciones -----
    El contador solo avanza con las cotizaciones CONFIRMADAS (autorizadas).
    Mientras la cotización es borrador o está pendiente, el folio es provisional:
