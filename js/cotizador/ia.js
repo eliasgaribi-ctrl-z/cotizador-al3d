@@ -235,8 +235,15 @@ function setAiProv(p){
    elegido a mano —el que ya no trae matAuto— es trabajo. */
 function itemVacio(it){
   const matPropio=!!it.material && !it.matAuto;
+  /* `tarifa` va en la lista con los otros tres campos de elección. Es donde la caja de luz
+     guarda su tipo, y desde que la caja dejó de autoelegirse el precio —arranca en $0 y el
+     chip lo pone una persona— tocar «Estándar» o «Tipo nube» ES trabajo capturado: son
+     $3,900 o $4,600 el m² decididos a mano. Sin ella, una caja con el tipo ya elegido y sin
+     medidas se declaraba «completamente vacía» y el aviso de partidas sin terminar ofrecía
+     Quitar: un toque y se iba la elección. Solo es distinta de 0 cuando alguien eligió un
+     chip o tecleó una tarifa, así que no reabre el caso que este comentario protege. */
   return !(it.desc||'').trim() && !it.altura && !it.n && !it.ancho && !it.alto && !it.pu
-      && !matPropio && !it.acab && !it.bas;
+      && !it.tarifa && !matPropio && !it.acab && !it.bas;
 }
 /* Analizar un archivo reemplazaba TODAS las partidas sin avisar. Después la app lo
    avisaba, pero seguía llegando en «reemplazar»: lo predeterminado destruía trabajo y
@@ -834,15 +841,28 @@ async function aiAnalyze(){
     _aiEraPdf=esPdf;
     if(_aiCancelado) return;   // el usuario cerró el modal a media petición
     if(!parsed) throw ultimo||new Error('No se pudo analizar el archivo.');
-    /* La foto del escalador no se guarda como "archivo de IA": ya se ve, con sus
-       cotas, en la vista previa del escalador que está junto a las partidas.
-       Duplicarla solo repetiría la misma imagen dos veces en la pantalla. */
+    /* ----- La imagen SÍ se guarda, también la del escalador -----
+       Aquí decía que la foto del escalador no se guarda «porque ya se ve, con sus cotas, en
+       la vista previa del escalador que está junto a las partidas, y duplicarla repetiría la
+       misma imagen dos veces en la pantalla». La razón es buena y se conserva —por eso
+       `deEscalador`, que es lo que hace que renderAiPreview no la pinte—, pero era una
+       razón de PANTALLA aplicada a un dato que también usa el PAPEL: `Q.aiFile` es de donde
+       el PDF saca la figura del anuncio, y su comentario promete exactamente esta imagen
+       —«la que salió del escalador con las cotas ya dibujadas encima, que es exactamente lo
+       que pegan en Canva»—. Con el `if(!aiSrc)`, cotizar midiendo sobre una foto sacaba el
+       PDF sin una sola figura: el único camino que de verdad produce un plano cotado era el
+       único que no lo entregaba.
+
+       Y de paso la entrada del historial deja de quedarse sin imagen: guardarEnHistorial
+       toma de aquí la referencia visual, y una cotización hecha con el escalador no tenía
+       ninguna. Al reabrirla del historial el flag no viaja —solo viajan name, type y url— y
+       entonces sí se pinta, que es lo correcto: ahí el escalador ya no está al lado. */
     /* Se guarda y se pinta aquí mismo: si la IA no devolvió partidas, applyAi no
        re-renderiza y antes la miniatura del archivo analizado no llegaba a aparecer. */
-    if(!aiSrc){
-      Q.aiFile={name:f.name,type:mime,url:'data:'+mime+';base64,'+b64};
-      saveState(); renderAiPreview();
-    }
+    Q.aiFile = aiSrc
+      ? {name:'medidas-al3d.jpg', type:aiSrc.mime||'image/jpeg', url:aiSrc.url, deEscalador:true}
+      : {name:f.name,type:mime,url:'data:'+mime+';base64,'+b64};
+    saveState(); renderAiPreview();
     const medidas=(aiSrc&&aiSrc.origen==='escalador')?aiSrc.medidas.length:0;
     const creadas=applyAi(parsed);
     if(!creadas){

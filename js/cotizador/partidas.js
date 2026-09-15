@@ -1105,7 +1105,10 @@ function formulaFor(it){
 /* ===================== Vista previa del archivo analizado por IA ===================== */
 function renderAiPreview(){
   const el=$('aiPreview'); if(!el)return;
-  if(!Q.aiFile){ el.innerHTML=''; return; }
+  /* La del escalador no se pinta aquí: ya está a la vista, con sus cotas, en la vista previa
+     del escalador que vive unos centímetros más arriba en esta misma columna. Se guarda de
+     todos modos porque el PDF y el historial la necesitan —ver el comentario de ia.js—. */
+  if(!Q.aiFile||Q.aiFile.deEscalador){ el.innerHTML=''; return; }
   const f=Q.aiFile;
   const isImg=f.type && f.type.indexOf('image/')===0;
   const big=isImg
@@ -1163,6 +1166,9 @@ function toggleItemAuth(id){
   const hdr=arrow&&arrow.closest('.ia-hdr');
   if(hdr) hdr.setAttribute('aria-expanded',open?'false':'true');
 }
+/* Lo último que updItemAuth escribió en #a-precio. Sirve para distinguir «este número lo
+   puso la función» de «este número lo tecleó una persona». */
+let _aPrecioDerivado=null;
 function updItemAuth(id,val){
   if(!Q.itemsAuth) Q.itemsAuth={};
   /* Vaciar el campo para reteclearlo NO es autorizar la partida en $0. Con `+''` el campo
@@ -1195,7 +1201,24 @@ function updItemAuth(id,val){
   // Al centavo, que es lo que el campo puede enseñar: la suma cruda de dos partidas entra
   // como «17600.000000000004» y eso es lo que quedaría escrito.
   const subAj=+sub.toFixed(2);
-  const gInput=$('a-precio'); if(gInput) gInput.value=subAj;
+  /* ----- Y si el autorizador ya llevaba un precio tecleado, se le dice -----
+     El campo de arriba es la SUMA de las partidas ajustadas, y eso es coherente: los dos
+     campos hablan de lo mismo y no se puede honrar a la vez un total libre y unas partidas
+     libres —alguna tiene que absorber la diferencia—. Lo que no era coherente es hacerlo
+     sin decirlo: el orden natural de una revisión es teclear primero cuánto va a quedar el
+     trato y después marcar en qué partida se ve, y al marcar la partida el número del trato
+     se borraba solo. Medido: se teclea 20000 de subtotal sobre $25,000, se baja la partida 2
+     a 4,500 y el campo global salta a 24,500 sin un aviso.
+     Se avisa UNA vez por cifra tecleada: `_aPrecioDerivado` guarda lo último que escribió
+     esta función, así que los tecleos siguientes de la misma partida no repiten el aviso, y
+     si el autorizador vuelve a escribir un global suyo, vuelve a avisarse. */
+  const gInput=$('a-precio');
+  const prevTxt=gInput?String(gInput.value).trim():'';
+  const prev=prevTxt===''?null:+prevTxt;
+  const eraSuyo=prev!==null&&isFinite(prev)&&(_aPrecioDerivado===null||Math.abs(prev-_aPrecioDerivado)>0.01);
+  if(gInput){ gInput.value=subAj; _aPrecioDerivado=subAj; }
+  if(eraSuyo&&Math.abs(prev-subAj)>0.01)
+    toast('El precio final que llevabas tecleado ('+money(conIva(prev))+') se ajustó a la suma de las partidas: '+money(conIva(subAj))+'.','',6000);
   // Se respeta el ajuste sea hacia abajo o hacia arriba: antes un aumento se veía
   // en pantalla pero se perdía al autorizar.
   Q.precioAuth=Math.abs(netoAj-neto)>0.01?netoAj:0;

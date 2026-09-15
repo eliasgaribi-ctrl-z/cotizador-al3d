@@ -26,10 +26,20 @@ function abrirRegistrarVenta(){
   const aj=ajusteAuth(), avisoEl=document.getElementById('rv-aviso-auth');
   if(avisoEl){
     if(Math.abs(aj)>0.01){
-      avisoEl.textContent=(aj>0?'Precio autorizado con descuento de '+money(aj):'Precio autorizado con aumento de '+money(-aj))
-        +' — la venta se registra por '+money(precioFinal())+'.';
+      /* Sobre el SUBTOTAL, que es la base en la que se decidió el ajuste y la misma en la que
+         se calcula la comisión dos campos más abajo. Con la base vieja —el neto— este aviso
+         decía «$3,016» de una rebaja que en lo que se queda la casa son $2,600, justo encima
+         de una comisión calculada sobre los $17,400. */
+      const dV=desgloseFinal(), subV=+subAjustado().toFixed(2), ajS=+(subV-dV.sub).toFixed(2);
+      avisoEl.textContent=(ajS>0?'Precio autorizado con descuento de '+money(ajS):'Precio autorizado con aumento de '+money(-ajS))
+        +' sobre el subtotal — la venta se registra por '+money(precioFinal())+'.';
+      /* Y un aumento no se anuncia en la caja verde del éxito. La misma información, dos
+         pantallas antes, ya distingue: en el panel del paso 3 el descuento va en verde y el
+         aumento en ámbar, con su comentario. Aquí los dos compartían la única piel que tiene
+         este nodo. */
+      avisoEl.classList.toggle('inc',ajS<0);
       avisoEl.style.display='';
-    } else avisoEl.style.display='none';
+    } else { avisoEl.classList.remove('inc'); avisoEl.style.display='none'; }
   }
   document.getElementById('rv-proyecto').value=(Q.cliente?Q.cliente+' - ':'')+Q.proy;
   /* En ISO, que es lo que un <input type="date"> entiende. Q.fecha está en es-MX y no se

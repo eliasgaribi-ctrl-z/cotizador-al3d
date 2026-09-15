@@ -1967,6 +1967,9 @@ a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-t
 .rv-field input:focus,.rv-field select:focus{border-color:var(--brand)}
 .rv-field input[readonly]{opacity:.65;cursor:default}
 .rv-aviso{background:var(--green-bg);border:1px solid rgba(var(--ok-rgb),.25);color:var(--green);border-radius:var(--r-sm);padding:10px 13px;font-size:12px;font-weight:600;line-height:1.5;margin-bottom:14px}
+/* Un AUMENTO no es una buena noticia: mismo modificador que ya usan el panel del paso 3 y el
+   renglón del ajuste de la columna. */
+.rv-aviso.inc{background:var(--av-bg);border-color:rgba(var(--av-rgb),.30);color:var(--av)}
 .rv-calc{background:var(--soft);border-radius:var(--r-sm);padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
 .rv-calc-item{display:flex;flex-direction:column;gap:3px}
 .rv-calc-item span:first-child{font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
@@ -3126,6 +3129,11 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
 #prog-bar{border-radius:3px;box-shadow:none;position:relative;overflow:hidden;background:var(--a-fill);
   transition:width .4s cubic-bezier(.2,.8,.2,1),background var(--mv)}
 #prog-bar.lleno{background:var(--ok-fill)}
+/* Al 100 % deja de brillar. El destello significa «la app está trabajando contigo mientras se
+   captura», y cuando ya no falta nada no tiene nada que anunciar: se quedaba corriendo en
+   bucle para siempre en una pantalla donde la capa de estructura pide «una pantalla, UNA cosa
+   que se mueva sola». El cambio a verde ya dice que está. */
+#prog-bar.lleno::after{animation:none;opacity:0}
 #prog-bar::after{
   content:'';position:absolute;inset:0;width:30%;
   background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);
