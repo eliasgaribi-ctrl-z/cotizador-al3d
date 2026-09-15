@@ -1171,10 +1171,27 @@ textarea{resize:vertical;min-height:46px}
    además el azul aquí no significa nada, porque no es una selección ni la acción principal. */
 details.ai-cfg.otras-salidas summary{color:var(--muted);font-weight:550}
 /* `display:flex` en el <summary> se lleva el triangulito del navegador, así que el pliegue no
-   parecía un pliegue: aquí es el único camino a Canva y al prompt de imagen, y un control que
-   no se ve que abre algo es una función escondida. */
-.os-chev{display:inline-block;transition:transform var(--mv);color:var(--n5);font-size:11px}
-details.otras-salidas[open] .os-chev{transform:rotate(180deg)}
+   parecía un pliegue: un control que no se ve que abre algo es una función escondida.
+
+   Esto ya se sabía y se había arreglado DOS VECES por separado —con un `::after` en
+   `.sp-fold>summary` y con un <span class="os-chev">▾</span> escrito a mano en el pliegue de
+   «otras salidas»— y las dos veces solo para el pliegue que se estaba mirando. Los otros dos
+   `details.ai-cfg` del cotizador se quedaron mudos: «Datos que salen en el PDF (opcional)», que
+   es el único camino a las entrecalles, al límite de fabricación, al plazo de taller y a la
+   nota del cliente, y «Configuración · proveedores gratuitos de IA», que es el único camino a
+   la API key. Medido en Chromium: `::marker` sin pintar y `::after` en `none` en los dos —dos
+   rótulos que parecen títulos muertos.
+
+   Ahora la flecha sale de la clase y no del marcado, así que la lleva cualquier pliegue nuevo
+   sin que nadie tenga que acordarse. `margin-left:auto` la manda al extremo: el <summary> es
+   flex, y una flecha pegada al texto en un rótulo que ocupa todo el ancho no se lee como el
+   borde de una zona que se abre. */
+details.ai-cfg>summary{list-style:none}
+details.ai-cfg>summary::-webkit-details-marker{display:none}
+details.ai-cfg>summary::marker{content:''}
+details.ai-cfg>summary::after{content:'\25be';margin-left:auto;font-size:11px;font-weight:700;
+  color:var(--n5);transition:transform var(--mv);flex-shrink:0}
+details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
 /* «Nueva cotización» estaba a un dedo de «Registrar venta». Una línea y aire la separan de
    lo que se hace con ESTA cotización. */
 .auth-cierre{margin-top:var(--e3);padding-top:var(--e3);border-top:1px solid var(--line)}
@@ -3200,7 +3217,6 @@ details.ai-cfg.otras-salidas summary{
   min-height:34px;font-size:var(--t2);font-weight:600;color:var(--tinta2);padding:0;
 }
 details.ai-cfg.otras-salidas summary:hover{color:var(--tinta)}
-.os-chev{color:var(--tinta3)}
 /* «Nueva cotización» cierra ésta y abre otra: la línea que la separa de lo que se hace con la
    de encima se queda, con el aire de la escala. */
 .auth-cierre{margin-top:var(--e4);padding-top:var(--e4);border-top:1px solid var(--linea)}
@@ -3901,6 +3917,28 @@ html.empotrado .btn-tema{display:none}
   /* El nombre de una medida del escalador es un <input>: a 12,5 px iOS hace zoom y en Android
      no se lee. La regla táctil general de `input` no lo alcanzaba por especificidad. */
   .sp-mitem-label{font-size:16px}
+  /* Los pliegues. Es el mismo caso que abre esta capa, con un nombre más: la regla base les
+     daba `min-height:44px` —y su comentario sigue ahí diciendo por qué— y la capa de
+     estructura los bajó a 34 px por densidad, en dos reglas que esta capa no nombraba.
+     Medido: 34 px de alto para el rótulo que descubre los campos del PDF y el que descubre
+     la API key. Con el dedo vuelven a 44; con el ratón se quedan en los 34 que quiso el
+     rediseño. Los dos selectores van escritos enteros porque el de la capa (4) lleva un
+     ID: con menos especificidad, esta regla no gana. */
+  details.ai-cfg>summary,#pdf-extra-box>summary,details.ai-cfg.otras-salidas summary{min-height:44px}
+  /* «Copiar» el subtotal: 55×20 px, medido en un iPhone de 390. Es el botón que existe
+     porque copiar el número de al lado —el neto— sacaba la cotización un 16 % más cara en
+     Canva, y el comentario del marcado dice que eso «pasó lo bastante como para pedirlo por
+     escrito». O sea: el control que se puso para dejar de perder dinero medía menos de la
+     mitad del mínimo, y justo en el aparato donde se copia delante del cliente. El relleno
+     lateral sube con el alto para que no salga una píldora larga y flaca. */
+  .sub-copiar{min-height:44px;padding:0 13px}
+  /* El total de la barra fija: es un botón —abre el desglose— y medía 40 px. */
+  .mbar-tot{min-height:44px;padding:0}
+  /* La barra de arriba entera, en tableta. De 561 a 920 px con puntero grueso —un iPad—
+     ninguna regla la alcanzaba: el bloque de 560 px que sube estos a 44 es de teléfono, y
+     esta capa no los nombraba. Medido en 820×1180 con dedo: Clientes, Historial, Plataforma
+     y Deshacer a 36 px. Son los cuatro atajos de la barra. */
+  .btn-hist{min-height:44px}
 }
 
 /* ============================================================================

@@ -194,7 +194,7 @@ function renderAuth(){
                    entrega: sacadas de la fila de arriba dejan de competir con lo que sí se
                    hace siempre, y siguen a un toque de distancia. -->
               <details class="ai-cfg otras-salidas"${_hayPropuestas()?' open':''}>
-                <summary><span class="os-chev" aria-hidden="true">▾</span> Otras salidas de esta cotización</summary>
+                <summary>Otras salidas de esta cotización</summary>
                 <div style="margin-top:2px">
                   <button class="btn btn-gho" onclick="copiarParaCanva()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar datos para Canva</button>
                   <button class="btn btn-gho" onclick="copiarParaGemini()"><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg> Prompt para imagen (Gemini)</button>

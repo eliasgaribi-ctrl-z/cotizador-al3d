@@ -912,11 +912,16 @@
           <label for="rv-fecha-inst">¿Qué día se instala?</label>
           <input type="date" id="rv-fecha-inst">
           <div class="hintnote">Déjalo vacío si todavía no se sabe. Se puede poner después desde la plataforma, y si pasan dos días sin fecha ella lo recuerda.</div>
+        </div>
+        <!-- Va COLGADO de .rv-grid y no dentro del campo de arriba. Estaba anidado dentro del
+             .rv-field de la fecha de instalación, y ahí `grid-column:1/-1` no pinta nada:
+             `full` solo significa algo en un hijo directo de la rejilla. Los cubos del plazo
+             —cinco, y son los que dibujan la ventana de taller en el calendario— caían
+             apretados en la media columna derecha, debajo de la nota de la fecha. -->
         <div class="rv-field full">
           <label id="rv-plazo-l">¿Cuánto tarda en el taller?</label>
           <div class="chips" id="rv-plazo" role="group" aria-labelledby="rv-plazo-l"></div>
           <div class="hintnote" id="rv-plazo-h" style="margin-top:6px"></div>
-        </div>
         </div>
         <div class="rv-field">
           <label for="rv-iva">IVA</label>
