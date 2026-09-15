@@ -78,7 +78,10 @@ let _acciones = [];
 /* Las estaciones son las etapas que están EN la línea del proceso. `instalado`, `garantia` y
    `cancelado` no son estaciones: no están en ORDEN y `ventanaTaller` las devuelve como
    `estado:'hecho'`, así que quedan fuera por construcción, no por una lista aparte. */
-const ESTACIONES = ['ganado', 'en_diseno', 'cortado', 'armado', 'listo'];
+/* Salen de ETAPAS y no de una lista escrita aquí —la misma decisión que mod/proyectos.js
+   tomó para sus columnas—: el día que entre una etapa nueva antes de «listo», el tablero la
+   enseña sin que nadie tenga que acordarse de este archivo. */
+const ESTACIONES = Proy.ETAPAS.slice(0, Proy.ETAPAS.indexOf('listo') + 1);
 
 /* El verbo de la acción que avanza cada etapa. Dice lo que YA PASÓ, en pasado, porque es lo
    que la persona está confirmando: nadie aprieta «cortar», aprieta «ya se cortó». */

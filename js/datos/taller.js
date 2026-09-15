@@ -35,7 +35,7 @@
    importar sin ciclo.
    ============================================================================ */
 
-import { esISO, hoyISO, masDias, diasEntre } from '../nucleo/fechas.js';
+import { esISO, hoyISO, masDias, diasEntre, MES_CORTO } from '../nucleo/fechas.js';
 import { ETAPAS, TIPOS_TRABAJO } from './proyectos.js';
 
 /* ============================================================================
@@ -215,8 +215,7 @@ function vacia(p, P, fuente, razon, estado, texto) {
 const fmtCorta = iso => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
   if (!m) return '';
-  const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-  return (+m[3]) + ' ' + MES[+m[2] - 1];
+  return (+m[3]) + ' ' + MES_CORTO[+m[2] - 1];
 };
 
 /* El verbo de cada etapa esperada, para el texto. Dice lo que hay que HACER, no el nombre

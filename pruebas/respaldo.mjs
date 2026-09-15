@@ -38,7 +38,10 @@ const delCotizador = tokens.map(t => {
   return constantes[t] || ('<<' + t + ' sin resolver>>');
 });
 eq('la lista del cotizador se pudo leer entera', delCotizador.filter(k => k.startsWith('<<')), []);
-eq('tiene 17 claves', delCotizador.length, 17);
+eq('tiene 16 claves', delCotizador.length, 16);
+/* `al3d_fold_proy` se escribía y nadie la leía; se quitó de la lista y del código. Si vuelve
+   a aparecer en la lista, alguien la resucitó sin lector. */
+eq('ya no lleva la clave muerta del plegado', delCotizador.includes('al3d_fold_proy'), false);
 eq('la plataforma lleva EXACTAMENTE las mismas', [...RESPALDO_KEYS].sort(), [...delCotizador].sort());
 
 console.log('\nLA FORMA DE LO QUE ARMA LA PLATAFORMA');

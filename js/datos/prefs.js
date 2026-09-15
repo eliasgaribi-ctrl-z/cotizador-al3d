@@ -1,5 +1,6 @@
 /* ============================================================================
-   Las nueve claves de localStorage de la plataforma, envueltas.
+   Las claves de localStorage de la plataforma, envueltas. Las once están en CLAVES y en
+   ningún otro sitio: un módulo que necesite otra la añade aquí, no escribe el literal.
 
    Prefijo `al3d_pf_` (pf = plataforma). Todas son cortas y de tamaño acotado: nada que
    crezca vive aquí. El libro de movimientos, los proyectos y las fotos van a IndexedDB,
@@ -11,12 +12,15 @@
    destruiría imágenes del historial del cotizador —el único dato irrecuperable de todo
    el sistema— para guardar una salida de acrílico. Por eso lo que crece no vive aquí.
 
-   Y NINGUNA de estas claves se agrega a RESPALDO_KEYS del cotizador. Tres razones, en
-   §4.2 del documento de arquitectura: restaurar un respaldo viejo borraría el estado de
-   la plataforma en silencio; reinstalaría una bandeja de sync vieja que reenviaría
-   operaciones ya aplicadas; y `restaurarDesde` es todo-o-nada, así que meter un espejo de
-   tamaño arbitrario podría volver imposible restaurar tres años de cotizaciones.
-   La plataforma tiene su propio archivo de respaldo.
+   Y ninguna de estas claves se agrega a RESPALDO_KEYS del cotizador, CON UNA EXCEPCIÓN:
+   `al3d_pf_ganadas`, el buzón, que la escribe el cotizador —es su constancia de «esta
+   cotización se vendió» y de ella sale el hito «venta registrada»— y por eso viaja con
+   su historial; la plataforma la drena por folio y descarta lo repetido. Las demás no
+   entran, por tres razones que están en §4.2 del documento de arquitectura: restaurar un
+   respaldo viejo borraría el estado de la plataforma en silencio; reinstalaría una
+   bandeja de sync vieja que reenviaría operaciones ya aplicadas; y `restaurarDesde` es
+   todo-o-nada, así que meter un espejo de tamaño arbitrario podría volver imposible
+   restaurar tres años de cotizaciones. La plataforma tiene su propio archivo de respaldo.
    ============================================================================ */
 
 export const CLAVES = {
@@ -33,6 +37,10 @@ export const CLAVES = {
      plataforma tiene prohibido escribir las claves del cotizador (§4.1); esto es una clave
      SUYA que el cotizador lee, ofrece con un botón y borra al restaurar. */
   RESTAURAR:  'al3d_pf_restaurar',
+  /* «Ya probé que la key del asistente sirve»: la escribe js/nucleo/asistente.js para no
+     volver a gastar una petición en comprobarla. Estaba escrita como literal allá; la lista
+     de claves de la plataforma es ésta y no hay otra. */
+  IA_OK:      'al3d_pf_ia_ok',
 };
 
 export const ROLES = ['direccion', 'fabricacion', 'pagos'];

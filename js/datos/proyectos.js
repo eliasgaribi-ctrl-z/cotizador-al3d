@@ -55,12 +55,15 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
    medio desplegar no tiene por qué llevarse por delante el proyecto que sí se guardó. */
 async function mod(archivo) { try { return await import('./' + archivo + '.js'); } catch (_) { return null; } }
 
-async function encolar(tipo, registro) {
+/* `campos`: qué cambió, cuando se sabe. El relevo a la hoja lo lee para no reescribir el
+   dinero y el nombre que esta operación no tocó. */
+async function encolar(tipo, registro, campos) {
   const S = await mod('sync');
   if (!S || typeof S.encolar !== 'function') return;
   try {
     await S.encolar({ id: DB.nuevoId('op'), tipo, almacen: 'proyectos',
       registro_id: registro.id, datos: registro, esperado: null,
+      campos: Array.isArray(campos) ? campos : null,
       ts: Date.now(), intentos: 0, ultimo_error: '' });
   } catch (_) { /* la escritura local ya está; la bandeja se recupera en el próximo bombeo */ }
 }
@@ -285,6 +288,8 @@ export function nombreDerivado(origen, tipos) {
 
 const esISO = s => !!partesISO(s);
 const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
+/* «Vino un número», incluido el cero. Lo contrario de `||`, que confunde cero con ausencia. */
+const trae = v => v !== undefined && v !== null && v !== '' && isFinite(Number(v));
 /* Un cubo de plazo válido (entero de 1 a 5) o null. La tabla vive en datos/taller.js; aquí
    solo se valida la forma, para no importar el módulo entero por un rango. */
 const plazoValido = v => {
@@ -317,6 +322,11 @@ function congelar(entrada) {
 function armarProyecto(entrada, extra, etapa) {
   const origen = congelar(entrada);
   if (!origen) return null;
+  /* La huella que viene del buzón es la del trabajo cuando SE GANÓ; la de la entrada es la
+     de hoy, que puede ser posterior a una edición. Manda la del momento de ganar: es
+     contra ella que `Cot.estadoOrigen` decide si el material calculado sigue valiendo. */
+  const huella = String(extra.huella || '').trim();
+  if (huella) origen.huellaAuth = huella;
 
   const disp = String(extra.disp || '').trim() || Prefs.dispositivo();
   const tipos = tiposDerivados(origen.items);
@@ -352,11 +362,14 @@ function armarProyecto(entrada, extra, etapa) {
     lng: tieneCoord ? u.lng : null,
     geo_fuente: tieneCoord ? (u.fuente || 'maps_pin') : 'sin_ubicar',
     /* Dinero: se copia para poder pintarlo sin volver a abrir el historial. NO se
-       recalcula, ni aquí ni en ningún otro lado de este archivo. */
-    sub: num(extra.sub) || num(origen.sub),
-    neto: num(extra.neto) || netoOrigen,
+       recalcula, ni aquí ni en ningún otro lado de este archivo.
+       Lo que el buzón TRAE manda, aunque sea cero: con `||`, un anticipo de $0 registrado a
+       propósito caía al 50 % automático que el cotizador había propuesto, y el saldo salía
+       bajo por ese importe. Cero es una respuesta; «no vino» es la ausencia del campo. */
+    sub: trae(extra.sub) ? num(extra.sub) : num(origen.sub),
+    neto: trae(extra.neto) ? num(extra.neto) : netoOrigen,
     precio_auth: Cot.totalVendido(origen),
-    anti_pactado: num(extra.anti_pactado) || num(origen.anti),
+    anti_pactado: trae(extra.anti_pactado) ? num(extra.anti_pactado) : num(origen.anti),
     iva: origen.iva !== false,
     /* Espejo de Notion. Solo lectura desde la plataforma, salvo lo que PAGOS captura. */
     notion_page_id: null,
@@ -406,7 +419,8 @@ async function yaExiste(folioGlobal) {
  * @param {Object} entradaHistorial
  * @param {{fecha_instalacion?:string, hora?:string, ventana?:string, sub?:number,
  *          neto?:number, anti_pactado?:number, cuenta?:string, estatus_notion?:string,
- *          pct_comision?:number, disp?:string, fecha_ganado?:string}} [extra]
+ *          pct_comision?:number, disp?:string, fecha_ganado?:string, plazo_k?:number,
+ *          huella?:string}} [extra]
  * @returns {Promise<Resultado>} valor = el proyecto
  */
 export async function ganar(entradaHistorial, extra = {}) {
@@ -498,13 +512,16 @@ export async function descartar(ref, motivo = '') {
       return descartar(e, nota);
     }
   } else if (ref && typeof ref === 'object' && ref.folio) {
-    const disp = Prefs.dispositivo();
+    /* Con el aparato que emitió la cotización, si la entrada lo trae: es la misma llave con
+       la que `ganar` la habría guardado, y con la de este teléfono no se encontraría un
+       proyecto ganado desde otro. */
+    const disp = String(ref.disp || '').trim() || Prefs.dispositivo();
     p = await yaExiste(Cot.folioGlobal(ref.folio, disp));
     if (!p) {
       /* Nunca fue proyecto: se crea la lápida. Trae su nombre, sus tipos y su importe
          derivados igual que uno ganado, porque «cuánto dejamos de vender este mes» es una
          pregunta que se hace y que hoy no tiene dónde leerse. */
-      const nuevo = armarProyecto(ref, {}, 'cancelado');
+      const nuevo = armarProyecto(ref, { disp }, 'cancelado');
       if (!nuevo) return mal('DATO_INVALIDO', 'No se pudo copiar esa cotización.');
       nuevo.notas = nota;
       const r = await DB.poner('proyectos', nuevo);
@@ -707,11 +724,11 @@ export async function actualizar(id, parche) {
 
   const r = await DB.poner('proyectos', fila);
   if (!r.ok) return r;
-  await encolar('actualizar', r.valor);
   /* `sync` es plomería, no un cambio que alguien hizo. Lo demás sí se anota, con el valor de
      antes y el de después cuando el parche toca UN campo, que es como se escribe casi siempre
      (la cuenta, el estatus, el plazo). */
   const tocados = campos.filter(k => k !== 'sync');
+  await encolar('actualizar', r.valor, tocados);
   if (tocados.length) {
     const uno = tocados.length === 1 ? tocados[0] : null;
     await anotar({ accion: 'cambio', entidad_id: p.id,

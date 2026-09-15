@@ -36,7 +36,7 @@ import { armarResumen, promptSistema, mdLite, cadenaIA, PROVEEDOR_NOMBRE, INTENC
 import { $, ico, esc, money, toast, abrirCapa, cerrarCapa, copiarTexto, hoyISO, fmtFecha } from './ui.js';
 
 const CAPA = 'pf-ia';
-const CLAVE_OK = 'al3d_pf_ia_ok';       // «entendido»: lo que pregunte a la IA viaja con un resumen
+const CLAVE_OK = Prefs.CLAVES.IA_OK;    // «entendido»: lo que pregunte a la IA viaja con un resumen
 const TIMEOUT = 60000;
 const MAX_HISTORIA = 8;                   // pares pregunta/respuesta que viajan de contexto
 const FRESCURA_MS = 45000;                // cuánto vale una lectura del taller antes de releer

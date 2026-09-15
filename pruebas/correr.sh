@@ -63,6 +63,11 @@ if [ "$1" = "--navegador" ] || [ "$NAVEGADOR" = "1" ]; then
     kill "$(cat /tmp/al3d-srv.pid)" 2>/dev/null || true
     rm -f /tmp/al3d-srv.pid
   fi
+  # El pid guardado es el de `npx`, y matar a npx NO mata al http-server que lanzó: quedaba
+  # vivo en :8814 y la siguiente tanda chocaba con EADDRINUSE en la primera prueba. Su línea
+  # de comandos es exactamente «http-server» —npm le quita los argumentos—, así que se busca
+  # por ese principio y no por el puerto. El ancla evita matar al shell que lo nombra.
+  pkill -f "^http-server" 2>/dev/null || true
   echo ""
   if [ "$fallos" -gt 0 ]; then
     echo "$fallos archivo(s) de prueba con fallos."

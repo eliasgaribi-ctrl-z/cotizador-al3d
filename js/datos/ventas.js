@@ -19,12 +19,16 @@
    sabe de abonos intermedios. Cuando el puente baje la fórmula, manda la fórmula.
    ============================================================================ */
 
-import { partesISO, esISO, hoyISO, masMeses } from '../nucleo/fechas.js';
+import { partesISO, esISO, hoyISO, masMeses, MES_CORTO } from '../nucleo/fechas.js';
+import { cobrado } from './cotizador.js';
+import { ETAPA_NOMBRE } from './proyectos.js';
 
 const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
 const red2 = v => Math.round((num(v) + Number.EPSILON) * 100) / 100;
 
-export const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+/* Los meses viven en nucleo/fechas.js; aquí se reexportan con el nombre que este archivo
+   siempre tuvo para que quien lo importe no cambie una línea. */
+export const MESES_CORTOS = MES_CORTO;
 
 /** 'YYYY-MM' de una fecha ISO; '' si no es fecha. */
 export const mesDe = iso => (esISO(iso) ? String(iso).slice(0, 7) : '');
@@ -36,11 +40,9 @@ export function etiquetaMes(ym) {
   return (MESES_CORTOS[Number(m[2]) - 1] || m[2]) + ' ' + m[1];
 }
 
-/** El total que se cobra por un proyecto: el autorizado manda; si no hay, el neto. */
-export const vendidoDe = p => {
-  const pa = num(p && p.precio_auth), neto = num(p && p.neto);
-  return pa > 0 ? pa : neto;
-};
+/** El total que se cobra por un proyecto: el autorizado manda; si no hay, el neto. La regla
+ *  es `Cot.cobrado`, la misma del cotizador y del historial: una sola, no una parecida. */
+export const vendidoDe = p => cobrado(p && p.neto, p && p.precio_auth);
 
 /**
  * El saldo estimado de un proyecto. Cero si está liquidado según Notion, si se canceló, o si
@@ -199,8 +201,10 @@ export const COLUMNAS_CSV = ['Folio', 'Fecha ganado', 'Cliente', 'Negocio', 'Tel
  * @param {Map<string,string>} [fechaInst]  proyecto_id -> fecha de la instalación viva
  */
 export function csvProyectos(proyectos, fechaInst) {
-  const etapa = { ganado: 'Ganado', en_diseno: 'En diseño', cortado: 'Cortado', armado: 'Armado',
-    listo: 'Listo para instalar', instalado: 'Instalado', garantia: 'Garantía', cancelado: 'No se dio' };
+  /* El nombre de cada etapa es el de datos/proyectos.js, el mismo del tablero, de la ficha y
+     de la hoja. Aquí había una copia propia que decía «Garantía» donde todo lo demás dice
+     «En garantía»: dos etiquetas para un mismo estado, en la misma app. */
+  const etapa = ETAPA_NOMBRE;
   const filas = (Array.isArray(proyectos) ? proyectos : []).filter(Boolean).map(p => [
     p.folio_local || '', p.fecha_ganado || '', p.contacto || '', p.negocio || p.nombre || '', p.tel || '',
     (p.tipo_trabajo || []).join(' + '), etapa[p.etapa] || p.etapa || '',

@@ -20,7 +20,7 @@ var ABONOS  = 'Abonos comisión';
 var HEAD = ['Folio', 'Proyecto', 'Cuenta', 'Estatus', 'Tipo de trabajo', 'IVA', 'Subtotal',
             'Precio neto', 'Anticipo', 'Liquidación', 'Saldo por cobrar',
             'Fecha anticipo', 'Fecha instalación', 'Fecha liquidación', 'Días de cobro',
-            'Días de antigüedad', 'Antigüedad', 'Comisión 10%', 'Abono comisión',
+            'Días de antigüedad', 'Antigüedad', 'Comisión', 'Abono comisión',
             'Comisión pendiente', 'Pagos de comisión', 'Año', 'Mes', 'Revisar'];
 
 /* columnas calculadas: encabezado en otro tono para que se note que no se capturan */
@@ -107,7 +107,13 @@ function fijarFolios(h) {
 }
 
 function agregarColumnas(h) {
-  if (h.getRange('E1').getValue() !== 'Tipo') h.insertColumnBefore(5);
+  /* La guardia compara contra el encabezado que ESTA función escribe tres líneas más abajo
+     (HEAD[4] = 'Tipo de trabajo'). Decía 'Tipo', que fue el nombre anterior al renombre: en la
+     segunda corrida de mejorarTodo la condición volvía a ser cierta, se insertaba OTRA columna
+     en E, los datos de E..AC se corrían una a la derecha y COL seguía apuntando a los números
+     viejos —el puente habría escrito Cuenta encima de Estatus—. La cabecera del archivo
+     promete idempotencia; esto es lo que la hacía mentir. */
+  if (h.getRange('E1').getValue() !== HEAD[4]) h.insertColumnBefore(5);
   if (h.getRange('P1').getValue() !== 'Días de antigüedad') h.insertColumnsBefore(16, 2);
   // una columna insertada hereda la validación de su vecina: hay que limpiarla
   ['E', 'P', 'Q'].forEach(function (c) {
@@ -127,7 +133,10 @@ function formulasVentas(h) {
     Q: '=ARRAYFORMULA(IF(' + L('P') + '="","",IF(' + L('P') + '<=30,"' + RANGOS[0] +
        '",IF(' + L('P') + '<=60,"' + RANGOS[1] + '",IF(' + L('P') + '<=90,"' + RANGOS[2] +
        '","' + RANGOS[3] + '")))))',
-    R: '=ARRAYFORMULA(IF(' + L('B') + '="","",ROUND(' + L('G') + '*10%,2)))',
+    /* El porcentaje se pacta por venta y llega en AD desde el cotizador (columna del puente,
+       ver COL). Vacío quiere decir «el de siempre», 10 %: las trescientas filas que ya
+       estaban siguen dando exactamente lo mismo. */
+    R: '=ARRAYFORMULA(IF(' + L('B') + '="","",ROUND(' + L('G') + '*IF(' + L('AD') + '="",10,' + L('AD') + ')/100,2)))',
     S: "=ARRAYFORMULA(IF(" + L('B') + '="","",SUMIF(\'' + ABONOS + "'!$A$2:$A$2000," + L('A') +
        ",'" + ABONOS + "'!$C$2:$C$2000)))",
     T: '=ARRAYFORMULA(IFERROR(ROUND(' + L('R') + '-' + L('S') + ',2),""))',
@@ -350,7 +359,7 @@ function tablero(ss) {
     ['Días promedio de cobro',           '=IFERROR(ROUND(AVERAGE(' + vO + '),1),"")', '0.0']
   ]);
 
-  fila = bloque(h, fila, 'COMISIONES (10% del subtotal)', ['Concepto', 'Monto'], [
+  fila = bloque(h, fila, 'COMISIONES (% pactado del subtotal; 10% si no se dijo)', ['Concepto', 'Monto'], [
     ['Generadas',      '=SUM(' + vR + ')'],
     ['Pagadas',        '=SUM(' + vS + ')'],
     ['Pendientes',     '=SUMIF(' + vT + ',">0")'],
@@ -1292,7 +1301,12 @@ function dialogoTokens() {
    la plataforma.
    ============================================================================ */
 
-var PUENTE_VERSION = 'puente-sheets-3';
+/* Sube con cada cambio de CONTRATO —qué columnas hay, qué signo lleva una cifra, qué puede
+   escribir cada rol—. La plataforma la compara con la suya al «Probar» y lo dice si la hoja
+   se quedó con una implementación vieja.
+   puente-sheets-4: «Pago Pendiente» baja con el signo de la hoja (positivo = te deben), y
+   entra la columna AD «Porcentaje comision». */
+var PUENTE_VERSION = 'puente-sheets-4';
 var BITACORA = 'Bitácora del puente';
 
 /* Los nombres siguen siendo los de Notion a propósito: la plataforma los tiene
@@ -1309,7 +1323,7 @@ var COL = {
   'Precio Neto ':                  8,   // H   fórmula
   'Anticipo':                      9,   // I
   'Liquidacion':                  10,   // J
-  'Pago Pendiente':               11,   // K   fórmula (signo invertido, ver aplanarFila)
+  'Pago Pendiente':               11,   // K   fórmula (positivo = falta cobrar, igual que en la hoja)
   'Fecha Anticipo e Instalacion': 12,   // L
   'Fecha instalacion':            13,   // M
   'Fecha Liquidacion':            14,   // N
@@ -1320,18 +1334,23 @@ var COL = {
   'Etapa de obra':                26,   // Z
   'Hora instalacion':             27,   // AA
   'Ubicacion':                    28,   // AB
-  'Direccion':                    29    // AC
+  'Direccion':                    29,   // AC
+  /* El % de comisión que se pactó con quien trajo el trabajo, en puntos (10 = 10 %). Lo
+     captura el modal de Registrar Venta y lo guardaba la plataforma; la hoja lo ignoraba y
+     cobraba 10 % fijo, así que una venta pactada al 15 % se enseñaba al 15 % en el teléfono
+     y se pagaba al 10 % en el libro mayor. La fórmula R lo lee; vacío = 10. */
+  'Porcentaje comision':          30    // AD
 };
 
 var COL_FOLIO = 1;                      // A — el id interno (V-001)
-var ULTIMA_COL = 29;
+var ULTIMA_COL = 30;
 
 /* Se leen, no se escriben. Si llega una escritura contra ellas se rechaza con
    una razón, en vez de tragársela en silencio. */
 var PUENTE_FORMULAS = {
   'Precio Neto ': 'la calcula la hoja: subtotal x IVA',
   'Pago Pendiente': 'la calcula la hoja: neto menos anticipo menos liquidación',
-  'Comisiones': 'la calcula la hoja: 10% del subtotal',
+  'Comisiones': 'la calcula la hoja: el % pactado del subtotal (10 % si no se dijo)',
   'Comision Restante': 'la calcula la hoja: comisión menos abonos',
   'Fecha Comision': 'ya no existe: la fecha de cada abono vive en la pestaña de abonos'
 };
@@ -1349,9 +1368,10 @@ var PUENTE_ROLES = {
   direccion: ['Proyecto', 'Precio Subtotal', 'IVA', 'Anticipo', 'Liquidacion', 'Abono Comision',
               'Estatus', 'Cuenta ', 'Fecha Anticipo e Instalacion', 'Fecha Liquidacion',
               'Folio cotizacion', 'Etapa de obra', 'Fecha instalacion', 'Hora instalacion',
-              'Ubicacion', 'Direccion', 'Tipo de trabajo'],
+              'Ubicacion', 'Direccion', 'Tipo de trabajo', 'Porcentaje comision'],
   fabricacion: ['Etapa de obra', 'Fecha instalacion', 'Hora instalacion', 'Ubicacion', 'Direccion'],
-  pagos: ['Anticipo', 'Liquidacion', 'Abono Comision', 'Estatus', 'Cuenta ', 'Fecha Liquidacion']
+  pagos: ['Anticipo', 'Liquidacion', 'Abono Comision', 'Estatus', 'Cuenta ', 'Fecha Liquidacion',
+          'Porcentaje comision']
 };
 
 /* ── Lo que cada rol puede LEER ─────────────────────────────────────────────
@@ -1367,7 +1387,8 @@ var PUENTE_ROLES = {
    tablero de obra la usa para saber qué ya se cobró y se puede cerrar. */
 var CAMPOS_DE_DINERO = ['Precio Subtotal', 'Precio Neto ', 'Anticipo', 'Liquidacion',
                         'Pago Pendiente', 'Comisiones', 'Abono Comision',
-                        'Comision Restante', 'Cuenta ', 'Fecha Liquidacion'];
+                        'Comision Restante', 'Cuenta ', 'Fecha Liquidacion',
+                        'Porcentaje comision'];
 var VE_EL_DINERO = { direccion: true, pagos: true, fabricacion: false };
 
 /* `/expandir` hace que el servidor salga a internet con una dirección que mandó
@@ -1493,7 +1514,8 @@ function rutaEsquema() {
     { nombre: 'Hora instalacion', tipo: 'texto', para: 'HH:MM, o vacío si todavía no se sabe' },
     { nombre: 'Ubicacion', tipo: 'texto', para: 'lat,lng resueltos del link de Maps' },
     { nombre: 'Direccion', tipo: 'texto', para: 'la dirección como la mandó el cliente' },
-    { nombre: 'Tipo de trabajo', tipo: 'lista', para: 'derivado de las partidas, no capturado', opciones: TIPOS_TRABAJO }
+    { nombre: 'Tipo de trabajo', tipo: 'lista', para: 'derivado de las partidas, no capturado', opciones: TIPOS_TRABAJO },
+    { nombre: 'Porcentaje comision', tipo: 'número', para: 'el % pactado con quien trajo el trabajo; vacío = 10' }
   ];
   var equivale = { 'Fecha instalacion': 'Fecha instalación' };
   var faltan = necesarias.filter(function (p) {
@@ -1502,7 +1524,7 @@ function rutaEsquema() {
   return { ok: true, faltan: faltan,
     nota: faltan.length
       ? 'Córrele  prepararHojaParaElPuente()  en Apps Script y las crea con su validación.'
-      : 'La hoja ya tiene las siete columnas que la plataforma necesita.' };
+      : 'La hoja ya tiene las ocho columnas que la plataforma necesita.' };
 }
 
 /* ------------------------------------------------------------------ /jalar */
@@ -1546,13 +1568,17 @@ function aplanarFila(fila, tz) {
     'Precio Neto ':                  num(v('Precio Neto ')),
     'Anticipo':                      num(v('Anticipo')),
     'Liquidacion':                   num(v('Liquidacion')),
-    /* Se manda con el signo de Notion —negativo cuando falta cobrar— para no
-       cambiarle el significado a una cifra que la plataforma ya pinta. En la
-       hoja se ve al derecho: positivo es lo que te deben. */
-    'Pago Pendiente':                saldo === null ? null : -saldo,
+    /* Con el signo de la hoja: positivo es lo que te deben. Hasta puente-sheets-3 se
+       mandaba NEGADO «con el signo de Notion, para no cambiarle el significado a una cifra
+       que la plataforma ya pinta» —y la plataforma nunca pintó ese signo: `saldoDe` hace
+       Math.max(0, saldo), el aviso «instalado con saldo» pide saldo > 0 y el filtro de
+       cobro también. Con el saldo negado la cartera entera se veía como cobrada. Las dos
+       fórmulas de la fila, ésta y «Comision Restante», salen ahora con el mismo criterio. */
+    'Pago Pendiente':                saldo,
     'Comisiones':                    num(v('Comisiones')),
     'Abono Comision':                num(v('Abono Comision')),
     'Comision Restante':             num(v('Comision Restante')),
+    'Porcentaje comision':           num(v('Porcentaje comision')),
     'Fecha Anticipo e Instalacion':  fecha(v('Fecha Anticipo e Instalacion')),
     'Fecha instalacion':             fecha(v('Fecha instalacion')),
     'Fecha Liquidacion':             fecha(v('Fecha Liquidacion')),
@@ -1697,6 +1723,12 @@ function armarCeldas(datos, rol) {
       var n = Number(valor);
       if (!isFinite(n)) { rechazadas.push({ nombre: nombre, por: 'no es un número' }); continue; }
       celdas.push({ col: col, valor: n });
+    } else if (nombre === 'Porcentaje comision') {
+      /* En puntos, 0 a 100. Vacío o null borra la celda y la fórmula vuelve al 10 %. */
+      if (valor === null || valor === '') { celdas.push({ col: col, valor: '' }); continue; }
+      var pct = Number(valor);
+      if (!isFinite(pct) || pct < 0 || pct > 100) { rechazadas.push({ nombre: nombre, por: 'el porcentaje va de 0 a 100' }); continue; }
+      celdas.push({ col: col, valor: pct });
     } else if (['Fecha Anticipo e Instalacion', 'Fecha Liquidacion', 'Fecha instalacion'].indexOf(nombre) !== -1) {
       if (valor === null || valor === '') { celdas.push({ col: col, valor: '' }); continue; }
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(valor))) { rechazadas.push({ nombre: nombre, por: 'la fecha tiene que venir como YYYY-MM-DD' }); continue; }
@@ -1813,9 +1845,10 @@ function anotar(anotaciones) {
 
 /* ------------------------------------------- preparar la hoja para el puente */
 /**
- * Agrega las cinco columnas que la plataforma necesita y que la hoja no tenía,
+ * Agrega las seis columnas que la plataforma necesita y que la hoja no tenía (Y a AD),
  * y alinea el vocabulario de «Tipo» con el de la plataforma.
- * Es idempotente.
+ * Es idempotente. Las posiciones salen de COL, no de una segunda lista: si un día se
+ * mueve una columna en COL, ésta se mueve con ella.
  */
 function prepararHojaParaElPuente() {
   var ss = SpreadsheetApp.getActive();
@@ -1825,23 +1858,26 @@ function prepararHojaParaElPuente() {
     ['Etapa de obra', 140],
     ['Hora instalacion', 110],
     ['Ubicacion', 150],
-    ['Direccion', 220]
+    ['Direccion', 220],
+    ['Porcentaje comision', 90]
   ];
   var cab = h.getRange(1, 1, 1, h.getMaxColumns()).getValues()[0]
       .map(function (x) { return String(x).trim(); });
 
-  nuevas.forEach(function (n, i) {
-    var col = 25 + i;
+  var primera = COL[nuevas[0][0]];
+  nuevas.forEach(function (n) {
+    var col = COL[n[0]];
     if (h.getMaxColumns() < col) h.insertColumnsAfter(h.getMaxColumns(), col - h.getMaxColumns());
     if (cab[col - 1] !== n[0]) h.getRange(1, col).setValue(n[0]);
     h.setColumnWidth(col, n[1]);
   });
-  h.getRange(1, 25, 1, 5).setBackground(AZUL).setFontColor('#ffffff')
+  h.getRange(1, primera, 1, nuevas.length).setBackground(AZUL).setFontColor('#ffffff')
       .setFontWeight('bold').setFontSize(10).setWrap(true)
       .setVerticalAlignment('middle').setHorizontalAlignment('center');
+  h.getRange(2, COL['Porcentaje comision'], FIN - 1, 1).setNumberFormat('0.##').setHorizontalAlignment('center');
 
   // Etapa de obra: lista cerrada, igual que en la plataforma
-  h.getRange(2, 26, FIN - 1, 1).setDataValidation(
+  h.getRange(2, COL['Etapa de obra'], FIN - 1, 1).setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(ETAPAS_OBRA, true)
       .setAllowInvalid(false).build());
 
@@ -1854,7 +1890,7 @@ function prepararHojaParaElPuente() {
       .setAllowInvalid(true).build());
   alinearTiposDeTrabajo(h);
 
-  h.getRange(2, 27, FIN - 1, 1).setHorizontalAlignment('center');
+  h.getRange(2, COL['Hora instalacion'], FIN - 1, 1).setHorizontalAlignment('center');
   protegerColumnasCalculadas(h);
   SpreadsheetApp.flush();
 }

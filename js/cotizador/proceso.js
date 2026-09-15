@@ -1552,12 +1552,14 @@ function renderMobileBar(){
 /* ===================== Datos del proyecto plegables (móvil) =====================
    Los datos del proyecto se capturan al principio y después solo estorban: plegados
    dejan las partidas hasta arriba, que es donde se trabaja el resto de la cotización.
-   La preferencia se recuerda en el dispositivo. */
+   La preferencia YA NO se recuerda en el dispositivo: init() la arranca siempre abierta
+   —con los datos del cliente en su propia pantalla, plegarlos la dejaba en blanco— y la
+   clave `al3d_fold_proy` que la guardaba se escribía sin que nadie la leyera y viajaba en
+   cada respaldo. Se quitó de los dos lados; `_foldProy` vive solo en memoria. */
 let _foldProy=false;
 function toggleFoldProy(){
   _foldProy=!_foldProy;
   aplicarFoldProy();
-  try{ localStorage.setItem('al3d_fold_proy',_foldProy?'1':'0'); }catch(_){}
   if(_foldProy) irA('card-proy');
 }
 function aplicarFoldProy(){

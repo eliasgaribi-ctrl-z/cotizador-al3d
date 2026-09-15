@@ -46,7 +46,14 @@ Versión: Versión nueva → Implementar**. La URL no cambia: los teléfonos no 
 
 Y si tocas el `.gs` en el repo, acuérdate de que la copia que manda es la de la hoja: hay
 que pegarlo allá. `pruebas/puente.mjs` compara los dos lados y falla si los vocabularios se
-separan, pero no puede saber si la hoja tiene una versión vieja.
+separan; la plataforma, al «Probar», compara la versión que contesta la hoja con la que ella
+espera y avisa si quedó vieja.
+
+**Al pasar a `puente-sheets-4`** (septiembre de 2026), además de pegar e implementar hay que
+correr una vez **⚡ AL3D → Actualizar formato y vistas** (`mejorarTodo`): crea la columna
+**AD «Porcentaje comision»** y cambia la fórmula de la comisión para leerla. Las filas que ya
+estaban no cambian: con la celda vacía la fórmula sigue dando el 10 %. Correrlo dos veces ya no
+rompe nada —la guardia que insertaba una columna de más en la segunda corrida está corregida—.
 
 ## Las cabeceras del sitio
 

@@ -23,6 +23,9 @@ function init(){
      ella. Quien tuviera guardado un «1» de antes abriría a una tarjeta cerrada y sin
      manera de abrirla. */
   _foldProy=false;
+  /* La clave que guardaba esa preferencia dejó de escribirse; la que quedó en los teléfonos
+     de antes se limpia aquí para que no viaje para siempre sin que nadie la lea. */
+  try{ localStorage.removeItem('al3d_fold_proy'); }catch(_){}
   if(!loadState()){
     Q.folio=nextFolio(); pintarFolio();
     Q.fecha=hoy(); addItem({enfocar:false,heredar:true});
