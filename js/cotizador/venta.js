@@ -81,7 +81,12 @@ function rvRecalc(){
   const anti=parseFloat(document.getElementById('rv-anticipo').value)||0;
   const pct=parseFloat(document.getElementById('rv-pct').value)||0;
   const estatus=document.getElementById('rv-estatus').value;
-  const com=Math.round(sub*pct/100);
+  /* Sin `Math.round`: a la hoja NO se le manda la comisión, se le manda el porcentaje, y la
+     columna la calcula allá con la cifra completa. Redondear a pesos aquí hacía que el modal
+     enseñara «$1,759.00» y la hoja escribiera $1,758.56, que es justo la discordancia que el
+     comentario de esa línea vino a arreglar. `money()` hace el suyo, el mismo que ya hace con
+     el subtotal y el neto de esta misma tarjeta. */
+  const com=sub*pct/100;
   const pend=estatus==='LIQUIDADO'?0:Math.max(0,neto-anti);
   document.getElementById('rv-sub-disp').textContent=money(sub);
   document.getElementById('rv-neto-disp').textContent=money(neto);

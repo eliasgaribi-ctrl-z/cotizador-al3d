@@ -323,7 +323,11 @@ function copiarParaCanva(){
   function descTxt(it){
     let d='';
     if(it.tipo==='letras')    d=`Letras Individuales 3D: Caras en Acrílico, Cantos en ${matPapel(it)}${it.luz?` con Iluminación LED ${it.ilumTipo==='calida'?'Cálida (3000K)':'Fría (6500K)'}`:' sin iluminación'}.`;
-    else if(it.tipo==='recorte')  d=`Recorte de Acrílico: ${PDF_ACAB[it.acab]||''}.`;
+    /* Sin acabado elegido salía «Recorte de Acrílico: .» —literalmente el fallo que `desc()`
+       arregla en el PDF doscientas líneas más abajo, con el porqué escrito al lado— y el acabado
+       vacío es un estado normal: la partida nace así y la conversión automática por altura lo
+       deja así a propósito, porque el acabado es dinero y lo elige una persona. */
+    else if(it.tipo==='recorte')  d=`Recorte de Acrílico${PDF_ACAB[it.acab]?': '+PDF_ACAB[it.acab]+'.':'.'}`;
     else if(it.tipo==='bastidor') d=`Bastidor para Letras 3D: estructura tubular de 1" forrada de ${PDF_BAS[it.bas]||'lámina galvanizada'}.`;
     else if(it.tipo==='caja'){const tp=cajaTipoPdf(it); d=`Caja de Luz:${tp?' '+tp+',':''} Caras en Acrílico con Iluminación LED Fría.`;}
     if(it.desc) d+=(d?' — ':'')+it.desc;
@@ -815,6 +819,13 @@ function generarPDF(){
 
   const html = `<!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8">
+<!-- Sin esto, el teléfono maqueta con su visor por omisión —unos 980 px— y DESPUÉS empequeñece
+     la página entera para que quepa: la hoja carta sale miniaturizada dentro de un lienzo que no
+     es el del aparato, con la barra del visor encogida al mismo paso. Y de rebote deja muerta la
+     maqueta de teléfono escrita más abajo: el bloque de max-width:880px no puede casar
+     nunca si el visor siempre mide 980. O sea que la regla que existe justo para que la hoja
+     quepa no se aplicaba en el único sitio donde hacía falta. -->
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Cotización ${esc(Q.folio)} · AL3D</title>
 <!-- Inter, sin bloquear, igual que en las dos apps. Sin señal no llega y el documento cae a la
      misma reserva que la app: las dos superficies siguen coincidiendo, que es lo que se pedía. -->
@@ -1069,6 +1080,12 @@ td.c{color:var(--ink2)}
   body{padding:calc(var(--visor-alto) + 12px) 0 28px}
   .pg{zoom:.52}
 }
+/* Y por escalones, porque un solo número no sirve para todos: 816 × .52 son 424 px, que caben
+   en un iPhone Pro Max de 430 y no en uno de 390 ni en la portada del Fold de 344. Cada
+   escalón deja la hoja dentro del ancho de su corte con un poco de aire. */
+@media screen and (max-width:440px){ .pg{zoom:.46} }
+@media screen and (max-width:390px){ .pg{zoom:.41} }
+@media screen and (max-width:360px){ .pg{zoom:.37} }
 @media print{@page{margin:0;size:letter portrait}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style></head><body>
 <!-- La barra del visor. Va ANTES de la primera hoja y no al final del <body>, y no es cuestión
@@ -1296,12 +1313,17 @@ function mostrarEnlacePDF(url){
   const ov=document.createElement('div');
   ov.id='pdf-fallback';
   ov.style.cssText='position:fixed;inset:0;z-index:120;background:rgba(12,15,38,.7);display:flex;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)';
-  ov.innerHTML='<div style="background:#fff;border-radius:18px;max-width:360px;width:100%;padding:24px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.3)">'
+  /* Los colores salen de los tokens, no de un `#fff` escrito a mano. La tarjeta fijaba el
+     blanco y su contenido se pintaba con `--n9` y `--n6`, que el tema oscuro invierte: «Tu PDF
+     está listo» quedaba en #f7f8ff sobre blanco —~1,05:1, invisible— y la instrucción en gris
+     clarísimo. Y es el caso exacto para el que se escribió este aviso: teléfono con las ventanas
+     emergentes bloqueadas, que de noche sigue siendo de noche. */
+  ov.innerHTML='<div style="background:var(--card);border:1px solid var(--line);border-radius:18px;max-width:360px;width:100%;padding:24px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.3)">'
     +'<div style="font-size:40px;margin-bottom:8px">'+ico('i-doc')+'</div>'
     +'<div style="font-size:15px;font-weight:800;color:var(--n9);margin-bottom:6px">Tu PDF está listo</div>'
     +'<div style="font-size:12.5px;color:var(--n6);margin-bottom:16px;line-height:1.5">Ábrelo y usa <b>Compartir → Imprimir / Guardar en PDF</b>.</div>'
-    +'<a href="'+url+'" target="_blank" rel="noopener" onclick="cerrarEnlacePDF()" style="display:block;padding:14px;border-radius:11px;background:linear-gradient(135deg,var(--a),var(--a-claro));color:#fff;font-size:14px;font-weight:700;text-decoration:none;margin-bottom:9px">'+ico('i-doc')+' Abrir PDF</a>'
-    +'<button onclick="cerrarEnlacePDF()" style="width:100%;padding:12px;border-radius:11px;background:#fff;border:1.5px solid var(--n3);color:var(--a);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Cerrar</button>'
+    +'<a href="'+url+'" target="_blank" rel="noopener" onclick="cerrarEnlacePDF()" style="display:block;padding:14px;border-radius:11px;background:var(--a-fill);color:#fff;font-size:14px;font-weight:600;text-decoration:none;margin-bottom:9px">'+ico('i-doc')+' Abrir PDF</a>'
+    +'<button onclick="cerrarEnlacePDF()" style="width:100%;padding:12px;border-radius:11px;background:var(--card);border:1px solid var(--n3);color:var(--a);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Cerrar</button>'
     +'</div>';
   ov.setAttribute('role','dialog');
   ov.setAttribute('aria-modal','true');
