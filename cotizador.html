@@ -214,6 +214,12 @@
     </span>
   </nav>
 
+  <!-- El aviso de «esto ya estaba en pantalla antes de abrir». Va aquí —fuera de las dos
+       tarjetas y cruzando las dos columnas— porque tiene que verse en las DOS pantallas: el
+       cliente se captura en el paso 1 y el trabajo en el paso 2, y el error que corta se
+       comete mirando el paso 2. Lo pinta pintarAvisoDeAntes(); el porqué está ahí. -->
+  <div class="cot-antes cand-cliente ojo" id="cot-antes" role="region" aria-label="Cotización de la sesión anterior" hidden></div>
+
   <!-- ===== IZQUIERDA: FORM ===== -->
   <!-- Era un <section> sin nombre, y un <section> sin nombre accesible no se expone
        como región: no aparecía en el rotor de puntos de referencia ni había a dónde

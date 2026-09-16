@@ -39,6 +39,9 @@ function init(){
     sincronizarPlegado();
     renderItems();
   }
+  /* Fuera del if/else y siempre: marca la sesión también cuando no había nada que restaurar,
+     que es lo que hace que la recarga siguiente se reconozca como la misma sesión. */
+  separarDeLaCotizacionAnterior();
   pintarClientes();
   aplicarFoldProy();
   ajustarTopbarMovil();
@@ -69,6 +72,42 @@ function init(){
   registrarSW();
   ofrecerRestauracionPendiente();
 }
+/* ----- La cotización de ayer no es la de hoy -----
+   Aquí se decide qué pasa con lo que `loadState()` acaba de devolver, y la decisión depende
+   de una sola cosa: si esta carga es una RECARGA de la sesión que ya estaba —ahí no se toca
+   nada y no se dice nada, que es para lo que existe el autoguardado— o si la app se está
+   ABRIENDO, que es cuando empieza un trabajo nuevo. La diferencia la contesta `sesionNueva()`
+   (ver su comentario en historial.js, con el porqué de todo esto).
+
+   Al abrir, dos caminos y ni uno más:
+
+   · Lo que hay en pantalla ya está guardado en otro sitio y dice lo mismo —una autorizada
+     vive en el historial— : la app empieza EN BLANCO. No se pierde nada y se comprueba antes
+     de soltarlo: el aviso nombra dónde quedó y trae «Deshacer», y el historial es donde vive
+     lo terminado. Una cotización autorizada ya cumplió; lo que sigue después de ella es otra
+     cotización, no más partidas encima de la suya.
+   · Es la única copia —un borrador a medias, una rechazada, una pendiente— : no se toca ni
+     una letra. Se queda en pantalla con el aviso de `pintarAvisoDeAntes()`, que dice de quién
+     es y ofrece empezar una nueva de un toque.
+
+   Y si no hay nada capturado, no hay nada que decir: la app abre como abrió siempre. */
+function separarDeLaCotizacionAnterior(){
+  if(!sesionNueva()) return;
+  /* Una partida en blanco es la que siembra el propio arranque: no es trabajo capturado. */
+  if(!hayDatosCliente()&&!Q.items.some(it=>!itemVacio(it))) return;
+  const folio=Q.folio, quien=(Q.cliente||'').trim();
+  if(copiaGuardadaDeQ()){
+    /* `nueva()` deja su copia para deshacer y su propio aviso; el de aquí lo reemplaza
+       porque «Cotización vaciada» no dice lo único que hay que saber: dónde quedó la que
+       estaba. El botón es el mismo. */
+    nueva();
+    toast(folio+(quien?' · '+quien:'')+' ya estaba guardada en el historial — ésta empieza en blanco como '+Q.folio,
+      '',9000,_vaciada?{label:'Deshacer',fn:deshacerVaciado}:null);
+    return;
+  }
+  marcarComoDeAntes({folio,cliente:quien,proy:(Q.proy||'').trim(),fecha:Q.fecha||''});
+}
+
 /* El service worker guarda una copia de la app para que abra sin señal. Va al final del
    arranque y en su propio try: si el navegador no lo soporta —o el sitio se abrió como
    file:// para probarlo— no puede estorbar a nada de lo de arriba. */

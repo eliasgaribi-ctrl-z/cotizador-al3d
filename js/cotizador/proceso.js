@@ -955,6 +955,10 @@ function pintarPantalla(){
   if(side)   side.hidden=enCliente;
   pintarPasos();
   pintarCierrePaso1();
+  /* Aquí y no en el arranque: el aviso se ve en las dos pantallas y tiene que apagarse en
+     cuanto la de abajo deja de ser la cotización que anunciaba. Vaciar, abrir una del
+     historial y duplicar pasan todas por irAPantalla(), o sea por aquí. */
+  pintarAvisoDeAntes();
   /* La barra fija del celular cambia de contenido con la pantalla —«Continuar» en la del
      cliente, el total y «Autorizar yo mismo» en la de partidas—, así que se repinta aquí.
      Sin esto se quedaba con la de la pantalla anterior hasta que otra cosa la repintara:
@@ -1292,6 +1296,59 @@ function pintarCandadoCliente(){
   }
   box.innerHTML=html;
   box.className='cand-cliente'+(otro?' ojo':'');
+  box.hidden=false;
+}
+
+/* ===================== La cotización que venía de antes =====================
+   El tercer aviso de la familia, y el que faltaba. El candado de las partidas dice «esto está
+   cerrado»; el del cliente, «esto es de otro y así se corrige». Éste dice la única cosa que
+   la app no decía nunca: QUE LO QUE HAY EN PANTALLA NO LO ACABAS DE CAPTURAR TÚ.
+
+   Aparece al abrir la app —no al recargarla— sobre una cotización que venía de la sesión
+   anterior y que es la única copia que existe: un borrador a medias, una rechazada. Ésas no
+   se sueltan solas, porque borrar trabajo que no está guardado en ningún otro lado no lo hace
+   esta app; lo que sí se puede hacer es que nadie las confunda con una cotización en blanco.
+
+   Va FUERA de las dos tarjetas y ocupando las dos columnas a propósito: el nombre del cliente
+   se captura en el paso 1 y el trabajo en el paso 2, y el error que este aviso existe para
+   cortar —capturarle a alguien encima del nombre de otro— se comete mirando el paso 2, donde
+   el candado del cliente no se ve. Por eso también nombra al cliente dentro del aviso y no
+   solo el folio: «COT-0048» no le dice a nadie de quién es.
+
+   Se contesta una vez y se va. Y se va sola en cuanto la pantalla deja de ser la de ese folio
+   —vaciar, abrir otra del historial, duplicar—, porque a partir de ahí ya no es de ésta. */
+let _deAntes=null;   // {folio, cliente, proy, fecha} de la que venía de antes, o null
+function marcarComoDeAntes(datos){ _deAntes=datos||null; pintarAvisoDeAntes(); }
+function seguirConLaDeAntes(){ _deAntes=null; pintarAvisoDeAntes(); }
+function pintarAvisoDeAntes(){
+  const box=$('cot-antes'); if(!box) return;
+  /* Ya se está mirando otra cotización: el aviso era de la anterior y no tiene nada que
+     decir de ésta. Se apaga sin que nadie tenga que acordarse de apagarlo. */
+  if(_deAntes&&_deAntes.folio!==Q.folio) _deAntes=null;
+  if(!_deAntes){
+    if(!box.hidden){ box.hidden=true; box.innerHTML=''; }
+    return;
+  }
+  const quien=_deAntes.cliente;
+  const proy=_deAntes.proy?' · '+_deAntes.proy:'';
+  /* La fecha solo cuando NO es la de hoy: «del 12 sep» es lo que convence de que esto viene
+     de otro día, y «del 15 sep» un 15 de septiembre no dice nada. */
+  const cuando=(_deAntes.fecha&&_deAntes.fecha!==hoy())?' del '+_deAntes.fecha:'';
+  const dequien=quien?' · <b>'+esc(quien)+'</b>'+esc(proy):' · todavía sin cliente'+esc(proy);
+  /* La frase de abajo cambia con lo que de verdad puede pasar aquí. Con el precio cerrado no
+     se captura nada encima —eso ya lo frena `locked()`— y prometer un peligro que no existe
+     es la manera más rápida de que el aviso siguiente tampoco se lea. */
+  const riesgo=(!locked()&&Q.rol!=='autorizador')
+    ? (quien?'Lo que captures aquí se guarda a nombre de <b>'+esc(quien)+'</b> — si es para alguien más, empieza una nueva.'
+            :'Lo que captures aquí se guarda en ésta — si es de otro trabajo, empieza una nueva.')
+    : 'Sigue abierta desde antes — si vienes a cotizar otra cosa, empieza una nueva.';
+  const html=`${ico('i-aviso')}<div class="cc-b">
+      <p class="cc-t">Esto ya estaba en pantalla antes de abrir: <b>${esc(_deAntes.folio)}</b>${esc(cuando)}${dequien}. ${riesgo}</p>
+      <div class="cc-acts">
+        <button type="button" class="btn btn-pri" onclick="nueva()">${ico('i-basura')} Empezar una cotización nueva</button>
+        <button type="button" class="btn btn-gho" onclick="seguirConLaDeAntes()">${ico('i-check')} Sigo con ésta</button>
+      </div></div>`;
+  if(box.innerHTML!==html) box.innerHTML=html;
   box.hidden=false;
 }
 
