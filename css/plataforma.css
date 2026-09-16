@@ -1599,6 +1599,17 @@ body.pf .pf-lat-rol .seg{background:rgba(0,0,0,.25)}
 
 /* El campo de búsqueda al lado del segmento: crece lo que sobre, y en el teléfono baja solo. */
 .ct-busca{flex:1 1 220px;min-width:0;min-height:40px;padding:8px 12px}
+/* La línea de la hoja, arriba del récord: de dónde salen los números y de cuándo son. Se
+   construye sobre .pf-frescura —la misma línea del Tablero— con un botón a la derecha en el
+   monitor, que en el teléfono baja a su propio renglón. */
+.ct-hoja{flex-wrap:wrap;row-gap:var(--e2)}
+.ct-hoja>span{flex:1 1 240px;min-width:0}
+.ct-hoja>span b{font-weight:600;color:var(--tinta)}
+.ct-hoja .btn{margin-left:auto}
+.ct-origen{margin-left:6px;vertical-align:middle;font-weight:500;text-transform:none}
+@media (max-width:640px){
+  .ct-hoja .btn{margin-left:0;width:100%}
+}
 .ag-barra .chips{margin:0}
 
 /* Quién y cuándo, la tercera línea de un renglón de bitácora. */

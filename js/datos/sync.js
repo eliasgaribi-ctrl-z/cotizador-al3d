@@ -142,6 +142,7 @@ const MSG = {
 
 let _adaptador = null;
 let _bombeando = null;       /* La promesa del bombeo en curso. Ver `bombear`. */
+let _jalando = null;         /* La de la bajada en curso. Ver `jalar`. */
 let _ultimoError = '';
 
 /* ---------------------------------------------------------------------------
@@ -193,6 +194,26 @@ async function marcas() {
     /* Sello del último dato visto de cada dispositivo. Es lo que hace que la banda pueda
        nombrar a quién le falta compartir en vez de decir «hay datos viejos». */
     vistos: (m && m.vistos && typeof m.vistos === 'object') ? m.vistos : {},
+    /* El barrido en curso de los espejos (ver `jalar`): desde cuándo y qué ids se han visto.
+       null cuando no hay uno a medias. */
+    barrido: (m && m.barrido && typeof m.barrido === 'object') ? m.barrido : null,
+    /* La última vez que un barrido llegó hasta la última página. Es el sello que Control
+       enseña como «datos de la hoja al…»: una bajada a medias no cuenta como al día. */
+    ultima_bajada_completa: (m && Number(m.ultima_bajada_completa)) || null,
+  };
+}
+
+/** Cuándo se trajo la hoja por última vez. Sin red, instantáneo salvo la lectura local: es lo
+ *  que Control pinta arriba del récord de ventas para que nadie confunda una cifra de hace
+ *  tres días con la de hoy. */
+export async function estadoBajada() {
+  const m = await marcas();
+  return {
+    configurado: configurado(),
+    ultima: m.ultima_bajada,
+    completa: m.ultima_bajada_completa,
+    a_medias: !!m.cursor,
+    ultimo_error: _ultimoError,
   };
 }
 
@@ -466,7 +487,17 @@ export function esperaMs(intentos) {
  * `bombear`: es red, y «no hay puente» no es «no hay señal».
  * valor = {nuevos, actualizados, descartados, motivo}
  */
-export async function jalar() {
+export function jalar() {
+  /* Una bajada a la vez, por lo mismo que `bombear`: el arranque callado y la pantalla de
+     Control pueden pedir la hoja en el mismo segundo, y dos bajadas leyendo el mismo cursor
+     bajarían la misma página dos veces y se pisarían las marcas del barrido —con lo que el
+     cierre podría borrar filas que sí están—. Quien llega segundo espera la misma. */
+  if (_jalando) return _jalando;
+  _jalando = jalarDeVerdad().finally(() => { _jalando = null; });
+  return _jalando;
+}
+
+async function jalarDeVerdad() {
   if (!configurado()) {
     return ok({ nuevos: 0, actualizados: 0, descartados: 0, motivo: 'sin_puente' });
   }
@@ -475,6 +506,23 @@ export async function jalar() {
   }
 
   const m = await marcas();
+
+  /* Un BARRIDO es una pasada completa por el otro lado, de la primera página a la última.
+     Arranca cuando no hay cursor y cierra cuando el puente dice que no hay más. Para los
+     almacenes que el relevo baja ENTEROS (`_adaptador.espejos`, hoy el récord de ventas de
+     la hoja) se anota qué ids se vieron en el barrido y, al cerrarlo, se borra lo que la
+     hoja dejó de traer: una venta que allá se eliminó no puede seguir sumando aquí. Se
+     hace por ids vistos y no por sellos de tiempo a propósito, porque una fila que no
+     cambió no se reescribe (ver abajo) y su sello se queda viejo sin dejar de existir. */
+  const espejos = Array.isArray(_adaptador.espejos) ? _adaptador.espejos.filter(a => DB.ALMACENES.includes(a)) : [];
+  /* Un cursor sin barrido anotado es una pasada que empezó antes de que existiera el
+     barrido —una versión anterior de la app la dejó a medias—. Se termina, pero se marca
+     `parcial`: no se vio la primera parte, y borrar al cerrar lo que no está en la lista se
+     llevaría filas que sí existen. La siguiente pasada, entera, ya limpia. */
+  const barrido = (m.cursor && m.barrido) ? m.barrido
+    : { desde: Date.now(), vistos: {}, parcial: !!m.cursor };
+  if (!barrido.vistos || typeof barrido.vistos !== 'object') barrido.vistos = {};
+
   let lote;
   try {
     lote = await _adaptador.bajar(m.cursor);
@@ -485,7 +533,7 @@ export async function jalar() {
   }
 
   const registros = (lote && Array.isArray(lote.registros)) ? lote.registros : [];
-  let nuevos = 0, actualizados = 0, descartados = 0;
+  let nuevos = 0, actualizados = 0, descartados = 0, sinCambio = 0;
   const vistos = { ...m.vistos };
 
   for (const fila of registros) {
@@ -498,6 +546,11 @@ export async function jalar() {
 
     const id = datos[LLAVE[almacen] || 'id'];
     if (id === undefined || id === null || id === '') { descartados++; continue; }
+
+    if (espejos.includes(almacen)) {
+      const lista = barrido.vistos[almacen] || (barrido.vistos[almacen] = []);
+      lista.push(String(id));
+    }
 
     const local = await DB.obtener(almacen, id);
 
@@ -514,7 +567,13 @@ export async function jalar() {
       continue;
     }
 
-    const r = await DB.poner(almacen, local ? fusionar(local, datos) : { ...datos, sync: 1 });
+    const fusion = local ? fusionar(local, datos) : { ...datos, sync: 1 };
+    /* Lo que no cambió no se reescribe ni se cuenta. Un barrido entero de la hoja son
+       trescientas filas por apertura; escribirlas todas cada vez gasta la base y, peor,
+       hace que «algo cambió» sea siempre verdad: el arranque repintaría la pantalla en cada
+       bajada, tirando el scroll y el filtro que la persona acababa de poner. */
+    if (local && mismoDato(local, fusion)) { sinCambio++; continue; }
+    const r = await DB.poner(almacen, fusion);
     if (!r.ok) { descartados++; continue; }
     if (local) actualizados++; else nuevos++;
 
@@ -523,17 +582,49 @@ export async function jalar() {
     if (disp && sello > (vistos[disp] || 0)) vistos[disp] = sello;
   }
 
+  /* El barrido cierra: lo que la hoja ya no trajo se va de los espejos. */
+  const cierra = !(lote && lote.hay_mas);
+  let borrados = 0;
+  if (cierra && !barrido.parcial) {
+    for (const alm of espejos) {
+      const vistosAlm = new Set(barrido.vistos[alm] || []);
+      const llave = LLAVE[alm] || 'id';
+      for (const reg of await DB.listar(alm)) {
+        const id = reg && reg[llave];
+        if (id === undefined || id === null || vistosAlm.has(String(id))) continue;
+        const r = await DB.borrar(alm, id);
+        if (r.ok) borrados++;
+      }
+    }
+  }
+
   await ponerMarcas({
     ultima_bajada: Date.now(),
     cursor: (lote && lote.cursor) || null,
     vistos,
+    barrido: cierra ? null : barrido,
+    ultima_bajada_completa: cierra ? Date.now() : m.ultima_bajada_completa,
   });
 
-  /* `hay_mas`: el Worker pagina de 50 en 50 y quien llama decide si da otra vuelta. Antes se
-     adivinaba por los contadores, y una página entera de filas anteriores a la plataforma —que
-     se miran y se descartan en el relevo— daba 0/0/0 y cortaba el bucle en la primera vuelta. */
-  return ok({ nuevos, actualizados, descartados, hay_mas: !!(lote && lote.hay_mas), motivo: 'ok' });
+  /* `hay_mas`: el puente pagina de 50 en 50 y quien llama decide si da otra vuelta. Antes se
+     adivinaba por los contadores, y una página entera de filas sin cambios daba 0/0/0 y
+     cortaba el bucle en la primera vuelta. */
+  return ok({ nuevos, actualizados, descartados, sin_cambio: sinCambio, borrados,
+              hay_mas: !!(lote && lote.hay_mas), completa: cierra, motivo: 'ok' });
 }
+
+/* ¿Es el mismo dato, sellos aparte? Compara con las claves ordenadas para que el orden en que
+   `fusionar` superpuso los campos no haga parecer distinto lo que es igual. */
+const SELLOS = new Set(['actualizado_en', 'creado_en', 'sync']);
+function canon(v) {
+  if (Array.isArray(v)) return '[' + v.map(canon).join(',') + ']';
+  if (v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype) {
+    return '{' + Object.keys(v).sort().filter(k => !SELLOS.has(k))
+      .map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}';
+  }
+  return v === undefined ? 'null' : (typeof v === 'object' ? '"[obj]"' : JSON.stringify(v));
+}
+export function mismoDato(a, b) { return canon(a) === canon(b); }
 
 /**
  * Fusión: gana el más reciente, campo por campo.

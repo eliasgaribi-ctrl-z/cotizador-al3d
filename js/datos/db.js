@@ -22,12 +22,20 @@
 export const NOMBRE = 'al3d_pf';
 /* Versión 2 (septiembre de 2026): nace el almacén `bitacora`. Subir el número es lo que hace
    que `onupgradeneeded` corra en una base que ya existía y le cree el almacén que le falta;
-   los demás no se tocan, porque el bucle de abajo solo crea lo que no está. */
-export const VERSION = 2;
+   los demás no se tocan, porque el bucle de abajo solo crea lo que no está.
+   Versión 3 (septiembre de 2026): nace `ventas_hoja`, el espejo del récord de ventas de la hoja
+   de finanzas —TODAS sus filas, tengan o no proyecto en este teléfono—. Es lo que hace que
+   Control sume lo que la hoja dice y no solo lo que se registró desde este aparato. */
+export const VERSION = 3;
 
 export const ALMACENES = ['proyectos', 'instalaciones', 'materiales', 'movimientos',
                           'requerimientos', 'avisos', 'constantes', 'pendientes', 'geo', 'blobs',
-                          'bitacora'];
+                          'bitacora', 'ventas_hoja'];
+
+/* Lo que se vuelve a bajar solo y por eso no entra al respaldo ni se cuenta como dato del
+   teléfono: la bandeja de salida (reenviarla duplicaría operaciones) y el espejo de la hoja
+   (la hoja es la dueña; un respaldo viejo resucitaría filas que allá ya se borraron). */
+export const NO_RESPALDA = ['pendientes', 'ventas_hoja'];
 
 /** @typedef {{ok:true, valor:*}|{ok:false, codigo:string, mensaje:string}} Resultado */
 const ok  = valor => ({ ok: true, valor });
@@ -68,6 +76,11 @@ const ESQUEMA = {
      del almacén; se pide por tiempo (la pantalla de Control) y por lo que se tocó (la ficha
      de un proyecto). */
   bitacora:       { keyPath: 'id', indices: [['porTs', 'ts'], ['porEntidad', 'entidad_id']] },
+  /* El espejo de la hoja de finanzas: una fila por venta, con el folio interno de la hoja
+     (V-042) como id. Se pide por la fecha del anticipo (los meses de Control) y por el folio
+     de cotización (para atar la fila al proyecto de este teléfono, cuando lo hay). */
+  ventas_hoja:    { keyPath: 'id', indices: [
+    ['porFecha', 'fecha_anticipo'], ['porFolio', 'folio_cotizacion']] },
 };
 
 /**
@@ -309,7 +322,7 @@ const APP_RESPALDO = 'plataforma-al3d';
 export async function exportar() {
   const datos = {};
   for (const a of ALMACENES) {
-    if (a === 'pendientes') continue;   // bandeja de salida: reenviarla duplicaría operaciones
+    if (NO_RESPALDA.includes(a)) continue;   // ver NO_RESPALDA
     const filas = await listar(a);
     datos[a] = a === 'blobs' ? await Promise.all(filas.map(blobADataUrl)) : filas;
   }

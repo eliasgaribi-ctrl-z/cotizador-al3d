@@ -54,7 +54,7 @@ si alguien llega por GET, no es la plataforma.
 |---|---|
 | `GET /salud` | Estado y la lista de lo que **este rol** puede escribir |
 | `GET /esquema` | Qué columnas le faltan a la hoja. Las **detecta**, no las crea |
-| `GET /jalar` | El espejo, de 50 en 50, con cursor. **El dinero solo para quien lo ve** |
+| `GET /jalar` | **Todas** las filas de Ventas, de 50 en 50, con cursor: el récord de ventas de Control sale de aquí. **El dinero solo para quien lo ve** |
 | `POST /empujar` | Hasta 25 operaciones, filtradas por la lista blanca del rol |
 | `GET /expandir` | Sigue un link corto de Maps hasta el largo, el que trae coordenadas |
 
@@ -93,6 +93,36 @@ fabricación sigue recibiendo un rechazo si manda `Anticipo`, diga lo que diga e
    hoja lo ignoraba: cobraba 10 % fijo. Ahora viaja, la fórmula de la comisión lo lee y una
    celda vacía sigue significando «el de siempre, 10 %», así que las filas que ya estaban no
    cambian ni un centavo. Lo escriben dirección y pagos; fabricación ni lo escribe ni lo ve.
+
+### Lo que baja: el récord entero, no solo lo de este teléfono
+
+Hasta septiembre de 2026 el relevo miraba cada fila que bajaba de `/jalar` y **se quedaba solo
+con las que tenían proyecto en ese teléfono**, atadas por `Folio cotizacion`. Las 199 filas
+anteriores a la plataforma, las capturadas desde otro aparato y las dadas de alta en la propia
+hoja (⚡ AL3D → Registrar nueva venta) se descartaban, y el «Vendido en septiembre» de Control
+era el de ese teléfono, no el del negocio.
+
+Ahora cada fila baja **dos veces, a dos sitios**:
+
+1. **Al récord de ventas** (`ventas_hoja` en IndexedDB), entera y con el folio interno de la
+   hoja (V-042) de id. No es un proyecto: no tiene partidas ni material y **no entra al
+   tablero de obra**. Es el renglón del libro mayor, para sumarlo. `ventas.unificar` lo cruza
+   con los proyectos del teléfono por `Folio cotizacion`; cuando una venta está en los dos
+   lados **manda el dinero de la hoja** —importe, anticipo, estatus, cuenta, fórmulas y fecha
+   del anticipo— y el proyecto sigue siendo dueño del nombre, la etapa y la dirección.
+2. **Al proyecto de este lado**, como antes, si lo hay: el parche del espejo del dinero.
+
+Una bajada completa —de la primera página a la última— es un **barrido**, y al cerrarlo el
+cliente **borra del récord lo que la hoja ya no trajo**: una fila eliminada allá deja de sumar
+aquí. Lo que no cambió no se reescribe, así que un barrido de trescientas filas no dispara
+repintados ni gasta la base. El récord no entra al respaldo de la plataforma: se vuelve a bajar.
+
+El filtrado por rol sigue valiendo: a **fabricación** las filas le llegan sin las columnas de
+dinero y el renglón del récord se guarda sin importe, no con cero. Control no le aparece a ese
+rol de todas formas.
+
+Del lado de la hoja **no cambió nada**: `/jalar` ya mandaba todas las filas. El cambio es de
+quién las guarda.
 
 **La plataforma sabe qué versión corre la hoja.** «Probar» en Ajustes lee la `version` que
 contesta `/salud` y, si es anterior a la que la plataforma espera, lo dice con los pasos en

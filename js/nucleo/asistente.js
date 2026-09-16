@@ -462,9 +462,13 @@ async function leerTaller() {
   if (!DB.estado().ok) throw new Error(DB.motivoTexto() || 'la base no abrió');
   const hoy = hoyISO();
   const veDinero = Prefs.veDinero();
-  const [proyectos, insts, cts, mat] = await Promise.all([
+  const [proyectos, insts, cts, mat, hoja] = await Promise.all([
     Proy.listar({}), Agenda.listar({ vivas: true }), Material.constantes(), Agenda.contextoMaterial(),
+    /* El récord de la hoja, para que «¿cuánto vendimos?» conteste lo del negocio y no lo de
+       este aparato: la misma lista unificada que pinta Control. Sin dinero no se lee. */
+    veDinero ? DB.listar('ventas_hoja') : Promise.resolve([]),
   ]);
+  const ventas = veDinero ? Ventas.unificar(proyectos, hoja).ventas : proyectos;
   const instDe = new Map();
   for (const i of insts) if (i && i.proyecto_id && !instDe.has(i.proyecto_id)) instDe.set(i.proyecto_id, i);
   const ventanas = new Map();
@@ -479,10 +483,10 @@ async function leerTaller() {
       return d && d.texto ? String(d.texto).slice(0, 120) : undefined;
     } catch (_) { return undefined; }
   };
-  const ganados = new Set(proyectos.map(p => p.folio_global));
+  const ganados = new Set(ventas.map(p => p.folio_global).filter(Boolean));
   const sinDecidir = Cot.sinDecidir(ganados);
-  const kpi = veDinero ? Ventas.indicadores(proyectos, sinDecidir, { hoy, valorDe: Cot.totalVendido }) : null;
-  const conversion = veDinero ? Ventas.conversion(Cot.historial(), proyectos, Prefs.dispositivo()) : null;
+  const kpi = veDinero ? Ventas.indicadores(ventas, sinDecidir, { hoy, valorDe: Cot.totalVendido }) : null;
+  const conversion = veDinero ? Ventas.conversion(Cot.historial(), ventas, Prefs.dispositivo()) : null;
 
   let faltantes = [], bajoMinimo = [], avisos = [], bitacora = [];
   try { const S = await import('../datos/stock.js'); [faltantes, bajoMinimo] = await Promise.all([S.listaCompra({ hastaDias: 30 }), S.bajoMinimo()]); } catch (_) {}

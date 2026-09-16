@@ -12,11 +12,17 @@
    `precio_auth` como total vendido (con IVA si lo lleva), `anti_pactado`, `etapa`,
    `estatus_notion`. Nada se recalcula del origen: se suma lo que ya está congelado.
 
-   Sobre el SALDO. `pago_pendiente` es una fórmula de Notion y en fase 1 baja como null. Lo
-   que se puede saber aquí es lo que se puede saber con lo que hay: total vendido menos el
-   anticipo pactado, y cero si el estatus de Notion ya dice LIQUIDADO. Se llama «saldo
-   estimado» en la pantalla y no «pago pendiente», porque no es la fórmula de Notion y no
-   sabe de abonos intermedios. Cuando el puente baje la fórmula, manda la fórmula.
+   Y desde septiembre de 2026 vienen también de la HOJA de finanzas: `unificar()` cruza los
+   proyectos de este teléfono con el espejo `ventas_hoja` que baja el puente —todas las
+   filas de la pestaña Ventas, tengan o no proyecto aquí— y devuelve una sola lista con la
+   forma que todo lo de este archivo ya sabe sumar. Es lo que hace que «vendido en
+   septiembre» sea lo del negocio y no lo de este aparato.
+
+   Sobre el SALDO. `pago_pendiente` es una fórmula de la hoja y arranca en null. Lo que se
+   puede saber sin ella es lo que se puede saber con lo que hay: total vendido menos el
+   anticipo pactado, y cero si el estatus ya dice LIQUIDADO. Se llama «saldo estimado» en
+   la pantalla y no «pago pendiente», porque no es la fórmula y no sabe de abonos
+   intermedios. Cuando el puente baja la fórmula, manda la fórmula, y la pantalla lo dice.
    ============================================================================ */
 
 import { partesISO, esISO, hoyISO, masMeses, MES_CORTO } from '../nucleo/fechas.js';
@@ -25,6 +31,7 @@ import { ETAPA_NOMBRE } from './proyectos.js';
 
 const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
 const red2 = v => Math.round((num(v) + Number.EPSILON) * 100) / 100;
+const hayNum = v => v !== undefined && v !== null && v !== '' && isFinite(Number(v));
 
 /* Los meses viven en nucleo/fechas.js; aquí se reexportan con el nombre que este archivo
    siempre tuvo para que quien lo importe no cambie una línea. */
@@ -56,9 +63,118 @@ export function saldoDe(p) {
   return Math.max(0, red2(vendidoDe(p) - num(p.anti_pactado)));
 }
 
-/** El saldo es de la fórmula de Notion o estimado aquí. Para que la pantalla lo diga. */
+/** El saldo es de la fórmula de la hoja o estimado aquí. Para que la pantalla lo diga. */
 export const saldoEsDeNotion = p =>
   !!p && p.pago_pendiente !== null && p.pago_pendiente !== undefined && isFinite(Number(p.pago_pendiente));
+export const saldoEsDeHoja = saldoEsDeNotion;
+
+/* ============================================================================
+   EL RÉCORD DE LA HOJA, UNIDO AL DE ESTE TELÉFONO
+
+   Dos fuentes y una lista. Los proyectos de aquí traen lo que solo aquí existe —partidas,
+   material, etapa de obra—; el espejo `ventas_hoja` trae el libro mayor entero, incluidas
+   las ventas que nunca pasaron por este aparato. Se cruzan por «Folio cotizacion», que es
+   la llave que el cotizador escribe en la fila al registrar la venta.
+
+   Cuando una venta está en los dos lados manda el dinero de la HOJA: el importe, el
+   anticipo, el estatus, la cuenta, las fórmulas y la fecha del anticipo (§4.0: la hoja es
+   la dueña del dinero, y PAGOS corrige allá). Lo demás —nombre, etapa, tipo, dirección—
+   sigue siendo del proyecto. Nada de esto se guarda: es la lista que se pinta.
+   ============================================================================ */
+
+/**
+ * Una fila del espejo `ventas_hoja`, con la forma de un proyecto: la que `indicadores`,
+ * `resumenMensual` y `porCobrar` ya saben sumar. Sin partidas, sin origen y sin material:
+ * no es un proyecto y no lo finge (`de_hoja: true`, `etapa` null si la hoja no la trae).
+ */
+export function ventaDesdeHoja(v) {
+  if (!v || typeof v !== 'object') return null;
+  const fg = String(v.folio_cotizacion || '').trim();
+  const nombre = String(v.nombre || '').trim();
+  const fecha = [v.fecha_anticipo, v.fecha_instalacion, v.fecha_liquidacion].find(esISO) || '';
+  return {
+    id: String(v.id || ('hoja:' + (v.folio_hoja || fg || nombre))),
+    de_hoja: true,
+    folio_hoja: String(v.folio_hoja || ''),
+    folio_local: fg ? fg.split('@')[0] : String(v.folio_hoja || ''),
+    folio_global: fg,
+    nombre,
+    contacto: '', negocio: nombre, tel: '',
+    tipo_trabajo: Array.isArray(v.tipo_trabajo) ? v.tipo_trabajo.slice() : [],
+    etapa: v.etapa || null,
+    fecha_ganado: fecha,
+    /* `precio_auth` en cero para que `vendidoDe` caiga al neto, que es la fórmula de la
+       hoja: subtotal más IVA. Aquí no se multiplica nada. */
+    sub: num(v.sub), neto: num(v.neto), precio_auth: 0, iva: v.iva !== false,
+    anti_pactado: num(v.anticipo),
+    liquidacion: num(v.liquidacion),
+    cuenta: v.cuenta || null,
+    estatus_notion: v.estatus || null,
+    pago_pendiente: hayNum(v.pago_pendiente) ? num(v.pago_pendiente) : null,
+    comision_restante: hayNum(v.comision_restante) ? num(v.comision_restante) : null,
+    pct_comision: num(v.pct_comision),
+    dir_texto: String(v.direccion || ''),
+    dispositivo: 'hoja',
+    notas: '',
+  };
+}
+
+/**
+ * Los proyectos de este teléfono y el espejo de la hoja, en UNA lista. Ver la cabecera.
+ *
+ * @param {Object[]} proyectos   los de `Proy.listar({})`, con cancelados
+ * @param {Object[]} ventasHoja  los de `DB.listar('ventas_hoja')`
+ * @returns {{ventas:Object[], enlazados:number, de_hoja:number, solo_aqui:number, hay_hoja:boolean}}
+ */
+export function unificar(proyectos, ventasHoja) {
+  const P = (Array.isArray(proyectos) ? proyectos : []).filter(Boolean);
+  const H = (Array.isArray(ventasHoja) ? ventasHoja : []).filter(Boolean);
+
+  const porFolio = new Map();
+  for (const v of H) {
+    const fg = String(v.folio_cotizacion || '').trim();
+    if (fg && !porFolio.has(fg)) porFolio.set(fg, v);
+  }
+
+  const usadas = new Set();
+  const ventas = [];
+  let enlazados = 0;
+  for (const p of P) {
+    const v = p.folio_global ? porFolio.get(String(p.folio_global)) : null;
+    if (!v) { ventas.push(p); continue; }
+    usadas.add(v.id);
+    enlazados++;
+    const u = { ...p, en_hoja: true, folio_hoja: String(v.folio_hoja || '') };
+    if (esISO(v.fecha_anticipo)) u.fecha_ganado = v.fecha_anticipo;
+    /* El importe de la hoja manda cuando lo trae: `precio_auth` se iguala al neto para que
+       `vendidoDe` devuelva esa cifra y no la que se firmó, si PAGOS la corrigió allá. */
+    if (num(v.neto) > 0) { u.neto = num(v.neto); u.precio_auth = num(v.neto); if (num(v.sub) > 0) u.sub = num(v.sub); }
+    if (hayNum(v.anticipo))          u.anti_pactado = num(v.anticipo);
+    if (v.estatus)                   u.estatus_notion = v.estatus;
+    if (v.cuenta)                    u.cuenta = v.cuenta;
+    if (hayNum(v.pago_pendiente))    u.pago_pendiente = num(v.pago_pendiente);
+    if (hayNum(v.comision_restante)) u.comision_restante = num(v.comision_restante);
+    if (hayNum(v.pct_comision))      u.pct_comision = num(v.pct_comision);
+    ventas.push(u);
+  }
+
+  let deHoja = 0;
+  for (const v of H) {
+    if (usadas.has(v.id)) continue;
+    const x = ventaDesdeHoja(v);
+    if (!x) continue;
+    ventas.push(x);
+    deHoja++;
+  }
+
+  /* Lo último que se vendió, primero; con la misma fecha, el nombre, que es lo que se lee. */
+  ventas.sort((a, b) =>
+    String(b.fecha_ganado || '').localeCompare(String(a.fecha_ganado || '')) ||
+    (Number(b.creado_en) || 0) - (Number(a.creado_en) || 0) ||
+    String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
+
+  return { ventas, enlazados, de_hoja: deHoja, solo_aqui: P.length - enlazados, hay_hoja: H.length > 0 };
+}
 
 /**
  * Un renglón por mes, del más viejo al más nuevo, siempre `meses` renglones aunque estén en
@@ -191,9 +307,9 @@ export function csvCampo(v) {
   return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
-export const COLUMNAS_CSV = ['Folio', 'Fecha ganado', 'Cliente', 'Negocio', 'Teléfono', 'Tipo de trabajo',
-  'Etapa', 'Subtotal', 'Total vendido', 'Anticipo', 'Saldo estimado', 'Cuenta', 'Estatus en la hoja',
-  '% comisión', 'Instalación', 'Dirección', 'Dispositivo', 'Notas'];
+export const COLUMNAS_CSV = ['Folio', 'Folio en la hoja', 'Fecha ganado', 'Cliente', 'Negocio', 'Teléfono',
+  'Tipo de trabajo', 'Etapa', 'Subtotal', 'Total vendido', 'Anticipo', 'Saldo', 'Cuenta', 'Estatus en la hoja',
+  '% comisión', 'Instalación', 'Dirección', 'Origen', 'Notas'];
 
 /**
  * Los proyectos, una fila cada uno, para pegar en una hoja de cálculo.
@@ -206,12 +322,15 @@ export function csvProyectos(proyectos, fechaInst) {
      «En garantía»: dos etiquetas para un mismo estado, en la misma app. */
   const etapa = ETAPA_NOMBRE;
   const filas = (Array.isArray(proyectos) ? proyectos : []).filter(Boolean).map(p => [
-    p.folio_local || '', p.fecha_ganado || '', p.contacto || '', p.negocio || p.nombre || '', p.tel || '',
+    p.folio_local || '', p.folio_hoja || '', p.fecha_ganado || '', p.contacto || '', p.negocio || p.nombre || '', p.tel || '',
     (p.tipo_trabajo || []).join(' + '), etapa[p.etapa] || p.etapa || '',
     num(p.sub).toFixed(2), vendidoDe(p).toFixed(2), num(p.anti_pactado).toFixed(2), saldoDe(p).toFixed(2),
     p.cuenta || '', p.estatus_notion || '', p.pct_comision ? String(p.pct_comision) : '',
     (fechaInst && fechaInst.get(p.id)) || '', String(p.dir_texto || '').replace(/\s*\n\s*/g, ' '),
-    p.dispositivo || '', String(p.notas || '').replace(/\s*\n\s*/g, ' '),
+    /* De dónde salió el renglón: «hoja» si solo está allá, el aparato si solo está aquí, y
+       los dos si la fila está enlazada. Es lo que deja cuadrar el CSV contra la hoja. */
+    p.de_hoja ? 'hoja' : (p.en_hoja ? 'hoja + ' + (p.dispositivo || '') : (p.dispositivo || '')),
+    String(p.notas || '').replace(/\s*\n\s*/g, ' '),
   ].map(csvCampo).join(','));
   return '﻿' + [COLUMNAS_CSV.map(csvCampo).join(',')].concat(filas).join('\r\n');
 }

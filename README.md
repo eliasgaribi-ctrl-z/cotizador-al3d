@@ -95,7 +95,11 @@ material que hay que comprar**. Nada de eso se captura.
   fuente», con la cuenta a la vista y su etiqueta de confianza.
 - **Mapa** — las obras por instalar y las instaladas, con el orden de ruta del día.
 - **Control** — el dinero: lo vendido contra el mes anterior, la conversión, los últimos doce
-  meses, la cartera con el WhatsApp de cobro ya escrito, y la bitácora de quién movió qué.
+  meses, la cartera con el WhatsApp de cobro ya escrito, y la bitácora de quién movió qué. **El
+  récord de ventas es el de la hoja de finanzas**: el puente baja la pestaña Ventas entera
+  —también lo que se registró desde otro teléfono o en la propia hoja— y Control la suma con lo
+  de este aparato, dice de cuándo son los datos y los vuelve a traer con un botón (y solo, al
+  entrar, si tienen más de diez minutos).
 - **El asistente** — un botón que flota en las ocho pantallas. Las siete preguntas de siempre se
   contestan **aquí, sin IA y sin señal**; lo que no se puede calcular va a la IA sin teléfonos
   ni direcciones.
@@ -108,8 +112,10 @@ eso suenan aunque nadie abra nada. Los demás avisos se calculan al abrir la pla
 cobranza viven en **«Finanzas AL3D — Ventas y Comisiones»**. En **Ajustes → El puente** se pega
 la liga del Apps Script de esa hoja y el token de este teléfono, y a partir de ahí la venta sale
 sola y el espejo del dinero baja solo — **y solo a quien le toca verlo**: al teléfono de
-fabricación las cifras no le bajan. Sin puente no se rompe nada: la plataforma funciona completa
-en un dispositivo. Los pasos están en [`puente/README.md`](puente/README.md).
+fabricación las cifras no le bajan. Baja también el **récord de ventas completo** de la hoja, que
+es lo que Control suma: una fila que se borra allá desaparece de aquí en la siguiente bajada.
+Sin puente no se rompe nada: la plataforma funciona completa en un dispositivo, y Control lo dice
+en su primera línea. Los pasos están en [`puente/README.md`](puente/README.md).
 
 ## El anidador de vectores
 

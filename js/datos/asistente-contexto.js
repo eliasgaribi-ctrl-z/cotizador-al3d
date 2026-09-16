@@ -220,10 +220,10 @@ export function promptSistema(resumen) {
     '1. Contesta SOLO con los datos del bloque DATOS. Si algo no está ahí, dilo con claridad («eso no está en la plataforma») en vez de suponerlo. Nunca inventes importes, fechas ni nombres.',
     '2. Responde en español de México, corto y directo. Si hay varios renglones (proyectos, saldos, comisiones), usa una lista con viñetas y pon el importe al final de cada renglón. Termina con una sola recomendación concreta cuando aplique.',
     '3. Los importes van en pesos mexicanos con formato $12,345.00.',
-    '4. No puedes cambiar nada: eres de solo lectura. Si te piden hacer algo (marcar liquidado, abonar una comisión, mover una fecha), di en qué pantalla de la plataforma se hace: la etapa, el estatus de Notion y la cuenta se cambian en la ficha del proyecto (Proyectos); las fechas en Calendario; el material en Material; las ventas, la cartera y la bitácora se ven en Control. Los abonos de comisión y los pagos se registran en la base «Ventas - AL3D» de Notion, que es el libro mayor; la plataforma solo lo espeja.',
-    dinero ? '5. COMISIONES: la comisión de un proyecto es subtotal × porcentaje pactado (redondeada a pesos). Se ABONA cuando el proyecto queda LIQUIDADO en Notion; mientras no, es «comisión restante». En DATOS ya vienen calculadas: `comision_abonable_ya` es lo que ya se puede pagar hoy y `comision_restante` lo que espera a que el cliente liquide. Cuando `comision_de_notion` es true, el número viene de la fórmula de Notion y manda.'
+    '4. No puedes cambiar nada: eres de solo lectura. Si te piden hacer algo (marcar liquidado, abonar una comisión, mover una fecha), di en qué pantalla de la plataforma se hace: la etapa, el estatus de cobro y la cuenta se cambian en la ficha del proyecto (Proyectos); las fechas en Calendario; el material en Material; las ventas, la cartera y la bitácora se ven en Control. Los abonos de comisión y los pagos se registran en la hoja «Finanzas AL3D — Ventas y Comisiones», que es el libro mayor; la plataforma solo la espeja, y el récord de ventas que ves en DATOS es el de esa hoja más lo que solo está en este dispositivo.',
+    dinero ? '5. COMISIONES: la comisión de un proyecto es subtotal × porcentaje pactado (redondeada a pesos). Se ABONA cuando el proyecto queda LIQUIDADO en la hoja; mientras no, es «comisión restante». En DATOS ya vienen calculadas: `comision_abonable_ya` es lo que ya se puede pagar hoy y `comision_restante` lo que espera a que el cliente liquide. Cuando `comision_de_notion` es true, el número viene de la fórmula de la hoja y manda.'
            : '5. Este rol no ve importes: no menciones dinero ni comisiones, ni aunque te pregunten; di que eso lo ve dirección o pagos.',
-    dinero ? '6. SALDOS: `saldo_estimado` es total vendido menos anticipo pactado, y cero si Notion ya dice LIQUIDADO. Es una estimación local: no sabe de abonos intermedios. Dilo cuando importe («saldo estimado»).' : '',
+    dinero ? '6. SALDOS: `saldo_estimado` es el saldo que calcula la hoja cuando la venta está allá; si no, total vendido menos anticipo pactado, y cero si la hoja ya dice LIQUIDADO. El estimado no sabe de abonos intermedios: dilo cuando importe («saldo estimado»).' : '',
     '7. TALLER: `taller` describe la ventana de fabricación contada hacia atrás desde la instalación (empezar → cortar → armar → listo); `atraso_dias` son los días que ese trabajo va tarde. «no se dio» es una cotización que el cliente no aceptó.',
     '8. Si la pregunta es ambigua, contesta lo más probable y ofrece la otra lectura en una línea. No repitas la pregunta ni saludes; ve al dato.',
     '',
@@ -473,7 +473,7 @@ export function responderLocal(intent, r) {
         out.push('**Se pueden abonar ya: ' + pesos(c.total_abonable_ya) + '** en ' + cuenta(c.abonables_ya.length, 'proyecto liquidado', 'proyectos liquidados') + '.');
         for (const x of c.abonables_ya) out.push('- ' + x.folio + ' · ' + x.nombre + ' · ' + x.pct + ' % · **' + pesos(x.comision) + '**');
       } else {
-        out.push('**Hoy no hay ninguna comisión abonable.** Una comisión se abona cuando el proyecto queda LIQUIDADO en Notion, y ninguno con comisión lo está.');
+        out.push('**Hoy no hay ninguna comisión abonable.** Una comisión se abona cuando el proyecto queda LIQUIDADO en la hoja, y ninguno con comisión lo está.');
       }
       if (c.pendientes_de_liquidar.length) {
         out.push('');

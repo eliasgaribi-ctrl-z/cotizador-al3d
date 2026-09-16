@@ -501,7 +501,7 @@ function cardGcal() {
     notas);
 }
 
-/* ----- 5. Fase 3, el puente a Notion ----- */
+/* ----- 5. Fase 3, el puente a la hoja de finanzas ----- */
 
 function cardPuente() {
   const p = Prefs.puente() || {};
@@ -563,7 +563,7 @@ function cardPuente() {
     if (!ESQ.ok) {
       esquema = nota(ico('i-aviso') + ' ' + esc(ESQ.mensaje || 'No se pudo leer el esquema.'), 'mal');
     } else if (!ESQ.faltan.length) {
-      esquema = nota(ico('i-check') + ' La pestaña «Ventas» ya tiene las siete ' +
+      esquema = nota(ico('i-check') + ' La pestaña «Ventas» ya tiene las ocho ' +
         'columnas que la plataforma necesita.', 'ok');
     } else {
       esquema = nota('<b>A la hoja le faltan ' + ESQ.faltan.length +
@@ -643,13 +643,14 @@ function cardPuente() {
 
     prueba + esquema +
 
-    '<p class="pf-nota">Notion no tiene forma de decir «solo escribe si nadie lo cambió ' +
-    'antes»: no hay ETag, ni versión, ni unicidad. Lo que este puente escribe son ' +
-    'propiedades que nadie teclea a mano del otro lado —la etapa, la dirección, el punto en ' +
-    'el mapa, el tipo de trabajo— y un cambio de Notion es por propiedad, no por fila, así ' +
-    'que no puede pisar el dinero que alguien acabe de capturar allá. Para el libro del ' +
-    'almacén la garantía sí es total: el id lo pone este dispositivo y un reintento no resta ' +
-    'el material dos veces.</p>' +
+    '<p class="pf-nota">Lo que este puente escribe en la hoja son celdas que nadie teclea a mano ' +
+    'del otro lado —la etapa, la dirección, el punto en el mapa, el tipo de trabajo—, celda por ' +
+    'celda y no fila por fila, así que no puede pisar el dinero que alguien acabe de capturar ' +
+    'allá; el subtotal, el anticipo y el nombre solo viajan al dar de alta la venta o cuando ' +
+    'fue justo eso lo que se cambió. Lo que baja de la hoja es el récord de ventas entero, para ' +
+    'que Control sume lo del negocio y no solo lo de este teléfono. Para el libro del almacén ' +
+    'la garantía sí es total: el id lo pone este dispositivo y un reintento no resta el material ' +
+    'dos veces.</p>' +
 
     notas);
 }
@@ -666,11 +667,11 @@ function cardVerdades() {
       'Y llegan porque las dispara el calendario del teléfono, no la app. Por eso el archivo ' +
       '.ics se descarga una vez por instalación: al agregarlo, las alarmas de tres días, un ' +
       'día y media hora antes quedan dentro del calendario y suenan aunque nadie abra nada.'],
-    ['i-doc', 'Notion sigue siendo el libro mayor del dinero y de la venta',
-      'La plataforma no lo reemplaza y no recalcula sus fórmulas: el precio neto, el pago ' +
-      'pendiente y las comisiones se leen de allá y se pintan tal como están. Aquí vive lo que ' +
-      'Notion no puede dar —el material derivado, el almacén, la etapa de obra y el mapa—, y ' +
-      'nada más.'],
+    ['i-doc', 'La hoja de finanzas es el libro mayor del dinero y de la venta',
+      'La plataforma no la reemplaza y no recalcula sus fórmulas: el precio neto, el saldo por ' +
+      'cobrar y las comisiones se leen de allá y se pintan tal como están, y el récord de ventas ' +
+      'de Control es el de la hoja. Aquí vive lo que la hoja no puede dar —el material derivado, ' +
+      'el almacén, la etapa de obra y el mapa—, y nada más.'],
     ['i-nube-off', 'Los datos viven en ESTE dispositivo',
       'No hay copia en la nube en fase 1. Y Safari desaloja el almacenamiento de los sitios ' +
       'que llevan semanas sin abrirse, sin preguntar y sin avisar. El respaldo es la única ' +
@@ -1006,12 +1007,12 @@ async function probarPuente() {
 
 /** GET /esquema. Detecta lo que falta en Notion; NO lo crea, y eso es a propósito. */
 async function revisarEsquema() {
-  await conElPuente('Leyendo el esquema de Notion…', async rel => {
+  await conElPuente('Leyendo las columnas de la hoja…', async rel => {
     ESQ = await rel.esquema();
     if (!ESQ.ok) { toast(ESQ.mensaje || 'No se pudo leer el esquema', 'err', 5600); return; }
     toast(ESQ.faltan.length
-      ? 'Le faltan ' + ESQ.faltan.length + (ESQ.faltan.length === 1 ? ' propiedad' : ' propiedades') + ' a la base'
-      : 'La base ya tiene todo lo que hace falta', ESQ.faltan.length ? '' : 'ok', 4200);
+      ? 'Le faltan ' + ESQ.faltan.length + (ESQ.faltan.length === 1 ? ' columna' : ' columnas') + ' a la hoja'
+      : 'La hoja ya tiene todo lo que hace falta', ESQ.faltan.length ? '' : 'ok', 4200);
   });
 }
 
@@ -1021,7 +1022,7 @@ function copiarFaltan() {
      otro lado, y una propiedad creada con el tipo equivocado es media hora de arreglar. */
   const txt = ESQ.faltan.map(x => x.nombre + '  —  tipo: ' + x.tipo +
     (Array.isArray(x.opciones) && x.opciones.length ? '  —  opciones: ' + x.opciones.join(', ') : '')).join('\n');
-  copiarTexto(txt, 'Lista copiada — créalas a mano en la base Ventas - AL3D');
+  copiarTexto(txt, 'Lista copiada — o córrele prepararHojaParaElPuente() en Apps Script');
 }
 
 async function bombear() {
@@ -1035,7 +1036,7 @@ async function bombear() {
   const partes = [];
   if (n) partes.push('Se ' + (n === 1 ? 'mandó 1 operación' : 'mandaron ' + n + ' operaciones'));
   if (v.fallidas) partes.push(v.fallidas + (v.fallidas === 1 ? ' no se pudo' : ' no se pudieron'));
-  if (v.conflictos) partes.push(v.conflictos + (v.conflictos === 1 ? ' cambió en Notion' : ' cambiaron en Notion'));
+  if (v.conflictos) partes.push(v.conflictos + (v.conflictos === 1 ? ' cambió en la hoja' : ' cambiaron en la hoja'));
   if (v.sin_destino) partes.push(v.sin_destino + ' se apartaron: este puente no las lleva');
   /* Lo que se mandó pero no se escribió entero. El puente devuelve qué propiedad rechazó y
      por qué; hasta ahora eso moría en un console.warn y el aviso decía «se mandó» a secas.
@@ -1043,28 +1044,28 @@ async function bombear() {
   const rech = Array.isArray(v.rechazos) ? v.rechazos : [];
   if (rech.length) {
     const props = [...new Set(rech.flatMap(x => (x.lista || []).map(y => y.nombre)))];
-    partes.push('pero Notion no aceptó ' + props.join(', '));
+    partes.push('pero la hoja no aceptó ' + props.join(', '));
   }
   toast(partes.length ? partes.join(' · ') : 'No había nada que mandar',
         (v.fallidas || rech.length) ? 'err' : 'ok', rech.length ? 7000 : 4600);
   if (rech.length) {
     const detalle = rech.flatMap(x => (x.lista || []).map(y => y.nombre + ': ' + y.por));
-    voz('Notion no escribió ' + detalle.length + ' propiedades. ' + detalle.join('. '), true);
+    voz('La hoja no escribió ' + detalle.length + ' campos. ' + detalle.join('. '), true);
   }
   await repintar();
 }
 
 /**
- * Trae el espejo del dinero. Da varias vueltas a propósito: el puente pagina de 50 en 50 y
- * la base arrastra 199 filas anteriores a la plataforma que se miran y se descartan una por
- * una. Con una sola vuelta por toque, alguien tendría que apretar el botón cinco veces sin
- * que la pantalla le dijera por qué.
+ * Trae la hoja: el récord de ventas entero y el espejo del dinero sobre los proyectos de
+ * aquí. Da varias vueltas a propósito: el puente pagina de 50 en 50 y la hoja son unas
+ * siete páginas. Con una sola vuelta por toque, alguien tendría que apretar el botón siete
+ * veces sin que la pantalla le dijera por qué.
  */
 async function jalar() {
   if (_ocupado) return;
   _ocupado = true;
-  toast('Trayendo lo de Notion…', '', 2000);
-  let nuevos = 0, actualizados = 0, vueltas = 0, error = null;
+  toast('Trayendo lo de la hoja…', '', 2000);
+  let nuevos = 0, actualizados = 0, borrados = 0, vueltas = 0, error = null;
   try {
     /* Tope de veinte vueltas —mil filas— para que un cursor que no avanza no deje esto
        dando vueltas para siempre contra una API que sí cobra peticiones. */
@@ -1075,15 +1076,19 @@ async function jalar() {
       const v = r.valor || {};
       nuevos += Number(v.nuevos) || 0;
       actualizados += Number(v.actualizados) || 0;
+      borrados += Number(v.borrados) || 0;
       /* Se sigue mientras el puente diga que hay más páginas: los contadores no sirven de
-         señal, porque una página entera de filas anteriores a la plataforma da 0/0/0. */
+         señal, porque una página entera de filas sin cambios da 0/0/0. */
       if (!v.hay_mas) break;
     }
   } finally { _ocupado = false; }
+  const n = nuevos + actualizados;
   if (error) toast(error, 'err', 5200);
-  else toast(nuevos + actualizados
-    ? 'Se actualizaron ' + (nuevos + actualizados) + (nuevos + actualizados === 1 ? ' proyecto' : ' proyectos') + ' con lo que hay en la hoja'
-    : 'No había nada nuevo en la hoja para los proyectos de este dispositivo', 'ok', 4600);
+  else toast(n || borrados
+    ? 'La hoja trajo ' + n + (n === 1 ? ' cambio' : ' cambios') +
+      (borrados ? ' y quitó ' + borrados + (borrados === 1 ? ' venta que ya no está allá' : ' ventas que ya no están allá') : '') +
+      '. El récord de ventas de Control ya está al día.'
+    : 'No había nada nuevo en la hoja: el récord de ventas ya estaba al día', 'ok', 4600);
   await repintar();
 }
 

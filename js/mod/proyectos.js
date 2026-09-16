@@ -856,7 +856,7 @@ async function clicFicha(ev) {
   if (mover) { await moverEtapa(fichaId, mover.dataset.mover); return; }
 
   const est = t.closest('[data-estatus]');
-  if (est) { await parchar(fichaId, { estatus_notion: est.dataset.estatus }, 'Estatus de Notion guardado'); return; }
+  if (est) { await parchar(fichaId, { estatus_notion: est.dataset.estatus }, 'Estatus de la hoja guardado'); return; }
 
   const cta = t.closest('[data-cuenta]');
   if (cta) { await parchar(fichaId, { cuenta: cta.dataset.cuenta }, 'Cuenta guardada'); return; }

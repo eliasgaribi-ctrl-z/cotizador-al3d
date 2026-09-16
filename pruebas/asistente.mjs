@@ -167,7 +167,7 @@ console.log('\nEL MENSAJE DE SISTEMA');
 const S = promptSistema(R);
 ok('dice la fecha de hoy y el rol', S.includes('Hoy es 2026-09-14') && S.includes('rol de Dirección'));
 ok('trae la regla de comisiones', S.includes('subtotal × porcentaje') && S.includes('LIQUIDADO'));
-ok('dice que es de solo lectura y dónde se cambia cada cosa', S.includes('solo lectura') && S.includes('Ventas - AL3D'));
+ok('dice que es de solo lectura y dónde se cambia cada cosa', S.includes('solo lectura') && S.includes('Finanzas AL3D') && !S.includes('Notion'));
 ok('y lleva los datos pegados como JSON', S.includes('"comisiones"') && S.endsWith('}'));
 const SF = promptSistema(RF);
 ok('para fabricación le prohíbe hablar de dinero', SF.includes('no ve importes') && !SF.includes('subtotal × porcentaje'));
