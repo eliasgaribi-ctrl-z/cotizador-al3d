@@ -127,6 +127,7 @@ aparta en la bandeja con su razón y se reincorpora el día que existan. Ver §5
 | Existencias | **derivadas** de `movimientos` | dueña del cálculo. **Nunca un número guardado** |
 | Requerimiento de material | **derivado** de las partidas | recalculable. Solo se persiste la corrección humana |
 | Dinero, `Estatus`, `Cuenta `, comisiones | **La hoja «Finanzas AL3D»** (Fase 3) | espeja de solo lectura; PAGOS escribe vía puente |
+| **El récord de ventas** (todas las filas de la pestaña Ventas, con o sin proyecto aquí) | **La hoja** | espejo de solo lectura en `ventas_hoja`; se borra lo que la hoja deja de traer. Control y el asistente lo suman con los proyectos locales (`ventas.unificar`); si una venta está en los dos lados manda el dinero de la hoja |
 | Fórmulas `Precio Neto `, `Pago Pendiente`, `Comisiones`, `Comision Restante` | **La hoja de finanzas (antes Notion). Nadie más. Nunca se recalculan aquí** | las lee. `Pago Pendiente` baja positivo: lo que te deben |
 | `Porcentaje comision` (el % pactado, en puntos) | **el modal de Registrar Venta**, corregible en la hoja | lo guarda como `pct_comision`, lo sube en el alta y lo baja si cambió allá |
 | Memoria técnica del proyecto | **Notion** (cuerpo de página) | lee; agrega bloques al final |
@@ -381,7 +382,8 @@ Nunca se edita ni se borra una fila. Una corrección es un movimiento `ajuste`. 
 
 ```js
 export const ALMACENES = ['proyectos','instalaciones','materiales','movimientos',
-                          'requerimientos','avisos','constantes','pendientes','geo','blobs'];
+                          'requerimientos','avisos','constantes','pendientes','geo','blobs',
+                          'ventas_hoja'];
 
 /** Abre (y migra) la base. Idempotente. Llamar una vez desde app.js antes de montar nada. */
 export function abrir(): Promise<boolean>
@@ -704,7 +706,9 @@ export function encolar(op:Operacion): Promise<Resultado>
 export function bombear(): Promise<{subidas:number, fallidas:number,
                                     conflictos:number, pendientes:number}>
 
-export function jalar(): Promise<{nuevos:number, actualizados:number, descartados:number}>
+export function jalar(): Promise<{nuevos:number, actualizados:number, descartados:number, sin_cambio:number, borrados:number, hay_mas:boolean, completa:boolean}>
+   // una a la vez: quien llega segundo espera la misma. `borrados` es lo que salió de los espejos al cerrar un barrido
+export function estadoBajada(): Promise<{configurado, ultima, completa, a_medias, ultimo_error}>   // el sello de «datos de la hoja al…» de Control
 
 /** Lo que alimenta la banda de frescura. SIN RED, instantáneo. */
 export function frescura(): Promise<{ultimo_envio:number|null, ultima_bajada:number|null,
@@ -749,17 +753,18 @@ export function desdePrefs(): AdaptadorSync|null
 export function aNotion(proyecto, instalacion|null): Object   // -> propiedades de Notion
 export function instalacionANotion(instalacion): Object
 export function deNotion(fila): Object|null                   // -> parche de espejo, o null sin folio
+export function ventaDeHoja(fila): Object|null                // -> renglón de `ventas_hoja`, o null si la fila está vacía
 
 export function instrucciones(): {titulo, minutos, pasos:string[], notas:string[]}
-export function tokensNuevos(): {tokens:{direccion,fabricacion,pagos}, json:string}
-export const ALMACENES = ['proyectos', 'instalaciones']
+export const ALMACENES = ['proyectos', 'instalaciones']       // lo que LLEVA
+export const ESPEJOS = ['ventas_hoja']                        // lo que BAJA entero; sync borra lo que la hoja ya no trae
 ```
 
 Cinco decisiones, y ninguna es de estilo:
 
 1. **Lleva `proyectos` e `instalaciones`, y lo dice.** El adaptador expone `lleva(almacen)`, `sync.bombear` pregunta ANTES de gastar una petición, y lo que no lleva se aparta con `estado:'sin_destino'` y la razón escrita. Ni se descarta —perdería el día que exista la base— ni se cuenta como pendiente —daría un contador que nunca baja—. `sync.sinDestino()` lo cuenta aparte y el primer bombeo de un relevo que sí lo lleve lo reincorpora solo.
 2. **No viaja `esperado`.** Un PATCH de Notion es por propiedad, no por fila, y este relevo escribe solo propiedades que nadie teclea a mano allá. El control de concurrencia protegería contra un choque que no puede ocurrir, a cambio de un GET por operación y de un campo nuevo en el modelo congelado de §4.4. Las excepciones son `Estatus` y `Cuenta `, que las manda PAGOS apretando un botón: ahí gana el último, que es lo que quiso decir.
-3. **`bajar()` no crea filas locales.** La base arrastra 199 filas anteriores a la plataforma, sin partidas y sin material: convertirlas llenaría el tablero de proyectos que nadie puede fabricar. Solo se espeja la fila que ya tiene proyecto de este lado, atada por `Folio cotizacion`.
+3. **`bajar()` no crea proyectos, pero sí guarda el récord entero.** La hoja arrastra 199 filas anteriores a la plataforma, sin partidas y sin material: convertirlas en proyectos llenaría el tablero de obra de trabajos que nadie puede fabricar, así que el parche del dinero solo cae sobre la fila que ya tiene proyecto de este lado, atada por `Folio cotizacion`. Pero **cada fila** baja además como renglón de `ventas_hoja` (`ventaDeHoja`), que es de donde Control saca «cuánto vendimos»: hasta septiembre de 2026 esas filas se miraban y se descartaban, y el récord de vendidas era el de ese teléfono. `sync.jalar` anota qué ids vio en cada barrido completo y al cerrarlo borra del espejo lo que la hoja ya no trajo; lo que no cambió no se reescribe.
 4. **El espejo gana el empate.** `sync.fusionar` deja ganar al más nuevo y el registro local se toca cada vez que alguien mueve la etapa, así que `bajar()` iguala el sello al local. Sin eso, un `pago_pendiente` recién bajado perdería contra el `null` local porque alguien avanzó la obra hace un rato, y la cobranza se quedaría vacía para siempre. De esos campos la dueña es Notion por definición (§4.0).
 5. **El id de la página se escribe al vuelo y sin encolar.** Encolar desde el relevo que está vaciando la cola es un bucle que se manda a sí mismo. Se escribe con `DB` directo, y solo campos de los que la dueña es Notion: `notion_page_id` y `notion_estado`.
 

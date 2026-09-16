@@ -20,8 +20,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
-import { deNotion } from '../js/datos/puente.js';
-import { saldoDe } from '../js/datos/ventas.js';
+import { deNotion, ventaDeHoja } from '../js/datos/puente.js';
+import { saldoDe, unificar, vendidoDe, resumenMensual } from '../js/datos/ventas.js';
 
 let bien = 0, mal = 0;
 const eq = (que, dio, esperado) => {
@@ -262,6 +262,44 @@ console.log('\nEL SALDO, DE LA CELDA AL TELÉFONO — la costura que nadie proba
   eq('HEAD[4] es el encabezado real de E', api.HEAD[4], 'Tipo de trabajo');
   cierto('y agregarColumnas se guarda contra ÉSE, no contra un nombre viejo',
          /getValue\(\) !== HEAD\[4\]\) h\.insertColumnBefore\(5\)/.test(src));
+}
+
+console.log('\nUNA DE LAS 199, DE LA CELDA AL RÉCORD DE CONTROL');
+{
+  /* La fila que hasta septiembre de 2026 no llegaba a ninguna pantalla: anterior a la
+     plataforma, sin folio de cotización y sin etapa de obra. Se arma como la lee la hoja, se
+     aplana como lo hace el Apps Script, se convierte como lo hace el relevo y se suma como lo
+     hace Control. Tiene que dar el neto de la hoja, en el mes del anticipo, con saldo cero. */
+  const fila = new Array(api.ULTIMA_COL).fill('');
+  const pon = (nombre, v) => { fila[api.COL[nombre] - 1] = v; };
+  fila[api.COL_FOLIO - 1] = 'V-001';
+  pon('Proyecto', 'Farmacia Guadalajara - Letras'); pon('Estatus', 'LIQUIDADO'); pon('Cuenta ', 'Elias BBVA');
+  pon('IVA', 'Sí'); pon('Precio Subtotal', 25000); pon('Precio Neto ', 29000);
+  pon('Anticipo', 15000); pon('Liquidacion', 14000); pon('Pago Pendiente', 0);
+  pon('Comisiones', 2500); pon('Abono Comision', 2500); pon('Comision Restante', 0);
+  pon('Fecha Anticipo e Instalacion', vm.runInContext('new Date(Date.UTC(2024, 2, 12))', ctx));
+  pon('Fecha Liquidacion', vm.runInContext('new Date(Date.UTC(2024, 2, 30))', ctx));
+  pon('Tipo de trabajo', 'Letras 3D con iluminacion');
+
+  const plano = api.aplanarFila(fila, 'America/Mexico_City');
+  eq('la fila baja sin folio de cotización', plano['Folio cotizacion'], '');
+  eq('deNotion no tiene proyecto que espejar', deNotion(plano), null);
+  const v = ventaDeHoja(plano);
+  eq('pero ventaDeHoja la vuelve un renglón del récord, con el folio de la hoja de id', v.id, 'hoja:V-001');
+  eq('con el neto de la hoja', v.neto, 29000);
+  eq('y la fecha del anticipo', v.fecha_anticipo, '2024-03-12');
+  const u = unificar([], [v]);
+  eq('sin proyectos aquí, es una venta de la hoja', [u.de_hoja, u.enlazados], [1, 0]);
+  eq('Control la suma por el neto', vendidoDe(u.ventas[0]), 29000);
+  eq('con saldo cero porque la hoja dice LIQUIDADO', saldoDe(u.ventas[0]), 0);
+  eq('en marzo de 2024', resumenMensual(u.ventas, { hoy: '2024-03-31', meses: 1 })[0].vendido, 29000);
+  eq('y sin etapa: no es un proyecto y no lo finge', [u.ventas[0].de_hoja, u.ventas[0].etapa], [true, null]);
+
+  /* A fabricación la hoja le quita el dinero antes de mandar la fila, y el renglón del récord
+     tampoco lo inventa: la fila existe, el importe no. */
+  const sinDinero = ventaDeHoja(api.sinLoQueNoLeToca(api.aplanarFila(fila, 'America/Mexico_City'), 'fabricacion'));
+  eq('a fabricación le llega el renglón sin importe, no con cero', [sinDinero.nombre, sinDinero.neto, sinDinero.pago_pendiente],
+     ['Farmacia Guadalajara - Letras', undefined, undefined]);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

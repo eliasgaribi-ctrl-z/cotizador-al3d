@@ -14,8 +14,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { P, ETAPA_A_NOTION, ETAPA_DESDE_NOTION, ESTATUS, CUENTAS, ALMACENES,
-         aNotion, deNotion, instalacionANotion, normalizarUrl, instrucciones,
+import { P, ETAPA_A_NOTION, ETAPA_DESDE_NOTION, ESTATUS, CUENTAS, ALMACENES, ESPEJOS,
+         aNotion, deNotion, instalacionANotion, ventaDeHoja, normalizarUrl, instrucciones,
          VERSION_ESPERADA, versionVieja, avisoVersion }
   from '../js/datos/puente.js';
 import { TIPOS_TRABAJO, ETAPA_NOMBRE } from '../js/datos/proyectos.js';
@@ -216,6 +216,47 @@ console.log('\nEL ESPEJO QUE BAJA: solo lo que es de Notion');
   const raros = deNotion({ 'Folio cotizacion': 'COT-1@A', 'Estatus': 'INVENTADO', 'Cuenta ': 'Otra' });
   eq('un estatus que no existe no baja', raros.estatus_notion, undefined);
   eq('una cuenta que no existe no baja', raros.cuenta, undefined);
+}
+
+console.log('\nEL RÉCORD DE VENTAS: cada fila de la hoja, con o sin proyecto aquí');
+{
+  /* Una de las 199: anterior a la plataforma, sin folio de cotización y sin etapa de obra.
+     `deNotion` la descarta —no hay proyecto que espejar— y hasta septiembre de 2026 ahí se
+     acababa: el récord de vendidas de Control no la veía. */
+  const historica = { id_notion: 'V-001', editado: null, 'Proyecto': 'Farmacia - Letras', 'Cuenta ': 'Elias BBVA',
+    'Estatus': 'LIQUIDADO', 'Tipo de trabajo': ['Letras 3D con iluminacion'], 'IVA': true,
+    'Precio Subtotal': 25000, 'Precio Neto ': 29000, 'Anticipo': 15000, 'Liquidacion': 14000, 'Pago Pendiente': 0,
+    'Comisiones': 2500, 'Abono Comision': 2500, 'Comision Restante': 0, 'Porcentaje comision': null,
+    'Fecha Anticipo e Instalacion': '2024-03-12', 'Fecha instalacion': '2024-03-28', 'Fecha Liquidacion': '2024-03-30',
+    'Folio cotizacion': '', 'Etapa de obra': null, 'Hora instalacion': '', 'Ubicacion': '', 'Direccion': '' };
+  eq('deNotion no tiene qué espejar', deNotion(historica), null);
+  const v = ventaDeHoja(historica);
+  eq('ventaDeHoja sí: el id es el folio interno de la hoja', v.id, 'hoja:V-001');
+  eq('sin folio de cotización no ata a ningún proyecto, pero entra al récord', v.folio_cotizacion, '');
+  eq('el nombre, la cuenta, el estatus y el tipo', [v.nombre, v.cuenta, v.estatus, v.tipo_trabajo],
+     ['Farmacia - Letras', 'Elias BBVA', 'LIQUIDADO', ['Letras 3D con iluminacion']]);
+  eq('el dinero, con las fórmulas tal como bajan',
+     [v.sub, v.neto, v.anticipo, v.liquidacion, v.pago_pendiente, v.comisiones, v.abono_comision, v.comision_restante],
+     [25000, 29000, 15000, 14000, 0, 2500, 2500, 0]);
+  eq('el % vacío no se vuelve cero', v.pct_comision, undefined);
+  eq('las tres fechas', [v.fecha_anticipo, v.fecha_instalacion, v.fecha_liquidacion], ['2024-03-12', '2024-03-28', '2024-03-30']);
+  eq('sin etapa de obra queda null, no «ganado»', v.etapa, null);
+  eq('el IVA', v.iva, true);
+
+  const nueva = { ...historica, id_notion: 'V-201', 'Folio cotizacion': 'COT-0042@K7QM', 'Etapa de obra': 'Cortado',
+                  'Estatus': 'INVENTADO', 'Cuenta ': 'Otra', 'Porcentaje comision': 12 };
+  const n = ventaDeHoja(nueva);
+  eq('con folio de cotización lo trae: es con lo que se enlaza al proyecto', n.folio_cotizacion, 'COT-0042@K7QM');
+  eq('la etapa legible vuelve a su clave', n.etapa, 'cortado');
+  eq('un estatus o una cuenta que no existen no bajan', [n.estatus, n.cuenta], [null, null]);
+  eq('el % sí, cuando viene', n.pct_comision, 12);
+
+  /* A fabricación la hoja le manda la fila sin las columnas de dinero: nada se vuelve cero. */
+  const s = ventaDeHoja({ id_notion: 'V-7', 'Proyecto': 'X', 'Estatus': 'COBRANDO', 'Folio cotizacion': '' });
+  eq('sin dinero no se inventan ceros', [s.neto, s.anticipo, s.pago_pendiente, s.sub], [undefined, undefined, undefined, undefined]);
+  eq('sin nombre y sin folio no es una venta', ventaDeHoja({ id_notion: 'V-8', 'Proyecto': '' }), null);
+  eq('null no revienta', ventaDeHoja(null), null);
+  eq('el relevo declara qué almacén baja entero, para que sync borre lo que la hoja ya no trae', ESPEJOS, ['ventas_hoja']);
 }
 
 console.log('\nCOHERENCIA CON EL PUENTE — la duplicación que sí se compara');

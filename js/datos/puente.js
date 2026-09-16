@@ -34,11 +34,17 @@
    Las dos excepciones son `Estatus` y `Cuenta `, y ahí gana el último: las manda el rol de
    PAGOS a propósito, apretando un botón, y lo que quiso decir es «pon esto».
 
-   ── El espejo que baja, y por qué no crea filas ────────────────────────────────
-   `bajar()` NO convierte cada fila de Notion en un proyecto. La base tiene tres años y 199
+   ── El espejo que baja, y por qué no crea proyectos ────────────────────────────
+   `bajar()` NO convierte cada fila de la hoja en un proyecto. La hoja tiene tres años y 199
    filas anteriores a la plataforma: sin partidas, sin origen y sin material. Convertirlas
-   llenaría el tablero de proyectos huecos que nadie puede fabricar. Solo se espeja la fila
-   que YA tiene proyecto de este lado, atada por `Folio cotizacion`.
+   llenaría el tablero de proyectos huecos que nadie puede fabricar. Sobre un PROYECTO solo
+   se espeja el dinero de la fila que YA lo tiene de este lado, atada por `Folio cotizacion`.
+
+   Lo que sí baja de TODAS las filas es el renglón del libro mayor, al almacén `ventas_hoja`
+   (ver `ventaDeHoja`). Hasta septiembre de 2026 las filas sin proyecto aquí «se miraban y se
+   dejaban donde estaban», y el récord de vendidas de Control era el de ESTE teléfono: lo
+   registrado desde otro aparato o desde la propia hoja no sumaba. Ahora Control suma lo que
+   la hoja dice; el tablero de obra sigue siendo solo de lo que tiene proyecto.
    ============================================================================ */
 
 import * as DB from './db.js';
@@ -122,6 +128,10 @@ export const ETAPA_DESDE_NOTION = Object.fromEntries(
 
 /** Lo que este relevo sabe llevar. `sync.js` lo consulta ANTES de gastar una petición. */
 export const ALMACENES = ['proyectos', 'instalaciones'];
+
+/** Lo que este relevo BAJA entero y de lo que la hoja es la única dueña: `sync.jalar` borra
+ *  de estos almacenes, al cerrar un barrido completo, lo que la hoja ya no trajo. */
+export const ESPEJOS = ['ventas_hoja'];
 
 /* Cada uno con su frase entera y no con un sustantivo metido en una plantilla. La
    plantilla ya se escribió y ya salió mal: «Las listas de compra SE QUEDA en este
@@ -285,6 +295,60 @@ export function deNotion(fila) {
   if (hay(fila[P.comRestante])) parche.comision_restante = num(fila[P.comRestante]);
 
   return parche;
+}
+
+/* ============================================================================
+   EL RÉCORD DE VENTAS DE LA HOJA — cada fila, tenga o no proyecto aquí.
+
+   `deNotion` espeja el dinero de una fila SOBRE el proyecto de este teléfono, y solo si lo
+   hay. Eso dejaba fuera justo lo que Control necesita para decir «cuánto vendimos»: las
+   filas capturadas desde otro teléfono, las dadas de alta en la propia hoja (⚡ AL3D →
+   Registrar nueva venta) y las 199 anteriores a la plataforma.
+
+   Esto es lo otro: la fila entera como registro del almacén `ventas_hoja`, con el folio
+   interno de la hoja (V-042) de id. NO es un proyecto —no tiene partidas, ni material, ni
+   entra al tablero de obra—: es el renglón del libro mayor tal como está allá, para
+   sumarlo. `ventas.unificar` lo cruza con los proyectos locales por «Folio cotizacion».
+   Puro: sin red, sin base y sin reloj, para que la prueba de node lo corra entero.
+   ============================================================================ */
+export function ventaDeHoja(fila) {
+  if (!fila || typeof fila !== 'object') return null;
+  const nombre = texto(fila[P.proyecto]).trim();
+  const folioCot = texto(fila[P.folio]).trim();
+  const folioHoja = texto(fila.id_notion).trim();
+  /* Sin nombre y sin folio no es una venta: es un renglón vacío. */
+  if (!nombre && !folioCot) return null;
+
+  const hay = v => v !== undefined && v !== null && v !== '';
+  const fecha = k => (esISO(fila[k]) ? String(fila[k]) : '');
+  const v = {
+    /* El folio interno de la hoja es el id estable: el nombre se corrige y el folio de
+       cotización solo lo traen las filas que nacieron en el cotizador. */
+    id: 'hoja:' + (folioHoja || folioCot || nombre),
+    folio_hoja: folioHoja,
+    folio_cotizacion: folioCot,
+    nombre,
+    cuenta: CUENTAS.includes(fila[P.cuenta]) ? fila[P.cuenta] : null,
+    estatus: ESTATUS.includes(fila[P.estatus]) ? fila[P.estatus] : null,
+    tipo_trabajo: Array.isArray(fila[P.tipo]) ? fila[P.tipo].map(texto).filter(Boolean) : [],
+    iva: fila[P.iva] !== false,
+    fecha_anticipo: fecha(P.fecha),
+    fecha_instalacion: fecha(P.fechaInst),
+    fecha_liquidacion: fecha(P.fechaLiq),
+    /* La etapa de obra, si la fila la trae: las anteriores a la plataforma no la tienen, y
+       ahí queda null —no «ganado»—, porque inventarle una etapa a una venta de hace dos
+       años es lo que Control no debe hacer. */
+    etapa: ETAPA_DESDE_NOTION[fila[P.etapa]] || null,
+    direccion: texto(fila[P.direccion]),
+  };
+  /* El dinero, SOLO si vino. A fabricación la hoja le manda la fila sin estas columnas, y
+     un ausente no es un cero: `sync.fusionar` conserva lo que ya estaba cuando el campo no
+     viene. Las fórmulas —neto, pendiente, comisiones— bajan y nunca se calculan aquí. */
+  const D = { sub: P.subtotal, neto: P.neto, anticipo: P.anticipo, liquidacion: P.liquidacion,
+              pago_pendiente: P.pendiente, comisiones: P.comisiones, abono_comision: P.abonoCom,
+              comision_restante: P.comRestante, pct_comision: P.pctCom };
+  for (const [k, col] of Object.entries(D)) if (hay(fila[col])) v[k] = num(fila[col]);
+  return v;
 }
 
 /* ----- La versión de la hoja que esta plataforma espera -----
@@ -481,11 +545,13 @@ export function crear(cfg0) {
   }
 
   return {
-    nombre: 'notion',
+    nombre: 'hoja',
 
     /** Los almacenes que este relevo sabe llevar. `sync.js` aparta el resto sin gastar red. */
     lleva(almacen) { return ALMACENES.includes(almacen); },
     motivo: motivoSinDestino,
+    /** Los que baja enteros: `sync.jalar` borra lo que la hoja dejó de traer. */
+    espejos: ESPEJOS.slice(),
 
     async salud() {
       try {
@@ -633,8 +699,9 @@ export function crear(cfg0) {
     },
 
     /**
-     * Baja una página de filas y las convierte en parches de espejo. Lo que no tiene
-     * proyecto de este lado se descarta a propósito: ver la cabecera del archivo.
+     * Baja una página de filas. De CADA fila sale el renglón del libro mayor para
+     * `ventas_hoja`; y de la que tiene proyecto de este lado, además, el parche de espejo
+     * del dinero sobre ese proyecto. Ver la cabecera del archivo.
      */
     async bajar(cursor) {
       const r = await pedir(cfg, '/jalar' + (cursor ? '?cursor=' + encodeURIComponent(cursor) : ''));
@@ -644,11 +711,20 @@ export function crear(cfg0) {
       const registros = [];
 
       for (const fila of filas) {
-        const parche = deNotion((fila && fila.datos) || null);
+        const datos = (fila && fila.datos) || null;
+
+        /* 1. El renglón del récord de ventas. Todas las filas, con o sin proyecto aquí. El
+           sello es «ahora» para que en `sync.fusionar` gane siempre lo que acaba de bajar:
+           de estas filas la dueña es la hoja y nadie las edita de este lado. */
+        const venta = ventaDeHoja(datos);
+        if (venta) registros.push({ almacen: 'ventas_hoja', datos: { ...venta, actualizado_en: Date.now() } });
+
+        /* 2. El espejo del dinero sobre el proyecto de este lado, si lo hay. */
+        const parche = deNotion(datos);
         if (!parche) continue;
 
         const local = await porFolioGlobal(parche.folio_global);
-        if (!local) continue;   // fila anterior a la plataforma: se mira y se deja donde está
+        if (!local) continue;   // sin proyecto aquí: ya quedó en el récord, y al tablero no va
 
         const editado = Date.parse((fila.datos && fila.datos.editado) || '') || 0;
         /* El sello se iguala al local a propósito, y esto es lo único astuto del archivo.

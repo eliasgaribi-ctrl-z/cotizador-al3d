@@ -45,7 +45,29 @@ const ESCRIBIBLES_DIRECCION = [
 ];
 
 const RECIBIDO = { empujar: [], salud: 0, esquema: 0, jalar: 0 };
-let FILA = null;            // la única fila de la hoja de mentiras
+let FILA = null;            // la fila que esta venta va a crear en la hoja de mentiras
+
+/* ── Lo que la hoja YA tiene antes de esta venta ─────────────────────────────────
+   Dos filas que nunca pasaron por este teléfono: una de 2024, anterior a la plataforma, sin
+   folio de cotización y sin etapa de obra; y una de ESTE mes capturada directo en la hoja
+   (⚡ AL3D → Registrar nueva venta). Hasta septiembre de 2026 el relevo las miraba y las
+   dejaba donde estaban, y el récord de vendidas de Control no las sumaba. Las fechas van con
+   la zona de la hoja para que «este mes» sea el mismo mes que ve el navegador. */
+const HOY_MX = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });   // YYYY-MM-DD
+const filaHoja = (id, nombre, o) => ({ id_notion: id, editado: null, 'Proyecto': nombre, 'Cuenta ': 'Elias BBVA',
+  'Estatus': 'LIQUIDADO', 'Tipo de trabajo': ['Letras 3D con iluminacion'], 'IVA': true,
+  'Precio Subtotal': 25000, 'Precio Neto ': 29000, 'Anticipo': 15000, 'Liquidacion': 14000, 'Pago Pendiente': 0,
+  'Comisiones': 2500, 'Abono Comision': 2500, 'Comision Restante': 0, 'Porcentaje comision': null,
+  'Fecha Anticipo e Instalacion': '2024-03-12', 'Fecha instalacion': '2024-03-28', 'Fecha Liquidacion': '2024-03-30',
+  'Folio cotizacion': '', 'Etapa de obra': null, 'Hora instalacion': '', 'Ubicacion': '', 'Direccion': '', ...o });
+let HISTORICAS = [
+  filaHoja('V-001', 'Farmacia Guadalajara - Letras', {}),
+  filaHoja('V-150', 'Óptica Lux - Caja de luz', { 'Estatus': 'COBRANDO', 'Cuenta ': 'Rul HSBC',
+    'Tipo de trabajo': ['Caja de luz con iluminacion'], 'Precio Subtotal': 10000, 'Precio Neto ': 11600,
+    'Anticipo': 5000, 'Liquidacion': null, 'Pago Pendiente': 6600, 'Comisiones': 1000, 'Abono Comision': 0,
+    'Comision Restante': 1000, 'Fecha Anticipo e Instalacion': HOY_MX.slice(0, 7) + '-01',
+    'Fecha instalacion': null, 'Fecha Liquidacion': null }),
+];
 
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -86,13 +108,18 @@ const servidor = createServer(async (req, res) => {
     if (ruta === 'esquema') { RECIBIDO.esquema++; return json({ ok: true, faltan: [], nota: 'ya está todo' }); }
     if (ruta === 'jalar') {
       RECIBIDO.jalar++;
-      if (!FILA) return json({ ok: true, registros: [], cursor: null, hay_mas: false });
-      return json({ ok: true, hay_mas: false, cursor: null, registros: [{ almacen: 'proyectos', datos: {
-        ...FILA.datos, id_notion: FILA.id, editado: FILA.editado,
-        /* Las dos fórmulas: es lo que el espejo del dinero viene a buscar. */
-        'Pago Pendiente': 7920, 'Comision Restante': 1200,
-        'Estatus': 'COBRANDO', 'Cuenta ': 'Rul HSBC',
-      } }] });
+      /* Como el Apps Script: TODAS las filas de la pestaña, tengan o no proyecto en el
+         teléfono, en una sola página. */
+      const registros = HISTORICAS.map(d => ({ almacen: 'proyectos', datos: d }));
+      if (FILA) {
+        registros.push({ almacen: 'proyectos', datos: {
+          ...FILA.datos, id_notion: FILA.id, editado: FILA.editado,
+          /* Las dos fórmulas: es lo que el espejo del dinero viene a buscar. */
+          'Pago Pendiente': 7920, 'Comision Restante': 1200,
+          'Estatus': 'COBRANDO', 'Cuenta ': 'Rul HSBC',
+        } });
+      }
+      return json({ ok: true, hay_mas: false, cursor: null, registros });
     }
     if (ruta === 'empujar') {
       const op = (entrada.ops || [])[0] || {};
@@ -289,6 +316,71 @@ est.cuenta === 'Rul HSBC' ? bien('la cuenta bajó: Rul HSBC') : mal('cuenta: ' +
 /* Y lo que NO tiene que bajar: el nombre lo manda la plataforma, no la hoja. */
 est.nombre && !/OTRO/.test(est.nombre) ? bien('el nombre del proyecto sigue siendo el de la plataforma: «' + est.nombre + '»')
   : mal('el nombre se lo comió el espejo');
+
+// ── 3a. El récord de ventas de la hoja, entero ───────────────────────────────
+console.log('\nEL RÉCORD DE VENTAS DE LA HOJA BAJÓ ENTERO');
+const rec = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const filas = await DB.listar('ventas_hoja');
+  const optica = filas.find(f => f.id === 'hoja:V-150') || null;
+  return { n: filas.length, ids: filas.map(f => f.id).sort(), optica };
+});
+rec.n === 3 ? bien('las tres filas de la hoja están en ventas_hoja: las dos que nunca pasaron por este teléfono y la de esta venta')
+            : mal('ventas_hoja tiene ' + rec.n + ' filas: ' + rec.ids.join(', '));
+rec.optica && rec.optica.neto === 11600 && rec.optica.pago_pendiente === 6600
+  ? bien('con el neto y el saldo tal como los calcula la hoja') : mal('la fila de la hoja bajó mal: ' + JSON.stringify(rec.optica));
+rec.optica && rec.optica.etapa === null ? bien('y sin inventarle una etapa de obra a una fila que no la trae') : mal('etapa: ' + JSON.stringify(rec.optica && rec.optica.etapa));
+
+console.log('\nY CONTROL LO SUMA');
+await p.evaluate(() => { location.hash = '#/control'; });
+await p.waitForTimeout(2500);
+const per = await p.$('[data-periodo="todo"]');
+if (per) { await per.click(); await p.waitForTimeout(500); }
+const ctl = await p.evaluate(() => {
+  const lim = s => String(s || '').replace(/\s+/g, ' ').trim();
+  const linea = document.querySelector('.ct-hoja');
+  return {
+    linea: lim(linea && linea.innerText),
+    cuentas: [...document.querySelectorAll('.pf-cuenta')].map(c => lim(c.innerText)),
+    filas: [...document.querySelectorAll('.ct-fila')].map(f => ({
+      titulo: lim((f.querySelector('.pf-fila-t') || {}).innerText),
+      abrir: !!f.querySelector('[data-abrir]'),
+    })),
+  };
+});
+if (process.env.CAPTURA) { try { await p.screenshot({ path: process.env.CAPTURA, fullPage: true }); } catch (_) {} }
+/con la hoja de finanzas/i.test(ctl.linea) ? bien('arriba del récord dice que los números son con la hoja: «' + ctl.linea + '»')
+  : mal('la línea de la hoja dice «' + ctl.linea + '»');
+/3 ventas/.test(ctl.linea) ? bien('y cuenta las tres ventas de la hoja, la de este teléfono enlazada entre ellas') : mal('no cuenta 3 ventas de la hoja');
+const vendido = ctl.cuentas.find(c => /^\$[\d,.]+ Vendido en/i.test(c)) || '';
+/2 ventas/.test(vendido) ? bien('«Vendido este mes» suma la venta capturada en la hoja con la de este teléfono: «' + vendido + '»')
+  : mal('«Vendido este mes» no suma las dos: «' + vendido + '»');
+const cobrar = ctl.cuentas.find(c => /por cobrar/i.test(c)) || '';
+/según la hoja/i.test(cobrar) && !/estimado/i.test(cobrar)
+  ? bien('y «Por cobrar» ya no dice «estimado» cuando todos los saldos son de la hoja: «' + cobrar + '»')
+  : mal('«Por cobrar» dice: «' + cobrar + '»');
+const optica = ctl.filas.find(f => /Óptica Lux/.test(f.titulo));
+optica && /hoja/.test(optica.titulo) ? bien('la venta capturada en la hoja está en la lista, marcada «hoja»') : mal('no está Óptica Lux marcada como de la hoja: ' + JSON.stringify(ctl.filas));
+optica && !optica.abrir ? bien('y no tiene «Abrir»: no hay proyecto que abrir') : mal('una fila de la hoja ofrece «Abrir»');
+ctl.filas.some(f => /Farmacia Guadalajara/.test(f.titulo)) ? bien('la de 2024 también está, sin folio de cotización y sin etapa') : mal('no está Farmacia Guadalajara');
+const propia = ctl.filas.find(f => /Healthylicious/.test(f.titulo));
+propia && !/hoja|solo aquí/.test(propia.titulo) && propia.abrir ? bien('la de este teléfono, que ya está en la hoja, no lleva etiqueta y sí se abre')
+  : mal('la venta propia quedó así: ' + JSON.stringify(propia));
+
+console.log('\nLO QUE LA HOJA BORRA, SE VA DEL RÉCORD');
+HISTORICAS = HISTORICAS.filter(h => h.id_notion !== 'V-001');
+const purga = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const S = await import('./js/datos/sync.js');
+  let r, vueltas = 0;
+  do { r = await S.jalar(); vueltas++; } while (r.ok && r.valor.hay_mas && vueltas < 5);
+  const filas = await DB.listar('ventas_hoja');
+  return { ok: r.ok, borrados: r.valor && r.valor.borrados, n: filas.length, ids: filas.map(f => f.id).sort(),
+           sinCambio: r.valor && r.valor.sin_cambio };
+});
+purga.ok && purga.borrados === 1 ? bien('al cerrar el barrido se quitó la fila que la hoja ya no trajo') : mal('borrados: ' + JSON.stringify(purga));
+purga.n === 2 && !purga.ids.includes('hoja:V-001') ? bien('quedan las dos que sí están en la hoja') : mal('quedan: ' + purga.ids.join(', '));
+purga.sinCambio >= 2 ? bien('y las que no cambiaron no se reescribieron (' + purga.sinCambio + ' sin cambio)') : mal('sin_cambio: ' + purga.sinCambio);
 
 // ── 3b. El segundo cambio va como cambio, no como alta ───────────────────────
 console.log('\nEL SEGUNDO CAMBIO DEL MISMO PROYECTO');

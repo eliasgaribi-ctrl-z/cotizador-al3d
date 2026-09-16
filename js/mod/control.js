@@ -10,11 +10,18 @@
    Tres pestañas, y las tres se apoyan en lo que ya existe:
      · VENTAS — lo vendido este mes contra el anterior, el pipeline valorizado (autorizadas
        sin decidir), lo perdido, la conversión, el ticket promedio; los últimos doce meses
-       en barras; y la lista de proyectos filtrable por periodo, con su CSV completo.
-     · POR COBRAR — la cartera: cada proyecto con saldo, de mayor a menor, con el mensaje de
-       WhatsApp ya armado. El saldo es ESTIMADO (total menos anticipo pactado) mientras el
-       puente no baje la fórmula de Notion, y la pantalla lo dice.
+       en barras; y la lista de ventas filtrable por periodo, con su CSV completo.
+     · POR COBRAR — la cartera: cada venta con saldo, de mayor a menor, con el mensaje de
+       WhatsApp ya armado. El saldo es el de la hoja cuando bajó; si no, ESTIMADO (total
+       menos anticipo pactado), y la pantalla dice cuál de los dos es.
      · BITÁCORA — quién hizo qué y cuándo, en toda la plataforma. Se lee, no se edita.
+
+   De dónde salen los números, desde septiembre de 2026: de la HOJA de finanzas y de este
+   teléfono, en una sola lista (`Ventas.unificar`). El puente baja el récord entero de la
+   pestaña Ventas al almacén `ventas_hoja` —también lo que se registró desde otro aparato o
+   en la propia hoja— y aquí se cruza con los proyectos locales por folio. Arriba del récord
+   se dice de cuándo son los datos y hay un botón para traerlos; al entrar, si llevan más de
+   diez minutos, se traen solos. Sin puente, la pantalla lo dice y enseña lo de aquí.
 
    La ven dirección y pagos. Fabricación no la tiene en la barra: es la pantalla del dinero,
    y `veDinero()` es false para ese rol.
@@ -30,6 +37,7 @@ import * as Cot from '../datos/cotizador.js';
 import * as Agenda from '../datos/agenda.js';
 import * as Ventas from '../datos/ventas.js';
 import * as Bitacora from '../datos/bitacora.js';
+import * as Sync from '../datos/sync.js';
 import { $, ico, esc, money, toast, vacio, segmento, chip, fmtFecha, linkWa, descargarArchivo,
          hoyISO } from '../nucleo/ui.js';
 import { masMeses } from '../nucleo/fechas.js';
@@ -42,6 +50,11 @@ let BUSCA = '';
 let ENTIDAD = '';            // filtro de la bitácora
 let BUSCA_BIT = '';
 let D = null;                // lo leído
+let TRAYENDO = false;        // hay una bajada de la hoja en curso, pedida desde aquí
+/* Cuánto puede tener el récord de la hoja antes de que entrar a Control lo vuelva a pedir
+   solo. Diez minutos: PAGOS captura un cobro en la hoja y la dirección abre el teléfono a
+   ver la cartera; más que eso ya es una cifra vieja pintada como de hoy. */
+const MIN_FRESCO_MS = 10 * 60 * 1000;
 
 export async function montar(contenedor, ctx) {
   cont = contenedor;
@@ -58,10 +71,13 @@ export async function montar(contenedor, ctx) {
   }
   if (CTX.acciones) {
     const acc = CTX.acciones('<button type="button" class="btn btn-gho pf-btn-corto" data-csv>' +
-      ico('i-bajar') + ' Bajar CSV de proyectos</button>');
+      ico('i-bajar') + ' Bajar CSV de ventas</button>');
     if (acc) acc.addEventListener('click', alClic);
   }
   await recargar();
+  /* Sin esperar: la pantalla ya está pintada con lo que hay, y si la hoja trae algo se
+     repinta sola. Esperar la red antes de pintar sería una pantalla en blanco sin señal. */
+  refrescarSiToca();
 }
 
 export function desmontar() {
@@ -76,7 +92,14 @@ export function desmontar() {
 async function leer() {
   const hoy = hoyISO();
   const proyectos = await Proy.listar({});
-  const ganados = new Set(proyectos.map(p => p.folio_global));
+  /* El récord de la hoja, cruzado con los proyectos de aquí. Fabricación no ve dinero y no
+     tiene esta pantalla, pero por si llega por una ruta vieja, no se le lee el espejo. */
+  const hoja = Prefs.veDinero() ? await DB.listar('ventas_hoja') : [];
+  const union = Ventas.unificar(proyectos, hoja);
+  const ventas = union.ventas;
+  /* Con los folios de la hoja también: una cotización de este teléfono que ya está en la
+     hoja —registrada desde el cotizador con el puente— no está «sin decidir». */
+  const ganados = new Set(ventas.map(p => p.folio_global).filter(Boolean));
   const sinDecidir = Cot.sinDecidir(ganados);
   const historial = Cot.historial();
   const inst = await Agenda.listar({ vivas: true });
@@ -86,10 +109,11 @@ async function leer() {
     const prev = fechaInst.get(i.proyecto_id);
     if (!prev || i.fecha < prev) fechaInst.set(i.proyecto_id, i.fecha);
   }
-  const kpi = Ventas.indicadores(proyectos, sinDecidir, { hoy, valorDe: Cot.totalVendido });
-  const meses = Ventas.resumenMensual(proyectos, { hoy, meses: 12 });
-  const conv = Ventas.conversion(historial, proyectos, Prefs.dispositivo());
-  const cartera = Ventas.porCobrar(proyectos);
+  const kpi = Ventas.indicadores(ventas, sinDecidir, { hoy, valorDe: Cot.totalVendido });
+  const meses = Ventas.resumenMensual(ventas, { hoy, meses: 12 });
+  const conv = Ventas.conversion(historial, ventas, Prefs.dispositivo());
+  const cartera = Ventas.porCobrar(ventas);
+  const bajada = await Sync.estadoBajada();
 
   /* El almacén, solo para dirección: fabricación no entra aquí y pagos no compra. */
   let almacen = null;
@@ -101,12 +125,102 @@ async function leer() {
     } catch (_) { almacen = null; }
   }
   const bitacora = await Bitacora.listar({ limite: 400 });
-  return { hoy, proyectos, sinDecidir, historial, fechaInst, kpi, meses, conv, cartera, almacen, bitacora };
+  return { hoy, proyectos, ventas, union, bajada, sinDecidir, historial, fechaInst, kpi, meses, conv,
+           cartera, almacen, bitacora };
 }
 
 async function recargar() {
   D = await leer();
   pintar();
+}
+
+/* ============================================================================
+   Traer la hoja
+   ============================================================================ */
+
+/** Al entrar: si el récord de la hoja no está o ya tiene más de diez minutos, se pide. */
+function refrescarSiToca() {
+  if (!D || !D.bajada || !D.bajada.configurado) return;
+  const ultima = Number(D.bajada.completa) || 0;
+  if (ultima && Date.now() - ultima < MIN_FRESCO_MS) return;
+  traerDeLaHoja(true);
+}
+
+/**
+ * Manda lo pendiente y baja la hoja entera, página por página, y repinta con lo que llegó.
+ * `silencioso` es el refresco automático: sin avisos, porque un aviso en cada entrada a la
+ * pantalla es un aviso que se aprende a ignorar. El botón sí avisa.
+ */
+async function traerDeLaHoja(silencioso) {
+  if (TRAYENDO || !Sync.configurado()) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    if (!silencioso) toast('Sin señal: se enseña lo último que bajó de la hoja.', '', 3400);
+    return;
+  }
+  TRAYENDO = true;
+  pintar();
+  let error = null, cambios = 0, borrados = 0;
+  try {
+    try { await Sync.bombear(); } catch (_) { /* lo pendiente sale cuando pueda; bajar no depende de eso */ }
+    /* Tope de veinte vueltas —mil filas— para que un cursor que no avanza no deje esto
+       dando vueltas para siempre. La hoja de hoy son siete páginas. */
+    for (let vuelta = 0; vuelta < 20; vuelta++) {
+      const r = await Sync.jalar();
+      if (!r.ok) { error = r.mensaje; break; }
+      const v = r.valor || {};
+      cambios += (Number(v.nuevos) || 0) + (Number(v.actualizados) || 0);
+      borrados += Number(v.borrados) || 0;
+      if (!v.hay_mas) break;
+    }
+  } finally { TRAYENDO = false; }
+  if (!cont) return;                      // se salió de la pantalla mientras bajaba
+  await recargar();
+  if (silencioso) return;
+  if (error) { toast(error, 'err', 5200); return; }
+  toast(cambios || borrados
+    ? 'La hoja trajo ' + cambios + (cambios === 1 ? ' cambio' : ' cambios') +
+      (borrados ? ' y quitó ' + borrados + (borrados === 1 ? ' venta que ya no está allá' : ' ventas que ya no están allá') : '')
+    : 'El récord ya estaba al día con la hoja', 'ok', 3800);
+}
+
+/** «hace un momento», «hace 12 min», «hace 3 h», «ayer», «hace 4 días». */
+function haceCuanto(ts) {
+  const ms = Date.now() - (Number(ts) || 0);
+  if (!(ms >= 0)) return '';
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'hace un momento';
+  if (min < 60) return 'hace ' + min + ' min';
+  const h = Math.floor(min / 60);
+  if (h < 24) return 'hace ' + h + ' h';
+  const d = Math.floor(h / 24);
+  return d === 1 ? 'ayer' : 'hace ' + d + ' días';
+}
+
+/* La línea de arriba del récord: de dónde salen los números y de cuándo son. Es lo que
+   evita que una cifra de hace tres días se lea como la de hoy. */
+function lineaHoja() {
+  const b = D.bajada || {};
+  const u = D.union || {};
+  const boton = txt => '<button type="button" class="btn btn-gho pf-btn-corto" data-act="hoja-traer"' +
+    (TRAYENDO ? ' disabled' : '') + '>' + ico(TRAYENDO ? 'i-reloj' : 'i-bajar') + ' ' +
+    esc(TRAYENDO ? 'Trayendo la hoja…' : txt) + '</button>';
+  if (!b.configurado) {
+    return '<p class="pf-frescura ct-hoja">' + ico('i-nube-off') +
+      '<span>Sin puente a la hoja de finanzas: esto es lo que se registró desde este dispositivo. ' +
+      'El récord completo del negocio se conecta en Ajustes → El puente.</span>' +
+      '<button type="button" class="btn btn-gho pf-btn-corto" data-ir="ajustes">' + ico('i-nube') + ' Conectar la hoja</button></p>';
+  }
+  if (!b.completa) {
+    return '<p class="pf-frescura ct-hoja">' + ico('i-nube') + '<span>' +
+      (b.a_medias ? 'La hoja se trajo a medias y falta terminar de bajarla.' : 'Todavía no se ha traído el récord de ventas de la hoja.') +
+      (b.ultimo_error ? ' ' + esc(b.ultimo_error) : '') + '</span>' + boton('Traer la hoja') + '</p>';
+  }
+  const n = (Number(u.de_hoja) || 0) + (Number(u.enlazados) || 0);
+  return '<p class="pf-frescura ct-hoja">' + ico('i-nube') + '<span>Con la hoja de finanzas: <b>' + n +
+    (n === 1 ? ' venta' : ' ventas') + '</b> de la hoja' +
+    (u.solo_aqui ? ' y ' + u.solo_aqui + (u.solo_aqui === 1 ? ' que solo está' : ' que solo están') + ' en este dispositivo' : '') +
+    ' · actualizado ' + esc(haceCuanto(b.completa)) +
+    (b.a_medias ? ' · hay una bajada a medias' : '') + '</span>' + boton('Actualizar') + '</p>';
 }
 
 /* ============================================================================
@@ -129,25 +243,36 @@ function pintar() {
   cont.innerHTML = '<div class="ag-barra">' + tabs + '</div>' + cuerpo;
 }
 
+/* «Por cobrar» es de la hoja cuando TODOS los saldos bajaron de allá; «(estimado)» si alguno
+   se calculó aquí. Decir «estimado» sobre la fórmula de la hoja era mentir para abajo. */
+function etiquetaCobrar() {
+  const conSaldo = D.cartera.length;
+  const deHoja = D.cartera.filter(x => x.deNotion).length;
+  if (!conSaldo || deHoja === conSaldo) return { t: 'Por cobrar', em: conSaldo ? 'según la hoja' : '' };
+  if (!deHoja) return { t: 'Por cobrar (estimado)', em: 'total menos anticipo' };
+  return { t: 'Por cobrar (parte estimado)', em: deHoja + ' de ' + conSaldo + ' con saldo de la hoja' };
+}
+
 /* ----- Ventas ----- */
 function pintarVentas() {
   const k = D.kpi;
   const c = [];
+  const cob = etiquetaCobrar();
   c.push(cuenta(money(k.mes.total), 'Vendido en ' + k.mes.etiqueta, { dinero: true,
-    em: k.mes.n + (k.mes.n === 1 ? ' proyecto' : ' proyectos') +
+    em: k.mes.n + (k.mes.n === 1 ? ' venta' : ' ventas') +
         (k.variacion === null ? '' : ' · ' + (k.variacion >= 0 ? '+' : '') + k.variacion + ' % vs ' + k.mesAnterior.etiqueta) }));
   c.push(cuenta(money(k.mesAnterior.total), 'Vendido en ' + k.mesAnterior.etiqueta,
-    { em: k.mesAnterior.n + (k.mesAnterior.n === 1 ? ' proyecto' : ' proyectos') }));
+    { em: k.mesAnterior.n + (k.mesAnterior.n === 1 ? ' venta' : ' ventas') }));
   c.push(cuenta(money(k.pipeline.total), 'Autorizado sin decidir', { urge: k.pipeline.n > 0,
     em: k.pipeline.n + (k.pipeline.n === 1 ? ' cotización' : ' cotizaciones') }));
-  c.push(cuenta(money(k.porCobrar.total), 'Por cobrar (estimado)', { urge: k.porCobrar.n > 0,
-    em: k.porCobrar.n + (k.porCobrar.n === 1 ? ' proyecto con saldo' : ' proyectos con saldo') }));
+  c.push(cuenta(money(k.porCobrar.total), cob.t, { urge: k.porCobrar.n > 0,
+    em: k.porCobrar.n + (k.porCobrar.n === 1 ? ' venta con saldo' : ' ventas con saldo') + (cob.em ? ' · ' + cob.em : '') }));
   c.push(cuenta(D.conv.tasa === null ? '—' : D.conv.tasa + ' %', 'Conversión',
     { em: D.conv.ganadas + ' ganadas de ' + (D.conv.ganadas + D.conv.perdidas) + ' decididas' }));
   c.push(cuenta(money(k.perdidoMes.total), 'No se dio en ' + k.mes.etiqueta, { mal: k.perdidoMes.n > 0,
     em: k.perdidoMes.n + (k.perdidoMes.n === 1 ? ' cotización' : ' cotizaciones') }));
 
-  const partes = ['<div class="pf-cuentas">' + c.join('') + '</div>'];
+  const partes = [lineaHoja(), '<div class="pf-cuentas">' + c.join('') + '</div>'];
 
   partes.push(graficaMeses());
 
@@ -155,10 +280,11 @@ function pintarVentas() {
 
   partes.push(listaProyectos());
 
-  partes.push('<p class="pf-nota">«Vendido» suma el precio autorizado de los proyectos por la fecha en que se ganaron. ' +
-    '«Por cobrar» es el total menos el anticipo pactado, cero si la hoja ya dice LIQUIDADO: es una estimación local hasta que el puente ' +
-    'baje el saldo de la hoja. El ticket promedio de los últimos doce meses es ' + esc(money(k.ticket)) +
-    (k.ultimos12.n ? ' sobre ' + k.ultimos12.n + ' proyectos' : '') + '.</p>');
+  partes.push('<p class="pf-nota">«Vendido» suma el importe de cada venta por la fecha de su anticipo: el de la hoja cuando la ' +
+    'venta está allá, y el que se firmó aquí cuando todavía no ha salido de este dispositivo. «Por cobrar» es el saldo que calcula ' +
+    'la hoja cuando bajó; si no, el total menos el anticipo pactado, y cero si el estatus ya dice LIQUIDADO. ' +
+    'El ticket promedio de los últimos doce meses es ' + esc(money(k.ticket)) +
+    (k.ultimos12.n ? ' sobre ' + k.ultimos12.n + ' ventas' : '') + '.</p>');
   return partes.join('');
 }
 
@@ -183,7 +309,7 @@ function graficaMeses() {
         (m.perdido > 0 ? '<i class="ct-b perdido" style="width:' + pp + '%"></i>' : '') +
       '</span>' +
       '<span class="ct-mes-v">' + esc(money(m.vendido)) +
-        '<small>' + m.ganados + (m.ganados === 1 ? ' proyecto' : ' proyectos') +
+        '<small>' + m.ganados + (m.ganados === 1 ? ' venta' : ' ventas') +
         (m.perdidos ? ' · ' + m.perdidos + ' no se ' + (m.perdidos === 1 ? 'dio' : 'dieron') : '') + '</small></span>' +
     '</div>';
   }).join('');
@@ -220,10 +346,10 @@ function proyectosDelPeriodo() {
   else if (PERIODO === '3m') desde = masMeses(hoy.slice(0, 7) + '-01', -2);
   else if (PERIODO === '12m') desde = masMeses(hoy.slice(0, 7) + '-01', -11);
   const q = plano(BUSCA);
-  return D.proyectos.filter(p => {
+  return D.ventas.filter(p => {
     if (desde && String(p.fecha_ganado || '') < desde) return false;
     if (!q) return true;
-    return plano([p.nombre, p.contacto, p.negocio, p.folio_local, p.cuenta, p.estatus_notion,
+    return plano([p.nombre, p.contacto, p.negocio, p.folio_local, p.folio_hoja, p.cuenta, p.estatus_notion,
       (p.tipo_trabajo || []).join(' ')].join(' ')).includes(q);
   });
 }
@@ -237,29 +363,51 @@ function listaProyectos() {
   ], PERIODO, 'data-periodo', 'Periodo');
   const filas = lista.length
     ? lista.map(filaProyecto).join('')
-    : vacio('Nada en este periodo', 'Cuando una cotización se marque como ganada, aparece aquí con su importe.');
-  return '<div class="card"><div class="card-h"><h2>' + ico('i-proyectos') + ' Proyectos' +
+    : vacio('Nada en este periodo', 'Cuando una cotización se marque como ganada, o cuando baje una venta de la hoja, aparece aquí con su importe.');
+  return '<div class="card"><div class="card-h"><h2>' + ico('i-venta') + ' Ventas' +
       ' <span class="folio">' + vivos.length + '</span></h2>' +
       '<span class="ct-total">' + esc(money(total)) + '</span></div>' +
     '<div class="card-b">' +
       '<div class="ag-barra">' + filtros +
-        '<input type="search" class="ct-busca" placeholder="Buscar por nombre, folio, cuenta o estatus" value="' + esc(BUSCA) + '" data-busca aria-label="Buscar proyectos"></div>' +
+        '<input type="search" class="ct-busca" placeholder="Buscar por nombre, folio, cuenta o estatus" value="' + esc(BUSCA) + '" data-busca aria-label="Buscar ventas"></div>' +
       filas +
     '</div></div>';
 }
 
 const ETAPA_CLASE = e => Proy.claseEtapa(e);
 
+/* Los folios de una venta: el de cotización si lo hay y el de la hoja (V-042) si está allá.
+   Una fila de la hoja anterior a la plataforma solo tiene el segundo. */
+function foliosDe(p) {
+  const partes = [];
+  if (p.folio_local && p.folio_local !== p.folio_hoja) partes.push(p.folio_local);
+  if (p.folio_hoja) partes.push(p.folio_hoja);
+  return partes.join(' · ');
+}
+
+/* De dónde es el renglón. Se dice en una etiqueta chica y solo cuando aporta: «hoja» para lo
+   que solo está allá —no tiene proyecto y no se puede abrir—, y «solo aquí» para lo que
+   todavía no ha salido de este dispositivo hacia la hoja. Lo que está en los dos lados no
+   lleva etiqueta: es el caso normal. */
+function origenDe(p) {
+  if (p.de_hoja) return ' <span class="pf-sem nada ct-origen">hoja</span>';
+  if (D.bajada && D.bajada.configurado && D.bajada.completa && !p.en_hoja && p.etapa !== 'cancelado') {
+    return ' <span class="pf-sem falta ct-origen">solo aquí</span>';
+  }
+  return '';
+}
+
 function filaProyecto(p) {
   const saldo = Ventas.saldoDe(p);
   const cancelado = p.etapa === 'cancelado';
+  const etapa = cancelado ? 'No se dio' : (p.etapa ? (Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) : '');
   return '<div class="pf-fila ct-fila">' +
     '<span class="pf-fila-ico' + (cancelado ? '' : (saldo > 0 ? ' urge' : ' bien')) + '">' +
-      ico(Proy.ICO_ETAPA[p.etapa] || 'i-proyectos') + '</span>' +
+      ico(p.etapa ? (Proy.ICO_ETAPA[p.etapa] || 'i-proyectos') : 'i-venta') + '</span>' +
     '<div class="pf-fila-tx">' +
-      '<p class="pf-fila-t">' + esc(p.nombre || p.folio_local) + '</p>' +
-      '<p class="pf-fila-d">' + esc(p.folio_local || '') + ' · ' + esc(fmtFecha(p.fecha_ganado) || 'sin fecha') +
-        ' · <span class="pf-etapa ' + ETAPA_CLASE(p.etapa) + '">' + esc(cancelado ? 'No se dio' : (Proy.ETAPA_NOMBRE[p.etapa] || p.etapa)) + '</span>' +
+      '<p class="pf-fila-t">' + esc(p.nombre || p.folio_local || p.folio_hoja) + origenDe(p) + '</p>' +
+      '<p class="pf-fila-d">' + esc(foliosDe(p) || 'sin folio') + ' · ' + esc(fmtFecha(p.fecha_ganado) || 'sin fecha') +
+        (etapa ? ' · <span class="pf-etapa ' + ETAPA_CLASE(p.etapa) + '">' + esc(etapa) + '</span>' : '') +
         (p.cuenta ? ' · ' + esc(p.cuenta) : '') + (p.estatus_notion ? ' · ' + esc(p.estatus_notion) : '') +
       '</p>' +
     '</div>' +
@@ -267,7 +415,8 @@ function filaProyecto(p) {
       (!cancelado && saldo > 0 ? '<small>saldo ' + esc(money(saldo)) + '</small>' : '') +
       (!cancelado && saldo <= 0 ? '<small>cobrado</small>' : '') +
     '</div>' +
-    '<div class="pf-fila-acc"><button type="button" class="btn btn-gho pf-btn-corto" data-abrir="' + esc(p.id) + '">Abrir</button></div>' +
+    (p.de_hoja ? '' :
+      '<div class="pf-fila-acc"><button type="button" class="btn btn-gho pf-btn-corto" data-abrir="' + esc(p.id) + '">Abrir</button></div>') +
   '</div>';
 }
 
@@ -275,23 +424,24 @@ function filaProyecto(p) {
 function pintarCobrar() {
   const k = D.kpi;
   const entregados = D.cartera.filter(x => x.entregado);
+  const cob = etiquetaCobrar();
   const c = [
-    cuenta(money(k.porCobrar.total), 'Por cobrar (estimado)', { dinero: true,
-      em: k.porCobrar.n + (k.porCobrar.n === 1 ? ' proyecto' : ' proyectos') }),
+    cuenta(money(k.porCobrar.total), cob.t, { dinero: true,
+      em: k.porCobrar.n + (k.porCobrar.n === 1 ? ' venta' : ' ventas') + (cob.em ? ' · ' + cob.em : '') }),
     cuenta(money(entregados.reduce((s, x) => s + x.saldo, 0)), 'Ya instalado y sin liquidar', { urge: entregados.length > 0,
       em: entregados.length + (entregados.length === 1 ? ' proyecto' : ' proyectos') }),
-    cuenta(money(k.porCobrar.anticipos), 'Anticipos pactados', { em: 'de los proyectos vivos' }),
+    cuenta(money(k.porCobrar.anticipos), 'Anticipos pactados', { em: 'de las ventas vivas' }),
   ];
   const filas = D.cartera.length
     ? D.cartera.map(filaCobro).join('')
-    : vacio('No hay saldos pendientes', 'Cada proyecto vivo tiene su anticipo igual al total, o la hoja ya lo marcó como liquidado.');
-  return '<div class="pf-cuentas">' + c.join('') + '</div>' +
+    : vacio('No hay saldos pendientes', 'Cada venta viva tiene su anticipo igual al total, o la hoja ya la marcó como liquidada.');
+  return lineaHoja() + '<div class="pf-cuentas">' + c.join('') + '</div>' +
     '<div class="card"><div class="card-h"><h2>' + ico('i-venta') + ' Cartera' +
       ' <span class="folio">' + D.cartera.length + '</span></h2></div>' +
     '<div class="card-b">' + filas + '</div></div>' +
     '<p class="pf-nota">Primero lo instalado: ese trabajo ya se entregó y ese dinero ya debía estar cobrado. El saldo es el ' +
-    'total vendido menos el anticipo pactado; si el puente baja el saldo de la hoja, manda ese número y aquí se marca ' +
-    'como «de la hoja». Marcar LIQUIDADO en la ficha del proyecto lo saca de esta lista.</p>';
+    'que calcula la hoja cuando la venta está allá y bajó («saldo de la hoja»); si no, el total vendido menos el anticipo ' +
+    'pactado. Marcar LIQUIDADO —en la hoja o en la ficha del proyecto— lo saca de esta lista.</p>';
 }
 
 function filaCobro(x) {
@@ -299,22 +449,22 @@ function filaCobro(x) {
   const texto = 'Hola' + (p.contacto ? ' ' + p.contacto : '') + ', le escribimos de AL3D.\n' +
     'Le comparto el saldo de ' + (p.negocio || p.nombre || 'su trabajo') + ': ' + money(x.saldo) + '.\n' +
     '¿Le mando los datos de la cuenta o prefiere efectivo?\n— AL3D';
+  const acciones =
+    (p.tel ? '<a class="btn-wa" href="' + esc(linkWa(p.tel, texto)) + '" target="_blank" rel="noopener">' + ico('i-wa') + ' Cobrar</a>' : '') +
+    (p.de_hoja ? '' : '<button type="button" class="btn btn-gho pf-btn-corto" data-abrir="' + esc(p.id) + '">Abrir</button>');
   return '<div class="pf-fila ct-fila">' +
     '<span class="pf-fila-ico' + (x.entregado ? ' mal' : ' urge') + '">' + ico(x.entregado ? 'i-check' : 'i-reloj') + '</span>' +
     '<div class="pf-fila-tx">' +
-      '<p class="pf-fila-t">' + esc(p.nombre || p.folio_local) + '</p>' +
-      '<p class="pf-fila-d">' + esc(p.folio_local || '') + ' · <span class="pf-etapa ' + ETAPA_CLASE(p.etapa) + '">' +
-        esc(Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) + '</span>' +
+      '<p class="pf-fila-t">' + esc(p.nombre || p.folio_local || p.folio_hoja) + origenDe(p) + '</p>' +
+      '<p class="pf-fila-d">' + esc(foliosDe(p) || 'sin folio') +
+        (p.etapa ? ' · <span class="pf-etapa ' + ETAPA_CLASE(p.etapa) + '">' + esc(Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) + '</span>' : '') +
         ' · vendido ' + esc(money(Ventas.vendidoDe(p))) + ' · anticipo ' + esc(money(p.anti_pactado)) +
         (p.cuenta ? ' · ' + esc(p.cuenta) : '') + (p.estatus_notion ? ' · ' + esc(p.estatus_notion) : '') +
-        (x.deNotion ? ' · saldo de la hoja' : '') +
+        (x.deNotion ? ' · saldo de la hoja' : ' · saldo estimado') +
       '</p>' +
     '</div>' +
     '<div class="ct-monto saldo">' + esc(money(x.saldo)) + '<small>por cobrar</small></div>' +
-    '<div class="pf-fila-acc">' +
-      (p.tel ? '<a class="btn-wa" href="' + esc(linkWa(p.tel, texto)) + '" target="_blank" rel="noopener">' + ico('i-wa') + ' Cobrar</a>' : '') +
-      '<button type="button" class="btn btn-gho pf-btn-corto" data-abrir="' + esc(p.id) + '">Abrir</button>' +
-    '</div>' +
+    (acciones ? '<div class="pf-fila-acc">' + acciones + '</div>' : '') +
   '</div>';
 }
 
@@ -404,6 +554,7 @@ function alClic(ev) {
   if (ir && CTX && CTX.ir) { CTX.ir(ir.dataset.ir); return; }
   const abrir = t.closest('[data-abrir]');
   if (abrir && CTX && CTX.pasar) { CTX.pasar('proyectos', { proyecto_id: abrir.dataset.abrir }); return; }
+  if (t.closest('[data-act="hoja-traer"]')) { traerDeLaHoja(false); return; }
   if (t.closest('[data-csv]')) { bajarCSV(); }
 }
 
@@ -426,13 +577,13 @@ function alEscribir(ev) {
 
 function bajarCSV() {
   if (!D) return;
-  const lista = D.proyectos;
-  if (!lista.length) { toast('Todavía no hay proyectos que exportar', '', 2600); return; }
+  const lista = D.ventas;
+  if (!lista.length) { toast('Todavía no hay ventas que exportar', '', 2600); return; }
   const csv = Ventas.csvProyectos(lista, D.fechaInst);
   const d = new Date(), p = n => String(n).padStart(2, '0');
   const sello = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
-  if (descargarArchivo(csv, 'al3d-proyectos-' + sello + '.csv', 'text/csv;charset=utf-8')) {
-    toast(lista.length + (lista.length === 1 ? ' proyecto exportado' : ' proyectos exportados') + ' a CSV, con saldo, cuenta y estatus', 'ok', 3600);
+  if (descargarArchivo(csv, 'al3d-ventas-' + sello + '.csv', 'text/csv;charset=utf-8')) {
+    toast(lista.length + (lista.length === 1 ? ' venta exportada' : ' ventas exportadas') + ' a CSV, con saldo, cuenta, estatus y origen', 'ok', 3600);
   }
 }
 

@@ -8,7 +8,7 @@
  * Uso:  node pruebas/ventas.mjs
  */
 import { resumenMensual, indicadores, saldoDe, porCobrar, conversion, csvProyectos, csvCampo,
-         mesDe, etiquetaMes, rangoMes, vendidoDe, COLUMNAS_CSV } from '../js/datos/ventas.js';
+         mesDe, etiquetaMes, rangoMes, vendidoDe, COLUMNAS_CSV, ventaDesdeHoja, unificar } from '../js/datos/ventas.js';
 
 let bien = 0, mal = 0;
 const eq = (que, dio, esperado) => {
@@ -124,10 +124,74 @@ eq('encabezado con las columnas', lineas[0].replace('﻿', ''), COLUMNAS_CSV.map
 eq('dos líneas: encabezado y una fila', lineas.length, 2);
 const campos = lineas[1].split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/);
 eq('mismo número de campos que columnas', campos.length, COLUMNAS_CSV.length);
-eq('la fila lleva folio, fecha, etapa y saldo', [campos[0], campos[1], campos[6], campos[10]], ['COT-0001', '2026-09-03', 'En diseño', '5800.00']);
-eq('la instalación entra por el mapa de fechas', campos[14], '2026-09-20');
-eq('la dirección con coma va entre comillas', campos[15], '"Calle 1, Col. X"');
-ok('las notas de dos renglones quedan en uno', !campos[17].includes('\n'));
+eq('la fila lleva folio, fecha, etapa y saldo', [campos[0], campos[2], campos[7], campos[11]], ['COT-0001', '2026-09-03', 'En diseño', '5800.00']);
+eq('la instalación entra por el mapa de fechas', campos[15], '2026-09-20');
+eq('la dirección con coma va entre comillas', campos[16], '"Calle 1, Col. X"');
+ok('las notas de dos renglones quedan en uno', !campos[18].includes('\n'));
+eq('el origen de un proyecto que solo está aquí es su aparato', campos[17], 'AAAA');
+
+console.log('\nEL RÉCORD DE LA HOJA, UNIDO AL DE ESTE TELÉFONO');
+{
+  /* Una fila del espejo `ventas_hoja`, como la deja `puente.ventaDeHoja`: una venta anterior a
+     la plataforma, sin folio de cotización y sin etapa de obra. */
+  const fila = (o = {}) => ({ id: 'hoja:V-001', folio_hoja: 'V-001', folio_cotizacion: '', nombre: 'Farmacia - Letras',
+    cuenta: 'Elias BBVA', estatus: 'LIQUIDADO', tipo_trabajo: ['Letras 3D con iluminacion'], iva: true,
+    fecha_anticipo: '2026-08-12', fecha_instalacion: '2026-08-28', fecha_liquidacion: '2026-08-30', etapa: null, direccion: '',
+    sub: 25000, neto: 29000, anticipo: 15000, liquidacion: 14000, pago_pendiente: 0, comision_restante: 0, ...o });
+
+  const v = ventaDesdeHoja(fila());
+  eq('una fila de la hoja se lee como venta, y se marca', v.de_hoja, true);
+  eq('lo vendido es el neto de la hoja, sin recalcular nada', vendidoDe(v), 29000);
+  eq('la fecha es la del anticipo', v.fecha_ganado, '2026-08-12');
+  eq('sin etapa de obra no se le inventa una', v.etapa, null);
+  eq('el folio que se enseña es el de la hoja cuando no hay cotización', v.folio_local, 'V-001');
+  eq('LIQUIDADO en la hoja: saldo cero', saldoDe(v), 0);
+  eq('sin fecha de anticipo cae a la de instalación, y luego a la de liquidación',
+     ventaDesdeHoja(fila({ fecha_anticipo: '', fecha_instalacion: '', fecha_liquidacion: '2026-07-01' })).fecha_ganado, '2026-07-01');
+  eq('basura → null', ventaDesdeHoja(null), null);
+
+  /* Los tres casos que conviven: una venta en los dos lados, una que solo está aquí y una
+     que solo está en la hoja. */
+  const local = proy({ id: 'p1', folio_global: 'COT-0001@AAAA', fecha_ganado: '2026-09-03', neto: 11600, precio_auth: 11600,
+    anti_pactado: 5800, pago_pendiente: null, creado_en: 10 });
+  const enHoja = fila({ id: 'hoja:V-200', folio_hoja: 'V-200', folio_cotizacion: 'COT-0001@AAAA', nombre: 'Uno', estatus: 'COBRANDO',
+    fecha_anticipo: '2026-08-31', sub: 10500, neto: 12180, anticipo: 6000, pago_pendiente: 6180, comision_restante: 1050 });
+  const soloAqui = proy({ id: 'p2', folio_global: 'COT-0002@AAAA', folio_local: 'COT-0002', nombre: 'Dos', fecha_ganado: '2026-09-10', creado_en: 20 });
+  const u = unificar([local, soloAqui], [fila(), enHoja]);
+  eq('tres ventas: la enlazada, la que solo está aquí y la histórica', u.ventas.length, 3);
+  eq('cuántas de cada', [u.enlazados, u.de_hoja, u.solo_aqui, u.hay_hoja], [1, 1, 1, true]);
+  const e = u.ventas.find(x => x.id === 'p1');
+  eq('la enlazada sigue siendo el proyecto: su id, su nombre, su folio de la hoja', [e.id, e.nombre, e.en_hoja, e.folio_hoja], ['p1', 'Uno', true, 'V-200']);
+  eq('pero el importe es el de la hoja, no el que se firmó aquí', vendidoDe(e), 12180);
+  eq('y el mes también: la fecha del anticipo de la hoja', e.fecha_ganado, '2026-08-31');
+  eq('y el anticipo, el estatus y las fórmulas', [e.anti_pactado, e.estatus_notion, e.pago_pendiente, e.comision_restante], [6000, 'COBRANDO', 6180, 1050]);
+  eq('el saldo es el de la hoja', saldoDe(e), 6180);
+  eq('la que solo está aquí va tal cual, sin marca de hoja', u.ventas.find(x => x.id === 'p2').en_hoja, undefined);
+  eq('lo más reciente primero', u.ventas.map(x => x.id), ['p2', 'p1', 'hoja:V-001']);
+
+  const m = resumenMensual(u.ventas, { hoy: HOY, meses: 2 });
+  eq('agosto suma la histórica y la enlazada, que la hoja movió de mes', m[0].vendido, 41180);
+  eq('septiembre, la que solo está aquí', m[1].vendido, 11600);
+  const k = indicadores(u.ventas, [], { hoy: HOY });
+  eq('por cobrar: el saldo de la hoja de una y el estimado de la otra', k.porCobrar.total, 6180 + 5800);
+  const c = porCobrar(u.ventas);
+  eq('y la cartera dice cuál es cuál', c.map(x => [x.proyecto.id, x.deNotion]), [['p1', true], ['p2', false]]);
+
+  /* La fila que a fabricación le llega sin dinero no se vuelve una venta de cero pesos que
+     sí se sume: suma cero, y no truena. */
+  const sinDinero = unificar([], [{ id: 'hoja:V-9', folio_hoja: 'V-9', nombre: 'X', fecha_anticipo: '2026-09-01' }]);
+  eq('una fila sin dinero no truena', vendidoDe(sinDinero.ventas[0]), 0);
+  eq('sin hoja: los proyectos tal cual', unificar([local], []).ventas.length, 1);
+  eq('sin nada: vacío', unificar(null, null), { ventas: [], enlazados: 0, de_hoja: 0, solo_aqui: 0, hay_hoja: false });
+
+  /* Y al CSV, con su origen: es lo que deja cuadrarlo contra la hoja. */
+  const l = csvProyectos(u.ventas, new Map()).split('\r\n');
+  eq('tres renglones de CSV', l.length, 4);
+  const campo = (linea, i) => linea.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)[i];
+  eq('la que solo está aquí: su aparato', campo(l[1], 17), 'AAAA');
+  eq('la enlazada: hoja y aparato, con el folio de la hoja', [campo(l[2], 17), campo(l[2], 1)], ['hoja + AAAA', 'V-200']);
+  eq('la histórica: hoja, y su folio', [campo(l[3], 17), campo(l[3], 1), campo(l[3], 0)], ['hoja', 'V-001', 'V-001']);
+}
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 process.exit(mal ? 1 : 0);
