@@ -294,6 +294,9 @@ function aiOpen(fuente){
   const go=$('ai-go-btn'); if(go) go.disabled=aiTrabajando;
   aiStatus(aiTrabajando?'Hay un análisis en curso…':''
     ,aiTrabajando?'work':'');
+  /* Sobre una autorizada la IA no escribe —aiAnalyze lo frena—, pero se decía después de elegir
+     el archivo y esperar el análisis. Se dice al abrir, que es cuando todavía no cuesta nada. */
+  if(locked()&&!aiTrabajando) aiStatus('La cotización está autorizada · la IA no le cambia las partidas. Usa «Editar partidas» primero, o empieza una nueva.','err');
   $('aimodal').classList.add('show');
 }
 /* Cerrar el modal cancela lo que estuviera corriendo. Antes el análisis seguía en marcha
@@ -880,10 +883,21 @@ async function aiAnalyze(){
     /* Si contestó un modelo distinto al elegido conviene decirlo: el borrador puede
        venir de otra IA y quien lo revisa tiene derecho a saber de cuál. */
     const cambio=usado.prov!==cadena[0].prov||usado.model!==cadena[0].model;
+    /* Mismo proveedor y modelo pero OTRA key también se dice: la primera se saltó por un 429 —su
+       cuota del día— y quien administra las keys tiene que saber cuál se agotó. Antes este caso
+       se leía como un análisis normal, y la key agotada se descubría cuando ya no quedaba otra. */
+    const otraKey=!cambio&&usado.kn!==cadena[0].kn;
     aiStatus(cambio
       ? `${AI_NOMBRE[cadena[0].prov]} no respondió · borrador generado con ${aiEtq(usado)}. Revísalo antes de autorizar.`
+      : otraKey
+      ? `La key ${cadena[0].kn} de ${AI_NOMBRE[usado.prov]} no respondió · borrador generado con la key ${usado.kn}. Revísalo antes de autorizar.`
       : 'Borrador generado. Revísalo y ajústalo antes de autorizar.','ok');
-    if(cambio) toast(`⚠️ ${aiEtq(cadena[0])} no respondió · lo resolvió ${aiEtq(usado)}`,'',5200);
+    /* El aviso de «lo resolvió otro» va DESPUÉS de los de éxito de abajo, no antes: toast() es un
+       solo elemento y el último del mismo tick gana, así que el «⚠️ Gemini no respondió» que se
+       escribía aquí se borraba en el acto con el «Cotización IA lista» y nadie lo llegó a ver.
+       Solo le cede el paso al de las medidas que quedaron sin partida, que pesa más. */
+    const aviso=cambio?`⚠️ ${aiEtq(cadena[0])} no respondió · lo resolvió ${aiEtq(usado)}`
+      :otraKey?`⚠️ La key ${cadena[0].kn} de ${AI_NOMBRE[usado.prov]} no respondió · lo resolvió la key ${usado.kn}`:'';
     if(medidas){
       scMarcarMedidasUsadas();
       /* Se le pidió una partida por medida, pero el modelo puede saltarse elementos. Si
@@ -898,8 +912,9 @@ async function aiAnalyze(){
         ? `⚠️ La IA devolvió ${creadas} ${creadas===1?'partida':'partidas'} y ${faltan===1?'una medida se quedó':`${faltan} medidas se quedaron`} sin partida — revisa cuál falta`
         : `${medidas} ${medidas===1?'medida cotizada':'medidas cotizadas'} con IA (borrador)`,
         faltan?'':'ok', faltan?6000:3200);
+      if(aviso&&!faltan) toast(aviso+' · borrador listo','',5200);
     } else {
-      toast('Cotización IA lista (borrador)','ok');
+      toast(aviso?aviso+' · borrador listo':'Cotización IA lista (borrador)',aviso?'':'ok',aviso?5200:2600);
     }
     setTimeout(aiClose,1500);
   }catch(e){
@@ -931,7 +946,12 @@ async function aiAnalyze(){
    app dejaba de arrancar. Los números tampoco tenían piso: un altura_cm negativo restaba
    del total. */
 const aiTxt=v=>typeof v==='string'?v.trim():'';
-const aiNum=v=>{ const n=parseFloat(v); return Number.isFinite(n)&&n>0?n:0; };
+/* Techo de diez millones: ninguna medida en centímetros, ningún precio unitario ni ninguna tarifa
+   de este negocio se le acerca, y un modelo que devuelve 1e12 —pasa, con un número mal copiado o
+   un JSON a medias— dejaba guardada una cotización de un billón de pesos sin un solo aviso. Por
+   debajo de cero ya se rechazaba; por arriba no había techo. */
+const AI_NUM_MAX=1e7;
+const aiNum=v=>{ const n=parseFloat(v); return Number.isFinite(n)&&n>0&&n<AI_NUM_MAX?n:0; };
 /* ----- Dos partidas que son un solo letrero -----
    Un bastidor y una caja de luz se cobran por área, así que en el plano llevan dos cotas:
    una horizontal —el ancho— y una vertical —el alto—. El modelo tiene una instrucción de

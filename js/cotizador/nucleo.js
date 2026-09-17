@@ -990,6 +990,43 @@ function ltHTML(it){
    Q.nota es el comentario INTERNO del autorizador para el vendedor y antes se
    imprimía tal cual en la cotización del cliente. Ahora el PDF usa notaCliente. */
 function notaCliente(){ return (Q.notaCliente||'').trim()||'El cliente debe proporcionar salidas eléctricas.'; }
+/* ----- Fechas escritas como las escribe la app -----
+   Q.fecha se guarda como TEXTO —«16 sep 2026», lo que da toLocaleDateString('es-MX')— desde la
+   primera versión, y así viaja al historial y al respaldo; cambiarlo a un número sería tocar
+   cada cotización guardada. Para contar la vigencia hay que volverlo fecha: día, mes abreviado
+   y año, aceptando «sep» y «sept» —Chrome ha dado los dos según su versión de ICU— y el punto
+   que a veces trae la abreviatura. Si no se puede leer se devuelve null y quien pregunta se
+   calla: mejor no decir la vigencia que inventar una fecha. */
+const _MESES_ABR=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function fechaDeTexto(s){
+  const m=/^\s*(\d{1,2})\s+([a-záéíóú]+)\.?\s+(\d{4})\s*$/i.exec(String(s||''));
+  if(!m) return null;
+  const mes=_MESES_ABR.indexOf(m[2].toLowerCase().slice(0,3));
+  if(mes<0) return null;
+  const d=new Date(+m[3],mes,+m[1]);
+  return isNaN(d.getTime())?null:d;
+}
+function fechaCorta(d){ return d.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}); }
+/* Hasta cuándo vale una cotización fechada `fechaTxt` (Q.fecha, o e.fecha en el historial):
+   {hasta, hastaTxt, dias} con `dias` los que faltan —negativo si ya venció—, o null si la fecha
+   no se pudo leer. Se cuenta en días de calendario, de medianoche a medianoche, para que
+   «vence hoy» sea hoy y no dependa de la hora a la que se mire. */
+function vigenciaDe(fechaTxt){
+  const d=fechaDeTexto(fechaTxt); if(!d) return null;
+  const hasta=new Date(d.getFullYear(),d.getMonth(),d.getDate()+VIGENCIA_DIAS);
+  const h=new Date(), hoy0=new Date(h.getFullYear(),h.getMonth(),h.getDate());
+  const dias=Math.round((hasta-hoy0)/86400000);
+  return {hasta,hastaTxt:fechaCorta(hasta),dias};
+}
+/* La frase para la pantalla y el historial. Empieza con «Venció» cuando ya pasó: quien la pinta
+   se apoya en eso para el color, en vez de volver a hacer la cuenta. */
+function fraseVigencia(fechaTxt){
+  const v=vigenciaDe(fechaTxt); if(!v) return '';
+  if(v.dias>1)  return 'Vigente hasta el '+v.hastaTxt+' · faltan '+v.dias+' días';
+  if(v.dias===1) return 'Vigente hasta mañana, '+v.hastaTxt;
+  if(v.dias===0) return 'Vence hoy, '+v.hastaTxt;
+  return 'Venció el '+v.hastaTxt+' · hace '+(-v.dias)+(v.dias===-1?' día':' días');
+}
 /* La dirección del PDF es la que capturó el vendedor; Q.direccion queda solo como
    respaldo de lo que haya detectado la IA. */
 function direccionPdf(){ return (Q.dirRaw||'').trim()||(Q.direccion||'').trim(); }

@@ -137,6 +137,9 @@ function mensajeWhatsApp(){
   L.push(`${n} ${n===1?'partida':'partidas'}`);
   L.push(`Total: ${money(pf)}${Q.iva?' (IVA incluido)':' (sin IVA)'}`);
   if(Q.anti>0) L.push(`Anticipo para arrancar: ${money(Q.anti)}`);
+  /* Los términos del PDF dicen «válida por 10 días»; el chat es donde el cliente lo lee de
+     verdad, y con la fecha puesta, que es lo que decide si llama esta semana o la que sigue. */
+  const vig=vigenciaDe(Q.fecha); if(vig) L.push(`Precio válido hasta el ${vig.hastaTxt}`);
   if((Q.entrega||'').trim()) L.push(`Límite de fabricación: ${Q.entrega.trim()}`);
   /* Solo la nota que se escribió a mano. La de respaldo —«El cliente debe proporcionar
      salidas eléctricas»— está redactada para el documento, no para hablarle a alguien;
@@ -379,7 +382,7 @@ function copiarParaCanva(){
   const txt=`PROYECTO: ${Q.proy||'—'}
 CLIENTE: ${Q.cliente||'—'}
 DIRECCIÓN: ${direccionPdf()||'—'}
-FECHA: ${Q.fecha||'—'}
+FECHA: ${Q.fecha||'—'}${(()=>{ const v=vigenciaDe(Q.fecha); return v?'\nVÁLIDA HASTA: '+v.hastaTxt:''; })()}
 
 PARTIDAS:
 ${lineas}
@@ -749,8 +752,8 @@ function generarPDF(){
      lugares distintos para decir qué es esta hoja. Ahora es un solo bloque de identidad
      —logotipo, tipo de documento, folio y fecha— alineado a la izquierda, y las hojas ya no
      llevan título suelto. Eso además libera la esquina derecha para la marca. */
-  function hdr(titulo,fecha){
-    const meta=[Q.folio?`<b>${esc(Q.folio)}</b>`:'',fecha?esc(fecha):''].filter(Boolean).join(' &nbsp;·&nbsp; ');
+  function hdr(titulo,fecha,extra){
+    const meta=[Q.folio?`<b>${esc(Q.folio)}</b>`:'',fecha?esc(fecha):'',extra||''].filter(Boolean).join(' &nbsp;·&nbsp; ');
     return `<div class="mh">
       <div class="mh-logo">${logoH}</div>
       <div class="mh-bar"></div>
@@ -818,8 +821,14 @@ function generarPDF(){
      El texto es el mismo, carácter por carácter, que el que se venía imprimiendo: solo salió
      del marcado para que los ocho se pinten con la misma plantilla y no haya un apartado con
      el margen de otro. Las etiquetas <u> son literales del documento, no dato de nadie. */
+  /* Hasta cuándo vale, en el encabezado y en los términos. La regla —VIGENCIA_DIAS, en el
+     catálogo— es la que los términos llevaban escrita a mano como «10 días»; la fecha exacta la
+     ponía el cliente contando con los dedos, si la ponía. Solo en la hoja de cotización: la orden
+     de trabajo y la de instalación no vencen. */
+  const _vig=vigenciaDe(Q.fecha);
+  const vigPdf=_vig?'Válida hasta el '+esc(_vig.hastaTxt):'';
   const TERMINOS = [
-    ['Pagos y Facturación',['50% de anticipo para comenzar fabricación.','50% al finalizar, debe liquidar en máximo 2 días posterior a la instalación.','<u>Excepción: proyectos mayores a $60,000 MXN.</u>','Si requiere factura, el anticipo es más IVA.','La cotización es válida por 10 días.']],
+    ['Pagos y Facturación',['50% de anticipo para comenzar fabricación.','50% al finalizar, debe liquidar en máximo 2 días posterior a la instalación.','<u>Excepción: proyectos mayores a $60,000 MXN.</u>','Si requiere factura, el anticipo es más IVA.','La cotización es válida por '+VIGENCIA_DIAS+' días'+(_vig?' — hasta el '+esc(_vig.hastaTxt):'')+'.']],
     ['Requisitos para Instalación',['En caso de que el proyecto lleve iluminación, el cliente debe proporcionar salida eléctrica detrás de donde se instalará el anuncio.','Área limpia, accesible y segura.','El cliente debe gestionar accesos, permisos y condiciones necesarias.','Cualquier retraso por falta de esto será responsabilidad del cliente.']],
     ['Modificaciones',['Cambios al diseño aprobado pueden generar costos y retrasos.','Deben ser autorizados previamente.','AL3D no responde por fallas si el cliente exige cambios fuera de especificación.']],
     ['Garantías',['1 año en material eléctrico.','2 años en colorimetría.','Se atiende según disponibilidad del equipo.','No aplica si fue instalado/modificado por terceros o expuesto a condiciones extremas.']],
@@ -1131,7 +1140,7 @@ ${trozos.map((trozo,ti)=>{
   return `
 <div class="pg">
   ${deco}
-  ${hdr('Cotización',Q.fecha)}
+  ${hdr('Cotización',Q.fecha,vigPdf)}
   ${fichaDatos()}
   <table>
     <thead><tr>

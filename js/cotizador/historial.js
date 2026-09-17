@@ -160,6 +160,9 @@ function openHistImg(folio){
 function borrarDeHistorial(folio){
   if(!confirm('¿Eliminar '+folio+' del historial?\n\nEsta acción no se puede deshacer.')) return;
   saveHistorial(getHistorial().filter(x=>x.folio!==folio));
+  /* Borrar es justo lo que la app pide cuando no hay espacio: si se estaba en esa condición, es
+     el momento de reintentar el guardado que se quedó esperando (ver recuperarGuardadoPendiente). */
+  if(!_saveOk) saveState();
   _histData=getHistorial(); indexarHistorial();
   pintarClientes();
   pintarHistorial(); // se conserva lo que el usuario tenía escrito en el buscador
@@ -190,9 +193,20 @@ function indexarHistorial(){
   _histData.forEach(e=>{
     e._busca=[e.folio,e.proy,e.cliente,e.tel,e.dirRaw,e.autorizador,e.fechaAuth,
       money(totalFinalHist(e)),(e.items||[]).map(histDsc).join(' '),
-      HITOS.filter(x=>hitosDe(e.folio)[x.k]).map(x=>x.hecho).join(' ')]
+      HITOS.filter(x=>hitosDe(e.folio)[x.k]).map(x=>x.hecho).join(' '),
+      vigenciaHist(e)]
       .map(v=>String(v||'')).join(' ').toLowerCase();
+    /* El teléfono en dígitos: se captura «33 1234 5678» un día y «3312345678» otro, y el buscador
+       comparaba texto con texto, así que el mismo número escrito de otra manera no aparecía. */
+    e._buscaTel=String(e.tel||'').replace(/\D/g,'');
   });
+}
+/* La vigencia de una entrada del historial, con la misma cuenta que la pantalla (fraseVigencia).
+   Callada si el trabajo ya se vendió —una venta cerrada no vence— o si la fecha no se puede
+   leer. Entra al índice del buscador: teclear «venció» lista las que hay que volver a cotizar. */
+function vigenciaHist(e){
+  try{ if(hitosDe(e.folio).venta) return ''; }catch(_){}
+  return fraseVigencia(e.fecha);
 }
 function abrirHistorial(){
   _histData=getHistorial();
@@ -207,7 +221,10 @@ function abrirHistorial(){
 function pintarHistorial(){
   const dsc=histDsc;
   const q=($('hist-search')?.value||'').trim().toLowerCase();
-  const lista=q ? _histData.filter(e=>(e._busca||'').includes(q)) : _histData;
+  /* Cuando lo tecleado es un número —con o sin espacios, guiones o el +52— se compara también
+     contra los dígitos del teléfono, desde cuatro: los últimos cuatro son lo que la gente dicta. */
+  const qd=/^[\d\s\-()+.]+$/.test(q)?q.replace(/\D/g,''):'';
+  const lista=q ? _histData.filter(e=>(e._busca||'').includes(q)||(qd.length>=4&&(e._buscaTel||'').includes(qd))) : _histData;
   const cnt=$('hist-count');
   if(cnt) cnt.textContent=_histData.length
     ? (q?`${lista.length} de ${_histData.length}`:plCot(_histData.length))
@@ -238,6 +255,7 @@ function pintarHistorial(){
             <div class="hentry-name">${esc(e.proy||e.cliente||'Sin nombre')}</div>
             <div class="hentry-sub">${esc(e.cliente||'')+(e.tel?' · '+esc(e.tel):'')+(e.dirRaw?'<br>'+ico('i-pin')+' '+esc(e.dirRaw):'')}</div>
             <div class="hentry-auth"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> ${esc(e.autorizador||'—')} · ${esc(e.fechaAuth||'')}</div>
+            ${(()=>{ const v=vigenciaHist(e); return v?`<div class="hentry-vig${/^Venció/.test(v)?' venc':''}">${esc(v)}</div>`:''; })()}
           </div>
           <div class="hentry-acts">
             <button class="hentry-open" onclick="reabrirDeHistorial('${esc(e.folio)}')" title="Cargarla en el cotizador para reimprimir su PDF, o editarla con «Editar partidas»"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Abrir y editar</button>
@@ -1121,7 +1139,11 @@ function saveState(){
   const serie=JSON.stringify({...rest,aiFile:null});
   try{
     localStorage.setItem('al3d_q',serie);
-    _saveOk=true;
+    /* De «no cabe» a «ya cabe» es un cambio de estado, y había dos cosas esperándolo: la marca
+       «sin guardar» del folio, que se ponía en el fallo y no la quitaba nadie —seguía diciendo
+       que no se guardaba con el guardado ya funcionando—, y lo que se quedó sin escribir
+       mientras duró el lleno (recuperarGuardadoPendiente, abajo). */
+    if(!_saveOk){ _saveOk=true; pintarFolio(); recuperarGuardadoPendiente(); }
   }catch(_){
     if(_saveOk){
       _saveOk=false;
@@ -1136,6 +1158,32 @@ function saveState(){
   }
   sincronizarAiFile();
   undoRegistrar(serie);
+}
+/* ----- Lo que no cupo, cuando vuelve a caber -----
+   Autorizar con el almacenamiento lleno hacía todo lo irreversible —el precio, la fecha, quién
+   autorizó— y luego fallaba en las tres escrituras que lo conservan: el historial (ése avisaba),
+   el contador de folios y la cola (callados). El aviso decía «respalda y borra cotizaciones
+   viejas», y quien obedecía —borraba dos del historial y volvía a la pantalla— se encontraba con
+   que la autorizada seguía sin estar en el historial y ningún botón la volvía a guardar: solo la
+   reescribían de paso «Editar partidas», ocultar un renglón del PDF o cambiar el anticipo. Al
+   vaciar para la siguiente se perdía con su folio, que el contador tampoco había contado, así que
+   el siguiente trabajo podía salir con el mismo número.
+
+   El primer guardado que vuelve a caber mira qué quedó pendiente y lo termina: la autorizada que
+   no está en el historial se guarda ahí y su folio se confirma; la pendiente que no está en la
+   cola se vuelve a poner. Y se dice, porque lo último que se dijo fue «no se guardó». */
+function recuperarGuardadoPendiente(){
+  try{
+    if(Q.estado==='autorizada'&&!getHistorial().some(h=>h.folio===Q.folio)){
+      if(guardarEnHistorial()){
+        confirmarFolio(Q.folio); removeFromQueue(Q.folio); pintarFolio();
+        toast('Volvió a haber espacio: '+Q.folio+' quedó guardada en el historial','ok',5200);
+      }
+    }else if(Q.estado==='pendiente'&&!getQueue().some(e=>e.folio===Q.folio)){
+      pushToQueue();
+      toast('Volvió a haber espacio: la solicitud de '+Q.folio+' quedó en la cola','ok',5200);
+    }
+  }catch(_){}
 }
 
 /* ===================== Deshacer y rehacer =====================

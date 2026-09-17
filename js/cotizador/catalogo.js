@@ -50,6 +50,14 @@ const RECORTE_COMP_EXTRA = 5; // complejidad opcional, solo para tipo sándwich
    dinero, y el dinero lo decide una persona. */
 const ALTURA_MIN_LETRAS = 10;
 const alturaDeRecorte = h => { const v = +h || 0; return v > 0 && v < ALTURA_MIN_LETRAS; };
+/* ----- Vigencia de una cotización -----
+   Los términos del PDF dicen «La cotización es válida por 10 días» desde la primera versión, y
+   era la única vez que la app nombraba ese plazo: ni el encabezado decía HASTA CUÁNDO, ni el
+   WhatsApp, ni el historial sabía cuáles ya vencieron —que es justo la lista a la que hay que
+   llamar—. La regla vive aquí, con las demás del negocio; de aquí la leen los términos, el
+   encabezado del PDF, el mensaje de WhatsApp, la nota de «Autorizada» y el historial
+   (vigenciaDe y fraseVigencia, en nucleo.js). */
+const VIGENCIA_DIAS = 10;
 /* Bastidores: precio por metro cuadrado */
 const BASTIDORES = [
   {key:'lamina',    label:'Lámina',    tarifa:950},

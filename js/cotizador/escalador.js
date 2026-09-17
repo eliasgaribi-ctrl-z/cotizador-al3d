@@ -1663,8 +1663,29 @@ function scCotizarConIA(){
   };
   // El mismo botón vive en el escalador y en la vista previa del cotizador: solo hay
   // que cerrar el modal —y devolver su entrada de historial— si está abierto.
-  if($('scalermodal').classList.contains('show')) cerrarScaler();
+  /* Del escalador al modal de IA SIN cerrar y abrir: cerrarScaler() da un history.back() que es
+     ASÍNCRONO, y aiOpen() empujaba su propia entrada en el mismo tick; el back llegaba después,
+     caía sobre la entrada recién empujada y el oyente de capas cerraba el modal de IA a los cinco
+     milisegundos de abrirse. En el teléfono era un parpadeo y nada: «Cotizar esta medida con IA»
+     no hacía nada visible, con la imagen medida ya lista por dentro. Es el mismo cruce que
+     vtEnviarAEscalador ya sortea cediéndole su entrada al escalador; aquí se cede igual. */
+  if($('scalermodal').classList.contains('show')){ scCederEntradaA('aimodal',()=>aiOpen(fuente)); return; }
   aiOpen(fuente);
+}
+/* Oculta el escalador y le pasa su entrada de historial al modal que abre `abrir()`: una sola
+   entrada que cambia de dueño y ninguna navegación, así que no hay back() que se cruce. Si el
+   otro modal no llegó a abrirse —una guarda lo frenó— la entrada se consume como siempre, para
+   no dejar un escalón muerto en el historial del navegador. */
+function scCederEntradaA(idModal,abrir){
+  const tenia=SC.hist;
+  scOcultarScaler(); SC.hist=false;
+  abrir();
+  if(!tenia) return;
+  const m=$(idModal);
+  if(m&&m.classList.contains('show')){
+    m.dataset.hist='1';
+    try{ history.replaceState({capa:idModal},''); }catch(_){}
+  } else _atrasDesdeElCodigo();
 }
 /* Las medidas que la IA acaba de convertir en partidas quedan marcadas, para que el
    pie del escalador no invite a agregarlas otra vez. */

@@ -73,6 +73,9 @@ material que hay que comprar**. Nada de eso se captura.
   cambie. En cuanto cambia, vuelve al calculado, lo dice y ofrece **volver a autorizarlo** sobre
   el mismo folio. El ajuste se teclea **sobre el subtotal, sin IVA**, y cuando hay ajustes por
   partida la app nombra contra qué base se mide.
+  Y la cotización dice **hasta cuándo vale**: los diez días que los términos prometían desde
+  siempre, ahora con fecha, en el encabezado del PDF, en el WhatsApp, en la nota de «Autorizada»
+  y en el historial, que marca en ámbar las que ya vencieron.
 - **PDF de cotización** con el plano del anuncio, la orden de trabajo del taller y el recibo de
   pago con talón. Un descuento se le enseña al cliente; un aumento se reparte entre las partidas.
 - **Deshacer con Ctrl+Z**, hasta 60 pasos, agrupando lo que se teclea seguido en un mismo campo.
@@ -171,7 +174,7 @@ que viaja así deja de ser secreta.
 
 ## Cómo está acomodado el código
 
-    cotizador.html            solo el marcado (900 líneas)
+    cotizador.html            solo el marcado (1,000 líneas)
     css/sistema.css           EL sistema de diseño: tokens, estructura, las siete capas
     css/plataforma.css        lo que solo la plataforma tiene (calendario, almacén, mapa)
     js/tema.js                claro, oscuro o el del sistema; corre antes del primer pintado
@@ -217,8 +220,8 @@ plataforma con `herramientas/extraer-catalogo.sh`.
 
 ## Pruebas
 
-    pruebas/correr.sh               22 archivos, solo node, unos segundos
-    pruebas/correr.sh --navegador   15 más, que piden Chromium y un servidor
+    pruebas/correr.sh               23 archivos, solo node, unos segundos
+    pruebas/correr.sh --navegador   16 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
 contra una hoja de mentiras, sin cuenta y sin red; otra rasteriza cada pieza y **cuenta sus

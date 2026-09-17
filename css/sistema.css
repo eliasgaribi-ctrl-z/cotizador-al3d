@@ -3406,6 +3406,9 @@ details.ai-cfg.otras-salidas summary:hover{color:var(--tinta)}
    menos y ámbar si pagó más: es el único sitio del renglón donde el color compara algo. */
 .hentry-ajuste{font-family:var(--f-texto);font-size:var(--t1);font-weight:500;color:var(--ok)}
 .hentry-ajuste.inc{color:var(--av)}
+/* Hasta cuándo vale cada cotización del historial; vencida, en ámbar. */
+.hentry-vig{font-family:var(--f-texto);font-size:11px;color:var(--muted);margin-top:4px}
+.hentry-vig.venc{color:var(--av);font-weight:600}
 
 /* ----- Los cuadernos de cliente -----
    La misma lista, con las mismas piezas. La inicial del cliente era un cuadro de 12 px de

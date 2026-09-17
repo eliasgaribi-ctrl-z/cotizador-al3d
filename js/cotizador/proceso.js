@@ -189,7 +189,21 @@ function renderAuth(){
     else if(pendientes.length){
       formHTML=`<p class="mini" style="margin-top:2px">Selecciona una cotización de la lista para revisarla.</p>`;
     }
-    body=qHTML+formHTML;
+    /* ----- Lo que acaba de pasar, dicho -----
+       Al apretar Autorizar o Rechazar esta vista se reconstruía y lo único que quedaba era la
+       insignia de arriba y «Sin cotizaciones pendientes»: ni el folio, ni el precio que quedó, ni
+       qué hacer ahora. El autorizador que también es el vendedor —el caso normal— se quedaba
+       buscando el PDF en una pantalla que no lo tiene. Se dice lo que quedó y se ofrece el camino:
+       la vista de vendedor, que es donde salen el PDF y el WhatsApp. */
+    let hechoHTML='';
+    if(Q.estado==='autorizada'){
+      const vig=fraseVigencia(Q.fecha);
+      hechoHTML=`<div class="authnote"><b>${esc(Q.folio)}</b> quedó <b>autorizada</b>${Q.autorizador?' por '+esc(Q.autorizador):''} en <b>${money(precioFinal())}</b>${Q.iva?' con IVA':''}${vig?' · '+esc(vig.charAt(0).toLowerCase()+vig.slice(1)):''}. El PDF y el WhatsApp salen desde la vista de vendedor.</div>
+        <button class="btn btn-gho" onclick="cambiarRol('vendedor')">${ico('i-atras')} Ver como vendedor</button>`;
+    }else if(Q.estado==='rechazada'){
+      hechoHTML=`<div class="authnote" style="border-color:rgba(216,69,63,.3);background:var(--red-bg);color:var(--red)"><b>${esc(Q.folio)}</b> quedó <b>rechazada</b>${Q.nota?' — «'+esc(Q.nota)+'»':''}. El vendedor puede editarla y volver a solicitarla.</div>`;
+    }
+    body=hechoHTML+qHTML+formHTML;
 
   } else {
     // --- Vista vendedor ---
@@ -240,9 +254,16 @@ function renderAuth(){
          salida era «Duplicar» del historial, que es otro folio. Aquí la nota dice la verdad del
          precio y el botón lleva a revisarlo otra vez (ver reautorizar). */
       const suelta=autorizacionSuelta();
+      /* Hasta cuándo vale, en la misma nota: los términos del PDF prometen diez días desde siempre
+         y nadie los contaba. Una venta cerrada ya no vence, así que ahí se calla; vencida, sale en
+         ámbar y pide revisar el precio antes de reimprimirla, que es lo que se hace con una
+         cotización que el cliente retoma al mes. */
+      const vigTxt=hitosDe(Q.folio).venta?'':fraseVigencia(Q.fecha);
+      const vigVenc=/^Venció/.test(vigTxt);
+      const vigNota=vigTxt?`<br><span${vigVenc?' style="color:var(--amber)"':''}>${esc(vigTxt)}${vigVenc?' — si el cliente la retoma, revisa el precio antes de reimprimir':''}</span>`:'';
       const authNote=suelta
         ? `<div class="authnote" style="border-color:var(--amber-ico);background:var(--amber-bg);color:var(--amber)"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> Las partidas cambiaron después de que <b>${esc(Q.autorizador)||'—'}</b> autorizara el precio el <b>${esc(Q.fechaAuth)}</b>: el precio de arriba es el <b>calculado</b>, sin ningún ajuste. Vuelve a autorizarlo para cerrarlo con el trabajo de hoy.</div>`
-        : `<div class="authnote">Autorizada por <b>${esc(Q.autorizador)||'—'}</b> el <b>${esc(Q.fechaAuth)}</b>.${Q.nota?'<br>Nota: '+esc(Q.nota):''}</div>`;
+        : `<div class="authnote">Autorizada por <b>${esc(Q.autorizador)||'—'}</b> el <b>${esc(Q.fechaAuth)}</b>.${Q.nota?'<br>Nota: '+esc(Q.nota):''}${vigNota}</div>`;
       if(Q.editMode){
         body=`${authNote}
               ${descHTML}
