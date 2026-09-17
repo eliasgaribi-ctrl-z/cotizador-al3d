@@ -321,6 +321,129 @@
      años»— y se quedaba a medias, con un degradado de --a a --a-fuerte. Ahora es el relleno
      plano de lo elegido, del botón de color y del interruptor encendido. */
   --brand-grd:var(--a-fill);
+
+  /* ===================== El vidrio líquido =====================
+     La revisión de septiembre de 2026, y hay que decir qué se conserva y qué no, porque todo
+     lo de arriba sigue siendo cierto.
+
+     El diagnóstico fue de una frase: «se ve apagado y aburrido». Y es justo lo que le pasa a
+     una hoja que resolvió el barro quitándolo todo. La auditoría anterior tenía razón en el
+     problema —39 sombras sueltas, 18 degradados, radios de 38 px— y se pasó en la cura: sin
+     sombra, sin degradado y sin movimiento, una pantalla de tarjetas blancas sobre un lienzo
+     casi blanco no se lee como sobria, se lee como sin terminar. La jerarquía la hacía un
+     borde de un píxel, y un borde de un píxel es lo único que un ojo cansado a las siete de
+     la tarde no distingue.
+
+     Lo que NO vuelve: el barro. Nada de radios de 38 px, ni de tres sombras por pieza, ni de
+     degradados de marca en superficies grandes, ni de un lienzo teñido de dos manchas que se
+     colaban en cada cosa translúcida.
+
+     Lo que entra es otra cosa y tiene nombre: VIDRIO LÍQUIDO. Su forma no es la del barro
+     —blando, opaco, con relieve propio— sino la de una lámina translúcida: deja pasar lo que
+     hay detrás, lo desenfoca y lo satura un poco, y lleva un filo de luz arriba porque el
+     canto de un vidrio recoge la luz. La profundidad ya no está DENTRO de la pieza; está en
+     que se ve el lienzo a través de ella.
+
+     Tres reglas para que esto no se vuelva otra vez una colección de decisiones sueltas:
+
+     1. El desenfoque cuesta. `backdrop-filter` obliga al navegador a leer lo que hay detrás y
+        volverlo a pintar, así que lo llevan SOLO las piezas que de verdad flotan sobre el
+        resto, que son pocas y grandes: la barra de arriba, la barra fija de abajo, el resumen
+        pegado, la barra lateral, los modales y el botón flotante. Una tarjeta de la lista NO
+        lo lleva —hay veinte en pantalla— y se conforma con su superficie y su filo.
+
+     2. El vidrio es casi opaco a propósito. Los rellenos van del 78 % al 90 %: lo bastante
+        para que se adivine el lienzo, no tanto como para que el texto se lea sobre lo que pasa
+        por debajo. La prueba de pruebas/navegador/contraste.mjs mide el RENDER y no la hoja,
+        así que un vidrio demasiado fino se cae ahí y no a ojo.
+
+     3. Nada de esto lleva información. El filo, el desenfoque y el movimiento son superficie;
+        lo que dice «elegido», «falta» o «autorizado» sigue siendo el color de estado con su
+        ficha y su palabra, igual que antes y también en papel. */
+
+  /* El desenfoque y la saturación. La saturación es la mitad del efecto y la que casi nadie
+     pone: sin ella, desenfocar lo de atrás lo deja además LAVADO, y el vidrio se ve como un
+     plástico sucio. Con 1,7 los azules del lienzo siguen siendo azules a través de la lámina. */
+  --vid-blur:18px; --vid-sat:1.7;
+  /* Los tres espesores. `--vidrio` es el de la chapa que lleva texto encima —la barra, el
+     resumen, un modal—; `--vidrio-fino` el de la que solo enmarca; y `--vidrio-solido` el de
+     una tarjeta de lista, que no desenfoca nada y solo deja que el lienzo la tiña un punto. */
+  --vidrio:rgba(255,255,255,.78);
+  --vidrio-fino:rgba(255,255,255,.62);
+  --vidrio-solido:rgba(255,255,255,.90);
+  /* EL FILO. Es lo que convierte un rectángulo translúcido en vidrio: una línea de luz arriba
+     —donde el canto recoge la luz— y un reflejo mucho más callado abajo. Sin esto, una
+     superficie al 78 % es una superficie al 78 % y nada más. */
+  --filo:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.35);
+  /* Y el de una pieza chica —un botón, un chip encendido—, donde la línea de arriba tiene que
+     ser más discreta porque la pieza mide 40 px de alto y no 400. */
+  --filo-corto:inset 0 1px 0 rgba(255,255,255,.3);
+  /* Las dos sombras del vidrio. No son las del barro: una sola capa ancha y muy abierta,
+     teñida del acento, que despega la lámina del lienzo sin dibujarle un relieve encima. */
+  --sombra-vidrio:0 1px 2px rgba(35,39,68,.05),0 16px 40px -20px rgba(48,24,248,.30);
+  --sombra-vidrio-alta:0 2px 8px rgba(35,39,68,.08),0 32px 64px -24px rgba(48,24,248,.42);
+
+  /* ----- El lienzo que respira -----
+     Las tres manchas del fondo. Y sí: el comentario de `body`, más abajo, dice que ahí vivían
+     dos manchas radiales que se quitaron. La diferencia está en POR QUÉ estorbaban y qué se
+     hace ahora con cada motivo:
+
+     · Estorbaban porque teñían la barra lateral y las tarjetas al traslucirse. Ahora eso es
+       exactamente lo que se busca: una pieza de vidrio TIENE que recoger el tono de lo que
+       tiene detrás, y por eso el lienzo vuelve a tener color.
+     · Estorbaban porque `background-attachment:fixed` repinta el fondo entero en cada scroll
+       de un teléfono. Por eso no vuelven como fondo del `body` sino como un `body::after` de
+       `position:fixed`: el navegador le da su propia capa compuesta, no se mueve con el
+       scroll y no se repinta.
+
+     Las alfas son las del CENTRO de cada mancha, y los tres centros están FUERA de la pantalla
+     a propósito: lo que se ve es la caída, no el núcleo. Eso no es composición, es lo que
+     mantiene en pie la cuenta del contraste, y aquí está la cuenta entera porque es la única
+     parte de esta capa que se puede romper sin que se note.
+
+     MEDIDO sobre el render, rasterizando el lienzo con todo lo demás escondido: el píxel más
+     teñido de la pantalla es #eaedfa en una ventana de 1 440 px. O sea que el lienzo baja poco
+     más de un escalón de la rampa, que es exactamente lo que se buscaba.
+
+     Y el límite es --tinta3 (#666d9b), la tinta más callada que esta app deja escribir. Sobre
+     --fondo limpio mide 4,53:1: TRES CENTÉSIMAS por encima del mínimo. Sobre el píxel más
+     teñido daría 4,26:1, y por eso importa dónde vive esa tinta. No vive en el lienzo: el
+     folio de una tarjeta, el «Nada aquí» de una columna vacía y la leyenda de un mes van todos
+     sobre una pieza —una tarjeta al 90 %, una lámina al 78 %—, y ahí el lienzo llega tan
+     lavado que la cuenta no se mueve. pruebas/navegador/contraste.mjs lo comprueba pieza por
+     pieza sobre el render: con esta capa puesta, ninguna baja de 4,5:1, y la más apretada de
+     todas —la fecha de un paso, que es --tinta3— sigue dando 4,97:1.
+
+     La consecuencia práctica, para quien venga después: estas tres alfas se pueden bajar
+     libremente y NO se pueden subir sin volver a medir; y si algún día hay que escribir texto
+     directamente sobre el lienzo, la tinta que se use no puede ser --tinta3. */
+  --aurora-1:rgba(64,96,248,.20);
+  --aurora-2:rgba(123,63,248,.17);
+  --aurora-3:rgba(24,182,216,.14);
+
+  /* ----- Los tres tonos del botón de IA -----
+     El único degradado que sobrevive al rediseño, y tiene nombre para que no se pueda escribir
+     a mano en otro sitio con otros números. Los tres LLEVAN TEXTO BLANCO ENCIMA, así que los
+     tres están medidos y ninguno baja del mínimo de esta app: #3018f8 da 8,04:1, #4060f8 da
+     4,95:1 y #7b3ff8 da 5,37:1. El aguamarina --a3 se queda FUERA, y es la decisión que hay que
+     conocer antes de «meterle un color más»: con blanco encima da 2,41:1 —ilegible— y es
+     exactamente la trampa que documentan los tokens del acento. El botón tiene tres tonos y no
+     cuatro por eso, no por gusto. */
+  --ia-a:#3018f8; --ia-b:#4060f8; --ia-c:#7b3ff8;
+
+  /* ----- La curva elástica -----
+     La cuarta, y la única que se pasa de largo y vuelve. Arriba está escrito por qué el rebote
+     se había quitado —«sobre una pieza plana con borde, el rebote se lee como un fallo de
+     pintado»— y sigue valiendo para una pieza plana con borde. El vidrio no lo es: es una
+     lámina que se estira y recupera, y ese material sí pide un final que ceda. Así que la
+     curva vuelve ACOTADA a lo que es de vidrio —el botón de IA, el chip que se enciende, la
+     perilla de un interruptor, el dock del teléfono— y no a las mil reglas de la hoja.
+
+     Y una duración más, la de la RESPIRACIÓN: lo que se mueve solo, sin que nadie lo toque,
+     se mide en segundos y no en décimas. A .3 s un brillo que va y viene es un parpadeo; a 12
+     es una lámina de vidrio bajo una luz que cambia. */
+  --mv-liq:.42s cubic-bezier(.34,1.26,.5,1);
+  --mv-lento:12s;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 /* ----- `hidden` tiene que ganar -----
@@ -3928,8 +4051,40 @@ html[data-tema="oscuro"]{
   --pc-5:#a9b8ff; --pc-5-md:#3b57e6; --pc-5-bd:#3d4a99; --pc-5-sv:#232a5a; --pc-5-rgb:59,87,230;
   --pc-6:#a9b8ff; --pc-6-md:#3b57e6; --pc-6-bd:#3d4a99; --pc-6-sv:#232a5a; --pc-6-rgb:59,87,230;
   --sc-guide:#2fc2dd;
+
+  /* ----- El vidrio, de noche -----
+     Un vidrio oscuro NO es el claro con menos alfa: si se baja la opacidad de una chapa
+     blanca sobre un lienzo marino, lo que sale es gris lechoso. La lámina de noche es marino
+     un paso POR ENCIMA de la superficie —para que se despegue del lienzo, que es más hondo—
+     y su filo deja de ser blanco casi puro: un canto al 90 % sobre #1a1d38 es una raya de
+     neón que se ve antes que el contenido. Al 12 % es lo que es, el brillo de un borde.
+
+     Y el desenfoque sube de 18 a 22 px por un motivo medible: sobre un lienzo oscuro las
+     manchas del acento tienen mucho más contraste con el fondo que de día, así que se
+     adivinan a través de la lámina como dos borrones. Con 22 se funden. */
+  --vid-blur:22px; --vid-sat:1.5;
+  --vidrio:rgba(32,36,74,.80);
+  --vidrio-fino:rgba(26,29,56,.66);
+  --vidrio-solido:rgba(26,29,56,.90);
+  --filo:inset 0 1px 0 rgba(255,255,255,.12),inset 0 -1px 0 rgba(255,255,255,.04);
+  --filo-corto:inset 0 1px 0 rgba(255,255,255,.14);
+  --sombra-vidrio:0 1px 2px rgba(0,0,0,.45),0 18px 44px -20px rgba(0,0,0,.72);
+  --sombra-vidrio-alta:0 2px 8px rgba(0,0,0,.55),0 34px 68px -24px rgba(0,0,0,.85);
+  /* Las tres manchas suben de alfa porque el lienzo de noche se las traga: sobre #0f1124 un
+     azul al 13 % no se ve. Al 22 % el fondo deja de ser un rectángulo negro y sigue sin
+     competir con nada de lo que lleva texto, que va sobre superficie y no sobre lienzo. */
+  --aurora-1:rgba(64,96,248,.22);
+  --aurora-2:rgba(123,63,248,.18);
+  --aurora-3:rgba(24,182,216,.13);
+  /* Los tres tonos del botón de IA, de noche, y aquí NO sirve el truco de subir los acentos.
+     El tema oscuro aclara --a-fuerte a #8fa3ff y --a2 a #b48cff para que puedan ser TEXTO
+     sobre marino; con blanco encima dan 2,37:1 y 2,58:1, o sea que el botón que más se toca de
+     la app quedaría ilegible de noche. Es la misma trampa que --a y --a-fill ya documentan, y
+     la salida es la misma: estos tres son RELLENO, así que se quedan hondos. Medido con blanco
+     encima: 7,42:1, 5,69:1 y 6,49:1. */
+  --ia-a:#2f46c8; --ia-b:#3b57e6; --ia-c:#6a3fd0;
 }
-/* El lienzo de noche también es plano. Aquí vivían tres manchas radiales. */
+/* El lienzo de noche también respira, y más que el de día: ver arriba, con --aurora-1. */
 html[data-tema="oscuro"] body{background:var(--fondo)}
 /* El aviso emergente era azul marino sobre blanco; sobre un fondo marino se perdería. */
 html[data-tema="oscuro"] .toast:not(.ok):not(.err){background:var(--n8);color:var(--n1)}
@@ -4130,3 +4285,501 @@ html.pliegue-h .sp-hint-bar{padding-bottom:10px}
    viene después en la hoja: en la portada del Fold el selector se quedaba en el primer renglón y el
    icono de Historial caía solo a un segundo renglón de 50 px. Repetido aquí, al cierre, gana. */
 @media(max-width:385px){ .topbar-in .seg{order:6;flex:1 1 100%} }
+
+/* ============================================================================
+   CAPA 8 — EL VIDRIO LÍQUIDO
+   ============================================================================
+   Va al final de la hoja, después del tema oscuro y del papel, y ese sitio es una decisión y
+   no una comodidad: la ley de esta hoja dice que entre dos reglas con la misma especificidad
+   gana la ÚLTIMA, y esta capa tiene que ganarle a la capa plana que hay arriba —que apaga
+   sombras, degradados y movimiento con reglas escritas a propósito para apagarlos—.
+
+   Lo que NO le gana, y tampoco quiere: el bloque de `@media print`, que escribe todo con
+   `!important` y por eso sigue mandando desde donde está; y el de `prefers-reduced-motion`,
+   que se repite al cierre de esta capa para que también le gane a lo de aquí.
+
+   El porqué del material, las tres reglas que lo acotan y las alfas medidas están arriba, con
+   los tokens, en el bloque «El vidrio líquido». Aquí está solo dónde se aplica.
+   ============================================================================ */
+
+/* ---------- 8.1 · El lienzo respira ----------
+   Tres manchas del acento, fijas al viewport, en su propia capa compuesta. Van en `body::after`
+   y no en el fondo del `body` porque `background-attachment:fixed` repinta el lienzo entero en
+   cada scroll de un teléfono y esto no repinta nunca: no se mueve.
+
+   El `z-index:-1` funciona porque el fondo del `body` se propaga al lienzo del documento y se
+   pinta ANTES que cualquier descendiente, incluidos los de z negativo. O sea que la aurora
+   queda encima del color plano y debajo de todo lo demás, que es exactamente su sitio.
+
+   Y se mueve: 28 segundos de ida y vuelta, tres puntos porcentuales de desplazamiento y un 6 %
+   de escala. A esa velocidad nadie ve moverse nada —no es una animación, es que la pantalla no
+   está nunca exactamente igual que hace un minuto—, y es lo que separa un fondo de un fondo
+   vivo. Cuesta cero: es una sola capa movida con `transform`, que compone la GPU sin repintar
+   un píxel del documento. */
+body::after{
+  content:'';position:fixed;inset:-12%;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(62vw 54vw at -6% -16%,var(--aurora-1),transparent 66%),
+    radial-gradient(58vw 50vw at 112% -8%,var(--aurora-2),transparent 64%),
+    radial-gradient(54vw 48vw at 50% 118%,var(--aurora-3),transparent 62%);
+  animation:aurora 28s ease-in-out infinite alternate;
+  will-change:transform;
+}
+@keyframes aurora{
+  from{transform:translate3d(0,0,0) scale(1)}
+  to{transform:translate3d(-3%,2%,0) scale(1.06)}
+}
+/* Dentro de la plataforma el lienzo es el mismo documento, así que la aurora ya está puesta;
+   lo que se quita es el filete de marca, y de eso se encarga plataforma.css. */
+
+/* ---------- 8.2 · Las piezas que flotan son de vidrio ----------
+   La lista entera de lo que lleva `backdrop-filter` en el cotizador, y no crece sin una razón
+   medida: son seis, todas grandes, todas fijas o pegadas. */
+
+/* La barra de arriba. Era blanca y opaca con un borde abajo —o sea, un rectángulo blanco
+   sobre un lienzo casi blanco—. De vidrio, lo que pasa por debajo al hacer scroll se adivina
+   y la barra por fin se lee como algo que está ENCIMA de la página. */
+.topbar{
+  background:var(--vidrio);
+  backdrop-filter:blur(var(--vid-blur)) saturate(var(--vid-sat));
+  -webkit-backdrop-filter:blur(var(--vid-blur)) saturate(var(--vid-sat));
+  border-bottom:1px solid rgba(var(--n3-rgb),.7);
+  box-shadow:var(--filo),0 1px 24px -12px rgba(var(--af-rgb),.35);
+}
+
+/* El resumen del dinero y las tarjetas. Aquí NO hay desenfoque —el porqué está en la regla 1
+   de los tokens: hay veinte tarjetas en pantalla— y el vidrio se hace con tres cosas que no
+   cuestan nada: una superficie al 90 % que deja que la aurora la tiña, el filo de luz arriba,
+   y una sombra abierta que la despega del lienzo. Es la diferencia entre «un rectángulo con
+   borde» y «una pieza puesta encima», que es justo lo que faltaba. */
+.card,.sum,.partida{
+  background:var(--vidrio-solido);
+  box-shadow:var(--filo),var(--sombra-reposo);
+}
+/* La tarjeta y el resumen crecen un escalón de radio: una lámina de vidrio no tiene la esquina
+   de una hoja de papel cortada. 14 px sobre una tarjeta de 400 px de alto sigue siendo un
+   rectángulo, y el bloque del teléfono de más abajo lo vuelve a medir para 90 px. */
+.card,.sum{border-radius:14px}
+.partida{border-radius:var(--rr3)}
+
+/* Al pasar el cursor, la lámina se levanta. Dos píxeles y una sombra un punto más abierta: es
+   el único movimiento de una lista de partidas y dice lo que tiene que decir —«esta se puede
+   tocar»— sin que nada se mueva de sitio. En una pantalla táctil no existe: el bloque de
+   `(hover:none)` que ya hay en la hoja no lo enciende porque esto está acotado a `:hover`, y
+   iOS dispara `:hover` al tocar, así que se acota además al puntero fino. */
+@media(hover:hover) and (pointer:fine){
+  .partida{transition:border-color var(--mv-s),box-shadow var(--mv-r),transform var(--mv-r)}
+  .partida:hover{
+    transform:translateY(-2px);
+    box-shadow:var(--filo),var(--sombra-vidrio);
+    border-color:var(--a-borde);
+  }
+  .card{transition:box-shadow var(--mv-r)}
+}
+
+/* El resumen pegado de una partida y el encabezado de la partida abierta. Los dos se quedan
+   fijos mientras se hace scroll por encima de su propio cuerpo, así que los dos son vidrio de
+   verdad: sin desenfoque se veía el texto de abajo cruzando por detrás del encabezado. */
+.pcab,.partida:not(.folded) .partida-top{
+  background:var(--vidrio);
+  backdrop-filter:blur(14px) saturate(var(--vid-sat));
+  -webkit-backdrop-filter:blur(14px) saturate(var(--vid-sat));
+}
+
+/* El velo de un modal. Era un marino al 60 % con 4 px de desenfoque; con 14 y algo de
+   saturación, lo de detrás se convierte en un fondo de verdad y el diálogo deja de parecer
+   pegado sobre una captura de pantalla. */
+.modal-bg{
+  background:rgba(var(--nav-rgb),.52);
+  backdrop-filter:blur(14px) saturate(1.3);
+  -webkit-backdrop-filter:blur(14px) saturate(1.3);
+}
+/* Y el diálogo, que es la pieza que más flota de toda la app. */
+.modal{
+  background:var(--vidrio);
+  backdrop-filter:blur(30px) saturate(1.9);
+  -webkit-backdrop-filter:blur(30px) saturate(1.9);
+  border:1px solid var(--vidrio-fino);
+  border-radius:18px;
+  box-shadow:var(--filo),var(--sombra-vidrio-alta);
+}
+.modal-h{background:transparent;border-bottom-color:rgba(var(--n3-rgb),.6)}
+/* Entra creciendo desde el 96 % con la curva elástica, no apareciendo. Medio golpe de vista. */
+.modal-bg.show>.modal{animation:vidrio-entra .34s cubic-bezier(.34,1.26,.5,1) both}
+@keyframes vidrio-entra{
+  from{opacity:0;transform:scale(.94) translateY(12px)}
+  to{opacity:1;transform:none}
+}
+
+/* ---------- 8.3 · Lo que se elige, se enciende ----------
+   El chip elegido y el interruptor encendido. Siguen siendo el mismo azul —el azul significa
+   ELEGIDO y eso no se toca— y lo que se les añade es el filo y un halo corto del acento: la
+   diferencia entre un rectángulo pintado de azul y una pastilla de vidrio azul. */
+.chip.on,.partida .chip.on{
+  box-shadow:var(--filo-corto),0 2px 10px -4px rgba(var(--a-rgb),.55);
+}
+/* Y al encenderse, cede: 300 ms del 94 % al 100 % con la curva elástica. Es el único
+   movimiento de la captura y confirma el toque sin un solo píxel de color de más. */
+.chip{transition:border-color var(--mv-s),background var(--mv-s),color var(--mv-s),box-shadow var(--mv-s),transform var(--mv-liq)}
+.chip.on{animation:chip-cede .3s cubic-bezier(.34,1.26,.5,1)}
+@keyframes chip-cede{from{transform:scale(.94)}to{transform:none}}
+.tg.on{box-shadow:var(--filo-corto),0 2px 8px -3px rgba(var(--a-rgb),.6)}
+
+/* El único botón de color de la pantalla, de vidrio: el filo arriba y la sombra teñida del
+   acento. Y el `:active` deja de ser un píxel hacia abajo y pasa a ser lo que hace una lámina
+   que se aprieta —encoge al 97 % y vuelve pasándose de largo—, que es de donde sale la
+   sensación de material del diseño que pidió esto. */
+.btn-pri,.mbar-btn:not(.gho):not(.ok),.btn-ok,.mbar-btn.ok{
+  box-shadow:var(--filo-corto),0 4px 14px -6px rgba(var(--a-rgb),.5);
+}
+.btn-ok,.mbar-btn.ok{box-shadow:var(--filo-corto),0 4px 14px -6px rgba(var(--ok-rgb),.5)}
+.btn,.mbar-btn,.ai-btn,.addbtn,.chip{transition:background var(--mv-s),color var(--mv-s),border-color var(--mv-s),box-shadow var(--mv-s),transform var(--mv-liq)}
+.btn:active:not(:disabled),.mbar-btn:active:not(:disabled),.addbtn:active,.chip:active:not([aria-disabled]){
+  transform:scale(.97);
+}
+
+/* ---------- 8.4 · EL BOTÓN DE COTIZAR CON IA ----------
+   La pieza que pidió este rediseño por su nombre, y la única de la app que se mueve sola.
+
+   Se puede defender, y no es «porque se ve bonito». Es el ÚNICO botón de la pantalla que trae
+   algo de fuera: se le da una foto o un PDF del anuncio y devuelve las partidas ya capturadas,
+   que es el trabajo de diez minutos que esta app existe para quitar. La versión plana lo
+   dejaba idéntico a «Escalar» y «Vectorizar», que están a su lado y hacen cosas de otro orden,
+   y en las pruebas con vendedores había que enseñárselo. Un botón que hay que enseñar no se
+   encontró solo.
+
+   Lleva cuatro capas y cada una hace una cosa distinta:
+
+     · EL FONDO es una aurora de --ia-a, --ia-b y --ia-c —los dos azules del logotipo y el
+       violeta que sale de ellos— al 300 % de ancho, que lo recorre entero en 12 s. No es un degradado de botón de
+       hace diez años: aquel iba de un tono a otro más oscuro del mismo color para fingir
+       relieve; este atraviesa la familia entera de la marca y se mueve, que es lo que hace
+       que la pieza se lea como vidrio con luz detrás y no como plástico.
+     · EL FILO (::before) es la luz del canto, arriba, y el reflejo callado de abajo.
+     · EL BARRIDO (::after) es una banda de luz inclinada que cruza el botón cada 5,5 s. Es el
+       reflejo que corre por un vidrio cuando se mueve, y es lo que de verdad hace que el ojo
+       lo encuentre entre otros dos botones.
+     · LA CHISPA, el icono, late: 100 % → 114 % → 100 % cada 2,6 s, desfasada del barrido para
+       que las dos cosas no ocurran a la vez.
+
+   Al pasar el cursor todo acelera y el botón sube dos píxeles; al apretarlo encoge al 97 % con
+   la curva elástica. Deshabilitado se para entero y se queda plano, que es lo correcto: si no
+   se puede tocar, tampoco puede estar llamando.
+
+   MEDIDO: el texto es blanco y los tres tonos salen de --ia-a, --ia-b y --ia-c, que están
+   declarados y medidos arriba con los tokens —de día 8,04:1, 4,95:1 y 5,37:1; de noche 7,42:1,
+   5,69:1 y 6,49:1—. El peor caso del botón entero es el punto más claro del degradado, y pasa
+   en los dos temas. El aguamarina se queda fuera del botón entero; el porqué está arriba, con
+   los tokens. El halo de la sombra es del azul de marca y del violeta, y no lleva texto. */
+.ai-btn{
+  position:relative;overflow:hidden;isolation:isolate;
+  border:1px solid transparent;
+  color:#fff;font-weight:600;
+  background:linear-gradient(100deg,
+    var(--ia-a) 0%,
+    var(--ia-b) 22%,
+    var(--ia-c) 42%,
+    var(--ia-b) 62%,
+    var(--ia-a) 82%,
+    var(--ia-b) 100%);
+  background-size:300% 100%;
+  background-position:0% 50%;
+  box-shadow:var(--filo-corto),
+             0 4px 16px -6px rgba(var(--a-rgb),.65),
+             0 10px 30px -14px rgba(var(--a2-rgb),.55);
+  animation:ia-aurora var(--mv-lento) linear infinite;
+  transition:transform var(--mv-liq),box-shadow var(--mv-r),filter var(--mv-r);
+}
+@keyframes ia-aurora{from{background-position:0% 50%} to{background-position:-300% 50%}}
+/* EL FILO, Y LA FRANJA QUE NO SE TOCA.
+   Los dos pseudoelementos del botón llevan la misma máscara vertical y la razón es de
+   contraste, no de gusto.
+
+   MEDIDO: el tono más claro del degradado es --ia-b (#4060f8) y con blanco encima da 4,95:1,
+   o sea cuatro centésimas y media de margen sobre el mínimo de esta app. Un velo de luz del
+   6 % encima de ese azul ya lo baja a 4,44:1 y lo tumba. O sea que el brillo NO puede pasar
+   por donde va el texto, y esto no es una opinión: es lo que sale de rasterizar el botón.
+
+   La salida no es quitar el brillo, es ponerlo donde de verdad va. En una lámina de vidrio la
+   luz no se reparte por la cara: se concentra en el CANTO, arriba y abajo, que es donde el
+   material dobla. Así que las dos capas se enmascaran con un degradado que las apaga del 30 %
+   al 70 % del alto —la franja del texto— y las deja encendidas en los dos bordes.
+   Sale mejor de las dos cosas: el botón brilla más que antes y el texto se lee sobre el azul
+   limpio, en su 4,95:1, pase el reflejo por donde pase. */
+.ai-btn::before{
+  content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;
+  background:linear-gradient(180deg,rgba(255,255,255,.34),rgba(255,255,255,0) 46%,rgba(255,255,255,.18));
+  -webkit-mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,#000 100%);
+  mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,#000 100%);
+}
+/* EL BARRIDO. Una banda de luz del 45 % del ancho que cruza el botón en 1,2 s y no vuelve a
+   pasar hasta los 5,5: la PAUSA es lo que lo hace un reflejo y no un intermitente.
+
+   Dos decisiones de implementación que valen la pena escribir porque la obvia no funciona:
+
+   · La banda mide EXACTAMENTE el alto del botón (`top:0;bottom:0`) y no se gira. Lo obvio es
+     girarla 14° para que el reflejo salga en diagonal, y entonces la máscara se gira con ella
+     y deja de tapar la franja del texto: sobre un botón de 800 px, 14° suben la banda 200 px,
+     seis veces su propio alto. La diagonal se consigue igual poniéndola DENTRO —el degradado
+     del relleno va a 105°— y así la máscara sigue midiendo contra el botón.
+   · Se mueve con `transform` y no con `background-position`, que es lo que compone la GPU sin
+     repintar el botón ni una vez. Lo que se repinta —el degradado de fondo, que sí va por
+     `background-position`— es una sola capa y ocurre igual con o sin esto. */
+.ai-btn::after{
+  content:'';position:absolute;top:0;bottom:0;left:0;width:45%;z-index:-1;pointer-events:none;
+  background:linear-gradient(105deg,rgba(255,255,255,0) 18%,rgba(255,255,255,.6) 50%,rgba(255,255,255,0) 82%);
+  -webkit-mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,#000 100%);
+  mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,#000 100%);
+  transform:translateX(-110%);
+  animation:ia-barrido 5.5s cubic-bezier(.2,.8,.2,1) infinite;
+}
+@keyframes ia-barrido{
+  0%{transform:translateX(-110%)}
+  22%,100%{transform:translateX(330%)}
+}
+/* La chispa late. El `transform-origin:center` es explícito y no heredado: `.svgi` mide 1em y
+   su caja no siempre es cuadrada, y con el origen en otro sitio un icono «que crece» se ve
+   saltar en diagonal en vez de latir. */
+.ai-btn .svgi{transform-origin:center;animation:ia-chispa 2.6s ease-in-out infinite}
+@keyframes ia-chispa{
+  0%,72%,100%{transform:scale(1);opacity:.92}
+  84%{transform:scale(1.14);opacity:1}
+}
+.ai-btn:hover{
+  background:linear-gradient(100deg,
+    var(--ia-a) 0%,var(--ia-b) 22%,var(--ia-c) 42%,var(--ia-b) 62%,var(--ia-a) 82%,var(--ia-b) 100%);
+  background-size:300% 100%;
+  border-color:transparent;
+  transform:translateY(-2px);
+  box-shadow:var(--filo-corto),
+             0 8px 22px -6px rgba(var(--a-rgb),.75),
+             0 16px 44px -16px rgba(var(--a2-rgb),.7);
+  animation-duration:5s;
+}
+.ai-btn:hover::after{animation-duration:2.6s}
+.ai-btn:active{transform:scale(.97) translateY(0)}
+.ai-btn:focus-visible{outline:2px solid var(--a-fuerte);outline-offset:3px}
+/* Deshabilitado: se para todo. Un botón que no se puede tocar y sigue brillando miente. */
+.ai-btn:disabled,.ai-btn[disabled]{
+  animation:none;background:var(--n4);box-shadow:none;transform:none;opacity:.55;
+}
+.ai-btn:disabled::after,.ai-btn[disabled]::after,
+.ai-btn:disabled .svgi,.ai-btn[disabled] .svgi{animation:none}
+/* El mismo botón dentro del escalador —«Cotizar estas medidas con IA»— es la misma acción y
+   se ve igual. `.sp-ai` no comparte clase con `.ai-btn`, así que se le da aquí lo que lo hace
+   reconocible: el fondo que fluye y el filo. */
+.sp-ai:not(:disabled){
+  position:relative;overflow:hidden;border-color:transparent;color:#fff;
+  background:linear-gradient(100deg,
+    var(--ia-a) 0%,var(--ia-b) 22%,var(--ia-c) 42%,var(--ia-b) 62%,var(--ia-a) 82%,var(--ia-b) 100%);
+  background-size:300% 100%;
+  box-shadow:var(--filo-corto),0 4px 16px -6px rgba(var(--a-rgb),.6);
+  animation:ia-aurora var(--mv-lento) linear infinite;
+}
+.sp-ai:not(:disabled) .svgi{transform-origin:center;animation:ia-chispa 2.6s ease-in-out infinite}
+
+/* ---------- 8.5 · El teléfono: un dock de vidrio ----------
+   Aquí está la mitad de «se ve igual que la compu». En el teléfono la barra de abajo era un
+   rectángulo blanco pegado al borde inferior con una línea arriba: la misma pieza que en la
+   computadora, solo que abajo. Ahora es un DOCK —se despega de los tres bordes, tiene esquinas
+   de 20 px, es de vidrio y flota sobre la página—, que es la forma que tiene esta pieza en un
+   teléfono y no en una ventana.
+
+   Y el hueco que la página le deja abajo crece con su margen: de 84 px a 94, más el área
+   segura. Son los 10 px que el dock se separó del borde, y sin ellos el último renglón de la
+   cotización queda debajo del vidrio. */
+@media(max-width:759px){
+  .mbar{
+    left:max(10px,env(safe-area-inset-left,0px));
+    right:max(10px,env(safe-area-inset-right,0px));
+    bottom:max(10px,env(safe-area-inset-bottom,0px));
+    border:1px solid var(--vidrio-fino);
+    border-radius:20px;
+    /* Más espeso que `--vidrio`: el dock lleva el rótulo «Total neto» en 11 px sobre la
+       cotización que pasa por debajo, y a 78 % se alcanzaba a leer «ILUMINACIÓN» a través de
+       él. A 88 % el lienzo se sigue adivinando —que es lo que lo hace vidrio— y lo de detrás
+       ya no compite con dos renglones de 11 px. */
+    background:rgba(var(--sup-rgb),.88);
+    backdrop-filter:blur(24px) saturate(1.8);
+    -webkit-backdrop-filter:blur(24px) saturate(1.8);
+    box-shadow:var(--filo),var(--sombra-vidrio-alta);
+    /* El área segura ya la descuenta el `left`/`right` de arriba, que es lo que separa el dock
+       del borde. Repetirla en el relleno la contaría dos veces: en un iPhone acostado son 47 px
+       de muesca, y el botón de continuar perdía 47 px por dentro además de los 47 de fuera. */
+    padding:8px 12px;
+  }
+  .mbar-btn{border-radius:14px}
+  .mbar-undo{border-radius:14px;background:rgba(var(--sup-rgb),.6);border-color:var(--vidrio-fino)}
+  /* Con el dock despegado, el hueco de abajo tiene que contar además su margen. Son 10 px y
+     se suman a los 84 que ya había, que es lo que evita que el último renglón de la página
+     quede debajo del vidrio. */
+  .wrap{padding-bottom:calc(94px + env(safe-area-inset-bottom,0px))}
+  html{scroll-padding-bottom:calc(94px + env(safe-area-inset-bottom,0px))}
+}
+/* Y la barra de arriba del teléfono, con el mismo material. Lo que cambia respecto a la
+   computadora es el desenfoque: en una pantalla de 390 px la barra ocupa un séptimo de la
+   pantalla y con 18 px de desenfoque lo de detrás todavía se lee; con 26 se convierte en
+   color. */
+@media(max-width:560px){
+  .topbar{
+    backdrop-filter:blur(26px) saturate(1.9);
+    -webkit-backdrop-filter:blur(26px) saturate(1.9);
+    background:rgba(var(--sup-rgb),.82);
+  }
+  /* Una tarjeta de lista mide 90 px de alto en un teléfono: aquí el radio de 14 px de la
+     computadora sí empieza a comerse la esquina, y baja a 12. Es la misma cuenta que el
+     comentario de los radios, hecha otra vez para el material nuevo. */
+  .card,.sum{border-radius:12px}
+  .partida{border-radius:12px}
+  /* Los modales del teléfono salen desde abajo, como una hoja, y no crecen desde el centro:
+     es el gesto que ya tiene el sistema operativo debajo y el pulgar los alcanza. */
+  .modal{border-radius:20px}
+  .modal-bg.show>.modal{animation:vidrio-sube .34s cubic-bezier(.2,.8,.2,1) both}
+}
+@keyframes vidrio-sube{
+  from{opacity:0;transform:translateY(26px)}
+  to{opacity:1;transform:none}
+}
+
+/* ---------- 8.6 · El Fold 6 ----------
+   La otra mitad de «se ve igual que la compu», y con razón: hasta aquí la pantalla interna del
+   Fold caía en la banda de 760–920 px y lo único que le pasaba distinto era que la columna del
+   dinero bajaba de 320 a 272 px. O sea que era una computadora encogida, que es exactamente
+   lo que se dijo de ella.
+
+   Y no lo es. Es una TABLETA que se toca con el dedo, con dos pantallas distintas —la portada
+   de 344–384 px y la interior de 832–904—, con una bisagra en medio y con una proporción que
+   no tiene ningún otro aparato de esta casa. Lo que sigue es su identidad propia:
+
+     · La columna del dinero se convierte en un PANEL DE VIDRIO que se pega y flota, no en una
+       tarjeta más al lado de la otra. En una tableta que se sostiene con las dos manos, el
+       dinero es lo que se mira sin soltar nada.
+     · Más aire entre las dos columnas —24 px en vez de 16— porque la bisagra pasa por ahí:
+       el hueco de la rejilla es lo que se alinea con el lomo, y con 16 px las dos columnas se
+       tocan justo encima del pliegue.
+     · Radios de 16 px y no de 14: es la pantalla grande de un aparato de bolsillo, y la forma
+       tiene que salirse de la de una ventana.
+     · Y los toques crecen: el bloque de 920 px de la hoja ya subía los controles a 46 px, pero
+       las tarjetas y los chips seguían con el relleno de escritorio. */
+@media screen and (min-width:760px) and (max-width:920px){
+  .wrap{gap:24px;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+  .card,.sum,.partida{border-radius:16px}
+  /* El panel del dinero: vidrio de verdad, con su sombra abierta. Pegarse ya se pega solo
+     —`.side` es `position:sticky` desde antes de esta capa, con el tope en `--top-fijo`—, así
+     que aquí no se repite: lo único que le falta es el MATERIAL, que es lo que lo convierte de
+     «la segunda tarjeta de la fila» en un panel que flota al lado. */
+  .wrap>aside .sum{
+    background:var(--vidrio);
+    backdrop-filter:blur(var(--vid-blur)) saturate(var(--vid-sat));
+    -webkit-backdrop-filter:blur(var(--vid-blur)) saturate(var(--vid-sat));
+    border:1px solid var(--vidrio-fino);
+    box-shadow:var(--filo),var(--sombra-vidrio);
+  }
+  /* Aire de tableta dentro de las piezas: ni el apretón del teléfono ni el desahogo de una
+     pantalla de 27 pulgadas. */
+  .card-h{padding:20px 20px 0}
+  .card-b{padding:14px 20px 20px}
+  .partida{--pp:16px}
+  .optgrp .chip{min-height:44px}
+}
+/* La PORTADA del Fold —344 a 384 px— es la pantalla más angosta de la casa y la que más se usa
+   de pie y con una mano. Ahí el dock de abajo se pega más al borde (cada píxel de esos 344
+   cuenta) y las esquinas se cierran un punto: a 344 px de ancho, 20 px de radio en una barra de
+   62 px de alto ya es una pastilla. */
+@media(max-width:385px){
+  .mbar{left:6px;right:6px;bottom:max(6px,env(safe-area-inset-bottom,0px));border-radius:16px;padding:7px 8px}
+  .wrap{padding-bottom:calc(90px + env(safe-area-inset-bottom,0px))}
+  html{scroll-padding-bottom:calc(90px + env(safe-area-inset-bottom,0px))}
+  .card,.sum,.partida{border-radius:12px}
+}
+/* ---------- 8.7 · El portátil ----------
+   Aquí el material se puede permitir todo: hay GPU, hay puntero fino y hay sitio. Lo que se
+   añade sobre la base es el desenfoque más ancho de la barra —una ventana de 1 440 px enseña
+   mucha página por debajo— y la lente al pasar el cursor sobre una tarjeta. */
+@media(min-width:1024px){
+  .topbar{
+    backdrop-filter:blur(24px) saturate(1.9);
+    -webkit-backdrop-filter:blur(24px) saturate(1.9);
+  }
+  .wrap{gap:20px}
+  /* Y la columna del dinero, que ya se pegaba sola, se lee como el panel flotante que es y no
+     como la tercera tarjeta de la fila. */
+  .wrap>aside .sum{box-shadow:var(--filo),var(--sombra-vidrio)}
+}
+
+/* ---------- 8.8 · Lo que el tema oscuro tenía dicho antes ----------
+   Tres reglas de la capa del tema oscuro viven 600 líneas más arriba y llevan
+   `html[data-tema="oscuro"]` delante, que pesa más que una clase sola: aunque esta capa venga
+   después en la hoja, aquellas le ganan por especificidad y no por orden. Son las que dejaban
+   el botón de IA de noche en un relleno plano y la barra de abajo con la sombra de una barra
+   pegada al borde, que ya no lo está. Se rescriben aquí con el mismo peso.
+
+   Lo que NO se toca de aquel bloque: los colores. El botón de noche sigue siendo el que el
+   tema eligió —--ia-a, --ia-b y --ia-c de noche son rellenos hondos, medidos, y arriba está
+   escrito por qué no pueden ser los acentos aclarados—. */
+html[data-tema="oscuro"] .ai-btn{
+  background:linear-gradient(100deg,
+    var(--ia-a) 0%,var(--ia-b) 22%,var(--ia-c) 42%,var(--ia-b) 62%,var(--ia-a) 82%,var(--ia-b) 100%);
+  background-size:300% 100%;
+  border-color:transparent;
+}
+html[data-tema="oscuro"] .ai-btn:hover{
+  background:linear-gradient(100deg,
+    var(--ia-a) 0%,var(--ia-b) 22%,var(--ia-c) 42%,var(--ia-b) 62%,var(--ia-a) 82%,var(--ia-b) 100%);
+  background-size:300% 100%;
+  border-color:transparent;
+  filter:brightness(1.12);
+}
+html[data-tema="oscuro"] .ai-btn:disabled,html[data-tema="oscuro"] .ai-btn[disabled]{
+  background:var(--n3);border-color:transparent;
+}
+/* El dock de noche: el filo casi no se ve sobre marino, así que lo que despega la pieza del
+   lienzo es la sombra, y tiene que ser negra y muy abierta. La de antes iba solo hacia arriba
+   —`0 -10px 30px`— porque la barra estaba pegada al borde de abajo; despegada, la sombra la
+   rodea. */
+@media(max-width:759px){
+  html[data-tema="oscuro"] .mbar{
+    border-color:rgba(255,255,255,.08);
+    box-shadow:var(--filo),0 2px 8px rgba(0,0,0,.5),0 22px 50px -18px rgba(0,0,0,.85);
+  }
+}
+
+/* ---------- 8.9 · Lo que apaga esta capa ----------
+   Se repite al cierre, después de todo lo de arriba, porque la ley de la hoja es la de siempre
+   y el bloque original de movimiento reducido vive 700 líneas más arriba: sin esto, la aurora
+   del lienzo, el barrido del botón de IA y el latido de la chispa se le escapaban.
+
+   No es un extra. Hay gente a la que una pantalla que se mueve le provoca mareo de verdad, y
+   esta capa es justo la que añadió movimiento que no había. Apagado, la app conserva TODO lo
+   que informa —el vidrio, el filo, las sombras, los colores de estado— y pierde solo lo que
+   se movía solo. */
+@media(prefers-reduced-motion:reduce){
+  body::after{animation:none}
+  .ai-btn,.sp-ai:not(:disabled){animation:none;background-position:30% 50%}
+  .ai-btn::after{animation:none;opacity:0}
+  .ai-btn .svgi,.sp-ai .svgi{animation:none}
+  .chip.on{animation:none}
+  .modal-bg.show>.modal{animation:none}
+  .ai-btn:hover,.partida:hover,.btn:active,.mbar-btn:active,.chip:active,.ai-btn:active{transform:none!important}
+}
+
+/* En papel no hay vidrio. El bloque de `@media print` de más arriba escribe con `!important` y
+   le gana a todo esto por su cuenta —fondos blancos, sin sombra y sin animación—, pero no
+   conoce los nombres nuevos: `backdrop-filter` no es ni `background` ni `box-shadow`, y una
+   lámina desenfocada mandada a una impresora sale como una mancha gris. Se apaga aquí. */
+@media print{
+  *{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+  body::after{display:none!important}
+  /* Y los botones de IA salen en tinta sobre blanco, no en blanco sobre nada.
+     Quitarles el degradado no basta: `background:linear-gradient(...)` es el ATAJO, así que
+     al anularlo el color de fondo se queda en transparente y lo que queda es texto blanco
+     sobre el papel, o sea nada. Con el navegador imprimiendo sin «gráficos de fondo» —que es
+     como imprime por omisión— eso ya pasaba antes de esta capa. Aquí se cierra: borde y
+     tinta, como los demás botones neutros del papel. */
+  .ai-btn,.sp-ai,.pf-ia-btn{
+    background:#fff!important;background-image:none!important;
+    color:#12162b!important;border:1px solid #999!important;
+  }
+  .ai-btn::before,.ai-btn::after,.pf-ia-btn::before,.pf-ia-btn::after{display:none!important}
+  .mbar,.modal,.topbar{background:#fff!important;background-image:none!important}
+}

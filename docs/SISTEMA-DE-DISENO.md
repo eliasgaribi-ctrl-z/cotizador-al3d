@@ -1,12 +1,24 @@
 # Sistema de diseño — AL3D
 ### Especificación exacta y copiable para módulos nuevos
-Fuente única: **`css/sistema.css`**. Las tres superficies —`cotizador.html`, `index.html` y `anidador-vectores/index.html`— la enlazan, y `js/tema.js` pone `data-tema` en `<html>` antes de que pinte. El tema oscuro es la capa (7) al final de la hoja: otro juego de tokens bajo `html[data-tema="oscuro"]`, sin reglas repetidas. Los números de línea de este documento envejecen en cuanto alguien toca el archivo, así que **busca por el selector, no por la línea**: cuando este documento y el CSS no coincidan, manda el CSS. Vanilla JS, sin build. No hay clases utilitarias: todo es clase semántica o `style=` en línea para lo irrepetible.
+Fuente única: **`css/sistema.css`**. Las tres superficies —`cotizador.html`, `index.html` y `anidador-vectores/index.html`— la enlazan, y `js/tema.js` pone `data-tema` en `<html>` antes de que pinte. El tema oscuro es la capa (7) de la hoja y el vidrio líquido la (8), al final de todo: otro juego de tokens bajo `html[data-tema="oscuro"]`, sin reglas repetidas. Los números de línea de este documento envejecen en cuanto alguien toca el archivo, así que **busca por el selector, no por la línea**: cuando este documento y el CSS no coincidan, manda el CSS. Vanilla JS, sin build. No hay clases utilitarias: todo es clase semántica o `style=` en línea para lo irrepetible.
 
 > **Septiembre de 2026 · el rediseño responsive.** La app era de BARRO —radios de 38 px, cuatro capas de sombra por pieza, degradados de marca, el lienzo teñido con manchas radiales y un matiz de color por partida—. Ahora es **híbrida**: la estructura y la sobriedad de la guía THIQA con los azules del logotipo AL3D. Superficie plana, un borde de 1 px, esquinas casi rectas, **una** sombra y solo donde algo flota de verdad, y **un botón de color por pantalla**. Lo que sigue describe esa dirección; lo que cuenta el barro se conserva solo donde explica por qué algo es como es.
 >
 > El cambio se hizo **en la capa de tokens**, no regla por regla: los nombres viejos (`--card`, `--line`, `--muted`, `--r`, `--sh`) cuelgan hoy de los nuevos (`--sup`, `--linea`, `--tinta2`, `--rr3`, `--sombra`), así que las mil reglas que ya los pedían pintan la dirección nueva sin haberse tocado. Si vas a cambiar el aspecto de algo transversal, **cámbialo ahí**.
 
-**Ley de la hoja, respétala o tu CSS no aplica:** entre dos reglas con la misma especificidad gana **la última**; una media query **no** pesa más por ser más estrecha. La hoja está ordenada en capas: (1) estructura, (2) bloque de teléfono `≤560px`, (3) `@media(hover:none),(pointer:coarse)`, (4) **capa de estructura y movimiento** (la que sustituyó a la capa de estructura; empieza en el banner `CAPA DE ESTRUCTURA Y MOVIMIENTO`), (5) bloque de cierre «lo que tiene que ganar por orden», (6) `@media print`, (7) tema oscuro. Si escribes una regla base nueva y la pones al final, **pisas la capa (4)**. Pon lo nuevo en la capa que le toca.
+> **Septiembre de 2026 · el vidrio líquido.** El diagnóstico llegó en una frase: «se ve apagado y aburrido». Y es lo que le pasa a una hoja que resolvió el barro **quitándolo todo**. El rediseño de arriba tenía razón en el problema —39 sombras sueltas, 18 degradados, radios de 38 px— y se pasó en la cura: sin sombra, sin degradado y sin movimiento, una pantalla de tarjetas blancas sobre un lienzo casi blanco no se lee como sobria, se lee como sin terminar. La jerarquía la hacía un borde de 1 px, y un borde de 1 px es lo único que un ojo cansado a las siete de la tarde no distingue.
+>
+> **El barro no vuelve.** Lo que entra es otra cosa: una lámina translúcida que deja pasar lo que hay detrás, lo desenfoca y lo satura un punto, y que lleva un **filo** de luz arriba porque el canto de un vidrio recoge la luz. La profundidad ya no está DENTRO de la pieza: está en que se ve el lienzo a través de ella. Tres reglas lo acotan y están en el CSS con su cuenta hecha:
+>
+> 1. **El desenfoque cuesta.** `backdrop-filter` lo llevan solo las piezas que de verdad flotan y son pocas y grandes: barra de arriba, dock de abajo, resumen pegado, barra lateral, modales y el botón flotante. Una tarjeta de lista **no** —hay veinte en pantalla— y se conforma con su superficie y su filo.
+> 2. **El vidrio es casi opaco.** Del 78 % al 90 %. `pruebas/navegador/contraste.mjs` mide el render y no la hoja, así que un vidrio demasiado fino se cae ahí y no a ojo.
+> 3. **Nada de esto lleva información.** El filo, el desenfoque y el movimiento son superficie; «elegido», «falta» y «autorizado» los siguen diciendo el color de estado y su ficha, también en papel.
+>
+> Y **una sola pieza se mueve sola**: el botón de «Cotizar con IA» y su hermano de la plataforma. Se defiende: es el único botón que trae algo de fuera —se le da una foto y devuelve las partidas capturadas— y la versión plana lo dejaba idéntico a «Escalar» y «Vectorizar», que están a su lado y hacen cosas de otro orden. Todo el movimiento nuevo se apaga entero bajo `prefers-reduced-motion`.
+
+**Ley de la hoja, respétala o tu CSS no aplica:** entre dos reglas con la misma especificidad gana **la última**; una media query **no** pesa más por ser más estrecha. La hoja está ordenada en capas: (1) estructura, (2) bloque de teléfono `≤560px`, (3) `@media(hover:none),(pointer:coarse)`, (4) **capa de estructura y movimiento** (la que sustituyó a la capa de estructura; empieza en el banner `CAPA DE ESTRUCTURA Y MOVIMIENTO`), (5) bloque de cierre «lo que tiene que ganar por orden», (6) `@media print`, (7) tema oscuro, (8) **el vidrio líquido** (empieza en el banner `CAPA 8 — EL VIDRIO LÍQUIDO`). Si escribes una regla base nueva y la pones al final, **pisas la capa (4)**. Pon lo nuevo en la capa que le toca.
+
+La (8) va la última a propósito: tiene que ganarle a la capa plana de la (4), que apaga sombras, degradados y movimiento con reglas escritas para apagarlos. Lo que no le gana —y tampoco quiere— es el `@media print` de la (6), que escribe con `!important`; y el bloque de movimiento reducido se repite al cierre de la (8) para que también le gane a lo de ahí.
 
 **Y una que costó tres veces:** `[hidden]{display:none!important}` vive al principio de la hoja porque la regla del navegador —`[hidden]{display:none}`— la pisa **cualquier** clase de autor que ponga `display`. Sin ella, `el.hidden = true` sobre algo con `display:flex` no esconde nada.
 
@@ -52,8 +64,8 @@ Fuente única: **`css/sistema.css`**. Las tres superficies —`cotizador.html`, 
   /* ----- Espacio ----- múltiplos de 4. */
   --e1:4px; --e2:8px; --e3:12px; --e4:16px; --e5:24px; --e6:32px; --e7:48px;
 
-  /* ----- Radios ----- casi rectos: ficha, control, tarjeta. */
-  --rr1:3px; --rr2:4px; --rr3:6px; --rr4:6px;
+  /* ----- Radios ----- casi rectos: ficha, control, tarjeta, y el panel que flota. */
+  --rr1:4px; --rr2:6px; --rr3:10px; --rr4:12px;
 
   /* ===================== La sombra, una sola =====================
      Significa «esta pieza flota por encima de las demás». La llevan las tarjetas del
@@ -69,6 +81,31 @@ Fuente única: **`css/sistema.css`**. Las tres superficies —`cotizador.html`, 
   --mv-r:.2s cubic-bezier(.2,.8,.2,1);    /* un cambio de estado */
   --mv-s:.16s cubic-bezier(.2,.8,.2,1);   /* un color */
   --mv-t:.5s cubic-bezier(.2,.8,.2,1);    /* la transición de elemento compartido */
+  --mv-liq:.42s cubic-bezier(.34,1.26,.5,1);  /* la elástica: SOLO lo que es de vidrio */
+  --mv-lento:12s;                             /* la respiración: lo que se mueve solo */
+
+  /* ===================== El vidrio líquido =====================
+     La lámina, su filo y sus dos sombras. El desenfoque lo llevan seis piezas y ninguna más;
+     el porqué, las alfas y sus medidas están en el CSS, en el bloque del mismo nombre. */
+  --vid-blur:18px; --vid-sat:1.7;      /* la saturación es la mitad del efecto: sin ella, lavado */
+  --vidrio:rgba(255,255,255,.78);      /* la chapa que lleva texto: barra, resumen, modal */
+  --vidrio-fino:rgba(255,255,255,.62); /* la que solo enmarca */
+  --vidrio-solido:rgba(255,255,255,.90); /* una tarjeta de lista: no desenfoca, solo se tiñe */
+  --filo:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.35);
+  --filo-corto:inset 0 1px 0 rgba(255,255,255,.3);   /* el de una pieza de 40 px, no de 400 */
+  --sombra-vidrio:0 1px 2px rgba(35,39,68,.05),0 16px 40px -20px rgba(48,24,248,.30);
+  --sombra-vidrio-alta:0 2px 8px rgba(35,39,68,.08),0 32px 64px -24px rgba(48,24,248,.42);
+
+  /* ----- El lienzo que respira ----- tres manchas fijas en body::after, no en el fondo.
+     Alfas de CENTRO, y los tres centros fuera del cuadro: lo que se ve es la caída. */
+  --aurora-1:rgba(64,96,248,.20);
+  --aurora-2:rgba(123,63,248,.17);
+  --aurora-3:rgba(24,182,216,.14);
+
+  /* ----- Los tres tonos del botón de IA ----- el único degradado que queda.
+     Los tres llevan blanco encima y los tres están medidos: 8,04:1 · 4,95:1 · 5,37:1.
+     El aguamarina --a3 se queda fuera: con blanco encima da 2,41:1. Son tres y no cuatro. */
+  --ia-a:#3018f8; --ia-b:#4060f8; --ia-c:#7b3ff8;
 
   /* ----- Alias de los nombres viejos ----- ESTO es el rediseño, para las mil reglas de abajo */
   --bg:var(--fondo); --card:var(--sup); --ink:var(--tinta); --fg:var(--tinta);
@@ -802,6 +839,30 @@ Tres patrones, elige por semántica:
 ```
 **Todo importe lleva `font-variant-numeric:tabular-nums`.** Sin excepción.
 
+### 2.17 `.ai-btn` — el botón de «Cotizar con IA», y la única pieza que se mueve sola
+
+Es la excepción a «un solo botón lleva relleno de color por pantalla» y a «sin degradados», y las dos se defienden con el mismo argumento: es el ÚNICO botón de la app que trae algo de fuera —se le da una foto o un PDF del anuncio y devuelve las partidas ya capturadas, que es el trabajo de diez minutos que esta app existe para quitar—. La versión plana lo dejaba idéntico a «Escalar» y «Vectorizar», que están a su lado y hacen cosas de otro orden, y en las pruebas con vendedores había que enseñárselo. Un botón que hay que enseñar no se encontró solo.
+
+Cuatro capas, y cada una hace una cosa distinta:
+
+| Capa | Qué es | Cómo se mueve |
+|---|---|---|
+| Fondo | Aurora de `--ia-a/-b/-c` al 300 % de ancho | `background-position` 0 % → −300 % en `--mv-lento` (12 s), lineal e infinita |
+| `::before` | El filo: luz arriba, reflejo callado abajo | Quieto |
+| `::after` | El barrido: banda del 45 % del ancho | `translateX(-110% → 330%)` en 1,2 s, y **pausa hasta los 5,5** |
+| `.svgi` | La chispa | `scale(1 → 1.14)` cada 2,6 s, desfasada del barrido |
+
+Al pasar el cursor todo acelera y el botón sube 2 px; al apretarlo encoge al 97 % con `--mv-liq`. **Deshabilitado se para entero y se queda plano** —si no se puede tocar, tampoco puede estar llamando—. Bajo `prefers-reduced-motion` no queda nada en movimiento.
+
+**Los dos detalles que la versión obvia hace mal, y que no se pueden quitar:**
+
+1. **Los dos pseudoelementos llevan una máscara vertical que los apaga del 32 % al 68 % del alto.** El tono más claro del degradado es `--ia-b` (`#4060f8`), que con blanco encima da 4,95:1 —cuatro centésimas y media de margen sobre el mínimo—, y un velo de luz del **6 %** por delante del texto ya lo baja a 4,44:1. O sea que el brillo no puede pasar por donde va el texto. Y la salida no es quitarlo: en una lámina de vidrio la luz se concentra en el **canto**, arriba y abajo, que es donde el material dobla. Brilla más que antes y el texto se lee sobre el azul limpio.
+2. **La banda del barrido mide exactamente el alto del botón y no se gira.** Lo obvio es girarla 14° para que el reflejo salga en diagonal, y entonces la máscara se gira con ella y deja de tapar la franja del texto: sobre un botón de 800 px, 14° suben la banda 200 px, seis veces su propio alto. La diagonal se consigue igual poniéndola **dentro** —el degradado del relleno va a 105°—, y así la máscara sigue midiendo contra el botón.
+
+El botón del asistente de la plataforma (`.pf-ia-btn`) es la misma acción en la otra app y lleva lo mismo, en `css/plataforma.css`. **Cuidado con una cosa:** ahí `position` ya es `fixed` y ese bloque tiene su misma especificidad, así que un `position:relative` escrito por costumbre —para «anclar» los pseudoelementos, que ya están anclados— saca el botón del flotante y lo manda al final del documento. Pasó; el síntoma es que el botón desaparece.
+
+En papel los tres (`.ai-btn`, `.sp-ai`, `.pf-ia-btn`) salen con borde y tinta oscura. Quitarles el degradado no basta: `background:linear-gradient(…)` es el **atajo**, así que al anular la imagen el color de fondo se queda en transparente y lo que queda es texto blanco sobre el papel, o sea nada.
+
 ---
 
 ## 3. Breakpoints exactos y qué cambia en cada uno
@@ -815,7 +876,11 @@ Tres patrones, elige por semántica:
 | `max-width:759px` | **El corte real de «una columna»**, y desde el rediseño ya NO incluye al Fold 6 abierto (880 px), que conserva sus dos columnas. `.wrap{grid-template-columns:minmax(0,1fr)}`; aparece `.mbar` fija abajo; `.wrap{padding-bottom:calc(84px + env(safe-area-inset-bottom))}` y `html{scroll-padding-bottom:` igual `}`; `.p1-cierre{display:none}` (la acción se muda a la barra fija); `.toast{bottom:calc(20px + 66px + safe-area)}`. En la PLATAFORMA: se apaga la barra lateral y aparecen el encabezado marino y `.pf-abajo` con cinco módulos; Proyectos cambia de tablero de columnas a lista de tarjetas; el mapa apila mapa y ruta. |
 | `min-width:760px` | **Hay barra lateral.** `:root{--lat:168px}` y `.pf-wrap,.pf-cab{padding-left:calc(var(--lat) + var(--e4))}`; el encabezado pasa a blanco de 64 px con subtítulo y acciones; `#pj-filtros{display:none}` (las columnas del tablero SON el filtro). |
 | `min-width:1024px` | La barra lateral crece a `--lat:216px` y el logotipo a 30 px. |
+| `min-width:1024px` **(capa 8)** | El portátil se permite todo: `.topbar{backdrop-filter:blur(24px) saturate(1.9)}` —una ventana de 1 440 px enseña mucha página por debajo—, `.wrap{gap:20px}` y la columna del dinero con `--sombra-vidrio`, para que se lea como el panel flotante que es y no como la tercera tarjeta de la fila. |
+| `max-width:759px` **(capa 8)** | **El dock.** La barra de acción deja de ser el borde de abajo de la ventana y pasa a flotar: `.mbar{left/right/bottom:max(10px,safe-area);border-radius:20px;background:rgba(var(--sup-rgb),.88);backdrop-filter:blur(24px) saturate(1.8);box-shadow:var(--filo),var(--sombra-vidrio-alta)}`, y el hueco de la página sube a `calc(94px + safe-area)`. Lo mismo `.pf-abajo` en la plataforma. **Ojo:** el área segura la descuenta el `left`/`right`, así que el relleno de dentro NO vuelve a sumarla —en un iPhone acostado son 47 px contados dos veces—, y lo que el dock desplaza (relleno de la página, tope del scroll, aviso, `.pf-mbar`, botón del asistente) sale de `--dock`, calculado una sola vez en `css/plataforma.css`. |
 | `screen and (min-width:760px) and (max-width:920px)` | **Fold 6 abierto (880 px)**: `.wrap{grid-template-columns:minmax(0,1fr) 272px}` — con 320 px la rejilla de materiales pasa de tres opciones por fila a dos. |
+| `screen and (min-width:760px) and (max-width:920px)` **(capa 8)** | **La identidad del Fold, que antes no tenía ninguna.** Hasta el vidrio líquido, lo único que le pasaba distinto a la pantalla interna del Fold era esos 272 px de columna: era una computadora encogida, que es lo que se dijo de ella. Ahora: `.wrap{gap:24px}` —la bisagra pasa por el hueco de la rejilla, y con 16 px las dos columnas se tocan justo encima del pliegue—; `.card,.sum,.partida{border-radius:16px}`; la columna del dinero se convierte en **panel de vidrio pegado** (`.wrap>aside{position:sticky;top:calc(var(--top-fijo,74px) + 12px)}` + `backdrop-filter` en su `.sum`); y aire de tableta dentro de las piezas (`.card-h{padding:20px 20px 0}`, `.card-b{padding:14px 20px 20px}`, `.partida{--pp:16px}`, `.optgrp .chip{min-height:44px}`). En la PLATAFORMA, `min-width:760px` y `max-width:1023px`: `.pf-tab,.pf-lat-item{height:48px}` y el selector de rol del pie **en columna** —en 168 px de carril le tocan 46 px por botón y «Fabricación» pide 60: los tres textos se pisaban unos a otros—. |
+| `max-width:385px` **(capa 8)** | La portada del Fold pega el dock al borde (`.mbar{left:6px;right:6px;border-radius:16px;padding:7px 8px}`) y cierra los radios a 12 px: a 344 px de ancho, 20 px de radio en una barra de 62 px de alto ya es una pastilla. |
 | `screen and (min-width:561px) and (max-width:759px)` | **Tableta angosta / Fold cerrado en horizontal**: `.wrap>aside{width:100%;max-width:320px;margin-left:auto}`; nombre corto del tipo (`.tipo-seg .lg{display:none};.tipo-seg .sm{display:inline}`); `.grid3:not(:has(>.fld:nth-child(3):not(.fld-relleno))){grid-template-columns:1fr 1fr}`; `.partida{padding:16px;margin-bottom:12px}`; `.optgrp .chip{flex:0 1 auto;max-width:100%;font-size:11.5px}`; `.tipo-seg button{font-size:11.5px}`; `.hintnote{font-size:11px}`. |
 | `max-width:760px` | `.tipo-seg` pasa a rejilla de 3 columnas (`grid-template-columns:repeat(3,1fr)`, `min-height:42px`). |
 | `min-width:400px` and `max-width:760px` | La fila de tres accesos NO envuelve: `.scaler-ai-row{flex-wrap:nowrap}`, `.ai-btn{flex:1 1 auto;width:auto}`. |
@@ -825,7 +890,7 @@ Tres patrones, elige por semántica:
 | `max-width:340px` | `.mbar-btn{white-space:normal;line-height:1.15;padding:0 12px;text-align:center}`. |
 | `max-width:399px` | Los tres accesos envuelven: `.scaler-ai-row{flex-wrap:wrap}`, `.ai-btn{flex:1 1 100%}`. |
 | `@media(hover:none),(pointer:coarse)` | **Por tipo de puntero, no por ancho** — vale igual en iPhone y en las dos pantallas del Fold. Sube la **caja**, nunca la letra: `.modal-h button{44×44}`; `.toast-act,.falt-quitar,.key-btn,.sp-gclear,.hist-foot button,.card-fold,.btn-maps,.chip,.seg button,.tipo-seg button{min-height:44px}`; `.hentry-del,.sp-ibtn{44×44}`; `.del,.dup,.pdf-vis{40×40}`; `.optgrp .chip{min-height:44px}`; `.hist-close{44×44}`; `.autoctr input{min-height:44px}`; `.pfold{44×44}`; `.vt-sw{32×32}`; `.vt-split::after{48×48}`. |
-| `@media(prefers-reduced-motion:reduce)` (3 bloques) | `*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}`; `#prog-bar::after,.cand-partidas{animation:none!important}`; `.btn:hover,.chip:hover,.paso-tab:hover,.ai-btn:hover{transform:none!important}`; `.chip:active,…,.mbar-btn:active{transform:none}`. Y la **transición de elemento compartido** no se acorta: se apaga entera en su propio código (`_medirTotal()` en `js/cotizador/proceso.js` no mide, así que no hay vuelo). |
+| `@media(prefers-reduced-motion:reduce)` (4 bloques, el cuarto al cierre de la capa 8) | `*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}`; `#prog-bar::after,.cand-partidas{animation:none!important}`; `.btn:hover,.chip:hover,.paso-tab:hover,.ai-btn:hover{transform:none!important}`; `.chip:active,…,.mbar-btn:active{transform:none}`. El cuarto bloque, al final de la capa 8, apaga lo que esa capa añadió y que a los otros tres se les escapaba por vivir 700 líneas más arriba: `body::after` (la aurora del lienzo), el fondo que fluye y el barrido del botón de IA, el latido de la chispa y la entrada elástica de los modales. Y la **transición de elemento compartido** no se acorta: se apaga entera en su propio código (`_medirTotal()` en `js/cotizador/proceso.js` no mide, así que no hay vuelo). |
 
 **Sin zoom por doble toque ni destello gris** (base): `button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-action:manipulation;-webkit-tap-highlight-color:transparent}`.
 

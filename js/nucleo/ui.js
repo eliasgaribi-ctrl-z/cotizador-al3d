@@ -562,13 +562,28 @@ export function medirMarco(id) {
   document.documentElement.style.setProperty('--pf-marco-h', alto + 'px');
 }
 
-/** Cuánto mide la barra de módulos del teléfono (`.pf-abajo`), o 0 donde no está —de 760 px
- *  para arriba la sustituye la barra lateral—. Incluye el área segura, que ya lleva dentro. */
+/**
+ * Cuánto SITIO se lleva la barra de módulos del teléfono (`.pf-abajo`) contado desde el borde
+ * de abajo del visor, o 0 donde no está —de 760 px para arriba la sustituye la barra lateral—.
+ *
+ * Devolvía su ALTO, y eso valía mientras la barra estuviera pegada al borde: alto y sitio eran
+ * el mismo número. Desde que es un dock de vidrio que flota —separado del borde por su margen
+ * y por el área segura— dejaron de serlo, y los dos únicos usos de esta función quieren el
+ * segundo: los dos calculan dónde TERMINA el marco del cotizador empotrado, que es donde
+ * EMPIEZA la barra. Con el alto, el marco se metía esos píxeles por debajo del dock y la barra
+ * fija del cotizador —el total y «Autorizar»— volvía a quedar tapada, que es exactamente la
+ * regresión que pruebas/navegador/plegable.mjs vigila.
+ *
+ * Medido contra el borde, en vez de contra sí misma, el número sale bien esté la barra pegada,
+ * flotando, o donde la ponga mañana la hoja de estilos: aquí no se escribe ni un margen.
+ */
 export function altoBarraAbajo() {
   const b = document.getElementById('pf-abajo');
   if (!b) return 0;
   try { if (getComputedStyle(b).display === 'none') return 0; } catch (_) { return 0; }
-  return Math.round(b.getBoundingClientRect().height) || 0;
+  const r = b.getBoundingClientRect();
+  if (!r.height) return 0;
+  return Math.max(0, Math.round(window.innerHeight - r.top));
 }
 
 /* ============================================================================

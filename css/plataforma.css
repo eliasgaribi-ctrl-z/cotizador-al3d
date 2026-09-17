@@ -1756,3 +1756,228 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 .ia-pista{margin:0;padding:0 var(--e4) calc(var(--e3) + env(safe-area-inset-bottom,0px));font-size:var(--t1);color:var(--tinta3)}
 @media(hover:none),(pointer:coarse){ .ia-pista{display:none} .ia-pie{padding-bottom:calc(var(--e3) + env(safe-area-inset-bottom,0px))} }
 @media(prefers-reduced-motion:reduce){ .ia-espera .svgi,.ia-hoy-cargando .svgi{animation:none} .pf-ia-btn:hover,.ia-frecuente:hover{transform:none} }
+
+/* ============================================================================
+   EL VIDRIO LÍQUIDO, EN LA PLATAFORMA
+   ============================================================================
+   La capa 8 de css/sistema.css trae el material —los tokens, el lienzo que respira, las
+   tarjetas con filo, el botón de IA— y esta hoja lo hereda entero: el `.card`, el `.chip`, el
+   `.modal` y el `.btn` de la plataforma son los mismos del cotizador.
+
+   Aquí va solo lo que es SUYO y el sistema no puede saber: el esqueleto. La barra lateral, el
+   encabezado, la barra de módulos del teléfono, los paneles laterales y el botón del
+   asistente, que es el hermano del de «Cotizar con IA» y tiene que verse como él.
+
+   La regla del desenfoque es la misma y por el mismo motivo: lo llevan las piezas fijas y
+   grandes, y no una tarjeta de proyecto, que en el tablero hay veinte.
+   ============================================================================ */
+
+/* ----- La barra lateral -----
+   Ya llevaba `--nav-grd` —el marino cayendo a un marino más hondo— y con eso sola seguía
+   leyéndose como un bloque de color: 900 px de alto con una sola variación de tono de arriba
+   abajo. Lo que entra son DOS MANCHAS del acento, una en la esquina del logotipo y otra abajo
+   del todo, y un filo de luz por el canto derecho.
+
+   El marino se queda: es la marca, y es lo que separa la plataforma del cotizador de un
+   vistazo. Lo que cambia es que ahora hay algo que mirar en él.
+
+   Los dos tonos salen de --ac-rgb y --a2-rgb y no de un rgba escrito a mano, que es la regla
+   que esta casa ya se dio —«el sistema tenía un color de marca declarado y otro pintado»— y
+   que pruebas/hojas-de-estilo.mjs vigila. */
+@media(min-width:760px){
+  .pf-lat{
+    background:
+      radial-gradient(120% 40% at 0% 0%,rgba(var(--ac-rgb),.18),transparent 62%),
+      radial-gradient(100% 30% at 100% 100%,rgba(var(--a2-rgb),.14),transparent 60%),
+      var(--nav-grd);
+    border-right:1px solid rgba(255,255,255,.07);
+    box-shadow:inset -1px 0 0 rgba(255,255,255,.05),4px 0 32px -18px rgba(0,0,0,.6);
+  }
+  /* El módulo encendido pasa de un rectángulo al 9 % de blanco a una pastilla de vidrio: filo
+     arriba, un halo corto del acento y el filete azul de la izquierda que ya tenía. Es la
+     única pieza encendida de la barra y ahora se ve como tal. */
+  .pf-tab.on{
+    background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.06));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 2px 14px -6px rgba(var(--ac-rgb),.55);
+  }
+  .pf-tab,.pf-lat-item{transition:background var(--mv-s),color var(--mv-s),transform var(--mv-liq)}
+  .pf-tab:active,.pf-lat-item:active{transform:scale(.98)}
+}
+
+/* ----- El encabezado -----
+   En la computadora era blanco opaco; de vidrio, la pantalla que pasa por debajo al hacer
+   scroll se adivina y el encabezado deja de ser una franja pintada. En el teléfono se queda
+   marino —ahí es lo único que lleva la marca— y lo que gana es el mismo tratamiento de la
+   barra lateral: una mancha del acento y un filo. */
+.pf-cab{
+  background:linear-gradient(180deg,rgba(var(--nav-rgb),.98),rgba(var(--nav-rgb),.92)),
+             radial-gradient(70% 300% at 0% 50%,rgba(var(--ac-rgb),.22),transparent 70%);
+  backdrop-filter:blur(16px) saturate(1.4);
+  -webkit-backdrop-filter:blur(16px) saturate(1.4);
+  box-shadow:inset 0 -1px 0 rgba(255,255,255,.07);
+}
+@media(min-width:760px){
+  .pf-cab{
+    background:var(--vidrio);
+    backdrop-filter:blur(var(--vid-blur)) saturate(var(--vid-sat));
+    -webkit-backdrop-filter:blur(var(--vid-blur)) saturate(var(--vid-sat));
+    border-bottom:1px solid rgba(var(--n3-rgb),.7);
+    box-shadow:var(--filo),0 1px 24px -12px rgba(var(--af-rgb),.35);
+  }
+}
+
+/* ----- La barra de módulos del teléfono -----
+   Ya era «cristal marino con la pantalla desenfocada detrás» —lo dice su propio comentario 40
+   líneas más arriba— y le faltaba lo único que hace vidrio a un cristal: despegarse. Ahora es
+   un dock, igual que la barra de acción del cotizador y por el mismo motivo: en un teléfono
+   esta pieza flota sobre la página, no es el borde de abajo de la ventana.
+
+   Y todo lo que se apoya en ella tiene que subir con ella: eso es lo que hace el bloque de
+   `--dock` de aquí abajo. */
+@media(max-width:759px){
+  .pf-abajo{
+    left:max(10px,env(safe-area-inset-left,0px));
+    right:max(10px,env(safe-area-inset-right,0px));
+    bottom:max(10px,env(safe-area-inset-bottom,0px));
+    border:1px solid rgba(255,255,255,.09);
+    border-radius:20px;
+    background:rgba(var(--nav-rgb),.88);
+    backdrop-filter:blur(24px) saturate(1.7);
+    -webkit-backdrop-filter:blur(24px) saturate(1.7);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 2px 10px rgba(0,0,0,.28),0 22px 48px -20px rgba(0,0,0,.65);
+    padding:6px 4px;
+  }
+  /* ----- Lo que el dock desplaza, en un solo sitio -----
+     Cinco piezas se apoyan en la barra de módulos —el relleno de abajo de la página, el tope
+     del scroll, el aviso emergente, la barra de acción de un módulo y el botón del asistente—
+     y hasta ahora cada una llevaba su número escrito a mano: 66, 76, 84 y 86 px, cada uno
+     sumándole el área segura por su cuenta. Con la barra pegada al borde eso funcionaba; con
+     el dock despegado las cinco se quedaron cortas a la vez, cada una por un número distinto.
+     Así que el sitio que se lleva el dock se calcula UNA vez: su alto, más lo que lo separa del
+     borde, más el aire de encima. Y el margen es el mismo `max(10px, área segura)` que lo
+     coloca, no una copia de él. */
+  :root{--dock:calc(64px + max(10px,env(safe-area-inset-bottom,0px)) + 10px)}
+  .pf-wrap{padding-bottom:calc(var(--dock) + var(--e3) + var(--mbar-h,0px))}
+  html:has(body.pf){scroll-padding-bottom:calc(var(--dock) + var(--e3) + var(--mbar-h,0px))}
+  .pf-mbar{bottom:var(--dock)}
+  body.pf .toast{bottom:calc(var(--dock) + var(--e3) + var(--mbar-h,0px))}
+  .pf-ia-btn{bottom:calc(var(--dock) + var(--e2) + var(--mbar-h,0px))}
+}
+
+/* ----- El botón del asistente -----
+   Es el hermano del de «Cotizar con IA»: la misma acción —preguntarle a la máquina— en la
+   otra app, y hasta ahora era una píldora azul plana mientras el otro era la pieza más viva de
+   la pantalla. Lleva lo mismo y por lo mismo, con una diferencia: es redondo y flota sobre
+   ocho pantallas distintas, así que el barrido de luz va en diagonal cerrada y la sombra es
+   más abierta, para que se despegue de un tablero blanco igual que de un mapa.
+
+   Los tonos salen de --ia-a/--ia-b/--ia-c, que es donde el sistema los declara medidos para
+   los dos temas: aquí no se escribe ni un color a mano. */
+/* `overflow:hidden` recorta el barrido a la píldora, e `isolation:isolate` es lo que hace que
+   los dos pseudoelementos de z negativo se pinten por encima del degradado y por debajo del
+   texto. Lo que NO se toca aquí es `position`: la regla de arriba lo pone en `fixed` y este
+   bloque tiene su misma especificidad, así que un `position:relative` escrito por costumbre
+   —para «anclar» los pseudoelementos, que ya están anclados por el fixed— saca el botón del
+   flotante y lo manda al final del documento. Pasó, y el síntoma es que el botón desaparece. */
+.pf-ia-btn{
+  overflow:hidden;isolation:isolate;
+  background:linear-gradient(100deg,
+    var(--ia-a) 0%,var(--ia-b) 22%,var(--ia-c) 42%,var(--ia-b) 62%,var(--ia-a) 82%,var(--ia-b) 100%);
+  background-size:300% 100%;
+  box-shadow:var(--filo-corto),
+             0 4px 16px -4px rgba(var(--a-rgb),.6),
+             0 14px 36px -14px rgba(var(--a2-rgb),.55);
+  animation:ia-aurora var(--mv-lento) linear infinite;
+  transition:transform var(--mv-liq),box-shadow var(--mv-r);
+}
+/* El filo y el barrido llevan la MISMA máscara vertical que los del botón de «Cotizar con IA»,
+   y por el mismo motivo medido que está escrito allá: el tono más claro del degradado da
+   4,95:1 con blanco encima, y un velo de luz del 6 % por delante del texto ya lo tumba. La luz
+   va al canto —arriba y abajo—, que además es donde la tiene una lámina de vidrio de verdad. */
+.pf-ia-btn::before{
+  content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;
+  background:linear-gradient(180deg,rgba(255,255,255,.32),rgba(255,255,255,0) 48%,rgba(255,255,255,.16));
+  -webkit-mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,#000 100%);
+  mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,#000 100%);
+}
+.pf-ia-btn::after{
+  content:'';position:absolute;top:0;bottom:0;left:0;width:50%;z-index:-1;pointer-events:none;
+  background:linear-gradient(105deg,rgba(255,255,255,0) 18%,rgba(255,255,255,.55) 50%,rgba(255,255,255,0) 82%);
+  -webkit-mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,#000 100%);
+  mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,#000 100%);
+  transform:translateX(-110%);
+  animation:ia-barrido 5.5s cubic-bezier(.2,.8,.2,1) infinite;
+}
+.pf-ia-btn .svgi{transform-origin:center;animation:ia-chispa 2.6s ease-in-out infinite}
+.pf-ia-btn:hover{
+  background:linear-gradient(100deg,
+    var(--ia-a) 0%,var(--ia-b) 22%,var(--ia-c) 42%,var(--ia-b) 62%,var(--ia-a) 82%,var(--ia-b) 100%);
+  background-size:300% 100%;
+  transform:translateY(-2px) scale(1.03);
+  box-shadow:var(--filo-corto),
+             0 8px 24px -4px rgba(var(--a-rgb),.72),
+             0 20px 50px -16px rgba(var(--a2-rgb),.7);
+  animation-duration:5s;
+}
+.pf-ia-btn:hover::after{animation-duration:2.6s}
+.pf-ia-btn:active{transform:scale(.96)}
+html[data-tema="oscuro"] .pf-ia-btn:hover{filter:brightness(1.1)}
+
+/* ----- Los paneles laterales y su velo -----
+   Un panel de la plataforma es la pieza que más flota de las ocho pantallas: se abre encima de
+   todo y hay que seguir viendo qué hay debajo para no perder el sitio. Ahí el vidrio no es
+   adorno, es lo que hace que el panel se lea como una capa y no como otra pantalla. */
+.pf-modal-bg{
+  background:rgba(var(--nav-rgb),.52);
+  backdrop-filter:blur(14px) saturate(1.3);
+  -webkit-backdrop-filter:blur(14px) saturate(1.3);
+}
+.pf-panel{
+  background:var(--vidrio);
+  backdrop-filter:blur(30px) saturate(1.9);
+  -webkit-backdrop-filter:blur(30px) saturate(1.9);
+  border:1px solid var(--vidrio-fino);
+  box-shadow:var(--filo),var(--sombra-vidrio-alta);
+}
+
+/* ----- La tarjeta de un proyecto -----
+   Ya se levantaba al pasar el cursor; lo que le faltaba era el filo, que es lo que separa una
+   tarjeta que sube de una tarjeta de vidrio que sube. */
+.pj-tarj{box-shadow:var(--filo),var(--sombra-reposo)}
+.pj-tarj:hover{box-shadow:var(--filo),var(--sombra-vidrio)}
+.pj-tarj:active{box-shadow:var(--filo),var(--sombra-reposo)}
+
+/* ----- El Fold abierto, en la plataforma -----
+   La barra lateral de 168 px de la banda de 760 a 1023 px es la misma pieza que la de 216, y
+   en la pantalla interna del Fold se toca con el DEDO: es una tableta, no una ventana. El
+   bloque de `(pointer:coarse)` de más arriba ya subía `.pf-lat-item` a 44 px —el mínimo— y
+   dejaba fuera a `.pf-tab`, que son los seis módulos y lo que de verdad se toca todo el día.
+   Aquí los dos suben a 48, que en una tableta es la medida y no el mínimo, y el contenido gana
+   el aire que le toca a una pantalla de 880 px: ni el de un teléfono ni el de un monitor. */
+@media(min-width:760px) and (max-width:1023px){
+  .pf-tab,.pf-lat-item{height:48px}
+  .pf-lat{padding:18px 10px 14px}
+  .pf-wrap{padding-top:var(--e5)}
+  /* Y el selector de rol del pie de la barra se pone en COLUMNA. Esto no es estilo: en esta
+     banda el carril mide 168 px, o sea 46 px por botón con el relleno quitado, y «Dirección»,
+     «Fabricación» y «Pagos» piden 60. Los tres textos se salían de su botón y se pisaban unos
+     a otros —se lee «DirecciónFabricaciónPagos» encima de las tres casillas—, que es lo que se
+     ve en cuanto se abre la plataforma en la pantalla interna del Fold.
+
+     En columna cada rol se lee entero y con sus 36 px de alto, que además es lo que hace falta
+     para tocarlo con el dedo: esta pantalla es una tableta. En la computadora (≥1024 px) el
+     carril mide 216 y los tres caben en fila, así que ahí no se toca. */
+  .pf-lat-rol .seg{flex-direction:column;gap:3px}
+  .pf-lat-rol .seg button{min-height:36px;padding:0 10px;text-align:left;font-size:var(--t2)}
+}
+
+/* ----- Lo que apaga esta capa ----- */
+@media(prefers-reduced-motion:reduce){
+  .pf-ia-btn,.pf-ia-btn::after,.pf-ia-btn .svgi{animation:none}
+  .pf-ia-btn::after{opacity:0}
+  .pf-ia-btn:hover{transform:none}
+  .pf-tab:active,.pf-lat-item:active{transform:none}
+}
+@media print{
+  .pf-lat,.pf-cab,.pf-abajo{background:#fff!important;background-image:none!important;box-shadow:none!important}
+}
