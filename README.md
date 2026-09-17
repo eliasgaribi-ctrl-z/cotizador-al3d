@@ -172,7 +172,7 @@ que viaja así deja de ser secreta.
 ## Cómo está acomodado el código
 
     cotizador.html            solo el marcado (900 líneas)
-    css/sistema.css           EL sistema de diseño: tokens, estructura, las siete capas
+    css/sistema.css           EL sistema de diseño: tokens, estructura, las ocho capas
     css/plataforma.css        lo que solo la plataforma tiene (calendario, almacén, mapa)
     js/tema.js                claro, oscuro o el del sistema; corre antes del primer pintado
     js/cotizador/             el cotizador, por dominio y en el orden en que se carga:
@@ -230,7 +230,7 @@ píxeles** para comprobar que nada de lo que lleva texto baja de 4,5:1 de contra
 |---|---|
 | [`docs/FUNCIONES.md`](docs/FUNCIONES.md) | El cotizador por dentro: por qué cada pantalla es como es |
 | [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) | El contrato completo: fases, modelo de datos, cada módulo |
-| [`docs/SISTEMA-DE-DISENO.md`](docs/SISTEMA-DE-DISENO.md) | Tokens, escalas y las siete capas de `css/sistema.css` |
+| [`docs/SISTEMA-DE-DISENO.md`](docs/SISTEMA-DE-DISENO.md) | Tokens, escalas y las ocho capas de `css/sistema.css` |
 | [`docs/INVESTIGACION-TECNICA.md`](docs/INVESTIGACION-TECNICA.md) | Lo que se verificó antes de decidir: OAuth, cuotas, límites |
 | [`docs/ESTRUCTURA-COTIZACION-CANVA.md`](docs/ESTRUCTURA-COTIZACION-CANVA.md) | El papel que se manda de verdad, hoja por hoja |
 | [`puente/README.md`](puente/README.md) | El puente a la hoja: caminos, roles y cómo está cerrado |
