@@ -31,6 +31,7 @@ const cierto = (cond, que) => {
 const html = leer('cotizador.html');
 const sistema = leer('css/sistema.css');
 const plataforma = leer('css/plataforma.css');
+const vidrio = leer('css/vidrio.css');
 
 console.log('\nUNA SOLA HOJA, ENLAZADA DESDE LAS TRES SUPERFICIES');
 for (const [f, href] of [['cotizador.html', 'css/sistema.css'], ['index.html', 'css/sistema.css'],
@@ -38,6 +39,41 @@ for (const [f, href] of [['cotizador.html', 'css/sistema.css'], ['index.html', '
   cierto(leer(f).includes('<link rel="stylesheet" href="' + href + '">'), f + ' enlaza ' + href);
 }
 cierto(!/^<style>$/m.test(html), 'cotizador.html ya no trae un bloque <style> propio: el sistema vive en la hoja');
+
+/* LA CAPA DE VIDRIO VA LA ÚLTIMA, Y ESO NO SE VE AL MIRAR LA PÁGINA.
+   css/vidrio.css repinta tokens y cromado con selectores de UNA clase —`.pf-cab`, `.pf-panel`,
+   `.card`, `.btn`—, que es la misma especificidad con la que los declaran sistema.css,
+   plataforma.css y anidador.css. Con esa igualdad, lo único que decide es el orden de lectura:
+   moverla una línea más arriba no rompe nada ni avisa de nada, simplemente deja de aplicarse
+   —y encima solo en la página donde se movió—. Así que el orden se comprueba aquí. */
+for (const [f, propia, otras] of [
+  ['cotizador.html', 'css/vidrio.css', ['css/sistema.css']],
+  ['index.html', 'css/vidrio.css', ['css/sistema.css', 'css/plataforma.css', 'vendor/leaflet.css']],
+  ['anidador-vectores/index.html', '../css/vidrio.css', ['../css/sistema.css', 'css/anidador.css']],
+]) {
+  const t = leer(f);
+  const iVid = t.indexOf('<link rel="stylesheet" href="' + propia + '">');
+  cierto(iVid > -1, f + ' enlaza ' + propia);
+  for (const otra of otras) {
+    const iOtra = t.indexOf('<link rel="stylesheet" href="' + otra + '">');
+    cierto(iOtra > -1 && iVid > iOtra, f + ': el vidrio se lee después de ' + otra);
+  }
+}
+/* Y las dos familias nuevas se piden de verdad: el token dice Sora y Manrope, pero quien las
+   baja es el <link> de Google Fonts, y son dos sitios distintos que ya se desincronizaron una
+   vez con Outfit y Figtree. Si el <link> se queda atrás, la app cae a la reserva y nadie lo
+   nota hasta que alguien compara dos capturas. */
+for (const f of ['cotizador.html', 'index.html', 'anidador-vectores/index.html']) {
+  const t = leer(f);
+  cierto(/family=Sora:/.test(t) && /family=Manrope:/.test(t), f + ' pide Sora y Manrope a Google Fonts');
+  cierto(!/family=(Outfit|Figtree):/.test(t), f + ' ya no pide Outfit ni Figtree');
+}
+cierto(/--f-cifra:\s*'Sora'/.test(vidrio) && /--f-texto:\s*'Manrope'/.test(vidrio),
+  'y los tokens de css/vidrio.css nombran esas mismas dos familias');
+/* La reserva de --f-texto es la que lleva las familias de emoji y de símbolos. La entrega la
+   cortaba a `system-ui,sans-serif` y ahí se perdían: se conserva la de sistema.css. */
+cierto(/--f-texto:[^;]*'Noto Color Emoji'[^;]*'Noto Sans Symbols 2'/.test(vidrio),
+  'y --f-texto conserva la reserva de emoji y símbolos que trae el sistema');
 cierto(/^:root\{/m.test(sistema) && !/^:root\{/m.test(html.replace(/<!--[\s\S]*?-->/g, '')),
   'los tokens se declaran en css/sistema.css y en ningún HTML');
 /* El tema se decide antes del primer pintado, así que el guion va en el <head> y antes de la
@@ -52,13 +88,15 @@ for (const [f, src] of [['cotizador.html', 'js/tema.js'], ['index.html', 'js/tem
 
 console.log('\nNINGÚN TOKEN SE USA SIN EXISTIR');
 const definidos = new Set([...sistema.matchAll(/(--[a-z0-9-]+)\s*:/gi)].map(m => m[1])
-  .concat([...plataforma.matchAll(/(--[a-z0-9-]+)\s*:/gi)].map(m => m[1])));
+  .concat([...plataforma.matchAll(/(--[a-z0-9-]+)\s*:/gi)].map(m => m[1]))
+  .concat([...vidrio.matchAll(/(--[a-z0-9-]+)\s*:/gi)].map(m => m[1])));
 /* Los que publica el JS en caliente —el alto de la barra fija, el de los dos acordeones— no
    están en ninguna hoja Y NO PASA NADA, porque los tres se usan con valor de reserva. Lo que no
    puede haber es una var() sin definir Y sin reserva. */
 /* Sin comentarios: el del bloque de matices de partida EXPLICA esta misma regla con un `--x` de
    ejemplo, y buscarlo en el texto crudo haría fallar la prueba por su propia explicación. */
-for (const [archivo, css] of [['css/sistema.css', sistema], ['css/plataforma.css', plataforma]]) {
+for (const [archivo, css] of [['css/sistema.css', sistema], ['css/plataforma.css', plataforma],
+                              ['css/vidrio.css', vidrio]]) {
   const huerfanos = [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/var\((--[a-z0-9-]+)\s*\)/g)]
     .map(m => m[1]).filter(t => !definidos.has(t));
   cierto(huerfanos.length === 0,

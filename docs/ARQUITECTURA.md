@@ -999,6 +999,7 @@ manifest-plataforma.webmanifest     id propio, start_url ./plataforma.html#/hoy,
 
 css/sistema.css                     EL sistema de diseño (sep/2026: ya no es copia; cotizador.html lo enlaza). 7 capas, la última es el tema oscuro. Dep: ninguna
 css/plataforma.css                  Solo lo nuevo: rejilla del calendario, renglones de stock, marco del mapa. Dep: sistema.css
+css/vidrio.css                      La capa de vidrio (sep/2026). Repinta --f-cifra/--f-texto a Sora y Manrope y pone vidrio en el cromado: topbar, riel de pasos, columna del dinero, .mbar, barra lateral y fichas de la plataforma, modales, marcador del anidador. Las partidas se quedan opacas a propósito. SE ENLAZA LA ÚLTIMA en las tres páginas —selectores de una clase, así que lo único que decide es el orden— y pruebas/hojas-de-estilo.mjs lo vigila. Dep: sistema.css (usa --ia-a/b/c, --a-rgb, --sup-rgb)
 
 js/app.js                           Arranque, router por hash, alta de _CAPAS, registro del SW, ajustarTopbarMovil, oyente 'storage'. Dep: nucleo/*, datos/*
 js/nucleo/ui.js                     $, esc, money, ico, toast, voz, chip, grupo, _ABRIBLE, el MutationObserver de modales, el patrón .hist. Dep: ninguna
@@ -1082,7 +1083,7 @@ const APP   = 'al3d-app-1';     // la plataforma. Se sube UNA LÍNEA al publicar
 const BASICOS = ['./','./index.html','./manifest.webmanifest','./logo-al3d.svg','./logo-al3d-oscuro.svg',
                  './icono-192.png','./icono-512.png','./icono-maskable-512.png','./apple-touch-icon.png'];
 const APP_FILES = ['./plataforma.html','./manifest-plataforma.webmanifest',
-  './css/sistema.css','./css/plataforma.css',
+  './css/sistema.css','./css/plataforma.css','./css/vidrio.css',
   './js/app.js', /* … los 18 módulos … */
   './datos/semilla.json',
   './vendor/leaflet.css','./vendor/leaflet-src.esm.js',

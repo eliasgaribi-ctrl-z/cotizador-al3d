@@ -30,8 +30,8 @@
      apagado, que nunca va a ejecutar ese onload. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 
 <!-- sistema.css ES el sistema de diseño —los azules muestreados del logotipo, la superficie
      y el borde, la escala de siete tamaños de letra— y lo comparten el cotizador, esta
@@ -43,6 +43,10 @@
 <link rel="stylesheet" href="css/sistema.css">
 <link rel="stylesheet" href="css/plataforma.css">
 <link rel="stylesheet" href="vendor/leaflet.css">
+<!-- Y la capa de vidrio la última. Aquí el orden importa más que en las otras dos páginas:
+     repinta `.pf-cab`, `.pf-panel` y `.pf-abajo`, que se declaran en plataforma.css con la
+     misma especificidad, así que leerla antes sería no leerla. -->
+<link rel="stylesheet" href="css/vidrio.css">
 </head>
 <body class="pf">
 
