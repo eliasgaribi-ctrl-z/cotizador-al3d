@@ -14,7 +14,13 @@
    ============================================================================ */
 
 /* ===================== Historial de cotizaciones autorizadas ===================== */
-function getHistorial(){ try{return JSON.parse(localStorage.getItem('al3d_historial')||'[]');}catch(_){return [];} }
+/* Solo entradas que son objetos. Un respaldo editado a mano o truncado puede dejar un null o
+   un número en la lista, y con eso el historial, los cuadernos y las sugerencias de cliente
+   reventaban en la primera lectura —`e.cliente` de null— antes de pintar nada. */
+function getHistorial(){
+  try{ const a=JSON.parse(localStorage.getItem('al3d_historial')||'[]'); return Array.isArray(a)?a.filter(e=>e&&typeof e==='object'):[]; }
+  catch(_){ return []; }
+}
 function saveHistorial(arr){
   /* El historial es la única fuente de los cuadernos: si cambia, lo que hay en memoria
      dejó de valer. Va aquí arriba y no en el camino del éxito porque incluso cuando la
@@ -217,7 +223,7 @@ function pintarHistorial(){
       const imgHTML=isImg
         ? `<img class="hentry-img" src="${urlImagenSegura(e.aiFile.url)}" ${_ABRIBLE} onclick="openHistImg('${esc(e.folio)}')" title="Ver imagen completa" alt="Referencia">`
         : `<div class="hentry-img-ph">${e.aiFile?ico('i-doc'):ico('i-imagen')}</div>`;
-      const rows=e.items.map((it,i)=>{
+      const rows=(e.items||[]).map((it,i)=>{
         const ia=(e.itemsAuth&&e.itemsAuth[it.id]!==undefined)?e.itemsAuth[it.id]
                  :(it._lt!==undefined?it._lt:lineTotal(it));
         return `<tr><td>${i+1}</td><td>${esc(dsc(it))}</td><td>${money(ia)}</td></tr>`;
@@ -299,7 +305,13 @@ function reabrirDeHistorial(folio){
   /* Si la entrada es de antes de que existiera la huella, se sella con el trabajo tal como
      viene: lo que se guardó ES lo que se autorizó. Sin esto, cada cotización vieja del
      historial perdería su precio autorizado la primera vez que se abriera. */
-  Q.huellaAuth=e.huellaAuth||huellaTrabajo();
+  /* Una huella VACÍA guardada —no ausente, que es lo que traen las entradas de antes de que
+     existiera— dice que el precio se soltó al editar y nadie lo volvió a autorizar:
+     soltarAuthSiCambio la borra y autorizarConfirmado siempre la sella. Se respeta, porque
+     sellarla aquí escondía que el precio de esa cotización es el calculado y que hay que
+     volverlo a autorizar (ver autorizacionSuelta). Más abajo se sella de todos modos si hay
+     importes congelados que defender. */
+  Q.huellaAuth=e.huellaAuth!==undefined?e.huellaAuth:huellaTrabajo();
   Q.autorizador=e.autorizador||''; Q.nota=e.nota||''; Q.fechaAuth=e.fechaAuth||'';
   Q.estado='autorizada'; Q.editMode=false; _selfAuth=false; _marcarOblig=false;
   /* El anticipo pactado vuelve como se guardó. Solo «Duplicar» lo reinicia, porque ahí
@@ -326,6 +338,9 @@ function reabrirDeHistorial(folio){
     if(Math.abs(it._lt-lineTotal(actual))>0.01) Q.itemsAuth[it.id]=it._lt;
   });
   if(!Q.precioAuth&&e.neto>0&&Math.abs(e.neto-totals().neto)>0.01) Q.precioAuth=e.neto;
+  /* Con algo que defender —un precio autorizado o un importe congelado— la huella tiene que
+     estar puesta, venga vacía o de una versión intermedia: sin ella nada de eso se aplica. */
+  if(!Q.huellaAuth&&(Q.precioAuth>0||Object.keys(Q.itemsAuth||{}).length)) sellarAuth();
   // Los ids se reutilizan tal cual, así que el contador tiene que quedar por encima
   // del mayor para que las partidas nuevas no choquen con las restauradas.
   pid=Q.items.reduce((m,it)=>Math.max(m,it.id||0),pid);

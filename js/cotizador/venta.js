@@ -23,21 +23,29 @@ function hoyISO(){ const d=new Date(),p=n=>String(n).padStart(2,'0');
 function abrirRegistrarVenta(){
   // Si el autorizador ajustó el precio, se avisa aquí: la venta se registra por ese
   // precio, no por el calculado.
-  const aj=ajusteAuth(), avisoEl=document.getElementById('rv-aviso-auth');
+  const avisoEl=document.getElementById('rv-aviso-auth');
   if(avisoEl){
-    if(Math.abs(aj)>0.01){
-      /* Sobre el SUBTOTAL, que es la base en la que se decidió el ajuste y la misma en la que
-         se calcula la comisión dos campos más abajo. Con la base vieja —el neto— este aviso
-         decía «$3,016» de una rebaja que en lo que se queda la casa son $2,600, justo encima
-         de una comisión calculada sobre los $17,400. */
-      const dV=desgloseFinal(), subV=+subAjustado().toFixed(2), ajS=+(subV-dV.sub).toFixed(2);
-      avisoEl.textContent=(ajS>0?'Precio autorizado con descuento de '+money(ajS):'Precio autorizado con aumento de '+money(-ajS))
-        +' sobre el subtotal — la venta se registra por '+money(precioFinal())+'.';
+    /* Sobre el SUBTOTAL, que es la base en la que se decidió el ajuste y la misma en la que
+       se calcula la comisión dos campos más abajo. Con la base vieja —el neto— este aviso
+       decía «$3,016» de una rebaja que en lo que se queda la casa son $2,600, justo encima
+       de una comisión calculada sobre los $17,400. La frase la arma fraseAjuste, que nombra
+       la base cuando hay dos —las partidas ajustadas y el calculado—, igual que la columna. */
+    const dV=desgloseFinal(), subV=+subAjustado().toFixed(2), subC=+totals().sub.toFixed(2);
+    const vigente=authVigente();
+    const f=vigente?fraseAjuste(dV.sub,subV,subC):null;
+    const dc=+(subC-dV.sub).toFixed(2);
+    let txt='';
+    if(f) txt='Precio autorizado con '+f.tipo.toLowerCase()+' de '+money(f.importe)+' ('+f.pct+'%) '+f.sobre+f.vsCalc;
+    /* Solo ajustes partida por partida, sin precio global encima: también se dice, porque la
+       venta se registra por un subtotal distinto del que suman las partidas al catálogo. */
+    else if(vigente&&Math.abs(dc)>=0.01) txt='Precio autorizado con '+(dc>0?'descuento':'aumento')+' de '+money(Math.abs(dc))+' partida por partida, sobre el calculado';
+    if(txt){
+      avisoEl.textContent=txt+' — la venta se registra por '+money(precioFinal())+'.';
       /* Y un aumento no se anuncia en la caja verde del éxito. La misma información, dos
          pantallas antes, ya distingue: en el panel del paso 3 el descuento va en verde y el
          aumento en ámbar, con su comentario. Aquí los dos compartían la única piel que tiene
          este nodo. */
-      avisoEl.classList.toggle('inc',ajS<0);
+      avisoEl.classList.toggle('inc',f?f.d<0:dc<0);
       avisoEl.style.display='';
     } else { avisoEl.classList.remove('inc'); avisoEl.style.display='none'; }
   }

@@ -271,6 +271,26 @@ await p.waitForTimeout(400);
 !(await p.evaluate(()=>Q.items[0].nManual)) ? bien('vaciar el texto le devuelve el mando al contador')
                                            : mal('con el texto vacío la cuenta sigue trabada a mano');
 
+/* Y borrar la CUENTA también se lo devuelve. Con «13» corregido a mano, vaciar el campo es
+   «cuéntalas tú otra vez»: antes dejaba n=0 con la bandera puesta, o sea «0 letras» y $0 hasta
+   que alguien vaciara la caja del texto. Y entrar y salir del campo sin tocarlo no es una
+   corrección: saneaNum vuelve a escribir el mismo número al soltarlo y eso trababa la cuenta. */
+await p.fill('.autoctr input','FARMACIA GDL'); await p.waitForTimeout(300);
+await p.fill('#n-1','13'); await p.waitForTimeout(300);
+await p.fill('#n-1',''); await p.evaluate(()=>document.getElementById('n-1').blur()); await p.waitForTimeout(400);
+it = await p.evaluate(()=>({n:Q.items[0].n, manual:!!Q.items[0].nManual, campo:document.getElementById('n-1').value,
+  contador:(document.getElementById('acnt-1')||{}).textContent||''}));
+(it.n===11 && !it.manual && it.campo==='11' && it.contador.startsWith('11'))
+  ? bien('borrar la cuenta le devuelve el mando al contador: vuelve a decir 11, y el campo lo enseña al soltarlo')
+  : mal('tras borrar la cuenta quedó '+JSON.stringify(it));
+await p.focus('#n-1'); await p.evaluate(()=>document.getElementById('n-1').blur()); await p.waitForTimeout(200);
+await p.fill('.autoctr input','FARMACIA GDLX'); await p.waitForTimeout(400);
+it = await p.evaluate(()=>({n:Q.items[0].n, manual:!!Q.items[0].nManual}));
+(it.n===12 && !it.manual)
+  ? bien('entrar y salir del campo sin tocarlo no traba la cuenta: el texto sigue contando (12)')
+  : mal('solo enfocar el campo trabó la cuenta: '+JSON.stringify(it));
+await p.fill('.autoctr input',''); await p.waitForTimeout(300);
+
 /* Escribir la descripción a mano apaga el sembrado. */
 await p.fill('#d-1','Letrero de fachada, dos caras');
 await p.waitForTimeout(400);

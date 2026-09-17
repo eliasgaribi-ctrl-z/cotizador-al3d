@@ -299,6 +299,23 @@ function marcarHito(k){
      dos dedos más arriba, seguía ofreciendo «Generar PDF ›». */
   renderSummary(); pintarPasos(); updProg();
 }
+/* Quitar los hitos que dejaron de ser ciertos. Lo llama la liberación del precio autorizado
+   (renderSummary → soltarAuthSiCambio) y nadie más: el PDF y el chat que ya se hicieron eran de
+   OTRO trabajo, y con su palomita puesta el panel ofrecía «Enviar por WhatsApp» como siguiente
+   paso de una cotización cuyo PDF ya no dice lo que se cobra. La venta no se toca: una venta es
+   una venta, y de avisar que la cotización cambió después de ganarse se encarga la plataforma. */
+function desmarcarHitos(ks){
+  if(!Q.folio) return;
+  try{
+    const o=getHitos(), y=o[Q.folio];
+    if(!y||typeof y!=='object') return;
+    let quitados=0;
+    (ks||[]).forEach(k=>{ if(y[k]){ delete y[k]; quitados++; } });
+    if(!quitados) return;
+    if(Object.keys(y).length) o[Q.folio]=y; else delete o[Q.folio];
+    localStorage.setItem(HITOS_KEY,JSON.stringify(o));
+  }catch(_){ /* sin espacio: se queda la palomita vieja, que es el mal menor */ }
+}
 /* «27 ago» — la fecha corta, que es toda la que hace falta al lado de una palomita. */
 function hitoFecha(ts){
   if(!ts) return '';

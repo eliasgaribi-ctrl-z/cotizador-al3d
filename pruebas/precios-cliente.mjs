@@ -243,6 +243,32 @@ autorizada({ items: [manual(1, 1, 4321.99)], iva: false, precioAuth: 4000 });
 cierto(cerca(F.conIva(4000), 4000) && cerca(F.sinIva(4000), 4000), 'con el IVA apagado, subtotal y neto son la identidad');
 cierto(cerca(F.desgloseFinal().sub, 4000) && cerca(F.desgloseFinal().iva, 0), 'y el desglose no inventa un IVA que nadie va a cobrar');
 
+/* ---- 8. El ajuste, dicho con su base ----
+   Dos bases y las dos ciertas: el subtotal calculado y las partidas ya ajustadas una por una.
+   Con una partida bajada de $17,600 a $16,000 y $30,000 de precio global sobre $31,000
+   calculados, el formulario decía «Descuento $1,000» y la columna «Aumento $600». fraseAjuste
+   arma la frase una vez, nombrando la base cuando hay dos, y las cuatro pantallas la leen. */
+console.log('\nEL AJUSTE, DICHO CON SU BASE');
+{
+  const fr = F.fraseAjuste = ev('fraseAjuste');
+  let f = fr(30000, 29400, 31000);
+  cierto(f && f.tipo === 'Aumento' && cerca(f.importe, 600) && f.pct === 2, 'sobre $29,400 ajustados, $30,000 es un aumento de $600 (2 %)');
+  cierto(f.conPartidas && /partidas ya ajustadas \(\$29,400\.00\)/.test(f.sobre), 'y la base se nombra: «' + f.sobre + '»');
+  cierto(/\$1,000\.00 por debajo del calculado \(\$31,000\.00\)/.test(f.vsCalc), 'sin esconder que va por debajo del calculado: «' + f.vsCalc.trim() + '»');
+  cierto(f.linea === 'Aumento: $600.00 (2%) sobre las partidas ya ajustadas ($29,400.00) · $1,000.00 por debajo del calculado ($31,000.00)', 'la frase completa: «' + f.linea + '»');
+  f = fr(19000, 20000, 20000);
+  cierto(f && f.tipo === 'Descuento' && cerca(f.importe, 1000) && f.pct === 5 && !f.conPartidas && f.sobre === 'sobre el subtotal' && f.vsCalc === '',
+    'sin ajustes por partida las dos bases son una y la frase es la de siempre: «' + f.linea + '»');
+  f = fr(29400, 29400, 31000);
+  cierto(f === null, 'el precio global igual a las partidas ajustadas no es un ajuste global: null');
+  f = fr(31000, 29400, 31000);
+  cierto(f && f.tipo === 'Aumento' && cerca(f.importe, 1600) && / · igual al calculado$/.test(f.vsCalc), 'volver al calculado desde partidas rebajadas es un aumento sobre ellas «igual al calculado»');
+  cierto(fr(100, 100.004, 100) === null && fr(0, 0, 0) === null, 'medio centavo no es ajuste, y sin base no hay frase');
+  /* Y la base que ve el formulario mientras se teclea: las partidas con sus ajustes, valga o no la autorización */
+  autorizada({ items: [manual(1, 5, 1000), manual(2, 2, 280)], itemsAuth: { 1: 4500 }, estado: 'pendiente' });
+  cierto(cerca(ev('subConAjustesPorPartida()'), 5060), 'subConAjustesPorPartida suma $4,500 + $560 aunque la cotización siga pendiente');
+}
+
 console.log('');
 if (fallas) { console.log(`${fallas} falla(s).`); process.exit(1); }
-console.log('El aumento se reparte bien: proporcional, al centavo y sin renglón de ajuste.');
+console.log('El aumento se reparte bien: proporcional, al centavo y sin renglón de ajuste; y el ajuste dice su base.');
