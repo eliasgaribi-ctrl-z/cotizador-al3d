@@ -21,7 +21,13 @@ function renderSummary(){
      medio editar también entra por aquí. Suelta una sola vez, porque al soltar borra la
      huella; de ahí que el aviso no se repita en cada repintado. */
   if(soltarAuthSiCambio()){
-    toast('Cambiaron las partidas: el precio vuelve al calculado y hay que autorizarlo de nuevo','',6000);
+    /* Todas las partidas, no solo la que se tecleó: sus importes del cliente acaban de dejar
+       de valer (ver repintarImportes). */
+    repintarImportes();
+    /* El PDF y el chat que ya se hicieron eran de OTRO trabajo: con el precio suelto, la
+       entrega vuelve a empezar. La venta registrada no se toca (ver desmarcarHitos). */
+    desmarcarHitos(['pdf','wa']);
+    toast('Cambiaron las partidas: el precio vuelve al calculado y hay que autorizarlo de nuevo — abajo está «Volver a autorizar»','',7000);
     voz('El precio autorizado se soltó porque cambiaron las partidas');
   }
   aplicarBlurPrecios();
@@ -85,24 +91,37 @@ function renderSummary(){
   // Precio autorizado (descuento o aumento respecto al calculado)
   const authRow=$('s-auth-row');
   if(authRow){
-    const aj=ajusteAuth(), neto=netoAjustado();
-    if(Q.estado==='autorizada'&&Math.abs(aj)>0.01&&neto>0){
-      /* El ajuste se dice en la base en la que se decidió, que es el subtotal. El porcentaje
-         sale igual en las dos —el 1,16 se va en la división—, pero el importe no: sobre el
-         neto este renglón anunciaba «Descuento: $3,016» de una rebaja que en lo que la casa
-         se queda son $2,600. El subtotal autorizado no se repite aquí: lo enseña el recuadro
-         de arriba, en grande y con el calculado tachado. */
-      const dFin=desgloseFinal(), subBase=+subAjustado().toFixed(2), ajSub=+(subBase-dFin.sub).toFixed(2);
-      /* Esta ficha repetía «Precio autorizado: $20,184.00», que es palabra por palabra lo que
-         dice el renglón del total dos más arriba. Con el importe ya dicho arriba, aquí se
-         queda lo único que sólo esta ficha sabe: cuánto se movió y sobre qué base. */
-      const adjLab=authRow.querySelector('.adj-label');
-      if(adjLab) adjLab.textContent = ajSub>0?'Descuento':'Aumento';
-      $('s-auth').textContent=money(Math.abs(ajSub));
-      $('s-auth-desc').textContent= ajSub>0
-        ? `sobre el subtotal (${Math.round(ajSub/subBase*100)}%) · se le enseña al cliente`
-        : `sobre el subtotal (${Math.round(-ajSub/subBase*100)}%) · repartido entre las partidas`;
-      authRow.classList.toggle('inc',aj<0);
+    const neto=netoAjustado();
+    /* El ajuste se dice en la base en la que se decidió, que es el subtotal. El porcentaje
+       sale igual en las dos —el 1,16 se va en la división—, pero el importe no: sobre el
+       neto este renglón anunciaba «Descuento: $3,016» de una rebaja que en lo que la casa
+       se queda son $2,600. El subtotal autorizado no se repite aquí: lo enseña el recuadro
+       de arriba, en grande y con el calculado tachado.
+       Y la BASE se nombra cuando hay dos (ver fraseAjuste): con una partida bajada a mano y
+       un precio global encima, «Aumento $600 sobre el subtotal» junto a un subtotal que
+       pasaba de $31,000 a $30,000 se leía como un error. */
+    const vigente=Q.estado==='autorizada'&&neto>0&&authVigente();
+    const dFin=desgloseFinal(), subBase=+subAjustado().toFixed(2), subCalc=+t.sub.toFixed(2);
+    const f=vigente?fraseAjuste(dFin.sub,subBase,subCalc):null;
+    const soloPartidas=vigente&&!f&&Math.abs(subBase-subCalc)>0.01;
+    /* Esta ficha repetía «Precio autorizado: $20,184.00», que es palabra por palabra lo que
+       dice el renglón del total dos más arriba. Con el importe ya dicho arriba, aquí se
+       queda lo único que sólo esta ficha sabe: cuánto se movió y sobre qué base. */
+    const adjLab=authRow.querySelector('.adj-label');
+    if(f){
+      if(adjLab) adjLab.textContent=f.tipo;
+      $('s-auth').textContent=money(f.importe);
+      $('s-auth-desc').textContent=`${f.pct}% ${f.sobre} · ${f.d>0?'se le enseña al cliente':'repartido entre las partidas'}${f.vsCalc}`;
+      authRow.classList.toggle('inc',f.d<0);
+      authRow.style.display='';
+    } else if(soloPartidas){
+      /* Solo ajustes partida por partida, sin precio global encima: la ficha se escondía y el
+         «Precio Subtotal autorizado» de arriba quedaba sin explicar. */
+      const dc=+(subCalc-subBase).toFixed(2);
+      if(adjLab) adjLab.textContent=dc>0?'Descuento':'Aumento';
+      $('s-auth').textContent=money(Math.abs(dc));
+      $('s-auth-desc').textContent=`${subCalc>0?Math.round(Math.abs(dc)/subCalc*100)+'% ':''}sobre el calculado, partida por partida · sin ajuste global encima`;
+      authRow.classList.toggle('inc',dc<0);
       authRow.style.display='';
     } else { authRow.style.display='none'; }
   }
@@ -195,28 +214,35 @@ function renderAuth(){
     }
     else if(Q.estado==='autorizada'){
       const neto=netoAjustado();
-      const aj=ajusteAuth();
       /* El importe se dice sobre el SUBTOTAL, igual que #s-auth-desc y que updPrecioAuth. Con
          la base vieja —el neto— los dos se pintaban a la vez, un renglón debajo del otro, y
          el mismo descuento salía como «$2,600.00 sobre el subtotal» arriba y «Ahorro:
          $3,016.00» aquí. El porcentaje sale igual en las dos bases: el 1,16 se va en la
-         división. */
-      const _dA=desgloseFinal(), _subA=+subAjustado().toFixed(2), ajS=+(_subA-_dA.sub).toFixed(2);
+         división. La frase la arma fraseAjuste, que nombra la base cuando hay dos. */
+      const fA=neto>0&&authVigente()?fraseAjuste(desgloseFinal().sub,+subAjustado().toFixed(2),+totals().sub.toFixed(2)):null;
       /* El DESCUENTO ya no se repite aquí. Desde que la columna del dinero cierra consigo
          misma, su renglón del total dice «Precio autorizado · $17,966.08» y el de abajo
          «Descuento · $2,112.00 sobre el subtotal (12%)»: esta caja verde decía esos dos
          mismos números tres centímetros más abajo, con otras palabras. El AUMENTO sí se
          queda, porque dice algo que no está en ninguna otra parte: que se reparte entre las
          partidas y que por eso el PDF no lleva un renglón de ajuste. */
-      const descHTML=Math.abs(aj)>0.01&&neto>0
-        ? (aj>0
-            ? ''
-            /* El aumento se reparte entre las partidas y el cliente no lo ve como renglón (ver
-               preciosCliente). Se dice aquí, donde el vendedor lee «Aumento», para que no
-               busque en el PDF un «Ajuste» que ya no existe. */
-            : `<div class="authnote" style="border-color:var(--amber-ico);background:var(--amber-bg);color:var(--amber);margin-top:8px">Precio autorizado: <b>${money(precioFinal())}</b> · Aumento: <b>${money(-ajS)}</b> sobre el subtotal (${Math.round(-ajS/_subA*100)}%) · repartido entre las partidas, sin renglón de ajuste en el PDF</div>`)
+      const descHTML=fA&&fA.d<0
+        /* El aumento se reparte entre las partidas y el cliente no lo ve como renglón (ver
+           preciosCliente). Se dice aquí, donde el vendedor lee «Aumento», para que no
+           busque en el PDF un «Ajuste» que ya no existe. */
+        ? `<div class="authnote" style="border-color:var(--amber-ico);background:var(--amber-bg);color:var(--amber);margin-top:8px">Precio autorizado: <b>${money(precioFinal())}</b> · Aumento: <b>${money(fA.importe)}</b> (${fA.pct}%) ${esc(fA.sobre)}${esc(fA.vsCalc)} · repartido entre las partidas, sin renglón de ajuste en el PDF</div>`
         : '';
-      const authNote=`<div class="authnote">Autorizada por <b>${esc(Q.autorizador)||'—'}</b> el <b>${esc(Q.fechaAuth)}</b>.${Q.nota?'<br>Nota: '+esc(Q.nota):''}</div>`;
+      /* ----- La autorización que ya no vale -----
+         Editar las partidas suelta el precio autorizado (soltarAuthSiCambio) y la app lo dice:
+         «hay que autorizarlo de nuevo». Pero no había CÓMO: la cotización seguía en
+         «Autorizada» —con el nombre y la fecha de quien autorizó OTRO trabajo—, el panel
+         ofrecía la entrega y ningún botón volvía a abrir el formulario de revisión. La única
+         salida era «Duplicar» del historial, que es otro folio. Aquí la nota dice la verdad del
+         precio y el botón lleva a revisarlo otra vez (ver reautorizar). */
+      const suelta=autorizacionSuelta();
+      const authNote=suelta
+        ? `<div class="authnote" style="border-color:var(--amber-ico);background:var(--amber-bg);color:var(--amber)"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> Las partidas cambiaron después de que <b>${esc(Q.autorizador)||'—'}</b> autorizara el precio el <b>${esc(Q.fechaAuth)}</b>: el precio de arriba es el <b>calculado</b>, sin ningún ajuste. Vuelve a autorizarlo para cerrarlo con el trabajo de hoy.</div>`
+        : `<div class="authnote">Autorizada por <b>${esc(Q.autorizador)||'—'}</b> el <b>${esc(Q.fechaAuth)}</b>.${Q.nota?'<br>Nota: '+esc(Q.nota):''}</div>`;
       if(Q.editMode){
         body=`${authNote}
               ${descHTML}
@@ -228,8 +254,10 @@ function renderAuth(){
       } else {
         body=`${authNote}
               ${descHTML}
-              <div id="entrega">${entregaHTML()}</div>
+              ${suelta?`<button class="btn btn-pri" onclick="reautorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Volver a autorizar el precio</button>`:''}
+              <div id="entrega">${entregaHTML({sinRelleno:suelta})}</div>
               <button class="btn btn-gho" onclick="toggleEditMode()"><svg class="svgi" aria-hidden="true"><use href="#i-lapiz"/></svg> Editar partidas</button>
+              ${suelta?'':`<button class="btn btn-gho" onclick="reautorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Volver a autorizar el precio</button>`}
               <!-- Canva y el prompt de Gemini son salidas que se usan a veces, no pasos de la
                    entrega: sacadas de la fila de arriba dejan de competir con lo que sí se
                    hace siempre, y siguen a un toque de distancia. -->
@@ -283,12 +311,16 @@ function renderAuth(){
    constancia ya se guardaba —`marcarPropuesta` la escribe desde que existe el botón— y hasta
    ahora nadie la leía en ningún sitio. */
 function _hayPropuestas(){ try{ return Object.keys(getPropuestas()).length>0; }catch(_){ return false; } }
-function entregaHTML(){
+function entregaHTML(opts){
   const h=hitosDe(Q.folio);
-  const primero=HITOS.find(x=>!h[x.k]);
+  /* Sin relleno cuando el precio quedó suelto: el botón con color de esa pantalla es «Volver a
+     autorizar», y dos rellenos en la misma columna son dos «esto es lo que sigue». */
+  const sinRelleno=!!(opts&&opts.sinRelleno);
+  const primero=sinRelleno?null:HITOS.find(x=>!h[x.k]);
   return HITOS.map(x=>{
     const ts=h[x.k];
     const toca=primero&&primero.k===x.k;
+    const propia=(sinRelleno&&x.cls==='btn-pri')?'btn-gho':x.cls;
     /* Tres estados y tres pesos. El que TOCA lleva el relleno de marca, que es el único de la
        pantalla: «un solo botón lleva color, el que hace lo que se vino a hacer», y aquí ese
        botón es literalmente el siguiente paso. Los que todavía no tocan conservan su propia
@@ -297,7 +329,7 @@ function entregaHTML(){
 
        El hecho se dice con la palomita y la fecha, no cambiando el nombre del botón: quien
        vuelva a tocarlo tiene que seguir sabiendo qué hace. */
-    return `<button class="btn hito ${ts?'btn-gho hito-hecho':(toca?'btn-pri':x.cls)}" onclick="${x.fn}">`
+    return `<button class="btn hito ${ts?'btn-gho hito-hecho':(toca?'btn-pri':propia)}" onclick="${x.fn}">`
       +(ts?`<svg class="svgi hito-ok" aria-hidden="true"><use href="#i-check"/></svg>`
           :`<svg class="svgi" aria-hidden="true"><use href="#${x.ico}"/></svg>`)
       +` ${x.label}`
@@ -406,10 +438,21 @@ function updPrecioAuth(paSub, subCalc){
   const netoEl=$('a-precio-neto');
   if(netoEl) netoEl.innerHTML='Con IVA 16%: <b>'+money(conIva(paSub))+'</b>';
   const el=$('descuento-info'); if(!el) return;
-  const d=+(subCalc-paSub).toFixed(2);
-  if(!paSub||paSub<=0||subCalc<=0||Math.abs(d)<0.01){ el.textContent=''; el.classList.remove('inc'); return; }
-  if(d>0){ el.textContent=`Descuento: ${money(d)} sobre el subtotal (${Math.round(d/subCalc*100)}%)`; el.classList.remove('inc'); }
-  else   { el.textContent=`Aumento: ${money(-d)} sobre el subtotal (${Math.round(-d/subCalc*100)}%)`; el.classList.add('inc'); }
+  if(!paSub||paSub<=0||subCalc<=0){ el.textContent=''; el.classList.remove('inc'); return; }
+  /* Contra las partidas YA AJUSTADAS, que es la base contra la que después se mide todo —el
+     reparto del aumento, la ficha de la columna, el aviso de la venta— y no contra el
+     calculado a secas. Medido: con la partida 1 bajada de $17,600 a $16,000 y $30,000 de
+     precio global sobre $31,000 calculados, aquí decía «Descuento: $1,000» y al autorizar la
+     columna decía «Aumento: $600 · repartido entre las partidas». Las dos frases eran
+     ciertas y juntas parecían un error; ahora las dos nombran la misma base (fraseAjuste). */
+  const base=subConAjustesPorPartida();
+  const f=fraseAjuste(paSub,base,subCalc);
+  const dc=+(subCalc-paSub).toFixed(2), conPartidas=Math.abs(base-subCalc)>0.01;
+  if(f){ el.textContent=f.linea; el.classList.toggle('inc',f.d<0); }
+  /* Sin ajuste global pero con partidas ajustadas: se dice cuánto se movió contra el
+     calculado, que es lo que esta línea contestaba antes y sigue haciendo falta saber. */
+  else if(conPartidas&&Math.abs(dc)>=0.01){ el.textContent=`Igual a las partidas ajustadas · ${money(Math.abs(dc))} ${dc>0?'por debajo':'por encima'} del calculado (${money(subCalc)})`; el.classList.toggle('inc',dc<0); }
+  else { el.textContent=''; el.classList.remove('inc'); }
 }
 
 /* ===================== Revisión previa: partidas sin terminar =====================
@@ -463,8 +506,17 @@ function revisarAntesDe(accion,etiqueta){
   $('faltmodal').classList.add('show');
 }
 function pintarFaltantes(pend){
-  const n=pend.length;
-  $('falt-intro').innerHTML=`${n===1?'Esta partida está':'Estas '+n+' partidas están'} sin terminar y ${n===1?'vale':'valen'} <b>$0</b>. Tal como ${n===1?'está saldría':'están saldrían'} en el PDF como ${n===1?'un renglón':'renglones'} en $0.00. Toca ${n===1?'la partida':'una'} para ir a completarla.`;
+  const n=pend.length, s=n===1;
+  /* Casi siempre una partida sin terminar vale $0: le falta el material, la altura, la
+     medida. La excepción es la manual a la que solo le falta la descripción: ésa SÍ tiene
+     precio, y lo que saldría en el PDF es un renglón con importe y sin decir qué se cobra.
+     El aviso dice lo que de verdad va a pasar en cada caso. */
+  const ceros=pend.filter(x=>lineTotal(x.it)<=0.005).length, conPrecio=n-ceros;
+  let como;
+  if(!conPrecio) como=` y ${s?'vale':'valen'} <b>$0</b>. Tal como ${s?'está saldría':'están saldrían'} en el PDF como ${s?'un renglón':'renglones'} en $0.00.`;
+  else if(!ceros) como=` y ${s?'saldría':'saldrían'} en el PDF con precio y <b>sin decir qué se cobra</b>.`;
+  else como=`: ${ceros===1?'una vale':ceros+' valen'} <b>$0</b> y ${conPrecio===1?'otra saldría':'las otras '+conPrecio+' saldrían'} en el PDF con precio y sin decir qué se cobra.`;
+  $('falt-intro').innerHTML=`${s?'Esta partida está':'Estas '+n+' partidas están'} sin terminar${como} Toca ${s?'la partida':'una'} para ir a completarla.`;
   $('falt-list').innerHTML=pend.map(x=>`<div class="falt-row">
       <button class="falt-ir" onclick="irAPartida(${x.it.id})">
         <span class="falt-n">${x.n}</span>
@@ -507,7 +559,7 @@ function llevarAPartida(id){
    cuentan para ese tipo. La guarda de `disabled` no sobra: esto también corre por el camino
    del autorizador y sobre partidas congeladas, donde los chips salen con `aria-disabled` y
    sin `tabindex` y no hay nada que enfocar; ahí se queda el scroll de siempre. */
-const _HUECOS={letras:['h-','n-'],recorte:['h-','n-'],bastidor:['an-','al-'],caja:['an-','al-','ta-'],manual:['pz-','pu-']};
+const _HUECOS={letras:['h-','n-'],recorte:['h-','n-'],bastidor:['an-','al-'],caja:['an-','al-','ta-'],manual:['d-','pz-','pu-']};
 function enfocarHueco(id){
   const caja=$('p-'+id); if(!caja) return;
   const chip=caja.querySelector('.optgrp.falta .chip[tabindex]');
@@ -921,6 +973,8 @@ function subPasos(){
     const n=getQueue().filter(x=>x.estado==='pendiente').length;
     if(n) s[3]=n+' por revisar';
   }
+  /* El precio que quedó suelto al editar: la pestaña lo dice antes de que alguien entregue. */
+  if(autorizacionSuelta()&&act!==3&&!s[3]) s[3]='volver a autorizar';
   if(Q.estado==='autorizada'&&act!==4){
     const h=hitosDe(Q.folio);
     const f=[!h.pdf&&'PDF',!h.wa&&'WhatsApp',!h.venta&&'la venta'].filter(Boolean);
@@ -987,7 +1041,9 @@ function pintarPasos(){
   const cotizado=hayTrabajoCotizado();
   const autorizada=Q.estado==='autorizada';
   const h=autorizada?hitosDe(Q.folio):null;
-  const hecho={1:!faltaCli, 2:cotizado, 3:autorizada, 4:!!(h&&h.pdf&&h.wa&&h.venta)};
+  /* El 3 pierde la palomita cuando el precio quedó suelto: hay una fecha de autorización pero
+     no un precio autorizado, y la palomita promete lo segundo. */
+  const hecho={1:!faltaCli, 2:cotizado, 3:autorizada&&!autorizacionSuelta(), 4:!!(h&&h.pdf&&h.wa&&h.venta)};
   const espera={1:false, 2:faltaCli&&!locked(), 3:!cotizado, 4:!autorizada};
   const sub=subPasos();
   PASOS.forEach(p=>{
@@ -1083,7 +1139,7 @@ function pintarCandadoPartidas(){
          que no son suyas: «volver a editar» describía una acción que, en su caso, cancelaba
          la solicitud que venía a revisar. */
       const frase=Q.rol==='autorizador'?'Revisando la cotización · ir al precio'
-        :Q.estado==='autorizada'?'El precio está autorizado · editar partidas'
+        :Q.estado==='autorizada'?(autorizacionSuelta()?'El precio volvió al calculado · editar partidas':'El precio está autorizado · editar partidas')
         :Q.estado==='rechazada'?'Rechazada · editar y volver a enviar'
         :'Mandada a autorización · volver a editar';
       if(txt.textContent!==frase) txt.textContent=frase;
@@ -1422,9 +1478,53 @@ function autorizarYoMismo(){
   irAResumen();
 }
 function cancelarAutoAutorizacion(){ _selfAuth=false; reabrir(); }
+/* ----- Volver a autorizar -----
+   ¿La autorización de esta cotización ya no corresponde al trabajo? soltarAuthSiCambio() borra
+   la huella al soltarla y nadie la vuelve a escribir hasta que alguien autoriza otra vez, así
+   que la huella vacía en una autorizada ES la señal. */
+function autorizacionSuelta(){ return Q.estado==='autorizada'&&!Q.huellaAuth; }
+/* Lo que había antes de volver a abrir la revisión, para poder cancelarla sin dejar la
+   cotización en borrador. Va con su folio, como _paDraft: es de esta cotización. */
+let _reautorizando=null;
+/* Vuelve a abrir el formulario de revisión sobre una cotización ya autorizada, por el mismo
+   camino de «Autorizar yo mismo»: pasa por pendiente y por la cola, para que el estado y el
+   registro no dependan de por dónde se llegó. El folio no cambia —es la misma cotización— y la
+   entrada del historial se reemplaza al volver a autorizar, como con cualquier edición.
+
+   No es «Editar partidas»: aquí no se toca el trabajo, se vuelve a decidir su precio. Es lo
+   que le faltaba al aviso de «hay que autorizarlo de nuevo», que se decía y no se podía hacer:
+   la única salida era «Duplicar» del historial, que es otro folio. Y sirve igual con la
+   autorización vigente, para el cliente que regatea después de ver el PDF. */
+function reautorizar(){
+  if(Q.estado!=='autorizada') return;
+  if(Q.rol==='autorizador'){ irAResumen(); return; }
+  const antes={folio:Q.folio,autorizador:Q.autorizador,nota:Q.nota,fechaAuth:Q.fechaAuth,
+    precioAuth:Q.precioAuth,itemsAuth:JSON.parse(JSON.stringify(Q.itemsAuth||{})),huellaAuth:Q.huellaAuth};
+  Q.editMode=false; _editCliente=null;
+  /* Como un borrador con folio: autorizarYoMismo hace el resto —los tres datos del cliente, la
+     regla de los 10 cm, pendiente y la cola—. */
+  Q.estado='borrador';
+  paBorradorLimpiar();
+  autorizarYoMismo();
+  if(Q.estado!=='pendiente'){ Q.estado='autorizada'; renderItems(); return; }   // algo lo frenó y ya lo dijo: se queda como estaba
+  _reautorizando=antes;
+}
 function reabrir(){
   const eraPendiente=Q.estado==='pendiente';
   const habiaPrecio=paBorrador()!==null||!!(Q.nota||'').trim()||!!(Q.autorizador||'').trim();
+  /* La revisión se abrió con «Volver a autorizar» sobre una cotización ya autorizada:
+     cancelarla no la convierte en borrador. Vuelve a ser la autorizada que era, con el precio,
+     el nombre y la nota que tenía —el formulario escribe en Q mientras se teclea—. */
+  if(eraPendiente&&_reautorizando&&_reautorizando.folio===Q.folio){
+    const a=_reautorizando, tecleo=paBorrador()!==null; _reautorizando=null;
+    _selfAuth=false; paBorradorLimpiar();
+    Q.estado='autorizada'; Q.autorizador=a.autorizador; Q.nota=a.nota; Q.fechaAuth=a.fechaAuth;
+    Q.precioAuth=a.precioAuth; Q.itemsAuth=a.itemsAuth; Q.huellaAuth=a.huellaAuth;
+    removeFromQueue(Q.folio);
+    saveState(); renderItems();
+    toast('El precio se dejó como estaba'+(tecleo?' — se descartó lo que llevabas escrito':''));
+    return;
+  }
   Q.estado='borrador'; Q.autorizador=''; Q.nota=''; _selfAuth=false; paBorradorLimpiar();
   /* El precio autorizado NO se tira aquí. Ya no hace falta: precioFinal() e itemPrecio()
      solo lo usan cuando el estado es 'autorizada', y soltarAuthSiCambio() lo borra en
@@ -1451,7 +1551,7 @@ function autorizarConfirmado(){
   Q.autorizador=nombre||prefGet(PREF_AUTORIZADOR,'');
   if(nombre) prefSet(PREF_AUTORIZADOR,nombre);
   Q.nota=($('a-note')?.value||'').trim();
-  _selfAuth=false;
+  _selfAuth=false; _reautorizando=null;
   /* Lo que el autorizador tecleó es el SUBTOTAL; `Q.precioAuth` se guarda en neto porque es
      lo que llevan leyendo el historial, la cola, el PDF y el registro de venta desde que
      existen. La conversión pasa por conIva() y por ningún otro sitio. */
@@ -1486,7 +1586,7 @@ function rechazar(){
   Q.autorizador=nombre||prefGet(PREF_AUTORIZADOR,'');
   if(nombre) prefSet(PREF_AUTORIZADOR,nombre);
   Q.nota=($('a-note')?.value||'').trim();
-  Q.estado='rechazada'; _selfAuth=false; paBorradorLimpiar();
+  Q.estado='rechazada'; _selfAuth=false; _reautorizando=null; paBorradorLimpiar();
   /* Rechazar borra el borrador de precio que el formulario dejó escrito en Q mientras se
      teclaba: si no, un ajuste que se decidió NO aprobar se quedaba guardado y volvía a
      aparecer propuesto la próxima vez que se abriera la cotización. */
@@ -1678,6 +1778,9 @@ function renderMobileBar(){
   } else if(Q.estado==='autorizada'){
     if(Q.editMode){
       btn=`<button class="mbar-btn ok" onclick="guardarCambiosEdicion()"><svg class="svgi" aria-hidden="true"><use href="#i-guardar"/></svg> Guardar</button>`;
+    } else if(autorizacionSuelta()){
+      /* El precio quedó suelto al editar: lo que sigue no es la entrega, es cerrarlo otra vez. */
+      btn=`<button class="mbar-btn ok" onclick="reautorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Volver a autorizar</button>`;
     } else {
       /* Decía «Generar PDF» para siempre, así que después de generarlo seguía ofreciendo lo
          que ya se hizo y nunca nombraba los dos pasos que faltaban. Ahora avanza con la

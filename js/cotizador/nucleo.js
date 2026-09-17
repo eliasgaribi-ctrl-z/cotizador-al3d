@@ -791,6 +791,52 @@ function itemPrecio(it){
   const v=Q.itemsAuth&&Q.itemsAuth[it.id];
   return v!==undefined?v:lineTotal(it);
 }
+/* ----- El ajuste, dicho con su base -----
+   El precio autorizado se mide contra DOS cosas distintas, y las dos son verdad: contra el
+   subtotal calculado —lo que suman las partidas al catálogo— y contra las partidas ya
+   ajustadas una por una, que es la base del reparto de preciosCliente(). Mientras no haya
+   ajustes por partida las dos bases coinciden y da igual. Cuando los hay, no: medido con
+   una partida bajada de $17,600 a $16,000 y un precio global de $30,000 sobre un calculado
+   de $31,000, el formulario de revisión decía «Descuento: $1,000» —contra el calculado— y al
+   autorizar la columna decía «Aumento: $600 · repartido entre las partidas» —contra las
+   partidas ajustadas, $29,400—, con el subtotal pasando de $31,000 a $30,000 a la vista. Dos
+   frases ciertas que juntas parecen un error.
+
+   Aquí la frase se arma una sola vez y NOMBRA su base cuando hay dos: «Aumento: $600 sobre las
+   partidas ya ajustadas ($29,400) · $1,000 por debajo del calculado ($31,000)». La leen el
+   formulario de revisión, la columna del dinero, la nota de la cotización autorizada y el
+   aviso de Registrar venta, para que ninguna diga una base distinta de las otras.
+
+   `subFinal` es el subtotal que se va a cobrar; `subBase`, el de las partidas con sus ajustes
+   individuales; `subCalc`, el calculado. Devuelve null cuando no hay ajuste global. */
+function fraseAjuste(subFinal,subBase,subCalc){
+  const base=+(subBase||0).toFixed(2), fin=+(subFinal||0).toFixed(2), calc=+(subCalc||0).toFixed(2);
+  const d=+(base-fin).toFixed(2);          // >0 descuento · <0 aumento, sobre la base
+  if(Math.abs(d)<0.01||!(base>0)) return null;
+  const conPartidas=Math.abs(base-calc)>0.01;
+  const dc=+(calc-fin).toFixed(2);         // lo mismo, contra el calculado
+  const f={
+    tipo:d>0?'Descuento':'Aumento', importe:Math.abs(d), pct:Math.round(Math.abs(d)/base*100),
+    d, dc, base, calc, conPartidas,
+    sobre:conPartidas?'sobre las partidas ya ajustadas ('+money(base)+')':'sobre el subtotal',
+    vsCalc:!conPartidas?'':(Math.abs(dc)<0.01
+      ?' · igual al calculado'
+      :' · '+money(Math.abs(dc))+(dc>0?' por debajo':' por encima')+' del calculado ('+money(calc)+')'),
+  };
+  /* «Aumento: $600.00 (2%) sobre las partidas ya ajustadas ($29,400.00) · $1,000.00 por debajo
+     del calculado ($31,000.00)». El porcentaje va pegado al importe y no detrás de la base,
+     que ya trae su propio paréntesis. */
+  f.linea=f.tipo+': '+money(f.importe)+' ('+f.pct+'%) '+f.sobre+f.vsCalc;
+  return f;
+}
+/* Lo que suman las partidas con sus ajustes individuales puestos, valga o no la autorización
+   todavía: es la base que el formulario de revisión ve mientras se teclea. Lo escribían por su
+   cuenta updItemAuth y authRevisionHTML. */
+function subConAjustesPorPartida(){
+  const ia=Q.itemsAuth||{};
+  return +Q.items.reduce((s,it)=>{ const v=ia[it.id]; return s+(v!==undefined?v:lineTotal(it)); },0).toFixed(2);
+}
+
 /* ----- Cuántas piezas lleva una partida -----
    Lo que imprime la columna «Pzas.» del PDF y lo que usa el reparto de abajo para sacar un
    unitario que multiplique limpio. Vivía duplicado en generarPDF y en copiarParaCanva. */

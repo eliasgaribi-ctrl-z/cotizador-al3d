@@ -70,8 +70,9 @@ material que hay que comprar**. Nada de eso se captura.
 - **Vectorizador** — convierte el JPG del cliente en trazo de corte, a escala real, y saca los
   dos datos que mueven el precio: cuántas piezas son y qué alto tienen.
 - **Autorización con huella** — el precio se bloquea al autorizar y vale mientras el trabajo no
-  cambie. En cuanto cambia, vuelve al calculado y lo dice. El ajuste se teclea **sobre el
-  subtotal, sin IVA**.
+  cambie. En cuanto cambia, vuelve al calculado, lo dice y ofrece **volver a autorizarlo** sobre
+  el mismo folio. El ajuste se teclea **sobre el subtotal, sin IVA**, y cuando hay ajustes por
+  partida la app nombra contra qué base se mide.
 - **PDF de cotización** con el plano del anuncio, la orden de trabajo del taller y el recibo de
   pago con talón. Un descuento se le enseña al cliente; un aumento se reparte entre las partidas.
 - **Deshacer con Ctrl+Z**, hasta 60 pasos, agrupando lo que se teclea seguido en un mismo campo.
@@ -216,8 +217,8 @@ plataforma con `herramientas/extraer-catalogo.sh`.
 
 ## Pruebas
 
-    pruebas/correr.sh               24 archivos, solo node, unos segundos
-    pruebas/correr.sh --navegador   13 más, que piden Chromium y un servidor
+    pruebas/correr.sh               22 archivos, solo node, unos segundos
+    pruebas/correr.sh --navegador   15 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
 contra una hoja de mentiras, sin cuenta y sin red; otra rasteriza cada pieza y **cuenta sus

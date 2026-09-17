@@ -1634,6 +1634,9 @@ function scImagenParaIA(){
   oc.width=Math.max(1,Math.round(SC.imgW*k));
   oc.height=Math.max(1,Math.round(SC.imgH*k));
   const ctx=oc.getContext('2d');
+  /* Fondo blanco antes de la foto: sale como JPEG, y un plano PNG con fondo transparente
+     —lo que exporta el software de diseño— se iba a la IA sobre negro (ver aiImagen). */
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,oc.width,oc.height);
   ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
   ctx.drawImage(SC.img,0,0,oc.width,oc.height);
   const s=Math.max(1,Math.min(6,Math.min(oc.width,oc.height)/620));

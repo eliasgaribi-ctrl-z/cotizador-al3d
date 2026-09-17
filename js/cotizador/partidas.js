@@ -235,12 +235,30 @@ function typeItem(id,k,v){
   if(capturaBloqueada())return;
   const it=Q.items.find(x=>x.id===id); if(!it)return;
   undoJuntar('it:'+id+':'+k);
+  const antes=it[k];
   it[k]=v;
   /* El «N letras» de al lado es el espejo de n y solo se pintaba en el primer repintado:
      se teclea 8 y sigue diciendo «0 letras». El span no existe con la partida bloqueada. */
   /* Corregir la cuenta a mano la vuelve la buena: el contador de al lado deja de escribirla.
-     Ver autoContarLetras. */
-  if(k==='n'){ it.nManual=true; const c=$('acnt-'+it.id); if(c) c.textContent=(v||0)+(it.tipo==='recorte'?' piezas':' letras'); }
+     Ver autoContarLetras.
+
+     Pero solo una CORRECCIÓN: un número mayor que cero y distinto del que había. Aquí
+     cualquier escritura en el campo lo volvía manual, y dos que no son correcciones lo
+     trababan para siempre. BORRAR la cuenta —que es justo el gesto de «cuéntalas tú otra
+     vez»— dejaba `n=0` con la bandera puesta, así que el texto de al lado seguía contando y
+     la partida se quedaba en «0 letras» y en $0 hasta que alguien vaciara la caja del texto.
+     Y entrar y salir del campo sin tocarlo también la ponía, porque saneaNum vuelve a
+     escribir el mismo número al soltarlo. Vaciar el campo le devuelve el mando al contador,
+     y si hay texto se vuelve a contar aquí mismo: la cuenta que se ve es la que vale. */
+  if(k==='n'){
+    if(v>0){ if(v!==antes) it.nManual=true; }
+    else{
+      it.nManual=false;
+      const t=String(it.textoAuto||'').replace(/\s/g,'');
+      if(t.length) it.n=t.length;
+    }
+    const c=$('acnt-'+it.id); if(c) c.textContent=(it.n||0)+(it.tipo==='recorte'?' piezas':' letras');
+  }
   if(k==='desc'){ it.descAi=false; it.descAuto=false; }
   const f=$('formula-'+id), l=$('lt-'+id);
   if(f) f.innerHTML=formulaHTML(it);
@@ -290,6 +308,9 @@ function saneaNum(el,id,k,paso){
   const n=(v>0)?(paso?Math.round(v/paso)*paso:v):0;
   el.value=n||'';
   typeItem(id,k,n);
+  /* Si la cuenta se soltó vacía, el contador ya la volvió a escribir en la partida (ver
+     typeItem): el campo enseña esa cuenta, no un blanco con un número vivo detrás. */
+  if(k==='n'&&!(n>0)){ const it=Q.items.find(x=>x.id===id); if(it&&it.n>0) el.value=it.n; }
   /* La regla de los 10 cm se aplica al SOLTAR el campo y no en cada tecla, y es lo que la
      hace usable: tecleando «45» el primer dígito es un 4, y convertir ahí dejaría la partida
      en recorte —con el material borrado de la pantalla— antes de que nadie haya terminado de
@@ -465,6 +486,23 @@ function _devolverFocoItems(marca){
   const c=$('items'); if(!c) return;
   const el=c.querySelector('[data-foco="'+CSS.escape(marca)+'"]')||Array.prototype.find.call(c.querySelectorAll('[onclick]'),e=>e.getAttribute('onclick')===marca);
   if(el){ try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); } }
+}
+
+/* ----- Los importes de todas las partidas, sin reconstruir la lista -----
+   typeItem repinta solo el importe de la partida que se está tecleando. Casi siempre basta,
+   salvo la vez en que ese tecleo SUELTA la autorización (renderSummary → soltarAuthSiCambio):
+   en ese instante cambian los importes de TODAS —los ajustes por partida y el aumento
+   repartido dejan de valer— y las demás se quedaban pintadas con el precio del cliente
+   viejo. Medido: editar la altura de la partida 1 dejaba a la partida 2 diciendo
+   «$1,000.00 → $1,029.44» mientras el PDF ya imprimía $1,000.00, hasta el siguiente
+   repintado completo. No se llama a renderItems() porque ése reconstruye la lista con
+   innerHTML y se lleva el foco del campo en el que se está escribiendo. */
+function repintarImportes(){
+  Q.items.forEach(it=>{
+    const l=$('lt-'+it.id); if(l) l.innerHTML=ltHTML(it);
+    const f=$('formula-'+it.id); if(f) f.innerHTML=formulaHTML(it);
+    pintarResumen(it);
+  });
 }
 
 /* ===================== Render partidas ===================== */
@@ -731,6 +769,8 @@ function siguientePaso(){
   if(Q.estado==='pendiente') return _selfAuth
     ? {txt:'Cierra el precio',paso:3}
     : {txt:'Esperando autorización',paso:3};
+  /* Autorizada con el precio suelto: antes de entregar hay que volver a cerrarlo. */
+  if(autorizacionSuelta()) return {txt:'Vuelve a autorizar el precio',paso:3};
   /* Autorizada: la entrega, en el orden en que se hace. */
   const h=hitosDe(Q.folio);
   const falta=HITOS.find(x=>!h[x.k]);
@@ -899,6 +939,14 @@ function resumenPartida(it){
     it.tarifa>0?push((c?c.label:'Tarifa personalizada')+' · $'+it.tarifa+'/m²','ok',{dinero:!c}):falta('Falta tipo de caja');
     medidas();
   }else{
+    /* En una partida manual la descripción no es un detalle: es el concepto. Las otras cuatro
+       se describen solas desde el catálogo —«Letras Individuales 3D: Caras en Acrílico…»— y
+       ésta no tiene catálogo: sin descripción, el PDF imprimía un renglón con «—» y $1,020.40
+       al lado, un precio sin nada que lo sustente delante del cliente. Por eso aquí, y solo
+       aquí, la descripción cuenta como hueco: entra en la fórmula, en la barra de completitud
+       y en el aviso de partidas sin terminar. No frena nada —el aviso deja seguir— y no toca
+       el precio. */
+    if(!(it.desc||'').trim()) falta('Falta descripción');
     it.pz>0?ok(it.pz+(it.pz===1?' pieza':' piezas')):falta('Faltan piezas');
     it.pu>0?push(money(it.pu)+' c/u','ok',{dinero:true}):falta('Falta precio unitario');
   }
@@ -1086,7 +1134,11 @@ function formulaHTML(it){
 function formulaFor(it){
   // Con datos incompletos la fórmula era "$0 ($0) × 0cm × 0": mejor decir qué falta.
   const faltan=faltantesDe(it);
-  if(faltan.length) return (faltan.length>1?'Faltan: ':'Falta: ')+faltan.join(', ');
+  /* A la partida manual que solo le falta la descripción no se le esconde la cuenta: el
+     precio existe y se cobra, y taparlo con «Falta: descripción» dejaría el total del
+     encabezado sin explicar. Se dice al final de la fórmula. */
+  const soloDesc=it.tipo==='manual'&&faltan.length===1&&faltan[0]==='descripción';
+  if(faltan.length&&!soloDesc) return (faltan.length>1?'Faltan: ':'Falta: ')+faltan.join(', ');
   if(it.tipo==='letras'){
     const f=factorOf(it), base=matOf(it.material)?.precio||0, ex=compOf(it.comp)?.extra||0;
     const adj=(!it.luz)?' · −20% sin luz':'';
@@ -1099,7 +1151,7 @@ function formulaFor(it){
   }
   if(it.tipo==='bastidor') return formulaM2(basOf(it.bas)?.tarifa||0,it);
   if(it.tipo==='caja')     return formulaM2(it.tarifa||0,it);
-  return `${it.pz||0} pza × ${money(it.pu)}`;
+  return `${it.pz||0} pza × ${money(it.pu)}`+(soloDesc?' · falta la descripción':'');
 }
 
 /* ===================== Vista previa del archivo analizado por IA ===================== */

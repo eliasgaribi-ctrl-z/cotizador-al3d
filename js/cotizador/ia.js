@@ -621,6 +621,13 @@ async function aiImagen(f){
     const c=document.createElement('canvas');
     c.width=Math.max(1,Math.round(w*k)); c.height=Math.max(1,Math.round(h*k));
     const ctx=c.getContext('2d');
+    /* Fondo blanco ANTES de dibujar. La salida es JPEG, que no tiene transparencia: lo que en
+       el PNG del cliente era «nada» salía NEGRO. Un logotipo azul sobre fondo transparente
+       llegaba a la IA como un logotipo sobre negro —y a la IA le cuesta más leerlo así—, y esa
+       misma imagen es la que se guarda en Q.aiFile y se imprime en el PDF como «Plano y
+       referencia del proyecto». Medido con un PNG de 2000 px con el fondo transparente: la
+       esquina salía (0,0,0). */
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height);
     ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
     ctx.drawImage(img,0,0,c.width,c.height);
     return {b64:c.toDataURL('image/jpeg',AI_IMG_Q).split(',')[1],mime:'image/jpeg'};
