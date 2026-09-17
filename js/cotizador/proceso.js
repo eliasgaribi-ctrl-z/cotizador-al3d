@@ -171,11 +171,11 @@ function renderAuth(){
       /* El renglón era un div con onclick y nada más: el autorizador que navega con teclado
          no podía cargar ninguna cotización pendiente, que es lo único que hace esta pantalla.
          aria-current marca la que está abierta, que hasta ahora solo se distinguía por color. */
-      const rows=pendientes.map(e=>`<div class="queue-item${e.folio===Q.folio?' active':''}" ${_ABRIBLE} ${e.folio===Q.folio?'aria-current="true"':''} aria-label="Revisar ${esc(e.folio)}${e.proy||e.cliente?', '+esc(e.proy||e.cliente):''}" onclick="loadQueueEntry('${esc(e.folio)}')">
+      const rows=pendientes.map(e=>`<div class="queue-item${e.folio===Q.folio?' active':''}" ${_ABRIBLE} ${e.folio===Q.folio?'aria-current="true"':''} aria-label="Revisar ${esc(e.folio)}${nombreContactoNegocio(e.cliente,e.proy)?', '+esc(nombreContactoNegocio(e.cliente,e.proy)):''}" onclick="loadQueueEntry('${esc(e.folio)}')">
         <span class="qi-dot"></span>
         <div class="qi-body">
           <div class="qi-folio">${esc(e.folio)}</div>
-          <div class="qi-name">${esc(e.proy||e.cliente||'Sin nombre')}</div>
+          <div class="qi-name">${esc(nombreContactoNegocio(e.cliente,e.proy)||'Sin nombre')}</div>
           <div class="qi-fecha">${esc(e.fecha_sol||'')}</div>
         </div>
         <div style="text-align:right"><div class="qi-total">${money(e.neto)}</div></div>
@@ -411,7 +411,7 @@ function authRevisionHTML(soloAutorizar){
   }).join('');
   /* El nombre de quien autoriza se recuerda en el dispositivo: es siempre el mismo y
      se estaba tecleando en cada cotización. */
-  return `<div class="auth-divider">Revisando · ${esc(Q.folio)}${Q.proy||Q.cliente?' — '+esc(Q.proy||Q.cliente):''}</div>
+  return `<div class="auth-divider">Revisando · ${esc(Q.folio)}${nombreContactoNegocio(Q.cliente,Q.proy)?' — '+esc(nombreContactoNegocio(Q.cliente,Q.proy)):''}</div>
     <!-- ----- El precio se ajusta SOBRE EL SUBTOTAL -----
          Este campo pedía el neto —el precio con I.V.A.— y ahí estaba el agujero: quien
          teclea «19,000» está decidiendo cuánto va a cobrar por el trabajo, y sobre el neto

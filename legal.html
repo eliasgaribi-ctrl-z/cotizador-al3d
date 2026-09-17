@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Aviso de privacidad y términos · AL3D</title>
+<meta name="description" content="Aviso de privacidad, términos de la cotización, política de cancelaciones, uso de la app, licencias y datos de la empresa de AL3D Anuncios Luminosos 3D.">
+<meta name="theme-color" content="#4060f8">
+<link rel="icon" href="icono-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!-- La página legal de la app: lo que la ley pide poder enseñar y lo que un cliente puede pedir leer.
+     Es una página SUELTA a propósito —sin router, sin módulos, sin estado—: la enlazan el formulario
+     del cliente, el pie de cada cotización impresa y Ajustes de la plataforma, y tiene que abrir en
+     cualquier teléfono aunque la app no arranque. Comparte las tipografías y el sistema de diseño,
+     y el tema claro/oscuro lo decide js/tema.js igual que en las otras tres páginas.
+
+     Los términos de la cotización NO están escritos aquí: los pinta el script del final desde
+     terminosCotizacion() (js/cotizador/catalogo.js), la misma función que usa el PDF. Una copia de
+     un texto legal, un solo sitio donde cambiarlo. -->
+<script src="js/tema.js"></script>
+<link rel="stylesheet" href="css/fuentes.css">
+<link rel="stylesheet" href="css/sistema.css">
+<style>
+  .lg-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:var(--sup);border-bottom:1px solid var(--linea)}
+  .lg-marca{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--tinta);font-family:var(--f-cifra);font-weight:700;font-size:17px}
+  .lg-marca img{width:38px;height:38px}
+  .lg-marca small{display:block;font-family:var(--f-texto);font-weight:400;font-size:12px;color:var(--tinta2)}
+  html[data-tema="oscuro"] .lg-logo-claro,html:not([data-tema="oscuro"]) .lg-logo-oscuro{display:none}
+  .lg-volver{color:var(--brand);font-weight:600;text-decoration:none;font-size:14px;white-space:nowrap}
+  .lg-wrap{max-width:820px;margin:0 auto;padding:22px 16px 60px}
+  .lg-wrap h1{font-family:var(--f-cifra);font-size:26px;line-height:1.2;margin:6px 0 10px;color:var(--tinta)}
+  .lg-lead{color:var(--tinta2);font-size:15px;line-height:1.6;margin-bottom:18px}
+  .lg-indice{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
+  .lg-indice a{font-size:13px;font-weight:600;color:var(--brand);text-decoration:none;border:1px solid var(--linea);background:var(--sup);border-radius:20px;padding:6px 12px}
+  .lg-indice a:hover{border-color:var(--brand)}
+  .lg-sec{background:var(--sup);border:1px solid var(--linea);border-radius:12px;padding:18px 20px;margin-bottom:16px}
+  .lg-sec h2{font-family:var(--f-cifra);font-size:19px;margin:0 0 10px;color:var(--tinta);scroll-margin-top:16px}
+  .lg-sec h3{font-size:14px;margin:16px 0 6px;color:var(--tinta)}
+  .lg-sec p,.lg-sec li{font-size:14.5px;line-height:1.65;color:var(--tinta)}
+  .lg-sec p{margin:0 0 10px}
+  .lg-sec ul,.lg-sec ol{margin:0 0 10px;padding-left:22px}
+  .lg-sec li{margin-bottom:5px}
+  .lg-sec a{color:var(--brand)}
+  .lg-mini{font-size:12.5px;color:var(--tinta2)}
+  .lg-tabla{width:100%;border-collapse:collapse;font-size:13.5px;margin:8px 0 12px}
+  .lg-tabla th,.lg-tabla td{text-align:left;vertical-align:top;padding:8px 8px;border-bottom:1px solid var(--linea);line-height:1.5;color:var(--tinta)}
+  .lg-tabla th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta2);font-weight:700}
+  .lg-tabla-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .lg-tsec{margin-bottom:14px}
+  .lg-tsec h3{display:flex;align-items:center;gap:8px;margin-top:10px}
+  .lg-tsec h3 b{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:var(--brand);color:#fff;font-size:12px;flex:0 0 auto}
+  .lg-dato{display:grid;grid-template-columns:150px 1fr;gap:4px 12px;font-size:14.5px;line-height:1.6}
+  .lg-dato dt{color:var(--tinta2)}
+  .lg-dato dd{margin:0;color:var(--tinta)}
+  @media (max-width:520px){ .lg-dato{grid-template-columns:1fr} .lg-dato dt{margin-top:6px} }
+  .lg-pie{text-align:center;font-size:12.5px;color:var(--tinta2);padding:10px 16px 30px}
+  .lg-skip{position:absolute;left:-9999px;top:8px;background:var(--sup);color:var(--brand);padding:8px 12px;border-radius:8px;font-weight:700}
+  .lg-skip:focus{left:8px;z-index:10}
+</style>
+</head>
+<body>
+<a class="lg-skip" href="#contenido">Saltar al contenido</a>
+<header class="lg-top">
+  <a class="lg-marca" href="./" aria-label="AL3D — volver a la app">
+    <img class="lg-logo-claro" src="logo-al3d.svg" alt="" width="38" height="38">
+    <img class="lg-logo-oscuro" src="logo-al3d-oscuro.svg" alt="" width="38" height="38">
+    <span>AL3D <small>Anuncios Luminosos 3D</small></span>
+  </a>
+  <a class="lg-volver" href="./">← Volver a la app</a>
+</header>
+
+<main id="contenido" class="lg-wrap">
+  <h1>Aviso de privacidad, términos y licencias</h1>
+  <p class="lg-lead">Qué hace AL3D con los datos que le das para cotizar, qué términos rigen cada cotización, cómo cancelar, cómo pedir que borremos lo tuyo, y de quién son las piezas con las que está hecha esta app. Escrito para leerse, no para cubrirse. <span class="lg-mini">Última actualización: 17 de septiembre de 2026.</span></p>
+
+  <nav class="lg-indice" aria-label="Apartados">
+    <a href="#empresa">Quién somos</a>
+    <a href="#privacidad">Aviso de privacidad</a>
+    <a href="#terminos">Términos de la cotización</a>
+    <a href="#cancelaciones">Cancelaciones y reembolsos</a>
+    <a href="#uso">Uso de la app</a>
+    <a href="#mensajes">Mensajes y correos</a>
+    <a href="#eliminacion">Borrar tus datos</a>
+    <a href="#terceros">Terceros</a>
+    <a href="#accesibilidad">Accesibilidad</a>
+    <a href="#licencias">Licencias</a>
+  </nav>
+
+  <section class="lg-sec" id="empresa">
+    <h2>Quién somos</h2>
+    <dl class="lg-dato">
+      <dt>Nombre comercial</dt><dd>AL3D Anuncios Luminosos 3D</dd>
+      <dt>Qué hacemos</dt><dd>Fabricamos e instalamos letras 3D, recorte de acrílico, bastidores y cajas de luz.</dd>
+      <dt>Taller y oficina</dt><dd>Naranjos #648, Col. Lindavista, C.P. 45169, Área Metropolitana de Guadalajara, Jalisco, México</dd>
+      <dt>WhatsApp</dt><dd><a href="https://wa.me/523328130092" rel="noopener">33-2813-0092</a></dd>
+      <dt>Responsable de tus datos</dt><dd>La dirección de AL3D, en el domicilio y el WhatsApp de arriba.</dd>
+      <dt>Facturación</dt><dd>La razón social y el RFC se entregan con cada factura; pídela al cotizar. Si requieres factura, el anticipo es más IVA.</dd>
+    </dl>
+  </section>
+
+  <section class="lg-sec" id="privacidad">
+    <h2>Aviso de privacidad</h2>
+    <p>Este aviso se emite conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (México). Es el aviso completo del que se imprime un resumen en cada cotización.</p>
+
+    <h3>Qué datos recabamos</h3>
+    <ul>
+      <li><b>Identificación y contacto:</b> el nombre del cliente o de la persona de contacto del negocio, y su teléfono o WhatsApp.</li>
+      <li><b>Ubicación del proyecto:</b> la dirección donde se instala, entre qué calles, y la liga de Google Maps si nos la compartes.</li>
+      <li><b>El proyecto:</b> medidas, materiales y las imágenes, fotos o planos que nos mandas para cotizarlo.</li>
+      <li><b>El pago:</b> el anticipo y el saldo pactados y la cuenta de AL3D a la que se depositó. No guardamos números de tarjeta ni de tu cuenta.</li>
+    </ul>
+    <p>No pedimos datos sensibles (salud, creencias, origen, biometría) ni datos de menores de edad, y no los necesitamos para cotizar.</p>
+
+    <h3>Para qué los usamos</h3>
+    <p><b>Finalidades necesarias:</b> elaborar la cotización, fabricar e instalar el proyecto, cobrarlo y facturarlo si lo pides, darte seguimiento por WhatsApp y atender la garantía.</p>
+    <p><b>Finalidad no necesaria:</b> usar imágenes del proyecto <em>terminado</em> en nuestro portafolio y redes. Puedes negarte antes de la instalación, por escrito o por WhatsApp, y eso no cambia el precio ni el servicio.</p>
+
+    <h3>Dónde se guardan</h3>
+    <ul>
+      <li>En el dispositivo de quien cotiza, dentro de esta app: el navegador los guarda en su almacenamiento local. No hay un servidor nuestro que los reciba.</li>
+      <li>En la hoja de ventas de la empresa (Google Sheets), cuando una cotización se convierte en venta.</li>
+      <li>En los mensajes de WhatsApp que intercambiamos contigo y en la cotización diseñada que te mandamos.</li>
+    </ul>
+
+    <h3>Con quién se comparten</h3>
+    <p>Con nadie ajeno a tu trabajo: no vendemos ni cedemos datos, y no hacemos publicidad con ellos. Los proveedores que tocan datos por cuenta nuestra al operar la app están en el apartado <a href="#terceros">Terceros</a>, uno por uno, con qué reciben y cuándo. El único caso que decides tú es la inteligencia artificial: si al cotizar usamos «Cotizar con IA», la imagen o el PDF de tu diseño se manda a un proveedor de IA para proponer las partidas. Si pides confidencialidad, no se usa con tu material.</p>
+
+    <h3>Tus derechos</h3>
+    <p>Puedes pedir en cualquier momento <b>acceso</b> a lo que tenemos tuyo, su <b>rectificación</b>, su <b>cancelación</b> y <b>oponerte</b> a algún uso, así como revocar tu consentimiento o limitar el uso. Escríbenos por WhatsApp al 33-2813-0092 o acude al taller; te respondemos en un máximo de 20 días hábiles. Para borrar todo lo tuyo, ve a <a href="#eliminacion">Borrar tus datos</a>.</p>
+
+    <h3>Cuánto tiempo los conservamos</h3>
+    <p>Mientras dure el proyecto y su garantía (hasta dos años desde la instalación), y lo que la obligación fiscal exija para lo facturado (cinco años). Las cotizaciones que no se convierten en venta se pueden borrar a tu petición en cualquier momento.</p>
+
+    <h3>Cookies y rastreo</h3>
+    <p>Esta app <b>no usa cookies</b>, ni analítica, ni publicidad, ni ningún rastreador. Usa el almacenamiento local del navegador para funcionar —guardar las cotizaciones en el aparato y recordar preferencias como el tema claro u oscuro—, que no viaja a ningún servidor. Por eso no hay un aviso de cookies que aceptar: no hay nada que aceptar.</p>
+
+    <h3>Menores de edad</h3>
+    <p>Nuestros servicios se contratan por negocios y personas mayores de edad, y la app no está dirigida a menores. No recabamos a sabiendas datos de menores; si detectamos alguno, lo borramos.</p>
+
+    <h3>Cambios a este aviso</h3>
+    <p>Si cambia, se publica aquí con su fecha. Las cotizaciones impresas llevan la dirección de esta página, así que siempre lleva a la versión vigente.</p>
+  </section>
+
+  <section class="lg-sec" id="terminos">
+    <h2>Términos y condiciones de la cotización</h2>
+    <p class="lg-mini">Son los mismos ocho apartados que se imprimen en cada cotización, en su segunda hoja. En el papel, el apartado 1 lleva además la fecha exacta hasta la que vale esa cotización.</p>
+    <div id="lg-terminos" aria-live="polite"></div>
+  </section>
+
+  <section class="lg-sec" id="cancelaciones">
+    <h2>Cancelaciones y reembolsos</h2>
+    <p>En palabras llanas, lo que dice el apartado 5 de los términos y por qué:</p>
+    <ul>
+      <li><b>El anticipo no es reembolsable.</b> Con él se compra el material y se aparta el tiempo de taller de tu proyecto; por eso no se devuelve si cancelas.</li>
+      <li><b>Si cancelas con el proyecto iniciado o el material comprado, se paga el 100%.</b> El trabajo ya está hecho o el material ya se cortó a tu medida.</li>
+      <li><b>Cambios al diseño aprobado</b> pueden costar y retrasar; se autorizan antes, por escrito o por WhatsApp.</li>
+      <li><b>Después de 10 días sin pago</b> del saldo, AL3D puede retirar el anuncio.</li>
+    </ul>
+    <p>Para cancelar o preguntar por tu caso, escríbenos por WhatsApp al 33-2813-0092 con tu folio; te contestamos con lo que aplica exactamente a tu proyecto.</p>
+  </section>
+
+  <section class="lg-sec" id="uso">
+    <h2>Uso de la app</h2>
+    <p>Esta app es la herramienta de trabajo del equipo de AL3D para cotizar, autorizar precios y registrar ventas. Al usarla, quien la opera acepta:</p>
+    <ul>
+      <li>Capturar solo los datos necesarios para el trabajo y tratarlos conforme a este aviso.</li>
+      <li>Que los datos viven en su dispositivo: respaldarlos es su responsabilidad, y la app lo recuerda y lo facilita desde el historial y desde Ajustes.</li>
+      <li>Que las API keys de inteligencia artificial son suyas y se guardan solo en su dispositivo; nunca entran a un respaldo.</li>
+      <li>Que la app se sirve como está, sin garantía de disponibilidad del hospedaje, y funciona sin señal una vez instalada.</li>
+    </ul>
+  </section>
+
+  <section class="lg-sec" id="mensajes">
+    <h2>Mensajes y correos</h2>
+    <p>No enviamos boletines, promociones por correo ni mensajes automáticos. La comunicación es uno a uno, por WhatsApp, sobre tu proyecto. Si prefieres que no te escribamos más, dilo en el mismo chat y dejamos de hacerlo; no hace falta ningún trámite.</p>
+  </section>
+
+  <section class="lg-sec" id="eliminacion">
+    <h2>Borrar tus datos</h2>
+    <p>Pídelo por WhatsApp al 33-2813-0092 o en el taller, con tu nombre o tu folio. Borramos tus cotizaciones, tu teléfono, tu dirección, las imágenes que nos mandaste y las notas sobre ti que haya en la app, y te lo confirmamos por el mismo medio, en un máximo de 20 días hábiles. Lo único que conservamos es lo que la ley fiscal nos obliga a guardar de una venta ya facturada.</p>
+    <p class="lg-mini">Para el equipo: en el cotizador, <b>Clientes → el cuaderno del cliente → Borrar sus datos</b> quita de este dispositivo todo lo suyo —cotizaciones, nota, hitos, solicitudes y constancias— después de descargar un respaldo. Lo que ya es un proyecto en la plataforma se borra desde Proyectos, y en otro teléfono hay que repetirlo: los datos viven en cada aparato, no en un servidor.</p>
+  </section>
+
+  <section class="lg-sec" id="terceros">
+    <h2>Terceros que intervienen</h2>
+    <p>La app no tiene servidor propio ni servicios de analítica. Estos son todos los terceros que pueden recibir algo, cuándo y qué:</p>
+    <div class="lg-tabla-scroll">
+    <table class="lg-tabla">
+      <thead><tr><th>Servicio</th><th>Cuándo</th><th>Qué recibe</th></tr></thead>
+      <tbody>
+        <tr><td>GitHub Pages</td><td>Siempre: hospeda la app.</td><td>La dirección IP y el navegador de quien la abre, como cualquier sitio web. Sin cuentas ni cookies nuestras.</td></tr>
+        <tr><td>Google Sheets</td><td>Al registrar una venta.</td><td>El nombre del proyecto («contacto - negocio»), el subtotal, el IVA, el anticipo, el estatus y la dirección de instalación, en la hoja de ventas de AL3D.</td></tr>
+        <tr><td>WhatsApp</td><td>Al mandarte la cotización o escribirte.</td><td>El mensaje y el PDF, en el chat contigo.</td></tr>
+        <tr><td>Google Maps</td><td>Solo al abrir una ubicación.</td><td>La dirección o la liga que se abre.</td></tr>
+        <tr><td>OpenStreetMap</td><td>Al abrir el mapa de la plataforma.</td><td>Las coordenadas del área que se mira, para dibujar los mosaicos del mapa.</td></tr>
+        <tr><td>Google Gemini, Groq u OpenRouter</td><td>Solo si el equipo usa «Cotizar con IA», con su propia API key.</td><td>La imagen o el PDF del diseño y las medidas. No se usa si pides confidencialidad.</td></tr>
+        <tr><td>Canva</td><td>Al diseñar la cotización que se te manda.</td><td>El texto de la cotización que el equipo pega en el diseño.</td></tr>
+        <tr><td>Google Fonts</td><td>Ya no.</td><td>Las tipografías se sirven desde este mismo sitio; ninguna apertura de la app pide nada a Google.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="lg-mini">La app no incluye SDKs de terceros: el mapa (Leaflet) va copiado dentro del sitio, y el resto es código propio.</p>
+  </section>
+
+  <section class="lg-sec" id="accesibilidad">
+    <h2>Accesibilidad</h2>
+    <p>La app se puede usar completa con teclado y con lector de pantalla: cada control tiene nombre, cada campo su etiqueta, cada imagen su texto alternativo, los avisos se anuncian y ningún texto baja de un contraste de 4.5:1 —medido sobre la pantalla pintada, no sobre la hoja de estilos, en cada publicación—. Si algo no te funciona, dinos por WhatsApp al 33-2813-0092: se arregla.</p>
+  </section>
+
+  <section class="lg-sec" id="licencias">
+    <h2>Licencias y créditos</h2>
+    <ul>
+      <li><b>Tipografías:</b> <a href="fonts/OFL-Figtree.txt">Figtree</a>, <a href="fonts/OFL-Outfit.txt">Outfit</a> e <a href="fonts/OFL-Inter.txt">Inter</a>, bajo la SIL Open Font License 1.1; se sirven desde este sitio con su licencia al lado.</li>
+      <li><b>Mapa:</b> Leaflet (licencia BSD-2-Clause) y datos de OpenStreetMap (© colaboradores de OpenStreetMap, licencia ODbL).</li>
+      <li><b>Imágenes, planos y logotipos de clientes:</b> son propiedad de cada cliente y se usan solo para su cotización y su proyecto.</li>
+      <li><b>Logotipo y marca AL3D:</b> propiedad de AL3D Anuncios Luminosos 3D.</li>
+      <li><b>Código de la app:</b> propio de AL3D; su repositorio es público en GitHub para poder revisarlo.</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="lg-pie">AL3D Anuncios Luminosos 3D · Naranjos #648, Col. Lindavista, C.P. 45169 · WhatsApp 33-2813-0092</footer>
+
+<!-- Los términos, desde la misma función que usa el PDF (catalogo.js es un guion clásico sin
+     dependencias de la pantalla: solo constantes y funciones puras). Los puntos son HTML propio
+     —traen <u>—, no texto de fuera, por eso van con innerHTML. -->
+<script src="js/cotizador/catalogo.js"></script>
+<script>
+(function(){
+  var caja=document.getElementById('lg-terminos'); if(!caja||typeof terminosCotizacion!=='function') return;
+  var secs=terminosCotizacion('');
+  caja.innerHTML=secs.map(function(t,i){
+    var titulo=t[0], puntos=t[1], intro=t[2];
+    return '<div class="lg-tsec"><h3><b>'+(i+1)+'</b> '+titulo+'</h3>'+(intro?'<p>'+intro+'</p>':'')+'<ul>'+puntos.map(function(p){ return '<li>'+p+'</li>'; }).join('')+'</ul></div>';
+  }).join('');
+})();
+</script>
+</body>
+</html>

@@ -1507,6 +1507,12 @@ a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-t
 .cua-det-acts button{border:1.5px solid var(--line);background:var(--sup);color:var(--brand);font-family:inherit;font-size:11.5px;
   font-weight:700;padding:7px 12px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap;transition:.12s}
 .cua-det-acts button:hover{border-color:var(--brand);background:var(--soft-2)}
+/* Borrar los datos del cliente: el único botón del cuaderno que quita algo, en la tinta del peligro. */
+.cua-det-acts button.cua-borrar{color:var(--red)}
+.cua-det-acts button.cua-borrar:hover{border-color:var(--red);background:var(--red-bg)}
+/* La nota de consentimiento del formulario del cliente: un renglón, sin caja, con su liga. */
+.consent-datos{display:block;margin-top:10px;font-size:var(--t1);line-height:1.5;color:var(--tinta2);background:transparent;border:none;padding:0}
+.consent-datos a{color:var(--brand);font-weight:600}
 .cua-cifras{display:flex;gap:9px;padding:13px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .cua-cifra{flex:1;min-width:96px;background:var(--soft);border:1px solid var(--line);border-radius:var(--rr1);padding:9px 11px}
 .cua-cifra b{display:block;font-size:15px;font-weight:800;color:var(--ink);line-height:1.2}

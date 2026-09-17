@@ -164,6 +164,36 @@ export function sinDecidir(foliosGanados, diasMin = 0) {
 export const folioGlobal = (folio, disp) => String(folio || '') + '@' + (disp || Prefs.dispositivo());
 export const folioVisible = fg => String(fg || '').split('@')[0];
 
+/* ----- El nombre de un proyecto: «Contacto - Negocio», sin repetir a nadie -----
+   Así se llaman las cotizaciones en Canva —«Deyanira - Abajeño Tlaquepaque», «Héctor - TATA
+   Consultores»—, los proyectos de la base de Notion y los renglones de la hoja de Ventas; el
+   cotizador guarda las dos mitades en `cliente` (el contacto) y `proy` (el negocio, con el trabajo
+   si se quiere). Pegarlas con un guion era la regla en TRES sitios —Registrar venta en el cotizador,
+   el nombre derivado del proyecto aquí en la plataforma y la fila que se pega en la hoja— y las tres
+   pegaban a ciegas: cuando el proyecto ya venía escrito a la manera de Canva, con el negocio dentro
+   («Deyanira - Abajeño»), la venta salía «Abajeño - Deyanira - Abajeño» y el cliente aparecía dos
+   veces en cada lista, cada PDF de venta y cada renglón de la hoja.
+
+   Una regla, un sitio (y su réplica literal en js/cotizador/nucleo.js, porque el cotizador es un
+   guion clásico y no puede importar): si una mitad ya contiene a la otra como palabras completas
+   —sin importar mayúsculas, acentos ni el tipo de guion—, esa mitad ES el nombre; si no,
+   «contacto - negocio». Nunca se inventa texto: lo que sale siempre lo escribió alguien. */
+const _nombrePlano = s => String(s || '').trim().toLowerCase().normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '').replace(/[\s\u2010-\u2015-]+/g, ' ').trim();
+export function nombreContiene(todo, parte) {
+  const t = _nombrePlano(todo), p = _nombrePlano(parte);
+  if (!t || !p) return false;
+  return (' ' + t + ' ').includes(' ' + p + ' ');
+}
+export function nombreContactoNegocio(contacto, negocio) {
+  const c = String(contacto || '').trim(), n = String(negocio || '').trim();
+  if (!c) return n;
+  if (!n) return c;
+  if (nombreContiene(n, c)) return n;
+  if (nombreContiene(c, n)) return c;
+  return c + ' - ' + n;
+}
+
 /**
  * Drena `al3d_pf_ganadas`: convierte el buzón que escribe index.html en proyectos y
  * lo vacía. Idempotente por folio_global. Llamar en cada arranque y en cada evento

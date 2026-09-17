@@ -567,6 +567,26 @@ function prefSet(k,v){ try{ localStorage.setItem(k,String(v)); }catch(_){} }
    segundo letrero se tecleaba completo otra vez. Se sugieren los del historial y, al
    elegir uno, se llenan los campos que estén VACÍOS —nunca se pisa lo ya escrito. */
 function normNom(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
+/* ----- El nombre de un proyecto: «Contacto - Negocio», sin repetir a nadie -----
+   RÉPLICA, letra por letra, de nombreContactoNegocio() de js/datos/cotizador.js: el cotizador es un
+   guion clásico y no puede importarla, y pruebas/nombre-proyecto.mjs comprueba que las dos digan lo
+   mismo sobre la misma tabla. El porqué está allá. Aquí la usan Registrar venta —que anteponía el
+   cliente al proyecto SIEMPRE, y con el proyecto escrito a la manera de Canva («Deyanira - Abajeño»)
+   sacaba «Abajeño - Deyanira - Abajeño»—, el historial y la cola. */
+function _nombrePlano(s){ return String(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[\s\u2010-\u2015-]+/g,' ').trim(); }
+function nombreContiene(todo,parte){
+  const t=_nombrePlano(todo), p=_nombrePlano(parte);
+  if(!t||!p) return false;
+  return (' '+t+' ').includes(' '+p+' ');
+}
+function nombreContactoNegocio(contacto,negocio){
+  const c=String(contacto||'').trim(), n=String(negocio||'').trim();
+  if(!c) return n;
+  if(!n) return c;
+  if(nombreContiene(n,c)) return n;
+  if(nombreContiene(c,n)) return c;
+  return c+' - '+n;
+}
 /* Con caché, igual que los cuadernos. Se llamaba en CADA tecla del campo Cliente —upd →
    autocompletarCliente— y cada llamada parseaba el historial entero, con sus imágenes en
    base64 dentro: en un teléfono, con veinte cotizaciones con foto, eso es teclear a tirones.

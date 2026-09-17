@@ -252,8 +252,8 @@ function pintarHistorial(){
           ${imgHTML}
           <div class="hentry-meta">
             <div class="hentry-folio">${esc(e.folio)}</div>
-            <div class="hentry-name">${esc(e.proy||e.cliente||'Sin nombre')}</div>
-            <div class="hentry-sub">${esc(e.cliente||'')+(e.tel?' · '+esc(e.tel):'')+(e.dirRaw?'<br>'+ico('i-pin')+' '+esc(e.dirRaw):'')}</div>
+            <div class="hentry-name">${esc(nombreContactoNegocio(e.cliente,e.proy)||'Sin nombre')}</div>
+            <div class="hentry-sub">${[(e.cliente&&!nombreContiene(nombreContactoNegocio(e.cliente,e.proy),e.cliente))?esc(e.cliente):'',e.tel?esc(e.tel):''].filter(Boolean).join(' · ')+(e.dirRaw?'<br>'+ico('i-pin')+' '+esc(e.dirRaw):'')}</div>
             <div class="hentry-auth"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> ${esc(e.autorizador||'—')} · ${esc(e.fechaAuth||'')}</div>
             ${(()=>{ const v=vigenciaHist(e); return v?`<div class="hentry-vig${/^Venció/.test(v)?' venc':''}">${esc(v)}</div>`:''; })()}
           </div>
@@ -671,6 +671,7 @@ function abrirCuaderno(clave){
         <button onclick="cuaNuevaCotizacion('${esc(g.clave)}')" title="Empieza una cotización en blanco con estos datos de cliente ya puestos">${ico('i-lapiz')} Cotizarle algo nuevo</button>
         ${g.tel?`<button onclick="cuaWhatsApp('${esc(g.clave)}')" title="Abre el chat de WhatsApp con este cliente">${ico('i-chat')} WhatsApp</button>`:''}
         <button onclick="cuaCSV('${esc(g.clave)}')" title="Descarga las cotizaciones de este cliente">${ico('i-doc')} CSV</button>
+        <button class="cua-borrar" onclick="cuaBorrarDatos('${esc(g.clave)}')" title="Borra de este dispositivo sus cotizaciones, su nota, sus hitos y sus solicitudes; antes se descarga un respaldo">${ico('i-basura')} Borrar sus datos</button>
       </div>
     </div>
     <div class="cua-cifras">
@@ -761,6 +762,48 @@ function cuaCSV(clave){
   if(descargarArchivo(csv,`cotizador-al3d-${slug}-${selloFecha()}.csv`,'text/csv;charset=utf-8')){
     toast(`${g.cots.length} ${g.cots.length===1?'cotización exportada':'cotizaciones exportadas'} de ${cuaTitulo(g)}`,'ok',3400);
   }
+}
+/* ----- Borrar todo lo de un cliente -----
+   El derecho a pedir que se borren tus datos existe en la ley desde antes que esta app, y la app no
+   tenía cómo cumplirlo: había que abrir el historial y borrar folio por folio, y aun así quedaban la
+   nota del cuaderno, los hitos, las propuestas y las solicitudes de la cola donde estaban. Un solo
+   botón, en el cuaderno del cliente, que es donde se ve todo lo suyo. Se va lo que hay de él en este
+   dispositivo —sus cotizaciones del historial, la nota, los hitos, las propuestas de Canva, las
+   solicitudes pendientes y la constancia de venta que espera a la plataforma— y, si la cotización en
+   pantalla es suya, también ésa, sin «Deshacer»: lo que se pidió borrar no vuelve por un botón.
+
+   Antes de borrar se descarga un respaldo, con la misma regla de restaurarDesde(): si la descarga no
+   sale, no se borra nada. Lo que la ley obliga a conservar —las facturas— no vive en esta app; lo que
+   ya pasó a la plataforma como proyecto se borra desde Proyectos. */
+function cuaBorrarDatos(clave){
+  const g=cuadernoDe(clave); if(!g) return;
+  const folios=g.cots.map(e=>e.folio), setF=new Set(folios), nom=cuaTitulo(g);
+  const propia=setF.has(Q.folio)||cuadernoDeQ()===g;
+  if(!confirm(`¿Borrar todos los datos de ${nom} de este dispositivo?\n\nSe van ${plCot(folios.length)} del historial, la nota del cuaderno, sus hitos y cualquier solicitud pendiente${propia?', y la cotización que está en pantalla, que es suya':''}.\n\nNo se puede deshacer. Antes se descarga un respaldo de todo.`)) return;
+  const slug=nom.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase().slice(0,40)||'cliente';
+  if(!descargarArchivo(armarRespaldo(),`cotizador-al3d-antes-de-borrar-${slug}-${selloFecha()}.json`,'application/json')){
+    toast('No se pudo descargar el respaldo previo — no se borró nada','err',5200); return;
+  }
+  saveHistorial(getHistorial().filter(e=>!setF.has(e.folio)));
+  /* La cola guarda solicitudes que todavía no están en el historial —una pendiente de este mismo
+     cliente—, así que ahí no basta el folio: también se va lo que sea suyo por teléfono o por
+     nombre, con las mismas llaves con las que el cuaderno lo reconoce. */
+  const tels=new Set(g.claves.filter(k=>k.startsWith('tel:')).map(k=>k.slice(4)));
+  const noms=new Set([g.nombre].concat(g.alias).map(normNom).filter(Boolean));
+  const suya=e=>setF.has(e.folio)||tels.has(telClave(e.q&&e.q.tel))||noms.has(normNom(e.cliente||(e.q&&e.q.cliente)));
+  saveQueue(getQueue().filter(e=>!suya(e)));
+  /* Las claves que guardan cosas POR FOLIO o por cuaderno. Cada una se lee, se poda y se vuelve a
+     escribir; si una no se puede leer se deja como está, que es lo que hacen sus propios lectores. */
+  const podar=(clave,fn)=>{ try{ const v=JSON.parse(localStorage.getItem(clave)||'null'); const r=fn(v); if(r!==undefined) localStorage.setItem(clave,JSON.stringify(r)); }catch(_){} };
+  podar(HITOS_KEY,o=>{ if(!o||typeof o!=='object'||Array.isArray(o)) return; folios.forEach(f=>{ delete o[f]; }); return o; });
+  podar(CANVA_KEY,o=>{ if(!o||typeof o!=='object'||Array.isArray(o)) return; folios.forEach(f=>{ delete o[f]; }); return o; });
+  podar(CUA_NOTAS,o=>{ if(!o||typeof o!=='object'||Array.isArray(o)) return; g.claves.forEach(k=>{ delete o[k]; }); return o; });
+  podar('al3d_pf_ganadas',a=>Array.isArray(a)?a.filter(x=>!(x&&setF.has(x.folio))):undefined);
+  if(propia){ nueva(); _vaciada=null; }
+  invalidarCuadernos(); invalidarClientes(); pintarClientes();
+  _histData=getHistorial(); indexarHistorial();
+  _cuaAbierto=null; _cuaData=cuadernos(); pintarCuadernos();
+  toast(`Se borraron los datos de ${nom} de este dispositivo: ${plCot(folios.length)}, su nota y sus constancias`,'ok',6000);
 }
 /* Un renglón por cliente: la cartera entera, que es lo que se le enseña a alguien más. */
 function exportarClientesCSV(){

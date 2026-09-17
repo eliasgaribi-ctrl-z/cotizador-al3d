@@ -76,6 +76,21 @@ material que hay que comprar**. Nada de eso se captura.
   Y la cotización dice **hasta cuándo vale**: los diez días que los términos prometían desde
   siempre, ahora con fecha, en el encabezado del PDF, en el WhatsApp, en la nota de «Autorizada»
   y en el historial, que marca en ámbar las que ya vencieron.
+- **Lo legal, en su página** — `legal.html` trae el aviso de privacidad (qué datos, para qué,
+  dónde se guardan, con quién se comparten, cómo se borran), los términos de la cotización —los
+  mismos que imprime el PDF, desde la misma función—, la política de cancelaciones, el uso de la
+  app, los terceros que intervienen uno por uno, la accesibilidad y las licencias. La enlazan el
+  formulario del cliente, el pie de cada cotización impresa y Ajustes de la plataforma. Las
+  tipografías se sirven desde el sitio (`fonts/`, con su licencia OFL): ninguna apertura de la app
+  pide nada a Google, y `pruebas/navegador/cumplimiento.mjs` lo comprueba contando hosts. El
+  cuaderno de cada cliente tiene **Borrar sus datos**, que quita del dispositivo todo lo suyo
+  después de descargar un respaldo.
+- **«Contacto - Negocio», sin repetir a nadie** — así se llaman las cotizaciones en Canva y los
+  renglones de la hoja de Ventas; el cotizador guarda las dos mitades en Cliente y Proyecto y las
+  pegaba con un guion a ciegas, así que un proyecto ya escrito a la manera de Canva salía
+  «Abajeño - Deyanira - Abajeño». Una sola regla (`nombreContactoNegocio`, replicada en la
+  plataforma y comparada por `pruebas/nombre-proyecto.mjs`) la usan Registrar venta, el historial,
+  la cola y el nombre del proyecto en la plataforma.
 - **PDF de cotización** con el plano del anuncio, la orden de trabajo del taller y el recibo de
   pago con talón. Un descuento se le enseña al cliente; un aumento se reparte entre las partidas.
 - **Deshacer con Ctrl+Z**, hasta 60 pasos, agrupando lo que se teclea seguido en un mismo campo.
@@ -220,8 +235,8 @@ plataforma con `herramientas/extraer-catalogo.sh`.
 
 ## Pruebas
 
-    pruebas/correr.sh               23 archivos, solo node, unos segundos
-    pruebas/correr.sh --navegador   16 más, que piden Chromium y un servidor
+    pruebas/correr.sh               25 archivos, solo node, unos segundos
+    pruebas/correr.sh --navegador   17 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
 contra una hoja de mentiras, sin cuenta y sin red; otra rasteriza cada pieza y **cuenta sus

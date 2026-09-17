@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 33;
+const APP_VERSION = 34;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -61,6 +61,12 @@ const APP_FILES = [
   './manifest-plataforma.webmanifest',
   './css/sistema.css',
   './css/plataforma.css',
+  /* Las tipografías van con la app desde que dejaron de pedirse a Google (ver css/fuentes.css). */
+  './css/fuentes.css',
+  './fonts/figtree-latin-dab710.woff2', './fonts/figtree-latin-ext-c15953.woff2',
+  './fonts/outfit-latin-357083.woff2', './fonts/outfit-latin-ext-35e12d.woff2',
+  './fonts/inter-latin-567244.woff2', './fonts/inter-latin-ext-395290.woff2',
+  './legal.html',       // aviso de privacidad, términos y licencias: se lee también sin señal
   './js/tema.js',
   /* El cotizador: la página y sus once guiones. Van juntos porque se cargan en orden y se
      llaman entre sí; uno nuevo con uno viejo no arranca. */

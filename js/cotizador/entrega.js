@@ -85,6 +85,7 @@ function loadLogo(){ let s=null; try{s=localStorage.getItem('al3d_logo');}catch(
 
 /* ===================== Datos de empresa (edita aquí) ===================== */
 const EMPRESA = {
+  nombre:    'AL3D Anuncios Luminosos 3D',   // el nombre comercial, como firma el WhatsApp y el pie de los términos
   vendedor:  'Elias Guerrero',
   taller:    'Naranjos #648 Col. Lindavista Cp. 45169',
   whatsapp:  '33-2813-0092',
@@ -135,7 +136,10 @@ function mensajeWhatsApp(){
   L.push('');
   if((Q.proy||'').trim()) L.push(`*${Q.proy.trim()}*`);
   L.push(`${n} ${n===1?'partida':'partidas'}`);
-  L.push(`Total: ${money(pf)}${Q.iva?' (IVA incluido)':' (sin IVA)'}`);
+  /* «Sin IVA» a secas dejaba el 16% para después: un precio que sube al pedir factura es un cargo
+     escondido si nadie lo dijo antes. Se dice aquí y en el papel (los términos ya lo decían, en la
+     hoja 2, en letra chica). */
+  L.push(`Total: ${money(pf)}${Q.iva?' (IVA incluido)':' (sin IVA · con factura se agrega el 16%)'}`);
   if(Q.anti>0) L.push(`Anticipo para arrancar: ${money(Q.anti)}`);
   /* Los términos del PDF dicen «válida por 10 días»; el chat es donde el cliente lo lee de
      verdad, y con la fecha puesta, que es lo que decide si llama esta semana o la que sigue. */
@@ -148,7 +152,7 @@ function mensajeWhatsApp(){
   if(nota){ L.push(''); L.push(nota); }
   L.push('');
   L.push('Le adjunto el PDF con el desglose. Quedo al pendiente de cualquier duda.');
-  L.push(`${vendedorActual()} · AL3D Anuncios Luminosos 3D`);
+  L.push(`${vendedorActual()} · ${EMPRESA.nombre}`);
   return L.join('\n');
 }
 function enviarPorWhatsApp(){
@@ -388,7 +392,7 @@ PARTIDAS:
 ${lineas}
 
 Subtotal: ${money(subC)}${hayAjusteC&&ajuste>0.01?`\nDescuento: −${money(ajuste)}`:''}${hayAjusteC&&ajuste<-0.01?`\nAjuste: +${money(-ajuste)}`:''}${hayAjusteC?`\nSubtotal ${ajuste>0?'con descuento':'ajustado'}: ${money(dFinC.sub)}`:''}${Q.iva?`\nIVA (16%): ${money(dFinC.iva)}`:''}
-${Q.iva?'Total Neto':'Total'}: ${money(dFinC.neto)}${Q.anti>0?`\nAnticipo para arrancar: ${money(Q.anti)}\nResta al entregar: ${money(Math.max(0,dFinC.neto-Q.anti))}`:''}
+${Q.iva?'Total Neto':'Total'}: ${money(dFinC.neto)}${Q.iva?'':' (sin IVA · con factura se agrega el 16%)'}${Q.anti>0?`\nAnticipo para arrancar: ${money(Q.anti)}\nResta al entregar: ${money(Math.max(0,dFinC.neto-Q.anti))}`:''}
 
 Nota: ${notaCliente()}
 Límite de fabricación: ${Q.entrega||'—'}
@@ -827,16 +831,12 @@ function generarPDF(){
      de trabajo y la de instalación no vencen. */
   const _vig=vigenciaDe(Q.fecha);
   const vigPdf=_vig?'Válida hasta el '+esc(_vig.hastaTxt):'';
-  const TERMINOS = [
-    ['Pagos y Facturación',['50% de anticipo para comenzar fabricación.','50% al finalizar, debe liquidar en máximo 2 días posterior a la instalación.','<u>Excepción: proyectos mayores a $60,000 MXN.</u>','Si requiere factura, el anticipo es más IVA.','La cotización es válida por '+VIGENCIA_DIAS+' días'+(_vig?' — hasta el '+esc(_vig.hastaTxt):'')+'.']],
-    ['Requisitos para Instalación',['En caso de que el proyecto lleve iluminación, el cliente debe proporcionar salida eléctrica detrás de donde se instalará el anuncio.','Área limpia, accesible y segura.','El cliente debe gestionar accesos, permisos y condiciones necesarias.','Cualquier retraso por falta de esto será responsabilidad del cliente.']],
-    ['Modificaciones',['Cambios al diseño aprobado pueden generar costos y retrasos.','Deben ser autorizados previamente.','AL3D no responde por fallas si el cliente exige cambios fuera de especificación.']],
-    ['Garantías',['1 año en material eléctrico.','2 años en colorimetría.','Se atiende según disponibilidad del equipo.','No aplica si fue instalado/modificado por terceros o expuesto a condiciones extremas.']],
-    ['Cancelaciones y Penalizaciones',['El anticipo no es reembolsable.','Si se cancela con el proyecto iniciado o materiales comprados, se debe pagar el 100%.','Después de 10 días sin pago, AL3D puede retirar el anuncio.']],
-    ['Uso y Responsabilidad',['Uso indebido o manipulación externa a nosotros.','Clima extremo.','Fallas estructurales del inmueble.'],'AL3D no se hace responsable por:'],
-    ['Permisos',['El cliente debe tramitar los permisos.','AL3D no se hace responsable por multas o clausuras.']],
-    ['Consentimiento y Uso de Imágenes',['<u>El depósito implica aceptación de todos estos términos.</u>','El cliente autoriza a AL3D a usar imágenes del proyecto con fines promocionales y de portafolio.']],
-  ];
+  /* La dirección de la página legal, sin el https:// porque se imprime: la de este mismo sitio,
+     esté publicado donde esté. */
+  const urlLegal=new URL('legal.html',location.href).href.replace(/^https?:\/\//,'');
+  /* Los términos viven en el catálogo (terminosCotizacion, catalogo.js): los mismos que enseña
+     legal.html, con la fecha de vigencia puesta aquí porque solo aquí hay cotización. */
+  const TERMINOS = terminosCotizacion(_vig?esc(_vig.hastaTxt):'');
   const tsec = (n,[titulo,puntos,intro]) => `<div class="tsec">
       <div class="tsec-h"><div class="tsec-n">${n}</div><div class="tsec-t">${titulo}</div></div>
       ${intro?`<p>${intro}</p>`:''}
@@ -853,11 +853,12 @@ function generarPDF(){
      quepa no se aplicaba en el único sitio donde hacía falta. -->
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Cotización ${esc(Q.folio)} · AL3D</title>
-<!-- Inter, sin bloquear, igual que en las dos apps. Sin señal no llega y el documento cae a la
-     misma reserva que la app: las dos superficies siguen coincidiendo, que es lo que se pedía. -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all';this.onload=null">
+<!-- Inter, desde el propio sitio (css/fuentes.css → fonts/) y no desde Google: el documento lo abre
+     el vendedor cada vez que imprime, y cada apertura le mandaba a Google su IP. Este documento vive en
+     una URL blob:, así que la hoja va con la URL absoluta del sitio; las rutas ../fonts/ de dentro se
+     resuelven contra la propia hoja. Sin la hoja —sin señal y sin caché— cae a la misma reserva que la
+     app, como antes. -->
+<link rel="stylesheet" href="${esc(new URL('css/fuentes.css',location.href).href)}">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 /* Una escala, no veinte tamaños sueltos. El documento entero se apoya en estos valores:
@@ -952,6 +953,10 @@ td.c{color:var(--ink2)}
 .trow-ok{background:#eaf7f0} .trow-ok>span{color:#0a6b3f!important;font-weight:700}
 .trow-av{background:#fdf4e3} .trow-av>span{color:#8a5c0a!important;font-weight:700}
 .trow-iva{background:var(--brandl)}
+/* Un total sin IVA lleva debajo, en el mismo recuadro, lo que pasa si se pide factura: el 16% no
+   puede ser una sorpresa que aparece en la hoja de los términos. */
+.trow-nota{padding:5px 13px 7px;font-size:7.8px}
+.trow-nota>span:first-child{color:var(--ink3)}
 .neto{display:flex;justify-content:space-between;align-items:center;background:var(--brand);color:#fff;padding:10px 13px}
 .neto>span:first-child{font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
 .neto>span:last-child{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;font-feature-settings:"tnum";white-space:nowrap}
@@ -1023,6 +1028,10 @@ td.c{color:var(--ink2)}
 .acepta-f>div{flex:1;border-top:1px solid var(--ink);padding-top:4px;font-size:8.5px;color:var(--ink2)}
 .acepta-f>div:last-child{flex:0 0 160px}
 .acepta-m{font-size:8.5px;color:var(--ink3);margin-top:12px;letter-spacing:.03em}
+/* El aviso de privacidad, entre los términos y la aceptación: un renglón de etiqueta y tres de texto. */
+.priv{flex:0 0 auto;margin:0 0 10px;padding:8px 12px 9px;border:1px dashed var(--line);border-radius:6px}
+.priv>.lbl{display:block;font-size:7px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:var(--ink3)}
+.priv p{font-size:8.6px;line-height:1.5;color:var(--ink2);margin-top:3px}
 
 /* Sello del límite de fabricación · el verde y el rojo son los del taller, no un capricho */
 .sello{display:flex;justify-content:center;margin-bottom:15px}
@@ -1165,6 +1174,7 @@ ${trozos.map((trozo,ti)=>{
       ${hayAjuste?`<div class="trow"><span>Subtotal ${ajuste>0?'con descuento':'ajustado'}</span><span>${money(dFin.sub)}</span></div>`:''}
       ${Q.iva?`<div class="trow trow-iva"><span>I.V.A. 16%</span><span>${money(dFin.iva)}</span></div>`:''}
       <div class="neto"><span>${Q.iva?'Total neto':'Total'}</span><span>${money(dFin.neto)}</span></div>
+      ${Q.iva?'':`<div class="trow trow-nota"><span>Precio sin IVA · si requiere factura se agrega el 16%</span></div>`}
       ${Q.anti>0?`<div class="pago">
         <span class="lbl">Plan de pago</span>
         <div class="trow" style="padding:3px 0"><span>Anticipo para arrancar</span><span>${money(Q.anti)}</span></div>
@@ -1190,6 +1200,14 @@ ${trozos.map((trozo,ti)=>{
     <div class="tt-div"></div>
     <div class="tt-col">${TERMINOS.slice(4).map((t,i)=>tsec(i+5,t)).join('')}</div>
   </div>
+  <!-- El aviso de privacidad, en el papel que el cliente sí recibe. La ley pide informar al titular
+       qué se hace con sus datos en el momento de recabarlos, y este documento —que trae su nombre,
+       su teléfono y su dirección— es ese momento. Corto, con el camino para pedir corrección o
+       borrado, y la dirección de la página con el aviso completo. -->
+  <div class="priv">
+    <span class="lbl">Aviso de privacidad</span>
+    <p>${esc(EMPRESA.nombre)} usa el nombre, el teléfono y la dirección que aparecen en esta cotización únicamente para elaborarla, fabricar e instalar el proyecto, cobrarlo y darle seguimiento; no los vende ni los comparte con terceros ajenos a este trabajo. Puede pedir su corrección o eliminación por WhatsApp al ${esc(EMPRESA.whatsapp)}. Aviso completo: ${esc(urlLegal)}</p>
+  </div>
   <div class="acepta">
     <span class="lbl">Aceptación</span>
     <p>El depósito del anticipo implica la aceptación de estos términos (apartado 8). Si prefieres dejarla firmada, aquí:</p>
@@ -1199,7 +1217,7 @@ ${trozos.map((trozo,ti)=>{
     </div>
     <div class="acepta-m">${esc(Q.folio)}${Q.folio?' &nbsp;·&nbsp; ':''}${Q.iva?'Total neto':'Total'} ${money(dFin.neto)}</div>
   </div>
-  ${footer([{label:'WhatsApp',val:esc(EMPRESA.whatsapp)},{label:'Dirección de la oficina',val:esc(EMPRESA.oficina)}],HOJA_TERMINOS)}
+  ${footer([{label:'Empresa',val:esc(EMPRESA.nombre)},{label:'WhatsApp',val:esc(EMPRESA.whatsapp)},{label:'Dirección de la oficina',val:esc(EMPRESA.oficina)}],HOJA_TERMINOS)}
 </div>
 
 <!-- HOJAS DE ORDEN DE TRABAJO · la del taller, sin precios · solo si hay límite (hayLimite)

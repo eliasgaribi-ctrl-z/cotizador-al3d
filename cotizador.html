@@ -4,16 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Cotizador AL3D</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- La hoja de Google Fonts se carga SIN bloquear el pintado: con mala señal la app se
-     quedaba en blanco aunque estuviera entera en el dispositivo, esperando una hoja de
-     estilos de otro servidor. media="print" hace que el navegador no la considere crítica;
-     al terminar de bajar se pasa a all y la tipografía entra. La pila de reserva del body
-     ya nombra Segoe UI, Roboto y Helvetica, así que mientras tanto se lee bien, y
-     ajustarTopbarMovil() ya se re-ejecuta en document.fonts.ready. -->
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all';this.onload=null">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
+<!-- Las tipografías se sirven desde el propio sitio (css/fuentes.css → fonts/). Se pedían a
+     fonts.googleapis.com, y eso tenía dos costos: cada apertura le mandaba a Google la dirección IP
+     de quien abre la app —un tercero que no hace falta para cotizar—, y con mala señal la letra
+     cambiaba de forma a media captura. Ahora son archivos del conjunto versionado del service
+     worker, como el resto de la app, con su licencia SIL OFL al lado (fonts/OFL-*.txt). -->
+<link rel="stylesheet" href="css/fuentes.css">
 <!-- Los iconos son archivos, no dos data-URI de 15 KB pegados uno detrás del otro. El que
      había era el mismo string dos veces —31 KB en la cabecera de cada carga— sobre un lienzo
      de 180x180 donde el dibujo solo ocupaba 180x104, así que en una pestaña se veía un sello
@@ -245,7 +241,7 @@
           <div class="fld" id="fld-tel"><label for="f-tel">Teléfono<span class="req" aria-hidden="true">*</span></label><input id="f-tel" type="tel" inputmode="tel" placeholder="33 0000 0000" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('tel',this.value)"></div>
         </div>
         <div class="cua-aviso" id="cua-aviso" style="display:none"></div>
-        <div class="fld" id="fld-proy"><label for="f-proy">Proyecto<span class="req" aria-hidden="true">*</span></label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('proy',this.value)">
+        <div class="fld" id="fld-proy"><label for="f-proy">Proyecto<span class="req" aria-hidden="true">*</span></label><input id="f-proy" placeholder="Ej. Abajeño Tlaquepaque · Caja de luz de fachada" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('proy',this.value)">
           <!-- El asterisco de la etiqueta ya dice que es obligatorio, y el paso 2 lo dice otra
                vez —con los campos que falten por nombre— en el momento en que estorba. Un
                párrafo aquí era la tercera vez, y la única que nadie había pedido. Se queda
@@ -294,6 +290,10 @@
             </div>
           </div>
         </details>
+        <!-- Lo que la ley pide decir en el momento de recabar el dato, dicho a quien lo captura y con
+             la liga al aviso completo. En otra pestaña: empotrado en la plataforma, un enlace normal
+             navegaría el marco. -->
+        <p class="hintnote consent-datos" id="consent-datos">Los datos del cliente se usan solo para elaborar, fabricar y dar seguimiento a esta cotización, y se guardan en este dispositivo. <a href="legal.html#privacidad" target="_blank" rel="noopener">Aviso de privacidad</a></p>
       </div>
     </div>
 

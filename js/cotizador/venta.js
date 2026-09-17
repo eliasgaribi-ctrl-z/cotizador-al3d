@@ -49,7 +49,10 @@ function abrirRegistrarVenta(){
       avisoEl.style.display='';
     } else { avisoEl.classList.remove('inc'); avisoEl.style.display='none'; }
   }
-  document.getElementById('rv-proyecto').value=(Q.cliente?Q.cliente+' - ':'')+Q.proy;
+  /* «Contacto - Negocio», como en Canva y en la hoja, y sin repetir: si el proyecto ya trae el
+     nombre del cliente —que es como se escribe allá— no se le antepone otra vez. La regla vive en
+     nombreContactoNegocio (nucleo.js), la misma que usa la plataforma para nombrar el proyecto. */
+  document.getElementById('rv-proyecto').value=nombreContactoNegocio(Q.cliente,Q.proy);
   /* En ISO, que es lo que un <input type="date"> entiende. Q.fecha está en es-MX y no se
      toca: es lo que se imprime en el PDF. */
   document.getElementById('rv-fecha').value=hoyISO();

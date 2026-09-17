@@ -988,7 +988,7 @@ function filaTsv(p) {
   /* La cuenta NO se rellena con una de las cinco: inventar de dónde se va a cobrar es peor
      que dejar la celda vacía, y la celda vacía se ve al pegar. */
   const cuenta = String(p.cuenta || '');
-  const proyecto = (p.contacto ? p.contacto + ' - ' : '') + String(p.negocio || '');
+  const proyecto = Cot.nombreContactoNegocio(p.contacto, p.negocio);   // sin repetir al contacto si el negocio ya lo trae
   /* El tipo de trabajo se deja vacío a propósito: la hoja lo clasifica sola desde el nombre
      del proyecto, y el puente tampoco lo manda. Tres versiones de la misma regla es como se
      consigue que los tres digan cosas distintas. */
@@ -1028,7 +1028,7 @@ function htmlHoja(p, reqs) {
   const items = (p.origen && Array.isArray(p.origen.items)) ? p.origen.items : [];
 
   const cab = '<dl class="pf-2col">' +
-    dato('Cliente', (p.contacto || '') + (p.negocio ? ' — ' + p.negocio : '') || '—') +
+    dato('Cliente', Cot.nombreContactoNegocio(p.contacto, p.negocio).replace(' - ', ' — ') || '—') +
     dato('Folio', p.folio_local || Cot.folioVisible(p.folio_global)) +
     dato('Instalación', inst ? fmtFechaDia(inst.fecha) + (inst.hora ? ' · ' + fmtHora(inst.hora) : ' · sin hora') : 'Sin fecha') +
     dato('Etapa', Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) +

@@ -315,8 +315,8 @@ function aiClose(){
 /* Con la imagen del escalador el modal cambia de cara: en vez de pedir un archivo
    enseña lo que se va a analizar, y deja la puerta abierta por si el usuario prefiere
    subir otra cosa. */
-const AI_INTRO_ARCHIVO='Dale una foto (JPG) o PDF del diseño/boceto. La IA detecta texto, medidas, material e iluminación, <b>describe qué está cotizando en cada partida</b> y muestra una miniatura del archivo para que lo compares. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo.';
-const AI_INTRO_ESCALADOR='Se analiza la imagen que acabas de medir, con tus cotas dibujadas encima. Como las medidas ya están calibradas, la IA <b>no tiene que estimar tamaños</b>: los usa tal cual y dedica su trabajo a reconocer qué es cada elemento, de qué material y con cuántas letras. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo.';
+const AI_INTRO_ARCHIVO='Dale una foto (JPG) o PDF del diseño/boceto. La IA detecta texto, medidas, material e iluminación, <b>describe qué está cotizando en cada partida</b> y muestra una miniatura del archivo para que lo compares. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo. El archivo se envía al proveedor de IA que elijas —Google, Groq u OpenRouter— con tu propia API key: <b>no lo uses si el cliente pidió confidencialidad</b>.';
+const AI_INTRO_ESCALADOR='Se analiza la imagen que acabas de medir, con tus cotas dibujadas encima. Como las medidas ya están calibradas, la IA <b>no tiene que estimar tamaños</b>: los usa tal cual y dedica su trabajo a reconocer qué es cada elemento, de qué material y con cuántas letras. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo. La imagen medida se envía al proveedor de IA que elijas con tu propia API key.';
 function aiPintarFuente(){
   const box=$('ai-src-box'), fld=$('ai-file-fld'), btn=$('ai-go-btn'), intro=$('ai-intro');
   if(!box) return;

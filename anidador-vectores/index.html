@@ -11,13 +11,10 @@
 <link rel="icon" type="image/png" sizes="192x192" href="../icono-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
 
-<!-- Mismas dos familias que el cotizador y la plataforma, cargadas SIN BLOQUEAR: una hoja
-     de estilos pendiente detiene los scripts, y si fonts.googleapis.com se cuelga el motor
-     nunca arrancaría. Con media="print" se baja sin bloquear y al terminar se enciende. -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
+<!-- Mismas dos familias que el cotizador y la plataforma, servidas desde el propio sitio
+     (css/fuentes.css → fonts/) y no desde Google: ni la IP de quien abre sale a un tercero, ni la
+     letra cambia de forma cuando no hay señal. -->
+<link rel="stylesheet" href="../css/fuentes.css">
 
 <!-- sistema.css es el sistema de diseño que comparten el cotizador, la plataforma y esta
      página: los mismos azules del logotipo, el mismo barro, la misma escala de letra.

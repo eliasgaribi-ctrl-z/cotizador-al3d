@@ -58,6 +58,31 @@ const alturaDeRecorte = h => { const v = +h || 0; return v > 0 && v < ALTURA_MIN
    encabezado del PDF, el mensaje de WhatsApp, la nota de «Autorizada» y el historial
    (vigenciaDe y fraseVigencia, en nucleo.js). */
 const VIGENCIA_DIAS = 10;
+
+/* ----- Los términos que imprime cada cotización -----
+   Vivían dentro de generarPDF(), en entrega.js, y solo ahí; la página legal de la app (legal.html)
+   los habría tenido que repetir a mano, y dos copias de un texto legal son dos textos legales al
+   primer cambio. Aquí, con las demás reglas del negocio, y de aquí los leen el PDF y la página.
+   `hasta` es la fecha de vigencia ya escrita —«26 sep 2026»— o '' para el texto general. Los puntos
+   pueden traer <u>: quien los pinte los mete como HTML propio, no como texto de fuera.
+
+   El apartado 8 dejó de amarrar dos cosas distintas en una sola frase: el depósito acepta los
+   términos, y las imágenes del proyecto terminado se pueden usar en el portafolio SALVO que el
+   cliente diga que no, sin que eso le cambie el precio ni el servicio. Un consentimiento que va
+   pegado a pagar no es un consentimiento, y decirlo así también protege a AL3D: el que no quiere
+   salir en el portafolio tiene una manera clara de decirlo antes, no un reclamo después. */
+function terminosCotizacion(hasta){
+  return [
+    ['Pagos y Facturación',['50% de anticipo para comenzar fabricación.','50% al finalizar, debe liquidar en máximo 2 días posterior a la instalación.','<u>Excepción: proyectos mayores a $60,000 MXN.</u>','Si requiere factura, el anticipo es más IVA.','La cotización es válida por '+VIGENCIA_DIAS+' días'+(hasta?' — hasta el '+hasta:'')+'.']],
+    ['Requisitos para Instalación',['En caso de que el proyecto lleve iluminación, el cliente debe proporcionar salida eléctrica detrás de donde se instalará el anuncio.','Área limpia, accesible y segura.','El cliente debe gestionar accesos, permisos y condiciones necesarias.','Cualquier retraso por falta de esto será responsabilidad del cliente.']],
+    ['Modificaciones',['Cambios al diseño aprobado pueden generar costos y retrasos.','Deben ser autorizados previamente.','AL3D no responde por fallas si el cliente exige cambios fuera de especificación.']],
+    ['Garantías',['1 año en material eléctrico.','2 años en colorimetría.','Se atiende según disponibilidad del equipo.','No aplica si fue instalado/modificado por terceros o expuesto a condiciones extremas.']],
+    ['Cancelaciones y Penalizaciones',['El anticipo no es reembolsable.','Si se cancela con el proyecto iniciado o materiales comprados, se debe pagar el 100%.','Después de 10 días sin pago, AL3D puede retirar el anuncio.']],
+    ['Uso y Responsabilidad',['Uso indebido o manipulación externa a nosotros.','Clima extremo.','Fallas estructurales del inmueble.'],'AL3D no se hace responsable por:'],
+    ['Permisos',['El cliente debe tramitar los permisos.','AL3D no se hace responsable por multas o clausuras.']],
+    ['Consentimiento y Uso de Imágenes',['<u>El depósito implica aceptación de todos estos términos.</u>','El cliente autoriza a AL3D a usar imágenes del proyecto terminado con fines promocionales y de portafolio, salvo que indique lo contrario por escrito o por WhatsApp antes de la instalación; negarse no cambia el precio ni el servicio.']],
+  ];
+}
 /* Bastidores: precio por metro cuadrado */
 const BASTIDORES = [
   {key:'lamina',    label:'Lámina',    tarifa:950},

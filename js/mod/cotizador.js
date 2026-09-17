@@ -90,7 +90,7 @@ export async function montar(contenedor, ctx) {
   /* ----- Salida de emergencia, y por qué NO se espera el evento `load` -----
      El primer intento gateaba la salud del marco en su `load`. Está mal, y falla justo
      donde más duele: `load` NO dispara hasta que terminan TODAS las subpeticiones del
-     documento hijo, y el cotizador pide sus tipografías a fonts.googleapis.com. Con esa
+     documento hijo, y el cotizador pedía sus tipografías a fonts.googleapis.com (hoy van con el sitio, pero la lección vale para cualquier subpetición lenta). Con esa
      petición colgada —un firewall, una red mala, un país donde Google no responde— `load`
      tarda más que cualquier techo razonable y la salida de emergencia se dispara sobre un
      marco que está PERFECTO, mandando a la gente a otra pestaña sin motivo.

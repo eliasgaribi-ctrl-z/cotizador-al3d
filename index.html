@@ -14,24 +14,12 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icono-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 
-<!-- Mismas dos familias que el cotizador: si la plataforma cargara otra, la misma app
-     tendría dos tipografías según la pantalla.
-
-     Y se cargan SIN BLOQUEAR, con el mismo truco que index.html ya usaba y que yo no copié
-     la primera vez. Una hoja de estilos pendiente bloquea la ejecución de los scripts, así
-     que un `<link rel="stylesheet">` normal a fonts.googleapis.com significa que si esa
-     petición se cuelga —mala señal, un firewall, un país donde Google no responde—
-     `js/app.js` NUNCA CORRE y la plataforma se queda en blanco. Costó un rato encontrarlo
-     porque falla solo cuando la petición tarda, no cuando falla rápido.
-
-     Con media="print" el navegador la baja sin bloquear nada, y al terminar se pasa a
-     media="all" y la letra aparece. Se ve la tipografía de reserva unas décimas: eso es
-     mucho mejor que una app que no arranca. El <noscript> es para quien tenga el JS
-     apagado, que nunca va a ejecutar ese onload. -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
+<!-- Mismas dos familias que el cotizador —Outfit y Figtree—, y las tipografías se sirven desde el propio sitio (css/fuentes.css → fonts/). Se pedían a
+     fonts.googleapis.com, y eso tenía dos costos: cada apertura le mandaba a Google la dirección IP
+     de quien abre la app —un tercero que no hace falta para cotizar—, y con mala señal la letra
+     cambiaba de forma a media captura. Ahora son archivos del conjunto versionado del service
+     worker, como el resto de la app, con su licencia SIL OFL al lado (fonts/OFL-*.txt). -->
+<link rel="stylesheet" href="css/fuentes.css">
 
 <!-- sistema.css ES el sistema de diseño —los azules muestreados del logotipo, la superficie
      y el borde, la escala de siete tamaños de letra— y lo comparten el cotizador, esta

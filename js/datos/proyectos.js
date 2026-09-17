@@ -275,9 +275,9 @@ export function nombreDerivado(origen, tipos) {
   }
   const parte = etiquetas.join(' + ') + cola;
 
-  let base;
-  if (contacto && negocio) base = contacto + ' - ' + negocio;
-  else base = contacto || negocio || String(o.folio || '').trim() || 'Sin nombre';
+  /* La misma regla que Registrar venta y la fila de la hoja (Cot.nombreContactoNegocio): si el
+     negocio ya trae al contacto —como lo escriben en Canva— no se le antepone otra vez. */
+  const base = Cot.nombreContactoNegocio(contacto, negocio) || String(o.folio || '').trim() || 'Sin nombre';
 
   return parte ? base + ' (' + parte + ')' : base;
 }

@@ -281,6 +281,7 @@ function pintar() {
     cardPuente() +
     cardVerdades() +
     cardDocumento() +
+    cardLegal() +
     cardCordon(e.ok);
 
   const b = $('pf-mbar');
@@ -699,6 +700,22 @@ function cardDocumento() {
     '</div>' +
     '<p class="pf-nota">Se abre en otra pestaña y necesita señal. Es el mismo archivo que ' +
     'viene en la carpeta <b>docs/</b> del proyecto.</p>');
+}
+
+/* ----- 7b. Lo legal -----
+   Aviso de privacidad, términos, cancelaciones, licencias y cómo se borran los datos de un cliente:
+   todo en legal.html, la misma página que enlazan el formulario del cliente y el pie de cada
+   cotización. Aquí solo se abre: Ajustes es donde se busca «qué hace esta app con lo que guarda». */
+function cardLegal() {
+  return tarjeta('i-candado', 'Aviso de privacidad, términos y licencias',
+    '<p class="aj-p">Qué datos guarda la app, dónde, quién los ve y cómo se borran; los términos ' +
+    'que imprime cada cotización; las licencias de las tipografías y del mapa; y los terceros que ' +
+    'intervienen, uno por uno. Es lo que la ley pide poder enseñar, y lo que un cliente puede pedir leer.</p>' +
+    '<div class="pf-acciones">' +
+    '<a class="btn btn-gho" href="legal.html" target="_blank" rel="noopener">' + ico('i-doc') + ' Abrir la página legal</a>' +
+    '</div>' +
+    '<p class="pf-nota">Los datos de un cliente se borran desde el cotizador: <b>Clientes → su cuaderno → Borrar sus datos</b>. ' +
+    'Lo que ya es proyecto en la plataforma se borra desde Proyectos.</p>');
 }
 
 /* ----- 8. El cordón ----- */
