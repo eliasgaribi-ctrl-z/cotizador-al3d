@@ -133,7 +133,10 @@ html[data-tema="oscuro"]{
    venta»— más el total: con 18 px por lado, «1 partida» se quedaba en «1 …». Con 12 y 14
    —los mismos que ya tenía la pestaña cuadrada— cabe lo que cabía antes. */
 .paso-tab{border-radius:var(--cv-pastilla);background:none;border-color:transparent;min-height:48px;padding:0 14px 0 12px}
-.paso-tab:hover{background:rgba(var(--sup-rgb),.7);border-color:transparent}
+/* El hover de la entrega era blanco al 70 % sobre un riel que ya es blanco al 88 %: no se
+   veía. Un velo del azul de marca al 8 % sí se ve, en los dos temas, y no compite con la
+   pestaña encendida, que va casi opaca. */
+.paso-tab:hover{background:rgba(var(--a-rgb),.08);border-color:transparent}
 /* La pestaña encendida se queda CASI opaca (.98) y no traslúcida: es la que
    lleva el nombre del cliente en chico debajo del rótulo, y es una de las
    piezas que mide pruebas/navegador/contraste.mjs. Sobre un riel de vidrio, un
