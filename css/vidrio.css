@@ -94,6 +94,16 @@
      vivo. */
   --cv-accion:linear-gradient(118deg,var(--ia-a) 0%,var(--ia-b) 50%,var(--ia-c) 100%);
 
+  /* EL CROMADO DEL TELÉFONO ES MARINO, NO BLANCO. En ≤759 px la cabecera y el dock de la
+     plataforma llevan texto e iconos BLANCOS —plataforma.css los pinta de «cristal marino»,
+     igual que la barra lateral—, y la entrega los repintaba con el mismo relleno claro que
+     todo lo demás: el título de cada pantalla y los cuatro iconos apagados del dock quedaban
+     blanco sobre blanco, invisibles. Se vio en la captura del teléfono: del dock solo se veía
+     la píldora encendida. Este es el mismo vidrio, sobre la base marina del sistema. */
+  --cv-marino:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.03)),rgba(var(--nav-rgb),.90);
+  --cv-marino-borde:1px solid rgba(255,255,255,.09);
+  --cv-marino-luz:inset 0 1px 0 rgba(255,255,255,.12);
+
   --cv-pastilla:999px;   /* botones y fichas */
   --cv-tarjeta:20px;     /* tarjetas y paneles */
 }
@@ -224,9 +234,11 @@ body.pf .seg button,body.pf .tipo-seg button{border-radius:var(--cv-pastilla)}
 .pf-lat-rol{border-radius:18px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
   backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
 
-.pf-cab{background:var(--cv-relleno);
-  backdrop-filter:var(--cv-blur);-webkit-backdrop-filter:var(--cv-blur);
-  border-bottom:var(--cv-borde)}
+/* La cabecera: clara con la barra lateral a la vista, marina en el teléfono, donde es lo
+   único que lleva la marca y su texto es blanco. El corte a 760 px es el de plataforma.css. */
+.pf-cab{backdrop-filter:var(--cv-blur);-webkit-backdrop-filter:var(--cv-blur)}
+@media(min-width:760px){ .pf-cab{background:var(--cv-relleno);border-bottom:var(--cv-borde)} }
+@media(max-width:759px){ .pf-cab{background:var(--cv-marino);border-bottom:var(--cv-marino-borde);box-shadow:var(--cv-marino-luz)} }
 
 /* `.pf-kpi` NO EXISTE EN ESTE REPO. La entrega ya lo daba por revisar, y la
    ficha del tablero —«Vendido en septiembre», «Por cobrar», «Conversión»— se
@@ -246,12 +258,17 @@ body.pf .pf-panel{border-radius:var(--cv-tarjeta)}
 .pf-abajo{
   left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));
   bottom:max(10px,env(safe-area-inset-bottom,0px));
-  padding:8px;border-radius:var(--cv-pastilla);border:var(--cv-borde);
-  background:var(--cv-relleno);
+  padding:8px;border-radius:var(--cv-pastilla);border:var(--cv-marino-borde);
+  background:var(--cv-marino);
   backdrop-filter:var(--cv-blur);-webkit-backdrop-filter:var(--cv-blur);
-  box-shadow:var(--cv-luz),0 18px 40px -20px rgba(20,23,43,.6);
+  box-shadow:var(--cv-marino-luz),0 18px 40px -20px rgba(0,0,0,.55);
 }
 .pf-abajo a,.pf-abajo button{border-radius:var(--cv-pastilla);min-height:52px}
+
+/* Los botones del pie de la ficha —«Orden de trabajo», «Copiar datos para la hoja»— parten
+   su rótulo en dos o tres renglones en el teléfono, y una pastilla de tres renglones es un
+   óvalo. Ahí el radio es el de tarjeta. */
+body.pf .pf-panel-f .btn{border-radius:18px}
 
 /* ==========================================================================
    5. El anidador
