@@ -70,6 +70,13 @@
      tema— y encima la luz blanca que hace que se lea como vidrio. Con eso una
      sola declaración vale para los dos temas. */
   --cv-relleno:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05)),rgba(var(--sup-rgb),.86);
+  /* Y el DENSO, para las piezas por debajo de las que PASA la página al desplazarse —la barra
+     de arriba, la barra fija del teléfono, la cabecera de la plataforma—: al 86 % todavía se
+     leía «Acomodar en la lámina» a través de la barra de acción del Calendario. Al 93 % lo de
+     detrás se adivina como color, que es lo que lo hace vidrio, y ya no compite con el rótulo
+     que va encima. El riel de pasos, la columna del dinero, los paneles y las fichas se quedan
+     al 86 %: debajo de ellos no se desplaza nada. */
+  --cv-relleno-denso:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05)),rgba(var(--sup-rgb),.93);
   --cv-borde:1px solid rgba(255,255,255,.85);
   --cv-blur:blur(22px) saturate(1.6);
   --cv-luz:inset 0 1px 0 rgba(255,255,255,.95);
@@ -121,7 +128,7 @@ html[data-tema="oscuro"]{
    ========================================================================== */
 
 .topbar{
-  background:var(--cv-relleno);
+  background:var(--cv-relleno-denso);
   backdrop-filter:var(--cv-blur);
   -webkit-backdrop-filter:var(--cv-blur);
   border-bottom:var(--cv-borde);
@@ -187,11 +194,19 @@ html[data-tema="oscuro"]{
    abajo (`.wrap{padding-bottom}`) está calculado con 10, y cambiar el margen sin cambiar
    el hueco es taparle 2 px al último renglón. */
 @media(max-width:759px){
-  .mbar{
+  /* La POSICIÓN solo para la barra del cotizador. La barra de acción de la plataforma
+     (#pf-mbar, «Agendar el proyecto sin fecha», «Recibí lo de la lista») también lleva la
+     clase .mbar, pero su `bottom` es `var(--dock)`: va ENCIMA del dock de módulos, que es
+     lo que dice su propio marcado. Con un `.mbar{bottom:10px}` a secas —lo que traía la
+     entrega— bajaba hasta el borde y tapaba el dock entero: al entrar a Calendario la barra
+     de módulos «desaparecía». Medido: barra 769-834, dock 764-834. */
+  .mbar:not(.pf-mbar){
     left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));
     bottom:max(10px,env(safe-area-inset-bottom,0px));
+  }
+  .mbar{
     border-radius:var(--cv-pastilla);border:var(--cv-borde);
-    background:var(--cv-relleno);
+    background:var(--cv-relleno-denso);
     backdrop-filter:var(--cv-blur);
     -webkit-backdrop-filter:var(--cv-blur);
     box-shadow:var(--cv-luz),0 18px 40px -20px rgba(20,23,43,.6);
@@ -237,7 +252,7 @@ body.pf .seg button,body.pf .tipo-seg button{border-radius:var(--cv-pastilla)}
 /* La cabecera: clara con la barra lateral a la vista, marina en el teléfono, donde es lo
    único que lleva la marca y su texto es blanco. El corte a 760 px es el de plataforma.css. */
 .pf-cab{backdrop-filter:var(--cv-blur);-webkit-backdrop-filter:var(--cv-blur)}
-@media(min-width:760px){ .pf-cab{background:var(--cv-relleno);border-bottom:var(--cv-borde)} }
+@media(min-width:760px){ .pf-cab{background:var(--cv-relleno-denso);border-bottom:var(--cv-borde)} }
 @media(max-width:759px){ .pf-cab{background:var(--cv-marino);border-bottom:var(--cv-marino-borde);box-shadow:var(--cv-marino-luz)} }
 
 /* `.pf-kpi` NO EXISTE EN ESTE REPO. La entrega ya lo daba por revisar, y la

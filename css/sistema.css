@@ -673,6 +673,19 @@ body.precios-ocultos .precios-nota{display:flex}
    se lea sin barrer la vista de un lado a otro. A 660 px, «Cliente» y «Teléfono» en dos
    columnas dan campos de 320 px para escribir un nombre y un teléfono. */
 .wrap.p-cliente{grid-template-columns:minmax(0,560px);justify-content:center}
+/* En esa columna de 560 el riel no da para los cuatro subtítulos más el total: «1 partida»
+   salía como «1 p…», «falta PDF, WhatsApp y la venta» como «falta PDF, Whats…» y el total
+   como «$20,…», que es justo el dato que no puede cortarse. En la pantalla del cliente esos
+   subtítulos son secundarios —se está capturando quién es, no qué falta—, así que aquí se
+   esconden y las cuatro pestañas y el total caben enteros. En las otras tres pantallas el
+   riel es ancho y los subtítulos vuelven. */
+.wrap.p-cliente .paso-tab .tx small{display:none}
+/* Y aun así al total le faltaban seis píxeles con «$20,416.00»: las pestañas ceden ocho de
+   relleno por lado y el rótulo «Total» se va —la cifra al final del riel de pasos no necesita
+   apellido, y en el teléfono ya se va sola desde los 385 px—. Sobran unos 70 px, que es lo que
+   hace falta para que un total de seis cifras tampoco se recorte. */
+.wrap.p-cliente .paso-tab{padding-left:10px;padding-right:10px}
+.wrap.p-cliente .paso-total small{display:none}
 .pasos{grid-column:1/-1;display:flex;align-items:stretch;gap:4px;margin-bottom:2px}
 .paso-tab{display:flex;align-items:center;gap:9px;min-height:44px;padding:9px 15px 9px 11px;border:1px solid transparent;border-radius:var(--r-sm);
   background:rgba(var(--sup-rgb),.7);cursor:pointer;text-align:left;color:var(--muted);font-family:inherit;transition:.15s;min-width:0}
@@ -1352,6 +1365,18 @@ details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
    esta por ser más específica, así que el escalador conserva su propia altura. */
 @media(max-width:759px){
   .toast{bottom:calc(20px + 66px + env(safe-area-inset-bottom,0px))}
+}
+/* En la computadora el aviso va abajo a la IZQUIERDA, no al centro. El centro de abajo es
+   exactamente donde caen los botones principales de la columna única del paso 1 y del pie
+   de la ficha —«Continuar a partidas», «Ir a entrega», «Generar PDF»—, y «Cotización
+   autorizada — guardada en historial» tapaba «Generar PDF» en el momento exacto en que se iba
+   a apretar. Abajo a la izquierda no hay nada que tapar: en el cotizador es hueco, y en la
+   plataforma queda a la derecha de la barra lateral, que es lo que mide --lat (0 donde no
+   existe: el cotizador suelto y el empotrado). El teléfono se queda centrado: ahí la barra fija
+   ocupa todo el ancho y el aviso ya se pone encima de ella. */
+@media(min-width:760px){
+  .toast{left:calc(var(--lat,0px) + 24px);right:auto;transform:translateY(90px)}
+  .toast.show{transform:translateY(0)}
 }
 
 /* ----- Cola de autorización ----- */
@@ -4570,8 +4595,14 @@ body::after{
 .ai-btn:active{transform:scale(.97) translateY(0)}
 .ai-btn:focus-visible{outline:2px solid var(--a-fuerte);outline-offset:3px}
 /* Deshabilitado: se para todo. Un botón que no se puede tocar y sigue brillando miente. */
+/* Deshabilitado se lee, aunque no se pueda tocar. Iba en blanco sobre --n4 al 55 % de
+   opacidad: el rótulo entero —«Cotizar con IA — analizar JPG o PDF»— se perdía contra el
+   gris, y un botón que no se lee no se distingue de uno roto. Ahora es tinta secundaria sobre
+   --n3, sin bajar la opacidad: 4,54:1 de día (#5c6184 sobre #dcdff2) y 5,25:1 de noche
+   (#a7acd6 sobre #2f3562), y sigue viéndose apagado porque el degradado, el filo y el barrido
+   se fueron. */
 .ai-btn:disabled,.ai-btn[disabled]{
-  animation:none;background:var(--n4);box-shadow:none;transform:none;opacity:.55;
+  animation:none;background:var(--n3);color:var(--tinta2);box-shadow:none;transform:none;opacity:1;
 }
 .ai-btn:disabled::after,.ai-btn[disabled]::after,
 .ai-btn:disabled .svgi,.ai-btn[disabled] .svgi{animation:none}
@@ -4741,7 +4772,7 @@ html[data-tema="oscuro"] .ai-btn:hover{
   filter:brightness(1.12);
 }
 html[data-tema="oscuro"] .ai-btn:disabled,html[data-tema="oscuro"] .ai-btn[disabled]{
-  background:var(--n3);border-color:transparent;
+  background:var(--n3);border-color:transparent;color:var(--tinta2);
 }
 /* El dock de noche: el filo casi no se ve sobre marino, así que lo que despega la pieza del
    lienzo es la sombra, y tiene que ser negra y muy abierta. La de antes iba solo hacia arriba
