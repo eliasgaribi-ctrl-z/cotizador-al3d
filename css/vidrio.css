@@ -21,6 +21,16 @@
    gana la última, y la última era plataforma.css. Es la misma razón por la que
    la entrega ya pedía cargarla después de anidador.css.
 
+   LOS TOKENS SE LLAMAN --cv-* Y NO --vid-* COMO EN LA ENTREGA. sistema.css ya
+   tiene `--vid-blur` (18 px de día, 22 de noche) y lo escribe como
+   `blur(var(--vid-blur))` en ocho sitios; con la entrega tal cual, esos ocho
+   se volvían `blur(blur(22px) saturate(1.6))` —inválido, o sea sin desenfoque—
+   y de noche, donde el sistema lo redefine con más especificidad, la barra de
+   esta hoja quedaba en `backdrop-filter:22px`, inválido también. Ni un error
+   en consola: el vidrio simplemente dejaba de serlo. `--cv` es «capa de
+   vidrio», y pruebas/hojas-de-estilo.mjs vigila que ningún token de aquí exista
+   ya en las otras dos hojas.
+
    TRES COSAS QUE NO SON LAS DE LA ENTREGA, Y POR QUÉ. Están escritas donde
    tocan, pero conviene tenerlas juntas:
      · `.pf-kpi` no existe en este repo. La ficha del tablero es `.pf-cuenta`.
@@ -59,11 +69,11 @@
      tema al 86 % —blanco de día, --sup de noche, porque --sup-rgb cambia con el
      tema— y encima la luz blanca que hace que se lea como vidrio. Con eso una
      sola declaración vale para los dos temas. */
-  --vid-relleno:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05)),rgba(var(--sup-rgb),.86);
-  --vid-borde:1px solid rgba(255,255,255,.85);
-  --vid-blur:blur(22px) saturate(1.6);
-  --vid-luz:inset 0 1px 0 rgba(255,255,255,.95);
-  --vid-sombra:0 26px 54px -34px rgba(20,23,43,.55);
+  --cv-relleno:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05)),rgba(var(--sup-rgb),.86);
+  --cv-borde:1px solid rgba(255,255,255,.85);
+  --cv-blur:blur(22px) saturate(1.6);
+  --cv-luz:inset 0 1px 0 rgba(255,255,255,.95);
+  --cv-sombra:0 26px 54px -34px rgba(20,23,43,.55);
 
   /* EL DEGRADADO DE LAS ACCIONES, Y EL ÚNICO NÚMERO QUE OBLIGÓ A CAMBIAR LA
      ENTREGA. Venía escrito a mano —#2a13e0 → #4060f8 → #7b3ff8 en claro, y
@@ -82,18 +92,18 @@
      colores que mantener. En claro la diferencia con lo entregado es que el
      primer tono es #3018f8 y no #2a13e0: el mismo azul de marca, un pelo más
      vivo. */
-  --vid-accion:linear-gradient(118deg,var(--ia-a) 0%,var(--ia-b) 50%,var(--ia-c) 100%);
+  --cv-accion:linear-gradient(118deg,var(--ia-a) 0%,var(--ia-b) 50%,var(--ia-c) 100%);
 
-  --vid-pastilla:999px;   /* botones y fichas */
-  --vid-tarjeta:20px;     /* tarjetas y paneles */
+  --cv-pastilla:999px;   /* botones y fichas */
+  --cv-tarjeta:20px;     /* tarjetas y paneles */
 }
 
 /* De noche el vidrio no es blanco translúcido sino luz sobre oscuro, y el
    degradado se cambia solo porque --ia-a/b/c ya cambian con el tema. */
 html[data-tema="oscuro"]{
-  --vid-borde:1px solid rgba(255,255,255,.16);
-  --vid-luz:inset 0 1px 0 rgba(255,255,255,.26);
-  --vid-sombra:0 30px 60px -32px rgba(0,0,0,.8);
+  --cv-borde:1px solid rgba(255,255,255,.16);
+  --cv-luz:inset 0 1px 0 rgba(255,255,255,.26);
+  --cv-sombra:0 30px 60px -32px rgba(0,0,0,.8);
 }
 
 /* ==========================================================================
@@ -101,37 +111,37 @@ html[data-tema="oscuro"]{
    ========================================================================== */
 
 .topbar{
-  background:var(--vid-relleno);
-  backdrop-filter:var(--vid-blur);
-  -webkit-backdrop-filter:var(--vid-blur);
-  border-bottom:var(--vid-borde);
-  box-shadow:var(--vid-luz),0 10px 30px -22px rgba(20,23,43,.45);
+  background:var(--cv-relleno);
+  backdrop-filter:var(--cv-blur);
+  -webkit-backdrop-filter:var(--cv-blur);
+  border-bottom:var(--cv-borde);
+  box-shadow:var(--cv-luz),0 10px 30px -22px rgba(20,23,43,.45);
 }
 
 /* Los cuatro pasos dejan de ser pestañas cuadradas dentro de una tarjeta y
    pasan a ser un riel de vidrio con pastillas. Mismo alto, mismo orden. */
 .pasos{
-  gap:4px;padding:6px;border-radius:var(--vid-pastilla);
-  background:var(--vid-relleno);
-  backdrop-filter:var(--vid-blur);
-  -webkit-backdrop-filter:var(--vid-blur);
-  border:var(--vid-borde);
-  box-shadow:var(--vid-luz),0 16px 36px -26px rgba(20,23,43,.5);
+  gap:4px;padding:6px;border-radius:var(--cv-pastilla);
+  background:var(--cv-relleno);
+  backdrop-filter:var(--cv-blur);
+  -webkit-backdrop-filter:var(--cv-blur);
+  border:var(--cv-borde);
+  box-shadow:var(--cv-luz),0 16px 36px -26px rgba(20,23,43,.5);
 }
 /* El relleno horizontal NO son los 18 px de la entrega. En el paso 1 el riel mide 560 px
    y lleva cuatro pestañas con su renglón chico —«1 partida», «falta PDF, WhatsApp y la
    venta»— más el total: con 18 px por lado, «1 partida» se quedaba en «1 …». Con 12 y 14
    —los mismos que ya tenía la pestaña cuadrada— cabe lo que cabía antes. */
-.paso-tab{border-radius:var(--vid-pastilla);background:none;border-color:transparent;min-height:48px;padding:0 14px 0 12px}
+.paso-tab{border-radius:var(--cv-pastilla);background:none;border-color:transparent;min-height:48px;padding:0 14px 0 12px}
 .paso-tab:hover{background:rgba(var(--sup-rgb),.7);border-color:transparent}
 /* La pestaña encendida se queda CASI opaca (.98) y no traslúcida: es la que
    lleva el nombre del cliente en chico debajo del rótulo, y es una de las
    piezas que mide pruebas/navegador/contraste.mjs. Sobre un riel de vidrio, un
    relleno traslúcido ahí deja pasar lo que haya detrás y la medida baila. */
 .paso-tab.on{background:rgba(var(--sup-rgb),.98);border-color:rgba(255,255,255,.9);
-  box-shadow:0 8px 22px -14px rgba(var(--a-rgb),.55),var(--vid-luz)}
-.paso-tab .n{width:26px;height:26px;border-radius:var(--vid-pastilla)}
-.paso-tab.on .n{background:var(--vid-accion)}
+  box-shadow:0 8px 22px -14px rgba(var(--a-rgb),.55),var(--cv-luz)}
+.paso-tab .n{width:26px;height:26px;border-radius:var(--cv-pastilla)}
+.paso-tab.on .n{background:var(--cv-accion)}
 
 /* ==========================================================================
    2. La columna del dinero
@@ -141,22 +151,22 @@ html[data-tema="oscuro"]{
    bloque sin fondo que se separa del subtotal con un filete de arriba: al redondearlo, el
    filete se curvaba en las dos puntas y quedaba un arco suelto flotando encima de «TOTAL
    NETO». Se vio en la captura; a ojo parecía una tapa mal puesta. */
-.side .sum{border-radius:var(--vid-tarjeta)}
+.side .sum{border-radius:var(--cv-tarjeta)}
 .side>.sum{
-  background:var(--vid-relleno);
-  backdrop-filter:var(--vid-blur);
-  -webkit-backdrop-filter:var(--vid-blur);
-  border:var(--vid-borde);
-  box-shadow:var(--vid-luz),var(--vid-sombra);
+  background:var(--cv-relleno);
+  backdrop-filter:var(--cv-blur);
+  -webkit-backdrop-filter:var(--cv-blur);
+  border:var(--cv-borde);
+  box-shadow:var(--cv-luz),var(--cv-sombra);
 }
 .prog-box{border-radius:16px;background:rgba(var(--sup-rgb),.55)}
 .prog-box:hover{background:rgba(var(--sup-rgb),.92)}
-.prog-track{height:8px;border-radius:var(--vid-pastilla);overflow:hidden}
+.prog-track{height:8px;border-radius:var(--cv-pastilla);overflow:hidden}
 /* El subtotal es el número que se copia a Canva: se queda como el bloque de
    color de la columna, ahora con el vidrio encima. */
 .srow.subtotal{border-radius:18px;
   background:linear-gradient(150deg,rgba(var(--a-rgb),.16),rgba(var(--a2-rgb),.14));
-  border:1px solid rgba(var(--a-rgb),.28);box-shadow:var(--vid-luz)}
+  border:1px solid rgba(var(--a-rgb),.28);box-shadow:var(--cv-luz)}
 .neto .amt,.mbar-amt{font-family:var(--f-cifra);letter-spacing:-1.2px}
 
 /* La barra fija del teléfono, en cápsula flotante y no pegada al borde. Los 10 px de
@@ -167,11 +177,11 @@ html[data-tema="oscuro"]{
   .mbar{
     left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));
     bottom:max(10px,env(safe-area-inset-bottom,0px));
-    border-radius:var(--vid-pastilla);border:var(--vid-borde);
-    background:var(--vid-relleno);
-    backdrop-filter:var(--vid-blur);
-    -webkit-backdrop-filter:var(--vid-blur);
-    box-shadow:var(--vid-luz),0 18px 40px -20px rgba(20,23,43,.6);
+    border-radius:var(--cv-pastilla);border:var(--cv-borde);
+    background:var(--cv-relleno);
+    backdrop-filter:var(--cv-blur);
+    -webkit-backdrop-filter:var(--cv-blur);
+    box-shadow:var(--cv-luz),0 18px 40px -20px rgba(20,23,43,.6);
   }
 }
 
@@ -179,10 +189,10 @@ html[data-tema="oscuro"]{
    3. Pastillas y tarjetas
    ========================================================================== */
 
-.card{border-radius:var(--vid-tarjeta)}
+.card{border-radius:var(--cv-tarjeta)}
 .btn,.btn-hist,.btn-gho,.btn-pri,.chip,.seg,.seg button,.folio,
-.btn-scaler-open,.btn-vector-open,.ai-btn{border-radius:var(--vid-pastilla)}
-.btn-pri{background:var(--vid-accion);border-color:rgba(var(--af-rgb),.5);
+.btn-scaler-open,.btn-vector-open,.ai-btn{border-radius:var(--cv-pastilla)}
+.btn-pri{background:var(--cv-accion);border-color:rgba(var(--af-rgb),.5);
   box-shadow:0 14px 30px -16px rgba(var(--af-rgb),.7),inset 0 1px 0 rgba(255,255,255,.4)}
 
 /* La plataforma vuelve a cuadrar los radios con `body.pf .card`, `body.pf .btn`
@@ -190,15 +200,15 @@ html[data-tema="oscuro"]{
    líneas la pastilla se veía en el cotizador y en el anidador y NO en la
    plataforma, que es donde más botones hay. Solo el radio: lo demás de esos
    bloques —sombras, pesos, el relleno del segmentado— se respeta. */
-body.pf .card{border-radius:var(--vid-tarjeta)}
-body.pf .btn,body.pf .seg{border-radius:var(--vid-pastilla)}
-body.pf .seg button,body.pf .tipo-seg button{border-radius:var(--vid-pastilla)}
+body.pf .card{border-radius:var(--cv-tarjeta)}
+body.pf .btn,body.pf .seg{border-radius:var(--cv-pastilla)}
+body.pf .seg button,body.pf .tipo-seg button{border-radius:var(--cv-pastilla)}
 
 /* Los modales —el de IA, el escalador, el vectorizador, la orden de trabajo—
    comparten el mismo vidrio. */
-.modal{border-radius:24px;background:var(--vid-relleno);
+.modal{border-radius:24px;background:var(--cv-relleno);
   backdrop-filter:blur(28px) saturate(1.7);-webkit-backdrop-filter:blur(28px) saturate(1.7);
-  border:var(--vid-borde);box-shadow:var(--vid-luz),0 34px 70px -30px rgba(0,0,0,.55)}
+  border:var(--cv-borde);box-shadow:var(--cv-luz),0 34px 70px -30px rgba(0,0,0,.55)}
 
 /* ==========================================================================
    4. La plataforma
@@ -211,9 +221,9 @@ body.pf .seg button,body.pf .tipo-seg button{border-radius:var(--vid-pastilla)}
 .pf-lat-rol{border-radius:18px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
   backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
 
-.pf-cab{background:var(--vid-relleno);
-  backdrop-filter:var(--vid-blur);-webkit-backdrop-filter:var(--vid-blur);
-  border-bottom:var(--vid-borde)}
+.pf-cab{background:var(--cv-relleno);
+  backdrop-filter:var(--cv-blur);-webkit-backdrop-filter:var(--cv-blur);
+  border-bottom:var(--cv-borde)}
 
 /* `.pf-kpi` NO EXISTE EN ESTE REPO. La entrega ya lo daba por revisar, y la
    ficha del tablero —«Vendido en septiembre», «Por cobrar», «Conversión»— se
@@ -224,29 +234,29 @@ body.pf .seg button,body.pf .tipo-seg button{border-radius:var(--vid-pastilla)}
    de arriba. La hoja móvil del panel —que se pega abajo y solo redondea las dos
    esquinas de arriba— se conserva: ahí el radio de tarjeta abajo dejaría dos
    esquinas flotando sobre el borde de la pantalla. */
-.pf-panel,.pf-cuenta{border-radius:var(--vid-tarjeta);
-  background:var(--vid-relleno);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
-  border:var(--vid-borde);box-shadow:var(--vid-luz),var(--vid-sombra)}
-body.pf .pf-panel{border-radius:var(--vid-tarjeta)}
-@media(max-width:560px){ body.pf .pf-panel{border-radius:var(--vid-tarjeta) var(--vid-tarjeta) 0 0} }
+.pf-panel,.pf-cuenta{border-radius:var(--cv-tarjeta);
+  background:var(--cv-relleno);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border:var(--cv-borde);box-shadow:var(--cv-luz),var(--cv-sombra)}
+body.pf .pf-panel{border-radius:var(--cv-tarjeta)}
+@media(max-width:560px){ body.pf .pf-panel{border-radius:var(--cv-tarjeta) var(--cv-tarjeta) 0 0} }
 
 .pf-abajo{
   left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));
   bottom:max(10px,env(safe-area-inset-bottom,0px));
-  padding:8px;border-radius:var(--vid-pastilla);border:var(--vid-borde);
-  background:var(--vid-relleno);
-  backdrop-filter:var(--vid-blur);-webkit-backdrop-filter:var(--vid-blur);
-  box-shadow:var(--vid-luz),0 18px 40px -20px rgba(20,23,43,.6);
+  padding:8px;border-radius:var(--cv-pastilla);border:var(--cv-borde);
+  background:var(--cv-relleno);
+  backdrop-filter:var(--cv-blur);-webkit-backdrop-filter:var(--cv-blur);
+  box-shadow:var(--cv-luz),0 18px 40px -20px rgba(20,23,43,.6);
 }
-.pf-abajo a,.pf-abajo button{border-radius:var(--vid-pastilla);min-height:52px}
+.pf-abajo a,.pf-abajo button{border-radius:var(--cv-pastilla);min-height:52px}
 
 /* ==========================================================================
    5. El anidador
    ========================================================================== */
 
 .an-tile,.an-retazos{border-radius:16px}
-.an-marcador{border-radius:var(--vid-tarjeta);background:var(--vid-relleno);
-  border:var(--vid-borde);box-shadow:var(--vid-luz)}
+.an-marcador{border-radius:var(--cv-tarjeta);background:var(--cv-relleno);
+  border:var(--cv-borde);box-shadow:var(--cv-luz)}
 .an-mesa{border-radius:18px}
 
 /* ==========================================================================
@@ -269,7 +279,7 @@ body.pf .pf-panel{border-radius:var(--vid-tarjeta)}
    canto a canto— pasa POR DELANTE del texto y deshace justo esa medida.
 
    Y hay un segundo problema, este mecánico: la entrega escribe
-   `background:var(--vid-accion)`, y `background` es el ATAJO, así que al
+   `background:var(--cv-accion)`, y `background` es el ATAJO, así que al
    aplicarlo se lleva por delante el `background-size:300% 100%` que el
    degradado que fluye necesita. La animación `ia-aurora` se queda corriendo
    sobre un fondo del 100 % y lo que se ve no es una aurora: es el degradado

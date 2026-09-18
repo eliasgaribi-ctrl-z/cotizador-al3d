@@ -47,7 +47,7 @@ console.log('\nLA HOJA LLEGA, Y LLEGA LA ÚLTIMA');
 const tokens = await p.evaluate(() => {
   const cs = getComputedStyle(document.documentElement);
   return { cifra: cs.getPropertyValue('--f-cifra').trim(), texto: cs.getPropertyValue('--f-texto').trim(),
-           accion: cs.getPropertyValue('--vid-accion').trim() };
+           accion: cs.getPropertyValue('--cv-accion').trim() };
 });
 cierto(/^'?Sora'?/.test(tokens.cifra), '--f-cifra empieza por Sora (' + tokens.cifra.slice(0, 24) + '…)');
 cierto(/^'?Manrope'?/.test(tokens.texto), '--f-texto empieza por Manrope (' + tokens.texto.slice(0, 24) + '…)');
