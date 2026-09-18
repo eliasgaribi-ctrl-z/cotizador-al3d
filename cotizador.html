@@ -12,8 +12,8 @@
      al terminar de bajar se pasa a all y la tipografía entra. La pila de reserva del body
      ya nombra Segoe UI, Roboto y Helvetica, así que mientras tanto se lee bien, y
      ajustarTopbarMovil() ya se re-ejecuta en document.fonts.ready. -->
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all';this.onload=null">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all';this.onload=null">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 <!-- Los iconos son archivos, no dos data-URI de 15 KB pegados uno detrás del otro. El que
      había era el mismo string dos veces —31 KB en la cabecera de cada carga— sobre un lienzo
      de 180x180 donde el dibujo solo ocupaba 180x104, así que en una pestaña se veía un sello
@@ -46,6 +46,10 @@
      apertura en oscuro no parpadee en claro. -->
 <script src="js/tema.js"></script>
 <link rel="stylesheet" href="css/sistema.css">
+<!-- La capa de vidrio va SIEMPRE la última: solo repinta tokens y cromado, y con la misma
+     especificidad que las hojas de abajo gana la que se lee después. Quitar esta línea
+     devuelve la app exactamente a como estaba. -->
+<link rel="stylesheet" href="css/vidrio.css">
 </head>
 <body>
 <!-- Empotrado dentro del apartado Cotizador de la plataforma. `parent !== window` y no una

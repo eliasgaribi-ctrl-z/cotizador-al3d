@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 33;
+const APP_VERSION = 34;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -61,6 +61,10 @@ const APP_FILES = [
   './manifest-plataforma.webmanifest',
   './css/sistema.css',
   './css/plataforma.css',
+  /* La capa de vidrio. Va con las otras dos y no aparte: las tres páginas la enlazan, y sin
+     ella lo que queda no es la app de antes sino la app SIN cromado —barras sin fondo y
+     pastillas a medio radio—, que es peor que cualquiera de las dos versiones enteras. */
+  './css/vidrio.css',
   './js/tema.js',
   /* El cotizador: la página y sus once guiones. Van juntos porque se cargan en orden y se
      llaman entre sí; uno nuevo con uno viejo no arranca. */

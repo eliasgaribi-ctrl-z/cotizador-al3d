@@ -1,0 +1,340 @@
+/* ==========================================================================
+   vidrio.css — la capa de vidrio de AL3D
+   --------------------------------------------------------------------------
+   Va DESPUÉS de las demás hojas y no toca el marcado: solo repinta los tokens
+   y el cromado. Si este archivo se borra, la app vuelve exactamente a como
+   estaba.
+
+   Tres cosas hace:
+     1. Cambia las dos familias por Sora (cifras y títulos) y Manrope (texto).
+     2. Pone vidrio en el cromado y en el resumen del dinero: barra de arriba,
+        riel de pasos, columna del dinero, barra del teléfono, barra lateral de
+        la plataforma y los modales. En las partidas NO: veinte tarjetas
+        traslúcidas seguidas cansan la vista y cuestan batería.
+     3. Le da a los botones de IA las chispas al acercar el cursor o al tocar.
+
+   ORDEN DE CARGA. La entrega decía «inmediatamente después de sistema.css».
+   Aquí va la ÚLTIMA de las tres páginas, y no es un capricho: el capítulo 4 de
+   abajo repinta `.pf-cab`, `.pf-panel` y `.pf-abajo`, que se declaran en
+   css/plataforma.css. Con esta hoja en medio de las dos, la plataforma —que es
+   justo donde viven esas clases— se quedaba sin capa: misma especificidad,
+   gana la última, y la última era plataforma.css. Es la misma razón por la que
+   la entrega ya pedía cargarla después de anidador.css.
+
+   TRES COSAS QUE NO SON LAS DE LA ENTREGA, Y POR QUÉ. Están escritas donde
+   tocan, pero conviene tenerlas juntas:
+     · `.pf-kpi` no existe en este repo. La ficha del tablero es `.pf-cuenta`.
+     · El degradado de acción sale de --ia-a/--ia-b/--ia-c en vez de llevar sus
+       colores a mano, porque en tema oscuro los de la entrega no aguantan el
+       blanco encima. El número está en el capítulo 0.
+     · El capítulo 6 solo añade las chispas. El barrido y el degradado ya
+       estaban, medidos y enmascarados, en sistema.css y en plataforma.css.
+   ========================================================================== */
+
+/* ==========================================================================
+   0. Los tokens
+   ========================================================================== */
+
+:root{
+  /* Las dos familias. Se cambia SOLO la primera de cada lista y se conserva la
+     reserva que ya traía sistema.css. La entrega las cortaba a
+     `system-ui,sans-serif`, y ahí se perdían las seis familias de emoji y de
+     símbolos que --f-texto nombra a propósito: sin ellas, un emoji en el
+     nombre de un cliente o un símbolo de una fórmula caen al glifo de reemplazo
+     en los equipos donde system-ui no los trae. */
+  --f-texto:'Manrope','Segoe UI',Roboto,Helvetica,Arial,'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Apple Symbols','Segoe UI Symbol','Noto Sans Symbols 2',sans-serif;
+  --f-cifra:'Sora','Manrope','Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+
+  /* El vidrio. Un solo juego de valores para que todas las superficies se vean
+     del mismo material y no haya seis desenfoques distintos. */
+  --vid-relleno:linear-gradient(180deg,rgba(255,255,255,.80),rgba(255,255,255,.52));
+  --vid-borde:1px solid rgba(255,255,255,.85);
+  --vid-blur:blur(22px) saturate(1.6);
+  --vid-luz:inset 0 1px 0 rgba(255,255,255,.95);
+  --vid-sombra:0 26px 54px -34px rgba(20,23,43,.55);
+
+  /* EL DEGRADADO DE LAS ACCIONES, Y EL ÚNICO NÚMERO QUE OBLIGÓ A CAMBIAR LA
+     ENTREGA. Venía escrito a mano —#2a13e0 → #4060f8 → #7b3ff8 en claro, y
+     #3b57e6 → #6d86ff → #b48cff en oscuro— y los tres de claro pasan de sobra:
+     9,26:1, 4,95:1 y 5,37:1 con blanco encima. Los de OSCURO no: #6d86ff da
+     3,23:1 y #b48cff da 2,58:1, los dos por debajo del 4,5:1 que esta app se
+     exige, y este degradado no es decorativo —lo llevan `.btn-pri` y los dos
+     botones de IA, que son botones con texto blanco dentro—. O sea que en tema
+     oscuro la entrega dejaba el botón principal de la app ilegible.
+
+     La salida no es retocar los tres colores a ojo: es que este degradado ya
+     existía. --ia-a, --ia-b y --ia-c son exactamente ese recorrido azul→violeta
+     y están medidos arriba, en sistema.css, en los dos temas —de día 8,04:1,
+     4,95:1 y 5,37:1; de noche 7,42:1, 5,69:1 y 6,49:1—. Así que el degradado se
+     escribe con ellos y el tema oscuro se arregla solo, sin un segundo juego de
+     colores que mantener. En claro la diferencia con lo entregado es que el
+     primer tono es #3018f8 y no #2a13e0: el mismo azul de marca, un pelo más
+     vivo. */
+  --vid-accion:linear-gradient(118deg,var(--ia-a) 0%,var(--ia-b) 50%,var(--ia-c) 100%);
+
+  --vid-pastilla:999px;   /* botones y fichas */
+  --vid-tarjeta:20px;     /* tarjetas y paneles */
+}
+
+/* De noche el vidrio no es blanco translúcido sino luz sobre oscuro, y el
+   degradado se cambia solo porque --ia-a/b/c ya cambian con el tema. */
+html[data-tema="oscuro"]{
+  --vid-relleno:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05));
+  --vid-borde:1px solid rgba(255,255,255,.16);
+  --vid-luz:inset 0 1px 0 rgba(255,255,255,.26);
+  --vid-sombra:0 30px 60px -32px rgba(0,0,0,.8);
+}
+
+/* ==========================================================================
+   1. El cromado
+   ========================================================================== */
+
+.topbar{
+  background:var(--vid-relleno);
+  backdrop-filter:var(--vid-blur);
+  -webkit-backdrop-filter:var(--vid-blur);
+  border-bottom:var(--vid-borde);
+  box-shadow:var(--vid-luz),0 10px 30px -22px rgba(20,23,43,.45);
+}
+
+/* Los cuatro pasos dejan de ser pestañas cuadradas dentro de una tarjeta y
+   pasan a ser un riel de vidrio con pastillas. Mismo alto, mismo orden. */
+.pasos{
+  gap:6px;padding:8px;border-radius:var(--vid-pastilla);
+  background:var(--vid-relleno);
+  backdrop-filter:var(--vid-blur);
+  -webkit-backdrop-filter:var(--vid-blur);
+  border:var(--vid-borde);
+  box-shadow:var(--vid-luz),0 16px 36px -26px rgba(20,23,43,.5);
+}
+.paso-tab{border-radius:var(--vid-pastilla);background:none;border-color:transparent;min-height:48px;padding:0 18px}
+.paso-tab:hover{background:rgba(var(--sup-rgb),.7);border-color:transparent}
+/* La pestaña encendida se queda CASI opaca (.98) y no traslúcida: es la que
+   lleva el nombre del cliente en chico debajo del rótulo, y es una de las
+   piezas que mide pruebas/navegador/contraste.mjs. Sobre un riel de vidrio, un
+   relleno traslúcido ahí deja pasar lo que haya detrás y la medida baila. */
+.paso-tab.on{background:rgba(var(--sup-rgb),.98);border-color:rgba(255,255,255,.9);
+  box-shadow:0 8px 22px -14px rgba(var(--a-rgb),.55),var(--vid-luz)}
+.paso-tab .n{width:26px;height:26px;border-radius:var(--vid-pastilla)}
+.paso-tab.on .n{background:var(--vid-accion)}
+
+/* ==========================================================================
+   2. La columna del dinero
+   ========================================================================== */
+
+.side .sum,.side .neto,.side .sum-rows{border-radius:var(--vid-tarjeta)}
+.side>.sum{
+  background:var(--vid-relleno);
+  backdrop-filter:var(--vid-blur);
+  -webkit-backdrop-filter:var(--vid-blur);
+  border:var(--vid-borde);
+  box-shadow:var(--vid-luz),var(--vid-sombra);
+}
+.prog-box{border-radius:16px;background:rgba(var(--sup-rgb),.55)}
+.prog-box:hover{background:rgba(var(--sup-rgb),.92)}
+.prog-track{height:8px;border-radius:var(--vid-pastilla);overflow:hidden}
+/* El subtotal es el número que se copia a Canva: se queda como el bloque de
+   color de la columna, ahora con el vidrio encima. */
+.srow.subtotal{border-radius:18px;
+  background:linear-gradient(150deg,rgba(var(--a-rgb),.16),rgba(var(--a2-rgb),.14));
+  border:1px solid rgba(var(--a-rgb),.28);box-shadow:var(--vid-luz)}
+.neto .amt,.mbar-amt{font-family:var(--f-cifra);letter-spacing:-1.2px}
+
+/* La barra fija del teléfono, en cápsula flotante y no pegada al borde. */
+@media(max-width:759px){
+  .mbar{
+    left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));
+    border-radius:var(--vid-pastilla);border:var(--vid-borde);
+    background:var(--vid-relleno);
+    backdrop-filter:var(--vid-blur);
+    -webkit-backdrop-filter:var(--vid-blur);
+    box-shadow:var(--vid-luz),0 18px 40px -20px rgba(20,23,43,.6);
+  }
+}
+
+/* ==========================================================================
+   3. Pastillas y tarjetas
+   ========================================================================== */
+
+.card{border-radius:var(--vid-tarjeta)}
+.btn,.btn-hist,.btn-gho,.btn-pri,.chip,.seg,.seg button,.folio,
+.btn-scaler-open,.btn-vector-open,.ai-btn{border-radius:var(--vid-pastilla)}
+.btn-pri{background:var(--vid-accion);border-color:rgba(var(--af-rgb),.5);
+  box-shadow:0 14px 30px -16px rgba(var(--af-rgb),.7),inset 0 1px 0 rgba(255,255,255,.4)}
+
+/* La plataforma vuelve a cuadrar los radios con `body.pf .card`, `body.pf .btn`
+   y `body.pf .seg`, que pesan más que un selector de una clase. Sin estas tres
+   líneas la pastilla se veía en el cotizador y en el anidador y NO en la
+   plataforma, que es donde más botones hay. Solo el radio: lo demás de esos
+   bloques —sombras, pesos, el relleno del segmentado— se respeta. */
+body.pf .card{border-radius:var(--vid-tarjeta)}
+body.pf .btn,body.pf .seg{border-radius:var(--vid-pastilla)}
+body.pf .seg button,body.pf .tipo-seg button{border-radius:var(--vid-pastilla)}
+
+/* Los modales —el de IA, el escalador, el vectorizador, la orden de trabajo—
+   comparten el mismo vidrio. */
+.modal{border-radius:24px;background:var(--vid-relleno);
+  backdrop-filter:blur(28px) saturate(1.7);-webkit-backdrop-filter:blur(28px) saturate(1.7);
+  border:var(--vid-borde);box-shadow:var(--vid-luz),0 34px 70px -30px rgba(0,0,0,.55)}
+
+/* ==========================================================================
+   4. La plataforma
+   ========================================================================== */
+
+.pf-lat{background:linear-gradient(185deg,#1b1f3d,#0d1022 72%);border-right:1px solid rgba(255,255,255,.08)}
+.pf-lat-item{border-radius:14px;min-height:48px}
+.pf-lat-item.on{background:linear-gradient(120deg,rgba(255,255,255,.16),rgba(255,255,255,.06));
+  border:1px solid rgba(255,255,255,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}
+.pf-lat-rol{border-radius:18px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+
+.pf-cab{background:var(--vid-relleno);
+  backdrop-filter:var(--vid-blur);-webkit-backdrop-filter:var(--vid-blur);
+  border-bottom:var(--vid-borde)}
+
+/* `.pf-kpi` NO EXISTE EN ESTE REPO. La entrega ya lo daba por revisar, y la
+   ficha del tablero —«Vendido en septiembre», «Por cobrar», «Conversión»— se
+   llama `.pf-cuenta`; la pinta cuenta() en js/mod/control.js. El panel sí es
+   `.pf-panel`, y es la ficha lateral que se abre encima de la pantalla.
+
+   El radio de `.pf-panel` se escribe con `body.pf` por lo mismo que los botones
+   de arriba. La hoja móvil del panel —que se pega abajo y solo redondea las dos
+   esquinas de arriba— se conserva: ahí el radio de tarjeta abajo dejaría dos
+   esquinas flotando sobre el borde de la pantalla. */
+.pf-panel,.pf-cuenta{border-radius:var(--vid-tarjeta);
+  background:var(--vid-relleno);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border:var(--vid-borde);box-shadow:var(--vid-luz),var(--vid-sombra)}
+body.pf .pf-panel{border-radius:var(--vid-tarjeta)}
+@media(max-width:560px){ body.pf .pf-panel{border-radius:var(--vid-tarjeta) var(--vid-tarjeta) 0 0} }
+
+.pf-abajo{
+  left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));
+  padding:8px;border-radius:var(--vid-pastilla);border:var(--vid-borde);
+  background:var(--vid-relleno);
+  backdrop-filter:var(--vid-blur);-webkit-backdrop-filter:var(--vid-blur);
+  box-shadow:var(--vid-luz),0 18px 40px -20px rgba(20,23,43,.6);
+}
+.pf-abajo a,.pf-abajo button{border-radius:var(--vid-pastilla);min-height:52px}
+
+/* ==========================================================================
+   5. El anidador
+   ========================================================================== */
+
+.an-tile,.an-retazos{border-radius:16px}
+.an-marcador{border-radius:var(--vid-tarjeta);background:var(--vid-relleno);
+  border:var(--vid-borde);box-shadow:var(--vid-luz)}
+.an-mesa{border-radius:18px}
+
+/* ==========================================================================
+   6. Los botones de IA
+   --------------------------------------------------------------------------
+   AQUÍ LA ENTREGA LLEGA TARDE, Y ESO ES BUENA NOTICIA. Pedía tres cosas para
+   «Cotizar con IA» y «Preguntar»: degradado azul→violeta, un barrido de luz
+   continuo, y chispas al acercar el cursor o al tocar. Las dos primeras YA
+   ESTÁN —sistema.css las escribe para `.ai-btn` y plataforma.css para
+   `.pf-ia-btn`—, y están mejor: el degradado fluye en vez de quedarse quieto, y
+   el barrido va enmascarado.
+
+   La máscara es el motivo por el que este capítulo no se limita a pisar lo de
+   abajo. Está medida y escrita allá: el tono más claro del degradado es --ia-b
+   (#4060f8), que con blanco encima da 4,95:1 —cuatro centésimas y media sobre
+   el mínimo de esta app—, y un velo de luz del 6 % por delante del texto ya lo
+   baja a 4,44:1 y lo tumba. Por eso las dos capas de luz se apagan entre el
+   30 % y el 70 % del alto, que es la franja del renglón, y se quedan encendidas
+   en los cantos. El barrido de la entrega —blanco al 55 %, sin máscara, de
+   canto a canto— pasa POR DELANTE del texto y deshace justo esa medida.
+
+   Y hay un segundo problema, este mecánico: la entrega escribe
+   `background:var(--vid-accion)`, y `background` es el ATAJO, así que al
+   aplicarlo se lleva por delante el `background-size:300% 100%` que el
+   degradado que fluye necesita. La animación `ia-aurora` se queda corriendo
+   sobre un fondo del 100 % y lo que se ve no es una aurora: es el degradado
+   deslizándose y repitiéndose en bucle.
+
+   Así que de este capítulo se toma lo que de verdad es nuevo —LAS CHISPAS— y se
+   deja en paz lo que ya funciona. La otra cosa que sí era nueva, la pastilla,
+   está arriba con las demás pastillas del capítulo 3, que es donde se busca.
+
+   Dónde van. Los dos botones ya gastan sus dos pseudoelementos: `::before` es
+   el filo y `::after` es el barrido. Las chispas necesitaban un tercero, y está
+   sin usar en el marcado que ya hay —sin tocarlo, que es lo que la entrega
+   prometía—: `.ai-btn` envuelve todo su contenido en un `<span>`, y
+   `.pf-ia-btn` lleva su rótulo en `<span class="tx">`. Se les cuelga a ellos.
+   ========================================================================== */
+
+/* Un solo pseudoelemento con seis puntos pintados como radial-gradient: seis
+   nodos más en el árbol por un botón no se pagan. Nace en `opacity:0`, así que
+   mientras nadie lo toque no hay nada que componer. */
+.ai-btn>span::after,.pf-ia-btn .tx::after{
+  content:'';position:absolute;z-index:1;left:0;right:0;bottom:-6px;height:10px;
+  opacity:0;pointer-events:none;
+  background-repeat:no-repeat;
+  background-image:
+    radial-gradient(circle,#fff 40%,transparent 60%),
+    radial-gradient(circle,#d9e0ff 40%,transparent 60%),
+    radial-gradient(circle,#fff 40%,transparent 60%),
+    radial-gradient(circle,#e8dcff 40%,transparent 60%),
+    radial-gradient(circle,#fff 40%,transparent 60%),
+    radial-gradient(circle,#cfe0ff 40%,transparent 60%);
+  background-size:5px 5px,4px 4px,6px 6px,4px 4px,5px 5px,4px 4px;
+  background-position:18% 100%,31% 100%,44% 100%,57% 100%,69% 100%,82% 100%;
+}
+/* El `position:relative` va aquí y no en el bloque de arriba: el pseudoelemento
+   se ancla contra su propio span, que es quien mide el rótulo. Sin esto se
+   anclaría contra el botón y las chispas saldrían corridas en «Preguntar»,
+   donde el span no empieza en el borde izquierdo. */
+.ai-btn>span,.pf-ia-btn .tx{position:relative}
+
+.ai-btn:hover>span::after,.ai-btn:focus-visible>span::after,.ai-btn:active>span::after,
+.pf-ia-btn:hover .tx::after,.pf-ia-btn:focus-visible .tx::after,.pf-ia-btn:active .tx::after{
+  animation:vid-chispas 1s ease-out forwards;
+}
+@keyframes vid-chispas{
+  0%{opacity:0;transform:translateY(0) scale(.4)}
+  18%{opacity:1}
+  100%{opacity:0;transform:translateY(-30px) scale(.9)}
+}
+/* Un botón que no se puede tocar no chispea, por lo mismo que allá abajo se le
+   para el barrido: si no se puede usar, tampoco puede estar llamando. */
+.ai-btn:disabled>span::after,.ai-btn[disabled]>span::after{animation:none;opacity:0}
+
+/* La zona de arrastre del modal de IA y la del anidador respiran mientras
+   esperan el archivo: es lo único que se mueve en una pantalla vacía. */
+.ai-drop .ico,.modal .ai-drop .ico{animation:vid-respira 2.6s ease-in-out infinite}
+@keyframes vid-respira{0%,100%{opacity:.55}50%{opacity:1}}
+
+/* Quien las pidió sin animación no las tiene. Misma regla que sistema.css.
+
+   Y se repite aquí la lista ENTERA de estados, que es lo que la entrega no hacía:
+   un `@media` no suma especificidad, así que `.ai-btn>span::after{animation:none}`
+   pierde contra `.ai-btn:hover>span::after{animation:vid-chispas}` —una clase y
+   una pseudoclase contra una clase— y las chispas seguían saltando al pasar el
+   cursor con la preferencia puesta. Medido en Chromium con
+   `prefers-reduced-motion:reduce`: animationName devolvía «vid-chispas». */
+@media(prefers-reduced-motion:reduce){
+  .ai-btn>span::after,.pf-ia-btn .tx::after,.ai-drop .ico{animation:none}
+  .ai-btn:hover>span::after,.ai-btn:focus-visible>span::after,.ai-btn:active>span::after,
+  .pf-ia-btn:hover .tx::after,.pf-ia-btn:focus-visible .tx::after,.pf-ia-btn:active .tx::after{
+    animation:none;opacity:0;
+  }
+  .ai-btn>span::after,.pf-ia-btn .tx::after{opacity:0}
+}
+
+/* ==========================================================================
+   7. En papel no hay vidrio
+   --------------------------------------------------------------------------
+   sistema.css ya apaga el desenfoque de TODO con `*{backdrop-filter:none}` y
+   devuelve el blanco a `.mbar`, `.modal` y `.topbar`. Lo que aquel bloque no
+   podía saber son las superficies que esta hoja estrena: el riel de pasos, la
+   columna del dinero, el encabezado y las fichas de la plataforma y el
+   marcador del anidador. Sin esto, quien imprima con «gráficos de fondo»
+   activado saca un degradado gris por cada una; y en tema oscuro saca un velo
+   blanco translúcido sobre el papel, que es peor.
+   ========================================================================== */
+
+@media print{
+  .pasos,.side>.sum,.pf-cab,.pf-panel,.pf-cuenta,.pf-abajo,.an-marcador{
+    background:#fff!important;background-image:none!important;box-shadow:none!important;
+  }
+  .ai-btn>span::after,.pf-ia-btn .tx::after{display:none!important}
+}

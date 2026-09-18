@@ -174,6 +174,8 @@ que viaja así deja de ser secreta.
     cotizador.html            solo el marcado (900 líneas)
     css/sistema.css           EL sistema de diseño: tokens, estructura, las ocho capas
     css/plataforma.css        lo que solo la plataforma tiene (calendario, almacén, mapa)
+    css/vidrio.css            la capa de vidrio, y va LA ÚLTIMA de las tres páginas: repinta
+                              las dos familias y el cromado. Si se quita, la app vuelve a como estaba
     js/tema.js                claro, oscuro o el del sistema; corre antes del primer pintado
     js/cotizador/             el cotizador, por dominio y en el orden en que se carga:
       catalogo.js               precios — lo único que se edita a mano cuando sube el aluminio
