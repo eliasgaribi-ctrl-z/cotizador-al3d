@@ -2256,6 +2256,16 @@ a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-t
 /* Plegada no hay nada que desplazar, así que el encabezado no se pega ni se separa con una
    línea: la partida entera ES el encabezado. */
 .partida.folded .pcab{position:static;margin-bottom:0;padding-bottom:0;border-bottom:0}
+/* EN EL TELÉFONO TAMPOCO SE PEGA, y no es una preferencia: es que ahí el encabezado no cabe
+   en un renglón. A 390 px la fila —flecha, asa, número, las cinco pestañas de tipo, el
+   importe, copiar, ojo, cerrar— se parte en tres, y con el resumen debajo el bloque mide
+   unos 320 px. Pegado, tapa 320 de los ~680 que quedan bajo la barra, y el cuerpo de la
+   partida se desplaza POR DETRÁS: «Descripción» y «Material / acabado» no llegaban a verse
+   nunca y el interruptor de «Con iluminación» salía cortado por la mitad por el borde de
+   abajo del resumen. Medido en la auditoría: el cuerpo empezaba 160 px por encima del
+   encabezado que lo tapaba. En la computadora el encabezado mide un renglón y pegarlo es lo
+   que explica el comentario de arriba; aquí lo que explica es lo contrario. */
+@media(max-width:560px){ .partida:not(.folded) .pcab{position:static} }
 /* El total, en el encabezado. Se subió desde `.pline` —el porqué está en partidas.js— y aquí
    se le da el peso que tiene en la maqueta: la letra de las cifras, 16 px, tabular. */
 .partida-top>.lt{margin-left:auto;font-family:var(--f-cifra);font-size:16px;font-weight:600;

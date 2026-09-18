@@ -46,8 +46,20 @@
   --f-cifra:'Sora','Manrope','Segoe UI',Roboto,Helvetica,Arial,sans-serif;
 
   /* El vidrio. Un solo juego de valores para que todas las superficies se vean
-     del mismo material y no haya seis desenfoques distintos. */
-  --vid-relleno:linear-gradient(180deg,rgba(255,255,255,.80),rgba(255,255,255,.52));
+     del mismo material y no haya seis desenfoques distintos.
+
+     EL ESPESOR NO ES EL DE LA ENTREGA, Y ESTÁ MEDIDO. Venía en blanco del 80 % al
+     52 %, y ese 52 % de abajo es por donde pasa la cotización cuando se desplaza
+     debajo de la barra: en el paso 3 el riel de los cuatro pasos se leía entero a
+     través de ella, y en tema oscuro —donde la entrega ponía blanco al 14 % y al
+     5 %, o sea nada— la pestaña encendida se veía flotando encima del logotipo.
+     sistema.css ya había medido esto mismo en el dock del teléfono: al 78 % se
+     alcanzaba a leer «ILUMINACIÓN» a través del vidrio y al 88 % ya no compite.
+     Así que el relleno se construye en dos capas: una base de la SUPERFICIE del
+     tema al 86 % —blanco de día, --sup de noche, porque --sup-rgb cambia con el
+     tema— y encima la luz blanca que hace que se lea como vidrio. Con eso una
+     sola declaración vale para los dos temas. */
+  --vid-relleno:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05)),rgba(var(--sup-rgb),.86);
   --vid-borde:1px solid rgba(255,255,255,.85);
   --vid-blur:blur(22px) saturate(1.6);
   --vid-luz:inset 0 1px 0 rgba(255,255,255,.95);
@@ -79,7 +91,6 @@
 /* De noche el vidrio no es blanco translúcido sino luz sobre oscuro, y el
    degradado se cambia solo porque --ia-a/b/c ya cambian con el tema. */
 html[data-tema="oscuro"]{
-  --vid-relleno:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05));
   --vid-borde:1px solid rgba(255,255,255,.16);
   --vid-luz:inset 0 1px 0 rgba(255,255,255,.26);
   --vid-sombra:0 30px 60px -32px rgba(0,0,0,.8);
@@ -100,14 +111,18 @@ html[data-tema="oscuro"]{
 /* Los cuatro pasos dejan de ser pestañas cuadradas dentro de una tarjeta y
    pasan a ser un riel de vidrio con pastillas. Mismo alto, mismo orden. */
 .pasos{
-  gap:6px;padding:8px;border-radius:var(--vid-pastilla);
+  gap:4px;padding:6px;border-radius:var(--vid-pastilla);
   background:var(--vid-relleno);
   backdrop-filter:var(--vid-blur);
   -webkit-backdrop-filter:var(--vid-blur);
   border:var(--vid-borde);
   box-shadow:var(--vid-luz),0 16px 36px -26px rgba(20,23,43,.5);
 }
-.paso-tab{border-radius:var(--vid-pastilla);background:none;border-color:transparent;min-height:48px;padding:0 18px}
+/* El relleno horizontal NO son los 18 px de la entrega. En el paso 1 el riel mide 560 px
+   y lleva cuatro pestañas con su renglón chico —«1 partida», «falta PDF, WhatsApp y la
+   venta»— más el total: con 18 px por lado, «1 partida» se quedaba en «1 …». Con 12 y 14
+   —los mismos que ya tenía la pestaña cuadrada— cabe lo que cabía antes. */
+.paso-tab{border-radius:var(--vid-pastilla);background:none;border-color:transparent;min-height:48px;padding:0 14px 0 12px}
 .paso-tab:hover{background:rgba(var(--sup-rgb),.7);border-color:transparent}
 /* La pestaña encendida se queda CASI opaca (.98) y no traslúcida: es la que
    lleva el nombre del cliente en chico debajo del rótulo, y es una de las
@@ -122,7 +137,11 @@ html[data-tema="oscuro"]{
    2. La columna del dinero
    ========================================================================== */
 
-.side .sum,.side .neto,.side .sum-rows{border-radius:var(--vid-tarjeta)}
+/* Solo la tarjeta. La entrega redondeaba también `.neto` y `.sum-rows`, y `.neto` es un
+   bloque sin fondo que se separa del subtotal con un filete de arriba: al redondearlo, el
+   filete se curvaba en las dos puntas y quedaba un arco suelto flotando encima de «TOTAL
+   NETO». Se vio en la captura; a ojo parecía una tapa mal puesta. */
+.side .sum{border-radius:var(--vid-tarjeta)}
 .side>.sum{
   background:var(--vid-relleno);
   backdrop-filter:var(--vid-blur);
@@ -140,10 +159,14 @@ html[data-tema="oscuro"]{
   border:1px solid rgba(var(--a-rgb),.28);box-shadow:var(--vid-luz)}
 .neto .amt,.mbar-amt{font-family:var(--f-cifra);letter-spacing:-1.2px}
 
-/* La barra fija del teléfono, en cápsula flotante y no pegada al borde. */
+/* La barra fija del teléfono, en cápsula flotante y no pegada al borde. Los 10 px de
+   margen son los de sistema.css y no los 12 de la entrega: el hueco que la página deja
+   abajo (`.wrap{padding-bottom}`) está calculado con 10, y cambiar el margen sin cambiar
+   el hueco es taparle 2 px al último renglón. */
 @media(max-width:759px){
   .mbar{
-    left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));
+    left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));
+    bottom:max(10px,env(safe-area-inset-bottom,0px));
     border-radius:var(--vid-pastilla);border:var(--vid-borde);
     background:var(--vid-relleno);
     backdrop-filter:var(--vid-blur);
@@ -208,7 +231,8 @@ body.pf .pf-panel{border-radius:var(--vid-tarjeta)}
 @media(max-width:560px){ body.pf .pf-panel{border-radius:var(--vid-tarjeta) var(--vid-tarjeta) 0 0} }
 
 .pf-abajo{
-  left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));
+  left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));
+  bottom:max(10px,env(safe-area-inset-bottom,0px));
   padding:8px;border-radius:var(--vid-pastilla);border:var(--vid-borde);
   background:var(--vid-relleno);
   backdrop-filter:var(--vid-blur);-webkit-backdrop-filter:var(--vid-blur);
