@@ -1001,7 +1001,7 @@ css/sistema.css                     EL sistema de diseño (sep/2026: ya no es co
 css/plataforma.css                  Solo lo nuevo: rejilla del calendario, renglones de stock, marco del mapa. Dep: sistema.css
 css/vidrio.css                      La capa de vidrio (sep/2026). Repinta --f-cifra/--f-texto a Sora y Manrope y pone vidrio en el cromado: topbar, riel de pasos, columna del dinero, .mbar, barra lateral y fichas de la plataforma, modales, marcador del anidador. Las partidas se quedan opacas a propósito. SE ENLAZA LA ÚLTIMA en las tres páginas —selectores de una clase, así que lo único que decide es el orden— y pruebas/hojas-de-estilo.mjs lo vigila. Dep: sistema.css (usa --ia-a/b/c, --a-rgb, --sup-rgb)
 
-js/app.js                           Arranque, router por hash, alta de _CAPAS, registro del SW, ajustarTopbarMovil, oyente 'storage'. Dep: nucleo/*, datos/*
+js/app.js                           Arranque, router por hash, alta de _CAPAS, registro del SW, ajustarTopbarMovil, oyente 'storage'. Y lo que se ve mientras carga (sep/2026): la barra de progreso #pf-progreso, el esqueleto de cada módulo con 180 ms de retardo (esqueletoModulo, en nucleo/ui.js), el aviso de «tarda más de lo normal» a los 6 s y las fases del esqueleto fijo del arranque (#pf-arranque, en index.html). Dep: nucleo/*, datos/*
 js/nucleo/ui.js                     $, esc, money, ico, toast, voz, chip, grupo, _ABRIBLE, el MutationObserver de modales, el patrón .hist. Dep: ninguna
 js/nucleo/ics.js                    Generador RFC 5545, plegado por OCTETOS, UID estable, SEQUENCE. Dep: ninguna
 js/nucleo/gcal.js                   FASE 2. GIS token model, eventos con attendees e id determinista. Dep: prefs

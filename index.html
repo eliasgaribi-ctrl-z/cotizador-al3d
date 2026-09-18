@@ -209,6 +209,11 @@
   <button type="button" class="pf-cab-tema btn-tema" data-tema-btn aria-pressed="false" title="Cambiar a tema oscuro" aria-label="Cambiar a tema oscuro"><svg class="svgi sol" aria-hidden="true"><use href="#i-sol"/></svg><svg class="svgi luna" aria-hidden="true"><use href="#i-luna"/></svg></button>
 </header>
 
+<!-- La barra de progreso de las transiciones. Tres píxeles pegados arriba que corren mientras
+     un módulo carga y se llenan al pintar. Nace apagada, y js/app.js la enciende en cada
+     montaje; con un montaje de menos de 150 ms nunca llega a verse, que es la idea. -->
+<div class="pf-progreso" id="pf-progreso" aria-hidden="true"></div>
+
 <div class="wrap pf-wrap">
 
   <!-- La banda de degradación. Vive fuera de los módulos porque lo que dice —«la base no
@@ -218,6 +223,28 @@
   <div class="pf-banda" id="pf-banda" hidden role="status" aria-live="polite"></div>
 
   <main id="pf-contenido" tabindex="-1">
+    <!-- EL ESQUELETO DEL ARRANQUE. Es marcado fijo, sin un solo script, así que se ve desde el
+         primer pintado: la barra lateral y el encabezado ya estaban ahí, pero el contenido se
+         quedaba en blanco hasta que app.js abría la base, sembraba el catálogo y montaba el
+         Tablero — 224 ms medidos en una computadora, 645 con la CPU cuatro veces más lenta, y
+         segundos en un teléfono viejo con la red mal. Tiene la geometría del Tablero —la cinta
+         de cuentas y tres renglones— para que al llegar los datos nada salte. app.js va
+         escribiendo en qué fase va y lo quita cuando el primer módulo ya pintó; si a los ocho
+         segundos sigue aquí, dice que tarda más de lo normal y ofrece recargar. -->
+    <div class="pf-arranque" id="pf-arranque" aria-busy="true">
+      <div class="pf-cuentas" aria-hidden="true">
+        <p class="pf-cuenta esq"><b class="esq-b esq-n"></b><span class="esq-b esq-d"></span></p>
+        <p class="pf-cuenta esq"><b class="esq-b esq-n"></b><span class="esq-b esq-d"></span></p>
+        <p class="pf-cuenta esq"><b class="esq-b esq-n"></b><span class="esq-b esq-d"></span></p>
+        <p class="pf-cuenta esq"><b class="esq-b esq-n"></b><span class="esq-b esq-d"></span></p>
+      </div>
+      <div class="card esq" aria-hidden="true"><div class="card-b">
+        <div class="pf-fila esq"><div class="pf-fila-ico esq-b"></div><div class="pf-fila-tx"><div class="esq-b esq-t"></div><div class="esq-b esq-d"></div></div></div>
+        <div class="pf-fila esq"><div class="pf-fila-ico esq-b"></div><div class="pf-fila-tx"><div class="esq-b esq-t"></div><div class="esq-b esq-d"></div></div></div>
+        <div class="pf-fila esq"><div class="pf-fila-ico esq-b"></div><div class="pf-fila-tx"><div class="esq-b esq-t"></div><div class="esq-b esq-d"></div></div></div>
+      </div></div>
+      <p class="pf-esqueleto-t" role="status" aria-live="polite"><span class="esq-giro" aria-hidden="true"></span> <span id="pf-arranque-tx">Abriendo la plataforma…</span></p>
+    </div>
     <!-- Un <section> por módulo, todos vacíos. El router monta uno y desmonta el anterior.
          Cero lógica en este archivo: si algo de aquí decidiera algo, habría dos lugares
          donde buscar por qué una pantalla se ve como se ve. -->

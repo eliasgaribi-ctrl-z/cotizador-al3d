@@ -15,7 +15,7 @@ import * as DB from './datos/db.js';
 import * as Prefs from './datos/prefs.js';
 import * as Cot from './datos/cotizador.js';
 import * as Sync from './datos/sync.js';
-import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, cerrarCapa, ajustarAltoBarra }
+import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, cerrarCapa, ajustarAltoBarra, esqueletoModulo }
   from './nucleo/ui.js';
 
 /* ----- Los módulos -----
@@ -176,6 +176,100 @@ export function ir(ruta) {
 let _cola = Promise.resolve();
 let _pedida = null;
 
+/* ============================================================================
+   Lo que se ve mientras carga
+   ============================================================================
+   Tres piezas, y las tres nacen de una medición, no de un gusto:
+
+   · LA BARRA DE PROGRESO (#pf-progreso): tres píxeles arriba que corren mientras un módulo
+     carga y se llenan al pintar. El CSS la enciende con 150 ms de retardo, así que en las
+     transiciones normales —56 a 87 ms medidos— no llega a verse; en una lenta es lo primero
+     que dice «te oí».
+   · EL ESQUELETO del módulo: la silueta de lo que viene, en el hueco donde va a aparecer. Se
+     inserta al instante pero el CSS lo enseña a los 180 ms —el mismo umbral que ya tenía el
+     Tablero para el suyo, y por lo mismo: un esqueleto que parpadea 60 ms se ve peor que la
+     espera—. Se quita en cuanto la sección tiene algo pintado, lo vigile quien lo vigile: un
+     MutationObserver sobre la sección, para que un módulo que pinta por partes (Material
+     escribe su cabecera antes de leer la base) no salga debajo de un esqueleto.
+   · EL AVISO DE QUE TARDA: a los seis segundos con el esqueleto todavía puesto, el texto
+     cambia a «tarda más de lo normal» y ofrece recargar. Es el caso real de una app
+     actualizada a medias, que ya se atiende cuando el import FALLA; aquí se atiende cuando
+     el import no falla ni llega, que es peor porque no hay error que enseñar.
+
+   El esqueleto del ARRANQUE es marcado fijo de index.html (#pf-arranque), para que exista
+   desde el primer pintado, antes de que corra este archivo; aquí solo se le escribe la fase
+   en que va y se quita cuando el primer módulo pintó. */
+const MS_LENTO = 6000;
+const MS_LENTO_ARRANQUE = 8000;
+let _lentoArranque = 0;
+
+const Progreso = {
+  _t: 0,
+  _desde: 0,
+  iniciar() {
+    const e = $('pf-progreso'); if (!e) return;
+    clearTimeout(this._t);
+    this._desde = performance.now();
+    e.classList.remove('fin'); e.classList.add('on');
+  },
+  terminar() {
+    const e = $('pf-progreso'); if (!e || !e.classList.contains('on')) return;
+    e.classList.remove('on');
+    /* Si terminó antes de que el CSS la encendiera (150 ms), no hay nada que rematar: pintar
+       el relleno completo sería enseñar una barra que nadie vio empezar. */
+    if (performance.now() - this._desde < 150) return;
+    e.classList.add('fin');
+    this._t = setTimeout(() => e.classList.remove('fin'), 600);
+  },
+};
+
+function faseArranque(texto) {
+  const t = $('pf-arranque-tx');
+  if (t) t.textContent = texto;
+}
+
+function quitarArranque() {
+  const a = $('pf-arranque');
+  if (a) a.remove();
+  if (_lentoArranque) { clearTimeout(_lentoArranque); _lentoArranque = 0; }
+}
+
+/* El aviso de que tarda, escrito en el pie del esqueleto que siga puesto. `role=alert` porque
+   a estas alturas sí hay que interrumpir: la persona lleva seis segundos mirando un dibujo. */
+function avisarLento(caja, r) {
+  const t = caja && caja.querySelector('.pf-esqueleto-t');
+  if (!t) return;
+  t.innerHTML = ico('i-aviso') + ' <span>' + (r ? '«' + esc(r.nombre) + '»' : 'La plataforma') +
+    ' tarda más de lo normal. Si no aparece, recargar suele arreglarlo.</span>' +
+    '<button type="button" class="btn btn-gho" data-recargar>Recargar</button>';
+  t.setAttribute('role', 'alert');
+  const b = t.querySelector('[data-recargar]');
+  if (b) b.onclick = () => location.reload();
+}
+
+/* Pone el esqueleto de una ruta delante de su sección —fuera de ella, para que el módulo
+   reciba el contenedor vacío que espera— y devuelve la función que lo quita. Se quita solo
+   en cuanto la sección tiene un hijo, o cuando el montaje termina, lo que pase primero. */
+function ponerEsqueleto(cont, r) {
+  const main = $('pf-contenido');
+  if (!main) return () => {};
+  for (const viejo of main.querySelectorAll('.pf-esqueleto')) viejo.remove();
+  cont.insertAdjacentHTML('beforebegin', esqueletoModulo(r.mod, r.nombre));
+  const esq = cont.previousElementSibling;
+  const lento = setTimeout(() => avisarLento(esq, r), MS_LENTO);
+  let obs = null;
+  const quitar = () => {
+    clearTimeout(lento);
+    if (obs) { obs.disconnect(); obs = null; }
+    if (esq && esq.parentNode) esq.remove();
+  };
+  try {
+    obs = new MutationObserver(() => { if (cont.childNodes.length) quitar(); });
+    obs.observe(cont, { childList: true });
+  } catch (_) {}
+  return quitar;
+}
+
 function montar(ruta, opts = {}) {
   _pedida = ruta;
   _cola = _cola
@@ -218,10 +312,23 @@ async function montarDeVerdad(ruta, opts = {}) {
   for (const x of RUTAS) { const s = $(x.seccion); if (s) s.hidden = x.ruta !== ruta; }
   _actual = ruta;
   pintarNav();
+  /* El título del encabezado se escribe AQUÍ, antes de cargar, y no al final del montaje:
+     con una carga lenta la barra ya marcaba «Mapa» y el encabezado seguía diciendo «Tablero»
+     durante seis segundos. Lo que sí se queda para el final es anunciarlo por voz, porque un
+     lector de pantalla tiene que oír el nombre cuando la pantalla ya está, no cuando empieza. */
+  const sub = $('pf-sub');
+  if (sub) sub.textContent = r.nombre;
+  const cabsub = $('pf-cab-sub');
+  if (cabsub) cabsub.textContent = r.sub || '';
 
   const cont = $(r.seccion);
   if (!cont) return;
-  cont.innerHTML = '<div class="vacio">' + ico('i-reloj') + '<p class="vacio-t">Cargando…</p></div>';
+  /* La sección se vacía y el esqueleto va DELANTE de ella, no dentro: el módulo tiene que
+     recibir el contenedor vacío que siempre recibió. Ver «Lo que se ve mientras carga». */
+  cont.innerHTML = '';
+  const quitarEsqueleto = ponerEsqueleto(cont, r);
+  Progreso.iniciar();
+  const listo = () => { quitarEsqueleto(); Progreso.terminar(); quitarArranque(); };
 
   let mod;
   try {
@@ -231,6 +338,7 @@ async function montarDeVerdad(ruta, opts = {}) {
        de esto: llega app.js de la red y material.js de la caché vieja. No se deja una
        pantalla en blanco: se dice qué pasó y se ofrece lo único que lo arregla. */
     console.error('no se pudo cargar el módulo ' + r.mod, e);
+    listo();
     cont.innerHTML = '<div class="vacio">' + ico('i-aviso') +
       '<p class="vacio-t">No se pudo cargar «' + esc(r.nombre) + '»</p>' +
       '<p class="vacio-d">Puede ser que la app se haya actualizado a medias. Recargar la deja completa.</p>' +
@@ -254,21 +362,17 @@ async function montarDeVerdad(ruta, opts = {}) {
       '<p class="vacio-t">«' + esc(r.nombre) + '» no se pudo pintar</p>' +
       '<p class="vacio-d">' + esc(e && e.message ? e.message : 'Error desconocido') + '</p></div>';
   }
+  listo();
 
   /* El foco al contenido y no al principio del documento: cambiar de módulo con teclado
      dejaba al usuario recorriendo otra vez las seis pestañas. */
   const main = $('pf-contenido');
   if (main && opts.foco !== false) { try { main.focus({ preventScroll: true }); } catch (_) {} }
   window.scrollTo({ top: _scrollPorRuta.get(ruta) || 0, behavior: 'auto' });
-  /* El encabezado. Es lo único que dice dónde estás cuando la pestaña de la barra no puede
-     decirlo —las rutas ocultas— y de paso deja de mentir: decía «Obra, material y agenda» en
-     las seis pantallas. El título y su línea son de la ruta; las acciones las escribe el
-     módulo, y se vacían aquí para que las del anterior no se queden puestas encima del
-     siguiente. */
-  const sub = $('pf-sub');
-  if (sub) sub.textContent = r.nombre;
-  const cabsub = $('pf-cab-sub');
-  if (cabsub) cabsub.textContent = r.sub || '';
+  /* El encabezado ya dice dónde estás desde antes de cargar (arriba). Es lo único que lo dice
+     cuando la pestaña de la barra no puede —las rutas ocultas—; las acciones las escribe el
+     módulo, y se vaciaron antes de montar para que las del anterior no se queden puestas
+     encima del siguiente. Aquí solo se anuncia, ya con la pantalla puesta. */
   voz(r.nombre);
   pintarCuentasNav();
   ajustarAltoBarra();
@@ -430,6 +534,10 @@ ctx.respaldar = respaldar;
    ============================================================================ */
 
 async function arrancar() {
+  /* Si a los ocho segundos el esqueleto del arranque sigue en pantalla, algo de lo de abajo
+     no llegó —la base que no abre, un import colgado por un service worker a medias— y lo
+     único útil es decirlo y ofrecer recargar. `quitarArranque()` lo cancela al pintar. */
+  _lentoArranque = setTimeout(() => avisarLento($('pf-arranque'), null), MS_LENTO_ARRANQUE);
   pintarRolSeg();
   pintarNav();
   vigilarCapas();
@@ -474,6 +582,7 @@ async function arrancar() {
     ir(r.ruta);
   });
 
+  faseArranque('Abriendo la base de este dispositivo…');
   await DB.abrir();
   revisarDispositivo();
 
@@ -482,6 +591,7 @@ async function arrancar() {
      no dice por qué está vacía. */
   if (DB.estado().ok) {
     try {
+      faseArranque('Preparando el catálogo…');
       const Mat = await import('./datos/material.js');
       await Mat.sembrar();
     } catch (e) { console.warn('no se pudo sembrar el catálogo', e); }
@@ -497,7 +607,9 @@ async function arrancar() {
   }
 
   window.addEventListener('hashchange', () => montar(rutaDelHash()));
+  faseArranque('Abriendo ' + ((rutaPorNombre(rutaDelHash()) || {}).nombre || 'la plataforma') + '…');
   await montar(rutaDelHash());
+  quitarArranque();
 
   /* El cotizador acaba de guardar en otra pestaña. Aquí no se avisa de conflicto como hace
      el cotizador —la plataforma solo LEE su almacenamiento, así que no hay nada que pisar—:

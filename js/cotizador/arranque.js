@@ -70,6 +70,15 @@ function init(){
      usuario, así que la app abre sin nada que deshacer. */
   undoBarrera();
   registrarSW();
+  /* La app ya está pintada con sus datos: se quita el esqueleto del arranque y se enseña lo
+     de verdad (la clase la pone el primer <script> del body; css/sistema.css hace el resto).
+     Si algo de arriba reventó antes de llegar aquí, el propio error la quitó —el oyente de
+     'error' de ese script— y si no, el tope de ocho segundos. Va ANTES de ofrecer la
+     restauración pendiente porque pruebas/respaldo.mjs exige que esa oferta sea lo último de
+     init(): es la tarjeta que se inserta al principio del contenido, y todo esto es síncrono,
+     así que el orden entre las dos no cambia ni un cuadro de lo que se ve. */
+  document.documentElement.classList.remove('arrancando');
+  const _arr=$('arranque'); if(_arr) _arr.remove();
   ofrecerRestauracionPendiente();
 }
 /* ----- La cotización de ayer no es la de hoy -----

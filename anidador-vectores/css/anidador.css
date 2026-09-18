@@ -293,3 +293,12 @@
    ============================================================================ */
 html.empotrado .topbar{display:none}
 html.empotrado .an-wrap,html.empotrado .an-pie{max-width:none;padding-left:var(--e3);padding-right:var(--e3)}
+
+/* ----- El esqueleto del arranque -----
+   El material y la regla de html.arrancando están en css/sistema.css (cap. 9); aquí solo la
+   geometría de esta página: el paso a paso a la izquierda y la mesa a la derecha, que es como
+   está la de verdad, para que al aparecer nada salte. */
+.an-arranque .arranque-in{max-width:1180px}
+.an-arranque-cols{grid-template-columns:minmax(280px,400px) minmax(0,1fr)}
+.an-arranque .esq-mesa{height:380px}
+@media(max-width:920px){ .an-arranque-cols{grid-template-columns:1fr} }

@@ -57,7 +57,15 @@
      mantiene verdes su manifiesto, el candado de pruebas/publicacion.mjs y la ruta sin señal
      del service worker, que resuelve el respaldo del cotizador SIN ignoreSearch—. Y va antes
      que todo el marcado para que el CSS pinte ya con la clase puesta. -->
-<script>if(parent!==window)document.documentElement.classList.add('empotrado');</script>
+<script>if(parent!==window)document.documentElement.classList.add('empotrado');
+/* ARRANCANDO. La página pinta su marcado antes de que corran los once guiones del final, y
+   ese marcado sin datos —el riel sin paso encendido, la tarjeta con los campos vacíos, la
+   columna del dinero sin importes— se veía unos cientos de milisegundos como si fuera la app.
+   Con esta clase puesta, css/sistema.css enseña un esqueleto en su lugar y esconde el
+   contenido hasta que init() la quita al final de arranque.js. Dos salidas de emergencia
+   para que nunca se quede pegada: un tope de ocho segundos y el primer error de script. */
+document.documentElement.classList.add('arrancando');
+(function(){var q=function(){document.documentElement.classList.remove('arrancando');};setTimeout(q,8000);window.addEventListener('error',q,{once:true});})();</script>
 <!-- Primer elemento del recorrido: con la barra de arriba entera por delante, llegar a
      las partidas con teclado o con VoiceOver costaba una docena de pasos. -->
 <a class="salto" href="#contenido">Saltar al contenido</a>
@@ -161,6 +169,25 @@
         <button aria-pressed="false" data-rol="autorizador" onclick="cambiarRol('autorizador')">Autorizador</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- El esqueleto del arranque: la silueta del cotizador —el riel, la tarjeta y la columna del
+     dinero— mientras cargan los guiones. Solo existe con html.arrancando (ver el script del
+     principio del body); init() lo quita. Empotrado en la plataforma, ella pone el suyo encima
+     y espera a que esta clase se vaya, así que la persona ve UNA pantalla de carga, no dos. -->
+<div class="arranque" id="arranque" aria-hidden="true">
+  <div class="arranque-in">
+    <div class="esq-b arranque-riel"></div>
+    <div class="arranque-cols">
+      <div class="card esq"><div class="card-b">
+        <div class="esq-b esq-t"></div><div class="esq-b esq-campo"></div><div class="esq-b esq-campo"></div><div class="esq-b esq-campo esq-largo"></div>
+      </div></div>
+      <div class="card esq arranque-lado"><div class="card-b">
+        <div class="esq-b esq-d"></div><div class="esq-b esq-n"></div><div class="esq-b esq-campo"></div><div class="esq-b esq-boton"></div>
+      </div></div>
+    </div>
+    <p class="arranque-t"><span class="esq-giro" aria-hidden="true"></span> Abriendo el cotizador…</p>
   </div>
 </div>
 

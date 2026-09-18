@@ -39,7 +39,14 @@
      `parent !== window` y no una query string: así la página suelta —anidador-vectores/, la que
      está en APP_FILES y la que prueba pruebas/navegador/anidador.mjs— se comporta byte por byte
      como hoy, y el service worker nunca ve dos URLs para el mismo archivo. -->
-<script>if(parent!==window)document.documentElement.classList.add('empotrado');</script>
+<script>if(parent!==window)document.documentElement.classList.add('empotrado');
+/* ARRANCANDO, igual que en cotizador.html: los diez guiones del motor pesan —clipper.js solo
+   ya es grande— y el marcado sin ellos se veía entre 700 y 950 ms como una página que no
+   responde. css/sistema.css enseña el esqueleto de abajo mientras la clase esté puesta; el
+   final de js/app.js la quita. Tope de ocho segundos y el primer error de script la quitan
+   también, para que nunca tape una página que sí funciona. */
+document.documentElement.classList.add('arrancando');
+(function(){var q=function(){document.documentElement.classList.remove('arrancando');};setTimeout(q,8000);window.addEventListener('error',q,{once:true});})();</script>
 
 <a href="#an-contenido" class="salto">Ir al contenido</a>
 
@@ -74,6 +81,21 @@
       <a class="btn-hist" href="../#/cotizador" title="Abrir el cotizador" aria-label="Abrir el cotizador"><svg class="svgi" aria-hidden="true"><use href="#i-venta"/></svg><span class="lbl"> Cotizador</span></a>
       <a class="btn-hist" href="../#/hoy" title="Abrir el taller" aria-label="Abrir el taller: tablero de fabricación, calendario, material y mapa"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg><span class="lbl"> Taller</span></a>
     </div>
+  </div>
+</div>
+
+<!-- El esqueleto del arranque: las tres tarjetas del paso a paso y la mesa de corte, en
+     silueta, mientras cargan los guiones del motor. Solo con html.arrancando. -->
+<div class="arranque an-arranque" id="an-arranque" aria-hidden="true">
+  <div class="arranque-in">
+    <div class="arranque-cols an-arranque-cols">
+      <div>
+        <div class="card esq"><div class="card-b"><div class="esq-b esq-t"></div><div class="esq-b esq-bloque esq-drop"></div></div></div>
+        <div class="card esq"><div class="card-b"><div class="esq-b esq-t"></div><div class="esq-b esq-campo"></div><div class="esq-b esq-campo"></div></div></div>
+      </div>
+      <div class="card esq"><div class="card-b"><div class="esq-b esq-t"></div><div class="esq-b esq-bloque esq-mesa"></div></div></div>
+    </div>
+    <p class="arranque-t"><span class="esq-giro" aria-hidden="true"></span> Abriendo el anidador…</p>
   </div>
 </div>
 

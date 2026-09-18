@@ -4793,3 +4793,59 @@ html[data-tema="oscuro"] .ai-btn:disabled,html[data-tema="oscuro"] .ai-btn[disab
   .ai-btn::before,.ai-btn::after,.pf-ia-btn::before,.pf-ia-btn::after{display:none!important}
   .mbar,.modal,.topbar{background:#fff!important;background-image:none!important}
 }
+
+/* ==========================================================================
+   9 · LAS PANTALLAS DE CARGA
+   --------------------------------------------------------------------------
+   Lo que se ve mientras algo llega. Existe por una medición y no por un gusto: entre
+   pedir una pestaña de la plataforma y verla pintada pasan 56-87 ms en una computadora
+   —ahí NO debe verse nada—, pero el marco del cotizador tardaba 240-500 ms en pintar
+   sus datos, el del anidador 700-950, y las dos páginas sueltas enseñaban su marcado
+   SIN datos —el riel sin paso encendido, los campos vacíos, la columna del dinero en
+   blanco— mientras bajaban sus guiones. En un teléfono con la red mal eso son segundos
+   mirando algo que parece la app y no responde.
+
+   Tres piezas comparten esta hoja porque las tres superficies las usan:
+     · `.esq-b`, la barra con brillo, y las medidas de cada tipo de barra (`esq-n` una
+       cifra, `esq-t` un título, `esq-d` un dato, `esq-campo` un campo, `esq-boton`,
+       `esq-bloque`). Se arma la silueta de lo que viene con ellas y nada más.
+     · `.esq-giro`, el punto que gira junto al texto de estado.
+     · `.arranque`, el esqueleto de las dos páginas sueltas (cotizador.html y el anidador):
+       solo existe mientras <html> lleve `arrancando`, que pone su primer <script> y quita
+       el final de su arranque. Mientras, `.wrap` y `.mbar` están en visibility:hidden —no
+       en display:none: conservan su tamaño para que al aparecer nada salte—.
+
+   El brillo sale de los tokens de superficie —--sup2 y --n2—, así que en oscuro cambia
+   solo, y con prefers-reduced-motion se queda quieto: una silueta fija sigue diciendo
+   «aquí va a aparecer algo» sin moverse. En papel no hay nada de esto.
+   ========================================================================== */
+:root{ --esq-brillo:linear-gradient(90deg,var(--sup2) 0%,var(--n2) 45%,var(--sup2) 90%); }
+.esq-b{display:block;border-radius:8px;background:var(--esq-brillo);background-size:220% 100%;
+  animation:esq-brilla 1.5s linear infinite}
+@keyframes esq-brilla{from{background-position:120% 0}to{background-position:-120% 0}}
+.esq-n{width:38%;height:26px;margin-bottom:10px}
+.esq-t{width:62%;height:14px;margin-bottom:8px}
+.esq-d{width:44%;height:11px}
+.esq-campo{width:100%;height:42px;border-radius:10px;margin-top:12px}
+.esq-largo{height:84px}
+.esq-boton{height:46px;border-radius:999px;margin-top:16px;
+  background:linear-gradient(90deg,rgba(var(--a-rgb),.16),rgba(var(--a-rgb),.30) 45%,rgba(var(--a-rgb),.16) 90%);background-size:220% 100%}
+.esq-bloque{width:100%;height:220px;border-radius:14px;margin-top:12px}
+.esq-drop{height:170px;border:2px dashed var(--linea);background:none;animation:none}
+.card.esq{pointer-events:none;box-shadow:none}
+.esq-giro{display:inline-block;width:14px;height:14px;border-radius:50%;flex:0 0 auto;
+  border:2px solid var(--linea);border-top-color:var(--a);animation:esq-gira .8s linear infinite}
+@keyframes esq-gira{to{transform:rotate(360deg)}}
+
+/* El arranque de las dos páginas sueltas. */
+.arranque{display:none}
+html.arrancando .arranque{display:block}
+html.arrancando .wrap,html.arrancando .mbar,html.arrancando .an-wrap,html.arrancando .an-pie{visibility:hidden}
+.arranque-in{max-width:1180px;margin:0 auto;padding:var(--e5) var(--e4)}
+.arranque-riel{height:64px;border-radius:999px;margin:0 auto var(--e4);max-width:560px}
+.arranque-cols{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:var(--e4);align-items:start}
+@media(max-width:920px){ .arranque-cols{grid-template-columns:1fr} .arranque-lado{display:none} }
+.arranque-t{display:flex;align-items:center;justify-content:center;gap:8px;margin:var(--e5) 0 0;
+  color:var(--tinta2);font-size:var(--t3);font-weight:500}
+@media(prefers-reduced-motion:reduce){ .esq-b,.esq-boton,.esq-giro{animation:none} }
+@media print{ .arranque,.esq-giro{display:none!important} }

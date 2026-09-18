@@ -45,7 +45,7 @@ import * as Sync from '../datos/sync.js';
 import { masDias } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, fmtFecha, fmtFechaDia,
          abrirCapa, cerrarCapa, linkWa, ajustarAltoBarra, rotularPapel, voz, segmento,
-         filaTaller, bandaFrescura, medirMarco }
+         filaTaller, bandaFrescura, medirMarco, esqueletoMarco }
   from '../nucleo/ui.js';
 
 const { ETAPA_NOMBRE, ICO_ETAPA, claseEtapa, ORDEN, puedeMover } = Proy;
@@ -123,18 +123,16 @@ export async function montar(contenedor, ctx) {
     return;
   }
 
-  /* Esqueleto CON RETARDO. Una lectura de IndexedDB suele estar bajo 100 ms, y un esqueleto
-     sin retardo es un parpadeo que se ve peor que la espera. Si la lectura llega antes, este
-     temporizador se cancela y nadie vio nada. */
-  _reloj = setTimeout(() => {
-    if (_cont) _cont.innerHTML = esqueleto();
-  }, 180);
-
+  /* El esqueleto con retardo que vivía aquí —180 ms, para que una lectura de IndexedDB que
+     llega antes no deje ni un parpadeo— lo pone ahora el router para TODOS los módulos, con
+     el mismo umbral y la misma geometría (esqueletoModulo, en nucleo/ui.js), y lo quita en
+     cuanto esta sección tiene algo pintado. Ponerlo también aquí era pintarlo dos veces. */
   await recargar();
 }
 
 export function desmontar() {
   if (_reloj) { clearTimeout(_reloj); _reloj = null; }
+  if (_relojMarco) { clearTimeout(_relojMarco); _relojMarco = null; }
   if (_cont && _oyendo) _cont.removeEventListener('click', alClic);
   const capa = $('pf-pide');
   if (capa) capa.removeEventListener('click', alClicPide);
@@ -333,10 +331,15 @@ function pintarAnidador() {
      el motor entero a media faena. */
   if (_ctx && _ctx.sinRemonte) _ctx.sinRemonte(true);
 
+  /* Con su esqueleto encima, como el marco del cotizador: el anidador carga diez guiones
+     —clipper.js solo ya pesa— y el marco se quedaba en blanco entre 700 y 950 ms medidos con
+     la red local. `.pf-marco-cargando` deja el iframe en opacidad cero y enseña la silueta
+     del paso a paso y de la mesa; `vigilarMarcoAnidador` la quita cuando el motor ya está. */
   _cont.innerHTML =
     segLente() +
     origenHTML() +
-    '<div class="pf-marco-caja">' +
+    '<div class="pf-marco-caja pf-marco-cargando">' +
+      esqueletoMarco('anidador', 'Abriendo la mesa de corte…') +
       '<iframe class="pf-marco" id="pf-anid-marco" src="anidador-vectores/" ' +
       'title="Anidador de vectores — acomodo de piezas en la lámina"></iframe>' +
     '</div>';
@@ -345,6 +348,9 @@ function pintarAnidador() {
      Se mide después de que el navegador colocó la caja, no en el mismo tick. */
   requestAnimationFrame(() => medirMarco('pf-anid-marco'));
   window.addEventListener('resize', alRedimensionar);
+  _intentosMarco = 0;
+  if (_relojMarco) clearTimeout(_relojMarco);
+  _relojMarco = setTimeout(vigilarMarcoAnidador, 150);
 
   const b = $('pf-mbar');
   if (b) { b.hidden = true; b.innerHTML = ''; b.onclick = null; ajustarAltoBarra(); }
@@ -355,6 +361,40 @@ let _rzMarco = 0;
 function alRedimensionar() {
   if (_rzMarco) return;
   _rzMarco = requestAnimationFrame(() => { _rzMarco = 0; medirMarco('pf-anid-marco'); });
+}
+
+/* ----- El esqueleto del marco del anidador -----
+   Se pregunta al documento de dentro, que es del mismo origen: está vivo cuando su propio
+   arranque terminó (se quita `html.arrancando` al final de anidador-vectores/js/app.js) y
+   publicó `window.Anidador`, que es lo último que hace. Cien intentos de 150 ms son quince
+   segundos; si no llega, el esqueleto se quita igual y se deja ver el marco tal cual: el
+   anidador trae su propio diagnóstico de por qué no arranca (sin Workers, file://), y taparlo
+   sería esconder justo lo que hay que leer. */
+let _relojMarco = null;
+let _intentosMarco = 0;
+function vigilarMarcoAnidador() {
+  _relojMarco = null;
+  const m = $('pf-anid-marco');
+  if (!m || !_cont) return;
+  let vivo = false;
+  try {
+    const d = m.contentDocument, w = m.contentWindow;
+    vivo = !!(d && d.getElementById('an-ir') && !d.documentElement.classList.contains('arrancando') && w && w.Anidador);
+  } catch (_) { vivo = false; }
+  if (!vivo && ++_intentosMarco <= 100) {
+    if (_intentosMarco === 27) {
+      const t = _cont.querySelector('.pf-marco-esq-t .tx');
+      if (t) t.textContent = 'Sigue cargando el motor de acomodo…';
+    }
+    _relojMarco = setTimeout(vigilarMarcoAnidador, 150);
+    return;
+  }
+  const caja = m.closest('.pf-marco-caja');
+  if (!caja) return;
+  caja.classList.remove('pf-marco-cargando');
+  caja.classList.add('pf-marco-listo');
+  setTimeout(() => { for (const e of caja.querySelectorAll('.pf-marco-esq,.pf-marco-esq-t')) e.remove(); }, 450);
+  medirMarco('pf-anid-marco');
 }
 
 /* ----- De dónde vienes, y el límite dicho con palabras -----
@@ -377,18 +417,6 @@ function origenHTML() {
     '<p class="no-papel">' +
     btn('Vectorizar en el Cotizador', 'btn btn-gho pf-btn-corto', { tipo: 'ir', ruta: 'cotizador' }) +
     '</p>' + enTelefono;
-}
-
-/* El esqueleto tiene la GEOMETRÍA de lo que va a llegar —la cinta de cuentas, la línea de
-   estaciones y tres renglones— para que al llegar los datos el layout no salte. */
-function esqueleto() {
-  const fila = '<div class="pf-fila"><div class="pf-fila-ico"></div>' +
-    '<div class="pf-fila-tx"><div class="pf-fila-t">&nbsp;</div>' +
-    '<div class="pf-fila-d">&nbsp;</div></div></div>';
-  return '<div class="pf-cuentas" aria-hidden="true">' +
-    '<p class="pf-cuenta"><b>&nbsp;</b>&nbsp;</p>'.repeat(4) + '</div>' +
-    '<div class="card"><div class="card-b">' + fila.repeat(3) + '</div></div>' +
-    '<p class="solo-voz" role="status">Leyendo el taller…</p>';
 }
 
 /* ----- La cinta de cuentas -----
