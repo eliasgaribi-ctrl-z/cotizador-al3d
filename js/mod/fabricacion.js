@@ -156,7 +156,10 @@ export async function montar(contenedor, ctx) {
   }
 
   _cont.innerHTML = '<div class="vacio">' + ico('i-reloj') +
-    '<p class="vacio-t">Leyendo la agenda…</p></div>';
+    /* El nombre de la pantalla, que es «Calendario». El esqueleto del router ya escribió
+       «Cargando Calendario…» un instante antes: dos nombres para lo mismo en el mismo
+       segundo se leen como dos pantallas. */
+    '<p class="vacio-t">Leyendo el calendario…</p></div>';
   await recargar();
 
   /* Y la hoja de agendar CON EL PROYECTO YA ELEGIDO. Va después de `recargar()` porque
@@ -448,7 +451,11 @@ function pintarDecidir(d) {
         '</div>' +
       '</div>';
     }).join('') +
-    (n > 6 ? '<p class="pf-nota">Y ' + (n - 6) + ' más en «Hoy».</p>' : '') +
+    /* «Proyectos» y no «Hoy»: no hay ninguna pantalla que se llame así —la ruta `hoy` se
+       pinta como «Tablero»— y, sobre todo, las que faltan sí están completas en Proyectos.
+       «Qué atender» solo enseña las que llevan siete días sin decidir, así que mandar ahí a
+       quien busca la séptima de hoy es mandarlo a una lista donde no está. */
+    (n > 6 ? '<p class="pf-nota">Y ' + (n - 6) + ' más en Proyectos.</p>' : '') +
   '</div>';
 }
 
@@ -546,8 +553,10 @@ function pintarCuentas(d) {
     if (tarde) c.push(unaCuenta(tarde, tarde === 1 ? 'Va tarde' : 'Van tarde', true));
   }
   c.push(unaCuenta(porVenir, _vista === 'mes' ? 'Por instalar este mes' : 'Por instalar', false));
-  c.push(unaCuenta(d.sinFecha.length, 'Ganados sin fecha', d.sinFecha.length > 0));
-  if (d.vencidas.length) c.push(unaCuenta(d.vencidas.length, 'Ya pasaron y nadie las marcó', true));
+  c.push(unaCuenta(d.sinFecha.length,
+    d.sinFecha.length === 1 ? 'Ganado sin fecha' : 'Ganados sin fecha', d.sinFecha.length > 0));
+  if (d.vencidas.length) c.push(unaCuenta(d.vencidas.length,
+    d.vencidas.length === 1 ? 'Ya pasó y nadie la marcó' : 'Ya pasaron y nadie las marcó', true));
   return '<div class="pf-cuentas">' + c.join('') + '</div>';
 }
 
@@ -596,8 +605,11 @@ function pintarMes(d) {
       DOW.map(x => '<div class="cal-dow" aria-hidden="true">' + x + '</div>').join('') +
       celdas.join('') +
     '</div>' +
+    /* La invitación a agendar solo para quien puede: con el rol de Pagos, tocar un día no
+       abre nada —la capa de datos contesta «Agendar es de dirección»—, y el resto de la
+       rejilla ya lo respeta. */
     (mes.total ? '' : '<p class="pf-nota">No hay nada agendado en ' +
-      esc(etiquetaMes(primero)) + '. Toca un día para agendar en él.</p>') +
+      esc(etiquetaMes(primero)) + '.' + (puedeAgendar() ? ' Toca un día para agendar en él.' : '') + '</p>') +
     pintarDiaAbierto(d);
 }
 
@@ -830,8 +842,11 @@ function fila(i, sem) {
   const saldo = Prefs.veDinero() && Number(p.pago_pendiente) > 0
     ? '<br>Saldo por cobrar: ' + esc(money(p.pago_pendiente)) : '';
 
+  /* «Al teléfono» y no «Calendario»: el botón baja el .ics para el calendario del celular, y
+     desde que esta pantalla se llama Calendario, un botón «Calendario» dentro de ella no se
+     entiende sin tocarlo. */
   const acc = ['<button type="button" class="btn btn-gho" data-acc="ics" data-id="' +
-    esc(i.id) + '">Calendario</button>'];
+    esc(i.id) + '">Al teléfono</button>'];
   if (veWa() && !cancelada) {
     acc.push('<button type="button" class="btn btn-gho" data-acc="orden" data-id="' +
       esc(i.id) + '">Instalador</button>');
@@ -964,7 +979,10 @@ function pintarMbar(d) {
  *  que el globito no cambie de valor solo porque se cambió de módulo. */
 function publicarCuentas(d) {
   if (!_ctx || typeof _ctx.ponerCuenta !== 'function') return;
-  _ctx.ponerCuenta('agenda', d.sinFecha.length + d.vencidas.length + (d.pendientes || []).length);
+  /* Los mismos dos sumandos que publica «Qué atender», sin las cotizaciones pendientes: con
+     ellas, el globito de la pestaña decía 5 al venir de aquí y 2 al venir de allá para los
+     mismos datos, que es justo lo que el comentario de arriba promete evitar. */
+  _ctx.ponerCuenta('agenda', d.sinFecha.length + d.vencidas.length);
 }
 
 /* ============================================================================

@@ -136,8 +136,18 @@ function ajustarTopbarMovil(){
   if(!tb||!marca) return;
   if(!window.matchMedia('(max-width:560px)').matches){ tb.style.top=''; document.documentElement.style.setProperty('--top-fijo',altoTopbarFija()+'px'); return; }
   const fila=tb.querySelector('.topbar-in');
+  /* El desplazamiento se mide hasta donde EMPIEZA el renglón pegado, no por el alto del
+     logotipo: desde que el tema y el enlace a la plataforma viajan en el renglón de la marca,
+     esa fila la mide el más alto de los tres —un botón de 44 px—, y con el alto del logotipo
+     la marca se quedaba medio asomada. La resta entre los dos rectángulos da el alto real de
+     la primera fila más su hueco, sea lo que sea que lleve dentro, y no se desajusta aunque
+     la barra ya esté desplazada: las dos cajas se mueven juntas. */
+  const folio=$('folio');
   const hueco=parseFloat(getComputedStyle(fila).rowGap)||0;
-  tb.style.top=(3-Math.round(marca.offsetHeight+hueco))+'px';
+  const alto=folio
+    ? folio.getBoundingClientRect().top-fila.getBoundingClientRect().top
+    : marca.offsetHeight+hueco;
+  tb.style.top=(3-Math.round(alto))+'px';
   document.documentElement.style.setProperty('--top-fijo',altoTopbarFija()+'px');
 }
 window.addEventListener('resize',ajustarTopbarMovil);

@@ -332,8 +332,13 @@ body.pf::before{display:none}
 .pf-fila-acc{flex-shrink:0;display:flex;flex-direction:column;gap:var(--e1);align-items:stretch}
 @media(max-width:560px){
   .pf-fila{flex-wrap:wrap}
-  .pf-fila-acc{width:100%;flex-direction:row;padding-left:calc(36px + var(--e3))}
-  .pf-fila-acc>*{flex:1}
+  /* Los botones del renglón, en fila y envolviendo. Con `flex:1` los dos se repartían el
+     ancho a la mitad —155 px cada uno a 390— y «Ponerlo en diseño», «Ver lista de compra» o
+     «Copiar el mensaje» salían en dos renglones dentro de una pastilla (56 px de alto,
+     medidos en Tablero y en Qué atender). Ahora cada botón mide lo que mide su rótulo: dos
+     cortos comparten renglón y uno largo baja al suyo, y todos quedan de una línea. */
+  .pf-fila-acc{width:100%;flex-direction:row;flex-wrap:wrap;padding-left:calc(36px + var(--e3))}
+  .pf-fila-acc>*{flex:1 1 auto;width:auto;min-width:0}
 }
 
 /* Cuándo pasa algo. Un dato de tres caracteres que se lee antes que el texto: «hoy» en
@@ -489,7 +494,16 @@ body.pf::before{display:none}
 /* ============================================================================
    Material
    ============================================================================ */
-.mat-fila{display:grid;grid-template-columns:1fr auto;gap:var(--e2) var(--e3);
+/* La columna de la cantidad se mide por su contenido pero con TOPE: `fit-content(42%)` la deja
+   tan ancha como el número —«2.75 láminas»— y nunca más de dos quintos del renglón. Era `auto`,
+   y `auto` crece hasta el texto más largo que lleve dentro sin cortarse: el renglón chico de
+   debajo del número —«no hay nada (y el libro va 1.07 abajo) · piden 2.98»— heredaba el
+   `nowrap` del número, medía 300 px en un teléfono de 390 y se llevaba la columna entera. El
+   nombre del material quedaba en 70 px («Acrílico / blanco/opal / 3 mm», una palabra por
+   renglón) y el número salía cortado por la derecha («2.75 lámi»). Medido en la lista de
+   compra a 390 px. `minmax(0,1fr)` en la del nombre por lo mismo: sin el 0 su mínimo es el
+   contenido y una palabra larga también empuja. */
+.mat-fila{display:grid;grid-template-columns:minmax(0,1fr) fit-content(42%);gap:var(--e2) var(--e3);
   padding:var(--e3) 0;border-top:1px solid var(--line);align-items:start}
 .mat-fila:first-child{border-top:0}
 .mat-n{font-weight:600;font-size:var(--t3);line-height:1.35;color:var(--ink)}
@@ -497,7 +511,9 @@ body.pf::before{display:none}
 /* La cantidad. Es el número que se viene a leer, así que la jerarquía la hace el TAMAÑO,
    no el color: pintar de color un número no lo vuelve más importante. */
 .mat-cant{font-weight:700;font-size:var(--t5);line-height:1;color:var(--ink);text-align:right;white-space:nowrap}
-.mat-cant small{display:block;margin-top:2px;font-weight:500;font-size:var(--t1);line-height:1;color:var(--muted)}
+/* El renglón de debajo del número SÍ se parte: es una frase, no una cifra, y con el `nowrap`
+   heredado era él quien ensanchaba la columna (ver el comentario de .mat-fila). */
+.mat-cant small{display:block;margin-top:2px;font-weight:500;font-size:var(--t1);line-height:1.3;color:var(--muted);white-space:normal}
 .mat-cant.falta{color:var(--av)}
 .mat-cant.cero{color:var(--muted)}
 
@@ -508,6 +524,12 @@ body.pf::before{display:none}
   background:var(--a-suave);border:1px solid var(--a-borde);
   font:500 var(--t1)/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   color:var(--n8);overflow-x:auto;white-space:nowrap}
+/* Dentro del panel de la orden de trabajo la fórmula SE PARTE en vez de deslizarse. El
+   renglón entero —«40cm alto × 30cm ancho (0.75 de la altura) × 8 = 0.96 m² ÷ 0.80 aprov…»—
+   no cabe en los 640 px del panel y se cortaba por la derecha sin puntos suspensivos y con
+   la barra de deslizamiento oculta por el sistema: nada decía que faltara media fórmula, y
+   una fórmula que no se puede leer entera no se audita, que es para lo que existe. */
+#pf-hoja .mat-formula{white-space:pre-wrap;overflow-wrap:anywhere;overflow:visible}
 .mat-nota{grid-column:1/-1;font-weight:400;font-size:var(--t1);line-height:1.45;color:var(--muted)}
 
 /* La confianza del cálculo, dicha con palabras. «Estimado» no es un adorno: es la
@@ -756,9 +778,25 @@ body.pf::before{display:none}
    separan con `gap`, así que el margen sobra en los dos ejes. */
 .pf-fila-acc .btn+.btn,.pf-panel-f .btn+.btn{margin-top:0}
 
+/* Dos botones en un renglón DE TELÉFONO. `.btn-fila` reparte el ancho a la mitad, y a 390 px
+   la mitad son 160: «Recibí lo de la lista (7 materiales)» se partía en tres renglones y
+   «Imprimir la lista» en dos, y una pastilla de tres renglones es un óvalo (medido en la lista
+   de compra). Aquí cada botón mide lo que mide su rótulo y la fila se envuelve: dos cortos
+   siguen compartiendo renglón, uno largo se lleva el suyo entero, y todos quedan de una línea.
+   Solo la plataforma —el cotizador reparte sus filas con otras medidas— y solo en el teléfono. */
+@media(max-width:759px){
+  body.pf .btn-fila{flex-wrap:wrap}
+  body.pf .btn-fila>.btn,body.pf .btn-fila>.btn-wa{flex:1 1 auto;width:auto;min-width:0}
+}
+
 /* La verdad del final, en letra chica y sin adornos. Con la caja gris de .hintnote se
    leería como un consejo, y esto no es un consejo: es cómo funciona el sistema. */
 .pf-nota{margin-top:var(--e4);font-weight:400;font-size:var(--t1);line-height:1.55;color:var(--muted)}
+
+/* El segmentado y la línea de frescura que lo sigue en el Tablero se tocaban: la píldora
+   terminaba en el mismo píxel en que empezaba el texto y los dos se leían como un bloque
+   descuadrado. */
+.seg + .pf-frescura{margin-top:var(--e3)}
 
 /* ============================================================================
    Proyectos — lo que el tablero por etapa necesitaba
@@ -1150,6 +1188,17 @@ button.cal-plazo:active{transform:translateY(1px) scale(.98)}
    cliente no quepa, que es lo que haría un `1fr` sin mínimo. */
 .pj-tablero{display:grid;grid-template-columns:repeat(5,minmax(200px,1fr));gap:var(--e3);
   overflow-x:auto;padding-bottom:var(--e1)}
+/* En el portátil las cinco caben: hay que dejarlas caber. El mínimo de 200 px está pensado
+   para el Fold, donde deslizar es lo correcto, pero también disparaba a 1280×800 —la pantalla
+   más común de escritorio—, donde quedan 1 016 px de contenido contra los 1 048 que piden las
+   cinco: la quinta columna salía cortada («Listo para insta…») y la barra de deslizamiento
+   vive al pie del tablero, fuera del primer pantallazo, así que nada decía que hubiera más.
+   Entre 1024 y 1365 px se reparte el ancho que hay —a 1280 tocan unos 190 px por columna, de
+   sobra para los títulos— y el deslizamiento queda para las pantallas donde de verdad hace
+   falta. */
+@media(min-width:1024px) and (max-width:1365px){
+  .pj-tablero{grid-template-columns:repeat(5,minmax(0,1fr));gap:var(--e2)}
+}
 .pj-col{display:flex;flex-direction:column;gap:var(--e2);min-width:0}
 /* El encabezado de columna lleva un filete de 2 px del color de su etapa: es lo único de
    color del tablero, y es lo que hace que las cinco colas se distingan de un vistazo sin
@@ -1365,6 +1414,15 @@ body.pf .card{border-radius:var(--rr3);box-shadow:var(--sombra-reposo)}
 body.pf .card-h{padding:var(--e4) var(--e5) var(--e3);gap:var(--e3)}
 body.pf .card-h h2,body.pf .card-h h3{
   font-family:var(--f-cifra);font-size:var(--t4);font-weight:600;letter-spacing:-.15px;color:var(--tinta);
+}
+/* Los títulos de tarjeta de la plataforma SÍ se parten en el teléfono. El sistema los deja en
+   `nowrap` debajo de 560 px —pensado para «Datos del proyecto» contra su botón de plegar—, pero
+   aquí llevan nombres de proyecto: «Óptica Vallarta - Letrero de fachada (Letras Luz)» salía
+   por la derecha de la pantalla (411 px en una de 390) y la píldora de la etapa quedaba fuera de
+   la vista, medido en Material · Por proyecto. `min-width:0` porque el título es un elemento
+   flexible y sin él no baja de lo que mide su texto. */
+@media(max-width:560px){
+  body.pf .card-h :is(h2,h3){white-space:normal;flex-shrink:1;min-width:0}
 }
 /* El icono del encabezado, en una ficha teñida: es la única marca de color de la pieza y
    dice de qué trata antes de leer el título. */
@@ -1657,6 +1715,10 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 .ia-titulo h2{flex:none;font-family:var(--f-cifra);font-weight:600;font-size:var(--t4);letter-spacing:-.15px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ia-sub{font-size:var(--t1);color:var(--tinta3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* En el teléfono el subtítulo se parte en dos renglones en vez de cortarse: «Solo lectura ·
+   sin llave de IA: contesta lo que se…» perdía justo la parte que explica qué contesta
+   (medido a 390 px: 294 px de texto en 258 de sitio). */
+@media(max-width:560px){ .ia-sub{white-space:normal} }
 .ia-cuerpo{flex:1 1 auto;display:flex;flex-direction:column;gap:var(--e3);background:var(--fondo)}
 
 /* ----- La portada: hoy en cifras, y las preguntas de siempre ----- */
@@ -1856,8 +1918,19 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
      Así que el sitio que se lleva el dock se calcula UNA vez: su alto, más lo que lo separa del
      borde, más el aire de encima. Y el margen es el mismo `max(10px, área segura)` que lo
      coloca, no una copia de él. */
-  :root{--dock:calc(64px + max(10px,env(safe-area-inset-bottom,0px)) + 10px)}
-  .pf-wrap{padding-bottom:calc(var(--dock) + var(--e3) + var(--mbar-h,0px))}
+  /* El alto del dock NO va escrito a mano: son sus 52 px de botón más el relleno y el borde,
+     y el relleno lo decide la última capa (css/vidrio.css lo pone en 8 px y declara
+     `--dock-h:70px`). Con «64» fijo aquí, la barra de acción se calculaba 6 px más baja de
+     lo que el dock medía de verdad y quedaba a 4 px de él en vez de a 10. El 66 es lo que
+     mide sin esa capa: 52 + 6 + 6 + 2 de borde. */
+  :root{--dock:calc(var(--dock-h,66px) + max(10px,env(safe-area-inset-bottom,0px)) + 10px)}
+  /* Y el botón del asistente también se lleva su sitio. Flota 8 px encima del dock —o de la
+     barra de acción— y mide 52: el último renglón de cualquier lista quedaba debajo de él al
+     llegar al fondo, y en Material eso era «Constantes taller» con el botón redondo encima.
+     Sesenta píxeles de aire (los 52 más el hueco) y el renglón se puede leer y tocar. Con un
+     marco vivo el botón se esconde (body.pf-marco-lleno) y el aire sobra. */
+  .pf-wrap{--fab-aire:60px;padding-bottom:calc(var(--dock) + var(--e3) + var(--mbar-h,0px) + var(--fab-aire))}
+  body.pf-marco-lleno .pf-wrap{--fab-aire:0px}
   html:has(body.pf){scroll-padding-bottom:calc(var(--dock) + var(--e3) + var(--mbar-h,0px))}
   .pf-mbar{bottom:var(--dock)}
   body.pf .toast{bottom:calc(var(--dock) + var(--e3) + var(--mbar-h,0px))}

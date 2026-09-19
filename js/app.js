@@ -139,7 +139,13 @@ function rutaDelHash() {
   if (r && r.roles.includes(Prefs.rol())) return r.ruta;
   /* Una ruta que este rol no tiene no es un error del usuario: es un enlace viejo o un rol
      que cambió. Se va a la primera que sí tenga, sin regañar. */
-  return (rutasDeRol()[0] || RUTAS[0]).ruta;
+  const destino = (rutasDeRol()[0] || RUTAS[0]).ruta;
+  /* Y la barra de direcciones dice a dónde se fue. Sin esto quedaba pintado el Tablero con
+     `#/control` escrito arriba: recargar repetía la contradicción, compartir el enlace la
+     propagaba y el botón atrás tenía dos entradas para la misma pantalla. `replaceState` y no
+     `location.hash`, que dispararía otro `hashchange` y montaría dos veces. */
+  if (h && h !== destino) { try { history.replaceState(null, '', '#/' + destino); } catch (_) {} }
+  return destino;
 }
 
 export function ir(ruta) {
@@ -432,7 +438,7 @@ function pintarCuentasNav() {
     for (const el of document.querySelectorAll('[data-cta="' + r.ruta + '"],[data-cta-movil="' + r.ruta + '"]')) {
       el.hidden = n <= 0;
       el.textContent = n > 99 ? '99+' : String(n);
-      if (n > 0) el.setAttribute('aria-label', n + ' cosas que atender en ' + r.nombre);
+      if (n > 0) el.setAttribute('aria-label', (n === 1 ? '1 cosa que atender en ' : n + ' cosas que atender en ') + r.nombre);
     }
   }
 }
@@ -602,7 +608,10 @@ async function arrancar() {
     try {
       const r = await Cot.drenarBuzon();
       if (r.creados) toast(r.creados === 1 ? 'Se agregó 1 proyecto ganado' : 'Se agregaron ' + r.creados + ' proyectos ganados', 'ok', 4200);
-      if (r.fallidos) toast('Hay ' + r.fallidos + ' registros de venta que no se pudieron convertir en proyecto', 'err', 5200);
+      if (r.fallidos) toast((r.fallidos === 1
+        ? 'Hay 1 registro de venta que no se pudo convertir en proyecto'
+        : 'Hay ' + r.fallidos + ' registros de venta que no se pudieron convertir en proyecto') +
+        '. Revísalos en Control › Bitácora.', 'err', 6500);
     } catch (e) { console.warn('no se pudo drenar el buzón', e); }
   }
 

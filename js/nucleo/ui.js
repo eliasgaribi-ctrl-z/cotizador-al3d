@@ -544,12 +544,16 @@ export function bandaFrescura(f, disponible) {
        prometer que se está viendo lo de los tres teléfonos, y lo que se está viendo es lo
        de este. */
     return '<p class="pf-frescura">' + ico('i-nube-off') +
-      '<span>Todo lo que ves vive en este dispositivo. Lo que Fabricación mueva en su teléfono no llega aquí todavía.</span></p>';
+      /* Neutro para los tres roles: esto lo lee también el teléfono de Fabricación, y ahí
+         «lo que Fabricación mueva en su teléfono no llega aquí» se leía desde ese teléfono. */
+      '<span>Todo lo que ves vive en este dispositivo. Lo que se mueva en otro teléfono no llega aquí todavía.</span></p>';
   }
   if (f && f.al_dia) {
+    const n = Number(f.pendientes);
     return '<p class="pf-frescura">' + ico('i-nube') + '<span>Al día' +
-      (Number(f.pendientes) > 0
-        ? ' · quedan ' + Number(f.pendientes) + ' cambios de este dispositivo por mandar'
+      (n > 0
+        ? (n === 1 ? ' · queda 1 cambio de este dispositivo por mandar'
+                   : ' · quedan ' + n + ' cambios de este dispositivo por mandar')
         : '') + '</span></p>';
   }
   const txt = (f && (f.texto || f.mensaje)) || 'Hay datos de otro dispositivo que llevan días sin llegar.';

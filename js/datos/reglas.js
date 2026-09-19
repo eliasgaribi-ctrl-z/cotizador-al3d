@@ -466,7 +466,7 @@ function a9(E, out) {
          programa. Si el libro está bajo cero, lo que hay que decir es que no hay nada y que
          el libro está incompleto, no un número negativo. */
       detalle: (hay > 0
-        ? 'Quedan ' + cuanto(hay, x.unidad_compra) + ' y el mínimo es ' + min + '.'
+        ? (hay === 1 ? 'Queda ' : 'Quedan ') + cuanto(hay, x.unidad_compra) + ' y el mínimo es ' + min + '.'
         : 'No queda nada' + (hay < 0 ? ' (y el libro va ' + cuanto(-hay, x.unidad_compra) + ' abajo)' : '') +
           ' y el mínimo es ' + min + '.') +
         (x.derivado ? ' Y nunca se ha contado, así que puede ser peor.' : ''),
@@ -474,7 +474,7 @@ function a9(E, out) {
       plazo: 0,
       entidad: 'material', entidad_id: String(id),
       acciones: x.tel_proveedor
-        ? [{ label: 'Pedirle a ' + (x.proveedor || 'el proveedor'), tipo: 'wa',
+        ? [{ label: x.proveedor ? 'Pedirle a ' + x.proveedor : 'Pedirle al proveedor', tipo: 'wa',
              datos: { clase: 'pedir_material', tel: x.tel_proveedor, proveedor: x.proveedor || '',
                       faltantes: [{ nombre: x.nombre, comprar: Math.max(min - hay, num(x.min_compra) || 1),
                                     unidad_compra: x.unidad_compra }] } }]
@@ -543,7 +543,10 @@ function a11(E, out) {
       plazo: -dias,
       entidad: 'proyecto', entidad_id: p.id,
       acciones: [
-        { label: 'Copiar datos para la hoja', tipo: 'tsv', datos: { proyecto_id: p.id, estatus: 'COBRANDO' } },
+        /* «Abrir para copiar» y no «Copiar»: el botón que arma la fila de 15 columnas vive en
+           la ficha del proyecto y no se reimplementa aquí (el porqué, en el case 'tsv' de
+           js/mod/inicio.js). Este abre la ficha; el rótulo dice eso y no otra cosa. */
+        { label: 'Abrir para copiar la fila', tipo: 'tsv', datos: { proyecto_id: p.id, estatus: 'COBRANDO' } },
         { label: 'Cobrar por WhatsApp', tipo: 'wa',
           datos: { clase: 'cobrar', tel: p.tel, contacto: p.contacto, negocio: p.negocio,
                    pago_pendiente: saldo } },
@@ -637,7 +640,7 @@ function a14(E, out) {
   out.push(aviso('A14', E.hoy, {
     tono: 'av',
     titulo: d >= 9000 ? 'Nunca has respaldado la plataforma' : 'Llevas ' + d + ' días sin respaldar',
-    detalle: 'El respaldo de la plataforma es un archivo aparte del de las cotizaciones. Si el teléfono borra los datos del sitio, esto es lo único que los trae de vuelta.',
+    detalle: 'El respaldo baja la plataforma y las cotizaciones en un solo archivo. Si el teléfono borra los datos del sitio, es lo único que los trae de vuelta.',
     cuando: '',
     plazo: 0,
     entidad: 'dispositivo', entidad_id: 'respaldo',

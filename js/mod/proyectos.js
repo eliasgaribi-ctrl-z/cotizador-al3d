@@ -358,10 +358,20 @@ async function aplicar() {
 function pintarCuentas() {
   const el = $('pj-cuentas'); if (!el) return;
   const vivos = TODOS.filter(p => p.etapa !== 'cancelado');
+  /* Lo que la cinta cuenta tiene que ser lo que el tablero enseña. «Abiertos» incluía a los
+     instalados y a los que están en garantía —que no tienen columna a propósito: una de
+     instalados crecería para siempre—, así que la cinta decía «5 proyectos abiertos» encima
+     de un tablero con cuatro tarjetas y no había forma de saber dónde estaba el quinto. Ahora
+     la primera cuenta es la del tablero y los que ya salieron del camino se cuentan aparte,
+     con su nombre. */
+  const enObra = vivos.filter(p => COLUMNAS().includes(p.etapa));
+  const fuera = vivos.length - enObra.length;
   const sinFecha = vivos.filter(p => !FECHA.get(p.id)).length;
   const faltan = vivos.filter(p => ['falta', 'grave'].includes((SEM.get(p.id) || {}).estado)).length;
   el.innerHTML =
-    '<div class="pf-cuenta"><b>' + vivos.length + '</b>' + (vivos.length === 1 ? 'proyecto abierto' : 'proyectos abiertos') + '</div>' +
+    '<div class="pf-cuenta"><b>' + enObra.length + '</b>' + (enObra.length === 1 ? 'proyecto en obra' : 'proyectos en obra') + '</div>' +
+    (fuera ? '<div class="pf-cuenta"><b>' + fuera + '</b>' +
+      (fuera === 1 ? 'instalado o en garantía' : 'instalados o en garantía') + '</div>' : '') +
     (sinFecha ? '<div class="pf-cuenta urge"><b>' + sinFecha + '</b>sin fecha de instalación</div>' : '') +
     (faltan ? '<div class="pf-cuenta urge"><b>' + faltan + '</b>con material faltante</div>' : '');
 }
@@ -730,7 +740,15 @@ function htmlFicha(p) {
   datos.push(dato('Cuenta de cobro', p.cuenta || '<span class="pf-sem falta">Sin capturar</span>', !p.cuenta));
 
   if (ve) {
-    datos.push(dato('Subtotal', money(p.sub)));
+    /* `money(undefined)` es «$0.00», y un subtotal de cero junto a «Total vendido $40,000.00»
+       y «IVA: Sí, incluido» son tres datos que no cuadran a la vista. Cuando la cotización no
+       trajo subtotal se dice eso, con la misma marca que el resto de los ausentes de la
+       ficha, o se calcula quitando el IVA y se rotula como calculado. */
+    datos.push(dato('Subtotal', p.sub != null
+      ? money(p.sub)
+      : (p.iva !== false && (p.precio_auth || p.neto)
+          ? money((p.precio_auth || p.neto) / 1.16) + ' <span class="pf-sem nada">calculado</span>'
+          : '<span class="pf-sem falta">Sin capturar</span>')));
     datos.push(dato('Total vendido', money(p.precio_auth || p.neto)));
     datos.push(dato('Anticipo pactado', p.anti_pactado ? money(p.anti_pactado) : 'No se pactó anticipo'));
     datos.push(dato('IVA', p.iva !== false ? 'Sí, incluido' : 'Sin IVA'));
@@ -929,8 +947,8 @@ async function moverEtapa(id, etapa) {
   const n = num(r.valor && r.valor.movimientos);
   const nombre = Proy.ETAPA_NOMBRE[etapa] || etapa;
   if (n > 0) {
-    toast('Ahora está en «' + nombre + '». Salieron ' + n +
-      (n === 1 ? ' material del almacén' : ' materiales del almacén') +
+    toast('Ahora está en «' + nombre + '». ' +
+      (n === 1 ? 'Salió 1 material del almacén' : 'Salieron ' + n + ' materiales del almacén') +
       ', a nombre de ' + Prefs.sello() + '.', 'ok', 6000,
       { label: 'Ver almacén', fn: () => { if (CTX && CTX.ir) CTX.ir('material'); } });
   } else if (etapa === 'cortado' || etapa === 'armado' || etapa === 'listo') {

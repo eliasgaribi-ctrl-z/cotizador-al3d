@@ -565,6 +565,23 @@ export async function obtener(id) {
   return DB.obtener('proyectos', id);
 }
 
+/* ----- ¿Este proyecto tiene punto en el mapa? -----
+   Una sola respuesta para toda la app. La pregunta parece trivial y no lo es: un proyecto sin
+   ubicar se guarda con `lat: null` (línea 361), y `Number(null)` es 0, así que la prueba
+   ingenua `isFinite(Number(p.lat))` contesta que SÍ tiene pin. El Mapa ya lo había descubierto
+   y traía su propia versión; el Tablero no, y por eso su botón «Ver la ruta en el mapa» decía
+   «0 sin ubicar» mientras el Mapa, con los mismos datos, decía «3 sin ubicar». Dos cifras del
+   mismo hecho que no cuadraban entre dos pantallas.
+   El cero explícito también se rechaza: 0,0 es lo que sale de parsear dos ceros de relleno y
+   cae en el Atlántico frente a Ghana, que es el pin en medio del océano que el Mapa existe
+   para no pintar. */
+const coord = v => (v === null || v === undefined || v === '') ? NaN : Number(v);
+export function tienePin(p) {
+  if (!p) return false;
+  const la = coord(p.lat), ln = coord(p.lng);
+  return Number.isFinite(la) && Number.isFinite(ln) && !(la === 0 && ln === 0);
+}
+
 /**
  * @param {{etapa?:string, etapas?:string[], vivos?:boolean, desde?:string, hasta?:string,
  *          sinFecha?:boolean, sinUbicar?:boolean, conPendiente?:boolean, texto?:string}} [filtro]
@@ -593,8 +610,7 @@ export async function listar(filtro = {}) {
   }
   if (esISO(f.desde)) filas = filas.filter(p => String(p.fecha_ganado || '') >= f.desde);
   if (esISO(f.hasta)) filas = filas.filter(p => String(p.fecha_ganado || '') <= f.hasta);
-  if (f.sinUbicar) filas = filas.filter(p => p.lat === null || p.lng === null ||
-                                             !isFinite(p.lat) || !isFinite(p.lng));
+  if (f.sinUbicar) filas = filas.filter(p => !tienePin(p));
   if (f.conPendiente) filas = filas.filter(p => num(p.pago_pendiente) > 0);
 
   if (f.sinFecha) {

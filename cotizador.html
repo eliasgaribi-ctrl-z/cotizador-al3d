@@ -430,7 +430,9 @@ document.documentElement.classList.add('arrancando');
         <span class="amt" id="s-neto" data-shared="total">$0.00</span>
       </div>
       <div class="anti">
-        <label for="f-anti">Anticipo sugerido (50%)</label>
+        <!-- El rótulo lo reescribe renderSummary() en cuanto el anticipo se teclea a mano:
+             ver js/cotizador/proceso.js. Este es el texto de arranque, con el 50 % sugerido. -->
+        <label for="f-anti" id="f-anti-lbl">Anticipo sugerido (50%)</label>
         <div class="inp-money"><input id="f-anti" type="number" inputmode="decimal" min="0" placeholder="0"></div>
         <div class="anti-rest" id="s-anti-rest"></div>
       </div>

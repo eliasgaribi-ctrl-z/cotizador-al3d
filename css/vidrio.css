@@ -162,6 +162,15 @@ html[data-tema="oscuro"]{
   box-shadow:0 8px 22px -14px rgba(var(--a-rgb),.55),var(--cv-luz)}
 .paso-tab .n{width:26px;height:26px;border-radius:var(--cv-pastilla)}
 .paso-tab.on .n{background:var(--cv-accion)}
+/* Lo de arriba deshacía el apretón que sistema.css le da al riel debajo de 560 px —hueco de
+   2, número de 22, relleno de 10/8 en la pestaña encendida—, porque esta hoja carga después
+   y sin corte de ancho: unos 30 px más de riel en un teléfono de 320. Se repite aquí el
+   mismo apretón, con el mismo corte, para que la última hoja lo respete. */
+@media(max-width:560px){
+  .pasos{gap:2px}
+  .paso-tab.on{padding:0 10px 0 8px}
+  .paso-tab .n{width:22px;height:22px}
+}
 
 /* ==========================================================================
    2. La columna del dinero
@@ -189,21 +198,16 @@ html[data-tema="oscuro"]{
   border:1px solid rgba(var(--a-rgb),.28);box-shadow:var(--cv-luz)}
 .neto .amt,.mbar-amt{font-family:var(--f-cifra);letter-spacing:-1.2px}
 
-/* La barra fija del teléfono, en cápsula flotante y no pegada al borde. Los 10 px de
-   margen son los de sistema.css y no los 12 de la entrega: el hueco que la página deja
-   abajo (`.wrap{padding-bottom}`) está calculado con 10, y cambiar el margen sin cambiar
-   el hueco es taparle 2 px al último renglón. */
+/* La barra fija del teléfono, en cápsula flotante y no pegada al borde. Aquí SOLO el
+   material: la posición ya la dan las otras hojas y no hay que repetirla. sistema.css la
+   despega 10 px en el teléfono y 6 px en la portada del Fold (≤385 px, donde cada píxel
+   cuenta), y plataforma.css sube la barra de acción de la plataforma (#pf-mbar, que
+   también lleva la clase .mbar) hasta `var(--dock)`, ENCIMA del dock de módulos. La
+   entrega traía un `.mbar{bottom:10px}` a secas que, por cargar última, pisaba las dos:
+   la barra de acción bajaba al borde y tapaba el dock entero —al entrar a Calendario la
+   barra de módulos «desaparecía»— y el Fold perdía su ajuste. Sin posición aquí, cada hoja
+   conserva la suya. */
 @media(max-width:759px){
-  /* La POSICIÓN solo para la barra del cotizador. La barra de acción de la plataforma
-     (#pf-mbar, «Agendar el proyecto sin fecha», «Recibí lo de la lista») también lleva la
-     clase .mbar, pero su `bottom` es `var(--dock)`: va ENCIMA del dock de módulos, que es
-     lo que dice su propio marcado. Con un `.mbar{bottom:10px}` a secas —lo que traía la
-     entrega— bajaba hasta el borde y tapaba el dock entero: al entrar a Calendario la barra
-     de módulos «desaparecía». Medido: barra 769-834, dock 764-834. */
-  .mbar:not(.pf-mbar){
-    left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));
-    bottom:max(10px,env(safe-area-inset-bottom,0px));
-  }
   .mbar{
     border-radius:var(--cv-pastilla);border:var(--cv-borde);
     background:var(--cv-relleno-denso);
@@ -222,6 +226,11 @@ html[data-tema="oscuro"]{
 .btn-scaler-open,.btn-vector-open,.ai-btn{border-radius:var(--cv-pastilla)}
 .btn-pri{background:var(--cv-accion);border-color:rgba(var(--af-rgb),.5);
   box-shadow:0 14px 30px -16px rgba(var(--af-rgb),.7),inset 0 1px 0 rgba(255,255,255,.4)}
+/* Al pasar el cursor el degradado se queda: sistema.css pinta `.btn-pri:hover` con el azul
+   plano y, por especificidad, le ganaba a la regla de arriba —el botón cambiaba de degradado
+   a relleno liso al entrar y volvía al salir—. Un poco más de luz dice «encima» sin cambiar
+   de material. */
+.btn-pri:hover{background:var(--cv-accion);filter:brightness(1.06)}
 
 /* La plataforma vuelve a cuadrar los radios con `body.pf .card`, `body.pf .btn`
    y `body.pf .seg`, que pesan más que un selector de una clase. Sin estas tres
@@ -243,9 +252,12 @@ body.pf .seg button,body.pf .tipo-seg button{border-radius:var(--cv-pastilla)}
    ========================================================================== */
 
 .pf-lat{background:linear-gradient(185deg,#1b1f3d,#0d1022 72%);border-right:1px solid rgba(255,255,255,.08)}
-.pf-lat-item{border-radius:14px;min-height:48px}
-.pf-lat-item.on{background:linear-gradient(120deg,rgba(255,255,255,.16),rgba(255,255,255,.06));
-  border:1px solid rgba(255,255,255,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}
+/* Solo el radio. El `min-height:48px` de la entrega ganaba a los tres altos que
+   plataforma.css le da al pie de la barra lateral por ancho (40, 44 y 48) y «Tema oscuro» y
+   «Ajustes» quedaban 8 px más altos que los módulos de arriba. Y la regla `.pf-lat-item.on`
+   se fue: ningún elemento lleva esa pareja de clases —el módulo encendido es `.pf-tab.on`,
+   que plataforma.css ya pinta de vidrio—. */
+.pf-lat-item{border-radius:14px}
 .pf-lat-rol{border-radius:18px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
   backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
 
@@ -264,20 +276,32 @@ body.pf .seg button,body.pf .tipo-seg button{border-radius:var(--cv-pastilla)}
    de arriba. La hoja móvil del panel —que se pega abajo y solo redondea las dos
    esquinas de arriba— se conserva: ahí el radio de tarjeta abajo dejaría dos
    esquinas flotando sobre el borde de la pantalla. */
-.pf-panel,.pf-cuenta{border-radius:var(--cv-tarjeta);
+/* `:where(:not(.tb-etapa))` y no `:not()` a secas: la línea de estaciones del tablero
+   («Ganado 2 · En diseño 1 · Cortado 1…») se construye sobre .pf-cuenta pero es un CONTROL,
+   y plataforma.css la deja a propósito sin lomo, sin sombra y con esquinas de 6 px. Con el
+   selector abierto, esta regla la convertía en cinco fichas de vidrio de 20 px con sombra y
+   con 18 px de desenfoque cada una. `:where()` no suma especificidad, así que la regla sigue
+   pesando lo mismo que `.pf-cuenta` y `.pf-cuenta.dinero` —el tinte azul del importe— sigue
+   ganándole como hasta ahora. */
+.pf-panel,.pf-cuenta:where(:not(.tb-etapa)){border-radius:var(--cv-tarjeta);
   background:var(--cv-relleno);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
   border:var(--cv-borde);box-shadow:var(--cv-luz),var(--cv-sombra)}
 body.pf .pf-panel{border-radius:var(--cv-tarjeta)}
 @media(max-width:560px){ body.pf .pf-panel{border-radius:var(--cv-tarjeta) var(--cv-tarjeta) 0 0} }
 
+/* El dock. Sin posición: `left/right/bottom` son los mismos que ya escribe plataforma.css y
+   repetirlos aquí solo daba un segundo sitio donde divergir. El relleno de 8 px sí es de esta
+   capa, y hace que el dock mida 70 px y no 66: por eso `--dock-h` se declara aquí abajo, que
+   es lo que plataforma.css suma para subir todo lo que se apoya en el dock (la barra de
+   acción, el aviso emergente, el botón del asistente y el hueco del final de la página). Con
+   el número escrito allá a mano, la barra de acción quedaba a 4 px del dock en vez de a 10. */
 .pf-abajo{
-  left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));
-  bottom:max(10px,env(safe-area-inset-bottom,0px));
   padding:8px;border-radius:var(--cv-pastilla);border:var(--cv-marino-borde);
   background:var(--cv-marino);
   backdrop-filter:var(--cv-blur);-webkit-backdrop-filter:var(--cv-blur);
   box-shadow:var(--cv-marino-luz),0 18px 40px -20px rgba(0,0,0,.55);
 }
+@media(max-width:759px){ :root{--dock-h:70px} }
 .pf-abajo a,.pf-abajo button{border-radius:var(--cv-pastilla);min-height:52px}
 
 /* Los botones del pie de la ficha —«Orden de trabajo», «Copiar datos para la hoja»— parten
