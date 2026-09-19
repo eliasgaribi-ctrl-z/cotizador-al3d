@@ -232,13 +232,31 @@ html[data-tema="oscuro"]{
    de material. */
 .btn-pri:hover{background:var(--cv-accion);filter:brightness(1.06)}
 
+/* ----- Una pastilla de dos renglones es un óvalo -----
+   El radio de los BOTONES se ata a su alto en vez de ser un número enorme, y no se pierde
+   nada: `border-radius` se recorta solo a la mitad de la caja, así que 23 px —la mitad exacta
+   del botón de 46, que es el alto que usa casi toda la app— dan LA MISMA pastilla en cualquier
+   botón de un renglón de hasta 46 px, y en los pocos de 52 la dejan tres píxeles menos redonda,
+   que no se ve. La diferencia que sí se ve aparece cuando el rótulo se parte en dos y la caja
+   crece a 58: con 999 px eso es un óvalo con el texto pegado a la curva; con 23, un rectángulo
+   redondeado, que es lo que de verdad es.
+   Medido en tres rótulos largos dentro de columnas estrechas, y solo en esos tres: «Recibí lo
+   de la lista (7 materiales)» en un teléfono de 320 px, y «Solicitar autorización a alguien
+   más» y «Vaciar y empezar cotización nueva» en la columna del dinero de una tableta o de un
+   portátil de 1024. Los chips, el riel de pasos, el folio y el botón de IA se quedan en
+   pastilla redonda: ninguno se parte, y son los que dan el aire de la capa. */
+.btn,.btn-gho,.btn-pri,.btn-ok,.btn-dgr,.btn-wa{border-radius:23px}
+
 /* La plataforma vuelve a cuadrar los radios con `body.pf .card`, `body.pf .btn`
    y `body.pf .seg`, que pesan más que un selector de una clase. Sin estas tres
    líneas la pastilla se veía en el cotizador y en el anidador y NO en la
    plataforma, que es donde más botones hay. Solo el radio: lo demás de esos
    bloques —sombras, pesos, el relleno del segmentado— se respeta. */
 body.pf .card{border-radius:var(--cv-tarjeta)}
-body.pf .btn,body.pf .seg{border-radius:var(--cv-pastilla)}
+/* El botón de la plataforma con el mismo radio atado al alto que el de arriba: este selector
+   pesa más y si no, los tres rótulos largos volverían a salir ovalados aquí. */
+body.pf .btn{border-radius:23px}
+body.pf .seg{border-radius:var(--cv-pastilla)}
 body.pf .seg button,body.pf .tipo-seg button{border-radius:var(--cv-pastilla)}
 
 /* Los modales —el de IA, el escalador, el vectorizador, la orden de trabajo—

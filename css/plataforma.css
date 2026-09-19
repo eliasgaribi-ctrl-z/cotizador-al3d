@@ -292,6 +292,18 @@ body.pf::before{display:none}
 .pf-tab .cta{flex:0 0 auto;min-width:20px;height:18px;padding:0 6px;border-radius:9px;
   background:var(--av);color:var(--nav);
   font-weight:700;font-size:var(--t1);line-height:18px;text-align:center}
+/* «Calendario» con su globo no cabía en el carril de 168 px, que es el que se usa de 760 a
+   1023: el rótulo pedía 72 px y tenía 61, así que el único nombre largo de la barra se leía
+   «Calend…» en cualquier tableta y en cualquier portátil chico. Se le devuelven doce píxeles
+   apretando lo que sobra —el hueco entre el icono y la palabra, el relleno lateral de la
+   pestaña y el del globo— sin quitarle ni uno al contenido. De 1024 para arriba el carril
+   mide 216 y nada de esto hace falta. Va DESPUÉS de las reglas de arriba y no dentro del
+   bloque de la barra lateral: allá quedaba antes que `.pf-tab{padding:0 12px}`, con la misma
+   especificidad, y perdía por orden. */
+@media(min-width:760px) and (max-width:1023px){
+  .pf-tab{gap:8px;padding:0 9px}
+  .pf-tab .cta{padding:0 5px}
+}
 /* El anillo de foco por dentro: la barra lateral no tiene aire alrededor de un ítem, y un
    anillo de 2 px con 2 de separación se recortaría contra el canto. */
 .pf-tab:focus-visible,.pf-lat-item:focus-visible{outline:2px solid #fff;outline-offset:-3px}
@@ -725,6 +737,11 @@ body.pf::before{display:none}
   .pf-cuenta{padding:10px var(--e3)}
   .pf-cuenta b{font-size:var(--t6)}
 }
+/* Y la del dinero se lleva el renglón entero en los teléfonos más angostos. En 320 px a cada
+   columna le tocan unos 128 y una cifra de seis dígitos con su letra grande pide 115 más el
+   relleno: «$90,000.00» se salía de su tarjeta. El importe es el dato de esa tarjeta, así que
+   lo que cede es el reparto, no el número. */
+@media(max-width:360px){ .pf-cuenta.dinero{grid-column:1/-1} }
 
 /* Un renglón de dato, para las fichas: etiqueta chica arriba, valor abajo. */
 .pf-dato{padding:var(--e2) 0;border-top:1px solid var(--line)}
@@ -1741,6 +1758,10 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 .ia-hoy-cargando .ia-hoy-t{margin:0;color:var(--tinta3)}
 .ia-hoy-cargando .svgi{animation:ia-gira 1.4s linear infinite}
 .ia-cifras{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--e2)}
+/* En una sola columna debajo de 361 px. Con dos, a cada cifra le tocan 106 px y
+   «$212,100.00» pide 107: el importe salía con puntos suspensivos, y un número cortado no
+   dice menos, no dice nada. */
+@media(max-width:360px){ .ia-cifras{grid-template-columns:1fr} }
 .ia-cifra{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0;text-align:left;
   padding:10px 12px;border:1px solid var(--linea2);border-radius:var(--rr2);background:var(--sup2);
   font-family:inherit;cursor:pointer;transition:border-color var(--mv-s),background var(--mv-s)}
