@@ -140,10 +140,14 @@
 .an-dl-hojas{display:flex;flex-wrap:wrap;gap:var(--e2);margin-top:var(--e2)}
 .an-dl-hojas[hidden]{display:none}
 .an-dl-hojas .btn{width:auto;flex:1 1 140px;margin:0;font-size:var(--t2);padding:10px 12px}
-/* Sobre blanco, no suelto sobre el lienzo: el verde del sistema sobre el lavanda del fondo
-   daba 4,30:1; sobre blanco, 5,6:1. */
+/* Sobre la superficie de tarjeta, no suelto sobre el lienzo: el verde del sistema sobre el
+   lavanda del fondo daba 4,30:1; sobre la tarjeta, 5,6:1. Superficie del TEMA y no `#fff`:
+   con el blanco escrito a mano, el tema oscuro dejaba una caja blanca con la letra pensada
+   para fondo oscuro encima —el verde de «Listo: 2 piezas» daba 1,78:1 y el gris del aviso
+   2,21:1, medidos—. Con el token la caja oscurece con el resto y las dos letras vuelven a
+   leerse en los dos temas. */
 .an-msg{margin-top:var(--e3);padding:var(--e2) var(--e3);font-size:var(--t2);color:var(--n6);line-height:1.5;
-  background:#fff;border:1px solid var(--n2);border-radius:var(--rr1)}
+  background:var(--sup);border:1px solid var(--linea);border-radius:var(--rr1)}
 .an-msg:empty{display:none}
 .an-msg.mal{color:var(--mal);font-weight:500}
 .an-msg.ok{color:var(--ok);font-weight:500}
@@ -293,3 +297,12 @@
    ============================================================================ */
 html.empotrado .topbar{display:none}
 html.empotrado .an-wrap,html.empotrado .an-pie{max-width:none;padding-left:var(--e3);padding-right:var(--e3)}
+
+/* ----- El esqueleto del arranque -----
+   El material y la regla de html.arrancando están en css/sistema.css (cap. 9); aquí solo la
+   geometría de esta página: el paso a paso a la izquierda y la mesa a la derecha, que es como
+   está la de verdad, para que al aparecer nada salte. */
+.an-arranque .arranque-in{max-width:1180px}
+.an-arranque-cols{grid-template-columns:minmax(280px,400px) minmax(0,1fr)}
+.an-arranque .esq-mesa{height:380px}
+@media(max-width:920px){ .an-arranque-cols{grid-template-columns:1fr} }

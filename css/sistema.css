@@ -673,6 +673,19 @@ body.precios-ocultos .precios-nota{display:flex}
    se lea sin barrer la vista de un lado a otro. A 660 px, «Cliente» y «Teléfono» en dos
    columnas dan campos de 320 px para escribir un nombre y un teléfono. */
 .wrap.p-cliente{grid-template-columns:minmax(0,560px);justify-content:center}
+/* En esa columna de 560 el riel no da para los cuatro subtítulos más el total: «1 partida»
+   salía como «1 p…», «falta PDF, WhatsApp y la venta» como «falta PDF, Whats…» y el total
+   como «$20,…», que es justo el dato que no puede cortarse. En la pantalla del cliente esos
+   subtítulos son secundarios —se está capturando quién es, no qué falta—, así que aquí se
+   esconden y las cuatro pestañas y el total caben enteros. En las otras tres pantallas el
+   riel es ancho y los subtítulos vuelven. */
+.wrap.p-cliente .paso-tab .tx small{display:none}
+/* Y aun así al total le faltaban seis píxeles con «$20,416.00»: las pestañas ceden ocho de
+   relleno por lado y el rótulo «Total» se va —la cifra al final del riel de pasos no necesita
+   apellido, y en el teléfono ya se va sola desde los 385 px—. Sobran unos 70 px, que es lo que
+   hace falta para que un total de seis cifras tampoco se recorte. */
+.wrap.p-cliente .paso-tab{padding-left:10px;padding-right:10px}
+.wrap.p-cliente .paso-total small{display:none}
 .pasos{grid-column:1/-1;display:flex;align-items:stretch;gap:4px;margin-bottom:2px}
 .paso-tab{display:flex;align-items:center;gap:9px;min-height:44px;padding:9px 15px 9px 11px;border:1px solid transparent;border-radius:var(--r-sm);
   background:rgba(var(--sup-rgb),.7);cursor:pointer;text-align:left;color:var(--muted);font-family:inherit;transition:.15s;min-width:0}
@@ -817,19 +830,50 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:calc
 }
 @media(max-width:560px){
   .rolewrap{display:contents}
+  /* ----- Dos renglones, no tres -----
+     La barra se partía en tres: la marca, el renglón útil —folio, rol, Clientes, Historial— y
+     un tercero con el tema a la izquierda y «Plataforma» a la derecha, separados por 278 px de
+     nada. Los dos últimos se quedan pegados al desplazar: 117 px de una pantalla de 844, el
+     14 %, y uno de ellos casi vacío.
+     El tema y el enlace a la plataforma se suben al renglón de la marca —que es el que se va
+     con el scroll—, y con razón: el tema se toca una vez y no se vuelve a tocar en semanas, e
+     ir a la plataforma es navegación, no trabajo de esta pantalla. Lo que se queda pegado es
+     un solo renglón de 60 px con lo que sí se usa mientras se cotiza. La marca deja de ocupar
+     el ancho completo para hacerles sitio. */
   .topbar-in .brand{order:1;flex:1 1 100%;min-width:0;gap:8px}
+  /* Los dos botones van FUERA del reparto, anclados arriba a la derecha, y no como ítems más
+     del renglón: con `order` y `flex-wrap` la fila se llena hasta donde da y el que no cabe
+     baja a la siguiente mezclado con los de abajo, que es como se armaba el tercer renglón
+     que esto viene a quitar. Anclados, el renglón de la marca mide exactamente 44 px y el
+     folio empieza el segundo, siempre, en cualquier ancho de teléfono. El hueco a la derecha
+     del título se lo reserva la propia marca, así que un nombre largo no pasa por debajo. */
+  body:not(.an) .topbar-in{position:relative}
+  body:not(.an) .topbar-in .brand{min-height:44px;align-items:center;padding-right:100px}
+  /* Los dos van dentro del relleno de la barra, no pegados al canto: `top`/`right` de un
+     absoluto se miden desde el borde, así que aquí se repite el mismo relleno que la barra
+     usa —y el mismo área segura—, o los botones quedan mordidos por la esquina de la
+     pantalla. 52 px es el ancho de uno más su hueco. */
+  body:not(.an) .topbar-in .btn-tema{position:absolute;
+    top:max(8px,env(safe-area-inset-top,0px));right:calc(max(12px,env(safe-area-inset-right,0px)) + 52px);margin:0}
+  body:not(.an) .topbar-in .btn-pf{position:absolute;
+    top:max(8px,env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px));margin:0}
   .topbar-in .folio{order:2;flex:0 0 auto;padding:5px 9px;font-size:11.5px;white-space:nowrap}
   /* Base de 150 px: si con el folio y el historial ya no cabe —pantallas de 320 px—
      el selector de rol se pasa solo al renglón de abajo en vez de partir su texto. */
   .topbar-in .seg{order:3;flex:1 1 150px;width:auto}
   .topbar-in .seg button{flex:1;padding:0 10px;min-height:44px;font-size:12.5px}
-  .topbar-in .btn-hist{order:4;flex:0 0 auto;padding:0 12px;min-height:44px}
+  .topbar-in .btn-hist:not(.btn-tema){order:4;flex:0 0 auto;padding:0 12px;min-height:44px}
+  /* `order:4` como el resto de los botones de esta barra: en el anidador el tema es uno más
+     del renglón y sin él se iba al principio de la fila —delante de la marca, en un renglón
+     propio—. En el cotizador va anclado (aquí abajo) y el orden le da igual, porque un
+     elemento posicionado no participa del reparto. */
+  .topbar-in .btn-tema{order:4;padding:0;width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
   /* El enlace a la plataforma pierde su palabra en cuanto la pantalla es de teléfono, no a
      los 385 px como «Historial»: son dos controles y con los dos escritos el renglón del
      folio y el selector de rol ya no cabía. Un tercer renglón en esta barra es el error que
      esta hoja ya arregló una vez —está tres bloques más abajo— y no se vuelve a cometer. */
   .topbar-in .btn-pf .lbl{display:none}
-  .topbar-in .btn-pf{order:5;padding:0;width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+  .topbar-in .btn-pf{padding:0;width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
   .topbar-in{row-gap:7px}
 }
 /* En el celular la palabra «Historial» era justo lo que hacía que el selector de rol ya
@@ -1093,6 +1137,14 @@ textarea{resize:vertical;min-height:46px}
    contar —el flex ignora los nodos de solo espacio— y el texto se acomoda en su columna. */
 .hintnote{font-size:var(--t2);color:var(--n6);background:var(--n1);border-radius:var(--rr1);padding:8px 12px;display:inline-flex;align-items:flex-start;gap:var(--e2);line-height:1.5}
 .hintnote>.svgi{flex-shrink:0;margin-top:.15em}
+/* El negrita de en medio NO es una columna. En un contenedor flex, cada elemento hijo es un
+   ítem y cada tramo de texto suelto entre ellos es otro: «Opaco: la luz sale por detrás. Para
+   luz de frente, <b>Acrílico + Aluminio</b>.» salía en tres celdas —el texto a la izquierda,
+   el negrita a la derecha y el punto final solo, pegado al borde—. Con `display:contents` el
+   negrita no genera caja, su texto se junta con el de los lados en un único ítem y la frase
+   vuelve a ser una frase; el grosor se hereda igual, que es lo único que ese `<b>` aportaba.
+   Vale para los tres énfasis que estas notas usan y para todas las notas de la app. */
+.hintnote>b,.hintnote>strong,.hintnote>em,.hintnote>i{display:contents}
 /* Los avisos con color van con el mismo relleno tenue y borde de un píxel que todo lo
    demás; el filete de tres píxeles a la izquierda era el único elemento de la hoja que se
    dibujaba así, y con tres colores distintos. */
@@ -1209,6 +1261,17 @@ textarea{resize:vertical;min-height:46px}
    con 81 px fijos el resumen quedaba metido 40 px debajo de ella. `--top-fijo` la publica
    ajustarTopbarMovil() en cada resize, y es la misma que ya usa .pcab. */
 .side{position:sticky;top:calc(var(--top-fijo,74px) + 12px)}
+/* ----- Pantalla acostada -----
+   En un teléfono apaisado (844×390) la cabecera pegada se lleva 126 px de los 390 y la
+   columna del dinero mide 854: pegajosa dentro de una ventana más baja que ella, al llegar
+   al fondo su parte de abajo sube y «Autorizar yo mismo» queda detrás de la cabecera —solo
+   se alcanzaba con un desplazamiento intermedio exacto—. Con las dos sueltas, la página se
+   lee de corrido como en vertical. El corte es por ALTO: el ancho no distingue este caso,
+   porque 844 px de ancho son «escritorio» para todas las demás reglas. */
+@media(max-height:600px) and (pointer:coarse){
+  .side{position:static}
+  .topbar{position:static}
+}
 /* ----- El resumen -----
    Eran dos bloques de color a pantalla completa —uno azul de marca para el subtotal y uno
    marino con degradado para el total— apilados uno encima del otro. Pintar de color un
@@ -1352,6 +1415,26 @@ details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
    esta por ser más específica, así que el escalador conserva su propia altura. */
 @media(max-width:759px){
   .toast{bottom:calc(20px + 66px + env(safe-area-inset-bottom,0px))}
+}
+/* En la computadora el aviso va abajo a la IZQUIERDA, no al centro. El centro de abajo es
+   exactamente donde caen los botones principales de la columna única del paso 1 y del pie
+   de la ficha —«Continuar a partidas», «Ir a entrega», «Generar PDF»—, y «Cotización
+   autorizada — guardada en historial» tapaba «Generar PDF» en el momento exacto en que se iba
+   a apretar. Abajo a la izquierda no hay nada que tapar: en el cotizador es hueco, y en la
+   plataforma queda a la derecha de la barra lateral, que es lo que mide --lat (0 donde no
+   existe: el cotizador suelto y el empotrado). El teléfono se queda centrado: ahí la barra fija
+   ocupa todo el ancho y el aviso ya se pone encima de ella. */
+@media(min-width:760px){
+  .toast{left:calc(var(--lat,0px) + 24px);right:auto;transform:translateY(90px)}
+  .toast.show{transform:translateY(0)}
+  /* Con una capa abierta, arriba. «Abajo a la izquierda no hay nada que tapar» vale para la
+     página, pero la ficha del proyecto y la orden de trabajo se centran en un panel de 640
+     px cuyo pie de botones cae exactamente en esa esquina: «Datos copiados…» se montaba
+     sobre «Orden de trabajo» los cuatro segundos que dura, justo después de tocarlo (medido
+     a 1440×1000: toast en y 928-974, botones del pie en 894-950). Arriba, el panel solo
+     tiene su título. */
+  body:has(.pf-modal-bg.show) .toast{top:calc(32px + 12px);bottom:auto;transform:translateY(-90px)}
+  body:has(.pf-modal-bg.show) .toast.show{transform:translateY(0)}
 }
 
 /* ----- Cola de autorización ----- */
@@ -2256,6 +2339,16 @@ a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-t
 /* Plegada no hay nada que desplazar, así que el encabezado no se pega ni se separa con una
    línea: la partida entera ES el encabezado. */
 .partida.folded .pcab{position:static;margin-bottom:0;padding-bottom:0;border-bottom:0}
+/* EN EL TELÉFONO TAMPOCO SE PEGA, y no es una preferencia: es que ahí el encabezado no cabe
+   en un renglón. A 390 px la fila —flecha, asa, número, las cinco pestañas de tipo, el
+   importe, copiar, ojo, cerrar— se parte en tres, y con el resumen debajo el bloque mide
+   unos 320 px. Pegado, tapa 320 de los ~680 que quedan bajo la barra, y el cuerpo de la
+   partida se desplaza POR DETRÁS: «Descripción» y «Material / acabado» no llegaban a verse
+   nunca y el interruptor de «Con iluminación» salía cortado por la mitad por el borde de
+   abajo del resumen. Medido en la auditoría: el cuerpo empezaba 160 px por encima del
+   encabezado que lo tapaba. En la computadora el encabezado mide un renglón y pegarlo es lo
+   que explica el comentario de arriba; aquí lo que explica es lo contrario. */
+@media(max-width:560px){ .partida:not(.folded) .pcab{position:static} }
 /* El total, en el encabezado. Se subió desde `.pline` —el porqué está en partidas.js— y aquí
    se le da el peso que tiene en la maqueta: la letra de las cifras, 16 px, tabular. */
 .partida-top>.lt{margin-left:auto;font-family:var(--f-cifra);font-size:16px;font-weight:600;
@@ -2348,7 +2441,12 @@ a.btn-hist:hover{background:var(--a-suave);border-color:var(--a);color:var(--a-t
   .addbtn{padding:13px 9px;font-size:12.5px}
   .addbtn.igual{font-size:12px;padding:13px 10px}
   .hist-foot{padding:10px 13px 12px;gap:7px}
-  .hist-foot button{min-width:0;font-size:11.5px;padding:9px 6px}
+  /* Dos filas de dos, no cuatro en una. Con `min-width:0` y `nowrap` los cuatro botones
+     cabían en el renglón pero su texto no cabía en el botón: a 390 px quedaban de 70 px y
+     «Respaldar» salía «Respalda». La regla de dos por fila ya existía para la portada del
+     Fold (≤385); el recorte empieza en realidad en 560, que es donde vive casi cualquier
+     teléfono de hoy. */
+  .hist-foot button{min-width:0;font-size:11.5px;padding:9px 6px;flex:1 1 calc(50% - 4px)}
   /* Con dos acciones —abrir y usar como base— la columna de botones dejaba el nombre
      del proyecto en tres letras por renglón. En el teléfono bajan a su propio renglón,
      donde además caben más anchas y se tocan mejor. */
@@ -2981,7 +3079,12 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
 
    Solo donde hay catálogo: la clase la pone `grupo()` en js/cotizador/partidas.js, y la
    complejidad y la iluminación —tres chips cortos— se quedan en fila, como en la maqueta. */
-.chips-catalogo{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px}
+/* 250 y no 180: con 180 el rótulo más largo del catálogo —«Acrílico + Aluminio (Volumen)»
+   más su tarifa— pide unos 260 px y se partía en dos renglones dentro de una pastilla de
+   radio 999, o sea un óvalo con el texto pegado a la curva (medido en tableta: chips de
+   181×55 con dos líneas). Con 250, en una columna de 424 px cae una sola columna a un
+   renglón —como en el teléfono— y en 794 px caben tres, también a un renglón. */
+.chips-catalogo{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px}
 .chips-catalogo .chip{min-height:44px;justify-content:flex-start;text-align:left}
 /* La tarifa, pegada a la derecha de su opción: así las cinco caen en columna. */
 .chips-catalogo .chip small{margin-left:auto;padding-left:var(--e2)}
@@ -3070,6 +3173,18 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
 .paso-total>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .paso-total small{font-family:var(--f-texto);font-weight:500;font-size:var(--t1);color:var(--tinta3)}
 @media(max-width:385px){ .paso-total small{display:none} }
+/* En el teléfono la cifra NO cede: con la cotización cerrada —cuatro pestañas hechas más el
+   total— al riel de 390 px le faltaban 2 px y «$20,416.00» salía como «$20,416.0…», medido.
+   Cede primero el relleno del total (de 10 por lado a 6 y 4: está al final del riel y no
+   necesita aire a la derecha) y, si en un teléfono más angosto sigue faltando, cede el rótulo
+   de la pestaña activa, que se recorta con puntos: «Cliente» se entiende como «Clie…» y un
+   importe cortado no se entiende de ninguna manera. `overflow:hidden` en la pestaña es lo
+   que permite que encoja por debajo de su texto sin derramarlo sobre la de al lado. */
+@media(max-width:560px){
+  .paso-total{flex-shrink:0;padding:0 4px 0 6px}
+  .paso-tab.on{overflow:hidden}
+  .paso-tab.on .tx>*{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
 /* Que `hidden` lo esconda de verdad lo resuelve la regla `[hidden]` del principio de la hoja,
    para todo el documento y de una vez. */
 
@@ -4560,8 +4675,14 @@ body::after{
 .ai-btn:active{transform:scale(.97) translateY(0)}
 .ai-btn:focus-visible{outline:2px solid var(--a-fuerte);outline-offset:3px}
 /* Deshabilitado: se para todo. Un botón que no se puede tocar y sigue brillando miente. */
+/* Deshabilitado se lee, aunque no se pueda tocar. Iba en blanco sobre --n4 al 55 % de
+   opacidad: el rótulo entero —«Cotizar con IA — analizar JPG o PDF»— se perdía contra el
+   gris, y un botón que no se lee no se distingue de uno roto. Ahora es tinta secundaria sobre
+   --n3, sin bajar la opacidad: 4,54:1 de día (#5c6184 sobre #dcdff2) y 5,25:1 de noche
+   (#a7acd6 sobre #2f3562), y sigue viéndose apagado porque el degradado, el filo y el barrido
+   se fueron. */
 .ai-btn:disabled,.ai-btn[disabled]{
-  animation:none;background:var(--n4);box-shadow:none;transform:none;opacity:.55;
+  animation:none;background:var(--n3);color:var(--tinta2);box-shadow:none;transform:none;opacity:1;
 }
 .ai-btn:disabled::after,.ai-btn[disabled]::after,
 .ai-btn:disabled .svgi,.ai-btn[disabled] .svgi{animation:none}
@@ -4731,7 +4852,7 @@ html[data-tema="oscuro"] .ai-btn:hover{
   filter:brightness(1.12);
 }
 html[data-tema="oscuro"] .ai-btn:disabled,html[data-tema="oscuro"] .ai-btn[disabled]{
-  background:var(--n3);border-color:transparent;
+  background:var(--n3);border-color:transparent;color:var(--tinta2);
 }
 /* El dock de noche: el filo casi no se ve sobre marino, así que lo que despega la pieza del
    lienzo es la sombra, y tiene que ser negra y muy abierta. La de antes iba solo hacia arriba
@@ -4783,3 +4904,59 @@ html[data-tema="oscuro"] .ai-btn:disabled,html[data-tema="oscuro"] .ai-btn[disab
   .ai-btn::before,.ai-btn::after,.pf-ia-btn::before,.pf-ia-btn::after{display:none!important}
   .mbar,.modal,.topbar{background:#fff!important;background-image:none!important}
 }
+
+/* ==========================================================================
+   9 · LAS PANTALLAS DE CARGA
+   --------------------------------------------------------------------------
+   Lo que se ve mientras algo llega. Existe por una medición y no por un gusto: entre
+   pedir una pestaña de la plataforma y verla pintada pasan 56-87 ms en una computadora
+   —ahí NO debe verse nada—, pero el marco del cotizador tardaba 240-500 ms en pintar
+   sus datos, el del anidador 700-950, y las dos páginas sueltas enseñaban su marcado
+   SIN datos —el riel sin paso encendido, los campos vacíos, la columna del dinero en
+   blanco— mientras bajaban sus guiones. En un teléfono con la red mal eso son segundos
+   mirando algo que parece la app y no responde.
+
+   Tres piezas comparten esta hoja porque las tres superficies las usan:
+     · `.esq-b`, la barra con brillo, y las medidas de cada tipo de barra (`esq-n` una
+       cifra, `esq-t` un título, `esq-d` un dato, `esq-campo` un campo, `esq-boton`,
+       `esq-bloque`). Se arma la silueta de lo que viene con ellas y nada más.
+     · `.esq-giro`, el punto que gira junto al texto de estado.
+     · `.arranque`, el esqueleto de las dos páginas sueltas (cotizador.html y el anidador):
+       solo existe mientras <html> lleve `arrancando`, que pone su primer <script> y quita
+       el final de su arranque. Mientras, `.wrap` y `.mbar` están en visibility:hidden —no
+       en display:none: conservan su tamaño para que al aparecer nada salte—.
+
+   El brillo sale de los tokens de superficie —--sup2 y --n2—, así que en oscuro cambia
+   solo, y con prefers-reduced-motion se queda quieto: una silueta fija sigue diciendo
+   «aquí va a aparecer algo» sin moverse. En papel no hay nada de esto.
+   ========================================================================== */
+:root{ --esq-brillo:linear-gradient(90deg,var(--sup2) 0%,var(--n2) 45%,var(--sup2) 90%); }
+.esq-b{display:block;border-radius:8px;background:var(--esq-brillo);background-size:220% 100%;
+  animation:esq-brilla 1.5s linear infinite}
+@keyframes esq-brilla{from{background-position:120% 0}to{background-position:-120% 0}}
+.esq-n{width:38%;height:26px;margin-bottom:10px}
+.esq-t{width:62%;height:14px;margin-bottom:8px}
+.esq-d{width:44%;height:11px}
+.esq-campo{width:100%;height:42px;border-radius:10px;margin-top:12px}
+.esq-largo{height:84px}
+.esq-boton{height:46px;border-radius:999px;margin-top:16px;
+  background:linear-gradient(90deg,rgba(var(--a-rgb),.16),rgba(var(--a-rgb),.30) 45%,rgba(var(--a-rgb),.16) 90%);background-size:220% 100%}
+.esq-bloque{width:100%;height:220px;border-radius:14px;margin-top:12px}
+.esq-drop{height:170px;border:2px dashed var(--linea);background:none;animation:none}
+.card.esq{pointer-events:none;box-shadow:none}
+.esq-giro{display:inline-block;width:14px;height:14px;border-radius:50%;flex:0 0 auto;
+  border:2px solid var(--linea);border-top-color:var(--a);animation:esq-gira .8s linear infinite}
+@keyframes esq-gira{to{transform:rotate(360deg)}}
+
+/* El arranque de las dos páginas sueltas. */
+.arranque{display:none}
+html.arrancando .arranque{display:block}
+html.arrancando .wrap,html.arrancando .mbar,html.arrancando .an-wrap,html.arrancando .an-pie{visibility:hidden}
+.arranque-in{max-width:1180px;margin:0 auto;padding:var(--e5) var(--e4)}
+.arranque-riel{height:64px;border-radius:999px;margin:0 auto var(--e4);max-width:560px}
+.arranque-cols{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:var(--e4);align-items:start}
+@media(max-width:920px){ .arranque-cols{grid-template-columns:1fr} .arranque-lado{display:none} }
+.arranque-t{display:flex;align-items:center;justify-content:center;gap:8px;margin:var(--e5) 0 0;
+  color:var(--tinta2);font-size:var(--t3);font-weight:500}
+@media(prefers-reduced-motion:reduce){ .esq-b,.esq-boton,.esq-giro{animation:none} }
+@media print{ .arranque,.esq-giro{display:none!important} }

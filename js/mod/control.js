@@ -268,7 +268,9 @@ function pintarVentas() {
   c.push(cuenta(money(k.porCobrar.total), cob.t, { urge: k.porCobrar.n > 0,
     em: k.porCobrar.n + (k.porCobrar.n === 1 ? ' venta con saldo' : ' ventas con saldo') + (cob.em ? ' · ' + cob.em : '') }));
   c.push(cuenta(D.conv.tasa === null ? '—' : D.conv.tasa + ' %', 'Conversión',
-    { em: D.conv.ganadas + ' ganadas de ' + (D.conv.ganadas + D.conv.perdidas) + ' decididas' }));
+    { em: D.conv.ganadas + (D.conv.ganadas === 1 ? ' ganada de ' : ' ganadas de ') +
+          (D.conv.ganadas + D.conv.perdidas) +
+          (D.conv.ganadas + D.conv.perdidas === 1 ? ' decidida' : ' decididas') }));
   c.push(cuenta(money(k.perdidoMes.total), 'No se dio en ' + k.mes.etiqueta, { mal: k.perdidoMes.n > 0,
     em: k.perdidoMes.n + (k.perdidoMes.n === 1 ? ' cotización' : ' cotizaciones') }));
 
@@ -284,7 +286,7 @@ function pintarVentas() {
     'venta está allá, y el que se firmó aquí cuando todavía no ha salido de este dispositivo. «Por cobrar» es el saldo que calcula ' +
     'la hoja cuando bajó; si no, el total menos el anticipo pactado, y cero si el estatus ya dice LIQUIDADO. ' +
     'El ticket promedio de los últimos doce meses es ' + esc(money(k.ticket)) +
-    (k.ultimos12.n ? ' sobre ' + k.ultimos12.n + ' ventas' : '') + '.</p>');
+    (k.ultimos12.n ? ' sobre ' + k.ultimos12.n + (k.ultimos12.n === 1 ? ' venta' : ' ventas') : '') + '.</p>');
   return partes.join('');
 }
 

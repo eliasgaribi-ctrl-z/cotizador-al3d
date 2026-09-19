@@ -21,6 +21,16 @@
    gana la última, y la última era plataforma.css. Es la misma razón por la que
    la entrega ya pedía cargarla después de anidador.css.
 
+   LOS TOKENS SE LLAMAN --cv-* Y NO --vid-* COMO EN LA ENTREGA. sistema.css ya
+   tiene `--vid-blur` (18 px de día, 22 de noche) y lo escribe como
+   `blur(var(--vid-blur))` en ocho sitios; con la entrega tal cual, esos ocho
+   se volvían `blur(blur(22px) saturate(1.6))` —inválido, o sea sin desenfoque—
+   y de noche, donde el sistema lo redefine con más especificidad, la barra de
+   esta hoja quedaba en `backdrop-filter:22px`, inválido también. Ni un error
+   en consola: el vidrio simplemente dejaba de serlo. `--cv` es «capa de
+   vidrio», y pruebas/hojas-de-estilo.mjs vigila que ningún token de aquí exista
+   ya en las otras dos hojas.
+
    TRES COSAS QUE NO SON LAS DE LA ENTREGA, Y POR QUÉ. Están escritas donde
    tocan, pero conviene tenerlas juntas:
      · `.pf-kpi` no existe en este repo. La ficha del tablero es `.pf-cuenta`.
@@ -46,12 +56,31 @@
   --f-cifra:'Sora','Manrope','Segoe UI',Roboto,Helvetica,Arial,sans-serif;
 
   /* El vidrio. Un solo juego de valores para que todas las superficies se vean
-     del mismo material y no haya seis desenfoques distintos. */
-  --vid-relleno:linear-gradient(180deg,rgba(255,255,255,.80),rgba(255,255,255,.52));
-  --vid-borde:1px solid rgba(255,255,255,.85);
-  --vid-blur:blur(22px) saturate(1.6);
-  --vid-luz:inset 0 1px 0 rgba(255,255,255,.95);
-  --vid-sombra:0 26px 54px -34px rgba(20,23,43,.55);
+     del mismo material y no haya seis desenfoques distintos.
+
+     EL ESPESOR NO ES EL DE LA ENTREGA, Y ESTÁ MEDIDO. Venía en blanco del 80 % al
+     52 %, y ese 52 % de abajo es por donde pasa la cotización cuando se desplaza
+     debajo de la barra: en el paso 3 el riel de los cuatro pasos se leía entero a
+     través de ella, y en tema oscuro —donde la entrega ponía blanco al 14 % y al
+     5 %, o sea nada— la pestaña encendida se veía flotando encima del logotipo.
+     sistema.css ya había medido esto mismo en el dock del teléfono: al 78 % se
+     alcanzaba a leer «ILUMINACIÓN» a través del vidrio y al 88 % ya no compite.
+     Así que el relleno se construye en dos capas: una base de la SUPERFICIE del
+     tema al 86 % —blanco de día, --sup de noche, porque --sup-rgb cambia con el
+     tema— y encima la luz blanca que hace que se lea como vidrio. Con eso una
+     sola declaración vale para los dos temas. */
+  --cv-relleno:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05)),rgba(var(--sup-rgb),.86);
+  /* Y el DENSO, para las piezas por debajo de las que PASA la página al desplazarse —la barra
+     de arriba, la barra fija del teléfono, la cabecera de la plataforma—: al 86 % todavía se
+     leía «Acomodar en la lámina» a través de la barra de acción del Calendario. Al 93 % lo de
+     detrás se adivina como color, que es lo que lo hace vidrio, y ya no compite con el rótulo
+     que va encima. El riel de pasos, la columna del dinero, los paneles y las fichas se quedan
+     al 86 %: debajo de ellos no se desplaza nada. */
+  --cv-relleno-denso:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05)),rgba(var(--sup-rgb),.93);
+  --cv-borde:1px solid rgba(255,255,255,.85);
+  --cv-blur:blur(22px) saturate(1.6);
+  --cv-luz:inset 0 1px 0 rgba(255,255,255,.95);
+  --cv-sombra:0 26px 54px -34px rgba(20,23,43,.55);
 
   /* EL DEGRADADO DE LAS ACCIONES, Y EL ÚNICO NÚMERO QUE OBLIGÓ A CAMBIAR LA
      ENTREGA. Venía escrito a mano —#2a13e0 → #4060f8 → #7b3ff8 en claro, y
@@ -70,19 +99,28 @@
      colores que mantener. En claro la diferencia con lo entregado es que el
      primer tono es #3018f8 y no #2a13e0: el mismo azul de marca, un pelo más
      vivo. */
-  --vid-accion:linear-gradient(118deg,var(--ia-a) 0%,var(--ia-b) 50%,var(--ia-c) 100%);
+  --cv-accion:linear-gradient(118deg,var(--ia-a) 0%,var(--ia-b) 50%,var(--ia-c) 100%);
 
-  --vid-pastilla:999px;   /* botones y fichas */
-  --vid-tarjeta:20px;     /* tarjetas y paneles */
+  /* EL CROMADO DEL TELÉFONO ES MARINO, NO BLANCO. En ≤759 px la cabecera y el dock de la
+     plataforma llevan texto e iconos BLANCOS —plataforma.css los pinta de «cristal marino»,
+     igual que la barra lateral—, y la entrega los repintaba con el mismo relleno claro que
+     todo lo demás: el título de cada pantalla y los cuatro iconos apagados del dock quedaban
+     blanco sobre blanco, invisibles. Se vio en la captura del teléfono: del dock solo se veía
+     la píldora encendida. Este es el mismo vidrio, sobre la base marina del sistema. */
+  --cv-marino:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.03)),rgba(var(--nav-rgb),.90);
+  --cv-marino-borde:1px solid rgba(255,255,255,.09);
+  --cv-marino-luz:inset 0 1px 0 rgba(255,255,255,.12);
+
+  --cv-pastilla:999px;   /* botones y fichas */
+  --cv-tarjeta:20px;     /* tarjetas y paneles */
 }
 
 /* De noche el vidrio no es blanco translúcido sino luz sobre oscuro, y el
    degradado se cambia solo porque --ia-a/b/c ya cambian con el tema. */
 html[data-tema="oscuro"]{
-  --vid-relleno:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05));
-  --vid-borde:1px solid rgba(255,255,255,.16);
-  --vid-luz:inset 0 1px 0 rgba(255,255,255,.26);
-  --vid-sombra:0 30px 60px -32px rgba(0,0,0,.8);
+  --cv-borde:1px solid rgba(255,255,255,.16);
+  --cv-luz:inset 0 1px 0 rgba(255,255,255,.26);
+  --cv-sombra:0 30px 60px -32px rgba(0,0,0,.8);
 }
 
 /* ==========================================================================
@@ -90,65 +128,92 @@ html[data-tema="oscuro"]{
    ========================================================================== */
 
 .topbar{
-  background:var(--vid-relleno);
-  backdrop-filter:var(--vid-blur);
-  -webkit-backdrop-filter:var(--vid-blur);
-  border-bottom:var(--vid-borde);
-  box-shadow:var(--vid-luz),0 10px 30px -22px rgba(20,23,43,.45);
+  background:var(--cv-relleno-denso);
+  backdrop-filter:var(--cv-blur);
+  -webkit-backdrop-filter:var(--cv-blur);
+  border-bottom:var(--cv-borde);
+  box-shadow:var(--cv-luz),0 10px 30px -22px rgba(20,23,43,.45);
 }
 
 /* Los cuatro pasos dejan de ser pestañas cuadradas dentro de una tarjeta y
    pasan a ser un riel de vidrio con pastillas. Mismo alto, mismo orden. */
 .pasos{
-  gap:6px;padding:8px;border-radius:var(--vid-pastilla);
-  background:var(--vid-relleno);
-  backdrop-filter:var(--vid-blur);
-  -webkit-backdrop-filter:var(--vid-blur);
-  border:var(--vid-borde);
-  box-shadow:var(--vid-luz),0 16px 36px -26px rgba(20,23,43,.5);
+  gap:4px;padding:6px;border-radius:var(--cv-pastilla);
+  background:var(--cv-relleno);
+  backdrop-filter:var(--cv-blur);
+  -webkit-backdrop-filter:var(--cv-blur);
+  border:var(--cv-borde);
+  box-shadow:var(--cv-luz),0 16px 36px -26px rgba(20,23,43,.5);
 }
-.paso-tab{border-radius:var(--vid-pastilla);background:none;border-color:transparent;min-height:48px;padding:0 18px}
-.paso-tab:hover{background:rgba(var(--sup-rgb),.7);border-color:transparent}
+/* El relleno horizontal NO son los 18 px de la entrega. En el paso 1 el riel mide 560 px
+   y lleva cuatro pestañas con su renglón chico —«1 partida», «falta PDF, WhatsApp y la
+   venta»— más el total: con 18 px por lado, «1 partida» se quedaba en «1 …». Con 12 y 14
+   —los mismos que ya tenía la pestaña cuadrada— cabe lo que cabía antes. */
+.paso-tab{border-radius:var(--cv-pastilla);background:none;border-color:transparent;min-height:48px;padding:0 14px 0 12px}
+/* El hover de la entrega era blanco al 70 % sobre un riel que ya es blanco al 88 %: no se
+   veía. Un velo del azul de marca al 8 % sí se ve, en los dos temas, y no compite con la
+   pestaña encendida, que va casi opaca. */
+.paso-tab:hover{background:rgba(var(--a-rgb),.08);border-color:transparent}
 /* La pestaña encendida se queda CASI opaca (.98) y no traslúcida: es la que
    lleva el nombre del cliente en chico debajo del rótulo, y es una de las
    piezas que mide pruebas/navegador/contraste.mjs. Sobre un riel de vidrio, un
    relleno traslúcido ahí deja pasar lo que haya detrás y la medida baila. */
 .paso-tab.on{background:rgba(var(--sup-rgb),.98);border-color:rgba(255,255,255,.9);
-  box-shadow:0 8px 22px -14px rgba(var(--a-rgb),.55),var(--vid-luz)}
-.paso-tab .n{width:26px;height:26px;border-radius:var(--vid-pastilla)}
-.paso-tab.on .n{background:var(--vid-accion)}
+  box-shadow:0 8px 22px -14px rgba(var(--a-rgb),.55),var(--cv-luz)}
+.paso-tab .n{width:26px;height:26px;border-radius:var(--cv-pastilla)}
+.paso-tab.on .n{background:var(--cv-accion)}
+/* Lo de arriba deshacía el apretón que sistema.css le da al riel debajo de 560 px —hueco de
+   2, número de 22, relleno de 10/8 en la pestaña encendida—, porque esta hoja carga después
+   y sin corte de ancho: unos 30 px más de riel en un teléfono de 320. Se repite aquí el
+   mismo apretón, con el mismo corte, para que la última hoja lo respete. */
+@media(max-width:560px){
+  .pasos{gap:2px}
+  .paso-tab.on{padding:0 10px 0 8px}
+  .paso-tab .n{width:22px;height:22px}
+}
 
 /* ==========================================================================
    2. La columna del dinero
    ========================================================================== */
 
-.side .sum,.side .neto,.side .sum-rows{border-radius:var(--vid-tarjeta)}
+/* Solo la tarjeta. La entrega redondeaba también `.neto` y `.sum-rows`, y `.neto` es un
+   bloque sin fondo que se separa del subtotal con un filete de arriba: al redondearlo, el
+   filete se curvaba en las dos puntas y quedaba un arco suelto flotando encima de «TOTAL
+   NETO». Se vio en la captura; a ojo parecía una tapa mal puesta. */
+.side .sum{border-radius:var(--cv-tarjeta)}
 .side>.sum{
-  background:var(--vid-relleno);
-  backdrop-filter:var(--vid-blur);
-  -webkit-backdrop-filter:var(--vid-blur);
-  border:var(--vid-borde);
-  box-shadow:var(--vid-luz),var(--vid-sombra);
+  background:var(--cv-relleno);
+  backdrop-filter:var(--cv-blur);
+  -webkit-backdrop-filter:var(--cv-blur);
+  border:var(--cv-borde);
+  box-shadow:var(--cv-luz),var(--cv-sombra);
 }
 .prog-box{border-radius:16px;background:rgba(var(--sup-rgb),.55)}
 .prog-box:hover{background:rgba(var(--sup-rgb),.92)}
-.prog-track{height:8px;border-radius:var(--vid-pastilla);overflow:hidden}
+.prog-track{height:8px;border-radius:var(--cv-pastilla);overflow:hidden}
 /* El subtotal es el número que se copia a Canva: se queda como el bloque de
    color de la columna, ahora con el vidrio encima. */
 .srow.subtotal{border-radius:18px;
   background:linear-gradient(150deg,rgba(var(--a-rgb),.16),rgba(var(--a2-rgb),.14));
-  border:1px solid rgba(var(--a-rgb),.28);box-shadow:var(--vid-luz)}
+  border:1px solid rgba(var(--a-rgb),.28);box-shadow:var(--cv-luz)}
 .neto .amt,.mbar-amt{font-family:var(--f-cifra);letter-spacing:-1.2px}
 
-/* La barra fija del teléfono, en cápsula flotante y no pegada al borde. */
+/* La barra fija del teléfono, en cápsula flotante y no pegada al borde. Aquí SOLO el
+   material: la posición ya la dan las otras hojas y no hay que repetirla. sistema.css la
+   despega 10 px en el teléfono y 6 px en la portada del Fold (≤385 px, donde cada píxel
+   cuenta), y plataforma.css sube la barra de acción de la plataforma (#pf-mbar, que
+   también lleva la clase .mbar) hasta `var(--dock)`, ENCIMA del dock de módulos. La
+   entrega traía un `.mbar{bottom:10px}` a secas que, por cargar última, pisaba las dos:
+   la barra de acción bajaba al borde y tapaba el dock entero —al entrar a Calendario la
+   barra de módulos «desaparecía»— y el Fold perdía su ajuste. Sin posición aquí, cada hoja
+   conserva la suya. */
 @media(max-width:759px){
   .mbar{
-    left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));
-    border-radius:var(--vid-pastilla);border:var(--vid-borde);
-    background:var(--vid-relleno);
-    backdrop-filter:var(--vid-blur);
-    -webkit-backdrop-filter:var(--vid-blur);
-    box-shadow:var(--vid-luz),0 18px 40px -20px rgba(20,23,43,.6);
+    border-radius:var(--cv-pastilla);border:var(--cv-borde);
+    background:var(--cv-relleno-denso);
+    backdrop-filter:var(--cv-blur);
+    -webkit-backdrop-filter:var(--cv-blur);
+    box-shadow:var(--cv-luz),0 18px 40px -20px rgba(20,23,43,.6);
   }
 }
 
@@ -156,41 +221,51 @@ html[data-tema="oscuro"]{
    3. Pastillas y tarjetas
    ========================================================================== */
 
-.card{border-radius:var(--vid-tarjeta)}
+.card{border-radius:var(--cv-tarjeta)}
 .btn,.btn-hist,.btn-gho,.btn-pri,.chip,.seg,.seg button,.folio,
-.btn-scaler-open,.btn-vector-open,.ai-btn{border-radius:var(--vid-pastilla)}
-.btn-pri{background:var(--vid-accion);border-color:rgba(var(--af-rgb),.5);
+.btn-scaler-open,.btn-vector-open,.ai-btn{border-radius:var(--cv-pastilla)}
+.btn-pri{background:var(--cv-accion);border-color:rgba(var(--af-rgb),.5);
   box-shadow:0 14px 30px -16px rgba(var(--af-rgb),.7),inset 0 1px 0 rgba(255,255,255,.4)}
+/* Al pasar el cursor el degradado se queda: sistema.css pinta `.btn-pri:hover` con el azul
+   plano y, por especificidad, le ganaba a la regla de arriba —el botón cambiaba de degradado
+   a relleno liso al entrar y volvía al salir—. Un poco más de luz dice «encima» sin cambiar
+   de material. */
+.btn-pri:hover{background:var(--cv-accion);filter:brightness(1.06)}
 
 /* La plataforma vuelve a cuadrar los radios con `body.pf .card`, `body.pf .btn`
    y `body.pf .seg`, que pesan más que un selector de una clase. Sin estas tres
    líneas la pastilla se veía en el cotizador y en el anidador y NO en la
    plataforma, que es donde más botones hay. Solo el radio: lo demás de esos
    bloques —sombras, pesos, el relleno del segmentado— se respeta. */
-body.pf .card{border-radius:var(--vid-tarjeta)}
-body.pf .btn,body.pf .seg{border-radius:var(--vid-pastilla)}
-body.pf .seg button,body.pf .tipo-seg button{border-radius:var(--vid-pastilla)}
+body.pf .card{border-radius:var(--cv-tarjeta)}
+body.pf .btn,body.pf .seg{border-radius:var(--cv-pastilla)}
+body.pf .seg button,body.pf .tipo-seg button{border-radius:var(--cv-pastilla)}
 
 /* Los modales —el de IA, el escalador, el vectorizador, la orden de trabajo—
    comparten el mismo vidrio. */
-.modal{border-radius:24px;background:var(--vid-relleno);
+.modal{border-radius:24px;background:var(--cv-relleno);
   backdrop-filter:blur(28px) saturate(1.7);-webkit-backdrop-filter:blur(28px) saturate(1.7);
-  border:var(--vid-borde);box-shadow:var(--vid-luz),0 34px 70px -30px rgba(0,0,0,.55)}
+  border:var(--cv-borde);box-shadow:var(--cv-luz),0 34px 70px -30px rgba(0,0,0,.55)}
 
 /* ==========================================================================
    4. La plataforma
    ========================================================================== */
 
 .pf-lat{background:linear-gradient(185deg,#1b1f3d,#0d1022 72%);border-right:1px solid rgba(255,255,255,.08)}
-.pf-lat-item{border-radius:14px;min-height:48px}
-.pf-lat-item.on{background:linear-gradient(120deg,rgba(255,255,255,.16),rgba(255,255,255,.06));
-  border:1px solid rgba(255,255,255,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}
+/* Solo el radio. El `min-height:48px` de la entrega ganaba a los tres altos que
+   plataforma.css le da al pie de la barra lateral por ancho (40, 44 y 48) y «Tema oscuro» y
+   «Ajustes» quedaban 8 px más altos que los módulos de arriba. Y la regla `.pf-lat-item.on`
+   se fue: ningún elemento lleva esa pareja de clases —el módulo encendido es `.pf-tab.on`,
+   que plataforma.css ya pinta de vidrio—. */
+.pf-lat-item{border-radius:14px}
 .pf-lat-rol{border-radius:18px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
   backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
 
-.pf-cab{background:var(--vid-relleno);
-  backdrop-filter:var(--vid-blur);-webkit-backdrop-filter:var(--vid-blur);
-  border-bottom:var(--vid-borde)}
+/* La cabecera: clara con la barra lateral a la vista, marina en el teléfono, donde es lo
+   único que lleva la marca y su texto es blanco. El corte a 760 px es el de plataforma.css. */
+.pf-cab{backdrop-filter:var(--cv-blur);-webkit-backdrop-filter:var(--cv-blur)}
+@media(min-width:760px){ .pf-cab{background:var(--cv-relleno-denso);border-bottom:var(--cv-borde)} }
+@media(max-width:759px){ .pf-cab{background:var(--cv-marino);border-bottom:var(--cv-marino-borde);box-shadow:var(--cv-marino-luz)} }
 
 /* `.pf-kpi` NO EXISTE EN ESTE REPO. La entrega ya lo daba por revisar, y la
    ficha del tablero —«Vendido en septiembre», «Por cobrar», «Conversión»— se
@@ -201,28 +276,46 @@ body.pf .seg button,body.pf .tipo-seg button{border-radius:var(--vid-pastilla)}
    de arriba. La hoja móvil del panel —que se pega abajo y solo redondea las dos
    esquinas de arriba— se conserva: ahí el radio de tarjeta abajo dejaría dos
    esquinas flotando sobre el borde de la pantalla. */
-.pf-panel,.pf-cuenta{border-radius:var(--vid-tarjeta);
-  background:var(--vid-relleno);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
-  border:var(--vid-borde);box-shadow:var(--vid-luz),var(--vid-sombra)}
-body.pf .pf-panel{border-radius:var(--vid-tarjeta)}
-@media(max-width:560px){ body.pf .pf-panel{border-radius:var(--vid-tarjeta) var(--vid-tarjeta) 0 0} }
+/* `:where(:not(.tb-etapa))` y no `:not()` a secas: la línea de estaciones del tablero
+   («Ganado 2 · En diseño 1 · Cortado 1…») se construye sobre .pf-cuenta pero es un CONTROL,
+   y plataforma.css la deja a propósito sin lomo, sin sombra y con esquinas de 6 px. Con el
+   selector abierto, esta regla la convertía en cinco fichas de vidrio de 20 px con sombra y
+   con 18 px de desenfoque cada una. `:where()` no suma especificidad, así que la regla sigue
+   pesando lo mismo que `.pf-cuenta` y `.pf-cuenta.dinero` —el tinte azul del importe— sigue
+   ganándole como hasta ahora. */
+.pf-panel,.pf-cuenta:where(:not(.tb-etapa)){border-radius:var(--cv-tarjeta);
+  background:var(--cv-relleno);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border:var(--cv-borde);box-shadow:var(--cv-luz),var(--cv-sombra)}
+body.pf .pf-panel{border-radius:var(--cv-tarjeta)}
+@media(max-width:560px){ body.pf .pf-panel{border-radius:var(--cv-tarjeta) var(--cv-tarjeta) 0 0} }
 
+/* El dock. Sin posición: `left/right/bottom` son los mismos que ya escribe plataforma.css y
+   repetirlos aquí solo daba un segundo sitio donde divergir. El relleno de 8 px sí es de esta
+   capa, y hace que el dock mida 70 px y no 66: por eso `--dock-h` se declara aquí abajo, que
+   es lo que plataforma.css suma para subir todo lo que se apoya en el dock (la barra de
+   acción, el aviso emergente, el botón del asistente y el hueco del final de la página). Con
+   el número escrito allá a mano, la barra de acción quedaba a 4 px del dock en vez de a 10. */
 .pf-abajo{
-  left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));
-  padding:8px;border-radius:var(--vid-pastilla);border:var(--vid-borde);
-  background:var(--vid-relleno);
-  backdrop-filter:var(--vid-blur);-webkit-backdrop-filter:var(--vid-blur);
-  box-shadow:var(--vid-luz),0 18px 40px -20px rgba(20,23,43,.6);
+  padding:8px;border-radius:var(--cv-pastilla);border:var(--cv-marino-borde);
+  background:var(--cv-marino);
+  backdrop-filter:var(--cv-blur);-webkit-backdrop-filter:var(--cv-blur);
+  box-shadow:var(--cv-marino-luz),0 18px 40px -20px rgba(0,0,0,.55);
 }
-.pf-abajo a,.pf-abajo button{border-radius:var(--vid-pastilla);min-height:52px}
+@media(max-width:759px){ :root{--dock-h:70px} }
+.pf-abajo a,.pf-abajo button{border-radius:var(--cv-pastilla);min-height:52px}
+
+/* Los botones del pie de la ficha —«Orden de trabajo», «Copiar datos para la hoja»— parten
+   su rótulo en dos o tres renglones en el teléfono, y una pastilla de tres renglones es un
+   óvalo. Ahí el radio es el de tarjeta. */
+body.pf .pf-panel-f .btn{border-radius:18px}
 
 /* ==========================================================================
    5. El anidador
    ========================================================================== */
 
 .an-tile,.an-retazos{border-radius:16px}
-.an-marcador{border-radius:var(--vid-tarjeta);background:var(--vid-relleno);
-  border:var(--vid-borde);box-shadow:var(--vid-luz)}
+.an-marcador{border-radius:var(--cv-tarjeta);background:var(--cv-relleno);
+  border:var(--cv-borde);box-shadow:var(--cv-luz)}
 .an-mesa{border-radius:18px}
 
 /* ==========================================================================
@@ -245,7 +338,7 @@ body.pf .pf-panel{border-radius:var(--vid-tarjeta)}
    canto a canto— pasa POR DELANTE del texto y deshace justo esa medida.
 
    Y hay un segundo problema, este mecánico: la entrega escribe
-   `background:var(--vid-accion)`, y `background` es el ATAJO, así que al
+   `background:var(--cv-accion)`, y `background` es el ATAJO, así que al
    aplicarlo se lleva por delante el `background-size:300% 100%` que el
    degradado que fluye necesita. La animación `ia-aurora` se queda corriendo
    sobre un fondo del 100 % y lo que se ve no es una aurora: es el degradado

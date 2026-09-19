@@ -83,6 +83,15 @@ function renderSummary(){
   const pf=precioFinal();
   if(!Q.antiManual){ const auto=Math.round(pf*0.5); Q.anti=auto; if(document.activeElement!==$('f-anti')) $('f-anti').value=auto||''; }
   else if(document.activeElement!==$('f-anti')) $('f-anti').value=Q.anti||'';
+  /* El rótulo dice la verdad del número que tiene debajo. Con el anticipo escrito a mano
+     —8 000 sobre 17 400, o sea 46 %— seguía diciendo «sugerido (50%)», que es el porcentaje
+     que ya nadie está usando. Al borrarlo y volver al automático, vuelve a decir sugerido. */
+  const antiLbl=$('f-anti-lbl');
+  if(antiLbl){
+    antiLbl.textContent = (Q.antiManual && pf>0 && Q.anti>0)
+      ? `Anticipo (${Math.round((Q.anti/pf)*100)} %)`
+      : 'Anticipo sugerido (50%)';
+  }
   const restEl=$('s-anti-rest');
   if(restEl){
     const resta=pf-(Q.anti||0);

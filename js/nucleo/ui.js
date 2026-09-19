@@ -381,6 +381,55 @@ export function ajustarAltoBarra() {
 }
 
 /** Estado vacío. Uno solo, para que las seis pantallas digan «no hay nada» igual. */
+/* ============================================================================
+   Los esqueletos
+   ============================================================================
+   La silueta de lo que viene, con brillo, mientras un módulo o un marco carga. Existen por
+   una medición: entre pedir una pestaña y verla pintada pasan 56-87 ms en una computadora
+   —ahí no debe verse NADA, y el CSS los enseña con 180 ms de retardo—, pero el marco del
+   cotizador se quedaba en blanco 240-500 ms y el del anidador 700-950, y en un teléfono
+   viejo con la red mal son segundos. Un esqueleto con la geometría de lo que viene dice
+   «está cargando, y va a aparecer AQUÍ»; un hueco blanco dice «se rompió».
+
+   Las clases `esq-*` las pinta css/sistema.css (el brillo y las medidas de cada barra) y
+   css/plataforma.css (dónde va cada esqueleto). Son marcado inerte: `aria-hidden` en el
+   dibujo, y el texto de estado aparte, que es lo único que un lector de pantalla necesita. */
+const _esqFila = '<div class="pf-fila esq"><div class="pf-fila-ico esq-b"></div>' +
+  '<div class="pf-fila-tx"><div class="esq-b esq-t"></div><div class="esq-b esq-d"></div></div></div>';
+const _esqCuenta = '<p class="pf-cuenta esq"><b class="esq-b esq-n"></b><span class="esq-b esq-d"></span></p>';
+const _esqTarjeta = (dentro, cls) => '<div class="card esq' + (cls ? ' ' + cls : '') + '"><div class="card-b">' + dentro + '</div></div>';
+
+/** El esqueleto de un módulo de la plataforma. `mod` elige la geometría: el mapa es un bloque,
+ *  Ajustes una lista, y el resto la cinta de cuentas con tres renglones, que es lo que pintan. */
+export function esqueletoModulo(mod, nombre) {
+  let cuerpo;
+  if (mod === 'mapa') cuerpo = '<div class="pf-cuentas">' + _esqCuenta.repeat(3) + '</div><div class="esq-b esq-bloque esq-mapa"></div>';
+  else if (mod === 'ajustes') cuerpo = _esqTarjeta(_esqFila.repeat(4));
+  else cuerpo = '<div class="pf-cuentas">' + _esqCuenta.repeat(4) + '</div>' + _esqTarjeta(_esqFila.repeat(3));
+  return '<div class="pf-esqueleto" data-mod="' + esc(mod) + '" aria-busy="true"><div aria-hidden="true">' + cuerpo + '</div>' +
+    '<p class="pf-esqueleto-t"><span class="esq-giro" aria-hidden="true"></span> <span>Cargando ' + esc(nombre) + '…</span></p></div>';
+}
+
+/** Lo que tapa un <iframe> mientras su documento arranca: la silueta del cotizador (riel,
+ *  tarjeta y columna del dinero) o la del anidador (paso a paso y mesa de corte). Va DENTRO de
+ *  `.pf-marco-caja`, que lleva `.pf-marco-cargando` hasta que el marco está vivo. */
+export function esqueletoMarco(tipo, texto) {
+  let cuerpo;
+  if (tipo === 'anidador') {
+    cuerpo = '<div class="esq-cols an-esq"><div>' +
+      _esqTarjeta('<div class="esq-b esq-t"></div><div class="esq-b esq-bloque esq-drop"></div>') +
+      _esqTarjeta('<div class="esq-b esq-t"></div><div class="esq-b esq-campo"></div><div class="esq-b esq-campo"></div>') +
+      '</div>' + _esqTarjeta('<div class="esq-b esq-t"></div><div class="esq-b esq-bloque esq-mesa"></div>') + '</div>';
+  } else {
+    cuerpo = '<div class="esq-b esq-riel"></div><div class="esq-cols cot-esq">' +
+      _esqTarjeta('<div class="esq-b esq-t"></div><div class="esq-b esq-campo"></div><div class="esq-b esq-campo"></div><div class="esq-b esq-campo esq-largo"></div>') +
+      _esqTarjeta('<div class="esq-b esq-d"></div><div class="esq-b esq-n"></div><div class="esq-b esq-campo"></div><div class="esq-b esq-boton"></div>', 'esq-lado') +
+      '</div>';
+  }
+  return '<div class="pf-marco-esq" aria-hidden="true">' + cuerpo + '</div>' +
+    '<p class="pf-marco-esq-t"><span class="esq-giro" aria-hidden="true"></span> <span class="tx">' + esc(texto) + '</span></p>';
+}
+
 export function vacio(titulo, detalle, accionHTML) {
   return '<div class="vacio">' + ico('i-carpeta') +
     '<p class="vacio-t">' + esc(titulo) + '</p>' +
@@ -495,12 +544,16 @@ export function bandaFrescura(f, disponible) {
        prometer que se está viendo lo de los tres teléfonos, y lo que se está viendo es lo
        de este. */
     return '<p class="pf-frescura">' + ico('i-nube-off') +
-      '<span>Todo lo que ves vive en este dispositivo. Lo que Fabricación mueva en su teléfono no llega aquí todavía.</span></p>';
+      /* Neutro para los tres roles: esto lo lee también el teléfono de Fabricación, y ahí
+         «lo que Fabricación mueva en su teléfono no llega aquí» se leía desde ese teléfono. */
+      '<span>Todo lo que ves vive en este dispositivo. Lo que se mueva en otro teléfono no llega aquí todavía.</span></p>';
   }
   if (f && f.al_dia) {
+    const n = Number(f.pendientes);
     return '<p class="pf-frescura">' + ico('i-nube') + '<span>Al día' +
-      (Number(f.pendientes) > 0
-        ? ' · quedan ' + Number(f.pendientes) + ' cambios de este dispositivo por mandar'
+      (n > 0
+        ? (n === 1 ? ' · queda 1 cambio de este dispositivo por mandar'
+                   : ' · quedan ' + n + ' cambios de este dispositivo por mandar')
         : '') + '</span></p>';
   }
   const txt = (f && (f.texto || f.mensaje)) || 'Hay datos de otro dispositivo que llevan días sin llegar.';

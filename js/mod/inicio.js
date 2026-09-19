@@ -183,11 +183,13 @@ function pintar() {
 function cuentas(d, rol, veDinero) {
   const c = [];
   if (rol === 'direccion' || rol === 'fabricacion') {
-    c.push(unaCuenta(d.instHoy.length, 'Se instalan hoy', d.instHoy.length > 0));
+    c.push(unaCuenta(d.instHoy.length,
+      d.instHoy.length === 1 ? 'Se instala hoy' : 'Se instalan hoy', d.instHoy.length > 0));
     c.push(unaCuenta(d.instSemana.length, 'Esta semana', false));
   }
   if (rol === 'direccion') {
-    c.push(unaCuenta(d.sinFecha.length, 'Ganados sin fecha', d.sinFecha.length > 0));
+    c.push(unaCuenta(d.sinFecha.length,
+      d.sinFecha.length === 1 ? 'Ganado sin fecha' : 'Ganados sin fecha', d.sinFecha.length > 0));
   }
   if (rol === 'direccion' || rol === 'fabricacion') {
     c.push(unaCuenta(d.porComprar.length, 'Materiales por comprar', d.porComprar.length > 0));
@@ -197,7 +199,8 @@ function cuentas(d, rol, veDinero) {
        todas las filas —`costo_compra` es opcional y es el default de las 19 de la semilla—
        y ahí NO se pinta un $0 que se leería como «no cuesta nada»: se pinta la cuenta de
        materiales, que es el dato que sí existe. */
-    c.push(unaCuenta(d.conSaldo.length, 'Proyectos con saldo', d.conSaldo.length > 0));
+    c.push(unaCuenta(d.conSaldo.length,
+      d.conSaldo.length === 1 ? 'Proyecto con saldo' : 'Proyectos con saldo', d.conSaldo.length > 0));
     const costo = d.compra.reduce((s, f) => s + (Number(f.costo) || 0), 0);
     if (veDinero && costo > 0) {
       c.push('<p class="pf-cuenta dinero"><b>' + esc(money(costo)) + '</b>Costo de lo que hay que comprar</p>');
@@ -249,8 +252,14 @@ function tarjetaDecidir(lista) {
 function tarjetaAvisos(lista, hayDecision) {
   const cuerpo = lista.length
     ? lista.map(filaAviso).join('')
+    /* El vacío ya no enumera lo que «no hay»: la enumeración afirmaba más de lo que se
+       revisó. Las reglas tienen umbral —dos días sin fecha, dos días vencida— y filtro por
+       rol, así que un proyecto ganado ayer sin fecha aparecía contado en la cinta de arriba
+       («1 Ganados sin fecha», en ámbar) mientras esta línea juraba que no había ninguno; y
+       con el rol de Pagos, donde esas tres reglas ni siquiera se evalúan, la pantalla las
+       daba por revisadas igual. */
     : vacio(hayDecision ? 'Fuera de eso, nada se está rompiendo' : 'Nada se está rompiendo hoy',
-        'No hay instalaciones sin material, ni proyectos sin fecha, ni nada vencido. Cuando algo lo esté, aparece aquí en cuanto abras la plataforma.');
+        'Ningún aviso pendiente para este rol. Los avisos se calculan al abrir la plataforma, y lo que se ganó o se agendó en las últimas 48 horas todavía no cuenta: eso vive en el Tablero y en Proyectos.');
   return '<div class="card"><div class="card-h"><h2>' + ico('i-aviso') + ' Qué atender' +
     (lista.length ? ' <span class="folio">' + lista.length + '</span>' : '') +
     '</h2></div><div class="card-b">' + cuerpo + '</div></div>';
@@ -350,7 +359,12 @@ function tarjetaCola(veDinero) {
     ' Esperando precio <span class="folio">' + cola.length + '</span></h2></div>' +
     '<div class="card-b">' + filas + mas +
     '<p class="pf-nota">Se autorizan en el cotizador, que es donde vive el precio. La plataforma solo lee esta cola: nunca la escribe.</p>' +
-    '<a class="btn btn-pri" href="cotizador.html">Abrir el cotizador</a></div></div>';
+    /* Por la ruta y no por un enlace duro a cotizador.html: el enlace abandonaba la
+       plataforma entera —se iba la barra, el botón atrás volvía al hash anterior y en la app
+       instalada abría fuera del marco— mientras el mismo botón del Tablero navegaba al
+       módulo. Dos botones con el mismo rótulo que hacían cosas distintas. */
+    boton('Abrir el Cotizador', 'btn btn-pri', { tipo: 'ir', datos: { ruta: 'cotizador' } }) +
+    '</div></div>';
 }
 
 /* ----- El puente y la bandeja -----
@@ -372,7 +386,10 @@ function tarjetaDispositivo(d) {
         ? (s.ultimo_error
             ? 'El último envío falló: ' + esc(s.ultimo_error)
             : 'Los cambios de este dispositivo se van solos cuando hay señal.')
-        : 'Cada teléfono guarda lo suyo y no se ven entre ellos. Es lo normal en esta fase; se conecta desde Ajustes cuando exista el Worker.') +
+        /* El puente existe —vive en la propia hoja de Google, como Apps Script— y lo que
+           falta es enchufarlo en este dispositivo. «Cuando exista el Worker» describía el
+           diseño anterior y contradice a la tarjeta de Ajustes, que ya explica los pasos. */
+        : 'Cada teléfono guarda lo suyo y no se ven entre ellos hasta que se enchufa el puente a la hoja de finanzas. Se conecta desde Ajustes.') +
       '</p>' +
     '</div>' +
     '<div class="pf-fila-acc">' +
@@ -514,7 +531,7 @@ async function ejecutar(ac) {
     /* ----- Material ----- */
     case 'recalcular': {
       const r = await Material.recalcular(dd.proyecto_id);
-      if (avisarResultado(r, lineasDe(r) + ' de material calculadas')) await marcarYRecargar(ac.rid);
+      if (avisarResultado(r, lineasDe(r))) await marcarYRecargar(ac.rid);
       return;
     }
     case 'resincronizar': {
@@ -548,8 +565,12 @@ async function ejecutar(ac) {
        se pega en la base de tres años sería la que nadie probó. Se lleva al usuario a
        donde está el botón y se le dice qué apretar. */
     case 'tsv':
-      if (_ctx) _ctx.ir('proyectos');
-      toast('Abre el proyecto y usa «Copiar datos para la hoja»', '', 5200);
+      /* Con el proyecto: `pasar` deja la ficha ABIERTA, que es donde está el botón. Con `ir`
+         a secas aterrizabas en la lista y había que buscarlo, después de tocar un botón que
+         prometía copiar. */
+      if (_ctx && dd.proyecto_id && _ctx.pasar) _ctx.pasar('proyectos', { proyecto_id: dd.proyecto_id });
+      else if (_ctx) _ctx.ir('proyectos');
+      toast('Usa «Copiar datos para la hoja» en la ficha', '', 5200);
       return;
 
     default:
@@ -557,9 +578,14 @@ async function ejecutar(ac) {
   }
 }
 
+/* La frase COMPLETA y no el sujeto suelto: el participio iba fijo en plural fuera de esta
+   función y una sola línea salía como «1 línea de material calculadas». La rama de respaldo
+   —cuando la capa no dijo cuántas— ni siquiera era una oración: «Las líneas de material
+   calculadas». */
 function lineasDe(r) {
   const n = r && r.ok && r.valor ? Number(r.valor.lineas) : 0;
-  return isFinite(n) && n > 0 ? String(n) + (n === 1 ? ' línea' : ' líneas') : 'Las líneas';
+  if (!isFinite(n) || n <= 0) return 'Material calculado';
+  return n === 1 ? '1 línea de material calculada' : n + ' líneas de material calculadas';
 }
 
 /* «Ya lo hice» se guarda para que el aviso no vuelva entre que se hizo y que la regla se

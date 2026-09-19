@@ -739,6 +739,11 @@
   pintarRetazos();
   recibirDelCotizador();
   habilitar();
+  /* Ya está todo pintado y el motor cargado: se quita el esqueleto del arranque (la clase la
+     pone el primer <script> del body; ver ahí las dos salidas de emergencia). */
+  document.documentElement.classList.remove('arrancando');
+  var _arr = document.getElementById('an-arranque');
+  if (_arr && _arr.parentNode) _arr.parentNode.removeChild(_arr);
 
   /* Para las pruebas de navegador y para quien quiera automatizar: la misma API que usa
      esta interfaz, sin pasar por el ratón. */

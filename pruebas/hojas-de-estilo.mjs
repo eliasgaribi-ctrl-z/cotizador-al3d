@@ -103,6 +103,20 @@ for (const [archivo, css] of [['css/sistema.css', sistema], ['css/plataforma.css
     `${archivo} no usa ningún token inexistente sin reserva${huerfanos.length ? ': ' + [...new Set(huerfanos)].join(', ') : ''}`);
 }
 
+/* Y NINGÚN TOKEN SE DECLARA DOS VECES CON DOS SIGNIFICADOS. La capa de vidrio nació con
+   `--vid-blur:blur(22px) saturate(1.6)` y sistema.css ya tenía `--vid-blur:18px`, que usa como
+   `blur(var(--vid-blur))` en ocho sitios. Con la capa cargada, esos ocho se volvían
+   `blur(blur(22px) saturate(1.6))` —inválido, o sea SIN desenfoque— y en oscuro, donde el
+   sistema lo redefine a 22px con más especificidad, la barra de la capa quedaba en
+   `backdrop-filter:22px`, también inválido. Nada de eso da error: simplemente el vidrio deja
+   de ser vidrio, y se descubrió mirando una captura del teléfono. Un token que la capa
+   declare no puede existir ya en las otras dos hojas. */
+const declaradosEn = css => new Set([...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(--[a-z0-9-]+)\s*:/gi)].map(m => m[1]));
+const delSistema = new Set([...declaradosEn(sistema), ...declaradosEn(plataforma)]);
+const chocan = [...declaradosEn(vidrio)].filter(t => delSistema.has(t) && !/^--f-(cifra|texto)$/.test(t));
+cierto(chocan.length === 0,
+  'css/vidrio.css no redeclara ningún token del sistema salvo las dos familias' + (chocan.length ? ': ' + chocan.join(', ') : ''));
+
 console.log('\nUN SOLO AZUL DE MARCA');
 /* #3a4ad8 era un cuarto azul: ni --a (#4060f8) ni --a-fuerte (#3018f8) ni el del logotipo. Vivía
    en 16 sitios de index.html, en 24 rgba() escritos a mano, en los dos webmanifest y en el

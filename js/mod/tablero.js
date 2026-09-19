@@ -45,10 +45,10 @@ import * as Sync from '../datos/sync.js';
 import { masDias } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, fmtFecha, fmtFechaDia,
          abrirCapa, cerrarCapa, linkWa, ajustarAltoBarra, rotularPapel, voz, segmento,
-         filaTaller, bandaFrescura, medirMarco }
+         filaTaller, bandaFrescura, medirMarco, esqueletoMarco }
   from '../nucleo/ui.js';
 
-const { ETAPA_NOMBRE, ICO_ETAPA, claseEtapa, ORDEN, puedeMover } = Proy;
+const { ETAPA_NOMBRE, ICO_ETAPA, claseEtapa, ORDEN, puedeMover, tienePin } = Proy;
 const { SIGUIENTE } = Taller;
 
 /* ----- Estado del módulo -----
@@ -123,18 +123,16 @@ export async function montar(contenedor, ctx) {
     return;
   }
 
-  /* Esqueleto CON RETARDO. Una lectura de IndexedDB suele estar bajo 100 ms, y un esqueleto
-     sin retardo es un parpadeo que se ve peor que la espera. Si la lectura llega antes, este
-     temporizador se cancela y nadie vio nada. */
-  _reloj = setTimeout(() => {
-    if (_cont) _cont.innerHTML = esqueleto();
-  }, 180);
-
+  /* El esqueleto con retardo que vivía aquí —180 ms, para que una lectura de IndexedDB que
+     llega antes no deje ni un parpadeo— lo pone ahora el router para TODOS los módulos, con
+     el mismo umbral y la misma geometría (esqueletoModulo, en nucleo/ui.js), y lo quita en
+     cuanto esta sección tiene algo pintado. Ponerlo también aquí era pintarlo dos veces. */
   await recargar();
 }
 
 export function desmontar() {
   if (_reloj) { clearTimeout(_reloj); _reloj = null; }
+  if (_relojMarco) { clearTimeout(_relojMarco); _relojMarco = null; }
   if (_cont && _oyendo) _cont.removeEventListener('click', alClic);
   const capa = $('pf-pide');
   if (capa) capa.removeEventListener('click', alClicPide);
@@ -218,7 +216,10 @@ async function leer() {
     semana: (insts || []).filter(i => i && i.fecha >= hoy && i.fecha <= semanaFin),
     vencidas: (insts || []).filter(i => i && i.fecha && i.fecha < hoy &&
                                         VIVAS_SIN_MARCAR.includes(i.estado)),
-    sinUbicar: vivos.filter(p => !isFinite(Number(p.lat)) || !isFinite(Number(p.lng))).length,
+    /* La misma prueba que usa el Mapa. Un proyecto sin ubicar se guarda con `lat: null`, y
+       `Number(null)` es 0, que `isFinite` da por bueno: con la prueba de antes esta cuenta
+       decía siempre 0 mientras el Mapa, para los mismos datos, decía «3 sin ubicar». */
+    sinUbicar: vivos.filter(p => !tienePin(p)).length,
     proxInst: (insts || []).map(i => i && i.fecha).filter(f => f && f >= hoy).sort()[0] || null,
   };
 }
@@ -333,10 +334,15 @@ function pintarAnidador() {
      el motor entero a media faena. */
   if (_ctx && _ctx.sinRemonte) _ctx.sinRemonte(true);
 
+  /* Con su esqueleto encima, como el marco del cotizador: el anidador carga diez guiones
+     —clipper.js solo ya pesa— y el marco se quedaba en blanco entre 700 y 950 ms medidos con
+     la red local. `.pf-marco-cargando` deja el iframe en opacidad cero y enseña la silueta
+     del paso a paso y de la mesa; `vigilarMarcoAnidador` la quita cuando el motor ya está. */
   _cont.innerHTML =
     segLente() +
     origenHTML() +
-    '<div class="pf-marco-caja">' +
+    '<div class="pf-marco-caja pf-marco-cargando">' +
+      esqueletoMarco('anidador', 'Abriendo la mesa de corte…') +
       '<iframe class="pf-marco" id="pf-anid-marco" src="anidador-vectores/" ' +
       'title="Anidador de vectores — acomodo de piezas en la lámina"></iframe>' +
     '</div>';
@@ -345,6 +351,9 @@ function pintarAnidador() {
      Se mide después de que el navegador colocó la caja, no en el mismo tick. */
   requestAnimationFrame(() => medirMarco('pf-anid-marco'));
   window.addEventListener('resize', alRedimensionar);
+  _intentosMarco = 0;
+  if (_relojMarco) clearTimeout(_relojMarco);
+  _relojMarco = setTimeout(vigilarMarcoAnidador, 150);
 
   const b = $('pf-mbar');
   if (b) { b.hidden = true; b.innerHTML = ''; b.onclick = null; ajustarAltoBarra(); }
@@ -357,6 +366,40 @@ function alRedimensionar() {
   _rzMarco = requestAnimationFrame(() => { _rzMarco = 0; medirMarco('pf-anid-marco'); });
 }
 
+/* ----- El esqueleto del marco del anidador -----
+   Se pregunta al documento de dentro, que es del mismo origen: está vivo cuando su propio
+   arranque terminó (se quita `html.arrancando` al final de anidador-vectores/js/app.js) y
+   publicó `window.Anidador`, que es lo último que hace. Cien intentos de 150 ms son quince
+   segundos; si no llega, el esqueleto se quita igual y se deja ver el marco tal cual: el
+   anidador trae su propio diagnóstico de por qué no arranca (sin Workers, file://), y taparlo
+   sería esconder justo lo que hay que leer. */
+let _relojMarco = null;
+let _intentosMarco = 0;
+function vigilarMarcoAnidador() {
+  _relojMarco = null;
+  const m = $('pf-anid-marco');
+  if (!m || !_cont) return;
+  let vivo = false;
+  try {
+    const d = m.contentDocument, w = m.contentWindow;
+    vivo = !!(d && d.getElementById('an-ir') && !d.documentElement.classList.contains('arrancando') && w && w.Anidador);
+  } catch (_) { vivo = false; }
+  if (!vivo && ++_intentosMarco <= 100) {
+    if (_intentosMarco === 27) {
+      const t = _cont.querySelector('.pf-marco-esq-t .tx');
+      if (t) t.textContent = 'Sigue cargando el motor de acomodo…';
+    }
+    _relojMarco = setTimeout(vigilarMarcoAnidador, 150);
+    return;
+  }
+  const caja = m.closest('.pf-marco-caja');
+  if (!caja) return;
+  caja.classList.remove('pf-marco-cargando');
+  caja.classList.add('pf-marco-listo');
+  setTimeout(() => { for (const e of caja.querySelectorAll('.pf-marco-esq,.pf-marco-esq-t')) e.remove(); }, 450);
+  medirMarco('pf-anid-marco');
+}
+
 /* ----- De dónde vienes, y el límite dicho con palabras -----
    El proyecto NO GUARDA VECTOR: `js/datos/proyectos.js` congela `aiFile` a
    `{name, type, url:''}` y no hay campo SVG, porque el vectorizador vive dentro de
@@ -365,9 +408,14 @@ function alRedimensionar() {
    nada. Se dice de dónde vienes y se ofrece el único camino que de verdad trae el trazo.
    Prometer más sería inventar un dato. */
 function origenHTML() {
+  /* El aviso se llamaba `enTelefono` y se pintaba SIEMPRE, también en la computadora, donde
+     el anidador empotrado de aquí abajo sí calcula: la frase «se calcula en la computadora…
+     aquí puedes ver el resultado» se contradecía con la pantalla que la seguía. Ahora dice lo
+     mismo sin mentir en ninguno de los dos anchos. */
   const enTelefono = '<p class="hintnote">' + ico('i-aviso') +
-    ' <span>El acomodo se calcula en la computadora, que es donde se exporta el SVG y se ' +
-    'alimenta el láser. Aquí puedes ver el resultado y los retazos guardados.</span></p>';
+    ' <span>Suelta aquí el SVG o tráelo del vectorizador del Cotizador. En el teléfono ' +
+    'conviene solo consultar: el archivo que alimenta el láser se exporta desde la ' +
+    'computadora.</span></p>';
   if (!_origen) return enTelefono;
   return '<p class="hintnote">' + ico('i-anidar') +
     ' <span>Vienes de <b>' + esc(_origen.nombre || 'un proyecto') + '</b>' +
@@ -377,18 +425,6 @@ function origenHTML() {
     '<p class="no-papel">' +
     btn('Vectorizar en el Cotizador', 'btn btn-gho pf-btn-corto', { tipo: 'ir', ruta: 'cotizador' }) +
     '</p>' + enTelefono;
-}
-
-/* El esqueleto tiene la GEOMETRÍA de lo que va a llegar —la cinta de cuentas, la línea de
-   estaciones y tres renglones— para que al llegar los datos el layout no salte. */
-function esqueleto() {
-  const fila = '<div class="pf-fila"><div class="pf-fila-ico"></div>' +
-    '<div class="pf-fila-tx"><div class="pf-fila-t">&nbsp;</div>' +
-    '<div class="pf-fila-d">&nbsp;</div></div></div>';
-  return '<div class="pf-cuentas" aria-hidden="true">' +
-    '<p class="pf-cuenta"><b>&nbsp;</b>&nbsp;</p>'.repeat(4) + '</div>' +
-    '<div class="card"><div class="card-b">' + fila.repeat(3) + '</div></div>' +
-    '<p class="solo-voz" role="status">Leyendo el taller…</p>';
 }
 
 /* ----- La cinta de cuentas -----
@@ -414,9 +450,9 @@ function cuentas(d, rol, veDinero) {
   c.push(unaCuenta(noLlega, noLlega === 1 ? 'No llega a su fecha' : 'No llegan a su fecha',
                    false, noLlega > 0));
   if (rol === 'direccion' || rol === 'fabricacion') {
-    c.push(unaCuenta(sinMat, 'Trabajos sin material', sinMat > 0));
+    c.push(unaCuenta(sinMat, sinMat === 1 ? 'Trabajo sin material' : 'Trabajos sin material', sinMat > 0));
   }
-  c.push(unaCuenta(sinFecha, 'Ganados sin fecha', sinFecha > 0));
+  c.push(unaCuenta(sinFecha, sinFecha === 1 ? 'Ganado sin fecha' : 'Ganados sin fecha', sinFecha > 0));
 
   /* El importe NO EXISTE con rol fabricación: `veDinero()` es false y la capa de datos
      devuelve null, no 0. El elemento no se pinta; no se difumina, y nunca se imprime $0. */
@@ -492,15 +528,22 @@ function lineaEstaciones(d) {
   if (!d.V.length) return '';
   const bloques = ESTACIONES.map(e => {
     const dentro = d.V.filter(v => v.etapa_real === e);
-    const atras = dentro.filter(v => v.etapa_esperada &&
-      ORDEN[v.etapa_real] !== undefined && ORDEN[v.etapa_esperada] !== undefined &&
-      ORDEN[v.etapa_real] < ORDEN[v.etapa_esperada]).length;
+    /* Atrasado es lo MISMO que cuenta la cinta de arriba: días de atraso ya cumplidos. Con la
+       comparación de etapas, el día del hito el proyecto era «justo» para la cinta («1 va
+       tarde») y «atrasado» para la estación («2 atrasados»), en la misma pantalla y para los
+       mismos dos trabajos: la etapa esperada avanza EL día del hito y `atraso_dias` solo
+       cuenta los días que ya pasaron. Dos definiciones de atraso a diez centímetros una de
+       otra hacen que no se crea ninguna. */
+    const atras = dentro.filter(v => v.atraso_dias > 0).length;
+    /* Una sola vez y para los dos sitios: el rótulo visible decía «1 atrasado» y el title del
+       mismo botón «1 atrasados». */
+    const atrasTxt = atras + ' atrasado' + (atras === 1 ? '' : 's');
     const on = _etapa === e;
     return '<button type="button" class="pf-cuenta tb-etapa' + (on ? ' on' : '') + '"' +
       ' data-etapa="' + e + '" aria-pressed="' + (on ? 'true' : 'false') + '"' +
-      ' title="' + esc(ETAPA_NOMBRE[e]) + (atras ? ' · ' + atras + ' atrasados' : '') + '">' +
+      ' title="' + esc(ETAPA_NOMBRE[e]) + (atras ? ' · ' + atrasTxt : '') + '">' +
       '<b>' + dentro.length + '</b>' + esc(ETAPA_NOMBRE[e]) +
-      (atras ? '<em>' + atras + ' atrasado' + (atras === 1 ? '' : 's') + '</em>' : '') +
+      (atras ? '<em>' + atrasTxt + '</em>' : '') +
       '</button>';
   }).join('');
   return '<div class="pf-cuentas tb-linea" role="group" aria-label="Filtrar por etapa">' +
@@ -897,7 +940,8 @@ async function alClic(ev) {
     pintar();
     /* Repintar una lista sin decirlo no lo nota quien no la ve. */
     const n = _d ? _d.V.filter(v => !_etapa || v.etapa_real === _etapa).length : 0;
-    voz(_etapa ? n + ' trabajos en ' + (ETAPA_NOMBRE[_etapa] || '') : 'Todo el taller, ' + n + ' trabajos');
+    const tr = n === 1 ? ' trabajo' : ' trabajos';
+    voz(_etapa ? n + tr + ' en ' + (ETAPA_NOMBRE[_etapa] || '') : 'Todo el taller, ' + n + tr);
     return;
   }
 
@@ -946,7 +990,7 @@ async function avanzar(a) {
   const movs = Number(r.valor && r.valor.movimientos) || 0;
   const nombre = ETAPA_NOMBRE[a.etapa] || a.etapa;
   if (movs > 0) {
-    toast(nombre + ' · salieron ' + movs + (movs === 1 ? ' material' : ' materiales') + ' del almacén',
+    toast(nombre + (movs === 1 ? ' · salió 1 material' : ' · salieron ' + movs + ' materiales') + ' del almacén',
       'ok', 5200, { label: 'Ver almacén', fn: () => _ctx && _ctx.ir('material') });
   } else {
     toast(nombre + ' · ' + (a.titulo || 'el proyecto') + ' avanzó', 'ok', 3200);

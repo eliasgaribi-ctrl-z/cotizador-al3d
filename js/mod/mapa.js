@@ -239,17 +239,13 @@ async function cargar() {
    Filtros — puros sobre lo que ya se leyó
    ============================================================================ */
 
-/* `Number(null)` es 0, así que `isFinite(Number(p.lat))` decía «sí tiene pin» de un
-   proyecto sin ubicar y lo mandaba a 0,0 —la Isla Nula, en el Atlántico frente a Ghana—.
-   Ahí es donde nace el pin en medio del océano que esta pantalla existe para no pintar. El
-   cero explícito también se rechaza: es el resultado típico de parsear dos ceros de
-   relleno, y un dato equivocado se usa. */
-const coord = v => (v === null || v === undefined || v === '') ? NaN : Number(v);
-const tienePin = p => {
-  if (!p) return false;
-  const la = coord(p.lat), ln = coord(p.lng);
-  return Number.isFinite(la) && Number.isFinite(ln) && !(la === 0 && ln === 0);
-};
+/* La prueba de «¿tiene punto en el mapa?» vive en la capa de datos y la comparten esta
+   pantalla, el Tablero y el propio `listar({sinUbicar:true})`. Nació aquí —`Number(null)` es
+   0, así que la prueba ingenua mandaba los proyectos sin ubicar a 0,0, la Isla Nula frente a
+   Ghana— y se mudó allá cuando se descubrió que el Tablero, con su propia versión ingenua,
+   contaba «0 sin ubicar» donde este mapa contaba tres. El porqué completo está en su
+   comentario, en js/datos/proyectos.js. */
+const tienePin = Proyectos.tienePin;
 
 function pasaEtapa(p) {
   return GRUPOS_ON.has(grupoDe(p.etapa).g);
@@ -706,7 +702,8 @@ function pintarRuta() {
 
   caja.innerHTML = '<div class="card"><div class="card-h"><h2>' + ico('i-camion') +
     'La ruta de hoy</h2></div><div class="card-b">' +
-    '<p class="hintnote nota-av">Son ' + RUTA.orden.length + ' paradas y unos ' +
+    '<p class="hintnote nota-av">' +
+      (RUTA.orden.length === 1 ? 'Es 1 parada y unos ' : 'Son ' + RUTA.orden.length + ' paradas y unos ') +
       esc(String(RUTA.km)) + ' km en línea recta, empezando desde el centro de Guadalajara ' +
       '—el taller no tiene pin guardado, así que si sales de otro lado, lee el orden y ' +
       'empieza por la que te quede—. Van también las instalaciones atrasadas que nadie ' +

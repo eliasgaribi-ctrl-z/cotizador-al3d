@@ -39,7 +39,7 @@
    acepta a cambio de que el flujo sea uno, y el marco se destruye al cambiar de pestaña.
    ============================================================================ */
 
-import { $, ico, esc, vacio, toast, ajustarAltoBarra, insetInferior, altoBarraAbajo, pliegueDelVisor } from '../nucleo/ui.js';
+import { $, ico, esc, vacio, toast, ajustarAltoBarra, insetInferior, altoBarraAbajo, pliegueDelVisor, esqueletoMarco } from '../nucleo/ui.js';
 
 let _cont = null;
 let _ctx = null;
@@ -73,8 +73,14 @@ export async function montar(contenedor, ctx) {
 
      Y SIN atributo `sandbox`: mataría `window.open`, y por ahí sale el PDF —Blob más
      `URL.createObjectURL` más `window.open`—, WhatsApp y Google Maps. */
+  /* Con su esqueleto encima. El marco tarda entre 240 y 500 ms en pintar sus datos —medido
+     con la red local; en un teléfono con señal mala son segundos— y mientras tanto era un
+     rectángulo blanco. `.pf-marco-cargando` deja el iframe en opacidad cero y enseña la
+     silueta del cotizador en su lugar; `marcoListo()` la quita con transición cuando el
+     documento de dentro terminó de arrancar. */
   _cont.innerHTML =
-    '<div class="pf-marco-caja">' +
+    '<div class="pf-marco-caja pf-marco-cargando">' +
+      esqueletoMarco('cotizador', 'Abriendo el cotizador…') +
       '<iframe class="pf-marco" id="pf-cot-marco" src="cotizador.html" ' +
       'title="Cotizador AL3D — precios, autorización y registro de venta"></iframe>' +
     '</div>';
@@ -104,19 +110,31 @@ export async function montar(contenedor, ctx) {
      mismo origen: si la escalera de pasos del cotizador existe, el cotizador está vivo,
      tenga o no tipografías. */
   let _intentos = 0;
+  /* «Sano» es que el documento de dentro tenga el riel de pasos Y haya terminado de arrancar:
+     cotizador.html lleva `html.arrancando` desde su primer <script> hasta el final de init(),
+     y mientras la tenga puesta lo que hay dentro es su propio esqueleto. Esperar a que se
+     vaya es lo que hace que la persona vea UNA pantalla de carga —la de aquí— y no esta y
+     luego la de adentro. Si init() reventara, ese mismo documento se quita la clase al primer
+     error o a los ocho segundos, así que esto nunca se queda esperando por ella. */
   const sano = () => {
     try {
       const d = m.contentDocument;
-      return !!(d && d.getElementById('pasos'));
+      return !!(d && d.getElementById('pasos') && d.documentElement && !d.documentElement.classList.contains('arrancando'));
     } catch (_) { return false; }
   };
   const vigilar = () => {
     if (!_cont) return;                       // se cambió de pestaña mientras se esperaba
-    if (sano()) { _reloj = null; medir(); return; }
+    if (sano()) { _reloj = null; marcoListo(); medir(); return; }
     /* 100 intentos de 150 ms = 15 s. Generoso a propósito: son 933 KB, y en un teléfono
        viejo con red mala el primer pintado se ha medido en cientos de milisegundos, no en
        segundos, pero el margen no cuesta nada y la falsa alarma sí. */
     if (++_intentos > 100) { rendirse(); return; }
+    /* A los cuatro segundos el texto del esqueleto cambia: la persona ya sabe que se oyó el
+       toque, y ahora hay que decirle que no es ella. */
+    if (_intentos === 27) {
+      const t = _cont.querySelector('.pf-marco-esq-t .tx');
+      if (t) t.textContent = 'Sigue abriendo el cotizador… tu red va lenta, pero va.';
+    }
     _reloj = setTimeout(vigilar, 150);
   };
   _reloj = setTimeout(vigilar, 150);
@@ -254,8 +272,18 @@ function alMensaje(ev, m) {
 }
 
 /* ============================================================================
-   Cuando no abre
+   Cuando ya abrió, y cuando no abre
    ============================================================================ */
+
+/* El marco ya está vivo: el esqueleto se va con transición (css/plataforma.css) y se saca del
+   árbol al terminar, para que no quede un dibujo inerte debajo de un iframe que ya responde. */
+function marcoListo() {
+  const caja = _cont && _cont.querySelector('.pf-marco-caja');
+  if (!caja) return;
+  caja.classList.remove('pf-marco-cargando');
+  caja.classList.add('pf-marco-listo');
+  setTimeout(() => { for (const e of caja.querySelectorAll('.pf-marco-esq,.pf-marco-esq-t')) e.remove(); }, 450);
+}
 
 function rendirse() {
   if (!_cont) return;

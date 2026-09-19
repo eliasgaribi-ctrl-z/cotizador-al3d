@@ -84,6 +84,11 @@ const U_CONS = { m2: 'm²', m: 'm', cm: 'cm', pieza: 'pieza', litro: 'litro' };
 const uc  = (n, u) => cant(n, UC[u] || u || 'unidad');
 const ucn = (n, u) => cant(n, U_CONS[u] || u || '');
 const un  = (n, u) => (Number(n) === 1 ? (UC[u] || u) : plural(UC[u] || u));
+/* El género de cada unidad de compra, para los textos que llevan determinante delante. Sin
+   esto, «¿Cuántas ' + un(2, …) + ' hay de…?» salía como «¿Cuántas litros hay de Thinner?» y
+   «¿Cuántas metros hay de Fleje?»: la pregunta se escribió mirando láminas y bolsas. */
+const UC_MASC = { unidad: false, bolsa: false, caja: false, lamina: false, litro: true, metro: true };
+const cuantos = u => (UC_MASC[u] ? '¿Cuántos ' : '¿Cuántas ');
 
 /* «Estimado» no es un adorno: es la diferencia entre comprar con esto y comprar con esto
    sabiendo qué se supuso. */
@@ -1129,12 +1134,13 @@ function abrirContar(id) {
   if (!e) { toast('Ese material ya no está en el catálogo de este dispositivo', 'err', 4200); return; }
 
   abrirPide(
-    cabeza('¿Cuántas ' + un(2, e.unidad_compra) + ' hay de ' + e.nombre + '?') +
+    cabeza(cuantos(e.unidad_compra) + un(2, e.unidad_compra) + ' hay de ' + e.nombre + '?') +
     '<div class="pf-panel-b">' +
       '<dl class="pf-dato"><dt>El libro dice</dt><dd>' + esc(uc(e.cantidad, e.unidad_compra)) +
         '</dd></dl>' +
       '<dl class="pf-dato"><dt>Desde cuándo</dt><dd>' + esc(e.sello) + '</dd></dl>' +
-      '<div class="fld"><label for="mt-contar">Cuántas hay de verdad</label>' +
+      '<div class="fld"><label for="mt-contar">Lo que hay de verdad, en ' +
+        esc(un(2, e.unidad_compra)) + '</label>' +
         '<input type="number" step="any" min="0" id="mt-contar" value="' +
         esc(String(e.cantidad)) + '" inputmode="decimal"></div>' +
       '<div class="fld"><label for="mt-contar-nota">¿Algo que anotar? (opcional)</label>' +
