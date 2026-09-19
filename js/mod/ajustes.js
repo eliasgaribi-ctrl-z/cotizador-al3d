@@ -865,7 +865,7 @@ async function restaurar(inp) {
   if (mitadCotizador) {
     if (Prefs.dejarRestauracion(mitadCotizador)) {
       toast(msg + '. La parte del cotizador queda esperando: ábrelo y toca «Restaurar ahora».', 'ok', 9000,
-        { label: 'Abrir el cotizador', fn: () => { if (CTX && CTX.ir) CTX.ir('cotizador'); else location.hash = '#/cotizador'; } });
+        { label: 'Abrir el Cotizador', fn: () => { if (CTX && CTX.ir) CTX.ir('cotizador'); else location.hash = '#/cotizador'; } });
     } else {
       toast(msg + '. La parte del cotizador NO cupo aquí: restáurala desde el cotizador con este mismo archivo.', 'err', 9000);
     }

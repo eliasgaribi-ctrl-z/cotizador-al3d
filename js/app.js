@@ -608,10 +608,16 @@ async function arrancar() {
     try {
       const r = await Cot.drenarBuzon();
       if (r.creados) toast(r.creados === 1 ? 'Se agregó 1 proyecto ganado' : 'Se agregaron ' + r.creados + ' proyectos ganados', 'ok', 4200);
+      /* Y se dice qué hacer, que es lo que faltaba. No se manda a la bitácora: `drenarBuzon`
+         no anota ahí sus fallos (ver js/datos/cotizador.js), así que ese destino era una
+         puerta a un cuarto vacío. Los dos motivos reales son los que se nombran: la
+         cotización se registró en otro teléfono y su folio no está en el historial de este
+         —ese renglón ya no se reintenta—, o no hubo espacio y sí se reintenta al abrir. */
       if (r.fallidos) toast((r.fallidos === 1
         ? 'Hay 1 registro de venta que no se pudo convertir en proyecto'
         : 'Hay ' + r.fallidos + ' registros de venta que no se pudieron convertir en proyecto') +
-        '. Revísalos en Control › Bitácora.', 'err', 6500);
+        '. Si se registraron en otro teléfono, hay que ganarlos desde ahí; si no, se vuelve a intentar al abrir la plataforma.',
+        'err', 7500);
     } catch (e) { console.warn('no se pudo drenar el buzón', e); }
   }
 

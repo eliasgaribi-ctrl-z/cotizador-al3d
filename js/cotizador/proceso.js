@@ -88,8 +88,11 @@ function renderSummary(){
      que ya nadie está usando. Al borrarlo y volver al automático, vuelve a decir sugerido. */
   const antiLbl=$('f-anti-lbl');
   if(antiLbl){
+    /* Sin espacio antes del %, que es como lo escribe el resto del cotizador —«(50%)» aquí
+       mismo en la otra rama, y los descuentos de la columna del dinero—. Con espacio, el
+       mismo rótulo cambiaba de forma al teclear. */
     antiLbl.textContent = (Q.antiManual && pf>0 && Q.anti>0)
-      ? `Anticipo (${Math.round((Q.anti/pf)*100)} %)`
+      ? `Anticipo (${Math.round((Q.anti/pf)*100)}%)`
       : 'Anticipo sugerido (50%)';
   }
   const restEl=$('s-anti-rest');

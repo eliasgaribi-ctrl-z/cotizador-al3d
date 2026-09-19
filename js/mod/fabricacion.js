@@ -504,7 +504,7 @@ function pintarTaller(d) {
     if (!d.sinFecha.length && !vs.length && !(d.mes && d.mes.total)) {
       return vacio('Todavía no hay nada que fabricar',
         'Cuando marques una cotización como ganada en el cotizador, el proyecto aparece aquí con su ventana de taller y su día de instalación. Es el único toque que la plataforma te pide.',
-        '<a class="btn btn-pri" href="#/cotizador">Abrir el cotizador</a>');
+        '<a class="btn btn-pri" href="#/cotizador">Abrir el Cotizador</a>');
     }
     return vacio('Nada en el taller',
       'Lo que hay este mes ya está listo o instalado. En «Instalaciones» lo ves con su día.',
@@ -520,7 +520,9 @@ function pintarTaller(d) {
               accionesHTML: accionAnidar(v) })).join('');
   }
   if (sinFecha.length) {
-    html += '<div class="ag-grupo">' + ico('i-reloj') + 'Ganados sin fecha, con el reloj corriendo <span class="n">' + sinFecha.length + '</span></div>' +
+    html += '<div class="ag-grupo">' + ico('i-reloj') +
+      (sinFecha.length === 1 ? 'Ganado sin fecha, con el reloj corriendo' : 'Ganados sin fecha, con el reloj corriendo') +
+      ' <span class="n">' + sinFecha.length + '</span></div>' +
             sinFecha.map(v => filaTaller(v, d.hoy, { plazoEditable: puedeCorregirPlazo(),
               accionesHTML: accionAnidar(v) })).join('');
   }
@@ -842,11 +844,14 @@ function fila(i, sem) {
   const saldo = Prefs.veDinero() && Number(p.pago_pendiente) > 0
     ? '<br>Saldo por cobrar: ' + esc(money(p.pago_pendiente)) : '';
 
-  /* «Al teléfono» y no «Calendario»: el botón baja el .ics para el calendario del celular, y
-     desde que esta pantalla se llama Calendario, un botón «Calendario» dentro de ella no se
-     entiende sin tocarlo. */
+  /* «Al calendario del teléfono» y no «Calendario»: el botón baja el .ics para el calendario
+     del celular, y desde que esta pantalla se llama Calendario, un botón «Calendario» dentro
+     de ella no se entiende sin tocarlo. El rótulo entero y no un «Al teléfono» corto: es el
+     mismo botón que la ficha ya llama así a un toque de distancia, y el mismo nombre para la
+     misma acción vale más que dos palabras de ancho. El renglón lo acomoda solo: sus botones
+     miden lo que mide su rótulo y la fila envuelve. */
   const acc = ['<button type="button" class="btn btn-gho" data-acc="ics" data-id="' +
-    esc(i.id) + '">Al teléfono</button>'];
+    esc(i.id) + '">Al calendario del teléfono</button>'];
   if (veWa() && !cancelada) {
     acc.push('<button type="button" class="btn btn-gho" data-acc="orden" data-id="' +
       esc(i.id) + '">Instalador</button>');

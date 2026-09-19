@@ -259,7 +259,7 @@ function tarjetaAvisos(lista, hayDecision) {
        con el rol de Pagos, donde esas tres reglas ni siquiera se evalúan, la pantalla las
        daba por revisadas igual. */
     : vacio(hayDecision ? 'Fuera de eso, nada se está rompiendo' : 'Nada se está rompiendo hoy',
-        'Ningún aviso pendiente para este rol. Los avisos se calculan al abrir la plataforma, y lo que se ganó o se agendó en las últimas 48 horas todavía no cuenta: eso vive en el Tablero y en Proyectos.');
+        'Ningún aviso pendiente para este rol. Lo que se ganó sin fecha, o la instalación que ya se pasó, hace menos de dos días todavía no cuenta: eso vive en el Tablero y en Proyectos.');
   return '<div class="card"><div class="card-h"><h2>' + ico('i-aviso') + ' Qué atender' +
     (lista.length ? ' <span class="folio">' + lista.length + '</span>' : '') +
     '</h2></div><div class="card-b">' + cuerpo + '</div></div>';
@@ -364,6 +364,8 @@ function tarjetaCola(veDinero) {
        instalada abría fuera del marco— mientras el mismo botón del Tablero navegaba al
        módulo. Dos botones con el mismo rótulo que hacían cosas distintas. */
     boton('Abrir el Cotizador', 'btn btn-pri', { tipo: 'ir', datos: { ruta: 'cotizador' } }) +
+    /* «Cotizador» con mayúscula en los cinco sitios donde aparece este botón: es el nombre
+       propio de la ruta, el mismo que lleva la pestaña. */
     '</div></div>';
 }
 

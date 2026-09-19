@@ -423,11 +423,17 @@ function origenHTML() {
      el anidador empotrado de aquí abajo sí calcula: la frase «se calcula en la computadora…
      aquí puedes ver el resultado» se contradecía con la pantalla que la seguía. Ahora dice lo
      mismo sin mentir en ninguno de los dos anchos. */
+  /* Dos frases distintas, y cada una una sola vez. La invitación a soltar el SVG solo cuando
+     no se sabe de dónde vienes: si vienes de un proyecto, el párrafo de abajo ya la da con su
+     nombre, y las dos seguidas decían lo mismo dos veces. El aviso del teléfono va siempre,
+     porque dice otra cosa. */
   const enTelefono = '<p class="hintnote">' + ico('i-aviso') +
-    ' <span>Suelta aquí el SVG o tráelo del vectorizador del Cotizador. En el teléfono ' +
-    'conviene solo consultar: el archivo que alimenta el láser se exporta desde la ' +
-    'computadora.</span></p>';
-  if (!_origen) return enTelefono;
+    ' <span>En el teléfono conviene solo consultar: el archivo que alimenta el láser se ' +
+    'exporta desde la computadora.</span></p>';
+  if (!_origen) {
+    return '<p class="hintnote">' + ico('i-anidar') +
+      ' <span>Suelta aquí el SVG o tráelo del vectorizador del Cotizador.</span></p>' + enTelefono;
+  }
   return '<p class="hintnote">' + ico('i-anidar') +
     ' <span>Vienes de <b>' + esc(_origen.nombre || 'un proyecto') + '</b>' +
     (_origen.folio ? ' — folio ' + esc(_origen.folio) : '') +
