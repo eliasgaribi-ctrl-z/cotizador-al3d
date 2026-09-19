@@ -48,7 +48,18 @@ import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, fmtFecha, fm
          filaTaller, bandaFrescura, medirMarco, esqueletoMarco }
   from '../nucleo/ui.js';
 
-const { ETAPA_NOMBRE, ICO_ETAPA, claseEtapa, ORDEN, puedeMover, tienePin } = Proy;
+const { ETAPA_NOMBRE, ICO_ETAPA, claseEtapa, ORDEN, puedeMover } = Proy;
+/* `tienePin` aparte y con respaldo, por lo mismo que en js/mod/mapa.js: en la ventana de un
+   despliegue este archivo puede llegar nuevo con un js/datos/proyectos.js viejo ya cargado en
+   la pestaña, que todavía no exporta esto, y el Tablero —la pantalla de entrada— moría al
+   montar. Reproducido abriendo la pestaña en Material con la versión anterior, desplegando la
+   nueva y tocando Tablero sin recargar. */
+const coordPin = v => (v === null || v === undefined || v === '') ? NaN : Number(v);
+const tienePin = Proy.tienePin || (p => {
+  if (!p) return false;
+  const la = coordPin(p.lat), ln = coordPin(p.lng);
+  return Number.isFinite(la) && Number.isFinite(ln) && !(la === 0 && ln === 0);
+});
 const { SIGUIENTE } = Taller;
 
 /* ----- Estado del módulo -----

@@ -244,8 +244,23 @@ async function cargar() {
    0, así que la prueba ingenua mandaba los proyectos sin ubicar a 0,0, la Isla Nula frente a
    Ghana— y se mudó allá cuando se descubrió que el Tablero, con su propia versión ingenua,
    contaba «0 sin ubicar» donde este mapa contaba tres. El porqué completo está en su
-   comentario, en js/datos/proyectos.js. */
-const tienePin = Proyectos.tienePin;
+   comentario, en js/datos/proyectos.js.
+
+   CON RESPALDO, y no por gusto. En la ventana de un despliegue una pestaña que ya estaba
+   abierta se queda con el `js/datos/proyectos.js` de la versión anterior en el registro de
+   módulos del navegador, y al entrar por primera vez a una pantalla nueva se trae ESTE
+   archivo ya actualizado: un módulo nuevo importando uno viejo. El viejo no exporta `tienePin`
+   —es de este mismo cambio—, así que la constante quedaba en `undefined` y el mapa moría al
+   montar con «no se pudo pintar». Reproducido: servir la versión anterior, desplegar la nueva
+   encima y tocar Mapa sin recargar. Es lo que el README dice con todas sus letras: un guion
+   nuevo con uno viejo no es una app vieja, es una app rota. El respaldo es la misma prueba
+   escrita una vez más, y deja de usarse en cuanto la pestaña se recarga. */
+const coordPin = v => (v === null || v === undefined || v === '') ? NaN : Number(v);
+const tienePin = Proyectos.tienePin || (p => {
+  if (!p) return false;
+  const la = coordPin(p.lat), ln = coordPin(p.lng);
+  return Number.isFinite(la) && Number.isFinite(ln) && !(la === 0 && ln === 0);
+});
 
 function pasaEtapa(p) {
   return GRUPOS_ON.has(grupoDe(p.etapa).g);
