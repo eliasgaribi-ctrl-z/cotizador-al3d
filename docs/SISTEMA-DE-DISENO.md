@@ -351,8 +351,11 @@ El botón de IA es **el único con color propio** (violeta→azul, respira):
 /* Elegido = --a-fill con blanco. Es LA regla de color de la app, escrita una sola vez para el
    chip suelto y para el de dentro de una partida. */
 .chip.on,.partida .chip.on{background:var(--a-fill);color:var(--a-fill-tx);border-color:var(--a-fill)}
-/* El catálogo (los cinco materiales) va en rejilla; los grupos de tres chips cortos, en fila. */
-.chips-catalogo{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px}
+/* El catálogo (los cinco materiales) va en rejilla; los grupos de tres chips cortos, en fila.
+   250 y no 180: el rótulo más largo del catálogo pide unos 260 px con su tarifa, y con 180 se
+   partía en dos renglones dentro de una pastilla de radio 999 —un óvalo con el texto pegado a
+   la curva—. El min() es para que la pista no desborde su contenedor en un teléfono de 320. */
+.chips-catalogo{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(250px,100%),1fr));gap:6px}
 .chips-catalogo .chip{min-height:44px;justify-content:flex-start;text-align:left}
 .chips-catalogo .chip small{margin-left:auto;padding-left:var(--e2)}
 .chip:active:not([aria-disabled]){transform:translateY(1px) scale(.97);box-shadow:var(--clay-in)}
@@ -449,9 +452,12 @@ input:disabled,select:disabled,textarea:disabled{background:var(--n2);box-shadow
     <input id="f-tel" type="tel" inputmode="tel" placeholder="33 0000 0000" autocomplete="off" aria-required="true"></div>
 </div>
 <span class="solo-voz" id="hint-oblig">Sin cliente, teléfono y proyecto no se pueden capturar partidas.</span>
-<div class="fld"><label for="f-anti">Anticipo sugerido (50%)</label>
+<div class="fld"><label for="f-anti" id="f-anti-lbl">Anticipo sugerido (50%)</label>
   <div class="inp-money"><input id="f-anti" type="number" inputmode="decimal" min="0" placeholder="0"></div></div>
 ```
+El `id="f-anti-lbl"` no es decoración: `renderSummary()` reescribe ese rótulo con el porcentaje
+real —«Anticipo (46 %)»— en cuanto el anticipo se teclea a mano, y vuelve a «sugerido (50%)» al
+borrarlo. Sin el id la función sale por su guarda sin avisar y el rótulo miente para siempre.
 `.fld-lab` es el mismo renglón de arriba pero para lo que **no** es un campo (una lista, un segmentado): un `<label>` que no apunta a ningún control se lee como texto suelto, así que va un `<div class="fld-lab" id="…">` y el grupo lo nombra con `aria-labelledby`.
 
 ### 2.5 `.seg` y `.tipo-seg` — control segmentado
@@ -924,7 +930,10 @@ En papel los tres (`.ai-btn`, `.sp-ai`, `.pf-ia-btn`) salen con borde y tinta os
 function altoTopbarFija(){
   const tb=document.querySelector('.topbar');
   if(!tb) return 0;
-  const top=parseFloat(getComputedStyle(tb).top)||0;
+  const cs=getComputedStyle(tb);
+  // Una barra suelta no reserva sitio: con position:static el destino sube hasta el borde.
+  if(cs.position!=='sticky'&&cs.position!=='fixed') return 0;
+  const top=parseFloat(cs.top)||0;
   return Math.max(0,tb.offsetHeight+top);
 }
 function ajustarTopbarMovil(){
@@ -932,8 +941,14 @@ function ajustarTopbarMovil(){
   if(!tb||!marca) return;
   if(!window.matchMedia('(max-width:560px)').matches){ tb.style.top=''; document.documentElement.style.setProperty('--top-fijo',altoTopbarFija()+'px'); return; }
   const fila=tb.querySelector('.topbar-in');
-  const hueco=parseFloat(getComputedStyle(fila).rowGap)||0;
-  tb.style.top=(3-Math.round(marca.offsetHeight+hueco))+'px';
+  // El renglón de la marca ENTERO: su relleno de arriba, su alto y el hueco hasta el de abajo.
+  // El alto lo da .brand, que lleva min-height:44px porque el tema y «Plataforma» van anclados
+  // dentro de ese renglón. No se mide hasta el folio: va centrado en su renglón y su borde
+  // superior queda 8 px más abajo, ocho píxeles que se comen la barra pegada por arriba.
+  const cs=getComputedStyle(fila);
+  const pad=parseFloat(cs.paddingTop)||0;
+  const hueco=parseFloat(cs.rowGap)||0;
+  tb.style.top=(3-Math.round(pad+marca.offsetHeight+hueco))+'px';
   document.documentElement.style.setProperty('--top-fijo',altoTopbarFija()+'px');
 }
 window.addEventListener('resize',ajustarTopbarMovil);

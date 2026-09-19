@@ -114,7 +114,15 @@ function segAria(sel){
 function altoTopbarFija(){
   const tb=document.querySelector('.topbar');
   if(!tb) return 0;
-  const top=parseFloat(getComputedStyle(tb).top)||0;
+  const cs=getComputedStyle(tb);
+  /* Una barra que NO está pegada no estorba a nada: se va con el scroll y el destino puede
+     subir hasta el borde. Con `position:static` —lo que hace la regla de pantalla acostada—
+     seguir restándole su alto dejaba una franja muerta arriba de cada destino: un tercio de
+     la pantalla en blanco al tocar «Revisar precio» o al cambiar de paso en un teléfono
+     acostado. Y como `--top-fijo` sale de aquí, el mismo hueco se colaba en
+     `scroll-padding-top` y en la columna del dinero. */
+  if(cs.position!=='sticky'&&cs.position!=='fixed') return 0;
+  const top=parseFloat(cs.top)||0;
   return Math.max(0,tb.offsetHeight+top);
 }
 function irA(el,extra=12){
@@ -136,18 +144,23 @@ function ajustarTopbarMovil(){
   if(!tb||!marca) return;
   if(!window.matchMedia('(max-width:560px)').matches){ tb.style.top=''; document.documentElement.style.setProperty('--top-fijo',altoTopbarFija()+'px'); return; }
   const fila=tb.querySelector('.topbar-in');
-  /* El desplazamiento se mide hasta donde EMPIEZA el renglón pegado, no por el alto del
-     logotipo: desde que el tema y el enlace a la plataforma viajan en el renglón de la marca,
-     esa fila la mide el más alto de los tres —un botón de 44 px—, y con el alto del logotipo
-     la marca se quedaba medio asomada. La resta entre los dos rectángulos da el alto real de
-     la primera fila más su hueco, sea lo que sea que lleve dentro, y no se desajusta aunque
-     la barra ya esté desplazada: las dos cajas se mueven juntas. */
-  const folio=$('folio');
-  const hueco=parseFloat(getComputedStyle(fila).rowGap)||0;
-  const alto=folio
-    ? folio.getBoundingClientRect().top-fila.getBoundingClientRect().top
-    : marca.offsetHeight+hueco;
-  tb.style.top=(3-Math.round(alto))+'px';
+  /* Lo que se va con el scroll es EL RENGLÓN DE LA MARCA ENTERO: su relleno de arriba, su
+     alto y el hueco hasta el renglón de abajo. Los tres sumandos, y ni uno más.
+
+     El alto de ese renglón ya no es el del logotipo: desde que el tema y el enlace a la
+     plataforma viajan ahí —anclados, fuera del reparto—, la fila la mide `.brand`, que lleva
+     min-height de 44 px para hacerles sitio. `marca.offsetHeight` sigue siendo la medida
+     correcta porque ESA es la caja de .brand.
+
+     Y no se mide hasta el folio. Se probó y se pasa: el folio mide 28 px dentro de un renglón
+     de 44 y va centrado, así que su borde de arriba queda 8 px por debajo de donde empieza el
+     renglón. Ocho píxeles de más en el desplazamiento son ocho píxeles del renglón pegado
+     cortados por arriba —medido: el selector de rol quedaba en y −6, con su primer píxel
+     fuera de la pantalla—. */
+  const cs=getComputedStyle(fila);
+  const pad=parseFloat(cs.paddingTop)||0;
+  const hueco=parseFloat(cs.rowGap)||0;
+  tb.style.top=(3-Math.round(pad+marca.offsetHeight+hueco))+'px';
   document.documentElement.style.setProperty('--top-fijo',altoTopbarFija()+'px');
 }
 window.addEventListener('resize',ajustarTopbarMovil);

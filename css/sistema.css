@@ -1267,8 +1267,16 @@ textarea{resize:vertical;min-height:46px}
    al fondo su parte de abajo sube y «Autorizar yo mismo» queda detrás de la cabecera —solo
    se alcanzaba con un desplazamiento intermedio exacto—. Con las dos sueltas, la página se
    lee de corrido como en vertical. El corte es por ALTO: el ancho no distingue este caso,
-   porque 844 px de ancho son «escritorio» para todas las demás reglas. */
-@media(max-height:600px) and (pointer:coarse){
+   porque 844 px de ancho son «escritorio» para todas las demás reglas.
+
+   Y lleva `orientation:landscape`, que es lo que de verdad significa «acostada». Sin eso, el
+   corte por alto atrapaba también al cotizador EMPOTRADO en un teléfono VERTICAL: dentro de
+   la plataforma el marco mide 562 px de alto en un teléfono de 390×844 y 520 en uno de
+   360×800 —los dos por debajo de 600, los dos con puntero grueso—, así que la cabecera del
+   cotizador empotrado se soltaba y se iba con el scroll en la postura donde sí tiene que
+   quedarse. La consulta de orientación mira el VISOR, y dentro de un <iframe> el visor es el
+   marco, que es exactamente lo que hay que preguntar aquí. */
+@media(max-height:600px) and (orientation:landscape) and (pointer:coarse){
   .side{position:static}
   .topbar{position:static}
 }
@@ -1427,14 +1435,23 @@ details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
 @media(min-width:760px){
   .toast{left:calc(var(--lat,0px) + 24px);right:auto;transform:translateY(90px)}
   .toast.show{transform:translateY(0)}
-  /* Con una capa abierta, arriba. «Abajo a la izquierda no hay nada que tapar» vale para la
-     página, pero la ficha del proyecto y la orden de trabajo se centran en un panel de 640
-     px cuyo pie de botones cae exactamente en esa esquina: «Datos copiados…» se montaba
-     sobre «Orden de trabajo» los cuatro segundos que dura, justo después de tocarlo (medido
-     a 1440×1000: toast en y 928-974, botones del pie en 894-950). Arriba, el panel solo
-     tiene su título. */
-  body:has(.pf-modal-bg.show) .toast{top:calc(32px + 12px);bottom:auto;transform:translateY(-90px)}
-  body:has(.pf-modal-bg.show) .toast.show{transform:translateY(0)}
+  /* Con una capa abierta, el aviso SUBE lo justo para librar el pie del panel. «Abajo a la
+     izquierda no hay nada que tapar» vale para la página, pero la ficha del proyecto y la
+     orden de trabajo se centran en un panel de 640 px cuyo pie de botones cae exactamente en
+     esa esquina: «Datos copiados…» se montaba sobre «Orden de trabajo» los cuatro segundos que
+     dura, justo después de tocarlo (medido a 1440×1000: aviso en y 928-974, botones del pie en
+     894-950).
+     Se probó mandarlo ARRIBA y es peor: el panel empieza a 32 px del borde, así que el aviso
+     caía encima del título —el nombre del proyecto, que es justo el dato que el aviso pide
+     confirmar—. Y cambiar entre `top` y `bottom` lo hacía saltar de un extremo al otro cuando
+     una capa se abría con el aviso a la vista, porque la transición es del `transform` y no de
+     la posición.
+     Sube y ya: el pie mide 58 px y el aviso se posa sobre el CUERPO del panel —texto que se
+     puede volver a leer— sin tocar ni los botones ni el título, y conservando su entrada y su
+     salida. Los 96 px no son los 58 justos: con el mínimo quedaba a un píxel de los botones en
+     una ventana de 800, y un pie que crezca un renglón —un rótulo más largo, una letra más
+     grande— se lo volvería a comer. Con esto sobran veinticinco. */
+  body:has(.pf-modal-bg.show) .toast{bottom:calc(32px + 96px)}
 }
 
 /* ----- Cola de autorización ----- */
@@ -3084,7 +3101,11 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
    radio 999, o sea un óvalo con el texto pegado a la curva (medido en tableta: chips de
    181×55 con dos líneas). Con 250, en una columna de 424 px cae una sola columna a un
    renglón —como en el teléfono— y en 794 px caben tres, también a un renglón. */
-.chips-catalogo{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px}
+/* `min(250px,100%)` y no 250 a secas: un mínimo de pista más ancho que su contenedor no
+   encoge, desborda. En un teléfono de 320 px, entre el relleno de la página, la tarjeta, la
+   partida y el bloque de opciones quedan unos 234 px de rejilla, y la pastilla se salía de la
+   tarjeta. Con el `min()` la pista pide 250 donde los hay y el ancho disponible donde no. */
+.chips-catalogo{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(250px,100%),1fr));gap:6px}
 .chips-catalogo .chip{min-height:44px;justify-content:flex-start;text-align:left}
 /* La tarifa, pegada a la derecha de su opción: así las cinco caen en columna. */
 .chips-catalogo .chip small{margin-left:auto;padding-left:var(--e2)}

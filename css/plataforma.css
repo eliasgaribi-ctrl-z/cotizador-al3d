@@ -174,6 +174,12 @@ body.pf::before{display:none}
     font-family:inherit;font-size:var(--t2);font-weight:500;text-align:left;cursor:pointer;
   }
   .pf-lat-item:hover{background:rgba(255,255,255,.06);color:#fff}
+  /* El interruptor de tema es, además, `.btn-tema`, y esa clase lo formatea en el sistema como
+     un botón cuadrado de icono: 44 px de ancho y de alto mínimo. En esta barra no es eso —es
+     un renglón con su palabra— y el ancho ya se lo devuelve la regla de arriba, pero el alto
+     mínimo se quedaba y dejaba «Tema oscuro» 4 px más alto que «Ajustes», que está pegado
+     debajo. Se veía como un renglón torcido. El alto de esta barra lo decide esta barra. */
+  .pf-lat-item.btn-tema{width:100%;min-height:0}
   .pf-lat-item .svgi{width:var(--ico2);height:var(--ico2);flex:0 0 auto}
   /* El interruptor de tema dice A DÓNDE va, no dónde estás: en claro, «Tema oscuro» con la
      luna; en oscuro, «Tema claro» con el sol. La hoja del sistema ya enseña un glifo u otro
@@ -795,8 +801,10 @@ body.pf::before{display:none}
 
 /* El segmentado y la línea de frescura que lo sigue en el Tablero se tocaban: la píldora
    terminaba en el mismo píxel en que empezaba el texto y los dos se leían como un bloque
-   descuadrado. */
-.seg + .pf-frescura{margin-top:var(--e3)}
+   descuadrado. `.tipo-seg` y no `.seg`: el segmentado de la plataforma lo pinta segmento() en
+   js/nucleo/ui.js y esa es la clase que escribe. Con `.seg` la regla no casaba con nada y el
+   defecto que dice arreglar seguía en pantalla. */
+.tipo-seg + .pf-frescura{margin-top:var(--e3)}
 
 /* ============================================================================
    Proyectos — lo que el tablero por etapa necesitaba
