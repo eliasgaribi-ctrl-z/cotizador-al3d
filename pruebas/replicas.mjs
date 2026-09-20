@@ -92,6 +92,7 @@ const Puente = await import('../js/datos/puente.js');
 const Prefs = await import('../js/datos/prefs.js');
 const Cat = await import('../js/datos/catalogo-precios.js');
 const Asis = await import('../js/datos/asistente-contexto.js');
+const UI = await import('../js/nucleo/ui.js');
 
 /* ============================================================================ */
 console.log('\nLA HUELLA DEL TRABAJO — la misma lista de campos, el mismo texto');
@@ -163,17 +164,36 @@ console.log('\nLO QUE SE COBRÓ — una regla, no cuatro parecidas');
 console.log('\nEL TIPO DE TRABAJO — la traducción de una partida a los siete valores');
 {
   const ctx = evaluar(fuente(COT.historial, 'tipoTrabajoCot'), {});
+  /* `altura` y `n` van en todas a propósito: lo que se compara aquí es la TRADUCCIÓN de una
+     partida a los siete valores, y una partida sin un solo dato capturado ya no se traduce
+     —no describe ningún trabajo— por los dos lados. Esa criba se prueba abajo, aparte. */
   const partidas = [];
   for (const tipo of ['letras', 'caja', 'recorte', 'bastidor', 'manual', 'otra'])
     for (const luz of [true, false, undefined])
       for (const acab of ['vinil', 'sencillo', 'sandwich', undefined])
-        partidas.push({ tipo, luz, acab });
+        partidas.push({ tipo, luz, acab, altura: 30, n: 4 });
   let iguales = 0;
   for (const it of partidas) {
     const plataforma = Proy.tiposDerivados([it]);
     if (plataforma.length === 1 && plataforma[0] === ctx.tipoTrabajoCot(it)) iguales++;
   }
   eq('las ' + partidas.length + ' combinaciones dan el mismo tipo de los dos lados', iguales, partidas.length);
+
+  /* ----- Y la partida EN BLANCO se descarta por los dos lados -----
+     El cotizador la criba en `plazoSugeridoCot` con `itemVacio`; la plataforma, dentro de
+     `tiposDerivados` con `partidaEnBlanco`. Si una de las dos dejara de hacerlo, el vendedor
+     vería un plazo al capturar y la plataforma escribiría otro al ganar: la partida que
+     siembra `addItem()` —'letras' con luz, sin un dato— añade un tipo de trabajo que nadie
+     vendió y `plazoSugerido` le suma un cubo por «hay dos tipos distintos». */
+  const cotVacio = evaluar(fuente(COT.ia, 'itemVacio'), {});
+  const blanca = { id: 9, tipo: 'letras', material: '', matAuto: false, comp: 'recta', luz: true,
+    altura: 0, n: 0, tarifa: 0, ancho: 0, alto: 0, acab: '', bas: '', desc: '', pz: 1, pu: 0 };
+  eq('el cotizador dice que la partida recién sembrada está vacía', cotVacio.itemVacio(blanca), true);
+  eq('y la plataforma no le deriva ningún tipo', Proy.tiposDerivados([blanca]), []);
+  const conDato = { ...blanca, altura: 30, n: 4 };
+  eq('en cuanto se teclea algo, las dos la cuentan',
+     [cotVacio.itemVacio(conDato), Proy.tiposDerivados([conDato])],
+     [false, ['Letras 3D con iluminacion']]);
   const cubos = constante(COT.historial, 'CUBO_POR_TIPO_COT');
   eq('y los cubos del plazo nombran exactamente los siete tipos', Object.keys(cubos).sort(), [...Proy.TIPOS_TRABAJO].sort());
 }
@@ -268,6 +288,33 @@ console.log('\nEL MODAL DE REGISTRAR VENTA — los desplegables, en el orden de 
 console.log('\nEL MÍNIMO DE UN METRO CUADRADO — precio, no geometría, y el mismo número');
 {
   eq('M2_MINIMO del cotizador es el de la copia generada', constante(COT.nucleo, 'M2_MINIMO'), Cat.M2_MINIMO);
+}
+
+/* ============================================================================ */
+/* El cotizador ya había arreglado esto y dejó escrito el porqué: un «33 12» a medias «abría
+   el chat de un número que no era el del cliente mientras el aviso decía WhatsApp abierto».
+   La plataforma llevaba su propia versión —`linkWa`— que mandaba a wa.me CUALQUIER cadena de
+   dígitos, y la usan el botón «Cobrar» de Control, la ficha de Proyectos y los dos de pedirle
+   material al proveedor, cuyo teléfono se teclea a mano. */
+console.log('\nEL TELÉFONO DE WHATSAPP — la misma regla de los dos lados');
+{
+  const ctx = evaluar(fuente(COT.entrega, 'telWhatsApp'), {});
+  const casos = ['', '  ', '33', '33 12', '3312345', '33 1234 5678', '+52 33 1234 5678',
+    '521 33 1234 5678', '+1 415 555 2671', 'ext. 204', '(33) 1234-5678',
+    '1234567890123456', 'no tiene'];
+  let iguales = 0;
+  for (const t of casos) {
+    if (UI.telWa(t) === ctx.telWhatsApp(t)) iguales++;
+    else console.log('         ' + JSON.stringify(t) + ': plataforma ' + JSON.stringify(UI.telWa(t)) +
+                     ', cotizador ' + JSON.stringify(ctx.telWhatsApp(t)));
+  }
+  eq('los ' + casos.length + ' teléfonos dan el mismo número de los dos lados', iguales, casos.length);
+  eq('el celular de diez dígitos se manda con lada de país', UI.telWa('33 1234 5678'), '5233 12345678'.replace(/\s/g, ''));
+  eq('el que no puede ser un teléfono se rechaza, no se manda a medias', UI.telWa('33 12'), '');
+  eq('y sin número la liga sigue abriendo WhatsApp para elegir contacto (la orden de trabajo)',
+     UI.linkWa('', 'hola'), 'https://wa.me/?text=hola');
+  eq('con un teléfono que no lo es, tampoco inventa destinatario',
+     UI.linkWa('ext. 204', 'hola'), 'https://wa.me/?text=hola');
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

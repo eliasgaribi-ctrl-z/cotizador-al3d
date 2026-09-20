@@ -29,7 +29,7 @@ import { matOf, basOf, recOf, cajaOf } from '../datos/catalogo-precios.js';
 import { ESTATUS as ESTATUS_NOTION, CUENTAS, ESTATUS_DE_PAGOS } from '../datos/puente.js';
 import {
   $, esc, money, cant, ico, toast, avisarResultado, vacio, segmento, chip,
-  abrirCapa, cerrarCapa, copiarTexto, linkWa, fmtFecha, fmtFechaDia, fmtHora, cuando,
+  abrirCapa, cerrarCapa, copiarTexto, linkWa, telWa, fmtFecha, fmtFechaDia, fmtHora, cuando,
   diasHasta, hoyISO, rotularPapel,
 } from '../nucleo/ui.js';
 
@@ -715,9 +715,14 @@ function htmlFicha(p) {
   const datos = [];
   datos.push(dato('Contacto', p.contacto || '—'));
   datos.push(dato('Negocio', p.negocio || '—'));
+  /* El teléfono se ENSEÑA siempre que lo haya —es un dato y puede servir para llamar—, pero
+     el botón de WhatsApp solo cuando el número puede serlo de verdad: con uno a medias abría
+     el chat de otra persona diciendo que era el del cliente. */
   datos.push(dato('Teléfono', tel
-    ? esc(tel) + '<br><a class="btn-wa" href="' + esc(linkWa(tel)) + '" target="_blank" rel="noopener">' +
-      ico('i-wa') + ' WhatsApp</a>'
+    ? esc(tel) + (telWa(tel)
+        ? '<br><a class="btn-wa" href="' + esc(linkWa(tel)) + '" target="_blank" rel="noopener">' +
+          ico('i-wa') + ' WhatsApp</a>'
+        : '<br><span class="pf-nota">Así como quedó capturado no es un número al que WhatsApp pueda escribir.</span>')
     : 'No quedó teléfono en la cotización', !!tel));
   datos.push(dato('Tipo de trabajo', (p.tipo_trabajo || []).join(' · ') || '—'));
   datos.push(dato('Etapa de obra', '<span class="pf-etapa ' + claseEtapa(p.etapa) + '">' +

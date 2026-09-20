@@ -582,10 +582,6 @@ function cardPuente() {
     }
   }
 
-  /* Los tokens ya no se generan aquí: los genera la hoja y viven en las propiedades
-     de su script. Uno generado en el teléfono no lo reconocería nadie. */
-  const tokens = '';
-
   return tarjeta('i-nube-off', ins.titulo + ' · Fase 3',
     estado +
 
@@ -602,7 +598,6 @@ function cardPuente() {
 
     nota('<b>Los tres tokens salen de la hoja</b>, no de aquí: menú ' +
          '<b>⚡ AL3D → Tokens del puente</b>. Pega abajo el que le toca a ESTE teléfono.', 'av') +
-    tokens +
 
     '<div class="fld aj-bloque">' +
     '<label for="aj-worker-url">Liga del puente</label>' +
@@ -753,12 +748,7 @@ async function clic(ev) {
   if (t.closest('[data-act="puente-probar"]')) { probarPuente(); return; }
   if (t.closest('[data-act="puente-esquema"]')) { revisarEsquema(); return; }
   if (t.closest('[data-act="puente-jalar"]')) { jalar(); return; }
-  if (t.closest('[data-act="puente-copiar-tokens"]')) {
-    copiarTexto('', 'Los tokens salen de la hoja: menú ⚡ AL3D → Tokens del puente');
-    return;
-  }
   if (t.closest('[data-act="puente-copiar-faltan"]')) { copiarFaltan(); return; }
-  const ut = t.closest('[data-rol-tok]');
   if (t.closest('[data-act="borrar"]')) { abrirCordon(); return; }
 }
 

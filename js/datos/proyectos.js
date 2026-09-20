@@ -139,6 +139,29 @@ export const TIPOS_TRABAJO = [
    Las dos funciones PURAS. Sin DOM, sin red, sin IndexedDB.
    ============================================================================ */
 
+/* ----- Una partida sin un solo dato capturado no describe ningún trabajo -----
+ * El cotizador siembra cada partida nueva en `tipo:'letras'` con `luz:true` —hay que empezar
+ * por algo— y esa plantilla viaja tal cual al historial si la cotización se autoriza con el
+ * renglón todavía en blanco: el aviso de partidas sin terminar avisa, pero tiene su
+ * «continuar de todos modos». Contarla le inventaba al proyecto un «Letras 3D con
+ * iluminacion» que nadie vendió, y con él una etiqueta de más en el nombre y un cubo de más
+ * en el plazo de taller, porque `plazoSugerido` suma uno por cada tipo distinto.
+ *
+ * Es la gemela de `itemVacio` (js/cotizador/ia.js), escrita aquí porque el cotizador es un
+ * script clásico y no se puede importar. `pruebas/proyectos.mjs` comprueba que las dos miren
+ * los mismos campos, igual que `pruebas/taller.mjs` ata las dos tablas de plazos.
+ *
+ * `material` cuenta solo si lo eligió una persona: el heredado lo pone la app (`matAuto`).
+ * @param {Object} it
+ * @returns {boolean}
+ */
+export function partidaEnBlanco(it) {
+  if (!it || typeof it !== 'object') return true;
+  const matPropio = !!it.material && !it.matAuto;
+  return !String(it.desc || '').trim() && !it.altura && !it.n && !it.ancho && !it.alto &&
+         !it.pu && !it.tarifa && !matPropio && !it.acab && !it.bas;
+}
+
 /**
  * Los siete valores de la copia de Notion, derivados de las partidas.
  *
@@ -170,14 +193,17 @@ export const TIPOS_TRABAJO = [
  * TIPOS_TRABAJO —no en el de las partidas— para que dos proyectos con las mismas partidas
  * en otro orden produzcan el mismo array y se puedan comparar.
  *
+ * Las partidas EN BLANCO no cuentan: ver `partidaEnBlanco` aquí arriba.
+ *
  * @param {Array<Object>} items partidas del historial
- * @returns {string[]} vacío solo si no hay ni una partida legible
+ * @returns {string[]} vacío si no hay ni una partida legible con algo capturado
  */
 export function tiposDerivados(items) {
   if (!Array.isArray(items)) return [];
   const halla = new Set();
   for (const it of items) {
     if (!it || typeof it !== 'object') continue;
+    if (partidaEnBlanco(it)) continue;
     const luz = it.luz !== false;   // default true: la partida de la IA no siempre lo trae
     switch (it.tipo) {
       case 'letras':
@@ -255,6 +281,11 @@ export function nombreDerivado(origen, tipos) {
   let etiquetas = [];
   if (Array.isArray(o.items) && o.items.length) {
     for (const it of o.items) {
+      /* La misma criba que `tiposDerivados`: un renglón en blanco metía «Letras Luz» en el
+         paréntesis del nombre —«Ale - Parentesis (Vinil + Letras Luz)»— de un trabajo que
+         solo lleva vinil. El paréntesis es para reconocer el trabajo en una lista de
+         doscientos; nombrar una pieza que no existe es justo lo contrario. */
+      if (partidaEnBlanco(it)) continue;
       const e = etiquetaCorta(it);
       if (e && !etiquetas.includes(e)) etiquetas.push(e);
     }

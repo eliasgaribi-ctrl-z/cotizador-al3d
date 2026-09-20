@@ -38,7 +38,7 @@ import * as Agenda from '../datos/agenda.js';
 import * as Ventas from '../datos/ventas.js';
 import * as Bitacora from '../datos/bitacora.js';
 import * as Sync from '../datos/sync.js';
-import { $, ico, esc, money, toast, vacio, segmento, chip, fmtFecha, linkWa, descargarArchivo,
+import { $, ico, esc, money, toast, vacio, segmento, chip, fmtFecha, linkWa, telWa, descargarArchivo,
          hoyISO } from '../nucleo/ui.js';
 import { masMeses } from '../nucleo/fechas.js';
 
@@ -82,6 +82,20 @@ export async function montar(contenedor, ctx) {
 
 export function desmontar() {
   if (cont) { cont.removeEventListener('click', alClic); cont.removeEventListener('input', alEscribir); }
+  /* El hueco de acciones del encabezado NO es de este módulo: vive en index.html y lo
+     comparten todos. El router le vacía el marcado antes de montar el siguiente —«las
+     acciones del encabezado son del módulo que se va»— pero vaciar el innerHTML no suelta el
+     oyente que cuelga del NODO, así que el de Control se quedaba puesto sobre el encabezado
+     de las demás pantallas. Hoy no hace daño —`alClic` sale por la puerta de atrás con `CTX`
+     y `D` en null— pero es la única suscripción de la plataforma a un nodo compartido que
+     nadie retiraba, y basta con que otro módulo estrene un `data-tab` ahí para que Control
+     empiece a cambiarse de pestaña solo desde una pantalla que ya no es la suya. */
+  const acc = $('pf-cab-acc');
+  if (acc) acc.removeEventListener('click', alClic);
+  /* También el temporizador del buscador: dispara 220 ms después de la última tecla y puede
+     caer con el módulo ya desmontado. `pintar()` se protege sola, pero un reloj que sobrevive
+     a su módulo es exactamente lo que `desmontar` existe para apagar. */
+  clearTimeout(_espera); _espera = 0;
   cont = null; CTX = null; D = null;
 }
 
@@ -452,7 +466,9 @@ function filaCobro(x) {
     'Le comparto el saldo de ' + (p.negocio || p.nombre || 'su trabajo') + ': ' + money(x.saldo) + '.\n' +
     '¿Le mando los datos de la cuenta o prefiere efectivo?\n— AL3D';
   const acciones =
-    (p.tel ? '<a class="btn-wa" href="' + esc(linkWa(p.tel, texto)) + '" target="_blank" rel="noopener">' + ico('i-wa') + ' Cobrar</a>' : '') +
+    /* `telWa` y no `p.tel`: un teléfono a medias —el historial trae cotizaciones de cuando
+       no era obligatorio— pintaba un «Cobrar» que abría el chat de otro número. */
+    (telWa(p.tel) ? '<a class="btn-wa" href="' + esc(linkWa(p.tel, texto)) + '" target="_blank" rel="noopener">' + ico('i-wa') + ' Cobrar</a>' : '') +
     (p.de_hoja ? '' : '<button type="button" class="btn btn-gho pf-btn-corto" data-abrir="' + esc(p.id) + '">Abrir</button>');
   return '<div class="pf-fila ct-fila">' +
     '<span class="pf-fila-ico' + (x.entregado ? ' mal' : ' urge') + '">' + ico(x.entregado ? 'i-check' : 'i-reloj') + '</span>' +
@@ -590,7 +606,4 @@ function bajarCSV() {
 }
 
 const plano = s => String(s == null ? '' : s).toLowerCase()
-  .normalize('NFD').replace(/[̀-ͯ]/g, '');
-
-/* Se referencian para que quien lea el módulo sepa que el segmento del `$` existe. */
-void $;
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '');

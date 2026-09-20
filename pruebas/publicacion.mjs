@@ -148,5 +148,77 @@ if (guiones.length < 11) mal('cotizador.html carga ' + guiones.length + ' guione
 else if (guiones[guiones.length - 1] !== 'arranque') mal('arranque.js no es el último guion del cotizador: init() correría antes de que existan las funciones que llama');
 else bien('los ' + guiones.length + ' guiones del cotizador se cargan con arranque.js al final');
 
+/* ----- Los números que la documentación afirma -----
+   Este repositorio decide cosas con números escritos en prosa, y el más caro de todos es el
+   de los manejadores en línea: de él cuelga el argumento de por qué el cotizador NO se porta
+   a módulos ES —«dejarían de resolver EN SILENCIO»— repetido en los once guiones, en el
+   README y en js/mod/cotizador.js. Un número que ya no es cierto no tumba el argumento, pero
+   sí le quita el peso que tenía, que era justamente ser una medición.
+
+   Una auditoría de septiembre de 2026 los encontró los cuatro corridos a la vez: 273
+   manejadores cuando eran 157, cuarenta archivos en el conjunto cuando eran 74, quince
+   pruebas de navegador cuando eran 17 y 25 módulos de plataforma cuando eran 31. Ninguno se
+   descubre leyendo: hay que contar. Así que se cuentan, que es lo mismo que `correr.sh` ya
+   hace con su propia lista de pruebas y `pruebas/taller.mjs` con las dos tablas de plazos. */
+function cuentaDicha(texto, patron, fuente) {
+  const m = patron.exec(texto);
+  return m ? { n: Number(m[1]), donde: fuente } : null;
+}
+function comparar(que, real, dichas) {
+  const malas = dichas.filter(d => d && d.n !== real);
+  if (!dichas.filter(Boolean).length) { mal(que + ': ya no se afirma en ninguna parte, ¿se borró la frase?'); return; }
+  if (!malas.length) { bien(que + ': la documentación dice ' + real + ', y son ' + real); return; }
+  mal(que + ': son ' + real + ' y la documentación dice ' + [...new Set(malas.map(d => d.n))].join(' / ') +
+      '\n      Está escrito en: ' + [...new Set(malas.map(d => d.donde))].join(', ') +
+      '\n      Arreglo: corregir el número donde lo diga, no cambiar esta prueba.');
+}
+
+const readme = readFileSync(join(RAIZ, 'README.md'), 'utf8');
+const modCot = readFileSync(join(RAIZ, 'js/mod/cotizador.js'), 'utf8');
+
+/* 1 · Los manejadores en línea de cotizador.html. Se cuentan los atributos `on…="` del
+   marcado, que son exactamente los que un módulo ES dejaría mudos. */
+const manejadores = (cotiz.match(/\bon[a-z]+\s*=\s*"/g) || []).length;
+comparar('los manejadores en línea de cotizador.html', manejadores, [
+  cuentaDicha(readme, /los (\d+) manejadores en línea/, 'README.md'),
+  cuentaDicha(modCot, /tiene (\d+) manejadores en línea/, 'js/mod/cotizador.js'),
+  cuentaDicha(modCot, /así que los (\d+) dejarían/, 'js/mod/cotizador.js'),
+  ...['arranque', 'catalogo', 'entrega', 'escalador', 'historial', 'ia', 'nucleo', 'partidas',
+      'proceso', 'vectorizador', 'venta'].map(g => cuentaDicha(
+    readFileSync(join(RAIZ, 'js/cotizador/' + g + '.js'), 'utf8'),
+    /(\d+) manejadores en línea del marcado/, 'js/cotizador/' + g + '.js')),
+]);
+/* Y el desglose de js/mod/cotizador.js, que nombra los dos más numerosos. */
+const porTipo = t => (cotiz.match(new RegExp('\\b' + t + '\\s*=\\s*"', 'g')) || []).length;
+comparar('los onclick de cotizador.html', porTipo('onclick'),
+  [cuentaDicha(modCot, /(\d+) `onclick`/, 'js/mod/cotizador.js')]);
+comparar('los oninput de cotizador.html', porTipo('oninput'),
+  [cuentaDicha(modCot, /(\d+) `oninput`/, 'js/mod/cotizador.js')]);
+
+/* 2 · Los archivos del conjunto versionado, escrito con letra en el README. */
+const NUM = { veinticinco: 25, treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60,
+  setenta: 70, 'setenta y cuatro': 74, ochenta: 80, noventa: 90, cien: 100 };
+const mConj = /Son ([a-zá-ú ]+?) archivos que se cargan en orden/.exec(readme);
+if (!mConj) mal('el README ya no dice cuántos archivos son el conjunto versionado');
+else if (NUM[mConj[1].trim()] === undefined) mal('el README dice «' + mConj[1].trim() + ' archivos» y esta prueba no sabe leer ese número; añádelo a NUM');
+else comparar('los archivos de APP_FILES', archivos.length, [{ n: NUM[mConj[1].trim()], donde: 'README.md' }]);
+
+/* 3 · Las pruebas de navegador, que el README enumera y correr.sh ya cuenta solo. */
+const navegador = readdirSync(join(RAIZ, 'pruebas/navegador')).filter(n => n.endsWith('.mjs')).length;
+comparar('las pruebas de navegador', navegador,
+  [cuentaDicha(readme, /--navegador\s+(\d+) más/, 'README.md')]);
+comparar('las pruebas de node', readdirSync(join(RAIZ, 'pruebas')).filter(n => n.endsWith('.mjs')).length,
+  [cuentaDicha(readme, /correr\.sh\s+(\d+) archivos, solo node/, 'README.md')]);
+
+/* 4 · Los módulos ES de LA PLATAFORMA, que es el argumento del service worker para servirla
+   caché primero: «un módulo nuevo con uno viejo no es una app vieja, es una app rota».
+   Quedan fuera los once guiones clásicos del cotizador —que comparten ámbito global y no se
+   importan entre sí— y `js/tema.js`, que también es clásico y corre antes del primer pintado. */
+const modulosES = enDisco.filter(f => f !== 'js/tema.js' && !f.startsWith('js/cotizador/')).length;
+comparar('los módulos ES de la plataforma', modulosES, [
+  cuentaDicha(sw, /La plataforma son (\d+) módulos ES/, 'sw.js'),
+  cuentaDicha(sw, /la plataforma pide (\d+) módulos al arrancar/, 'sw.js'),
+]);
+
 console.log(fallos ? '\n' + fallos + ' FALLO(S)' : '\nEl sitio se puede publicar.');
 process.exit(fallos ? 1 : 0);

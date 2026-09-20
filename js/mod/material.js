@@ -32,7 +32,7 @@ import * as Proy from '../datos/proyectos.js';
 import * as Agenda from '../datos/agenda.js';
 import {
   $, esc, money, cant, plural, ico, toast, avisarResultado, vacio, segmento,
-  abrirCapa, cerrarCapa, linkWa, fmtFecha, cuando, diasHasta, hoyISO, ajustarAltoBarra, cantHay, rotularPapel } from '../nucleo/ui.js';
+  abrirCapa, cerrarCapa, linkWa, telWa, fmtFecha, cuando, diasHasta, hoyISO, ajustarAltoBarra, cantHay, rotularPapel } from '../nucleo/ui.js';
 
 /* ============================================================================
    Estado del módulo. Todo aquí, y todo se suelta en desmontar().
@@ -512,7 +512,10 @@ function filaCompra(l) {
       ? '<div class="mat-nota">' + esc(l.sello || 'nunca contado') +
         ': el «hay» sale del libro, no de haber visto el estante.</div>'
       : '') +
-    (l.tel_proveedor
+    /* `telWa` y no `l.tel_proveedor` a secas: el teléfono del proveedor se teclea a mano en
+       el catálogo, donde un «ext. 204» es un renglón normal, y con eso el botón abría el
+       chat de un número que no era el del proveedor. */
+    (telWa(l.tel_proveedor)
       ? '<div class="mat-acc btn-fila no-papel"><a class="btn-wa" href="' +
         esc(linkWa(l.tel_proveedor, textoProveedor(l))) + '" target="_blank" rel="noopener">' +
         ico('i-wa') + 'Pedirlo por WhatsApp</a></div>'
@@ -614,7 +617,7 @@ function filaExistencia(e) {
         'Así está' + '</button>' +
       '<button type="button" class="btn btn-gho" data-contar="' + esc(e.material_id) + '">' +
         'Corregir' + '</button>' +
-      (bajo && e.tel_proveedor
+      (bajo && telWa(e.tel_proveedor)
         ? '<a class="btn-wa" href="' + esc(linkWa(e.tel_proveedor,
             'Buenas, de AL3D. ¿Tienes ' + (mat ? mat.nombre : e.nombre) + '? Se nos acabó.')) +
           '" target="_blank" rel="noopener">' + ico('i-wa') + 'Pedirlo</a>'

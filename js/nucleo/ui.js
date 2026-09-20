@@ -359,12 +359,34 @@ export async function compartirArchivo(texto, nombre, tipo) {
    Un `<a>` a wa.me. Cero infraestructura, y es la única manera de que el instalador
    reciba la orden de trabajo sin tener acceso a la plataforma, que es lo que el director
    pidió expresamente. Solo texto: wa.me no adjunta archivos. */
-export function linkWa(tel, texto) {
+/* Un teléfono capturado, convertido en el número que wa.me entiende, o '' si no lo parece.
+   Es la MISMA regla que `telWhatsApp` del cotizador (js/cotizador/entrega.js), y aquí
+   faltaba entera: se mandaba a wa.me cualquier cadena de dígitos.
+
+   Lo que eso hacía está escrito en el cotizador, que ya lo arregló: un «33 12» a medias
+   «abría el chat de un número que no era el del cliente mientras el aviso decía WhatsApp
+   abierto». Aquí el caso llega por dos puertas: el teléfono del cliente viene de
+   cotizaciones de cuando el teléfono no era obligatorio, y el del proveedor se teclea a
+   mano en el catálogo de material —donde un «ext. 204» es un renglón normal—.
+
+   Lo que NO se toca: un teléfono vacío sigue dando '', y `linkWa('', texto)` tiene que
+   seguir abriendo WhatsApp SIN número para que la persona elija el contacto. De eso
+   depende «mandar la orden de trabajo» en js/mod/fabricacion.js. */
+export function telWa(tel) {
   const d = String(tel || '').replace(/\D/g, '');
-  /* Diez dígitos son un número nacional; se le pone 52 porque wa.me lo exige con lada de
-     país y nadie lo escribe así. Doce que empiezan con 521 son el formato viejo de México
-     y también funcionan. Lo que ya trae 52 se deja como está. */
-  const num = d.length === 10 ? '52' + d : d;
+  if (!d) return '';
+  if (d.length === 10) return '52' + d;                  // celular mexicano sin lada de país
+  if (d.length === 12 && d.startsWith('52')) return d;   // ya viene con 52
+  if (d.length === 13 && d.startsWith('521')) return d;  // formato viejo, con el 1
+  /* De aquí para abajo no se adivina, igual que en el cotizador: un 11 dígitos que empieza
+     con 1 se lee igual como número de Estados Unidos que como el formato mexicano viejo, así
+     que se manda tal cual. Lo que se rechaza es lo que NO puede ser un teléfono de nadie. */
+  if (d.length >= 11 && d.length <= 15) return d;        // internacional con lada plausible
+  return '';
+}
+
+export function linkWa(tel, texto) {
+  const num = telWa(tel);
   return 'https://wa.me/' + num + (texto ? '?text=' + encodeURIComponent(texto) : '');
 }
 

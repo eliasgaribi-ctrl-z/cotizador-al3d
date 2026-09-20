@@ -8,6 +8,7 @@
 
 import { tiposDerivados, nombreDerivado, TIPOS_TRABAJO }
   from '../js/datos/proyectos.js';
+import { readFileSync } from 'fs';
 
 let bien = 0, mal = 0;
 const eq = (que, dio, esperado) => {
@@ -55,10 +56,52 @@ console.log('\nQUE NUNCA QUEDE VACÍO NI TRUENE (es el criterio de éxito, no un
 eq('sin partidas',            tiposDerivados([]),   []);
 eq('items no es arreglo',     tiposDerivados(null), []);
 eq('basura entre partidas',   tiposDerivados([null, 'x', letras()]), ['Letras 3D con iluminacion']);
+/* La partida lleva altura y piezas a propósito: sin un solo dato capturado sería una partida
+   EN BLANCO y no contaría, que es lo que prueba el bloque de aquí abajo. Lo que esta línea
+   vigila es el MAPEO de un `tipo` que este archivo no conoce, no la criba. */
 eq('tipo que este archivo no conoce (el neón flex del futuro)',
-   tiposDerivados([{ id: 9, tipo: 'neon' }]), ['Custome / Proyecto Especial']);
+   tiposDerivados([{ id: 9, tipo: 'neon', altura: 25, n: 6 }]), ['Custome / Proyecto Especial']);
 eq('partida de la IA sin `luz` -> se lee como CON luz',
    tiposDerivados([{ id: 9, tipo: 'letras', altura: 30, n: 4 }]), ['Letras 3D con iluminacion']);
+
+/* ----- La partida en blanco no es un tipo de trabajo -----
+   `addItem()` del cotizador siembra cada partida nueva en `tipo:'letras'` con `luz:true`, y
+   esa plantilla llega al historial tal cual si la cotización se autoriza con el renglón
+   todavía vacío —el aviso de partidas sin terminar tiene su «continuar de todos modos»—.
+   Contarla le inventaba al proyecto un «Letras 3D con iluminacion» que nadie vendió, y con
+   él un cubo de más en el plazo de taller, porque `plazoSugerido` suma uno por cada tipo
+   distinto: un trabajo de puro vinil pasaba de 1 semana a 2.5. */
+console.log('\nLA PARTIDA EN BLANCO NO INVENTA TRABAJO');
+const enBlanco = (o = {}) => ({ id: 9, tipo: 'letras', material: '', matAuto: false,
+  comp: 'recta', luz: true, ilumTipo: 'fria', altura: 0, n: 0, tarifa: 0, ancho: 0, alto: 0,
+  acab: '', recComp: false, bas: '', desc: '', descAi: false, pz: 1, pu: 0, ...o });
+eq('la que siembra addItem() no cuenta',      tiposDerivados([enBlanco()]), []);
+eq('y no le añade un tipo a la que sí tiene', tiposDerivados([recorte({ acab: 'vinil' }), enBlanco()]),
+   ['Rotulacion de vinil']);
+eq('el material HEREDADO tampoco la llena (lo puso la app, no la persona)',
+   tiposDerivados([enBlanco({ material: 'acero', matAuto: true })]), []);
+eq('pero el elegido a mano sí',
+   tiposDerivados([enBlanco({ material: 'acero', matAuto: false })]), ['Letras 3D con iluminacion']);
+eq('y una descripción sola también: es trabajo capturado',
+   tiposDerivados([enBlanco({ desc: 'Neón flex del letrero' })]), ['Letras 3D con iluminacion']);
+eq('la caja con su tipo elegido y sin medidas cuenta (la tarifa es una decisión de precio)',
+   tiposDerivados([enBlanco({ tipo: 'caja', tarifa: 4600 })]), ['Caja de luz con iluminacion']);
+eq('el nombre tampoco la nombra',
+   nombreDerivado({ folio: 'COT-0009', cliente: 'Ale', proy: 'Parentesis',
+                    items: [recorte({ acab: 'vinil' }), enBlanco()] }, ['Rotulacion de vinil']),
+   'Ale - Parentesis (Vinil)');
+
+/* Las dos mitades de la misma regla: `partidaEnBlanco` aquí y `itemVacio` en el cotizador,
+   que es un script clásico y no se puede importar. Si se separan, el vendedor ve un plazo y
+   la plataforma escribe otro. Es la misma clase de prueba que `pruebas/taller.mjs` ya hace
+   con las dos tablas de plazos. Se comparan los CAMPOS que mira cada una. */
+const cot = readFileSync(new URL('../js/cotizador/ia.js', import.meta.url), 'utf8');
+const cuerpoCot = (/function itemVacio\(it\)\{([\s\S]*?)\n\}/.exec(cot) || [, ''])[1];
+const mio = readFileSync(new URL('../js/datos/proyectos.js', import.meta.url), 'utf8');
+const cuerpoMio = (/export function partidaEnBlanco\(it\) \{([\s\S]*?)\n\}/.exec(mio) || [, ''])[1];
+const campos = txt => [...new Set([...txt.matchAll(/it\.([a-zA-Z]+)/g)].map(m => m[1]))].sort();
+eq('el cotizador y la plataforma miran los mismos campos para decir «en blanco»',
+   campos(cuerpoMio), campos(cuerpoCot));
 
 console.log('\nEL NOMBRE, CONTRA LA CONVENCIÓN REAL DE SU BASE DE NOTION');
 const org = (o = {}) => ({ folio: 'COT-0007', cliente: 'Ale', proy: 'Parentesis', ...o });

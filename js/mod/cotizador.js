@@ -11,10 +11,11 @@
 
    ----- POR QUÉ NO SE PORTA A MÓDULO ES. NO LO INTENTES. -----
 
-   `cotizador.html` tiene 273 manejadores en línea —189 `onclick`, 39 `oninput`, y el resto
-   entre onblur/onchange/onkeydown/onload/onerror/ondrop/ondragover/ontouchstart/onmousedown—
-   y CERO asignaciones explícitas a `window.X`. Un manejador en línea se resuelve contra el
-   objeto global; en un módulo ES el ámbito superior NO es el global, así que los 273 dejarían
+   `cotizador.html` tiene 157 manejadores en línea —113 `onclick`, 18 `oninput`, y el resto
+   repartido entre onchange, los cuatro de arrastrar y soltar, onkeydown, onload y los de
+   ratón y dedo— y CERO asignaciones explícitas a `window.X`. Un manejador en línea se
+   resuelve contra el objeto global; en un módulo ES el ámbito superior NO es el global, así
+   que los 157 dejarían
    de resolver EN SILENCIO: sin error de compilación, sin excepción al cargar, y se
    descubrirían haciendo clic uno por uno sobre 645 KB de JS que no tiene una sola prueba
    unitaria y que guarda `al3d_historial`, el único dato irrecuperable del sistema.
