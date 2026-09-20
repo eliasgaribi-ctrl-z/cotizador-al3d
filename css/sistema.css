@@ -4155,6 +4155,16 @@ html.solo-vector #vt-btn-partidas,
 html.solo-vector #vt-btn-scaler,
 html.solo-vector #vt-acc-note{display:none !important}
 
+/* Y el bloque de marca de la herramienta. Es la misma razón por la que se apaga el de la
+   barra del cotizador empotrado —la plataforma ya puso «Vectorizador» en su encabezado, y
+   apilado da dos títulos en la misma pantalla— más una medida: en un teléfono de 375 px la
+   barra reparte el ancho entre la marca, la insignia y «Cargar imagen», y a la marca le
+   tocan 74 px, donde «Vectorizador Pro» sale cortado a media palabra.
+
+   Se apaga SOLO en este modo. Abierto desde una cotización la barra sigue igual que siempre:
+   ahí la marca es lo único que dice qué herramienta se abrió encima del cotizador. */
+html.solo-vector .sp-topbar .brand{display:none}
+
 /* ============================================================================
    (7) TEMA OSCURO
 

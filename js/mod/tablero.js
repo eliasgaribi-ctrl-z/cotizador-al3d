@@ -863,8 +863,39 @@ function pie() {
         '</div>' +
       '</div>'
     : '';
+  /* Las puertas a las herramientas del taller. En el teléfono la barra de abajo solo lleva
+     cinco rutas —con seis en 360 px el nombre ya no cabe debajo del icono— y la mesa de corte
+     y el vectorizador se quedan fuera. Sin esto quedarían INALCANZABLES en el celular, que es
+     justo donde trabaja fabricación: el rol para el que se sacaron a la barra. En pantalla
+     grande estas dos filas son redundantes con el riel, y se quedan igual: es la misma
+     redundancia que ya tienen Control y Qué atender, y cuesta dos renglones.
+
+     Pagos no las ve porque no las tiene: son de obra, no de cobranza. */
+  const herramientas = Prefs.rol() === 'pagos' ? '' :
+    '<div class="pf-fila">' +
+      '<span class="pf-fila-ico">' + ico('i-anidar') + '</span>' +
+      '<div class="pf-fila-tx">' +
+        '<p class="pf-fila-t">Mesa de corte</p>' +
+        '<p class="pf-fila-d">Acomoda las piezas del SVG en la lámina para gastar lo menos posible antes de cortar.</p>' +
+      '</div>' +
+      '<div class="pf-fila-acc">' +
+        btn('Abrir', 'btn btn-gho pf-btn-corto', { tipo: 'ir', ruta: 'anidador' }) +
+      '</div>' +
+    '</div>' +
+    '<div class="pf-fila">' +
+      '<span class="pf-fila-ico">' + ico('i-vector') + '</span>' +
+      '<div class="pf-fila-tx">' +
+        '<p class="pf-fila-t">Vectorizador</p>' +
+        '<p class="pf-fila-d">Convierte el logotipo del cliente en trazo de corte. No hace falta abrir una cotización.</p>' +
+      '</div>' +
+      '<div class="pf-fila-acc">' +
+        btn('Abrir', 'btn btn-gho pf-btn-corto', { tipo: 'ir', ruta: 'vectorizar' }) +
+      '</div>' +
+    '</div>';
+
   return '<div class="card"><div class="card-b">' +
     control +
+    herramientas +
     '<div class="pf-fila">' +
       '<span class="pf-fila-ico">' + ico('i-aviso') + '</span>' +
       '<div class="pf-fila-tx">' +
