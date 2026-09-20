@@ -1,0 +1,95 @@
+/* ============================================================================
+   LAS TRES PÁGINAS PÚBLICAS — portada, privacidad y condiciones.
+
+   Por qué existen, que es lo que nadie recuerda dentro de seis meses: Google no deja
+   publicar una app de OAuth sin una página principal, una política de privacidad y unas
+   condiciones del servicio. Sin publicarla, la app se queda en «modo prueba»: cada persona
+   del equipo tiene que estar en una lista dentro de la consola de Google —además de la
+   pestaña Accesos de la hoja— y a todas les sale la pantalla de «Google no ha verificado
+   esta app». Estas tres páginas son lo que quita esas dos cosas. La de privacidad además la
+   va a pedir Play Store el día que exista la app de Android.
+
+   No usan el sistema de rejillas de la plataforma a propósito: son documentos de texto, no
+   pantallas de trabajo. Lo que sí comparten son los TOKENS de css/sistema.css —los mismos
+   azules, la misma tinta, la misma escala— para que se lean como parte de lo mismo y no
+   como una página pegada de otro lado. Por eso este archivo va DESPUÉS de sistema.css y no
+   declara ni un color propio.
+
+   Y no llevan una línea de JavaScript. Una política de privacidad que necesita ejecutar
+   código para leerse es una contradicción, y además Google las revisa con herramientas que
+   no siempre esperan a que un guion pinte.
+   ============================================================================ */
+
+body.pub {
+  margin: 0;
+  background: var(--fondo);
+  color: var(--tinta);
+  font-family: var(--f-texto);
+  font-size: var(--t4);
+  line-height: 1.65;
+}
+
+.pub-wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  /* El área segura a los lados: en un iPhone con muesca acostado, el texto se metía debajo
+     del redondeo de la pantalla. */
+  padding: var(--e6) max(var(--e4), env(safe-area-inset-left, 0px))
+           var(--e7) max(var(--e4), env(safe-area-inset-right, 0px));
+}
+
+/* ----- El encabezado ----- */
+.pub-marca { display: flex; align-items: center; gap: var(--e3); margin-bottom: var(--e6); }
+.pub-marca img { width: 54px; height: auto; display: block; }
+.pub-marca b { font-size: var(--t5); font-family: var(--f-cifra); letter-spacing: -.01em; }
+.pub-marca span { display: block; font-size: var(--t2); color: var(--tinta2); }
+
+h1 { font-family: var(--f-cifra); font-size: var(--t7); line-height: 1.2; margin: 0 0 var(--e3); letter-spacing: -.02em; }
+h2 { font-family: var(--f-cifra); font-size: var(--t5); margin: var(--e6) 0 var(--e3); letter-spacing: -.01em; }
+h3 { font-size: var(--t4); margin: var(--e5) 0 var(--e2); }
+p, li { color: var(--tinta2); }
+p { margin: 0 0 var(--e3); }
+ul { margin: 0 0 var(--e3); padding-left: var(--e5); }
+li { margin-bottom: var(--e2); }
+b, strong { color: var(--tinta); font-weight: 600; }
+a { color: var(--a-tx); }
+a:hover { text-decoration: none; }
+
+/* La entradilla: el párrafo que contesta «¿qué es esto?» antes de que nadie pregunte. */
+.pub-entrada { font-size: var(--t5); line-height: 1.5; color: var(--tinta); margin-bottom: var(--e5); }
+
+/* ----- La tarjeta, para lo que hay que poder mirar de un vistazo ----- */
+.pub-caja {
+  background: var(--n0);
+  border: 1px solid var(--linea);
+  border-radius: var(--rr4);
+  padding: var(--e4) var(--e5);
+  margin: var(--e4) 0 var(--e5);
+}
+.pub-caja h3:first-child { margin-top: 0; }
+.pub-caja p:last-child, .pub-caja ul:last-child { margin-bottom: 0; }
+
+/* ----- El botón de entrar ----- */
+.pub-btn {
+  display: inline-block;
+  background: var(--a-fill); color: #fff; text-decoration: none;
+  padding: 12px 24px; border-radius: var(--rr3);
+  font-weight: 600; font-size: var(--t4);
+  box-shadow: var(--sombra);
+}
+.pub-btn:hover { background: var(--a-fuerte); }
+
+/* ----- El pie ----- */
+.pub-pie {
+  margin-top: var(--e7);
+  padding-top: var(--e4);
+  border-top: 1px solid var(--linea);
+  font-size: var(--t2);
+  color: var(--tinta3);
+  display: flex; flex-wrap: wrap; gap: var(--e2) var(--e4);
+}
+.pub-pie a { color: var(--tinta3); }
+
+/* La fecha desde la que rige el documento. Va arriba y no enterrada al final: quien lo abre
+   para comprobar una versión no debería tener que leerlo entero para encontrarla. */
+.pub-fecha { font-size: var(--t2); color: var(--tinta3); margin: calc(var(--e3) * -1) 0 var(--e5); }
