@@ -254,7 +254,11 @@ console.log('\nLO QUE LA PUERTA PROMETE');
 
   /* El arranque no puede montar nada antes de esto. Se comprueba del lado de app.js. */
   const app = readFileSync(join(aqui, '..', 'js', 'app.js'), 'utf8');
-  const iPuerta = app.indexOf('Puerta.custodiar(');
+  /* `await Puerta.custodiar(` y no `Puerta.custodiar(` a secas: lo segundo encontraba un
+     COMENTARIO cien líneas más arriba, así que estas comprobaciones venían comparando
+     posiciones de texto que no eran el código y pasaban por la razón equivocada. Un ancla
+     que casa con un comentario es una prueba que no prueba nada. */
+  const iPuerta = app.indexOf('await Puerta.custodiar(');
   const iMontar = app.indexOf('await montar(rutaDelHash())');
   cierto('app.js espera a la puerta ANTES de montar el primer módulo',
          iPuerta > 0 && iMontar > 0 && iPuerta < iMontar);
@@ -300,6 +304,17 @@ console.log('\nLO QUE LA PUERTA PROMETE');
 
   /* Y el service worker tiene que traerse el archivo: sin él, cada apertura sin señal
      entraría por el camino de emergencia. */
+  /* EL SERVICE WORKER SE REGISTRA ANTES DE LA PUERTA. Vivía en la última línea de
+     `arrancar()`, y con la puerta delante eso significa que no corría nunca mientras alguien
+     estuviera en la pantalla de entrar: comprobado en producción, cero cachés y cero service
+     workers en un aparato parado ahí. La app no se guardaba para trabajar sin señal, y al
+     entrar los ochenta y un archivos bajaban justo encima de la persona. */
+  const iSW = app.indexOf('registrarSW();');
+  cierto('registrarSW() corre ANTES de la puerta, no después',
+         iSW > 0 && iSW < iPuerta);
+  cierto('y solo se llama una vez: dos registros compiten por la misma instalación',
+         (app.match(/^\s*registrarSW\(\);/gm) || []).length === 1);
+
   const sw = readFileSync(join(aqui, '..', 'sw.js'), 'utf8');
   cierto('sw.js cachea la puerta', sw.includes("'./js/nucleo/puerta.js'"));
 }

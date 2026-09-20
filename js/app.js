@@ -619,6 +619,23 @@ async function arrancar() {
      IndexedDB— lo puede leer igual cualquiera que sepa abrir las herramientas del navegador.
      Dejar la plataforma muerta en una azotea por un archivo que no bajó costaría más de lo
      que guarda. Ver la cabecera de js/nucleo/puerta.js. */
+  /* EL SERVICE WORKER, ANTES DE LA PUERTA Y NO AL FINAL.
+     Vivía en la última línea de este arranque, y eso dejó de funcionar el día que la puerta
+     se puso delante: `custodiar()` no resuelve hasta que alguien entra, así que mientras la
+     pantalla de entrar está puesta NADA de lo de abajo corre — incluido esto. Comprobado en
+     producción: un aparato parado en la puerta tenía cero cachés y cero service workers
+     registrados. Consecuencias, las dos malas:
+
+       · La app no se guardaba para trabajar sin señal hasta que alguien entrara.
+       · Y al entrar, los ochenta y un archivos empezaban a bajar JUSTO cuando la persona
+         quería usarla, compitiendo con lo que estuviera haciendo. Se sentía lenta, y lo era.
+
+     Aquí arriba se registra mientras la persona lee la pantalla de entrar, que es tiempo que
+     de otro modo no se usa para nada. No hay nada que proteger retrasándolo: lo que guarda
+     son los archivos de la app, que el servidor sirve públicamente a quien los pida; los
+     datos del taller no pasan por aquí. */
+  registrarSW();
+
   faseArranque('Comprobando quién entra…');
   try {
     const Puerta = await import('./nucleo/puerta.js');
@@ -777,7 +794,6 @@ async function arrancar() {
     if (_rz) return;
     _rz = requestAnimationFrame(() => { _rz = 0; ajustarAltoBarra(); });
   });
-  registrarSW();
 }
 
 /* ============================================================================
