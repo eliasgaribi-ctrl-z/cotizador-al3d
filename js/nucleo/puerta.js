@@ -139,11 +139,17 @@ export async function custodiar() {
   const viejo = Prefs.get(Prefs.CLAVES.PASE, null);
   const correoPrevio = (viejo && viejo.correo) || (Prefs.ingreso() && Prefs.ingreso().correo) || '';
   if (correoPrevio) {
-    const r = await confirmar();
+    const { real, conTope } = confirmarSuelto(false);
+    const r = await conTope;
     if (r.estado === 'ok') return dentro('google', r.correo, r.rol);
     if (r.estado === 'fuera') { Prefs.borrarPase(); return await pedirEntrada(MSG.FUERA(r.correo || correoPrevio)); }
     if (hayToken) return porToken();
-    return await pedirEntrada(viejo ? MSG.CADUCO(correoPrevio) : '');
+    /* `r.tarde` es el caso en que se acabó el tope pero la comprobación SIGUE viva. Se pinta
+       la puerta para no dejar a nadie mirando un esqueleto, y se le pasa la promesa: si la
+       hoja acaba contestando que sí, la puerta se cierra sola. Sin esto, la respuesta buena
+       llegaba dos segundos tarde a una pantalla que ya había decidido que no había nadie, y
+       la persona apretaba un botón que no hacía ninguna falta. */
+    return await pedirEntrada(viejo ? MSG.CADUCO(correoPrevio) : '', r.tarde ? real : null);
   }
 
   /* 3. LA SALIDA DE EMERGENCIA. Un aparato con token de dispositivo pegado a mano entra sin
@@ -183,21 +189,41 @@ const porToken = () => dentro('token', '', Prefs.rol(),
    Google en un estado raro—. Antes eso no importaba porque el ingreso corría al final del
    arranque y con la app ya pintada; ahora corre antes que todo.
 
-   Dos topes distintos, y la diferencia importa: el callado no necesita a nadie y si en diez
-   segundos no contestó no va a contestar; el de pantalla está esperando a una persona que
-   tiene que elegir cuenta y a lo mejor teclear una contraseña, y cortarle a los diez
-   segundos sería peor que no poner tope. Tres minutos es de sobra y sigue teniendo fin. */
-const MS_CALLADO = 10000;
+   Dos topes distintos, y la diferencia importa: el de pantalla está esperando a una persona
+   que tiene que elegir cuenta y a lo mejor teclear una contraseña, y cortarle a los pocos
+   segundos sería peor que no poner tope.
+
+   ── El callado NO puede bajar de treinta segundos ──────────────────────────────
+   Estuvo en diez y salió mal el primer día. Dentro de `confirmar()` hay dos esperas en
+   serie: la renovación del token con Google y la pregunta a la hoja, que tiene su PROPIO
+   tope de quince segundos (`MS_ESPERA` en puente.js). Un Apps Script frío tarda de sobra
+   cinco o diez segundos en despertar. Con diez arriba y quince abajo, el de arriba cortaba
+   antes de que el de abajo llegara siquiera a rendirse: la puerta se pintaba, y un segundo
+   después la respuesta buena llegaba a una pantalla que ya había decidido que no había
+   nadie. Un tope exterior TIENE que ser más largo que el interior o no es un tope, es una
+   carrera. Estar offline no llega aquí: ahí las dos fallan en el acto.
+
+   Y aun así el que llega tarde no se tira: ver `pedirEntrada`, que se cierra sola si la
+   respuesta buena aparece con la puerta ya puesta. */
+const MS_CALLADO = 30000;
 const MS_CON_PANTALLA = 180000;
 
-const conTope = (promesa, ms) => Promise.race([
-  promesa,
-  new Promise(r => setTimeout(() => r({ estado: 'sin_red' }), ms)),
-]);
+/** Lanza la comprobación y devuelve las DOS cosas: la que tiene tope, para no colgar el
+ *  arranque, y la de verdad, que sigue viva por si contesta tarde y todavía sirve. */
+function confirmarSuelto(conPantalla) {
+  const real = confirmarDeVerdad(conPantalla);
+  const conTope = Promise.race([
+    real,
+    new Promise(r => setTimeout(() => r({ estado: 'sin_red', tarde: true }),
+                                conPantalla ? MS_CON_PANTALLA : MS_CALLADO)),
+  ]);
+  /* Si nadie más la espera y truena, que no salga por la consola como promesa sin atender. */
+  real.catch(() => {});
+  return { real, conTope };
+}
 
 async function confirmar(conPantalla) {
-  return await conTope(confirmarDeVerdad(conPantalla),
-                       conPantalla ? MS_CON_PANTALLA : MS_CALLADO);
+  return await confirmarSuelto(conPantalla).conTope;
 }
 
 async function confirmarDeVerdad(conPantalla) {
@@ -252,7 +278,7 @@ function avisoDePase(p) {
  *
  * @param {string} aviso marcado ya escapado, o '' la primera vez.
  */
-function pedirEntrada(aviso) {
+function pedirEntrada(aviso, pendiente) {
   return new Promise(resolve => {
     const caja = $('pf-puerta');
     if (!caja) {
@@ -280,6 +306,27 @@ function pedirEntrada(aviso) {
        ahí sí habrá un mensaje que ponerle. */
     Ingreso.cargarGis().catch(() => {});
 
+    /* Se cierra la puerta y se sigue, sin que nadie toque nada. Ver arriba. */
+    const entrar = r => {
+      document.documentElement.classList.remove('con-puerta');
+      caja.hidden = true;
+      caja.innerHTML = '';
+      /* Y se devuelve el esqueleto del arranque, que se escondió para que no se viera por
+         debajo. Sin esto, entre entrar y ver el Tablero hay una pantalla EN BLANCO —abrir la
+         base, sembrar el catálogo, montar— y en un teléfono viejo eso son segundos en los que
+         parece que la app se murió justo al entrar. */
+      if (arr) arr.hidden = false;
+      resolve(dentro('google', r.correo, r.rol));
+    };
+
+    /* La comprobación que se pasó del tope pero seguía viva. Si contesta que sí, adentro. Si
+       contesta «fuera», se cambia el cartel por el que de verdad explica lo que pasa. */
+    if (pendiente) pendiente.then(r => {
+      if (caja.hidden) return;                       // ya entró por el botón: llegó tarde
+      if (r && r.estado === 'ok') return entrar(r);
+      if (r && r.estado === 'fuera') { Prefs.borrarPase(); pintar(caja, MSG.FUERA(r.correo || ''), false); }
+    }).catch(() => {});
+
     caja.addEventListener('click', async ev => {
       const b = ev.target.closest('[data-puerta]');
       if (!b) return;
@@ -295,17 +342,7 @@ function pedirEntrada(aviso) {
       /* `true`: esto sale de un click, así que aquí SÍ se puede abrir la ventana de Google.
          Es la única parte del arranque donde eso es posible. */
       const r = await confirmar(true);
-      if (r.estado === 'ok') {
-        document.documentElement.classList.remove('con-puerta');
-        caja.hidden = true;
-        caja.innerHTML = '';
-        /* Y se devuelve el esqueleto del arranque, que se escondió para que no se viera por
-           debajo. Sin esto, entre apretar «Entrar» y ver el Tablero hay una pantalla EN
-           BLANCO —abrir la base, sembrar el catálogo, montar— y en un teléfono viejo eso son
-           segundos en los que parece que la app se murió justo al entrar. */
-        if (arr) arr.hidden = false;
-        return resolve(dentro('google', r.correo, r.rol));
-      }
+      if (r.estado === 'ok') return entrar(r);
       aviso = r.estado === 'fuera' ? MSG.FUERA(r.correo) : (r.mensaje || MSG.SIN_RED_PRIMERA);
       pintar(caja, aviso, false);
     });

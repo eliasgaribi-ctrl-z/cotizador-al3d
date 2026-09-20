@@ -197,6 +197,14 @@ console.log('\nLO QUE LA PUERTA PROMETE');
   const dias = Number((src.match(/const DIAS_PASE = (\d+)/) || [])[1]);
   cierto('y es un número razonable: ni un día ni para siempre', dias >= 7 && dias <= 90);
 
+  /* El tope exterior TIENE que ser más largo que el que la hoja se da a sí misma
+     (MS_ESPERA en puente.js), o corta antes de que el de abajo llegue a rendirse. Eso pasó
+     el primer día con diez segundos contra quince. */
+  const msEspera = Number((readFileSync(join(aqui, '..', 'js', 'datos', 'puente.js'), 'utf8')
+    .match(/MS_ESPERA = (\d+)/) || [])[1]);
+  cierto('el tope del arranque es más largo que el que se da la hoja: si no, es una carrera',
+         msEspera > 0 && msCallado > msEspera);
+
   /* `via !== 'google'` es la comprobación que impide que un /salud contestado por la puerta
      del TOKEN dé pase: ahí la hoja reconoció al aparato, no a la persona, y el rol saldría
      de una cadena pegada a mano. */
