@@ -42,6 +42,34 @@
      marco no abre, y lo que usan las pruebas), y file:// también, porque con doble clic no hay
      servidor que sirva la portada. -->
 <script>(function(){try{if(parent===window&&location.protocol!=='file:'&&/\/cotizador\.html$/.test(location.pathname)&&!/[?&]solo=1(&|$)/.test(location.search)){location.replace('./'+location.search+'#/cotizador');}}catch(_){}})();</script>
+<!-- ----- Y la salida de emergencia también pide credencial -----
+     Lo de arriba reenvía la página suelta a la plataforma, donde está la puerta de Google. Lo
+     que quedaba abierto era `?solo=1`: pensada como salida de emergencia para cuando el marco
+     no abre, servía igual de rendija para que cualquiera con la liga se saltara la puerta y
+     viera el cotizador entero —tarifas y el historial de cotizaciones de ese aparato—.
+
+     Quien llega aquí de verdad por la salida de emergencia viene de DENTRO de la plataforma,
+     así que en este origen ya hay un pase de la puerta o un token de dispositivo. Quien solo
+     tiene la liga no tiene ninguno de los dos y se va a la puerta.
+
+     Las dos exenciones son las mismas de siempre y por lo mismo: file:// no tiene servidor que
+     sirva la portada, y 127.0.0.1 es donde corren las pruebas de navegador. Ninguna de las dos
+     la alcanza nadie con la liga pública, que es de quien protege esto.
+
+     No es una frontera de seguridad y no pretende serlo —los datos de este aparato están en su
+     almacenamiento y quien lo tenga en la mano los lee—: es la misma cerradura de la casa que
+     pone js/nucleo/puerta.js, puesta también en la otra puerta de la casa. -->
+<script>(function(){try{
+  if(parent!==window)return;
+  var h=location.hostname;
+  if(location.protocol==='file:'||h==='localhost'||h==='127.0.0.1'||h==='')return;
+  var p=null,t='';
+  try{p=JSON.parse(localStorage.getItem('al3d_pf_pase')||'null');}catch(_){}
+  try{t=(JSON.parse(localStorage.getItem('al3d_pf_puente')||'null')||{}).token||'';}catch(_){}
+  if(t)return;
+  if(p&&p.correo&&Number(p.hasta)>Date.now())return;
+  location.replace('./#/cotizador');
+}catch(_){}})();</script>
 <!-- El tema, ANTES de la hoja: pone data-tema en <html> leyendo localStorage, para que una
      apertura en oscuro no parpadee en claro. -->
 <script src="js/tema.js"></script>

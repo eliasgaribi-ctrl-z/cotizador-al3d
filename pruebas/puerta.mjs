@@ -234,7 +234,7 @@ console.log('\nLO QUE LA PUERTA PROMETE');
 
   /* El arranque no puede montar nada antes de esto. Se comprueba del lado de app.js. */
   const app = readFileSync(join(aqui, '..', 'js', 'app.js'), 'utf8');
-  const iPuerta = app.indexOf('Puerta.custodiar()');
+  const iPuerta = app.indexOf('Puerta.custodiar(');
   const iMontar = app.indexOf('await montar(rutaDelHash())');
   cierto('app.js espera a la puerta ANTES de montar el primer módulo',
          iPuerta > 0 && iMontar > 0 && iPuerta < iMontar);
@@ -246,10 +246,77 @@ console.log('\nLO QUE LA PUERTA PROMETE');
   cierto('cambiar de rol se bloquea en el código, no solo en el HTML',
          /function cambiarRol[\s\S]{0,400}if \(Prefs\.rolDeLaHoja\(\)\)/.test(app));
 
+  /* EL PASE VIVO NO PUEDE ESPERAR A LA RED. Es el camino de todas las mañanas: si
+     `custodiar()` se quedara esperando a que la hoja conteste antes de pintar, alguien con
+     un pase válido en la mano se comería hasta treinta segundos de pantalla gris cada vez
+     que abre la app con mala señal — y el pase existe justamente para no depender de eso. */
+  const ruta1 = (src.match(/const p = Prefs\.pase\(\);[\s\S]*?return dentro\('google', p\.correo/) || [''])[0];
+  cierto('con pase vivo se entra YA: la comprobación va por detrás, sin `await`',
+         ruta1.includes('confirmarSuelto(false).real.then') && !/await confirmar/.test(ruta1));
+  cierto('y si la hoja dice que ese correo ya no entra, se echa en el acto',
+         ruta1.includes("r.estado === 'fuera'") && ruta1.includes('borrarPase()'));
+  cierto('si la hoja le cambió el rol, se recarga: media app ya se pintó con el viejo',
+         ruta1.includes('r.rol !== p.rol') && ruta1.includes('location.reload()'));
+
+  /* Echar a alguien a mitad de sesión tiene que RECARGAR al volver a entrar: detrás de la
+     puerta quedó pintada la pantalla del que se fue, con su rol y sus datos. */
+  cierto('volver a entrar tras ser echado recarga, no descubre la pantalla del anterior',
+         /if \(echando\) \{ location\.reload\(\); return; \}/.test(src));
+
+  /* El cartel rojo y el botón de «otra cuenta» salen de un CAMPO, no de buscarle palabras al
+     mensaje. Con la versión vieja, reescribir el cartel los apagaba a los dos en silencio. */
+  cierto('«fuera» es un campo del aviso, no una palabra que se busca en el texto',
+         src.includes('const fuera = !!(av && av.fuera)') && !src.includes('/no tiene acceso/'));
+
+  /* Lo que conteste el Apps Script se ESCAPA. Es nuestro, pero la regla de la casa es que
+     `texto` se escapa y `html` no, y un mensaje de fuera es `texto`. */
+  cierto('el mensaje que viene del otro lado se escapa antes de pintarlo',
+         src.includes("esc(av.texto || '')") && src.includes('aviso(r.mensaje)'));
+
+  /* Con la puerta puesta, el resto del documento queda inerte: `aria-modal` no impide que el
+     tabulador se pasee por la barra lateral y los botones que viven en el HTML fijo. */
+  cierto('lo de detrás queda inerte mientras la puerta está puesta',
+         src.includes("setAttribute('inert'") && src.includes("removeAttribute('inert')"));
+
   /* Y el service worker tiene que traerse el archivo: sin él, cada apertura sin señal
      entraría por el camino de emergencia. */
   const sw = readFileSync(join(aqui, '..', 'sw.js'), 'utf8');
   cierto('sw.js cachea la puerta', sw.includes("'./js/nucleo/puerta.js'"));
+}
+
+/* LAS OTRAS DOS PUERTAS DE LA CASA.
+ *
+ * La plataforma no es un solo documento: cotizador.html y anidador-vectores/index.html se
+ * abren solos, con su propia URL, y por ahí se entraba sin pasar por nada. El cotizador ya
+ * reenviaba a la plataforma salvo con `?solo=1` —su salida de emergencia—, y esa excepción
+ * era la rendija: con la liga bastaba para ver las tarifas y el historial del aparato.
+ *
+ * Ahora las dos piden lo mismo: un pase de la puerta o un token de dispositivo. Quien llega
+ * de verdad por la salida de emergencia viene de dentro y tiene uno; quien solo tiene la liga
+ * no tiene ninguno. */
+console.log('\nEL COTIZADOR Y LA MESA DE CORTE TAMBIÉN PIDEN CREDENCIAL');
+{
+  const cot = readFileSync(join(aqui, '..', 'cotizador.html'), 'utf8');
+  const ani = readFileSync(join(aqui, '..', 'anidador-vectores', 'index.html'), 'utf8');
+
+  for (const [nombre, src, destino] of [['cotizador.html', cot, './#/cotizador'],
+                                        ['la mesa de corte', ani, '../#/anidador']]) {
+    cierto(nombre + ': comprueba el pase antes de dejar ver nada',
+           src.includes("localStorage.getItem('al3d_pf_pase')"));
+    cierto(nombre + ': un pase caducado no vale tampoco aquí',
+           src.includes('Number(p.hasta)>Date.now()'));
+    cierto(nombre + ': el token de dispositivo sigue sirviendo, que es la salida de emergencia',
+           src.includes("localStorage.getItem('al3d_pf_puente')"));
+    cierto(nombre + ': empotrado no hace nada — la puerta ya se pasó del otro lado',
+           src.includes('if(parent!==window)return;'));
+    cierto(nombre + ': sin credencial se va a la plataforma, que es donde está la puerta',
+           src.includes("location.replace('" + destino + "')"));
+    /* Las dos exenciones son las de las pruebas de navegador y el doble clic. Que sigan
+       siendo exactamente ésas: un día alguien añade un dominio «de pruebas» aquí y deja la
+       puerta abierta de par en par sin enterarse. */
+    cierto(nombre + ': solo se exime file:// y 127.0.0.1/localhost, que nadie alcanza con la liga',
+           /location\.protocol==='file:'\|\|h==='localhost'\|\|h==='127\.0\.0\.1'\|\|h===''/.test(src));
+  }
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

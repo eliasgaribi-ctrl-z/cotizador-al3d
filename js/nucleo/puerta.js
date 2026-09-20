@@ -90,13 +90,26 @@ const MS_PASE = DIAS_PASE * 24 * 60 * 60 * 1000;
    y después, cuando quedan menos de dos días, se dice fuerte. */
 const MS_AVISO = 7 * 24 * 60 * 60 * 1000;
 
+/* Los avisos son OBJETOS, no cadenas, y son dos cosas distintas a propósito:
+     · `fuera: true` significa «la hoja dijo que no», y es lo que pinta el cartel en rojo y
+       saca el botón de «Entrar con otra cuenta». Antes eso se adivinaba husmeando una frase
+       dentro del mensaje: cambiar una palabra del cartel habría apagado las dos cosas en
+       silencio.
+     · `texto` se ESCAPA y `html` no. Hace falta separarlos porque algunos de estos mensajes
+       vienen del otro lado —de lo que conteste el Apps Script— y eso no se mete crudo en un
+       innerHTML aunque el Apps Script sea nuestro. Es la misma regla que ya sigue
+       `pintarBanda` en app.js. */
+const aviso  = texto => ({ texto: String(texto || '') });
+const avisoH = html  => ({ html: String(html || '') });
+
 const MSG = {
-  FUERA: correo => 'Entraste como <b>' + esc(correo) + '</b>, pero ese correo no tiene acceso a la plataforma. ' +
-                   'Pídele a Dirección que te dé de alta.',
-  SIN_RED_PRIMERA: 'Para entrar por primera vez en este aparato hace falta señal: hay que preguntarle a la hoja qué te toca hacer. ' +
-                   'Conéctate y vuelve a intentar.',
-  CADUCO: correo => 'Hace más de ' + DIAS_PASE + ' días que no se puede confirmar el acceso de <b>' + esc(correo) +
-                    '</b>. Conéctate a internet y vuelve a entrar.',
+  FUERA: correo => ({ fuera: true,
+    html: 'Entraste como <b>' + esc(correo) + '</b>, pero ese correo no tiene acceso a la ' +
+          'plataforma. Pídele a Dirección que te dé de alta.' }),
+  SIN_RED_PRIMERA: aviso('Para entrar por primera vez en este aparato hace falta señal: hay que ' +
+                         'preguntarle a la hoja qué te toca hacer. Conéctate y vuelve a intentar.'),
+  CADUCO: correo => avisoH('Hace más de ' + DIAS_PASE + ' días que no se puede confirmar el acceso de <b>' +
+                           esc(correo) + '</b>. Conéctate a internet y vuelve a entrar.'),
 };
 
 /* El resultado de custodiar(), para que app.js no tenga que adivinar. */
@@ -109,27 +122,42 @@ const dentro = (via, correo, rol, nota) => ({ ok: true, via, correo, rol, nota: 
  *
  * @returns {Promise<{ok:true, via:string, correo:string, rol:string, nota:string}>}
  */
-export async function custodiar() {
+export async function custodiar(avisar) {
   const cfgPuente = Prefs.puente();
   const hayToken = !!(cfgPuente && cfgPuente.token);
 
-  /* 1. EL PASE VIVO. Se confirma contra la hoja y se renueva, callado. Es el camino de todas
-        las mañanas y no enseña nada: quien ya entró en este aparato y tiene su sesión de
-        Google viva no tiene por qué ver una pantalla de entrada. */
+  /* 1. EL PASE VIVO — se entra YA, y se confirma por detrás.
+        Es el camino de todas las mañanas, y la primera versión lo hizo mal: esperaba a que
+        la hoja contestara antes de pintar nada. Con un Apps Script frío o una red de
+        teléfono en la calle, eso son hasta treinta segundos mirando «Comprobando quién
+        entra…» a alguien que YA tiene un pase válido en la mano. El pase existe justamente
+        para no depender de la red; hacerle esperar a la red lo dejaba sin sentido.
+
+        Así que se entra con el pase y la comprobación sigue por detrás:
+          · si la hoja dice que ese correo ya no tiene acceso, se echa en el acto —cuestión
+            de segundos, no de la próxima apertura—;
+          · si la hoja cambió el rol, se recarga, porque la pantalla ya se pintó con el
+            viejo y media app decide qué enseña a partir de él;
+          · y si confirma sin novedad, se borra el aviso de «te quedan N días», que se puso
+            antes de saber que iba a poder confirmarse. */
   const p = Prefs.pase();
   if (p) {
-    const r = await confirmar();
-    if (r.estado === 'ok') return dentro('google', r.correo, r.rol);
-    if (r.estado === 'fuera') {
-      /* La hoja dijo que este correo ya no tiene acceso. Se cierra, y el token de
-         dispositivo NO rescata: si rescatara, quitar a alguien de «Accesos» no serviría de
-         nada en el teléfono donde hubiera un token pegado. El día que alguien se va del
-         taller con un token en el bolsillo, lo que toca es rotarlo desde la hoja —menú
-         ⚡ AL3D → Tokens del puente—, y eso ya estaba escrito en ingreso.js. */
-      Prefs.borrarPase();
-      return await pedirEntrada(MSG.FUERA(r.correo || p.correo));
-    }
-    /* 'sin_red' — se entra con lo que ya se sabía, y se dice cuánto le queda al pase. */
+    confirmarSuelto(false).real.then(r => {
+      if (!r) return;
+      if (r.estado === 'fuera') {
+        /* El token de dispositivo NO rescata aquí: si rescatara, quitar a alguien de
+           «Accesos» no serviría de nada en el teléfono donde hubiera un token pegado. El día
+           que alguien se va del taller con un token en el bolsillo, lo que toca es rotarlo
+           desde la hoja —menú ⚡ AL3D → Tokens del puente—, y eso ya estaba escrito en
+           ingreso.js. */
+        Prefs.borrarPase();
+        pedirEntrada(MSG.FUERA(r.correo || p.correo), null, true);
+        return;
+      }
+      if (r.estado !== 'ok') return;
+      if (r.rol !== p.rol) { location.reload(); return; }
+      if (avisar) avisar('');
+    }).catch(() => {});
     return dentro('google', p.correo, p.rol, avisoDePase(p));
   }
 
@@ -149,7 +177,7 @@ export async function custodiar() {
        hoja acaba contestando que sí, la puerta se cierra sola. Sin esto, la respuesta buena
        llegaba dos segundos tarde a una pantalla que ya había decidido que no había nadie, y
        la persona apretaba un botón que no hacía ninguna falta. */
-    return await pedirEntrada(viejo ? MSG.CADUCO(correoPrevio) : '', r.tarde ? real : null);
+    return await pedirEntrada(viejo ? MSG.CADUCO(correoPrevio) : null, r.tarde ? real : null);
   }
 
   /* 3. LA SALIDA DE EMERGENCIA. Un aparato con token de dispositivo pegado a mano entra sin
@@ -160,7 +188,7 @@ export async function custodiar() {
   if (hayToken) return porToken();
 
   /* 4. Nadie ha entrado aquí y no hay token. La puerta, y a esperar. */
-  return await pedirEntrada('');
+  return await pedirEntrada(null);
 }
 
 const porToken = () => dentro('token', '', Prefs.rol(),
@@ -170,17 +198,6 @@ const porToken = () => dentro('token', '', Prefs.rol(),
    Confirmar contra la hoja
    ---------------------------------------------------------------------------- */
 
-/**
- * Pregunta quién soy: renueva el token de Google si hace falta y le pide `/salud` al puente.
- *
- * Tres desenlaces, y los tres importan por separado:
- *   · `ok`      — la hoja contestó con un correo y un rol. Se renueva el pase.
- *   · `fuera`   — la hoja contestó que ese correo no tiene acceso. Es definitivo.
- *   · `sin_red` — no se pudo preguntar. NO es lo mismo y no cierra nada.
- *
- * @param {boolean} [conPantalla] true para abrir la ventana de Google; por omisión renueva
- *        callado, que es lo que se puede hacer sin un click de la persona.
- */
 /* ----- El tope de espera -----
    El arranque entero cuelga de `confirmar()`, así que una promesa que no resuelve aquí no
    es un retraso: es la app muerta en una pantalla que dice «Comprobando quién entra…» para
@@ -226,6 +243,17 @@ async function confirmar(conPantalla) {
   return await confirmarSuelto(conPantalla).conTope;
 }
 
+/**
+ * Pregunta quién soy: renueva el token de Google si hace falta y le pide `/salud` al puente.
+ *
+ * Tres desenlaces, y los tres importan por separado:
+ *   · `ok`      — la hoja contestó con un correo y un rol. Se renueva el pase.
+ *   · `fuera`   — la hoja contestó que ese correo no tiene acceso. Es definitivo.
+ *   · `sin_red` — no se pudo preguntar. NO es lo mismo y no cierra nada.
+ *
+ * @param {boolean} [conPantalla] true para abrir la ventana de Google; por omisión renueva
+ *        callado, que es lo que se puede hacer sin un click de la persona.
+ */
 async function confirmarDeVerdad(conPantalla) {
   if (!Ingreso.configurado()) return { estado: 'sin_red' };
 
@@ -276,9 +304,14 @@ function avisoDePase(p) {
  * Enseña la puerta y NO resuelve hasta que alguien pase. Es deliberado: quien llama espera,
  * y mientras espera no hay un solo módulo montado ni un solo dato en pantalla.
  *
- * @param {string} aviso marcado ya escapado, o '' la primera vez.
+ * @param {{texto?:string, html?:string, fuera?:boolean}|null} av qué decir, o null la primera vez.
+ * @param {Promise|null} pendiente una comprobación que se pasó del tope pero sigue viva.
+ * @param {boolean} [echando] true cuando la puerta se pone ENCIMA de la app ya montada,
+ *        porque a alguien lo acaban de quitar de la lista a mitad de sesión. Entonces volver
+ *        a entrar recarga: detrás quedó pintada media pantalla con los datos y el rol del
+ *        que se acaba de ir, y cerrar la puerta sobre eso sería enseñárselos al siguiente.
  */
-function pedirEntrada(aviso, pendiente) {
+function pedirEntrada(av, pendiente, echando) {
   return new Promise(resolve => {
     const caja = $('pf-puerta');
     if (!caja) {
@@ -289,6 +322,18 @@ function pedirEntrada(aviso, pendiente) {
       return resolve(dentro('token', '', Prefs.rol(),
         'Esta copia de la plataforma está incompleta y no pudo pedir tu cuenta de Google. Recárgala.'));
     }
+    /* Todo lo demás del documento queda INERTE mientras la puerta esté puesta. `aria-modal`
+       por sí solo no lo consigue: sin esto, el tabulador se pasea por la barra lateral, el
+       botón de Ajustes y el del asistente, que están en el HTML fijo y siguen ahí debajo.
+       Se apunta qué se tocó para devolverlo exactamente como estaba: `inert` no se soporta
+       en todos lados, y donde no, esto no hace nada y tampoco estorba. */
+    const dormidos = [];
+    for (const hijo of Array.from(document.body.children)) {
+      if (hijo === caja || hijo.hasAttribute('inert')) continue;
+      hijo.setAttribute('inert', '');
+      dormidos.push(hijo);
+    }
+    const despertar = () => dormidos.forEach(h => h.removeAttribute('inert'));
     /* El esqueleto del arranque estorba debajo: la puerta tapa la pantalla entera y detrás
        no debe quedar la silueta del tablero de alguien. */
     const arr = $('pf-arranque');
@@ -296,7 +341,7 @@ function pedirEntrada(aviso, pendiente) {
     document.documentElement.classList.add('con-puerta');
     caja.hidden = false;
 
-    pintar(caja, aviso, false);
+    pintar(caja, av, false);
 
     /* El guion de Google se pide AHORA, mientras la persona lee la pantalla, y no cuando
        aprieta. Es la otra mitad de por qué la ventana se bloqueaba: `entrar()` espera a que
@@ -308,6 +353,8 @@ function pedirEntrada(aviso, pendiente) {
 
     /* Se cierra la puerta y se sigue, sin que nadie toque nada. Ver arriba. */
     const entrar = r => {
+      if (echando) { location.reload(); return; }
+      despertar();
       document.documentElement.classList.remove('con-puerta');
       caja.hidden = true;
       caja.innerHTML = '';
@@ -338,26 +385,36 @@ function pedirEntrada(aviso, pendiente) {
         Ingreso.salir();
         Prefs.borrarPase();
       }
-      pintar(caja, aviso, true);
+      pintar(caja, av, true);
       /* `true`: esto sale de un click, así que aquí SÍ se puede abrir la ventana de Google.
          Es la única parte del arranque donde eso es posible. */
       const r = await confirmar(true);
       if (r.estado === 'ok') return entrar(r);
-      aviso = r.estado === 'fuera' ? MSG.FUERA(r.correo) : (r.mensaje || MSG.SIN_RED_PRIMERA);
-      pintar(caja, aviso, false);
+      av = r.estado === 'fuera' ? MSG.FUERA(r.correo)
+         : (r.mensaje ? aviso(r.mensaje) : MSG.SIN_RED_PRIMERA);
+      pintar(caja, av, false);
     });
   });
 }
 
-function pintar(caja, aviso, esperando) {
-  const fuera = /no tiene acceso/.test(aviso || '');
+function pintar(caja, av, esperando) {
+  /* `fuera` sale de un campo del aviso, no de buscarle palabras al texto. Lo que había aquí
+     era una expresión regular probando el mensaje contra la frase del cartel, y con eso
+     reescribir el cartel —cambiar esa frase por «no estás dado de alta», por ejemplo— habría
+     apagado a la vez el color rojo y el botón de «Entrar con otra cuenta», sin que nada
+     fallara ni lo dijera. Hay una prueba que lo vigila, así que si vuelve a aparecer una
+     expresión regular husmeando el texto, falla. */
+  const fuera = !!(av && av.fuera);
+  /* `html` va crudo porque lo escribimos aquí con su `esc()` puesto; `texto` se escapa
+     porque puede venir de lo que conteste el Apps Script. */
+  const cuerpo = av ? (av.html != null ? av.html : esc(av.texto || '')) : '';
   caja.innerHTML =
     '<div class="puerta-caja">' +
       '<img class="puerta-logo" src="logo-al3d.svg" width="72" height="36" alt="AL3D">' +
       '<h1>La plataforma del taller</h1>' +
       '<p class="puerta-sub">Entra con la cuenta de Google que usas en AL3D. ' +
         'La app solo le pide a Google tu correo, y con eso sabe qué te toca hacer.</p>' +
-      (aviso ? '<p class="puerta-aviso' + (fuera ? ' es-no' : '') + '" role="alert">' + aviso + '</p>' : '') +
+      (cuerpo ? '<p class="puerta-aviso' + (fuera ? ' es-no' : '') + '" role="alert">' + cuerpo + '</p>' : '') +
       '<button type="button" class="puerta-btn" data-puerta="entrar"' + (esperando ? ' disabled' : '') + '>' +
         (esperando
           ? '<span class="esq-giro" aria-hidden="true"></span> Entrando…'

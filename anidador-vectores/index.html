@@ -24,6 +24,23 @@
      anidador.css es lo que el cotizador no tiene: la mesa de corte, las hojas de material, el
      marcador y el movimiento de las piezas al caer. tema.js va antes para que el tema esté
      decidido antes del primer pintado. -->
+<!-- ----- La puerta, también aquí -----
+     La mesa de corte es un documento aparte, así que abrirla suelta se saltaba entera la
+     pantalla de entrar de la plataforma. Empotrada —que es como se usa, desde
+     ./#/anidador— esto no hace nada: si hay marco, la puerta ya se pasó del otro lado.
+
+     Mismas exenciones y mismo porqué que en cotizador.html; la explicación larga está allá. -->
+<script>(function(){try{
+  if(parent!==window)return;
+  var h=location.hostname;
+  if(location.protocol==='file:'||h==='localhost'||h==='127.0.0.1'||h==='')return;
+  var p=null,t='';
+  try{p=JSON.parse(localStorage.getItem('al3d_pf_pase')||'null');}catch(_){}
+  try{t=(JSON.parse(localStorage.getItem('al3d_pf_puente')||'null')||{}).token||'';}catch(_){}
+  if(t)return;
+  if(p&&p.correo&&Number(p.hasta)>Date.now())return;
+  location.replace('../#/anidador');
+}catch(_){}})();</script>
 <script src="../js/tema.js"></script>
 <link rel="stylesheet" href="../css/sistema.css">
 <link rel="stylesheet" href="css/anidador.css">

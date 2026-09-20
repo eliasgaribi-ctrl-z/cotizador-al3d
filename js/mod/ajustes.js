@@ -960,9 +960,15 @@ function bloqueIngreso() {
     nota('Dentro como <b>' + esc(correo) + '</b>' +
       (dentro ? '.' : ' — la sesión de Google caducó y se renueva sola al abrir la app, o ' +
                       'aquí con «Entrar con Google».'), dentro ? 'ok' : 'av') +
+    /* Lo del interruptor apagado solo se dice cuando de verdad lo está. Se puede estar dentro
+       con Google y SIN pase —la hoja no contestó todavía, o este aparato lleva días sin
+       señal— y ahí el interruptor sigue vivo. Decirlo al revés sería mandar a alguien a
+       buscar un candado que no está. */
     '<p class="pf-nota">El rol no sale de este aparato: sale de lo que diga tu correo en la ' +
-    'pestaña <b>Accesos</b> de la hoja, y por eso el interruptor de arriba está apagado. Para ' +
-    'cambiarlo, Dirección cambia tu renglón allá.</p>' +
+    'pestaña <b>Accesos</b> de la hoja' +
+    (Prefs.rolDeLaHoja()
+      ? ', y por eso el interruptor de arriba está apagado. Para cambiarlo, Dirección cambia tu renglón allá.'
+      : '. En cuanto la hoja conteste, el interruptor de arriba se apaga y manda ella.') + '</p>' +
     '<p class="pf-nota">Al salir se cierra la plataforma y vuelve la pantalla de entrar. Lo ' +
     'guardado en este aparato no se borra.</p>' +
     '<div class="pf-acciones">' +

@@ -135,13 +135,16 @@ let _vivo = null;        // el módulo montado, para desmontarlo
 let _pase = null;
 
 /* ----- Quién entró -----
-   Lo que contestó la puerta al arrancar: `{via, correo, rol, nota}`. Se guarda porque hay
-   dos sitios que necesitan saberlo después —la banda de arriba, que enseña la `nota`, y
-   Ajustes, que dice «entraste como fulano@…»— y porque volver a preguntárselo a la puerta
-   costaría otra vuelta de red para saber algo que ya se sabe. */
+   Lo que contestó la puerta al arrancar: `{via, correo, rol, nota}`. Lo lee `revisarDispositivo`,
+   que es quien enseña la `nota` en la banda de arriba, y la retrollamada de la puerta, que la
+   borra si la comprobación que iba por detrás acaba confirmando el acceso.
+
+   No se exporta. Quien quiera saber con qué correo se entró tiene `Ingreso.correo()`, que es
+   de donde sale de verdad; una segunda forma de preguntar lo mismo solo sirve para que un día
+   las dos contesten cosas distintas. */
 let _quien = null;
-/** Quién entró, para los módulos. Nunca null después del arranque. */
-export const quienEntro = () => _quien || { ok: false, via: '', correo: '', rol: Prefs.rol(), nota: '' };
+/* Si ya se puede pintar la banda. Ver la retrollamada de `Puerta.custodiar()`. */
+let _bandaLista = false;
 
 /* ----- La guarda del remonte -----
    Un módulo que sostiene un <iframe> vivo pide que no se le remonte por debajo. El oyente de
@@ -548,7 +551,7 @@ function revisarDispositivo() {
      acabando, la copia está rota— cambian en qué condiciones estás trabajando ahora mismo;
      «van 11 días sin respaldo» es importante y puede esperar a la siguiente apertura. */
   if (_quien && _quien.nota) {
-    pintarBanda({ tono: _quien.via === 'roto' ? 'mal' : '', html: esc(_quien.nota),
+    pintarBanda({ tono: _quien.via === 'roto' ? 'mal' : '', texto: _quien.nota,
       /* Sin acción para el token de dispositivo: ahí no hay nada que apretar, es el estado
          en el que ese aparato trabaja a propósito. Para los otros dos, recargar es
          literalmente lo que arregla. */
@@ -619,7 +622,21 @@ async function arrancar() {
   faseArranque('Comprobando quién entra…');
   try {
     const Puerta = await import('./nucleo/puerta.js');
-    _quien = await Puerta.custodiar();
+    /* El callback es para un caso concreto: se entró con un pase al que le quedaban pocos
+       días y la banda lo dijo, y un momento después la comprobación que iba por detrás sí
+       consiguió confirmarlo y lo renovó a treinta días. Sin esto, la banda se quedaría
+       diciendo «te quedan 2 días» toda la sesión, sobre algo que ya dejó de ser verdad. */
+    _quien = await Puerta.custodiar(nota => {
+      if (!_quien) return;
+      _quien.nota = nota || '';
+      /* `_bandaLista` no es celo de más: esta retrollamada la dispara una comprobación que
+         va por su cuenta contra la hoja, y puede contestar ANTES de que `DB.abrir()` haya
+         terminado. `revisarDispositivo()` lo primero que mira es el estado de la base, y una
+         base que todavía no abrió contesta «sin_abrir» — o sea que repintar aquí demasiado
+         pronto sacaría una banda roja diciendo «La base todavía no abrió» con un botón de
+         recargar, sobre una app que está arrancando perfectamente. */
+      if (_bandaLista) revisarDispositivo();
+    });
   } catch (e) {
     console.error('no se pudo cargar la puerta', e);
     _quien = { ok: true, via: 'roto', correo: '', rol: Prefs.rol(),
@@ -680,6 +697,7 @@ async function arrancar() {
 
   faseArranque('Abriendo la base de este dispositivo…');
   await DB.abrir();
+  _bandaLista = true;
   revisarDispositivo();
 
   /* Sembrar el catálogo y las constantes. Idempotente: no pisa lo que ya se editó. Va antes
