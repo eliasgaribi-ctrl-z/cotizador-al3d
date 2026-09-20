@@ -63,6 +63,12 @@ const RUTAS = [
   { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    sub: 'lista de compra y almacén',                         roles: ['direccion', 'fabricacion'] },
   { ruta: 'cotizador', mod: 'cotizador',   seccion: 'mod-cotizador',   icono: 'i-venta',     nombre: 'Cotizador',   sub: 'capturar y autorizar una cotización',  movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'mapa',      mod: 'mapa',        seccion: 'mod-mapa',        icono: 'i-mapa',      nombre: 'Mapa',        sub: 'obras por instalar e instaladas',      movil: true, roles: ['direccion', 'fabricacion'] },
+  /* La mesa de corte. Vivía como pestaña del Tablero —«Carga del taller» / «Mesa de corte»— y
+     ahí no la encontraba nadie: es una herramienta de uso diario del taller escondida detrás
+     de un segmento de otra pantalla. Sale a la barra, y con los dos roles que la usan. La
+     pestaña del Tablero sigue existiendo para no romper `#/hoy/anidador`, que es a donde
+     apuntan el vectorizador del cotizador y la orden de obra. */
+  { ruta: 'anidador',  mod: 'herramientas', seccion: 'mod-anidador',   icono: 'i-anidar',    nombre: 'Mesa de corte', sub: 'acomodar las piezas en la lámina',                roles: ['direccion', 'fabricacion'] },
   /* La pantalla del dinero: ventas por mes, cartera y bitácora. Fabricación no la tiene —es
      el rol que no ve importes— y en el teléfono no entra a la barra de abajo por lo mismo que
      Material: se llega desde el Tablero. */
