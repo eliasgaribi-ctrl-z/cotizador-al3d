@@ -152,6 +152,30 @@ dos lados, con el espacio final de `Cuenta ` incluido.
 en el editor de Apps Script y volver a implementar: no se despliega solo como se desplegaba
 el Worker.
 
+### Antes de pegar nada: baja la copia de la hoja y compárala
+
+Esa frase de arriba se leyó como un trámite y no lo es. En septiembre de 2026 la copia de
+este repositorio llevaba **500 líneas menos** que la de la hoja —le faltaban los colores por
+cuenta, el orden de las ventas, el IVA por cuenta, el reparto FIFO de abonos y las comisiones
+por periodo, escritos todos directamente allá— y, lo caro:
+
+> en la hoja **C es `Estatus` y D es `Cuenta `**, y la copia de aquí los tenía al revés.
+
+Pegar la copia del repositorio encima habría dejado un `COL` que apunta a la columna
+equivocada: cada subida de la plataforma habría escrito **la cuenta encima del estatus** en
+filas de dinero real, sin marcar un solo error. La prueba de vocabulario no lo atrapa —los
+dos lados dicen «Cuenta » y «Estatus», solo que en distinto número de columna— y el único
+lugar donde se ve es la hoja.
+
+Así que el orden es: **abrir Apps Script, bajar el `Codigo.gs` de la hoja, compararlo contra
+éste, y fusionar a mano lo que cada lado tenga de más.** Git guarda el ancestro, así que un
+`git merge-file` de tres vías hace casi todo el trabajo; lo que quede en conflicto es
+justamente lo que hay que mirar con cuidado.
+
+El `COL` de este archivo es el mapa de la hoja **de verdad**, no de una hoja ideal. Si un día
+se mueve una columna allá, se mueve aquí en el mismo commit o el puente empieza a escribir
+al lado.
+
 ## Cómo está cerrado
 
 La dirección del puente es pública —igual que lo era la del Worker— y **la puerta es el
