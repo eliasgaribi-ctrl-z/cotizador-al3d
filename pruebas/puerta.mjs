@@ -139,6 +139,39 @@ console.log('\nLA DIRECCIÓN DEL PUENTE — de fábrica, y anulable');
   eq('y sin ninguna de las dos puertas, no', Prefs.hayPuente(), false);
 }
 
+/* EL BUCLE DE PRODUCCIÓN, capturado como prueba.
+ *
+ * El 20 de septiembre de 2026, con la puerta recién desplegada, entrar con Google funcionaba
+ * —el token llegaba, el correo era correcto— y la pantalla rebotaba a «Entrar con Google»
+ * una y otra vez. La causa estaba a dos archivos de distancia: `crear()` en puente.js abría
+ * con `if (!cfg.url || !cfg.token) return null`, y un teléfono que entra con su cuenta NO
+ * tiene token de dispositivo. El relevo salía null, la puerta no podía preguntarle a la hoja
+ * quién era, y el bucle.
+ *
+ * Es el defecto exacto que esta plataforma produce cuando se cambia una puerta: la condición
+ * vieja sigue escrita en un sitio que nadie mira porque «eso ya funcionaba». */
+console.log('\nEL PUENTE SE CONSTRUYE SIN TOKEN DE DISPOSITIVO');
+{
+  const Puente = await import('../js/datos/puente.js');
+
+  sembrar({});
+  cierto('sin nada guardado —un teléfono recién estrenado— el relevo EXISTE: ' +
+         'si no, quien entra con Google no puede ni preguntar quién es',
+         Puente.desdePrefs());
+
+  sembrar({ al3d_pf_puente: JSON.stringify({ token: 'x'.repeat(40) }) });
+  cierto('con token y sin liga propia, también', Puente.desdePrefs());
+
+  sembrar({ al3d_pf_puente: JSON.stringify({ url: 'https://otro.example/exec' }) });
+  cierto('con liga propia y sin token, también', Puente.desdePrefs());
+
+  /* Lo único que sigue siendo obligatorio es la dirección, y ya no puede faltar. */
+  cierto('lo que el relevo necesita es la DIRECCIÓN, y viene de fábrica',
+         Puente.crear({ url: '', token: 'x'.repeat(40) }) === null);
+  cierto('y con dirección y sin ninguna puerta se construye igual: la hoja contesta el porqué',
+         Puente.crear({ url: 'https://x.example/exec' }));
+}
+
 /* ----- Lo que el código de la puerta promete, leído del archivo -----
    No se puede importar puerta.js en node: pide DOM. Lo que sí se puede es comprobar que las
    decisiones que su cabecera promete siguen escritas, porque son justo las que alguien
@@ -146,6 +179,19 @@ console.log('\nLA DIRECCIÓN DEL PUENTE — de fábrica, y anulable');
 console.log('\nLO QUE LA PUERTA PROMETE');
 {
   const src = readFileSync(join(aqui, '..', 'js', 'nucleo', 'puerta.js'), 'utf8');
+
+  /* El arranque entero cuelga de `confirmar()`. Sin tope, una ventana de Google que el
+     navegador bloqueó en silencio deja la app muerta en «Comprobando quién entra…» para
+     siempre — y sin un solo error en la consola, que es la peor clase de avería. */
+  cierto('confirmar() tiene tope de espera: el arranque no puede colgar de Google',
+         src.includes('Promise.race') && /MS_CALLADO = \d+/.test(src) &&
+         /MS_CON_PANTALLA = \d+/.test(src));
+  const msCallado = Number((src.match(/MS_CALLADO = (\d+)/) || [])[1]);
+  const msPantalla = Number((src.match(/MS_CON_PANTALLA = (\d+)/) || [])[1]);
+  cierto('y el de pantalla es MÁS largo que el callado: detrás hay una persona eligiendo cuenta',
+         msPantalla > msCallado && msPantalla >= 60000);
+  cierto('el tope vence a «no se pudo preguntar», nunca a «no tienes acceso»',
+         /Promise\.race\(\[[\s\S]{0,160}estado: 'sin_red'/.test(src));
 
   cierto('el pase caduca: hay un tope de días escrito', /const DIAS_PASE = \d+/.test(src));
   const dias = Number((src.match(/const DIAS_PASE = (\d+)/) || [])[1]);

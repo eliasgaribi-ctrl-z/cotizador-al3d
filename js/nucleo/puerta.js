@@ -55,6 +55,18 @@
    ============================================================================ */
 
 import * as Prefs from '../datos/prefs.js';
+/* ── Estos DOS van estáticos, y no es una preferencia de estilo ────────────────────────
+   Estaban como `await import(...)` dentro del manejador del clic, y eso costó que el
+   navegador BLOQUEARA la ventana de Google en producción. La regla es que una ventana
+   emergente solo se abre mientras el navegador siga considerando que la está pidiendo una
+   persona, y ese permiso se gasta con la espera: entre el clic y `requestAccessToken` había
+   dos importaciones que salen a buscar un archivo a la red. Para cuando volvían, el clic ya
+   no valía y Chrome tapaba la ventana sin que la app se enterara.
+
+   Cargarlos aquí arriba es lo que hace que del clic a la ventana no haya NADA en medio. Son
+   dos módulos que la puerta necesita siempre, así que tampoco se está pagando de más. */
+import * as Ingreso from './ingreso.js';
+import * as Puente from '../datos/puente.js';
 import { $, esc } from './ui.js';
 
 /* La G de Google, en línea y con sus cuatro colores. No va al sprite de iconos de index.html
@@ -163,20 +175,40 @@ const porToken = () => dentro('token', '', Prefs.rol(),
  * @param {boolean} [conPantalla] true para abrir la ventana de Google; por omisión renueva
  *        callado, que es lo que se puede hacer sin un click de la persona.
  */
+/* ----- El tope de espera -----
+   El arranque entero cuelga de `confirmar()`, así que una promesa que no resuelve aquí no
+   es un retraso: es la app muerta en una pantalla que dice «Comprobando quién entra…» para
+   siempre. Y `requestAccessToken` de Google puede no llamar de vuelta NUNCA —una ventana
+   que el navegador bloqueó sin decirlo, las cookies de terceros apagadas, la sesión de
+   Google en un estado raro—. Antes eso no importaba porque el ingreso corría al final del
+   arranque y con la app ya pintada; ahora corre antes que todo.
+
+   Dos topes distintos, y la diferencia importa: el callado no necesita a nadie y si en diez
+   segundos no contestó no va a contestar; el de pantalla está esperando a una persona que
+   tiene que elegir cuenta y a lo mejor teclear una contraseña, y cortarle a los diez
+   segundos sería peor que no poner tope. Tres minutos es de sobra y sigue teniendo fin. */
+const MS_CALLADO = 10000;
+const MS_CON_PANTALLA = 180000;
+
+const conTope = (promesa, ms) => Promise.race([
+  promesa,
+  new Promise(r => setTimeout(() => r({ estado: 'sin_red' }), ms)),
+]);
+
 async function confirmar(conPantalla) {
-  let Ingreso, Puente;
-  try {
-    Ingreso = await import('./ingreso.js');
-    Puente  = await import('../datos/puente.js');
-  } catch (_) {
-    return { estado: 'sin_red' };   // el service worker no tenía el módulo: no es culpa de nadie
-  }
+  return await conTope(confirmarDeVerdad(conPantalla),
+                       conPantalla ? MS_CON_PANTALLA : MS_CALLADO);
+}
+
+async function confirmarDeVerdad(conPantalla) {
   if (!Ingreso.configurado()) return { estado: 'sin_red' };
 
   const e = conPantalla ? await Ingreso.entrar(false) : await Ingreso.renovar();
   if (!e.ok) {
     /* Que la persona cierre la ventana de Google no es quedarse fuera para siempre: es no
-       haber entrado todavía. Se trata como «no se pudo preguntar» y la puerta sigue puesta. */
+       haber entrado todavía. Se trata como «no se pudo preguntar» y la puerta sigue puesta.
+       El mensaje sí viaja tal cual: distinguir «cerraste la ventana» de «tu navegador la
+       bloqueó» es la diferencia entre volver a intentar y saber qué hay que tocar. */
     return { estado: 'sin_red', mensaje: e.mensaje || '' };
   }
 
@@ -240,13 +272,23 @@ function pedirEntrada(aviso) {
 
     pintar(caja, aviso, false);
 
+    /* El guion de Google se pide AHORA, mientras la persona lee la pantalla, y no cuando
+       aprieta. Es la otra mitad de por qué la ventana se bloqueaba: `entrar()` espera a que
+       este guion esté antes de pedir la ventana, y si esa espera cae dentro del clic, el
+       permiso para abrirla se gasta esperando. Pedirlo aquí hace que para cuando alguien
+       apriete ya esté. Si no baja, no se dice nada todavía: el botón lo intentará igual y
+       ahí sí habrá un mensaje que ponerle. */
+    Ingreso.cargarGis().catch(() => {});
+
     caja.addEventListener('click', async ev => {
       const b = ev.target.closest('[data-puerta]');
       if (!b) return;
       if (b.dataset.puerta === 'otra') {
         /* «Entrar con otra cuenta»: se suelta la sesión de ESTE aparato para que Google
-           vuelva a preguntar cuál, en vez de reintentar con la que acaba de ser rechazada. */
-        try { (await import('./ingreso.js')).salir(); } catch (_) {}
+           vuelva a preguntar cuál, en vez de reintentar con la que acaba de ser rechazada.
+           Sin `await`: lo que había aquí era un `await import(...)` y esperar dentro del
+           manejador del clic es exactamente lo que hace que el navegador tape la ventana. */
+        Ingreso.salir();
         Prefs.borrarPase();
       }
       pintar(caja, aviso, true);
@@ -299,8 +341,8 @@ function pintar(caja, aviso, esperando) {
 
 /** Cierra la sesión y vuelve a poner la puerta. Lo llama Ajustes: «Salir» dejaba la app
  *  abierta con los datos de quien salió en pantalla, que es lo contrario de salir. */
-export async function salir() {
-  try { (await import('./ingreso.js')).salir(); } catch (_) {}
+export function salir() {
+  Ingreso.salir();
   Prefs.borrarPase();
   location.reload();
 }

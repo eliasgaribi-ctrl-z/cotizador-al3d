@@ -505,7 +505,20 @@ export function normalizarUrl(u) {
  */
 export function crear(cfg0) {
   const cfg = { url: normalizarUrl(cfg0 && cfg0.url), token: String((cfg0 && cfg0.token) || '') };
-  if (!cfg.url || !cfg.token) return null;
+  /* Basta la DIRECCIÓN. El token de dispositivo dejó de ser obligatorio aquí el 20 de
+     septiembre de 2026 y esa línea —`if (!cfg.url || !cfg.token) return null`— costó un
+     bucle en producción que conviene dejar escrito: con la puerta de Google puesta, un
+     teléfono nuevo entra con su cuenta y NO tiene token. El relevo devolvía null, la puerta
+     no podía preguntarle a la hoja quién era, y la persona se quedaba dando vueltas entre
+     «Entrar con Google» y la misma pantalla, con Google funcionando perfectamente.
+
+     Cuál de las dos puertas se usa se decide EN CADA PETICIÓN, en `pedir()`: va el token de
+     Google si lo hay y el del aparato si lo hay, y la hoja elige. Un relevo sin ninguna de
+     las dos no es un error de construcción —es un teléfono que todavía no ha entrado— y lo
+     que contesta la hoja en ese caso es `ROL_SIN_PERMISO` con su razón escrita, que es
+     infinitamente más útil que un null silencioso. Quien decide si hay con qué sincronizar
+     sigue siendo `Prefs.hayPuente()`, aguas arriba. */
+  if (!cfg.url) return null;
 
   /* Lo que el Worker dijo que este token puede escribir. Se pide una vez y se recuerda:
      es la lista blanca del ROL, no una preferencia, y mandar propiedades que el token no

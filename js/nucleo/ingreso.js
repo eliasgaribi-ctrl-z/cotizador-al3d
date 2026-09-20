@@ -88,6 +88,11 @@ const MSG = {
   SIN_RED: 'No hay señal para entrar con Google. Lo que hagas se guarda aquí y se manda solo cuando vuelva.',
   RECHAZADO: 'Google no dio permiso. Vuelve a darle a «Entrar con Google» y acepta la pantalla.',
   CERRADO: 'Se cerró la ventana de Google sin entrar.',
+  /* El navegador tapó la ventana. Es el fallo que más se parece a «la app está rota» y el
+     que menos lo es, así que dice dónde se arregla. Google avisa de esto por su
+     `error_callback` y no por el callback normal: sin engancharlo, esto era una promesa que
+     no resolvía nunca y una pantalla congelada en «Entrando…». */
+  BLOQUEADA: 'Tu navegador bloqueó la ventana de Google. Busca el aviso de «ventana emergente bloqueada» —en Chrome sale a la derecha de la barra de direcciones—, permítelas para este sitio y vuelve a intentar.',
 };
 
 /* El token de acceso, en memoria y nada más. Ver la cabecera. */
@@ -95,6 +100,9 @@ let _tok = null;          /* {token:string, expira:number} */
 let _correo = '';
 let _cliente = null;
 let _cargando = null;
+/* El hueco donde cada llamada a `entrar()` deja su forma de rendirse, para que el
+   `error_callback` del cliente —que se creó una sola vez— sepa a quién contestarle. */
+let _fallo = () => {};
 
 /** El identificador puesto: el del código, o el que alguien pegó en Ajustes para probar uno
  *  distinto antes de escribirlo aquí. El del aparato gana para poder migrar sin desplegar. */
@@ -176,12 +184,27 @@ export async function entrar(callado) {
       try {
         _cliente = window.google.accounts.oauth2.initTokenClient({
           client_id: id, scope: SCOPE, callback: () => {},
+          /* `error_callback` es un camino APARTE del callback normal, y hay que engancharlo:
+             la ventana que el navegador bloquea y la que la persona cierra no llegan por el
+             callback de arriba. Sin esto, las dos eran una promesa que no resolvía nunca — y
+             lo que se ve desde fuera es un botón que se queda en «Entrando…» para siempre. */
+          error_callback: err => {
+            const t = (err && err.type) || '';
+            if (t === 'popup_failed_to_open') return _fallo(mal('SIN_RED', MSG.BLOQUEADA));
+            if (t === 'popup_closed') return _fallo(mal('DATO_INVALIDO', MSG.CERRADO));
+            return _fallo(mal('SIN_RED', MSG.SIN_RED));
+          },
         });
       } catch (_) {
         return resolve(mal('DATO_INVALIDO', MSG.RECHAZADO));
       }
     }
+    /* El cliente es uno solo para toda la pestaña, así que su `error_callback` se creó una
+       vez y no puede cerrar sobre el `resolve` de ESTA llamada. Se apunta a un hueco que
+       cada llamada rellena con el suyo, igual que se hace con `callback` justo abajo. */
+    _fallo = r => { _fallo = () => {}; resolve(r); };
     _cliente.callback = resp => {
+      _fallo = () => {};          // contestó por aquí: el otro camino ya no tiene a quién
       if (!resp || !resp.access_token) {
         const cerrada = resp && (resp.error === 'access_denied' || resp.error === 'popup_closed');
         return resolve(mal(cerrada ? 'DATO_INVALIDO' : 'SIN_RED',
