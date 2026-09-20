@@ -193,6 +193,22 @@ console.log('\nLO QUE LA PUERTA PROMETE');
   cierto('el tope vence a «no se pudo preguntar», nunca a «no tienes acceso»',
          /Promise\.race\(\[[\s\S]{0,160}estado: 'sin_red'/.test(src));
 
+  /* ECHAR A ALGUIEN SE COMPRUEBA DOS VECES, y esto costó una sesión cerrada de verdad.
+     El Apps Script verifica el token contra Google y FALLA CERRADO —bien hecho—, pero al
+     fallar cerrado contesta `ROL_SIN_PERMISO`: el MISMO código que cuando el correo de
+     verdad no está en «Accesos». Así que un tropiezo de red entre el Apps Script y Google se
+     leía aquí como una baja, se borraba el pase y se echaba a su dueño de la sesión.
+     Una baja es determinista y se repite; un tropiezo, no. */
+  cierto('una baja se confirma preguntando dos veces antes de echar a nadie',
+         /MS_SEGUNDA_OPINION = \d+/.test(src) &&
+         /v\.estado === 'fuera' && !conPantalla[\s\S]{0,400}preguntarALaHoja\(\)/.test(src));
+  cierto('y la segunda opinión solo puede ABSOLVER, nunca condenar de más',
+         src.includes("if (v2.estado !== 'fuera') v = v2;"));
+  /* Y si en ese momento no hay token de Google vivo, la petición salió sin identidad: la
+     hoja contestó lo único que podía. Eso no es una baja, es no haber preguntado. */
+  cierto('sin token vivo, un ROL_SIN_PERMISO no echa a nadie',
+         /if \(!Ingreso\.dentro\(\)\) return \{ estado: 'sin_red' \};/.test(src));
+
   cierto('el pase caduca: hay un tope de días escrito', /const DIAS_PASE = \d+/.test(src));
   const dias = Number((src.match(/const DIAS_PASE = (\d+)/) || [])[1]);
   cierto('y es un número razonable: ni un día ni para siempre', dias >= 7 && dias <= 90);
@@ -225,9 +241,13 @@ console.log('\nLO QUE LA PUERTA PROMETE');
   /* Y al revés: `fuera` solo puede salir del código que la hoja manda para «este correo no
      está en Accesos». Si saliera de cualquier otra rama, un error de red dejaría a alguien
      con el cartel de «no tienes acceso» delante. */
+  /* «fuera» tiene UN solo origen en todo el archivo: el código que manda la hoja. Si un día
+     saliera de otra rama —un error de red, un tope que vence— alguien acabaría viendo el
+     cartel de «no tienes acceso» por algo que no es eso. La cuenta de apariciones es lo que
+     lo vigila; la ventana es ancha porque en medio va la guarda del token vivo. */
   cierto('«fuera» solo lo dice la hoja, con su código',
-         /codigo === 'ROL_SIN_PERMISO'[\s\S]{0,120}estado: 'fuera'/.test(src) &&
-         (src.match(/estado: 'fuera'/g) || []).length === 1);
+         /codigo === 'ROL_SIN_PERMISO'[\s\S]{0,400}estado: 'fuera'/.test(src) &&
+         (src.match(/return \{ estado: 'fuera'/g) || []).length === 1);
 
   cierto('la puerta enlaza la privacidad y las condiciones, que es donde Google las pide',
          src.includes('privacidad.html') && src.includes('condiciones.html'));

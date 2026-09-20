@@ -224,6 +224,10 @@ const porToken = () => dentro('token', '', Prefs.rol(),
    respuesta buena aparece con la puerta ya puesta. */
 const MS_CALLADO = 30000;
 const MS_CON_PANTALLA = 180000;
+/* Lo que se espera antes de volver a preguntar cuando la hoja dice que alguien no tiene
+   acceso. Cuatro segundos: lo bastante para que un tropiezo de red se haya ido, y lo bastante
+   poco para que una baja de verdad surta efecto en el acto. Ver `confirmarDeVerdad`. */
+const MS_SEGUNDA_OPINION = 4000;
 
 /** Lanza la comprobación y devuelve las DOS cosas: la que tiene tope, para no colgar el
  *  arranque, y la de verdad, que sigue viva por si contesta tarde y todavía sirve. */
@@ -266,6 +270,30 @@ async function confirmarDeVerdad(conPantalla) {
     return { estado: 'sin_red', mensaje: e.mensaje || '' };
   }
 
+  let v = await preguntarALaHoja();
+
+  /* ── Echar a alguien se comprueba DOS veces ────────────────────────────────────
+     Esto costó una sesión cerrada de verdad el primer día, y la causa está del otro lado:
+     el Apps Script verifica el token contra Google y FALLA CERRADO —si Google no le contesta,
+     no deja pasar—. Eso está bien ahí. El problema es que, al fallar cerrado, contesta
+     `ROL_SIN_PERMISO`: exactamente el mismo código que cuando el correo de verdad no está en
+     «Accesos». O sea que un tropiezo de red entre el Apps Script y Google se leía aquí como
+     «a éste lo dieron de baja», se le borraba el pase y se le echaba de la sesión.
+
+     Una baja es determinista y se repite siempre; un tropiezo, no. Así que en el camino
+     callado —el que corre solo, por detrás, sin que nadie haya pedido nada— se pregunta una
+     segunda vez antes de tirar de la manta. En el camino con pantalla no hace falta esperar:
+     la persona ya está delante de la puerta y lo peor que le pasa es volver a apretar. */
+  if (v.estado === 'fuera' && !conPantalla) {
+    await new Promise(r => setTimeout(r, MS_SEGUNDA_OPINION));
+    const v2 = await preguntarALaHoja();
+    if (v2.estado !== 'fuera') v = v2;   // era un tropiezo, no una baja
+  }
+  return v;
+}
+
+/** Una vuelta a la hoja: quién dice que soy. Separada para poder repetirla. */
+async function preguntarALaHoja() {
   const relevo = Puente.desdePrefs();
   if (!relevo) return { estado: 'sin_red' };
   let s;
@@ -275,9 +303,11 @@ async function confirmarDeVerdad(conPantalla) {
     Prefs.setPase({ correo: s.correo, rol: s.rol, hasta: Date.now() + MS_PASE, visto: Date.now() });
     return { estado: 'ok', correo: s.correo, rol: s.rol };
   }
-  /* La hoja contestó, y contestó que no. `ROL_SIN_PERMISO` con un token de Google por
-     delante solo puede significar una cosa: ese correo no está en «Accesos». */
   if (s.codigo === 'ROL_SIN_PERMISO') {
+    /* Si en este momento NO hay token de Google vivo, la petición salió sin identidad y la
+       hoja contestó lo único que podía contestar. Eso no es una baja: es no haber preguntado.
+       Sin esta línea, un token que caduca justo en el vuelo echaba a su dueño. */
+    if (!Ingreso.dentro()) return { estado: 'sin_red' };
     return { estado: 'fuera', correo: Ingreso.correo() };
   }
   /* Contestó ok pero por la puerta del token: la hoja reconoció al APARATO, no a la persona.
