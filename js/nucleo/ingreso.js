@@ -53,15 +53,35 @@ const GIS = 'https://accounts.google.com/gsi/client';
    el equipo a una pantalla de consentimiento que no necesitan. */
 const SCOPE = 'openid email';
 
-/* El identificador de la app ante Google. NO es un secreto: viaja en cada petición y Google
-   lo diseñó para ser público —por eso puede vivir en un repositorio público sin que eso sea
-   una fuga—. Vive aquí, en el código, que es justo lo que quita la configuración por
-   dispositivo: darle la app a alguien vuelve a ser mandarle el enlace.
+/* El identificador de ESTA app ante Google —la web— creado el 20 de septiembre de 2026 en el
+   proyecto «My First Project» de la cuenta de Elías, como cliente de tipo «Aplicación web»
+   con origen autorizado `https://eliasgaribi-ctrl-z.github.io`.
+
+   NO es un secreto: viaja en cada petición y Google lo diseñó para ser público —por eso
+   puede vivir en un repositorio público sin que eso sea una fuga—. Vive aquí, en el código,
+   que es justo lo que quita la configuración por dispositivo: darle la app a alguien vuelve
+   a ser mandarle el enlace.
+
+   Google también emite un «secreto del cliente» al crearlo. NO se usa aquí y no debe usarse:
+   una app que corre en el navegador no puede guardar un secreto, y el flujo que usa este
+   archivo está diseñado sin él.
+
+   ── Si cambia el dominio ───────────────────────────────────────────────────────
+   El identificador NO cambia. Lo que hay que actualizar es el ORIGEN autorizado, del lado de
+   Google (Clientes → este cliente → Orígenes autorizados de JavaScript), y se pueden tener
+   varios a la vez: eso permite mudarse de dominio sin que deje de funcionar el viejo.
+
+   ── Si algún día hay app de Android ────────────────────────────────────────────
+   Va a necesitar su PROPIO identificador, de tipo Android, y este archivo se queda como
+   está: la app web usa el suyo. Lo que hay que ampliar es la lista del lado de la hoja
+   (`PUENTE_CLIENT_IDS` en puente/hoja-apps-script.gs), que es quien decide de qué apps
+   acepta un token. Está escrito como lista justo por eso.
 
    Lo que NO vive aquí es la lista de quién es quién: los correos del equipo están en la
    hoja, no en un repositorio público, y así agregar a alguien es un renglón allá en vez de
    un despliegue. */
-export const CLIENT_ID = '';
+export const CLIENT_ID =
+  '1057893837924-3np1vkcbpqmkh6sio0ktse00kd9b5ulr.apps.googleusercontent.com';
 
 const MSG = {
   SIN_CONFIG: 'Todavía no está puesto el identificador de Google de la app. Mientras tanto, el puente funciona con el token de este dispositivo.',

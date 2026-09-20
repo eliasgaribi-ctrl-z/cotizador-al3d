@@ -103,12 +103,16 @@ function montar(opciones = {}) {
     Logger: noImplementado, console,
   });
   vm.runInContext(src, ctx);
-  /* El identificador va vacío en el repositorio —se pone al montar la app— así que la prueba
-     lo inyecta. Que el vacío APAGUE el camino entero tiene su propia prueba más abajo. */
-  if (opciones.cliente !== null) {
-    vm.runInContext('PUENTE_CLIENT_ID = ' + JSON.stringify(opciones.cliente || CLIENTE), ctx);
+  /* La prueba inyecta su propia lista para no depender del identificador real que el archivo
+     trae escrito: si mañana se agrega el de Android, estas pruebas no tienen por qué
+     enterarse. Que la lista VACÍA apague el camino entero tiene su prueba más abajo, y que
+     acepte más de una app también. */
+  if (opciones.cliente === null) vm.runInContext('PUENTE_CLIENT_IDS = []', ctx);
+  else {
+    const lista = Array.isArray(opciones.cliente) ? opciones.cliente : [opciones.cliente || CLIENTE];
+    vm.runInContext('PUENTE_CLIENT_IDS = ' + JSON.stringify(lista), ctx);
   }
-  const api = vm.runInContext('({ identidadDelIngreso, rolDelCorreo, PUENTE_ROLES })', ctx);
+  const api = vm.runInContext('({ identidadDelIngreso, rolDelCorreo, PUENTE_ROLES, PUENTE_CLIENT_IDS })', ctx);
   return { api, estado };
 }
 
@@ -122,6 +126,17 @@ console.log('\nLA AUDIENCIA — la comprobación que no puede faltar');
   eq('el de esta app sí, y trae su correo y su rol',
      bueno.api.identidadDelIngreso('token-largo-de-esta-app-1234567890'),
      { correo: 'elias@example.com', rol: 'direccion' });
+
+  /* Es una LISTA, no un valor, y de eso depende que el día que exista la app de Android sus
+     tokens no salgan rechazados: cada plataforma tiene su propio identificador ante Google.
+     Se prueba con dos para que quien la vuelva a convertir en un solo valor rompa esto. */
+  const ANDROID = '1057893837924-otroidparaandroid.apps.googleusercontent.com';
+  const dos = montar({ cliente: [CLIENTE, ANDROID], aud: ANDROID });
+  eq('un token de la SEGUNDA app de la lista también entra: la web y la de Android conviven',
+     dos.api.identidadDelIngreso('token-largo-desde-android-1234567890').rol, 'direccion');
+  const tercera = montar({ cliente: [CLIENTE, ANDROID], aud: 'una-tercera-app.apps.googleusercontent.com' });
+  eq('y una tercera que no está en la lista sigue sin entrar',
+     tercera.api.identidadDelIngreso('token-largo-de-una-tercera-12345'), null);
 }
 
 console.log('\nEL CORREO — verificado, y en la pestaña Accesos');

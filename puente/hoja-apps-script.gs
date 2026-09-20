@@ -1475,15 +1475,23 @@ var PUENTE_VERSION = 'puente-sheets-5';
 var BITACORA = 'Bitácora del puente';
 
 /* ── Entrar con Google ─────────────────────────────────────────────────────
-   El mismo identificador que lleva js/nucleo/ingreso.js del lado del navegador. NO es un
-   secreto —viaja en cada petición y Google lo diseñó público— pero sí es la comprobación
-   que no se puede saltar: al verificar el token se exige que su AUDIENCIA sea exactamente
-   éste. Sin esa comprobación, un token que Google emitió para CUALQUIER otra app del mundo
-   serviría para entrar aquí, porque todos los verifica el mismo Google.
+   Las apps de las que este puente acepta un token. NO son secretos —viajan en cada petición
+   y Google los diseñó públicos— pero sí son la comprobación que no se puede saltar: al
+   verificar el token se exige que su AUDIENCIA sea una de éstas. Sin eso, un token que
+   Google emitió para CUALQUIER otra app del mundo serviría para entrar aquí, porque todos
+   los verifica el mismo Google, y esa otra app la registra cualquiera en dos minutos.
 
-   Vacío = entrar con Google apagado, y el puente sigue funcionando con los tokens de
+   Es una LISTA y no un solo valor porque cada plataforma necesita su propio identificador:
+   hoy está el de la app web, y el día que exista la de Android se agrega el suyo aquí —un
+   renglón— sin tocar nada más. Con un solo valor, esa app quedaría rechazada sin que el
+   síntoma se pareciera a la causa.
+
+   Lista vacía = entrar con Google apagado, y el puente sigue funcionando con los tokens de
    dispositivo de siempre. */
-var PUENTE_CLIENT_ID = '';
+var PUENTE_CLIENT_IDS = [
+  /* Aplicación web · origen https://eliasgaribi-ctrl-z.github.io */
+  '1057893837924-3np1vkcbpqmkh6sio0ktse00kd9b5ulr.apps.googleusercontent.com'
+];
 
 /* Quién es quién. Una pestaña normal de esta hoja, con dos columnas: Correo y Rol. Es una
    pestaña y no un diálogo ni una constante del código por la razón de siempre en este
@@ -1679,7 +1687,7 @@ function rolDelToken(token) {
  * puede leer cualquier otra función de este proyecto.
  */
 function identidadDelIngreso(tok) {
-  if (!tok || tok.length < 20 || !PUENTE_CLIENT_ID) return null;
+  if (!tok || tok.length < 20 || !PUENTE_CLIENT_IDS.length) return null;
   var cache = CacheService.getScriptCache();
   var clave = 'ing_' + Utilities.base64EncodeWebSafe(
     Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, tok));
@@ -1697,7 +1705,7 @@ function identidadDelIngreso(tok) {
       { muteHttpExceptions: true });
     if (r.getResponseCode() === 200) {
       var j = JSON.parse(r.getContentText());
-      if (String(j.aud) === PUENTE_CLIENT_ID && String(j.email_verified) === 'true') {
+      if (PUENTE_CLIENT_IDS.indexOf(String(j.aud)) !== -1 && String(j.email_verified) === 'true') {
         correo = String(j.email || '').trim().toLowerCase();
       }
     }
@@ -1813,7 +1821,7 @@ function rutaEsquema() {
   /* La pestaña de accesos no es una columna, pero se revisa aquí por el mismo motivo: es lo
      que «Revisar el esquema» tiene que poder decir antes de que alguien intente entrar. */
   var sinAccesos = !SpreadsheetApp.getActive().getSheetByName(HOJA_ACCESOS);
-  return { ok: true, faltan: faltan, accesos: !sinAccesos, cliente: !!PUENTE_CLIENT_ID,
+  return { ok: true, faltan: faltan, accesos: !sinAccesos, cliente: PUENTE_CLIENT_IDS.length > 0,
     nota: faltan.length
       ? 'Córrele  prepararHojaParaElPuente()  en Apps Script y las crea con su validación.'
       : 'La hoja ya tiene las ocho columnas que la plataforma necesita.' };
