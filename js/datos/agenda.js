@@ -629,11 +629,19 @@ export function dictamen(instalaciones, ctx, hoy) {
   const faltantes = [];
   const vistos = new Set();
   const sinCalcular = [];
+  const sinPartidas = [];
   for (const i of insts) {
     const pid = i.proyecto_id;
     if (!pid) continue;
     if (!ctx.conReq.has(pid)) {
-      sinCalcular.push(i.titulo || pid);
+      /* Dos razones distintas para no tener material calculado, y decirlas igual manda a
+         alguien a un botón que no puede funcionar. Un proyecto del cotizador SÍ tiene de
+         dónde calcularlo —sus partidas— y «dale recalcular material» es la instrucción
+         correcta. Un proyecto que el puente importó de la hoja porque estaba en fabricación
+         NO tiene partidas: la hoja no las guarda. Ahí no hay nada que recalcular, y lo que
+         toca es capturar el material a mano. Ver `proyectos.desdeVentaDeHoja`. */
+      if (i.de_hoja) sinPartidas.push(i.titulo || pid);
+      else sinCalcular.push(i.titulo || pid);
       continue;
     }
     for (const f of (ctx.faltantes.get(pid) || [])) {
@@ -654,6 +662,19 @@ export function dictamen(instalaciones, ctx, hoy) {
       texto: 'No se ha calculado el material de ' + sinCalcular[0] +
         (sinCalcular.length > 1 ? ' y ' + (sinCalcular.length - 1) + ' más' : '') +
         '. Ábrelo y dale «recalcular material».',
+    };
+  }
+
+  /* Los importados de la hoja van DESPUÉS de los del cotizador: si hay de los dos, el aviso
+     que sale es el que tiene arreglo con un botón. */
+  if (sinPartidas.length) {
+    return {
+      estado: dias !== null && dias <= DIAS_GRAVE ? 'grave' : 'falta',
+      codigo: 'sin_partidas', faltantes, dias, instalaciones: insts.length,
+      texto: sinPartidas[0] + (sinPartidas.length > 1 ? ' y ' + (sinPartidas.length - 1) + ' más' : '') +
+        (sinPartidas.length > 1 ? ' vinieron' : ' vino') + ' de la hoja y no ' +
+        (sinPartidas.length > 1 ? 'traen' : 'trae') + ' partidas, así que no hay de dónde ' +
+        'calcular el material: hay que ver qué lleva y apuntarlo a mano.',
     };
   }
 

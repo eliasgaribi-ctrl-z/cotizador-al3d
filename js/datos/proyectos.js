@@ -347,6 +347,130 @@ function congelar(entrada) {
   return copia;
 }
 
+/* ============================================================================
+   UN PROYECTO QUE NACIÓ EN LA HOJA, NO EN EL COTIZADOR
+
+   Por qué existe, con el caso que lo pidió: en septiembre de 2026 la hoja tenía DIECISÉIS
+   filas con estatus FABRICACION —trabajo vivo, cobrado a medias, en el taller— y el tablero
+   de la plataforma decía «0 en el taller hoy» y «0 van tarde». No era un dato perdido: el
+   puente, por diseño, no convertía filas de la hoja en proyectos. Solo espejaba el dinero
+   sobre proyectos que YA existieran de este lado, atados por «Folio cotizacion».
+
+   Esa decisión está escrita en js/datos/puente.js y era correcta para lo que miraba: las 199
+   filas anteriores a la plataforma, sin partidas y sin material, habrían llenado el tablero
+   de trabajos que nadie puede fabricar. Pero es la decisión equivocada para las que están
+   VIVAS: una venta en fabricación es trabajo del taller, y si el tablero no la enseña, el
+   tablero miente sobre el taller.
+
+   ── Lo que este proyecto SÍ tiene y lo que NO ──────────────────────────────────
+   Tiene lo que la hoja sabe: nombre, tipo de trabajo, el dinero, el estatus, la cuenta, la
+   dirección y la fecha del anticipo. NO tiene partidas, ni material, ni medidas, ni origen,
+   porque la hoja no las guarda. Eso se marca con `de_hoja: true` y con `origen: null`, y no
+   es un detalle: hay pantallas que derivan cosas de las partidas, y una que le diga «dale
+   recalcular material» a un trabajo que no tiene de dónde calcularlo manda a alguien a un
+   botón que no puede funcionar.
+
+   ── La etapa es «ganado», y es una respuesta, no un relleno ────────────────────
+   La hoja no guarda etapa de obra: esa columna es de la plataforma y está vacía en las 214
+   filas. `Estatus` es de DINERO —FABRICACION quiere decir «no está pagado»— y mezclar los
+   dos ejes sería inventar. «Ganado» es literalmente lo que se sabe: el trabajo se vendió y
+   nadie ha dicho en qué etapa va. Al no traer fecha de instalación caen en «Ganados sin
+   fecha», que es el contador que pide justo lo que falta.
+
+   ── El id es DETERMINISTA, y de eso depende que no se dupliquen ────────────────
+   Sale del folio interno de la hoja (V-214), no de `DB.nuevoId()`. Cada barrido del puente
+   vuelve a ver las mismas filas: con un id aleatorio, abrir la app tres veces daría tres
+   proyectos del mismo trabajo, y el tablero contaría cuarenta y ocho donde hay dieciséis.
+   ============================================================================ */
+
+/** Quita el «(Tipo)» final y parte «Contacto - Negocio» en sus dos mitades. Conservador a
+ *  propósito: si no hay separador, todo se queda como negocio y el contacto va vacío. Es
+ *  mejor un contacto vacío que un nombre partido al azar, que es lo que se pinta en la
+ *  ficha y lo que alguien lee para llamar por teléfono. */
+function partirNombreDeHoja(nombre) {
+  const limpio = String(nombre || '').replace(/\s*\([^()]*\)\s*$/, '').trim();
+  const i = limpio.indexOf(' - ');
+  if (i < 0) return { contacto: '', negocio: limpio };
+  return { contacto: limpio.slice(0, i).trim(), negocio: limpio.slice(i + 3).trim() };
+}
+
+/**
+ * Un renglón de `ventas_hoja` como proyecto de la plataforma. PURO: sin base, sin red y sin
+ * reloj salvo los sellos, para que la prueba de node lo corra entero.
+ *
+ * @param {Object} venta el registro que deja `puente.ventaDeHoja`
+ * @returns {Object|null} el proyecto, o null si la fila no alcanza para uno
+ */
+export function desdeVentaDeHoja(venta) {
+  const v = venta && typeof venta === 'object' ? venta : null;
+  if (!v) return null;
+  const folioHoja = String(v.folio_hoja || '').trim();
+  const nombre = String(v.nombre || '').trim();
+  /* Sin folio interno no hay id estable, y sin id estable se duplica en cada barrido. Sin
+     nombre no hay nada que enseñar en el tablero. Cualquiera de los dos que falte, no entra. */
+  if (!folioHoja || !nombre) return null;
+
+  const { contacto, negocio } = partirNombreDeHoja(nombre);
+  /* La fecha del trabajo, en el orden en que la hoja la sabe: el anticipo es cuando se
+     vendió, y es la que Control ya usa para los meses. */
+  const fecha = [v.fecha_anticipo, v.fecha_instalacion, v.fecha_liquidacion]
+    .find(f => esISO(f)) || hoyISO();
+  const ahora = Date.now();
+
+  return {
+    id: 'proy-hoja-' + folioHoja,
+    empresa_id: Prefs.empresa(),
+    folio_local: folioHoja,
+    dispositivo: 'hoja',
+    /* Vacío a propósito: no hay cotización detrás. `folio_hoja` es lo que ata este proyecto
+       a su renglón, y es lo que `ventas.unificar` mira para no contar la misma venta dos
+       veces —una como proyecto y otra como fila—. */
+    folio_global: '',
+    folio_hoja: folioHoja,
+    /* La marca. Todo lo que derive de partidas tiene que preguntarla antes. */
+    de_hoja: true,
+    nombre,
+    contacto,
+    negocio,
+    tel: '',
+    etapa: v.etapa || 'ganado',
+    tipo_trabajo: Array.isArray(v.tipo_trabajo) ? v.tipo_trabajo.slice() : [],
+    fecha_ganado: fecha,
+    compromiso_texto: '',
+    dir_texto: String(v.direccion || ''),
+    entrecalles: '',
+    maps_url: '',
+    lat: null,
+    lng: null,
+    geo_fuente: 'sin_ubicar',
+    sub: num(v.sub),
+    neto: num(v.neto),
+    /* `precio_auth` es lo que se cobra, y aquí lo que se cobra es el neto de la hoja: no hay
+       cotización firmada con la que compararlo. */
+    precio_auth: num(v.neto),
+    anti_pactado: num(v.anticipo),
+    iva: v.iva !== false,
+    /* El folio interno ES el id del renglón para el puente (`id_notion`), así que ponerlo
+       aquí es lo que hace que mover la etapa desde la plataforma escriba en la fila correcta
+       en vez de crear una segunda. */
+    notion_page_id: folioHoja,
+    notion_estado: 'enviado',
+    estatus_notion: v.estatus || null,
+    cuenta: v.cuenta || null,
+    pago_pendiente: v.pago_pendiente === undefined ? null : v.pago_pendiente,
+    comision_restante: v.comision_restante === undefined ? null : v.comision_restante,
+    pct_comision: num(v.pct_comision),
+    plazo_k: null,
+    /* Null y no un objeto vacío: `origen` es la copia congelada de la cotización, y un objeto
+       vacío se leería como «hay cotización y no tiene partidas», que es otra cosa. */
+    origen: null,
+    notas: '',
+    creado_en: ahora,
+    actualizado_en: ahora,
+    sync: 0,
+  };
+}
+
 /* Arma el registro. Lo comparten `ganar` y `descartar` porque un proyecto descartado se
    deriva igual que uno ganado —el nombre, los tipos, el importe que se dejó de vender— y
    lo único que cambia es que no se le calcula material ni se le agenda nada. */

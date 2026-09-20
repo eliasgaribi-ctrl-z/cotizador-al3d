@@ -9,6 +9,8 @@
  */
 import { resumenMensual, indicadores, saldoDe, porCobrar, conversion, csvProyectos, csvCampo,
          mesDe, etiquetaMes, rangoMes, vendidoDe, COLUMNAS_CSV, ventaDesdeHoja, unificar } from '../js/datos/ventas.js';
+import { desdeVentaDeHoja } from '../js/datos/proyectos.js';
+import { VIVAS_EN_TALLER } from '../js/datos/puente.js';
 
 let bien = 0, mal = 0;
 const eq = (que, dio, esperado) => {
@@ -191,6 +193,68 @@ console.log('\nEL RÉCORD DE LA HOJA, UNIDO AL DE ESTE TELÉFONO');
   eq('la que solo está aquí: su aparato', campo(l[1], 17), 'AAAA');
   eq('la enlazada: hoja y aparato, con el folio de la hoja', [campo(l[2], 17), campo(l[2], 1)], ['hoja + AAAA', 'V-200']);
   eq('la histórica: hoja, y su folio', [campo(l[3], 17), campo(l[3], 1), campo(l[3], 0)], ['hoja', 'V-001', 'V-001']);
+}
+
+/* ============================================================================
+   LO QUE ESTABA EN LA HOJA Y NO EN EL TABLERO
+
+   El caso real, de septiembre de 2026: dieciséis filas con estatus FABRICACION —trabajo en
+   el taller, cobrado a medias— y el tablero diciendo «0 en el taller hoy». El puente no
+   convertía filas en proyectos, así que lo que no había nacido en el cotizador no existía
+   para la obra.
+
+   De todo lo que se prueba aquí, hay dos que si se rompen cuestan dinero:
+     · que el id sea DETERMINISTA, porque con uno aleatorio cada barrido duplicaría los
+       dieciséis y el tablero contaría cuarenta y ocho trabajos donde hay dieciséis;
+     · y que `unificar` NO cuente dos veces la misma venta —una como proyecto y otra como
+       fila— porque eso sale directo en «vendido este mes», al doble.
+   ============================================================================ */
+console.log('\nDE LA FILA EN FABRICACIÓN AL TABLERO');
+{
+  const fila = (o = {}) => ({ id: 'hoja:V-214', folio_hoja: 'V-214', folio_cotizacion: '',
+    nombre: 'Joaquín - Placita La Perla', estatus: 'FABRICACION', cuenta: 'Elias BBVA',
+    tipo_trabajo: ['Letras 3D con iluminacion'], iva: false, fecha_anticipo: '2026-09-18',
+    fecha_instalacion: '', fecha_liquidacion: '', etapa: null, direccion: '',
+    sub: 43500, neto: 43500, anticipo: 21750, pago_pendiente: 21750, ...o });
+
+  const p = desdeVentaDeHoja(fila());
+  eq('el id sale del folio de la hoja, no del azar', p.id, 'proy-hoja-V-214');
+  eq('y dos barridos dan el MISMO id: no se duplica en cada bajada',
+     desdeVentaDeHoja(fila()).id, p.id);
+  eq('la etapa es «ganado»: es lo que se sabe, no un relleno', p.etapa, 'ganado');
+  eq('la fecha del trabajo es la del anticipo', p.fecha_ganado, '2026-09-18');
+  eq('el nombre se parte en contacto y negocio', [p.contacto, p.negocio],
+     ['Joaquín', 'Placita La Perla']);
+  eq('el «(Tipo)» del final no se queda pegado al negocio',
+     desdeVentaDeHoja(fila({ nombre: 'Ale - Parentesis (Caja Luz Mostrador)' })).negocio, 'Parentesis');
+  eq('un nombre sin separador se queda entero como negocio, y el contacto vacío',
+     [desdeVentaDeHoja(fila({ nombre: 'Kelvarion' })).contacto,
+      desdeVentaDeHoja(fila({ nombre: 'Kelvarion' })).negocio], ['', 'Kelvarion']);
+  ok('queda marcado como venido de la hoja', p.de_hoja === true);
+  eq('y sin origen: null y no un objeto vacío, que se leería como «hay cotización»', p.origen, null);
+  eq('el dinero es el de la hoja', [p.sub, p.neto, p.precio_auth, p.anti_pactado],
+     [43500, 43500, 43500, 21750]);
+  eq('y el saldo también', p.pago_pendiente, 21750);
+  eq('el folio interno es el id del renglón para el puente, así una subida no crea otra fila',
+     p.notion_page_id, 'V-214');
+  eq('sin folio de hoja no hay id estable, así que no entra', desdeVentaDeHoja(fila({ folio_hoja: '' })), null);
+  eq('sin nombre no hay nada que enseñar, así que tampoco', desdeVentaDeHoja(fila({ nombre: '' })), null);
+  eq('basura tampoco', desdeVentaDeHoja(null), null);
+
+  /* Qué se importa y qué no. Las 199 históricas son casi todas liquidadas: de eso depende
+     que importar «lo vivo» no llene el tablero de trabajo terminado. */
+  eq('fabricación y reparando son trabajo del taller', VIVAS_EN_TALLER, ['FABRICACION', 'REPARANDO']);
+  ok('cobrando NO se importa: ya se hizo y solo falta cobrarlo', !VIVAS_EN_TALLER.includes('COBRANDO'));
+  ok('liquidado tampoco: está cerrado', !VIVAS_EN_TALLER.includes('LIQUIDADO'));
+
+  /* Y la que de verdad cuesta dinero: la misma venta contada dos veces. */
+  const u = unificar([p], [fila()]);
+  eq('el proyecto importado y su fila son UNA venta, no dos', u.ventas.length, 1);
+  eq('y se cuenta como enlazada', [u.enlazados, u.de_hoja, u.solo_aqui], [1, 0, 0]);
+  eq('lo vendido es el neto de la hoja, una vez', vendidoDe(u.ventas[0]), 43500);
+  const m = resumenMensual(u.ventas, { hoy: '2026-09-20', meses: 2 });
+  eq('septiembre suma 43,500 y no 87,000', m[1].vendido, 43500);
+  eq('y una venta, no dos', m[1].ganados, 1);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

@@ -205,7 +205,10 @@ async function leer() {
   /* El semáforo de material de un proyecto, con el contexto ya leído. */
   const semDe = id => Agenda.dictamen(
     [{ proyecto_id: id, titulo: (porId.get(id) || {}).nombre || '',
-       fecha: (instDe.get(id) || {}).fecha || null }],
+       fecha: (instDe.get(id) || {}).fecha || null,
+       /* Para que el dictamen no le diga «dale recalcular material» a un trabajo que vino de
+          la hoja y no tiene partidas de dónde calcularlo. */
+       de_hoja: !!(porId.get(id) || {}).de_hoja }],
     mat, hoy);
 
   /* Quién está dentro de su ventana hoy. Solo los anclados en una instalación: los otros son

@@ -131,16 +131,28 @@ export function unificar(proyectos, ventasHoja) {
   const H = (Array.isArray(ventasHoja) ? ventasHoja : []).filter(Boolean);
 
   const porFolio = new Map();
+  /* Y el segundo índice, por el folio interno de la hoja (V-214). Lo necesitan los proyectos
+     que el puente IMPORTÓ de la hoja porque estaban en fabricación y no habían nacido en el
+     cotizador (ver `proyectos.desdeVentaDeHoja`): no tienen folio de cotización, así que por
+     el índice de arriba no se atarían a su renglón.
+
+     Y no atarlos no sería un detalle cosmético: la misma venta se contaría DOS VECES —una
+     como proyecto del tablero y otra como fila del récord— y el vendido del mes saldría al
+     doble. Con dieciséis proyectos importados, eso son dieciséis ventas fantasma. */
+  const porHoja = new Map();
   for (const v of H) {
     const fg = String(v.folio_cotizacion || '').trim();
     if (fg && !porFolio.has(fg)) porFolio.set(fg, v);
+    const fh = String(v.folio_hoja || '').trim();
+    if (fh && !porHoja.has(fh)) porHoja.set(fh, v);
   }
 
   const usadas = new Set();
   const ventas = [];
   let enlazados = 0;
   for (const p of P) {
-    const v = p.folio_global ? porFolio.get(String(p.folio_global)) : null;
+    const v = (p.folio_global ? porFolio.get(String(p.folio_global)) : null)
+      || (p.folio_hoja ? porHoja.get(String(p.folio_hoja)) : null);
     if (!v) { ventas.push(p); continue; }
     usadas.add(v.id);
     enlazados++;

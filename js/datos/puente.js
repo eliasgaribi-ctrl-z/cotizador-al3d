@@ -49,6 +49,7 @@
 
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
+import { desdeVentaDeHoja } from './proyectos.js';
 import * as Ingreso from '../nucleo/ingreso.js';
 
 /* ============================================================================
@@ -104,6 +105,13 @@ export const ESTATUS = ['FABRICACION', 'REPARANDO', 'COBRANDO', 'LIQUIDADO'];
 export const CUENTAS = ['Elias BBVA', 'Constru BNT', 'Moni MPago', 'Rul HSBC', 'Tatis BNT'];
 /** Los que mueve PAGOS: cobrar es pasar a cobrando o a liquidado. */
 export const ESTATUS_DE_PAGOS = ['COBRANDO', 'LIQUIDADO'];
+/* De los cuatro, los que son TRABAJO DEL TALLER. Es lo que decide qué fila de la hoja se
+   importa como proyecto cuando no nació en el cotizador (ver `bajar()` al final). COBRANDO
+   ya se hizo y solo falta cobrarlo —de eso vive Control, desde el récord— y LIQUIDADO está
+   cerrado; las 199 filas históricas son casi todas liquidadas, y por eso importar «lo vivo»
+   no llena el tablero: lo llena de lo que de verdad está en el taller.
+   Va aquí, al lado del vocabulario, para que quien toque la lista de estatus vea esta. */
+export const VIVAS_EN_TALLER = ['FABRICACION', 'REPARANDO'];
 
 /* ----- Las ocho etapas, con el nombre que se lee en Notion -----
    La etapa es de OBRA y el `Estatus` de Notion es de DINERO: son dos ejes y no se mezclan.
@@ -731,8 +739,32 @@ export function crear(cfg0) {
         const parche = deNotion(datos);
         if (!parche) continue;
 
-        const local = await porFolioGlobal(parche.folio_global);
-        if (!local) continue;   // sin proyecto aquí: ya quedó en el récord, y al tablero no va
+        /* Se busca por los DOS caminos, en este orden: el folio de cotización —la venta que
+           nació en el cotizador de alguien— y, si no, el proyecto que este mismo relevo
+           importó de esta misma fila en un barrido anterior. Sin el segundo, cada barrido
+           volvería a crear el importado y se perdería lo que el taller hubiera movido. */
+        let local = parche.folio_global ? await porFolioGlobal(parche.folio_global) : null;
+        const idImportado = venta ? 'proy-hoja-' + venta.folio_hoja : '';
+        if (!local && idImportado) {
+          try { local = await DB.obtener('proyectos', idImportado); } catch (_) { local = null; }
+        }
+
+        /* Sin proyecto de este lado: si la venta está VIVA, se importa. Ver
+           `proyectos.desdeVentaDeHoja` para por qué esto no existía y por qué ahora sí.
+
+           Solo las vivas, y eso es la mitad de la decisión: FABRICACION y REPARANDO son
+           trabajo del taller. COBRANDO ya se hizo y solo falta cobrarlo —Control lo lleva
+           desde el récord, y ponerlo en el tablero de obra sería trabajo terminado pidiendo
+           taller—, y LIQUIDADO está cerrado. Las 199 filas históricas son casi todas
+           liquidadas: por eso importar «lo vivo» no llena el tablero, lo llena de las
+           dieciséis que sí están en el taller. */
+        if (!local) {
+          if (venta && VIVAS_EN_TALLER.includes(String(venta.estatus || ''))) {
+            const nuevo = desdeVentaDeHoja(venta);
+            if (nuevo) registros.push({ almacen: 'proyectos', datos: nuevo });
+          }
+          continue;   // ya quedó en el récord; el parche de dinero no tiene a quién caerle
+        }
 
         const editado = Date.parse((fila.datos && fila.datos.editado) || '') || 0;
         /* El sello se iguala al local a propósito, y esto es lo único astuto del archivo.
