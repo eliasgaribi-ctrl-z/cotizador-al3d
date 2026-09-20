@@ -20,7 +20,7 @@ var ABONOS  = 'Abonos comisión';
 var HEAD = ['Folio', 'Proyecto', 'Estatus', 'Cuenta', 'Tipo de trabajo', 'IVA', 'Subtotal',
             'Precio neto', 'Anticipo', 'Liquidación', 'Saldo por cobrar',
             'Fecha anticipo', 'Fecha instalación', 'Fecha liquidación', 'Días de cobro',
-            'Días de antigüedad', 'Antigüedad', 'Comisión', 'Abono comisión',
+            'Días de antigüedad', 'Antigüedad', 'Comisión 10%', 'Abono comisión',
             'Comisión pendiente', 'Pagos de comisión', 'Año', 'Mes', 'Revisar'];
 
 /* columnas calculadas: encabezado en otro tono para que se note que no se capturan */
@@ -160,10 +160,12 @@ function formulasVentas(h) {
     Q: '=ARRAYFORMULA(IF(' + L('P') + '="","",IF(' + L('P') + '<=30,"' + RANGOS[0] +
        '",IF(' + L('P') + '<=60,"' + RANGOS[1] + '",IF(' + L('P') + '<=90,"' + RANGOS[2] +
        '","' + RANGOS[3] + '")))))',
-    /* El porcentaje se pacta por venta y llega en AD desde el cotizador (columna del puente,
-       ver COL). Vacío quiere decir «el de siempre», 10 %: las filas que ya estaban siguen
-       dando exactamente lo mismo. */
-    R: '=ARRAYFORMULA(IF(' + L('B') + '="","",ROUND(' + L('G') + '*IF(' + L('AD') + '="",10,' + L('AD') + ')/100,2)))',
+    /* La comisión es FIJA: 10 % del SUBTOTAL, que es G. No del neto, así que el IVA no entra
+       en el cálculo —es la regla del negocio, dicha por Elías, y por eso se deja escrita aquí
+       y no solo en la fórmula—. La columna AD «Porcentaje comision» existe porque el puente
+       la lleva y el cotizador la captura, pero la hoja NO la usa: si algún día la comisión se
+       pactara por venta, este renglón es el único lugar que habría que cambiar. */
+    R: '=ARRAYFORMULA(IF(' + L('B') + '="","",ROUND(' + L('G') + '*10%,2)))',
     S: "=ARRAYFORMULA(IF(" + L('B') + '="","",SUMIF(\'' + ABONOS + "'!$A$2:$A$2000," + L('A') +
        ",'" + ABONOS + "'!$C$2:$C$2000)))",
     T: '=ARRAYFORMULA(IFERROR(ROUND(' + L('R') + '-' + L('S') + ',2),""))',
@@ -1465,7 +1467,8 @@ function dialogoTokens() {
    escribir cada rol—. La plataforma la compara con la suya al «Probar» y lo dice si la hoja
    se quedó con una implementación vieja.
    puente-sheets-4: «Pago Pendiente» baja con el signo de la hoja (positivo = te deben), y
-   entra la columna AD «Porcentaje comision». */
+   entra la columna AD «Porcentaje comision» —que viaja, pero no cambia la comisión: la de
+   AL3D es 10 % fijo del subtotal—. */
 var PUENTE_VERSION = 'puente-sheets-4';
 var BITACORA = 'Bitácora del puente';
 
@@ -1495,10 +1498,10 @@ var COL = {
   'Hora instalacion':             27,   // AA
   'Ubicacion':                    28,   // AB
   'Direccion':                    29,   // AC
-  /* El % de comisión que se pactó con quien trajo el trabajo, en puntos (10 = 10 %). Lo
-     captura el modal de Registrar Venta y lo guardaba la plataforma; la hoja lo ignoraba y
-     cobraba 10 % fijo, así que una venta pactada al 15 % se enseñaba al 15 % en el teléfono
-     y se pagaba al 10 % en el libro mayor. La fórmula R lo lee; vacío = 10. */
+  /* El % que el cotizador captura al registrar la venta, en puntos (10 = 10 %). Baja y sube
+     por el puente para que el teléfono y la hoja guarden el mismo dato, pero la comisión de
+     AL3D es fija —10 % del subtotal, sin IVA— y la fórmula R NO lee esta columna. Está aquí
+     para el día que se pacte por venta, y ese día se cambia R. */
   'Porcentaje comision':          30    // AD
 };
 
@@ -1510,7 +1513,7 @@ var ULTIMA_COL = 30;
 var PUENTE_FORMULAS = {
   'Precio Neto ': 'la calcula la hoja: subtotal x IVA',
   'Pago Pendiente': 'la calcula la hoja: neto menos anticipo menos liquidación',
-  'Comisiones': 'la calcula la hoja: el % pactado del subtotal (10 % si no se dijo)',
+  'Comisiones': 'la calcula la hoja: 10% del subtotal, sin IVA',
   'Comision Restante': 'la calcula la hoja: comisión menos abonos',
   'Fecha Comision': 'ya no existe: la fecha de cada abono vive en la pestaña de abonos'
 };
@@ -1675,7 +1678,7 @@ function rutaEsquema() {
     { nombre: 'Ubicacion', tipo: 'texto', para: 'lat,lng resueltos del link de Maps' },
     { nombre: 'Direccion', tipo: 'texto', para: 'la dirección como la mandó el cliente' },
     { nombre: 'Tipo de trabajo', tipo: 'lista', para: 'derivado de las partidas, no capturado', opciones: TIPOS_TRABAJO },
-    { nombre: 'Porcentaje comision', tipo: 'número', para: 'el % pactado con quien trajo el trabajo; vacío = 10' }
+    { nombre: 'Porcentaje comision', tipo: 'número', para: 'el % que capturó el cotizador; la comisión de la hoja sigue siendo 10 % fijo' }
   ];
   var equivale = { 'Fecha instalacion': 'Fecha instalación' };
   var faltan = necesarias.filter(function (p) {
