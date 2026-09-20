@@ -37,6 +37,7 @@ import * as Sync from '../datos/sync.js';
 import * as Geo from '../datos/geo.js';
 import * as Gcal from '../nucleo/gcal.js';
 import * as Puente from '../datos/puente.js';
+import * as Ingreso from '../nucleo/ingreso.js';
 import {
   $, esc, ico, toast, avisarResultado, abrirCapa, cerrarCapa,
   descargarArchivo, fmtFechaDia, cuando, ajustarAltoBarra, copiarTexto, voz,
@@ -596,13 +597,21 @@ function cardPuente() {
     'aquí para que nadie tenga que buscarlos en otro lado:</p>' +
     pasos +
 
-    nota('<b>Los tres tokens salen de la hoja</b>, no de aquí: menú ' +
-         '<b>⚡ AL3D → Tokens del puente</b>. Pega abajo el que le toca a ESTE teléfono.', 'av') +
+    bloqueIngreso() +
 
+    /* La LIGA va fuera del plegable a propósito: hace falta para las DOS puertas, no solo
+       para el token. Es la dirección de la hoja, no una credencial. */
     '<div class="fld aj-bloque">' +
     '<label for="aj-worker-url">Liga del puente</label>' +
     '<input type="url" id="aj-worker-url" autocomplete="off" spellcheck="false" ' +
     'placeholder="https://script.google.com/macros/s/…/exec" value="' + esc(p.url || '') + '"></div>' +
+
+    /* El token baja a salida de emergencia: sigue entero, pero plegado. Quien entra con
+       Google no tiene por qué verlo, y quien lo necesite un día sabe dónde está. */
+    '<details class="aj-bloque"><summary>Salida de emergencia: el token de este dispositivo</summary>' +
+    nota('Los tres tokens salen de la hoja, no de aquí: menú ' +
+         '<b>⚡ AL3D → Tokens del puente</b>. Solo hace falta pegar uno si entrar con Google ' +
+         'no funciona en este aparato.', 'av') +
 
     '<div class="fld"><label for="aj-worker-tok">Token de este dispositivo</label>' +
     /* El token guardado NO se vuelve a pintar. Es la única cosa de esta pantalla que sirve
@@ -614,6 +623,7 @@ function cardPuente() {
     '<p class="pf-nota">El token no se vuelve a mostrar y <b>no entra en el respaldo</b>. Un ' +
     'respaldo se manda por WhatsApp o por correo, y una llave que viaja así deja de ser ' +
     'secreta.</p>' +
+    '</details>' +
 
     '<div class="pf-acciones">' +
     '<button type="button" class="btn btn-pri" data-act="puente-guardar">' + ico('i-guardar') +
@@ -742,6 +752,8 @@ async function clic(ev) {
   if (t.closest('[data-act="respaldar"]')) { respaldar(); return; }
   if (t.closest('[data-act="gcal-guardar"]')) { guardarGcal(); return; }
   if (t.closest('[data-act="gcal-conectar"]')) { conectarGcal(); return; }
+  if (t.closest('[data-act="ingreso-entrar"]')) { entrarConGoogle(); return; }
+  if (t.closest('[data-act="ingreso-salir"]')) { salirDeGoogle(); return; }
   if (t.closest('[data-act="puente-guardar"]')) { guardarPuente(); return; }
   if (t.closest('[data-act="puente-quitar"]')) { quitarPuente(); return; }
   if (t.closest('[data-act="puente-bombear"]')) { bombear(); return; }
@@ -900,6 +912,59 @@ function guardarGcal() {
     : null;   // sin Client ID no hay configuración: se borra en vez de guardar una a medias
   if (!Prefs.setGcal(cfg)) { toast('Este navegador no dejó guardar la configuración', 'err', 4200); return; }
   toast(id ? 'Client ID guardado. Ahora dale a Conectar.' : 'Se quitó la configuración de Calendar', 'ok', 3800);
+  if (CTX.refrescar) CTX.refrescar();
+}
+
+/* ----- Entrar con Google -----
+   Lo que esta pantalla tiene que dejar claro, y por eso el bloque dice las tres cosas: con
+   quién estás dentro, que el rol NO lo decide este aparato sino la pestaña «Accesos» de la
+   hoja, y que el token de abajo sigue ahí por si un día Google no contesta. */
+function bloqueIngreso() {
+  if (!Ingreso.configurado()) {
+    return nota('<b>Entrar con Google todavía no está montado.</b> Mientras tanto la puerta ' +
+      'es el token de este dispositivo, que sigue funcionando igual. Cuando esté, darle la app ' +
+      'a alguien del equipo será mandarle la liga: sin pegar nada.', 'av');
+  }
+  const correo = Ingreso.correo();
+  const dentro = Ingreso.dentro();
+  if (!correo) {
+    return '<div class="aj-bloque">' +
+      '<p class="aj-p"><b>Entra con tu cuenta de Google.</b> No hay nada que pegar: el puente ' +
+      'reconoce tu correo y la hoja decide qué te toca hacer. Si tu correo no está en la ' +
+      'pestaña <b>Accesos</b> de la hoja, el puente lo dice con esas palabras.</p>' +
+      '<div class="pf-acciones"><button type="button" class="btn btn-pri" ' +
+      'data-act="ingreso-entrar">' + ico('i-nube') + ' Entrar con Google</button></div></div>';
+  }
+  return '<div class="aj-bloque">' +
+    nota('Dentro como <b>' + esc(correo) + '</b>' +
+      (dentro ? '.' : ' — la sesión de Google caducó y se renueva sola al abrir la app, o ' +
+                      'aquí con «Entrar con Google».'), dentro ? 'ok' : 'av') +
+    '<p class="pf-nota">El rol no sale de este aparato: sale de lo que diga tu correo en la ' +
+    'pestaña <b>Accesos</b> de la hoja. Cambiar el departamento aquí arriba cambia el tablero ' +
+    'que ves, no lo que puedes escribir.</p>' +
+    '<div class="pf-acciones">' +
+    (dentro ? '' : '<button type="button" class="btn btn-pri" data-act="ingreso-entrar">' +
+      ico('i-nube') + ' Entrar con Google</button>') +
+    '<button type="button" class="btn btn-gho" data-act="ingreso-salir">Salir de Google en ' +
+    'este dispositivo</button></div></div>';
+}
+
+async function entrarConGoogle() {
+  /* Sale de un clic a propósito, igual que el de Calendar: Google abre una ventana y sin
+     gesto de la persona el navegador la bloquea como emergente. */
+  const r = await Ingreso.entrar(false);
+  if (!avisarResultado(r, 'Dentro con Google')) return;
+  /* Se vuelve a enchufar el relevo: hasta ahora este aparato podía no tener puente —sin
+     token no había con qué— y ahora sí lo tiene. */
+  if (CTX.enchufarPuente) { try { await CTX.enchufarPuente(); } catch (_) {} }
+  if (CTX.refrescar) CTX.refrescar();
+}
+
+function salirDeGoogle() {
+  Ingreso.salir();
+  /* «De este dispositivo» y no «cerrar sesión»: el consentimiento sigue dado en la cuenta de
+     Google y se quita desde ahí. Decir otra cosa sería mentir sobre lo que acaba de pasar. */
+  toast('Saliste de Google en este dispositivo', 'ok');
   if (CTX.refrescar) CTX.refrescar();
 }
 

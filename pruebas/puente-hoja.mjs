@@ -20,7 +20,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
-import { deNotion, ventaDeHoja } from '../js/datos/puente.js';
+import { deNotion, ventaDeHoja, VERSION_ESPERADA } from '../js/datos/puente.js';
 import { saldoDe, unificar, vendidoDe, resumenMensual } from '../js/datos/ventas.js';
 
 let bien = 0, mal = 0;
@@ -203,8 +203,15 @@ console.log('\nLO QUE BAJA — el rol tambien cierra la lectura, no solo la escr
   eq('un rol desconocido tampoco lo ve',
      api.sinLoQueNoLeToca(espejo(), 'inventado')['Anticipo'], undefined);
 
-  /* La versión cambia cuando cambia el contrato: es como se sabe si la hoja quedó vieja. */
-  eq('la versión dice que el saldo ya baja al derecho', api.PUENTE_VERSION, 'puente-sheets-4');
+  /* La versión cambia cuando cambia el contrato: es como se sabe si la hoja quedó vieja.
+     Se compara contra la que espera la plataforma y NO contra un número escrito aquí: con
+     el número a mano, cada cambio de contrato dejaba esta prueba roja por estar al día, que
+     es la clase de fallo que se aprende a ignorar. Que los dos lados digan lo mismo ya lo
+     comprueba pruebas/puente.mjs; lo que se prueba aquí es que el saldo baja al derecho, y
+     eso se prueba con el saldo, tres renglones más abajo. */
+  eq('la versión de la hoja es la que la plataforma espera', api.PUENTE_VERSION, VERSION_ESPERADA);
+  cierto('y ya no es ninguna de las que mandaban el saldo negado',
+         !['puente-sheets-1', 'puente-sheets-2', 'puente-sheets-3'].includes(api.PUENTE_VERSION));
 }
 
 console.log('\nEL SALDO, DE LA CELDA AL TELÉFONO — la costura que nadie probaba');

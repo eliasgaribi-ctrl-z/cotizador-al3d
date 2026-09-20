@@ -38,12 +38,15 @@
    ============================================================================ */
 
 import * as Prefs from '../datos/prefs.js';
+/* El cargador del guion de Google vive en ingreso.js y no aquí: dos cargadores del mismo
+   guion, llamados a la vez, añaden la etiqueta dos veces. Lo necesitaba este archivo y ahora
+   también el ingreso, así que se mudó al que no depende de nadie. */
+import { cargarGis } from './ingreso.js';
 
 /** @typedef {{ok:true, valor:*}|{ok:false, codigo:string, mensaje:string}} Resultado */
 const ok  = valor => ({ ok: true, valor });
 const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
 
-const GIS = 'https://accounts.google.com/gsi/client';
 const SCOPE = 'https://www.googleapis.com/auth/calendar.events';
 const API = 'https://www.googleapis.com/calendar/v3/calendars/';
 
@@ -59,7 +62,6 @@ const MSG = {
    vence en el vuelo devuelve 401 y el usuario ve un error por 40 segundos de reloj. */
 let _tok = null;         /* {token:string, expira:number} */
 let _cliente = null;     /* el tokenClient de GIS, se crea una vez */
-let _cargando = null;    /* la promesa de carga del script, para no meter dos <script> */
 let _correo = '';
 
 /* ---------------------------------------------------------------------------
@@ -102,24 +104,6 @@ export function correo() { return _correo; }
    EL TOKEN
    --------------------------------------------------------------------------- */
 
-function cargarGis() {
-  if (typeof window !== 'undefined' && window.google && window.google.accounts) {
-    return Promise.resolve(true);
-  }
-  if (_cargando) return _cargando;
-  _cargando = new Promise(resolve => {
-    if (typeof document === 'undefined') return resolve(false);
-    const s = document.createElement('script');
-    s.src = GIS; s.async = true; s.defer = true;
-    s.onload = () => resolve(!!(window.google && window.google.accounts));
-    /* onerror es el caso normal, no el raro: sin señal el script no baja. Se resuelve
-       false en vez de rechazar para que el llamador conteste SIN_RED con su mensaje y no
-       tenga que envolver esto en un try. */
-    s.onerror = () => { _cargando = null; resolve(false); };
-    document.head.appendChild(s);
-  });
-  return _cargando;
-}
 
 /**
  * Pide (o renueva) el token de acceso. **Tiene que salir de un click**: `requestAccessToken`

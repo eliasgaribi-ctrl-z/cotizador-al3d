@@ -720,6 +720,15 @@ ctx.enchufarPuente = enchufarPuente;
  */
 async function sincronizarCallado() {
   if (!Sync.configurado()) return;
+  /* Primero la identidad, y CALLADA. El token de Google vive solo en memoria —ver
+     js/nucleo/ingreso.js— así que en cada arranque hay que volver a pedirlo, y la renovación
+     sin pantalla funciona mientras la sesión de Google de este navegador siga viva. Si falla
+     no se dice nada y no se para: la petición sale igual con el token de dispositivo, que es
+     justo para lo que se quedó. */
+  try {
+    const Ingreso = await import('./nucleo/ingreso.js');
+    if (Ingreso.configurado() && Ingreso.correo() && !Ingreso.dentro()) await Ingreso.renovar();
+  } catch (_) {}
   let movio = 0;
   try { const r = await Sync.bombear(); if (r.ok) movio += Number(r.valor.subidas) || 0; } catch (_) {}
   /* Página por página mientras el Worker diga que hay más, con tope: las 199 filas anteriores

@@ -49,6 +49,7 @@
 
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
+import * as Ingreso from '../nucleo/ingreso.js';
 
 /* ============================================================================
    El vocabulario del puente. Son los nombres que heredó de Notion —con el espacio final
@@ -354,9 +355,9 @@ export function ventaDeHoja(fila) {
 /* ----- La versión de la hoja que esta plataforma espera -----
    `salud` devuelve la versión del Apps Script publicado. Si la hoja se quedó con una
    implementación anterior, el contrato que este archivo asume no es el que corre allá:
-   puente-sheets-3 mandaba el saldo negado y no conocía «Porcentaje comision». Ajustes lo
+   puente-sheets-4 no sabía de la identidad de Google: con una hoja en esa versión, entrar con Google no da rol y solo sirve el token de dispositivo. Ajustes lo
    enseña con estas palabras; la prueba de node comprueba que el .gs del repo diga esta. */
-export const VERSION_ESPERADA = 'puente-sheets-4';
+export const VERSION_ESPERADA = 'puente-sheets-5';
 export function versionVieja(version) {
   const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
   const n = m ? Number(m[1]) : 0;
@@ -410,7 +411,14 @@ async function pedir(cfg, ruta, opciones = {}) {
   if (consulta) {
     new URLSearchParams(consulta).forEach((valor, clave) => { cuerpo[clave] = valor; });
   }
-  cuerpo.token = cfg.token;
+  /* Las DOS puertas, y la hoja decide en ese orden: si viene la identidad de Google, el rol
+     sale del correo; si no, del token de dispositivo. Van las dos en la misma petición a
+     propósito —no se pregunta antes cuál usar— porque preguntar costaría una vuelta de red
+     por operación y porque el token de Google puede haber caducado justo en el vuelo: que la
+     hoja tenga el de reserva en la mano evita un rechazo que no le importa a nadie. */
+  const g = Ingreso.token();
+  if (g) cuerpo.google_token = g;
+  if (cfg.token) cuerpo.token = cfg.token;
   cuerpo.ruta = camino.replace(/^\/+/, '');
 
   let r;
@@ -815,5 +823,8 @@ export function instrucciones() {
  */
 export function desdePrefs() {
   const cfg = Prefs.puente();
-  return (cfg && cfg.url && cfg.token) ? crear(cfg) : null;
+  /* Basta la dirección: la puerta puede ser el token de dispositivo o el ingreso de Google,
+     y cuál de las dos se usa se decide en cada petición (ver `pedir`). `Prefs.hayPuente`
+     lleva la misma regla y es la que apaga la sincronización cuando no hay ninguna. */
+  return (cfg && cfg.url) ? crear(cfg) : null;
 }

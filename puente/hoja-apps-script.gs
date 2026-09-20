@@ -1468,9 +1468,30 @@ function dialogoTokens() {
    se quedó con una implementación vieja.
    puente-sheets-4: «Pago Pendiente» baja con el signo de la hoja (positivo = te deben), y
    entra la columna AD «Porcentaje comision» —que viaja, pero no cambia la comisión: la de
-   AL3D es 10 % fijo del subtotal—. */
-var PUENTE_VERSION = 'puente-sheets-4';
+   AL3D es 10 % fijo del subtotal—.
+   puente-sheets-5: el rol puede salir de la IDENTIDAD de Google además del token de
+   dispositivo. La lista de quién es quién vive en la pestaña «Accesos» de esta hoja. */
+var PUENTE_VERSION = 'puente-sheets-5';
 var BITACORA = 'Bitácora del puente';
+
+/* ── Entrar con Google ─────────────────────────────────────────────────────
+   El mismo identificador que lleva js/nucleo/ingreso.js del lado del navegador. NO es un
+   secreto —viaja en cada petición y Google lo diseñó público— pero sí es la comprobación
+   que no se puede saltar: al verificar el token se exige que su AUDIENCIA sea exactamente
+   éste. Sin esa comprobación, un token que Google emitió para CUALQUIER otra app del mundo
+   serviría para entrar aquí, porque todos los verifica el mismo Google.
+
+   Vacío = entrar con Google apagado, y el puente sigue funcionando con los tokens de
+   dispositivo de siempre. */
+var PUENTE_CLIENT_ID = '';
+
+/* Quién es quién. Una pestaña normal de esta hoja, con dos columnas: Correo y Rol. Es una
+   pestaña y no un diálogo ni una constante del código por la razón de siempre en este
+   sistema: la pantalla de administración es la Hoja. Agregar a alguien del equipo es
+   escribir un renglón —sin tocar código, sin volver a implementar— y quitarle el acceso es
+   borrarlo. Y queda a la vista de quien abra la hoja, que es lo que hace que alguien note
+   un correo que no debería estar ahí. */
+var HOJA_ACCESOS = 'Accesos';
 
 /* Los nombres siguen siendo los de Notion a propósito: la plataforma los tiene
    escritos en su propio código y en los datos que ya guardó en los teléfonos.
@@ -1583,13 +1604,26 @@ function doPost(e) {
     try { cuerpo = JSON.parse(crudo); }
     catch (err) { return responder({ ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El cuerpo no es JSON.' }); }
 
+    /* Las dos puertas, en este orden. La identidad manda cuando viene: es la que sabe QUIÉN
+       está del otro lado, mientras que el token solo sabe qué aparato es. El token queda de
+       reserva para el día en que Google no conteste —una sesión caducada, un consentimiento
+       que se cayó, un navegador que bloquea la ventana— y para los aparatos que todavía no
+       han entrado. Las dos llegan en la misma petición: preguntar antes cuál usar costaría
+       una vuelta de red por operación. */
+    var gtok = String((cuerpo && cuerpo.google_token) || '');
     var token = String((cuerpo && cuerpo.token) || '');
-    var rol = rolDelToken(token);
+    var ingreso = gtok ? identidadDelIngreso(gtok) : null;
+    var rol = ingreso ? ingreso.rol : rolDelToken(token);
     if (!rol) {
       return responder({ ok: false, codigo: 'ROL_SIN_PERMISO',
-        mensaje: 'Este teléfono no tiene un token válido del puente. Pégalo otra vez en Ajustes.' });
+        mensaje: gtok
+          ? 'Entraste con Google, pero ese correo no está en la pestaña «Accesos» de la hoja. Pídele a Dirección que te agregue.'
+          : 'Este teléfono no tiene un token válido del puente. Pégalo otra vez en Ajustes.' });
     }
-    if (!dentroDelLimite(token)) {
+    /* El cupo se cuenta por quien llama, y quien llama es el correo cuando se entró con
+       Google: contarlo por token dejaría a los tres aparatos de una persona compartiendo
+       cupo, y a dos personas del mismo aparato sin cupo propio. */
+    if (!dentroDelLimite(ingreso ? 'g:' + ingreso.correo : token)) {
       return responder({ ok: false, codigo: 'SIN_RED',
         mensaje: 'Demasiadas peticiones seguidas desde este teléfono. Espera un minuto.' });
     }
@@ -1597,7 +1631,7 @@ function doPost(e) {
     var ruta = String((e && e.pathInfo) || (cuerpo && cuerpo.ruta) || '')
                  .replace(/^\/+|\/+$/g, '') || 'salud';
 
-    if (ruta === 'salud')    return responder(rutaSalud(rol));
+    if (ruta === 'salud')    return responder(rutaSalud(rol, ingreso ? 'google' : 'token', ingreso ? ingreso.correo : ''));
     if (ruta === 'esquema')  return responder(rutaEsquema());
     if (ruta === 'jalar')    return responder(rutaJalar(cuerpo, rol));
     if (ruta === 'empujar')  return responder(rutaEmpujar(cuerpo, rol));
@@ -1630,6 +1664,95 @@ function rolDelToken(token) {
   return (rol && PUENTE_ROLES[rol]) ? rol : null;
 }
 
+/**
+ * Verifica un token de acceso de Google y devuelve {correo, rol}, o null.
+ *
+ * Tres comprobaciones, y ninguna sobra:
+ *   · Que Google lo reconozca (si no, no es un token).
+ *   · Que su AUDIENCIA sea esta app. Sin esto, un token emitido para otra app cualquiera
+ *     entraría aquí: los verifica el mismo Google y contestaría que es válido.
+ *   · Que el correo esté verificado. Un correo sin verificar lo puede poner cualquiera.
+ *
+ * Se guarda en caché por lo que dura el token para no gastar una petición de red por cada
+ * operación del bombeo: veinticinco operaciones serían veinticinco verificaciones idénticas.
+ * La caché es del hash del token, no del token: lo que se guarda en la caché del script lo
+ * puede leer cualquier otra función de este proyecto.
+ */
+function identidadDelIngreso(tok) {
+  if (!tok || tok.length < 20 || !PUENTE_CLIENT_ID) return null;
+  var cache = CacheService.getScriptCache();
+  var clave = 'ing_' + Utilities.base64EncodeWebSafe(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, tok));
+  var guardado = cache.get(clave);
+  if (guardado) {
+    if (guardado === '-') return null;
+    var p = guardado.split('|');
+    return { correo: p[0], rol: p[1] };
+  }
+
+  var correo = '';
+  try {
+    var r = UrlFetchApp.fetch(
+      'https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(tok),
+      { muteHttpExceptions: true });
+    if (r.getResponseCode() === 200) {
+      var j = JSON.parse(r.getContentText());
+      if (String(j.aud) === PUENTE_CLIENT_ID && String(j.email_verified) === 'true') {
+        correo = String(j.email || '').trim().toLowerCase();
+      }
+    }
+  } catch (e) {
+    /* Sin red del lado de la hoja no se puede verificar, y un token que no se pudo verificar
+       NO entra: fallar abierto aquí sería dejar la puerta sin llave cuando falla la llave. */
+    return null;
+  }
+  if (!correo) { cache.put(clave, '-', 60); return null; }
+
+  var rol = rolDelCorreo(correo);
+  /* El no se guarda 60 segundos y el sí 300: quitarle el acceso a alguien tiene que surtir
+     efecto en minutos, no en horas, y agregarlo tiene que verse casi luego. */
+  cache.put(clave, rol ? (correo + '|' + rol) : '-', rol ? 300 : 60);
+  return rol ? { correo: correo, rol: rol } : null;
+}
+
+/** El rol de un correo, según la pestaña «Accesos». Sin pestaña no entra nadie por Google. */
+function rolDelCorreo(correo) {
+  var h = SpreadsheetApp.getActive().getSheetByName(HOJA_ACCESOS);
+  if (!h) return null;
+  var n = h.getLastRow() - 1;
+  if (n < 1) return null;
+  var filas = h.getRange(2, 1, n, 2).getValues();
+  for (var i = 0; i < filas.length; i++) {
+    if (String(filas[i][0]).trim().toLowerCase() !== correo) continue;
+    var rol = String(filas[i][1]).trim().toLowerCase();
+    return PUENTE_ROLES[rol] ? rol : null;
+  }
+  return null;
+}
+
+/** Crea la pestaña «Accesos» si no está, con el dueño de la hoja ya dentro como dirección.
+ *  Idempotente: si ya existe no le toca un renglón. */
+function crearHojaAccesos(ss) {
+  var h = ss.getSheetByName(HOJA_ACCESOS);
+  if (h) return h;
+  h = ss.insertSheet(HOJA_ACCESOS);
+  h.getRange('A1:C1').setValues([['Correo', 'Rol', 'Nota']]);
+  h.getRange('A1:C1').setFontWeight('bold').setBackground(AZUL).setFontColor('#ffffff');
+  h.setFrozenRows(1);
+  h.setColumnWidth(1, 280); h.setColumnWidth(2, 130); h.setColumnWidth(3, 320);
+  h.getRange(2, 2, 200, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation()
+      .requireValueInList(['direccion', 'fabricacion', 'pagos'], true)
+      .setAllowInvalid(false).build());
+  var yo = '';
+  try { yo = Session.getEffectiveUser().getEmail() || ''; } catch (e) {}
+  h.getRange('A2:C2').setValues([[yo, 'direccion', 'El dueño de la hoja. Se puso solo.']]);
+  h.getRange('A4').setValue('Escribe aquí el correo de Google de cada persona y qué rol le toca. ' +
+    'Entra con ese correo en la plataforma y ya: no hay que pegarle ningún token.');
+  h.getRange('A4').setFontColor('#5b7fa6').setFontStyle('italic');
+  return h;
+}
+
 function dentroDelLimite(token) {
   try {
     var cache = CacheService.getScriptCache();
@@ -1658,11 +1781,14 @@ function configurarTokensDelPuente() {
 }
 
 /* ------------------------------------------------------------------ /salud */
-function rutaSalud(rol) {
+function rutaSalud(rol, via, correo) {
   var h = SpreadsheetApp.getActive().getSheetByName('Ventas');
   if (!h) return { ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'La hoja no tiene pestaña "Ventas".' };
   return { ok: true, ts: Date.now(), version: PUENTE_VERSION, rol: rol,
-           escribibles: PUENTE_ROLES[rol], destino: 'google-sheets' };
+           escribibles: PUENTE_ROLES[rol], destino: 'google-sheets',
+           /* Para que Ajustes pueda decir «entraste como fulano@…» y no solo «Dirección»:
+              con dos puertas, saber por cuál entraste es la mitad de poder arreglarlo. */
+           via: via || 'token', correo: correo || '' };
 }
 
 /* ---------------------------------------------------------------- /esquema */
@@ -1684,7 +1810,10 @@ function rutaEsquema() {
   var faltan = necesarias.filter(function (p) {
     return cabeceras.indexOf(p.nombre) === -1 && cabeceras.indexOf(equivale[p.nombre] || '(ninguna)') === -1;
   });
-  return { ok: true, faltan: faltan,
+  /* La pestaña de accesos no es una columna, pero se revisa aquí por el mismo motivo: es lo
+     que «Revisar el esquema» tiene que poder decir antes de que alguien intente entrar. */
+  var sinAccesos = !SpreadsheetApp.getActive().getSheetByName(HOJA_ACCESOS);
+  return { ok: true, faltan: faltan, accesos: !sinAccesos, cliente: !!PUENTE_CLIENT_ID,
     nota: faltan.length
       ? 'Córrele  prepararHojaParaElPuente()  en Apps Script y las crea con su validación.'
       : 'La hoja ya tiene las ocho columnas que la plataforma necesita.' };
@@ -2056,6 +2185,7 @@ function prepararHojaParaElPuente() {
   alinearTiposDeTrabajo(h);
 
   h.getRange(2, 27, FIN - 1, 1).setHorizontalAlignment('center');
+  crearHojaAccesos(ss);
   protegerColumnasCalculadas(h);
   SpreadsheetApp.flush();
 }

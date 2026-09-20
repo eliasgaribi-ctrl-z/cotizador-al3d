@@ -31,6 +31,10 @@ export const CLAVES = {
   TILES:      'al3d_pf_tiles',
   GCAL:       'al3d_pf_gcal',
   PUENTE:     'al3d_pf_puente',
+  /* Entrar con Google: SOLO el correo con el que se entró y, si alguien está probando otro,
+     el identificador de la app. El token de acceso NUNCA se guarda aquí — es una credencial
+     y esta clave viaja en los respaldos. Ver js/nucleo/ingreso.js. */
+  INGRESO:    'al3d_pf_ingreso',
   ULT_EXPORT: 'al3d_pf_ult_export',
   EMPRESA:    'al3d_pf_empresa',
   /* La mitad del cotizador de un respaldo completo, esperando a que el cotizador la tome. La
@@ -188,6 +192,20 @@ export const hayGcal = () => { const g = gcal(); return !!(g && g.clientId); };
 
 export function puente() { return get(CLAVES.PUENTE, null); }
 export function setPuente(cfg) { return set(CLAVES.PUENTE, cfg); }
-export const hayPuente = () => { const p = puente(); return !!(p && p.url && p.token); };
+/* Hay puente cuando hay dirección y ALGUNA puerta: el token de dispositivo, o un ingreso de
+   Google hecho en este aparato. Antes exigía el token, y con eso un teléfono que entra con
+   Google —que es el camino normal desde septiembre de 2026— se quedaba con la sincronización
+   apagada y sin decir por qué. El correo guardado basta como señal: si el token de Google no
+   se puede renovar, el puente contesta con su razón y la pantalla la enseña. */
+export const hayPuente = () => {
+  const p = puente();
+  if (!p || !p.url) return false;
+  if (p.token) return true;
+  const g = ingreso();
+  return !!(g && g.correo);
+};
+
+export function ingreso() { return get(CLAVES.INGRESO, null); }
+export function setIngreso(cfg) { return set(CLAVES.INGRESO, cfg); }
 
 export function empresa() { return get(CLAVES.EMPRESA, 'al3d'); }
