@@ -49,11 +49,25 @@ que pegarlo allá. `pruebas/puente.mjs` compara los dos lados y falla si los voc
 separan; la plataforma, al «Probar», compara la versión que contesta la hoja con la que ella
 espera y avisa si quedó vieja.
 
-**Al pasar a `puente-sheets-4`** (septiembre de 2026), además de pegar e implementar hay que
-correr una vez **⚡ AL3D → Actualizar formato y vistas** (`mejorarTodo`): crea la columna
-**AD «Porcentaje comision»** y cambia la fórmula de la comisión para leerla. Las filas que ya
-estaban no cambian: con la celda vacía la fórmula sigue dando el 10 %. Correrlo dos veces ya no
-rompe nada —la guardia que insertaba una columna de más en la segunda corrida está corregida—.
+**Al pasar a `puente-sheets-4`** (septiembre de 2026) hace falta que exista la columna
+**AD «Porcentaje comision»**, y no es opcional: `ULTIMA_COL` pasó a 30, así que `/jalar` pide
+treinta columnas y **truena** si la hoja tiene veintinueve. La crea
+`prepararHojaParaElPuente()`, que corre al final de **⚡ AL3D → Actualizar formato y vistas**
+(`mejorarTodo`). Si no quieres reescribir el diseño entero solo por una columna, basta con
+escribir el encabezado a mano en `AD1`: eso es lo que el puente busca.
+
+Lo que **no** cambia es la fórmula de la comisión. En AL3D la comisión es fija —10 % del
+subtotal, sin IVA— y `R` se queda así. La columna AD viaja por el puente para que el teléfono
+y la hoja guarden el mismo dato, pero la hoja no la lee.
+
+**Cuidado con el selector de funciones del editor.** Tiene 97 nombres y
+`prepararHojaParaElPuente` está a dos renglones de `mejorarTodo`. Peor: el selector revierte
+la elección si cierras la lista con Esc o Enter, así que es fácil creer que elegiste una y
+ejecutar otra. Si vas a correr algo desde ahí, confírmalo en **Ejecuciones** —dice qué función
+corrió de verdad— antes de dar por hecho que pasó.
+
+Estado al 19 de septiembre de 2026: la hoja corre `puente-sheets-4`, implementada como
+**Versión 5**, en la misma URL de siempre.
 
 ## Las cabeceras del sitio
 

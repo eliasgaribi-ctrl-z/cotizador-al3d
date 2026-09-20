@@ -257,11 +257,20 @@ console.log('\nEL SALDO, DE LA CELDA AL TELÉFONO — la costura que nadie proba
   eq('vacío borra la celda: vuelve al 10 % de siempre', api.armarCeldas({ 'Porcentaje comision': '' }, 'direccion').celdas.map(c => c.valor), ['']);
   cierto('y fabricación tampoco lo VE bajar', api.CAMPOS_DE_DINERO.indexOf('Porcentaje comision') !== -1);
 
-  /* La guardia de idempotencia de mejorarTodo compara E1 contra lo que la misma función
-     escribe: HEAD[4]. Decía 'Tipo' y la segunda corrida corría la hoja entera una columna. */
+  /* La guardia de idempotencia de mejorarTodo compara E1 contra el encabezado REAL. Decía
+     'Tipo' —un nombre anterior al renombre, que nunca coincidía— y la segunda corrida
+     insertaba otra columna en E: los datos de E en adelante se corrían uno a la derecha y
+     COL seguía apuntando a los números viejos, con lo que el puente habría escrito la cuenta
+     encima del estatus, sobre filas de dinero real.
+     La hoja lo resuelve más fuerte que comparando contra HEAD[4]: si encuentra un encabezado
+     que NO reconoce, lanza y no mueve nada. Eso es lo que se prueba —el nombre contra el que
+     se compara, y que el caso desconocido no termine en un insertColumn—, no la forma exacta
+     de escribirlo. */
   eq('HEAD[4] es el encabezado real de E', api.HEAD[4], 'Tipo de trabajo');
   cierto('y agregarColumnas se guarda contra ÉSE, no contra un nombre viejo',
-         /getValue\(\) !== HEAD\[4\]\) h\.insertColumnBefore\(5\)/.test(src));
+         /e1 !== 'Tipo de trabajo'/.test(src) || /getValue\(\) !== HEAD\[4\]\)/.test(src));
+  cierto('y ante un encabezado que no reconoce se detiene en vez de correr la hoja',
+         /throw new Error\([^)]*No se movio nada/.test(src));
 }
 
 console.log('\nUNA DE LAS 199, DE LA CELDA AL RÉCORD DE CONTROL');

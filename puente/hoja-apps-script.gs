@@ -17,16 +17,23 @@ var FUENTE  = 'Roboto';
 var CORREO  = 'eliasgaribi@gmail.com';
 var ABONOS  = 'Abonos comisión';
 
-var HEAD = ['Folio', 'Proyecto', 'Cuenta', 'Estatus', 'Tipo de trabajo', 'IVA', 'Subtotal',
+var HEAD = ['Folio', 'Proyecto', 'Estatus', 'Cuenta', 'Tipo de trabajo', 'IVA', 'Subtotal',
             'Precio neto', 'Anticipo', 'Liquidación', 'Saldo por cobrar',
             'Fecha anticipo', 'Fecha instalación', 'Fecha liquidación', 'Días de cobro',
-            'Días de antigüedad', 'Antigüedad', 'Comisión', 'Abono comisión',
+            'Días de antigüedad', 'Antigüedad', 'Comisión 10%', 'Abono comisión',
             'Comisión pendiente', 'Pagos de comisión', 'Año', 'Mes', 'Revisar'];
 
 /* columnas calculadas: encabezado en otro tono para que se note que no se capturan */
 var CALC = ['A', 'H', 'K', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X'];
 
 var CUENTAS = ['Elias BBVA', 'Constru BNT', 'Moni MPago', 'Rul HSBC', 'Tatis BNT'];
+var COLOR_CUENTA = {          // [fondo, texto] del chip de cada cuenta
+  'Elias BBVA':  ['#d7e3fc', '#1155cc'],
+  'Constru BNT': ['#fce4e4', '#b10e1e'],
+  'Moni MPago':  ['#ede3f7', '#6b3fa0'],
+  'Rul HSBC':    ['#d9f0ec', '#0b6b63'],
+  'Tatis BNT':   ['#ffebd1', '#9a5b00']
+};
 var ESTATUS = ['FABRICACION', 'REPARANDO', 'COBRANDO', 'LIQUIDADO'];
 var TIPOS   = ['Caja de luz con iluminacion', 'Caja de luz sin iluminacion',
                'Letras 3D con iluminacion', 'Letras 3D sin iluminacion',
@@ -36,7 +43,7 @@ var RANGOS  = ['0-30 días', '31-60 días', '61-90 días', 'Más de 90 días'];
 /* --- rangos --- */
 function L(c) { return '$' + c + '$2:$' + c + '$' + FIN; }                 // dentro de Ventas
 function V(c) { return 'Ventas!$' + c + '$2:$' + c + '$' + FIN; }          // desde otra hoja
-var vA = V('A'), vB = V('B'), vC = V('C'), vD = V('D'), vE = V('E'), vG = V('G'),
+var vA = V('A'), vB = V('B'), vC = V('D'), vD = V('C'), vE = V('E'), vG = V('G'),
     vH = V('H'), vI = V('I'), vJ = V('J'), vK = V('K'), vL = V('L'), vN = V('N'),
     vO = V('O'), vP = V('P'), vQ = V('Q'), vR = V('R'), vS = V('S'), vT = V('T'),
     vV = V('V'), vW = V('W');
@@ -55,6 +62,8 @@ function mejorarTodo() {
   crearAbonos(ss, historicos);
   formulasVentas(ventas);
   clasificarTipos(ventas);
+  normalizarIvaActivos(ventas);   // la cuenta manda el IVA: realinea lo que sigue abierto
+  ordenarVentas(ventas);
   disenoVentas(ventas);
 
   tablero(ss);
@@ -73,7 +82,11 @@ function mejorarTodo() {
 
 /* ============================ VENTAS ============================ */
 function respaldar(ss, ventas) {
-  if (ss.getSheetByName('Ventas (respaldo)')) return;
+  /* El respaldo se rehace en CADA corrida. Antes se creaba una sola vez y,
+     si ya existia, la funcion se salia: el respaldo quedaba congelado y daba
+     una falsa sensacion de seguridad justo en la operacion mas delicada. */
+  var vieja = ss.getSheetByName('Ventas (respaldo)');
+  if (vieja) ss.deleteSheet(vieja);
   var copia = ventas.copyTo(ss).setName('Ventas (respaldo)');
   copia.hideSheet();
 }
@@ -95,27 +108,41 @@ function leerAbonosViejos(h) {
 }
 
 function fijarFolios(h) {
-  // el folio deja de ser fórmula: es el identificador que amarra los abonos
+  /* El folio no es formula: es el identificador que amarra los abonos.
+     Como la hoja ahora se reacomoda sola, el folio NO puede depender de la
+     posicion de la fila. Se respeta el que ya existe y solo se rellenan los
+     que faltan, siguiendo el numero mas alto. */
   var n = FIN - 1;
   var proy = h.getRange(2, 2, n, 1).getValues();
+  var fol  = h.getRange(2, 1, n, 1).getValues();
+  var max = 0;
+  for (var i = 0; i < n; i++) max = Math.max(max, numeroDeFolio(fol[i][0]));
   var out = [];
-  for (var i = 0; i < n; i++) {
-    out.push([proy[i][0] === '' ? '' : 'V-' + ('000' + (i + 1)).slice(-3)]);
+  for (var j = 0; j < n; j++) {
+    if (String(proy[j][0]).trim() === '') { out.push(['']); continue; }
+    if (numeroDeFolio(fol[j][0]) > 0) { out.push([fol[j][0]]); continue; }
+    max++;
+    out.push(['V-' + ('000' + max).slice(-3)]);
   }
-  h.getRange(2, 1, n, 1).clearContent();
   h.getRange(2, 1, n, 1).setValues(out);
 }
 
 function agregarColumnas(h) {
-  /* La guardia compara contra el encabezado que ESTA función escribe tres líneas más abajo
-     (HEAD[4] = 'Tipo de trabajo'). Decía 'Tipo', que fue el nombre anterior al renombre: en la
-     segunda corrida de mejorarTodo la condición volvía a ser cierta, se insertaba OTRA columna
-     en E, los datos de E..AC se corrían una a la derecha y COL seguía apuntando a los números
-     viejos —el puente habría escrito Cuenta encima de Estatus—. La cabecera del archivo
-     promete idempotencia; esto es lo que la hacía mentir. */
-  if (h.getRange('E1').getValue() !== HEAD[4]) h.insertColumnBefore(5);
-  if (h.getRange('P1').getValue() !== 'Días de antigüedad') h.insertColumnsBefore(16, 2);
-  // una columna insertada hereda la validación de su vecina: hay que limpiarla
+  /* Idempotente de verdad: solo inserta la columna que falte y, si encuentra un
+     encabezado que no reconoce, se detiene sin mover nada. Antes comparaba E1
+     contra 'Tipo' (nunca coincidia) e insertaba una columna en cada corrida,
+     recorriendo todos los datos una posicion a la derecha. */
+  var e1 = String(h.getRange('E1').getValue()).trim();
+  if (e1 !== 'Tipo de trabajo') {
+    if (e1 === 'IVA') h.insertColumnBefore(5);
+    else throw new Error('La columna E dice "' + e1 + '" y esperaba "Tipo de trabajo". No se movio nada.');
+  }
+  var p1 = String(h.getRange('P1').getValue()).trim();
+  if (p1 !== 'Días de antigüedad') {
+    if (p1 === 'Comisión 10%') h.insertColumnsBefore(16, 2);
+    else throw new Error('La columna P dice "' + p1 + '" y esperaba "Días de antigüedad". No se movio nada.');
+  }
+  // una columna insertada hereda la validacion de su vecina: hay que limpiarla
   ['E', 'P', 'Q'].forEach(function (c) {
     h.getRange(c + '2:' + c + FIN).clearDataValidations();
   });
@@ -127,26 +154,30 @@ function formulasVentas(h) {
     H: '=ARRAYFORMULA(IF(' + L('B') + '="","",ROUND(' + L('G') + '*(1+IF(' + L('F') + '="Sí",16%,0)),2)))',
     K: '=ARRAYFORMULA(IFERROR(ROUND(' + L('H') + '-' + L('I') + '-' + L('J') + ',2),""))',
     O: '=ARRAYFORMULA(IF((' + L('L') + '="")+(' + L('N') + '="")>0,"",' + L('N') + '-' + L('L') + '))',
-    P: '=ARRAYFORMULA(IF((' + L('B') + '="")+(' + L('L') + '="")+(' + L('D') +
+    P: '=ARRAYFORMULA(IF((' + L('B') + '="")+(' + L('L') + '="")+(' + L('C') +
        '="FABRICACION")>0,"",IF(' + L('K') +
        '>0.004,TODAY()-IF(' + L('M') + '="",' + L('L') + ',' + L('M') + '),"")))',
     Q: '=ARRAYFORMULA(IF(' + L('P') + '="","",IF(' + L('P') + '<=30,"' + RANGOS[0] +
        '",IF(' + L('P') + '<=60,"' + RANGOS[1] + '",IF(' + L('P') + '<=90,"' + RANGOS[2] +
        '","' + RANGOS[3] + '")))))',
-    /* El porcentaje se pacta por venta y llega en AD desde el cotizador (columna del puente,
-       ver COL). Vacío quiere decir «el de siempre», 10 %: las trescientas filas que ya
-       estaban siguen dando exactamente lo mismo. */
-    R: '=ARRAYFORMULA(IF(' + L('B') + '="","",ROUND(' + L('G') + '*IF(' + L('AD') + '="",10,' + L('AD') + ')/100,2)))',
+    /* La comisión es FIJA: 10 % del SUBTOTAL, que es G. No del neto, así que el IVA no entra
+       en el cálculo —es la regla del negocio, dicha por Elías, y por eso se deja escrita aquí
+       y no solo en la fórmula—. La columna AD «Porcentaje comision» existe porque el puente
+       la lleva y el cotizador la captura, pero la hoja NO la usa: si algún día la comisión se
+       pactara por venta, este renglón es el único lugar que habría que cambiar. */
+    R: '=ARRAYFORMULA(IF(' + L('B') + '="","",ROUND(' + L('G') + '*10%,2)))',
     S: "=ARRAYFORMULA(IF(" + L('B') + '="","",SUMIF(\'' + ABONOS + "'!$A$2:$A$2000," + L('A') +
        ",'" + ABONOS + "'!$C$2:$C$2000)))",
     T: '=ARRAYFORMULA(IFERROR(ROUND(' + L('R') + '-' + L('S') + ',2),""))',
     U: "=ARRAYFORMULA(IF(" + L('B') + '="","",COUNTIF(\'' + ABONOS + "'!$A$2:$A$2000," + L('A') + ")))",
     V: '=ARRAYFORMULA(IF((' + L('B') + '="")+(' + L('L') + '="")>0,"",YEAR(' + L('L') + ')))',
     W: '=ARRAYFORMULA(IF((' + L('B') + '="")+(' + L('L') + '="")>0,"",TEXT(' + L('L') + ',"yyyy-mm")))',
-    X: '=ARRAYFORMULA(IF(' + L('B') + '="","",IF(' + L('K') + '<-0.004,"Cobrado de más",' +
+    X: '=ARRAYFORMULA(IF(' + L('B') + '="","",' +
+       'IF((' + L('D') + '<>"")*(' + L('F') + '<>IF(' + L('D') + '="' + CUENTA_SIN_FACTURA + '","No","Sí")),"IVA no corresponde a la cuenta",' +
+       'IF(' + L('K') + '<-0.004,"Cobrado de más",' +
        'IF(' + L('T') + '<-0.004,"Comisión pagada de más",' +
-       'IF((' + L('D') + '="LIQUIDADO")*(' + L('K') + '>0.004),"Liquidado con saldo",' +
-       'IF((' + L('D') + '="LIQUIDADO")*(' + L('N') + '=""),"Falta fecha de liquidación","")))))'
+       'IF((' + L('C') + '="LIQUIDADO")*(' + L('K') + '>0.004),"Liquidado con saldo",' +
+       'IF((' + L('C') + '="LIQUIDADO")*(' + L('N') + '=""),"Falta fecha de liquidación","")))))))'
   };
   Object.keys(f).forEach(function (c) {
     h.getRange(c + '3:' + c + FIN).clearContent();
@@ -244,8 +275,8 @@ function disenoVentas(h) {
   var f = h.getFilter(); if (f) f.remove();
   h.getRange(1, 1, FIN, ult).createFilter();
 
-  desplegable(h, 'C', CUENTAS);
-  desplegable(h, 'D', ESTATUS);
+  desplegable(h, 'D', CUENTAS);
+  desplegable(h, 'C', ESTATUS);
   desplegableAbierto(h, 'E', TIPOS);   // puede venir combinado desde la plataforma
   desplegable(h, 'F', ['Sí', 'No']);
 
@@ -260,10 +291,17 @@ function reglasVentas(h) {
         .whenTextEqualTo(valor).setBackground(fondo).setFontColor(texto)
         .setBold(true).setRanges([rango]).build());
   };
-  chip(col('D'), 'FABRICACION', '#d7e7ff', '#124a9c');
-  chip(col('D'), 'COBRANDO',    '#fff0c2', '#8a6100');
-  chip(col('D'), 'REPARANDO',   '#ececec', '#555555');
-  chip(col('D'), 'LIQUIDADO',   '#d8ecd9', '#1e6b2a');
+  chip(col('C'), 'FABRICACION', '#d7e7ff', '#124a9c');
+  chip(col('C'), 'COBRANDO',    '#fff0c2', '#8a6100');
+  chip(col('C'), 'REPARANDO',   '#ececec', '#555555');
+  chip(col('C'), 'LIQUIDADO',   '#d8ecd9', '#1e6b2a');
+  /* Los colores de las cuentas vivian en el desplegable de Sheets, que esta
+     funcion recrea en cada corrida: por eso se perdian. Ahora son formato
+     condicional, igual que los del estatus, y aguantan cada re-ejecucion. */
+  CUENTAS.forEach(function (c) {
+    var t = COLOR_CUENTA[c];
+    if (t) chip(col('D'), c, t[0], t[1]);
+  });
   chip(col('Q'), RANGOS[0], '#e6f4ea', '#1e6b2a');
   chip(col('Q'), RANGOS[1], '#fff2cc', '#8a6100');
   chip(col('Q'), RANGOS[2], '#ffe0c2', '#a34b00');
@@ -359,7 +397,7 @@ function tablero(ss) {
     ['Días promedio de cobro',           '=IFERROR(ROUND(AVERAGE(' + vO + '),1),"")', '0.0']
   ]);
 
-  fila = bloque(h, fila, 'COMISIONES (% pactado del subtotal; 10% si no se dijo)', ['Concepto', 'Monto'], [
+  fila = bloque(h, fila, 'COMISIONES (10% del subtotal)', ['Concepto', 'Monto'], [
     ['Generadas',      '=SUM(' + vR + ')'],
     ['Pagadas',        '=SUM(' + vS + ')'],
     ['Pendientes',     '=SUMIF(' + vT + ',">0")'],
@@ -513,7 +551,7 @@ function vistas(ss) {
              ['Valor neto', '=SUMIFS(' + vH + ',' + vD + ',"<>LIQUIDADO",' + NOB + ')'],
              ['Falta cobrar', '=SUMIFS(' + vK + ',' + vD + ',"<>LIQUIDADO",' + NOB + ',' + vK + ',">0")']],
       cabs: ['Folio', 'Proyecto', 'Cuenta', 'Estatus', 'Tipo', 'Precio neto', 'Anticipo', 'Saldo por cobrar', 'Fecha anticipo'],
-      formula: '=IFERROR(SORT(FILTER({' + cols('A', 'B', 'C', 'D', 'E', 'H', 'I', 'K', 'L') + '},(' +
+      formula: '=IFERROR(SORT(FILTER({' + cols('A', 'B', 'D', 'C', 'E', 'H', 'I', 'K', 'L') + '},(' +
                vB + '<>"")*(' + vD + '<>"LIQUIDADO")),9,FALSE),"Sin proyectos abiertos")',
       anchos: [70, 250, 108, 118, 140, 115, 115, 125, 112],
       moneda: 'F:H', fechas: 'I:I', filas: 80, estatus: 'D' },
@@ -526,7 +564,7 @@ function vistas(ss) {
              ['Cobrado', '=SUMIFS(' + vI + ',' + vW + ',clave())+SUMIFS(' + vJ + ',' + vW + ',clave())'],
              ['Comisión', '=SUMIFS(' + vR + ',' + vW + ',clave())']],
       cabs: ['Folio', 'Proyecto', 'Cuenta', 'Tipo', 'Precio neto', 'Fecha anticipo', 'Estatus', 'Saldo por cobrar', 'Fecha liquidación'],
-      formula: '=IFERROR(SORT(FILTER({' + cols('A', 'B', 'C', 'E', 'H', 'L', 'D', 'K', 'N') + '},' +
+      formula: '=IFERROR(SORT(FILTER({' + cols('A', 'B', 'D', 'E', 'H', 'L', 'C', 'K', 'N') + '},' +
                vW + '=clave()),6,FALSE),"Sin ventas en ese mes")',
       anchos: [70, 250, 108, 140, 115, 112, 118, 125, 125],
       moneda: 'E:E', moneda2: 'H:H', fechas: 'F:F', fechas2: 'I:I', filas: 60, estatus: 'G' },
@@ -539,7 +577,7 @@ function vistas(ss) {
              ['Venta subtotal', '=SUMIFS(' + vG + ',' + vV + ',$B$3)'],
              ['Comisión', '=SUMIFS(' + vR + ',' + vV + ',$B$3)']],
       cabs: ['Folio', 'Proyecto', 'Tipo', 'Precio neto', 'Subtotal', 'Fecha anticipo', 'Estatus'],
-      formula: '=IFERROR(SORT(FILTER({' + cols('A', 'B', 'E', 'H', 'G', 'L', 'D') + '},' +
+      formula: '=IFERROR(SORT(FILTER({' + cols('A', 'B', 'E', 'H', 'G', 'L', 'C') + '},' +
                vV + '=$B$3),4,FALSE),"Sin ventas en ese año")',
       anchos: [70, 260, 140, 120, 120, 112, 118],
       moneda: 'D:E', fechas: 'F:F', filas: 120, estatus: 'G' },
@@ -551,7 +589,7 @@ function vistas(ss) {
              ['Venta más grande', '=IFERROR(MAX(' + vH + '),"")'],
              ['Ticket promedio', '=IFERROR(AVERAGEIF(' + vG + ',">0"),"")']],
       cabs: ['#', 'Proyecto', 'Tipo', 'Precio neto', 'Subtotal', 'Fecha anticipo', 'Año', 'Cuenta'],
-      formula: '=IFERROR(SORT(FILTER({' + cols('B', 'E', 'H', 'G', 'L', 'V', 'C') + '},' +
+      formula: '=IFERROR(SORT(FILTER({' + cols('B', 'E', 'H', 'G', 'L', 'V', 'D') + '},' +
                vB + '<>""),3,FALSE),"Sin ventas")',
       rank: true,
       anchos: [52, 260, 140, 120, 120, 112, 70, 108],
@@ -673,7 +711,7 @@ function cobranza(ss) {
   h.getRange(fh, 1, 1, cabs.length).setValues([cabs]);
   encabezado(h, h.getRange(fh, 1, 1, cabs.length).getA1Notation());
   h.getRange(fd, 1).setFormula(
-    '=IFERROR(SORT(FILTER({' + cols('P', 'Q', 'A', 'B', 'C', 'D', 'K', 'L') +
+    '=IFERROR(SORT(FILTER({' + cols('P', 'Q', 'A', 'B', 'D', 'C', 'K', 'L') +
     '},ISNUMBER(' + vP + ')),1,FALSE),"Sin saldos por cobrar")');
   h.getRange('A' + fd + ':A' + ff).setNumberFormat('0').setHorizontalAlignment('center');
   h.getRange('G' + fd + ':G' + ff).setNumberFormat(MONEDA);
@@ -845,27 +883,144 @@ function instalarTriggers() {
       .onEdit().create();
 }
 
-/** Asigna folio solo cuando escribes un proyecto nuevo en una fila sin folio. */
+/* 
+ * REGLA DE ORDEN Y REGLA DE IVA
+ *
+ * 1) La hoja Ventas se reacomoda sola: arriba lo que esta en FABRICACION,
+ *    luego REPARANDO, luego COBRANDO y hasta abajo LIQUIDADO. Dentro de
+ *    cada grupo, el folio mas nuevo primero.
+ * 2) La cuenta manda el IVA. Elias BBVA es la unica que recibe sin factura,
+ *    asi que cualquier otra cuenta deja el IVA en "Si".
+ *
+ * Solo se mueven las columnas que se capturan (A:G, I:J, L:N). Las columnas
+ * calculadas son ARRAYFORMULA que vive en la fila 2: no se tocan nunca.
+ */
+
+var CUENTA_SIN_FACTURA = 'Elias BBVA';
+var ORDEN_ESTATUS = ['FABRICACION', 'REPARANDO', 'COBRANDO', 'LIQUIDADO'];
+
+function prioridadEstatus(v) {
+  var k = String(v).trim().toUpperCase();
+  for (var i = 0; i < ORDEN_ESTATUS.length; i++) {
+    if (ORDEN_ESTATUS[i] === k) return i;
+  }
+  return ORDEN_ESTATUS.length;
+}
+
+function numeroDeFolio(v) {
+  var s = String(v).trim();
+  if (s.substring(0, 2).toUpperCase() !== 'V-') return -1;
+  var n = Number(s.substring(2));
+  return isNaN(n) ? -1 : n;
+}
+
+function filaPorFolio(h, folio) {
+  var folios = h.getRange(2, 1, FIN - 1, 1).getValues();
+  for (var i = 0; i < folios.length; i++) {
+    if (String(folios[i][0]).trim() === String(folio).trim()) return i + 2;
+  }
+  return 0;
+}
+
+/** Reacomoda Ventas. Es idempotente: correrla dos veces no cambia nada. */
+function ordenarVentas(h) {
+  h = h || SpreadsheetApp.getActive().getSheetByName('Ventas');
+  if (!h) return;
+  var n = FIN - 1;
+  var datos = h.getRange(2, 1, n, 14).getValues();
+
+  var llenas = [], vacias = [];
+  for (var i = 0; i < n; i++) {
+    if (String(datos[i][1]).trim() === '') vacias.push(datos[i]);
+    else llenas.push(datos[i]);
+  }
+
+  llenas.sort(function (a, b) {
+    var pa = prioridadEstatus(a[2]), pb = prioridadEstatus(b[2]);
+    if (pa !== pb) return pa - pb;
+    return numeroDeFolio(b[0]) - numeroDeFolio(a[0]);
+  });
+
+  var orden = llenas.concat(vacias), ag = [], ij = [], lmn = [];
+  for (var j = 0; j < orden.length; j++) {
+    var r = orden[j];
+    ag.push([r[0], r[1], r[2], r[3], r[4], r[5], r[6]]);
+    ij.push([r[8], r[9]]);
+    lmn.push([r[11], r[12], r[13]]);
+  }
+  h.getRange(2, 1, n, 7).setValues(ag);
+  h.getRange(2, 9, n, 2).setValues(ij);
+  h.getRange(2, 12, n, 3).setValues(lmn);
+}
+
+/** Elias BBVA cobra sin factura; cualquier otra cuenta lleva IVA. */
+function ivaDeCuenta(cuenta) {
+  return String(cuenta).trim() === CUENTA_SIN_FACTURA ? 'No' : 'Sí';
+}
+
+/** Ajusta el IVA de una fila segun la cuenta que tenga. */
+function aplicarIva(h, fila) {
+  var cuenta = String(h.getRange(fila, 4).getValue()).trim();
+  if (cuenta === '') return;
+  var quiero = ivaDeCuenta(cuenta);
+  var celda = h.getRange(fila, 6);
+  if (String(celda.getValue()).trim() !== quiero) celda.setValue(quiero);
+}
+
+/** Revisa el IVA de lo que todavia no se liquida. No toca el historico. */
+function normalizarIvaActivos(h) {
+  var n = FIN - 1;
+  var d = h.getRange(2, 1, n, 6).getValues();
+  for (var i = 0; i < n; i++) {
+    var cuenta = String(d[i][3]).trim();
+    if (String(d[i][1]).trim() === '' || cuenta === '') continue;
+    if (String(d[i][2]).trim().toUpperCase() === 'LIQUIDADO') continue;
+    var quiero = ivaDeCuenta(cuenta);
+    if (String(d[i][5]).trim() !== quiero) h.getRange(i + 2, 6).setValue(quiero);
+  }
+}
+
+/**
+ * Folio automatico al escribir un proyecto nuevo, IVA automatico segun la
+ * cuenta, y reacomodo de la hoja cuando cambia el estatus.
+ */
 function alEditar(e) {
   try {
     var h = e.range.getSheet();
-    if (h.getName() !== 'Ventas' || e.range.getColumn() !== 2) return;
+    if (h.getName() !== 'Ventas') return;
+
+    var col = e.range.getColumn();
+    var colFin = col + e.range.getNumColumns() - 1;
     var ini = Math.max(e.range.getRow(), 2);
     var fin = e.range.getRow() + e.range.getNumRows() - 1;
     if (fin < 2) return;
-    var folios = h.getRange(2, 1, FIN - 1, 1).getValues();
-    var max = 0;
-    folios.forEach(function (r) {
-      var m = String(r[0]).match(/^V-(\d+)$/);
-      if (m) max = Math.max(max, Number(m[1]));
-    });
-    for (var f = ini; f <= fin; f++) {
-      var proy = h.getRange(f, 2).getValue();
-      var fol = h.getRange(f, 1).getValue();
-      if (proy !== '' && fol === '') {
-        max++;
-        h.getRange(f, 1).setValue('V-' + ('000' + max).slice(-3));
+
+    /* 1) folio nuevo cuando se escribe el proyecto (columna B) */
+    if (col <= 2 && colFin >= 2) {
+      var folios = h.getRange(2, 1, FIN - 1, 1).getValues();
+      var max = 0;
+      for (var k = 0; k < folios.length; k++) {
+        max = Math.max(max, numeroDeFolio(folios[k][0]));
       }
+      for (var f = ini; f <= fin; f++) {
+        var proy = h.getRange(f, 2).getValue();
+        var fol = h.getRange(f, 1).getValue();
+        if (proy !== '' && fol === '') {
+          max++;
+          h.getRange(f, 1).setValue('V-' + ('000' + max).slice(-3));
+        }
+      }
+    }
+
+    /* 2) IVA segun la cuenta (columna D) */
+    if (col <= 4 && colFin >= 4) {
+      for (var g = ini; g <= fin; g++) aplicarIva(h, g);
+    }
+
+    /* 3) arriba lo que esta en fabricacion (columna C) */
+    if (col <= 3 && colFin >= 3) {
+      SpreadsheetApp.flush();
+      ordenarVentas(h);
     }
   } catch (err) { /* nunca bloquear la captura */ }
 }
@@ -881,7 +1036,7 @@ function enviarResumen() {
     if (!r[1]) return;
     var saldo = Number(r[10]) || 0, dias = Number(r[15]) || 0;
     var pend = Number(r[19]) || 0;
-    if (saldo > 0.004) { porCobrar.push([r[1], r[2], r[3], saldo, dias]); totalS += saldo; }
+    if (saldo > 0.004) { porCobrar.push([r[1], r[3], r[2], saldo, dias]); totalS += saldo; }
     if (pend > 0.004) { comis.push([r[1], pend]); totalC += pend; }
   });
   porCobrar.sort(function (a, b) { return b[4] - a[4]; });
@@ -937,10 +1092,12 @@ function onOpen() {
       .addItem('➕  Registrar nueva venta', 'dialogoVenta')
       .addItem('💵  Registrar un cobro', 'dialogoCobro')
       .addItem('🧾  Registrar abono de comisión', 'dialogoAbono')
+      .addItem('🧮  Repartir un abono entre comisiones', 'dialogoReparto')
       .addSeparator()
       .addItem('🔑  Tokens del puente', 'dialogoTokens')
       .addItem('📬  Mandarme el resumen ahora', 'enviarResumen')
       .addItem('🔄  Actualizar formato y vistas', 'mejorarTodo')
+      .addItem('📅  Rehacer vista de comisiones por periodo', 'construirComisionesPorPeriodo')
       .addToUi();
 }
 
@@ -1064,8 +1221,8 @@ function guardarVenta(d) {
   var folio = siguienteFolio(h);
   h.getRange(fila, 1).setValue(folio);
   h.getRange(fila, 2).setValue(d.proyecto);
-  h.getRange(fila, 3).setValue(d.cuenta);
-  h.getRange(fila, 4).setValue(d.estatus);
+  h.getRange(fila, 4).setValue(d.cuenta);
+  h.getRange(fila, 3).setValue(d.estatus);
   if (d.tipo) h.getRange(fila, 5).setValue(d.tipo);
   h.getRange(fila, 6).setValue(d.iva);
   h.getRange(fila, 7).setValue(Number(d.subtotal) || 0);
@@ -1074,6 +1231,11 @@ function guardarVenta(d) {
   if (d.instalacion) h.getRange(fila, 13).setValue(fechaDe(d.instalacion));
 
   SpreadsheetApp.getActive().setActiveSheet(h);
+  aplicarIva(h, fila);
+  SpreadsheetApp.flush();
+  ordenarVentas(h);
+  fila = filaPorFolio(h, folio) || fila;
+
   h.setActiveRange(h.getRange(fila, 2));
   return { folio: folio, fila: fila };
 }
@@ -1305,7 +1467,8 @@ function dialogoTokens() {
    escribir cada rol—. La plataforma la compara con la suya al «Probar» y lo dice si la hoja
    se quedó con una implementación vieja.
    puente-sheets-4: «Pago Pendiente» baja con el signo de la hoja (positivo = te deben), y
-   entra la columna AD «Porcentaje comision». */
+   entra la columna AD «Porcentaje comision» —que viaja, pero no cambia la comisión: la de
+   AL3D es 10 % fijo del subtotal—. */
 var PUENTE_VERSION = 'puente-sheets-4';
 var BITACORA = 'Bitácora del puente';
 
@@ -1315,8 +1478,8 @@ var BITACORA = 'Bitácora del puente';
    gusto. Lo que cambió es dónde viven, no cómo se llaman. */
 var COL = {
   'Proyecto':                      2,   // B
-  'Cuenta ':                       3,   // C   (con espacio final, como en Notion)
-  'Estatus':                       4,   // D
+  'Cuenta ':                       4,   // D   (con espacio final, como en Notion)
+  'Estatus':                       3,   // C
   'Tipo de trabajo':               5,   // E
   'IVA':                           6,   // F
   'Precio Subtotal':               7,   // G
@@ -1335,10 +1498,10 @@ var COL = {
   'Hora instalacion':             27,   // AA
   'Ubicacion':                    28,   // AB
   'Direccion':                    29,   // AC
-  /* El % de comisión que se pactó con quien trajo el trabajo, en puntos (10 = 10 %). Lo
-     captura el modal de Registrar Venta y lo guardaba la plataforma; la hoja lo ignoraba y
-     cobraba 10 % fijo, así que una venta pactada al 15 % se enseñaba al 15 % en el teléfono
-     y se pagaba al 10 % en el libro mayor. La fórmula R lo lee; vacío = 10. */
+  /* El % que el cotizador captura al registrar la venta, en puntos (10 = 10 %). Baja y sube
+     por el puente para que el teléfono y la hoja guarden el mismo dato, pero la comisión de
+     AL3D es fija —10 % del subtotal, sin IVA— y la fórmula R NO lee esta columna. Está aquí
+     para el día que se pacte por venta, y ese día se cambia R. */
   'Porcentaje comision':          30    // AD
 };
 
@@ -1350,7 +1513,7 @@ var ULTIMA_COL = 30;
 var PUENTE_FORMULAS = {
   'Precio Neto ': 'la calcula la hoja: subtotal x IVA',
   'Pago Pendiente': 'la calcula la hoja: neto menos anticipo menos liquidación',
-  'Comisiones': 'la calcula la hoja: el % pactado del subtotal (10 % si no se dijo)',
+  'Comisiones': 'la calcula la hoja: 10% del subtotal, sin IVA',
   'Comision Restante': 'la calcula la hoja: comisión menos abonos',
   'Fecha Comision': 'ya no existe: la fecha de cada abono vive en la pestaña de abonos'
 };
@@ -1515,7 +1678,7 @@ function rutaEsquema() {
     { nombre: 'Ubicacion', tipo: 'texto', para: 'lat,lng resueltos del link de Maps' },
     { nombre: 'Direccion', tipo: 'texto', para: 'la dirección como la mandó el cliente' },
     { nombre: 'Tipo de trabajo', tipo: 'lista', para: 'derivado de las partidas, no capturado', opciones: TIPOS_TRABAJO },
-    { nombre: 'Porcentaje comision', tipo: 'número', para: 'el % pactado con quien trajo el trabajo; vacío = 10' }
+    { nombre: 'Porcentaje comision', tipo: 'número', para: 'el % que capturó el cotizador; la comisión de la hoja sigue siendo 10 % fijo' }
   ];
   var equivale = { 'Fecha instalacion': 'Fecha instalación' };
   var faltan = necesarias.filter(function (p) {
@@ -1572,8 +1735,7 @@ function aplanarFila(fila, tz) {
        mandaba NEGADO «con el signo de Notion, para no cambiarle el significado a una cifra
        que la plataforma ya pinta» —y la plataforma nunca pintó ese signo: `saldoDe` hace
        Math.max(0, saldo), el aviso «instalado con saldo» pide saldo > 0 y el filtro de
-       cobro también. Con el saldo negado la cartera entera se veía como cobrada. Las dos
-       fórmulas de la fila, ésta y «Comision Restante», salen ahora con el mismo criterio. */
+       cobro también. Con el saldo negado la cartera entera se veía como cobrada. */
     'Pago Pendiente':                saldo,
     'Comisiones':                    num(v('Comisiones')),
     'Abono Comision':                num(v('Abono Comision')),
@@ -1618,6 +1780,7 @@ function rutaEmpujar(cuerpo, rol) {
     for (var i = 0; i < ops.length; i++) resultados.push(unaOperacion(h, ops[i], rol, anotaciones));
     SpreadsheetApp.flush();
     anotar(anotaciones);
+    try { normalizarIvaActivos(h); ordenarVentas(h); } catch (e2) { /* el orden nunca tumba una escritura */ }
     return { ok: true, resultados: resultados };
   } finally {
     candado.releaseLock();
@@ -1845,10 +2008,9 @@ function anotar(anotaciones) {
 
 /* ------------------------------------------- preparar la hoja para el puente */
 /**
- * Agrega las seis columnas que la plataforma necesita y que la hoja no tenía (Y a AD),
+ * Agrega las cinco columnas que la plataforma necesita y que la hoja no tenía,
  * y alinea el vocabulario de «Tipo» con el de la plataforma.
- * Es idempotente. Las posiciones salen de COL, no de una segunda lista: si un día se
- * mueve una columna en COL, ésta se mueve con ella.
+ * Es idempotente.
  */
 function prepararHojaParaElPuente() {
   var ss = SpreadsheetApp.getActive();
@@ -1864,6 +2026,8 @@ function prepararHojaParaElPuente() {
   var cab = h.getRange(1, 1, 1, h.getMaxColumns()).getValues()[0]
       .map(function (x) { return String(x).trim(); });
 
+  /* Las posiciones salen de COL y no de un 25 contado a mano: si un día se mueve una
+     columna en COL, ésta se mueve con ella en vez de quedarse escribiendo al lado. */
   var primera = COL[nuevas[0][0]];
   nuevas.forEach(function (n) {
     var col = COL[n[0]];
@@ -1874,10 +2038,11 @@ function prepararHojaParaElPuente() {
   h.getRange(1, primera, 1, nuevas.length).setBackground(AZUL).setFontColor('#ffffff')
       .setFontWeight('bold').setFontSize(10).setWrap(true)
       .setVerticalAlignment('middle').setHorizontalAlignment('center');
+
   h.getRange(2, COL['Porcentaje comision'], FIN - 1, 1).setNumberFormat('0.##').setHorizontalAlignment('center');
 
   // Etapa de obra: lista cerrada, igual que en la plataforma
-  h.getRange(2, COL['Etapa de obra'], FIN - 1, 1).setDataValidation(
+  h.getRange(2, 26, FIN - 1, 1).setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(ETAPAS_OBRA, true)
       .setAllowInvalid(false).build());
 
@@ -1890,7 +2055,7 @@ function prepararHojaParaElPuente() {
       .setAllowInvalid(true).build());
   alinearTiposDeTrabajo(h);
 
-  h.getRange(2, COL['Hora instalacion'], FIN - 1, 1).setHorizontalAlignment('center');
+  h.getRange(2, 27, FIN - 1, 1).setHorizontalAlignment('center');
   protegerColumnasCalculadas(h);
   SpreadsheetApp.flush();
 }
@@ -1935,4 +2100,337 @@ function alinearTiposDeTrabajo(h) {
     if (v && Object.prototype.hasOwnProperty.call(mapa, v)) { col[i][0] = mapa[v]; cambios++; }
   }
   if (cambios) h.getRange(2, 5, n, 1).setValues(col);
+}
+
+
+/* ================== 6. REPARTIR UN ABONO ENTRE COMISIONES (FIFO) ==================
+   Elías recibe un monto suelto (ej. $10,000) que cubre varias comisiones.
+   Este bloque lo reparte de la comisión más antigua a la más nueva y deja
+   UN RENGLÓN POR PROYECTO en la pestaña de abonos, con su importe, su fecha
+   y un folio de pago (columna "Pago") que amarra los renglones del mismo depósito.
+   Así, un reporte por fechas siempre sabe cuánto se abonó a cada proyecto y cuándo. */
+
+var COL_PAGO = 6;   /* columna F de "Abonos comisión" */
+
+function prepararColumnaPago(h) {
+  h = h || SpreadsheetApp.getActive().getSheetByName(ABONOS);
+  if (!h) throw new Error('No encuentro la pestaña "' + ABONOS + '".');
+  if (h.getMaxColumns() < COL_PAGO) h.insertColumnsAfter(h.getMaxColumns(), COL_PAGO - h.getMaxColumns());
+  if (h.getRange(1, COL_PAGO).getValue() !== 'Pago') {
+    h.getRange(1, COL_PAGO).setValue('Pago');
+    encabezado(h, h.getRange(1, COL_PAGO).getA1Notation());
+    h.setColumnWidth(COL_PAGO, 90);
+    h.getRange(2, COL_PAGO, 1999, 1).setFontColor('#6b7684').setHorizontalAlignment('center');
+  }
+  return h;
+}
+
+/* Comisiones pendientes, de la más antigua a la más nueva (el folio es cronológico). */
+function pendientesFIFO() {
+  var d = hojaVentas().getRange(2, 1, FIN - 1, 24).getValues();
+  var out = [];
+  d.forEach(function (r) {
+    var pend = Math.round((Number(r[19]) || 0) * 100) / 100;
+    if (r[0] && r[1] && pend > 0.004) out.push({ folio: r[0], nombre: r[1], pend: pend });
+  });
+  out.sort(function (a, b) { return numeroDeFolio(a.folio) - numeroDeFolio(b.folio); });
+  return out;
+}
+
+/* Calcula el reparto sin escribir nada. */
+function calcularReparto(monto) {
+  var resta = Math.round(Number(monto) * 100) / 100;
+  var lista = pendientesFIFO();
+  var reparto = [];
+  for (var i = 0; i < lista.length && resta > 0.004; i++) {
+    var toca = Math.round(Math.min(resta, lista[i].pend) * 100) / 100;
+    reparto.push({
+      folio: lista[i].folio,
+      nombre: lista[i].nombre,
+      pend: lista[i].pend,
+      abono: toca,
+      queda: Math.round((lista[i].pend - toca) * 100) / 100
+    });
+    resta = Math.round((resta - toca) * 100) / 100;
+  }
+  var total = lista.reduce(function (s, p) { return s + p.pend; }, 0);
+  return { reparto: reparto, sobrante: resta, totalPendiente: total, cuantas: lista.length };
+}
+
+/* Lo llama el formulario para pintar la vista previa. */
+function vistaPreviaReparto(monto) {
+  var r = calcularReparto(monto);
+  return {
+    filas: r.reparto.map(function (x) {
+      return [x.folio, x.nombre, pesos(x.pend), pesos(x.abono), pesos(x.queda)];
+    }),
+    sobrante: r.sobrante,
+    sobranteTxt: pesos(r.sobrante)
+  };
+}
+
+function siguienteIdPago(h) {
+  var col = h.getRange(2, COL_PAGO, 1999, 1).getValues();
+  var max = 0;
+  col.forEach(function (c) {
+    var m = String(c[0] || '').match(/^P-(\d+)$/);
+    if (m) max = Math.max(max, Number(m[1]));
+  });
+  return 'P-' + ('000' + (max + 1)).slice(-3);
+}
+
+function guardarReparto(d) {
+  var monto = Number(d.monto);
+  if (!(monto > 0)) throw new Error('Escribe un importe mayor a cero.');
+
+  var calc = calcularReparto(monto);
+  if (!calc.reparto.length) throw new Error('No hay comisiones pendientes que abonar.');
+
+  var h = prepararColumnaPago();
+
+  var col = h.getRange(2, 1, 1999, 1).getValues();
+  var fila = 0;
+  for (var i = 0; i < col.length; i++) { if (col[i][0] === '') { fila = i + 2; break; } }
+  if (!fila) throw new Error('Ya no hay renglones libres en la pestaña de abonos.');
+  if (fila + calc.reparto.length - 1 > 2000) throw new Error('No caben todos los renglones del reparto.');
+
+  var id = siguienteIdPago(h);
+  var fecha = d.fecha ? fechaDe(d.fecha) : new Date();
+  var nota = (d.nota ? String(d.nota).trim() + ' · ' : '') + 'Reparto ' + id + ' de ' + pesos(monto);
+  var n = calc.reparto.length;
+
+  h.getRange(fila, 1, n, 1).setValues(calc.reparto.map(function (x) { return [x.folio]; }));
+  h.getRange(fila, 3, n, 3).setValues(calc.reparto.map(function (x) { return [x.abono, fecha, nota]; }));
+  h.getRange(fila, COL_PAGO, n, 1).setValues(calc.reparto.map(function () { return [id]; }));
+  h.getRange(fila, 3, n, 1).setNumberFormat(MONEDA);
+  h.getRange(fila, 4, n, 1).setNumberFormat(FECHA);
+  SpreadsheetApp.flush();
+
+  var msg = id + ': ' + pesos(monto - calc.sobrante) + ' repartido entre ' + n + ' proyecto(s).';
+  if (calc.sobrante > 0.004) msg += ' Sobraron ' + pesos(calc.sobrante) + ' sin aplicar.';
+  return msg;
+}
+
+function dialogoReparto() {
+  var calc = calcularReparto(0);
+  if (!calc.cuantas) { SpreadsheetApp.getUi().alert('No hay comisiones pendientes.'); return; }
+
+  var c =
+    '<style>' +
+    'table.tb{width:100%;border-collapse:collapse;margin-top:14px;font-size:12px}' +
+    'table.tb th{text-align:left;background:#eef1f6;color:#41506b;padding:6px 8px;font-weight:500}' +
+    'table.tb td{padding:6px 8px;border-top:1px solid #e4e9f0}' +
+    'table.tb th:nth-child(3),table.tb th:nth-child(4),table.tb th:nth-child(5),' +
+    'table.tb td:nth-child(3),table.tb td:nth-child(4),table.tb td:nth-child(5){text-align:right}' +
+    'table.tb td:nth-child(4){color:#1e6b2a;font-weight:500}' +
+    '.caja{max-height:230px;overflow:auto;border:1px solid #e4e9f0;border-radius:6px;margin-top:10px}' +
+    '</style>' +
+    '<h2>Repartir un abono entre comisiones</h2>' +
+    '<p class=sub>Se descuenta de la comisión más antigua a la más nueva. ' +
+    'Cada proyecto queda con su propio renglón, su importe y su fecha en la pestaña de abonos.</p>' +
+    '<div class=dato>Tienes <b>' + calc.cuantas + '</b> comisiones pendientes por <b>' +
+    pesos(calc.totalPendiente) + '</b>.</div>' +
+    '<div class=fila><div><label>Importe recibido</label>' +
+    '<input id=monto type=number step=0.01 placeholder=10000></div>' +
+    '<div><label>Fecha del abono</label><input id=fecha type=date value=' + hoy() + '></div></div>' +
+    '<label>Nota (opcional)</label><input id=nota placeholder="Transferencia, efectivo...">' +
+    '<div id=prev></div>' +
+    '<div class=pie><button id=ok onclick="mandar()">Repartir</button>' +
+    '<button id=no class=gris onclick="google.script.host.close()">Cancelar</button></div>' +
+    '<div id=av class=aviso></div>' +
+    '<script>' +
+    'var t;var enviado=false;' +
+    'function pinta(r){' +
+    'var p=document.getElementById("prev");' +
+    'if(!r.filas.length){p.innerHTML="";return;}' +
+    'var h="<div class=caja><table class=tb><tr><th>Folio</th><th>Proyecto</th><th>Pendiente</th><th>Abono</th><th>Queda</th></tr>";' +
+    'r.filas.forEach(function(f){h+="<tr><td>"+f[0]+"</td><td>"+f[1]+"</td><td>"+f[2]+"</td><td>"+f[3]+"</td><td>"+f[4]+"</td></tr>";});' +
+    'h+="</table></div>";' +
+    'if(r.sobrante>0.004){h+="<div class=dato>Sobran "+r.sobranteTxt+": ya no hay más comisiones pendientes que cubrir.</div>";}' +
+    'p.innerHTML=h;}' +
+    'function calc(){clearTimeout(t);t=setTimeout(function(){' +
+    'var m=parseFloat(document.getElementById("monto").value);' +
+    'if(!(m>0)){document.getElementById("prev").innerHTML="";return;}' +
+    'google.script.run.withSuccessHandler(pinta).vistaPreviaReparto(m);},300);}' +
+    'document.getElementById("monto").addEventListener("input",calc);' +
+    'document.getElementById("ok").addEventListener("click",mandar);' +
+    'document.getElementById("no").addEventListener("click",function(){google.script.host.close();});' +
+    'function mandar(){if(enviado)return;enviado=true;' +
+    'var b=document.getElementById("ok");var a=document.getElementById("av");' +
+    'b.disabled=true;b.textContent="Guardando...";' +
+    'google.script.run.withSuccessHandler(function(m){' +
+    'a.className="aviso ok";a.textContent=m;' +
+    'setTimeout(function(){google.script.host.close();},2500);})' +
+    '.withFailureHandler(function(e){' +
+    'a.className="aviso mal";a.textContent=e.message;' +
+    'b.disabled=false;b.textContent="Repartir";enviado=false;})' +
+    '.guardarReparto({monto:document.getElementById("monto").value,' +
+    'fecha:document.getElementById("fecha").value,' +
+    'nota:document.getElementById("nota").value});}' +
+    '</scr' + 'ipt>';
+
+  SpreadsheetApp.getUi().showModalDialog(
+      marco(c, 640).setWidth(580), 'Repartir abono de comisión');
+}
+
+
+
+/* ================== 7. COMISIONES COBRADAS POR PERIODO ==================
+   Hoja "Comisiones por periodo": lee los renglones de la pestaña de abonos
+   y arma resumen, corte por mes, corte por proyecto y el detalle completo,
+   todo filtrado por el rango de fechas que se elige arriba.
+   Como cada abono trae su propia fecha, un proyecto viejo que recibió dinero
+   este mes SÍ aparece en el periodo, y uno que no recibió nada NO aparece.
+   Es idempotente: se puede volver a correr cuando se quiera. */
+
+var HOJA_PERIODO = 'Comisiones por periodo';
+var PERIODOS = ['Últimos 2 meses', 'Mes actual', 'Mes anterior', 'Últimos 3 meses',
+                'Últimos 6 meses', 'Año actual', 'Todo', 'Personalizado'];
+
+function rangosAbonos() {
+  var b = "'" + ABONOS + "'!";
+  return {
+    folio: b + '$A$2:$A$2000',
+    proy:  b + '$B$2:$B$2000',
+    imp:   b + '$C$2:$C$2000',
+    fecha: b + '$D$2:$D$2000',
+    nota:  b + '$E$2:$E$2000',
+    pago:  b + '$F$2:$F$2000'
+  };
+}
+
+function filtroPeriodo(r) {
+  return 'ARRAYFORMULA(N(' + r.fecha + '>=$B$5)*N(' + r.fecha + '<=$B$6)*N(' + r.folio + '<>""))';
+}
+
+function construirComisionesPorPeriodo() {
+  var ss = SpreadsheetApp.getActive();
+  prepararColumnaPago();
+
+  var h = hojaLimpia(ss, HOJA_PERIODO);
+  var r = rangosAbonos();
+  var f = filtroPeriodo(r);
+
+  titulo(h, 'A1', 'COMISIONES COBRADAS — POR PERIODO',
+         'Sale de la pestaña "' + ABONOS + '". Cambia el periodo en B4 y todo se recalcula solo.');
+
+  /* ---------- controles ---------- */
+  h.getRange('A4').setValue('Periodo');
+  h.getRange('A5').setValue('Desde');
+  h.getRange('A6').setValue('Hasta');
+  h.getRange('A4:A6').setFontWeight('bold').setFontColor(SLATE);
+
+  h.getRange('B4').setValue(PERIODOS[0]);
+  h.getRange('B4').setDataValidation(SpreadsheetApp.newDataValidation()
+      .requireValueInList(PERIODOS, true).setAllowInvalid(false).build());
+
+  h.getRange('B5').setFormula(
+    '=IFS($B$4="Mes actual",EOMONTH(TODAY(),-1)+1,' +
+    '$B$4="Mes anterior",EOMONTH(TODAY(),-2)+1,' +
+    '$B$4="Últimos 2 meses",EOMONTH(TODAY(),-2)+1,' +
+    '$B$4="Últimos 3 meses",EOMONTH(TODAY(),-3)+1,' +
+    '$B$4="Últimos 6 meses",EOMONTH(TODAY(),-6)+1,' +
+    '$B$4="Año actual",DATE(YEAR(TODAY()),1,1),' +
+    '$B$4="Todo",DATE(2000,1,1),' +
+    '$B$4="Personalizado",$E$5)');
+  h.getRange('B6').setFormula(
+    '=IFS($B$4="Mes anterior",EOMONTH(TODAY(),-1),' +
+    '$B$4="Todo",DATE(2099,12,31),' +
+    '$B$4="Personalizado",$E$6,TRUE,TODAY())');
+  h.getRange('B4:B6').setBackground(GRISF).setFontWeight('bold')
+      .setHorizontalAlignment('center');
+  h.getRange('B5:B6').setNumberFormat(FECHA);
+
+  h.getRange('D4').setValue('Rango a mano (solo con Periodo = Personalizado)')
+      .setFontStyle('italic').setFontColor('#6b7684').setFontSize(9);
+  h.getRange('D5').setValue('Desde');
+  h.getRange('D6').setValue('Hasta');
+  h.getRange('D5:D6').setFontColor(SLATE);
+  var hoy = new Date();
+  h.getRange('E5').setValue(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1));
+  h.getRange('E6').setValue(hoy);
+  h.getRange('E5:E6').setNumberFormat(FECHA).setBackground('#fffbe6')
+      .setHorizontalAlignment('center');
+
+  /* ---------- resumen ---------- */
+  h.getRange('A8').setValue('RESUMEN DEL PERIODO');
+  seccion(h, 'A8:E8');
+  h.getRange('A9:E9').setValues([['Comisión cobrada', 'Abonos', 'Proyectos',
+                                  'Depósitos', 'Promedio x abono']]);
+  encabezado(h, 'A9:E9');
+  h.getRange('A9:E9').setFontSize(9);
+
+  h.getRange('A10').setFormula('=SUMIFS(' + r.imp + ',' + r.fecha + ',">="&$B$5,' +
+      r.fecha + ',"<="&$B$6)');
+  h.getRange('B10').setFormula('=COUNTIFS(' + r.fecha + ',">="&$B$5,' + r.fecha +
+      ',"<="&$B$6,' + r.folio + ',"<>")');
+  h.getRange('C10').setFormula('=IFERROR(ROWS(UNIQUE(FILTER(' + r.folio + ',' +
+      r.fecha + '>=$B$5,' + r.fecha + '<=$B$6,' + r.folio + '<>""))),0)');
+  h.getRange('D10').setFormula('=IFERROR(ROWS(UNIQUE(FILTER(' + r.pago + ',' +
+      r.fecha + '>=$B$5,' + r.fecha + '<=$B$6,' + r.pago + '<>""))),0)');
+  h.getRange('E10').setFormula('=IFERROR($A$10/$B$10,0)');
+  h.getRange('A10:E10').setFontSize(14).setFontWeight('bold')
+      .setHorizontalAlignment('center').setBackground(GRISF);
+  h.getRange('A10').setNumberFormat(MONEDA);
+  h.getRange('E10').setNumberFormat(MONEDA);
+  h.getRange('B10:D10').setNumberFormat('0');
+  h.setRowHeight(10, 34);
+
+  /* ---------- por mes ---------- */
+  h.getRange('A12').setValue('CUÁNTO COBRÉ CADA MES');
+  seccion(h, 'A12:C12');
+  h.getRange('A13').setFormula(
+    '=IFERROR(QUERY({ARRAYFORMULA(IF(' + r.folio + '="","",TEXT(' + r.fecha +
+    ',"yyyy-mm"))),' + r.imp + ',' + f + '},' +
+    '"select Col1, count(Col2), sum(Col2) where Col3=1 group by Col1 ' +
+    'order by Col1 desc limit 18 ' +
+    'label Col1 \'Mes\', count(Col2) \'Abonos\', sum(Col2) \'Cobrado\'",0),' +
+    '"Sin abonos en el periodo")');
+  encabezado(h, 'A13:C13');
+  h.getRange('A13:C13').setFontSize(9);
+  h.getRange('A14:A32').setHorizontalAlignment('center');
+  h.getRange('B14:B32').setNumberFormat('0');
+  h.getRange('C14:C32').setNumberFormat(MONEDA);
+
+  /* ---------- por proyecto ---------- */
+  h.getRange('A34').setValue('COMISIÓN COBRADA POR PROYECTO');
+  seccion(h, 'A34:D34');
+  h.getRange('A35').setFormula(
+    '=IFERROR(QUERY({' + r.folio + ',' + r.proy + ',' + r.imp + ',' + f + '},' +
+    '"select Col1, Col2, count(Col3), sum(Col3) where Col4=1 group by Col1, Col2 ' +
+    'order by sum(Col3) desc limit 150 ' +
+    'label Col1 \'Folio\', Col2 \'Proyecto\', count(Col3) \'Abonos\', ' +
+    'sum(Col3) \'Cobrado\'",0),"Sin abonos en el periodo")');
+  encabezado(h, 'A35:D35');
+  h.getRange('A35:D35').setFontSize(9);
+  h.getRange('A36:A188').setHorizontalAlignment('center').setFontColor(SLATE);
+  h.getRange('C36:C188').setNumberFormat('0');
+  h.getRange('D36:D188').setNumberFormat(MONEDA);
+
+  /* ---------- detalle ---------- */
+  h.getRange('A190').setValue('DETALLE DE ABONOS DEL PERIODO');
+  seccion(h, 'A190:F190');
+  h.getRange('A191').setFormula(
+    '=IFERROR(QUERY({' + r.fecha + ',' + r.folio + ',' + r.proy + ',' + r.imp +
+    ',ARRAYFORMULA(TO_TEXT(' + r.pago + ')),ARRAYFORMULA(TO_TEXT(' + r.nota + ')),' +
+    f + '},' +
+    '"select Col1, Col3, Col2, Col4, Col5, Col6 where Col7=1 order by Col1 desc ' +
+    'label Col1 \'Fecha\', Col3 \'Proyecto\', Col2 \'Folio\', Col4 \'Importe\', ' +
+    'Col5 \'Pago\', Col6 \'Nota\'",0),"Sin abonos en el periodo")');
+  encabezado(h, 'A191:F191');
+  h.getRange('A191:F191').setFontSize(9);
+  h.getRange('A192:A2200').setNumberFormat(FECHA).setHorizontalAlignment('center');
+  h.getRange('C192:C2200').setHorizontalAlignment('center').setFontColor(SLATE);
+  h.getRange('D192:D2200').setNumberFormat(MONEDA);
+  h.getRange('E192:E2200').setHorizontalAlignment('center').setFontColor(SLATE);
+  h.getRange('F192:F2200').setFontColor('#6b7684').setFontSize(9);
+
+  fuente(h);
+  anchos(h, [120, 250, 105, 120, 120, 320]);
+  h.setFrozenRows(2);
+  h.setHiddenGridlines(true);
+  ss.setActiveSheet(h);
+  ss.moveActiveSheet(ss.getNumSheets());
+  SpreadsheetApp.flush();
+  return h;
 }
