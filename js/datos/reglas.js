@@ -38,7 +38,7 @@ import * as DB from './db.js';
 import * as Prefs from './prefs.js';
 import * as Cot from './cotizador.js';
 import { diasEntre } from '../nucleo/fechas.js';
-import { hoyISO, partesISO, fmtFecha, fmtFechaDia, fmtHora, money, cant, linkWa }
+import { hoyISO, partesISO, fmtFecha, fmtFechaDia, fmtHora, money, cant, linkWa, telWa }
   from '../nucleo/ui.js';
 
 /** @typedef {{ok:true, valor:*}|{ok:false, codigo:string, mensaje:string}} Resultado */
@@ -893,5 +893,8 @@ export function mensajeWa(clase, datos = {}) {
 
   if (!texto) return { texto: '', url: '' };
   const tel = d.tel || p.tel || '';
-  return { texto, url: tel ? linkWa(tel, texto) : '' };
+  /* `telWa` y no `tel` a secas: el texto del cobro se escribe igual —se puede copiar y
+     mandar a mano— pero la liga solo existe cuando hay un número al que WhatsApp pueda
+     escribir. Con uno a medias abría el chat de otra persona. */
+  return { texto, url: telWa(tel) ? linkWa(tel, texto) : '' };
 }

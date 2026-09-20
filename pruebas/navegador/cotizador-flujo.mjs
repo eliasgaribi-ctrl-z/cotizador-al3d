@@ -493,6 +493,39 @@ for (const bueno of ['logo-al3d.svg', 'data:image/png;base64,iVBORw0KGgo=', 'blo
   ? bien('y lo que no es una imagen sigue saliendo vacío')
   : mal('dejó pasar un javascript:');
 
+/* ----- Y su gemela, la del PDF, que se había quedado sin arreglar -----
+   `urlPdfSegura` tenía EXACTAMENTE el mismo agujero que el bloque de aquí arriba describe
+   cerrado —probaba el prefijo y devolvía el resto crudo— y lo que interpola no es un <img>
+   sino el <iframe> del visor a pantalla completa (partidas.js, openAiFile). La diferencia
+   importa: el <img> necesita que la imagen falle para disparar su `onerror`; el <iframe>
+   dispara `onload` SOLO, en cuanto se pinta, y corre en el origen de la app, con las API
+   keys de la IA en el mismo localStorage. El camino de entrada es el mismo respaldo
+   restaurado: `Q.aiFile` sale de AI_FILE_KEY, que está en RESPALDO_KEYS. */
+const venenoPdf = String.raw`data:application/pdf;" onload="window.__coladoPdf=1`;
+const saneadoPdf = await p.evaluate(v => urlPdfSegura(v), venenoPdf);
+!/[<>"]/.test(saneadoPdf)
+  ? bien('la del PDF también escapa: «' + saneadoPdf.slice(0, 46) + '…»')
+  : mal('urlPdfSegura devolvió comillas sin escapar: ' + saneadoPdf);
+
+const coladoPdf = await p.evaluate(v => {
+  const caja = document.createElement('div');
+  caja.innerHTML = `<iframe src="${urlPdfSegura(v)}"></iframe>`;
+  document.body.appendChild(caja);
+  const f = caja.querySelector('iframe');
+  const salio = !!(f && f.getAttribute('onload'));
+  caja.remove();
+  return salio;
+}, venenoPdf);
+!coladoPdf ? bien('y no nace ningún onload en el <iframe> del visor')
+           : mal('el valor se salió del atributo y montó un onload en el iframe');
+
+(await p.evaluate(() => urlPdfSegura('data:application/pdf;base64,JVBERi0='))) === 'data:application/pdf;base64,JVBERi0='
+  ? bien('sigue dejando pasar un PDF de verdad')
+  : mal('rompió un PDF bueno');
+(await p.evaluate(() => urlPdfSegura('javascript:alert(1)'))) === ''
+  ? bien('y lo que no es un PDF sigue saliendo vacío')
+  : mal('urlPdfSegura dejó pasar un javascript:');
+
 // ── 8ter. Empezar la siguiente no puede borrar la anterior ─────────────────
 /* Lo que pasaba, medido: con una cotización ya autorizada, quien no encontraba con qué
    vaciar entraba a editar y tecleaba el cliente siguiente encima del anterior. El folio no

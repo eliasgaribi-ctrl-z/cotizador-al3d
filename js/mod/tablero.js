@@ -44,7 +44,7 @@ import * as Material from '../datos/material.js';
 import * as Sync from '../datos/sync.js';
 import { masDias } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, fmtFecha, fmtFechaDia,
-         abrirCapa, cerrarCapa, linkWa, ajustarAltoBarra, rotularPapel, voz, segmento,
+         abrirCapa, cerrarCapa, linkWa, telWa, ajustarAltoBarra, rotularPapel, voz, segmento,
          filaTaller, bandaFrescura, medirMarco, esqueletoMarco }
   from '../nucleo/ui.js';
 
@@ -820,10 +820,13 @@ function faltaMaterial(d, rol) {
     /* El único verde de la plataforma, y está justificado: es el mensaje ya armado al
        proveedor. Es un <a> real y no `window.open` desde un manejador: en el celular abre
        la app instalada, y el bloqueador de emergentes de iOS tira lo segundo. */
-    if (f && f.tel_proveedor) {
+    /* La guarda es `telWa` y no `f.tel_proveedor`: `linkWa` SIEMPRE devuelve una cadena
+       —con número o sin él—, así que el `if (wa)` que había aquí no filtraba nada y un
+       teléfono de proveedor a medias pintaba un botón que abría otro chat. */
+    if (f && telWa(f.tel_proveedor)) {
       const wa = linkWa(f.tel_proveedor,
         'Buenos días. ¿Tiene ' + (f.nombre || 'material') + '? Lo necesito para un trabajo de esta semana. AL3D.');
-      if (wa) acc.push('<a class="btn-wa" href="' + esc(wa) + '" target="_blank" rel="noopener">' +
+      acc.push('<a class="btn-wa" href="' + esc(wa) + '" target="_blank" rel="noopener">' +
         ico('i-wa') + 'Pedir por WhatsApp</a>');
     }
     acc.push(btn('Ver la lista de compra', 'btn btn-gho pf-btn-corto', { tipo: 'ir', ruta: 'material' }));

@@ -88,12 +88,17 @@ const ctx = {
   pasar: (ruta, dato) => { _pase = { ruta, dato }; ir(ruta); },
   recibir: () => { const p = (_pase && _pase.ruta === _actual) ? _pase.dato : null; _pase = null; return p; },
   sinRemonte: v => { _sinRemonte = !!v; },
-  /* Las acciones contextuales del encabezado: «COT-0152 · Clientes · Historial» en el
-     cotizador, las teclas del calendario. Se pasa marcado ya escapado y se recibe el nodo
-     para colgarle los oyentes. El router las vacía en cada montaje, así que un módulo que no
-     llame a esto deja el encabezado limpio sin tener que acordarse. En el teléfono el hueco
-     está en `display:none` —no cabe al lado del título— así que lo que se ponga aquí tiene
-     que existir también dentro de la pantalla. */
+  /* Las acciones contextuales del encabezado: hoy las teclas del calendario y el «Bajar CSV»
+     de Control, que son los dos módulos que llaman aquí. Se pasa marcado ya escapado y se
+     recibe el nodo para colgarle los oyentes. El router las vacía en cada montaje, así que un
+     módulo que no llame a esto deja el encabezado limpio sin tener que acordarse. En el
+     teléfono el hueco está en `display:none` —no cabe al lado del título— así que lo que se
+     ponga aquí tiene que existir también dentro de la pantalla.
+
+     OJO con los oyentes: vaciar el innerHTML no suelta lo que cuelga de ESTE nodo, que es
+     compartido y sobrevive a los montajes. Quien enganche aquí tiene que desenganchar en su
+     `desmontar()` —lo hace Control— o su manejador se queda escuchando encima del encabezado
+     de las demás pantallas. */
   acciones: html => {
     const el = $('pf-cab-acc');
     if (!el) return null;
@@ -287,8 +292,15 @@ function montar(ruta, opts = {}) {
 /* Dónde se había quedado cada pestaña. El router desmonta y vuelve a montar entera la que se
    abandona, así que nada del DOM sobrevive —ni el scroll—: volver a Proyectos desde Agenda
    aterrizaba arriba del todo aunque se estuviera mirando el proyecto número doce. Se guarda al
-   salir y se repone SOLO al volver por el botón de atrás o por la barra, no al entrar por un
-   enlace, que es una llegada nueva y empieza donde empiezan las llegadas nuevas. */
+   salir y se repone al volver, por donde se vuelva.
+
+   Aquí decía «SOLO al volver por el botón de atrás o por la barra, no al entrar por un enlace»,
+   y eso nunca fue verdad: toda navegación de esta app pasa por `ir()` → `hashchange` → `montar`
+   y no hay dos caminos que distinguir, así que la línea de abajo repone siempre. La frase
+   describía una intención, no el código, y en este repositorio los comentarios son el contrato:
+   se corrige el comentario, no se inventa la distinción. Si algún día hace falta —`ctx.pasar()`
+   es lo más parecido a «entrar por un enlace»: el módulo que manda ya sabe a qué lleva— se
+   implementa a propósito y se dice aquí. */
 const _scrollPorRuta = new Map();
 
 async function montarDeVerdad(ruta, opts = {}) {

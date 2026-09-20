@@ -339,7 +339,7 @@ export const INTENCIONES = {
    pendiente» no se va a material solo por la primera palabra. Lo que suene a condicional,
    consejo o redacción va a la IA aunque nombre una comisión: «¿si liquidan mañana cuánto
    tocaría?» no es la lista de abonables. Se prueba con las frases que la gente escribe. */
-const plano = s => String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const plano = s => String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const SENAS = {
   comisiones:  { fuertes: [/comision/], debiles: [/abon/, /pagar(le|les)?\b/, /porcentaje/] },
   cobranza:    { fuertes: [/\bdeb(e|en|emos|es)\b/, /cobr/, /saldo/, /adeud/, /cartera/, /por pagar/, /pendiente de pago/, /liquid/],

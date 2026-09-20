@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   273 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   157 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -219,10 +219,25 @@ function aiDelKey(p,i){
   aiRenderKey(p); toast('API key borrada de este dispositivo','ok');
 }
 
+/* ----- El almacenamiento se pregunta, no se supone -----
+   Toda esta app envuelve `localStorage` en try/catch —prefGet/prefSet, getHistorial,
+   loadState, saveState, y este mismo archivo cuando guarda el modelo— porque el
+   almacenamiento LLENO es un estado que la app maneja a la vista: «No hay espacio para
+   guardar la cotización». Estas dos funciones se habían quedado fuera, y con eso:
+
+   · `setItem` lanzaba con el almacenamiento lleno DESPUÉS de mover `aiProv`, así que tocar
+     «Groq» dejaba el proveedor cambiado por dentro y los bloques de pantalla sin cambiar: el
+     segmentado decía una cosa y el formulario de abajo otra.
+   · y como `aiOpen()` termina llamando aquí, el modal de «Cotizar con IA» DEJABA DE ABRIR,
+     sin un aviso y sin un error visible — que es el modo de falla que este repo persigue.
+
+   Recordar el proveedor es una comodidad; no poder cotizar con IA no lo es. Si no se puede
+   escribir, se sigue igual y la elección vale para esta sesión. */
 let aiProv='gemini';
+function _lsGet(k){ try{ return localStorage.getItem(k); }catch(_){ return null; } }
 function setAiProv(p){
   aiProv=p;
-  localStorage.setItem('ai_provider',p);
+  try{ localStorage.setItem('ai_provider',p); }catch(_){}
   AI_PROVS.forEach(x=>{ const el=$('prov-'+x); if(el) el.style.display=x===p?'':'none'; });
   document.querySelectorAll('#ai-prov-seg button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
   segAria('#ai-prov-seg button');
@@ -284,10 +299,10 @@ function aiOpen(fuente){
      análisis anterior, sin que nada en pantalla dijera cuál era. */
   aiOlvidarArchivo();
   _aiDragN=0; aiPintarArrastre(false);
-  $('ai-model-gemini').value=localStorage.getItem('ai_model_gemini')||localStorage.getItem('ai_model')||AI_DEFAULTS.gemini;
-  $('ai-model-groq').value=localStorage.getItem('ai_model_groq')||AI_DEFAULTS.groq;
-  $('ai-model-openrouter').value=localStorage.getItem('ai_model_openrouter')||AI_DEFAULTS.openrouter;
-  const p=localStorage.getItem('ai_provider')||'gemini';
+  $('ai-model-gemini').value=_lsGet('ai_model_gemini')||_lsGet('ai_model')||AI_DEFAULTS.gemini;
+  $('ai-model-groq').value=_lsGet('ai_model_groq')||AI_DEFAULTS.groq;
+  $('ai-model-openrouter').value=_lsGet('ai_model_openrouter')||AI_DEFAULTS.openrouter;
+  const p=_lsGet('ai_provider')||'gemini';
   setAiProv(p);
   if(!getKey(p)) $('ai-cfg-box').open=true;
   _aiCancelado=false;
@@ -777,7 +792,7 @@ function aiCadena(prov,model,esPdf){
   /* Groq y OpenRouter no leen PDF: con un PDF en la mano el único que sirve es
      Gemini, aunque el proveedor elegido en el modal sea otro. */
   if(!(esPdf&&prov!=='gemini')) bloque(prov,model);
-  AI_PROVS.forEach(p=>{ if(p===prov||(esPdf&&p!=='gemini')) return; bloque(p,localStorage.getItem('ai_model_'+p)||AI_DEFAULTS[p]); });
+  AI_PROVS.forEach(p=>{ if(p===prov||(esPdf&&p!=='gemini')) return; bloque(p,_lsGet('ai_model_'+p)||AI_DEFAULTS[p]); });
   return out.slice(0,AI_MAX_INTENTOS);
 }
 

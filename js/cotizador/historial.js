@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   273 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   157 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -1432,11 +1432,27 @@ function tipoTrabajoCot(it){
     default:       return 'Custome / Proyecto Especial';
   }
 }
+/* ----- La partida en blanco no es un tipo de trabajo -----
+   `addItem()` siembra cada partida nueva en `tipo:'letras'` con `luz:true` —hay que empezar
+   por algo— y hasta que alguien teclea, eso no describe ningún trabajo: es un renglón vacío
+   esperando. Contarla partía el plazo en dos. Medido con una sola partida de vinil ya
+   capturada y la partida en blanco recién agregada al lado:
+
+     solo el vinil                → ['Rotulacion de vinil']                        → 1 semana
+     + la partida en blanco       → ['Letras 3D con iluminacion','Rotulacion…']    → 2.5 semanas
+
+   —el cubo sube al del tipo más lento (3) y encima suma uno por «hay dos tipos distintos»—.
+   Así que tocar «+ Agregar partida» movía el plazo semana y media antes de que nadie
+   escribiera nada, y si la cotización se autorizaba con ese renglón en blanco —el aviso de
+   partidas sin terminar tiene su «continuar de todos modos»— el plazo inflado se quedaba
+   escrito en el proyecto. `itemVacio` es la misma prueba que ya usan el aviso de partidas
+   sin terminar y la IA; la plataforma lleva su gemela en `tiposDerivados`. */
 function plazoSugeridoCot(items){
   const tipos=new Set(), n=x=>(isFinite(Number(x))&&Number(x)>0)?Number(x):0;
   let mayor=0;
   for(const it of (items||[])){
     if(!it||typeof it!=='object') continue;
+    if(itemVacio(it)) continue;
     tipos.add(tipoTrabajoCot(it));
     const lado=(it.tipo==='letras'||it.tipo==='recorte')?n(it.altura):(it.tipo==='caja'||it.tipo==='bastidor')?Math.max(n(it.ancho),n(it.alto)):0;
     if(lado>mayor) mayor=lado;

