@@ -4857,7 +4857,14 @@ body::after{
      · Y los toques crecen: el bloque de 920 px de la hoja ya subía los controles a 46 px, pero
        las tarjetas y los chips seguían con el relleno de escritorio. */
 @media screen and (min-width:760px) and (max-width:920px){
-  .wrap{gap:24px;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+  /* Las dos variables van CON el relleno, siempre, y no solo en los otros dos cortes: son la
+     promesa que la .wrap le hace a quien quiera salirse a sangre —«éste es exactamente mi
+     relleno»— y aquí se había quedado sin cumplir. El marco empotrado del cotizador las lee
+     (css/plataforma.css, «El marco del cotizador, a sangre») y, al no encontrarlas, caía al
+     respaldo de 24 px contra un relleno real de 20: medido en un visor de 768 px, el marco
+     terminaba en 772 y la plataforma se quedaba con cuatro píxeles de scroll horizontal en
+     la pestaña del Cotizador. Cuatro píxeles no se ven, pero la barra que los anuncia sí. */
+  .wrap{gap:24px;--pad-lat:max(20px,env(safe-area-inset-left,0px));--pad-lat-der:max(20px,env(safe-area-inset-right,0px));padding-left:var(--pad-lat);padding-right:var(--pad-lat-der)}
   .card,.sum,.partida{border-radius:16px}
   /* El panel del dinero: vidrio de verdad, con su sombra abierta. Pegarse ya se pega solo
      —`.side` es `position:sticky` desde antes de esta capa, con el tope en `--top-fijo`—, así
