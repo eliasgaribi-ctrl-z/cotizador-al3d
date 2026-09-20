@@ -166,3 +166,30 @@ window.addEventListener('beforeunload',e=>{
    viven en archivos que se cargan antes que este, y a nada que se cargue después. */
 init();
 
+/* ----- MODO SOLO VECTORIZADOR -----
+   El vectorizador es una herramienta de FABRICACIÓN: convertir el logotipo de un cliente en
+   trazo de corte se hace con el archivo en la mano, sin que haya una cotización abierta ni
+   tenga que haberla. Pero vivía detrás del botón «Vectorizar» de una partida, así que para
+   usarlo había que abrir una cotización que nadie iba a mandar.
+
+   Esto le abre su propia puerta desde la plataforma SIN copiar el marcado a otra página. Ese
+   era el otro camino —una página suelta como la del anidador— y se descartó: son 153 líneas
+   de marcado más los iconos, y una segunda copia se separa de la original en tres meses. Este
+   repositorio tiene UNA duplicación a propósito, documentada y con una prueba que la vigila;
+   no le tocaba una segunda por mover un botón.
+
+   Se dispara con el hash y no con una cadena de consulta: `?solo=1` ya significa otra cosa
+   —la salida de emergencia de la página suelta— y, sobre todo, el service worker sirve este
+   documento con `ignoreSearch`, así que una consulta nueva no crearía una entrada de caché
+   distinta pero sí ensuciaría la única dirección que tiene. El hash no viaja al servidor y no
+   lo ve la caché.
+
+   Va DESPUÉS de init() a propósito: `abrirVector()` lee estado que init() deja puesto. */
+(function () {
+  try {
+    if (!/(^|[#&])vector($|[&])/.test(location.hash)) return;
+    document.documentElement.classList.add('solo-vector');
+    abrirVector();
+  } catch (_) { /* si el vectorizador no abre, queda el cotizador entero: no se tapa nada */ }
+})();
+

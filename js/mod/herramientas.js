@@ -1,5 +1,5 @@
 /* ============================================================================
-   LAS HERRAMIENTAS DEL TALLER — el anidador, y mañana el vectorizador.
+   LAS HERRAMIENTAS DEL TALLER — la mesa de corte y el vectorizador.
 
    Por qué existe este módulo, que es lo que importa: estas dos herramientas son de
    FABRICACIÓN, no de la venta. Acomodar piezas en la lámina y convertir un logotipo en trazo
@@ -39,6 +39,17 @@ const HERRAMIENTAS = {
     cargando: 'Abriendo la mesa de corte…',
     titulo: 'Anidador de vectores — acomodo de piezas en la lámina',
   },
+  /* El vectorizador es el MISMO documento del cotizador, abierto con `#vector`. No es una
+     página aparte y no debe serlo: duplicar sus 153 líneas de marcado dejaría dos
+     vectorizadores que se parecen. El hash enciende `html.solo-vector` allá dentro, que apaga
+     lo de cotizar y deja la herramienta sola. Ver js/cotizador/arranque.js. */
+  'mod-vectorizar': {
+    src: 'cotizador.html#vector',
+    marco: 'pf-herr-vector',
+    esqueleto: 'cotizador',
+    cargando: 'Abriendo el vectorizador…',
+    titulo: 'Vectorizador — del logotipo al trazo de corte',
+  },
 };
 
 let _cont = null;
@@ -46,6 +57,7 @@ let _ctx = null;
 let _reloj = null;
 let _intentos = 0;
 let _marcoId = '';
+let _oyeMensaje = null;
 
 export async function montar(contenedor, ctx) {
   _cont = contenedor;
@@ -94,6 +106,24 @@ export async function montar(contenedor, ctx) {
   _intentos = 0;
   if (_reloj) clearTimeout(_reloj);
   _reloj = setTimeout(vigilar, 150);
+
+  /* ----- El pase del vectorizador a la mesa de corte -----
+     «Acomodar en hoja» deja el trazo en `al3d_anidar` —el canal que lleva funcionando entre
+     las dos apps, que no se toca— y le pide al padre que cambie de herramienta. Si nadie
+     escucha, el botón se aprieta, el trazo se guarda y no pasa NADA visible: la peor clase
+     de falla, porque nadie la reporta. Lo escuchaba js/mod/cotizador.js para el cotizador
+     empotrado; aquí hace falta otra vez porque el marco es otro.
+
+     Se validan el origen Y la fuente, igual que allá: `message` lo puede disparar cualquier
+     ventana que tenga una referencia a ésta. */
+  _oyeMensaje = ev => {
+    if (ev.origin !== location.origin) return;
+    if (!m || ev.source !== m.contentWindow) return;
+    const d = ev.data;
+    if (!d || typeof d !== 'object' || d.al3d !== 'anidar') return;
+    if (_ctx && _ctx.ir) _ctx.ir('anidador');
+  };
+  window.addEventListener('message', _oyeMensaje);
 }
 
 function sano() {
@@ -138,6 +168,7 @@ export function desmontar() {
   if (_reloj) { clearTimeout(_reloj); _reloj = null; }
   if (_rz) { cancelAnimationFrame(_rz); _rz = 0; }
   window.removeEventListener('resize', alRedimensionar);
+  if (_oyeMensaje) { window.removeEventListener('message', _oyeMensaje); _oyeMensaje = null; }
   document.body.classList.remove('pf-marco-lleno');
   if (_ctx && _ctx.sinRemonte) _ctx.sinRemonte(false);
   _cont = null; _ctx = null; _marcoId = '';

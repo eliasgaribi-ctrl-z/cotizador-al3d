@@ -4112,6 +4112,49 @@ details.ai-cfg summary:hover{color:var(--tinta)}
 html.empotrado .topbar .brand{display:none}
 html.empotrado .btn-pf{display:none}
 
+/* ----- Modo solo vectorizador -----
+   La plataforma empotra este mismo documento con `#vector` para darle al taller su propia
+   puerta al vectorizador, sin obligar a abrir una cotización que nadie va a mandar. El
+   vectorizador ya es pantalla completa cuando está abierto (`.vt-modal-bg.show`), así que
+   aquí NO se le toca nada a él: lo único que hace falta es apagar lo que queda debajo.
+
+   Por qué apagarlo si no se ve: porque sí se ve. El documento de abajo sigue teniendo alto
+   propio, así que el marco de la plataforma se mide con el alto del COTIZADOR —mucho más
+   largo— y deja una franja de scroll vacía debajo de la herramienta; y su barra fija inferior
+   (el total y «Continuar a partidas») se asoma por encima del modal en el teléfono, que es
+   donde esa barra es fija. Apagarlo también evita que un tabulador se meta en un formulario
+   que en esta pantalla no existe.
+
+   `html.solo-vector` la pone js/cotizador/arranque.js al final del arranque, leyendo el hash.
+   En la plataforma estas reglas son inertes: su <html> nunca lleva esa clase. */
+/* Los tres hijos del <body> que son «el cotizador». Lo demás que cuelga del body son los
+   modales —uno de ellos es el vectorizador— y el `.toast`, que se queda encendido a
+   propósito: el vectorizador habla por ahí dieciocho veces, y apagarlo lo dejaría mudo
+   justo cuando falla. */
+html.solo-vector .topbar,
+html.solo-vector .wrap,
+html.solo-vector .mbar{display:none !important}
+/* Sin la barra de pasos ni la del teléfono, el documento no necesita el hueco que les
+   reservaba: sin esto queda una banda muerta arriba del vectorizador. */
+html.solo-vector body{padding:0 !important;margin:0 !important;min-height:100%}
+/* Y la salida «Volver al cotizador» no lleva a ninguna parte cuando se entró directo aquí:
+   detrás no hay cotización, hay una pantalla en blanco. La plataforma ya tiene su propia
+   barra para cambiar de herramienta. */
+html.solo-vector .sp-close,
+html.solo-vector .sp-back-m{display:none !important}
+
+/* Las dos acciones que solo existen dentro de una cotización. «Agregar como partida» llamaría
+   a addItem() sobre una cotización que en esta pantalla no se ve —el trabajo se guardaría en
+   un borrador invisible— y «Medir en el escalador» abre otra herramienta de la venta. No se
+   desactivan: se quitan. Un botón apagado que nadie puede encender es una pregunta sin
+   respuesta cada vez que se abre la pantalla.
+
+   Lo que SÍ se queda es «Acomodar en hoja · anidador», que es exactamente el paso siguiente
+   del taller y el que justifica que esta puerta exista. */
+html.solo-vector #vt-btn-partidas,
+html.solo-vector #vt-btn-scaler,
+html.solo-vector #vt-acc-note{display:none !important}
+
 /* ============================================================================
    (7) TEMA OSCURO
 

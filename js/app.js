@@ -69,6 +69,11 @@ const RUTAS = [
      pestaña del Tablero sigue existiendo para no romper `#/hoy/anidador`, que es a donde
      apuntan el vectorizador del cotizador y la orden de obra. */
   { ruta: 'anidador',  mod: 'herramientas', seccion: 'mod-anidador',   icono: 'i-anidar',    nombre: 'Mesa de corte', sub: 'acomodar las piezas en la lámina',                roles: ['direccion', 'fabricacion'] },
+  /* El vectorizador, por la misma razón: convertir un logotipo en trazo de corte se hace con
+     el archivo en la mano, y estaba detrás del botón «Vectorizar» de una partida. Para usarlo
+     había que abrir una cotización que nadie iba a mandar. El botón del cotizador se queda
+     donde está: son dos puertas al mismo documento, no dos implementaciones. */
+  { ruta: 'vectorizar', mod: 'herramientas', seccion: 'mod-vectorizar', icono: 'i-vector',   nombre: 'Vectorizador',  sub: 'del logotipo al trazo de corte',                  roles: ['direccion', 'fabricacion'] },
   /* La pantalla del dinero: ventas por mes, cartera y bitácora. Fabricación no la tiene —es
      el rol que no ve importes— y en el teléfono no entra a la barra de abajo por lo mismo que
      Material: se llega desde el Tablero. */
