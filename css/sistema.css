@@ -5041,3 +5041,78 @@ html.arrancando .wrap,html.arrancando .mbar,html.arrancando .an-wrap,html.arranc
   color:var(--tinta2);font-size:var(--t3);font-weight:500}
 @media(prefers-reduced-motion:reduce){ .esq-b,.esq-boton,.esq-giro{animation:none} }
 @media print{ .arranque,.esq-giro{display:none!important} }
+
+/* ============================================================================
+   LA PUERTA — la pantalla de entrar con Google.
+
+   Tapa el documento entero mientras no se sepa quién está del otro lado. Es `position:fixed`
+   con `inset:0` y un z-index por encima de TODO lo demás —el filete de marca va en 200, el
+   aviso emergente en 100, las capas en 60— porque una puerta que deja asomar el tablero por
+   debajo no es una puerta. Y `html.con-puerta` apaga el desplazamiento del documento: sin
+   eso, en el teléfono se puede arrastrar la página detrás del panel y leer media pantalla de
+   proyectos.
+
+   No trae ni un color propio: son los mismos tokens de la plataforma, así que hereda el tema
+   claro u oscuro del aparato sin una línea extra. La única excepción es la G de Google, que
+   va con sus cuatro colores de marca — ver G_GOOGLE en js/nucleo/puerta.js.
+   ============================================================================ */
+html.con-puerta,html.con-puerta body{overflow:hidden}
+.pf-puerta{position:fixed;inset:0;z-index:300;background:var(--fondo);
+  display:flex;align-items:center;justify-content:center;
+  /* La muesca del iPhone y la barra de gestos: el panel es lo único en pantalla, así que si
+     algo se mete debajo del redondeo no hay nada más a lo que echarle la culpa. */
+  padding:max(var(--e5),env(safe-area-inset-top,0px)) max(var(--e4),env(safe-area-inset-right,0px))
+          max(var(--e5),env(safe-area-inset-bottom,0px)) max(var(--e4),env(safe-area-inset-left,0px));
+  overflow-y:auto}
+.pf-puerta[hidden]{display:none}
+
+.puerta-caja{width:100%;max-width:420px;text-align:center;
+  /* `auto` arriba y abajo y no `align-items:center` a secas: con el teclado abierto o en un
+     teléfono acostado el panel es más alto que la pantalla, y centrado se le corta la cabeza
+     sin poder subir. Así se centra cuando cabe y se desplaza cuando no. */
+  margin:auto}
+.puerta-logo{display:block;margin:0 auto var(--e5);width:72px;height:auto}
+.puerta-caja h1{font-family:var(--f-cifra);font-size:var(--t7);line-height:1.15;letter-spacing:-.02em;
+  margin:0 0 var(--e3);color:var(--tinta)}
+.puerta-sub{color:var(--tinta2);font-size:var(--t4);line-height:1.6;margin:0 0 var(--e5)}
+
+/* El aviso. Dos pesos: el ámbar de «no se pudo preguntar, inténtalo» y el rojo de «tu correo
+   no está en la lista», que es definitivo y no se arregla insistiendo. Darles el mismo color
+   haría que el segundo se leyera como un error de red y la persona apretara diez veces. */
+.puerta-aviso{font-size:var(--t3);line-height:1.55;text-align:left;
+  background:var(--av-bg);color:var(--av);border:1px solid var(--av-borde);
+  border-radius:var(--rr3);padding:var(--e3) var(--e4);margin:0 0 var(--e4)}
+.puerta-aviso.es-no{background:var(--mal-bg);color:var(--mal);border-color:var(--mal-borde)}
+.puerta-aviso b{font-weight:700}
+
+.puerta-btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;
+  width:100%;min-height:52px;padding:14px 22px;border:none;border-radius:var(--rr3);
+  background:var(--a-fill);color:#fff;font-family:var(--f-texto);font-size:var(--t4);font-weight:600;
+  cursor:pointer;box-shadow:var(--sombra);transition:background .12s}
+.puerta-btn:hover:not(:disabled){background:var(--a-fuerte)}
+.puerta-btn:disabled{opacity:.72;cursor:default}
+/* La G va sobre un cuadro blanco SIEMPRE: sus cuatro colores de marca están pensados para
+   fondo claro y sobre el azul del botón el rojo y el verde se apagan. */
+.puerta-g{flex:0 0 auto;background:#fff;border-radius:3px;padding:3px;box-sizing:content-box}
+.puerta-btn .esq-giro{border-color:rgba(255,255,255,.4);border-top-color:#fff}
+
+.puerta-otra{display:block;margin:var(--e3) auto 0;background:none;border:none;
+  color:var(--a-tx);font-family:var(--f-texto);font-size:var(--t3);font-weight:600;
+  cursor:pointer;padding:8px;text-decoration:underline}
+
+.puerta-pie{margin:var(--e6) 0 0;font-size:var(--t2);color:var(--tinta3)}
+.puerta-pie a{color:var(--tinta3)}
+
+@media(max-width:420px){
+  .puerta-caja h1{font-size:var(--t6)}
+  .puerta-logo{margin-bottom:var(--e4)}
+}
+/* En papel no hay puerta: si alguien imprime, ya entró. */
+@media print{ .pf-puerta{display:none!important} }
+
+/* El candadito al lado de «Con qué rol trabajas» cuando el rol lo manda la hoja. Va pegado a
+   la etiqueta y no al lado del interruptor: la pregunta que contesta —«¿por qué está
+   apagado?»— se hace mirando el título, antes de intentar apretar. */
+.pf-candado{display:inline-flex;align-items:center;gap:4px;margin-left:8px;
+  font-size:var(--t1);font-weight:600;color:var(--tinta3);text-transform:none;letter-spacing:0}
+.pf-candado .svgi{width:13px;height:13px}

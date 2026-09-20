@@ -298,6 +298,22 @@
   <svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg><span class="tx">Preguntar</span>
 </button>
 
+<!-- ============================================================================
+     LA PUERTA. Tapa la pantalla entera mientras no se sepa quién entró.
+
+     Nace VACÍA y oculta: el contenido lo escribe js/nucleo/puerta.js. Es al revés que el
+     esqueleto del arranque de arriba —que es marcado fijo justo para verse antes de que
+     corra un guion— y la razón es que aquí enseñar algo antes de tiempo sería mentir: la
+     mayoría de las mañanas la sesión de Google se renueva sola y nadie tiene que ver una
+     pantalla de entrada. Pintar «Entrar con Google» durante 300 ms para quitarlo después
+     enseñaría una puerta a quien ya tenía la llave puesta.
+
+     Lo que sí hace falta es que el ELEMENTO exista en el documento: puerta.js no lo crea,
+     lo busca, y si no está se entra sin puerta y se dice en la consola por qué. Un
+     index.html a medias es un error de despliegue, no un intento de colarse, y dejar la app
+     colgada para siempre en una pantalla que no existe no ayudaría a nadie. ========== -->
+<div class="pf-puerta" id="pf-puerta" hidden role="dialog" aria-modal="true" aria-label="Entrar a la plataforma"></div>
+
 <div class="toast" id="toast"></div>
 
 <!-- Dos regiones que nunca se ocultan. El aviso emergente se escribe estando invisible, o

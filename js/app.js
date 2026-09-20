@@ -134,6 +134,15 @@ let _vivo = null;        // el módulo montado, para desmontarlo
    buscar lo que ya estabas mirando. */
 let _pase = null;
 
+/* ----- Quién entró -----
+   Lo que contestó la puerta al arrancar: `{via, correo, rol, nota}`. Se guarda porque hay
+   dos sitios que necesitan saberlo después —la banda de arriba, que enseña la `nota`, y
+   Ajustes, que dice «entraste como fulano@…»— y porque volver a preguntárselo a la puerta
+   costaría otra vuelta de red para saber algo que ya se sabe. */
+let _quien = null;
+/** Quién entró, para los módulos. Nunca null después del arranque. */
+export const quienEntro = () => _quien || { ok: false, via: '', correo: '', rol: Prefs.rol(), nota: '' };
+
 /* ----- La guarda del remonte -----
    Un módulo que sostiene un <iframe> vivo pide que no se le remonte por debajo. El oyente de
    'storage' remonta el módulo actual cuando el cotizador guarda, y eso es correcto para los
@@ -470,14 +479,28 @@ ctx.ponerCuenta = ponerCuenta;
 function pintarRolSeg() {
   const seg = $('pf-rolseg'); if (!seg) return;
   const actual = Prefs.rol();
+  /* Cuando el rol viene de la hoja, los otros dos van deshabilitados y el que estás usando
+     se queda encendido. La tira no se esconde: sigue diciendo con qué rol trabajas, que es
+     información útil aunque ya no sea un mando. El `title` cambia para contestar la pregunta
+     obvia —«¿por qué no me deja?»— en el sitio donde se hace. */
+  const deLaHoja = Prefs.rolDeLaHoja();
   seg.innerHTML = Prefs.ROLES.map(r =>
     '<button class="' + (r === actual ? 'on' : '') + '" aria-pressed="' + (r === actual) + '"' +
-    ' data-rol="' + r + '" title="' + esc(Prefs.ROL_DESC[r]) + '">' +
+    (deLaHoja && r !== actual ? ' disabled aria-disabled="true"' : '') +
+    ' data-rol="' + r + '" title="' +
+    esc(deLaHoja && r !== actual ? Prefs.ROL_LO_MANDA_LA_HOJA : Prefs.ROL_DESC[r]) + '">' +
     esc(Prefs.ROL_NOMBRE[r]) + '</button>').join('');
 }
 
 function cambiarRol(r) {
   if (r === Prefs.rol()) return;
+  /* La guarda de verdad, no la del atributo. `disabled` en el botón es maquetación y
+     `aplicarRol()` de Ajustes llega hasta aquí simulando un clic: si la regla viviera solo
+     en el HTML, el camino de Ajustes se la saltaría entero. */
+  if (Prefs.rolDeLaHoja()) {
+    toast(Prefs.ROL_LO_MANDA_LA_HOJA, '', 6000);
+    return;
+  }
   if (!Prefs.setRol(r)) { toast('No se pudo guardar el rol en este dispositivo', 'err'); return; }
   pintarRolSeg();
   /* Cambiar de rol cambia qué módulos existen. Si el que estaba abierto no le toca al rol
@@ -520,6 +543,19 @@ function revisarDispositivo() {
       accion: { label: 'Recargar', fn: () => location.reload() } });
     return;
   }
+  /* Lo que la puerta dejó dicho va ANTES que el recordatorio del respaldo. Las tres cosas
+     que puede decir —se entró con el token del aparato y no con una cuenta, el pase se está
+     acabando, la copia está rota— cambian en qué condiciones estás trabajando ahora mismo;
+     «van 11 días sin respaldo» es importante y puede esperar a la siguiente apertura. */
+  if (_quien && _quien.nota) {
+    pintarBanda({ tono: _quien.via === 'roto' ? 'mal' : '', html: esc(_quien.nota),
+      /* Sin acción para el token de dispositivo: ahí no hay nada que apretar, es el estado
+         en el que ese aparato trabaja a propósito. Para los otros dos, recargar es
+         literalmente lo que arregla. */
+      accion: _quien.via === 'token' ? null : { label: 'Recargar', fn: () => location.reload() } });
+    return;
+  }
+
   const d = Prefs.diasSinRespaldo();
   /* Safari desaloja el almacenamiento de sitios que llevan semanas sin abrirse, y iOS es
      donde esto se usa. Un respaldo es la única defensa, y el aviso es lo único que hace que
@@ -563,9 +599,40 @@ ctx.respaldar = respaldar;
    ============================================================================ */
 
 async function arrancar() {
+  /* ----- LA PUERTA, antes que nada -----
+     Antes que abrir la base, antes que pintar la barra y antes que montar un módulo: no se
+     enseña una sola fila de este taller sin saber quién está del otro lado. `custodiar()` no
+     contesta hasta que hay derecho a pasar, así que todo lo de abajo espera.
+
+     Va también antes de `pintarNav()` por una razón práctica: el rol sale del pase, y pintar
+     la barra antes sería pintarla con el rol de la vez pasada para corregirla medio segundo
+     después.
+
+     ── Si el módulo no carga ──────────────────────────────────────────────────
+     Se entra, y se dice en la banda de arriba. Parece contradictorio y no lo es: para que
+     este `catch` ocurra hace falta un service worker a medias en un aparato QUE YA TENÍA LA
+     APP. Quien abre el enlace por primera vez baja los archivos y la puerta funciona; y en
+     un aparato que ya la tenía, lo que esta pantalla protege —los datos que ya están en su
+     IndexedDB— lo puede leer igual cualquiera que sepa abrir las herramientas del navegador.
+     Dejar la plataforma muerta en una azotea por un archivo que no bajó costaría más de lo
+     que guarda. Ver la cabecera de js/nucleo/puerta.js. */
+  faseArranque('Comprobando quién entra…');
+  try {
+    const Puerta = await import('./nucleo/puerta.js');
+    _quien = await Puerta.custodiar();
+  } catch (e) {
+    console.error('no se pudo cargar la puerta', e);
+    _quien = { ok: true, via: 'roto', correo: '', rol: Prefs.rol(),
+      nota: 'Esta copia de la plataforma no pudo comprobar tu cuenta de Google. Recárgala cuando tengas señal.' };
+  }
+
   /* Si a los ocho segundos el esqueleto del arranque sigue en pantalla, algo de lo de abajo
      no llegó —la base que no abre, un import colgado por un service worker a medias— y lo
-     único útil es decirlo y ofrecer recargar. `quitarArranque()` lo cancela al pintar. */
+     único útil es decirlo y ofrecer recargar. `quitarArranque()` lo cancela al pintar.
+
+     El reloj se pone DESPUÉS de la puerta: mientras la puerta está puesta, el arranque no va
+     lento, está esperando a una persona, y ocho segundos es poco para leer una pantalla,
+     elegir una cuenta de Google y volver. */
   _lentoArranque = setTimeout(() => avisarLento($('pf-arranque'), null), MS_LENTO_ARRANQUE);
   pintarRolSeg();
   pintarNav();

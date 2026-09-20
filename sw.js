@@ -27,7 +27,7 @@
    el cotizador. Antes era al revés. `plataforma.html` sigue existiendo como reenvío de diez
    líneas, porque hay marcadores e iconos instalados que apuntan ahí.
 
-   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 33 módulos ES que
+   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 34 módulos ES que
    se importan entre sí: con mala señal, `app.js` llega de la red (versión nueva) y
    `material.js` de la caché (versión vieja), el import falla y queda una PANTALLA BLANCA —
    justo en el escenario para el que el service worker existe. Un módulo nuevo con un módulo
@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 50;
+const APP_VERSION = 51;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -65,6 +65,13 @@ const APP_FILES = [
      ella lo que queda no es la app de antes sino la app SIN cromado —barras sin fondo y
      pastillas a medio radio—, que es peor que cualquiera de las dos versiones enteras. */
   './css/vidrio.css',
+  /* Las tres páginas públicas y su hoja. Se guardan porque la puerta las enlaza al pie: una
+     política de privacidad que solo se puede leer con señal es una política de privacidad a
+     medias, y son ocho kilobytes. */
+  './acerca.html',
+  './privacidad.html',
+  './condiciones.html',
+  './css/publico.css',
   './js/tema.js',
   /* El cotizador: la página y sus once guiones. Van juntos porque se cargan en orden y se
      llaman entre sí; uno nuevo con uno viejo no arranca. */
@@ -86,6 +93,10 @@ const APP_FILES = [
   './js/nucleo/ics.js',
   './js/nucleo/gcal.js',
   './js/nucleo/ingreso.js',
+  /* La puerta. Va con app.js y no aparte: desde la versión 51 el arranque NO monta nada sin
+     que ésta conteste, así que una copia sin este archivo es una copia que entra por el
+     camino de emergencia y lo dice en la banda de arriba. */
+  './js/nucleo/puerta.js',
   './js/nucleo/asistente.js',
   './js/datos/db.js',
   './js/datos/prefs.js',
@@ -332,7 +343,7 @@ async function plataforma(req) {
 
 let _revalidando = false;
 function revalidar(req) {
-  /* Una sola revalidación por vuelta: la plataforma pide 33 módulos al arrancar y no tiene
+  /* Una sola revalidación por vuelta: la plataforma pide 34 módulos al arrancar y no tiene
      sentido mandar 25 peticiones a la red para enterarse de lo mismo. */
   if (_revalidando) return;
   _revalidando = true;

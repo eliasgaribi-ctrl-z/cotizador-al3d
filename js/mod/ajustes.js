@@ -299,6 +299,13 @@ function pintar() {
 
 function cardQuienEres() {
   const r = Prefs.rol();
+  /* Desde que se entra con Google, el rol puede venir de la hoja. Cuando viene de ahí el
+     interruptor se pinta APAGADO en vez de desaparecer: quitarlo dejaría a quien lo buscara
+     pensando que se rompió algo, y verlo apagado con la razón debajo contesta la pregunta
+     antes de que se haga. Que siguiera moviéndose sería peor que las dos: cambiaría la
+     pantalla, no cambiaría nada de lo que la hoja deja escribir, y el síntoma —«me deja
+     verlo pero me lo rechaza»— no se parece a la causa. */
+  const deLaHoja = Prefs.rolDeLaHoja();
   return tarjeta('i-ajustes', 'Quién eres',
     '<div class="fld"><label for="aj-nombre">Tu nombre</label>' +
     '<input type="text" id="aj-nombre" maxlength="40" autocomplete="name" value="' +
@@ -307,12 +314,15 @@ function cardQuienEres() {
     ico('i-guardar') + ' Guardar el nombre</button>' +
 
     '<div class="fld aj-bloque">' +
-    '<div class="fld-lab" id="aj-rol-lab">Con qué rol trabajas</div>' +
-    seg(Prefs.ROLES.map(x => ({ v: x, t: Prefs.ROL_NOMBRE[x] })), r, 'data-rol', 'aj-rol-lab') +
+    '<div class="fld-lab" id="aj-rol-lab">Con qué rol trabajas' +
+      (deLaHoja ? ' <span class="pf-candado">' + ico('i-candado') + ' lo manda la hoja</span>' : '') +
+    '</div>' +
+    seg(Prefs.ROLES.map(x => ({ v: x, t: Prefs.ROL_NOMBRE[x], off: deLaHoja && x !== r })),
+        r, 'data-rol', 'aj-rol-lab') +
     '</div>' +
     '<p class="pf-nota">' + esc(Prefs.ROL_DESC[r]) + '</p>' +
 
-    nota(esc(Prefs.ROL_NO_ES_SEGURIDAD)) +
+    nota(esc(deLaHoja ? Prefs.ROL_LO_MANDA_LA_HOJA : Prefs.ROL_NO_ES_SEGURIDAD)) +
 
     '<dl class="pf-dato aj-bloque"><dt>Así se firman tus movimientos</dt>' +
     '<dd>' + esc(Prefs.sello()) + '</dd></dl>' +
@@ -506,6 +516,9 @@ function cardGcal() {
 
 function cardPuente() {
   const p = Prefs.puente() || {};
+  /* Lo que de verdad está escrito en este aparato, sin la dirección de fábrica: el campo de
+     la liga tiene que salir VACÍO mientras nadie la haya tocado. */
+  const guardado = Prefs.puenteGuardado() || {};
   const s = Sync.estado();
   const ins = Puente.instrucciones();
 
@@ -599,12 +612,20 @@ function cardPuente() {
 
     bloqueIngreso() +
 
-    /* La LIGA va fuera del plegable a propósito: hace falta para las DOS puertas, no solo
-       para el token. Es la dirección de la hoja, no una credencial. */
-    '<div class="fld aj-bloque">' +
+    /* La LIGA baja a plegable, con el token. Desde que la dirección viene de fábrica en el
+       código —ver URL_PUENTE en js/datos/prefs.js— este campo dejó de ser un paso del alta y
+       pasó a ser lo que siempre debió ser: la anulación para apuntar UN aparato a un
+       despliegue de prueba. Dejarlo arriba y vacío hacía que pareciera obligatorio, y llenarlo
+       con la de fábrica haría creer que alguien la pegó. */
+    '<details class="aj-bloque"><summary>Apuntar este aparato a otro despliegue</summary>' +
+    nota('La plataforma ya trae la dirección del puente. Esto solo se toca para probar un ' +
+         'despliegue nuevo del Apps Script en un teléfono antes de cambiárselo a todos. ' +
+         'Vacío = la de fábrica.', 'av') +
+    '<div class="fld">' +
     '<label for="aj-worker-url">Liga del puente</label>' +
     '<input type="url" id="aj-worker-url" autocomplete="off" spellcheck="false" ' +
-    'placeholder="https://script.google.com/macros/s/…/exec" value="' + esc(p.url || '') + '"></div>' +
+    'placeholder="' + esc(Prefs.URL_PUENTE.slice(0, 44)) + '… (la de fábrica)" value="' +
+    esc(guardado.url || '') + '"></div></details>' +
 
     /* El token baja a salida de emergencia: sigue entero, pero plegado. Quien entra con
        Google no tiene por qué verlo, y quien lo necesite un día sabe dónde está. */
@@ -940,8 +961,10 @@ function bloqueIngreso() {
       (dentro ? '.' : ' — la sesión de Google caducó y se renueva sola al abrir la app, o ' +
                       'aquí con «Entrar con Google».'), dentro ? 'ok' : 'av') +
     '<p class="pf-nota">El rol no sale de este aparato: sale de lo que diga tu correo en la ' +
-    'pestaña <b>Accesos</b> de la hoja. Cambiar el departamento aquí arriba cambia el tablero ' +
-    'que ves, no lo que puedes escribir.</p>' +
+    'pestaña <b>Accesos</b> de la hoja, y por eso el interruptor de arriba está apagado. Para ' +
+    'cambiarlo, Dirección cambia tu renglón allá.</p>' +
+    '<p class="pf-nota">Al salir se cierra la plataforma y vuelve la pantalla de entrar. Lo ' +
+    'guardado en este aparato no se borra.</p>' +
     '<div class="pf-acciones">' +
     (dentro ? '' : '<button type="button" class="btn btn-pri" data-act="ingreso-entrar">' +
       ico('i-nube') + ' Entrar con Google</button>') +
@@ -960,12 +983,17 @@ async function entrarConGoogle() {
   if (CTX.refrescar) CTX.refrescar();
 }
 
-function salirDeGoogle() {
-  Ingreso.salir();
-  /* «De este dispositivo» y no «cerrar sesión»: el consentimiento sigue dado en la cuenta de
+async function salirDeGoogle() {
+  /* Salir CIERRA la puerta. Antes soltaba el token y dejaba la app abierta con los proyectos
+     y los importes de quien acababa de salir en pantalla, que es exactamente lo contrario de
+     lo que la palabra «salir» promete. Se borra el pase y se recarga: lo siguiente que se ve
+     es la pantalla de entrar.
+
+     «De este dispositivo» y no «cerrar sesión»: el consentimiento sigue dado en la cuenta de
      Google y se quita desde ahí. Decir otra cosa sería mentir sobre lo que acaba de pasar. */
-  toast('Saliste de Google en este dispositivo', 'ok');
-  if (CTX.refrescar) CTX.refrescar();
+  toast('Saliste. Vuelve la pantalla de entrar…', 'ok', 2000);
+  const Puerta = await import('../nucleo/puerta.js');
+  await Puerta.salir();     // borra el pase, suelta el token y recarga
 }
 
 async function conectarGcal() {
@@ -1007,19 +1035,22 @@ async function conElPuente(etiqueta, fn) {
 async function guardarPuente() {
   const url = ($('aj-worker-url') && $('aj-worker-url').value || '').trim();
   const nuevo = ($('aj-worker-tok') && $('aj-worker-tok').value || '').trim();
-  const prev = Prefs.puente() || {};
+  /* `puenteGuardado` y no `puente`: lo segundo trae la dirección de fábrica inyectada, y
+     escribirla de vuelta congelaría en este aparato la URL del día en que alguien abrió esta
+     pantalla. El día que el Apps Script se redesplegara, este teléfono seguiría hablándole al
+     despliegue muerto y nadie sabría por qué. Vacío tiene que seguir significando «la de
+     fábrica, la que diga el código». */
+  const prev = Prefs.puenteGuardado() || {};
 
-  if (!url) { toast('Falta la liga del puente', 'err', 4200); return; }
-  if (!/^https:\/\//i.test(url)) {
+  /* La liga ya no es obligatoria: si está vacía se borra la anulación y manda la de fábrica. */
+  if (url && !/^https:\/\//i.test(url)) {
     toast('La liga del puente tiene que empezar con https:// — un token no viaja en claro', 'err', 5200);
     return;
   }
   const token = nuevo || prev.token || '';
-  if (!token) {
-    toast('Falta el token de este dispositivo. Sin él el puente no sabe quién le habla y lo rechaza.', 'err', 5600);
-    return;
-  }
-  if (!Prefs.setPuente({ ...prev, url: Puente.normalizarUrl(url), token })) {
+  /* Y el token tampoco: la puerta normal es la cuenta de Google. Exigirlo aquí era lo que
+     obligaba a pegar una cadena para guardar una liga, que es justo lo que se quitó. */
+  if (!Prefs.setPuente({ ...prev, url: url ? Puente.normalizarUrl(url) : '', token })) {
     toast('Este navegador no dejó guardar el puente', 'err', 4200);
     return;
   }
@@ -1046,7 +1077,7 @@ async function probarPuente() {
     if (SALUD.ok) {
       /* El rol se recuerda junto a la URL para que la pantalla pueda decir de qué es este
          token sin volver a preguntar. El token NO se vuelve a escribir aquí: ya está. */
-      const prev = Prefs.puente() || {};
+      const prev = Prefs.puenteGuardado() || {};
       Prefs.setPuente({ ...prev, rol: SALUD.rol || '', probado: Date.now() });
       /* Contesta, pero ¿con el contrato que esta plataforma espera? Una hoja con el Apps
          Script de antes manda el saldo al revés y no conoce el % de comisión, y «contesta»

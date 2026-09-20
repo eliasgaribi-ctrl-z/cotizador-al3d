@@ -45,7 +45,35 @@ export const CLAVES = {
      volver a gastar una petición en comprobarla. Estaba escrita como literal allá; la lista
      de claves de la plataforma es ésta y no hay otra. */
   IA_OK:      'al3d_pf_ia_ok',
+  /* EL PASE. Lo que la hoja contestó la última vez que se preguntó quién es el que entró:
+     {correo, rol, hasta}. Ver js/nucleo/puerta.js — el porqué de que exista está entero
+     allá, y se resume en que el aparato tiene que abrir en una azotea sin señal. */
+  PASE:       'al3d_pf_pase',
 };
+
+/* ----------------------------------------------------------------------------
+   LA DIRECCIÓN DEL PUENTE, en el código y no en cada aparato.
+
+   Hasta hoy esto se tecleaba en Ajustes, teléfono por teléfono. Eso volvía imposible lo
+   que se acaba de construir: si entrar a la plataforma es «entra con tu cuenta de Google»,
+   pero antes alguien tiene que pegarte a mano una URL de 120 caracteres para que la app
+   pueda siquiera PREGUNTARLE a la hoja qué rol tienes, entonces dar de alta a una persona
+   sigue siendo una sesión de configuración y no un enlace.
+
+   ¿Es un secreto? No, y conviene tenerlo claro porque el repositorio es público. Esta
+   dirección es el TIMBRE, no la llave. El Apps Script que hay del otro lado no contesta
+   nada sin una de dos puertas: un token de Google cuya audiencia sea esta app y cuyo correo
+   esté en la pestaña «Accesos», o un token de dispositivo. Quien tenga solo la dirección
+   recibe `ROL_SIN_PERMISO` y nada más. Publicar la dirección de una API es lo normal;
+   publicar la llave no lo sería, y por eso los tokens de dispositivo siguen viviendo en las
+   propiedades del script y NUNCA en el repositorio.
+
+   Si algún día se vuelve a desplegar el Apps Script con una URL nueva, se cambia aquí. El
+   campo de Ajustes se queda como anulación por dispositivo: sirve para probar un despliegue
+   nuevo en un solo teléfono antes de cambiárselo a todos.
+   ---------------------------------------------------------------------------- */
+export const URL_PUENTE =
+  'https://script.google.com/macros/s/AKfycbwY6qsBGs1dt17ORGo7dc7YkJr3k_9M-6iVS82gu2NikL81qU6WTunwp84IHFXPOQyqLQ/exec';
 
 export const ROLES = ['direccion', 'fabricacion', 'pagos'];
 export const ROL_NOMBRE = {
@@ -108,11 +136,28 @@ export function dispositivo() {
   return d;
 }
 
+/* EL ROL SALE DE LA HOJA, no de este aparato.
+ *
+ * Antes era un interruptor de tres posiciones en Ajustes que cualquiera movía, y estaba
+ * bien mientras la plataforma no tenía servidor: era un modo de trabajo, no un permiso.
+ * Desde que se entra con la cuenta de Google, el rol lo decide la pestaña «Accesos» de la
+ * hoja y llega en el pase. El interruptor se queda para el día sin pase —un aparato que
+ * todavía trabaja con token de dispositivo— y Ajustes lo pinta apagado cuando hay pase,
+ * diciendo dónde se cambia de verdad.
+ *
+ * Que alguien se ponga «direccion» a mano en la consola no le abre nada: el Apps Script
+ * decide qué escribe cada rol con el correo que verificó, no con lo que diga el teléfono.
+ * Lo único que conseguiría es enseñarse a sí mismo una pantalla vacía. */
 export function rol() {
+  const p = pase();
+  if (p) return p.rol;
   const r = get(CLAVES.ROL, 'direccion');
   return ROLES.includes(r) ? r : 'direccion';
 }
 export function setRol(r) { return ROLES.includes(r) ? set(CLAVES.ROL, r) : false; }
+/** true cuando el rol lo manda la hoja y no este aparato. Ajustes lo usa para apagar el
+ *  interruptor y decir por qué, en vez de dejar que alguien lo mueva y no pase nada. */
+export const rolDeLaHoja = () => !!pase();
 export const esDireccion   = () => rol() === 'direccion';
 export const esFabricacion = () => rol() === 'fabricacion';
 export const esPagos       = () => rol() === 'pagos';
@@ -127,9 +172,15 @@ export const veDinero = () => rol() !== 'fabricacion';
 /* Y esto hay que decirlo en la pantalla de ajustes, no esconderlo en un comentario:
    en fase 1 no hay servidor y cualquiera puede cambiar su rol. Lo que se defiende no es
    el secreto, es el ruido. */
+/* Lo que hay que decirle a quien está mirando el interruptor del rol. Son dos textos porque
+   desde que se entra con Google son dos situaciones distintas, y darles la misma explicación
+   haría que una de las dos fuera mentira. */
 export const ROL_NO_ES_SEGURIDAD =
   'El rol decide qué pantallas ves, no a qué tienes derecho. Mientras la plataforma viva ' +
   'solo en este dispositivo, cualquiera que lo tenga en la mano puede cambiarlo.';
+export const ROL_LO_MANDA_LA_HOJA =
+  'Tu rol lo decide la pestaña «Accesos» de la hoja de finanzas, no este teléfono. Para ' +
+  'cambiarlo, Dirección cambia tu renglón allá y se aplica la próxima vez que abras la app.';
 
 export function nombre() { return get(CLAVES.NOMBRE, ''); }
 export function setNombre(n) { return set(CLAVES.NOMBRE, String(n || '').trim().slice(0, 40)); }
@@ -190,16 +241,31 @@ export function gcal() { return get(CLAVES.GCAL, null); }
 export function setGcal(cfg) { return set(CLAVES.GCAL, cfg); }
 export const hayGcal = () => { const g = gcal(); return !!(g && g.clientId); };
 
-export function puente() { return get(CLAVES.PUENTE, null); }
+/** La configuración del puente, con la dirección de fábrica ya puesta.
+ *
+ *  Devolver siempre una `url` es lo que hace que un teléfono recién estrenado sincronice sin
+ *  que nadie teclee nada: lo único que le falta es la identidad, y ésa la pone la persona al
+ *  entrar con Google. Lo guardado gana, para poder apuntar un aparato a un despliegue de
+ *  prueba sin tocar el código. */
+export function puente() {
+  const g = get(CLAVES.PUENTE, null) || {};
+  const url = (typeof g.url === 'string' && g.url.trim()) ? g.url.trim() : URL_PUENTE;
+  return { ...g, url };
+}
+/** Lo que de verdad hay ESCRITO en este aparato, sin la dirección de fábrica. Ajustes la usa
+ *  para pintar el campo vacío cuando nadie lo ha tocado, en vez de enseñar la de fábrica como
+ *  si alguien la hubiera pegado. */
+export function puenteGuardado() { return get(CLAVES.PUENTE, null); }
 export function setPuente(cfg) { return set(CLAVES.PUENTE, cfg); }
-/* Hay puente cuando hay dirección y ALGUNA puerta: el token de dispositivo, o un ingreso de
-   Google hecho en este aparato. Antes exigía el token, y con eso un teléfono que entra con
-   Google —que es el camino normal desde septiembre de 2026— se quedaba con la sincronización
-   apagada y sin decir por qué. El correo guardado basta como señal: si el token de Google no
-   se puede renovar, el puente contesta con su razón y la pantalla la enseña. */
+/* Hay puente cuando hay ALGUNA puerta: el token de dispositivo, o un ingreso de Google hecho
+   en este aparato. La dirección ya no se comprueba porque ya no puede faltar —ver URL_PUENTE
+   arriba—; antes se exigía, y con eso un teléfono que entra con Google se quedaba con la
+   sincronización apagada y sin decir por qué. El correo guardado basta como señal: si el
+   token de Google no se puede renovar, el puente contesta con su razón y la pantalla la
+   enseña. */
 export const hayPuente = () => {
   const p = puente();
-  if (!p || !p.url) return false;
+  if (!p.url) return false;
   if (p.token) return true;
   const g = ingreso();
   return !!(g && g.correo);
@@ -207,5 +273,23 @@ export const hayPuente = () => {
 
 export function ingreso() { return get(CLAVES.INGRESO, null); }
 export function setIngreso(cfg) { return set(CLAVES.INGRESO, cfg); }
+
+/* ----- El pase -----
+   Lo último que la hoja contestó sobre quién entró: {correo, rol, hasta}. Lo escribe
+   js/nucleo/puerta.js cuando el puente confirma la identidad, y lo borra cuando el puente
+   dice que ese correo ya no tiene acceso.
+
+   NO es una credencial y no hay que confundirlo con una: no abre el puente —eso lo hace el
+   token de Google, que se verifica del otro lado en cada petición— y cualquiera con la
+   consola del navegador abierta puede escribir uno a mano. Lo que hace es que la app pueda
+   abrir sin señal sabiendo a quién le abre. Ver la cabecera de puerta.js. */
+export function pase() {
+  const p = get(CLAVES.PASE, null);
+  if (!p || typeof p.correo !== 'string' || !ROLES.includes(p.rol)) return null;
+  if (!(Number(p.hasta) > Date.now())) return null;     // caducado, o sin fecha: no vale
+  return p;
+}
+export function setPase(p) { return set(CLAVES.PASE, p); }
+export function borrarPase() { return set(CLAVES.PASE, null); }
 
 export function empresa() { return get(CLAVES.EMPRESA, 'al3d'); }

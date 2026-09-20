@@ -583,11 +583,19 @@ export function crear(cfg0) {
         if (Array.isArray(r.cuerpo.escribibles)) escribibles = new Set(r.cuerpo.escribibles);
         /* `ok === true` y no «distinto de false»: un JSON cualquiera sin `ok` no es el puente. */
         if (r.cuerpo.ok !== true) {
-          return { ok: false, mensaje: r.cuerpo.mensaje || 'Esa URL contesta, pero no como el puente: revisa que sea la del Worker.' };
+          /* El `codigo` viaja. Sin él, la puerta no puede distinguir «tu correo no está en la
+             lista» —que es definitivo y hay que decirlo con esas palabras— de «no hubo red»,
+             que es esperar. Las dos llegaban aquí como un `ok:false` idéntico. */
+          return { ok: false, codigo: r.cuerpo.codigo || '',
+                   mensaje: r.cuerpo.mensaje || 'Esa URL contesta, pero no como el puente: revisa que sea la del Worker.' };
         }
         return { ok: true, mensaje: 'El puente contesta y reconoce este teléfono.',
                  rol: r.cuerpo.rol || '', version: r.cuerpo.version || '',
-                 escribibles: r.cuerpo.escribibles || [] };
+                 escribibles: r.cuerpo.escribibles || [],
+                 /* Por cuál de las dos puertas entró y con qué correo. La puerta
+                    (js/nucleo/puerta.js) necesita las dos: un `via:'token'` significa que la
+                    hoja reconoció al APARATO y no a la persona, y eso no da pase. */
+                 via: r.cuerpo.via || 'token', correo: r.cuerpo.correo || '' };
       } catch (e) {
         return { ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message };
       }
