@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { deNotion, ventaDeHoja, VERSION_ESPERADA } from '../js/datos/puente.js';
 import { saldoDe, unificar, vendidoDe, resumenMensual } from '../js/datos/ventas.js';
+import { desdeVentaDeHoja } from '../js/datos/proyectos.js';
 
 let bien = 0, mal = 0;
 const eq = (que, dio, esperado) => {
@@ -300,6 +301,18 @@ console.log('\nUNA DE LAS 199, DE LA CELDA AL RÉCORD DE CONTROL');
   const plano = api.aplanarFila(fila, 'America/Mexico_City');
   eq('la fila baja sin folio de cotización', plano['Folio cotizacion'], '');
   eq('deNotion no tiene proyecto que espejar', deNotion(plano), null);
+  /* LA TRAMPA, escrita porque ya se cayó en ella. `bajar()` pedía el parche de `deNotion`
+     ANTES de buscar el proyecto y hacía `continue` con su null. Como `deNotion` devuelve null
+     exactamente cuando la fila no trae folio de cotización —que es LA condición de las filas
+     que hay que importar— el camino de importación no se pisaba nunca: se escribió, pasó las
+     pruebas de node, y en la hoja no apareció ni un proyecto. Lo atrapó mirar el tablero, no
+     una prueba, porque `bajar()` solo lo cubre una de navegador y ésas no corren en Windows.
+     Lo que se prueba aquí es el invariante que hace falta: que de una fila SIN folio de
+     cotización se pueda sacar un proyecto, o sea que la decisión NO puede depender del
+     parche. */
+  cierto('y aun así de esa misma fila tiene que poder salir un proyecto: la decisión de ' +
+         'importar no puede depender del parche de deNotion',
+         !!desdeVentaDeHoja({ ...ventaDeHoja(plano), estatus: 'FABRICACION' }));
   const v = ventaDeHoja(plano);
   eq('pero ventaDeHoja la vuelve un renglón del récord, con el folio de la hoja de id', v.id, 'hoja:V-001');
   eq('con el neto de la hoja', v.neto, 29000);

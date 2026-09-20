@@ -113,6 +113,14 @@ export const ESTATUS_DE_PAGOS = ['COBRANDO', 'LIQUIDADO'];
    Va aquí, al lado del vocabulario, para que quien toque la lista de estatus vea esta. */
 export const VIVAS_EN_TALLER = ['FABRICACION', 'REPARANDO'];
 
+/* Quita las llaves que no traen valor. Un `undefined` en un parche NO es «ponlo en nada»:
+   `sync.fusionar` conserva lo que ya estaba cuando el campo no viene, y dejarlo pasar
+   escribiría `undefined` encima de un dato bueno. */
+function sinIndefinidos(o) {
+  for (const k of Object.keys(o)) if (o[k] === undefined) delete o[k];
+  return o;
+}
+
 /* ----- Las ocho etapas, con el nombre que se lee en Notion -----
    La etapa es de OBRA y el `Estatus` de Notion es de DINERO: son dos ejes y no se mezclan.
    Se manda el nombre legible y no el identificador interno porque del otro lado lo lee una
@@ -735,15 +743,20 @@ export function crear(cfg0) {
         const venta = ventaDeHoja(datos);
         if (venta) registros.push({ almacen: 'ventas_hoja', datos: { ...venta, actualizado_en: Date.now() } });
 
-        /* 2. El espejo del dinero sobre el proyecto de este lado, si lo hay. */
-        const parche = deNotion(datos);
-        if (!parche) continue;
+        /* 2. El proyecto de este lado, si lo hay, por los DOS caminos: el folio de cotización
+           —la venta que nació en el cotizador de alguien— y, si no, el proyecto que este
+           mismo relevo importó de esta misma fila en un barrido anterior. Sin el segundo,
+           cada barrido volvería a crearlo y se perdería lo que el taller hubiera movido.
 
-        /* Se busca por los DOS caminos, en este orden: el folio de cotización —la venta que
-           nació en el cotizador de alguien— y, si no, el proyecto que este mismo relevo
-           importó de esta misma fila en un barrido anterior. Sin el segundo, cada barrido
-           volvería a crear el importado y se perdería lo que el taller hubiera movido. */
-        let local = parche.folio_global ? await porFolioGlobal(parche.folio_global) : null;
+           Y el parche del dinero se calcula DESPUÉS de decidir si hay proyecto, no antes. Al
+           revés estaba mal y costó el caso entero: `deNotion` devuelve null cuando la fila no
+           trae «Folio cotizacion», que es exactamente la condición de las filas que hay que
+           importar. Con el `continue` de ese null por delante, el camino de importación no se
+           pisaba nunca: se escribió, se probó en node y en la hoja no apareció ni un
+           proyecto. Lo que hay que buscar primero es el proyecto; el parche es para cuando ya
+           se sabe a quién cae. */
+        const parche = deNotion(datos);
+        let local = (parche && parche.folio_global) ? await porFolioGlobal(parche.folio_global) : null;
         const idImportado = venta ? 'proy-hoja-' + venta.folio_hoja : '';
         if (!local && idImportado) {
           try { local = await DB.obtener('proyectos', idImportado); } catch (_) { local = null; }
@@ -766,6 +779,22 @@ export function crear(cfg0) {
           continue;   // ya quedó en el récord; el parche de dinero no tiene a quién caerle
         }
 
+        /* Para un proyecto IMPORTADO no hay parche de `deNotion` —su fila no trae folio de
+           cotización— y sin esto el dinero se congelaría en el del día que se importó: si
+           PAGOS corrige el anticipo en la hoja, el tablero seguiría con el viejo. Se arma con
+           lo que la hoja es dueña, y nada más: ni el nombre ni la etapa, que es lo único que
+           el taller mueve de este lado y que no se puede pisar en cada bajada. */
+        const aplicar = parche || (venta ? sinIndefinidos({
+          estatus_notion: venta.estatus || null,
+          cuenta: venta.cuenta || null,
+          sub: venta.sub, neto: venta.neto, precio_auth: venta.neto,
+          anti_pactado: venta.anticipo,
+          pago_pendiente: venta.pago_pendiente === undefined ? null : venta.pago_pendiente,
+          comision_restante: venta.comision_restante === undefined ? null : venta.comision_restante,
+          pct_comision: venta.pct_comision,
+        }) : null);
+        if (!aplicar) continue;
+
         const editado = Date.parse((fila.datos && fila.datos.editado) || '') || 0;
         /* El sello se iguala al local a propósito, y esto es lo único astuto del archivo.
            `sync.fusionar` deja ganar al más nuevo, y el registro local se toca cada vez que
@@ -775,8 +804,8 @@ export function crear(cfg0) {
            De estos campos la dueña es Notion por definición (§4.0), así que ganan. */
         const sello = Math.max(editado, Number(local.actualizado_en) || 0);
 
-        delete parche.folio_global;   // la llave era para encontrarlo, no para escribirlo
-        registros.push({ almacen: 'proyectos', datos: { ...parche, id: local.id, actualizado_en: sello } });
+        delete aplicar.folio_global;   // la llave era para encontrarlo, no para escribirlo
+        registros.push({ almacen: 'proyectos', datos: { ...aplicar, id: local.id, actualizado_en: sello } });
       }
 
       return { registros, cursor: r.cuerpo.cursor || null, hay_mas: !!r.cuerpo.hay_mas };
