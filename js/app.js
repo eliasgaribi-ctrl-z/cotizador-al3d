@@ -15,7 +15,7 @@ import * as DB from './datos/db.js';
 import * as Prefs from './datos/prefs.js';
 import * as Cot from './datos/cotizador.js';
 import * as Sync from './datos/sync.js';
-import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, cerrarCapa, ajustarAltoBarra, esqueletoModulo }
+import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, hayCapaAbierta, cerrarCapa, ajustarAltoBarra, esqueletoModulo }
   from './nucleo/ui.js';
 
 /* ----- Los módulos -----
@@ -799,6 +799,36 @@ async function arrancar() {
      existía era el momento en que eso sale solo. */
   window.addEventListener('online', () => sincronizarCallado());
 
+  /* ----- Traer lo nuevo sin cerrar ni abrir -----
+     Lo que otro teléfono o la hoja cambian llega solo: cada 30 segundos mientras la app está
+     a la vista, y en cuanto vuelves a ella desde otra pestaña o app. Con la app en segundo
+     plano no se pregunta nada, que es batería y cupo del Apps Script gastados en una pantalla
+     que nadie mira. 30 s son dos peticiones por minuto; el cupo del puente es de 60. */
+  setInterval(() => {
+    if (document.visibilityState === 'visible') sincronizarCallado();
+  }, MS_SINCRONIZAR);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') sincronizarCallado();
+  });
+
+  /* ----- El permiso de Google, renovado con tu siguiente clic -----
+     Google da el permiso por una hora, y renovarlo abre un instante su ventana. El navegador
+     solo deja abrir ventanas cuando la persona acaba de tocar algo, así que un temporizador
+     no puede hacerlo: se hace en el primer clic después de que caducó. Con la cuenta ya
+     escogida la ventana se abre y se cierra sola. Sin esto, pasada la hora la app dejaba de
+     sincronizar hasta la siguiente vez que alguien entraba. */
+  document.addEventListener('click', async () => {
+    /* Con la pantalla de entrar puesta, el clic es suyo: dos peticiones a Google a la vez se
+       pisan la ventana. */
+    if (document.documentElement.classList.contains('con-puerta')) return;
+    try {
+      const Ingreso = await import('./nucleo/ingreso.js');
+      if (!Ingreso.configurado() || !Ingreso.correo() || Ingreso.dentro()) return;
+      const r = await Ingreso.renovar();
+      if (r && r.ok) sincronizarCallado();
+    } catch (_) {}
+  }, true);
+
   /* El resize dispara decenas de veces mientras se gira el teléfono o se abre el teclado, y
      `ajustarAltoBarra` lee geometría: leer y escribir el layout en cada evento es el camino
      corto al tirón. Un cuadro de por medio basta y se nota. */
@@ -837,17 +867,34 @@ ctx.enchufarPuente = enchufarPuente;
  * SOLO si algo cambió: repintar por costumbre tira el scroll y el filtro que la persona
  * acababa de poner.
  */
-async function sincronizarCallado() {
+const MS_SINCRONIZAR = 30000;
+let _sincronizando = null;
+let _repintarDebe = false;
+
+function sincronizarCallado() {
+  /* Una a la vez: el reloj de 30 s, volver a la pestaña y recuperar señal caen juntos más
+     seguido de lo que parece. Quien llega segundo espera la misma. */
+  if (_sincronizando) return _sincronizando;
+  _sincronizando = sincronizarDeVerdad().finally(() => { _sincronizando = null; });
+  return _sincronizando;
+}
+
+/* Repintar tira lo que la persona está escribiendo o el panel que tiene abierto. Ahora que
+   esto corre cada 30 segundos, se repinta solo cuando no estorba; si estorba, se apunta y se
+   hace en la siguiente vuelta en la que ya no. */
+function puedeRepintar() {
+  if (_sinRemonte || hayCapaAbierta()) return false;
+  const a = document.activeElement;
+  return !(a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)));
+}
+
+async function sincronizarDeVerdad() {
   if (!Sync.configurado()) return;
-  /* Primero la identidad, y CALLADA. El token de Google vive solo en memoria —ver
-     js/nucleo/ingreso.js— así que en cada arranque hay que volver a pedirlo, y la renovación
-     sin pantalla funciona mientras la sesión de Google de este navegador siga viva. Si falla
-     no se dice nada y no se para: la petición sale igual con el token de dispositivo, que es
-     justo para lo que se quedó. */
-  try {
-    const Ingreso = await import('./nucleo/ingreso.js');
-    if (Ingreso.configurado() && Ingreso.correo() && !Ingreso.dentro()) await Ingreso.renovar();
-  } catch (_) {}
+  if (navigator.onLine === false) return;
+  /* La identidad NO se renueva aquí. Renovarla abre la ventana de Google, y esto corre solo,
+     sin clic: el navegador la bloquearía cada 30 segundos. Se renueva en el siguiente clic
+     —ver el oyente de `click` en el arranque— y mientras tanto la petición sale con el token
+     de dispositivo si lo hay. */
   let movio = 0;
   try { const r = await Sync.bombear(); if (r.ok) movio += Number(r.valor.subidas) || 0; } catch (_) {}
   /* Página por página mientras el Worker diga que hay más, con tope: las 199 filas anteriores
@@ -861,7 +908,11 @@ async function sincronizarCallado() {
       if (!r.valor.hay_mas) break;
     }
   } catch (_) {}
-  if (movio && _actual) montar(_actual, { forzar: true });
+  if (movio) _repintarDebe = true;
+  if (_repintarDebe && _actual && puedeRepintar()) {
+    _repintarDebe = false;
+    montar(_actual, { forzar: true });
+  }
 }
 ctx.sincronizar = sincronizarCallado;
 
