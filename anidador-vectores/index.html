@@ -34,10 +34,8 @@
   if(parent!==window)return;
   var h=location.hostname;
   if(location.protocol==='file:'||h==='localhost'||h==='127.0.0.1'||h==='')return;
-  var p=null,t='';
+  var p=null;
   try{p=JSON.parse(localStorage.getItem('al3d_pf_pase')||'null');}catch(_){}
-  try{t=(JSON.parse(localStorage.getItem('al3d_pf_puente')||'null')||{}).token||'';}catch(_){}
-  if(t)return;
   if(p&&p.correo&&Number(p.hasta)>Date.now())return;
   location.replace('../#/anidador');
 }catch(_){}})();</script>

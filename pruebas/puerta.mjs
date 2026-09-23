@@ -326,9 +326,8 @@ console.log('\nLO QUE LA PUERTA PROMETE');
  * reenviaba a la plataforma salvo con `?solo=1` —su salida de emergencia—, y esa excepción
  * era la rendija: con la liga bastaba para ver las tarifas y el historial del aparato.
  *
- * Ahora las dos piden lo mismo: un pase de la puerta o un token de dispositivo. Quien llega
- * de verdad por la salida de emergencia viene de dentro y tiene uno; quien solo tiene la liga
- * no tiene ninguno. */
+ * Ahora las dos piden lo mismo que la puerta: un pase de Google. El token de dispositivo ya
+ * no abre ninguna de las tres (decisión de Dirección, septiembre de 2026). */
 console.log('\nEL COTIZADOR Y LA MESA DE CORTE TAMBIÉN PIDEN CREDENCIAL');
 {
   const cot = readFileSync(join(aqui, '..', 'cotizador.html'), 'utf8');
@@ -340,8 +339,8 @@ console.log('\nEL COTIZADOR Y LA MESA DE CORTE TAMBIÉN PIDEN CREDENCIAL');
            src.includes("localStorage.getItem('al3d_pf_pase')"));
     cierto(nombre + ': un pase caducado no vale tampoco aquí',
            src.includes('Number(p.hasta)>Date.now()'));
-    cierto(nombre + ': el token de dispositivo sigue sirviendo, que es la salida de emergencia',
-           src.includes("localStorage.getItem('al3d_pf_puente')"));
+    cierto(nombre + ': el token de dispositivo ya NO abre esta puerta',
+           !src.includes("localStorage.getItem('al3d_pf_puente')"));
     cierto(nombre + ': empotrado no hace nada — la puerta ya se pasó del otro lado',
            src.includes('if(parent!==window)return;'));
     cierto(nombre + ': sin credencial se va a la plataforma, que es donde está la puerta',
@@ -352,6 +351,16 @@ console.log('\nEL COTIZADOR Y LA MESA DE CORTE TAMBIÉN PIDEN CREDENCIAL');
     cierto(nombre + ': solo se exime file:// y 127.0.0.1/localhost, que nadie alcanza con la liga',
            /location\.protocol==='file:'\|\|h==='localhost'\|\|h==='127\.0\.0\.1'\|\|h===''/.test(src));
   }
+}
+
+console.log('\nSOLO UNA CUENTA DE GOOGLE ABRE LA PLATAFORMA');
+{
+  const pu = readFileSync(join(aqui, '..', 'js', 'nucleo', 'puerta.js'), 'utf8');
+  const app = readFileSync(join(aqui, '..', 'js', 'app.js'), 'utf8');
+  cierto('custodiar() no tiene camino de entrada por token', !/dentro\('token'/.test(pu));
+  cierto('ni mira si hay token pegado', !pu.includes('hayToken'));
+  cierto('sin el marcado de la puerta no se entra: se avisa', pu.includes('sinPuerta();'));
+  cierto('si la puerta no carga, app.js tampoco entra', !app.includes("via: 'roto'"));
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

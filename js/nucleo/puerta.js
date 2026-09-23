@@ -123,9 +123,6 @@ const dentro = (via, correo, rol, nota) => ({ ok: true, via, correo, rol, nota: 
  * @returns {Promise<{ok:true, via:string, correo:string, rol:string, nota:string}>}
  */
 export async function custodiar(avisar) {
-  const cfgPuente = Prefs.puente();
-  const hayToken = !!(cfgPuente && cfgPuente.token);
-
   /* 1. EL PASE VIVO — se entra YA, y se confirma por detrás.
         Es el camino de todas las mañanas, y la primera versión lo hizo mal: esperaba a que
         la hoja contestara antes de pintar nada. Con un Apps Script frío o una red de
@@ -171,7 +168,6 @@ export async function custodiar(avisar) {
     const r = await conTope;
     if (r.estado === 'ok') return dentro('google', r.correo, r.rol);
     if (r.estado === 'fuera') { Prefs.borrarPase(); return await pedirEntrada(MSG.FUERA(r.correo || correoPrevio)); }
-    if (hayToken) return porToken();
     /* `r.tarde` es el caso en que se acabó el tope pero la comprobación SIGUE viva. Se pinta
        la puerta para no dejar a nadie mirando un esqueleto, y se le pasa la promesa: si la
        hoja acaba contestando que sí, la puerta se cierra sola. Sin esto, la respuesta buena
@@ -180,19 +176,18 @@ export async function custodiar(avisar) {
     return await pedirEntrada(viejo ? MSG.CADUCO(correoPrevio) : null, r.tarde ? real : null);
   }
 
-  /* 3. LA SALIDA DE EMERGENCIA. Un aparato con token de dispositivo pegado a mano entra sin
-        preguntarle a Google. Va la ÚLTIMA y no la primera: pegar un token es un acto
-        deliberado de Dirección para un aparato concreto, no el camino normal, y ponerlo
-        delante hacía que el teléfono de quien lo tuviera no viera nunca la puerta —ni
-        siquiera el de Elías, que es justo donde hay que poder probarla—. */
-  if (hayToken) return porToken();
+  /* 3. Nadie ha entrado aquí con Google. La puerta, y a esperar.
 
-  /* 4. Nadie ha entrado aquí y no hay token. La puerta, y a esperar. */
+     ── El token de dispositivo YA NO abre la puerta ───────────────────────────────
+     Lo hizo durante un tiempo, como salida de emergencia: un aparato con token pegado en
+     Ajustes entraba sin preguntarle a Google. En la práctica eso significó que el aparato de
+     Dirección —que es justo el que tiene token— abría la plataforma completa sin cuenta de
+     Google, con la ventana de Google encima pidiendo una cuenta que ya no hacía falta. Por
+     decisión de Dirección (septiembre de 2026), la puerta solo la abre una cuenta de Google.
+     El token sigue sirviendo para lo que servía antes de la puerta: hablar con la hoja.
+     El día que Google no conteste, lo que cubre es el pase de DIAS_PASE días, no el token. */
   return await pedirEntrada(null);
 }
-
-const porToken = () => dentro('token', '', Prefs.rol(),
-  'Entraste con el token de este aparato, no con una cuenta de Google: la plataforma no sabe quién eres y el rol lo decide este teléfono.');
 
 /* ----------------------------------------------------------------------------
    Confirmar contra la hoja
@@ -348,9 +343,11 @@ function pedirEntrada(av, pendiente, echando) {
       /* Sin el marcado no hay puerta que enseñar. Antes que dejar la app colgada para
          siempre en una pantalla que no existe, se entra y se dice por qué: un index.html a
          medias es un error de despliegue, no un intento de colarse. */
-      console.error('falta #pf-puerta en el documento: se entra sin puerta');
-      return resolve(dentro('token', '', Prefs.rol(),
-        'Esta copia de la plataforma está incompleta y no pudo pedir tu cuenta de Google. Recárgala.'));
+      /* Sin el marcado no hay puerta que enseñar, y tampoco se entra: una copia a medias no
+         es motivo para dejar ver el taller. Se dice qué pasa y la promesa no resuelve. */
+      console.error('falta #pf-puerta en el documento: no se entra');
+      sinPuerta();
+      return;
     }
     /* Todo lo demás del documento queda INERTE mientras la puerta esté puesta. `aria-modal`
        por sí solo no lo consigue: sin esto, el tabulador se pasea por la barra lateral, el
@@ -461,6 +458,22 @@ function pintar(caja, av, esperando) {
     const b = caja.querySelector('[data-puerta="entrar"]');
     if (b) b.focus();
   }
+}
+
+/** Lo que se ve cuando la puerta no se puede poner: un aviso y nada más. Lo usa también
+ *  app.js cuando este módulo no carga. Tapa el documento entero y no deja nada tocable. */
+export function sinPuerta() {
+  const arr = $('pf-arranque'); if (arr) arr.hidden = true;
+  for (const hijo of Array.from(document.body.children)) hijo.setAttribute('inert', '');
+  const d = document.createElement('div');
+  d.className = 'puerta-rota';
+  d.setAttribute('role', 'alert');
+  d.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;' +
+    'justify-content:center;padding:24px;text-align:center;background:#0b1020;color:#fff;font:16px/1.5 system-ui,sans-serif';
+  d.innerHTML = '<div><p>No se pudo cargar la pantalla para entrar con Google, así que la plataforma no se abre.</p>' +
+    '<p><button type="button" style="font:inherit;padding:10px 18px;border-radius:8px;border:0;cursor:pointer">Recargar</button></p></div>';
+  d.querySelector('button').onclick = () => location.reload();
+  document.body.appendChild(d);
 }
 
 /** Cierra la sesión y vuelve a poner la puerta. Lo llama Ajustes: «Salir» dejaba la app
