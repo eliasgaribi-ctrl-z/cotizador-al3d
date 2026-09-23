@@ -56,7 +56,7 @@ const SCOPE = 'openid email';
 
 /* El identificador de ESTA app ante Google —la web— creado el 20 de septiembre de 2026 en el
    proyecto «My First Project» de la cuenta de Elías, como cliente de tipo «Aplicación web»
-   con origen autorizado `https://eliasgaribi-ctrl-z.github.io`.
+   con orígenes autorizados `https://eliasgaribi-ctrl-z.github.io` y `https://cotizador-al3d.pages.dev`.
 
    NO es un secreto: viaja en cada petición y Google lo diseñó para ser público —por eso
    puede vivir en un repositorio público sin que eso sea una fuga—. Vive aquí, en el código,
