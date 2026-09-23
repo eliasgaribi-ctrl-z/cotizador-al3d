@@ -141,6 +141,14 @@ export async function montar(contenedor, ctx) {
   await recargar();
 }
 
+/** El globo de la barra sin montar la pantalla: lo llama app.js al arrancar y después de
+ *  cada sincronización, para que los pendientes se vean sin tener que entrar aquí. Solo lee;
+ *  no pinta nada. */
+export async function contar() {
+  const d = await leer();
+  return { hoy: d.V.filter(v => v.estado === 'no_llega').length };
+}
+
 export function desmontar() {
   if (_reloj) { clearTimeout(_reloj); _reloj = null; }
   if (_relojMarco) { clearTimeout(_relojMarco); _relojMarco = null; }
