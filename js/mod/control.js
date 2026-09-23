@@ -39,7 +39,7 @@ import * as Ventas from '../datos/ventas.js';
 import * as Bitacora from '../datos/bitacora.js';
 import * as Sync from '../datos/sync.js';
 import { $, ico, esc, money, toast, vacio, segmento, chip, fmtFecha, linkWa, telWa, descargarArchivo,
-         hoyISO } from '../nucleo/ui.js';
+         hoyISO, cifraQueCabe } from '../nucleo/ui.js';
 import { masMeses } from '../nucleo/fechas.js';
 
 let cont = null;
@@ -272,23 +272,23 @@ function pintarVentas() {
   const k = D.kpi;
   const c = [];
   const cob = etiquetaCobrar();
-  c.push(cuenta(money(k.mes.total), 'Vendido en ' + k.mes.etiqueta, { dinero: true,
+  c.push([money(k.mes.total), 'Vendido en ' + k.mes.etiqueta, { dinero: true,
     em: k.mes.n + (k.mes.n === 1 ? ' venta' : ' ventas') +
-        (k.variacion === null ? '' : ' · ' + (k.variacion >= 0 ? '+' : '') + k.variacion + ' % vs ' + k.mesAnterior.etiqueta) }));
-  c.push(cuenta(money(k.mesAnterior.total), 'Vendido en ' + k.mesAnterior.etiqueta,
-    { em: k.mesAnterior.n + (k.mesAnterior.n === 1 ? ' venta' : ' ventas') }));
-  c.push(cuenta(money(k.pipeline.total), 'Autorizado sin decidir', { urge: k.pipeline.n > 0,
-    em: k.pipeline.n + (k.pipeline.n === 1 ? ' cotización' : ' cotizaciones') }));
-  c.push(cuenta(money(k.porCobrar.total), cob.t, { urge: k.porCobrar.n > 0,
-    em: k.porCobrar.n + (k.porCobrar.n === 1 ? ' venta con saldo' : ' ventas con saldo') + (cob.em ? ' · ' + cob.em : '') }));
-  c.push(cuenta(D.conv.tasa === null ? '—' : D.conv.tasa + ' %', 'Conversión',
+        (k.variacion === null ? '' : ' · ' + (k.variacion >= 0 ? '+' : '') + k.variacion + ' % vs ' + k.mesAnterior.etiqueta) }]);
+  c.push([money(k.mesAnterior.total), 'Vendido en ' + k.mesAnterior.etiqueta,
+    { em: k.mesAnterior.n + (k.mesAnterior.n === 1 ? ' venta' : ' ventas') }]);
+  c.push([money(k.pipeline.total), 'Autorizado sin decidir', { urge: k.pipeline.n > 0,
+    em: k.pipeline.n + (k.pipeline.n === 1 ? ' cotización' : ' cotizaciones') }]);
+  c.push([money(k.porCobrar.total), cob.t, { urge: k.porCobrar.n > 0,
+    em: k.porCobrar.n + (k.porCobrar.n === 1 ? ' venta con saldo' : ' ventas con saldo') + (cob.em ? ' · ' + cob.em : '') }]);
+  c.push([D.conv.tasa === null ? '—' : D.conv.tasa + ' %', 'Conversión',
     { em: D.conv.ganadas + (D.conv.ganadas === 1 ? ' ganada de ' : ' ganadas de ') +
           (D.conv.ganadas + D.conv.perdidas) +
-          (D.conv.ganadas + D.conv.perdidas === 1 ? ' decidida' : ' decididas') }));
-  c.push(cuenta(money(k.perdidoMes.total), 'No se dio en ' + k.mes.etiqueta, { mal: k.perdidoMes.n > 0,
-    em: k.perdidoMes.n + (k.perdidoMes.n === 1 ? ' cotización' : ' cotizaciones') }));
+          (D.conv.ganadas + D.conv.perdidas === 1 ? ' decidida' : ' decididas') }]);
+  c.push([money(k.perdidoMes.total), 'No se dio en ' + k.mes.etiqueta, { mal: k.perdidoMes.n > 0,
+    em: k.perdidoMes.n + (k.perdidoMes.n === 1 ? ' cotización' : ' cotizaciones') }]);
 
-  const partes = [lineaHoja(), '<div class="pf-cuentas">' + c.join('') + '</div>'];
+  const partes = [lineaHoja(), filaCuentas(c)];
 
   partes.push(graficaMeses());
 
@@ -304,9 +304,17 @@ function pintarVentas() {
   return partes.join('');
 }
 
-function cuenta(valor, etiqueta, o = {}) {
+/* Una fila de cuentas, con la cifra al MISMO tamaño en todas: el que pida la más larga. Cada
+   una a su tamaño cabía, pero «$0.00» salía a 28 px junto a un importe de siete cifras a 14, y
+   el número más grande de la fila parecía el más chico. Ver `cifraQueCabe()` en ui.js. */
+function filaCuentas(c) {
+  const largo = Math.max(1, ...c.map(x => String(x[0]).length));
+  return '<div class="pf-cuentas">' + c.map(x => cuenta(x[0], x[1], x[2], largo)).join('') + '</div>';
+}
+
+function cuenta(valor, etiqueta, o = {}, largo) {
   const cls = o.dinero ? ' dinero' : (o.mal ? ' mal' : (o.urge ? ' urge' : ''));
-  return '<p class="pf-cuenta ct-cuenta' + cls + '"><b>' + esc(valor) + '</b>' + esc(etiqueta) +
+  return '<p class="pf-cuenta ct-cuenta' + cls + '">' + cifraQueCabe(valor, largo) + esc(etiqueta) +
     (o.em ? '<em>' + esc(o.em) + '</em>' : '') + '</p>';
 }
 
@@ -321,7 +329,10 @@ function graficaMeses() {
     return '<div class="ct-mes' + (m.mes === D.hoy.slice(0, 7) ? ' actual' : '') + '">' +
       '<span class="ct-mes-t">' + esc(m.etiqueta) + '</span>' +
       '<span class="ct-barras" aria-hidden="true">' +
-        '<i class="ct-b vendido" style="width:' + pv + '%"></i>' +
+        /* Un mes en CERO no lleva barra. La barra tiene 2 px de mínimo para que una venta chica
+           junto a un mes de 200 mil se siga viendo, y con eso los once meses vacíos salían cada
+           uno con su rayita azul: se leían como once ventas pequeñas. Igual que la de perdido. */
+        (m.vendido > 0 ? '<i class="ct-b vendido" style="width:' + pv + '%"></i>' : '') +
         (m.perdido > 0 ? '<i class="ct-b perdido" style="width:' + pp + '%"></i>' : '') +
       '</span>' +
       '<span class="ct-mes-v">' + esc(money(m.vendido)) +
@@ -442,16 +453,16 @@ function pintarCobrar() {
   const entregados = D.cartera.filter(x => x.entregado);
   const cob = etiquetaCobrar();
   const c = [
-    cuenta(money(k.porCobrar.total), cob.t, { dinero: true,
-      em: k.porCobrar.n + (k.porCobrar.n === 1 ? ' venta' : ' ventas') + (cob.em ? ' · ' + cob.em : '') }),
-    cuenta(money(entregados.reduce((s, x) => s + x.saldo, 0)), 'Ya instalado y sin liquidar', { urge: entregados.length > 0,
-      em: entregados.length + (entregados.length === 1 ? ' proyecto' : ' proyectos') }),
-    cuenta(money(k.porCobrar.anticipos), 'Anticipos pactados', { em: 'de las ventas vivas' }),
+    [money(k.porCobrar.total), cob.t, { dinero: true,
+      em: k.porCobrar.n + (k.porCobrar.n === 1 ? ' venta' : ' ventas') + (cob.em ? ' · ' + cob.em : '') }],
+    [money(entregados.reduce((s, x) => s + x.saldo, 0)), 'Ya instalado y sin liquidar', { urge: entregados.length > 0,
+      em: entregados.length + (entregados.length === 1 ? ' proyecto' : ' proyectos') }],
+    [money(k.porCobrar.anticipos), 'Anticipos pactados', { em: 'de las ventas vivas' }],
   ];
   const filas = D.cartera.length
     ? D.cartera.map(filaCobro).join('')
     : vacio('No hay saldos pendientes', 'Cada venta viva tiene su anticipo igual al total, o la hoja ya la marcó como liquidada.');
-  return lineaHoja() + '<div class="pf-cuentas">' + c.join('') + '</div>' +
+  return lineaHoja() + filaCuentas(c) +
     '<div class="card"><div class="card-h"><h2>' + ico('i-venta') + ' Cartera' +
       ' <span class="folio">' + D.cartera.length + '</span></h2></div>' +
     '<div class="card-b">' + filas + '</div></div>' +

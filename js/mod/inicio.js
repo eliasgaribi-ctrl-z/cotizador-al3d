@@ -36,7 +36,7 @@ import * as Material from '../datos/material.js';
 import { masDias } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO,
          fmtFecha, fmtFechaDia, abrirCapa, cerrarCapa, copiarTexto, ajustarAltoBarra,
-         bandaFrescura }
+         bandaFrescura, cifraQueCabe }
   from '../nucleo/ui.js';
 
 /* ----- Estado del módulo -----
@@ -203,7 +203,7 @@ function cuentas(d, rol, veDinero) {
       d.conSaldo.length === 1 ? 'Proyecto con saldo' : 'Proyectos con saldo', d.conSaldo.length > 0));
     const costo = d.compra.reduce((s, f) => s + (Number(f.costo) || 0), 0);
     if (veDinero && costo > 0) {
-      c.push('<p class="pf-cuenta dinero"><b>' + esc(money(costo)) + '</b>Costo de lo que hay que comprar</p>');
+      c.push('<p class="pf-cuenta dinero">' + cifraQueCabe(money(costo)) + 'Costo de lo que hay que comprar</p>');
     } else {
       c.push(unaCuenta(d.porComprar.length, 'Materiales por comprar', false));
     }

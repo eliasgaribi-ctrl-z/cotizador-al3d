@@ -123,6 +123,17 @@ const dentro = (via, correo, rol, nota) => ({ ok: true, via, correo, rol, nota: 
  * @returns {Promise<{ok:true, via:string, correo:string, rol:string, nota:string}>}
  */
 export async function custodiar(avisar) {
+  /* 0. LA COPIA LOCAL — las mismas exenciones que cotizador.html y la mesa de corte.
+        Faltaban aquí, y el síntoma no se parecía a la causa: las diecisiete pruebas de
+        navegador corren contra 127.0.0.1, la puerta las paraba en «Entrar con Google» y las
+        que miran la plataforma se caían por tiempo o contaban «0 proyectos» sin un solo error
+        de página. Y no había forma de pasar: Google solo acepta el origen publicado, y el
+        token de dispositivo se pega en Ajustes, que está DETRÁS de esta pantalla. En local la
+        puerta no protegía nada —los datos son del propio navegador de quien la corre— y
+        dejaba la plataforma sin poder abrirse ni probarse. Nadie llega a estas direcciones
+        con la liga pública, que es de quien protege esto. */
+  if (esCopiaLocal()) return dentro('local', '', Prefs.rol());
+
   const cfgPuente = Prefs.puente();
   const hayToken = !!(cfgPuente && cfgPuente.token);
 
@@ -189,6 +200,16 @@ export async function custodiar(avisar) {
 
   /* 4. Nadie ha entrado aquí y no hay token. La puerta, y a esperar. */
   return await pedirEntrada(null);
+}
+
+/* Exactamente las cuatro de las otras dos puertas, ni una más: el día que alguien añada aquí
+   un dominio «de pruebas», la puerta queda abierta de par en par sin que nada falle.
+   pruebas/puerta.mjs lo vigila. */
+function esCopiaLocal() {
+  try {
+    const h = location.hostname;
+    return location.protocol === 'file:' || h === 'localhost' || h === '127.0.0.1' || h === '';
+  } catch (_) { return false; }
 }
 
 const porToken = () => dentro('token', '', Prefs.rol(),
@@ -438,9 +459,15 @@ function pintar(caja, av, esperando) {
   /* `html` va crudo porque lo escribimos aquí con su `esc()` puesto; `texto` se escapa
      porque puede venir de lo que conteste el Apps Script. */
   const cuerpo = av ? (av.html != null ? av.html : esc(av.texto || '')) : '';
+  /* El logotipo del TEMA, y con `.logoimg` para que js/tema.js lo cambie si el sistema cambia
+     de tema con la puerta puesta. Iba fijo el de tinta, y de noche el «AL» se perdía sobre el
+     marino justo en la primera pantalla que ve cualquiera: tema.js solo cambia los que ya
+     existían al cargar la página, y éste se escribe después. */
+  const logo = document.documentElement.getAttribute('data-tema') === 'oscuro'
+    ? 'logo-al3d-oscuro.svg' : 'logo-al3d.svg';
   caja.innerHTML =
     '<div class="puerta-caja">' +
-      '<img class="puerta-logo" src="logo-al3d.svg" width="72" height="36" alt="AL3D">' +
+      '<img class="puerta-logo logoimg" src="' + logo + '" width="72" height="36" alt="AL3D">' +
       '<h1>La plataforma del taller</h1>' +
       '<p class="puerta-sub">Entra con la cuenta de Google que usas en AL3D. ' +
         'La app solo le pide a Google tu correo, y con eso sabe qué te toca hacer.</p>' +

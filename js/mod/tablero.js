@@ -45,7 +45,7 @@ import * as Sync from '../datos/sync.js';
 import { masDias } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, fmtFecha, fmtFechaDia,
          abrirCapa, cerrarCapa, linkWa, telWa, ajustarAltoBarra, rotularPapel, voz, segmento,
-         filaTaller, bandaFrescura, medirMarco, esqueletoMarco }
+         filaTaller, bandaFrescura, medirMarco, esqueletoMarco, cifraQueCabe }
   from '../nucleo/ui.js';
 
 const { ETAPA_NOMBRE, ICO_ETAPA, claseEtapa, ORDEN, puedeMover } = Proy;
@@ -483,7 +483,7 @@ function cuentas(d, rol, veDinero) {
       return s + (isFinite(n) ? n : 0);
     }, 0);
     if (suma > 0) {
-      c.push('<p class="pf-cuenta dinero"><b>' + esc(money(suma)) + '</b>En el taller</p>');
+      c.push('<p class="pf-cuenta dinero">' + cifraQueCabe(money(suma)) + 'En el taller</p>');
     }
   }
   return '<div class="pf-cuentas">' + c.join('') + '</div>';

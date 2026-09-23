@@ -252,6 +252,16 @@ console.log('\nLO QUE LA PUERTA PROMETE');
   cierto('la puerta enlaza la privacidad y las condiciones, que es donde Google las pide',
          src.includes('privacidad.html') && src.includes('condiciones.html'));
 
+  /* LA COPIA LOCAL. Las pruebas de navegador corren contra 127.0.0.1, y sin esta exención la
+     puerta las paraba en «Entrar con Google»: las que miran la plataforma se caían por tiempo
+     o contaban «0 proyectos» sin un solo error de página. Las cuatro exenciones son las de
+     las otras dos puertas y ninguna más: un dominio «de pruebas» añadido aquí dejaría la
+     puerta abierta de par en par sin que nada fallara. */
+  cierto('la copia local entra sin puerta, con las MISMAS cuatro exenciones que las otras dos',
+         src.includes("if (esCopiaLocal()) return dentro('local'") &&
+         /location\.protocol === 'file:' \|\| h === 'localhost' \|\| h === '127\.0\.0\.1' \|\| h === '';/.test(src) &&
+         (src.match(/h === '/g) || []).length === 3);
+
   /* El arranque no puede montar nada antes de esto. Se comprueba del lado de app.js. */
   const app = readFileSync(join(aqui, '..', 'js', 'app.js'), 'utf8');
   /* `await Puerta.custodiar(` y no `Puerta.custodiar(` a secas: lo segundo encontraba un

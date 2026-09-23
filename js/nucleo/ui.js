@@ -25,6 +25,20 @@ export const esc = s => String(s == null ? '' : s)
 export const money = n => '$' + Number(n || 0).toLocaleString('es-MX',
   { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/* La cifra de una tarjeta de cuentas que puede ser LARGA: un importe. Se cortaba. Las cuentas
+   se reparten en una rejilla de mínimo 150 px y la tarjeta recorta lo que se sale, así que en
+   una computadora de 1 280 px —seis por fila, 121 px de caja— «$212,900.00» se leía
+   «$212,90» en las dos primeras de Control, y en el Tablero «$1,228,200.00» se quedaba en
+   «$1,228,20». Los centavos no se quitan: el dinero lleva dos decimales siempre. Lo que cede
+   es el tamaño, y solo lo que haga falta: la cifra lleva su largo en `--c` y la hoja la
+   achica hasta que quepa en su tarjeta (ver `.pf-cuenta b.ajusta` en css/plataforma.css). */
+export const cifraQueCabe = (t, largo) => {
+  const s = String(t == null ? '' : t);
+  /* `largo` es para una fila entera al mismo tamaño: el de la cifra más larga de la fila. */
+  const n = Math.max(1, Number(largo) || 0, s.length);
+  return '<b class="ajusta" style="--c:' + n + '">' + esc(s) + '</b>';
+};
+
 /* Cantidades de material. El dinero lleva dos decimales siempre porque son pesos; una
    cantidad de material NO: «2 láminas» y «2.00 láminas» dicen lo mismo y la segunda se
    lee como si alguien hubiera medido hasta el centésimo. Se enseñan hasta dos decimales

@@ -691,8 +691,12 @@ async function arrancar() {
       const b = ev.target.closest('[data-ruta]'); if (b) ir(b.dataset.ruta);
     });
   }
-  const aj = $('pf-ajustes-btn');
-  if (aj) aj.onclick = () => ir('ajustes');
+  /* Dos puertas a Ajustes: la del pie de la barra lateral y la del encabezado del teléfono,
+     donde la barra lateral no existe. */
+  for (const id of ['pf-ajustes-btn', 'pf-cab-ajustes']) {
+    const aj = $(id);
+    if (aj) aj.onclick = () => ir('ajustes');
+  }
 
   /* ----- El teclado, para la computadora -----
      Los números cambian de módulo en el orden de la barra —el mismo que enseña el title de
