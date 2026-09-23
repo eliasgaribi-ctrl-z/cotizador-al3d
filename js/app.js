@@ -655,9 +655,21 @@ async function arrancar() {
       if (_bandaLista) revisarDispositivo();
     });
   } catch (e) {
+    /* Sin puerta no se entra. Hubo un tiempo en que aquí se entraba igual, para no dejar la
+       app muerta por un archivo que no bajó; Dirección decidió que la plataforma solo se ve
+       con cuenta de Google, y eso incluye este caso. Se avisa y se ofrece recargar. */
     console.error('no se pudo cargar la puerta', e);
-    _quien = { ok: true, via: 'roto', correo: '', rol: Prefs.rol(),
-      nota: 'Esta copia de la plataforma no pudo comprobar tu cuenta de Google. Recárgala cuando tengas señal.' };
+    const arr = $('pf-arranque'); if (arr) arr.hidden = true;
+    for (const hijo of Array.from(document.body.children)) hijo.setAttribute('inert', '');
+    const d = document.createElement('div');
+    d.setAttribute('role', 'alert');
+    d.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;' +
+      'justify-content:center;padding:24px;text-align:center;background:#0b1020;color:#fff;font:16px/1.5 system-ui,sans-serif';
+    d.innerHTML = '<div><p>No se pudo cargar la pantalla para entrar con Google, así que la plataforma no se abre.</p>' +
+      '<p><button type="button" style="font:inherit;padding:10px 18px;border-radius:8px;border:0;cursor:pointer">Recargar</button></p></div>';
+    d.querySelector('button').onclick = () => location.reload();
+    document.body.appendChild(d);
+    return;
   }
 
   /* Si a los ocho segundos el esqueleto del arranque sigue en pantalla, algo de lo de abajo
