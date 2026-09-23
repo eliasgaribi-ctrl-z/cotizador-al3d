@@ -205,5 +205,21 @@ console.log('\nLOS TRES ROLES SIGUEN SIENDO LOS MISMOS');
      Object.keys(api.PUENTE_ROLES).sort(), ['direccion', 'fabricacion', 'pagos']);
 }
 
+console.log('\nEL ORIGEN SE COMPRUEBA ANTES DE ABRIR LA VENTANA DE GOOGLE');
+{
+  /* Desde un origen que Google no tiene dado de alta, la ventana solo enseña «Error 400:
+     origin_mismatch». La app tiene que darse cuenta antes y decir cuál es la dirección buena. */
+  const I = await import('../js/nucleo/ingreso.js');
+  cierto('github.io, que es donde vive la app, vale', I.origenAutorizado('https://eliasgaribi-ctrl-z.github.io'));
+  cierto('otro dominio no', !I.origenAutorizado('https://al3d.pages.dev'));
+  cierto('un archivo abierto a mano (origen «null») no', !I.origenAutorizado('null'));
+  cierto('localhost tampoco, porque Google no lo tiene', !I.origenAutorizado('http://localhost:8080'));
+  cierto('sin origen no se juzga', I.origenAutorizado(''));
+  const ing = readFileSync(join(aqui, '..', 'js', 'nucleo', 'ingreso.js'), 'utf8');
+  cierto('entrar() lo comprueba antes de cargar el guion de Google',
+         ing.indexOf('origenAutorizado(origenActual())') !== -1 &&
+         ing.indexOf('origenAutorizado(origenActual())') < ing.indexOf('await cargarGis()'));
+}
+
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 process.exit(mal ? 1 : 0);

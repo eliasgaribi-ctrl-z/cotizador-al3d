@@ -83,6 +83,30 @@ const SCOPE = 'openid email';
 export const CLIENT_ID =
   '1057893837924-3np1vkcbpqmkh6sio0ktse00kd9b5ulr.apps.googleusercontent.com';
 
+/* Los orígenes que están dados de alta en Google para CLIENT_ID. Es una copia de lo que dice
+   la consola de Google (Clientes → este cliente → Orígenes autorizados de JavaScript), y
+   existe por un solo motivo: desde cualquier otro origen, Google abre la ventana y la llena
+   con «Acceso bloqueado: Error 400: origin_mismatch», que suena a que la app está rota o a
+   que la cuenta no tiene permiso, y no es ninguna de las dos. Es que la app se abrió desde
+   una dirección que no es la suya. Aquí se detecta ANTES de abrir la ventana y se dice cuál
+   es la buena.
+
+   Si se autoriza un origen nuevo en la consola —un dominio propio, por ejemplo— se agrega
+   aquí también, o la app lo seguirá rechazando por su cuenta. Solo aplica al identificador
+   del código: uno pegado en Ajustes trae sus propios orígenes, que esta lista no conoce. */
+export const ORIGENES = ['https://eliasgaribi-ctrl-z.github.io'];
+export const URL_APP = 'https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/';
+
+/** true si desde `origen` Google va a aceptar CLIENT_ID. Sin origen (node, pruebas) no se
+ *  juzga: no hay ventana que abrir. */
+export function origenAutorizado(origen) {
+  if (!origen) return true;
+  return ORIGENES.includes(String(origen).replace(/\/+$/, '').toLowerCase());
+}
+
+const origenActual = () =>
+  (typeof location !== 'undefined' && location && location.origin) || '';
+
 const MSG = {
   SIN_CONFIG: 'Todavía no está puesto el identificador de Google de la app. Mientras tanto, el puente funciona con el token de este dispositivo.',
   SIN_RED: 'No hay señal para entrar con Google. Lo que hagas se guarda aquí y se manda solo cuando vuelva.',
@@ -92,6 +116,8 @@ const MSG = {
      que menos lo es, así que dice dónde se arregla. Google avisa de esto por su
      `error_callback` y no por el callback normal: sin engancharlo, esto era una promesa que
      no resolvía nunca y una pantalla congelada en «Entrando…». */
+  ORIGEN: origen => 'Google no deja entrar desde ' + (origen === 'null' ? 'un archivo abierto en el ordenador' : origen) +
+    ': esa dirección no está autorizada para esta app. Abre la plataforma desde ' + URL_APP + ' y vuelve a intentar.',
   BLOQUEADA: 'Tu navegador bloqueó la ventana de Google. Busca el aviso de «ventana emergente bloqueada» —en Chrome sale a la derecha de la barra de direcciones—, permítelas para este sitio y vuelve a intentar.',
 };
 
@@ -170,6 +196,12 @@ export async function entrar(callado) {
   const id = clienteId();
   if (!id) return mal('DATO_INVALIDO', MSG.SIN_CONFIG);
   if (dentro()) return ok({ correo: correo(), expira: _tok.expira });
+
+  /* Antes de la red y antes de la ventana: desde un origen que Google no conoce, lo único
+     que la ventana puede enseñar es el error 400. Ver ORIGENES. */
+  if (id === CLIENT_ID && !origenAutorizado(origenActual())) {
+    return mal('DATO_INVALIDO', MSG.ORIGEN(origenActual()));
+  }
 
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     return mal('SIN_RED', MSG.SIN_RED);
