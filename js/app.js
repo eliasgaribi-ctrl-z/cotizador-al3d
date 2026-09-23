@@ -589,19 +589,10 @@ function revisarDispositivo() {
     return;
   }
 
-  const d = Prefs.diasSinRespaldo();
-  /* Safari desaloja el almacenamiento de sitios que llevan semanas sin abrirse, y iOS es
-     donde esto se usa. Un respaldo es la única defensa, y el aviso es lo único que hace que
-     alguien se acuerde de bajarlo. */
-  if (d === null) {
-    pintarBanda({ texto: 'Nunca has respaldado la plataforma. Si el navegador limpia este sitio, se va todo lo del almacén y la agenda.',
-      accion: { label: 'Respaldar', fn: respaldar } });
-  } else if (d >= 9) {
-    pintarBanda({ html: 'Van <b>' + d + ' días</b> sin respaldo de la plataforma.',
-      accion: { label: 'Respaldar', fn: respaldar } });
-  } else {
-    pintarBanda(null);
-  }
+  /* Aquí iba el recordatorio de respaldo («Nunca has respaldado…», «Van N días…»), en cada
+     pantalla. Se quitó por decisión de Dirección (septiembre de 2026): ocupaba el lugar más
+     visible de la app con algo que no se usa. Respaldar sigue en Ajustes. */
+  pintarBanda(null);
 }
 
 /* El respaldo baja COMPLETO: la plataforma y el cotizador en un solo archivo. Antes eran dos
