@@ -922,7 +922,36 @@ ctx.sincronizar = sincronizarCallado;
 function registrarSW() {
   if (!('serviceWorker' in navigator)) return;
   if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
-  try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (_) {}
+  /* ----- La versión nueva se pone sola -----
+     El service worker nuevo se instala por detrás y toma el control (skipWaiting + claim),
+     pero la página que ya estaba abierta sigue corriendo el código viejo hasta que alguien
+     recarga. En la práctica eso era «subí los cambios y sigo viendo lo de antes». Así que
+     cuando el control cambia de manos se recarga UNA vez. Solo si ya había un service worker
+     antes: en la primera instalación también cambia el control, y ahí no hay nada viejo. */
+  const habia = !!navigator.serviceWorker.controller;
+  let recargado = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!habia || recargado) return;
+    /* Si alguien está escribiendo, no se le tira: la versión nueva entra en la siguiente
+       apertura, como antes. */
+    const a = document.activeElement;
+    if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;
+    recargado = true;
+    location.reload();
+  });
+  try {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      /* Y se pregunta por una versión nueva cada vez que se vuelve a la app, no solo al
+         abrirla: con la app abierta todo el día en el taller, «al abrirla» era nunca. Una
+         vez cada diez minutos como mucho. */
+      let ultima = Date.now();
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible' || Date.now() - ultima < 600000) return;
+        ultima = Date.now();
+        reg.update().catch(() => {});
+      });
+    }).catch(() => {});
+  } catch (_) {}
 }
 
 /* ----- Arrancar, y arrancar de todas formas -----
