@@ -30,12 +30,13 @@
    tercero contesta bien no está terminada.
 
    ── Qué se guarda y qué no ─────────────────────────────────────────────────────
-   El token de acceso vive SOLO en memoria. No se guarda en el aparato a propósito: es una
-   credencial, y una credencial en `localStorage` la lee cualquier guion de la página y
-   viaja en un respaldo —que en este taller se manda por WhatsApp—. Lo que sí se guarda es
-   el CORREO, que no abre nada y que sirve para dos cosas: que la pantalla diga con quién
-   estás dentro sin esperar a la red, y que la app sepa que hay que intentar la renovación
-   callada al arrancar.
+   El token de acceso se guarda en este aparato (`al3d_pf_gtok`) SOLO mientras vale —Google
+   lo da por una hora— y se borra al salir. Antes vivía solo en memoria, y eso significaba
+   que cada recarga volvía a abrir la ventana de Google: una app que te pide la cuenta cada
+   vez que la abres no se siente como una app. Lo que sí sigue sin pasar es que viaje en un
+   respaldo: esa clave no está en la lista de `RESPALDO_KEYS`. También se guarda el CORREO,
+   que sirve para que la pantalla diga con quién estás dentro sin esperar a la red, y para
+   decirle a Google qué cuenta renovar sin enseñar el selector de cuentas.
    ============================================================================ */
 
 import * as Prefs from '../datos/prefs.js';
@@ -123,7 +124,18 @@ const MSG = {
 };
 
 /* El token de acceso, en memoria y nada más. Ver la cabecera. */
-let _tok = null;          /* {token:string, expira:number} */
+const K_TOK = 'al3d_pf_gtok';
+let _tok = leerTok();     /* {token:string, expira:number} */
+
+function leerTok() {
+  try {
+    const t = JSON.parse(localStorage.getItem(K_TOK) || 'null');
+    return (t && typeof t.token === 'string' && Number(t.expira) > Date.now()) ? t : null;
+  } catch (_) { return null; }
+}
+function guardarTok(t) {
+  try { t ? localStorage.setItem(K_TOK, JSON.stringify(t)) : localStorage.removeItem(K_TOK); } catch (_) {}
+}
 let _correo = '';
 let _cliente = null;
 let _cargando = null;
@@ -245,10 +257,17 @@ export async function entrar(callado) {
       }
       const seg = Number(resp.expires_in) > 0 ? Number(resp.expires_in) : 3600;
       _tok = { token: resp.access_token, expira: Date.now() + (seg - 60) * 1000 };
+      guardarTok(_tok);
       resolve(ok({ expira: _tok.expira }));
     };
     try {
-      _cliente.requestAccessToken(callado ? { prompt: '' } : {});
+      /* `login_hint` con el correo de la vez pasada: Google escoge esa cuenta sola y no
+         enseña el selector —en un navegador con tres cuentas, el selector era lo que hacía
+         sentir que había que entrar cada vez—. */
+      const pista = correo();
+      const op = callado ? { prompt: '' } : {};
+      if (pista) op.login_hint = pista;
+      _cliente.requestAccessToken(op);
     } catch (_) {
       resolve(mal('SIN_RED', MSG.SIN_RED));
     }
@@ -289,6 +308,7 @@ async function preguntarCorreo(tok) {
  *  de Google— y la pantalla lo dice con esas palabras. */
 export function salir() {
   _tok = null;
+  guardarTok(null);
   _correo = '';
   try { Prefs.setIngreso({ ...(Prefs.ingreso() || {}), correo: '' }); } catch (_) {}
 }

@@ -682,6 +682,7 @@ async function arrancar() {
   _lentoArranque = setTimeout(() => avisarLento($('pf-arranque'), null), MS_LENTO_ARRANQUE);
   pintarRolSeg();
   pintarNav();
+  import('./nucleo/cuenta.js').then(m => m.montar(_quien)).catch(() => {});
   vigilarCapas();
   registrarCapa('pf-ficha', () => cerrarCapa('pf-ficha'));
   registrarCapa('pf-hoja',  () => cerrarCapa('pf-hoja'));

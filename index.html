@@ -207,6 +207,10 @@
   <span class="pf-cab-d" id="pf-cab-sub"></span>
   <div class="pf-cab-acc" id="pf-cab-acc"></div>
   <button type="button" class="pf-cab-tema btn-tema" data-tema-btn aria-pressed="false" title="Cambiar a tema oscuro" aria-label="Cambiar a tema oscuro"><svg class="svgi sol" aria-hidden="true"><use href="#i-sol"/></svg><svg class="svgi luna" aria-hidden="true"><use href="#i-luna"/></svg></button>
+  <!-- Tu cuenta: la inicial, y al tocarla el correo, el rol y «Cerrar sesión». Nace escondido
+       y lo pinta js/nucleo/cuenta.js cuando la puerta ya dejó pasar. -->
+  <button type="button" class="pf-cuenta" id="pf-cuenta" hidden aria-haspopup="true" aria-expanded="false" aria-controls="pf-cuenta-menu"></button>
+  <div class="pf-cuenta-menu" id="pf-cuenta-menu" role="menu" hidden></div>
 </header>
 
 <!-- La barra de progreso de las transiciones. Tres píxeles pegados arriba que corren mientras
