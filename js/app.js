@@ -479,6 +479,36 @@ function pintarCuentasNav() {
 }
 ctx.ponerCuenta = ponerCuenta;
 
+/* ----- Los globos, sin tener que entrar a cada pantalla -----
+   Cada módulo publicaba su cuenta al montarse, así que los pendientes de Proyectos o del
+   Mapa no aparecían en la barra hasta que alguien entraba ahí. Ahora cada uno sabe contar
+   sin pintar (`contar()`), y aquí se les pregunta a todos los de este rol: al arrancar,
+   después de cada sincronización que trajo algo y al cambiar de pantalla. La pantalla que
+   está montada contesta null y se queda con la cuenta que publicó ella. Uno a la vez y
+   después de pintar: son lecturas locales, pero no tienen por qué competir con la pantalla
+   que la persona está mirando. */
+const MODS_CON_CUENTA = ['tablero', 'fabricacion', 'proyectos', 'material', 'mapa'];
+let _contando = null, _contarOtraVez = false;
+function contarTodo() {
+  if (_contando) { _contarOtraVez = true; return _contando; }
+  _contando = (async () => {
+    do {
+      _contarOtraVez = false;
+      for (const r of rutasDeRol()) {
+        if (r.oculto || !MODS_CON_CUENTA.includes(r.mod)) continue;
+        try {
+          const m = await import('./mod/' + r.mod + '.js');
+          if (typeof m.contar !== 'function') continue;
+          const c = await m.contar();
+          if (c) for (const [ruta, n] of Object.entries(c)) ponerCuenta(ruta, n);
+        } catch (e) { console.warn('no se pudo contar ' + r.mod, e); }
+      }
+    } while (_contarOtraVez);
+  })().finally(() => { _contando = null; });
+  return _contando;
+}
+ctx.contarTodo = contarTodo;
+
 function pintarRolSeg() {
   const seg = $('pf-rolseg'); if (!seg) return;
   const actual = Prefs.rol();
@@ -789,6 +819,8 @@ async function arrancar() {
      por algo que ni siquiera hace falta para trabajar. */
   await enchufarPuente();
   sincronizarCallado();
+  contarTodo();
+  window.addEventListener('hashchange', () => setTimeout(contarTodo, 800));
 
   /* El asistente: solo cuelga el oyente del botón; el panel se pinta al abrir. Si el módulo
      no carga —service worker a medias— el botón no hace nada y la plataforma sigue igual. */
@@ -908,7 +940,7 @@ async function sincronizarDeVerdad() {
       if (!r.valor.hay_mas) break;
     }
   } catch (_) {}
-  if (movio) _repintarDebe = true;
+  if (movio) { _repintarDebe = true; contarTodo(); }
   if (_repintarDebe && _actual && puedeRepintar()) {
     _repintarDebe = false;
     montar(_actual, { forzar: true });

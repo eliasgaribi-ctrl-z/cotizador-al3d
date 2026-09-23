@@ -210,7 +210,23 @@ export function desmontar() {
    Leer — todo por la capa de datos, cero cuentas propias
    ============================================================================ */
 
+/** El globo de la barra sin montar la pantalla: lo llama app.js al arrancar y después de
+ *  cada sincronización, para que los pendientes se vean sin tener que entrar aquí. Solo lee;
+ *  no pinta nada. */
+export async function contar() {
+  if (CTX) return null;          // montado: la cuenta la publica la pantalla
+  await leerDatos();
+  return { mapa: sinUbicar().length };
+}
+
 async function cargar() {
+  await leerDatos();
+  /* Una ruta calculada con los proyectos de antes apuntaría a pines que ya se movieron. */
+  RUTA = null;
+  pintar();
+}
+
+async function leerDatos() {
   HOY = hoyISO();
   PROYS = await Proyectos.listar({ vivos: true });
 
@@ -229,10 +245,6 @@ async function cargar() {
       INST.set(i.proyecto_id, dato);
     }
   }
-
-  /* Una ruta calculada con los proyectos de antes apuntaría a pines que ya se movieron. */
-  RUTA = null;
-  pintar();
 }
 
 /* ============================================================================

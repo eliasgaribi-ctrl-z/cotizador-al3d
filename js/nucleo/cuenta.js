@@ -15,8 +15,8 @@ import { $, esc } from './ui.js';
 
 /** Pinta el botón y su menú. `quien` es lo que devolvió `Puerta.custodiar()`. */
 export function montar(quien) {
-  const btn = $('pf-cuenta');
-  const menu = $('pf-cuenta-menu');
+  const btn = $('pf-sesion');
+  const menu = $('pf-sesion-menu');
   if (!btn || !menu || !quien) return;
 
   const correo = quien.correo || '';
@@ -29,16 +29,16 @@ export function montar(quien) {
   btn.hidden = false;
 
   menu.innerHTML =
-    '<div class="pf-cuenta-quien">' +
-      '<span class="pf-cuenta-ava" aria-hidden="true">' + esc(inicial) + '</span>' +
-      '<span class="pf-cuenta-dat">' +
+    '<div class="pf-sesion-quien">' +
+      '<span class="pf-sesion-ava" aria-hidden="true">' + esc(inicial) + '</span>' +
+      '<span class="pf-sesion-dat">' +
         '<b>' + esc(correo || 'Sin cuenta') + '</b>' +
         (rol ? '<span>' + esc(rol) + '</span>' : '') +
       '</span>' +
     '</div>' +
-    '<p class="pf-cuenta-nota">Tu sesión se queda guardada en este aparato. No tienes que volver a entrar hasta que cierres sesión.</p>' +
-    '<button type="button" class="pf-cuenta-op" data-cuenta="ajustes">Ajustes</button>' +
-    '<button type="button" class="pf-cuenta-op es-salir" data-cuenta="salir">Cerrar sesión</button>';
+    '<p class="pf-sesion-nota">Tu sesión se queda guardada en este aparato. No tienes que volver a entrar hasta que cierres sesión.</p>' +
+    '<button type="button" class="pf-sesion-op" data-cuenta="ajustes">Ajustes</button>' +
+    '<button type="button" class="pf-sesion-op es-salir" data-cuenta="salir">Cerrar sesión</button>';
 
   const abrir = si => {
     menu.hidden = !si;
