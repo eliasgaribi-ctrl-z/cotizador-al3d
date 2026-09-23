@@ -210,7 +210,7 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
    Sin eso, los teléfonos que ya tienen la app siguen sirviendo la versión guardada.
 3. Esperar de 30 a 60 segundos a que GitHub Pages redespliegue.
 
-Son ochenta y un archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
+Son ochenta y dos archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
 mala señal llegarían mezclados, y **un guion nuevo con uno viejo no es una app vieja, es una app
 rota**. Por eso el conjunto se cambia completo o no se cambia.
 
@@ -219,7 +219,7 @@ plataforma con `herramientas/extraer-catalogo.sh`.
 
 ## Pruebas
 
-    pruebas/correr.sh               24 archivos, solo node, unos segundos
+    pruebas/correr.sh               25 archivos, solo node, unos segundos
     pruebas/correr.sh --navegador   17 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
