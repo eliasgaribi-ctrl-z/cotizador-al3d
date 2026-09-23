@@ -1489,7 +1489,7 @@ var BITACORA = 'Bitácora del puente';
    Lista vacía = entrar con Google apagado, y el puente sigue funcionando con los tokens de
    dispositivo de siempre. */
 var PUENTE_CLIENT_IDS = [
-  /* Aplicación web · origen https://eliasgaribi-ctrl-z.github.io */
+  /* Aplicación web · orígenes https://eliasgaribi-ctrl-z.github.io y https://cotizador-al3d.pages.dev */
   '1057893837924-3np1vkcbpqmkh6sio0ktse00kd9b5ulr.apps.googleusercontent.com'
 ];
 

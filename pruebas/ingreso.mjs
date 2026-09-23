@@ -211,6 +211,7 @@ console.log('\nEL ORIGEN SE COMPRUEBA ANTES DE ABRIR LA VENTANA DE GOOGLE');
      origin_mismatch». La app tiene que darse cuenta antes y decir cuál es la dirección buena. */
   const I = await import('../js/nucleo/ingreso.js');
   cierto('github.io, que es donde vive la app, vale', I.origenAutorizado('https://eliasgaribi-ctrl-z.github.io'));
+  cierto('Cloudflare Pages, donde también se publica, vale', I.origenAutorizado('https://cotizador-al3d.pages.dev'));
   cierto('otro dominio no', !I.origenAutorizado('https://al3d.pages.dev'));
   cierto('un archivo abierto a mano (origen «null») no', !I.origenAutorizado('null'));
   cierto('localhost tampoco, porque Google no lo tiene', !I.origenAutorizado('http://localhost:8080'));

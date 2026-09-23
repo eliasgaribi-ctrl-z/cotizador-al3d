@@ -94,7 +94,8 @@ export const CLIENT_ID =
    Si se autoriza un origen nuevo en la consola —un dominio propio, por ejemplo— se agrega
    aquí también, o la app lo seguirá rechazando por su cuenta. Solo aplica al identificador
    del código: uno pegado en Ajustes trae sus propios orígenes, que esta lista no conoce. */
-export const ORIGENES = ['https://eliasgaribi-ctrl-z.github.io'];
+export const ORIGENES = ['https://eliasgaribi-ctrl-z.github.io',
+                         'https://cotizador-al3d.pages.dev'];   // Cloudflare Pages
 export const URL_APP = 'https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/';
 
 /** true si desde `origen` Google va a aceptar CLIENT_ID. Sin origen (node, pruebas) no se
