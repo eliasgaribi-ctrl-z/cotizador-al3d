@@ -271,7 +271,28 @@ export async function encolar(op) {
     sync: 0,
   };
 
-  return DB.poner('pendientes', guardada);
+  const r = await DB.poner('pendientes', guardada);
+  if (r && r.ok) programarBombeo();
+  return r;
+}
+
+/* ----- Mandar al momento -----
+   Antes lo guardado se quedaba en la bandeja hasta la siguiente apertura de la app o hasta
+   que volviera la señal, y en otro teléfono no aparecía hasta entonces. Ahora cada cambio
+   sale solo segundo y medio después de guardarse. La espera junta en un solo viaje lo que
+   se guarda de corrido —cinco campos de una ficha son un bombeo, no cinco— y `bombear()`
+   ya garantiza que nunca corran dos a la vez. Sin puente o sin señal no hace nada: la
+   bandeja sigue ahí y sale con el siguiente evento. */
+const MS_BOMBEO_DIFERIDO = 1500;
+let _programado = 0;
+function programarBombeo() {
+  if (typeof setTimeout !== 'function') return;
+  clearTimeout(_programado);
+  _programado = setTimeout(() => {
+    if (!configurado()) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    bombear().catch(() => {});
+  }, MS_BOMBEO_DIFERIDO);
 }
 
 /** La bandeja de salida en orden de emisión: sin los conflictos, sin lo que este relevo no
