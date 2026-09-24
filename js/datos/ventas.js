@@ -27,7 +27,7 @@
 
 import { partesISO, esISO, hoyISO, masMeses, MES_CORTO } from '../nucleo/fechas.js';
 import { cobrado } from './cotizador.js';
-import { ETAPA_NOMBRE } from './proyectos.js';
+import { ETAPA_NOMBRE, filaDeOtraCotizacion } from './proyectos.js';
 
 const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
 const red2 = v => Math.round((num(v) + Number.EPSILON) * 100) / 100;
@@ -153,19 +153,38 @@ export function unificar(proyectos, ventasHoja) {
   const usadas = new Set();
   const ventas = [];
   let enlazados = 0, huerfanos = 0;
-  const ids = new Set(P.map(p => p.id));
+  const porId = new Map(P.map(p => [p.id, p]));
   for (const p of P) {
     /* La copia importada que repite una venta de este teléfono (`duplicado_de`, ver
        proyectos.revisarContraLaHoja) espera a que Dirección decida en su ficha; mientras tanto
        no se cuenta, o el vendido sale con esa venta dos veces: la de aquí ya está atada a esa
        misma fila. Y si resulta que no era la misma, su fila no se pierde: sin nadie que la use,
        se cuenta sola abajo, como renglón de la hoja. Solo mientras la de aquí siga en el
-       teléfono: sin ella, la copia es la única tarjeta de esa venta. */
-    if (p.duplicado_de && typeof p.duplicado_de === 'object' && p.duplicado_de.id && ids.has(p.duplicado_de.id)) {
-      huerfanos++; continue;
+       teléfono: sin ella, la copia es la única tarjeta de esa venta.
+       Y no si la de aquí es una lápida («No se dio») y la fila de la copia está VIVA: ahí las dos
+       dicen cosas distintas de la misma venta, y mientras Dirección decide, Control cuenta la
+       obra viva, con su saldo, como la contaba antes de la marca (y la lápida, como perdida).
+       Saltarla dejaba solo la lápida atada a esa fila, y el saldo que la hoja dice que se debe
+       salía del por cobrar. */
+    const real = p.duplicado_de && typeof p.duplicado_de === 'object' && p.duplicado_de.id ? porId.get(p.duplicado_de.id) : null;
+    if (real) {
+      const suFila = p.folio_hoja ? porHoja.get(String(p.folio_hoja)) : null;
+      const enDuda = real.etapa === 'cancelado' && suFila && suFila.etapa !== 'cancelado';
+      if (!enDuda) { huerfanos++; continue; }
     }
-    const v = (p.folio_global ? porFolio.get(String(p.folio_global)) : null)
-      || (p.folio_hoja ? porHoja.get(String(p.folio_hoja)) : null);
+    /* La misma venta en DOS filas (`hoja_doble`, ver proyectos.revisarContraLaHoja): se cuenta
+       una vez, con la fila a la que este teléfono le manda sus cambios. Las dos filas traen la
+       misma venta, y sin esto la otra se contaba sola abajo, como otra venta de la hoja. */
+    const doble = !p.de_hoja && p.hoja_doble && Array.isArray(p.hoja_doble.folios) && p.hoja_doble.folios.length > 1
+      ? p.hoja_doble.folios.map(String) : null;
+    const laSuya = doble && doble.includes(String(p.notion_page_id || '')) ? porHoja.get(String(p.notion_page_id)) : null;
+    /* Por el folio de la hoja, la venta de aquí solo se ata a una fila que no diga ser de OTRA
+       cotización: `folio_hoja` es de una atadura por el nombre, y si después la fila trae el folio
+       de otra venta, ésa ya no es la suya (la revisión lo limpia; aquí no se cuenta mientras
+       tanto). Sin esto, Control contaba dos veces la venta del otro y ésta dejaba de contarse. */
+    const porSuHoja = p.folio_hoja ? porHoja.get(String(p.folio_hoja)) : null;
+    const v = laSuya || (p.folio_global ? porFolio.get(String(p.folio_global)) : null)
+      || (porSuHoja && (p.de_hoja || !filaDeOtraCotizacion(p, porSuHoja)) ? porSuHoja : null);
     if (!v) {
       /* Un proyecto IMPORTADO de la hoja (`de_hoja`) sin su renglón es una fila que se borró
          allá: el barrido ya la quitó de `ventas_hoja`, y el proyecto se quedaba contado como
@@ -177,6 +196,7 @@ export function unificar(proyectos, ventasHoja) {
       ventas.push(p); continue;
     }
     usadas.add(v.id);
+    if (doble) for (const f of doble) { const w = porHoja.get(f); if (w) usadas.add(w.id); }
     enlazados++;
     const u = { ...p, en_hoja: true, folio_hoja: String(v.folio_hoja || '') };
     if (esISO(v.fecha_anticipo)) u.fecha_ganado = v.fecha_anticipo;

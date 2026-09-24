@@ -345,7 +345,7 @@ function publicarCuenta() {
     /* Y las que la hoja ya no tiene o que están dos veces: son decisiones de Dirección que
        solo se toman en la ficha. */
     n = SIN_DECIDIR.length + TODOS.filter(p => p.etapa !== 'cancelado' &&
-      (cambiada(p) || avisoDe(p) === 'perdida' || avisoDe(p) === 'repetida')).length;
+      (cambiada(p) || avisoDe(p) === 'perdida' || avisoDe(p) === 'repetida' || avisoDe(p) === 'doble')).length;
   } else if (rol === 'fabricacion') {
     /* Y la tarjeta importada cuya fila ya no vino: ésa la decide quien tenga el teléfono (ver
        `avisoHoja`), y el del taller es donde viven. */
@@ -522,7 +522,8 @@ function tarjeta(p) {
       /* La marca de la hoja también se ve desde el tablero: sin ella, la tarjeta que ya no
          está en la hoja o que repite otra solo se descubría abriéndola. */
       (avisoDe(p) === 'perdida' ? '<span class="pf-sem grave">Ya no está en la hoja</span>'
-        : avisoDe(p) === 'repetida' ? '<span class="pf-sem grave">Repetida</span>' : '') +
+        : avisoDe(p) === 'repetida' ? '<span class="pf-sem grave">Repetida</span>'
+        : avisoDe(p) === 'doble' ? '<span class="pf-sem grave">Dos veces en la hoja</span>' : '') +
       (inst
         ? '<span class="pj-tarj-inst">' + ico('i-camion') + esc(fmtFecha(inst.fecha)) + '</span>'
         : '<span class="pj-tarj-inst">' + ico('i-camion') + 'sin fecha</span>') +
@@ -933,11 +934,41 @@ const LO_DECIDE_DIRECCION = 'Lo decide Dirección entrando con su cuenta en este
 
 function avisoHoja(p, rol) {
   const tipo = avisoDe(p);
-  if (!tipo) return '';
   const dir = rol === 'direccion';
   const imp = esImportada(p);
   const boton = (clase, attr, texto) => '<button type="button" class="btn ' + clase + '" ' + attr + '="' + esc(p.id) + '">' + texto + '</button>';
   let txt = '', btns = [];
+
+  if (!tipo) {
+    /* La lápida («No se dio») no avisa —ya se decidió—, pero si su fila se había perdido lo
+       apartado se quedaba para siempre en Ajustes, y el «No se dio» también rebota: la ficha no
+       tenía ni el aviso ni la salida. Una línea callada, sin «Qué atender», con la única salida
+       que le sirve: dejarla fuera de la hoja (tira lo apartado a su nota y deja de mandarse; si
+       la fila vuelve, se le manda sola con el «No se dio»). Nada se borra. */
+    const h = p && p.etapa === 'cancelado' && p.hoja_perdida && typeof p.hoja_perdida === 'object' ? p.hoja_perdida : null;
+    if (!h) return '';
+    const puede = dir || imp;
+    txt = 'Está como «No se dio», y su fila ' + esc(h.folio || '') + (h.motivo === 'de_otra' ? ' ya es de otra venta' : ' ya no está en la hoja') +
+      ': lo que se cambió desde entonces —el «No se dio» incluido— se quedó apartado en este teléfono. ' +
+      (puede ? 'Si la fila se quitó a propósito, déjala fuera de la hoja: deja de mandarse, y si su fila vuelve se le manda sola.'
+             : LO_DECIDE_DIRECCION);
+    if (puede) btns.push(boton('btn-gho', imp ? 'data-hoja-dejar' : 'data-hoja-fuera', imp ? 'Dejarla' : 'Dejarla fuera de la hoja'));
+    return '<p class="hintnote">' + ico('i-nube-off') + ' ' + txt + '</p>' +
+      (btns.length ? '<div class="btn-fila">' + btns.join('') + '</div>' : '');
+  }
+
+  if (tipo === 'doble') {
+    /* La venta de aquí en dos filas de la hoja (ver `hoja_doble` en js/datos/proyectos.js). Sin
+       botón: cuál sobra se decide en la hoja, que es de Dirección, y este teléfono no borra filas.
+       Se dice a cuál manda y de cuál saca el dinero, porque la otra puede ser la de los cobros. */
+    const fs = (p.hoja_doble.folios || []).map(String);
+    txt = '<b>Esta venta está dos veces en la hoja.</b> Las filas ' + esc(fs.join(' y ')) + ' traen la misma venta. ' +
+      'Los cambios de este proyecto van a ' + esc(fs[0] || '') + ', y de ella sale su dinero; ' +
+      (fs.length > 2 ? 'las otras no reciben' : 'la otra no recibe') + ' nada. No se borró ninguna: ' +
+      (dir ? 'en la hoja, borra la que sobra —revisa antes cuál tiene los cobros— y con la siguiente bajada este aviso se va.'
+           : 'cuál sobra lo decide Dirección en la hoja; con la siguiente bajada este aviso se va.');
+    return '<p class="hintnote nota-av">' + ico('i-aviso') + ' ' + txt + '</p>';
+  }
 
   if (tipo === 'repetida') {
     const d = p.duplicado_de || {};
@@ -1041,13 +1072,17 @@ async function decisionHoja(que, id, boton) {
   const fila = (d && d.folio_hoja) || p.folio_hoja || '';
 
   if (que === 'fuera') {
+    /* Lo que rebotó no se tira: `dejarFueraDeLaHoja` lo anota en el proyecto (`sin_mandar`) y
+       viaja con lo demás si la fila vuelve. Una lápida no tiene «Volver a darla de alta». */
     if (!window.confirm('¿Dejar «' + nombre + '» fuera de la hoja?\n\nEl proyecto se queda en este teléfono y deja de mandarse a la hoja. ' +
-      'Los cambios que rebotaron contra su fila se tiran. Si después cambias de idea, en su ficha está «Volver a darla de alta en la hoja».')) return;
+      'Los cambios que rebotaron contra su fila no se tiran: se guardan en este teléfono, y si su fila vuelve a la hoja se mandan solos, con lo de ese día.' +
+      (p.etapa === 'cancelado' ? '' : ' Si después cambias de idea, en su ficha está «Volver a darla de alta en la hoja».'))) return;
   } else if (que === 'dejar') {
-    /* «Vuelve a mandarse sola» es cierto desde que el relevo anota lo que no manda (`sin_mandar`)
-       y la bajada lo manda cuando la fila vuelve; antes lo cambiado mientras tanto se perdía. */
+    /* «Vuelve a mandarse sola» es cierto desde que el relevo anota lo que no manda (`sin_mandar`),
+       `dejarFueraDeLaHoja` anota ahí también lo que ya había rebotado, y la bajada lo manda
+       cuando la fila vuelve; antes lo cambiado mientras tanto, y lo que rebotó, se perdía. */
     if (!window.confirm('¿Dejar «' + nombre + '» en el tablero aunque la hoja ya no la tenga?\n\nNo se vuelve a preguntar por ella, y sus cambios ya no se mandan a la hoja. ' +
-      'Si su fila vuelve a la hoja, vuelve a mandarse sola, con lo que hayas cambiado mientras tanto.')) return;
+      'Si su fila vuelve a la hoja, vuelve a mandarse sola, con lo que hayas cambiado mientras tanto y lo que ya había rebotado.')) return;
   } else if (que === 'quitar') {
     if (!window.confirm(d
       ? '¿Quitar esta copia de «' + nombre + '» del tablero?\n\nEs la copia importada de la fila ' + fila + ', que repite «' + otra + '». ' +
@@ -1075,6 +1110,11 @@ async function decisionHoja(que, id, boton) {
   }
 
   if (boton) boton.disabled = true;
+  /* Lo que la copia tiene esperando en la bandeja sale antes de juntarla: `juntarConLaDeAqui` no
+     junta una copia con cambios sin mandar (se tirarían con ella). Sin señal, se queda y lo dice. */
+  if (que === 'juntar' && Sync.configurado()) {
+    try { await Sync.bombear(); } catch (_) { /* se queda en la bandeja; la junta explica qué falta */ }
+  }
   const r = que === 'alta' ? await Proy.volverADarDeAlta(id)
     : que === 'fuera' || que === 'dejar' ? await Proy.dejarFueraDeLaHoja(id)
     : que === 'quitar' ? await Proy.quitarDelTablero(id)

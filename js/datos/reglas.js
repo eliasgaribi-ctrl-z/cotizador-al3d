@@ -700,7 +700,8 @@ function a14(E, out) {
    sobre todo en el teléfono del taller, y las marcas no viajan: lo que Dirección decida en el
    suyo no llega ahí. Ese aviso es de los tres roles, y no lleva ni un peso, porque lo lee
    fabricación. El de una venta de aquí o el de una repetida decide la hoja o cuál de dos
-   proyectos es la venta: ése es de Dirección. */
+   proyectos es la venta: ése es de Dirección. Y el de la venta que está en dos filas de la hoja
+   (`hoja_doble`) también: cuál sobra se borra en la hoja. */
 function a15(E, out) {
   for (const p of E.proyectos) {
     if (!p.id || p.etapa === 'cancelado') continue;
@@ -708,13 +709,23 @@ function a15(E, out) {
     const imp = p.de_hoja === true || String(p.id).startsWith('proy-hoja-');
     const d = p.duplicado_de && typeof p.duplicado_de === 'object' ? p.duplicado_de : null;
     const h = !d && p.hoja_perdida && typeof p.hoja_perdida === 'object' ? p.hoja_perdida : null;
-    if (!d && !h) continue;
-    const marca = d || h;
+    /* La venta de aquí en DOS filas de la hoja (`hoja_doble`): cuál sobra se decide en la hoja,
+       y eso es de Dirección. */
+    const dob = !d && !h && p.hoja_doble && typeof p.hoja_doble === 'object' && Array.isArray(p.hoja_doble.folios) &&
+      p.hoja_doble.folios.length > 1 ? p.hoja_doble : null;
+    if (!d && !h && !dob) continue;
+    const marca = d || h || dob;
     const dia = isoDeSello(marca.desde);
     const dias = dia ? diasEntre(dia, E.hoy) : null;
 
     let titulo, detalle;
-    if (d) {
+    if (dob) {
+      const [suya, ...otras] = dob.folios.map(String);
+      titulo = 'La venta de ' + nombre + ' está dos veces en la hoja';
+      detalle = 'Las filas ' + [suya, ...otras].join(' y ') + ' traen la misma venta. Este teléfono le manda sus cambios a ' + suya +
+        ' y de ella saca el dinero; ' + (otras.length === 1 ? 'la otra no recibe' : 'las otras no reciben') + ' nada. ' +
+        'Nada se borró solo: en la hoja, borra la que sobra —revisa antes cuál tiene los cobros— y con la siguiente bajada el aviso se va.';
+    } else if (d) {
       titulo = nombre + ' está dos veces en el tablero';
       /* Con la identidad por confirmar (la fila solo coincide en el folio de la hoja) se dice
          «parece»: puede ser una venta de otro con el folio repartido dos veces. */
@@ -739,7 +750,7 @@ function a15(E, out) {
     out.push(aviso('A15', p.id, {
       tono: 'av',
       titulo, detalle,
-      roles: !d && imp ? ['direccion', 'fabricacion', 'pagos'] : ['direccion'],
+      roles: h && imp ? ['direccion', 'fabricacion', 'pagos'] : ['direccion'],
       cuando: dias === null ? '' : frase(-dias),
       plazo: dias === null ? 0 : -dias,
       entidad: 'proyecto', entidad_id: p.id,

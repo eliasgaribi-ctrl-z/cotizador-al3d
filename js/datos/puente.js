@@ -49,7 +49,7 @@
 
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
-import { desdeVentaDeHoja, marcarPerdidaEnLaHoja, revisarContraLaHoja, mismaVentaQueLaFila } from './proyectos.js';
+import { desdeVentaDeHoja, marcarPerdidaEnLaHoja, revisarContraLaHoja, ataLaFila, foliosDeHoja, sumarSinMandar } from './proyectos.js';
 import * as Ingreso from '../nucleo/ingreso.js';
 
 /* ============================================================================
@@ -419,11 +419,23 @@ export function motivoPerdida(res) {
 /* El consejo de la hoja —«vuelve a registrarla desde el cotizador»— no lleva a ningún lado:
    `proyectos.ganar` contesta DUPLICADO a una cotización que ya es proyecto. Se cambia por el
    camino que sí existe, que es la ficha del proyecto; lo de antes —qué fila, atada a qué— se
-   conserva, porque es lo que explica qué pasó. */
-export function mensajePerdida(mensaje) {
+   conserva, porque es lo que explica qué pasó.
+   Y el camino depende de qué proyecto es (`proy`, el que rebotó): Ajustes enseña este texto a
+   cualquier rol, y el de la venta de aquí —«Dirección decide si se vuelve a dar de alta»— era
+   falso para las otras dos. Una tarjeta IMPORTADA no se da de alta (no tiene cotización) y la
+   decide quien tenga el teléfono, con los botones de su ficha; una lápida («No se dio») no se da
+   de alta tampoco, y su salida es dejarla fuera de la hoja. */
+export function mensajePerdida(mensaje, proy) {
   const base = String(mensaje || '').replace(/\s*Si la venta sigue viva,[^]*$/, '').trim();
-  return (base ? base + ' ' : '') +
-    'Dirección decide en la ficha del proyecto si se vuelve a dar de alta o se queda fuera de la hoja.';
+  const p = proy && typeof proy === 'object' ? proy : null;
+  const importada = !!p && (p.de_hoja === true || String(p.id || '').startsWith('proy-hoja-'));
+  const consejo = p && p.etapa === 'cancelado'
+    ? 'Está como «No se dio»: en su ficha, ' + (importada ? 'quien tenga este teléfono' : 'Dirección') +
+      ' la deja fuera de la hoja y deja de mandarse.'
+    : importada
+      ? 'Es una tarjeta importada de la hoja: en su ficha, quien tenga este teléfono decide si se quita del tablero o se queda.'
+      : 'Dirección decide en la ficha del proyecto si se vuelve a dar de alta o se queda fuera de la hoja.';
+  return (base ? base + ' ' : '') + consejo;
 }
 
 /* ----- La versión de la hoja que esta plataforma espera -----
@@ -822,7 +834,7 @@ export function crear(cfg0) {
         const hp = proy.hoja_perdida;
         if (idNotion && hp && typeof hp === 'object' && hp.motivo === 'de_otra' && hp.folio === idNotion) {
           salida.push({ id: op.id, ok: false, codigo: 'NO_ENCONTRADO', definitivo: true, motivo: 'de_otra',
-            mensaje: mensajePerdida('La fila ' + idNotion + ' de la hoja ya es de otra venta; este cambio no se mandó para no escribirlo en ella.'),
+            mensaje: mensajePerdida('La fila ' + idNotion + ' de la hoja ya es de otra venta; este cambio no se mandó para no escribirlo en ella.', proy),
             conflicto: null });
           continue;
         }
@@ -940,7 +952,7 @@ export function crear(cfg0) {
                       /* El porqué para la máquina: `sync` lo guarda en lo apartado
                          (`motivo_rechazo`) y `despuesDeBajar` lo vuelve a leer de ahí. */
                       ...(perdida ? { motivo: perdida } : {}),
-                      mensaje: perdida ? mensajePerdida(res.mensaje) : (res.mensaje || 'La hoja rechazó el cambio.'),
+                      mensaje: perdida ? mensajePerdida(res.mensaje, proy) : (res.mensaje || 'La hoja rechazó el cambio.'),
                       conflicto: res.conflicto || null });
       }
 
@@ -965,16 +977,17 @@ export function crear(cfg0) {
          defecto de septiembre de 2026, el folio de la propia hoja escrito ahí— no ataba por folio
          con el proyecto que la había dado de alta, y si estaba en FABRICACION se importaba COMO
          OTRO: la misma venta dos veces en el tablero y en Control. Un folio repetido en dos
-         proyectos de aquí no ata a ninguno (false): ahí no se adivina. */
+         proyectos de aquí no ata a ninguno (false): ahí no se adivina.
+         Van también por los folios que tuvieron antes (`folios_previos`, ver
+         `proyectos.volverADarDeAlta`): la fila vieja que alguien restauró sigue siendo de esa venta. */
       let propios = null;
       const propioPorFila = async venta => {
         if (!venta || !venta.folio_hoja) return null;
         if (!propios) {
           propios = new Map();
           for (const p of await DB.listar('proyectos')) {
-            if (!p || !p.notion_page_id || p.de_hoja || String(p.id || '').startsWith('proy-hoja-')) continue;
-            const k = String(p.notion_page_id);
-            propios.set(k, propios.has(k) ? false : p);
+            if (!p || p.de_hoja || String(p.id || '').startsWith('proy-hoja-')) continue;
+            for (const k of foliosDeHoja(p)) propios.set(k, propios.has(k) && propios.get(k) !== p ? false : p);
           }
         }
         const p = propios.get(venta.folio_hoja);
@@ -986,27 +999,32 @@ export function crear(cfg0) {
            otra venta dada de alta a mano. Con eso bastaba, y a este proyecto le caía el saldo de
            la otra venta y su copia se juntaba con él. Si la regla no ata, la fila sigue su camino
            de siempre —su copia, o importarla— y la revisión la enseña como repetida para que
-           Dirección decida. */
-        const quien = mismaVentaQueLaFila(p, venta);
-        if (quien !== 'folio' && quien !== 'nombre' && quien !== 'confirmada') return null;
-        /* Una lápida («No se dio») no se queda con una fila que la hoja trae VIVA. Por el nombre, o
-           por haberla atado antes, no se sabe cuál de las dos dice la verdad, y atarla era decidir
-           en silencio que la hoja se equivoca: la obra salía del tablero y su saldo del por cobrar
-           de Control (`saldoDe` de un cancelado es cero). Antes de este tercer camino esa fila
-           entraba como tarjeta viva y Control la cobraba; así sigue, y la revisión la enseña como
-           repetida de la lápida para que Dirección decida (ver `proyectos.quitarDelTablero`). Con
-           el folio de cotización en la fila es el primer camino, el de siempre, y no pasa por aquí. */
-        if (quien !== 'folio' && p.etapa === 'cancelado' && venta.etapa !== 'cancelado') return null;
-        return { p, quien };
+           Dirección decida.
+           Una lápida («No se dio») tampoco se queda con una fila que la hoja trae VIVA
+           (`proyectos.ataLaFila`). Por el nombre, o por haberla atado antes, no se sabe cuál de
+           las dos dice la verdad, y atarla era decidir en silencio que la hoja se equivoca: la obra
+           salía del tablero y su saldo del por cobrar de Control (`saldoDe` de un cancelado es
+           cero). Antes de este tercer camino esa fila entraba como tarjeta viva y Control la
+           cobraba; así sigue, y la revisión la enseña como repetida de la lápida para que
+           Dirección decida (ver `proyectos.quitarDelTablero`). Con el folio de cotización en la
+           fila es el primer camino, el de siempre, y no pasa por aquí. */
+        const quien = ataLaFila(p, venta);
+        return quien ? { p, quien } : null;
       };
 
-      for (const fila of filas) {
+      /* Las filas de ESTA página por su folio de hoja. La hoja manda todas en una respuesta
+         desde puente-sheets-6, así que aquí están también las otras filas de una misma venta. */
+      const ventasPagina = filas.map(f => ventaDeHoja((f && f.datos) || null));
+      const porFolioHoja = new Map();
+      for (const v of ventasPagina) if (v && v.folio_hoja && !porFolioHoja.has(v.folio_hoja)) porFolioHoja.set(v.folio_hoja, v);
+
+      for (const [i, fila] of filas.entries()) {
         const datos = (fila && fila.datos) || null;
 
         /* 1. El renglón del récord de ventas. Todas las filas, con o sin proyecto aquí. El
            sello es «ahora» para que en `sync.fusionar` gane siempre lo que acaba de bajar:
            de estas filas la dueña es la hoja y nadie las edita de este lado. */
-        const venta = ventaDeHoja(datos);
+        const venta = ventasPagina[i];
         if (venta) registros.push({ almacen: 'ventas_hoja', datos: { ...venta, actualizado_en: Date.now() } });
 
         /* 2. El proyecto de este lado, si lo hay, por los DOS caminos: el folio de cotización
@@ -1048,6 +1066,20 @@ export function crear(cfg0) {
             if (nuevo) registros.push({ almacen: 'proyectos', datos: nuevo });
           }
           continue;   // ya quedó en el récord; el parche de dinero no tiene a quién caerle
+        }
+
+        /* La misma venta en DOS filas: Dirección la volvió a dar de alta y alguien deshizo después
+           el borrado de la fila vieja (o la metió otra vez a mano). Las dos le caen a este proyecto
+           y, sin esto, cada bajada le cambiaba la fila en silencio —`notion_page_id` se quedaba con
+           la última que se escribía— y la otra se congelaba, aunque fuera la de los cobros. Se
+           queda con la que tenía, mientras esa siga en la hoja y siga siendo suya, y a la otra no
+           se le aplica nada: su renglón ya quedó en el récord, y la revisión marca la venta
+           (`hoja_doble`) para que Dirección decida en la hoja cuál sobra. Si la que tenía ya no
+           está, ésta es la buena y la ata como siempre. */
+        const suFila = String(local.notion_page_id || '').trim();
+        if (venta && suFila && suFila !== venta.folio_hoja && !esImportadoLocal(local)) {
+          const laOtra = porFolioHoja.get(suFila);
+          if (laOtra && ataLaFila(local, laOtra)) continue;
         }
 
         /* Para un proyecto IMPORTADO no hay parche de `deNotion` —su fila no trae folio de
@@ -1104,6 +1136,14 @@ export function crear(cfg0) {
            la hoja, y la siguiente bajada la traía de nuevo sin las notas que tenía. */
         if (local.hoja_perdida) aplicar.hoja_perdida = null;
         if (local.fuera_de_hoja) aplicar.fuera_de_hoja = null;
+        /* Lo que se cambió aquí mientras la fila no estaba y todavía no se manda (`sin_mandar`):
+           la revisión de esta misma bajada lo reenvía (ver `proyectos.revisarContraLaHoja`), con
+           el valor de aquí. Si el espejo lo pisaba antes con el de la fila —la cuenta, el estatus,
+           el anticipo que la fila traía de antes—, se reenviaba justo ese valor viejo y la
+           corrección no quedaba ni en el teléfono ni en la hoja. La fila lo recibe en el reenvío,
+           y la bajada siguiente ya lo trae de allá. */
+        const sinMandar = local.sin_mandar && Array.isArray(local.sin_mandar.campos) ? local.sin_mandar.campos : [];
+        for (const k of sinMandar) if (SE_QUEDAN_HASTA_MANDARSE.has(k)) delete aplicar[k];
         registros.push({ almacen: 'proyectos', datos: { ...aplicar, id: local.id, actualizado_en: sello } });
       }
 
@@ -1158,17 +1198,23 @@ async function espejarLocal(id, campos) {
 /* Lo que no se mandó porque la venta está fuera de la hoja. Se acumula desde cuándo
    y qué campos cambiaron, no las operaciones: cuando la fila vuelva se manda UNA con el estado de
    hoy (la etapa, la dirección y la instalación viajan siempre), y los campos son para que el
-   nombre o el dinero que sí cambiaron viajen también (ver `aNotion`). */
+   nombre o el dinero que sí cambiaron viajen también (ver `aNotion`) y para que la bajada no los
+   pise antes de mandarlos (ver `bajar`). La forma es la de `proyectos.sumarSinMandar`, que
+   comparte con lo que ya había rebotado al «Dejarla». */
 async function anotarSinMandar(id, op) {
   try {
     const p = await DB.obtener('proyectos', id);
     if (!p) return;
-    const previa = p.sin_mandar && typeof p.sin_mandar === 'object' ? p.sin_mandar : null;
-    const campos = new Set(previa && Array.isArray(previa.campos) ? previa.campos : []);
-    if (op && op.almacen === 'proyectos' && Array.isArray(op.campos)) for (const c of op.campos) campos.add(String(c));
-    await DB.poner('proyectos', { ...p, sin_mandar: { desde: (previa && previa.desde) || Date.now(), campos: [...campos] } });
+    await DB.poner('proyectos', { ...p, sin_mandar: sumarSinMandar(p.sin_mandar, [op], Date.now()) });
   } catch (_) { /* sin la nota, el cambio se queda aquí como antes; no se para el bombeo por ella */ }
 }
+
+/* Los campos del espejo que este teléfono también escribe y manda (ver `aNotion`): la cuenta y el
+   estatus que aprieta PAGOS, y el anticipo, el % y el subtotal que corrige Dirección. Son los que
+   la bajada no pisa mientras estén en `sin_mandar`. El resto del espejo —las fórmulas, el id de
+   la fila— baja siempre. */
+const SE_QUEDAN_HASTA_MANDARSE = new Set(['estatus_notion', 'cuenta', 'anti_pactado', 'pct_comision', 'sub']);
+const esImportadoLocal = p => !!p && (p.de_hoja === true || String(p.id || '').startsWith('proy-hoja-'));
 
 /* El rango usa el índice y el filtro es el cinturón, igual que en `proyectos.yaExiste`: si
    `IDBKeyRange` no se pudo armar, `rango()` devuelve null y el cursor recorrería el índice

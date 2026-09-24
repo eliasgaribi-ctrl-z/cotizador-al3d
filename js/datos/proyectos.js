@@ -2036,9 +2036,9 @@ async function marcaMasNuevaQueLaBajada(p) {
  *     quitar la copia no decide cuál tiene razón. La bajada no ata una fila viva a una lápida
  *     (ver `bajar` en puente.js), así que la copia volvía en la siguiente, sin sus notas; y
  *     cuando sí la ataba, el saldo de una obra viva salía del por cobrar de Control.
- * Y NO se quita si algo de este teléfono la nombra: una instalación, un movimiento del almacén
- * o material calculado se quedarían apuntando a nada, y el libro del almacén no se corrige
- * borrando.
+ * Y NO se quita si algo de este teléfono la nombra: una instalación que no esté cancelada, un
+ * movimiento del almacén o material calculado se quedarían apuntando a nada, y el libro del
+ * almacén no se corrige borrando.
  * @returns {Promise<Resultado>} valor = {id}
  */
 export async function quitarDelTablero(id) {
@@ -2180,6 +2180,17 @@ export async function juntarConLaDeAqui(id) {
   if (traba.length) {
     return mal('EN_USO', 'No se juntaron: ' + traba.map(x => x.texto).join('; ') + '. ' +
       (traba.some(x => x.clave === 'instalaciones') ? 'Cancela una de las dos instalaciones y vuelve a intentarlo.' : ''));
+  }
+  /* Lo que la copia tiene esperando en la bandeja —una instalación recién agendada, un cambio
+     sin señal— se tiraría con ella (`juntar` limpia sus operaciones), y la instalación pasa a la
+     de aquí sin encolar nada: la fecha no llegaba a la hoja hasta el siguiente cambio. La junta
+     sola espera por lo mismo (`conBandeja` en `revisarContraLaHoja`); ésta también, y lo dice. */
+  const esperando = await opsDelProyecto(copia.id, ['pendiente']);
+  if (esperando.length) {
+    return mal('EN_USO', 'No se juntaron todavía: esta copia tiene ' +
+      (esperando.length === 1 ? '1 cambio' : esperando.length + ' cambios') + ' esperando en la bandeja para mandarse a su fila ' +
+      (copia.folio_hoja || '') + ', y juntarlas ahora lo' + (esperando.length === 1 ? '' : 's') + ' tiraría. ' +
+      'Deja que salga' + (esperando.length === 1 ? '' : 'n') + ' —Ajustes → «Mandar lo que está pendiente», con señal— y vuelve a intentarlo.');
   }
   return juntar(copia, real, true);
 }
