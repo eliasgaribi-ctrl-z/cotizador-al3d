@@ -110,8 +110,20 @@ function vendedorActual(){
    «PDF» es una página HTML que se manda a imprimir, no un archivo, así que no hay nada
    que adjuntar por programa. Adjuntarlo de un toque pide generar un PDF de verdad. */
 function telWhatsApp(t){
-  const d=String(t||'').replace(/\D/g,'');
+  let d=String(t||'').replace(/\D/g,'');
   if(!d) return '';
+  /* Los prefijos de marcación de antes. México los quitó en 2019-2020 —044 y 045 para celular,
+     01 para larga distancia— pero siguen en las agendas y en como dicta el número la gente, y
+     00 es la salida internacional, el «+» de quien no lo encuentra en el teclado. Ningún número
+     de WhatsApp empieza con 0 —no hay lada de país que empiece con 0—, y aun así todos caían en
+     la rama internacional de abajo: «01 33 1234 5678» abría el chat de 013312345678, que no es
+     nadie, sin ningún aviso. Se quita el prefijo cuando lo que queda es un número que esta misma
+     regla reconoce; si no, se cae al camino del número vacío, con su aviso de «elige el chat». */
+  if(d[0]==='0'){
+    if(/^(044|045|01)[1-9]\d{9}$/.test(d)) d=d.slice(-10);   // lo que queda son los diez de México
+    else if(/^00[1-9]/.test(d)) d=d.slice(2);                // lo que queda lleva su lada de país
+    else return '';
+  }
   if(d.length===10) return '52'+d;                 // celular mexicano sin lada de país
   if(d.length===12&&d.startsWith('52')) return d;  // ya viene con 52
   if(d.length===13&&d.startsWith('521')) return d; // formato viejo con el 1
@@ -520,13 +532,22 @@ function generarPDF(){
       + (esp  ? `<span class="cs">${esp}</span>`  : '')
       + (libre? `<span class="cs">${libre}</span>`: '');
   }
+  /* ----- Lo que se imprime como número, como número -----
+     med() y la columna de piezas escribían `altura`, `ancho`, `alto`, `n` y `pz` CRUDOS en el
+     HTML de la hoja, y los usan las tres que llevan tabla: la cotización, la orden de trabajo y
+     el cálculo del unitario. Del teclado solo entran números, pero una partida también llega de
+     un respaldo restaurado —el README lo describe llegando por WhatsApp— o del historial, y con
+     una altura '"><img src=x onerror=…>' el documento corría ese código: el blob se abre con el
+     origen de la app, con las llaves de IA en el localStorage. Pasadas por Number() no queda
+     cadena que escapar; lo que no sea un número imprime 0, que es como lo toma la cuenta. */
+  const cifra=v=>{ const x=Number(v); return isFinite(x)?x:0; };
   function med(it){
-    if(it.tipo==='letras')  return `${it.altura}cm alt.`;
-    if(it.tipo==='recorte') return `${it.altura}cm × pieza`;
-    if(it.tipo==='bastidor'||it.tipo==='caja') return `${it.ancho}×${it.alto} cm`;
+    if(it.tipo==='letras')  return `${cifra(it.altura)}cm alt.`;
+    if(it.tipo==='recorte') return `${cifra(it.altura)}cm × pieza`;
+    if(it.tipo==='bastidor'||it.tipo==='caja') return `${cifra(it.ancho)}×${cifra(it.alto)} cm`;
     return '—';
   }
-  const pzas=piezasDe;
+  const pzas=it=>cifra(piezasDe(it));
   /* El unitario tenía dos fallas. La primera: la condición dejaba fuera el tipo
      'manual', que sí trae piezas (pzas() devuelve it.pz y lineTotal multiplica
      it.pz*it.pu), así que una partida manual de 5 piezas a $200 imprimía «Pzas. 5 ·
@@ -594,18 +615,49 @@ function generarPDF(){
      A la hoja que cierra hay que quitarle además la fila de cierre —la nota y los totales,
      172 con I.V.A. y plan de pago— y los 312 de plano. A las demás, el renglón que avisa que
      las partidas siguen. */
-  const ALTO_TBODY=727, ALTO_TBODY_ULT=588-ALTO_IMG;
+  /* ----- Lo que la última hoja lleva de más, y el tope no restaba -----
+     Los 588 están medidos con la ficha en dos renglones, la tarjeta de totales con I.V.A. y plan
+     de pago —148 px— y ninguna fila fuera del reparto. Tres cosas normales se salen de eso, y
+     ninguna se le quitaba a lo que se reparte: el pie se iba fuera de la carta, la impresora
+     sacaba una hoja física de más en blanco y el pie seguía diciendo «de 3» sobre un juego de
+     cuatro. Medido en Chromium, en el layout de impresión:
+       · la ficha. La dirección es texto libre y se dicta con plaza, local, entre calles y
+         referencia: una de 161 caracteres son cuatro renglones en su celda de 223 px, 28 px
+         más, y en CADA hoja que lleva la ficha, no solo en la última. Los renglones se cuentan
+         como en altoFila, por caracteres y a la alza: 34 por renglón (caben unos 45 a 10.5 px
+         en seminegrita con la letra de reserva, y en Inter menos), 54 si no hay dirección y
+         las dos celdas se reparten el ancho. 14.2 px por renglón, que se cobran como 15.
+       · el descuento, que mete DOS renglones en la tarjeta —«Descuento» y «Subtotal con
+         descuento», 23 px cada uno—. Se resta lo que la tarjeta se pase de los 148 de la
+         reserva, no los 46 enteros: sin plan de pago la tarjeta mide 63 px menos y el descuento
+         cabe en la reserva, y restarlo igual sacaría una hoja de más con una fila sola.
+       · el renglón agrupado de las partidas ocultas —«Conceptos adicionales»—, 32 px que van
+         siempre en la hoja que cierra y que el reparto no veía porque no es una partida. */
+  const celdasFicha = [Q.cliente,Q.proy,direccionPdf()].map(v=>String(v||'').trim());
+  const porRenglonFicha = celdasFicha[2] ? 34 : 54;
+  const renglonesFicha = Math.max(...celdasFicha.map(v=>Math.ceil(v.length/porRenglonFicha)));
+  const ALTO_FICHA = Math.max(0,renglonesFicha-2)*15;
+  const ALTO_TOT = 62 + (Q.iva?23:0) + (hayAjuste?46:0) + (Q.anti>0?63:0);   // 2 de borde, 23 del subtotal y 37 del total
+  const ALTO_TOT_DE_MAS = Math.max(0,ALTO_TOT-148);
+  const ALTO_OCULTA = Math.abs(subOculto)>0.01 ? 32 : 0;
+  const ALTO_TBODY=727-ALTO_FICHA, ALTO_TBODY_ULT=588-ALTO_IMG-ALTO_FICHA-ALTO_TOT_DE_MAS-ALTO_OCULTA;
   function altoFila(it){
-    /* Alto de una fila: 18 px de padding (9 arriba y 9 abajo) más 13 px por renglón.
+    /* Alto de una fila: 18 px de padding (9 arriba y 9 abajo), 1 de la raya de abajo, 13 px
+       por renglón y los 2 de margen que .cs le deja encima a cada especificación.
        Ahora la descripción son bloques —el nombre del concepto y su especificación— y cada
        uno abre su propio renglón, así que se cuentan por separado: el nombre va a 10 px en
        negrita y corta a los 44 caracteres, la especificación a 9.5 px en gris y corta a los
        54, en una columna de 300 px. Se redondea a la alza a propósito: equivocarse de más
-       solo gasta papel, equivocarse de menos parte la hoja. */
-    const bloques = desc(it).split(/<span class="c[ns]">/).slice(1)
+       solo gasta papel, equivocarse de menos parte la hoja.
+       Eso decía y no lo hacía: contaba el padding y los renglones y nada más, y cada fila mide
+       3 px más de lo que se contaba —una de letras 60 y no 57, una manual de un renglón 34 y
+       no 31—. Con 18 manuales la cuenta cabía y la hoja medía 1 066 px sobre 1 056. */
+    const html = desc(it);
+    const bloques = html.split(/<span class="c[ns]">/).slice(1)
       .map(b=>b.replace(/<[^>]*>/g,'').trim());
     const renglones = bloques.reduce((n,b,i)=>n+Math.max(1,Math.ceil(b.length/(i===0?44:54))),0);
-    return 18+Math.max(1,renglones)*13;
+    const especificaciones = (html.match(/<span class="cs">/g)||[]).length;
+    return 19+especificaciones*2+Math.max(1,renglones)*13;
   }
   /* Reparte una lista de partidas en hojas.
 
@@ -657,9 +709,10 @@ function generarPDF(){
      le restan la nota, el sello y el plano; si no cupiera, el plano se encoge solo.
      El 395 era un literal que no decía de qué estaba hecho, y reservaba el hueco del plano
      TAMBIÉN cuando no hay plano: una orden de trabajo sin imagen se partía en más hojas de las
-     que necesita. Ahora el hueco solo se aparta si de verdad hay algo que poner en él. */
+     que necesita. Ahora el hueco solo se aparta si de verdad hay algo que poner en él.
+     La ficha es la misma que la de la cotización, así que sus renglones de más se restan igual. */
   const ALTO_PLANO_OT = imgTrabajo ? 200 : 0;
-  const trozosOT = hayLimite ? repartir(Q.items,727,595-ALTO_PLANO_OT) : [];
+  const trozosOT = hayLimite ? repartir(Q.items,727-ALTO_FICHA,595-ALTO_PLANO_OT-ALTO_FICHA) : [];
 
   /* ----- Por qué la hoja del límite se volvió una orden de trabajo -----
      Antes era una hoja con la fecha sola dentro de un recuadro en medio del papel. Esa hoja no
@@ -1034,7 +1087,12 @@ td.c{color:var(--ink2)}
 .rec-badge{display:inline-block;align-self:flex-start;background:var(--brand);color:#fff;font-size:6.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;padding:3px 7px;border-radius:3px;margin:9px 0 13px}
 .rec-f{margin-bottom:11px}
 .rec-f>.lbl{color:var(--ink3);margin-bottom:3px}
-.rec-l{border-bottom:1px solid var(--ink);min-height:15px;font-size:9px;font-weight:600;overflow:hidden;white-space:nowrap}
+/* Los renglones del talón miden 139 px —el 22 % del recibo— y con white-space:nowrap el nombre
+   de un negocio con sucursal («Farmacias Similares Sucursal Chapultepec» pide 184) se cortaba en
+   silencio en la copia que se queda el negocio. Ahora se parte, hasta tres renglones: el talón es
+   una columna con hueco de sobra, así que el recibo no crece; y si ni en tres cabe, el corte
+   lleva sus puntos suspensivos en vez de parecer un nombre completo. */
+.rec-l{border-bottom:1px solid var(--ink);min-height:15px;font-size:9px;font-weight:600;line-height:1.3;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3}
 .rec-tal>.pie-h{margin-top:auto;text-align:left;letter-spacing:.03em}
 .rec-b{flex:1;padding:13px 15px;display:flex;flex-direction:column;min-width:0}
 .rec-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}

@@ -159,7 +159,9 @@ function tx(almacenes, modo) {
 }
 
 /* Toda petición se envuelve igual. `onerror` NO basta: hay fallas que solo llegan por
-   `transaction.onabort` —la cuota es la principal—, así que se escuchan las dos. */
+   `transaction.onabort` —la cuota es la principal—, así que se escuchan las dos. Pero el
+   `onabort` de aquí solo cuenta mientras la petición no haya contestado; para una escritura
+   eso no alcanza, y por eso existe `confirmada`, justo abajo. */
 function pedir(peticion, transaccion) {
   return new Promise(resolve => {
     let listo = false;
@@ -167,6 +169,20 @@ function pedir(peticion, transaccion) {
     peticion.onsuccess = () => cerrar({ ok: true, valor: peticion.result });
     peticion.onerror = ev => { ev.preventDefault(); cerrar({ ok: false, err: peticion.error }); };
     if (transaccion) transaccion.onabort = () => cerrar({ ok: false, err: transaccion.error });
+  });
+}
+
+/* Y la petición que sale bien TODAVÍA NO ES UN DATO GUARDADO. Chrome avisa la cuota llena
+   como un `abort` de la transacción que llega DESPUÉS de que el `put` ya disparó su
+   `onsuccess`: resolver ahí, como hacía `poner` hasta septiembre de 2026, contestaba «ok» a
+   cuatro fotos de 900 KB cuando solo la primera había quedado escrita, y el SIN_ESPACIO que
+   la cabecera promete no salía nunca. Lo que vale es el `complete` de la transacción, igual
+   que en `ponerVarios`. Se escucha con addEventListener para no pisar el `onabort` que pone
+   `pedir`, y se engancha ANTES de la última petición para no llegar tarde al evento. */
+function confirmada(transaccion) {
+  return new Promise(resolve => {
+    transaccion.addEventListener('complete', () => resolve({ ok: true }));
+    transaccion.addEventListener('abort', () => resolve({ ok: false, err: transaccion.error }));
   });
 }
 
@@ -188,6 +204,7 @@ export async function poner(almacen, registro) {
   }
   const t = tx([almacen], 'readwrite');
   if (!t) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
+  const fin = confirmada(t);   // ver `confirmada`: el ok es el de la transacción, no el del put
   const st = t.objectStore(almacen);
   const previo = await pedir(st.get(registro[clave]), t);
   const ahora = Date.now();
@@ -195,14 +212,22 @@ export async function poner(almacen, registro) {
   if (!(previo.ok && previo.valor)) sellado.creado_en = registro.creado_en || ahora;
   else sellado.creado_en = previo.valor.creado_en || registro.creado_en || ahora;
   const r = await pedir(st.put(sellado), t);
-  return r.ok ? ok(sellado) : traducir(r.err);
+  if (!r.ok) return traducir(r.err);
+  const f = await fin;
+  return f.ok ? ok(sellado) : traducir(f.err);
 }
 
 /**
  * Una sola transacción. Todo o nada: si uno falla, ninguno queda escrito.
+ *
+ * `conservarSello` es para la restauración y para nada más. Un registro que sale de un
+ * respaldo trae la fecha en que de verdad se editó; sellarlo con «ahora» lo hacía pasar por
+ * más nuevo que cualquier otro respaldo, y restaurar primero el archivo equivocado hacía que
+ * el bueno —el más reciente— se rechazara entero con «aquí eran más nuevos».
+ * @param {{conservarSello?:boolean}} [opts]
  * @returns {Promise<Resultado>} valor = cuántos escribió
  */
-export async function ponerVarios(almacen, registros) {
+export async function ponerVarios(almacen, registros, opts = {}) {
   if (!_db) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
   if (!Array.isArray(registros)) return mal('DATO_INVALIDO', MSG.DATO_INVALIDO);
   if (!registros.length) return ok(0);
@@ -210,10 +235,14 @@ export async function ponerVarios(almacen, registros) {
   if (!t) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
   const st = t.objectStore(almacen);
   const ahora = Date.now();
+  const conservar = !!(opts && opts.conservarSello);
   return new Promise(resolve => {
     let err = null;
     for (const reg of registros) {
-      const sellado = { ...reg, actualizado_en: ahora, creado_en: reg.creado_en || ahora };
+      /* Sin sello en el archivo —un respaldo de antes de que existiera— se sella hoy, como
+         siempre: no hay otra fecha que poner. */
+      const sello = conservar && Number(reg.actualizado_en) > 0 ? Number(reg.actualizado_en) : ahora;
+      const sellado = { ...reg, actualizado_en: sello, creado_en: reg.creado_en || ahora };
       const p = st.put(sellado);
       p.onerror = ev => { ev.preventDefault(); if (!err) err = p.error; };
     }
@@ -275,19 +304,27 @@ export async function contar(almacen, opts = {}) {
   } catch (_) { return 0; }
 }
 
+/* Borrar y vaciar también esperan a la transacción (ver `confirmada`): un borrado que la
+   base deshizo al abortar no es un borrado, y decir «listo» ahí deja el registro vivo. */
 export async function borrar(almacen, id) {
   if (!_db) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
   const t = tx([almacen], 'readwrite'); if (!t) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
+  const fin = confirmada(t);
   const r = await pedir(t.objectStore(almacen).delete(id), t);
-  return r.ok ? ok(true) : traducir(r.err);
+  if (!r.ok) return traducir(r.err);
+  const f = await fin;
+  return f.ok ? ok(true) : traducir(f.err);
 }
 
 /** Vacía un almacén. Solo lo usa la restauración y el borrado explícito de ajustes. */
 export async function vaciar(almacen) {
   if (!_db) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
   const t = tx([almacen], 'readwrite'); if (!t) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
+  const fin = confirmada(t);
   const r = await pedir(t.objectStore(almacen).clear(), t);
-  return r.ok ? ok(true) : traducir(r.err);
+  if (!r.ok) return traducir(r.err);
+  const f = await fin;
+  return f.ok ? ok(true) : traducir(f.err);
 }
 
 /* ----- Identificadores -----
@@ -370,6 +407,11 @@ function dataUrlABlob(fila) {
  * registro que ya está aquí se editó DESPUÉS que el del archivo, se queda el de aquí y se
  * cuenta en `conservados`. Un registro sin sello de edición —un respaldo antiguo— entra
  * como antes.
+ *
+ * Y lo que entra CONSERVA su sello. Sellarlo con la hora de la restauración rompía la regla
+ * de arriba justo en el caso para el que existe: quien se equivoca de archivo y restaura
+ * uno viejo, y luego el bueno, veía el bueno rechazado —«aquí eran más nuevos»— porque lo
+ * viejo había quedado fechado hoy.
  * @returns {Promise<Resultado>} valor = {almacenes, registros, descartados, conservados}
  */
 export async function importar(texto) {
@@ -406,7 +448,7 @@ export async function importar(texto) {
       nuevas.push(fila);
     }
     if (!nuevas.length) continue;
-    const r = await ponerVarios(a, nuevas);
+    const r = await ponerVarios(a, nuevas, { conservarSello: true });
     if (!r.ok) return r;
     almacenes++; registros += nuevas.length;
   }

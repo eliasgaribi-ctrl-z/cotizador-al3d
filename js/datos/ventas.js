@@ -111,6 +111,9 @@ export function ventaDesdeHoja(v) {
     cuenta: v.cuenta || null,
     estatus_notion: v.estatus || null,
     pago_pendiente: hayNum(v.pago_pendiente) ? num(v.pago_pendiente) : null,
+    /* «Comisiones» (R) es la fórmula de la comisión: 10 % fijo del subtotal. Se trae para que
+       quien la necesite —el asistente— lea la cifra de la hoja y no la vuelva a calcular. */
+    comisiones: hayNum(v.comisiones) ? num(v.comisiones) : null,
     comision_restante: hayNum(v.comision_restante) ? num(v.comision_restante) : null,
     pct_comision: num(v.pct_comision),
     dir_texto: String(v.direccion || ''),
@@ -149,11 +152,20 @@ export function unificar(proyectos, ventasHoja) {
 
   const usadas = new Set();
   const ventas = [];
-  let enlazados = 0;
+  let enlazados = 0, huerfanos = 0;
   for (const p of P) {
     const v = (p.folio_global ? porFolio.get(String(p.folio_global)) : null)
       || (p.folio_hoja ? porHoja.get(String(p.folio_hoja)) : null);
-    if (!v) { ventas.push(p); continue; }
+    if (!v) {
+      /* Un proyecto IMPORTADO de la hoja (`de_hoja`) sin su renglón es una fila que se borró
+         allá: el barrido ya la quitó de `ventas_hoja`, y el proyecto se quedaba contado como
+         venta «solo de este dispositivo», con su importe y su saldo, cuando el README promete
+         que lo borrado en la hoja desaparece de aquí. Solo con espejo: sin una sola fila bajada
+         —puente apagado, teléfono recién restaurado— no hay con qué saber que se borró, y se
+         cuenta como siempre. */
+      if (p.de_hoja && H.length) { huerfanos++; continue; }
+      ventas.push(p); continue;
+    }
     usadas.add(v.id);
     enlazados++;
     const u = { ...p, en_hoja: true, folio_hoja: String(v.folio_hoja || '') };
@@ -165,6 +177,7 @@ export function unificar(proyectos, ventasHoja) {
     if (v.estatus)                   u.estatus_notion = v.estatus;
     if (v.cuenta)                    u.cuenta = v.cuenta;
     if (hayNum(v.pago_pendiente))    u.pago_pendiente = num(v.pago_pendiente);
+    if (hayNum(v.comisiones))        u.comisiones = num(v.comisiones);
     if (hayNum(v.comision_restante)) u.comision_restante = num(v.comision_restante);
     if (hayNum(v.pct_comision))      u.pct_comision = num(v.pct_comision);
     ventas.push(u);
@@ -185,7 +198,7 @@ export function unificar(proyectos, ventasHoja) {
     (Number(b.creado_en) || 0) - (Number(a.creado_en) || 0) ||
     String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
 
-  return { ventas, enlazados, de_hoja: deHoja, solo_aqui: P.length - enlazados, hay_hoja: H.length > 0 };
+  return { ventas, enlazados, de_hoja: deHoja, solo_aqui: P.length - enlazados - huerfanos, hay_hoja: H.length > 0 };
 }
 
 /**

@@ -113,6 +113,28 @@ console.log('\nLA HUELLA DEL TRABAJO — la misma lista de campos, el mismo text
     eq('huellaTrabajo() y huellaDe() escriben el mismo texto (iva ' + (iva ? 'con' : 'sin') + ')',
        ctx.huellaTrabajo(), Cot.huellaDe({ iva, items }));
   }
+
+  /* Con ids de DOS cifras y con filas fuera de orden, que es donde las dos se separaron: la
+     del cotizador ordena desde el 15 de septiembre de 2026 y la réplica no. Con 1..5 en orden
+     las dos daban lo mismo por casualidad y esta prueba no lo veía. */
+  const L = (id, altura) => ({ id, tipo: 'letras', material: 'acero', comp: 'recta', luz: true, altura, n: 5 });
+  for (const [que, its] of [['ids 9 y 10', [L(9, 40), L(10, 30)]], ['una fila arrastrada (3, 1)', [L(3, 40), L(1, 30)]],
+                            ['ids 3 y 11', [L(3, 40), L(11, 30)]]]) {
+    const ctx = evaluar('const _CAMPOS_PRECIO=' + JSON.stringify(campos) + ';\n' + fuente(COT.nucleo, 'huellaTrabajo'),
+                        { Q: { iva: true, items: its } });
+    eq('huellaTrabajo() y huellaDe() coinciden con ' + que, ctx.huellaTrabajo(), Cot.huellaDe({ iva: true, items: its }));
+  }
+
+  /* Y la huella GUARDADA antes del orden —la de la fila— se sigue reconociendo: es la que llevan
+     las cotizaciones autorizadas hasta esa fecha y el `origen` de los proyectos ganados. */
+  const its = [L(9, 40), L(10, 30)];
+  const deFila = 'c|' + its.map(it => it.id + ':' + campos.map(k => it[k] === undefined ? '' : String(it[k])).join('~')).join(',');
+  const ctxO = evaluar(fuente(COT.nucleo, 'huellaOrdenada'), {});
+  eq('huellaOrdenada() del cotizador pone la huella de la fila en la forma de hoy',
+     ctxO.huellaOrdenada(deFila), Cot.huellaDe({ iva: true, items: its }));
+  eq('y la de la plataforma, igual', Cot.huellaOrdenada(deFila), ctxO.huellaOrdenada(deFila));
+  eq('mismaHuella() reconoce una huella guardada de antes del orden', Cot.mismaHuella(deFila, { iva: true, items: its }), true);
+  eq('y no confunde un trabajo que sí cambió', Cot.mismaHuella(deFila, { iva: true, items: [L(9, 41), L(10, 30)] }), false);
 }
 
 /* ============================================================================ */
@@ -299,9 +321,14 @@ console.log('\nEL MÍNIMO DE UN METRO CUADRADO — precio, no geometría, y el m
 console.log('\nEL TELÉFONO DE WHATSAPP — la misma regla de los dos lados');
 {
   const ctx = evaluar(fuente(COT.entrega, 'telWhatsApp'), {});
+  /* Los de la segunda fila son los prefijos de marcación de antes —044/045 de celular, 01 de
+     larga distancia, 00 de salida internacional—, que caían en la rama internacional y abrían
+     el chat de un número que empieza con 0, que no es de nadie. */
   const casos = ['', '  ', '33', '33 12', '3312345', '33 1234 5678', '+52 33 1234 5678',
     '521 33 1234 5678', '+1 415 555 2671', 'ext. 204', '(33) 1234-5678',
-    '1234567890123456', 'no tiene'];
+    '1234567890123456', 'no tiene',
+    '01 33 1234 5678', '044 33 1234 5678', '045 33 1234 5678', '00 52 33 1234 5678',
+    '00 1 415 555 2671', '0 33 1234 5678', '01 03 1234 5678', '044 33 12'];
   let iguales = 0;
   for (const t of casos) {
     if (UI.telWa(t) === ctx.telWhatsApp(t)) iguales++;
@@ -311,6 +338,11 @@ console.log('\nEL TELÉFONO DE WHATSAPP — la misma regla de los dos lados');
   eq('los ' + casos.length + ' teléfonos dan el mismo número de los dos lados', iguales, casos.length);
   eq('el celular de diez dígitos se manda con lada de país', UI.telWa('33 1234 5678'), '5233 12345678'.replace(/\s/g, ''));
   eq('el que no puede ser un teléfono se rechaza, no se manda a medias', UI.telWa('33 12'), '');
+  eq('el 01 de larga distancia se quita y queda el celular con su 52', ctx.telWhatsApp('01 33 1234 5678'), '523312345678');
+  eq('el 044 de celular, igual', ctx.telWhatsApp('044 33 1234 5678'), '523312345678');
+  eq('el 00 de salida internacional deja la lada de país que traía', ctx.telWhatsApp('00 1 415 555 2671'), '14155552671');
+  eq('y lo que empieza con 0 sin ser uno de esos no se manda: WhatsApp abre para elegir el chat',
+     ctx.telWhatsApp('0 33 1234 5678'), '');
   eq('y sin número la liga sigue abriendo WhatsApp para elegir contacto (la orden de trabajo)',
      UI.linkWa('', 'hola'), 'https://wa.me/?text=hola');
   eq('con un teléfono que no lo es, tampoco inventa destinatario',

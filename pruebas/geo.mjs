@@ -78,6 +78,39 @@ const CASOS = [
   { n: '18 vacío',
     u: '',
     esp: null },
+
+  /* Los tres que daban «Ese texto no trae coordenadas» hasta septiembre de 2026. */
+  { n: '19 el par que Maps copia al dejar el dedo encima',
+    u: '20.673611, -103.344000',
+    esp: { lat: 20.673611, lng: -103.344, fuente: 'coordenadas', exacta: true } },
+
+  { n: '20 el par sin espacio y volteado (lng primero): se salva volteándolo',
+    u: '-103.4470,20.5230',
+    esp: { lat: 20.5230, lng: -103.4470, fuente: 'coordenadas', invertida: true } },
+
+  { n: '21 geo: de Android',
+    u: 'geo:20.6736,-103.344?z=17',
+    esp: { lat: 20.6736, lng: -103.344, fuente: 'geo_uri', exacta: true } },
+
+  { n: '22 geo:0,0 con la coordenada en ?q= (el de Android que comparte un lugar)',
+    u: 'geo:0,0?q=20.7214,-103.3918(Zapopan)',
+    esp: { lat: 20.7214, lng: -103.3918, fuente: 'maps_query' } },
+
+  { n: '23 ?q= con + delante',
+    u: 'https://maps.google.com/?q=+20.6736,-103.344',
+    esp: { lat: 20.6736, lng: -103.344, fuente: 'maps_query', exacta: true } },
+
+  { n: '24 ?q=loc:',
+    u: 'https://maps.google.com/?q=loc:20.6736,-103.344',
+    esp: { lat: 20.6736, lng: -103.344, fuente: 'maps_query', exacta: true } },
+
+  { n: '25 dos enteros sueltos no son un pin',
+    u: '20, 103',
+    esp: null },
+
+  { n: '26 un par dentro de una frase no se adivina: el suelto es el texto entero',
+    u: 'la casa esta como a 20.5, -103.3 de aqui',
+    esp: null },
 ];
 
 let bien = 0, mal = 0;

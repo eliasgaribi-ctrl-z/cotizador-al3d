@@ -32,6 +32,12 @@ const Q = {
   itemsAuth:{},
   /* Huella del trabajo sobre el que se autorizó el precio. Ver authVigente(). */
   huellaAuth:'',
+  /* La autorizada que era, mientras se revisa un «Volver a autorizar»: {folio, autorizador,
+     nota, fechaAuth, precioAuth, itemsAuth, huellaAuth, pf}. Vivía en una variable suelta y
+     una recarga a media revisión la perdía: cancelar convertía la cotización en BORRADOR,
+     borraba el nombre de quien autorizó y devolvía el precio calculado, con el historial
+     diciendo todavía que la autorizó Elías. En Q sobrevive a la recarga. Ver reautorizar(). */
+  reauth:null,
   aiFile:null,
   /* «Esta cotización nunca ha tenido una partida». Va en Q y no en una variable suelta
      porque tiene que sobrevivir a una recarga: se captura el cliente, se recarga la
@@ -47,11 +53,17 @@ let pid=0, dragId=null;
 const $=id=>document.getElementById(id);
 const plCot=n=>n+(n===1?' cotización':' cotizaciones');
 const money=n=>'$'+Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
-/* El apóstrofo también: los cinco onclick que pasan un folio lo delimitan con comilla
-   simple —onclick="reabrirDeHistorial('${esc(e.folio)}')"—, así que un folio con apóstrofo
-   se salía del literal. Del teclado no hay camino (los folios los genera folioFmt), pero de
-   un respaldo restaurado sí. */
+/* esc() escapa para HTML, y con eso basta para el TEXTO y para el valor de un atributo. */
 const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+/* ----- Un texto que viaja DENTRO de un onclick -----
+   Aquí decía que escapar el apóstrofo con esc() arreglaba onclick="f('${esc(x)}')", y no lo
+   arregla: el navegador DESCODIFICA el atributo antes de correrlo, así que &#39; vuelve a ser
+   un apóstrofo y cierra el literal. Con un cliente sin teléfono llamado «Domino's Pizza» el
+   botón de su cuaderno era un SyntaxError —no hacía nada—, y un folio con apóstrofo que llegara
+   en un respaldo restaurado corría lo que viniera detrás. jsArg() arma el literal COMPLETO
+   —comillas incluidas— con JSON.stringify y lo escapa para el atributo: se escribe sin
+   comillas alrededor, onclick="f(${jsArg(x)})". */
+const jsArg=s=>esc(JSON.stringify(String(s==null?'':s)));
 
 /* ----- URLs de imagen que vienen del almacenamiento -----
    El logotipo y la imagen analizada se interpolaban crudos dentro de src="${...}". Los dos
@@ -745,10 +757,66 @@ function huellaTrabajo(){
   return (Q.iva?'c':'s')+'|'+Q.items.map(it=>
     it.id+':'+_CAMPOS_PRECIO.map(k=>it[k]===undefined?'':String(it[k])).join('~')).sort().join(',');
 }
+/* ----- Qué botón abre el candado, según el estado -----
+   Tres avisos —el ojo de una partida, deshacer y rehacer— decían siempre «La cotización está
+   autorizada — usa «Editar partidas»», también en una PENDIENTE, donde ese botón no existe: ahí
+   la salida es «Volver a editar», que cancela la solicitud. Un aviso que nombra un botón que no
+   está manda a buscarlo. `para` es el final de la frase: «para poder deshacer». */
+function msgCandadoCaptura(para){
+  if(Q.estado==='pendiente') return 'La cotización está mandada a autorización — usa «'+
+    (typeof _selfAuth!=='undefined'&&_selfAuth?'Volver a editar':'Editar (cancela la solicitud)')+'» '+para;
+  if(Q.estado==='rechazada') return 'La cotización está rechazada — usa «Editar y volver a enviar» '+para;
+  return 'La cotización está autorizada — usa «Editar partidas» '+para;
+}
+/* ----- Las partidas que llegan del almacenamiento -----
+   Del teclado solo entran números —`+this.value`—, pero al3d_q, el historial y la cola también
+   se llenan con un respaldo que llegó por WhatsApp, y de ahí puede venir cualquier cosa. Dos
+   cosas pasaban con eso:
+     · `altura`, `n`, `ancho`, `alto`, `tarifa`, `pz`, `pu` y el `id` se escriben crudos en
+       value="…" y en los onclick de la partida: un respaldo con altura '"><img onerror=…>'
+       corría su código en cada arranque, con las llaves de IA a la mano.
+     · un `items:[null]` pasaba la validación de loadState() y reventaba renderItems() en
+       init(): el cotizador quedaba roto en CADA recarga, sin nada que tocar para salir.
+   Así que lo que entra desde el almacenamiento pasa por aquí: se va lo que no es una partida,
+   los números se vuelven números (y lo que no sea uno, cero), el tipo desconocido cae en
+   «manual» —que es como ya se pintaba— y el id se vuelve un entero único. */
+const _NUM_PARTIDA=['altura','n','ancho','alto','tarifa','pz','pu'];
+const _TIPOS_PARTIDA=['letras','recorte','bastidor','caja','manual'];
+function normalizarItems(items){
+  if(!Array.isArray(items)) return [];
+  const out=[], usados=new Set();
+  for(const it of items){
+    if(!it||typeof it!=='object'||Array.isArray(it)) continue;
+    const x=Object.assign({},it);
+    for(const k of _NUM_PARTIDA) if(k in x){ const v=Number(x[k]); x[k]=isFinite(v)&&v>0?v:0; }
+    if(!_TIPOS_PARTIDA.includes(x.tipo)) x.tipo='manual';
+    const id=Number(x.id);
+    x.id=(Number.isInteger(id)&&id>0&&!usados.has(id))?id:0;
+    if(x.id) usados.add(x.id);
+    out.push(x);
+  }
+  /* Los que no traían un id bueno —o repetido— se numeran después del mayor, para no chocar. */
+  let tope=Math.max(0,...usados);
+  for(const x of out) if(!x.id){ x.id=++tope; usados.add(x.id); }
+  return out;
+}
 /* Sella el trabajo actual como el autorizado. Se llama donde se toma la decisión. */
 function sellarAuth(){ Q.huellaAuth=huellaTrabajo(); }
+/* ----- La huella que se guardó ANTES del orden -----
+   Hasta el 15 de septiembre de 2026 la huella era la de la FILA, sin el sort de arriba, y esa
+   es la que llevan guardada todas las cotizaciones autorizadas hasta entonces. Compararla tal
+   cual con la de hoy fallaba en cuanto el orden de las filas no coincidía con el de las cadenas
+   —con ids 9 y 10, que es lo normal porque `pid` no se reinicia entre cotizaciones, «10:» va
+   antes que «9:»—: «Abrir y editar» soltaba en silencio el precio autorizado ($23,200 volvían
+   a $25,520 calculados), borraba las palomitas del PDF y del WhatsApp y acusaba a «las
+   partidas cambiaron». Ordenar las entradas de la huella guardada da exactamente la de hoy
+   —son las mismas entradas, y ninguna lleva comas—, así que se compara siempre ordenada. */
+function huellaOrdenada(h){
+  const s=String(h||''), i=s.indexOf('|');
+  return i<0?s:s.slice(0,i+1)+s.slice(i+1).split(',').sort().join(',');
+}
 /* ¿La autorización guardada corresponde a las partidas que hay ahora? */
-function authVigente(){ return !!Q.huellaAuth && Q.huellaAuth===huellaTrabajo(); }
+function authVigente(){ return !!Q.huellaAuth && huellaOrdenada(Q.huellaAuth)===huellaTrabajo(); }
 /* Suelta lo autorizado cuando ya no corresponde. Devuelve true solo si había algo que
    soltar, para que quien la llame lo diga en voz alta. Es el único lugar que lo suelta. */
 /* «¿Hay algo puesto a mano por el autorizador?» — el total, o un ajuste partida por partida.

@@ -55,17 +55,31 @@ export function esAcortado(u) {
 }
 
 const N = String.raw`-?\d{1,3}(?:\.\d+)?`;
+/* El par SUELTO exige punto decimal en los dos números. Es lo que da Google Maps al dejar el
+   dedo sobre un punto —«20.673611, -103.344000»— y lo que dice la pantalla que hay que
+   buscar («números con punto decimal»); dos enteros sueltos con una coma en medio son
+   cualquier otra cosa antes que un pin. */
+const D = String.raw`-?\d{1,3}\.\d+`;
 
 /* EL ORDEN ES LA PRIORIDAD, y la razón de cada renglón:
-   - !3d!4d es la coordenada del LUGAR. Es la única exacta de verdad, va primero.
-   - los parámetros explícitos (q, ll, destination…) los escribió alguien a propósito.
+   - el par suelto y el `geo:` van antes que todo, y no compiten con nada: están anclados
+     al principio del texto, así que un link de Maps no los dispara. Los dos son el punto
+     mismo que alguien marcó. Hasta septiembre de 2026 no existían, y el par que Maps copia
+     al dejar el dedo encima —lo más fácil de mandar por WhatsApp— daba «Ese texto no trae
+     coordenadas».
+   - !3d!4d es la coordenada del LUGAR. Es la única exacta de verdad dentro de un link.
+   - los parámetros explícitos (q, ll, destination…) los escribió alguien a propósito. El
+     número puede venir con `loc:` o con un `+` delante («q=+20.67,-103.34»), que en una URL
+     es un espacio o el signo de positivo; sin aceptarlos, ese link no traía coordenadas.
    - /maps/search/ y /maps/place/ con la coordenada en la ruta, igual de explícitos.
    - la arroba es el CENTRO DE LA CÁMARA, no el pin: sirve, pero no es exacta.
    - !1d!2d y !2d!3d aparecen en dir/ y embed, y ahí el orden se VOLTEA: el primer
      número es longitud. Van al final porque son los más frágiles de los seis. */
 const REGLAS = [
+  { re: new RegExp(`^\\+?(${D})\\s*,\\s*\\+?(${D})$`),                        orden: 'latlng', fuente: 'coordenadas', exacta: true  },
+  { re: new RegExp(`^geo:\\+?(${N})\\s*,\\s*\\+?(${N})`, 'i'),              orden: 'latlng', fuente: 'geo_uri',     exacta: true  },
   { re: new RegExp(`!3d(${N})!4d(${N})`),                                   orden: 'latlng', fuente: 'maps_pin',    exacta: true  },
-  { re: new RegExp(`[?&](?:q|query|center|ll|destination|origin|daddr|saddr)=(${N})\\s*,\\s*\\+?(${N})`, 'i'), orden: 'latlng', fuente: 'maps_query',  exacta: true  },
+  { re: new RegExp(`[?&](?:q|query|center|ll|destination|origin|daddr|saddr)=(?:loc:)?[+\\s]*(${N})\\s*,\\s*\\+?(${N})`, 'i'), orden: 'latlng', fuente: 'maps_query',  exacta: true  },
   { re: new RegExp(`/maps/search/(${N})\\s*,\\s*\\+?(${N})`),               orden: 'latlng', fuente: 'maps_search', exacta: true  },
   { re: new RegExp(`/maps/place/(${N})\\s*,\\s*\\+?(${N})`),                orden: 'latlng', fuente: 'maps_place',  exacta: true  },
   { re: new RegExp(`@(${N}),(${N})(?:,(?:\\d+(?:\\.\\d+)?)[zmayht])?`),     orden: 'latlng', fuente: 'maps_camara', exacta: false },
@@ -74,7 +88,8 @@ const REGLAS = [
 ];
 
 /**
- * Saca la coordenada de un link de Google Maps. Local, sin red, sin llave.
+ * Saca la coordenada de un link de Google Maps, de un `geo:` o del par «lat, lng» que Maps
+ * copia al dejar el dedo sobre un punto. Local, sin red, sin llave.
  * @returns {{lat:number,lng:number,fuente:string,exacta:boolean,sospechoso?:boolean,
  *            invertida?:boolean}|{corto:true,mensaje:string}|null}
  */

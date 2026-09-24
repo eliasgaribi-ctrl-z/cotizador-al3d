@@ -4049,6 +4049,10 @@ details.ai-cfg summary:hover{color:var(--tinta)}
 .partida.drag-over{
   box-shadow:inset 0 4px 0 var(--pc),0 14px 28px -8px rgba(var(--pc-rgb),.28);
 }
+/* En la mitad de abajo se suelta DESPUÉS de ésta, y el filete lo dice: va abajo. */
+.partida.drag-over.drag-abajo{
+  box-shadow:inset 0 -4px 0 var(--pc),0 14px 28px -8px rgba(var(--pc-rgb),.28);
+}
 
 /* ---------- En papel no hay relieve ----------
    Queda muy poco que apagar: la dirección nueva ya es plana, así que este bloque pasó de

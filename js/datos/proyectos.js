@@ -1141,6 +1141,27 @@ function diasHastaDesde(iso, base) {
    ============================================================================ */
 
 /**
+ * Qué campos del dinero de la hoja movió un recálculo, con los nombres que `aNotion` entiende.
+ * PURA, para que la prueba de node la corra.
+ *
+ * Solo los que CAMBIARON, y no los cuatro siempre: en la hoja PAGOS corrige a mano el
+ * subtotal, el nombre o el anticipo, y un recálculo que no tocó el precio —se ocultó una
+ * partida del PDF, se cambió una medida sin precio— no tiene por qué pisar esa corrección.
+ * El anticipo se compara contra el de la COTIZACIÓN de antes y no contra el del proyecto:
+ * el del proyecto puede ser justo el que PAGOS corrigió y bajó de la hoja, y compararlo con
+ * el de la cotización lo mandaría de vuelta en cada recálculo.
+ */
+export function camposDelRecalculo(antes, despues) {
+  const a = antes || {}, d = despues || {};
+  const campos = [];
+  if (String(a.nombre || '') !== String(d.nombre || '')) campos.push('nombre');
+  if (num(a.sub) !== num(d.sub)) campos.push('sub');
+  if ((a.iva !== false) !== (d.iva !== false)) campos.push('iva');
+  if (num(a.origen && a.origen.anti) !== num(d.origen && d.origen.anti)) campos.push('anti_pactado');
+  return campos;
+}
+
+/**
  * Recalcula con el origen de HOY. Es el botón del aviso R6: «COT-0007 se editó después de
  * ganarse; el material calculado ya no corresponde».
  *
@@ -1213,7 +1234,11 @@ export async function resincronizar(id) {
 
   const r = await DB.poner('proyectos', fila);
   if (!r.ok) return r;
-  await encolar('actualizar', r.valor);
+  /* Con `campos`, y los que cambiaron. Sin ellos `aNotion` no manda ni el nombre ni el dinero
+     de una fila que ya existe (es su regla, ver puente.js): el proyecto enseñaba el precio
+     nuevo y la hoja —el libro mayor— seguía cobrando el viejo, aunque este comentario ya
+     llamaba a esto «la única puerta por la que el importe cambia». */
+  await encolar('actualizar', r.valor, camposDelRecalculo(p, r.valor));
 
   let lineas = 0;
   const Mat = await mod('material');

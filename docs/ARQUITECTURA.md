@@ -220,7 +220,7 @@ La lista real es `ALMACENES` en `datos/db.js`; la migración crea lo que falte, 
   cuenta:         null,         // Moni MPago|Rul HSBC|Tatis BNT|Constru BNT|Elias BBVA
   pago_pendiente: null,         // FÓRMULA DE NOTION. Se lee, jamás se calcula
   comision_restante: null,      // FÓRMULA DE NOTION
-  pct_comision:   0,            // el % pactado, en puntos. Viene del modal de Registrar Venta; la hoja lo lee en su fórmula
+  pct_comision:   0,            // el % en puntos: hoy siempre 10. La fórmula R de la hoja es 10 % fijo del subtotal y NO lee este campo (desde d4623f3)
   // la copia congelada
   origen: {
     fuente: 'cotizador',        // cotizador|manual|notion_csv

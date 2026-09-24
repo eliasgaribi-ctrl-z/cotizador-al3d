@@ -255,6 +255,29 @@ console.log('\nDE LA FILA EN FABRICACIÓN AL TABLERO');
   const m = resumenMensual(u.ventas, { hoy: '2026-09-20', meses: 2 });
   eq('septiembre suma 43,500 y no 87,000', m[1].vendido, 43500);
   eq('y una venta, no dos', m[1].ganados, 1);
+
+  /* La fila se borra en la hoja. El barrido la quita de `ventas_hoja`, pero el proyecto que se
+     importó de ella se queda en este teléfono: se contaba como venta «solo de aquí», con su
+     importe y su saldo, cuando el README dice que lo borrado allá desaparece de aquí. */
+  const otra = fila({ id: 'hoja:V-215', folio_hoja: 'V-215', nombre: 'Otra - Venta' });
+  const b = unificar([p], [otra]);
+  eq('borrada en la hoja: el importado ya no es una venta', b.ventas.map(x => x.id), ['hoja:V-215']);
+  eq('ni se cuenta como «solo en este dispositivo»', [b.enlazados, b.de_hoja, b.solo_aqui], [0, 1, 0]);
+  eq('sin espejo bajado todavía no hay con qué saberlo, y se cuenta como siempre',
+     unificar([p], []).ventas.map(x => x.id), ['proy-hoja-V-214']);
+  eq('un proyecto nacido aquí sin fila sigue siendo «solo de aquí»',
+     unificar([proy({ id: 'p7', folio_global: 'COT-0007@AAAA' })], [otra]).solo_aqui, 1);
+}
+
+console.log('\nLA COMISIÓN DE LA HOJA VIAJA CON LA VENTA');
+{
+  /* «Comisiones» (R) es la fórmula de la hoja: 10 % del subtotal. Baja con la fila y la unión
+     la lleva, para que el asistente lea la de allá en vez de volver a calcularla. */
+  const f = { id: 'hoja:V-300', folio_hoja: 'V-300', folio_cotizacion: 'COT-0300@AAAA', nombre: 'Tres', estatus: 'COBRANDO',
+    fecha_anticipo: '2026-09-02', sub: 20000, neto: 23200, anticipo: 10000, comisiones: 2000, comision_restante: 2000 };
+  eq('la fila suelta la trae', ventaDesdeHoja(f).comisiones, 2000);
+  eq('y la enlazada también', unificar([proy({ id: 'p30', folio_global: 'COT-0300@AAAA' })], [f]).ventas[0].comisiones, 2000);
+  eq('sin la columna (fabricación) queda en null, no en cero', ventaDesdeHoja({ ...f, comisiones: undefined }).comisiones, null);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

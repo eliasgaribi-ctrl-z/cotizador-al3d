@@ -17,8 +17,9 @@
      hay en lo que se manda: `veDinero:false` quita totales, anticipos, saldos y comisiones
      ANTES de armar el texto. No se difuminan; no existen.
    · LAS REGLAS DEL NEGOCIO VAN ESCRITAS. Cómo se calcula una comisión y cuándo se abona
-     está en el mensaje de sistema, sacado del mismo código que arma la fila de Notion
-     (js/cotizador/venta.js): el modelo no tiene que adivinarlo y no puede inventarlo.
+     está en el mensaje de sistema, sacado de la misma fórmula que la hoja de finanzas
+     (columna R de puente/hoja-apps-script.gs): el modelo no tiene que adivinarlo y no puede
+     inventarlo.
    ============================================================================ */
 
 import { saldoDe, vendidoDe, etiquetaMes } from './ventas.js';
@@ -30,15 +31,23 @@ const red2 = v => Math.round((num(v) + Number.EPSILON) * 100) / 100;
 const ETAPA = { ganado: 'ganado (sin empezar)', en_diseno: 'en diseño', cortado: 'cortado', armado: 'armado',
   listo: 'listo para instalar', instalado: 'instalado', garantia: 'en garantía', cancelado: 'no se dio' };
 
-/* ----- La comisión, con la misma aritmética de la fila de Notion -----
-   `copiarFilaVenta()` hace: comisión = redondeo(subtotal × % / 100); si el estatus es
-   LIQUIDADO, «Abono Comisión» = comisión y «Comisión Restante» = 0; si no, al revés. La
-   fórmula de verdad vive en Notion y baja como `comision_restante`; cuando existe, manda. */
+/* ----- La comisión, con la aritmética de la hoja -----
+   En AL3D la comisión es FIJA: 10 % del SUBTOTAL, sin IVA, a dos decimales. Es la columna R
+   de la hoja, `ROUND(G*10%,2)` (puente/hoja-apps-script.gs), y la columna AD «Porcentaje
+   comision» viaja por el puente pero la hoja no la lee. Hasta septiembre de 2026 esto hacía
+   `Math.round(subtotal × pct_comision / 100)`: con el % vacío —el caso de casi todas las
+   filas, porque vacío quiere decir «el de siempre»— daba comisión cero, y el asistente
+   dejaba fuera justo las comisiones que la hoja dice que se deben; con un 15 % capturado,
+   contestaba una cifra que nadie iba a pagar.
+   Cuando la hoja bajó sus fórmulas, mandan ellas: «Comisiones» (R) es la comisión y
+   «Comision Restante» (T = R menos lo abonado) lo que falta pagar. Se ABONA cuando la venta
+   queda LIQUIDADA; mientras no, todo es restante. */
+export const PCT_COMISION = 10;
 export function comisionDe(p) {
   if (!p || p.etapa === 'cancelado') return { comision: 0, abonable: 0, restante: 0, deNotion: false };
-  const pct = num(p.pct_comision);
   const sub = num(p.sub) || (num(p.iva === false ? vendidoDe(p) : vendidoDe(p) / 1.16));
-  const comision = pct > 0 ? Math.round(sub * pct / 100) : 0;
+  const hayR = p.comisiones !== null && p.comisiones !== undefined && p.comisiones !== '' && isFinite(Number(p.comisiones));
+  const comision = hayR ? Math.max(0, red2(p.comisiones)) : red2(sub * PCT_COMISION / 100);
   const liquidado = String(p.estatus_notion || '').toUpperCase() === 'LIQUIDADO';
   const cr = p.comision_restante;
   if (cr !== null && cr !== undefined && isFinite(Number(cr))) {
@@ -78,8 +87,10 @@ export function resumirProyecto(p, extra = {}) {
     o.saldo_estimado = saldoDe(p);
     if (p.cuenta) o.cuenta = p.cuenta;
     if (p.estatus_notion) o.estatus_notion = p.estatus_notion;
-    if (num(p.pct_comision) > 0) {
-      o.pct_comision = num(p.pct_comision);
+    /* La comisión va cuando HAY comisión, no cuando hay un % capturado: con la celda vacía
+       —10 %, el de siempre— el proyecto se quedaba sin ella. Y el % pactado ya no viaja: la
+       hoja paga 10 % fijo, y un «15» en los datos invitaba al modelo a recalcular con él. */
+    if (c.comision > 0 || c.restante > 0) {
       o.comision = c.comision;
       o.comision_abonable_ya = c.abonable;
       o.comision_restante = c.restante;
@@ -180,12 +191,15 @@ export function armarResumen(d) {
       };
     }
     if (d.conversion) out.conversion = d.conversion;
-    const com = vivos.map(p => ({ p, c: comisionDe(p) })).filter(x => x.c.comision > 0);
+    /* Entra lo que tiene comisión O algo por pagar de ella: una fila de la hoja puede traer la
+       restante aunque aquí no se sepa el subtotal. El `pct` es el de la regla, no el capturado
+       (ver `comisionDe`). */
+    const com = vivos.map(p => ({ p, c: comisionDe(p) })).filter(x => x.c.comision > 0 || x.c.restante > 0);
     out.comisiones = {
       abonables_ya: com.filter(x => x.c.abonable > 0).map(x => ({ id: x.p.id, folio: x.p.folio_local, nombre: x.p.nombre,
-        comision: x.c.abonable, pct: num(x.p.pct_comision), estatus_notion: x.p.estatus_notion || '' })),
+        comision: x.c.abonable, pct: PCT_COMISION, estatus_notion: x.p.estatus_notion || '' })),
       pendientes_de_liquidar: com.filter(x => x.c.abonable <= 0 && x.c.restante > 0).map(x => ({ id: x.p.id, folio: x.p.folio_local,
-        nombre: x.p.nombre, comision: x.c.restante, pct: num(x.p.pct_comision), estatus_notion: x.p.estatus_notion || '',
+        nombre: x.p.nombre, comision: x.c.restante, pct: PCT_COMISION, estatus_notion: x.p.estatus_notion || '',
         saldo_del_cliente: saldoDe(x.p) })),
       total_abonable_ya: red2(com.reduce((s, x) => s + x.c.abonable, 0)),
       total_pendiente: red2(com.reduce((s, x) => s + (x.c.abonable > 0 ? 0 : x.c.restante), 0)),
@@ -221,7 +235,7 @@ export function promptSistema(resumen) {
     '2. Responde en español de México, corto y directo. Si hay varios renglones (proyectos, saldos, comisiones), usa una lista con viñetas y pon el importe al final de cada renglón. Termina con una sola recomendación concreta cuando aplique.',
     '3. Los importes van en pesos mexicanos con formato $12,345.00.',
     '4. No puedes cambiar nada: eres de solo lectura. Si te piden hacer algo (marcar liquidado, abonar una comisión, mover una fecha), di en qué pantalla de la plataforma se hace: la etapa, el estatus de cobro y la cuenta se cambian en la ficha del proyecto (Proyectos); las fechas en Calendario; el material en Material; las ventas, la cartera y la bitácora se ven en Control. Los abonos de comisión y los pagos se registran en la hoja «Finanzas AL3D — Ventas y Comisiones», que es el libro mayor; la plataforma solo la espeja, y el récord de ventas que ves en DATOS es el de esa hoja más lo que solo está en este dispositivo.',
-    dinero ? '5. COMISIONES: la comisión de un proyecto es subtotal × porcentaje pactado (redondeada a pesos). Se ABONA cuando el proyecto queda LIQUIDADO en la hoja; mientras no, es «comisión restante». En DATOS ya vienen calculadas: `comision_abonable_ya` es lo que ya se puede pagar hoy y `comision_restante` lo que espera a que el cliente liquide. Cuando `comision_de_notion` es true, el número viene de la fórmula de la hoja y manda.'
+    dinero ? '5. COMISIONES: la comisión es FIJA, el 10 % del subtotal (sin IVA), con centavos; no hay porcentaje pactado por venta. Se ABONA cuando el proyecto queda LIQUIDADO en la hoja; mientras no, es «comisión restante». En DATOS ya vienen calculadas: `comision` es la comisión completa, `comision_abonable_ya` lo que ya se puede pagar hoy y `comision_restante` lo que falta pagar. Cuando `comision_de_notion` es true, la restante viene de la fórmula de la hoja (comisión menos lo ya abonado) y manda. No las recalcules.'
            : '5. Este rol no ve importes: no menciones dinero ni comisiones, ni aunque te pregunten; di que eso lo ve dirección o pagos.',
     dinero ? '6. SALDOS: `saldo_estimado` es el saldo que calcula la hoja cuando la venta está allá; si no, total vendido menos anticipo pactado, y cero si la hoja ya dice LIQUIDADO. El estimado no sabe de abonos intermedios: dilo cuando importe («saldo estimado»).' : '',
     '7. TALLER: `taller` describe la ventana de fabricación contada hacia atrás desde la instalación (empezar → cortar → armar → listo); `atraso_dias` son los días que ese trabajo va tarde. «no se dio» es una cotización que el cliente no aceptó.',

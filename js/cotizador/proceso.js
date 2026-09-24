@@ -81,6 +81,14 @@ function renderSummary(){
   // El anticipo se calcula sobre lo que realmente se va a cobrar, no sobre el
   // total calculado: si el autorizador dio descuento, el 50% también baja.
   const pf=precioFinal();
+  /* El techo del anticipo se revisa AQUÍ también, no solo al soltar el campo. El `change` de
+     abajo lo acota cuando se teclea, pero un descuento posterior bajaba el total por debajo del
+     anticipo ya pactado —$12,760 contra $10,440— y el PDF lo imprimía así, con «Resta $0.00»,
+     que es justo lo que ese handler existe para impedir. Mientras se teclea no se toca. */
+  if(Q.antiManual&&pf>0&&Q.anti>pf+0.005&&document.activeElement!==$('f-anti')){
+    Q.anti=Math.round(pf*100)/100;
+    toast('El anticipo pactado era mayor que el total nuevo de '+money(pf)+': se dejó igual al total.','err',5200);
+  }
   if(!Q.antiManual){ const auto=Math.round(pf*0.5); Q.anti=auto; if(document.activeElement!==$('f-anti')) $('f-anti').value=auto||''; }
   else if(document.activeElement!==$('f-anti')) $('f-anti').value=Q.anti||'';
   /* El rótulo dice la verdad del número que tiene debajo. Con el anticipo escrito a mano
@@ -183,7 +191,7 @@ function renderAuth(){
       /* El renglón era un div con onclick y nada más: el autorizador que navega con teclado
          no podía cargar ninguna cotización pendiente, que es lo único que hace esta pantalla.
          aria-current marca la que está abierta, que hasta ahora solo se distinguía por color. */
-      const rows=pendientes.map(e=>`<div class="queue-item${e.folio===Q.folio?' active':''}" ${_ABRIBLE} ${e.folio===Q.folio?'aria-current="true"':''} aria-label="Revisar ${esc(e.folio)}${e.proy||e.cliente?', '+esc(e.proy||e.cliente):''}" onclick="loadQueueEntry('${esc(e.folio)}')">
+      const rows=pendientes.map(e=>`<div class="queue-item${e.folio===Q.folio?' active':''}" ${_ABRIBLE} ${e.folio===Q.folio?'aria-current="true"':''} aria-label="Revisar ${esc(e.folio)}${e.proy||e.cliente?', '+esc(e.proy||e.cliente):''}" onclick="loadQueueEntry(${jsArg(e.folio)})">
         <span class="qi-dot"></span>
         <div class="qi-body">
           <div class="qi-folio">${esc(e.folio)}</div>
@@ -300,8 +308,12 @@ function renderAuth(){
   box.innerHTML=`<div class="statusrow"><span class="lab">Autorización</span>${badge}</div>${body}`;
   if(_abierto){ const d=box.querySelector('details.otras-salidas'); if(d) d.open=true; }
   // Inicializar display de descuento tras render
+  /* Solo PINTAR: esto corre en cada repintado, sin que nadie haya tecleado. Apuntaba el valor
+     del campo como «lo que llevabas escrito», y de ahí salían dos mentiras —«se canceló la
+     solicitud y el precio que llevabas escrito», «se descartó lo que llevabas escrito»— con
+     nada escrito. */
   if(Q.estado==='pendiente'&&(Q.rol==='autorizador'||_selfAuth)){
-    updPrecioAuth(parseFloat($('a-precio')?.value)||0, totals().sub);
+    updPrecioAuth(parseFloat($('a-precio')?.value)||0, totals().sub, true);
   }
 }
 
@@ -440,11 +452,12 @@ function authRevisionHTML(soloAutorizar){
    Medido contra el neto, «Descuento: $3,480» describía una rebaja que en lo que la casa se
    queda eran $3,000; el otro $480 es I.V.A. que nunca fue suyo. Ahora la cifra y la frase
    dicen la misma base que el campo de arriba. */
-function updPrecioAuth(paSub, subCalc){
+function updPrecioAuth(paSub, subCalc, soloPintar){
   /* Antes que nada, quedarse con lo tecleado: es lo que sobrevive al siguiente
      repintado del formulario. Va fuera del early return de abajo porque borrar el
-     campo —dejarlo en cero— también es algo que el autorizador acaba de escribir. */
-  paBorradorSet(paSub);
+     campo —dejarlo en cero— también es algo que el autorizador acaba de escribir.
+     `soloPintar` es el repintado del formulario: ahí no teclió nadie. */
+  if(!soloPintar) paBorradorSet(paSub);
   /* El neto que le corresponde, pegado al campo. Es el número que acaba en el papel del
      cliente, y no verlo mientras se teclea el subtotal es la mitad de la confusión. */
   const netoEl=$('a-precio-neto');
@@ -502,7 +515,9 @@ function revisarAlturasMinimas(){
   const n=Q.items.filter(it=>forzarRecortePorAltura(it)).length;
   if(!n) return 0;
   renderItems();
-  toast(`${n===1?'Una partida medía':n+' partidas medían'} menos de ${ALTURA_MIN_LETRAS} cm: no se ${n===1?'fabrica':'fabrican'} en 3D y ${n===1?'pasó':'pasaron'} a recorte de acrílico. Falta elegir el acabado.`,'',7000);
+  /* Igual que revisarAlturaMinima(): el acabado solo «falta» si no quedó ninguno de recorte. */
+  const sinAcab=Q.items.some(it=>it.tipo==='recorte'&&!recOf(it.acab));
+  toast(`${n===1?'Una partida medía':n+' partidas medían'} menos de ${ALTURA_MIN_LETRAS} cm: no se ${n===1?'fabrica':'fabrican'} en 3D y ${n===1?'pasó':'pasaron'} a recorte de acrílico.`+(sinAcab?' Falta elegir el acabado.':''),'',7000);
   return n;
 }
 let _faltSeguir=null;
@@ -967,8 +982,8 @@ function irAPaso(n){
 /* El renglón chico de cada pestaña. Lleva solo lo que no se puede leer en otra parte de la
    pantalla: el cliente que se dejó atrás, la cuenta de partidas cuando se está en el paso 1,
    la cola del autorizador y —esto es lo nuevo— qué le falta a la entrega, que no estaba
-   escrito en ningún sitio. La pestaña en la que estás no lleva nada: lo que hay que saber
-   de ella lo tienes en la pantalla. */
+   escrito en ningún sitio. De la pestaña en la que estás no se repite nada de lo que ya tienes
+   en la pantalla: lo único que lleva es el nombre del cliente, por lo que se explica abajo. */
 function subPasos(){
   const act=pasoActual();
   const s={1:'',2:'',3:'',4:''};
@@ -1095,8 +1110,12 @@ function pintarTotalDePaso(){
      dirección dejaba en pantalla un solo importe —«Total $23,664.00»— que no es el que
      llevan el PDF, el WhatsApp ni el registro de venta. El vuelo de elemento compartido no
      se entera: mide el rectángulo, no el texto. */
-  const pf=precioFinal(), aj=ajusteAuth();
-  const hayAjuste=Q.estado==='autorizada'&&Math.abs(aj)>0.01;
+  /* «Precio autorizado» con LA MISMA pregunta que la columna del dinero —subParaCanva()—, que
+     cuenta también los ajustes por partida. Con `ajusteAuth()`, que solo mide el ajuste global,
+     una cotización ajustada partida por partida decía «Total» aquí y «Precio autorizado» en la
+     columna, sobre el mismo número. */
+  const pf=precioFinal();
+  const hayAjuste=subParaCanva().ajustado;
   const rot=$('paso-total').querySelector('small');
   const lab=hayAjuste?'Precio autorizado':'Total';
   if(rot&&rot.textContent!==lab) rot.textContent=lab;
@@ -1303,6 +1322,15 @@ function cerrarEdicionCliente(){
    de lo que decía antes. */
 function nuevaConEstosDatos(){
   const previa=guardadaDeEsteFolio();
+  /* A dónde fue a parar la anterior, dicho según lo que era. El aviso decía siempre «quedó
+     completa en el historial», también de una RECHAZADA —que no está en el historial ni en la
+     cola: su única copia es el «Deshacer» de siete segundos— y de una pendiente, que sigue en
+     la cola. Quien lo cree deja pasar el botón que era su única salida. */
+  const enHistorial=getHistorial().some(x=>x.folio===Q.folio);
+  const dondeQuedo=(Q.estado==='autorizada'&&enHistorial)?' · la anterior quedó completa en el historial'
+    : Q.estado==='pendiente'?' · la anterior sigue en la cola de autorización'
+    : enHistorial?' · la anterior sigue en el historial como se guardó'
+    : ' · la anterior no estaba guardada: «Deshacer» la devuelve';
   const proy=(!previa||(previa.proy||'').trim()===(Q.proy||'').trim())?'':(Q.proy||'');
   const datos={cliente:Q.cliente,tel:Q.tel,dirRaw:Q.dirRaw,maps:Q.maps};
   _editCliente=null;
@@ -1318,7 +1346,7 @@ function nuevaConEstosDatos(){
   if(hueco&&!hueco.disabled) try{ hueco.focus(); }catch(_){}
   const nom=(Q.cliente||'').trim();
   toast(Q.folio+' · cotización nueva'+(nom?' para '+nom:'')+((Q.proy||'').trim()?'':' — falta el proyecto')
-    +' · la anterior quedó completa en el historial','ok',7000,
+    +dondeQuedo,'ok',7000,
     _vaciada?{label:'Deshacer',fn:deshacerVaciado}:null);
 }
 /* El candado de la pantalla del cliente. Tres estados y ni uno más: cerrado, corrigiendo, y
@@ -1496,8 +1524,8 @@ function cancelarAutoAutorizacion(){ _selfAuth=false; reabrir(); }
    que la huella vacía en una autorizada ES la señal. */
 function autorizacionSuelta(){ return Q.estado==='autorizada'&&!Q.huellaAuth; }
 /* Lo que había antes de volver a abrir la revisión, para poder cancelarla sin dejar la
-   cotización en borrador. Va con su folio, como _paDraft: es de esta cotización. */
-let _reautorizando=null;
+   cotización en borrador, vive en `Q.reauth` —con su folio, como _paDraft—. Era una variable
+   suelta y no sobrevivía a una recarga: ver el campo en el estado, en nucleo.js. */
 /* Vuelve a abrir el formulario de revisión sobre una cotización ya autorizada, por el mismo
    camino de «Autorizar yo mismo»: pasa por pendiente y por la cola, para que el estado y el
    registro no dependan de por dónde se llegó. El folio no cambia —es la misma cotización— y la
@@ -1510,8 +1538,11 @@ let _reautorizando=null;
 function reautorizar(){
   if(Q.estado!=='autorizada') return;
   if(Q.rol==='autorizador'){ irAResumen(); return; }
+  /* `pf` es el precio que el cliente ya tiene en la mano —en el PDF y en el WhatsApp—, para
+     saber al cerrar la revisión si ese papel sigue diciendo la verdad. */
   const antes={folio:Q.folio,autorizador:Q.autorizador,nota:Q.nota,fechaAuth:Q.fechaAuth,
-    precioAuth:Q.precioAuth,itemsAuth:JSON.parse(JSON.stringify(Q.itemsAuth||{})),huellaAuth:Q.huellaAuth};
+    precioAuth:Q.precioAuth,itemsAuth:JSON.parse(JSON.stringify(Q.itemsAuth||{})),huellaAuth:Q.huellaAuth,
+    pf:precioFinal()};
   Q.editMode=false; _editCliente=null;
   /* Como un borrador con folio: autorizarYoMismo hace el resto —los tres datos del cliente, la
      regla de los 10 cm, pendiente y la cola—. */
@@ -1519,7 +1550,7 @@ function reautorizar(){
   paBorradorLimpiar();
   autorizarYoMismo();
   if(Q.estado!=='pendiente'){ Q.estado='autorizada'; renderItems(); return; }   // algo lo frenó y ya lo dijo: se queda como estaba
-  _reautorizando=antes;
+  Q.reauth=antes; saveState();
 }
 function reabrir(){
   const eraPendiente=Q.estado==='pendiente';
@@ -1527,8 +1558,8 @@ function reabrir(){
   /* La revisión se abrió con «Volver a autorizar» sobre una cotización ya autorizada:
      cancelarla no la convierte en borrador. Vuelve a ser la autorizada que era, con el precio,
      el nombre y la nota que tenía —el formulario escribe en Q mientras se teclea—. */
-  if(eraPendiente&&_reautorizando&&_reautorizando.folio===Q.folio){
-    const a=_reautorizando, tecleo=paBorrador()!==null; _reautorizando=null;
+  if(eraPendiente&&Q.reauth&&Q.reauth.folio===Q.folio){
+    const a=Q.reauth, tecleo=paBorrador()!==null; Q.reauth=null;
     _selfAuth=false; paBorradorLimpiar();
     Q.estado='autorizada'; Q.autorizador=a.autorizador; Q.nota=a.nota; Q.fechaAuth=a.fechaAuth;
     Q.precioAuth=a.precioAuth; Q.itemsAuth=a.itemsAuth; Q.huellaAuth=a.huellaAuth;
@@ -1563,7 +1594,8 @@ function autorizarConfirmado(){
   Q.autorizador=nombre||prefGet(PREF_AUTORIZADOR,'');
   if(nombre) prefSet(PREF_AUTORIZADOR,nombre);
   Q.nota=($('a-note')?.value||'').trim();
-  _selfAuth=false; _reautorizando=null;
+  const re=(Q.reauth&&Q.reauth.folio===Q.folio)?Q.reauth:null;
+  _selfAuth=false; Q.reauth=null;
   /* Lo que el autorizador tecleó es el SUBTOTAL; `Q.precioAuth` se guarda en neto porque es
      lo que llevan leyendo el historial, la cola, el PDF y el registro de venta desde que
      existen. La conversión pasa por conIva() y por ningún otro sitio. */
@@ -1575,6 +1607,12 @@ function autorizarConfirmado(){
      que el trabajo cambió, sin depender de que nadie apriete «Guardar». */
   sellarAuth();
   Q.estado='autorizada';
+  /* EL CLIENTE QUE REGATEA. Se vuelve a autorizar el mismo folio a otro precio sin tocar una
+     partida —$12,760 que bajan a $11,600—, y como la huella no cambió, nada desmarcaba el
+     «PDF generado» ni el «Chat abierto»: «qué sigue» saltaba a «Registrar venta» con el cliente
+     sosteniendo un PDF con el precio viejo. Si el precio cambió, esos dos papeles ya no dicen
+     la verdad y se vuelven a pedir. */
+  if(re&&Math.abs((Number(re.pf)||0)-precioFinal())>0.01) desmarcarHitos(['pdf','wa']);
   Q.fechaAuth=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
   confirmarFolio(Q.folio); // el contador de cotizaciones solo avanza al autorizar
   updateQueueEntry(Q.folio,{estado:'autorizada',precioAuth:Q.precioAuth,autorizador:Q.autorizador,nota:Q.nota,fechaAuth:Q.fechaAuth,itemsAuth:Q.itemsAuth,huellaAuth:Q.huellaAuth});
@@ -1598,7 +1636,7 @@ function rechazar(){
   Q.autorizador=nombre||prefGet(PREF_AUTORIZADOR,'');
   if(nombre) prefSet(PREF_AUTORIZADOR,nombre);
   Q.nota=($('a-note')?.value||'').trim();
-  Q.estado='rechazada'; _selfAuth=false; _reautorizando=null; paBorradorLimpiar();
+  Q.estado='rechazada'; _selfAuth=false; Q.reauth=null; paBorradorLimpiar();
   /* Rechazar borra el borrador de precio que el formulario dejó escrito en Q mientras se
      teclaba: si no, un ajuste que se decidió NO aprobar se quedaba guardado y volvía a
      aparecer propuesto la próxima vez que se abriera la cotización. */
@@ -1650,6 +1688,17 @@ function nueva(){
      proyecto—, así que un borrador con el teléfono y la dirección puestos y nada más se
      vaciaba sin ofrecer vuelta atrás. Una regla, un sitio. */
   guardarParaDeshacer();
+  /* ----- Lo que era de la cotización de antes se va con ella -----
+     El folio de un borrador es PROVISIONAL: si no llegó al historial, nextFolio() devuelve el
+     mismo número. Y todo lo que se apaga «al cambiar de folio» se quedaba puesto:
+       · el aviso de «esto ya estaba en pantalla», sobre una cotización en blanco, diciendo que
+         lo que se capture se guarda a nombre del cliente anterior. Parecía que el botón no
+         había hecho nada, y el segundo toque vaciaba la cotización en blanco —y con eso se
+         perdía el «Deshacer» de la de verdad, que era la única copia—;
+       · la marca de «este campo lo vacié a mano», el borrador del precio y la reautorización
+         a medias, que son de aquella captura y no de ésta.
+     Así que se sueltan aquí, a mano, sin esperar a un folio que no va a cambiar. */
+  _deAntes=null; _vaciadoAMano=null; Q.reauth=null; paBorradorLimpiar();
   Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};Q.huellaAuth='';
   Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth=''; Q.plazoK=null;
   Q.editMode=false; _selfAuth=false; Q.sinEstrenar=true; _editCliente=null;
@@ -1665,6 +1714,12 @@ function nueva(){
   addItem({enfocar:false,heredar:true}); aplicarFoldProy();
   /* Una cotización en blanco empieza donde empieza: por el cliente. */
   irAPantalla('cliente',{forzar:true});
+  pintarAvisoDeAntes();
+  /* Y Ctrl+Z no cruza el vaciado. La frontera de la pila se marca sola cuando cambia el folio
+     (ver saveState en historial.js), y aquí el folio puede NO cambiar: tres «Deshacer» después
+     de teclear el cliente nuevo devolvían al anterior con sus partidas DENTRO de la cotización
+     nueva. La vuelta atrás de un vaciado es el botón del aviso, no el teclado. */
+  undoBarrera();
   if(_vaciada) toast(_vaciada.sc&&_vaciada.sc.items.length
       ? 'Cotización vaciada — y las '+_vaciada.sc.items.length+' medidas del escalador'
       : 'Cotización vaciada','',7000,{label:'Deshacer',fn:deshacerVaciado});
@@ -1774,7 +1829,9 @@ function renderMobileBar(){
     bar.innerHTML=undo+`<button class="mbar-btn" style="width:100%" onclick="irAPaso(${vuelta.paso})">${esc(vuelta.txt)} <span aria-hidden="true">→</span></button>`;
     return;
   }
-  const pf=precioFinal(), aj=ajusteAuth(), hayAjuste=Q.estado==='autorizada'&&Math.abs(aj)>0.01;
+  /* La misma pregunta que la columna y la barra de pasos: ver pintarTotalDePaso(). `aj` sigue
+     haciendo falta para pintar en verde un descuento global. */
+  const pf=precioFinal(), aj=ajusteAuth(), hayAjuste=subParaCanva().ajustado;
   const lab=hayAjuste?'Precio autorizado':(Q.iva?'Total neto':'Total');
   let btn;
   if(Q.rol==='autorizador'){
@@ -1851,6 +1908,9 @@ function aplicarFoldProy(){
 function upd(k,v){
   undoJuntar('q:'+k);
   Q[k]=v; saveState(); updProg();   // updProg ya repinta el encabezado plegado
+  /* Los tres de texto que se siguen pactando con el precio cerrado van también al historial:
+     ver guardarAutorizadaLuego() en historial.js. */
+  if(k==='entrecalles'||k==='entrega'||k==='notaCliente') guardarAutorizadaLuego();
   if(k==='cliente') autocompletarCliente(v);
   /* Los dos campos que dicen de quién es esto son los dos que pueden destapar un cuaderno. */
   if(k==='cliente'||k==='tel') actualizarAvisoCuaderno();
@@ -1927,7 +1987,7 @@ function cambiarRol(r){
 [['f-tel','tel'],['f-dir-raw','dirRaw'],['f-maps','maps']].forEach(([id,k])=>{
   const el=$(id); if(el) el.addEventListener('input',()=>marcarVaciado(k,el.value));
 });
-$('f-anti').addEventListener('input',function(){undoJuntar('q:anti');Q.anti=parseFloat(this.value)||0;Q.antiManual=this.value.trim()!=='';saveState();renderSummary();});
+$('f-anti').addEventListener('input',function(){undoJuntar('q:anti');Q.anti=parseFloat(this.value)||0;Q.antiManual=this.value.trim()!=='';saveState();renderSummary();guardarAutorizadaLuego();});
 /* ----- El anticipo, acotado al soltar el campo -----
    El `min="0"` del marcado es validación de formulario y aquí no hay formulario: nada lo
    corre, así que un «-5000» —o un menos de más en el teclado del teléfono— entraba tal cual
@@ -1948,9 +2008,12 @@ $('f-anti').addEventListener('change',function(){
   if(v<0){ v=0; aviso='El anticipo no puede ser negativo: se puso en $0.00.'; }
   else if(t.neto>0 && v>t.neto+0.005){ v=Math.round(t.neto*100)/100; aviso='El anticipo era mayor que el total de '+money(t.neto)+': se dejó igual al total.'; }
   if(!aviso) return;
-  Q.anti=v; Q.antiManual=this.value.trim()!=='';
+  /* Un anticipo acotado a cero no es uno «escrito a mano»: vuelve al sugerido, y el rótulo con
+     él. Quedaba antiManual encendido con $0 y el rótulo diciendo «sugerido (50%)» encima de un
+     cero que nadie sugirió. */
+  Q.anti=v; Q.antiManual=this.value.trim()!==''&&v>0;
   this.value=v||'';
-  saveState(); renderSummary();
+  saveState(); renderSummary(); guardarAutorizadaLuego();
   toast(aviso,'err',4200);
 });
 

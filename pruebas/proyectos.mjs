@@ -1,12 +1,13 @@
-/* Prueba SOLO las dos funciones puras de datos/proyectos.js: tiposDerivados y
-   nombreDerivado. Puras significa que corren en node sin DOM, sin localStorage y sin
-   IndexedDB, y por eso se pueden probar sin montar nada. Es el criterio de éxito número 1
-   del proyecto —`tipo_trabajo` lleno en el 100 % de las filas— así que tiene prueba propia.
+/* Prueba SOLO las funciones puras de datos/proyectos.js: tiposDerivados y nombreDerivado
+   —y, al final, camposDelRecalculo—. Puras significa que corren en node sin DOM, sin
+   localStorage y sin IndexedDB, y por eso se pueden probar sin montar nada. Las dos primeras
+   son el criterio de éxito número 1 del proyecto —`tipo_trabajo` lleno en el 100 % de las
+   filas— así que tienen prueba propia.
 
    Corre:  node /tmp/probar-proyectos.mjs
    El código de salida es 0 si todo pasó y 1 si algo falló, para que un guion lo sepa. */
 
-import { tiposDerivados, nombreDerivado, TIPOS_TRABAJO }
+import { tiposDerivados, nombreDerivado, TIPOS_TRABAJO, camposDelRecalculo }
   from '../js/datos/proyectos.js';
 import { readFileSync } from 'fs';
 
@@ -16,6 +17,7 @@ const eq = (que, dio, esperado) => {
   if (a === b) { bien++; console.log('  ok   ' + que + '  ->  ' + a); }
   else { mal++; console.log('  FALLA ' + que + '\n         dio: ' + a + '\n         esp: ' + b); }
 };
+const ok_ = (que, cond) => { if (cond) { bien++; console.log('  ok   ' + que); } else { mal++; console.log('  FALLA ' + que); } };
 
 /* Partidas como las guarda el cotizador. Los campos son los suyos: `luz` default true,
    `acab` solo en recorte, `bas` solo en bastidor. */
@@ -141,6 +143,25 @@ eq('sin contacto',       nombreDerivado({ proy: 'Parentesis', items: [caja()] },
 eq('solo el folio',      nombreDerivado({ folio: 'COT-0042', items: [letras()] }, []), 'COT-0042 (Letras Luz)');
 eq('nada de nada',       nombreDerivado(null, null), 'Sin nombre');
 eq('sin partidas y sin tipos', nombreDerivado(org(), []), 'Ale - Parentesis');
+
+/* ----- Recalcular sube el precio nuevo a la hoja -----
+   `resincronizar` es «la única puerta por la que el importe cambia», y encolaba el cambio sin
+   `campos`: `aNotion` no manda ni el nombre ni el dinero de una fila que ya existe si la
+   operación no dice que eso cambió, así que la hoja seguía cobrando el precio viejo. */
+console.log('\nRECALCULAR: LO QUE CAMBIÓ VIAJA, LO QUE NO, NO PISA LA HOJA');
+const antes = { nombre: 'Ale - Parentesis (Caja Luz)', sub: 10000, iva: true, anti_pactado: 6000,
+  origen: { folio: 'COT-0007', anti: 5800 } };
+eq('subió el precio: viaja el subtotal', camposDelRecalculo(antes, { ...antes, sub: 12000, anti_pactado: 5800 }), ['sub']);
+eq('cambió el nombre y el IVA', camposDelRecalculo(antes, { ...antes, nombre: 'Ale - Parentesis (Letras Luz)', iva: false, anti_pactado: 5800 }), ['nombre', 'iva']);
+eq('el anticipo de la COTIZACIÓN cambió: viaja', camposDelRecalculo(antes, { ...antes, anti_pactado: 7000, origen: { anti: 7000 } }), ['anti_pactado']);
+eq('nada cambió: no se pisa lo que PAGOS corrigió allá (ni el anticipo de 6,000 que bajó de la hoja)',
+   camposDelRecalculo(antes, { ...antes, anti_pactado: 5800 }), []);
+const { aNotion, P: COLS } = await import('../js/datos/puente.js');
+ok_('y son nombres que `aNotion` entiende: el subtotal nuevo llega a su columna',
+   aNotion({ ...antes, sub: 12000 }, null, { alta: false, campos: ['sub'] })[COLS.subtotal] === 12000 &&
+   !(COLS.subtotal in aNotion({ ...antes, sub: 12000 }, null, { alta: false, campos: [] })));
+ok_('resincronizar encola con esos campos',
+   /await encolar\('actualizar', r\.valor, camposDelRecalculo\(p, r\.valor\)\);/.test(mio));
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 process.exit(mal ? 1 : 0);

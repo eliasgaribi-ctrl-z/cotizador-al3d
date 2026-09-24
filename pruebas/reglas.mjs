@@ -4,6 +4,7 @@
    Uso: node /tmp/probar-reglas.mjs                                                        */
 
 import { evaluar, mensajeWa, REGLAS } from '../js/datos/reglas.js';
+import { huellaDe } from '../js/datos/cotizador.js';
 
 const HOY = '2026-08-23';
 const dias = n => new Date(2026, 7, 23 - n, 10, 30, 0).getTime();   // n días antes de HOY, local
@@ -137,6 +138,45 @@ cierto(evaluar({}).length === 0, 'un estado vacío devuelve [] y no lanza');
 cierto(evaluar(null).length === 0, 'evaluar(null) devuelve [] y no lanza');
 cierto(evaluar({ proyectos: [null, undefined], hoy: 'ayer' }).length === 0,
   'basura en la entrada devuelve [] y no lanza');
+
+/* ---- 6b. A11: la venta que ya está en la hoja no se vuelve a copiar ----
+   El incidente: el aviso solo sale con `pago_pendiente`, que es la fórmula de la hoja y solo
+   existe cuando la fila ya está allá; aun así decía «Copia los datos para la hoja» y abría el
+   botón que los pega en el primer renglón vacío. Seguirlo daba de alta la venta dos veces. */
+
+const instalado = (o = {}) => ({ id: 'p9', folio_local: 'COT-0109', nombre: 'Óptica Lux - Caja',
+  etapa: 'instalado', fecha_ganado: '2026-08-01', pago_pendiente: 6600, ...o });
+const conCobro = p => evaluar({ ...estado, proyectos: [p],
+  instalaciones: [{ id: 'i9', proyecto_id: p.id, fecha: '2026-08-15', estado: 'hecha' }] })
+  .find(a => a.regla === 'A11_cobro');
+const enHoja = conCobro(instalado({ notion_page_id: 'V-150' }));
+cierto(!!enHoja && /ficha/.test(enHoja.detalle) && /COBRANDO/.test(enHoja.detalle) && !/Copia los datos/.test(enHoja.detalle),
+  'con la fila en la hoja, A11 manda a poner COBRANDO en la ficha y no a copiar: ' + (enHoja && enHoja.detalle));
+cierto(!!enHoja && !enHoja.acciones.some(x => x.tipo === 'tsv') && enHoja.acciones[0].tipo === 'estatus' &&
+  enHoja.acciones[0].datos.estatus === 'COBRANDO',
+  'y su acción no es la de copiar la fila: ' + (enHoja && enHoja.acciones.map(x => x.tipo).join(', ')));
+const sinHoja = conCobro(instalado({ notion_page_id: null }));
+cierto(!!sinHoja && /Copia los datos/.test(sinHoja.detalle) && sinHoja.acciones[0].tipo === 'tsv',
+  'sin fila en la hoja sigue ofreciendo copiarla');
+
+/* ---- 6c. A12: una huella vieja, sin ordenar, no es una edición ----
+   Las huellas selladas antes del 15 de septiembre de 2026 están en el orden de las partidas;
+   la de hoy va ordenada. Compararlas con `===` hacía que todo proyecto viejo saliera como
+   «se editó después de ganarse». */
+
+const partidas = [{ id: 2, tipo: 'caja', ancho: 120, alto: 60, tarifa: 3900 },
+                  { id: 1, tipo: 'letras', material: 'acero', altura: 40, n: 8 }];
+const trozo = it => huellaDe({ items: [it] }).slice(2);
+const huellaVieja = 'c|' + partidas.map(trozo).join(',');       // sin ordenar, como se sellaba
+const ganado = { id: 'p8', folio_local: 'COT-0108', nombre: 'Gym - Letras', etapa: 'ganado',
+  fecha_ganado: '2026-08-20', origen: { folio: 'COT-0108', items: partidas, huellaAuth: huellaVieja } };
+const a12 = hist => evaluar({ ...estado, proyectos: [ganado], instalaciones: [], historial: hist })
+  .filter(a => a.regla === 'A12_huella');
+cierto(huellaVieja !== huellaDe({ items: partidas }), 'la huella vieja de verdad no es igual, letra por letra, a la de hoy');
+cierto(a12([{ folio: 'COT-0108', items: partidas, ts: dias(3) }]).length === 0,
+  'la misma cotización con la huella vieja NO sale como editada');
+cierto(a12([{ folio: 'COT-0108', items: [partidas[0], { ...partidas[1], altura: 50 }], ts: dias(3) }]).length === 1,
+  'y una edición de verdad sí sale');
 
 /* ---- 7. Los mensajes de WhatsApp ---- */
 

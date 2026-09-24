@@ -86,7 +86,7 @@ export const REGLAS = {
   A11: { id: 'A11_cobro', alias: 'R7_cobro', peso: 50,
          nombre: 'Instalado con saldo',
          roles: ['pagos', 'direccion'],
-         porque: 'El botón de copiar los datos para la hoja ya existe y está probado en producción; lo que faltaba era acordarse de apretarlo.' },
+         porque: 'Lo que faltaba era acordarse de cobrar: pasar la venta a COBRANDO —en la ficha si ya está en la hoja, copiando su fila si no— y mandarle el mensaje al cliente.' },
   A12: { id: 'A12_huella', alias: 'R6_huella_cambio', peso: 25,
          nombre: 'La cotización cambió después de ganarse',
          roles: ['direccion'],
@@ -534,19 +534,32 @@ function a11(E, out) {
     const dias = diasEntre(fecha, E.hoy);
     if (dias === null || dias < DIAS_COBRO) continue;
 
+    /* La fila YA ESTÁ en la hoja casi siempre: `pago_pendiente` es su fórmula y solo existe
+       cuando la venta bajó de allá, y el id de su renglón viene con ella. Decirle ahí «copia
+       los datos para la hoja» —y abrir el botón que los pega en el primer renglón vacío—
+       era pedirle a PAGOS que diera de alta la misma venta dos veces. Con la fila allá lo
+       que falta es el estatus, que se cambia en la ficha y el puente lo sube solo; copiar
+       queda para la venta que de verdad no está en la hoja. */
+    const enHoja = !!p.notion_page_id;
+
     out.push(aviso('A11', p.id, {
       tono: 'av',
       titulo: (p.nombre || p.folio_local || 'Proyecto') + ' se instaló ' + frase(-dias) + ' y tiene saldo',
-      detalle: (E.veDinero ? 'Quedan ' + money(saldo) + ' por cobrar. ' : '') +
-        'Copia los datos para la hoja con Estatus COBRANDO y mándale el mensaje.',
+      detalle: (E.veDinero ? 'Quedan ' + money(saldo) + ' por cobrar. ' : '') + (enHoja
+        ? 'La venta ya está en la hoja: pon su Estatus en COBRANDO en la ficha del proyecto —no copies la fila, sería una venta repetida— y mándale el mensaje.'
+        : 'Copia los datos para la hoja con Estatus COBRANDO y mándale el mensaje.'),
       cuando: frase(-dias),
       plazo: -dias,
       entidad: 'proyecto', entidad_id: p.id,
       acciones: [
-        /* «Abrir para copiar» y no «Copiar»: el botón que arma la fila de 15 columnas vive en
-           la ficha del proyecto y no se reimplementa aquí (el porqué, en el case 'tsv' de
-           js/mod/inicio.js). Este abre la ficha; el rótulo dice eso y no otra cosa. */
-        { label: 'Abrir para copiar la fila', tipo: 'tsv', datos: { proyecto_id: p.id, estatus: 'COBRANDO' } },
+        /* «Abrir para…» y no «Copiar» ni «Marcar»: los dos botones viven en la ficha del
+           proyecto y no se reimplementan aquí (el porqué, en el case 'tsv' de
+           js/mod/inicio.js). Este abre la ficha; el rótulo dice eso y no otra cosa. Con la
+           fila en la hoja la acción es otra —`estatus`, sin copiar nada—, para que la
+           pantalla no mande a nadie al botón de pegar. */
+        enHoja
+          ? { label: 'Abrir para poner COBRANDO', tipo: 'estatus', datos: { proyecto_id: p.id, estatus: 'COBRANDO' } }
+          : { label: 'Abrir para copiar la fila', tipo: 'tsv', datos: { proyecto_id: p.id, estatus: 'COBRANDO' } },
         { label: 'Cobrar por WhatsApp', tipo: 'wa',
           datos: { clase: 'cobrar', tel: p.tel, contacto: p.contacto, negocio: p.negocio,
                    pago_pendiente: saldo } },
@@ -578,7 +591,9 @@ function a12(E, out) {
     if (!entrada) continue;
     const antes = p.origen.huellaAuth || Cot.huellaDe(p.origen);
     if (!antes) continue;
-    if (antes === Cot.huellaDe(entrada)) continue;
+    /* `mismaHuella` y no `===`: las huellas selladas antes del 15 de septiembre de 2026 están
+       sin ordenar, y con `===` todo proyecto viejo salía como «se editó después de ganarse». */
+    if (Cot.mismaHuella(antes, entrada)) continue;
 
     out.push(aviso('A12', p.id, {
       tono: 'av',

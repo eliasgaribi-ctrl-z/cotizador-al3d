@@ -89,5 +89,31 @@ const man = derivar([{id:9,tipo:'manual',pz:1,pu:2500}], cts, catalogos(), mats)
 if (man.lineas.length) { console.log('  ✗ una partida manual no debe derivar material'); fallos++; }
 else console.log('  ✓ partida manual → sin material, y va a sinMaterial (' + (man.sinMaterial||[]).length + ')');
 
+/* Lo que no cabe en la hoja. Hasta septiembre de 2026 solo se comparaba la medida MAYOR con
+   el largo: una caja de 130 × 130 salía «exacta» y sin junta —130 < 244— cuando la lámina
+   tiene 122 de ancho y la cara no cabe ni girándola. */
+console.log('\n— lo que no cabe en la hoja —');
+const junta = (t, it, re, debe) => {
+  const d = derivar([it], cts, catalogos(), mats);
+  const hay = d.avisos.some(a => re.test(a));
+  console.log((hay === debe ? '  ✓ ' : '  ✗ ') + t + (hay ? ' → ' + d.avisos.find(a => re.test(a)) : ''));
+  if (hay !== debe) fallos++;
+};
+junta('caja 130 × 130: la cara no cabe a lo ancho de 1.22', {id:3,tipo:'caja',ancho:130,alto:130,tarifa:3900,luz:true}, /Acrílico blanco 6 mm.*no cabe ni girándola/, true);
+junta('bastidor de alucobond 200 × 130 en hoja de 1.25 × 2.50', {id:4,tipo:'bastidor',bas:'alucobond',ancho:200,alto:130}, /Alucobond.*no cabe ni girándola/, true);
+junta('bastidor de alucobond 120 × 240, de pie: cabe girándolo', {id:5,tipo:'bastidor',bas:'alucobond',ancho:120,alto:240}, /no cabe|junta/, false);
+junta('bastidor de lámina 295 × 100: lo largo sí pide la hoja de 3.05', {id:6,tipo:'bastidor',bas:'lamina',ancho:295,alto:100}, /hoja más larga/, true);
+junta('8 letras de 40 cm: caben de sobra', items[0], /junta/, false);
+
+/* Y la tarifa a mano. El aviso dice «geometría estándar»; la cuenta usaba la de silueta para
+   cualquier tarifa ≥ 4,600. Ahora la forma la dice el catálogo, y las dos cosas coinciden. */
+const formulaCara = tarifa => (derivar([{id:7,tipo:'caja',ancho:100,alto:100,tarifa,luz:true}], cts, catalogos(), mats)
+  .lineas.find(l => l.material_id === 'acr-6mm') || {}).formula || '';
+const aMano = formulaCara(5200);
+if (/silueta/.test(aMano) || !/0\.80 aprov/.test(aMano)) { console.log('  ✗ tarifa a mano de 5,200: dice estándar y debe calcular estándar → ' + aMano); fallos++; }
+else console.log('  ✓ tarifa a mano de 5,200: se calcula con la geometría estándar que el aviso dice');
+if (!/silueta/.test(formulaCara(4600))) { console.log('  ✗ la tarifa de silueta del catálogo debe usar el aprovechamiento de silueta'); fallos++; }
+else console.log('  ✓ la de silueta del catálogo (4,600) sí desperdicia como silueta');
+
 console.log(fallos ? '\n' + fallos + ' FALLO(S)' : '\nTodo cuadra con el documento.');
 process.exit(fallos ? 1 : 0);

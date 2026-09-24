@@ -68,6 +68,27 @@ const CASOS = [
   /* Y el descuento, que sí se enseña: es un argumento de venta. */
   { nombre: 'descuento autorizado · su renglón sigue saliendo',
     plano: false, anti: 0,     entrega: '',                    tel: '',             partidas: 2,  hojasMin: 2, descuento: true },
+  /* ---- Lo que ocupa la última hoja y el reparto no se restaba ----
+     Los cuatro salieron de una auditoría y los cuatro se veían igual en el papel: el pie fuera de
+     la carta, una hoja física de más en blanco y el pie diciendo «de 3» sobre un juego de cuatro.
+     El tope de la última hoja estaba medido con la tarjeta de totales SIN descuento, la ficha con
+     la dirección en dos renglones, ningún renglón agrupado de partidas ocultas y filas que medían
+     3 px menos de lo que miden. */
+  { nombre: 'descuento con 10 partidas · los dos renglones de más en la tarjeta de totales',
+    plano: false, anti: 15000, entrega: '',                    tel: '',             partidas: 10, hojasMin: 3, descuento: true },
+  { nombre: 'dirección de 161 caracteres con 10 partidas · la ficha en cuatro renglones',
+    plano: false, anti: 15000, entrega: '',                    tel: '',             partidas: 10, hojasMin: 3,
+    dir: 'Av. López Mateos Sur 2375, Local 12, Plaza Urban Center, Col. Jardines de Plaza del Sol, entre Av. Tizoc y Av. Niños Héroes, 45050 Zapopan, Jal. — frente al Oxxo' },
+  { nombre: '4 partidas visibles y 1 oculta, con descuento y plano · el renglón agrupado también ocupa',
+    plano: true,  anti: 15000, entrega: '',                    tel: '33-1122-3344', partidas: 5,  hojasMin: 4, descuento: true, oculta: true,
+    dir: 'Av. López Mateos Sur 2375, Local 12, Plaza Urban Center, Col. Jardines de Plaza del Sol, 45050 Zapopan, Jal.' },
+  { nombre: '18 partidas manuales de un renglón · cada fila medía 3 px más de lo que contaba altoFila',
+    plano: false, anti: 15000, entrega: '',                    tel: '',             partidas: 18, hojasMin: 3, manual: true },
+  /* El talón mide el 22 % del recibo y el nombre de un negocio con sucursal no cabe en un
+     renglón: se cortaba en silencio en la copia que se queda el negocio. */
+  { nombre: 'recibo · el nombre de un negocio con sucursal en el talón',
+    plano: false, anti: 5000,  entrega: '',                    tel: '',             partidas: 1,  hojasMin: 3,
+    cliente: 'Farmacias Similares Sucursal Chapultepec' },
 ];
 
 /* «$1,234.50» → 1234.5 · la única forma de comprobar lo que de verdad se imprimió. */
@@ -98,9 +119,9 @@ for (const caso of CASOS) {
     window.open = () => null;
     window.mostrarEnlacePDF = () => {};
 
-    Q.cliente = 'Juan Carlos Ramírez';
+    Q.cliente = c.cliente || 'Juan Carlos Ramírez';
     Q.proy    = 'Juan Carlos - Centro Dental';
-    Q.dirRaw  = 'Av. Vallarta 1234, Col. Americana, 44160 Guadalajara, Jal.';
+    Q.dirRaw  = c.dir || 'Av. Vallarta 1234, Col. Americana, 44160 Guadalajara, Jal.';
     Q.fecha   = '21 ago 2026';
     Q.folio   = 'COT-0042';
     Q.iva     = !c.sinIva;
@@ -110,11 +131,15 @@ for (const caso of CASOS) {
     Q.notaCliente = 'Solo 1 de los 2 conceptos tiene iluminación Led. El cliente debe dejar '
                   + 'salidas eléctricas para una instalación limpia.';
     Q.aiFile = c.plano ? { name: 'plano.svg', type: 'image/svg+xml', url: plano } : null;
-    Q.items = Array.from({ length: c.partidas }, (_, i) => ({
-      id: i + 1, tipo: 'letras', material: i % 2 ? 'al-paint' : 'acr-vol', comp: 'recta',
-      luz: i % 2 === 0, ilumTipo: 'fria', altura: 66, n: 14, _lt: 0,
-      showInPdf: (c.oculta && i === 1) ? false : undefined,
-    }));
+    /* La manual de un renglón es la fila más chica que existe —solo su descripción libre—, y
+       por eso la que más filas mete en una hoja: donde un error por fila se multiplica más. */
+    Q.items = Array.from({ length: c.partidas }, (_, i) => c.manual
+      ? { id: i + 1, tipo: 'manual', pz: 1, pu: 450 + i * 10, desc: 'Instalación', _lt: 0 }
+      : {
+        id: i + 1, tipo: 'letras', material: i % 2 ? 'al-paint' : 'acr-vol', comp: 'recta',
+        luz: i % 2 === 0, ilumTipo: 'fria', altura: 66, n: 14, _lt: 0,
+        showInPdf: (c.oculta && i === 1) ? false : undefined,
+      });
     if (typeof recalc === 'function') recalc();
     Q.itemsAuth = {};
     /* Un ajuste por partida es la BASE del reparto, no lo repartido: se le baja el precio a la
@@ -161,6 +186,20 @@ for (const caso of CASOS) {
     if (String(hojas.length) !== declaradas) {
       problemas.push(`salieron ${hojas.length} hojas pero el pie dice «de ${declaradas}»`);
     }
+    /* Y las hojas FÍSICAS, que es lo que de verdad sale de la impresora. Una .pg que se pasa de
+       la carta no se ve en el DOM como una hoja de más: se ve en el papel, con el pie diciendo
+       «de 3» sobre un juego de cuatro. Se imprime a PDF y se cuentan sus páginas. */
+    const pdf = await hoja.pdf({ preferCSSPageSize: true, printBackground: true });
+    const fisicas = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
+    if (fisicas !== hojas.length) {
+      problemas.push(`la impresora saca ${fisicas} hojas físicas y el documento tiene ${hojas.length}`);
+    }
+    /* Lo que se imprime en un renglón del recibo se tiene que leer entero: el talón es la copia
+       del negocio, y un nombre cortado ahí es un recibo que no dice de quién es. */
+    const cortados = await hoja.evaluate(() => [...document.querySelectorAll('.rec-l, .rline>span')]
+      .filter(e => e.textContent.trim() && (e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 1))
+      .map(e => e.textContent.trim()));
+    if (cortados.length) problemas.push('en el recibo se corta: «' + [...new Set(cortados)].join('» / «') + '»');
     /* ---- Que el papel cuadre consigo mismo ----
        De las 25 cotizaciones de Canva que se revisaron, 4 traen una tabla que no suma lo que
        dice abajo, porque son celdas tecleadas a mano. Aquí las suma la máquina, así que tiene
@@ -279,7 +318,58 @@ for (const caso of CASOS) {
   await pag.close();
 }
 
+/* ---- Lo que se imprime como número ES un número ----
+   med() y la columna de piezas escribían la altura, el ancho, el alto y las piezas CRUDOS en el
+   HTML de la hoja. Del teclado solo entran números, pero un respaldo restaurado —el README lo
+   describe llegando por WhatsApp— o una entrada del historial trae lo que traiga, y el documento
+   se abre desde un blob con el origen de la app: un `onerror` ahí adentro lee las llaves de IA
+   del localStorage. Van los cinco tipos, y con límite, para que también se arme la orden de
+   trabajo, que imprime las mismas dos columnas. */
+{
+  const pag = await nav.newPage();
+  const erroresJs = [];
+  pag.on('pageerror', e => erroresJs.push(e.message));
+  await pag.goto('file://' + path.join(RAIZ, 'cotizador.html'));
+  await pag.waitForTimeout(900);
+  const doc = await pag.evaluate(async () => {
+    let blob = null;
+    const crear = URL.createObjectURL;
+    URL.createObjectURL = b => { blob = b; return 'blob:medido'; };
+    window.open = () => null;
+    window.mostrarEnlacePDF = () => {};
+    const x = '"><img src=x onerror="window.__xss=1">';
+    Q.cliente = 'Cliente'; Q.proy = 'Proyecto'; Q.folio = 'COT-0043'; Q.fecha = '21 ago 2026';
+    Q.estado = 'autorizada'; Q.iva = true; Q.tel = ''; Q.entrecalles = ''; Q.entrega = 'LUNES 07 DE SEPTIEMBRE';
+    Q.anti = 0; Q.aiFile = null;
+    Q.items = [
+      { id: 1, tipo: 'letras', material: 'al-paint', comp: 'recta', luz: true, altura: '40' + x, n: '5' + x },
+      { id: 2, tipo: 'recorte', acab: 'vinil', altura: x, n: x },
+      { id: 3, tipo: 'bastidor', bas: 'lamina', ancho: x, alto: x },
+      { id: 4, tipo: 'caja', ancho: '120' + x, alto: x },
+      { id: 5, tipo: 'manual', desc: 'Otra', pz: x, pu: 100 },
+    ];
+    Q.itemsAuth = {}; Q.precioAuth = 0; sellarAuth();
+    generarPDF();
+    URL.createObjectURL = crear;
+    return blob ? await blob.text() : null;
+  });
+  const problemas = [];
+  if (erroresJs.length) problemas.push('errores de JS: ' + erroresJs.join(' / '));
+  if (!doc) problemas.push('no se generó ningún documento');
+  else {
+    if (/<img src=x|onerror=/i.test(doc)) problemas.push('el HTML de un campo numérico llegó crudo al documento');
+    const hoja = await nav.newPage();
+    await hoja.setContent(doc);
+    await hoja.waitForTimeout(200);
+    if (await hoja.evaluate(() => window.__xss)) problemas.push('y el documento CORRIÓ el código que traía la partida');
+    await hoja.close();
+  }
+  if (problemas.length) { fallos++; console.log('  FALLA  números con HTML adentro (un respaldo editado a mano)'); problemas.forEach(p => console.log(`          · ${p}`)); }
+  else console.log('  ok     números con HTML adentro (un respaldo editado a mano)');
+  await pag.close();
+}
+
 await nav.close();
 console.log('');
 if (fallos) { console.log(`${fallos} caso(s) con problemas.`); process.exit(1); }
-console.log(`El PDF es una hoja carta y cabe en ella, en los ${CASOS.length} casos.`);
+console.log(`El PDF es una hoja carta y cabe en ella, en los ${CASOS.length} casos, y lo que imprime como número es un número.`);

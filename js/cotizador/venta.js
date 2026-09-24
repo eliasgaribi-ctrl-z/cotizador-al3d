@@ -15,6 +15,16 @@
    ============================================================================ */
 
 // ----- Registrar Venta -----
+/* ----- La comisión: 10 % fijo del subtotal -----
+   Es la regla de AL3D, dicha por Elías, y es la que calcula la hoja de finanzas: la fórmula R
+   es ROUND(G*10%,2) y NO lee la columna AD «Porcentaje comision» (puente/hoja-apps-script.gs,
+   desde d4623f3). Este modal enseñaba la comisión con el % que se tecleara: con un 15, el
+   vendedor veía $2,610.00 de una venta de $17,400 y el libro mayor le pagaba $1,740.00.
+   El campo del % se queda en el modal, pero fijo en este valor y de solo lectura: un campo que
+   se deja editar y no cambia lo que se paga es una trampa. El mismo 10 es el que viaja a AD y a
+   la plataforma, para que los tres lados guarden el mismo dato. Si algún día la comisión se
+   pacta por venta, se cambian la fórmula R y esta constante, y el campo vuelve a abrirse. */
+const COMISION_PCT=10;
 /* Hoy en ISO. El <input type="date"> solo acepta YYYY-MM-DD, y armarlo con toISOString()
    sería un error de un día: eso convierte a UTC y en México, de la tarde en adelante,
    devuelve el día siguiente. Se arma con los campos locales. */
@@ -59,8 +69,12 @@ function abrirRegistrarVenta(){
   document.getElementById('rv-fecha-inst').value='';
   document.getElementById('rv-iva').value=Q.iva?'Sí':'No';
   document.getElementById('rv-anticipo').value=Q.anti||0;
-  /* La comisión y la cuenta casi nunca cambian y se volvían a poner en cada venta. */
-  document.getElementById('rv-pct').value=prefGet(PREF_RV_PCT,'10');
+  /* La comisión no se elige: ver COMISION_PCT. Antes se precargaba con el % recordado en el
+     aparato, así que un teléfono que alguna vez registró un 15 lo seguía enseñando. */
+  const elPct=document.getElementById('rv-pct');
+  elPct.value=COMISION_PCT; elPct.readOnly=true;
+  elPct.title='La comisión es '+COMISION_PCT+' % fijo del subtotal, sin IVA: la misma que calcula la hoja de finanzas';
+  /* La cuenta casi nunca cambia y se volvía a poner en cada venta. */
   const selCuenta=document.getElementById('rv-cuenta');
   const cuentaPref=prefGet(PREF_RV_CUENTA,'');
   if(cuentaPref&&[...selCuenta.options].some(o=>o.value===cuentaPref)) selCuenta.value=cuentaPref;
@@ -73,38 +87,36 @@ function abrirRegistrarVenta(){
 function cerrarRegistrarVenta(){
   document.getElementById('rv-modal-bg').classList.remove('show');
 }
-/* ----- El anticipo y la comisión, acotados -----
+/* ----- El anticipo, acotado -----
    Hasta septiembre de 2026 el modal aceptaba cualquier número: un anticipo mayor que el total
    —un cero de más al teclear— dejaba el «pago pendiente» en $0.00 y la venta se registraba
    como liquidada; uno negativo lo inflaba; y una comisión del 1000 % se registraba tal cual.
-   Se acota en el mismo campo, con aviso, y el número corregido es el que se guarda. */
+   Se acota en el mismo campo, con aviso, y el número corregido es el que se guarda. La
+   comisión ya no se teclea —es COMISION_PCT—, así que ya no hay nada que acotarle. */
 function rvAcotar(){
   const t=desgloseFinal();
-  const elA=document.getElementById('rv-anticipo'), elP=document.getElementById('rv-pct');
+  const elA=document.getElementById('rv-anticipo');
   let anti=parseFloat(elA.value); if(!isFinite(anti)) anti=0;
-  let pct=parseFloat(elP.value); if(!isFinite(pct)) pct=0;
   let aviso='';
   if(anti<0){ anti=0; aviso='El anticipo no puede ser negativo: se puso en $0.00.'; }
   if(t.neto>0 && anti>t.neto+0.005){ anti=Math.round(t.neto*100)/100; aviso='El anticipo era mayor que el total de '+money(t.neto)+': se dejó igual al total.'; }
-  if(pct<0){ pct=0; aviso=aviso||'La comisión no puede ser negativa: se puso en 0 %.'; }
-  if(pct>100){ pct=100; aviso=aviso||'La comisión no puede pasar del 100 %.'; }
   if(Math.abs(anti-(parseFloat(elA.value)||0))>0.005) elA.value=anti;
-  if(Math.abs(pct-(parseFloat(elP.value)||0))>0.005) elP.value=pct;
-  return {anti,pct,aviso};
+  return {anti,aviso};
 }
 function rvRecalc(){
   // Se registra lo que realmente se va a cobrar (precio autorizado), no el calculado.
   const t=desgloseFinal();
   const sub=t.sub, neto=t.neto;
   const anti=parseFloat(document.getElementById('rv-anticipo').value)||0;
-  const pct=parseFloat(document.getElementById('rv-pct').value)||0;
   const estatus=document.getElementById('rv-estatus').value;
-  /* Sin `Math.round`: a la hoja NO se le manda la comisión, se le manda el porcentaje, y la
-     columna la calcula allá con la cifra completa. Redondear a pesos aquí hacía que el modal
-     enseñara «$1,759.00» y la hoja escribiera $1,758.56, que es justo la discordancia que el
-     comentario de esa línea vino a arreglar. `money()` hace el suyo, el mismo que ya hace con
-     el subtotal y el neto de esta misma tarjeta. */
-  const com=sub*pct/100;
+  /* La MISMA cuenta que la columna R de la hoja: 10 % fijo del subtotal, sin leer el % de AD
+     (ver COMISION_PCT). A la hoja no se le manda la comisión, se calcula allá; aquí se enseña
+     la que allá va a salir. Decía que la hoja la calculaba «con el porcentaje» que se le
+     mandaba, y desde d4623f3 no es así: con un 15 tecleado el modal enseñaba el 15 y el libro
+     mayor pagaba el 10.
+     Sin `Math.round` a pesos: eso hacía que el modal enseñara «$1,759.00» y la hoja escribiera
+     $1,758.56. `money()` redondea a centavos, igual que el ROUND(…,2) de allá. */
+  const com=sub*COMISION_PCT/100;
   const pend=estatus==='LIQUIDADO'?0:Math.max(0,neto-anti);
   document.getElementById('rv-sub-disp').textContent=money(sub);
   document.getElementById('rv-neto-disp').textContent=money(neto);
@@ -217,7 +229,6 @@ function datosParaLaHoja(){
   const fecha=document.getElementById('rv-fecha').value.trim();
   const fechaInst=document.getElementById('rv-fecha-inst').value.trim();
   const anti=parseFloat(document.getElementById('rv-anticipo').value)||0;
-  const pct=parseFloat(document.getElementById('rv-pct').value)||0;
   const esISO=v=>/^\d{4}-\d{2}-\d{2}$/.test(v);
   const d={
     'Proyecto':         document.getElementById('rv-proyecto').value.trim(),
@@ -236,11 +247,11 @@ function datosParaLaHoja(){
   };
   if(esISO(fecha))     d['Fecha Anticipo e Instalacion']=fecha;   // columna L, el anticipo
   if(esISO(fechaInst)) d['Fecha instalacion']=fechaInst;          // columna M, la instalación
-  /* El % pactado con quien trajo el trabajo (columna AD). La hoja calculaba 10 % fijo y este
-     modal enseñaba la comisión con el % tecleado: dos cifras para la misma venta. Con cero
-     no se manda —vacío en la hoja significa «el de siempre»—; el 10 sí viaja, para que quede
-     escrito que se dijo. */
-  if(pct>0) d['Porcentaje comision']=pct;
+  /* La columna AD. La hoja NO la lee —la fórmula R es 10 % fijo del subtotal—, pero el puente
+     la lleva y la plataforma la guarda, así que viaja el mismo % que se paga: con el tecleado
+     viajaba un 15 que ninguna fórmula cobraba y que la plataforma repetía como «comisión
+     pactada». Ver COMISION_PCT. */
+  d['Porcentaje comision']=COMISION_PCT;
   /* LIQUIDADO en la hoja es anticipo + liquidación = neto, y el saldo sale de restar los
      dos. La liquidación es el RESTO, no el total: ponerle el neto dejaría el saldo en
      negativo por el valor del anticipo. */
@@ -340,12 +351,11 @@ function copiarDatosVenta(){
    El botón de copiar la fila se queda para siempre. Si la plataforma no está, si el
    teléfono es otro, si algo falla: pegar la fila a mano es el camino que ya funciona y no
    se retira. */
-/* La comisión y la cuenta «casi nunca cambian y se volvían a poner en cada venta»: eso decía
-   el modal, y solo las recordaba el camino con puente. En un teléfono sin puente el registro
-   sale por el otro camino y las dos se volvían a elegir cada vez. Se recuerdan aquí, en un
-   solo sitio, y las llaman los dos caminos. */
+/* La cuenta «casi nunca cambia y se volvía a poner en cada venta»: eso decía el modal, y solo
+   la recordaba el camino con puente. En un teléfono sin puente el registro sale por el otro
+   camino y se volvía a elegir cada vez. Se recuerda aquí, en un solo sitio, y la llaman los
+   dos caminos. La comisión ya no se recuerda: no se elige (ver COMISION_PCT). */
 function rvRecordarPreferencias(){
-  prefSet(PREF_RV_PCT,parseFloat(document.getElementById('rv-pct').value)||0);
   prefSet(PREF_RV_CUENTA,document.getElementById('rv-cuenta').value);
 }
 function registrarGanada(){
@@ -371,7 +381,7 @@ function registrarGanada(){
     plazo_k:(Q.plazoK>=1&&Q.plazoK<=5)?Q.plazoK:null,
     cuenta:document.getElementById('rv-cuenta').value,
     estatus:document.getElementById('rv-estatus').value,
-    pct_comision:parseFloat(document.getElementById('rv-pct').value)||0,
+    pct_comision:COMISION_PCT,   // el que se paga; ver COMISION_PCT
     sub:t.sub, neto:t.neto,
     anti:parseFloat(document.getElementById('rv-anticipo').value)||0,
     ts:Date.now()

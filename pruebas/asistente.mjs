@@ -26,11 +26,17 @@ const proy = (o = {}) => ({ id: 'p1', folio_local: 'COT-0031', folio_global: 'CO
   precio_auth: 11600, anti_pactado: 5800, pct_comision: 10, cuenta: 'BBVA', estatus_notion: 'COBRANDO', iva: true,
   pago_pendiente: null, comision_restante: null, origen: { items: [{ id: 1 }] }, ...o });
 
-console.log('\nLA COMISIÓN, con la aritmética del registro de venta');
+console.log('\nLA COMISIÓN, con la aritmética de la hoja: 10 % fijo del subtotal');
 eq('10 % de 10 000 de subtotal', comisionDe(proy()).comision, 1000);
 eq('sin liquidar: nada abonable, todo restante', [comisionDe(proy()).abonable, comisionDe(proy()).restante], [0, 1000]);
 eq('LIQUIDADO: todo abonable', [comisionDe(proy({ estatus_notion: 'LIQUIDADO' })).abonable, comisionDe(proy({ estatus_notion: 'LIQUIDADO' })).restante], [1000, 0]);
-eq('sin porcentaje no hay comisión', comisionDe(proy({ pct_comision: 0 })).comision, 0);
+/* Hasta septiembre de 2026 la comisión era subtotal × el % capturado, redondeada a pesos. La
+   hoja paga 10 % fijo —ROUND(G*10%,2) en la columna R— y la celda vacía del % es el caso de
+   casi todas las filas: el asistente las daba por «sin comisión». */
+eq('sin porcentaje capturado es el 10 % de siempre, no cero', comisionDe(proy({ pct_comision: 0 })).comision, 1000);
+eq('un 15 % capturado no cambia lo que la hoja paga', comisionDe(proy({ pct_comision: 15 })).comision, 1000);
+eq('con centavos, como la hoja, no redondeada a pesos', comisionDe(proy({ sub: 17587.6 })).comision, 1758.76);
+eq('la «Comisiones» que bajó de la hoja manda', comisionDe(proy({ comisiones: 1234.5 })).comision, 1234.5);
 eq('cancelado no comisiona', comisionDe(proy({ etapa: 'cancelado', estatus_notion: 'LIQUIDADO' })).abonable, 0);
 eq('si Notion bajó comision_restante, manda', comisionDe(proy({ comision_restante: 350, estatus_notion: 'LIQUIDADO' })), { comision: 1000, abonable: 350, restante: 350, deNotion: true });
 eq('sin subtotal se deduce del total con IVA', comisionDe(proy({ sub: 0, precio_auth: 11600 })).comision, 1000);
@@ -42,6 +48,8 @@ ok('no lleva dirección', !JSON.stringify(r).includes('Patria'));
 ok('no lleva coordenadas', !('lat' in r) && !JSON.stringify(r).includes('20.7'));
 eq('sí lleva folio, etapa y la instalación', [r.folio, r.etapa, r.instalacion], ['COT-0031', 'instalado', '2026-09-20 10:00 (confirmada)']);
 eq('y el dinero, cuando el rol lo ve', [r.vendido, r.anticipo, r.saldo_estimado, r.comision, r.comision_abonable_ya, r.comision_restante], [11600, 5800, 5800, 1000, 0, 1000]);
+ok('el % capturado ya no viaja: la regla es una sola', !('pct_comision' in resumirProyecto(proy({ pct_comision: 15 }), { veDinero: true })));
+eq('y sin % capturado el proyecto sigue llevando su comisión', resumirProyecto(proy({ pct_comision: 0 }), { veDinero: true }).comision, 1000);
 const rf = resumirProyecto(proy(), { veDinero: false });
 ok('para fabricación no hay ningún importe', ['vendido', 'anticipo', 'saldo_estimado', 'comision', 'comision_abonable_ya', 'cuenta', 'estatus_notion', 'pct_comision'].every(k => !(k in rf)));
 ok('ni el número aparece por otro lado', !JSON.stringify(rf).includes('11600') && !JSON.stringify(rf).includes('5800'));
@@ -82,6 +90,16 @@ ok('para fabricación no viajan ventas, comisiones ni conversión', !('ventas' i
 eq('las autorizadas sin decidir son solo una cuenta', RF.cotizaciones_autorizadas_sin_decidir, 1);
 ok('y un aviso con importe pierde su detalle', !('detalle' in RF.avisos[0]));
 ok('ningún importe en todo el resumen de fabricación', !/11600|5800|9000|\$/.test(JSON.stringify(RF)));
+
+/* Las filas de la hoja casi nunca traen el % (vacío es «el de siempre»), y con la regla vieja
+   se caían de la lista aunque la hoja dijera que se deben 2,000. */
+const RHoja = armarResumen({ hoy: '2026-09-23', rol: 'Dirección', veDinero: true, proyectos: [
+  proy({ id: 'h1', folio_local: 'V-042', pct_comision: 0, estatus_notion: 'LIQUIDADO', sub: 20000, comision_restante: 2000 }),
+  proy({ id: 'h2', folio_local: 'V-043', pct_comision: 0, estatus_notion: 'COBRANDO', sub: 20000, comision_restante: 2000, pago_pendiente: 5000 }),
+] });
+eq('con el % vacío, la liquidada de la hoja es abonable y la otra espera, al 10 %',
+   [RHoja.comisiones.abonables_ya.map(x => [x.folio, x.comision, x.pct]), RHoja.comisiones.pendientes_de_liquidar.map(x => [x.folio, x.comision])],
+   [[['V-042', 2000, 10]], [['V-043', 2000]]]);
 
 console.log('\nLAS RESPUESTAS LOCALES: las siete de siempre, sin IA');
 const RC = responderLocal('comisiones', R);
@@ -166,11 +184,12 @@ eq('las instalaciones vencidas sin marcar entran al resumen', armarResumen({ hoy
 console.log('\nEL MENSAJE DE SISTEMA');
 const S = promptSistema(R);
 ok('dice la fecha de hoy y el rol', S.includes('Hoy es 2026-09-14') && S.includes('rol de Dirección'));
-ok('trae la regla de comisiones', S.includes('subtotal × porcentaje') && S.includes('LIQUIDADO'));
+ok('trae la regla de comisiones: 10 % fijo del subtotal', S.includes('10 % del subtotal') && S.includes('LIQUIDADO'));
+ok('y ya no la del porcentaje pactado ni la de redondear a pesos', !S.includes('subtotal × porcentaje') && !S.includes('redondeada a pesos'));
 ok('dice que es de solo lectura y dónde se cambia cada cosa', S.includes('solo lectura') && S.includes('Finanzas AL3D') && !S.includes('Notion'));
 ok('y lleva los datos pegados como JSON', S.includes('"comisiones"') && S.endsWith('}'));
 const SF = promptSistema(RF);
-ok('para fabricación le prohíbe hablar de dinero', SF.includes('no ve importes') && !SF.includes('subtotal × porcentaje'));
+ok('para fabricación le prohíbe hablar de dinero', SF.includes('no ve importes') && !SF.includes('10 % del subtotal'));
 
 console.log('\nLO QUE VUELVE SE PINTA COMO TEXTO');
 eq('negritas y viñetas', mdLite('**Hola**\n- uno\n- dos'), '<p><b>Hola</b></p><ul><li>uno</li><li>dos</li></ul>');
