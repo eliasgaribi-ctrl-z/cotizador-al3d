@@ -984,13 +984,17 @@ export function crear(cfg0) {
       const propioPorFila = async venta => {
         if (!venta || !venta.folio_hoja) return null;
         if (!propios) {
-          propios = new Map();
+          /* Dos mapas: el folio de HOY manda sobre uno que otro proyecto tuvo antes. */
+          propios = { hoy: new Map(), antes: new Map() };
+          const poner = (m, k, p) => m.set(k, m.has(k) && m.get(k) !== p ? false : p);
           for (const p of await DB.listar('proyectos')) {
             if (!p || p.de_hoja || String(p.id || '').startsWith('proy-hoja-')) continue;
-            for (const k of foliosDeHoja(p)) propios.set(k, propios.has(k) && propios.get(k) !== p ? false : p);
+            const np = String(p.notion_page_id || '').trim();
+            if (np) poner(propios.hoy, np, p);
+            for (const k of foliosDeHoja(p)) if (k !== np) poner(propios.antes, k, p);
           }
         }
-        const p = propios.get(venta.folio_hoja);
+        const p = propios.hoy.has(venta.folio_hoja) ? propios.hoy.get(venta.folio_hoja) : propios.antes.get(venta.folio_hoja);
         if (!p) return null;
         /* Y solo si es seguro que es SU venta, con la misma regla con la que la revisión decide
            qué copia se junta sola (`proyectos.mismaVentaQueLaFila`): la fila trae su folio de

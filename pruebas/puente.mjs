@@ -1148,11 +1148,21 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   cierto('5c · y lo apartado (lo que Ajustes enseña) le dice a quien tiene el teléfono lo que sí puede hacer: ' + (ap620[0] || {}).ultimo_error,
     ap620.length && /quien tenga este teléfono/.test(ap620[0].ultimo_error) && !/dar de alta/.test(ap620[0].ultimo_error));
   eq('5c · «Dejarla»', (await Proy.dejarFueraDeLaHoja('proy-hoja-V-620')).ok, true);
+  /* Y mientras está dejada, PAGOS (en este mismo teléfono) la pasa a COBRANDO: la fila que vuelve
+     trae FABRICACION, y el espejo de la tarjeta importada le devolvía el estatus viejo. */
+  guardado.al3d_pf_rol = 'pagos';
+  eq('5c · mientras tanto, PAGOS la pasa a COBRANDO', (await Proy.actualizar('proy-hoja-V-620', { estatus_notion: 'COBRANDO' })).ok, true);
+  await S.bombear();
+  guardado.al3d_pf_rol = 'fabricacion';
   H.borradas.delete('V-620'); H.filas.push(fila('V-620', 'Taller Norte - Vinil'));
   const a620 = H.empujadas.length;
   await jalarTodo();
+  eq('5c · la fila vuelve con FABRICACION, y la bajada no le pisa a la tarjeta el estatus que todavía no se mandaba',
+     (await DB.obtener('proyectos', 'proy-hoja-V-620')).estatus_notion, 'COBRANDO');
   await S.bombear();
-  eq('5c · la fila vuelve, y le llega la etapa que había rebotado', aFila('V-620', a620).map(o => o.datos['Etapa de obra']), ['Armado']);
+  eq('5c · y le llegan la etapa que había rebotado y el estatus de PAGOS',
+     aFila('V-620', a620).map(o => [o.datos['Etapa de obra'], o.datos['Estatus']]), [['Armado', 'COBRANDO']]);
+  ponerFila('V-620', { 'Estatus': 'COBRANDO', 'Etapa de obra': 'Armado' });
 
   /* 5d · «Quitar del tablero» justo después del rebote, antes de la siguiente bajada completa: su
      renglón sigue en el récord, pero lo más nuevo que se sabe de la fila es que la hoja dijo que no

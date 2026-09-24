@@ -265,14 +265,22 @@ devuelve a la cola (por ejemplo, cuando ese teléfono ya entra como Dirección).
   en ninguna otra, y el proyecto queda marcado: en su ficha, Dirección elige «Volver a darla de
   alta en la hoja» (una fila nueva con todos sus datos) o «Dejarla fuera de la hoja». Registrarla
   otra vez desde el cotizador no sirve: la plataforma contesta que ya es proyecto. Mientras está
-  fuera, sus cambios no se mandan pero no se tiran: el teléfono anota que quedaron sin mandar. Si
-  la fila vuelve a la hoja (con su folio o con su «Folio cotizacion»), la siguiente bajada quita la
-  marca y la decisión de dejarla fuera, y manda de una vez lo que se cambió mientras tanto, con la
-  etapa y la instalación de ese día.
-- **Una tarjeta importada dice «Ya no está en la hoja».** Su fila no vino en una bajada completa.
-  Cualquiera que tenga ese teléfono decide en la ficha: «Quitar del tablero» (solo si nada de
-  este teléfono la nombra: instalación, movimiento del almacén o material) o «Dejarla». Las
-  marcas son de cada teléfono y no viajan.
+  fuera, sus cambios no se mandan pero no se tiran: el teléfono anota que quedaron sin mandar, y lo
+  mismo con los cambios que ya habían rebotado al dejarla fuera. Si la fila vuelve a la hoja (con su
+  folio o con su «Folio cotizacion»), la siguiente bajada quita la marca y la decisión de dejarla
+  fuera, y manda de una vez lo que se cambió mientras tanto, con la etapa y la instalación de ese
+  día. Lo que se cambió aquí de la cuenta, el estatus o el anticipo no lo pisa la fila que vuelve:
+  se le manda a ella. Si la venta ya está como «No se dio», su única salida en la ficha es dejarla
+  fuera de la hoja.
+- **Una venta dice «Dos veces en la hoja».** Dirección la volvió a dar de alta y después alguien
+  deshizo el borrado de la fila vieja (o la metió otra vez a mano): dos filas traen la misma venta.
+  El teléfono se queda con la fila a la que ya mandaba, Control la cuenta una vez y nada se borra.
+  En la hoja, Dirección borra la que sobra —revisa antes cuál tiene los cobros—; con la siguiente
+  bajada el aviso se va, y si la que quedó es la otra, la venta se ata a ella.
+- **Una tarjeta importada dice «Ya no está en la hoja».** Su fila no vino en una bajada completa,
+  o un cambio rebotó contra ella. Cualquiera que tenga ese teléfono decide en la ficha: «Quitar del
+  tablero» (solo si nada de este teléfono la nombra: una instalación que no esté cancelada, un
+  movimiento del almacén o material) o «Dejarla». Las marcas son de cada teléfono y no viajan.
 - **Una tarjeta dice «Repetida».** Es la copia importada de una venta que este teléfono ya
   tenía. Se junta sola solo si es seguro que es la misma venta (la fila trae su «Folio
   cotizacion» o su mismo nombre) y no se pierde nada: ni su etapa, ni sus notas, pin o plazo, ni
@@ -281,8 +289,10 @@ devuelve a la cola (por ejemplo, cuando ese teléfono ya entra como Dirección).
   aquí está como «No se dio» y la fila también, quitar la copia. Si la de aquí dice «No se dio» y
   la fila la trae viva, la ficha no ofrece quitarla: o se marca «No se dio» también en la hoja, o
   se regresa la de aquí a su etapa y se juntan. Mientras tanto, Control cuenta la fila viva.
-  Una venta que se ató a su fila por el nombre se queda atada aunque después se corrija el
-  nombre en la hoja.
+  «Juntar» espera a que salga lo que la copia tenga en la bandeja (una instalación recién
+  agendada, por ejemplo). Una venta que se ató a su fila por el nombre se queda atada aunque
+  después se corrija el nombre en la hoja; si la fila pasa a traer el «Folio cotizacion» de otra
+  venta, deja de ser suya y la ficha lo dice («ya es de otra venta»).
 - **Una escritura vuelve como rechazada.** El mensaje dice cuál propiedad y por qué. Casi
   siempre es un rol que no puede escribir eso, o un valor que no está en la lista.
 - **Cambiaste el código y no pasa nada.** Guardar no publica: hay que implementar una

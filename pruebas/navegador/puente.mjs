@@ -773,7 +773,11 @@ const lapFuera = await p.evaluate(async () => {
 /no se tiran: se guardan en este teléfono/.test(pFuera) && !/se tiran\./.test(pFuera) && !/Volver a darla de alta/.test(pFuera) && lapFuera.fuera && !lapFuera.marca
   ? bien('su confirmación dice que lo que rebotó se guarda (y no ofrece darla de alta a una lápida), y la deja fuera')
   : mal('dejar fuera la lápida: ' + JSON.stringify({ pFuera, ...lapFuera }));
-await p.click('#pj-filtros [data-etapa="todas"]').catch(() => {});
+/* El filtro de la lista vive en el módulo y sobrevive a la navegación: se regresa a «Todas». */
+await p.evaluate(() => { const b = document.querySelector('#pf-ficha [data-cerrar-ficha]'); if (b) b.click(); });
+await p.waitForTimeout(400);
+await p.click('#pj-filtros [data-etapa="todas"]');
+await p.waitForTimeout(400);
 
 /* La venta de aquí en DOS filas de la hoja: las dos traen su folio de cotización (Dirección la
    volvió a dar de alta y después alguien deshizo el borrado de la vieja). La bajada completa la

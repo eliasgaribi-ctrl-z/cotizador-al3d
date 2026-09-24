@@ -1277,6 +1277,9 @@ export async function resincronizar(id) {
       nombre), se juntan solas: lo que colgaba de la copia pasa al proyecto de verdad y la
       copia se va. Si algo se perdería, o si lo único en común es el folio de la hoja —que
       pudo repartirse dos veces—, se marca `duplicado_de` y espera a Dirección.
+   4. La venta de este teléfono que está en DOS filas de la hoja: Dirección la volvió a dar de
+      alta y después alguien deshizo el borrado de la vieja. La bajada se queda con la fila que
+      tenía, se marca `hoja_doble` y Dirección borra en la hoja la que sobra.
 
    Las marcas son de ESTE teléfono y no viajan: se escriben con `DB` directo, sin encolar,
    por lo mismo que las del relevo (ver `espejarLocal` en puente.js). No son un dato del
@@ -1822,9 +1825,18 @@ export async function revisarContraLaHoja(info = {}) {
      hoja; aquí no se borra nada. Solo con una bajada COMPLETA: una a medias todavía trae en
      `ventas_hoja` filas que la hoja ya no tiene. Quitarla, sí siempre: con menos de dos no hay
      nada que avisar. */
+  const conSuFolio = new Map();   // folio de cotización → sus filas; una venta tiene uno solo
+  for (const v of ventas) {
+    const fc = v && String(v.folio_cotizacion || '').trim();
+    if (fc && v.folio_hoja) (conSuFolio.get(fc) || conSuFolio.set(fc, []).get(fc)).push(v);
+  }
   for (const p of proys) {
     if (!p || esImportado(p) || idas.has(p.id)) continue;
-    const suyas = [...new Set(ventas.filter(v => v && v.folio_hoja && ataLaFila(p, v)).map(v => String(v.folio_hoja)))];
+    /* Las candidatas son las que traen su folio de cotización y las de sus folios de hoja; de ésas,
+       las que la bajada le echaría (`ataLaFila`). */
+    const candidatas = [...(conSuFolio.get(String(p.folio_global || '')) || []),
+                        ...[...foliosDeHoja(p)].map(f => ventaDe.get(f)).filter(Boolean)];
+    const suyas = [...new Set(candidatas.filter(v => ataLaFila(p, v)).map(v => String(v.folio_hoja)))];
     const previa = p.hoja_doble && typeof p.hoja_doble === 'object' ? p.hoja_doble : null;
     if (suyas.length < 2) {
       if (previa && await parcharMarca(p.id, { hoja_doble: null })) cambios++;
