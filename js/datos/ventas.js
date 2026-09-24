@@ -153,7 +153,17 @@ export function unificar(proyectos, ventasHoja) {
   const usadas = new Set();
   const ventas = [];
   let enlazados = 0, huerfanos = 0;
+  const ids = new Set(P.map(p => p.id));
   for (const p of P) {
+    /* La copia importada que repite una venta de este teléfono (`duplicado_de`, ver
+       proyectos.revisarContraLaHoja) espera a que Dirección decida en su ficha; mientras tanto
+       no se cuenta, o el vendido sale con esa venta dos veces: la de aquí ya está atada a esa
+       misma fila. Y si resulta que no era la misma, su fila no se pierde: sin nadie que la use,
+       se cuenta sola abajo, como renglón de la hoja. Solo mientras la de aquí siga en el
+       teléfono: sin ella, la copia es la única tarjeta de esa venta. */
+    if (p.duplicado_de && typeof p.duplicado_de === 'object' && p.duplicado_de.id && ids.has(p.duplicado_de.id)) {
+      huerfanos++; continue;
+    }
     const v = (p.folio_global ? porFolio.get(String(p.folio_global)) : null)
       || (p.folio_hoja ? porHoja.get(String(p.folio_hoja)) : null);
     if (!v) {

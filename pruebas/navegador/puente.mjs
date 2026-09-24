@@ -562,8 +562,11 @@ const abrirLaFicha = async id => {
 
 await sembrar([], 'fabricacion');
 const fab404 = await abrirLaFicha('proy-pr-404');
-/ya no está en la hoja/.test(fab404.txt) && !fab404.alta && !fab404.fuera
-  ? bien('fabricación ve el aviso, sin los botones: lo decide Dirección') : mal('fabricación ve: ' + JSON.stringify({ ...fab404, txt: fab404.txt.slice(0, 200) }));
+/* Sin botones, y sin prometerle una decisión que desde otro teléfono no llega: las marcas son de
+   este aparato. */
+/ya no está en la hoja/.test(fab404.txt) && !fab404.alta && !fab404.fuera && /con su cuenta en este teléfono/.test(fab404.txt)
+  ? bien('fabricación ve el aviso, sin los botones, y dice la verdad: lo decide Dirección con su cuenta en ESTE teléfono')
+  : mal('fabricación ve: ' + JSON.stringify({ ...fab404, txt: fab404.txt.slice(0, 300) }));
 const fabCom = await abrirLaFicha('proy-pr-com');
 !/Comisi/.test(fabCom.txt) ? bien('y en la ficha con % de comisión, fabricación no ve ni una línea de dinero') : mal('fabricación ve la comisión');
 
@@ -610,15 +613,28 @@ const huer = await p.evaluate(async () => {
 huer.antes && huer.completa && huer.sigue && huer.marca && huer.marca.motivo === 'no_bajo'
   ? bien('la tarjeta importada cuya fila ya no vino se MARCA en la bajada completa; no se borra')
   : mal('la tarjeta importada quedó así: ' + JSON.stringify(huer));
-await p.evaluate(() => { location.hash = '#/atender'; });
-await p.waitForTimeout(2500);
-const regla = await p.evaluate(() => {
-  const f = [...document.querySelectorAll('.pf-fila')].find(x => /Taller Sur - Vinil ya no está en la hoja/.test(x.innerText));
-  const b = f && [...f.querySelectorAll('[data-acc]')].find(x => /Abrir la ficha/.test(x.innerText));
-  if (b) b.click();
-  return { hay: !!f, boton: !!b };
-});
-regla.hay && regla.boton ? bien('«Qué atender» la nombra para Dirección, con «Abrir la ficha»') : mal('«Qué atender»: ' + JSON.stringify(regla));
+/* «Qué atender», primero con Dirección y luego en el teléfono del taller, que es donde viven las
+   tarjetas importadas: las marcas no viajan, y lo que Dirección decida en el suyo no llega ahí.
+   A fabricación le sale el mismo aviso, sin un peso, y la ficha le deja decidir. */
+const filaDeAtender = async abrir => {
+  await p.evaluate(() => { location.hash = '#/tablero'; });
+  await p.waitForTimeout(600);
+  await p.evaluate(() => { location.hash = '#/atender'; });
+  await p.waitForTimeout(2500);
+  return p.evaluate(abrir => {
+    const f = [...document.querySelectorAll('.pf-fila')].find(x => /Taller Sur - Vinil ya no está en la hoja/.test(x.innerText));
+    const b = f && [...f.querySelectorAll('[data-acc]')].find(x => /Abrir la ficha/.test(x.innerText));
+    if (b && abrir) b.click();
+    return { hay: !!f, boton: !!b, txt: f ? f.innerText : '' };
+  }, abrir);
+};
+const reglaDir = await filaDeAtender(false);
+reglaDir.hay && reglaDir.boton ? bien('«Qué atender» la nombra para Dirección, con «Abrir la ficha»') : mal('«Qué atender» (Dirección): ' + JSON.stringify(reglaDir));
+await sembrar([], 'fabricacion');
+const regla = await filaDeAtender(true);
+regla.hay && regla.boton && !/\$|\d{1,3},\d{3}/.test(regla.txt)
+  ? bien('y en el teléfono de fabricación también, sin un peso: «' + regla.txt.replace(/\s+/g, ' ').slice(0, 90) + '…»')
+  : mal('«Qué atender» (fabricación): ' + JSON.stringify(regla));
 await p.waitForTimeout(2000);
 const fichaHuer = await p.evaluate(() => {
   const f = document.getElementById('pf-ficha');
@@ -626,7 +642,7 @@ const fichaHuer = await p.evaluate(() => {
            quitar: !!(f && f.querySelector('[data-hoja-quitar]')), dejar: !!(f && f.querySelector('[data-hoja-dejar]')) };
 });
 fichaHuer.abierta && /Taller Sur/.test(fichaHuer.txt) && fichaHuer.quitar && fichaHuer.dejar
-  ? bien('el botón abre SU ficha, con «Quitar del tablero» y «Dejarla»') : mal('la ficha: ' + JSON.stringify({ ...fichaHuer, txt: fichaHuer.txt.slice(0, 200) }));
+  ? bien('el botón abre SU ficha, y fabricación tiene «Quitar del tablero» y «Dejarla»') : mal('la ficha: ' + JSON.stringify({ ...fichaHuer, txt: fichaHuer.txt.slice(0, 200) }));
 let pregunta = '';
 p.once('dialog', d => { pregunta = d.message(); d.accept(); });
 await p.click('#pf-ficha [data-hoja-quitar]');
@@ -636,7 +652,84 @@ const quitada = await p.evaluate(async () => {
   return !(await DB.obtener('proyectos', 'proy-hoja-V-300'));
 });
 /Quitar «Taller Sur - Vinil» del tablero/.test(pregunta) && quitada
-  ? bien('«Quitar del tablero» pregunta antes y, con el sí, la quita') : mal('quitar: ' + JSON.stringify({ pregunta, quitada }));
+  ? bien('«Quitar del tablero» pregunta antes y, con el sí, la quita, desde el teléfono de fabricación') : mal('quitar: ' + JSON.stringify({ pregunta, quitada }));
+
+/* La copia REPETIDA cuya fila solo coincide en el folio de la hoja —la celda de cotización vacía
+   y otro nombre—: puede ser la misma venta o una venta de otro con el folio repartido dos veces.
+   No se junta sola; Dirección elige entre «Juntar» y «No es la misma venta». Y la copia de una
+   lápida, que no se puede juntar, se quita. */
+await sembrar([proyPrueba('proy-pr-520', 'COT-9520@PRUEBA', 'V-520', { nombre: 'Imprenta Rubén - Letras', lat: 20.6, lng: -103.3 }),
+               proyPrueba('proy-pr-530', 'COT-9530@PRUEBA', 'V-530', { nombre: 'Florería Sol - Caja', etapa: 'cancelado' })], 'direccion');
+HISTORICAS.push(filaHoja('V-520', 'Rubén - Imprenta Centro', { 'Estatus': 'FABRICACION', 'Fecha Anticipo e Instalacion': HOY_MX }),
+                filaHoja('V-530', 'Sol Florería', { 'Estatus': 'FABRICACION', 'Fecha Anticipo e Instalacion': HOY_MX }));
+const rep = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const S = await import('./js/datos/sync.js');
+  await S.jalar();
+  /* La copia trae un pin distinto del de aquí: la confirmación no puede prometer que pasa. */
+  const c = await DB.obtener('proyectos', 'proy-hoja-V-520');
+  if (c) await DB.poner('proyectos', { ...c, lat: 20.7, lng: -103.4 });
+  await S.jalar();
+  const x = await DB.obtener('proyectos', 'proy-hoja-V-520'), y = await DB.obtener('proyectos', 'proy-hoja-V-530');
+  return { c520: x && x.duplicado_de && x.duplicado_de.claves, c530: y && y.duplicado_de && y.duplicado_de.claves };
+});
+(rep.c520 || []).includes('identidad') && (rep.c530 || []).includes('cancelada')
+  ? bien('las dos copias quedan repetidas, por confirmar, sin juntarse solas') : mal('las repetidas: ' + JSON.stringify(rep));
+const botones = async id => {
+  const f = await abrirLaFicha(id);
+  return p.evaluate(f => {
+    const el = document.getElementById('pf-ficha');
+    const hay = s => !!(el && el.querySelector(s));
+    return { ...f, juntar: hay('[data-hoja-juntar]'), noesla: hay('[data-hoja-noesla]'), quitar: hay('[data-hoja-quitar]') };
+  }, f);
+};
+const f520 = await botones('proy-hoja-V-520');
+f520.juntar && f520.noesla && !f520.quitar && /parece la misma venta/.test(f520.txt)
+  ? bien('Dirección ve «Juntar» y «No es la misma venta», y el aviso dice que solo lo parece')
+  : mal('la ficha de la repetida: ' + JSON.stringify({ ...f520, txt: f520.txt.slice(0, 300) }));
+const f530 = await botones('proy-hoja-V-530');
+f530.quitar && !f530.juntar
+  ? bien('la copia de una lápida no ofrece «Juntar» (se negaría): ofrece quitarla') : mal('la ficha de la copia de la lápida: ' + JSON.stringify({ ...f530, txt: f530.txt.slice(0, 300) }));
+await sembrar([], 'fabricacion');
+const fab520 = await botones('proy-hoja-V-520');
+!fab520.juntar && !fab520.noesla && !fab520.quitar && /con su cuenta en este teléfono/.test(fab520.txt)
+  ? bien('fabricación la ve sin botones, y sin que se le prometa una decisión desde otro teléfono') : mal('fabricación ve: ' + JSON.stringify({ ...fab520, txt: fab520.txt.slice(0, 300) }));
+await sembrar([], 'direccion');
+await botones('proy-hoja-V-520');
+let pJuntar = '';
+p.once('dialog', d => { pJuntar = d.message(); d.dismiss(); });
+await p.click('#pf-ficha [data-hoja-juntar]');
+await p.waitForTimeout(600);
+/solo si «Imprenta Rubén - Letras» no tiene los suyos/.test(pJuntar) && /se queda la de este teléfono/.test(pJuntar) &&
+  /queda como de «Imprenta Rubén - Letras»/.test(pJuntar)
+  ? bien('«Juntar» dice lo que de verdad pasa: el pin de la copia se pierde, y la fila queda como de la de aquí')
+  : mal('la confirmación de juntar dice: ' + pJuntar);
+let pNo = '';
+p.once('dialog', d => { pNo = d.message(); d.accept(); });
+await p.click('#pf-ficha [data-hoja-noesla]');
+await p.waitForTimeout(1500);
+const sep = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const c = await DB.obtener('proyectos', 'proy-hoja-V-520'), r = await DB.obtener('proyectos', 'proy-pr-520');
+  const f = document.getElementById('pf-ficha');
+  return { copia: !!c, marca: c && c.duplicado_de, real: r && r.hoja_perdida && r.hoja_perdida.motivo,
+           aviso: /repite una venta|repetir una venta/.test((f && f.innerText) || '') };
+});
+/dos ventas distintas/.test(pNo) && sep.copia && !sep.marca && sep.real === 'de_otra' && !sep.aviso
+  ? bien('«No es la misma venta» pregunta, deja la copia como su propia venta y la de aquí queda sin fila')
+  : mal('no es la misma: ' + JSON.stringify({ pNo: pNo.slice(0, 80), ...sep }));
+await botones('proy-hoja-V-530');
+p.once('dialog', d => d.accept());
+await p.click('#pf-ficha [data-hoja-quitar]');
+await p.waitForTimeout(1500);
+const sin530 = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const S = await import('./js/datos/sync.js');
+  const ida = !(await DB.obtener('proyectos', 'proy-hoja-V-530'));
+  await S.jalar();
+  return { ida, vuelve: !!(await DB.obtener('proyectos', 'proy-hoja-V-530')) };
+});
+sin530.ida && !sin530.vuelve ? bien('la copia de la lápida se quita, y la siguiente bajada no la vuelve a importar') : mal('la de la lápida: ' + JSON.stringify(sin530));
 
 // ── 5. La pantalla de Ajustes ────────────────────────────────────────────────
 console.log('\nLA PANTALLA DE AJUSTES');

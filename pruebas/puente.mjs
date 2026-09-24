@@ -495,6 +495,11 @@ console.log('\nLA FILA QUE YA NO ESTÁ: cuál NO_ENCONTRADO es cuál');
   const m = mensajePerdida(otra.mensaje);
   cierto('el consejo que no lleva a ningún lado se cambia por la ficha, y se queda qué pasó',
     !/registrarla desde el cotizador/.test(m) && /ficha del proyecto/.test(m) && /atada a COT-9999@OTRO/.test(m));
+  /* La hoja de puente-sheets-6 con el arreglo: manda `motivo` y el consejo nuevo. */
+  const nueva = { codigo: 'NO_ENCONTRADO', motivo: 'borrada', mensaje: 'La venta V-404 ya no está en la hoja: alguien borró su fila. Este cambio no se escribió en ninguna otra. Si la venta sigue viva, Dirección la vuelve a dar de alta desde la ficha del proyecto en la plataforma.' };
+  const mn = mensajePerdida(nueva.mensaje);
+  eq('la hoja nueva: el motivo manda, y el consejo sale una sola vez',
+     [motivoPerdida(nueva), (mn.match(/Dirección/g) || []).length, /alguien borró su fila/.test(mn)], ['borrada', 1, true]);
 }
 
 /* ---------------------------------------------------------------------------
@@ -650,6 +655,7 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   const b1 = await S.bombear();
   let a = await DB.obtener('proyectos', 'proy-A');
   eq('el rebote se aparta como rechazado, como siempre', [b1.valor.rechazadas, (await deProyecto('proy-A')).length], [1, 1]);
+  eq('con su porqué para la máquina guardado al lado del código', (await deProyecto('proy-A'))[0].motivo_rechazo, 'borrada');
   eq('y el proyecto queda MARCADO: por qué, qué fila', [a.hoja_perdida && a.hoja_perdida.motivo, a.hoja_perdida && a.hoja_perdida.folio],
      ['borrada', 'V-404']);
   eq('con el folio de la fila muerta intacto: borrarlo resucitaría una venta quitada a propósito', a.notion_page_id, 'V-404');
@@ -693,6 +699,21 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   eq('y sus cambios ya no se mandan ni rebotan: el aviso no vuelve',
      [H.empujadas.length - antesFuera, (await deProyecto('proy-B')).length, b.hoja_perdida, (await S.pendientes()).filter(o => o.registro_id === 'proy-B').length],
      [0, 0, null, 0]);
+  /* Alguien restaura la fila, con su folio y su folio de cotización. La decisión de dejarla
+     fuera era para una fila que ya no existía: la bajada la quita, y el siguiente cambio SÍ
+     llega a la hoja. Si se quedaba, el bombeo lo contaba como subido sin mandarlo. */
+  H.borradas.delete('V-406');
+  H.filas = [fila('V-406', 'Venta COT-0406@TEST', { 'Folio cotizacion': 'COT-0406@TEST', 'Pago Pendiente': 777 })];
+  await jalarTodo();
+  b = await DB.obtener('proyectos', 'proy-B');
+  eq('la fila vuelve: baja su dinero y se quita «fuera de la hoja»', [b.notion_page_id, b.pago_pendiente, b.fuera_de_hoja || null],
+     ['V-406', 777, null]);
+  const antesVuelta = H.empujadas.length;
+  await cambio('proy-B', ['etapa']);
+  const bv = await S.bombear();
+  eq('y el siguiente cambio llega a la hoja, a su fila', [bv.valor.subidas, H.empujadas.length - antesVuelta,
+     (H.empujadas[H.empujadas.length - 1] || {}).id_notion], [1, 1, 'V-406']);
+  H.filas = [];
 
   await DB.poner('proyectos', propio('proy-C', 'COT-0407@TEST', 'V-407'));
   H.deOtra.add('V-407');
@@ -741,19 +762,37 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   await jalarTodo();
   eq('y si se vuelve a ir, se vuelve a marcar', [!!(await marcada('V-300')), !!(await marcada('V-301'))], [true, true]);
 
+  /* Las tarjetas importadas viven sobre todo en el teléfono del taller, y las marcas no viajan:
+     lo que Dirección decida en el suyo no llega aquí. Quitarla o dejarla lo decide quien tiene
+     ESTE teléfono; aquí, fabricación. */
+  guardado.al3d_pf_rol = 'fabricacion';
   await DB.poner('instalaciones', { id: 'inst-300', proyecto_id: 'proy-hoja-V-300', fecha: '2026-10-01', estado: 'confirmada' });
   const q1 = await Proy.quitarDelTablero('proy-hoja-V-300');
   eq('«Quitar del tablero» no quita la que tiene una instalación a su nombre, y dice por qué',
      [q1.ok, q1.codigo, /1 instalación/.test(q1.mensaje || ''), !!(await DB.obtener('proyectos', 'proy-hoja-V-300'))], [false, 'EN_USO', true, true]);
   const q2 = await Proy.quitarDelTablero('proy-hoja-V-301');
-  eq('la que no tiene nada colgando, sí', [q2.ok, await DB.obtener('proyectos', 'proy-hoja-V-301')], [true, null]);
+  eq('la que no tiene nada colgando, sí, y desde el teléfono de fabricación', [q2.ok, await DB.obtener('proyectos', 'proy-hoja-V-301')], [true, null]);
   eq('una tarjeta cuya venta sigue en la hoja no se quita: volvería en la siguiente bajada',
      (await Proy.quitarDelTablero('proy-hoja-V-302')).codigo, 'DATO_INVALIDO');
+  eq('pero lo que decide la hoja sigue siendo de Dirección: dejar fuera una venta de aquí',
+     (await Proy.dejarFueraDeLaHoja('proy-C')).codigo, 'ROL_SIN_PERMISO');
   const dj = await Proy.dejarFueraDeLaHoja('proy-hoja-V-300');
   await jalarTodo();
   const t300 = await DB.obtener('proyectos', 'proy-hoja-V-300');
-  eq('«Dejarla»: se queda en el tablero y la siguiente bajada completa ya no la vuelve a marcar',
+  eq('«Dejarla» (fabricación también): se queda en el tablero y la siguiente bajada completa ya no la vuelve a marcar',
      [dj.ok, !!t300.fuera_de_hoja, t300.hoja_perdida], [true, true, null]);
+  /* La fila vuelve: «Dejarla» era para una fila que ya no estaba. La bajada lo quita, y ya no se
+     puede quitar del tablero: la siguiente bajada la traería de nuevo, sin sus notas. */
+  await DB.poner('proyectos', { ...t300, notas: 'el cliente pidió otro color' });
+  H.filas.push(fila('V-300', 'Taller Sur - Vinil'));
+  await jalarTodo();
+  const v300 = await DB.obtener('proyectos', 'proy-hoja-V-300');
+  eq('la fila vuelve: se quita «Dejarla» y la marca, y las notas se quedan', [v300.fuera_de_hoja || null, v300.hoja_perdida, v300.notas],
+     [null, null, 'el cliente pidió otro color']);
+  await DB.borrar('instalaciones', 'inst-300');
+  const q3 = await Proy.quitarDelTablero('proy-hoja-V-300');
+  eq('y ya no se quita del tablero: su fila está en la hoja', [q3.codigo, !!(await DB.obtener('proyectos', 'proy-hoja-V-300'))], ['DATO_INVALIDO', true]);
+  guardado.al3d_pf_rol = 'direccion';
 
   /* ── 3 · La misma venta dos veces: propia + copia importada ── */
   /* La que se junta sola: su fila trae el folio de cotización de la de aquí, y la copia no
@@ -763,8 +802,8 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   await DB.poner('proyectos', copia('V-310'));
   await DB.poner('instalaciones', { id: 'inst-310', proyecto_id: 'proy-hoja-V-310', fecha: '2026-10-02', estado: 'confirmada' });
   await DB.poner('movimientos', { id: 'mov-310', proyecto_id: 'proy-hoja-V-310', material_id: 'acr-3mm', cantidad: -1, ts: 1 });
-  /* La que NO: su fila no trae folio de cotización (el tercer camino, por el folio de la fila)
-     y la copia va más adelantada que la de aquí. */
+  /* La que NO: su fila no trae folio de cotización (el tercer camino, por el folio de la fila,
+     con el mismo nombre que la de aquí) y la copia va más adelantada que la de aquí. */
   await DB.poner('proyectos', propio('proy-E', 'COT-0320@TEST', 'V-320'));
   await DB.poner('proyectos', copia('V-320', { etapa: 'cortado', notas: 'llamar antes de ir' }));
   /* Una fila con la huella del defecto y sin copia todavía: no se importa como otra. */
@@ -772,9 +811,28 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   /* Una fila cuyo folio de hoja coincide con el de un proyecto de aquí pero está atada a OTRA
      cotización: es otra venta, se importa, y no se junta con nadie. */
   await DB.poner('proyectos', propio('proy-G', 'COT-0340@TEST', 'V-340'));
-  H.filas.push(fila('V-310', 'Venta COT-0310', { 'Folio cotizacion': 'COT-0310@TEST' }), fila('V-320', 'Venta COT-0320'),
-               fila('V-330', 'Venta COT-0330', { 'Folio cotizacion': 'V-330', 'Pago Pendiente': 4321 }),
-               fila('V-340', 'Otra venta', { 'Folio cotizacion': 'COT-9999@OTRO', 'Pago Pendiente': 999 }));
+  /* El folio que se repartió dos veces, con la celda de cotización vacía: la fila V-510 era de
+     Ana, alguien la borró, y el folio se le dio a Luis, que se dio de alta a mano. El teléfono ya
+     tenía importada la tarjeta de Luis, con su instalación. Solo coincide el folio de la hoja:
+     NO es seguro que sea la misma venta, y juntarla le daría a Ana la obra y el saldo de Luis. */
+  await DB.poner('proyectos', propio('proy-ANA', 'COT-0510@TEST', 'V-510', { nombre: 'Ana - Café (Letras)' }));
+  await DB.poner('proyectos', Proy.desdeVentaDeHoja(ventaDeHoja(fila('V-510', 'Luis - Taller'))));
+  await DB.poner('instalaciones', { id: 'inst-510', proyecto_id: 'proy-hoja-V-510', fecha: '2026-10-05', estado: 'confirmada' });
+  /* Lo mismo sin copia todavía, y con otro nombre en la hoja: se importa, y Dirección dice que sí
+     es la misma. */
+  await DB.poner('proyectos', propio('proy-H', 'COT-0350@TEST', 'V-350', { nombre: 'Hugo - Barbería (Letras)' }));
+  /* La copia repetida de una lápida («No se dio»): no se puede juntar, y no tenía salida. */
+  await DB.poner('proyectos', propio('proy-L', 'COT-0360@TEST', 'V-360', { nombre: 'Lupita - Florería', etapa: 'cancelado' }));
+  await DB.poner('proyectos', copia('V-360'));
+  /* Las dos con su pin y su plazo, distintos: al juntarlas se quedan los de aquí. */
+  await DB.poner('proyectos', propio('proy-P', 'COT-0370@TEST', 'V-370', { lat: 20.6, lng: -103.3, plazo_k: 5 }));
+  await DB.poner('proyectos', copia('V-370', { lat: 20.71, lng: -103.41, plazo_k: 2 }));
+  H.filas.push(fila('V-310', 'Venta COT-0310', { 'Folio cotizacion': 'COT-0310@TEST' }), fila('V-320', 'Venta COT-0320@TEST'),
+               fila('V-330', 'Venta COT-0330@TEST', { 'Folio cotizacion': 'V-330', 'Pago Pendiente': 4321 }),
+               fila('V-340', 'Otra venta', { 'Folio cotizacion': 'COT-9999@OTRO', 'Pago Pendiente': 999 }),
+               fila('V-510', 'Luis - Taller', { 'Pago Pendiente': 3333 }),
+               fila('V-350', 'Hugo Barbería Centro', { 'Pago Pendiente': 2222 }),
+               fila('V-360', 'Florería Lupita'), fila('V-370', 'Venta COT-0370@TEST'));
   const r5 = await jalarTodo();
   const [i310, m310] = [await DB.obtener('instalaciones', 'inst-310'), await DB.obtener('movimientos', 'mov-310')];
   eq('la copia que no pierde nada se junta sola: su instalación y su movimiento pasan al proyecto, y la copia se va',
@@ -787,21 +845,124 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   eq('la de aquí se ata a su fila por el folio de la hoja, para que Control la cuente una vez',
      (await DB.obtener('proyectos', 'proy-E')).folio_hoja, 'V-320');
   const f330 = await DB.obtener('proyectos', 'proy-F');
-  eq('una fila con la huella del defecto le cae a la de aquí (con su saldo) y NO se importa como otra',
+  eq('una fila con la huella del defecto y su mismo nombre le cae a la de aquí (con su saldo) y NO se importa como otra',
      [await DB.obtener('proyectos', 'proy-hoja-V-330'), f330.pago_pendiente, f330.precio_auth], [null, 4321, 11600]);
   const g340 = await DB.obtener('proyectos', 'proy-G');
   eq('la fila atada a otra cotización no le cae a la de aquí aunque el folio de hoja coincida, y se importa aparte sin marca',
      [g340.pago_pendiente, !!(await DB.obtener('proyectos', 'proy-hoja-V-340')), ((await DB.obtener('proyectos', 'proy-hoja-V-340')) || {}).duplicado_de || null],
      [null, true, null]);
 
-  eq('la repetida no se «quita»: su fila la volvería a traer; se junta',
-     [(await Proy.quitarDelTablero('proy-hoja-V-320')).codigo, !!(await DB.obtener('proyectos', 'proy-hoja-V-320'))], ['DATO_INVALIDO', true]);
+  /* El folio repartido dos veces: nada se junta ni se borra solo, y el dinero de Luis no cae en Ana. */
+  const luis = await DB.obtener('proyectos', 'proy-hoja-V-510');
+  const ana = await DB.obtener('proyectos', 'proy-ANA');
+  eq('solo coincide el folio de la hoja: la tarjeta de Luis NO se junta sola con la de Ana ni se borra, y su instalación sigue siendo suya',
+     [!!luis, (await DB.obtener('instalaciones', 'inst-510')).proyecto_id], [true, 'proy-hoja-V-510']);
+  eq('y a Ana no le cae el saldo de la fila de Luis, ni se ata a ella', [ana.pago_pendiente, ana.folio_hoja || null], [null, null]);
+  eq('se marca repetida, y el porqué dice que hay que confirmar que es la misma venta',
+     [luis && luis.duplicado_de && luis.duplicado_de.id, luis && (luis.duplicado_de.claves || []).includes('identidad'),
+      luis && /confirmar que es la misma venta/.test((luis.duplicado_de.por || []).join(' '))], ['proy-ANA', true, true]);
+  eq('la tarjeta de Luis sigue recibiendo el dinero de su fila', luis && luis.pago_pendiente, 3333);
+
+  /* Lo decide Dirección, y solo Dirección: cuál de dos proyectos es la venta. */
+  guardado.al3d_pf_rol = 'fabricacion';
+  eq('fabricación no junta, no separa ni quita una repetida',
+     [(await Proy.juntarConLaDeAqui('proy-hoja-V-510')).codigo, (await Proy.noEsLaMisma('proy-hoja-V-510')).codigo,
+      (await Proy.quitarDelTablero('proy-hoja-V-510')).codigo], ['ROL_SIN_PERMISO', 'ROL_SIN_PERMISO', 'ROL_SIN_PERMISO']);
+  guardado.al3d_pf_rol = 'direccion';
+  eq('«No es la misma venta» no se ofrece cuando la fila sí es de la de aquí (su mismo nombre)',
+     (await Proy.noEsLaMisma('proy-hoja-V-320')).codigo, 'DATO_INVALIDO');
+  const ne = await Proy.noEsLaMisma('proy-hoja-V-510');
+  const antesAna = H.empujadas.length;
+  await jalarTodo();
+  const luis2 = await DB.obtener('proyectos', 'proy-hoja-V-510');
+  const ana2 = await DB.obtener('proyectos', 'proy-ANA');
+  eq('«No es la misma venta»: la tarjeta de Luis se queda como la de SU venta, y la siguiente bajada no la vuelve a preguntar',
+     [ne.ok, luis2 && luis2.duplicado_de, luis2 && luis2.pago_pendiente], [true, null, 3333]);
+  eq('y la de Ana queda sin fila, con las dos salidas: «ya es de otra venta»',
+     [ana2.hoja_perdida && ana2.hoja_perdida.motivo, ana2.hoja_perdida && ana2.hoja_perdida.folio, Proy.avisoDeHoja(ana2)], ['de_otra', 'V-510', 'perdida']);
+  await cambio('proy-ANA', ['etapa']);
+  await S.bombear();
+  eq('y su siguiente cambio NO se escribe en la fila de Luis (la hoja no lo sabría: no tiene folio de cotización): se aparta',
+     [H.empujadas.length - antesAna, (await deProyecto('proy-ANA')).length], [0, 1]);
+
+  /* La otra salida: Dirección dice que sí es la misma. «Juntar» ata la fila a la de aquí para
+     las siguientes bajadas, aunque no traiga su folio ni su nombre. */
+  const c350 = await DB.obtener('proyectos', 'proy-hoja-V-350');
+  eq('sin copia todavía y con otro nombre: se importa, y queda repetida por confirmar',
+     [!!c350, c350 && (c350.duplicado_de.claves || []).includes('identidad'), (await DB.obtener('proyectos', 'proy-H')).pago_pendiente],
+     [true, true, null]);
+  const j350 = await Proy.juntarConLaDeAqui('proy-hoja-V-350');
+  await jalarTodo();
+  const h350 = await DB.obtener('proyectos', 'proy-H');
+  eq('«Juntar» con la identidad por confirmar: la copia se va, y desde la siguiente bajada la fila es de la de aquí',
+     [j350.ok, await DB.obtener('proyectos', 'proy-hoja-V-350'), h350.hoja_confirmada, h350.folio_hoja, h350.pago_pendiente],
+     [true, null, 'V-350', 'V-350', 2222]);
+
+  /* La copia de una lápida: no se junta (a una venta que no se dio no se le mueve una obra),
+     pero Dirección la puede quitar, y su fila ya no la vuelve a traer. */
+  const c360 = await DB.obtener('proyectos', 'proy-hoja-V-360');
+  eq('la copia de la lápida queda repetida, y «Juntar» se niega', [c360 && (c360.duplicado_de.claves || []).includes('cancelada'),
+     (await Proy.juntarConLaDeAqui('proy-hoja-V-360')).codigo], [true, 'EN_USO']);
+  /* Con una obra agendada a su nombre no se quita, y no se le dice que la junte (se negaría):
+     la obra viva pone en duda el «No se dio». */
+  await DB.poner('instalaciones', { id: 'inst-360', proyecto_id: 'proy-hoja-V-360', fecha: '2026-10-09', estado: 'propuesta' });
+  const q360a = await Proy.quitarDelTablero('proy-hoja-V-360');
+  eq('con una instalación a su nombre, no se quita y no manda a juntarla con la lápida',
+     [q360a.codigo, /No se dio/.test(q360a.mensaje || ''), /Júntala/.test(q360a.mensaje || '')], ['EN_USO', true, false]);
+  await DB.borrar('instalaciones', 'inst-360');
+  const q360 = await Proy.quitarDelTablero('proy-hoja-V-360');
+  await jalarTodo();
+  eq('pero sí se quita del tablero, y la siguiente bajada NO la vuelve a importar (su fila queda de la lápida)',
+     [q360.ok, await DB.obtener('proyectos', 'proy-hoja-V-360'), (await DB.obtener('proyectos', 'proy-L')).folio_hoja], [true, null, 'V-360']);
+
+  /* Las dos con pin y plazo: el porqué dice lo que de verdad pasa al juntar. */
+  const c370 = await DB.obtener('proyectos', 'proy-hoja-V-370');
+  const por370 = ((c370 && c370.duplicado_de && c370.duplicado_de.por) || []).join(' | ');
+  cierto('con dos pines y dos plazos distintos, el porqué dice que se quedan los de aquí y los de la copia se pierden: ' + por370,
+    /otra ubicación.*se queda la de este teléfono/.test(por370) && /otro plazo.*se queda el de este teléfono/.test(por370));
+  const j370 = await Proy.juntarConLaDeAqui('proy-hoja-V-370');
+  const p370 = await DB.obtener('proyectos', 'proy-P');
+  eq('y juntar hace eso: el pin y el plazo de aquí', [j370.ok, p370.lat, p370.lng, p370.plazo_k], [true, 20.6, -103.3, 5]);
+
   const j = await Proy.juntarConLaDeAqui('proy-hoja-V-320');
   const e320 = await DB.obtener('proyectos', 'proy-E');
   eq('«Juntar con…»: la copia se va, sus notas pasan a la de aquí, y la etapa NO (moverla descuenta material)',
      [j.ok, await DB.obtener('proyectos', 'proy-hoja-V-320'), /llamar antes de ir/.test(e320.notas || ''), e320.etapa], [true, null, true, 'ganado']);
   await jalarTodo();
   eq('y la siguiente bajada no la vuelve a importar', await DB.obtener('proyectos', 'proy-hoja-V-320'), null);
+
+  /* ── 4 · Lo que ya estaba atorado antes de la marca ──
+     Un cambio que rebotó con la frase vieja de la hoja y se quedó apartado. Lo apartado no se
+     reintenta solo: sin esto, la venta se quedaba sin aviso y sin botones para siempre. */
+  const viejo = (id, proyId, np) => ({ id, tipo: 'actualizar', almacen: 'proyectos', registro_id: proyId, entidad: 'proyectos',
+    entidad_id: proyId, datos: { id: proyId }, campos: ['etapa'], ts: 5, disp: 'TEST', intentos: 1, estado: 'rechazada',
+    codigo_rechazo: 'NO_ENCONTRADO', sync: 0,
+    ultimo_error: 'La venta ' + np + ' ya no está en la hoja: alguien borró su fila. Este cambio no se escribió en ninguna otra. Si la venta sigue viva, vuelve a registrarla desde el cotizador.' });
+  await DB.poner('proyectos', propio('proy-V', 'COT-0470@TEST', 'V-470'));
+  await DB.poner('pendientes', viejo('op-vieja-470', 'proy-V', 'V-470'));
+  /* Y uno viejo cuya fila ya volvió: el rebote no dice nada de hoy. */
+  await DB.poner('proyectos', propio('proy-W', 'COT-0480@TEST', 'V-480'));
+  await DB.poner('pendientes', viejo('op-vieja-480', 'proy-W', 'V-480'));
+  /* Y uno cuya frase alguien reescribió en la hoja: lo que se lee es el motivo guardado. */
+  await DB.poner('proyectos', propio('proy-X', 'COT-0490@TEST', 'V-490'));
+  await DB.poner('pendientes', { ...viejo('op-vieja-490', 'proy-X', 'V-490'), motivo_rechazo: 'borrada',
+    ultimo_error: 'Fila V-490: no existe.' });
+  H.filas.push(fila('V-480', 'Venta COT-0480@TEST', { 'Folio cotizacion': 'COT-0480@TEST' }));
+  H.jalar = c => (c.cursor ? { ok: true, cursor: null, hay_mas: false, registros: H.filas.slice(1).map(d => ({ almacen: 'proyectos', datos: d })) }
+                           : { ok: true, cursor: '9', hay_mas: true, registros: H.filas.slice(0, 1).map(d => ({ almacen: 'proyectos', datos: d })) });
+  await S.jalar();
+  eq('una página a medias no marca lo atorado', (await DB.obtener('proyectos', 'proy-V')).hoja_perdida || null, null);
+  H.jalar = null;
+  await jalarTodo();
+  const v470 = await DB.obtener('proyectos', 'proy-V');
+  eq('la bajada COMPLETA confirma que su fila no está: la venta atorada queda marcada, con su aviso',
+     [v470.hoja_perdida && v470.hoja_perdida.motivo, v470.hoja_perdida && v470.hoja_perdida.folio, Proy.avisoDeHoja(v470)], ['borrada', 'V-470', 'perdida']);
+  eq('la de la fila que volvió no se marca', (await DB.obtener('proyectos', 'proy-W')).hoja_perdida || null, null);
+  eq('y la de la frase reescrita se marca por su motivo guardado',
+     ((await DB.obtener('proyectos', 'proy-X')).hoja_perdida || {}).motivo, 'borrada');
+  const re470 = await Proy.volverADarDeAlta('proy-V');
+  eq('y ya tiene salida: «Volver a darla de alta» tira lo apartado y encola el alta',
+     [re470.ok, (await deProyecto('proy-V')).length, (await S.pendientes()).filter(o => o.registro_id === 'proy-V').map(o => o.tipo)], [true, 0, ['crear']]);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

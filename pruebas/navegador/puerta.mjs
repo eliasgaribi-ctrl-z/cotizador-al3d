@@ -98,7 +98,9 @@ async function abrir(base, { tema = 'claro', pase = null } = {}) {
      montaba el Tablero detrás a 0.7, 1 o 1.5 s, y una que se ponía encima del pase a 1 s, salían
      en verde. Dos segundos cubren lo que cubrían los 1,800 ms desde `load` —la decisión llega
      unos 100 ms después—, y la espera corta en cuanto hay puerta Y módulo a la vez, que es justo
-     lo que prohíben los tres casos. Si no pasa nada, vence callada: eso es lo que se esperaba. */
+     lo que prohíben «detrás no se montó ningún módulo» y «se entra directo, sin puerta»; los
+     errores de página se van juntando durante toda la ventana. Si no pasa nada, vence callada:
+     eso es lo que se esperaba. */
   await p.waitForFunction(() => {
     const caja = document.getElementById('pf-puerta');
     return !!caja && !caja.hidden && [...document.querySelectorAll('.pf-mod')].some(s => !s.hidden);

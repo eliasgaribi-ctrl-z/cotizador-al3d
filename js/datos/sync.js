@@ -103,7 +103,11 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
  *            subir:function(Operacion[]):Promise<Array<Object>>,
  *            bajar:function(string|null):Promise<{registros:Array<Object>, cursor:string|null}>,
  *            esquema:function():Promise<{ok:boolean, faltan:Array<Object>}>,
- *            despuesDeBajar?:function({completa:boolean, vistos:Object}):Promise<Object|null>}} AdaptadorSync
+ *            despuesDeBajar?:function({completa:boolean, vistos:Object, rechazadas:Operacion[]}):Promise<Object|null>}} AdaptadorSync
+ *
+ * Una respuesta de `subir` que no es `ok` puede traer `motivo`: el porqué para la máquina, que
+ * se guarda en lo apartado como `motivo_rechazo` al lado del `codigo_rechazo`. Lo lee el mismo
+ * relevo en `despuesDeBajar`, y no la frase: la frase la puede reescribir cualquiera.
  */
 
 /* El almacén 'movimientos' es append-only y por eso no tiene conflictos posibles. No es
@@ -305,7 +309,7 @@ export async function reintentarRechazadas() {
   const lista = await rechazadas();
   let n = 0;
   for (const op of lista) {
-    const r = await DB.poner('pendientes', { ...op, estado: 'pendiente', intentos: 0, ultimo_error: '', codigo_rechazo: null });
+    const r = await DB.poner('pendientes', { ...op, estado: 'pendiente', intentos: 0, ultimo_error: '', codigo_rechazo: null, motivo_rechazo: null });
     if (r && r.ok) n++;
   }
   return ok({ reencoladas: n });
@@ -497,6 +501,7 @@ async function bombearDeVerdad() {
       await DB.poner('pendientes', {
         ...op, estado: 'rechazada', intentos: (op.intentos || 0) + 1,
         ultimo_error: razon, codigo_rechazo: codigo,
+        motivo_rechazo: respuesta.motivo ? String(respuesta.motivo) : null,
       });
       rechazadasN++;
       fallidas++;
@@ -685,11 +690,14 @@ async function jalarDeVerdad() {
      Qué es cada cosa lo sabe él y no este archivo (ver `despuesDeBajar` en puente.js). Se le
      dice si el barrido fue COMPLETO —de la primera página a la última, sin arrancar a medias—,
      porque solo uno completo sabe qué filas faltan: el a medias sabe cuáles no alcanzó a leer.
+     Y lo apartado: un rechazo de antes puede decir algo que la bajada ahora confirma (la venta
+     cuya fila se borró y que se atoró antes de que el relevo supiera marcarla).
      Y en su propio try: una revisión que falla no le quita a nadie la bajada que sí llegó. */
   let revision = null;
   if (cierra && typeof _adaptador.despuesDeBajar === 'function') {
     try {
-      revision = await _adaptador.despuesDeBajar({ completa: !barrido.parcial, vistos: barrido.vistos });
+      revision = await _adaptador.despuesDeBajar({ completa: !barrido.parcial, vistos: barrido.vistos,
+                                                   rechazadas: await rechazadas() });
     } catch (_) { revision = null; }
     /* Lo que la revisión escribió cuenta como actualizado: quien repinta solo «si algo cambió»
        (el arranque callado) tiene que enterarse de que una copia se juntó o de que una tarjeta

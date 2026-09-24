@@ -188,8 +188,9 @@ cierto(a12([{ folio: 'COT-0108', items: [partidas[0], { ...partidas[1], altura: 
 
 /* ---- 6d. A15: la venta y la hoja no cuadran ----
    Tres marcas de la capa de datos (ver js/datos/proyectos.js, «LA VENTA QUE LA HOJA YA NO
-   TIENE»), una sola regla, y solo para Dirección: las salidas cambian el libro del dinero o
-   el tablero. Nada se borra solo; el aviso lleva a la ficha, que es donde se decide. */
+   TIENE»), una sola regla. La de una venta de aquí o una repetida es de Dirección: sus salidas
+   cambian el libro del dinero o cuál es la venta. La de una tarjeta importada, de quien tenga el
+   teléfono. Nada se borra solo; el aviso lleva a la ficha, que es donde se decide. */
 
 const { avisoDeHoja } = await import('../js/datos/proyectos.js');
 const desde = dias(4);
@@ -219,11 +220,23 @@ cierto(/ya no está en la hoja/.test(a15De('proy-hoja-V-300').titulo) && /quita 
 cierto(/dos veces/.test(a15De('proy-hoja-V-320').titulo) && /Óptica Sol - Caja Luz/.test(a15De('proy-hoja-V-320').detalle) &&
   /Cortado/.test(a15De('proy-hoja-V-320').detalle),
   'la repetida nombra a la de este teléfono y por qué no se juntó sola');
+/* La que solo coincide en el folio de la hoja no se afirma como la misma: puede ser una venta de
+   otro con el folio repartido dos veces. */
+const aDudosa = evaluar({ ...estado, rol: 'direccion', instalaciones: [], historial: [], existencias: [], faltantes: [],
+  proyectos: [{ ...repetida, duplicado_de: { ...repetida.duplicado_de, claves: ['identidad'] } }] }).find(a => a.regla === 'A15_hoja') || { detalle: '' };
+cierto(/parece la misma venta/.test(aDudosa.detalle) && /dos ventas con el mismo folio/.test(aDudosa.detalle) && !/ es la misma venta/.test(aDudosa.detalle),
+  'la repetida por confirmar dice «parece», no «es»: ' + aDudosa.detalle);
 cierto(a15.every(a => a.acciones.length === 1 && a.acciones[0].tipo === 'abrir_proyecto' &&
   a.acciones[0].datos.proyecto_id === a.entidad_id), 'su única acción es abrir la ficha de ESE proyecto');
 cierto(a15De('p20').cuando === 'hace 4 días', 'y dice desde cuándo: ' + a15De('p20').cuando);
-cierto(conHoja('fabricacion').length === 0 && conHoja('pagos').length === 0, 'fabricación y pagos no la ven: no pueden decidirla');
-cierto(!a15.some(a => /\$/.test(a.titulo + a.detalle)), 'y no lleva ni un peso');
+/* La tarjeta importada vive sobre todo en el teléfono del taller, y las marcas no viajan: lo que
+   Dirección decida en el suyo no llega ahí. Ese aviso lo ve quien tiene el teléfono; los de una
+   venta de aquí o una repetida, que deciden la hoja o cuál es la venta, siguen siendo de Dirección. */
+const a15Fab = conHoja('fabricacion'), a15Pag = conHoja('pagos');
+cierto(a15Fab.map(a => a.entidad_id).join() === 'proy-hoja-V-300' && a15Pag.map(a => a.entidad_id).join() === 'proy-hoja-V-300',
+  'fabricación y pagos ven la tarjeta importada cuya fila ya no vino, y nada más: ' + a15Fab.map(a => a.entidad_id) + ' / ' + a15Pag.map(a => a.entidad_id));
+cierto(a15Fab.every(a => a.acciones.length === 1 && a.acciones[0].tipo === 'abrir_proyecto'), 'y con el mismo botón: abrir su ficha, donde la quita o la deja');
+cierto(!a15.concat(a15Fab).some(a => /\$|\d{1,3},\d{3}/.test(a.titulo + a.detalle)), 'y no lleva ni un peso');
 /* La regla lleva su copia de `avisoDeHoja` (no importa proyectos.js): las dos tienen que decir
    lo mismo de cada proyecto, o la regla avisaría de una ficha que no enseña nada. */
 const todas = [perdidaPropia, deOtra, huerfana, repetida, ...yaDecididas];

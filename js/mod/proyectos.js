@@ -347,11 +347,15 @@ function publicarCuenta() {
     n = SIN_DECIDIR.length + TODOS.filter(p => p.etapa !== 'cancelado' &&
       (cambiada(p) || avisoDe(p) === 'perdida' || avisoDe(p) === 'repetida')).length;
   } else if (rol === 'fabricacion') {
-    n = TODOS.filter(p => (SEM.get(p.id) || {}).estado === 'grave').length;
+    /* Y la tarjeta importada cuya fila ya no vino: ésa la decide quien tenga el teléfono (ver
+       `avisoHoja`), y el del taller es donde viven. */
+    n = TODOS.filter(p => (SEM.get(p.id) || {}).estado === 'grave' ||
+      (esImportada(p) && avisoDe(p) === 'perdida')).length;
   } else {
     /* Lo que le falta capturar a PAGOS para que la fila de Notion sirva: sin cuenta y sin
-       estatus, esas dos celdas se pegan vacías. */
-    n = TODOS.filter(p => p.etapa !== 'cancelado' && (!p.cuenta || !p.estatus_notion)).length;
+       estatus, esas dos celdas se pegan vacías. Y la tarjeta importada cuya fila ya no vino. */
+    n = TODOS.filter(p => p.etapa !== 'cancelado' && (!p.cuenta || !p.estatus_notion ||
+      (esImportada(p) && avisoDe(p) === 'perdida'))).length;
   }
   CTX.ponerCuenta('proyectos', n);
 }
@@ -912,14 +916,20 @@ const dato = (etiqueta, valorHTML, esHtml) =>
    LA VENTA Y LA HOJA NO CUADRAN — el aviso de la ficha
    ============================================================================
    Las marcas las pone la capa de datos (ver «LA VENTA QUE LA HOJA YA NO TIENE» en
-   js/datos/proyectos.js) y NINGUNA borra nada sola: aquí se dice qué pasó y Dirección tiene el
-   botón que hace lo correcto. Los otros dos roles ven el aviso sin botones, porque es verdad
-   también para ellos —lo que muevan de esta obra no está llegando a la hoja— y no pueden
-   decidirlo. Ni un peso: lo lee fabricación. */
+   js/datos/proyectos.js) y NINGUNA borra nada sola: aquí se dice qué pasó y está el botón que
+   hace lo correcto. Quién aprieta cuál es la regla de `soloDireccion` en ese archivo: lo que
+   decide la hoja (darla de alta otra vez, dejarla fuera) o cuál de dos proyectos es la venta
+   (juntar, separar, quitar la copia repetida) es de Dirección; quitar o dejar una tarjeta
+   IMPORTADA cuya fila ya no vino es de quien tenga el teléfono, porque las marcas no viajan y
+   lo que Dirección decida en el suyo no llega a éste. A quien no puede decidir se le dice así,
+   sin prometerle que alguien lo decide desde otro lado. Ni un peso: lo lee fabricación. */
 const esImportada = p => !!p && (p.de_hoja === true || String(p.id || '').startsWith('proy-hoja-'));
 const avisoDe = p => (Proy.avisoDeHoja ? Proy.avisoDeHoja(p) : '');
 /* El día de una marca, «20 sep 2026», o '' si no lo trae (una marca de un respaldo viejo). */
 const diaDe = ms => (ms && isoDeSello(ms) ? fmtFecha(isoDeSello(ms)) : '');
+/* Lo que se le dice a quien no puede decidir. «Eso lo decide Dirección», a secas, prometía una
+   decisión que desde otro teléfono no llega nunca. */
+const LO_DECIDE_DIRECCION = 'Lo decide Dirección entrando con su cuenta en este teléfono: la marca es de este aparato, y lo que se decida en otro no llega aquí.';
 
 function avisoHoja(p, rol) {
   const tipo = avisoDe(p);
@@ -931,31 +941,48 @@ function avisoHoja(p, rol) {
 
   if (tipo === 'repetida') {
     const d = p.duplicado_de || {};
-    txt = '<b>Esta tarjeta repite una venta de este teléfono.</b> Se importó de la fila ' + esc(d.folio_hoja || p.folio_hoja || '') +
-      ' de la hoja, que es la misma venta que ' + (d.nombre ? '«' + esc(d.nombre) + '»' : 'otro proyecto de aquí') +
+    const claves = Array.isArray(d.claves) ? d.claves : [];
+    /* 'identidad': la fila solo coincide en el folio de la hoja (ver `mismaVentaQueLaFila`).
+       Puede ser la misma venta dos veces, o dos ventas con un folio repartido dos veces; eso
+       solo lo sabe quien las conoce, y por eso aquí hay dos botones y no uno. */
+    const porConfirmar = claves.includes('identidad');
+    const suNombre = d.nombre ? '«' + esc(d.nombre) + '»' : 'otro proyecto de aquí';
+    txt = (porConfirmar ? '<b>Esta tarjeta puede repetir una venta de este teléfono.</b>' : '<b>Esta tarjeta repite una venta de este teléfono.</b>') +
+      ' Se importó de la fila ' + esc(d.folio_hoja || p.folio_hoja || '') +
+      ' de la hoja, que ' + (porConfirmar ? 'parece' : 'es') + ' la misma venta que ' + suNombre +
       (d.folio ? ' (' + esc(Cot.folioVisible(d.folio) || d.folio) + ')' : '') +
-      ': dos tarjetas en el tablero para una sola venta. No se juntó sola' +
-      (Array.isArray(d.por) && d.por.length ? ' porque ' + esc(d.por.join('; ')) : '') + '.';
-    if (dir) {
-      if (d.id) {
-        btns.push(boton('btn-pri', 'data-hoja-juntar', 'Juntar con «' + esc(d.nombre || 'la de aquí') + '»'));
-        btns.push('<button type="button" class="btn btn-gho" data-abrir-otro="' + esc(d.id) + '">Abrir «' + esc(d.nombre || 'la de aquí') + '»</button>');
+      (porConfirmar ? ': o son dos tarjetas para una sola venta, o son dos ventas con el mismo folio de la hoja.'
+                    : ': dos tarjetas en el tablero para una sola venta.') +
+      ' No se juntó sola' + (Array.isArray(d.por) && d.por.length ? ' porque ' + esc(d.por.join('; ')) : '') + '.';
+    if (!dir) {
+      txt += ' ' + LO_DECIDE_DIRECCION;
+    } else if (d.id) {
+      if (claves.includes('cancelada')) {
+        /* La de aquí es una lápida: a una venta que no se dio no se le pasa una obra, y juntar se
+           niega. La salida es quitar la copia: su fila se queda atada a la lápida y la bajada ya
+           no la vuelve a importar (ver `quitarDelTablero`). */
+        txt += ' A una venta que no se dio no se le pasa una obra: si esta copia no tiene nada suyo, quítala del tablero. Su fila se queda con ' +
+          suNombre + ' y no se vuelve a importar.';
+        btns.push(boton('btn-dgr', 'data-hoja-quitar', 'Quitar esta copia del tablero'));
       } else {
-        /* Sin botón, y se dice por qué: con dos proyectos de aquí atados a la misma fila no hay
-           con cuál juntarla, y quitarla no sirve —su fila la volvería a traer—. */
-        txt += ' Mientras haya más de un proyecto de este teléfono atado a esa fila, no se sabe con cuál juntarla: revisa en la hoja cuál es el bueno.';
+        btns.push(boton('btn-pri', 'data-hoja-juntar', 'Juntar con «' + esc(d.nombre || 'la de aquí') + '»'));
       }
+      if (porConfirmar) btns.push(boton('btn-gho', 'data-hoja-noesla', 'No es la misma venta'));
+      btns.push('<button type="button" class="btn btn-gho" data-abrir-otro="' + esc(d.id) + '">Abrir «' + esc(d.nombre || 'la de aquí') + '»</button>');
+    } else {
+      /* Sin botón, y se dice por qué: con dos proyectos de aquí atados a la misma fila no hay
+         con cuál juntarla, y quitarla no sirve —su fila la volvería a traer—. */
+      txt += ' Mientras haya más de un proyecto de este teléfono atado a esa fila, no se sabe con cuál juntarla: revisa en la hoja cuál es el bueno.';
     }
   } else if (tipo === 'perdida' && imp) {
+    /* Cualquier rol: es una copia de este teléfono, sin cotización ni dinero que decidir. */
     const h = p.hoja_perdida || {};
     const dia = diaDe(h.desde);
     txt = '<b>Esta venta ya no está en la hoja.</b> Esta tarjeta se importó de la fila ' + esc(h.folio || p.folio_hoja || '') +
       ', y la hoja ya no la trae' + (dia ? ' (se vio el ' + esc(dia) + ')' : '') + '. No se quitó sola: ' +
-      (dir ? 'si se borró a propósito, quítala del tablero; si la obra sigue, déjala.' : 'eso lo decide Dirección.');
-    if (dir) {
-      btns.push(boton('btn-dgr', 'data-hoja-quitar', 'Quitar del tablero'));
-      btns.push(boton('btn-gho', 'data-hoja-dejar', 'Dejarla'));
-    }
+      'si se borró a propósito, quítala del tablero; si la obra sigue, déjala.';
+    btns.push(boton('btn-dgr', 'data-hoja-quitar', 'Quitar del tablero'));
+    btns.push(boton('btn-gho', 'data-hoja-dejar', 'Dejarla'));
   } else if (tipo === 'perdida') {
     const h = p.hoja_perdida || {};
     const dia = diaDe(h.desde);
@@ -966,19 +993,22 @@ function avisoHoja(p, rol) {
       ' los cambios de este proyecto no llegan a ningún lado: se quedan apartados en este teléfono. ' +
       (dir ? 'Si la venta sigue viva, vuelve a darla de alta: entra a la hoja con todos sus datos en una fila nueva. ' +
              'Si se borró a propósito, déjala fuera: el proyecto se queda aquí y deja de mandarse.'
-           : 'Dirección decide si se vuelve a dar de alta o se queda fuera.');
+           : 'Si se vuelve a dar de alta o se queda fuera de la hoja lo decide Dirección, entrando con su cuenta en este teléfono: ' +
+             'la marca es de este aparato, y lo que se decida en otro no llega aquí.');
     if (dir) {
       btns.push(boton('btn-pri', 'data-hoja-alta', 'Volver a darla de alta en la hoja'));
       btns.push(boton('btn-gho', 'data-hoja-fuera', 'Dejarla fuera de la hoja'));
     }
   } else {
-    /* 'fuera': ya se decidió. Se dice en voz baja, y con la salida por si cambia la decisión. */
+    /* 'fuera': ya se decidió. Se dice en voz baja, y con la salida por si cambia la decisión:
+       quitar la tarjeta importada (cualquiera) o volver a dar de alta la venta (Dirección). */
     const dia = diaDe(p.fuera_de_hoja);
     const cuando = dia ? ', el ' + esc(dia) : '';
     txt = imp
-      ? 'Esta tarjeta se importó de la fila ' + esc(p.folio_hoja || '') + ', que ya no está en la hoja; se quedó en el tablero por decisión de Dirección' + cuando + '.'
+      ? 'Esta tarjeta se importó de la fila ' + esc(p.folio_hoja || '') + ', que ya no está en la hoja; se decidió dejarla en el tablero' + cuando + '.'
       : 'Esta venta se quedó fuera de la hoja por decisión de Dirección' + cuando + '. Sus cambios ya no se mandan.';
-    if (dir) btns.push(boton('btn-gho', imp ? 'data-hoja-quitar' : 'data-hoja-alta', imp ? 'Quitar del tablero' : 'Volver a darla de alta en la hoja'));
+    if (imp) btns.push(boton('btn-gho', 'data-hoja-quitar', 'Quitar del tablero'));
+    else if (dir) btns.push(boton('btn-gho', 'data-hoja-alta', 'Volver a darla de alta en la hoja'));
     return '<p class="hintnote">' + ico('i-nube-off') + ' ' + txt + '</p>' +
       (btns.length ? '<div class="btn-fila">' + btns.join('') + '</div>' : '');
   }
@@ -987,35 +1017,52 @@ function avisoHoja(p, rol) {
 }
 
 /* Las salidas del aviso. Las que no se deshacen con otro toque —dejarla fuera, dejarla en el
-   tablero, quitarla, juntarla— preguntan antes y dicen qué va a pasar; la de volver a darla de
-   alta no pregunta porque su botón ya dice exactamente eso, y después se manda la bandeja para
-   que la persona sepa en el momento si la hoja la recibió. */
+   tablero, quitarla, juntarla, separarlas— preguntan antes y dicen qué va a pasar; la de volver
+   a darla de alta no pregunta porque su botón ya dice exactamente eso, y después se manda la
+   bandeja para que la persona sepa en el momento si la hoja la recibió. */
 async function decisionHoja(que, id, boton) {
   const p = await Proy.obtener(id);
   if (!p) { toast('Ese proyecto ya no está en este dispositivo', 'err'); await cargar(); return; }
   const nombre = p.nombre || p.folio_local || 'este proyecto';
+  const d = p.duplicado_de && typeof p.duplicado_de === 'object' ? p.duplicado_de : null;
+  const otra = (d && d.nombre) || 'la de este teléfono';
+  const fila = (d && d.folio_hoja) || p.folio_hoja || '';
 
   if (que === 'fuera') {
     if (!window.confirm('¿Dejar «' + nombre + '» fuera de la hoja?\n\nEl proyecto se queda en este teléfono y deja de mandarse a la hoja. ' +
       'Los cambios que rebotaron contra su fila se tiran. Si después cambias de idea, en su ficha está «Volver a darla de alta en la hoja».')) return;
   } else if (que === 'dejar') {
-    if (!window.confirm('¿Dejar «' + nombre + '» en el tablero aunque la hoja ya no la tenga?\n\nNo se vuelve a preguntar por ella, y sus cambios ya no se mandan a la hoja.')) return;
+    if (!window.confirm('¿Dejar «' + nombre + '» en el tablero aunque la hoja ya no la tenga?\n\nNo se vuelve a preguntar por ella, y sus cambios ya no se mandan a la hoja. ' +
+      'Si su fila vuelve a la hoja, vuelve a mandarse sola.')) return;
   } else if (que === 'quitar') {
-    if (!window.confirm('¿Quitar «' + nombre + '» del tablero?\n\nEs una tarjeta importada de la hoja' +
-      ' cuya fila ya no está. Se borra de este teléfono; la hoja no se toca. ' +
-      'Si algo de este teléfono la nombra —una instalación, un movimiento del almacén— no se quita. Queda anotado en la bitácora.')) return;
+    if (!window.confirm(d
+      ? '¿Quitar esta copia de «' + nombre + '» del tablero?\n\nEs la copia importada de la fila ' + fila + ', que repite «' + otra + '». ' +
+        'Se borra de este teléfono; la hoja no se toca, y su fila se queda con «' + otra + '»: la siguiente bajada ya no la vuelve a importar. ' +
+        'Si algo de este teléfono la nombra —una instalación, un movimiento del almacén, material calculado— no se quita. Queda anotado en la bitácora.'
+      : '¿Quitar «' + nombre + '» del tablero?\n\nEs una tarjeta importada de la hoja cuya fila ya no está. Se borra de este teléfono; la hoja no se toca. ' +
+        'Si algo de este teléfono la nombra —una instalación, un movimiento del almacén, material calculado— no se quita. Queda anotado en la bitácora.')) return;
   } else if (que === 'juntar') {
-    const d = p.duplicado_de || {};
-    if (!window.confirm('¿Juntar esta tarjeta con «' + (d.nombre || 'la de este teléfono') + '»?' +
-      (Array.isArray(d.por) && d.por.length ? '\n\nLo que la copia tiene de más: ' + d.por.join('; ') + '.' : '') +
-      '\n\nSus notas, su ubicación y su plazo pasan a «' + (d.nombre || 'la de este teléfono') + '»; la etapa no —moverla descuenta material, y eso lo haces tú—. ' +
-      'Sus instalaciones y movimientos del almacén pasan también, y esta copia se quita del tablero. Queda anotado en la bitácora.')) return;
+    /* Lo que de verdad hace `juntar`: las notas se suman; el pin y el plazo pasan solo si la de
+       aquí no tiene los suyos. Prometer «su ubicación pasa» cuando la de aquí ya tenía una era
+       mentira: se quedaba la de aquí y la de la copia se borraba con ella. */
+    const porConfirmar = !!(d && Array.isArray(d.claves) && d.claves.includes('identidad'));
+    if (!window.confirm('¿Juntar esta tarjeta con «' + otra + '»?' +
+      (d && Array.isArray(d.por) && d.por.length ? '\n\nPor qué no se juntó sola: ' + d.por.join('; ') + '.' : '') +
+      '\n\nLas notas de la copia se suman a las de «' + otra + '». Su ubicación y su plazo pasan solo si «' + otra + '» no tiene los suyos; si los tiene, se quedan los de «' + otra + '». ' +
+      'La etapa no —moverla descuenta material, y eso lo haces tú—. Sus instalaciones y movimientos del almacén pasan también, y esta copia se quita del tablero.' +
+      (porConfirmar ? '\n\nY la fila ' + fila + ' queda como de «' + otra + '»: desde la siguiente bajada, su dinero es el de «' + otra + '».' : '') +
+      ' Queda anotado en la bitácora.')) return;
+  } else if (que === 'noesla') {
+    if (!window.confirm('¿«' + nombre + '» y «' + otra + '» son dos ventas distintas?\n\nEsta tarjeta se queda en el tablero como la de su venta, con su fila ' + fila +
+      ', y no se vuelve a preguntar. «' + otra + '» se queda sin fila en la hoja —la ' + fila + ' es de esta otra venta— y deja de mandarle cambios: ' +
+      'en su ficha decides si se vuelve a dar de alta o se queda fuera. Queda anotado en la bitácora.')) return;
   }
 
   if (boton) boton.disabled = true;
   const r = que === 'alta' ? await Proy.volverADarDeAlta(id)
     : que === 'fuera' || que === 'dejar' ? await Proy.dejarFueraDeLaHoja(id)
     : que === 'quitar' ? await Proy.quitarDelTablero(id)
+    : que === 'noesla' ? await Proy.noEsLaMisma(id)
     : await Proy.juntarConLaDeAqui(id);
   if (boton && boton.isConnected) boton.disabled = false;
   if (!r.ok) { avisarResultado(r); return; }
@@ -1035,8 +1082,10 @@ async function decisionHoja(que, id, boton) {
     toast(que === 'quitar' ? '«' + nombre + '» se quitó del tablero' : 'Se juntaron: queda una sola tarjeta de esta venta', 'ok', 4200);
     cerrarCapa('pf-ficha'); fichaId = null;
     await cargar();
-    if (que === 'juntar' && p.duplicado_de && p.duplicado_de.id) await abrirFicha(p.duplicado_de.id);
+    if (que === 'juntar' && d && d.id) await abrirFicha(d.id);
     return;
+  } else if (que === 'noesla') {
+    toast('«' + nombre + '» se queda como su propia venta; «' + otra + '» quedó sin fila en la hoja', 'ok', 5200);
   } else {
     toast(que === 'fuera' ? '«' + nombre + '» se queda fuera de la hoja' : '«' + nombre + '» se queda en el tablero', 'ok', 4200);
   }
@@ -1101,9 +1150,9 @@ async function clicFicha(ev) {
   }
 
   /* Las salidas del aviso de la hoja (ver `avisoHoja`). */
-  const hj = t.closest('[data-hoja-alta],[data-hoja-fuera],[data-hoja-quitar],[data-hoja-dejar],[data-hoja-juntar]');
+  const hj = t.closest('[data-hoja-alta],[data-hoja-fuera],[data-hoja-quitar],[data-hoja-dejar],[data-hoja-juntar],[data-hoja-noesla]');
   if (hj) {
-    const que = ['alta', 'fuera', 'quitar', 'dejar', 'juntar'].find(q => hj.hasAttribute('data-hoja-' + q));
+    const que = ['alta', 'fuera', 'quitar', 'dejar', 'juntar', 'noesla'].find(q => hj.hasAttribute('data-hoja-' + q));
     await decisionHoja(que, hj.getAttribute('data-hoja-' + que), hj);
     return;
   }

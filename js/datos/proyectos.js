@@ -1254,10 +1254,11 @@ export async function resincronizar(id) {
    LA VENTA QUE LA HOJA YA NO TIENE, Y LA QUE ESTÁ DOS VECES
 
    Tres casos que se quedaban para siempre sin salida, con la misma decisión del dueño para
-   los tres: nada se borra ni se archiva solo. Se marca, se avisa, y Dirección tiene en la
-   ficha el botón que hace lo correcto. La única excepción es la copia repetida que no tiene
-   NADA propio (el caso 3): juntarla no es borrar una venta, es quitar la segunda tarjeta de
-   una sola, con todo lo que colgaba de ella ya pasado a la primera.
+   los tres: nada se borra ni se archiva solo. Se marca, se avisa, y en la ficha está el botón
+   que hace lo correcto (quién lo aprieta, en `soloDireccion`). La única excepción es la copia
+   repetida que no tiene NADA propio y que es, sin duda, la misma venta (el caso 3): juntarla
+   no es borrar una venta, es quitar la segunda tarjeta de una sola, con todo lo que colgaba de
+   ella ya pasado a la primera.
 
    1. La venta de ESTE teléfono cuya fila alguien borró en la hoja. El proyecto guarda el
       folio de una fila muerta (`notion_page_id`), cada cambio rebota como NO_ENCONTRADO y se
@@ -1271,13 +1272,17 @@ export async function resincronizar(id) {
       qué filas faltan, dice qué filas no se alcanzaron a leer.
    3. La copia importada de una venta que este teléfono YA tenía como suya —antes de los
       arreglos de septiembre de 2026 pasaba, y Control la contaba dos veces—. Si juntarlas no
-      pierde nada (`loQueSePerderia` vacío), se juntan solas: lo que colgaba de la copia pasa
-      al proyecto de verdad y la copia se va. Si algo se perdería, se marca `duplicado_de` y
-      espera a Dirección.
+      pierde nada (`loQueSePerderia` vacío) Y es seguro que es la misma venta
+      (`mismaVentaQueLaFila`: la fila trae el folio de cotización de la de aquí, o su mismo
+      nombre), se juntan solas: lo que colgaba de la copia pasa al proyecto de verdad y la
+      copia se va. Si algo se perdería, o si lo único en común es el folio de la hoja —que
+      pudo repartirse dos veces—, se marca `duplicado_de` y espera a Dirección.
 
    Las marcas son de ESTE teléfono y no viajan: se escriben con `DB` directo, sin encolar,
    por lo mismo que las del relevo (ver `espejarLocal` en puente.js). No son un dato del
-   negocio: son «la hoja y este teléfono no cuadran aquí».
+   negocio: son «la hoja y este teléfono no cuadran aquí». Por eso lo que se decide de una
+   tarjeta IMPORTADA cuya fila ya no está lo puede decidir quien tenga el teléfono en la mano
+   (ver `soloDireccion`): nadie lo puede decidir desde otro.
    ============================================================================ */
 
 /* La tarjeta que nació de una fila de la hoja y no de una cotización. Las dos señas, por si un
@@ -1331,19 +1336,53 @@ export function huerfanasDeLaHoja(proyectos, folios) {
     String(p.folio_hoja || '').trim() && !vistos.has(String(p.folio_hoja).trim()));
 }
 
+/* El nombre, para compararlo: sin acentos, sin mayúsculas y sin espacios de más. Nada más
+   agresivo —quitar el «(Tipo)» del final o la puntuación— porque dos ventas del mismo cliente
+   se llaman igual salvo por el tipo, y ésas son justo las que no hay que confundir. */
+const nombreParaComparar = s => plano(s).replace(/\s+/g, ' ').trim();
+
+/**
+ * Qué tan seguro es que la fila `venta` (un renglón de `ventas_hoja`) sea la venta del
+ * proyecto `p` de este teléfono. PURA. La usan el tercer camino de `bajar` en puente.js —a
+ * quién le cae el dinero de la fila— y `repetidasDeLaHoja` —qué se junta solo—, y tienen que
+ * decir lo mismo: si la bajada ata la fila a un proyecto y la revisión no, o al revés, la
+ * copia se queda en el tablero sin que nadie la refresque, o se junta con quien no es.
+ *
+ *   'folio'       la fila trae en «Folio cotizacion» el folio global de `p`. Es la llave.
+ *   'nombre'      la fila no trae folio de cotización (o trae la huella del defecto, su propio
+ *                 folio de hoja), su folio de hoja es el `notion_page_id` de `p` y se llama igual.
+ *   'confirmada'  lo mismo, sin el nombre, pero Dirección ya dijo que es la misma
+ *                 (`hoja_confirmada`, ver `juntar`): el nombre se corrige en la hoja y no baja.
+ *   'debil'       solo coincide el folio de la hoja. Es exactamente el caso del folio que se
+ *                 repartió dos veces antes de la marca de folios: la fila puede ser de otra
+ *                 venta que se dio de alta a mano, sin folio de cotización. No ata sola.
+ *   ''            no es: la fila dice ser de OTRA cotización, o no tiene nada que ver.
+ * @returns {'folio'|'nombre'|'confirmada'|'debil'|''}
+ */
+export function mismaVentaQueLaFila(p, venta) {
+  if (!p || !venta) return '';
+  const fh = String(venta.folio_hoja || '').trim();
+  const fc = String(venta.folio_cotizacion || '').trim();
+  if (fc && fc !== fh) return fc === String(p.folio_global || '') ? 'folio' : '';
+  if (!fh || String(p.notion_page_id || '') !== fh) return '';
+  if (String(p.hoja_confirmada || '') === fh) return 'confirmada';
+  const n = nombreParaComparar(p.nombre);
+  if (n && n === nombreParaComparar(venta.nombre)) return 'nombre';
+  return 'debil';
+}
+
 /**
  * Las tarjetas importadas que repiten una venta de este teléfono. PURA.
  *
- * Es la misma venta por cualquiera de los dos caminos: la fila de la copia trae en «Folio
- * cotizacion» el folio global de un proyecto de aquí, o la copia salió de la fila cuyo folio
- * de hoja es el `notion_page_id` de uno de aquí. El segundo camino solo vale si la fila no dice
- * ser de OTRA cotización: un folio de hoja que se repartió dos veces es otra venta, y juntarla
- * le pondría a este proyecto la instalación de alguien más. Sin la fila en el espejo no se
- * decide nada: sin ella no hay con qué comprobar que sean la misma.
+ * Candidato es cualquier proyecto de aquí que `mismaVentaQueLaFila` no descarta, incluido el
+ * 'debil': ése no se junta solo, pero sí se enseña, porque es la misma venta dos veces en el
+ * tablero O dos ventas con un folio repetido, y eso solo lo sabe quien las conoce. Lo que
+ * Dirección ya dijo que NO es la misma (`distinta_de`, ver `noEsLaMisma`) no se vuelve a
+ * preguntar. Sin la fila en el espejo no se decide nada: sin ella no hay con qué comparar.
  * @param {Object[]} proyectos
  * @param {Object[]} ventas  los renglones de `ventas_hoja`
- * @returns {Array<{copia:Object, real:Object|null, candidatos:Object[]}>} `real` es null si
- *          hay más de un candidato: ahí no se adivina cuál es
+ * @returns {Array<{copia:Object, real:Object|null, candidatos:Object[], identidad:string}>}
+ *          `real` es null si hay más de un candidato: ahí no se adivina cuál es
  */
 export function repetidasDeLaHoja(proyectos, ventas) {
   const P = (Array.isArray(proyectos) ? proyectos : []).filter(Boolean);
@@ -1359,14 +1398,11 @@ export function repetidasDeLaHoja(proyectos, ventas) {
     const fh = String(copia.folio_hoja || '').trim();
     const v = fh ? porFolio.get(fh) : null;
     if (!v) continue;
-    const fc = String(v.folio_cotizacion || '').trim();
-    const candidatos = propios.filter(p => {
-      const fg = String(p.folio_global || '');
-      if (fc && fg === fc) return true;
-      return String(p.notion_page_id || '') === fh && (!fc || fc === fh || fc === fg);
-    });
+    const distintas = new Set(Array.isArray(copia.distinta_de) ? copia.distinta_de.map(String) : []);
+    const candidatos = propios.filter(p => !distintas.has(String(p.id)) && mismaVentaQueLaFila(p, v));
     if (!candidatos.length) continue;
-    out.push({ copia, real: candidatos.length === 1 ? candidatos[0] : null, candidatos });
+    const real = candidatos.length === 1 ? candidatos[0] : null;
+    out.push({ copia, real, candidatos, identidad: real ? mismaVentaQueLaFila(real, v) : '' });
   }
   return out;
 }
@@ -1384,13 +1420,25 @@ const IMPIDEN_JUNTAR = new Set(['cancelada', 'instalaciones', 'material']);
  * copia trajo de la hoja: el nombre, la dirección y el dinero de la fila son los mismos para
  * las dos, porque es la misma fila. Una etapa de la copia que va DETRÁS no se pierde: el
  * proyecto ya pasó por ahí.
- * @param {{instCopia?:Object[], instReal?:Object[], reqCopia?:Object[]}} [ctx]
+ *
+ * Y lo primero, antes que perder algo: que no sea la misma venta. Con `identidad` 'debil' (ver
+ * `mismaVentaQueLaFila`) juntarlas le pasaría a este proyecto la instalación de otra venta y su
+ * fila le echaría encima el dinero de la otra; eso no lo decide la revisión sola.
+ *
+ * El texto de cada renglón dice lo que de verdad pasa al apretar «Juntar» (`juntar` con
+ * `arrastrar`): las notas se suman, y el pin y el plazo pasan solo si la de aquí no tiene los
+ * suyos. Si los tiene, se quedan los de aquí, y el texto lo dice: la confirmación de la ficha
+ * lee estos renglones y no puede prometer que pasa algo que se va a perder.
+ * @param {{instCopia?:Object[], instReal?:Object[], reqCopia?:Object[], identidad?:string}} [ctx]
  * @returns {Array<{clave:string, texto:string}>}
  */
 export function loQueSePerderia(copia, real, ctx = {}) {
   const c = copia || {}, r = real || {};
   const x = ctx && typeof ctx === 'object' ? ctx : {};
   const por = [];
+  if (x.identidad === 'debil') {
+    por.push({ clave: 'identidad', texto: 'la fila no trae folio de cotización y no se llama como la de este teléfono: hay que confirmar que es la misma venta' });
+  }
   if (r.etapa === 'cancelado') {
     por.push({ clave: 'cancelada', texto: 'la de este teléfono está como «No se dio»' });
   } else if (c.etapa && c.etapa !== r.etapa && c.etapa !== 'ganado') {
@@ -1405,11 +1453,15 @@ export function loQueSePerderia(copia, real, ctx = {}) {
     por.push({ clave: 'notas', texto: 'la copia tiene notas que la de este teléfono no tiene' });
   }
   if (tienePin(c) && !(tienePin(r) && Number(r.lat) === Number(c.lat) && Number(r.lng) === Number(c.lng))) {
-    por.push({ clave: 'pin', texto: 'la copia tiene una ubicación que la de este teléfono no tiene' });
+    por.push({ clave: 'pin', texto: tienePin(r)
+      ? 'la copia tiene otra ubicación, distinta de la de este teléfono: al juntarlas se queda la de este teléfono y la de la copia se pierde'
+      : 'la copia tiene una ubicación que la de este teléfono no tiene' });
   }
   const pk = plazoValido(c.plazo_k);
   if (pk !== null && pk !== plazoValido(r.plazo_k)) {
-    por.push({ clave: 'plazo', texto: 'la copia tiene su propio plazo de taller' });
+    por.push({ clave: 'plazo', texto: plazoValido(r.plazo_k) !== null
+      ? 'la copia tiene otro plazo de taller: al juntarlas se queda el de este teléfono y el de la copia se pierde'
+      : 'la copia tiene su propio plazo de taller' });
   }
   const viva = i => i && i.estado !== 'cancelada';
   if ((x.instCopia || []).some(viva) && (x.instReal || []).some(viva)) {
@@ -1462,11 +1514,24 @@ export async function marcarPerdidaEnLaHoja(id, motivo, folio, mensaje) {
   return r.ok ? r.valor : null;
 }
 
+/* Dirección dijo que la fila `folioHoja` ES la venta de `real`. Se anota en el proyecto
+   (`hoja_confirmada`, una marca de este teléfono como las otras) porque sin eso la decisión
+   duraba una bajada: si la fila no trae folio de cotización ni se llama igual, el tercer camino
+   de `bajar` no la ata a `real` (ver `mismaVentaQueLaFila`), la vuelve a importar como tarjeta
+   nueva y la revisión la vuelve a enseñar como repetida. */
+async function confirmarFila(real, folioHoja) {
+  const fh = String(folioHoja || '').trim();
+  if (!real || !fh || String(real.notion_page_id || '') !== fh || real.hoja_confirmada === fh) return;
+  await parcharMarca(real.id, { hoja_confirmada: fh });
+}
+
 /* Junta la copia en el proyecto de verdad: lo que colgaba de ella —instalaciones, movimientos
    del almacén— pasa a apuntar al proyecto, sus operaciones apartadas se tiran (eran cambios a
-   la misma fila, y la copia deja de existir) y la copia se va. Con `arrastrar`, lo que la copia
-   tenía de más y sí se puede llevar (las notas, el pin, el plazo) pasa al proyecto por la
-   puerta de siempre, `actualizar`, que lo encola y lo anota. */
+   la misma fila, y la copia deja de existir) y la copia se va. Con `arrastrar` —lo aprieta
+   Dirección, ya vio el porqué—, lo que la copia tenía de más y sí se puede llevar pasa al
+   proyecto por la puerta de siempre, `actualizar`, que lo encola y lo anota: las notas se
+   suman, y el pin y el plazo solo si la de aquí no tiene los suyos (si los tiene, se quedan los
+   de aquí; `loQueSePerderia` ya lo dijo así). Y la fila queda confirmada como suya. */
 async function juntar(copia, real, arrastrar) {
   if (arrastrar) {
     const parche = {};
@@ -1483,6 +1548,7 @@ async function juntar(copia, real, arrastrar) {
       const ra = await actualizar(real.id, parche);
       if (!ra.ok) return ra;
     }
+    await confirmarFila(await DB.obtener('proyectos', real.id), copia.folio_hoja);
   }
   const [insts, movs] = await Promise.all([porProyecto('instalaciones', copia.id), porProyecto('movimientos', copia.id)]);
   for (const i of insts) {
@@ -1510,8 +1576,17 @@ async function juntar(copia, real, arrastrar) {
  * Las repetidas se revisan siempre; las perdidas, solo con `completa`. Una copia con cambios
  * todavía en la bandeja se deja para la siguiente: juntarla ahora mandaría después esos cambios
  * con la foto de una tarjeta que ya no existe.
- * @param {{folios:Set<string>|string[], completa:boolean}} info
- * @returns {Promise<Resultado>} valor = {juntadas, repetidas, perdidas}
+ *
+ * `rebotes` son los cambios de las ventas de ESTE teléfono que ya estaban apartados con «ya no
+ * está en la hoja» / «ya es de otra venta» (los junta `despuesDeBajar` en puente.js). La marca
+ * nace cuando un cambio rebota, y lo apartado no se reintenta solo: las ventas que se atoraron
+ * antes de que existiera la marca —las que dieron origen a todo esto— se quedaban sin aviso y
+ * sin botones hasta que alguien volviera a tocar la obra. Pero un rebote puede ser viejo (la
+ * fila volvió), así que solo marca lo que esta bajada COMPLETA confirma: la fila borrada no
+ * vino, y la que era de otra venta sigue atada a otra cotización.
+ * @param {{folios:Set<string>|string[], completa:boolean,
+ *          rebotes?:Array<{id:string, motivo:string, mensaje:string}>}} info
+ * @returns {Promise<Resultado>} valor = {juntadas, repetidas, perdidas, cambios}
  */
 export async function revisarContraLaHoja(info = {}) {
   if (!DB.estado().ok) return mal('DB_NO_DISPONIBLE', DB.motivoTexto());
@@ -1532,12 +1607,12 @@ export async function revisarContraLaHoja(info = {}) {
   const vistas = new Set();     // las copias que siguen siendo repetidas, juntadas o no
   const idas = new Set();       // las que se juntaron: ya no existen
 
-  for (const { copia, real, candidatos } of repetidasDeLaHoja(proys, ventas)) {
+  for (const { copia, real, candidatos, identidad } of repetidasDeLaHoja(proys, ventas)) {
     vistas.add(copia.id);
     if (conBandeja.has(copia.id)) continue;
     const por = real
       ? loQueSePerderia(copia, real, { instCopia: deProy(insts, copia.id), instReal: deProy(insts, real.id),
-                                       reqCopia: deProy(reqs, copia.id) })
+                                       reqCopia: deProy(reqs, copia.id), identidad })
       : [{ clave: 'varias', texto: 'hay ' + candidatos.length + ' proyectos de este teléfono con esa misma venta' }];
     if (!por.length) {
       const r = await juntar(copia, real, false);
@@ -1567,16 +1642,56 @@ export async function revisarContraLaHoja(info = {}) {
       if (await parcharMarca(p.id, { hoja_perdida: marcaPerdida(null, 'no_bajo', p.folio_hoja,
         'La hoja ya no trae la fila ' + p.folio_hoja + '.', ahora) })) { perdidas++; cambios++; }
     }
+
+    /* Lo apartado de antes (ver arriba). Cuenta la fila a la que el proyecto apunta HOY, y el
+       rebote tiene que nombrarla: si nombra otra, fue contra una fila que ya no es la suya. Las
+       tarjetas importadas no pasan por aquí: a ésas ya las marca la bajada, arriba. */
+    const ventaDe = new Map(ventas.filter(v => v && v.folio_hoja).map(v => [String(v.folio_hoja), v]));
+    const porId = new Map(proys.filter(Boolean).map(p => [p.id, p]));
+    const yaVistos = new Set();
+    for (const rb of (Array.isArray(info.rebotes) ? info.rebotes : [])) {
+      const p = rb && porId.get(String(rb.id));
+      if (!p || yaVistos.has(p.id) || esImportado(p) || p.fuera_de_hoja) continue;
+      const fh = String(p.notion_page_id || '').trim();
+      if (!fh || !nombraFolio(rb.mensaje, fh)) continue;
+      const v = ventaDe.get(fh);
+      const fc = v ? String(v.folio_cotizacion || '').trim() : '';
+      const motivo = !folios.has(fh) ? 'borrada'
+        : (rb.motivo === 'de_otra' && fc && fc !== fh && fc !== String(p.folio_global || '')) ? 'de_otra' : '';
+      if (!motivo) continue;
+      yaVistos.add(p.id);
+      const m = marcaPerdida(p.hoja_perdida, motivo, fh, rb.mensaje, ahora);
+      if (m !== p.hoja_perdida && await parcharMarca(p.id, { hoja_perdida: m })) cambios++;
+    }
   }
   return ok({ juntadas, repetidas, perdidas, cambios });
 }
 
-/* Las cuatro decisiones de la ficha son de Dirección: cambian qué hay en el libro del dinero
-   (dar de alta), qué deja de mandarse (dejar fuera) y qué desaparece del tablero (quitar,
-   juntar). */
+/* ¿El texto nombra ESE folio, y no uno que lo contiene? «V-47» está dentro de «V-470». */
+function nombraFolio(texto, folio) {
+  const t = String(texto || ''), f = String(folio || '');
+  if (!f) return false;
+  for (let i = t.indexOf(f); i >= 0; i = t.indexOf(f, i + 1)) {
+    if (!/[\w-]/.test(t.charAt(i - 1)) && !/[\w-]/.test(t.charAt(i + f.length))) return true;
+  }
+  return false;
+}
+
+/* Las decisiones de la venta son de Dirección: cambian qué hay en el libro del dinero (darla de
+   alta otra vez), qué deja de mandarse (dejarla fuera) y cuál de dos proyectos es la venta
+   (juntar, quitar la copia repetida, decir que no es la misma).
+   Las de una tarjeta IMPORTADA cuya fila ya no está —quitarla del tablero, dejarla— no: esa
+   tarjeta es una copia de este teléfono, sin cotización detrás, y las marcas no viajan. Vive
+   sobre todo en el teléfono del taller, que es donde el puente importa lo que está en
+   fabricación, y lo que Dirección decida en el suyo no llega ahí: con `soloDireccion` se
+   quedaba para siempre en el tablero de fabricación, con su etiqueta roja y un «eso lo decide
+   Dirección» que no podía cumplirse. Para ésas basta `conBase`. */
+function conBase() {
+  return DB.estado().ok ? null : mal('DB_NO_DISPONIBLE', DB.motivoTexto());
+}
 function soloDireccion() {
-  if (!DB.estado().ok) return mal('DB_NO_DISPONIBLE', DB.motivoTexto());
-  if (Prefs.rol() !== 'direccion') return mal('ROL_SIN_PERMISO', 'Eso lo decide Dirección.');
+  const no = conBase(); if (no) return no;
+  if (Prefs.rol() !== 'direccion') return mal('ROL_SIN_PERMISO', 'Eso lo decide Dirección, con su cuenta en este teléfono: lo que se decide en otro no llega aquí.');
   return null;
 }
 
@@ -1620,13 +1735,17 @@ export async function volverADarDeAlta(id) {
  * El proyecto se queda aquí, la marca se quita y lo apartado se tira. El folio de la fila se
  * queda como está —borrarlo resucitaría la venta en el siguiente cambio— y `fuera_de_hoja` es
  * lo que hace que el relevo ya no mande nada de este proyecto, ni la revisión lo vuelva a
- * marcar: sin eso, el siguiente cambio de etapa volvía a rebotar y a encender el aviso.
+ * marcar: sin eso, el siguiente cambio de etapa volvía a rebotar y a encender el aviso. Si la
+ * fila vuelve, la bajada quita `fuera_de_hoja` (ver `bajar` en puente.js).
+ * La de una venta de aquí es de Dirección; «Dejarla», la de una tarjeta importada, la puede
+ * decidir cualquiera en su teléfono (ver `soloDireccion`).
  * @returns {Promise<Resultado>} valor = el proyecto
  */
 export async function dejarFueraDeLaHoja(id) {
-  const no = soloDireccion(); if (no) return no;
+  const base = conBase(); if (base) return base;
   const p = await DB.obtener('proyectos', id);
   if (!p) return mal('NO_ENCONTRADO', 'Ese proyecto ya no está en este dispositivo.');
+  if (!esImportado(p)) { const no = soloDireccion(); if (no) return no; }
   if (!p.hoja_perdida) return mal('DATO_INVALIDO', 'Esta venta sigue en la hoja: no hay nada que dejar fuera.');
   const descartadas = await descartarOps(p.id, ['rechazada']);
   const r = await DB.poner('proyectos', { ...p, hoja_perdida: null, fuera_de_hoja: Date.now() });
@@ -1640,26 +1759,41 @@ export async function dejarFueraDeLaHoja(id) {
 
 /**
  * «Quitar del tablero». Solo la tarjeta IMPORTADA de la hoja —la venta de este teléfono se
- * marca «No se dio», que deja constancia— y solo si su fila ya no está: una que sigue allá
- * volvería en la siguiente bajada. Y NO se quita si algo de este teléfono la nombra: una
- * instalación, un movimiento del almacén o material calculado se quedarían apuntando a nada, y
- * el libro del almacén no se corrige borrando.
+ * marca «No se dio», que deja constancia—, y solo en dos casos, porque en cualquier otro la
+ * siguiente bajada la volvería a traer como nueva, sin las notas que tenía:
+ *   · su fila ya no está: marcada, y sin renglón en el récord de ventas (`ventas_hoja`). Un
+ *     aviso que se quedó puesto no basta: la fila pudo volver.
+ *   · es la copia repetida de una venta de aquí (lo decide Dirección). Quitarla es decir «es la
+ *     misma venta»: su fila queda confirmada como del proyecto de aquí (`confirmarFila`) y la
+ *     bajada ya no la importa. Es la salida de la copia que no se puede juntar —la de aquí es
+ *     una lápida, «No se dio»— y no tiene nada suyo.
+ * Y NO se quita si algo de este teléfono la nombra: una instalación, un movimiento del almacén
+ * o material calculado se quedarían apuntando a nada, y el libro del almacén no se corrige
+ * borrando.
  * @returns {Promise<Resultado>} valor = {id}
  */
 export async function quitarDelTablero(id) {
-  const no = soloDireccion(); if (no) return no;
+  const base = conBase(); if (base) return base;
   const p = await DB.obtener('proyectos', id);
   if (!p) return mal('NO_ENCONTRADO', 'Ese proyecto ya no está en este dispositivo.');
   if (!esImportado(p)) {
     return mal('DATO_INVALIDO', 'Solo se quitan del tablero las tarjetas importadas de la hoja. Una venta de este teléfono se marca «No se dio».');
   }
-  /* La repetida no se quita: se junta. Su fila sigue en la hoja y la siguiente bajada la
-     volvería a importar; juntarla es lo que la ata a la venta de aquí para siempre. */
   const aviso = avisoDeHoja(p);
+  let real = null;
   if (aviso === 'repetida') {
-    return mal('DATO_INVALIDO', 'Esta tarjeta repite una venta de este teléfono: se junta con ella, no se quita. Quitada, su fila la volvería a traer en la próxima bajada.');
-  }
-  if (!aviso) {
+    const no = soloDireccion(); if (no) return no;
+    real = p.duplicado_de.id ? await DB.obtener('proyectos', p.duplicado_de.id) : null;
+    if (!real) {
+      return mal('NO_ENCONTRADO', 'No se sabe de cuál venta de este teléfono es copia: ' +
+        (p.duplicado_de.por && p.duplicado_de.por[0] ? p.duplicado_de.por[0] : 'el proyecto de aquí ya no está') + '.');
+    }
+  } else if (aviso === 'perdida' || aviso === 'fuera') {
+    const fila = p.folio_hoja ? await DB.obtener('ventas_hoja', 'hoja:' + p.folio_hoja) : null;
+    if (fila) {
+      return mal('DATO_INVALIDO', 'Su fila ' + p.folio_hoja + ' está otra vez en la hoja: quitarla del tablero la volvería a traer en la próxima bajada.');
+    }
+  } else {
     return mal('DATO_INVALIDO', 'Su venta sigue en la hoja: quitarla del tablero la volvería a traer en la próxima bajada.');
   }
   const [insts, movs, reqs] = await Promise.all([porProyecto('instalaciones', id), porProyecto('movimientos', id),
@@ -1670,22 +1804,71 @@ export async function quitarDelTablero(id) {
   if (reqs.length) cuelga.push('material calculado');
   if (cuelga.length) {
     return mal('EN_USO', 'No se quitó: tiene ' + cuelga.join(', ') + ' a su nombre, y quitarla los dejaría sin proyecto. ' +
-      'Si es la misma venta que otra de este teléfono, júntalas; si no, déjala.');
+      (!real ? 'Si es la misma venta que otra de este teléfono, júntalas; si no, déjala.'
+        /* Una lápida no recibe obras (IMPIDEN_JUNTAR): con una instalación a nombre de la copia,
+           la obra sigue viva y el «No se dio» de aquí está en duda. Eso no se resuelve borrando. */
+        : real.etapa === 'cancelado'
+          ? '«' + (real.nombre || real.folio_local) + '» está como «No se dio» y no recibe obras: si esta obra sigue viva, revisa cuál de las dos dice la verdad antes de quitar nada.'
+          : 'Júntala con «' + (real.nombre || real.folio_local) + '», que se los lleva.'));
   }
+  if (real) await confirmarFila(real, p.folio_hoja);
   await descartarOps(id, ['rechazada', 'pendiente']);
   const r = await DB.borrar('proyectos', id);
   if (!r.ok) return r;
   await anotar({ accion: 'quito', entidad_id: id,
     titulo: (p.nombre || p.folio_local) + ' se quitó del tablero',
-    detalle: 'Tarjeta importada de ' + (p.folio_hoja || 'la hoja') + ' · su fila ya no estaba en la hoja' });
+    detalle: 'Tarjeta importada de ' + (p.folio_hoja || 'la hoja') +
+      (real ? ' · era copia de ' + (real.nombre || real.folio_local) : ' · su fila ya no estaba en la hoja') });
   return ok({ id });
 }
 
 /**
- * «Juntar con …». La copia repetida que no se juntó sola porque algo se perdería: Dirección ya
- * vio qué y dijo que sí. Las notas, el pin y el plazo de la copia pasan al proyecto; la etapa
- * NO, porque moverla descuenta material del almacén (`avanzarEtapa`) y eso se hace a mano. Lo
- * que ni así se junta está en IMPIDEN_JUNTAR.
+ * «No es la misma venta». La copia repetida cuya fila solo coincide con la de aquí en el folio
+ * de la hoja (`mismaVentaQueLaFila` 'debil'): Dirección dice que son dos ventas —el folio se
+ * repartió dos veces— y la copia se queda como la tarjeta de SU venta, sin marca. Se anota a
+ * quién NO repite (`distinta_de`) para que la siguiente bajada no la vuelva a preguntar. Con
+ * una identidad fuerte no se ofrece: si la fila trae el folio de cotización o el nombre de la de
+ * aquí, la bajada ya le echa su dinero a la de aquí, y decir que es otra no lo cambiaría.
+ *
+ * Y la de aquí se queda sin fila: la fila a la que apunta es de otra venta. Se marca como la
+ * que la hoja contesta «ya es de otra venta», con sus dos salidas en la ficha, y el relevo deja
+ * de mandarle cambios a esa fila (ver `subir` en puente.js). La hoja no lo sabe —la fila no trae
+ * folio de cotización con qué comparar— y los escribiría en la venta de otro.
+ * @returns {Promise<Resultado>} valor = la copia
+ */
+export async function noEsLaMisma(id) {
+  const no = soloDireccion(); if (no) return no;
+  const copia = await DB.obtener('proyectos', id);
+  if (!copia) return mal('NO_ENCONTRADO', 'Ese proyecto ya no está en este dispositivo.');
+  const d = copia.duplicado_de && typeof copia.duplicado_de === 'object' ? copia.duplicado_de : null;
+  if (!esImportado(copia) || !d || !d.id) return mal('DATO_INVALIDO', 'Esta tarjeta no está marcada como copia de otra.');
+  if (!(Array.isArray(d.claves) && d.claves.includes('identidad'))) {
+    return mal('DATO_INVALIDO', 'Su fila trae el folio de cotización o el nombre de «' + (d.nombre || 'la de aquí') + '»: es la misma venta. Júntalas, o quita esta copia.');
+  }
+  const distinta = [...new Set([...(Array.isArray(copia.distinta_de) ? copia.distinta_de : []), d.id])];
+  const r = await parcharMarca(copia.id, { duplicado_de: null, distinta_de: distinta });
+  if (!r) return mal('DESCONOCIDO', 'No se pudo guardar la decisión en este teléfono.');
+  const real = await DB.obtener('proyectos', d.id);
+  const fh = String(copia.folio_hoja || '').trim();
+  if (real && fh && String(real.notion_page_id || '') === fh && !real.fuera_de_hoja) {
+    await parcharMarca(real.id, { hoja_perdida: marcaPerdida(real.hoja_perdida, 'de_otra', fh,
+      'Dirección dijo en este teléfono que la fila ' + fh + ' de la hoja ya es de otra venta («' +
+      (copia.nombre || copia.folio_local || fh) + '»).', Date.now()) });
+  }
+  await anotar({ accion: 'no_es_la_misma', entidad_id: copia.id,
+    titulo: (copia.nombre || copia.folio_local) + ' no es la misma venta que ' + (d.nombre || d.id),
+    detalle: 'Las dos traían el folio de hoja ' + (copia.folio_hoja || '') + ' · se quedan como dos ventas' });
+  return ok(r);
+}
+
+/**
+ * «Juntar con …». La copia repetida que no se juntó sola porque algo se perdería, o porque no
+ * era seguro que fuera la misma venta: Dirección ya vio el porqué y dijo que sí. Las notas de la
+ * copia se suman a las del proyecto; su pin y su plazo pasan solo si el proyecto no tiene los
+ * suyos —si los tiene, se quedan los de aquí, y `loQueSePerderia` ya lo dijo así en la ficha—.
+ * La etapa NO, porque moverla descuenta material del almacén (`avanzarEtapa`) y eso se hace a
+ * mano. Y la fila queda confirmada como del proyecto (`confirmarFila`): desde la siguiente
+ * bajada su dinero le cae a él. Lo que ni así se junta está en IMPIDEN_JUNTAR.
  * @returns {Promise<Resultado>} valor = {instalaciones, movimientos}
  */
 export async function juntarConLaDeAqui(id) {

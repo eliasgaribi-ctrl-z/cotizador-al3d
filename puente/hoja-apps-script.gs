@@ -2306,11 +2306,15 @@ function unaOperacion(h, op, rol, anotaciones) {
          · sin `id_notion`, solo si lo que se va a escribir trae el nombre del proyecto. */
     if (op.id_notion) {
       recordarFolio(h, String(op.id_notion));
-      return { id: op.id, ok: false, codigo: 'NO_ENCONTRADO',
+      /* `motivo` es para la máquina: el teléfono marca el proyecto y le enseña a Dirección las
+         dos salidas (volver a darla de alta o dejarla fuera). La frase se queda para las
+         personas y para el teléfono que todavía la lee. El consejo de antes —«vuelve a
+         registrarla desde el cotizador»— llevaba a DUPLICADO: esa cotización ya es proyecto. */
+      return { id: op.id, ok: false, codigo: 'NO_ENCONTRADO', motivo: deOtra ? 'de_otra' : 'borrada',
                mensaje: (deOtra
                  ? 'La fila ' + op.id_notion + ' de la hoja ya es de otra venta (atada a ' + deOtra + ', y este cambio es de ' + fc + '). '
                  : 'La venta ' + op.id_notion + ' ya no está en la hoja: alguien borró su fila. ') +
-                 'Este cambio no se escribió en ninguna otra. Si la venta sigue viva, vuelve a registrarla desde el cotizador.',
+                 'Este cambio no se escribió en ninguna otra. Si la venta sigue viva, Dirección la vuelve a dar de alta desde la ficha del proyecto en la plataforma.',
                rechazadas: armado.rechazadas };
     }
     /* Una cotización que «no se dio» no es una venta: su alta metía en el libro un

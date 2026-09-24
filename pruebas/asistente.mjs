@@ -12,7 +12,7 @@ import { readFileSync } from 'fs';
 import { comisionDe, resumirProyecto, armarResumen, promptSistema, mdLite, llavesDe, cadenaIA,
          detectarIntencion, responderLocal, respuestaLocal, resumenDelDia, INTENCIONES, sugerirIntenciones }
   from '../js/datos/asistente-contexto.js';
-import { unificar } from '../js/datos/ventas.js';
+import { unificar, indicadores } from '../js/datos/ventas.js';
 
 let bien = 0, mal = 0;
 const eq = (que, dio, esperado) => {
@@ -139,6 +139,79 @@ const llamada = (/return armarResumen\(\{([\s\S]*?)\}\);/.exec(fuenteAsis) || [,
 ok('leerTaller le pasa a armarResumen la lista unificada, solo si el rol ve dinero',
    /const ventas = veDinero \? Ventas\.unificar\(proyectos, hoja\)\.ventas/.test(fuenteAsis) && /\bventas: veDinero \? ventas : null\b/.test(llamada));
 ok('y el mensaje de sistema avisa que la lista de comisiones es la de la hoja entera', promptSistema(RU).includes('puede traer ventas que no están en `proyectos`'));
+ok('y el kpi que viaja sale de esa misma lista', /const kpi = veDinero \? Ventas\.indicadores\(ventas,/.test(fuenteAsis));
+
+console.log('\nEL IMPORTADO CUYA FILA SE BORRÓ EN LA HOJA: sin dinero en su renglón');
+/* `unificar` no cuenta la tarjeta importada cuya fila ya no está (y Control no la pinta), así
+   que tampoco está en la lista de comisiones. Su renglón leía el dinero del proyecto crudo y
+   decía «comisión abonable 500» junto a «ninguna comisión abonable»: dos cifras en el mismo
+   DATOS. */
+const imp = { id: 'proy-hoja-V-214', folio_local: 'V-214', folio_global: '', folio_hoja: 'V-214', de_hoja: true,
+  nombre: 'Taquería Ruiz - Letras', etapa: 'armado', fecha_ganado: '2026-09-01', sub: 5000, neto: 5800, precio_auth: 5800,
+  anti_pactado: 2900, iva: true, estatus_notion: 'LIQUIDADO', cuenta: 'BBVA', pago_pendiente: 0, comision_restante: 500, tipo_trabajo: [] };
+const filaOtra = [{ id: 'hoja:V-300', folio_hoja: 'V-300', folio_cotizacion: '', nombre: 'Otra - Caja', estatus: 'COBRANDO',
+  fecha_anticipo: '2026-09-10', sub: 1000, neto: 1160, anticipo: 500, pago_pendiente: 660, comisiones: 100, comision_restante: 100, iva: true }];
+const uImp = unificar([imp], filaOtra);
+ok('(la premisa) el récord no cuenta al importado sin fila', !uImp.ventas.some(v => v.id === imp.id));
+const RImp = armarResumen({ hoy: '2026-09-24', rol: 'Dirección', veDinero: true, proyectos: [imp], ventas: uImp.ventas });
+const pImp = RImp.proyectos.find(x => x.folio === 'V-214') || {};
+ok('su tarjeta sigue en la lista del taller, pero sin un solo importe',
+   RImp.proyectos.length === 1 && ['vendido', 'anticipo', 'saldo_estimado', 'cuenta', 'estatus_notion', 'comision', 'comision_abonable_ya', 'comision_restante'].every(k => !(k in pImp)));
+ok('y con la seña de que el récord no la cuenta', pImp.fuera_del_record === true);
+eq('el renglón y la lista de comisiones dicen lo mismo: de V-214 no hay nada que abonar',
+   [RImp.comisiones.total_abonable_ya, RImp.comisiones.abonables_ya.map(x => x.folio), RImp.comisiones.pendientes_de_liquidar.map(x => x.folio)], [0, [], ['V-300']]);
+ok('y la respuesta local no la nombra, ni en comisiones ni en la cartera',
+   !responderLocal('comisiones', RImp).includes('V-214') && !responderLocal('cobranza', RImp).includes('V-214'));
+ok('el mensaje de sistema dice qué quiere decir la seña', promptSistema(RImp).includes('Un proyecto con `fuera_del_record` no cuenta como venta'));
+eq('sin récord, el mismo proyecto trae su dinero como siempre',
+   (x => [x.comision_abonable_ya, 'fuera_del_record' in x])(armarResumen({ hoy: '2026-09-24', rol: 'Dirección', veDinero: true, proyectos: [imp] }).proyectos[0]), [500, false]);
+ok('y a fabricación no le llega ni la seña', !('fuera_del_record' in armarResumen({ hoy: '2026-09-24', rol: 'Fabricación', veDinero: false, proyectos: [imp], ventas: uImp.ventas }).proyectos[0]));
+
+console.log('\nLA CARTERA, del récord unificado: la portada, «¿quién nos debe?» y el kpi dicen lo mismo');
+/* La V-160 se capturó en otro teléfono: solo está en la hoja. El kpi —`indicadores` sobre la
+   lista unificada, igual que Control— la contaba y la portada y la respuesta no: 13,340 contra
+   10,440 en la misma pantalla. */
+/* Sin `cobranza` en el resumen cada caso falla por su cuenta, en vez de tronar la prueba entera. */
+const cart = r => (r && r.cobranza) || { saldos: [] };
+const filasCobro = filasHoja.concat([{ id: 'hoja:V-160', folio_hoja: 'V-160', folio_cotizacion: '', nombre: 'Dental Sur - Letras', estatus: 'COBRANDO',
+  fecha_anticipo: '2026-09-12', sub: 5000, neto: 5800, anticipo: 2900, pago_pendiente: 2900, comisiones: 500, comision_restante: 500, iva: true }]);
+const VC = unificar([pLocal], filasCobro).ventas;
+const RCo = armarResumen({ hoy: '2026-09-24', rol: 'Dirección', veDinero: true, proyectos: [pLocal], ventas: VC,
+  kpi: indicadores(VC, [], { hoy: '2026-09-24' }) });
+eq('la cartera es la del récord: entra la venta que solo está en la hoja, lo instalado primero',
+   [cart(RCo).total_por_cobrar, cart(RCo).saldos.map(x => [x.folio, x.saldo])], [13340, [['COT-0031', 10440], ['V-160', 2900]]]);
+eq('y cuadra con el kpi, que es el de Control', [cart(RCo).total_por_cobrar, cart(RCo).ventas_con_saldo],
+   [RCo.ventas.por_cobrar_estimado.total, RCo.ventas.por_cobrar_estimado.proyectos]);
+const RCoTx = responderLocal('cobranza', RCo);
+ok('«¿quién nos debe?» da el total del récord y nombra la venta de la hoja',
+   RCoTx.includes('Por cobrar: $13,340.00** en 2 proyectos, 1 ya instalado ($10,440.00)') && RCoTx.includes('- V-160 · Dental Sur - Letras · **$2,900.00** · COBRANDO'));
+ok('y dice que los saldos son los de la hoja, no «estimados»', RCoTx.includes('Los saldos son los que calcula la hoja.') && !RCoTx.includes('estimado'));
+eq('la portada dice lo mismo', [resumenDelDia(RCo).porCobrar, resumenDelDia(RCo).conSaldo], [13340, 2]);
+ok('y el resumen de hoy también', responderLocal('hoy', RCo).includes('Por cobrar: **$13,340.00** en 2 proyectos'));
+eq('los botones abren solo el proyecto de este teléfono', respuestaLocal('cobranza', RCo).acciones.map(a => a.tipo + ':' + (a.ruta || a.id)), ['pasar:control', 'proyecto:p1']);
+ok('la venta de la hoja va sin id y la del proyecto con el suyo', (cart(RCo).saldos[0] || {}).id === 'p1' && (cart(RCo).saldos[1] || {}).id === '');
+const datosCo = JSON.parse(promptSistema(RCo).split('DATOS (JSON):\n')[1]);
+ok('al modelo le llega la cartera entera, sin ids', cart(datosCo).total_por_cobrar === 13340 &&
+   cart(datosCo).saldos.map(x => x.folio).join() === 'COT-0031,V-160' && cart(datosCo).saldos.every(x => !('id' in x)));
+ok('y la regla que le dice que es la del récord entero', promptSistema(RCo).includes('La lista `cobranza` es la cartera del récord entero'));
+const RCoF = armarResumen({ hoy: '2026-09-24', rol: 'Fabricación', veDinero: false, proyectos: [pLocal], ventas: VC });
+ok('a fabricación no le llega la cartera aunque se la pasen', !('cobranza' in RCoF) && !/Dental|V-160|2900|13340|10440/.test(JSON.stringify(RCoF)));
+eq('y su portada no tiene a quién cobrar', [resumenDelDia(RCoF).porCobrar, resumenDelDia(RCoF).conSaldo], [0, 0]);
+/* Sin récord la cartera sale de los proyectos de aquí, como antes; y el pie dice de dónde es
+   cada saldo: uno de la hoja y otro estimado es «parte y parte». */
+eq('sin récord, la cartera es la de los proyectos de aquí', [cart(R).total_por_cobrar, cart(R).saldos.map(x => x.folio)], [5800, ['COT-0031']]);
+const RMix = armarResumen({ hoy: '2026-09-24', rol: 'Dirección', veDinero: true,
+  proyectos: [pLocal, proy({ id: 'p9', folio_local: 'COT-0040', folio_global: 'COT-0040@AAAA', etapa: 'armado' })] });
+ok('con saldos de la hoja y estimados, el pie dice las dos cosas',
+   responderLocal('cobranza', RMix).includes('El saldo es el que calcula la hoja cuando la venta está allá; si no, el total menos el anticipo pactado'));
+/* Un récord de años puede traer muchas ventas con saldo: la lista que viaja lleva tope, pero el
+   total, la cuenta y la respuesta son de la cartera entera. */
+const muchas = Array.from({ length: 45 }, (_, i) => ({ id: 'hoja:V-' + (400 + i), folio_hoja: 'V-' + (400 + i), folio_cotizacion: '',
+  nombre: 'Cliente ' + i + ' - Letras', estatus: 'COBRANDO', fecha_anticipo: '2026-06-01', sub: 1000, neto: 1160, anticipo: 160, pago_pendiente: 1000, iva: true }));
+const RMu = armarResumen({ hoy: '2026-09-24', rol: 'Dirección', veDinero: true, proyectos: [], ventas: unificar([], muchas).ventas });
+eq('con un récord largo la lista lleva tope; el total y la cuenta, no',
+   [cart(RMu).saldos.length, cart(RMu).fuera_de_la_lista, cart(RMu).ventas_con_saldo, cart(RMu).total_por_cobrar], [40, 5, 45, 45000]);
+ok('y la respuesta cuenta las que no enumera', responderLocal('cobranza', RMu).includes('Por cobrar: $45,000.00** en 45 proyectos') && responderLocal('cobranza', RMu).includes('- … y 35 más'));
 
 console.log('\nLAS RESPUESTAS LOCALES: las siete de siempre, sin IA');
 const RC = responderLocal('comisiones', R);

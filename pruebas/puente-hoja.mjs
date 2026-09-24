@@ -539,6 +539,12 @@ console.log('\nNINGUNA FILA SIN NOMBRE Y NINGÚN FOLIO REPETIDO (defecto 3)');
     datos: { 'Folio cotizacion': 'COT-0002@K7QM', 'Etapa de obra': 'Cortado', 'Direccion': 'Calle 1' } }], 'direccion');
   eq('un cambio contra una venta borrada vuelve NO_ENCONTRADO', r.resultados[0].codigo, 'NO_ENCONTRADO');
   cierto('y lo dice con el folio', /La venta V-002 ya no está en la hoja/.test(r.resultados[0].mensaje));
+  /* El teléfono marca el proyecto con `motivo`, no con la frase: la frase la puede reescribir
+     cualquiera. Y el consejo lleva a la ficha: registrarla otra vez desde el cotizador contesta
+     DUPLICADO, porque esa cotización ya es proyecto. */
+  eq('y trae el motivo para la máquina: la fila se borró', r.resultados[0].motivo, 'borrada');
+  cierto('y el consejo ya no manda al cotizador, sino a la ficha del proyecto',
+    !/registrarla desde el cotizador/.test(r.resultados[0].mensaje) && /ficha del proyecto/.test(r.resultados[0].mensaje));
   eq('y NO crea ninguna fila', H.v._g[3].slice(1, 31).filter(x => x !== '').length, 0);
 
   /* PAGOS registra una venta desde el cotizador: no puede escribir el nombre. */
@@ -570,6 +576,7 @@ console.log('\nNINGUNA FILA SIN NOMBRE Y NINGÚN FOLIO REPETIDO (defecto 3)');
   H.props.PUENTE_Y_AD_ALINEADAS = '2026-09-24';
   const f = H.empujar(op5, 'fabricacion');
   eq('si la fila con ese folio está atada a OTRA cotización, no se escribe ahí', f.resultados[0].codigo, 'NO_ENCONTRADO');
+  eq('y su motivo dice que la fila es de otra venta, no que se borró', f.resultados[0].motivo, 'de_otra');
   eq('y la venta de esa fila queda intacta', [H.celda('V-009', 'Direccion'), H.celda('V-009', 'Etapa de obra')], ['', '']);
 
   /* Una fila libre con restos de otra venta: se prefiere una vacía, y la que se usa se limpia. */

@@ -169,7 +169,7 @@ ok_('resincronizar encola con esos campos',
    decir qué se perdió: estas son las que lo dicen. El camino con base de datos (el relevo, la
    bandeja y la revisión al bajar) está en pruebas/puente.mjs. */
 console.log('\nLA VENTA Y LA HOJA NO CUADRAN: QUÉ SE MARCA Y QUÉ SE JUNTA');
-const { avisoDeHoja, marcaPerdida, huerfanasDeLaHoja, repetidasDeLaHoja, loQueSePerderia } =
+const { avisoDeHoja, marcaPerdida, huerfanasDeLaHoja, repetidasDeLaHoja, loQueSePerderia, mismaVentaQueLaFila } =
   await import('../js/datos/proyectos.js');
 const imp = (fh, o = {}) => ({ id: 'proy-hoja-' + fh, de_hoja: true, folio_hoja: fh, notion_page_id: fh, folio_global: '',
   etapa: 'ganado', nombre: 'Copia ' + fh, lat: null, lng: null, notas: '', plazo_k: null, ...o });
@@ -196,6 +196,24 @@ eq('la copia es la misma venta por el folio de cotización de la fila, por su fo
 ok_('una fila atada a OTRA cotización no es la misma venta aunque el folio de hoja coincida',
    !rep.some(x => x.copia.id === 'proy-hoja-V-340'));
 ok_('y sin la fila en el espejo no se decide nada', !rep.some(x => x.copia.id === 'proy-hoja-V-350'));
+/* Qué tan seguro es que sea la misma venta. Solo el folio de la hoja NO basta: es justo el que
+   se repartió dos veces, y la fila puede ser de otra venta dada de alta a mano, sin folio de
+   cotización. Esa identidad no se junta sola ni le echa su dinero a la de aquí. */
+eq('la identidad de cada una: por el folio de cotización, y solo por el folio de la hoja (celda vacía o huella)',
+   rep.map(x => x.identidad), ['folio', 'debil', 'debil']);
+const ana = propio('COT-0510@A', 'V-510', { nombre: 'Ana - Café (Letras)' });
+eq('con la celda vacía: su mismo nombre (sin acentos ni mayúsculas) sí la ata; otro nombre no',
+   [mismaVentaQueLaFila(ana, { folio_hoja: 'V-510', folio_cotizacion: '', nombre: 'ana - cafe  (letras)' }),
+    mismaVentaQueLaFila(ana, { folio_hoja: 'V-510', folio_cotizacion: 'V-510', nombre: 'Ana - Café (Letras)' }),
+    mismaVentaQueLaFila(ana, { folio_hoja: 'V-510', folio_cotizacion: '', nombre: 'Luis - Taller' })],
+   ['nombre', 'nombre', 'debil']);
+eq('lo que Dirección ya confirmó ata aunque el nombre no cuadre; otra cotización o otra fila, nunca',
+   [mismaVentaQueLaFila({ ...ana, hoja_confirmada: 'V-510' }, { folio_hoja: 'V-510', folio_cotizacion: '', nombre: 'Luis' }),
+    mismaVentaQueLaFila(ana, { folio_hoja: 'V-510', folio_cotizacion: 'COT-9999@B', nombre: 'Ana - Café (Letras)' }),
+    mismaVentaQueLaFila(ana, { folio_hoja: 'V-511', folio_cotizacion: '', nombre: 'Ana - Café (Letras)' })],
+   ['confirmada', '', '']);
+eq('lo que Dirección dijo que NO es la misma no se vuelve a preguntar',
+   repetidasDeLaHoja([propio('COT-0320@A', 'V-320'), imp('V-320', { distinta_de: ['proy-COT-0320@A'] })], ventasHoja), []);
 eq('dos proyectos de aquí con la misma venta: no se adivina con cuál juntarla',
    repetidasDeLaHoja([propio('COT-0310@A', 'V-310'), propio('COT-0311@A', 'V-310'), imp('V-310')],
                      [{ folio_hoja: 'V-310', folio_cotizacion: '' }]).map(x => [x.real, x.candidatos.length]), [[null, 2]]);
@@ -215,6 +233,14 @@ eq('dos instalaciones vivas, material de la copia, o la de aquí como «No se di
    [['instalaciones'], ['material'], ['cancelada']]);
 eq('una instalación cancelada de la de aquí no estorba', claves(imp('V-1'), propio('C', 'V-1'),
    { instCopia: [{ estado: 'confirmada' }], instReal: [{ estado: 'cancelada' }] }), []);
+eq('sin nada que perder, pero con la identidad por confirmar: no se junta sola',
+   claves(imp('V-1'), propio('C', 'V-1'), { identidad: 'debil' }), ['identidad']);
+/* El texto lo lee la confirmación de «Juntar»: no puede prometer que el pin y el plazo de la copia
+   pasan cuando la de aquí ya tiene los suyos, porque `juntar` deja los de aquí. */
+const textos = loQueSePerderia(imp('V-1', { lat: 20.71, lng: -103.41, plazo_k: 2 }),
+  propio('C', 'V-1', { lat: 20.6, lng: -103.3, plazo_k: 5 }), {}).map(x => x.texto).join(' | ');
+ok_('con dos pines y dos plazos, dice que se quedan los de aquí y los de la copia se pierden: ' + textos,
+   /otra ubicación.*se queda la de este teléfono.*se pierde/.test(textos) && /otro plazo.*se queda el de este teléfono.*se pierde/.test(textos));
 
 const m1 = marcaPerdida(null, 'borrada', 'V-404', 'La venta V-404 ya no está en la hoja', 1000);
 eq('la marca dice por qué, qué fila y desde cuándo', [m1.motivo, m1.folio, m1.desde], ['borrada', 'V-404', 1000]);

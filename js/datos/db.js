@@ -186,9 +186,24 @@ function confirmada(transaccion) {
   });
 }
 
+/* Y hay una tercera manera de fallar, que no pasa por ningún evento: la petición LANZA en el
+   acto, al pedirla. Una clave que no es clave —null, un objeto, NaN, un booleano— hace lanzar
+   DataError al `get`, al `put` o al `delete` mismos, y lo que no se puede clonar, DataCloneError
+   al `put`. Dentro de una función async eso rechaza la promesa, y las dos reglas de la cabecera
+   se caen juntas: la mutación lanza, y la transacción sigue viva con lo que ya se había pedido,
+   que se confirma sola. Pasó restaurando: un respaldo con `"id": null` detrás de un proyecto
+   bueno dejaba el bueno escrito, la pantalla sin aviso y el campo de archivo sin vaciar. Por eso
+   toda petición que lleva un dato de fuera se pide dentro de un try, y si lanza se aborta a mano:
+   es lo único que deshace lo que la misma transacción ya llevaba. */
+const abortar = t => { try { t.abort(); } catch (_) { /* ya había terminado: nada que deshacer */ } };
+
 const esCuota = err => !!err && (err.name === 'QuotaExceededError' || err.code === 22);
+/* Lo que la base rechaza por su FORMA no es una falla del aparato: el mensaje en inglés del
+   navegador («…is not a valid key») no le dice nada a nadie en el taller. */
+const esForma = err => !!err && (err.name === 'DataError' || err.name === 'DataCloneError');
 const traducir = err => esCuota(err)
   ? mal('SIN_ESPACIO', MSG.SIN_ESPACIO)
+  : esForma(err) ? mal('DATO_INVALIDO', MSG.DATO_INVALIDO)
   : mal('DESCONOCIDO', (err && err.message) ? 'No se pudo guardar: ' + err.message : MSG.DESCONOCIDO);
 
 /**
@@ -206,12 +221,17 @@ export async function poner(almacen, registro) {
   if (!t) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
   const fin = confirmada(t);   // ver `confirmada`: el ok es el de la transacción, no el del put
   const st = t.objectStore(almacen);
-  const previo = await pedir(st.get(registro[clave]), t);
+  /* Un id que llega pero no es clave (un objeto, NaN) lanza aquí, en el `get`; y lo que no se
+     clona, en el `put`. Ver `abortar`. */
+  let pet;
+  try { pet = st.get(registro[clave]); } catch (e) { abortar(t); return traducir(e); }
+  const previo = await pedir(pet, t);
   const ahora = Date.now();
   const sellado = { ...registro, actualizado_en: ahora };
   if (!(previo.ok && previo.valor)) sellado.creado_en = registro.creado_en || ahora;
   else sellado.creado_en = previo.valor.creado_en || registro.creado_en || ahora;
-  const r = await pedir(st.put(sellado), t);
+  try { pet = st.put(sellado); } catch (e) { abortar(t); return traducir(e); }
+  const r = await pedir(pet, t);
   if (!r.ok) return traducir(r.err);
   const f = await fin;
   return f.ok ? ok(sellado) : traducir(f.err);
@@ -231,6 +251,7 @@ export async function ponerVarios(almacen, registros, opts = {}) {
   if (!_db) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
   if (!Array.isArray(registros)) return mal('DATO_INVALIDO', MSG.DATO_INVALIDO);
   if (!registros.length) return ok(0);
+  if (registros.some(r => !r || typeof r !== 'object')) return mal('DATO_INVALIDO', MSG.DATO_INVALIDO);
   const t = tx([almacen], 'readwrite');
   if (!t) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
   const st = t.objectStore(almacen);
@@ -238,17 +259,23 @@ export async function ponerVarios(almacen, registros, opts = {}) {
   const conservar = !!(opts && opts.conservarSello);
   return new Promise(resolve => {
     let err = null;
+    /* El «todo o nada» lo cumple el ABORTO, y hay que pedirlo. El `preventDefault` del onerror
+       le quita a la base su aborto automático: sin el `abort()` de aquí, un put que contestaba
+       error dejaba confirmar a los demás. Y un put que LANZA (ver `abortar`) no llega a ningún
+       onerror. Los oyentes van ANTES del bucle porque el bucle se puede cortar a la mitad. */
+    const tirar = e => { if (!err) err = e; abortar(t); };
+    t.oncomplete = () => resolve(err ? traducir(err) : ok(registros.length));
+    t.onabort = () => resolve(traducir(err || t.error));
+    t.onerror = ev => { ev.preventDefault(); };
     for (const reg of registros) {
       /* Sin sello en el archivo —un respaldo de antes de que existiera— se sella hoy, como
          siempre: no hay otra fecha que poner. */
       const sello = conservar && Number(reg.actualizado_en) > 0 ? Number(reg.actualizado_en) : ahora;
       const sellado = { ...reg, actualizado_en: sello, creado_en: reg.creado_en || ahora };
-      const p = st.put(sellado);
-      p.onerror = ev => { ev.preventDefault(); if (!err) err = p.error; };
+      let p;
+      try { p = st.put(sellado); } catch (e) { tirar(e); return; }
+      p.onerror = ev => { ev.preventDefault(); tirar(p.error); };
     }
-    t.oncomplete = () => resolve(err ? traducir(err) : ok(registros.length));
-    t.onabort = () => resolve(traducir(err || t.error));
-    t.onerror = ev => { ev.preventDefault(); };
   });
 }
 
@@ -256,7 +283,11 @@ export async function ponerVarios(almacen, registros, opts = {}) {
 export async function obtener(almacen, id) {
   if (!_db || id === undefined || id === null) return null;
   const t = tx([almacen], 'readonly'); if (!t) return null;
-  const r = await pedir(t.objectStore(almacen).get(id), t);
+  /* Un id que no es clave —un objeto, NaN— lanza en el `get` mismo (ver `abortar`). Con esa
+     clave no puede haber nada guardado, así que null es la verdad, no un disimulo. */
+  let pet;
+  try { pet = t.objectStore(almacen).get(id); } catch (_) { return null; }
+  const r = await pedir(pet, t);
   return r.ok && r.valor ? r.valor : null;
 }
 
@@ -310,7 +341,10 @@ export async function borrar(almacen, id) {
   if (!_db) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
   const t = tx([almacen], 'readwrite'); if (!t) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
   const fin = confirmada(t);
-  const r = await pedir(t.objectStore(almacen).delete(id), t);
+  /* Un id null o de objeto lanza en el `delete` mismo (ver `abortar`). */
+  let pet;
+  try { pet = t.objectStore(almacen).delete(id); } catch (e) { abortar(t); return traducir(e); }
+  const r = await pedir(pet, t);
   if (!r.ok) return traducir(r.err);
   const f = await fin;
   return f.ok ? ok(true) : traducir(f.err);
@@ -430,6 +464,17 @@ export async function importar(texto) {
   for (const [a, filas] of Object.entries(paquete.datos)) {
     if (!ALMACENES.includes(a)) continue;
     if (!Array.isArray(filas)) return mal('DATO_INVALIDO', 'El respaldo está dañado: «' + a + '» no es una lista.');
+    /* Y las claves, aquí y no al escribir. Cada almacén entra en su propia transacción, así
+       que el «todo o nada» de `ponerVarios` solo cubre el suyo: un id que no sirve en
+       «materiales» se descubría con «proyectos» ya escrito, y el respaldo quedaba entrado a
+       medias. Un registro SIN id sigue como siempre (se descarta y se cuenta); uno con un id
+       que la base no acepta es un archivo dañado, y adivinar cuál era su id no nos toca. */
+    const clave = ESQUEMA[a].keyPath;
+    const mala = filas.findIndex(f => f && typeof f === 'object' && f[clave] !== undefined && !esClave(f[clave]));
+    if (mala >= 0) {
+      return mal('DATO_INVALIDO', 'El respaldo está dañado: el registro ' + (mala + 1) + ' de «' + a +
+        '» trae un identificador que no sirve. No se restauró nada.');
+    }
   }
   let almacenes = 0, registros = 0, descartados = 0, conservados = 0;
   for (const a of ALMACENES) {
@@ -453,6 +498,15 @@ export async function importar(texto) {
     almacenes++; registros += nuevas.length;
   }
   return ok({ almacenes, registros, descartados, conservados });
+}
+
+/* Si la base aceptaría eso como clave. Se le pregunta a ella misma: `cmp` lanza DataError con
+   lo mismo que haría lanzar al `put`, y una lista propia de lo que vale acabaría distinta de la
+   del navegador. Sin IndexedDB no hay a quién preguntar y se deja pasar: sin base, lo de
+   después ya contesta que no. */
+function esClave(k) {
+  try { indexedDB.cmp(k, k); return true; }
+  catch (e) { return !(e && e.name === 'DataError'); }
 }
 
 /* El de la base es más nuevo que el del archivo solo si LOS DOS traen sello de edición y el de

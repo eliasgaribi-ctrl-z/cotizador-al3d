@@ -49,7 +49,7 @@
 
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
-import { desdeVentaDeHoja, marcarPerdidaEnLaHoja, revisarContraLaHoja } from './proyectos.js';
+import { desdeVentaDeHoja, marcarPerdidaEnLaHoja, revisarContraLaHoja, mismaVentaQueLaFila } from './proyectos.js';
 import * as Ingreso from '../nucleo/ingreso.js';
 
 /* ============================================================================
@@ -808,6 +808,19 @@ export function crear(cfg0) {
           salida.push({ id: op.id, ok: true, remoto: null, rechazadas: [], omitida: true });
           continue;
         }
+        /* La fila a la que apunta ya es de OTRA venta, y este teléfono ya lo sabe: la hoja lo
+           contestó, o Dirección lo dijo en la ficha al separar la copia repetida («No es la misma
+           venta», ver `proyectos.noEsLaMisma`). En el segundo caso la hoja NO lo sabe —la fila no
+           trae folio de cotización con qué comparar— y el cambio se escribiría en la venta de
+           otro. No se manda: se aparta como el rebote que habría sido, y la ficha enseña las dos
+           salidas. Si la fila vuelve a ser de esta venta, la bajada quita la marca (ver `bajar`). */
+        const hp = proy.hoja_perdida;
+        if (idNotion && hp && typeof hp === 'object' && hp.motivo === 'de_otra' && hp.folio === idNotion) {
+          salida.push({ id: op.id, ok: false, codigo: 'NO_ENCONTRADO', definitivo: true, motivo: 'de_otra',
+            mensaje: mensajePerdida('La fila ' + idNotion + ' de la hoja ya es de otra venta; este cambio no se mandó para no escribirlo en ella.'),
+            conflicto: null });
+          continue;
+        }
         /* Una cotización que «no se dio» y nunca llegó a la hoja no es una venta: su lápida
            (etapa cancelado, con el subtotal y el anticipo de la cotización) se daba de alta
            como fila nueva, y el libro contaba un anticipo que nunca se cobró y una comisión
@@ -919,7 +932,9 @@ export function crear(cfg0) {
         }
         salida.push({ id: op.id, ok: false, codigo: res.codigo || 'DESCONOCIDO',
                       definitivo: DEFINITIVOS.includes(res.codigo),
-                      ...(perdida ? { hoja_perdida: perdida } : {}),
+                      /* El porqué para la máquina: `sync` lo guarda en lo apartado
+                         (`motivo_rechazo`) y `despuesDeBajar` lo vuelve a leer de ahí. */
+                      ...(perdida ? { motivo: perdida } : {}),
                       mensaje: perdida ? mensajePerdida(res.mensaje) : (res.mensaje || 'La hoja rechazó el cambio.'),
                       conflicto: res.conflicto || null });
       }
@@ -959,10 +974,16 @@ export function crear(cfg0) {
         }
         const p = propios.get(venta.folio_hoja);
         if (!p) return null;
-        /* Y solo si la fila no dice ser de OTRA cotización: un folio de hoja que se repartió dos
-           veces es otra venta, y su dinero caería encima de este proyecto. */
-        const fc = venta.folio_cotizacion;
-        return (!fc || fc === venta.folio_hoja || fc === p.folio_global) ? p : null;
+        /* Y solo si es seguro que es SU venta, con la misma regla con la que la revisión decide
+           qué copia se junta sola (`proyectos.mismaVentaQueLaFila`): la fila trae su folio de
+           cotización, o se llama igual, o Dirección ya dijo que es suya. Que solo coincida el
+           folio de la hoja no basta: es justo el folio que se repartió dos veces, y la fila puede
+           ser de otra venta dada de alta a mano. Con eso bastaba, y a este proyecto le caía el
+           saldo de la otra venta y su copia se juntaba con él. Si la regla no ata, la fila sigue
+           su camino de siempre —su copia, o importarla— y la revisión la enseña como repetida
+           para que Dirección decida. */
+        const quien = mismaVentaQueLaFila(p, venta);
+        return (quien === 'folio' || quien === 'nombre' || quien === 'confirmada') ? p : null;
       };
 
       for (const fila of filas) {
@@ -1053,8 +1074,14 @@ export function crear(cfg0) {
 
         delete aplicar.folio_global;   // la llave era para encontrarlo, no para escribirlo
         /* La fila VINO: la venta está en la hoja, y un «ya no está» de antes es viejo —alguien
-           la volvió a meter, o deshizo el borrado—. Ver `proyectos.avisoDeHoja`. */
+           la volvió a meter, o deshizo el borrado—. Ver `proyectos.avisoDeHoja`.
+           Y lo mismo la decisión de dejarla fuera (`fuera_de_hoja`): se tomó para una fila que
+           ya no existía. Si se quedaba puesta, `subir` seguía dando por despachado cada cambio
+           sin mandarlo —el bombeo lo contaba como subido— y la fila viva nunca recibía la
+           etapa; y a la tarjeta importada se le podía dar «Quitar del tablero» con su fila en
+           la hoja, y la siguiente bajada la traía de nuevo sin las notas que tenía. */
         if (local.hoja_perdida) aplicar.hoja_perdida = null;
+        if (local.fuera_de_hoja) aplicar.fuera_de_hoja = null;
         registros.push({ almacen: 'proyectos', datos: { ...aplicar, id: local.id, actualizado_en: sello } });
       }
 
@@ -1067,11 +1094,26 @@ export function crear(cfg0) {
      * `proyectos.revisarContraLaHoja` junte las copias repetidas y marque las tarjetas
      * importadas cuya fila ya no vino. Solo `completa` puede marcar: un barrido que arrancó a
      * medias no vio la primera parte, y lo que no vio no es lo que falta.
+     *
+     * `rechazadas` es lo apartado de la bandeja (`sync.rechazadas`). De ahí salen los rebotes
+     * de «ya no está en la hoja» / «ya es de otra venta» que se apartaron ANTES de que existiera
+     * la marca: lo apartado no se reintenta solo, y esas ventas —las que dieron origen a todo
+     * esto— se quedaban sin aviso y sin botones hasta que alguien volviera a tocar la obra. Qué
+     * rechazo es cuál lo sabe este archivo (`motivoPerdida`, que lee la frase de las hojas que
+     * todavía no mandan `motivo`); si la bajada lo confirma, lo decide `revisarContraLaHoja`.
      */
     async despuesDeBajar(info) {
       const ids = (info && info.vistos && Array.isArray(info.vistos.ventas_hoja)) ? info.vistos.ventas_hoja : [];
       const folios = new Set(ids.map(String).filter(x => x.startsWith('hoja:')).map(x => x.slice(5)));
-      const r = await revisarContraLaHoja({ folios, completa: !!(info && info.completa) });
+      const rebotes = [];
+      for (const o of (info && Array.isArray(info.rechazadas) ? info.rechazadas : [])) {
+        const motivo = o ? motivoPerdida({ codigo: o.codigo_rechazo, motivo: o.motivo_rechazo, mensaje: o.ultimo_error }) : '';
+        if (!motivo) continue;
+        /* El cambio de una instalación también rebota contra la fila de su proyecto. */
+        const id = o.almacen === 'instalaciones' ? (o.datos && o.datos.proyecto_id) : (o.registro_id || (o.datos && o.datos.id));
+        if (id) rebotes.push({ id: String(id), motivo, mensaje: String(o.ultimo_error || '') });
+      }
+      const r = await revisarContraLaHoja({ folios, completa: !!(info && info.completa), rebotes });
       return r && r.ok ? r.valor : null;
     },
   };

@@ -102,10 +102,13 @@ export const REGLAS = {
   /* Detrás de la cobranza y del material, delante del almacén: una venta que la hoja ya no
      tiene es dinero que el libro mayor dejó de contar, o una tarjeta que el tablero cuenta de
      más; ninguna de las dos truena mañana, y ninguna se arregla sola. */
+  /* Los tres roles la pueden ver, pero no cada aviso: el de una venta de aquí o de una tarjeta
+     repetida es solo de Dirección (decide la hoja o cuál es la venta), y el de una tarjeta
+     importada cuya fila ya no vino es de quien tenga el teléfono (ver `a15`). */
   A15: { id: 'A15_hoja', alias: 'R10_hoja', peso: 55,
          nombre: 'La venta y la hoja no cuadran',
-         roles: ['direccion'],
-         porque: 'Nada se borra solo: una venta cuya fila ya no está, o una tarjeta que repite otra, espera a que Dirección decida en su ficha.' },
+         roles: ['direccion', 'fabricacion', 'pagos'],
+         porque: 'Nada se borra solo: una venta cuya fila ya no está, o una tarjeta que repite otra, espera a que alguien decida en su ficha.' },
 };
 
 /* Los cortes, todos juntos y con su razón, porque son las cifras que alguien va a querer
@@ -690,7 +693,14 @@ function a14(E, out) {
    La acción abre la ficha y no hace nada más, a propósito: las salidas —dar de alta otra vez,
    dejarla fuera, quitarla, juntarla— cambian el libro del dinero o el tablero, y se deciden
    con la ficha enfrente, no desde un renglón. Por eso tampoco se marca atendido al abrirla: el
-   aviso se va cuando la marca se va. */
+   aviso se va cuando la marca se va.
+
+   Quién lo ve depende del aviso, con la misma regla que las salidas de la ficha (ver
+   `soloDireccion` en js/datos/proyectos.js). La tarjeta IMPORTADA cuya fila ya no vino vive
+   sobre todo en el teléfono del taller, y las marcas no viajan: lo que Dirección decida en el
+   suyo no llega ahí. Ese aviso es de los tres roles, y no lleva ni un peso, porque lo lee
+   fabricación. El de una venta de aquí o el de una repetida decide la hoja o cuál de dos
+   proyectos es la venta: ése es de Dirección. */
 function a15(E, out) {
   for (const p of E.proyectos) {
     if (!p.id || p.etapa === 'cancelado') continue;
@@ -706,8 +716,13 @@ function a15(E, out) {
     let titulo, detalle;
     if (d) {
       titulo = nombre + ' está dos veces en el tablero';
-      detalle = 'La tarjeta importada de la fila ' + (d.folio_hoja || p.folio_hoja || '') + ' es la misma venta que ' +
-        (d.nombre ? '«' + d.nombre + '»' : 'otro proyecto') + ' de este teléfono: dos tarjetas para una sola venta. ' +
+      /* Con la identidad por confirmar (la fila solo coincide en el folio de la hoja) se dice
+         «parece»: puede ser una venta de otro con el folio repartido dos veces. */
+      const parece = Array.isArray(d.claves) && d.claves.includes('identidad');
+      detalle = 'La tarjeta importada de la fila ' + (d.folio_hoja || p.folio_hoja || '') + (parece ? ' parece la misma venta que ' : ' es la misma venta que ') +
+        (d.nombre ? '«' + d.nombre + '»' : 'otro proyecto') + ' de este teléfono' +
+        (parece ? ': o son dos tarjetas para una sola venta, o dos ventas con el mismo folio de la hoja. '
+                : ': dos tarjetas para una sola venta. ') +
         'No se juntó sola' + (Array.isArray(d.por) && d.por.length ? ' porque ' + d.por.join('; ') : '') + '.';
     } else if (imp) {
       titulo = nombre + ' ya no está en la hoja';
@@ -724,6 +739,7 @@ function a15(E, out) {
     out.push(aviso('A15', p.id, {
       tono: 'av',
       titulo, detalle,
+      roles: !d && imp ? ['direccion', 'fabricacion', 'pagos'] : ['direccion'],
       cuando: dias === null ? '' : frase(-dias),
       plazo: dias === null ? 0 : -dias,
       entidad: 'proyecto', entidad_id: p.id,

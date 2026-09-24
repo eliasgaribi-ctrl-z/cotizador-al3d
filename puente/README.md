@@ -262,7 +262,19 @@ devuelve a la cola (por ejemplo, cuando ese teléfono ya entra como Dirección).
 - **401 en todo, en un teléfono que entra con token.** El token de ese teléfono no está en la
   lista. Vuelve a abrir ⚡ AL3D → Tokens del puente en la hoja y pega el que le toca.
 - **«La venta V-… ya no está en la hoja».** Alguien borró esa fila. El cambio no se escribió
-  en ninguna otra; si la venta sigue viva, vuelve a registrarla desde el cotizador.
+  en ninguna otra, y el proyecto queda marcado: en su ficha, Dirección elige «Volver a darla de
+  alta en la hoja» (una fila nueva con todos sus datos) o «Dejarla fuera de la hoja». Registrarla
+  otra vez desde el cotizador no sirve: la plataforma contesta que ya es proyecto. Si la fila
+  vuelve a la hoja (con su folio o con su «Folio cotizacion»), la siguiente bajada quita la marca
+  y la decisión de dejarla fuera: la venta vuelve a mandarse.
+- **Una tarjeta importada dice «Ya no está en la hoja».** Su fila no vino en una bajada completa.
+  Cualquiera que tenga ese teléfono decide en la ficha: «Quitar del tablero» (solo si nada de
+  este teléfono la nombra: instalación, movimiento del almacén o material) o «Dejarla». Las
+  marcas son de cada teléfono y no viajan.
+- **Una tarjeta dice «Repetida».** Es la copia importada de una venta que este teléfono ya
+  tenía. Se junta sola solo si es seguro que es la misma venta (la fila trae su «Folio
+  cotizacion» o su mismo nombre) y no se pierde nada; si no, Dirección elige en la ficha
+  «Juntar», «No es la misma venta» o, si la de aquí está como «No se dio», quitar la copia.
 - **Una escritura vuelve como rechazada.** El mensaje dice cuál propiedad y por qué. Casi
   siempre es un rol que no puede escribir eso, o un valor que no está en la lista.
 - **Cambiaste el código y no pasa nada.** Guardar no publica: hay que implementar una

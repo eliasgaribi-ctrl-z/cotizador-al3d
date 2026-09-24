@@ -272,6 +272,20 @@ console.log('\nDE LA FILA EN FABRICACIÓN AL TABLERO');
      unificar([p], []).ventas.map(x => x.id), ['proy-hoja-V-214']);
   eq('un proyecto nacido aquí sin fila sigue siendo «solo de aquí»',
      unificar([proy({ id: 'p7', folio_global: 'COT-0007@AAAA' })], [otra]).solo_aqui, 1);
+
+  /* La copia REPETIDA que espera a Dirección (ver proyectos.revisarContraLaHoja): la de aquí
+     ya está atada a la fila por su folio de hoja, y la copia también se ataría a ella. */
+  const deAqui = proy({ id: 'p214', folio_global: 'COT-0214@AAAA', folio_hoja: 'V-214', precio_auth: 43500, neto: 43500 });
+  const rep = { ...p, duplicado_de: { id: 'p214', nombre: 'Joaquín', folio_hoja: 'V-214', por: ['x'], claves: ['etapa'] } };
+  const d = unificar([deAqui, rep], [fila()]);
+  eq('la copia repetida no se cuenta: la venta sale una vez, la de aquí', d.ventas.map(x => x.id), ['p214']);
+  eq('septiembre suma la venta una vez, no dos', resumenMensual(d.ventas, { hoy: '2026-09-20', meses: 2 })[1].vendido, 43500);
+  eq('y si la de aquí ya no está, la copia se vuelve a contar', unificar([rep], [fila()]).ventas.map(x => x.id), ['proy-hoja-V-214']);
+  /* «No es la misma venta»: la de aquí no se ató a esa fila. Sin la copia, la fila se cuenta
+     sola: la venta que era de otro no se pierde de Control. */
+  eq('una repetida cuya fila no es de la de aquí: la fila se cuenta sola, y la de aquí también',
+     unificar([proy({ id: 'p9', folio_global: 'COT-0009@AAAA' }), { ...rep, duplicado_de: { ...rep.duplicado_de, id: 'p9' } }], [fila()])
+       .ventas.map(x => x.id).sort(), ['hoja:V-214', 'p9']);
 }
 
 console.log('\nLA COMISIÓN DE LA HOJA VIAJA CON LA VENTA');
