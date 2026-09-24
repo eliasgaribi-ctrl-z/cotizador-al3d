@@ -500,6 +500,15 @@ console.log('\nLA FILA QUE YA NO ESTÁ: cuál NO_ENCONTRADO es cuál');
   const mn = mensajePerdida(nueva.mensaje);
   eq('la hoja nueva: el motivo manda, y el consejo sale una sola vez',
      [motivoPerdida(nueva), (mn.match(/Dirección/g) || []).length, /alguien borró su fila/.test(mn)], ['borrada', 1, true]);
+  /* El consejo depende de qué rebotó: Ajustes lo enseña a cualquier rol, y «Dirección decide si
+     se vuelve a dar de alta» es falso para una tarjeta importada (no se da de alta, la decide
+     quien tenga el teléfono) y para una lápida (su salida es dejarla fuera). */
+  const mi = mensajePerdida(borrada.mensaje, { id: 'proy-hoja-V-610', de_hoja: true, etapa: 'armado' });
+  cierto('a una tarjeta importada le dice lo que sí puede hacer quien tiene el teléfono: ' + mi,
+    /quien tenga este teléfono/.test(mi) && /quita del tablero/.test(mi) && !/dar de alta/.test(mi) && /alguien borró su fila/.test(mi));
+  const ml = mensajePerdida(borrada.mensaje, { id: 'proy-A', etapa: 'cancelado' });
+  cierto('a una lápida, que Dirección la deja fuera de la hoja: ' + ml, /No se dio/.test(ml) && /Dirección la deja fuera de la hoja/.test(ml) && !/dar de alta/.test(ml));
+  eq('y a la venta de aquí, el de siempre', mensajePerdida(borrada.mensaje, { id: 'proy-A', etapa: 'armado' }), mensajePerdida(borrada.mensaje));
 }
 
 /* ---------------------------------------------------------------------------
@@ -630,6 +639,7 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   const DB = await import('../js/datos/db.js');
   const S = await import('../js/datos/sync.js');
   const Proy = await import('../js/datos/proyectos.js');
+  const Agenda = await import('../js/datos/agenda.js');
   const { crear } = await import('../js/datos/puente.js');
   eq('la base de mentira abre', await DB.abrir(), true);
   S.registrar(crear({ url: 'https://puente.test/exec', token: 'd'.repeat(40) }));
@@ -817,7 +827,9 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   await S.bombear();
   eq('y el «Listo» que se movió mientras tanto llega a su fila viva',
      H.empujadas.slice(antesV300).map(o => [o.id_notion, o.datos && o.datos['Etapa de obra']]), [['V-300', 'Listo para instalar']]);
-  await DB.borrar('instalaciones', 'inst-300');
+  /* Cancelarla es lo único que la aplicación puede hacer con ella (no hay cómo borrarla), y una
+     cancelada ya no la detiene: aquí se niega por su fila, que está en la hoja. */
+  eq('su instalación se cancela desde la Agenda', (await Agenda.cancelar('inst-300')).ok, true);
   const q3 = await Proy.quitarDelTablero('proy-hoja-V-300');
   eq('y ya no se quita del tablero: su fila está en la hoja', [q3.codigo, !!(await DB.obtener('proyectos', 'proy-hoja-V-300'))], ['DATO_INVALIDO', true]);
   guardado.al3d_pf_rol = 'direccion';
@@ -1000,13 +1012,17 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
      la obra viva pone en duda el «No se dio». */
   await DB.poner('instalaciones', { id: 'inst-360', proyecto_id: 'proy-hoja-V-360', fecha: '2026-10-09', estado: 'propuesta' });
   const q360a = await Proy.quitarDelTablero('proy-hoja-V-360');
-  eq('con una instalación a su nombre, no se quita y no manda a juntarla con la lápida',
-     [q360a.codigo, /No se dio/.test(q360a.mensaje || ''), /Júntala/.test(q360a.mensaje || '')], ['EN_USO', true, false]);
-  await DB.borrar('instalaciones', 'inst-360');
+  eq('con una instalación a su nombre, no se quita, no manda a juntarla con la lápida y dice la salida de verdad',
+     [q360a.codigo, /No se dio/.test(q360a.mensaje || ''), /Júntala/.test(q360a.mensaje || ''), /cancélala en la Agenda/.test(q360a.mensaje || ''),
+      /dice la verdad/.test(q360a.mensaje || '')], ['EN_USO', true, false, true, false]);
+  /* La que la persona cancela desde la Agenda —la aplicación no tiene cómo borrarla— ya no es
+     obra viva: la copia se quita y la cancelación se queda en la agenda, como lo que es. */
+  eq('se cancela desde la Agenda', (await Agenda.cancelar('inst-360')).ok, true);
   const q360 = await Proy.quitarDelTablero('proy-hoja-V-360');
   await jalarTodo();
   eq('pero sí se quita del tablero, y la siguiente bajada NO la vuelve a importar (su fila queda de la lápida)',
      [q360.ok, await DB.obtener('proyectos', 'proy-hoja-V-360'), (await DB.obtener('proyectos', 'proy-L')).folio_hoja], [true, null, 'V-360']);
+  eq('y su instalación cancelada se queda en la agenda', ((await DB.obtener('instalaciones', 'inst-360')) || {}).estado, 'cancelada');
 
   /* Las dos con pin y plazo: el porqué dice lo que de verdad pasa al juntar. */
   const c370 = await DB.obtener('proyectos', 'proy-hoja-V-370');
@@ -1066,6 +1082,243 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   const re470 = await Proy.volverADarDeAlta('proy-V');
   eq('y ya tiene salida: «Volver a darla de alta» tira lo apartado y encola el alta',
      [re470.ok, (await deProyecto('proy-V')).length, (await S.pendientes()).filter(o => o.registro_id === 'proy-V').map(o => o.tipo)], [true, 0, ['crear']]);
+  await S.bombear();   // el alta sale ya: las cuentas de abajo son de otras filas
+
+  /* ── 5 · Lo que se cambió mientras la fila no estaba, y la venta que vuelve dos veces ── */
+  const aFila = (fh, desde) => H.empujadas.slice(desde).filter(o => o.id_notion === fh);
+  const ponerFila = (fh, o) => { const i = H.filas.findIndex(x => x.id_notion === fh); H.filas[i] = { ...H.filas[i], ...o }; };
+
+  /* 5a · Fuera de la hoja, Dirección corrige la cuenta y el anticipo. La fila vuelve como estaba:
+     la bajada no le pisa al proyecto lo que todavía no se manda, y el reenvío lo lleva. Antes el
+     espejo de la fila le devolvía la cuenta y el anticipo viejos, y eso era lo que se reenviaba:
+     la corrección no quedaba ni en el teléfono ni en la hoja. */
+  guardado.al3d_pf_rol = 'direccion';
+  await DB.poner('proyectos', propio('proy-B2', 'COT-0408@TEST', 'V-408'));
+  H.borradas.add('V-408');
+  await cambio('proy-B2', ['etapa']);
+  await S.bombear();
+  eq('5a · la fila se borró: el cambio rebota y Dirección deja la venta fuera', (await Proy.dejarFueraDeLaHoja('proy-B2')).ok, true);
+  eq('5a · mientras está fuera, Dirección corrige la cuenta y el anticipo', (await Proy.actualizar('proy-B2', { cuenta: 'Rul HSBC', anti_pactado: 7000 })).ok, true);
+  await S.bombear();
+  H.borradas.delete('V-408');
+  H.filas.push(fila('V-408', 'Venta COT-0408@TEST', { 'Folio cotizacion': 'COT-0408@TEST', 'Anticipo': 5000, 'Cuenta ': 'Elias BBVA' }));
+  const a408 = H.empujadas.length;
+  await jalarTodo();
+  const b408 = await DB.obtener('proyectos', 'proy-B2');
+  eq('5a · la fila vuelve con lo de antes, y la bajada NO le pisa al proyecto lo que todavía no se mandó',
+     [b408.fuera_de_hoja || null, b408.cuenta, b408.anti_pactado], [null, 'Rul HSBC', 7000]);
+  await S.bombear();
+  eq('5a · y el reenvío le lleva a su fila la cuenta y el anticipo nuevos',
+     aFila('V-408', a408).map(o => [o.datos['Cuenta '], o.datos['Anticipo']]), [['Rul HSBC', 7000]]);
+  ponerFila('V-408', { 'Cuenta ': 'Rul HSBC', 'Anticipo': 7000 });
+
+  /* 5b · Lo que YA rebotó, en la venta de aquí: con la fila borrada, Dirección corrige el anticipo;
+     rebota, y es justo lo que enciende la marca. «Dejarla fuera» lo tiraba, y cuando la fila volvía
+     la bajada le ponía al proyecto el anticipo viejo: el nuevo ya no existía en ningún lado. */
+  await DB.poner('proyectos', propio('proy-B3', 'COT-0409@TEST', 'V-409'));
+  H.borradas.add('V-409');
+  eq('5b · con la fila ya borrada, Dirección corrige el anticipo', (await Proy.actualizar('proy-B3', { anti_pactado: 8000 })).ok, true);
+  await S.bombear();
+  eq('5b · rebota y la venta se marca', [(await deProyecto('proy-B3')).length, ((await DB.obtener('proyectos', 'proy-B3')).hoja_perdida || {}).motivo],
+     [1, 'borrada']);
+  eq('5b · «Dejarla fuera de la hoja»', (await Proy.dejarFueraDeLaHoja('proy-B3')).ok, true);
+  const b409 = await DB.obtener('proyectos', 'proy-B3');
+  eq('5b · lo que rebotó sale de lo apartado, pero se guarda para cuando vuelva la fila',
+     [(await deProyecto('proy-B3')).length, b409.sin_mandar && b409.sin_mandar.campos], [0, ['anti_pactado']]);
+  H.borradas.delete('V-409');
+  H.filas.push(fila('V-409', 'Venta COT-0409@TEST', { 'Folio cotizacion': 'COT-0409@TEST', 'Anticipo': 5000 }));
+  const a409 = H.empujadas.length;
+  await jalarTodo();
+  await S.bombear();
+  eq('5b · la fila vuelve: el anticipo corregido llega a ella, y en el teléfono se queda',
+     [aFila('V-409', a409).map(o => o.datos['Anticipo']), (await DB.obtener('proyectos', 'proy-B3')).anti_pactado], [[8000], 8000]);
+  ponerFila('V-409', { 'Anticipo': 8000 });
+
+  /* 5c · Lo mismo en la tarjeta importada, en el teléfono del taller: la obra se mueve con la fila
+     recién borrada, rebota, y el taller aprieta «Dejarla». La confirmación promete que, si la fila
+     vuelve, se manda sola con lo cambiado; antes la etapa que rebotó no llegaba nunca. */
+  H.filas.push(fila('V-620', 'Taller Norte - Vinil'));
+  await jalarTodo();
+  guardado.al3d_pf_rol = 'fabricacion';
+  H.filas = H.filas.filter(x => x.id_notion !== 'V-620'); H.borradas.add('V-620');
+  eq('5c · fabricación mueve la obra de la tarjeta importada cuya fila se acaba de borrar', (await Proy.avanzarEtapa('proy-hoja-V-620', 'armado')).ok, true);
+  await S.bombear();
+  const ap620 = await deProyecto('proy-hoja-V-620');
+  eq('5c · rebota y la tarjeta se marca', [ap620.length, ((await DB.obtener('proyectos', 'proy-hoja-V-620')).hoja_perdida || {}).motivo], [1, 'borrada']);
+  cierto('5c · y lo apartado (lo que Ajustes enseña) le dice a quien tiene el teléfono lo que sí puede hacer: ' + (ap620[0] || {}).ultimo_error,
+    ap620.length && /quien tenga este teléfono/.test(ap620[0].ultimo_error) && !/dar de alta/.test(ap620[0].ultimo_error));
+  eq('5c · «Dejarla»', (await Proy.dejarFueraDeLaHoja('proy-hoja-V-620')).ok, true);
+  H.borradas.delete('V-620'); H.filas.push(fila('V-620', 'Taller Norte - Vinil'));
+  const a620 = H.empujadas.length;
+  await jalarTodo();
+  await S.bombear();
+  eq('5c · la fila vuelve, y le llega la etapa que había rebotado', aFila('V-620', a620).map(o => o.datos['Etapa de obra']), ['Armado']);
+
+  /* 5d · «Quitar del tablero» justo después del rebote, antes de la siguiente bajada completa: su
+     renglón sigue en el récord, pero lo más nuevo que se sabe de la fila es que la hoja dijo que no
+     está. Antes contestaba «su fila está otra vez en la hoja», que era falso. */
+  H.filas.push(fila('V-630', 'Papelería Luna - Caja'));
+  await jalarTodo();
+  H.filas = H.filas.filter(x => x.id_notion !== 'V-630'); H.borradas.add('V-630');
+  await Proy.avanzarEtapa('proy-hoja-V-630', 'armado');
+  await S.bombear();
+  eq('5d · el cambio rebota y la tarjeta queda marcada, con su renglón todavía en el récord',
+     [Proy.avisoDeHoja(await DB.obtener('proyectos', 'proy-hoja-V-630')), !!(await DB.obtener('ventas_hoja', 'hoja:V-630'))], ['perdida', true]);
+  const q630 = await Proy.quitarDelTablero('proy-hoja-V-630');
+  eq('5d · y «Quitar del tablero» la quita (fabricación), con lo que tenía apartado',
+     [q630.ok, await DB.obtener('proyectos', 'proy-hoja-V-630'), (await deProyecto('proy-hoja-V-630')).length], [true, null, 0]);
+  await jalarTodo();
+  eq('5d · la siguiente bajada no la vuelve a traer', await DB.obtener('proyectos', 'proy-hoja-V-630'), null);
+  /* La red de antes se queda: una marca más vieja que la última bajada completa, con la fila en el
+     récord, quiere decir que la fila volvió. */
+  const f631 = fila('V-631', 'Ferretería Sur - Letras');
+  await DB.poner('proyectos', { ...Proy.desdeVentaDeHoja(ventaDeHoja(f631)), hoja_perdida: { motivo: 'borrada', folio: 'V-631', desde: 1, mensaje: '' } });
+  await DB.poner('ventas_hoja', { ...ventaDeHoja(f631), actualizado_en: Date.now() });
+  eq('5d · pero con la fila en el récord y una marca de antes de la última bajada completa, no se quita',
+     (await Proy.quitarDelTablero('proy-hoja-V-631')).codigo, 'DATO_INVALIDO');
+  await DB.borrar('proyectos', 'proy-hoja-V-631'); await DB.borrar('ventas_hoja', 'hoja:V-631');
+
+  /* 5e · La instalación CANCELADA ya no la ata al tablero. La aplicación no tiene cómo borrarla
+     (`Agenda.cancelar` solo la marca), y contarla dejaba la tarjeta para siempre con un botón que
+     nunca funcionaba, y un «júntalas» que para ella no existe. */
+  guardado.al3d_pf_rol = 'direccion';
+  H.filas.push(fila('V-640', 'Óptica Norte - Vinil'));
+  await jalarTodo();
+  const ag640 = await Agenda.agendar('proy-hoja-V-640', { fecha: '2026-10-12', hora: '10:00' });
+  await S.bombear();
+  H.filas = H.filas.filter(x => x.id_notion !== 'V-640');
+  await jalarTodo();
+  eq('5e · su fila no vino en una bajada completa: marcada', Proy.avisoDeHoja(await DB.obtener('proyectos', 'proy-hoja-V-640')), 'perdida');
+  guardado.al3d_pf_rol = 'fabricacion';
+  const q640v = await Proy.quitarDelTablero('proy-hoja-V-640');
+  eq('5e · con la instalación viva no se quita, y dice la salida que existe (cancelarla o dejarla), no «júntalas»',
+     [q640v.codigo, /cancélala en la Agenda/.test(q640v.mensaje || ''), /déjala/.test(q640v.mensaje || ''), /júnta/i.test(q640v.mensaje || '')],
+     ['EN_USO', true, true, false]);
+  eq('5e · se cancela desde la Agenda', (await Agenda.cancelar(ag640.valor.id)).ok, true);
+  const q640 = await Proy.quitarDelTablero('proy-hoja-V-640');
+  eq('5e · con la instalación cancelada, sí se quita; la cancelación se queda en la agenda',
+     [q640.ok, await DB.obtener('proyectos', 'proy-hoja-V-640'), ((await DB.obtener('instalaciones', ag640.valor.id)) || {}).estado], [true, null, 'cancelada']);
+  guardado.al3d_pf_rol = 'direccion';
+
+  /* 5f · «Juntar» con algo de la copia todavía en la bandeja: Dirección agenda la instalación en
+     la copia (sin mandar todavía) y aprieta «Juntar». Se tiraba lo pendiente y la fecha no llegaba
+     a la hoja; ahora espera, como la junta sola, y lo dice. */
+  const f650 = fila('V-650', 'Café Sol - Letras', { 'Etapa de obra': 'Armado' });
+  await DB.poner('proyectos', propio('proy-J', 'COT-0650@TEST', 'V-650', { nombre: 'Café Sol - Letras' }));
+  await DB.poner('proyectos', { ...Proy.desdeVentaDeHoja(ventaDeHoja(f650)), etapa: 'armado' });
+  H.filas.push(f650);
+  await jalarTodo();
+  eq('5f · la copia va más adelante: repetida, no se junta sola', ((await DB.obtener('proyectos', 'proy-hoja-V-650')).duplicado_de || {}).claves, ['etapa']);
+  const ag650 = await Agenda.agendar('proy-hoja-V-650', { fecha: '2026-10-02', hora: '10:00' });
+  const j650a = await Proy.juntarConLaDeAqui('proy-hoja-V-650');
+  eq('5f · con la instalación todavía en la bandeja, «Juntar» espera y dice qué falta',
+     [j650a.codigo, /esperando en la bandeja/.test(j650a.mensaje || ''), !!(await DB.obtener('proyectos', 'proy-hoja-V-650')),
+      (await S.pendientes()).filter(o => o.almacen === 'instalaciones' && o.datos && o.datos.proyecto_id === 'proy-hoja-V-650').length],
+     ['EN_USO', true, true, 1]);
+  const a650 = H.empujadas.length;
+  await S.bombear();
+  const j650 = await Proy.juntarConLaDeAqui('proy-hoja-V-650');
+  eq('5f · ya mandada, se juntan: la fecha llegó a su fila y la instalación pasa a la de aquí',
+     [j650.ok, aFila('V-650', a650).some(o => o.datos && o.datos['Fecha instalacion'] === '2026-10-02'),
+      ((await DB.obtener('instalaciones', ag650.valor.id)) || {}).proyecto_id], [true, true, 'proy-J']);
+
+  /* 5g · La venta que vuelve DOS veces a la hoja: su fila se borró, Dirección la volvió a dar de
+     alta y después PAGOS deshizo el borrado. Las dos filas traen su folio de cotización. Antes la
+     bajada le cambiaba la fila en silencio, nada lo avisaba y Control la contaba dos veces. */
+  await DB.poner('proyectos', propio('proy-K', 'COT-0660@TEST', 'V-660', { nombre: 'Kiosko Sol - Letras' }));
+  const f660 = fila('V-660', 'Kiosko Sol - Letras', { 'Folio cotizacion': 'COT-0660@TEST', 'Liquidacion': 6600, 'Pago Pendiente': 0 });
+  H.filas.push(f660);
+  await jalarTodo();
+  H.filas = H.filas.filter(x => x.id_notion !== 'V-660'); H.borradas.add('V-660');
+  await cambio('proy-K', ['etapa']);
+  await S.bombear();
+  eq('5g · la fila se borra, el cambio rebota y Dirección la vuelve a dar de alta', (await Proy.volverADarDeAlta('proy-K')).ok, true);
+  await S.bombear();
+  const k1 = await DB.obtener('proyectos', 'proy-K');
+  const n660 = k1.notion_page_id;
+  eq('5g · queda en una fila nueva, y la vieja se anota como suya', [!!n660 && n660 !== 'V-660', k1.folios_previos], [true, ['V-660']]);
+  H.filas.push(fila(n660, 'Kiosko Sol - Letras', { 'Folio cotizacion': 'COT-0660@TEST', 'Pago Pendiente': 6600 }));
+  await jalarTodo();
+  H.borradas.delete('V-660'); H.filas.push(f660);
+  await jalarTodo();
+  const k2 = await DB.obtener('proyectos', 'proy-K');
+  eq('5g · PAGOS deshace el borrado: la venta está en dos filas, se queda con la que tenía y se marca para Dirección',
+     [k2.notion_page_id, k2.hoja_doble && k2.hoja_doble.folios, Proy.avisoDeHoja(k2)], [n660, [n660, 'V-660'], 'doble']);
+  eq('5g · y Control la cuenta una vez', V.unificar(await DB.listar('proyectos'), await DB.listar('ventas_hoja')).ventas
+    .filter(x => /Kiosko Sol/.test(x.nombre || '')).map(x => x.id), ['proy-K']);
+  const a660 = H.empujadas.length;
+  await cambio('proy-K', ['etapa']);
+  await S.bombear();
+  eq('5g · sus cambios siguen yendo a la fila que tenía', [aFila(n660, a660).length, aFila('V-660', a660).length], [1, 0]);
+  /* Dirección borra en la hoja la que sobra —la nueva, que no tiene la liquidación—: la marca se
+     va sola y la venta se ata a la que queda. Nada se borró de este lado. */
+  H.filas = H.filas.filter(x => x.id_notion !== n660);
+  await jalarTodo();
+  const k3 = await DB.obtener('proyectos', 'proy-K');
+  eq('5g · Dirección borra en la hoja la que sobra: la marca se va y la venta se ata a la que queda',
+     [k3.notion_page_id, k3.hoja_doble || null, Proy.avisoDeHoja(k3), k3.pago_pendiente], ['V-660', null, '', 0]);
+
+  /* 5h · Lo mismo con una venta atada a su fila por el NOMBRE (la fila no trae folio de
+     cotización): la fila vieja restaurada entraba como OTRA tarjeta, sin marca, y Control contaba
+     la venta dos veces. */
+  await DB.poner('proyectos', propio('proy-M', 'COT-0670@TEST', 'V-670', { nombre: 'Mercería Luz - Letras' }));
+  const f670 = fila('V-670', 'Mercería Luz - Letras', { 'Pago Pendiente': 6600 });
+  H.filas.push(f670);
+  await jalarTodo();
+  eq('5h · atada a su fila por el nombre', (await DB.obtener('proyectos', 'proy-M')).hoja_confirmada, 'V-670');
+  H.filas = H.filas.filter(x => x.id_notion !== 'V-670'); H.borradas.add('V-670');
+  await cambio('proy-M', ['etapa']);
+  await S.bombear();
+  eq('5h · se borra y Dirección la vuelve a dar de alta', (await Proy.volverADarDeAlta('proy-M')).ok, true);
+  await S.bombear();
+  const n670 = (await DB.obtener('proyectos', 'proy-M')).notion_page_id;
+  H.filas.push(fila(n670, 'Mercería Luz - Letras', { 'Folio cotizacion': 'COT-0670@TEST', 'Pago Pendiente': 6600 }));
+  await jalarTodo();
+  H.borradas.delete('V-670'); H.filas.push(f670);
+  await jalarTodo();
+  const m2 = await DB.obtener('proyectos', 'proy-M');
+  eq('5h · la fila vieja vuelve: no entra como OTRA tarjeta, y la venta queda marcada en dos filas',
+     [!!(await DB.obtener('proyectos', 'proy-hoja-V-670')), m2.notion_page_id, m2.hoja_doble && m2.hoja_doble.folios, Proy.avisoDeHoja(m2)],
+     [false, n670, [n670, 'V-670'], 'doble']);
+  eq('5h · y Control la cuenta una vez', V.unificar(await DB.listar('proyectos'), await DB.listar('ventas_hoja')).ventas
+    .filter(x => /Mercería Luz/.test(x.nombre || '')).map(x => x.id), ['proy-M']);
+
+  /* 5i · La venta que se ató por el nombre a una fila que después dice ser de OTRA cotización
+     (PAGOS escribió ahí el folio de la venta de otro teléfono). La bajada ya no la ata, pero le
+     quedaban `folio_hoja` y `hoja_confirmada`, y Control le echaba la venta del otro. */
+  await DB.poner('proyectos', propio('proy-O', 'COT-0680@TEST', 'V-680', { nombre: 'Óptica Luna - Letras' }));
+  H.filas.push(fila('V-680', 'Óptica Luna - Letras', { 'Pago Pendiente': 6600 }));
+  await jalarTodo();
+  const o1 = await DB.obtener('proyectos', 'proy-O');
+  eq('5i · atada a su fila por el nombre', [o1.folio_hoja, o1.hoja_confirmada], ['V-680', 'V-680']);
+  ponerFila('V-680', { 'Folio cotizacion': 'COT-0777@OTRO', 'Precio Subtotal': 40000, 'Precio Neto ': 46400, 'Anticipo': 20000, 'Pago Pendiente': 26400 });
+  await jalarTodo();
+  const o2 = await DB.obtener('proyectos', 'proy-O');
+  eq('5i · la fila dice ser de otra cotización: la de aquí suelta sus notas de esa fila y queda «ya es de otra venta»',
+     [o2.folio_hoja || null, o2.hoja_confirmada || null, o2.hoja_perdida && o2.hoja_perdida.motivo, Proy.avisoDeHoja(o2)], [null, null, 'de_otra', 'perdida']);
+  eq('5i · y Control cuenta las dos ventas, cada una con su importe', V.unificar(await DB.listar('proyectos'), await DB.listar('ventas_hoja')).ventas
+    .filter(x => /Óptica Luna/.test(x.nombre || '')).map(x => [x.id, x.neto]).sort(), [['proy-O', 11600], ['proy-hoja-V-680', 46400]]);
+
+  /* 5j · «No se dio» sobre una venta marcada: la ficha deja de avisar (lápida), el «No se dio»
+     también rebota, y lo apartado le decía a Dirección que la diera de alta —cosa que a una lápida
+     no se le hace—. Su salida es dejarla fuera de la hoja, y si la fila vuelve, le llega el «No se dio». */
+  await DB.poner('proyectos', propio('proy-N', 'COT-0710@TEST', 'V-710', { nombre: 'Nevería Sol - Letras' }));
+  H.borradas.add('V-710');
+  await cambio('proy-N', ['etapa']);
+  await S.bombear();
+  eq('5j · Dirección aprieta «No se dio» en la venta marcada', (await Proy.descartar('proy-N')).ok, true);
+  await S.bombear();
+  const apN = await deProyecto('proy-N');
+  cierto('5j · el «No se dio» también rebota, y lo apartado ya no manda a darla de alta sino a dejarla fuera: ' + ((apN[1] || {}).ultimo_error || ''),
+    apN.length === 2 && /Dirección la deja fuera de la hoja/.test(apN[1].ultimo_error) && !/vuelve a dar de alta/.test(apN[1].ultimo_error));
+  const fN = await Proy.dejarFueraDeLaHoja('proy-N');
+  eq('5j · «Dejarla fuera» le sirve a la lápida: lo apartado sale de Ajustes y se guarda',
+     [fN.ok, (await deProyecto('proy-N')).length, !!(await DB.obtener('proyectos', 'proy-N')).sin_mandar], [true, 0, true]);
+  H.borradas.delete('V-710'); H.filas.push(fila('V-710', 'Nevería Sol - Letras', { 'Folio cotizacion': 'COT-0710@TEST' }));
+  const a710 = H.empujadas.length;
+  await jalarTodo();
+  await S.bombear();
+  eq('5j · y si su fila vuelve, le llega el «No se dio»', aFila('V-710', a710).map(o => o.datos['Etapa de obra']), ['No se dio']);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

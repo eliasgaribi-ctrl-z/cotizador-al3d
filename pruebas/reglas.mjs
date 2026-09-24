@@ -203,12 +203,17 @@ const huerfana = { id: 'proy-hoja-V-300', de_hoja: true, folio_hoja: 'V-300', no
 const repetida = { id: 'proy-hoja-V-320', de_hoja: true, folio_hoja: 'V-320', nombre: 'Óptica Sol', etapa: 'cortado',
   fecha_ganado: '2026-08-01', duplicado_de: { id: 'p22', nombre: 'Óptica Sol - Caja Luz', folio: 'COT-0122@D7K2', folio_hoja: 'V-320',
     desde, por: ['la copia va en «Cortado» y la de este teléfono en «Ganado»'] } };
+/* La venta de aquí que está en DOS filas de la hoja (`hoja_doble`): Dirección la volvió a dar de
+   alta y alguien deshizo después el borrado de la vieja. Cuál sobra se borra en la hoja. */
+const doble = { id: 'p24', folio_local: 'COT-0124', nombre: 'Kiosko Sol - Letras', etapa: 'armado', fecha_ganado: '2026-08-01',
+  notion_page_id: 'V-500', hoja_doble: { folios: ['V-500', 'V-404'], desde } };
 const yaDecididas = [{ ...huerfana, id: 'proy-hoja-V-301', hoja_perdida: null, fuera_de_hoja: desde },
-                     { ...perdidaPropia, id: 'p23', etapa: 'cancelado' }];
+                     { ...perdidaPropia, id: 'p23', etapa: 'cancelado' },
+                     { ...doble, id: 'p25', hoja_doble: { folios: ['V-500'], desde } }];
 const conHoja = rol => evaluar({ ...estado, rol, instalaciones: [], historial: [], existencias: [], faltantes: [],
-  proyectos: [perdidaPropia, deOtra, huerfana, repetida, ...yaDecididas] }).filter(a => a.regla === 'A15_hoja');
+  proyectos: [perdidaPropia, deOtra, huerfana, repetida, doble, ...yaDecididas] }).filter(a => a.regla === 'A15_hoja');
 const a15 = conHoja('direccion');
-cierto(a15.length === 4, 'A15 nombra las cuatro marcadas y ninguna de las ya decididas (salieron ' + a15.length + ')');
+cierto(a15.length === 5, 'A15 nombra las cinco marcadas y ninguna de las ya decididas (salieron ' + a15.length + ')');
 const a15De = id => a15.find(a => a.entidad_id === id) || { titulo: '', detalle: '', acciones: [] };
 cierto(/ya no está en la hoja/.test(a15De('p20').titulo) && /borró su fila V-404/.test(a15De('p20').detalle) &&
   /volver|vuelve a dar de alta/.test(a15De('p20').detalle),
@@ -226,6 +231,9 @@ const aDudosa = evaluar({ ...estado, rol: 'direccion', instalaciones: [], histor
   proyectos: [{ ...repetida, duplicado_de: { ...repetida.duplicado_de, claves: ['identidad'] } }] }).find(a => a.regla === 'A15_hoja') || { detalle: '' };
 cierto(/parece la misma venta/.test(aDudosa.detalle) && /dos ventas con el mismo folio/.test(aDudosa.detalle) && !/ es la misma venta/.test(aDudosa.detalle),
   'la repetida por confirmar dice «parece», no «es»: ' + aDudosa.detalle);
+cierto(/dos veces en la hoja/.test(a15De('p24').titulo) && /V-500 y V-404/.test(a15De('p24').detalle) &&
+  /le manda sus cambios a V-500/.test(a15De('p24').detalle) && /borra la que sobra/.test(a15De('p24').detalle),
+  'la venta en dos filas dice cuáles, a cuál manda y qué se hace en la hoja: ' + a15De('p24').detalle);
 cierto(a15.every(a => a.acciones.length === 1 && a.acciones[0].tipo === 'abrir_proyecto' &&
   a.acciones[0].datos.proyecto_id === a.entidad_id), 'su única acción es abrir la ficha de ESE proyecto');
 cierto(a15De('p20').cuando === 'hace 4 días', 'y dice desde cuándo: ' + a15De('p20').cuando);
@@ -239,8 +247,8 @@ cierto(a15Fab.every(a => a.acciones.length === 1 && a.acciones[0].tipo === 'abri
 cierto(!a15.concat(a15Fab).some(a => /\$|\d{1,3},\d{3}/.test(a.titulo + a.detalle)), 'y no lleva ni un peso');
 /* La regla lleva su copia de `avisoDeHoja` (no importa proyectos.js): las dos tienen que decir
    lo mismo de cada proyecto, o la regla avisaría de una ficha que no enseña nada. */
-const todas = [perdidaPropia, deOtra, huerfana, repetida, ...yaDecididas];
-cierto(todas.every(p => ['perdida', 'repetida'].includes(avisoDeHoja(p)) === a15.some(a => a.entidad_id === p.id)),
+const todas = [perdidaPropia, deOtra, huerfana, repetida, doble, ...yaDecididas];
+cierto(todas.every(p => ['perdida', 'repetida', 'doble'].includes(avisoDeHoja(p)) === a15.some(a => a.entidad_id === p.id)),
   'A15 y `avisoDeHoja` dicen lo mismo de cada proyecto');
 
 /* ---- 7. Los mensajes de WhatsApp ---- */

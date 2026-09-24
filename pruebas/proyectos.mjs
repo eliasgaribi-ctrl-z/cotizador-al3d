@@ -293,6 +293,45 @@ eq('qué aviso lleva cada una: nada, perdida, repetida (manda sobre perdida), fu
    [avisoDeHoja({}), avisoDeHoja({ hoja_perdida: m1 }), avisoDeHoja({ duplicado_de: { id: 'x' }, hoja_perdida: m1 }),
     avisoDeHoja({ fuera_de_hoja: 1 }), avisoDeHoja({ etapa: 'cancelado', hoja_perdida: m1 })],
    ['', 'perdida', 'repetida', 'fuera', '']);
+/* La venta de aquí en dos filas de la hoja (`hoja_doble`): con una sola fila no hay nada que avisar. */
+eq('la venta en dos filas avisa «doble»; con una sola, nada; y la perdida manda sobre ella',
+   [avisoDeHoja({ hoja_doble: { folios: ['V-500', 'V-404'] } }), avisoDeHoja({ hoja_doble: { folios: ['V-500'] } }),
+    avisoDeHoja({ hoja_doble: { folios: ['V-500', 'V-404'] }, hoja_perdida: m1 })], ['doble', '', 'perdida']);
+
+console.log('\nLA FILA QUE TUVO, LA DE OTRA COTIZACIÓN Y LO QUE NO SE MANDÓ');
+const { ataLaFila, filaDeOtraCotizacion, sumarSinMandar, foliosDeHoja } = await import('../js/datos/proyectos.js');
+/* La fila que la venta tuvo antes de volver a darse de alta (`folios_previos`) sigue siendo suya:
+   si alguien deshace el borrado, sale como la misma venta y no como otra tarjeta. */
+const realta = propio('COT-0330@A', 'V-500', { nombre: 'Café Luna - Letras', hoja_confirmada: 'V-330', folios_previos: ['V-330'] });
+eq('la fila vieja restaurada, sin folio de cotización, es de la venta que la tuvo',
+   [mismaVentaQueLaFila(realta, { folio_hoja: 'V-330', folio_cotizacion: '', nombre: 'Otro nombre' }),
+    mismaVentaQueLaFila({ ...realta, hoja_confirmada: null }, { folio_hoja: 'V-330', folio_cotizacion: '', nombre: 'Café Luna - Letras' }),
+    mismaVentaQueLaFila({ ...realta, folios_previos: [] }, { folio_hoja: 'V-330', folio_cotizacion: '', nombre: 'Café Luna - Letras' })],
+   ['confirmada', 'nombre', '']);
+eq('los folios de la hoja de una venta: el de hoy y los de antes', [...foliosDeHoja(realta)], ['V-500', 'V-330']);
+/* La regla de la bajada: a una lápida no le cae una fila viva salvo por su folio de cotización, y
+   una tarjeta importada no es «la venta de aquí» de nadie. */
+const lap = propio('COT-0360@A', 'V-360', { nombre: 'Lupita', etapa: 'cancelado' });
+eq('a quién le cae la fila: la lápida no se queda con una fila viva por el nombre, sí por su folio de cotización',
+   [ataLaFila(lap, { folio_hoja: 'V-360', folio_cotizacion: '', nombre: 'Lupita', etapa: 'armado' }),
+    ataLaFila(lap, { folio_hoja: 'V-360', folio_cotizacion: '', nombre: 'Lupita', etapa: 'cancelado' }),
+    ataLaFila(lap, { folio_hoja: 'V-360', folio_cotizacion: 'COT-0360@A', nombre: 'Lupita', etapa: 'armado' }),
+    ataLaFila(imp('V-360'), { folio_hoja: 'V-360', folio_cotizacion: '', nombre: 'Copia V-360' }),
+    ataLaFila(ana, { folio_hoja: 'V-510', folio_cotizacion: '', nombre: 'Luis - Taller' })],
+   ['', 'nombre', 'folio', '', '']);
+eq('la fila de otra cotización: no lo es la celda vacía, la huella del defecto ni su propio folio',
+   [filaDeOtraCotizacion(ana, { folio_hoja: 'V-510', folio_cotizacion: 'COT-0777@OTRO' }),
+    filaDeOtraCotizacion(ana, { folio_hoja: 'V-510', folio_cotizacion: '' }),
+    filaDeOtraCotizacion(ana, { folio_hoja: 'V-510', folio_cotizacion: 'V-510' }),
+    filaDeOtraCotizacion(ana, { folio_hoja: 'V-510', folio_cotizacion: 'COT-0510@A' })],
+   [true, false, false, false]);
+/* Lo que no se mandó: desde cuándo y qué campos. La de una instalación deja la nota sin campos
+   (el reenvío lleva la fecha de la instalación viva). */
+const sm = sumarSinMandar({ desde: 100, campos: ['etapa'] },
+  [{ almacen: 'proyectos', campos: ['anti_pactado', 'etapa'] }, { almacen: 'instalaciones', campos: ['fecha'] }, { almacen: 'proyectos', campos: null }], 900);
+eq('la nota suma los campos sin repetir y se queda con su fecha', sm, { desde: 100, campos: ['etapa', 'anti_pactado'] });
+eq('sin nota previa, desde ahora; una instalación sola deja la nota vacía',
+   sumarSinMandar(null, [{ almacen: 'instalaciones', datos: {} }], 900), { desde: 900, campos: [] });
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 process.exit(mal ? 1 : 0);
