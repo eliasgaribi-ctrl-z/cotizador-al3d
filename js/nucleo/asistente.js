@@ -522,9 +522,13 @@ async function leerTaller() {
   try { const R = await import('../datos/reglas.js'); avisos = await R.refrescar({ hoy }); } catch (_) {}
   try { bitacora = await Bitacora.listar({ limite: 25 }); } catch (_) {}
 
+  /* `proyectos` arma el taller; `ventas`, el dinero. Se le pasaba solo `proyectos`, y la
+     comisión de cada renglón salía del subtotal de este aparato mientras la restante venía de
+     la hoja: dos cifras que se contradecían, y las ventas que solo están en la hoja no
+     entraban a las comisiones. Sin dinero no viaja: a fabricación no le toca el récord. */
   return armarResumen({
     hoy, rol: Prefs.ROL_NOMBRE[Prefs.rol()] || Prefs.rol(), nombre: Prefs.nombre(), veDinero,
-    proyectos, instalaciones: insts, ventanas, materialDe, kpi, conversion, faltantes, bajoMinimo,
+    proyectos, ventas: veDinero ? ventas : null, instalaciones: insts, ventanas, materialDe, kpi, conversion, faltantes, bajoMinimo,
     avisos, sinDecidir, cola: Cot.cola(), bitacora, valorDe: Cot.totalVendido,
   });
 }

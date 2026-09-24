@@ -41,7 +41,28 @@ const src = readFileSync(join(aqui, '..', 'puente', 'hoja-apps-script.gs'), 'utf
    de arriba— así que basta con que existan para que nada explote si algún día las hubiera. */
 const noImplementado = new Proxy({}, { get: () => () => { throw new Error('servicio de Google no disponible en la prueba'); } });
 /* `aplanarFila` sí se prueba ahora, y lo único de Google que toca es formatear una fecha. */
-const Utilities = { formatDate: d => d.toISOString().slice(0, 10) };
+const partesEn = (d, tz) => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23',
+  year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  .formatToParts(d).map(x => [x.type, x.value]));
+/* Utilities.formatDate de mentiras. Las FECHAS se quedan como estaban, en UTC: las pruebas las
+   arman a medianoche UTC y ninguna depende de la zona. La HORA sí respeta la zona, porque ahí
+   está la trampa que se prueba (ver horaDeCelda en el .gs): Intl trae la misma tabla de la
+   IANA que el Java de Apps Script, con la hora solar de 1899 incluida. */
+function formatDateFalso(d, tz, patron) {
+  if (!/H/.test(String(patron))) return d.toISOString().slice(0, 10);
+  const p = partesEn(d, tz);
+  return String(patron).replace('HH', p.hour).replace('mm', p.minute).replace('ss', p.second);
+}
+/* El instante que Sheets le da a una hora sola, en ms: el 30/12/1899 (su día cero) a esa hora
+   en la zona de la hoja. Ese día la Ciudad de México iba con su hora solar (LMT, −6:36:36): el
+   «10:00» de la celda es 16:36:36 UTC, y de ahí el «GMT-0636» que les llegaba a los teléfonos. */
+function horaDeHoja(texto, tz = 'America/Mexico_City') {
+  const [H, M, S = 0] = texto.split(':').map(Number);
+  const supuesto = Date.UTC(1899, 11, 30, H, M, S);
+  const p = partesEn(new Date(supuesto), tz);
+  return supuesto - (Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - supuesto);
+}
+const Utilities = { formatDate: formatDateFalso };
 const ctx = vm.createContext({
   SpreadsheetApp: noImplementado, PropertiesService: noImplementado,
   Utilities, ScriptApp: noImplementado, MailApp: noImplementado,
@@ -337,18 +358,28 @@ console.log('\nUNA DE LAS 199, DE LA CELDA AL RÉCORD DE CONTROL');
    LA HOJA DE MENTIRAS — el .gs entero, corriendo contra una cuadrícula.
 
    Lo mínimo de SpreadsheetApp, PropertiesService, CacheService, LockService y UrlFetchApp
-   que usan /empujar, /jalar, ordenarVentas, los formularios del menú y la realineación. Cada
+   que usan /empujar, /jalar, ordenarVentas, los formularios del menú, la realineación y
+   prepararHojaParaElPuente, más el formato de número de cada celda (ver la hora). Cada
    llamada crea un contexto nuevo: nada se arrastra de un caso al siguiente.
    ============================================================================ */
 function hojaDeMentiras({ candadoLibre = true, props = {}, google = [] } = {}) {
   const hojas = {};
   const candados = [];
   const colDe = s => s.split('').reduce((t, c) => t * 26 + c.charCodeAt(0) - 64, 0);
+  /* Lo único que se imita del reconocimiento de Sheets, porque es lo que muerde a la columna
+     AA: un texto que parece hora, escrito en una celda que NO está en texto sin formato ('@'),
+     se guarda como HORA, y getValues lo devuelve como el Date de 1899 (ver horaDeHoja). El
+     Date se arma con el Date del contexto del .gs, que existe cuando esto se llama. */
+  let DateDelGs = Date;
+  const comoLaGuardaSheets = (v, formato) =>
+    (formato !== '@' && typeof v === 'string' && /^\d{1,2}:\d{2}(:\d{2})?$/.test(v.trim()))
+      ? new DateDelGs(horaDeHoja(v.trim())) : v;
   function nuevaHoja(nombre, filas = 330, cols = 30) {
-    const g = [];
-    for (let r = 0; r <= filas; r++) g.push(new Array(cols + 1).fill(''));
+    const g = [], f = [];   // f: el formato de número de cada celda, que es lo que decide lo de arriba
+    const renglon = () => new Array(cols + 1).fill('');
+    for (let r = 0; r <= filas; r++) { g.push(renglon()); f.push(renglon()); }
     const h = {
-      _g: g, _oculta: false,
+      _g: g, _f: f, _oculta: false,
       getName: () => nombre, setName(n) { delete hojas[nombre]; nombre = n; hojas[n] = h; return h; },
       getMaxColumns: () => cols, getMaxRows: () => filas,
       getLastRow() { let u = 0; for (let r = 1; r <= filas; r++) if (g[r].some((v, i) => i > 0 && v !== '')) u = r; return u; },
@@ -360,20 +391,25 @@ function hojaDeMentiras({ candadoLibre = true, props = {}, google = [] } = {}) {
         }
         return rango(a, b, n || 1, m || 1);
       },
-      deleteRows(ini, k) { g.splice(ini, k); for (let i = 0; i < k; i++) g.push(new Array(cols + 1).fill('')); },
-      copyTo() { const c = nuevaHoja(nombre + ' (copia)', filas, cols); for (let r = 0; r <= filas; r++) c._g[r] = g[r].slice(); return c; },
+      deleteRows(ini, k) { g.splice(ini, k); f.splice(ini, k); for (let i = 0; i < k; i++) { g.push(renglon()); f.push(renglon()); } },
+      copyTo() { const c = nuevaHoja(nombre + ' (copia)', filas, cols); for (let r = 0; r <= filas; r++) { c._g[r] = g[r].slice(); c._f[r] = f[r].slice(); } return c; },
       hideSheet() { h._oculta = true; return h; },
       setFrozenRows() {}, setColumnWidth() {}, insertColumnsAfter() {}, setActiveRange() {},
-      insertRowsAfter(_d, k) { for (let i = 0; i < k; i++) g.push(new Array(cols + 1).fill('')); filas += k; },
+      insertRowsAfter(_d, k) { for (let i = 0; i < k; i++) { g.push(renglon()); f.push(renglon()); } filas += k; },
+      getProtections: () => [],
     };
     function rango(r, c, n, m) {
       if (c + m - 1 > cols || r + n - 1 > filas) throw new Error('fuera de la hoja: ' + [r, c, n, m]);
       const R = {
         getValues: () => { const o = []; for (let i = 0; i < n; i++) o.push(g[r + i].slice(c, c + m)); return o; },
-        setValues: v => { for (let i = 0; i < n; i++) for (let j = 0; j < m; j++) g[r + i][c + j] = v[i][j]; return R; },
-        getValue: () => g[r][c], setValue: v => { g[r][c] = v; return R; },
+        setValues: v => { for (let i = 0; i < n; i++) for (let j = 0; j < m; j++) g[r + i][c + j] = comoLaGuardaSheets(v[i][j], f[r + i][c + j]); return R; },
+        getValue: () => g[r][c], setValue: v => { g[r][c] = comoLaGuardaSheets(v, f[r][c]); return R; },
+        getNumberFormat: () => f[r][c],
+        setNumberFormat: x => { for (let i = 0; i < n; i++) for (let j = 0; j < m; j++) f[r + i][c + j] = x; return R; },
+        protect: () => { const p = { setDescription: () => p, setWarningOnly: () => p }; return p; },
       };
-      for (const k of ['setNumberFormat', 'setFontWeight', 'setBackground', 'setFontColor', 'setHorizontalAlignment'])
+      for (const k of ['setFontWeight', 'setBackground', 'setFontColor', 'setHorizontalAlignment', 'setFontSize',
+                       'setWrap', 'setVerticalAlignment', 'setFontStyle', 'setDataValidation'])
         R[k] = () => R;
       return R;
     }
@@ -389,8 +425,11 @@ function hojaDeMentiras({ candadoLibre = true, props = {}, google = [] } = {}) {
   };
   const cache = new Map();
   const pedidasAGoogle = [];
+  /* Lo que usa prepararHojaParaElPuente para las validaciones y las protecciones, sin efecto. */
+  const validacion = { requireValueInList: () => validacion, setAllowInvalid: () => validacion, build: () => ({}) };
   const ctx2 = vm.createContext({
-    SpreadsheetApp: { getActive: () => ss, flush() {} },
+    SpreadsheetApp: { getActive: () => ss, flush() {}, newDataValidation: () => validacion,
+                      ProtectionType: { RANGE: 'RANGE' } },
     PropertiesService: { getScriptProperties: () => ({
       getProperty: k => (Object.prototype.hasOwnProperty.call(props, k) ? props[k] : null),
       setProperty: (k, v) => { props[k] = String(v); } }) },
@@ -402,7 +441,7 @@ function hojaDeMentiras({ candadoLibre = true, props = {}, google = [] } = {}) {
     UrlFetchApp: { fetch: u => { pedidasAGoogle.push(u); const r = google.shift(); if (!r) throw new Error('sin red'); return r; } },
     ContentService: { createTextOutput: s => ({ setMimeType: () => s }), MimeType: { JSON: 'json' } },
     Utilities: {
-      formatDate: d => d.toISOString().slice(0, 10),
+      formatDate: formatDateFalso,
       computeDigest: (_a, s) => Array.from(Buffer.from(String(s))).slice(0, 32),
       base64EncodeWebSafe: b => Buffer.from(b).toString('base64url'),
       DigestAlgorithm: { SHA_256: 'sha' },
@@ -411,6 +450,7 @@ function hojaDeMentiras({ candadoLibre = true, props = {}, google = [] } = {}) {
     console,
   });
   vm.runInContext(src, ctx2);
+  DateDelGs = vm.runInContext('Date', ctx2);
   const run = code => vm.runInContext(code, ctx2);
   const C = run('COL');
   const v = nuevaHoja('Ventas');
@@ -423,7 +463,9 @@ function hojaDeMentiras({ candadoLibre = true, props = {}, google = [] } = {}) {
   const fila = folio => { for (let r = 2; r <= 310; r++) if (v._g[r][1] === folio) return r; return 0; };
   const celda = (folio, nombre) => { const r = fila(folio); return r ? v._g[r][C[nombre]] : undefined; };
   const empujar = (ops, rol) => run('rutaEmpujar(' + JSON.stringify({ ops }) + ', ' + JSON.stringify(rol) + ')');
-  return { ss, hojas, v, C, pon, fila, celda, empujar, run, props, candados, cache, pedidasAGoogle, nuevaHoja };
+  /* Una hora como la guarda Sheets cuando ya la volvió hora: el Date de 1899, del contexto del .gs. */
+  const hora = texto => new DateDelGs(horaDeHoja(texto));
+  return { ss, hojas, v, C, pon, fila, celda, empujar, run, props, candados, cache, pedidasAGoogle, nuevaHoja, hora };
 }
 const respuesta = (codigo, cuerpo) => ({ getResponseCode: () => codigo, getContentText: () => JSON.stringify(cuerpo) });
 
@@ -763,6 +805,96 @@ console.log('\nDATOS MALOS QUE NO DEBEN PASAR (revisión de puente-sheets-6)');
   H.pon(3, 'V-002', { 'Proyecto': 'Beto', 'Estatus': 'FABRICACION', 'Direccion': '=IMPORTXML("x")' });
   H.run('ordenarVentas(SpreadsheetApp.getActive().getSheetByName("Ventas"))');
   eq('al reacomodar, un texto con «=» se vuelve a escribir como texto', H.celda('V-002', 'Direccion'), "'=IMPORTXML(\"x\")");
+}
+
+console.log('\nLA HORA DE INSTALACIÓN — Sheets la vuelve hora, y al teléfono le tiene que llegar «10:00»');
+{
+  /* Sheets convierte en HORA el «10:00» que cae en una celda que no está en texto sin formato,
+     y getValues lo devuelve como el Date del 30/12/1899. Con String() a secas eso le llegaba a
+     cada teléfono como «Sat Dec 30 1899 10:00:00 GMT-0636 …». La hoja de mentiras hace lo
+     mismo (comoLaGuardaSheets): lo primero es ver que la mentira muerde. */
+  const H = hojaDeMentiras({ props: { PUENTE_Y_AD_ALINEADAS: '2026-09-24' } });
+  const aa = H.C['Hora instalacion'];
+  const esDate = x => Object.prototype.toString.call(x) === '[object Date]';
+  H.v.getRange(40, aa).setValue('10:00');
+  cierto('la hoja de mentiras, como la de verdad, guarda «10:00» como Date si la celda no está en texto', esDate(H.v._g[40][aa]));
+  H.v._g[40][aa] = '';
+
+  H.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'FABRICACION', 'Hora instalacion': H.hora('10:00') });
+  H.pon(3, 'V-002', { 'Proyecto': 'Beto', 'Estatus': 'COBRANDO', 'Hora instalacion': '10:00:00' });
+  H.pon(4, 'V-003', { 'Proyecto': 'Caro', 'Estatus': 'COBRANDO', 'Hora instalacion': '9:30' });
+  H.pon(5, 'V-004', { 'Proyecto': 'Dani', 'Estatus': 'COBRANDO', 'Hora instalacion': 0.4375 });
+  H.pon(6, 'V-005', { 'Proyecto': 'Eli', 'Estatus': 'COBRANDO', 'Hora instalacion': H.hora('09:59:59') });
+  H.pon(7, 'V-006', { 'Proyecto': 'Fer', 'Estatus': 'COBRANDO' });
+  const horas = rol => Object.fromEntries(H.run('rutaJalar({}, ' + JSON.stringify(rol) + ')').registros
+    .map(x => [x.datos.id_notion, x.datos['Hora instalacion']]));
+  const j = horas('direccion');
+  eq('/jalar baja la hora que Sheets volvió Date como «10:00», no como «Sat Dec 30 1899…»', j['V-001'], '10:00');
+  eq('la tecleada con segundos o sin cero, normalizada', [j['V-002'], j['V-003']], ['10:00', '09:30']);
+  eq('la que quedó como fracción del día (texto sin formato puesto encima a mano)', j['V-004'], '10:30');
+  eq('un segundo de diferencia en el desfase de 1899 no la vuelve otra hora', j['V-005'], '10:00');
+  eq('y sin hora, vacía', j['V-006'], '');
+  eq('fabricación, que es la que va a instalar, también la recibe bien', horas('fabricacion')['V-001'], '10:00');
+
+  const r = H.empujar([{ id: 'e1', tipo: 'actualizar', id_notion: 'V-001', datos: { 'Etapa de obra': 'Armado' } }], 'fabricacion');
+  eq('lo que vuelve de /empujar trae la hora como «10:00» aunque el cambio no la tocara', r.resultados[0].remoto['Hora instalacion'], '10:00');
+  /* Esa subida reacomodó (lo cobrado bajó en orden de folio) y cada hora tenía que viajar con
+     su venta, ya como texto: el formato no viaja con setValues, y la que llegaba a un renglón
+     sin '@' se volvía hora ahí. */
+  eq('el reacomodo se lleva cada hora con su venta, como texto', ['V-001', 'V-002', 'V-003', 'V-004', 'V-005', 'V-006']
+     .map(f => H.celda(f, 'Hora instalacion')), ['10:00', '10:00', '09:30', '10:30', '10:00', '']);
+  eq('y la dejó en otro renglón: sí se movió', H.fila('V-002'), 7);
+  cierto('con AA2:AA en texto sin formato', H.v._f.slice(2, 311).every(x => x[aa] === '@'));
+
+  /* Lo que escribe el teléfono, en una hoja que todavía no tiene la columna en '@'. */
+  const W = hojaDeMentiras({ props: { PUENTE_Y_AD_ALINEADAS: '2026-09-24' } });
+  W.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'FABRICACION' });
+  const w = W.empujar([{ id: 'w1', tipo: 'actualizar', id_notion: 'V-001', datos: { 'Hora instalacion': '8:15' } }], 'fabricacion');
+  eq('la hora que manda el teléfono se guarda como el texto «08:15», no como una hora de 1899', W.celda('V-001', 'Hora instalacion'), '08:15');
+  eq('porque su celda se puso en texto sin formato antes del valor', W.v._f[2][aa], '@');
+  eq('y de vuelta llega igual', w.resultados[0].remoto['Hora instalacion'], '08:15');
+  const mala = W.empujar([{ id: 'w2', tipo: 'actualizar', id_notion: 'V-001',
+    datos: { 'Hora instalacion': 'a las diez', 'Etapa de obra': 'Armado' } }], 'fabricacion');
+  eq('lo que no es una hora se rechaza con su razón', mala.resultados[0].rechazadas.map(x => [x.nombre, x.por]),
+     [['Hora instalacion', 'la hora va como HH:MM, o vacía si todavía no se sabe']]);
+  eq('sin tocar la que había, y lo demás sí entra', [W.celda('V-001', 'Hora instalacion'), W.celda('V-001', 'Etapa de obra')], ['08:15', 'Armado']);
+  W.empujar([{ id: 'w3', tipo: 'actualizar', id_notion: 'V-001', datos: { 'Hora instalacion': '' } }], 'fabricacion');
+  eq('vacía la borra: todavía no se sabe', W.celda('V-001', 'Hora instalacion'), '');
+
+  /* Una fila libre con la hora de otra venta tiene restos, y limpiarla la borra. */
+  const L = hojaDeMentiras();
+  L.v._g[2][aa] = L.hora('10:00');
+  eq('una hora ya vuelta Date cuenta como restos: la fila libre es la siguiente', L.run('primeraFilaLibre(SpreadsheetApp.getActive().getSheetByName("Ventas"))'), 3);
+  L.run('limpiarFila(SpreadsheetApp.getActive().getSheetByName("Ventas"), 2)');
+  eq('y limpiarFila la borra', L.v._g[2][aa], '');
+
+  /* La vista previa de la realineación y su pestaña: V-001 escribió en la fila 2, el reacomodo
+     de antes la bajó a la 3 y su hora —ya vuelta Date— se quedó en la 2. */
+  const R = hojaDeMentiras();
+  R.nuevaHoja('Bitácora del puente', 20, 6)._g[2] = ['', 'hoy', 'fabricacion', 'V-001', 2, 'Etapa de obra, Hora instalacion', ''];
+  R.pon(2, 'V-002', { 'Proyecto': 'Beto', 'Estatus': 'FABRICACION', 'Etapa de obra': 'Armado', 'Hora instalacion': R.hora('10:00') });
+  R.pon(3, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'COBRANDO' });
+  R.run('revisarColumnasDelPuente()');
+  const vio = () => R.ss.getSheetByName('Revisión Y-AD')._g.filter(f => f.includes('Hora instalacion')).map(f => f.slice(1, 7));
+  eq('la vista previa enseña la hora como «10:00», no como el Date de 1899', vio(),
+     [[2, 'V-002', 'Beto', 'Hora instalacion', '10:00', ''], [3, 'V-001', 'Ana', 'Hora instalacion', '', '10:00']]);
+  R.run('realinearColumnasDelPuente()');
+  eq('la revisión de lo aplicado, igual', vio(),
+     [[2, 'V-002', 'Beto', 'Hora instalacion', '10:00', ''], [3, 'V-001', 'Ana', 'Hora instalacion', '', '10:00']]);
+  eq('al realinear, la hora llega a su venta como texto', [R.celda('V-001', 'Hora instalacion'), R.celda('V-002', 'Hora instalacion')], ['10:00', '']);
+  eq('en una columna ya en texto sin formato', R.v._f[R.fila('V-001')][aa], '@');
+
+  /* La hoja que ya tiene horas vueltas Date: prepararHojaParaElPuente las pasa a texto una vez. */
+  const P = hojaDeMentiras();
+  P.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'COBRANDO', 'Hora instalacion': P.hora('10:00') });
+  P.pon(3, 'V-002', { 'Proyecto': 'Beto', 'Estatus': 'COBRANDO', 'Hora instalacion': '7:05' });
+  P.run('prepararHojaParaElPuente()');
+  eq('prepararHojaParaElPuente vuelve texto las horas que Sheets ya había convertido', [P.celda('V-001', 'Hora instalacion'), P.celda('V-002', 'Hora instalacion')], ['10:00', '07:05']);
+  cierto('y deja AA2:AA en texto sin formato, para que lo que se teclee después se quede como se tecleó', P.v._f.slice(2, 311).every(x => x[aa] === '@'));
+  cierto('con el candado puesto: reescribe la columna entera', P.candados.length > 0);
+  const mt = P.run('mejorarTodo.toString()');
+  cierto('y mejorarTodo la corre DESPUÉS del diseño: el último formato que recibe AA es el de texto',
+         mt.indexOf('prepararHojaParaElPuente()') > mt.indexOf('disenoVentas('));
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

@@ -16,7 +16,7 @@ import { dirname, join } from 'node:path';
 
 import { P, ETAPA_A_NOTION, ETAPA_DESDE_NOTION, ESTATUS, CUENTAS, ALMACENES, ESPEJOS,
          aNotion, deNotion, instalacionANotion, ventaDeHoja, normalizarUrl, instrucciones,
-         VERSION_ESPERADA, versionVieja, avisoVersion }
+         VERSION_ESPERADA, versionVieja, avisoVersion, motivoPerdida, mensajePerdida }
   from '../js/datos/puente.js';
 import { TIPOS_TRABAJO, ETAPA_NOMBRE } from '../js/datos/proyectos.js';
 
@@ -477,6 +477,331 @@ console.log('\nDETALLES QUE ROMPEN EN LA CALLE');
 
   eq('el relevo de hoy lleva la venta y su instalación, y nada más',
      ALMACENES, ['proyectos', 'instalaciones']);
+}
+
+console.log('\nLA FILA QUE YA NO ESTÁ: cuál NO_ENCONTRADO es cuál');
+{
+  /* Las frases son las de `unaOperacion` en puente/hoja-apps-script.gs. Cuatro rechazos con el
+     mismo código, y solo dos quieren decir «esta venta no tiene fila». */
+  const borrada = { codigo: 'NO_ENCONTRADO', mensaje: 'La venta V-404 ya no está en la hoja: alguien borró su fila. Este cambio no se escribió en ninguna otra. Si la venta sigue viva, vuelve a registrarla desde el cotizador.' };
+  const otra = { codigo: 'NO_ENCONTRADO', mensaje: 'La fila V-407 de la hoja ya es de otra venta (atada a COT-9999@OTRO, y este cambio es de COT-0407@TEST). Este cambio no se escribió en ninguna otra. Si la venta sigue viva, vuelve a registrarla desde el cotizador.' };
+  eq('la fila borrada', motivoPerdida(borrada), 'borrada');
+  eq('la fila que ya es de otra venta NO es «borrada»', motivoPerdida(otra), 'de_otra');
+  eq('el campo de máquina manda, si la hoja lo trae', motivoPerdida({ codigo: 'NO_ENCONTRADO', motivo: 'de_otra', mensaje: 'x' }), 'de_otra');
+  eq('el alta sin nombre no es una fila perdida (dice «todavía no está»)',
+     motivoPerdida({ codigo: 'NO_ENCONTRADO', mensaje: 'Esta venta todavía no está en la hoja y este cambio no trae el nombre del proyecto.' }), '');
+  eq('ni el camino desconocido, ni otro código', [motivoPerdida({ codigo: 'NO_ENCONTRADO', mensaje: 'Camino desconocido.' }),
+     motivoPerdida({ codigo: 'DESCONOCIDO', mensaje: 'ya no está en la hoja' })], ['', '']);
+  const m = mensajePerdida(otra.mensaje);
+  cierto('el consejo que no lleva a ningún lado se cambia por la ficha, y se queda qué pasó',
+    !/registrarla desde el cotizador/.test(m) && /ficha del proyecto/.test(m) && /atada a COT-9999@OTRO/.test(m));
+}
+
+/* ---------------------------------------------------------------------------
+   LA VENTA QUE LA HOJA YA NO TIENE — el camino entero, contra una base de mentira.
+
+   Lo que aquí se prueba vive ENTRE módulos: el relevo aparta el rechazo y marca el proyecto,
+   `sync.jalar` cierra el barrido y le pide al relevo la revisión, y `proyectos` junta o marca.
+   Probarlo por piezas dejaba justo el hueco que costó el caso. Node no trae IndexedDB y la de
+   pruebas/respaldo.mjs no sabe de índices ni de cursores, que es lo que `DB.listar` usa; esta
+   sí, con el orden de llaves de IndexedDB (números antes que textos) porque la bandeja se
+   manda en el orden del índice `porTs`.
+   --------------------------------------------------------------------------- */
+function idbConIndices() {
+  const almacenes = new Map();   // nombre → { keyPath, indices: Map(nombre → campo), datos: Map }
+  const llave = (v, c) => (Array.isArray(c) ? c.map(k => v[k]) : v[c]);
+  const valida = k => (Array.isArray(k) ? k.every(valida) : (typeof k === 'string' || (typeof k === 'number' && !Number.isNaN(k))));
+  const cmp = (a, b) => {
+    if (Array.isArray(a) && Array.isArray(b)) {
+      for (let i = 0; i < Math.min(a.length, b.length); i++) { const c = cmp(a[i], b[i]); if (c) return c; }
+      return a.length - b.length;
+    }
+    if (typeof a !== typeof b) return typeof a === 'number' ? -1 : 1;
+    return a < b ? -1 : a > b ? 1 : 0;
+  };
+  class Tx extends EventTarget {
+    constructor() { super(); this.error = null; this._pend = 0; this._fin = false; setTimeout(() => this._revisar(), 0); }
+    _revisar() {
+      if (this._pend || this._fin) return;
+      this._fin = true;
+      const ev = new Event('complete'); this.dispatchEvent(ev); if (this.oncomplete) this.oncomplete(ev);
+    }
+    _paso(p, hacer) {
+      this._pend++;
+      setTimeout(() => {
+        p.result = hacer();
+        if (p.onsuccess) p.onsuccess({ target: p });
+        this._pend--; setTimeout(() => this._revisar(), 0);
+      }, 0);
+      return p;
+    }
+    objectStore(n) { return vista(this, almacenes.get(n), null); }
+  }
+  function vista(tx, a, indice) {
+    const campo = indice ? a.indices.get(indice) : a.keyPath;
+    const filas = (rango, dir) => {
+      let xs = [...a.datos.values()].filter(v => valida(llave(v, campo)));
+      if (rango && 'only' in rango) xs = xs.filter(v => cmp(llave(v, campo), rango.only) === 0);
+      xs.sort((x, y) => cmp(llave(x, campo), llave(y, campo)) || cmp(llave(x, a.keyPath), llave(y, a.keyPath)));
+      return dir === 'prev' ? xs.reverse() : xs;
+    };
+    return {
+      get: k => tx._paso({}, () => (a.datos.has(k) ? structuredClone(a.datos.get(k)) : undefined)),
+      put: v => tx._paso({}, () => { a.datos.set(llave(v, a.keyPath), structuredClone(v)); return llave(v, a.keyPath); }),
+      delete: k => tx._paso({}, () => { a.datos.delete(k); }),
+      clear: () => tx._paso({}, () => { a.datos.clear(); }),
+      count: r => tx._paso({}, () => filas(r).length),
+      index: i => vista(tx, a, i),
+      openCursor(rango, dir) {
+        const xs = filas(rango, dir);
+        let i = 0;
+        const p = {};
+        const siguiente = () => tx._paso(p, () => (i < xs.length
+          ? { value: structuredClone(xs[i]), continue: () => { i++; siguiente(); } } : null));
+        siguiente();
+        return p;
+      },
+    };
+  }
+  const db = {
+    objectStoreNames: { contains: n => almacenes.has(n) },
+    createObjectStore(n, { keyPath }) {
+      const a = { keyPath, indices: new Map(), datos: new Map() };
+      almacenes.set(n, a);
+      return { indexNames: { contains: i => a.indices.has(i) }, createIndex: (i, c) => a.indices.set(i, c) };
+    },
+    transaction: () => new Tx(),
+    close() {},
+  };
+  return {
+    open() {
+      const p = {};
+      setTimeout(() => { p.result = db; if (p.onupgradeneeded) p.onupgradeneeded({ oldVersion: 0 }); p.onsuccess(); }, 0);
+      return p;
+    },
+  };
+}
+
+console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
+{
+  globalThis.window = globalThis;
+  globalThis.indexedDB = idbConIndices();
+  globalThis.IDBKeyRange = { only: v => ({ only: v }) };
+  const guardado = { al3d_pf_rol: 'direccion', al3d_pf_disp: 'TEST',
+                     al3d_pf_puente: JSON.stringify({ url: 'https://puente.test/exec', token: 'd'.repeat(40) }) };
+  globalThis.localStorage = { getItem: k => (k in guardado ? guardado[k] : null), setItem: (k, v) => { guardado[k] = String(v); },
+                              removeItem: k => { delete guardado[k]; } };
+
+  /* La hoja de mentiras: las filas que manda /jalar, y qué contesta /empujar a cada cambio. */
+  const H = { filas: [], empujadas: [], borradas: new Set(), deOtra: new Set(), siguiente: 500, jalar: null };
+  const ESC_DIR = ['Proyecto', 'Precio Subtotal', 'IVA', 'Anticipo', 'Liquidacion', 'Abono Comision', 'Estatus', 'Cuenta ',
+    'Fecha Anticipo e Instalacion', 'Fecha Liquidacion', 'Folio cotizacion', 'Etapa de obra', 'Fecha instalacion',
+    'Hora instalacion', 'Ubicacion', 'Direccion', 'Tipo de trabajo', 'Porcentaje comision'];
+  const responder = op => {
+    if (op.id_notion && H.borradas.has(op.id_notion)) return { id: op.id, ok: false, codigo: 'NO_ENCONTRADO',
+      mensaje: 'La venta ' + op.id_notion + ' ya no está en la hoja: alguien borró su fila. Este cambio no se escribió en ninguna otra. Si la venta sigue viva, vuelve a registrarla desde el cotizador.' };
+    if (op.id_notion && H.deOtra.has(op.id_notion)) return { id: op.id, ok: false, codigo: 'NO_ENCONTRADO',
+      mensaje: 'La fila ' + op.id_notion + ' de la hoja ya es de otra venta (atada a COT-9999@OTRO, y este cambio es de ' + op.folio_cotizacion + '). Este cambio no se escribió en ninguna otra. Si la venta sigue viva, vuelve a registrarla desde el cotizador.' };
+    if (!op.id_notion) return { id: op.id, ok: true, remoto: { id_notion: 'V-' + (H.siguiente++) }, rechazadas: [] };
+    return { id: op.id, ok: true, remoto: { id_notion: op.id_notion }, rechazadas: [] };
+  };
+  globalThis.fetch = async (url, init) => {
+    const c = JSON.parse(init.body);
+    let cuerpo;
+    if (c.ruta === 'salud') cuerpo = { ok: true, rol: 'direccion', escribibles: ESC_DIR, version: VERSION_ESPERADA };
+    else if (c.ruta === 'jalar') cuerpo = H.jalar ? H.jalar(c) : { ok: true, cursor: null, hay_mas: false,
+      registros: H.filas.map(d => ({ almacen: 'proyectos', datos: d })) };
+    else if (c.ruta === 'empujar') { H.empujadas.push(c.ops[0]); cuerpo = { ok: true, resultados: [responder(c.ops[0])] }; }
+    else cuerpo = { ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'Camino desconocido.' };
+    return { status: 200, json: async () => cuerpo };
+  };
+  const fila = (id, nombre, o = {}) => ({ id_notion: id, editado: null, 'Proyecto': nombre, 'Cuenta ': 'Elias BBVA',
+    'Estatus': 'FABRICACION', 'Tipo de trabajo': ['Letras 3D con iluminacion'], 'IVA': true, 'Precio Subtotal': 10000,
+    'Precio Neto ': 11600, 'Anticipo': 5000, 'Liquidacion': null, 'Pago Pendiente': 6600, 'Comisiones': 1000,
+    'Abono Comision': 0, 'Comision Restante': 1000, 'Porcentaje comision': null, 'Fecha Anticipo e Instalacion': '2026-09-01',
+    'Fecha instalacion': null, 'Fecha Liquidacion': null, 'Folio cotizacion': '', 'Etapa de obra': null,
+    'Hora instalacion': '', 'Ubicacion': '', 'Direccion': 'Av. Siempre Viva 1', ...o });
+
+  const DB = await import('../js/datos/db.js');
+  const S = await import('../js/datos/sync.js');
+  const Proy = await import('../js/datos/proyectos.js');
+  const { crear } = await import('../js/datos/puente.js');
+  eq('la base de mentira abre', await DB.abrir(), true);
+  S.registrar(crear({ url: 'https://puente.test/exec', token: 'd'.repeat(40) }));
+  eq('y la bandeja está enchufada a la hoja', S.configurado(), true);
+
+  const propio = (id, fg, np, o = {}) => ({ id, folio_local: fg.split('@')[0], dispositivo: 'TEST', folio_global: fg,
+    nombre: 'Venta ' + fg, contacto: 'Ana', negocio: 'Café', etapa: 'ganado', tipo_trabajo: ['Letras 3D con iluminacion'],
+    fecha_ganado: '2026-09-01', dir_texto: 'Av. Siempre Viva 1', lat: null, lng: null, sub: 10000, neto: 11600,
+    precio_auth: 11600, anti_pactado: 5000, iva: true, notion_page_id: np, notion_estado: 'enviado',
+    estatus_notion: 'FABRICACION', cuenta: 'Elias BBVA', pago_pendiente: null, comision_restante: null,
+    pct_comision: 0, plazo_k: null, notas: '', origen: { folio: fg.split('@')[0], items: [] }, ...o });
+  const cambio = async (id, campos) => {
+    const p = await DB.obtener('proyectos', id);
+    await S.encolar({ tipo: 'actualizar', almacen: 'proyectos', registro_id: id, datos: p, campos, ts: Date.now() });
+  };
+  const deProyecto = async id => (await S.rechazadas()).filter(o => o.registro_id === id);
+  const jalarTodo = async () => { let r, n = 0; do { r = await S.jalar(); n++; } while (r.ok && r.valor.hay_mas && n < 5); return r; };
+
+  /* ── 1 · La venta de este teléfono cuya fila se borró ── */
+  await DB.poner('proyectos', propio('proy-A', 'COT-0404@TEST', 'V-404'));
+  H.borradas.add('V-404');
+  await cambio('proy-A', ['etapa']);
+  const b1 = await S.bombear();
+  let a = await DB.obtener('proyectos', 'proy-A');
+  eq('el rebote se aparta como rechazado, como siempre', [b1.valor.rechazadas, (await deProyecto('proy-A')).length], [1, 1]);
+  eq('y el proyecto queda MARCADO: por qué, qué fila', [a.hoja_perdida && a.hoja_perdida.motivo, a.hoja_perdida && a.hoja_perdida.folio],
+     ['borrada', 'V-404']);
+  eq('con el folio de la fila muerta intacto: borrarlo resucitaría una venta quitada a propósito', a.notion_page_id, 'V-404');
+  cierto('lo apartado ya no dice «vuelve a registrarla desde el cotizador», que lleva a DUPLICADO, sino la ficha',
+    (await deProyecto('proy-A')).every(o => !/desde el cotizador/.test(o.ultimo_error) && /ficha del proyecto/.test(o.ultimo_error)));
+  const desdeA = a.hoja_perdida.desde;
+  await cambio('proy-A', ['notas']);
+  await S.bombear();
+  a = await DB.obtener('proyectos', 'proy-A');
+  eq('un segundo rebote no reinicia la fecha del aviso', [a.hoja_perdida.desde, (await deProyecto('proy-A')).length], [desdeA, 2]);
+
+  guardado.al3d_pf_rol = 'fabricacion';
+  eq('volver a darla de alta es de Dirección', (await Proy.volverADarDeAlta('proy-A')).codigo, 'ROL_SIN_PERMISO');
+  guardado.al3d_pf_rol = 'direccion';
+  const re = await Proy.volverADarDeAlta('proy-A');
+  a = await DB.obtener('proyectos', 'proy-A');
+  const colaA = (await S.pendientes()).filter(o => o.registro_id === 'proy-A');
+  eq('«Volver a darla de alta»: se olvida la fila muerta y se quita la marca', [re.ok, a.notion_page_id, a.hoja_perdida], [true, null, null]);
+  eq('lo apartado de ese proyecto se tira, y queda UN alta en la bandeja', [(await deProyecto('proy-A')).length, colaA.map(o => o.tipo)], [0, ['crear']]);
+  const antesAlta = H.empujadas.length;
+  await S.bombear();
+  const alta = H.empujadas.slice(antesAlta).find(o => o.folio_cotizacion === 'COT-0404@TEST') || {};
+  eq('sale como alta, sin id de fila y con TODOS los datos (nombre, subtotal, anticipo)',
+     [alta.tipo, alta.id_notion, !!(alta.datos && alta.datos['Proyecto']), alta.datos && alta.datos['Precio Subtotal'], alta.datos && alta.datos['Anticipo']],
+     ['crear', null, true, 10000, 5000]);
+  eq('y el proyecto queda atado a su fila nueva', (await DB.obtener('proyectos', 'proy-A')).notion_page_id, 'V-500');
+
+  /* ── 1b · «Dejarla fuera de la hoja», y la fila que ya es de otra venta ── */
+  await DB.poner('proyectos', propio('proy-B', 'COT-0406@TEST', 'V-406'));
+  H.borradas.add('V-406');
+  await cambio('proy-B', ['etapa']);
+  await S.bombear();
+  const fuera = await Proy.dejarFueraDeLaHoja('proy-B');
+  let b = await DB.obtener('proyectos', 'proy-B');
+  eq('«Dejarla fuera»: se queda aquí, sin marca, con su fila vieja y sin lo apartado',
+     [fuera.ok, !!b.fuera_de_hoja, b.hoja_perdida, b.notion_page_id, (await deProyecto('proy-B')).length], [true, true, null, 'V-406', 0]);
+  const antesFuera = H.empujadas.length;
+  await cambio('proy-B', ['etapa']);
+  await S.bombear();
+  b = await DB.obtener('proyectos', 'proy-B');
+  eq('y sus cambios ya no se mandan ni rebotan: el aviso no vuelve',
+     [H.empujadas.length - antesFuera, (await deProyecto('proy-B')).length, b.hoja_perdida, (await S.pendientes()).filter(o => o.registro_id === 'proy-B').length],
+     [0, 0, null, 0]);
+
+  await DB.poner('proyectos', propio('proy-C', 'COT-0407@TEST', 'V-407'));
+  H.deOtra.add('V-407');
+  await cambio('proy-C', ['etapa']);
+  await S.bombear();
+  eq('la fila que ya es de otra venta se marca como tal, no como borrada',
+     ((await DB.obtener('proyectos', 'proy-C')).hoja_perdida || {}).motivo, 'de_otra');
+
+  /* ── 2 · La tarjeta importada cuya fila se borró: solo una bajada COMPLETA marca ── */
+  H.filas = [fila('V-300', 'Taller Sur - Vinil'), fila('V-301', 'Papelería Norte - Letras'), fila('V-302', 'Farmacia Centro - Caja')];
+  await jalarTodo();
+  eq('la bajada importa las tres filas vivas como tarjetas',
+     await Promise.all(['V-300', 'V-301', 'V-302'].map(async f => !!(await DB.obtener('proyectos', 'proy-hoja-' + f)))), [true, true, true]);
+  const marcada = async f => ((await DB.obtener('proyectos', 'proy-hoja-' + f)) || {}).hoja_perdida || null;
+
+  H.filas = H.filas.filter(x => x.id_notion !== 'V-300');
+  /* Una primera página que dice que hay más: el barrido no ha cerrado. */
+  H.jalar = c => (c.cursor ? { ok: true, cursor: null, hay_mas: false, registros: H.filas.slice(1).map(d => ({ almacen: 'proyectos', datos: d })) }
+                           : { ok: true, cursor: '3', hay_mas: true, registros: H.filas.slice(0, 1).map(d => ({ almacen: 'proyectos', datos: d })) });
+  const r1 = await S.jalar();
+  eq('una página a medias NO marca nada (no dice qué falta, dice qué no se leyó)', [r1.ok, r1.valor.hay_mas, await marcada('V-300')], [true, true, null]);
+  H.jalar = () => ({ ok: false, codigo: 'SIN_RED', mensaje: 'La hoja no contestó.' });
+  const r2 = await S.jalar();
+  eq('una bajada que falla tampoco', [r2.ok, await marcada('V-300')], [false, null]);
+  /* Un barrido que arrancó a medias —un cursor sin barrido anotado, de una versión anterior—
+     cierra, pero no vio la primera parte. */
+  await DB.poner('pendientes', { id: '_marcas', ts: 0, cursor: '3', barrido: null });
+  H.jalar = () => ({ ok: true, cursor: null, hay_mas: false, registros: H.filas.map(d => ({ almacen: 'proyectos', datos: d })) });
+  const r3 = await S.jalar();
+  eq('ni uno que cerró pero empezó a medias', [r3.ok, r3.valor.completa, await marcada('V-300')], [true, true, null]);
+  H.jalar = () => ({ ok: true, cursor: null, hay_mas: false, registros: [] });
+  await S.jalar();
+  eq('ni una hoja que contestó «ok» con cero filas', await marcada('V-300'), null);
+  H.jalar = null;
+  const r4 = await S.jalar();
+  const m300 = await marcada('V-300');
+  eq('una bajada COMPLETA sí: la tarjeta de V-300 queda marcada, no borrada',
+     [r4.valor.revision && r4.valor.revision.perdidas, m300 && m300.motivo, m300 && m300.folio, !!(await DB.obtener('proyectos', 'proy-hoja-V-300'))],
+     [1, 'no_bajo', 'V-300', true]);
+  eq('las que sí vinieron no se marcan', [await marcada('V-301'), await marcada('V-302')], [null, null]);
+
+  H.filas.push(fila('V-300', 'Taller Sur - Vinil'));
+  await jalarTodo();
+  eq('si la fila vuelve, la marca se va sola', await marcada('V-300'), null);
+  H.filas = H.filas.filter(x => !['V-300', 'V-301'].includes(x.id_notion));
+  await jalarTodo();
+  eq('y si se vuelve a ir, se vuelve a marcar', [!!(await marcada('V-300')), !!(await marcada('V-301'))], [true, true]);
+
+  await DB.poner('instalaciones', { id: 'inst-300', proyecto_id: 'proy-hoja-V-300', fecha: '2026-10-01', estado: 'confirmada' });
+  const q1 = await Proy.quitarDelTablero('proy-hoja-V-300');
+  eq('«Quitar del tablero» no quita la que tiene una instalación a su nombre, y dice por qué',
+     [q1.ok, q1.codigo, /1 instalación/.test(q1.mensaje || ''), !!(await DB.obtener('proyectos', 'proy-hoja-V-300'))], [false, 'EN_USO', true, true]);
+  const q2 = await Proy.quitarDelTablero('proy-hoja-V-301');
+  eq('la que no tiene nada colgando, sí', [q2.ok, await DB.obtener('proyectos', 'proy-hoja-V-301')], [true, null]);
+  eq('una tarjeta cuya venta sigue en la hoja no se quita: volvería en la siguiente bajada',
+     (await Proy.quitarDelTablero('proy-hoja-V-302')).codigo, 'DATO_INVALIDO');
+  const dj = await Proy.dejarFueraDeLaHoja('proy-hoja-V-300');
+  await jalarTodo();
+  const t300 = await DB.obtener('proyectos', 'proy-hoja-V-300');
+  eq('«Dejarla»: se queda en el tablero y la siguiente bajada completa ya no la vuelve a marcar',
+     [dj.ok, !!t300.fuera_de_hoja, t300.hoja_perdida], [true, true, null]);
+
+  /* ── 3 · La misma venta dos veces: propia + copia importada ── */
+  /* La que se junta sola: su fila trae el folio de cotización de la de aquí, y la copia no
+     tiene nada que la de aquí no tenga. Lo que colgaba de la copia pasa al proyecto. */
+  const copia = (fh, o = {}) => ({ ...Proy.desdeVentaDeHoja(ventaDeHoja(fila(fh, 'Copia ' + fh))), ...o });
+  await DB.poner('proyectos', propio('proy-D', 'COT-0310@TEST', 'V-310'));
+  await DB.poner('proyectos', copia('V-310'));
+  await DB.poner('instalaciones', { id: 'inst-310', proyecto_id: 'proy-hoja-V-310', fecha: '2026-10-02', estado: 'confirmada' });
+  await DB.poner('movimientos', { id: 'mov-310', proyecto_id: 'proy-hoja-V-310', material_id: 'acr-3mm', cantidad: -1, ts: 1 });
+  /* La que NO: su fila no trae folio de cotización (el tercer camino, por el folio de la fila)
+     y la copia va más adelantada que la de aquí. */
+  await DB.poner('proyectos', propio('proy-E', 'COT-0320@TEST', 'V-320'));
+  await DB.poner('proyectos', copia('V-320', { etapa: 'cortado', notas: 'llamar antes de ir' }));
+  /* Una fila con la huella del defecto y sin copia todavía: no se importa como otra. */
+  await DB.poner('proyectos', propio('proy-F', 'COT-0330@TEST', 'V-330'));
+  /* Una fila cuyo folio de hoja coincide con el de un proyecto de aquí pero está atada a OTRA
+     cotización: es otra venta, se importa, y no se junta con nadie. */
+  await DB.poner('proyectos', propio('proy-G', 'COT-0340@TEST', 'V-340'));
+  H.filas.push(fila('V-310', 'Venta COT-0310', { 'Folio cotizacion': 'COT-0310@TEST' }), fila('V-320', 'Venta COT-0320'),
+               fila('V-330', 'Venta COT-0330', { 'Folio cotizacion': 'V-330', 'Pago Pendiente': 4321 }),
+               fila('V-340', 'Otra venta', { 'Folio cotizacion': 'COT-9999@OTRO', 'Pago Pendiente': 999 }));
+  const r5 = await jalarTodo();
+  const [i310, m310] = [await DB.obtener('instalaciones', 'inst-310'), await DB.obtener('movimientos', 'mov-310')];
+  eq('la copia que no pierde nada se junta sola: su instalación y su movimiento pasan al proyecto, y la copia se va',
+     [r5.valor.revision && r5.valor.revision.juntadas, i310.proyecto_id, m310.proyecto_id, await DB.obtener('proyectos', 'proy-hoja-V-310')],
+     [1, 'proy-D', 'proy-D', null]);
+  const c320 = await DB.obtener('proyectos', 'proy-hoja-V-320');
+  eq('la que perdería algo NO se borra: se marca repetida, con la de aquí y el porqué',
+     [!!c320, c320 && c320.duplicado_de && c320.duplicado_de.id, c320 && /Cortado/.test((c320.duplicado_de.por || []).join(' '))],
+     [true, 'proy-E', true]);
+  eq('la de aquí se ata a su fila por el folio de la hoja, para que Control la cuente una vez',
+     (await DB.obtener('proyectos', 'proy-E')).folio_hoja, 'V-320');
+  const f330 = await DB.obtener('proyectos', 'proy-F');
+  eq('una fila con la huella del defecto le cae a la de aquí (con su saldo) y NO se importa como otra',
+     [await DB.obtener('proyectos', 'proy-hoja-V-330'), f330.pago_pendiente, f330.precio_auth], [null, 4321, 11600]);
+  const g340 = await DB.obtener('proyectos', 'proy-G');
+  eq('la fila atada a otra cotización no le cae a la de aquí aunque el folio de hoja coincida, y se importa aparte sin marca',
+     [g340.pago_pendiente, !!(await DB.obtener('proyectos', 'proy-hoja-V-340')), ((await DB.obtener('proyectos', 'proy-hoja-V-340')) || {}).duplicado_de || null],
+     [null, true, null]);
+
+  eq('la repetida no se «quita»: su fila la volvería a traer; se junta',
+     [(await Proy.quitarDelTablero('proy-hoja-V-320')).codigo, !!(await DB.obtener('proyectos', 'proy-hoja-V-320'))], ['DATO_INVALIDO', true]);
+  const j = await Proy.juntarConLaDeAqui('proy-hoja-V-320');
+  const e320 = await DB.obtener('proyectos', 'proy-E');
+  eq('«Juntar con…»: la copia se va, sus notas pasan a la de aquí, y la etapa NO (moverla descuenta material)',
+     [j.ok, await DB.obtener('proyectos', 'proy-hoja-V-320'), /llamar antes de ir/.test(e320.notas || ''), e320.etapa], [true, null, true, 'ganado']);
+  await jalarTodo();
+  eq('y la siguiente bajada no la vuelve a importar', await DB.obtener('proyectos', 'proy-hoja-V-320'), null);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

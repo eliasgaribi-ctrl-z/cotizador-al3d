@@ -1008,7 +1008,10 @@ function ordenarVentas(h) {
   for (var j = 0; j < n && !seMovio; j++) seMovio = orden[j] !== datos[j];
   if (!seMovio) return;
 
-  /* Aquí la hoja ya está realineada (o no tiene columnas del puente): Y:AD viajan con su fila. */
+  /* Aquí la hoja ya está realineada (o no tiene columnas del puente): Y:AD viajan con su fila.
+     La hora, como texto: getValues la trae como el Date en que Sheets la convirtió, y el
+     renglón al que llega puede no tener el '@' (ver horaDeCelda). */
+  horasATexto(h, orden);
   var bloques = bloquesCapturados(ancho);
   bloques.forEach(function (b) {
     h.getRange(2, b[0], n, b[1] - b[0] + 1)
@@ -1680,7 +1683,8 @@ function dialogoTokens() {
    cambio contra una venta que ya no está vuelve NO_ENCONTRADO en vez de crear una fila sin
    nombre; el folio no se reparte dos veces; «Folio cotizacion» no se pisa en un cambio;
    /empujar le devuelve a cada rol solo lo que puede ver; /jalar manda la hoja entera en una
-   página; y un tropiezo de Google al verificar la identidad ya no se guarda como un «no». */
+   página; un tropiezo de Google al verificar la identidad ya no se guarda como un «no»; y la
+   hora de instalación baja como «HH:MM» aunque Sheets la haya vuelto hora (AA va en '@'). */
 var PUENTE_VERSION = 'puente-sheets-6';
 var BITACORA = 'Bitácora del puente';
 
@@ -2123,7 +2127,9 @@ function aplanarFila(fila, tz) {
     'Fecha Liquidacion':             fecha(v('Fecha Liquidacion')),
     'Folio cotizacion':              String(v('Folio cotizacion') || ''),
     'Etapa de obra':                 String(v('Etapa de obra') || '') || null,
-    'Hora instalacion':              String(v('Hora instalacion') || ''),
+    /* Con String() a secas, la hora que Sheets ya había vuelto HORA llegaba a cada teléfono
+       como «Sat Dec 30 1899 10:00:00 GMT-0636 …». Ver horaDeCelda. */
+    'Hora instalacion':              horaDeCelda(v('Hora instalacion'), tz),
     'Ubicacion':                     String(v('Ubicacion') || ''),
     'Direccion':                     String(v('Direccion') || '')
   };
@@ -2139,6 +2145,74 @@ function sinLoQueNoLeToca(fila, rol) {
 function desdeTexto(x) {
   var s = String(x || '').trim();
   return s ? s.split(/\s*,\s*/).filter(Boolean) : [];
+}
+
+/* ── La hora de instalación, que Sheets quiere volver hora ─────────────────────────────
+   AA guarda «HH:MM» como texto, pero Sheets convierte en HORA cualquier «10:00» que caiga en
+   una celda que no esté en texto sin formato: el que escribía el puente con setValue, el que
+   se teclea a mano y el que el reacomodo reescribe con setValues. getValues ya no devuelve
+   «10:00» sino un Date del 30 de diciembre de 1899 —el día cero de Sheets— a las diez. Por eso
+   las dos puntas:
+     · al leer, horaDeCelda vuelve «HH:MM» lo que venga: el Date, el número (la fracción del
+       día que queda si alguien pone en texto sin formato, a mano, una celda que ya era hora)
+       y el texto «9:30» o «10:00:00»;
+     · al escribir, la celda se pone en texto sin formato ('@') ANTES del valor, y el valor va
+       ya normalizado: así la hoja guarda lo que mandó el teléfono (horasATexto, y el '@' de
+       cada celda en unaOperacion).
+
+   La zona es la de la HOJA, y no por costumbre: Apps Script arma ese Date con la zona de la
+   hoja, y en 1899 México no tenía husos horarios, así que lleva la hora solar de la ciudad
+   (LMT; −6:36:36 en la de México, de ahí el «GMT-0636»). Utilities.formatDate en esa MISMA
+   zona le quita exactamente el desfase que le puso y da la hora que se ve en la celda.
+   getHours() no sirve —usa la zona del proyecto de Apps Script, que puede ser otra—, y
+   toISOString tampoco: dice 16:36. Se redondea al minuto por si los dos lados no coinciden
+   en los segundos del LMT: una hora de instalación nunca lleva segundos, y 09:59:59 sería
+   otra hora en la orden del instalador. */
+
+/** «HH:MM» de lo que mandó el teléfono o se tecleó: '' si viene vacío (todavía no se sabe),
+ *  null si no es una hora. Acepta «9:30» y «10:00:00», como las teclea la gente. */
+function horaEscrita(v) {
+  if (v === null || v === undefined || String(v).trim() === '') return '';
+  var m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(String(v).trim());
+  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return null;
+  return ('0' + Number(m[1])).slice(-2) + ':' + m[2];
+}
+
+/** La hora de una celda de AA como «HH:MM», sea lo que sea lo que guarde Sheets. Un texto
+ *  que no es hora se devuelve tal cual: es lo que alguien escribió y no se adivina. */
+function horaDeCelda(x, tz) {
+  if (x === '' || x === null || x === undefined) return '';
+  var min;
+  if (esFecha(x)) {
+    var p = Utilities.formatDate(x, tz, 'HH:mm:ss').split(':');
+    min = Number(p[0]) * 60 + Number(p[1]) + (Number(p[2]) >= 30 ? 1 : 0);
+  } else if (typeof x === 'number' && x >= 0 && x < 1) {
+    min = Math.round(x * 1440);
+  } else {
+    var s = String(x).trim(), escrita = horaEscrita(s);
+    return escrita === null ? s : escrita;
+  }
+  min = min % 1440;
+  return ('0' + Math.floor(min / 60)).slice(-2) + ':' + ('0' + (min % 60)).slice(-2);
+}
+
+/** Antes de reescribir AA con setValues: la columna en texto sin formato y, en `filas` —las
+ *  que se van a escribir en 2..FIN, cada una empezando en la columna `desde`—, la hora como
+ *  «HH:MM». El formato va primero porque con la celda en '@' Sheets guarda el texto como
+ *  llega, y porque no viaja con los valores: la hora que el reacomodo bajaba a un renglón
+ *  que nunca tuvo '@' se volvía hora ahí. Devuelve si cambió algún valor. */
+function horasATexto(h, filas, desde) {
+  var col = COL['Hora instalacion'], k = col - (desde || 1);
+  if (h.getMaxColumns() < col || k < 0) return false;
+  var tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
+  var cambio = false;
+  filas.forEach(function (r) {
+    if (k >= r.length) return;
+    var x = horaDeCelda(r[k], tz);
+    if (x !== r[k]) { r[k] = x; cambio = true; }
+  });
+  h.getRange(2, col, FIN - 1, 1).setNumberFormat('@');
+  return cambio;
 }
 
 /* ---------------------------------------------------------------- /empujar */
@@ -2291,7 +2365,12 @@ function unaOperacion(h, op, rol, anotaciones) {
     });
   }
 
-  armado.celdas.forEach(function (c) { h.getRange(fila, c.col).setValue(c.valor); });
+  armado.celdas.forEach(function (c) {
+    var celda = h.getRange(fila, c.col);
+    /* El formato ANTES del valor: puesto después, Sheets ya volvió hora el «10:00». */
+    if (c.texto) celda.setNumberFormat('@');
+    celda.setValue(c.valor);
+  });
   if (armado.abono) registrarAbonoDesdePuente(h, fila, armado.abono);
   SpreadsheetApp.flush();
 
@@ -2372,6 +2451,14 @@ function armarCeldas(datos, rol) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(valor))) { rechazadas.push({ nombre: nombre, por: 'la fecha tiene que venir como YYYY-MM-DD' }); continue; }
       var p = String(valor).split('-');
       celdas.push({ col: col, valor: new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])) });
+    } else if (nombre === 'Hora instalacion') {
+      /* «HH:MM», o vacía si todavía no se sabe: lo mismo que acepta la agenda del teléfono.
+         Antes entraba como texto libre; lo que no es una hora tampoco lo entiende la agenda,
+         así que se rechaza con su razón, como una fecha mal escrita. `texto` le pide a quien
+         escribe la celda en '@' antes del valor (ver horaDeCelda). */
+      var hora = horaEscrita(valor);
+      if (hora === null) { rechazadas.push({ nombre: nombre, por: 'la hora va como HH:MM, o vacía si todavía no se sabe' }); continue; }
+      celdas.push({ col: col, valor: hora, texto: true });
     } else {
       /* Texto libre. Se le quita el `=` de adelante: una celda que empieza con `=`
          es una FÓRMULA, y una fórmula metida desde afuera puede leer cualquier
@@ -2587,6 +2674,14 @@ function propuestaDeRealineacion(h) {
   if (ancho < 1) return p;   // una hoja sin las columnas del puente no tiene qué realinear
 
   var actual = h.getRange(2, ini, n, ancho).getValues();
+  /* La hora se compara y se enseña como «HH:MM», no como el Date de 1899 en que Sheets la
+     convierte (ver horaDeCelda): la revisión decía «Sat Dec 30 1899…», y una celda con el
+     Date y otra con su mismo «10:00» contaban como distintas. Aquí no se escribe nada. */
+  var kHora = COL['Hora instalacion'] - ini;
+  if (kHora < ancho) {
+    var tz = ss.getSpreadsheetTimeZone();
+    actual.forEach(function (r) { r[kHora] = horaDeCelda(r[kHora], tz); });
+  }
   var ab = h.getRange(2, 1, n, 2).getValues();
   var filaDe = {};
   ab.forEach(function (r, i) {
@@ -2717,7 +2812,9 @@ function escribirRevision(p, aplicada) {
   /* Una pestaña nueva trae mil renglones; una hoja con mucho escrito a mano en Y:AD puede
      pedir más, y sin esto la realineación se caería en cada subida por no caber su lista. */
   if (filas.length > h.getMaxRows()) h.insertRowsAfter(h.getMaxRows(), filas.length - h.getMaxRows());
-  h.getRange(1, 1, filas.length, 7).setValues(filas);
+  /* En texto sin formato: es un reporte de lo que dice cada celda, y en una pestaña nueva
+     Sheets volvería hora el «10:00» de la columna AA (ver horaDeCelda). */
+  h.getRange(1, 1, filas.length, 7).setNumberFormat('@').setValues(filas);
   h.getRange(1, 1, 1, 7).setFontWeight('bold');
   return h;
 }
@@ -2752,6 +2849,7 @@ function realinearSiHaceFalta(h) {
       h.copyTo(ss).setName(HOJA_ANTES_DE_REALINEAR).hideSheet();
     }
     escribirRevision(p, true);
+    horasATexto(h, p.nueva, p.ini);
     h.getRange(2, p.ini, FIN - 1, p.ancho).setValues(filasProtegidas(p.nueva));
     SpreadsheetApp.flush();
   } else {
@@ -2855,7 +2953,17 @@ function prepararHojaParaElPuente() {
       .setAllowInvalid(true).build());
   alinearTiposDeTrabajo(h);
 
-  h.getRange(2, 27, FIN - 1, 1).setHorizontalAlignment('center');
+  /* AA en texto sin formato, para que la hora se quede como la mandó el teléfono (ver
+     horaDeCelda). Lo que ya era hora se reescribe «HH:MM» en el mismo paso: el formato de
+     texto encima de una hora no la convierte, la enseña como 0.4166…. Con el candado porque
+     reescribe la columna entera, y una subida que cayera en medio perdería su hora. */
+  var colHora = COL['Hora instalacion'];
+  conCandado(function () {
+    var aa = h.getRange(2, colHora, FIN - 1, 1);
+    var horas = aa.getValues();
+    if (horasATexto(h, horas, colHora)) aa.setValues(filasProtegidas(horas));
+  });
+  h.getRange(2, colHora, FIN - 1, 1).setHorizontalAlignment('center');
   crearHojaAccesos(ss);
   protegerColumnasCalculadas(h);
   SpreadsheetApp.flush();

@@ -128,6 +128,17 @@ const servidor = createServer(async (req, res) => {
     if (ruta === 'empujar') {
       const op = (entrada.ops || [])[0] || {};
       RECIBIDO.empujar.push(op);
+      /* Las ventas de «la fila que ya no está» (sección 4c) llevan folios COT-94…: no tocan la
+         fila V-201 de la venta de arriba. La V-404 se borró de la hoja; un alta sin fila entra
+         como una fila nueva, la V-405. Las frases son las de `unaOperacion` en el .gs. */
+      if (/^COT-94/.test(String(op.folio_cotizacion || ''))) {
+        if (op.id_notion === 'V-404') {
+          return json({ ok: true, resultados: [{ id: op.id, ok: false, codigo: 'NO_ENCONTRADO',
+            mensaje: 'La venta V-404 ya no está en la hoja: alguien borró su fila. Este cambio no se escribió en ninguna otra. Si la venta sigue viva, vuelve a registrarla desde el cotizador.' }] });
+        }
+        return json({ ok: true, resultados: [{ id: op.id, ok: true,
+          remoto: { id_notion: op.id_notion || 'V-405' }, rechazadas: [] }] });
+      }
       FILA = { id: 'V-201', editado: new Date().toISOString(),
                datos: { ...(FILA ? FILA.datos : {}), ...op.datos } };
       return json({ ok: true, resultados: [{ id: op.id, ok: true,
@@ -502,6 +513,130 @@ traba.reencoladas === 1 && traba.enCola === 1 && traba.otraVezApartada === 1
   ? bien('«Volver a intentarlos» lo regresa a la cola, y si rebota otra vez se vuelve a apartar')
   : mal('reintentar: ' + JSON.stringify({ r: traba.reencoladas, c: traba.enCola, a: traba.otraVezApartada }));
 traba.tirada && traba.quedan === 0 ? bien('y se puede descartar con resolver(…, "suyo")') : mal('no se pudo descartar');
+
+// ── 4c. La venta que la hoja ya no tiene: el aviso, el botón y «Qué atender» ──
+/* pruebas/puente.mjs recorre el camino de datos; esto es lo que ve la persona. Nada se borra
+   solo: la ficha lo dice, Dirección aprieta, y la otra pantalla —«Qué atender»— lleva a la
+   ficha de la tarjeta importada cuya fila ya no vino. */
+console.log('\nLA VENTA QUE LA HOJA YA NO TIENE');
+const sembrar = async (proys, rol) => p.evaluate(async ([lista, rol]) => {
+  const DB = await import('./js/datos/db.js');
+  for (const x of lista) await DB.poner('proyectos', x);
+  localStorage.setItem('al3d_pf_rol', rol);
+}, [proys, rol]);
+const proyPrueba = (id, fg, np, o) => ({ id, folio_local: fg.split('@')[0], dispositivo: 'PRUEBA', folio_global: fg,
+  nombre: 'Lavandería Azul - Letras', contacto: 'Rosa', negocio: 'Lavandería Azul', etapa: 'ganado',
+  tipo_trabajo: ['Letras 3D con iluminacion'], fecha_ganado: HOY_MX, dir_texto: 'Calle 5 #10', lat: null, lng: null,
+  sub: 8000, neto: 9280, precio_auth: 9280, anti_pactado: 4000, iva: true, notion_page_id: np, notion_estado: 'enviado',
+  estatus_notion: 'FABRICACION', cuenta: 'Elias BBVA', pago_pendiente: null, comision_restante: null, pct_comision: 0,
+  plazo_k: null, notas: '', origen: { folio: fg.split('@')[0], items: [] }, ...o });
+await sembrar([proyPrueba('proy-pr-404', 'COT-9404@PRUEBA', 'V-404'),
+               proyPrueba('proy-pr-com', 'COT-9415@PRUEBA', 'V-201x', { nombre: 'Tintorería Vieja - Caja', pct_comision: 15 })], 'direccion');
+const marca404 = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const P = await import('./js/datos/proyectos.js');
+  const S = await import('./js/datos/sync.js');
+  await P.actualizar('proy-pr-404', { notas: 'el cliente cambió de local' });
+  await S.bombear();
+  const x = await DB.obtener('proyectos', 'proy-pr-404');
+  return { marca: x.hoja_perdida, fila: x.notion_page_id,
+           apartadas: (await S.rechazadas()).filter(o => o.registro_id === 'proy-pr-404').length };
+});
+marca404.marca && marca404.marca.motivo === 'borrada' && marca404.fila === 'V-404' && marca404.apartadas === 1
+  ? bien('el cambio contra la fila borrada se aparta y el proyecto queda marcado, con su fila intacta')
+  : mal('la marca quedó así: ' + JSON.stringify(marca404));
+
+const abrirLaFicha = async id => {
+  await p.evaluate(() => { location.hash = '#/tablero'; });
+  await p.waitForTimeout(600);
+  await p.evaluate(() => { location.hash = '#/proyectos'; });
+  await p.waitForTimeout(1500);
+  await p.click('[data-abrir="' + id + '"]');
+  await p.waitForTimeout(700);
+  return p.evaluate(() => {
+    const f = document.getElementById('pf-ficha');
+    return { txt: (f && f.innerText) || '', alta: !!(f && f.querySelector('[data-hoja-alta]')),
+             fuera: !!(f && f.querySelector('[data-hoja-fuera]')), quitar: !!(f && f.querySelector('[data-hoja-quitar]')) };
+  });
+};
+
+await sembrar([], 'fabricacion');
+const fab404 = await abrirLaFicha('proy-pr-404');
+/ya no está en la hoja/.test(fab404.txt) && !fab404.alta && !fab404.fuera
+  ? bien('fabricación ve el aviso, sin los botones: lo decide Dirección') : mal('fabricación ve: ' + JSON.stringify({ ...fab404, txt: fab404.txt.slice(0, 200) }));
+const fabCom = await abrirLaFicha('proy-pr-com');
+!/Comisi/.test(fabCom.txt) ? bien('y en la ficha con % de comisión, fabricación no ve ni una línea de dinero') : mal('fabricación ve la comisión');
+
+await sembrar([], 'direccion');
+const dirCom = await abrirLaFicha('proy-pr-com');
+/Comisión pactada \(antes de fijarla en 10 %\)\s*15 %/.test(dirCom.txt)
+  ? bien('un 15 % viejo se rotula como lo que es: lo pactado antes de fijarla en 10 %, no lo que se cobra')
+  : mal('la comisión dice: ' + ((/Comisi[^\n]*\n?[^\n]*/.exec(dirCom.txt) || [''])[0]));
+const dir404 = await abrirLaFicha('proy-pr-404');
+/Alguien borró su fila \(V-404\)/.test(dir404.txt) && dir404.alta && dir404.fuera
+  ? bien('Dirección ve qué pasó y las dos salidas: volver a darla de alta, o dejarla fuera')
+  : mal('la ficha de Dirección dice: ' + dir404.txt.slice(0, 300));
+const antesRealta = RECIBIDO.empujar.length;
+await p.click('#pf-ficha [data-hoja-alta]');
+await p.waitForTimeout(2500);
+const realta = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const S = await import('./js/datos/sync.js');
+  const x = await DB.obtener('proyectos', 'proy-pr-404');
+  const f = document.getElementById('pf-ficha');
+  return { fila: x.notion_page_id, marca: x.hoja_perdida, apartadas: (await S.rechazadas()).filter(o => o.registro_id === 'proy-pr-404').length,
+           aviso: /ya no está en la hoja/.test((f && f.innerText) || ''), toast: (document.getElementById('toast') || {}).innerText || '' };
+});
+const altaNueva = RECIBIDO.empujar.slice(antesRealta).find(o => o.folio_cotizacion === 'COT-9404@PRUEBA') || null;
+altaNueva && altaNueva.tipo === 'crear' && !altaNueva.id_notion && altaNueva.datos['Proyecto'] && altaNueva.datos['Precio Subtotal'] === 8000
+  ? bien('«Volver a darla de alta» manda UN alta completa, sin la fila muerta: nombre, subtotal y lo demás')
+  : mal('lo que salió: ' + JSON.stringify(altaNueva));
+realta.fila === 'V-405' && !realta.marca && realta.apartadas === 0 && !realta.aviso
+  ? bien('y la venta queda en su fila nueva, sin marca, sin lo apartado y sin aviso: «' + realta.toast + '»')
+  : mal('después del alta: ' + JSON.stringify(realta));
+
+/* La tarjeta importada cuya fila se borró, desde «Qué atender». */
+HISTORICAS.push(filaHoja('V-300', 'Taller Sur - Vinil', { 'Estatus': 'FABRICACION', 'Fecha Anticipo e Instalacion': HOY_MX }));
+await p.evaluate(async () => { const S = await import('./js/datos/sync.js'); await S.jalar(); });
+HISTORICAS = HISTORICAS.filter(h => h.id_notion !== 'V-300');
+const huer = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const S = await import('./js/datos/sync.js');
+  const antes = !!(await DB.obtener('proyectos', 'proy-hoja-V-300'));
+  const r = await S.jalar();
+  const x = await DB.obtener('proyectos', 'proy-hoja-V-300');
+  return { antes, completa: r.ok && r.valor.completa, sigue: !!x, marca: x && x.hoja_perdida };
+});
+huer.antes && huer.completa && huer.sigue && huer.marca && huer.marca.motivo === 'no_bajo'
+  ? bien('la tarjeta importada cuya fila ya no vino se MARCA en la bajada completa; no se borra')
+  : mal('la tarjeta importada quedó así: ' + JSON.stringify(huer));
+await p.evaluate(() => { location.hash = '#/atender'; });
+await p.waitForTimeout(2500);
+const regla = await p.evaluate(() => {
+  const f = [...document.querySelectorAll('.pf-fila')].find(x => /Taller Sur - Vinil ya no está en la hoja/.test(x.innerText));
+  const b = f && [...f.querySelectorAll('[data-acc]')].find(x => /Abrir la ficha/.test(x.innerText));
+  if (b) b.click();
+  return { hay: !!f, boton: !!b };
+});
+regla.hay && regla.boton ? bien('«Qué atender» la nombra para Dirección, con «Abrir la ficha»') : mal('«Qué atender»: ' + JSON.stringify(regla));
+await p.waitForTimeout(2000);
+const fichaHuer = await p.evaluate(() => {
+  const f = document.getElementById('pf-ficha');
+  return { abierta: !!(f && f.classList.contains('show')), txt: (f && f.innerText) || '',
+           quitar: !!(f && f.querySelector('[data-hoja-quitar]')), dejar: !!(f && f.querySelector('[data-hoja-dejar]')) };
+});
+fichaHuer.abierta && /Taller Sur/.test(fichaHuer.txt) && fichaHuer.quitar && fichaHuer.dejar
+  ? bien('el botón abre SU ficha, con «Quitar del tablero» y «Dejarla»') : mal('la ficha: ' + JSON.stringify({ ...fichaHuer, txt: fichaHuer.txt.slice(0, 200) }));
+let pregunta = '';
+p.once('dialog', d => { pregunta = d.message(); d.accept(); });
+await p.click('#pf-ficha [data-hoja-quitar]');
+await p.waitForTimeout(1500);
+const quitada = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  return !(await DB.obtener('proyectos', 'proy-hoja-V-300'));
+});
+/Quitar «Taller Sur - Vinil» del tablero/.test(pregunta) && quitada
+  ? bien('«Quitar del tablero» pregunta antes y, con el sí, la quita') : mal('quitar: ' + JSON.stringify({ pregunta, quitada }));
 
 // ── 5. La pantalla de Ajustes ────────────────────────────────────────────────
 console.log('\nLA PANTALLA DE AJUSTES');

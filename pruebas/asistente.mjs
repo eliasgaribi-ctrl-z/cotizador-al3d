@@ -8,9 +8,11 @@
  *
  * Uso:  node pruebas/asistente.mjs
  */
+import { readFileSync } from 'fs';
 import { comisionDe, resumirProyecto, armarResumen, promptSistema, mdLite, llavesDe, cadenaIA,
          detectarIntencion, responderLocal, respuestaLocal, resumenDelDia, INTENCIONES, sugerirIntenciones }
   from '../js/datos/asistente-contexto.js';
+import { unificar } from '../js/datos/ventas.js';
 
 let bien = 0, mal = 0;
 const eq = (que, dio, esperado) => {
@@ -100,6 +102,43 @@ const RHoja = armarResumen({ hoy: '2026-09-23', rol: 'Dirección', veDinero: tru
 eq('con el % vacío, la liquidada de la hoja es abonable y la otra espera, al 10 %',
    [RHoja.comisiones.abonables_ya.map(x => [x.folio, x.comision, x.pct]), RHoja.comisiones.pendientes_de_liquidar.map(x => [x.folio, x.comision])],
    [[['V-042', 2000, 10]], [['V-043', 2000]]]);
+
+console.log('\nLAS COMISIONES, del récord unificado: como las arma leerTaller');
+/* El proyecto como lo deja el puente: `deNotion` le espeja la restante (T) pero NO la
+   «Comisiones» (R) ni el subtotal que PAGOS corrigió en la hoja. Con él crudo, la comisión
+   salía del subtotal viejo (1 000) y la restante de la hoja (1 400): la restante mayor que la
+   comisión. Y la V-150, liquidada y solo en la hoja, no entraba: «ninguna comisión abonable»
+   con la hoja debiendo 800. */
+const pLocal = proy({ estatus_notion: 'COBRANDO', pago_pendiente: 10440, comision_restante: 1400, pct_comision: 0 });
+const filasHoja = [
+  { id: 'hoja:V-201', folio_hoja: 'V-201', folio_cotizacion: 'COT-0031@AAAA', nombre: 'Healthylicious - Letrero', estatus: 'COBRANDO',
+    fecha_anticipo: '2026-09-03', sub: 14000, neto: 16240, anticipo: 5800, pago_pendiente: 10440, comisiones: 1400, comision_restante: 1400, iva: true },
+  { id: 'hoja:V-150', folio_hoja: 'V-150', folio_cotizacion: '', nombre: 'Óptica Juárez - Caja de luz', estatus: 'LIQUIDADO',
+    fecha_anticipo: '2026-08-10', sub: 8000, neto: 9280, anticipo: 9280, pago_pendiente: 0, comisiones: 800, comision_restante: 800, iva: true },
+];
+const RU = armarResumen({ hoy: '2026-09-24', rol: 'Dirección', veDinero: true, proyectos: [pLocal],
+  ventas: unificar([pLocal], filasHoja).ventas });
+const pu = RU.proyectos[0];
+eq('la comisión del proyecto es la R de la hoja y cuadra con su restante', [pu.comision, pu.comision_restante], [1400, 1400]);
+eq('y su importe es el de la hoja, como en Control', [pu.vendido, pu.saldo_estimado], [16240, 10440]);
+eq('la venta que solo está en la hoja entra a las abonables', [RU.comisiones.total_abonable_ya, RU.comisiones.abonables_ya.map(x => [x.folio, x.comision])], [800, [['V-150', 800]]]);
+eq('y la del proyecto espera, con la restante de la hoja', RU.comisiones.pendientes_de_liquidar.map(x => [x.folio, x.comision, x.saldo_del_cliente]), [['COT-0031', 1400, 10440]]);
+ok('la de la hoja no trae id —no tiene ficha que abrir— y la del proyecto sí',
+   (RU.comisiones.abonables_ya[0] || {}).id === '' && (RU.comisiones.pendientes_de_liquidar[0] || {}).id === 'p1');
+eq('los botones abren solo proyectos de este teléfono', respuestaLocal('comisiones', RU).acciones.filter(a => a.tipo === 'proyecto').map(a => a.id), ['p1']);
+ok('la respuesta local dice lo que dice la hoja', responderLocal('comisiones', RU).includes('Se pueden abonar ya: $800.00') && responderLocal('comisiones', RU).includes('V-150'));
+eq('y la portada también', resumenDelDia(RU).comisionAbonable, 800);
+eq('la venta de la hoja no se cuela a la lista del taller', RU.proyectos.map(p => p.folio), ['COT-0031']);
+const RUF = armarResumen({ hoy: '2026-09-24', rol: 'Fabricación', veDinero: false, proyectos: [pLocal],
+  ventas: unificar([pLocal], filasHoja).ventas });
+ok('a fabricación el récord de la hoja no le llega aunque se lo pasen', !('comisiones' in RUF) && !/Óptica|V-150|1400|16240|800/.test(JSON.stringify(RUF)));
+/* Lo de arriba solo sirve si el asistente de verdad le pasa el récord: leerTaller importa la
+   base y no corre en node, así que aquí se lee su código. */
+const fuenteAsis = readFileSync(new URL('../js/nucleo/asistente.js', import.meta.url), 'utf8');
+const llamada = (/return armarResumen\(\{([\s\S]*?)\}\);/.exec(fuenteAsis) || [, ''])[1];
+ok('leerTaller le pasa a armarResumen la lista unificada, solo si el rol ve dinero',
+   /const ventas = veDinero \? Ventas\.unificar\(proyectos, hoja\)\.ventas/.test(fuenteAsis) && /\bventas: veDinero \? ventas : null\b/.test(llamada));
+ok('y el mensaje de sistema avisa que la lista de comisiones es la de la hoja entera', promptSistema(RU).includes('puede traer ventas que no están en `proyectos`'));
 
 console.log('\nLAS RESPUESTAS LOCALES: las siete de siempre, sin IA');
 const RC = responderLocal('comisiones', R);

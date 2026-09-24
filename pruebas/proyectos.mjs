@@ -1,5 +1,5 @@
 /* Prueba SOLO las funciones puras de datos/proyectos.js: tiposDerivados y nombreDerivado
-   —y, al final, camposDelRecalculo—. Puras significa que corren en node sin DOM, sin
+   —y, al final, camposDelRecalculo y las de la venta que la hoja ya no tiene—. Puras significa que corren en node sin DOM, sin
    localStorage y sin IndexedDB, y por eso se pueden probar sin montar nada. Las dos primeras
    son el criterio de éxito número 1 del proyecto —`tipo_trabajo` lleno en el 100 % de las
    filas— así que tienen prueba propia.
@@ -162,6 +162,68 @@ ok_('y son nombres que `aNotion` entiende: el subtotal nuevo llega a su columna'
    !(COLS.subtotal in aNotion({ ...antes, sub: 12000 }, null, { alta: false, campos: [] })));
 ok_('resincronizar encola con esos campos',
    /await encolar\('actualizar', r\.valor, camposDelRecalculo\(p, r\.valor\)\);/.test(mio));
+
+/* ----- La venta que la hoja ya no tiene, y la que está dos veces -----
+   Las cuatro piezas puras con las que la capa de datos decide qué se marca, qué se junta sola
+   y qué espera a Dirección. La decisión del dueño es que NADA se borre solo sin que se pueda
+   decir qué se perdió: estas son las que lo dicen. El camino con base de datos (el relevo, la
+   bandeja y la revisión al bajar) está en pruebas/puente.mjs. */
+console.log('\nLA VENTA Y LA HOJA NO CUADRAN: QUÉ SE MARCA Y QUÉ SE JUNTA');
+const { avisoDeHoja, marcaPerdida, huerfanasDeLaHoja, repetidasDeLaHoja, loQueSePerderia } =
+  await import('../js/datos/proyectos.js');
+const imp = (fh, o = {}) => ({ id: 'proy-hoja-' + fh, de_hoja: true, folio_hoja: fh, notion_page_id: fh, folio_global: '',
+  etapa: 'ganado', nombre: 'Copia ' + fh, lat: null, lng: null, notas: '', plazo_k: null, ...o });
+const propio = (fg, np, o = {}) => ({ id: 'proy-' + fg, folio_global: fg, notion_page_id: np, etapa: 'ganado',
+  nombre: 'Propio ' + fg, lat: null, lng: null, notas: '', plazo_k: null, ...o });
+
+eq('una bajada completa sin V-300: su tarjeta importada queda huérfana, la de V-301 no',
+   huerfanasDeLaHoja([imp('V-300'), imp('V-301')], new Set(['V-301'])).map(p => p.id), ['proy-hoja-V-300']);
+eq('sin un solo folio visto no se marca nada: una lectura vacía no es una hoja vacía',
+   huerfanasDeLaHoja([imp('V-300')], new Set()), []);
+eq('la venta de este teléfono no se marca por aquí: la marca el rebote de su cambio',
+   huerfanasDeLaHoja([propio('COT-0001@A', 'V-9')], ['V-1']), []);
+eq('ni lo que Dirección ya decidió dejar, ni la lápida',
+   huerfanasDeLaHoja([imp('V-300', { fuera_de_hoja: 1 }), imp('V-302', { etapa: 'cancelado' })], ['V-1']), []);
+
+const ventasHoja = [{ folio_hoja: 'V-310', folio_cotizacion: 'COT-0310@A' }, { folio_hoja: 'V-320', folio_cotizacion: '' },
+  { folio_hoja: 'V-330', folio_cotizacion: 'V-330' }, { folio_hoja: 'V-340', folio_cotizacion: 'COT-9999@OTRO' }];
+const tablero = [propio('COT-0310@A', 'V-310'), imp('V-310'), propio('COT-0320@A', 'V-320'), imp('V-320'),
+  propio('COT-0330@A', 'V-330'), imp('V-330'), propio('COT-0340@A', 'V-340'), imp('V-340'), imp('V-350')];
+const rep = repetidasDeLaHoja(tablero, ventasHoja);
+eq('la copia es la misma venta por el folio de cotización de la fila, por su folio de hoja con la celda vacía y con la huella del defecto',
+   rep.map(x => [x.copia.id, x.real && x.real.id]),
+   [['proy-hoja-V-310', 'proy-COT-0310@A'], ['proy-hoja-V-320', 'proy-COT-0320@A'], ['proy-hoja-V-330', 'proy-COT-0330@A']]);
+ok_('una fila atada a OTRA cotización no es la misma venta aunque el folio de hoja coincida',
+   !rep.some(x => x.copia.id === 'proy-hoja-V-340'));
+ok_('y sin la fila en el espejo no se decide nada', !rep.some(x => x.copia.id === 'proy-hoja-V-350'));
+eq('dos proyectos de aquí con la misma venta: no se adivina con cuál juntarla',
+   repetidasDeLaHoja([propio('COT-0310@A', 'V-310'), propio('COT-0311@A', 'V-310'), imp('V-310')],
+                     [{ folio_hoja: 'V-310', folio_cotizacion: '' }]).map(x => [x.real, x.candidatos.length]), [[null, 2]]);
+
+const claves = (c, r, ctx) => loQueSePerderia(c, r, ctx).map(x => x.clave);
+eq('la copia igual o más atrasada no pierde nada: se junta sola',
+   claves(imp('V-1', { etapa: 'cortado' }), propio('C', 'V-1', { etapa: 'armado' }), {}), []);
+eq('la copia más adelantada sí: su etapa se perdería', claves(imp('V-1', { etapa: 'cortado' }), propio('C', 'V-1'), {}), ['etapa']);
+eq('y sus notas, su pin y su plazo, si la de aquí no los tiene',
+   claves(imp('V-1', { notas: 'llamar antes', lat: 20.6, lng: -103.3, plazo_k: 3 }), propio('C', 'V-1'), {}), ['notas', 'pin', 'plazo']);
+eq('las mismas notas y el mismo pin no son pérdida',
+   claves(imp('V-1', { notas: 'llamar antes', lat: 20.6, lng: -103.3 }), propio('C', 'V-1', { notas: 'x\nllamar antes', lat: 20.6, lng: -103.3 }), {}), []);
+eq('dos instalaciones vivas, material de la copia, o la de aquí como «No se dio»: no se juntan',
+   [claves(imp('V-1'), propio('C', 'V-1'), { instCopia: [{ estado: 'confirmada' }], instReal: [{ estado: 'propuesta' }] }),
+    claves(imp('V-1'), propio('C', 'V-1'), { reqCopia: [{ id: 'r' }] }),
+    claves(imp('V-1'), propio('C', 'V-1', { etapa: 'cancelado' }), {})],
+   [['instalaciones'], ['material'], ['cancelada']]);
+eq('una instalación cancelada de la de aquí no estorba', claves(imp('V-1'), propio('C', 'V-1'),
+   { instCopia: [{ estado: 'confirmada' }], instReal: [{ estado: 'cancelada' }] }), []);
+
+const m1 = marcaPerdida(null, 'borrada', 'V-404', 'La venta V-404 ya no está en la hoja', 1000);
+eq('la marca dice por qué, qué fila y desde cuándo', [m1.motivo, m1.folio, m1.desde], ['borrada', 'V-404', 1000]);
+ok_('el mismo rebote otra vez no reinicia la fecha', marcaPerdida(m1, 'borrada', 'V-404', 'otra vez', 5000) === m1);
+eq('otro motivo sí es otra marca', marcaPerdida(m1, 'de_otra', 'V-404', '', 5000).desde, 5000);
+eq('qué aviso lleva cada una: nada, perdida, repetida (manda sobre perdida), fuera, y la lápida ninguno',
+   [avisoDeHoja({}), avisoDeHoja({ hoja_perdida: m1 }), avisoDeHoja({ duplicado_de: { id: 'x' }, hoja_perdida: m1 }),
+    avisoDeHoja({ fuera_de_hoja: 1 }), avisoDeHoja({ etapa: 'cancelado', hoja_perdida: m1 })],
+   ['', 'perdida', 'repetida', 'fuera', '']);
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 process.exit(mal ? 1 : 0);

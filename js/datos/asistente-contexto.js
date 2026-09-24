@@ -41,7 +41,11 @@ const ETAPA = { ganado: 'ganado (sin empezar)', en_diseno: 'en diseño', cortado
    contestaba una cifra que nadie iba a pagar.
    Cuando la hoja bajó sus fórmulas, mandan ellas: «Comisiones» (R) es la comisión y
    «Comision Restante» (T = R menos lo abonado) lo que falta pagar. Se ABONA cuando la venta
-   queda LIQUIDADA; mientras no, todo es restante. */
+   queda LIQUIDADA; mientras no, todo es restante.
+   Ojo con DE DÓNDE sale cada una: el proyecto guardado solo trae T —`deNotion` la espeja—,
+   y R y el subtotal corregido llegan únicamente por `Ventas.unificar`. Con el proyecto crudo
+   la comisión salía del subtotal de este aparato y la restante de la hoja, y la restante
+   podía ser MAYOR que la comisión. Por eso `armarResumen` recibe la lista unificada. */
 export const PCT_COMISION = 10;
 export function comisionDe(p) {
   if (!p || p.etapa === 'cancelado') return { comision: 0, abonable: 0, restante: 0, deNotion: false };
@@ -81,12 +85,17 @@ export function resumirProyecto(p, extra = {}) {
   }
   if (extra.material) o.material = extra.material;
   if (veDinero) {
-    const c = comisionDe(p);
-    o.vendido = vendidoDe(p);
-    o.anticipo = num(p.anti_pactado);
-    o.saldo_estimado = saldoDe(p);
-    if (p.cuenta) o.cuenta = p.cuenta;
-    if (p.estatus_notion) o.estatus_notion = p.estatus_notion;
+    /* El dinero, del renglón unificado cuando lo hay (`extra.venta`): es el mismo proyecto con
+       el importe, el estatus y las fórmulas de la hoja encima, que es lo que pinta Control.
+       Leído del proyecto crudo, la comisión de este renglón no cuadraba con la de la lista
+       de comisiones ni con la restante que venía de la hoja. */
+    const m = extra.venta || p;
+    const c = comisionDe(m);
+    o.vendido = vendidoDe(m);
+    o.anticipo = num(m.anti_pactado);
+    o.saldo_estimado = saldoDe(m);
+    if (m.cuenta) o.cuenta = m.cuenta;
+    if (m.estatus_notion) o.estatus_notion = m.estatus_notion;
     /* La comisión va cuando HAY comisión, no cuando hay un % capturado: con la celda vacía
        —10 %, el de siempre— el proyecto se quedaba sin ella. Y el % pactado ya no viaja: la
        hoja paga 10 % fijo, y un «15» en los datos invitaba al modelo a recalcular con él. */
@@ -104,8 +113,12 @@ export function resumirProyecto(p, extra = {}) {
 /**
  * El resumen completo que viaja con cada pregunta.
  *
+ * `proyectos` son los de este teléfono y arman todo lo del taller; `ventas` es la lista de
+ * `Ventas.unificar(proyectos, ventas_hoja)` —la misma de Control— y de ella sale el dinero:
+ * el de cada proyecto y la lista de comisiones. Sin `ventas`, el dinero sale de `proyectos`.
+ *
  * @param {{hoy?:string, rol:string, veDinero:boolean, nombre?:string,
- *          proyectos:Object[], instalaciones?:Object[], ventanas?:Map|Object,
+ *          proyectos:Object[], ventas?:Object[], instalaciones?:Object[], ventanas?:Map|Object,
  *          materialDe?:Function, kpi?:Object, conversion?:Object, faltantes?:Object[],
  *          bajoMinimo?:Object[], avisos?:Object[], sinDecidir?:Object[], cola?:Object[],
  *          bitacora?:Object[], valorDe?:Function}} d
@@ -114,6 +127,11 @@ export function armarResumen(d) {
   const hoy = esISO(d.hoy) ? d.hoy : hoyISO();
   const veDinero = d.veDinero !== false;
   const P = (d.proyectos || []).filter(Boolean);
+  /* El récord unificado, SOLO si el rol ve dinero: trae ventas que no están en este teléfono,
+     con nombre e importe, y a fabricación no le toca ni saber que existen. */
+  const V = veDinero && Array.isArray(d.ventas) ? d.ventas.filter(Boolean) : null;
+  const ventaDe = new Map((V || []).map(v => [v.id, v]));
+  const locales = new Set(P.map(p => p.id));
   const instDe = new Map();
   for (const i of (d.instalaciones || [])) {
     if (i && i.proyecto_id && !instDe.has(i.proyecto_id)) instDe.set(i.proyecto_id, i);
@@ -134,7 +152,7 @@ export function armarResumen(d) {
     .sort((a, b) => String(b.fecha_ganado || '').localeCompare(String(a.fecha_ganado || '')));
   const TOPE_CERRADOS = 40;
   const lista = abiertos.concat(cerrados.slice(0, TOPE_CERRADOS)).map(p => resumirProyecto(p, {
-    veDinero, ventana: ventanaDe(p.id), instalacion: instDe.get(p.id) || null,
+    veDinero, venta: ventaDe.get(p.id), ventana: ventanaDe(p.id), instalacion: instDe.get(p.id) || null,
     material: typeof d.materialDe === 'function' ? d.materialDe(p.id) : undefined,
   }));
 
@@ -193,12 +211,19 @@ export function armarResumen(d) {
     if (d.conversion) out.conversion = d.conversion;
     /* Entra lo que tiene comisión O algo por pagar de ella: una fila de la hoja puede traer la
        restante aunque aquí no se sepa el subtotal. El `pct` es el de la regla, no el capturado
-       (ver `comisionDe`). */
-    const com = vivos.map(p => ({ p, c: comisionDe(p) })).filter(x => x.c.comision > 0 || x.c.restante > 0);
+       (ver `comisionDe`).
+       Se cuenta sobre el récord UNIFICADO, no sobre los proyectos de aquí: la hoja paga las
+       comisiones de todas sus ventas, también las capturadas en otro teléfono o en la propia
+       hoja, y con los proyectos de aquí «¿qué comisiones ya se pueden abonar?» contestaba
+       «ninguna» con la hoja diciendo lo contrario. El `id` solo va cuando la venta es un
+       proyecto de este teléfono: es el del botón «Abrir», y una fila de la hoja no tiene ficha. */
+    const conComision = V ? V.filter(v => v.etapa !== 'cancelado') : vivos;
+    const idLocal = p => (locales.has(p.id) ? p.id : '');
+    const com = conComision.map(p => ({ p, c: comisionDe(p) })).filter(x => x.c.comision > 0 || x.c.restante > 0);
     out.comisiones = {
-      abonables_ya: com.filter(x => x.c.abonable > 0).map(x => ({ id: x.p.id, folio: x.p.folio_local, nombre: x.p.nombre,
+      abonables_ya: com.filter(x => x.c.abonable > 0).map(x => ({ id: idLocal(x.p), folio: x.p.folio_local, nombre: x.p.nombre,
         comision: x.c.abonable, pct: PCT_COMISION, estatus_notion: x.p.estatus_notion || '' })),
-      pendientes_de_liquidar: com.filter(x => x.c.abonable <= 0 && x.c.restante > 0).map(x => ({ id: x.p.id, folio: x.p.folio_local,
+      pendientes_de_liquidar: com.filter(x => x.c.abonable <= 0 && x.c.restante > 0).map(x => ({ id: idLocal(x.p), folio: x.p.folio_local,
         nombre: x.p.nombre, comision: x.c.restante, pct: PCT_COMISION, estatus_notion: x.p.estatus_notion || '',
         saldo_del_cliente: saldoDe(x.p) })),
       total_abonable_ya: red2(com.reduce((s, x) => s + x.c.abonable, 0)),
@@ -235,7 +260,7 @@ export function promptSistema(resumen) {
     '2. Responde en español de México, corto y directo. Si hay varios renglones (proyectos, saldos, comisiones), usa una lista con viñetas y pon el importe al final de cada renglón. Termina con una sola recomendación concreta cuando aplique.',
     '3. Los importes van en pesos mexicanos con formato $12,345.00.',
     '4. No puedes cambiar nada: eres de solo lectura. Si te piden hacer algo (marcar liquidado, abonar una comisión, mover una fecha), di en qué pantalla de la plataforma se hace: la etapa, el estatus de cobro y la cuenta se cambian en la ficha del proyecto (Proyectos); las fechas en Calendario; el material en Material; las ventas, la cartera y la bitácora se ven en Control. Los abonos de comisión y los pagos se registran en la hoja «Finanzas AL3D — Ventas y Comisiones», que es el libro mayor; la plataforma solo la espeja, y el récord de ventas que ves en DATOS es el de esa hoja más lo que solo está en este dispositivo.',
-    dinero ? '5. COMISIONES: la comisión es FIJA, el 10 % del subtotal (sin IVA), con centavos; no hay porcentaje pactado por venta. Se ABONA cuando el proyecto queda LIQUIDADO en la hoja; mientras no, es «comisión restante». En DATOS ya vienen calculadas: `comision` es la comisión completa, `comision_abonable_ya` lo que ya se puede pagar hoy y `comision_restante` lo que falta pagar. Cuando `comision_de_notion` es true, la restante viene de la fórmula de la hoja (comisión menos lo ya abonado) y manda. No las recalcules.'
+    dinero ? '5. COMISIONES: la comisión es FIJA, el 10 % del subtotal (sin IVA), con centavos; no hay porcentaje pactado por venta. Se ABONA cuando el proyecto queda LIQUIDADO en la hoja; mientras no, es «comisión restante». En DATOS ya vienen calculadas: `comision` es la comisión completa, `comision_abonable_ya` lo que ya se puede pagar hoy y `comision_restante` lo que falta pagar. Cuando `comision_de_notion` es true, la restante viene de la fórmula de la hoja (comisión menos lo ya abonado) y manda. La lista `comisiones` es la del récord entero de la hoja: puede traer ventas que no están en `proyectos` (capturadas en otro teléfono o en la hoja), y esas también se deben. No las recalcules.'
            : '5. Este rol no ve importes: no menciones dinero ni comisiones, ni aunque te pregunten; di que eso lo ve dirección o pagos.',
     dinero ? '6. SALDOS: `saldo_estimado` es el saldo que calcula la hoja cuando la venta está allá; si no, total vendido menos anticipo pactado, y cero si la hoja ya dice LIQUIDADO. El estimado no sabe de abonos intermedios: dilo cuando importe («saldo estimado»).' : '',
     '7. TALLER: `taller` describe la ventana de fabricación contada hacia atrás desde la instalación (empezar → cortar → armar → listo); `atraso_dias` son los días que ese trabajo va tarde. «no se dio» es una cotización que el cliente no aceptó.',

@@ -3,7 +3,7 @@
 
    LA HONESTIDAD PRIMERO, porque si se lee al final ya se prometió algo que no es:
 
-   A6 a A14 son REGLAS DE PANTALLA. Se evalúan cuando alguien abre la plataforma y en
+   A6 a A15 son REGLAS DE PANTALLA. Se evalúan cuando alguien abre la plataforma y en
    ningún otro momento. Si nadie la abre en cinco días, nadie las ve en cinco días. No hay
    cron y NO LO PUEDE HABER: una PWA estática no se despierta sola —no hay push sin un push
    service y un servidor, y el Periodic Background Sync es de Chrome y no promete nada— y un
@@ -24,7 +24,7 @@
    1. `evaluar` es PURA. Recibe todo ya leído y devuelve la lista. Sin DOM, sin IndexedDB,
       sin red y sin reloj: hasta el «hoy» entra como parámetro. Es la única forma de poder
       probar «instalación mañana con material faltante» sin cambiarle la fecha al teléfono,
-      y sin eso estas nueve reglas no se prueban nunca.
+      y sin eso estas diez reglas no se prueban nunca.
    2. El `rid` es DETERMINISTA y es el dedupe. Reevaluar en cada apertura crea UN aviso, no
       diez, y dos dispositivos que descartan el mismo aviso producen uno. `dedupe_key` es la
       misma cadena a propósito: los dos nombres vienen de los dos diseños que se fusionaron,
@@ -48,7 +48,7 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
 async function mod(archivo) { try { return await import('./' + archivo + '.js'); } catch (_) { return null; } }
 
 /* ============================================================================
-   Las nueve reglas, con su peso y su razón
+   Las diez reglas, con su peso y su razón
    ============================================================================ */
 
 /**
@@ -99,6 +99,13 @@ export const REGLAS = {
          nombre: 'Sin respaldo',
          roles: ['direccion', 'fabricacion', 'pagos'],
          porque: 'Safari puede desalojar el almacenamiento de un sitio sin interacción reciente. El respaldo es la única defensa.' },
+  /* Detrás de la cobranza y del material, delante del almacén: una venta que la hoja ya no
+     tiene es dinero que el libro mayor dejó de contar, o una tarjeta que el tablero cuenta de
+     más; ninguna de las dos truena mañana, y ninguna se arregla sola. */
+  A15: { id: 'A15_hoja', alias: 'R10_hoja', peso: 55,
+         nombre: 'La venta y la hoja no cuadran',
+         roles: ['direccion'],
+         porque: 'Nada se borra solo: una venta cuya fila ya no está, o una tarjeta que repite otra, espera a que Dirección decida en su ficha.' },
 };
 
 /* Los cortes, todos juntos y con su razón, porque son las cifras que alguien va a querer
@@ -192,7 +199,7 @@ function normalizar(e) {
 }
 
 /**
- * Evalúa las nueve reglas de pantalla. PURA.
+ * Evalúa las diez reglas de pantalla. PURA.
  *
  * @param {{proyectos?:Object[], instalaciones?:Object[], requerimientos?:Object[],
  *          existencias?:Object[], faltantes?:Object[], historial?:Object[], cola?:Object[],
@@ -205,7 +212,7 @@ export function evaluar(estado) {
   const E = normalizar(estado);
   const out = [];
   a6(E, out); a7(E, out); a8(E, out); a9(E, out); a10(E, out);
-  a11(E, out); a12(E, out); a13(E, out); a14(E, out);
+  a11(E, out); a12(E, out); a13(E, out); a14(E, out); a15(E, out);
   return ordenar(vigentes(out, E));
 }
 
@@ -669,6 +676,60 @@ function a14(E, out) {
     entidad: 'dispositivo', entidad_id: 'respaldo',
     acciones: [{ label: 'Respaldar ahora', tipo: 'respaldar', datos: {} }],
   }));
+}
+
+/* ============================================================================
+   A15 — la venta y la hoja no cuadran
+   ============================================================================ */
+
+/* Las marcas las pone la capa de datos (ver «LA VENTA QUE LA HOJA YA NO TIENE» en
+   js/datos/proyectos.js) y aquí solo se leen. Qué aviso lleva cada una es `avisoDeHoja` de ese
+   archivo; va copiado porque este no lo importa —se carga perezoso, ver la cabecera— y
+   pruebas/reglas.mjs comprueba que las dos digan lo mismo.
+
+   La acción abre la ficha y no hace nada más, a propósito: las salidas —dar de alta otra vez,
+   dejarla fuera, quitarla, juntarla— cambian el libro del dinero o el tablero, y se deciden
+   con la ficha enfrente, no desde un renglón. Por eso tampoco se marca atendido al abrirla: el
+   aviso se va cuando la marca se va. */
+function a15(E, out) {
+  for (const p of E.proyectos) {
+    if (!p.id || p.etapa === 'cancelado') continue;
+    const nombre = p.nombre || p.folio_local || 'Proyecto';
+    const imp = p.de_hoja === true || String(p.id).startsWith('proy-hoja-');
+    const d = p.duplicado_de && typeof p.duplicado_de === 'object' ? p.duplicado_de : null;
+    const h = !d && p.hoja_perdida && typeof p.hoja_perdida === 'object' ? p.hoja_perdida : null;
+    if (!d && !h) continue;
+    const marca = d || h;
+    const dia = isoDeSello(marca.desde);
+    const dias = dia ? diasEntre(dia, E.hoy) : null;
+
+    let titulo, detalle;
+    if (d) {
+      titulo = nombre + ' está dos veces en el tablero';
+      detalle = 'La tarjeta importada de la fila ' + (d.folio_hoja || p.folio_hoja || '') + ' es la misma venta que ' +
+        (d.nombre ? '«' + d.nombre + '»' : 'otro proyecto') + ' de este teléfono: dos tarjetas para una sola venta. ' +
+        'No se juntó sola' + (Array.isArray(d.por) && d.por.length ? ' porque ' + d.por.join('; ') : '') + '.';
+    } else if (imp) {
+      titulo = nombre + ' ya no está en la hoja';
+      detalle = 'Se importó de la fila ' + (h.folio || p.folio_hoja || '') + ' y la hoja ya no la trae. ' +
+        'No se quitó sola: en su ficha decides si se quita del tablero o se queda.';
+    } else {
+      titulo = 'La venta de ' + nombre + ' ya no está en la hoja';
+      detalle = (h.motivo === 'de_otra'
+        ? 'Su fila ' + (h.folio || '') + ' ya es de otra venta'
+        : 'Alguien borró su fila ' + (h.folio || '')) +
+        ', y los cambios de este proyecto se quedan apartados en este teléfono. ' +
+        'En su ficha decides si se vuelve a dar de alta o se queda fuera de la hoja.';
+    }
+    out.push(aviso('A15', p.id, {
+      tono: 'av',
+      titulo, detalle,
+      cuando: dias === null ? '' : frase(-dias),
+      plazo: dias === null ? 0 : -dias,
+      entidad: 'proyecto', entidad_id: p.id,
+      acciones: [{ label: 'Abrir la ficha', tipo: 'abrir_proyecto', datos: { proyecto_id: p.id } }],
+    }));
+  }
 }
 
 /* ============================================================================

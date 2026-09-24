@@ -49,7 +49,7 @@
 
 import * as DB from './db.js';
 import * as Prefs from './prefs.js';
-import { desdeVentaDeHoja } from './proyectos.js';
+import { desdeVentaDeHoja, marcarPerdidaEnLaHoja, revisarContraLaHoja } from './proyectos.js';
 import * as Ingreso from '../nucleo/ingreso.js';
 
 /* ============================================================================
@@ -391,6 +391,39 @@ export function ventaDeHoja(fila) {
     else if (vaciada(fila, col)) v[k] = null;
   }
   return v;
+}
+
+/* ============================================================================
+   LA FILA QUE YA NO ESTÁ
+
+   La hoja contesta NO_ENCONTRADO a un cambio por cuatro razones distintas y con el mismo
+   código: la fila de esa venta se borró, la fila ya es de OTRA venta (su folio se repartió dos
+   veces antes de que existiera la marca de folios), el alta no trae nombre, o el camino no
+   existe. Las dos primeras son la misma pregunta para Dirección —esta venta no tiene fila—, con
+   otra explicación, y las otras dos no tienen nada que ver. Se distinguen por el `motivo` si la
+   hoja lo manda y, mientras no lo mande, por la frase, que es la de `unaOperacion` en el .gs.
+   ============================================================================ */
+
+/** Por qué la hoja ya no tiene la fila de esta venta, o '' si el rechazo es otra cosa. PURA.
+ *  @returns {'borrada'|'de_otra'|''} */
+export function motivoPerdida(res) {
+  if (!res || res.codigo !== 'NO_ENCONTRADO') return '';
+  const m = String(res.motivo || '').trim();
+  if (m === 'borrada' || m === 'de_otra') return m;
+  const t = String(res.mensaje || '');
+  if (/ya es de otra venta/i.test(t)) return 'de_otra';
+  if (/ya no está en la hoja/i.test(t)) return 'borrada';
+  return '';
+}
+
+/* El consejo de la hoja —«vuelve a registrarla desde el cotizador»— no lleva a ningún lado:
+   `proyectos.ganar` contesta DUPLICADO a una cotización que ya es proyecto. Se cambia por el
+   camino que sí existe, que es la ficha del proyecto; lo de antes —qué fila, atada a qué— se
+   conserva, porque es lo que explica qué pasó. */
+export function mensajePerdida(mensaje) {
+  const base = String(mensaje || '').replace(/\s*Si la venta sigue viva,[^]*$/, '').trim();
+  return (base ? base + ' ' : '') +
+    'Dirección decide en la ficha del proyecto si se vuelve a dar de alta o se queda fuera de la hoja.';
 }
 
 /* ----- La versión de la hoja que esta plataforma espera -----
@@ -766,6 +799,15 @@ export function crear(cfg0) {
         }
 
         const idNotion = proy.notion_page_id || null;
+        /* Dirección decidió que esta venta se queda fuera de la hoja (`proyectos.dejarFueraDeLaHoja`):
+           su fila ya no existe y ningún cambio tiene a dónde ir. Se da por despachado sin gastar
+           una petición, como la lápida de abajo. Sin esto, cada cambio de etapa rebotaba contra la
+           hoja, se apartaba como rechazado y volvía a encender el aviso que Dirección acababa de
+           cerrar. */
+        if (proy.fuera_de_hoja) {
+          salida.push({ id: op.id, ok: true, remoto: null, rechazadas: [], omitida: true });
+          continue;
+        }
         /* Una cotización que «no se dio» y nunca llegó a la hoja no es una venta: su lápida
            (etapa cancelado, con el subtotal y el anticipo de la cotización) se daba de alta
            como fila nueva, y el libro contaba un anticipo que nunca se cobró y una comisión
@@ -865,10 +907,21 @@ export function crear(cfg0) {
         }
         /* NO_ENCONTRADO de la hoja es «esa venta ya no está» (o su fila ya es de otra): el id
            de la fila se QUEDA como está. Borrarlo haría que el siguiente cambio pidiera un
-           alta y resucitara una venta que alguien borró a propósito. */
+           alta y resucitara una venta que alguien borró a propósito.
+           Lo que sí se hace es MARCARLO. Sin la marca, el proyecto seguía apuntando a la fila
+           muerta, cada cambio se apartaba como rechazado para siempre y nadie tenía un botón
+           para salir de ahí: la ficha lo enseña a Dirección con las dos salidas (ver
+           `proyectos.volverADarDeAlta` y `proyectos.dejarFueraDeLaHoja`). Solo un cambio
+           (`id_notion` en la mano) puede decir que la fila se perdió; un alta nunca tuvo fila. */
+        const perdida = idNotion ? motivoPerdida(res) : '';
+        if (perdida) {
+          try { await marcarPerdidaEnLaHoja(proy.id, perdida, idNotion, res.mensaje || ''); } catch (_) { /* la marca es aviso; el rechazo se aparta igual */ }
+        }
         salida.push({ id: op.id, ok: false, codigo: res.codigo || 'DESCONOCIDO',
                       definitivo: DEFINITIVOS.includes(res.codigo),
-                      mensaje: res.mensaje || 'La hoja rechazó el cambio.', conflicto: res.conflicto || null });
+                      ...(perdida ? { hoja_perdida: perdida } : {}),
+                      mensaje: perdida ? mensajePerdida(res.mensaje) : (res.mensaje || 'La hoja rechazó el cambio.'),
+                      conflicto: res.conflicto || null });
       }
 
       return salida;
@@ -885,6 +938,32 @@ export function crear(cfg0) {
 
       const filas = Array.isArray(r.cuerpo.registros) ? r.cuerpo.registros : [];
       const registros = [];
+
+      /* Los proyectos de ESTE teléfono por el folio de su fila (`notion_page_id`), leídos una vez
+         por página y solo si hace falta. Es el tercer camino para encontrar a quién le cae una
+         fila, y el que faltaba: una fila cuyo «Folio cotizacion» quedó vacío —o con la huella del
+         defecto de septiembre de 2026, el folio de la propia hoja escrito ahí— no ataba por folio
+         con el proyecto que la había dado de alta, y si estaba en FABRICACION se importaba COMO
+         OTRO: la misma venta dos veces en el tablero y en Control. Un folio repetido en dos
+         proyectos de aquí no ata a ninguno (false): ahí no se adivina. */
+      let propios = null;
+      const propioPorFila = async venta => {
+        if (!venta || !venta.folio_hoja) return null;
+        if (!propios) {
+          propios = new Map();
+          for (const p of await DB.listar('proyectos')) {
+            if (!p || !p.notion_page_id || p.de_hoja || String(p.id || '').startsWith('proy-hoja-')) continue;
+            const k = String(p.notion_page_id);
+            propios.set(k, propios.has(k) ? false : p);
+          }
+        }
+        const p = propios.get(venta.folio_hoja);
+        if (!p) return null;
+        /* Y solo si la fila no dice ser de OTRA cotización: un folio de hoja que se repartió dos
+           veces es otra venta, y su dinero caería encima de este proyecto. */
+        const fc = venta.folio_cotizacion;
+        return (!fc || fc === venta.folio_hoja || fc === p.folio_global) ? p : null;
+      };
 
       for (const fila of filas) {
         const datos = (fila && fila.datos) || null;
@@ -909,6 +988,11 @@ export function crear(cfg0) {
            se sabe a quién cae. */
         const parche = deNotion(datos);
         let local = (parche && parche.folio_global) ? await porFolioGlobal(parche.folio_global) : null;
+        let porFila = false;
+        if (!local && venta) {
+          try { local = await propioPorFila(venta); } catch (_) { local = null; }
+          porFila = !!local;
+        }
         const idImportado = venta ? 'proy-hoja-' + venta.folio_hoja : '';
         if (!local && idImportado) {
           try { local = await DB.obtener('proyectos', idImportado); } catch (_) { local = null; }
@@ -939,7 +1023,15 @@ export function crear(cfg0) {
         /* Una celda vaciada en la hoja baja como null (ver `ventaDeHoja`); en el proyecto el
            anticipo que no hay es 0 y el % vacío también, como en `deNotion`. */
         const aCero = x => (x === null ? 0 : x);
-        const aplicar = parche || (venta ? sinIndefinidos({
+        /* Al proyecto de aquí encontrado por su fila le cae el espejo de SIEMPRE, el de
+           `deNotion`, armado con su propio folio: sin «Folio cotizacion» en la fila, `parche` es
+           null y caería en el de abajo, que es el de una tarjeta importada y le pisaría el precio
+           firmado con el neto de la hoja. Y lleva `folio_hoja`, que es con lo que
+           `ventas.unificar` lo ata a su renglón: sin él, Control lo contaba una vez como «solo
+           aquí» y otra como fila de la hoja. */
+        const deAqui = porFila ? deNotion({ ...datos, [P.folio]: local.folio_global }) : null;
+        if (deAqui && venta.folio_hoja) deAqui.folio_hoja = venta.folio_hoja;
+        const aplicar = deAqui || parche || (venta ? sinIndefinidos({
           estatus_notion: venta.estatus || null,
           cuenta: venta.cuenta || null,
           sub: aCero(venta.sub), neto: aCero(venta.neto), precio_auth: aCero(venta.neto),
@@ -960,10 +1052,27 @@ export function crear(cfg0) {
         const sello = Math.max(editado, Number(local.actualizado_en) || 0);
 
         delete aplicar.folio_global;   // la llave era para encontrarlo, no para escribirlo
+        /* La fila VINO: la venta está en la hoja, y un «ya no está» de antes es viejo —alguien
+           la volvió a meter, o deshizo el borrado—. Ver `proyectos.avisoDeHoja`. */
+        if (local.hoja_perdida) aplicar.hoja_perdida = null;
         registros.push({ almacen: 'proyectos', datos: { ...aplicar, id: local.id, actualizado_en: sello } });
       }
 
       return { registros, cursor: r.cuerpo.cursor || null, hay_mas: !!r.cuerpo.hay_mas };
+    },
+
+    /**
+     * Lo llama `sync.jalar` al cerrar un barrido, con lo que bajó ya escrito. Traduce los ids
+     * del récord que se vieron (`hoja:V-042`, ver `ventaDeHoja`) a folios de la hoja y deja que
+     * `proyectos.revisarContraLaHoja` junte las copias repetidas y marque las tarjetas
+     * importadas cuya fila ya no vino. Solo `completa` puede marcar: un barrido que arrancó a
+     * medias no vio la primera parte, y lo que no vio no es lo que falta.
+     */
+    async despuesDeBajar(info) {
+      const ids = (info && info.vistos && Array.isArray(info.vistos.ventas_hoja)) ? info.vistos.ventas_hoja : [];
+      const folios = new Set(ids.map(String).filter(x => x.startsWith('hoja:')).map(x => x.slice(5)));
+      const r = await revisarContraLaHoja({ folios, completa: !!(info && info.completa) });
+      return r && r.ok ? r.valor : null;
     },
   };
 }

@@ -186,6 +186,50 @@ cierto(a12([{ folio: 'COT-0108', items: partidas, ts: dias(3) }]).length === 0,
 cierto(a12([{ folio: 'COT-0108', items: [partidas[0], { ...partidas[1], altura: 50 }], ts: dias(3) }]).length === 1,
   'y una edición de verdad sí sale');
 
+/* ---- 6d. A15: la venta y la hoja no cuadran ----
+   Tres marcas de la capa de datos (ver js/datos/proyectos.js, «LA VENTA QUE LA HOJA YA NO
+   TIENE»), una sola regla, y solo para Dirección: las salidas cambian el libro del dinero o
+   el tablero. Nada se borra solo; el aviso lleva a la ficha, que es donde se decide. */
+
+const { avisoDeHoja } = await import('../js/datos/proyectos.js');
+const desde = dias(4);
+const perdidaPropia = { id: 'p20', folio_local: 'COT-0120', nombre: 'Café Luna - Letras', etapa: 'armado',
+  fecha_ganado: '2026-08-01', notion_page_id: 'V-404', hoja_perdida: { motivo: 'borrada', folio: 'V-404', desde } };
+const deOtra = { ...perdidaPropia, id: 'p21', nombre: 'Gym Fuerte - Caja', notion_page_id: 'V-407',
+  hoja_perdida: { motivo: 'de_otra', folio: 'V-407', desde } };
+const huerfana = { id: 'proy-hoja-V-300', de_hoja: true, folio_hoja: 'V-300', nombre: 'Taller Sur - Vinil', etapa: 'ganado',
+  fecha_ganado: '2026-08-01', hoja_perdida: { motivo: 'no_bajo', folio: 'V-300', desde } };
+const repetida = { id: 'proy-hoja-V-320', de_hoja: true, folio_hoja: 'V-320', nombre: 'Óptica Sol', etapa: 'cortado',
+  fecha_ganado: '2026-08-01', duplicado_de: { id: 'p22', nombre: 'Óptica Sol - Caja Luz', folio: 'COT-0122@D7K2', folio_hoja: 'V-320',
+    desde, por: ['la copia va en «Cortado» y la de este teléfono en «Ganado»'] } };
+const yaDecididas = [{ ...huerfana, id: 'proy-hoja-V-301', hoja_perdida: null, fuera_de_hoja: desde },
+                     { ...perdidaPropia, id: 'p23', etapa: 'cancelado' }];
+const conHoja = rol => evaluar({ ...estado, rol, instalaciones: [], historial: [], existencias: [], faltantes: [],
+  proyectos: [perdidaPropia, deOtra, huerfana, repetida, ...yaDecididas] }).filter(a => a.regla === 'A15_hoja');
+const a15 = conHoja('direccion');
+cierto(a15.length === 4, 'A15 nombra las cuatro marcadas y ninguna de las ya decididas (salieron ' + a15.length + ')');
+const a15De = id => a15.find(a => a.entidad_id === id) || { titulo: '', detalle: '', acciones: [] };
+cierto(/ya no está en la hoja/.test(a15De('p20').titulo) && /borró su fila V-404/.test(a15De('p20').detalle) &&
+  /volver|vuelve a dar de alta/.test(a15De('p20').detalle),
+  'la venta de este teléfono cuya fila se borró dice qué fila y qué se decide: ' + a15De('p20').detalle);
+cierto(/ya es de otra venta/.test(a15De('p21').detalle), 'la que ya es de otra venta lo dice con esas palabras, no como borrada');
+cierto(/ya no está en la hoja/.test(a15De('proy-hoja-V-300').titulo) && /quita del tablero/.test(a15De('proy-hoja-V-300').detalle) &&
+  /No se quitó sola/.test(a15De('proy-hoja-V-300').detalle),
+  'la tarjeta importada huérfana: no se quitó sola, se decide en su ficha');
+cierto(/dos veces/.test(a15De('proy-hoja-V-320').titulo) && /Óptica Sol - Caja Luz/.test(a15De('proy-hoja-V-320').detalle) &&
+  /Cortado/.test(a15De('proy-hoja-V-320').detalle),
+  'la repetida nombra a la de este teléfono y por qué no se juntó sola');
+cierto(a15.every(a => a.acciones.length === 1 && a.acciones[0].tipo === 'abrir_proyecto' &&
+  a.acciones[0].datos.proyecto_id === a.entidad_id), 'su única acción es abrir la ficha de ESE proyecto');
+cierto(a15De('p20').cuando === 'hace 4 días', 'y dice desde cuándo: ' + a15De('p20').cuando);
+cierto(conHoja('fabricacion').length === 0 && conHoja('pagos').length === 0, 'fabricación y pagos no la ven: no pueden decidirla');
+cierto(!a15.some(a => /\$/.test(a.titulo + a.detalle)), 'y no lleva ni un peso');
+/* La regla lleva su copia de `avisoDeHoja` (no importa proyectos.js): las dos tienen que decir
+   lo mismo de cada proyecto, o la regla avisaría de una ficha que no enseña nada. */
+const todas = [perdidaPropia, deOtra, huerfana, repetida, ...yaDecididas];
+cierto(todas.every(p => ['perdida', 'repetida'].includes(avisoDeHoja(p)) === a15.some(a => a.entidad_id === p.id)),
+  'A15 y `avisoDeHoja` dicen lo mismo de cada proyecto');
+
 /* ---- 7. Los mensajes de WhatsApp ---- */
 
 console.log('\n— mensajeWa(orden_instalador) —');

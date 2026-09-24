@@ -313,7 +313,10 @@ function pintarVentas() {
 
 /* Una fila de cuentas, con la cifra al MISMO tamaño en todas: el que pida la más larga. Cada
    una a su tamaño cabía, pero «$0.00» salía a 28 px junto a un importe de siete cifras a 14, y
-   el número más grande de la fila parecía el más chico. Ver `cifraQueCabe()` en ui.js. */
+   el número más grande de la fila parecía el más chico. Ver `cifraQueCabe()` en ui.js.
+   El mismo `--c` es la mitad de la promesa: la hoja saca el tamaño del ancho de CADA tarjeta,
+   así que la otra mitad es que todas midan lo mismo. Por eso en esta fila la del dinero no se
+   lleva el renglón entero en el teléfono angosto (`.pf-cuenta.dinero` en css/plataforma.css). */
 function filaCuentas(c) {
   const largo = Math.max(1, ...c.map(x => String(x[0]).length));
   return '<div class="pf-cuentas">' + c.map(x => cuenta(x[0], x[1], x[2], largo)).join('') + '</div>';

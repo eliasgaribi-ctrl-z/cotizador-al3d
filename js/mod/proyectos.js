@@ -25,6 +25,9 @@ import * as Proy from '../datos/proyectos.js';
 import * as Material from '../datos/material.js';
 import * as Stock from '../datos/stock.js';
 import * as Agenda from '../datos/agenda.js';
+/* Solo para mandar en el momento el alta de una venta que se vuelve a dar de alta en la hoja
+   (ver `decisionHoja`), igual que Control manda la bandeja antes de traer. */
+import * as Sync from '../datos/sync.js';
 import { matOf, basOf, recOf, cajaOf } from '../datos/catalogo-precios.js';
 import { isoDeSello, diasEntre } from '../nucleo/fechas.js';
 import { ESTATUS as ESTATUS_NOTION, CUENTAS, ESTATUS_DE_PAGOS } from '../datos/puente.js';
@@ -339,7 +342,10 @@ function publicarCuenta() {
   const rol = Prefs.rol();
   let n = 0;
   if (rol === 'direccion') {
-    n = SIN_DECIDIR.length + TODOS.filter(p => p.etapa !== 'cancelado' && cambiada(p)).length;
+    /* Y las que la hoja ya no tiene o que están dos veces: son decisiones de Dirección que
+       solo se toman en la ficha. */
+    n = SIN_DECIDIR.length + TODOS.filter(p => p.etapa !== 'cancelado' &&
+      (cambiada(p) || avisoDe(p) === 'perdida' || avisoDe(p) === 'repetida')).length;
   } else if (rol === 'fabricacion') {
     n = TODOS.filter(p => (SEM.get(p.id) || {}).estado === 'grave').length;
   } else {
@@ -509,6 +515,10 @@ function tarjeta(p) {
       '<span class="pf-etapa pj-tarj-etapa ' + claseEtapa(p.etapa) + '">' +
         esc(Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) + '</span>' +
       (sem ? '<span class="pf-sem ' + sem.estado + '">' + esc(sem.palabra) + '</span>' : '') +
+      /* La marca de la hoja también se ve desde el tablero: sin ella, la tarjeta que ya no
+         está en la hoja o que repite otra solo se descubría abriéndola. */
+      (avisoDe(p) === 'perdida' ? '<span class="pf-sem grave">Ya no está en la hoja</span>'
+        : avisoDe(p) === 'repetida' ? '<span class="pf-sem grave">Repetida</span>' : '') +
       (inst
         ? '<span class="pj-tarj-inst">' + ico('i-camion') + esc(fmtFecha(inst.fecha)) + '</span>'
         : '<span class="pj-tarj-inst">' + ico('i-camion') + 'sin fecha</span>') +
@@ -775,7 +785,14 @@ function htmlFicha(p) {
     datos.push(dato('Total vendido', money(p.precio_auth || p.neto)));
     datos.push(dato('Anticipo pactado', p.anti_pactado ? money(p.anti_pactado) : 'No se pactó anticipo'));
     datos.push(dato('IVA', p.iva !== false ? 'Sí, incluido' : 'Sin IVA'));
-    if (p.pct_comision) datos.push(dato('Comisión pactada', p.pct_comision + ' %'));
+    /* La comisión se cobra hoy al 10 % fijo: la fórmula R de la hoja no lee el % de la fila.
+       Un proyecto viejo con 15 decía «Comisión pactada 15 %» y se leía como lo que se cobra.
+       Cuando no es 10 se dice qué es: lo que se pactó ANTES de fijarla. Va dentro de `ve`,
+       como todo el dinero de la ficha: fabricación no lo ve. */
+    if (p.pct_comision) {
+      datos.push(dato(Number(p.pct_comision) === 10 ? 'Comisión pactada' : 'Comisión pactada (antes de fijarla en 10 %)',
+        p.pct_comision + ' %'));
+    }
     /* Las dos fórmulas de Notion. Se leen, jamás se calculan aquí: dos versiones de la
        misma fórmula empiezan a dar dos respuestas y nadie sabe cuál cobrar. */
     if (hay(p.pago_pendiente)) datos.push(dato('Pago pendiente (fórmula de la hoja)', money(p.pago_pendiente)));
@@ -801,6 +818,11 @@ function htmlFicha(p) {
       esc(p.folio_local || '') + ' ya no está en el historial de este dispositivo. El proyecto está completo: ' +
       'lo que se guardó al ganarlo es una copia congelada, no una referencia.</p>');
   }
+
+  /* El aviso de la hoja, arriba por lo mismo que el de huella: cambia qué quiere decir el resto
+     de la ficha —una venta que el libro mayor ya no cuenta, o una tarjeta que repite otra—. */
+  const hoja = avisoHoja(p, rol);
+  if (hoja) partes.push(hoja);
 
   partes.push('<dl class="pf-2col">' + datos.join('') + '</dl>');
 
@@ -886,6 +908,142 @@ function htmlFicha(p) {
 const dato = (etiqueta, valorHTML, esHtml) =>
   '<div class="pf-dato"><dt>' + esc(etiqueta) + '</dt><dd>' + (esHtml ? valorHTML : esc(valorHTML)) + '</dd></div>';
 
+/* ============================================================================
+   LA VENTA Y LA HOJA NO CUADRAN — el aviso de la ficha
+   ============================================================================
+   Las marcas las pone la capa de datos (ver «LA VENTA QUE LA HOJA YA NO TIENE» en
+   js/datos/proyectos.js) y NINGUNA borra nada sola: aquí se dice qué pasó y Dirección tiene el
+   botón que hace lo correcto. Los otros dos roles ven el aviso sin botones, porque es verdad
+   también para ellos —lo que muevan de esta obra no está llegando a la hoja— y no pueden
+   decidirlo. Ni un peso: lo lee fabricación. */
+const esImportada = p => !!p && (p.de_hoja === true || String(p.id || '').startsWith('proy-hoja-'));
+const avisoDe = p => (Proy.avisoDeHoja ? Proy.avisoDeHoja(p) : '');
+/* El día de una marca, «20 sep 2026», o '' si no lo trae (una marca de un respaldo viejo). */
+const diaDe = ms => (ms && isoDeSello(ms) ? fmtFecha(isoDeSello(ms)) : '');
+
+function avisoHoja(p, rol) {
+  const tipo = avisoDe(p);
+  if (!tipo) return '';
+  const dir = rol === 'direccion';
+  const imp = esImportada(p);
+  const boton = (clase, attr, texto) => '<button type="button" class="btn ' + clase + '" ' + attr + '="' + esc(p.id) + '">' + texto + '</button>';
+  let txt = '', btns = [];
+
+  if (tipo === 'repetida') {
+    const d = p.duplicado_de || {};
+    txt = '<b>Esta tarjeta repite una venta de este teléfono.</b> Se importó de la fila ' + esc(d.folio_hoja || p.folio_hoja || '') +
+      ' de la hoja, que es la misma venta que ' + (d.nombre ? '«' + esc(d.nombre) + '»' : 'otro proyecto de aquí') +
+      (d.folio ? ' (' + esc(Cot.folioVisible(d.folio) || d.folio) + ')' : '') +
+      ': dos tarjetas en el tablero para una sola venta. No se juntó sola' +
+      (Array.isArray(d.por) && d.por.length ? ' porque ' + esc(d.por.join('; ')) : '') + '.';
+    if (dir) {
+      if (d.id) {
+        btns.push(boton('btn-pri', 'data-hoja-juntar', 'Juntar con «' + esc(d.nombre || 'la de aquí') + '»'));
+        btns.push('<button type="button" class="btn btn-gho" data-abrir-otro="' + esc(d.id) + '">Abrir «' + esc(d.nombre || 'la de aquí') + '»</button>');
+      } else {
+        /* Sin botón, y se dice por qué: con dos proyectos de aquí atados a la misma fila no hay
+           con cuál juntarla, y quitarla no sirve —su fila la volvería a traer—. */
+        txt += ' Mientras haya más de un proyecto de este teléfono atado a esa fila, no se sabe con cuál juntarla: revisa en la hoja cuál es el bueno.';
+      }
+    }
+  } else if (tipo === 'perdida' && imp) {
+    const h = p.hoja_perdida || {};
+    const dia = diaDe(h.desde);
+    txt = '<b>Esta venta ya no está en la hoja.</b> Esta tarjeta se importó de la fila ' + esc(h.folio || p.folio_hoja || '') +
+      ', y la hoja ya no la trae' + (dia ? ' (se vio el ' + esc(dia) + ')' : '') + '. No se quitó sola: ' +
+      (dir ? 'si se borró a propósito, quítala del tablero; si la obra sigue, déjala.' : 'eso lo decide Dirección.');
+    if (dir) {
+      btns.push(boton('btn-dgr', 'data-hoja-quitar', 'Quitar del tablero'));
+      btns.push(boton('btn-gho', 'data-hoja-dejar', 'Dejarla'));
+    }
+  } else if (tipo === 'perdida') {
+    const h = p.hoja_perdida || {};
+    const dia = diaDe(h.desde);
+    txt = '<b>Esta venta ya no está en la hoja.</b> ' + (h.motivo === 'de_otra'
+      ? 'Su fila ' + esc(h.folio || '') + ' ya es de otra venta, y ésta no aparece con su folio.'
+      : 'Alguien borró su fila (' + esc(h.folio || '') + ').') +
+      (dia ? ' Se vio el ' + esc(dia) + ', y desde entonces' : ' Desde entonces') +
+      ' los cambios de este proyecto no llegan a ningún lado: se quedan apartados en este teléfono. ' +
+      (dir ? 'Si la venta sigue viva, vuelve a darla de alta: entra a la hoja con todos sus datos en una fila nueva. ' +
+             'Si se borró a propósito, déjala fuera: el proyecto se queda aquí y deja de mandarse.'
+           : 'Dirección decide si se vuelve a dar de alta o se queda fuera.');
+    if (dir) {
+      btns.push(boton('btn-pri', 'data-hoja-alta', 'Volver a darla de alta en la hoja'));
+      btns.push(boton('btn-gho', 'data-hoja-fuera', 'Dejarla fuera de la hoja'));
+    }
+  } else {
+    /* 'fuera': ya se decidió. Se dice en voz baja, y con la salida por si cambia la decisión. */
+    const dia = diaDe(p.fuera_de_hoja);
+    const cuando = dia ? ', el ' + esc(dia) : '';
+    txt = imp
+      ? 'Esta tarjeta se importó de la fila ' + esc(p.folio_hoja || '') + ', que ya no está en la hoja; se quedó en el tablero por decisión de Dirección' + cuando + '.'
+      : 'Esta venta se quedó fuera de la hoja por decisión de Dirección' + cuando + '. Sus cambios ya no se mandan.';
+    if (dir) btns.push(boton('btn-gho', imp ? 'data-hoja-quitar' : 'data-hoja-alta', imp ? 'Quitar del tablero' : 'Volver a darla de alta en la hoja'));
+    return '<p class="hintnote">' + ico('i-nube-off') + ' ' + txt + '</p>' +
+      (btns.length ? '<div class="btn-fila">' + btns.join('') + '</div>' : '');
+  }
+  return '<p class="hintnote nota-av">' + ico('i-aviso') + ' ' + txt + '</p>' +
+    (btns.length ? '<div class="btn-fila">' + btns.join('') + '</div>' : '');
+}
+
+/* Las salidas del aviso. Las que no se deshacen con otro toque —dejarla fuera, dejarla en el
+   tablero, quitarla, juntarla— preguntan antes y dicen qué va a pasar; la de volver a darla de
+   alta no pregunta porque su botón ya dice exactamente eso, y después se manda la bandeja para
+   que la persona sepa en el momento si la hoja la recibió. */
+async function decisionHoja(que, id, boton) {
+  const p = await Proy.obtener(id);
+  if (!p) { toast('Ese proyecto ya no está en este dispositivo', 'err'); await cargar(); return; }
+  const nombre = p.nombre || p.folio_local || 'este proyecto';
+
+  if (que === 'fuera') {
+    if (!window.confirm('¿Dejar «' + nombre + '» fuera de la hoja?\n\nEl proyecto se queda en este teléfono y deja de mandarse a la hoja. ' +
+      'Los cambios que rebotaron contra su fila se tiran. Si después cambias de idea, en su ficha está «Volver a darla de alta en la hoja».')) return;
+  } else if (que === 'dejar') {
+    if (!window.confirm('¿Dejar «' + nombre + '» en el tablero aunque la hoja ya no la tenga?\n\nNo se vuelve a preguntar por ella, y sus cambios ya no se mandan a la hoja.')) return;
+  } else if (que === 'quitar') {
+    if (!window.confirm('¿Quitar «' + nombre + '» del tablero?\n\nEs una tarjeta importada de la hoja' +
+      ' cuya fila ya no está. Se borra de este teléfono; la hoja no se toca. ' +
+      'Si algo de este teléfono la nombra —una instalación, un movimiento del almacén— no se quita. Queda anotado en la bitácora.')) return;
+  } else if (que === 'juntar') {
+    const d = p.duplicado_de || {};
+    if (!window.confirm('¿Juntar esta tarjeta con «' + (d.nombre || 'la de este teléfono') + '»?' +
+      (Array.isArray(d.por) && d.por.length ? '\n\nLo que la copia tiene de más: ' + d.por.join('; ') + '.' : '') +
+      '\n\nSus notas, su ubicación y su plazo pasan a «' + (d.nombre || 'la de este teléfono') + '»; la etapa no —moverla descuenta material, y eso lo haces tú—. ' +
+      'Sus instalaciones y movimientos del almacén pasan también, y esta copia se quita del tablero. Queda anotado en la bitácora.')) return;
+  }
+
+  if (boton) boton.disabled = true;
+  const r = que === 'alta' ? await Proy.volverADarDeAlta(id)
+    : que === 'fuera' || que === 'dejar' ? await Proy.dejarFueraDeLaHoja(id)
+    : que === 'quitar' ? await Proy.quitarDelTablero(id)
+    : await Proy.juntarConLaDeAqui(id);
+  if (boton && boton.isConnected) boton.disabled = false;
+  if (!r.ok) { avisarResultado(r); return; }
+
+  if (que === 'alta') {
+    /* Se manda en el momento, y se dice lo que de verdad pasó: con la fila nueva ya guardada,
+       o esperando en la bandeja porque no hubo señal. */
+    let enHoja = false;
+    if (Sync.configurado()) {
+      try { await Sync.bombear(); } catch (_) { /* se queda en la bandeja y sale sola */ }
+      const ya = await Proy.obtener(id);
+      enHoja = !!(ya && ya.notion_page_id);
+    }
+    toast(enHoja ? '«' + nombre + '» ya está otra vez en la hoja, con todos sus datos.'
+                 : '«' + nombre + '» quedó en la bandeja para darse de alta en la hoja: sale sola en cuanto se pueda mandar.', 'ok', 5200);
+  } else if (que === 'quitar' || que === 'juntar') {
+    toast(que === 'quitar' ? '«' + nombre + '» se quitó del tablero' : 'Se juntaron: queda una sola tarjeta de esta venta', 'ok', 4200);
+    cerrarCapa('pf-ficha'); fichaId = null;
+    await cargar();
+    if (que === 'juntar' && p.duplicado_de && p.duplicado_de.id) await abrirFicha(p.duplicado_de.id);
+    return;
+  } else {
+    toast(que === 'fuera' ? '«' + nombre + '» se queda fuera de la hoja' : '«' + nombre + '» se queda en el tablero', 'ok', 4200);
+  }
+  await cargar();
+  await refrescarFicha();
+}
+
 /* El link crudo de Maps primero, y es una decisión: es el que el cliente mandó y trae el
    pin donde el cliente lo puso. Un `search?query=` con el texto de una dirección de
    Tlajomulco cae a media colonia, y ahí es donde la camioneta da vueltas. */
@@ -941,6 +1099,16 @@ async function clicFicha(ev) {
     publicarCuenta();
     return;
   }
+
+  /* Las salidas del aviso de la hoja (ver `avisoHoja`). */
+  const hj = t.closest('[data-hoja-alta],[data-hoja-fuera],[data-hoja-quitar],[data-hoja-dejar],[data-hoja-juntar]');
+  if (hj) {
+    const que = ['alta', 'fuera', 'quitar', 'dejar', 'juntar'].find(q => hj.hasAttribute('data-hoja-' + q));
+    await decisionHoja(que, hj.getAttribute('data-hoja-' + que), hj);
+    return;
+  }
+  const otro = t.closest('[data-abrir-otro]');
+  if (otro) { cerrarCapa('pf-ficha'); fichaId = null; await abrirFicha(otro.dataset.abrirOtro); return; }
 
   const canc = t.closest('[data-cancelar]');
   if (canc) {

@@ -74,7 +74,7 @@ Lo que **no** cambia es la fórmula de la comisión. En AL3D la comisión es fij
 subtotal, sin IVA— y `R` se queda así. La columna AD viaja por el puente para que el teléfono
 y la hoja guarden el mismo dato, pero la hoja no la lee.
 
-**Cuidado con el selector de funciones del editor.** Tiene más de cien nombres (118 desde
+**Cuidado con el selector de funciones del editor.** Tiene más de cien nombres (126 desde
 `puente-sheets-6`; los que terminan en guion bajo no salen) y `prepararHojaParaElPuente` está
 a dos renglones de `mejorarTodo`. Peor: el selector revierte la elección si cierras la lista
 con Esc o Enter, así que es fácil creer que elegiste una y ejecutar otra. Si vas a correr algo
@@ -125,6 +125,11 @@ de ahí salían los demás síntomas. Qué cambió en el `.gs`:
 - **Una fila pegada con todo y su folio** recibe un folio nuevo al pegarse (con un aviso), y la
   columna **«Revisar»** dice «Folio repetido» si alguna se escapa.
 - **`/esquema`** dice si falta la pestaña «Accesos», y la plataforma ya lo enseña.
+- **La hora de instalación (AA) baja como «10:00».** Sheets vuelve hora el «10:00» que cae en
+  una celda que no está en texto sin formato, y a los teléfonos les llegaba «Sat Dec 30 1899
+  10:00:00 GMT-0636…». Ahora se lee como «HH:MM» guarde lo que guarde la celda, y se escribe
+  en texto sin formato. Que toda la columna quede así, con las horas ya convertidas pasadas a
+  texto, lo hace `prepararHojaParaElPuente` una vez: corre dentro del paso 7 de abajo.
 
 ### Cómo se sube
 
@@ -148,8 +153,8 @@ de ahí salían los demás síntomas. Qué cambió en el `.gs`:
    Mientras no realinees, la hoja **no reacomoda filas** y los cambios de un teléfono que choquen
    con un folio de cotización revuelto **esperan** en su bandeja (no se pierden).
 7. **Después** —no antes—, **⚡ AL3D → Actualizar formato y vistas** (`mejorarTodo`), para que
-   la columna «Revisar» aprenda «Folio repetido». Antes no: rehace «Ventas (respaldo)», que es
-   contra lo que la revisión compara los nombres.
+   la columna «Revisar» aprenda «Folio repetido» y la columna AA quede en texto sin formato.
+   Antes no: rehace «Ventas (respaldo)», que es contra lo que la revisión compara los nombres.
 8. En un teléfono: **Ajustes → El puente → Probar** tiene que contestar sin aviso de versión, y
    **Revisar el esquema** no tiene que listar «Accesos».
 

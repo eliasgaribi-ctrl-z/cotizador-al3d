@@ -103,6 +103,13 @@ body.pf::before{display:none}
   border:0;border-radius:var(--rr2);background:rgba(255,255,255,.08);color:#fff;cursor:pointer}
 .pf-cab-tema:hover{background:rgba(255,255,255,.16)}
 .pf-cab-tema .svgi{width:var(--ico2);height:var(--ico2)}
+/* El interruptor de tema es, además, `.btn-tema`, y sistema.css le da a esa clase 44 px de alto
+   MÍNIMO —es el botón cuadrado de la barra del cotizador—. El ancho ya lo pisa la regla de
+   arriba, pero el mínimo no: con ratón el interruptor salía de 36×44 junto a Ajustes de 36×36,
+   dos vecinos de alturas distintas, y en la computadora se quedaba solo pero igual de alargado.
+   Con el dedo no se notaba porque ahí los dos suben a 44×44. El tamaño de este encabezado lo
+   decide este encabezado, como en la barra lateral. */
+.pf-cab-tema.btn-tema{min-height:0}
 /* En el teléfono el encabezado es lo único que lleva la marca, y las acciones contextuales
    de un módulo no caben ahí junto al título: las escribe cada módulo dentro de su pantalla. */
 @media(max-width:759px){ .pf-cab-acc{display:none} }
@@ -747,8 +754,14 @@ body.pf::before{display:none}
 /* Y la del dinero se lleva el renglón entero en los teléfonos más angostos. En 320 px a cada
    columna le tocan unos 128 y una cifra de seis dígitos con su letra grande pide 115 más el
    relleno: «$90,000.00» se salía de su tarjeta. El importe es el dato de esa tarjeta, así que
-   lo que cede es el reparto, no el número. */
-@media(max-width:360px){ .pf-cuenta.dinero{grid-column:1/-1} }
+   lo que cede es el reparto, no el número.
+   Pero SOLO en la fila donde alguna cifra no se achica: la del Tablero, la de Inicio o la de
+   Material, un importe entre conteos de 24 px. Ahí el renglón entero es lo que deja al importe
+   a la altura de los conteos. En la de Control todas las cifras se achican con el MISMO `--c`
+   —lo pone filaCuentas() de js/mod/control.js— y el tamaño sale de 100cqi, el ancho de SU
+   tarjeta: la del dinero, con el doble de ancho, salía a 24 px y las otras cinco a 15. Ahí el
+   mismo tamaño en todas pide que todas midan lo mismo, así que no se estira. */
+@media(max-width:360px){ .pf-cuentas:has(> .pf-cuenta > b:not(.ajusta)) > .pf-cuenta.dinero{grid-column:1/-1} }
 /* Y aun con el renglón entero no bastaba: el reparto de arriba solo cubre 360 px, y en una
    computadora caben seis tarjetas por fila de 121 px de caja cada una. «$179,700.00» pide 170
    a 28 px, así que el importe del Tablero y los cinco de Control se cortaban —la tarjeta lleva

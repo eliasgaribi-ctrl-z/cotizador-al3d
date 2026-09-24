@@ -273,6 +273,7 @@ const ICONO = {
   A6_sin_decidir: 'i-doc', A7_sin_fecha: 'i-agenda', A8_material: 'i-material',
   A9_minimo: 'i-material', A10_paso: 'i-camion', A11_cobro: 'i-venta',
   A12_huella: 'i-historial', A13_constante: 'i-recalibrar', A14_respaldo: 'i-bajar',
+  A15_hoja: 'i-nube-off',
 };
 
 function filaAviso(a) {
@@ -599,6 +600,15 @@ async function ejecutar(ac) {
       if (_ctx && dd.proyecto_id && _ctx.pasar) _ctx.pasar('proyectos', { proyecto_id: dd.proyecto_id });
       else if (_ctx) _ctx.ir('proyectos');
       toast('Pon «Estatus en la hoja» en ' + (dd.estatus || 'COBRANDO') + ' en la ficha. No copies la fila: la venta ya está en la hoja.', '', 6000);
+      return;
+
+    /* ----- La venta y la hoja no cuadran (A15) -----
+       Abre la ficha y nada más: ahí están las salidas —darla de alta otra vez, dejarla fuera,
+       quitarla del tablero, juntarla con la de este teléfono— con lo que cada una hace escrito
+       al lado. No se marca atendido: el aviso se va solo cuando la ficha quita la marca. */
+    case 'abrir_proyecto':
+      if (_ctx && dd.proyecto_id && _ctx.pasar) _ctx.pasar('proyectos', { proyecto_id: dd.proyecto_id });
+      else if (_ctx) _ctx.ir('proyectos');
       return;
 
     default:

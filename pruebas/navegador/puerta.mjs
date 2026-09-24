@@ -5,7 +5,8 @@
  * la plataforma en local, y las diecisiete se quedaban paradas en «Entrar con Google». Pero eso
  * deja sin probar en un navegador la pantalla que ve TODO el equipo antes que ninguna otra. Así
  * que aquí se le da a Chromium otro nombre para el mismo servidor —`al3d.prueba`, resuelto a
- * 127.0.0.1 con --host-resolver-rules— y la app se abre como se abre en el dominio publicado.
+ * 127.0.0.1 con --host-resolver-rules, y sin proxy (ver el lanzamiento)— y la app se abre como
+ * se abre en el dominio publicado.
  *
  * Lo que se vigila:
  *   · que la puerta SALGA y que detrás no se haya montado ni un módulo: la promesa de la puerta
@@ -23,15 +24,35 @@ import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 const PUERTO = process.env.PUERTO || '8814';
 const PUBLICO = 'http://al3d.prueba:' + PUERTO;
 const LOCAL = 'http://127.0.0.1:' + PUERTO;
+/* `--no-proxy-server` es lo que hace que el MAP de abajo sirva de algo. Chromium en Linux toma
+   el proxy del entorno, y con `http_proxy` puesto —en CI es lo común, y este contenedor ya trae
+   el de https— le manda http://al3d.prueba al proxy tal cual, y quien resuelve el nombre es el
+   PROXY: la regla solo toca el resolvedor del propio Chromium, así que nunca se aplica. El proxy
+   contesta con su página de error y la prueba se pone a medir ESA página. Probado: con un proxy
+   que contesta 502, diez fallos que no explicaban nada, y «detrás no se montó ningún módulo»,
+   «cero errores de página» y «se entra directo, sin puerta» en verde, porque en una página de
+   error nada de eso existe. Y aquí nada necesita salir: lo que no es este servidor se corta en
+   `abrir()`. */
 const nav = await chromium.launch({
   executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
-  args: ['--host-resolver-rules=MAP al3d.prueba 127.0.0.1'],
+  args: ['--host-resolver-rules=MAP al3d.prueba 127.0.0.1', '--no-proxy-server'],
 });
 
 let fallos = 0;
 const bien = m => console.log('  ✓ ' + m);
 const mal = m => { console.log('  ✗ ' + m); fallos++; };
 const cierto = (cond, que) => cond ? bien(que) : mal(que);
+
+/* Lo que se abrió tiene que ser el index.html de AL3D, y se mira ANTES de todo lo demás. Varias
+   comprobaciones de abajo son negativas —que NO haya módulos, que NO haya errores, que NO salga
+   la puerta— y sobre una página de error de Chrome o de un proxy salen en verde sin haber
+   probado nada. Si no es AL3D no tiene sentido seguir: se dice qué se abrió en su lugar y se sale. */
+async function sinAl3d(base, que) {
+  mal('en ' + base + ' no abrió AL3D: ' + que + '. Todo lo de abajo se mediría sobre otra página');
+  await nav.close();
+  console.log('\n' + fallos + ' fallo(s).');
+  process.exit(1);
+}
 
 async function abrir(base, { tema = 'claro', pase = null } = {}) {
   const ctx = await nav.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block',
@@ -48,8 +69,29 @@ async function abrir(base, { tema = 'claro', pase = null } = {}) {
   const p = await ctx.newPage();
   const errores = [];
   p.on('pageerror', e => errores.push(e.message));
-  await p.goto(base + '/', { waitUntil: 'load' });
-  await p.waitForTimeout(1800);
+  let resp;
+  try { resp = await p.goto(base + '/', { waitUntil: 'load' }); }
+  catch (e) { await sinAl3d(base, String(e.message).split('\n')[0]); }
+  const titulo = await p.title();
+  const marcado = await p.evaluate(() => !!document.getElementById('pf-puerta') && !!document.getElementById('mod-tablero'));
+  if (!resp || !resp.ok() || titulo !== 'AL3D — taller' || !marcado) {
+    await sinAl3d(base, 'contestó ' + (resp ? resp.status() : 'nada') + ' con «' + titulo + '»' +
+      (marcado ? '' : ', y le falta #pf-puerta o #mod-tablero'));
+  }
+  /* Se espera a que el arranque DECIDA —o sale la puerta, o se monta un módulo—, y no un tiempo
+     fijo: los 1,800 ms de antes sobraban en esta máquina y podían quedarse cortos en una lenta, y
+     entonces «la puerta sale» fallaba sin que la puerta tuviera nada. Luego, a que la red se
+     calle: «detrás no se montó ningún módulo» y «cero errores de página» dicen NUNCA, y montar un
+     módulo es pedir su archivo, así que mientras quede algo por bajar todavía puede pasar. */
+  try {
+    await p.waitForFunction(() => {
+      const caja = document.getElementById('pf-puerta');
+      return (caja && !caja.hidden) || [...document.querySelectorAll('.pf-mod')].some(s => !s.hidden);
+    }, null, { timeout: 15000 });
+    await p.waitForLoadState('networkidle', { timeout: 15000 });
+  } catch (_) {
+    mal('en 15 s el arranque no decidió: ni salió la puerta ni se montó un módulo');
+  }
   return { ctx, p, errores };
 }
 

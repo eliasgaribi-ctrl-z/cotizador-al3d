@@ -102,7 +102,8 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
  *            salud:function():Promise<{ok:boolean, mensaje:string}>,
  *            subir:function(Operacion[]):Promise<Array<Object>>,
  *            bajar:function(string|null):Promise<{registros:Array<Object>, cursor:string|null}>,
- *            esquema:function():Promise<{ok:boolean, faltan:Array<Object>}>}} AdaptadorSync
+ *            esquema:function():Promise<{ok:boolean, faltan:Array<Object>}>,
+ *            despuesDeBajar?:function({completa:boolean, vistos:Object}):Promise<Object|null>}} AdaptadorSync
  */
 
 /* El almacén 'movimientos' es append-only y por eso no tiene conflictos posibles. No es
@@ -313,6 +314,35 @@ export async function reintentarRechazadas() {
 export async function rechazadas() {
   const todas = await DB.listar('pendientes', { indice: 'porTs' });
   return todas.filter(o => !esMarca(o) && o.estado === 'rechazada');
+}
+
+/**
+ * Tira de la bandeja lo que cuelga de UN proyecto: sus operaciones y las de su instalación.
+ *
+ * Es la otra salida de lo apartado, y la usa la capa de datos, no una pantalla: cuando
+ * Dirección vuelve a dar de alta una venta cuya fila se borró, el alta nueva lleva el estado
+ * de hoy de todo, y los cambios que rebotaron contra la fila muerta saldrían detrás como altas
+ * repetidas con fotos viejas; cuando se quita o se junta una tarjeta importada, sus cambios ya
+ * no tienen de quién ser. Solo en los `estados` que se piden, y nunca un conflicto: ése lo
+ * decide una persona con las dos versiones enfrente.
+ * @param {string} proyectoId
+ * @param {string[]} [estados] por omisión, solo lo rechazado
+ * @returns {Promise<Resultado>} {valor:{descartadas}}
+ */
+export async function descartarDelProyecto(proyectoId, estados) {
+  const id = String(proyectoId || '');
+  if (!id) return mal('DATO_INVALIDO', MSG.DATO_INVALIDO);
+  const cuales = new Set((Array.isArray(estados) && estados.length ? estados : ['rechazada'])
+    .filter(e => e !== 'conflicto'));
+  const esDe = o => (o.almacen === 'proyectos' && (o.registro_id === id || (o.datos && o.datos.id === id))) ||
+                    (o.almacen === 'instalaciones' && o.datos && o.datos.proyecto_id === id);
+  let n = 0;
+  for (const o of await DB.listar('pendientes', { indice: 'porTs' })) {
+    if (esMarca(o) || !cuales.has(o.estado || 'pendiente') || !esDe(o)) continue;
+    const r = await DB.borrar('pendientes', o.id);
+    if (r && r.ok) n++;
+  }
+  return ok({ descartadas: n });
 }
 
 /**
@@ -650,6 +680,23 @@ async function jalarDeVerdad() {
     }
   }
 
+  /* Con el barrido cerrado y ya escrito, el relevo puede revisar lo de este lado contra lo que
+     vio: la tarjeta que importó de una fila que ya no vino, o la que repite una venta de aquí.
+     Qué es cada cosa lo sabe él y no este archivo (ver `despuesDeBajar` en puente.js). Se le
+     dice si el barrido fue COMPLETO —de la primera página a la última, sin arrancar a medias—,
+     porque solo uno completo sabe qué filas faltan: el a medias sabe cuáles no alcanzó a leer.
+     Y en su propio try: una revisión que falla no le quita a nadie la bajada que sí llegó. */
+  let revision = null;
+  if (cierra && typeof _adaptador.despuesDeBajar === 'function') {
+    try {
+      revision = await _adaptador.despuesDeBajar({ completa: !barrido.parcial, vistos: barrido.vistos });
+    } catch (_) { revision = null; }
+    /* Lo que la revisión escribió cuenta como actualizado: quien repinta solo «si algo cambió»
+       (el arranque callado) tiene que enterarse de que una copia se juntó o de que una tarjeta
+       ya lleva su aviso. */
+    if (revision && Number(revision.cambios) > 0) actualizados += Number(revision.cambios);
+  }
+
   await ponerMarcas({
     ultima_bajada: Date.now(),
     cursor: (lote && lote.cursor) || null,
@@ -666,7 +713,7 @@ async function jalarDeVerdad() {
      página a otra en mitad del barrido no salía en ninguna: el cierre de abajo la borraba del
      récord hasta el barrido siguiente. Con una sola lectura, una fila que existe siempre se ve. */
   return ok({ nuevos, actualizados, descartados, sin_cambio: sinCambio, borrados,
-              hay_mas: !!(lote && lote.hay_mas), completa: cierra, motivo: 'ok' });
+              hay_mas: !!(lote && lote.hay_mas), completa: cierra, revision, motivo: 'ok' });
 }
 
 /* ¿Es el mismo dato, sellos aparte? Compara con las claves ordenadas para que el orden en que
