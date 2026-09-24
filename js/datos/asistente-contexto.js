@@ -236,6 +236,10 @@ export function armarResumen(d) {
     out.cobranza = {
       total_por_cobrar: cartera.reduce((s, x) => red2(s + x.saldo), 0),
       ventas_con_saldo: cartera.length,
+      /* De dónde salen los saldos, contado sobre la cartera ENTERA, como la etiqueta de Control.
+         Contado sobre `saldos`, una estimada después del lugar 40 no se veía, y el pie decía
+         «los saldos son los de la hoja» debajo de un total que la incluía. */
+      saldos_de_la_hoja: cartera.filter(x => x.deNotion).length,
       ya_instalado: { ventas: instaladas.length, total: instaladas.reduce((s, x) => red2(s + x.saldo), 0) },
       saldos: cartera.slice(0, TOPE_SALDOS).map(x => ({ id: idLocal(x.proyecto), folio: x.proyecto.folio_local || '',
         nombre: x.proyecto.nombre || '', etapa: ETAPA[x.proyecto.etapa] || x.proyecto.etapa || '',
@@ -294,7 +298,7 @@ export function promptSistema(resumen) {
     '4. No puedes cambiar nada: eres de solo lectura. Si te piden hacer algo (marcar liquidado, abonar una comisión, mover una fecha), di en qué pantalla de la plataforma se hace: la etapa, el estatus de cobro y la cuenta se cambian en la ficha del proyecto (Proyectos); las fechas en Calendario; el material en Material; las ventas, la cartera y la bitácora se ven en Control. Los abonos de comisión y los pagos se registran en la hoja «Finanzas AL3D — Ventas y Comisiones», que es el libro mayor; la plataforma solo la espeja, y el récord de ventas que ves en DATOS es el de esa hoja más lo que solo está en este dispositivo.',
     dinero ? '5. COMISIONES: la comisión es FIJA, el 10 % del subtotal (sin IVA), con centavos; no hay porcentaje pactado por venta. Se ABONA cuando el proyecto queda LIQUIDADO en la hoja; mientras no, es «comisión restante». En DATOS ya vienen calculadas: `comision` es la comisión completa, `comision_abonable_ya` lo que ya se puede pagar hoy y `comision_restante` lo que falta pagar. Cuando `comision_de_notion` es true, la restante viene de la fórmula de la hoja (comisión menos lo ya abonado) y manda. La lista `comisiones` es la del récord entero de la hoja: puede traer ventas que no están en `proyectos` (capturadas en otro teléfono o en la hoja), y esas también se deben. No las recalcules.'
            : '5. Este rol no ve importes: no menciones dinero ni comisiones, ni aunque te pregunten; di que eso lo ve dirección o pagos.',
-    dinero ? '6. SALDOS: `saldo_estimado` es el saldo que calcula la hoja cuando la venta está allá; si no, total vendido menos anticipo pactado, y cero si la hoja ya dice LIQUIDADO. El estimado no sabe de abonos intermedios: dilo cuando importe («saldo estimado»). La lista `cobranza` es la cartera del récord entero, la misma de Control → Por cobrar: puede traer ventas que no están en `proyectos`, y para «¿quién nos debe?» manda su `total_por_cobrar`; `fuera_de_la_lista` cuenta las que no cupieron en `saldos`. Un proyecto con `fuera_del_record` no cuenta como venta (su fila ya no está en la hoja, o es la copia repetida de otra): no trae importes y no se los supongas.' : '',
+    dinero ? '6. SALDOS: `saldo_estimado` es el saldo que calcula la hoja cuando la venta está allá; si no, total vendido menos anticipo pactado, y cero si la hoja ya dice LIQUIDADO. El estimado no sabe de abonos intermedios: dilo cuando importe («saldo estimado»). La lista `cobranza` es la cartera del récord entero, la misma de Control → Por cobrar: puede traer ventas que no están en `proyectos`, y para «¿quién nos debe?» manda su `total_por_cobrar`; `fuera_de_la_lista` cuenta las que no cupieron en `saldos`, y `saldos_de_la_hoja` cuenta, sobre toda la cartera y no solo sobre la lista, cuántos saldos son los de la hoja: si es menor que `ventas_con_saldo`, parte del total es estimado aunque todos los renglones de `saldos` digan `saldo_de_la_hoja`. Un proyecto con `fuera_del_record` no cuenta como venta (su fila ya no está en la hoja, o es la copia repetida de otra): no trae importes y no se los supongas.' : '',
     '7. TALLER: `taller` describe la ventana de fabricación contada hacia atrás desde la instalación (empezar → cortar → armar → listo); `atraso_dias` son los días que ese trabajo va tarde. «no se dio» es una cotización que el cliente no aceptó.',
     '8. Si la pregunta es ambigua, contesta lo más probable y ofrece la otra lectura en una línea. No repitas la pregunta ni saludes; ve al dato.',
     '',
@@ -478,7 +482,7 @@ const accProyectos = (lista, max = 6) => lista.filter(p => p && p.id).slice(0, m
 /* La cartera que armó `armarResumen` sobre el récord. La respuesta, sus botones y la cifra de
    la portada la leen de aquí y de ningún otro lado: si cada uno la contaba por su cuenta, cada
    uno podía decir otra cosa. Un resumen sin ella —el de fabricación— no tiene a quién cobrar. */
-const SIN_CARTERA = { total_por_cobrar: 0, ventas_con_saldo: 0, ya_instalado: { ventas: 0, total: 0 }, saldos: [], fuera_de_la_lista: 0 };
+const SIN_CARTERA = { total_por_cobrar: 0, ventas_con_saldo: 0, saldos_de_la_hoja: 0, ya_instalado: { ventas: 0, total: 0 }, saldos: [], fuera_de_la_lista: 0 };
 const carteraDe = r => (r && r.cobranza && Array.isArray(r.cobranza.saldos) ? r.cobranza : SIN_CARTERA);
 
 /**
@@ -544,15 +548,17 @@ export function responderLocal(intent, r) {
       if (!dinero) return sinDinero;
       const c = r.comisiones || { abonables_ya: [], pendientes_de_liquidar: [], total_abonable_ya: 0, total_pendiente: 0 };
       const out = [];
+      /* Las cuentas dicen «ventas»: con el récord, la lista trae las que solo están en la hoja,
+         que aquí no son proyecto (ver `armarResumen`). */
       if (c.abonables_ya.length) {
-        out.push('**Se pueden abonar ya: ' + pesos(c.total_abonable_ya) + '** en ' + cuenta(c.abonables_ya.length, 'proyecto liquidado', 'proyectos liquidados') + '.');
+        out.push('**Se pueden abonar ya: ' + pesos(c.total_abonable_ya) + '** en ' + cuenta(c.abonables_ya.length, 'venta liquidada', 'ventas liquidadas') + '.');
         for (const x of c.abonables_ya) out.push('- ' + x.folio + ' · ' + x.nombre + ' · ' + x.pct + ' % · **' + pesos(x.comision) + '**');
       } else {
         out.push('**Hoy no hay ninguna comisión abonable.** Una comisión se abona cuando el proyecto queda LIQUIDADO en la hoja, y ninguno con comisión lo está.');
       }
       if (c.pendientes_de_liquidar.length) {
         out.push('');
-        out.push('Esperan a que el cliente liquide: ' + cuenta(c.pendientes_de_liquidar.length, 'proyecto', 'proyectos') + ' por **' + pesos(c.total_pendiente) + '**.');
+        out.push('Esperan a que el cliente liquide: ' + cuenta(c.pendientes_de_liquidar.length, 'venta', 'ventas') + ' por **' + pesos(c.total_pendiente) + '**.');
         for (const x of c.pendientes_de_liquidar.slice(0, 8)) {
           out.push('- ' + x.folio + ' · ' + x.nombre + ' · ' + pesos(x.comision) + (x.saldo_del_cliente > 0 ? ' (el cliente debe ' + pesos(x.saldo_del_cliente) + ')' : '') + (x.estatus_notion ? ' · ' + x.estatus_notion : ''));
         }
@@ -568,8 +574,10 @@ export function responderLocal(intent, r) {
       if (!dinero) return sinDinero;
       const c = carteraDe(r);
       if (!c.ventas_con_saldo) return '**Nadie debe.** Todos los proyectos vivos tienen el anticipo igual al total o ya están liquidados en la hoja.';
-      const out = ['**Por cobrar: ' + pesos(c.total_por_cobrar) + '** en ' + cuenta(c.ventas_con_saldo, 'proyecto', 'proyectos') +
-        (c.ya_instalado.ventas ? ', ' + cuenta(c.ya_instalado.ventas, 'ya instalado', 'ya instalados') + ' (' + pesos(c.ya_instalado.total) + ').' : '.')];
+      /* «Ventas», no «proyectos»: la cartera es la del récord y trae las que solo están en la
+         hoja, sin ficha aquí. Control dice «N ventas» sobre la misma lista. */
+      const out = ['**Por cobrar: ' + pesos(c.total_por_cobrar) + '** en ' + cuenta(c.ventas_con_saldo, 'venta', 'ventas') +
+        (c.ya_instalado.ventas ? ', ' + cuenta(c.ya_instalado.ventas, 'ya instalada', 'ya instaladas') + ' (' + pesos(c.ya_instalado.total) + ').' : '.')];
       /* Una venta que solo está en la hoja puede no traer etapa: sin ella no se escribe un «·» suelto. */
       for (const x of c.saldos.slice(0, 10)) {
         out.push('- ' + x.folio + ' · ' + x.nombre + ' · **' + pesos(x.saldo) + '**' +
@@ -579,9 +587,10 @@ export function responderLocal(intent, r) {
       out.push('');
       /* De dónde sale el saldo, dicho como en Control. Decía siempre «total menos anticipo», y
          con el récord casi todos son la fórmula de la hoja (neto menos anticipo menos
-         liquidación): llamarlos estimados era decir menos de lo que se sabe. */
-      const deHoja = c.saldos.filter(x => x.saldo_de_la_hoja).length;
-      out.push((deHoja === c.saldos.length ? 'Los saldos son los que calcula la hoja.'
+         liquidación): llamarlos estimados era decir menos de lo que se sabe.
+         Se compara con la cartera entera, no con la lista: el pie habla del total de arriba. */
+      const deHoja = c.saldos_de_la_hoja;
+      out.push((deHoja === c.ventas_con_saldo ? 'Los saldos son los que calcula la hoja.'
         : deHoja ? 'El saldo es el que calcula la hoja cuando la venta está allá; si no, el total menos el anticipo pactado (estimado; no sabe de abonos intermedios).'
         : 'El saldo es el total menos el anticipo pactado (estimado; no sabe de abonos intermedios).') +
         ' En **Control → Por cobrar** cada renglón trae el WhatsApp de cobro ya escrito.');
@@ -674,7 +683,7 @@ export function responderLocal(intent, r) {
       out.push('- En el taller: ' + cuenta(d.enTaller, 'trabajo', 'trabajos') + (d.tarde ? ', **' + cuenta(d.tarde, 'va', 'van') + ' tarde**' : ', ninguno tarde'));
       out.push('- Instalaciones de aquí a 7 días: ' + d.semana + (d.vencidas ? ' · **' + cuenta(d.vencidas, 'pasó sin marcarse', 'pasaron sin marcarse') + '**' : ''));
       if (dinero) {
-        out.push('- Por cobrar: **' + pesos(d.porCobrar) + '** en ' + cuenta(d.conSaldo, 'proyecto', 'proyectos'));
+        out.push('- Por cobrar: **' + pesos(d.porCobrar) + '** en ' + cuenta(d.conSaldo, 'venta', 'ventas'));
         out.push('- Comisiones abonables ya: ' + (d.comisionAbonable > 0 ? '**' + pesos(d.comisionAbonable) + '**' : 'ninguna'));
         if (d.sinDecidir) out.push('- Autorizadas sin decidir: ' + cuenta(d.sinDecidir, 'cotización', 'cotizaciones') + ' por ' + pesos(d.sinDecidirTotal));
       } else if (d.sinDecidir) out.push('- Autorizadas sin decidir: ' + cuenta(d.sinDecidir, 'cotización', 'cotizaciones'));

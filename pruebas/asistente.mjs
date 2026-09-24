@@ -127,6 +127,11 @@ ok('la de la hoja no trae id —no tiene ficha que abrir— y la del proyecto s�
    (RU.comisiones.abonables_ya[0] || {}).id === '' && (RU.comisiones.pendientes_de_liquidar[0] || {}).id === 'p1');
 eq('los botones abren solo proyectos de este teléfono', respuestaLocal('comisiones', RU).acciones.filter(a => a.tipo === 'proyecto').map(a => a.id), ['p1']);
 ok('la respuesta local dice lo que dice la hoja', responderLocal('comisiones', RU).includes('Se pueden abonar ya: $800.00') && responderLocal('comisiones', RU).includes('V-150'));
+/* La V-150 no es un proyecto de este teléfono: la lista cuenta VENTAS del récord, y decir
+   «1 proyecto liquidado» junto a un renglón sin ficha que abrir era contar otra cosa. */
+ok('y cuenta ventas, no proyectos: la de la hoja no tiene ficha aquí',
+   responderLocal('comisiones', RU).includes('Se pueden abonar ya: $800.00** en 1 venta liquidada.') &&
+   responderLocal('comisiones', RU).includes('Esperan a que el cliente liquide: 1 venta por'));
 eq('y la portada también', resumenDelDia(RU).comisionAbonable, 800);
 eq('la venta de la hoja no se cuela a la lista del taller', RU.proyectos.map(p => p.folio), ['COT-0031']);
 const RUF = armarResumen({ hoy: '2026-09-24', rol: 'Fabricación', veDinero: false, proyectos: [pLocal],
@@ -184,10 +189,14 @@ eq('y cuadra con el kpi, que es el de Control', [cart(RCo).total_por_cobrar, car
    [RCo.ventas.por_cobrar_estimado.total, RCo.ventas.por_cobrar_estimado.proyectos]);
 const RCoTx = responderLocal('cobranza', RCo);
 ok('«¿quién nos debe?» da el total del récord y nombra la venta de la hoja',
-   RCoTx.includes('Por cobrar: $13,340.00** en 2 proyectos, 1 ya instalado ($10,440.00)') && RCoTx.includes('- V-160 · Dental Sur - Letras · **$2,900.00** · COBRANDO'));
+   RCoTx.includes('Por cobrar: $13,340.00** en 2 ventas, 1 ya instalada ($10,440.00)') && RCoTx.includes('- V-160 · Dental Sur - Letras · **$2,900.00** · COBRANDO'));
 ok('y dice que los saldos son los de la hoja, no «estimados»', RCoTx.includes('Los saldos son los que calcula la hoja.') && !RCoTx.includes('estimado'));
 eq('la portada dice lo mismo', [resumenDelDia(RCo).porCobrar, resumenDelDia(RCo).conSaldo], [13340, 2]);
-ok('y el resumen de hoy también', responderLocal('hoy', RCo).includes('Por cobrar: **$13,340.00** en 2 proyectos'));
+ok('y el resumen de hoy también', responderLocal('hoy', RCo).includes('Por cobrar: **$13,340.00** en 2 ventas'));
+/* La cuenta es de VENTAS del récord, no de proyectos: la V-160 no tiene ficha aquí. Con
+   «2 proyectos» junto a un solo botón «Abrir», y Control diciendo «2 ventas», la palabra
+   contaba otra cosa que la cifra. La portada no corre en node: se lee su código. */
+ok('y la portada también cuenta ventas', /por cobrar · ' \+ d\.conSaldo \+ \(d\.conSaldo === 1 \? ' venta' : ' ventas'\)/.test(fuenteAsis));
 eq('los botones abren solo el proyecto de este teléfono', respuestaLocal('cobranza', RCo).acciones.map(a => a.tipo + ':' + (a.ruta || a.id)), ['pasar:control', 'proyecto:p1']);
 ok('la venta de la hoja va sin id y la del proyecto con el suyo', (cart(RCo).saldos[0] || {}).id === 'p1' && (cart(RCo).saldos[1] || {}).id === '');
 const datosCo = JSON.parse(promptSistema(RCo).split('DATOS (JSON):\n')[1]);
@@ -211,7 +220,22 @@ const muchas = Array.from({ length: 45 }, (_, i) => ({ id: 'hoja:V-' + (400 + i)
 const RMu = armarResumen({ hoy: '2026-09-24', rol: 'Dirección', veDinero: true, proyectos: [], ventas: unificar([], muchas).ventas });
 eq('con un récord largo la lista lleva tope; el total y la cuenta, no',
    [cart(RMu).saldos.length, cart(RMu).fuera_de_la_lista, cart(RMu).ventas_con_saldo, cart(RMu).total_por_cobrar], [40, 5, 45, 45000]);
-ok('y la respuesta cuenta las que no enumera', responderLocal('cobranza', RMu).includes('Por cobrar: $45,000.00** en 45 proyectos') && responderLocal('cobranza', RMu).includes('- … y 35 más'));
+ok('y la respuesta cuenta las que no enumera', responderLocal('cobranza', RMu).includes('Por cobrar: $45,000.00** en 45 ventas') && responderLocal('cobranza', RMu).includes('- … y 35 más'));
+/* El pie dice de dónde salen los saldos del TOTAL que acaba de dar, así que se cuenta sobre la
+   cartera entera. Contado sobre la lista con tope, 40 filas de la hoja más un proyecto de aquí
+   que la hoja no tiene —el lugar 41, con 290 estimados— decían «Los saldos son los que calcula
+   la hoja» debajo de un total que incluía esa estimación. */
+const cuarenta = muchas.slice(0, 40);
+const pSoloAqui = proy({ id: 'p99', folio_local: 'COT-0099', folio_global: 'COT-0099@AAAA', nombre: 'Farmacia Luz - Caja', etapa: 'armado',
+  fecha_ganado: '2026-09-01', sub: 500, neto: 580, precio_auth: 580, anti_pactado: 290, estatus_notion: '', cuenta: '' });
+const RTope = armarResumen({ hoy: '2026-09-24', rol: 'Dirección', veDinero: true, proyectos: [pSoloAqui], ventas: unificar([pSoloAqui], cuarenta).ventas });
+eq('(la premisa) la estimada queda fuera de la lista, pero dentro del total',
+   [cart(RTope).saldos.some(x => x.folio === 'COT-0099'), cart(RTope).ventas_con_saldo, cart(RTope).total_por_cobrar], [false, 41, 40290]);
+eq('la cartera dice cuántos de sus saldos son de la hoja, sobre todas', cart(RTope).saldos_de_la_hoja, 40);
+const RTopeTx = responderLocal('cobranza', RTope);
+ok('y el pie no dice que todos son de la hoja cuando uno fuera de la lista es estimado',
+   !RTopeTx.includes('Los saldos son los que calcula la hoja.') && RTopeTx.includes('El saldo es el que calcula la hoja cuando la venta está allá; si no, el total menos el anticipo pactado'));
+ok('y al modelo se le dice que esa cuenta es la de la cartera entera', promptSistema(RTope).includes('`saldos_de_la_hoja` cuenta, sobre toda la cartera'));
 
 console.log('\nLAS RESPUESTAS LOCALES: las siete de siempre, sin IA');
 const RC = responderLocal('comisiones', R);

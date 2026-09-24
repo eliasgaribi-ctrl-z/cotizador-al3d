@@ -164,7 +164,9 @@ function resumenHTML() {
   c.push('<button type="button" class="ia-cifra' + (d.tarde ? ' urge' : '') + '" data-ia-intent="tarde"><b>' + d.enTaller + '</b><span>' + (d.enTaller === 1 ? 'en el taller' : 'en el taller') + (d.tarde ? ' · <em>' + d.tarde + ' tarde</em>' : '') + '</span></button>');
   c.push('<button type="button" class="ia-cifra' + (d.vencidas ? ' urge' : '') + '" data-ia-intent="semana"><b>' + d.semana + '</b><span>' + (d.semana === 1 ? 'instalación en 7 días' : 'instalaciones en 7 días') + (d.vencidas ? ' · <em>' + d.vencidas + ' sin marcar</em>' : '') + '</span></button>');
   if (dinero) {
-    c.push('<button type="button" class="ia-cifra dinero" data-ia-intent="cobranza"><b>' + esc(money(d.porCobrar)) + '</b><span>por cobrar · ' + d.conSaldo + (d.conSaldo === 1 ? ' proyecto' : ' proyectos') + '</span></button>');
+    /* «Ventas»: `conSaldo` cuenta la cartera del récord, con las que solo están en la hoja y no
+       tienen ficha aquí. Decía «3 proyectos» con dos botones «Abrir» y Control diciendo «3 ventas». */
+    c.push('<button type="button" class="ia-cifra dinero" data-ia-intent="cobranza"><b>' + esc(money(d.porCobrar)) + '</b><span>por cobrar · ' + d.conSaldo + (d.conSaldo === 1 ? ' venta' : ' ventas') + '</span></button>');
     c.push('<button type="button" class="ia-cifra' + (d.comisionAbonable > 0 ? ' bien' : '') + '" data-ia-intent="comisiones"><b>' + esc(d.comisionAbonable > 0 ? money(d.comisionAbonable) : '—') + '</b><span>' + (d.comisionAbonable > 0 ? 'comisiones abonables ya' : 'sin comisiones abonables') + '</span></button>');
   } else {
     c.push('<button type="button" class="ia-cifra' + (d.comprar ? ' urge' : '') + '" data-ia-intent="material"><b>' + d.comprar + '</b><span>' + (d.comprar === 1 ? 'material por comprar' : 'materiales por comprar') + '</span></button>');
