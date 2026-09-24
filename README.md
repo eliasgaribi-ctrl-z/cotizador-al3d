@@ -220,7 +220,7 @@ plataforma con `herramientas/extraer-catalogo.sh`.
 ## Pruebas
 
     pruebas/correr.sh               24 archivos, solo node, unos segundos
-    pruebas/correr.sh --navegador   17 más, que piden Chromium y un servidor
+    pruebas/correr.sh --navegador   18 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
 contra una hoja de mentiras, sin cuenta y sin red; otra rasteriza cada pieza y **cuenta sus
