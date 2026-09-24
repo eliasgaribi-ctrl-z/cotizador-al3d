@@ -115,11 +115,33 @@ export function totalVendido(entrada) {
 export const CAMPOS_PRECIO = ['tipo', 'material', 'comp', 'luz', 'altura', 'n', 'acab', 'recComp',
                               'bas', 'ancho', 'alto', 'tarifa', 'pz', 'pu'];
 
+/* Y ORDENADA, como la de allá desde el 15 de septiembre de 2026. Esta «réplica exacta» se quedó
+   sin el `.sort()` cuando el cotizador lo ganó, y las dos dejaron de escribir lo mismo en
+   cuanto el orden de las filas no era el de las cadenas —ids 9 y 10, o una partida arrastrada—:
+   un proyecto ganado que nadie tocó salía como «se editó después de ganarse» (R6) con un botón
+   de «Recalcular material» que pisaba el origen congelado. pruebas/replicas.mjs ya lo prueba
+   con ids de dos cifras. */
 export function huellaDe(entrada) {
   if (!entrada || !Array.isArray(entrada.items)) return '';
   return (entrada.iva !== false ? 'c' : 's') + '|' + entrada.items.map(it =>
     it.id + ':' + CAMPOS_PRECIO.map(k => it[k] === undefined ? '' : String(it[k])).join('~')
-  ).join(',');
+  ).sort().join(',');
+}
+
+/** Una huella GUARDADA, puesta en la forma de hoy. Las que se sellaron antes del orden
+ *  —`origen.huellaAuth` de los proyectos ganados hasta el 15 de septiembre de 2026— son las
+ *  mismas entradas sin ordenar; ordenarlas da exactamente la de hoy. Réplica de
+ *  `huellaOrdenada()` de js/cotizador/nucleo.js. */
+export function huellaOrdenada(h) {
+  const s = String(h || ''), i = s.indexOf('|');
+  return i < 0 ? s : s.slice(0, i + 1) + s.slice(i + 1).split(',').sort().join(',');
+}
+
+/** ¿La huella guardada `antes` es la del trabajo de `entrada`? La única comparación que debe
+ *  usar quien tenga una huella guardada en la mano: con `===` a secas, las de antes del orden
+ *  salían todas como cambiadas. */
+export function mismaHuella(antes, entrada) {
+  return !!antes && huellaOrdenada(antes) === huellaDe(entrada);
 }
 
 /**
@@ -132,7 +154,7 @@ export function estadoOrigen(proyecto) {
   if (!hoy) return 'desaparecio';
   const antes = proyecto.origen.huellaAuth || huellaDe(proyecto.origen);
   if (!antes) return 'sin_huella';
-  return antes === huellaDe(hoy) ? 'igual' : 'cambio';
+  return mismaHuella(antes, hoy) ? 'igual' : 'cambio';
 }
 
 /* ----- Cotizaciones autorizadas que nadie ha decidido -----

@@ -52,6 +52,20 @@ for (const t of ['-P3D', '-P1D', '-PT30M']) {
 }
 const n = ICS.evento({ ...ev, ventana: 'noche' }).replace(/\r\n[ \t]/g, '');
 if (!n.includes('TRIGGER:-PT120M')) mal('ventana noche no avisa 2 h antes'); else bien('ventana de noche avisa 2 h antes');
+/* «Madrugada» promete en pantalla la alarma de dos horas (VENTANA_DESC de js/datos/agenda.js)
+   y el archivo le ponía la de media hora: la lista vivía aquí y solo decía 'noche'. */
+const ma = ICS.evento({ ...ev, ventana: 'madrugada' }).replace(/\r\n[ \t]/g, '');
+if (!ma.includes('TRIGGER:-PT120M') || ma.includes('TRIGGER:-PT30M')) mal('madrugada no avisa 2 h antes, y la pantalla lo promete');
+else bien('madrugada también avisa 2 h antes, como dice la pantalla');
+
+/* Google Calendar pone las alarmas que salen de esta misma función (js/nucleo/gcal.js). Tenía
+   una lista fija de tres: sin la de dos horas de noche y con la de 23:30 en los de todo el día. */
+const alNoche = ICS.alarmasDe({ hora: '22:30', ventana: 'noche' }).join(',');
+alNoche === '-P3D,-P1D,-PT120M' ? bien('alarmasDe de noche: ' + alNoche)
+                                : mal('alarmasDe de noche dio ' + alNoche);
+const alTodoDia = ICS.alarmasDe({ hora: null, ventana: 'noche' }).join(',');
+alTodoDia === '-P3D,-P1D' ? bien('alarmasDe sin hora: solo -P3D y -P1D, sin la de salir')
+                          : mal('alarmasDe sin hora dio ' + alTodoDia);
 
 const mv = ICS.evento({ ...ev, secuencia: 3 }).replace(/\r\n[ \t]/g, '');
 if (!/SEQUENCE:3/.test(mv)) mal('SEQUENCE no refleja las reagendas'); else bien('SEQUENCE:3 tras 3 reagendas');

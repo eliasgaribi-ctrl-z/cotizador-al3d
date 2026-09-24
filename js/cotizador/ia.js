@@ -313,8 +313,14 @@ function aiOpen(fuente){
 }
 /* Cerrar el modal cancela lo que estuviera corriendo. Antes el análisis seguía en marcha
    con aiTrabajando en true, así que al reabrir el modal el botón Analizar estaba gris y
-   sin ninguna explicación, y no había forma de cancelar. */
+   sin ninguna explicación, y no había forma de cancelar.
+   Abortar la petición no bastaba: cerrado durante «reintentando en 1 s…», el bucle
+   despertaba, pagaba otra petición, aplicaba las partidas del archivo cancelado y su
+   setTimeout(aiClose) cerraba el modal que ya se había vuelto a abrir. Por eso el número
+   de corrida sube aquí SIEMPRE, trabaje o no, y cada paso de aiAnalyze lo compara con el
+   suyo (ver _aiRun). aiOpen no lo toca: abrir no cancela nada. */
 function aiClose(){
+  _aiRun++;
   $('aimodal').classList.remove('show');
   aiThumbsSoltarTodas();
   if(aiTrabajando){
@@ -342,8 +348,14 @@ function aiPintarFuente(){
   if(btn) btn.textContent='Analizar las medidas y cotizar';
 }
 /* Al pasar de «la imagen medida» a «subir un archivo» también se limpia la selección
-   anterior, por lo mismo que en aiOpen. */
-function aiUsarArchivo(){ aiSrc=null; aiOlvidarArchivo(); aiPintarFuente(); }
+   anterior, por lo mismo que en aiOpen. Con un análisis en curso no se cambia nada: la
+   fuente es la que se está pagando, y cambiarla a media petición tiraba la respuesta con
+   «Cannot read properties of null». Para cambiarla, se cierra —que cancela— o se espera. */
+const AI_OCUPADO='Hay un análisis en curso: espera a que termine, o cierra la ventana para cancelarlo';
+function aiUsarArchivo(){
+  if(aiTrabajando){ toast(AI_OCUPADO,'',3600); return; }
+  aiSrc=null; aiOlvidarArchivo(); aiPintarFuente();
+}
 
 /* ===================== El archivo que se va a analizar =====================
    El análisis leía directo de $('ai-file').files[0], y eso lo ataba al selector nativo: la
@@ -398,6 +410,13 @@ function aiPeso(b){
    se soltó. */
 function aiArchivoElegido(f,comoLlego){
   if(!f) return false;
+  /* Soltar, pegar o elegir otro archivo mientras se analiza no cambia la fuente: ver
+     aiUsarArchivo. El selector se vacía para que no se quede con uno que no se va a usar. */
+  if(aiTrabajando){
+    const fi=$('ai-file'); if(fi) fi.value='';
+    toast(AI_OCUPADO,'',3600);
+    return false;
+  }
   /* Arrastrar una CARPETA da una entrada de tamaño 0 y sin tipo, igual que un archivo que
      el sistema no alcanzó a entregar. Se mira antes que el tipo: una carpeta tampoco trae
      extensión, así que la guarda de abajo la atrapaba primero y contestaba «no es una
@@ -436,6 +455,9 @@ function aiOlvidarArchivo(){
   aiPintarArchivo();
 }
 function aiQuitarArchivo(){
+  /* Igual que aiUsarArchivo: con un análisis en curso la fuente es la que se está pagando.
+     Quitarla solo borraba la miniatura y el aviso, y su respuesta se aplicaba igual. */
+  if(aiTrabajando){ toast(AI_OCUPADO,'',3600); return; }
   aiOlvidarArchivo();
   aiStatus('','');
   const z=$('ai-drop'); if(z) try{ z.focus(); }catch(_){}
@@ -618,10 +640,25 @@ const aiEtq=c=>`${AI_NOMBRE[c.prov]||c.prov} · ${c.model}${c.nk>1?` · key ${c.
    aguanta; Groq la rechaza por tamaño y en 4G la subida tarda tanto que parece que
    la app se colgó. 1600 px es lo mismo que manda el escalador y de sobra para leer
    una cota. Si el navegador no sabe abrir el archivo —HEIC de iPhone en Android—
-   se manda tal cual y que conteste el proveedor. */
+   se manda tal cual y que conteste el proveedor.
+
+   Tal cual, pero solo si el proveedor lo lee: Gemini acepta PNG, JPEG, WEBP, HEIC y HEIF, y
+   nada más. Un SVG, un GIF o un BMP pasan el filtro de image/* del selector, y chicos se
+   mandaban crudos con su tipo: cada key contestaba 400 y se gastaban todas en el mismo error.
+   Ahora lo que no es JPG, PNG o WEBP pasa siempre por el lienzo y sale JPEG; y lo que el
+   navegador no sabe abrir y tampoco es HEIC/HEIF (un TIFF, un PSD) se detiene aquí, antes de
+   pagar una sola petición, diciendo qué hacer con él. */
 async function aiImagen(f){
   const crudo=async()=>({b64:await fileToB64(f),mime:f.type||'image/jpeg'});
   if(f.type==='application/pdf') return crudo();
+  const directo=/^image\/(jpeg|png|webp)$/i.test(f.type||'');
+  const heic=/^image\/hei[cf]$/i.test(f.type||'')||/\.hei[cf]$/i.test(f.name||'');
+  const noSeLee=()=>{
+    /* Un JPG que el navegador no abre no es un formato raro: viene dañado. */
+    if(directo) return new Error(`no se pudo abrir «${f.name||'la imagen'}» — puede estar dañada. Ábrela y guárdala otra vez como JPG o PNG, y vuelve a intentar`);
+    const m=/\.([a-z0-9]+)$/i.exec(f.name||''), fmt=((m&&m[1])||(f.type||'').split('/')[1]||'').replace(/\+xml$/i,'').toUpperCase();
+    return new Error(`la IA no lee ${fmt?'archivos '+fmt:'ese formato'} — ábrelo y expórtalo como JPG o PNG, y vuelve a intentar`);
+  };
   try{
     const img=await new Promise((res,rej)=>{
       const u=URL.createObjectURL(f), im=new Image();
@@ -630,9 +667,9 @@ async function aiImagen(f){
       im.src=u;
     });
     const w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
-    if(!w||!h) return crudo();
+    if(!w||!h){ if(heic) return crudo(); throw noSeLee(); }
     const k=Math.min(1,AI_IMG_MAX/Math.max(w,h));
-    if(k===1&&f.size<=1200000) return crudo();  // ya es ligera: no se recomprime de gratis
+    if(directo&&k===1&&f.size<=1200000) return crudo();  // ya es ligera: no se recomprime de gratis
     const c=document.createElement('canvas');
     c.width=Math.max(1,Math.round(w*k)); c.height=Math.max(1,Math.round(h*k));
     const ctx=c.getContext('2d');
@@ -646,7 +683,10 @@ async function aiImagen(f){
     ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
     ctx.drawImage(img,0,0,c.width,c.height);
     return {b64:c.toDataURL('image/jpeg',AI_IMG_Q).split(',')[1],mime:'image/jpeg'};
-  }catch(_){ return crudo(); }
+  }catch(_){
+    if(heic) return crudo();
+    throw noSeLee();
+  }
 }
 
 /* Un 503 con página HTML de por medio, o un corte de red, reventaba dentro de
@@ -657,21 +697,36 @@ async function aiFetch(url,opts){
   const ctl=new AbortController();
   _aiAbort=ctl;   // para que cerrar el modal pueda cortar la petición en vuelo
   const t=setTimeout(()=>ctl.abort(),AI_TIMEOUT);
-  let res;
-  try{
-    res=await fetch(url,Object.assign({},opts,{signal:ctl.signal}));
-  }catch(e){
+  const fallo=e=>{
     /* Cancelar no es un fallo del proveedor: si se reintentara, cerrar el modal no
        cancelaría nada — la cadena seguiría dando vueltas sola. */
-    if(_aiCancelado){ const c=new Error('análisis cancelado'); c.cancelado=true; throw c; }
+    if(_aiCancelado) return aiCancelacion();
     const err=new Error(e&&e.name==='AbortError'
       ? 'el proveedor tardó demasiado en responder'
       : 'no se pudo conectar con el proveedor (revisa tu conexión)');
-    err.transitorio=true; throw err;
+    err.transitorio=true; return err;
+  };
+  /* El plazo y el aborto cubren también la LECTURA del cuerpo, no solo la llegada de las
+     cabeceras. Antes el temporizador se apagaba en cuanto llegaban, y una conexión que se
+     atoraba a media respuesta dejaba el análisis «Analizando…» para siempre, con el botón
+     gris y sin nada que abortar. El cuerpo se lee contra la señal por si el navegador no
+     corta la lectura él solo. */
+  try{
+    let res;
+    try{ res=await fetch(url,Object.assign({},opts,{signal:ctl.signal})); }
+    catch(e){ throw fallo(e); }
+    let txt='';
+    try{
+      txt=await new Promise((ok,mal)=>{
+        const corta=()=>{ const a=new Error('abortado'); a.name='AbortError'; mal(a); };
+        if(ctl.signal.aborted) return corta();
+        ctl.signal.addEventListener('abort',corta,{once:true});
+        res.text().then(ok,mal);
+      });
+    }catch(e){ throw fallo(e); }
+    let data=null; try{ data=JSON.parse(txt); }catch(_){}
+    return {res,data,txt};
   }finally{ clearTimeout(t); if(_aiAbort===ctl) _aiAbort=null; }
-  const txt=await res.text().catch(()=>'');
-  let data=null; try{ data=JSON.parse(txt); }catch(_){}
-  return {res,data,txt};
 }
 /* Qué salió mal, en una frase que se pueda leer, y sobre todo: ¿vale la pena
    reintentar? Saturación y límites por minuto sí; una key inválida no. OpenRouter
@@ -704,11 +759,15 @@ function aiVacio(prov,razon){
   return err;
 }
 
-async function aiLlamar(c,prompt,b64,mime,sinJson){
+async function aiLlamar(c,prompt,b64,mime,sinJson,run){
+  aiSigue(run);   // cada petición que se paga pasa por aquí, también el reintento sin modo JSON
   if(c.prov==='gemini'){
     const body={contents:[{parts:[{text:prompt},{inline_data:{mime_type:mime,data:b64}}]}],generationConfig:{responseMimeType:'application/json',temperature:0.2}};
-    const url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.model)}:generateContent?key=${encodeURIComponent(c.key)}`;
-    const r=await aiFetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    /* La key va en la cabecera x-goog-api-key —la que documenta la API de Gemini—, no en la
+       dirección: un ?key= en la URL queda escrito en el historial de red, en los HAR que se
+       comparten para reportar un fallo y en los registros de cualquier proxy de por medio. */
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.model)}:generateContent`;
+    const r=await aiFetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':c.key},body:JSON.stringify(body)});
     if(!r.res.ok||(r.data&&r.data.error)||!r.data) throw aiError(r,c.prov,c.model);
     const cand=(r.data.candidates||[])[0];
     const txt=((cand&&cand.content&&cand.content.parts)||[]).map(p=>p.text||'').join('').trim();
@@ -728,7 +787,7 @@ async function aiLlamar(c,prompt,b64,mime,sinJson){
        —era el «Groq no me funciona» de siempre—. Quitar la opción sí lo arregla: el
        prompt ya pide «SOLO un JSON valido» y extractJSON sabe pelar el ```json. */
     if(!sinJson&&err.status===400&&/json|response_format|schema|format/i.test(err.crudo||''))
-      return aiLlamar(c,prompt,b64,mime,true);
+      return aiLlamar(c,prompt,b64,mime,true,run);
     throw err;
   }
   const ch=(r.data.choices||[])[0];
@@ -739,17 +798,23 @@ async function aiLlamar(c,prompt,b64,mime,sinJson){
 
 /* Un candidato = un proveedor con un modelo. Se insiste con él mientras el fallo sea
    pasajero; lo demás se devuelve enseguida para que la cadena pase al siguiente. */
-async function aiCandidato(c,prompt,b64,mime,verbo,esperas,hayMas){
+async function aiCandidato(c,prompt,b64,mime,verbo,esperas,hayMas,run){
   const E=esperas||AI_ESPERAS;
   for(let i=0;;i++){
+    /* Al despertar de la espera se pregunta antes que nada si el análisis sigue siendo el
+       vigente: si el modal se cerró mientras dormía, ni se paga otra petición ni se escribe
+       en la barra de estado de un modal que quizá ya es de otro análisis. */
+    aiSigue(run);
     try{
       aiStatus(`${verbo} con ${aiEtq(c)}…${i?` (intento ${i+1} de ${E.length+1})`:''}`,'work');
-      return await aiLlamar(c,prompt,b64,mime,false);
+      return await aiLlamar(c,prompt,b64,mime,false,run);
     }catch(e){
+      /* Cerrar aborta la petición en vuelo, y ese aborto no es «el proveedor tardó»: con el
+         modal reabierto _aiCancelado ya volvió a false, así que manda el número de corrida. */
+      if(e.cancelado||(run!==undefined&&run!==_aiRun)) throw aiCancelacion();
       /* Un 429 es cuota de ESA key: esperar no la devuelve, y si hay otra key u otro
          proveedor esperando turno, probarlo es más rápido y más seguro que dormir. */
       if(e.status===429&&hayMas) throw e;
-      if(e.cancelado) throw e;
       if(!e.transitorio||i>=E.length) throw e;
       aiStatus(`⏳ ${e.message} · reintentando en ${Math.round(E[i]/1000)} s…`,'work');
       await aiSleep(E[i]);
@@ -802,6 +867,13 @@ let aiTrabajando=false;
 let _aiIntentados=0, _aiProvsProbados=0, _aiEraPdf=false;
 /* El análisis en curso, para poder cancelarlo al cerrar el modal. */
 let _aiAbort=null, _aiCancelado=false;
+/* El número del análisis vigente. Cada aiAnalyze toma el suyo al arrancar y aiClose lo sube;
+   después de cada espera —la imagen, la petición, el sueño entre reintentos— el análisis
+   compara y, si ya no es el vigente, se retira sin pagar, sin aplicar y sin tocar la
+   pantalla. Es lo que impide que dos análisis se encimen. */
+let _aiRun=0;
+function aiCancelacion(){ const c=new Error('análisis cancelado'); c.cancelado=true; return c; }
+function aiSigue(run){ if(run!==undefined&&run!==_aiRun) throw aiCancelacion(); }
 
 async function aiAnalyze(){
   if(aiTrabajando) return;   // el botón queda deshabilitado, pero el Enter del teclado no
@@ -809,14 +881,19 @@ async function aiAnalyze(){
      cotización autorizada la devolvía a borrador y le borraba el precio: había que volver
      a pedir la autorización con el cliente enfrente. */
   if(locked()){ aiStatus('La cotización está autorizada · usa «Editar partidas» antes de analizar','err'); return; }
-  const f=aiArchivo;
-  if(!aiSrc && !f){ aiStatus('Arrastra aquí el archivo, pégalo, o toca el recuadro para elegirlo.','err'); return; }
-  const esPdf=!aiSrc && f.type==='application/pdf';
+  /* La fuente se toma UNA vez, aquí, y de aquí en adelante solo se lee `src`. aiSrc es de la
+     pantalla: «Analizar otro archivo» o soltar un archivo lo ponen en null, y releerlo después
+     de las esperas reventaba con «Cannot read properties of null (reading 'name')» y tiraba
+     una respuesta ya pagada. */
+  const src=aiSrc, f=aiArchivo;
+  if(!src && !f){ aiStatus('Arrastra aquí el archivo, pégalo, o toca el recuadro para elegirlo.','err'); return; }
+  const esPdf=!src && f.type==='application/pdf';
   /* Con un PDF y Groq/OpenRouter elegidos, antes esto era un callejón sin salida:
      había que entrar a Configuración y cambiar de proveedor a mano. Si la key de
-     Gemini ya está guardada, se usa esa y ya. */
+     Gemini ya está guardada, se usa esa y ya. Lo que Groq y OpenRouter no leen es el PDF
+     —fotos JPG y PNG sí—, así que es eso lo que se dice. */
   if(esPdf && aiProv!=='gemini' && !getKey('gemini')){
-    aiStatus('Groq y OpenRouter solo admiten imágenes JPG. Para PDF guarda tu API key de Gemini en Configuración.','err');
+    aiStatus('Groq y OpenRouter no leen PDF, solo imágenes. Para analizar un PDF guarda tu API key de Gemini en Configuración.','err');
     $('ai-cfg-box').open=true; return;
   }
   /* Una key pegada en el campo y sin «Agregar» cuenta igual: el reflejo de pegar y
@@ -828,26 +905,35 @@ async function aiAnalyze(){
   /* Recordar la preferencia es un lujo; poder analizar no. Sin el try, con el
      almacenamiento lleno esto lanzaba aquí mismo y el análisis no arrancaba. */
   try{ localStorage.setItem('ai_model_'+aiProv,model); localStorage.setItem('ai_provider',aiProv); }catch(_){}
-  const verbo=aiSrc?'Analizando la imagen medida':'Analizando';
+  const verbo=src?'Analizando la imagen medida':'Analizando';
   aiStatus(verbo+'…','work');
   const btn=$('ai-go-btn'); aiTrabajando=true; if(btn) btn.disabled=true;
+  const run=++_aiRun;
+  /* La cuenta de intentos es de ESTE análisis: si falla antes de la cadena —un formato que
+     la IA no lee—, el mensaje no puede contar los intentos del anterior. */
+  _aiIntentados=0; _aiProvsProbados=0; _aiEraPdf=esPdf;
   try{
     /* La imagen del escalador ya viene lista en base64 —la dibuja scImagenParaIA con
        sus cotas encima y ya reducida—, así que no hay archivo que leer ni que
        comprimir. Y como esas cotas son medidas reales, al prompt se le añade la
        lista para que las use tal cual. */
-    const {b64,mime}=aiSrc?{b64:aiSrc.url.split(',')[1],mime:aiSrc.mime||'image/jpeg'}:await aiImagen(f);
-    const prompt=aiSrc?PROMPT_IA+promptMedidas(aiSrc.medidas):PROMPT_IA;
+    const {b64,mime}=src?{b64:src.url.split(',')[1],mime:src.mime||'image/jpeg'}:await aiImagen(f);
+    if(run!==_aiRun) return;   // se cerró mientras se preparaba la imagen
+    const prompt=src?PROMPT_IA+promptMedidas(src.medidas):PROMPT_IA;
     const cadena=aiCadena(aiProv,model,esPdf);
     if(!cadena.length) throw new Error('no hay ninguna API key guardada para analizar este archivo');
     let parsed=null,usado=null,ultimo=null;
     let intentados=0;
+    /* Los proveedores se cuentan mientras se prueban. Contarlos sobre los primeros N de la
+       cadena fallaba cuando un 404 se saltaba las otras keys del mismo modelo: con Groq ya
+       probado, el mensaje decía «en 1 proveedor». */
+    const provs=new Set();
     for(let i=0;i<cadena.length;i++){
-      intentados++;
-      try{ parsed=await aiCandidato(cadena[i],prompt,b64,mime,verbo,i?AI_ESPERAS_RESPALDO:AI_ESPERAS,i<cadena.length-1); usado=cadena[i]; break; }
+      intentados++; provs.add(cadena[i].prov);
+      try{ parsed=await aiCandidato(cadena[i],prompt,b64,mime,verbo,i?AI_ESPERAS_RESPALDO:AI_ESPERAS,i<cadena.length-1,run); usado=cadena[i]; break; }
       catch(e){
         ultimo=e;
-        if(e.cancelado) break;   // el modal se cerró: no se sigue con la cadena
+        if(e.cancelado||run!==_aiRun) break;   // el modal se cerró: no se sigue con la cadena
         /* Un 404 es «ese modelo no existe», no «esa key no sirve»: repetirlo con las otras
            keys del mismo proveedor es gastar intentos en el mismo error. El README promete
            justo esto —«los errores que no se arreglan reintentando no gastan intentos»— y
@@ -858,10 +944,11 @@ async function aiAnalyze(){
         if(i<cadena.length-1) aiStatus(`${e.message} · probando con ${aiEtq(cadena[i+1])}…`,'work');
       }
     }
+    /* El usuario cerró el modal a media petición —o durante una espera—: lo que haya
+       llegado ya no es de nadie, y no se aplica ni se cuenta. */
+    if(run!==_aiRun) return;
     _aiIntentados=intentados;
-    _aiProvsProbados=new Set(cadena.slice(0,intentados).map(c=>c.prov)).size;
-    _aiEraPdf=esPdf;
-    if(_aiCancelado) return;   // el usuario cerró el modal a media petición
+    _aiProvsProbados=provs.size;
     if(!parsed) throw ultimo||new Error('No se pudo analizar el archivo.');
     /* ----- La imagen SÍ se guarda, también la del escalador -----
        Aquí decía que la foto del escalador no se guarda «porque ya se ve, con sus cotas, en
@@ -881,12 +968,15 @@ async function aiAnalyze(){
        entonces sí se pinta, que es lo correcto: ahí el escalador ya no está al lado. */
     /* Se guarda y se pinta aquí mismo: si la IA no devolvió partidas, applyAi no
        re-renderiza y antes la miniatura del archivo analizado no llegaba a aparecer. */
-    Q.aiFile = aiSrc
-      ? {name:'medidas-al3d.jpg', type:aiSrc.mime||'image/jpeg', url:aiSrc.url, deEscalador:true}
+    Q.aiFile = src
+      ? {name:'medidas-al3d.jpg', type:src.mime||'image/jpeg', url:src.url, deEscalador:true}
       : {name:f.name,type:mime,url:'data:'+mime+';base64,'+b64};
     saveState(); renderAiPreview();
-    const medidas=(aiSrc&&aiSrc.origen==='escalador')?aiSrc.medidas.length:0;
+    const medidas=(src&&src.origen==='escalador')?src.medidas.length:0;
     const creadas=applyAi(parsed);
+    /* Lo que la IA leyó del cliente o del proyecto y no se escribió porque ya había algo
+       (ver applyAi): va al final del aviso de éxito, que es el que se queda en pantalla. */
+    const leyo=_aiLeido.length?` · la IA leyó ${_aiLeido.join(' y ')}; se dejó lo que escribiste`:'';
     if(!creadas){
       aiStatus('La IA no detectó ninguna partida en este archivo. Prueba con otra foto, o captura a mano.','err');
       if(medidas) toast('La IA no devolvió ninguna partida — tus medidas siguen ahí para agregarlas a mano','err',5600);
@@ -909,16 +999,18 @@ async function aiAnalyze(){
          medidas: desde que el ancho y el alto de una caja de luz caben en una sola partida,
          menos partidas que medidas es el resultado correcto y no una advertencia. */
       const faltan=Math.max(0,medidas-_aiCubiertas);
-      toast(faltan
+      toast((faltan
         ? `⚠️ La IA devolvió ${creadas} ${creadas===1?'partida':'partidas'} y ${faltan===1?'una medida se quedó':`${faltan} medidas se quedaron`} sin partida — revisa cuál falta`
-        : `${medidas} ${medidas===1?'medida cotizada':'medidas cotizadas'} con IA (borrador)`,
-        faltan?'':'ok', faltan?6000:3200);
+        : `${medidas} ${medidas===1?'medida cotizada':'medidas cotizadas'} con IA (borrador)`)+leyo,
+        faltan?'':'ok', faltan||leyo?6000:3200);
     } else {
-      toast('Cotización IA lista (borrador)','ok');
+      toast('Cotización IA lista (borrador)'+leyo,'ok',leyo?6000:2600);
     }
-    setTimeout(aiClose,1500);
+    /* Se cierra solo si en ese segundo y medio nadie lo cerró ni arrancó otro análisis: si
+       no, este cierre tardío tumbaba el modal que ya se había vuelto a abrir. */
+    setTimeout(()=>{ if(run===_aiRun) aiClose(); },1500);
   }catch(e){
-    if(e&&e.cancelado) return;   // se canceló a propósito: no hay error que enseñar
+    if((e&&e.cancelado)||run!==_aiRun) return;   // se canceló a propósito: no hay error que enseñar
     /* Si solo hay una API cargada, insistir más no arregla nada: lo que lo arregla es
        tener a dónde caerse. Se dice aquí, que es cuando duele.
        Y se cuenta lo que se intentó, no lo que hay guardado. «Se probaron las 5 APIs
@@ -933,8 +1025,13 @@ async function aiAnalyze(){
           : '');
     aiStatus('Error: '+e.message+nota,'err');
   }finally{
-    aiTrabajando=false; _aiAbort=null;
-    const b=$('ai-go-btn'); if(b) b.disabled=false;
+    /* Solo el análisis vigente suelta el botón. Uno cancelado ya lo soltó aiClose, y si
+       mientras tanto arrancó otro, el botón y el aborto son de ése: soltarlos aquí dejaba
+       Analizar encendido con una petición en vuelo, y dos análisis encimados. */
+    if(run===_aiRun){
+      aiTrabajando=false; _aiAbort=null;
+      const b=$('ai-go-btn'); if(b) b.disabled=false;
+    }
   }
 }
 
@@ -1005,17 +1102,33 @@ function medidasCubiertas(items){
    datos del cliente. `aiOpen` ya los pidió al abrir el modal; la escritura ocurre medio
    minuto después, cuando el análisis ya se pagó y ya terminó, y frenarlo aquí lo tiraría a
    la basura para impedir un caso que exige borrar el teléfono a propósito mientras la IA
-   trabaja. Además la IA llena el cliente y el proyecto en esta misma pasada y el teléfono
-   no lo saca de un JPG nunca, así que revalidar aquí fallaría casi siempre por el único
-   dato que no puede traer. Lo que pasa es lo correcto: las partidas entran, y el candado
-   se vuelve a cerrar sobre ellas si de verdad falta algo. No se pierde nada. */
+   trabaja. Además el teléfono no lo saca de un JPG nunca, así que revalidar aquí fallaría
+   casi siempre por el único dato que no puede traer. Lo que pasa es lo correcto: las
+   partidas entran, y el candado se vuelve a cerrar sobre ellas si de verdad falta algo.
+   No se pierde nada. */
+/* Lo que la IA leyó del cliente o del proyecto y NO se escribió, para que aiAnalyze lo diga. */
+let _aiLeido=[];
 function applyAi(p){
+  _aiLeido=[];
   if(!p||typeof p!=='object') return 0;
   _aiCubiertas=0;
   if(locked()) return 0;
   p.proyecto=aiTxt(p.proyecto); p.cliente=aiTxt(p.cliente); p.direccion=aiTxt(p.direccion);
-  if(p.proyecto){ Q.proy=p.proyecto; if($('f-proy')) $('f-proy').value=p.proyecto; }
-  if(p.cliente){ Q.cliente=p.cliente; if($('f-cli')) $('f-cli').value=p.cliente; }
+  /* El cliente y el proyecto, igual que la dirección de abajo: solo si están vacíos. aiOpen
+     exige teclearlos ANTES de abrir el modal, así que aquí casi siempre traen lo que escribió
+     el vendedor —«Juan Pérez Gómez», el que paga— y la IA lee lo que dice el letrero
+     —«Farmacia San Juan»—. Escribirlos sin preguntar borraba el dato bueno en silencio, y el
+     teléfono de uno quedaba con el nombre del otro. Lo que leyó y no se usó se dice en el
+     aviso de éxito, por si de verdad era mejor. */
+  const mismo=(a,b)=>a.toLowerCase()===String(b||'').trim().toLowerCase();
+  if(p.proyecto){
+    if(!(Q.proy||'').trim()){ Q.proy=p.proyecto; if($('f-proy')) $('f-proy').value=p.proyecto; }
+    else if(!mismo(p.proyecto,Q.proy)) _aiLeido.push(`el proyecto «${p.proyecto}»`);
+  }
+  if(p.cliente){
+    if(!(Q.cliente||'').trim()){ Q.cliente=p.cliente; if($('f-cli')) $('f-cli').value=p.cliente; }
+    else if(!mismo(p.cliente,Q.cliente)) _aiLeido.push(`el cliente «${p.cliente}»`);
+  }
   /* Antes esto escribía en un campo #f-dir que ya no existe, así que la dirección
      detectada se quedaba invisible. Se llena el campo real y solo si está vacío,
      para no pisar lo que ya escribió el vendedor. */
@@ -1079,7 +1192,8 @@ function applyAi(p){
   /* Devuelve cuántas partidas creó. Antes no devolvía nada y quien llamaba daba por hecho
      que había funcionado: con una respuesta sin partidas la pantalla anunciaba éxito en
      verde y cerraba el modal, sin que se hubiera agregado una sola. */
-  /* Por esta rama se sale habiendo escrito el cliente y el proyecto —arriba— y nada más.
+  /* Por esta rama se sale habiendo escrito, si estaban vacíos, el cliente y el proyecto
+     —arriba— y nada más.
      Los inputs se llenaron a mano, y asignarle `.value` a un input NO dispara su `oninput`,
      así que `upd()` nunca corre: sin este repintado la barra de completitud, el ámbar de
      los huecos y el candado de las partidas se quedaban con la cuenta anterior, diciendo

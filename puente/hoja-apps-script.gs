@@ -55,15 +55,28 @@ function mejorarTodo() {
   var ventas = ss.getSheetByName('Ventas');
   if (!ventas) throw new Error('No encuentro la pestaña "Ventas".');
 
-  respaldar(ss, ventas);
-  var historicos = leerAbonosViejos(ventas);
-  fijarFolios(ventas);
-  agregarColumnas(ventas);
-  crearAbonos(ss, historicos);
-  formulasVentas(ventas);
-  clasificarTipos(ventas);
-  normalizarIvaActivos(ventas);   // la cuenta manda el IVA: realinea lo que sigue abierto
-  ordenarVentas(ventas);
+  /* Lo que toca los DATOS de Ventas va con el candado del puente: fijarFolios reparte folios
+     de la misma marca que /empujar, y ordenarVentas mueve filas. Sin candado, una subida que
+     llega a la mitad escribe en la fila que el reacomodo acaba de mover. El diseño y las
+     vistas no mueven datos y van fuera, para no tener al puente esperando medio minuto. */
+  conCandado(function () {
+    /* La marca de folios se siembra ANTES de rehacer el respaldo: sembrada después, ya no
+       veía las ventas borradas desde el respaldo anterior y podía repartir otra vez el folio
+       más alto. */
+    try {
+      var pr = PropertiesService.getScriptProperties();
+      if (!Number(pr.getProperty(PROP_FOLIO))) pr.setProperty(PROP_FOLIO, String(Math.max(0, marcaDeFolios(ventas))));
+    } catch (e) { /* sin propiedades, fijarFolios siembra como antes */ }
+    respaldar(ss, ventas);
+    var historicos = leerAbonosViejos(ventas);
+    fijarFolios(ventas);
+    agregarColumnas(ventas);
+    crearAbonos(ss, historicos);
+    formulasVentas(ventas);
+    clasificarTipos(ventas);
+    normalizarIvaActivos(ventas);   // la cuenta manda el IVA: realinea lo que sigue abierto
+    ordenarVentas(ventas);
+  });
   disenoVentas(ventas);
 
   tablero(ss);
@@ -115,14 +128,19 @@ function fijarFolios(h) {
   var n = FIN - 1;
   var proy = h.getRange(2, 2, n, 1).getValues();
   var fol  = h.getRange(2, 1, n, 1).getValues();
-  var max = 0;
-  for (var i = 0; i < n; i++) max = Math.max(max, numeroDeFolio(fol[i][0]));
+  var faltan = 0;
+  for (var i = 0; i < n; i++) {
+    if (String(proy[i][0]).trim() !== '' && !(numeroDeFolio(fol[i][0]) > 0)) faltan++;
+  }
+  /* Los que faltan salen de la MISMA marca que usa el puente (reservarFolios), no del más
+     alto que se ve: el más alto que se ve baja cuando alguien borra la última venta, y su
+     folio volvía a repartirse. */
+  var nuevos = reservarFolios(h, faltan);
   var out = [];
   for (var j = 0; j < n; j++) {
     if (String(proy[j][0]).trim() === '') { out.push(['']); continue; }
     if (numeroDeFolio(fol[j][0]) > 0) { out.push([fol[j][0]]); continue; }
-    max++;
-    out.push(['V-' + ('000' + max).slice(-3)]);
+    out.push([nuevos.shift()]);
   }
   h.getRange(2, 1, n, 1).setValues(out);
 }
@@ -172,12 +190,18 @@ function formulasVentas(h) {
     U: "=ARRAYFORMULA(IF(" + L('B') + '="","",COUNTIF(\'' + ABONOS + "'!$A$2:$A$2000," + L('A') + ")))",
     V: '=ARRAYFORMULA(IF((' + L('B') + '="")+(' + L('L') + '="")>0,"",YEAR(' + L('L') + ')))',
     W: '=ARRAYFORMULA(IF((' + L('B') + '="")+(' + L('L') + '="")>0,"",TEXT(' + L('L') + ',"yyyy-mm")))',
+    /* «Folio repetido» va primero porque es el que más cuesta: dos filas con el mismo folio
+       son, para el puente y para la pestaña de abonos, UNA venta. El puente escribe en la
+       primera, la plataforma se queda con una de las dos y los abonos se suman en ambas.
+       alEditar le da folio nuevo a la copia en cuanto se pega; esto es para la que se le
+       escape (una edición que no pasó por la pantalla no dispara alEditar). */
     X: '=ARRAYFORMULA(IF(' + L('B') + '="","",' +
+       'IF((' + L('A') + '<>"")*(COUNTIF(' + L('A') + ',' + L('A') + ')>1),"Folio repetido",' +
        'IF((' + L('D') + '<>"")*(' + L('F') + '<>IF(' + L('D') + '="' + CUENTA_SIN_FACTURA + '","No","Sí")),"IVA no corresponde a la cuenta",' +
        'IF(' + L('K') + '<-0.004,"Cobrado de más",' +
        'IF(' + L('T') + '<-0.004,"Comisión pagada de más",' +
        'IF((' + L('C') + '="LIQUIDADO")*(' + L('K') + '>0.004),"Liquidado con saldo",' +
-       'IF((' + L('C') + '="LIQUIDADO")*(' + L('N') + '=""),"Falta fecha de liquidación","")))))))'
+       'IF((' + L('C') + '="LIQUIDADO")*(' + L('N') + '=""),"Falta fecha de liquidación",""))))))))'
   };
   Object.keys(f).forEach(function (c) {
     h.getRange(c + '3:' + c + FIN).clearContent();
@@ -272,8 +296,10 @@ function disenoVentas(h) {
   h.getRange(1, 1, FIN, ult)
       .setBorder(true, true, true, true, null, true, '#c9d4e4', SpreadsheetApp.BorderStyle.SOLID);
 
+  /* El filtro cubre TODAS las columnas, las del puente incluidas: un filtro ordena solo su
+     rango, y uno de A:X dejaba Y:AD quietas al «Ordenar A→Z» desde el encabezado. */
   var f = h.getFilter(); if (f) f.remove();
-  h.getRange(1, 1, FIN, ult).createFilter();
+  h.getRange(1, 1, FIN, Math.max(ult, Math.min(ULTIMA_COL, h.getMaxColumns()))).createFilter();
 
   desplegable(h, 'D', CUENTAS);
   desplegable(h, 'C', ESTATUS);
@@ -892,8 +918,18 @@ function instalarTriggers() {
  * 2) La cuenta manda el IVA. Elias BBVA es la unica que recibe sin factura,
  *    asi que cualquier otra cuenta deja el IVA en "Si".
  *
- * Solo se mueven las columnas que se capturan (A:G, I:J, L:N). Las columnas
- * calculadas son ARRAYFORMULA que vive en la fila 2: no se tocan nunca.
+ * Se mueven TODAS las columnas que se capturan: A:G, I:J, L:N y las del puente,
+ * Y:AD (folio de cotización, etapa de obra, hora, ubicación, dirección y % de
+ * comisión). Las columnas calculadas son ARRAYFORMULA que vive en la fila 2: no
+ * se tocan nunca.
+ *
+ * Hasta puente-sheets-5 este comentario decía «A:G, I:J, L:N» y el código hacía
+ * justo eso: Y:AD se quedaban en su renglón mientras la venta se iba a otro. En
+ * cada reacomodo el folio de cotización pasaba a ser de OTRA venta, y como
+ * /empujar busca la fila por ese folio, la siguiente subida escribía el nombre y
+ * el dinero de una venta encima de otra. Por eso Y:AD viajan con su fila, y por
+ * eso la hoja que ya quedó revuelta se realinea una sola vez desde la bitácora
+ * (ver realinearColumnasDelPuente, al final del puente).
  */
 
 var CUENTA_SIN_FACTURA = 'Elias BBVA';
@@ -907,11 +943,12 @@ function prioridadEstatus(v) {
   return ORDEN_ESTATUS.length;
 }
 
+/* Solo «V-» y dígitos. Con Number() a secas, «V-Infinity» o «V-1e999» daban Infinity, y un
+   solo teléfono que preguntara por ese folio subía la marca para siempre: todas las ventas
+   nuevas salían con el mismo folio. */
 function numeroDeFolio(v) {
-  var s = String(v).trim();
-  if (s.substring(0, 2).toUpperCase() !== 'V-') return -1;
-  var n = Number(s.substring(2));
-  return isNaN(n) ? -1 : n;
+  var m = /^V-(\d{1,7})$/i.exec(String(v).trim());
+  return m ? Number(m[1]) : -1;
 }
 
 function filaPorFolio(h, folio) {
@@ -922,12 +959,35 @@ function filaPorFolio(h, folio) {
   return 0;
 }
 
+/**
+ * Las columnas que se CAPTURAN, en bloques [primera, última], recortadas a las que la hoja
+ * tiene de verdad. Es una función y no una variable porque COL y ULTIMA_COL se declaran más
+ * abajo, y porque una hoja anterior al puente tiene 24 columnas: pedirle la 30 truena.
+ * Lo que no está aquí es fórmula (H, K, O:X) y no se escribe nunca.
+ */
+function bloquesCapturados(ancho) {
+  var b = [[1, 7], [9, 10], [12, 14], [COL['Folio cotizacion'], ULTIMA_COL]];
+  var out = [];
+  for (var i = 0; i < b.length; i++) {
+    if (b[i][0] <= ancho) out.push([b[i][0], Math.min(b[i][1], ancho)]);
+  }
+  return out;
+}
+
 /** Reacomoda Ventas. Es idempotente: correrla dos veces no cambia nada. */
 function ordenarVentas(h) {
   h = h || SpreadsheetApp.getActive().getSheetByName('Ventas');
   if (!h) return;
+  /* Mientras Y:AD no estén realineadas —o no se sepa—, no se reacomoda nada. Mover A:X sin
+     Y:AD es justo lo que las revolvió (hasta puente-sheets-5), y moverlas todas antes de
+     realinear borraría la pista de a quién es cada celda: el renglón de la bitácora. Quedarse
+     quietas cuesta solo el orden por estatus, hasta que Dirección realinee. Una hoja sin las
+     columnas del puente no tiene qué revolver y se ordena como siempre. */
+  var tienePuente = h.getMaxColumns() >= COL['Folio cotizacion'];
+  if (tienePuente && estadoDeAlineacion() !== true) return;
   var n = FIN - 1;
-  var datos = h.getRange(2, 1, n, 14).getValues();
+  var ancho = Math.min(ULTIMA_COL, h.getMaxColumns());
+  var datos = h.getRange(2, 1, n, ancho).getValues();
 
   var llenas = [], vacias = [];
   for (var i = 0; i < n; i++) {
@@ -941,16 +1001,22 @@ function ordenarVentas(h) {
     return numeroDeFolio(b[0]) - numeroDeFolio(a[0]);
   });
 
-  var orden = llenas.concat(vacias), ag = [], ij = [], lmn = [];
-  for (var j = 0; j < orden.length; j++) {
-    var r = orden[j];
-    ag.push([r[0], r[1], r[2], r[3], r[4], r[5], r[6]]);
-    ij.push([r[8], r[9]]);
-    lmn.push([r[11], r[12], r[13]]);
-  }
-  h.getRange(2, 1, n, 7).setValues(ag);
-  h.getRange(2, 9, n, 2).setValues(ij);
-  h.getRange(2, 12, n, 3).setValues(lmn);
+  var orden = llenas.concat(vacias);
+  /* Si nada cambió de lugar no se escribe nada: cada /empujar termina aquí, y reescribir
+     trescientas filas iguales es tiempo con el candado puesto. */
+  var seMovio = false;
+  for (var j = 0; j < n && !seMovio; j++) seMovio = orden[j] !== datos[j];
+  if (!seMovio) return;
+
+  /* Aquí la hoja ya está realineada (o no tiene columnas del puente): Y:AD viajan con su fila.
+     La hora, como texto: getValues la trae como el Date en que Sheets la convirtió, y el
+     renglón al que llega puede no tener el '@' (ver horaDeCelda). */
+  horasATexto(h, orden);
+  var bloques = bloquesCapturados(ancho);
+  bloques.forEach(function (b) {
+    h.getRange(2, b[0], n, b[1] - b[0] + 1)
+     .setValues(filasProtegidas(orden.map(function (r) { return r.slice(b[0] - 1, b[1]); })));
+  });
 }
 
 /** Elias BBVA cobra sin factura; cualquier otra cuenta lleva IVA. */
@@ -985,6 +1051,12 @@ function normalizarIvaActivos(h) {
  * cuenta, y reacomodo de la hoja cuando cambia el estatus.
  */
 function alEditar(e) {
+  /* Con el candado del puente, como toda escritura sobre Ventas. Sin él, un reacomodo de
+     aquí corría las filas en mitad de una subida —que ya había decidido en qué fila
+     escribir— y un folio de aquí y uno del puente salían iguales. Si el puente no lo suelta
+     en 25 segundos esta edición no se toca: el folio lo pone la siguiente, o mejorarTodo.
+     Nunca se bloquea la captura esperando. */
+  var candado = null;
   try {
     var h = e.range.getSheet();
     if (h.getName() !== 'Ventas') return;
@@ -995,21 +1067,56 @@ function alEditar(e) {
     var fin = e.range.getRow() + e.range.getNumRows() - 1;
     if (fin < 2) return;
 
-    /* 1) folio nuevo cuando se escribe el proyecto (columna B) */
-    if (col <= 2 && colFin >= 2) {
-      var folios = h.getRange(2, 1, FIN - 1, 1).getValues();
-      var max = 0;
+    candado = LockService.getScriptLock();
+    if (!candado.tryLock(25000)) { candado = null; return; }
+
+    /* 1) folio nuevo cuando se escribe el proyecto (columna B), y folio nuevo para la COPIA
+          de una fila que se pegó con todo y su folio (columna A). Dos filas con el mismo
+          folio son una sola venta para el puente —escribe en la primera— y para los abonos
+          —se suman en las dos—, y en la plataforma una de las dos desaparece. La que cambia
+          es la que se acaba de pegar: la otra ya tenía ese folio y quizá abonos colgando. */
+    var tocaA = col <= 1 && colFin >= 1;
+    var tocaB = col <= 2 && colFin >= 2;
+    if (tocaA || tocaB) {
+      var hasta = Math.min(fin, FIN);
+      var folios = h.getRange(2, 1, FIN - 1, 2).getValues();
+      var fuera = {};
       for (var k = 0; k < folios.length; k++) {
-        max = Math.max(max, numeroDeFolio(folios[k][0]));
+        if (k + 2 >= ini && k + 2 <= hasta) continue;
+        var s = String(folios[k][0]).trim();
+        if (s) fuera[s] = true;
       }
-      for (var f = ini; f <= fin; f++) {
-        var proy = h.getRange(f, 2).getValue();
-        var fol = h.getRange(f, 1).getValue();
-        if (proy !== '' && fol === '') {
-          max++;
-          h.getRange(f, 1).setValue('V-' + ('000' + max).slice(-3));
+      var vistos = {}, sinFolio = [], repetidas = [];
+      for (var f = ini; f <= hasta; f++) {
+        var proy = String(folios[f - 2][1]).trim();
+        var fol = String(folios[f - 2][0]).trim();
+        if (proy === '') continue;
+        if (fol === '') { if (tocaB) sinFolio.push(f); continue; }
+        if (tocaA && (fuera[fol] || vistos[fol])) repetidas.push({ fila: f, folio: fol });
+        else vistos[fol] = true;
+      }
+      var nuevos = reservarFolios(h, sinFolio.length + repetidas.length);
+      sinFolio.forEach(function (fila) { h.getRange(fila, 1).setValue(nuevos.shift()); });
+      repetidas.forEach(function (r) {
+        var otro = nuevos.shift();
+        h.getRange(r.fila, 1).setValue(otro);
+        /* La copia es otra venta: tampoco se queda con el «Folio cotizacion» de la original.
+           Con él, las dos filas eran la misma venta para cada búsqueda del puente, y la copia
+           (que ahora va arriba por su folio más alto) se llevaba los cambios de la original. */
+        var fcCopia = '';
+        if (h.getMaxColumns() >= COL['Folio cotizacion']) {
+          var celdaFc = h.getRange(r.fila, COL['Folio cotizacion']);
+          fcCopia = String(celdaFc.getValue()).trim();
+          if (fcCopia) celdaFc.setValue('');
         }
-      }
+        try {
+          SpreadsheetApp.getActive().toast('La fila ' + r.fila + ' traía el folio ' + r.folio +
+            ', que ya es de otra venta. Se le puso ' + otro + ' para no mezclarlas' +
+            (fcCopia ? ', y se le quitó el folio de cotización ' + fcCopia : '') + '. Si la ' +
+            'moviste en vez de copiarla, borra la original y regrésale ' + (fcCopia ? 'los dos folios.' : 'su folio.'),
+            'Folio repetido', 15);
+        } catch (_) { /* sin pantalla no hay aviso; el folio nuevo sí queda */ }
+      });
     }
 
     /* 2) IVA segun la cuenta (columna D) */
@@ -1023,6 +1130,25 @@ function alEditar(e) {
       ordenarVentas(h);
     }
   } catch (err) { /* nunca bloquear la captura */ }
+  finally { if (candado) candado.releaseLock(); }
+}
+
+/**
+ * El candado de toda escritura sobre Ventas y sobre los abonos: el mismo que toma /empujar.
+ * Lo usan los formularios del menú. Sin él, un formulario y una subida del puente que
+ * caen en el mismo segundo toman la misma fila libre y el mismo folio.
+ * Espera hasta 30 segundos —lo más que tarda /empujar con 25 operaciones— y si no, dice por qué.
+ *
+ * El cuerpo de cada formulario va aparte y con guion bajo al final (guardarVentaConCandado_):
+ * Apps Script no deja llamar esas funciones desde un formulario ni las enseña en el selector
+ * del editor, así que no hay manera de correrlas sin el candado.
+ */
+function conCandado(fn) {
+  var candado = LockService.getScriptLock();
+  if (!candado.tryLock(30000)) {
+    throw new Error('La hoja está ocupada con otra escritura (una subida del puente o un formulario). Vuelve a intentarlo en un momento.');
+  }
+  try { return fn(); } finally { candado.releaseLock(); }
 }
 
 /** Resumen de los lunes. Se puede correr a mano para probarlo. */
@@ -1098,6 +1224,14 @@ function onOpen() {
       .addItem('📬  Mandarme el resumen ahora', 'enviarResumen')
       .addItem('🔄  Actualizar formato y vistas', 'mejorarTodo')
       .addItem('📅  Rehacer vista de comisiones por periodo', 'construirComisionesPorPeriodo')
+      /* Los tres pasos de la actualización del puente, aquí y no en el selector de funciones
+         del editor: ahí están uno encima del otro y es fácil correr el que no era. Van en
+         orden; la realineación aplica solo lo que enseñó la vista previa (ver DESPLIEGUE). */
+      .addSeparator()
+      .addSubMenu(SpreadsheetApp.getUi().createMenu('🔧  Actualizar el puente')
+          .addItem('1 · Revisar columnas Y–AD (vista previa, no escribe)', 'revisarColumnasDelPuente')
+          .addItem('2 · Realinear columnas Y–AD', 'realinearColumnasDelPuente')
+          .addItem('3 · Preparar la hoja para el puente', 'prepararHojaParaElPuente'))
       .addToUi();
 }
 
@@ -1154,14 +1288,73 @@ function hojaVentas() {
   return h;
 }
 
-function siguienteFolio(h) {
-  var folios = h.getRange(2, 1, FIN - 1, 1).getValues();
+/* ── El folio no se repite nunca, aunque se borre la fila ─────────────────────────────
+   Hasta puente-sheets-5 el folio nuevo era «el más alto que se ve, más uno». Si alguien
+   borraba la última venta, su folio volvía a repartirse a la siguiente, y el teléfono que
+   todavía tenía el proyecto de la borrada —con ese folio como id de su fila— escribía su
+   etapa y su dirección encima de la venta nueva, sin que nada fallara.
+
+   Ahora la marca vive en las propiedades del script y solo sube. Se toca siempre con el
+   candado puesto (lo tienen /empujar, alEditar, los formularios y mejorarTodo), porque dos
+   que la leen a la vez sacarían el mismo número. La primera vez se siembra con todo lo que
+   recuerda un folio que existió: la pestaña Ventas, su respaldo, la bitácora del puente y
+   los abonos; un folio borrado antes de esta versión que no aparezca en ninguno de esos
+   cuatro no se puede adivinar. */
+var PROP_FOLIO = 'FOLIO_MAS_ALTO';
+
+function folioDeNumero(n) {
+  var s = String(n);
+  return 'V-' + (s.length < 3 ? ('000' + s).slice(-3) : s);
+}
+
+function folioMasAltoEn(hoja, col) {
+  if (!hoja) return 0;
+  var n = hoja.getLastRow() - 1;
+  if (n < 1) return 0;
   var max = 0;
-  folios.forEach(function (r) {
-    var m = String(r[0]).match(/^V-(\d+)$/);
-    if (m) max = Math.max(max, Number(m[1]));
+  hoja.getRange(2, col, n, 1).getValues().forEach(function (r) {
+    max = Math.max(max, numeroDeFolio(r[0]));
   });
-  return 'V-' + ('000' + (max + 1)).slice(-3);
+  return max;
+}
+
+/** La marca guardada, sembrada la primera vez. Nunca por debajo de lo que la hoja ya tiene:
+ *  un folio escrito a mano, o uno pegado, puede ir adelante de ella. */
+function marcaDeFolios(h) {
+  var ss = SpreadsheetApp.getActive();
+  var alto = Number(PropertiesService.getScriptProperties().getProperty(PROP_FOLIO)) || 0;
+  if (!alto) {
+    alto = Math.max(folioMasAltoEn(ss.getSheetByName('Ventas (respaldo)'), 1),
+                    folioMasAltoEn(ss.getSheetByName(BITACORA), 3),
+                    folioMasAltoEn(ss.getSheetByName(ABONOS), 1));
+  }
+  h.getRange(2, 1, FIN - 1, 1).getValues().forEach(function (r) {
+    alto = Math.max(alto, numeroDeFolio(r[0]));
+  });
+  return alto;
+}
+
+/** Reparte k folios nuevos y sube la marca. Hay que llamarla con el candado puesto. */
+function reservarFolios(h, k) {
+  if (!(k > 0)) return [];
+  var alto = marcaDeFolios(h);
+  var out = [];
+  for (var i = 0; i < k; i++) { alto++; out.push(folioDeNumero(alto)); }
+  PropertiesService.getScriptProperties().setProperty(PROP_FOLIO, String(alto));
+  return out;
+}
+
+function siguienteFolio(h) { return reservarFolios(h, 1)[0]; }
+
+/** Un teléfono que pregunta por un folio que la hoja ya no tiene prueba que ese folio
+ *  existió: la marca no puede quedar por debajo de él, o se le daría a una venta nueva. */
+function recordarFolio(h, folio) {
+  var n = numeroDeFolio(folio);
+  if (!(n > 0)) return;
+  var alto = marcaDeFolios(h);
+  /* Un folio muy por delante de la marca no es una venta que existió: es un dato malo. */
+  if (n > alto + 1000) return;
+  PropertiesService.getScriptProperties().setProperty(PROP_FOLIO, String(Math.max(alto, n)));
 }
 
 /* ================== 1. NUEVA VENTA ================== */
@@ -1210,13 +1403,18 @@ function dialogoVenta() {
 }
 
 function guardarVenta(d) {
+  /* Con candado: una subida del puente en el mismo segundo tomaría la misma fila libre. */
+  return conCandado(function () { return guardarVentaConCandado_(d); });
+}
+
+function guardarVentaConCandado_(d) {
   var h = hojaVentas();
-  var n = FIN - 1;
-  var proy = h.getRange(2, 2, n, 1).getValues();
-  var fila = 0;
-  for (var i = 0; i < n; i++) { if (proy[i][0] === '') { fila = i + 2; break; } }
+  /* La misma fila libre que usa el puente, y limpia: una fila sin proyecto puede traer restos
+     de otra venta en las columnas de dinero o del puente, y la venta nueva los heredaba. */
+  var fila = primeraFilaLibre(h);
   if (!fila) throw new Error('Ya no hay filas libres antes de la ' + FIN +
       '. Amplía los rangos de las fórmulas.');
+  limpiarFila(h, fila);
 
   var folio = siguienteFolio(h);
   h.getRange(fila, 1).setValue(folio);
@@ -1246,8 +1444,9 @@ function listaSaldos() {
   var out = [];
   d.forEach(function (r) {
     var saldo = Number(r[10]) || 0;
+    /* El estatus es C (r[2]); D (r[3]) es la cuenta. */
     if (r[1] && saldo > 0.004) {
-      out.push({ folio: r[0], nombre: r[1], saldo: saldo, estatus: r[3] });
+      out.push({ folio: r[0], nombre: r[1], saldo: saldo, estatus: r[2] });
     }
   });
   out.sort(function (a, b) { return b.saldo - a.saldo; });
@@ -1299,6 +1498,10 @@ function dialogoCobro() {
 }
 
 function guardarCobro(d) {
+  return conCandado(function () { return guardarCobroConCandado_(d); });
+}
+
+function guardarCobroConCandado_(d) {
   var h = hojaVentas();
   var folios = h.getRange(2, 1, FIN - 1, 1).getValues();
   var fila = 0;
@@ -1311,10 +1514,17 @@ function guardarCobro(d) {
   var previo = Number(h.getRange(fila, 10).getValue()) || 0;
   h.getRange(fila, 10).setValue(previo + monto);
   if (d.fecha) h.getRange(fila, 14).setValue(fechaDe(d.fecha));
-  if (d.liquidar) h.getRange(fila, 4).setValue('LIQUIDADO');
+  /* En la columna del ESTATUS (C), no en la 4. La 4 es D, la cuenta: «Registrar un cobro»
+     escribía LIQUIDADO encima de la cuenta, la venta seguía abierta y la siguiente subida de
+     cualquier teléfono —normalizarIvaActivos corre en cada /empujar— le cambiaba el IVA a
+     «Sí» porque «LIQUIDADO» no es Elias BBVA: un saldo fantasma del 16 % en una venta cobrada. */
+  if (d.liquidar) h.getRange(fila, COL['Estatus']).setValue('LIQUIDADO');
   SpreadsheetApp.flush();
 
   var resta = Number(h.getRange(fila, 11).getValue()) || 0;
+  /* Y se reacomoda, igual que cuando el estatus cambia a mano: liquidada se va con las
+     liquidadas. */
+  if (d.liquidar) ordenarVentas(h);
   return 'Cobro de ' + pesos(monto) + ' registrado en ' + d.folio + '. ' +
          (resta > 0.004 ? 'Todavía quedan ' + pesos(resta) + '.' : 'Queda en ceros.');
 }
@@ -1374,6 +1584,11 @@ function dialogoAbono() {
 }
 
 function guardarAbono(d) {
+  /* Con candado: un abono que sube del puente en el mismo segundo tomaría el mismo renglón. */
+  return conCandado(function () { return guardarAbonoConCandado_(d); });
+}
+
+function guardarAbonoConCandado_(d) {
   var ss = SpreadsheetApp.getActive();
   var h = ss.getSheetByName(ABONOS);
   if (!h) throw new Error('No encuentro la pestaña "' + ABONOS + '".');
@@ -1409,8 +1624,9 @@ function dialogoTokens() {
 
   var c =
     '<h2>El puente</h2>' +
-    '<p class="sub">Pega la liga y el token que le toque en cada teléfono, ' +
-    'en Ajustes &rsaquo; El puente.</p>' +
+    '<p class="sub">Lo normal es entrar con Google: cada persona entra con su cuenta y su ' +
+    'rol sale de la pestaña «Accesos». Estos tokens son la salida de emergencia, para el día ' +
+    'que Google no conteste: se pegan en Ajustes &rsaquo; El puente.</p>' +
     '<label>Liga del puente</label>' +
     '<input readonly value="' + url + '" onclick="this.select()">' +
     (url ? '' : '<div class="aviso mal">Todavía no hay una implementación publicada. ' +
@@ -1470,8 +1686,14 @@ function dialogoTokens() {
    entra la columna AD «Porcentaje comision» —que viaja, pero no cambia la comisión: la de
    AL3D es 10 % fijo del subtotal—.
    puente-sheets-5: el rol puede salir de la IDENTIDAD de Google además del token de
-   dispositivo. La lista de quién es quién vive en la pestaña «Accesos» de esta hoja. */
-var PUENTE_VERSION = 'puente-sheets-5';
+   dispositivo. La lista de quién es quién vive en la pestaña «Accesos» de esta hoja.
+   puente-sheets-6 (23 de septiembre de 2026): Y:AD viajan con su fila al reacomodar; un
+   cambio contra una venta que ya no está vuelve NO_ENCONTRADO en vez de crear una fila sin
+   nombre; el folio no se reparte dos veces; «Folio cotizacion» no se pisa en un cambio;
+   /empujar le devuelve a cada rol solo lo que puede ver; /jalar manda la hoja entera en una
+   página; un tropiezo de Google al verificar la identidad ya no se guarda como un «no»; y la
+   hora de instalación baja como «HH:MM» aunque Sheets la haya vuelto hora (AA va en '@'). */
+var PUENTE_VERSION = 'puente-sheets-6';
 var BITACORA = 'Bitácora del puente';
 
 /* ── Entrar con Google ─────────────────────────────────────────────────────
@@ -1699,22 +1921,44 @@ function identidadDelIngreso(tok) {
   }
 
   var correo = '';
+  /* Un «no» se guarda solo cuando es un no DE VERDAD: Google dijo que el token no sirve
+     (400/401), o que es de otra app, o que el correo no está verificado. Con
+     `muteHttpExceptions` un 503 o un 429 de Google también llegaba aquí sin correo y se
+     guardaba como «no» sesenta segundos con la misma llave: la segunda opinión de la puerta
+     (puerta.js, cuatro segundos después) leía la caché, no a Google, y echaba a su dueño
+     por un tropiezo. Un 5xx o un 429 no entra —la puerta sigue con llave— pero no se anota. */
+  var definitivo = false;
+  /* Mientras Google tropieza (5xx/429) no se le pregunta por cada token que llega: sin esto,
+     cualquiera que mandara tokens inventados gastaba la cuota diaria de UrlFetch del script,
+     y acabada la cuota nadie entraba con Google el resto del día. Un tropiezo suelto no pausa
+     nada (la segunda opinión de puerta.js, segundos después, sí le vuelve a preguntar): cinco
+     en un minuto sí, quince segundos. Y hay un tope de consultas por minuto. */
+  if (Number(cache.get('ing_fallos') || 0) >= 5) return null;
+  var usadas = Number(cache.get('ing_min') || 0) + 1;
+  cache.put('ing_min', String(usadas), 60);
+  if (usadas > 120) return null;
   try {
     var r = UrlFetchApp.fetch(
       'https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(tok),
       { muteHttpExceptions: true });
-    if (r.getResponseCode() === 200) {
+    var codigo = r.getResponseCode();
+    if (codigo === 200) {
       var j = JSON.parse(r.getContentText());
+      definitivo = true;
       if (PUENTE_CLIENT_IDS.indexOf(String(j.aud)) !== -1 && String(j.email_verified) === 'true') {
         correo = String(j.email || '').trim().toLowerCase();
       }
+    } else if (codigo === 400 || codigo === 401) {
+      definitivo = true;
+    } else if (codigo === 429 || codigo >= 500) {
+      cache.put('ing_fallos', String(Number(cache.get('ing_fallos') || 0) + 1), 15);
     }
   } catch (e) {
     /* Sin red del lado de la hoja no se puede verificar, y un token que no se pudo verificar
        NO entra: fallar abierto aquí sería dejar la puerta sin llave cuando falla la llave. */
     return null;
   }
-  if (!correo) { cache.put(clave, '-', 60); return null; }
+  if (!correo) { if (definitivo) cache.put(clave, '-', 60); return null; }
 
   var rol = rolDelCorreo(correo);
   /* El no se guarda 60 segundos y el sí 300: quitarle el acceso a alguien tiene que surtir
@@ -1824,7 +2068,9 @@ function rutaEsquema() {
   return { ok: true, faltan: faltan, accesos: !sinAccesos, cliente: PUENTE_CLIENT_IDS.length > 0,
     nota: faltan.length
       ? 'Córrele  prepararHojaParaElPuente()  en Apps Script y las crea con su validación.'
-      : 'La hoja ya tiene las ocho columnas que la plataforma necesita.' };
+      : sinAccesos
+        ? 'Las ocho columnas están, pero falta la pestaña «Accesos»: sin ella nadie entra con Google. La crea  prepararHojaParaElPuente().'
+        : 'La hoja ya tiene las ocho columnas que la plataforma necesita, y la pestaña «Accesos».' };
 }
 
 /* ------------------------------------------------------------------ /jalar */
@@ -1832,7 +2078,13 @@ function rutaJalar(cuerpo, rol) {
   var h = SpreadsheetApp.getActive().getSheetByName('Ventas');
   var desde = Number((cuerpo && cuerpo.cursor) || 2);
   if (!isFinite(desde) || desde < 2) desde = 2;
-  var tam = 50;
+  /* La hoja ENTERA en una sola página. Hasta puente-sheets-5 iba de 50 en 50 por número de
+     fila, y la hoja se reacomoda sola con cada subida: una venta que pasaba de la fila 60 a
+     la 40 entre la primera página y la segunda no salía en ninguna, y el teléfono, al cerrar
+     el barrido, la borraba de su récord hasta el siguiente. Son 309 filas como mucho (FIN):
+     cabe de sobra en una respuesta, y una sola lectura no puede ver una fila dos veces ni
+     ninguna. El cursor se sigue aceptando para el teléfono que se quedó con uno a medias. */
+  var tam = FIN - 1;
   var hasta = Math.min(desde + tam - 1, FIN);
   var datos = h.getRange(desde, 1, hasta - desde + 1, ULTIMA_COL).getValues();
   var tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
@@ -1883,7 +2135,9 @@ function aplanarFila(fila, tz) {
     'Fecha Liquidacion':             fecha(v('Fecha Liquidacion')),
     'Folio cotizacion':              String(v('Folio cotizacion') || ''),
     'Etapa de obra':                 String(v('Etapa de obra') || '') || null,
-    'Hora instalacion':              String(v('Hora instalacion') || ''),
+    /* Con String() a secas, la hora que Sheets ya había vuelto HORA llegaba a cada teléfono
+       como «Sat Dec 30 1899 10:00:00 GMT-0636 …». Ver horaDeCelda. */
+    'Hora instalacion':              horaDeCelda(v('Hora instalacion'), tz),
     'Ubicacion':                     String(v('Ubicacion') || ''),
     'Direccion':                     String(v('Direccion') || '')
   };
@@ -1901,6 +2155,80 @@ function desdeTexto(x) {
   return s ? s.split(/\s*,\s*/).filter(Boolean) : [];
 }
 
+/* ── La hora de instalación, que Sheets quiere volver hora ─────────────────────────────
+   AA guarda «HH:MM» como texto, pero Sheets convierte en HORA cualquier «10:00» que caiga en
+   una celda que no esté en texto sin formato: el que escribía el puente con setValue, el que
+   se teclea a mano y el que el reacomodo reescribe con setValues. getValues ya no devuelve
+   «10:00» sino un Date del 30 de diciembre de 1899 —el día cero de Sheets— a las diez. Por eso
+   las dos puntas:
+     · al leer, horaDeCelda vuelve «HH:MM» lo que venga: el Date, el número (la fracción del
+       día que queda si alguien pone en texto sin formato, a mano, una celda que ya era hora)
+       y el texto «9:30» o «10:00:00»;
+     · al escribir, la celda se pone en texto sin formato ('@') ANTES del valor, y el valor va
+       ya normalizado: así la hoja guarda lo que mandó el teléfono (horasATexto, y el '@' de
+       cada celda en unaOperacion).
+
+   La zona es la de la HOJA, y no por costumbre: Apps Script arma ese Date con la zona de la
+   hoja, y en 1899 México no tenía husos horarios, así que lleva la hora solar de la ciudad
+   (LMT; −6:36:36 en la de México, de ahí el «GMT-0636»). Utilities.formatDate en esa MISMA
+   zona le quita exactamente el desfase que le puso y da la hora que se ve en la celda.
+   getHours() no sirve —usa la zona del proyecto de Apps Script, que puede ser otra—, y
+   toISOString tampoco: dice 16:36.
+
+   Los segundos llevan UNA regla, la de horaEscrita, venga la hora como Date, como fracción
+   del día o como texto: se cortan, salvo a dos segundos o menos del minuto siguiente. Eso no
+   es redondear, es tolerar el error de ida y vuelta —el pelo que pierde la fracción del día en
+   coma flotante, un segundo del LMT—, que volvería 09:59 el 10:00 de la orden del instalador.
+   Con el redondeo al minuto más cercano, el mismo «10:00:45» salía «10:01» si Sheets lo había
+   vuelto hora y «10:00» si se quedó en texto, y el reacomodo dejaba escrito el «10:01». */
+
+/** «HH:MM» de lo que mandó el teléfono o se tecleó: '' si viene vacío (todavía no se sabe),
+ *  null si no es una hora. Acepta «9:30» y «10:00:00», como las teclea la gente; los segundos,
+ *  con la regla de arriba. */
+function horaEscrita(v) {
+  if (v === null || v === undefined || String(v).trim() === '') return '';
+  var m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(String(v).trim());
+  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59 || Number(m[3] || 0) > 59) return null;
+  var min = (Number(m[1]) * 60 + Number(m[2]) + (Number(m[3] || 0) >= 58 ? 1 : 0)) % 1440;
+  return ('0' + Math.floor(min / 60)).slice(-2) + ':' + ('0' + (min % 60)).slice(-2);
+}
+
+/** La hora de una celda de AA como «HH:MM», sea lo que sea lo que guarde Sheets. El Date y la
+ *  fracción se vuelven «H:MM:SS» y pasan por horaEscrita, para que los segundos lleven la misma
+ *  regla que el texto. Un texto que no es hora se devuelve tal cual: es lo que alguien
+ *  escribió y no se adivina. */
+function horaDeCelda(x, tz) {
+  if (x === '' || x === null || x === undefined) return '';
+  if (esFecha(x)) return horaEscrita(Utilities.formatDate(x, tz, 'HH:mm:ss'));
+  if (typeof x === 'number' && x >= 0 && x < 1) {
+    /* Al segundo más cercano primero: 10/24 en coma flotante puede dar 35 999,9999 segundos. */
+    var seg = Math.round(x * 86400) % 86400;
+    return horaEscrita(Math.floor(seg / 3600) + ':' + ('0' + Math.floor(seg / 60) % 60).slice(-2) +
+                       ':' + ('0' + seg % 60).slice(-2));
+  }
+  var s = String(x).trim(), escrita = horaEscrita(s);
+  return escrita === null ? s : escrita;
+}
+
+/** Antes de reescribir AA con setValues: la columna en texto sin formato y, en `filas` —las
+ *  que se van a escribir en 2..FIN, cada una empezando en la columna `desde`—, la hora como
+ *  «HH:MM». El formato va primero porque con la celda en '@' Sheets guarda el texto como
+ *  llega, y porque no viaja con los valores: la hora que el reacomodo bajaba a un renglón
+ *  que nunca tuvo '@' se volvía hora ahí. Devuelve si cambió algún valor. */
+function horasATexto(h, filas, desde) {
+  var col = COL['Hora instalacion'], k = col - (desde || 1);
+  if (h.getMaxColumns() < col || k < 0) return false;
+  var tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
+  var cambio = false;
+  filas.forEach(function (r) {
+    if (k >= r.length) return;
+    var x = horaDeCelda(r[k], tz);
+    if (x !== r[k]) { r[k] = x; cambio = true; }
+  });
+  h.getRange(2, col, FIN - 1, 1).setNumberFormat('@');
+  return cambio;
+}
+
 /* ---------------------------------------------------------------- /empujar */
 function rutaEmpujar(cuerpo, rol) {
   var ops = (cuerpo && Object.prototype.toString.call(cuerpo.ops) === '[object Array]')
@@ -1914,6 +2242,13 @@ function rutaEmpujar(cuerpo, rol) {
   try {
     var h = SpreadsheetApp.getActive().getSheetByName('Ventas');
     var resultados = [], anotaciones = [];
+    /* La realineación de Y:AD NO se corre aquí. Se corría sola en la primera subida, y decide
+       de quién es cada celda por el renglón que anotó la bitácora: si alguien borró o insertó
+       una fila a mano después, esos renglones ya no dicen la verdad y la corrección, sin que
+       nadie la viera, ponía el folio de cotización de una venta en otra. Ahora es un paso a
+       mano con vista previa (revisarColumnasDelPuente → realinearColumnasDelPuente). Mientras
+       no se haga, las subidas escriben por el folio de la hoja (columna A), que no se revuelve,
+       y ordenarVentas no mueve filas. */
     for (var i = 0; i < ops.length; i++) resultados.push(unaOperacion(h, ops[i], rol, anotaciones));
     SpreadsheetApp.flush();
     anotar(anotaciones);
@@ -1938,25 +2273,122 @@ function unaOperacion(h, op, rol, anotaciones) {
   }
 
   /* Antes de crear, se busca. Igual que el Worker: un reintento después de una
-     respuesta perdida no puede costar una venta duplicada. */
-  var fila = 0;
-  if (op.id_notion) fila = filaPorFolioInterno(h, String(op.id_notion));
-  if (!fila) {
-    var fc = String((op.datos && op.datos['Folio cotizacion']) || '').trim();
-    if (fc) fila = filaPorFolioCotizacion(h, fc);
+     respuesta perdida no puede costar una venta duplicada.
+     El folio de cotización llega en los datos, o aparte en `folio_cotizacion`: el teléfono
+     lo manda aparte para que sirva de identidad aunque su rol no pueda ESCRIBIR esa columna
+     (fabricación no puede, y es la que más mueve la obra). */
+  var fc = String((op.datos && op.datos['Folio cotizacion']) || op.folio_cotizacion || '').trim();
+  var fila = 0, deOtra = '';
+  if (op.id_notion) {
+    fila = filaPorFolioInterno(h, String(op.id_notion));
+    /* La fila con ese folio puede ser OTRA venta: un folio de una venta que se borró antes
+       de que existiera la marca de folios (ver reservarFolios) pudo repartirse otra vez. Si
+       la fila está atada a otro folio de cotización, no es la de este teléfono, y lo que
+       manda no se escribe ahí. (Un folio de cotización igual al folio de la hoja es el que
+       mandaba un proyecto importado antes de esta versión: ése no identifica nada.) */
+    if (fila && fc && fc !== String(op.id_notion)) {
+      var suyo = llaveDeCotizacion(h, fila);
+      if (suyo && suyo !== fc) { deOtra = suyo; fila = 0; }
+    }
   }
+  /* Buscar por «Folio cotizacion» solo es de fiar con Y:AD ya realineadas: con la hoja
+     revuelta, esa columna está en la fila de otra venta y el cambio se escribiría en ella. */
+  if (deOtra && !columnasDelPuenteAlineadas()) {
+    return { id: op.id, ok: false, codigo: 'ESPERA_REALINEAR',
+             mensaje: 'La hoja todavía no tiene realineadas las columnas Y a AD, y la fila ' + op.id_notion +
+               ' dice ser de otra cotización. Este cambio espera: Dirección tiene que correr la realineación (ver DESPLIEGUE).',
+             rechazadas: armado.rechazadas };
+  }
+  if (!fila && fc && fc !== String(op.id_notion || '')) fila = filaPorFolioCotizacion(h, fc);
   var creada = false;
   if (!fila) {
+    /* ── Se crea una fila SOLO para un alta de verdad ───────────────────────────────
+       Hasta puente-sheets-5, si la búsqueda fallaba se creaba la fila con lo que viniera.
+       Un cambio de etapa contra una venta que alguien borró en la hoja creaba una fila sin
+       nombre —invisible para /jalar, que salta las filas sin proyecto— y la siguiente alta
+       caía encima de ella heredando su estatus, su cuenta y su liquidación. Y el alta que
+       manda PAGOS desde el cotizador, que no puede escribir el nombre, dejaba dinero en una
+       fila sin nombre. Ahora:
+         · con `id_notion` no se crea nunca: esa venta existió y ya no está, y escribir su
+           cambio en otra fila sería escribirlo en la venta equivocada;
+         · sin `id_notion`, solo si lo que se va a escribir trae el nombre del proyecto. */
+    if (op.id_notion) {
+      recordarFolio(h, String(op.id_notion));
+      /* `motivo` es para la máquina: el teléfono marca el proyecto y le enseña a Dirección las
+         dos salidas (volver a darla de alta o dejarla fuera). La frase se queda para las
+         personas y para el teléfono que todavía la lee. El consejo de antes —«vuelve a
+         registrarla desde el cotizador»— llevaba a DUPLICADO: esa cotización ya es proyecto. */
+      return { id: op.id, ok: false, codigo: 'NO_ENCONTRADO', motivo: deOtra ? 'de_otra' : 'borrada',
+               mensaje: (deOtra
+                 ? 'La fila ' + op.id_notion + ' de la hoja ya es de otra venta (atada a ' + deOtra + ', y este cambio es de ' + fc + '). '
+                 : 'La venta ' + op.id_notion + ' ya no está en la hoja: alguien borró su fila. ') +
+                 'Este cambio no se escribió en ninguna otra. Si la venta sigue viva, Dirección la vuelve a dar de alta desde la ficha del proyecto en la plataforma.',
+               rechazadas: armado.rechazadas };
+    }
+    /* Una cotización que «no se dio» no es una venta: su alta metía en el libro un
+       subtotal, un anticipo que nunca se cobró y una comisión pendiente. */
+    var noSeDio = armado.celdas.some(function (c) {
+      return c.col === COL['Etapa de obra'] && String(c.valor).trim().toLowerCase() === 'no se dio';
+    });
+    if (noSeDio) {
+      return { id: op.id, ok: false, codigo: 'DATO_INVALIDO',
+               mensaje: 'Una cotización que no se dio no se da de alta en la hoja: no es una venta.',
+               rechazadas: armado.rechazadas };
+    }
+    var conNombre = armado.celdas.some(function (c) {
+      return c.col === COL['Proyecto'] && String(c.valor).trim() !== '';
+    });
+    if (!conNombre) {
+      var sinPermiso = armado.rechazadas.some(function (x) { return x.nombre === 'Proyecto'; });
+      return { id: op.id, ok: false, codigo: 'NO_ENCONTRADO',
+               mensaje: sinPermiso
+                 ? 'Esta venta todavía no está en la hoja, y el rol de ' + rol + ' no puede darla de alta: no escribe el nombre del proyecto. ' +
+                   'Dala de alta desde Dirección; después ya se puede mover desde aquí.'
+                 : 'Esta venta todavía no está en la hoja y este cambio no trae el nombre del proyecto: sería una fila sin nombre en el libro del dinero. No se escribió nada.',
+               rechazadas: armado.rechazadas };
+    }
     fila = primeraFilaLibre(h);
     if (!fila) {
       return { id: op.id, ok: false, codigo: 'DESCONOCIDO',
                mensaje: 'Ya no hay filas libres antes de la ' + FIN + ' en la hoja.' };
     }
+    /* Libre quiere decir sin proyecto, no vacía: puede traer restos de otra venta (de
+       antes de esta versión) en el dinero o en las columnas del puente. Se limpian antes de
+       escribir, o la venta nueva los hereda. */
+    limpiarFila(h, fila);
     h.getRange(fila, COL_FOLIO).setValue(siguienteFolio(h));
     creada = true;
+  } else {
+    /* ── «Folio cotizacion» no se pisa en un cambio ─────────────────────────────────
+       Es la llave que ata la fila a la cotización de un teléfono. Un proyecto que otro
+       teléfono IMPORTÓ de la hoja no tiene cotización y mandaba su folio de hoja (V-100) en
+       su lugar: el teléfono dueño de la cotización dejaba de reconocer su venta, la volvía a
+       importar y Control la contaba dos veces. Si la fila ya trae uno, se queda; el que
+       llega distinto se devuelve rechazado con su razón. Y el folio de la hoja no entra
+       nunca en esa columna: es la huella de aquel defecto, no una llave. */
+    var folioFila = String(h.getRange(fila, COL_FOLIO).getValue()).trim();
+    var yaTiene = llaveDeCotizacion(h, fila);
+    armado.celdas = armado.celdas.filter(function (c) {
+      if (c.col !== COL['Folio cotizacion']) return true;
+      var llega = String(c.valor).trim();
+      if (llega === folioFila) {
+        armado.rechazadas.push({ nombre: 'Folio cotizacion',
+          por: llega + ' es el folio de la hoja, no uno de cotización: no se escribe ahí' });
+        return false;
+      }
+      if (!yaTiene || llega === yaTiene) return true;
+      armado.rechazadas.push({ nombre: 'Folio cotizacion',
+        por: 'esta fila ya está atada al folio de cotización ' + yaTiene + ', y ése no se cambia desde un teléfono' });
+      return false;
+    });
   }
 
-  armado.celdas.forEach(function (c) { h.getRange(fila, c.col).setValue(c.valor); });
+  armado.celdas.forEach(function (c) {
+    var celda = h.getRange(fila, c.col);
+    /* El formato ANTES del valor: puesto después, Sheets ya volvió hora el «10:00». */
+    if (c.texto) celda.setNumberFormat('@');
+    celda.setValue(c.valor);
+  });
   if (armado.abono) registrarAbonoDesdePuente(h, fila, armado.abono);
   SpreadsheetApp.flush();
 
@@ -1967,7 +2399,10 @@ function unaOperacion(h, op, rol, anotaciones) {
 
   var tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
   var datos = aplanarFila(h.getRange(fila, 1, 1, ULTIMA_COL).getValues()[0], tz);
-  return { id: op.id, ok: true, creada: creada, remoto: datos,
+  /* Lo que vuelve pasa por el mismo filtro que /jalar. Sin él, el teléfono de fabricación
+     que movía una etapa recibía de vuelta el subtotal, el neto, el anticipo, la comisión y
+     la cuenta de esa venta: la lectura cerrada en /jalar se abría por aquí. */
+  return { id: op.id, ok: true, creada: creada, remoto: sinLoQueNoLeToca(datos, rol),
            rechazadas: armado.rechazadas };
 }
 
@@ -2034,6 +2469,14 @@ function armarCeldas(datos, rol) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(valor))) { rechazadas.push({ nombre: nombre, por: 'la fecha tiene que venir como YYYY-MM-DD' }); continue; }
       var p = String(valor).split('-');
       celdas.push({ col: col, valor: new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])) });
+    } else if (nombre === 'Hora instalacion') {
+      /* «HH:MM», o vacía si todavía no se sabe: lo mismo que acepta la agenda del teléfono.
+         Antes entraba como texto libre; lo que no es una hora tampoco lo entiende la agenda,
+         así que se rechaza con su razón, como una fecha mal escrita. `texto` le pide a quien
+         escribe la celda en '@' antes del valor (ver horaDeCelda). */
+      var hora = horaEscrita(valor);
+      if (hora === null) { rechazadas.push({ nombre: nombre, por: 'la hora va como HH:MM, o vacía si todavía no se sabe' }); continue; }
+      celdas.push({ col: col, valor: hora, texto: true });
     } else {
       /* Texto libre. Se le quita el `=` de adelante: una celda que empieza con `=`
          es una FÓRMULA, y una fórmula metida desde afuera puede leer cualquier
@@ -2066,15 +2509,57 @@ function filaPorFolioInterno(h, folio) {
   for (var i = 0; i < col.length; i++) if (String(col[i][0]) === folio) return i + 2;
   return 0;
 }
+/** La llave de cotización de una fila, o '' si no tiene. Una «llave» igual al folio de la
+ *  propia fila (V-100) no lo es: es lo que escribía un proyecto importado hasta
+ *  puente-sheets-5, y tomarla por buena dejaría fuera al teléfono dueño de la cotización. */
+function llaveDeCotizacion(h, fila) {
+  var y = String(h.getRange(fila, COL['Folio cotizacion']).getValue()).trim();
+  return (y && y === String(h.getRange(fila, COL_FOLIO).getValue()).trim()) ? '' : y;
+}
 function filaPorFolioCotizacion(h, fc) {
   var col = h.getRange(2, COL['Folio cotizacion'], FIN - 1, 1).getValues();
   for (var i = 0; i < col.length; i++) if (String(col[i][0]).trim() === fc) return i + 2;
   return 0;
 }
+/* La primera fila sin proyecto, prefiriendo una que de verdad esté vacía. Hasta
+   puente-sheets-5 solo se miraba la columna B, y una fila sin nombre pero con dinero, con
+   estatus o con las columnas del puente de otra venta pasaba por libre: la venta nueva
+   heredaba lo que no escribía. Si ya no queda ninguna vacía se usa una con restos, y quien
+   la toma la limpia antes (limpiarFila). */
 function primeraFilaLibre(h) {
-  var col = h.getRange(2, 2, FIN - 1, 1).getValues();
-  for (var i = 0; i < col.length; i++) if (col[i][0] === '') return i + 2;
-  return 0;
+  var ancho = Math.min(ULTIMA_COL, h.getMaxColumns());
+  var datos = h.getRange(2, 1, FIN - 1, ancho).getValues();
+  var bloques = bloquesCapturados(ancho);
+  var conRestos = 0;
+  for (var i = 0; i < datos.length; i++) {
+    if (String(datos[i][COL['Proyecto'] - 1]).trim() !== '') continue;
+    if (filaSinNada(datos[i], bloques)) return i + 2;
+    if (!conRestos) conRestos = i + 2;
+  }
+  return conRestos;
+}
+
+function filaSinNada(fila, bloques) {
+  for (var b = 0; b < bloques.length; b++) {
+    for (var c = bloques[b][0]; c <= bloques[b][1]; c++) {
+      var v = fila[c - 1];
+      if (v !== '' && v !== null && v !== undefined) return false;
+    }
+  }
+  return true;
+}
+
+/** Deja en blanco lo que se captura en esa fila (no las fórmulas). Solo escribe si hay algo. */
+function limpiarFila(h, fila) {
+  var ancho = Math.min(ULTIMA_COL, h.getMaxColumns());
+  var bloques = bloquesCapturados(ancho);
+  if (filaSinNada(h.getRange(fila, 1, 1, ancho).getValues()[0], bloques)) return false;
+  bloques.forEach(function (b) {
+    var vacio = [];
+    for (var c = b[0]; c <= b[1]; c++) vacio.push('');
+    h.getRange(fila, b[0], 1, vacio.length).setValues([vacio]);
+  });
+  return true;
 }
 
 /* --------------------------------------------------------------- /expandir */
@@ -2143,6 +2628,300 @@ function anotar(anotaciones) {
   }
 }
 
+/* ------------------------------------------ realinear Y:AD, una sola vez */
+/**
+ * Hasta puente-sheets-5, ordenarVentas movía A:N y dejaba Y:AD en su renglón (ver la regla
+ * de orden). Cada reacomodo le cambiaba de dueño al folio de cotización, a la etapa, a la
+ * dirección y al % de comisión de las filas que se movían. Esto los regresa con su venta.
+ *
+ * La pista es la bitácora del puente. Las únicas que escriben Y:AD son las subidas, y cada
+ * una quedó anotada con su folio, su FILA en ese momento y sus columnas; y como el código de
+ * antes nunca movió Y:AD, lo que hay hoy en una celda de Y:AD es lo que escribió ahí la
+ * última subida que la tocó. De ese folio es, y va a la fila donde ese folio está hoy.
+ *
+ * Por eso se corre UNA vez y en un momento preciso: antes de que ningún reacomodo mueva
+ * Y:AD con su fila —después, la bitácora ya no dice dónde está cada celda—, y solo a mano:
+ * revisarColumnasDelPuente() enseña la propuesta y realinearColumnasDelPuente() aplica
+ * exactamente esa (ninguna subida la corre sola: la bitácora puede estar desfasada por una
+ * fila borrada a mano, y eso lo tiene que ver una persona). Lo que no se puede atribuir se queda donde está; nada se
+ * pierde: antes de escribir se copia Ventas a «Ventas (antes de realinear)» y se deja la
+ * lista de cada celda que cambió en la pestaña «Revisión Y-AD».
+ *
+ * Lo que NO arregla: si una subida ya escribió el nombre y el dinero de una venta encima de
+ * otra (buscó la fila por un folio de cotización revuelto), esa venta vieja ya no está en
+ * Ventas. La revisión enseña las ventas que cambiaron de nombre desde el último respaldo
+ * para buscarlas en Archivo › Historial de versiones.
+ */
+var PROP_ALINEADAS = 'PUENTE_Y_AD_ALINEADAS';
+var HOJA_REVISION = 'Revisión Y-AD';
+var HOJA_ANTES_DE_REALINEAR = 'Ventas (antes de realinear)';
+
+/** true: ya se realineó. false: todavía no. null: no se pudo leer. Sin saberlo NO se
+ *  realinea otra vez ni se reacomoda: las dos cosas, hechas a ciegas, revuelven Y:AD. */
+function estadoDeAlineacion() {
+  try { return !!PropertiesService.getScriptProperties().getProperty(PROP_ALINEADAS); }
+  catch (e) { return null; }
+}
+function columnasDelPuenteAlineadas() { return estadoDeAlineacion() === true; }
+
+/* Lo que se reescribe con getValues → setValues pierde el apóstrofo con el que armarCeldas
+   protege un texto que empieza con = + - @: getValue lo devuelve sin él y setValues lo vuelve
+   fórmula. Una fórmula de verdad nunca llega aquí como texto (getValues da su resultado), así
+   que un texto con esos inicios es texto y se vuelve a proteger. */
+function textoProtegido(v) {
+  return (typeof v === 'string' && /^[=+\-@]/.test(v)) ? "'" + v : v;
+}
+function filasProtegidas(filas) {
+  return filas.map(function (r) { return r.map(textoProtegido); });
+}
+
+function esFecha(x) { return Object.prototype.toString.call(x) === '[object Date]'; }
+function mismoValor(a, b) {
+  if (esFecha(a) && esFecha(b)) return a.getTime() === b.getTime();
+  return a === b || ((a === '' || a === null) && (b === '' || b === null));
+}
+
+/** Qué quedaría en Y:AD, sin escribir nada. */
+function propuestaDeRealineacion(h) {
+  var ss = SpreadsheetApp.getActive();
+  var n = FIN - 1;
+  var ini = COL['Folio cotizacion'];
+  var ancho = Math.min(ULTIMA_COL, h.getMaxColumns()) - ini + 1;
+  var p = { ini: ini, ancho: Math.max(0, ancho), nueva: [], cambios: [], movidas: 0,
+            sinDueno: [], huerfanos: [], desplazados: [], renombradas: [] };
+  if (ancho < 1) return p;   // una hoja sin las columnas del puente no tiene qué realinear
+
+  var actual = h.getRange(2, ini, n, ancho).getValues();
+  /* La hora se compara y se enseña como «HH:MM», no como el Date de 1899 en que Sheets la
+     convierte (ver horaDeCelda): la revisión decía «Sat Dec 30 1899…», y una celda con el
+     Date y otra con su mismo «10:00» contaban como distintas. Aquí no se escribe nada. */
+  var kHora = COL['Hora instalacion'] - ini;
+  if (kHora < ancho) {
+    var tz = ss.getSpreadsheetTimeZone();
+    actual.forEach(function (r) { r[kHora] = horaDeCelda(r[kHora], tz); });
+  }
+  var ab = h.getRange(2, 1, n, 2).getValues();
+  var filaDe = {};
+  ab.forEach(function (r, i) {
+    var f = String(r[0]).trim();
+    if (f && !Object.prototype.hasOwnProperty.call(filaDe, f)) filaDe[f] = i;
+  });
+  var nombres = [];
+  for (var c = 0; c < ancho; c++) nombres.push(nombreDeColumna(ini + c).trim());
+
+  /* 1. De quién es cada celda: del último que la escribió en ese renglón. */
+  var dueno = {};
+  var b = ss.getSheetByName(BITACORA);
+  var nb = b ? b.getLastRow() - 1 : 0;
+  if (nb > 0) {
+    var bit = b.getRange(2, 1, nb, 5).getValues();
+    for (var i = 0; i < bit.length; i++) {
+      var folio = String(bit[i][2]).trim(), fila = Number(bit[i][3]);
+      if (!folio || !(fila >= 2 && fila <= FIN)) continue;
+      var campos = String(bit[i][4]).split(' + ')[0].split(',')
+                     .map(function (x) { return x.trim(); });
+      for (var k = 0; k < ancho; k++) {
+        if (campos.indexOf(nombres[k]) !== -1) dueno[(fila - 2) + ':' + k] = { folio: folio, orden: i };
+      }
+    }
+  }
+
+  /* 2. Lo último que cada folio dejó escrito, columna por columna. */
+  var ultimo = {}, sueltas = {};
+  for (var r = 0; r < n; r++) {
+    for (var k2 = 0; k2 < ancho; k2++) {
+      var v = actual[r][k2];
+      if (v === '' || v === null) continue;
+      var d = dueno[r + ':' + k2];
+      if (!d) { sueltas[r + ':' + k2] = true; continue; }
+      var u = ultimo[d.folio] || (ultimo[d.folio] = {});
+      if (!u[k2] || u[k2].orden < d.orden) u[k2] = { valor: v, orden: d.orden, r: r };
+    }
+  }
+
+  /* 3. La Y:AD nueva: lo suelto se queda donde está; lo de cada folio, a su fila de hoy. */
+  var nueva = [];
+  for (var r2 = 0; r2 < n; r2++) {
+    var vacia = [];
+    for (var k3 = 0; k3 < ancho; k3++) vacia.push(sueltas[r2 + ':' + k3] ? actual[r2][k3] : '');
+    nueva.push(vacia);
+  }
+  Object.keys(ultimo).forEach(function (folio) {
+    var destino = Object.prototype.hasOwnProperty.call(filaDe, folio) ? filaDe[folio] : -1;
+    Object.keys(ultimo[folio]).forEach(function (kk) {
+      var k4 = Number(kk), x = ultimo[folio][kk];
+      if (destino === -1) {
+        p.huerfanos.push([folio, nombres[k4], x.valor, x.r + 2]);
+        return;
+      }
+      if (sueltas[destino + ':' + k4]) {
+        p.desplazados.push([destino + 2, nombres[k4], actual[destino][k4]]);
+        delete sueltas[destino + ':' + k4];
+      }
+      nueva[destino][k4] = x.valor;
+      if (x.r !== destino) p.movidas++;
+    });
+  });
+  Object.keys(sueltas).forEach(function (key) {
+    var rk = key.split(':').map(Number);
+    p.sinDueno.push([rk[0] + 2, ab[rk[0]][0], ab[rk[0]][1], nombres[rk[1]], actual[rk[0]][rk[1]]]);
+  });
+  for (var r3 = 0; r3 < n; r3++) {
+    for (var k5 = 0; k5 < ancho; k5++) {
+      if (!mismoValor(actual[r3][k5], nueva[r3][k5])) {
+        p.cambios.push([r3 + 2, ab[r3][0], ab[r3][1], nombres[k5], actual[r3][k5], nueva[r3][k5]]);
+      }
+    }
+  }
+  p.nueva = nueva;
+
+  /* 4. Las ventas que cambiaron de nombre desde el último respaldo de mejorarTodo: la huella
+        de una subida que escribió una venta encima de otra. También salen las que PAGOS
+        corrigió a mano; por eso se enseñan y no se tocan. */
+  var resp = ss.getSheetByName('Ventas (respaldo)');
+  if (resp && resp.getLastRow() > 1) {
+    var antes = {};
+    resp.getRange(2, 1, Math.min(resp.getLastRow(), FIN) - 1, 2).getValues().forEach(function (x) {
+      var f = String(x[0]).trim();
+      if (f) antes[f] = String(x[1]).trim();
+    });
+    ab.forEach(function (x) {
+      var f = String(x[0]).trim(), hoyEs = String(x[1]).trim();
+      if (f && Object.prototype.hasOwnProperty.call(antes, f) && antes[f] && hoyEs && antes[f] !== hoyEs) {
+        p.renombradas.push([f, antes[f], hoyEs]);
+      }
+    });
+  }
+  return p;
+}
+
+/** La pestaña «Revisión Y-AD»: qué cambió, qué no se pudo atribuir y qué hay que buscar. */
+function escribirRevision(p, aplicada) {
+  var ss = SpreadsheetApp.getActive();
+  var vieja = ss.getSheetByName(HOJA_REVISION);
+  if (vieja) ss.deleteSheet(vieja);
+  var h = ss.insertSheet(HOJA_REVISION);
+  var filas = [];
+  var pon = function (arr) { var f = arr.slice(0, 7); while (f.length < 7) f.push(''); filas.push(f); };
+  pon([aplicada
+    ? 'Se realinearon las columnas Y a AD con su venta. El estado de antes está en «' + HOJA_ANTES_DE_REALINEAR + '».'
+    : 'Vista previa: esto es lo que haría realinearColumnasDelPuente(). Todavía no se escribió nada.']);
+  pon(['Fuente: la bitácora del puente. Si en Ventas se borraron o insertaron filas a mano después de una subida, revisa estas líneas antes de darlas por buenas.']);
+  pon([]);
+  pon(['CELDAS QUE CAMBIAN (' + p.cambios.length + ')']);
+  pon(['Fila', 'Folio', 'Proyecto', 'Columna', 'Antes', 'Queda']);
+  p.cambios.forEach(pon);
+  pon([]);
+  pon(['DE VENTAS QUE YA NO ESTÁN EN LA HOJA (' + p.huerfanos.length + ') — no se pusieron en ninguna fila']);
+  pon(['Folio', 'Columna', 'Valor', 'Estaba en la fila']);
+  p.huerfanos.forEach(pon);
+  pon([]);
+  pon(['SIN DUEÑO EN LA BITÁCORA (' + p.sinDueno.length + ') — se quedaron donde estaban']);
+  pon(['Fila', 'Folio', 'Proyecto', 'Columna', 'Valor']);
+  p.sinDueno.forEach(pon);
+  pon([]);
+  pon(['VALORES SIN DUEÑO QUE SE TAPARON (' + p.desplazados.length + ') — su lugar lo ocupó el de la venta de esa fila']);
+  pon(['Fila', 'Columna', 'Valor']);
+  p.desplazados.forEach(pon);
+  pon([]);
+  pon(['VENTAS QUE CAMBIARON DE NOMBRE DESDE EL ÚLTIMO RESPALDO (' + p.renombradas.length + ') — si no las renombró nadie, una subida escribió otra venta encima: búscala en Archivo › Historial de versiones']);
+  pon(['Folio', 'En el respaldo', 'Hoy']);
+  p.renombradas.forEach(pon);
+  /* Una pestaña nueva trae mil renglones; una hoja con mucho escrito a mano en Y:AD puede
+     pedir más, y sin esto la realineación se caería en cada subida por no caber su lista. */
+  if (filas.length > h.getMaxRows()) h.insertRowsAfter(h.getMaxRows(), filas.length - h.getMaxRows());
+  /* En texto sin formato: es un reporte de lo que dice cada celda, y en una pestaña nueva
+     Sheets volvería hora el «10:00» de la columna AA (ver horaDeCelda). */
+  h.getRange(1, 1, filas.length, 7).setNumberFormat('@').setValues(filas);
+  h.getRange(1, 1, 1, 7).setFontWeight('bold');
+  return h;
+}
+
+/** Realinea si todavía no se hizo. La llaman rutaEmpujar (con el candado puesto) y
+ *  realinearColumnasDelPuente. Devuelve la propuesta, o null si ya estaba hecho. */
+function huellaDePropuesta(p) {
+  var s = JSON.stringify([p.cambios, p.huerfanos, p.desplazados]);
+  return Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, s));
+}
+var PROP_VISTA = 'PUENTE_Y_AD_VISTA_PREVIA';
+
+function realinearSiHaceFalta(h) {
+  var est = estadoDeAlineacion();
+  if (est === null) throw new Error('No se pudo leer si Y:AD ya se realinearon (PropertiesService). No se tocó nada: vuelve a intentarlo.');
+  if (est) return null;
+  var p = propuestaDeRealineacion(h);
+  /* Solo lo que se VIO: la vista previa guarda la huella de lo que enseñó. Si la hoja cambió
+     desde entonces —otra subida, una fila borrada—, la propuesta es otra y no se aplica a
+     ciegas: hay que volver a revisarla. */
+  var vista = PropertiesService.getScriptProperties().getProperty(PROP_VISTA);
+  if ((p.cambios.length || p.huerfanos.length) && vista !== huellaDePropuesta(p)) {
+    escribirRevision(p, false);
+    throw new Error('La propuesta cambió desde la última vista previa (o no se ha hecho). Se volvió a escribir «' +
+      HOJA_REVISION + '»: revísala y corre realinearColumnasDelPuente otra vez.');
+  }
+  if (p.cambios.length || p.huerfanos.length) {
+    var ss = SpreadsheetApp.getActive();
+    /* El respaldo se hace una sola vez: si un intento anterior se cayó a la mitad, el que
+       vale es el de ANTES de ese intento. */
+    if (!ss.getSheetByName(HOJA_ANTES_DE_REALINEAR)) {
+      h.copyTo(ss).setName(HOJA_ANTES_DE_REALINEAR).hideSheet();
+    }
+    escribirRevision(p, true);
+    horasATexto(h, p.nueva, p.ini);
+    h.getRange(2, p.ini, FIN - 1, p.ancho).setValues(filasProtegidas(p.nueva));
+    SpreadsheetApp.flush();
+  } else {
+    escribirRevision(p, true);   // también sin cambios: la pestaña dice que ya se hizo
+  }
+  PropertiesService.getScriptProperties().setProperty(PROP_ALINEADAS, new Date().toISOString());
+  try { PropertiesService.getScriptProperties().deleteProperty(PROP_VISTA); } catch (e) {}
+  return p;
+}
+
+/** Vista previa, sin escribir en Ventas. Se puede correr las veces que sea. */
+function revisarColumnasDelPuente() {
+  var h = hojaVentas();
+  if (columnasDelPuenteAlineadas()) {
+    return 'Las columnas Y a AD ya se realinearon el ' +
+      PropertiesService.getScriptProperties().getProperty(PROP_ALINEADAS) + '. No hay nada que revisar.';
+  }
+  var p = propuestaDeRealineacion(h);
+  escribirRevision(p, false);
+  PropertiesService.getScriptProperties().setProperty(PROP_VISTA, huellaDePropuesta(p));
+  return avisar('Vista previa en «' + HOJA_REVISION + '»: ' + p.cambios.length + ' celdas cambiarían, ' +
+    p.huerfanos.length + ' son de ventas que ya no están. Revísala; si está bien, corre realinearColumnasDelPuente.');
+}
+
+/* El editor de Apps Script no enseña lo que devuelve una función: se dice también en el
+   registro de ejecución y como aviso en la hoja. */
+function avisar(msg) {
+  try { console.log(msg); } catch (e) {}
+  try { SpreadsheetApp.getActive().toast(msg, 'Puente AL3D', 15); } catch (e) {}
+  return msg;
+}
+
+/**
+ * A mano, desde el editor, DESPUÉS de implementar la versión nueva y de revisar la vista
+ * previa (revisarColumnasDelPuente). Aplica exactamente lo que la vista previa enseñó; si
+ * la hoja cambió desde entonces, no aplica nada y vuelve a escribir la vista previa. Antes de
+ * implementar no: la implementación vieja seguiría reacomodando sin mover Y:AD y volvería a
+ * revolver lo recién realineado.
+ */
+function realinearColumnasDelPuente() {
+  var h = hojaVentas();
+  return avisar(conCandado(function () {
+    var p = realinearSiHaceFalta(h);
+    if (!p) {
+      return 'Ya estaba hecho el ' + PropertiesService.getScriptProperties().getProperty(PROP_ALINEADAS) +
+        '. No se tocó nada.';
+    }
+    ordenarVentas(h);
+    return p.cambios.length
+      ? 'Listo: ' + p.cambios.length + ' celdas de Y a AD volvieron con su venta. Revisa «' + HOJA_REVISION + '».'
+      : 'No había nada revuelto. Desde ahora Y a AD viajan con su fila.';
+  }));
+}
+
 /* ------------------------------------------- preparar la hoja para el puente */
 /**
  * Agrega las cinco columnas que la plataforma necesita y que la hoja no tenía,
@@ -2192,9 +2971,31 @@ function prepararHojaParaElPuente() {
       .setAllowInvalid(true).build());
   alinearTiposDeTrabajo(h);
 
-  h.getRange(2, 27, FIN - 1, 1).setHorizontalAlignment('center');
+  var colHora = COL['Hora instalacion'];
+  h.getRange(2, colHora, FIN - 1, 1).setHorizontalAlignment('center');
   crearHojaAccesos(ss);
   protegerColumnasCalculadas(h);
+
+  /* AA en texto sin formato, para que la hora se quede como la mandó el teléfono (ver
+     horaDeCelda). Lo que ya era hora se reescribe «HH:MM» en el mismo paso: el formato de
+     texto encima de una hora no la convierte, la enseña como 0.4166…. Con el candado porque
+     reescribe la columna entera, y una subida que cayera en medio perdería su hora.
+     Va al final y sin el error de conCandado: con el candado ocupado, esto se deja para la
+     siguiente corrida con un aviso, en vez de tumbar «Accesos» y las protecciones —que no
+     tienen que ver con la hora— ni el final de mejorarTodo. Esperar no rompe nada: la lectura
+     ya aguanta el Date, cada hora que escribe el puente pone su '@' y el reacomodo pasa a
+     texto la columna cada vez que mueve filas. */
+  var candado = LockService.getScriptLock();
+  if (!candado.tryLock(30000)) {
+    avisar('La columna AA (hora de instalación) no se pasó a texto: la hoja estaba ocupada con ' +
+      'otra escritura. Lo demás quedó listo; vuelve a correr prepararHojaParaElPuente en un momento.');
+  } else {
+    try {
+      var aa = h.getRange(2, colHora, FIN - 1, 1);
+      var horas = aa.getValues();
+      if (horasATexto(h, horas, colHora)) aa.setValues(filasProtegidas(horas));
+    } finally { candado.releaseLock(); }
+  }
   SpreadsheetApp.flush();
 }
 
@@ -2318,6 +3119,12 @@ function siguienteIdPago(h) {
 }
 
 function guardarReparto(d) {
+  /* Con candado, como guardarAbono: el reparto escribe varios renglones seguidos desde el
+     primero libre, y un abono del puente en medio caería en uno de ellos. */
+  return conCandado(function () { return guardarRepartoConCandado_(d); });
+}
+
+function guardarRepartoConCandado_(d) {
   var monto = Number(d.monto);
   if (!(monto > 0)) throw new Error('Escribe un importe mayor a cero.');
 

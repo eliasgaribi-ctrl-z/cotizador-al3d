@@ -101,7 +101,7 @@ para enchufarlo.
 **Estado.** Los dos lados están escritos y probados —`puente/hoja-apps-script.gs`,
 `datos/puente.js`, el arranque y la pantalla de Ajustes— y lo que falta es únicamente lo de los
 cuatro puntos de arriba, que son clics de una persona. La versión del contrato es
-`puente-sheets-4`; «Probar» compara la que contesta la hoja con la que la plataforma espera y
+`puente-sheets-6`; «Probar» compara la que contesta la hoja con la que la plataforma espera y
 avisa si la hoja se quedó atrás. Y una acotación honesta: **el relevo de hoy lleva `proyectos` e
 `instalaciones`, no los diez almacenes**. Lo que iría a las bases de movimientos y materiales se
 aparta en la bandeja con su razón y se reincorpora el día que existan. Ver §5.13.
@@ -129,7 +129,7 @@ aparta en la bandeja con su razón y se reincorpora el día que existan. Ver §5
 | Dinero, `Estatus`, `Cuenta `, comisiones | **La hoja «Finanzas AL3D»** (Fase 3) | espeja de solo lectura; PAGOS escribe vía puente |
 | **El récord de ventas** (todas las filas de la pestaña Ventas, con o sin proyecto aquí) | **La hoja** | espejo de solo lectura en `ventas_hoja`; se borra lo que la hoja deja de traer. Control y el asistente lo suman con los proyectos locales (`ventas.unificar`); si una venta está en los dos lados manda el dinero de la hoja |
 | Fórmulas `Precio Neto `, `Pago Pendiente`, `Comisiones`, `Comision Restante` | **La hoja de finanzas (antes Notion). Nadie más. Nunca se recalculan aquí** | las lee. `Pago Pendiente` baja positivo: lo que te deben |
-| `Porcentaje comision` (el % pactado, en puntos) | **el modal de Registrar Venta**, corregible en la hoja | lo guarda como `pct_comision`, lo sube en el alta y lo baja si cambió allá |
+| `Porcentaje comision` (en puntos; hoy la comisión es fija de 10 % y el modal de Registrar Venta la muestra de solo lectura) | **la hoja** (el modal ya no lo decide) | lo guarda como `pct_comision` y lo baja si cambió allá; las ventas viejas conservan el suyo (p. ej. 15), que es informativo: la fórmula R no lo lee |
 | Memoria técnica del proyecto | **Notion** (cuerpo de página) | lee; agrega bloques al final |
 
 ### 4.1 Qué pasa cuando el cotizador reescribe una entrada del historial
@@ -220,7 +220,7 @@ La lista real es `ALMACENES` en `datos/db.js`; la migración crea lo que falte, 
   cuenta:         null,         // Moni MPago|Rul HSBC|Tatis BNT|Constru BNT|Elias BBVA
   pago_pendiente: null,         // FÓRMULA DE NOTION. Se lee, jamás se calcula
   comision_restante: null,      // FÓRMULA DE NOTION
-  pct_comision:   0,            // el % pactado, en puntos. Viene del modal de Registrar Venta; la hoja lo lee en su fórmula
+  pct_comision:   0,            // el % en puntos: hoy siempre 10. La fórmula R de la hoja es 10 % fijo del subtotal y NO lee este campo (desde d4623f3)
   // la copia congelada
   origen: {
     fuente: 'cotizador',        // cotizador|manual|notion_csv
@@ -630,10 +630,11 @@ export function descargar(texto:string, nombre:string): boolean
 ### 5.9 `datos/geo.js`
 
 ```js
-/** Regex local, cero red. Prioridad: !3d!4d (el pin real) > ?q= > /search/ > @ (cámara)
- *  > !2d!3d y !1d!2d (INVERTIDOS: en contexto dir/embed el orden se voltea).
+/** Regex local, cero red. Prioridad: el par suelto «lat, lng» (coordenadas) > geo: (geo_uri)
+ *  > !3d!4d (el pin real) > ?q=/query/ll/… (acepta loc: y un + delante) > /search/ > /place/
+ *  > @ (cámara) > !2d!3d y !1d!2d (INVERTIDOS: en contexto dir/embed el orden se voltea).
  *  Valida rangos y, si el par no valida, prueba invertido antes de descartar.
- *  @returns {lat, lng, fuente:'maps_pin'|'maps_camara'|...}|null */
+ *  @returns {lat, lng, fuente:'coordenadas'|'geo_uri'|'maps_pin'|'maps_query'|'maps_search'|'maps_place'|'maps_camara'|'maps_dir'}|null */
 export function parseGmaps(url:string): Object|null
 
 /** true para maps.app.goo.gl y goo.gl/maps. Desde el navegador es IMPOSIBLE expandirlos:

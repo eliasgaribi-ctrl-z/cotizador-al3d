@@ -103,15 +103,29 @@ body.pf::before{display:none}
   border:0;border-radius:var(--rr2);background:rgba(255,255,255,.08);color:#fff;cursor:pointer}
 .pf-cab-tema:hover{background:rgba(255,255,255,.16)}
 .pf-cab-tema .svgi{width:var(--ico2);height:var(--ico2)}
+/* El interruptor de tema es, además, `.btn-tema`, y sistema.css le da a esa clase 44 px de alto
+   MÍNIMO —es el botón cuadrado de la barra del cotizador—. El ancho ya lo pisa la regla de
+   arriba, pero el mínimo no: con ratón el interruptor salía de 36×44 junto a Ajustes de 36×36,
+   dos vecinos de alturas distintas, y en la computadora se quedaba solo pero igual de alargado.
+   Con el dedo no se notaba porque ahí los dos suben a 44×44. El tamaño de este encabezado lo
+   decide este encabezado, como en la barra lateral. */
+.pf-cab-tema.btn-tema{min-height:0}
 /* En el teléfono el encabezado es lo único que lleva la marca, y las acciones contextuales
    de un módulo no caben ahí junto al título: las escribe cada módulo dentro de su pantalla. */
 @media(max-width:759px){ .pf-cab-acc{display:none} }
+/* La puerta a Ajustes del teléfono, pegada al interruptor de tema y con su misma forma. En la
+   computadora Ajustes vive al pie de la barra lateral y ésta no se pinta. */
+.pf-cab-ajustes{margin-left:0}
+@media(min-width:760px){ .pf-cab-ajustes{display:none} }
 
 /* ----- Tu cuenta, en el encabezado ----- */
 .pf-sesion{width:36px;height:36px;flex:0 0 auto;border-radius:50%;border:2px solid rgba(255,255,255,.5);
   background:#4060f8;color:#fff;font:600 15px/1 inherit;cursor:pointer;display:inline-flex;
   align-items:center;justify-content:center}
 .pf-sesion:hover{filter:brightness(1.1)}
+/* Con el dedo, el mismo blanco que sus vecinos del encabezado (tema y Ajustes suben a 44 px en
+   pantallas táctiles): a 36 era el único de los tres por debajo del mínimo para tocar. */
+@media(hover:none),(pointer:coarse){ .pf-sesion{width:44px;height:44px} }
 /* La capa de vidrio pinta todos los botones del encabezado como cristal; éste es el único que
    tiene que verse sólido, porque es tu cuenta y no un mando más. */
 .pf-cab button.pf-sesion{background:#4060f8 !important;color:#fff !important;box-shadow:none !important;
@@ -202,8 +216,11 @@ body.pf::before{display:none}
      un botón cuadrado de icono: 44 px de ancho y de alto mínimo. En esta barra no es eso —es
      un renglón con su palabra— y el ancho ya se lo devuelve la regla de arriba, pero el alto
      mínimo se quedaba y dejaba «Tema oscuro» 4 px más alto que «Ajustes», que está pegado
-     debajo. Se veía como un renglón torcido. El alto de esta barra lo decide esta barra. */
-  .pf-lat-item.btn-tema{width:100%;min-height:0}
+     debajo. Se veía como un renglón torcido. El alto de esta barra lo decide esta barra.
+     Y el CENTRADO también se quedaba: `.btn-tema` centra su icono, y aquí la luna y su palabra
+     salían 31 px a la derecha de los iconos de «Ajustes» y de los módulos, todos alineados a la
+     izquierda. Lo mismo: la alineación de esta barra la decide esta barra. */
+  .pf-lat-item.btn-tema{width:100%;min-height:0;justify-content:flex-start}
   .pf-lat-item .svgi{width:var(--ico2);height:var(--ico2);flex:0 0 auto}
   /* El interruptor de tema dice A DÓNDE va, no dónde estás: en claro, «Tema oscuro» con la
      luna; en oscuro, «Tema claro» con el sol. La hoja del sistema ya enseña un glifo u otro
@@ -763,11 +780,31 @@ body.pf::before{display:none}
   .pf-cuenta{padding:10px var(--e3)}
   .pf-cuenta b{font-size:var(--t6)}
 }
-/* Y la del dinero se lleva el renglón entero en los teléfonos más angostos. En 320 px a cada
-   columna le tocan unos 128 y una cifra de seis dígitos con su letra grande pide 115 más el
-   relleno: «$90,000.00» se salía de su tarjeta. El importe es el dato de esa tarjeta, así que
-   lo que cede es el reparto, no el número. */
-@media(max-width:360px){ .pf-cuenta.dinero{grid-column:1/-1} }
+/* Y la del dinero se lleva el renglón entero en los teléfonos. En 320 px a cada columna le
+   tocan unos 128 y una cifra de seis dígitos con su letra grande pide 115 más el relleno:
+   «$90,000.00» se salía de su tarjeta. El importe es el dato de esa tarjeta, así que lo que
+   cede es el reparto, no el número.
+   Pero SOLO en la fila donde alguna cifra no se achica: la del Tablero, la de Inicio o la de
+   Material, un importe entre conteos de 24 px. Ahí el renglón entero es lo que deja al importe
+   a la altura de los conteos. En la de Control todas las cifras se achican con el MISMO `--c`
+   —lo pone filaCuentas() de js/mod/control.js— y el tamaño sale de 100cqi, el ancho de SU
+   tarjeta: la del dinero, con el doble de ancho, salía a 24 px y las otras cinco a 15. Ahí el
+   mismo tamaño en todas pide que todas midan lo mismo, así que no se estira.
+   El corte es el de arriba, 400 px, donde los conteos bajan a `--t6`, y no el de los teléfonos
+   más angostos: con 360 los iPhone de 375, 390 y 393 —los más comunes— dejaban el importe en
+   media fila, achicado a 19-20 px junto a conteos de 24, y a 361 px saltaba de 24 a 18,5. */
+@media(max-width:400px){ .pf-cuentas:has(> .pf-cuenta > b:not(.ajusta)) > .pf-cuenta.dinero{grid-column:1/-1} }
+/* Y aun con el renglón entero no bastaba: el reparto de arriba solo cubre 400 px, y en una
+   computadora caben seis tarjetas por fila de 121 px de caja cada una. «$179,700.00» pide 170
+   a 28 px, así que el importe del Tablero y los cinco de Control se cortaban —la tarjeta lleva
+   `overflow:hidden`— en la pantalla donde más se miran. La cifra que puede ser larga lleva su
+   número de caracteres en `--c` (lo pone `cifraQueCabe()` de js/nucleo/ui.js) y se achica a lo
+   que quepa: 100cqi es el ancho de la caja de la tarjeta, y 0,62 em es lo que mide un carácter
+   de Sora 700 con cifras tabulares, medido con el signo y las comas. Una cifra corta se queda
+   en su tamaño de siempre: `min()` nunca la agranda. */
+.pf-cuentas>.pf-cuenta{container-type:inline-size}
+.pf-cuenta b.ajusta{white-space:nowrap;font-size:min(var(--t7),calc(100cqi / (var(--c, 11) * .62)))}
+@media(max-width:400px){ .pf-cuenta b.ajusta{font-size:min(var(--t6),calc(100cqi / (var(--c, 11) * .62)))} }
 
 /* Un renglón de dato, para las fichas: etiqueta chica arriba, valor abajo. */
 .pf-dato{padding:var(--e2) 0;border-top:1px solid var(--line)}
@@ -2009,8 +2046,10 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
    flotante y lo manda al final del documento. Pasó, y el síntoma es que el botón desaparece. */
 .pf-ia-btn{
   overflow:hidden;isolation:isolate;
+  /* La vuelta del degradado cerrada, como la de `.ai-btn` en sistema.css: sin eso, el pegue de
+     dos trozos era una costura vertical que cruzaba el botón. */
   background:linear-gradient(100deg,
-    var(--ia-a) 0%,var(--ia-b) 22%,var(--ia-c) 42%,var(--ia-b) 62%,var(--ia-a) 82%,var(--ia-b) 100%);
+    var(--ia-a) 0%,var(--ia-b) 25%,var(--ia-c) 50%,var(--ia-b) 75%,var(--ia-a) 100%);
   background-size:300% 100%;
   box-shadow:var(--filo-corto),
              0 4px 16px -4px rgba(var(--a-rgb),.6),
@@ -2039,7 +2078,7 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 .pf-ia-btn .svgi{transform-origin:center;animation:ia-chispa 2.6s ease-in-out infinite}
 .pf-ia-btn:hover{
   background:linear-gradient(100deg,
-    var(--ia-a) 0%,var(--ia-b) 22%,var(--ia-c) 42%,var(--ia-b) 62%,var(--ia-a) 82%,var(--ia-b) 100%);
+    var(--ia-a) 0%,var(--ia-b) 25%,var(--ia-c) 50%,var(--ia-b) 75%,var(--ia-a) 100%);
   background-size:300% 100%;
   transform:translateY(-2px) scale(1.03);
   box-shadow:var(--filo-corto),

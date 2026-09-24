@@ -258,6 +258,20 @@ body.pf .card{border-radius:var(--cv-tarjeta)}
 body.pf .btn{border-radius:23px}
 body.pf .seg{border-radius:var(--cv-pastilla)}
 body.pf .seg button,body.pf .tipo-seg button{border-radius:var(--cv-pastilla)}
+/* EL SELECTOR DE ROL DE LA BARRA LATERAL no es una píldora de un renglón como los demás .seg.
+   En la banda de la tableta (760–1023 px) plataforma.css lo pone en COLUMNA, y la píldora de
+   999 px de aquí arriba, sobre tres renglones apilados, es un CÍRCULO que se come la «D» de
+   Dirección y la «P» de Pagos: se veía roto en cuanto se abría la plataforma en una tableta.
+   Ahí lleva el radio de una tarjeta chica.
+   Y en la computadora los tres caben en fila solo si cada botón toma el ancho de su palabra:
+   repartidos a partes iguales, «Fabricación» pedía 59 px en una casilla de 48 y se montaba
+   sobre sus vecinos. Con el ancho de su palabra sobran 4 px; el recorte con puntos es para
+   la letra de reserva de otra computadora, no para esta. */
+body.pf .pf-lat-rol .seg button{flex:1 1 auto;padding:0 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(min-width:760px) and (max-width:1023px){
+  body.pf .pf-lat-rol .seg{border-radius:14px}
+  body.pf .pf-lat-rol .seg button{padding:0 10px}
+}
 
 /* Los modales —el de IA, el escalador, el vectorizador, la orden de trabajo—
    comparten el mismo vidrio. */

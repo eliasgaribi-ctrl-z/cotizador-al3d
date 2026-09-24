@@ -3,7 +3,7 @@
 
    LA HONESTIDAD PRIMERO, porque si se lee al final ya se prometió algo que no es:
 
-   A6 a A14 son REGLAS DE PANTALLA. Se evalúan cuando alguien abre la plataforma y en
+   A6 a A15 son REGLAS DE PANTALLA. Se evalúan cuando alguien abre la plataforma y en
    ningún otro momento. Si nadie la abre en cinco días, nadie las ve en cinco días. No hay
    cron y NO LO PUEDE HABER: una PWA estática no se despierta sola —no hay push sin un push
    service y un servidor, y el Periodic Background Sync es de Chrome y no promete nada— y un
@@ -24,7 +24,7 @@
    1. `evaluar` es PURA. Recibe todo ya leído y devuelve la lista. Sin DOM, sin IndexedDB,
       sin red y sin reloj: hasta el «hoy» entra como parámetro. Es la única forma de poder
       probar «instalación mañana con material faltante» sin cambiarle la fecha al teléfono,
-      y sin eso estas nueve reglas no se prueban nunca.
+      y sin eso estas diez reglas no se prueban nunca.
    2. El `rid` es DETERMINISTA y es el dedupe. Reevaluar en cada apertura crea UN aviso, no
       diez, y dos dispositivos que descartan el mismo aviso producen uno. `dedupe_key` es la
       misma cadena a propósito: los dos nombres vienen de los dos diseños que se fusionaron,
@@ -48,7 +48,7 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
 async function mod(archivo) { try { return await import('./' + archivo + '.js'); } catch (_) { return null; } }
 
 /* ============================================================================
-   Las nueve reglas, con su peso y su razón
+   Las diez reglas, con su peso y su razón
    ============================================================================ */
 
 /**
@@ -86,7 +86,7 @@ export const REGLAS = {
   A11: { id: 'A11_cobro', alias: 'R7_cobro', peso: 50,
          nombre: 'Instalado con saldo',
          roles: ['pagos', 'direccion'],
-         porque: 'El botón de copiar los datos para la hoja ya existe y está probado en producción; lo que faltaba era acordarse de apretarlo.' },
+         porque: 'Lo que faltaba era acordarse de cobrar: pasar la venta a COBRANDO —en la ficha si ya está en la hoja, copiando su fila si no— y mandarle el mensaje al cliente.' },
   A12: { id: 'A12_huella', alias: 'R6_huella_cambio', peso: 25,
          nombre: 'La cotización cambió después de ganarse',
          roles: ['direccion'],
@@ -99,6 +99,16 @@ export const REGLAS = {
          nombre: 'Sin respaldo',
          roles: ['direccion', 'fabricacion', 'pagos'],
          porque: 'Safari puede desalojar el almacenamiento de un sitio sin interacción reciente. El respaldo es la única defensa.' },
+  /* Detrás de la cobranza y del material, delante del almacén: una venta que la hoja ya no
+     tiene es dinero que el libro mayor dejó de contar, o una tarjeta que el tablero cuenta de
+     más; ninguna de las dos truena mañana, y ninguna se arregla sola. */
+  /* Los tres roles la pueden ver, pero no cada aviso: el de una venta de aquí o de una tarjeta
+     repetida es solo de Dirección (decide la hoja o cuál es la venta), y el de una tarjeta
+     importada cuya fila ya no vino es de quien tenga el teléfono (ver `a15`). */
+  A15: { id: 'A15_hoja', alias: 'R10_hoja', peso: 55,
+         nombre: 'La venta y la hoja no cuadran',
+         roles: ['direccion', 'fabricacion', 'pagos'],
+         porque: 'Nada se borra solo: una venta cuya fila ya no está, o una tarjeta que repite otra, espera a que alguien decida en su ficha.' },
 };
 
 /* Los cortes, todos juntos y con su razón, porque son las cifras que alguien va a querer
@@ -189,7 +199,7 @@ function normalizar(e) {
 }
 
 /**
- * Evalúa las nueve reglas de pantalla. PURA.
+ * Evalúa las diez reglas de pantalla. PURA.
  *
  * @param {{proyectos?:Object[], instalaciones?:Object[], requerimientos?:Object[],
  *          existencias?:Object[], faltantes?:Object[], historial?:Object[], cola?:Object[],
@@ -202,7 +212,7 @@ export function evaluar(estado) {
   const E = normalizar(estado);
   const out = [];
   a6(E, out); a7(E, out); a8(E, out); a9(E, out); a10(E, out);
-  a11(E, out); a12(E, out); a13(E, out);
+  a11(E, out); a12(E, out); a13(E, out); a15(E, out);
   return ordenar(vigentes(out, E));
 }
 
@@ -527,27 +537,48 @@ function a11(E, out) {
     if (p.etapa !== 'instalado') continue;
     const saldo = num(p.pago_pendiente);
     if (saldo <= 0) continue;
+    /* `pago_pendiente` es la fórmula de la hoja y solo se refresca en la siguiente bajada: una
+       venta que Pagos acaba de marcar LIQUIDADO seguía pidiendo COBRANDO. LIQUIDADO ya cuenta
+       como cobrado (lo mismo que Ventas.saldoDe); COBRANDO ya está puesto y no se vuelve a pedir. */
+    const est = String(p.estatus_notion || '').toUpperCase();
+    if (est === 'LIQUIDADO') continue;
     const fecha = ultima.get(p.id) || p.fecha_ganado;
     const dias = diasEntre(fecha, E.hoy);
     if (dias === null || dias < DIAS_COBRO) continue;
 
+    /* La fila YA ESTÁ en la hoja casi siempre: `pago_pendiente` es su fórmula y solo existe
+       cuando la venta bajó de allá, y el id de su renglón viene con ella. Decirle ahí «copia
+       los datos para la hoja» —y abrir el botón que los pega en el primer renglón vacío—
+       era pedirle a PAGOS que diera de alta la misma venta dos veces. Con la fila allá lo
+       que falta es el estatus, que se cambia en la ficha y el puente lo sube solo; copiar
+       queda para la venta que de verdad no está en la hoja. */
+    const enHoja = !!p.notion_page_id;
+
     out.push(aviso('A11', p.id, {
       tono: 'av',
       titulo: (p.nombre || p.folio_local || 'Proyecto') + ' se instaló ' + frase(-dias) + ' y tiene saldo',
-      detalle: (E.veDinero ? 'Quedan ' + money(saldo) + ' por cobrar. ' : '') +
-        'Copia los datos para la hoja con Estatus COBRANDO y mándale el mensaje.',
+      detalle: (E.veDinero ? 'Quedan ' + money(saldo) + ' por cobrar. ' : '') + (enHoja
+        ? (est === 'COBRANDO'
+          ? 'Ya está en COBRANDO en la hoja: falta cobrarlo. Mándale el mensaje.'
+          : 'La venta ya está en la hoja: pon su Estatus en COBRANDO en la ficha del proyecto —no copies la fila, sería una venta repetida— y mándale el mensaje.')
+        : 'Copia los datos para la hoja con Estatus COBRANDO y mándale el mensaje.'),
       cuando: frase(-dias),
       plazo: -dias,
       entidad: 'proyecto', entidad_id: p.id,
       acciones: [
-        /* «Abrir para copiar» y no «Copiar»: el botón que arma la fila de 15 columnas vive en
-           la ficha del proyecto y no se reimplementa aquí (el porqué, en el case 'tsv' de
-           js/mod/inicio.js). Este abre la ficha; el rótulo dice eso y no otra cosa. */
-        { label: 'Abrir para copiar la fila', tipo: 'tsv', datos: { proyecto_id: p.id, estatus: 'COBRANDO' } },
+        /* «Abrir para…» y no «Copiar» ni «Marcar»: los dos botones viven en la ficha del
+           proyecto y no se reimplementan aquí (el porqué, en el case 'tsv' de
+           js/mod/inicio.js). Este abre la ficha; el rótulo dice eso y no otra cosa. Con la
+           fila en la hoja la acción es otra —`estatus`, sin copiar nada—, para que la
+           pantalla no mande a nadie al botón de pegar. */
+        enHoja
+          ? (est === 'COBRANDO' ? null
+            : { label: 'Abrir para poner COBRANDO', tipo: 'estatus', datos: { proyecto_id: p.id, estatus: 'COBRANDO' } })
+          : { label: 'Abrir para copiar la fila', tipo: 'tsv', datos: { proyecto_id: p.id, estatus: 'COBRANDO' } },
         { label: 'Cobrar por WhatsApp', tipo: 'wa',
           datos: { clase: 'cobrar', tel: p.tel, contacto: p.contacto, negocio: p.negocio,
                    pago_pendiente: saldo } },
-      ],
+      ].filter(Boolean),
     }));
   }
 }
@@ -575,7 +606,9 @@ function a12(E, out) {
     if (!entrada) continue;
     const antes = p.origen.huellaAuth || Cot.huellaDe(p.origen);
     if (!antes) continue;
-    if (antes === Cot.huellaDe(entrada)) continue;
+    /* `mismaHuella` y no `===`: las huellas selladas antes del 15 de septiembre de 2026 están
+       sin ordenar, y con `===` todo proyecto viejo salía como «se editó después de ganarse». */
+    if (Cot.mismaHuella(antes, entrada)) continue;
 
     out.push(aviso('A12', p.id, {
       tono: 'av',
@@ -626,6 +659,84 @@ function a13(E, out) {
 
 /* A14 —el recordatorio de respaldo— se quitó por decisión de Dirección (septiembre de
    2026): salía en cada pantalla y no se usaba. Respaldar sigue en Ajustes. */
+
+/* ============================================================================
+   A15 — la venta y la hoja no cuadran
+   ============================================================================ */
+
+/* Las marcas las pone la capa de datos (ver «LA VENTA QUE LA HOJA YA NO TIENE» en
+   js/datos/proyectos.js) y aquí solo se leen. Qué aviso lleva cada una es `avisoDeHoja` de ese
+   archivo; va copiado porque este no lo importa —se carga perezoso, ver la cabecera— y
+   pruebas/reglas.mjs comprueba que las dos digan lo mismo.
+
+   La acción abre la ficha y no hace nada más, a propósito: las salidas —dar de alta otra vez,
+   dejarla fuera, quitarla, juntarla— cambian el libro del dinero o el tablero, y se deciden
+   con la ficha enfrente, no desde un renglón. Por eso tampoco se marca atendido al abrirla: el
+   aviso se va cuando la marca se va.
+
+   Quién lo ve depende del aviso, con la misma regla que las salidas de la ficha (ver
+   `soloDireccion` en js/datos/proyectos.js). La tarjeta IMPORTADA cuya fila ya no vino vive
+   sobre todo en el teléfono del taller, y las marcas no viajan: lo que Dirección decida en el
+   suyo no llega ahí. Ese aviso es de los tres roles, y no lleva ni un peso, porque lo lee
+   fabricación. El de una venta de aquí o el de una repetida decide la hoja o cuál de dos
+   proyectos es la venta: ése es de Dirección. Y el de la venta que está en dos filas de la hoja
+   (`hoja_doble`) también: cuál sobra se borra en la hoja. */
+function a15(E, out) {
+  for (const p of E.proyectos) {
+    if (!p.id || p.etapa === 'cancelado') continue;
+    const nombre = p.nombre || p.folio_local || 'Proyecto';
+    const imp = p.de_hoja === true || String(p.id).startsWith('proy-hoja-');
+    const d = p.duplicado_de && typeof p.duplicado_de === 'object' ? p.duplicado_de : null;
+    const h = !d && p.hoja_perdida && typeof p.hoja_perdida === 'object' ? p.hoja_perdida : null;
+    /* La venta de aquí en DOS filas de la hoja (`hoja_doble`): cuál sobra se decide en la hoja,
+       y eso es de Dirección. */
+    const dob = !d && !h && p.hoja_doble && typeof p.hoja_doble === 'object' && Array.isArray(p.hoja_doble.folios) &&
+      p.hoja_doble.folios.length > 1 ? p.hoja_doble : null;
+    if (!d && !h && !dob) continue;
+    const marca = d || h || dob;
+    const dia = isoDeSello(marca.desde);
+    const dias = dia ? diasEntre(dia, E.hoy) : null;
+
+    let titulo, detalle;
+    if (dob) {
+      const [suya, ...otras] = dob.folios.map(String);
+      titulo = 'La venta de ' + nombre + ' está dos veces en la hoja';
+      detalle = 'Las filas ' + [suya, ...otras].join(' y ') + ' traen la misma venta. Este teléfono le manda sus cambios a ' + suya +
+        ' y de ella saca el dinero; ' + (otras.length === 1 ? 'la otra no recibe' : 'las otras no reciben') + ' nada. ' +
+        'Nada se borró solo: en la hoja, borra la que sobra —revisa antes cuál tiene los cobros— y con la siguiente bajada el aviso se va.';
+    } else if (d) {
+      titulo = nombre + ' está dos veces en el tablero';
+      /* Con la identidad por confirmar (la fila solo coincide en el folio de la hoja) se dice
+         «parece»: puede ser una venta de otro con el folio repartido dos veces. */
+      const parece = Array.isArray(d.claves) && d.claves.includes('identidad');
+      detalle = 'La tarjeta importada de la fila ' + (d.folio_hoja || p.folio_hoja || '') + (parece ? ' parece la misma venta que ' : ' es la misma venta que ') +
+        (d.nombre ? '«' + d.nombre + '»' : 'otro proyecto') + ' de este teléfono' +
+        (parece ? ': o son dos tarjetas para una sola venta, o dos ventas con el mismo folio de la hoja. '
+                : ': dos tarjetas para una sola venta. ') +
+        'No se juntó sola' + (Array.isArray(d.por) && d.por.length ? ' porque ' + d.por.join('; ') : '') + '.';
+    } else if (imp) {
+      titulo = nombre + ' ya no está en la hoja';
+      detalle = 'Se importó de la fila ' + (h.folio || p.folio_hoja || '') + ' y la hoja ya no la trae. ' +
+        'No se quitó sola: en su ficha decides si se quita del tablero o se queda.';
+    } else {
+      titulo = 'La venta de ' + nombre + ' ya no está en la hoja';
+      detalle = (h.motivo === 'de_otra'
+        ? 'Su fila ' + (h.folio || '') + ' ya es de otra venta'
+        : 'Alguien borró su fila ' + (h.folio || '')) +
+        ', y los cambios de este proyecto se quedan apartados en este teléfono. ' +
+        'En su ficha decides si se vuelve a dar de alta o se queda fuera de la hoja.';
+    }
+    out.push(aviso('A15', p.id, {
+      tono: 'av',
+      titulo, detalle,
+      roles: h && imp ? ['direccion', 'fabricacion', 'pagos'] : ['direccion'],
+      cuando: dias === null ? '' : frase(-dias),
+      plazo: dias === null ? 0 : -dias,
+      entidad: 'proyecto', entidad_id: p.id,
+      acciones: [{ label: 'Abrir la ficha', tipo: 'abrir_proyecto', datos: { proyecto_id: p.id } }],
+    }));
+  }
+}
 
 /* ============================================================================
    REFRESCAR — lo único de este archivo que toca la base

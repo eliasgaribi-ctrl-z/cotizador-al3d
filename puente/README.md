@@ -1,9 +1,10 @@
 # El puente — a Google Sheets
 
 **El lado del navegador ya está escrito.** El relevo vive en `js/datos/puente.js`, se
-enchufa solo al arrancar si este dispositivo tiene URL y token, y la pantalla de
-**Ajustes → El puente** trae los pasos, un generador de los tres tokens y los cuatro
-botones: *Probar*, *Revisar el esquema*, *Mandar lo que está pendiente* y *Traer el dinero*.
+enchufa solo al arrancar —la URL viene de fábrica, y la llave es la cuenta de Google con la
+que se entró (o, de emergencia, un token de dispositivo)—, y la pantalla de
+**Ajustes → El puente** trae los pasos y los cuatro botones: *Probar*, *Revisar el esquema*,
+*Mandar lo que está pendiente* y *Traer el dinero*.
 
 **No hace falta para usar la plataforma.** Sin puente, la plataforma funciona completa en un
 dispositivo: agenda, material, mapa, avisos y los `.ics` con sus alarmas. El puente añade dos
@@ -54,8 +55,8 @@ si alguien llega por GET, no es la plataforma.
 |---|---|
 | `GET /salud` | Estado y la lista de lo que **este rol** puede escribir |
 | `GET /esquema` | Qué columnas le faltan a la hoja. Las **detecta**, no las crea |
-| `GET /jalar` | **Todas** las filas de Ventas, de 50 en 50, con cursor: el récord de ventas de Control sale de aquí. **El dinero solo para quien lo ve** |
-| `POST /empujar` | Hasta 25 operaciones, filtradas por la lista blanca del rol |
+| `GET /jalar` | **Todas** las filas de Ventas en una sola página (desde `puente-sheets-6`; antes de 50 en 50, y una fila que el reacomodo cambiaba de página a media bajada no salía): el récord de ventas de Control sale de aquí. **El dinero solo para quien lo ve** |
+| `POST /empujar` | Hasta 25 operaciones, filtradas por la lista blanca del rol. Lo que devuelve pasa por el mismo filtro de lectura que `/jalar` |
 | `GET /expandir` | Sigue un link corto de Maps hasta el largo, el que trae coordenadas |
 
 Los tres roles y lo que cada uno puede escribir son los mismos de antes:
@@ -66,12 +67,14 @@ Los tres roles y lo que cada uno puede escribir son los mismos de antes:
   **ve**: las cifras no bajan a ese teléfono.
 - **pagos** — cobra. **No mueve la obra**.
 
-Cambiar el segmento de rol en Ajustes da otro tablero, **no da permisos**: el token de
-fabricación sigue recibiendo un rechazo si manda `Anticipo`, diga lo que diga el teléfono.
+El rol sale de la pestaña **«Accesos»** de la hoja —el correo con el que se entró con Google—
+o, de emergencia, del token de dispositivo. Cambiar el segmento de rol en Ajustes da otro
+tablero, **no da permisos**: quien es fabricación sigue recibiendo un rechazo si manda
+`Anticipo`, diga lo que diga el teléfono.
 
 ---
 
-## Tres diferencias de contrato contra la versión de Notion
+## Las diferencias de contrato contra la versión de Notion
 
 1. **`Abono Comision` ya no es una celda.** En Notion se sobrescribía, y por eso solo
    sobrevivía el último pago. En la hoja es la suma de la pestaña **Abonos comisión**, así
@@ -89,10 +92,23 @@ fabricación sigue recibiendo un rechazo si manda `Anticipo`, diga lo que diga e
    pantalla de Control sobre el mismo número.
 
 4. **`Porcentaje comision` es una columna nueva (AD).** El % que se pacta con quien trae el
-   trabajo se capturaba en el modal de Registrar Venta, se guardaba en la plataforma y la
-   hoja lo ignoraba: cobraba 10 % fijo. Ahora viaja, la fórmula de la comisión lo lee y una
-   celda vacía sigue significando «el de siempre, 10 %», así que las filas que ya estaban no
-   cambian ni un centavo. Lo escriben dirección y pagos; fabricación ni lo escribe ni lo ve.
+   trabajo se capturaba en el modal de Registrar Venta, se guardaba en la plataforma y se
+   perdía. Ahora viaja y queda escrito en la hoja, pero **la comisión no lo lee**: en AL3D es
+   fija, 10 % del subtotal sin IVA, y la fórmula `R` no mira la columna AD (está así desde
+   `d4623f3`, y el comentario de `formulasVentas` dice por qué). Si algún día se pacta por
+   venta, `R` es el único lugar que hay que cambiar. Lo escriben dirección y pagos;
+   fabricación ni lo escribe ni lo ve.
+
+5. **Un cambio contra una venta que ya no está vuelve `NO_ENCONTRADO`** (desde
+   `puente-sheets-6`). Antes se creaba una fila sin nombre con lo que viniera, y la siguiente
+   alta caía encima de ella. Ahora la hoja solo crea fila para un alta que trae el nombre del
+   proyecto, y el teléfono aparta el cambio con la razón escrita en vez de reintentarlo para
+   siempre (ver «Lo que la hoja rechaza», abajo).
+
+6. **La identidad de la fila se comprueba.** El folio de la hoja no se reparte dos veces
+   aunque se borre la última venta (una marca en las propiedades del script), «Folio
+   cotizacion» no se pisa en un cambio, y el teléfono manda su folio de cotización aparte de
+   los datos para que la hoja no escriba en una fila que heredó el folio de otra venta.
 
 ### Lo que baja: el récord entero, no solo lo de este teléfono
 
@@ -178,13 +194,16 @@ al lado.
 
 ## Cómo está cerrado
 
-La dirección del puente es pública —igual que lo era la del Worker— y **la puerta es el
-token**. Alrededor de eso hay cinco cosas más:
+La dirección del puente es pública —igual que lo era la del Worker— y **la puerta es quién
+eres**: desde `puente-sheets-5` el puente verifica con Google el token de la cuenta con la que
+se entró (que sea de esta app y con el correo verificado) y busca ese correo en la pestaña
+**«Accesos»**. El token de dispositivo sigue sirviendo, como salida de emergencia para el día
+que Google no conteste. Alrededor de eso hay más cosas:
 
-1. **Todo por POST, el token en el cuerpo.** Nunca queda escrito en una URL. Ver arriba.
-2. **Sesenta peticiones por minuto por token.** Es más de lo que hacen tres teléfonos
-   trabajando, y mucho menos de lo que sirve para raspar la hoja entera con un token
-   robado.
+1. **Todo por POST, la llave en el cuerpo.** Nunca queda escrita en una URL. Ver arriba.
+2. **Sesenta peticiones por minuto por persona** (por correo, o por token si se entró con
+   uno). Es más de lo que hacen tres teléfonos trabajando, y mucho menos de lo que sirve para
+   raspar la hoja entera con una llave robada.
 3. **Lista blanca de dominios en `/expandir`.** Ese camino hace que un servidor de Google
    salga a internet con una dirección que mandó quien llama. Sin la lista, un token
    cualquiera convertiría el puente en trampolín para tocar direcciones que quien llama no
@@ -210,24 +229,70 @@ token**. Alrededor de eso hay cinco cosas más:
 Y lo que el puente **no** puede hacer, por construcción: escribir una fórmula, escribir una
 columna que no esté en su mapa, mandar correo, o tocar otra hoja del Drive.
 
+### Lo que la hoja rechaza, el teléfono lo aparta
+
+Un rechazo de **una** operación —un alta desde un teléfono cuyo rol no escribe el nombre, un
+cambio de puros campos que ese rol no toca, una venta que ya no está en la hoja— vuelve
+marcado `definitivo`, y la bandeja lo **aparta** (estado `rechazada`, con la razón) y sigue
+con lo demás. Antes volvía como el mismo `ROL_SIN_PERMISO` de una llave que la hoja no
+reconoce y el bombeo se paraba ahí: lo de detrás no salía nunca. Lo apartado no se pierde:
+la banda de frescura del Tablero lo dice con su razón, y `sync.resolver(id, 'mio')` lo
+devuelve a la cola (por ejemplo, cuando ese teléfono ya entra como Dirección).
+
 ### Lo que sigue abierto, y hay que saberlo
 
-- **El token vive en el teléfono.** Quien tenga un teléfono desbloqueado tiene ese rol.
-  Contra eso solo hay rotar: *Generar tokens nuevos* en la hoja invalida los tres.
+- **La llave vive en el teléfono.** Quien tenga un teléfono desbloqueado con la sesión
+  abierta tiene ese rol. Contra eso: quitar su renglón de «Accesos» (surte efecto en
+  minutos) y, si tenía token de emergencia, *Generar tokens nuevos* en la hoja.
 - **Dirección y pagos sí ven todo el dinero.** El filtrado de lectura protege al teléfono
-  de fabricación, que es el que anda en la calle y en el taller. Los otros dos tokens
+  de fabricación, que es el que anda en la calle y en el taller. Los otros dos roles
   valen lo que vale la hoja entera.
 - **La hoja puede quedarse con una versión vieja del código.** Guardar en Apps Script no
-  publica. `salud` contesta su `version` —hoy `puente-sheets-4`— justo para poder verlo, y
-  «Probar» lo compara con la que la plataforma espera.
+  publica. `salud` contesta su `version` —hoy `puente-sheets-6`— justo para poder verlo, y
+  «Probar» lo compara con la que la plataforma espera y dice qué falla con la que hay.
 
 ## Si algo falla
 
 - **«Probar» dice que no es el puente y menciona la pantalla de Google.** La implementación
   quedó con acceso *Solo yo*. Tiene que estar en **Cualquier usuario**: Apps Script →
   Implementar → Gestionar implementaciones → lápiz → Quién tiene acceso.
-- **401 en todo.** El token de ese teléfono no está en la lista. Vuelve a abrir
-  ⚡ AL3D → Tokens del puente en la hoja y pega el que le toca.
+- **«Ese correo no está en la pestaña «Accesos»».** Agrega su renglón (correo y rol) en la
+  hoja. Si la pestaña no existe, «Revisar el esquema» lo dice y `prepararHojaParaElPuente()`
+  la crea.
+- **401 en todo, en un teléfono que entra con token.** El token de ese teléfono no está en la
+  lista. Vuelve a abrir ⚡ AL3D → Tokens del puente en la hoja y pega el que le toca.
+- **«La venta V-… ya no está en la hoja».** Alguien borró esa fila. El cambio no se escribió
+  en ninguna otra, y el proyecto queda marcado: en su ficha, Dirección elige «Volver a darla de
+  alta en la hoja» (una fila nueva con todos sus datos) o «Dejarla fuera de la hoja». Registrarla
+  otra vez desde el cotizador no sirve: la plataforma contesta que ya es proyecto. Mientras está
+  fuera, sus cambios no se mandan pero no se tiran: el teléfono anota que quedaron sin mandar, y lo
+  mismo con los cambios que ya habían rebotado al dejarla fuera. Si la fila vuelve a la hoja (con su
+  folio o con su «Folio cotizacion»), la siguiente bajada quita la marca y la decisión de dejarla
+  fuera, y manda de una vez lo que se cambió mientras tanto, con la etapa y la instalación de ese
+  día. Lo que se cambió aquí de la cuenta, el estatus o el anticipo no lo pisa la fila que vuelve:
+  se le manda a ella. Si la venta ya está como «No se dio», su única salida en la ficha es dejarla
+  fuera de la hoja.
+- **Una venta dice «Dos veces en la hoja».** Dirección la volvió a dar de alta y después alguien
+  deshizo el borrado de la fila vieja (o la metió otra vez a mano): dos filas traen la misma venta.
+  El teléfono se queda con la fila a la que ya mandaba, Control la cuenta una vez y nada se borra.
+  En la hoja, Dirección borra la que sobra —revisa antes cuál tiene los cobros—; con la siguiente
+  bajada el aviso se va, y si la que quedó es la otra, la venta se ata a ella.
+- **Una tarjeta importada dice «Ya no está en la hoja».** Su fila no vino en una bajada completa,
+  o un cambio rebotó contra ella. Cualquiera que tenga ese teléfono decide en la ficha: «Quitar del
+  tablero» (solo si nada de este teléfono la nombra: una instalación que no esté cancelada, un
+  movimiento del almacén o material) o «Dejarla». Las marcas son de cada teléfono y no viajan.
+- **Una tarjeta dice «Repetida».** Es la copia importada de una venta que este teléfono ya
+  tenía. Se junta sola solo si es seguro que es la misma venta (la fila trae su «Folio
+  cotizacion» o su mismo nombre) y no se pierde nada: ni su etapa, ni sus notas, pin o plazo, ni
+  los datos que se le escribieron aquí (dirección, teléfono del cliente, entrecalles,
+  compromiso…). Si no, Dirección elige en la ficha «Juntar», «No es la misma venta» o, si la de
+  aquí está como «No se dio» y la fila también, quitar la copia. Si la de aquí dice «No se dio» y
+  la fila la trae viva, la ficha no ofrece quitarla: o se marca «No se dio» también en la hoja, o
+  se regresa la de aquí a su etapa y se juntan. Mientras tanto, Control cuenta la fila viva.
+  «Juntar» espera a que salga lo que la copia tenga en la bandeja (una instalación recién
+  agendada, por ejemplo). Una venta que se ató a su fila por el nombre se queda atada aunque
+  después se corrija el nombre en la hoja; si la fila pasa a traer el «Folio cotizacion» de otra
+  venta, deja de ser suya y la ficha lo dice («ya es de otra venta»).
 - **Una escritura vuelve como rechazada.** El mensaje dice cuál propiedad y por qué. Casi
   siempre es un rol que no puede escribir eso, o un valor que no está en la lista.
 - **Cambiaste el código y no pasa nada.** Guardar no publica: hay que implementar una

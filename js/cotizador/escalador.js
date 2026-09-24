@@ -96,7 +96,20 @@ function cargarImagenScaler(input){
 function usarImagenAIEnScaler(){
   if(!(Q.aiFile&&Q.aiFile.url)) return;
   if(!scPuedeCambiarImagen()) return;
+  /* Lo que se analizó con IA también puede ser un PDF —Q.aiFile guarda el archivo tal cual—,
+     y pasado por un <img> salía «puede estar dañada», que es falso y no dice qué hacer. Se
+     abre por el mismo lector que el PDF elegido a mano. */
+  if(scEsPdfIA()){
+    fetch(Q.aiFile.url).then(r=>r.blob())
+      .then(b=>scLoadPDF(new File([b],Q.aiFile.name||'plano.pdf',{type:'application/pdf'})))
+      .catch(()=>toast('No se pudo abrir el PDF analizado — ábrelo de nuevo con «Cargar imagen»','err',5200));
+    return;
+  }
   scLoadImgSrc(Q.aiFile.url,'imagen IA');
+}
+/* ¿Lo que analizó la IA es un PDF? Lo usan el escalador y el vectorizador. */
+function scEsPdfIA(){
+  return !!(Q.aiFile&&(/pdf/i.test(Q.aiFile.type||'')||/^data:application\/pdf/i.test(Q.aiFile.url||'')));
 }
 function scOnDrop(e){
   e.preventDefault();e.currentTarget.style.outline='';
@@ -230,17 +243,25 @@ async function scLoadPDF(f){
       pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
     const ab=await f.arrayBuffer();
-    const pdf=await pdfjsLib.getDocument({data:ab}).promise;
-    const page=await pdf.getPage(1);
-    // Resolución acorde a la pantalla en vez de un 2.5 fijo: los planos grandes conservan el detalle
-    const base=page.getViewport({scale:1});
-    const target=Math.min(3400,Math.max(1800,Math.round((window.screen&&window.screen.width||1280)*scDPR()*1.6)));
-    let s=Math.max(2,Math.min(5,target/base.width));
-    const cap=2.4e7;
-    if(base.width*base.height*s*s>cap)s=Math.sqrt(cap/(base.width*base.height));
-    const vp=page.getViewport({scale:s});
-    const oc=document.createElement('canvas');oc.width=Math.round(vp.width);oc.height=Math.round(vp.height);
-    await page.render({canvasContext:oc.getContext('2d'),viewport:vp}).promise;
+    /* Cada documento de pdf.js levanta su propio Web Worker y lo tiene vivo hasta destroy():
+       sin él, cada PDF abierto dejaba un worker más con el plano entero en memoria, uno por
+       cada plano que se abriera en el día. Se destruye en cuanto la página ya quedó pintada
+       en el lienzo, salga bien o no. */
+    const oc=document.createElement('canvas');
+    let pdf;
+    try{
+      pdf=await pdfjsLib.getDocument({data:ab}).promise;
+      const page=await pdf.getPage(1);
+      // Resolución acorde a la pantalla en vez de un 2.5 fijo: los planos grandes conservan el detalle
+      const base=page.getViewport({scale:1});
+      const target=Math.min(3400,Math.max(1800,Math.round((window.screen&&window.screen.width||1280)*scDPR()*1.6)));
+      let s=Math.max(2,Math.min(5,target/base.width));
+      const cap=2.4e7;
+      if(base.width*base.height*s*s>cap)s=Math.sqrt(cap/(base.width*base.height));
+      const vp=page.getViewport({scale:s});
+      oc.width=Math.round(vp.width);oc.height=Math.round(vp.height);
+      await page.render({canvasContext:oc.getContext('2d'),viewport:vp}).promise;
+    }finally{ try{ pdf&&pdf.destroy(); }catch(_){} }
     // Blob en vez de dataURL: a esta resolución un dataURL ocupa decenas de MB
     const url=await new Promise(res=>{
       try{oc.toBlob(b=>res(b?URL.createObjectURL(b):oc.toDataURL()),'image/png');}
@@ -503,9 +524,13 @@ function scLoupe(e){
   // ampliar el lienzo ya dibujado: así enseña detalle real de la foto, no píxeles estirados.
   scScene(lctx,size,size,src.x,src.y,(SC.z||1)*mag,dpr,false,true);
   lctx.setTransform(dpr,0,0,dpr,0,0);
-  lctx.strokeStyle='rgba(var(--a-rgb),.95)';lctx.lineWidth=1.5;
+  /* El azul de la marca por azulMarca(), no por var(): «rgba(var(--a-rgb),.95)» el lienzo lo
+     ignora callado y la cruz salía negra, justo sobre la foto oscura donde más hace falta. */
+  lctx.save();lctx.globalAlpha=.95;
+  lctx.strokeStyle=azulMarca();lctx.lineWidth=1.5;
   lctx.beginPath();lctx.moveTo(size/2-16,size/2);lctx.lineTo(size/2+16,size/2);
   lctx.moveTo(size/2,size/2-16);lctx.lineTo(size/2,size/2+16);lctx.stroke();
+  lctx.restore();
 }
 function scHideLoupe(){const lp=$('sc-loupe');if(lp)lp.style.display='none';}
 window.addEventListener('resize',()=>{
@@ -972,7 +997,13 @@ function scSnap(a,b){
   if(SC.mMode==='v')return{x:a.x,y:b.y};
   return b;
 }
-const SC_TAPTHR=11; // px: distinguir un toque de un arrastre
+/* px DE PANTALLA: distinguir un toque de un arrastre. Los puntos viven en px lógicos (la
+   foto ajustada), así que la distancia se multiplica por el zoom antes de comparar, igual
+   que el pegado a guías y el radio de agarre ya se dividen entre él. Comparada en px
+   lógicos, a ×8 un arrastre de 60 px en pantalla medía 7.5 y contaba como toque: se dejaba
+   un punto a medias y lo chico no se podía medir. Lo mismo el «quedaron muy juntos» de
+   scCommitLine, con sus 6 px. */
+const SC_TAPTHR=11;
 const SC_HANDLE_HITPX=14; // radio de toque del extremo de una línea, constante en pantalla
 /* Guía cuya pestaña del borde contiene el punto (en píxeles de pantalla). Solo la
    pestaña responde: la línea en sí se ignora, para dejar toda la foto libre para medir. */
@@ -1023,6 +1054,7 @@ function scHandleHit(pt){
   return best;
 }
 function scMoveHandle(h,pt){
+  if(h.kind==='ref'&&!h.ref0&&SC.refLine) h.ref0=JSON.parse(JSON.stringify(SC.refLine));   // la línea de antes, por si no pasó por scDown
   let x=pt.x+h.dx,y=pt.y+h.dy;
   // El extremo corregido también se pega a las guías, igual que al colocarlo por
   // primera vez: se pega la posición final del punto, no la del dedo, para que el
@@ -1042,32 +1074,54 @@ function scMoveHandle(h,pt){
   if(SC.nativePxPerCm>0)m.cm=(scDist({x,y},otro)*SC.scaleFactor)/SC.nativePxPerCm;
 }
 /* Al mover la referencia cambia la escala y con ella TODAS las medidas: se recalculan
-   para que la lista nunca muestre centímetros de una escala vieja. */
+   para que la lista nunca muestre centímetros de una escala vieja.
+   Lo que NO se recalcula es la partida que ya salió de una medida: lleva su altura escrita
+   y no sabe de dónde vino. Recalibrar dejaba la lista con el número nuevo y «Agregada» al
+   lado, y el aviso en verde decía «medidas actualizadas», con la cotización cobrando la
+   escala vieja. La medida usada que cambia vuelve a quedar como no agregada —se puede
+   bajar otra vez— y se devuelve cuántas fueron, para que quien llama lo diga (scNotaViejas).
+   No se reescribe la partida sola: después de agregarla pudo haberse corregido a mano. */
 function scRecalcTodas(){
-  if(SC.nativePxPerCm<=0)return;
+  if(SC.nativePxPerCm<=0)return 0;
+  let viejas=0;
   SC.items.forEach(m=>{
+    const antes=m.cm;
     m.cm=(scDist({x:m.nx1*SC.cvsW,y:m.ny1*SC.cvsH},{x:m.nx2*SC.cvsW,y:m.ny2*SC.cvsH})*SC.scaleFactor)/SC.nativePxPerCm;
+    // Una décima es lo que enseña la lista (scFmtCm): menos que eso no cambia nada a la vista.
+    if(m.usada&&!(Math.abs(m.cm-antes)<0.05)){ m.usada=false; viejas++; }
   });
+  return viejas;
+}
+function scNotaViejas(n){
+  return n ? `${n} ${n===1?'partida ya agregada sigue':'partidas ya agregadas siguen'} con la escala anterior: ${n===1?'revísala':'revísalas'} en el cotizador` : '';
 }
 function scEndHandle(){
   const h=SC.dragH;SC.dragH=null;if(!h)return;
   if(h.kind==='ref'){
     if(SC.refCm>0){
       const d=scDist({x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH},{x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH});
-      if(d>=6){
+      if(d*(SC.z||1)>=6){
         /* Mismo umbral y mismo aviso que scConfirmCalib: mover un extremo recalculaba la
            escala con una línea de 6 px y avisaba en verde de «Escala ajustada», con TODAS
            las medidas rehechas sobre una referencia que ya no es confiable. Y ahora se
            puede deshacer, porque el radio de agarre son 22 px con el dedo y agarrar la
-           referencia sin querer es fácil. */
-        const antes=SC.nativePxPerCm, refAntes=JSON.parse(JSON.stringify(SC.refLine));
+           referencia sin querer es fácil. Deshacer devuelve también el «Agregada» de las
+           medidas que scRecalcTodas soltó: con la escala de antes, su partida vuelve a cuadrar. */
+        const antes=SC.nativePxPerCm, refAntes=h.ref0||JSON.parse(JSON.stringify(SC.refLine));   // la línea de ANTES del arrastre (scDown): la de ahora ya se movió
+        const usadasAntes=SC.items.filter(m=>m.usada);
         SC.nativePxPerCm=(d*SC.scaleFactor)/SC.refCm;
-        scRecalcTodas();
-        const volver=()=>{ SC.nativePxPerCm=antes; SC.refLine=refAntes; scRecalcTodas(); scUpdateList(); scRender(); toast('Escala restaurada','ok',2200); };
-        if(d<20) toast('La referencia quedó muy corta ('+Math.round(d)+' px): la escala dejó de ser confiable','err',6000,{label:'Deshacer',fn:volver});
+        const nota=scNotaViejas(scRecalcTodas());
+        const volver=()=>{ SC.nativePxPerCm=antes; SC.refLine=refAntes; scRecalcTodas(); usadasAntes.forEach(m=>{m.usada=true;}); scUpdateList(); scRender(); toast('Escala restaurada','ok',2200); };
+        if(d<20) toast('La referencia quedó muy corta ('+Math.round(d)+' px): la escala dejó de ser confiable'+(nota?' · '+nota:''),'err',6000,{label:'Deshacer',fn:volver});
+        else if(nota) toast('⚠️ Escala ajustada — '+nota,'',8000,{label:'Deshacer',fn:volver});
         else toast('Escala ajustada'+(SC.items.length?' — medidas actualizadas':''),'ok',3800,{label:'Deshacer',fn:volver});
       }
     }
+  }else if(h.item&&h.item.usada&&typeof h.cm0==='number'&&!(Math.abs(h.item.cm-h.cm0)<0.05)){
+    /* Lo mismo con un solo extremo de una medida ya agregada: la partida se quedó con el
+       número de antes de corregirla. */
+    h.item.usada=false;
+    toast('⚠️ Medida corregida — la partida que ya salió de ella sigue con el número anterior: revísala en el cotizador','',6400);
   }
   scSetHint(scModeHint());
   scUpdateGuideList();scUpdateList();scRender();
@@ -1129,7 +1183,8 @@ function scDown(e){
     if(h){
       e.preventDefault();
       SC.dragH=h;SC.isTouch=touch;
-      if(h.kind==='item')SC.sel=h.item.id;
+      if(h.kind==='item'){SC.sel=h.item.id;h.cm0=h.item.cm;}   // para saber al soltar si cambió (scEndHandle)
+      else h.ref0=JSON.parse(JSON.stringify(SC.refLine));   // la referencia antes de moverla: «Deshacer» la regresa a su lugar
       SC.cp={...pt};
       scSetHint(h.kind==='ref'
         ?'Ajustando la referencia — suelta donde va'
@@ -1178,7 +1233,7 @@ function scMove(e){
   }
   e.preventDefault();
   SC.cp=scGetXYSnap(e);
-  if(scDist(SC.downPt,SC.cp)>SC_TAPTHR)SC.moved=true;
+  if(scDist(SC.downPt,SC.cp)*(SC.z||1)>SC_TAPTHR)SC.moved=true;
   scRender();scLoupe(e);
 }
 function scUp(e){
@@ -1217,7 +1272,7 @@ function scUp(e){
 function scLeave(e){
   if(SC.dragH){scHideLoupe();SC.cp=null;scEndHandle();return;}
   if(SC.draggingGuide)return; // el arrastre sigue vivo aunque el puntero salga del lienzo
-  if(SC.down){SC.cp=scGetXYSnap(e);if(scDist(SC.downPt,SC.cp)>SC_TAPTHR)SC.moved=true;scRender();}
+  if(SC.down){SC.cp=scGetXYSnap(e);if(scDist(SC.downPt,SC.cp)*(SC.z||1)>SC_TAPTHR)SC.moved=true;scRender();}
   scHideLoupe();
 }
 /* Quita el punto que quedó a medias, sin tener que cambiar de herramienta */
@@ -1234,7 +1289,8 @@ function scCommitLine(a,b){
      escala salía más grande de lo real, con todas las medidas mal a la vez. */
   const esRef=(SC.mode==='ref'||SC.mode==='ref-drawn');
   const ep=esRef?b:scSnap(a,b), d=scDist(a,ep);
-  if(d<6){scSetHint('Quedaron muy juntos — toca más lejos',{label:'↺ Quitar punto',fn:scCancelarPunto});return false;}
+  // 6 px de pantalla, no lógicos: ver SC_TAPTHR
+  if(d*(SC.z||1)<6){scSetHint('Quedaron muy juntos — toca más lejos',{label:'↺ Quitar punto',fn:scCancelarPunto});return false;}
   if(SC.mode==='ref'||SC.mode==='ref-drawn'){
     const n01=v=>Math.max(0,Math.min(1,v));
     SC.refLine={nx1:n01(a.x/SC.cvsW),ny1:n01(a.y/SC.cvsH),nx2:n01(ep.x/SC.cvsW),ny2:n01(ep.y/SC.cvsH)};
@@ -1284,8 +1340,8 @@ function scConfirmCalib(){
   // escala varios por ciento y todas las medidas salen mal a la vez.
   const largoRef=scDist(p1,p2);
   // Recalibrar con medidas ya trazadas: se recalculan todas, si no quedaban con los
-  // centímetros de la escala anterior.
-  scRecalcTodas();
+  // centímetros de la escala anterior. Las partidas que ya salieron de ellas no: se avisa.
+  const nota=scNotaViejas(scRecalcTodas());
   $('sc-ref-confirm-row').style.display='none';
   $('sc-calib-done').style.display='';
   // Calibrado: sobran las instrucciones y el botón de marcar referencia. En el celular
@@ -1299,8 +1355,11 @@ function scConfirmCalib(){
   const secC=$('sc-sec-calib'); if(secC) secC.open=false;
   scSetMode('measure');
   scUpdateList();scUpdateGuideList();
-  if(largoRef<20){toast('La línea de referencia quedó muy corta — vuelve a trazarla más larga para que la escala sea confiable','err',4600);}
-  toast(SC.items.length?'Escala calibrada — medidas actualizadas':'Escala calibrada — traza líneas para medir','ok');
+  /* Un aviso a la vez y el que importa: el de la referencia corta se pintaba y el verde de
+     abajo lo pisaba en el mismo instante, así que nunca se leía. */
+  if(largoRef<20){toast('La línea de referencia quedó muy corta — vuelve a trazarla más larga para que la escala sea confiable'+(nota?' · '+nota:''),'err',nota?8000:4600);}
+  else if(nota) toast('⚠️ Escala calibrada — '+nota,'',8000);
+  else toast(SC.items.length?'Escala calibrada — medidas actualizadas':'Escala calibrada — traza líneas para medir','ok');
   scRender();
 }
 function scResetCalib(full=true){

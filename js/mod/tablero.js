@@ -42,10 +42,10 @@ import * as Agenda from '../datos/agenda.js';
 import * as Taller from '../datos/taller.js';
 import * as Material from '../datos/material.js';
 import * as Sync from '../datos/sync.js';
-import { masDias } from '../nucleo/fechas.js';
+import { masDias, iniSemana } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, fmtFecha, fmtFechaDia,
-         abrirCapa, cerrarCapa, linkWa, telWa, ajustarAltoBarra, rotularPapel, voz, segmento,
-         filaTaller, bandaFrescura, medirMarco, esqueletoMarco }
+         abrirCapa, cerrarCapa, linkWa, telWa, ajustarAltoBarra, voz, segmento,
+         filaTaller, bandaFrescura, medirMarco, esqueletoMarco, cifraQueCabe }
   from '../nucleo/ui.js';
 
 const { ETAPA_NOMBRE, ICO_ETAPA, claseEtapa, ORDEN, puedeMover } = Proy;
@@ -229,20 +229,27 @@ async function leer() {
     ? Cot.sinDecidir(new Set((todos || []).map(p => p && p.folio_global).filter(Boolean)), 0)
     : [];
 
-  const semanaFin = masDias(hoy, 6);
+  /* «Esta semana» es la semana del CALENDARIO, de hoy al domingo: la misma que abre «Ver la
+     semana en el Calendario», que arranca en lunes (`iniSemana`). Con hoy+6, el jueves la
+     tarjeta contaba el miércoles siguiente y el botón de abajo abría una semana donde no
+     estaba. Y sin las ya hechas: lo que se instaló el lunes ya no «se instala». */
+  const semanaFin = masDias(iniSemana(hoy), 6);
   const VIVAS_SIN_MARCAR = ['propuesta', 'confirmada', 'reagendada'];
 
   return {
     hoy, V, vivos, porId, instDe, mat, fres, enTaller, pendientes, semDe,
     carga: Taller.cargaDeDia(hoy, V),
-    semana: (insts || []).filter(i => i && i.fecha >= hoy && i.fecha <= semanaFin),
+    semana: (insts || []).filter(i => i && i.fecha >= hoy && i.fecha <= semanaFin && i.estado !== 'hecha'),
     vencidas: (insts || []).filter(i => i && i.fecha && i.fecha < hoy &&
                                         VIVAS_SIN_MARCAR.includes(i.estado)),
     /* La misma prueba que usa el Mapa. Un proyecto sin ubicar se guarda con `lat: null`, y
        `Number(null)` es 0, que `isFinite` da por bueno: con la prueba de antes esta cuenta
        decía siempre 0 mientras el Mapa, para los mismos datos, decía «3 sin ubicar». */
     sinUbicar: vivos.filter(p => !tienePin(p)).length,
-    proxInst: (insts || []).map(i => i && i.fecha).filter(f => f && f >= hoy).sort()[0] || null,
+    /* Sin las hechas, igual que `semana`: marcada la última de la semana, el estado vacío
+       anunciaba como «la siguiente» la que se acababa de hacer. */
+    proxInst: (insts || []).filter(i => i && i.fecha && i.fecha >= hoy && i.estado !== 'hecha')
+      .map(i => i.fecha).sort()[0] || null,
   };
 }
 
@@ -316,7 +323,7 @@ function segLente() {
 
    ----- POR QUÉ ES UN <iframe> Y NO SE PUEDE PORTAR A MÓDULO. NO LO «OPTIMICES». -----
 
-   `anidador-vectores/js/svgnest.js:338` y `:544` arrancan los Web Workers con
+   las dos llamadas a `p.require`/`p2.require` de `launchWorkers` en `anidador-vectores/js/svgnest.js` arrancan los Web Workers con
    `evalPath: 'js/lib/eval.js'` —un LITERAL RELATIVO— y `js/lib/parallel.js:142/152/167` hace
    `new Worker(this.options.evalPath)`. `new Worker(url)` resuelve contra la URL base del
    DOCUMENTO, no del script:
@@ -325,21 +332,22 @@ function segLente() {
      · servido desde la raíz, donde vive la plataforma  →  /js/lib/eval.js       ✘ no existe
 
    Y no hay plan B; las tres cosas están verificadas en el código vendorizado:
-     1. `evalPath` NO es configurable: `SvgNest.config()` (svgnest.js:84-118) solo acepta
+     1. `evalPath` NO es configurable: `SvgNest.config()` (svgnest.js) solo acepta
         curveTolerance, spacing, rotations, populationSize, mutationRate, useHoles y
         exploreConcave.
      2. La rama de Blob + URL.createObjectURL que salvaría el caso (parallel.js:158-163) está
-        MUERTA: el motor siempre llama `p.require(...)` (svgnest.js:344-347 y :547-551), así
+        MUERTA: el motor siempre llama `p.require(...)` (las dos ramas de `launchWorkers` en svgnest.js), así
         que `requiredScripts.length !== 0` y siempre se toma la rama del evalPath.
      3. EL FALLO ES MUDO. No lanza excepción: deja un cálculo que nunca termina. Está escrito
         como razón de existir de su prueba —pruebas/navegador/anidador.mjs:5-8, «una carpeta
         movida o un archivo que falte no da error en la página: da un cálculo que nunca
-        termina»— y el autodiagnóstico de anidador-vectores/js/app.js:730-734 cubre file:// y
+        termina»— y el autodiagnóstico «Soporte del navegador» de anidador-vectores/js/app.js cubre file:// y
         la falta de window.Worker, pero NO este caso.
 
-   Editar el código vendorizado tiene precio escrito tres veces —anidador-vectores/README.md
-   y sw.js dicen que svgnest.js, svgparser.js y js/lib/* son «byte por byte el master de
-   SVGnest»—, así que el marco es la única forma de embeberlo sin tocarlo.
+   Editar el código vendorizado tiene precio: anidador-vectores/README.md dice que svgnest.js,
+   svgparser.js y js/lib/* son el master de SVGnest salvo dos cambios locales marcados con
+   AL3D (la ruta de eval.js y la «corrida»), y portarlo a módulo exigiría un tercero, que ya
+   tocaría cómo arrancan los workers. El marco es la forma de embeberlo sin eso.
 
    Y de paso resuelve cuatro cosas más, gratis: los cinco oyentes a nivel de `document` que su
    app.js instala y nunca quita (dragenter, dragover, dragleave, drop, paste) se quedan
@@ -491,7 +499,7 @@ function cuentas(d, rol, veDinero) {
       return s + (isFinite(n) ? n : 0);
     }, 0);
     if (suma > 0) {
-      c.push('<p class="pf-cuenta dinero"><b>' + esc(money(suma)) + '</b>En el taller</p>');
+      c.push('<p class="pf-cuenta dinero">' + cifraQueCabe(money(suma)) + 'En el taller</p>');
     }
   }
   return '<div class="pf-cuentas">' + c.join('') + '</div>';
@@ -527,8 +535,11 @@ function noLlegan(d) {
    agenda, ni material, ni tablero: todo lo demás de esta pantalla está vacío por
    construcción.
 
-   El flujo completo —el modal con «Se ganó» / «No se dio»— vive en «Qué atender» y no se
-   duplica: aquí es un renglón con la cuenta y la puerta. */
+   El flujo completo —«Se ganó» / «No se dio», una por una— vive en Proyectos y no se duplica:
+   aquí es un renglón con la cuenta y la puerta. La puerta es Proyectos y NO «Qué atender»:
+   esa lista solo enseña las autorizadas que llevan siete días sin decidir (la regla A6), así
+   que la de ayer —que esta tarjeta sí cuenta— no estaba ahí y el botón que late mandaba a una
+   lista sin ella. Es lo mismo que ya dice el Calendario en `pintarDecidir`. */
 function decidir(d, rol) {
   const n = d.pendientes.length;
   if (rol !== 'direccion' || !n) return '';
@@ -539,7 +550,7 @@ function decidir(d, rol) {
     'este tablero: es lo único que nadie más puede contestar.</p>' +
     '<div class="pf-fila-acc">' +
       btn(n === 1 ? 'Decidir la cotización' : 'Decidir ' + n + ' cotizaciones',
-          'btn btn-ok pf-btn-corto', { tipo: 'ir', ruta: 'atender' }) +
+          'btn btn-ok pf-btn-corto', { tipo: 'ir', ruta: 'proyectos' }) +
     '</div></div>';
 }
 
@@ -776,9 +787,15 @@ function seInstalaEstaSemana(d) {
       .map(i => filaInst(i, d, false)).join(''));
   }
 
+  /* La ruta solo para quien tiene el Mapa: pagos no lo tiene (app.js, RUTAS), el router lo
+     rebotaba de vuelta al Tablero y el botón dejaba una entrada de historial de más, así que
+     el atrás siguiente tampoco hacía nada. Se le pregunta al router y no al rol, para que la
+     regla siga viviendo en un solo lugar. */
+  const hayMapa = _ctx && typeof _ctx.tieneRuta === 'function' ? _ctx.tieneRuta('mapa') : Prefs.rol() !== 'pagos';
   h.push('<p class="no-papel">' +
-    btn('Ver la ruta en el mapa' + (d.sinUbicar ? ' · ' + d.sinUbicar + ' sin ubicar' : ''),
-        'btn btn-gho pf-btn-corto', { tipo: 'ir', ruta: 'mapa' }) +
+    (!hayMapa ? '' :
+      btn('Ver la ruta en el mapa' + (d.sinUbicar ? ' · ' + d.sinUbicar + ' sin ubicar' : ''),
+          'btn btn-gho pf-btn-corto', { tipo: 'ir', ruta: 'mapa' })) +
     btn('Ver el calendario', 'btn btn-gho pf-btn-corto', { tipo: 'ir', ruta: 'agenda' }) +
     '</p>');
   return h.join('');
@@ -1049,6 +1066,22 @@ async function hacer(a) {
 async function avanzar(a) {
   const r = await Proy.avanzarEtapa(a.id, a.etapa);
   if (!r.ok) { avisarResultado(r); return; }
+  /* «Ya se instaló» es un solo hecho y se apunta entero: el proyecto a «Instalado» Y su
+     instalación a «hecha». Antes solo se movía el proyecto, la instalación se quedaba
+     «confirmada» y este mismo tablero seguía diciendo «Ya pasaron y nadie las marcó: 1»
+     sobre algo que alguien acababa de marcar. El otro «Ya se instaló», el del Calendario, hace
+     lo mismo desde el otro lado (ver `instalarProyecto` en js/datos/agenda.js). */
+  if (a.etapa === 'instalado') {
+    const inst = _d && _d.instDe.get(a.id);
+    if (inst && inst.estado !== 'hecha') {
+      const m = await Agenda.marcar(inst.id, 'hecha');
+      if (!m.ok) {
+        toast('Quedó en «Instalado», pero su instalación no se pudo marcar como hecha: ' + m.mensaje, 'err', 6000);
+        await recargar();
+        return;
+      }
+    }
+  }
   const movs = Number(r.valor && r.valor.movimientos) || 0;
   const nombre = ETAPA_NOMBRE[a.etapa] || a.etapa;
   if (movs > 0) {
@@ -1092,12 +1125,4 @@ async function alClicPide(ev) {
     cerrarPide();
     await avanzar(a);
   }
-}
-
-/* ----- Imprimir -----
-   La carga del taller en papel es lo que se pega en la pared del taller. El encabezado con
-   logotipo, filete y pie vive en index.html y se enciende solo en @media print. */
-export function imprimir() {
-  rotularPapel('Carga del taller · ' + fmtFecha(_d ? _d.hoy : hoyISO()));
-  window.print();
 }

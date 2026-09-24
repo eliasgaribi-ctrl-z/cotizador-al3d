@@ -27,11 +27,12 @@ const errs = []; p.on('pageerror', e => errs.push(e.message));
 
 /* Seis piezas en milímetros, con la tinta de (10,10) a (290,190): 280 × 180 mm. La «O» es un
    trazo compuesto con hueco, que el motor tiene que partir en contorno y agujero y seguir
-   contando como UNA pieza. */
+   contando como UNA pieza. El primer rectángulo trae un onmouseover, como el que puede traer
+   un SVG que llega de fuera: tiene que salir del acomodo y del archivo de corte sin él. */
 const SVG_MM = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="300mm" height="200mm" viewBox="0 0 300 200">
   <title>prueba</title>
-  <rect x="10" y="10" width="80" height="40"/>
+  <rect x="10" y="10" width="80" height="40" onmouseover="window.__pwn='hover'"/>
   <rect x="100" y="10" width="80" height="40"/>
   <rect x="190" y="10" width="80" height="40"/>
   <circle cx="30" cy="100" r="20"/>
@@ -57,6 +58,24 @@ async function esperar(cond, ms = 90000, paso = 250) {
   while (Date.now() - t0 < ms) { if (await cond()) return true; await p.waitForTimeout(paso); }
   return false;
 }
+/* Los números de los pasos visibles, como se PINTAN. Los pone un contador de CSS, así que el
+   DOM no los tiene y getComputedStyle solo devuelve «counter(an-paso)»; el árbol de
+   accesibilidad de Chrome sí trae el texto ya resuelto. Las fichas van con aria-hidden (el
+   número no se lee en voz alta), y se les quita solo mientras se mira. */
+const cdp = await ctx.newCDPSession(p);
+async function numerosDePaso() {
+  await p.evaluate(() => document.querySelectorAll('.an-num').forEach(s => s.removeAttribute('aria-hidden')));
+  const { root } = await cdp.send('DOM.getDocument', { depth: -1 });
+  const { nodeIds } = await cdp.send('DOM.querySelectorAll', { nodeId: root.nodeId, selector: '.an-paso:not([hidden]) .an-num' });
+  const back = [];
+  for (const nodeId of nodeIds) back.push((await cdp.send('DOM.describeNode', { nodeId })).node.backendNodeId);
+  const { nodes } = await cdp.send('Accessibility.getFullAXTree');
+  const porId = new Map(nodes.map(n => [n.nodeId, n]));
+  const texto = n => !n ? '' : (n.role && n.role.value === 'StaticText') ? n.name.value : (n.childIds || []).map(c => texto(porId.get(c))).join('');
+  const out = back.map(b => texto(nodes.find(n => n.backendDOMNodeId === b)));
+  await p.evaluate(() => document.querySelectorAll('.an-num').forEach(s => s.setAttribute('aria-hidden', 'true')));
+  return out.join(' ');
+}
 
 await p.goto(B + '/anidador-vectores/', { waitUntil: 'load' });
 await p.evaluate(() => { try { localStorage.clear(); } catch (_) {} });
@@ -71,6 +90,8 @@ console.log('\nRECIÉN ABIERTA');
   ? bien('sin archivo, «Acomodar las piezas» está apagado') : mal('el botón principal está encendido sin archivo');
 (await p.evaluate(() => document.getElementById('an-sec-medida').hidden))
   ? bien('y el paso de la medida no se enseña todavía') : mal('el paso 2 se ve sin archivo');
+(await numerosDePaso()) === '1 2'
+  ? bien('los pasos a la vista se numeran 1 y 2: sin el de la medida, «La hoja» es el 2 y no el 3') : mal('los pasos a la vista dicen «' + await numerosDePaso() + '» y son 1 y 2');
 
 // ── 2. Un SVG en milímetros ────────────────────────────────────────────────
 console.log('\nUN SVG QUE DICE SUS MEDIDAS');
@@ -85,6 +106,7 @@ anchoD === '280' && altoD === '180'
   ? bien('el paso 2 llegó lleno con la tinta: 280 × 180 mm') : mal('el paso 2 dice ' + anchoD + ' × ' + altoD + ' y la tinta es 280 × 180');
 (await p.evaluate(() => !document.getElementById('an-sec-medida').hidden && !document.getElementById('fld-ancho-d').classList.contains('falta')))
   ? bien('se enseña sin ámbar, porque no falta nada') : mal('el paso 2 está oculto o en ámbar con la medida ya puesta');
+(await numerosDePaso()) === '1 2 3' ? bien('y con él los pasos se vuelven 1, 2 y 3') : mal('con la medida a la vista, los pasos dicen «' + await numerosDePaso() + '»');
 (await p.evaluate(() => document.getElementById('an-st-diseno').textContent)) === '280 × 180 mm'
   ? bien('y la ficha del diseño dice 280 × 180 mm') : mal('la ficha del diseño dice «' + await p.evaluate(() => document.getElementById('an-st-diseno').textContent) + '»');
 
@@ -134,6 +156,14 @@ else {
   botonesHoja === e.mejor.laminas ? bien('con un botón por hoja para bajarla sola') : mal(botonesHoja + ' botones de hoja para ' + e.mejor.laminas + ' hojas');
   (await p.evaluate(() => document.getElementById('an-st-col').textContent)) === '6/6' ? bien('la ficha dice 6/6') : mal('la ficha de colocadas dice ' + await p.evaluate(() => document.getElementById('an-st-col').textContent));
 }
+if (llego) {
+  /* El atributo del rectángulo de SVG_MM: ni en la mesa, ni al pasarle el ratón encima. */
+  const conOn = await p.evaluate(() => document.querySelectorAll('#an-res [onmouseover]').length);
+  const caja = await p.evaluate(() => { const r = document.querySelector('#an-res g rect'); if (!r) return null; const b = r.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+  if (caja) { await p.mouse.move(caja.x, caja.y); await p.waitForTimeout(100); }
+  conOn === 0 && !(await p.evaluate(() => window.__pwn))
+    ? bien('el onmouseover del archivo no llegó a la mesa: pasarle el ratón no ejecuta nada') : mal('el acomodo trae ' + conOn + ' onmouseover y __pwn=' + await p.evaluate(() => window.__pwn));
+}
 await p.evaluate(() => window.Anidador.detener());
 await p.waitForTimeout(300);
 e = await estado();
@@ -141,6 +171,18 @@ e = await estado();
 (await p.evaluate(() => document.getElementById('an-ir').textContent.trim())) === 'Volver a acomodar desde cero'
   ? bien('el botón ofrece volver a acomodar desde cero') : mal('el botón dice «' + await p.evaluate(() => document.getElementById('an-ir').textContent.trim()) + '»');
 (await p.evaluate(() => !document.getElementById('an-seguir').hidden)) ? bien('y aparece «Seguir buscando»') : mal('no aparece «Seguir buscando»');
+/* stop() del motor solo apaga su reloj: el intento que ya iba en los workers termina y llama
+   igual. Detenido, nada de lo que llegue tarde puede mover el marcador ni el resultado. */
+await p.waitForTimeout(2500);
+const trasParar = await estado();
+trasParar.intentos === e.intentos && JSON.stringify(trasParar.mejor) === JSON.stringify(e.mejor)
+  ? bien('detenido, el intento que venía en camino no mueve el marcador ni el acomodo (' + e.intentos + ' intentos)')
+  : mal('después de detener llegó otro intento: ' + e.intentos + ' → ' + trasParar.intentos + ' intentos');
+/* «Seguir buscando» sigue el MISMO cálculo; con otra separación ya no hay nada que seguir. */
+await escribir('#an-sep', 5);
+(await p.evaluate(() => document.getElementById('an-seguir').hidden)) ? bien('con otra separación, «Seguir buscando» se esconde: el motor seguiría con la de antes') : mal('«Seguir buscando» sigue a la vista con la separación cambiada');
+await escribir('#an-sep', 2);
+(await p.evaluate(() => !document.getElementById('an-seguir').hidden)) ? bien('y vuelve al regresar a la separación con la que se acomodó') : mal('«Seguir buscando» no volvió con la separación original');
 
 // ── 5. El SVG que sale ─────────────────────────────────────────────────────
 console.log('\nEL SVG QUE SALE');
@@ -160,6 +202,7 @@ if (e.mejor) {
   const una = await p.evaluate(() => window.Anidador.armarSalida(0));
   una.includes('height="100mm"') && (una.match(/id="hoja-\d+"/g) || []).length === 1 ? bien('una hoja sola sale con su alto de 100 mm y una sola capa') : mal('la salida de una hoja no cuadra');
   !/an-p\d|--i:/.test(todo) ? bien('y las clases de color y el turno de caída de la mesa no salen en el archivo') : mal('el archivo de corte trae clases de la mesa');
+  !/onmouseover|\son[a-z]+=/i.test(todo) ? bien('ni el onmouseover que traía el archivo de entrada') : mal('el archivo de corte trae manejadores de eventos del SVG de entrada');
   /* El interruptor vive en el pliegue de lo avanzado, que nace cerrado: se abre como lo
      abriría una persona, tocando el resumen. */
   await p.click('#an-avanzado summary');
@@ -189,6 +232,80 @@ Math.abs(e.archivo.k - 2) < 1e-9 ? bien('800 mm de ancho sobre 400 unidades de t
 (await p.evaluate(() => !document.getElementById('an-ir').disabled && !document.getElementById('fld-ancho-d').classList.contains('falta')))
   ? bien('el botón se encendió y el ámbar se fue') : mal('con la medida puesta el botón sigue apagado o el ámbar sigue');
 
+// ── 6b. Lo que trae un SVG de fuera ────────────────────────────────────────
+/* Esta página comparte el origen —y el localStorage, con las API keys de la IA— con el
+   cotizador, y el SVG llega de un cliente. Cada uno de estos corría antes con solo cargarlo:
+   el <set onbegin>, el <image onerror> y el onload de la raíz. */
+console.log('\nUN SVG CON CÓDIGO: SE CARGA LIMPIO');
+const SVG_ACTIVO = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:html="http://www.w3.org/1999/xhtml"
+    width="100mm" height="50mm" viewBox="0 0 100 50" onload="window.__pwn=(window.__pwn||[]).concat('onload')">
+  <defs><symbol id="s"><rect width="10" height="10"/></symbol></defs>
+  <script>window.__pwn=(window.__pwn||[]).concat('script')</script>
+  <rect x="5" y="5" width="40" height="20"><set attributeName="x" to="6" begin="0s" onbegin="window.__pwn=(window.__pwn||[]).concat('set')"/></rect>
+  <image href="data:x" onerror="window.__pwn=(window.__pwn||[]).concat('image')"/>
+  <image xlink:href="https://ejemplo.invalid/rastreo.png" width="5" height="5"/>
+  <a href="javascript:window.__pwn='a'"><rect x="50" y="5" width="40" height="20"/></a>
+  <foreignObject width="10" height="10"><div xmlns="http://www.w3.org/1999/xhtml"><img src="x" onerror="window.__pwn=(window.__pwn||[]).concat('fo')"/></div></foreignObject>
+  <html:img src="x" onerror="window.__pwn=(window.__pwn||[]).concat('html')"/>
+  <use href="#s" x="60" y="30"/>
+</svg>`;
+await p.evaluate(() => { window.__pwn = []; });
+(await cargar(SVG_ACTIVO, 'cliente.svg')) ? bien('el SVG se cargó') : mal('cargarTexto rechazó el SVG');
+await p.waitForTimeout(600);
+const pwn = await p.evaluate(() => window.__pwn);
+pwn.length === 0 ? bien('no corrió nada: ni <script>, ni onload, ni <set onbegin>, ni <image onerror>, ni HTML metido') : mal('corrió: ' + JSON.stringify(pwn));
+const vista = await p.evaluate(() => {
+  const s = document.querySelector('#an-orig svg');
+  const todos = [s, ...s.querySelectorAll('*')];
+  return {
+    on: todos.filter(n => [...n.attributes].some(a => /^on/i.test(a.localName))).length,
+    activos: s.querySelectorAll('script,set,foreignObject').length + [...s.querySelectorAll('*')].filter(n => n.namespaceURI === 'http://www.w3.org/1999/xhtml').length,
+    hrefs: [...s.querySelectorAll('*')].map(n => n.getAttribute('href') || n.getAttributeNS('http://www.w3.org/1999/xlink', 'href')).filter(Boolean),
+  };
+});
+vista.on === 0 && vista.activos === 0 ? bien('la vista previa no trae ni un on* ni un elemento activo') : mal('la vista previa trae ' + vista.on + ' on* y ' + vista.activos + ' elementos activos');
+JSON.stringify(vista.hrefs) === JSON.stringify(['#s'])
+  ? bien('de los enlaces solo queda el de dentro del archivo (#s): ni javascript:, ni data: roto, ni la dirección de fuera')
+  : mal('enlaces que quedaron: ' + JSON.stringify(vista.hrefs));
+e = await estado();
+e.archivo.piezas === 2 ? bien('y las piezas siguen siendo las dos que son') : mal('contó ' + e.archivo.piezas + ' piezas y son 2');
+e.archivo.avisos.some(a => /imágenes incrustadas/.test(a)) && e.archivo.avisos.some(a => /<use>/.test(a))
+  ? bien('los avisos se cuentan sobre el archivo como llegó: sus dos imágenes y su <use>') : mal('avisos: ' + JSON.stringify(e.archivo.avisos));
+
+// ── 6c. Sin viewBox, y la tinta que sí se corta ─────────────────────────────
+console.log('\nSIN VIEWBOX, LAS UNIDADES SON PX DEL ESTÁNDAR');
+/* 200 × 100 mm en cualquier navegador: sin viewBox, 755.9 unidades son 755.9 px CSS. */
+await cargar('<svg xmlns="http://www.w3.org/2000/svg" width="200mm" height="100mm"><rect x="0" y="0" width="755.9" height="377.95"/></svg>', 'sin-viewbox.svg');
+e = await estado();
+Math.abs(e.archivo.k - 25.4 / 96) < 1e-9 ? bien('k = 25.4/96 mm por unidad') : mal('k salió ' + e.archivo.k + ' y es 25.4/96');
+(await p.evaluate(() => document.getElementById('an-st-diseno').textContent)) === '200 × 100 mm'
+  ? bien('la ficha dice 200 × 100 mm, lo que mide en el navegador') : mal('la ficha dice «' + await p.evaluate(() => document.getElementById('an-st-diseno').textContent) + '»');
+/^0 0 755\.9/.test(await p.evaluate(() => document.querySelector('#an-orig svg').getAttribute('viewBox')))
+  ? bien('y la vista previa encuadra el dibujo entero, en px') : mal('viewBox de la vista: ' + await p.evaluate(() => document.querySelector('#an-orig svg').getAttribute('viewBox')));
+
+console.log('\nLA MEDIDA DEL DISEÑO ES LA DE LO QUE SE CORTA');
+/* Una letra de 100 unidades junto a una imagen de referencia de 1000: «el diseño mide 400 mm»
+   es la letra, no la foto de fondo. */
+await cargar(`<svg xmlns="http://www.w3.org/2000/svg" width="1000px" height="600px" viewBox="0 0 1000 600">
+  <image x="0" y="0" width="1000" height="600" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="/>
+  <text x="10" y="590" font-size="80">REFERENCIA</text>
+  <rect x="100" y="100" width="100" height="50"/></svg>`, 'con-imagen.svg');
+e = await estado();
+e.archivo.bbox && e.archivo.bbox.w === 100 && e.archivo.bbox.h === 50 ? bien('la tinta mide 100 × 50: la imagen y el texto no entran') : mal('tinta: ' + JSON.stringify(e.archivo.bbox));
+await escribir('#an-ancho-d', 400);
+e = await estado();
+Math.abs(e.archivo.k - 4) < 1e-9 ? bien('«400 mm de ancho» → 4 mm por unidad: la letra mide 400') : mal('k salió ' + e.archivo.k + ' y es 4');
+
+console.log('\nVACIAR LA MEDIDA VUELVE A LA DEL ARCHIVO');
+await cargar('<svg xmlns="http://www.w3.org/2000/svg" width="300mm" height="200mm" viewBox="0 0 300 200"><rect x="10" y="10" width="280" height="180"/></svg>', 'mm.svg');
+await p.click('#an-ancho-d'); await p.keyboard.press('End'); await p.keyboard.press('Backspace');
+e = await estado();
+e.archivo.origen === 'mano' && Math.abs(e.archivo.k - 0.1) < 1e-9 ? bien('borrar un dígito (280 → 28) es una medida a mano') : mal('tras borrar un dígito: ' + JSON.stringify({ k: e.archivo.k, origen: e.archivo.origen }));
+await p.fill('#an-ancho-d', '');
+e = await estado();
+e.archivo.origen === 'archivo' && Math.abs(e.archivo.k - 1) < 1e-9 && (await p.inputValue('#an-ancho-d')) === '280'
+  ? bien('y vaciar el campo devuelve la escala del archivo: 1 mm por unidad, 280 en el campo') : mal('tras vaciar: ' + JSON.stringify({ k: e.archivo.k, origen: e.archivo.origen, campo: await p.inputValue('#an-ancho-d') }));
+
 // ── 7. Lo que se avisa antes de empezar ────────────────────────────────────
 console.log('\nLO QUE SE QUEDA FUERA SE DICE ANTES');
 await cargar(SVG_TEXTO, 'texto.svg');
@@ -207,6 +324,41 @@ const msg = await p.evaluate(() => ({ t: document.getElementById('an-msg').textC
 !e.corriendo && /Ninguna/.test(msg.t) && /mal/.test(msg.c)
   ? bien('una pieza de 150 × 150 en una hoja de 100 × 100 no arranca: «' + msg.t.slice(0, 60) + '…»')
   : mal('con una pieza que no cabe: corriendo=' + e.corriendo + ' msg=«' + msg.t + '»');
+
+/* El motor engorda cada pieza media separación por lado y adelgaza la hoja otro tanto: en una
+   hoja de 400 con 3 mm cabe hasta 394, no hasta 397. Una de 396 sin giros no cabe, y se dice. */
+await cargar('<svg xmlns="http://www.w3.org/2000/svg" width="400mm" height="200mm" viewBox="0 0 400 200"><rect x="0" y="0" width="396" height="100"/></svg>', 'larga.svg');
+await escribir('#an-ancho', 400); await escribir('#an-alto', 400); await escribir('#an-sep', 3);
+await p.selectOption('#an-rot', '1');
+await p.evaluate(() => window.Anidador.iniciar());
+await p.waitForTimeout(300);
+e = await estado();
+const msgSep = await p.evaluate(() => document.getElementById('an-msg').textContent);
+!e.corriendo && /Ninguna/.test(msgSep)
+  ? bien('396 mm en una hoja de 400 con 3 mm de separación y sin giros no cabe: la separación se descuenta de los dos lados')
+  : mal('la pieza de 396 arrancó o no avisó: corriendo=' + e.corriendo + ' msg=«' + msgSep + '»');
+if (e.corriendo) await p.evaluate(() => window.Anidador.detener());
+await p.selectOption('#an-rot', '4');
+
+// ── 7b. Volver a acomodar con otra separación ──────────────────────────────
+/* El caso que dejaba la corrida nueva colgada: se detiene la primera durante su primer intento
+   —con la caché fría, ese intento lo calcula todo y sale bueno— y se vuelve a acomodar con una
+   separación que pide más hojas. Sin el número de corrida del motor (svgnest.js), ese intento
+   viejo llegaba después, se quedaba como el «mejor» del motor, y la corrida nueva no podía
+   superarlo: «Calculando el primer acomodo…» para siempre. */
+console.log('\nVOLVER A ACOMODAR CON OTRA SEPARACIÓN');
+await cargar(SVG_MM, 'prueba.svg');
+await escribir('#an-ancho', 100); await escribir('#an-alto', 100); await escribir('#an-sep', 2);
+await p.evaluate(() => new Promise(res => {
+  window.Anidador.iniciar();
+  const t = setInterval(() => { if (window.SvgNest.working) { clearInterval(t); window.Anidador.detener(); res(); } }, 5);
+}));
+await escribir('#an-sep', 8);
+await p.evaluate(() => window.Anidador.iniciar());
+const llego2 = await esperar(async () => !!(await estado()).mejor, 45000);
+e = await estado();
+llego2 ? bien('la corrida nueva enseña su propio acomodo (' + e.mejor.laminas + ' hojas, ' + e.intentos + ' intento(s))') : mal('la corrida nueva no enseñó nada en 45 s: ' + e.intentos + ' intentos sin resultado');
+await p.evaluate(() => window.Anidador.detener());
 
 // ── 8. Lo que deja el cotizador ────────────────────────────────────────────
 console.log('\nEL TRAZO QUE DEJA EL COTIZADOR');

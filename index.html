@@ -211,6 +211,12 @@
        y lo pinta js/nucleo/cuenta.js cuando la puerta ya dejó pasar. -->
   <button type="button" class="pf-sesion" id="pf-sesion" hidden aria-haspopup="true" aria-expanded="false" aria-controls="pf-sesion-menu"></button>
   <div class="pf-sesion-menu" id="pf-sesion-menu" role="menu" hidden></div>
+  <!-- Ajustes, en el TELÉFONO. En la computadora vive al pie de la barra lateral, y la barra
+       lateral en el teléfono no existe: ahí no había ninguna puerta a la vista —solo una
+       escondida en «Qué atender» y otra en Control cuando falta el puente—, y en Ajustes viven
+       el respaldo, tu nombre y «Salir de Google», que la política de privacidad manda a
+       buscar justo ahí. El CSS lo enseña solo por debajo de 760 px. -->
+  <button type="button" class="pf-cab-tema pf-cab-ajustes" id="pf-cab-ajustes" title="Ajustes de la plataforma" aria-label="Ajustes"><svg class="svgi" aria-hidden="true"><use href="#i-ajustes"/></svg></button>
 </header>
 
 <!-- La barra de progreso de las transiciones. Tres píxeles pegados arriba que corren mientras

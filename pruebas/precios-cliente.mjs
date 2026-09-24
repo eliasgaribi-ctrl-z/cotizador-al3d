@@ -269,6 +269,50 @@ console.log('\nEL AJUSTE, DICHO CON SU BASE');
   cierto(cerca(ev('subConAjustesPorPartida()'), 5060), 'subConAjustesPorPartida suma $4,500 + $560 aunque la cotización siga pendiente');
 }
 
+/* ---- 9. La comisión que enseña el modal es la que paga la hoja ----
+   La fórmula R de la hoja de finanzas es 10 % fijo del subtotal y no lee la columna AD. El
+   modal de Registrar Venta la enseñaba con el % tecleado: con un 15, el vendedor veía $2,610 de
+   una venta de $17,400 y el libro mayor le pagaba $1,740. Se prueba contra la fórmula misma,
+   leída del .gs: si un día la comisión se pacta por venta y alguien cambia un lado y no el
+   otro, esto truena. */
+console.log('\nLA COMISIÓN DEL MODAL ES LA DE LA HOJA');
+{
+  vm.runInContext(readFileSync(join(RAIZ, 'js/cotizador/venta.js'), 'utf8'), ctx, { filename: 'js/cotizador/venta.js' });
+  const gs = readFileSync(join(RAIZ, 'puente/hoja-apps-script.gs'), 'utf8');
+  const r = /R:\s*'=ARRAYFORMULA\(IF\(' \+ L\('B'\) \+ '="","",ROUND\(' \+ L\('G'\) \+ '\*(\d+(?:\.\d+)?)%,2\)\)\)'/.exec(gs);
+  const pctCot = ev("typeof COMISION_PCT==='undefined'?null:COMISION_PCT");
+  cierto(r && Number(r[1]) === pctCot, `la fórmula R es ${r ? r[1] : '¿?'} % fijo del subtotal y el cotizador dice ${pctCot} %`);
+
+  /* Un DOM de mentiras con solo los campos del modal. `pintarPlazo` y `dispositivo` viven en
+     otros guiones; aquí no importan. */
+  const campos = {};
+  const campo = () => ({ value: '', textContent: '', readOnly: false, title: '', style: {}, options: [],
+    classList: { add: noop, remove: noop, toggle: noop }, querySelector: () => ({ textContent: '' }) });
+  for (const id of ['rv-proyecto', 'rv-fecha', 'rv-fecha-inst', 'rv-iva', 'rv-anticipo', 'rv-pct', 'rv-cuenta',
+    'rv-estatus', 'rv-copied', 'rv-modal-bg', 'rv-sub-disp', 'rv-neto-disp', 'rv-com-disp', 'rv-pend-disp']) campos[id] = campo();
+  const antes = document.getElementById;
+  document.getElementById = id => campos[id] || null;
+  ctx.pintarPlazo = noop; ctx.dispositivo = () => 'PRUE';
+  /* Un teléfono que alguna vez registró un 15 lo tiene recordado. */
+  const guardado = ctx.localStorage.getItem;
+  ctx.localStorage.getItem = k => (k === 'al3d_rv_pct' ? '15' : null);
+
+  autorizada({ items: [manual(1, 1, 17400)] });
+  Q.cliente = 'Farmacia San Juan'; Q.proy = 'Letrero'; Q.anti = 0; Q.folio = 'COT-0042';
+  ev('abrirRegistrarVenta()');
+  cierto(campos['rv-pct'].value == 10 && campos['rv-pct'].readOnly, `el campo del % abre en 10 y de solo lectura, aunque el teléfono recuerde un 15 (dice ${campos['rv-pct'].value}, readOnly ${campos['rv-pct'].readOnly})`);
+  cierto(campos['rv-com-disp'].textContent === '$1,740.00', `de $17,400 de subtotal la comisión es $1,740.00, la de la hoja (dice ${campos['rv-com-disp'].textContent})`);
+  /* Y aunque algo le meta otro número al campo —un teléfono viejo, la consola—, lo que se enseña
+     y lo que viaja siguen siendo el 10 que se paga. */
+  campos['rv-pct'].value = '15';
+  ev('rvRecalc()');
+  cierto(campos['rv-com-disp'].textContent === '$1,740.00', `con un 15 en el campo sigue enseñando $1,740.00 y no $2,610.00 (dice ${campos['rv-com-disp'].textContent})`);
+  cierto(ev('datosParaLaHoja()')['Porcentaje comision'] === 10, 'y a la columna AD viaja el 10 que se paga, no el tecleado');
+
+  document.getElementById = antes;
+  ctx.localStorage.getItem = guardado;
+}
+
 console.log('');
 if (fallas) { console.log(`${fallas} falla(s).`); process.exit(1); }
 console.log('El aumento se reparte bien: proporcional, al centavo y sin renglón de ajuste; y el ajuste dice su base.');

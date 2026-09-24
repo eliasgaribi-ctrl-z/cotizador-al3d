@@ -12,6 +12,10 @@
  * `prefers-reduced-motion` perdía contra la de `:hover` y las chispas saltaban igual con la
  * preferencia puesta. Se ve con getComputedStyle y no se ve mirando.
  *
+ * Al final, dos piezas del cromado de la plataforma que tienen el mismo tipo de fallo: la hoja
+ * promete que son iguales —los dos botones del encabezado del teléfono, las cifras de una fila
+ * de Control— y salen iguales en el caso que uno mira y distintas en el de al lado.
+ *
  * Necesita navegador y servidor, así que va en pruebas/navegador/:
  *
  *   pruebas/correr.sh --navegador
@@ -108,6 +112,122 @@ const quieto = await pr.evaluate(() => {
 cierto(quieto.anim === 'none', 'con el cursor encima siguen sin animar (' + quieto.anim + ')');
 cierto(quieto.op === '0', 'y siguen invisibles (opacidad ' + quieto.op + ')');
 await ctxR.close();
+
+/* ---------- La plataforma ----------
+   Dos piezas del cromado de index.html que la hoja promete iguales y que el navegador pintaba
+   distintas sin que nada avisara: salen bien en el caso que uno mira —el teléfono con dedo, la
+   computadora— y mal en el de al lado. Se miden con getBoundingClientRect y getComputedStyle en
+   todos los casos, no en uno. */
+console.log('\nEL ENCABEZADO DEL TELÉFONO: TEMA Y AJUSTES, GEMELOS');
+/* Los dos comparten `.pf-cab-tema`, pero el de tema es además `.btn-tema`, y sistema.css le da a
+   esa clase 44 px de alto mínimo. Con el dedo no se notaba —los dos suben a 44×44—; con ratón,
+   en una ventana angosta o media pantalla de una laptop, salían de 36×44 y de 36×36. El tema lo
+   pone js/tema.js siguiendo al sistema, que es lo que emulateMedia le cambia. */
+for (const dedo of [false, true]) {
+  const c = await nav.newContext({ viewport: { width: 390, height: 800 }, hasTouch: dedo, locale: 'es-MX' });
+  const pg = await c.newPage();
+  await pg.goto(B + '/index.html', { waitUntil: 'load' });
+  await pg.waitForTimeout(900);
+  for (const ancho of [390, 700]) {
+    await pg.setViewportSize({ width: ancho, height: 800 });
+    for (const tema of ['claro', 'oscuro']) {
+      await pg.emulateMedia({ colorScheme: tema === 'oscuro' ? 'dark' : 'light' });
+      await pg.waitForTimeout(120);
+      const m = await pg.evaluate(() => {
+        const f = s => { const e = document.querySelector(s), r = e.getBoundingClientRect(), cs = getComputedStyle(e);
+          return { w: r.width, h: r.height, top: r.top, fondo: cs.backgroundColor, radio: cs.borderRadius,
+                   borde: cs.borderTopWidth + ' ' + cs.borderTopStyle }; };
+        return { puesto: document.documentElement.getAttribute('data-tema'),
+                 tema: f('.pf-cab [data-tema-btn]'), aj: f('#pf-cab-ajustes') };
+      });
+      const t = m.tema, a = m.aj;
+      const que = ancho + ' px, ' + (dedo ? 'con el dedo' : 'con ratón') + ', en ' + tema;
+      cierto(m.puesto === tema, que + ': la página está de verdad en ' + tema + ' (data-tema=' + m.puesto + ')');
+      cierto(t.w === a.w && t.h === a.h && t.top === a.top && t.w === t.h,
+        que + ': dos cuadrados del mismo tamaño y a la misma altura (' + t.w + '×' + t.h + ' y ' + a.w + '×' + a.h + ')');
+      cierto(t.fondo === a.fondo && t.radio === a.radio && t.borde === a.borde,
+        que + ': con el mismo fondo, radio y borde (' + t.fondo + ', ' + t.radio + ')');
+    }
+  }
+  await c.close();
+}
+
+console.log('\nLAS CIFRAS DE UNA FILA DE CONTROL, A UN SOLO TAMAÑO');
+/* filaCuentas() de js/mod/control.js le pone a todas las cifras de la fila el `--c` de la más
+   larga, y la hoja saca el tamaño de 100cqi, el ancho de CADA tarjeta. Con la del dinero estirada
+   al renglón entero en ≤360 px, su cifra salía a 24 px y las otras cinco a 15, con el mismo
+   número de caracteres. Se siembra una venta por la capa de datos para que haya un importe largo
+   junto a «$0.00» y «—», y se mide en los anchos donde cambia el reparto. */
+const cc = await nav.newContext({ viewport: { width: 390, height: 900 }, locale: 'es-MX',
+                                  timezoneId: 'America/Mexico_City' });
+const pc = await cc.newPage();
+await pc.goto(B + '/index.html#/control', { waitUntil: 'load' });
+await pc.waitForTimeout(1100);
+const sembro = await pc.evaluate(async () => {
+  const Proy = await import('./js/datos/proyectos.js');
+  const Agenda = await import('./js/datos/agenda.js');
+  const { masDias, hoyISO } = await import('./js/nucleo/fechas.js');
+  const r = await Proy.ganar({ folio: 'COT-9301', cliente: 'Healthylicious', proy: 'Healthylicious — anuncio',
+    ts: Date.now(), estado: 'autorizada', neto: 212900, itemsAuth: { 1: 212900 },
+    items: [{ id: 1, tipo: 'letras', material: 'acero', comp: 'recta', luz: true, ilumTipo: 'fria', altura: 40, n: 8 }] }, {});
+  if (!r.ok) return r.mensaje;
+  /* Con fecha, para que el Tablero la cuente en el taller y pinte su importe (caso de abajo). */
+  const a = await Agenda.agendar(r.valor.id, { fecha: masDias(hoyISO(), 4) });
+  return a.ok ? '' : a.mensaje;
+});
+cierto(sembro === '', 'se siembra una venta de $212,900.00, con fecha' + (sembro ? ': ' + sembro : ''));
+await pc.reload({ waitUntil: 'load' });
+await pc.waitForTimeout(1300);
+const cifras = sel => pc.evaluate(sel => {
+  const f = document.querySelector(sel);
+  return f ? [...f.querySelectorAll('.pf-cuenta')].map(c => {
+    const b = c.querySelector('b'), cs = getComputedStyle(c), r = document.createRange();
+    r.selectNodeContents(b);
+    return { t: b.textContent, px: parseFloat(getComputedStyle(b).fontSize), ancho: r.getBoundingClientRect().width,
+             caja: c.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+             dinero: c.classList.contains('dinero') };
+  }) : [];
+}, sel);
+const lista = cs => cs.map(x => x.t + ' ' + x.px.toFixed(1)).join(' · ');
+for (const tab of ['ventas', 'cobrar']) {
+  if (tab === 'cobrar') { await pc.click('#mod-control [data-tab="cobrar"]'); await pc.waitForTimeout(500); }
+  for (const ancho of [320, 360, 390, 768]) {
+    await pc.setViewportSize({ width: ancho, height: 900 });
+    await pc.waitForTimeout(200);
+    const cs = await cifras('#mod-control .pf-cuentas');
+    const px = cs.map(x => x.px);
+    const que = (tab === 'ventas' ? 'Ventas' : 'Por cobrar') + ' a ' + ancho + ' px';
+    cierto(cs.length >= 3 && cs.some(x => x.dinero) && cs.some(x => x.t.length >= 11),
+      que + ': la fila trae ' + cs.length + ' cuentas, con el importe largo en la del dinero');
+    /* La tolerancia es la del reparto de la rejilla: Chromium mide las pistas en 1/64 de px, y
+       una pista 1/64 más ancha le da 0,002 px más de letra a su cifra. */
+    cierto(Math.max(...px) - Math.min(...px) < 0.05, que + ': todas las cifras al mismo tamaño (' + lista(cs) + ')');
+    const salen = cs.filter(x => x.ancho > x.caja + 0.5);
+    cierto(!salen.length, que + ': y ninguna se sale de su tarjeta' +
+      (salen.length ? ' (' + salen.map(x => x.t + ' pide ' + x.ancho.toFixed(0) + ' en ' + x.caja.toFixed(0)).join(', ') + ')' : ''));
+  }
+}
+
+/* Y la otra cara: en la fila del Tablero el importe va entre conteos que no se achican, y ahí
+   el renglón entero es justo lo que lo deja a su altura. Quitar el estirón para todos habría
+   arreglado Control rompiendo esta. Se mide hasta 400 px, donde los conteos bajan a 24: con el
+   estirón solo hasta 360, a 361, 375, 390 y 400 el importe quedaba en media fila a 18,5-20,5 px
+   junto a conteos de 24 —los iPhone más comunes—. Más ancho los conteos suben a 28 y el importe
+   no los alcanza; igualar eso ya es otra decisión (ver `.pf-cuenta.dinero` en plataforma.css). */
+await pc.goto(B + '/index.html#/hoy', { waitUntil: 'load' });
+await pc.waitForTimeout(1300);
+for (const ancho of [320, 360, 361, 375, 390, 400]) {
+  await pc.setViewportSize({ width: ancho, height: 900 });
+  await pc.waitForTimeout(200);
+  const tb = await cifras('#mod-tablero .pf-cuentas:not(.tb-linea)');
+  const tbPx = tb.map(x => x.px);
+  cierto(tb.some(x => x.dinero && x.t.length >= 11) && Math.max(...tbPx) - Math.min(...tbPx) < 0.05,
+    'en el Tablero a ' + ancho + ' px el importe va a la altura de los conteos (' + lista(tb) + ')');
+  const salen = tb.filter(x => x.ancho > x.caja + 0.5);
+  cierto(!salen.length, 'en el Tablero a ' + ancho + ' px ninguna cifra se sale de su tarjeta' +
+    (salen.length ? ' (' + salen.map(x => x.t + ' pide ' + x.ancho.toFixed(0) + ' en ' + x.caja.toFixed(0)).join(', ') + ')' : ''));
+}
+await cc.close();
 
 console.log(fallos ? '\n' + fallos + ' fallo(s) en la capa de vidrio.'
                    : '\nLa capa de vidrio llega entera, y se apaga cuando se le pide.');

@@ -258,11 +258,16 @@ export async function agendar(proyectoId, datos = {}) {
   const previas = await listar({ proyecto_id: id });
   const viva = previas.find(i => VIVAS.has(i.estado));
   if (viva) {
+    /* La duración viaja también. Sin ella, `reagendar` se quedaba con la vieja y los 420
+       minutos que alguien acababa de escribir en la hoja de agendar se perdían sin aviso.
+       `undefined` —no vino, o no era un número— sigue queriendo decir «la que ya tiene». */
+    const dur = Number(d.duracion_min) > 0 ? duracionValida(d.duracion_min, p) : undefined;
     const igual = viva.fecha === d.fecha && (viva.hora || null) === hora &&
-                  viva.ventana === ventanaDe(d.ventana);
+                  viva.ventana === ventanaDe(d.ventana) &&
+                  (dur === undefined || dur === Number(viva.duracion_min));
     if (igual) return ok(viva);      // idempotente: el mismo toque dos veces no mueve nada
     return await reagendar(viva.id, {
-      fecha: d.fecha, hora: hora, ventana: d.ventana,
+      fecha: d.fecha, hora: hora, ventana: d.ventana, duracion_min: dur,
       motivo: String(d.notas || '').trim() || 'Se volvió a agendar desde el proyecto.',
     });
   }
@@ -421,7 +426,28 @@ export async function marcar(instId, estado, motivo = '') {
     titulo: 'La instalación de ' + nombreProy(await DB.obtener('proyectos', i.proyecto_id)) +
       ' del ' + i.fecha + ' quedó ' + (ESTADO_NOMBRE[e] || e).toLowerCase(),
     detalle: nota, antes: i.estado, despues: e });
+  if (e === 'hecha') await instalarProyecto(i.proyecto_id);
   return ok(r.valor);
+}
+
+/* `hecha` lleva al proyecto a `instalado`, que es lo que el comentario de `marcar` promete y
+   no pasaba: el «Ya se instaló» del Calendario y el de «Qué atender» marcaban la instalación
+   y dejaban el proyecto en «Listo», así que nunca llegaba a la regla A11, ni a «Ya instalado y
+   sin liquidar» de Control, ni al pin «I» del mapa. Solo hacia adelante —lo que ya está
+   instalado, en garantía o cancelado no se toca— y con el permiso de siempre: `avanzarEtapa`
+   vuelve a preguntar el rol, y con el de fabricación, que llega a «Listo» y no más, el
+   proyecto se queda donde está. Después de escribir y sin poder tumbar la marca: la
+   instalación ya quedó hecha. */
+async function instalarProyecto(proyectoId) {
+  const P = await mod('proyectos');
+  if (!P || typeof P.avanzarEtapa !== 'function' || !proyectoId) return;
+  try {
+    const p = await DB.obtener('proyectos', proyectoId);
+    const orden = p && P.ORDEN ? P.ORDEN[p.etapa] : undefined;
+    if (orden === undefined || orden >= P.ORDEN.instalado) return;
+    if (typeof P.puedeMover === 'function' && !P.puedeMover(Prefs.rol(), 'instalado')) return;
+    await P.avanzarEtapa(proyectoId, 'instalado');
+  } catch (_) {}
 }
 
 /** Cancelar es marcar, y existe por su nombre porque es lo que dice el botón. */

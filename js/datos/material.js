@@ -574,16 +574,33 @@ export function derivar(items, cts, cat, mats) {
     if (rq && !a.requiere.includes(rq)) a.requiere.push(rq);
   };
 
-  /** ¿Cabe la pieza en la hoja? Se compara la DIMENSIÓN MAYOR contra el largo del material,
-   *  no el área: dos piezas de 0.4 m² caben en una lámina de 2.97 m² y una de 2.95 m de
-   *  largo no cabe en una hoja de 2.44 m, por más que el área alcance de sobra. */
-  const revisarCorte = (materialId, mayorCm, it) => {
+  /** ¿Cabe la pieza en la hoja? Se comparan las DOS medidas contra las dos de la hoja, no el
+   *  área: dos piezas de 0.4 m² caben en una lámina de 2.97 m² y una de 2.95 m de largo no
+   *  cabe en una hoja de 2.44 m, por más que el área alcance de sobra.
+   *  Y las dos, no solo la mayor contra el largo: hasta septiembre de 2026 una caja de luz de
+   *  130 × 130 pasaba como «exacta» y sin junta —130 es menos que 2.44 m— cuando la hoja
+   *  tiene 1.22 de ancho y la cara no cabe ni girándola; igual un bastidor de 200 × 130 en un
+   *  alucobond de 1.25 × 2.50. Se permite girar la pieza: la mayor contra el largo y la
+   *  menor contra el ancho. Un rollo (sin largo) solo limita el ancho. */
+  const revisarCorte = (materialId, aCm, bCm, it) => {
     const m = M[materialId];
-    if (!m || !m.largo_cm || !(mayorCm > 0)) return;
-    if (mayorCm <= nn(m.largo_cm, 0)) return;
-    avisos.push('Partida ' + etiqueta(it) + ': la pieza mide ' + num(mayorCm / 100, 2) +
-      ' m y ' + (m.nombre || materialId) + ' mide ' + num(nn(m.largo_cm, 0) / 100, 2) +
-      ' m: hay junta, o hay que pedir hoja más larga (el mercado tiene de 3.05 m).');
+    const mayor = Math.max(nn(aCm, 0), nn(bCm, 0)), menor = Math.min(nn(aCm, 0), nn(bCm, 0));
+    if (!m || !(mayor > 0)) return;
+    const largo = nn(m.largo_cm, 0) > 0 ? nn(m.largo_cm, 0) : Infinity;
+    const ancho = nn(m.ancho_cm, 0) > 0 ? nn(m.ancho_cm, 0) : Infinity;
+    const hLargo = Math.max(largo, ancho), hAncho = Math.min(largo, ancho);
+    if (hLargo === Infinity && hAncho === Infinity) return;
+    if (mayor <= hLargo && menor <= hAncho) return;
+    const rollo = hLargo === Infinity;
+    const medida = rollo ? num(hAncho / 100, 2) + ' m de ancho'
+      : num(hAncho / 100, 2) + ' × ' + num(hLargo / 100, 2) + ' m';
+    /* La hoja de 3.05 m solo arregla lo LARGO: si lo que no cabe es el ancho, ofrecerla sería
+       mandar a comprar otra lámina que tampoco alcanza. */
+    avisos.push('Partida ' + etiqueta(it) + ': la pieza mide ' + num(menor / 100, 2) + ' × ' +
+      num(mayor / 100, 2) + ' m y ' + (m.nombre || materialId) + ' mide ' + medida +
+      (menor <= hAncho
+        ? ': hay junta, o hay que pedir hoja más larga (el mercado tiene de 3.05 m).'
+        : ': no cabe ni girándola, así que hay junta' + (rollo ? ', o hay que pedir rollo más ancho.' : '.')));
   };
 
   for (const it of lista) {
@@ -746,7 +763,7 @@ function derLetras(it, C, pedir, revisarCorte, avisos) {
     (medido ? 'medido' : prop(nn(C.K_ANCHO_CAJA, 0.75)) + ' de la altura') + ') × ' + num(n, 0) +
     ' = ' + num(caja_m2) + ' m² ÷ ' + prop(aprov) + ' aprov = ' + num(cara_m2) + ' m²';
   pedir(caraId, cara_m2, exprCara, it, confPlaus, reqPlaus);
-  revisarCorte(caraId, Math.max(altura, W), it);
+  revisarCorte(caraId, altura, W, it);
   if (faltaBase) return;
 
   /* El vinil de «Acrílico + Vinil» va sobre la cara ya cortada: misma superficie. */
@@ -839,14 +856,14 @@ function derRecorte(it, C, pedir, revisarCorte, avisos) {
     /* Rotulación de vinil: no hay acrílico. Cobrarlo como recorte y pedir acrílico sería
        comprar una lámina para pegar una calca. */
     pedir('vinil-corte', base_m2, exprBase, it, conf, requiere);
-    revisarCorte('vinil-corte', altura, it);
+    revisarCorte('vinil-corte', altura, altura, it);
   } else {
     const capas = acab === 'sandwich' ? 2 : 1;
     const acrId = altura > 40 ? 'acr-6mm' : 'acr-3mm';
     const acr_m2 = base_m2 * capas;
     pedir(acrId, acr_m2, exprBase + (capas === 2 ? ' × 2 caras del sándwich = ' + num(acr_m2) + ' m²' : ''),
       it, conf, requiere);
-    revisarCorte(acrId, altura, it);
+    revisarCorte(acrId, altura, altura, it);
   }
 
   if (acab === 'sandwich' && !faltaBase) {
@@ -889,7 +906,7 @@ function derBastidor(it, C, pedir, revisarCorte, avisos) {
   }
   pedir(panelId, panel, num(ancho, 0) + ' × ' + num(alto, 0) + ' cm = ' + num(m2) +
     ' m² ÷ ' + prop(aprov) + ' aprov = ' + num(panel) + ' m²', it, conf, requiere);
-  revisarCorte(panelId, Math.max(ancho, alto), it);
+  revisarCorte(panelId, ancho, alto, it);
   if (faltaBase) return;
 
   const perim = 2 * (ancho + alto);
@@ -927,7 +944,10 @@ function derCaja(it, C, K, pedir, revisarCorte, avisos) {
   if (!cajaCat) {
     avisos.push('Partida ' + etiqueta(it) + ': la tarifa de la caja no está en el catálogo, así que se calculó con la geometría estándar.');
   }
-  const silueta = tarifa >= 4600;
+  /* La forma la dice la entrada del CATÁLOGO, no un corte de precio. Con `tarifa >= 4600` una
+     tarifa a mano de 5,200 se calculaba con el desperdicio de silueta mientras el aviso de
+     arriba juraba «geometría estándar»: dos respuestas en la misma partida. */
+  const silueta = !!cajaCat && cajaCat.key === 'nube';
   const aprov = silueta ? nn(C.APROV_NESTING_irregular, 0.72) : nn(C.APROV_NESTING_simple, 0.8);
 
   const m2 = ancho * alto / 10000;
@@ -938,7 +958,7 @@ function derCaja(it, C, K, pedir, revisarCorte, avisos) {
   /* Cara de 6 mm y no de 3 mm: una cara de caja de luz se pandea con el calor y con su
      propio peso, y la que se ve pandeada es la de una caja, no la de una letra. */
   pedir('acr-6mm', cara, exprCara, it, conf, requiere);
-  revisarCorte('acr-6mm', Math.max(ancho, alto), it);
+  revisarCorte('acr-6mm', ancho, alto, it);
   if (faltaBase) return;
 
   const perim = 2 * (ancho + alto);
@@ -947,7 +967,7 @@ function derCaja(it, C, K, pedir, revisarCorte, avisos) {
   pedir('lam-galv', cara + marco, exprCara + ' de trasera + ' + num(perim, 0) + ' cm × ' +
     num(nn(C.PROF_CAJA_CM, 15), 0) + ' cm de fondo ÷ ' + prop(nn(C.APROV_TIRAS, 0.9)) +
     ' aprov = ' + num(marco) + ' m² de marco = ' + num(cara + marco) + ' m²', it, conf, requiere);
-  revisarCorte('lam-galv', Math.max(ancho, alto), it);
+  revisarCorte('lam-galv', ancho, alto, it);
 
   pedir('tubular-1', perim, '2 × (' + num(ancho, 0) + ' + ' + num(alto, 0) + ') = ' +
     num(perim, 0) + ' cm de bastidor interno', it, conf, requiere);

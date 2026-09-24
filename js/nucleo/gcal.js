@@ -42,6 +42,8 @@ import * as Prefs from '../datos/prefs.js';
    guion, llamados a la vez, añaden la etiqueta dos veces. Lo necesitaba este archivo y ahora
    también el ingreso, así que se mudó al que no depende de nadie. */
 import { cargarGis } from './ingreso.js';
+/* Las alarmas salen de la misma función que las del .ics. Ver `alarmasGcal`. */
+import { alarmasDe } from './ics.js';
 
 /** @typedef {{ok:true, valor:*}|{ok:false, codigo:string, mensaje:string}} Resultado */
 const ok  = valor => ({ ok: true, valor });
@@ -216,16 +218,23 @@ export function idDeterminista(identificador) {
    instalación de las 10:00 aparece a otra hora en el teléfono del instalador. */
 const TZ = 'America/Mexico_City';
 
-/* Las mismas tres alarmas del .ics, y el mismo razonamiento: -3d para revisar material,
-   -1d para confirmar con el cliente, -30min para salir. Google acepta como máximo 5
-   overrides por evento y el mínimo es 0 minutos, así que las tres caben de sobra.
+/* Las MISMAS alarmas del .ics, sacadas de la misma función (`alarmasDe` de js/nucleo/ics.js),
+   y el mismo razonamiento: -3d para revisar material, -1d para confirmar con el cliente y la de
+   salir, que es media hora de día y dos horas de noche o de madrugada. Un evento de todo el día
+   no lleva la de salir: empieza a las 00:00, y la de media hora sonaba a las 23:30 del día
+   anterior. Aquí había una lista fija de tres que ignoraba las dos cosas, con este mismo
+   comentario diciendo que eran las del .ics. Google acepta como máximo 5 overrides por evento
+   y el mínimo es 0 minutos, así que caben de sobra.
    `useDefault:false` es obligatorio: con true, Google ignora los overrides y pone los
    del calendario de cada quien, que en un teléfono nuevo es «10 minutos antes». */
-const ALARMAS = [
-  { method: 'popup', minutes: 3 * 24 * 60 },
-  { method: 'popup', minutes: 24 * 60 },
-  { method: 'popup', minutes: 30 },
-];
+function alarmasGcal(ev) {
+  const minutos = t => {
+    const m = /^-P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?$/.exec(String(t || ''));
+    return m ? (+m[1] || 0) * 1440 + (+m[2] || 0) * 60 + (+m[3] || 0) : null;
+  };
+  return alarmasDe(ev || {}).map(minutos).filter(n => n !== null)
+    .map(n => ({ method: 'popup', minutes: n }));
+}
 
 function fechas(ev) {
   const conHora = /^(\d{1,2}):(\d{2})$/.test(String(ev.hora || ''));
@@ -276,7 +285,7 @@ function cuerpo(ev) {
     attendees: (Array.isArray(ev.attendees) && ev.attendees.length
       ? ev.attendees
       : c.invitados).map(e => (typeof e === 'string' ? { email: e } : e)),
-    reminders: { useDefault: false, overrides: ALARMAS },
+    reminders: { useDefault: false, overrides: alarmasGcal(ev) },
     /* Sin esto, mover un evento le manda un correo a los tres cada vez. Con esto, les
        llega la actualización al calendario y nada más. */
     guestsCanModify: false,
@@ -317,16 +326,34 @@ async function llamar(ruta, opciones) {
   }
 }
 
+/* ¿El evento que ya está en Calendar dice lo mismo que la instalación de hoy? Se compara lo
+   que la plataforma escribe: día y hora, textos, alarmas e invitados. La hora se pide en TZ
+   (`?timeZone=` en el GET: sin él Google la devuelve en la zona del CALENDARIO, que puede ser
+   otra) y se compara por sus primeros 16 caracteres, porque viene con su desfase
+   («…T10:00:00-06:00») y aquí se manda sin él. Si algo no casa, se reescribe: un PUT de más cuesta un correo de
+   «se actualizó»; uno de menos deja a los tres con la fecha vieja. */
+function mismoEvento(ya, body) {
+  const t = x => (x ? (x.date || String(x.dateTime || '').slice(0, 16)) : '');
+  const mins = r => ((r && r.overrides) || []).map(o => Number(o.minutes)).sort((a, b) => a - b).join(',');
+  const correos = l => (l || []).map(a => String((a && a.email) || '').toLowerCase()).sort().join(',');
+  return t(ya.start) === t(body.start) && t(ya.end) === t(body.end) &&
+    String(ya.summary || '') === body.summary && String(ya.description || '') === body.description &&
+    String(ya.location || '') === body.location &&
+    mins(ya.reminders) === mins(body.reminders) && correos(ya.attendees) === correos(body.attendees);
+}
+
 /**
- * Crea el evento. Idempotente por el `id` determinista.
+ * Crea el evento, o lo pone al día si ya existía. Idempotente por el `id` determinista.
  *
- * Un 409 se trata como «ya estaba» SOLO si un GET confirma que existe y no está
- * cancelado. Sin esa confirmación, el 409 tapa el caso real que muerde: Google conserva
- * los ids de los eventos borrados y devuelve 409 para un id que ya se usó y se canceló.
- * Tratar ese 409 como éxito dejaría la instalación reagendada sin evento, con la
- * plataforma diciendo que sí lo hay.
+ * Un 409 NO es «ya estaba y listo». Era lo que hacía, y nada más en la plataforma llamaba a
+ * `moverEvento`: una instalación movida de día volvía a este botón, Google contestaba 409 por
+ * el id, la pantalla decía «Ese evento ya estaba» y los invitados se quedaban con la fecha
+ * vieja. Ahora el 409 lee el evento y, si no dice lo mismo que la instalación, lo reescribe
+ * con `moverEvento`. Eso cubre también el caso que ya mordía antes: Google conserva los ids
+ * de los eventos borrados y devuelve 409 para uno que se usó y se canceló; el PUT lo revive
+ * con el mismo id en vez de inventar otro.
  *
- * @returns {Promise<Resultado>} valor = {eventId, yaEstaba?:true}
+ * @returns {Promise<Resultado>} valor = {eventId, invitados:number, yaEstaba?:true, actualizado?:true}
  */
 export async function crearEvento(ev) {
   if (!disponible()) return mal('DATO_INVALIDO', MSG.SIN_CONFIG);
@@ -343,22 +370,25 @@ export async function crearEvento(ev) {
   const r = await llamar('?sendUpdates=all', { method: 'POST', body: JSON.stringify(body) });
   if (!r.ok) return r;
 
+  /* Cuántos invitados llevó, para que la pantalla diga a cuántos les llegó y no «a los tres»
+     con una lista de uno —o de ninguno, que es cuando solo le suena al director—. */
+  const invitados = body.attendees.length;
   const { http, cuerpo: resp } = r.valor;
   if (http >= 200 && http < 300) {
     if (resp && resp.creator && resp.creator.email) _correo = resp.creator.email;
-    return ok({ eventId: (resp && resp.id) || body.id });
+    return ok({ eventId: (resp && resp.id) || body.id, invitados });
   }
 
   if (http === 409) {
-    const g = await llamar('/' + encodeURIComponent(body.id), { method: 'GET' });
+    const g = await llamar('/' + encodeURIComponent(body.id) + '?timeZone=' + encodeURIComponent(TZ), { method: 'GET' });
     if (!g.ok) return g;
     const ya = g.valor.cuerpo;
-    if (g.valor.http >= 200 && g.valor.http < 300 && ya && ya.status !== 'cancelled') {
-      return ok({ eventId: ya.id, yaEstaba: true });
-    }
-    /* Existe cancelado: se revive con un PUT en vez de inventar otro id, porque el id
+    const vivo = g.valor.http >= 200 && g.valor.http < 300 && ya && ya.status !== 'cancelled';
+    if (vivo && mismoEvento(ya, body)) return ok({ eventId: ya.id, yaEstaba: true, invitados });
+    /* Movido, o cancelado del lado de Google: se reescribe con el mismo id, porque el id
        determinista es lo que hace que la próxima vez tampoco se duplique. */
-    return moverEvento(body.id, ev);
+    const m = await moverEvento(body.id, ev);
+    return m.ok ? ok({ ...m.valor, invitados, actualizado: true, yaEstaba: !!vivo }) : m;
   }
 
   if (http === 401 || http === 403) {

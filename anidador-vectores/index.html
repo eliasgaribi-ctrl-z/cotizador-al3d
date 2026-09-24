@@ -123,8 +123,11 @@ document.documentElement.classList.add('arrancando');
 
   <main class="an-main">
 
+    <!-- Los números de paso (.an-num) van vacíos a propósito: los pone un contador de CSS que
+         solo cuenta los pasos a la vista (ver css/anidador.css). Escritos aquí, con «La medida
+         real» escondida la pantalla decía 1 y 3. -->
     <section class="card an-paso" aria-labelledby="h-piezas">
-      <div class="card-h"><h2 id="h-piezas"><span class="an-num" aria-hidden="true">1</span>Las piezas</h2></div>
+      <div class="card-h"><h2 id="h-piezas"><span class="an-num" aria-hidden="true"></span>Las piezas</h2></div>
       <div class="card-b">
         <label class="ai-drop" id="an-drop" for="an-file">
           <span class="ico" aria-hidden="true"><svg class="svgi"><use href="#i-subir"/></svg></span>
@@ -147,7 +150,7 @@ document.documentElement.classList.add('arrancando');
     <!-- Solo aparece cuando hay archivo. Si el archivo trae sus unidades, los dos campos
          llegan llenos y se pueden corregir; si no las trae, llegan vacíos y en ámbar. -->
     <section class="card an-paso" aria-labelledby="h-medida" id="an-sec-medida" hidden>
-      <div class="card-h"><h2 id="h-medida"><span class="an-num" aria-hidden="true">2</span>La medida real</h2></div>
+      <div class="card-h"><h2 id="h-medida"><span class="an-num" aria-hidden="true"></span>La medida real</h2></div>
       <div class="card-b">
         <p class="an-nota" id="an-medida-txt"></p>
         <div class="grid2">
@@ -159,7 +162,7 @@ document.documentElement.classList.add('arrancando');
     </section>
 
     <section class="card an-paso" aria-labelledby="h-material">
-      <div class="card-h"><h2 id="h-material"><span class="an-num" aria-hidden="true">3</span>La hoja</h2></div>
+      <div class="card-h"><h2 id="h-material"><span class="an-num" aria-hidden="true"></span>La hoja</h2></div>
       <div class="card-b">
 
         <!-- El material cambia cómo se ve la hoja en la mesa —acrílico blanco, aluminio

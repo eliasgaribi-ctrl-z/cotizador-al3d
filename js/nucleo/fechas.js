@@ -60,6 +60,18 @@ export const hoyISO = () => {
   return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
 };
 
+/** El día local de un SELLO (milisegundos desde 1970), con la misma cuenta que `hoyISO`. Es
+ *  la pieza para preguntar «¿de qué día es esto?» por días de calendario y no por tandas de
+ *  24 horas: una cotización autorizada ayer a las 11 de la noche, vista hoy a las 9 de la
+ *  mañana, lleva diez horas y es de AYER. Contar `(ahora − sello) / 86 400 000` decía «hoy».
+ *  `null` si no entra un sello. */
+export function isoDeSello(ms) {
+  const n = Number(ms);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const d = new Date(n);
+  return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+}
+
 export const bisiesto = a => (a % 4 === 0 && a % 100 !== 0) || a % 400 === 0;
 
 /** Cuántos días tiene ese mes. `m` va de 1 a 12. */

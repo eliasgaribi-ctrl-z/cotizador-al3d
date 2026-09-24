@@ -25,7 +25,11 @@ import * as Proy from '../datos/proyectos.js';
 import * as Material from '../datos/material.js';
 import * as Stock from '../datos/stock.js';
 import * as Agenda from '../datos/agenda.js';
+/* Solo para mandar en el momento el alta de una venta que se vuelve a dar de alta en la hoja
+   (ver `decisionHoja`), igual que Control manda la bandeja antes de traer. */
+import * as Sync from '../datos/sync.js';
 import { matOf, basOf, recOf, cajaOf } from '../datos/catalogo-precios.js';
+import { isoDeSello, diasEntre } from '../nucleo/fechas.js';
 import { ESTATUS as ESTATUS_NOTION, CUENTAS, ESTATUS_DE_PAGOS } from '../datos/puente.js';
 import {
   $, esc, money, cant, ico, toast, avisarResultado, vacio, segmento, chip,
@@ -315,20 +319,31 @@ function semaforos(compra) {
    vuelve a leer y a parsear `al3d_historial` completo —que trae las imágenes de las
    cotizaciones dentro— así que llamarla una vez por renglón y en cada repintado es parsear
    megabytes doscientas veces en un celular. Aquí el historial se lee UNA vez y la
-   comparación la sigue haciendo `Cot.huellaDe`, que es la misma función con la que compara
-   ella: el veredicto no puede divergir porque la aritmética es la suya. */
+   comparación la sigue haciendo `Cot.mismaHuella`, que es la misma función con la que compara
+   ella: el veredicto no puede divergir porque la aritmética es la suya.
+
+   `mismaHuella` y no `===` contra `Cot.huellaDe`: las huellas guardadas antes del 15 de
+   septiembre de 2026 no están ordenadas y la de hoy sí. Con `===`, un proyecto viejo de dos
+   partidas salía «se editó después de ganarse», con su «Recalcular material», y la pestaña lo
+   contaba, sin que nadie hubiera tocado la cotización. Por eso el mapa guarda la ENTRADA y no
+   su huella. */
 function huellas() {
   const hoy = new Map();
-  for (const e of Cot.historial()) if (e && e.folio) hoy.set(e.folio, Cot.huellaDe(e));
+  for (const e of Cot.historial()) if (e && e.folio) hoy.set(e.folio, e);
   const m = new Map();
   for (const p of TODOS) {
     const folio = (p.origen && p.origen.folio) || p.folio_local;
     if (!hoy.has(folio)) { m.set(p.id, 'desaparecio'); continue; }
     const antes = (p.origen && p.origen.huellaAuth) || Cot.huellaDe(p.origen || {});
-    m.set(p.id, !antes ? 'sin_huella' : (antes === hoy.get(folio) ? 'igual' : 'cambio'));
+    m.set(p.id, !antes ? 'sin_huella' : (mismaHuella(antes, hoy.get(folio)) ? 'igual' : 'cambio'));
   }
   return m;
 }
+/* Con respaldo, por lo mismo que `tienePin` en js/mod/tablero.js: en la ventana de un
+   despliegue este archivo puede llegar nuevo con un js/datos/cotizador.js viejo ya cargado en
+   la pestaña, que todavía no exporta `mismaHuella`, y la lista moría al pintar. El respaldo es
+   la comparación de antes: peor, pero no una pantalla rota. */
+const mismaHuella = (a, e) => (Cot.mismaHuella ? Cot.mismaHuella(a, e) : a === Cot.huellaDe(e));
 
 const cambiada = p => (HUELLA.get(p.id) || Cot.estadoOrigen(p)) === 'cambio' && !HUELLA_IGNORADA.has(p.id);
 
@@ -342,13 +357,20 @@ function cuantos() {
   const rol = Prefs.rol();
   let n = 0;
   if (rol === 'direccion') {
-    n = SIN_DECIDIR.length + TODOS.filter(p => p.etapa !== 'cancelado' && cambiada(p)).length;
+    /* Y las que la hoja ya no tiene o que están dos veces: son decisiones de Dirección que
+       solo se toman en la ficha. */
+    n = SIN_DECIDIR.length + TODOS.filter(p => p.etapa !== 'cancelado' &&
+      (cambiada(p) || avisoDe(p) === 'perdida' || avisoDe(p) === 'repetida' || avisoDe(p) === 'doble')).length;
   } else if (rol === 'fabricacion') {
-    n = TODOS.filter(p => (SEM.get(p.id) || {}).estado === 'grave').length;
+    /* Y la tarjeta importada cuya fila ya no vino: ésa la decide quien tenga el teléfono (ver
+       `avisoHoja`), y el del taller es donde viven. */
+    n = TODOS.filter(p => (SEM.get(p.id) || {}).estado === 'grave' ||
+      (esImportada(p) && avisoDe(p) === 'perdida')).length;
   } else {
     /* Lo que le falta capturar a PAGOS para que la fila de Notion sirva: sin cuenta y sin
-       estatus, esas dos celdas se pegan vacías. */
-    n = TODOS.filter(p => p.etapa !== 'cancelado' && (!p.cuenta || !p.estatus_notion)).length;
+       estatus, esas dos celdas se pegan vacías. Y la tarjeta importada cuya fila ya no vino. */
+    n = TODOS.filter(p => p.etapa !== 'cancelado' && (!p.cuenta || !p.estatus_notion ||
+      (esImportada(p) && avisoDe(p) === 'perdida'))).length;
   }
   return n;
 }
@@ -512,6 +534,11 @@ function tarjeta(p) {
       '<span class="pf-etapa pj-tarj-etapa ' + claseEtapa(p.etapa) + '">' +
         esc(Proy.ETAPA_NOMBRE[p.etapa] || p.etapa) + '</span>' +
       (sem ? '<span class="pf-sem ' + sem.estado + '">' + esc(sem.palabra) + '</span>' : '') +
+      /* La marca de la hoja también se ve desde el tablero: sin ella, la tarjeta que ya no
+         está en la hoja o que repite otra solo se descubría abriéndola. */
+      (avisoDe(p) === 'perdida' ? '<span class="pf-sem grave">Ya no está en la hoja</span>'
+        : avisoDe(p) === 'repetida' ? '<span class="pf-sem grave">Repetida</span>'
+        : avisoDe(p) === 'doble' ? '<span class="pf-sem grave">Dos veces en la hoja</span>' : '') +
       (inst
         ? '<span class="pj-tarj-inst">' + ico('i-camion') + esc(fmtFecha(inst.fecha)) + '</span>'
         : '<span class="pj-tarj-inst">' + ico('i-camion') + 'sin fecha</span>') +
@@ -578,8 +605,11 @@ function pintarCand() {
   if (!SIN_DECIDIR.length) { el.innerHTML = ''; return; }
 
   const n = SIN_DECIDIR.length;
+  const hoy = hoyISO();
   const filas = SIN_DECIDIR.map(e => {
-    const dias = Math.floor((Date.now() - (num(e.ts) || Date.now())) / 86400000);
+    /* Días de CALENDARIO, como el Calendario (`cuando(isoDeSello(e.ts))`). Con tandas de 24
+       horas, la autorizada anoche a las 11 decía «hoy» aquí y «ayer» allá. */
+    const dias = diasEntre(isoDeSello(e.ts) || hoy, hoy) || 0;
     const importe = Prefs.veDinero() ? Cot.totalVendido(e) : null;
     return '<div class="pf-fila">' +
       '<div class="pf-fila-ico">' + ico('i-venta') + '</div>' +
@@ -775,7 +805,14 @@ function htmlFicha(p) {
     datos.push(dato('Total vendido', money(p.precio_auth || p.neto)));
     datos.push(dato('Anticipo pactado', p.anti_pactado ? money(p.anti_pactado) : 'No se pactó anticipo'));
     datos.push(dato('IVA', p.iva !== false ? 'Sí, incluido' : 'Sin IVA'));
-    if (p.pct_comision) datos.push(dato('Comisión pactada', p.pct_comision + ' %'));
+    /* La comisión se cobra hoy al 10 % fijo: la fórmula R de la hoja no lee el % de la fila.
+       Un proyecto viejo con 15 decía «Comisión pactada 15 %» y se leía como lo que se cobra.
+       Cuando no es 10 se dice qué es: lo que se pactó ANTES de fijarla. Va dentro de `ve`,
+       como todo el dinero de la ficha: fabricación no lo ve. */
+    if (p.pct_comision) {
+      datos.push(dato(Number(p.pct_comision) === 10 ? 'Comisión pactada' : 'Comisión pactada (antes de fijarla en 10 %)',
+        p.pct_comision + ' %'));
+    }
     /* Las dos fórmulas de Notion. Se leen, jamás se calculan aquí: dos versiones de la
        misma fórmula empiezan a dar dos respuestas y nadie sabe cuál cobrar. */
     if (hay(p.pago_pendiente)) datos.push(dato('Pago pendiente (fórmula de la hoja)', money(p.pago_pendiente)));
@@ -802,6 +839,11 @@ function htmlFicha(p) {
       'lo que se guardó al ganarlo es una copia congelada, no una referencia.</p>');
   }
 
+  /* El aviso de la hoja, arriba por lo mismo que el de huella: cambia qué quiere decir el resto
+     de la ficha —una venta que el libro mayor ya no cuenta, o una tarjeta que repite otra—. */
+  const hoja = avisoHoja(p, rol);
+  if (hoja) partes.push(hoja);
+
   partes.push('<dl class="pf-2col">' + datos.join('') + '</dl>');
 
   /* La dirección cruda, tal como la escribió quien cotizó. No se normaliza ni se parte en
@@ -810,8 +852,12 @@ function htmlFicha(p) {
     dato('Dirección', dir ? esc(dir).replace(/\n/g, '<br>') : 'La cotización no traía dirección', true) +
     dato('Entre calles', p.entrecalles || 'No se anotó') +
     '</dl>');
-  if (dir || p.maps_url || isFinite(p.lat)) {
-    partes.push('<div class="btn-fila"><a class="btn btn-gho" href="' + esc(urlMapa(p)) +
+  /* El botón solo cuando `urlMapa` tiene de dónde armar una liga. Con `isFinite(p.lat)` a
+     secas, un proyecto sin ubicar —se guarda con `lat: null`, e `isFinite(null)` es true—
+     pintaba «Abrir en Maps» hacia una búsqueda vacía. */
+  const mapa = urlMapa(p);
+  if (mapa) {
+    partes.push('<div class="btn-fila"><a class="btn btn-gho" href="' + esc(mapa) +
       '" target="_blank" rel="noopener">' + ico('i-pin') + ' Abrir en Maps</a></div>');
   }
 
@@ -842,7 +888,12 @@ function htmlFicha(p) {
   if (rol === 'pagos' || rol === 'direccion') {
     const ests = rol === 'pagos' ? ESTATUS_DE_PAGOS : ESTATUS_NOTION;
     partes.push('<div class="fld-lab">Estatus en la hoja — el eje del dinero</div>' +
-      segmento(ests.map(e => ({ v: e, t: e })), p.estatus_notion || '', 'data-estatus'));
+      segmento(ests.map(e => ({ v: e, t: e })), p.estatus_notion || '', 'data-estatus') +
+      /* Con renglón en la hoja no hay fila que copiar (ver el pie): se dice dónde está lo que
+         sí falta, que es este segmento. */
+      (p.notion_page_id
+        ? '<p class="hintnote">Esta venta ya está en la hoja. Lo que cambia es este estatus, y el puente lo sube solo: no copies la fila, pegarla la daría de alta dos veces.</p>'
+        : ''));
     partes.push('<div class="fld-lab">Cuenta donde se cobra</div><div class="chips">' +
       CUENTAS.map(c => chip(c, p.cuenta === c, 'data-cuenta="' + esc(c) + '"')).join('') + '</div>');
   }
@@ -852,7 +903,10 @@ function htmlFicha(p) {
     pie.push('<button type="button" class="btn ' + (rol === 'fabricacion' ? 'btn-pri' : 'btn-gho') +
       '" data-hoja="' + esc(p.id) + '">' + ico('i-doc') + ' Orden de trabajo</button>');
   }
-  if (rol === 'direccion' || rol === 'pagos') {
+  /* Solo para la venta que NO está en la hoja. Con `notion_page_id` el renglón ya existe —la
+     venta bajó de allá con su id— y este botón llevaba a pegarla en el primer renglón vacío
+     de Ventas: la misma venta dos veces, con el saldo y la comisión contados doble. */
+  if ((rol === 'direccion' || rol === 'pagos') && !p.notion_page_id) {
     pie.push('<button type="button" class="btn btn-gho" data-tsv="' + esc(p.id) + '">' +
       ico('i-copiar') + ' Copiar datos para la hoja</button>');
   }
@@ -874,17 +928,265 @@ function htmlFicha(p) {
 const dato = (etiqueta, valorHTML, esHtml) =>
   '<div class="pf-dato"><dt>' + esc(etiqueta) + '</dt><dd>' + (esHtml ? valorHTML : esc(valorHTML)) + '</dd></div>';
 
+/* ============================================================================
+   LA VENTA Y LA HOJA NO CUADRAN — el aviso de la ficha
+   ============================================================================
+   Las marcas las pone la capa de datos (ver «LA VENTA QUE LA HOJA YA NO TIENE» en
+   js/datos/proyectos.js) y NINGUNA borra nada sola: aquí se dice qué pasó y está el botón que
+   hace lo correcto. Quién aprieta cuál es la regla de `soloDireccion` en ese archivo: lo que
+   decide la hoja (darla de alta otra vez, dejarla fuera) o cuál de dos proyectos es la venta
+   (juntar, separar, quitar la copia repetida) es de Dirección; quitar o dejar una tarjeta
+   IMPORTADA cuya fila ya no vino es de quien tenga el teléfono, porque las marcas no viajan y
+   lo que Dirección decida en el suyo no llega a éste. A quien no puede decidir se le dice así,
+   sin prometerle que alguien lo decide desde otro lado. Ni un peso: lo lee fabricación. */
+const esImportada = p => !!p && (p.de_hoja === true || String(p.id || '').startsWith('proy-hoja-'));
+const avisoDe = p => (Proy.avisoDeHoja ? Proy.avisoDeHoja(p) : '');
+/* El día de una marca, «20 sep 2026», o '' si no lo trae (una marca de un respaldo viejo). */
+const diaDe = ms => (ms && isoDeSello(ms) ? fmtFecha(isoDeSello(ms)) : '');
+/* Lo que se le dice a quien no puede decidir. «Eso lo decide Dirección», a secas, prometía una
+   decisión que desde otro teléfono no llega nunca. */
+const LO_DECIDE_DIRECCION = 'Lo decide Dirección entrando con su cuenta en este teléfono: la marca es de este aparato, y lo que se decida en otro no llega aquí.';
+
+function avisoHoja(p, rol) {
+  const tipo = avisoDe(p);
+  const dir = rol === 'direccion';
+  const imp = esImportada(p);
+  const boton = (clase, attr, texto) => '<button type="button" class="btn ' + clase + '" ' + attr + '="' + esc(p.id) + '">' + texto + '</button>';
+  let txt = '', btns = [];
+
+  if (!tipo) {
+    /* La lápida («No se dio») no avisa —ya se decidió—, pero si su fila se había perdido lo
+       apartado se quedaba para siempre en Ajustes, y el «No se dio» también rebota: la ficha no
+       tenía ni el aviso ni la salida. Una línea callada, sin «Qué atender», con la única salida
+       que le sirve: dejarla fuera de la hoja (tira lo apartado a su nota y deja de mandarse; si
+       la fila vuelve, se le manda sola con el «No se dio»). Nada se borra. */
+    const h = p && p.etapa === 'cancelado' && p.hoja_perdida && typeof p.hoja_perdida === 'object' ? p.hoja_perdida : null;
+    if (!h) return '';
+    const puede = dir || imp;
+    txt = 'Está como «No se dio», y su fila ' + esc(h.folio || '') + (h.motivo === 'de_otra' ? ' ya es de otra venta' : ' ya no está en la hoja') +
+      ': lo que se cambió desde entonces —el «No se dio» incluido— se quedó apartado en este teléfono. ' +
+      (puede ? 'Si la fila se quitó a propósito, déjala fuera de la hoja: deja de mandarse, y si su fila vuelve se le manda sola.'
+             : LO_DECIDE_DIRECCION);
+    if (puede) btns.push(boton('btn-gho', imp ? 'data-hoja-dejar' : 'data-hoja-fuera', imp ? 'Dejarla' : 'Dejarla fuera de la hoja'));
+    return '<p class="hintnote">' + ico('i-nube-off') + ' ' + txt + '</p>' +
+      (btns.length ? '<div class="btn-fila">' + btns.join('') + '</div>' : '');
+  }
+
+  if (tipo === 'doble') {
+    /* La venta de aquí en dos filas de la hoja (ver `hoja_doble` en js/datos/proyectos.js). Sin
+       botón: cuál sobra se decide en la hoja, que es de Dirección, y este teléfono no borra filas.
+       Se dice a cuál manda y de cuál saca el dinero, porque la otra puede ser la de los cobros. */
+    const fs = (p.hoja_doble.folios || []).map(String);
+    txt = '<b>Esta venta está dos veces en la hoja.</b> Las filas ' + esc(fs.join(' y ')) + ' traen la misma venta. ' +
+      'Los cambios de este proyecto van a ' + esc(fs[0] || '') + ', y de ella sale su dinero; ' +
+      (fs.length > 2 ? 'las otras no reciben' : 'la otra no recibe') + ' nada. No se borró ninguna: ' +
+      (dir ? 'en la hoja, borra la que sobra —revisa antes cuál tiene los cobros— y con la siguiente bajada este aviso se va.'
+           : 'cuál sobra lo decide Dirección en la hoja; con la siguiente bajada este aviso se va.');
+    return '<p class="hintnote nota-av">' + ico('i-aviso') + ' ' + txt + '</p>';
+  }
+
+  if (tipo === 'repetida') {
+    const d = p.duplicado_de || {};
+    const claves = Array.isArray(d.claves) ? d.claves : [];
+    /* 'identidad': la fila solo coincide en el folio de la hoja (ver `mismaVentaQueLaFila`).
+       Puede ser la misma venta dos veces, o dos ventas con un folio repartido dos veces; eso
+       solo lo sabe quien las conoce, y por eso aquí hay dos botones y no uno. */
+    const porConfirmar = claves.includes('identidad');
+    const suNombre = d.nombre ? '«' + esc(d.nombre) + '»' : 'otro proyecto de aquí';
+    txt = (porConfirmar ? '<b>Esta tarjeta puede repetir una venta de este teléfono.</b>' : '<b>Esta tarjeta repite una venta de este teléfono.</b>') +
+      ' Se importó de la fila ' + esc(d.folio_hoja || p.folio_hoja || '') +
+      ' de la hoja, que ' + (porConfirmar ? 'parece' : 'es') + ' la misma venta que ' + suNombre +
+      (d.folio ? ' (' + esc(Cot.folioVisible(d.folio) || d.folio) + ')' : '') +
+      (porConfirmar ? ': o son dos tarjetas para una sola venta, o son dos ventas con el mismo folio de la hoja.'
+                    : ': dos tarjetas en el tablero para una sola venta.') +
+      ' No se juntó sola' + (Array.isArray(d.por) && d.por.length ? ' porque ' + esc(d.por.join('; ')) : '') + '.';
+    if (!dir) {
+      txt += ' ' + LO_DECIDE_DIRECCION;
+    } else if (d.id) {
+      if (claves.includes('cancelada') && claves.includes('viva')) {
+        /* La de aquí dice «No se dio» y la hoja trae la obra viva. Quitar la copia no es la salida:
+           la bajada no ata una fila viva a una lápida, así que la copia volvía sin sus notas, y
+           atarla sacaba su saldo del por cobrar de Control (`quitarDelTablero` también se niega).
+           Se dice qué dice cada lado y cuáles son las dos salidas de verdad. */
+        const est = p.estatus_notion ? ' (estatus ' + esc(p.estatus_notion) +
+          (Number(p.pago_pendiente) > 0 ? ', con saldo por cobrar' : '') + ')' : '';
+        txt += ' La hoja trae esta obra viva' + est + ', y ' + suNombre + ' dice que no se dio: hay que decidir cuál de las dos tiene razón. ' +
+          'Si no se dio, márcala «No se dio» también en la hoja (columna «Etapa de obra»); con la siguiente bajada esta copia ya se puede quitar. ' +
+          'Si la obra sigue, abre ' + suNombre + ' y regrésala a su etapa: deja de estar como «No se dio» y las dos se pueden juntar.';
+      } else if (claves.includes('cancelada')) {
+        /* La de aquí es una lápida y la fila también dice «No se dio»: a una venta que no se dio no
+           se le pasa una obra, y juntar se niega. La salida es quitar la copia: su fila se queda
+           atada a la lápida y la bajada ya no la vuelve a importar (ver `quitarDelTablero`). */
+        txt += ' A una venta que no se dio no se le pasa una obra: si esta copia no tiene nada suyo, quítala del tablero. Su fila se queda con ' +
+          suNombre + ' y no se vuelve a importar.';
+        btns.push(boton('btn-dgr', 'data-hoja-quitar', 'Quitar esta copia del tablero'));
+      } else {
+        btns.push(boton('btn-pri', 'data-hoja-juntar', 'Juntar con «' + esc(d.nombre || 'la de aquí') + '»'));
+      }
+      if (porConfirmar) btns.push(boton('btn-gho', 'data-hoja-noesla', 'No es la misma venta'));
+      btns.push('<button type="button" class="btn btn-gho" data-abrir-otro="' + esc(d.id) + '">Abrir «' + esc(d.nombre || 'la de aquí') + '»</button>');
+    } else {
+      /* Sin botón, y se dice por qué: con dos proyectos de aquí atados a la misma fila no hay
+         con cuál juntarla, y quitarla no sirve —su fila la volvería a traer—. */
+      txt += ' Mientras haya más de un proyecto de este teléfono atado a esa fila, no se sabe con cuál juntarla: revisa en la hoja cuál es el bueno.';
+    }
+  } else if (tipo === 'perdida' && imp) {
+    /* Cualquier rol: es una copia de este teléfono, sin cotización ni dinero que decidir. */
+    const h = p.hoja_perdida || {};
+    const dia = diaDe(h.desde);
+    txt = '<b>Esta venta ya no está en la hoja.</b> Esta tarjeta se importó de la fila ' + esc(h.folio || p.folio_hoja || '') +
+      ', y la hoja ya no la trae' + (dia ? ' (se vio el ' + esc(dia) + ')' : '') + '. No se quitó sola: ' +
+      'si se borró a propósito, quítala del tablero; si la obra sigue, déjala.';
+    btns.push(boton('btn-dgr', 'data-hoja-quitar', 'Quitar del tablero'));
+    btns.push(boton('btn-gho', 'data-hoja-dejar', 'Dejarla'));
+  } else if (tipo === 'perdida') {
+    const h = p.hoja_perdida || {};
+    const dia = diaDe(h.desde);
+    txt = '<b>Esta venta ya no está en la hoja.</b> ' + (h.motivo === 'de_otra'
+      ? 'Su fila ' + esc(h.folio || '') + ' ya es de otra venta, y ésta no aparece con su folio.'
+      : 'Alguien borró su fila (' + esc(h.folio || '') + ').') +
+      (dia ? ' Se vio el ' + esc(dia) + ', y desde entonces' : ' Desde entonces') +
+      ' los cambios de este proyecto no llegan a ningún lado: se quedan apartados en este teléfono. ' +
+      (dir ? 'Si la venta sigue viva, vuelve a darla de alta: entra a la hoja con todos sus datos en una fila nueva. ' +
+             'Si se borró a propósito, déjala fuera: el proyecto se queda aquí y deja de mandarse.'
+           : 'Si se vuelve a dar de alta o se queda fuera de la hoja lo decide Dirección, entrando con su cuenta en este teléfono: ' +
+             'la marca es de este aparato, y lo que se decida en otro no llega aquí.');
+    if (dir) {
+      btns.push(boton('btn-pri', 'data-hoja-alta', 'Volver a darla de alta en la hoja'));
+      btns.push(boton('btn-gho', 'data-hoja-fuera', 'Dejarla fuera de la hoja'));
+    }
+  } else {
+    /* 'fuera': ya se decidió. Se dice en voz baja, y con la salida por si cambia la decisión:
+       quitar la tarjeta importada (cualquiera) o volver a dar de alta la venta (Dirección). */
+    const dia = diaDe(p.fuera_de_hoja);
+    const cuando = dia ? ', el ' + esc(dia) : '';
+    txt = imp
+      ? 'Esta tarjeta se importó de la fila ' + esc(p.folio_hoja || '') + ', que ya no está en la hoja; se decidió dejarla en el tablero' + cuando +
+        '. Sus cambios se guardan en este teléfono y se mandan solos si su fila vuelve a la hoja.'
+      : 'Esta venta se quedó fuera de la hoja por decisión de Dirección' + cuando +
+        '. Sus cambios se guardan en este teléfono y se mandan solos si su fila vuelve a la hoja.';
+    if (imp) btns.push(boton('btn-gho', 'data-hoja-quitar', 'Quitar del tablero'));
+    else if (dir) btns.push(boton('btn-gho', 'data-hoja-alta', 'Volver a darla de alta en la hoja'));
+    return '<p class="hintnote">' + ico('i-nube-off') + ' ' + txt + '</p>' +
+      (btns.length ? '<div class="btn-fila">' + btns.join('') + '</div>' : '');
+  }
+  return '<p class="hintnote nota-av">' + ico('i-aviso') + ' ' + txt + '</p>' +
+    (btns.length ? '<div class="btn-fila">' + btns.join('') + '</div>' : '');
+}
+
+/* Las salidas del aviso. Las que no se deshacen con otro toque —dejarla fuera, dejarla en el
+   tablero, quitarla, juntarla, separarlas— preguntan antes y dicen qué va a pasar; la de volver
+   a darla de alta no pregunta porque su botón ya dice exactamente eso, y después se manda la
+   bandeja para que la persona sepa en el momento si la hoja la recibió. */
+async function decisionHoja(que, id, boton) {
+  const p = await Proy.obtener(id);
+  if (!p) { toast('Ese proyecto ya no está en este dispositivo', 'err'); await cargar(); return; }
+  const nombre = p.nombre || p.folio_local || 'este proyecto';
+  const d = p.duplicado_de && typeof p.duplicado_de === 'object' ? p.duplicado_de : null;
+  const otra = (d && d.nombre) || 'la de este teléfono';
+  const fila = (d && d.folio_hoja) || p.folio_hoja || '';
+
+  if (que === 'fuera') {
+    /* Lo que rebotó no se tira: `dejarFueraDeLaHoja` lo anota en el proyecto (`sin_mandar`) y
+       viaja con lo demás si la fila vuelve. Una lápida no tiene «Volver a darla de alta». */
+    if (!window.confirm('¿Dejar «' + nombre + '» fuera de la hoja?\n\nEl proyecto se queda en este teléfono y deja de mandarse a la hoja. ' +
+      'Los cambios que rebotaron contra su fila no se tiran: se guardan en este teléfono, y si su fila vuelve a la hoja se mandan solos, con lo de ese día.' +
+      (p.etapa === 'cancelado' ? '' : ' Si después cambias de idea, en su ficha está «Volver a darla de alta en la hoja».'))) return;
+  } else if (que === 'dejar') {
+    /* «Vuelve a mandarse sola» es cierto desde que el relevo anota lo que no manda (`sin_mandar`),
+       `dejarFueraDeLaHoja` anota ahí también lo que ya había rebotado, y la bajada lo manda
+       cuando la fila vuelve; antes lo cambiado mientras tanto, y lo que rebotó, se perdía. */
+    if (!window.confirm('¿Dejar «' + nombre + '» en el tablero aunque la hoja ya no la tenga?\n\nNo se vuelve a preguntar por ella, y sus cambios ya no se mandan a la hoja. ' +
+      'Si su fila vuelve a la hoja, vuelve a mandarse sola, con lo que hayas cambiado mientras tanto y lo que ya había rebotado.')) return;
+  } else if (que === 'quitar') {
+    if (!window.confirm(d
+      ? '¿Quitar esta copia de «' + nombre + '» del tablero?\n\nEs la copia importada de la fila ' + fila + ', que repite «' + otra + '». ' +
+        'Se borra de este teléfono; la hoja no se toca, y su fila se queda con «' + otra + '»: la siguiente bajada ya no la vuelve a importar. ' +
+        'Si algo de este teléfono la nombra —una instalación, un movimiento del almacén, material calculado— no se quita. Queda anotado en la bitácora.'
+      : '¿Quitar «' + nombre + '» del tablero?\n\nEs una tarjeta importada de la hoja cuya fila ya no está. Se borra de este teléfono; la hoja no se toca. ' +
+        'Si algo de este teléfono la nombra —una instalación, un movimiento del almacén, material calculado— no se quita. Queda anotado en la bitácora.')) return;
+  } else if (que === 'juntar') {
+    /* Lo que de verdad hace `juntar`: las notas se suman; el pin, el plazo y los datos de la venta
+       (dirección, teléfono, entrecalles…) pasan solo si la de aquí no tiene los suyos. Prometer
+       «su ubicación pasa» cuando la de aquí ya tenía una era mentira: se quedaba la de aquí y la
+       de la copia se borraba con ella. Cuáles datos son, lo dice el porqué de arriba. */
+    const porConfirmar = !!(d && Array.isArray(d.claves) && d.claves.includes('identidad'));
+    if (!window.confirm('¿Juntar esta tarjeta con «' + otra + '»?' +
+      (d && Array.isArray(d.por) && d.por.length ? '\n\nPor qué no se juntó sola: ' + d.por.join('; ') + '.' : '') +
+      '\n\nLas notas de la copia se suman a las de «' + otra + '». Su ubicación, su plazo y sus datos (dirección, teléfono del cliente, entrecalles, compromiso…) ' +
+      'pasan solo si «' + otra + '» no tiene los suyos; si los tiene, se quedan los de «' + otra + '». ' +
+      'La etapa no —moverla descuenta material, y eso lo haces tú—. Sus instalaciones y movimientos del almacén pasan también, y esta copia se quita del tablero.' +
+      (porConfirmar ? '\n\nY la fila ' + fila + ' queda como de «' + otra + '»: desde la siguiente bajada, su dinero es el de «' + otra + '».' : '') +
+      ' Queda anotado en la bitácora.')) return;
+  } else if (que === 'noesla') {
+    if (!window.confirm('¿«' + nombre + '» y «' + otra + '» son dos ventas distintas?\n\nEsta tarjeta se queda en el tablero como la de su venta, con su fila ' + fila +
+      ', y no se vuelve a preguntar. «' + otra + '» se queda sin fila en la hoja —la ' + fila + ' es de esta otra venta— y deja de mandarle cambios: ' +
+      'en su ficha decides si se vuelve a dar de alta o se queda fuera. Queda anotado en la bitácora.')) return;
+  }
+
+  if (boton) boton.disabled = true;
+  /* Lo que la copia tiene esperando en la bandeja sale antes de juntarla: `juntarConLaDeAqui` no
+     junta una copia con cambios sin mandar (se tirarían con ella). Sin señal, se queda y lo dice. */
+  if (que === 'juntar' && Sync.configurado()) {
+    try { await Sync.bombear(); } catch (_) { /* se queda en la bandeja; la junta explica qué falta */ }
+  }
+  const r = que === 'alta' ? await Proy.volverADarDeAlta(id)
+    : que === 'fuera' || que === 'dejar' ? await Proy.dejarFueraDeLaHoja(id)
+    : que === 'quitar' ? await Proy.quitarDelTablero(id)
+    : que === 'noesla' ? await Proy.noEsLaMisma(id)
+    : await Proy.juntarConLaDeAqui(id);
+  if (boton && boton.isConnected) boton.disabled = false;
+  if (!r.ok) { avisarResultado(r); return; }
+
+  if (que === 'alta') {
+    /* Se manda en el momento, y se dice lo que de verdad pasó: con la fila nueva ya guardada,
+       o esperando en la bandeja porque no hubo señal. */
+    let enHoja = false;
+    if (Sync.configurado()) {
+      try { await Sync.bombear(); } catch (_) { /* se queda en la bandeja y sale sola */ }
+      const ya = await Proy.obtener(id);
+      enHoja = !!(ya && ya.notion_page_id);
+    }
+    toast(enHoja ? '«' + nombre + '» ya está otra vez en la hoja, con todos sus datos.'
+                 : '«' + nombre + '» quedó en la bandeja para darse de alta en la hoja: sale sola en cuanto se pueda mandar.', 'ok', 5200);
+  } else if (que === 'quitar' || que === 'juntar') {
+    toast(que === 'quitar' ? '«' + nombre + '» se quitó del tablero' : 'Se juntaron: queda una sola tarjeta de esta venta', 'ok', 4200);
+    cerrarCapa('pf-ficha'); fichaId = null;
+    await cargar();
+    if (que === 'juntar' && d && d.id) await abrirFicha(d.id);
+    return;
+  } else if (que === 'noesla') {
+    toast('«' + nombre + '» se queda como su propia venta; «' + otra + '» quedó sin fila en la hoja', 'ok', 5200);
+  } else {
+    toast(que === 'fuera' ? '«' + nombre + '» se queda fuera de la hoja' : '«' + nombre + '» se queda en el tablero', 'ok', 4200);
+  }
+  await cargar();
+  await refrescarFicha();
+}
+
 /* El link crudo de Maps primero, y es una decisión: es el que el cliente mandó y trae el
    pin donde el cliente lo puso. Un `search?query=` con el texto de una dirección de
    Tlajomulco cae a media colonia, y ahí es donde la camioneta da vueltas. */
+/* Solo http y https, como `linkMapa` de js/mod/fabricacion.js para el mismo campo: `maps_url`
+   es lo que alguien pegó a mano en el cotizador, o lo que trajo un respaldo que viajó por
+   WhatsApp, y un `javascript:` ahí se ejecuta al tocar «Abrir en Maps» —`esc()` no lo para,
+   un href es un contexto de URL y no de HTML—. Devuelve '' cuando no hay con qué armar una
+   liga, y entonces el botón no se pinta. */
 function urlMapa(p) {
-  if (p.maps_url) return p.maps_url;
-  if (p.lat !== null && p.lng !== null && isFinite(p.lat) && isFinite(p.lng)) {
+  if (/^https?:\/\//i.test(String(p.maps_url || ''))) return String(p.maps_url);
+  if (tienePin(p)) {
     return 'https://www.google.com/maps/search/?api=1&query=' + p.lat + ',' + p.lng;
   }
-  return 'https://www.google.com/maps/search/?api=1&query=' +
-    encodeURIComponent(String(p.dir_texto || '').replace(/\s+/g, ' ').trim());
+  const dir = String(p.dir_texto || '').replace(/\s+/g, ' ').trim();
+  return dir ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(dir) : '';
 }
+/* Con respaldo, por lo mismo que en js/mod/tablero.js: un js/datos/proyectos.js viejo ya
+   cargado en la pestaña puede no exportarla todavía. Es la misma prueba. */
+const tienePin = Proy.tienePin || (p => {
+  const c = v => (v === null || v === undefined || v === '') ? NaN : Number(v);
+  const la = c(p && p.lat), ln = c(p && p.lng);
+  return Number.isFinite(la) && Number.isFinite(ln) && !(la === 0 && ln === 0);
+});
 
 async function clicFicha(ev) {
   const t = ev.target;
@@ -917,6 +1219,16 @@ async function clicFicha(ev) {
     publicarCuenta();
     return;
   }
+
+  /* Las salidas del aviso de la hoja (ver `avisoHoja`). */
+  const hj = t.closest('[data-hoja-alta],[data-hoja-fuera],[data-hoja-quitar],[data-hoja-dejar],[data-hoja-juntar],[data-hoja-noesla]');
+  if (hj) {
+    const que = ['alta', 'fuera', 'quitar', 'dejar', 'juntar', 'noesla'].find(q => hj.hasAttribute('data-hoja-' + q));
+    await decisionHoja(que, hj.getAttribute('data-hoja-' + que), hj);
+    return;
+  }
+  const otro = t.closest('[data-abrir-otro]');
+  if (otro) { cerrarCapa('pf-ficha'); fichaId = null; await abrirFicha(otro.dataset.abrirOtro); return; }
 
   const canc = t.closest('[data-cancelar]');
   if (canc) {
@@ -963,6 +1275,13 @@ async function moverEtapa(id, etapa) {
   }
   const r = await Proy.avanzarEtapa(id, etapa);
   if (!r.ok) { avisarResultado(r); return; }
+  /* «Instalado» es el mismo hecho que la instalación «hecha», y se apunta entero, igual que
+     el «Ya se instaló» del Tablero: con la instalación en «confirmada», el Tablero seguía
+     contándola en «Ya pasaron y nadie las marcó». */
+  if (etapa === 'instalado') {
+    const [viva] = await Agenda.listar({ proyecto_id: id, vivas: true });
+    if (viva && viva.estado !== 'hecha') await Agenda.marcar(viva.id, 'hecha');
+  }
 
   /* Los movimientos de material se dicen en voz alta. Pasar a «Cortado» mueve el almacén,
      y un almacén que cambió sin que nadie se enterara es un almacén al que en tres semanas
@@ -1039,6 +1358,12 @@ function filaTsv(p) {
 async function copiarFila(id) {
   const p = await Proy.obtener(id);
   if (!p) { toast('Ese proyecto ya no está en este dispositivo', 'err'); return; }
+  /* La misma guarda que el pie de la ficha, aquí también: si el botón llegó a pintarse —una
+     ficha abierta antes de que bajara el renglón— copiar seguiría mandando a duplicarla. */
+  if (p.notion_page_id) {
+    toast('Esta venta ya está en la hoja: no hay que pegarla otra vez. Cambia su estatus en la ficha y el puente lo sube.', '', 6000);
+    return;
+  }
   const faltan = [];
   if (!p.cuenta) faltan.push('la cuenta');
   if (!p.estatus_notion) faltan.push('el estatus');

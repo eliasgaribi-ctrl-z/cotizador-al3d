@@ -257,7 +257,7 @@ function typeItem(id,k,v){
       const t=String(it.textoAuto||'').replace(/\s/g,'');
       if(t.length) it.n=t.length;
     }
-    const c=$('acnt-'+it.id); if(c) c.textContent=(it.n||0)+(it.tipo==='recorte'?' piezas':' letras');
+    const c=$('acnt-'+it.id); if(c) c.textContent=cuentaDeLetras(it);
   }
   if(k==='desc'){ it.descAi=false; it.descAuto=false; }
   const f=$('formula-'+id), l=$('lt-'+id);
@@ -327,6 +327,12 @@ function saneaNum(el,id,k,paso){
    exactamente lo que había. El acabado del recorte sí se deja sin elegir —y con eso la
    partida entra en ámbar y en el aviso de partidas sin terminar—, porque es el campo que
    pone el precio y la app no lo supone. */
+/* Lo que dice el contador al lado de «Escribe el texto →», en singular cuando es una: decía
+   «1 letras». En un recorte cuenta piezas, que es lo que dice su etiqueta. */
+function cuentaDeLetras(it){
+  const n=Number(it&&it.n)||0;
+  return it&&it.tipo==='recorte' ? n+(n===1?' pieza':' piezas') : n+(n===1?' letra':' letras');
+}
 function forzarRecortePorAltura(it){
   if(!it||it.tipo!=='letras'||!alturaDeRecorte(it.altura)) return false;
   it.tipo='recorte';
@@ -340,7 +346,9 @@ function revisarAlturaMinima(id){
   const it=Q.items.find(x=>x.id===id);
   if(!forzarRecortePorAltura(it)) return;
   renderItems();
-  toast(`${it.altura} cm: por debajo de ${ALTURA_MIN_LETRAS} cm no se fabrica en 3D — la partida pasó a recorte de acrílico. Falta elegir el acabado.`,'',6400);
+  /* «Falta elegir el acabado» solo cuando de verdad falta: forzarRecortePorAltura() conserva el
+     acabado si ya era uno de recorte, y decirlo igual mandaba a buscar algo que ya estaba. */
+  toast(`${it.altura} cm: por debajo de ${ALTURA_MIN_LETRAS} cm no se fabrica en 3D — la partida pasó a recorte de acrílico.`+(recOf(it.acab)?'':' Falta elegir el acabado.'),'',6400);
   voz('La partida pasó a recorte de acrílico: mide menos de '+ALTURA_MIN_LETRAS+' centímetros');
 }
 function setTipo(id,t){
@@ -379,7 +387,9 @@ function setShowInPdf(id,val){
      contestaba que no se podía, con el banner del modo edición señalándolo. Ahí no se está
      capturando nada: la cotización ya se autorizó y lo que se quiere es tapar un renglón
      del papel. */
-  if(locked()){ toast('La cotización está bloqueada — usa «Editar partidas» para ocultar partidas','err',4200); return; }
+  /* El botón que se nombra tiene que existir: «Editar partidas» solo está en una autorizada.
+     En una pendiente la salida es «Volver a editar»; en una rechazada, reabrirla. */
+  if(locked()){ toast(msgCandadoCaptura('para ocultar partidas'),'err',4200); return; }
   const it=Q.items.find(x=>x.id===id); if(!it)return;
   it.showInPdf=val;
   renderItems();
@@ -451,7 +461,7 @@ function autoContarLetras(id,texto){
      dice la etiqueta de arriba. */
   /* El contador dice SIEMPRE lo que está guardado, nunca dos números distintos: con la
      cuenta corregida a mano, lo guardado es la corrección. */
-  const cnt=$('acnt-'+id); if(cnt) cnt.textContent=(it.n||0)+(it.tipo==='recorte'?' piezas':' letras');
+  const cnt=$('acnt-'+id); if(cnt) cnt.textContent=cuentaDeLetras(it);
   const f=$('formula-'+id),l=$('lt-'+id);
   if(f) f.innerHTML=formulaHTML(it);
   if(l) l.innerHTML=ltHTML(it);
@@ -607,21 +617,28 @@ function renderItems(){
         dragId=it.id; d.classList.add('dragging');
         e.dataTransfer.effectAllowed='move';
       });
+      /* ¿Encima o debajo de ésta? Soltar siempre «antes de ésta» dejaba un lugar al que no se
+         llegaba arrastrando: el ÚLTIMO. Mover una partida al final del PDF pedía dos gestos al
+         revés, y soltar B sobre C en [A,B,C] no hacía nada. La mitad de abajo de la partida
+         dice «después de ésta», con el filete abajo. */
+      const abajoDe=e=>{ const r=d.getBoundingClientRect(); return e.clientY>r.top+r.height/2; };
       d.addEventListener('dragover',e=>{
         e.preventDefault(); e.dataTransfer.dropEffect='move';
-        if(!d.classList.contains('drag-over')){
-          document.querySelectorAll('.partida.drag-over').forEach(el=>el.classList.remove('drag-over'));
-          d.classList.add('drag-over');
+        const abajo=abajoDe(e);
+        if(!d.classList.contains('drag-over')||d.classList.contains('drag-abajo')!==abajo){
+          document.querySelectorAll('.partida.drag-over').forEach(el=>el.classList.remove('drag-over','drag-abajo'));
+          d.classList.add('drag-over'); d.classList.toggle('drag-abajo',abajo);
         }
       });
       d.addEventListener('dragleave',e=>{
-        if(!d.contains(e.relatedTarget)) d.classList.remove('drag-over');
+        if(!d.contains(e.relatedTarget)) d.classList.remove('drag-over','drag-abajo');
       });
       d.addEventListener('drop',e=>{
-        e.preventDefault(); d.classList.remove('drag-over');
+        e.preventDefault(); d.classList.remove('drag-over','drag-abajo');
         if(dragId===null||dragId===it.id)return;
-        const fi=Q.items.findIndex(x=>x.id===dragId), ti=Q.items.findIndex(x=>x.id===it.id);
-        if(fi<0||ti<0)return;
+        const fi=Q.items.findIndex(x=>x.id===dragId), ti0=Q.items.findIndex(x=>x.id===it.id);
+        if(fi<0||ti0<0)return;
+        const ti=abajoDe(e)?ti0+1:ti0;
         const [moved]=Q.items.splice(fi,1);
         /* El filete de «suelta aquí» se pinta ENCIMA de la partida sobre la que se suelta, o
            sea «va aquí, antes de ésta». Pero `ti` se midió con la partida arrastrada todavía
@@ -634,7 +651,7 @@ function renderItems(){
       });
       d.addEventListener('dragend',()=>{
         dragId=null;
-        document.querySelectorAll('.partida').forEach(p=>p.classList.remove('dragging','drag-over'));
+        document.querySelectorAll('.partida').forEach(p=>p.classList.remove('dragging','drag-over','drag-abajo'));
       });
     }
     c.appendChild(d);
@@ -780,8 +797,11 @@ function pintarPendiente(){
   const el=$('prog-next'); if(!el) return;
   const box=el.closest('.prog-box');
   const p=siguientePaso();
-  if(!p){ el.textContent=''; if(box) box.disabled=true; return; }
+  /* La caja NO se deshabilita cuando no falta nada: tocarla es como se pregunta «¿ya está?», y
+     irAPendiente() contesta «Esta cotización ya está entregada». Deshabilitada, esa respuesta no
+     podía salir nunca y el botón se quedaba mudo justo al final del trabajo. */
   if(box) box.disabled=false;
+  if(!p){ el.textContent=''; return; }
   el.innerHTML=`${esc(p.txt)} <span aria-hidden="true">›</span>`;
 }
 /* Tocar el aviso del candado lleva al primer hueco y enciende el ámbar, igual que si se
@@ -828,7 +848,16 @@ function _candTocarPartida(e){
 }
 function irAPendiente(){
   const p=siguientePaso();
-  if(!p){ toast(Q.estado==='autorizada'?'Esta cotización ya está entregada':'No falta nada por capturar','ok',2400); return; }
+  /* «Ya está entregada» solo si de verdad lo está: para el Autorizador siguientePaso() da null
+     en cuanto la cola se vacía, sin mirar la entrega, y la caja afirmaba «entregada» de una
+     recién autorizada sin PDF, sin chat y sin venta. */
+  if(!p){
+    const entregada=Q.estado==='autorizada'&&(()=>{ const h=hitosDe(Q.folio); return HITOS.every(x=>h[x.k]); })();
+    toast(entregada?'Esta cotización ya está entregada'
+      :Q.estado==='autorizada'?'Nada por revisar: la entrega (PDF, WhatsApp y venta) la hace el vendedor'
+      :'No falta nada por capturar','ok',2800);
+    return;
+  }
   if(p.item) return llevarAPartida(p.item);
   if(p.boton){ irA(p.boton); return; }
   if(p.campo) return irACampoProy(p.campo);
@@ -1055,7 +1084,7 @@ function bodyFor(it){
         </div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
-      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las letras" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} letras</span></div>`:''}`;
+      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las letras" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${cuentaDeLetras(it)}</span></div>`:''}`;
   }
   if(it.tipo==='recorte'){
     const recChips=RECORTES.map(r=>chip(it.acab===r.key,`setItem(${it.id},'acab','${r.key}')`,r.label,'$'+r.precio)).join('');
@@ -1084,7 +1113,7 @@ function bodyFor(it){
         <div class="fld"><label for="n-${it.id}"># Piezas</label><input id="n-${it.id}" type="number" inputmode="numeric" min="0" value="${it.n||''}" ${dis} oninput="if(this.validity.badInput)return;typeItem(${it.id},'n',+this.value)" onblur="saneaNum(this,${it.id},'n',1)"></div>
         <div class="fld fld-relleno"><label aria-hidden="true" style="visibility:hidden">.</label></div>
       </div>
-      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las piezas" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${it.n||0} piezas</span></div>`:''}`;
+      ${!locked()?`<div class="autoctr"><input type="text" aria-label="Escribe el texto y se cuentan las piezas" placeholder="Escribe el texto →" value="${esc(it.textoAuto||'')}" ${dis} oninput="autoContarLetras(${it.id},this.value)"><span class="cnt" id="acnt-${it.id}">${cuentaDeLetras(it)}</span></div>`:''}`;
   }
   if(it.tipo==='bastidor'){
     const chips=BASTIDORES.map(b=>chip(it.bas===b.key,`setItem(${it.id},'bas','${b.key}')`,b.label,'$'+b.tarifa+'/m²')).join('');
@@ -1270,7 +1299,9 @@ function updItemAuth(id,val){
   const eraSuyo=prev!==null&&isFinite(prev)&&(_aPrecioDerivado===null||Math.abs(prev-_aPrecioDerivado)>0.01);
   if(gInput){ gInput.value=subAj; _aPrecioDerivado=subAj; }
   if(eraSuyo&&Math.abs(prev-subAj)>0.01)
-    toast('El precio final que llevabas tecleado ('+money(conIva(prev))+') se ajustó a la suma de las partidas: '+money(conIva(subAj))+'.','',6000);
+    /* En SUBTOTAL, que es lo que se teclea en ese campo: decía «el precio final que llevabas
+       tecleado ($23,200.00)» cuando lo tecleado eran 20,000. */
+    toast('El subtotal que llevabas tecleado ('+money(prev)+') se ajustó a la suma de las partidas: '+money(subAj)+'.','',6000);
   // Se respeta el ajuste sea hacia abajo o hacia arriba: antes un aumento se veía
   // en pantalla pero se perdía al autorizar.
   Q.precioAuth=Math.abs(netoAj-neto)>0.01?netoAj:0;

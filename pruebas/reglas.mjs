@@ -4,6 +4,7 @@
    Uso: node /tmp/probar-reglas.mjs                                                        */
 
 import { evaluar, mensajeWa, REGLAS } from '../js/datos/reglas.js';
+import { huellaDe } from '../js/datos/cotizador.js';
 
 const HOY = '2026-08-23';
 const dias = n => new Date(2026, 7, 23 - n, 10, 30, 0).getTime();   // n días antes de HOY, local
@@ -137,6 +138,118 @@ cierto(evaluar({}).length === 0, 'un estado vacío devuelve [] y no lanza');
 cierto(evaluar(null).length === 0, 'evaluar(null) devuelve [] y no lanza');
 cierto(evaluar({ proyectos: [null, undefined], hoy: 'ayer' }).length === 0,
   'basura en la entrada devuelve [] y no lanza');
+
+/* ---- 6b. A11: la venta que ya está en la hoja no se vuelve a copiar ----
+   El incidente: el aviso solo sale con `pago_pendiente`, que es la fórmula de la hoja y solo
+   existe cuando la fila ya está allá; aun así decía «Copia los datos para la hoja» y abría el
+   botón que los pega en el primer renglón vacío. Seguirlo daba de alta la venta dos veces. */
+
+const instalado = (o = {}) => ({ id: 'p9', folio_local: 'COT-0109', nombre: 'Óptica Lux - Caja',
+  etapa: 'instalado', fecha_ganado: '2026-08-01', pago_pendiente: 6600, ...o });
+const conCobro = p => evaluar({ ...estado, proyectos: [p],
+  instalaciones: [{ id: 'i9', proyecto_id: p.id, fecha: '2026-08-15', estado: 'hecha' }] })
+  .find(a => a.regla === 'A11_cobro');
+const enHoja = conCobro(instalado({ notion_page_id: 'V-150' }));
+cierto(!!enHoja && /ficha/.test(enHoja.detalle) && /COBRANDO/.test(enHoja.detalle) && !/Copia los datos/.test(enHoja.detalle),
+  'con la fila en la hoja, A11 manda a poner COBRANDO en la ficha y no a copiar: ' + (enHoja && enHoja.detalle));
+cierto(!!enHoja && !enHoja.acciones.some(x => x.tipo === 'tsv') && enHoja.acciones[0].tipo === 'estatus' &&
+  enHoja.acciones[0].datos.estatus === 'COBRANDO',
+  'y su acción no es la de copiar la fila: ' + (enHoja && enHoja.acciones.map(x => x.tipo).join(', ')));
+const sinHoja = conCobro(instalado({ notion_page_id: null }));
+cierto(!!sinHoja && /Copia los datos/.test(sinHoja.detalle) && sinHoja.acciones[0].tipo === 'tsv',
+  'sin fila en la hoja sigue ofreciendo copiarla');
+/* Con el estatus ya puesto no se vuelve a pedir: LIQUIDADO ya se cobró, y COBRANDO solo
+   necesita el mensaje. `pago_pendiente` tarda una bajada en enterarse. */
+cierto(!conCobro(instalado({ notion_page_id: 'V-150', estatus_notion: 'LIQUIDADO' })),
+  'con LIQUIDADO en la hoja, A11 ya no sale');
+const yaCobrando = conCobro(instalado({ notion_page_id: 'V-150', estatus_notion: 'COBRANDO' }));
+cierto(!!yaCobrando && !yaCobrando.acciones.some(x => x.tipo === 'estatus') && yaCobrando.acciones[0].tipo === 'wa' &&
+  !/pon su Estatus/.test(yaCobrando.detalle),
+  'con COBRANDO ya puesto, A11 solo ofrece el mensaje: ' + (yaCobrando && yaCobrando.acciones.map(x => x.tipo).join(', ')));
+
+/* ---- 6c. A12: una huella vieja, sin ordenar, no es una edición ----
+   Las huellas selladas antes del 15 de septiembre de 2026 están en el orden de las partidas;
+   la de hoy va ordenada. Compararlas con `===` hacía que todo proyecto viejo saliera como
+   «se editó después de ganarse». */
+
+const partidas = [{ id: 2, tipo: 'caja', ancho: 120, alto: 60, tarifa: 3900 },
+                  { id: 1, tipo: 'letras', material: 'acero', altura: 40, n: 8 }];
+const trozo = it => huellaDe({ items: [it] }).slice(2);
+const huellaVieja = 'c|' + partidas.map(trozo).join(',');       // sin ordenar, como se sellaba
+const ganado = { id: 'p8', folio_local: 'COT-0108', nombre: 'Gym - Letras', etapa: 'ganado',
+  fecha_ganado: '2026-08-20', origen: { folio: 'COT-0108', items: partidas, huellaAuth: huellaVieja } };
+const a12 = hist => evaluar({ ...estado, proyectos: [ganado], instalaciones: [], historial: hist })
+  .filter(a => a.regla === 'A12_huella');
+cierto(huellaVieja !== huellaDe({ items: partidas }), 'la huella vieja de verdad no es igual, letra por letra, a la de hoy');
+cierto(a12([{ folio: 'COT-0108', items: partidas, ts: dias(3) }]).length === 0,
+  'la misma cotización con la huella vieja NO sale como editada');
+cierto(a12([{ folio: 'COT-0108', items: [partidas[0], { ...partidas[1], altura: 50 }], ts: dias(3) }]).length === 1,
+  'y una edición de verdad sí sale');
+
+/* ---- 6d. A15: la venta y la hoja no cuadran ----
+   Tres marcas de la capa de datos (ver js/datos/proyectos.js, «LA VENTA QUE LA HOJA YA NO
+   TIENE»), una sola regla. La de una venta de aquí o una repetida es de Dirección: sus salidas
+   cambian el libro del dinero o cuál es la venta. La de una tarjeta importada, de quien tenga el
+   teléfono. Nada se borra solo; el aviso lleva a la ficha, que es donde se decide. */
+
+const { avisoDeHoja } = await import('../js/datos/proyectos.js');
+const desde = dias(4);
+const perdidaPropia = { id: 'p20', folio_local: 'COT-0120', nombre: 'Café Luna - Letras', etapa: 'armado',
+  fecha_ganado: '2026-08-01', notion_page_id: 'V-404', hoja_perdida: { motivo: 'borrada', folio: 'V-404', desde } };
+const deOtra = { ...perdidaPropia, id: 'p21', nombre: 'Gym Fuerte - Caja', notion_page_id: 'V-407',
+  hoja_perdida: { motivo: 'de_otra', folio: 'V-407', desde } };
+const huerfana = { id: 'proy-hoja-V-300', de_hoja: true, folio_hoja: 'V-300', nombre: 'Taller Sur - Vinil', etapa: 'ganado',
+  fecha_ganado: '2026-08-01', hoja_perdida: { motivo: 'no_bajo', folio: 'V-300', desde } };
+const repetida = { id: 'proy-hoja-V-320', de_hoja: true, folio_hoja: 'V-320', nombre: 'Óptica Sol', etapa: 'cortado',
+  fecha_ganado: '2026-08-01', duplicado_de: { id: 'p22', nombre: 'Óptica Sol - Caja Luz', folio: 'COT-0122@D7K2', folio_hoja: 'V-320',
+    desde, por: ['la copia va en «Cortado» y la de este teléfono en «Ganado»'] } };
+/* La venta de aquí que está en DOS filas de la hoja (`hoja_doble`): Dirección la volvió a dar de
+   alta y alguien deshizo después el borrado de la vieja. Cuál sobra se borra en la hoja. */
+const doble = { id: 'p24', folio_local: 'COT-0124', nombre: 'Kiosko Sol - Letras', etapa: 'armado', fecha_ganado: '2026-08-01',
+  notion_page_id: 'V-500', hoja_doble: { folios: ['V-500', 'V-404'], desde } };
+const yaDecididas = [{ ...huerfana, id: 'proy-hoja-V-301', hoja_perdida: null, fuera_de_hoja: desde },
+                     { ...perdidaPropia, id: 'p23', etapa: 'cancelado' },
+                     { ...doble, id: 'p25', hoja_doble: { folios: ['V-500'], desde } }];
+const conHoja = rol => evaluar({ ...estado, rol, instalaciones: [], historial: [], existencias: [], faltantes: [],
+  proyectos: [perdidaPropia, deOtra, huerfana, repetida, doble, ...yaDecididas] }).filter(a => a.regla === 'A15_hoja');
+const a15 = conHoja('direccion');
+cierto(a15.length === 5, 'A15 nombra las cinco marcadas y ninguna de las ya decididas (salieron ' + a15.length + ')');
+const a15De = id => a15.find(a => a.entidad_id === id) || { titulo: '', detalle: '', acciones: [] };
+cierto(/ya no está en la hoja/.test(a15De('p20').titulo) && /borró su fila V-404/.test(a15De('p20').detalle) &&
+  /volver|vuelve a dar de alta/.test(a15De('p20').detalle),
+  'la venta de este teléfono cuya fila se borró dice qué fila y qué se decide: ' + a15De('p20').detalle);
+cierto(/ya es de otra venta/.test(a15De('p21').detalle), 'la que ya es de otra venta lo dice con esas palabras, no como borrada');
+cierto(/ya no está en la hoja/.test(a15De('proy-hoja-V-300').titulo) && /quita del tablero/.test(a15De('proy-hoja-V-300').detalle) &&
+  /No se quitó sola/.test(a15De('proy-hoja-V-300').detalle),
+  'la tarjeta importada huérfana: no se quitó sola, se decide en su ficha');
+cierto(/dos veces/.test(a15De('proy-hoja-V-320').titulo) && /Óptica Sol - Caja Luz/.test(a15De('proy-hoja-V-320').detalle) &&
+  /Cortado/.test(a15De('proy-hoja-V-320').detalle),
+  'la repetida nombra a la de este teléfono y por qué no se juntó sola');
+/* La que solo coincide en el folio de la hoja no se afirma como la misma: puede ser una venta de
+   otro con el folio repartido dos veces. */
+const aDudosa = evaluar({ ...estado, rol: 'direccion', instalaciones: [], historial: [], existencias: [], faltantes: [],
+  proyectos: [{ ...repetida, duplicado_de: { ...repetida.duplicado_de, claves: ['identidad'] } }] }).find(a => a.regla === 'A15_hoja') || { detalle: '' };
+cierto(/parece la misma venta/.test(aDudosa.detalle) && /dos ventas con el mismo folio/.test(aDudosa.detalle) && !/ es la misma venta/.test(aDudosa.detalle),
+  'la repetida por confirmar dice «parece», no «es»: ' + aDudosa.detalle);
+cierto(/dos veces en la hoja/.test(a15De('p24').titulo) && /V-500 y V-404/.test(a15De('p24').detalle) &&
+  /le manda sus cambios a V-500/.test(a15De('p24').detalle) && /borra la que sobra/.test(a15De('p24').detalle),
+  'la venta en dos filas dice cuáles, a cuál manda y qué se hace en la hoja: ' + a15De('p24').detalle);
+cierto(a15.every(a => a.acciones.length === 1 && a.acciones[0].tipo === 'abrir_proyecto' &&
+  a.acciones[0].datos.proyecto_id === a.entidad_id), 'su única acción es abrir la ficha de ESE proyecto');
+cierto(a15De('p20').cuando === 'hace 4 días', 'y dice desde cuándo: ' + a15De('p20').cuando);
+/* La tarjeta importada vive sobre todo en el teléfono del taller, y las marcas no viajan: lo que
+   Dirección decida en el suyo no llega ahí. Ese aviso lo ve quien tiene el teléfono; los de una
+   venta de aquí o una repetida, que deciden la hoja o cuál es la venta, siguen siendo de Dirección. */
+const a15Fab = conHoja('fabricacion'), a15Pag = conHoja('pagos');
+cierto(a15Fab.map(a => a.entidad_id).join() === 'proy-hoja-V-300' && a15Pag.map(a => a.entidad_id).join() === 'proy-hoja-V-300',
+  'fabricación y pagos ven la tarjeta importada cuya fila ya no vino, y nada más: ' + a15Fab.map(a => a.entidad_id) + ' / ' + a15Pag.map(a => a.entidad_id));
+cierto(a15Fab.every(a => a.acciones.length === 1 && a.acciones[0].tipo === 'abrir_proyecto'), 'y con el mismo botón: abrir su ficha, donde la quita o la deja');
+cierto(!a15.concat(a15Fab).some(a => /\$|\d{1,3},\d{3}/.test(a.titulo + a.detalle)), 'y no lleva ni un peso');
+/* La regla lleva su copia de `avisoDeHoja` (no importa proyectos.js): las dos tienen que decir
+   lo mismo de cada proyecto, o la regla avisaría de una ficha que no enseña nada. */
+const todas = [perdidaPropia, deOtra, huerfana, repetida, doble, ...yaDecididas];
+cierto(todas.every(p => ['perdida', 'repetida', 'doble'].includes(avisoDeHoja(p)) === a15.some(a => a.entidad_id === p.id)),
+  'A15 y `avisoDeHoja` dicen lo mismo de cada proyecto');
 
 /* ---- 7. Los mensajes de WhatsApp ---- */
 

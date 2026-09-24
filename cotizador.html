@@ -298,7 +298,7 @@ document.documentElement.classList.add('arrancando');
              pintarCandadoCliente(). -->
         <div class="cand-cliente" id="cli-candado" role="region" aria-label="Estado de los datos del cliente" hidden></div>
         <div class="grid2">
-          <div class="fld" id="fld-cli"><label for="f-cli">Cliente<span class="req" aria-hidden="true">*</span></label><input id="f-cli" list="clientes-conocidos" placeholder="Nombre del cliente" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('cliente',this.value)"><datalist id="clientes-conocidos"></datalist></div>
+          <div class="fld" id="fld-cli"><label for="f-cli">Cliente<span class="req" aria-hidden="true">*</span></label><input id="f-cli" list="clientes-conocidos" placeholder="Nombre o negocio" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('cliente',this.value)"><datalist id="clientes-conocidos"></datalist></div>
           <div class="fld" id="fld-tel"><label for="f-tel">Teléfono<span class="req" aria-hidden="true">*</span></label><input id="f-tel" type="tel" inputmode="tel" placeholder="33 0000 0000" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('tel',this.value)"></div>
         </div>
         <div class="cua-aviso" id="cua-aviso" style="display:none"></div>
@@ -321,7 +321,7 @@ document.documentElement.classList.add('arrancando');
         <div class="fld">
           <label for="f-maps">Ubicación · link de Google Maps</label>
           <div style="display:flex;gap:8px;align-items:stretch">
-            <input id="f-maps" autocomplete="off" placeholder="Pega aquí el link de Google Maps" oninput="updMaps(this.value)" style="flex:1">
+            <input id="f-maps" autocomplete="off" placeholder="Pega el link de Maps" oninput="updMaps(this.value)" style="flex:1">
             <button class="btn btn-gho" id="mapsbtn" onclick="abrirMaps()" disabled style="width:auto;padding:0 15px;white-space:nowrap"><svg class="svgi" aria-hidden="true"><use href="#i-pin"/></svg> Abrir</button>
           </div>
           <div class="hintnote" id="maps-hint" style="margin-top:7px;display:none">Pega el link completo, empezando con <b>https://</b> — o escribe la dirección en el campo de arriba y usa «Abrir en Maps».</div>
@@ -698,7 +698,7 @@ document.documentElement.classList.add('arrancando');
           <div class="vt-row" style="margin-top:13px"><label for="vt-esq">Esquinas vivas</label><span class="vt-val" id="vt-esq-v">Medio</span></div>
           <input type="range" id="vt-esq" min="0" max="2" step="1" value="1" aria-valuetext="Medio" oninput="vtOpt('esquinas',+this.value)">
           <button type="button" class="switch" role="switch" aria-checked="true" style="margin-top:14px;font-size:12.5px" onclick="vtToggleFondo(event)"><span class="tg on" id="vt-fondo-tg" aria-hidden="true"></span> Quitar el fondo</button>
-          <div class="hintnote" style="margin-top:8px">El color que más superficie ocupa se deja transparente. Es lo que hace que el SVG traiga solo el logotipo y no un rectángulo blanco encima.</div>
+          <div class="hintnote" style="margin-top:8px">El color que domina el borde de la imagen se deja transparente. Es lo que hace que el SVG traiga solo el logotipo y no un rectángulo blanco encima.</div>
           <button type="button" class="switch" role="switch" aria-checked="false" style="margin-top:11px;font-size:12.5px" onclick="vtToggleInvertir(event)"><span class="tg" id="vt-inv-tg" aria-hidden="true"></span> Lo que quitó no era el fondo — usar el otro</button>
           <button class="vt-go" id="vt-go" onclick="vtVectorizar()" style="margin-top:15px" disabled><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg> Vectorizar</button>
         </div>
@@ -922,7 +922,7 @@ document.documentElement.classList.add('arrancando');
 <div id="vozAlert" class="solo-voz" role="alert" aria-live="assertive"></div>
 
 <!-- El cotizador, repartido por dominio en js/cotizador/. Son scripts CLÁSICOS que comparten
-     el ámbito global —los 273 manejadores en línea del marcado dependen de eso— y el orden
+     el ámbito global —los 157 manejadores en línea del marcado dependen de eso— y el orden
      importa: arranque.js va al final porque init() llama a los demás. -->
 <script src="js/cotizador/catalogo.js"></script>
 <script src="js/cotizador/nucleo.js"></script>
@@ -997,8 +997,10 @@ document.documentElement.classList.add('arrancando');
           <input type="number" inputmode="decimal" id="rv-anticipo" min="0" oninput="rvRecalc()">
         </div>
         <div class="rv-field">
-          <label for="rv-pct">% Comisión</label>
-          <input type="number" inputmode="decimal" id="rv-pct" value="10" min="0" max="100" step="0.5" oninput="rvRecalc()">
+          <!-- De solo lectura también en el marcado, no solo desde venta.js: la hoja de finanzas
+               paga el 10 % fijo del subtotal (fórmula R) y no lee lo que se ponga aquí. -->
+          <label for="rv-pct">% Comisión · fija</label>
+          <input type="number" inputmode="decimal" id="rv-pct" value="10" min="0" max="100" step="0.5" readonly title="La comisión es 10 % fijo del subtotal, sin IVA: la misma que calcula la hoja de finanzas" oninput="rvRecalc()">
         </div>
         <div class="rv-field">
           <label for="rv-cuenta">Cuenta</label>

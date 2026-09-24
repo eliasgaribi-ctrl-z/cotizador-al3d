@@ -102,7 +102,16 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
  *            salud:function():Promise<{ok:boolean, mensaje:string}>,
  *            subir:function(Operacion[]):Promise<Array<Object>>,
  *            bajar:function(string|null):Promise<{registros:Array<Object>, cursor:string|null}>,
- *            esquema:function():Promise<{ok:boolean, faltan:Array<Object>}>}} AdaptadorSync
+ *            esquema:function():Promise<{ok:boolean, faltan:Array<Object>}>,
+ *            despuesDeBajar?:function({completa:boolean, vistos:Object, rechazadas:Operacion[]}):Promise<Object|null>}} AdaptadorSync
+ *
+ * Una respuesta de `subir` que no es `ok` puede traer `motivo`: el porqué para la máquina, que
+ * se guarda en lo apartado como `motivo_rechazo` al lado del `codigo_rechazo`. Lo lee el mismo
+ * relevo en `despuesDeBajar`, y no la frase: la frase la puede reescribir cualquiera.
+ *
+ * Una que es `ok` puede traer `omitida`: el relevo la despachó sin mandarla, porque no tiene a
+ * dónde ir (la lápida que nunca tuvo fila, la venta fuera de la hoja) y lo que haga falta lo
+ * anotó él. Sale de la bandeja, pero no se cuenta como subida.
  */
 
 /* El almacén 'movimientos' es append-only y por eso no tiene conflictos posibles. No es
@@ -296,10 +305,87 @@ function programarBombeo() {
 }
 
 /** La bandeja de salida en orden de emisión: sin los conflictos, sin lo que este relevo no
- *  sabe llevar y sin la marca. Lectura: nunca lanza, devuelve [] si la base no abrió. */
+ *  sabe llevar, sin lo que la hoja rechazó para siempre y sin la marca. Lectura: nunca lanza,
+ *  devuelve [] si la base no abrió. */
 export async function pendientes() {
   const todas = await DB.listar('pendientes', { indice: 'porTs' });
-  return todas.filter(o => !esMarca(o) && o.estado !== 'conflicto' && o.estado !== 'sin_destino');
+  return todas.filter(o => !esMarca(o) && o.estado !== 'conflicto' && o.estado !== 'sin_destino' &&
+                           o.estado !== 'rechazada');
+}
+
+/**
+ * Lo que la hoja rechazó y que reintentar no arregla: un alta desde un teléfono cuyo rol no
+ * escribe el nombre, un cambio de puros campos que ese rol no toca, una venta que ya no está
+ * en la hoja. El relevo lo marca `definitivo` y `bombear` lo aparta aquí, con su razón en
+ * `ultimo_error`, en vez de pararse en él: detrás esperaban cambios que sí se podían mandar.
+ *
+ * No se descarta, por lo mismo que lo que no tiene destino: es lo que alguien capturó. Se
+ * enseña en la banda de frescura, y `resolver(id, 'mio')` lo devuelve a la cola —por
+ * ejemplo, el día que ese teléfono entra con una cuenta de Dirección— o `'suyo'` lo tira.
+ */
+/**
+ * Devuelve a la cola lo apartado como «rechazada». Es la salida que no tenía: nada la
+ * revivía —ni un relevo nuevo ni un ingreso nuevo—, y la banda la contaba para siempre. Se
+ * usa después de arreglar la causa (dar de alta la venta desde Dirección, entrar con la
+ * cuenta de otro rol, corregir la fila en la hoja). Lo que vuelva a rebotar vuelve a apartarse.
+ * @returns {Promise<Resultado>} {valor:{reencoladas}}
+ */
+export async function reintentarRechazadas() {
+  const lista = await rechazadas();
+  let n = 0;
+  for (const op of lista) {
+    const r = await DB.poner('pendientes', { ...op, estado: 'pendiente', intentos: 0, ultimo_error: '', codigo_rechazo: null, motivo_rechazo: null });
+    if (r && r.ok) n++;
+  }
+  return ok({ reencoladas: n });
+}
+
+export async function rechazadas() {
+  const todas = await DB.listar('pendientes', { indice: 'porTs' });
+  return todas.filter(o => !esMarca(o) && o.estado === 'rechazada');
+}
+
+/**
+ * Tira de la bandeja lo que cuelga de UN proyecto: sus operaciones y las de su instalación.
+ *
+ * Es la otra salida de lo apartado, y la usa la capa de datos, no una pantalla: cuando
+ * Dirección vuelve a dar de alta una venta cuya fila se borró, el alta nueva lleva el estado
+ * de hoy de todo, y los cambios que rebotaron contra la fila muerta saldrían detrás como altas
+ * repetidas con fotos viejas; cuando se quita o se junta una tarjeta importada, sus cambios ya
+ * no tienen de quién ser. Solo en los `estados` que se piden, y nunca un conflicto: ése lo
+ * decide una persona con las dos versiones enfrente.
+ * @param {string} proyectoId
+ * @param {string[]} [estados] por omisión, solo lo rechazado
+ * @returns {Promise<Resultado>} {valor:{descartadas}}
+ */
+export async function descartarDelProyecto(proyectoId, estados) {
+  const id = String(proyectoId || '');
+  if (!id) return mal('DATO_INVALIDO', MSG.DATO_INVALIDO);
+  let n = 0;
+  for (const o of await delProyecto(id, estados)) {
+    const r = await DB.borrar('pendientes', o.id);
+    if (r && r.ok) n++;
+  }
+  return ok({ descartadas: n });
+}
+
+/**
+ * Lo de la bandeja que cuelga de UN proyecto —sus operaciones y las de su instalación—, en los
+ * `estados` que se piden (por omisión, lo rechazado) y nunca un conflicto. Es la misma cuenta que
+ * `descartarDelProyecto`, sin tirar nada: la capa de datos la necesita para saber qué se va a
+ * tirar antes de tirarlo (lo que rebotó y se guarda para cuando vuelva la fila, ver
+ * `proyectos.dejarFueraDeLaHoja`) o si hay algo esperando (ver `proyectos.juntarConLaDeAqui`).
+ * @returns {Promise<Operacion[]>} en el orden de la bandeja
+ */
+export async function delProyecto(proyectoId, estados) {
+  const id = String(proyectoId || '');
+  if (!id) return [];
+  const cuales = new Set((Array.isArray(estados) && estados.length ? estados : ['rechazada'])
+    .filter(e => e !== 'conflicto'));
+  const esDe = o => (o.almacen === 'proyectos' && (o.registro_id === id || (o.datos && o.datos.id === id))) ||
+                    (o.almacen === 'instalaciones' && o.datos && o.datos.proyecto_id === id);
+  return (await DB.listar('pendientes', { indice: 'porTs' }))
+    .filter(o => !esMarca(o) && cuales.has(o.estado || 'pendiente') && esDe(o));
 }
 
 /**
@@ -361,7 +447,7 @@ export function bombear() {
 }
 
 const conteoVacio = extra => ({
-  mandadas: 0, subidas: 0, fallidas: 0, conflictos: 0, pendientes: 0, sin_destino: 0, ...extra,
+  mandadas: 0, subidas: 0, fallidas: 0, conflictos: 0, pendientes: 0, sin_destino: 0, rechazadas: 0, omitidas: 0, ...extra,
 });
 
 /* Lo apartado vuelve solo. Un relevo nuevo —o el mismo, enseñado a llevar el almacén— no
@@ -400,7 +486,7 @@ async function bombearDeVerdad() {
 
   if (!cola.length) return ok(conteoVacio({ motivo: 'nada_que_mandar' }));
 
-  let subidas = 0, fallidas = 0, enConflicto = 0, apartadas = 0;
+  let subidas = 0, fallidas = 0, enConflicto = 0, apartadas = 0, rechazadasN = 0, omitidas = 0;
   const rechazos = [];
 
   for (const op of cola) {
@@ -432,6 +518,14 @@ async function bombearDeVerdad() {
       break;
     }
 
+    if (respuesta && respuesta.ok && respuesta.omitida) {
+      /* Despachada sin mandar (ver la cabecera): contarla como subida era que Ajustes dijera «Se
+         mandó 1 operación» de un cambio que no llegó a ningún lado. */
+      await DB.borrar('pendientes', op.id);
+      omitidas++;
+      continue;
+    }
+
     if (respuesta && respuesta.ok) {
       /* Se guardó, pero puede que no entero. `rechazadas` trae las propiedades que el otro
          lado NO escribió y el motivo de cada una. Se acumula para que quien llamó al bombeo
@@ -446,6 +540,23 @@ async function bombearDeVerdad() {
     }
 
     const codigo = (respuesta && respuesta.codigo) || 'SIN_RED';
+
+    /* Rechazada para siempre: se aparta con su razón y se sigue. Cuenta como fallida para
+       que quien apretó «Mandar» no lea «no había nada que mandar» en verde. */
+    if (respuesta && respuesta.definitivo) {
+      const razon = String(respuesta.mensaje || codigo);
+      await DB.poner('pendientes', {
+        ...op, estado: 'rechazada', intentos: (op.intentos || 0) + 1,
+        ultimo_error: razon, codigo_rechazo: codigo,
+        motivo_rechazo: respuesta.motivo ? String(respuesta.motivo) : null,
+      });
+      rechazadasN++;
+      fallidas++;
+      /* No se anota como «último error»: esa operación ya salió de la cola, y la banda de «no
+         ha podido mandar» se encendía por ella con cada cambio sano que se encolaba después.
+         Lo apartado tiene su propio aviso (ver frescura) y su botón en Ajustes. */
+      continue;
+    }
 
     if (codigo === 'CONFLICTO') {
       /* No se aplica y no se descarta: se aparca. Una sobrescritura silenciosa que nadie
@@ -471,7 +582,9 @@ async function bombearDeVerdad() {
     /* Si fue la red o el puente, no tiene sentido intentar las otras 40: van a fallar
        igual y cada intento fallido sube el contador de reintentos de una operación que
        no tuvo la culpa, y con el retroceso exponencial eso la castiga por horas. */
-    /* Y con un token que el puente no reconoce tampoco: las 40 darían 401 igual. */
+    /* Y con una llave que el puente no reconoce tampoco: las 40 darían 401 igual. Este
+       ROL_SIN_PERMISO es el de la PUERTA; el de una sola operación llega `definitivo` y
+       ya se apartó arriba sin parar a nadie. */
     if (codigo === 'SIN_RED' || codigo === 'DESCONOCIDO' || codigo === 'ROL_SIN_PERMISO') break;
   }
 
@@ -479,12 +592,12 @@ async function bombearDeVerdad() {
   /* Un bombeo que salió limpio borra el último error: sin esto, la banda de «no ha podido
      mandar N cambios (error)» se encendía con cada operación nueva por un tropiezo de hace
      días que ya no existía. */
-  if (subidas && !fallidas) _ultimoError = '';
+  if ((subidas || omitidas) && fallidas === rechazadasN) _ultimoError = '';
 
   const quedan = (await pendientes()).length;
   return ok({
     mandadas: subidas, subidas, fallidas, conflictos: enConflicto, pendientes: quedan,
-    sin_destino: apartadas, rechazos,
+    sin_destino: apartadas, rechazadas: rechazadasN, omitidas, rechazos,
     motivo: subidas ? (rechazos.length ? 'ok_incompleto' : 'ok') : (fallidas ? 'con_fallas' : 'ok'),
   });
 }
@@ -619,6 +732,26 @@ async function jalarDeVerdad() {
     }
   }
 
+  /* Con el barrido cerrado y ya escrito, el relevo puede revisar lo de este lado contra lo que
+     vio: la tarjeta que importó de una fila que ya no vino, o la que repite una venta de aquí.
+     Qué es cada cosa lo sabe él y no este archivo (ver `despuesDeBajar` en puente.js). Se le
+     dice si el barrido fue COMPLETO —de la primera página a la última, sin arrancar a medias—,
+     porque solo uno completo sabe qué filas faltan: el a medias sabe cuáles no alcanzó a leer.
+     Y lo apartado: un rechazo de antes puede decir algo que la bajada ahora confirma (la venta
+     cuya fila se borró y que se atoró antes de que el relevo supiera marcarla).
+     Y en su propio try: una revisión que falla no le quita a nadie la bajada que sí llegó. */
+  let revision = null;
+  if (cierra && typeof _adaptador.despuesDeBajar === 'function') {
+    try {
+      revision = await _adaptador.despuesDeBajar({ completa: !barrido.parcial, vistos: barrido.vistos,
+                                                   rechazadas: await rechazadas() });
+    } catch (_) { revision = null; }
+    /* Lo que la revisión escribió cuenta como actualizado: quien repinta solo «si algo cambió»
+       (el arranque callado) tiene que enterarse de que una copia se juntó o de que una tarjeta
+       ya lleva su aviso. */
+    if (revision && Number(revision.cambios) > 0) actualizados += Number(revision.cambios);
+  }
+
   await ponerMarcas({
     ultima_bajada: Date.now(),
     cursor: (lote && lote.cursor) || null,
@@ -627,11 +760,15 @@ async function jalarDeVerdad() {
     ultima_bajada_completa: cierra ? Date.now() : m.ultima_bajada_completa,
   });
 
-  /* `hay_mas`: el puente pagina de 50 en 50 y quien llama decide si da otra vuelta. Antes se
+  /* `hay_mas`: el relevo puede paginar y quien llama decide si da otra vuelta. Antes se
      adivinaba por los contadores, y una página entera de filas sin cambios daba 0/0/0 y
-     cortaba el bucle en la primera vuelta. */
+     cortaba el bucle en la primera vuelta.
+     La hoja ya NO pagina: desde puente-sheets-6 manda las 309 filas en una respuesta. Paginaba
+     por número de fila mientras cada subida la reacomodaba, y una venta que cruzaba de una
+     página a otra en mitad del barrido no salía en ninguna: el cierre de abajo la borraba del
+     récord hasta el barrido siguiente. Con una sola lectura, una fila que existe siempre se ve. */
   return ok({ nuevos, actualizados, descartados, sin_cambio: sinCambio, borrados,
-              hay_mas: !!(lote && lote.hay_mas), completa: cierra, motivo: 'ok' });
+              hay_mas: !!(lote && lote.hay_mas), completa: cierra, revision, motivo: 'ok' });
 }
 
 /* ¿Es el mismo dato, sellos aparte? Compara con las claves ordenadas para que el orden en que
@@ -747,7 +884,7 @@ const HORAS_VIEJO = 48;
  * mismo: `texto` y `mensaje` son la misma cadena.
  */
 export async function frescura() {
-  const [m, cola] = await Promise.all([marcas(), pendientes()]);
+  const [m, cola, fuera] = await Promise.all([marcas(), pendientes(), rechazadas()]);
 
   const vacia = {
     al_dia: true, dispositivos: [], texto: '', mensaje: '',
@@ -780,6 +917,27 @@ export async function frescura() {
       al_dia: false, dispositivos: [], texto, mensaje: texto, atascado: true,
       ultimo_envio: m.ultimo_envio, ultima_bajada: m.ultima_bajada,
       pendientes: n, edad_horas: horasSinEnviar,
+    };
+  }
+
+  /* Lo que la hoja rechazó para siempre ya no está en la cola —si estuviera, la trabaría—,
+     así que la revisión de arriba no lo ve. Sin esto, un cambio que nunca va a llegar
+     dejaba la banda en «Al día». Se dice con la razón del más reciente, que es la que la
+     persona puede arreglar (entrar con otra cuenta, darla de alta desde Dirección). */
+  if (fuera.length) {
+    const n = fuera.length;
+    const ultimo = fuera[fuera.length - 1];
+    /* «No se pudo mandar» y no «la hoja no aceptó»: algunos los aparta el propio teléfono
+       (la venta ya no está en él, o su rol no escribe nada de lo que traen) sin preguntarle
+       a la hoja. Y se dice dónde se reintentan, que era lo que faltaba. */
+    const texto = `No se ${n === 1 ? 'pudo mandar 1 cambio' : 'pudieron mandar ' + n + ' cambios'} de este teléfono` +
+      (ultimo && ultimo.ultimo_error ? `: ${ultimo.ultimo_error}` : '.') +
+      ` ${n === 1 ? 'Quedó apartado' : 'Quedaron apartados'} aquí para no trabar lo demás; no se perdió nada. ` +
+      'Arreglada la causa, se reintentan en Ajustes → El puente.';
+    return {
+      al_dia: false, dispositivos: [], texto, mensaje: texto, rechazadas: n,
+      ultimo_envio: m.ultimo_envio, ultima_bajada: m.ultima_bajada,
+      pendientes: cola.length, edad_horas: null,
     };
   }
 
