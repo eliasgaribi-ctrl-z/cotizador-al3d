@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   157 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   158 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -20,13 +20,20 @@ function renderSummary(){
      guardar, y porque no depende de que el usuario apriete ningún botón: recargar la app a
      medio editar también entra por aquí. Suelta una sola vez, porque al soltar borra la
      huella; de ahí que el aviso no se repita en cada repintado. */
-  if(soltarAuthSiCambio()){
+  /* El PDF y el chat que ya se hicieron eran de OTRO trabajo: con el precio suelto, la
+     entrega vuelve a empezar. La venta registrada no se toca (ver desmarcarHitos).
+     Se mira la huella y no lo que devuelve soltarAuthSiCambio: ésa solo dice «true» cuando
+     había un AJUSTE que perder, y el caso normal —autorizada al precio calculado— la soltaba
+     callada. Editar una partida dejaba entonces el PDF y el WhatsApp palomeados, y después de
+     reautorizar el siguiente paso sugerido era «Registrar venta» con el PDF viejo en manos
+     del cliente. */
+  const habiaHuella=!!Q.huellaAuth;
+  const soltoAjuste=soltarAuthSiCambio();
+  if(habiaHuella&&!Q.huellaAuth) desmarcarHitos(['pdf','wa']);
+  if(soltoAjuste){
     /* Todas las partidas, no solo la que se tecleó: sus importes del cliente acaban de dejar
        de valer (ver repintarImportes). */
     repintarImportes();
-    /* El PDF y el chat que ya se hicieron eran de OTRO trabajo: con el precio suelto, la
-       entrega vuelve a empezar. La venta registrada no se toca (ver desmarcarHitos). */
-    desmarcarHitos(['pdf','wa']);
     toast('Cambiaron las partidas: el precio vuelve al calculado y hay que autorizarlo de nuevo — abajo está «Volver a autorizar»','',7000);
     voz('El precio autorizado se soltó porque cambiaron las partidas');
   }
@@ -183,7 +190,7 @@ function renderAuth(){
       /* El renglón era un div con onclick y nada más: el autorizador que navega con teclado
          no podía cargar ninguna cotización pendiente, que es lo único que hace esta pantalla.
          aria-current marca la que está abierta, que hasta ahora solo se distinguía por color. */
-      const rows=pendientes.map(e=>`<div class="queue-item${e.folio===Q.folio?' active':''}" ${_ABRIBLE} ${e.folio===Q.folio?'aria-current="true"':''} aria-label="Revisar ${esc(e.folio)}${e.proy||e.cliente?', '+esc(e.proy||e.cliente):''}" onclick="loadQueueEntry('${esc(e.folio)}')">
+      const rows=pendientes.map(e=>`<div class="queue-item${e.folio===Q.folio?' active':''}" ${_ABRIBLE} ${e.folio===Q.folio?'aria-current="true"':''} aria-label="Revisar ${esc(e.folio)}${e.proy||e.cliente?', '+esc(e.proy||e.cliente):''}" onclick="loadQueueEntry(${jsArg(e.folio)})">
         <span class="qi-dot"></span>
         <div class="qi-body">
           <div class="qi-folio">${esc(e.folio)}</div>
@@ -395,7 +402,7 @@ function authRevisionHTML(soloAutorizar){
       '</div>'+
       '<div class="ia-body" id="ia-body-'+it.id+'" style="'+(isOpen?'':'display:none')+'">'+
       '<label for="ia-in-'+it.id+'" style="font-size:11px;margin-bottom:4px">Precio autorizado</label>'+
-      '<div class="inp-money"><input id="ia-in-'+it.id+'" type="number" inputmode="decimal" min="0" step="50" value="'+authVal+'" oninput="updItemAuth('+it.id+',this.value.length?+this.value:undefined)"></div>'+
+      '<div class="inp-money"><input id="ia-in-'+it.id+'" type="number" inputmode="decimal" min="0" step="50" value="'+esc(String(authVal))+'" oninput="updItemAuth('+it.id+',this.value.length?+this.value:undefined)"></div>'+
       '<div class="ia-adj'+diffCls+'" id="ia-adj-'+it.id+'">'+diffTxt+'</div>'+
       '</div>'+
       '</div>';
@@ -414,7 +421,7 @@ function authRevisionHTML(soloAutorizar){
     <div class="fld">
       <label for="a-precio">Precio final autorizado ${Q.iva?'· subtotal, SIN IVA':'(sin IVA)'}</label>
       <div class="precio-auth-orig" style="font-size:11.5px;color:var(--muted);margin-bottom:4px">${Q.iva?'Subtotal':'Total'} calculado: <b>${money(subCalc)}</b></div>
-      <div class="inp-money"><input id="a-precio" type="number" inputmode="decimal" min="0" step="100" value="${paCurrent}" oninput="updPrecioAuth(+this.value,${subCalc})"></div>
+      <div class="inp-money"><input id="a-precio" type="number" inputmode="decimal" min="0" step="100" value="${esc(String(paCurrent))}" oninput="updPrecioAuth(+this.value,${subCalc})"></div>
       ${Q.iva?`<div class="precio-auth-neto" id="a-precio-neto">Con IVA 16%: <b>${money(conIva(paCurrent))}</b></div>`:''}
       <div class="descuento-info" id="descuento-info"></div>
     </div>
@@ -1510,15 +1517,21 @@ let _reautorizando=null;
 function reautorizar(){
   if(Q.estado!=='autorizada') return;
   if(Q.rol==='autorizador'){ irAResumen(); return; }
+  /* Las partidas también. autorizarYoMismo aplica la regla de los 10 cm mientras la
+     cotización es borrador, así que unas letras de 6 cm de una autorizada vieja se volvían
+     recorte de acrílico —sin acabado, $0— al abrir la revisión; cancelar devolvía el precio
+     pero no las partidas, la huella ya no casaba y el precio se volvía a soltar, con el
+     aviso diciendo «el precio se dejó como estaba». */
   const antes={folio:Q.folio,autorizador:Q.autorizador,nota:Q.nota,fechaAuth:Q.fechaAuth,
-    precioAuth:Q.precioAuth,itemsAuth:JSON.parse(JSON.stringify(Q.itemsAuth||{})),huellaAuth:Q.huellaAuth};
+    precioAuth:Q.precioAuth,itemsAuth:JSON.parse(JSON.stringify(Q.itemsAuth||{})),huellaAuth:Q.huellaAuth,
+    items:JSON.parse(JSON.stringify(Q.items))};
   Q.editMode=false; _editCliente=null;
   /* Como un borrador con folio: autorizarYoMismo hace el resto —los tres datos del cliente, la
      regla de los 10 cm, pendiente y la cola—. */
   Q.estado='borrador';
   paBorradorLimpiar();
   autorizarYoMismo();
-  if(Q.estado!=='pendiente'){ Q.estado='autorizada'; renderItems(); return; }   // algo lo frenó y ya lo dijo: se queda como estaba
+  if(Q.estado!=='pendiente'){ Q.estado='autorizada'; Q.items=antes.items; renderItems(); return; }   // algo lo frenó y ya lo dijo: se queda como estaba
   _reautorizando=antes;
 }
 function reabrir(){
@@ -1532,6 +1545,7 @@ function reabrir(){
     _selfAuth=false; paBorradorLimpiar();
     Q.estado='autorizada'; Q.autorizador=a.autorizador; Q.nota=a.nota; Q.fechaAuth=a.fechaAuth;
     Q.precioAuth=a.precioAuth; Q.itemsAuth=a.itemsAuth; Q.huellaAuth=a.huellaAuth;
+    if(Array.isArray(a.items)) Q.items=a.items;
     removeFromQueue(Q.folio);
     saveState(); renderItems();
     toast('El precio se dejó como estaba'+(tecleo?' — se descartó lo que llevabas escrito':''));
@@ -1848,10 +1862,16 @@ function aplicarFoldProy(){
 }
 
 /* ===================== Inputs generales ===================== */
-function upd(k,v){
+function upd(k,v,ev){
   undoJuntar('q:'+k);
   Q[k]=v; saveState(); updProg();   // updProg ya repinta el encabezado plegado
-  if(k==='cliente') autocompletarCliente(v);
+  /* El cliente conocido se completa al ELEGIRLO, no letra por letra. Corría en cada tecla y
+     busca el nombre exacto, así que con «Ana» en el historial, escribir «Ana María» casaba
+     en la tercera letra y le ponía el teléfono y la dirección de Ana, que se quedaban al
+     terminar de escribir: la cotización y su WhatsApp salían al número de otra persona.
+     Elegir de la lista llega como `insertReplacementText` (Chrome, Safari) o sin inputType
+     (Firefox); lo tecleado a mano se completa en el `change` del campo, al salir de él. */
+  if(k==='cliente'&&ev&&(!ev.inputType||ev.inputType==='insertReplacementText')) autocompletarCliente(v);
   /* Los dos campos que dicen de quién es esto son los dos que pueden destapar un cuaderno. */
   if(k==='cliente'||k==='tel') actualizarAvisoCuaderno();
 }

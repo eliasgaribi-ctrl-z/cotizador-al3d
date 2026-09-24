@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   157 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   158 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -47,11 +47,67 @@ let pid=0, dragId=null;
 const $=id=>document.getElementById(id);
 const plCot=n=>n+(n===1?' cotización':' cotizaciones');
 const money=n=>'$'+Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});
-/* El apóstrofo también: los cinco onclick que pasan un folio lo delimitan con comilla
-   simple —onclick="reabrirDeHistorial('${esc(e.folio)}')"—, así que un folio con apóstrofo
-   se salía del literal. Del teclado no hay camino (los folios los genera folioFmt), pero de
-   un respaldo restaurado sí. */
 const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+/* ----- Un texto como argumento de un onclick -----
+   Durante un tiempo este comentario decía que escapar el apóstrofo en `esc` bastaba para
+   onclick="reabrirDeHistorial('${esc(e.folio)}')". No basta, y no puede bastar: el navegador
+   DECODIFICA las entidades del atributo antes de correr el manejador, así que `&#39;` vuelve
+   a ser un apóstrofo y se sale del literal igual. Dos consecuencias, comprobadas:
+     · un respaldo restaurado con el folio  COT-0002');fetch(…);('  corría su código al tocar
+       «Duplicar», con las API keys a la mano en localStorage;
+     · y sin atacante: el cuaderno de «Tacos D'Luis» sin teléfono tiene la clave
+       nom:tacos d'luis, el clic era un error de sintaxis y ese cuaderno no abría nunca.
+   Lo correcto es escribir un literal de JS (JSON.stringify: comillas dobles, barras y saltos
+   escapados) y escapar ESO para el atributo: el navegador deshace el `&quot;` y el manejador
+   recibe el literal intacto. Se escribe SIN comillas alrededor: onclick="fn(${jsArg(x)})". */
+const jsArg=s=>esc(JSON.stringify(String(s??'')));
+
+/* ----- Una partida que viene del almacenamiento -----
+   Las partidas llegan por cuatro caminos que no pasan por el teclado —la captura guardada
+   (loadState), el historial (Abrir y Duplicar), la cola del autorizador y un respaldo
+   restaurado— y ninguno miraba lo que traían dentro: `restaurarDesde` solo comprobaba que
+   `items` fuera una lista. Las medidas se pintan crudas —value="${it.altura}" en la partida,
+   `${it.altura}cm alt.` en el PDF, que se abre como página del mismo origen—, así que un
+   respaldo con altura:'<img src=x onerror=…>' corría su código con las API keys a la mano.
+   Y sin atacante: un null en la lista tronaba el arranque en el primer `it.id`.
+   Se sanea aquí, en un solo lugar: las medidas y los importes a número finito, el id a
+   entero, el tipo a uno de los cinco y el texto a texto. `_lt` se deja ausente si no venía,
+   porque reabrirDeHistorial distingue «sin importe congelado» de «congelado en 0». */
+const _NUM_PARTIDA=['altura','n','tarifa','ancho','alto','pz','pu','anchoMedido'];
+const _TXT_PARTIDA=['material','comp','acab','bas','ilumTipo','desc','textoAuto','medidaTipo'];
+const _TIPOS_PARTIDA=['letras','recorte','bastidor','caja','manual'];
+function sanearPartida(it){
+  if(!it||typeof it!=='object'||Array.isArray(it)) return null;
+  const c={...it};
+  const num=v=>{ const x=Number(v); return Number.isFinite(x)?x:0; };
+  c.id=Math.max(0,Math.trunc(num(c.id)));
+  if(!_TIPOS_PARTIDA.includes(c.tipo)) c.tipo='letras';
+  for(const k of _NUM_PARTIDA) if(c[k]!==undefined) c[k]=num(c[k]);
+  for(const k of _TXT_PARTIDA) if(c[k]!==undefined&&typeof c[k]!=='string') c[k]=c[k]==null?'':String(c[k]);
+  if(c._lt!==undefined&&!Number.isFinite(Number(c._lt))) delete c._lt;
+  else if(c._lt!==undefined) c._lt=Number(c._lt);
+  return c;
+}
+/* Los importes autorizados, por lo mismo: `itemsAuth` se pinta en value="…" del formulario de
+   revisión y `precioAuth` en el del precio final. Solo números finitos y no negativos —un
+   importe negativo por partida no es un descuento, es un renglón en menos que descuadra el
+   reparto—; lo demás se quita, que es lo mismo que «sin ajuste». */
+function sanearAuth(o){
+  const r={};
+  if(o&&typeof o==='object'&&!Array.isArray(o))
+    for(const [k,v] of Object.entries(o)){ const x=Number(v); if(v!==null&&v!==''&&Number.isFinite(x)&&x>=0) r[k]=x; }
+  return r;
+}
+const sanearImporte=v=>{ const x=Number(v); return Number.isFinite(x)&&x>0?x:0; };
+/* La lista entera, sin los que no son partida, y sin ids repetidos o en cero: con dos
+   partidas del mismo id, tocar una movía la otra y borrar una se llevaba la que no era. */
+function sanearPartidas(arr){
+  const vistos=new Set(); let tope=0;
+  const lista=(Array.isArray(arr)?arr:[]).map(sanearPartida).filter(Boolean);
+  lista.forEach(it=>{ tope=Math.max(tope,it.id); });
+  lista.forEach(it=>{ if(!it.id||vistos.has(it.id)) it.id=++tope; vistos.add(it.id); });
+  return lista;
+}
 
 /* ----- URLs de imagen que vienen del almacenamiento -----
    El logotipo y la imagen analizada se interpolaban crudos dentro de src="${...}". Los dos
@@ -232,6 +288,10 @@ function togglePreciosALaVista(){
 const _SEL_PRECIO='.lt,#s-sub,#s-iva,#s-neto,#s-calc,#s-anti-rest,#paso-total-v,.mbar-amt,.anti .inp-money,.partida .inp-money,.formula,.ptok.dinero';
 function _espiarPrecios(e){
   if(!document.body.classList.contains('precios-ocultos'))return;
+  /* Ya a la vista —por «Ver precios» o por otro dedo—: el gesto no tiene nada que destapar, y
+     si arrancaba aquí, soltarlo TAPABA unos precios que el botón seguía diciendo que estaban
+     a la vista. */
+  if(document.body.classList.contains('precios-a-la-vista'))return;
   const t=e.target.closest&&e.target.closest(_SEL_PRECIO);
   if(!t)return;
   // Sobre el campo del anticipo se deja pasar el toque: ahí se escribe
@@ -675,7 +735,14 @@ function m2EsMinimo(m2){ return (m2||0)>0 && (m2||0)<M2_MINIMO; }
    que un cliente con calculadora sí hace. Se redondea UNA vez, aquí, en la única fuente del
    importe de una partida; con las partidas en centavos exactos, la suma, el IVA y el total
    cuadran entre sí en pantalla, en el PDF y en el registro de venta. */
-function lineTotal(it){ return Math.round(lineTotalCrudo(it)*100)/100; }
+/* Al centavo, redondeando el MEDIO hacia arriba de verdad. `Math.round(x*100)/100` falla con
+   los importes por área: 100.5 × 102 cm a $950/m² es $973.845 exactos, pero en binario queda
+   973.8449999… y salía $973.84 cuando una calculadora dice $973.85 — en cerca del 1.5% de las
+   medidas de caja y bastidor. Se redondea primero a seis decimales, que borra el error de
+   representación sin tocar ningún importe real, y se corre el punto por texto ('e2'), que no
+   vuelve a multiplicar en binario. */
+const alCentavo=x=>Math.round(+(Number(x||0).toFixed(6)+'e2'))/100;
+function lineTotal(it){ return alCentavo(lineTotalCrudo(it)); }
 function lineTotalCrudo(it){
   if(it.tipo==='letras'){
     let p=factorOf(it)*(it.altura||0)*(it.n||0);

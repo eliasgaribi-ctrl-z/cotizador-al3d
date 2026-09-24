@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   157 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   158 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -149,8 +149,14 @@ function getKeys(p){
 function setKeys(p,arr){
   const lim=[];
   (arr||[]).forEach(k=>{ k=String(k||'').trim(); if(k&&!lim.includes(k)&&lim.length<AI_MAX_KEYS) lim.push(k); });
+  /* keyPack devuelve '' si el texto no cabe en btoa —cualquier carácter por encima de
+     U+00FF—, y aquí se guardaba ese '' y se borraban las de antes: pegar UNA key con un
+     espacio de ancho cero o un guion «tipográfico» se llevaba TODAS las del proveedor, y el
+     aviso decía «API key guardada · 0 de Gemini». Si no se puede guardar, no se toca nada. */
+  const empacado=lim.length?keyPack(JSON.stringify(lim)):'';
+  if(lim.length&&!empacado) return null;
   try{
-    if(lim.length) localStorage.setItem('al3d_kxs_'+p,keyPack(JSON.stringify(lim)));
+    if(lim.length) localStorage.setItem('al3d_kxs_'+p,empacado);
     else localStorage.removeItem('al3d_kxs_'+p);
     localStorage.removeItem('al3d_kx_'+p);
     localStorage.removeItem('ai_key_'+p);
@@ -161,12 +167,17 @@ function setKeys(p,arr){
 /* Sigue habiendo un getKey de una sola key porque media app solo pregunta «¿hay algo
    configurado para este proveedor?». */
 function getKey(p){ return getKeys(p)[0]||''; }
+/* Una API key es ASCII visible y nada más. Lo que se cuela al pegarla —un espacio de ancho
+   cero, un salto de línea a media key, el BOM— se quita, porque `trim()` no lo ve y el
+   proveedor contestaría «key inválida» sin que se note por qué. Lo que quede fuera de ASCII
+   después de eso ya no es un accidente de pegado: se rechaza en vez de guardarlo. */
 function addKey(p,k){
-  k=String(k||'').trim(); if(!k) return '';
+  k=String(k||'').replace(/[\s\u200B-\u200D\u2060\uFEFF]+/g,''); if(!k) return '';
+  if(/[^\x21-\x7e]/.test(k)) return 'rara';
   const a=getKeys(p);
   if(a.includes(k)) return 'repetida';
   if(a.length>=AI_MAX_KEYS) return 'llena';
-  setKeys(p,a.concat([k])); return 'ok';
+  return setKeys(p,a.concat([k]))?'ok':'rara';
 }
 /* Si el navegador no soporta text-security (p. ej. Firefox), el campo se vería en
    claro: ahí sí conviene type="password" con autocomplete="new-password". */
@@ -211,6 +222,7 @@ function aiAddKey(p){
   if(r==='ok'){ inp.value=''; aiRenderKey(p); toast(`API key guardada · ${getKeys(p).length} de ${AI_NOMBRE[p]}`,'ok'); }
   else if(r==='repetida'){ inp.value=''; toast('Esa key ya estaba guardada','',2600); }
   else if(r==='llena') toast(`Máximo ${AI_MAX_KEYS} keys por proveedor`,'err',3000);
+  else if(r==='rara'){ aiEditKey(p); toast('Esa key trae caracteres que una API key no lleva — vuelve a copiarla de la página del proveedor','err',4200); }
   else { aiEditKey(p); toast('Pega la key antes de agregarla','err',2600); }
 }
 function aiDelKey(p,i){
@@ -305,7 +317,6 @@ function aiOpen(fuente){
   const p=_lsGet('ai_provider')||'gemini';
   setAiProv(p);
   if(!getKey(p)) $('ai-cfg-box').open=true;
-  _aiCancelado=false;
   const go=$('ai-go-btn'); if(go) go.disabled=aiTrabajando;
   aiStatus(aiTrabajando?'Hay un análisis en curso…':''
     ,aiTrabajando?'work':'');
@@ -317,9 +328,12 @@ function aiOpen(fuente){
 function aiClose(){
   $('aimodal').classList.remove('show');
   aiThumbsSoltarTodas();
+  /* La corrida se marca cancelada AUNQUE ya haya terminado: así el cierre automático que
+     deja programado un análisis exitoso no cierra un modal que la persona ya cerró y volvió
+     a abrir. Ver `_aiUltima`. */
+  const run=_aiUltima;
+  if(run){ run.cancelada=true; if(run.abort){ try{run.abort.abort();}catch(_){} } }
   if(aiTrabajando){
-    _aiCancelado=true;
-    if(_aiAbort){ try{_aiAbort.abort();}catch(_){} }
     aiTrabajando=false;
     const b=$('ai-go-btn'); if(b) b.disabled=false;
   }
@@ -513,7 +527,8 @@ async function aiTraerDeUrl(url){
   }
   aiStatus('Trayendo la imagen de la página…','work');
   try{
-    const r=await fetch(url,{mode:'cors'});
+    /* Con tope: sin él, un sitio que no contesta dejaba «Trayendo la imagen…» para siempre. */
+    const r=await fetch(url,{mode:'cors',signal:AbortSignal.timeout?AbortSignal.timeout(20000):undefined});
     if(!r.ok) throw new Error('respondió '+r.status);
     const b=await r.blob();
     if(!AI_TIPOS_OK.test(b.type||'')) throw new Error('no es una imagen');
@@ -632,7 +647,11 @@ async function aiImagen(f){
     const w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
     if(!w||!h) return crudo();
     const k=Math.min(1,AI_IMG_MAX/Math.max(w,h));
-    if(k===1&&f.size<=1200000) return crudo();  // ya es ligera: no se recomprime de gratis
+    /* Ya es ligera: no se recomprime de gratis. Pero solo si es de los tres formatos que
+       aceptan todos los proveedores: un SVG, GIF, BMP o AVIF pequeño se mandaba tal cual con
+       su tipo, Gemini y Groq lo rechazaban con un 400, y la cadena entera de respaldo fallaba
+       en lo mismo. Pasar por el lienzo los convierte en JPEG. */
+    if(k===1&&f.size<=1200000&&/^image\/(jpeg|png|webp)$/i.test(f.type||'')) return crudo();
     const c=document.createElement('canvas');
     c.width=Math.max(1,Math.round(w*k)); c.height=Math.max(1,Math.round(h*k));
     const ctx=c.getContext('2d');
@@ -653,26 +672,32 @@ async function aiImagen(f){
    res.json() y salía a pantalla como «Unexpected token <», que no le dice nada a
    nadie y encima no se distinguía de un error de verdad. Aquí se lee el cuerpo como
    texto y se intenta interpretar después. */
-async function aiFetch(url,opts){
+/* El tope cubre también el CUERPO. Antes se quitaba en cuanto llegaban las cabeceras, así
+   que una respuesta que se quedaba a medio bajar colgaba el análisis sin tope y sin nada que
+   cancelar; y un cuerpo cortado se leía como '' y salía como «rechazó la petición (HTTP
+   200)», un error de los que no se reintentan. Ahora es un fallo pasajero más. */
+async function aiFetch(url,opts,run){
   const ctl=new AbortController();
-  _aiAbort=ctl;   // para que cerrar el modal pueda cortar la petición en vuelo
+  if(run) run.abort=ctl;   // para que cerrar el modal pueda cortar la petición en vuelo
   const t=setTimeout(()=>ctl.abort(),AI_TIMEOUT);
-  let res;
-  try{
-    res=await fetch(url,Object.assign({},opts,{signal:ctl.signal}));
-  }catch(e){
+  const cortado=e=>{
     /* Cancelar no es un fallo del proveedor: si se reintentara, cerrar el modal no
        cancelaría nada — la cadena seguiría dando vueltas sola. */
-    if(_aiCancelado){ const c=new Error('análisis cancelado'); c.cancelado=true; throw c; }
+    if(run&&run.cancelada) return aiCancelado();
     const err=new Error(e&&e.name==='AbortError'
       ? 'el proveedor tardó demasiado en responder'
       : 'no se pudo conectar con el proveedor (revisa tu conexión)');
-    err.transitorio=true; throw err;
-  }finally{ clearTimeout(t); if(_aiAbort===ctl) _aiAbort=null; }
-  const txt=await res.text().catch(()=>'');
-  let data=null; try{ data=JSON.parse(txt); }catch(_){}
-  return {res,data,txt};
+    err.transitorio=true; return err;
+  };
+  try{
+    let res, txt;
+    try{ res=await fetch(url,Object.assign({},opts,{signal:ctl.signal})); }catch(e){ throw cortado(e); }
+    try{ txt=await res.text(); }catch(e){ throw cortado(e); }
+    let data=null; try{ data=JSON.parse(txt); }catch(_){}
+    return {res,data,txt};
+  }finally{ clearTimeout(t); if(run&&run.abort===ctl) run.abort=null; }
 }
+function aiCancelado(){ const c=new Error('análisis cancelado'); c.cancelado=true; return c; }
 /* Qué salió mal, en una frase que se pueda leer, y sobre todo: ¿vale la pena
    reintentar? Saturación y límites por minuto sí; una key inválida no. OpenRouter
    contesta algunos errores con HTTP 200 y el código real dentro del cuerpo, así que
@@ -707,8 +732,12 @@ function aiVacio(prov,razon){
 async function aiLlamar(c,prompt,b64,mime,sinJson){
   if(c.prov==='gemini'){
     const body={contents:[{parts:[{text:prompt},{inline_data:{mime_type:mime,data:b64}}]}],generationConfig:{responseMimeType:'application/json',temperature:0.2}};
-    const url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.model)}:generateContent?key=${encodeURIComponent(c.key)}`;
-    const r=await aiFetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    /* La key va en la cabecera y no en `?key=`: en la URL se queda en el historial de la
+       pestaña de red, en los registros de cualquier proxy de por medio y en los informes de
+       error. Es la forma que la documentación de Gemini usa hoy, y la petición ya llevaba
+       preflight por el Content-Type, así que no cuesta un viaje más. */
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.model)}:generateContent`;
+    const r=await aiFetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':c.key},body:JSON.stringify(body)},c.run);
     if(!r.res.ok||(r.data&&r.data.error)||!r.data) throw aiError(r,c.prov,c.model);
     const cand=(r.data.candidates||[])[0];
     const txt=((cand&&cand.content&&cand.content.parts)||[]).map(p=>p.text||'').join('').trim();
@@ -720,7 +749,7 @@ async function aiLlamar(c,prompt,b64,mime,sinJson){
   if(c.prov==='openrouter'){ hdrs['HTTP-Referer']=location.origin; hdrs['X-Title']='Cotizador AL3D'; }
   const body={model:c.model,messages:[{role:'user',content:[{type:'text',text:prompt},{type:'image_url',image_url:{url:`data:${mime};base64,${b64}`}}]}],temperature:0.2,max_tokens:4096};
   if(!sinJson) body.response_format={type:'json_object'};
-  const r=await aiFetch(URLS[c.prov],{method:'POST',headers:hdrs,body:JSON.stringify(body)});
+  const r=await aiFetch(URLS[c.prov],{method:'POST',headers:hdrs,body:JSON.stringify(body)},c.run);
   if(!r.res.ok||(r.data&&r.data.error)||!r.data){
     const err=aiError(r,c.prov,c.model);
     /* Buena parte de los modelos de visión no aceptan el modo JSON del API cuando va
@@ -742,6 +771,9 @@ async function aiLlamar(c,prompt,b64,mime,sinJson){
 async function aiCandidato(c,prompt,b64,mime,verbo,esperas,hayMas){
   const E=esperas||AI_ESPERAS;
   for(let i=0;;i++){
+    /* La espera entre intentos no se puede interrumpir, así que al despertar se pregunta: si
+       el modal se cerró mientras dormía, esta corrida ya no tiene a quién contestarle. */
+    if(c.run&&c.run.cancelada) throw aiCancelado();
     try{
       aiStatus(`${verbo} con ${aiEtq(c)}…${i?` (intento ${i+1} de ${E.length+1})`:''}`,'work');
       return await aiLlamar(c,prompt,b64,mime,false);
@@ -800,8 +832,16 @@ let aiTrabajando=false;
 /* Qué se intentó de verdad en la última corrida, para que el mensaje de error no cuente
    keys que la cadena excluyó a propósito. */
 let _aiIntentados=0, _aiProvsProbados=0, _aiEraPdf=false;
-/* El análisis en curso, para poder cancelarlo al cerrar el modal. */
-let _aiAbort=null, _aiCancelado=false;
+/* ----- La corrida, como objeto -----
+   Era una bandera global, `_aiCancelado`, y `aiOpen` la volvía a poner en false. Con un 503
+   de por medio eso fallaba así, comprobado: la corrida dormía entre reintentos, la persona
+   cerraba el modal y lo volvía a abrir, la bandera se limpiaba, y al despertar la corrida
+   vieja seguía como si nada — metía sus partidas y cerraba el modal recién abierto 1.5 s
+   después. Si además ya había lanzado otro análisis, el `finally` de la vieja le apagaba al
+   nuevo el «trabajando» y le soltaba el AbortController.
+   Ahora cada análisis lleva su propio objeto {cancelada, abort}, viaja en cada candidato
+   hasta aiFetch, y solo la corrida que sigue siendo la última toca el estado compartido. */
+let _aiUltima=null;
 
 async function aiAnalyze(){
   if(aiTrabajando) return;   // el botón queda deshabilitado, pero el Enter del teclado no
@@ -831,14 +871,17 @@ async function aiAnalyze(){
   const verbo=aiSrc?'Analizando la imagen medida':'Analizando';
   aiStatus(verbo+'…','work');
   const btn=$('ai-go-btn'); aiTrabajando=true; if(btn) btn.disabled=true;
+  const run={cancelada:false,abort:null}; _aiUltima=run;
   try{
     /* La imagen del escalador ya viene lista en base64 —la dibuja scImagenParaIA con
        sus cotas encima y ya reducida—, así que no hay archivo que leer ni que
        comprimir. Y como esas cotas son medidas reales, al prompt se le añade la
        lista para que las use tal cual. */
     const {b64,mime}=aiSrc?{b64:aiSrc.url.split(',')[1],mime:aiSrc.mime||'image/jpeg'}:await aiImagen(f);
+    if(run.cancelada) return;
     const prompt=aiSrc?PROMPT_IA+promptMedidas(aiSrc.medidas):PROMPT_IA;
     const cadena=aiCadena(aiProv,model,esPdf);
+    cadena.forEach(c=>{ c.run=run; });
     if(!cadena.length) throw new Error('no hay ninguna API key guardada para analizar este archivo');
     let parsed=null,usado=null,ultimo=null;
     let intentados=0;
@@ -861,7 +904,7 @@ async function aiAnalyze(){
     _aiIntentados=intentados;
     _aiProvsProbados=new Set(cadena.slice(0,intentados).map(c=>c.prov)).size;
     _aiEraPdf=esPdf;
-    if(_aiCancelado) return;   // el usuario cerró el modal a media petición
+    if(run.cancelada) return;   // el usuario cerró el modal a media petición
     if(!parsed) throw ultimo||new Error('No se pudo analizar el archivo.');
     /* ----- La imagen SÍ se guarda, también la del escalador -----
        Aquí decía que la foto del escalador no se guarda «porque ya se ve, con sus cotas, en
@@ -916,7 +959,9 @@ async function aiAnalyze(){
     } else {
       toast('Cotización IA lista (borrador)','ok');
     }
-    setTimeout(aiClose,1500);
+    /* Solo si nadie lo cerró ya: aiClose marca la corrida, y un modal cerrado y vuelto a
+       abrir en estos 1.5 s es de otra persona intención, no de esta corrida. */
+    setTimeout(()=>{ if(_aiUltima===run&&!run.cancelada) aiClose(); },1500);
   }catch(e){
     if(e&&e.cancelado) return;   // se canceló a propósito: no hay error que enseñar
     /* Si solo hay una API cargada, insistir más no arregla nada: lo que lo arregla es
@@ -933,8 +978,10 @@ async function aiAnalyze(){
           : '');
     aiStatus('Error: '+e.message+nota,'err');
   }finally{
-    aiTrabajando=false; _aiAbort=null;
-    const b=$('ai-go-btn'); if(b) b.disabled=false;
+    if(_aiUltima===run&&!run.cancelada){
+      aiTrabajando=false;
+      const b=$('ai-go-btn'); if(b) b.disabled=false;
+    }
   }
 }
 
@@ -1005,7 +1052,7 @@ function medidasCubiertas(items){
    datos del cliente. `aiOpen` ya los pidió al abrir el modal; la escritura ocurre medio
    minuto después, cuando el análisis ya se pagó y ya terminó, y frenarlo aquí lo tiraría a
    la basura para impedir un caso que exige borrar el teléfono a propósito mientras la IA
-   trabaja. Además la IA llena el cliente y el proyecto en esta misma pasada y el teléfono
+   trabaja. Además la IA llena el cliente y el proyecto si vienen vacíos, y el teléfono
    no lo saca de un JPG nunca, así que revalidar aquí fallaría casi siempre por el único
    dato que no puede traer. Lo que pasa es lo correcto: las partidas entran, y el candado
    se vuelve a cerrar sobre ellas si de verdad falta algo. No se pierde nada. */
@@ -1014,8 +1061,12 @@ function applyAi(p){
   _aiCubiertas=0;
   if(locked()) return 0;
   p.proyecto=aiTxt(p.proyecto); p.cliente=aiTxt(p.cliente); p.direccion=aiTxt(p.direccion);
-  if(p.proyecto){ Q.proy=p.proyecto; if($('f-proy')) $('f-proy').value=p.proyecto; }
-  if(p.cliente){ Q.cliente=p.cliente; if($('f-cli')) $('f-cli').value=p.cliente; }
+  /* Solo si están vacíos, como la dirección de abajo. `aiOpen` exige cliente, teléfono y
+     proyecto antes de abrir el modal, así que aquí SIEMPRE había algo tecleado, y la IA lo
+     pisaba sin decirlo: «Juan Pérez» pasaba a ser «FARMACIA SAN JUAN» —el texto del
+     letrero— y con ese nombre salían el PDF, el WhatsApp y el cuaderno del cliente. */
+  if(p.proyecto&&!(Q.proy||'').trim()){ Q.proy=p.proyecto; if($('f-proy')) $('f-proy').value=p.proyecto; }
+  if(p.cliente&&!(Q.cliente||'').trim()){ Q.cliente=p.cliente; if($('f-cli')) $('f-cli').value=p.cliente; }
   /* Antes esto escribía en un campo #f-dir que ya no existe, así que la dirección
      detectada se quedaba invisible. Se llena el campo real y solo si está vacío,
      para no pisar lo que ya escribió el vendedor. */

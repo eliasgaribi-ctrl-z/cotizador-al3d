@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   157 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   158 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -186,9 +186,16 @@ function delItem(id,opts){
      reaparecía al abrirse el candado. */
   Q.sinEstrenar=false;
   _borrada={item:Q.items[idx],idx,precioAuth:(Q.itemsAuth||{})[id],vacia};
+  /* La huella cuenta las partidas en blanco, así que quitar una se leía como «cambió el
+     trabajo» y soltaba la autorización: el autorizador bajaba la partida 1 a $16,000, el
+     aviso de partidas sin terminar le ofrecía «Quitar» el renglón vacío, y con ese toque se
+     iban todos los importes que acababa de teclear. Un renglón sin datos no mueve el precio
+     (ver arriba), así que si la autorización valía antes de quitarlo, se vuelve a sellar. */
+  const reSellar=vacia&&authVigente();
   Q.items.splice(idx,1);
   // Su precio autorizado se va con ella: si no, queda en el mapa y vuelve a sumar
   if(Q.itemsAuth) delete Q.itemsAuth[id];
+  if(reSellar) sellarAuth();
   renderItems();
   /* Sin esto el foco se caía al <body> y el «Deshacer» del aviso quedaba a decenas de
      tabulaciones. Va al ▾ de la partida vecina y no a su ×: dejar el cursor sobre un
@@ -211,7 +218,10 @@ function deshacerBorrado(){
      candado no puede negar la vuelta de algo que sí dejó salir, o el aviso saldría con un
      «Deshacer» que se niega. */
   if(locked()&&!_borrada.vacia){ toast('La cotización está bloqueada','err'); return; }
+  /* Lo mismo al revés: devolver el renglón vacío no puede soltar lo autorizado. */
+  const reSellar=_borrada.vacia&&authVigente();
   Q.items.splice(Math.min(_borrada.idx,Q.items.length),0,_borrada.item);
+  if(reSellar) sellarAuth();
   if(_borrada.precioAuth!==undefined){ if(!Q.itemsAuth)Q.itemsAuth={}; Q.itemsAuth[_borrada.item.id]=_borrada.precioAuth; }
   _borrada=null;
   renderItems();
@@ -1228,7 +1238,9 @@ function updItemAuth(id,val){
      «descuento» del importe entero si el autorizador se distraía antes de reescribir. Vacío,
      o algo que no es un número, es «sin ajuste»: vuelve el precio calculado. Un $0 tecleado a
      propósito sí se respeta: llega como 0, no como undefined. */
-  if(val===undefined||val===null||!isFinite(val)){ delete Q.itemsAuth[id]; }
+  /* Un negativo tampoco: `min="0"` no se hace cumplir al teclear, y -500 salía en el PDF como
+     un renglón de -$500 que además descuadraba el reparto de un aumento. */
+  if(val===undefined||val===null||!isFinite(val)||val<0){ delete Q.itemsAuth[id]; }
   else Q.itemsAuth[id]=val;
   const neto=totals().neto;
   const it=Q.items.find(x=>x.id===id);

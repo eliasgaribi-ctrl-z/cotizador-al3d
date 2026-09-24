@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   157 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   158 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -221,7 +221,7 @@ function pintarHistorial(){
     html=lista.map(e=>{
       const isImg=e.aiFile&&e.aiFile.type&&e.aiFile.type.indexOf('image/')===0&&e.aiFile.url;
       const imgHTML=isImg
-        ? `<img class="hentry-img" src="${urlImagenSegura(e.aiFile.url)}" ${_ABRIBLE} onclick="openHistImg('${esc(e.folio)}')" title="Ver imagen completa" alt="Referencia">`
+        ? `<img class="hentry-img" src="${urlImagenSegura(e.aiFile.url)}" ${_ABRIBLE} onclick="openHistImg(${jsArg(e.folio)})" title="Ver imagen completa" alt="Referencia">`
         : `<div class="hentry-img-ph">${e.aiFile?ico('i-doc'):ico('i-imagen')}</div>`;
       const rows=(e.items||[]).map((it,i)=>{
         const ia=(e.itemsAuth&&e.itemsAuth[it.id]!==undefined)?e.itemsAuth[it.id]
@@ -240,9 +240,9 @@ function pintarHistorial(){
             <div class="hentry-auth"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> ${esc(e.autorizador||'—')} · ${esc(e.fechaAuth||'')}</div>
           </div>
           <div class="hentry-acts">
-            <button class="hentry-open" onclick="reabrirDeHistorial('${esc(e.folio)}')" title="Cargarla en el cotizador para reimprimir su PDF, o editarla con «Editar partidas»"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Abrir y editar</button>
-            <button class="hentry-open" onclick="usarComoBase('${esc(e.folio)}')" title="Empezar una cotización nueva con estas mismas partidas, para cambiarles el material o la medida sin recapturarlas"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Duplicar</button>
-            <button class="hentry-del" onclick="borrarDeHistorial('${esc(e.folio)}')" title="Eliminar" aria-label="Eliminar cotización">${ico('i-basura')}</button>
+            <button class="hentry-open" onclick="reabrirDeHistorial(${jsArg(e.folio)})" title="Cargarla en el cotizador para reimprimir su PDF, o editarla con «Editar partidas»"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Abrir y editar</button>
+            <button class="hentry-open" onclick="usarComoBase(${jsArg(e.folio)})" title="Empezar una cotización nueva con estas mismas partidas, para cambiarles el material o la medida sin recapturarlas"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Duplicar</button>
+            <button class="hentry-del" onclick="borrarDeHistorial(${jsArg(e.folio)})" title="Eliminar" aria-label="Eliminar cotización">${ico('i-basura')}</button>
           </div>
         </div>
         <table class="htable">${rows}</table>
@@ -298,10 +298,10 @@ function reabrirDeHistorial(folio){
   Q.entrecalles=e.entrecalles||''; Q.entrega=e.entrega||''; Q.notaCliente=e.notaCliente||'';
   Q.plazoK=(e.plazoK>=1&&e.plazoK<=5)?e.plazoK:null;
   Q.fecha=e.fecha||Q.fecha;
-  Q.items=JSON.parse(JSON.stringify(e.items||[]));
-  Q.itemsAuth=JSON.parse(JSON.stringify(e.itemsAuth||{}));
+  Q.items=sanearPartidas(JSON.parse(JSON.stringify(e.items||[])));
+  Q.itemsAuth=sanearAuth(e.itemsAuth);
   Q.iva=e.iva!==false;
-  Q.precioAuth=e.precioAuth||0;
+  Q.precioAuth=sanearImporte(e.precioAuth);
   /* Si la entrada es de antes de que existiera la huella, se sella con el trabajo tal como
      viene: lo que se guardó ES lo que se autorizó. Sin esto, cada cotización vieja del
      historial perdería su precio autorizado la primera vez que se abriera. */
@@ -331,11 +331,15 @@ function reabrirDeHistorial(folio){
   /* Si el catálogo cambió desde que se autorizó, manda el importe congelado: el PDF que se
      reimprime tiene que ser idéntico al que el cliente ya tiene en la mano. Solo se
      reponen las partidas que de verdad cambiaron de precio, para no llenar itemsAuth de
-     ajustes que nadie hizo. */
-  (e.items||[]).forEach(it=>{
-    const actual=Q.items.find(x=>x.id===it.id);
-    if(!actual||it._lt===undefined) return;
-    if(Math.abs(it._lt-lineTotal(actual))>0.01) Q.itemsAuth[it.id]=it._lt;
+     ajustes que nadie hizo.
+     Y solo donde NO hay un importe autorizado a mano: `_lt` es el precio CALCULADO de ese
+     día, no el pactado. Aquí se pisaba siempre, así que una partida que el autorizador dejó
+     en $3,000 contra $4,050 calculados volvía a $4,050 en cuanto cambiaba el catálogo, y el
+     PDF reimpreso sacaba un renglón de «Descuento» que el cliente nunca vio. El total salía
+     igual; los renglones no, y al volver a guardar se quedaba así. */
+  Q.items.forEach(it=>{
+    if(it._lt===undefined||Q.itemsAuth[it.id]!==undefined) return;
+    if(Math.abs(it._lt-lineTotal(it))>0.01) Q.itemsAuth[it.id]=it._lt;
   });
   if(!Q.precioAuth&&e.neto>0&&Math.abs(e.neto-totals().neto)>0.01) Q.precioAuth=e.neto;
   /* Con algo que defender —un precio autorizado o un importe congelado— la huella tiene que
@@ -381,7 +385,7 @@ function usarComoBase(folio){
   /* Ids nuevos: los del historial pueden chocar con los de la cotización en pantalla. */
   /* El importe congelado no se copia: la cotización es nueva y su precio se calcula con el
      catálogo de hoy, que es justo para lo que sirve duplicar. */
-  Q.items=(e.items||[]).map(it=>{ const c=JSON.parse(JSON.stringify(it)); c.id=++pid; c.showInPdf=true; c.matAuto=false; delete c._lt; return c; });
+  Q.items=sanearPartidas(e.items).map(it=>{ const c=JSON.parse(JSON.stringify(it)); c.id=++pid; c.showInPdf=true; c.matAuto=false; delete c._lt; return c; });
   Q.iva=e.iva!==false;
   Q.itemsAuth={}; Q.precioAuth=0; Q.huellaAuth='';
   Q.autorizador=''; Q.nota=''; Q.fechaAuth='';
@@ -599,7 +603,7 @@ function pintarCuadernos(){
     html=lista.map(g=>{
       const n=g.cots.length;
       const sub=[g.tel||'', g.alias.length?('también «'+g.alias[0]+'»'):''].filter(Boolean).join(' · ');
-      return `<button class="cua-card" onclick="abrirCuaderno('${esc(g.clave)}')" title="Abrir el cuaderno de ${esc(cuaTitulo(g))}">
+      return `<button class="cua-card" onclick="abrirCuaderno(${jsArg(g.clave)})" title="Abrir el cuaderno de ${esc(cuaTitulo(g))}">
         <span class="cua-ini" aria-hidden="true">${esc(cuaIniciales(cuaTitulo(g)))}</span>
         <span class="cua-card-meta">
           <span class="cua-nombre">${esc(cuaTitulo(g))}</span>
@@ -635,8 +639,8 @@ function abrirCuaderno(clave){
       </div>
       <div class="cua-cot-tot">${money(totalFinalHist(e))}</div>
       <div class="cua-cot-acts">
-        <button onclick="cuaAbrirCot('${esc(e.folio)}')" title="Cargarla en el cotizador para reimprimir su PDF">Abrir</button>
-        <button onclick="cuaDuplicarCot('${esc(e.folio)}')" title="Empezar una cotización nueva con estas mismas partidas">Duplicar</button>
+        <button onclick="cuaAbrirCot(${jsArg(e.folio)})" title="Cargarla en el cotizador para reimprimir su PDF">Abrir</button>
+        <button onclick="cuaDuplicarCot(${jsArg(e.folio)})" title="Empezar una cotización nueva con estas mismas partidas">Duplicar</button>
       </div>
     </div>`).join('');
   const datos=[
@@ -650,9 +654,9 @@ function abrirCuaderno(clave){
       ${datos?`<div class="cua-det-datos">${datos}</div>`:''}
       ${g.alias.length?`<div class="cua-alias">También capturado como ${g.alias.map(a=>'«'+esc(a)+'»').join(', ')}</div>`:''}
       <div class="cua-det-acts">
-        <button onclick="cuaNuevaCotizacion('${esc(g.clave)}')" title="Empieza una cotización en blanco con estos datos de cliente ya puestos">${ico('i-lapiz')} Cotizarle algo nuevo</button>
-        ${g.tel?`<button onclick="cuaWhatsApp('${esc(g.clave)}')" title="Abre el chat de WhatsApp con este cliente">${ico('i-chat')} WhatsApp</button>`:''}
-        <button onclick="cuaCSV('${esc(g.clave)}')" title="Descarga las cotizaciones de este cliente">${ico('i-doc')} CSV</button>
+        <button onclick="cuaNuevaCotizacion(${jsArg(g.clave)})" title="Empieza una cotización en blanco con estos datos de cliente ya puestos">${ico('i-lapiz')} Cotizarle algo nuevo</button>
+        ${g.tel?`<button onclick="cuaWhatsApp(${jsArg(g.clave)})" title="Abre el chat de WhatsApp con este cliente">${ico('i-chat')} WhatsApp</button>`:''}
+        <button onclick="cuaCSV(${jsArg(g.clave)})" title="Descarga las cotizaciones de este cliente">${ico('i-doc')} CSV</button>
       </div>
     </div>
     <div class="cua-cifras">
@@ -777,7 +781,7 @@ function actualizarAvisoCuaderno(){
   if(!util){ el.style.display='none'; el.innerHTML=''; return; }
   const n=g.cots.length;
   el.innerHTML=`${ico('i-cuaderno')} <span>Ya tiene cuaderno · ${plCot(n)} · ${money(g.vendido)}</span>`
-    +` <button type="button" onclick="verCuadernoDe('${esc(g.clave)}')">Ver cuaderno</button>`;
+    +` <button type="button" onclick="verCuadernoDe(${jsArg(g.clave)})">Ver cuaderno</button>`;
   el.style.display='flex';
 }
 /* Entrar al cuaderno de un cliente sin pasar por la lista. _cuaData tiene que quedar
@@ -920,6 +924,9 @@ function restaurarDesde(texto){
       const q=JSON.parse(D['al3d_q']);
       if(!q||typeof q!=='object'||!Array.isArray(q.items)) throw 0;
     }
+    /* La cola también: con al3d_queue en "null" el arranque del autorizador tronaba en
+       getQueue().filter y ya no había forma de abrir la app para volver a restaurar. */
+    if(D['al3d_queue']!=null && !Array.isArray(JSON.parse(D['al3d_queue']))) throw 0;
   }catch(_){
     toast('El respaldo está dañado: el historial o la cotización en curso no se pueden leer','err',5200); return;
   }
@@ -946,7 +953,10 @@ function restaurarDesde(texto){
        —por ejemplo no había logotipo—, lo correcto es que tampoco quede la de antes. */
     RESPALDO_KEYS.forEach(k=>{ try{ localStorage.removeItem(k); }catch(_){} });
     Object.entries(paquete.datos).forEach(([k,v])=>{
-      if(RESPALDO_KEYS.includes(k)) { try{ localStorage.setItem(k,v); }catch(_){ fallaron.push(k); } }
+      /* Un null es «no había», no un valor: setItem(k,null) guardaba el TEXTO "null", y con
+         al3d_autorizador así el PDF salía firmado por «null». Se deja la clave sin escribir,
+         que es lo que ya significa tras el removeItem de arriba. */
+      if(RESPALDO_KEYS.includes(k)&&v!=null) { try{ localStorage.setItem(k,v); }catch(_){ fallaron.push(k); } }
     });
   }catch(_){ fallaron.push('(escritura)'); }
   if(fallaron.length){
@@ -1039,7 +1049,12 @@ function exportarHistorialCSV(){
 }
 
 /* ===================== Cola de autorización ===================== */
-function getQueue(){ try{return JSON.parse(localStorage.getItem('al3d_queue')||'[]');}catch(_){return [];} }
+/* Como getHistorial: solo entradas que son objetos. Un "null" o una lista con basura dentro
+   tronaba init() en el modo autorizador y pushToQueue al mandar a revisar. */
+function getQueue(){
+  try{ const a=JSON.parse(localStorage.getItem('al3d_queue')||'[]'); return Array.isArray(a)?a.filter(e=>e&&typeof e==='object'):[]; }
+  catch(_){ return []; }
+}
 /* La cola guardaba una copia COMPLETA de cada cotización —partidas incluidas— para
    siempre, también de las ya autorizadas o rechazadas, que no se listan en ningún lado, y
    borrar del historial no la liberaba. Lo que ya cerró su ciclo se queda sin snapshot: de
@@ -1087,7 +1102,8 @@ function loadQueueEntry(folio){
      de su propia vista al abrir un pendiente. */
   scReset();
   const rolActual=Q.rol;
-  Object.assign(Q,entry.q);
+  Object.assign(Q,entry.q,{items:sanearPartidas(entry.q.items),itemsAuth:sanearAuth(entry.q.itemsAuth),
+    precioAuth:sanearImporte(entry.q.precioAuth)});
   Q.rol=rolActual;
   Q.editMode=false; _selfAuth=false; _marcarOblig=false;
   Q.aiFile=null;
@@ -1497,6 +1513,9 @@ function loadState(){
        más abajo: Q quedaba ya contaminado con la basura y la app arrancaba a medias, con
        loadState devolviendo false como si no hubiera encontrado nada. */
     if(!saved||typeof saved!=='object'||!Array.isArray(saved.items)) return false;
+    saved.items=sanearPartidas(saved.items);
+    saved.itemsAuth=sanearAuth(saved.itemsAuth);
+    saved.precioAuth=sanearImporte(saved.precioAuth);
     Object.assign(Q,saved);
     /* Una cotización guardada por una versión anterior no trae la bandera, y la que llega
        con partidas evidentemente ya se estrenó: se deduce de lo que hay en vez de confiar

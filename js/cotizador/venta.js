@@ -7,7 +7,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   157 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   158 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -313,9 +313,12 @@ function copiarDatosVenta(){
     Q.iva?'Sí':'No',
     t.sub
   ].join('\t');
-  marcarHito('venta');
   const anti=parseFloat(document.getElementById('rv-anticipo').value)||0;
   copiarTexto(row,'Datos copiados — pégalos en la columna Proyecto del primer renglón vacío de Ventas',()=>{
+    /* El hito se marca cuando la fila SÍ llegó al portapapeles. Se marcaba antes de copiar,
+       así que un portapapeles que fallaba dejaba «✓ Venta registrada» en el panel sin que
+       la fila existiera en ninguna parte. */
+    marcarHito('venta');
     const el=document.getElementById('rv-copied');
     if(el){
       el.querySelector('span').innerHTML='Pégalos en la columna <b>Proyecto</b> del primer renglón vacío de <b>Ventas</b>. Falta capturar a mano el anticipo ('+money(anti)+') y la fecha.';
