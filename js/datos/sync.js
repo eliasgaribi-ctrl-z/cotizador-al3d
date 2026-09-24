@@ -340,17 +340,31 @@ export async function rechazadas() {
 export async function descartarDelProyecto(proyectoId, estados) {
   const id = String(proyectoId || '');
   if (!id) return mal('DATO_INVALIDO', MSG.DATO_INVALIDO);
-  const cuales = new Set((Array.isArray(estados) && estados.length ? estados : ['rechazada'])
-    .filter(e => e !== 'conflicto'));
-  const esDe = o => (o.almacen === 'proyectos' && (o.registro_id === id || (o.datos && o.datos.id === id))) ||
-                    (o.almacen === 'instalaciones' && o.datos && o.datos.proyecto_id === id);
   let n = 0;
-  for (const o of await DB.listar('pendientes', { indice: 'porTs' })) {
-    if (esMarca(o) || !cuales.has(o.estado || 'pendiente') || !esDe(o)) continue;
+  for (const o of await delProyecto(id, estados)) {
     const r = await DB.borrar('pendientes', o.id);
     if (r && r.ok) n++;
   }
   return ok({ descartadas: n });
+}
+
+/**
+ * Lo de la bandeja que cuelga de UN proyecto —sus operaciones y las de su instalación—, en los
+ * `estados` que se piden (por omisión, lo rechazado) y nunca un conflicto. Es la misma cuenta que
+ * `descartarDelProyecto`, sin tirar nada: la capa de datos la necesita para saber qué se va a
+ * tirar antes de tirarlo (lo que rebotó y se guarda para cuando vuelva la fila, ver
+ * `proyectos.dejarFueraDeLaHoja`) o si hay algo esperando (ver `proyectos.juntarConLaDeAqui`).
+ * @returns {Promise<Operacion[]>} en el orden de la bandeja
+ */
+export async function delProyecto(proyectoId, estados) {
+  const id = String(proyectoId || '');
+  if (!id) return [];
+  const cuales = new Set((Array.isArray(estados) && estados.length ? estados : ['rechazada'])
+    .filter(e => e !== 'conflicto'));
+  const esDe = o => (o.almacen === 'proyectos' && (o.registro_id === id || (o.datos && o.datos.id === id))) ||
+                    (o.almacen === 'instalaciones' && o.datos && o.datos.proyecto_id === id);
+  return (await DB.listar('pendientes', { indice: 'porTs' }))
+    .filter(o => !esMarca(o) && cuales.has(o.estado || 'pendiente') && esDe(o));
 }
 
 /**

@@ -1290,16 +1290,20 @@ export async function resincronizar(id) {
 const esImportado = p => !!p && (p.de_hoja === true || String(p.id || '').startsWith('proy-hoja-'));
 
 /**
- * Qué aviso de la hoja lleva el proyecto: 'repetida', 'perdida', 'fuera' o ''. Una sola
- * respuesta para la ficha, la tarjeta del tablero y la cuenta de la pestaña (la regla de «Qué
- * atender» lleva su copia en reglas.js, que no importa este archivo, y pruebas/reglas.mjs
+ * Qué aviso de la hoja lleva el proyecto: 'repetida', 'perdida', 'doble', 'fuera' o ''. Una
+ * sola respuesta para la ficha, la tarjeta del tablero y la cuenta de la pestaña (la regla de
+ * «Qué atender» lleva su copia en reglas.js, que no importa este archivo, y pruebas/reglas.mjs
  * comprueba que digan lo mismo). Una lápida («No se dio») no avisa: ya se decidió.
+ * 'doble' es la venta de aquí que está en DOS filas de la hoja (`hoja_doble`, ver
+ * `revisarContraLaHoja`): pasa cuando Dirección la vuelve a dar de alta y alguien deshace
+ * después el borrado de la fila vieja.
  * PURA.
  */
 export function avisoDeHoja(p) {
   if (!p || p.etapa === 'cancelado') return '';
   if (p.duplicado_de && typeof p.duplicado_de === 'object') return 'repetida';
   if (p.hoja_perdida && typeof p.hoja_perdida === 'object') return 'perdida';
+  if (p.hoja_doble && typeof p.hoja_doble === 'object' && Array.isArray(p.hoja_doble.folios) && p.hoja_doble.folios.length > 1) return 'doble';
   if (p.fuera_de_hoja) return 'fuera';
   return '';
 }
@@ -1359,6 +1363,12 @@ const nombreParaComparar = s => plano(s).replace(/\s+/g, ' ').trim();
  *                 repartió dos veces antes de la marca de folios: la fila puede ser de otra
  *                 venta que se dio de alta a mano, sin folio de cotización. No ata sola.
  *   ''            no es: la fila dice ser de OTRA cotización, o no tiene nada que ver.
+ *
+ * El folio de la hoja de `p` es el de hoy (`notion_page_id`) o uno que tuvo antes de que
+ * Dirección la volviera a dar de alta (`folios_previos`, ver `volverADarDeAlta`): si alguien
+ * deshace el borrado de la fila vieja, ésa sigue siendo de esta venta. Sin eso, la fila
+ * restaurada sin folio de cotización entraba como OTRA tarjeta, y nada decía que la venta
+ * estaba dos veces en la hoja.
  * @returns {'folio'|'nombre'|'confirmada'|'debil'|''}
  */
 export function mismaVentaQueLaFila(p, venta) {
@@ -1366,11 +1376,74 @@ export function mismaVentaQueLaFila(p, venta) {
   const fh = String(venta.folio_hoja || '').trim();
   const fc = String(venta.folio_cotizacion || '').trim();
   if (fc && fc !== fh) return fc === String(p.folio_global || '') ? 'folio' : '';
-  if (!fh || String(p.notion_page_id || '') !== fh) return '';
+  if (!fh || !foliosDeHoja(p).has(fh)) return '';
   if (String(p.hoja_confirmada || '') === fh) return 'confirmada';
   const n = nombreParaComparar(p.nombre);
   if (n && n === nombreParaComparar(venta.nombre)) return 'nombre';
   return 'debil';
+}
+
+/** Los folios de la hoja que son de `p`: el de hoy y los que tuvo antes. PURA. */
+export function foliosDeHoja(p) {
+  const out = new Set();
+  if (!p) return out;
+  const hoy = String(p.notion_page_id || '').trim();
+  if (hoy) out.add(hoy);
+  for (const f of (Array.isArray(p.folios_previos) ? p.folios_previos : [])) {
+    const x = String(f || '').trim();
+    if (x) out.add(x);
+  }
+  return out;
+}
+
+/**
+ * Si la bajada le echa la fila `venta` al proyecto de aquí `p`, y por qué, o '' si no. PURA. Es la
+ * regla del primer camino de `bajar` en puente.js (la fila trae su folio de cotización) y la del
+ * tercero (por el folio de su fila, con `mismaVentaQueLaFila`), en un solo lugar: la usan la
+ * bajada, para decidir a quién le cae el dinero, y la revisión, para saber cuántas filas de la
+ * hoja son de la misma venta (ver `hoja_doble` en `revisarContraLaHoja`). Una lápida («No se
+ * dio») no se queda con una fila que la hoja trae viva salvo por su folio de cotización (ver el
+ * porqué en `bajar`).
+ * @returns {'folio'|'nombre'|'confirmada'|''}
+ */
+export function ataLaFila(p, venta) {
+  if (!p || !venta || esImportado(p)) return '';
+  const quien = mismaVentaQueLaFila(p, venta);
+  if (quien !== 'folio' && quien !== 'nombre' && quien !== 'confirmada') return '';
+  if (quien !== 'folio' && p.etapa === 'cancelado' && venta.etapa !== 'cancelado') return '';
+  return quien;
+}
+
+/**
+ * La fila dice ser de OTRA cotización: trae un folio de cotización que no es la huella del
+ * defecto (su propio folio de hoja) ni el de `p`. PURA. Una venta de aquí que se ató a esa fila
+ * por el nombre (`folio_hoja`, `hoja_confirmada`) ya no es suya: la limpia `revisarContraLaHoja`,
+ * y `ventas.unificar` no la ata por el folio de la hoja mientras tanto.
+ */
+export function filaDeOtraCotizacion(p, venta) {
+  if (!p || !venta) return false;
+  const fc = String(venta.folio_cotizacion || '').trim();
+  return !!fc && fc !== String(venta.folio_hoja || '').trim() && fc !== String(p.folio_global || '');
+}
+
+/**
+ * La nota de lo que no se mandó a la hoja (`sin_mandar`), con estas operaciones sumadas. PURA.
+ * Guarda desde cuándo y qué campos cambiaron, no las operaciones: cuando la fila vuelve se manda
+ * UNA con el estado de hoy (la etapa, la dirección, el estatus, la cuenta y la instalación viajan
+ * siempre), y los campos son para que el nombre y el dinero que sí cambiaron viajen también (ver
+ * `aNotion`) y para que la bajada que trae la fila de vuelta no los pise con el valor viejo de la
+ * fila antes de mandarlos (ver `bajar`). La de una instalación no suma campos pero sí deja la
+ * nota: el reenvío lleva la fecha de la instalación viva.
+ * La escriben el relevo, con el cambio que no mandó porque la venta está fuera de la hoja, y
+ * `dejarFueraDeLaHoja`, con lo que ya había rebotado.
+ */
+export function sumarSinMandar(previa, ops, ahora) {
+  const pv = previa && typeof previa === 'object' ? previa : null;
+  const campos = new Set(pv && Array.isArray(pv.campos) ? pv.campos.map(String) : []);
+  for (const op of (Array.isArray(ops) ? ops : [])) {
+    if (op && op.almacen === 'proyectos' && Array.isArray(op.campos)) for (const c of op.campos) campos.add(String(c));
+  }
+  return { desde: (pv && Number(pv.desde)) || Number(ahora) || 0, campos: [...campos] };
 }
 
 /**
@@ -1711,21 +1784,76 @@ export async function revisarContraLaHoja(info = {}) {
 
   const folios = info && info.folios instanceof Set ? info.folios
     : new Set((info && Array.isArray(info.folios) ? info.folios : []).map(String));
+  const ventaDe = new Map(ventas.filter(v => v && v.folio_hoja).map(v => [String(v.folio_hoja), v]));
+
+  /* La venta de aquí que la bajada ató a su fila por el nombre (`folio_hoja`, `hoja_confirmada`)
+     y cuya fila hoy dice ser de OTRA cotización: PAGOS escribió ahí el folio de la venta de otro
+     teléfono, o la realineación de Y:AD lo devolvió. La bajada ya no la ata (ver
+     `mismaVentaQueLaFila`), pero las dos notas se quedaban para siempre, y con `folio_hoja`
+     `ventas.unificar` seguía atando este proyecto a esa fila: Control contaba dos veces la venta
+     del otro —una con el nombre de ésta— y ésta dejaba de contarse. Se quitan, y si es la fila a
+     la que apunta, se marca como la que la hoja contestaría «ya es de otra venta» (lo haría en
+     el siguiente cambio: compara el folio de cotización). Nada se borra: si la fila vuelve a ser
+     suya, la bajada la vuelve a atar y quita la marca. */
+  for (const p of proys) {
+    if (!p || esImportado(p) || idas.has(p.id)) continue;
+    const parche = {};
+    for (const k of ['folio_hoja', 'hoja_confirmada']) {
+      const v = p[k] ? ventaDe.get(String(p[k]).trim()) : null;
+      if (v && filaDeOtraCotizacion(p, v)) parche[k] = null;
+    }
+    if (!Object.keys(parche).length) continue;
+    const fh = String(p.notion_page_id || '').trim();
+    const v = fh ? ventaDe.get(fh) : null;
+    if (v && filaDeOtraCotizacion(p, v) && !p.fuera_de_hoja) {
+      parche.hoja_perdida = marcaPerdida(p.hoja_perdida, 'de_otra', fh,
+        'La fila ' + fh + ' de la hoja ya es de otra venta (trae el folio de cotización ' + String(v.folio_cotizacion).trim() + ').', ahora);
+    }
+    if (await parcharMarca(p.id, parche)) cambios++;
+  }
+
+  /* La misma venta en DOS filas de la hoja. Pasa cuando Dirección la vuelve a dar de alta
+     (`volverADarDeAlta`) y después alguien deshace el borrado de la fila vieja: las dos traen su
+     folio de cotización, o la vieja es la que tuvo (`folios_previos`). La bajada ya no le cambia
+     la fila en silencio (ver `bajar` en puente.js: se queda con la que tenía), pero la otra se
+     quedaba congelada —y puede ser justo la que tiene los cobros— sin que nada lo dijera, y
+     Control la contaba dos veces. Se marca (`hoja_doble`), la ficha y «Qué atender» se lo dicen a
+     Dirección, y `ventas.unificar` la cuenta una vez. Qué fila sobra lo decide Dirección en la
+     hoja; aquí no se borra nada. Solo con una bajada COMPLETA: una a medias todavía trae en
+     `ventas_hoja` filas que la hoja ya no tiene. Quitarla, sí siempre: con menos de dos no hay
+     nada que avisar. */
+  for (const p of proys) {
+    if (!p || esImportado(p) || idas.has(p.id)) continue;
+    const suyas = [...new Set(ventas.filter(v => v && v.folio_hoja && ataLaFila(p, v)).map(v => String(v.folio_hoja)))];
+    const previa = p.hoja_doble && typeof p.hoja_doble === 'object' ? p.hoja_doble : null;
+    if (suyas.length < 2) {
+      if (previa && await parcharMarca(p.id, { hoja_doble: null })) cambios++;
+      continue;
+    }
+    if (!(info && info.completa)) continue;
+    const np = String(p.notion_page_id || '').trim();
+    const orden = suyas.includes(np) ? [np, ...suyas.filter(f => f !== np).sort()] : suyas.sort();
+    if (previa && JSON.stringify(previa.folios) === JSON.stringify(orden)) continue;
+    if (await parcharMarca(p.id, { hoja_doble: { folios: orden, desde: (previa && previa.desde) || ahora } })) cambios++;
+  }
 
   /* Lo que se cambió mientras la venta estuvo fuera de la hoja (`sin_mandar`, lo anota `subir` en
-     puente.js al no mandarlo). Si su fila volvió —la bajada ya le quitó `fuera_de_hoja`, y esta
-     misma bajada la vio—, se manda ahora, con la etapa, la instalación y los datos de HOY: sin
-     esto la fila viva se quedaba para siempre con la etapa de antes, y la confirmación de
-     «Dejarla» prometía que se volvía a mandar sola. Se encola aquí y no en el relevo, que es quien
-     vacía la bandeja: encolar desde ahí es un bucle. Una sola operación, con los campos que
-     cambiaron (el nombre y el dinero solo viajan cuando fueron lo que cambió, ver `aNotion`). */
+     puente.js al no mandarlo, y `dejarFueraDeLaHoja` con lo que ya había rebotado). Si su fila
+     volvió —la bajada ya le quitó `fuera_de_hoja`, y esta misma bajada la vio—, se manda ahora,
+     con la etapa, la instalación y los datos de HOY: sin esto la fila viva se quedaba para siempre
+     con la etapa de antes, y la confirmación de «Dejarla» prometía que se volvía a mandar sola. Se
+     encola aquí y no en el relevo, que es quien vacía la bandeja: encolar desde ahí es un bucle.
+     Una sola operación, con los campos que cambiaron (el nombre y el dinero solo viajan cuando
+     fueron lo que cambió, ver `aNotion`). Y con el valor de AQUÍ: la bajada que trajo la fila de
+     vuelta no les aplicó el espejo (ver `bajar` en puente.js); sin eso se reenviaba el valor viejo
+     que la fila acababa de bajar, y la corrección no quedaba ni en el teléfono ni en la hoja. */
   let reenviadas = 0;
   for (const p of proys) {
     if (!p || !p.sin_mandar || idas.has(p.id) || p.fuera_de_hoja || p.hoja_perdida) continue;
     const fh = String(p.notion_page_id || '').trim();
     if (!fh || !folios.has(fh)) continue;
     const hoy = await DB.obtener('proyectos', p.id);
-    if (!hoy || hoy.fuera_de_hoja || !hoy.sin_mandar) continue;
+    if (!hoy || hoy.fuera_de_hoja || hoy.hoja_perdida || !hoy.sin_mandar) continue;
     const campos = Array.isArray(hoy.sin_mandar.campos) ? hoy.sin_mandar.campos.map(String) : [];
     const limpio = await parcharMarca(p.id, { sin_mandar: null });
     if (!limpio) continue;
@@ -1743,7 +1871,6 @@ export async function revisarContraLaHoja(info = {}) {
     /* Lo apartado de antes (ver arriba). Cuenta la fila a la que el proyecto apunta HOY, y el
        rebote tiene que nombrarla: si nombra otra, fue contra una fila que ya no es la suya. Las
        tarjetas importadas no pasan por aquí: a ésas ya las marca la bajada, arriba. */
-    const ventaDe = new Map(ventas.filter(v => v && v.folio_hoja).map(v => [String(v.folio_hoja), v]));
     const porId = new Map(proys.filter(Boolean).map(p => [p.id, p]));
     const yaVistos = new Set();
     for (const rb of (Array.isArray(info.rebotes) ? info.rebotes : [])) {
@@ -1817,9 +1944,17 @@ export async function volverADarDeAlta(id) {
     return mal('DATO_INVALIDO', 'Este proyecto está como «No se dio»: no es una venta que dar de alta.');
   }
   await descartarOps(p.id, ['rechazada', 'pendiente']);
-  /* Y sin `sin_mandar`: lo que se cambió mientras estuvo fuera ya va en el alta. */
+  /* Y sin `sin_mandar`: lo que se cambió mientras estuvo fuera ya va en el alta.
+     La fila muerta no se olvida del todo: se guarda en `folios_previos`. Si alguien deshace
+     después su borrado, esa fila sigue siendo de esta venta (ver `mismaVentaQueLaFila`), y la
+     venta queda en DOS filas: la bajada no le cambia la fila en silencio y la revisión lo avisa
+     (`hoja_doble`). Sin la nota, una fila vieja sin folio de cotización volvía como OTRA
+     tarjeta, sin marca. `folio_hoja` sí se va: es la fila con la que Control la ataba, y ya no
+     es la suya. */
+  const vieja = String(p.notion_page_id || (p.hoja_perdida && p.hoja_perdida.folio) || '').trim();
+  const previos = [...new Set([...(Array.isArray(p.folios_previos) ? p.folios_previos.map(String) : []), vieja].filter(Boolean))];
   const fila = { ...p, notion_page_id: null, notion_estado: 'pendiente', hoja_perdida: null, fuera_de_hoja: null,
-                 sin_mandar: null, sync: 0 };
+                 sin_mandar: null, folio_hoja: null, folios_previos: previos, sync: 0 };
   const r = await DB.poner('proyectos', fila);
   if (!r.ok) return r;
   await encolar('crear', r.valor);
@@ -1831,13 +1966,18 @@ export async function volverADarDeAlta(id) {
 
 /**
  * «Dejarla fuera de la hoja» (la venta de este teléfono) y «Dejarla» (la tarjeta importada).
- * El proyecto se queda aquí, la marca se quita y lo apartado se tira. El folio de la fila se
- * queda como está —borrarlo resucitaría la venta en el siguiente cambio— y `fuera_de_hoja` es
- * lo que hace que el relevo ya no mande nada de este proyecto, ni la revisión lo vuelva a
- * marcar: sin eso, el siguiente cambio de etapa volvía a rebotar y a encender el aviso. Lo que
- * se cambie mientras tanto no se tira: el relevo lo anota en el proyecto (`sin_mandar`). Si la
- * fila vuelve, la bajada quita `fuera_de_hoja` (ver `bajar` en puente.js) y la revisión manda
- * esos cambios con el estado de hoy (ver `revisarContraLaHoja`).
+ * El proyecto se queda aquí y la marca se quita. El folio de la fila se queda como está
+ * —borrarlo resucitaría la venta en el siguiente cambio— y `fuera_de_hoja` es lo que hace que el
+ * relevo ya no mande nada de este proyecto, ni la revisión lo vuelva a marcar: sin eso, el
+ * siguiente cambio de etapa volvía a rebotar y a encender el aviso. Lo que se cambie mientras
+ * tanto no se tira: el relevo lo anota en el proyecto (`sin_mandar`). Si la fila vuelve, la
+ * bajada quita `fuera_de_hoja` (ver `bajar` en puente.js) y la revisión manda esos cambios con
+ * el estado de hoy (ver `revisarContraLaHoja`).
+ * Y lo que YA rebotó tampoco se tira sin más: casi siempre es justo el cambio que encendió la
+ * marca (la etapa que el taller movió, el anticipo que Dirección corrigió). Sale de lo apartado
+ * —reintentarlo solo lo haría rebotar— pero se anota en `sin_mandar` antes, con la misma forma
+ * que el relevo (`sumarSinMandar`), y viaja con los demás si la fila vuelve. Antes se tiraba, y
+ * la confirmación de «Dejarla» prometía lo contrario.
  * La de una venta de aquí es de Dirección; «Dejarla», la de una tarjeta importada, la puede
  * decidir cualquiera en su teléfono (ver `soloDireccion`).
  * @returns {Promise<Resultado>} valor = el proyecto
@@ -1848,14 +1988,38 @@ export async function dejarFueraDeLaHoja(id) {
   if (!p) return mal('NO_ENCONTRADO', 'Ese proyecto ya no está en este dispositivo.');
   if (!esImportado(p)) { const no = soloDireccion(); if (no) return no; }
   if (!p.hoja_perdida) return mal('DATO_INVALIDO', 'Esta venta sigue en la hoja: no hay nada que dejar fuera.');
-  const descartadas = await descartarOps(p.id, ['rechazada']);
-  const r = await DB.poner('proyectos', { ...p, hoja_perdida: null, fuera_de_hoja: Date.now() });
+  const ahora = Date.now();
+  /* Primero se anota y después se tira: si la escritura falla, lo apartado sigue donde estaba. */
+  const apartadas = await opsDelProyecto(p.id, ['rechazada']);
+  const sinMandar = apartadas.length ? sumarSinMandar(p.sin_mandar, apartadas, ahora) : (p.sin_mandar || null);
+  const r = await DB.poner('proyectos', { ...p, hoja_perdida: null, fuera_de_hoja: ahora, sin_mandar: sinMandar });
   if (!r.ok) return r;
+  const guardadas = apartadas.length ? await descartarOps(p.id, ['rechazada']) : 0;
   await anotar({ accion: 'hoja_fuera', entidad_id: p.id,
     titulo: (p.nombre || p.folio_local) + (esImportado(p) ? ' se queda en el tablero sin su fila de la hoja' : ' se queda fuera de la hoja'),
     detalle: 'Su fila ' + (p.hoja_perdida.folio || '') + ' ya no estaba en la hoja' +
-      (descartadas ? ' · se tiraron ' + descartadas + ' cambio(s) apartado(s)' : '') });
+      (guardadas ? ' · ' + guardadas + ' cambio(s) que habían rebotado se guardan para mandarse si la fila vuelve' : '') });
   return ok(r.valor);
+}
+
+/* Lo de la bandeja que cuelga de un proyecto, sin tirarlo (ver `sync.delProyecto`). */
+async function opsDelProyecto(proyectoId, estados) {
+  const S = await mod('sync');
+  if (!S || typeof S.delProyecto !== 'function') return [];
+  try { return await S.delProyecto(proyectoId, estados); } catch (_) { return []; }
+}
+
+/* ¿La hoja dijo que la fila de esta tarjeta ya no está DESPUÉS de la última bajada completa? La
+   marca de un rebote (o la decisión de «Dejarla», que viene detrás de ella) es entonces lo más
+   nuevo que este teléfono sabe de esa fila, y su renglón en `ventas_hoja` es de antes: una bajada
+   que la hubiera visto después le habría quitado la marca (ver `bajar` en puente.js). */
+async function marcaMasNuevaQueLaBajada(p) {
+  const cuando = Number((p.hoja_perdida && p.hoja_perdida.desde) || p.fuera_de_hoja) || 0;
+  if (!cuando) return false;
+  const S = await mod('sync');
+  let completa = 0;
+  try { completa = Number(S && typeof S.estadoBajada === 'function' ? (await S.estadoBajada()).completa : 0) || 0; } catch (_) { completa = 0; }
+  return cuando > completa;
 }
 
 /**
@@ -1902,8 +2066,12 @@ export async function quitarDelTablero(id) {
         '» y regrésala a su etapa: deja de estar como «No se dio» y las dos se pueden juntar.');
     }
   } else if (aviso === 'perdida' || aviso === 'fuera') {
+    /* Su renglón en el récord no basta para negarse: la marca de un rebote nace ANTES de que una
+       bajada completa quite de `ventas_hoja` la fila borrada, y ahí el renglón es lo viejo y el
+       «ya no está» de la hoja lo nuevo. Decir «está otra vez en la hoja» era falso, y la tarjeta
+       no tenía cómo quitarse hasta la siguiente bajada. */
     const fila = p.folio_hoja ? await DB.obtener('ventas_hoja', 'hoja:' + p.folio_hoja) : null;
-    if (fila) {
+    if (fila && !(await marcaMasNuevaQueLaBajada(p))) {
       return mal('DATO_INVALIDO', 'Su fila ' + p.folio_hoja + ' está otra vez en la hoja: quitarla del tablero la volvería a traer en la próxima bajada.');
     }
   } else {
@@ -1911,18 +2079,29 @@ export async function quitarDelTablero(id) {
   }
   const [insts, movs, reqs] = await Promise.all([porProyecto('instalaciones', id), porProyecto('movimientos', id),
                                                   porProyecto('requerimientos', id)]);
+  /* Una instalación CANCELADA no es obra viva (la misma regla que `loQueSePerderia`), y la
+     aplicación no tiene cómo borrarla: `Agenda.cancelar` solo la marca. Contarla dejaba la
+     tarjeta para siempre en el tablero, con un botón que nunca funcionaba. Se queda en la agenda
+     como lo que es, una cancelación, y la bitácora dice que su tarjeta se fue. */
+  const vivas = insts.filter(i => i && i.estado !== 'cancelada');
+  const canceladas = insts.length - vivas.length;
   const cuelga = [];
-  if (insts.length) cuelga.push(insts.length === 1 ? '1 instalación' : insts.length + ' instalaciones');
+  if (vivas.length) cuelga.push(vivas.length === 1 ? '1 instalación' : vivas.length + ' instalaciones');
   if (movs.length) cuelga.push(movs.length === 1 ? '1 movimiento del almacén' : movs.length + ' movimientos del almacén');
   if (reqs.length) cuelga.push('material calculado');
   if (cuelga.length) {
+    const suyo = real ? '«' + (real.nombre || real.folio_local) + '»' : '';
+    const cancela = vivas.length ? 'Si esa instalación ya no va, cancélala en la Agenda y vuelve a intentarlo. ' : '';
     return mal('EN_USO', 'No se quitó: tiene ' + cuelga.join(', ') + ' a su nombre, y quitarla los dejaría sin proyecto. ' +
-      (!real ? 'Si es la misma venta que otra de este teléfono, júntalas; si no, déjala.'
-        /* Una lápida no recibe obras (IMPIDEN_JUNTAR): con una instalación a nombre de la copia,
-           la obra sigue viva y el «No se dio» de aquí está en duda. Eso no se resuelve borrando. */
+      /* Sin la de aquí no hay con quién juntarla: la tarjeta cuya fila ya no vino nunca queda
+         como repetida. Sus dos salidas son las que la ficha tiene. */
+      (!real ? cancela + (aviso === 'fuera' ? 'Si no, se queda en el tablero, como ya se decidió.' : 'Si no, déjala en el tablero.')
+        /* Una lápida no recibe obras (IMPIDEN_JUNTAR): con una obra a nombre de la copia, el «No
+           se dio» de aquí está en duda. Eso no se resuelve borrando, y se dice qué sí lo resuelve. */
         : real.etapa === 'cancelado'
-          ? '«' + (real.nombre || real.folio_local) + '» está como «No se dio» y no recibe obras: si esta obra sigue viva, revisa cuál de las dos dice la verdad antes de quitar nada.'
-          : 'Júntala con «' + (real.nombre || real.folio_local) + '», que se los lleva.'));
+          ? suyo + ' está como «No se dio» y no recibe obras. ' + cancela +
+            'Si la obra sigue, abre ' + suyo + ' y regrésala a su etapa: deja de estar como «No se dio» y las dos se pueden juntar.'
+          : 'Júntala con ' + suyo + ', que se los lleva.'));
   }
   if (real) await confirmarFila(real, p.folio_hoja);
   await descartarOps(id, ['rechazada', 'pendiente']);
@@ -1931,7 +2110,8 @@ export async function quitarDelTablero(id) {
   await anotar({ accion: 'quito', entidad_id: id,
     titulo: (p.nombre || p.folio_local) + ' se quitó del tablero',
     detalle: 'Tarjeta importada de ' + (p.folio_hoja || 'la hoja') +
-      (real ? ' · era copia de ' + (real.nombre || real.folio_local) : ' · su fila ya no estaba en la hoja') });
+      (real ? ' · era copia de ' + (real.nombre || real.folio_local) : ' · su fila ya no estaba en la hoja') +
+      (canceladas ? ' · ' + (canceladas === 1 ? 'su instalación cancelada se queda' : 'sus ' + canceladas + ' instalaciones canceladas se quedan') + ' en la agenda, sin tarjeta' : '') });
   return ok({ id });
 }
 
