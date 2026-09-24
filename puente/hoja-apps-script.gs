@@ -1224,6 +1224,14 @@ function onOpen() {
       .addItem('📬  Mandarme el resumen ahora', 'enviarResumen')
       .addItem('🔄  Actualizar formato y vistas', 'mejorarTodo')
       .addItem('📅  Rehacer vista de comisiones por periodo', 'construirComisionesPorPeriodo')
+      /* Los tres pasos de la actualización del puente, aquí y no en el selector de funciones
+         del editor: ahí están uno encima del otro y es fácil correr el que no era. Van en
+         orden; la realineación aplica solo lo que enseñó la vista previa (ver DESPLIEGUE). */
+      .addSeparator()
+      .addSubMenu(SpreadsheetApp.getUi().createMenu('🔧  Actualizar el puente')
+          .addItem('1 · Revisar columnas Y–AD (vista previa, no escribe)', 'revisarColumnasDelPuente')
+          .addItem('2 · Realinear columnas Y–AD', 'realinearColumnasDelPuente')
+          .addItem('3 · Preparar la hoja para el puente', 'prepararHojaParaElPuente'))
       .addToUi();
 }
 

@@ -941,5 +941,19 @@ console.log('\nLA HORA DE INSTALACIÓN — Sheets la vuelve hora, y al teléfono
      ['10:00', '10:00']);
 }
 
+console.log('\nEL MENÚ TRAE LOS PASOS DE LA ACTUALIZACIÓN (sin el selector de funciones del editor)');
+{
+  const H = hojaDeMentiras();
+  const items = H.run(`(function () {
+    var items = [];
+    var menu = function () { var m = { addItem: function (t, f) { items.push(f); return m; },
+      addSeparator: function () { return m; }, addSubMenu: function () { return m; }, addToUi: function () {} }; return m; };
+    SpreadsheetApp.getUi = function () { return { createMenu: menu }; };
+    onOpen();
+    return items; })()`);
+  eq('los tres pasos, en orden', items.slice(-3), ['revisarColumnasDelPuente', 'realinearColumnasDelPuente', 'prepararHojaParaElPuente']);
+  cierto('y cada uno existe en el script', items.every(f => H.run('typeof ' + f) === 'function'));
+}
+
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 if (mal) process.exit(1);

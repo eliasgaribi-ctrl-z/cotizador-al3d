@@ -142,13 +142,13 @@ de ahí salían los demás síntomas. Qué cambió en el `.gs`:
 3. **Implementar → Gestionar implementaciones → lápiz → Versión: Nueva versión →
    Implementar.** La URL no cambia. (Editar la implementación que ya existe; una
    «Nueva implementación» es otra URL y los teléfonos seguirían en la vieja.)
-4. Corre `revisarColumnasDelPuente` desde el selector. **No escribe nada en Ventas**: deja en
+4. Recarga la Hoja y usa **⚡ AL3D → 🔧 Actualizar el puente → 1 · Revisar columnas Y–AD** (es `revisarColumnasDelPuente`; ya no hace falta el selector del editor). **No escribe nada en Ventas**: deja en
    la pestaña **«Revisión Y-AD»** lo que la realineación movería, y te lo dice en un aviso de
    la hoja y en Ejecuciones.
 5. **Revisa «Revisión Y-AD»** con calma (ver abajo qué buscar). Si algo no cuadra —sobre todo
    si alguna vez se borraron o insertaron filas a mano en Ventas—, no sigas: corrígelo a mano o
    pregúntame.
-6. Si está bien, corre `realinearColumnasDelPuente`. Aplica **exactamente** lo que enseñó la
+6. Si está bien, **⚡ AL3D → 🔧 Actualizar el puente → 2 · Realinear columnas Y–AD** (`realinearColumnasDelPuente`). Aplica **exactamente** lo que enseñó la
    vista previa; si la hoja cambió desde entonces (subió algo un teléfono), no aplica nada,
    vuelve a escribir la vista previa y te pide revisarla otra vez (repite 5 y 6).
    Mientras no realinees, la hoja **no reacomoda filas** y los cambios de un teléfono que choquen
