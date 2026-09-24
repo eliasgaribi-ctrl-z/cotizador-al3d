@@ -1,7 +1,8 @@
 /* ============================================================================
-   Calendario — la pantalla que abre la app. Dos lentes sobre el mismo mes: TALLER, que
-   contesta «¿qué se trabaja hoy y en qué voy tarde?», e INSTALACIONES, que es la agenda de
-   siempre y la única captura humana del sistema.
+   Calendario. Fue la pantalla que abría la app hasta septiembre de 2026; desde entonces abre
+   el Tablero (js/mod/tablero.js) y esta es la segunda pestaña. Tres lentes sobre el mismo
+   mes: TALLER, que contesta «¿qué se trabaja hoy y en qué voy tarde?», INSTALACIONES, que es
+   la agenda de siempre y la única captura humana del sistema, y TODO, las dos juntas.
 
    Hasta septiembre de 2026 este archivo se llamaba agenda.js y era la tercera pestaña. La
    ruta sigue siendo «agenda» a propósito: cotizador.html publica `./#/agenda` en producción,
@@ -170,7 +171,17 @@ export async function montar(contenedor, ctx) {
     if (!puedeAgendar()) {
       toast('Agendar es de dirección. Si te toca a ti, cambia de rol en Ajustes.', 'err', 4600);
     } else {
-      try { await pintarPaso2(pase.proy); } catch (_) { abrirAgendar(pase.dia || null); }
+      /* Si el proyecto YA tiene instalación viva, esto no es agendar: es moverla, y va por
+         «Mover de día», que arranca con la hora que tiene y no toca la ventana ni la
+         duración. Es lo que manda el «Mover la fecha» del Tablero. Por la hoja de agendar,
+         que arranca en blanco —sin hora, «De día», la duración sugerida—, cambiar solo el día
+         borraba las 10:00 «De noche» y los 420 minutos que alguien había escrito, y el .ics
+         salía de todo el día y sin la alarma de «sal ya». */
+      const [viva] = await Agenda.listar({ proyecto_id: pase.proy, vivas: true });
+      if (viva) abrirMover(viva);
+      else {
+        try { await pintarPaso2(pase.proy); } catch (_) { abrirAgendar(pase.dia || null); }
+      }
     }
   }
 }
@@ -545,7 +556,9 @@ function accionAnidar(v) {
 function pintarCuentas(d) {
   const hoy = d.hoy;
   const todas = d.mes ? (d.mes.dias || []).flatMap(x => x.instalaciones || []) : d.filas;
-  const porVenir = visibles(todas).filter(i => i.fecha >= hoy && i.estado !== 'cancelada').length;
+  /* «Por instalar» es lo que falta instalar: ni las canceladas ni las ya hechas. Con las
+     hechas dentro, marcar «Ya se instaló» en una de hoy no bajaba la cuenta. */
+  const porVenir = visibles(todas).filter(i => i.fecha >= hoy && i.estado !== 'cancelada' && i.estado !== 'hecha').length;
 
   const c = [];
   if (_lente !== 'instalaciones' && d.ventanas) {
@@ -938,7 +951,7 @@ function pintarExportar(d) {
       '<div class="pf-fila-acc"><button type="button" class="btn btn-gho" data-acc="ics-ritmo">Bajar</button></div>' +
     '</div>' +
     gcalHtml +
-    '<p class="pf-nota">Las alarmas —3 días antes para revisar el material, 1 día antes para confirmar con el cliente y media hora antes de salir, 2 horas si la instalación es de noche— las dispara el calendario de tu teléfono, no esta plataforma. Por eso suenan aunque nadie la abra y aunque no haya señal.</p>' +
+    '<p class="pf-nota">Las alarmas —3 días antes para revisar el material, 1 día antes para confirmar con el cliente y media hora antes de salir, 2 horas si la instalación es de noche o de madrugada— las dispara el calendario de tu teléfono, no esta plataforma. Por eso suenan aunque nadie la abra y aunque no haya señal.</p>' +
     '</div></div>';
 }
 
@@ -1111,8 +1124,13 @@ async function ejecutar(acc, id) {
     case 'cancelar': abrirCancelar(i); return;
 
     case 'hecha': {
+      /* `marcar` también pasa el proyecto a «Instalado» cuando el rol puede marcarlo (ver
+         `instalarProyecto` en js/datos/agenda.js). El aviso dice cuál de las dos pasó: con el
+         rol de fabricación el proyecto se queda en «Listo», y eso se dice aquí. */
       const r = await Agenda.marcar(i.id, 'hecha');
-      avisarResultado(r, 'Marcada como hecha');
+      avisarResultado(r, Proyectos.puedeMover(Prefs.rol(), 'instalado')
+        ? 'Marcada como hecha, y el proyecto queda en «Instalado»'
+        : 'Marcada como hecha. «Instalado» en el proyecto lo marca Dirección.');
       if (r.ok) { cerrarPide(); await recargar(); }
       return;
     }
@@ -1121,10 +1139,29 @@ async function ejecutar(acc, id) {
       const r = await Gcal.crearEvento(Agenda.paraIcs(i, p));
       /* No se guarda el `gcal_event_id`. El id que Calendar recibe es determinista sobre el
          UID de la instalación, así que volver a darle al botón no duplica nada; escribirlo
-         desde aquí sería inventarle a §5.7 una mutación que no tiene. */
-      avisarResultado(r, r.ok && r.valor && r.valor.yaEstaba
-        ? 'Ese evento ya estaba en el calendario'
-        : 'Evento creado. La invitación ya les llegó a los tres.');
+         desde aquí sería inventarle a §5.7 una mutación que no tiene. Y volver a darle es
+         también como se lleva un cambio de día a Calendar: `crearEvento` reescribe el evento
+         que ya estaba si no dice lo mismo que esta instalación.
+         A cuántos les llega se cuenta: la frase decía «a los tres» con uno o con ningún
+         invitado en Ajustes. */
+      const v = (r.ok && r.valor) || {};
+      const n = Number(v.invitados) || 0;
+      const quienes = n === 1 ? 'a la persona invitada' : 'a las ' + n + ' personas invitadas';
+      avisarResultado(r, v.actualizado
+        ? 'Se puso al día en Google Calendar con lo de aquí.' + (n ? ' El cambio les llega ' + quienes + '.' : '')
+        : v.yaEstaba
+          ? 'Ese evento ya estaba en el calendario, igual que aquí.'
+          : 'Evento creado.' + (n ? ' La invitación ya le llegó ' + quienes + '.'
+                                  : ' No hay invitados en Ajustes: solo está en tu calendario.'));
+      return;
+    }
+
+    /* Una instalación cancelada se QUITA de Calendar: la cancelación la tacha en el teléfono
+       de cada invitado. Sin este botón, cancelarla aquí dejaba el evento vivo allá y el
+       instalador salía a una cita que ya no existía. */
+    case 'gcal-borrar': {
+      const r = await Gcal.borrarEvento(Agenda.paraIcs(i, p).uid);
+      avisarResultado(r, 'Ya no está en Google Calendar. Si los invitados lo tenían, les llega la cancelación.');
       return;
     }
   }
@@ -1458,9 +1495,12 @@ function abrirFicha(i) {
   }
   acc.push('<button type="button" class="btn btn-gho" data-acc="ics" data-id="' + esc(i.id) +
     '">Al calendario del teléfono</button>');
-  if (!cancelada && Gcal.disponible() && Prefs.rol() === 'direccion') {
-    acc.push('<button type="button" class="btn btn-gho" data-acc="gcal" data-id="' + esc(i.id) +
-      '">Crearla en Google Calendar</button>');
+  if (Gcal.disponible() && Prefs.rol() === 'direccion') {
+    acc.push(cancelada
+      ? '<button type="button" class="btn btn-gho" data-acc="gcal-borrar" data-id="' + esc(i.id) +
+        '">Quitarla de Google Calendar</button>'
+      : '<button type="button" class="btn btn-gho" data-acc="gcal" data-id="' + esc(i.id) +
+        '">' + (Number(i.movida) > 0 ? 'Ponerla al día en Google Calendar' : 'Crearla en Google Calendar') + '</button>');
   }
   if (puedeAgendar() && !cancelada) {
     acc.push('<button type="button" class="btn btn-gho" data-acc="mover" data-id="' + esc(i.id) +
@@ -1526,6 +1566,11 @@ function abrirMover(i) {
         '<input type="text" id="pf-mv-motivo" placeholder="El cliente pidió otro día, llovió…"></div>' +
       '<p class="hintnote">El motivo se apunta junto con las dos fechas. «¿Por qué se movió?» es la pregunta que se hace tres semanas después, y para entonces nadie se acuerda.</p>' +
       '<p class="hintnote nota-av">Después de mover, vuelve a bajar el archivo del calendario: es lo que hace que el evento se corrija en el teléfono en vez de quedar duplicado.</p>' +
+      /* Google Calendar no se entera solo: mover aquí no llama a Google —el permiso sale de un
+         toque, no de una escritura en la base—, así que se dice cuál es el toque. */
+      (Gcal.disponible() && Prefs.rol() === 'direccion'
+        ? '<p class="hintnote">Si ya estaba en Google Calendar, ábrela y dale a «Ponerla al día en Google Calendar»: así les llega el día nuevo a los invitados.</p>'
+        : '') +
     '</div>' +
     '<div class="pf-panel-f">' +
       '<button type="button" class="btn btn-gho" data-pide="cerrar">Cancelar</button>' +
@@ -1574,7 +1619,11 @@ function abrirGanar(folio, estado) {
   const prev = estado || {};
   _pide = { modo: 'ganar', folio: String(folio), k: prev.k !== undefined ? prev.k : (e.plazoK >= 1 && e.plazoK <= 5 ? e.plazoK : null),
             fecha: prev.fecha !== undefined ? prev.fecha : hoyISO() };
-  const fechaVal = $('ag-ganar-fecha') ? $('ag-ganar-fecha').value : _pide.fecha;
+  /* El campo solo se relee cuando es el MISMO panel repintándose —elegir un plazo lo rehace y
+     no puede perder la fecha que ya se escribió—. En un panel nuevo, no: Escape y el atrás
+     cierran sin vaciar la capa, y el campo que quedaba ahí era el del folio anterior, así que
+     el siguiente «Se ganó» salía con la fecha de instalación de otro proyecto. */
+  const fechaVal = (estado && $('ag-ganar-fecha')) ? $('ag-ganar-fecha').value : _pide.fecha;
   const marcado = _pide.k !== null ? _pide.k : sug.k;
   const quien = [e.cliente, e.proy].filter(Boolean).join(' — ') || 'sin cliente';
   const total = Prefs.veDinero() ? Cot.totalVendido(e) : 0;
@@ -1622,13 +1671,15 @@ function abrirDescartar(folio) {
 /* ----- El teclado, para la computadora -----
    Flechas para moverse de mes o de semana y «t» para volver a hoy. Solo cuando no se está
    escribiendo en un campo y no hay un panel abierto: dentro de un <input type="date"> las
-   flechas ya hacen otra cosa. Los números cambian de módulo y viven en app.js. */
+   flechas ya hacen otra cosa. Los números cambian de módulo y viven en app.js.
+   En las TRES lentes: aquí había un «si la lente es Taller, nada», de cuando esa lente no
+   pintaba la rejilla. Hoy la pinta —con lo que vence cada día—, es la que abre de 760 a
+   1 099 px, y el encabezado anunciaba «← → mes · t hoy» encima de unas teclas muertas. */
 function alTeclear(ev) {
   if (!_cont || ev.altKey || ev.ctrlKey || ev.metaKey) return;
   const t = ev.target;
   if (t && t.closest && t.closest('input,textarea,select,[contenteditable="true"]')) return;
   if (document.querySelector('.modal-bg.show')) return;
-  if (_lente === 'taller') return;
   if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
     const n = ev.key === 'ArrowLeft' ? -1 : 1;
     _ancla = _vista === 'semana' ? masDias(iniSemana(_ancla), n * 7) : masMeses(_ancla, n);
@@ -1648,6 +1699,9 @@ function abrirCancelar(i) {
       '<div class="fld"><label for="pf-cn-motivo">Por qué</label>' +
         '<input type="text" id="pf-cn-motivo" placeholder="El cliente lo detuvo, falta obra civil…"></div>' +
       '<p class="hintnote">La cancelación se guarda y se ve. Esconderla es lo mismo que no haberla guardado, y de ahí sale la llamada de «¿entonces sí van a venir?».</p>' +
+      (Gcal.disponible() && Prefs.rol() === 'direccion'
+        ? '<p class="hintnote">Si estaba en Google Calendar, después ábrela y dale a «Quitarla de Google Calendar»: es lo que la tacha en el teléfono de los invitados.</p>'
+        : '') +
     '</div>' +
     '<div class="pf-panel-f">' +
       '<button type="button" class="btn btn-gho" data-pide="cerrar">No, déjala</button>' +

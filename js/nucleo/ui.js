@@ -194,6 +194,21 @@ function _focablesDe(cont) {
    un Map (index.html, _focoAntes) y esta era la misma pieza sin esa corrección. */
 const _focoPrevio = new Map();
 
+/* Cuántos `history.back()` salieron de `cerrarCapa` y todavía no llegan como popstate. El
+   oyente de popstate no distingue el atrás del teléfono del que dispara el propio cierre, y
+   trataba los dos igual: cerraba la siguiente capa con entrada. Así, cerrar la orden de trabajo
+   con su X cerraba también la ficha de abajo, «Guardar el material» cerraba el catálogo, y
+   «No se dio» desde la ficha no se podía contestar nunca —la ficha se cerraba, se abría la
+   pregunta y el popstate de la ficha la cerraba al milisegundo—: Dirección no podía descartar
+   un proyecto. Con la cuenta, el popstate propio solo se consume. */
+let _backPropio = 0;
+/* Las capas que se abrieron con `hist` mientras un back propio iba en vuelo. Su pushState se
+   aplaza hasta que ese back llegue: en Chromium, `history.back()` seguido de `pushState()` en
+   el mismo tick aterriza en la entrada de abajo y la nueva se pierde, así que la pregunta de
+   «No se dio» quedaba abierta sin entrada y el atrás del teléfono se salía de la pantalla con
+   ella puesta. Medido: estado final null y una entrada menos. */
+const _pushPendiente = new Set();
+
 /* El fondo entero detrás del velo: no solo el contenido, también las dos barras. Sin
    `inert`, el lector de pantalla seguía recorriendo la plataforma de atrás y leyéndola
    como si fuera del modal, y el tabulador se escapaba por la barra de arriba. La clase en
@@ -229,7 +244,10 @@ export function abrirCapa(id, opts = {}) {
   _focoPrevio.set(id, enOtraCapa ? null : prev);
   el.classList.add('show');
   _fondoInerte(true);
-  if (opts.hist) { try { history.pushState({ capa: id }, ''); el.dataset.hist = '1'; } catch (_) {} }
+  if (opts.hist) {
+    if (_backPropio > 0) { el.dataset.hist = '1'; _pushPendiente.add(id); }
+    else { try { history.pushState({ capa: id }, ''); el.dataset.hist = '1'; } catch (_) {} }
+  }
   const f = _focablesDe(el);
   /* Al primer elemento tocable, no al contenedor: un contenedor enfocado no anuncia nada
      y el primer Tab se va al principio del modal de todas formas. */
@@ -242,10 +260,13 @@ export function cerrarCapa(id) {
   el.classList.remove('show');
   if (el.dataset.hist === '1') {
     delete el.dataset.hist;
+    /* Si su pushState seguía aplazado, no hay entrada que consumir: solo se olvida. */
+    _pushPendiente.delete(id);
     /* history.back() es asíncrono. Si quien cierra abre otra cosa enseguida, se cruzan y
        el atrás del teléfono cierra lo recién abierto. Por eso el consumo de la entrada
-       vive aquí y en el oyente de popstate, y en ningún otro lado. */
-    try { if (history.state && history.state.capa === id) history.back(); } catch (_) {}
+       vive aquí y en el oyente de popstate, y en ningún otro lado. Y se cuenta: el popstate
+       que va a llegar es de este cierre, no del botón atrás (ver `_backPropio`). */
+    try { if (history.state && history.state.capa === id) { _backPropio++; history.back(); } } catch (_) {}
   }
   const prev = _focoPrevio.get(id); _focoPrevio.delete(id);
   /* El velo solo se levanta cuando no queda NINGUNA capa: con la ficha abierta debajo del
@@ -280,6 +301,21 @@ export function vigilarCapas() {
     else if (!e.shiftKey && (act === ult || !m.contains(act))) { e.preventDefault(); pri.focus(); }
   });
   window.addEventListener('popstate', () => {
+    /* Este popstate lo pidió `cerrarCapa`, no el dedo: la capa ya se cerró y no hay que
+       cerrar otra. Cuando llega el último en vuelo, se empujan las entradas que se aplazaron
+       para las capas que se abrieron mientras tanto y siguen abiertas. */
+    if (_backPropio > 0) {
+      _backPropio--;
+      if (!_backPropio) {
+        for (const id of _pushPendiente) {
+          const el = $(id);
+          if (!el || !el.classList.contains('show') || el.dataset.hist !== '1') continue;
+          try { history.pushState({ capa: id }, ''); } catch (_) { delete el.dataset.hist; }
+        }
+        _pushPendiente.clear();
+      }
+      return;
+    }
     /* El atrás del teléfono ya consumió la entrada: aquí solo se cierra, sin volver a
        llamar a history.back(). */
     for (const c of _CAPAS) {
@@ -387,8 +423,18 @@ export async function compartirArchivo(texto, nombre, tipo) {
    seguir abriendo WhatsApp SIN número para que la persona elija el contacto. De eso
    depende «mandar la orden de trabajo» en js/mod/fabricacion.js. */
 export function telWa(tel) {
-  const d = String(tel || '').replace(/\D/g, '');
+  let d = String(tel || '').replace(/\D/g, '');
   if (!d) return '';
+  /* Los prefijos de marcación de antes —044 y 045 de celular, 01 de larga distancia— y el 00
+     de salida internacional, igual que en el cotizador: ningún número de WhatsApp empieza con
+     0, y aun así «01 33 1234 5678» caía en la rama internacional y se mandaba tal cual, al
+     chat de un número que no es de nadie. Se quita el prefijo cuando lo que queda es un número
+     que esta misma regla reconoce; si no, '' y WhatsApp abre para elegir el contacto. */
+  if (d[0] === '0') {
+    if (/^(044|045|01)[1-9]\d{9}$/.test(d)) d = d.slice(-10);   // lo que queda son los diez de México
+    else if (/^00[1-9]/.test(d)) d = d.slice(2);                // lo que queda lleva su lada de país
+    else return '';
+  }
   if (d.length === 10) return '52' + d;                  // celular mexicano sin lada de país
   if (d.length === 12 && d.startsWith('52')) return d;   // ya viene con 52
   if (d.length === 13 && d.startsWith('521')) return d;  // formato viejo, con el 1

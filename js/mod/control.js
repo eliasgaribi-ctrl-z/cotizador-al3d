@@ -56,11 +56,17 @@ let TRAYENDO = false;        // hay una bajada de la hoja en curso, pedida desde
    ver la cartera; más que eso ya es una cifra vieja pintada como de hoy. */
 const MIN_FRESCO_MS = 10 * 60 * 1000;
 
+/* El mismo corte que esconde `.pf-cab-acc` en css/plataforma.css. */
+const _mqTelefono = typeof matchMedia === 'function' ? matchMedia('(max-width:759px)') : null;
+const enTelefono = () => !!(_mqTelefono && _mqTelefono.matches);
+function alCambiarAncho() { pintar(); }
+
 export async function montar(contenedor, ctx) {
   cont = contenedor;
   CTX = ctx;
   cont.addEventListener('click', alClic);
   cont.addEventListener('input', alEscribir);
+  if (_mqTelefono && _mqTelefono.addEventListener) _mqTelefono.addEventListener('change', alCambiarAncho);
   /* El pase de quien manda aquí —el asistente, el tablero—: «abre en Por cobrar». */
   const pase = (ctx && ctx.recibir) ? ctx.recibir() : null;
   if (pase && ['ventas', 'cobrar', 'bitacora'].includes(pase.tab)) TAB = pase.tab;
@@ -82,6 +88,7 @@ export async function montar(contenedor, ctx) {
 
 export function desmontar() {
   if (cont) { cont.removeEventListener('click', alClic); cont.removeEventListener('input', alEscribir); }
+  if (_mqTelefono && _mqTelefono.removeEventListener) _mqTelefono.removeEventListener('change', alCambiarAncho);
   /* El hueco de acciones del encabezado NO es de este módulo: vive en index.html y lo
      comparten todos. El router le vacía el marcado antes de montar el siguiente —«las
      acciones del encabezado son del módulo que se va»— pero vaciar el innerHTML no suelta el
@@ -221,7 +228,7 @@ function lineaHoja() {
   if (!b.configurado) {
     return '<p class="pf-frescura ct-hoja">' + ico('i-nube-off') +
       '<span>Sin puente a la hoja de finanzas: esto es lo que se registró desde este dispositivo. ' +
-      'El récord completo del negocio se conecta en Ajustes → El puente.</span>' +
+      'El récord completo del negocio se conecta en Ajustes → Conectar la hoja.</span>' +
       '<button type="button" class="btn btn-gho pf-btn-corto" data-ir="ajustes">' + ico('i-nube') + ' Conectar la hoja</button></p>';
   }
   if (!b.completa) {
@@ -391,9 +398,19 @@ function listaProyectos() {
   const filas = lista.length
     ? lista.map(filaProyecto).join('')
     : vacio('Nada en este periodo', 'Cuando una cotización se marque como ganada, o cuando baje una venta de la hoja, aparece aquí con su importe.');
+  /* En el teléfono el «Bajar CSV de ventas» del encabezado no existe —el hueco de acciones va
+     en `display:none` abajo de 760 px, y app.js pide que lo que va ahí exista también dentro de
+     la pantalla—: sin esto, desde el celular no había cómo bajarlo. Va en la cabecera de esta
+     tarjeta, que es lo que baja, con el rótulo corto para que quepa junto al total en 360 px;
+     el nombre entero va en el aria-label. Se decide al pintar con el mismo corte del CSS, y un
+     giro que lo cruza se repinta (`alCambiarAncho`). */
+  const csvAqui = enTelefono()
+    ? '<button type="button" class="btn btn-gho pf-btn-corto" data-csv aria-label="Bajar CSV de ventas">' +
+      ico('i-bajar') + ' CSV</button>'
+    : '';
   return '<div class="card"><div class="card-h"><h2>' + ico('i-venta') + ' Ventas' +
       ' <span class="folio">' + vivos.length + '</span></h2>' +
-      '<span class="ct-total">' + esc(money(total)) + '</span></div>' +
+      '<span class="ct-total">' + esc(money(total)) + '</span>' + csvAqui + '</div>' +
     '<div class="card-b">' +
       '<div class="ag-barra">' + filtros +
         '<input type="search" class="ct-busca" placeholder="Buscar por nombre, folio, cuenta o estatus" value="' + esc(BUSCA) + '" data-busca aria-label="Buscar ventas"></div>' +

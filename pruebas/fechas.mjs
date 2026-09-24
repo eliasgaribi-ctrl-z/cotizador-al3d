@@ -129,5 +129,19 @@ eq('conserva el día que se le dio', (() => { const f = F.fechaLocal('2026-09-02
 eq('a las 12 en punto', F.fechaLocal('2026-09-02').getHours(), 12);
 eq('inválida da null', F.fechaLocal('x'), null);
 
+console.log('\nisoDeSello — de qué DÍA es un sello, no cuántas tandas de 24 horas lleva');
+{
+  /* Se arma el sello con la hora LOCAL de este proceso, así que la prueba vale en cualquier
+     zona: lo que se comprueba es que el día sale de los campos locales y no de UTC. */
+  const ayerNoche = new Date(2026, 8, 22, 23, 0, 0).getTime();
+  const hoyManana = new Date(2026, 8, 23, 9, 0, 0).getTime();
+  eq('las 11 de la noche del 22 son del 22', F.isoDeSello(ayerNoche), '2026-09-22');
+  eq('diez horas después ya es otro día: «ayer», no «hoy»',
+     F.diasEntre(F.isoDeSello(ayerNoche), F.isoDeSello(hoyManana)), 1);
+  eq('y con la cuenta de 24 horas habría salido 0', Math.floor((hoyManana - ayerNoche) / 86400000), 0);
+  eq('un sello inválido da null', F.isoDeSello('ayer'), null);
+  eq('cero no es un sello', F.isoDeSello(0), null);
+}
+
 console.log(fallos ? '\n' + fallos + ' FALLO(S)' : '\nLa aritmética de fechas cuadra.');
 process.exit(fallos ? 1 : 0);

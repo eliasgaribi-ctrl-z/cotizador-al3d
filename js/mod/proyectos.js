@@ -26,6 +26,7 @@ import * as Material from '../datos/material.js';
 import * as Stock from '../datos/stock.js';
 import * as Agenda from '../datos/agenda.js';
 import { matOf, basOf, recOf, cajaOf } from '../datos/catalogo-precios.js';
+import { isoDeSello, diasEntre } from '../nucleo/fechas.js';
 import { ESTATUS as ESTATUS_NOTION, CUENTAS, ESTATUS_DE_PAGOS } from '../datos/puente.js';
 import {
   $, esc, money, cant, ico, toast, avisarResultado, vacio, segmento, chip,
@@ -304,20 +305,31 @@ function semaforos(compra) {
    vuelve a leer y a parsear `al3d_historial` completo —que trae las imágenes de las
    cotizaciones dentro— así que llamarla una vez por renglón y en cada repintado es parsear
    megabytes doscientas veces en un celular. Aquí el historial se lee UNA vez y la
-   comparación la sigue haciendo `Cot.huellaDe`, que es la misma función con la que compara
-   ella: el veredicto no puede divergir porque la aritmética es la suya. */
+   comparación la sigue haciendo `Cot.mismaHuella`, que es la misma función con la que compara
+   ella: el veredicto no puede divergir porque la aritmética es la suya.
+
+   `mismaHuella` y no `===` contra `Cot.huellaDe`: las huellas guardadas antes del 15 de
+   septiembre de 2026 no están ordenadas y la de hoy sí. Con `===`, un proyecto viejo de dos
+   partidas salía «se editó después de ganarse», con su «Recalcular material», y la pestaña lo
+   contaba, sin que nadie hubiera tocado la cotización. Por eso el mapa guarda la ENTRADA y no
+   su huella. */
 function huellas() {
   const hoy = new Map();
-  for (const e of Cot.historial()) if (e && e.folio) hoy.set(e.folio, Cot.huellaDe(e));
+  for (const e of Cot.historial()) if (e && e.folio) hoy.set(e.folio, e);
   const m = new Map();
   for (const p of TODOS) {
     const folio = (p.origen && p.origen.folio) || p.folio_local;
     if (!hoy.has(folio)) { m.set(p.id, 'desaparecio'); continue; }
     const antes = (p.origen && p.origen.huellaAuth) || Cot.huellaDe(p.origen || {});
-    m.set(p.id, !antes ? 'sin_huella' : (antes === hoy.get(folio) ? 'igual' : 'cambio'));
+    m.set(p.id, !antes ? 'sin_huella' : (mismaHuella(antes, hoy.get(folio)) ? 'igual' : 'cambio'));
   }
   return m;
 }
+/* Con respaldo, por lo mismo que `tienePin` en js/mod/tablero.js: en la ventana de un
+   despliegue este archivo puede llegar nuevo con un js/datos/cotizador.js viejo ya cargado en
+   la pestaña, que todavía no exporta `mismaHuella`, y la lista moría al pintar. El respaldo es
+   la comparación de antes: peor, pero no una pantalla rota. */
+const mismaHuella = (a, e) => (Cot.mismaHuella ? Cot.mismaHuella(a, e) : a === Cot.huellaDe(e));
 
 const cambiada = p => (HUELLA.get(p.id) || Cot.estadoOrigen(p)) === 'cambio' && !HUELLA_IGNORADA.has(p.id);
 
@@ -563,8 +575,11 @@ function pintarCand() {
   if (!SIN_DECIDIR.length) { el.innerHTML = ''; return; }
 
   const n = SIN_DECIDIR.length;
+  const hoy = hoyISO();
   const filas = SIN_DECIDIR.map(e => {
-    const dias = Math.floor((Date.now() - (num(e.ts) || Date.now())) / 86400000);
+    /* Días de CALENDARIO, como el Calendario (`cuando(isoDeSello(e.ts))`). Con tandas de 24
+       horas, la autorizada anoche a las 11 decía «hoy» aquí y «ayer» allá. */
+    const dias = diasEntre(isoDeSello(e.ts) || hoy, hoy) || 0;
     const importe = Prefs.veDinero() ? Cot.totalVendido(e) : null;
     return '<div class="pf-fila">' +
       '<div class="pf-fila-ico">' + ico('i-venta') + '</div>' +
@@ -795,8 +810,12 @@ function htmlFicha(p) {
     dato('Dirección', dir ? esc(dir).replace(/\n/g, '<br>') : 'La cotización no traía dirección', true) +
     dato('Entre calles', p.entrecalles || 'No se anotó') +
     '</dl>');
-  if (dir || p.maps_url || isFinite(p.lat)) {
-    partes.push('<div class="btn-fila"><a class="btn btn-gho" href="' + esc(urlMapa(p)) +
+  /* El botón solo cuando `urlMapa` tiene de dónde armar una liga. Con `isFinite(p.lat)` a
+     secas, un proyecto sin ubicar —se guarda con `lat: null`, e `isFinite(null)` es true—
+     pintaba «Abrir en Maps» hacia una búsqueda vacía. */
+  const mapa = urlMapa(p);
+  if (mapa) {
+    partes.push('<div class="btn-fila"><a class="btn btn-gho" href="' + esc(mapa) +
       '" target="_blank" rel="noopener">' + ico('i-pin') + ' Abrir en Maps</a></div>');
   }
 
@@ -827,7 +846,12 @@ function htmlFicha(p) {
   if (rol === 'pagos' || rol === 'direccion') {
     const ests = rol === 'pagos' ? ESTATUS_DE_PAGOS : ESTATUS_NOTION;
     partes.push('<div class="fld-lab">Estatus en la hoja — el eje del dinero</div>' +
-      segmento(ests.map(e => ({ v: e, t: e })), p.estatus_notion || '', 'data-estatus'));
+      segmento(ests.map(e => ({ v: e, t: e })), p.estatus_notion || '', 'data-estatus') +
+      /* Con renglón en la hoja no hay fila que copiar (ver el pie): se dice dónde está lo que
+         sí falta, que es este segmento. */
+      (p.notion_page_id
+        ? '<p class="hintnote">Esta venta ya está en la hoja. Lo que cambia es este estatus, y el puente lo sube solo: no copies la fila, pegarla la daría de alta dos veces.</p>'
+        : ''));
     partes.push('<div class="fld-lab">Cuenta donde se cobra</div><div class="chips">' +
       CUENTAS.map(c => chip(c, p.cuenta === c, 'data-cuenta="' + esc(c) + '"')).join('') + '</div>');
   }
@@ -837,7 +861,10 @@ function htmlFicha(p) {
     pie.push('<button type="button" class="btn ' + (rol === 'fabricacion' ? 'btn-pri' : 'btn-gho') +
       '" data-hoja="' + esc(p.id) + '">' + ico('i-doc') + ' Orden de trabajo</button>');
   }
-  if (rol === 'direccion' || rol === 'pagos') {
+  /* Solo para la venta que NO está en la hoja. Con `notion_page_id` el renglón ya existe —la
+     venta bajó de allá con su id— y este botón llevaba a pegarla en el primer renglón vacío
+     de Ventas: la misma venta dos veces, con el saldo y la comisión contados doble. */
+  if ((rol === 'direccion' || rol === 'pagos') && !p.notion_page_id) {
     pie.push('<button type="button" class="btn btn-gho" data-tsv="' + esc(p.id) + '">' +
       ico('i-copiar') + ' Copiar datos para la hoja</button>');
   }
@@ -862,14 +889,26 @@ const dato = (etiqueta, valorHTML, esHtml) =>
 /* El link crudo de Maps primero, y es una decisión: es el que el cliente mandó y trae el
    pin donde el cliente lo puso. Un `search?query=` con el texto de una dirección de
    Tlajomulco cae a media colonia, y ahí es donde la camioneta da vueltas. */
+/* Solo http y https, como `linkMapa` de js/mod/fabricacion.js para el mismo campo: `maps_url`
+   es lo que alguien pegó a mano en el cotizador, o lo que trajo un respaldo que viajó por
+   WhatsApp, y un `javascript:` ahí se ejecuta al tocar «Abrir en Maps» —`esc()` no lo para,
+   un href es un contexto de URL y no de HTML—. Devuelve '' cuando no hay con qué armar una
+   liga, y entonces el botón no se pinta. */
 function urlMapa(p) {
-  if (p.maps_url) return p.maps_url;
-  if (p.lat !== null && p.lng !== null && isFinite(p.lat) && isFinite(p.lng)) {
+  if (/^https?:\/\//i.test(String(p.maps_url || ''))) return String(p.maps_url);
+  if (tienePin(p)) {
     return 'https://www.google.com/maps/search/?api=1&query=' + p.lat + ',' + p.lng;
   }
-  return 'https://www.google.com/maps/search/?api=1&query=' +
-    encodeURIComponent(String(p.dir_texto || '').replace(/\s+/g, ' ').trim());
+  const dir = String(p.dir_texto || '').replace(/\s+/g, ' ').trim();
+  return dir ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(dir) : '';
 }
+/* Con respaldo, por lo mismo que en js/mod/tablero.js: un js/datos/proyectos.js viejo ya
+   cargado en la pestaña puede no exportarla todavía. Es la misma prueba. */
+const tienePin = Proy.tienePin || (p => {
+  const c = v => (v === null || v === undefined || v === '') ? NaN : Number(v);
+  const la = c(p && p.lat), ln = c(p && p.lng);
+  return Number.isFinite(la) && Number.isFinite(ln) && !(la === 0 && ln === 0);
+});
 
 async function clicFicha(ev) {
   const t = ev.target;
@@ -948,6 +987,13 @@ async function moverEtapa(id, etapa) {
   }
   const r = await Proy.avanzarEtapa(id, etapa);
   if (!r.ok) { avisarResultado(r); return; }
+  /* «Instalado» es el mismo hecho que la instalación «hecha», y se apunta entero, igual que
+     el «Ya se instaló» del Tablero: con la instalación en «confirmada», el Tablero seguía
+     contándola en «Ya pasaron y nadie las marcó». */
+  if (etapa === 'instalado') {
+    const [viva] = await Agenda.listar({ proyecto_id: id, vivas: true });
+    if (viva && viva.estado !== 'hecha') await Agenda.marcar(viva.id, 'hecha');
+  }
 
   /* Los movimientos de material se dicen en voz alta. Pasar a «Cortado» mueve el almacén,
      y un almacén que cambió sin que nadie se enterara es un almacén al que en tres semanas
@@ -1024,6 +1070,12 @@ function filaTsv(p) {
 async function copiarFila(id) {
   const p = await Proy.obtener(id);
   if (!p) { toast('Ese proyecto ya no está en este dispositivo', 'err'); return; }
+  /* La misma guarda que el pie de la ficha, aquí también: si el botón llegó a pintarse —una
+     ficha abierta antes de que bajara el renglón— copiar seguiría mandando a duplicarla. */
+  if (p.notion_page_id) {
+    toast('Esta venta ya está en la hoja: no hay que pegarla otra vez. Cambia su estatus en la ficha y el puente lo sube.', '', 6000);
+    return;
+  }
   const faltan = [];
   if (!p.cuenta) faltan.push('la cuenta');
   if (!p.estatus_notion) faltan.push('el estatus');

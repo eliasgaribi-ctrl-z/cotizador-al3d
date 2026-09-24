@@ -38,6 +38,9 @@ import * as Geo from '../datos/geo.js';
 import * as Gcal from '../nucleo/gcal.js';
 import * as Puente from '../datos/puente.js';
 import * as Ingreso from '../nucleo/ingreso.js';
+/* Solo para CONTAR las constantes que se vuelven a sembrar (ver `NCONST`). app.js ya lo cargó
+   al arrancar para sembrar el catálogo, así que no cuesta una descarga más. */
+import * as Material from '../datos/material.js';
 import {
   $, esc, ico, toast, avisarResultado, abrirCapa, cerrarCapa,
   descargarArchivo, fmtFechaDia, cuando, ajustarAltoBarra, copiarTexto, voz,
@@ -53,6 +56,12 @@ let CTX = null;
 let ESPACIO = null;      // DB.espacio() o null si el navegador no lo dice
 let PEND = 0;            // operaciones en la bandeja de salida
 let APARTADAS = 0;       // las que este puente no sabe llevar. Ni se mandan ni se pierden
+/* Cuántas constantes del taller vuelven a sembrarse al borrar. Se CUENTA y no se escribe: la
+   pantalla decía «las 18» cuando ya eran 20 —las 18 de §6.1 más las dos de plazo que usa la
+   ventana de taller—, y un número escrito a mano se queda viejo la siguiente vez que entra
+   una. null si no se pudo contar, y entonces no se dice ningún número. */
+let NCONST = null;
+const lasConstantes = () => (NCONST ? 'las ' + NCONST + ' constantes' : 'las constantes del taller');
 
 /* Lo que el puente contestó la última vez que se apretó un botón. Vive en memoria y muere
    al salir de la pantalla, a propósito: es el estado de una prueba, no una preferencia, y
@@ -97,8 +106,10 @@ export async function montar(c, ctx) {
   /* Las dos lecturas que tocan la base van antes de pintar y en paralelo: son las únicas
      asíncronas de la pantalla y esperarlas en serie se nota en un celular viejo. Ninguna
      lanza: `espacio()` devuelve null y `pendientes()` devuelve [] si la base no abrió. */
-  const [esp, cola, sinDest] = await Promise.all([
-    DB.espacio(), Sync.pendientes(), Sync.sinDestino()]);
+  const [esp, cola, sinDest, cts] = await Promise.all([
+    DB.espacio(), Sync.pendientes(), Sync.sinDestino(),
+    Material.constantes().catch(() => null)]);
+  NCONST = cts ? Object.keys(cts).length || null : null;
   ESPACIO = esp;
   PEND = cola.length;
   APARTADAS = sinDest.length;
@@ -132,7 +143,7 @@ export function desmontar() {
     capa.innerHTML = '';
   }
 
-  ESPACIO = null; PEND = 0; APARTADAS = 0; ROL_GATE = null;
+  ESPACIO = null; PEND = 0; APARTADAS = 0; ROL_GATE = null; NCONST = null;
   SALUD = null; ESQ = null;
   cont = null; CTX = null;
 }
@@ -194,10 +205,12 @@ function pintarGate() {
     '<input type="text" id="aj-nombre" maxlength="40" autocomplete="name" ' +
     'placeholder="Como te dicen: Beto, Moni, Tatis…"></div>' +
 
-    '<div class="fld"><div class="fld-lab" id="aj-rol-lab">Con qué rol trabajas</div>' +
+    '<div class="fld"><div class="fld-lab" id="aj-rol-lab">Con qué rol trabajas' +
+      (Prefs.rolDeLaHoja() ? ' <span class="pf-candado">' + ico('i-candado') + ' lo manda la hoja</span>' : '') +
+    '</div>' +
     '<div id="aj-rol-gate" role="group" aria-labelledby="aj-rol-lab">' + rolesGate() + '</div></div>' +
 
-    nota(esc(Prefs.ROL_NO_ES_SEGURIDAD)) +
+    nota(esc(Prefs.rolDeLaHoja() ? Prefs.ROL_LO_MANDA_LA_HOJA : Prefs.ROL_NO_ES_SEGURIDAD)) +
 
     '<div class="pf-acciones">' +
     '<button type="button" class="btn btn-pri" data-act="gate">Empezar</button></div>');
@@ -215,13 +228,21 @@ function pintarGate() {
 /* Las tres descripciones completas, no un segmento de tres palabras: elegir un rol sin
    saber qué te va a esconder es elegir a ciegas, y el que se equivoca aquí cree que la
    plataforma no tiene la pantalla de cobranza. */
+/* Cuando el rol viene de la hoja (el pase de la puerta), los otros dos van APAGADOS con la
+   razón, igual que en «Quién eres»: la presentación dejaba elegir cualquiera, «Empezar» decía
+   «Listo, Moni. Bienvenido.» y no pasaba nada —el clic caía en el botón apagado de la barra de
+   arriba—, cada vez. El elegido es el de la hoja y no se puede mover. */
 function rolesGate() {
-  return Prefs.ROLES.map(r =>
-    '<button type="button" class="aj-rol' + (r === ROL_GATE ? ' on' : '') +
-    '" data-rol-gate="' + r + '" aria-pressed="' + (r === ROL_GATE ? 'true' : 'false') + '">' +
-    ico(r === ROL_GATE ? 'i-check' : 'i-ojo') +
-    '<span><b>' + esc(Prefs.ROL_NOMBRE[r]) + '</b>' + esc(Prefs.ROL_DESC[r]) + '</span>' +
-    '</button>').join('');
+  const deLaHoja = Prefs.rolDeLaHoja();
+  return Prefs.ROLES.map(r => {
+    const off = deLaHoja && r !== ROL_GATE;
+    return '<button type="button" class="aj-rol' + (r === ROL_GATE ? ' on' : '') +
+      '" data-rol-gate="' + r + '" aria-pressed="' + (r === ROL_GATE ? 'true' : 'false') + '"' +
+      (off ? ' disabled aria-disabled="true" title="' + esc(Prefs.ROL_LO_MANDA_LA_HOJA) + '"' : '') + '>' +
+      ico(r === ROL_GATE ? 'i-check' : 'i-ojo') +
+      '<span><b>' + esc(Prefs.ROL_NOMBRE[r]) + '</b>' + esc(Prefs.ROL_DESC[r]) + '</span>' +
+      '</button>';
+  }).join('');
 }
 
 function clicGate(ev) {
@@ -229,6 +250,8 @@ function clicGate(ev) {
 
   const r = t.closest('[data-rol-gate]');
   if (r) {
+    /* La guarda de verdad, no la del atributo (la misma idea que `cambiarRol` en app.js). */
+    if (Prefs.rolDeLaHoja()) { ROL_GATE = Prefs.rol(); toast(Prefs.ROL_LO_MANDA_LA_HOJA, '', 6000); return; }
     /* Se guarda en una variable y no en la preferencia: aplicar el rol al instante
        remonta la pantalla —app.js saca los módulos que el rol nuevo no tiene— y el nombre
        a medio escribir se iba en blanco sin que nadie entendiera por qué. */
@@ -251,7 +274,9 @@ function clicGate(ev) {
     return;
   }
   toast('Listo, ' + n + '. Bienvenido.', 'ok', 3400);
-  aplicarRol(ROL_GATE);
+  /* Con el rol de la hoja no hay nada que elegir: se entra con ese, y `aplicarRol` con el rol
+     que ya se tiene remonta la pantalla, que es lo que quita la presentación. */
+  aplicarRol(Prefs.rolDeLaHoja() ? Prefs.rol() : ROL_GATE);
 }
 
 /* ============================================================================
@@ -467,8 +492,13 @@ function cardGcal() {
         'tiene acceso de lectura a un calendario compartido no hereda sus alarmas. Por eso ' +
         'los eventos los crea un solo dispositivo con las tres personas como invitados: la ' +
         'invitación entra a tu calendario y ahí sí suena en tu teléfono.') +
-      '<p class="pf-nota">Tú no tienes que configurar nada. Cuando Dirección agende, te ' +
-      'llega la invitación al correo y al calendario del teléfono.</p>');
+      /* Lo que de verdad pasa: agendar NO crea el evento. Lo crea Dirección desde la ficha de
+         la instalación, con «Crearla en Google Calendar». Decir «cuando Dirección agende, te
+         llega» dejaba esperando una invitación que no iba a salir sola. */
+      '<p class="pf-nota">Tú no tienes que configurar nada. Cuando Dirección manda una ' +
+      'instalación a Google Calendar desde su ficha, te llega la invitación al correo y al ' +
+      'calendario del teléfono. Agendarla no la manda sola: si no te llega, pídeselo, o ' +
+      'baja el .ics de esa instalación, que funciona sin cuentas.</p>');
   }
 
   return tarjeta('i-agenda', ins.titulo + ' · Fase 2',
@@ -479,8 +509,11 @@ function cardGcal() {
     pasos +
 
     nota('<b>Lo que vas a ver y no es un error:</b> la primera vez, Google dice ' +
-      '«Google hasn’t verified this app». Se pasa con <b>Avanzado</b> y luego <b>«Ir al ' +
-      'sitio»</b>. Sale porque la app está en Testing, que es donde tiene que estar con tres ' +
+      /* Con el rótulo LITERAL del enlace de Google, el mismo que el último paso de
+         `Gcal.instrucciones()`: aquí decía «Ir al sitio» y allá «Ir a AL3D (no seguro)», y
+         quien busca en la pantalla de Google el texto que leyó aquí no lo encuentra. */
+      '«Google hasn’t verified this app». Se pasa con <b>Avanzado</b> y luego <b>«Ir a AL3D ' +
+      '(no seguro)»</b>. Sale porque la app está en Testing, que es donde tiene que estar con tres ' +
       'personas, y le sale una vez a cada quien.', 'av') +
 
     nota('<b>El hallazgo que decidió la arquitectura:</b> en Google Calendar los ' +
@@ -737,7 +770,7 @@ function cardCordon(baseOk) {
     '<p class="pf-nota">Se van los proyectos, la agenda, el libro del almacén, los ' +
     'requerimientos, los avisos y las fotos de obra de este dispositivo. También el Client ID ' +
     'de Calendar y el puente. Se quedan tu nombre, tu rol y el id del dispositivo, porque no ' +
-    'son datos: son quién eres. El catálogo de material y las 18 constantes vuelven a ' +
+    'son datos: son quién eres. El catálogo de material y ' + lasConstantes() + ' vuelven a ' +
     'sembrarse solos al abrir.</p>' +
     '<div class="pf-acciones">' +
     '<button type="button" class="btn btn-dgr" data-act="borrar"' + (baseOk ? '' : ' disabled') + '>' +
@@ -819,6 +852,9 @@ function guardarNombreCallado() {
 function aplicarRol(r) {
   if (!Prefs.ROLES.includes(r)) return;
   if (r === Prefs.rol()) { if (CTX.refrescar) CTX.refrescar(); return; }
+  /* Con el rol de la hoja, el botón de la barra está apagado y un clic sobre él no hace nada:
+     sin esto, pedir otro rol desde aquí se quedaba en silencio. Se dice por qué. */
+  if (Prefs.rolDeLaHoja()) { toast(Prefs.ROL_LO_MANDA_LA_HOJA, '', 6000); return; }
   const b = document.querySelector('#pf-rolseg [data-rol="' + r + '"]');
   if (b) { b.click(); return; }
   if (!Prefs.setRol(r)) { toast('No se pudo guardar el rol en este dispositivo', 'err', 4200); return; }
@@ -1314,7 +1350,7 @@ async function cordonBorrar() {
 
   panel(cabeza('Se borró todo') +
     '<div class="pf-panel-b">' +
-      nota('Listo. El catálogo de material y las 18 constantes se siembran solas al abrir; ' +
+      nota('Listo. El catálogo de material y ' + lasConstantes() + ' se siembran solos al abrir; ' +
         'los proyectos, la agenda y el libro del almacén están en el archivo que acabas de ' +
         'bajar. La plataforma se va a recargar.', 'ok') +
     '</div>');

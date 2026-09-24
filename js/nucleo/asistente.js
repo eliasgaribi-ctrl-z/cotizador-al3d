@@ -47,6 +47,12 @@ let _msgs = [];                 // [{rol:'yo'|'bot'|'espera'|'error', texto, ts,
 let _ctx = null;
 let _ocupado = false;
 let _abort = null;
+/* Cerrar el panel CANCELA la pregunta en vuelo. La cancelación se leía de `!_ocupado`, que
+   durante una petición es siempre falso, así que el abort de `cerrar()` se reportaba como «el
+   proveedor tardó demasiado» y el bucle pasaba al siguiente: el resumen del negocio —4.5 KB,
+   con importes— salía a Groq cuando la persona ya había cerrado el asistente. Una bandera
+   propia, puesta por quien cierra, es lo único que distingue «me fui» de «no contestó». */
+let _cancelado = false;
 let _montado = false;
 let _resumen = null;            // la última lectura del taller
 let _leido = 0;                 // cuándo
@@ -95,6 +101,7 @@ export async function abrir() {
 }
 
 export function cerrar() {
+  if (_ocupado) _cancelado = true;
   if (_abort) { try { _abort.abort(); } catch (_) {} _abort = null; }
   cerrarCapa(CAPA);
 }
@@ -200,6 +207,13 @@ function hiloHTML() {
    abre Control en Por cobrar. Un enlace de fuera (Notion) se abre en otra pestaña. */
 function accionesHTML(acciones) {
   if (!Array.isArray(acciones) || !acciones.length) return '';
+  /* Sin los botones a pantallas que este rol no tiene: «Ver la lista de compra» le salía a
+     pagos, que no tiene Material, y el toque cerraba el asistente y dejaba el Tablero donde
+     estaba. La lista de qué rol tiene qué es la del router (`ctx.tieneRuta`). */
+  const puede = a => !((a.tipo === 'ir' || a.tipo === 'pasar') && _ctx && typeof _ctx.tieneRuta === 'function' &&
+                       !_ctx.tieneRuta(a.ruta));
+  acciones = acciones.filter(puede);
+  if (!acciones.length) return '';
   return '<div class="ia-acciones">' + acciones.map((a, i) => {
     if (a.tipo === 'link') {
       return '<a class="chip" href="' + esc(a.href) + '" target="_blank" rel="noopener">' + ico('i-libre') + ' ' + esc(a.label) + '</a>';
@@ -395,6 +409,7 @@ async function preguntarIA(q, opts) {
   }
 
   _ocupado = true;
+  _cancelado = false;
   _msgs.push({ rol: 'espera', texto: 'Leyendo el taller…', ts: Date.now() });
   pintar();
 
@@ -408,6 +423,17 @@ async function preguntarIA(q, opts) {
     _ocupado = false; pintar(); return;
   }
 
+  /* Lo que queda en el hilo cuando se cerró el panel antes de la respuesta: se dice, para que
+     al volver a abrirlo la pregunta no parezca colgada, y se dice que no salió a nadie más. */
+  const cancelada = () => {
+    quitarEspera();
+    _msgs.push({ rol: 'error', ts: Date.now(),
+      texto: 'Quedó sin respuesta: cerraste el asistente y la pregunta se canceló, así que no se le mandó a ningún otro proveedor.' });
+    _cancelado = false; _ocupado = false;
+    pintar();
+  };
+  if (_cancelado) { cancelada(); return; }
+
   const sistema = promptSistema(resumen);
   /* El hilo que viaja: las últimas vueltas, sin los avisos de espera ni los errores. Las
      respuestas locales van también: la IA sabe qué se le contestó ya y puede seguir de ahí. */
@@ -420,12 +446,15 @@ async function preguntarIA(q, opts) {
     ponerEspera('Preguntando a ' + (PROVEEDOR_NOMBRE[c.prov] || c.prov) + (i ? ' (intento ' + (i + 1) + ')' : '') + '…');
     try {
       const r = await llamar(c, sistema, previos, q);
+      /* Una respuesta que llegó justo después de cerrar tampoco se pinta como si nada. */
+      if (_cancelado) { cancelada(); return; }
       quitarEspera();
       _msgs.push({ rol: 'bot', texto: r, ts: Date.now(), con: (PROVEEDOR_NOMBRE[c.prov] || c.prov) + ' · ' + c.model });
       ultimoError = null;
       break;
     } catch (e) {
-      if (e && e.cancelado) { quitarEspera(); ultimoError = null; break; }
+      /* Antes de pasar al siguiente proveedor: si se cerró el panel, no hay siguiente. */
+      if (_cancelado || (e && e.cancelado)) { cancelada(); return; }
       ultimoError = e;
       /* Una llave inválida o un modelo que no existe no se arregla reintentando con la misma:
          se pasa a la siguiente. Un 429/5xx también pasa a la siguiente, que es la cuota nueva. */
@@ -543,7 +572,7 @@ async function pedir(url, opts) {
   let res;
   try { res = await fetch(url, opts); }
   catch (e) {
-    if (opts.signal && opts.signal.aborted && !_ocupado) { const c = new Error('cancelado'); c.cancelado = true; throw c; }
+    if (opts.signal && opts.signal.aborted && _cancelado) { const c = new Error('cancelado'); c.cancelado = true; throw c; }
     throw new Error(e && e.name === 'AbortError' ? 'el proveedor tardó demasiado en responder' : 'no se pudo conectar con el proveedor (revisa tu conexión)');
   }
   const txt = await res.text().catch(() => '');

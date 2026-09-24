@@ -1,8 +1,10 @@
 /* ============================================================================
    Inicio — «qué se rompe primero», sin que nadie busque nada.
 
-   Es la pantalla que se abre, y su único trabajo es contestar esa pregunta. No es un
-   resumen ni un tablero: es una lista de cosas que hay que hacer hoy, ordenada por lo que
+   Fue la pantalla que se abría; desde septiembre de 2026 la app abre en el Tablero y esta
+   vive en la ruta oculta `atender` («Qué atender»), con su puerta al pie del Tablero. Su
+   único trabajo es contestar esa pregunta. No es un resumen ni un tablero —el tablero es
+   otra pantalla—: es una lista de cosas que hay que hacer hoy, ordenada por lo que
    truena antes y no por fecha, con el botón que las hace al lado del renglón que las
    nombra. Si algo de aquí necesita que el usuario abra otra pantalla para entenderlo,
    está mal escrito.
@@ -519,14 +521,26 @@ async function ejecutar(ac) {
     case 'agendar':
       abrirFecha({ modo: 'agendar', proyecto_id: dd.proyecto_id, rid: ac.rid, titulo: ac.titulo });
       return;
-    case 'reagendar':
-      abrirFecha({ modo: 'reagendar', inst_id: dd.inst_id, rid: ac.rid, titulo: ac.titulo });
+    case 'reagendar': {
+      /* Con la hora que ya tiene. El campo arrancaba vacío, y `hacerFecha` manda el vacío
+         como «sin hora»: cambiar solo el día borraba las 22:30 de una instalación de noche
+         y el .ics salía de todo el día, sin la alarma de «sal ya». La ventana y la duración
+         no viajan y `reagendar` las conserva. */
+      const i = await DB.obtener('instalaciones', String(dd.inst_id || ''));
+      abrirFecha({ modo: 'reagendar', inst_id: dd.inst_id, rid: ac.rid, titulo: ac.titulo,
+                   hora: (i && i.hora) || '' });
       return;
+    }
 
     /* ----- Ya se instaló ----- */
     case 'marcar_hecha': {
+      /* `marcar` pasa también el proyecto a «Instalado» cuando el rol puede (ver
+         `instalarProyecto` en js/datos/agenda.js); con el de fabricación se queda en «Listo»
+         y el aviso lo dice. */
       const r = await Agenda.marcar(dd.inst_id, 'hecha');
-      if (avisarResultado(r, 'Marcada como instalada')) await marcarYRecargar(ac.rid);
+      if (avisarResultado(r, Proyectos.puedeMover(Prefs.rol(), 'instalado')
+        ? 'Marcada como instalada, y el proyecto queda en «Instalado»'
+        : 'Marcada como instalada. «Instalado» en el proyecto lo marca Dirección.')) await marcarYRecargar(ac.rid);
       return;
     }
 
@@ -573,6 +587,18 @@ async function ejecutar(ac) {
       if (_ctx && dd.proyecto_id && _ctx.pasar) _ctx.pasar('proyectos', { proyecto_id: dd.proyecto_id });
       else if (_ctx) _ctx.ir('proyectos');
       toast('Usa «Copiar datos para la hoja» en la ficha', '', 5200);
+      return;
+
+    /* ----- El estatus de una venta que YA está en la hoja -----
+       La acción que A11 pone cuando el proyecto trae el renglón de la hoja (`notion_page_id`):
+       ahí lo que falta es el estatus, no la fila, y copiarla sería dar de alta la misma venta
+       dos veces. Abre la ficha —su rótulo dice «Abrir para…»— y no lo escribe desde aquí: el
+       segmento de la ficha es el que ya sabe qué estatus le toca a cada rol, y el puente lo
+       sube solo. Sin este caso, el botón decía «Esa acción todavía no está conectada». */
+    case 'estatus':
+      if (_ctx && dd.proyecto_id && _ctx.pasar) _ctx.pasar('proyectos', { proyecto_id: dd.proyecto_id });
+      else if (_ctx) _ctx.ir('proyectos');
+      toast('Pon «Estatus en la hoja» en ' + (dd.estatus || 'COBRANDO') + ' en la ficha. No copies la fila: la venta ya está en la hoja.', '', 6000);
       return;
 
     default:
@@ -687,7 +713,7 @@ function abrirFecha(est) {
       '<div class="fld"><label for="pf-fecha-dia">Día</label>' +
         '<input type="date" id="pf-fecha-dia" value="' + esc(hoyISO()) + '"></div>' +
       '<div class="fld"><label for="pf-fecha-hora">Hora (se puede dejar en blanco)</label>' +
-        '<input type="time" id="pf-fecha-hora"></div>' +
+        '<input type="time" id="pf-fecha-hora" value="' + esc(est.hora || '') + '"></div>' +
       (mover ? '<div class="fld"><label for="pf-fecha-motivo">¿Por qué se movió? (opcional)</label>' +
         '<input type="text" id="pf-fecha-motivo" placeholder="Llovió, el local estaba cerrado…"></div>' : '') +
       '<p class="hintnote">Sin hora, el evento del calendario sale como de todo el día y la agenda dice «sin hora». Es una respuesta válida.</p>' +

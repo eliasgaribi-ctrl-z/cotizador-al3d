@@ -66,8 +66,11 @@ const RUTAS = [
   /* La mesa de corte. Vivía como pestaña del Tablero —«Carga del taller» / «Mesa de corte»— y
      ahí no la encontraba nadie: es una herramienta de uso diario del taller escondida detrás
      de un segmento de otra pantalla. Sale a la barra, y con los dos roles que la usan. La
-     pestaña del Tablero sigue existiendo para no romper `#/hoy/anidador`, que es a donde
-     apuntan el vectorizador del cotizador y la orden de obra. */
+     pestaña del Tablero sigue existiendo porque es a donde llegan con un pase
+     (`ctx.pasar('hoy', {vista:'anidador'})`) el «Acomodar en hoja» del vectorizador del
+     Cotizador empotrado (js/mod/cotizador.js) y el «Acomodar en la lámina» del Calendario,
+     que trae el proyecto puesto. NO es por `#/hoy/anidador`: eso no es una ruta —`rutaDelHash()` exige un solo
+     segmento, lo reescribe a `#/hoy` y abre la carga— y nada apunta ahí. */
   { ruta: 'anidador',  mod: 'herramientas', seccion: 'mod-anidador',   icono: 'i-anidar',    nombre: 'Mesa de corte', sub: 'acomodar las piezas en la lámina',                roles: ['direccion', 'fabricacion'] },
   /* El vectorizador, por la misma razón: convertir un logotipo en trazo de corte se hace con
      el archivo en la mano, y estaba detrás del botón «Vectorizar» de una partida. Para usarlo
@@ -90,6 +93,12 @@ const rutaPorNombre = n => RUTAS.find(r => r.ruta === n) || null;
    en el diff quién empezó a depender de qué. */
 const ctx = {
   ir,                       // navegar a otro módulo
+  /* Si el rol de ahora tiene esa ruta. Para no pintar un botón a una pantalla que el rol no
+     tiene: el router lo rebota al Tablero y el toque deja una entrada de historial de más, así
+     que el atrás siguiente tampoco hace nada. Lo preguntan el Tablero («Ver la ruta en el
+     mapa», que pagos no tiene) y el asistente («Ver la lista de compra»). Sale de RUTAS, que
+     es la única lista. */
+  tieneRuta: ruta => { const r = rutaPorNombre(ruta); return !!r && r.roles.includes(Prefs.rol()); },
   refrescar: () => montar(_actual, { forzar: true }),
   cuentas: pintarCuentasNav, // un módulo puede pedir que se repinten las cuentas de la barra
   banda: pintarBanda,
@@ -392,9 +401,10 @@ async function montarDeVerdad(ruta, opts = {}) {
     cont.innerHTML = '';
     /* ANTES de montar, no después. Si `mod.montar` revienta a mitad, el módulo ya dejó
        oyentes puestos y su barra escrita; con la asignación después, `_vivo` se quedaba en
-       null y ese módulo no se desmontaba nunca. Los seis toleran que les llamen a
-       `desmontar()` sin haber terminado de montar: los tres que guardan oyentes iteran una
-       lista que puede estar vacía y los demás hacen `$(id)` con guarda. */
+       null y ese módulo no se desmontaba nunca. Los diez módulos de js/mod/ tienen que
+       tolerar que les llamen a `desmontar()` sin haber terminado de montar: los que guardan
+       oyentes en una lista la iteran aunque esté vacía, y los demás hacen `$(id)` con guarda
+       o sueltan lo que esté puesto sin suponer que se llegó a poner. */
     _vivo = mod;
     await mod.montar(cont, ctx);
   } catch (e) {
@@ -852,13 +862,18 @@ async function sincronizarCallado() {
       if (!r.valor.hay_mas) break;
     }
   } catch (_) {}
-  if (movio && _actual) montar(_actual, { forzar: true });
+  /* Con la misma guarda que el oyente de 'storage': el Anidador, el Cotizador y el Vectorizador
+     sostienen un marco vivo, y remontarlos por una fila que llegó de la hoja mataba el marco a
+     media faena —un acomodo de piezas corriendo se perdía entero al volver la señal—. Lo que
+     bajó ya está en la base: al salir de esa pantalla, la siguiente monta fresca con ello. */
+  if (movio && _actual && !_sinRemonte) montar(_actual, { forzar: true });
 }
 ctx.sincronizar = sincronizarCallado;
 
-/* El service worker guarda una copia de la app para que abra sin señal. Va al final del
-   arranque y en su propio try: si el navegador no lo soporta —o el sitio se abrió como
-   file:// para probarlo— no puede estorbar a nada de lo de arriba. */
+/* El service worker guarda una copia de la app para que abra sin señal. Se registra al
+   PRINCIPIO del arranque, antes de la puerta —el porqué está escrito en `arrancar()`—, y en su
+   propio try: si el navegador no lo soporta —o el sitio se abrió como file:// para probarlo—
+   no puede estorbar a nada de lo que sigue. */
 function registrarSW() {
   if (!('serviceWorker' in navigator)) return;
   if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
@@ -872,7 +887,8 @@ function registrarSW() {
    scripts, y con la petición de las fuentes de Google colgada el módulo no se evaluaba y la
    plataforma se quedaba en blanco, sin un solo error en la consola.
 
-   Eso ya se arregló donde tocaba —en plataforma.html las fuentes se cargan sin bloquear—,
+   Eso ya se arregló donde tocaba —en index.html, que es donde vive la plataforma desde que
+   plataforma.html solo reenvía, las fuentes se cargan sin bloquear—,
    pero la lección se queda escrita en código: arrancar no depende de UNA señal. Se intenta
    en la que llegue primero y `_arranco` garantiza que solo pase una vez. */
 let _arranco = false;

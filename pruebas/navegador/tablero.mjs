@@ -296,8 +296,8 @@ await p.waitForTimeout(600);
 
 // ── 6c. El Cotizador, empotrado ────────────────────────────────────────────
 /* Los cuatro casos que importan, y ninguno se ve mirando la pantalla:
-   · que el marco cargue y su script corra (273 manejadores en línea dependen de que el
-     ámbito superior siga siendo el global);
+   · que el marco cargue y su script corra (157 manejadores en línea dependen de que el
+     ámbito superior siga siendo el global; pruebas/publicacion.mjs los cuenta);
    · que se apaguen SOLO el logotipo y el enlace de vuelta, y que Historial —la única puerta
      a al3d_historial, el dato irrecuperable— siga visible y tocable;
    · que un `storage` de al3d_historial NO remonte la ruta, porque eso mataría el marco y

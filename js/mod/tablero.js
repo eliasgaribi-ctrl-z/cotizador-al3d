@@ -42,9 +42,9 @@ import * as Agenda from '../datos/agenda.js';
 import * as Taller from '../datos/taller.js';
 import * as Material from '../datos/material.js';
 import * as Sync from '../datos/sync.js';
-import { masDias } from '../nucleo/fechas.js';
+import { masDias, iniSemana } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, fmtFecha, fmtFechaDia,
-         abrirCapa, cerrarCapa, linkWa, telWa, ajustarAltoBarra, rotularPapel, voz, segmento,
+         abrirCapa, cerrarCapa, linkWa, telWa, ajustarAltoBarra, voz, segmento,
          filaTaller, bandaFrescura, medirMarco, esqueletoMarco, cifraQueCabe }
   from '../nucleo/ui.js';
 
@@ -221,13 +221,17 @@ async function leer() {
     ? Cot.sinDecidir(new Set((todos || []).map(p => p && p.folio_global).filter(Boolean)), 0)
     : [];
 
-  const semanaFin = masDias(hoy, 6);
+  /* «Esta semana» es la semana del CALENDARIO, de hoy al domingo: la misma que abre «Ver la
+     semana en el Calendario», que arranca en lunes (`iniSemana`). Con hoy+6, el jueves la
+     tarjeta contaba el miércoles siguiente y el botón de abajo abría una semana donde no
+     estaba. Y sin las ya hechas: lo que se instaló el lunes ya no «se instala». */
+  const semanaFin = masDias(iniSemana(hoy), 6);
   const VIVAS_SIN_MARCAR = ['propuesta', 'confirmada', 'reagendada'];
 
   return {
     hoy, V, vivos, porId, instDe, mat, fres, enTaller, pendientes, semDe,
     carga: Taller.cargaDeDia(hoy, V),
-    semana: (insts || []).filter(i => i && i.fecha >= hoy && i.fecha <= semanaFin),
+    semana: (insts || []).filter(i => i && i.fecha >= hoy && i.fecha <= semanaFin && i.estado !== 'hecha'),
     vencidas: (insts || []).filter(i => i && i.fecha && i.fecha < hoy &&
                                         VIVAS_SIN_MARCAR.includes(i.estado)),
     /* La misma prueba que usa el Mapa. Un proyecto sin ubicar se guarda con `lat: null`, y
@@ -519,8 +523,11 @@ function noLlegan(d) {
    agenda, ni material, ni tablero: todo lo demás de esta pantalla está vacío por
    construcción.
 
-   El flujo completo —el modal con «Se ganó» / «No se dio»— vive en «Qué atender» y no se
-   duplica: aquí es un renglón con la cuenta y la puerta. */
+   El flujo completo —«Se ganó» / «No se dio», una por una— vive en Proyectos y no se duplica:
+   aquí es un renglón con la cuenta y la puerta. La puerta es Proyectos y NO «Qué atender»:
+   esa lista solo enseña las autorizadas que llevan siete días sin decidir (la regla A6), así
+   que la de ayer —que esta tarjeta sí cuenta— no estaba ahí y el botón que late mandaba a una
+   lista sin ella. Es lo mismo que ya dice el Calendario en `pintarDecidir`. */
 function decidir(d, rol) {
   const n = d.pendientes.length;
   if (rol !== 'direccion' || !n) return '';
@@ -531,7 +538,7 @@ function decidir(d, rol) {
     'este tablero: es lo único que nadie más puede contestar.</p>' +
     '<div class="pf-fila-acc">' +
       btn(n === 1 ? 'Decidir la cotización' : 'Decidir ' + n + ' cotizaciones',
-          'btn btn-ok pf-btn-corto', { tipo: 'ir', ruta: 'atender' }) +
+          'btn btn-ok pf-btn-corto', { tipo: 'ir', ruta: 'proyectos' }) +
     '</div></div>';
 }
 
@@ -768,9 +775,15 @@ function seInstalaEstaSemana(d) {
       .map(i => filaInst(i, d, false)).join(''));
   }
 
+  /* La ruta solo para quien tiene el Mapa: pagos no lo tiene (app.js, RUTAS), el router lo
+     rebotaba de vuelta al Tablero y el botón dejaba una entrada de historial de más, así que
+     el atrás siguiente tampoco hacía nada. Se le pregunta al router y no al rol, para que la
+     regla siga viviendo en un solo lugar. */
+  const hayMapa = _ctx && typeof _ctx.tieneRuta === 'function' ? _ctx.tieneRuta('mapa') : Prefs.rol() !== 'pagos';
   h.push('<p class="no-papel">' +
-    btn('Ver la ruta en el mapa' + (d.sinUbicar ? ' · ' + d.sinUbicar + ' sin ubicar' : ''),
-        'btn btn-gho pf-btn-corto', { tipo: 'ir', ruta: 'mapa' }) +
+    (!hayMapa ? '' :
+      btn('Ver la ruta en el mapa' + (d.sinUbicar ? ' · ' + d.sinUbicar + ' sin ubicar' : ''),
+          'btn btn-gho pf-btn-corto', { tipo: 'ir', ruta: 'mapa' })) +
     btn('Ver el calendario', 'btn btn-gho pf-btn-corto', { tipo: 'ir', ruta: 'agenda' }) +
     '</p>');
   return h.join('');
@@ -1041,6 +1054,22 @@ async function hacer(a) {
 async function avanzar(a) {
   const r = await Proy.avanzarEtapa(a.id, a.etapa);
   if (!r.ok) { avisarResultado(r); return; }
+  /* «Ya se instaló» es un solo hecho y se apunta entero: el proyecto a «Instalado» Y su
+     instalación a «hecha». Antes solo se movía el proyecto, la instalación se quedaba
+     «confirmada» y este mismo tablero seguía diciendo «Ya pasaron y nadie las marcó: 1»
+     sobre algo que alguien acababa de marcar. El otro «Ya se instaló», el del Calendario, hace
+     lo mismo desde el otro lado (ver `instalarProyecto` en js/datos/agenda.js). */
+  if (a.etapa === 'instalado') {
+    const inst = _d && _d.instDe.get(a.id);
+    if (inst && inst.estado !== 'hecha') {
+      const m = await Agenda.marcar(inst.id, 'hecha');
+      if (!m.ok) {
+        toast('Quedó en «Instalado», pero su instalación no se pudo marcar como hecha: ' + m.mensaje, 'err', 6000);
+        await recargar();
+        return;
+      }
+    }
+  }
   const movs = Number(r.valor && r.valor.movimientos) || 0;
   const nombre = ETAPA_NOMBRE[a.etapa] || a.etapa;
   if (movs > 0) {
@@ -1084,12 +1113,4 @@ async function alClicPide(ev) {
     cerrarPide();
     await avanzar(a);
   }
-}
-
-/* ----- Imprimir -----
-   La carga del taller en papel es lo que se pega en la pared del taller. El encabezado con
-   logotipo, filete y pie vive en index.html y se enciende solo en @media print. */
-export function imprimir() {
-  rotularPapel('Carga del taller · ' + fmtFecha(_d ? _d.hoy : hoyISO()));
-  window.print();
 }

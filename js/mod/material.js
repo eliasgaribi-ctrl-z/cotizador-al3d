@@ -538,8 +538,12 @@ function chipCuando(fecha) {
   if (!fecha) return '<span class="pf-cuando lejos">sin fecha</span>';
   const d = diasHasta(fecha);
   const k = d === null ? 'lejos' : (d < 0 ? 'tarde' : (d <= 3 ? 'hoy' : 'lejos'));
-  return '<span class="pf-cuando ' + k + '">se instala ' + esc(cuando(fecha)) + '</span>';
+  return '<span class="pf-cuando ' + k + '">' + verboInstala(fecha) + esc(cuando(fecha)) + '</span>';
 }
+
+/* El verbo según el lado del calendario: «se instala hace 2 días» no es español y además
+   miente —dice que ya se hizo—; lo que dice el dato es que tocaba y nadie la marcó. */
+const verboInstala = fecha => { const d = diasHasta(fecha); return d !== null && d < 0 ? 'se debía instalar ' : 'se instala '; };
 
 /* ============================================================================
    B) EN ALMACÉN
@@ -661,7 +665,7 @@ function cardProyecto(p) {
 
   const sub = '<p class="mat-med">' + esc(p.folio_local || '') +
     (inst && inst.fecha
-      ? ' · se instala ' + esc(fmtFecha(inst.fecha)) + ' (' + esc(cuando(inst.fecha)) + ')'
+      ? ' · ' + verboInstala(inst.fecha) + esc(fmtFecha(inst.fecha)) + ' (' + esc(cuando(inst.fecha)) + ')'
       : ' · sin fecha de instalación') + '</p>';
 
   const cuerpo = reqs.length
@@ -728,15 +732,22 @@ const estadoReq = e => ESTADO_REQ[e] || String(e || '');
 /* ----- La verdad del final -----
    Va siempre, en letra chica y sin caja. No es un consejo: es cómo funciona el sistema, y
    sin decirlo alguien va a comparar un precio de la plataforma con el ejemplo del tarifario
-   viejo y va a creer que hay un error de $10. */
+   viejo y va a creer que hay un error de $10.
+
+   Los precios del párrafo son precios de venta, y FABRICACIÓN no ve importes (regla 3 de la
+   cabecera): el párrafo se pintaba igual para ella, con seis cifras en pesos. Sin dinero queda
+   la última frase, que es la que le sirve a quien corta: de dónde sale el material. */
 function laVerdad() {
-  return '<p class="pf-nota no-papel">Los dos tarifarios de AL3D cobran por ejes distintos: el ' +
-    '<b>catálogo del cotizador</b> cobra por MATERIAL —$30 el aluminio pintado, $55 el acero, ' +
-    'más $5 la cursiva o $10 la compleja—, y el tarifario de <b>«¿Cómo Cotizar?»</b> cobra ' +
-    'por TIPO DE LETRA —$30 / $35 / $40 / $50, con −20 % sin iluminación—. Manda el catálogo ' +
-    'del cotizador, que es más nuevo y es el que está en producción: si un precio no cuadra con ' +
-    'el otro ejemplo, no es un error, son dos tarifarios. Y el material de esta pantalla ' +
-    'no sale de ninguno de los dos: sale de las medidas de las partidas.</p>' +
+  return (Prefs.veDinero()
+    ? '<p class="pf-nota no-papel">Los dos tarifarios de AL3D cobran por ejes distintos: el ' +
+      '<b>catálogo del cotizador</b> cobra por MATERIAL —$30 el aluminio pintado, $55 el acero, ' +
+      'más $5 la cursiva o $10 la compleja—, y el tarifario de <b>«¿Cómo Cotizar?»</b> cobra ' +
+      'por TIPO DE LETRA —$30 / $35 / $40 / $50, con −20 % sin iluminación—. Manda el catálogo ' +
+      'del cotizador, que es más nuevo y es el que está en producción: si un precio no cuadra con ' +
+      'el otro ejemplo, no es un error, son dos tarifarios. Y el material de esta pantalla ' +
+      'no sale de ninguno de los dos: sale de las medidas de las partidas.</p>'
+    : '<p class="pf-nota no-papel">El material de esta pantalla no sale de ningún tarifario: ' +
+      'sale de las medidas de las partidas.</p>') +
     '<div class="btn-fila no-papel">' +
       '<button type="button" class="btn btn-gho" data-hoja="catalogo">' +
         ico('i-material') + ' Catálogo de material</button>' +
