@@ -275,10 +275,27 @@ export async function encolar(op) {
 }
 
 /** La bandeja de salida en orden de emisión: sin los conflictos, sin lo que este relevo no
- *  sabe llevar y sin la marca. Lectura: nunca lanza, devuelve [] si la base no abrió. */
+ *  sabe llevar, sin lo que la hoja rechazó para siempre y sin la marca. Lectura: nunca lanza,
+ *  devuelve [] si la base no abrió. */
 export async function pendientes() {
   const todas = await DB.listar('pendientes', { indice: 'porTs' });
-  return todas.filter(o => !esMarca(o) && o.estado !== 'conflicto' && o.estado !== 'sin_destino');
+  return todas.filter(o => !esMarca(o) && o.estado !== 'conflicto' && o.estado !== 'sin_destino' &&
+                           o.estado !== 'rechazada');
+}
+
+/**
+ * Lo que la hoja rechazó y que reintentar no arregla: un alta desde un teléfono cuyo rol no
+ * escribe el nombre, un cambio de puros campos que ese rol no toca, una venta que ya no está
+ * en la hoja. El relevo lo marca `definitivo` y `bombear` lo aparta aquí, con su razón en
+ * `ultimo_error`, en vez de pararse en él: detrás esperaban cambios que sí se podían mandar.
+ *
+ * No se descarta, por lo mismo que lo que no tiene destino: es lo que alguien capturó. Se
+ * enseña en la banda de frescura, y `resolver(id, 'mio')` lo devuelve a la cola —por
+ * ejemplo, el día que ese teléfono entra con una cuenta de Dirección— o `'suyo'` lo tira.
+ */
+export async function rechazadas() {
+  const todas = await DB.listar('pendientes', { indice: 'porTs' });
+  return todas.filter(o => !esMarca(o) && o.estado === 'rechazada');
 }
 
 /**
@@ -340,7 +357,7 @@ export function bombear() {
 }
 
 const conteoVacio = extra => ({
-  mandadas: 0, subidas: 0, fallidas: 0, conflictos: 0, pendientes: 0, sin_destino: 0, ...extra,
+  mandadas: 0, subidas: 0, fallidas: 0, conflictos: 0, pendientes: 0, sin_destino: 0, rechazadas: 0, ...extra,
 });
 
 /* Lo apartado vuelve solo. Un relevo nuevo —o el mismo, enseñado a llevar el almacén— no
@@ -379,7 +396,7 @@ async function bombearDeVerdad() {
 
   if (!cola.length) return ok(conteoVacio({ motivo: 'nada_que_mandar' }));
 
-  let subidas = 0, fallidas = 0, enConflicto = 0, apartadas = 0;
+  let subidas = 0, fallidas = 0, enConflicto = 0, apartadas = 0, rechazadasN = 0;
   const rechazos = [];
 
   for (const op of cola) {
@@ -426,6 +443,20 @@ async function bombearDeVerdad() {
 
     const codigo = (respuesta && respuesta.codigo) || 'SIN_RED';
 
+    /* Rechazada para siempre: se aparta con su razón y se sigue. Cuenta como fallida para
+       que quien apretó «Mandar» no lea «no había nada que mandar» en verde. */
+    if (respuesta && respuesta.definitivo) {
+      const razon = String(respuesta.mensaje || codigo);
+      await DB.poner('pendientes', {
+        ...op, estado: 'rechazada', intentos: (op.intentos || 0) + 1,
+        ultimo_error: razon, codigo_rechazo: codigo,
+      });
+      rechazadasN++;
+      fallidas++;
+      _ultimoError = razon;
+      continue;
+    }
+
     if (codigo === 'CONFLICTO') {
       /* No se aplica y no se descarta: se aparca. Una sobrescritura silenciosa que nadie
          puede detectar después es peor que un renglón esperando en una pantalla. */
@@ -450,7 +481,9 @@ async function bombearDeVerdad() {
     /* Si fue la red o el puente, no tiene sentido intentar las otras 40: van a fallar
        igual y cada intento fallido sube el contador de reintentos de una operación que
        no tuvo la culpa, y con el retroceso exponencial eso la castiga por horas. */
-    /* Y con un token que el puente no reconoce tampoco: las 40 darían 401 igual. */
+    /* Y con una llave que el puente no reconoce tampoco: las 40 darían 401 igual. Este
+       ROL_SIN_PERMISO es el de la PUERTA; el de una sola operación llega `definitivo` y
+       ya se apartó arriba sin parar a nadie. */
     if (codigo === 'SIN_RED' || codigo === 'DESCONOCIDO' || codigo === 'ROL_SIN_PERMISO') break;
   }
 
@@ -463,7 +496,7 @@ async function bombearDeVerdad() {
   const quedan = (await pendientes()).length;
   return ok({
     mandadas: subidas, subidas, fallidas, conflictos: enConflicto, pendientes: quedan,
-    sin_destino: apartadas, rechazos,
+    sin_destino: apartadas, rechazadas: rechazadasN, rechazos,
     motivo: subidas ? (rechazos.length ? 'ok_incompleto' : 'ok') : (fallidas ? 'con_fallas' : 'ok'),
   });
 }
@@ -606,9 +639,13 @@ async function jalarDeVerdad() {
     ultima_bajada_completa: cierra ? Date.now() : m.ultima_bajada_completa,
   });
 
-  /* `hay_mas`: el puente pagina de 50 en 50 y quien llama decide si da otra vuelta. Antes se
+  /* `hay_mas`: el relevo puede paginar y quien llama decide si da otra vuelta. Antes se
      adivinaba por los contadores, y una página entera de filas sin cambios daba 0/0/0 y
-     cortaba el bucle en la primera vuelta. */
+     cortaba el bucle en la primera vuelta.
+     La hoja ya NO pagina: desde puente-sheets-6 manda las 309 filas en una respuesta. Paginaba
+     por número de fila mientras cada subida la reacomodaba, y una venta que cruzaba de una
+     página a otra en mitad del barrido no salía en ninguna: el cierre de abajo la borraba del
+     récord hasta el barrido siguiente. Con una sola lectura, una fila que existe siempre se ve. */
   return ok({ nuevos, actualizados, descartados, sin_cambio: sinCambio, borrados,
               hay_mas: !!(lote && lote.hay_mas), completa: cierra, motivo: 'ok' });
 }
@@ -726,7 +763,7 @@ const HORAS_VIEJO = 48;
  * mismo: `texto` y `mensaje` son la misma cadena.
  */
 export async function frescura() {
-  const [m, cola] = await Promise.all([marcas(), pendientes()]);
+  const [m, cola, fuera] = await Promise.all([marcas(), pendientes(), rechazadas()]);
 
   const vacia = {
     al_dia: true, dispositivos: [], texto: '', mensaje: '',
@@ -759,6 +796,23 @@ export async function frescura() {
       al_dia: false, dispositivos: [], texto, mensaje: texto, atascado: true,
       ultimo_envio: m.ultimo_envio, ultima_bajada: m.ultima_bajada,
       pendientes: n, edad_horas: horasSinEnviar,
+    };
+  }
+
+  /* Lo que la hoja rechazó para siempre ya no está en la cola —si estuviera, la trabaría—,
+     así que la revisión de arriba no lo ve. Sin esto, un cambio que nunca va a llegar
+     dejaba la banda en «Al día». Se dice con la razón del más reciente, que es la que la
+     persona puede arreglar (entrar con otra cuenta, darla de alta desde Dirección). */
+  if (fuera.length) {
+    const n = fuera.length;
+    const ultimo = fuera[fuera.length - 1];
+    const texto = `La hoja no aceptó ${n} ${n === 1 ? 'cambio' : 'cambios'} de este teléfono` +
+      (ultimo && ultimo.ultimo_error ? `: ${ultimo.ultimo_error}` : '.') +
+      ` ${n === 1 ? 'Quedó apartado' : 'Quedaron apartados'} aquí para no trabar lo demás; no se perdió nada.`;
+    return {
+      al_dia: false, dispositivos: [], texto, mensaje: texto, rechazadas: n,
+      ultimo_envio: m.ultimo_envio, ultima_bajada: m.ultima_bajada,
+      pendientes: cola.length, edad_horas: null,
     };
   }
 

@@ -10,9 +10,11 @@
    se rechaza. Así que el archivo se evalúa en un contexto aparte y se prueban esas
    funciones directamente.
 
-   Lo que esta prueba NO cubre, y antes sí: buscar la fila por folio antes de crear, que
-   es lo que impide que un reintento tras una respuesta perdida acabe en dos ventas. Esa
-   parte sí toca la hoja y necesitaría un doble de SpreadsheetApp entero.
+   Y desde septiembre de 2026 también corre lo que SÍ toca la hoja —buscar la fila antes de
+   crear, reacomodar, el cobro del menú, la marca de folios, la realineación de Y:AD— contra
+   una hoja de mentiras (`hojaDeMentiras`, más abajo): una cuadrícula con lo mínimo de
+   SpreadsheetApp que el .gs usa. La auditoría de ese mes encontró siete defectos justo en
+   esa parte, la que esta prueba decía no cubrir, y ninguno se veía leyendo el código.
 
    Se corre con pruebas/correr.sh, como todas. */
 
@@ -329,6 +331,388 @@ console.log('\nUNA DE LAS 199, DE LA CELDA AL RÉCORD DE CONTROL');
   const sinDinero = ventaDeHoja(api.sinLoQueNoLeToca(api.aplanarFila(fila, 'America/Mexico_City'), 'fabricacion'));
   eq('a fabricación le llega el renglón sin importe, no con cero', [sinDinero.nombre, sinDinero.neto, sinDinero.pago_pendiente],
      ['Farmacia Guadalajara - Letras', undefined, undefined]);
+}
+
+/* ============================================================================
+   LA HOJA DE MENTIRAS — el .gs entero, corriendo contra una cuadrícula.
+
+   Lo mínimo de SpreadsheetApp, PropertiesService, CacheService, LockService y UrlFetchApp
+   que usan /empujar, /jalar, ordenarVentas, los formularios del menú y la realineación. Cada
+   llamada crea un contexto nuevo: nada se arrastra de un caso al siguiente.
+   ============================================================================ */
+function hojaDeMentiras({ candadoLibre = true, props = {}, google = [] } = {}) {
+  const hojas = {};
+  const candados = [];
+  const colDe = s => s.split('').reduce((t, c) => t * 26 + c.charCodeAt(0) - 64, 0);
+  function nuevaHoja(nombre, filas = 330, cols = 30) {
+    const g = [];
+    for (let r = 0; r <= filas; r++) g.push(new Array(cols + 1).fill(''));
+    const h = {
+      _g: g, _oculta: false,
+      getName: () => nombre, setName(n) { delete hojas[nombre]; nombre = n; hojas[n] = h; return h; },
+      getMaxColumns: () => cols, getMaxRows: () => filas,
+      getLastRow() { let u = 0; for (let r = 1; r <= filas; r++) if (g[r].some((v, i) => i > 0 && v !== '')) u = r; return u; },
+      getRange(a, b, n, m) {
+        if (typeof a === 'string') {
+          const x = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/.exec(a);
+          const r1 = +x[2], c1 = colDe(x[1]), r2 = x[4] ? +x[4] : r1, c2 = x[3] ? colDe(x[3]) : c1;
+          return rango(r1, c1, r2 - r1 + 1, c2 - c1 + 1);
+        }
+        return rango(a, b, n || 1, m || 1);
+      },
+      deleteRows(ini, k) { g.splice(ini, k); for (let i = 0; i < k; i++) g.push(new Array(cols + 1).fill('')); },
+      copyTo() { const c = nuevaHoja(nombre + ' (copia)', filas, cols); for (let r = 0; r <= filas; r++) c._g[r] = g[r].slice(); return c; },
+      hideSheet() { h._oculta = true; return h; },
+      setFrozenRows() {}, setColumnWidth() {}, insertColumnsAfter() {}, setActiveRange() {},
+      insertRowsAfter(_d, k) { for (let i = 0; i < k; i++) g.push(new Array(cols + 1).fill('')); filas += k; },
+    };
+    function rango(r, c, n, m) {
+      if (c + m - 1 > cols || r + n - 1 > filas) throw new Error('fuera de la hoja: ' + [r, c, n, m]);
+      const R = {
+        getValues: () => { const o = []; for (let i = 0; i < n; i++) o.push(g[r + i].slice(c, c + m)); return o; },
+        setValues: v => { for (let i = 0; i < n; i++) for (let j = 0; j < m; j++) g[r + i][c + j] = v[i][j]; return R; },
+        getValue: () => g[r][c], setValue: v => { g[r][c] = v; return R; },
+      };
+      for (const k of ['setNumberFormat', 'setFontWeight', 'setBackground', 'setFontColor', 'setHorizontalAlignment'])
+        R[k] = () => R;
+      return R;
+    }
+    hojas[nombre] = h;
+    return h;
+  }
+  const ss = {
+    getSheetByName: n => hojas[n] || null,
+    insertSheet: n => nuevaHoja(n, 400, 8),
+    deleteSheet: h => { delete hojas[h.getName()]; },
+    getSpreadsheetTimeZone: () => 'America/Mexico_City',
+    setActiveSheet() {}, toast() {},
+  };
+  const cache = new Map();
+  const pedidasAGoogle = [];
+  const ctx2 = vm.createContext({
+    SpreadsheetApp: { getActive: () => ss, flush() {} },
+    PropertiesService: { getScriptProperties: () => ({
+      getProperty: k => (Object.prototype.hasOwnProperty.call(props, k) ? props[k] : null),
+      setProperty: (k, v) => { props[k] = String(v); } }) },
+    CacheService: { getScriptCache: () => ({ get: k => (cache.has(k) ? cache.get(k) : null), put: (k, v) => cache.set(k, v) }) },
+    LockService: { getScriptLock: () => ({
+      tryLock: ms => { candados.push(ms); return candadoLibre; },
+      waitLock: ms => { candados.push(ms); if (!candadoLibre) throw new Error('ocupado'); },
+      releaseLock() {} }) },
+    UrlFetchApp: { fetch: u => { pedidasAGoogle.push(u); const r = google.shift(); if (!r) throw new Error('sin red'); return r; } },
+    ContentService: { createTextOutput: s => ({ setMimeType: () => s }), MimeType: { JSON: 'json' } },
+    Utilities: {
+      formatDate: d => d.toISOString().slice(0, 10),
+      computeDigest: (_a, s) => Array.from(Buffer.from(String(s))).slice(0, 32),
+      base64EncodeWebSafe: b => Buffer.from(b).toString('base64url'),
+      DigestAlgorithm: { SHA_256: 'sha' },
+    },
+    Session: { getEffectiveUser: () => ({ getEmail: () => 'dueno@al3d.mx' }) },
+    console,
+  });
+  vm.runInContext(src, ctx2);
+  const run = code => vm.runInContext(code, ctx2);
+  const C = run('COL');
+  const v = nuevaHoja('Ventas');
+  nuevaHoja('Abonos comisión', 2100, 6);
+  /* Una venta en la fila `r`: folio, y lo demás por nombre de columna del puente. */
+  const pon = (r, folio, campos) => {
+    v._g[r][1] = folio;
+    for (const [k, x] of Object.entries(campos)) v._g[r][C[k]] = x;
+  };
+  const fila = folio => { for (let r = 2; r <= 310; r++) if (v._g[r][1] === folio) return r; return 0; };
+  const celda = (folio, nombre) => { const r = fila(folio); return r ? v._g[r][C[nombre]] : undefined; };
+  const empujar = (ops, rol) => run('rutaEmpujar(' + JSON.stringify({ ops }) + ', ' + JSON.stringify(rol) + ')');
+  return { ss, hojas, v, C, pon, fila, celda, empujar, run, props, candados, cache, pedidasAGoogle, nuevaHoja };
+}
+const respuesta = (codigo, cuerpo) => ({ getResponseCode: () => codigo, getContentText: () => JSON.stringify(cuerpo) });
+
+console.log('\nEL REACOMODO — Y:AD viajan con su fila (defecto 1)');
+{
+  /* El caso de la auditoría: la venta nueva entra en FABRICACION, el reacomodo la sube a la
+     fila 2, y hasta puente-sheets-5 su «Folio cotizacion» se quedaba abajo, pegado a la
+     venta liquidada que bajó a su renglón. El alta de la plataforma, que busca por ese folio,
+     escribía después el nombre y el dinero de la nueva ENCIMA de la liquidada. */
+  const H = hojaDeMentiras();
+  H.pon(2, 'V-003', { 'Proyecto': 'Ana - Cafe', 'Estatus': 'FABRICACION', 'Cuenta ': 'Rul HSBC', 'Precio Subtotal': 20000 });
+  H.pon(3, 'V-002', { 'Proyecto': 'Beto - Taller', 'Estatus': 'COBRANDO', 'Cuenta ': 'Moni MPago', 'Precio Subtotal': 15000 });
+  H.pon(4, 'V-001', { 'Proyecto': 'Carla - Farmacia', 'Estatus': 'LIQUIDADO', 'Cuenta ': 'Elias BBVA', 'Precio Subtotal': 9000 });
+  /* Centinelas en las columnas de fórmula: el reacomodo no las toca nunca. */
+  for (let r = 2; r <= 4; r++) { H.v._g[r][8] = 'H' + r; H.v._g[r][11] = 'K' + r; H.v._g[r][15] = 'O' + r; }
+  const cot = { 'Proyecto': 'Dani - Gym', 'Precio Subtotal': 30000, 'IVA': true, 'Anticipo': 15000, 'Estatus': 'FABRICACION',
+                'Cuenta ': 'Rul HSBC', 'Folio cotizacion': 'COT-0042@K7QM', 'Etapa de obra': 'Ganado', 'Direccion': 'Av. Patria 100' };
+  const r1 = H.empujar([{ id: 'COT-0042@K7QM', datos: cot }], 'direccion');
+  eq('la venta del cotizador entra con folio nuevo', r1.resultados[0].remoto.id_notion, 'V-004');
+  eq('y después del reacomodo su folio de cotización sigue en SU fila', H.celda('V-004', 'Folio cotizacion'), 'COT-0042@K7QM');
+  eq('con su dirección', H.celda('V-004', 'Direccion'), 'Av. Patria 100');
+  eq('y la liquidada no se quedó con nada de ella', H.celda('V-001', 'Folio cotizacion'), '');
+  const alta = { 'Proyecto': 'Dani - Gym', 'Folio cotizacion': 'COT-0042@K7QM', 'Etapa de obra': 'Ganado', 'Ubicacion': '20.67,-103.4' };
+  const r2 = H.empujar([{ id: 'op-plat', tipo: 'crear', id_notion: null, datos: alta }], 'direccion');
+  eq('el alta de la plataforma encuentra la MISMA fila, no la de otra venta', r2.resultados[0].remoto.id_notion, 'V-004');
+  eq('y la liquidada sigue siendo Carla', H.celda('V-001', 'Proyecto'), 'Carla - Farmacia');
+  eq('las columnas de fórmula no se movieron ni una celda', [2, 3, 4, 5].map(r => [H.v._g[r][8], H.v._g[r][11], H.v._g[r][15]]),
+     [['H2', 'K2', 'O2'], ['H3', 'K3', 'O3'], ['H4', 'K4', 'O4'], ['', '', '']]);
+
+  /* Una hoja anterior al puente tiene 24 columnas: el reacomodo no puede pedirle la 30. */
+  const Vieja = hojaDeMentiras();
+  const corta = Vieja.nuevaHoja('Ventas', 330, 24);
+  corta._g[2][1] = 'V-001'; corta._g[2][2] = 'X'; corta._g[2][3] = 'LIQUIDADO';
+  corta._g[3][1] = 'V-002'; corta._g[3][2] = 'Y'; corta._g[3][3] = 'FABRICACION';
+  let truena = null;
+  try { Vieja.run('ordenarVentas(SpreadsheetApp.getActive().getSheetByName("Ventas"))'); } catch (e) { truena = e.message; }
+  eq('en una hoja de 24 columnas el reacomodo no truena', truena, null);
+  eq('y reacomoda', [corta._g[2][1], corta._g[3][1]], ['V-002', 'V-001']);
+}
+
+console.log('\nREGISTRAR UN COBRO — LIQUIDADO va en el estatus, no en la cuenta (defecto 2)');
+{
+  const H = hojaDeMentiras();
+  /* Sin reacomodar todavía: la que se cobra está arriba de una en fabricación. */
+  H.pon(2, 'V-007', { 'Proyecto': 'Ana - Cafe', 'Estatus': 'COBRANDO', 'Cuenta ': 'Elias BBVA', 'IVA': 'No',
+                      'Precio Subtotal': 10000, 'Anticipo': 5000 });
+  H.pon(3, 'V-008', { 'Proyecto': 'Otra', 'Estatus': 'FABRICACION', 'Cuenta ': 'Rul HSBC' });
+  H.v._g[2][11] = 5000;   // K, la fórmula del saldo
+  const msg = H.run(`guardarCobro({ folio: 'V-007', monto: '5000', fecha: '2026-09-23', liquidar: true })`);
+  eq('el estatus queda LIQUIDADO', H.celda('V-007', 'Estatus'), 'LIQUIDADO');
+  eq('y la cuenta sigue siendo la cuenta', H.celda('V-007', 'Cuenta '), 'Elias BBVA');
+  H.run('normalizarIvaActivos(SpreadsheetApp.getActive().getSheetByName("Ventas"))');
+  eq('la siguiente subida ya no le cambia el IVA: no hay saldo fantasma', H.celda('V-007', 'IVA'), 'No');
+  eq('se reacomodó: la liquidada bajó', [H.fila('V-008'), H.fila('V-007')], [2, 3]);
+  cierto('el formulario tomó el candado', H.candados.length > 0);
+  cierto('y contesta con el saldo', /registrado en V-007/.test(msg));
+  const H2 = hojaDeMentiras();
+  H2.pon(2, 'V-001', { 'Proyecto': 'X', 'Estatus': 'COBRANDO', 'Cuenta ': 'Rul HSBC' });
+  H2.v._g[2][11] = 100;
+  eq('la lista de saldos del formulario lee el estatus de C, no la cuenta', H2.run('listaSaldos()[0].estatus'), 'COBRANDO');
+}
+
+console.log('\nNINGUNA FILA SIN NOMBRE Y NINGÚN FOLIO REPETIDO (defecto 3)');
+{
+  const H = hojaDeMentiras();
+  H.pon(2, 'V-001', { 'Proyecto': 'Ana - Cafe', 'Estatus': 'LIQUIDADO' });
+  /* V-002 existía y alguien borró su fila. El teléfono mueve la etapa de su proyecto. */
+  const r = H.empujar([{ id: 'op1', tipo: 'actualizar', id_notion: 'V-002',
+    datos: { 'Folio cotizacion': 'COT-0002@K7QM', 'Etapa de obra': 'Cortado', 'Direccion': 'Calle 1' } }], 'direccion');
+  eq('un cambio contra una venta borrada vuelve NO_ENCONTRADO', r.resultados[0].codigo, 'NO_ENCONTRADO');
+  cierto('y lo dice con el folio', /La venta V-002 ya no está en la hoja/.test(r.resultados[0].mensaje));
+  eq('y NO crea ninguna fila', H.v._g[3].slice(1, 31).filter(x => x !== '').length, 0);
+
+  /* PAGOS registra una venta desde el cotizador: no puede escribir el nombre. */
+  const p = H.empujar([{ id: 'COT-0007@PAG1', datos: { 'Proyecto': 'Beto', 'Estatus': 'LIQUIDADO', 'Cuenta ': 'Elias BBVA',
+    'Liquidacion': 6600, 'Folio cotizacion': 'COT-0007@PAG1' } }], 'pagos');
+  eq('un alta sin permiso para el nombre vuelve NO_ENCONTRADO', p.resultados[0].codigo, 'NO_ENCONTRADO');
+  cierto('y dice de qué teléfono tiene que salir', /Dala de alta desde Dirección/.test(p.resultados[0].mensaje));
+  eq('y tampoco deja dinero en una fila sin nombre', H.v._g[3].slice(1, 31).filter(x => x !== '').length, 0);
+
+  const n = H.empujar([{ id: 'op3', datos: { 'Proyecto': 'Caro - Gym', 'Folio cotizacion': 'COT-0100@DIR1' } }], 'direccion');
+  eq('la venta nueva no recibe el folio de la borrada: la marca ya sabía de V-002', n.resultados[0].remoto.id_notion, 'V-003');
+
+  /* La última venta se borra, y la marca sigue arriba. */
+  H.v._g[H.fila('V-003')].fill('');
+  const n2 = H.empujar([{ id: 'op4', datos: { 'Proyecto': 'Dani', 'Folio cotizacion': 'COT-0200@DIR1' } }], 'direccion');
+  eq('borrar la última venta no devuelve su folio al montón', n2.resultados[0].remoto.id_notion, 'V-004');
+  eq('la marca vive en las propiedades del script', H.props.FOLIO_MAS_ALTO, '4');
+
+  /* Un folio que ya se había repartido dos veces ANTES de la marca: la fila con ese folio
+     es otra venta. El teléfono de fabricación no puede escribir «Folio cotizacion», así que
+     lo manda aparte, como identidad. */
+  H.pon(9, 'V-009', { 'Proyecto': 'Eva - Nueva', 'Estatus': 'FABRICACION', 'Folio cotizacion': 'COT-0300@DIR1' });
+  const f = H.empujar([{ id: 'op5', tipo: 'actualizar', id_notion: 'V-009', folio_cotizacion: 'COT-0077@FAB2',
+    datos: { 'Etapa de obra': 'Armado', 'Direccion': 'Calle Vieja 9' } }], 'fabricacion');
+  eq('si la fila con ese folio está atada a OTRA cotización, no se escribe ahí', f.resultados[0].codigo, 'NO_ENCONTRADO');
+  eq('y la venta de esa fila queda intacta', [H.celda('V-009', 'Direccion'), H.celda('V-009', 'Etapa de obra')], ['', '']);
+
+  /* Una fila libre con restos de otra venta: se prefiere una vacía, y la que se usa se limpia. */
+  const L = hojaDeMentiras();
+  L.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'COBRANDO' });
+  L.v._g[3][L.C['Estatus']] = 'LIQUIDADO'; L.v._g[3][L.C['Liquidacion']] = 6600; L.v._g[3][L.C['Folio cotizacion']] = 'COT-X';
+  eq('la fila libre es la primera VACÍA, no la que tiene restos', L.run('primeraFilaLibre(SpreadsheetApp.getActive().getSheetByName("Ventas"))'), 4);
+  L.v._g[3][8] = 'fórmula';
+  L.run('limpiarFila(SpreadsheetApp.getActive().getSheetByName("Ventas"), 3)');
+  eq('limpiar una fila borra lo capturado', [L.v._g[3][L.C['Estatus']], L.v._g[3][L.C['Liquidacion']], L.v._g[3][L.C['Folio cotizacion']]], ['', '', '']);
+  eq('y no toca las fórmulas', L.v._g[3][8], 'fórmula');
+}
+
+console.log('\n«FOLIO COTIZACION» NO SE PISA EN UN CAMBIO (defecto 4, del lado de la hoja)');
+{
+  const H = hojaDeMentiras();
+  H.pon(2, 'V-100', { 'Proyecto': 'Dani - Gym', 'Estatus': 'FABRICACION', 'Folio cotizacion': 'COT-0042@AAAA' });
+  /* El teléfono que IMPORTÓ la fila, con el cliente de antes: manda su folio de hoja. */
+  const r = H.empujar([{ id: 'opB', tipo: 'actualizar', id_notion: 'V-100',
+    datos: { 'Folio cotizacion': 'V-100', 'Etapa de obra': 'En diseño' } }], 'direccion');
+  eq('el cambio entra', r.resultados[0].ok, true);
+  eq('pero la llave de la cotización se queda', H.celda('V-100', 'Folio cotizacion'), 'COT-0042@AAAA');
+  eq('y lo que no se escribió se nombra', r.resultados[0].rechazadas.map(x => x.nombre), ['Folio cotizacion']);
+  eq('la etapa sí', H.celda('V-100', 'Etapa de obra'), 'En diseño');
+  const otro = H.empujar([{ id: 'opC', tipo: 'actualizar', id_notion: 'V-100', datos: { 'Folio cotizacion': 'COT-9999@ZZZZ' } }], 'direccion');
+  eq('un cambio atado a OTRA cotización no se escribe en esta fila', otro.resultados[0].codigo, 'NO_ENCONTRADO');
+  eq('y la llave sigue siendo la de la fila', H.celda('V-100', 'Folio cotizacion'), 'COT-0042@AAAA');
+  /* Una fila ya ensuciada por el defecto (su llave dice su propio folio) no deja fuera al
+     teléfono dueño de la cotización: la suya entra y la repara. */
+  H.pon(3, 'V-101', { 'Proyecto': 'Eli', 'Estatus': 'FABRICACION', 'Folio cotizacion': 'V-101' });
+  const rep = H.empujar([{ id: 'opA', tipo: 'actualizar', id_notion: 'V-101',
+    datos: { 'Folio cotizacion': 'COT-0050@AAAA', 'Etapa de obra': 'Cortado' } }], 'direccion');
+  eq('una llave que dice el folio de la propia fila no cuenta como llave', rep.resultados[0].ok, true);
+  eq('y la de verdad la repara', H.celda('V-101', 'Folio cotizacion'), 'COT-0050@AAAA');
+}
+
+console.log('\nLO QUE VUELVE DE /EMPUJAR — el rol cierra también la respuesta (defecto 6)');
+{
+  const H = hojaDeMentiras();
+  H.pon(2, 'V-001', { 'Proyecto': 'Ana - Cafe', 'Estatus': 'COBRANDO', 'Cuenta ': 'Rul HSBC', 'Precio Subtotal': 20000,
+                      'Precio Neto ': 23200, 'Anticipo': 10000, 'Pago Pendiente': 13200, 'Comisiones': 2000 });
+  const r = H.empujar([{ id: 'x', tipo: 'actualizar', id_notion: 'V-001', datos: { 'Etapa de obra': 'Cortado' } }], 'fabricacion');
+  const rem = r.resultados[0].remoto;
+  eq('fabricación mueve la etapa', rem['Etapa de obra'], 'Cortado');
+  eq('y de vuelta no le llega ni una cifra', api.CAMPOS_DE_DINERO.filter(c => rem[c] !== undefined), []);
+  eq('pero sí el folio, que es con lo que se ata', rem.id_notion, 'V-001');
+  const d = H.empujar([{ id: 'y', tipo: 'actualizar', id_notion: 'V-001', datos: { 'Etapa de obra': 'Armado' } }], 'direccion');
+  eq('dirección sí recibe el dinero', d.resultados[0].remoto['Pago Pendiente'], 13200);
+}
+
+console.log('\nENTRAR CON GOOGLE — un tropiezo de Google no se guarda como un «no» (defecto 7)');
+{
+  const tok = 'ya29.' + 'x'.repeat(60);
+  const aud = vm.runInContext('PUENTE_CLIENT_IDS[0]', ctx);
+  const bueno = respuesta(200, { aud, email: 'ana@al3d.mx', email_verified: 'true' });
+  const H = hojaDeMentiras({ google: [respuesta(503, { error: 'backendError' }), bueno] });
+  const acc = H.nuevaHoja('Accesos', 20, 3);
+  acc._g[1] = ['', 'Correo', 'Rol', 'Nota']; acc._g[2] = ['', 'ana@al3d.mx', 'pagos', ''];
+  eq('con un 503 de Google no entra', H.run('identidadDelIngreso(' + JSON.stringify(tok) + ')'), null);
+  eq('pero cuatro segundos después, con Google de vuelta, sí', H.run('JSON.stringify(identidadDelIngreso(' + JSON.stringify(tok) + '))'),
+     JSON.stringify({ correo: 'ana@al3d.mx', rol: 'pagos' }));
+  eq('porque la segunda vez sí le preguntó a Google', H.pedidasAGoogle.length, 2);
+
+  const M = hojaDeMentiras({ google: [respuesta(401, { error: 'invalid_token' }), bueno] });
+  M.run('identidadDelIngreso(' + JSON.stringify(tok) + ')');
+  M.run('identidadDelIngreso(' + JSON.stringify(tok) + ')');
+  eq('un 401 sí es un «no» de verdad y se guarda: la segunda vez no se pregunta', M.pedidasAGoogle.length, 1);
+  const Q = hojaDeMentiras({ google: [respuesta(429, {}), bueno] });
+  Q.nuevaHoja('Accesos', 20, 3)._g[2] = ['', 'ana@al3d.mx', 'pagos', ''];
+  Q.run('identidadDelIngreso(' + JSON.stringify(tok) + ')');
+  eq('un 429 tampoco se guarda', Q.run('!!identidadDelIngreso(' + JSON.stringify(tok) + ')'), true);
+}
+
+console.log('\nEL CANDADO — toda escritura sobre Ventas lo toma (defecto 10)');
+{
+  const H = hojaDeMentiras();
+  H.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'COBRANDO', 'Cuenta ': 'Rul HSBC' });
+  H.v._g[2][11] = 100;
+  const antes = H.candados.length;
+  H.run(`guardarVenta({ proyecto: 'Beto', cuenta: 'Rul HSBC', estatus: 'FABRICACION', iva: 'Sí', subtotal: '100' })`);
+  H.run(`guardarAbono({ folio: 'V-001', monto: '10' })`);
+  cierto('guardarVenta y guardarAbono toman el candado', H.candados.length >= antes + 2);
+  eq('el formulario de venta usa la misma marca de folios que el puente', H.celda('V-002', 'Proyecto'), 'Beto');
+
+  const O = hojaDeMentiras({ candadoLibre: false });
+  O.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'COBRANDO' });
+  let dijo = '';
+  try { O.run(`guardarVenta({ proyecto: 'Beto', cuenta: 'Rul HSBC', estatus: 'FABRICACION', iva: 'Sí', subtotal: '100' })`); }
+  catch (e) { dijo = e.message; }
+  cierto('con el puente escribiendo, el formulario dice por qué no entra', /ocupada con otra escritura/.test(dijo));
+  eq('y no escribió nada', O.fila('V-002'), 0);
+  const e = O.run(`(function () { var h = SpreadsheetApp.getActive().getSheetByName('Ventas');
+    h.getRange(3, 2).setValue('Caro');
+    alEditar({ range: { getSheet: function () { return h; }, getColumn: function () { return 2; }, getNumColumns: function () { return 1; },
+                        getRow: function () { return 3; }, getNumRows: function () { return 1; } } });
+    return h.getRange(3, 1).getValue(); })()`);
+  eq('alEditar con el candado ocupado no reparte folio (lo pone la siguiente edición)', e, '');
+}
+
+console.log('\n/JALAR — la hoja entera en una página (defecto 12)');
+{
+  const H = hojaDeMentiras();
+  for (let i = 1; i <= 120; i++) H.pon(i + 1, 'V-' + String(i).padStart(3, '0'), { 'Proyecto': 'Venta ' + i, 'Estatus': 'LIQUIDADO' });
+  const j = H.run('rutaJalar({}, "direccion")');
+  eq('ciento veinte filas en una sola respuesta', j.registros.length, 120);
+  eq('sin página siguiente: un reacomodo a media bajada ya no deja una fuera', [j.hay_mas, j.cursor], [false, null]);
+}
+
+console.log('\nLA COPIA PEGADA CON SU FOLIO (defecto 13)');
+{
+  const H = hojaDeMentiras();
+  H.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'COBRANDO' });
+  H.pon(3, 'V-002', { 'Proyecto': 'Beto', 'Estatus': 'COBRANDO' });
+  /* Se copia la fila 2 entera, con su folio, a la 4. */
+  H.v._g[4] = H.v._g[2].slice();
+  H.v._g[4][H.C['Proyecto']] = 'Ana (la copia)';   // para reconocerla después del reacomodo
+  H.run(`(function () { var h = SpreadsheetApp.getActive().getSheetByName('Ventas');
+    alEditar({ range: { getSheet: function () { return h; }, getColumn: function () { return 1; }, getNumColumns: function () { return 30; },
+                        getRow: function () { return 4; }, getNumRows: function () { return 1; } } }); })()`);
+  eq('la original conserva su folio', H.celda('V-001', 'Proyecto'), 'Ana');
+  eq('la copia recibe uno nuevo', H.celda('V-003', 'Proyecto'), 'Ana (la copia)');
+  eq('y ya no hay dos filas con el mismo folio', H.v._g.slice(2, 6).map(f => f[1]).filter(Boolean).sort(), ['V-001', 'V-002', 'V-003']);
+  const x = H.run('formulasVentas.toString()');
+  cierto('y la columna «Revisar» avisa de un folio repetido que se escape', /Folio repetido/.test(x) && /COUNTIF\(/.test(x));
+}
+
+console.log('\nLA HOJA QUE YA QUEDÓ REVUELTA — se realinea una vez, desde la bitácora');
+{
+  /* Se arma a mano el estado que dejaba puente-sheets-5: tres subidas anotadas en la bitácora
+     con su fila, y después un reacomodo que movió A:N y dejó Y:AD donde estaban. */
+  const H = hojaDeMentiras();
+  const bit = H.nuevaHoja('Bitácora del puente', 50, 6);
+  let b = 1;
+  const anota = (folio, filaEntonces, campos, nota) => { b++; bit._g[b] = ['', 'hoy', 'direccion', folio, filaEntonces, campos, nota || '']; };
+  // Así estaban al escribirse:
+  H.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'LIQUIDADO', 'Folio cotizacion': 'COT-1@A', 'Etapa de obra': 'Instalado', 'Direccion': 'Dir Ana' });
+  anota('V-001', 2, 'Proyecto, Folio cotizacion, Etapa de obra, Direccion', 'fila nueva');
+  H.pon(3, 'V-002', { 'Proyecto': 'Beto', 'Estatus': 'COBRANDO', 'Folio cotizacion': 'COT-2@A', 'Direccion': 'Dir Beto' });
+  anota('V-002', 3, 'Proyecto, Folio cotizacion, Direccion', 'fila nueva');
+  H.pon(4, 'V-003', { 'Proyecto': 'Caro', 'Estatus': 'FABRICACION', 'Folio cotizacion': 'COT-3@A', 'Direccion': 'Dir Caro' });
+  anota('V-003', 4, 'Proyecto, Folio cotizacion, Direccion', 'fila nueva');
+  // El reacomodo de antes: A:N se mueven (Caro arriba, Ana abajo), Y:AD no.
+  const an = r => H.v._g[r].slice(1, 15);
+  const [a2, a4] = [an(2), an(4)];
+  for (let c = 1; c <= 14; c++) { H.v._g[2][c] = a4[c - 1]; H.v._g[4][c] = a2[c - 1]; }
+  // Y después fabricación movió la etapa de Ana, que ya estaba en la fila 4:
+  H.v._g[4][H.C['Etapa de obra']] = 'En garantía';
+  anota('V-001', 4, 'Etapa de obra');
+  // Una celda que nadie anotó, y una de una venta que ya no existe:
+  H.v._g[3][H.C['Ubicacion']] = '20.6,-103.3';
+  H.v._g[5][H.C['Direccion']] = 'Dir fantasma';
+  anota('V-009', 5, 'Direccion');
+  // El respaldo de mejorarTodo, de cuando V-003 se llamaba de otra forma:
+  const resp = H.nuevaHoja('Ventas (respaldo)', 330, 30);
+  resp._g[2][1] = 'V-003'; resp._g[2][2] = 'Carla';
+
+  eq('antes de realinear, Caro (fila 2) trae la llave de Ana', H.celda('V-003', 'Folio cotizacion'), 'COT-1@A');
+  /* Mientras no se realinea, el reacomodo nuevo NO mueve Y:AD: movidas, la bitácora ya no
+     diría dónde está cada celda. Ana pasa a REPARANDO y sube a la fila 3. */
+  H.v._g[4][H.C['Estatus']] = 'REPARANDO';
+  H.run('ordenarVentas(SpreadsheetApp.getActive().getSheetByName("Ventas"))');
+  eq('mientras no se realinea, reacomodar mueve la venta pero no Y:AD',
+     [H.fila('V-001'), H.v._g[3][H.C['Folio cotizacion']]], [3, 'COT-2@A']);
+
+  const vista = H.run('revisarColumnasDelPuente()');
+  cierto('la vista previa dice cuánto movería y no escribe en Ventas',
+         /Vista previa/.test(vista) && H.celda('V-003', 'Folio cotizacion') === 'COT-1@A' && !H.props.PUENTE_Y_AD_ALINEADAS);
+
+  const r = H.empujar([{ id: 'op', tipo: 'actualizar', id_notion: 'V-002', datos: { 'Etapa de obra': 'Armado' } }], 'direccion');
+  eq('la primera subida realinea sola y después escribe', r.resultados[0].ok, true);
+  eq('Caro recupera su folio de cotización', H.celda('V-003', 'Folio cotizacion'), 'COT-3@A');
+  eq('y su dirección', H.celda('V-003', 'Direccion'), 'Dir Caro');
+  eq('Ana recupera los suyos', [H.celda('V-001', 'Folio cotizacion'), H.celda('V-001', 'Direccion')], ['COT-1@A', 'Dir Ana']);
+  eq('con la etapa MÁS NUEVA que se le escribió, no la primera', H.celda('V-001', 'Etapa de obra'), 'En garantía');
+  eq('Caro no hereda la etapa de Ana', H.celda('V-003', 'Etapa de obra'), '');
+  eq('Beto, que el reacomodo de antes bajó, recupera su llave y trae su cambio', [H.celda('V-002', 'Folio cotizacion'), H.celda('V-002', 'Etapa de obra')], ['COT-2@A', 'Armado']);
+  eq('lo que nadie anotó se queda en su renglón', H.v._g[3][H.C['Ubicacion']], '20.6,-103.3');
+  cierto('lo de la venta que ya no existe sale de Ventas', !H.v._g.some(f => f.includes('Dir fantasma')));
+  const rev = H.ss.getSheetByName('Revisión Y-AD');
+  cierto('y todo queda en la pestaña de revisión', rev && rev._g.some(f => f.includes('Dir fantasma')) &&
+         rev._g.some(f => f.includes('COT-3@A')) && rev._g.some(f => f.includes('20.6,-103.3')));
+  cierto('la revisión enseña la venta que cambió de nombre desde el respaldo', rev && rev._g.some(f => f.includes('Carla') && f.includes('Caro')));
+  cierto('hay copia de Ventas de antes de realinear', !!H.ss.getSheetByName('Ventas (antes de realinear)'));
+  cierto('y queda anotado que ya se hizo', !!H.props.PUENTE_Y_AD_ALINEADAS);
+  cierto('a mano ya no vuelve a correr', /Ya estaba hecho/.test(H.run('realinearColumnasDelPuente()')));
+  /* Y de aquí en adelante, Y:AD viajan con su fila. */
+  H.empujar([{ id: 'op2', tipo: 'actualizar', id_notion: 'V-002', datos: {} }], 'direccion');
+  const beto = H.fila('V-002');
+  H.run(`(function () { var h = SpreadsheetApp.getActive().getSheetByName('Ventas');
+    h.getRange(${beto}, 3).setValue('FABRICACION'); ordenarVentas(h); })()`);
+  eq('ya realineada, la que sube se lleva su llave, y la que baja la suya',
+     [beto, H.fila('V-002'), H.celda('V-002', 'Folio cotizacion'), H.fila('V-001'), H.celda('V-001', 'Folio cotizacion')],
+     [4, 3, 'COT-2@A', 4, 'COT-1@A']);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

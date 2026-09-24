@@ -238,7 +238,8 @@ console.log('\nEL RÉCORD DE VENTAS: cada fila de la hoja, con o sin proyecto aq
   eq('el dinero, con las fórmulas tal como bajan',
      [v.sub, v.neto, v.anticipo, v.liquidacion, v.pago_pendiente, v.comisiones, v.abono_comision, v.comision_restante],
      [25000, 29000, 15000, 14000, 0, 2500, 2500, 0]);
-  eq('el % vacío no se vuelve cero', v.pct_comision, undefined);
+  /* Vacía en la hoja, llega null —«alguien lo borró»—, que no es un cero ni un «no vino». */
+  eq('el % vacío no se vuelve cero', v.pct_comision, null);
   eq('las tres fechas', [v.fecha_anticipo, v.fecha_instalacion, v.fecha_liquidacion], ['2024-03-12', '2024-03-28', '2024-03-30']);
   eq('sin etapa de obra queda null, no «ganado»', v.etapa, null);
   eq('el IVA', v.iva, true);
@@ -321,6 +322,132 @@ console.log('\nCOHERENCIA CON EL PUENTE — la duplicación que sí se compara')
   eq('sin aviso cuando está al día', avisoVersion(VERSION_ESPERADA), '');
 }
 
+console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 8)');
+{
+  /* El de antes le decía a una hoja en puente-sheets-4 que el saldo bajaba al revés —la 4 lo
+     arregló— y callaba lo único que de verdad le faltaba: entrar con Google no da rol. */
+  eq('la plataforma espera la 6', VERSION_ESPERADA, 'puente-sheets-6');
+  eq('una hoja en la 5 es vieja', versionVieja('puente-sheets-5'), true);
+  const a5 = avisoVersion('puente-sheets-5'), a4 = avisoVersion('puente-sheets-4'), a3 = avisoVersion('puente-sheets-3');
+  cierto('a la 5 le dice lo de Y a AD', /Y a AD/.test(a5));
+  cierto('y no le dice lo que la 4 y la 3 ya arreglaron', !/Google/.test(a5) && !/al revés/.test(a5));
+  cierto('a la 4 le dice que entrar con Google no da rol', /entrar con Google no da rol/.test(a4));
+  cierto('y no que el saldo baja al revés, que la 4 ya arregló', !/al revés/.test(a4));
+  cierto('a la 3, lo del saldo, y lo de las que vienen después', /al revés/.test(a3) && /Google/.test(a3) && /Y a AD/.test(a3));
+  /* Y ya no manda a pegar el .gs del repo encima sin mirar: el README dice que la copia
+     que manda es la de la hoja, y que se compara antes. */
+  cierto('los tres mandan a comparar antes de pegar', [a3, a4, a5].every(x => /compáralo/.test(x) && /Antes de pegar nada/.test(x)));
+}
+
+console.log('\nEL FOLIO DE COTIZACIÓN SOLO VIAJA SI LO HAY (defecto 4)');
+{
+  /* Un proyecto importado de la hoja: sin cotización detrás, con el folio de la hoja de
+     folio_local. Mandaba «V-100» como folio de cotización y pisaba la llave de la fila. */
+  const importado = proy({ id: 'proy-hoja-V-100', folio_local: 'V-100', folio_global: '', notion_page_id: 'V-100', de_hoja: true });
+  const n = aNotion(importado, null, { alta: false, campos: ['etapa'] });
+  eq('un proyecto importado no manda folio de cotización', Object.prototype.hasOwnProperty.call(n, P.folio), false);
+  eq('pero sí su etapa', n[P.etapa], 'Ganado');
+  eq('uno nacido en el cotizador sí lo manda', aNotion(proy(), null, { alta: false, campos: [] })[P.folio], 'COT-0042@K7QM');
+}
+
+console.log('\nLO QUE SE BORRA EN LA HOJA TAMBIÉN BAJA (defecto 11)');
+{
+  const { fusionar } = await import('../js/datos/sync.js');
+  const fila = o => ({ id_notion: 'V-042', 'Proyecto': 'Ana - Cafe', 'Estatus': 'COBRANDO', 'Cuenta ': 'Rul HSBC', 'IVA': true,
+    'Precio Subtotal': 10000, 'Precio Neto ': 11600, 'Anticipo': 5000, 'Liquidacion': 3000, 'Pago Pendiente': 3600,
+    'Porcentaje comision': 15, 'Folio cotizacion': 'COT-0042@AAAA', 'Fecha Anticipo e Instalacion': '2026-09-01', ...o });
+  const antes = { ...ventaDeHoja(fila({})), actualizado_en: 1000 };
+  const despues = { ...ventaDeHoja(fila({ 'Liquidacion': null, 'Porcentaje comision': null, 'Pago Pendiente': 6600 })), actualizado_en: 2000 };
+  eq('una celda vaciada llega como null, no como «no vino»', [despues.liquidacion, despues.pct_comision], [null, null]);
+  const f = fusionar(antes, despues);
+  eq('y el récord la borra: ya no enseña la liquidación ni el % viejos', [f.liquidacion, f.pct_comision, f.pago_pendiente], [null, null, 6600]);
+  /* Lo que NO vino —fabricación no recibe el dinero— sigue sin tocarse. */
+  const sinLlave = fila({}); delete sinLlave['Liquidacion'];
+  eq('una llave que no vino sigue siendo «no vino»', ventaDeHoja(sinLlave).liquidacion, undefined);
+
+  const p = deNotion(fila({ 'Porcentaje comision': null, 'Anticipo': null, 'Pago Pendiente': null }));
+  eq('sobre el proyecto, el % borrado vuelve a «el de siempre» (0)', p.pct_comision, 0);
+  eq('el anticipo borrado es cero', p.anti_pactado, 0);
+  eq('y una fórmula vacía es null —«la hoja no lo sabe»—, nunca un cero', [Object.prototype.hasOwnProperty.call(p, 'pago_pendiente'), p.pago_pendiente], [true, null]);
+  const fab = deNotion({ 'Folio cotizacion': 'COT-0007', id_notion: 'V-1', 'Estatus': 'COBRANDO' });
+  eq('a fabricación, sin las llaves del dinero, no se le toca nada', ['pct_comision', 'anti_pactado', 'pago_pendiente'].filter(k => k in fab), []);
+}
+
+console.log('\nEL RELEVO CONTRA UN PUENTE DE MENTIRAS (defectos 3, 5, 8 y 9)');
+{
+  /* `fetch` de mentiras que contesta como el Apps Script. En node no hay IndexedDB y el
+     relevo lo sabe: la foto de la operación hace de proyecto vivo. */
+  const pedidas = [];
+  let empujar = () => ({ ok: true, resultados: [] });
+  let esquema = { ok: true, faltan: [] };
+  const escribibles = { fabricacion: ['Etapa de obra', 'Fecha instalacion', 'Hora instalacion', 'Ubicacion', 'Direccion'],
+                        pagos: ['Anticipo', 'Liquidacion', 'Abono Comision', 'Estatus', 'Cuenta ', 'Fecha Liquidacion', 'Porcentaje comision'] };
+  globalThis.fetch = async (url, init) => {
+    const c = JSON.parse(init.body);
+    pedidas.push(c);
+    const rol = c.token === 'f'.repeat(40) ? 'fabricacion' : 'pagos';
+    const cuerpo = c.ruta === 'salud' ? { ok: true, rol, escribibles: escribibles[rol], version: VERSION_ESPERADA }
+      : c.ruta === 'esquema' ? esquema
+      : c.ruta === 'empujar' ? empujar(c) : { ok: false, codigo: 'NO_ENCONTRADO' };
+    return { status: 200, json: async () => cuerpo };
+  };
+  const { crear } = await import('../js/datos/puente.js');
+  const fab = crear({ url: 'https://puente.test/exec', token: 'f'.repeat(40) });
+  const pag = crear({ url: 'https://puente.test/exec', token: 'p'.repeat(40) });
+  const op = (id, datos, campos) => ({ id, almacen: 'proyectos', tipo: 'actualizar', datos, campos: campos || ['etapa'] });
+
+  /* 5 · Lo que reintentar no arregla se marca, para que el bombeo lo aparte y siga. */
+  const [alta] = await fab.subir([{ ...op('op-alta', proy({ notion_page_id: null })), tipo: 'crear' }]);
+  eq('un alta desde un rol que no escribe el nombre: ROL_SIN_PERMISO…', alta.codigo, 'ROL_SIN_PERMISO');
+  eq('…marcado definitivo: el bombeo la aparta y sigue', alta.definitivo, true);
+  const [nada] = await pag.subir([op('op-nada', proy({ notion_page_id: 'V-201', estatus_notion: null, cuenta: null }))]);
+  eq('un cambio del que el rol no escribe nada, también definitivo', [nada.codigo, nada.definitivo], ['ROL_SIN_PERMISO', true]);
+
+  empujar = c => ({ ok: true, resultados: [{ id: c.ops[0].id, ok: false, codigo: 'NO_ENCONTRADO',
+                                             mensaje: 'La venta V-003 ya no está en la hoja: alguien borró su fila.' }] });
+  const [borrada] = await fab.subir([op('op-borrada', proy({ notion_page_id: 'V-003' }))]);
+  eq('una venta que la hoja ya no tiene (3): NO_ENCONTRADO definitivo, con la razón de la hoja',
+     [borrada.codigo, borrada.definitivo, /ya no está en la hoja/.test(borrada.mensaje)], ['NO_ENCONTRADO', true, true]);
+  const enviada = pedidas.filter(x => x.ruta === 'empujar').pop().ops[0];
+  eq('el folio de cotización viaja aparte, como identidad, aunque fabricación no pueda escribirlo',
+     [enviada.folio_cotizacion, Object.prototype.hasOwnProperty.call(enviada.datos, P.folio)], ['COT-0042@K7QM', false]);
+
+  empujar = c => ({ ok: true, resultados: [{ id: c.ops[0].id, ok: false, codigo: 'DESCONOCIDO', mensaje: 'Ya no hay filas libres' }] });
+  const [llena] = await fab.subir([op('op-llena', proy({ notion_page_id: 'V-003' }))]);
+  eq('una hoja llena no es culpa de la operación: no se marca', !!llena.definitivo, false);
+  empujar = () => ({ ok: false, codigo: 'ROL_SIN_PERMISO', mensaje: 'Token desconocido' });
+  const [puerta] = await fab.subir([op('op-puerta', proy({ notion_page_id: 'V-003' }))]);
+  eq('la llave que la hoja no reconoce tampoco: ésa sí para el bombeo', [puerta.codigo, !!puerta.definitivo], ['ROL_SIN_PERMISO', false]);
+
+  /* 8 · «Revisar el esquema» dice cuando falta la pestaña «Accesos». */
+  esquema = { ok: true, faltan: [], accesos: false };
+  const e1 = await fab.esquema();
+  eq('sin «Accesos», el esquema lo dice', e1.accesos, false);
+  cierto('y la pantalla de hoy lo enseña en la lista de lo que falta', e1.faltan.some(x => x.nombre === 'Accesos' && /prepararHojaParaElPuente/.test(x.para)));
+  esquema = { ok: true, faltan: [] };
+  const e2 = await fab.esquema();
+  eq('una hoja que no dice nada de «Accesos» no se da por incompleta', [e2.accesos, e2.faltan.length], [true, 0]);
+
+  /* 9 · El token de Google caducado se renueva en la petición, no solo al arrancar. Se ve
+     por el guion de Google que `Ingreso.renovar()` intenta cargar. */
+  const guiones = [];
+  globalThis.document = {
+    querySelector: () => null,
+    createElement: () => ({ dataset: {} }),
+    head: { appendChild: s => { guiones.push(s.src); setTimeout(() => s.onerror && s.onerror(), 0); } },
+  };
+  await fab.salud();
+  eq('sin haber entrado nunca con Google, no se intenta renovar', guiones.length, 0);
+  const guardado = { al3d_pf_ingreso: JSON.stringify({ correo: 'ana@al3d.mx' }) };
+  globalThis.localStorage = { getItem: k => (k in guardado ? guardado[k] : null), setItem: (k, v) => { guardado[k] = String(v); }, removeItem: k => { delete guardado[k]; } };
+  const antes = pedidas.length;
+  const s1 = await fab.salud();
+  eq('con un ingreso hecho y el token caducado, la petición lo renueva primero', guiones.filter(u => /accounts\.google\.com\/gsi/.test(u)).length, 1);
+  eq('y si Google no contesta, la petición sale igual con lo que haya', [s1.ok, pedidas.length], [true, antes + 1]);
+  await fab.salud();
+  eq('un intento por minuto: la siguiente no vuelve a abrir ventana', guiones.length, 1);
+}
+
 
 console.log('\nDETALLES QUE ROMPEN EN LA CALLE');
 {
@@ -340,8 +467,13 @@ console.log('\nDETALLES QUE ROMPEN EN LA CALLE');
     !ins.pasos.some(p => /Cloudflare|workers\.dev|NOTION_TOKEN/i.test(p)));
   cierto('y avisan del ajuste que rompe todo si queda mal',
     ins.pasos.some(p => /Cualquier usuario/.test(p)));
-  cierto('las notas explican que la puerta es el token',
-    ins.notas.some(n => /token/i.test(n) && /p(ú|u)blica|puerta/i.test(n)));
+  /* La puerta normal es Google desde puente-sheets-5; los pasos decían que era el token. */
+  cierto('los pasos dicen que se entra con Google y que el rol sale de «Accesos»',
+    ins.pasos.some(p => /Entrar con Google/.test(p)) && ins.pasos.some(p => /«Accesos»/.test(p)));
+  cierto('y el token de dispositivo es la salida de emergencia, no la entrada',
+    ins.pasos.some(p => /Tokens del puente/.test(p) && /emergencia/i.test(p)));
+  cierto('las notas explican dónde está la puerta: Google, y el token de reserva',
+    ins.notas.some(n => /token/i.test(n) && /p(ú|u)blica|puerta/i.test(n) && /Google/.test(n)));
 
   eq('el relevo de hoy lleva la venta y su instalación, y nada más',
      ALMACENES, ['proyectos', 'instalaciones']);

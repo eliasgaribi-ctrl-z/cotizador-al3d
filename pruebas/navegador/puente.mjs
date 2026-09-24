@@ -105,7 +105,11 @@ const servidor = createServer(async (req, res) => {
       return json({ ok: true, ts: Date.now(), version: 'falso-1', rol: 'direccion',
                     escribibles: ESCRIBIBLES_DIRECCION, destino: 'google-sheets' });
     }
-    if (ruta === 'esquema') { RECIBIDO.esquema++; return json({ ok: true, faltan: [], nota: 'ya está todo' }); }
+    /* Sin la pestaña «Accesos», como una hoja que se preparó antes de puente-sheets-5: las
+       ocho columnas están, pero nadie entraría con Google. «Revisar el esquema» lo tiene que
+       decir; hasta septiembre de 2026 el relevo tiraba el dato y la pantalla decía que todo
+       estaba bien. */
+    if (ruta === 'esquema') { RECIBIDO.esquema++; return json({ ok: true, faltan: [], accesos: false, nota: 'falta «Accesos»' }); }
     if (ruta === 'jalar') {
       RECIBIDO.jalar++;
       /* Como el Apps Script: TODAS las filas de la pestaña, tengan o no proyecto en el
@@ -431,6 +435,61 @@ apart.frases.every(t => !/(compra|listas) se queda /.test(t))
   ? bien('y ninguna razón concuerda mal en plural')
   : mal('una razón dice «las listas de compra se queda»: ' + JSON.stringify(apart.frases));
 
+// ── 4b. Un rechazo de UNA operación no traba la bandeja ──────────────────────
+/* Un alta desde un teléfono cuyo rol no escribe el nombre del proyecto vuelve rechazada, y
+   reintentar no la arregla. Hasta septiembre de 2026 volvía como un ROL_SIN_PERMISO pelón
+   —el mismo código que una llave que la hoja no reconoce— y `bombear` se paraba en ella:
+   lo que estaba detrás no salía nunca. Ahora el relevo la marca `definitivo` y el bombeo
+   la aparta con su razón y sigue. */
+console.log('\nUN RECHAZO DE UNA SOLA OPERACIÓN NO TRABA LA BANDEJA');
+const traba = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const S = await import('./js/datos/sync.js');
+  const P = await import('./js/datos/puente.js');
+  const mandadas = [];
+  S.registrar({
+    nombre: 'falso', lleva: a => a === 'proyectos', motivo: () => 'no lo lleva',
+    async subir(ops) {
+      return ops.map(op => {
+        mandadas.push(op.registro_id);
+        return op.registro_id === 'alta-sin-permiso'
+          ? { id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO', definitivo: true,
+              mensaje: 'Este teléfono no puede dar de alta la venta en la hoja: su rol no escribe el nombre del proyecto.' }
+          : { id: op.id, ok: true, remoto: null, rechazadas: [] };
+      });
+    },
+    async bajar() { return { registros: [], cursor: null, hay_mas: false }; },
+  });
+  try {
+    await S.encolar({ id: 'op-traba-a', tipo: 'crear', almacen: 'proyectos', registro_id: 'alta-sin-permiso', datos: { id: 'alta-sin-permiso' }, ts: 1 });
+    await S.encolar({ id: 'op-traba-b', tipo: 'actualizar', almacen: 'proyectos', registro_id: 'etapa-de-otro', datos: { id: 'etapa-de-otro' }, ts: 2 });
+    const b1 = await S.bombear();
+    const b2 = await S.bombear();
+    const rech = await S.rechazadas();
+    const banda = (await S.frescura()).texto;
+    const pendientes = (await S.pendientes()).length;
+    const sigueGuardada = !!(await DB.obtener('pendientes', 'op-traba-a'));
+    const tirada = await S.resolver('op-traba-a', 'suyo');
+    return { mandadas, b1: b1.valor, b2: b2.valor, pendientes, rech: rech.map(o => [o.id, o.ultimo_error]), banda,
+             sigueGuardada, tirada: tirada.ok, quedan: (await S.rechazadas()).length };
+  } finally {
+    S.registrar(P.desdePrefs());   // el relevo de verdad, para lo que sigue
+  }
+});
+traba.mandadas.includes('etapa-de-otro') ? bien('la operación de detrás de la rechazada SÍ salió')
+  : mal('la bandeja se trabó en la rechazada: ' + JSON.stringify(traba.mandadas));
+traba.mandadas.filter(x => x === 'alta-sin-permiso').length === 1 ? bien('y la rechazada no se reintenta en cada bombeo')
+  : mal('la rechazada se mandó ' + traba.mandadas.filter(x => x === 'alta-sin-permiso').length + ' veces');
+traba.b1 && traba.b1.rechazadas === 1 && traba.b1.fallidas === 1 && traba.b1.subidas === 1
+  ? bien('el bombeo lo cuenta: 1 subida, 1 rechazada (y fallida, para que Ajustes no diga «nada que mandar» en verde)')
+  : mal('conteo del bombeo: ' + JSON.stringify(traba.b1));
+traba.pendientes === 0 ? bien('la rechazada ya no se cuenta como pendiente') : mal('pendientes: ' + traba.pendientes);
+traba.rech.length === 1 && /no puede dar de alta/.test(traba.rech[0][1]) && traba.sigueGuardada
+  ? bien('se apartó con su razón, sin perderse: «' + traba.rech[0][1] + '»') : mal('apartadas: ' + JSON.stringify(traba.rech));
+/La hoja no aceptó 1 cambio/.test(traba.banda || '') ? bien('y la banda de frescura lo dice: «' + traba.banda + '»')
+  : mal('la banda no dice nada del rechazo: «' + traba.banda + '»');
+traba.tirada && traba.quedan === 0 ? bien('y se puede descartar con resolver(…, "suyo")') : mal('no se pudo descartar');
+
 // ── 5. La pantalla de Ajustes ────────────────────────────────────────────────
 console.log('\nLA PANTALLA DE AJUSTES');
 await p.evaluate(() => { location.hash = '#/ajustes'; });
@@ -454,6 +513,10 @@ else {
   await btnEsq.click();
   await p.waitForTimeout(1500);
   RECIBIDO.esquema > 0 ? bien('y de verdad lee el esquema de la hoja') : mal('no llamó a /esquema');
+  const txtEsq = await p.evaluate(() => document.querySelector('.pf-mod:not([hidden])').innerText);
+  /Accesos/.test(txtEsq) && !/ya tiene las ocho/.test(txtEsq)
+    ? bien('y dice que falta la pestaña «Accesos», en vez de «ya tiene todo»')
+    : mal('una hoja sin «Accesos» pasó por completa');
 }
 
 if (errs.length) mal('errores de página: ' + [...new Set(errs)].slice(0, 3).join(' | '));

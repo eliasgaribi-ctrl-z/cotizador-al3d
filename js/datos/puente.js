@@ -179,6 +179,10 @@ export function motivoSinDestino(almacen) {
 const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
 const esISO = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
 const texto = v => String(v == null ? '' : v);
+/* Una celda de la fila que VINO vacía: la llave está y su valor es null o ''. No es lo mismo
+   que una llave que no vino —la hoja le quita a fabricación las de dinero—: la vaciada es
+   alguien que borró el dato en la hoja, y eso también tiene que llegar. */
+const vaciada = (fila, k) => Object.prototype.hasOwnProperty.call(fila, k) && (fila[k] === null || fila[k] === '');
 
 /**
  * Un proyecto de la plataforma, en propiedades de Notion.
@@ -222,8 +226,14 @@ export function aNotion(p, inst, opts) {
 
   /* El folio ata la fila al cotizador, y va con el dispositivo pegado: `al3d_folio` es un
      contador local, dos teléfonos emiten COT-0042 el mismo día y no son el mismo trabajo.
-     Es también la llave con la que el espejo encuentra la fila al bajar. */
-  out[P.folio] = texto(p.folio_global || p.folio_local);
+     Es también la llave con la que el espejo encuentra la fila al bajar.
+
+     Solo viaja el `folio_global`, y solo si lo hay. Hasta septiembre de 2026 caía a
+     `folio_local`, y un proyecto IMPORTADO de la hoja (`folio_global` vacío, `folio_local`
+     = V-100) escribía «V-100» encima del COT-0042@AAAA de la fila: el teléfono que había
+     vendido esa cotización dejaba de reconocer su venta, la importaba otra vez y Control la
+     sumaba dos veces. La hoja ya tampoco deja pisar esa columna en un cambio. */
+  if (texto(p.folio_global).trim()) out[P.folio] = texto(p.folio_global);
 
   const etapa = ETAPA_A_NOTION[p.etapa];
   if (etapa) out[P.etapa] = etapa;
@@ -301,15 +311,24 @@ export function deNotion(fila) {
   if (CUENTAS.includes(fila[P.cuenta]))  parche.cuenta = fila[P.cuenta];
   /* El anticipo y el % de comisión también bajan: son celdas que PAGOS corrige a mano en la
      hoja, y hasta septiembre de 2026 esa corrección no llegaba nunca al teléfono, que seguía
-     estimando el saldo con el anticipo viejo. La hoja es la dueña del dinero (§4.0). */
+     estimando el saldo con el anticipo viejo. La hoja es la dueña del dinero (§4.0).
+     Y BORRAR también es corregir: una celda vaciada en la hoja llega como null, y se
+     tomaba por «no vino» —el teléfono se quedaba con el % viejo—. Vacía no es ausente: la
+     de fabricación sí llega sin la llave (ver `vaciada`). En el proyecto, sin anticipo es 0
+     y el % vacío es 0, que es como el proyecto dice «el de siempre, 10 %». */
   if (hay(fila[P.anticipo])) parche.anti_pactado = num(fila[P.anticipo]);
+  else if (vaciada(fila, P.anticipo)) parche.anti_pactado = 0;
   if (hay(fila[P.pctCom]))   parche.pct_comision = num(fila[P.pctCom]);
+  else if (vaciada(fila, P.pctCom)) parche.pct_comision = 0;
   /* Las dos fórmulas. Bajan y jamás se calculan de este lado: dos implementaciones de la
      misma fórmula divergen en semanas y el sistema empieza a dar dos respuestas. El saldo
      llega con el signo de la hoja —positivo es lo que te deben—, que es el que `saldoDe`,
-     el aviso «instalado con saldo» y el filtro de cobro esperan. */
+     el aviso «instalado con saldo» y el filtro de cobro esperan. Una fórmula vacía es null
+     —«la hoja no lo sabe»—, nunca un cero, que diría «ya no deben nada». */
   if (hay(fila[P.pendiente]))   parche.pago_pendiente = num(fila[P.pendiente]);
+  else if (vaciada(fila, P.pendiente)) parche.pago_pendiente = null;
   if (hay(fila[P.comRestante])) parche.comision_restante = num(fila[P.comRestante]);
+  else if (vaciada(fila, P.comRestante)) parche.comision_restante = null;
 
   return parche;
 }
@@ -360,31 +379,57 @@ export function ventaDeHoja(fila) {
   };
   /* El dinero, SOLO si vino. A fabricación la hoja le manda la fila sin estas columnas, y
      un ausente no es un cero: `sync.fusionar` conserva lo que ya estaba cuando el campo no
-     viene. Las fórmulas —neto, pendiente, comisiones— bajan y nunca se calculan aquí. */
+     viene. Las fórmulas —neto, pendiente, comisiones— bajan y nunca se calculan aquí.
+     Pero una celda que vino VACÍA sí se escribe, como null: es una liquidación capturada
+     por error que alguien borró, o un % que volvió a «el de siempre». Con undefined,
+     `fusionar` conservaba el número viejo y el récord seguía enseñando el borrado. */
   const D = { sub: P.subtotal, neto: P.neto, anticipo: P.anticipo, liquidacion: P.liquidacion,
               pago_pendiente: P.pendiente, comisiones: P.comisiones, abono_comision: P.abonoCom,
               comision_restante: P.comRestante, pct_comision: P.pctCom };
-  for (const [k, col] of Object.entries(D)) if (hay(fila[col])) v[k] = num(fila[col]);
+  for (const [k, col] of Object.entries(D)) {
+    if (hay(fila[col])) v[k] = num(fila[col]);
+    else if (vaciada(fila, col)) v[k] = null;
+  }
   return v;
 }
 
 /* ----- La versión de la hoja que esta plataforma espera -----
    `salud` devuelve la versión del Apps Script publicado. Si la hoja se quedó con una
-   implementación anterior, el contrato que este archivo asume no es el que corre allá:
-   puente-sheets-4 no sabía de la identidad de Google: con una hoja en esa versión, entrar con Google no da rol y solo sirve el token de dispositivo. Ajustes lo
-   enseña con estas palabras; la prueba de node comprueba que el .gs del repo diga esta. */
-export const VERSION_ESPERADA = 'puente-sheets-5';
+   implementación anterior, el contrato que este archivo asume no es el que corre allá, y
+   Ajustes lo enseña con el aviso de abajo; la prueba de node comprueba que el .gs del repo
+   diga esta versión.
+
+   El aviso dice lo que falla CON ESA versión, no una lista fija. La de antes advertía del
+   saldo al revés y del % de comisión a una hoja en puente-sheets-4, que ya los tenía
+   arreglados, y callaba lo único que de verdad le faltaba: que ahí entrar con Google no da
+   rol. Un aviso que dice cosas que no pasan se aprende a ignorar el día que sí importa. */
+export const VERSION_ESPERADA = 'puente-sheets-6';
 export function versionVieja(version) {
   const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
   const n = m ? Number(m[1]) : 0;
   const e = Number(/(\d+)$/.exec(VERSION_ESPERADA)[1]);
   return n < e;
 }
+/* Lo que falla con cada versión, de la más nueva a la más vieja. Una hoja vieja debe todo
+   lo que se arregló después de ella: la 4 debe lo de la 4 y lo de la 5. Al subir
+   VERSION_ESPERADA se agrega ADELANTE lo que todavía le falta a la que queda atrás. */
+const FALLA_CON = [
+  /* 5 */ 'al reacomodarse la hoja, las columnas Y a AD (folio de cotización, etapa, dirección) se quedaban en su renglón y la siguiente subida podía escribir una venta encima de otra; «Registrar un cobro» escribía LIQUIDADO en la cuenta; y un cambio contra una venta borrada creaba una fila sin nombre',
+  /* 4 */ 'entrar con Google no da rol: esa versión no sabe de identidades, y un teléfono sin token de dispositivo se queda fuera',
+  /* 3 */ 'el saldo por cobrar baja al revés y el % de comisión no llega a la hoja',
+];
 export function avisoVersion(version) {
   if (!versionVieja(version)) return '';
+  const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
+  const n = m ? Number(m[1]) : 0;
+  const e = Number(/(\d+)$/.exec(VERSION_ESPERADA)[1]);
+  /* De la versión de la hoja hacia atrás: la 5 debe lo de la 5; la 4, lo de la 4 y lo de la 5. */
+  const faltan = FALLA_CON.slice(0, Math.max(1, Math.min(FALLA_CON.length, e - Math.max(n, 3))));
   return 'La hoja corre ' + (version ? '«' + version + '»' : 'una versión sin nombre') + ' y la plataforma espera «' +
-    VERSION_ESPERADA + '». Pega el puente/hoja-apps-script.gs de hoy en Apps Script, implementa una versión nueva ' +
-    'y corre mejorarTodo: hasta entonces el saldo por cobrar puede bajar al revés y el % de comisión no llega a la hoja.';
+    VERSION_ESPERADA + '». Con esa versión ' + faltan.slice().reverse().join('; además, ') + '. ' +
+    'Para ponerla al día: en Apps Script baja primero el Código.gs de la hoja y compáralo con puente/hoja-apps-script.gs ' +
+    '(puente/README.md, «Antes de pegar nada»), fusiona lo que tenga de más, pégalo e implementa una versión nueva; ' +
+    'los pasos están en puente/DESPLIEGUE.md.';
 }
 
 /* ============================================================================
@@ -396,11 +441,45 @@ const MS_ESPERA = 15000;
 /** Un error del relevo, con el código que `sync.js` entiende. */
 function falla(codigo, mensaje) { const e = new Error(mensaje); e.codigo = codigo; return e; }
 
+/* ── El token de Google, renovado cuando caducó ──────────────────────────────────────
+   Dura una hora y vive solo en memoria (js/nucleo/ingreso.js). Hasta septiembre de 2026
+   solo se renovaba al arrancar y al reconectar: una hora después, en un teléfono que entró
+   solo con Google, «Traer» de Control y los botones de Ajustes salían sin identidad y la
+   hoja contestaba «Pégalo otra vez en Ajustes» —un token que ese teléfono nunca tuvo—.
+   Ahora cada petición lo renueva si hace falta, con la misma regla que el arranque
+   (js/app.js): hubo un ingreso en este aparato y el token ya no está vivo.
+
+   Con dos topes. Cinco segundos: la renovación callada de Google abre y cierra una ventana,
+   y si se queda esperando a la persona, la petición sale igual —con el token de dispositivo
+   si lo hay—, en vez de colgar el bombeo. Y un intento por minuto: sin eso, un bombeo de
+   cuarenta operaciones con Google caído serían cuarenta ventanas. */
+const MS_RENOVAR = 5000;
+const MS_ENTRE_RENOVACIONES = 60000;
+let _renovadoEn = 0;
+
+async function tokenDeGoogle() {
+  if (Ingreso.dentro()) return Ingreso.token();
+  if (!Ingreso.configurado() || !Ingreso.correo()) return '';
+  if (Date.now() - _renovadoEn < MS_ENTRE_RENOVACIONES) return '';
+  _renovadoEn = Date.now();
+  let t = 0;
+  try {
+    await Promise.race([
+      Ingreso.renovar(),
+      new Promise(r => { t = setTimeout(r, MS_RENOVAR); }),
+    ]);
+  } catch (_) { /* renovar no lanza; y si lanzara, la petición sale con lo que haya */ }
+  finally { if (t) clearTimeout(t); }
+  return Ingreso.token();
+}
+
 /**
  * Una petición al Worker. Devuelve `{estado, cuerpo}` y NUNCA lanza por un cuerpo raro:
  * lo que lanza es la red, y con el código que la bandeja sabe interpretar.
  */
 async function pedir(cfg, ruta, opciones = {}) {
+  /* Antes del reloj de abajo: la renovación no le come los quince segundos a la petición. */
+  const g = await tokenDeGoogle();
   const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
   /* Sin tope, un puente que no contesta deja el bombeo colgado para siempre y la pantalla
      de Ajustes con el botón apretado. Quince segundos: Apps Script con la red de un
@@ -432,7 +511,6 @@ async function pedir(cfg, ruta, opciones = {}) {
      propósito —no se pregunta antes cuál usar— porque preguntar costaría una vuelta de red
      por operación y porque el token de Google puede haber caducado justo en el vuelo: que la
      hoja tenga el de reserva en la mano evita un rechazo que no le importa a nadie. */
-  const g = Ingreso.token();
   if (g) cuerpo.google_token = g;
   if (cfg.token) cuerpo.token = cfg.token;
   cuerpo.ruta = camino.replace(/^\/+/, '');
@@ -617,7 +695,20 @@ export function crear(cfg0) {
     async esquema() {
       try {
         const r = await pedir(cfg, '/esquema');
-        return { ok: r.cuerpo.ok !== false, faltan: Array.isArray(r.cuerpo.faltan) ? r.cuerpo.faltan : [],
+        const faltan = Array.isArray(r.cuerpo.faltan) ? r.cuerpo.faltan.slice() : [];
+        /* La hoja dice si tiene la pestaña «Accesos» desde puente-sheets-5, y aquí se tiraba:
+           «Revisar el esquema» decía que todo estaba bien en una hoja sin ella, y después
+           ningún ingreso con Google daba rol. Viaja tal cual (`accesos`) y, para que la
+           pantalla de hoy lo enseñe sin cambiar, entra también a la lista de lo que falta,
+           con su nombre y lo que hay que correr. Solo con un `false` explícito: una hoja
+           anterior no lo manda, y eso no es decir que falte. */
+        const accesos = r.cuerpo.accesos !== false;
+        if (!accesos) {
+          faltan.push({ nombre: 'Accesos', tipo: 'pestaña', pestana: true,
+            para: 'no es una columna: es la pestaña con el correo y el rol de cada persona. ' +
+                  'Sin ella nadie entra con Google. La crea prepararHojaParaElPuente(), con el dueño de la hoja ya dentro' });
+        }
+        return { ok: r.cuerpo.ok !== false, faltan, accesos,
                  nota: r.cuerpo.nota || '', mensaje: r.cuerpo.mensaje || '' };
       } catch (e) {
         return { ok: false, faltan: [], codigo: e.codigo || 'SIN_RED', mensaje: e.message };
@@ -650,6 +741,16 @@ export function crear(cfg0) {
         return lista.map(op => ({ id: op.id, ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message }));
       }
 
+      /* ── `definitivo`: lo que reintentar no arregla ────────────────────────────────
+         Un rechazo de ESTA operación —el rol no escribe nada de lo que trae, el alta no
+         trae nombre, la venta ya no está en la hoja— se marca `definitivo`, y `sync.bombear`
+         la aparta con su razón y sigue con la siguiente. Hasta septiembre de 2026 salía como
+         un ROL_SIN_PERMISO pelón, igual al de un token que la hoja no reconoce, y el bombeo
+         se paraba entero en ella: detrás se quedaban para siempre los cambios que sí se
+         podían mandar. El ROL_SIN_PERMISO de la puerta (`pedir` lanza) no lleva la marca, y
+         ése sí para el bombeo: con esa llave, las cuarenta darían lo mismo. */
+      const DEFINITIVOS = ['ROL_SIN_PERMISO', 'NO_ENCONTRADO', 'DATO_INVALIDO'];
+
       for (const op of lista) {
         if (!this.lleva(op.almacen)) {
           salida.push({ id: op.id, ok: false, codigo: 'SIN_DESTINO', mensaje: motivoSinDestino(op.almacen) });
@@ -658,7 +759,7 @@ export function crear(cfg0) {
 
         const proy = await proyectoVivo(op);
         if (!proy) {
-          salida.push({ id: op.id, ok: false, codigo: 'NO_ENCONTRADO',
+          salida.push({ id: op.id, ok: false, codigo: 'NO_ENCONTRADO', definitivo: true,
             mensaje: 'Esa operación apunta a un proyecto que ya no está en este dispositivo.' });
           continue;
         }
@@ -680,23 +781,30 @@ export function crear(cfg0) {
            puede identificar después. Si este token no puede escribir `Proyecto`, el alta
            no se intenta: se dice de qué teléfono tiene que salir. */
         if (!idNotion && !enviables[P.proyecto]) {
-          salida.push({ id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO',
-            mensaje: 'Este teléfono no puede dar de alta la venta en la hoja: su token no escribe el nombre del proyecto. ' +
+          salida.push({ id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO', definitivo: true,
+            mensaje: 'Este teléfono no puede dar de alta la venta en la hoja: su rol no escribe el nombre del proyecto. ' +
                      'Dala de alta desde el de Dirección y desde aquí ya podrás mover la obra.' });
           continue;
         }
         if (!Object.keys(enviables).length) {
-          salida.push({ id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO',
+          salida.push({ id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO', definitivo: true,
             mensaje: 'De ese cambio, este teléfono no puede escribir nada en la hoja: ' + fuera.join(', ') + '.' });
           continue;
         }
+
+        /* El folio de cotización viaja también APARTE de los datos, como identidad y no como
+           escritura: la hoja lo compara con el de la fila antes de escribir, para no escribir
+           en otra venta que heredó ese folio de hoja. Aparte, porque fabricación no puede
+           escribir esa columna y `filtrar` se la quita a los datos. */
+        const fc = texto(proy.folio_global).trim();
 
         let r;
         try {
           r = await pedir(cfg, '/empujar', {
             method: 'POST',
             body: JSON.stringify({ ops: [{ id: op.id, tipo: idNotion ? 'actualizar' : 'crear',
-                                           id_notion: idNotion, datos: enviables }] }),
+                                           id_notion: idNotion, datos: enviables,
+                                           ...(fc ? { folio_cotizacion: fc } : {}) }] }),
           });
         } catch (e) {
           salida.push({ id: op.id, ok: false, codigo: e.codigo || 'SIN_RED', mensaje: e.message });
@@ -736,7 +844,11 @@ export function crear(cfg0) {
         if (res.codigo !== 'CONFLICTO' && res.codigo !== 'SIN_RED') {
           await espejarLocal(proy.id, { notion_estado: 'fallido' });
         }
+        /* NO_ENCONTRADO de la hoja es «esa venta ya no está» (o su fila ya es de otra): el id
+           de la fila se QUEDA como está. Borrarlo haría que el siguiente cambio pidiera un
+           alta y resucitara una venta que alguien borró a propósito. */
         salida.push({ id: op.id, ok: false, codigo: res.codigo || 'DESCONOCIDO',
+                      definitivo: DEFINITIVOS.includes(res.codigo),
                       mensaje: res.mensaje || 'La hoja rechazó el cambio.', conflicto: res.conflicto || null });
       }
 
@@ -805,14 +917,17 @@ export function crear(cfg0) {
            PAGOS corrige el anticipo en la hoja, el tablero seguiría con el viejo. Se arma con
            lo que la hoja es dueña, y nada más: ni el nombre ni la etapa, que es lo único que
            el taller mueve de este lado y que no se puede pisar en cada bajada. */
+        /* Una celda vaciada en la hoja baja como null (ver `ventaDeHoja`); en el proyecto el
+           anticipo que no hay es 0 y el % vacío también, como en `deNotion`. */
+        const aCero = x => (x === null ? 0 : x);
         const aplicar = parche || (venta ? sinIndefinidos({
           estatus_notion: venta.estatus || null,
           cuenta: venta.cuenta || null,
-          sub: venta.sub, neto: venta.neto, precio_auth: venta.neto,
-          anti_pactado: venta.anticipo,
+          sub: aCero(venta.sub), neto: aCero(venta.neto), precio_auth: aCero(venta.neto),
+          anti_pactado: aCero(venta.anticipo),
           pago_pendiente: venta.pago_pendiente === undefined ? null : venta.pago_pendiente,
           comision_restante: venta.comision_restante === undefined ? null : venta.comision_restante,
-          pct_comision: venta.pct_comision,
+          pct_comision: aCero(venta.pct_comision),
         }) : null);
         if (!aplicar) continue;
 
@@ -878,22 +993,26 @@ export function instrucciones() {
   return {
     titulo: 'Conectar la hoja',
     minutos: 10,
+    /* Desde puente-sheets-5 la puerta normal es la cuenta de Google y el rol sale de la
+       pestaña «Accesos»; estos pasos decían todavía que la única entrada era pegar un token
+       de dispositivo. El token se queda, y se dice qué es: la salida de emergencia. */
     pasos: [
       'Abre la hoja «Finanzas AL3D — Ventas y Comisiones» en Google Sheets.',
-      'Menú Extensiones → Apps Script. Ahí vive el puente: es código que corre DENTRO de la hoja, con los permisos de su dueño.',
+      'Menú Extensiones → Apps Script. Ahí vive el puente: es código que corre DENTRO de la hoja, con los permisos de su dueño. Antes de pegar código nuevo, baja el que tiene la hoja y compáralo (puente/README.md, «Antes de pegar nada»).',
       'Botón Implementar → Nueva implementación → Aplicación web.',
       'Ejecutar como: Yo. Es lo que le da acceso a la hoja sin pedirle nada a los teléfonos.',
       'Quién tiene acceso: Cualquier usuario. Si queda en «Solo yo», el teléfono recibe la pantalla de Google en vez de datos, y «Probar» te lo dice con esas palabras.',
-      'Copia la URL que termina en /exec y pégala aquí abajo.',
-      'De vuelta en la hoja: menú ⚡ AL3D → Tokens del puente. Ahí están los tres, uno por teléfono.',
-      'Pega aquí abajo el que le toca a ESTE teléfono, y manda los otros dos a sus dueños por donde se mandan las llaves, no por el chat del grupo.',
-      'Dale a «Probar». Tiene que contestar en verde y decirte qué rol reconoció para este teléfono.',
-      'Dale a «Revisar el esquema». Si le falta alguna columna a la hoja, te la lista con su nombre y su tipo.',
+      'Si la URL que termina en /exec no es la que la plataforma ya trae de fábrica, pégala aquí abajo. Si es la misma, deja el campo vacío.',
+      'En la hoja, pestaña «Accesos»: un renglón por persona, con su correo de Google y su rol (direccion, fabricacion o pagos). La crea prepararHojaParaElPuente(), con el dueño de la hoja ya dentro.',
+      'En cada teléfono: «Entrar con Google» con ese correo. No hay que pegar nada: el rol lo pone la hoja.',
+      'Dale a «Probar». Tiene que contestar en verde y decirte qué rol reconoció y con qué correo.',
+      'Dale a «Revisar el esquema». Si le falta alguna columna a la hoja, o la pestaña «Accesos», te lo lista con su nombre y su tipo.',
+      'Solo para emergencias: menú ⚡ AL3D → Tokens del puente. Un token de dispositivo pegado aquí abajo sirve el día que Google no conteste; se manda por donde se mandan las llaves, no por el chat del grupo.',
     ],
     notas: [
       'Ya no hay token de Notion ni Worker de Cloudflare. El Worker existía solo para esconder un token que daba escritura total sobre todo Notion; con el dinero en la hoja no hay secreto que esconder, y el puente corre dentro de la propia hoja.',
-      'La dirección del puente es pública —cualquiera puede tocar la puerta— y la puerta es el token. Sin uno válido, el puente contesta que no y nada más. Alrededor hay tres candados más: todo entra por POST con el token en el cuerpo (nunca en una URL), hay tope de 60 peticiones por minuto por token, y toda escritura queda anotada en una bitácora dentro de la hoja.',
-      'El rol es del token, no de la pantalla. Cambiar el segmento de rol en Ajustes te da otro tablero, no te da permisos: el token de fabricación sigue sin poder tocar el dinero.',
+      'La dirección del puente es pública —cualquiera puede tocar la puerta— y la puerta es quién eres: el puente le pregunta a Google de quién es tu token y busca tu correo en «Accesos». El token de dispositivo es la otra llave, la de emergencia. Sin ninguna de las dos, el puente contesta que no y nada más. Alrededor hay tres candados más: todo entra por POST con la llave en el cuerpo (nunca en una URL), hay tope de 60 peticiones por minuto por persona, y toda escritura queda anotada en una bitácora dentro de la hoja.',
+      'El rol sale de la hoja, no de la pantalla. Cambiar el segmento de rol en Ajustes te da otro tablero, no te da permisos: quien está en «Accesos» como fabricación sigue sin poder tocar el dinero.',
       'Si el puente se cae, no pasa nada: la plataforma sigue funcionando con lo que tiene en el teléfono, y el botón «Copiar datos para la hoja» del cotizador sigue siendo el camino manual. Ese botón no se retira nunca.',
     ],
   };
