@@ -208,16 +208,25 @@ for (const tab of ['ventas', 'cobrar']) {
   }
 }
 
-/* Y lo que NO tenía que cambiar: en la fila del Tablero el importe va entre conteos que no se
-   achican, y ahí el renglón entero es justo lo que lo deja a su altura. Quitar el estirón para
-   todos habría arreglado Control rompiendo esta. */
-await pc.setViewportSize({ width: 320, height: 900 });
+/* Y la otra cara: en la fila del Tablero el importe va entre conteos que no se achican, y ahí
+   el renglón entero es justo lo que lo deja a su altura. Quitar el estirón para todos habría
+   arreglado Control rompiendo esta. Se mide hasta 400 px, donde los conteos bajan a 24: con el
+   estirón solo hasta 360, a 361, 375, 390 y 400 el importe quedaba en media fila a 18,5-20,5 px
+   junto a conteos de 24 —los iPhone más comunes—. Más ancho los conteos suben a 28 y el importe
+   no los alcanza; igualar eso ya es otra decisión (ver `.pf-cuenta.dinero` en plataforma.css). */
 await pc.goto(B + '/index.html#/hoy', { waitUntil: 'load' });
 await pc.waitForTimeout(1300);
-const tb = await cifras('#mod-tablero .pf-cuentas:not(.tb-linea)');
-const tbPx = tb.map(x => x.px);
-cierto(tb.some(x => x.dinero) && Math.max(...tbPx) - Math.min(...tbPx) < 0.05,
-  'en el Tablero a 320 px el importe sigue a la altura de los conteos (' + lista(tb) + ')');
+for (const ancho of [320, 360, 361, 375, 390, 400]) {
+  await pc.setViewportSize({ width: ancho, height: 900 });
+  await pc.waitForTimeout(200);
+  const tb = await cifras('#mod-tablero .pf-cuentas:not(.tb-linea)');
+  const tbPx = tb.map(x => x.px);
+  cierto(tb.some(x => x.dinero && x.t.length >= 11) && Math.max(...tbPx) - Math.min(...tbPx) < 0.05,
+    'en el Tablero a ' + ancho + ' px el importe va a la altura de los conteos (' + lista(tb) + ')');
+  const salen = tb.filter(x => x.ancho > x.caja + 0.5);
+  cierto(!salen.length, 'en el Tablero a ' + ancho + ' px ninguna cifra se sale de su tarjeta' +
+    (salen.length ? ' (' + salen.map(x => x.t + ' pide ' + x.ancho.toFixed(0) + ' en ' + x.caja.toFixed(0)).join(', ') + ')' : ''));
+}
 await cc.close();
 
 console.log(fallos ? '\n' + fallos + ' fallo(s) en la capa de vidrio.'

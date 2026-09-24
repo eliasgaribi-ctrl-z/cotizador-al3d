@@ -2165,35 +2165,41 @@ function desdeTexto(x) {
    (LMT; −6:36:36 en la de México, de ahí el «GMT-0636»). Utilities.formatDate en esa MISMA
    zona le quita exactamente el desfase que le puso y da la hora que se ve en la celda.
    getHours() no sirve —usa la zona del proyecto de Apps Script, que puede ser otra—, y
-   toISOString tampoco: dice 16:36. Se redondea al minuto por si los dos lados no coinciden
-   en los segundos del LMT: una hora de instalación nunca lleva segundos, y 09:59:59 sería
-   otra hora en la orden del instalador. */
+   toISOString tampoco: dice 16:36.
+
+   Los segundos llevan UNA regla, la de horaEscrita, venga la hora como Date, como fracción
+   del día o como texto: se cortan, salvo a dos segundos o menos del minuto siguiente. Eso no
+   es redondear, es tolerar el error de ida y vuelta —el pelo que pierde la fracción del día en
+   coma flotante, un segundo del LMT—, que volvería 09:59 el 10:00 de la orden del instalador.
+   Con el redondeo al minuto más cercano, el mismo «10:00:45» salía «10:01» si Sheets lo había
+   vuelto hora y «10:00» si se quedó en texto, y el reacomodo dejaba escrito el «10:01». */
 
 /** «HH:MM» de lo que mandó el teléfono o se tecleó: '' si viene vacío (todavía no se sabe),
- *  null si no es una hora. Acepta «9:30» y «10:00:00», como las teclea la gente. */
+ *  null si no es una hora. Acepta «9:30» y «10:00:00», como las teclea la gente; los segundos,
+ *  con la regla de arriba. */
 function horaEscrita(v) {
   if (v === null || v === undefined || String(v).trim() === '') return '';
-  var m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(String(v).trim());
-  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return null;
-  return ('0' + Number(m[1])).slice(-2) + ':' + m[2];
+  var m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(String(v).trim());
+  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59 || Number(m[3] || 0) > 59) return null;
+  var min = (Number(m[1]) * 60 + Number(m[2]) + (Number(m[3] || 0) >= 58 ? 1 : 0)) % 1440;
+  return ('0' + Math.floor(min / 60)).slice(-2) + ':' + ('0' + (min % 60)).slice(-2);
 }
 
-/** La hora de una celda de AA como «HH:MM», sea lo que sea lo que guarde Sheets. Un texto
- *  que no es hora se devuelve tal cual: es lo que alguien escribió y no se adivina. */
+/** La hora de una celda de AA como «HH:MM», sea lo que sea lo que guarde Sheets. El Date y la
+ *  fracción se vuelven «H:MM:SS» y pasan por horaEscrita, para que los segundos lleven la misma
+ *  regla que el texto. Un texto que no es hora se devuelve tal cual: es lo que alguien
+ *  escribió y no se adivina. */
 function horaDeCelda(x, tz) {
   if (x === '' || x === null || x === undefined) return '';
-  var min;
-  if (esFecha(x)) {
-    var p = Utilities.formatDate(x, tz, 'HH:mm:ss').split(':');
-    min = Number(p[0]) * 60 + Number(p[1]) + (Number(p[2]) >= 30 ? 1 : 0);
-  } else if (typeof x === 'number' && x >= 0 && x < 1) {
-    min = Math.round(x * 1440);
-  } else {
-    var s = String(x).trim(), escrita = horaEscrita(s);
-    return escrita === null ? s : escrita;
+  if (esFecha(x)) return horaEscrita(Utilities.formatDate(x, tz, 'HH:mm:ss'));
+  if (typeof x === 'number' && x >= 0 && x < 1) {
+    /* Al segundo más cercano primero: 10/24 en coma flotante puede dar 35 999,9999 segundos. */
+    var seg = Math.round(x * 86400) % 86400;
+    return horaEscrita(Math.floor(seg / 3600) + ':' + ('0' + Math.floor(seg / 60) % 60).slice(-2) +
+                       ':' + ('0' + seg % 60).slice(-2));
   }
-  min = min % 1440;
-  return ('0' + Math.floor(min / 60)).slice(-2) + ':' + ('0' + (min % 60)).slice(-2);
+  var s = String(x).trim(), escrita = horaEscrita(s);
+  return escrita === null ? s : escrita;
 }
 
 /** Antes de reescribir AA con setValues: la columna en texto sin formato y, en `filas` —las
@@ -2953,19 +2959,31 @@ function prepararHojaParaElPuente() {
       .setAllowInvalid(true).build());
   alinearTiposDeTrabajo(h);
 
-  /* AA en texto sin formato, para que la hora se quede como la mandó el teléfono (ver
-     horaDeCelda). Lo que ya era hora se reescribe «HH:MM» en el mismo paso: el formato de
-     texto encima de una hora no la convierte, la enseña como 0.4166…. Con el candado porque
-     reescribe la columna entera, y una subida que cayera en medio perdería su hora. */
   var colHora = COL['Hora instalacion'];
-  conCandado(function () {
-    var aa = h.getRange(2, colHora, FIN - 1, 1);
-    var horas = aa.getValues();
-    if (horasATexto(h, horas, colHora)) aa.setValues(filasProtegidas(horas));
-  });
   h.getRange(2, colHora, FIN - 1, 1).setHorizontalAlignment('center');
   crearHojaAccesos(ss);
   protegerColumnasCalculadas(h);
+
+  /* AA en texto sin formato, para que la hora se quede como la mandó el teléfono (ver
+     horaDeCelda). Lo que ya era hora se reescribe «HH:MM» en el mismo paso: el formato de
+     texto encima de una hora no la convierte, la enseña como 0.4166…. Con el candado porque
+     reescribe la columna entera, y una subida que cayera en medio perdería su hora.
+     Va al final y sin el error de conCandado: con el candado ocupado, esto se deja para la
+     siguiente corrida con un aviso, en vez de tumbar «Accesos» y las protecciones —que no
+     tienen que ver con la hora— ni el final de mejorarTodo. Esperar no rompe nada: la lectura
+     ya aguanta el Date, cada hora que escribe el puente pone su '@' y el reacomodo pasa a
+     texto la columna cada vez que mueve filas. */
+  var candado = LockService.getScriptLock();
+  if (!candado.tryLock(30000)) {
+    avisar('La columna AA (hora de instalación) no se pasó a texto: la hoja estaba ocupada con ' +
+      'otra escritura. Lo demás quedó listo; vuelve a correr prepararHojaParaElPuente en un momento.');
+  } else {
+    try {
+      var aa = h.getRange(2, colHora, FIN - 1, 1);
+      var horas = aa.getValues();
+      if (horasATexto(h, horas, colHora)) aa.setValues(filasProtegidas(horas));
+    } finally { candado.releaseLock(); }
+  }
   SpreadsheetApp.flush();
 }
 

@@ -895,6 +895,43 @@ console.log('\nLA HORA DE INSTALACIÓN — Sheets la vuelve hora, y al teléfono
   const mt = P.run('mejorarTodo.toString()');
   cierto('y mejorarTodo la corre DESPUÉS del diseño: el último formato que recibe AA es el de texto',
          mt.indexOf('prepararHojaParaElPuente()') > mt.indexOf('disenoVentas('));
+
+  /* Con el candado ocupado (una subida o un formulario), la hora se deja para la siguiente
+     corrida y lo demás se hace. Antes el error del candado tumbaba la corrida a medias, sin
+     «Accesos» —sin ella nadie entra con Google— ni las protecciones, que no tienen que ver con
+     la hora; y a mejorarTodo, que la llama al final, con el tablero ya rehecho. */
+  const O = hojaDeMentiras({ candadoLibre: false });
+  O.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'COBRANDO', 'Hora instalacion': O.hora('10:00') });
+  let cayo = null;
+  try { O.run('prepararHojaParaElPuente()'); } catch (e) { cayo = e.message; }
+  eq('con el candado ocupado, prepararHojaParaElPuente no se cae', cayo, null);
+  cierto('y crea «Accesos» de todos modos', !!O.ss.getSheetByName('Accesos'));
+  cierto('la hora se queda como estaba, sin el «@» encima (enseñaría 0.4166…): la pasa la siguiente corrida',
+         esDate(O.v._g[2][aa]) && O.v._f[2][aa] !== '@');
+  eq('y mientras, baja bien igual', O.run('rutaJalar({}, "direccion")').registros[0].datos['Hora instalacion'], '10:00');
+
+  /* Los segundos, con UNA regla guarde lo que guarde Sheets: se cortan, como al teclear, salvo
+     a dos segundos del minuto siguiente. Redondeando al más cercano, «10:00:45» salía «10:01»
+     si Sheets lo había vuelto hora y «10:00» si se quedó en texto, y el reacomodo dejaba escrito
+     el «10:01». */
+  const S = hojaDeMentiras({ props: { PUENTE_Y_AD_ALINEADAS: '2026-09-24' } });
+  S.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'COBRANDO', 'Hora instalacion': S.hora('10:00:45') });
+  S.pon(3, 'V-002', { 'Proyecto': 'Beto', 'Estatus': 'COBRANDO', 'Hora instalacion': '10:00:45' });
+  S.pon(4, 'V-003', { 'Proyecto': 'Caro', 'Estatus': 'COBRANDO', 'Hora instalacion': (10 * 3600 + 45) / 86400 });
+  S.pon(5, 'V-004', { 'Proyecto': 'Dani', 'Estatus': 'COBRANDO', 'Hora instalacion': '09:59:59' });
+  S.pon(6, 'V-005', { 'Proyecto': 'Eli', 'Estatus': 'COBRANDO', 'Hora instalacion': 10 / 24 - 1e-9 });
+  const s = Object.fromEntries(S.run('rutaJalar({}, "direccion")').registros
+    .map(x => [x.datos.id_notion, x.datos['Hora instalacion']]));
+  eq('«10:00:45» baja «10:00» como Date, como texto y como fracción del día', [s['V-001'], s['V-002'], s['V-003']],
+     ['10:00', '10:00', '10:00']);
+  eq('a un segundo del minuto siguiente es el siguiente, también en texto y en la fracción que perdió un pelo',
+     [s['V-004'], s['V-005']], ['10:00', '10:00']);
+  eq('lo que manda el teléfono, con la misma regla', [
+    S.run('armarCeldas({ "Hora instalacion": "10:00:45" }, "fabricacion")').celdas[0].valor,
+    S.run('armarCeldas({ "Hora instalacion": "10:00:75" }, "fabricacion")').rechazadas.length], ['10:00', 1]);
+  S.run('prepararHojaParaElPuente()');
+  eq('y al pasarla a texto se escribe «10:00», no «10:01»', [S.celda('V-001', 'Hora instalacion'), S.celda('V-003', 'Hora instalacion')],
+     ['10:00', '10:00']);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

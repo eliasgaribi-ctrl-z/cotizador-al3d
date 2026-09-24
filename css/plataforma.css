@@ -751,18 +751,21 @@ body.pf::before{display:none}
   .pf-cuenta{padding:10px var(--e3)}
   .pf-cuenta b{font-size:var(--t6)}
 }
-/* Y la del dinero se lleva el renglón entero en los teléfonos más angostos. En 320 px a cada
-   columna le tocan unos 128 y una cifra de seis dígitos con su letra grande pide 115 más el
-   relleno: «$90,000.00» se salía de su tarjeta. El importe es el dato de esa tarjeta, así que
-   lo que cede es el reparto, no el número.
+/* Y la del dinero se lleva el renglón entero en los teléfonos. En 320 px a cada columna le
+   tocan unos 128 y una cifra de seis dígitos con su letra grande pide 115 más el relleno:
+   «$90,000.00» se salía de su tarjeta. El importe es el dato de esa tarjeta, así que lo que
+   cede es el reparto, no el número.
    Pero SOLO en la fila donde alguna cifra no se achica: la del Tablero, la de Inicio o la de
    Material, un importe entre conteos de 24 px. Ahí el renglón entero es lo que deja al importe
    a la altura de los conteos. En la de Control todas las cifras se achican con el MISMO `--c`
    —lo pone filaCuentas() de js/mod/control.js— y el tamaño sale de 100cqi, el ancho de SU
    tarjeta: la del dinero, con el doble de ancho, salía a 24 px y las otras cinco a 15. Ahí el
-   mismo tamaño en todas pide que todas midan lo mismo, así que no se estira. */
-@media(max-width:360px){ .pf-cuentas:has(> .pf-cuenta > b:not(.ajusta)) > .pf-cuenta.dinero{grid-column:1/-1} }
-/* Y aun con el renglón entero no bastaba: el reparto de arriba solo cubre 360 px, y en una
+   mismo tamaño en todas pide que todas midan lo mismo, así que no se estira.
+   El corte es el de arriba, 400 px, donde los conteos bajan a `--t6`, y no el de los teléfonos
+   más angostos: con 360 los iPhone de 375, 390 y 393 —los más comunes— dejaban el importe en
+   media fila, achicado a 19-20 px junto a conteos de 24, y a 361 px saltaba de 24 a 18,5. */
+@media(max-width:400px){ .pf-cuentas:has(> .pf-cuenta > b:not(.ajusta)) > .pf-cuenta.dinero{grid-column:1/-1} }
+/* Y aun con el renglón entero no bastaba: el reparto de arriba solo cubre 400 px, y en una
    computadora caben seis tarjetas por fila de 121 px de caja cada una. «$179,700.00» pide 170
    a 28 px, así que el importe del Tablero y los cinco de Control se cortaban —la tarjeta lleva
    `overflow:hidden`— en la pantalla donde más se miran. La cifra que puede ser larga lleva su

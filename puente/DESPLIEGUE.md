@@ -129,7 +129,8 @@ de ahí salían los demás síntomas. Qué cambió en el `.gs`:
   una celda que no está en texto sin formato, y a los teléfonos les llegaba «Sat Dec 30 1899
   10:00:00 GMT-0636…». Ahora se lee como «HH:MM» guarde lo que guarde la celda, y se escribe
   en texto sin formato. Que toda la columna quede así, con las horas ya convertidas pasadas a
-  texto, lo hace `prepararHojaParaElPuente` una vez: corre dentro del paso 7 de abajo.
+  texto, lo hace `prepararHojaParaElPuente` una vez: corre dentro del paso 7 de abajo. Si
+  avisa que la hoja estaba ocupada, lo demás ya quedó; córrela otra vez en un momento.
 
 ### Cómo se sube
 
