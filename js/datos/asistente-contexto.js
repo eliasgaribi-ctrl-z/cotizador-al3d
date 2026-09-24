@@ -455,7 +455,7 @@ function accionesDe(intent, r) {
         ...accProyectos(prox.map(i => ({ id: i.id, folio: i.folio, nombre: i.proyecto })), 5)];
     }
     case 'ventas': return dinero ? [{ tipo: 'pasar', ruta: 'control', dato: { tab: 'ventas' }, label: 'Ver Control' }] : [];
-    case 'material': return [{ tipo: 'ir', ruta: 'material', label: 'Ver la lista de compra' }];
+    case 'material': return /pagos/i.test(r.rol || '') ? [] : [{ tipo: 'ir', ruta: 'material', label: 'Ver la lista de compra' }];
     case 'sin_decidir': {
       const s = r.cotizaciones_autorizadas_sin_decidir;
       return (Array.isArray(s) ? s.length : s) ? [{ tipo: 'ir', ruta: 'proyectos', label: 'Decidir en Proyectos' }] : [];

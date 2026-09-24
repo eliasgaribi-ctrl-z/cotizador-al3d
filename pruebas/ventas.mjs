@@ -77,6 +77,11 @@ eq('pipeline: cuenta y suma con el precio autorizado si difiere', [K.pipeline.n,
 eq('perdido este mes', [K.perdidoMes.n, K.perdidoMes.total], [1, 7000]);
 /* Últimos 12 meses desde el 14 de septiembre: a, b, c (e es de 2025-01, f sin fecha). */
 eq('últimos doce meses', [K.ultimos12.n, K.ultimos12.total], [3, 36600]);
+/* La ventana es la de la gráfica: octubre de 2025 a septiembre de 2026. Septiembre de 2025
+   ya es el mes TRECE y no entra, aunque caiga después del día 14. */
+{ const K13 = indicadores([...P, proy({ id: 'g', fecha_ganado: '2025-09-20', precio_auth: 800 }),
+                          proy({ id: 'h', fecha_ganado: '2025-10-01', precio_auth: 300 })], [], { hoy: HOY });
+  eq('el mes trece queda fuera y el primero de la gráfica entra', [K13.ultimos12.n, K13.ultimos12.total], [4, 36900]); }
 eq('ticket promedio', K.ticket, 12200);
 /* Por cobrar: a 5800, b 20000-5800=14200, c 0 (5000-5800<0), e 999999-5800, f 0 (50-5800<0). d cancelado. */
 eq('por cobrar: cuántos y cuánto', [K.porCobrar.n, K.porCobrar.total], [3, 5800 + 14200 + 994199]);

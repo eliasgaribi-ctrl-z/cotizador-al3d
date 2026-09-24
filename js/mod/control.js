@@ -400,20 +400,21 @@ function listaProyectos() {
     : vacio('Nada en este periodo', 'Cuando una cotización se marque como ganada, o cuando baje una venta de la hoja, aparece aquí con su importe.');
   /* En el teléfono el «Bajar CSV de ventas» del encabezado no existe —el hueco de acciones va
      en `display:none` abajo de 760 px, y app.js pide que lo que va ahí exista también dentro de
-     la pantalla—: sin esto, desde el celular no había cómo bajarlo. Va en la cabecera de esta
-     tarjeta, que es lo que baja, con el rótulo corto para que quepa junto al total en 360 px;
-     el nombre entero va en el aria-label. Se decide al pintar con el mismo corte del CSS, y un
-     giro que lo cruza se repinta (`alCambiarAncho`). */
+     la pantalla—: sin esto, desde el celular no había cómo bajarlo. Va en esta tarjeta, que es
+     lo que baja, en la tira de su periodo y su buscador y no en la cabecera: la cabecera no
+     envuelve, y en 360 px el botón encimaba la cuenta de ventas sobre el total. Se decide al
+     pintar con el mismo corte del CSS, y un giro que lo cruza se repinta (`alCambiarAncho`). */
   const csvAqui = enTelefono()
-    ? '<button type="button" class="btn btn-gho pf-btn-corto" data-csv aria-label="Bajar CSV de ventas">' +
-      ico('i-bajar') + ' CSV</button>'
+    ? '<button type="button" class="btn btn-gho pf-btn-corto" data-csv>' +
+      ico('i-bajar') + ' Bajar CSV de ventas</button>'
     : '';
   return '<div class="card"><div class="card-h"><h2>' + ico('i-venta') + ' Ventas' +
       ' <span class="folio">' + vivos.length + '</span></h2>' +
-      '<span class="ct-total">' + esc(money(total)) + '</span>' + csvAqui + '</div>' +
+      '<span class="ct-total">' + esc(money(total)) + '</span></div>' +
     '<div class="card-b">' +
       '<div class="ag-barra">' + filtros +
-        '<input type="search" class="ct-busca" placeholder="Buscar por nombre, folio, cuenta o estatus" value="' + esc(BUSCA) + '" data-busca aria-label="Buscar ventas"></div>' +
+        '<input type="search" class="ct-busca" placeholder="Buscar por nombre, folio, cuenta o estatus" value="' + esc(BUSCA) + '" data-busca aria-label="Buscar ventas">' +
+        csvAqui + '</div>' +
       filas +
     '</div></div>';
 }

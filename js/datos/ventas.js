@@ -245,7 +245,9 @@ export function indicadores(proyectos, sinDecidir, opts = {}) {
   const P = Array.isArray(proyectos) ? proyectos.filter(Boolean) : [];
   const mesActual = hoy.slice(0, 7);
   const mesAnterior = mesDe(masMeses(mesActual + '-01', -1));
-  const hace12 = masMeses(hoy, -12);
+  /* Doce meses de calendario, el actual incluido: los mismos doce que pinta la gráfica de
+     Control. masMeses(hoy, -12) daba el día 1 de hace doce meses, y eso son TRECE. */
+  const hace12 = masMeses(mesActual + '-01', -11);
 
   const suma = (lista, f) => lista.reduce((s, p) => red2(s + f(p)), 0);
   const vivos = P.filter(p => p.etapa !== 'cancelado');

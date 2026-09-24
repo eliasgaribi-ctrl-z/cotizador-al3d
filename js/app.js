@@ -69,8 +69,9 @@ const RUTAS = [
      pestaña del Tablero sigue existiendo porque es a donde llegan con un pase
      (`ctx.pasar('hoy', {vista:'anidador'})`) el «Acomodar en hoja» del vectorizador del
      Cotizador empotrado (js/mod/cotizador.js) y el «Acomodar en la lámina» del Calendario,
-     que trae el proyecto puesto. NO es por `#/hoy/anidador`: eso no es una ruta —`rutaDelHash()` exige un solo
-     segmento, lo reescribe a `#/hoy` y abre la carga— y nada apunta ahí. */
+     que trae el proyecto puesto. NO es por `#/hoy/anidador`: eso no es una ruta
+     —`rutaDelHash()` exige un solo segmento, lo reescribe a `#/hoy` y abre la carga— y nada
+     apunta ahí. */
   { ruta: 'anidador',  mod: 'herramientas', seccion: 'mod-anidador',   icono: 'i-anidar',    nombre: 'Mesa de corte', sub: 'acomodar las piezas en la lámina',                roles: ['direccion', 'fabricacion'] },
   /* El vectorizador, por la misma razón: convertir un logotipo en trazo de corte se hace con
      el archivo en la mano, y estaba detrás del botón «Vectorizar» de una partida. Para usarlo
