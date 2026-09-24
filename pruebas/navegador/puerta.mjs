@@ -80,18 +80,29 @@ async function abrir(base, { tema = 'claro', pase = null } = {}) {
   }
   /* Se espera a que el arranque DECIDA —o sale la puerta, o se monta un módulo—, y no un tiempo
      fijo: los 1,800 ms de antes sobraban en esta máquina y podían quedarse cortos en una lenta, y
-     entonces «la puerta sale» fallaba sin que la puerta tuviera nada. Luego, a que la red se
-     calle: «detrás no se montó ningún módulo» y «cero errores de página» dicen NUNCA, y montar un
-     módulo es pedir su archivo, así que mientras quede algo por bajar todavía puede pasar. */
+     entonces «la puerta sale» fallaba sin que la puerta tuviera nada. */
   try {
     await p.waitForFunction(() => {
       const caja = document.getElementById('pf-puerta');
       return (caja && !caja.hidden) || [...document.querySelectorAll('.pf-mod')].some(s => !s.hidden);
     }, null, { timeout: 15000 });
-    await p.waitForLoadState('networkidle', { timeout: 15000 });
   } catch (_) {
     mal('en 15 s el arranque no decidió: ni salió la puerta ni se montó un módulo');
   }
+  /* Y DESPUÉS de decidir, se vigila. «Detrás no se montó ningún módulo», «se entra directo, sin
+     puerta» y «cero errores de página» dicen NUNCA, y un nunca solo se ve mirando un rato: una
+     puerta que suelta la promesa por un temporizador, o una baja mal leída que la pone encima del
+     pase, llegan después de la decisión y sin bajar nada. Aquí iba un `networkidle`, y no servía:
+     Playwright lo dispara UNA vez por navegación y se queda puesto, así que contestaba en el acto
+     aunque la decisión llegara después. Probado con puerta.js reescrito por ruta: una puerta que
+     montaba el Tablero detrás a 0.7, 1 o 1.5 s, y una que se ponía encima del pase a 1 s, salían
+     en verde. Dos segundos cubren lo que cubrían los 1,800 ms desde `load` —la decisión llega
+     unos 100 ms después—, y la espera corta en cuanto hay puerta Y módulo a la vez, que es justo
+     lo que prohíben los tres casos. Si no pasa nada, vence callada: eso es lo que se esperaba. */
+  await p.waitForFunction(() => {
+    const caja = document.getElementById('pf-puerta');
+    return !!caja && !caja.hidden && [...document.querySelectorAll('.pf-mod')].some(s => !s.hidden);
+  }, null, { timeout: 2000 }).catch(() => {});
   return { ctx, p, errores };
 }
 
