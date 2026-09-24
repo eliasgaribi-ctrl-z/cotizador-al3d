@@ -30,12 +30,13 @@
    tercero contesta bien no está terminada.
 
    ── Qué se guarda y qué no ─────────────────────────────────────────────────────
-   El token de acceso vive SOLO en memoria. No se guarda en el aparato a propósito: es una
-   credencial, y una credencial en `localStorage` la lee cualquier guion de la página y
-   viaja en un respaldo —que en este taller se manda por WhatsApp—. Lo que sí se guarda es
-   el CORREO, que no abre nada y que sirve para dos cosas: que la pantalla diga con quién
-   estás dentro sin esperar a la red, y que la app sepa que hay que intentar la renovación
-   callada al arrancar.
+   El token de acceso se guarda en este aparato (`al3d_pf_gtok`) SOLO mientras vale —Google
+   lo da por una hora— y se borra al salir. Antes vivía solo en memoria, y eso significaba
+   que cada recarga volvía a abrir la ventana de Google: una app que te pide la cuenta cada
+   vez que la abres no se siente como una app. Lo que sí sigue sin pasar es que viaje en un
+   respaldo: esa clave no está en la lista de `RESPALDO_KEYS`. También se guarda el CORREO,
+   que sirve para que la pantalla diga con quién estás dentro sin esperar a la red, y para
+   decirle a Google qué cuenta renovar sin enseñar el selector de cuentas.
    ============================================================================ */
 
 import * as Prefs from '../datos/prefs.js';
@@ -83,6 +84,31 @@ const SCOPE = 'openid email';
 export const CLIENT_ID =
   '1057893837924-3np1vkcbpqmkh6sio0ktse00kd9b5ulr.apps.googleusercontent.com';
 
+/* Los orígenes que están dados de alta en Google para CLIENT_ID. Es una copia de lo que dice
+   la consola de Google (Clientes → este cliente → Orígenes autorizados de JavaScript), y
+   existe por un solo motivo: desde cualquier otro origen, Google abre la ventana y la llena
+   con «Acceso bloqueado: Error 400: origin_mismatch», que suena a que la app está rota o a
+   que la cuenta no tiene permiso, y no es ninguna de las dos. Es que la app se abrió desde
+   una dirección que no es la suya. Aquí se detecta ANTES de abrir la ventana y se dice cuál
+   es la buena.
+
+   Si se autoriza un origen nuevo en la consola —un dominio propio, por ejemplo— se agrega
+   aquí también, o la app lo seguirá rechazando por su cuenta. Solo aplica al identificador
+   del código: uno pegado en Ajustes trae sus propios orígenes, que esta lista no conoce. */
+export const ORIGENES = ['https://eliasgaribi-ctrl-z.github.io',
+                         'https://cotizador-al3d.pages.dev'];   // Cloudflare Pages
+export const URL_APP = 'https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/';
+
+/** true si desde `origen` Google va a aceptar CLIENT_ID. Sin origen (node, pruebas) no se
+ *  juzga: no hay ventana que abrir. */
+export function origenAutorizado(origen) {
+  if (!origen) return true;
+  return ORIGENES.includes(String(origen).replace(/\/+$/, '').toLowerCase());
+}
+
+const origenActual = () =>
+  (typeof location !== 'undefined' && location && location.origin) || '';
+
 const MSG = {
   SIN_CONFIG: 'Todavía no está puesto el identificador de Google de la app. Mientras tanto, el puente funciona con el token de este dispositivo.',
   SIN_RED: 'No hay señal para entrar con Google. Lo que hagas se guarda aquí y se manda solo cuando vuelva.',
@@ -92,11 +118,24 @@ const MSG = {
      que menos lo es, así que dice dónde se arregla. Google avisa de esto por su
      `error_callback` y no por el callback normal: sin engancharlo, esto era una promesa que
      no resolvía nunca y una pantalla congelada en «Entrando…». */
+  ORIGEN: origen => 'Google no deja entrar desde ' + (origen === 'null' ? 'un archivo abierto en el ordenador' : origen) +
+    ': esa dirección no está autorizada para esta app. Abre la plataforma desde ' + URL_APP + ' y vuelve a intentar.',
   BLOQUEADA: 'Tu navegador bloqueó la ventana de Google. Busca el aviso de «ventana emergente bloqueada» —en Chrome sale a la derecha de la barra de direcciones—, permítelas para este sitio y vuelve a intentar.',
 };
 
 /* El token de acceso, en memoria y nada más. Ver la cabecera. */
-let _tok = null;          /* {token:string, expira:number} */
+const K_TOK = 'al3d_pf_gtok';
+let _tok = leerTok();     /* {token:string, expira:number} */
+
+function leerTok() {
+  try {
+    const t = JSON.parse(localStorage.getItem(K_TOK) || 'null');
+    return (t && typeof t.token === 'string' && Number(t.expira) > Date.now()) ? t : null;
+  } catch (_) { return null; }
+}
+function guardarTok(t) {
+  try { t ? localStorage.setItem(K_TOK, JSON.stringify(t)) : localStorage.removeItem(K_TOK); } catch (_) {}
+}
 let _correo = '';
 let _cliente = null;
 let _cargando = null;
@@ -171,6 +210,12 @@ export async function entrar(callado) {
   if (!id) return mal('DATO_INVALIDO', MSG.SIN_CONFIG);
   if (dentro()) return ok({ correo: correo(), expira: _tok.expira });
 
+  /* Antes de la red y antes de la ventana: desde un origen que Google no conoce, lo único
+     que la ventana puede enseñar es el error 400. Ver ORIGENES. */
+  if (id === CLIENT_ID && !origenAutorizado(origenActual())) {
+    return mal('DATO_INVALIDO', MSG.ORIGEN(origenActual()));
+  }
+
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     return mal('SIN_RED', MSG.SIN_RED);
   }
@@ -212,10 +257,17 @@ export async function entrar(callado) {
       }
       const seg = Number(resp.expires_in) > 0 ? Number(resp.expires_in) : 3600;
       _tok = { token: resp.access_token, expira: Date.now() + (seg - 60) * 1000 };
+      guardarTok(_tok);
       resolve(ok({ expira: _tok.expira }));
     };
     try {
-      _cliente.requestAccessToken(callado ? { prompt: '' } : {});
+      /* `login_hint` con el correo de la vez pasada: Google escoge esa cuenta sola y no
+         enseña el selector —en un navegador con tres cuentas, el selector era lo que hacía
+         sentir que había que entrar cada vez—. */
+      const pista = correo();
+      const op = callado ? { prompt: '' } : {};
+      if (pista) op.login_hint = pista;
+      _cliente.requestAccessToken(op);
     } catch (_) {
       resolve(mal('SIN_RED', MSG.SIN_RED));
     }
@@ -256,6 +308,7 @@ async function preguntarCorreo(tok) {
  *  de Google— y la pantalla lo dice con esas palabras. */
 export function salir() {
   _tok = null;
+  guardarTok(null);
   _correo = '';
   try { Prefs.setIngreso({ ...(Prefs.ingreso() || {}), correo: '' }); } catch (_) {}
 }

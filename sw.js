@@ -27,7 +27,7 @@
    el cotizador. Antes era al revés. `plataforma.html` sigue existiendo como reenvío de diez
    líneas, porque hay marcadores e iconos instalados que apuntan ahí.
 
-   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 34 módulos ES que
+   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 35 módulos ES que
    se importan entre sí: con mala señal, `app.js` llega de la red (versión nueva) y
    `material.js` de la caché (versión vieja), el import falla y queda una PANTALLA BLANCA —
    justo en el escenario para el que el service worker existe. Un módulo nuevo con un módulo
@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 57;
+const APP_VERSION = 65;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -97,6 +97,7 @@ const APP_FILES = [
      que ésta conteste, así que una copia sin este archivo es una copia que entra por el
      camino de emergencia y lo dice en la banda de arriba. */
   './js/nucleo/puerta.js',
+  './js/nucleo/cuenta.js',
   './js/nucleo/asistente.js',
   './js/datos/db.js',
   './js/datos/prefs.js',
@@ -343,7 +344,7 @@ async function plataforma(req) {
 
 let _revalidando = false;
 function revalidar(req) {
-  /* Una sola revalidación por vuelta: la plataforma pide 34 módulos al arrancar y no tiene
+  /* Una sola revalidación por vuelta: la plataforma pide 35 módulos al arrancar y no tiene
      sentido mandar 25 peticiones a la red para enterarse de lo mismo. */
   if (_revalidando) return;
   _revalidando = true;

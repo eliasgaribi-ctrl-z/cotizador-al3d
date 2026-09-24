@@ -118,6 +118,33 @@ body.pf::before{display:none}
 .pf-cab-ajustes{margin-left:0}
 @media(min-width:760px){ .pf-cab-ajustes{display:none} }
 
+/* ----- Tu cuenta, en el encabezado ----- */
+.pf-sesion{width:36px;height:36px;flex:0 0 auto;border-radius:50%;border:2px solid rgba(255,255,255,.5);
+  background:#4060f8;color:#fff;font:600 15px/1 inherit;cursor:pointer;display:inline-flex;
+  align-items:center;justify-content:center}
+.pf-sesion:hover{filter:brightness(1.1)}
+/* Con el dedo, el mismo blanco que sus vecinos del encabezado (tema y Ajustes suben a 44 px en
+   pantallas táctiles): a 36 era el único de los tres por debajo del mínimo para tocar. */
+@media(hover:none),(pointer:coarse){ .pf-sesion{width:44px;height:44px} }
+/* La capa de vidrio pinta todos los botones del encabezado como cristal; éste es el único que
+   tiene que verse sólido, porque es tu cuenta y no un mando más. */
+.pf-cab button.pf-sesion{background:#4060f8 !important;color:#fff !important;box-shadow:none !important;
+  backdrop-filter:none !important;padding:0 !important;font-size:15px !important;font-weight:600 !important}
+.pf-sesion-menu{position:absolute;top:calc(100% + 6px);right:max(var(--e4),env(safe-area-inset-right,0px));
+  z-index:60;width:min(300px,calc(100vw - 32px));padding:14px;border-radius:14px;
+  background:var(--sup);color:var(--tinta);border:1px solid var(--linea);box-shadow:var(--sombra-alta)}
+.pf-sesion-quien{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.pf-sesion-ava{width:40px;height:40px;flex:0 0 auto;border-radius:50%;background:#4060f8;color:#fff;
+  display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:17px}
+.pf-sesion-dat{display:flex;flex-direction:column;min-width:0}
+.pf-sesion-dat b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pf-sesion-dat span{color:var(--tinta3);font-size:var(--t2)}
+.pf-sesion-nota{margin:0 0 10px;color:var(--tinta2);font-size:var(--t2);line-height:1.4}
+.pf-sesion-op{display:block;width:100%;text-align:left;min-height:40px;padding:0 12px;margin-top:4px;
+  border:1px solid var(--linea);border-radius:10px;background:transparent;color:var(--tinta);font:inherit;cursor:pointer}
+.pf-sesion-op:hover{background:var(--sup2)}
+.pf-sesion-op.es-salir{color:var(--mal);font-weight:600}
+
 /* ----- La página ----- */
 .pf-wrap{grid-template-columns:minmax(0,1fr);padding-top:var(--e4)}
 .pf-wrap>main{min-width:0}
@@ -227,6 +254,8 @@ body.pf::before{display:none}
   .pf-cab-acc{margin-left:0}
   .pf-cab-tema{background:transparent;color:var(--tinta2);border:1px solid var(--linea)}
   .pf-cab-tema:hover{background:var(--sup2);color:var(--tinta)}
+  .pf-sesion{border-color:var(--linea)}
+  .pf-sesion-menu{right:max(var(--e5),env(safe-area-inset-right,0px))}
 }
 /* Los atajos de teclado escritos, en el encabezado. Solo donde hay teclado: el hueco de
    acciones ya está apagado en el teléfono, así que esto no necesita su propia media query. */

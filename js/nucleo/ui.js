@@ -286,6 +286,9 @@ export function cerrarCapaDeArriba() {
   return false;
 }
 
+/** true si hay un panel, ficha u hoja abierta encima de la pantalla. */
+export const hayCapaAbierta = () => !!_capaDeArriba();
+
 /** Una vez, desde app.js. */
 export function vigilarCapas() {
   window.addEventListener('keydown', e => {

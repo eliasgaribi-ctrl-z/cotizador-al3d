@@ -230,7 +230,21 @@ async function cargar() {
     cuerpo.innerHTML = '<div class="vacio">' + ico('i-reloj') +
       '<p class="vacio-t">Sumando el libro del almacén…</p></div>';
   }
+  await leerDatos();
+  pintar();
+  publicarCuenta();
+}
 
+/** El globo de la barra sin montar la pantalla: lo llama app.js al arrancar y después de
+ *  cada sincronización, para que los pendientes se vean sin tener que entrar aquí. Solo lee;
+ *  no pinta nada. */
+export async function contar() {
+  if (CTX) return null;          // montado: la cuenta la publica la pantalla
+  await leerDatos();
+  return { material: cuantosComprar() };
+}
+
+async function leerDatos() {
   /* Todo en paralelo y todo local: esta pantalla se abre en el taller, sin señal, y
      `listaCompra` y `existencias` recorren el libro de movimientos completo cada una. En
      serie se nota en un celular viejo justo cuando alguien está esperando.
@@ -273,9 +287,6 @@ async function cargar() {
   REQS = new Map();
   const reqs = await Promise.all(PROYS.map(p => Material.requerimientos(p.id)));
   PROYS.forEach((p, k) => REQS.set(p.id, reqs[k] || []));
-
-  pintar();
-  publicarCuenta();
 }
 
 /* ----- Lo que hay que ir a pedir -----
@@ -288,6 +299,10 @@ const yaEstan = () => COMPRA.filter(l => !hayQueComprar(l));
 
 function publicarCuenta() {
   if (!CTX || typeof CTX.ponerCuenta !== 'function') return;
+  CTX.ponerCuenta('material', cuantosComprar());
+}
+
+function cuantosComprar() {
   /* Se juntan por material y no se suman: un material bajo mínimo Y pedido por un proyecto
      es UNA cosa que comprar, y contarlo dos veces manda a fabricación a buscar un renglón
      que no existe. Es la misma cuenta que publica Inicio, a propósito: dos números
@@ -297,7 +312,7 @@ function publicarCuenta() {
   for (const e of EXIS) {
     if (num(e.min_stock) > 0 && e.cantidad < num(e.min_stock)) ids.add(e.material_id);
   }
-  CTX.ponerCuenta('material', ids.size);
+  return ids.size;
 }
 
 /* ============================================================================

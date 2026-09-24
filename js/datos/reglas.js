@@ -121,7 +121,6 @@ const DIAS_MATERIAL = 14;      // la ventana de la lista de compra
 const DIAS_GRAVE = 3;          // el mismo −P3D de la alarma A1: con menos, ya no se compra, se mueve la fecha
 const DIAS_PASADA = 2;         // §9
 const DIAS_COBRO = 3;          // §9
-const DIAS_RESPALDO = 9;       // §9
 const MUESTRAS_CALIBRACION = 5;
 const DESVIACION_CALIBRACION = 0.15;
 
@@ -192,8 +191,6 @@ function normalizar(e) {
     cola: arr(E.cola),
     avisos: arr(E.avisos),
     calibracion: arr(E.calibracion),
-    dias_sin_respaldo: E.dias_sin_respaldo === null || E.dias_sin_respaldo === undefined
-      ? null : num(E.dias_sin_respaldo),
     hoy: esISO(E.hoy) ? E.hoy : hoyISO(),
     rol: E.rol || null,
     veDinero: E.veDinero === undefined ? E.rol !== 'fabricacion' : !!E.veDinero,
@@ -206,7 +203,7 @@ function normalizar(e) {
  *
  * @param {{proyectos?:Object[], instalaciones?:Object[], requerimientos?:Object[],
  *          existencias?:Object[], faltantes?:Object[], historial?:Object[], cola?:Object[],
- *          avisos?:Object[], calibracion?:Object[], dias_sin_respaldo?:number|null,
+ *          avisos?:Object[], calibracion?:Object[],
  *          hoy?:string, rol?:string, dispositivo?:string}} estado
  * @returns {Object[]} avisos ordenados por lo que se rompe primero, filtrados por rol y sin
  *                     los que alguien ya atendió, descartó o postergó
@@ -215,7 +212,7 @@ export function evaluar(estado) {
   const E = normalizar(estado);
   const out = [];
   a6(E, out); a7(E, out); a8(E, out); a9(E, out); a10(E, out);
-  a11(E, out); a12(E, out); a13(E, out); a14(E, out); a15(E, out);
+  a11(E, out); a12(E, out); a13(E, out); a15(E, out);
   return ordenar(vigentes(out, E));
 }
 
@@ -660,26 +657,8 @@ function a13(E, out) {
   }
 }
 
-/* ============================================================================
-   A14 — sin respaldo
-   ============================================================================ */
-
-/* El `rid` lleva el día a propósito. Si no lo llevara, «después» sería «nunca»: quien
-   descarte el aviso una vez no lo volvería a ver aunque pasen tres semanas más sin
-   respaldar. Con el día, descartarlo lo calla hoy y vuelve mañana si sigue faltando. */
-function a14(E, out) {
-  const d = E.dias_sin_respaldo;
-  if (d === null || d < DIAS_RESPALDO) return;
-  out.push(aviso('A14', E.hoy, {
-    tono: 'av',
-    titulo: d >= 9000 ? 'Nunca has respaldado la plataforma' : 'Llevas ' + d + ' días sin respaldar',
-    detalle: 'El respaldo baja la plataforma y las cotizaciones en un solo archivo. Si el teléfono borra los datos del sitio, es lo único que los trae de vuelta.',
-    cuando: '',
-    plazo: 0,
-    entidad: 'dispositivo', entidad_id: 'respaldo',
-    acciones: [{ label: 'Respaldar ahora', tipo: 'respaldar', datos: {} }],
-  }));
-}
+/* A14 —el recordatorio de respaldo— se quitó por decisión de Dirección (septiembre de
+   2026): salía en cada pantalla y no se usaba. Respaldar sigue en Ajustes. */
 
 /* ============================================================================
    A15 — la venta y la hoja no cuadran
@@ -797,12 +776,6 @@ export async function refrescar(opts = {}) {
       proyectos, instalaciones, requerimientos, existencias, faltantes,
       historial: Cot.historial(), cola: Cot.cola(),
       avisos: guardados, calibracion,
-      /* `diasSinRespaldo()` devuelve null cuando NUNCA se respaldó, y ahí hay que decidir:
-         un dispositivo recién instalado y uno con tres meses de trabajo sin respaldo se ven
-         igual desde esa función. Se avisa solo si ya hay algo que perder. Regañar a alguien
-         el día que abre la app por primera vez es cómo se enseña a ignorar los avisos. */
-      dias_sin_respaldo: Prefs.diasSinRespaldo() === null
-        ? (proyectos.length ? 9999 : null) : Prefs.diasSinRespaldo(),
       hoy, rol: Prefs.rol(), veDinero: Prefs.veDinero(),
       dispositivo: Prefs.dispositivo(),
     });

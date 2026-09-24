@@ -204,7 +204,23 @@ export function desmontar() {
 async function cargar() {
   const lista = $('pj-lista');
   if (lista) lista.innerHTML = '<div class="vacio">' + ico('i-reloj') + '<p class="vacio-t">Leyendo proyectos…</p></div>';
+  await leerDatos();
+  pintarCand();
+  pintarFiltros();
+  aplicar();
+  publicarCuenta();
+}
 
+/** El globo de la barra sin montar la pantalla: lo llama app.js al arrancar y después de
+ *  cada sincronización, para que los pendientes se vean sin tener que entrar aquí. Solo lee;
+ *  no pinta nada. */
+export async function contar() {
+  if (CTX) return null;          // montado: la cuenta la publica la pantalla
+  await leerDatos();
+  return { proyectos: cuantos() };
+}
+
+async function leerDatos() {
   /* Cinco lecturas en paralelo y ni una más, sobre todo la del almacén: `listaCompra`
      recorre el libro de movimientos completo y pedirla una vez por renglón es lo que
      vuelve esta pantalla una que tarda. Con `hastaDias` largo porque aquí la pregunta no
@@ -246,11 +262,6 @@ async function cargar() {
      molestar con la venta de ayer, aquí decidir ES el trabajo de la pantalla. */
   const decididos = new Set(TODOS.map(p => p.folio_global));
   SIN_DECIDIR = Prefs.rol() === 'direccion' ? Cot.sinDecidir(decididos, 0) : [];
-
-  pintarCand();
-  pintarFiltros();
-  aplicar();
-  publicarCuenta();
 }
 
 /* ----- El semáforo de material, de una sola pasada -----
@@ -339,6 +350,10 @@ const cambiada = p => (HUELLA.get(p.id) || Cot.estadoOrigen(p)) === 'cambio' && 
 /** La cuenta de la pestaña: lo que ESTA pantalla tiene que atender, según el rol. */
 function publicarCuenta() {
   if (!CTX || typeof CTX.ponerCuenta !== 'function') return;
+  CTX.ponerCuenta('proyectos', cuantos());
+}
+
+function cuantos() {
   const rol = Prefs.rol();
   let n = 0;
   if (rol === 'direccion') {
@@ -357,7 +372,7 @@ function publicarCuenta() {
     n = TODOS.filter(p => p.etapa !== 'cancelado' && (!p.cuenta || !p.estatus_notion ||
       (esImportada(p) && avisoDe(p) === 'perdida'))).length;
   }
-  CTX.ponerCuenta('proyectos', n);
+  return n;
 }
 
 /* ============================================================================

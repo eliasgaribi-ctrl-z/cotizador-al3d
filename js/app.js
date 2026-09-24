@@ -15,7 +15,7 @@ import * as DB from './datos/db.js';
 import * as Prefs from './datos/prefs.js';
 import * as Cot from './datos/cotizador.js';
 import * as Sync from './datos/sync.js';
-import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, cerrarCapa, ajustarAltoBarra, esqueletoModulo }
+import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, hayCapaAbierta, cerrarCapa, ajustarAltoBarra, esqueletoModulo }
   from './nucleo/ui.js';
 
 /* ----- Los módulos -----
@@ -490,6 +490,36 @@ function pintarCuentasNav() {
 }
 ctx.ponerCuenta = ponerCuenta;
 
+/* ----- Los globos, sin tener que entrar a cada pantalla -----
+   Cada módulo publicaba su cuenta al montarse, así que los pendientes de Proyectos o del
+   Mapa no aparecían en la barra hasta que alguien entraba ahí. Ahora cada uno sabe contar
+   sin pintar (`contar()`), y aquí se les pregunta a todos los de este rol: al arrancar,
+   después de cada sincronización que trajo algo y al cambiar de pantalla. La pantalla que
+   está montada contesta null y se queda con la cuenta que publicó ella. Uno a la vez y
+   después de pintar: son lecturas locales, pero no tienen por qué competir con la pantalla
+   que la persona está mirando. */
+const MODS_CON_CUENTA = ['tablero', 'fabricacion', 'proyectos', 'material', 'mapa'];
+let _contando = null, _contarOtraVez = false;
+function contarTodo() {
+  if (_contando) { _contarOtraVez = true; return _contando; }
+  _contando = (async () => {
+    do {
+      _contarOtraVez = false;
+      for (const r of rutasDeRol()) {
+        if (r.oculto || !MODS_CON_CUENTA.includes(r.mod)) continue;
+        try {
+          const m = await import('./mod/' + r.mod + '.js');
+          if (typeof m.contar !== 'function') continue;
+          const c = await m.contar();
+          if (c) for (const [ruta, n] of Object.entries(c)) ponerCuenta(ruta, n);
+        } catch (e) { console.warn('no se pudo contar ' + r.mod, e); }
+      }
+    } while (_contarOtraVez);
+  })().finally(() => { _contando = null; });
+  return _contando;
+}
+ctx.contarTodo = contarTodo;
+
 function pintarRolSeg() {
   const seg = $('pf-rolseg'); if (!seg) return;
   const actual = Prefs.rol();
@@ -570,19 +600,10 @@ function revisarDispositivo() {
     return;
   }
 
-  const d = Prefs.diasSinRespaldo();
-  /* Safari desaloja el almacenamiento de sitios que llevan semanas sin abrirse, y iOS es
-     donde esto se usa. Un respaldo es la única defensa, y el aviso es lo único que hace que
-     alguien se acuerde de bajarlo. */
-  if (d === null) {
-    pintarBanda({ texto: 'Nunca has respaldado la plataforma. Si el navegador limpia este sitio, se va todo lo del almacén y la agenda.',
-      accion: { label: 'Respaldar', fn: respaldar } });
-  } else if (d >= 9) {
-    pintarBanda({ html: 'Van <b>' + d + ' días</b> sin respaldo de la plataforma.',
-      accion: { label: 'Respaldar', fn: respaldar } });
-  } else {
-    pintarBanda(null);
-  }
+  /* Aquí iba el recordatorio de respaldo («Nunca has respaldado…», «Van N días…»), en cada
+     pantalla. Se quitó por decisión de Dirección (septiembre de 2026): ocupaba el lugar más
+     visible de la app con algo que no se usa. Respaldar sigue en Ajustes. */
+  pintarBanda(null);
 }
 
 /* El respaldo baja COMPLETO: la plataforma y el cotizador en un solo archivo. Antes eran dos
@@ -666,9 +687,21 @@ async function arrancar() {
       if (_bandaLista) revisarDispositivo();
     });
   } catch (e) {
+    /* Sin puerta no se entra. Hubo un tiempo en que aquí se entraba igual, para no dejar la
+       app muerta por un archivo que no bajó; Dirección decidió que la plataforma solo se ve
+       con cuenta de Google, y eso incluye este caso. Se avisa y se ofrece recargar. */
     console.error('no se pudo cargar la puerta', e);
-    _quien = { ok: true, via: 'roto', correo: '', rol: Prefs.rol(),
-      nota: 'Esta copia de la plataforma no pudo comprobar tu cuenta de Google. Recárgala cuando tengas señal.' };
+    const arr = $('pf-arranque'); if (arr) arr.hidden = true;
+    for (const hijo of Array.from(document.body.children)) hijo.setAttribute('inert', '');
+    const d = document.createElement('div');
+    d.setAttribute('role', 'alert');
+    d.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;' +
+      'justify-content:center;padding:24px;text-align:center;background:#0b1020;color:#fff;font:16px/1.5 system-ui,sans-serif';
+    d.innerHTML = '<div><p>No se pudo cargar la pantalla para entrar con Google, así que la plataforma no se abre.</p>' +
+      '<p><button type="button" style="font:inherit;padding:10px 18px;border-radius:8px;border:0;cursor:pointer">Recargar</button></p></div>';
+    d.querySelector('button').onclick = () => location.reload();
+    document.body.appendChild(d);
+    return;
   }
 
   /* Si a los ocho segundos el esqueleto del arranque sigue en pantalla, algo de lo de abajo
@@ -681,6 +714,7 @@ async function arrancar() {
   _lentoArranque = setTimeout(() => avisarLento($('pf-arranque'), null), MS_LENTO_ARRANQUE);
   pintarRolSeg();
   pintarNav();
+  import('./nucleo/cuenta.js').then(m => m.montar(_quien)).catch(() => {});
   vigilarCapas();
   registrarCapa('pf-ficha', () => cerrarCapa('pf-ficha'));
   registrarCapa('pf-hoja',  () => cerrarCapa('pf-hoja'));
@@ -791,6 +825,8 @@ async function arrancar() {
      por algo que ni siquiera hace falta para trabajar. */
   await enchufarPuente();
   sincronizarCallado();
+  contarTodo();
+  window.addEventListener('hashchange', () => setTimeout(contarTodo, 800));
 
   /* El asistente: solo cuelga el oyente del botón; el panel se pinta al abrir. Si el módulo
      no carga —service worker a medias— el botón no hace nada y la plataforma sigue igual. */
@@ -800,6 +836,36 @@ async function arrancar() {
      le faltaba a la bandeja: guardar sin señal ya funcionaba desde fase 1, y lo que no
      existía era el momento en que eso sale solo. */
   window.addEventListener('online', () => sincronizarCallado());
+
+  /* ----- Traer lo nuevo sin cerrar ni abrir -----
+     Lo que otro teléfono o la hoja cambian llega solo: cada 30 segundos mientras la app está
+     a la vista, y en cuanto vuelves a ella desde otra pestaña o app. Con la app en segundo
+     plano no se pregunta nada, que es batería y cupo del Apps Script gastados en una pantalla
+     que nadie mira. 30 s son dos peticiones por minuto; el cupo del puente es de 60. */
+  setInterval(() => {
+    if (document.visibilityState === 'visible') sincronizarCallado();
+  }, MS_SINCRONIZAR);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') sincronizarCallado();
+  });
+
+  /* ----- El permiso de Google, renovado con tu siguiente clic -----
+     Google da el permiso por una hora, y renovarlo abre un instante su ventana. El navegador
+     solo deja abrir ventanas cuando la persona acaba de tocar algo, así que un temporizador
+     no puede hacerlo: se hace en el primer clic después de que caducó. Con la cuenta ya
+     escogida la ventana se abre y se cierra sola. Sin esto, pasada la hora la app dejaba de
+     sincronizar hasta la siguiente vez que alguien entraba. */
+  document.addEventListener('click', async () => {
+    /* Con la pantalla de entrar puesta, el clic es suyo: dos peticiones a Google a la vez se
+       pisan la ventana. */
+    if (document.documentElement.classList.contains('con-puerta')) return;
+    try {
+      const Ingreso = await import('./nucleo/ingreso.js');
+      if (!Ingreso.configurado() || !Ingreso.correo() || Ingreso.dentro()) return;
+      const r = await Ingreso.renovar();
+      if (r && r.ok) sincronizarCallado();
+    } catch (_) {}
+  }, true);
 
   /* El resize dispara decenas de veces mientras se gira el teléfono o se abre el teclado, y
      `ajustarAltoBarra` lee geometría: leer y escribir el layout en cada evento es el camino
@@ -839,17 +905,34 @@ ctx.enchufarPuente = enchufarPuente;
  * SOLO si algo cambió: repintar por costumbre tira el scroll y el filtro que la persona
  * acababa de poner.
  */
-async function sincronizarCallado() {
+const MS_SINCRONIZAR = 30000;
+let _sincronizando = null;
+let _repintarDebe = false;
+
+function sincronizarCallado() {
+  /* Una a la vez: el reloj de 30 s, volver a la pestaña y recuperar señal caen juntos más
+     seguido de lo que parece. Quien llega segundo espera la misma. */
+  if (_sincronizando) return _sincronizando;
+  _sincronizando = sincronizarDeVerdad().finally(() => { _sincronizando = null; });
+  return _sincronizando;
+}
+
+/* Repintar tira lo que la persona está escribiendo o el panel que tiene abierto. Ahora que
+   esto corre cada 30 segundos, se repinta solo cuando no estorba; si estorba, se apunta y se
+   hace en la siguiente vuelta en la que ya no. */
+function puedeRepintar() {
+  if (_sinRemonte || hayCapaAbierta()) return false;
+  const a = document.activeElement;
+  return !(a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)));
+}
+
+async function sincronizarDeVerdad() {
   if (!Sync.configurado()) return;
-  /* Primero la identidad, y CALLADA. El token de Google vive solo en memoria —ver
-     js/nucleo/ingreso.js— así que en cada arranque hay que volver a pedirlo, y la renovación
-     sin pantalla funciona mientras la sesión de Google de este navegador siga viva. Si falla
-     no se dice nada y no se para: la petición sale igual con el token de dispositivo, que es
-     justo para lo que se quedó. */
-  try {
-    const Ingreso = await import('./nucleo/ingreso.js');
-    if (Ingreso.configurado() && Ingreso.correo() && !Ingreso.dentro()) await Ingreso.renovar();
-  } catch (_) {}
+  if (navigator.onLine === false) return;
+  /* La identidad NO se renueva aquí. Renovarla abre la ventana de Google, y esto corre solo,
+     sin clic: el navegador la bloquearía cada 30 segundos. Se renueva en el siguiente clic
+     —ver el oyente de `click` en el arranque— y mientras tanto la petición sale con el token
+     de dispositivo si lo hay. */
   let movio = 0;
   try { const r = await Sync.bombear(); if (r.ok) movio += Number(r.valor.subidas) || 0; } catch (_) {}
   /* Página por página mientras el Worker diga que hay más, con tope: las 199 filas anteriores
@@ -863,11 +946,11 @@ async function sincronizarCallado() {
       if (!r.valor.hay_mas) break;
     }
   } catch (_) {}
-  /* Con la misma guarda que el oyente de 'storage': el Anidador, el Cotizador y el Vectorizador
-     sostienen un marco vivo, y remontarlos por una fila que llegó de la hoja mataba el marco a
-     media faena —un acomodo de piezas corriendo se perdía entero al volver la señal—. Lo que
-     bajó ya está en la base: al salir de esa pantalla, la siguiente monta fresca con ello. */
-  if (movio && _actual && !_sinRemonte) montar(_actual, { forzar: true });
+  if (movio) { _repintarDebe = true; contarTodo(); }
+  if (_repintarDebe && _actual && puedeRepintar()) {
+    _repintarDebe = false;
+    montar(_actual, { forzar: true });
+  }
 }
 ctx.sincronizar = sincronizarCallado;
 
@@ -878,7 +961,36 @@ ctx.sincronizar = sincronizarCallado;
 function registrarSW() {
   if (!('serviceWorker' in navigator)) return;
   if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
-  try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (_) {}
+  /* ----- La versión nueva se pone sola -----
+     El service worker nuevo se instala por detrás y toma el control (skipWaiting + claim),
+     pero la página que ya estaba abierta sigue corriendo el código viejo hasta que alguien
+     recarga. En la práctica eso era «subí los cambios y sigo viendo lo de antes». Así que
+     cuando el control cambia de manos se recarga UNA vez. Solo si ya había un service worker
+     antes: en la primera instalación también cambia el control, y ahí no hay nada viejo. */
+  const habia = !!navigator.serviceWorker.controller;
+  let recargado = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!habia || recargado) return;
+    /* Si alguien está escribiendo, no se le tira: la versión nueva entra en la siguiente
+       apertura, como antes. */
+    const a = document.activeElement;
+    if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;
+    recargado = true;
+    location.reload();
+  });
+  try {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      /* Y se pregunta por una versión nueva cada vez que se vuelve a la app, no solo al
+         abrirla: con la app abierta todo el día en el taller, «al abrirla» era nunca. Una
+         vez cada diez minutos como mucho. */
+      let ultima = Date.now();
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible' || Date.now() - ultima < 600000) return;
+        ultima = Date.now();
+        reg.update().catch(() => {});
+      });
+    }).catch(() => {});
+  } catch (_) {}
 }
 
 /* ----- Arrancar, y arrancar de todas formas -----

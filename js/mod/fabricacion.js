@@ -186,6 +186,14 @@ export async function montar(contenedor, ctx) {
   }
 }
 
+/** El globo de la barra sin montar la pantalla: lo llama app.js al arrancar y después de
+ *  cada sincronización, para que los pendientes se vean sin tener que entrar aquí. Solo lee;
+ *  no pinta nada. */
+export async function contar() {
+  const d = await leer();
+  return { agenda: d.sinFecha.length + d.vencidas.length };
+}
+
 export function desmontar() {
   if (_cont && _oyendo) _cont.removeEventListener('click', alTocar);
   window.removeEventListener('keydown', alTeclear);
