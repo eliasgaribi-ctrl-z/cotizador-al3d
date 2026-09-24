@@ -878,7 +878,11 @@ const dato = (etiqueta, valorHTML, esHtml) =>
    pin donde el cliente lo puso. Un `search?query=` con el texto de una dirección de
    Tlajomulco cae a media colonia, y ahí es donde la camioneta da vueltas. */
 function urlMapa(p) {
-  if (p.maps_url) return p.maps_url;
+  /* Solo http(s). `maps_url` lo guarda lo que se pegó en «pegar link» del Mapa —parseGmaps
+     acepta cualquier texto que traiga unas coordenadas— y lo que traiga un respaldo, así que
+     un «javascript:…//?q=20.67,-103.34» corría al tocar «Abrir en Maps». La agenda ya lo
+     vigilaba (fabricacion.js); aquí faltaba. */
+  if (p.maps_url && /^https?:\/\//i.test(p.maps_url)) return p.maps_url;
   if (p.lat !== null && p.lng !== null && isFinite(p.lat) && isFinite(p.lng)) {
     return 'https://www.google.com/maps/search/?api=1&query=' + p.lat + ',' + p.lng;
   }

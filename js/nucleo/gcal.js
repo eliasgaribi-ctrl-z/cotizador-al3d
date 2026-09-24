@@ -62,6 +62,9 @@ const MSG = {
    vence en el vuelo devuelve 401 y el usuario ve un error por 40 segundos de reloj. */
 let _tok = null;         /* {token:string, expira:number} */
 let _cliente = null;     /* el tokenClient de GIS, se crea una vez */
+/* A quién contestarle cuando GIS falla por `error_callback`: el cliente es uno solo, así que
+   su error_callback se creó una vez y tiene que saber cuál es la petición viva. */
+let _falloGcal = () => {};
 let _correo = '';
 
 /* ---------------------------------------------------------------------------
@@ -131,6 +134,15 @@ export async function pedirToken(silencioso) {
       try {
         _cliente = window.google.accounts.oauth2.initTokenClient({
           client_id: c.clientId, scope: SCOPE, callback: () => {},
+          /* La ventana cerrada o bloqueada NO llega por el callback normal: llega por aquí.
+             Sin esto la promesa no se resolvía nunca, el botón «Crearla en Google Calendar»
+             se quedaba apagado y «Conectar» no decía nada. Es el mismo arreglo que ya lleva
+             ingreso.js; aquí no se había copiado. */
+          error_callback: err => {
+            const t = err && err.type;
+            _falloGcal(mal(t === 'popup_closed' ? 'DATO_INVALIDO' : 'SIN_RED',
+              t === 'popup_closed' ? MSG.SIN_TOKEN : MSG.SIN_RED));
+          },
         });
       } catch (_) {
         return resolve(mal('DATO_INVALIDO', MSG.RECHAZADO));
@@ -138,7 +150,9 @@ export async function pedirToken(silencioso) {
     }
     /* El callback se reasigna en cada petición porque es el único punto donde GIS
        entrega el token: no hay promesa que await-ear en su API. */
+    _falloGcal = r => { _falloGcal = () => {}; resolve(r); };
     _cliente.callback = resp => {
+      _falloGcal = () => {};
       if (!resp || !resp.access_token) {
         return resolve(mal('SIN_RED', resp && resp.error === 'access_denied'
           ? MSG.SIN_TOKEN : MSG.SIN_RED));
@@ -263,6 +277,14 @@ function masUnDia(iso) {
   return `${a}-${p2(me)}-${p2(d)}`;
 }
 
+/* Dos momentos de Calendar son el mismo aunque vengan escritos distinto: lo que se manda va
+   en UTC y lo que Google devuelve trae la zona del calendario («…T10:00:00-06:00»). */
+function mismoMomento(a, b) {
+  if (!a || !b) return !a && !b;
+  if (a.date || b.date) return a.date === b.date;
+  return Date.parse(a.dateTime) === Date.parse(b.dateTime);
+}
+
 function cuerpo(ev) {
   const c = cfg();
   return {
@@ -354,7 +376,16 @@ export async function crearEvento(ev) {
     if (!g.ok) return g;
     const ya = g.valor.cuerpo;
     if (g.valor.http >= 200 && g.valor.http < 300 && ya && ya.status !== 'cancelled') {
-      return ok({ eventId: ya.id, yaEstaba: true });
+      /* ── Ya está, pero ¿igual? ───────────────────────────────────────────────────
+         El id es el mismo para siempre (sale del UID), así que una instalación REAGENDADA
+         también cae aquí. Se contestaba «ya estaba en el calendario» y los tres seguían
+         citados el día viejo. Si cambió cuándo, dónde o qué, se reescribe con un PUT; si no,
+         no se toca, que un PUT de más les manda la actualización a los tres por nada. */
+      const igual = mismoMomento(ya.start, body.start) && mismoMomento(ya.end, body.end) &&
+        String(ya.location || '') === body.location && String(ya.summary || '') === body.summary;
+      if (igual) return ok({ eventId: ya.id, yaEstaba: true });
+      const m = await moverEvento(body.id, ev);
+      return m.ok ? ok({ ...m.valor, movido: true }) : m;
     }
     /* Existe cancelado: se revive con un PUT en vez de inventar otro id, porque el id
        determinista es lo que hace que la próxima vez tampoco se duplique. */

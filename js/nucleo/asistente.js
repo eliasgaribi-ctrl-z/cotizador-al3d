@@ -95,7 +95,11 @@ export async function abrir() {
 }
 
 export function cerrar() {
-  if (_abort) { try { _abort.abort(); } catch (_) {} _abort = null; }
+  /* Se marca QUIÉN cortó. `pedir` decidía por `!_ocupado`, que mientras corre la pregunta es
+     siempre falso, así que cerrar el panel se leía como «tardó demasiado» y el bucle seguía
+     con el siguiente proveedor: el resumen del negocio salía hacia hasta tres IAs más con el
+     panel ya cerrado. */
+  if (_abort) { _abort.porPersona = true; try { _abort.abort(); } catch (_) {} _abort = null; }
   cerrarCapa(CAPA);
 }
 
@@ -513,9 +517,10 @@ async function llamar(c, sistema, previos, pregunta) {
         .concat([{ role: 'user', parts: [{ text: pregunta }] }]);
       const body = { systemInstruction: { parts: [{ text: sistema }] }, contents,
         generationConfig: { temperature: 0.2, maxOutputTokens: 1200 } };
-      const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(c.model) +
-        ':generateContent?key=' + encodeURIComponent(c.key);
-      const r = await pedir(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal });
+      /* La key en la cabecera y no en `?key=`, como en el cotizador (ver aiLlamar en ia.js). */
+      const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(c.model) + ':generateContent';
+      const r = await pedir(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key },
+        body: JSON.stringify(body), signal: ctl.signal }, ctl);
       if (!r.res.ok || (r.data && r.data.error) || !r.data) throw errorDe(r, c);
       const cand = (r.data.candidates || [])[0];
       const txt = ((cand && cand.content && cand.content.parts) || []).map(p => p.text || '').join('').trim();
@@ -527,7 +532,7 @@ async function llamar(c, sistema, previos, pregunta) {
     if (c.prov === 'openrouter') { hdrs['HTTP-Referer'] = location.origin; hdrs['X-Title'] = 'Plataforma AL3D'; }
     const body = { model: c.model, temperature: 0.2, max_tokens: 1200,
       messages: [{ role: 'system', content: sistema }].concat(previos, [{ role: 'user', content: pregunta }]) };
-    const r = await pedir(URLS[c.prov], { method: 'POST', headers: hdrs, body: JSON.stringify(body), signal: ctl.signal });
+    const r = await pedir(URLS[c.prov], { method: 'POST', headers: hdrs, body: JSON.stringify(body), signal: ctl.signal }, ctl);
     if (!r.res.ok || (r.data && r.data.error) || !r.data) throw errorDe(r, c);
     const ch = (r.data.choices || [])[0];
     const txt = ((ch && ch.message && ch.message.content) || '').trim();
@@ -539,14 +544,16 @@ async function llamar(c, sistema, previos, pregunta) {
   }
 }
 
-async function pedir(url, opts) {
+async function pedir(url, opts, ctl) {
   let res;
   try { res = await fetch(url, opts); }
   catch (e) {
-    if (opts.signal && opts.signal.aborted && !_ocupado) { const c = new Error('cancelado'); c.cancelado = true; throw c; }
+    if (ctl && ctl.porPersona) { const c = new Error('cancelado'); c.cancelado = true; throw c; }
     throw new Error(e && e.name === 'AbortError' ? 'el proveedor tardó demasiado en responder' : 'no se pudo conectar con el proveedor (revisa tu conexión)');
   }
   const txt = await res.text().catch(() => '');
+  /* Cerrar a medio bajar el cuerpo también es cancelar, no «respondió vacío». */
+  if (ctl && ctl.porPersona) { const c = new Error('cancelado'); c.cancelado = true; throw c; }
   let data = null; try { data = JSON.parse(txt); } catch (_) {}
   return { res, data, txt };
 }

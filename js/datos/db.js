@@ -170,6 +170,20 @@ function pedir(peticion, transaccion) {
   });
 }
 
+/* ----- Una escritura está hecha cuando la transacción TERMINA -----
+   `pedir` resuelve con el «success» de la petición, y para leer eso basta. Para escribir no:
+   la cuota llena —la falla que la cabecera de `pedir` dice atrapar— en Chrome llega como un
+   `abort` AL CONFIRMAR, después del success, y para entonces la promesa ya se había
+   resuelto en ok. `ganar()` decía que sí, salía el aviso de venta registrada, y al recargar
+   el proyecto no existía. `ponerVarios` ya esperaba el `complete`; poner, borrar y vaciar
+   ahora también. Con addEventListener y no con onabort, que es el que usa `pedir`. */
+function terminada(t) {
+  return new Promise(resolve => {
+    t.addEventListener('complete', () => resolve({ ok: true }));
+    t.addEventListener('abort', () => resolve({ ok: false, err: t.error }));
+  });
+}
+
 const esCuota = err => !!err && (err.name === 'QuotaExceededError' || err.code === 22);
 const traducir = err => esCuota(err)
   ? mal('SIN_ESPACIO', MSG.SIN_ESPACIO)
@@ -188,6 +202,7 @@ export async function poner(almacen, registro) {
   }
   const t = tx([almacen], 'readwrite');
   if (!t) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
+  const fin = terminada(t);
   const st = t.objectStore(almacen);
   const previo = await pedir(st.get(registro[clave]), t);
   const ahora = Date.now();
@@ -195,7 +210,9 @@ export async function poner(almacen, registro) {
   if (!(previo.ok && previo.valor)) sellado.creado_en = registro.creado_en || ahora;
   else sellado.creado_en = previo.valor.creado_en || registro.creado_en || ahora;
   const r = await pedir(st.put(sellado), t);
-  return r.ok ? ok(sellado) : traducir(r.err);
+  if (!r.ok) return traducir(r.err);
+  const f = await fin;
+  return f.ok ? ok(sellado) : traducir(f.err);
 }
 
 /**
@@ -278,16 +295,22 @@ export async function contar(almacen, opts = {}) {
 export async function borrar(almacen, id) {
   if (!_db) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
   const t = tx([almacen], 'readwrite'); if (!t) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
+  const fin = terminada(t);
   const r = await pedir(t.objectStore(almacen).delete(id), t);
-  return r.ok ? ok(true) : traducir(r.err);
+  if (!r.ok) return traducir(r.err);
+  const f = await fin;
+  return f.ok ? ok(true) : traducir(f.err);
 }
 
 /** Vacía un almacén. Solo lo usa la restauración y el borrado explícito de ajustes. */
 export async function vaciar(almacen) {
   if (!_db) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
   const t = tx([almacen], 'readwrite'); if (!t) return mal('DB_NO_DISPONIBLE', MSG.DB_NO_DISPONIBLE);
+  const fin = terminada(t);
   const r = await pedir(t.objectStore(almacen).clear(), t);
-  return r.ok ? ok(true) : traducir(r.err);
+  if (!r.ok) return traducir(r.err);
+  const f = await fin;
+  return f.ok ? ok(true) : traducir(f.err);
 }
 
 /* ----- Identificadores -----

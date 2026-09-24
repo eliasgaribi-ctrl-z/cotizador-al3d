@@ -138,23 +138,9 @@ export async function custodiar(avisar) {
           · y si confirma sin novedad, se borra el aviso de «te quedan N días», que se puso
             antes de saber que iba a poder confirmarse. */
   const p = Prefs.pase();
+  _avisar = avisar || null;
   if (p) {
-    confirmarSuelto(false).real.then(r => {
-      if (!r) return;
-      if (r.estado === 'fuera') {
-        /* El token de dispositivo NO rescata aquí: si rescatara, quitar a alguien de
-           «Accesos» no serviría de nada en el teléfono donde hubiera un token pegado. El día
-           que alguien se va del taller con un token en el bolsillo, lo que toca es rotarlo
-           desde la hoja —menú ⚡ AL3D → Tokens del puente—, y eso ya estaba escrito en
-           ingreso.js. */
-        Prefs.borrarPase();
-        pedirEntrada(MSG.FUERA(r.correo || p.correo), null, true);
-        return;
-      }
-      if (r.estado !== 'ok') return;
-      if (r.rol !== p.rol) { location.reload(); return; }
-      if (avisar) avisar('');
-    }).catch(() => {});
+    confirmarSuelto(false).real.then(r => atenderConfirmacion(r, p)).catch(() => {});
     return dentro('google', p.correo, p.rol, avisoDePase(p));
   }
 
@@ -187,6 +173,50 @@ export async function custodiar(avisar) {
      El token sigue sirviendo para lo que servía antes de la puerta: hablar con la hoja.
      El día que Google no conteste, lo que cubre es el pase de DIAS_PASE días, no el token. */
   return await pedirEntrada(null);
+}
+
+/* Lo que se hace con la respuesta de la hoja cuando la app YA está abierta con un pase. */
+let _avisar = null;
+function atenderConfirmacion(r, p) {
+  if (!r) return;
+  if (r.estado === 'fuera') {
+    /* El token de dispositivo NO rescata aquí: si rescatara, quitar a alguien de
+       «Accesos» no serviría de nada en el teléfono donde hubiera un token pegado. El día
+       que alguien se va del taller con un token en el bolsillo, lo que toca es rotarlo
+       desde la hoja —menú ⚡ AL3D → Tokens del puente—, y eso ya estaba escrito en
+       ingreso.js. */
+    Prefs.borrarPase();
+    pedirEntrada(MSG.FUERA(r.correo || p.correo), null, true);
+    return;
+  }
+  if (r.estado !== 'ok') return;
+  if (r.rol !== p.rol) { location.reload(); return; }
+  if (_avisar) _avisar('');
+}
+
+/**
+ * Vuelve a preguntarle a la hoja quién soy, con el token de Google que se acaba de renovar.
+ *
+ * ── Por qué hace falta ───────────────────────────────────────────────────────────
+ * La comprobación del arranque renueva el token CALLADA, y el navegador bloquea la ventana
+ * de Google si nadie acaba de tocar nada: casi siempre se queda en «sin_red» y el pase no se
+ * renueva. El token sí se renueva después, con el primer clic (ver app.js), pero ahí nadie
+ * volvía a preguntar a la hoja. Resultado: quien abría la app cada mañana, con señal todos
+ * los días, veía «llevas días sin señal» hacia el día 23 y la puerta cerrada el 30; y a quien
+ * quitaban de «Accesos» le seguía abriendo hasta un mes, contra lo que dice la cabecera. Lo
+ * llama app.js después de renovar con éxito, que es una vez por hora como mucho.
+ */
+export async function reconfirmar() {
+  const p = Prefs.pase();
+  if (!p || !Ingreso.dentro()) return;
+  let v = await preguntarALaHoja();
+  /* La segunda opinión, igual que en el camino callado: ver confirmarDeVerdad. */
+  if (v.estado === 'fuera') {
+    await new Promise(r => setTimeout(r, MS_SEGUNDA_OPINION));
+    const v2 = await preguntarALaHoja();
+    if (v2.estado !== 'fuera') v = v2;
+  }
+  atenderConfirmacion(v, p);
 }
 
 /* ----------------------------------------------------------------------------

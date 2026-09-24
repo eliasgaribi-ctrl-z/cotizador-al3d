@@ -141,6 +141,8 @@ const MSG = {
 };
 
 let _adaptador = null;
+/* El «dispositivo» con que se marcan los proyectos importados de la hoja (proyectos.js). */
+const DISP_HOJA = 'hoja';
 let _bombeando = null;       /* La promesa del bombeo en curso. Ver `bombear`. */
 let _jalando = null;         /* La de la bajada en curso. Ver `jalar`. */
 let _ultimoError = '';
@@ -402,8 +404,23 @@ async function bombearDeVerdad() {
 
   let subidas = 0, fallidas = 0, enConflicto = 0, apartadas = 0;
   const rechazos = [];
+  /* Registros con una operación que no salió en esta vuelta. Las que vienen detrás DEL MISMO
+     registro esperan: mandar la actualización de un proyecto cuya alta se quedó atrás es
+     justo el desorden que este bucle en serie existe para evitar. Las de otros registros
+     sí siguen. */
+  const detenidos = new Set();
 
   for (const op of cola) {
+    const clave = op.almacen + '|' + op.registro_id;
+    if (detenidos.has(clave)) continue;
+    /* ── Una operación rechazada espera su turno ──────────────────────────────────
+       El retroceso de `esperaMs` estaba escrito, exportado y documentado —«retrocede
+       exponencialmente»— y nadie lo llamaba: una operación que la hoja rechaza por ser de
+       este teléfono se volvía a mandar cada treinta segundos, para siempre. */
+    if (op.rechazada_ts && Date.now() - op.rechazada_ts < esperaMs(Math.max(0, (op.intentos || 1) - 1))) {
+      detenidos.add(clave);
+      continue;
+    }
     /* Se pregunta ANTES de gastar una petición. Mandar al Worker una salida de acrílico
        para que conteste que no sabe qué hacer con ella es una vuelta de red por cada
        renglón del libro, cada vez que alguien aprieta bombear. */
@@ -460,19 +477,27 @@ async function bombearDeVerdad() {
       continue;
     }
 
+    const porOperacion = !!(respuesta && respuesta.porOperacion);
     await DB.poner('pendientes', {
       ...op,
       intentos: (op.intentos || 0) + 1,
       ultimo_error: String((respuesta && respuesta.mensaje) || codigo),
+      rechazada_ts: porOperacion ? Date.now() : (op.rechazada_ts || null),
     });
     fallidas++;
     _ultimoError = String((respuesta && respuesta.mensaje) || codigo);
+    detenidos.add(clave);
 
     /* Si fue la red o el puente, no tiene sentido intentar las otras 40: van a fallar
        igual y cada intento fallido sube el contador de reintentos de una operación que
        no tuvo la culpa, y con el retroceso exponencial eso la castiga por horas. */
-    /* Y con un token que el puente no reconoce tampoco: las 40 darían 401 igual. */
-    if (codigo === 'SIN_RED' || codigo === 'DESCONOCIDO' || codigo === 'ROL_SIN_PERMISO') break;
+    /* Y con un token que el puente no reconoce tampoco: las 40 darían 401 igual.
+       Pero solo cuando es EL TOKEN. El puente contesta el mismo ROL_SIN_PERMISO cuando lo
+       que no puede salir es UNA operación —el alta de una venta desde el teléfono de
+       fabricación, que no escribe el nombre— y parar ahí dejaba la bandeja entera atorada
+       detrás de ella: ningún cambio de etapa de ese teléfono volvía a salir, contra lo que
+       el propio aviso promete («desde aquí ya podrás mover la obra»). */
+    if (!porOperacion && (codigo === 'SIN_RED' || codigo === 'DESCONOCIDO' || codigo === 'ROL_SIN_PERMISO')) break;
   }
 
   if (subidas) await ponerMarcas({ ultimo_envio: Date.now() });
@@ -600,7 +625,10 @@ async function jalarDeVerdad() {
 
     const disp = datos.dispositivo || datos.disp;
     const sello = Number(datos.actualizado_en) || 0;
-    if (disp && sello > (vistos[disp] || 0)) vistos[disp] = sello;
+    /* «hoja» no es un aparato: es la marca de los proyectos importados de la hoja, que se
+       sellan al importarse y ya nunca más. Contarlo como dispositivo encendía, a las 48 h,
+       «El dispositivo hoja no comparte desde hace N días» para siempre. */
+    if (disp && disp !== DISP_HOJA && sello > (vistos[disp] || 0)) vistos[disp] = sello;
   }
 
   /* El barrido cierra: lo que la hoja ya no trajo se va de los espejos. */
@@ -784,7 +812,9 @@ export async function frescura() {
   }
 
   const atrasados = Object.keys(m.vistos)
-    .filter(d => d && d !== Prefs.dispositivo())
+    /* Sin «hoja»: ver arriba. Se filtra también aquí porque los aparatos que ya la tienen
+       apuntada la guardan en sus marcas. */
+    .filter(d => d && d !== Prefs.dispositivo() && d !== DISP_HOJA)
     .map(d => ({ disp: d, ts: Number(m.vistos[d]) || 0 }))
     .map(x => ({ ...x, horas: Math.floor((ahora - x.ts) / 3600000) }))
     .filter(x => x.horas >= HORAS_VIEJO)

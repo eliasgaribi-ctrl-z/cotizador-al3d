@@ -101,7 +101,7 @@ para enchufarlo.
 **Estado.** Los dos lados están escritos y probados —`puente/hoja-apps-script.gs`,
 `datos/puente.js`, el arranque y la pantalla de Ajustes— y lo que falta es únicamente lo de los
 cuatro puntos de arriba, que son clics de una persona. La versión del contrato es
-`puente-sheets-4`; «Probar» compara la que contesta la hoja con la que la plataforma espera y
+`puente-sheets-6`; «Probar» compara la que contesta la hoja con la que la plataforma espera y
 avisa si la hoja se quedó atrás. Y una acotación honesta: **el relevo de hoy lleva `proyectos` e
 `instalaciones`, no los diez almacenes**. Lo que iría a las bases de movimientos y materiales se
 aparta en la bandeja con su razón y se reincorpora el día que existan. Ver §5.13.

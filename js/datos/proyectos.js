@@ -107,7 +107,13 @@ export const ICO_ETAPA = {
 /** La clase de color de `.pf-etapa`. Trae seis cajas de color y aquí hay ocho etapas:
  *  garantía y cancelado caen en `cerrado`, que es el gris de «archivado», que es lo que son:
  *  salidas del camino, no pasos de él. */
-export const claseEtapa = e => (e === 'garantia' || e === 'cancelado') ? 'cerrado' : String(e || 'ganado');
+/*  Y solo devuelve etapas que existen: se pinta dentro de class="…" en seis pantallas, y la
+ *  etapa viene de IndexedDB, que se llena también con un respaldo restaurado —DB.importar no
+ *  revisa renglón por renglón—. Con `String(e)` a secas, un respaldo con
+ *  etapa:'x"><img src=x onerror=…>' corría su código al abrir la ficha; mapa y material lo
+ *  escapaban, proyectos no. Una etapa que no se conoce se pinta como «ganado». */
+export const claseEtapa = e => (e === 'garantia' || e === 'cancelado') ? 'cerrado'
+  : (ETAPAS.includes(e) ? e : 'ganado');
 
 /** El lugar de cada etapa en la línea del proceso. Se exporta porque el Tablero compara
  *  `ORDEN[etapa_real] < ORDEN[etapa_esperada]` para decir «2 atrasados», y porque la

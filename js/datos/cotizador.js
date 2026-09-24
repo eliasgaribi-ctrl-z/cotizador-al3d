@@ -178,6 +178,19 @@ export const folioVisible = fg => String(fg || '').split('@')[0];
  */
 const hayNum = v => v !== undefined && v !== null && v !== '' && isFinite(Number(v));
 export async function drenarBuzon() {
+  /* ── De una en una, aunque haya dos pestañas ─────────────────────────────────────
+     El cotizador escribe el buzón y el evento `storage` llega a TODAS las pestañas de la
+     plataforma abiertas —la app instalada y una pestaña del navegador, que es lo normal—.
+     Las dos drenaban a la vez, las dos preguntaban a `ganar` si ya existía el proyecto antes
+     de que la otra lo insertara, y las dos lo creaban: dos proyectos, dos altas encoladas
+     hacia la hoja y la venta contada dos veces en Control. Un candado del navegador las
+     pone en fila; la segunda encuentra el buzón vacío, o `ganar` le contesta DUPLICADO. */
+  const locks = typeof navigator !== 'undefined' && navigator.locks;
+  if (locks && typeof locks.request === 'function') return locks.request('al3d-buzon', () => drenarDeVerdad());
+  return drenarDeVerdad();
+}
+
+async function drenarDeVerdad() {
   const buzon = Prefs.leerBuzon();
   if (!buzon.length) return { creados: 0, repetidos: 0, fallidos: 0 };
   const { ganar } = await import('./proyectos.js');

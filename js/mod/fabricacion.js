@@ -1132,7 +1132,9 @@ async function ejecutar(acc, id) {
          desde aquí sería inventarle a §5.7 una mutación que no tiene. */
       avisarResultado(r, r.ok && r.valor && r.valor.yaEstaba
         ? 'Ese evento ya estaba en el calendario'
-        : 'Evento creado. La invitación ya les llegó a los tres.');
+        : r.ok && r.valor && r.valor.movido
+          ? 'El evento se movió a la fecha nueva. A los tres les llega la actualización.'
+          : 'Evento creado. La invitación ya les llegó a los tres.');
       return;
     }
   }

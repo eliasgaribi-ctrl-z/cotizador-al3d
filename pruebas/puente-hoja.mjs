@@ -331,5 +331,39 @@ console.log('\nUNA DE LAS 199, DE LA CELDA AL RÉCORD DE CONTROL');
      ['Farmacia Guadalajara - Letras', undefined, undefined]);
 }
 
+console.log('\nEL REACOMODO DE VENTAS MUEVE LA FILA ENTERA');
+{
+  /* ordenarVentas corre después de cada empuje, de cada Estatus y de cada venta del menú.
+     Leía y escribía solo A:N y las columnas del puente (Y:AD) se quedaban quietas: en cuanto
+     una venta cambiaba de lugar, la de al lado heredaba su folio de cotización, su etapa y su
+     dirección, y los teléfonos —que casan por ese folio— pintaban el dinero de una venta en
+     el proyecto de otra. Esto lo prueba contra una hoja de mentiras que solo sabe leer y
+     escribir rangos, que es todo lo que ordenarVentas le pide. */
+  const FIN = vm.runInContext('FIN', ctx);
+  const celdas = Array.from({ length: FIN + 1 }, () => Array(api.ULTIMA_COL).fill(''));
+  const hoja = {
+    getRange: (r, c, nr, nc) => ({
+      getValues: () => celdas.slice(r - 1, r - 1 + nr).map(f => f.slice(c - 1, c - 1 + nc)),
+      setValues: v => v.forEach((f, i) => f.forEach((x, j) => { celdas[r - 1 + i][c - 1 + j] = x; })),
+    }),
+  };
+  const fila = (n, o) => { for (const [k, v] of Object.entries(o)) celdas[n - 1][(k === 'folio' ? api.COL_FOLIO : api.COL[k]) - 1] = v; };
+  fila(2, { folio: 'V-010', 'Proyecto': 'Cortado', 'Estatus': 'LIQUIDADO', 'Folio cotizacion': 'COT-A', 'Direccion': 'Calle A' });
+  fila(3, { folio: 'V-009', 'Proyecto': 'Cobrando', 'Estatus': 'COBRANDO', 'Folio cotizacion': 'COT-B', 'Direccion': 'Calle B' });
+  fila(4, { folio: 'V-011', 'Proyecto': '=IMPORTXML("http://x")', 'Estatus': 'FABRICACION', 'Folio cotizacion': 'COT-C', 'Direccion': '+52 calle' });
+  vm.runInContext('ordenarVentas', ctx)(hoja);
+
+  const porFolio = f => celdas.find(r => r[api.COL_FOLIO - 1] === f) || [];
+  const de = (f, k) => porFolio(f)[api.COL[k] - 1];
+  cierto('las filas SÍ cambiaron de lugar (si no, esta prueba no prueba nada)', celdas[1][api.COL_FOLIO - 1] !== 'V-010');
+  eq('V-010 conserva su folio de cotización y su dirección', [de('V-010', 'Folio cotizacion'), de('V-010', 'Direccion')], ['COT-A', 'Calle A']);
+  eq('V-009 también', [de('V-009', 'Folio cotizacion'), de('V-009', 'Direccion')], ['COT-B', 'Calle B']);
+  /* getValues devuelve el texto sin el apóstrofo con que se guardó; setValues lo volvería a
+     leer como fórmula. El reacomodo lo re-blinda. */
+  eq('y el texto que empieza con = o + sigue siendo texto', [de('V-011', 'Proyecto'), de('V-011', 'Direccion')],
+     ['\'=IMPORTXML("http://x")', "'+52 calle"]);
+  eq('la de V-011 viaja con su folio', de('V-011', 'Folio cotizacion'), 'COT-C');
+}
+
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 if (mal) process.exit(1);

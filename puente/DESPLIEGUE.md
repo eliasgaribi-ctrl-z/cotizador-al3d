@@ -69,6 +69,15 @@ corrió de verdad— antes de dar por hecho que pasó.
 Estado al 19 de septiembre de 2026: la hoja corre `puente-sheets-4`, implementada como
 **Versión 5**, en la misma URL de siempre.
 
+**Al pasar a `puente-sheets-6`** (septiembre de 2026) no hay columnas nuevas ni pasos extra:
+es pegar el `.gs` e implementar una versión nueva. Son arreglos del lado de la hoja, y el más
+importante es que **el reacomodo de Ventas mueve la fila entera**: hasta la 5 dejaba quietas
+las columnas Y:AD (folio de cotización, etapa, hora, ubicación, dirección, %) mientras la venta
+cambiaba de renglón, así que después de un reacomodo conviene revisar esas columnas en las
+ventas que se movieron. El resto: «Marcar como LIQUIDADO» escribía en la Cuenta (columna D) en
+vez del Estatus (C); `/empujar` ya no crea renglones sin nombre ni devuelve importes a quien no
+los ve; el límite por minuto dejaba fuera a un teléfono a los pocos minutos de uso normal.
+
 ## Las cabeceras del sitio
 
 En la raíz del repo hay un `_headers`, que Cloudflare Pages lee y GitHub Pages ignora.

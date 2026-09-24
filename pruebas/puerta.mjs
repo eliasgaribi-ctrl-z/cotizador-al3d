@@ -259,7 +259,9 @@ console.log('\nLO QUE LA PUERTA PROMETE');
      posiciones de texto que no eran el código y pasaban por la razón equivocada. Un ancla
      que casa con un comentario es una prueba que no prueba nada. */
   const iPuerta = app.indexOf('await Puerta.custodiar(');
-  const iMontar = app.indexOf('await montar(rutaDelHash())');
+  /* Sin el paréntesis de cierre: el montaje del arranque va forzado —ver el comentario de
+     app.js sobre el toque que llega antes de abrir la base— y lleva opciones. */
+  const iMontar = app.indexOf('await montar(rutaDelHash()');
   cierto('app.js espera a la puerta ANTES de montar el primer módulo',
          iPuerta > 0 && iMontar > 0 && iPuerta < iMontar);
   cierto('y antes de pintar la barra, que depende del rol',
@@ -277,10 +279,18 @@ console.log('\nLO QUE LA PUERTA PROMETE');
   const ruta1 = (src.match(/const p = Prefs\.pase\(\);[\s\S]*?return dentro\('google', p\.correo/) || [''])[0];
   cierto('con pase vivo se entra YA: la comprobación va por detrás, sin `await`',
          ruta1.includes('confirmarSuelto(false).real.then') && !/await confirmar/.test(ruta1));
+  /* Lo que se hace con la respuesta vive en `atenderConfirmacion`, que comparten el arranque y
+     `reconfirmar` —la vuelta a la hoja después de renovar el token con un clic—. Se mira que
+     la ruta 1 la llame y que ELLA eche y recargue. */
+  const atiende = (src.match(/function atenderConfirmacion\([\s\S]*?\n\}/) || [''])[0];
   cierto('y si la hoja dice que ese correo ya no entra, se echa en el acto',
-         ruta1.includes("r.estado === 'fuera'") && ruta1.includes('borrarPase()'));
+         ruta1.includes('atenderConfirmacion(r, p)') &&
+         atiende.includes("r.estado === 'fuera'") && atiende.includes('borrarPase()'));
   cierto('si la hoja le cambió el rol, se recarga: media app ya se pintó con el viejo',
-         ruta1.includes('r.rol !== p.rol') && ruta1.includes('location.reload()'));
+         atiende.includes('r.rol !== p.rol') && atiende.includes('location.reload()'));
+  cierto('y renovar el token con un clic vuelve a preguntar a la hoja: así se renueva el pase',
+         /export async function reconfirmar[\s\S]{0,1200}preguntarALaHoja\(\)[\s\S]{0,600}atenderConfirmacion\(v, p\)/.test(src) &&
+         /Ingreso\.renovar\(\)[\s\S]{0,600}m\.reconfirmar\(\)/.test(app));
 
   /* Echar a alguien a mitad de sesión tiene que RECARGAR al volver a entrar: detrás de la
      puerta quedó pintada la pantalla del que se fue, con su rol y sus datos. */

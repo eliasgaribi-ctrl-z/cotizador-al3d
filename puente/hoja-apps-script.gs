@@ -922,12 +922,29 @@ function filaPorFolio(h, folio) {
   return 0;
 }
 
-/** Reacomoda Ventas. Es idempotente: correrla dos veces no cambia nada. */
+/** Reacomoda Ventas. Es idempotente: correrla dos veces no cambia nada.
+ *
+ *  ── Mueve la fila ENTERA, puente incluido ──────────────────────────────────────
+ *  Leía y escribía solo A:N, y las columnas del puente —Y:AD: Folio cotizacion, Etapa de
+ *  obra, Hora, Ubicacion, Direccion, Porcentaje— se quedaban donde estaban mientras la
+ *  venta se iba a otro renglón. Corre después de cada /empujar, de cada cambio de Estatus y
+ *  de cada venta del menú, así que bastaba con que una venta nueva entrara arriba para que
+ *  la de abajo heredara el folio de cotización de otra: los teléfonos casan por ese folio,
+ *  y el dinero de una venta se pintaba en el proyecto de otra. Lo que NO se escribe son las
+ *  fórmulas (H, K, O:X): son de renglón y se recalculan solas con los datos que llegan.
+ *
+ *  ── Y re-blinda el texto ───────────────────────────────────────────────────────
+ *  `getValues` devuelve «=IMPORTXML(…)» SIN el apóstrofo con que se guardó, y `setValues`
+ *  lo vuelve a leer como si alguien lo tecleara: un texto que el puente blindó al escribirlo
+ *  (ver armarCeldas) volvía a ser una fórmula viva en el primer reacomodo. */
+function blindarTexto(v) {
+  return (typeof v === 'string' && /^[=+\-@]/.test(v)) ? "'" + v : v;
+}
 function ordenarVentas(h) {
   h = h || SpreadsheetApp.getActive().getSheetByName('Ventas');
   if (!h) return;
   var n = FIN - 1;
-  var datos = h.getRange(2, 1, n, 14).getValues();
+  var datos = h.getRange(2, 1, n, ULTIMA_COL).getValues();
 
   var llenas = [], vacias = [];
   for (var i = 0; i < n; i++) {
@@ -941,16 +958,19 @@ function ordenarVentas(h) {
     return numeroDeFolio(b[0]) - numeroDeFolio(a[0]);
   });
 
-  var orden = llenas.concat(vacias), ag = [], ij = [], lmn = [];
+  var orden = llenas.concat(vacias), ag = [], ij = [], lmn = [], puente = [];
+  var col = function (r, a, b) { return r.slice(a - 1, b).map(blindarTexto); };
   for (var j = 0; j < orden.length; j++) {
     var r = orden[j];
-    ag.push([r[0], r[1], r[2], r[3], r[4], r[5], r[6]]);
-    ij.push([r[8], r[9]]);
-    lmn.push([r[11], r[12], r[13]]);
+    ag.push(col(r, 1, 7));
+    ij.push(col(r, 9, 10));
+    lmn.push(col(r, 12, 14));
+    puente.push(col(r, COL['Folio cotizacion'], ULTIMA_COL));
   }
   h.getRange(2, 1, n, 7).setValues(ag);
   h.getRange(2, 9, n, 2).setValues(ij);
   h.getRange(2, 12, n, 3).setValues(lmn);
+  h.getRange(2, COL['Folio cotizacion'], n, ULTIMA_COL - COL['Folio cotizacion'] + 1).setValues(puente);
 }
 
 /** Elias BBVA cobra sin factura; cualquier otra cuenta lleva IVA. */
@@ -984,7 +1004,23 @@ function normalizarIvaActivos(h) {
  * Folio automatico al escribir un proyecto nuevo, IVA automatico segun la
  * cuenta, y reacomodo de la hoja cuando cambia el estatus.
  */
-function alEditar(e) {
+/* ----- El mismo candado para todo lo que reescribe renglones -----
+   /empujar ya tomaba el candado del script, pero la edición a mano (alEditar) y los cuatro
+   diálogos del menú no: si la dueña cambiaba un Estatus mientras un teléfono empujaba,
+   ordenarVentas reacomodaba A:N entre el momento en que el empuje encontró su renglón y el
+   momento en que escribió, y el empuje escribía en OTRA venta —o el reacomodo volvía a
+   escribir su copia vieja encima del anticipo nuevo, y al teléfono se le decía «ok»—.
+   Se espera hasta 20 s; si no llega, se sigue como antes en vez de fallar: un diálogo que se
+   niega a guardar por un candado es peor que el riesgo que el candado viene a quitar. */
+function conCandado(fn) {
+  var candado = LockService.getScriptLock(), tengo = false;
+  try { tengo = candado.tryLock(20000); } catch (e) { tengo = false; }
+  try { return fn(); }
+  finally { if (tengo) { try { candado.releaseLock(); } catch (e) {} } }
+}
+
+function alEditar(e) { return conCandado(function () { return alEditarSinCandado(e); }); }
+function alEditarSinCandado(e) {
   try {
     var h = e.range.getSheet();
     if (h.getName() !== 'Ventas') return;
@@ -1209,7 +1245,8 @@ function dialogoVenta() {
   SpreadsheetApp.getUi().showModalDialog(marco(c, 580), 'Nueva venta');
 }
 
-function guardarVenta(d) {
+function guardarVenta(d) { return conCandado(function () { return guardarVentaSinCandado(d); }); }
+function guardarVentaSinCandado(d) {
   var h = hojaVentas();
   var n = FIN - 1;
   var proy = h.getRange(2, 2, n, 1).getValues();
@@ -1247,7 +1284,7 @@ function listaSaldos() {
   d.forEach(function (r) {
     var saldo = Number(r[10]) || 0;
     if (r[1] && saldo > 0.004) {
-      out.push({ folio: r[0], nombre: r[1], saldo: saldo, estatus: r[3] });
+      out.push({ folio: r[0], nombre: r[1], saldo: saldo, estatus: r[2] });   // C; D (r[3]) es la cuenta
     }
   });
   out.sort(function (a, b) { return b.saldo - a.saldo; });
@@ -1298,7 +1335,8 @@ function dialogoCobro() {
   SpreadsheetApp.getUi().showModalDialog(marco(c, 430), 'Registrar un cobro');
 }
 
-function guardarCobro(d) {
+function guardarCobro(d) { return conCandado(function () { return guardarCobroSinCandado(d); }); }
+function guardarCobroSinCandado(d) {
   var h = hojaVentas();
   var folios = h.getRange(2, 1, FIN - 1, 1).getValues();
   var fila = 0;
@@ -1311,7 +1349,11 @@ function guardarCobro(d) {
   var previo = Number(h.getRange(fila, 10).getValue()) || 0;
   h.getRange(fila, 10).setValue(previo + monto);
   if (d.fecha) h.getRange(fila, 14).setValue(fechaDe(d.fecha));
-  if (d.liquidar) h.getRange(fila, 4).setValue('LIQUIDADO');
+  /* Estatus es la C (COL['Estatus'] = 3). Esto escribía en la 4, que es la CUENTA: una venta
+     de «Elias BBVA» marcada como liquidada se quedaba en COBRANDO con la cuenta «LIQUIDADO», y
+     en el siguiente empuje normalizarIvaActivos le ponía IVA por no ser Elias BBVA — un 16 %
+     de saldo sobre una venta pagada. */
+  if (d.liquidar) h.getRange(fila, COL['Estatus']).setValue('LIQUIDADO');
   SpreadsheetApp.flush();
 
   var resta = Number(h.getRange(fila, 11).getValue()) || 0;
@@ -1373,7 +1415,8 @@ function dialogoAbono() {
   SpreadsheetApp.getUi().showModalDialog(marco(c, 460), 'Abono de comisión');
 }
 
-function guardarAbono(d) {
+function guardarAbono(d) { return conCandado(function () { return guardarAbonoSinCandado(d); }); }
+function guardarAbonoSinCandado(d) {
   var ss = SpreadsheetApp.getActive();
   var h = ss.getSheetByName(ABONOS);
   if (!h) throw new Error('No encuentro la pestaña "' + ABONOS + '".');
@@ -1470,8 +1513,14 @@ function dialogoTokens() {
    entra la columna AD «Porcentaje comision» —que viaja, pero no cambia la comisión: la de
    AL3D es 10 % fijo del subtotal—.
    puente-sheets-5: el rol puede salir de la IDENTIDAD de Google además del token de
-   dispositivo. La lista de quién es quién vive en la pestaña «Accesos» de esta hoja. */
-var PUENTE_VERSION = 'puente-sheets-5';
+   dispositivo. La lista de quién es quién vive en la pestaña «Accesos» de esta hoja.
+   puente-sheets-6: arreglos, sin cambiar el contrato. El reacomodo de Ventas mueve la fila
+   entera —las columnas del puente se quedaban atrás y se mezclaban entre ventas— y re-blinda
+   el texto; «Marcar como LIQUIDADO» escribe en el Estatus y no en la Cuenta; /empujar ya no
+   crea renglones sin nombre ni le devuelve el dinero a quien no lo ve; el límite por minuto
+   es de ventana fija; /jalar baja la hoja en una página; la edición a mano y los diálogos
+   toman el mismo candado que /empujar. */
+var PUENTE_VERSION = 'puente-sheets-6';
 var BITACORA = 'Bitácora del puente';
 
 /* ── Entrar con Google ─────────────────────────────────────────────────────
@@ -1768,8 +1817,14 @@ function dentroDelLimite(token) {
        caché de Google tal cual. */
     var clave = 'p_' + Utilities.base64EncodeWebSafe(
         Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token)).slice(0, 24);
+    /* Ventana FIJA por minuto de reloj. Con la misma clave y `put(…, 60)` cada petición
+       volvía a empezar los 60 segundos, así que el contador solo se vaciaba tras un minuto
+       ENTERO de silencio: un teléfono que sincroniza cada 30 s no lo da nunca, el número
+       subía sin parar y a los pocos minutos todo le contestaba «Demasiadas peticiones» —y
+       cada rechazo lo seguía subiendo—. */
+    clave += '_' + Math.floor(Date.now() / 60000);
     var n = Number(cache.get(clave) || 0) + 1;
-    cache.put(clave, String(n), 60);
+    cache.put(clave, String(n), 120);
     return n <= LIMITE_POR_MINUTO;
   } catch (e) {
     return true;   // si la caché falla, no se deja fuera a los teléfonos
@@ -1832,7 +1887,13 @@ function rutaJalar(cuerpo, rol) {
   var h = SpreadsheetApp.getActive().getSheetByName('Ventas');
   var desde = Number((cuerpo && cuerpo.cursor) || 2);
   if (!isFinite(desde) || desde < 2) desde = 2;
-  var tam = 50;
+  /* La hoja entera en una página. Eran 50 renglones, siete vueltas por sincronización, y el
+     cursor es un NÚMERO DE RENGLÓN: si entre una página y la siguiente llegaba un empuje,
+     ordenarVentas movía filas a páginas ya leídas, el barrido cerraba sin verlas y el teléfono
+     las borraba de `ventas_hoja` —Control sumaba de menos hasta la siguiente vuelta—. 309
+     renglones por 30 columnas caben de sobra en una respuesta, y de paso son siete peticiones
+     menos contra el límite por minuto. El cursor se queda por si FIN crece algún día. */
+  var tam = FIN - 1;
   var hasta = Math.min(desde + tam - 1, FIN);
   var datos = h.getRange(desde, 1, hasta - desde + 1, ULTIMA_COL).getValues();
   var tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
@@ -1946,6 +2007,15 @@ function unaOperacion(h, op, rol, anotaciones) {
     if (fc) fila = filaPorFolioCotizacion(h, fc);
   }
   var creada = false;
+  /* Solo se CREA una fila con nombre. Una operación que no encuentra su fila y no trae
+     Proyecto —la de un teléfono de fabricación o de pagos contra una venta que se borró de la
+     hoja— creaba un renglón fantasma con folio y sin nombre: /jalar lo saltaba por no tener
+     proyecto, pero primeraFilaLibre lo seguía dando por libre, y la siguiente venta de
+     Dirección caía encima y heredaba su folio de cotización, su etapa y su dirección. */
+  if (!fila && !armado.celdas.some(function (c) { return c.col === COL['Proyecto']; })) {
+    return { id: op.id, ok: false, codigo: 'NO_ENCONTRADO',
+             mensaje: 'Esa venta ya no está en la hoja, y sin el nombre del proyecto no se puede volver a crear.' };
+  }
   if (!fila) {
     fila = primeraFilaLibre(h);
     if (!fila) {
@@ -1967,7 +2037,11 @@ function unaOperacion(h, op, rol, anotaciones) {
 
   var tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
   var datos = aplanarFila(h.getRange(fila, 1, 1, ULTIMA_COL).getValues()[0], tz);
-  return { id: op.id, ok: true, creada: creada, remoto: datos,
+  /* Con el mismo filtro que /jalar. Devolver la fila entera le bajaba el dinero a quien no le
+     toca verlo: un token de fabricación que reescribía su propia «Hora instalacion» recibía
+     de vuelta subtotal, anticipo, saldo y comisiones, y con 25 operaciones por petición se
+     leía la hoja entera en trece llamadas. */
+  return { id: op.id, ok: true, creada: creada, remoto: sinLoQueNoLeToca(datos, rol),
            rechazadas: armado.rechazadas };
 }
 
@@ -2088,8 +2162,14 @@ function primeraFilaLibre(h) {
  */
 function rutaExpandir(cuerpo) {
   var u = String((cuerpo && cuerpo.u) || '').trim();
-  var m = /^https?:\/\/([^\/:?#]+)/i.exec(u);
-  var host = m ? m[1].toLowerCase() : '';
+  /* Se toma la AUTORIDAD entera —hasta la primera barra, ? o #— y se rechaza si trae
+     usuario. Con `[^\/:?#]+` la regex se detenía en el primer «:», así que
+     https://google.com:443@evil.example/x se leía como google.com cuando el host de verdad
+     es evil.example: cualquier token hacía que los servidores de Google pidieran cualquier
+     página y le devolvieran su cabecera Location. */
+  var m = /^https?:\/\/([^\/?#]*)/i.exec(u);
+  var autoridad = m ? m[1] : '';
+  var host = (autoridad.indexOf('@') === -1) ? autoridad.replace(/:\d*$/, '').toLowerCase() : '';
   if (!host || DOMINIOS_MAPS.indexOf(host) === -1) {
     return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'Solo se siguen ligas de Google Maps.' };
   }
@@ -2132,8 +2212,15 @@ function anotar(anotaciones) {
       return [ahora, a.rol, a.folio, a.fila, que || '(nada)',
               a.creada ? 'fila nueva' : ''];
     });
-    b.getRange(b.getLastRow() + 1, 1, filas.length, 6).setValues(filas);
-    b.getRange(2, 1, b.getLastRow(), 1).setNumberFormat('dd/mm/yyyy HH:mm:ss');
+    /* La pestaña nace con 1000 renglones y escribir más allá del último NO lo agrega: truena
+       con «coordenadas fuera de las dimensiones», el catch de abajo se lo traga y la bitácora
+       dejaba de anotar en silencio hacia el renglón mil —el tope de 5000 nunca llegaba a
+       aplicarse—. Se agregan los que falten antes de escribir. */
+    var sigue = b.getLastRow() + 1;
+    var faltan = sigue + filas.length - 1 - b.getMaxRows();
+    if (faltan > 0) b.insertRowsAfter(b.getMaxRows(), faltan);
+    b.getRange(sigue, 1, filas.length, 6).setValues(filas);
+    b.getRange(2, 1, b.getLastRow() - 1, 1).setNumberFormat('dd/mm/yyyy HH:mm:ss');
 
     /* No crece para siempre: se queda con los últimos 5000 renglones. */
     var sobran = b.getLastRow() - 5001;
@@ -2317,7 +2404,8 @@ function siguienteIdPago(h) {
   return 'P-' + ('000' + (max + 1)).slice(-3);
 }
 
-function guardarReparto(d) {
+function guardarReparto(d) { return conCandado(function () { return guardarRepartoSinCandado(d); }); }
+function guardarRepartoSinCandado(d) {
   var monto = Number(d.monto);
   if (!(monto > 0)) throw new Error('Escribe un importe mayor a cero.');
 
@@ -2326,16 +2414,21 @@ function guardarReparto(d) {
 
   var h = prepararColumnaPago();
 
+  /* N renglones SEGUIDOS libres, no el primer hueco. Con el primer hueco, un abono que
+     alguien borró a mitad de la pestaña dejaba ahí un renglón vacío, y un reparto entre tres
+     proyectos lo tomaba y seguía hacia abajo encima de los dos abonos que ya existían. */
+  var n = calc.reparto.length;
   var col = h.getRange(2, 1, 1999, 1).getValues();
-  var fila = 0;
-  for (var i = 0; i < col.length; i++) { if (col[i][0] === '') { fila = i + 2; break; } }
-  if (!fila) throw new Error('Ya no hay renglones libres en la pestaña de abonos.');
-  if (fila + calc.reparto.length - 1 > 2000) throw new Error('No caben todos los renglones del reparto.');
+  var fila = 0, corrida = 0;
+  for (var i = 0; i < col.length; i++) {
+    corrida = (col[i][0] === '') ? corrida + 1 : 0;
+    if (corrida === n) { fila = i + 2 - n + 1; break; }
+  }
+  if (!fila) throw new Error('No caben todos los renglones del reparto en la pestaña de abonos.');
 
   var id = siguienteIdPago(h);
   var fecha = d.fecha ? fechaDe(d.fecha) : new Date();
   var nota = (d.nota ? String(d.nota).trim() + ' · ' : '') + 'Reparto ' + id + ' de ' + pesos(monto);
-  var n = calc.reparto.length;
 
   h.getRange(fila, 1, n, 1).setValues(calc.reparto.map(function (x) { return [x.folio]; }));
   h.getRange(fila, 3, n, 3).setValues(calc.reparto.map(function (x) { return [x.abono, fecha, nota]; }));

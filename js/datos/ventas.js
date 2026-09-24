@@ -232,7 +232,11 @@ export function indicadores(proyectos, sinDecidir, opts = {}) {
   const P = Array.isArray(proyectos) ? proyectos.filter(Boolean) : [];
   const mesActual = hoy.slice(0, 7);
   const mesAnterior = mesDe(masMeses(mesActual + '-01', -1));
-  const hace12 = masMeses(hoy, -12);
+  /* Los mismos doce meses que la gráfica de `resumenMensual`: este y los once de antes.
+     `masMeses` devuelve siempre el día 1, así que `masMeses(hoy, -12)` arrancaba el 1 del
+     mismo mes del año pasado y la cifra sumaba casi trece meses —el ticket promedio también—
+     mientras la gráfica de al lado enseñaba doce. */
+  const hace12 = masMeses(mesActual + '-01', -11);
 
   const suma = (lista, f) => lista.reduce((s, p) => red2(s + f(p)), 0);
   const vivos = P.filter(p => p.etapa !== 'cancelado');

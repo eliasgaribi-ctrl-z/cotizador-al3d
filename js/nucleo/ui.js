@@ -223,6 +223,13 @@ export function abrirCapa(id, opts = {}) {
   return true;
 }
 
+/* Cuántos `history.back()` lanzó cerrarCapa y todavía no llegan. El `popstate` de uno de
+   ésos no es el atrás del teléfono y no tiene que cerrar nada: sin este contador, cerrar la
+   orden de trabajo cerraba también la ficha de abajo, cerrar el editor de un material cerraba
+   el catálogo, y «Cancelar» en la ficha abría el «¿no se dio?» y el atrás pendiente lo
+   cerraba en el acto — el flujo no se podía terminar. */
+let _backPropio = 0;
+
 export function cerrarCapa(id) {
   const el = $(id); if (!el) return;
   el.classList.remove('show');
@@ -231,7 +238,7 @@ export function cerrarCapa(id) {
     /* history.back() es asíncrono. Si quien cierra abre otra cosa enseguida, se cruzan y
        el atrás del teléfono cierra lo recién abierto. Por eso el consumo de la entrada
        vive aquí y en el oyente de popstate, y en ningún otro lado. */
-    try { if (history.state && history.state.capa === id) history.back(); } catch (_) {}
+    try { if (history.state && history.state.capa === id) { _backPropio++; history.back(); } } catch (_) {}
   }
   const prev = _focoPrevio.get(id); _focoPrevio.delete(id);
   /* El velo solo se levanta cuando no queda NINGUNA capa: con la ficha abierta debajo del
@@ -269,6 +276,8 @@ export function vigilarCapas() {
     else if (!e.shiftKey && (act === ult || !m.contains(act))) { e.preventDefault(); pri.focus(); }
   });
   window.addEventListener('popstate', () => {
+    /* Es el eco de un cerrarCapa: esa capa ya se cerró. Ver `_backPropio`. */
+    if (_backPropio > 0) { _backPropio--; return; }
     /* El atrás del teléfono ya consumió la entrada: aquí solo se cierra, sin volver a
        llamar a history.back(). */
     for (const c of _CAPAS) {

@@ -223,7 +223,11 @@ export function aNotion(p, inst, opts) {
   /* El folio ata la fila al cotizador, y va con el dispositivo pegado: `al3d_folio` es un
      contador local, dos teléfonos emiten COT-0042 el mismo día y no son el mismo trabajo.
      Es también la llave con la que el espejo encuentra la fila al bajar. */
-  out[P.folio] = texto(p.folio_global || p.folio_local);
+  /* Menos en un proyecto que VINO de la hoja sin cotización: su folio_local es el de la
+     propia hoja (V-214), y escribirlo en «Folio cotizacion» hacía que la siguiente bajada lo
+     tomara por un proyecto del cotizador —deNotion deja de ser null— y dejara de espejarle
+     el subtotal y el neto: sus importes se congelaban. */
+  if (!(p.de_hoja && !p.folio_global)) out[P.folio] = texto(p.folio_global || p.folio_local);
 
   const etapa = ETAPA_A_NOTION[p.etapa];
   if (etapa) out[P.etapa] = etapa;
@@ -373,7 +377,7 @@ export function ventaDeHoja(fila) {
    implementación anterior, el contrato que este archivo asume no es el que corre allá:
    puente-sheets-4 no sabía de la identidad de Google: con una hoja en esa versión, entrar con Google no da rol y solo sirve el token de dispositivo. Ajustes lo
    enseña con estas palabras; la prueba de node comprueba que el .gs del repo diga esta. */
-export const VERSION_ESPERADA = 'puente-sheets-5';
+export const VERSION_ESPERADA = 'puente-sheets-6';
 export function versionVieja(version) {
   const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
   const n = m ? Number(m[1]) : 0;
@@ -384,7 +388,8 @@ export function avisoVersion(version) {
   if (!versionVieja(version)) return '';
   return 'La hoja corre ' + (version ? '«' + version + '»' : 'una versión sin nombre') + ' y la plataforma espera «' +
     VERSION_ESPERADA + '». Pega el puente/hoja-apps-script.gs de hoy en Apps Script, implementa una versión nueva ' +
-    'y corre mejorarTodo: hasta entonces el saldo por cobrar puede bajar al revés y el % de comisión no llega a la hoja.';
+    'y corre mejorarTodo: hasta entonces la hoja sigue con los defectos que ya se arreglaron —entre ellos, el reacomodo ' +
+    'de Ventas que dejaba las columnas del puente en la venta equivocada—.';
 }
 
 /* ============================================================================
@@ -670,6 +675,14 @@ export function crear(cfg0) {
              cuando la operación dice que eso fue lo que cambió. Ver aNotion. */
           props = aNotion(op.datos, await instalacionDe(proy.id),
                           { alta: !idNotion, campos: Array.isArray(op.campos) ? op.campos : [] });
+        } else if (op.datos && op.datos.estado === 'cancelada') {
+          /* ── Una instalación cancelada ya no tiene fecha ────────────────────────────
+             instalacionANotion no mira el estado, así que cancelar volvía a mandar la fecha
+             vieja y la columna «Fecha instalacion» se quedaba con un día que nunca pasó —y
+             de ella cuelga la fórmula de días—. Si el proyecto tiene otra instalación viva
+             (se reagendó), manda ésa; si no, la celda se vacía, que la hoja ya entiende. */
+          const viva = await instalacionDe(proy.id);
+          props = viva ? instalacionANotion(viva) : { [P.fechaInst]: '', [P.horaInst]: '' };
         } else {
           props = instalacionANotion(op.datos);
         }
@@ -680,13 +693,15 @@ export function crear(cfg0) {
            puede identificar después. Si este token no puede escribir `Proyecto`, el alta
            no se intenta: se dice de qué teléfono tiene que salir. */
         if (!idNotion && !enviables[P.proyecto]) {
-          salida.push({ id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO',
+          /* `porOperacion`: es ESTA operación la que no puede salir, no el token. Ver el
+             bucle de sync.js, que con un ROL_SIN_PERMISO a secas para la bandeja entera. */
+          salida.push({ id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO', porOperacion: true,
             mensaje: 'Este teléfono no puede dar de alta la venta en la hoja: su token no escribe el nombre del proyecto. ' +
                      'Dala de alta desde el de Dirección y desde aquí ya podrás mover la obra.' });
           continue;
         }
         if (!Object.keys(enviables).length) {
-          salida.push({ id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO',
+          salida.push({ id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO', porOperacion: true,
             mensaje: 'De ese cambio, este teléfono no puede escribir nada en la hoja: ' + fuera.join(', ') + '.' });
           continue;
         }
@@ -736,7 +751,8 @@ export function crear(cfg0) {
         if (res.codigo !== 'CONFLICTO' && res.codigo !== 'SIN_RED') {
           await espejarLocal(proy.id, { notion_estado: 'fallido' });
         }
-        salida.push({ id: op.id, ok: false, codigo: res.codigo || 'DESCONOCIDO',
+        /* La petición entró —el token vale— y la hoja rechazó esta operación en concreto. */
+        salida.push({ id: op.id, ok: false, codigo: res.codigo || 'DESCONOCIDO', porOperacion: true,
                       mensaje: res.mensaje || 'La hoja rechazó el cambio.', conflicto: res.conflicto || null });
       }
 

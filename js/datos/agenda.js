@@ -640,7 +640,10 @@ export function dictamen(instalaciones, ctx, hoy) {
          correcta. Un proyecto que el puente importó de la hoja porque estaba en fabricación
          NO tiene partidas: la hoja no las guarda. Ahí no hay nada que recalcular, y lo que
          toca es capturar el material a mano. Ver `proyectos.desdeVentaDeHoja`. */
-      if (i.de_hoja) sinPartidas.push(i.titulo || pid);
+      /* La marca vive en el PROYECTO: delDia, delMes, el semáforo y el asistente pasan aquí
+         instalaciones, y en ellas va en `i.proyecto`. Mirando solo `i.de_hoja`, a un
+         importado siempre se le decía «recalcula material», que no puede funcionar. */
+      if (i.de_hoja || (i.proyecto && i.proyecto.de_hoja)) sinPartidas.push(i.titulo || pid);
       else sinCalcular.push(i.titulo || pid);
       continue;
     }

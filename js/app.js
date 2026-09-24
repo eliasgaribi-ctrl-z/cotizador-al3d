@@ -179,7 +179,7 @@ function rutaDelHash() {
 export function ir(ruta) {
   const r = rutaPorNombre(ruta);
   if (!r) return;
-  if (location.hash === '#/' + r.ruta) { montar(r.ruta, { forzar: true }); return; }
+  if (location.hash === '#/' + r.ruta) { montar(r.ruta, { forzar: true, navega: true }); return; }
   location.hash = '#/' + r.ruta;
 }
 
@@ -304,10 +304,22 @@ function ponerEsqueleto(cont, r) {
   return quitar;
 }
 
+/* ----- Un repintado no es una navegación -----
+   Los `forzar` que vienen de una sincronización, de otra pestaña o de `ctx.refrescar` son
+   repintados de la pantalla ACTUAL, y escribían `_pedida` como si alguien hubiera tocado esa
+   pestaña: tocar Calendario (montando todavía), luego Proyectos, y que en ese momento acabara
+   una sincronización, dejaba Calendario en pantalla con `#/proyectos` en la barra — el
+   repintado le quitaba el turno a la navegación que esperaba. Ahora solo navega quien navega
+   (`navega`, o un montaje sin forzar), y un repintado de una pantalla que ya no es la pedida
+   se descarta. */
 function montar(ruta, opts = {}) {
-  _pedida = ruta;
+  const navega = !opts.forzar || !!opts.navega;
+  if (navega) _pedida = ruta;
   _cola = _cola
-    .then(() => (_pedida !== ruta && !opts.forzar) ? undefined : montarDeVerdad(ruta, opts))
+    .then(() => {
+      if (navega) return _pedida !== ruta ? undefined : montarDeVerdad(ruta, opts);
+      return (_pedida && _pedida !== ruta) ? undefined : montarDeVerdad(ruta, opts);
+    })
     .catch(e => { console.error('montar falló', e); });
   return _cola;
 }
@@ -782,7 +794,11 @@ async function arrancar() {
 
   window.addEventListener('hashchange', () => montar(rutaDelHash()));
   faseArranque('Abriendo ' + ((rutaPorNombre(rutaDelHash()) || {}).nombre || 'la plataforma') + '…');
-  await montar(rutaDelHash());
+  /* Forzado: la barra y los atajos de teclado ya escuchan desde antes de abrir la base, y un
+     toque a la pestaña actual en ese hueco la montaba contra una base sin abrir — pintaba «No
+     se pudo abrir la base» y este montaje se saltaba por ser la misma ruta, así que el error
+     se quedaba para siempre. */
+  await montar(rutaDelHash(), { forzar: true, navega: true });
   quitarArranque();
 
   /* El cotizador acaba de guardar en otra pestaña. Aquí no se avisa de conflicto como hace
@@ -791,7 +807,9 @@ async function arrancar() {
   window.addEventListener('storage', async ev => {
     if (!ev.key) return;
     if (ev.key === Prefs.CLAVES.GANADAS) {
-      const r = await Cot.drenarBuzon();
+      /* En su try, como en el arranque: aquí un fallo era una promesa rechazada sin atender. */
+      let r;
+      try { r = await Cot.drenarBuzon(); } catch (e) { console.error('no se pudo drenar el buzón', e); return; }
       if (r.creados) {
         toast('Llegó ' + (r.creados === 1 ? 'un proyecto ganado' : r.creados + ' proyectos ganados') + ' del cotizador', 'ok', 4200);
         /* Drenar el buzón SIEMPRE corre y el aviso siempre sale: lo único que se salta es el
@@ -801,7 +819,9 @@ async function arrancar() {
       }
       return;
     }
-    if (['al3d_historial', 'al3d_queue'].includes(ev.key) && !_sinRemonte) montar(_actual, { forzar: true });
+    /* Con la misma cortesía que la sincronización de cada 30 s: repintar tira el panel que
+       esté abierto y lo que se esté tecleando, así que si estorba se apunta para después. */
+    if (['al3d_historial', 'al3d_queue'].includes(ev.key) && !_sinRemonte) repintarCuandoSePueda();
   });
 
   /* El puente va al final del arranque, después de pintar. Enchufarlo es leer una clave y
@@ -840,16 +860,27 @@ async function arrancar() {
      no puede hacerlo: se hace en el primer clic después de que caducó. Con la cuenta ya
      escogida la ventana se abre y se cierra sola. Sin esto, pasada la hora la app dejaba de
      sincronizar hasta la siguiente vez que alguien entraba. */
-  document.addEventListener('click', async () => {
+  /* Una renovación a la vez, y un respiro después de que falle. Sin esto, con la sesión de
+     Google muerta cada toque abría otra ventana de Google: se cerraba y el siguiente toque la
+     volvía a abrir; y dos toques rápidos lanzaban dos `entrar()` que se pisaban el callback,
+     dejando la primera promesa colgada para siempre. */
+  let _renovando = null, _renovarNoAntes = 0;
+  const MS_RESPIRO_RENOVAR = 5 * 60 * 1000;
+  document.addEventListener('click', () => {
     /* Con la pantalla de entrar puesta, el clic es suyo: dos peticiones a Google a la vez se
        pisan la ventana. */
     if (document.documentElement.classList.contains('con-puerta')) return;
-    try {
+    if (_renovando || Date.now() < _renovarNoAntes) return;
+    _renovando = (async () => {
       const Ingreso = await import('./nucleo/ingreso.js');
       if (!Ingreso.configurado() || !Ingreso.correo() || Ingreso.dentro()) return;
       const r = await Ingreso.renovar();
-      if (r && r.ok) sincronizarCallado();
-    } catch (_) {}
+      if (!(r && r.ok)) { _renovarNoAntes = Date.now() + MS_RESPIRO_RENOVAR; return; }
+      sincronizarCallado();
+      /* Con el token nuevo se vuelve a preguntar a la hoja: es lo que renueva el pase y lo
+         que hace que una baja de «Accesos» surta efecto. Ver Puerta.reconfirmar. */
+      import('./nucleo/puerta.js').then(m => m.reconfirmar()).catch(() => {});
+    })().catch(() => {}).finally(() => { _renovando = null; });
   }, true);
 
   /* El resize dispara decenas de veces mientras se gira el teléfono o se abre el teclado, y
@@ -909,6 +940,17 @@ function puedeRepintar() {
   if (_sinRemonte || hayCapaAbierta()) return false;
   const a = document.activeElement;
   return !(a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)));
+}
+
+/* Lo mismo para lo que no viene de la sincronización: `_repintarDebe` solo lo recoge la vuelta
+   de 30 s, y sin puente esa vuelta ni corre. Se reintenta aparte hasta que no estorbe. */
+let _reintentoRepintar = 0;
+function repintarCuandoSePueda() {
+  clearTimeout(_reintentoRepintar);
+  if (!_actual) return;
+  if (puedeRepintar()) { _repintarDebe = false; montar(_actual, { forzar: true }); return; }
+  _repintarDebe = true;
+  _reintentoRepintar = setTimeout(() => { if (_repintarDebe) repintarCuandoSePueda(); }, 3000);
 }
 
 async function sincronizarDeVerdad() {

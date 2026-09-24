@@ -180,7 +180,10 @@ export function armarResumen(d) {
       };
     }
     if (d.conversion) out.conversion = d.conversion;
-    const com = vivos.map(p => ({ p, c: comisionDe(p) })).filter(x => x.c.comision > 0);
+    /* Lo que la hoja dice que se debe entra aunque la estimación de aquí salga en cero: sin
+       % capturado `comision` es 0, y con el filtro a secas se tiraban filas cuya
+       «Comision Restante» —la fórmula de la hoja, que es la que manda— sí tiene saldo. */
+    const com = vivos.map(p => ({ p, c: comisionDe(p) })).filter(x => x.c.comision > 0 || (x.c.deNotion && x.c.restante > 0));
     out.comisiones = {
       abonables_ya: com.filter(x => x.c.abonable > 0).map(x => ({ id: x.p.id, folio: x.p.folio_local, nombre: x.p.nombre,
         comision: x.c.abonable, pct: num(x.p.pct_comision), estatus_notion: x.p.estatus_notion || '' })),
