@@ -741,6 +741,62 @@ const sin530 = await p.evaluate(async () => {
 });
 sin530.ida && !sin530.vuelve ? bien('la copia de la lápida se quita, y la siguiente bajada no la vuelve a importar') : mal('la de la lápida: ' + JSON.stringify(sin530));
 
+/* «No se dio» sobre una venta cuya fila ya no está: la lápida no avisa (ya se decidió), pero lo
+   apartado se quedaba para siempre en Ajustes y la ficha no tenía ninguna salida. Ahora una línea
+   callada con «Dejarla fuera de la hoja», y la confirmación dice que lo que rebotó no se tira. */
+await sembrar([proyPrueba('proy-pr-470', 'COT-9470@PRUEBA', 'V-470', { nombre: 'Nevería Sol - Letras', etapa: 'cancelado',
+  hoja_perdida: { motivo: 'borrada', folio: 'V-470', desde: Date.now(), mensaje: 'La venta V-470 ya no está en la hoja.' } })], 'direccion');
+await p.evaluate(() => { location.hash = '#/tablero'; });
+await p.waitForTimeout(600);
+await p.evaluate(() => { location.hash = '#/proyectos'; });
+await p.waitForTimeout(1500);
+await p.click('#pj-filtros [data-etapa="cancelado"]');
+await p.waitForTimeout(500);
+await p.click('[data-abrir="proy-pr-470"]');
+await p.waitForTimeout(700);
+const fLap = await p.evaluate(() => {
+  const f = document.getElementById('pf-ficha');
+  return { txt: (f && f.innerText) || '', fuera: !!(f && f.querySelector('[data-hoja-fuera]')), alta: !!(f && f.querySelector('[data-hoja-alta]')) };
+});
+/Está como «No se dio», y su fila V-470 ya no está en la hoja/.test(fLap.txt) && fLap.fuera && !fLap.alta
+  ? bien('la lápida cuya fila ya no está le enseña a Dirección su única salida: «Dejarla fuera de la hoja»')
+  : mal('la ficha de la lápida: ' + JSON.stringify({ ...fLap, txt: fLap.txt.slice(0, 300) }));
+let pFuera = '';
+p.once('dialog', d => { pFuera = d.message(); d.accept(); });
+if (fLap.fuera) await p.click('#pf-ficha [data-hoja-fuera]');
+await p.waitForTimeout(1200);
+const lapFuera = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const x = await DB.obtener('proyectos', 'proy-pr-470');
+  return { fuera: !!(x && x.fuera_de_hoja), marca: x && x.hoja_perdida };
+});
+/no se tiran: se guardan en este teléfono/.test(pFuera) && !/se tiran\./.test(pFuera) && !/Volver a darla de alta/.test(pFuera) && lapFuera.fuera && !lapFuera.marca
+  ? bien('su confirmación dice que lo que rebotó se guarda (y no ofrece darla de alta a una lápida), y la deja fuera')
+  : mal('dejar fuera la lápida: ' + JSON.stringify({ pFuera, ...lapFuera }));
+await p.click('#pj-filtros [data-etapa="todas"]').catch(() => {});
+
+/* La venta de aquí en DOS filas de la hoja: las dos traen su folio de cotización (Dirección la
+   volvió a dar de alta y después alguien deshizo el borrado de la vieja). La bajada completa la
+   marca, la ficha lo dice sin botones —cuál sobra se borra en la hoja— y el tablero lo enseña. */
+await sembrar([proyPrueba('proy-pr-460', 'COT-9460@PRUEBA', 'V-460', { nombre: 'Kiosko Luna - Letras' })], 'direccion');
+HISTORICAS.push(filaHoja('V-460', 'Kiosko Luna - Letras', { 'Estatus': 'COBRANDO', 'Folio cotizacion': 'COT-9460@PRUEBA', 'Fecha Anticipo e Instalacion': HOY_MX }),
+                filaHoja('V-461', 'Kiosko Luna - Letras', { 'Estatus': 'COBRANDO', 'Folio cotizacion': 'COT-9460@PRUEBA', 'Fecha Anticipo e Instalacion': HOY_MX }));
+const dob = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const S = await import('./js/datos/sync.js');
+  await S.jalar();
+  const x = await DB.obtener('proyectos', 'proy-pr-460');
+  return { fila: x && x.notion_page_id, marca: x && x.hoja_doble && x.hoja_doble.folios };
+});
+const fDob = await abrirLaFicha('proy-pr-460');
+const tagDob = await p.evaluate(() => [...document.querySelectorAll('.pf-sem')].some(s => /Dos veces en la hoja/.test(s.innerText)));
+dob.fila === 'V-460' && JSON.stringify(dob.marca) === '["V-460","V-461"]' && /Esta venta está dos veces en la hoja/.test(fDob.txt) &&
+  /Las filas V-460 y V-461/.test(fDob.txt) && !fDob.alta && !fDob.fuera && !fDob.quitar && tagDob
+  ? bien('la venta en dos filas se marca, se queda con su fila, y la ficha y el tablero lo dicen sin botones')
+  : mal('la venta en dos filas: ' + JSON.stringify({ ...dob, tagDob, ...fDob, txt: fDob.txt.slice(0, 300) }));
+HISTORICAS = HISTORICAS.filter(h => h.id_notion !== 'V-460' && h.id_notion !== 'V-461');
+await p.evaluate(async () => { const S = await import('./js/datos/sync.js'); await S.jalar(); });
+
 // ── 5. La pantalla de Ajustes ────────────────────────────────────────────────
 console.log('\nLA PANTALLA DE AJUSTES');
 await p.evaluate(() => { location.hash = '#/ajustes'; });
