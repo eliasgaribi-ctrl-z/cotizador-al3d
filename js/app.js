@@ -1060,12 +1060,19 @@ function registrarSW() {
   let recargado = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!habia || recargado) return;
-    /* Si alguien está escribiendo, no se le tira: la versión nueva entra en la siguiente
-       apertura, como antes. */
+    const recargar = () => { if (recargado) return; recargado = true; location.reload(); };
+    /* Si alguien está escribiendo, no se le tira. Pero tampoco se olvida: aquí decía «entra en
+       la siguiente apertura», y mientras tanto el worker nuevo ya controla la página y la
+       siguiente pestaña que se abre importa su módulo de la caché NUEVA contra los viejos que
+       siguen en memoria — la mezcla de versiones que la cabecera de sw.js existe para evitar.
+       Se recarga en la siguiente navegación: cambiar de pantalla desmonta lo que se estaba
+       escribiendo de todos modos. */
     const a = document.activeElement;
-    if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;
-    recargado = true;
-    location.reload();
+    if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) {
+      window.addEventListener('hashchange', recargar, { once: true });
+      return;
+    }
+    recargar();
   });
   try {
     navigator.serviceWorker.register('sw.js').then(reg => {
