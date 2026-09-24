@@ -42,6 +42,12 @@ const captura = (p, nombre) => CAPTURAS ? p.screenshot({ path: CAPTURAS + '/' + 
 /* Un contexto limpio, sin service worker y con los errores de página recogidos. */
 async function nuevo(opts = {}) {
   const ctx = await nav.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'es-MX', serviceWorkers: 'block', ...opts });
+  /* El pase: sin cuenta de Google la puerta (js/nucleo/puerta.js) no deja pintar nada, y
+     esperar al tablero se volvía un tope de treinta segundos. Es lo que la puerta guarda al
+     confirmar. Va antes de cada documento, así sobrevive al `localStorage.clear()` de abajo. */
+  await ctx.addInitScript(() => {
+    try { localStorage.setItem('al3d_pf_pase', JSON.stringify({ correo: 'pruebas@al3d.mx', rol: 'direccion', hasta: Date.now() + 864e5 })); } catch (_) {}
+  });
   const p = await ctx.newPage();
   const errores = [];
   p.on('pageerror', e => errores.push(String(e).slice(0, 120)));

@@ -26,6 +26,19 @@ const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1
    caso al final. */
 const ctx = await nav.newContext({ viewport: { width: 1440, height: 900 }, locale: 'es-MX',
   timezoneId: 'America/Mexico_City', serviceWorkers: 'allow' });
+/* EL PASE. Desde que la puerta va delante (js/nucleo/puerta.js) la plataforma no pinta nada
+   sin una cuenta de Google, y aquí no hay Google: sin esto la prueba se quedaba mirando la
+   pantalla de entrar y fallaba ENTERA, con «montó null» en cada ruta y sin decir por qué. Se
+   siembra lo que la puerta guarda al confirmar, que es con lo que abre un aparato sin señal.
+   No es un hueco: el pase se escribe igual a mano desde la consola y no abre nada del otro
+   lado. El rol sale de `al3d_pf_rol` porque el caso del tope por rol lo cambia a mitad de
+   la prueba, y con pase manda el pase. Corre antes de cada documento, recargas incluidas. */
+await ctx.addInitScript(() => {
+  try {
+    localStorage.setItem('al3d_pf_pase', JSON.stringify({ correo: 'pruebas@al3d.mx',
+      rol: localStorage.getItem('al3d_pf_rol') || 'direccion', hasta: Date.now() + 864e5 }));
+  } catch (_) {}
+});
 const p = await ctx.newPage();
 let fallos = 0;
 const mal = m => { console.log('  ✗ ' + m); fallos++; };

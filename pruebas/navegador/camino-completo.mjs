@@ -35,6 +35,13 @@ const B = 'http://127.0.0.1:' + (process.env.PUERTO || '8814');
 const nav = await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome'});
 const ctx = await nav.newContext({viewport:{width:430,height:932},deviceScaleFactor:3,isMobile:true,
   hasTouch:true,locale:'es-MX',timezoneId:'America/Mexico_City',serviceWorkers:'allow'});
+/* EL PASE. Desde que la puerta va delante (js/nucleo/puerta.js) la plataforma no abre la base
+   sin una cuenta de Google, y aquí no hay Google: el proyecto se registraba bien en el buzón
+   y del otro lado la plataforma se quedaba en la pantalla de entrar, con la base «sin_abrir».
+   Se siembra lo que la puerta guarda al confirmar, que es con lo que abre un aparato sin
+   señal; no es un hueco, el pase se escribe igual a mano y no abre nada del otro lado. */
+await ctx.addInitScript(()=>{ try{ localStorage.setItem('al3d_pf_pase',JSON.stringify(
+  {correo:'pruebas@al3d.mx',rol:'direccion',hasta:Date.now()+864e5})); }catch(_){} });
 const p = await ctx.newPage();
 let fallos=0; const mal=m=>{console.log('  ✗ '+m);fallos++;}; const bien=m=>console.log('  ✓ '+m);
 const errs=[]; p.on('pageerror',e=>errs.push(e.message));

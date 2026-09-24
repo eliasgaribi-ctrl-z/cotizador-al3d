@@ -48,6 +48,12 @@ const ok = (que, v, detalle) => v ? bien(que) : mal(que + (detalle ? ' — ' + d
 async function pantalla(w, h, dpr) {
   const ctx = await nav.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr || 2.5,
     isMobile: true, hasTouch: true, locale: 'es-MX', timezoneId: 'America/Mexico_City' });
+  /* El pase: sin cuenta de Google la puerta (js/nucleo/puerta.js) no monta el marco del
+     cotizador, y la prueba se quedaba esperando #pf-cot-marco. Es lo que la puerta guarda al
+     confirmar. Va antes de cada documento, así sobrevive a los `localStorage.clear()`. */
+  await ctx.addInitScript(() => {
+    try { localStorage.setItem('al3d_pf_pase', JSON.stringify({ correo: 'pruebas@al3d.mx', rol: 'direccion', hasta: Date.now() + 864e5 })); } catch (_) {}
+  });
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   return { ctx, p, errs };

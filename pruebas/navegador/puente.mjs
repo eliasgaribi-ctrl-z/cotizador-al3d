@@ -162,6 +162,12 @@ await ctx.addInitScript(([url, tok]) => {
     localStorage.setItem('al3d_pf_nombre', 'Elías');
     localStorage.setItem('al3d_pf_rol', 'direccion');
     localStorage.setItem('al3d_pf_puente', JSON.stringify({ url, token: tok }));
+    /* EL PASE. Desde que la puerta va delante (js/nucleo/puerta.js) la plataforma no arranca
+       sin una cuenta de Google, y aquí no hay Google: sin pase, el relevo ni siquiera
+       llegaba a preguntar /salud y la prueba fallaba entera. Es lo que la puerta guarda al
+       confirmar; el token de arriba sigue siendo lo que habla con la hoja. */
+    localStorage.setItem('al3d_pf_pase', JSON.stringify({ correo: 'pruebas@al3d.mx',
+      rol: 'direccion', hasta: Date.now() + 864e5 }));
   } catch (_) {}
 }, [B + '/puente', TOKEN]);
 
