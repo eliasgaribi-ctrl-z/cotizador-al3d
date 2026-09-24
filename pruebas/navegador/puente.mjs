@@ -687,9 +687,13 @@ const f520 = await botones('proy-hoja-V-520');
 f520.juntar && f520.noesla && !f520.quitar && /parece la misma venta/.test(f520.txt)
   ? bien('Dirección ve «Juntar» y «No es la misma venta», y el aviso dice que solo lo parece')
   : mal('la ficha de la repetida: ' + JSON.stringify({ ...f520, txt: f520.txt.slice(0, 300) }));
+/* La fila de la lápida viene VIVA (FABRICACION): la hoja y este teléfono no dicen lo mismo, y
+   quitar la copia no decide quién tiene razón. Ni «Juntar» (se negaría) ni «Quitar»: las dos
+   salidas de verdad, dichas. */
 const f530 = await botones('proy-hoja-V-530');
-f530.quitar && !f530.juntar
-  ? bien('la copia de una lápida no ofrece «Juntar» (se negaría): ofrece quitarla') : mal('la ficha de la copia de la lápida: ' + JSON.stringify({ ...f530, txt: f530.txt.slice(0, 300) }));
+!f530.quitar && !f530.juntar && /trae esta obra viva/.test(f530.txt) && /márcala «No se dio» también en la hoja/.test(f530.txt)
+  ? bien('la copia de una lápida con su fila viva no ofrece «Juntar» ni «Quitar»: dice que la hoja la trae viva y qué hacer')
+  : mal('la ficha de la copia de la lápida: ' + JSON.stringify({ ...f530, txt: f530.txt.slice(0, 400) }));
 await sembrar([], 'fabricacion');
 const fab520 = await botones('proy-hoja-V-520');
 !fab520.juntar && !fab520.noesla && !fab520.quitar && /con su cuenta en este teléfono/.test(fab520.txt)
@@ -718,7 +722,13 @@ const sep = await p.evaluate(async () => {
 /dos ventas distintas/.test(pNo) && sep.copia && !sep.marca && sep.real === 'de_otra' && !sep.aviso
   ? bien('«No es la misma venta» pregunta, deja la copia como su propia venta y la de aquí queda sin fila')
   : mal('no es la misma: ' + JSON.stringify({ pNo: pNo.slice(0, 80), ...sep }));
-await botones('proy-hoja-V-530');
+/* En la hoja se marca «No se dio»: ahora las dos dicen lo mismo, y la copia ya se puede quitar. */
+HISTORICAS = HISTORICAS.map(h => (h.id_notion === 'V-530' ? { ...h, 'Etapa de obra': 'No se dio' } : h));
+await p.evaluate(async () => { const S = await import('./js/datos/sync.js'); await S.jalar(); });
+const f530b = await botones('proy-hoja-V-530');
+f530b.quitar && !f530b.juntar
+  ? bien('con la fila marcada «No se dio» en la hoja, la copia de la lápida ya ofrece quitarla')
+  : mal('la ficha de la copia de la lápida, con la fila «No se dio»: ' + JSON.stringify({ ...f530b, txt: f530b.txt.slice(0, 300) }));
 p.once('dialog', d => d.accept());
 await p.click('#pf-ficha [data-hoja-quitar]');
 await p.waitForTimeout(1500);

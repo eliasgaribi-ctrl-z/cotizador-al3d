@@ -108,6 +108,10 @@ const mal = (codigo, mensaje) => ({ ok: false, codigo, mensaje });
  * Una respuesta de `subir` que no es `ok` puede traer `motivo`: el porqué para la máquina, que
  * se guarda en lo apartado como `motivo_rechazo` al lado del `codigo_rechazo`. Lo lee el mismo
  * relevo en `despuesDeBajar`, y no la frase: la frase la puede reescribir cualquiera.
+ *
+ * Una que es `ok` puede traer `omitida`: el relevo la despachó sin mandarla, porque no tiene a
+ * dónde ir (la lápida que nunca tuvo fila, la venta fuera de la hoja) y lo que haga falta lo
+ * anotó él. Sale de la bandeja, pero no se cuenta como subida.
  */
 
 /* El almacén 'movimientos' es append-only y por eso no tiene conflictos posibles. No es
@@ -408,7 +412,7 @@ export function bombear() {
 }
 
 const conteoVacio = extra => ({
-  mandadas: 0, subidas: 0, fallidas: 0, conflictos: 0, pendientes: 0, sin_destino: 0, rechazadas: 0, ...extra,
+  mandadas: 0, subidas: 0, fallidas: 0, conflictos: 0, pendientes: 0, sin_destino: 0, rechazadas: 0, omitidas: 0, ...extra,
 });
 
 /* Lo apartado vuelve solo. Un relevo nuevo —o el mismo, enseñado a llevar el almacén— no
@@ -447,7 +451,7 @@ async function bombearDeVerdad() {
 
   if (!cola.length) return ok(conteoVacio({ motivo: 'nada_que_mandar' }));
 
-  let subidas = 0, fallidas = 0, enConflicto = 0, apartadas = 0, rechazadasN = 0;
+  let subidas = 0, fallidas = 0, enConflicto = 0, apartadas = 0, rechazadasN = 0, omitidas = 0;
   const rechazos = [];
 
   for (const op of cola) {
@@ -477,6 +481,14 @@ async function bombearDeVerdad() {
       _ultimoError = String((e && e.message) || 'el puente falló sin decir por qué');
       fallidas++;
       break;
+    }
+
+    if (respuesta && respuesta.ok && respuesta.omitida) {
+      /* Despachada sin mandar (ver la cabecera): contarla como subida era que Ajustes dijera «Se
+         mandó 1 operación» de un cambio que no llegó a ningún lado. */
+      await DB.borrar('pendientes', op.id);
+      omitidas++;
+      continue;
     }
 
     if (respuesta && respuesta.ok) {
@@ -545,12 +557,12 @@ async function bombearDeVerdad() {
   /* Un bombeo que salió limpio borra el último error: sin esto, la banda de «no ha podido
      mandar N cambios (error)» se encendía con cada operación nueva por un tropiezo de hace
      días que ya no existía. */
-  if (subidas && fallidas === rechazadasN) _ultimoError = '';
+  if ((subidas || omitidas) && fallidas === rechazadasN) _ultimoError = '';
 
   const quedan = (await pendientes()).length;
   return ok({
     mandadas: subidas, subidas, fallidas, conflictos: enConflicto, pendientes: quedan,
-    sin_destino: apartadas, rechazadas: rechazadasN, rechazos,
+    sin_destino: apartadas, rechazadas: rechazadasN, omitidas, rechazos,
     motivo: subidas ? (rechazos.length ? 'ok_incompleto' : 'ok') : (fallidas ? 'con_fallas' : 'ok'),
   });
 }

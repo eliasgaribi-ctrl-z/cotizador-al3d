@@ -218,7 +218,9 @@ eq('dos proyectos de aquí con la misma venta: no se adivina con cuál juntarla'
    repetidasDeLaHoja([propio('COT-0310@A', 'V-310'), propio('COT-0311@A', 'V-310'), imp('V-310')],
                      [{ folio_hoja: 'V-310', folio_cotizacion: '' }]).map(x => [x.real, x.candidatos.length]), [[null, 2]]);
 
-const claves = (c, r, ctx) => loQueSePerderia(c, r, ctx).map(x => x.clave);
+/* Con la fila de la que salió la copia, que se sigue llamando como ella: el nombre de la copia es
+   el de la hoja y ése no se pierde al juntarlas (la fila lo conserva). */
+const claves = (c, r, ctx) => loQueSePerderia(c, r, { venta: { folio_hoja: c.folio_hoja, nombre: c.nombre }, ...ctx }).map(x => x.clave);
 eq('la copia igual o más atrasada no pierde nada: se junta sola',
    claves(imp('V-1', { etapa: 'cortado' }), propio('C', 'V-1', { etapa: 'armado' }), {}), []);
 eq('la copia más adelantada sí: su etapa se perdería', claves(imp('V-1', { etapa: 'cortado' }), propio('C', 'V-1'), {}), ['etapa']);
@@ -229,7 +231,7 @@ eq('las mismas notas y el mismo pin no son pérdida',
 eq('dos instalaciones vivas, material de la copia, o la de aquí como «No se dio»: no se juntan',
    [claves(imp('V-1'), propio('C', 'V-1'), { instCopia: [{ estado: 'confirmada' }], instReal: [{ estado: 'propuesta' }] }),
     claves(imp('V-1'), propio('C', 'V-1'), { reqCopia: [{ id: 'r' }] }),
-    claves(imp('V-1'), propio('C', 'V-1', { etapa: 'cancelado' }), {})],
+    claves(imp('V-1'), propio('C', 'V-1', { etapa: 'cancelado' }), { venta: { nombre: 'Copia V-1', etapa: 'cancelado' } })],
    [['instalaciones'], ['material'], ['cancelada']]);
 eq('una instalación cancelada de la de aquí no estorba', claves(imp('V-1'), propio('C', 'V-1'),
    { instCopia: [{ estado: 'confirmada' }], instReal: [{ estado: 'cancelada' }] }), []);
@@ -241,6 +243,47 @@ const textos = loQueSePerderia(imp('V-1', { lat: 20.71, lng: -103.41, plazo_k: 2
   propio('C', 'V-1', { lat: 20.6, lng: -103.3, plazo_k: 5 }), {}).map(x => x.texto).join(' | ');
 ok_('con dos pines y dos plazos, dice que se quedan los de aquí y los de la copia se pierden: ' + textos,
    /otra ubicación.*se queda la de este teléfono.*se pierde/.test(textos) && /otro plazo.*se queda el de este teléfono.*se pierde/.test(textos));
+
+/* Los datos de la venta que se escriben en la ficha. La copia nace con el teléfono, las
+   entrecalles y el compromiso vacíos: si los tiene, alguien los escribió en este teléfono, y
+   juntarla sola los borraba con ella. */
+eq('la copia con su teléfono del cliente, sus entrecalles y su compromiso: no se junta sola',
+   claves(imp('V-1', { tel: '33 1234 5678', entrecalles: 'entre Juárez y Morelos', compromiso_texto: 'antes del 30' }), propio('C', 'V-1'), {}),
+   ['datos']);
+const tDatos = loQueSePerderia(imp('V-1', { tel: '33 1234 5678', entrecalles: 'portón verde' }), propio('C', 'V-1'), {}).map(x => x.texto).join(' | ');
+ok_('y el porqué dice cuáles, y que al juntarlas pasan: ' + tDatos,
+   /el teléfono del cliente y las entrecalles/.test(tDatos) && /pasan a la de este teléfono/.test(tDatos));
+/* La dirección la manda la de aquí en CADA cambio: una dirección corregida en la copia, aunque
+   ya haya llegado a la fila, la pisaría la de aquí con la vieja en cuanto alguien moviera la
+   etapa. Y la de aquí ya tiene la suya: al juntar se queda la de aquí, y eso se dice. */
+const dirCorregida = imp('V-1', { dir_texto: 'Calle Real 250, local 3' });
+eq('una dirección corregida en la copia no se junta sola, aunque la fila ya la traiga',
+   loQueSePerderia(dirCorregida, propio('C', 'V-1', { dir_texto: 'Av. Siempre Viva 1' }),
+     { venta: { folio_hoja: 'V-1', nombre: dirCorregida.nombre, direccion: 'Calle Real 250, local 3' } }).map(x => x.clave), ['datos_distintos']);
+ok_('y el porqué dice que se queda la de este teléfono y la de la copia se pierde',
+   /no coincide con la de este teléfono en la dirección: al juntarlas se quedan los datos de este teléfono/.test(
+     loQueSePerderia(dirCorregida, propio('C', 'V-1', { dir_texto: 'Av. Siempre Viva 1' }),
+       { venta: { nombre: dirCorregida.nombre } }).map(x => x.texto).join(' | ')));
+eq('la misma dirección, con otros espacios, y el mismo tipo de trabajo no son pérdida',
+   claves(imp('V-1', { dir_texto: ' Av.  Siempre Viva 1', tipo_trabajo: ['Letras 3D con iluminacion'] }),
+          propio('C', 'V-1', { dir_texto: 'Av. Siempre Viva 1', tipo_trabajo: ['Letras 3D con iluminacion'] }), {}), []);
+eq('otro tipo de trabajo sí', claves(imp('V-1', { tipo_trabajo: ['Caja de luz con iluminacion'] }),
+   propio('C', 'V-1', { tipo_trabajo: ['Letras 3D con iluminacion'] }), {}), ['datos_distintos']);
+/* El nombre, el contacto y el negocio de una copia son los de su fila: la fila los conserva
+   (la de aquí solo manda el nombre cuando lo cambia), así que no cuentan. Uno que ya no es el de
+   la fila sí: se escribió aquí, o la fila se corrigió después, y eso no se puede saber. Un
+   contacto escrito en la copia, con la de aquí sin contacto, pasa al juntarlas. */
+eq('el nombre de la fila y el contacto y negocio que salen de él no son pérdida; otro nombre u otro contacto sí',
+   [claves(imp('V-1', { nombre: 'Café Luna - Letras', contacto: 'Café Luna', negocio: 'Letras' }), propio('C', 'V-1'), {}),
+    loQueSePerderia(imp('V-1', { nombre: 'Café Luna Centro' }), propio('C', 'V-1'), { venta: { nombre: 'Café Luna' } }).map(x => x.clave),
+    claves(imp('V-1', { nombre: 'Café Luna - Letras', contacto: 'Doña Lupe' }), propio('C', 'V-1'), {})],
+   [[], ['datos_distintos'], ['datos']]);
+/* La lápida con su fila VIVA: la de aquí dice «No se dio» y la hoja no. Quitar la copia no es la
+   salida (ver pruebas/puente.mjs), y la marca tiene que decirlo. */
+eq('la lápida: con su fila viva lleva «viva»; con la fila que también dice «No se dio», no',
+   [loQueSePerderia(imp('V-1'), propio('C', 'V-1', { etapa: 'cancelado' }), { venta: { nombre: 'Copia V-1', etapa: null } }).map(x => x.clave),
+    loQueSePerderia(imp('V-1'), propio('C', 'V-1', { etapa: 'cancelado' }), { venta: { nombre: 'Copia V-1', etapa: 'cancelado' } }).map(x => x.clave)],
+   [['cancelada', 'viva'], ['cancelada']]);
 
 const m1 = marcaPerdida(null, 'borrada', 'V-404', 'La venta V-404 ya no está en la hoja', 1000);
 eq('la marca dice por qué, qué fila y desde cuándo', [m1.motivo, m1.folio, m1.desde], ['borrada', 'V-404', 1000]);

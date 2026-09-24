@@ -264,17 +264,25 @@ devuelve a la cola (por ejemplo, cuando ese teléfono ya entra como Dirección).
 - **«La venta V-… ya no está en la hoja».** Alguien borró esa fila. El cambio no se escribió
   en ninguna otra, y el proyecto queda marcado: en su ficha, Dirección elige «Volver a darla de
   alta en la hoja» (una fila nueva con todos sus datos) o «Dejarla fuera de la hoja». Registrarla
-  otra vez desde el cotizador no sirve: la plataforma contesta que ya es proyecto. Si la fila
-  vuelve a la hoja (con su folio o con su «Folio cotizacion»), la siguiente bajada quita la marca
-  y la decisión de dejarla fuera: la venta vuelve a mandarse.
+  otra vez desde el cotizador no sirve: la plataforma contesta que ya es proyecto. Mientras está
+  fuera, sus cambios no se mandan pero no se tiran: el teléfono anota que quedaron sin mandar. Si
+  la fila vuelve a la hoja (con su folio o con su «Folio cotizacion»), la siguiente bajada quita la
+  marca y la decisión de dejarla fuera, y manda de una vez lo que se cambió mientras tanto, con la
+  etapa y la instalación de ese día.
 - **Una tarjeta importada dice «Ya no está en la hoja».** Su fila no vino en una bajada completa.
   Cualquiera que tenga ese teléfono decide en la ficha: «Quitar del tablero» (solo si nada de
   este teléfono la nombra: instalación, movimiento del almacén o material) o «Dejarla». Las
   marcas son de cada teléfono y no viajan.
 - **Una tarjeta dice «Repetida».** Es la copia importada de una venta que este teléfono ya
   tenía. Se junta sola solo si es seguro que es la misma venta (la fila trae su «Folio
-  cotizacion» o su mismo nombre) y no se pierde nada; si no, Dirección elige en la ficha
-  «Juntar», «No es la misma venta» o, si la de aquí está como «No se dio», quitar la copia.
+  cotizacion» o su mismo nombre) y no se pierde nada: ni su etapa, ni sus notas, pin o plazo, ni
+  los datos que se le escribieron aquí (dirección, teléfono del cliente, entrecalles,
+  compromiso…). Si no, Dirección elige en la ficha «Juntar», «No es la misma venta» o, si la de
+  aquí está como «No se dio» y la fila también, quitar la copia. Si la de aquí dice «No se dio» y
+  la fila la trae viva, la ficha no ofrece quitarla: o se marca «No se dio» también en la hoja, o
+  se regresa la de aquí a su etapa y se juntan. Mientras tanto, Control cuenta la fila viva.
+  Una venta que se ató a su fila por el nombre se queda atada aunque después se corrija el
+  nombre en la hoja.
 - **Una escritura vuelve como rechazada.** El mensaje dice cuál propiedad y por qué. Casi
   siempre es un rol que no puede escribir eso, o un valor que no está en la lista.
 - **Cambiaste el código y no pasa nada.** Guardar no publica: hay que implementar una

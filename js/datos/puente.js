@@ -799,12 +799,17 @@ export function crear(cfg0) {
         }
 
         const idNotion = proy.notion_page_id || null;
-        /* Dirección decidió que esta venta se queda fuera de la hoja (`proyectos.dejarFueraDeLaHoja`):
-           su fila ya no existe y ningún cambio tiene a dónde ir. Se da por despachado sin gastar
-           una petición, como la lápida de abajo. Sin esto, cada cambio de etapa rebotaba contra la
-           hoja, se apartaba como rechazado y volvía a encender el aviso que Dirección acababa de
-           cerrar. */
+        /* Se decidió que esta venta se queda fuera de la hoja (`proyectos.dejarFueraDeLaHoja`): su
+           fila ya no existe y ningún cambio tiene a dónde ir. No se gasta una petición, como con
+           la lápida de abajo: sin esto, cada cambio de etapa rebotaba contra la hoja, se apartaba
+           como rechazado y volvía a encender el aviso que se acababa de cerrar.
+           Pero el cambio no se tira: se anota en el proyecto (`sin_mandar`) y, si la fila vuelve,
+           la revisión de la bajada lo manda con el estado de hoy (ver
+           `proyectos.revisarContraLaHoja`). Antes se daba por despachado y ya: el bombeo lo
+           contaba como subido, la bandeja quedaba vacía y la fila que volvía se quedaba con la
+           etapa vieja para siempre. `omitida` le dice a `sync` que no lo cuente como subido. */
         if (proy.fuera_de_hoja) {
+          await anotarSinMandar(proy.id, op);
           salida.push({ id: op.id, ok: true, remoto: null, rechazadas: [], omitida: true });
           continue;
         }
@@ -976,14 +981,23 @@ export function crear(cfg0) {
         if (!p) return null;
         /* Y solo si es seguro que es SU venta, con la misma regla con la que la revisión decide
            qué copia se junta sola (`proyectos.mismaVentaQueLaFila`): la fila trae su folio de
-           cotización, o se llama igual, o Dirección ya dijo que es suya. Que solo coincida el
-           folio de la hoja no basta: es justo el folio que se repartió dos veces, y la fila puede
-           ser de otra venta dada de alta a mano. Con eso bastaba, y a este proyecto le caía el
-           saldo de la otra venta y su copia se juntaba con él. Si la regla no ata, la fila sigue
-           su camino de siempre —su copia, o importarla— y la revisión la enseña como repetida
-           para que Dirección decida. */
+           cotización, o se llama igual, o ya se sabe que es suya. Que solo coincida el folio de
+           la hoja no basta: es justo el folio que se repartió dos veces, y la fila puede ser de
+           otra venta dada de alta a mano. Con eso bastaba, y a este proyecto le caía el saldo de
+           la otra venta y su copia se juntaba con él. Si la regla no ata, la fila sigue su camino
+           de siempre —su copia, o importarla— y la revisión la enseña como repetida para que
+           Dirección decida. */
         const quien = mismaVentaQueLaFila(p, venta);
-        return (quien === 'folio' || quien === 'nombre' || quien === 'confirmada') ? p : null;
+        if (quien !== 'folio' && quien !== 'nombre' && quien !== 'confirmada') return null;
+        /* Una lápida («No se dio») no se queda con una fila que la hoja trae VIVA. Por el nombre, o
+           por haberla atado antes, no se sabe cuál de las dos dice la verdad, y atarla era decidir
+           en silencio que la hoja se equivoca: la obra salía del tablero y su saldo del por cobrar
+           de Control (`saldoDe` de un cancelado es cero). Antes de este tercer camino esa fila
+           entraba como tarjeta viva y Control la cobraba; así sigue, y la revisión la enseña como
+           repetida de la lápida para que Dirección decida (ver `proyectos.quitarDelTablero`). Con
+           el folio de cotización en la fila es el primer camino, el de siempre, y no pasa por aquí. */
+        if (quien !== 'folio' && p.etapa === 'cancelado' && venta.etapa !== 'cancelado') return null;
+        return { p, quien };
       };
 
       for (const fila of filas) {
@@ -1009,10 +1023,10 @@ export function crear(cfg0) {
            se sabe a quién cae. */
         const parche = deNotion(datos);
         let local = (parche && parche.folio_global) ? await porFolioGlobal(parche.folio_global) : null;
-        let porFila = false;
+        let porFila = null;
         if (!local && venta) {
-          try { local = await propioPorFila(venta); } catch (_) { local = null; }
-          porFila = !!local;
+          try { porFila = await propioPorFila(venta); } catch (_) { porFila = null; }
+          if (porFila) local = porFila.p;
         }
         const idImportado = venta ? 'proy-hoja-' + venta.folio_hoja : '';
         if (!local && idImportado) {
@@ -1052,6 +1066,14 @@ export function crear(cfg0) {
            aquí» y otra como fila de la hoja. */
         const deAqui = porFila ? deNotion({ ...datos, [P.folio]: local.folio_global }) : null;
         if (deAqui && venta.folio_hoja) deAqui.folio_hoja = venta.folio_hoja;
+        /* Y la atadura se anota (`hoja_confirmada`), como la que confirma Dirección al juntar. Por
+           el nombre se recalculaba en cada bajada, y el nombre es justo lo que PAGOS corrige en la
+           hoja: con la corrección, la venta dejaba de estar atada, su fila volvía a entrar como
+           OTRA tarjeta —repetida— y este proyecto dejaba de recibir su dinero. Recordarla solo
+           tenía un riesgo, que el folio de la hoja se le repartiera después a otra venta, y eso ya
+           no pasa con la marca de folios. Es una marca de este teléfono y baja con el espejo:
+           `sync.jalar` la escribe sin encolar nada. */
+        if (deAqui && venta.folio_hoja && porFila.quien !== 'confirmada') deAqui.hoja_confirmada = venta.folio_hoja;
         const aplicar = deAqui || parche || (venta ? sinIndefinidos({
           estatus_notion: venta.estatus || null,
           cuenta: venta.cuenta || null,
@@ -1119,17 +1141,33 @@ export function crear(cfg0) {
   };
 }
 
-/* ----- Las dos escrituras locales del relevo -----
+/* ----- Las escrituras locales del relevo -----
    Van con `DB` directo y no por `proyectos.parchar` por una razón concreta: `parchar`
    ENCOLA, y encolar desde el relevo que está vaciando la cola es un bucle que se manda a
    sí mismo para siempre. Lo que se escribe aquí son campos de los que la dueña es Notion
-   —el id de la página y el estado del envío—, nunca un dato del negocio. */
+   —el id de la página y el estado del envío— o notas del propio relevo, nunca un dato del
+   negocio. */
 async function espejarLocal(id, campos) {
   try {
     const p = await DB.obtener('proyectos', id);
     if (!p) return;
     await DB.poner('proyectos', { ...p, ...campos, actualizado_en: Date.now() });
   } catch (_) { /* la operación ya se mandó; no perder eso por no poder anotar el id */ }
+}
+
+/* Lo que no se mandó porque la venta está fuera de la hoja. Se acumula desde cuándo
+   y qué campos cambiaron, no las operaciones: cuando la fila vuelva se manda UNA con el estado de
+   hoy (la etapa, la dirección y la instalación viajan siempre), y los campos son para que el
+   nombre o el dinero que sí cambiaron viajen también (ver `aNotion`). */
+async function anotarSinMandar(id, op) {
+  try {
+    const p = await DB.obtener('proyectos', id);
+    if (!p) return;
+    const previa = p.sin_mandar && typeof p.sin_mandar === 'object' ? p.sin_mandar : null;
+    const campos = new Set(previa && Array.isArray(previa.campos) ? previa.campos : []);
+    if (op && op.almacen === 'proyectos' && Array.isArray(op.campos)) for (const c of op.campos) campos.add(String(c));
+    await DB.poner('proyectos', { ...p, sin_mandar: { desde: (previa && previa.desde) || Date.now(), campos: [...campos] } });
+  } catch (_) { /* sin la nota, el cambio se queda aquí como antes; no se para el bombeo por ella */ }
 }
 
 /* El rango usa el índice y el filtro es el cinturón, igual que en `proyectos.yaExiste`: si

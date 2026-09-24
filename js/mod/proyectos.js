@@ -957,10 +957,20 @@ function avisoHoja(p, rol) {
     if (!dir) {
       txt += ' ' + LO_DECIDE_DIRECCION;
     } else if (d.id) {
-      if (claves.includes('cancelada')) {
-        /* La de aquí es una lápida: a una venta que no se dio no se le pasa una obra, y juntar se
-           niega. La salida es quitar la copia: su fila se queda atada a la lápida y la bajada ya
-           no la vuelve a importar (ver `quitarDelTablero`). */
+      if (claves.includes('cancelada') && claves.includes('viva')) {
+        /* La de aquí dice «No se dio» y la hoja trae la obra viva. Quitar la copia no es la salida:
+           la bajada no ata una fila viva a una lápida, así que la copia volvía sin sus notas, y
+           atarla sacaba su saldo del por cobrar de Control (`quitarDelTablero` también se niega).
+           Se dice qué dice cada lado y cuáles son las dos salidas de verdad. */
+        const est = p.estatus_notion ? ' (estatus ' + esc(p.estatus_notion) +
+          (Number(p.pago_pendiente) > 0 ? ', con saldo por cobrar' : '') + ')' : '';
+        txt += ' La hoja trae esta obra viva' + est + ', y ' + suNombre + ' dice que no se dio: hay que decidir cuál de las dos tiene razón. ' +
+          'Si no se dio, márcala «No se dio» también en la hoja (columna «Etapa de obra»); con la siguiente bajada esta copia ya se puede quitar. ' +
+          'Si la obra sigue, abre ' + suNombre + ' y regrésala a su etapa: deja de estar como «No se dio» y las dos se pueden juntar.';
+      } else if (claves.includes('cancelada')) {
+        /* La de aquí es una lápida y la fila también dice «No se dio»: a una venta que no se dio no
+           se le pasa una obra, y juntar se niega. La salida es quitar la copia: su fila se queda
+           atada a la lápida y la bajada ya no la vuelve a importar (ver `quitarDelTablero`). */
         txt += ' A una venta que no se dio no se le pasa una obra: si esta copia no tiene nada suyo, quítala del tablero. Su fila se queda con ' +
           suNombre + ' y no se vuelve a importar.';
         btns.push(boton('btn-dgr', 'data-hoja-quitar', 'Quitar esta copia del tablero'));
@@ -1005,8 +1015,10 @@ function avisoHoja(p, rol) {
     const dia = diaDe(p.fuera_de_hoja);
     const cuando = dia ? ', el ' + esc(dia) : '';
     txt = imp
-      ? 'Esta tarjeta se importó de la fila ' + esc(p.folio_hoja || '') + ', que ya no está en la hoja; se decidió dejarla en el tablero' + cuando + '.'
-      : 'Esta venta se quedó fuera de la hoja por decisión de Dirección' + cuando + '. Sus cambios ya no se mandan.';
+      ? 'Esta tarjeta se importó de la fila ' + esc(p.folio_hoja || '') + ', que ya no está en la hoja; se decidió dejarla en el tablero' + cuando +
+        '. Sus cambios se guardan en este teléfono y se mandan solos si su fila vuelve a la hoja.'
+      : 'Esta venta se quedó fuera de la hoja por decisión de Dirección' + cuando +
+        '. Sus cambios se guardan en este teléfono y se mandan solos si su fila vuelve a la hoja.';
     if (imp) btns.push(boton('btn-gho', 'data-hoja-quitar', 'Quitar del tablero'));
     else if (dir) btns.push(boton('btn-gho', 'data-hoja-alta', 'Volver a darla de alta en la hoja'));
     return '<p class="hintnote">' + ico('i-nube-off') + ' ' + txt + '</p>' +
@@ -1032,8 +1044,10 @@ async function decisionHoja(que, id, boton) {
     if (!window.confirm('¿Dejar «' + nombre + '» fuera de la hoja?\n\nEl proyecto se queda en este teléfono y deja de mandarse a la hoja. ' +
       'Los cambios que rebotaron contra su fila se tiran. Si después cambias de idea, en su ficha está «Volver a darla de alta en la hoja».')) return;
   } else if (que === 'dejar') {
+    /* «Vuelve a mandarse sola» es cierto desde que el relevo anota lo que no manda (`sin_mandar`)
+       y la bajada lo manda cuando la fila vuelve; antes lo cambiado mientras tanto se perdía. */
     if (!window.confirm('¿Dejar «' + nombre + '» en el tablero aunque la hoja ya no la tenga?\n\nNo se vuelve a preguntar por ella, y sus cambios ya no se mandan a la hoja. ' +
-      'Si su fila vuelve a la hoja, vuelve a mandarse sola.')) return;
+      'Si su fila vuelve a la hoja, vuelve a mandarse sola, con lo que hayas cambiado mientras tanto.')) return;
   } else if (que === 'quitar') {
     if (!window.confirm(d
       ? '¿Quitar esta copia de «' + nombre + '» del tablero?\n\nEs la copia importada de la fila ' + fila + ', que repite «' + otra + '». ' +
@@ -1042,13 +1056,15 @@ async function decisionHoja(que, id, boton) {
       : '¿Quitar «' + nombre + '» del tablero?\n\nEs una tarjeta importada de la hoja cuya fila ya no está. Se borra de este teléfono; la hoja no se toca. ' +
         'Si algo de este teléfono la nombra —una instalación, un movimiento del almacén, material calculado— no se quita. Queda anotado en la bitácora.')) return;
   } else if (que === 'juntar') {
-    /* Lo que de verdad hace `juntar`: las notas se suman; el pin y el plazo pasan solo si la de
-       aquí no tiene los suyos. Prometer «su ubicación pasa» cuando la de aquí ya tenía una era
-       mentira: se quedaba la de aquí y la de la copia se borraba con ella. */
+    /* Lo que de verdad hace `juntar`: las notas se suman; el pin, el plazo y los datos de la venta
+       (dirección, teléfono, entrecalles…) pasan solo si la de aquí no tiene los suyos. Prometer
+       «su ubicación pasa» cuando la de aquí ya tenía una era mentira: se quedaba la de aquí y la
+       de la copia se borraba con ella. Cuáles datos son, lo dice el porqué de arriba. */
     const porConfirmar = !!(d && Array.isArray(d.claves) && d.claves.includes('identidad'));
     if (!window.confirm('¿Juntar esta tarjeta con «' + otra + '»?' +
       (d && Array.isArray(d.por) && d.por.length ? '\n\nPor qué no se juntó sola: ' + d.por.join('; ') + '.' : '') +
-      '\n\nLas notas de la copia se suman a las de «' + otra + '». Su ubicación y su plazo pasan solo si «' + otra + '» no tiene los suyos; si los tiene, se quedan los de «' + otra + '». ' +
+      '\n\nLas notas de la copia se suman a las de «' + otra + '». Su ubicación, su plazo y sus datos (dirección, teléfono del cliente, entrecalles, compromiso…) ' +
+      'pasan solo si «' + otra + '» no tiene los suyos; si los tiene, se quedan los de «' + otra + '». ' +
       'La etapa no —moverla descuenta material, y eso lo haces tú—. Sus instalaciones y movimientos del almacén pasan también, y esta copia se quita del tablero.' +
       (porConfirmar ? '\n\nY la fila ' + fila + ' queda como de «' + otra + '»: desde la siguiente bajada, su dinero es el de «' + otra + '».' : '') +
       ' Queda anotado en la bitácora.')) return;
