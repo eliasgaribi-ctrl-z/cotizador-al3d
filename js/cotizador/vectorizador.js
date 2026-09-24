@@ -25,7 +25,8 @@
    serio, y todos corren aquí en el navegador sin subir nada a ningún lado:
 
      1. Cuantizar   — reducir la imagen a unos pocos colores planos (Otsu para
-                      blanco y negro, corte por la mediana + k-medias para color).
+                      blanco y negro; para color, siembra por distancia estilo
+                      k-means++ y unas vueltas de k-medias — ver vtSembrar).
      2. Despeckle   — borrar las motas sueltas del JPG, que si no se vuelven
                       cientos de islas diminutas en el trazo.
      3. Contornear  — seguir la frontera entre píxeles ("cracks") para sacar
@@ -100,7 +101,18 @@ function vtOnDrop(e){
   e.preventDefault(); e.currentTarget.style.outline='';
   if(e.dataTransfer.files[0]) vtCargarImagen({files:e.dataTransfer.files,value:''});
 }
-function vtUsarImagenAI(){ if(Q.aiFile&&Q.aiFile.url) vtLoadImgSrc(Q.aiFile.url,'imagen IA'); }
+/* Si lo analizado fue un PDF, se abre como PDF: por el <img> salía «puede estar dañada».
+   Ver usarImagenAIEnScaler. */
+function vtUsarImagenAI(){
+  if(!(Q.aiFile&&Q.aiFile.url)) return;
+  if(scEsPdfIA()){
+    fetch(Q.aiFile.url).then(r=>r.blob())
+      .then(b=>vtLoadPDF(new File([b],Q.aiFile.name||'plano.pdf',{type:'application/pdf'})))
+      .catch(()=>toast('No se pudo abrir el PDF analizado — ábrelo de nuevo con «Cargar imagen»','err',5200));
+    return;
+  }
+  vtLoadImgSrc(Q.aiFile.url,'imagen IA');
+}
 function vtUsarImagenScaler(){ if(SC.img) vtLoadImgSrc(SC.img.src,'imagen del escalador'); }
 async function vtLoadPDF(f){
   toast('Cargando PDF…','',8000);
@@ -112,16 +124,22 @@ async function vtLoadPDF(f){
       await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=res;s.onerror=()=>rej(new Error('se necesita conexión para leer un PDF: el lector se descarga la primera vez. Exporta el plano como JPG o PNG y vuelve a intentar'));document.head.appendChild(s);});
       pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
-    const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;
-    const page=await pdf.getPage(1);
-    const base=page.getViewport({scale:1});
-    // Menos resolución que en el escalador: aquí cada píxel se cuantiza y se recorre,
-    // y de 2200 px en adelante solo se paga tiempo sin ganar trazo.
-    const s=Math.max(1.5,Math.min(4,2200/base.width));
-    const vp=page.getViewport({scale:s});
-    const oc=document.createElement('canvas'); oc.width=Math.round(vp.width); oc.height=Math.round(vp.height);
-    const cx=oc.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,oc.width,oc.height);
-    await page.render({canvasContext:cx,viewport:vp}).promise;
+    /* El documento se destruye al terminar de pintarlo, como en scLoadPDF: cada uno tiene
+       su propio Web Worker y sin destroy() se quedaba vivo, uno más por PDF. */
+    const oc=document.createElement('canvas');
+    let pdf;
+    try{
+      pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;
+      const page=await pdf.getPage(1);
+      const base=page.getViewport({scale:1});
+      // Menos resolución que en el escalador: aquí cada píxel se cuantiza y se recorre,
+      // y de 2200 px en adelante solo se paga tiempo sin ganar trazo.
+      const s=Math.max(1.5,Math.min(4,2200/base.width));
+      const vp=page.getViewport({scale:s});
+      oc.width=Math.round(vp.width); oc.height=Math.round(vp.height);
+      const cx=oc.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,oc.width,oc.height);
+      await page.render({canvasContext:cx,viewport:vp}).promise;
+    }finally{ try{ pdf&&pdf.destroy(); }catch(_){} }
     const url=await new Promise(res=>{try{oc.toBlob(b=>res(b?URL.createObjectURL(b):oc.toDataURL()),'image/png');}catch(_){res(oc.toDataURL());}});
     vtLoadImgSrc(url,f.name);
   }catch(e){ toast('No se pudo abrir el PDF: '+((e&&e.message)||'el archivo no se pudo leer'),'err',7000); }
@@ -872,6 +890,18 @@ async function vtVectorizar(){
     vtProg(96,'Armando el SVG…');
     await vtRespirar();
     vtMetricas();
+    /* La medida real se puede teclear ANTES de vectorizar —los dos campos están a la vista y
+       encendidos desde que se carga la imagen—, pero vtEscala la necesita contra la tinta, y
+       la tinta no existe hasta aquí: el alto de 40 cm se quedaba escrito en el campo y el SVG
+       salía sin medida y sin partidas que agregar. Se aplica ahora, contra la tinta recién
+       medida; si están los dos, manda el alto, que es el que da la altura de letra que se
+       cotiza. Solo si todavía no hay escala: al VOLVER a vectorizar la escala ya está puesta
+       y es de la imagen —cm por píxel—, no de la tinta, así que se conserva; rehacerla contra
+       la tinta nueva correría un poco la que se trajo calibrada del escalador. */
+    if(!(VT.cmPorPx>0)){
+      const aR=parseFloat($('vt-alto-cm').value), wR=parseFloat($('vt-ancho-cm').value);
+      if(aR>0) vtEscala('alto',aR); else if(wR>0) vtEscala('ancho',wR);
+    }
     vtArmarSVG();
     VT.hecho=true; VT.sucio=false;
     $('vt-go').innerHTML=ico('i-vector')+' Volver a vectorizar';

@@ -700,7 +700,7 @@ document.documentElement.classList.add('arrancando');
           <div class="vt-row" style="margin-top:13px"><label for="vt-esq">Esquinas vivas</label><span class="vt-val" id="vt-esq-v">Medio</span></div>
           <input type="range" id="vt-esq" min="0" max="2" step="1" value="1" aria-valuetext="Medio" oninput="vtOpt('esquinas',+this.value)">
           <button type="button" class="switch" role="switch" aria-checked="true" style="margin-top:14px;font-size:12.5px" onclick="vtToggleFondo(event)"><span class="tg on" id="vt-fondo-tg" aria-hidden="true"></span> Quitar el fondo</button>
-          <div class="hintnote" style="margin-top:8px">El color que más superficie ocupa se deja transparente. Es lo que hace que el SVG traiga solo el logotipo y no un rectángulo blanco encima.</div>
+          <div class="hintnote" style="margin-top:8px">El color que domina el borde de la imagen se deja transparente. Es lo que hace que el SVG traiga solo el logotipo y no un rectángulo blanco encima.</div>
           <button type="button" class="switch" role="switch" aria-checked="false" style="margin-top:11px;font-size:12.5px" onclick="vtToggleInvertir(event)"><span class="tg" id="vt-inv-tg" aria-hidden="true"></span> Lo que quitó no era el fondo — usar el otro</button>
           <button class="vt-go" id="vt-go" onclick="vtVectorizar()" style="margin-top:15px" disabled><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg> Vectorizar</button>
         </div>

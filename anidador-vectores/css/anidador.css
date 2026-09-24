@@ -30,6 +30,13 @@
 /* El número del paso: una ficha, no un título. Como los números de partida del cotizador. */
 .an-num{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;
   background:var(--a-suave);color:var(--a-fuerte);font-size:var(--t2);font-weight:700;box-shadow:var(--clay-in);flex:0 0 auto}
+/* El número lo pone un contador que solo cuenta los pasos a la vista. Estaban escritos a mano
+   en el HTML, y «La medida real» nace escondida hasta que hay archivo: la pantalla recién
+   abierta decía 1 y 3, y quien la veía se preguntaba qué paso se había saltado. Así, el paso
+   que se esconda —hoy o mañana— deja de contar sin tocar nada más. */
+.an-main{counter-reset:an-paso}
+.an-paso:not([hidden]){counter-increment:an-paso}
+.an-paso .an-num::before{content:counter(an-paso)}
 
 /* Las tarjetas entran en escalera, como las del cotizador. */
 .an-paso,.an-vista{animation:an-entra .5s var(--mv-s) both}

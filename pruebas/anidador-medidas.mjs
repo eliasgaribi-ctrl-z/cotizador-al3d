@@ -58,12 +58,23 @@ igual(e.unidad, 'cm', 'y dice que venía en cm');
 e = M.escalaDelArchivo({ width: '8.5in', height: '11in', viewBox: '0 0 612 792' });
 es(e.mmPorUnidad, 215.9 / 612, 'una carta en pulgadas a 72 por pulgada');
 
+/* Sin viewBox las unidades del dibujo son px CSS, diga lo que diga el width: un width="200mm"
+   con un rectángulo de 755.9 unidades mide 200 mm en cualquier navegador. Esta prueba decía
+   antes «cada unidad es un milímetro», y con eso el diseño salía 3.78 veces grande. */
 e = M.escalaDelArchivo({ width: '200mm', height: '100mm', viewBox: null });
-igual(e.viewBox, { x: 0, y: 0, w: 200, h: 100 }, 'sin viewBox, el lienzo son los números del width/height');
-es(e.mmPorUnidad, 1, 'y en mm cada unidad es un milímetro');
+es(e.viewBox.w, 200 * 96 / 25.4, 'sin viewBox, el lienzo es el width pasado a px: 200 mm son 755.9 px');
+es(e.viewBox.h, 100 * 96 / 25.4, 'y el alto igual: 377.95 px');
+es(e.mmPorUnidad, 25.4 / 96, 'así que cada unidad es un px del estándar, 0.2646 mm');
+es(e.anchoMm, 200, 'y el lienzo sigue midiendo los 200 mm que dice');
+es(Math.round(755.9 * e.mmPorUnidad), 200, 'el rectángulo de 755.9 unidades mide 200 mm, no 756');
 
 e = M.escalaDelArchivo({ width: '20cm', height: '10cm', viewBox: null });
-es(e.mmPorUnidad, 10, 'sin viewBox y en cm, cada unidad son 10 mm');
+es(e.mmPorUnidad, 25.4 / 96, 'sin viewBox y en cm, lo mismo: un px del estándar por unidad');
+es(e.anchoMm, 200, 'y 20 cm siguen siendo 200 mm');
+
+e = M.escalaDelArchivo({ width: '400px', height: '200px', viewBox: null });
+igual(e.viewBox, { x: 0, y: 0, w: 400, h: 200 }, 'sin viewBox y en px, el lienzo son esos mismos números');
+igual(e.mmPorUnidad, null, 'y la escala falta, como con viewBox: el px no se adivina');
 
 e = M.escalaDelArchivo({ width: null, height: '50mm', viewBox: '0 0 400 200' });
 es(e.mmPorUnidad, 0.25, 'si solo el alto trae unidad, se usa el alto');

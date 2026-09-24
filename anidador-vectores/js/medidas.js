@@ -63,8 +63,17 @@
     var w = leerLongitud(attrs.width), h = leerLongitud(attrs.height);
     var vb = leerViewBox(attrs.viewBox);
 
-    /* Sin viewBox, el lienzo son los números del width/height en su propia unidad. */
-    if (!vb && w && h) vb = { x: 0, y: 0, w: w.valor, h: h.valor };
+    /* Sin viewBox, las unidades del dibujo son px CSS —96 por pulgada—, lo diga como lo diga
+       el width: así lo fija el estándar y así lo pinta el navegador. El lienzo se arma en esos
+       px y la escala sale sola, 25.4/96 mm por unidad. Antes se armaba en la unidad del width:
+       un width="200mm" con un rectángulo de 755.9 unidades (200 mm en cualquier navegador)
+       salía «756 mm», 3.78 veces grande. Esto no adivina el px de Illustrator de la
+       cabecera: aquí el archivo SÍ dice cuánto mide, y el px es el del estándar, sin duda.
+       Con width en px o sin unidad, el lienzo son esos mismos números y la escala falta. */
+    if (!vb && w && h) {
+      var aPx = function (l) { return l.unidad && MM_POR_UNIDAD[l.unidad] ? l.valor * MM_POR_UNIDAD[l.unidad] / MM_POR_UNIDAD.px : l.valor; };
+      vb = { x: 0, y: 0, w: aPx(w), h: aPx(h) };
+    }
 
     var fis = null, porAncho = true;
     if (w && UNIDADES_FISICAS.indexOf(w.unidad) >= 0) fis = w;
