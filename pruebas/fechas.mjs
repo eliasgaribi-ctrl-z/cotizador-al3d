@@ -131,8 +131,11 @@ eq('inválida da null', F.fechaLocal('x'), null);
 
 console.log('\nisoDeSello — de qué DÍA es un sello, no cuántas tandas de 24 horas lleva');
 {
-  /* Se arma el sello con la hora LOCAL de este proceso, así que la prueba vale en cualquier
-     zona: lo que se comprueba es que el día sale de los campos locales y no de UTC. */
+  /* En UTC la hora local y la de UTC coinciden, y un `toISOString().slice(0, 10)` pasaría en
+     verde: se fija la zona del taller (UTC−6, sin horario de verano) para que las 23:00 del 22
+     sean las 05:00 del 23 en UTC y la prueba distinga una cuenta de la otra. Es el último
+     bloque del archivo, así que lo de arriba no se entera. */
+  process.env.TZ = 'America/Mexico_City';
   const ayerNoche = new Date(2026, 8, 22, 23, 0, 0).getTime();
   const hoyManana = new Date(2026, 8, 23, 9, 0, 0).getTime();
   eq('las 11 de la noche del 22 son del 22', F.isoDeSello(ayerNoche), '2026-09-22');

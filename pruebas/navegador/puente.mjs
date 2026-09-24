@@ -469,9 +469,17 @@ const traba = await p.evaluate(async () => {
     const banda = (await S.frescura()).texto;
     const pendientes = (await S.pendientes()).length;
     const sigueGuardada = !!(await DB.obtener('pendientes', 'op-traba-a'));
+    const errorVivo = S.estado().ultimo_error || '';
+    const mandadasAntes = mandadas.slice();   // lo de abajo la vuelve a mandar a propósito
+    /* «Volver a intentarlos» (Ajustes): regresa a la cola y, si rebota otra vez, se vuelve a apartar. */
+    const re = await S.reintentarRechazadas();
+    const enCola = (await S.pendientes()).length;
+    await S.bombear();
+    const otraVezApartada = (await S.rechazadas()).length;
     const tirada = await S.resolver('op-traba-a', 'suyo');
-    return { mandadas, b1: b1.valor, b2: b2.valor, pendientes, rech: rech.map(o => [o.id, o.ultimo_error]), banda,
-             sigueGuardada, tirada: tirada.ok, quedan: (await S.rechazadas()).length };
+    return { mandadas: mandadasAntes, b1: b1.valor, b2: b2.valor, pendientes, rech: rech.map(o => [o.id, o.ultimo_error]), banda,
+             sigueGuardada, tirada: tirada.ok, quedan: (await S.rechazadas()).length,
+             errorVivo, reencoladas: re.valor && re.valor.reencoladas, enCola, otraVezApartada };
   } finally {
     S.registrar(P.desdePrefs());   // el relevo de verdad, para lo que sigue
   }
@@ -486,8 +494,13 @@ traba.b1 && traba.b1.rechazadas === 1 && traba.b1.fallidas === 1 && traba.b1.sub
 traba.pendientes === 0 ? bien('la rechazada ya no se cuenta como pendiente') : mal('pendientes: ' + traba.pendientes);
 traba.rech.length === 1 && /no puede dar de alta/.test(traba.rech[0][1]) && traba.sigueGuardada
   ? bien('se apartó con su razón, sin perderse: «' + traba.rech[0][1] + '»') : mal('apartadas: ' + JSON.stringify(traba.rech));
-/La hoja no aceptó 1 cambio/.test(traba.banda || '') ? bien('y la banda de frescura lo dice: «' + traba.banda + '»')
+/No se pudo mandar 1 cambio/.test(traba.banda || '') && /Ajustes/.test(traba.banda || '') ? bien('y la banda de frescura lo dice, y dónde se reintenta: «' + traba.banda + '»')
   : mal('la banda no dice nada del rechazo: «' + traba.banda + '»');
+traba.errorVivo === '' ? bien('lo apartado no queda como «último error»: la banda de «no ha podido mandar» no se enciende por él')
+  : mal('el rechazo quedó como último error: «' + traba.errorVivo + '»');
+traba.reencoladas === 1 && traba.enCola === 1 && traba.otraVezApartada === 1
+  ? bien('«Volver a intentarlos» lo regresa a la cola, y si rebota otra vez se vuelve a apartar')
+  : mal('reintentar: ' + JSON.stringify({ r: traba.reencoladas, c: traba.enCola, a: traba.otraVezApartada }));
 traba.tirada && traba.quedan === 0 ? bien('y se puede descartar con resolver(…, "suyo")') : mal('no se pudo descartar');
 
 // ── 5. La pantalla de Ajustes ────────────────────────────────────────────────

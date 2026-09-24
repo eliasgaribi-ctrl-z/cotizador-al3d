@@ -1054,6 +1054,7 @@ function scHandleHit(pt){
   return best;
 }
 function scMoveHandle(h,pt){
+  if(h.kind==='ref'&&!h.ref0&&SC.refLine) h.ref0=JSON.parse(JSON.stringify(SC.refLine));   // la línea de antes, por si no pasó por scDown
   let x=pt.x+h.dx,y=pt.y+h.dy;
   // El extremo corregido también se pega a las guías, igual que al colocarlo por
   // primera vez: se pega la posición final del punto, no la del dedo, para que el
@@ -1106,7 +1107,7 @@ function scEndHandle(){
            puede deshacer, porque el radio de agarre son 22 px con el dedo y agarrar la
            referencia sin querer es fácil. Deshacer devuelve también el «Agregada» de las
            medidas que scRecalcTodas soltó: con la escala de antes, su partida vuelve a cuadrar. */
-        const antes=SC.nativePxPerCm, refAntes=JSON.parse(JSON.stringify(SC.refLine));
+        const antes=SC.nativePxPerCm, refAntes=h.ref0||JSON.parse(JSON.stringify(SC.refLine));   // la línea de ANTES del arrastre (scDown): la de ahora ya se movió
         const usadasAntes=SC.items.filter(m=>m.usada);
         SC.nativePxPerCm=(d*SC.scaleFactor)/SC.refCm;
         const nota=scNotaViejas(scRecalcTodas());
@@ -1183,6 +1184,7 @@ function scDown(e){
       e.preventDefault();
       SC.dragH=h;SC.isTouch=touch;
       if(h.kind==='item'){SC.sel=h.item.id;h.cm0=h.item.cm;}   // para saber al soltar si cambió (scEndHandle)
+      else h.ref0=JSON.parse(JSON.stringify(SC.refLine));   // la referencia antes de moverla: «Deshacer» la regresa a su lugar
       SC.cp={...pt};
       scSetHint(h.kind==='ref'
         ?'Ajustando la referencia — suelta donde va'

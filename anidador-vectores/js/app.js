@@ -67,6 +67,15 @@
                  'animatecolor', 'discard', 'handler', 'listener', 'iframe', 'embed', 'object',
                  'audio', 'video'];
   var NS_XHTML = 'http://www.w3.org/1999/xhtml';
+  /* ¿Pide algo de fuera? url(…), image-set(…) o @import que no apunte a #algo. La barra
+     invertida también cuenta: en CSS «\75 rl(» se lee url(. */
+  function pideDeFuera(v) {
+    v = String(v || '');
+    if (v.indexOf('\\') >= 0 || /@import/i.test(v)) return true;
+    var re = /(url|image-set)\s*\(\s*(['"]?)\s*([^'")\s]*)/gi, m;
+    while ((m = re.exec(v))) if (m[3].charAt(0) !== '#') return true;
+    return false;
+  }
   function sanear(raiz) {
     lista(raiz.getElementsByTagName('*')).concat([raiz]).forEach(function (e) {
       var nombre = String(e.localName || e.nodeName).toLowerCase();
@@ -87,8 +96,22 @@
           var v = String(at.value || '').trim();
           var ok = v.charAt(0) === '#' || ((nombre === 'image' || nombre === 'feimage') && /^data:image\//i.test(v));
           if (!ok) e.removeAttributeNode(at);
+          return;
         }
+        /* Lo mismo en el CSS: un style="fill:url(https://…)" o un clip-path="url(https://…)"
+           pide la dirección al pintarse, igual que un href. Solo url(#algo) se queda. Del
+           style se quita la declaración y no el atributo entero: los colores y trazos se
+           conservan (LightBurn arma sus capas con ellos). */
+        if (n === 'style' && e.style) {
+          for (var i = e.style.length - 1; i >= 0; i--) {
+            if (pideDeFuera(e.style.getPropertyValue(e.style[i]))) e.style.removeProperty(e.style[i]);
+          }
+          if (!e.style.length) e.removeAttribute('style');
+        } else if (pideDeFuera(at.value)) e.removeAttributeNode(at);
       });
+      /* Un <style> que pide algo de fuera (@import, url(https://…)) se va entero: el <style>
+         viaja en el SVG de corte. Uno sin nada de fuera se queda, porque lleva las clases. */
+      if (nombre === 'style' && e !== raiz && pideDeFuera(e.textContent) && e.parentNode) e.parentNode.removeChild(e);
     });
   }
 
@@ -372,9 +395,13 @@
     return true;
   }
 
+  /* Por nombre local y en minúsculas, como sanear(): getElementsByTagName compara el nombre
+     calificado, y un <s:style> (que sigue siendo un <style> de SVG) se le escapaba y
+     reestilizaba la página entera. */
   function quitarEtiquetas(nodo, tags) {
-    tags.forEach(function (tag) {
-      lista(nodo.getElementsByTagName(tag)).forEach(function (e) { if (e.parentNode) e.parentNode.removeChild(e); });
+    var quitar = tags.map(function (t) { return String(t).toLowerCase(); });
+    lista(nodo.getElementsByTagName('*')).forEach(function (e) {
+      if (quitar.indexOf(String(e.localName || e.nodeName).toLowerCase()) >= 0 && e.parentNode) e.parentNode.removeChild(e);
     });
   }
 
@@ -531,6 +558,10 @@
        de una «C» cuenta como lleno y nada se acomoda dentro. Tarda bastante más, por eso
        nace apagado, igual que allá. */
     SN.config({ spacing: mat.sep, rotations: mat.rot, useHoles: mat.huecos, exploreConcave: mat.concavas, curveTolerance: TOLERANCIA_MM });
+    /* config() y parsesvg() ya borraron del motor el cálculo anterior (su GA, su mejor y la
+       hoja): si de aquí en adelante algo frena el arranque —no cabe ninguna pieza, el SVG no
+       se lee—, ya no hay qué «seguir». El acomodo en pantalla se queda para descargarlo. */
+    T.huella = null;
     var svg;
     try { svg = SN.parsesvg(svgParaMotor(A.k)); }
     catch (e) { mensaje('No se pudo procesar el SVG: ' + (e && e.message || e), 'mal'); return; }
@@ -601,8 +632,10 @@
        llama desde window.Anidador: con otros ajustes no se sigue, se acomoda desde cero. */
     var mat = leerMaterial(false);
     if (!mat || huellaMotor(mat) !== T.huella) { iniciar(); return; }
+    /* start() contesta false cuando el motor ya no tiene la hoja o las piezas: sin mirarlo, la
+       mesa se quedaba en «Acomodando…» para siempre, sin un solo intento. */
+    if (window.SvgNest.start(alAvanzar, mostrarDe(++corrida)) === false) { T.huella = null; iniciar(); return; }
     T.corriendo = true; T.sinMejora = 0; T.ultimaMejora = Date.now(); T.detenidoSolo = false;
-    window.SvgNest.start(alAvanzar, mostrarDe(++corrida));
     $('an-mesa').classList.add('corriendo');
     pintarEstadoTrabajo();
     $('an-vista-tab').textContent = 'Acomodando…';

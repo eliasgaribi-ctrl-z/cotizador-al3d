@@ -455,6 +455,9 @@ function aiOlvidarArchivo(){
   aiPintarArchivo();
 }
 function aiQuitarArchivo(){
+  /* Igual que aiUsarArchivo: con un análisis en curso la fuente es la que se está pagando.
+     Quitarla solo borraba la miniatura y el aviso, y su respuesta se aplicaba igual. */
+  if(aiTrabajando){ toast(AI_OCUPADO,'',3600); return; }
   aiOlvidarArchivo();
   aiStatus('','');
   const z=$('ai-drop'); if(z) try{ z.focus(); }catch(_){}

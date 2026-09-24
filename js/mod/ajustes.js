@@ -56,6 +56,7 @@ let CTX = null;
 let ESPACIO = null;      // DB.espacio() o null si el navegador no lo dice
 let PEND = 0;            // operaciones en la bandeja de salida
 let APARTADAS = 0;       // las que este puente no sabe llevar. Ni se mandan ni se pierden
+let RECHAZ = [];         // las que se intentaron y no se pudieron escribir: se reintentan a mano
 /* Cuántas constantes del taller vuelven a sembrarse al borrar. Se CUENTA y no se escribe: la
    pantalla decía «las 18» cuando ya eran 20 —las 18 de §6.1 más las dos de plazo que usa la
    ventana de taller—, y un número escrito a mano se queda viejo la siguiente vez que entra
@@ -106,9 +107,10 @@ export async function montar(c, ctx) {
   /* Las dos lecturas que tocan la base van antes de pintar y en paralelo: son las únicas
      asíncronas de la pantalla y esperarlas en serie se nota en un celular viejo. Ninguna
      lanza: `espacio()` devuelve null y `pendientes()` devuelve [] si la base no abrió. */
-  const [esp, cola, sinDest, cts] = await Promise.all([
-    DB.espacio(), Sync.pendientes(), Sync.sinDestino(),
+  const [esp, cola, sinDest, rech, cts] = await Promise.all([
+    DB.espacio(), Sync.pendientes(), Sync.sinDestino(), Sync.rechazadas().catch(() => []),
     Material.constantes().catch(() => null)]);
+  RECHAZ = rech || [];
   NCONST = cts ? Object.keys(cts).length || null : null;
   ESPACIO = esp;
   PEND = cola.length;
@@ -143,7 +145,7 @@ export function desmontar() {
     capa.innerHTML = '';
   }
 
-  ESPACIO = null; PEND = 0; APARTADAS = 0; ROL_GATE = null; NCONST = null;
+  ESPACIO = null; PEND = 0; APARTADAS = 0; RECHAZ = []; ROL_GATE = null; NCONST = null;
   SALUD = null; ESQ = null;
   cont = null; CTX = null;
 }
@@ -572,9 +574,22 @@ function cardPuente() {
       'hasta que existan sus bases. No se pierden.'
     : '';
 
+  /* Lo que se intentó y no se pudo escribir. Sin esto la pantalla decía en verde «la bandeja
+     está vacía» mientras la banda del Tablero contaba esos cambios para siempre, y no había
+     botón en ninguna parte para volver a mandarlos. */
+  const nR = RECHAZ.length;
+  const cuentaRech = nR
+    ? '<p class="pf-nota"><b>' + (nR === 1 ? '1 cambio no se pudo' : nR + ' cambios no se pudieron') +
+      ' mandar</b> y ' + (nR === 1 ? 'quedó apartado' : 'quedaron apartados') + ' para no trabar lo demás:</p>' +
+      '<ul class="aj-faltan">' + RECHAZ.slice(-5).map(o => '<li>' + esc(o.ultimo_error || o.codigo_rechazo || 'sin razón') + '</li>').join('') + '</ul>' +
+      (nR > 5 ? '<p class="pf-nota">…y ' + (nR - 5) + ' más.</p>' : '') +
+      '<p class="pf-nota">Arregla la causa —dar de alta la venta desde Dirección, entrar con la cuenta de otro rol, corregir la fila en la hoja— y vuelve a intentarlos. Lo que rebote otra vez se vuelve a apartar.</p>' +
+      '<div class="pf-acciones"><button type="button" class="btn btn-gho" data-act="puente-reintentar">' +
+      ico('i-nube') + ' Volver a intentarlos</button></div>'
+    : '';
   const estado = s.configurado
-    ? nota(ico('i-check') + ' Puente enchufado' + (s.adaptador ? ' (' + esc(s.adaptador) + ')' : '') +
-      '. ' + cuentaPend + cuentaApart, 'ok')
+    ? nota(ico(nR ? 'i-aviso' : 'i-check') + ' Puente enchufado' + (s.adaptador ? ' (' + esc(s.adaptador) + ')' : '') +
+      '. ' + cuentaPend + cuentaApart, nR ? 'av' : 'ok') + cuentaRech
     : nota('<b>Sin puente.</b> La plataforma funciona completa en este dispositivo, y el ' +
       'camino manual —«Copiar datos para la hoja» en el cotizador— sigue siendo el que se usa ' +
       'para pasar una venta. Ese camino no se retira nunca.' +
@@ -612,9 +627,18 @@ function cardPuente() {
     } else if (!ESQ.faltan.length) {
       esquema = nota(ico('i-check') + ' La pestaña «Ventas» ya tiene las ocho ' +
         'columnas que la plataforma necesita.', 'ok');
+    } else if (!columnasQueFaltan().length) {
+      /* Solo falta la pestaña «Accesos». No es una columna, y sin ella lo que falla no es el
+         alta (con token de dispositivo funciona): es que nadie entra con Google. */
+      esquema = nota('<b>Las ocho columnas están, pero falta la pestaña «Accesos».</b> Sin ella ' +
+        'nadie entra con Google, en ninguna pantalla; con token de dispositivo el puente sigue ' +
+        'escribiendo. Córrele <b>prepararHojaParaElPuente()</b> en Apps Script: la crea con el ' +
+        'dueño de la hoja ya dentro.', 'av');
     } else {
-      esquema = nota('<b>A la hoja le faltan ' + ESQ.faltan.length +
-          (ESQ.faltan.length === 1 ? ' columna' : ' columnas') + '.</b> El puente las detecta y ' +
+      const cols = columnasQueFaltan();
+      esquema = nota('<b>A la hoja le faltan ' + cols.length +
+          (cols.length === 1 ? ' columna' : ' columnas') +
+          (ESQ.accesos === false ? ' y la pestaña «Accesos»' : '') + '.</b> El puente las detecta y ' +
           'no las crea solo: córrele <b>prepararHojaParaElPuente()</b> en Apps Script y las crea ' +
           'con su validación. Es la única garantía de que no se rompan las fórmulas ni las vistas ' +
           'de una hoja con tres años encima. Mientras falte una, dar de alta una venta va a rebotar.', 'av') +
@@ -811,6 +835,7 @@ async function clic(ev) {
   if (t.closest('[data-act="puente-guardar"]')) { guardarPuente(); return; }
   if (t.closest('[data-act="puente-quitar"]')) { quitarPuente(); return; }
   if (t.closest('[data-act="puente-bombear"]')) { bombear(); return; }
+  if (t.closest('[data-act="puente-reintentar"]')) { reintentarApartadas(); return; }
   if (t.closest('[data-act="puente-probar"]')) { probarPuente(); return; }
   if (t.closest('[data-act="puente-esquema"]')) { revisarEsquema(); return; }
   if (t.closest('[data-act="puente-jalar"]')) { jalar(); return; }
@@ -1054,9 +1079,10 @@ async function conectarGcal() {
 
 /** Vuelve a leer los dos contadores de la bandeja y repinta, sin remontar. */
 async function repintar() {
-  const [cola, sinDest] = await Promise.all([Sync.pendientes(), Sync.sinDestino()]);
+  const [cola, sinDest, rech] = await Promise.all([Sync.pendientes(), Sync.sinDestino(), Sync.rechazadas().catch(() => [])]);
   PEND = cola.length;
   APARTADAS = sinDest.length;
+  RECHAZ = rech || [];
   pintar();
 }
 
@@ -1138,19 +1164,35 @@ async function revisarEsquema() {
   await conElPuente('Leyendo las columnas de la hoja…', async rel => {
     ESQ = await rel.esquema();
     if (!ESQ.ok) { toast(ESQ.mensaje || 'No se pudo leer el esquema', 'err', 5600); return; }
-    toast(ESQ.faltan.length
-      ? 'Le faltan ' + ESQ.faltan.length + (ESQ.faltan.length === 1 ? ' columna' : ' columnas') + ' a la hoja'
+    const nc = columnasQueFaltan().length;
+    toast(nc
+      ? 'Le faltan ' + nc + (nc === 1 ? ' columna' : ' columnas') + ' a la hoja' + (ESQ.accesos === false ? ' y la pestaña «Accesos»' : '')
+      : ESQ.faltan.length ? 'Falta la pestaña «Accesos» en la hoja'
       : 'La hoja ya tiene todo lo que hace falta', ESQ.faltan.length ? '' : 'ok', 4200);
   });
+}
+
+/* Las columnas, sin la pestaña «Accesos» que puente.js mete en la misma lista. */
+function columnasQueFaltan() {
+  return ESQ && Array.isArray(ESQ.faltan) ? ESQ.faltan.filter(x => !x.pestana) : [];
 }
 
 function copiarFaltan() {
   if (!ESQ || !ESQ.faltan || !ESQ.faltan.length) return;
   /* Se copia con el tipo y las opciones porque eso es justo lo que hay que teclear del
      otro lado, y una propiedad creada con el tipo equivocado es media hora de arreglar. */
-  const txt = ESQ.faltan.map(x => x.nombre + '  —  tipo: ' + x.tipo +
+  const txt = ESQ.faltan.map(x => x.nombre + '  —  ' + (x.pestana ? 'pestaña (no es columna)' : 'tipo: ' + x.tipo) +
     (Array.isArray(x.opciones) && x.opciones.length ? '  —  opciones: ' + x.opciones.join(', ') : '')).join('\n');
   copiarTexto(txt, 'Lista copiada — o córrele prepararHojaParaElPuente() en Apps Script');
+}
+
+async function reintentarApartadas() {
+  if (_ocupado) return;
+  const r = await Sync.reintentarRechazadas();
+  const n = (r && r.ok && r.valor && r.valor.reencoladas) || 0;
+  if (!n) { toast('No había cambios apartados', '', 3200); await repintar(); return; }
+  toast(n === 1 ? 'El cambio volvió a la bandeja: se manda ahora' : n + ' cambios volvieron a la bandeja: se mandan ahora', 'ok', 3600);
+  await bombear();
 }
 
 async function bombear() {

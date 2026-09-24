@@ -293,6 +293,23 @@ export async function pendientes() {
  * enseña en la banda de frescura, y `resolver(id, 'mio')` lo devuelve a la cola —por
  * ejemplo, el día que ese teléfono entra con una cuenta de Dirección— o `'suyo'` lo tira.
  */
+/**
+ * Devuelve a la cola lo apartado como «rechazada». Es la salida que no tenía: nada la
+ * revivía —ni un relevo nuevo ni un ingreso nuevo—, y la banda la contaba para siempre. Se
+ * usa después de arreglar la causa (dar de alta la venta desde Dirección, entrar con la
+ * cuenta de otro rol, corregir la fila en la hoja). Lo que vuelva a rebotar vuelve a apartarse.
+ * @returns {Promise<Resultado>} {valor:{reencoladas}}
+ */
+export async function reintentarRechazadas() {
+  const lista = await rechazadas();
+  let n = 0;
+  for (const op of lista) {
+    const r = await DB.poner('pendientes', { ...op, estado: 'pendiente', intentos: 0, ultimo_error: '', codigo_rechazo: null });
+    if (r && r.ok) n++;
+  }
+  return ok({ reencoladas: n });
+}
+
 export async function rechazadas() {
   const todas = await DB.listar('pendientes', { indice: 'porTs' });
   return todas.filter(o => !esMarca(o) && o.estado === 'rechazada');
@@ -453,7 +470,9 @@ async function bombearDeVerdad() {
       });
       rechazadasN++;
       fallidas++;
-      _ultimoError = razon;
+      /* No se anota como «último error»: esa operación ya salió de la cola, y la banda de «no
+         ha podido mandar» se encendía por ella con cada cambio sano que se encolaba después.
+         Lo apartado tiene su propio aviso (ver frescura) y su botón en Ajustes. */
       continue;
     }
 
@@ -491,7 +510,7 @@ async function bombearDeVerdad() {
   /* Un bombeo que salió limpio borra el último error: sin esto, la banda de «no ha podido
      mandar N cambios (error)» se encendía con cada operación nueva por un tropiezo de hace
      días que ya no existía. */
-  if (subidas && !fallidas) _ultimoError = '';
+  if (subidas && fallidas === rechazadasN) _ultimoError = '';
 
   const quedan = (await pendientes()).length;
   return ok({
@@ -806,9 +825,13 @@ export async function frescura() {
   if (fuera.length) {
     const n = fuera.length;
     const ultimo = fuera[fuera.length - 1];
-    const texto = `La hoja no aceptó ${n} ${n === 1 ? 'cambio' : 'cambios'} de este teléfono` +
+    /* «No se pudo mandar» y no «la hoja no aceptó»: algunos los aparta el propio teléfono
+       (la venta ya no está en él, o su rol no escribe nada de lo que traen) sin preguntarle
+       a la hoja. Y se dice dónde se reintentan, que era lo que faltaba. */
+    const texto = `No se ${n === 1 ? 'pudo mandar 1 cambio' : 'pudieron mandar ' + n + ' cambios'} de este teléfono` +
       (ultimo && ultimo.ultimo_error ? `: ${ultimo.ultimo_error}` : '.') +
-      ` ${n === 1 ? 'Quedó apartado' : 'Quedaron apartados'} aquí para no trabar lo demás; no se perdió nada.`;
+      ` ${n === 1 ? 'Quedó apartado' : 'Quedaron apartados'} aquí para no trabar lo demás; no se perdió nada. ` +
+      'Arreglada la causa, se reintentan en Ajustes → El puente.';
     return {
       al_dia: false, dispositivos: [], texto, mensaje: texto, rechazadas: n,
       ultimo_envio: m.ultimo_envio, ultima_bajada: m.ultima_bajada,

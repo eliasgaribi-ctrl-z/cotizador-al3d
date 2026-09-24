@@ -298,6 +298,7 @@ function cerrarHistorial(){ $('histmodal').classList.remove('show'); }
 /* Volver a abrir una cotización ya autorizada: el cliente vuelve a pedir el PDF o
    quiere copiar la venta y antes había que capturarla otra vez desde cero. */
 function reabrirDeHistorial(folio){
+  guardarAutorizadaYa();   // lo que quedó en la espera de 700 ms se guarda antes de cambiar de cotización
   const e=_histData.find(x=>x.folio===folio); if(!e) return;
   const hayTrabajo=Q.estado!=='autorizada'&&(Q.items.some(it=>!itemVacio(it))||hayDatosCliente());
   if(hayTrabajo&&!confirm('Tienes una cotización sin autorizar en pantalla. Si abres '+folio+', se perderá. ¿Continuar?')) return;
@@ -375,6 +376,7 @@ function reabrirDeHistorial(folio){
    folio nuevo, en borrador, con el precio recalculado y sin arrastrar nada de la
    autorización anterior. Tus plantillas son tus cotizaciones anteriores. */
 function usarComoBase(folio){
+  guardarAutorizadaYa();   // lo que quedó en la espera de 700 ms se guarda antes de cambiar de cotización
   const e=_histData.find(x=>x.folio===folio); if(!e) return;
   const hayTrabajo=Q.estado!=='autorizada'&&(Q.items.some(it=>!itemVacio(it))||hayDatosCliente());
   if(hayTrabajo&&!confirm('Tienes una cotización sin autorizar en pantalla. Si empiezas una nueva a partir de '+folio+', se perderá. ¿Continuar?')) return;
@@ -1100,6 +1102,7 @@ function updateQueueEntry(folio,changes){
 
 function loadQueueEntry(folio){
   if(folio===Q.folio) return;
+  guardarAutorizadaYa();   // lo que quedó en la espera de 700 ms se guarda antes de cambiar de cotización
   const arr=getQueue();
   const entry=arr.find(x=>x.folio===folio);
   if(!entry||!entry.q) return;

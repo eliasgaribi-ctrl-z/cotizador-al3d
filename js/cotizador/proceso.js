@@ -81,14 +81,12 @@ function renderSummary(){
   // El anticipo se calcula sobre lo que realmente se va a cobrar, no sobre el
   // total calculado: si el autorizador dio descuento, el 50% también baja.
   const pf=precioFinal();
-  /* El techo del anticipo se revisa AQUÍ también, no solo al soltar el campo. El `change` de
-     abajo lo acota cuando se teclea, pero un descuento posterior bajaba el total por debajo del
-     anticipo ya pactado —$12,760 contra $10,440— y el PDF lo imprimía así, con «Resta $0.00»,
-     que es justo lo que ese handler existe para impedir. Mientras se teclea no se toca. */
-  if(Q.antiManual&&pf>0&&Q.anti>pf+0.005&&document.activeElement!==$('f-anti')){
-    Q.anti=Math.round(pf*100)/100;
-    toast('El anticipo pactado era mayor que el total nuevo de '+money(pf)+': se dejó igual al total.','err',5200);
-  }
+  /* El techo del anticipo NO se aplica aquí. renderSummary() corre en cada tecla de una
+     partida: acotar en este punto convertía un total que baja un instante —borrar un dígito
+     para corregir el precio, borrar una partida y deshacerla— en un anticipo pactado cortado
+     para siempre. El total baja «de verdad» en dos momentos: al teclear el anticipo (el
+     `change` de #f-anti lo acota) y al autorizar un precio menor (autorizarConfirmado lo
+     acota con ajustarAnticipoAlPrecio). */
   if(!Q.antiManual){ const auto=Math.round(pf*0.5); Q.anti=auto; if(document.activeElement!==$('f-anti')) $('f-anti').value=auto||''; }
   else if(document.activeElement!==$('f-anti')) $('f-anti').value=Q.anti||'';
   /* El rótulo dice la verdad del número que tiene debajo. Con el anticipo escrito a mano
@@ -1321,6 +1319,7 @@ function cerrarEdicionCliente(){
    escribir. Se compara contra lo que el historial guarda de este folio, que es la única copia
    de lo que decía antes. */
 function nuevaConEstosDatos(){
+  guardarAutorizadaYa();   // lo que quedó en la espera de 700 ms se guarda antes de cambiar de cotización
   const previa=guardadaDeEsteFolio();
   /* A dónde fue a parar la anterior, dicho según lo que era. El aviso decía siempre «quedó
      completa en el historial», también de una RECHAZADA —que no está en el historial ni en la
@@ -1548,9 +1547,14 @@ function reautorizar(){
      regla de los 10 cm, pendiente y la cola—. */
   Q.estado='borrador';
   paBorradorLimpiar();
+  /* Q.reauth se pone ANTES: autorizarYoMismo() mete la cotización en la cola con pushToQueue(),
+     y esa foto es la que loadQueueEntry() vuelve a poner en Q. Puesto después, la foto llevaba
+     reauth:null y, tras abrir otra de la cola y regresar, cancelar la revisión la convertía en
+     borrador y borraba a quien la había autorizado. */
+  Q.reauth=antes;
   autorizarYoMismo();
-  if(Q.estado!=='pendiente'){ Q.estado='autorizada'; renderItems(); return; }   // algo lo frenó y ya lo dijo: se queda como estaba
-  Q.reauth=antes; saveState();
+  if(Q.estado!=='pendiente'){ Q.reauth=null; Q.estado='autorizada'; renderItems(); return; }   // algo lo frenó y ya lo dijo: se queda como estaba
+  saveState();
 }
 function reabrir(){
   const eraPendiente=Q.estado==='pendiente';
@@ -1613,6 +1617,11 @@ function autorizarConfirmado(){
      sosteniendo un PDF con el precio viejo. Si el precio cambió, esos dos papeles ya no dicen
      la verdad y se vuelven a pedir. */
   if(re&&Math.abs((Number(re.pf)||0)-precioFinal())>0.01) desmarcarHitos(['pdf','wa']);
+  /* El anticipo se pone al precio autorizado ANTES de guardar en el historial. El 50 %
+     automático se recalculaba hasta el siguiente renderSummary(), o sea después de
+     guardarEnHistorial(): el historial se quedaba con la mitad del precio CALCULADO, su firma
+     ya no cuadraba con la de Q y la cotización no se soltaba al abrir la app. */
+  const antiAcotado=ajustarAnticipoAlPrecio();
   Q.fechaAuth=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
   confirmarFolio(Q.folio); // el contador de cotizaciones solo avanza al autorizar
   updateQueueEntry(Q.folio,{estado:'autorizada',precioAuth:Q.precioAuth,autorizador:Q.autorizador,nota:Q.nota,fechaAuth:Q.fechaAuth,itemsAuth:Q.itemsAuth,huellaAuth:Q.huellaAuth});
@@ -1628,8 +1637,20 @@ function autorizarConfirmado(){
      falló, el que se queda es el que lo dice. */
   const _r=respaldoEstado();
   if(guardada&&_saveOk&&_r.vencido) toast('✓ Autorizada · '+(_r.sinRespaldar||_r.total)+' sin respaldar en este teléfono','',6000,{label:'Respaldar',fn:()=>respaldar()});
+  else if(guardada&&_saveOk&&antiAcotado) toast('✓ Autorizada. El anticipo pactado era mayor que el total autorizado de '+money(precioFinal())+': se dejó igual al total.','err',6400);
   else if(guardada&&_saveOk) toast('✓ Cotización autorizada — guardada en historial','ok',3200);
   else if(guardada) toast('Autorizada y guardada, pero la cotización en curso ya no cabe en este teléfono — respalda y borra cotizaciones viejas','err',9000,{label:'Respaldar',fn:()=>respaldar()});
+}
+/* El anticipo, al precio que se va a cobrar. Sin anticipo a mano, el 50 % de ese precio. Con
+   uno a mano mayor que el total —el autorizador dio descuento después de pactarlo: $12,760
+   contra $10,440—, se deja igual al total, que es lo que el `change` de #f-anti hace al
+   teclearlo; si no, el PDF imprimía «Resta $0.00» con un anticipo mayor que el precio.
+   Devuelve true si tuvo que acotar uno pactado, para decirlo. */
+function ajustarAnticipoAlPrecio(){
+  const pf=precioFinal();
+  if(!Q.antiManual){ Q.anti=Math.round(pf*0.5); return false; }
+  if(pf>0&&Q.anti>pf+0.005){ Q.anti=Math.round(pf*100)/100; return true; }
+  return false;
 }
 function rechazar(){
   const nombre=($('a-name')?.value||'').trim();
@@ -1683,6 +1704,7 @@ function guardarParaDeshacer(){
   return !!_vaciada;
 }
 function nueva(){
+  guardarAutorizadaYa();   // lo que quedó en la espera de 700 ms se guarda antes de cambiar de cotización
   /* La copia la hace `guardarParaDeshacer()`, que es la misma de las otras dos puertas: aquí
      vivía escrita aparte y con una condición más estrecha —solo miraba el cliente y el
      proyecto—, así que un borrador con el teléfono y la dirección puestos y nada más se
@@ -2005,7 +2027,7 @@ $('f-anti').addEventListener('change',function(){
   let v=parseFloat(this.value);
   if(!isFinite(v)) v=0;
   let aviso='';
-  if(v<0){ v=0; aviso='El anticipo no puede ser negativo: se puso en $0.00.'; }
+  if(v<0){ v=0; aviso='El anticipo no puede ser negativo: vuelve al sugerido del 50%.'; }
   else if(t.neto>0 && v>t.neto+0.005){ v=Math.round(t.neto*100)/100; aviso='El anticipo era mayor que el total de '+money(t.neto)+': se dejó igual al total.'; }
   if(!aviso) return;
   /* Un anticipo acotado a cero no es uno «escrito a mano»: vuelve al sugerido, y el rótulo con

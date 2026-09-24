@@ -763,6 +763,9 @@ function huellaTrabajo(){
    la salida es «Volver a editar», que cancela la solicitud. Un aviso que nombra un botón que no
    está manda a buscarlo. `para` es el final de la frase: «para poder deshacer». */
 function msgCandadoCaptura(para){
+  /* En rol Autorizador, con la solicitud abierta, su panel solo tiene «Autorizar precio» y
+     «Rechazar»: nombrarle «Editar (cancela la solicitud)» era mandarlo a un botón que no ve. */
+  if(Q.estado==='pendiente'&&Q.rol==='autorizador') return 'Estás revisando el precio: autorízala o recházala primero. Después, el vendedor puede editarla '+para;
   if(Q.estado==='pendiente') return 'La cotización está mandada a autorización — usa «'+
     (typeof _selfAuth!=='undefined'&&_selfAuth?'Volver a editar':'Editar (cancela la solicitud)')+'» '+para;
   if(Q.estado==='rechazada') return 'La cotización está rechazada — usa «Editar y volver a enviar» '+para;

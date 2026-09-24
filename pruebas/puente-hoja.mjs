@@ -466,7 +466,9 @@ console.log('\nEL REACOMODO — Y:AD viajan con su fila (defecto 1)');
 
 console.log('\nREGISTRAR UN COBRO — LIQUIDADO va en el estatus, no en la cuenta (defecto 2)');
 {
-  const H = hojaDeMentiras();
+  /* Con Y:AD ya realineadas: antes de eso ordenarVentas no mueve filas (ver el bloque de la
+     realineación, al final). */
+  const H = hojaDeMentiras({ props: { PUENTE_Y_AD_ALINEADAS: '2026-09-24' } });
   /* Sin reacomodar todavía: la que se cobra está arriba de una en fabricación. */
   H.pon(2, 'V-007', { 'Proyecto': 'Ana - Cafe', 'Estatus': 'COBRANDO', 'Cuenta ': 'Elias BBVA', 'IVA': 'No',
                       'Precio Subtotal': 10000, 'Anticipo': 5000 });
@@ -517,8 +519,14 @@ console.log('\nNINGUNA FILA SIN NOMBRE Y NINGÚN FOLIO REPETIDO (defecto 3)');
      es otra venta. El teléfono de fabricación no puede escribir «Folio cotizacion», así que
      lo manda aparte, como identidad. */
   H.pon(9, 'V-009', { 'Proyecto': 'Eva - Nueva', 'Estatus': 'FABRICACION', 'Folio cotizacion': 'COT-0300@DIR1' });
-  const f = H.empujar([{ id: 'op5', tipo: 'actualizar', id_notion: 'V-009', folio_cotizacion: 'COT-0077@FAB2',
-    datos: { 'Etapa de obra': 'Armado', 'Direccion': 'Calle Vieja 9' } }], 'fabricacion');
+  const op5 = [{ id: 'op5', tipo: 'actualizar', id_notion: 'V-009', folio_cotizacion: 'COT-0077@FAB2',
+    datos: { 'Etapa de obra': 'Armado', 'Direccion': 'Calle Vieja 9' } }];
+  /* Sin realinear, «Folio cotizacion» todavía puede estar en la fila de otra venta: el cambio
+     espera (no se aparta para siempre) y no se busca por esa columna. */
+  eq('sin realinear Y:AD, el cambio atado a otra cotización espera', H.empujar(op5, 'fabricacion').resultados[0].codigo, 'ESPERA_REALINEAR');
+  eq('y no escribe nada', [H.celda('V-009', 'Direccion'), H.celda('V-009', 'Etapa de obra')], ['', '']);
+  H.props.PUENTE_Y_AD_ALINEADAS = '2026-09-24';
+  const f = H.empujar(op5, 'fabricacion');
   eq('si la fila con ese folio está atada a OTRA cotización, no se escribe ahí', f.resultados[0].codigo, 'NO_ENCONTRADO');
   eq('y la venta de esa fila queda intacta', [H.celda('V-009', 'Direccion'), H.celda('V-009', 'Etapa de obra')], ['', '']);
 
@@ -535,7 +543,7 @@ console.log('\nNINGUNA FILA SIN NOMBRE Y NINGÚN FOLIO REPETIDO (defecto 3)');
 
 console.log('\n«FOLIO COTIZACION» NO SE PISA EN UN CAMBIO (defecto 4, del lado de la hoja)');
 {
-  const H = hojaDeMentiras();
+  const H = hojaDeMentiras({ props: { PUENTE_Y_AD_ALINEADAS: '2026-09-24' } });
   H.pon(2, 'V-100', { 'Proyecto': 'Dani - Gym', 'Estatus': 'FABRICACION', 'Folio cotizacion': 'COT-0042@AAAA' });
   /* El teléfono que IMPORTÓ la fila, con el cliente de antes: manda su folio de hoja. */
   const r = H.empujar([{ id: 'opB', tipo: 'actualizar', id_notion: 'V-100',
@@ -631,7 +639,7 @@ console.log('\n/JALAR — la hoja entera en una página (defecto 12)');
 console.log('\nLA COPIA PEGADA CON SU FOLIO (defecto 13)');
 {
   const H = hojaDeMentiras();
-  H.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'COBRANDO' });
+  H.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'COBRANDO', 'Folio cotizacion': 'COT-1@A' });
   H.pon(3, 'V-002', { 'Proyecto': 'Beto', 'Estatus': 'COBRANDO' });
   /* Se copia la fila 2 entera, con su folio, a la 4. */
   H.v._g[4] = H.v._g[2].slice();
@@ -642,6 +650,7 @@ console.log('\nLA COPIA PEGADA CON SU FOLIO (defecto 13)');
   eq('la original conserva su folio', H.celda('V-001', 'Proyecto'), 'Ana');
   eq('la copia recibe uno nuevo', H.celda('V-003', 'Proyecto'), 'Ana (la copia)');
   eq('y ya no hay dos filas con el mismo folio', H.v._g.slice(2, 6).map(f => f[1]).filter(Boolean).sort(), ['V-001', 'V-002', 'V-003']);
+  eq('la copia tampoco se queda con el folio de cotización de la original', [H.celda('V-001', 'Folio cotizacion'), H.celda('V-003', 'Folio cotizacion')], ['COT-1@A', '']);
   const x = H.run('formulasVentas.toString()');
   cierto('y la columna «Revisar» avisa de un folio repetido que se escape', /Folio repetido/.test(x) && /COUNTIF\(/.test(x));
 }
@@ -677,26 +686,43 @@ console.log('\nLA HOJA QUE YA QUEDÓ REVUELTA — se realinea una vez, desde la 
   resp._g[2][1] = 'V-003'; resp._g[2][2] = 'Carla';
 
   eq('antes de realinear, Caro (fila 2) trae la llave de Ana', H.celda('V-003', 'Folio cotizacion'), 'COT-1@A');
-  /* Mientras no se realinea, el reacomodo nuevo NO mueve Y:AD: movidas, la bitácora ya no
-     diría dónde está cada celda. Ana pasa a REPARANDO y sube a la fila 3. */
+  /* Mientras no se realinea, el reacomodo NO mueve filas: mover A:X sin Y:AD es lo que las
+     revolvió, y moverlas todas borraría la pista de la bitácora. Ana pasa a REPARANDO y se
+     queda en la fila 4. */
   H.v._g[4][H.C['Estatus']] = 'REPARANDO';
   H.run('ordenarVentas(SpreadsheetApp.getActive().getSheetByName("Ventas"))');
-  eq('mientras no se realinea, reacomodar mueve la venta pero no Y:AD',
-     [H.fila('V-001'), H.v._g[3][H.C['Folio cotizacion']]], [3, 'COT-2@A']);
+  eq('mientras no se realinea, no se reacomoda nada',
+     [H.fila('V-001'), H.v._g[3][H.C['Folio cotizacion']]], [4, 'COT-2@A']);
+
+  let sinVista = null;
+  try { H.run('realinearColumnasDelPuente()'); } catch (e) { sinVista = e.message; }
+  cierto('sin vista previa, realinear no aplica nada', /vista previa/.test(sinVista || '') &&
+         H.celda('V-003', 'Folio cotizacion') === 'COT-1@A' && !H.props.PUENTE_Y_AD_ALINEADAS);
 
   const vista = H.run('revisarColumnasDelPuente()');
   cierto('la vista previa dice cuánto movería y no escribe en Ventas',
          /Vista previa/.test(vista) && H.celda('V-003', 'Folio cotizacion') === 'COT-1@A' && !H.props.PUENTE_Y_AD_ALINEADAS);
 
   const r = H.empujar([{ id: 'op', tipo: 'actualizar', id_notion: 'V-002', datos: { 'Etapa de obra': 'Armado' } }], 'direccion');
-  eq('la primera subida realinea sola y después escribe', r.resultados[0].ok, true);
+  eq('una subida ya no realinea sola: escribe por el folio de la hoja', [r.resultados[0].ok, H.celda('V-003', 'Folio cotizacion')], [true, 'COT-1@A']);
+  /* La subida cambió la hoja: la vista previa de antes ya no vale y hay que volver a verla. */
+  let vieja = null;
+  try { H.run('realinearColumnasDelPuente()'); } catch (e) { vieja = e.message; }
+  cierto('con la hoja cambiada desde la vista previa, tampoco', vieja === null
+    ? !!H.props.PUENTE_Y_AD_ALINEADAS   // si la propuesta no cambió, aplicarla es lo correcto
+    : /cambió/.test(vieja) && !H.props.PUENTE_Y_AD_ALINEADAS);
+  if (!H.props.PUENTE_Y_AD_ALINEADAS) {
+    H.run('revisarColumnasDelPuente()');
+    H.run('realinearColumnasDelPuente()');
+  }
   eq('Caro recupera su folio de cotización', H.celda('V-003', 'Folio cotizacion'), 'COT-3@A');
   eq('y su dirección', H.celda('V-003', 'Direccion'), 'Dir Caro');
   eq('Ana recupera los suyos', [H.celda('V-001', 'Folio cotizacion'), H.celda('V-001', 'Direccion')], ['COT-1@A', 'Dir Ana']);
   eq('con la etapa MÁS NUEVA que se le escribió, no la primera', H.celda('V-001', 'Etapa de obra'), 'En garantía');
   eq('Caro no hereda la etapa de Ana', H.celda('V-003', 'Etapa de obra'), '');
   eq('Beto, que el reacomodo de antes bajó, recupera su llave y trae su cambio', [H.celda('V-002', 'Folio cotizacion'), H.celda('V-002', 'Etapa de obra')], ['COT-2@A', 'Armado']);
-  eq('lo que nadie anotó se queda en su renglón', H.v._g[3][H.C['Ubicacion']], '20.6,-103.3');
+  /* Se quedó en su renglón —el 3, el de Beto al realinear— y de ahí viaja con esa venta. */
+  eq('lo que nadie anotó se queda en su renglón', H.celda('V-002', 'Ubicacion'), '20.6,-103.3');
   cierto('lo de la venta que ya no existe sale de Ventas', !H.v._g.some(f => f.includes('Dir fantasma')));
   const rev = H.ss.getSheetByName('Revisión Y-AD');
   cierto('y todo queda en la pestaña de revisión', rev && rev._g.some(f => f.includes('Dir fantasma')) &&
@@ -713,6 +739,30 @@ console.log('\nLA HOJA QUE YA QUEDÓ REVUELTA — se realinea una vez, desde la 
   eq('ya realineada, la que sube se lleva su llave, y la que baja la suya',
      [beto, H.fila('V-002'), H.celda('V-002', 'Folio cotizacion'), H.fila('V-001'), H.celda('V-001', 'Folio cotizacion')],
      [4, 3, 'COT-2@A', 4, 'COT-1@A']);
+}
+
+console.log('\nDATOS MALOS QUE NO DEBEN PASAR (revisión de puente-sheets-6)');
+{
+  const H = hojaDeMentiras({ props: { PUENTE_Y_AD_ALINEADAS: '2026-09-24' } });
+  eq('«V-Infinity» no es un folio', H.run('numeroDeFolio("V-Infinity")'), -1);
+  eq('«V-1e999» tampoco', H.run('numeroDeFolio("V-1e999")'), -1);
+  eq('«V-042» sí', H.run('numeroDeFolio("V-042")'), 42);
+  H.pon(2, 'V-001', { 'Proyecto': 'Ana', 'Estatus': 'COBRANDO' });
+  H.empujar([{ id: 'x1', tipo: 'actualizar', id_notion: 'V-Infinity', datos: { 'Etapa de obra': 'Armado' } }], 'fabricacion');
+  cierto('preguntar por «V-Infinity» no sube la marca de folios', !/Infinity/.test(String(H.props.FOLIO_MAS_ALTO || '')));
+  const n = H.empujar([{ id: 'x2', datos: { 'Proyecto': 'Beto', 'Folio cotizacion': 'COT-2@B' } }], 'direccion');
+  eq('y la venta nueva recibe un folio normal', n.resultados[0].remoto.id_notion, 'V-002');
+
+  const lap = H.empujar([{ id: 'x3', datos: { 'Proyecto': 'Hugo - Restaurante', 'Etapa de obra': 'No se dio',
+    'Precio Subtotal': 40000, 'Anticipo': 23200, 'Folio cotizacion': 'COT-9@H' } }], 'direccion');
+  eq('una cotización que no se dio no se da de alta', lap.resultados[0].ok, false);
+  eq('y no deja fila', H.fila('V-003'), 0);
+
+  /* Un texto que empieza con «=» se escribió protegido con apóstrofo; el reacomodo lo lee sin
+     él. Al reescribirlo tiene que volver a protegerse, o se vuelve fórmula. */
+  H.pon(3, 'V-002', { 'Proyecto': 'Beto', 'Estatus': 'FABRICACION', 'Direccion': '=IMPORTXML("x")' });
+  H.run('ordenarVentas(SpreadsheetApp.getActive().getSheetByName("Ventas"))');
+  eq('al reacomodar, un texto con «=» se vuelve a escribir como texto', H.celda('V-002', 'Direccion'), "'=IMPORTXML(\"x\")");
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

@@ -584,8 +584,11 @@ export function responderLocal(intent, r) {
         out.push('Bajo mínimo (' + minimo.length + '):');
         for (const m of minimo) out.push('- ' + m.material + ' · hay ' + m.hay + (m.unidad ? ' ' + m.unidad : '') + ', mínimo ' + m.minimo + (m.proveedor ? ' · ' + m.proveedor : ''));
       }
-      out.push('');
-      out.push('La lista completa, con cantidades redondeadas a lo que vende el proveedor, está en **Material → Por comprar**; se imprime y se marca como recibida ahí.');
+      /* Pagos no tiene la pantalla de Material: mandarla ahí era mandarla a una puerta que no ve. */
+      if (!/pagos/i.test(r.rol || '')) {
+        out.push('');
+        out.push('La lista completa, con cantidades redondeadas a lo que vende el proveedor, está en **Material → Por comprar**; se imprime y se marca como recibida ahí.');
+      }
       return out.join('\n');
     }
     case 'sin_decidir': {

@@ -848,7 +848,16 @@ function _candTocarPartida(e){
 }
 function irAPendiente(){
   const p=siguientePaso();
-  if(!p){ toast(Q.estado==='autorizada'?'Esta cotización ya está entregada':'No falta nada por capturar','ok',2400); return; }
+  /* «Ya está entregada» solo si de verdad lo está: para el Autorizador siguientePaso() da null
+     en cuanto la cola se vacía, sin mirar la entrega, y la caja afirmaba «entregada» de una
+     recién autorizada sin PDF, sin chat y sin venta. */
+  if(!p){
+    const entregada=Q.estado==='autorizada'&&(()=>{ const h=hitosDe(Q.folio); return HITOS.every(x=>h[x.k]); })();
+    toast(entregada?'Esta cotización ya está entregada'
+      :Q.estado==='autorizada'?'Nada por revisar: la entrega (PDF, WhatsApp y venta) la hace el vendedor'
+      :'No falta nada por capturar','ok',2800);
+    return;
+  }
   if(p.item) return llevarAPartida(p.item);
   if(p.boton){ irA(p.boton); return; }
   if(p.campo) return irACampoProy(p.campo);

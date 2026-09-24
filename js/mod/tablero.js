@@ -238,7 +238,10 @@ async function leer() {
        `Number(null)` es 0, que `isFinite` da por bueno: con la prueba de antes esta cuenta
        decía siempre 0 mientras el Mapa, para los mismos datos, decía «3 sin ubicar». */
     sinUbicar: vivos.filter(p => !tienePin(p)).length,
-    proxInst: (insts || []).map(i => i && i.fecha).filter(f => f && f >= hoy).sort()[0] || null,
+    /* Sin las hechas, igual que `semana`: marcada la última de la semana, el estado vacío
+       anunciaba como «la siguiente» la que se acababa de hacer. */
+    proxInst: (insts || []).filter(i => i && i.fecha && i.fecha >= hoy && i.estado !== 'hecha')
+      .map(i => i.fecha).sort()[0] || null,
   };
 }
 
@@ -312,7 +315,7 @@ function segLente() {
 
    ----- POR QUÉ ES UN <iframe> Y NO SE PUEDE PORTAR A MÓDULO. NO LO «OPTIMICES». -----
 
-   `anidador-vectores/js/svgnest.js:338` y `:544` arrancan los Web Workers con
+   las dos llamadas a `p.require`/`p2.require` de `launchWorkers` en `anidador-vectores/js/svgnest.js` arrancan los Web Workers con
    `evalPath: 'js/lib/eval.js'` —un LITERAL RELATIVO— y `js/lib/parallel.js:142/152/167` hace
    `new Worker(this.options.evalPath)`. `new Worker(url)` resuelve contra la URL base del
    DOCUMENTO, no del script:
@@ -321,21 +324,22 @@ function segLente() {
      · servido desde la raíz, donde vive la plataforma  →  /js/lib/eval.js       ✘ no existe
 
    Y no hay plan B; las tres cosas están verificadas en el código vendorizado:
-     1. `evalPath` NO es configurable: `SvgNest.config()` (svgnest.js:84-118) solo acepta
+     1. `evalPath` NO es configurable: `SvgNest.config()` (svgnest.js) solo acepta
         curveTolerance, spacing, rotations, populationSize, mutationRate, useHoles y
         exploreConcave.
      2. La rama de Blob + URL.createObjectURL que salvaría el caso (parallel.js:158-163) está
-        MUERTA: el motor siempre llama `p.require(...)` (svgnest.js:344-347 y :547-551), así
+        MUERTA: el motor siempre llama `p.require(...)` (las dos ramas de `launchWorkers` en svgnest.js), así
         que `requiredScripts.length !== 0` y siempre se toma la rama del evalPath.
      3. EL FALLO ES MUDO. No lanza excepción: deja un cálculo que nunca termina. Está escrito
         como razón de existir de su prueba —pruebas/navegador/anidador.mjs:5-8, «una carpeta
         movida o un archivo que falte no da error en la página: da un cálculo que nunca
-        termina»— y el autodiagnóstico de anidador-vectores/js/app.js:730-734 cubre file:// y
+        termina»— y el autodiagnóstico «Soporte del navegador» de anidador-vectores/js/app.js cubre file:// y
         la falta de window.Worker, pero NO este caso.
 
-   Editar el código vendorizado tiene precio escrito tres veces —anidador-vectores/README.md
-   y sw.js dicen que svgnest.js, svgparser.js y js/lib/* son «byte por byte el master de
-   SVGnest»—, así que el marco es la única forma de embeberlo sin tocarlo.
+   Editar el código vendorizado tiene precio: anidador-vectores/README.md dice que svgnest.js,
+   svgparser.js y js/lib/* son el master de SVGnest salvo dos cambios locales marcados con
+   AL3D (la ruta de eval.js y la «corrida»), y portarlo a módulo exigiría un tercero, que ya
+   tocaría cómo arrancan los workers. El marco es la forma de embeberlo sin eso.
 
    Y de paso resuelve cuatro cosas más, gratis: los cinco oyentes a nivel de `document` que su
    app.js instala y nunca quita (dragenter, dragover, dragleave, drop, paste) se quedan

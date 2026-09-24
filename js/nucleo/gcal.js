@@ -327,9 +327,10 @@ async function llamar(ruta, opciones) {
 }
 
 /* ¿El evento que ya está en Calendar dice lo mismo que la instalación de hoy? Se compara lo
-   que la plataforma escribe: día y hora, textos, alarmas e invitados. La hora se compara por
-   sus primeros 16 caracteres porque Google la devuelve con su desfase («…T10:00:00-06:00») y
-   aquí se manda sin él. Si algo no casa, se reescribe: un PUT de más cuesta un correo de
+   que la plataforma escribe: día y hora, textos, alarmas e invitados. La hora se pide en TZ
+   (`?timeZone=` en el GET: sin él Google la devuelve en la zona del CALENDARIO, que puede ser
+   otra) y se compara por sus primeros 16 caracteres, porque viene con su desfase
+   («…T10:00:00-06:00») y aquí se manda sin él. Si algo no casa, se reescribe: un PUT de más cuesta un correo de
    «se actualizó»; uno de menos deja a los tres con la fecha vieja. */
 function mismoEvento(ya, body) {
   const t = x => (x ? (x.date || String(x.dateTime || '').slice(0, 16)) : '');
@@ -379,7 +380,7 @@ export async function crearEvento(ev) {
   }
 
   if (http === 409) {
-    const g = await llamar('/' + encodeURIComponent(body.id), { method: 'GET' });
+    const g = await llamar('/' + encodeURIComponent(body.id) + '?timeZone=' + encodeURIComponent(TZ), { method: 'GET' });
     if (!g.ok) return g;
     const ya = g.valor.cuerpo;
     const vivo = g.valor.http >= 200 && g.valor.http < 300 && ya && ya.status !== 'cancelled';

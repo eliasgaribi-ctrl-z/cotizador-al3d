@@ -1161,7 +1161,12 @@ td.c{color:var(--ink2)}
 @media screen and (max-width:440px){ .pg{zoom:.46} }
 @media screen and (max-width:390px){ .pg{zoom:.41} }
 @media screen and (max-width:360px){ .pg{zoom:.37} }
-@media print{@page{margin:0;size:letter portrait}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+/* Al imprimir, la hoja también mide lo que mide el papel. Con solo «min-height» el .pg no tenía
+   alto definido, el plano no se encogía a su hueco (su max-height:100% no tenía contra qué
+   medirse) y un plano alto empujaba la hoja más allá de la carta: la impresora sacaba hojas
+   físicas de más, con los totales cortados. */
+@media print{@page{margin:0;size:letter portrait}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pg{height:100vh;min-height:0}}
 </style></head><body>
 <!-- La barra del visor. Va ANTES de la primera hoja y no al final del <body>, y no es cuestión
      de gusto: «.pg:last-child» es lo que le quita el «page-break-after:always» a la última hoja.

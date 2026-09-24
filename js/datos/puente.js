@@ -750,6 +750,7 @@ export function crear(cfg0) {
          podían mandar. El ROL_SIN_PERMISO de la puerta (`pedir` lanza) no lleva la marca, y
          ése sí para el bombeo: con esa llave, las cuarenta darían lo mismo. */
       const DEFINITIVOS = ['ROL_SIN_PERMISO', 'NO_ENCONTRADO', 'DATO_INVALIDO'];
+      let refrescada = false;
 
       for (const op of lista) {
         if (!this.lleva(op.almacen)) {
@@ -765,6 +766,14 @@ export function crear(cfg0) {
         }
 
         const idNotion = proy.notion_page_id || null;
+        /* Una cotización que «no se dio» y nunca llegó a la hoja no es una venta: su lápida
+           (etapa cancelado, con el subtotal y el anticipo de la cotización) se daba de alta
+           como fila nueva, y el libro contaba un anticipo que nunca se cobró y una comisión
+           pendiente. Sin fila, no hay nada que mandar; con fila, el cambio de etapa sí viaja. */
+        if (!idNotion && op.almacen === 'proyectos' && proy.etapa === 'cancelado') {
+          salida.push({ id: op.id, ok: true, remoto: null, rechazadas: [], omitida: true });
+          continue;
+        }
         let props;
         if (op.almacen === 'proyectos') {
           /* Alta si la fila no existe todavía; si ya existe, el dinero y el nombre solo van
@@ -775,7 +784,17 @@ export function crear(cfg0) {
           props = instalacionANotion(op.datos);
         }
 
-        const { props: enviables, fuera } = filtrar(props, permitidas);
+        let { props: enviables, fuera } = filtrar(props, permitidas);
+        /* La lista de lo que este rol escribe se pide una vez por relevo. Si Dirección cambió
+           el rol de esta persona en «Accesos» a media sesión, con la lista vieja el cambio se
+           apartaba para siempre sin preguntarle a la hoja. Antes de apartarlo por rol, se
+           vuelve a preguntar UNA vez por tanda. */
+        const porRol = (!idNotion && !enviables[P.proyecto]) || !Object.keys(enviables).length;
+        if (porRol && !refrescada) {
+          refrescada = true; escribibles = null;
+          try { permitidas = await asegurarEscribibles(); } catch (_) { /* se queda la de antes */ }
+          ({ props: enviables, fuera } = filtrar(props, permitidas));
+        }
 
         /* Un alta sin título crearía en la base del dinero una fila en blanco que nadie
            puede identificar después. Si este token no puede escribir `Proyecto`, el alta

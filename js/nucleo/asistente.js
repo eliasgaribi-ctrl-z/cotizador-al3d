@@ -542,9 +542,11 @@ async function llamar(c, sistema, previos, pregunta) {
         .concat([{ role: 'user', parts: [{ text: pregunta }] }]);
       const body = { systemInstruction: { parts: [{ text: sistema }] }, contents,
         generationConfig: { temperature: 0.2, maxOutputTokens: 1200 } };
+      /* La key va en la cabecera x-goog-api-key, como en ia.js del cotizador: un ?key= en la URL
+         queda escrito en el historial de red, en los HAR que se comparten y en cualquier proxy. */
       const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(c.model) +
-        ':generateContent?key=' + encodeURIComponent(c.key);
-      const r = await pedir(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal });
+        ':generateContent';
+      const r = await pedir(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key }, body: JSON.stringify(body), signal: ctl.signal });
       if (!r.res.ok || (r.data && r.data.error) || !r.data) throw errorDe(r, c);
       const cand = (r.data.candidates || [])[0];
       const txt = ((cand && cand.content && cand.content.parts) || []).map(p => p.text || '').join('').trim();

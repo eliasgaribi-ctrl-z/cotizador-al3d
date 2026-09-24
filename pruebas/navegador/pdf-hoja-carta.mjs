@@ -45,6 +45,13 @@ const PLANO = 'data:image/svg+xml;base64,' + Buffer.from(
   '<text x="300" y="140" font-family="Arial" font-size="40" fill="#fff" text-anchor="middle">PLANO</text></svg>'
 ).toString('base64');
 
+/* Y uno alto, de pie: al imprimir, el .pg no tenía alto fijo y el plano no se encogía a su
+   hueco; la impresora sacaba hojas físicas de más con los totales cortados. */
+const PLANO_ALTO = 'data:image/svg+xml;base64,' + Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1800">' +
+  '<rect width="800" height="1800" fill="#3a4ad8"/></svg>'
+).toString('base64');
+
 /* Los tres casos que importan: la cotización completa con todo puesto, la mínima que solo
    lleva cotización y términos, y la larga que es la que parte las hojas. */
 const CASOS = [
@@ -52,6 +59,8 @@ const CASOS = [
     plano: true,  anti: 15000, entrega: 'JUEVES 27 DE AGOSTO', tel: '33-1122-3344', partidas: 3,  hojasMin: 5 },
   { nombre: 'mínima · una partida, sin plano ni anticipo ni fechas',
     plano: false, anti: 0,     entrega: '',                    tel: '',             partidas: 1,  hojasMin: 2 },
+  { nombre: 'plano alto, de pie · se encoge a su hueco y no saca hojas de más',
+    plano: true, planoAlto: true, anti: 15000, entrega: 'JUEVES 27 DE AGOSTO', tel: '33-1122-3344', partidas: 3, hojasMin: 5 },
   { nombre: 'larga · 14 partidas con plano (la que parte hojas)',
     plano: true,  anti: 20000, entrega: 'VIERNES 04 DE SEPTIEMBRE', tel: '33-1122-3344', partidas: 14, hojasMin: 6 },
   { nombre: 'orden de trabajo SIN plano (el reparto que reservaba hueco de más)',
@@ -110,7 +119,7 @@ for (const caso of CASOS) {
   await pag.goto('file://' + path.join(RAIZ, 'cotizador.html'));
   await pag.waitForTimeout(900);
 
-  const res = await pag.evaluate(async ({ c, plano }) => {
+  const res = await pag.evaluate(async ({ c, plano, planoAlto }) => {
     /* generarPDF() abre una pestaña con un blob. Aquí se le quita la pestaña y se le
        queda el blob, que es lo único que hay que medir. */
     let blob = null;
@@ -130,7 +139,7 @@ for (const caso of CASOS) {
     Q.estado = 'autorizada'; Q.autorizador = 'Elias Guerrero';
     Q.notaCliente = 'Solo 1 de los 2 conceptos tiene iluminación Led. El cliente debe dejar '
                   + 'salidas eléctricas para una instalación limpia.';
-    Q.aiFile = c.plano ? { name: 'plano.svg', type: 'image/svg+xml', url: plano } : null;
+    Q.aiFile = c.plano ? { name: 'plano.svg', type: 'image/svg+xml', url: c.planoAlto ? planoAlto : plano } : null;
     /* La manual de un renglón es la fila más chica que existe —solo su descripción libre—, y
        por eso la que más filas mete en una hoja: donde un error por fila se multiplica más. */
     Q.items = Array.from({ length: c.partidas }, (_, i) => c.manual
@@ -156,7 +165,7 @@ for (const caso of CASOS) {
     generarPDF();
     URL.createObjectURL = crear;
     return { doc: blob ? await blob.text() : null, precioAuth: Q.precioAuth, netoAjus };
-  }, { c: caso, plano: PLANO });
+  }, { c: caso, plano: PLANO, planoAlto: PLANO_ALTO });
   const doc = res.doc;
 
   const problemas = [];

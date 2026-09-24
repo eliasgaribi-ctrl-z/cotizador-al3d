@@ -530,6 +530,11 @@ function a11(E, out) {
     if (p.etapa !== 'instalado') continue;
     const saldo = num(p.pago_pendiente);
     if (saldo <= 0) continue;
+    /* `pago_pendiente` es la fórmula de la hoja y solo se refresca en la siguiente bajada: una
+       venta que Pagos acaba de marcar LIQUIDADO seguía pidiendo COBRANDO. LIQUIDADO ya cuenta
+       como cobrado (lo mismo que Ventas.saldoDe); COBRANDO ya está puesto y no se vuelve a pedir. */
+    const est = String(p.estatus_notion || '').toUpperCase();
+    if (est === 'LIQUIDADO') continue;
     const fecha = ultima.get(p.id) || p.fecha_ganado;
     const dias = diasEntre(fecha, E.hoy);
     if (dias === null || dias < DIAS_COBRO) continue;
@@ -546,7 +551,9 @@ function a11(E, out) {
       tono: 'av',
       titulo: (p.nombre || p.folio_local || 'Proyecto') + ' se instaló ' + frase(-dias) + ' y tiene saldo',
       detalle: (E.veDinero ? 'Quedan ' + money(saldo) + ' por cobrar. ' : '') + (enHoja
-        ? 'La venta ya está en la hoja: pon su Estatus en COBRANDO en la ficha del proyecto —no copies la fila, sería una venta repetida— y mándale el mensaje.'
+        ? (est === 'COBRANDO'
+          ? 'Ya está en COBRANDO en la hoja: falta cobrarlo. Mándale el mensaje.'
+          : 'La venta ya está en la hoja: pon su Estatus en COBRANDO en la ficha del proyecto —no copies la fila, sería una venta repetida— y mándale el mensaje.')
         : 'Copia los datos para la hoja con Estatus COBRANDO y mándale el mensaje.'),
       cuando: frase(-dias),
       plazo: -dias,
@@ -558,12 +565,13 @@ function a11(E, out) {
            fila en la hoja la acción es otra —`estatus`, sin copiar nada—, para que la
            pantalla no mande a nadie al botón de pegar. */
         enHoja
-          ? { label: 'Abrir para poner COBRANDO', tipo: 'estatus', datos: { proyecto_id: p.id, estatus: 'COBRANDO' } }
+          ? (est === 'COBRANDO' ? null
+            : { label: 'Abrir para poner COBRANDO', tipo: 'estatus', datos: { proyecto_id: p.id, estatus: 'COBRANDO' } })
           : { label: 'Abrir para copiar la fila', tipo: 'tsv', datos: { proyecto_id: p.id, estatus: 'COBRANDO' } },
         { label: 'Cobrar por WhatsApp', tipo: 'wa',
           datos: { clase: 'cobrar', tel: p.tel, contacto: p.contacto, negocio: p.negocio,
                    pago_pendiente: saldo } },
-      ],
+      ].filter(Boolean),
     }));
   }
 }

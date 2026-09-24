@@ -46,7 +46,9 @@ que pegues los nuevos. A quien entra con Google no le pasa nada.
 Ahí mismo viven, desde `puente-sheets-6`, dos marcas que no son secretos pero que **no hay
 que borrar**: `FOLIO_MAS_ALTO` (el folio más alto que se ha repartido; sin ella, borrar la
 última venta volvía a repartir su folio) y `PUENTE_Y_AD_ALINEADAS` (la fecha en que Y:AD se
-realinearon; sin ella, el reacomodo deja Y:AD quietas, como antes).
+realinearon; sin ella, el reacomodo no mueve ninguna fila). Hay una tercera de paso,
+`PUENTE_Y_AD_VISTA_PREVIA`, que guarda la huella de la última vista previa y se borra sola al
+realinear.
 
 No hay nada más que esconder. El token de Notion, que era la razón de ser del Worker, ya no
 existe.
@@ -131,14 +133,20 @@ de ahí salían los demás síntomas. Qué cambió en el `.gs`:
    de más (`README.md`, «Antes de pegar nada»; con `git merge-file` contra la versión del
    repositorio de la última vez que se pegó).
 2. Pega el resultado en `Código.gs` y **guarda**.
-3. *(Opcional, no escribe nada)* Corre `revisarColumnasDelPuente` desde el selector. Deja en la
-   pestaña **«Revisión Y-AD»** lo que la realineación va a mover. Confírmalo en Ejecuciones.
-4. **Implementar → Gestionar implementaciones → lápiz → Versión: Nueva versión →
-   Implementar.** La URL no cambia.
-5. **Justo después**, corre `realinearColumnasDelPuente` desde el selector (paso de abajo).
-   Si antes de que lo hagas algún teléfono sube algo, la primera subida lo hace sola y la
-   función te contesta «Ya estaba hecho»: está bien.
-6. Revisa la pestaña **«Revisión Y-AD»** (ver abajo qué buscar).
+3. **Implementar → Gestionar implementaciones → lápiz → Versión: Nueva versión →
+   Implementar.** La URL no cambia. (Editar la implementación que ya existe; una
+   «Nueva implementación» es otra URL y los teléfonos seguirían en la vieja.)
+4. Corre `revisarColumnasDelPuente` desde el selector. **No escribe nada en Ventas**: deja en
+   la pestaña **«Revisión Y-AD»** lo que la realineación movería, y te lo dice en un aviso de
+   la hoja y en Ejecuciones.
+5. **Revisa «Revisión Y-AD»** con calma (ver abajo qué buscar). Si algo no cuadra —sobre todo
+   si alguna vez se borraron o insertaron filas a mano en Ventas—, no sigas: corrígelo a mano o
+   pregúntame.
+6. Si está bien, corre `realinearColumnasDelPuente`. Aplica **exactamente** lo que enseñó la
+   vista previa; si la hoja cambió desde entonces (subió algo un teléfono), no aplica nada,
+   vuelve a escribir la vista previa y te pide revisarla otra vez (repite 5 y 6).
+   Mientras no realinees, la hoja **no reacomoda filas** y los cambios de un teléfono que choquen
+   con un folio de cotización revuelto **esperan** en su bandeja (no se pierden).
 7. **Después** —no antes—, **⚡ AL3D → Actualizar formato y vistas** (`mejorarTodo`), para que
    la columna «Revisar» aprenda «Folio repetido». Antes no: rehace «Ventas (respaldo)», que es
    contra lo que la revisión compara los nombres.
@@ -153,14 +161,14 @@ y el % de una venta junto a otra. `realinearColumnasDelPuente()` las regresa con
 usando la **bitácora del puente**: cada subida quedó anotada con su folio, la fila en que
 escribió y qué columnas; como el código de antes nunca movió Y:AD, lo que hay hoy en una celda
 de Y:AD es lo que escribió ahí la última subida que la tocó, y va a la fila donde ese folio
-está hoy. Lo hace una sola vez (deja `PUENTE_Y_AD_ALINEADAS` en las propiedades), y antes de
-escribir copia Ventas a la pestaña oculta **«Ventas (antes de realinear)»**.
+está hoy. Lo hace una sola vez (deja `PUENTE_Y_AD_ALINEADAS` en las propiedades), **solo
+cuando tú la corres y después de la vista previa**, y antes de escribir copia Ventas a la
+pestaña oculta **«Ventas (antes de realinear)»**. Ninguna subida la corre sola.
 
-Hasta que se realinea, el código nuevo **no** mueve Y:AD al reacomodar —igual que el de
-antes—, para no borrar la pista. Por eso da igual el rato entre guardar y publicar. Lo único
-que no hay que hacer es correr `realinearColumnasDelPuente` **antes de publicar** la versión
-nueva: la implementación vieja seguiría reacomodando sin mover Y:AD y revolvería otra vez lo
-recién realineado.
+Hasta que se realinea, el código nuevo **no reacomoda filas**, para no borrar la pista. Lo
+único que no hay que hacer es correr `realinearColumnasDelPuente` **antes de publicar** la
+versión nueva: la implementación vieja seguiría reacomodando sin mover Y:AD y revolvería otra
+vez lo recién realineado. Por eso en «Cómo se sube» la vista previa va después de implementar.
 
 En la pestaña **«Revisión Y-AD»**:
 
@@ -169,7 +177,10 @@ En la pestaña **«Revisión Y-AD»**:
 - **De ventas que ya no están**: lo que era de un folio que alguien borró de Ventas. Sale de
   la hoja (se quedaba al lado de otra venta) y queda anotado ahí.
 - **Sin dueño en la bitácora**: celdas que nadie subió por el puente —escritas a mano, o de
-  antes de la bitácora—. Se quedan donde estaban; revísalas a ojo.
+  antes de la bitácora—. Se quedan donde estaban; revísalas a ojo. Ojo: una celda que un
+  teléfono subió y que **después** alguien corrigió a mano cuenta como del teléfono, no como
+  «sin dueño»: si corregiste a mano direcciones o etapas revueltas, búscalas en «Celdas que
+  cambian».
 - **Ventas que cambiaron de nombre desde el último respaldo**: si nadie las renombró, una
   subida escribió otra venta **encima** (buscó la fila por un folio de cotización revuelto).
   Eso la realineación no lo arregla: la venta pisada se recupera de **Archivo → Historial de

@@ -158,6 +158,14 @@ cierto(!!enHoja && !enHoja.acciones.some(x => x.tipo === 'tsv') && enHoja.accion
 const sinHoja = conCobro(instalado({ notion_page_id: null }));
 cierto(!!sinHoja && /Copia los datos/.test(sinHoja.detalle) && sinHoja.acciones[0].tipo === 'tsv',
   'sin fila en la hoja sigue ofreciendo copiarla');
+/* Con el estatus ya puesto no se vuelve a pedir: LIQUIDADO ya se cobró, y COBRANDO solo
+   necesita el mensaje. `pago_pendiente` tarda una bajada en enterarse. */
+cierto(!conCobro(instalado({ notion_page_id: 'V-150', estatus_notion: 'LIQUIDADO' })),
+  'con LIQUIDADO en la hoja, A11 ya no sale');
+const yaCobrando = conCobro(instalado({ notion_page_id: 'V-150', estatus_notion: 'COBRANDO' }));
+cierto(!!yaCobrando && !yaCobrando.acciones.some(x => x.tipo === 'estatus') && yaCobrando.acciones[0].tipo === 'wa' &&
+  !/pon su Estatus/.test(yaCobrando.detalle),
+  'con COBRANDO ya puesto, A11 solo ofrece el mensaje: ' + (yaCobrando && yaCobrando.acciones.map(x => x.tipo).join(', ')));
 
 /* ---- 6c. A12: una huella vieja, sin ordenar, no es una edición ----
    Las huellas selladas antes del 15 de septiembre de 2026 están en el orden de las partidas;

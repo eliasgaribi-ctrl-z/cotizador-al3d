@@ -153,6 +153,9 @@ function vtLoadImgSrc(src,name){
     VT.img=img; VT.imgW=img.naturalWidth; VT.imgH=img.naturalHeight; VT.nombre=name||'logo';
     VT.hecho=false; VT.sucio=false; VT.layers=[]; VT.svg=''; VT.pal=[]; VT.labels=null;
     VT.cmPorPx=0; VT.altoCm=0; VT.anchoCm=0; VT.z=1; VT.split=.5;
+    /* La tinta y las cuentas son de la imagen ANTERIOR: con ellas puestas, vtEscala calculaba el
+       alto tecleado antes de vectorizar contra la otra imagen, y la partida salía de otra altura. */
+    VT.ink=null; VT.formas=0; VT.nodos=0; VT.trazos=0; VT.perimPx=0;
     $('vt-alto-cm').value=''; $('vt-ancho-cm').value='';
     $('vt-overlay').classList.add('hide');
     $('vt-stage').style.display='';
