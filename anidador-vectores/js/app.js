@@ -93,6 +93,34 @@
   /* Una colección viva (childNodes, getElementsByTagName) copiada a un arreglo, para poder
      quitar nodos mientras se recorre sin que la colección se mueva debajo del índice. */
   function lista(coleccion) { return Array.prototype.slice.call(coleccion); }
+
+  /* ---------- Un SVG trae dibujo, y también puede traer código ----------
+     La vista previa se hace con el archivo EN la página, y quitar solo <style>, <script> y
+     <foreignObject> no bastaba: <image href="x" onerror="…"/> o <animate onbegin="…"/>
+     corrían al cargar el archivo, sin un clic, y un onmouseover en un trazo al pasar el ratón.
+     El anidador comparte origen con la plataforma —su localStorage, el pase— y empotrado es
+     un iframe del mismo origen. Y el motor clona las piezas con sus atributos, así que el
+     acomodo lo volvía a meter. Se desarma UNA vez, al leer, y todo lo de abajo —vista previa,
+     motor, resultado y descarga— trabaja sobre lo desarmado. No es una lista de lo permitido
+     a propósito: <text>, <image> y <use> se quedan para que los avisos de arriba los cuenten;
+     lo que se les quita es lo que ejecuta. */
+  var EJECUTABLES = ['script', 'foreignObject', 'iframe', 'embed', 'object', 'handler', 'listener',
+                     'animate', 'set', 'animateTransform', 'animateMotion'];
+  function desarmar(raiz) {
+    EJECUTABLES.forEach(function (tag) {
+      lista(raiz.getElementsByTagName(tag)).forEach(function (e) { if (e.parentNode) e.parentNode.removeChild(e); });
+    });
+    [raiz].concat(lista(raiz.getElementsByTagName('*'))).forEach(function (el) {
+      lista(el.attributes).forEach(function (at) {
+        var nom = String(at.localName || at.name).toLowerCase();
+        /* Los on… son manejadores; un href que no es un #ancla puede ser javascript: o salir
+           a la red. Los #ancla se quedan: son los de <use> y los degradados. */
+        if (nom.indexOf('on') === 0 || (nom === 'href' && String(at.value).trim().charAt(0) !== '#')) {
+          el.removeAttributeNode(at);
+        }
+      });
+    });
+  }
   function hijos(nodo) { return lista(nodo.childNodes); }
   function fmt(n) { return String(Math.round(n * 1000) / 1000); }
   function fmtMm(n) { return String(Math.round(n * 10) / 10); }
@@ -285,6 +313,7 @@
       return false;
     }
     if (T.corriendo) detener(false);
+    desarmar(raiz);
 
     A = { texto: texto, nombre: nombre || 'diseño.svg', peso: opts.peso || texto.length, raiz: raiz,
           bbox: null, escala: null, k: null, piezas: 0, avisos: [], origen: opts.origen || null };
@@ -394,8 +423,13 @@
     if (!A || !A.bbox) return;
     var v = parseFloat(val);
     if (!(v > 0)) {
-      /* Se vació el campo. Si el archivo traía escala se vuelve a ella; si no, se queda sin. */
-      A.k = A.escala.origen === 'archivo' ? A.escala.mmPorUnidad : null;
+      /* Se vació el campo. Si el archivo traía escala se vuelve a ella; si no, se queda sin.
+         Se pregunta a la escala del ARCHIVO y no al origen: el primer número tecleado lo pasa
+         a «mano» para siempre, y vaciar el campo después dejaba sin medida a un archivo que
+         sí dice cuánto mide — el aviso decía que «no dice cuánto mide (viene en mm)». */
+      var delArchivo = A.escala.mmPorUnidad > 0;
+      A.k = delArchivo ? A.escala.mmPorUnidad : null;
+      A.escala.origen = delArchivo ? 'archivo' : 'falta';
       if (A.k > 0) { $('an-ancho-d').value = fmtMm(A.bbox.w * A.k); $('an-alto-d').value = fmtMm(A.bbox.h * A.k); }
       else (campo === 'ancho' ? $('an-alto-d') : $('an-ancho-d')).value = '';
     } else {

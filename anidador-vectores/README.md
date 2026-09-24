@@ -78,8 +78,10 @@ anidador-vectores/
         └── pathsegpolyfill.js pathSegList, que Chrome quitó              ┘
 ```
 
-El único cambio al motor original es la ruta de `eval.js` en `svgnest.js` (`util/eval.js` →
-`js/lib/eval.js`), para que coincida con esta carpeta. El algoritmo no se tocó.
+Al motor original se le cambiaron dos cosas, las dos en `svgnest.js` y marcadas con `AL3D`:
+la ruta de `eval.js` (`util/eval.js` → `js/lib/eval.js`), para que coincida con esta carpeta,
+y que una tanda de trabajo lanzada antes de **Detener** se calle si termina después, en vez de
+pintar un acomodo medido contra la hoja anterior. El algoritmo no se tocó.
 
 Se sirve **caché primero** con el resto de la plataforma (está en `APP_FILES` de `sw.js`),
 así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se sube

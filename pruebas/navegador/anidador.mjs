@@ -307,6 +307,33 @@ const columnas = await tel.evaluate(() => getComputedStyle(document.querySelecto
 columnas === 1 ? bien('y va en una columna') : mal('a 390 px la rejilla tiene ' + columnas + ' columnas');
 await ctxTel.close();
 
+// ── 9b. Un SVG trae dibujo, no código ──────────────────────────────────────
+/* La vista previa mete el archivo EN la página, y quitar solo <script> no bastaba: un
+   <image onerror>, un <animate onbegin> o un onload en la raíz corrían al cargar, sin un clic,
+   con el localStorage de la plataforma a la mano. Se carga uno así y se mira que nada corra,
+   que los manejadores no lleguen al DOM y que la pieza siga contándose. */
+{
+  const SVG_MALO = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ' +
+    'width="100mm" height="50mm" viewBox="0 0 100 50" onload="window.__svgMalo=1">' +
+    '<rect x="0" y="0" width="100" height="50" onmouseover="window.__svgMalo=2"/>' +
+    '<image href="x-no-existe.png" onerror="window.__svgMalo=3" width="1" height="1"/>' +
+    '<animate onbegin="window.__svgMalo=4" attributeName="x" dur="1s"/>' +
+    '<a xlink:href="javascript:window.__svgMalo=5"><rect x="0" y="0" width="1" height="1"/></a>' +
+    '<script>window.__svgMalo=6</script></svg>';
+  await p.evaluate(() => { window.__svgMalo = 0; });
+  (await cargar(SVG_MALO, 'malo.svg')) ? bien('un SVG con manejadores se carga igual') : mal('cargarTexto rechazó un SVG válido con manejadores');
+  await p.waitForTimeout(600);
+  await p.hover('#an-orig svg').catch(() => {});
+  await p.waitForTimeout(200);
+  const r = await p.evaluate(() => ({ corrio: window.__svgMalo,
+    on: document.querySelectorAll('#an-orig [onload],#an-orig [onerror],#an-orig [onmouseover],#an-orig [onbegin]').length,
+    js: [...document.querySelectorAll('#an-orig a')].filter(a => /javascript:/i.test(a.getAttribute('href') || a.getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '')).length,
+    piezas: (window.Anidador.estado().archivo || {}).piezas }));
+  r.corrio === 0 ? bien('no corrió nada: ni onload, ni onerror, ni onbegin, ni el <script>') : mal('corrió código del SVG (marca ' + r.corrio + ')');
+  (r.on === 0 && r.js === 0) ? bien('y ningún manejador ni javascript: llegó a la vista previa') : mal('en la vista previa quedaron ' + r.on + ' manejadores y ' + r.js + ' enlaces javascript:');
+  r.piezas > 0 ? bien('y el rectángulo se sigue contando como pieza (' + r.piezas + ')') : mal('desarmar el SVG se llevó también las piezas');
+}
+
 // ── 10. Nada se rompió ─────────────────────────────────────────────────────
 console.log('');
 errs.length ? mal('errores de página: ' + [...new Set(errs)].slice(0, 3).join(' | ')) : bien('cero errores de página');

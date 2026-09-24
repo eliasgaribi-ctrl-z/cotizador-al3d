@@ -117,12 +117,19 @@ async function vtLoadPDF(f){
     const base=page.getViewport({scale:1});
     // Menos resolución que en el escalador: aquí cada píxel se cuantiza y se recorre,
     // y de 2200 px en adelante solo se paga tiempo sin ganar trazo.
-    const s=Math.max(1.5,Math.min(4,2200/base.width));
+    let s=Math.max(1.5,Math.min(4,2200/base.width));
+    /* El mínimo de 1.5 no tenía techo de ÁREA: un plano A0 o de 24×36" pasaba el tope de
+       lienzo de WebKit (~16.7 Mpx) y en el iPhone se renderizaba en blanco. Mismo tope que el
+       escalador. */
+    if(base.width*base.height*s*s>VT_AREA_MAX) s=Math.sqrt(VT_AREA_MAX/(base.width*base.height));
     const vp=page.getViewport({scale:s});
     const oc=document.createElement('canvas'); oc.width=Math.round(vp.width); oc.height=Math.round(vp.height);
     const cx=oc.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,oc.width,oc.height);
     await page.render({canvasContext:cx,viewport:vp}).promise;
     const url=await new Promise(res=>{try{oc.toBlob(b=>res(b?URL.createObjectURL(b):oc.toDataURL()),'image/png');}catch(_){res(oc.toDataURL());}});
+    /* Ya es imagen: el documento y su worker de pdf.js sobran. Sin esto cada PDF abierto dejaba
+       un worker y el plano entero en memoria hasta cerrar la pestaña. */
+    try{ pdf.destroy(); }catch(_){}
     vtLoadImgSrc(url,f.name);
   }catch(e){ toast('No se pudo abrir el PDF: '+((e&&e.message)||'el archivo no se pudo leer'),'err',7000); }
 }
@@ -1129,10 +1136,22 @@ function vtDescargarSVG(){
   setTimeout(()=>URL.revokeObjectURL(u),4000);
   toast(VT.cmPorPx>0?'SVG descargado a escala real':'SVG descargado — sin medida real, hay que escalarlo al abrirlo','ok',3600);
 }
+/* ----- El lienzo de salida, con techo -----
+   Se pintaba al tamaño de la foto original. Una foto de iPhone de 5712×4284 son 24 Mpx, por
+   encima del tope de lienzo de WebKit (~16.7 Mpx): ahí el lienzo sale vacío sin error, así que
+   «PNG descargado» bajaba un PNG en blanco y «Medir el vector en el escalador» mandaba
+   `data:,`. Se reduce lo justo. Las dos salidas dibujan el vector al tamaño que se les dé, y la
+   calibración del escalador va en coordenadas normalizadas, así que ninguna medida cambia. */
+const VT_AREA_MAX=1.6e7;
+function vtLienzoSalida(){
+  const k=Math.min(1,Math.sqrt(VT_AREA_MAX/Math.max(1,VT.imgW*VT.imgH)));
+  const oc=document.createElement('canvas');
+  oc.width=Math.max(1,Math.round(VT.imgW*k)); oc.height=Math.max(1,Math.round(VT.imgH*k));
+  return oc;
+}
 function vtDescargarPNG(){
   if(!VT.hecho)return;
-  const oc=document.createElement('canvas');
-  oc.width=VT.imgW; oc.height=VT.imgH;
+  const oc=vtLienzoSalida();
   vtPintarVector(oc.getContext('2d'),oc.width,oc.height);
   const a=document.createElement('a'); a.href=oc.toDataURL('image/png'); a.download=vtNombreArchivo('png'); a.click();
   toast('PNG descargado','ok');
@@ -1178,8 +1197,7 @@ function vtAnidar(){
 function vtEnviarAEscalador(){
   if(!VT.hecho)return;
   if(!scPuedeCambiarImagen()) return;
-  const oc=document.createElement('canvas');
-  oc.width=VT.imgW; oc.height=VT.imgH;
+  const oc=vtLienzoSalida();
   const ctx=oc.getContext('2d');
   ctx.fillStyle='#fff'; ctx.fillRect(0,0,oc.width,oc.height);   // el escalador mide sobre fondo, no sobre transparencia
   vtPintarVector(ctx,oc.width,oc.height);

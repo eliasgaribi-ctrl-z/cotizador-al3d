@@ -273,6 +273,13 @@
 				
 				GA = new GeneticAlgorithm(adam, binPolygon, config);
 			}
+			/* AL3D: el trabajo es de ESTE algoritmo. stop() solo apaga el reloj, así que una tanda
+			   lanzada antes de «Detener» terminaba DESPUÉS dentro de la corrida siguiente: escribía
+			   su `best` —medido contra la hoja vieja— y lo pintaba, con piezas fuera de la hoja
+			   nueva; y como su fitness era mejor, los resultados buenos ya no se enseñaban. config()
+			   pone GA en null, así que una tanda vieja lo encuentra cambiado y se calla; «Seguir
+			   buscando» no llama a config() y la sigue aceptando. */
+			var ga = GA;
 			
 			var individual = null;
 			
@@ -523,6 +530,7 @@
 				
 				return {key: pair.key, value: nfp};
 			}).then(function(generatedNfp){
+				if(GA !== ga){ return; }   // AL3D: ver `ga` arriba — no ensucia la caché nueva
 				if(generatedNfp){
 					for(var i=0; i<generatedNfp.length; i++){
 						var Nfp = generatedNfp[i];
@@ -551,6 +559,7 @@
 				p2.require('placementworker.js');				
 				
 				p2.map(worker.placePaths).then(function(placements){
+					if(GA !== ga){ return; }   // AL3D: ver `ga` arriba
 					if(!placements || placements.length == 0){
 						return;
 					}

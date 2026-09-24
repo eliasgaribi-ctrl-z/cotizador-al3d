@@ -236,7 +236,9 @@ async function scLoadPDF(f){
     const base=page.getViewport({scale:1});
     const target=Math.min(3400,Math.max(1800,Math.round((window.screen&&window.screen.width||1280)*scDPR()*1.6)));
     let s=Math.max(2,Math.min(5,target/base.width));
-    const cap=2.4e7;
+    /* 16 Mpx y no 24: el tope de lienzo de WebKit es ~16.7 Mpx (ver scExportImg), y con 24 un
+       plano grande se renderizaba en blanco en el iPhone. */
+    const cap=1.6e7;
     if(base.width*base.height*s*s>cap)s=Math.sqrt(cap/(base.width*base.height));
     const vp=page.getViewport({scale:s});
     const oc=document.createElement('canvas');oc.width=Math.round(vp.width);oc.height=Math.round(vp.height);
@@ -246,6 +248,8 @@ async function scLoadPDF(f){
       try{oc.toBlob(b=>res(b?URL.createObjectURL(b):oc.toDataURL()),'image/png');}
       catch(_){res(oc.toDataURL());}
     });
+    // El documento y su worker de pdf.js ya no hacen falta: sin esto se quedaban en memoria.
+    try{ pdf.destroy(); }catch(_){}
     scLoadImgSrc(url,f.name);
   }catch(e){toast('No se pudo abrir el PDF: '+((e&&e.message)||'el archivo no se pudo leer'),'err',7000);}
 }
@@ -503,7 +507,7 @@ function scLoupe(e){
   // ampliar el lienzo ya dibujado: así enseña detalle real de la foto, no píxeles estirados.
   scScene(lctx,size,size,src.x,src.y,(SC.z||1)*mag,dpr,false,true);
   lctx.setTransform(dpr,0,0,dpr,0,0);
-  lctx.strokeStyle='rgba(var(--a-rgb),.95)';lctx.lineWidth=1.5;
+  lctx.strokeStyle=azulMarca();lctx.lineWidth=1.5;
   lctx.beginPath();lctx.moveTo(size/2-16,size/2);lctx.lineTo(size/2+16,size/2);
   lctx.moveTo(size/2,size/2-16);lctx.lineTo(size/2,size/2+16);lctx.stroke();
 }
@@ -1139,6 +1143,10 @@ function scDown(e){
     }
   }
   if(SC.mode!=='ref'&&SC.mode!=='ref-drawn'&&SC.mode!=='measure')return;
+  /* Sin foto no hay nada que medir. scReset() suelta la imagen y la calibración pero deja el
+     modo en «measure», y arrastrar sobre el escalador vacío trazaba una línea que salía como
+     «Infinity cm → Agregar como partida». */
+  if(!SC.img)return;
   e.preventDefault();
   // Pegado a guías desde el primer punto. Los dos extremos se leen igual, así el
   // desplazamiento del pegado no se confunde con un arrastre y el toque simple sigue
@@ -1252,6 +1260,9 @@ function scCommitLine(a,b){
     }
     scSetHint('¿Cuánto mide en cm? Escríbelo en el panel');
   }else if(SC.mode==='measure'){
+    /* Sin escala, dividir entre nativePxPerCm (0) daba Infinity, y «Agregar como partida» lo
+       ponía de altura. Es la red de abajo de la guarda de scDown. */
+    if(!(SC.nativePxPerCm>0)){scSetHint('Primero calibra la escala con una medida conocida');return false;}
     const pxD=scDist(a,ep),cm=(pxD*SC.scaleFactor)/SC.nativePxPerCm;
     const c01=v=>Math.max(0,Math.min(1,v));
     SC.items.push({id:SC.nid++,nx1:c01(a.x/SC.cvsW),ny1:c01(a.y/SC.cvsH),nx2:c01(ep.x/SC.cvsW),ny2:c01(ep.y/SC.cvsH),cm,label:'',color:SC_COLORS[SC.nc++%SC_COLORS.length],type:SC.mMode});
@@ -1276,9 +1287,12 @@ function scConfirmCalib(){
   const v=parseFloat($('sc-ref-cm-input').value);
   if(!v||v<=0){toast('Ingresa una medida válida en cm','err');return;}
   if(!SC.refLine){toast('Traza primero la línea de referencia','err');return;}
-  SC.refCm=v;
   const p1={x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH};
   const p2={x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH};
+  /* Una referencia de largo cero —los dos extremos arrastrados al mismo cruce de guías—
+     dejaba la escala en 0 y aun así decía «Escala calibrada»: cada medida salía Infinity. */
+  if(scDist(p1,p2)<6){toast('La línea de referencia quedó sin largo — vuelve a trazarla','err',4200);return;}
+  SC.refCm=v;
   SC.nativePxPerCm=(scDist(p1,p2)*SC.scaleFactor)/v;
   // 20 px de lienzo: por debajo de eso, un píxel de error al poner el punto ya mueve la
   // escala varios por ciento y todas las medidas salen mal a la vez.
