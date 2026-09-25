@@ -154,6 +154,7 @@ console.log('\nservidor y puente de mentiras en ' + B);
 const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const ctx = await nav.newContext({ viewport: { width: 430, height: 932 }, isMobile: true,
   hasTouch: true, locale: 'es-MX', timezoneId: 'America/Mexico_City', serviceWorkers: 'allow' });
+await ctx.addInitScript({ path: decodeURIComponent(new URL('./hoja-de-mentiras.js', import.meta.url).pathname) });   // el notario, de mentiras
 
 /* Se siembra la configuración, no la venta. La venta se captura con clics: si se sembrara,
    la prueba diría que el puente funciona con un dato que nadie tecleó nunca. */

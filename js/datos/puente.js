@@ -402,12 +402,12 @@ function falla(codigo, mensaje) { const e = new Error(mensaje); e.codigo = codig
  * Una petición al Worker. Devuelve `{estado, cuerpo}` y NUNCA lanza por un cuerpo raro:
  * lo que lanza es la red, y con el código que la bandeja sabe interpretar.
  */
-async function pedir(cfg, ruta, opciones = {}) {
+async function pedir(cfg, ruta, opciones = {}, espera = MS_ESPERA) {
   const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
   /* Sin tope, un puente que no contesta deja el bombeo colgado para siempre y la pantalla
      de Ajustes con el botón apretado. Quince segundos: Apps Script con la red de un
      teléfono en la calle tarda, pero no tanto. */
-  const t = ctrl ? setTimeout(() => ctrl.abort(), MS_ESPERA) : 0;
+  const t = ctrl ? setTimeout(() => ctrl.abort(), espera) : 0;
 
   /* ── Todo va por POST, y el token va en el cuerpo ────────────────────────────────
      Apps Script no tiene dónde contestar un OPTIONS: un Web App solo expone doGet y
@@ -458,7 +458,7 @@ async function pedir(cfg, ruta, opciones = {}) {
        especificación no deja distinguirlos— así que el mensaje nombra las dos
        posibilidades en vez de mentir con una. */
     throw falla('SIN_RED', (e && e.name === 'AbortError')
-      ? 'El puente no contestó en 15 segundos. Lo que hiciste está guardado aquí y se manda solo.'
+      ? 'El puente no contestó en ' + Math.round(espera / 1000) + ' segundos. Lo que hiciste está guardado aquí y se manda solo.'
       : 'No se pudo llegar al puente. Puede ser que no haya señal, o que la implementación del Apps Script no esté publicada con acceso «Cualquier usuario».');
   } finally { if (t) clearTimeout(t); }
 
@@ -486,6 +486,23 @@ async function pedir(cfg, ruta, opciones = {}) {
     throw falla('SIN_RED', 'El puente contestó ' + estado + ' sin decir por qué.');
   }
   return { estado, cuerpo: cuerpoRes || {} };
+}
+
+/**
+ * Una pregunta suelta al puente, con la configuración de este aparato y las dos puertas —la
+ * identidad de Google si está viva y el token de dispositivo si lo hay—. Es lo que usa el
+ * cotizador empotrado a través de `window.AL3D` (js/mod/cotizador.js): el notario y la IA no
+ * son almacenes que sincronizar, son preguntas con respuesta, y no pasan por la bandeja.
+ *
+ * Devuelve el cuerpo tal como lo contestó la hoja —`{ok:false, codigo, mensaje}` incluido— y
+ * solo lanza por la red o por un rol sin permiso, con el código que `falla` pone.
+ */
+export async function hablar(ruta, cuerpo = {}, espera = MS_ESPERA) {
+  const p = Prefs.puente();
+  const cfg = { url: normalizarUrl(p.url), token: String(p.token || '') };
+  if (!cfg.url) throw falla('DATO_INVALIDO', 'Este aparato no tiene la dirección del puente.');
+  const r = await pedir(cfg, ruta, { method: 'POST', body: JSON.stringify(cuerpo) }, espera);
+  return r.cuerpo;
 }
 
 /** La URL como la quiere `fetch`: sin barra final, para no pedir `//salud`; sin cadena de

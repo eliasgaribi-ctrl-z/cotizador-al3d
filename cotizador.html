@@ -603,6 +603,29 @@ document.documentElement.classList.add('arrancando');
   </div>
 </div>
 
+<!-- Una solicitud que llegó de OTRO teléfono, por la hoja. Se revisa aquí y no se carga en la
+     pantalla: no es una cotización de este aparato, no ocupa su folio ni entra a su historial.
+     Ver notario.js. -->
+<div class="modal-bg" id="remotamodal" onclick="if(event.target===this)cerrarRevisionRemota()" role="dialog" aria-modal="true" aria-labelledby="rem-titulo">
+  <div class="modal">
+    <div class="modal-h"><b id="rem-titulo">Solicitud</b><button onclick="cerrarRevisionRemota()" aria-label="Cerrar">×</button></div>
+    <div class="modal-b">
+      <p class="mini" id="rem-quien" style="text-align:left;margin-bottom:10px"></p>
+      <div id="rem-partidas"></div>
+      <div class="fld" style="margin-top:12px">
+        <label for="rem-precio" id="rem-lab">Precio final autorizado</label>
+        <div class="inp-money"><input id="rem-precio" type="number" inputmode="decimal" min="0" step="100" oninput="pintarRemotaNeto()"></div>
+        <div class="precio-auth-neto" id="rem-neto"></div>
+      </div>
+      <div class="fld"><label for="rem-nota">Nota para quien la pidió (opcional)</label><textarea id="rem-nota" placeholder="Comentario para el vendedor…"></textarea></div>
+      <div class="authnote auth-quien" id="rem-autoriza"></div>
+      <p class="mini" id="rem-estado" role="status" style="text-align:left;min-height:1.2em"></p>
+      <button class="btn btn-ok" id="rem-autorizar" onclick="autorizarRemota()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Autorizar precio</button>
+      <button class="btn btn-dgr" id="rem-rechazar" onclick="rechazarRemota()">Rechazar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Revisión previa: partidas que valdrían $0 si se autorizan así -->
 <div class="modal-bg" id="faltmodal" onclick="if(event.target===this)cerrarFaltantes()" role="dialog" aria-modal="true" aria-label="Hay partidas sin terminar">
   <div class="modal">
@@ -937,6 +960,7 @@ document.documentElement.classList.add('arrancando');
 <script src="js/cotizador/escalador.js"></script>
 <script src="js/cotizador/venta.js"></script>
 <script src="js/cotizador/vectorizador.js"></script>
+<script src="js/cotizador/notario.js"></script>
 <script src="js/cotizador/arranque.js"></script>
 
 <!-- Modal: Registrar Venta -->

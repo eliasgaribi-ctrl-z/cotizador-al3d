@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   157 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   162 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -127,6 +127,9 @@ function guardarEnHistorial(){
     /* La huella viaja con la cotización: sin ella, reabrirla del historial parecería un
        trabajo cambiado y soltaría un precio que nadie había tocado. */
     huellaAuth:Q.huellaAuth||'',
+    /* El sello de la hoja viaja con ella: es lo que pone el QR en el PDF al reimprimirla. Las
+       entradas de antes no lo traen, y se leen igual que «sin sello». */
+    sello:Q.sello||null,
     /* El anticipo se pacta al cerrar y no siempre es el 50%. No se guardaba, así que al
        reabrir la cotización se recalculaba la mitad del total y el WhatsApp le pedía al
        cliente una cifra distinta de la acordada, sobre el mismo folio. */
@@ -312,6 +315,7 @@ function reabrirDeHistorial(folio){
      volverlo a autorizar (ver autorizacionSuelta). Más abajo se sella de todos modos si hay
      importes congelados que defender. */
   Q.huellaAuth=e.huellaAuth!==undefined?e.huellaAuth:huellaTrabajo();
+  Q.sello=e.sello||null; Q.solicitud=null;
   Q.autorizador=e.autorizador||''; Q.nota=e.nota||''; Q.fechaAuth=e.fechaAuth||'';
   Q.estado='autorizada'; Q.editMode=false; _selfAuth=false; _marcarOblig=false;
   /* El anticipo pactado vuelve como se guardó. Solo «Duplicar» lo reinicia, porque ahí
@@ -383,7 +387,7 @@ function usarComoBase(folio){
      catálogo de hoy, que es justo para lo que sirve duplicar. */
   Q.items=(e.items||[]).map(it=>{ const c=JSON.parse(JSON.stringify(it)); c.id=++pid; c.showInPdf=true; c.matAuto=false; delete c._lt; return c; });
   Q.iva=e.iva!==false;
-  Q.itemsAuth={}; Q.precioAuth=0; Q.huellaAuth='';
+  Q.itemsAuth={}; Q.precioAuth=0; Q.huellaAuth=''; Q.sello=null; Q.solicitud=null;
   Q.autorizador=''; Q.nota=''; Q.fechaAuth='';
   Q.estado='borrador'; Q.editMode=false; _selfAuth=false; _marcarOblig=false;
   Q.anti=0; Q.antiManual=false; Q.aiFile=null;

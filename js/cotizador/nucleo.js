@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   157 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   162 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -32,6 +32,11 @@ const Q = {
   itemsAuth:{},
   /* Huella del trabajo sobre el que se autorizó el precio. Ver authVigente(). */
   huellaAuth:'',
+  /* El sello de la hoja: {codigo, correo, ts, total, folio}. Sin él, la autorización es de
+     antes de que la hoja sellara (o se soltó al editar) y el PDF no lleva QR. Ver notario.js. */
+  sello:null,
+  /* La solicitud que salió a dirección: {enviada, ts, error}. Solo mientras está pendiente. */
+  solicitud:null,
   aiFile:null,
   /* «Esta cotización nunca ha tenido una partida». Va en Q y no en una variable suelta
      porque tiene que sobrevivir a una recarga: se captura el cliente, se recarga la
@@ -262,6 +267,7 @@ const _CAPAS=[
   ['lightbox',   ()=>closeLightbox()],
   ['rv-modal-bg',()=>cerrarRegistrarVenta()],
   ['faltmodal',  ()=>cerrarFaltantes()],
+  ['remotamodal',()=>cerrarRevisionRemota()],
   ['aimodal',    ()=>aiClose()],
   ['histmodal',  ()=>cerrarHistorial()],
   ['climodal',   ()=>cerrarCuadernos()],
@@ -765,7 +771,9 @@ function soltarAuthSiCambio(){
   /* Aquí `authVigente()` ya es false —por eso se está soltando—, así que la pregunta es la de
      dentro: si había algo que se está perdiendo, para poder decirlo. */
   const habia = hayAjusteAuth();
-  Q.precioAuth=0; Q.itemsAuth={}; Q.huellaAuth='';
+  /* El sello se va con la autorización: firmó OTRO trabajo, y un QR que dice «auténtica» sobre
+     un PDF de partidas distintas sería el sello mintiendo. */
+  Q.precioAuth=0; Q.itemsAuth={}; Q.huellaAuth=''; Q.sello=null;
   return habia;
 }
 

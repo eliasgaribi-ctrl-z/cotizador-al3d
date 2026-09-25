@@ -627,7 +627,7 @@ async function arrancar() {
      registrados. Consecuencias, las dos malas:
 
        · La app no se guardaba para trabajar sin señal hasta que alguien entrara.
-       · Y al entrar, los ochenta y un archivos empezaban a bajar JUSTO cuando la persona
+       · Y al entrar, los ochenta y tantos archivos empezaban a bajar JUSTO cuando la persona
          quería usarla, compitiendo con lo que estuviera haciendo. Se sentía lenta, y lo era.
 
      Aquí arriba se registra mientras la persona lee la pantalla de entrar, que es tiempo que

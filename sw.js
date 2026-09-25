@@ -86,6 +86,7 @@ const APP_FILES = [
   './js/cotizador/escalador.js',
   './js/cotizador/venta.js',
   './js/cotizador/vectorizador.js',
+  './js/cotizador/notario.js',
   './js/cotizador/arranque.js',
   './js/app.js',
   './js/nucleo/ui.js',

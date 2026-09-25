@@ -35,6 +35,7 @@ import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 const B = 'http://127.0.0.1:' + (process.env.PUERTO || '8814');
 const nav = await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome'});
 const ctx = await nav.newContext({viewport:{width:1440,height:1000}, locale:'es-MX', timezoneId:'America/Mexico_City'});
+await ctx.addInitScript({ path: decodeURIComponent(new URL('./hoja-de-mentiras.js', import.meta.url).pathname) });   // el notario, de mentiras
 const p = await ctx.newPage();
 let fallos = 0;
 const mal  = m => { console.log('  ✗ ' + m); fallos++; };

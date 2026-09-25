@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   157 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   162 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -1094,7 +1094,7 @@ function applyAi(p){
     Q.items=conservadas.concat(nuevos);
     // La cotización vuelve a borrador: cualquier precio autorizado antes ya no aplica
     // a estas partidas nuevas.
-    Q.estado='borrador'; Q.precioAuth=0; Q.itemsAuth={}; Q.huellaAuth='';
+    Q.estado='borrador'; Q.precioAuth=0; Q.itemsAuth={}; Q.huellaAuth=''; Q.sello=null; Q.solicitud=null;
     sincronizarPlegado();
     renderItems();
     if(conservadas.length) toast(`${conservadas.length} partida${conservadas.length>1?'s':''} tuya${conservadas.length>1?'s':''} + ${nuevos.length} de la IA`,'ok',3600);

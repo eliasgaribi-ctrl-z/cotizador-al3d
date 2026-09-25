@@ -3442,6 +3442,22 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
   padding:var(--e3) var(--e4);margin-bottom:var(--e3);box-shadow:none;
 }
 .authnote b{color:var(--tinta);font-weight:600}
+/* ---------- El notario ----------
+   La espera de una solicitud que salió a dirección: un giro chico junto a la frase, el mismo
+   de las pantallas de carga, y ámbar cuando no se pudo mandar. «Quién sella» es un renglón de
+   lectura donde antes había un campo para teclear un nombre. La cola del autorizador marca
+   las que llegaron de otro teléfono, y el botón de Autorizador se apaga para quien no es
+   dirección sin desaparecer: es donde la gente lo busca. */
+.authnote.espera{display:flex;gap:var(--e2);align-items:flex-start}
+.authnote.falla{border-color:var(--amber-ico);background:var(--amber-bg);color:var(--amber)}
+.espera-giro{flex:0 0 auto;width:14px;height:14px;margin-top:2px;border-radius:50%;
+  border:2px solid var(--linea);border-top-color:var(--brand);animation:esq-gira .8s linear infinite}
+.auth-quien{font-size:var(--t1)}
+.btn.trabajando{cursor:progress;opacity:.8}
+.qi-remota{display:inline-block;margin-left:var(--e1);padding:0 6px;border-radius:999px;
+  background:var(--soft-2);color:var(--tinta2);font-size:9px;letter-spacing:.3px;vertical-align:1px}
+#roleseg button.apagado{opacity:.45}
+@media(prefers-reduced-motion:reduce){.espera-giro{animation:none}}
 .mini,.anti-rest{font-size:var(--t1);color:var(--tinta3);line-height:1.5}
 .anti-rest{font-weight:500;margin-top:var(--e2)}
 

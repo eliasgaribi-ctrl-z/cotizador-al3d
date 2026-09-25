@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   157 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   162 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -161,6 +161,15 @@ function renderSummary(){
   renderMobileBar();
 }
 
+/* Qué pasa con la solicitud mientras se espera, dicho sin adornos: si ya llegó a la hoja, si
+   se está reintentando, o si la hoja la rechazó por una razón que reintentar no arregla. */
+function esperaHTML(){
+  const s=Q.solicitud;
+  if(!s) return 'Esperando autorización del precio en este teléfono. Dirección la aprueba o la rechaza desde <b>Autorizador</b>.';
+  if(s.enviada) return '<span class="espera-giro" aria-hidden="true"></span> Solicitud en el teléfono de Dirección. En cuanto la autorice, el precio se sella y aparece aquí solo.';
+  if(s.definitivo) return esc(s.error);
+  return (s.error?esc(s.error):'Mandando la solicitud a Dirección…');
+}
 function renderAuth(){
   const box=$('authbox');
   const LABELS={borrador:'Borrador',pendiente:'Pendiente de autorización',autorizada:'Autorizada',rechazada:'Rechazada'};
@@ -168,16 +177,23 @@ function renderAuth(){
   let body='';
   const hayPartidas=Q.items.length>0&&totals().sub>0;
 
-  if(Q.rol==='autorizador'){
+  if(Q.rol==='autorizador'&&!puedeAutorizar()){
+    /* El segmentado ya no deja llegar aquí sin pase de dirección, pero una cotización guardada
+       con rol de autorizador —o un pase que caducó entre dos aperturas— sí. Se dice qué pasa
+       en vez de pintar una cola con botones que la hoja va a rechazar. */
+    body=`<div class="authnote">Solo una cuenta de <b>Dirección</b> autoriza precios, y este teléfono ${identidadVerificada()?'entró como <b>'+esc(identidadVerificada().correo)+'</b>':'no tiene una cuenta verificada'}. Las cotizaciones se mandan a Dirección con <b>Solicitar autorización</b>.</div>
+      <button class="btn btn-gho" onclick="cambiarRol('vendedor')"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver a vendedor</button>`;
+  } else if(Q.rol==='autorizador'){
     // --- Cola de pendientes ---
     const pendientes=getQueue().filter(x=>x.estado==='pendiente');
     let qHTML='';
-    /* La cola vive en el almacenamiento de ESTE navegador, no en un servidor: aquí solo
-       aparece lo que se solicitó en este mismo aparato. Vale la pena decirlo en la
-       pantalla, porque una cola vacía se lee como «no hay nada pendiente» cuando en
-       realidad puede haber solicitudes hechas en otro teléfono. */
-    const qNota=`<p class="mini" style="text-align:left;margin-top:8px">Solo aparecen las solicitudes hechas en <b>este</b> dispositivo — la cola se guarda aquí, no en un servidor.</p>`;
-    if(!pendientes.length){
+    /* La cola de este aparato, y debajo lo que se pidió desde los demás, que llega por la hoja
+       (notario.js). Antes esta nota decía que solo aparecían las de este dispositivo —y era
+       verdad—: el flujo de dos personas solo funcionaba si compartían teléfono. */
+    const remotas=remotasHTML();
+    const qNota=`<p class="mini" style="text-align:left;margin-top:8px">Aquí llegan también las solicitudes de los otros teléfonos${_remotasTs?' · revisado a las '+new Date(_remotasTs).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',hour12:false}):' · buscando…'}</p>`;
+    if(!_remotasTs||Date.now()-_remotasTs>VIGILA_MS) setTimeout(consultarSolicitudes,0);
+    if(!pendientes.length&&!remotas){
       qHTML=`<div class="queue-list"><div class="queue-empty">Sin cotizaciones pendientes por autorizar.</div></div>${qNota}`;
     } else {
       /* El renglón era un div con onclick y nada más: el autorizador que navega con teclado
@@ -192,13 +208,13 @@ function renderAuth(){
         </div>
         <div style="text-align:right"><div class="qi-total">${money(e.neto)}</div></div>
       </div>`).join('');
-      qHTML=`<div class="queue-list">${rows}</div>${qNota}`;
+      qHTML=`<div class="queue-list">${rows}${remotas}</div>${qNota}`;
     }
 
     // --- Formulario de revisión (solo si la cotización cargada está pendiente) ---
     let formHTML='';
     if(Q.estado==='pendiente') formHTML=authRevisionHTML(false);
-    else if(pendientes.length){
+    else if(pendientes.length||_remotas.length){
       formHTML=`<p class="mini" style="margin-top:2px">Selecciona una cotización de la lista para revisarla.</p>`;
     }
     body=qHTML+formHTML;
@@ -206,12 +222,15 @@ function renderAuth(){
   } else {
     // --- Vista vendedor ---
     if(Q.estado==='borrador'){
-      /* «Autorizar yo mismo» es la acción principal porque es la que se usa casi
-         siempre: la cola de autorización vive en el almacenamiento de ESTE teléfono,
-         así que el flujo de dos personas solo funciona si las dos comparten aparato.
-         Solicitar a alguien más sigue disponible, un renglón abajo. */
-      body=`<button class="btn btn-pri" ${hayPartidas?'':'disabled'} onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizar yo mismo</button>
-            <button class="btn btn-gho" ${hayPartidas?'':'disabled'} onclick="solicitar()">Solicitar autorización a alguien más</button>
+      /* Dirección autoriza sola: es la acción principal, y solicitar a alguien más queda un
+         renglón abajo. Quien no es dirección no tiene «Autorizar yo mismo»: la hoja no se lo
+         sellaría, y un botón que siempre dice que no es peor que no tener botón. Lo suyo es
+         pedirlo, y la solicitud le llega a dirección a su teléfono. */
+      body=(puedeAutorizar()
+        ? `<button class="btn btn-pri" ${hayPartidas?'':'disabled'} onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizar yo mismo</button>
+            <button class="btn btn-gho" ${hayPartidas?'':'disabled'} onclick="solicitar()">Solicitar autorización a alguien más</button>`
+        : `<button class="btn btn-pri" ${hayPartidas?'':'disabled'} onclick="solicitar()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Solicitar autorización a Dirección</button>
+            <p class="mini">Solo Dirección autoriza precios: la solicitud le llega a su teléfono y el sello regresa aquí solo.</p>`)+`
             ${hayPartidas?'':`<p class="mini">${!locked()&&faltanDatosCliente()
               ? 'Falta el paso 1.'
               : 'Agrega partidas con precio para continuar.'}</p>`}
@@ -220,8 +239,9 @@ function renderAuth(){
     else if(Q.estado==='pendiente'){
       body=_selfAuth
         ? `<div class="auth-divider">Autorizando tú mismo</div>${authRevisionHTML(true)}`
-        : `<div class="authnote">Esperando autorización del precio. Cambia el rol a <b>Autorizador</b> (arriba a la derecha) para aprobar o rechazar.</div>
-           <button class="btn btn-pri" onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizarla yo mismo</button>
+        : `<div class="authnote espera${Q.solicitud&&Q.solicitud.error?' falla':''}">${esperaHTML()}</div>
+           ${puedeAutorizar()?`<button class="btn btn-pri" onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizarla yo mismo</button>`:''}
+           ${Q.solicitud&&!Q.solicitud.enviada&&!Q.solicitud.definitivo?`<button class="btn btn-gho" onclick="enviarSolicitud()"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Reintentar el envío</button>`:''}
            <button class="btn btn-gho" onclick="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar (cancela la solicitud)</button>`;
     }
     else if(Q.estado==='autorizada'){
@@ -422,13 +442,15 @@ function authRevisionHTML(soloAutorizar){
     ${itemRows}
     <div class="ia-total"><span>${Q.iva?'Subtotal ajustado':'Total ajustado'}</span><span id="ia-sum">${money(authSub)}</span></div>
     ${Q.iva?`<div class="ia-total soft"><span>Con IVA 16%</span><span id="ia-sum-neto">${money(authNeto)}</span></div>`:''}
-    <div class="fld"><label for="a-name">Tu nombre (autorizador)</label><input id="a-name" autocomplete="off" placeholder="Ej. Elías" value="${esc(Q.autorizador||prefGet(PREF_AUTORIZADOR,''))}" oninput="Q.autorizador=this.value"></div>
+    <!-- Quién autoriza ya no se teclea: es la cuenta con la que se entró, y la firma la hoja.
+         Un campo libre dejaba poner «Elías» en el papel de cualquiera. -->
+    <div class="authnote auth-quien">${puedeAutorizar()?'Se sella en la hoja a nombre de <b>'+esc(identidadVerificada().correo)+'</b>. Sin señal no se puede autorizar.':'Esta cuenta no puede autorizar: solo Dirección.'}</div>
     <!-- Los dos campos escriben en Q mientras se teclean, como el resto de los inputs
          generales: renderAuth reconstruye este formulario con innerHTML y cualquier
          repintado —plegar una partida, ajustar un precio— borraba lo que se llevaba
          escrito, sin nada que lo insinuara. -->
     <div class="fld"><label for="a-note">Nota (opcional)</label><textarea id="a-note" placeholder="Comentario para el vendedor…" oninput="Q.nota=this.value">${esc(Q.nota||'')}</textarea></div>
-    <button class="btn btn-ok" onclick="autorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Autorizar precio</button>
+    <button class="btn btn-ok${_sellando?' trabajando':''}" id="a-autorizar" ${_sellando||!puedeAutorizar()?'disabled':''} onclick="autorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> ${_sellando?'Sellando en la hoja…':'Autorizar precio'}</button>
     ${soloAutorizar
       ? '<button class="btn btn-gho" onclick="cancelarAutoAutorizacion()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver a editar</button>'
       : '<button class="btn btn-dgr" onclick="rechazar()">Rechazar</button>'}`;
@@ -1427,7 +1449,12 @@ function solicitar(){
   revisarAntesDe(solicitarConfirmado,'Solicitar de todos modos');
 }
 function solicitarConfirmado(){
-  Q.estado='pendiente'; pushToQueue(); saveState(); renderItems(); toast('Solicitud enviada · precio bloqueado','ok');
+  /* Primero en la cola de este teléfono —el precio se bloquea aunque no haya señal— y luego a
+     la hoja, que es por donde le llega a dirección. `enviarSolicitud` dice cómo le fue. */
+  Q.estado='pendiente'; Q.solicitud={enviada:false,ts:Date.now(),error:''};
+  pushToQueue(); saveState(); renderItems();
+  toast('Precio bloqueado · mandando la solicitud a Dirección…','',3000);
+  enviarSolicitud();
 }
 /* ----- Autorizar sin cambiar de rol -----
    El flujo de vendedor → autorizador está pensado para dos personas y se queda tal
@@ -1463,6 +1490,9 @@ function paBorrador(){ return (_paDraft&&_paDraft.folio===Q.folio)?_paDraft.val:
 function paBorradorSet(v){ _paDraft={folio:Q.folio,val:v}; }
 function paBorradorLimpiar(){ _paDraft=null; _authAbiertas.clear(); }
 function autorizarYoMismo(){
+  /* La guarda va en la FUNCIÓN y no solo en el botón: los botones se esconden, pero la barra
+     fija, el atajo de reautorizar y la consola llegan aquí igual. */
+  if(!puedeAutorizar()){ toast('Solo una cuenta de Dirección autoriza precios. Usa «Solicitar autorización».','err',5000); return; }
   if(Q.estado==='borrador'){
     /* El atajo pasa por el mismo filtro que solicitar: autorizarse a uno mismo no es
        una puerta de servicio para saltarse los datos del cliente. */
@@ -1511,8 +1541,19 @@ function reautorizar(){
   if(Q.estado!=='autorizada') return;
   if(Q.rol==='autorizador'){ irAResumen(); return; }
   const antes={folio:Q.folio,autorizador:Q.autorizador,nota:Q.nota,fechaAuth:Q.fechaAuth,
-    precioAuth:Q.precioAuth,itemsAuth:JSON.parse(JSON.stringify(Q.itemsAuth||{})),huellaAuth:Q.huellaAuth};
+    precioAuth:Q.precioAuth,itemsAuth:JSON.parse(JSON.stringify(Q.itemsAuth||{})),huellaAuth:Q.huellaAuth,
+    sello:Q.sello?JSON.parse(JSON.stringify(Q.sello)):null};
   Q.editMode=false; _editCliente=null;
+  /* Quien no es dirección no se reautoriza: vuelve a pedirlo, por el mismo camino de solicitar.
+     Cancelar la solicitud devuelve la cotización como estaba (ver reabrir). */
+  if(!puedeAutorizar()){
+    Q.estado='borrador'; paBorradorLimpiar();
+    if(!exigirDatosCliente()){ Q.estado='autorizada'; renderItems(); return; }
+    revisarAlturasMinimas();
+    _reautorizando=antes;
+    solicitarConfirmado();
+    return;
+  }
   /* Como un borrador con folio: autorizarYoMismo hace el resto —los tres datos del cliente, la
      regla de los 10 cm, pendiente y la cola—. */
   Q.estado='borrador';
@@ -1527,11 +1568,14 @@ function reabrir(){
   /* La revisión se abrió con «Volver a autorizar» sobre una cotización ya autorizada:
      cancelarla no la convierte en borrador. Vuelve a ser la autorizada que era, con el precio,
      el nombre y la nota que tenía —el formulario escribe en Q mientras se teclea—. */
+  /* La solicitud que había subido a la hoja deja de corresponder: se retira de la cola de
+     dirección. Si no hay señal, la huella se encarga —un sello de lo viejo no se aplicaría—. */
+  if(eraPendiente&&Q.solicitud){ if(Q.solicitud.enviada) retirarSolicitud(Q.folio); Q.solicitud=null; }
   if(eraPendiente&&_reautorizando&&_reautorizando.folio===Q.folio){
     const a=_reautorizando, tecleo=paBorrador()!==null; _reautorizando=null;
     _selfAuth=false; paBorradorLimpiar();
     Q.estado='autorizada'; Q.autorizador=a.autorizador; Q.nota=a.nota; Q.fechaAuth=a.fechaAuth;
-    Q.precioAuth=a.precioAuth; Q.itemsAuth=a.itemsAuth; Q.huellaAuth=a.huellaAuth;
+    Q.precioAuth=a.precioAuth; Q.itemsAuth=a.itemsAuth; Q.huellaAuth=a.huellaAuth; Q.sello=a.sello||null;
     removeFromQueue(Q.folio);
     saveState(); renderItems();
     toast('El precio se dejó como estaba'+(tecleo?' — se descartó lo que llevabas escrito':''));
@@ -1558,46 +1602,53 @@ function reabrir(){
    caminos se llegó. Por eso el atajo «Autorizar yo mismo» no revisa nada al abrirse:
    ahí todavía no se compromete nada. */
 function autorizar(){ revisarAntesDe(autorizarConfirmado,'Autorizar de todos modos'); }
-function autorizarConfirmado(){
-  const nombre=($('a-name')?.value||'').trim();
-  Q.autorizador=nombre||prefGet(PREF_AUTORIZADOR,'');
-  if(nombre) prefSet(PREF_AUTORIZADOR,nombre);
-  Q.nota=($('a-note')?.value||'').trim();
-  _selfAuth=false; _reautorizando=null;
+/* ----- Autorizar es sellar -----
+   Hasta aquí todo pasaba en el teléfono y en el mismo tick. Ahora el precio se manda a la
+   hoja, que recalcula, firma y contesta; solo con ese sello en la mano la cotización pasa a
+   autorizada. Sin señal, o si la hoja dice que no, NO se autoriza: se dice por qué y lo
+   tecleado se queda en el formulario para volver a intentarlo. */
+let _sellando=false;
+async function autorizarConfirmado(){
+  if(_sellando) return;
+  if(!puedeAutorizar()){ toast('Solo una cuenta de Dirección autoriza precios.','err',5000); return; }
+  const folio=Q.folio;
+  const nota=($('a-note')?.value||'').trim();
+  Q.nota=nota;
   /* Lo que el autorizador tecleó es el SUBTOTAL; `Q.precioAuth` se guarda en neto porque es
      lo que llevan leyendo el historial, la cola, el PDF y el registro de venta desde que
      existen. La conversión pasa por conIva() y por ningún otro sitio. */
   const subCalc=totals().sub;
   const paSub=parseFloat($('a-precio')?.value)||0;
-  Q.precioAuth=(paSub>0&&Math.abs(paSub-subCalc)>0.01)?conIva(paSub):0;
-  paBorradorLimpiar();   // a partir de aquí manda Q.precioAuth, no lo que se tecleó
-  /* Queda registrado SOBRE QUÉ se autorizó este precio. Es lo que después permite notar
-     que el trabajo cambió, sin depender de que nadie apriete «Guardar». */
-  sellarAuth();
-  Q.estado='autorizada';
-  Q.fechaAuth=new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
-  confirmarFolio(Q.folio); // el contador de cotizaciones solo avanza al autorizar
-  updateQueueEntry(Q.folio,{estado:'autorizada',precioAuth:Q.precioAuth,autorizador:Q.autorizador,nota:Q.nota,fechaAuth:Q.fechaAuth,itemsAuth:Q.itemsAuth,huellaAuth:Q.huellaAuth});
-  const guardada=guardarEnHistorial();
-  /* Solo si el historial DE VERDAD la recibió. Cuando no cupo, la cola es la única copia que
-     queda del folio, el precio autorizado y quién lo autorizó; soltarla ahí los perdía para
-     siempre, y encima en el instante irreversible. */
-  if(guardada) removeFromQueue(Q.folio);
-  saveState(); renderItems();
-  /* toast() es UN solo elemento y estas escrituras ocurren en el mismo tick: el último gana.
-     Un «✓ guardada en historial» incondicional borraba justo el aviso de que no se guardó
-     —con su botón de Respaldar—, que es el único momento en que se podía rescatar. Si algo
-     falló, el que se queda es el que lo dice. */
-  const _r=respaldoEstado();
-  if(guardada&&_saveOk&&_r.vencido) toast('✓ Autorizada · '+(_r.sinRespaldar||_r.total)+' sin respaldar en este teléfono','',6000,{label:'Respaldar',fn:()=>respaldar()});
-  else if(guardada&&_saveOk) toast('✓ Cotización autorizada — guardada en historial','ok',3200);
-  else if(guardada) toast('Autorizada y guardada, pero la cotización en curso ya no cabe en este teléfono — respalda y borra cotizaciones viejas','err',9000,{label:'Respaldar',fn:()=>respaldar()});
+  const precioAuth=(paSub>0&&Math.abs(paSub-subCalc)>0.01)?conIva(paSub):0;
+  /* El folio se decide ANTES de sellar: si este número ya es de otro cliente en el historial,
+     guardarEnHistorial() le daría uno nuevo después, y el sello quedaría a nombre del viejo. */
+  reFoliarSiEsOtroCliente();
+  _sellando=true; renderAuth(); renderMobileBar();
+  let sello;
+  try{ sello=await sellarEnLaHoja(folioGlobal(),cotParaHoja(),precioAuth,Q.itemsAuth,nota); }
+  catch(e){
+    _sellando=false;
+    if(Q.folio===folio){ renderAuth(); renderMobileBar(); }
+    toast(e.message,'err',9000);
+    return;
+  }
+  _sellando=false;
+  /* Mientras se sellaba no se pudo tocar nada —la cotización está bloqueada en pendiente—,
+     pero sí cambiar de cotización. Si ya no es ésta la que está en pantalla, el sello existe en
+     la hoja y la de aquí se entera la próxima vez que se abra. */
+  if(Q.folio!==folio||Q.estado!=='pendiente'){ toast(folio+' quedó sellada en la hoja','ok',4000); return; }
+  if(sello.huella!==huellaTrabajo()){ renderAuth(); toast('La hoja selló un trabajo distinto del que está en pantalla. Vuelve a autorizar.','err',9000); return; }
+  aplicarSello(sello);
 }
 function rechazar(){
-  const nombre=($('a-name')?.value||'').trim();
-  Q.autorizador=nombre||prefGet(PREF_AUTORIZADOR,'');
-  if(nombre) prefSet(PREF_AUTORIZADOR,nombre);
+  /* Rechazar no se sella —no hay precio que defender—, pero sí lleva nombre: el de la cuenta,
+     como autorizar. Y si la solicitud había subido a la hoja, se retira de allá. */
+  const i=identidadVerificada();
+  Q.autorizador=i?i.correo:'';
   Q.nota=($('a-note')?.value||'').trim();
+  if(Q.solicitud&&Q.solicitud.enviada) hablarHoja('rechazar',{folio:folioGlobal(),nota:Q.nota}).catch(()=>{});
+  Q.solicitud=null; Q.sello=null;
+  vibrar([20,60,20]);
   Q.estado='rechazada'; _selfAuth=false; _reautorizando=null; paBorradorLimpiar();
   /* Rechazar borra el borrador de precio que el formulario dejó escrito en Q mientras se
      teclaba: si no, un ajuste que se decidió NO aprobar se quedaba guardado y volvía a
@@ -1650,7 +1701,7 @@ function nueva(){
      proyecto—, así que un borrador con el teléfono y la dirección puestos y nada más se
      vaciaba sin ofrecer vuelta atrás. Una regla, un sitio. */
   guardarParaDeshacer();
-  Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};Q.huellaAuth='';
+  Q.proy=Q.cliente=Q.tel=Q.direccion=Q.maps=Q.dirRaw='';Q.items=[];Q.iva=true;Q.estado='borrador';Q.autorizador=Q.nota='';Q.aiFile=null;Q.anti=0;Q.antiManual=false;Q.precioAuth=0;Q.itemsAuth={};Q.huellaAuth='';Q.sello=null;Q.solicitud=null;
   Q.entrecalles=Q.entrega=Q.notaCliente=Q.fechaAuth=''; Q.plazoK=null;
   Q.editMode=false; _selfAuth=false; Q.sinEstrenar=true; _editCliente=null;
   Object.values(_FM).forEach(id=>{if($(id))$(id).value='';});
@@ -1785,7 +1836,7 @@ function renderMobileBar(){
     /* Autorizándote a ti mismo, el siguiente paso es cerrar el precio; si la solicitud
        va para alguien más, el único paso propio es volver a editarla. */
     btn=_selfAuth
-      ? `<button class="mbar-btn ok" onclick="autorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Autorizar</button>`
+      ? `<button class="mbar-btn ok" ${_sellando?'disabled':''} onclick="autorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> ${_sellando?'Sellando…':'Autorizar'}</button>`
       : `<button class="mbar-btn gho" onclick="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar</button>`;
   } else if(Q.estado==='autorizada'){
     if(Q.editMode){
@@ -1815,7 +1866,9 @@ function renderMobileBar(){
     btn=`<button class="mbar-btn" onclick="irAlCandado()">${esc('Falta '+f.corto)} ›</button>`;
   } else {
     const listo=Q.items.length>0&&totals().sub>0;
-    btn=`<button class="mbar-btn" ${listo?'':'disabled'} onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizar yo mismo</button>`;
+    btn=puedeAutorizar()
+      ? `<button class="mbar-btn" ${listo?'':'disabled'} onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizar yo mismo</button>`
+      : `<button class="mbar-btn" ${listo?'':'disabled'} onclick="solicitar()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Solicitar autorización</button>`;
   }
   bar.innerHTML=undo+`<button class="mbar-tot" onclick="irAResumen()" title="Ir al resumen">
       <span class="mbar-lab">${lab}<span class="chev">▾</span></span>
@@ -1890,9 +1943,14 @@ function toggleIva(e){
   Q.iva=!Q.iva; renderItems(); renderAuth();
 }
 function setRol(r){
+  /* «Autorizador» ya no es una preferencia de pantalla: es de quien la hoja dice que es
+     dirección. El segmentado lo pinta apagado para los demás y esto cierra la puerta de
+     atrás —una cotización guardada con ese rol, la consola—. */
+  if(r==='autorizador'&&!puedeAutorizar()) r='vendedor';
   Q.rol=r;
   document.querySelectorAll('#roleseg button').forEach(b=>b.classList.toggle('on',b.dataset.rol===r));
   segAria('#roleseg button');
+  pintarRolDisponible();
   aplicarBlurPrecios();
   renderAuth(); renderMobileBar();
   /* La barra de pasos también: el «N por revisar» que va debajo del paso 3 es de la cola del
@@ -1917,6 +1975,10 @@ function setRol(r){
    está decidida. `{forzar:true}` sí hace falta: sin él, un autorizador en un aparato con una
    cotización sin los tres datos se topa con el freno que es del vendedor. */
 function cambiarRol(r){
+  if(r==='autorizador'&&!puedeAutorizar()){
+    toast('Solo una cuenta de Dirección autoriza precios. Entra con ella desde la plataforma.','err',5000);
+    r='vendedor';
+  }
   setRol(r);
   irAPantalla(pantallaSegunDatos(),{forzar:true,subir:false});
 }

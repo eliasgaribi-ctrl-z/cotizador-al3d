@@ -194,7 +194,7 @@ que viaja así deja de ser secreta.
     js/datos/, js/nucleo/     la capa de datos y las primitivas de pantalla
 
 Los once de `js/cotizador/` son scripts **clásicos** que comparten el ámbito global, como cuando
-eran un solo `<script>`: los 157 manejadores en línea del marcado dependen de eso, y portarlos a
+eran un solo `<script>`: los 162 manejadores en línea del marcado dependen de eso, y portarlos a
 módulos ES los dejaría mudos sin un solo error. `pruebas/sintaxis.mjs` compila los once y
 `pruebas/publicacion.mjs` vigila que `arranque.js` siga siendo el último.
 
@@ -211,7 +211,7 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
    Sin eso, los teléfonos que ya tienen la app siguen sirviendo la versión guardada.
 3. Esperar de 30 a 60 segundos a que GitHub Pages redespliegue.
 
-Son ochenta y un archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
+Son ochenta y dos archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
 mala señal llegarían mezclados, y **un guion nuevo con uno viejo no es una app vieja, es una app
 rota**. Por eso el conjunto se cambia completo o no se cambia.
 
