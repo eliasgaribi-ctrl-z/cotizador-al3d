@@ -253,7 +253,10 @@ console.log('\nLO QUE LA PUERTA PROMETE');
          src.includes('privacidad.html') && src.includes('condiciones.html'));
 
   /* El arranque no puede montar nada antes de esto. Se comprueba del lado de app.js. */
-  const app = readFileSync(join(aqui, '..', 'js', 'app.js'), 'utf8');
+  /* Los saltos de línea se normalizan: en un clon de Windows con `core.autocrlf` el archivo
+     llega con CRLF y el ancla de abajo, que lleva un `\n` dentro, dejaba de casar. La prueba
+     fallaba en esa máquina sin que el código tuviera nada. */
+  const app = readFileSync(join(aqui, '..', 'js', 'app.js'), 'utf8').replace(/\r\n/g, '\n');
   /* `await Puerta.custodiar(` y no `Puerta.custodiar(` a secas: lo segundo encontraba un
      COMENTARIO cien líneas más arriba, así que estas comprobaciones venían comparando
      posiciones de texto que no eran el código y pasaban por la razón equivocada. Un ancla
