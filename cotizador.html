@@ -496,34 +496,11 @@ document.documentElement.classList.add('arrancando');
       </div>
       <p id="ai-intro" style="font-size:12.5px;color:var(--muted);margin-bottom:13px;line-height:1.5"></p>
       <details class="ai-cfg" id="ai-cfg-box">
-        <summary>Configuración · proveedores de IA</summary>
+        <summary>Proveedores de IA</summary>
         <div style="margin-top:11px">
-          <p class="key-note" style="margin:0 0 10px">Orden de intento: <b>1 · Qwen → 2 · DeepSeek → 3 · Gemini</b>. Si uno está saturado o sin saldo, la app pasa sola al siguiente. Los <b>PDF</b> van directo a Gemini, que es el único que los lee.</p>
-          <div class="fld" style="margin-bottom:10px">
-            <div class="fld-lab" id="lab-ai-prov">Proveedor</div>
-            <div class="seg" id="ai-prov-seg" style="width:100%" role="group" aria-labelledby="lab-ai-prov">
-              <button data-p="qwen" aria-pressed="false" onclick="setAiProv('qwen')">1 · Qwen</button>
-              <button data-p="deepseek" aria-pressed="false" onclick="setAiProv('deepseek')">2 · DeepSeek</button>
-              <button data-p="gemini" aria-pressed="false" onclick="setAiProv('gemini')">3 · Gemini</button>
-            </div>
-          </div>
-          <div id="prov-qwen">
-            <div class="fld"><div class="fld-lab" id="lab-keys-qwen">API keys de Qwen (Alibaba)</div><div class="key-list" id="keys-qwen" role="group" aria-labelledby="lab-keys-qwen"></div><div class="key-add"><input id="ai-key-qwen" aria-label="Pega una API key de Qwen (Alibaba)" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key"><button type="button" class="key-btn add" onclick="aiAddKey('qwen')">Agregar</button></div></div>
-            <div class="fld"><label for="ai-model-qwen">Modelo</label><input id="ai-model-qwen" placeholder="qwen3.7-flash" value="qwen3.7-flash"></div>
-            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">De pago, prepago en dólares · ~US$0.0005 por cotización. Crea la key en <a class="ai-link" href="https://modelstudio.console.alibabacloud.com/" target="_blank" rel="noopener">Alibaba Cloud Model Studio</a> con la región <b>Singapur (internacional)</b>: las keys de China continental o de QwenCloud no sirven aquí. Solo imágenes (JPG, PNG), no PDF.</p>
-          </div>
-          <div id="prov-deepseek" style="display:none">
-            <div class="fld"><div class="fld-lab" id="lab-keys-deepseek">API keys de DeepSeek</div><div class="key-list" id="keys-deepseek" role="group" aria-labelledby="lab-keys-deepseek"></div><div class="key-add"><input id="ai-key-deepseek" aria-label="Pega una API key de DeepSeek" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key"><button type="button" class="key-btn add" onclick="aiAddKey('deepseek')">Agregar</button></div></div>
-            <div class="fld"><label for="ai-model-deepseek">Modelo</label><input id="ai-model-deepseek" placeholder="deepseek-flash" value="deepseek-flash"></div>
-            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">De pago, prepago · ~US$0.0025 por cotización (mitad de precio fuera de su hora pico, que en México cae de noche). Key y recarga de saldo en <a class="ai-link" href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">platform.deepseek.com</a>. Solo imágenes (JPG, PNG), no PDF.</p>
-          </div>
-          <div id="prov-gemini" style="display:none">
-            <div class="fld"><div class="fld-lab" id="lab-keys-gemini">API keys de Google Gemini</div><div class="key-list" id="keys-gemini" role="group" aria-labelledby="lab-keys-gemini"></div><div class="key-add"><input id="ai-key-gemini" aria-label="Pega una API key de Google Gemini" class="key-in" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key"><button type="button" class="key-btn add" onclick="aiAddKey('gemini')">Agregar</button></div></div>
-            <div class="fld"><label for="ai-model-gemini">Modelo</label><input id="ai-model-gemini" placeholder="gemini-3.1-flash-lite" value="gemini-3.1-flash-lite"></div>
-            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Key en <a class="ai-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. El único que lee <b>PDF</b>. Activa la facturación del proyecto (~US$0.006 por cotización): en el plan gratuito es el que más se satura y Google usa lo que le mandas para entrenar.</p>
-          </div>
-          <p class="key-note" id="ai-respaldo"></p>
-          <p class="key-note"><svg class="svgi" aria-hidden="true"><use href="#i-candado"/></svg> Las API keys no están escritas en el código del cotizador: las pegas una sola vez, se guardan ofuscadas en <b>este</b> dispositivo y después solo se muestran sus últimos 4 caracteres. Cada una se envía directo a su proveedor. Si el dispositivo es compartido, usa <b>Borrar</b> al terminar.</p>
+          <p class="key-note" style="margin:0 0 10px">Orden de intento: <b>1 · Qwen → 2 · DeepSeek → 3 · Gemini</b>. Si uno está saturado, la app pasa sola al siguiente. Los <b>PDF</b> van directo a Gemini, que es el único que los lee.</p>
+          <div class="key-note" id="ai-estado" aria-live="polite"></div>
+          <p class="key-note"><svg class="svgi" aria-hidden="true"><use href="#i-candado"/></svg> Las llaves de IA ya no se guardan en los teléfonos: viven en la hoja de AL3D y cada consulta sale por ella, a nombre de quien entró. Quitar a alguien de «Accesos» le quita también la IA.</p>
         </div>
       </details>
       <div class="fld" id="ai-file-fld">
@@ -597,7 +574,7 @@ document.documentElement.classList.add('arrancando');
            cuánto lleva sin respaldarse. La segunda frase se queda tal cual: el README la
            defiende, porque un respaldo se manda por WhatsApp y una key que viaja así deja de
            ser secreta. -->
-      <p class="foot-nota" id="hist-nota">El respaldo <b>no</b> incluye tus API keys.</p>
+      <p class="foot-nota" id="hist-nota">Las llaves de IA no viven en este teléfono: están en la hoja de AL3D.</p>
     </div>
     <input type="file" id="restaurarin" accept="application/json,.json" style="display:none">
   </div>

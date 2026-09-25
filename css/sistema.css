@@ -3738,6 +3738,11 @@ details.ai-cfg summary:hover{color:var(--tinta)}
 .key-saved{background:var(--ok-bg);border:1px solid var(--ok-borde);border-radius:var(--rr2)}
 .key-mask{font-family:var(--f-cifra);font-size:var(--t2);font-weight:600;color:var(--ok)}
 .key-note{font-size:var(--t1);color:var(--tinta3);border-top:1px solid var(--linea2)}
+/* El estado de los proveedores de IA, que ya no se configuran aquí: se lee de la hoja. */
+.ai-prov-lista{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.ai-prov-lista li::before{content:'●';margin-right:6px;font-size:9px;vertical-align:1px}
+.ai-prov-lista li.ok{color:var(--tinta2)} .ai-prov-lista li.ok::before{color:var(--ok)}
+.ai-prov-lista li.falta{color:var(--tinta3)} .ai-prov-lista li.falta::before{color:var(--linea)}
 .ai-tag{
   font-size:var(--t1);font-weight:500;color:var(--tinta2);
   background:var(--sup);border:1px solid var(--linea);border-radius:var(--rr1);padding:1px 6px;

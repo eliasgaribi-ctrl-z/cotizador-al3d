@@ -61,8 +61,25 @@ async function hablarHoja(ruta,cuerpo,espera){
   if(b) return await b.hablar(ruta,cuerpo||{},espera);
   const cfg=puenteCfg();
   if(!cfg){ const e=new Error('Este teléfono no tiene el puente a la hoja. Abre el cotizador desde la plataforma.'); e.codigo='SIN_PUENTE'; throw e; }
-  try{ return await puentePost(cfg,ruta,cuerpo||{}); }
-  catch(e){ if(!e.codigo) e.codigo='SIN_RED'; throw e; }
+  return await _postHoja(cfg,ruta,cuerpo||{},espera||PUENTE_ESPERA);
+}
+/* El mismo envío que puentePost() de venta.js —POST, text/plain, el token en el cuerpo— pero
+   devolviendo la respuesta de la hoja ENTERA aunque diga que no: el notario y la IA necesitan
+   su `codigo` (sin llave, cupo agotado, catálogo que no cuadra) y puentePost lo vuelve un
+   mensaje suelto. Solo lanza cuando no hubo respuesta. */
+async function _postHoja(cfg,ruta,cuerpo,espera){
+  const ctrl=(typeof AbortController==='function')?new AbortController():null;
+  const t=ctrl?setTimeout(()=>ctrl.abort(),espera):0;
+  try{
+    const r=await fetch(cfg.url,{method:'POST',signal:ctrl?ctrl.signal:undefined,redirect:'follow',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({},cuerpo,{token:cfg.token,ruta}))});
+    const j=await r.json().catch(()=>null);
+    if(!j){ const e=new Error('Esa liga contestó pero no es el puente. Revisa que la implementación esté en «Cualquier usuario».'); e.codigo='DESCONOCIDO'; throw e; }
+    return j;
+  }catch(e){
+    if(!e.codigo){ e.codigo='SIN_RED'; if(e.name==='AbortError') e.message='La hoja no contestó a tiempo.'; }
+    throw e;
+  }finally{ if(t) clearTimeout(t); }
 }
 
 /* El folio que la hoja conoce: el del papel y el aparato que lo emitió. El corto se repite

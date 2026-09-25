@@ -341,5 +341,14 @@ console.log('\nLA IA — las llaves están aquí y no salen');
   cierto('  sin frenar a los demás', post({ ...base, google_token: G.omar, token: '' }).ok);
 }
 
+console.log('\nVERIFICAR.HTML — lo que llega de la hoja se escribe como texto');
+{
+  const pag = readFileSync(new URL('../verificar.html', import.meta.url), 'utf8');
+  const guion = pag.split('<script type="module">')[1] || '';
+  cierto('no usa innerHTML: el negocio lo escribió alguien y es un dato', !/innerHTML|insertAdjacentHTML|document\.write/.test(guion));
+  cierto('pregunta por la ruta pública, sin token', /ruta: 'verificar'/.test(guion) && !/token/i.test(guion));
+  cierto('y no la indexa un buscador', /<meta name="robots" content="noindex">/.test(pag));
+}
+
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 if (mal) process.exit(1);

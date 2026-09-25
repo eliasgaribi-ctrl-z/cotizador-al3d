@@ -8,7 +8,8 @@
  *
  * Uso:  node pruebas/asistente.mjs
  */
-import { comisionDe, resumirProyecto, armarResumen, promptSistema, mdLite, llavesDe, cadenaIA,
+import { readFileSync } from 'node:fs';
+import { comisionDe, resumirProyecto, armarResumen, promptSistema, mdLite, cadenaIA,
          detectarIntencion, responderLocal, respuestaLocal, resumenDelDia, INTENCIONES, sugerirIntenciones }
   from '../js/datos/asistente-contexto.js';
 
@@ -183,26 +184,19 @@ eq('cursiva con guion bajo', mdLite('_nota:_ ok'), '<p><i>nota:</i> ok</p>');
 eq('un guion bajo a media palabra se queda', mdLite('el campo folio_global manda'), '<p>el campo folio_global manda</p>');
 eq('vacío da vacío', mdLite(''), '');
 
-console.log('\nLAS LLAVES DEL COTIZADOR, leídas con su misma receta');
-const SALT = 'al3d·key·v1';
-const kxor = s => { let o = ''; for (let i = 0; i < s.length; i++) o += String.fromCharCode(s.charCodeAt(i) ^ SALT.charCodeAt(i % SALT.length)); return o; };
-const pack = k => Buffer.from(kxor(k), 'latin1').toString('base64');
-globalThis.atob = globalThis.atob || (s => Buffer.from(s, 'base64').toString('latin1'));
-const mem = new Map([
-  ['al3d_kxs_gemini', pack(JSON.stringify(['AIza-uno', 'AIza-dos']))],
-  ['ai_key_deepseek', 'sk-plano'],
-  ['ai_provider', 'gemini'],
-  ['ai_model_deepseek', 'deepseek-x'],
-  ['ai_model_gemini', 'gemini-2.5-flash'],
-]);
-const almacen = { getItem: k => (mem.has(k) ? mem.get(k) : null) };
-eq('dos llaves de Gemini, ofuscadas', llavesDe('gemini', almacen), ['AIza-uno', 'AIza-dos']);
-eq('la de DeepSeek en texto plano (versión vieja)', llavesDe('deepseek', almacen), ['sk-plano']);
-eq('Qwen sin llave', llavesDe('qwen', almacen), []);
-const C = cadenaIA(almacen);
-eq('la cadena sigue el orden fijo —Gemini al final aunque sea el «elegido»— y un modelo retirado cae al de hoy',
-   C.map(c => c.prov + ':' + c.model + ':' + c.key), ['deepseek:deepseek-x:sk-plano', 'gemini:gemini-3.1-flash-lite:AIza-uno', 'gemini:gemini-3.1-flash-lite:AIza-dos']);
-eq('sin nada guardado la cadena está vacía', cadenaIA({ getItem: () => null }), []);
+console.log('\nLA IA — las llaves están en la hoja, no en el teléfono');
+eq('sin saber qué tiene la hoja, se intenta con los tres, en orden',
+   cadenaIA(null).map(c => c.prov + ':' + c.model), ['qwen:qwen3.7-flash', 'deepseek:deepseek-flash', 'gemini:gemini-3.1-flash-lite']);
+eq('lo que la hoja dice que no tiene llave se salta',
+   cadenaIA({ qwen: false, deepseek: true, gemini: true }).map(c => c.prov), ['deepseek', 'gemini']);
+eq('sin ninguna llave en la hoja, la cadena está vacía', cadenaIA({ qwen: false, deepseek: false, gemini: false }), []);
+eq('y ningún candidato trae una llave', cadenaIA(null).some(c => 'key' in c), false);
+{
+  const fuenteAsis = readFileSync(new URL('../js/datos/asistente-contexto.js', import.meta.url), 'utf8')
+    + readFileSync(new URL('../js/nucleo/asistente.js', import.meta.url), 'utf8');
+  eq('ni la plataforma lee ya llaves del almacenamiento', /al3d_kxs|ai_key|localStorage\.getItem\('ai_/.test(fuenteAsis), false);
+  eq('ni sale directo a un proveedor: todo va por la hoja', /dashscope|api\.deepseek|generativelanguage/.test(fuenteAsis), false);
+}
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 process.exit(mal ? 1 : 0);

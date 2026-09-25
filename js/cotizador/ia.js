@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   162 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -116,141 +116,48 @@ ${lista}
    complejidad, iluminacion y, en las de tipo letras, cuantas letras tiene el texto.`;
 }
 
-/* ----- API keys: fuera del código y fuera de la vista -----
-   La key nunca está escrita en el HTML: la captura el usuario. Al guardarla se
-   ofusca (no queda en texto plano en localStorage) y en pantalla solo se ven
-   sus últimos 4 caracteres, así que tampoco queda visible al abrir el modal.
-   El campo es type="text" con text-security en vez de type="password" para que
-   Chrome no lo detecte como contraseña ni ofrezca guardarla en el gestor. */
-/* El orden de la lista ES el orden en que se intenta, sin importar qué pestaña esté abierta
-   en Configuración: primero Qwen, luego DeepSeek y al final Gemini. Los dos primeros son de
-   pago y cuestan centavos —una cotización sale en menos de medio centavo de dólar—, así que
-   la saturación de los planes gratuitos deja de ser el cuello de botella. Gemini cierra la
-   cadena porque es el único que lee PDF: un PDF va directo a él y las imágenes solo le llegan
-   si los otros dos fallaron. Groq y OpenRouter salieron en septiembre de 2026: sus modelos de
-   visión gratuitos (Llama 4 Scout y Maverick) se apagaron y la cadena caía en 404. */
+/* ----- Las llaves ya no viven aquí -----
+   Hasta septiembre de 2026 este archivo guardaba hasta ocho llaves por proveedor en el
+   teléfono, ofuscadas con una sal escrita en este mismo código: quien tuviera el teléfono las
+   sacaba en una línea desde la consola, y quitar a alguien de «Accesos» no le quitaba la IA,
+   que se seguía cobrando a la cuenta de AL3D.
+
+   Ahora viven en la hoja —⚡ AL3D → Llaves de IA— y cada intento sale por el puente, que las
+   pone del otro lado (rutaIA en puente/hoja-apps-script.gs). Lo que se quedó aquí es lo que
+   tiene que verse mientras se espera: el orden de los proveedores, los reintentos y el
+   «probando con Qwen…» con el cliente enfrente, que Apps Script no podría decir a media
+   ejecución.
+
+   El orden de la lista ES el orden en que se intenta: primero Qwen, luego DeepSeek y al final
+   Gemini. Los dos primeros cuestan centavos; Gemini cierra la cadena porque es el único que lee
+   PDF: un PDF va directo a él y las imágenes solo le llegan si los otros dos fallaron. */
 const AI_PROVS=['qwen','deepseek','gemini'];
-const _KSALT='al3d·key·v1';
-function _kxor(s){ let o=''; for(let i=0;i<s.length;i++) o+=String.fromCharCode(s.charCodeAt(i)^_KSALT.charCodeAt(i%_KSALT.length)); return o; }
-function keyPack(k){ try{ return btoa(_kxor(String(k))); }catch(_){ return ''; } }
-function keyUnpack(v){ try{ return _kxor(atob(String(v))); }catch(_){ return ''; } }
-function keyMask(k){ return k.length>4?'••••••••'+k.slice(-4):'••••'; }
-/* Cada proveedor guarda VARIAS keys, no una. En los planes gratuitos la cuota va por
-   key —no por proveedor—, así que dos cuentas de Google son dos cuotas de Gemini, y
-   cuando una se queda sin cupo del día la siguiente sigue contestando. Se guardan
-   ofuscadas y en una sola entrada por proveedor. */
-const AI_MAX_KEYS=8;
-function getKeys(p){
+/* Lo que la versión anterior dejó en el teléfono: las llaves, su turno, el proveedor y el
+   modelo elegidos. Se borra una vez al arrancar: una llave que se queda donde ya nadie la lee
+   sigue siendo una llave que se puede copiar. */
+const AI_CLAVES_VIEJAS=/^(al3d_kxs?_|ai_key|ai_model|ai_provider)/;
+function aiOlvidarLlavesLocales(){
   try{
-    const v=localStorage.getItem('al3d_kxs_'+p);
-    if(v){ const a=JSON.parse(keyUnpack(v)); if(Array.isArray(a)) return a.filter(Boolean); }
-    /* Migración: la key única de las versiones anteriores —ofuscada o, más atrás
-       todavía, en texto plano— se convierte en una lista de una. */
-    const una=keyUnpack(localStorage.getItem('al3d_kx_'+p)||'')
-           || localStorage.getItem('ai_key_'+p)
-           || (p==='gemini'?localStorage.getItem('ai_key'):'') || '';
-    if(una){ setKeys(p,[una]); return [una]; }
+    const quitar=[];
+    for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&AI_CLAVES_VIEJAS.test(k)) quitar.push(k); }
+    quitar.forEach(k=>localStorage.removeItem(k));
   }catch(_){}
-  return [];
 }
-function setKeys(p,arr){
-  const lim=[];
-  (arr||[]).forEach(k=>{ k=String(k||'').trim(); if(k&&!lim.includes(k)&&lim.length<AI_MAX_KEYS) lim.push(k); });
-  try{
-    if(lim.length) localStorage.setItem('al3d_kxs_'+p,keyPack(JSON.stringify(lim)));
-    else localStorage.removeItem('al3d_kxs_'+p);
-    localStorage.removeItem('al3d_kx_'+p);
-    localStorage.removeItem('ai_key_'+p);
-    if(p==='gemini') localStorage.removeItem('ai_key');
-  }catch(_){}
-  return lim;
+/* Qué proveedores tienen llave en la hoja, según /salud. null = todavía no se sabe, y mientras
+   tanto se intenta con todos: la hoja contesta «sin llave» por los que falten. */
+let _iaEnHoja=null;
+async function aiConsultarHoja(){
+  try{ const r=await hablarHoja('salud',{}); if(r&&r.ok&&r.ia) _iaEnHoja=r.ia; }catch(_){}
+  aiPintarProveedores();
 }
-/* Sigue habiendo un getKey de una sola key porque media app solo pregunta «¿hay algo
-   configurado para este proveedor?». */
-function getKey(p){ return getKeys(p)[0]||''; }
-function addKey(p,k){
-  k=String(k||'').trim(); if(!k) return '';
-  const a=getKeys(p);
-  if(a.includes(k)) return 'repetida';
-  if(a.length>=AI_MAX_KEYS) return 'llena';
-  setKeys(p,a.concat([k])); return 'ok';
-}
-/* Si el navegador no soporta text-security (p. ej. Firefox), el campo se vería en
-   claro: ahí sí conviene type="password" con autocomplete="new-password". */
-function aiKeyFallback(){
-  const ok=window.CSS&&CSS.supports&&(CSS.supports('-webkit-text-security','disc')||CSS.supports('text-security','disc'));
-  if(ok) return;
-  AI_PROVS.forEach(p=>{ const i=$('ai-key-'+p); if(i){ i.type='password'; i.setAttribute('autocomplete','new-password'); } });
-}
-function aiRenderKey(p){
-  const cont=$('keys-'+p); if(!cont) return;
-  const ks=getKeys(p);
-  /* Se numeran para poder hablar de ellas: la barra de estado dice «key 2 de 3»
-     mientras analiza, y así se sabe cuál es la que se quedó sin cuota. */
-  cont.innerHTML=ks.map((k,i)=>
-    `<div class="key-saved"><span class="key-mask">${ico('i-candado')} ${ks.length>1?'Key '+(i+1)+' · ':''}${esc(keyMask(k))}</span>`+
-    `<button type="button" class="key-btn del" onclick="aiDelKey('${p}',${i})">Borrar</button></div>`).join('');
-  const inp=$('ai-key-'+p);
-  if(inp) inp.placeholder=ks.length
-    ? (ks.length>=AI_MAX_KEYS?'Ya no caben más keys':'Pega otra key y se turnará con las de arriba')
-    : 'Pega tu key';
-  aiPintarRespaldo();
-}
-/* Cuántas APIs hay cargadas y qué implica. Es la única cuenta que le importa a quien
-   cotiza: mientras quede una con cupo, la cotización no se detiene. */
-function aiPintarRespaldo(){
-  const el=$('ai-respaldo'); if(!el) return;
-  const det=AI_PROVS.map(p=>({p,n:getKeys(p).length})).filter(x=>x.n);
-  const total=det.reduce((a,x)=>a+x.n,0);
-  const lista=det.map(x=>`${x.n} de ${AI_NOMBRE[x.p]}`).join(', ');
-  el.innerHTML=
-    total>1 ? `<span class="emo">🔁</span> <b>${total} APIs cargadas</b> (${lista}). Se prueban por turnos: si una está saturada o se quedó sin cuota del día, la app pasa sola a la siguiente y la cotización no se detiene.`
-    : total ? `<span class="emo">🔁</span> Hay <b>1 API cargada</b> (${lista}). Cuando se satura, la app reintenta sola varias veces — pero no tiene a dónde caerse. Agrega otra key aquí, de este proveedor o de otro, y deja de depender de una sola.`
-    : `<span class="emo">🔁</span> Puedes cargar <b>varias APIs</b>, del mismo proveedor o de distintos: se prueban por turnos y la cotización deja de depender de que una tenga cupo.`;
-}
-function aiEditKey(p){
-  const inp=$('ai-key-'+p); if(!inp) return;
-  try{ inp.focus({preventScroll:true}); }catch(_){ inp.focus(); }
-}
-function aiAddKey(p){
-  const inp=$('ai-key-'+p); if(!inp) return;
-  const r=addKey(p,inp.value);
-  if(r==='ok'){ inp.value=''; aiRenderKey(p); toast(`API key guardada · ${getKeys(p).length} de ${AI_NOMBRE[p]}`,'ok'); }
-  else if(r==='repetida'){ inp.value=''; toast('Esa key ya estaba guardada','',2600); }
-  else if(r==='llena') toast(`Máximo ${AI_MAX_KEYS} keys por proveedor`,'err',3000);
-  else { aiEditKey(p); toast('Pega la key antes de agregarla','err',2600); }
-}
-function aiDelKey(p,i){
-  const a=getKeys(p);
-  setKeys(p,a.filter((_,x)=>x!==i));
-  aiRenderKey(p); toast('API key borrada de este dispositivo','ok');
+function aiPintarProveedores(){
+  const el=$('ai-estado'); if(!el) return;
+  if(!_iaEnHoja){ el.textContent='Consultando la hoja…'; return; }
+  const filas=AI_PROVS.map((p,i)=>`<li class="${_iaEnHoja[p]?'ok':'falta'}">${i+1} · ${AI_NOMBRE[p]} — ${_iaEnHoja[p]?'listo':'sin llave en la hoja'}${p==='gemini'?' · el único que lee PDF':''}</li>`).join('');
+  el.innerHTML=`<ul class="ai-prov-lista">${filas}</ul>`
+    +(AI_PROVS.some(p=>_iaEnHoja[p])?'':'<p>Ningún proveedor tiene llave todavía: Dirección las pega en la hoja, en <b>⚡ AL3D → Llaves de IA</b>.</p>');
 }
 
-/* ----- El almacenamiento se pregunta, no se supone -----
-   Toda esta app envuelve `localStorage` en try/catch —prefGet/prefSet, getHistorial,
-   loadState, saveState, y este mismo archivo cuando guarda el modelo— porque el
-   almacenamiento LLENO es un estado que la app maneja a la vista: «No hay espacio para
-   guardar la cotización». Estas dos funciones se habían quedado fuera, y con eso:
-
-   · `setItem` lanzaba con el almacenamiento lleno DESPUÉS de mover `aiProv`, así que tocar
-     «Groq» dejaba el proveedor cambiado por dentro y los bloques de pantalla sin cambiar: el
-     segmentado decía una cosa y el formulario de abajo otra.
-   · y como `aiOpen()` termina llamando aquí, el modal de «Cotizar con IA» DEJABA DE ABRIR,
-     sin un aviso y sin un error visible — que es el modo de falla que este repo persigue.
-
-   Recordar el proveedor es una comodidad; no poder cotizar con IA no lo es. Si no se puede
-   escribir, se sigue igual y la elección vale para esta sesión. */
-let aiProv=AI_PROVS[0];
-function _lsGet(k){ try{ return localStorage.getItem(k); }catch(_){ return null; } }
-function setAiProv(p){
-  if(!AI_PROVS.includes(p)) p=AI_PROVS[0];   // un «groq» guardado por la versión anterior
-  aiProv=p;
-  try{ localStorage.setItem('ai_provider',p); }catch(_){}
-  AI_PROVS.forEach(x=>{ const el=$('prov-'+x); if(el) el.style.display=x===p?'':'none'; });
-  document.querySelectorAll('#ai-prov-seg button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
-  segAria('#ai-prov-seg button');
-  aiPintarRespaldo();
-}
 /* Una partida recién agregada está en blanco: no cuenta como trabajo capturado.
    El material HEREDADO tampoco cuenta: lo puso la app, no la persona. Sin esa
    salvedad, una cotización recién abierta decía tener «1 partida ya capturada» y la
@@ -301,15 +208,12 @@ function aiOpen(fuente){
   aiSrc=(fuente&&fuente.url)?fuente:null;
   aiPintarFuente();
   aiMerge=true; $('ai-merge-tg').classList.add('on'); tgAria('ai-merge-tg'); aiPintarMerge();
-  AI_PROVS.forEach(p=>{ const inp=$('ai-key-'+p); if(inp) inp.value=''; aiRenderKey(p); });
   /* El <input type=file> conserva su selección entre aperturas: sin limpiarlo, volver a
      abrir el modal y darle a Analizar re-analizaba —y volvía a pagar— el archivo del
      análisis anterior, sin que nada en pantalla dijera cuál era. */
   aiOlvidarArchivo();
   _aiDragN=0; aiPintarArrastre(false);
-  AI_PROVS.forEach(p=>{ const m=$('ai-model-'+p); if(m) m.value=aiModelo(p); });
-  setAiProv(_lsGet('ai_provider'));
-  if(!AI_PROVS.some(getKey)) $('ai-cfg-box').open=true;
+  aiPintarProveedores(); aiConsultarHoja();
   _aiCancelado=false;
   const go=$('ai-go-btn'); if(go) go.disabled=aiTrabajando;
   aiStatus(aiTrabajando?'Hay un análisis en curso…':''
@@ -323,8 +227,9 @@ function aiClose(){
   $('aimodal').classList.remove('show');
   aiThumbsSoltarTodas();
   if(aiTrabajando){
+    /* La petición va por la hoja y no se puede cortar a medio vuelo; lo que sí se corta es la
+       cadena: lo que conteste se tira y no se intenta con nadie más. */
     _aiCancelado=true;
-    if(_aiAbort){ try{_aiAbort.abort();}catch(_){} }
     aiTrabajando=false;
     const b=$('ai-go-btn'); if(b) b.disabled=false;
   }
@@ -599,12 +504,6 @@ function extractJSON(txt){
    con quién está hablando. */
 const AI_NOMBRE={qwen:'Qwen',deepseek:'DeepSeek',gemini:'Gemini'};
 const AI_DEFAULTS={qwen:'qwen3.7-flash',deepseek:'deepseek-flash',gemini:'gemini-3.1-flash-lite'};
-/* Qwen y DeepSeek hablan el dialecto de chat de OpenAI; Gemini tiene su API propia. Las dos
-   direcciones se probaron desde el navegador (CORS) con el origen de GitHub Pages. La de Qwen
-   es la de Model Studio INTERNACIONAL (región Singapur): la de QwenCloud no deja llamar desde
-   una página web. */
-const AI_URLS={qwen:'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
-  deepseek:'https://api.deepseek.com/chat/completions'};
 /* Modelos hermanos a los que se cae cuando el elegido está saturado o no existe. Sirven
    también de red para un nombre de modelo mal escrito a mano, que si no dejaba al proveedor
    inservible hasta corregirlo. DeepSeek no tiene hermano: solo su Flash ve imágenes. */
@@ -613,17 +512,8 @@ const AI_RESPALDO={
   deepseek:[],
   gemini:['gemini-3.1-flash-lite','gemini-3.6-flash']
 };
-/* Modelos que la versión anterior dejó guardados como «el elegido» y que ya no sirven: los
-   2.0 se apagaron el 1 de junio de 2026 y los 2.5 Google ya solo los da a quien los venía
-   usando, y son los primeros que satura. Sin esto, quien ya había cotizado seguía mandando
-   todo al modelo viejo aunque el predeterminado cambiara, porque el campo se llena con lo
-   guardado. */
-const AI_VIEJOS=['gemini-2.5-flash','gemini-2.5-flash-lite','gemini-2.0-flash','gemini-2.0-flash-lite','gemini-1.5-flash'];
-function aiModelo(p){
-  const m=String(_lsGet('ai_model_'+p)||(p==='gemini'?_lsGet('ai_model'):'')||'').trim();
-  return m&&!AI_VIEJOS.includes(m)?m:AI_DEFAULTS[p];
-}
-const AI_TIMEOUT=90000;
+/* 100 s y no 90: el intento da una vuelta más, teléfono → hoja → proveedor. */
+const AI_TIMEOUT=100000;
 /* Con el proveedor elegido se insiste de verdad —4 intentos, hasta 11 s de esperas—
    porque es el que el usuario quiere usar. Con los de respaldo no: si el primero
    está caído, lo que importa es contestar pronto, no agotar la cola de cada uno. */
@@ -631,7 +521,7 @@ const AI_ESPERAS=[1200,3000,7000];
 const AI_ESPERAS_RESPALDO=[1500];
 const AI_IMG_MAX=1600, AI_IMG_Q=0.85;
 const aiSleep=ms=>new Promise(r=>setTimeout(r,ms));
-const aiEtq=c=>`${AI_NOMBRE[c.prov]||c.prov} · ${c.model}${c.nk>1?` · key ${c.kn}`:''}`;
+const aiEtq=c=>`${AI_NOMBRE[c.prov]||c.prov} · ${c.model}`;
 
 
 /* Una foto de celular pesa entre 3 y 8 MB y en base64 crece otro 33%. Gemini lo
@@ -669,94 +559,58 @@ async function aiImagen(f){
   }catch(_){ return crudo(); }
 }
 
-/* Un 503 con página HTML de por medio, o un corte de red, reventaba dentro de
-   res.json() y salía a pantalla como «Unexpected token <», que no le dice nada a
-   nadie y encima no se distinguía de un error de verdad. Aquí se lee el cuerpo como
-   texto y se intenta interpretar después. */
-async function aiFetch(url,opts){
-  const ctl=new AbortController();
-  _aiAbort=ctl;   // para que cerrar el modal pueda cortar la petición en vuelo
-  const t=setTimeout(()=>ctl.abort(),AI_TIMEOUT);
-  let res;
-  try{
-    res=await fetch(url,Object.assign({},opts,{signal:ctl.signal}));
-  }catch(e){
-    /* Cancelar no es un fallo del proveedor: si se reintentara, cerrar el modal no
-       cancelaría nada — la cadena seguiría dando vueltas sola. */
-    if(_aiCancelado){ const c=new Error('análisis cancelado'); c.cancelado=true; throw c; }
-    const err=new Error(e&&e.name==='AbortError'
-      ? 'el proveedor tardó demasiado en responder'
-      : 'no se pudo conectar con el proveedor (revisa tu conexión)');
-    err.transitorio=true; throw err;
-  }finally{ clearTimeout(t); if(_aiAbort===ctl) _aiAbort=null; }
-  const txt=await res.text().catch(()=>'');
-  let data=null; try{ data=JSON.parse(txt); }catch(_){}
-  return {res,data,txt};
+/* Un intento, por la hoja. La hoja ya contesta en el idioma de antes —estado, si vale la pena
+   reintentar, una frase que se pueda leer (iaRespuesta en el .gs)—, así que aquí solo se
+   vuelve Error lo que llegó. Cerrar el modal no corta la petición, pero sí la cadena. */
+function _aiCancelacion(){ const c=new Error('análisis cancelado'); c.cancelado=true; return c; }
+async function aiPedirHoja(cuerpo){
+  let r;
+  try{ r=await hablarHoja('ia',cuerpo,AI_TIMEOUT); }
+  catch(e){
+    if(_aiCancelado) throw _aiCancelacion();
+    /* Sin puente, o una cuenta que la hoja ya no deja entrar: reintentar no lo arregla. */
+    const definitivo=e&&(e.codigo==='SIN_PUENTE'||e.codigo==='ROL_SIN_PERMISO');
+    const err=new Error(definitivo?e.message:'no se pudo llegar a la hoja de AL3D (revisa tu conexión)');
+    err.transitorio=!definitivo; err.definitivo=definitivo;
+    throw err;
+  }
+  if(_aiCancelado) throw _aiCancelacion();
+  return r;
 }
-/* Qué salió mal, en una frase que se pueda leer, y sobre todo: ¿vale la pena
-   reintentar? Saturación y límites por minuto sí; una key inválida no. OpenRouter
-   contesta algunos errores con HTTP 200 y el código real dentro del cuerpo, así que
-   el estado se toma de ahí cuando viene. */
-function aiError(r,prov,model){
-  const e=r.data&&r.data.error;
-  const crudo=((typeof e==='string'?e:(e&&(e.message||e.msg)))||(r.data&&r.data.message)||
-               (r.txt||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim()).slice(0,140);
-  const s=(e&&typeof e.code==='number'&&e.code>=100)?e.code:r.res.status;
-  const n=AI_NOMBRE[prov]||prov;
-  let msg,trans=false;
-  if(s===429){ msg=`${n} alcanzó su límite de peticiones`; trans=true; }
-  else if(s===408||s>=500){ msg=`${n} está saturado`; trans=true; }
-  else if(s===401||s===403) msg=`la API key de ${n} no es válida o no tiene permiso`;
-  else if(s===404) msg=`${n} no reconoce el modelo «${model}»`;
-  else if(s===413) msg=`el archivo pesa demasiado para ${n}`;
-  else msg=`${n} rechazó la petición (HTTP ${s})`;
-  const err=new Error(crudo?`${msg} — ${crudo}`:msg);
-  err.transitorio=trans; err.status=s; err.crudo=crudo;
-  return err;
-}
+/* El proveedor contestó, pero sin nada: sus filtros taparon la imagen, se cortó a medio JSON,
+   o un hipo sin motivo, que es el único de los tres que vale la pena reintentar. */
 function aiVacio(prov,razon){
   const n=AI_NOMBRE[prov]||prov, r=String(razon||'').toUpperCase();
   const err=new Error(
     /SAFETY|BLOCK|RECITATION|PROHIBIT/.test(r) ? `${n} bloqueó la imagen con sus filtros de contenido`
     : /MAX_TOKEN|LENGTH/.test(r)               ? `${n} cortó la respuesta antes de terminar el JSON`
     : `${n} respondió vacío`);
-  err.transitorio=!r;   // vacío sin motivo declarado suele ser un hipo del proveedor
+  err.transitorio=!r;
   return err;
 }
-
+function aiErrorDeHoja(r,c){
+  if(r&&r.codigo==='VACIO') return aiVacio(c.prov,r.razon);
+  const err=new Error((r&&r.mensaje)||`${AI_NOMBRE[c.prov]||c.prov} no contestó`);
+  err.status=r&&r.status; err.crudo=(r&&r.crudo)||''; err.transitorio=!!(r&&r.transitorio);
+  if(r&&r.codigo==='SIN_LLAVE') err.sinLlave=true;
+  /* El cupo del día y una cuenta sin permiso son de la PERSONA, no del proveedor: probar con
+     el siguiente da lo mismo. */
+  if(r&&(r.codigo==='CUPO_AGOTADO'||r.codigo==='ROL_SIN_PERMISO')) err.definitivo=true;
+  return err;
+}
 async function aiLlamar(c,prompt,b64,mime,sinJson){
-  if(c.prov==='gemini'){
-    const body={contents:[{parts:[{text:prompt},{inline_data:{mime_type:mime,data:b64}}]}],generationConfig:{responseMimeType:'application/json',temperature:0.2}};
-    const url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.model)}:generateContent?key=${encodeURIComponent(c.key)}`;
-    const r=await aiFetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    if(!r.res.ok||(r.data&&r.data.error)||!r.data) throw aiError(r,c.prov,c.model);
-    const cand=(r.data.candidates||[])[0];
-    const txt=((cand&&cand.content&&cand.content.parts)||[]).map(p=>p.text||'').join('').trim();
-    if(!txt) throw aiVacio(c.prov,(cand&&cand.finishReason)||(r.data.promptFeedback&&r.data.promptFeedback.blockReason));
-    return extractJSON(txt);
-  }
-  const hdrs={'Content-Type':'application/json','Authorization':'Bearer '+c.key};
-  const body={model:c.model,messages:[{role:'user',content:[{type:'text',text:prompt},{type:'image_url',image_url:{url:`data:${mime};base64,${b64}`}}]}],temperature:0.2,max_tokens:4096};
-  if(!sinJson) body.response_format={type:'json_object'};
-  /* DeepSeek piensa por omisión y con esfuerzo alto: la respuesta tarda y el razonamiento se
-     cobra como salida. Para leer cotas de un plano no hace falta, y con el cliente enfrente
-     el minuto de espera sí se nota. */
-  if(c.prov==='deepseek') body.thinking={type:'disabled'};
-  const r=await aiFetch(AI_URLS[c.prov],{method:'POST',headers:hdrs,body:JSON.stringify(body)});
-  if(!r.res.ok||(r.data&&r.data.error)||!r.data){
-    const err=aiError(r,c.prov,c.model);
-    /* Buena parte de los modelos de visión no aceptan el modo JSON del API cuando va
-       una imagen en la misma petición, y contestan un 400 que reintentar no arregla
-       —era el «Groq no me funciona» de antes—. Quitar la opción sí lo arregla: el
-       prompt ya pide «SOLO un JSON valido» y extractJSON sabe pelar el ```json. */
+  const r=await aiPedirHoja({modo:'cotizar',prov:c.prov,model:c.model,prompt,imagen:{b64,mime},sinJson:!!sinJson});
+  if(!r||r.ok!==true){
+    const err=aiErrorDeHoja(r,c);
+    /* Buena parte de los modelos de visión no aceptan el modo JSON del API cuando va una
+       imagen en la misma petición, y contestan un 400 que reintentar no arregla. Quitar la
+       opción sí lo arregla: el prompt ya pide «SOLO un JSON valido» y extractJSON sabe pelar
+       el ```json. */
     if(!sinJson&&err.status===400&&/json|response_format|schema|format/i.test(err.crudo||''))
       return aiLlamar(c,prompt,b64,mime,true);
     throw err;
   }
-  const ch=(r.data.choices||[])[0];
-  const txt=((ch&&ch.message&&ch.message.content)||'').trim();
-  if(!txt) throw aiVacio(c.prov,ch&&ch.finish_reason);
-  return extractJSON(txt);
+  return extractJSON(String(r.texto||''));
 }
 
 /* Un candidato = un proveedor con un modelo. Se insiste con él mientras el fallo sea
@@ -771,49 +625,27 @@ async function aiCandidato(c,prompt,b64,mime,verbo,esperas,hayMas){
       /* Un 429 es cuota de ESA key: esperar no la devuelve, y si hay otra key u otro
          proveedor esperando turno, probarlo es más rápido y más seguro que dormir. */
       if(e.status===429&&hayMas) throw e;
-      if(e.cancelado) throw e;
+      if(e.cancelado||e.definitivo||e.sinLlave) throw e;
       if(!e.transitorio||i>=E.length) throw e;
       aiStatus(`⏳ ${e.message} · reintentando en ${Math.round(E[i]/1000)} s…`,'work');
       await aiSleep(E[i]);
     }
   }
 }
-/* Las keys de un mismo proveedor se turnan: cada análisis empieza por una distinta
-   para repartir la cuota del día, en vez de quemar siempre la primera hasta agotarla
-   y pagar un 429 en cada cotización a partir de ahí. Conservan su número de la lista
-   para que la pantalla pueda decir cuál está usando. */
-function aiKeysRotadas(p){
-  const ks=getKeys(p).map((k,i)=>({key:k,n:i+1}));
-  if(ks.length<2) return ks;
-  let i=0; try{ i=(+(localStorage.getItem('ai_key_rot_'+p)||0)||0)%ks.length; }catch(_){}
-  return ks.slice(i).concat(ks.slice(0,i));
-}
-function aiAvanzarTurno(p,n){
-  if(n<2) return;
-  try{ localStorage.setItem('ai_key_rot_'+p,String(((+(localStorage.getItem('ai_key_rot_'+p)||0)||0)+1)%n)); }catch(_){}
-}
-/* El orden en que se va a intentar: los proveedores en el orden de AI_PROVS, cada uno con
-   su modelo y TODAS sus keys —la cuota va por key, así que otra cuenta es cuota nueva— y
-   después sus modelos hermanos con una sola, porque un modelo saturado no lo arregla
-   cambiar de cuenta. La pestaña abierta en Configuración ya no adelanta a nadie: abrir la de
-   Gemini para pegar su key mandaba las imágenes primero a Gemini, que es justo el que va al
-   final. Solo se usan keys ya guardadas en este dispositivo: la app no manda nada a un
-   proveedor que el usuario no haya configurado. */
+/* El orden en que se va a intentar: los proveedores en el orden de AI_PROVS, cada uno con su
+   modelo y después sus hermanos de respaldo, porque un modelo saturado no comparte cola con su
+   hermano. Los proveedores que la hoja dice que no tienen llave se saltan de entrada. La
+   rotación entre llaves de un mismo proveedor la hace la hoja, que es la que las tiene. */
 const AI_MAX_INTENTOS=12;
 function aiCadena(esPdf){
-  const out=[], vistos=new Set();
-  const push=(p,m,k,kn,nk)=>{
-    if(!k||!m) return; const id=p+'|'+m+'|'+kn; if(vistos.has(id)) return;
-    vistos.add(id); out.push({prov:p,model:m,key:k,kn,nk});
-  };
-  const bloque=(p,primero)=>{
-    const ks=aiKeysRotadas(p); if(!ks.length) return;
-    ks.forEach(x=>push(p,primero,x.key,x.n,ks.length));
-    (AI_RESPALDO[p]||[]).forEach(m=>push(p,m,ks[0].key,ks[0].n,ks.length));
-    aiAvanzarTurno(p,ks.length);
-  };
-  /* Qwen y DeepSeek no leen PDF: con un PDF en la mano el único que sirve es Gemini. */
-  AI_PROVS.forEach(p=>{ if(esPdf&&p!=='gemini') return; bloque(p,aiModelo(p)); });
+  const out=[];
+  AI_PROVS.forEach(p=>{
+    if(esPdf&&p!=='gemini') return;   // Qwen y DeepSeek no leen PDF
+    if(_iaEnHoja&&!_iaEnHoja[p]) return;
+    [AI_DEFAULTS[p]].concat(AI_RESPALDO[p]||[]).forEach(m=>{
+      if(m&&!out.some(x=>x.prov===p&&x.model===m)) out.push({prov:p,model:m});
+    });
+  });
   return out.slice(0,AI_MAX_INTENTOS);
 }
 
@@ -822,7 +654,7 @@ let aiTrabajando=false;
    keys que la cadena excluyó a propósito. */
 let _aiIntentados=0, _aiProvsProbados=0, _aiEraPdf=false;
 /* El análisis en curso, para poder cancelarlo al cerrar el modal. */
-let _aiAbort=null, _aiCancelado=false;
+let _aiCancelado=false;
 
 async function aiAnalyze(){
   if(aiTrabajando) return;   // el botón queda deshabilitado, pero el Enter del teclado no
@@ -833,25 +665,15 @@ async function aiAnalyze(){
   const f=aiArchivo;
   if(!aiSrc && !f){ aiStatus('Arrastra aquí el archivo, pégalo, o toca el recuadro para elegirlo.','err'); return; }
   const esPdf=!aiSrc && f.type==='application/pdf';
-  /* Una key pegada en el campo y sin «Agregar» cuenta igual: el reflejo de pegar y
-     darle a Analizar es el de siempre y no tiene por qué costar un paso extra. */
-  if($('ai-key-'+aiProv).value.trim()){ addKey(aiProv,$('ai-key-'+aiProv).value); $('ai-key-'+aiProv).value=''; aiRenderKey(aiProv); }
-  /* Un PDF solo lo lee Gemini. Sin su key no hay a quién mandarlo, y se dice antes de
-     intentar nada en vez de dejar que Qwen y DeepSeek lo rechacen uno por uno. */
-  if(esPdf && !getKey('gemini')){
-    $('ai-cfg-box').open=true; setAiProv('gemini'); aiEditKey('gemini');
-    aiStatus('Los PDF solo los lee Gemini: guarda tu API key de Gemini en Configuración, o sube el diseño como JPG o PNG.','err');
+  /* Sin señal no hay IA: contesta desde la hoja. Se dice antes de leer el archivo. */
+  if(navigator.onLine===false){ aiStatus('Sin señal no se puede analizar: la IA contesta a través de la hoja de AL3D.','err'); return; }
+  /* Un PDF solo lo lee Gemini. Si la hoja ya dijo que Gemini no tiene llave, se dice antes
+     de intentar nada en vez de dejar que Qwen y DeepSeek lo rechacen uno por uno. */
+  if(esPdf&&_iaEnHoja&&!_iaEnHoja.gemini){
+    aiStatus('Los PDF solo los lee Gemini, y Gemini no tiene llave en la hoja. Sube el diseño como JPG o PNG, o pídele a Dirección que pegue la de Gemini.','err');
     return;
   }
-  if(!AI_PROVS.some(getKey)){ $('ai-cfg-box').open=true; aiEditKey(aiProv); aiStatus('Pega tu API key de '+(AI_NOMBRE[aiProv]||aiProv)+'.','err'); return; }
-  /* El modelo de cada proveedor sale de su campo. Recordarlo es un lujo; poder analizar no.
-     Sin el try, con el almacenamiento lleno esto lanzaba aquí mismo y el análisis no
-     arrancaba. */
-  AI_PROVS.forEach(p=>{
-    const inp=$('ai-model-'+p), m=inp&&inp.value.trim();
-    try{ if(m&&m!==AI_DEFAULTS[p]) localStorage.setItem('ai_model_'+p,m); else localStorage.removeItem('ai_model_'+p); }catch(_){}
-  });
-  try{ localStorage.setItem('ai_provider',aiProv); }catch(_){}
+  if(_iaEnHoja&&!AI_PROVS.some(p=>_iaEnHoja[p])){ aiStatus('Ningún proveedor de IA tiene llave en la hoja. Dirección la pega en ⚡ AL3D → Llaves de IA.','err'); return; }
   const verbo=aiSrc?'Analizando la imagen medida':'Analizando';
   aiStatus(verbo+'…','work');
   const btn=$('ai-go-btn'); aiTrabajando=true; if(btn) btn.disabled=true;
@@ -863,7 +685,7 @@ async function aiAnalyze(){
     const {b64,mime}=aiSrc?{b64:aiSrc.url.split(',')[1],mime:aiSrc.mime||'image/jpeg'}:await aiImagen(f);
     const prompt=aiSrc?PROMPT_IA+promptMedidas(aiSrc.medidas):PROMPT_IA;
     const cadena=aiCadena(esPdf);
-    if(!cadena.length) throw new Error('no hay ninguna API key guardada para analizar este archivo');
+    if(!cadena.length) throw new Error('ningún proveedor de IA tiene llave en la hoja para este archivo');
     let parsed=null,usado=null,ultimo=null;
     let intentados=0;
     for(let i=0;i<cadena.length;i++){
@@ -871,7 +693,13 @@ async function aiAnalyze(){
       try{ parsed=await aiCandidato(cadena[i],prompt,b64,mime,verbo,i?AI_ESPERAS_RESPALDO:AI_ESPERAS,i<cadena.length-1); usado=cadena[i]; break; }
       catch(e){
         ultimo=e;
-        if(e.cancelado) break;   // el modal se cerró: no se sigue con la cadena
+        if(e.cancelado||e.definitivo) break;   // el modal se cerró, o el problema es de la persona y no del proveedor
+        /* Sin llave en la hoja para ese proveedor: sus hermanos tampoco tienen, y se recuerda
+           para el siguiente análisis. */
+        if(e.sinLlave){
+          if(_iaEnHoja) _iaEnHoja[cadena[i].prov]=false;
+          while(i+1<cadena.length&&cadena[i+1].prov===cadena[i].prov) i++;
+        }
         /* Un 404 es «ese modelo no existe», no «esa key no sirve»: repetirlo con las otras
            keys del mismo proveedor es gastar intentos en el mismo error. El README promete
            justo esto —«los errores que no se arreglan reintentando no gastan intentos»— y
@@ -953,11 +781,11 @@ async function aiAnalyze(){
       ? ' · Se probaron '+probados+' combinaciones en '+_aiProvsProbados+(_aiProvsProbados===1?' proveedor':' proveedores')+'.'
         +((_aiEraPdf&&_aiProvsProbados===1)?' Qwen y DeepSeek no leen PDF, así que no se intentaron.':'')
       : (e.transitorio
-          ? ' · Ya reintenté varias veces con la única API cargada. En Configuración puedes agregar más keys —de este proveedor o de otro— y la app irá cambiando sola cuando esto vuelva a pasar.'
+          ? ' · Ya reintenté varias veces. Si sigue pasando, Dirección puede agregar otra llave en la hoja (⚡ AL3D → Llaves de IA) y la app cambiará sola.'
           : '');
     aiStatus('Error: '+e.message+nota,'err');
   }finally{
-    aiTrabajando=false; _aiAbort=null;
+    aiTrabajando=false;
     const b=$('ai-go-btn'); if(b) b.disabled=false;
   }
 }
