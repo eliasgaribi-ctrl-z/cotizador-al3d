@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -214,8 +214,7 @@ function aiOpen(fuente){
   aiOlvidarArchivo();
   _aiDragN=0; aiPintarArrastre(false);
   aiPintarProveedores(); aiConsultarHoja();
-  _aiCancelado=false;
-  const go=$('ai-go-btn'); if(go) go.disabled=aiTrabajando;
+  aiPintarTrabajando(aiTrabajando);
   aiStatus(aiTrabajando?'Hay un análisis en curso…':''
     ,aiTrabajando?'work':'');
   $('aimodal').classList.add('show');
@@ -223,16 +222,25 @@ function aiOpen(fuente){
 /* Cerrar el modal cancela lo que estuviera corriendo. Antes el análisis seguía en marcha
    con aiTrabajando en true, así que al reabrir el modal el botón Analizar estaba gris y
    sin ninguna explicación, y no había forma de cancelar. */
+/* Cancelar sin cerrar: el análisis tarda de diez segundos a un minuto con el cliente enfrente,
+   y hasta ahora la única manera de pararlo era cerrar el modal. La petición va por la hoja y no
+   se puede cortar a medio vuelo; lo que se corta es la cadena: lo que conteste se tira y no se
+   intenta con nadie más. */
+function aiCancelar(){
+  if(!aiTrabajando) return;
+  _aiCorrida++; aiTrabajando=false;
+  aiPintarTrabajando(false);
+  aiStatus('Análisis cancelado. El archivo sigue elegido: vuelve a darle a Analizar cuando quieras.','');
+}
+function aiPintarTrabajando(si){
+  const go=$('ai-go-btn'), no=$('ai-cancel-btn');
+  if(go){ go.disabled=si; go.classList.toggle('trabajando',si); }
+  if(no) no.hidden=!si;
+}
 function aiClose(){
   $('aimodal').classList.remove('show');
   aiThumbsSoltarTodas();
-  if(aiTrabajando){
-    /* La petición va por la hoja y no se puede cortar a medio vuelo; lo que sí se corta es la
-       cadena: lo que conteste se tira y no se intenta con nadie más. */
-    _aiCancelado=true;
-    aiTrabajando=false;
-    const b=$('ai-go-btn'); if(b) b.disabled=false;
-  }
+  aiCancelar();
 }
 /* Con la imagen del escalador el modal cambia de cara: en vez de pedir un archivo
    enseña lo que se va a analizar, y deja la puerta abierta por si el usuario prefiere
@@ -563,18 +571,19 @@ async function aiImagen(f){
    reintentar, una frase que se pueda leer (iaRespuesta en el .gs)—, así que aquí solo se
    vuelve Error lo que llegó. Cerrar el modal no corta la petición, pero sí la cadena. */
 function _aiCancelacion(){ const c=new Error('análisis cancelado'); c.cancelado=true; return c; }
-async function aiPedirHoja(cuerpo){
+async function aiPedirHoja(cuerpo,mia){
+  if(mia!==_aiCorrida) throw _aiCancelacion();   // un reintento que quedó en espera de una corrida ya cancelada
   let r;
   try{ r=await hablarHoja('ia',cuerpo,AI_TIMEOUT); }
   catch(e){
-    if(_aiCancelado) throw _aiCancelacion();
+    if(mia!==_aiCorrida) throw _aiCancelacion();
     /* Sin puente, o una cuenta que la hoja ya no deja entrar: reintentar no lo arregla. */
     const definitivo=e&&(e.codigo==='SIN_PUENTE'||e.codigo==='ROL_SIN_PERMISO');
     const err=new Error(definitivo?e.message:'no se pudo llegar a la hoja de AL3D (revisa tu conexión)');
     err.transitorio=!definitivo; err.definitivo=definitivo;
     throw err;
   }
-  if(_aiCancelado) throw _aiCancelacion();
+  if(mia!==_aiCorrida) throw _aiCancelacion();
   return r;
 }
 /* El proveedor contestó, pero sin nada: sus filtros taparon la imagen, se cortó a medio JSON,
@@ -599,7 +608,7 @@ function aiErrorDeHoja(r,c){
   return err;
 }
 async function aiLlamar(c,prompt,b64,mime,sinJson){
-  const r=await aiPedirHoja({modo:'cotizar',prov:c.prov,model:c.model,prompt,imagen:{b64,mime},sinJson:!!sinJson});
+  const r=await aiPedirHoja({modo:'cotizar',prov:c.prov,model:c.model,prompt,imagen:{b64,mime},sinJson:!!sinJson},c.corrida);
   if(!r||r.ok!==true){
     const err=aiErrorDeHoja(r,c);
     /* Buena parte de los modelos de visión no aceptan el modo JSON del API cuando va una
@@ -654,7 +663,10 @@ let aiTrabajando=false;
    keys que la cadena excluyó a propósito. */
 let _aiIntentados=0, _aiProvsProbados=0, _aiEraPdf=false;
 /* El análisis en curso, para poder cancelarlo al cerrar el modal. */
-let _aiCancelado=false;
+/* Cada análisis lleva su número, y cancelar lo sube: lo que conteste una corrida que ya no es la
+   de ahora se tira. Una bandera de «cancelado» no bastaba: cancelar y volver a analizar la
+   bajaba otra vez, y la respuesta del análisis viejo se aplicaba encima del nuevo. */
+let _aiCorrida=0;
 
 async function aiAnalyze(){
   if(aiTrabajando) return;   // el botón queda deshabilitado, pero el Enter del teclado no
@@ -676,7 +688,7 @@ async function aiAnalyze(){
   if(_iaEnHoja&&!AI_PROVS.some(p=>_iaEnHoja[p])){ aiStatus('Ningún proveedor de IA tiene llave en la hoja. Dirección la pega en ⚡ AL3D → Llaves de IA.','err'); return; }
   const verbo=aiSrc?'Analizando la imagen medida':'Analizando';
   aiStatus(verbo+'…','work');
-  const btn=$('ai-go-btn'); aiTrabajando=true; if(btn) btn.disabled=true;
+  const mia=++_aiCorrida; aiTrabajando=true; aiPintarTrabajando(true);
   try{
     /* La imagen del escalador ya viene lista en base64 —la dibuja scImagenParaIA con
        sus cotas encima y ya reducida—, así que no hay archivo que leer ni que
@@ -684,7 +696,7 @@ async function aiAnalyze(){
        lista para que las use tal cual. */
     const {b64,mime}=aiSrc?{b64:aiSrc.url.split(',')[1],mime:aiSrc.mime||'image/jpeg'}:await aiImagen(f);
     const prompt=aiSrc?PROMPT_IA+promptMedidas(aiSrc.medidas):PROMPT_IA;
-    const cadena=aiCadena(esPdf);
+    const cadena=aiCadena(esPdf).map(c=>Object.assign(c,{corrida:mia}));
     if(!cadena.length) throw new Error('ningún proveedor de IA tiene llave en la hoja para este archivo');
     let parsed=null,usado=null,ultimo=null;
     let intentados=0;
@@ -713,7 +725,7 @@ async function aiAnalyze(){
     _aiIntentados=intentados;
     _aiProvsProbados=new Set(cadena.slice(0,intentados).map(c=>c.prov)).size;
     _aiEraPdf=esPdf;
-    if(_aiCancelado) return;   // el usuario cerró el modal a media petición
+    if(mia!==_aiCorrida) return;   // se canceló, o ya corre otro análisis
     if(!parsed) throw ultimo||new Error('No se pudo analizar el archivo.');
     /* ----- La imagen SÍ se guarda, también la del escalador -----
        Aquí decía que la foto del escalador no se guarda «porque ya se ve, con sus cotas, en
@@ -785,8 +797,9 @@ async function aiAnalyze(){
           : '');
     aiStatus('Error: '+e.message+nota,'err');
   }finally{
-    aiTrabajando=false;
-    const b=$('ai-go-btn'); if(b) b.disabled=false;
+    /* Si se canceló, aiCancelar() ya soltó el botón y quizá ya arrancó otro análisis: no se le
+       pisa el estado a ése. */
+    if(mia===_aiCorrida){ aiTrabajando=false; aiPintarTrabajando(false); }
   }
 }
 

@@ -693,6 +693,8 @@ async function arrancar() {
   }
   const aj = $('pf-ajustes-btn');
   if (aj) aj.onclick = () => ir('ajustes');
+  const ins = $('pf-instalar');
+  if (ins) { ins.onclick = instalarApp; pintarInstalar(); }
 
   /* ----- El teclado, para la computadora -----
      Los números cambian de módulo en el orden de la barra —el mismo que enseña el title de
@@ -859,6 +861,53 @@ function registrarSW() {
   if (!('serviceWorker' in navigator)) return;
   if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
   try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (_) {}
+  avisarVersionNueva();
+}
+
+/* ----- «Hay una versión nueva» -----
+   sw.js se promueve solo —skipWaiting en install, clients.claim en activate—, y eso está bien:
+   un teléfono nunca se queda con media app de una versión y media de otra. Pero la página que
+   ya estaba abierta sigue siendo la vieja hasta que se recarga, y nada lo decía: se publicaba
+   un arreglo y quien tenía la app abierta seguía con el defecto sin saberlo.
+
+   `controllerchange` es justo ese momento: el service worker nuevo tomó esta pestaña. La
+   primera vez que la app se instala también dispara —pasa de no tener controlador a tenerlo—,
+   y ahí no hay nada nuevo que anunciar: por eso se mira si ya había uno al arrancar.
+
+   Recargar es decisión de quien usa la app, nunca de la app: a media cotización, una recarga
+   sola sería un susto aunque no se pierda nada (el cotizador guarda en cada tecla). */
+function avisarVersionNueva() {
+  const yaHabia = !!navigator.serviceWorker.controller;
+  let avisado = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!yaHabia || avisado) return;
+    avisado = true;
+    toast('Hay una versión nueva de la app', '', 15000, { label: 'Actualizar', fn: () => location.reload() });
+  });
+}
+
+/* ----- Instalar la app -----
+   El manifiesto ya la hacía instalable, pero el único camino era el menú del navegador, que
+   nadie abre. Chrome avisa que se puede con `beforeinstallprompt`; se guarda el aviso y el botón
+   del pie de la barra lateral lo usa. iPhone no tiene ese evento: ahí el botón explica los dos
+   toques de Safari. Ya instalada —pantalla completa—, el botón no aparece. */
+let _instalar = null;
+const instalada = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+const esIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function pintarInstalar() {
+  const b = $('pf-instalar'); if (!b) return;
+  b.hidden = instalada() || !(_instalar || esIOS());
+}
+window.addEventListener('beforeinstallprompt', ev => { ev.preventDefault(); _instalar = ev; pintarInstalar(); });
+window.addEventListener('appinstalled', () => { _instalar = null; pintarInstalar(); toast('La app quedó instalada', 'ok', 3000); });
+async function instalarApp() {
+  if (_instalar) {
+    const ev = _instalar; _instalar = null;
+    try { ev.prompt(); await ev.userChoice; } catch (_) {}
+    pintarInstalar();
+    return;
+  }
+  toast('En iPhone: toca Compartir y luego «Agregar a inicio». Queda como app, a pantalla completa.', '', 9000);
 }
 
 /* ----- Arrancar, y arrancar de todas formas -----

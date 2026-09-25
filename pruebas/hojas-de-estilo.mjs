@@ -171,5 +171,36 @@ cierto(/\.imp-pie\{display:flex!important/.test(plataforma), 'y pie');
 cierto(leer('index.html').includes('class="imp-logo" src="logo-al3d.svg"'),
   'con el MISMO archivo de logotipo que la barra de las dos apps');
 
+/* ----- Un :hover solo donde hay ratón -----
+   En una pantalla táctil el :hover se queda PEGADO después de tocar: el botón sigue pintado
+   de «ratón encima» hasta que se toca otra cosa, y se lee como un botón que se trabó. Desde
+   septiembre de 2026 cada regla con :hover vive dentro de @media(hover:hover). Aquí se buscan
+   las que no: fuera de ese @media, de uno que ya pregunte por el puntero, o de un @keyframes. */
+console.log('\nUN :hover SOLO DONDE HAY RATÓN');
+function hoverSueltos(css) {
+  const sueltos = [], pila = [];
+  let i = 0, ini = 0;
+  const n = css.length;
+  while (i < n) {
+    if (css[i] === '/' && css[i + 1] === '*') { const f = css.indexOf('*/', i + 2); i = f < 0 ? n : f + 2; continue; }
+    const c = css[i];
+    if (c === '{') {
+      const prel = css.slice(ini, i).replace(/\/\*[\s\S]*?\*\//g, '').trim();
+      if (prel.startsWith('@')) { pila.push(prel); i++; ini = i; continue; }
+      const fin = css.indexOf('}', i);
+      if (prel.includes(':hover') && !pila.some(p => /hover|pointer|keyframes/.test(p))) sueltos.push(prel.slice(0, 70));
+      i = fin + 1; ini = i; continue;
+    }
+    if (c === '}') { pila.pop(); i++; ini = i; continue; }
+    if (c === ';') { i++; ini = i; continue; }
+    i++;
+  }
+  return sueltos;
+}
+for (const f of ['css/sistema.css', 'css/vidrio.css', 'css/plataforma.css', 'anidador-vectores/css/anidador.css']) {
+  const s = hoverSueltos(leer(f));
+  cierto(!s.length, f + ': ningún :hover fuera de @media(hover:hover)' + (s.length ? ' — ' + s.join(' · ') : ''));
+}
+
 console.log(`\n${fallas === 0 ? 'Un solo sistema de diseño, en las tres superficies.' : fallas + ' fallo(s).'}`);
 process.exit(fallas ? 1 : 0);

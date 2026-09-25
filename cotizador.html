@@ -154,6 +154,7 @@ document.documentElement.classList.add('arrancando');
 <symbol id="i-luna" viewBox="0 0 24 24"><path d="M20.2 14.6A8.6 8.6 0 0 1 9.4 3.8a8.6 8.6 0 1 0 10.8 10.8z"/></symbol>
 <!-- Cuatro piezas acomodadas en una lámina: el anidador de vectores. Mismo trazo abierto de
      24×24 que los demás. -->
+<symbol id="i-nube-off" viewBox="-0.935 -0.918 25.836 25.836" style="stroke-width:2.045"><path d="M6.5 18.5a4 4 0 0 1-.4-8 6 6 0 0 1 10.3-2.2"/><path d="M18 10.6a4 4 0 0 1 .5 7.9H10"/><path d="M3.5 3.5l17 17"/></symbol>
 <symbol id="i-anidar" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="11" rx="1.6"/><rect x="13" y="3" width="8" height="6" rx="1.6"/><rect x="13" y="11" width="8" height="10" rx="1.6"/><rect x="3" y="16" width="8" height="5" rx="1.6"/></symbol>
 </defs></svg>
 
@@ -198,6 +199,9 @@ document.documentElement.classList.add('arrancando');
            la vuelta la hace irAPlataforma() por postMessage. -->
       <a class="btn-hist btn-pf" href="./#/hoy" title="El taller: tablero, calendario, material y mapa" aria-label="Abrir el taller: tablero de fabricación, calendario, material y mapa"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg><span class="lbl"> Plataforma</span></a>
       <span class="folio" id="folio">COT-0001</span>
+      <!-- Sin señal, lo que importa saber es que nada se pierde: la cotización se guarda aquí en
+           cada tecla. Lo que sí espera a la señal —autorizar, la IA— lo dice cada uno. -->
+      <span class="folio sin-senal" id="sin-senal" role="status" hidden title="Sin señal: la cotización se sigue guardando en este teléfono. Autorizar y la IA esperan a la señal."><svg class="svgi" aria-hidden="true"><use href="#i-nube-off"/></svg><span class="lbl"> Sin señal · se guarda aquí</span></span>
       <div class="seg" id="roleseg" role="group" aria-label="Rol con el que trabajas" title="Cambia de rol para ver el flujo de autorización">
         <button class="on" aria-pressed="true" data-rol="vendedor" onclick="cambiarRol('vendedor')">Vendedor</button>
         <button aria-pressed="false" data-rol="autorizador" onclick="cambiarRol('autorizador')">Autorizador</button>
@@ -527,7 +531,8 @@ document.documentElement.classList.add('arrancando');
         <div class="ai-merge-note" id="ai-merge-note"></div>
       </div>
       <button class="btn btn-pri" id="ai-go-btn" onclick="aiAnalyze()" style="margin-top:8px">Analizar y cotizar</button>
-      <div class="ai-status" id="ai-status"></div>
+      <button class="btn btn-gho" id="ai-cancel-btn" onclick="aiCancelar()" hidden>Cancelar el análisis</button>
+      <div class="ai-status" id="ai-status" role="status"></div>
     </div>
   </div>
 </div>
@@ -566,7 +571,7 @@ document.documentElement.classList.add('arrancando');
     </div>
     <p class="hist-ayuda"><b>Duplicar</b> copia el cliente y las partidas a una cotización nueva, en borrador: es la de cotizar lo mismo con otro material o otra medida sin capturar de nuevo.</p>
     <div class="hist-search-bar">
-      <input id="hist-search" type="search" aria-label="Buscar en el historial por folio, cliente, fecha, partida o total" placeholder="Buscar por folio, cliente, fecha o partida…" autocomplete="off" oninput="pintarHistorial()">
+      <input id="hist-search" type="search" aria-label="Buscar en el historial por folio, cliente, fecha, partida o total" placeholder="Buscar por folio, cliente, fecha o partida…" autocomplete="off" oninput="pintarHistorialPronto()">
       <span class="hist-count" id="hist-count"></span>
     </div>
     <div class="hist-body" id="hist-body"></div>
@@ -605,6 +610,19 @@ document.documentElement.classList.add('arrancando');
       <p class="mini" id="rem-estado" role="status" style="text-align:left;min-height:1.2em"></p>
       <button class="btn btn-ok" id="rem-autorizar" onclick="autorizarRemota()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Autorizar precio</button>
       <button class="btn btn-dgr" id="rem-rechazar" onclick="rechazarRemota()">Rechazar</button>
+    </div>
+  </div>
+</div>
+
+<!-- La pregunta de la app, en vez del confirm() del navegador (confirmar() en nucleo.js). Va
+     arriba de todas las capas: se abre encima del historial, del escalador o de la cola. -->
+<div class="modal-bg" id="confmodal" onclick="if(event.target===this)confirmarNo()" role="alertdialog" aria-modal="true" aria-labelledby="conf-titulo" aria-describedby="conf-texto">
+  <div class="modal modal-conf">
+    <div class="modal-h"><b id="conf-titulo">¿Continuar?</b><button onclick="confirmarNo()" aria-label="Cerrar">×</button></div>
+    <div class="modal-b">
+      <p class="conf-texto" id="conf-texto"></p>
+      <button class="btn btn-pri" id="conf-si" onclick="confirmarSi()">Continuar</button>
+      <button class="btn btn-gho" id="conf-no" onclick="confirmarNo()">Cancelar</button>
     </div>
   </div>
 </div>

@@ -194,7 +194,7 @@ que viaja así deja de ser secreta.
     js/datos/, js/nucleo/     la capa de datos y las primitivas de pantalla
 
 Los once de `js/cotizador/` son scripts **clásicos** que comparten el ámbito global, como cuando
-eran un solo `<script>`: los 156 manejadores en línea del marcado dependen de eso, y portarlos a
+eran un solo `<script>`: los 161 manejadores en línea del marcado dependen de eso, y portarlos a
 módulos ES los dejaría mudos sin un solo error. `pruebas/sintaxis.mjs` compila los once y
 `pruebas/publicacion.mjs` vigila que `arranque.js` siga siendo el último.
 

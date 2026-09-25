@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -84,18 +84,18 @@ window.addEventListener('popstate',()=>{
   scOcultarScaler();
 });
 
-function cargarImagenScaler(input){
+async function cargarImagenScaler(input){
   const f=input.files[0];if(!f)return;
-  if(!scPuedeCambiarImagen()){input.value='';return;}
+  if(!await scPuedeCambiarImagen()){input.value='';return;}
   if(f.type==='application/pdf'){scLoadPDF(f);input.value='';return;}
   const r=new FileReader();
   r.onload=ev=>scLoadImgSrc(ev.target.result,f.name);
   r.readAsDataURL(f);
   input.value='';
 }
-function usarImagenAIEnScaler(){
+async function usarImagenAIEnScaler(){
   if(!(Q.aiFile&&Q.aiFile.url)) return;
-  if(!scPuedeCambiarImagen()) return;
+  if(!await scPuedeCambiarImagen()) return;
   scLoadImgSrc(Q.aiFile.url,'imagen IA');
 }
 function scOnDrop(e){
@@ -173,10 +173,12 @@ function scRestaurar(s){
   try{ scRender(); }catch(_){}
   try{ renderScalerPreview(); }catch(_){}
 }
+/* Devuelve una PROMESA: la pregunta es la de la app (confirmar), no la del navegador. Los tres
+   que la llaman son manejadores de un toque o de un archivo elegido, y la esperan. */
 function scPuedeCambiarImagen(){
-  if(!(SC.img&&SC.items&&SC.items.length)) return true;
+  if(!(SC.img&&SC.items&&SC.items.length)) return Promise.resolve(true);
   const n=SC.items.length;
-  return confirm('El escalador tiene '+n+(n===1?' medida':' medidas')+' de la imagen actual. Al cargar otra se borran. ¿Continuar?');
+  return confirmar({titulo:'La imagen actual tiene '+n+(n===1?' medida':' medidas'),texto:'Al cargar otra imagen se borran.',si:'Cargar la otra',no:'Conservar las medidas',peligro:true});
 }
 /* ----- Un error que dice qué hacer, no solo qué falló -----
    Los dos <input> aceptan `image/*`, así que un .HEIC que llegó por AirDrop o por correo se

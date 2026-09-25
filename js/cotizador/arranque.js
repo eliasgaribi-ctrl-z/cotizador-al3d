@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -68,6 +68,7 @@ function init(){
   /* Quién eres decide si hay botón de Autorizador, y lo que se pidió a dirección antes de
      cerrar la app se sigue esperando al volver a abrirla (notario.js). */
   pintarRolDisponible();
+  pintarConexion();
   if(_foliosEsperando().length) setTimeout(consultarSolicitudes,1200);
   /* Al final: loadState(), la partida en blanco del arranque y los repintados de arriba
      pasaron por saveState() y habrían dejado pasos en la pila. Nada de eso lo hizo el

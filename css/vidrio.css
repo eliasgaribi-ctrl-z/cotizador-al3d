@@ -153,7 +153,7 @@ html[data-tema="oscuro"]{
 /* El hover de la entrega era blanco al 70 % sobre un riel que ya es blanco al 88 %: no se
    veía. Un velo del azul de marca al 8 % sí se ve, en los dos temas, y no compite con la
    pestaña encendida, que va casi opaca. */
-.paso-tab:hover{background:rgba(var(--a-rgb),.08);border-color:transparent}
+@media(hover:hover){.paso-tab:hover{background:rgba(var(--a-rgb),.08);border-color:transparent}}
 /* La pestaña encendida se queda CASI opaca (.98) y no traslúcida: es la que
    lleva el nombre del cliente en chico debajo del rótulo, y es una de las
    piezas que mide pruebas/navegador/contraste.mjs. Sobre un riel de vidrio, un
@@ -189,7 +189,7 @@ html[data-tema="oscuro"]{
   box-shadow:var(--cv-luz),var(--cv-sombra);
 }
 .prog-box{border-radius:16px;background:rgba(var(--sup-rgb),.55)}
-.prog-box:hover{background:rgba(var(--sup-rgb),.92)}
+@media(hover:hover){.prog-box:hover{background:rgba(var(--sup-rgb),.92)}}
 .prog-track{height:8px;border-radius:var(--cv-pastilla);overflow:hidden}
 /* El subtotal es el número que se copia a Canva: se queda como el bloque de
    color de la columna, ahora con el vidrio encima. */
@@ -230,7 +230,7 @@ html[data-tema="oscuro"]{
    plano y, por especificidad, le ganaba a la regla de arriba —el botón cambiaba de degradado
    a relleno liso al entrar y volvía al salir—. Un poco más de luz dice «encima» sin cambiar
    de material. */
-.btn-pri:hover{background:var(--cv-accion);filter:brightness(1.06)}
+@media(hover:hover){.btn-pri:hover{background:var(--cv-accion);filter:brightness(1.06)}}
 
 /* ----- Una pastilla de dos renglones es un óvalo -----
    El radio de los BOTONES se ata a su alto en vez de ser un número enorme, y no se pierde
@@ -396,10 +396,11 @@ body.pf .pf-panel-f .btn{border-radius:18px}
    donde el span no empieza en el borde izquierdo. */
 .ai-btn>span,.pf-ia-btn .tx{position:relative}
 
-.ai-btn:hover>span::after,.ai-btn:focus-visible>span::after,.ai-btn:active>span::after,
-.pf-ia-btn:hover .tx::after,.pf-ia-btn:focus-visible .tx::after,.pf-ia-btn:active .tx::after{
+.ai-btn:focus-visible>span::after,.ai-btn:active>span::after,.pf-ia-btn:focus-visible .tx::after,.pf-ia-btn:active .tx::after{
   animation:vid-chispas 1s ease-out forwards;
-}
+}@media(hover:hover){.ai-btn:hover>span::after,.pf-ia-btn:hover .tx::after{
+  animation:vid-chispas 1s ease-out forwards;
+}}
 @keyframes vid-chispas{
   0%{opacity:0;transform:translateY(0) scale(.4)}
   18%{opacity:1}
@@ -424,10 +425,11 @@ body.pf .pf-panel-f .btn{border-radius:18px}
    `prefers-reduced-motion:reduce`: animationName devolvía «vid-chispas». */
 @media(prefers-reduced-motion:reduce){
   .ai-btn>span::after,.pf-ia-btn .tx::after,.ai-drop .ico{animation:none}
-  .ai-btn:hover>span::after,.ai-btn:focus-visible>span::after,.ai-btn:active>span::after,
-  .pf-ia-btn:hover .tx::after,.pf-ia-btn:focus-visible .tx::after,.pf-ia-btn:active .tx::after{
+  .ai-btn:focus-visible>span::after,.ai-btn:active>span::after,.pf-ia-btn:focus-visible .tx::after,.pf-ia-btn:active .tx::after{
     animation:none;opacity:0;
-  }
+  }@media(hover:hover){.ai-btn:hover>span::after,.pf-ia-btn:hover .tx::after{
+    animation:none;opacity:0;
+  }}
   .ai-btn>span::after,.pf-ia-btn .tx::after{opacity:0}
 }
 

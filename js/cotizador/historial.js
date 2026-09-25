@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -160,12 +160,40 @@ function openHistImg(folio){
   $('lightboxBody').innerHTML=`<img class="lightbox-img" src="${urlImagenSegura(e.aiFile.url)}" alt="${esc(e.aiFile.name||'')}" onclick="event.stopPropagation()">`;
   $('lightbox').classList.add('show');
 }
+/* ----- Borrar del historial, con Deshacer -----
+   Preguntaba con el confirm() del navegador y prometía «no se puede deshacer». Borrar una
+   partida, un renglón más arriba, ya se hacía de inmediato con un Deshacer en el aviso
+   (delItem en partidas.js), y los dos borrados no tenían por qué sentirse distintos: se borra
+   ya, y durante unos segundos se puede devolver, en su mismo lugar. */
+/* El buscador repintaba la lista entera —fotos incluidas— en cada tecla. Buscar ya era barato
+   (indexarHistorial arma el texto una vez al abrir); pintar no. Se espera a que la persona haga
+   una pausa: 140 ms no se notan al escribir y ahorran nueve de cada diez repintados. Abrir el
+   modal, borrar y restaurar siguen llamando a pintarHistorial() directo. */
+let _histBuscaT=null;
+function pintarHistorialPronto(){ clearTimeout(_histBuscaT); _histBuscaT=setTimeout(pintarHistorial,140); }
+let _histBorrada=null;
 function borrarDeHistorial(folio){
-  if(!confirm('¿Eliminar '+folio+' del historial?\n\nEsta acción no se puede deshacer.')) return;
-  saveHistorial(getHistorial().filter(x=>x.folio!==folio));
+  const arr=getHistorial(), idx=arr.findIndex(x=>x.folio===folio);
+  if(idx<0) return;
+  _histBorrada={entry:arr[idx],idx};
+  arr.splice(idx,1);
+  saveHistorial(arr);
   _histData=getHistorial(); indexarHistorial();
   pintarClientes();
   pintarHistorial(); // se conserva lo que el usuario tenía escrito en el buscador
+  vibrar([8,40,8]);
+  toast(folio+' eliminada del historial','',8000,{label:'Deshacer',fn:deshacerBorradoHistorial});
+}
+function deshacerBorradoHistorial(){
+  const b=_histBorrada; _histBorrada=null; if(!b) return;
+  const arr=getHistorial();
+  if(arr.some(x=>x.folio===b.entry.folio)) return;   // ya volvió por otro lado
+  arr.splice(Math.min(b.idx,arr.length),0,b.entry);
+  saveHistorial(arr);
+  _histData=getHistorial(); indexarHistorial();
+  pintarClientes();
+  if($('histmodal').classList.contains('show')) pintarHistorial();
+  toast(b.entry.folio+' volvió al historial','ok',2600);
 }
 
 const HIST_MAT={'al-paint':'Aluminio Pintado','al-brush':'Aluminio Brush','acr-vol':'Acrílico + Aluminio','acr-vinil':'Acrílico + Vinil','acero':'Acero Inoxidable'};
@@ -289,10 +317,10 @@ function cerrarHistorial(){ $('histmodal').classList.remove('show'); }
 
 /* Volver a abrir una cotización ya autorizada: el cliente vuelve a pedir el PDF o
    quiere copiar la venta y antes había que capturarla otra vez desde cero. */
-function reabrirDeHistorial(folio){
+async function reabrirDeHistorial(folio){
   const e=_histData.find(x=>x.folio===folio); if(!e) return;
   const hayTrabajo=Q.estado!=='autorizada'&&(Q.items.some(it=>!itemVacio(it))||hayDatosCliente());
-  if(hayTrabajo&&!confirm('Tienes una cotización sin autorizar en pantalla. Si abres '+folio+', se perderá. ¿Continuar?')) return;
+  if(hayTrabajo&&!await confirmar({titulo:'Tienes una cotización sin autorizar',texto:'Si abres '+folio+', la que está en pantalla se pierde.',si:'Abrir '+folio,no:'Seguir con la mía',peligro:true})) return;
   guardarParaDeshacer();
   scReset();
   Q.folio=e.folio;
@@ -367,10 +395,10 @@ function reabrirDeHistorial(folio){
    cero. Aquí se copian los datos del cliente y las partidas a una cotización NUEVA:
    folio nuevo, en borrador, con el precio recalculado y sin arrastrar nada de la
    autorización anterior. Tus plantillas son tus cotizaciones anteriores. */
-function usarComoBase(folio){
+async function usarComoBase(folio){
   const e=_histData.find(x=>x.folio===folio); if(!e) return;
   const hayTrabajo=Q.estado!=='autorizada'&&(Q.items.some(it=>!itemVacio(it))||hayDatosCliente());
-  if(hayTrabajo&&!confirm('Tienes una cotización sin autorizar en pantalla. Si empiezas una nueva a partir de '+folio+', se perderá. ¿Continuar?')) return;
+  if(hayTrabajo&&!await confirmar({titulo:'Tienes una cotización sin autorizar',texto:'Si empiezas una nueva a partir de '+folio+', la que está en pantalla se pierde.',si:'Empezar desde '+folio,no:'Seguir con la mía',peligro:true})) return;
   guardarParaDeshacer();
   scReset();
   Q.folio=nextFolio();
@@ -890,7 +918,7 @@ function pintarPieHistorial(){
   el.innerHTML=(t?esc(t)+' ':'')+'El respaldo <b>no</b> incluye tus API keys.';
 }
 function pedirRestaurar(){ $('restaurarin').click(); }
-function restaurarDesde(texto){
+async function restaurarDesde(texto){
   let paquete;
   try{ paquete=JSON.parse(texto); }
   catch(_){ toast('Ese archivo no se pudo leer — ¿es el respaldo?','err',3600); return; }
@@ -930,10 +958,11 @@ function restaurarDesde(texto){
   let cuantas=0;
   try{ cuantas=(JSON.parse(paquete.datos['al3d_historial']||'[]')||[]).length; }catch(_){}
   const fecha=(paquete.fecha||'').slice(0,10);
-  if(!confirm(`Restaurar reemplaza el historial, los folios y la cotización en curso de este teléfono por los del respaldo`
-    +(fecha?` del ${fecha}`:'')+` (${cuantas} ${cuantas===1?'cotización':'cotizaciones'}).\n\n`
-    +`Antes de reemplazar se descarga un respaldo de lo que hay ahora.\n\n¿Continuar?`)) return;
-  /* El confirm acaba de prometer que antes de reemplazar se descarga un respaldo de lo
+  if(!await confirmar({titulo:'¿Restaurar este respaldo?',
+    texto:`Reemplaza el historial, los folios y la cotización en curso de este teléfono por los del respaldo`
+      +(fecha?` del ${fecha}`:'')+` (${cuantas} ${cuantas===1?'cotización':'cotizaciones'}).\n\nAntes de reemplazar se descarga un respaldo de lo que hay ahora.`,
+    si:'Restaurar',no:'Cancelar',peligro:true})) return;
+  /* La pregunta acaba de prometer que antes de reemplazar se descarga un respaldo de lo
      que hay ahora. Si la descarga no salió, no se reemplaza nada: en la app instalada
      de iOS descargarArchivo() devuelve false y antes se destruía el historial igual. */
   if(!descargarArchivo(armarRespaldo(),`cotizador-al3d-antes-de-restaurar-${selloFecha()}.json`,'application/json')){
@@ -1071,7 +1100,7 @@ function updateQueueEntry(folio,changes){
   if(idx>=0){ Object.assign(arr[idx],changes); saveQueue(arr); }
 }
 
-function loadQueueEntry(folio){
+async function loadQueueEntry(folio){
   if(folio===Q.folio) return;
   const arr=getQueue();
   const entry=arr.find(x=>x.folio===folio);
@@ -1080,12 +1109,12 @@ function loadQueueEntry(folio){
      aviso salía siempre, porque init() y nueva() dejan una partida vacía en pantalla: se
      preguntaba por trabajo que no existía y se enseñaba a ignorar la pregunta. */
   const hayCambiosSinGuardar=Q.estado==='borrador'&&(Q.items.some(it=>!itemVacio(it))||Q.proy.trim()||Q.cliente.trim());
-  if(hayCambiosSinGuardar&&!confirm('Tienes una cotización sin guardar en pantalla. Si continúas, se perderá. ¿Cambiar de todos modos?')) return;
+  if(hayCambiosSinGuardar&&!await confirmar({titulo:'Tienes una cotización sin guardar',texto:'Si abres '+folio+', la que está en pantalla se pierde.',si:'Abrir '+folio,no:'Seguir con la mía',peligro:true})) return;
   /* Una revisión a medias también es trabajo que se pierde: el autorizador puede llevar
      media cotización ajustada partida por partida y esa guarda de arriba no la veía,
      porque solo mira los borradores. */
   const hayRevisionSinCerrar=Q.estado==='pendiente'&&(Q.precioAuth>0||Object.keys(Q.itemsAuth||{}).length>0);
-  if(hayRevisionSinCerrar&&!confirm('Llevas ajustes de precio sin autorizar en '+Q.folio+'. Si abres '+folio+', se pierden. ¿Continuar?')) return;
+  if(hayRevisionSinCerrar&&!await confirmar({titulo:'Llevas ajustes de precio sin autorizar',texto:'Los de '+Q.folio+' se pierden si abres '+folio+'.',si:'Abrir '+folio,no:'Seguir revisando',peligro:true})) return;
   /* El rol es de quien está usando la app, no de la cotización: el snapshot lo
      guardó el vendedor, así que si lo copiáramos el autorizador saldría expulsado
      de su propia vista al abrir un pendiente. */

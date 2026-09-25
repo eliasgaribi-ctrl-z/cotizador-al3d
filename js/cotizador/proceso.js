@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -793,6 +793,10 @@ function irAPantalla(cual,opts){
      llama al arrancar y para reafirmar la que ya está puesta, y ahí no hay vuelo que hacer. */
   const cambia=(_pantalla!==cual);
   if(cambia) _medirTotal();
+  /* Hacia dónde se va, para que las tarjetas entren de ese lado: a partidas es adelante, a
+     cliente es atrás. Solo las tarjetas —el resumen de la derecha es a donde vuela el total, y
+     moverlo también haría que el número aterrizara en un sitio que todavía se está moviendo—. */
+  if(cambia&&!_menosMovimiento()) _direccionDePantalla(cual==='partidas'?'va-adelante':'va-atras');
   _pantalla=cual;
   pintarPantalla();
   /* Arriba de todo: cambiar de pantalla a media página deja al usuario mirando el hueco por
@@ -923,7 +927,14 @@ function _llevarAlPaso(n){
 
    `prefers-reduced-motion` lo apaga entero, y no dejándolo en 1 ms: aquí no hay nada que
    apagar a medias — o vuela o no vuela. */
-let _vuelo=null;
+let _vuelo=null, _dirT=null;
+function _direccionDePantalla(clase){
+  const h=document.documentElement;
+  h.classList.remove('va-adelante','va-atras');
+  void h.offsetWidth;
+  h.classList.add(clase);
+  clearTimeout(_dirT); _dirT=setTimeout(()=>h.classList.remove(clase),420);
+}
 const _menosMovimiento=()=>{
   try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(_){ return false; }
 };

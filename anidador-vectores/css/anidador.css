@@ -81,7 +81,7 @@
   border-radius:var(--rr1);border:1px solid rgba(255,255,255,.9);background:linear-gradient(168deg,#fff,var(--n1));
   box-shadow:var(--clay);color:var(--n7);font-family:inherit;cursor:pointer;text-align:center;
   transition:transform var(--mv-r),box-shadow var(--mv),background var(--mv-s),color var(--mv-s)}
-.an-tile:hover{transform:translateY(-2px);box-shadow:var(--clay-alto);background:linear-gradient(168deg,#fff,var(--a-suave))}
+@media(hover:hover){.an-tile:hover{transform:translateY(-2px);box-shadow:var(--clay-alto);background:linear-gradient(168deg,#fff,var(--a-suave))}}
 .an-tile:active{transform:translateY(1px) scale(.97);box-shadow:var(--clay-in)}
 .an-tile:focus-visible{outline:2.5px solid var(--brand);outline-offset:2px}
 .an-tile.on{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-fuerte);box-shadow:var(--clay-in);transform:none}
@@ -91,7 +91,7 @@
   transition:transform var(--mv-r)}
 .an-tile-hoja.retazo{border-style:dashed;border-color:var(--n5);background:linear-gradient(135deg,#fff,var(--n2));
   clip-path:polygon(0 0,100% 0,100% 62%,74% 62%,74% 100%,0 100%)}
-.an-tile:hover .an-tile-hoja{transform:translateY(-2px)}
+@media(hover:hover){.an-tile:hover .an-tile-hoja{transform:translateY(-2px)}}
 .an-tile.on .an-tile-hoja{background:linear-gradient(135deg,#fff,var(--a-borde));border-color:var(--a)}
 .an-tile-n{font-size:var(--t2);font-weight:600;line-height:1.2}
 .an-tile-d{font-size:var(--t1);color:var(--n6);font-variant-numeric:tabular-nums}
@@ -114,7 +114,7 @@
 .an-retazo .chip small{font-variant-numeric:tabular-nums}
 .an-retazo-x{width:32px;height:32px;border-radius:50%;border:1px solid transparent;background:none;color:var(--n6);
   font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:background var(--mv-s),color var(--mv-s)}
-.an-retazo-x:hover{background:var(--mal-bg);color:var(--mal)}
+@media(hover:hover){.an-retazo-x:hover{background:var(--mal-bg);color:var(--mal)}}
 .an-retazo-x:focus-visible{outline:2.5px solid var(--brand);outline-offset:1px}
 .an-retazo-x .svgi{width:var(--ico1);height:var(--ico1)}
 .an-retazo-nuevo{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--e2);align-items:end;margin-top:var(--e3)}
@@ -129,7 +129,7 @@
 .an-avanzado summary::-webkit-details-marker{display:none}
 .an-avanzado summary::before{content:'▸';font-size:11px;color:var(--n6);transition:transform var(--mv-s)}
 .an-avanzado[open] summary::before{transform:rotate(90deg)}
-.an-avanzado summary:hover{color:var(--n8)}
+@media(hover:hover){.an-avanzado summary:hover{color:var(--n8)}}
 .an-avanzado summary:focus-visible{outline:2.5px solid var(--brand);outline-offset:2px;border-radius:var(--rr1)}
 .an-avanzado-b{padding-top:var(--e2)}
 .an-avanzado-b .switch{margin-top:var(--e3)}
