@@ -27,7 +27,7 @@
    el cotizador. Antes era al revés. `plataforma.html` sigue existiendo como reenvío de diez
    líneas, porque hay marcadores e iconos instalados que apuntan ahí.
 
-   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 35 módulos ES que
+   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 36 módulos ES que
    se importan entre sí: con mala señal, `app.js` llega de la red (versión nueva) y
    `material.js` de la caché (versión vieja), el import falla y queda una PANTALLA BLANCA —
    justo en el escenario para el que el service worker existe. Un módulo nuevo con un módulo
@@ -372,7 +372,7 @@ function sinRedireccion(res) {
 
 let _revalidando = false;
 function revalidar(req) {
-  /* Una sola revalidación por vuelta: la plataforma pide 35 módulos al arrancar y no tiene
+  /* Una sola revalidación por vuelta: la plataforma pide 36 módulos al arrancar y no tiene
      sentido mandar 25 peticiones a la red para enterarse de lo mismo. */
   if (_revalidando) return;
   _revalidando = true;
