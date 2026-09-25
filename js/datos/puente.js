@@ -371,9 +371,10 @@ export function ventaDeHoja(fila) {
 /* ----- La versión de la hoja que esta plataforma espera -----
    `salud` devuelve la versión del Apps Script publicado. Si la hoja se quedó con una
    implementación anterior, el contrato que este archivo asume no es el que corre allá:
-   puente-sheets-4 no sabía de la identidad de Google: con una hoja en esa versión, entrar con Google no da rol y solo sirve el token de dispositivo. Ajustes lo
-   enseña con estas palabras; la prueba de node comprueba que el .gs del repo diga esta. */
-export const VERSION_ESPERADA = 'puente-sheets-5';
+   puente-sheets-5 no sabía sellar: con una hoja en esa versión NADIE puede autorizar un
+   precio —el cotizador ya no autoriza sin sello— y la IA no tiene llaves. Ajustes lo enseña
+   con estas palabras; la prueba de node comprueba que el .gs del repo diga esta. */
+export const VERSION_ESPERADA = 'puente-sheets-6';
 export function versionVieja(version) {
   const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
   const n = m ? Number(m[1]) : 0;
@@ -384,7 +385,8 @@ export function avisoVersion(version) {
   if (!versionVieja(version)) return '';
   return 'La hoja corre ' + (version ? '«' + version + '»' : 'una versión sin nombre') + ' y la plataforma espera «' +
     VERSION_ESPERADA + '». Pega el puente/hoja-apps-script.gs de hoy en Apps Script, implementa una versión nueva ' +
-    'y corre mejorarTodo: hasta entonces el saldo por cobrar puede bajar al revés y el % de comisión no llega a la hoja.';
+    'y corre «Preparar las autorizaciones selladas» del menú ⚡ AL3D: hasta entonces nadie puede autorizar un precio ' +
+    'y Cotizar con IA no tiene llaves.';
 }
 
 /* ============================================================================
