@@ -36,8 +36,20 @@ Se generan con `Utilities.getUuid()` y se rotan desde la misma pantalla con
 *Generar tokens nuevos* — ojo, eso deja fuera a los tres teléfonos hasta que pegues los
 nuevos.
 
-No hay nada más que esconder. El token de Notion, que era la razón de ser del Worker, ya no
-existe.
+Desde `puente-sheets-6` hay dos secretos más, en el mismo lugar y por la misma razón:
+
+| Propiedad | Qué es | Cómo se crea |
+|---|---|---|
+| `SELLO_AUTORIZACION` | La clave con la que la hoja firma cada precio autorizado | Sola, la primera vez que alguien autoriza, o con **⚡ AL3D → Preparar las autorizaciones selladas** |
+| `IA_KEYS` | Las llaves de Qwen, DeepSeek y Gemini | **⚡ AL3D → Llaves de IA** |
+
+**El secreto del sello no se rota nunca.** Cambiarlo hace que TODOS los PDF ya entregados
+verifiquen como «no auténtica». Por eso ningún botón lo regenera; si de verdad se filtrara,
+se borra la propiedad a mano sabiendo lo que cuesta.
+
+Para retirar una autorización ya entregada —se canceló el trabajo, se equivocó el precio—,
+desde el editor: `revocarAutorizacion('COT-0042@K7QM')`. El renglón se queda en
+«Autorizaciones» y el QR de ese PDF pasa a decir «revocada».
 
 ## Cuando cambies el código
 
@@ -68,6 +80,30 @@ corrió de verdad— antes de dar por hecho que pasó.
 
 Estado al 19 de septiembre de 2026: la hoja corre `puente-sheets-4`, implementada como
 **Versión 5**, en la misma URL de siempre.
+
+### Al pasar a `puente-sheets-6` (el notario y la IA) — el orden importa
+
+Desde esta versión **el cotizador ya no autoriza un precio sin que la hoja lo selle**, y la IA
+ya no tiene llaves en los teléfonos. Si la app nueva se publica antes que el puente nuevo,
+nadie puede autorizar y la IA no contesta. Así que, en este orden:
+
+1. Pega el `puente/hoja-apps-script.gs` de hoy en la hoja y guarda.
+2. **Implementar → Gestionar implementaciones → lápiz → Versión nueva → Implementar.** La URL
+   no cambia.
+3. Recarga la hoja para que salga el menú nuevo y corre **⚡ AL3D → Preparar las
+   autorizaciones selladas**. Crea la pestaña oculta «Autorizaciones», la visible
+   «Solicitudes de autorización» y el secreto del sello. Apps Script va a pedir permiso una
+   vez más: ahora el puente sale a internet para hablar con la IA.
+4. **⚡ AL3D → Llaves de IA**: pega la llave de Qwen, la de DeepSeek y la de Gemini (las que
+   estaban en el cotizador; ahí ya no se ven). Hasta cuatro por proveedor, una por renglón.
+5. En la pestaña **Accesos**, confirma que quien autoriza precios está como `direccion`, y que
+   quien cotiza sin autorizar está como `pagos` o `fabricacion`: esos solicitan y Dirección
+   autoriza desde su teléfono.
+6. Solo entonces se publica la app (merge a `main` con `APP_VERSION` subido).
+
+Para comprobarlo: en **Ajustes → El puente → Probar** tiene que decir `puente-sheets-6`, y en
+el cotizador, **Cotizar con IA → Proveedores de IA** tiene que marcar «listo» en los que
+tengan llave.
 
 ## Las cabeceras del sitio
 

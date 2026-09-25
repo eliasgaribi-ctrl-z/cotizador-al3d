@@ -64,19 +64,32 @@ material que hay que comprar**. Nada de eso se captura.
   cada una con su catálogo de materiales y tarifas. Por debajo de 10 cm no hay letras 3D: la
   regla se aplica sola y la partida se convierte en recorte de acrílico, diciendo por qué.
 - **Cotizar con IA** — analiza un JPG, PNG o PDF del proyecto y propone las partidas. Prueba en
-  orden Qwen, DeepSeek y Gemini —el único que lee PDF—, con hasta 8 llaves por proveedor que se
-  turnan y se relevan solas cuando una se cae.
+  orden Qwen, DeepSeek y Gemini —el único que lee PDF—, reintenta sola cuando uno se satura y
+  se puede cancelar sin cerrar nada. **Las llaves no viven en los teléfonos**: están en la hoja
+  (⚡ AL3D → Llaves de IA) y cada consulta sale por el puente, a nombre de quien entró. Quitar a
+  alguien de «Accesos» le quita también la IA.
 - **Escalador** — mide sobre una foto o un plano sin cotas: se calibra con una referencia
   conocida y de ahí salen las demás medidas, con lupa para afinar con el dedo.
 - **Vectorizador** — convierte el JPG del cliente en trazo de corte, a escala real, y saca los
   dos datos que mueven el precio: cuántas piezas son y qué alto tienen.
-- **Autorización con huella** — el precio se bloquea al autorizar y vale mientras el trabajo no
-  cambie. En cuanto cambia, vuelve al calculado, lo dice y ofrece **volver a autorizarlo** sobre
-  el mismo folio. El ajuste se teclea **sobre el subtotal, sin IVA**, y cuando hay ajustes por
-  partida la app nombra contra qué base se mide.
+- **Autorización sellada en la hoja** — solo autoriza una cuenta de Google que la hoja tiene como
+  Dirección; el nombre del autorizador es ese correo, no un campo que se teclea. Al autorizar,
+  la hoja **recalcula el precio con su propia copia del catálogo** y, si no coincide con el del
+  teléfono, no sella. Si coincide, firma el folio, el trabajo, el precio y el total, y lo anota
+  en su pestaña «Autorizaciones». Sin señal no se autoriza: lo tecleado se queda para después.
+  Quien cotiza sin ser Dirección **solicita**, y la solicitud le llega a Dirección a su teléfono;
+  el sello regresa solo. El precio vale mientras el trabajo no cambie (la huella); en cuanto
+  cambia, vuelve al calculado, lo dice y ofrece **volver a autorizarlo** sobre el mismo folio.
+- **Un QR que delata un PDF alterado** — la cotización sellada lleva un QR y un código. Cualquiera
+  que lo escanee llega a `verificar.html`, que le pregunta a la hoja: auténtica, ya no vigente,
+  revocada o no auténtica, con folio, fecha, total y negocio para compararlos con el papel.
 - **PDF de cotización** con el plano del anuncio, la orden de trabajo del taller y el recibo de
   pago con talón. Un descuento se le enseña al cliente; un aumento se reparte entre las partidas.
 - **Deshacer con Ctrl+Z**, hasta 60 pasos, agrupando lo que se teclea seguido en un mismo campo.
+  Borrar una partida o una cotización del historial se deshace desde el aviso.
+- **Se porta como app** — las preguntas son de la app y no del navegador; en el teléfono las
+  hojas se bajan con el dedo; dice cuando no hay señal (y que todo se sigue guardando), avisa
+  cuando hay una versión nueva y se ofrece a instalarse.
 - **Historial y cuadernos de cliente** — el historial contesta «¿qué cotizamos?»; el cuaderno,
   «¿quién es este y qué le hemos hecho?». No hay alta de clientes: se arma solo con lo capturado.
 - **Los importes salen difuminados mientras es borrador**, porque se captura delante del cliente.
@@ -153,8 +166,7 @@ En el pie del historial hay cuatro botones: **⬇ Respaldar** descarga un archiv
 ese teléfono, **⬆ Restaurar** lo devuelve (y antes guarda solo un respaldo de lo que estaba),
 **📄 CSV** exporta el historial para pegarlo en una hoja y **📓 Clientes** lo cruza por cliente.
 
-El respaldo **no incluye las API keys** a propósito: se manda por WhatsApp o correo, y una llave
-que viaja así deja de ser secreta.
+El respaldo no lleva llaves de IA porque ya no hay ninguna en el teléfono: viven en la hoja.
 
 > **Un aviso:** el contador de folios también es por dispositivo. Si cotizas desde dos aparatos,
 > los dos empiezan en `COT-0001`. Mientras no haya sincronización, conviene cotizar siempre desde
@@ -189,14 +201,37 @@ que viaja así deja de ser secreta.
       escalador.js              medir sobre la foto
       venta.js                  registrar la venta y la vuelta a la plataforma
       vectorizador.js           imagen a trazo de corte
+      notario.js                el sello de la hoja: quién eres, solicitar, autorizar, la cola remota
       arranque.js               init(), al final, porque llama a todos los demás
     js/app.js + js/mod/       la plataforma: router y sus módulos ES
     js/datos/, js/nucleo/     la capa de datos y las primitivas de pantalla
 
-Los once de `js/cotizador/` son scripts **clásicos** que comparten el ámbito global, como cuando
+Los doce de `js/cotizador/` son scripts **clásicos** que comparten el ámbito global, como cuando
 eran un solo `<script>`: los 161 manejadores en línea del marcado dependen de eso, y portarlos a
-módulos ES los dejaría mudos sin un solo error. `pruebas/sintaxis.mjs` compila los once y
+módulos ES los dejaría mudos sin un solo error. `pruebas/sintaxis.mjs` compila los doce y
 `pruebas/publicacion.mjs` vigila que `arranque.js` siga siendo el último.
+
+## Qué está cerrado y qué no
+
+La app corre en el navegador, así que **lo que hay en un teléfono lo controla quien tiene el
+teléfono**. Eso no cambia con ninguna pantalla de entrada. Lo que sí se cerró es que una
+trampa hecha en el teléfono **pase por buena**:
+
+| Qué | Dónde se decide |
+|---|---|
+| Quién entra y con qué rol | la hoja (pestaña «Accesos»), verificando el token de Google en cada petición |
+| Qué columnas del dinero puede leer y escribir cada rol | la hoja (`PUENTE_ROLES`, `VE_EL_DINERO`) |
+| Que un precio está autorizado, por quién y por cuánto | la hoja: recalcula el catálogo y firma (`/autorizar`) |
+| Que un PDF es auténtico | la hoja, cuando alguien escanea su QR (`/verificar`) |
+| Las llaves de IA y su cupo diario | la hoja (`/ia`) |
+| A qué servidores puede hablar cada página | su `<meta>` de Content-Security-Policy (`pruebas/csp.mjs`) |
+| Que nadie de afuera empotre la app | `js/tema.js`, el primer guion de todas las páginas |
+
+Lo que sigue abierto, dicho: el catálogo y los datos de este aparato se pueden leer con las
+herramientas del navegador de quien tenga el teléfono desbloqueado, y la plataforma admite
+guiones en línea (`'unsafe-inline'`) porque el cotizador vive de sus manejadores en el marcado
+(ver «Cómo está acomodado el código»).
+Las cabeceras de `_headers` no llegan a nadie mientras el sitio esté en GitHub Pages.
 
 ## Publicar
 
@@ -207,9 +242,12 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
 > empotra. Subir el cotizador como `index.html` borra la puerta de entrada.
 
 1. Hacer commit a `main` (o fusionar el PR).
-2. En **`sw.js`**, subir **`APP_VERSION`** una unidad. Es la primera línea de código del archivo.
+2. Si cambió `puente/hoja-apps-script.gs`, **publicar el puente antes que la app** — ver
+   [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md). Con `puente-sheets-6` es obligatorio: la app
+   nueva no autoriza sin el notario de la hoja.
+3. En **`sw.js`**, subir **`APP_VERSION`** una unidad. Es la primera línea de código del archivo.
    Sin eso, los teléfonos que ya tienen la app siguen sirviendo la versión guardada.
-3. Esperar de 30 a 60 segundos a que GitHub Pages redespliegue.
+4. Esperar de 30 a 60 segundos a que GitHub Pages redespliegue.
 
 Son ochenta y cuatro archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
 mala señal llegarían mezclados, y **un guion nuevo con uno viejo no es una app vieja, es una app
@@ -249,6 +287,10 @@ píxeles** para comprobar que nada de lo que lleva texto baja de 4,5:1 de contra
   día que existan.
 - **Los modales traen tamaños del sistema viejo.** El escalador, el vectorizador y el historial
   heredan los tokens nuevos, pero sus medidas internas son de antes de la escala de siete tamaños.
+- **La revisión de una solicitud remota ajusta el precio total, no partida por partida.** Para
+  ajustar renglón por renglón, Dirección abre la cotización en su teléfono y la autoriza ahí.
+- **El QR comprueba el total y el negocio, no cada renglón.** Un PDF con los renglones
+  cambiados pero el mismo total pasa la verificación; lo que no pasa es un total distinto.
 - **El neón flex se vende y no está en ningún catálogo.** Cae en partida *manual*, que es justo
   la que el módulo de material excluye por diseño. Es un hueco de negocio: falta decidir cómo se
   cobra.
