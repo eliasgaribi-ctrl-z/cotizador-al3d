@@ -190,17 +190,18 @@ const pack = k => Buffer.from(kxor(k), 'latin1').toString('base64');
 globalThis.atob = globalThis.atob || (s => Buffer.from(s, 'base64').toString('latin1'));
 const mem = new Map([
   ['al3d_kxs_gemini', pack(JSON.stringify(['AIza-uno', 'AIza-dos']))],
-  ['ai_key_groq', 'gsk-plano'],
-  ['ai_provider', 'groq'],
-  ['ai_model_groq', 'llama-x'],
+  ['ai_key_deepseek', 'sk-plano'],
+  ['ai_provider', 'gemini'],
+  ['ai_model_deepseek', 'deepseek-x'],
+  ['ai_model_gemini', 'gemini-2.5-flash'],
 ]);
 const almacen = { getItem: k => (mem.has(k) ? mem.get(k) : null) };
 eq('dos llaves de Gemini, ofuscadas', llavesDe('gemini', almacen), ['AIza-uno', 'AIza-dos']);
-eq('la de Groq en texto plano (versión vieja)', llavesDe('groq', almacen), ['gsk-plano']);
-eq('OpenRouter sin llave', llavesDe('openrouter', almacen), []);
+eq('la de DeepSeek en texto plano (versión vieja)', llavesDe('deepseek', almacen), ['sk-plano']);
+eq('Qwen sin llave', llavesDe('qwen', almacen), []);
 const C = cadenaIA(almacen);
-eq('la cadena empieza por el proveedor elegido, con su modelo, y sigue con los demás',
-   C.map(c => c.prov + ':' + c.model + ':' + c.key), ['groq:llama-x:gsk-plano', 'gemini:gemini-2.5-flash:AIza-uno', 'gemini:gemini-2.5-flash:AIza-dos']);
+eq('la cadena sigue el orden fijo —Gemini al final aunque sea el «elegido»— y un modelo retirado cae al de hoy',
+   C.map(c => c.prov + ':' + c.model + ':' + c.key), ['deepseek:deepseek-x:sk-plano', 'gemini:gemini-3.1-flash-lite:AIza-uno', 'gemini:gemini-3.1-flash-lite:AIza-dos']);
 eq('sin nada guardado la cadena está vacía', cadenaIA({ getItem: () => null }), []);
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

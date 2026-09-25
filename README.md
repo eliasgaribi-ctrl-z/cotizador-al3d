@@ -63,8 +63,9 @@ material que hay que comprar**. Nada de eso se captura.
 - **Partidas por tipo** — letras 3D, recorte de acrílico, bastidor, caja de luz o captura manual,
   cada una con su catálogo de materiales y tarifas. Por debajo de 10 cm no hay letras 3D: la
   regla se aplica sola y la partida se convierte en recorte de acrílico, diciendo por qué.
-- **Cotizar con IA** — analiza un JPG o PDF del proyecto y propone las partidas. Hasta 8 llaves
-  por proveedor (Gemini, Groq, OpenRouter), que se turnan y se relevan solas cuando una se cae.
+- **Cotizar con IA** — analiza un JPG, PNG o PDF del proyecto y propone las partidas. Prueba en
+  orden Qwen, DeepSeek y Gemini —el único que lee PDF—, con hasta 8 llaves por proveedor que se
+  turnan y se relevan solas cuando una se cae.
 - **Escalador** — mide sobre una foto o un plano sin cotas: se calibra con una referencia
   conocida y de ahí salen las demás medidas, con lupa para afinar con el dedo.
 - **Vectorizador** — convierte el JPG del cliente en trazo de corte, a escala real, y saca los

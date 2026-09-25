@@ -254,6 +254,8 @@ console.log('\nLAS LLAVES DE IA — la plataforma las lee con la receta del coti
   eq('los mismos proveedores', constante(COT.ia, 'AI_PROVS'), Asis.PROVEEDORES);
   eq('los mismos nombres', constante(COT.ia, 'AI_NOMBRE'), Asis.PROVEEDOR_NOMBRE);
   eq('los mismos modelos por defecto', constante(COT.ia, 'AI_DEFAULTS'), Asis.MODELO_DEFECTO);
+  eq('las mismas direcciones', constante(COT.ia, 'AI_URLS'), Asis.PROVEEDOR_URL);
+  eq('los mismos modelos retirados', constante(COT.ia, 'AI_VIEJOS'), Asis.MODELOS_VIEJOS);
 }
 
 /* ============================================================================ */

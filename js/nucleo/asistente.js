@@ -13,7 +13,7 @@
         nada salga del teléfono (js/datos/asistente-contexto.js, `responderLocal`). Una
         pregunta escrita que case con una de ellas también se contesta así.
      2. LO DEMÁS VA A LA IA, con el mismo resumen como contexto, al proveedor que YA tenga
-        llave guardada en el cotizador (Gemini, Groq u OpenRouter). La plataforma no pide
+        llave guardada en el cotizador (Qwen, DeepSeek o Gemini). La plataforma no pide
         una segunda llave y no escribe las del cotizador. La primera vez que algo va a salir
         del dispositivo se dice con todas sus letras y se pide un «entendido».
 
@@ -31,7 +31,7 @@ import * as Taller from '../datos/taller.js';
 import * as Material from '../datos/material.js';
 import * as Ventas from '../datos/ventas.js';
 import * as Bitacora from '../datos/bitacora.js';
-import { armarResumen, promptSistema, mdLite, cadenaIA, PROVEEDOR_NOMBRE, INTENCIONES,
+import { armarResumen, promptSistema, mdLite, cadenaIA, PROVEEDOR_NOMBRE, PROVEEDOR_URL, INTENCIONES,
          detectarIntencion, respuestaLocal, resumenDelDia, sugerirIntenciones } from '../datos/asistente-contexto.js';
 import { $, ico, esc, money, toast, abrirCapa, cerrarCapa, copiarTexto, hoyISO, fmtFecha } from './ui.js';
 
@@ -354,7 +354,7 @@ async function preguntar(texto) {
     _msgs.push({ rol: 'bot', local: true, ts: Date.now(),
       texto: 'Eso no lo puedo calcular aquí, y este dispositivo no tiene llave de IA para preguntas libres. ' +
         (cerca.length ? '¿Buscabas alguna de estas?' : '') +
-        '\n\nPara preguntas libres, pega una llave de Gemini, Groq u OpenRouter en el cotizador (Cotizar con IA → Configuración): sirve para las dos apps.',
+        '\n\nPara preguntas libres, pega una llave de Qwen, DeepSeek o Gemini en el cotizador (Cotizar con IA → Configuración): sirve para las dos apps.',
       acciones: cerca.map(k => ({ tipo: 'intent', intent: k, label: INTENCIONES[k].titulo })).concat([{ tipo: 'ir', ruta: 'cotizador', label: 'Ir al cotizador' }]) });
     pintar(); enfocarCampo();
     return;
@@ -501,7 +501,7 @@ async function leerTaller() {
 }
 
 /* ----- La llamada al proveedor -----
-   Gemini con su API propia; Groq y OpenRouter hablan el mismo dialecto de chat. Sin modo
+   Gemini con su API propia; Qwen y DeepSeek hablan el mismo dialecto de chat. Sin modo
    JSON: aquí se quiere texto. Un solo intento por candidato; la cadena decide el siguiente. */
 async function llamar(c, sistema, previos, pregunta) {
   const ctl = new AbortController();
@@ -522,12 +522,12 @@ async function llamar(c, sistema, previos, pregunta) {
       if (!txt) throw new Error((PROVEEDOR_NOMBRE[c.prov] || c.prov) + ' respondió vacío' + (cand && cand.finishReason ? ' (' + cand.finishReason + ')' : ''));
       return txt;
     }
-    const URLS = { groq: 'https://api.groq.com/openai/v1/chat/completions', openrouter: 'https://openrouter.ai/api/v1/chat/completions' };
     const hdrs = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + c.key };
-    if (c.prov === 'openrouter') { hdrs['HTTP-Referer'] = location.origin; hdrs['X-Title'] = 'Plataforma AL3D'; }
     const body = { model: c.model, temperature: 0.2, max_tokens: 1200,
       messages: [{ role: 'system', content: sistema }].concat(previos, [{ role: 'user', content: pregunta }]) };
-    const r = await pedir(URLS[c.prov], { method: 'POST', headers: hdrs, body: JSON.stringify(body), signal: ctl.signal });
+    /* Sin esto DeepSeek piensa con esfuerzo alto y el razonamiento se come los 1200 tokens. */
+    if (c.prov === 'deepseek') body.thinking = { type: 'disabled' };
+    const r = await pedir(PROVEEDOR_URL[c.prov], { method: 'POST', headers: hdrs, body: JSON.stringify(body), signal: ctl.signal });
     if (!r.res.ok || (r.data && r.data.error) || !r.data) throw errorDe(r, c);
     const ch = (r.data.choices || [])[0];
     const txt = ((ch && ch.message && ch.message.content) || '').trim();

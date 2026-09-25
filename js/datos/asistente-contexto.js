@@ -267,16 +267,19 @@ export function mdLite(texto) {
 
 /* ----- Las llaves del cotizador, leídas y nunca escritas -----
    El cotizador guarda las API keys ofuscadas en `al3d_kxs_<proveedor>` (XOR con una sal y
-   base64, ver js/cotizador/ia.js) y el proveedor y modelo elegidos en `ai_provider` y
-   `ai_model_<proveedor>`. Aquí se leen con la misma receta. La plataforma NO escribe ninguna
+   base64, ver js/cotizador/ia.js) y el modelo de cada proveedor en `ai_model_<proveedor>`. Aquí se leen con la misma receta. La plataforma NO escribe ninguna
    de estas claves: la key se pega una vez, en el cotizador, y sirve para las dos apps. */
 const KSALT = 'al3d·key·v1';
 const kxor = s => { let o = ''; for (let i = 0; i < s.length; i++) o += String.fromCharCode(s.charCodeAt(i) ^ KSALT.charCodeAt(i % KSALT.length)); return o; };
 const unpack = v => { try { return kxor(atob(String(v))); } catch (_) { return ''; } };
 
-export const PROVEEDORES = ['gemini', 'groq', 'openrouter'];
-export const PROVEEDOR_NOMBRE = { gemini: 'Gemini', groq: 'Groq', openrouter: 'OpenRouter' };
-export const MODELO_DEFECTO = { gemini: 'gemini-2.5-flash', groq: 'meta-llama/llama-4-scout-17b-16e-instruct', openrouter: 'meta-llama/llama-4-scout:free' };
+export const PROVEEDORES = ['qwen', 'deepseek', 'gemini'];
+export const PROVEEDOR_NOMBRE = { qwen: 'Qwen', deepseek: 'DeepSeek', gemini: 'Gemini' };
+export const MODELO_DEFECTO = { qwen: 'qwen3.7-flash', deepseek: 'deepseek-flash', gemini: 'gemini-3.1-flash-lite' };
+export const PROVEEDOR_URL = { qwen: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
+  deepseek: 'https://api.deepseek.com/chat/completions' };
+/* Los que el cotizador ya no usa aunque sigan guardados como «el elegido» (ver AI_VIEJOS). */
+export const MODELOS_VIEJOS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash'];
 
 export function llavesDe(prov, almacen) {
   const get = k => { try { return almacen.getItem(k); } catch (_) { return null; } };
@@ -288,15 +291,14 @@ export function llavesDe(prov, almacen) {
   return una ? [String(una)] : [];
 }
 
-/** La cadena de intentos: el proveedor elegido con sus keys, y después los demás que tengan. */
+/** La cadena de intentos: los proveedores en el orden del cotizador, cada uno con sus keys. */
 export function cadenaIA(almacen) {
   const get = k => { try { return almacen.getItem(k); } catch (_) { return null; } };
-  const elegido = PROVEEDORES.includes(get('ai_provider')) ? get('ai_provider') : 'gemini';
-  const orden = [elegido].concat(PROVEEDORES.filter(p => p !== elegido));
   const out = [];
-  for (const p of orden) {
+  for (const p of PROVEEDORES) {
     const ks = llavesDe(p, almacen);
-    const modelo = get('ai_model_' + p) || (p === 'gemini' ? get('ai_model') : '') || MODELO_DEFECTO[p];
+    const guardado = String(get('ai_model_' + p) || (p === 'gemini' ? get('ai_model') : '') || '').trim();
+    const modelo = guardado && !MODELOS_VIEJOS.includes(guardado) ? guardado : MODELO_DEFECTO[p];
     for (const k of ks) out.push({ prov: p, model: modelo, key: k });
   }
   return out;

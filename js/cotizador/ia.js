@@ -13,7 +13,7 @@
    bloque de diez mil líneas. Se repartió por dominio, sin cambiar una línea de lógica.
    ============================================================================ */
 
-/* ===================== IA (Google Gemini) ===================== */
+/* ===================== IA (Qwen, DeepSeek y Gemini) ===================== */
 const PROMPT_IA = `Eres un asistente experto en cotizacion para "AL3D", empresa que fabrica letras 3D (caras de acrilico, cantos de aluminio o de acero inoxidable), recortes de acrilico, bastidores y cajas de luz.
 
 Analiza la imagen o PDF y DESGLOSA CADA ELEMENTO por separado en distintas partidas. Devuelve SOLO un JSON valido, sin texto adicional:
@@ -122,7 +122,14 @@ ${lista}
    sus últimos 4 caracteres, así que tampoco queda visible al abrir el modal.
    El campo es type="text" con text-security en vez de type="password" para que
    Chrome no lo detecte como contraseña ni ofrezca guardarla en el gestor. */
-const AI_PROVS=['gemini','groq','openrouter'];
+/* El orden de la lista ES el orden en que se intenta, sin importar qué pestaña esté abierta
+   en Configuración: primero Qwen, luego DeepSeek y al final Gemini. Los dos primeros son de
+   pago y cuestan centavos —una cotización sale en menos de medio centavo de dólar—, así que
+   la saturación de los planes gratuitos deja de ser el cuello de botella. Gemini cierra la
+   cadena porque es el único que lee PDF: un PDF va directo a él y las imágenes solo le llegan
+   si los otros dos fallaron. Groq y OpenRouter salieron en septiembre de 2026: sus modelos de
+   visión gratuitos (Llama 4 Scout y Maverick) se apagaron y la cadena caía en 404. */
+const AI_PROVS=['qwen','deepseek','gemini'];
 const _KSALT='al3d·key·v1';
 function _kxor(s){ let o=''; for(let i=0;i<s.length;i++) o+=String.fromCharCode(s.charCodeAt(i)^_KSALT.charCodeAt(i%_KSALT.length)); return o; }
 function keyPack(k){ try{ return btoa(_kxor(String(k))); }catch(_){ return ''; } }
@@ -186,7 +193,7 @@ function aiRenderKey(p){
   const inp=$('ai-key-'+p);
   if(inp) inp.placeholder=ks.length
     ? (ks.length>=AI_MAX_KEYS?'Ya no caben más keys':'Pega otra key y se turnará con las de arriba')
-    : 'Pega tu key (gratis, sin tarjeta)';
+    : 'Pega tu key';
   aiPintarRespaldo();
 }
 /* Cuántas APIs hay cargadas y qué implica. Es la única cuenta que le importa a quien
@@ -233,9 +240,10 @@ function aiDelKey(p,i){
 
    Recordar el proveedor es una comodidad; no poder cotizar con IA no lo es. Si no se puede
    escribir, se sigue igual y la elección vale para esta sesión. */
-let aiProv='gemini';
+let aiProv=AI_PROVS[0];
 function _lsGet(k){ try{ return localStorage.getItem(k); }catch(_){ return null; } }
 function setAiProv(p){
+  if(!AI_PROVS.includes(p)) p=AI_PROVS[0];   // un «groq» guardado por la versión anterior
   aiProv=p;
   try{ localStorage.setItem('ai_provider',p); }catch(_){}
   AI_PROVS.forEach(x=>{ const el=$('prov-'+x); if(el) el.style.display=x===p?'':'none'; });
@@ -299,12 +307,9 @@ function aiOpen(fuente){
      análisis anterior, sin que nada en pantalla dijera cuál era. */
   aiOlvidarArchivo();
   _aiDragN=0; aiPintarArrastre(false);
-  $('ai-model-gemini').value=_lsGet('ai_model_gemini')||_lsGet('ai_model')||AI_DEFAULTS.gemini;
-  $('ai-model-groq').value=_lsGet('ai_model_groq')||AI_DEFAULTS.groq;
-  $('ai-model-openrouter').value=_lsGet('ai_model_openrouter')||AI_DEFAULTS.openrouter;
-  const p=_lsGet('ai_provider')||'gemini';
-  setAiProv(p);
-  if(!getKey(p)) $('ai-cfg-box').open=true;
+  AI_PROVS.forEach(p=>{ const m=$('ai-model-'+p); if(m) m.value=aiModelo(p); });
+  setAiProv(_lsGet('ai_provider'));
+  if(!AI_PROVS.some(getKey)) $('ai-cfg-box').open=true;
   _aiCancelado=false;
   const go=$('ai-go-btn'); if(go) go.disabled=aiTrabajando;
   aiStatus(aiTrabajando?'Hay un análisis en curso…':''
@@ -327,7 +332,7 @@ function aiClose(){
 /* Con la imagen del escalador el modal cambia de cara: en vez de pedir un archivo
    enseña lo que se va a analizar, y deja la puerta abierta por si el usuario prefiere
    subir otra cosa. */
-const AI_INTRO_ARCHIVO='Dale una foto (JPG) o PDF del diseño/boceto. La IA detecta texto, medidas, material e iluminación, <b>describe qué está cotizando en cada partida</b> y muestra una miniatura del archivo para que lo compares. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo.';
+const AI_INTRO_ARCHIVO='Dale una foto (JPG o PNG) o un PDF del diseño/boceto. La IA detecta texto, medidas, material e iluminación, <b>describe qué está cotizando en cada partida</b> y muestra una miniatura del archivo para que lo compares. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo.';
 const AI_INTRO_ESCALADOR='Se analiza la imagen que acabas de medir, con tus cotas dibujadas encima. Como las medidas ya están calibradas, la IA <b>no tiene que estimar tamaños</b>: los usa tal cual y dedica su trabajo a reconocer qué es cada elemento, de qué material y con cuántas letras. Arma un <b>borrador</b> que tú revisas y autorizas antes de usarlo.';
 function aiPintarFuente(){
   const box=$('ai-src-box'), fld=$('ai-file-fld'), btn=$('ai-go-btn'), intro=$('ai-intro');
@@ -572,7 +577,7 @@ function extractJSON(txt){
   try{ return JSON.parse(txt); }catch(_){}
   const m=txt.match(/```(?:json)?\s*([\s\S]*?)```/);
   if(m){ try{ return JSON.parse(m[1].trim()); }catch(_){} }
-  /* Sin el modo JSON del API —Groq y OpenRouter no siempre lo aceptan con imagen—
+  /* Sin el modo JSON del API —no todos los modelos de visión lo aceptan con imagen—
      el modelo suele anteponer una frase de cortesía al objeto. Se recorta desde la
      primera llave hasta la última. */
   const a=txt.indexOf('{'), b=txt.lastIndexOf('}');
@@ -592,17 +597,32 @@ function extractJSON(txt){
    intentos con esperas crecientes y, si el proveedor sigue caído, pasa al siguiente
    modelo y al siguiente proveedor que tenga key guardada, diciendo en todo momento
    con quién está hablando. */
-const AI_NOMBRE={gemini:'Gemini',groq:'Groq',openrouter:'OpenRouter'};
-const AI_DEFAULTS={gemini:'gemini-2.5-flash',groq:'meta-llama/llama-4-scout-17b-16e-instruct',openrouter:'meta-llama/llama-4-scout:free'};
-/* Modelos hermanos a los que se cae cuando el elegido está saturado: cuando el
-   2.5-flash no da abasto, el lite y el 2.0 suelen contestar a la primera porque no
-   comparten la misma cola. Sirven también de red para un nombre de modelo mal
-   escrito a mano, que si no dejaba al proveedor inservible hasta corregirlo. */
+const AI_NOMBRE={qwen:'Qwen',deepseek:'DeepSeek',gemini:'Gemini'};
+const AI_DEFAULTS={qwen:'qwen3.7-flash',deepseek:'deepseek-flash',gemini:'gemini-3.1-flash-lite'};
+/* Qwen y DeepSeek hablan el dialecto de chat de OpenAI; Gemini tiene su API propia. Las dos
+   direcciones se probaron desde el navegador (CORS) con el origen de GitHub Pages. La de Qwen
+   es la de Model Studio INTERNACIONAL (región Singapur): la de QwenCloud no deja llamar desde
+   una página web. */
+const AI_URLS={qwen:'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
+  deepseek:'https://api.deepseek.com/chat/completions'};
+/* Modelos hermanos a los que se cae cuando el elegido está saturado o no existe. Sirven
+   también de red para un nombre de modelo mal escrito a mano, que si no dejaba al proveedor
+   inservible hasta corregirlo. DeepSeek no tiene hermano: solo su Flash ve imágenes. */
 const AI_RESPALDO={
-  gemini:['gemini-2.5-flash','gemini-2.5-flash-lite','gemini-2.0-flash'],
-  groq:['meta-llama/llama-4-scout-17b-16e-instruct','meta-llama/llama-4-maverick-17b-128e-instruct'],
-  openrouter:[]  // el catálogo cambia seguido; no se adivinan slugs que quizá no existan
+  qwen:['qwen3.7-flash','qwen3.6-flash'],
+  deepseek:[],
+  gemini:['gemini-3.1-flash-lite','gemini-3.6-flash']
 };
+/* Modelos que la versión anterior dejó guardados como «el elegido» y que ya no sirven: los
+   2.0 se apagaron el 1 de junio de 2026 y los 2.5 Google ya solo los da a quien los venía
+   usando, y son los primeros que satura. Sin esto, quien ya había cotizado seguía mandando
+   todo al modelo viejo aunque el predeterminado cambiara, porque el campo se llena con lo
+   guardado. */
+const AI_VIEJOS=['gemini-2.5-flash','gemini-2.5-flash-lite','gemini-2.0-flash','gemini-2.0-flash-lite','gemini-1.5-flash'];
+function aiModelo(p){
+  const m=String(_lsGet('ai_model_'+p)||(p==='gemini'?_lsGet('ai_model'):'')||'').trim();
+  return m&&!AI_VIEJOS.includes(m)?m:AI_DEFAULTS[p];
+}
 const AI_TIMEOUT=90000;
 /* Con el proveedor elegido se insiste de verdad —4 intentos, hasta 11 s de esperas—
    porque es el que el usuario quiere usar. Con los de respaldo no: si el primero
@@ -615,7 +635,7 @@ const aiEtq=c=>`${AI_NOMBRE[c.prov]||c.prov} · ${c.model}${c.nk>1?` · key ${c.
 
 
 /* Una foto de celular pesa entre 3 y 8 MB y en base64 crece otro 33%. Gemini lo
-   aguanta; Groq la rechaza por tamaño y en 4G la subida tarda tanto que parece que
+   aguanta; Qwen acepta 10 MB como mucho y en 4G la subida tarda tanto que parece que
    la app se colgó. 1600 px es lo mismo que manda el escalador y de sobra para leer
    una cota. Si el navegador no sabe abrir el archivo —HEIC de iPhone en Android—
    se manda tal cual y que conteste el proveedor. */
@@ -715,17 +735,19 @@ async function aiLlamar(c,prompt,b64,mime,sinJson){
     if(!txt) throw aiVacio(c.prov,(cand&&cand.finishReason)||(r.data.promptFeedback&&r.data.promptFeedback.blockReason));
     return extractJSON(txt);
   }
-  const URLS={groq:'https://api.groq.com/openai/v1/chat/completions',openrouter:'https://openrouter.ai/api/v1/chat/completions'};
   const hdrs={'Content-Type':'application/json','Authorization':'Bearer '+c.key};
-  if(c.prov==='openrouter'){ hdrs['HTTP-Referer']=location.origin; hdrs['X-Title']='Cotizador AL3D'; }
   const body={model:c.model,messages:[{role:'user',content:[{type:'text',text:prompt},{type:'image_url',image_url:{url:`data:${mime};base64,${b64}`}}]}],temperature:0.2,max_tokens:4096};
   if(!sinJson) body.response_format={type:'json_object'};
-  const r=await aiFetch(URLS[c.prov],{method:'POST',headers:hdrs,body:JSON.stringify(body)});
+  /* DeepSeek piensa por omisión y con esfuerzo alto: la respuesta tarda y el razonamiento se
+     cobra como salida. Para leer cotas de un plano no hace falta, y con el cliente enfrente
+     el minuto de espera sí se nota. */
+  if(c.prov==='deepseek') body.thinking={type:'disabled'};
+  const r=await aiFetch(AI_URLS[c.prov],{method:'POST',headers:hdrs,body:JSON.stringify(body)});
   if(!r.res.ok||(r.data&&r.data.error)||!r.data){
     const err=aiError(r,c.prov,c.model);
     /* Buena parte de los modelos de visión no aceptan el modo JSON del API cuando va
        una imagen en la misma petición, y contestan un 400 que reintentar no arregla
-       —era el «Groq no me funciona» de siempre—. Quitar la opción sí lo arregla: el
+       —era el «Groq no me funciona» de antes—. Quitar la opción sí lo arregla: el
        prompt ya pide «SOLO un JSON valido» y extractJSON sabe pelar el ```json. */
     if(!sinJson&&err.status===400&&/json|response_format|schema|format/i.test(err.crudo||''))
       return aiLlamar(c,prompt,b64,mime,true);
@@ -770,14 +792,15 @@ function aiAvanzarTurno(p,n){
   if(n<2) return;
   try{ localStorage.setItem('ai_key_rot_'+p,String(((+(localStorage.getItem('ai_key_rot_'+p)||0)||0)+1)%n)); }catch(_){}
 }
-/* El orden en que se va a intentar. Primero el proveedor elegido: el modelo elegido
-   con TODAS sus keys —la cuota gratuita va por key, así que otra cuenta es cuota
-   nueva— y después sus modelos hermanos con una sola, porque un modelo saturado no
-   lo arregla cambiar de cuenta. Luego lo mismo con los demás proveedores que tengan
-   keys guardadas. Solo se usan keys ya guardadas en este dispositivo: la app no
-   manda nada a un proveedor que el usuario no haya configurado. */
+/* El orden en que se va a intentar: los proveedores en el orden de AI_PROVS, cada uno con
+   su modelo y TODAS sus keys —la cuota va por key, así que otra cuenta es cuota nueva— y
+   después sus modelos hermanos con una sola, porque un modelo saturado no lo arregla
+   cambiar de cuenta. La pestaña abierta en Configuración ya no adelanta a nadie: abrir la de
+   Gemini para pegar su key mandaba las imágenes primero a Gemini, que es justo el que va al
+   final. Solo se usan keys ya guardadas en este dispositivo: la app no manda nada a un
+   proveedor que el usuario no haya configurado. */
 const AI_MAX_INTENTOS=12;
-function aiCadena(prov,model,esPdf){
+function aiCadena(esPdf){
   const out=[], vistos=new Set();
   const push=(p,m,k,kn,nk)=>{
     if(!k||!m) return; const id=p+'|'+m+'|'+kn; if(vistos.has(id)) return;
@@ -789,10 +812,8 @@ function aiCadena(prov,model,esPdf){
     (AI_RESPALDO[p]||[]).forEach(m=>push(p,m,ks[0].key,ks[0].n,ks.length));
     aiAvanzarTurno(p,ks.length);
   };
-  /* Groq y OpenRouter no leen PDF: con un PDF en la mano el único que sirve es
-     Gemini, aunque el proveedor elegido en el modal sea otro. */
-  if(!(esPdf&&prov!=='gemini')) bloque(prov,model);
-  AI_PROVS.forEach(p=>{ if(p===prov||(esPdf&&p!=='gemini')) return; bloque(p,_lsGet('ai_model_'+p)||AI_DEFAULTS[p]); });
+  /* Qwen y DeepSeek no leen PDF: con un PDF en la mano el único que sirve es Gemini. */
+  AI_PROVS.forEach(p=>{ if(esPdf&&p!=='gemini') return; bloque(p,aiModelo(p)); });
   return out.slice(0,AI_MAX_INTENTOS);
 }
 
@@ -812,22 +833,25 @@ async function aiAnalyze(){
   const f=aiArchivo;
   if(!aiSrc && !f){ aiStatus('Arrastra aquí el archivo, pégalo, o toca el recuadro para elegirlo.','err'); return; }
   const esPdf=!aiSrc && f.type==='application/pdf';
-  /* Con un PDF y Groq/OpenRouter elegidos, antes esto era un callejón sin salida:
-     había que entrar a Configuración y cambiar de proveedor a mano. Si la key de
-     Gemini ya está guardada, se usa esa y ya. */
-  if(esPdf && aiProv!=='gemini' && !getKey('gemini')){
-    aiStatus('Groq y OpenRouter solo admiten imágenes JPG. Para PDF guarda tu API key de Gemini en Configuración.','err');
-    $('ai-cfg-box').open=true; return;
-  }
   /* Una key pegada en el campo y sin «Agregar» cuenta igual: el reflejo de pegar y
      darle a Analizar es el de siempre y no tiene por qué costar un paso extra. */
   if($('ai-key-'+aiProv).value.trim()){ addKey(aiProv,$('ai-key-'+aiProv).value); $('ai-key-'+aiProv).value=''; aiRenderKey(aiProv); }
-  const model=($('ai-model-'+aiProv).value.trim())||AI_DEFAULTS[aiProv];
-  const soloGemini=esPdf&&aiProv!=='gemini';   // el PDF se va a Gemini: las keys del elegido no hacen falta
-  if(!getKeys(aiProv).length&&!soloGemini){ $('ai-cfg-box').open=true; aiEditKey(aiProv); aiStatus('Pega tu API key de '+(AI_NOMBRE[aiProv]||aiProv)+'.','err'); return; }
-  /* Recordar la preferencia es un lujo; poder analizar no. Sin el try, con el
-     almacenamiento lleno esto lanzaba aquí mismo y el análisis no arrancaba. */
-  try{ localStorage.setItem('ai_model_'+aiProv,model); localStorage.setItem('ai_provider',aiProv); }catch(_){}
+  /* Un PDF solo lo lee Gemini. Sin su key no hay a quién mandarlo, y se dice antes de
+     intentar nada en vez de dejar que Qwen y DeepSeek lo rechacen uno por uno. */
+  if(esPdf && !getKey('gemini')){
+    $('ai-cfg-box').open=true; setAiProv('gemini'); aiEditKey('gemini');
+    aiStatus('Los PDF solo los lee Gemini: guarda tu API key de Gemini en Configuración, o sube el diseño como JPG o PNG.','err');
+    return;
+  }
+  if(!AI_PROVS.some(getKey)){ $('ai-cfg-box').open=true; aiEditKey(aiProv); aiStatus('Pega tu API key de '+(AI_NOMBRE[aiProv]||aiProv)+'.','err'); return; }
+  /* El modelo de cada proveedor sale de su campo. Recordarlo es un lujo; poder analizar no.
+     Sin el try, con el almacenamiento lleno esto lanzaba aquí mismo y el análisis no
+     arrancaba. */
+  AI_PROVS.forEach(p=>{
+    const inp=$('ai-model-'+p), m=inp&&inp.value.trim();
+    try{ if(m&&m!==AI_DEFAULTS[p]) localStorage.setItem('ai_model_'+p,m); else localStorage.removeItem('ai_model_'+p); }catch(_){}
+  });
+  try{ localStorage.setItem('ai_provider',aiProv); }catch(_){}
   const verbo=aiSrc?'Analizando la imagen medida':'Analizando';
   aiStatus(verbo+'…','work');
   const btn=$('ai-go-btn'); aiTrabajando=true; if(btn) btn.disabled=true;
@@ -838,7 +862,7 @@ async function aiAnalyze(){
        lista para que las use tal cual. */
     const {b64,mime}=aiSrc?{b64:aiSrc.url.split(',')[1],mime:aiSrc.mime||'image/jpeg'}:await aiImagen(f);
     const prompt=aiSrc?PROMPT_IA+promptMedidas(aiSrc.medidas):PROMPT_IA;
-    const cadena=aiCadena(aiProv,model,esPdf);
+    const cadena=aiCadena(esPdf);
     if(!cadena.length) throw new Error('no hay ninguna API key guardada para analizar este archivo');
     let parsed=null,usado=null,ultimo=null;
     let intentados=0;
@@ -922,12 +946,12 @@ async function aiAnalyze(){
     /* Si solo hay una API cargada, insistir más no arregla nada: lo que lo arregla es
        tener a dónde caerse. Se dice aquí, que es cuando duele.
        Y se cuenta lo que se intentó, no lo que hay guardado. «Se probaron las 5 APIs
-       cargadas» era falso al analizar un PDF: ahí la cadena solo lleva Gemini, porque Groq
-       y OpenRouter no leen PDF, y el mensaje culpaba a keys que nadie tocó. */
+       cargadas» era falso al analizar un PDF: ahí la cadena solo lleva Gemini, porque Qwen
+       y DeepSeek no leen PDF, y el mensaje culpaba a keys que nadie tocó. */
     const probados=_aiIntentados;
     const nota=probados>1
       ? ' · Se probaron '+probados+' combinaciones en '+_aiProvsProbados+(_aiProvsProbados===1?' proveedor':' proveedores')+'.'
-        +((_aiEraPdf&&_aiProvsProbados===1)?' Groq y OpenRouter no leen PDF, así que no se intentaron.':'')
+        +((_aiEraPdf&&_aiProvsProbados===1)?' Qwen y DeepSeek no leen PDF, así que no se intentaron.':'')
       : (e.transitorio
           ? ' · Ya reintenté varias veces con la única API cargada. En Configuración puedes agregar más keys —de este proveedor o de otro— y la app irá cambiando sola cuando esto vuelva a pasar.'
           : '');
