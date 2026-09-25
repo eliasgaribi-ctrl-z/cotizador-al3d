@@ -1,8 +1,8 @@
 /* ============================================================================
    El tema: claro, oscuro o el del sistema.
 
-   Es un script CLÁSICO y va en el <head> de las tres páginas —index.html, cotizador.html y
-   el anidador— ANTES de las hojas de estilo, a propósito: decide el tema leyendo una clave
+   Es un script CLÁSICO y va en el <head> de todas las páginas —index.html, cotizador.html,
+   el anidador y las públicas— ANTES de las hojas de estilo, a propósito: decide el tema leyendo una clave
    de localStorage y pone `data-tema` en <html> antes del primer pintado. Si corriera
    después, cada apertura en oscuro parpadearía en claro un cuadro.
 
@@ -17,6 +17,28 @@
    idioma que ya usan al3d_historial y al3d_anidar.
 
    Sin localStorage —Safari privado— funciona igual, sin recordar. */
+
+/* ----- Nadie de afuera nos empotra -----
+   Va aquí porque éste es el guion que TODAS las páginas cargan primero. Una página de otro
+   sitio podría meter la app en un <iframe> transparente y poner sus propios botones encima
+   —«toca aquí para ganar»— para que el toque caiga en «Autorizar» o en «Registrar venta».
+   La cabecera que lo impide (frame-ancestors) no funciona en <meta>, y GitHub Pages no deja
+   poner cabeceras; así que se comprueba a mano.
+
+   El único que empotra legítimamente es la plataforma, que es de este mismo origen
+   (js/mod/cotizador.js y js/mod/herramientas.js). Leer `top.location.href` desde un marco de
+   otro origen LANZA: esa excepción es la señal. Si pasa, la página se sale del marco; y si
+   ni eso se puede, se queda en blanco. */
+(function () {
+  try {
+    if (window.top === window.self) return;
+    void window.top.location.href;
+  } catch (_) {
+    try { window.top.location = window.self.location.href; }
+    catch (__) { document.documentElement.innerHTML = ''; }
+  }
+})();
+
 (function () {
   var CLAVE = 'al3d_tema';
   var COLOR = { claro: '#4060f8', oscuro: '#0f1124' };

@@ -2,6 +2,15 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<!-- ----- A dónde puede hablar esta página (Content-Security-Policy) -----
+     GitHub Pages no manda cabeceras propias —el _headers del repo es para Cloudflare y aquí
+     no se lee—, así que la política va en <meta>, y va antes que cualquier <script>. No
+     prohíbe los guiones en línea ('unsafe-inline': el arranque y el tema los usan); lo que
+     cierra es a DÓNDE se puede mandar algo: si un día se colara un XSS, no tendría a qué
+     servidor llevarse los datos. Cada dominio de aquí tiene su razón y pruebas/csp.mjs truena
+     si el código empieza a hablar con uno que no está. frame-ancestors no sirve en <meta>: el
+     «nadie me empotra» lo hace js/tema.js. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org https://*.basemaps.cartocdn.com; connect-src 'self' https://www.googleapis.com https://accounts.google.com https://script.google.com https://script.googleusercontent.com https://nominatim.openstreetmap.org; frame-src 'self' https://accounts.google.com; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>AL3D — taller</title>
 <meta name="description" content="El taller de AL3D: qué se está fabricando ahora, qué va tarde, el calendario de instalaciones, el material del almacén y el cotizador.">

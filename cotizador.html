@@ -2,6 +2,12 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<!-- ----- A dónde puede hablar el cotizador (Content-Security-Policy) -----
+     A la hoja y a nada más: desde septiembre de 2026 la IA también sale por ella, así que ni
+     Qwen ni DeepSeek ni Gemini aparecen aquí. pdf.js viene de cdnjs y arma su worker desde un
+     blob:; los PDF de referencia se enseñan en un <iframe> con data:. Ver la nota de
+     index.html y pruebas/csp.mjs. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob: https://script.google.com https://script.googleusercontent.com; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src 'self' data: blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Cotizador AL3D</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">

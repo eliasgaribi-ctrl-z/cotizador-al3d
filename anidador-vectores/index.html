@@ -2,6 +2,12 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<!-- ----- Content-Security-Policy -----
+     El anidador no habla con nadie: sus workers son de aquí mismo. El de js/lib/eval.js
+     evalúa código, pero un worker cargado desde su propia URL trae SU política —la de la
+     respuesta de ese archivo—, no la de esta página, así que aquí no hace falta abrir
+     'unsafe-eval'. Ver pruebas/csp.mjs. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Anidador de vectores · AL3D</title>
 <meta name="description" content="Acomoda las piezas de un SVG en la hoja de material para gastar lo menos posible antes de mandarlas al láser o al CNC.">

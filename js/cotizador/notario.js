@@ -378,5 +378,8 @@ async function rechazarRemota(){
    estímulo, no solo menos animación. */
 function vibrar(patron){
   try{ if(matchMedia('(prefers-reduced-motion: reduce)').matches) return; }catch(_){}
+  /* Sin un toque previo el navegador la bloquea y lo anota como error: un sello que llega solo
+     mientras nadie ha tocado la pantalla no vibra, y está bien. */
+  try{ if(navigator.userActivation&&!navigator.userActivation.hasBeenActive) return; }catch(_){}
   try{ if(navigator.vibrate) navigator.vibrate(patron); }catch(_){}
 }
