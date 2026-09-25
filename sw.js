@@ -27,7 +27,7 @@
    el cotizador. Antes era al revés. `plataforma.html` sigue existiendo como reenvío de diez
    líneas, porque hay marcadores e iconos instalados que apuntan ahí.
 
-   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 35 módulos ES que
+   Eso es correcto para UN archivo. Es fatal para veinte. La plataforma son 36 módulos ES que
    se importan entre sí: con mala señal, `app.js` llega de la red (versión nueva) y
    `material.js` de la caché (versión vieja), el import falla y queda una PANTALLA BLANCA —
    justo en el escenario para el que el service worker existe. Un módulo nuevo con un módulo
@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 65;
+const APP_VERSION = 67;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -89,6 +89,10 @@ const APP_FILES = [
   './js/cotizador/arranque.js',
   './js/app.js',
   './js/nucleo/ui.js',
+  /* La política de qué pantalla se conserva al cambiar de pestaña. Va con app.js y no
+     aparte: el router la importa de forma estática, así que una copia sin este archivo no
+     es una plataforma sin la mejora, es una plataforma que no arranca. */
+  './js/nucleo/conservar.js',
   './js/nucleo/fechas.js',
   './js/nucleo/ics.js',
   './js/nucleo/gcal.js',
@@ -161,12 +165,19 @@ const APP_FILES = [
    los iconos viven en BASICOS y no en APP_FILES, y si cayeran aquí, sin señal devolverían el
    503 de más abajo — o sea la barra de la app con la imagen rota. Lo que no está en esta
    lista sigue por la ruta del cotizador, byte por byte como antes. */
+/* Las páginas sueltas, con y sin `.html`. Cloudflare Pages sirve cada `x.html` también como
+   `/x` (y redirige la primera a la segunda), así que `/cotizador` llegaba sin el `.html` y
+   no casaba con nada de aquí: se iba a la red primero y traía el HTML nuevo con los guiones
+   viejos de la caché, que es la mezcla que este archivo existe para impedir. */
+const PAGINAS = /\/(index|cotizador|plataforma|acerca|privacidad|condiciones)(\.html)?$/;
 function esDeLaPlataforma(url) {
   const p = url.pathname;
   return p.endsWith('/') ||                    // la portada del sitio
-         p.endsWith('/index.html') ||
-         p.endsWith('/cotizador.html') ||      // el cotizador, desde que va con el conjunto
-         p.endsWith('/plataforma.html') ||     // el reenvío
+         /* index, el cotizador (desde que va con el conjunto), el reenvío de plataforma y las
+            tres públicas. Éstas se precargaban en APP pero caían en la ruta del cotizador,
+            que solo mira `al3d-v1`: sin haberlas abierto antes con señal, la privacidad sin
+            red era la página de error del navegador. */
+         PAGINAS.test(p) ||
          p.endsWith('/manifest-plataforma.webmanifest') ||
          p.indexOf('/anidador-vectores/') >= 0 ||   // el anidador entero, con sus workers
          /\/(css|js|vendor|datos)\//.test(p);
@@ -310,12 +321,17 @@ self.addEventListener('fetch', ev => {
    ciclo de install/activate con APP_VERSION. */
 async function plataforma(req) {
   const c = await caches.open(APP);
-  const guardada = await c.match(req, { ignoreSearch: true });
+  let guardada = await c.match(req, { ignoreSearch: true });
+  /* `/cotizador` es `./cotizador.html` con otro nombre (ver PAGINAS). */
+  if (!guardada) {
+    const p = new URL(req.url).pathname;
+    if (PAGINAS.test(p) && !/\.html$/.test(p)) guardada = await c.match(p + '.html');
+  }
   if (guardada) {
     /* Un toque a la red para que el navegador note un sw.js nuevo, con techo de 5 s. No se
        espera: el timeout no cuesta nada porque la respuesta ya salió. */
     revalidar(req);
-    return guardada;
+    return sinRedireccion(guardada);
   }
   /* No estaba en la caché. Puede ser un archivo nuevo de una versión que todavía no se
      instaló, o la primera visita. Se va a la red. */
@@ -329,22 +345,34 @@ async function plataforma(req) {
        abrir la plataforma sin señal parecía que la app se había roto. */
     if (req.mode === 'navigate') {
       const portada = await c.match('./index.html') || await c.match('./');
-      if (portada) return portada;
+      if (portada) return sinRedireccion(portada);
     }
     /* Un teléfono que tenía la app de antes de que el cotizador entrara al conjunto guarda
        cotizador.html y sus guiones en la caché vieja. Se mira ahí antes de rendirse. */
     try {
       const vieja = await (await caches.open(CACHE)).match(req, { ignoreSearch: true });
-      if (vieja) return vieja;
+      if (vieja) return sinRedireccion(vieja);
     } catch (_) {}
     return new Response('Sin conexión y sin copia guardada de la plataforma.',
       { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
 }
 
+/* ----- Una copia que llegó por redirección no se le puede dar a una navegación -----
+   `addAll` sigue las redirecciones, y en Cloudflare Pages `cotizador.html` contesta 308 hacia
+   `/cotizador`: lo que se guarda es una respuesta marcada `redirected`. El estándar dice que
+   una respuesta así, entregada a una NAVEGACIÓN, es un error de red — y como la caché va
+   primero, en un teléfono con la app instalada el marco del cotizador, el vectorizador y los
+   iconos de inicio fallaban aunque hubiera señal. Se re-envuelve el cuerpo en una respuesta
+   nueva, que ya no lleva la marca; en GitHub Pages no hay redirección y no cambia nada. */
+function sinRedireccion(res) {
+  if (!res || !res.redirected) return res;
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: res.headers });
+}
+
 let _revalidando = false;
 function revalidar(req) {
-  /* Una sola revalidación por vuelta: la plataforma pide 35 módulos al arrancar y no tiene
+  /* Una sola revalidación por vuelta: la plataforma pide 36 módulos al arrancar y no tiene
      sentido mandar 25 peticiones a la red para enterarse de lo mismo. */
   if (_revalidando) return;
   _revalidando = true;
@@ -373,10 +401,10 @@ async function cotizador(req) {
        ninguna consola. */
     const c = await caches.open(CACHE);
     const guardada = await c.match(req);
-    if (guardada) return guardada;
+    if (guardada) return sinRedireccion(guardada);
     if (req.mode === 'navigate') {
       const portada = await c.match('./cotizador.html');
-      if (portada) return portada;
+      if (portada) return sinRedireccion(portada);
     }
     throw new Error('sin conexión y sin copia guardada');
   }

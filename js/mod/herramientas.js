@@ -24,9 +24,23 @@
    una página nueva. Una segunda copia de 153 líneas de marcado se separa de la original en
    tres meses y a partir de ahí hay dos vectorizadores que se parecen. Una implementación, dos
    puertas.
+
+   ── Las dos rutas se CONSERVAN, y eso obliga a una regla ────────────────────────
+   Las dos llevan `conservar: true` en RUTAS: salir de la Mesa de corte y volver ya no
+   reinterpreta el motor entero. El ciclo de vida se parte en tres —`montar`, `ocultar`,
+   `mostrar`, `desmontar`— y la regla es la misma que en js/mod/cotizador.js: `ocultar()`
+   suelta todo lo que este módulo escribe FUERA de su sección, y `mostrar()` lo repone.
+
+   Y hay un invariante que este archivo NO puede defender solo: es UN módulo con UN juego de
+   estado (`_cont`, `_marcoId`, `_reloj`, `_oyeMensaje`) para DOS rutas. Dos instancias vivas
+   a la vez se pisarían las variables, y la segunda dejaría los oyentes de la primera sin
+   nadie que los quite. Quien lo impide es `TOPE_CONSERVADAS = 1` en js/nucleo/conservar.js:
+   al entrar a una de estas dos, la otra se poda. Subir ese número sin darle estado por
+   contenedor a este archivo es romperlo; el `montar()` de abajo lo dice por consola si llega
+   a pasar, pero el sitio donde hay que leerlo es allá.
    ============================================================================ */
 
-import { $, esqueletoMarco, medirMarco } from '../nucleo/ui.js';
+import { $, esqueletoMarco, medirMarco, alTerminarDeEntrar } from '../nucleo/ui.js';
 
 /* La tabla de herramientas. Cada una dice de qué sección cuelga, qué documento empotra y con
    qué silueta se tapa mientras arranca. Añadir una es un renglón aquí, su sección en
@@ -58,10 +72,26 @@ let _reloj = null;
 let _intentos = 0;
 let _marcoId = '';
 let _oyeMensaje = null;
+/* ¿Esta pantalla se está viendo? Montado y visible dejaron de ser lo mismo desde que las dos
+   rutas se conservan. Todo lo que mide geometría se pregunta por esto antes. */
+let _visible = false;
+/* Para cancelar la medición que espera al final de la animación de entrada, si la pantalla se
+   va antes de que termine. Ver `alTerminarDeEntrar` en nucleo/ui.js. */
+let _finEntrada = null;
 
 export async function montar(contenedor, ctx) {
+  /* El invariante de arriba, dicho en voz alta si se rompe. Con `TOPE_CONSERVADAS = 1` el
+     router poda la otra herramienta antes de montar ésta, así que esto no puede pasar; si
+     algún día pasa, el síntoma sin este aviso sería un marco con oyentes que nadie quita y
+     un `_marcoId` midiendo la caja equivocada — nada que se parezca a su causa. */
+  if (_cont && _cont !== contenedor) {
+    console.warn('herramientas: se monta «' + (contenedor && contenedor.id) + '» con «' +
+                 _cont.id + '» todavía vivo; se suelta el anterior');
+    desmontar();
+  }
   _cont = contenedor;
   _ctx = ctx;
+  _visible = true;
 
   const h = HERRAMIENTAS[contenedor && contenedor.id];
   if (!h) { contenedor.innerHTML = ''; return; }
@@ -91,7 +121,8 @@ export async function montar(contenedor, ctx) {
 
   /* Un iframe no tiene alto propio: sin medirlo se queda en los 150 px de la especificación.
      Después de que el navegador colocó la caja, no en el mismo tick. */
-  requestAnimationFrame(() => medirMarco(h.marco));
+  requestAnimationFrame(() => medir());
+  medirCuandoEntre();
   window.addEventListener('resize', alRedimensionar);
 
   /* Se pregunta por el DOM del documento de dentro y NO por su evento `load`, por la misma
@@ -119,11 +150,33 @@ export async function montar(contenedor, ctx) {
   _oyeMensaje = ev => {
     if (ev.origin !== location.origin) return;
     if (!m || ev.source !== m.contentWindow) return;
+    /* Y que esta pantalla se esté viendo: un marco conservado sigue vivo mientras se mira
+       otra cosa, y una pantalla que nadie tiene delante no puede mover la navegación. */
+    if (!_visible) return;
     const d = ev.data;
     if (!d || typeof d !== 'object' || d.al3d !== 'anidar') return;
     if (_ctx && _ctx.ir) _ctx.ir('anidador');
   };
   window.addEventListener('message', _oyeMensaje);
+}
+
+/* El alto del marco, con la guarda de visibilidad. `medirMarco` escribe `--pf-marco-h`, que
+   es UNA variable de :root compartida por los tres marcos, y el rectángulo de un <iframe> en
+   `display:none` es todo ceros: medir desde una pantalla escondida le escribiría al marco que
+   SÍ se está viendo un alto sacado de una caja que no existe. */
+function medir() {
+  if (!_visible || !_marcoId) return;
+  medirMarco(_marcoId);
+}
+
+/* La sección entra desde diez píxeles abajo (`.pf-mod{animation:entra}`), así que la medida
+   que se toma nada más enseñarla sale diez píxeles corta. Se vuelve a medir cuando acabe de
+   entrar; el porqué completo está en `alTerminarDeEntrar`, en nucleo/ui.js. Hace falta en los
+   dos caminos: al volver a enseñar una pantalla conservada no hay nada que esperar, y en un
+   montaje con el documento ya en caché el vigilante remide dentro de esos mismos .32 s. */
+function medirCuandoEntre() {
+  if (_finEntrada) { _finEntrada(); _finEntrada = null; }
+  _finEntrada = alTerminarDeEntrar(_cont, () => { _finEntrada = null; medir(); });
 }
 
 function sano() {
@@ -138,9 +191,13 @@ function sano() {
   }
 }
 
+/* El vigilante NO se para al cambiar de pestaña, y es a propósito desde que estas rutas se
+   conservan: quien abre la Mesa de corte y se va mientras carga se la encuentra puesta al
+   volver, en vez de empezar otra vez los 700–950 ms de arranque. Se para cuando el módulo se
+   desmonta de verdad, que es cuando `_cont` se pone en null. */
 function vigilar() {
-  if (!_cont) return;                       // se cambió de pestaña mientras se esperaba
-  if (sano()) { _reloj = null; marcoListo(); medirMarco(_marcoId); return; }
+  if (!_cont) return;                       // el módulo se desmontó mientras se esperaba
+  if (sano()) { _reloj = null; marcoListo(); medir(); return; }
   /* 100 intentos de 150 ms = 15 s. Generoso a propósito: el anidador carga diez guiones
      —clipper.js solo ya pesa— y en un teléfono viejo con red mala el primer pintado se mide
      en segundos. Al agotarse se quita la silueta de todas formas: taparle a alguien un
@@ -161,18 +218,70 @@ function marcoListo() {
 let _rz = 0;
 function alRedimensionar() {
   if (_rz) return;
-  _rz = requestAnimationFrame(() => { _rz = 0; medirMarco(_marcoId); });
+  _rz = requestAnimationFrame(() => { _rz = 0; medir(); });
+}
+
+/* ============================================================================
+   Esconderse y volver — el ciclo de vida de una ruta `conservar`
+   ============================================================================ */
+
+/* Deja de verse, pero sigue montada. Se suelta todo lo que este módulo escribe fuera de su
+   propia sección, que es lo que si no se queda encima de la pantalla de otro; se queda el
+   <iframe> con su motor arrancado, que es el punto entero de conservar.
+
+   El oyente de `resize` se va con la visibilidad y no con el montaje: leer geometría de una
+   caja que está en `display:none` no sirve para nada y encima escribe en una variable que
+   comparten los tres marcos. */
+export function ocultar() {
+  _visible = false;
+  if (_rz) { cancelAnimationFrame(_rz); _rz = 0; }
+  if (_finEntrada) { _finEntrada(); _finEntrada = null; }
+  window.removeEventListener('resize', alRedimensionar);
+  /* La clase del body decide el relleno de la página ENTERA y esconde el botón del asistente
+     (css/plataforma.css). Puesta encima del Tablero le corta el aire de abajo y le
+     desaparece un botón que sí tiene. */
+  document.body.classList.remove('pf-marco-lleno');
+  /* Y la guarda del remonte: escondida, esta pantalla ya no tiene por qué impedir que el
+     router repinte la que SÍ se está viendo cuando llega un 'storage'. */
+  if (_ctx && _ctx.sinRemonte) _ctx.sinRemonte(false);
+}
+
+/* Vuelve a verse. Repone exactamente lo que `montar()` pone y `ocultar()` quitó. */
+export async function mostrar() {
+  if (!_cont || !_ctx) return;
+  /* Si el marco ya no está en la sección, no hay nada que reutilizar y se rehace desde cero:
+     el router ya no vuelve a montar una pantalla conservada, así que sin esto una sección
+     vacía se quedaría vacía para siempre. */
+  if (!_marcoId || !_cont.querySelector('#' + _marcoId)) {
+    const cont = _cont, ctx = _ctx;
+    desmontar();
+    return montar(cont, ctx);
+  }
+  _visible = true;
+  /* El router apaga la guarda del remonte en CADA montaje —éste incluido—, así que una
+     pantalla que vuelve tiene que volver a pedirla o el primer 'storage' que llegue le tira
+     el marco a media faena, que es justo lo que esa guarda existe para evitar. */
+  if (_ctx.sinRemonte) _ctx.sinRemonte(true);
+  document.body.classList.add('pf-marco-lleno');
+  window.addEventListener('resize', alRedimensionar);
+  /* Después de que el navegador colocó la caja, no en el mismo tick: la sección acaba de
+     dejar de estar en `display:none` y su rectángulo todavía es el de antes. */
+  requestAnimationFrame(() => medir());
+  medirCuandoEntre();
 }
 
 export function desmontar() {
+  /* El final incluye el «deja de verse»: el oyente de `resize`, la clase del body y la guarda
+     del remonte se sueltan en un solo sitio, para que no haya dos listas que se separen. */
+  ocultar();
   if (_reloj) { clearTimeout(_reloj); _reloj = null; }
-  if (_rz) { cancelAnimationFrame(_rz); _rz = 0; }
-  window.removeEventListener('resize', alRedimensionar);
   if (_oyeMensaje) { window.removeEventListener('message', _oyeMensaje); _oyeMensaje = null; }
-  document.body.classList.remove('pf-marco-lleno');
-  if (_ctx && _ctx.sinRemonte) _ctx.sinRemonte(false);
   _cont = null; _ctx = null; _marcoId = '';
-  /* El marco se destruye porque el router vacía el contenedor, y está bien: reparentar un
-     iframe recarga su documento igual. El anidador guarda su hoja y sus retazos en el aparato
-     (`al3d_anidador_material`, `al3d_anidador_retazos`), así que volver no empieza de cero. */
+  /* Aquí el marco SÍ muere: el router vacía la sección de una conservada podada, y para las
+     demás la vacía su próximo montaje. A `desmontar()` se llega cuando se salta a la OTRA
+     pantalla de marco —el tope es una—, por un refresco forzado o porque el rol dejó de tener
+     esta pantalla; ya no por la navegación de todos los días.
+
+     Cuando pasa no se empieza de cero: el anidador guarda su hoja y sus retazos en el aparato
+     (`al3d_anidador_material`, `al3d_anidador_retazos`). */
 }

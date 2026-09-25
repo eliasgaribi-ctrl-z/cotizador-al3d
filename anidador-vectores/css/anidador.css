@@ -84,11 +84,16 @@
    se levantan al pasar y se hunden al elegirse, como los chips. */
 .an-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--e2);margin-bottom:var(--e4)}
 @media(max-width:420px){.an-tiles{grid-template-columns:repeat(2,1fr)}}
+/* Superficie y borde del TEMA, no `#fff` escrito a mano (el mismo defecto que ya se arregló
+   en `.an-msg`, más abajo): en oscuro el degradado iba de blanco a --n1 —que de noche es casi
+   negro— con la letra clara de --n7 encima, y «Media hoja», «Cuarto de hoja» y «Retazo» se
+   leían plata sobre plata. Y en claro, el borde blanco sobre la tarjeta blanca no se veía:
+   las tres sin elegir flotaban sin canto. */
 .an-tile{display:flex;flex-direction:column;align-items:center;gap:3px;padding:var(--e3) var(--e2) var(--e2);min-height:44px;
-  border-radius:var(--rr1);border:1px solid rgba(255,255,255,.9);background:linear-gradient(168deg,#fff,var(--n1));
+  border-radius:var(--rr1);border:1px solid var(--linea);background:var(--sup);
   box-shadow:var(--clay);color:var(--n7);font-family:inherit;cursor:pointer;text-align:center;
   transition:transform var(--mv-r),box-shadow var(--mv),background var(--mv-s),color var(--mv-s)}
-.an-tile:hover{transform:translateY(-2px);box-shadow:var(--clay-alto);background:linear-gradient(168deg,#fff,var(--a-suave))}
+.an-tile:hover{transform:translateY(-2px);box-shadow:var(--clay-alto);background:var(--a-suave);border-color:var(--a-borde)}
 .an-tile:active{transform:translateY(1px) scale(.97);box-shadow:var(--clay-in)}
 .an-tile:focus-visible{outline:2.5px solid var(--brand);outline-offset:2px}
 .an-tile.on{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-fuerte);box-shadow:var(--clay-in);transform:none}
@@ -110,7 +115,7 @@
    Aparecen cuando la hoja es un retazo o cuando ya hay alguno guardado. Cada uno es un chip
    con su × al lado —dos botones y no uno con otro adentro, que no vale—. */
 .an-retazos{margin-top:var(--e4);padding:var(--e3) var(--e4);border-radius:var(--rr2);
-  background:linear-gradient(168deg,#fff,var(--n1));box-shadow:var(--clay-in);border:1px solid rgba(255,255,255,.8);
+  background:var(--sup2);box-shadow:var(--clay-in);border:1px solid var(--linea);
   animation:an-entra .35s var(--mv-s) both}
 .an-retazos[hidden]{display:none}
 .an-retazos-h{font-size:var(--t2);font-weight:600;color:var(--n6);margin-bottom:var(--e2)}

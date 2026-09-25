@@ -86,9 +86,12 @@ a:hover { text-decoration: none; }
   border-top: 1px solid var(--linea);
   font-size: var(--t2);
   color: var(--tinta3);
-  display: flex; flex-wrap: wrap; gap: var(--e2) var(--e4);
+  display: flex; flex-wrap: wrap; gap: 0 var(--e4);
 }
-.pub-pie a { color: var(--tinta3); }
+/* Cada enlace del pie mide 44 px de alto aunque la letra sea chica: medido en el teléfono
+   eran cajas de 21 px, tres blancos de medio dedo pegados uno al otro, y el pie es justo por
+   donde se sale de un documento largo. El hueco vertical se lo come el propio alto. */
+.pub-pie a { color: var(--tinta3); display: inline-flex; align-items: center; min-height: 44px; }
 
 /* La fecha desde la que rige el documento. Va arriba y no enterrada al final: quien lo abre
    para comprobar una versión no debería tener que leerlo entero para encontrarla. */

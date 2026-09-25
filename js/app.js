@@ -17,6 +17,7 @@ import * as Cot from './datos/cotizador.js';
 import * as Sync from './datos/sync.js';
 import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, hayCapaAbierta, cerrarCapa, ajustarAltoBarra, esqueletoModulo }
   from './nucleo/ui.js';
+import { planDeMontaje, TOPE_CONSERVADAS } from './nucleo/conservar.js';
 
 /* ----- Los módulos -----
    `rutas` es la única lista: de aquí sale la barra, el router y qué ve cada rol. Añadir un
@@ -61,7 +62,11 @@ const RUTAS = [
   { ruta: 'agenda',    mod: 'fabricacion', seccion: 'mod-fabricacion', icono: 'i-agenda',    nombre: 'Calendario',  sub: 'taller e instalaciones',               movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'proyectos', mod: 'proyectos',   seccion: 'mod-proyectos',   icono: 'i-proyectos', nombre: 'Proyectos',   sub: 'por etapa de obra',                    movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    sub: 'lista de compra y almacén',                         roles: ['direccion', 'fabricacion'] },
-  { ruta: 'cotizador', mod: 'cotizador',   seccion: 'mod-cotizador',   icono: 'i-venta',     nombre: 'Cotizador',   sub: 'capturar y autorizar una cotización',  movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
+  /* `conservar` — ver js/nucleo/conservar.js. Esta pantalla NO es DOM que se repinta: es un
+     documento entero dentro de un <iframe>. Vaciarle la sección al salir y volver a escribir
+     el marco al entrar costaba 795 KB de guiones reinterpretados por visita. Con la marca, el
+     router la esconde en vez de tirarla y al volver solo la enseña. */
+  { ruta: 'cotizador', mod: 'cotizador',   seccion: 'mod-cotizador',   icono: 'i-venta',     nombre: 'Cotizador',   sub: 'capturar y autorizar una cotización',  movil: true, roles: ['direccion', 'fabricacion', 'pagos'], conservar: true },
   { ruta: 'mapa',      mod: 'mapa',        seccion: 'mod-mapa',        icono: 'i-mapa',      nombre: 'Mapa',        sub: 'obras por instalar e instaladas',      movil: true, roles: ['direccion', 'fabricacion'] },
   /* La mesa de corte. Vivía como pestaña del Tablero —«Carga del taller» / «Mesa de corte»— y
      ahí no la encontraba nadie: es una herramienta de uso diario del taller escondida detrás
@@ -72,12 +77,12 @@ const RUTAS = [
      que trae el proyecto puesto. NO es por `#/hoy/anidador`: eso no es una ruta
      —`rutaDelHash()` exige un solo segmento, lo reescribe a `#/hoy` y abre la carga— y nada
      apunta ahí. */
-  { ruta: 'anidador',  mod: 'herramientas', seccion: 'mod-anidador',   icono: 'i-anidar',    nombre: 'Mesa de corte', sub: 'acomodar las piezas en la lámina',                roles: ['direccion', 'fabricacion'] },
+  { ruta: 'anidador',  mod: 'herramientas', seccion: 'mod-anidador',   icono: 'i-anidar',    nombre: 'Mesa de corte', sub: 'acomodar las piezas en la lámina',                roles: ['direccion', 'fabricacion'], conservar: true },
   /* El vectorizador, por la misma razón: convertir un logotipo en trazo de corte se hace con
      el archivo en la mano, y estaba detrás del botón «Vectorizar» de una partida. Para usarlo
      había que abrir una cotización que nadie iba a mandar. El botón del cotizador se queda
      donde está: son dos puertas al mismo documento, no dos implementaciones. */
-  { ruta: 'vectorizar', mod: 'herramientas', seccion: 'mod-vectorizar', icono: 'i-vector',   nombre: 'Vectorizador',  sub: 'del logotipo al trazo de corte',                  roles: ['direccion', 'fabricacion'] },
+  { ruta: 'vectorizar', mod: 'herramientas', seccion: 'mod-vectorizar', icono: 'i-vector',   nombre: 'Vectorizador',  sub: 'del logotipo al trazo de corte',                  roles: ['direccion', 'fabricacion'], conservar: true },
   /* La pantalla del dinero: ventas por mes, cartera y bitácora. Fabricación no la tiene —es
      el rol que no ve importes— y en el teléfono no entra a la barra de abajo por lo mismo que
      Material: se llega desde el Tablero. */
@@ -129,7 +134,19 @@ const ctx = {
 };
 
 let _actual = null;      // nombre de ruta
-let _vivo = null;        // el módulo montado, para desmontarlo
+
+/* ----- Lo que está montado -----
+   Era `_vivo`, una sola ranura: el módulo en pantalla, para desmontarlo al salir. Dejó de
+   bastar cuando las tres pantallas de marco —Cotizador, Mesa de corte y Vectorizador—
+   pasaron a sobrevivir al cambio de pantalla: puede haber una montada y oculta MIENTRAS otra
+   cosa está en pantalla, y las dos necesitan que alguien las desmonte algún día.
+
+   El orden del Map importa y es parte del contrato de `planDeMontaje`: de la más vieja a la
+   más reciente. Por eso al montar o al volver a enseñar una ruta se borra y se vuelve a
+   poner, que en un Map es moverla al final. Lo que se poda es lo primero de la fila.
+
+   `_vivas.get(_actual)` es el antiguo `_vivo`. */
+const _vivas = new Map();
 
 /* ----- El buzón de un solo uso -----
    Lo que un módulo le deja al siguiente: «abre la ficha de ESTE proyecto», «abre la hoja de
@@ -201,11 +218,16 @@ export function ir(ruta) {
 
    Lo que se rompe no son oyentes duplicados: los cuatro manejadores de cada módulo son
    funciones de nivel de módulo, así que `addEventListener` con la misma referencia es un
-   no-op y no se acumulan. Lo que se rompe es `_vivo`. El prefijo síncrono de `montar` lo
-   pone en null antes del primer `await`, así que el segundo toque entra y NO desmonta a
-   nadie; después gana la asignación del montaje que acabe último. El resultado reproducible
-   es `_vivo` apuntando a un módulo que no está en pantalla, y el otro montado para siempre
-   sin nadie que lo desmonte.
+   no-op y no se acumulan. Lo que se rompe es el registro de lo que está montado. Cuando era
+   una sola ranura —`_vivo`— el prefijo síncrono de `montar` la ponía en null antes del
+   primer `await`, así que el segundo toque entraba y NO desmontaba a nadie; después ganaba
+   la asignación del montaje que acabara último, y quedaba la ranura apuntando a un módulo
+   que no está en pantalla y el otro montado para siempre sin nadie que lo desmonte.
+
+   Hoy el registro es `_vivas`, que guarda una entrada por ruta, así que el segundo montaje ya
+   no puede pisar la anotación del primero. La fila sigue haciendo falta igual: dos montajes
+   solapados sobre la MISMA ruta harían dos `cont.innerHTML = ''` y dos `mod.montar` sobre el
+   mismo contenedor, y el que acabara antes dejaría su mitad debajo de la del otro.
 
    Y eso tiene una cara concreta: `agenda.desmontar()` es lo único que limpia `#pf-mbar`, y
    su propio comentario dice para qué —«el botón de agendar se quedaría flotando encima de
@@ -336,6 +358,24 @@ function montar(ruta, opts = {}) {
    implementa a propósito y se dice aquí. */
 const _scrollPorRuta = new Map();
 
+/* ----- Soltar una ruta montada -----
+   Desmontar su módulo y olvidarla. `vaciar` es aparte y no siempre: el router NUNCA vació la
+   sección que se abandona —la vacía su próximo montaje— y eso se queda igual para las
+   normales. Se vacía cuando nadie va a montar encima, que es el caso de una conservada
+   podada: mientras el `<iframe>` siga en el árbol, su documento sigue en la memoria del
+   teléfono, y podarla sin vaciarla no libera absolutamente nada. */
+function soltar(ruta, vaciar) {
+  const mod = _vivas.get(ruta);
+  _vivas.delete(ruta);
+  if (mod && typeof mod.desmontar === 'function') {
+    try { mod.desmontar(); } catch (e) { console.warn('desmontar falló', e); }
+  }
+  if (!vaciar) return;
+  const r = rutaPorNombre(ruta);
+  const s = r && $(r.seccion);
+  if (s) s.innerHTML = '';
+}
+
 async function montarDeVerdad(ruta, opts = {}) {
   const r = rutaPorNombre(ruta);
   if (!r) return;
@@ -343,16 +383,40 @@ async function montarDeVerdad(ruta, opts = {}) {
   if (_actual) _scrollPorRuta.set(_actual, window.scrollY);
   /* En el prefijo síncrono, antes del primer await: la guarda es de quien está montado, y
      el que se va ya no manda. Si se apagara en `desmontar()` y un módulo reventara a mitad,
-     se quedaría pegada para siempre. */
+     se quedaría pegada para siempre. Una pantalla conservada que se vuelve a enseñar tiene
+     que volver a pedirla en su `mostrar()`, y lo hace. */
   _sinRemonte = false;
+
+  /* El plan: qué se desmonta, qué se esconde y si lo que hay en la sección del destino
+     sirve. Es aritmética sobre nombres de ruta y vive aparte, en js/nucleo/conservar.js, para
+     poder probarla en node sin navegador. Aquí solo se ejecuta. */
+  const plan = planDeMontaje({
+    actual: _actual,
+    destino: ruta,
+    vivas: [..._vivas.keys()],
+    forzar: !!opts.forzar,
+    tope: TOPE_CONSERVADAS,
+    conservar: n => !!(rutaPorNombre(n) || {}).conservar,
+    permitida: n => rutasDeRol().some(x => x.ruta === n),
+  });
 
   /* Desmontar antes de montar. Los módulos que se cuelgan de algo global —el mapa se
      suscribe a resize, la agenda a un temporizador— tienen que soltarlo o se acumulan: seis
      idas y venidas al mapa son seis oyentes de resize repintando seis mapas muertos. */
-  if (_vivo && typeof _vivo.desmontar === 'function') {
-    try { _vivo.desmontar(); } catch (e) { console.warn('desmontar falló', e); }
+  const aVaciar = new Set(plan.vaciar);
+  for (const x of plan.soltar) soltar(x, aVaciar.has(x));
+
+  /* Y la que se conserva: se le avisa que deja de verse, no se desmonta. `ocultar()` tiene
+     que soltar todo lo que su `desmontar()` suelta del DOCUMENTO —la clase
+     `pf-marco-lleno` del body, la barra fija del teléfono, los oyentes de `resize` que miden
+     geometría— y quedarse solo con lo suyo. Lo de dentro del <iframe> sigue vivo; lo que
+     escribe fuera de su sección, no. */
+  if (plan.ocultar) {
+    const mod = _vivas.get(plan.ocultar);
+    if (mod && typeof mod.ocultar === 'function') {
+      try { mod.ocultar(); } catch (e) { console.warn('ocultar falló', e); }
+    }
   }
-  _vivo = null;
 
   /* Las acciones del encabezado son del módulo que se va: se vacían ANTES de montar el
      siguiente. Sin esto, «COT-0152 · Clientes · Historial» se quedaba puesto encima del
@@ -374,6 +438,21 @@ async function montarDeVerdad(ruta, opts = {}) {
 
   const cont = $(r.seccion);
   if (!cont) return;
+
+  /* ----- La que ya estaba montada: se enseña, no se rehace -----
+     Ni esqueleto ni barra de progreso: no hay nada que esperar, así que enseñarlos sería
+     pintar una espera que no existe. `mostrar()` puede tardar si el módulo decide que lo que
+     guardaba ya no sirve y se rehace por dentro —el Cotizador lo hace cuando su marco se
+     cambió por la tarjeta de «no se pudo abrir»—, así que se espera. */
+  if (plan.reutilizar) {
+    const mod = _vivas.get(ruta);
+    _vivas.delete(ruta); _vivas.set(ruta, mod);   // la más reciente, al final de la fila
+    try { if (typeof mod.mostrar === 'function') await mod.mostrar(); }
+    catch (e) { console.warn('mostrar falló', e); }
+    rematar(r, ruta, opts);
+    return;
+  }
+
   /* La sección se vacía y el esqueleto va DELANTE de ella, no dentro: el módulo tiene que
      recibir el contenedor vacío que siempre recibió. Ver «Lo que se ve mientras carga». */
   cont.innerHTML = '';
@@ -401,12 +480,12 @@ async function montarDeVerdad(ruta, opts = {}) {
   try {
     cont.innerHTML = '';
     /* ANTES de montar, no después. Si `mod.montar` revienta a mitad, el módulo ya dejó
-       oyentes puestos y su barra escrita; con la asignación después, `_vivo` se quedaba en
-       null y ese módulo no se desmontaba nunca. Los diez módulos de js/mod/ tienen que
+       oyentes puestos y su barra escrita; con la anotación después, la ranura se quedaba
+       vacía y ese módulo no se desmontaba nunca. Los diez módulos de js/mod/ tienen que
        tolerar que les llamen a `desmontar()` sin haber terminado de montar: los que guardan
        oyentes en una lista la iteran aunque esté vacía, y los demás hacen `$(id)` con guarda
        o sueltan lo que esté puesto sin suponer que se llegó a poner. */
-    _vivo = mod;
+    _vivas.delete(ruta); _vivas.set(ruta, mod);
     await mod.montar(cont, ctx);
   } catch (e) {
     console.error('el módulo ' + r.mod + ' falló al montar', e);
@@ -415,7 +494,17 @@ async function montarDeVerdad(ruta, opts = {}) {
       '<p class="vacio-d">' + esc(e && e.message ? e.message : 'Error desconocido') + '</p></div>';
   }
   listo();
+  rematar(r, ruta, opts);
+}
 
+/* Lo que se hace igual tanto si la pantalla se acaba de montar como si solo se volvió a
+   enseñar. Está aparte para que no haya dos copias que se separen: el día que una de estas
+   cinco líneas cambie, cambia para los dos caminos. */
+function rematar(r, ruta, opts) {
+  /* Idempotente: en el camino de montaje ya lo llamó `listo()`. Se repite aquí porque el de
+     reutilizar no pasa por `listo()`, y dejar el esqueleto de arranque puesto es dejar la app
+     tapada para siempre. */
+  quitarArranque();
   /* El foco al contenido y no al principio del documento: cambiar de módulo con teclado
      dejaba al usuario recorriendo otra vez las seis pestañas. */
   const main = $('pf-contenido');
@@ -971,12 +1060,19 @@ function registrarSW() {
   let recargado = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!habia || recargado) return;
-    /* Si alguien está escribiendo, no se le tira: la versión nueva entra en la siguiente
-       apertura, como antes. */
+    const recargar = () => { if (recargado) return; recargado = true; location.reload(); };
+    /* Si alguien está escribiendo, no se le tira. Pero tampoco se olvida: aquí decía «entra en
+       la siguiente apertura», y mientras tanto el worker nuevo ya controla la página y la
+       siguiente pestaña que se abre importa su módulo de la caché NUEVA contra los viejos que
+       siguen en memoria — la mezcla de versiones que la cabecera de sw.js existe para evitar.
+       Se recarga en la siguiente navegación: cambiar de pantalla desmonta lo que se estaba
+       escribiendo de todos modos. */
     const a = document.activeElement;
-    if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) return;
-    recargado = true;
-    location.reload();
+    if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) {
+      window.addEventListener('hashchange', recargar, { once: true });
+      return;
+    }
+    recargar();
   });
   try {
     navigator.serviceWorker.register('sw.js').then(reg => {

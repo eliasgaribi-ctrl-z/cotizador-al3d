@@ -138,15 +138,19 @@ console.log('\nUNA TRANSICIÓN LENTA ENSEÑA EL ESQUELETO Y LA BARRA');
 console.log('\nSI SE ATORA, LO DICE Y OFRECE RECARGAR');
 {
   const { ctx, p, errores } = await plataformaLimpia();
-  await retrasa(p, '**/js/mod/mapa.js', 7500);
-  await p.evaluate(() => { location.hash = '#/mapa'; });
+  /* Con Control y no con el Mapa: el arranque importa el Mapa (y el Tablero, Fabricación,
+     Proyectos y Material) para contar sus pendientes en la barra (`contarTodo` en app.js), así
+     que para cuando esta prueba lo retrasaba ya estaba cargado y nunca se atoraba. Si pasaba o
+     no dependía del reloj. Control no cuenta nada y solo se importa al abrirlo. */
+  await retrasa(p, '**/js/mod/control.js', 7500);
+  await p.evaluate(() => { location.hash = '#/control'; });
   await p.waitForTimeout(6600);
   const r = await p.evaluate(() => { const t = document.querySelector('.pf-esqueleto-t'); return t ? { txt: t.textContent.trim(), rol: t.getAttribute('role'), boton: !!t.querySelector('[data-recargar]') } : null; });
   cierto(r && /tarda más de lo normal/.test(r.txt) && r.boton && r.rol === 'alert',
     'a los 6,6 s el pie dice «' + ((r && r.txt) || '').slice(0, 58) + '…», con botón Recargar y role=alert');
   await captura(p, '03-atorado');
-  await seccionPintada(p, 'mod-mapa');
-  cierto(true, 'y cuando por fin llega el Mapa, el aviso se va solo');
+  await seccionPintada(p, 'mod-control');
+  cierto(true, 'y cuando por fin llega Control, el aviso se va solo');
   cierto(errores.length === 0, 'cero errores de página' + (errores.length ? ': ' + errores.join(' | ') : ''));
   await ctx.close();
 }

@@ -91,6 +91,18 @@ const un  = (n, u) => (Number(n) === 1 ? (UC[u] || u) : plural(UC[u] || u));
 const UC_MASC = { unidad: false, bolsa: false, caja: false, lamina: false, litro: true, metro: true };
 const cuantos = u => (UC_MASC[u] ? '¿Cuántos ' : '¿Cuántas ');
 
+/* La unidad de compra con su medida delante: «lámina 1.22 × 2.44 m». Pero hay medidas que ya
+   traen la unidad escrita —«caja de 100 módulos», «bolsa de 50»— y pegarle la unidad otra vez
+   daba «caja caja de 100 módulos» en la lista de compra, que es la hoja que se imprime y se
+   lleva al mostrador. Si la medida ya empieza por la unidad, va sola. */
+function unidadYMedida(u, medida) {
+  const unidad = UC[u] || u || '';
+  const m = String(medida || '').trim();
+  if (!m) return unidad;
+  if (unidad && m.toLowerCase().startsWith(unidad.toLowerCase() + ' ')) return m;
+  return (unidad ? unidad + ' ' : '') + m;
+}
+
 /* «Estimado» no es un adorno: es la diferencia entre comprar con esto y comprar con esto
    sabiendo qué se supuso. */
 const CONF_PALABRA = { exacta: 'Exacto', estimada: 'Estimado', requiere_dato: 'Falta un dato' };
@@ -413,7 +425,7 @@ function tabComprar() {
   const acciones =
     '<div class="btn-fila no-papel">' +
       (pedir.some(l => num(l.comprar) > 0)
-        ? '<button type="button" class="btn btn-ok" data-recibi>' + ico('i-check') + ' ' +
+        ? '<button type="button" class="btn btn-ok mat-recibi-cuerpo" data-recibi>' + ico('i-check') + ' ' +
             textoRecibi(pedir) + '</button>'
         : '') +
       '<button type="button" class="btn btn-gho" data-imprimir>' + ico('i-imprimir') +
@@ -478,8 +490,7 @@ function filaCompra(l) {
 
   /* La medida como la dice el proveedor, con su unidad delante: «lámina 1.22 × 2.44 m» es
      lo que se pide en el mostrador; «2.9768» es lo que se calcula con eso. */
-  const medida = [UC[l.unidad_compra] || l.unidad_compra, mat && mat.medida ? mat.medida : '']
-    .filter(Boolean).join(' ');
+  const medida = unidadYMedida(l.unidad_compra, mat && mat.medida);
 
   const proyectos = (l.proyectos || []);
   const paraQuien = proyectos.length
@@ -599,8 +610,7 @@ function filaExistencia(e) {
   const mat = MATS.get(e.material_id) || null;
   const veDinero = Prefs.veDinero();
 
-  const medida = [UC[e.unidad_compra] || e.unidad_compra, mat && mat.medida ? mat.medida : '']
-    .filter(Boolean).join(' ');
+  const medida = unidadYMedida(e.unidad_compra, mat && mat.medida);
 
   const marcas = [];
   if (bajo) {
@@ -713,7 +723,7 @@ function filaReq(p, r) {
     '<div>' +
       '<div class="mat-n">' + esc(mat ? mat.nombre : r.material_id) + '</div>' +
       '<div class="mat-med">' + esc(mat
-        ? [UC[mat.unidad_compra] || mat.unidad_compra, mat.medida].filter(Boolean).join(' ')
+        ? unidadYMedida(mat.unidad_compra, mat.medida)
         : 'No está en el catálogo de material') + '</div>' +
       '<div>' +
         '<span class="mat-conf ' + esc(r.confianza || 'estimada') + '">' +
@@ -969,8 +979,7 @@ function htmlCatalogo() {
     return '<div class="mat-fila">' +
       '<div>' +
         '<div class="mat-n">' + esc(m.nombre) + ' <span class="folio">' + esc(m.id) + '</span></div>' +
-        '<div class="mat-med">' + esc([UC[m.unidad_compra] || m.unidad_compra, m.medida]
-          .filter(Boolean).join(' ')) + ' · familia ' + esc(m.familia || 'sin familia') + '</div>' +
+        '<div class="mat-med">' + esc(unidadYMedida(m.unidad_compra, m.medida)) + ' · familia ' + esc(m.familia || 'sin familia') + '</div>' +
         '<div class="mat-med">Merma ' + esc(String(Math.round(num(m.merma_pct) * 100))) + ' % · ' +
           'mínimo de compra ' + esc(uc(m.min_compra, m.unidad_compra)) +
           (num(m.min_stock) > 0 ? ' · avisa bajo ' + esc(uc(m.min_stock, m.unidad_compra)) : ' · sin mínimo de almacén') +
