@@ -452,8 +452,8 @@ function authRevisionHTML(soloAutorizar){
     <div class="fld"><label for="a-note">Nota (opcional)</label><textarea id="a-note" placeholder="Comentario para el vendedor…" oninput="Q.nota=this.value">${esc(Q.nota||'')}</textarea></div>
     <button class="btn btn-ok${_sellando?' trabajando':''}" id="a-autorizar" ${_sellando||!puedeAutorizar()?'disabled':''} onclick="autorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> ${_sellando?'Sellando en la hoja…':'Autorizar precio'}</button>
     ${soloAutorizar
-      ? '<button class="btn btn-gho" onclick="cancelarAutoAutorizacion()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver a editar</button>'
-      : '<button class="btn btn-dgr" onclick="rechazar()">Rechazar</button>'}`;
+      ? '<button class="btn btn-gho" '+(_sellando?'disabled ':'')+'onclick="cancelarAutoAutorizacion()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver a editar</button>'
+      : '<button class="btn btn-dgr" '+(_sellando?'disabled ':'')+'onclick="rechazar()">Rechazar</button>'}`;
 }
 
 /* `paSub` y `subCalc` son los dos SIN IVA: lo que se teclea y lo que sale de las partidas.
@@ -1530,7 +1530,18 @@ function autorizarYoMismo(){
   renderItems();
   irAResumen();
 }
-function cancelarAutoAutorizacion(){ _selfAuth=false; reabrir(); }
+function cancelarAutoAutorizacion(){ if(_sellando) return; _selfAuth=false; reabrir(); }
+/* ----- Mientras la hoja sella, la cotización no se mueve -----
+   Autorizar va y vuelve de la hoja, y en ese rato los demás botones seguían vivos: rechazar,
+   volver a editar o abrir otra de la cola a media petición dejaba la hoja con un sello y el
+   teléfono con otra cosa —rechazada, en borrador, u otra cotización en pantalla— y sin nada
+   que los volviera a juntar. La revisión remota ya apagaba sus dos botones juntos
+   (remotaOcupada en notario.js); esto es lo mismo para la de este teléfono. */
+function selloEnVuelo(){
+  if(!_sellando) return false;
+  toast('Espera: la hoja está sellando el precio','',2600);
+  return true;
+}
 /* ----- Volver a autorizar -----
    ¿La autorización de esta cotización ya no corresponde al trabajo? soltarAuthSiCambio() borra
    la huella al soltarla y nadie la vuelve a escribir hasta que alguien autoriza otra vez, así
@@ -1574,6 +1585,7 @@ function reautorizar(){
   _reautorizando=antes;
 }
 function reabrir(){
+  if(selloEnVuelo()) return;
   const eraPendiente=Q.estado==='pendiente';
   const habiaPrecio=paBorrador()!==null||!!(Q.nota||'').trim()||!!(Q.autorizador||'').trim();
   /* La revisión se abrió con «Volver a autorizar» sobre una cotización ya autorizada:
@@ -1622,7 +1634,6 @@ let _sellando=false;
 async function autorizarConfirmado(){
   if(_sellando) return;
   if(!puedeAutorizar()){ toast('Solo una cuenta de Dirección autoriza precios.','err',5000); return; }
-  const folio=Q.folio;
   const nota=($('a-note')?.value||'').trim();
   Q.nota=nota;
   /* Lo que el autorizador tecleó es el SUBTOTAL; `Q.precioAuth` se guarda en neto porque es
@@ -1634,6 +1645,11 @@ async function autorizarConfirmado(){
   /* El folio se decide ANTES de sellar: si este número ya es de otro cliente en el historial,
      guardarEnHistorial() le daría uno nuevo después, y el sello quedaría a nombre del viejo. */
   reFoliarSiEsOtroCliente();
+  /* Y el folio con el que se compara al volver se toma AQUÍ, después de re-foliar. Tomado antes,
+     un folio que cambió por esa razón —legítima— se leía como «el usuario abrió otra
+     cotización», y el sello bueno se tiraba: la cotización se quedaba en pendiente, y al
+     reintentar la hoja sellaba el mismo trabajo por segunda vez. */
+  const folio=Q.folio;
   _sellando=true; renderAuth(); renderMobileBar();
   let sello;
   try{ sello=await sellarEnLaHoja(folioGlobal(),cotParaHoja(),precioAuth,Q.itemsAuth,nota); }
@@ -1652,6 +1668,7 @@ async function autorizarConfirmado(){
   aplicarSello(sello);
 }
 function rechazar(){
+  if(selloEnVuelo()) return;
   /* Rechazar no se sella —no hay precio que defender—, pero sí lleva nombre: el de la cuenta,
      como autorizar. Y si la solicitud había subido a la hoja, se retira de allá. */
   const i=identidadVerificada();

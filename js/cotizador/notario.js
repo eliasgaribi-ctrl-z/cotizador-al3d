@@ -72,7 +72,9 @@ async function _postHoja(cfg,ruta,cuerpo,espera){
   const t=ctrl?setTimeout(()=>ctrl.abort(),espera):0;
   try{
     const r=await fetch(cfg.url,{method:'POST',signal:ctrl?ctrl.signal:undefined,redirect:'follow',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({},cuerpo,{token:cfg.token,ruta}))});
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      /* La ruta primero: la hoja solo abre su tope de 64 KB a un cuerpo que empieza por ella. */
+      body:JSON.stringify(Object.assign({ruta},cuerpo,{token:cfg.token,ruta}))});
     const j=await r.json().catch(()=>null);
     if(!j){ const e=new Error('Esa liga contestó pero no es el puente. Revisa que la implementación esté en «Cualquier usuario».'); e.codigo='DESCONOCIDO'; throw e; }
     return j;
@@ -310,6 +312,7 @@ function remotasHTML(){
 /* ----- La revisión de una solicitud remota ----- */
 let _remotaAbierta=null;
 function abrirRevisionRemota(folio){
+  if(selloEnVuelo()) return;
   const s=_remotas.find(x=>x.folio===folio); if(!s) return;
   _remotaAbierta=s;
   const c=s.cotizacion||{}, items=c.items||[];

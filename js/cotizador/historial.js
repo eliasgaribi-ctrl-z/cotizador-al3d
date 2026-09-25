@@ -1102,6 +1102,7 @@ function updateQueueEntry(folio,changes){
 
 async function loadQueueEntry(folio){
   if(folio===Q.folio) return;
+  if(selloEnVuelo()) return;
   const arr=getQueue();
   const entry=arr.find(x=>x.folio===folio);
   if(!entry||!entry.q) return;
@@ -1113,7 +1114,9 @@ async function loadQueueEntry(folio){
   /* Una revisión a medias también es trabajo que se pierde: el autorizador puede llevar
      media cotización ajustada partida por partida y esa guarda de arriba no la veía,
      porque solo mira los borradores. */
-  const hayRevisionSinCerrar=Q.estado==='pendiente'&&(Q.precioAuth>0||Object.keys(Q.itemsAuth||{}).length>0);
+  /* El precio final que se lleva tecleado vive en el borrador del formulario (paBorrador), no
+     en Q.precioAuth —ése solo existe cuando la hoja selló—, así que también cuenta. */
+  const hayRevisionSinCerrar=Q.estado==='pendiente'&&(Q.precioAuth>0||Object.keys(Q.itemsAuth||{}).length>0||paBorrador()!==null);
   if(hayRevisionSinCerrar&&!await confirmar({titulo:'Llevas ajustes de precio sin autorizar',texto:'Los de '+Q.folio+' se pierden si abres '+folio+'.',si:'Abrir '+folio,no:'Seguir revisando',peligro:true})) return;
   /* El rol es de quien está usando la app, no de la cotización: el snapshot lo
      guardó el vendedor, así que si lo copiáramos el autorizador saldría expulsado

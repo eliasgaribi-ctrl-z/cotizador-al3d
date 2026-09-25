@@ -434,10 +434,12 @@ async function pedir(cfg, ruta, opciones = {}, espera = MS_ESPERA) {
      propósito —no se pregunta antes cuál usar— porque preguntar costaría una vuelta de red
      por operación y porque el token de Google puede haber caducado justo en el vuelo: que la
      hoja tenga el de reserva en la mano evita un rechazo que no le importa a nadie. */
+  /* La ruta va PRIMERO en el JSON: la hoja solo abre el tope de 64 KB a un cuerpo que empieza
+     por {"ruta":"ia", (doPost en puente/hoja-apps-script.gs). */
+  cuerpo = Object.assign({ ruta: camino.replace(/^\/+/, '') }, cuerpo);
   const g = Ingreso.token();
   if (g) cuerpo.google_token = g;
   if (cfg.token) cuerpo.token = cfg.token;
-  cuerpo.ruta = camino.replace(/^\/+/, '');
 
   let r;
   try {

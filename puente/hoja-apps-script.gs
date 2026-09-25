@@ -1612,13 +1612,27 @@ function doPost(e) {
   try {
     var cuerpo = {};
     var crudo = (e && e.postData && e.postData.contents) || '';
-    /* 64 KB para todo menos para /ia, que lleva una imagen o un PDF dentro. La ruta se husmea
-       en el texto ANTES de parsear —parsear quince megas para después rechazarlos es justo lo
-       que el tope quiere evitar— y en el texto ENTERO, porque el teléfono la pone al final,
-       detrás de la imagen. El husmeo no decide nada: lo que enruta sigue siendo el `ruta` del
-       JSON ya parseado. Quien disfrace un cuerpo grande de /ia solo consigue que se parsee;
-       después se va por su ruta de verdad, con sus propias validaciones. */
-    var tope = (crudo.length > 65536 && /"ruta"\s*:\s*"ia"/.test(crudo)) ? IA_MAX_CUERPO : 65536;
+    /* 64 KB para todo menos para /ia, que lleva una imagen o un PDF dentro. Esto corre ANTES de
+       saber quién llama —para eso hay que parsear—, así que el tope grande se gana con dos
+       condiciones baratas y no con una búsqueda en quince megas de texto:
+
+         · el cuerpo EMPIEZA por {"ruta":"ia" —el teléfono lo manda así (puente.js, notario.js)—.
+           Una mención de "ruta":"ia" en cualquier otra parte ya no abre nada;
+         · y hay cupo: un número acotado de cuerpos grandes por minuto, para todos juntos.
+           Sin esto, cualquiera sin token podía mandar quince megas tras quince megas, y cada
+           uno costaba un parseo antes de que el cupo por persona pudiera frenarlo.
+
+       Y el husmeo sigue sin decidir nada: lo que enruta es el `ruta` del JSON ya parseado. */
+    var tope = 65536;
+    if (crudo.length > tope) {
+      if (!/^\s*\{\s*"ruta"\s*:\s*"ia"\s*,/.test(crudo.slice(0, 80))) {
+        return responder({ ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El cuerpo es demasiado grande.' });
+      }
+      if (!cupoDeCuerposGrandes()) {
+        return responder({ ok: false, codigo: 'SIN_RED', mensaje: 'La hoja está recibiendo demasiados archivos a la vez. Vuelve a intentarlo en un minuto.' });
+      }
+      tope = IA_MAX_CUERPO;
+    }
     if (crudo.length > tope) {
       return responder({ ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El cuerpo es demasiado grande.' });
     }
@@ -1666,7 +1680,7 @@ function doPost(e) {
     if (ruta === 'solicitar')  return responder(rutaSolicitar(cuerpo, rol, ingreso));
     if (ruta === 'cancelar')   return responder(rutaCancelarSolicitud(cuerpo, rol, ingreso));
     if (ruta === 'pendientes') return responder(rutaPendientes(rol));
-    if (ruta === 'estado')     return responder(rutaEstado(cuerpo));
+    if (ruta === 'estado')     return responder(rutaEstado(cuerpo, rol, ingreso));
     if (ruta === 'autorizar')  return responder(rutaAutorizar(cuerpo, rol, ingreso));
     if (ruta === 'rechazar')   return responder(rutaRechazar(cuerpo, rol, ingreso));
     if (ruta === 'revocar')    return responder(rutaRevocar(cuerpo, rol, ingreso));
@@ -2306,14 +2320,23 @@ function limpiarCotizacion(c) {
     o.desc = String(it.desc == null ? '' : it.desc).slice(0, 300);
     limpias.push(o);
   }
-  return {
+  var out = {
     proyecto: String(c.proyecto == null ? '' : c.proyecto).trim().slice(0, 140),
     cliente: String(c.cliente == null ? '' : c.cliente).trim().slice(0, 140),
     iva: !!c.iva,
     subtotal: Number(c.subtotal),
     items: limpias
   };
+  /* Una celda de la hoja guarda 50 000 caracteres. La huella y la cotización se escriben cada
+     una en la suya, y cortarlas en silencio era peor que decirlo: una solicitud truncada es JSON
+     roto, /pendientes la saltaba, y quien la pidió esperaba para siempre una respuesta que no
+     iba a llegar. Se rechaza aquí, con su razón. */
+  if (cotHuella(out.iva, out.items).length > CELDA_MAX || JSON.stringify(out).length > CELDA_MAX) {
+    return { error: 'La cotización es demasiado grande para guardarla en la hoja. Divídela en dos cotizaciones.' };
+  }
+  return out;
 }
+var CELDA_MAX = 45000;
 function folioValido(f) {
   /* COT-0042@K7QM: el folio del teléfono y el aparato que lo emitió. El corto se repite entre
      teléfonos; con el aparato no. */
@@ -2347,9 +2370,15 @@ function itemsAuthDeCanon(s) {
   });
   return out;
 }
+/* Lo que se firma, como un arreglo en JSON y no unido con «|». Con separador, un negocio que
+   trajera un «|» podía correr la frontera con el campo de al lado —«Tacos|x» + «y@al3d.mx» y
+   «Tacos» + «x|y@al3d.mx» daban la misma cadena—, y quien tuviera la hoja abierta podía cambiar
+   lo que dice el QR sin romper la firma. JSON escapa sus comillas: dos registros distintos no
+   pueden dar el mismo texto. */
 function canonDe(r) {
-  return [FIRMA_VERSION, r.folio, r.huella, dinero2(r.subCalc), dinero2(r.precioAuth),
-          r.itemsAuth, dinero2(r.total), r.proyecto, r.correo, r.ts].join('|');
+  return FIRMA_VERSION + JSON.stringify([String(r.folio), String(r.huella), dinero2(r.subCalc),
+    dinero2(r.precioAuth), String(r.itemsAuth), dinero2(r.total), String(r.proyecto),
+    String(r.correo), String(r.ts)]);
 }
 function aHex(bytes) {
   var s = '';
@@ -2465,7 +2494,7 @@ function rutaSolicitar(cuerpo, rol, ingreso) {
     var filas = filasDe(h, COLS_SOL.length);
     var viva = ultimaFila(filas, S_FOLIO, folio, function (v) { return v[S_ESTADO] === 'pendiente'; });
     var fila = [new Date(), txt(folio), txt(c.proyecto), txt(c.cliente), sub, c.iva ? 'Sí' : 'No',
-                txt(cotHuella(c.iva, c.items)), txt(JSON.stringify(c).slice(0, 45000)), txt(quienSoy(rol, ingreso)),
+                txt(cotHuella(c.iva, c.items)), txt(JSON.stringify(c)), txt(quienSoy(rol, ingreso)),
                 'pendiente', '', '', txt(nota)];
     if (viva) h.getRange(viva.fila, 1, 1, fila.length).setValues([fila]);
     else h.getRange(h.getLastRow() + 1, 1, 1, fila.length).setValues([fila]);
@@ -2515,8 +2544,15 @@ function rutaPendientes(rol) {
 
 /* ------------------------------------------------------------------ /estado */
 /* El teléfono que pidió pregunta por sus folios. Contesta lo que sabe de cada uno: si ya
-   hay sello vigente, el sello; si no, en qué quedó la solicitud. */
-function rutaEstado(cuerpo) {
+   hay sello vigente, el sello; si no, en qué quedó la solicitud.
+
+   Solo de los SUYOS. Un sello trae el precio autorizado, los ajustes por partida, quién
+   autorizó y su nota; sin esta guarda, cualquier rol —fabricación incluido, que no ve dinero
+   en ninguna otra parte— lo podía pedir de cualquier folio que conociera. «Suyo» es que la
+   solicitud la hizo esta misma identidad (quienSoy: el correo de Google, o el rol del token).
+   Dirección ve todos: es la que los autoriza. */
+function rutaEstado(cuerpo, rol, ingreso) {
+  var yo = quienSoy(rol, ingreso), todos = rol === 'direccion';
   var folios = (cuerpo && Object.prototype.toString.call(cuerpo.folios) === '[object Array]') ? cuerpo.folios.slice(0, 20) : [];
   var ss = SpreadsheetApp.getActive();
   var ha = ss.getSheetByName(HOJA_AUTORIZACIONES), hs = ss.getSheetByName(HOJA_SOLICITUDES);
@@ -2525,8 +2561,12 @@ function rutaEstado(cuerpo) {
   folios.forEach(function (f) {
     f = String(f || '');
     if (!folioValido(f)) return;
-    var aut = ultimaFila(fa, A_FOLIO, f, function (v) { return v[A_ESTADO] === 'vigente'; });
     var sol = ultimaFila(fs, S_FOLIO, f);
+    if (!todos && !(sol && String(sol.v[S_SOLICITO]) === yo)) {
+      out[f] = { estado: null, sello: null, resolvio: '', nota: '' };
+      return;
+    }
+    var aut = ultimaFila(fa, A_FOLIO, f, function (v) { return v[A_ESTADO] === 'vigente'; });
     out[f] = {
       estado: aut ? 'autorizada' : (sol ? String(sol.v[S_ESTADO]) : null),
       sello: aut ? selloDeFila(aut.v) : null,
@@ -2710,6 +2750,18 @@ var IA_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 var IA_LIMITE_DIARIO = 200;
 var IA_MAX_LLAVES = 4;
 var IA_MAX_CUERPO = 15 * 1024 * 1024;
+/* Cuerpos de más de 64 KB por minuto, entre todos. Un análisis manda uno; cuarenta por minuto
+   es un taller entero cotizando con IA a la vez, y muy poco para tumbar la hoja a fuerza de
+   archivos. Se cuenta antes de parsear, porque antes de parsear no se sabe quién es. */
+var CUERPOS_GRANDES_POR_MINUTO = 40;
+function cupoDeCuerposGrandes() {
+  try {
+    var cache = CacheService.getScriptCache();
+    var n = Number(cache.get('grandes') || 0) + 1;
+    cache.put('grandes', String(n), 60);
+    return n <= CUERPOS_GRANDES_POR_MINUTO;
+  } catch (e) { return true; }
+}
 
 function iaLlaves(prov) {
   try {

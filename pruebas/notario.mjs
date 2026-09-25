@@ -341,6 +341,45 @@ console.log('\nLA IA — las llaves están aquí y no salen');
   cierto('  sin frenar a los demás', post({ ...base, google_token: G.omar, token: '' }).ok);
 }
 
+console.log('\nLO QUE LA REVISIÓN ENCONTRÓ — y ya no pasa');
+{
+  /* /estado solo contesta de lo que pidió quien pregunta. */
+  const F = 'COT-0050@PAG1';
+  post({ ruta: 'solicitar', token: TOK_PAGOS, folio: F, cotizacion: cot() });
+  post({ ruta: 'autorizar', google_token: G.elias, folio: F, cotizacion: cot(), precioAuth: 12000, nota: 'solo para el vendedor' });
+  const ajeno = post({ ruta: 'estado', google_token: G.taller, folios: [F] }).folios[F];
+  eq('fabricación no ve el sello de un folio que no pidió', [ajeno.estado, ajeno.sello, ajeno.nota], [null, null, '']);
+  eq('quien lo pidió, sí', post({ ruta: 'estado', token: TOK_PAGOS, folios: [F] }).folios[F].sello.total, 12000);
+  eq('y dirección también', post({ ruta: 'estado', google_token: G.elias, folios: [F] }).folios[F].estado, 'autorizada');
+
+  /* El tope grande solo se abre a un cuerpo que EMPIEZA por la ruta de la IA, y con cupo. */
+  const relleno = 'A'.repeat(200000);
+  const escondido = JSON.stringify({ relleno, ruta: 'ia', token: TOK_PAGOS });
+  eq('"ruta":"ia" escondido al final ya no abre el tope', JSON.parse(vm.runInContext('doPost', ctx)({ postData: { contents: escondido } }).s).mensaje, 'El cuerpo es demasiado grande.');
+  cache.clear();
+  let frenado = null;
+  proveedor = () => ({ codigo: 200, cuerpo: { choices: [{ message: { content: 'ok' } }] } });
+  for (let i = 0; i < 45 && frenado === null; i++) {
+    const r = conCache({ ruta: 'ia', token: TOK_DIR, modo: 'cotizar', prov: 'qwen', model: 'qwen3.7-flash', prompt: 'x', imagen: { b64: relleno, mime: 'image/jpeg' } });
+    if (r.codigo === 'SIN_RED') frenado = i;
+  }
+  eq('y cuarenta cuerpos grandes por minuto, entre todos', frenado, 40);
+  cache.clear();
+
+  /* La firma no se deja correr la frontera entre dos campos. */
+  const canon = vm.runInContext('canonDe', ctx);
+  const base = { folio: 'COT-1@A', huella: 'h', subCalc: 1, precioAuth: 0, itemsAuth: '', total: 1, ts: 't' };
+  cierto('«Tacos|x» + «y» no firma igual que «Tacos» + «x|y»',
+    canon({ ...base, proyecto: 'Tacos|x', correo: 'y@al3d.mx' }) !== canon({ ...base, proyecto: 'Tacos', correo: 'x|y@al3d.mx' }));
+
+  /* Lo que no cabe en una celda se rechaza con su razón, en vez de cortarse. */
+  const enorme = Array.from({ length: 80 }, (_, i) => ({ id: i + 1, tipo: 'manual', pz: 1, pu: 1, desc: 'x'.repeat(300),
+    material: 'm'.repeat(60), comp: 'c'.repeat(60), acab: 'a'.repeat(60), bas: 'b'.repeat(60) }));
+  const g = post({ ruta: 'solicitar', token: TOK_PAGOS, folio: 'COT-0051@PAG1', cotizacion: cot({ items: enorme, subtotal: 80 }) });
+  eq('una cotización que no cabe en la hoja se rechaza', g.codigo, 'DATO_INVALIDO');
+  cierto('  y dice qué hacer', /demasiado grande/.test(g.mensaje));
+}
+
 console.log('\nVERIFICAR.HTML — lo que llega de la hoja se escribe como texto');
 {
   const pag = readFileSync(new URL('../verificar.html', import.meta.url), 'utf8');
