@@ -71,6 +71,7 @@ const APP_FILES = [
   './acerca.html',
   './privacidad.html',
   './condiciones.html',
+  './verificar.html',
   './css/publico.css',
   './js/tema.js',
   /* El cotizador: la página y sus once guiones. Van juntos porque se cargan en orden y se
@@ -126,6 +127,7 @@ const APP_FILES = [
   './js/mod/control.js',
   './js/mod/herramientas.js',
   './datos/semilla.json',
+  './vendor/qrcodegen.js',
   './vendor/leaflet.css',
   './vendor/leaflet-src.esm.js',
   './vendor/images/marker-icon.png',

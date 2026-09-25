@@ -93,3 +93,36 @@ a:hover { text-decoration: none; }
 /* La fecha desde la que rige el documento. Va arriba y no enterrada al final: quien lo abre
    para comprobar una versión no debería tener que leerlo entero para encontrarla. */
 .pub-fecha { font-size: var(--t2); color: var(--tinta3); margin: calc(var(--e3) * -1) 0 var(--e5); }
+
+/* ----- Verificar una cotización -----
+   La cuarta página pública, y la única que pregunta algo (verificar.html). El resultado va en
+   una tarjeta que se pinta del color de lo que contestó la hoja —verde auténtica, ámbar ya no
+   vigente, rojo no auténtica o revocada— y debajo los cuatro datos para comparar con el papel,
+   en la cifra de la marca, porque lo que se compara es un número. */
+.ver-caja {
+  background: var(--n0); border: 1px solid var(--linea); border-radius: var(--rr4);
+  padding: var(--e4) var(--e5); margin: var(--e4) 0 var(--e5);
+}
+.ver-caja.ok  { background: var(--ok-bg);  border-color: var(--ok-borde); }
+.ver-caja.av  { background: var(--av-bg);  border-color: var(--av-borde); }
+.ver-caja.mal { background: var(--mal-bg); border-color: var(--mal-borde); }
+.ver-est { margin: 0; color: var(--tinta); display: flex; gap: var(--e2); align-items: baseline; flex-wrap: wrap; }
+.ver-caja.ok .ver-est b  { color: var(--ok); }
+.ver-caja.av .ver-est b  { color: var(--av); }
+.ver-caja.mal .ver-est b { color: var(--mal); }
+.ver-giro {
+  width: 14px; height: 14px; border-radius: 50%; align-self: center;
+  border: 2px solid var(--linea); border-top-color: var(--a-tx); animation: esq-gira .8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .ver-giro { animation: none; } }
+.ver-datos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--e3) var(--e5); margin: var(--e4) 0 0; }
+.ver-datos dt { font-size: var(--t1); color: var(--tinta3); text-transform: uppercase; letter-spacing: .06em; }
+.ver-datos dd { margin: 2px 0 0; color: var(--tinta); font-weight: 600; overflow-wrap: anywhere; }
+.ver-num { font-family: var(--f-cifra); font-size: var(--t5); font-variant-numeric: tabular-nums; }
+.ver-form label { display: block; font-size: var(--t2); color: var(--tinta2); margin: var(--e3) 0 var(--e1); }
+.ver-form input {
+  width: 100%; box-sizing: border-box; font: inherit; color: var(--tinta);
+  background: var(--n0); border: 1px solid var(--linea); border-radius: var(--rr2); padding: 10px 12px;
+}
+.ver-form .pub-btn { margin-top: var(--e4); border: 0; cursor: pointer; font-family: inherit; }
+@media (max-width: 480px) { .ver-datos { grid-template-columns: 1fr; } }

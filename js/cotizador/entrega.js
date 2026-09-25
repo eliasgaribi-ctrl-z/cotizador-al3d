@@ -454,6 +454,46 @@ Importante: respeta todos los elementos, posiciones y acomodo que aparecen en la
   copiarTexto(prompt,'Prompt copiado · pégalo en Gemini junto con tu imagen de referencia');
 }
 
+/* ===================== El sello, impreso =====================
+   Un QR y un código que cualquiera —el cliente, su contador, quien reciba el PDF reenviado—
+   puede comprobar contra la hoja en verificar.html. Es lo que convierte «este papel dice que
+   lo autorizó Dirección» en algo que se puede preguntar: un PDF con otro total, otro negocio
+   o un sello inventado contesta «no auténtica».
+
+   Solo se imprime cuando el sello es de ESTE trabajo y de ESTE total. Un sello que quedó de
+   antes de editar ya se soltó (soltarAuthSiCambio), pero la comparación del total va de todos
+   modos: el QR no puede decir «auténtica» sobre un número que no es el que se firmó. */
+function selloImprimible(neto){
+  const s=Q.sello;
+  if(!s||!s.codigo||!s.folio||Q.estado!=='autorizada'||!authVigente()) return null;
+  if(Math.abs((Number(s.total)||0)-neto)>0.01) return null;
+  return s;
+}
+function ligaDeVerificacion(s){
+  const u=new URL('verificar.html',location.href);
+  u.search='?f='+encodeURIComponent(s.folio)+'&c='+encodeURIComponent(s.codigo);
+  u.hash='';
+  return u.href;
+}
+/* El QR como <svg> de cuadros, sin canvas ni imagen: nítido al imprimir a cualquier escala y
+   dentro del mismo HTML del PDF. La librería es vendor/qrcodegen.js; si no cargó, no hay QR y
+   el código impreso sigue sirviendo, que se teclea en la misma página. */
+function qrSVG(texto,px){
+  if(typeof qrcodegen==='undefined') return '';
+  let q;
+  try{ q=qrcodegen.QrCode.encodeText(texto,qrcodegen.QrCode.Ecc.MEDIUM); }catch(_){ return ''; }
+  const m=2, n=q.size+m*2;
+  let d='';
+  for(let y=0;y<q.size;y++) for(let x=0;x<q.size;x++) if(q.getModule(x,y)) d+='M'+(x+m)+','+(y+m)+'h1v1h-1z';
+  return `<svg class="qr" viewBox="0 0 ${n} ${n}" width="${px}" height="${px}" shape-rendering="crispEdges" role="img" aria-label="Código QR para verificar la cotización"><rect width="${n}" height="${n}" fill="#fff"/><path d="${d}" fill="#1a1d33"/></svg>`;
+}
+function verificacionHTML(neto){
+  const s=selloImprimible(neto); if(!s) return '';
+  const liga=ligaDeVerificacion(s);
+  return `<div class="verif">${qrSVG(liga,62)}<div class="verif-t"><span class="lbl">Cotización verificable</span>
+    <p>Escanea el código o entra a <b>${esc(liga.split('?')[0].replace(/^https?:\/\//,''))}</b> con el código <b class="num">${esc(s.codigo)}</b>. Si el total o el negocio no coinciden, este documento fue alterado.</p></div></div>`;
+}
+
 /* ===================== Generador de PDF ===================== */
 function generarPDF(){
   const itemsForPDF = Q.items.filter(it=>it.showInPdf!==false);
@@ -961,6 +1001,13 @@ td.c{color:var(--ink2)}
 .nota>.lbl{color:var(--brandd);margin-bottom:4px}
 .nota p{font-size:9.5px;line-height:1.5;color:var(--ink)}
 .nota small{display:block;font-size:8px;color:var(--ink2);margin-top:5px}
+/* El sello: el QR a la izquierda y la frase que dice qué hacer con él. Dentro de la nota,
+   que es el hueco que ya existe junto a los totales: así no le quita alto al plano. */
+.verif{display:flex;gap:10px;align-items:center;margin-top:9px;padding-top:8px;border-top:1px solid rgba(64,96,248,.18)}
+.verif .qr{flex:0 0 auto;display:block;border-radius:3px}
+.verif-t>.lbl{color:var(--brandd);margin-bottom:2px}
+.verif-t p{font-size:8px;line-height:1.45;color:var(--ink2)}
+.verif-t b{color:var(--ink)}
 
 /* Figura del plano · crece hasta llenar el hueco que le quede a la hoja */
 .fig{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;margin-bottom:4px}
@@ -1148,6 +1195,7 @@ ${trozos.map((trozo,ti)=>{
       <span class="lbl">Nota</span>
       <p>${esc(notaCliente())}</p>
       ${hayProrrateo?`<small>* Precio unitario prorrateado: el total de la partida es el que manda.</small>`:''}
+      ${verificacionHTML(dFin.neto)}
     </div>
     <div class="tot-card">
       <div class="trow"><span>Subtotal</span><span>${money(subPdf)}</span></div>

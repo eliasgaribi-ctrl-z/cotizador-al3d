@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Verificar cotización · AL3D</title>
+<meta name="description" content="Comprueba que una cotización de AL3D es auténtica: folio, fecha, total y negocio, contra el registro de la empresa.">
+<meta name="theme-color" content="#4060f8">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" sizes="192x192" href="icono-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+
+<script src="js/tema.js"></script>
+<link rel="stylesheet" href="css/sistema.css">
+<link rel="stylesheet" href="css/publico.css">
+</head>
+<!-- ============================================================================
+     VERIFICAR — la página que abre el QR de un PDF.
+
+     Es la cuarta página pública y la única con código, porque tiene que preguntar: lee el
+     folio y el código de la liga, se los pasa a la hoja por /verificar —que es la única ruta
+     del puente que no pide cuenta ni token— y enseña lo que la hoja contesta. La hoja
+     recalcula la firma desde su propio renglón, así que lo que aquí sale verde es lo que se
+     autorizó, no lo que alguien escribió en el PDF.
+
+     Enseña lo mínimo que hace falta para comparar con el papel —folio, fecha, total y
+     negocio— y nada que no deba andar en un QR: ni teléfono, ni dirección, ni correo. Lo
+     escribe con textContent, nunca con innerHTML: lo que llega de la hoja es un dato.
+     ============================================================================ -->
+<body class="pub">
+<main class="pub-wrap">
+
+  <div class="pub-marca">
+    <img src="logo-al3d.svg" width="54" height="27" alt="AL3D">
+    <div><b>AL3D</b><span>Verificar una cotización</span></div>
+  </div>
+
+  <h1>¿Esta cotización es auténtica?</h1>
+  <p class="pub-entrada">Compara lo que dice aquí con tu papel. Si el total o el negocio no
+  coinciden, el documento se modificó después de que AL3D lo autorizara.</p>
+
+  <section class="ver-caja" id="ver" aria-live="polite">
+    <p class="ver-est" id="ver-est"><span class="ver-giro" aria-hidden="true"></span> Consultando el registro de AL3D…</p>
+    <dl class="ver-datos" id="ver-datos" hidden>
+      <div><dt>Folio</dt><dd id="ver-folio"></dd></div>
+      <div><dt>Autorizada el</dt><dd id="ver-fecha"></dd></div>
+      <div><dt>Negocio</dt><dd id="ver-proy"></dd></div>
+      <div><dt>Total</dt><dd id="ver-total" class="ver-num"></dd></div>
+    </dl>
+  </section>
+
+  <form class="ver-form" id="ver-form" hidden>
+    <h2>Verificar a mano</h2>
+    <p>Escribe el folio completo y el código que vienen en la cotización, junto al QR.</p>
+    <label for="f-f">Folio</label>
+    <input id="f-f" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="COT-0042@K7QM">
+    <label for="f-c">Código</label>
+    <input id="f-c" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="A1B2-C3D4-E5F6">
+    <button type="submit" class="pub-btn">Verificar</button>
+  </form>
+
+  <div class="pub-pie">
+    <span>AL3D · Anuncios Luminosos 3D · Guadalajara, Jalisco</span>
+    <a href="privacidad.html">Privacidad</a>
+    <a href="condiciones.html">Condiciones</a>
+  </div>
+</main>
+
+<script type="module">
+import { URL_PUENTE } from './js/datos/prefs.js';
+
+const $ = id => document.getElementById(id);
+const dinero = n => Number(n).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+const ESTADOS = {
+  autentica: ['ok', 'Auténtica', 'AL3D autorizó esta cotización con estos datos.'],
+  superada: ['av', 'Ya no vigente', 'Esta cotización se volvió a autorizar con otro precio. Pide a AL3D la versión más reciente.'],
+  revocada: ['mal', 'Revocada', 'AL3D retiró esta autorización. Ya no vale como cotización.'],
+  no_autentica: ['mal', 'No auténtica', 'No hay una cotización de AL3D con ese folio y ese código. Si te la mandaron, confírmala directo con AL3D.'],
+};
+
+function pintar(clase, titulo, texto) {
+  const e = $('ver-est');
+  $('ver').className = 'ver-caja ' + clase;
+  e.textContent = '';
+  const b = document.createElement('b'); b.textContent = titulo;
+  e.append(b, ' · ' + texto);
+}
+
+async function verificar(f, c) {
+  $('ver-datos').hidden = true;
+  pintar('', 'Consultando', 'el registro de AL3D…');
+  let r;
+  try {
+    const res = await fetch(URL_PUENTE, {
+      method: 'POST', redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ ruta: 'verificar', f, c }),
+    });
+    r = await res.json();
+  } catch (_) {
+    pintar('av', 'Sin respuesta', 'No se pudo consultar el registro. Revisa tu conexión y vuelve a abrir la liga.');
+    return;
+  }
+  if (!r || r.ok !== true) { pintar('av', 'Espera un momento', (r && r.mensaje) || 'El registro no contestó.'); return; }
+  const [clase, titulo, texto] = ESTADOS[r.estado] || ESTADOS.no_autentica;
+  pintar(clase, titulo, texto);
+  if (r.estado !== 'no_autentica') {
+    $('ver-folio').textContent = r.folio || '—';
+    $('ver-fecha').textContent = r.fecha || '—';
+    $('ver-proy').textContent = r.proyecto || '—';
+    $('ver-total').textContent = Number.isFinite(Number(r.total)) ? dinero(r.total) : '—';
+    $('ver-datos').hidden = false;
+  }
+}
+
+const q = new URLSearchParams(location.search);
+const f = (q.get('f') || '').trim(), c = (q.get('c') || '').trim();
+$('f-f').value = f; $('f-c').value = c;
+$('ver-form').hidden = false;
+$('ver-form').addEventListener('submit', ev => {
+  ev.preventDefault();
+  const nf = $('f-f').value.trim(), nc = $('f-c').value.trim();
+  if (!nf || !nc) return;
+  history.replaceState(null, '', '?f=' + encodeURIComponent(nf) + '&c=' + encodeURIComponent(nc));
+  verificar(nf, nc);
+});
+if (f && c) verificar(f, c);
+else pintar('', 'Falta el código', 'Escanea el QR de la cotización, o escribe abajo el folio y el código.');
+</script>
+</body>
+</html>
