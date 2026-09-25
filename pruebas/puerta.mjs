@@ -272,8 +272,13 @@ console.log('\nLO QUE LA PUERTA PROMETE');
   const iMontar = app.indexOf('await montar(rutaDelHash())');
   cierto('app.js espera a la puerta ANTES de montar el primer módulo',
          iPuerta > 0 && iMontar > 0 && iPuerta < iMontar);
+  /* El salto de línea va con \r opcional: en un clon de Windows con core.autocrlf=true el
+     archivo llega en CRLF y un indexOf con '\n' pelado no casa NUNCA, así que esta condición
+     era falsa con app.js perfecto. Es el mismo modo de falla que publicacion.mjs ya tuvo que
+     arreglar con las barras de las rutas: el fallo era de la prueba, no del código. */
+  const rolseg = /pintarRolSeg\(\);\r?\n  pintarNav\(\);/.exec(app);
   cierto('y antes de pintar la barra, que depende del rol',
-         iPuerta > 0 && iPuerta < app.indexOf('pintarRolSeg();\n  pintarNav();'));
+         iPuerta > 0 && !!rolseg && iPuerta < rolseg.index);
 
   /* La guarda del rol tiene que estar en la FUNCIÓN, no solo en el atributo `disabled` del
      botón: Ajustes llega a `cambiarRol` simulando un clic y se saltaría el atributo. */

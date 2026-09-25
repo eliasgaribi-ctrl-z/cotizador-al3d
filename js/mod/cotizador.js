@@ -37,10 +37,40 @@
 
    La segunda objeción —«690 KB duplicados en la memoria de un celular»— se paga: mientras
    esta pestaña está abierta, el documento del cotizador vive junto al de la plataforma. Se
-   acepta a cambio de que el flujo sea uno, y el marco se destruye al cambiar de pestaña.
+   acepta a cambio de que el flujo sea uno.
+
+   ----- Y EL MARCO YA NO SE DESTRUYE AL CAMBIAR DE PESTAÑA -----
+
+   Aquí decía «y el marco se destruye al cambiar de pestaña». Dejó de ser verdad y dejó de
+   ser deseable, en ese orden.
+
+   No era verdad del todo ni entonces: el router solo vacía la sección que va a MONTAR, así
+   que al salir de aquí el <iframe> se quedaba en `#mod-cotizador`, escondido y con su
+   documento vivo, hasta que alguien volvía — y entonces sí se destruía, para construir otro
+   igual. Se pagaba la memoria Y la recarga: 795 KB de guiones reinterpretados por visita,
+   medidos aquí dentro con `performance.getEntriesByType('resource')`.
+
+   Ahora esta ruta lleva `conservar: true` en RUTAS y el router la esconde en vez de tirarla.
+   Eso parte el ciclo de vida en dos, y este módulo tiene que respetar la diferencia:
+
+     · `desmontar()` es el final. Se suelta todo.
+     · `ocultar()` es «deja de verse». Se suelta todo lo que este módulo escribe FUERA de su
+       sección —la clase `pf-marco-lleno` del body, los oyentes que miden geometría— y se
+       queda lo de dentro del marco. Lo que no se suelta aquí se queda encima de la pantalla
+       de otro.
+     · `mostrar()` es la vuelta. Repone exactamente lo que `montar()` pone y `ocultar()` quitó.
+
+   Lo que sigue corriendo escondido, dicho en voz alta porque es el coste: el documento del
+   cotizador entero —que no tiene bucles propios; sus `requestAnimationFrame` son todos de un
+   disparo—, su oyente de 'storage', y el vigilante de arranque de aquí abajo si se salió
+   mientras cargaba. Eso último es a propósito: termina de abrir mientras no lo miras.
+
+   El techo de cuántas pantallas así pueden estar vivas a la vez lo pone
+   `TOPE_CONSERVADAS` en js/nucleo/conservar.js, que es donde está escrito el cálculo de
+   memoria completo.
    ============================================================================ */
 
-import { $, ico, esc, vacio, toast, ajustarAltoBarra, insetInferior, altoBarraAbajo, pliegueDelVisor, esqueletoMarco } from '../nucleo/ui.js';
+import { $, ico, esc, vacio, toast, ajustarAltoBarra, insetInferior, altoBarraAbajo, pliegueDelVisor, esqueletoMarco, alTerminarDeEntrar } from '../nucleo/ui.js';
 
 let _cont = null;
 let _ctx = null;
@@ -49,6 +79,13 @@ let _reloj = null;
 let _oyeMensaje = null;
 let _consultas = [];     // las matchMedia del pliegue, para soltarlas al desmontar
 let _ultimoPliegue = '';  // lo último que se le mandó al marco, para no repetirlo
+/* ¿Esta pantalla se está viendo? Montado y visible dejaron de ser lo mismo cuando la ruta
+   pasó a conservarse: entre `ocultar()` y `mostrar()` el módulo sigue vivo con el marco
+   escondido. Todo lo que lee o escribe geometría se pregunta por esto antes. */
+let _visible = false;
+/* Para cancelar la medición que espera al final de la animación de entrada, si la pantalla
+   se va antes de que termine. Ver `alTerminarDeEntrar` en nucleo/ui.js. */
+let _finEntrada = null;
 
 /* ============================================================================
    Montar y desmontar
@@ -57,13 +94,17 @@ let _ultimoPliegue = '';  // lo último que se le mandó al marco, para no repet
 export async function montar(contenedor, ctx) {
   _cont = contenedor;
   _ctx = ctx;
+  _visible = true;
 
   /* LA GUARDA, y es lo primero que se hace. El oyente de `storage` del router remonta el
      módulo actual cuando llega `al3d_historial` o `al3d_queue`, y eso es correcto para los
      módulos que pintan DOM… y catastrófico para este: `montarDeVerdad` hace
      `cont.innerHTML = ''`, el marco muere y vuelve a cargar 933 KB JUSTO DESPUÉS de que
      alguien apretó Guardar. Y empotrado el evento SÍ llega, porque `storage` dispara en
-     todos los documentos del mismo origen menos el que escribió — que es el iframe. */
+     todos los documentos del mismo origen menos el que escribió — que es el iframe.
+
+     El router la apaga en CADA montaje, así que `mostrar()` tiene que volver a pedirla: una
+     pantalla conservada que vuelve no pasa por aquí. */
   if (ctx && ctx.sinRemonte) ctx.sinRemonte(true);
 
   /* `src` SIN cadena de consulta. Desde septiembre de 2026 cotizador.html va con el conjunto
@@ -123,8 +164,13 @@ export async function montar(contenedor, ctx) {
       return !!(d && d.getElementById('pasos') && d.documentElement && !d.documentElement.classList.contains('arrancando'));
     } catch (_) { return false; }
   };
+  /* El vigilante NO se para al cambiar de pestaña, y eso es a propósito desde que esta ruta
+     se conserva: si alguien abre el Cotizador y se va mientras carga, el marco termina de
+     abrir escondido y al volver ya está puesto. Se para cuando el módulo se desmonta de
+     verdad, que es cuando `_cont` se pone en null. `medir()` se ignora sola si no se está
+     viendo, y `mostrar()` mide al volver. */
   const vigilar = () => {
-    if (!_cont) return;                       // se cambió de pestaña mientras se esperaba
+    if (!_cont) return;                       // el módulo se desmontó mientras se esperaba
     if (sano()) { _reloj = null; marcoListo(); medir(); return; }
     /* 100 intentos de 150 ms = 15 s. Generoso a propósito: son 933 KB, y en un teléfono
        viejo con red mala el primer pintado se ha medido en cientos de milisegundos, no en
@@ -144,6 +190,22 @@ export async function montar(contenedor, ctx) {
   m.addEventListener('load', medir, { once: true });
 
   medir();
+  medirCuandoEntre();
+  oirGeometria();
+
+  _oyeMensaje = ev => alMensaje(ev, m);
+  window.addEventListener('message', _oyeMensaje);
+
+  ponerBarra();
+}
+
+/* ----- Los oyentes que MIDEN -----
+   Van y vienen con la VISIBILIDAD, no con el montaje, y eso es lo que separa `ocultar()` de
+   `desmontar()`. Una pantalla conservada sigue montada mientras está escondida, y estos tres
+   oyentes leen geometría: un `scroll` en la Mesa de corte despertaría a este módulo para que
+   midiera una caja que no se está viendo. Lo que sí sigue puesto mientras tanto es el
+   vigilante del arranque del marco y el oyente de `message`, que son de la vida del módulo. */
+function oirGeometria() {
   window.addEventListener('resize', medir);
   /* El teclado del teléfono encoge el visor pero NO la caja del marco: sin este oyente, los
      modales altos del cotizador —que miden con 100dvh— quedan tapados por el teclado. */
@@ -155,31 +217,100 @@ export async function montar(contenedor, ctx) {
   _consultas = ['(horizontal-viewport-segments: 2)', '(vertical-viewport-segments: 2)', '(device-posture: folded)']
     .map(q => { try { const mq = matchMedia(q); mq.addEventListener('change', medir); return mq; } catch (_) { return null; } })
     .filter(Boolean);
+}
 
-  _oyeMensaje = ev => alMensaje(ev, m);
-  window.addEventListener('message', _oyeMensaje);
+function callarGeometria() {
+  window.removeEventListener('resize', medir);
+  window.removeEventListener('scroll', medir);
+  if (window.visualViewport) window.visualViewport.removeEventListener('resize', medir);
+  for (const mq of _consultas) { try { mq.removeEventListener('change', medir); } catch (_) {} }
+  _consultas = [];
+}
 
-  /* Esta pantalla no tiene acción propia: la suya está adentro. */
+/* Esta pantalla no tiene acción propia: la suya está adentro. La pone `montar()` y la repone
+   `mostrar()`: el módulo que se va limpia la barra en SU `desmontar()`, así que quien llega
+   tiene que dejarla como le toca, llegue montándose o volviendo. */
+function ponerBarra() {
   const b = $('pf-mbar');
   if (b) { b.hidden = true; b.innerHTML = ''; b.onclick = null; ajustarAltoBarra(); }
 }
 
-export function desmontar() {
-  if (_reloj) { clearTimeout(_reloj); _reloj = null; }
+/* La sección entra desde diez píxeles abajo (`.pf-mod{animation:entra}`), así que la medida
+   que se toma nada más enseñarla sale diez píxeles corta. Se vuelve a medir cuando acabe de
+   entrar; el porqué completo está en `alTerminarDeEntrar`, en nucleo/ui.js. Hace falta en los
+   dos caminos: al volver a enseñar una pantalla conservada no hay nada que esperar, y en un
+   montaje con el documento ya en caché el vigilante remide dentro de esos mismos .32 s. */
+function medirCuandoEntre() {
+  if (_finEntrada) { _finEntrada(); _finEntrada = null; }
+  _finEntrada = alTerminarDeEntrar(_cont, () => { _finEntrada = null; medir(); });
+}
+
+/* ============================================================================
+   Esconderse y volver — el ciclo de vida de una ruta `conservar`
+   ============================================================================ */
+
+/* Deja de verse, pero sigue montada. La regla, y es la que hay que respetar si algún día se
+   conserva otra pantalla: se suelta TODO lo que este módulo escribe fuera de su propia
+   sección, porque eso se queda encima de la pantalla de otro. Lo que se queda es el
+   <iframe> con su documento, que es el punto entero de conservar. */
+export function ocultar() {
+  _visible = false;
   if (_raf) { cancelAnimationFrame(_raf); _raf = 0; }
-  window.removeEventListener('resize', medir);
-  window.removeEventListener('scroll', medir);
-  for (const mq of _consultas) { try { mq.removeEventListener('change', medir); } catch (_) {} }
-  _consultas = []; _ultimoPliegue = '';
-  if (window.visualViewport) window.visualViewport.removeEventListener('resize', medir);
-  if (_oyeMensaje) { window.removeEventListener('message', _oyeMensaje); _oyeMensaje = null; }
+  if (_finEntrada) { _finEntrada(); _finEntrada = null; }
+  callarGeometria();
+  /* La clase del body decide el relleno de la página ENTERA y esconde el botón del
+     asistente (css/plataforma.css). Dejarla puesta encima del Tablero le corta el aire de
+     abajo y le desaparece un botón que sí tiene. */
   document.body.classList.remove('pf-marco-lleno');
+  /* Y la guarda del remonte se suelta: escondido, este módulo ya no tiene por qué impedir
+     que el router repinte la pantalla que SÍ se está viendo cuando llega un 'storage'. El
+     router la apaga igual en cada montaje; soltarla aquí es lo que hace que el estado no
+     dependa de en qué orden pasen las dos cosas. */
   if (_ctx && _ctx.sinRemonte) _ctx.sinRemonte(false);
+  /* La firma del pliegue se borra: escondido pudo cambiar la postura del aparato sin que
+     nadie midiera, y al volver una firma vieja diría que no hay nada que avisarle al marco. */
+  _ultimoPliegue = '';
+}
+
+/* Vuelve a verse. Repone exactamente lo que `montar()` pone y `ocultar()` quitó. */
+export async function mostrar() {
+  if (!_cont || !_ctx) return;
+  /* Si el marco ya no está, esta sección no sirve para reutilizar: `rendirse()` la cambió por
+     su tarjeta de «no se pudo abrir». Sin esto la tarjeta se quedaría para siempre, porque el
+     router ya no vuelve a montar una pantalla conservada. Se rehace desde cero, que es
+     exactamente lo que pasaba antes de conservar nada. */
+  if (!_cont.querySelector('#pf-cot-marco')) {
+    const cont = _cont, ctx = _ctx;
+    desmontar();
+    return montar(cont, ctx);
+  }
+  _visible = true;
+  /* La guarda del remonte, otra vez. El router la apaga en CADA montaje —éste incluido— así
+     que una pantalla que vuelve tiene que volver a pedirla o el primer 'storage' que llegue
+     le tira el marco, que es justo lo que esa guarda existe para evitar. */
+  if (_ctx.sinRemonte) _ctx.sinRemonte(true);
+  document.body.classList.add('pf-marco-lleno');
+  ponerBarra();
+  oirGeometria();
+  medir();
+  medirCuandoEntre();
+}
+
+export function desmontar() {
+  /* El final incluye el «deja de verse»: los oyentes de geometría, la clase del body y la
+     guarda del remonte se sueltan en un solo sitio, para que no haya dos listas que se
+     separen. */
+  ocultar();
+  if (_reloj) { clearTimeout(_reloj); _reloj = null; }
+  if (_oyeMensaje) { window.removeEventListener('message', _oyeMensaje); _oyeMensaje = null; }
   _cont = null; _ctx = null;
-  /* El marco se destruye porque el router vacía el contenedor, y ESO ESTÁ BIEN: reparentar un
-     iframe recarga su documento de todas formas, y mantenerlo vivo exigiría un contenedor
-     paralelo fuera de <main> peleando con la cola de montajes, que existe por un incidente
-     concreto. No se pierde nada: el cotizador autoguarda `al3d_q` en cada tecla. */
+  /* Aquí el marco SÍ muere: el router vacía la sección de una conservada podada, y para las
+     demás la vacía su próximo montaje. A `desmontar()` se llega por tres caminos —el tope de
+     conservadas, un refresco forzado (`ctx.refrescar()`, el cambio de rol, la sincronización
+     callada) y el rol que deja de tener esta pantalla— y ninguno es la navegación de todos
+     los días, que ahora pasa por `ocultar()`.
+
+     No se pierde nada cuando pasa: el cotizador autoguarda `al3d_q` en cada tecla. */
 }
 
 /* ============================================================================
@@ -194,9 +325,16 @@ export function desmontar() {
    girar el teléfono o al abrir el teclado, y esto lee geometría. Leer y escribir el layout en
    cada evento es el camino corto al tirón. */
 function medir() {
+  /* Escondida no se mide, y no es un ahorro: `--pf-marco-h` es UNA variable de :root que
+     comparten los tres marcos, y el rectángulo de un <iframe> en `display:none` es todo
+     ceros. Medir desde aquí estando escondido le escribiría a la Mesa de corte —que sí está
+     en pantalla— un alto sacado de una caja que no existe. */
+  if (!_visible) return;
   if (_raf) return;
   _raf = requestAnimationFrame(() => {
     _raf = 0;
+    /* Y otra vez dentro del cuadro: entre pedirlo y que llegue se pudo cambiar de pantalla. */
+    if (!_visible) return;
     const m = $('pf-cot-marco'); if (!m) return;
     const vv = window.visualViewport;
     const alto = vv ? vv.height : window.innerHeight;
@@ -254,6 +392,11 @@ function avisarPliegue(m, caja) {
 function alMensaje(ev, m) {
   if (ev.origin !== location.origin) return;
   if (!m || ev.source !== m.contentWindow) return;
+  /* Y que esta pantalla se esté viendo. Un marco conservado sigue vivo mientras se mira otra
+     cosa: una pantalla que nadie tiene delante no puede mover la navegación de la app, y la
+     bisagra que se le mande ahora estaría medida sobre una caja invisible. Nada se pierde por
+     ignorarlo —`mostrar()` vuelve a medir y a avisar del pliegue al volver. */
+  if (!_visible) return;
   const d = ev.data;
   if (!d || typeof d !== 'object') return;
   /* El cotizador acaba de arrancar y pide la bisagra: se le contesta con una medición nueva. */

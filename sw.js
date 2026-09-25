@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 66;
+const APP_VERSION = 67;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -89,6 +89,10 @@ const APP_FILES = [
   './js/cotizador/arranque.js',
   './js/app.js',
   './js/nucleo/ui.js',
+  /* La política de qué pantalla se conserva al cambiar de pestaña. Va con app.js y no
+     aparte: el router la importa de forma estática, así que una copia sin este archivo no
+     es una plataforma sin la mejora, es una plataforma que no arranca. */
+  './js/nucleo/conservar.js',
   './js/nucleo/fechas.js',
   './js/nucleo/ics.js',
   './js/nucleo/gcal.js',

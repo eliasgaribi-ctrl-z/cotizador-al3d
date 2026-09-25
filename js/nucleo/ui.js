@@ -685,6 +685,35 @@ export function insetInferior() {
  *
  * @param {string} id el id del <iframe>
  */
+/* ----- Medir DESPUÉS de que la sección acabe de entrar -----
+   `.pf-mod` entra con `animation:entra .32s` y esa animación empieza en `translateY(10px)`
+   (css/plataforma.css y css/sistema.css). Durante esos .32 s el marco está diez píxeles más
+   abajo de donde va a quedarse, y `medirMarco` —que resta `getBoundingClientRect().top`— sale
+   diez píxeles corto. Medido: 522 px contra los 532 de verdad.
+
+   No se ve casi nunca porque quien mide de verdad suele llegar tarde: el vigilante del marco
+   remide cuando el documento de dentro ya arrancó, y para eso pasan más de .32 s. Se nota
+   cuando el marco YA está —una pantalla conservada que se vuelve a enseñar, o un documento
+   que venía de la caché— y ahí la única medición cae a media animación.
+
+   Se escucha el final de la animación en vez de escribir aquí los 320 ms: el número vive en
+   la hoja de estilos y el día que cambie no hay dos sitios que desempatar. Si el aparato
+   pide movimiento reducido no hay animación, `animationend` no llega nunca y la medición de
+   antes ya era la buena, así que esto sobra sin estorbar.
+
+   @param {Element} seccion la <section> del módulo
+   @param {Function} fn qué hacer cuando termine de entrar
+   @returns {Function} la que lo cancela, para el que se va antes de que termine */
+export function alTerminarDeEntrar(seccion, fn) {
+  if (!seccion || typeof fn !== 'function') return () => {};
+  const quitar = () => seccion.removeEventListener('animationend', al);
+  /* Solo la animación DE LA SECCIÓN: lo que anime dentro —una silueta, una tarjeta— burbujea
+     hasta aquí y mediría antes de tiempo, que es justo lo que se viene a evitar. */
+  function al(ev) { if (ev.target !== seccion) return; quitar(); fn(); }
+  seccion.addEventListener('animationend', al);
+  return quitar;
+}
+
 export function medirMarco(id) {
   const m = document.getElementById(id);
   if (!m) return;
