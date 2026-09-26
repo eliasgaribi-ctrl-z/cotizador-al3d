@@ -342,7 +342,7 @@ export function mdLite(texto) {
 
 /* ----- Los proveedores de IA -----
    Las llaves ya no viven en los teléfonos: están en la hoja, y la pregunta sale por el puente
-   (rutaIA en puente/hoja-apps-script.gs). Aquí solo queda el orden —el mismo que el cotizador,
+   (rutaIA_ en puente/hoja-apps-script.gs). Aquí solo queda el orden —el mismo que el cotizador,
    AI_PROVS en js/cotizador/ia.js— y el modelo de cada uno, que es de la lista blanca de la hoja.
    pruebas/replicas.mjs compara las dos copias. */
 export const PROVEEDORES = ['qwen', 'deepseek', 'gemini'];

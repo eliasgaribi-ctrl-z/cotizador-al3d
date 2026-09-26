@@ -329,7 +329,8 @@ eq('la fila de otra cotización: no lo es la celda vacía, la huella del defecto
    (el reenvío lleva la fecha de la instalación viva). */
 const sm = sumarSinMandar({ desde: 100, campos: ['etapa'] },
   [{ almacen: 'proyectos', campos: ['anti_pactado', 'etapa'] }, { almacen: 'instalaciones', campos: ['fecha'] }, { almacen: 'proyectos', campos: null }], 900);
-eq('la nota suma los campos sin repetir y se queda con su fecha', sm, { desde: 100, campos: ['etapa', 'anti_pactado'] });
+eq('la nota suma los campos sin repetir y se queda con su fecha; la operación vieja sin campos suma los de la plataforma',
+   sm, { desde: 100, campos: ['etapa', 'anti_pactado', 'dir_texto', 'lat', 'lng', 'tipo_trabajo'] });
 eq('sin nota previa, desde ahora; una instalación sola deja la nota vacía',
    sumarSinMandar(null, [{ almacen: 'instalaciones', datos: {} }], 900), { desde: 900, campos: [] });
 

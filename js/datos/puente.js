@@ -199,13 +199,21 @@ const vaciada = (fila, k) => Object.prototype.hasOwnProperty.call(fila, k) && (f
  * este teléfono tenía guardado, y eso pisaba la corrección hecha allá: el saldo cambiaba sin
  * que nadie hubiera tocado dinero. Ahora esos cuatro y la fecha del anticipo viajan en el
  * ALTA (la fila no existe todavía) o cuando la operación dice que ese campo fue justo lo que
- * cambió (`opts.campos`, que `proyectos.actualizar` anota). Lo que la plataforma sí es dueña
- * —etapa, dirección, ubicación, tipo, fechas de instalación, estatus y cuenta que aprieta
- * PAGOS— viaja siempre.
+ * cambió (`opts.campos`, que `proyectos.actualizar` anota).
+ *
+ * Y lo mismo, desde septiembre de 2026, el estatus y la cuenta, la etapa, la dirección, la
+ * ubicación y el tipo. Viajaban siempre, con el valor que este teléfono tenía al encolar, y
+ * eso también pisaba: PAGOS marcaba LIQUIDADO en la hoja, Dirección movía una etapa antes de
+ * su siguiente bajada, y el estatus regresaba al de antes —y con la cuenta, el IVA de la fila—;
+ * fabricación movía la etapa de una tarjeta importada, que nace sin pin, y borraba la
+ * ubicación de la fila; un teléfono que nunca bajó la etapa nueva la regresaba al editar una
+ * nota. Ahora cada uno va cuando es lo que cambió. Una operación encolada por una versión
+ * anterior no trae `campos` (null): de ésa no se sabe qué cambió, y sus campos de la
+ * plataforma van como iban —el estatus y la cuenta no, que siempre llegaban con `campos`—.
  *
  * @param {Object} p proyecto de §4.4
  * @param {Object|null} inst su instalación, si ya tiene fecha
- * @param {{alta?:boolean, campos?:string[]}} [opts] sin `opts` se manda todo (es un alta)
+ * @param {{alta?:boolean, campos?:string[]|null}} [opts] sin `opts` se manda todo (es un alta)
  * @returns {Object} nombre de propiedad de Notion -> valor
  */
 export function aNotion(p, inst, opts) {
@@ -213,8 +221,10 @@ export function aNotion(p, inst, opts) {
   const out = {};
   const o = opts && typeof opts === 'object' ? opts : {};
   const alta = o.alta === undefined ? true : !!o.alta;
-  const campos = new Set(Array.isArray(o.campos) ? o.campos : []);
+  const sabe = Array.isArray(o.campos);
+  const campos = new Set(sabe ? o.campos : []);
   const va = campo => alta || campos.has(campo);
+  const vaPropio = (...cs) => alta || !sabe || cs.some(c => campos.has(c));
 
   if (va('nombre'))       out[P.proyecto] = texto(p.nombre);
   if (va('sub'))          out[P.subtotal] = num(p.sub);
@@ -236,22 +246,22 @@ export function aNotion(p, inst, opts) {
   if (texto(p.folio_global).trim()) out[P.folio] = texto(p.folio_global);
 
   const etapa = ETAPA_A_NOTION[p.etapa];
-  if (etapa) out[P.etapa] = etapa;
+  if (etapa && vaPropio('etapa')) out[P.etapa] = etapa;
 
-  if (ESTATUS.includes(p.estatus_notion)) out[P.estatus] = p.estatus_notion;
-  if (CUENTAS.includes(p.cuenta))         out[P.cuenta]  = p.cuenta;
+  if (va('estatus_notion') && ESTATUS.includes(p.estatus_notion)) out[P.estatus] = p.estatus_notion;
+  if (va('cuenta') && CUENTAS.includes(p.cuenta))                 out[P.cuenta]  = p.cuenta;
 
-  out[P.direccion] = texto(p.dir_texto);
+  if (vaPropio('dir_texto')) out[P.direccion] = texto(p.dir_texto);
   /* Cero coma cero no es «no sabemos dónde está»: es la Isla Nula, en el Atlántico, y un
      pin ahí se ve igual de convincente que uno bueno. Es el mismo cordón que `geo.enRango`
      ya tiene del lado del mapa, y tiene que estar de los dos: un cero de relleno que se
      cuela a Notion queda en el libro mayor y de ahí nadie lo saca. Sin coordenada, vacío. */
   const la = Number(p.lat), ln = Number(p.lng);
-  out[P.ubicacion] = (p.lat !== null && p.lng !== null && isFinite(la) && isFinite(ln) &&
+  if (vaPropio('lat', 'lng')) out[P.ubicacion] = (p.lat !== null && p.lng !== null && isFinite(la) && isFinite(ln) &&
                       Math.abs(la) <= 90 && Math.abs(ln) <= 180 && !(la === 0 && ln === 0))
     ? la + ',' + ln : '';
 
-  out[P.tipo] = Array.isArray(p.tipo_trabajo) ? p.tipo_trabajo.slice() : [];
+  if (vaPropio('tipo_trabajo')) out[P.tipo] = Array.isArray(p.tipo_trabajo) ? p.tipo_trabajo.slice() : [];
 
   /* Las dos fechas, y por qué ya NO se pisan.
      Con Notion, `Fecha Anticipo e Instalacion` era una sola columna que significaba las dos
@@ -277,8 +287,19 @@ export function aNotion(p, inst, opts) {
  * Una instalación, en propiedades de Notion. Va contra la MISMA fila del proyecto: en
  * Notion no hay una base de instalaciones y no hace falta, porque una venta tiene una
  * instalación y la fila ya tiene las columnas.
+ *
+ * `viva` es la instalación que manda en el proyecto (ver `instalacionDe` del relevo), cuando la
+ * operación se sube. Hasta septiembre de 2026 se mandaba la de la operación tal cual, y una
+ * CANCELADA escribía su fecha en la columna M como si siguiera en pie: nadie la vaciaba después,
+ * y la antigüedad de la cobranza (P, que cuenta desde M) contaba desde una instalación que no
+ * existe, a veces futura. Ahora, si el proyecto tiene otra viva —se reagendó—, va ésa; si ya
+ * no tiene ninguna, la fecha y la hora se vacían.
  */
-export function instalacionANotion(inst) {
+export function instalacionANotion(inst, viva) {
+  if (viva !== undefined) {
+    if (viva) return instalacionANotion(viva);
+    if (inst && inst.estado === 'cancelada') return { [P.fechaInst]: '', [P.horaInst]: '' };
+  }
   if (!inst || typeof inst !== 'object' || !esISO(inst.fecha)) return {};
   /* Solo la columna de instalación. La del anticipo es de la venta, no de la instalación:
      ver el comentario de las dos fechas en `aNotion`. */
@@ -871,9 +892,9 @@ export function crear(cfg0) {
           /* Alta si la fila no existe todavía; si ya existe, el dinero y el nombre solo van
              cuando la operación dice que eso fue lo que cambió. Ver aNotion. */
           props = aNotion(op.datos, await instalacionDe(proy.id),
-                          { alta: !idNotion, campos: Array.isArray(op.campos) ? op.campos : [] });
+                          { alta: !idNotion, campos: Array.isArray(op.campos) ? op.campos : null });
         } else {
-          props = instalacionANotion(op.datos);
+          props = instalacionANotion(op.datos, await instalacionDe(proy.id));
         }
 
         let { props: enviables, fuera } = filtrar(props, permitidas);
