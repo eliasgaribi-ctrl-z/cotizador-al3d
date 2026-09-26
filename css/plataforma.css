@@ -101,7 +101,7 @@ body.pf::before{display:none}
 .pf-cab-acc{display:flex;align-items:center;gap:var(--e2);margin-left:auto}
 .pf-cab-tema{margin-left:auto;width:36px;height:36px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
   border:0;border-radius:var(--rr2);background:rgba(255,255,255,.08);color:#fff;cursor:pointer}
-.pf-cab-tema:hover{background:rgba(255,255,255,.16)}
+@media(hover:hover){.pf-cab-tema:hover{background:rgba(255,255,255,.16)}}
 .pf-cab-tema .svgi{width:var(--ico2);height:var(--ico2)}
 /* El interruptor de tema es, además, `.btn-tema`, y sistema.css le da a esa clase 44 px de alto
    MÍNIMO —es el botón cuadrado de la barra del cotizador—. El ancho ya lo pisa la regla de
@@ -117,12 +117,20 @@ body.pf::before{display:none}
    computadora Ajustes vive al pie de la barra lateral y ésta no se pinta. */
 .pf-cab-ajustes{margin-left:0}
 @media(min-width:760px){ .pf-cab-ajustes{display:none} }
+/* Instalar la app, en el teléfono: la misma forma y la misma regla que Ajustes, y por lo
+   mismo —la barra lateral, donde vive el otro, no existe a este ancho—. Un cuarto botón de
+   44 px no cabe junto al logotipo en 360 px: medido, al título le quedaban 44 px y «Tablero»
+   salía «Ta…». Mientras el botón está puesto —solo hasta instalarla— el logotipo se aparta;
+   instalada, el botón no vuelve a salir y el logotipo vuelve. */
+.pf-cab-instalar{margin-left:0}
+@media(min-width:760px){ .pf-cab-instalar{display:none} }
+@media(max-width:759px){ .pf-cab:has(> .pf-cab-instalar:not([hidden])) .pf-cab-logo{display:none} }
 
 /* ----- Tu cuenta, en el encabezado ----- */
 .pf-sesion{width:36px;height:36px;flex:0 0 auto;border-radius:50%;border:2px solid rgba(255,255,255,.5);
   background:#4060f8;color:#fff;font:600 15px/1 inherit;cursor:pointer;display:inline-flex;
   align-items:center;justify-content:center}
-.pf-sesion:hover{filter:brightness(1.1)}
+@media(hover:hover){.pf-sesion:hover{filter:brightness(1.1)}}
 /* Con el dedo, el mismo blanco que sus vecinos del encabezado (tema y Ajustes suben a 44 px en
    pantallas táctiles): a 36 era el único de los tres por debajo del mínimo para tocar. */
 @media(hover:none),(pointer:coarse){ .pf-sesion{width:44px;height:44px} }
@@ -142,7 +150,7 @@ body.pf::before{display:none}
 .pf-sesion-nota{margin:0 0 10px;color:var(--tinta2);font-size:var(--t2);line-height:1.4}
 .pf-sesion-op{display:block;width:100%;text-align:left;min-height:40px;padding:0 12px;margin-top:4px;
   border:1px solid var(--linea);border-radius:10px;background:transparent;color:var(--tinta);font:inherit;cursor:pointer}
-.pf-sesion-op:hover{background:var(--sup2)}
+@media(hover:hover){.pf-sesion-op:hover{background:var(--sup2)}}
 .pf-sesion-op.es-salir{color:var(--mal);font-weight:600}
 
 /* ----- La página ----- */
@@ -211,7 +219,7 @@ body.pf::before{display:none}
     background:transparent;color:rgba(255,255,255,.72);
     font-family:inherit;font-size:var(--t2);font-weight:500;text-align:left;cursor:pointer;
   }
-  .pf-lat-item:hover{background:rgba(255,255,255,.06);color:#fff}
+  @media(hover:hover){.pf-lat-item:hover{background:rgba(255,255,255,.06);color:#fff}}
   /* El interruptor de tema es, además, `.btn-tema`, y esa clase lo formatea en el sistema como
      un botón cuadrado de icono: 44 px de ancho y de alto mínimo. En esta barra no es eso —es
      un renglón con su palabra— y el ancho ya se lo devuelve la regla de arriba, pero el alto
@@ -253,7 +261,7 @@ body.pf::before{display:none}
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .pf-cab-acc{margin-left:0}
   .pf-cab-tema{background:transparent;color:var(--tinta2);border:1px solid var(--linea)}
-  .pf-cab-tema:hover{background:var(--sup2);color:var(--tinta)}
+  @media(hover:hover){.pf-cab-tema:hover{background:var(--sup2);color:var(--tinta)}}
   .pf-sesion{border-color:var(--linea)}
   .pf-sesion-menu{right:max(var(--e5),env(safe-area-inset-right,0px))}
 }
@@ -326,7 +334,7 @@ body.pf::before{display:none}
   font-family:inherit;font-weight:500;font-size:var(--t3);line-height:1;text-align:left;cursor:pointer;
   transition:background var(--mv-s),color var(--mv-s);
 }
-.pf-tab:hover{background:rgba(255,255,255,.06);color:#fff}
+@media(hover:hover){.pf-tab:hover{background:rgba(255,255,255,.06);color:#fff}}
 .pf-tab.on{background:var(--nav2);color:#fff;font-weight:600;box-shadow:inset 3px 0 0 var(--a)}
 .pf-tab .tx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pf-tab .svgi{flex-shrink:0;width:var(--ico2);height:var(--ico2)}
@@ -468,7 +476,7 @@ body.pf::before{display:none}
 .cal-nav{width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--linea);
   border-radius:var(--rr2);background:var(--sup);color:var(--tinta2);cursor:pointer;
   box-shadow:none;font-size:var(--t4)}
-.cal-nav:hover{border-color:var(--a-borde);color:var(--tinta)}
+@media(hover:hover){.cal-nav:hover{border-color:var(--a-borde);color:var(--tinta)}}
 .cal-nav:active{box-shadow:none;transform:translateY(1px)}
 .cal-nav .svgi{width:var(--ico1);height:var(--ico1)}
 /* Los 44 px del mínimo táctil, donde de verdad se toca con el dedo. En un monitor con ratón
@@ -717,7 +725,7 @@ body.pf::before{display:none}
    app mide 44: los dos botones del mapa eran los únicos que pedían puntería. */
 #mapa-lienzo .leaflet-bar{border-color:var(--linea)}
 #mapa-lienzo .leaflet-bar a{background:var(--sup);color:var(--tinta);border-bottom-color:var(--linea)}
-#mapa-lienzo .leaflet-bar a:hover,#mapa-lienzo .leaflet-bar a:focus{background:var(--sup2)}
+#mapa-lienzo .leaflet-bar a:focus{background:var(--sup2)}@media(hover:hover){#mapa-lienzo .leaflet-bar a:hover{background:var(--sup2)}}
 #mapa-lienzo .leaflet-bar a.leaflet-disabled{background:var(--sup2);color:var(--tinta3)}
 @media(hover:none),(pointer:coarse){
   #mapa-lienzo .leaflet-bar a{width:44px;height:44px;line-height:44px;font-size:22px}
@@ -873,7 +881,7 @@ body.pf::before{display:none}
    activa la tarjeta: lo que se toca son los botones de adentro, y quitarle el latido al
    pasar por encima haría creer que ya se atendió. */
 .pf-decidir{display:block;cursor:default}
-.pf-decidir:hover{transform:none;animation:latido 2.8s ease-in-out infinite}
+@media(hover:hover){.pf-decidir:hover{transform:none;animation:latido 2.8s ease-in-out infinite}}
 /* Los renglones de dentro se separan con el borde de la tarjeta, que desde el rediseño es
    azul y no ámbar: el latido de esta tarjeta ya no es una sombra ámbar que crece, es el aro
    del acento —el mismo que usa la maqueta— y un filete ámbar dentro de una pieza azul se
@@ -1187,7 +1195,7 @@ button.cal-plazo:active{transform:translateY(1px) scale(.98)}
   padding:var(--e3);margin-bottom:var(--e2);border:1px solid var(--n3);border-radius:var(--rr1);
   background:var(--card);color:var(--n7);font-weight:400;font-size:var(--t2);line-height:1.5;font-family:inherit;
   cursor:pointer;transition:border-color .12s,background .12s}
-.aj-rol:hover{border-color:var(--n4)}
+@media(hover:hover){.aj-rol:hover{border-color:var(--n4)}}
 /* La ficha de rol mide 364x84: es una pieza grande y el glifo que marca cuál está elegido
    es lo primero que se busca en ella. Heredaba los 12,5 px de la descripción —cuando la
    tipografía empezó a aplicarse de verdad— y se perdía. Es el caso de --ico2: el icono ES
@@ -1296,7 +1304,7 @@ button.cal-plazo:active{transform:translateY(1px) scale(.98)}
   border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup2);
   box-shadow:none;cursor:pointer;transition:background var(--mv-s),border-color var(--mv-s)}
 .tb-etapa b{font-size:var(--t6);margin-bottom:5px}
-.tb-etapa:hover{transform:none;border-color:var(--a-borde)}
+@media(hover:hover){.tb-etapa:hover{transform:none;border-color:var(--a-borde)}}
 .tb-etapa:active{box-shadow:none;transform:translateY(1px)}
 .tb-etapa.on{background:var(--a-suave);border-color:var(--a-borde);color:var(--tinta2);box-shadow:none}
 .tb-etapa.on b{color:var(--tinta)}
@@ -1351,7 +1359,7 @@ button.cal-plazo:active{transform:translateY(1px) scale(.98)}
   padding:var(--e3);border:1px solid var(--linea);border-radius:var(--rr3);
   background:var(--sup);box-shadow:var(--sombra);cursor:pointer;font-family:inherit;
   transition:border-color var(--mv-s)}
-.pj-tarj:hover{border-color:var(--a-borde)}
+@media(hover:hover){.pj-tarj:hover{border-color:var(--a-borde)}}
 .pj-tarj:active{transform:translateY(1px)}
 .pj-tarj-t{font-weight:600;font-size:var(--t3);line-height:1.3;color:var(--ink)}
 .pj-tarj-d{font-size:var(--t2);line-height:1.35;color:var(--tinta2)}
@@ -1605,7 +1613,7 @@ body.pf .pf-panel{border-radius:var(--rr4)}
   box-shadow:none;background:var(--sup);border-radius:var(--rr2)}
 .tb-etapa::before{display:none}
 .tb-etapa b{font-size:var(--t6);letter-spacing:-.4px;margin-bottom:5px}
-.tb-etapa:hover{transform:none;box-shadow:var(--sombra-reposo);border-color:var(--a-borde)}
+@media(hover:hover){.tb-etapa:hover{transform:none;box-shadow:var(--sombra-reposo);border-color:var(--a-borde)}}
 .tb-etapa.on{background:var(--a-suave);border-color:var(--a-borde);box-shadow:inset 0 0 0 1px var(--a-borde)}
 .tb-etapa.on b{color:var(--a-tx)}
 
@@ -1628,10 +1636,10 @@ body.pf .pf-decidir{border-radius:var(--rr3);padding:var(--e4)}
    borde se hunden en la superficie hundida al pasar. */
 body.pf .btn{border-radius:var(--rr2);font-weight:600}
 body.pf .btn-pri{box-shadow:var(--sombra-accion)}
-body.pf .btn-pri:hover{box-shadow:var(--sombra-accion);transform:translateY(-1px)}
+@media(hover:hover){body.pf .btn-pri:hover{box-shadow:var(--sombra-accion);transform:translateY(-1px)}}
 body.pf .btn-pri:active:not(:disabled){transform:translateY(0);box-shadow:none}
-body.pf .btn-gho:hover,body.pf .btn-dgr:hover{background:var(--sup2)}
-body.pf .btn-dgr:hover{background:var(--mal-bg)}
+@media(hover:hover){body.pf .btn-gho:hover,body.pf .btn-dgr:hover{background:var(--sup2)}}
+@media(hover:hover){body.pf .btn-dgr:hover{background:var(--mal-bg)}}
 body.pf .btn-ok{box-shadow:0 4px 14px -6px rgba(var(--ok-rgb),.55)}
 .btn-wa{border-radius:var(--rr2);box-shadow:none}
 .pf-cerrar{border-radius:var(--rr2)}
@@ -1674,14 +1682,14 @@ body.pf .btn-ok{box-shadow:0 4px 14px -6px rgba(var(--ok-rgb),.55)}
     color:rgba(255,255,255,.6);align-self:center;margin-top:2px}
   .pf-tab{position:relative;height:44px;border-radius:var(--rr2)}
   .pf-tab .svgi{color:rgba(255,255,255,.55);transition:color var(--mv-s)}
-  .pf-tab:hover .svgi{color:#fff}
+  @media(hover:hover){.pf-tab:hover .svgi{color:#fff}}
   .pf-tab.on{background:rgba(255,255,255,.09);box-shadow:none}
   .pf-tab.on::before{content:'';position:absolute;left:0;top:11px;bottom:11px;width:3px;
     border-radius:0 3px 3px 0;background:var(--a-claro)}
   .pf-tab.on .svgi{color:var(--a-claro)}
   .pf-lat-item{border-radius:var(--rr2)}
   .pf-lat-item .svgi{color:rgba(255,255,255,.55)}
-  .pf-lat-item:hover .svgi{color:#fff}
+  @media(hover:hover){.pf-lat-item:hover .svgi{color:#fff}}
   .pf-lat-rol{margin-top:12px;padding:12px 10px 10px;border-top:0;border-radius:var(--rr3);
     background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.06)}
   .pf-lat-rol-t{color:rgba(255,255,255,.6);font-size:var(--t1);text-transform:uppercase;letter-spacing:.06em}
@@ -1712,9 +1720,9 @@ body.pf .btn-ok{box-shadow:0 4px 14px -6px rgba(var(--ok-rgb),.55)}
 .pj-col-n{min-width:22px;padding:0 7px;line-height:20px;text-align:center;border-radius:999px;
   background:var(--sup);border:1px solid var(--linea)}
 .pj-tarj{box-shadow:var(--sombra-reposo);transition:transform var(--mv-s),box-shadow var(--mv-s),border-color var(--mv-s)}
-.pj-tarj:hover{transform:translateY(-2px);box-shadow:var(--sombra)}
+@media(hover:hover){.pj-tarj:hover{transform:translateY(-2px);box-shadow:var(--sombra)}}
 .pj-tarj:active{transform:translateY(0);box-shadow:var(--sombra-reposo)}
-.pj-lista-movil .pj-tarj:hover{transform:none}
+@media(hover:hover){.pj-lista-movil .pj-tarj:hover{transform:none}}
 
 /* ----- El calendario ----- */
 .cal-rej{border-radius:var(--rr3);box-shadow:var(--sombra-reposo)}
@@ -1757,7 +1765,7 @@ body.pf .pf-lat-rol .seg{background:rgba(0,0,0,.25)}
 /* Movimiento reducido: sin levantar nada. */
 @media(prefers-reduced-motion:reduce){
   .pf-cuenta,.pj-tarj,body.pf .btn-pri{transition:none}
-  .pj-tarj:hover,body.pf .btn-pri:hover{transform:none}
+  @media(hover:hover){.pj-tarj:hover,body.pf .btn-pri:hover{transform:none}}
 }
 
 /* ============================================================================
@@ -1843,10 +1851,10 @@ body.pf .pf-lat-rol .seg{background:rgba(0,0,0,.25)}
   transition:transform var(--mv-s),box-shadow var(--mv-s),background var(--mv-s);
 }
 .pf-ia-btn .svgi{width:var(--ico3);height:var(--ico3)}
-.pf-ia-btn:hover{background:var(--a-fuerte);transform:translateY(-1px)}
+@media(hover:hover){.pf-ia-btn:hover{background:var(--a-fuerte);transform:translateY(-1px)}}
 .pf-ia-btn:active{transform:translateY(0)}
 .pf-ia-btn:focus-visible{outline:2px solid #fff;outline-offset:2px;box-shadow:0 0 0 4px var(--a-borde)}
-html[data-tema="oscuro"] .pf-ia-btn:hover{background:var(--a-fill);filter:brightness(1.1)}
+@media(hover:hover){html[data-tema="oscuro"] .pf-ia-btn:hover{background:var(--a-fill);filter:brightness(1.1)}}
 @media(max-width:759px){
   .pf-ia-btn{right:14px;bottom:calc(84px + env(safe-area-inset-bottom,0px) + var(--mbar-h,0px));
     height:52px;width:52px;padding:0;justify-content:center}
@@ -1881,7 +1889,7 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 .ia-hoy-t .svgi{width:var(--ico1);height:var(--ico1);color:var(--a-tx)}
 .ia-hoy-mas{margin-left:auto;border:0;background:transparent;color:var(--a-tx);font-family:inherit;font-weight:600;
   font-size:var(--t1);letter-spacing:0;text-transform:none;cursor:pointer;padding:4px 8px;border-radius:var(--rr1)}
-.ia-hoy-mas:hover{background:var(--a-suave)}
+@media(hover:hover){.ia-hoy-mas:hover{background:var(--a-suave)}}
 .ia-hoy-cargando .ia-hoy-t{margin:0;color:var(--tinta3)}
 .ia-hoy-cargando .svgi{animation:ia-gira 1.4s linear infinite}
 .ia-cifras{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--e2)}
@@ -1892,7 +1900,7 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 .ia-cifra{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0;text-align:left;
   padding:10px 12px;border:1px solid var(--linea2);border-radius:var(--rr2);background:var(--sup2);
   font-family:inherit;cursor:pointer;transition:border-color var(--mv-s),background var(--mv-s)}
-.ia-cifra:hover{border-color:var(--a-borde);background:var(--sup)}
+@media(hover:hover){.ia-cifra:hover{border-color:var(--a-borde);background:var(--sup)}}
 .ia-cifra b{font-family:var(--f-cifra);font-weight:700;font-size:var(--t5);letter-spacing:-.4px;line-height:1.1;color:var(--tinta);
   font-variant-numeric:tabular-nums;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ia-cifra span{font-size:var(--t1);color:var(--tinta2);line-height:1.3}
@@ -1906,7 +1914,7 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
   padding:10px 12px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup);
   font-family:inherit;cursor:pointer;box-shadow:var(--sombra-reposo);
   transition:border-color var(--mv-s),transform var(--mv-s)}
-.ia-frecuente:hover{border-color:var(--a-borde);transform:translateY(-1px)}
+@media(hover:hover){.ia-frecuente:hover{border-color:var(--a-borde);transform:translateY(-1px)}}
 .ia-frecuente .pf-fila-ico{width:36px;height:36px}
 .ia-frecuente-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .ia-frecuente-tx b{font-weight:600;font-size:var(--t3);color:var(--tinta);line-height:1.3}
@@ -1949,14 +1957,14 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
   background:var(--sup);text-decoration:none;gap:6px}
 .ia-acciones .chip .svgi{width:var(--ico1);height:var(--ico1)}
 .ia-acciones .chip.on{background:var(--nav);border-color:var(--nav);color:#fff;font-weight:600}
-.ia-acciones .chip.on:hover{background:var(--nav2);border-color:var(--nav2)}
+@media(hover:hover){.ia-acciones .chip.on:hover{background:var(--nav2);border-color:var(--nav2)}}
 .ia-meta{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2) var(--e3);margin:4px 6px 0;font-size:var(--t1);color:var(--tinta3)}
 .ia-fuente{display:inline-flex;align-items:center;gap:4px}
 .ia-fuente .svgi{width:12px;height:12px}
 .ia-fuente.local{color:var(--ok)}
 .ia-copiar{border:0;background:transparent;color:var(--tinta3);font-family:inherit;font-size:var(--t1);font-weight:600;
   display:inline-flex;align-items:center;gap:4px;cursor:pointer;padding:4px 6px;border-radius:var(--rr1)}
-.ia-copiar:hover{background:var(--sup2);color:var(--tinta)}
+@media(hover:hover){.ia-copiar:hover{background:var(--sup2);color:var(--tinta)}}
 .ia-copiar .svgi{width:12px;height:12px}
 
 /* ----- El pie: la tira de preguntas rápidas, el campo y el botón ----- */
@@ -1973,7 +1981,7 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 .ia-enviar .svgi{width:var(--ico2);height:var(--ico2)}
 .ia-pista{margin:0;padding:0 var(--e4) calc(var(--e3) + env(safe-area-inset-bottom,0px));font-size:var(--t1);color:var(--tinta3)}
 @media(hover:none),(pointer:coarse){ .ia-pista{display:none} .ia-pie{padding-bottom:calc(var(--e3) + env(safe-area-inset-bottom,0px))} }
-@media(prefers-reduced-motion:reduce){ .ia-espera .svgi,.ia-hoy-cargando .svgi{animation:none} .pf-ia-btn:hover,.ia-frecuente:hover{transform:none} }
+@media(prefers-reduced-motion:reduce){ .ia-espera .svgi,.ia-hoy-cargando .svgi{animation:none} @media(hover:hover){.pf-ia-btn:hover,.ia-frecuente:hover{transform:none}} }
 
 /* ============================================================================
    EL VIDRIO LÍQUIDO, EN LA PLATAFORMA
@@ -2140,7 +2148,7 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
   animation:ia-barrido 5.5s cubic-bezier(.2,.8,.2,1) infinite;
 }
 .pf-ia-btn .svgi{transform-origin:center;animation:ia-chispa 2.6s ease-in-out infinite}
-.pf-ia-btn:hover{
+@media(hover:hover){.pf-ia-btn:hover{
   background:linear-gradient(100deg,
     var(--ia-a) 0%,var(--ia-b) 25%,var(--ia-c) 50%,var(--ia-b) 75%,var(--ia-a) 100%);
   background-size:300% 100%;
@@ -2149,10 +2157,10 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
              0 8px 24px -4px rgba(var(--a-rgb),.72),
              0 20px 50px -16px rgba(var(--a2-rgb),.7);
   animation-duration:5s;
-}
-.pf-ia-btn:hover::after{animation-duration:2.6s}
+}}
+@media(hover:hover){.pf-ia-btn:hover::after{animation-duration:2.6s}}
 .pf-ia-btn:active{transform:scale(.96)}
-html[data-tema="oscuro"] .pf-ia-btn:hover{filter:brightness(1.1)}
+@media(hover:hover){html[data-tema="oscuro"] .pf-ia-btn:hover{filter:brightness(1.1)}}
 
 /* ----- Los paneles laterales y su velo -----
    Un panel de la plataforma es la pieza que más flota de las ocho pantallas: se abre encima de
@@ -2175,7 +2183,7 @@ html[data-tema="oscuro"] .pf-ia-btn:hover{filter:brightness(1.1)}
    Ya se levantaba al pasar el cursor; lo que le faltaba era el filo, que es lo que separa una
    tarjeta que sube de una tarjeta de vidrio que sube. */
 .pj-tarj{box-shadow:var(--filo),var(--sombra-reposo)}
-.pj-tarj:hover{box-shadow:var(--filo),var(--sombra-vidrio)}
+@media(hover:hover){.pj-tarj:hover{box-shadow:var(--filo),var(--sombra-vidrio)}}
 .pj-tarj:active{box-shadow:var(--filo),var(--sombra-reposo)}
 
 /* ----- El Fold abierto, en la plataforma -----
@@ -2206,7 +2214,7 @@ html[data-tema="oscuro"] .pf-ia-btn:hover{filter:brightness(1.1)}
 @media(prefers-reduced-motion:reduce){
   .pf-ia-btn,.pf-ia-btn::after,.pf-ia-btn .svgi{animation:none}
   .pf-ia-btn::after{opacity:0}
-  .pf-ia-btn:hover{transform:none}
+  @media(hover:hover){.pf-ia-btn:hover{transform:none}}
   .pf-tab:active,.pf-lat-item:active{transform:none}
 }
 @media print{

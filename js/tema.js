@@ -1,8 +1,8 @@
 /* ============================================================================
    El tema: claro, oscuro o el del sistema.
 
-   Es un script CLÁSICO y va en el <head> de las tres páginas —index.html, cotizador.html y
-   el anidador— ANTES de las hojas de estilo, a propósito: decide el tema leyendo una clave
+   Es un script CLÁSICO y va en el <head> de todas las páginas —index.html, cotizador.html,
+   el anidador y las públicas— ANTES de las hojas de estilo, a propósito: decide el tema leyendo una clave
    de localStorage y pone `data-tema` en <html> antes del primer pintado. Si corriera
    después, cada apertura en oscuro parpadearía en claro un cuadro.
 
@@ -17,6 +17,65 @@
    idioma que ya usan al3d_historial y al3d_anidar.
 
    Sin localStorage —Safari privado— funciona igual, sin recordar. */
+
+/* ----- Nadie de afuera nos empotra -----
+   Va aquí porque éste es el guion que TODAS las páginas cargan primero. Una página de otro
+   sitio podría meter la app en un <iframe> transparente y poner sus propios botones encima
+   —«toca aquí para ganar»— para que el toque caiga en «Autorizar» o en «Registrar venta».
+   La cabecera que lo impide (frame-ancestors) no funciona en <meta>, y GitHub Pages no deja
+   poner cabeceras; así que se comprueba a mano.
+
+   El único que empotra legítimamente es la plataforma, que es de este mismo origen
+   (js/mod/cotizador.js y js/mod/herramientas.js). Leer `top.location.href` desde un marco de
+   otro origen LANZA: esa excepción es la señal. Se pregunta también al de arriba inmediato,
+   por si el ajeno está en medio y no hasta arriba.
+
+   Si pasa, la página se ESCONDE primero y después intenta salirse del marco. Antes era al
+   revés y con un respaldo que no respaldaba nada: si salirse fallaba —un `sandbox` sin
+   `allow-top-navigation` lo impide— se hacía `documentElement.innerHTML = ''`, y eso corre
+   AQUÍ, en el <head>, con el documento a medio leer: el <body> se crea después, entero, y la
+   página se pintaba completa dentro del marco ajeno. Lo que sí aguanta es un estilo en <html>
+   con `!important`, que ninguna hoja de la página le gana y que vale para todo lo que el
+   analizador vaya creando debajo. Va por el CSSOM (`style.setProperty`) y no como atributo:
+   así no depende de que la política de la página permita estilos en línea.
+
+   En Cloudflare esto lo cubre además la cabecera `frame-ancestors` de `_headers`; en GitHub
+   Pages no hay cabeceras y esto es lo único. Un marco ajeno con `sandbox` sin `allow-scripts`
+   no corre ni esto ni la app: ve botones que no hacen nada. */
+(function () {
+  try {
+    if (window.top === window.self) return;
+    void window.top.location.href;
+    void window.parent.location.href;
+    return;                                   // empotrada por la propia plataforma
+  } catch (_) {}
+  try { document.documentElement.style.setProperty('display', 'none', 'important'); } catch (_) {}
+  try { window.top.location = window.self.location.href; } catch (_) {}
+})();
+
+/* ----- Las tipografías, sin un guion en línea -----
+   Las páginas piden sus dos familias a fonts.googleapis.com con `media="print"`, para que una
+   petición colgada no bloquee los guiones (el porqué está en index.html), y al terminar se
+   pasan a `media="all"`. Eso lo hacía un `onload="this.media='all'"` escrito en el <link>, y un
+   manejador en un atributo es un guion en línea: era lo único que obligaba a index.html y a las
+   tres páginas de texto a llevar 'unsafe-inline' en su política. Ahora esas páginas marcan el
+   <link> con `data-fuentes` y el cambio se hace aquí. Si la hoja ya llegó —de la caché, antes de
+   que este guion corriera— `sheet` ya existe y se enciende en el acto; si no, al cargar. Las
+   páginas que conservan su `onload` (el cotizador, el anidador, verificar) no llevan la marca y
+   no se tocan. */
+(function () {
+  function encender(l) {
+    if (l.sheet) { l.media = 'all'; return; }
+    l.addEventListener('load', function () { l.media = 'all'; });
+  }
+  function todas() {
+    var ls = document.querySelectorAll('link[data-fuentes][media="print"]');
+    for (var i = 0; i < ls.length; i++) encender(ls[i]);
+  }
+  todas();
+  document.addEventListener('DOMContentLoaded', todas);
+})();
+
 (function () {
   var CLAVE = 'al3d_tema';
   var COLOR = { claro: '#4060f8', oscuro: '#0f1124' };

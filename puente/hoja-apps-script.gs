@@ -1191,17 +1191,19 @@ function enviarResumen() {
   MailApp.sendEmail({ to: CORREO, subject: 'AL3D — pendientes de la semana', htmlBody: html });
 }
 
+/* Las celdas van escapadas (escaparHtml, más abajo): el nombre del proyecto lo escribe
+   cualquiera, y sin escapar un «<a href=…>» metido en él llegaba como liga al correo del dueño. */
 function tablaHtml(cabs, filas) {
   if (!filas.length) return '<p style="color:#6b7684">Nada pendiente.</p>';
   var s = '<table style="border-collapse:collapse;font-size:13px"><tr>';
   cabs.forEach(function (c) {
-    s += '<th style="background:#1c3d6e;color:#fff;padding:7px 12px;text-align:left">' + c + '</th>';
+    s += '<th style="background:#1c3d6e;color:#fff;padding:7px 12px;text-align:left">' + escaparHtml(c) + '</th>';
   });
   s += '</tr>';
   filas.forEach(function (f, i) {
     s += '<tr style="background:' + (i % 2 ? '#f7f9fc' : '#ffffff') + '">';
     f.forEach(function (c) {
-      s += '<td style="padding:6px 12px;border-bottom:1px solid #e4e9f0">' + c + '</td>';
+      s += '<td style="padding:6px 12px;border-bottom:1px solid #e4e9f0">' + escaparHtml(c) + '</td>';
     });
     s += '</tr>';
   });
@@ -1221,6 +1223,8 @@ function onOpen() {
       .addItem('🧮  Repartir un abono entre comisiones', 'dialogoReparto')
       .addSeparator()
       .addItem('🔑  Tokens del puente', 'dialogoTokens')
+      .addItem('🤖  Llaves de IA', 'dialogoLlavesIA')
+      .addItem('🔏  Preparar las autorizaciones selladas', 'configurarAutorizaciones')
       .addItem('📬  Mandarme el resumen ahora', 'enviarResumen')
       .addItem('🔄  Actualizar formato y vistas', 'mejorarTodo')
       .addItem('📅  Rehacer vista de comisiones por periodo', 'construirComisionesPorPeriodo')
@@ -1261,9 +1265,22 @@ function marco(cuerpo, alto) {
   return HtmlService.createHtmlOutput(css + cuerpo).setWidth(430).setHeight(alto || 560);
 }
 
+/* ── Todo dato de la hoja que entra en un HTML, escapado ──────────────────────────────────
+   Los diálogos del menú se arman pegando texto, y el nombre del proyecto (columna B) lo
+   escribe cualquiera: un teléfono por el puente, un formulario, una celda a mano. armarCeldas
+   solo le quita el = + - @ de adelante —lo que la hoja volvería fórmula—, no el «<». Un
+   nombre como «x</option><img src=x onerror=…>» corría en la sesión del DUEÑO, dentro de
+   HtmlService, donde google.script.run llama cualquier función global del script. Se escapa
+   al pegar, también dentro de value="…" y data-*: el navegador lo desescapa al leerlo, así
+   que el formulario sigue mandando el folio tal cual. */
+function escaparHtml(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function opciones(arr, sel) {
   return arr.map(function (o) {
-    return '<option' + (o === sel ? ' selected' : '') + '>' + o + '</option>';
+    return '<option' + (o === sel ? ' selected' : '') + '>' + escaparHtml(o) + '</option>';
   }).join('');
 }
 
@@ -1460,8 +1477,8 @@ function dialogoCobro() {
     return;
   }
   var ops = lista.map(function (p) {
-    return '<option value="' + p.folio + '" data-saldo="' + p.saldo + '">' +
-           p.folio + ' · ' + p.nombre + ' — ' + pesos(p.saldo) + '</option>';
+    return '<option value="' + escaparHtml(p.folio) + '" data-saldo="' + escaparHtml(p.saldo) + '">' +
+           escaparHtml(p.folio) + ' · ' + escaparHtml(p.nombre) + ' — ' + pesos(p.saldo) + '</option>';
   }).join('');
   var c =
     '<h2>Registrar un cobro</h2>' +
@@ -1548,8 +1565,8 @@ function dialogoAbono() {
     return;
   }
   var ops = lista.map(function (p) {
-    return '<option value="' + p.folio + '" data-p="' + p.pend + '">' +
-           p.folio + ' · ' + p.nombre + ' — ' + pesos(p.pend) + '</option>';
+    return '<option value="' + escaparHtml(p.folio) + '" data-p="' + escaparHtml(p.pend) + '">' +
+           escaparHtml(p.folio) + ' · ' + escaparHtml(p.nombre) + ' — ' + pesos(p.pend) + '</option>';
   }).join('');
   var c =
     '<h2>Registrar abono de comisión</h2>' +
@@ -1592,9 +1609,7 @@ function guardarAbonoConCandado_(d) {
   var ss = SpreadsheetApp.getActive();
   var h = ss.getSheetByName(ABONOS);
   if (!h) throw new Error('No encuentro la pestaña "' + ABONOS + '".');
-  var col = h.getRange(2, 1, 1999, 1).getValues();
-  var fila = 0;
-  for (var i = 0; i < col.length; i++) { if (col[i][0] === '') { fila = i + 2; break; } }
+  var fila = filaLibreEnAbonos(h, 1);
   if (!fila) throw new Error('Ya no hay renglones libres en la pestaña de abonos.');
 
   h.getRange(fila, 1).setValue(d.folio);
@@ -1609,7 +1624,7 @@ function guardarAbonoConCandado_(d) {
 function dialogoTokens() {
   var props = PropertiesService.getScriptProperties();
   var crudo = props.getProperty('PUENTE_TOKENS');
-  if (!crudo) { configurarTokensDelPuente(); crudo = props.getProperty('PUENTE_TOKENS'); }
+  if (!crudo) { configurarTokensDelPuente_(); crudo = props.getProperty('PUENTE_TOKENS'); }
   var mapa = JSON.parse(crudo);
   var porRol = {};
   Object.keys(mapa).forEach(function (t) { porRol[mapa[t]] = t; });
@@ -1619,7 +1634,7 @@ function dialogoTokens() {
 
   var filas = ['direccion', 'fabricacion', 'pagos'].map(function (rol) {
     return '<label>' + rol.charAt(0).toUpperCase() + rol.slice(1) + '</label>' +
-           '<input readonly value="' + (porRol[rol] || '') + '" onclick="this.select()">';
+           '<input readonly value="' + escaparHtml(porRol[rol] || '') + '" onclick="this.select()">';
   }).join('');
 
   var c =
@@ -1628,7 +1643,7 @@ function dialogoTokens() {
     'rol sale de la pestaña «Accesos». Estos tokens son la salida de emergencia, para el día ' +
     'que Google no conteste: se pegan en Ajustes &rsaquo; El puente.</p>' +
     '<label>Liga del puente</label>' +
-    '<input readonly value="' + url + '" onclick="this.select()">' +
+    '<input readonly value="' + escaparHtml(url) + '" onclick="this.select()">' +
     (url ? '' : '<div class="aviso mal">Todavía no hay una implementación publicada. ' +
                 'Ve a Extensiones &rsaquo; Apps Script &rsaquo; Implementar &rsaquo; ' +
                 'Nueva implementación &rsaquo; Aplicación web.</div>') +
@@ -1643,7 +1658,7 @@ function dialogoTokens() {
     'function rotar(){ if(!confirm("Los tokens de los tres teléfonos dejarán de servir ' +
     'hasta que pegues los nuevos. ¿Seguro?")) return;' +
     ' google.script.run.withSuccessHandler(function(){ google.script.host.close(); })' +
-    '  .configurarTokensDelPuente(); }' +
+    '  .rotarTokensDelPuente(); }' +
     '</script>';
   SpreadsheetApp.getUi().showModalDialog(marco(c, 520), 'El puente a la hoja');
 }
@@ -1692,8 +1707,12 @@ function dialogoTokens() {
    nombre; el folio no se reparte dos veces; «Folio cotizacion» no se pisa en un cambio;
    /empujar le devuelve a cada rol solo lo que puede ver; /jalar manda la hoja entera en una
    página; un tropiezo de Google al verificar la identidad ya no se guarda como un «no»; y la
-   hora de instalación baja como «HH:MM» aunque Sheets la haya vuelto hora (AA va en '@'). */
-var PUENTE_VERSION = 'puente-sheets-6';
+   hora de instalación baja como «HH:MM» aunque Sheets la haya vuelto hora (AA va en '@').
+   puente-sheets-7: el notario y la IA. Autorizar un precio se sella aquí —/autorizar, con la
+   cuenta de Google de dirección y el catálogo recalculado— y se comprueba con /verificar, que
+   es pública; las solicitudes viajan con /solicitar, /pendientes y /estado. Y las llaves de
+   IA se mudaron de los teléfonos a las propiedades de este script: /ia llama por ellos. */
+var PUENTE_VERSION = 'puente-sheets-7';
 var BITACORA = 'Bitácora del puente';
 
 /* ── Entrar con Google ─────────────────────────────────────────────────────
@@ -1828,11 +1847,49 @@ function doPost(e) {
   try {
     var cuerpo = {};
     var crudo = (e && e.postData && e.postData.contents) || '';
-    if (crudo.length > 65536) {
+    /* 64 KB para todo menos para /ia, que lleva una imagen o un PDF dentro. Esto corre ANTES de
+       saber quién llama —para eso hay que parsear—, así que el tope grande se gana con dos
+       condiciones baratas y no con una búsqueda en quince megas de texto:
+
+         · el cuerpo EMPIEZA por {"ruta":"ia" —el teléfono lo manda así (puente.js, notario.js)—.
+           Una mención de "ruta":"ia" en cualquier otra parte ya no abre nada;
+         · y hay cupo: un número acotado de cuerpos grandes por minuto, para todos juntos.
+           Sin esto, cualquiera sin token podía mandar quince megas tras quince megas, y cada
+           uno costaba un parseo antes de que el cupo por persona pudiera frenarlo.
+
+       Y el husmeo sigue sin decidir nada: lo que enruta es el `ruta` del JSON ya parseado. */
+    var tope = 65536;
+    if (crudo.length > tope) {
+      if (!/^\s*\{\s*"ruta"\s*:\s*"ia"\s*,/.test(crudo.slice(0, 80))) {
+        return responder({ ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El cuerpo es demasiado grande.' });
+      }
+      if (!cupoDeCuerposGrandes()) {
+        return responder({ ok: false, codigo: 'SIN_RED', mensaje: 'La hoja está recibiendo demasiados archivos a la vez. Vuelve a intentarlo en un minuto.' });
+      }
+      tope = IA_MAX_CUERPO;
+    }
+    if (crudo.length > tope) {
       return responder({ ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El cuerpo es demasiado grande.' });
     }
     try { cuerpo = JSON.parse(crudo); }
     catch (err) { return responder({ ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El cuerpo no es JSON.' }); }
+
+    /* La ruta se decide UNA vez, aquí, y el tope grande se vuelve a pedir contra ELLA. El husmeo
+       de arriba mira el principio del texto, y lo que enruta es otra cosa: un cuerpo de quince
+       megas que empezaba con {"ruta":"ia","ruta":"empujar",…} (JSON.parse se queda con la última
+       llave repetida), o uno que empezaba bien pero llegaba a /exec/empujar (pathInfo manda),
+       pasaba el husmeo y llegaba entero a cualquier ruta. */
+    var ruta = String((e && e.pathInfo) || (cuerpo && cuerpo.ruta) || '')
+                 .replace(/^\/+|\/+$/g, '') || 'salud';
+    if (crudo.length > 65536 && ruta !== 'ia') {
+      return responder({ ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El cuerpo es demasiado grande.' });
+    }
+
+    /* /verificar es la única ruta que no pide quién eres: la abre el QR de un PDF desde el
+       teléfono de un cliente. Va antes de las dos puertas, con su propio cupo. */
+    if (ruta === 'verificar') {
+      return responder(rutaVerificar_(cuerpo));
+    }
 
     /* Las dos puertas, en este orden. La identidad manda cuando viene: es la que sabe QUIÉN
        está del otro lado, mientras que el token solo sabe qué aparato es. El token queda de
@@ -1858,14 +1915,19 @@ function doPost(e) {
         mensaje: 'Demasiadas peticiones seguidas desde este teléfono. Espera un minuto.' });
     }
 
-    var ruta = String((e && e.pathInfo) || (cuerpo && cuerpo.ruta) || '')
-                 .replace(/^\/+|\/+$/g, '') || 'salud';
-
-    if (ruta === 'salud')    return responder(rutaSalud(rol, ingreso ? 'google' : 'token', ingreso ? ingreso.correo : ''));
-    if (ruta === 'esquema')  return responder(rutaEsquema());
-    if (ruta === 'jalar')    return responder(rutaJalar(cuerpo, rol));
-    if (ruta === 'empujar')  return responder(rutaEmpujar(cuerpo, rol));
-    if (ruta === 'expandir') return responder(rutaExpandir(cuerpo));
+    if (ruta === 'salud')    return responder(rutaSalud_(rol, ingreso ? 'google' : 'token', ingreso ? ingreso.correo : ''));
+    if (ruta === 'esquema')  return responder(rutaEsquema_());
+    if (ruta === 'jalar')    return responder(rutaJalar_(cuerpo, rol));
+    if (ruta === 'empujar')  return responder(rutaEmpujar_(cuerpo, rol));
+    if (ruta === 'expandir') return responder(rutaExpandir_(cuerpo));
+    if (ruta === 'solicitar')  return responder(rutaSolicitar_(cuerpo, rol, ingreso));
+    if (ruta === 'cancelar')   return responder(rutaCancelarSolicitud_(cuerpo, rol, ingreso));
+    if (ruta === 'pendientes') return responder(rutaPendientes_(rol));
+    if (ruta === 'estado')     return responder(rutaEstado_(cuerpo, rol, ingreso));
+    if (ruta === 'autorizar')  return responder(rutaAutorizar_(cuerpo, rol, ingreso));
+    if (ruta === 'rechazar')   return responder(rutaRechazar_(cuerpo, rol, ingreso));
+    if (ruta === 'revocar')    return responder(rutaRevocar_(cuerpo, rol, ingreso));
+    if (ruta === 'ia')         return responder(rutaIA_(cuerpo, ingreso ? 'g:' + ingreso.correo : 't:' + token));
 
     return responder({ ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'Camino desconocido.' });
   } catch (err) {
@@ -1883,7 +1945,7 @@ function responder(obj) {
 
 /* Los tokens se guardan en las propiedades del script, no en el código, para que
    no queden en el historial del repositorio.
-   Se siembran con  configurarTokensDelPuente(). */
+   Se siembran desde ⚡ AL3D → Tokens del puente (configurarTokensDelPuente_). */
 function rolDelToken(token) {
   if (!token || token.length < 30) return null;
   var crudo = PropertiesService.getScriptProperties().getProperty('PUENTE_TOKENS');
@@ -1934,9 +1996,7 @@ function identidadDelIngreso(tok) {
      nada (la segunda opinión de puerta.js, segundos después, sí le vuelve a preguntar): cinco
      en un minuto sí, quince segundos. Y hay un tope de consultas por minuto. */
   if (Number(cache.get('ing_fallos') || 0) >= 5) return null;
-  var usadas = Number(cache.get('ing_min') || 0) + 1;
-  cache.put('ing_min', String(usadas), 60);
-  if (usadas > 120) return null;
+  if (contarEnVentana(cache, 'ing_min', 60) > 120) return null;   // ventana fija: ver contarEnVentana
   try {
     var r = UrlFetchApp.fetch(
       'https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(tok),
@@ -2005,6 +2065,25 @@ function crearHojaAccesos(ss) {
   return h;
 }
 
+/* ── Los cupos cuentan en ventanas FIJAS ──────────────────────────────────────────────────
+   Hasta aquí cada cupo hacía «n = get() + 1; put(clave, n, 60)», y cada put le REINICIA la
+   caducidad a la clave: con tráfico más seguido que el TTL el contador no volvía a cero nunca.
+   Un teléfono que sincroniza cada 30 s —la app lo hace— llegaba a 60 en media hora y se quedaba
+   fuera («Demasiadas peticiones seguidas») hasta pasar un minuto callado; y como el token de
+   dispositivo es uno por rol, con él se quedaban fuera todos los teléfonos de ese rol. En los
+   cupos de todos (ing_min, grandes, v__total) era peor: un anónimo los mantenía cerrados con
+   una petición justo antes de que caducaran.
+   Ahora la clave lleva el NÚMERO de ventana —Date.now() entre lo que dura— y cada ventana
+   empieza en cero, pase lo que pase en la anterior. El put dura una ventana entera, que la
+   cubre desde cualquier punto de ella. (En la frontera caben dos cupos seguidos: es el precio
+   de la ventana fija, y sigue siendo un tope.) Devuelve la cuenta con ésta incluida. */
+function contarEnVentana(cache, base, segundos) {
+  var clave = base + '@' + Math.floor(Date.now() / (segundos * 1000));
+  var n = Number(cache.get(clave) || 0) + 1;
+  cache.put(clave, String(n), segundos);
+  return n;
+}
+
 function dentroDelLimite(token) {
   try {
     var cache = CacheService.getScriptCache();
@@ -2012,16 +2091,21 @@ function dentroDelLimite(token) {
        caché de Google tal cual. */
     var clave = 'p_' + Utilities.base64EncodeWebSafe(
         Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token)).slice(0, 24);
-    var n = Number(cache.get(clave) || 0) + 1;
-    cache.put(clave, String(n), 60);
-    return n <= LIMITE_POR_MINUTO;
+    return contarEnVentana(cache, clave, 60) <= LIMITE_POR_MINUTO;
   } catch (e) {
     return true;   // si la caché falla, no se deja fuera a los teléfonos
   }
 }
 
-/** Genera un token por rol y los guarda. Córrela una vez y pega cada uno en su teléfono. */
-function configurarTokensDelPuente() {
+/** Genera un token por rol y los guarda. Se corre desde ⚡ AL3D → Tokens del puente, que los
+ *  enseña para pegarlos en cada teléfono.
+ *
+ *  Con guion bajo al final, como todo lo que devuelve un secreto (secretoDelSello_, iaLlaves_):
+ *  google.script.run puede llamar CUALQUIER función global del script desde un diálogo, y una
+ *  que contesta los tres tokens se los daba a cualquier guion que lograra correr en uno. El
+ *  diálogo llama a rotarTokensDelPuente, que los cambia y no contesta nada. */
+function rotarTokensDelPuente() { configurarTokensDelPuente_(); }
+function configurarTokensDelPuente_() {
   var mapa = {}, salida = [];
   ['direccion', 'fabricacion', 'pagos'].forEach(function (rol) {
     var t = Utilities.getUuid() + Utilities.getUuid().slice(0, 8);
@@ -2033,18 +2117,20 @@ function configurarTokensDelPuente() {
 }
 
 /* ------------------------------------------------------------------ /salud */
-function rutaSalud(rol, via, correo) {
+function rutaSalud_(rol, via, correo) {
   var h = SpreadsheetApp.getActive().getSheetByName('Ventas');
   if (!h) return { ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'La hoja no tiene pestaña "Ventas".' };
   return { ok: true, ts: Date.now(), version: PUENTE_VERSION, rol: rol,
            escribibles: PUENTE_ROLES[rol], destino: 'google-sheets',
            /* Para que Ajustes pueda decir «entraste como fulano@…» y no solo «Dirección»:
               con dos puertas, saber por cuál entraste es la mitad de poder arreglarlo. */
-           via: via || 'token', correo: correo || '' };
+           via: via || 'token', correo: correo || '',
+           /* Qué proveedores de IA tienen llave aquí. Solo si o no: la llave no sale nunca. */
+           ia: iaEstado() };
 }
 
 /* ---------------------------------------------------------------- /esquema */
-function rutaEsquema() {
+function rutaEsquema_() {
   var h = SpreadsheetApp.getActive().getSheetByName('Ventas');
   var cabeceras = h.getRange(1, 1, 1, h.getMaxColumns()).getValues()[0]
       .map(function (x) { return String(x).trim(); });
@@ -2074,7 +2160,7 @@ function rutaEsquema() {
 }
 
 /* ------------------------------------------------------------------ /jalar */
-function rutaJalar(cuerpo, rol) {
+function rutaJalar_(cuerpo, rol) {
   var h = SpreadsheetApp.getActive().getSheetByName('Ventas');
   var desde = Number((cuerpo && cuerpo.cursor) || 2);
   if (!isFinite(desde) || desde < 2) desde = 2;
@@ -2230,7 +2316,7 @@ function horasATexto(h, filas, desde) {
 }
 
 /* ---------------------------------------------------------------- /empujar */
-function rutaEmpujar(cuerpo, rol) {
+function rutaEmpujar_(cuerpo, rol) {
   var ops = (cuerpo && Object.prototype.toString.call(cuerpo.ops) === '[object Array]')
     ? cuerpo.ops.slice(0, 25) : [];
   var candado = LockService.getScriptLock();
@@ -2251,7 +2337,7 @@ function rutaEmpujar(cuerpo, rol) {
        y ordenarVentas no mueve filas. */
     for (var i = 0; i < ops.length; i++) resultados.push(unaOperacion(h, ops[i], rol, anotaciones));
     SpreadsheetApp.flush();
-    anotar(anotaciones);
+    anotar_(anotaciones);
     try { normalizarIvaActivos(h); ordenarVentas(h); } catch (e2) { /* el orden nunca tumba una escritura */ }
     return { ok: true, resultados: resultados };
   } finally {
@@ -2383,13 +2469,32 @@ function unaOperacion(h, op, rol, anotaciones) {
     });
   }
 
+  /* El abono se revisa ANTES de escribir nada: sin pestaña de abonos, o con sus 1999 renglones
+     llenos, registrarAbonoDesdePuente no escribía y la operación volvía ok. El teléfono daba el
+     abono por registrado y la comisión seguía pendiente en la hoja, sin que nadie lo supiera.
+     Ahora se rechaza esa propiedad con su razón, como armarCeldas rechaza las suyas; y si era lo
+     único que traía la operación, la operación entera no sale bien. */
+  if (armado.abono && !hayLugarParaUnAbono()) {
+    armado.rechazadas.push({ nombre: 'Abono Comision',
+      por: 'la pestaña «' + ABONOS + '» no existe o ya no tiene renglones libres: el abono no se registró' });
+    armado.abono = null;
+    if (!armado.celdas.length) {
+      return { id: op.id, ok: false, codigo: 'DESCONOCIDO',
+               mensaje: 'El abono de comisión no se registró: la pestaña «' + ABONOS + '» de la hoja no existe o está llena. Dirección tiene que hacerle lugar.',
+               rechazadas: armado.rechazadas };
+    }
+  }
+
   armado.celdas.forEach(function (c) {
     var celda = h.getRange(fila, c.col);
     /* El formato ANTES del valor: puesto después, Sheets ya volvió hora el «10:00». */
     if (c.texto) celda.setNumberFormat('@');
     celda.setValue(c.valor);
   });
-  if (armado.abono) registrarAbonoDesdePuente(h, fila, armado.abono);
+  if (armado.abono && !registrarAbonoDesdePuente(h, fila, armado.abono)) {
+    armado.rechazadas.push({ nombre: 'Abono Comision', por: 'no se encontró renglón libre en «' + ABONOS + '»: el abono no se registró' });
+    armado.abono = null;
+  }
   SpreadsheetApp.flush();
 
   var folio = h.getRange(fila, COL_FOLIO).getValue();
@@ -2426,8 +2531,13 @@ function armarCeldas(datos, rol) {
        RENGLÓN. Se gana el historial de parcialidades sin que el teléfono se entere. */
     if (nombre === 'Abono Comision') {
       if (!permitidas[nombre]) { rechazadas.push({ nombre: nombre, por: 'el rol ' + rol + ' no puede escribir esta propiedad' }); continue; }
+      /* Mayor a cero y razonable. Solo se rechazaba el cero: pagos mandaba −99 999 y quedaba un
+         renglón negativo en «Abonos comisión» —la comisión pendiente SUBÍA, el tablero y el
+         correo de los lunes la enseñaban, y el reparto FIFO la habría cubierto con dinero de
+         verdad—. Un abono es un pago hecho: no hay abonos negativos, y una corrección se hace
+         en la pestaña, a mano. La plataforma no manda este campo (js/datos/puente.js). */
       var m = Number(valor);
-      if (!isFinite(m) || m === 0) { rechazadas.push({ nombre: nombre, por: 'no es un importe válido' }); continue; }
+      if (!isFinite(m) || !(m > 0) || m > 1e7) { rechazadas.push({ nombre: nombre, por: 'un abono de comisión va en positivo y es de menos de $10,000,000' }); continue; }
       abono = m;
       continue;
     }
@@ -2457,6 +2567,9 @@ function armarCeldas(datos, rol) {
     } else if (['Precio Subtotal', 'Anticipo', 'Liquidacion'].indexOf(nombre) !== -1) {
       var n = Number(valor);
       if (!isFinite(n)) { rechazadas.push({ nombre: nombre, por: 'no es un número' }); continue; }
+      /* Un anticipo o una liquidación negativos son dinero que «sale» de una venta: el saldo
+         de la fórmula K sube y la venta parece deber lo que nunca facturó. */
+      if (nombre !== 'Precio Subtotal' && n < 0) { rechazadas.push({ nombre: nombre, por: 'no puede ser negativo' }); continue; }
       celdas.push({ col: col, valor: n });
     } else if (nombre === 'Porcentaje comision') {
       /* En puntos, 0 a 100. Vacío o null borra la celda y la fórmula vuelve al 10 %. */
@@ -2489,19 +2602,23 @@ function armarCeldas(datos, rol) {
   return { celdas: celdas, rechazadas: rechazadas, abono: abono };
 }
 
+function hayLugarParaUnAbono() {
+  var a = SpreadsheetApp.getActive().getSheetByName(ABONOS);
+  return !!(a && filaLibreEnAbonos(a, 1));
+}
+/** Escribe el abono en su renglón. Devuelve si lo escribió: quien llama tiene que decirlo. */
 function registrarAbonoDesdePuente(h, fila, importe) {
   var ss = SpreadsheetApp.getActive();
   var a = ss.getSheetByName(ABONOS);
-  if (!a) return;
+  if (!a) return false;
   var folio = h.getRange(fila, COL_FOLIO).getValue();
-  var col = a.getRange(2, 1, 1999, 1).getValues();
-  var libre = 0;
-  for (var i = 0; i < col.length; i++) { if (col[i][0] === '') { libre = i + 2; break; } }
-  if (!libre) return;
+  var libre = filaLibreEnAbonos(a, 1);
+  if (!libre) return false;
   a.getRange(libre, 1).setValue(folio);
   a.getRange(libre, 3).setValue(importe);
   a.getRange(libre, 4).setValue(new Date());
   a.getRange(libre, 5).setValue('Registrado desde la plataforma');
+  return true;
 }
 
 function filaPorFolioInterno(h, folio) {
@@ -2571,7 +2688,7 @@ function limpiarFila(h, fila) {
  * token podría usar este puente para que un servidor de Google salga a tocar
  * cualquier dirección de internet en su nombre.
  */
-function rutaExpandir(cuerpo) {
+function rutaExpandir_(cuerpo) {
   var u = String((cuerpo && cuerpo.u) || '').trim();
   var m = /^https?:\/\/([^\/:?#]+)/i.exec(u);
   var host = m ? m[1].toLowerCase() : '';
@@ -2597,7 +2714,7 @@ function rutaExpandir(cuerpo) {
  * Es una pestaña oculta y nadie más que tú entra a la hoja, así que no hace
  * falta más protección que esa.
  */
-function anotar(anotaciones) {
+function anotar_(anotaciones) {
   if (!anotaciones || !anotaciones.length) return;
   try {
     var ss = SpreadsheetApp.getActive();
@@ -2626,6 +2743,843 @@ function anotar(anotaciones) {
   } catch (e) {
     /* Que falle la bitácora no puede tumbar una escritura que ya entró. */
   }
+}
+
+/* ============================================================================
+   EL NOTARIO — un precio autorizado se sella aquí, y solo aquí.
+
+   Hasta puente-sheets-6 autorizar era un botón del teléfono: el rol «Autorizador» se
+   escogía en un segmentado, el nombre de quien autorizaba era un campo de texto libre y
+   el catálogo de precios vivía en un guion que cualquiera puede editar desde las
+   herramientas del navegador. Nada de eso se podía comprobar después. Un PDF con folio,
+   «Autorizada por Elías» y un precio de $1 salía idéntico a uno de verdad.
+
+   Esto no lo arregla la app —lo que corre en un teléfono lo controla quien tiene el
+   teléfono— sino esta hoja, que es lo único del sistema que no corre en el teléfono:
+
+     · Solo SELLA una identidad de Google verificada cuyo correo está en «Accesos» como
+       dirección. El token de dispositivo no basta: no trae un correo que firmar.
+     · Recalcula el subtotal con SU copia del catálogo. Si el del teléfono no coincide —un
+       catálogo alterado, o una copia vieja de la app— no sella, y lo dice.
+     · Firma con HMAC-SHA256 lo que se autorizó: el folio, el trabajo (su huella), el
+       calculado, el autorizado, el total, el negocio, quién y cuándo. La fecha la pone
+       este reloj, no el del teléfono. El secreto vive en las propiedades del script.
+     · Lo deja escrito en «Autorizaciones», y `/verificar` —pública, la que abre el QR del
+       PDF— recalcula la firma desde ese renglón. Editar el renglón a mano para cambiar un
+       total la rompe: el QR dice «no auténtica».
+
+   Y la solicitud viaja: quien cotiza sin ser dirección la sube con `/solicitar`, a
+   dirección le aparece en su teléfono con `/pendientes`, y el teléfono que la pidió
+   pregunta con `/estado` hasta recibir el sello.
+
+   El catálogo de abajo es una COPIA de js/cotizador/catalogo.js y de lineTotal() de
+   js/cotizador/nucleo.js. pruebas/precio-servidor.mjs truena si dejan de coincidir: subir
+   el precio del aluminio es cambiar los dos lados y volver a implementar.
+   ============================================================================ */
+
+var HOJA_AUTORIZACIONES = 'Autorizaciones';
+var HOJA_SOLICITUDES = 'Solicitudes de autorización';
+var FIRMA_VERSION = 'AL3D-AUTH-v1';
+var PROP_SECRETO = 'SELLO_AUTORIZACION';
+var MAX_PARTIDAS = 80;
+
+/* ----- El catálogo, copiado ----- */
+var COT_MATERIALES = { 'al-paint': 30, 'al-brush': 35, 'acr-vol': 40, 'acr-vinil': 45, 'acero': 55 };
+var COT_COMPLEJIDAD = { 'recta': 0, 'cursiva': 5, 'compleja': 10 };
+var COT_RECORTES = { 'sencillo': 20, 'vinil': 25, 'sandwich': 55 };
+var COT_RECORTE_COMP_EXTRA = 5;
+var COT_BASTIDORES = { 'lamina': 950, 'alucobond': 1500 };
+var COT_M2_MINIMO = 1;
+var COT_IVA = 0.16;
+/* Los campos de una partida que mueven el precio: los mismos, en el mismo orden, que
+   `_CAMPOS_PRECIO` de nucleo.js. La huella se arma con ellos y tiene que salir idéntica. */
+var COT_CAMPOS_PRECIO = ['tipo', 'material', 'comp', 'luz', 'altura', 'n', 'acab', 'recComp',
+                         'bas', 'ancho', 'alto', 'tarifa', 'pz', 'pu'];
+
+function cotPrecioDe(mapa, k) { return Object.prototype.hasOwnProperty.call(mapa, k) ? mapa[k] : 0; }
+function cotFactorOf(it) { return cotPrecioDe(COT_MATERIALES, it.material) + cotPrecioDe(COT_COMPLEJIDAD, it.comp); }
+function cotM2Total(tarifa, m2) { return (tarifa || 0) * Math.max(m2 || 0, COT_M2_MINIMO); }
+/* Línea por línea lo mismo que lineTotalCrudo(): mismas multiplicaciones, en el mismo
+   orden, con los mismos `|| 0`. El orden importa en flotante: 30*40*8 y 30*(40*8) no
+   siempre dan el mismo último bit, y el redondeo a centavo de después lo puede notar. */
+function cotLineTotalCrudo(it) {
+  if (it.tipo === 'letras') {
+    var p = cotFactorOf(it) * (it.altura || 0) * (it.n || 0);
+    if (!it.luz) p *= 0.8;
+    return p;
+  }
+  if (it.tipo === 'recorte') {
+    var rate = cotPrecioDe(COT_RECORTES, it.acab);
+    if (it.acab === 'sandwich' && it.recComp) rate += COT_RECORTE_COMP_EXTRA;
+    return rate * (it.altura || 0) * (it.n || 0);
+  }
+  if (it.tipo === 'bastidor') {
+    var m2b = (it.ancho || 0) * (it.alto || 0) / 10000;
+    if (m2b <= 0) return 0;
+    return cotM2Total(cotPrecioDe(COT_BASTIDORES, it.bas), m2b);
+  }
+  if (it.tipo === 'caja') {
+    var m2c = (it.ancho || 0) * (it.alto || 0) / 10000;
+    if (m2c <= 0) return 0;
+    return cotM2Total(it.tarifa || 0, m2c);
+  }
+  return (it.pz || 0) * (it.pu || 0);
+}
+function cotLineTotal(it) { return Math.round(cotLineTotalCrudo(it) * 100) / 100; }
+function cotSubtotal(items) {
+  var s = 0;
+  for (var i = 0; i < items.length; i++) s += cotLineTotal(items[i]);
+  return s;
+}
+/* totals() del cotizador: el IVA es sub*0.16 y el neto su suma, sin redondear. */
+function cotNeto(sub, iva) { return iva ? sub + sub * COT_IVA : sub; }
+/* precioFinal() + desgloseFinal(): manda el autorizado cuando lo hay y es distinto del
+   calculado; si no, el calculado. Redondeado con toFixed, como allá. */
+function cotTotalFinal(subCalc, iva, precioAuth) {
+  var neto = cotNeto(subCalc, iva);
+  var fin = (precioAuth > 0 && Math.abs(precioAuth - neto) > 0.01) ? precioAuth : neto;
+  return +fin.toFixed(2);
+}
+/* huellaTrabajo(): el trabajo, no su importe. Ordenada, porque el orden de las partidas no
+   es parte del trabajo. */
+function cotHuella(iva, items) {
+  return (iva ? 'c' : 's') + '|' + items.map(function (it) {
+    return it.id + ':' + COT_CAMPOS_PRECIO.map(function (k) {
+      return it[k] === undefined ? '' : String(it[k]);
+    }).join('~');
+  }).sort().join(',');
+}
+
+/* ----- Lo que llega del teléfono, limpio -----
+   Solo lo que el precio y la pantalla de revisión necesitan. Cualquier otra llave se tira:
+   el renglón de «Solicitudes» guarda este objeto y no una copia de lo que alguien mandó. */
+function limpiarCotizacion(c) {
+  if (!c || typeof c !== 'object') return { error: 'Falta la cotización.' };
+  var items = Object.prototype.toString.call(c.items) === '[object Array]' ? c.items : null;
+  if (!items || !items.length) return { error: 'La cotización no trae partidas.' };
+  if (items.length > MAX_PARTIDAS) return { error: 'Son demasiadas partidas para una cotización.' };
+  var limpias = [], ids = {};
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    if (!it || typeof it !== 'object') return { error: 'Una partida no se entiende.' };
+    var id = it.id;
+    if ((typeof id !== 'number' && typeof id !== 'string') || String(id).length > 40) return { error: 'Una partida no trae identificador.' };
+    if (ids[String(id)]) return { error: 'Dos partidas con el mismo identificador.' };
+    ids[String(id)] = true;
+    var o = { id: id };
+    for (var j = 0; j < COT_CAMPOS_PRECIO.length; j++) {
+      var k = COT_CAMPOS_PRECIO[j];
+      if (!Object.prototype.hasOwnProperty.call(it, k)) continue;
+      var v = it[k];
+      if (v !== null && typeof v !== 'number' && typeof v !== 'string' && typeof v !== 'boolean') return { error: 'La partida ' + id + ' trae un dato raro en «' + k + '».' };
+      if (typeof v === 'number' && !isFinite(v)) return { error: 'La partida ' + id + ' trae un número inválido en «' + k + '».' };
+      if (typeof v === 'string' && v.length > 60) return { error: 'La partida ' + id + ' trae un texto demasiado largo en «' + k + '».' };
+      o[k] = v;
+    }
+    o.desc = String(it.desc == null ? '' : it.desc).slice(0, 300);
+    limpias.push(o);
+  }
+  var out = {
+    proyecto: String(c.proyecto == null ? '' : c.proyecto).trim().slice(0, 140),
+    cliente: String(c.cliente == null ? '' : c.cliente).trim().slice(0, 140),
+    iva: !!c.iva,
+    subtotal: Number(c.subtotal),
+    items: limpias
+  };
+  /* Una celda de la hoja guarda 50 000 caracteres. La huella y la cotización se escriben cada
+     una en la suya, y cortarlas en silencio era peor que decirlo: una solicitud truncada es JSON
+     roto, /pendientes la saltaba, y quien la pidió esperaba para siempre una respuesta que no
+     iba a llegar. Se rechaza aquí, con su razón. */
+  if (cotHuella(out.iva, out.items).length > CELDA_MAX || JSON.stringify(out).length > CELDA_MAX) {
+    return { error: 'La cotización es demasiado grande para guardarla en la hoja. Divídela en dos cotizaciones.' };
+  }
+  return out;
+}
+var CELDA_MAX = 45000;
+function folioValido(f) {
+  /* COT-0042@K7QM: el folio del teléfono y el aparato que lo emitió. El corto se repite entre
+     teléfonos; con el aparato no. */
+  return typeof f === 'string' && /^[A-Za-z0-9-]{1,24}@[A-Za-z0-9_-]{1,24}$/.test(f);
+}
+function limpiarItemsAuth(ia, items) {
+  var ids = {};
+  items.forEach(function (it) { ids[String(it.id)] = true; });
+  var out = {};
+  for (var k in (ia || {})) {
+    if (!Object.prototype.hasOwnProperty.call(ia, k)) continue;
+    if (!ids[k]) return { error: 'Un ajuste por partida apunta a una partida que no existe.' };
+    var v = Number(ia[k]);
+    if (!isFinite(v) || v < 0 || v > 1e8) return { error: 'Un ajuste por partida no es un importe válido.' };
+    out[k] = v;
+  }
+  return { valor: out };
+}
+
+/* ----- La firma ----- */
+function dinero2(n) { return (Math.round(Number(n || 0) * 100) / 100).toFixed(2); }
+/* Los ajustes por partida, en un orden que no dependa de cómo los armó el objeto. */
+function itemsAuthCanon(ia) {
+  return Object.keys(ia || {}).sort().map(function (k) { return k + ':' + dinero2(ia[k]); }).join(',');
+}
+function itemsAuthDeCanon(s) {
+  var out = {};
+  String(s || '').split(',').filter(Boolean).forEach(function (par) {
+    var i = par.lastIndexOf(':');
+    if (i > 0) out[par.slice(0, i)] = Number(par.slice(i + 1));
+  });
+  return out;
+}
+/* Lo que se firma, como un arreglo en JSON y no unido con «|». Con separador, un negocio que
+   trajera un «|» podía correr la frontera con el campo de al lado —«Tacos|x» + «y@al3d.mx» y
+   «Tacos» + «x|y@al3d.mx» daban la misma cadena—, y quien tuviera la hoja abierta podía cambiar
+   lo que dice el QR sin romper la firma. JSON escapa sus comillas: dos registros distintos no
+   pueden dar el mismo texto. */
+function canonDe(r) {
+  return FIRMA_VERSION + JSON.stringify([String(r.folio), String(r.huella), dinero2(r.subCalc),
+    dinero2(r.precioAuth), String(r.itemsAuth), dinero2(r.total), String(r.proyecto),
+    String(r.correo), String(r.ts)]);
+}
+function aHex(bytes) {
+  var s = '';
+  for (var i = 0; i < bytes.length; i++) {
+    var b = (bytes[i] + 256) % 256;
+    s += (b < 16 ? '0' : '') + b.toString(16);
+  }
+  return s;
+}
+/* Con guion bajo: devuelve el secreto con el que se firman TODOS los sellos, y sin él
+   google.script.run lo entregaba a cualquier guion que corriera en un diálogo del menú. */
+function secretoDelSello_(crear) {
+  var props = PropertiesService.getScriptProperties();
+  var s = props.getProperty(PROP_SECRETO);
+  if (!s && crear) {
+    s = Utilities.getUuid() + Utilities.getUuid() + Utilities.getUuid();
+    props.setProperty(PROP_SECRETO, s);
+  }
+  return s || '';
+}
+function firmar(r, secreto) {
+  return aHex(Utilities.computeHmacSha256Signature(canonDe(r), secreto));
+}
+/* Lo que va impreso: los primeros doce del HMAC en tres grupos. 48 bits: adivinarlo es
+   imposible con el cupo de /verificar, y cabe dictado por teléfono. */
+function codigoDe(firma) {
+  var c = String(firma).slice(0, 12).toUpperCase();
+  return c.slice(0, 4) + '-' + c.slice(4, 8) + '-' + c.slice(8, 12);
+}
+function normalizarCodigo(c) { return String(c || '').toUpperCase().replace(/[^0-9A-F]/g, '').slice(0, 12); }
+/* Todo texto se escribe con el apóstrofo delante, empiece por lo que empiece. Por dos
+   razones: un texto que empieza con = + - @ es una FÓRMULA para la hoja —y una fórmula
+   metida desde afuera puede leer cualquier parte de ella o salir a internet—, y la hoja
+   «ayuda»: un «2026-09-25T18:04:11.000Z» lo convierte en fecha y un «1:8500.00» en una
+   hora, y al leerlos de vuelta ya no son el texto que se firmó. Con el apóstrofo se guarda
+   como texto y se lee sin él, así que la firma se sigue pudiendo comprobar desde el renglón. */
+function txt(s) { return "'" + String(s == null ? '' : s); }
+
+/* ----- Las dos pestañas ----- */
+var COLS_AUT = ['Cuándo (ISO)', 'Folio', 'Proyecto', 'Cliente', 'Subtotal calculado',
+  'Precio autorizado (neto)', 'Total', 'Ajuste %', 'Ajustes por partida', 'Huella',
+  'Autorizó', 'Solicitó', 'Código', 'Firma', 'Estado', 'Nota'];
+var A_TS = 0, A_FOLIO = 1, A_PROY = 2, A_CLI = 3, A_SUB = 4, A_PRECIO = 5, A_TOTAL = 6,
+    A_PCT = 7, A_ITEMS = 8, A_HUELLA = 9, A_AUTORIZO = 10, A_SOLICITO = 11, A_CODIGO = 12,
+    A_FIRMA = 13, A_ESTADO = 14, A_NOTA = 15;
+var COLS_SOL = ['Cuándo', 'Folio', 'Proyecto', 'Cliente', 'Subtotal', 'IVA', 'Huella',
+  'Cotización', 'Solicitó', 'Estado', 'Resolvió', 'Cuándo se resolvió', 'Nota'];
+var S_TS = 0, S_FOLIO = 1, S_PROY = 2, S_CLI = 3, S_SUB = 4, S_IVA = 5, S_HUELLA = 6,
+    S_COT = 7, S_SOLICITO = 8, S_ESTADO = 9, S_RESOLVIO = 10, S_TSRES = 11, S_NOTA = 12;
+
+function hojaConCabecera(nombre, cols, oculta) {
+  var ss = SpreadsheetApp.getActive();
+  var h = ss.getSheetByName(nombre);
+  if (h) return h;
+  h = ss.insertSheet(nombre);
+  h.getRange(1, 1, 1, cols.length).setValues([cols]);
+  h.getRange(1, 1, 1, cols.length).setFontWeight('bold').setBackground(AZUL).setFontColor('#ffffff');
+  h.setFrozenRows(1);
+  if (oculta) h.hideSheet();
+  return h;
+}
+function hojaAutorizaciones() { return hojaConCabecera(HOJA_AUTORIZACIONES, COLS_AUT, true); }
+function hojaSolicitudes() { return hojaConCabecera(HOJA_SOLICITUDES, COLS_SOL, false); }
+function filasDe(h, ncols) {
+  var n = h.getLastRow() - 1;
+  return n > 0 ? h.getRange(2, 1, n, ncols).getValues() : [];
+}
+/* El último renglón de ese folio que cumpla la condición, con su número de fila. */
+function ultimaFila(filas, colFolio, folio, cond) {
+  for (var i = filas.length - 1; i >= 0; i--) {
+    if (String(filas[i][colFolio]) === folio && (!cond || cond(filas[i]))) return { fila: i + 2, v: filas[i] };
+  }
+  return null;
+}
+function registroDeFila(v) {
+  return { folio: String(v[A_FOLIO]), huella: String(v[A_HUELLA]), subCalc: Number(v[A_SUB]),
+           precioAuth: Number(v[A_PRECIO]), itemsAuth: String(v[A_ITEMS] || ''),
+           total: Number(v[A_TOTAL]), proyecto: String(v[A_PROY]), correo: String(v[A_AUTORIZO]),
+           ts: String(v[A_TS]) };
+}
+function selloDeFila(v) {
+  var r = registroDeFila(v);
+  return { codigo: String(v[A_CODIGO]), correo: r.correo, ts: r.ts, huella: r.huella,
+           subCalc: r.subCalc, precioAuth: r.precioAuth, itemsAuth: itemsAuthDeCanon(r.itemsAuth),
+           total: r.total, nota: String(v[A_NOTA] || '') };
+}
+function quienSoy(rol, ingreso) { return ingreso ? ingreso.correo : 'token de ' + rol; }
+function soloDireccionConGoogle(ingreso, que) {
+  if (ingreso && ingreso.rol === 'direccion') return null;
+  return { ok: false, codigo: 'ROL_SIN_PERMISO',
+    mensaje: ingreso
+      ? 'Solo una cuenta de Dirección puede ' + que + '. ' + ingreso.correo + ' está en «Accesos» como ' + ingreso.rol + '.'
+      : 'Para ' + que + ' hay que entrar con la cuenta de Google de Dirección: el token del teléfono no dice quién eres.' };
+}
+/* El candado del notario. NO se llama conCandado: ése ya existe más arriba —el de los
+   formularios, que LANZA para que el diálogo lo enseñe— y en Apps Script dos funciones con el
+   mismo nombre no truenan: gana la última, en silencio. Éste contesta un {ok:false} que viaja
+   al teléfono como cualquier otra respuesta del puente. */
+function conCandadoNotario(fn) {
+  var candado = LockService.getScriptLock();
+  try { candado.waitLock(20000); }
+  catch (e) { return { ok: false, codigo: 'SIN_RED', mensaje: 'La hoja está ocupada con otra escritura. Vuelve a intentarlo.' }; }
+  try { return fn(); } finally { candado.releaseLock(); }
+}
+
+/* ---------------------------------------------------------------- /solicitar */
+/* Cualquier rol reconocido: quien cotiza sin ser dirección tiene rol de pagos o de
+   fabricación, y es justo quien más necesita pedir. */
+function rutaSolicitar_(cuerpo, rol, ingreso) {
+  var folio = String((cuerpo && cuerpo.folio) || '');
+  if (!folioValido(folio)) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El folio no se entiende.' };
+  var c = limpiarCotizacion(cuerpo.cotizacion);
+  if (c.error) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: c.error };
+  var sub = cotSubtotal(c.items);
+  if (!isFinite(c.subtotal) || Math.abs(sub - c.subtotal) > 0.01) return descuadre(sub, c.subtotal);
+  var nota = String((cuerpo && cuerpo.nota) || '').slice(0, 500);
+  var yo = quienSoy(rol, ingreso);
+  return conCandadoNotario(function () {
+    var h = hojaSolicitudes();
+    var filas = filasDe(h, COLS_SOL.length);
+    var viva = ultimaFila(filas, S_FOLIO, folio, function (v) { return v[S_ESTADO] === 'pendiente'; });
+    /* La pendiente de OTRA identidad no se pisa. Se sobrescribía sin mirar quién la hizo: un
+       folio ajeno —fabricación los conoce todos por /jalar— se volvía «suyo», y /estado le daba
+       después el precio que se autorizara. La propia sí se reemplaza (volvió a pedir con otras
+       partidas), y dirección puede con cualquiera: es la que resuelve la cola. */
+    if (viva && String(viva.v[S_SOLICITO]) !== yo && rol !== 'direccion') {
+      return { ok: false, codigo: 'ROL_SIN_PERMISO',
+               mensaje: 'Ese folio ya tiene una solicitud pendiente de otra persona. Espera a que Dirección la resuelva, o pídele que la cancele.' };
+    }
+    var fila = [new Date(), txt(folio), txt(c.proyecto), txt(c.cliente), sub, c.iva ? 'Sí' : 'No',
+                txt(cotHuella(c.iva, c.items)), txt(JSON.stringify(c)), txt(yo),
+                'pendiente', '', '', txt(nota)];
+    if (viva) h.getRange(viva.fila, 1, 1, fila.length).setValues([fila]);
+    else h.getRange(h.getLastRow() + 1, 1, 1, fila.length).setValues([fila]);
+    return { ok: true, estado: 'pendiente' };
+  });
+}
+function descuadre(sub, delTelefono) {
+  return { ok: false, codigo: 'CATALOGO_DESINCRONIZADO',
+    mensaje: 'El precio de este teléfono (' + dinero2(delTelefono) + ') no coincide con el catálogo de la hoja (' +
+             dinero2(sub) + '). Actualiza la app y vuelve a intentarlo.',
+    subtotal_hoja: +dinero2(sub) };
+}
+
+/* ---------------------------------------------------------------- /cancelar */
+/* El teléfono que pidió reabrió la cotización para editarla: lo que pidió ya no es lo que
+   hay. Se deja de ofrecer a dirección en vez de dejar que autorice un trabajo viejo. */
+function rutaCancelarSolicitud_(cuerpo, rol, ingreso) {
+  var folio = String((cuerpo && cuerpo.folio) || '');
+  if (!folioValido(folio)) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El folio no se entiende.' };
+  return conCandadoNotario(function () {
+    var h = hojaSolicitudes();
+    var viva = ultimaFila(filasDe(h, COLS_SOL.length), S_FOLIO, folio, function (v) { return v[S_ESTADO] === 'pendiente'; });
+    if (!viva) return { ok: true, estado: null };
+    /* Solo la cancela quien la pidió, o dirección. Cualquier rol cancelaba la de cualquiera:
+       bastaba conocer el folio para sacarle a otro su solicitud de la cola de dirección. */
+    if (String(viva.v[S_SOLICITO]) !== quienSoy(rol, ingreso) && rol !== 'direccion') {
+      return { ok: false, codigo: 'ROL_SIN_PERMISO', mensaje: 'Esa solicitud la hizo otra persona: solo ella o Dirección la pueden cancelar.' };
+    }
+    h.getRange(viva.fila, S_ESTADO + 1, 1, 3).setValues([['cancelada', txt(quienSoy(rol, ingreso)), new Date()]]);
+    return { ok: true, estado: 'cancelada' };
+  });
+}
+
+/* --------------------------------------------------------------- /pendientes */
+function rutaPendientes_(rol) {
+  if (rol !== 'direccion') return { ok: false, codigo: 'ROL_SIN_PERMISO', mensaje: 'La cola de autorizaciones es de Dirección.' };
+  var h = SpreadsheetApp.getActive().getSheetByName(HOJA_SOLICITUDES);
+  if (!h) return { ok: true, solicitudes: [] };
+  var out = [];
+  var filas = filasDe(h, COLS_SOL.length);
+  for (var i = filas.length - 1; i >= 0 && out.length < 50; i--) {
+    var v = filas[i];
+    if (v[S_ESTADO] !== 'pendiente') continue;
+    var cot = null;
+    try { cot = JSON.parse(String(v[S_COT] || '')); } catch (e) { cot = null; }
+    if (!cot) continue;
+    out.push({ folio: String(v[S_FOLIO]), cuando: v[S_TS] instanceof Date ? v[S_TS].getTime() : null,
+               solicito: String(v[S_SOLICITO] || ''), nota: String(v[S_NOTA] || ''), cotizacion: cot });
+  }
+  return { ok: true, solicitudes: out };
+}
+
+/* ------------------------------------------------------------------ /estado */
+/* El teléfono que pidió pregunta por sus folios. Contesta lo que sabe de cada uno: si ya
+   hay sello vigente, el sello; si no, en qué quedó la solicitud.
+
+   Solo de los SUYOS. Un sello trae el precio autorizado, los ajustes por partida, quién
+   autorizó y su nota; sin esta guarda, cualquier rol —fabricación incluido, que no ve dinero
+   en ninguna otra parte— lo podía pedir de cualquier folio que conociera. «Suyo» es que la
+   solicitud la hizo esta misma identidad (quienSoy: el correo de Google, o el rol del token).
+   Dirección ve todos: es la que los autoriza.
+
+   Y el sello que se entrega es el de ESA solicitud, no el vigente del folio. Hasta aquí «es
+   tuya» se decidía con el último renglón del folio y se entregaba el sello vigente, fuera de
+   quien fuera y de cuando fuera:
+     · fabricación pedía sobre un folio ajeno y leía el precio autorizado de otro;
+     · y con una autorización vigente de ANTES, pedir otra vez contestaba «autorizada» con el
+       sello viejo: el teléfono que pidió re-autorizar recibía el precio de antes y se cerraba
+       solo; si dirección rechazaba la nueva, seguía diciendo «autorizada» y el teléfono
+       esperaba para siempre.
+   Ahora, para quien no es dirección, la solicitud es la última de ESA identidad, y el sello
+   vale solo si se emitió después de ella y para ella (A_SOLICITO). Para dirección, la última
+   del folio, con el mismo «después». Si no vale, se contesta en qué quedó la solicitud. */
+function msDe(x) { return esFecha(x) ? x.getTime() : Date.parse(String(x)); }
+function selloDeLaSolicitud(aut, sol, yo, todos) {
+  if (!aut) return false;
+  if (!todos && String(aut.v[A_SOLICITO]) !== yo) return false;
+  if (!sol) return todos;
+  /* Una pendiente nunca tiene sello: autorizar resuelve la pendiente del folio, así que un
+     vigente con una pendiente detrás es de antes. Sin fecha de por medio. */
+  if (sol.v[S_ESTADO] === 'pendiente') return false;
+  /* A_TS es el ISO en texto que se firmó; S_TS es la fecha que la hoja devuelve como Date.
+     Cualquiera que no se entienda da NaN, y NaN no es «después»: sin sello. */
+  return msDe(aut.v[A_TS]) >= msDe(sol.v[S_TS]);
+}
+function rutaEstado_(cuerpo, rol, ingreso) {
+  var yo = quienSoy(rol, ingreso), todos = rol === 'direccion';
+  var folios = (cuerpo && Object.prototype.toString.call(cuerpo.folios) === '[object Array]') ? cuerpo.folios.slice(0, 20) : [];
+  var ss = SpreadsheetApp.getActive();
+  var ha = ss.getSheetByName(HOJA_AUTORIZACIONES), hs = ss.getSheetByName(HOJA_SOLICITUDES);
+  var fa = ha ? filasDe(ha, COLS_AUT.length) : [], fs = hs ? filasDe(hs, COLS_SOL.length) : [];
+  var out = {};
+  folios.forEach(function (f) {
+    f = String(f || '');
+    if (!folioValido(f)) return;
+    var sol = ultimaFila(fs, S_FOLIO, f, todos ? null : function (v) { return String(v[S_SOLICITO]) === yo; });
+    if (!todos && !sol) {
+      out[f] = { estado: null, sello: null, resolvio: '', nota: '' };
+      return;
+    }
+    var aut = ultimaFila(fa, A_FOLIO, f, function (v) { return v[A_ESTADO] === 'vigente'; });
+    if (!selloDeLaSolicitud(aut, sol, yo, todos)) aut = null;
+    out[f] = {
+      estado: aut ? 'autorizada' : (sol ? String(sol.v[S_ESTADO]) : null),
+      sello: aut ? selloDeFila(aut.v) : null,
+      resolvio: sol ? String(sol.v[S_RESOLVIO] || '') : '',
+      nota: sol ? String(sol.v[S_NOTA] || '') : ''
+    };
+  });
+  return { ok: true, folios: out };
+}
+
+/* --------------------------------------------------------------- /autorizar */
+function rutaAutorizar_(cuerpo, rol, ingreso) {
+  var no = soloDireccionConGoogle(ingreso, 'autorizar un precio');
+  if (no) return no;
+  var folio = String((cuerpo && cuerpo.folio) || '');
+  if (!folioValido(folio)) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El folio no se entiende.' };
+  var c = limpiarCotizacion(cuerpo.cotizacion);
+  if (c.error) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: c.error };
+  var subCalc = cotSubtotal(c.items);
+  if (!isFinite(c.subtotal) || Math.abs(subCalc - c.subtotal) > 0.01) return descuadre(subCalc, c.subtotal);
+  if (!(subCalc > 0)) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'Una cotización en $0 no se autoriza.' };
+  var precioAuth = Number(cuerpo.precioAuth || 0);
+  if (!isFinite(precioAuth) || precioAuth < 0 || precioAuth > 1e9) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El precio autorizado no es un importe válido.' };
+  var ia = limpiarItemsAuth(cuerpo.itemsAuth, c.items);
+  if (ia.error) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: ia.error };
+  var nota = String(cuerpo.nota || '').slice(0, 500);
+
+  var r = { folio: folio, huella: cotHuella(c.iva, c.items), subCalc: +dinero2(subCalc),
+            precioAuth: +dinero2(precioAuth), itemsAuth: itemsAuthCanon(ia.valor),
+            total: cotTotalFinal(subCalc, c.iva, precioAuth), proyecto: c.proyecto,
+            correo: ingreso.correo, ts: '' };
+  /* Contra el calculado CON IVA si lo lleva, que es contra lo que se mide el total. */
+  var netoCalc = cotNeto(subCalc, c.iva);
+  var pct = netoCalc > 0 ? Math.round((netoCalc - r.total) / netoCalc * 1000) / 10 : 0;
+
+  return conCandadoNotario(function () {
+    var secreto = secretoDelSello_(true);
+    var h = hojaAutorizaciones();
+    var filas = filasDe(h, COLS_AUT.length);
+    var vigente = ultimaFila(filas, A_FOLIO, folio, function (v) { return v[A_ESTADO] === 'vigente'; });
+    if (vigente) {
+      var antes = registroDeFila(vigente.v);
+      /* El mismo trabajo al mismo precio otra vez: un doble toque, o un reintento después de
+         una respuesta que se perdió. Se devuelve el MISMO sello sin escribir nada: dos
+         renglones con la misma decisión harían creer que se autorizó dos veces. */
+      if (antes.huella === r.huella && antes.subCalc === r.subCalc && antes.precioAuth === r.precioAuth &&
+          antes.itemsAuth === r.itemsAuth && antes.proyecto === r.proyecto) {
+        return { ok: true, sello: selloDeFila(vigente.v), repetida: true };
+      }
+      /* Otro precio u otro trabajo sobre el mismo folio: volver a autorizar. La de antes no se
+         borra, se SUPERA: un PDF viejo verifica como «superada», que no es lo mismo que falso. */
+      h.getRange(vigente.fila, A_ESTADO + 1).setValue('superada');
+    }
+    r.ts = new Date().toISOString();
+    var firma = firmar(r, secreto);
+    var codigo = codigoDe(firma);
+    var sol = ultimaFila(filasDe(hojaSolicitudes(), COLS_SOL.length), S_FOLIO, folio,
+                         function (v) { return v[S_ESTADO] === 'pendiente'; });
+    var fila = [txt(r.ts), txt(folio), txt(r.proyecto), txt(c.cliente), r.subCalc, r.precioAuth, r.total,
+                pct, txt(r.itemsAuth), txt(r.huella), txt(r.correo), txt(sol ? String(sol.v[S_SOLICITO] || '') : r.correo),
+                txt(codigo), txt(firma), 'vigente', txt(nota)];
+    h.getRange(h.getLastRow() + 1, 1, 1, fila.length).setValues([fila]);
+    if (sol) hojaSolicitudes().getRange(sol.fila, S_ESTADO + 1, 1, 4)
+      .setValues([['autorizada', txt(r.correo), new Date(), txt(nota || String(sol.v[S_NOTA] || ''))]]);
+    return { ok: true, sello: { codigo: codigo, correo: r.correo, ts: r.ts, huella: r.huella,
+             subCalc: r.subCalc, precioAuth: r.precioAuth, itemsAuth: ia.valor, total: r.total, nota: nota } };
+  });
+}
+
+/* ---------------------------------------------------------------- /rechazar */
+function rutaRechazar_(cuerpo, rol, ingreso) {
+  var no = soloDireccionConGoogle(ingreso, 'rechazar una solicitud');
+  if (no) return no;
+  var folio = String((cuerpo && cuerpo.folio) || '');
+  if (!folioValido(folio)) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El folio no se entiende.' };
+  var nota = String((cuerpo && cuerpo.nota) || '').slice(0, 500);
+  return conCandadoNotario(function () {
+    var h = hojaSolicitudes();
+    var viva = ultimaFila(filasDe(h, COLS_SOL.length), S_FOLIO, folio, function (v) { return v[S_ESTADO] === 'pendiente'; });
+    if (!viva) return { ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'Esa solicitud ya no está pendiente.' };
+    h.getRange(viva.fila, S_ESTADO + 1, 1, 4).setValues([['rechazada', txt(ingreso.correo), new Date(), txt(nota)]]);
+    return { ok: true, estado: 'rechazada' };
+  });
+}
+
+/* ----------------------------------------------------------------- /revocar */
+/* Para el día en que un PDF autorizado ya no vale —se canceló el trabajo, se equivocó el
+   precio—. El renglón se queda; su estado cambia, y el QR dice «revocada». */
+function rutaRevocar_(cuerpo, rol, ingreso) {
+  var no = soloDireccionConGoogle(ingreso, 'revocar una autorización');
+  if (no) return no;
+  var folio = String((cuerpo && cuerpo.folio) || '');
+  if (!folioValido(folio)) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'El folio no se entiende.' };
+  return conCandadoNotario(function () { return revocarAutorizacion(folio) ? { ok: true } :
+    { ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'Ese folio no tiene una autorización vigente.' }; });
+}
+/** Revoca la autorización vigente de un folio. Se puede correr a mano desde el editor:
+ *  revocarAutorizacion('COT-0042@K7QM') */
+function revocarAutorizacion(folio) {
+  var h = SpreadsheetApp.getActive().getSheetByName(HOJA_AUTORIZACIONES);
+  if (!h) return false;
+  var vig = ultimaFila(filasDe(h, COLS_AUT.length), A_FOLIO, String(folio), function (v) { return v[A_ESTADO] === 'vigente'; });
+  if (!vig) return false;
+  h.getRange(vig.fila, A_ESTADO + 1).setValue('revocada');
+  return true;
+}
+
+/* ---------------------------------------------------------------- /verificar */
+/* PÚBLICA. La abre el QR de un PDF, desde el teléfono de cualquiera, sin cuenta y sin token.
+   Por eso contesta lo mínimo —folio, fecha, total y negocio— y nunca teléfono, dirección
+   ni correo. Y tiene su propio cupo, contado por folio y en total, porque aquí no hay
+   identidad contra la cual contarlo. */
+var VERIFICAR_POR_FOLIO = 30;      // cada 10 minutos
+var VERIFICAR_EN_TOTAL = 400;
+function rutaVerificar_(cuerpo) {
+  var folio = String((cuerpo && cuerpo.f) || '').trim();
+  var cod = normalizarCodigo(cuerpo && cuerpo.c);
+  if (!folioValido(folio) || cod.length !== 12) return { ok: true, estado: 'no_autentica' };
+  if (!cupoDeVerificar(folio)) return { ok: false, codigo: 'SIN_RED', mensaje: 'Demasiadas consultas seguidas. Espera unos minutos.' };
+  var h = SpreadsheetApp.getActive().getSheetByName(HOJA_AUTORIZACIONES);
+  var secreto = secretoDelSello_(false);
+  if (!h || !secreto) return { ok: true, estado: 'no_autentica' };
+  var filas = filasDe(h, COLS_AUT.length);
+  var hallada = ultimaFila(filas, A_FOLIO, folio, function (v) { return normalizarCodigo(v[A_CODIGO]) === cod; });
+  if (!hallada) return { ok: true, estado: 'no_autentica' };
+  /* La firma se RECALCULA desde el renglón. Si alguien cambió el total o el negocio a mano en
+     la hoja, deja de cuadrar: el renglón existe, pero ya no dice lo que se firmó. */
+  var firma = firmar(registroDeFila(hallada.v), secreto);
+  if (firma !== String(hallada.v[A_FIRMA]) || normalizarCodigo(codigoDe(firma)) !== cod) return { ok: true, estado: 'no_autentica' };
+  var est = String(hallada.v[A_ESTADO]);
+  var tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
+  var cuando = new Date(String(hallada.v[A_TS]));
+  return { ok: true, estado: est === 'vigente' ? 'autentica' : (est === 'revocada' ? 'revocada' : 'superada'),
+           folio: folio.split('@')[0], fecha: isNaN(cuando) ? '' : Utilities.formatDate(cuando, tz, 'dd/MM/yyyy'),
+           total: Number(hallada.v[A_TOTAL]), proyecto: String(hallada.v[A_PROY]) };
+}
+function cupoDeVerificar(folio) {
+  try {
+    var cache = CacheService.getScriptCache();
+    var k1 = 'v_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, folio)).slice(0, 24);
+    /* En ventanas fijas de diez minutos (contarEnVentana): con la caducidad que se reiniciaba
+       en cada consulta, una cada nueve minutos dejaba el cupo total cerrado para siempre. */
+    var n1 = contarEnVentana(cache, k1, 600), n2 = contarEnVentana(cache, 'v__total', 600);
+    return n1 <= VERIFICAR_POR_FOLIO && n2 <= VERIFICAR_EN_TOTAL;
+  } catch (e) { return true; }
+}
+
+/** Crea las dos pestañas y el secreto del sello si faltan. Idempotente, y NUNCA rota el
+ *  secreto: cambiarlo haría que todos los PDF ya impresos verifiquen como «no auténtica». */
+function configurarAutorizaciones() {
+  hojaAutorizaciones(); hojaSolicitudes(); secretoDelSello_(true);
+  return 'Listo: pestañas «' + HOJA_AUTORIZACIONES + '» (oculta) y «' + HOJA_SOLICITUDES + '», y el secreto del sello.';
+}
+
+/* ============================================================================
+   LA IA, POR EL PUENTE — las llaves viven aquí y no en los teléfonos.
+
+   Antes cada teléfono guardaba sus propias llaves de Qwen, DeepSeek y Gemini, ofuscadas con
+   una sal que venía escrita en el propio código: quien tuviera el teléfono las sacaba en una
+   línea, y quitar a alguien de «Accesos» no le quitaba la IA, que seguía cobrándose a la
+   cuenta de AL3D. Ahora las llaves se pegan UNA vez, en ⚡ AL3D → Llaves de IA, y el teléfono
+   le pide a este puente que llame por él.
+
+   Lo que NO se mudó es la cadena: el orden Qwen → DeepSeek → Gemini, los reintentos, las
+   esperas y el «probando con Qwen…» siguen en el teléfono. Apps Script no puede decir nada a
+   mitad de una ejecución, y con el cliente enfrente ese letrero es lo que evita que parezca
+   colgada. Cada llamada a /ia es UN intento contra UN proveedor, como era cada fetch.
+   ============================================================================ */
+var IA_PROVS = ['qwen', 'deepseek', 'gemini'];
+var IA_NOMBRE = { qwen: 'Qwen', deepseek: 'DeepSeek', gemini: 'Gemini' };
+var IA_URLS = { qwen: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
+                deepseek: 'https://api.deepseek.com/chat/completions' };
+/* Los modelos que se pueden pedir: el de cada proveedor y sus hermanos de respaldo, los de
+   AI_DEFAULTS y AI_RESPALDO en js/cotizador/ia.js. Con la llave aquí, dejar que el teléfono
+   escoja cualquier modelo sería dejar que escoja cuánto cuesta cada llamada. */
+var IA_MODELOS = { qwen: ['qwen3.7-flash', 'qwen3.6-flash'], deepseek: ['deepseek-flash'],
+                   gemini: ['gemini-3.1-flash-lite', 'gemini-3.6-flash'] };
+var IA_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+/* Por persona y por día. Una cotización con IA son de una a cuatro llamadas; doscientas es
+   un día de trabajo muy largo, y es muy poco para quien quiera vaciar la cuenta. La cuenta
+   de Google gratuita permite unas 20 000 salidas a internet al día en total. */
+var IA_LIMITE_DIARIO = 200;
+var IA_MAX_LLAVES = 4;
+var IA_MAX_CUERPO = 15 * 1024 * 1024;
+/* Cuerpos de más de 64 KB por minuto, entre todos. Un análisis manda uno; cuarenta por minuto
+   es un taller entero cotizando con IA a la vez, y muy poco para tumbar la hoja a fuerza de
+   archivos. Se cuenta antes de parsear, porque antes de parsear no se sabe quién es. */
+var CUERPOS_GRANDES_POR_MINUTO = 40;
+function cupoDeCuerposGrandes() {
+  try {
+    var cache = CacheService.getScriptCache();
+    return contarEnVentana(cache, 'grandes', 60) <= CUERPOS_GRANDES_POR_MINUTO;
+  } catch (e) { return true; }
+}
+
+/* iaLlaves_ e iaOrdenDeLlaves_ llevan guion bajo porque DEVUELVEN las llaves: sin él,
+   google.script.run las podía llamar desde cualquier diálogo del menú (ver escaparHtml), y un
+   guion colado en uno se llevaba las llaves de la cuenta de AL3D. Con él, solo este script. */
+function iaLlaves_(prov) {
+  try {
+    var m = JSON.parse(PropertiesService.getScriptProperties().getProperty('IA_KEYS') || '{}');
+    var ks = m && Object.prototype.toString.call(m[prov]) === '[object Array]' ? m[prov] : [];
+    return ks.filter(function (k) { return typeof k === 'string' && k.length >= 10; });
+  } catch (e) { return []; }
+}
+function iaEstado() {
+  var o = {};
+  IA_PROVS.forEach(function (p) { o[p] = iaLlaves_(p).length > 0; });
+  return o;
+}
+/* Las llaves se turnan: cada llamada empieza por la siguiente, para repartir la cuota. Sin
+   candado a propósito: una carrera reparte un poco peor un instante, no rompe nada. */
+function iaOrdenDeLlaves_(prov) {
+  var ks = iaLlaves_(prov);
+  if (ks.length < 2) return ks;
+  var props = PropertiesService.getScriptProperties();
+  var rot = {};
+  try { rot = JSON.parse(props.getProperty('IA_ROTACION') || '{}') || {}; } catch (e) { rot = {}; }
+  var i = (Number(rot[prov]) || 0) % ks.length;
+  rot[prov] = (i + 1) % ks.length;
+  try { props.setProperty('IA_ROTACION', JSON.stringify(rot)); } catch (e2) {}
+  return ks.slice(i).concat(ks.slice(0, i));
+}
+/* Leer, sumar y escribir, con candado. Sin él, una ráfaga de consultas en paralelo leía todas
+   la misma cuenta y cada una escribía «la de antes + 1»: veinte a la vez contaban como una, y
+   el tope de doscientas se pasaba. El candado es el del script —el único que hay entre
+   ejecuciones— pero corto y solo alrededor de la cuenta, no de la llamada a la IA: tomado
+   mientras el proveedor contesta, dejaría la hoja sin escrituras diez o veinte segundos. Si no
+   se consigue en tres segundos (una subida grande del puente lo tiene), se niega con su razón
+   y el teléfono reintenta: contar a ciegas es justo lo que se está cerrando.
+   Devuelve true, false (cupo agotado) o null (no se pudo contar). */
+function dentroDelCupoIA(quien) {
+  var candado = LockService.getScriptLock();
+  if (!candado.tryLock(3000)) return null;
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var hoy = Utilities.formatDate(new Date(), 'GMT', 'yyyyMMdd');
+    var clave = 'IA_CUOTA_' + hoy;
+    var m = {};
+    try { m = JSON.parse(props.getProperty(clave) || '{}') || {}; } catch (e) { m = {}; }
+    var id = Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, quien)).slice(0, 16);
+    m[id] = (Number(m[id]) || 0) + 1;
+    props.setProperty(clave, JSON.stringify(m));
+    /* Las cuentas de días pasados no se quedan para siempre en las propiedades. */
+    Object.keys(props.getProperties()).forEach(function (k) {
+      if (k.indexOf('IA_CUOTA_') === 0 && k !== clave) props.deleteProperty(k);
+    });
+    return m[id] <= IA_LIMITE_DIARIO;
+  } catch (e) { return true; }
+  finally { candado.releaseLock(); }
+}
+
+/* La petición al proveedor, armada EXACTAMENTE como la armaban aiLlamar() del cotizador y
+   llamar() del asistente cuando salían del teléfono. */
+function iaPeticion(prov, model, key, d) {
+  if (prov === 'gemini') {
+    var body;
+    if (d.modo === 'cotizar') {
+      body = { contents: [{ parts: [{ text: d.prompt }, { inline_data: { mime_type: d.mime, data: d.b64 } }] }],
+               generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } };
+    } else {
+      var contents = d.mensajes.map(function (m) { return { role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }; })
+        .concat([{ role: 'user', parts: [{ text: d.pregunta }] }]);
+      body = { systemInstruction: { parts: [{ text: d.sistema }] }, contents: contents,
+               generationConfig: { temperature: 0.2, maxOutputTokens: 1200 } };
+    }
+    return { url: 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) +
+                  ':generateContent?key=' + encodeURIComponent(key),
+             opts: { method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true } };
+  }
+  var b;
+  if (d.modo === 'cotizar') {
+    b = { model: model, temperature: 0.2, max_tokens: 4096,
+          messages: [{ role: 'user', content: [{ type: 'text', text: d.prompt },
+                     { type: 'image_url', image_url: { url: 'data:' + d.mime + ';base64,' + d.b64 } }] }] };
+    if (!d.sinJson) b.response_format = { type: 'json_object' };
+  } else {
+    b = { model: model, temperature: 0.2, max_tokens: 1200,
+          messages: [{ role: 'system', content: d.sistema }].concat(d.mensajes, [{ role: 'user', content: d.pregunta }]) };
+  }
+  if (prov === 'deepseek') b.thinking = { type: 'disabled' };
+  return { url: IA_URLS[prov],
+           opts: { method: 'post', contentType: 'application/json', headers: { Authorization: 'Bearer ' + key },
+                   payload: JSON.stringify(b), muteHttpExceptions: true } };
+}
+/* Qué contestó, en el mismo idioma que aiError() del cotizador: el estado, si vale la pena
+   reintentar, y una frase que se pueda leer. */
+function iaRespuesta(prov, model, codigo, txt) {
+  var data = null;
+  try { data = JSON.parse(txt); } catch (e) { data = null; }
+  var n = IA_NOMBRE[prov];
+  var e = data && data.error;
+  if (codigo >= 200 && codigo < 300 && data && !e) {
+    var texto = '', razon = '';
+    if (prov === 'gemini') {
+      var cand = (data.candidates || [])[0];
+      texto = ((cand && cand.content && cand.content.parts) || []).map(function (p) { return p.text || ''; }).join('').trim();
+      razon = (cand && cand.finishReason) || (data.promptFeedback && data.promptFeedback.blockReason) || '';
+    } else {
+      var ch = (data.choices || [])[0];
+      texto = ((ch && ch.message && ch.message.content) || '').trim();
+      razon = (ch && ch.finish_reason) || '';
+    }
+    if (texto) return { ok: true, texto: texto, prov: prov, model: model };
+    return { ok: false, codigo: 'VACIO', razon: String(razon || ''), transitorio: !razon, prov: prov,
+             mensaje: n + ' respondió vacío' };
+  }
+  var crudo = ((typeof e === 'string' ? e : (e && (e.message || e.msg))) || (data && data.message) ||
+               String(txt || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, 140);
+  var s = (e && typeof e.code === 'number' && e.code >= 100) ? e.code : codigo;
+  var msg, trans = false;
+  if (s === 429) { msg = n + ' alcanzó su límite de peticiones'; trans = true; }
+  else if (s === 408 || s >= 500) { msg = n + ' está saturado'; trans = true; }
+  else if (s === 401 || s === 403) msg = 'la llave de ' + n + ' que está en la hoja no es válida o no tiene saldo';
+  else if (s === 404) msg = n + ' no reconoce el modelo «' + model + '»';
+  else if (s === 413) msg = 'el archivo pesa demasiado para ' + n;
+  else msg = n + ' rechazó la petición (HTTP ' + s + ')';
+  return { ok: false, codigo: 'PROVEEDOR', status: s, transitorio: trans, crudo: crudo, prov: prov,
+           mensaje: crudo ? msg + ' — ' + crudo : msg };
+}
+function limpiarPeticionIA(c) {
+  var d = { modo: c.modo === 'chat' ? 'chat' : 'cotizar', sinJson: !!c.sinJson };
+  if (d.modo === 'cotizar') {
+    d.prompt = String(c.prompt || '');
+    var img = c.imagen || {};
+    d.b64 = String(img.b64 || ''); d.mime = String(img.mime || '');
+    if (!d.prompt || d.prompt.length > 30000) return { error: 'Falta la instrucción para la IA.' };
+    if (!d.b64 || !/^[A-Za-z0-9+\/=]+$/.test(d.b64.slice(0, 200))) return { error: 'Falta el archivo que se va a analizar.' };
+    if (IA_MIMES.indexOf(d.mime) === -1) return { error: 'Solo se analizan JPG, PNG, WEBP o PDF.' };
+  } else {
+    d.sistema = String(c.sistema || '').slice(0, 40000);
+    d.pregunta = String(c.pregunta || '').slice(0, 4000);
+    var ms = Object.prototype.toString.call(c.mensajes) === '[object Array]' ? c.mensajes.slice(-20) : [];
+    d.mensajes = ms.map(function (m) {
+      return { role: m && m.role === 'assistant' ? 'assistant' : 'user', content: String((m && m.content) || '').slice(0, 8000) };
+    });
+    if (!d.pregunta) return { error: 'Falta la pregunta.' };
+  }
+  return d;
+}
+function rutaIA_(cuerpo, quien) {
+  var prov = String((cuerpo && cuerpo.prov) || '');
+  var model = String((cuerpo && cuerpo.model) || '');
+  if (IA_PROVS.indexOf(prov) === -1) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'Ese proveedor de IA no existe.' };
+  if (IA_MODELOS[prov].indexOf(model) === -1) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: IA_NOMBRE[prov] + ': el modelo «' + model + '» no está en la lista de la hoja.' };
+  var d = limpiarPeticionIA(cuerpo || {});
+  if (d.error) return { ok: false, codigo: 'DATO_INVALIDO', mensaje: d.error };
+  if (d.modo === 'cotizar' && d.mime === 'application/pdf' && prov !== 'gemini') return { ok: false, codigo: 'DATO_INVALIDO', mensaje: 'Solo Gemini lee PDF.' };
+  var llaves = iaOrdenDeLlaves_(prov);
+  if (!llaves.length) return { ok: false, codigo: 'SIN_LLAVE', prov: prov, transitorio: false,
+    mensaje: IA_NOMBRE[prov] + ' no tiene llave en la hoja — Dirección la pega en ⚡ AL3D → Llaves de IA' };
+  var cupo = dentroDelCupoIA(quien);
+  if (cupo === null) return { ok: false, codigo: 'SIN_RED', transitorio: true, prov: prov,
+    mensaje: 'La hoja está ocupada con otra escritura y no pudo contar esta consulta de IA. Vuelve a intentarlo en un momento.' };
+  if (!cupo) return { ok: false, codigo: 'CUPO_AGOTADO', transitorio: false,
+    mensaje: 'Llegaste al tope de ' + IA_LIMITE_DIARIO + ' consultas de IA por hoy. Mañana se reinicia.' };
+  var ultima = null;
+  for (var i = 0; i < llaves.length; i++) {
+    var p = iaPeticion(prov, model, llaves[i], d);
+    var r;
+    try { r = UrlFetchApp.fetch(p.url, p.opts); }
+    catch (e) { ultima = { ok: false, codigo: 'PROVEEDOR', status: 0, transitorio: true, prov: prov, mensaje: 'no se pudo conectar con ' + IA_NOMBRE[prov] }; continue; }
+    var res = iaRespuesta(prov, model, r.getResponseCode(), r.getContentText());
+    if (res.ok) return res;
+    ultima = res;
+    /* Con otra llave del mismo proveedor se sigue solo si el problema era de ESA llave: una
+       cuota agotada o una llave sin saldo. Un modelo que no existe no lo arregla otra llave. */
+    if (!(res.status === 429 || res.status === 401 || res.status === 403)) break;
+  }
+  return ultima;
+}
+
+/* ---------------------------------------------------------- Llaves de IA (menú) */
+function mascaraLlave(k) { return '••••' + escaparHtml(String(k).slice(-4)); }
+function dialogoLlavesIA() {
+  var filas = IA_PROVS.map(function (p) {
+    var ks = iaLlaves_(p);
+    return '<label>' + IA_NOMBRE[p] + ' — ' + (ks.length ? ks.map(mascaraLlave).join(', ') : '<i>sin llave</i>') + '</label>' +
+      '<textarea id="k_' + p + '" rows="2" placeholder="Pega aquí para reemplazar (una por renglón). Vacío = no cambiar."></textarea>' +
+      '<label style="font-weight:400;margin-top:4px"><input type="checkbox" id="b_' + p + '" style="width:auto"> Quitar las de ' + IA_NOMBRE[p] + '</label>';
+  }).join('');
+  var c =
+    '<h2>Llaves de IA</h2>' +
+    '<p class="sub">Viven en las propiedades de este script, no en los teléfonos. El cotizador y el asistente ' +
+    'las usan a través del puente, y solo para quien está en «Accesos».</p>' + filas +
+    '<div class="dato">Orden de intento: Qwen → DeepSeek → Gemini. Los PDF solo los lee Gemini. ' +
+    'Tope: ' + IA_LIMITE_DIARIO + ' consultas por persona al día.</div>' +
+    '<div class="pie"><button class="gris" onclick="google.script.host.close()">Cerrar</button>' +
+    '<button onclick="guardar()">Guardar</button></div><div id="msg" class="aviso"></div>' +
+    '<script>function guardar(){var d={};' + JSON.stringify(IA_PROVS) + '.forEach(function(p){' +
+    'd[p]={nuevas:document.getElementById("k_"+p).value,quitar:document.getElementById("b_"+p).checked};});' +
+    'google.script.run.withSuccessHandler(function(m){var e=document.getElementById("msg");e.className="aviso ok";e.textContent=m;})' +
+    '.withFailureHandler(function(x){var e=document.getElementById("msg");e.className="aviso mal";e.textContent=x.message;})' +
+    '.guardarLlavesIA(d);}</script>';
+  SpreadsheetApp.getUi().showModalDialog(marco(c, 600), 'Llaves de IA');
+}
+function guardarLlavesIA(d) {
+  var props = PropertiesService.getScriptProperties();
+  var m = {};
+  try { m = JSON.parse(props.getProperty('IA_KEYS') || '{}') || {}; } catch (e) { m = {}; }
+  IA_PROVS.forEach(function (p) {
+    var x = (d && d[p]) || {};
+    if (x.quitar) { m[p] = []; return; }
+    var nuevas = String(x.nuevas || '').split(/[\s,]+/).map(function (k) { return k.trim(); })
+      .filter(function (k) { return k.length >= 10; }).slice(0, IA_MAX_LLAVES);
+    if (nuevas.length) m[p] = nuevas;
+  });
+  props.setProperty('IA_KEYS', JSON.stringify(m));
+  return 'Guardado. ' + IA_PROVS.map(function (p) { return IA_NOMBRE[p] + ': ' + ((m[p] || []).length || 'sin') + ' llave' + ((m[p] || []).length === 1 ? '' : 's'); }).join(' · ');
 }
 
 /* ------------------------------------------ realinear Y:AD, una sola vez */
@@ -2837,7 +3791,7 @@ function escribirRevision(p, aplicada) {
   return h;
 }
 
-/** Realinea si todavía no se hizo. La llaman rutaEmpujar (con el candado puesto) y
+/** Realinea si todavía no se hizo. La llaman rutaEmpujar_ (con el candado puesto) y
  *  realinearColumnasDelPuente. Devuelve la propuesta, o null si ya estaba hecho. */
 function huellaDePropuesta(p) {
   var s = JSON.stringify([p.cambios, p.huerfanos, p.desplazados]);
@@ -3118,6 +4072,26 @@ function siguienteIdPago(h) {
   return 'P-' + ('000' + (max + 1)).slice(-3);
 }
 
+/* El primer renglón de «Abonos comisión» desde el que hay n VACÍOS seguidos, o 0 si no caben
+   antes del 2000. Vacío es sin nada en A ni de C a F —B es la fórmula del nombre y no cuenta—:
+   un renglón al que solo le borraron el folio todavía tiene su importe y su pago, y escribir
+   encima los mezclaría con el abono nuevo. Lo usan los tres que escriben abonos: el formulario,
+   el puente y el reparto. */
+function filaLibreEnAbonos(h, n) {
+  var ancho = Math.min(COL_PAGO, h.getMaxColumns());
+  var datos = h.getRange(2, 1, 1999, ancho).getValues();
+  var seguidos = 0;
+  for (var i = 0; i < datos.length; i++) {
+    var vacio = true;
+    for (var c = 0; c < ancho && vacio; c++) {
+      if (c !== 1 && datos[i][c] !== '' && datos[i][c] !== null) vacio = false;
+    }
+    seguidos = vacio ? seguidos + 1 : 0;
+    if (seguidos >= n) return i + 3 - n;
+  }
+  return 0;
+}
+
 function guardarReparto(d) {
   /* Con candado, como guardarAbono: el reparto escribe varios renglones seguidos desde el
      primero libre, y un abono del puente en medio caería en uno de ellos. */
@@ -3133,11 +4107,11 @@ function guardarRepartoConCandado_(d) {
 
   var h = prepararColumnaPago();
 
-  var col = h.getRange(2, 1, 1999, 1).getValues();
-  var fila = 0;
-  for (var i = 0; i < col.length; i++) { if (col[i][0] === '') { fila = i + 2; break; } }
-  if (!fila) throw new Error('Ya no hay renglones libres en la pestaña de abonos.');
-  if (fila + calc.reparto.length - 1 > 2000) throw new Error('No caben todos los renglones del reparto.');
+  /* n renglones LIBRES SEGUIDOS, no «el primer folio vacío y los que sigan». Si alguien vació a
+     mano un renglón en medio, el reparto empezaba ahí y escribía encima de los abonos de
+     abajo: la comisión pendiente de esos proyectos volvía a subir y se podía pagar dos veces. */
+  var fila = filaLibreEnAbonos(h, calc.reparto.length);
+  if (!fila) throw new Error('No caben los ' + calc.reparto.length + ' renglones del reparto en la pestaña de abonos (llega hasta el renglón 2000).');
 
   var id = siguienteIdPago(h);
   var fecha = d.fecha ? fechaDe(d.fecha) : new Date();
@@ -3185,13 +4159,18 @@ function dialogoReparto() {
     '<div id=av class=aviso></div>' +
     '<script>' +
     'var t;var enviado=false;' +
+    /* La vista previa se arma con innerHTML en el navegador, con el folio y el NOMBRE del
+       proyecto que manda vistaPreviaReparto: se escapan aquí, del lado que pinta (ver
+       escaparHtml). */
+    'function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;")' +
+    '.replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/\'/g,"&#39;");}' +
     'function pinta(r){' +
     'var p=document.getElementById("prev");' +
     'if(!r.filas.length){p.innerHTML="";return;}' +
     'var h="<div class=caja><table class=tb><tr><th>Folio</th><th>Proyecto</th><th>Pendiente</th><th>Abono</th><th>Queda</th></tr>";' +
-    'r.filas.forEach(function(f){h+="<tr><td>"+f[0]+"</td><td>"+f[1]+"</td><td>"+f[2]+"</td><td>"+f[3]+"</td><td>"+f[4]+"</td></tr>";});' +
+    'r.filas.forEach(function(f){h+="<tr><td>"+esc(f[0])+"</td><td>"+esc(f[1])+"</td><td>"+esc(f[2])+"</td><td>"+esc(f[3])+"</td><td>"+esc(f[4])+"</td></tr>";});' +
     'h+="</table></div>";' +
-    'if(r.sobrante>0.004){h+="<div class=dato>Sobran "+r.sobranteTxt+": ya no hay más comisiones pendientes que cubrir.</div>";}' +
+    'if(r.sobrante>0.004){h+="<div class=dato>Sobran "+esc(r.sobranteTxt)+": ya no hay más comisiones pendientes que cubrir.</div>";}' +
     'p.innerHTML=h;}' +
     'function calc(){clearTimeout(t);t=setTimeout(function(){' +
     'var m=parseFloat(document.getElementById("monto").value);' +

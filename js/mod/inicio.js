@@ -38,7 +38,7 @@ import * as Material from '../datos/material.js';
 import { masDias } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO,
          fmtFecha, fmtFechaDia, abrirCapa, cerrarCapa, copiarTexto, ajustarAltoBarra,
-         bandaFrescura, cifraQueCabe }
+         bandaFrescura, cifraQueCabe, scrollSuave }
   from '../nucleo/ui.js';
 
 /* ----- Estado del módulo -----
@@ -459,7 +459,7 @@ function pintarMbar(n) {
     if (!ev.target.closest('[data-decidir]')) return;
     const card = _cont && _cont.querySelector('.pf-decidir');
     if (!card) return;
-    card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    card.scrollIntoView({ block: 'center', behavior: scrollSuave() });
     const primero = card.querySelector('[data-acc]');
     if (primero) { try { primero.focus({ preventScroll: true }); } catch (_) {} }
   };

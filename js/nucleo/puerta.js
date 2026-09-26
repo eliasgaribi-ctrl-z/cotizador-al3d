@@ -115,6 +115,10 @@ const MSG = {
 /* El resultado de custodiar(), para que app.js no tenga que adivinar. */
 const dentro = (via, correo, rol, nota) => ({ ok: true, via, correo, rol, nota: nota || '' });
 
+/* La retrollamada que app.js le dio a `custodiar()` para borrar la nota de la banda. Se guarda
+   porque `reconfirmar()` la necesita horas después, cuando la comprobación sí sale. */
+let _avisar = null;
+
 /**
  * Deja entrar, o no deja. Devuelve una promesa que **solo se resuelve cuando hay derecho a
  * pasar**: mientras no lo haya, la pantalla de la puerta se queda puesta y la promesa
@@ -123,6 +127,7 @@ const dentro = (via, correo, rol, nota) => ({ ok: true, via, correo, rol, nota: 
  * @returns {Promise<{ok:true, via:string, correo:string, rol:string, nota:string}>}
  */
 export async function custodiar(avisar) {
+  _avisar = typeof avisar === 'function' ? avisar : null;
   /* 0. LA COPIA LOCAL — las mismas exenciones que cotizador.html y la mesa de corte.
         Faltaban aquí, y el síntoma no se parecía a la causa: las diecisiete pruebas de
         navegador corren contra 127.0.0.1, la puerta las paraba en «Entrar con Google» y las
@@ -306,6 +311,48 @@ async function confirmarDeVerdad(conPantalla) {
     if (v2.estado !== 'fuera') v = v2;   // era un tropiezo, no una baja
   }
   return v;
+}
+
+/**
+ * La vuelta a la hoja que el arranque no pudo dar. La llama app.js cuando un clic acaba de
+ * renovar el token de Google, y no bloquea nada: va por detrás, como la del pase vivo.
+ *
+ * ── Por qué hace falta ──────────────────────────────────────────────────────
+ * La comprobación de fondo de `custodiar()` renueva CALLADO, sin gesto de la persona, y con
+ * el token ya vencido —la app se abre una vez al día; el token dura una hora— la ventana de
+ * Google se bloquea y aquello termina en `sin_red`: ni se pregunta a la hoja ni se renueva el
+ * pase. El clic siguiente sí renovaba el token (app.js), pero solo para sincronizar. Así que
+ * el pase caducaba contando desde la ÚLTIMA vez que la app se abrió con el token vivo: a los
+ * 23 días la banda decía «Llevas días sin señal…» a alguien con señal todo el mes, a los 30
+ * la puerta se cerraba, y a quien quitaban de «Accesos» no se le echaba nunca.
+ *
+ * Con el token recién renovado `confirmarDeVerdad(false)` ya no abre ventana —`renovar()`
+ * contesta en el acto con el token vivo— y es exactamente la comprobación de siempre, con su
+ * segunda opinión antes de echar a nadie. Los desenlaces son los del pase vivo.
+ */
+let _reconfirmando = false;
+export async function reconfirmar() {
+  if (esCopiaLocal() || _reconfirmando) return;
+  if (!Ingreso.dentro()) return;          // sin token vivo, la hoja no sabría quién pregunta
+  _reconfirmando = true;
+  try {
+    const rolAntes = Prefs.rol();
+    const r = await confirmarDeVerdad(false);
+    if (!r) return;
+    if (r.estado === 'fuera') {
+      Prefs.borrarPase();
+      pedirEntrada(MSG.FUERA(r.correo || Ingreso.correo()), null, true);
+      return;
+    }
+    if (r.estado !== 'ok') return;
+    /* La pantalla se pintó con el rol de antes y media app decide qué enseña a partir de él. */
+    if (r.rol !== rolAntes) { location.reload(); return; }
+    if (_avisar) _avisar('');
+  } catch (_) {
+    /* Una vuelta que no salió es la de mañana: el pase sigue como estaba. */
+  } finally {
+    _reconfirmando = false;
+  }
 }
 
 /** Una vuelta a la hoja: quién dice que soy. Separada para poder repetirla. */

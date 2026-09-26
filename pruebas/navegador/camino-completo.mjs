@@ -35,6 +35,7 @@ const B = 'http://127.0.0.1:' + (process.env.PUERTO || '8814');
 const nav = await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome'});
 const ctx = await nav.newContext({viewport:{width:430,height:932},deviceScaleFactor:3,isMobile:true,
   hasTouch:true,locale:'es-MX',timezoneId:'America/Mexico_City',serviceWorkers:'allow'});
+await ctx.addInitScript({ path: decodeURIComponent(new URL('./hoja-de-mentiras.js', import.meta.url).pathname) });   // el notario, de mentiras
 const p = await ctx.newPage();
 let fallos=0; const mal=m=>{console.log('  ✗ '+m);fallos++;}; const bien=m=>console.log('  ✓ '+m);
 const errs=[]; p.on('pageerror',e=>errs.push(e.message));
@@ -78,7 +79,7 @@ const campos = await p.$$('#items .partida input[type="number"], #items .partida
 if (campos.length >= 2) { await campos[0].fill('40'); await campos[1].fill('8'); bien('altura 40 y 8 letras capturadas'); }
 else mal('no encontré los campos de altura y piezas (hallé '+campos.length+')');
 await p.waitForTimeout(600);
-const total = await p.evaluate(()=>document.querySelector('#neto .amt, .neto .amt, #mbar-total')?.textContent||'');
+const total = await p.evaluate(()=>document.querySelector('.neto .amt')?.textContent||'');
 /* $17,600 + 16% de IVA, que viene encendido por omisión. */
 if (/20,416/.test(total)) bien('el total sale $20,416.00 = $17,600 + IVA — el precio es el correcto');
 else mal('el total salió «'+total+'», esperaba 20,416');
@@ -86,9 +87,8 @@ else mal('el total salió «'+total+'», esperaba 20,416');
 // ── 4. Autorizar ──────────────────────────────────────────────────────────────
 await p.evaluate(()=>autorizarYoMismo());
 await p.waitForTimeout(600);
-const dlg = await p.$('#pa-modal-bg.show, .modal-bg.show');
-await p.evaluate(()=>{ const i=document.getElementById('pa-autorizador'); if(i) i.value='Elías'; });
-await p.evaluate(()=>{ if(typeof autorizar==='function') autorizar(); });
+/* Quién autoriza no se teclea: lo pone la cuenta con la que se entró (hoja-de-mentiras.js). */
+await p.evaluate(()=>autorizar());
 await p.waitForTimeout(900);
 const estado = await p.evaluate(()=>Q.estado);
 estado==='autorizada' ? bien('la cotización quedó autorizada') : mal('estado quedó en «'+estado+'»');

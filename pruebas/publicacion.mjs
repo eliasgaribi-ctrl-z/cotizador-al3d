@@ -141,7 +141,7 @@ else if (cotiz.includes(MODULO)) mal('cotizador.html carga js/app.js: es la plat
 else if (!cotiz.includes('<script src="js/cotizador/catalogo.js"></script>')) mal('cotizador.html no carga js/cotizador/catalogo.js: no es el cotizador');
 else if (!readFileSync(join(RAIZ, 'js/cotizador/catalogo.js'), 'utf8').includes('const MATERIALES')) mal('js/cotizador/catalogo.js no trae el catálogo de precios');
 else bien('cotizador.html es el cotizador (carga js/cotizador/, con su catálogo)');
-/* Y los once guiones se cargan en el orden que arranque.js exige: él va al final, porque init()
+/* Y los doce guiones se cargan en el orden que arranque.js exige: él va al final, porque init()
    llama a funciones de todos los demás y en un script clásico solo existen las ya cargadas. */
 const guiones = [...cotiz.matchAll(/<script src="js\/cotizador\/([a-z]+)\.js"><\/script>/g)].map(m => m[1]);
 if (guiones.length < 11) mal('cotizador.html carga ' + guiones.length + ' guiones de js/cotizador/: faltan');
@@ -151,7 +151,7 @@ else bien('los ' + guiones.length + ' guiones del cotizador se cargan con arranq
 /* ----- Los números que la documentación afirma -----
    Este repositorio decide cosas con números escritos en prosa, y el más caro de todos es el
    de los manejadores en línea: de él cuelga el argumento de por qué el cotizador NO se porta
-   a módulos ES —«dejarían de resolver EN SILENCIO»— repetido en los once guiones, en el
+   a módulos ES —«dejarían de resolver EN SILENCIO»— repetido en los doce guiones, en el
    README y en js/mod/cotizador.js. Un número que ya no es cierto no tumba el argumento, pero
    sí le quita el peso que tenía, que era justamente ser una medición.
 
@@ -198,7 +198,8 @@ comparar('los oninput de cotizador.html', porTipo('oninput'),
 /* 2 · Los archivos del conjunto versionado, escrito con letra en el README. */
 const NUM = { veinticinco: 25, treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60,
   setenta: 70, 'setenta y cuatro': 74, 'setenta y cinco': 75, 'setenta y seis': 76,
-  ochenta: 80, 'ochenta y un': 81, 'ochenta y dos': 82, 'ochenta y tres': 83, 'ochenta y cuatro': 84, noventa: 90, cien: 100 };
+  ochenta: 80, 'ochenta y un': 81, 'ochenta y dos': 82, 'ochenta y tres': 83, 'ochenta y cuatro': 84,
+  'ochenta y cinco': 85, 'ochenta y seis': 86, 'ochenta y siete': 87, 'ochenta y ocho': 88, noventa: 90, cien: 100 };
 const mConj = /Son ([a-zá-ú ]+?) archivos que se cargan en orden/.exec(readme);
 if (!mConj) mal('el README ya no dice cuántos archivos son el conjunto versionado');
 else if (NUM[mConj[1].trim()] === undefined) mal('el README dice «' + mConj[1].trim() + ' archivos» y esta prueba no sabe leer ese número; añádelo a NUM');
@@ -213,7 +214,7 @@ comparar('las pruebas de node', readdirSync(join(RAIZ, 'pruebas')).filter(n => n
 
 /* 4 · Los módulos ES de LA PLATAFORMA, que es el argumento del service worker para servirla
    caché primero: «un módulo nuevo con uno viejo no es una app vieja, es una app rota».
-   Quedan fuera los once guiones clásicos del cotizador —que comparten ámbito global y no se
+   Quedan fuera los doce guiones clásicos del cotizador —que comparten ámbito global y no se
    importan entre sí— y `js/tema.js`, que también es clásico y corre antes del primer pintado. */
 const modulosES = enDisco.filter(f => f !== 'js/tema.js' && !f.startsWith('js/cotizador/')).length;
 comparar('los módulos ES de la plataforma', modulosES, [

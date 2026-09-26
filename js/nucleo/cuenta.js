@@ -11,7 +11,7 @@
    ============================================================================ */
 
 import * as Prefs from '../datos/prefs.js';
-import { $, esc } from './ui.js';
+import { $, esc, confirmarPf } from './ui.js';
 
 /** Pinta el botón y su menú. `quien` es lo que devolvió `Puerta.custodiar()`. */
 export function montar(quien) {
@@ -53,7 +53,8 @@ export function montar(quien) {
     abrir(false);
     if (b.dataset.cuenta === 'ajustes') { location.hash = '#/ajustes'; return; }
     if (b.dataset.cuenta === 'salir') {
-      if (!confirm('¿Cerrar sesión en este aparato? Vas a tener que volver a entrar con Google.')) return;
+      if (!await confirmarPf({ titulo: '¿Cerrar sesión en este aparato?', texto: 'Vas a tener que volver a entrar con Google.',
+        si: 'Cerrar sesión', no: 'Seguir dentro', peligro: true })) return;
       const Puerta = await import('./puerta.js');
       Puerta.salir();
     }

@@ -11,11 +11,11 @@
 
    ----- POR QUÉ NO SE PORTA A MÓDULO ES. NO LO INTENTES. -----
 
-   `cotizador.html` tiene 157 manejadores en línea —113 `onclick`, 18 `oninput`, y el resto
+   `cotizador.html` tiene 161 manejadores en línea —116 `onclick`, 19 `oninput`, y el resto
    repartido entre onchange, los cuatro de arrastrar y soltar, onkeydown, onload y los de
    ratón y dedo— y CERO asignaciones explícitas a `window.X`. Un manejador en línea se
    resuelve contra el objeto global; en un módulo ES el ámbito superior NO es el global, así
-   que los 157 dejarían
+   que los 161 dejarían
    de resolver EN SILENCIO: sin error de compilación, sin excepción al cargar, y se
    descubrirían haciendo clic uno por uno sobre 645 KB de JS que no tiene una sola prueba
    unitaria y que guarda `al3d_historial`, el único dato irrecuperable del sistema.
@@ -71,6 +71,9 @@
    ============================================================================ */
 
 import { $, ico, esc, vacio, toast, ajustarAltoBarra, insetInferior, altoBarraAbajo, pliegueDelVisor, esqueletoMarco, alTerminarDeEntrar } from '../nucleo/ui.js';
+import * as Prefs from '../datos/prefs.js';
+import * as Ingreso from '../nucleo/ingreso.js';
+import * as Puente from '../datos/puente.js';
 
 let _cont = null;
 let _ctx = null;
@@ -195,6 +198,10 @@ export async function montar(contenedor, ctx) {
 
   _oyeMensaje = ev => alMensaje(ev, m);
   window.addEventListener('message', _oyeMensaje);
+  /* La ventanilla de identidad vive lo que vive el marco: con el montaje y no con la vista. Una
+     pantalla conservada y escondida sigue teniendo su marco, y ese marco sigue esperando el sello
+     de lo que pidió a dirección (notario.js). */
+  exponerIdentidad();
 
   ponerBarra();
 }
@@ -303,6 +310,7 @@ export function desmontar() {
   ocultar();
   if (_reloj) { clearTimeout(_reloj); _reloj = null; }
   if (_oyeMensaje) { window.removeEventListener('message', _oyeMensaje); _oyeMensaje = null; }
+  try { delete window.AL3D; } catch (_) { window.AL3D = undefined; }
   _cont = null; _ctx = null;
   /* Aquí el marco SÍ muere: el router vacía la sección de una conservada podada, y para las
      demás la vacía su próximo montaje. A `desmontar()` se llega por tres caminos —el tope de
@@ -311,6 +319,62 @@ export function desmontar() {
      los días, que ahora pasa por `ocultar()`.
 
      No se pierde nada cuando pasa: el cotizador autoguarda `al3d_q` en cada tecla. */
+}
+
+/* ============================================================================
+   Quién eres, prestado al marco
+   ============================================================================ */
+
+/* El cotizador autoriza precios, y desde septiembre de 2026 el precio se sella en la hoja con
+   la cuenta de Google de dirección (js/cotizador/notario.js). Esa cuenta vive AQUÍ: el token
+   de Google está en la memoria de esta página (js/nucleo/ingreso.js) y el pase que dice qué
+   rol tienes lo dejó la puerta. El marco es del mismo origen, así que en vez de inventar un
+   protocolo de mensajes se le presta una ventanilla con tres cosas, y solo mientras el marco
+   exista:
+
+     · identidad()   — {correo, rol} del pase vigente. Sirve para pintar, NO para decidir: el
+                       que decide es la hoja, que verifica el token en cada petición.
+     · sesion()      — que haya un token de Google vivo, pidiéndolo si caducó. Abre la
+                       ventana de Google, así que el marco la llama dentro de un toque.
+     · hablar(r,c,t) — una pregunta a la hoja con las dos puertas (datos/puente.js#hablar).
+     · avisar(m,t,f) — el aviso del notario («COT-0042 ya está autorizada · Abrir») cuando el
+                       marco está ESCONDIDO. Conservado, el cotizador sigue vivo y su vigilante
+                       sigue preguntando —dentro del marco `visibilityState` dice 'visible'—,
+                       pero su toast se pintaba en un marco que nadie ve y ya no se repetía. Con
+                       el marco a la vista contesta false y el cotizador avisa con el suyo. El
+                       texto va por textContent (ui.js#toast); `f` es la función del marco que
+                       abre esa cotización, y se llama después de volver al Cotizador.
+
+   No se presta el token. El marco no lo necesita —lo pone `hablar` al salir— y un token que no
+   sale de esta página no lo puede copiar nada de lo que corra dentro del marco. */
+function exponerIdentidad() {
+  window.AL3D = Object.freeze({
+    identidad() {
+      const p = Prefs.pase();
+      return p ? { correo: p.correo, rol: p.rol } : null;
+    },
+    async sesion() {
+      if (Ingreso.dentro()) return { ok: true, correo: Ingreso.correo() };
+      const r = await Ingreso.entrar(false);
+      return r.ok ? { ok: true, correo: Ingreso.correo() }
+                  : { ok: false, codigo: r.codigo, mensaje: r.mensaje };
+    },
+    hablar(ruta, cuerpo, espera) { return Puente.hablar(ruta, cuerpo, espera); },
+    avisar(msg, tipo, abrir) {
+      if (_visible || !_ctx) return false;
+      const ctx = _ctx;
+      toast(String(msg || ''), tipo === 'err' ? 'err' : tipo === 'ok' ? 'ok' : '', 9000, {
+        label: typeof abrir === 'function' ? 'Abrir' : 'Ver',
+        fn: () => {
+          ctx.ir('cotizador');
+          /* Después de pedir la vuelta: lo que abre puede preguntar con su confirmar(), y esa
+             pregunta tiene que salir en el marco que ya se está enseñando. */
+          if (typeof abrir === 'function') setTimeout(() => { try { abrir(); } catch (_) {} }, 0);
+        },
+      });
+      return true;
+    },
+  });
 }
 
 /* ============================================================================

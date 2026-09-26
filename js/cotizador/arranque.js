@@ -4,9 +4,9 @@
    El arranque. Va al FINAL: init() llama a funciones de todos los archivos anteriores, y en un script clásico solo están definidas las que ya se cargaron.
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
-   once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
+   doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   157 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -17,14 +17,11 @@
 function hoy(){return new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});}
 function init(){
   loadLogo();
-  aiKeyFallback();
-  /* La preferencia de plegado ya no se lee: con los datos del cliente en su propia
-     pantalla, plegarlos la deja en blanco, y el botón que los volvía a abrir se fue con
-     ella. Quien tuviera guardado un «1» de antes abriría a una tarjeta cerrada y sin
-     manera de abrirla. */
-  _foldProy=false;
-  /* La clave que guardaba esa preferencia dejó de escribirse; la que quedó en los teléfonos
-     de antes se limpia aquí para que no viaje para siempre sin que nadie la lea. */
+  aiOlvidarLlavesLocales();
+  /* Plegar los datos del proyecto ya no existe —con los datos del cliente en su propia
+     pantalla, plegarlos la dejaba en blanco—. La clave que guardaba esa preferencia dejó de
+     escribirse; la que quedó en los teléfonos de antes se limpia aquí para que no viaje para
+     siempre sin que nadie la lea. */
   try{ localStorage.removeItem('al3d_fold_proy'); }catch(_){}
   if(!loadState()){
     Q.folio=nextFolio(); pintarFolio();
@@ -43,7 +40,6 @@ function init(){
      que es lo que hace que la recarga siguiente se reconozca como la misma sesión. */
   separarDeLaCotizacionAnterior();
   pintarClientes();
-  aplicarFoldProy();
   ajustarTopbarMovil();
   ajustarPliegue();
   aplicarBlurPrecios();
@@ -65,6 +61,14 @@ function init(){
   }catch(_){}
   renderMobileBar();
   updProg();
+  /* Quién eres decide si hay botón de Autorizador, y lo que se pidió a dirección antes de
+     cerrar la app se sigue esperando al volver a abrirla (notario.js). */
+  pintarRolDisponible();
+  pintarConexion();
+  /* La que Dirección rechazó mientras estaba en la cola y se cerró la app antes de abrirla: la
+     respuesta ya está guardada y ya no se pregunta por ella (_esperaViva). */
+  aplicarRechazoGuardado();
+  if(_foliosEsperando().length) setTimeout(consultarSolicitudes,1200);
   /* Al final: loadState(), la partida en blanco del arranque y los repintados de arriba
      pasaron por saveState() y habrían dejado pasos en la pila. Nada de eso lo hizo el
      usuario, así que la app abre sin nada que deshacer. */
@@ -161,7 +165,7 @@ window.addEventListener('beforeunload',e=>{
 
 
 
-/* Al final de todo, con los once archivos cargados. Aquí y no donde estaba —a mitad del
+/* Al final de todo, con los doce archivos cargados. Aquí y no donde estaba —a mitad del
    antiguo script en línea— porque init() llama a registrar la venta y al vectorizador, que
    viven en archivos que se cargan antes que este, y a nada que se cargue después. */
 init();

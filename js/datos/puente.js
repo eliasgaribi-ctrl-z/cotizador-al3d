@@ -199,13 +199,21 @@ const vaciada = (fila, k) => Object.prototype.hasOwnProperty.call(fila, k) && (f
  * este teléfono tenía guardado, y eso pisaba la corrección hecha allá: el saldo cambiaba sin
  * que nadie hubiera tocado dinero. Ahora esos cuatro y la fecha del anticipo viajan en el
  * ALTA (la fila no existe todavía) o cuando la operación dice que ese campo fue justo lo que
- * cambió (`opts.campos`, que `proyectos.actualizar` anota). Lo que la plataforma sí es dueña
- * —etapa, dirección, ubicación, tipo, fechas de instalación, estatus y cuenta que aprieta
- * PAGOS— viaja siempre.
+ * cambió (`opts.campos`, que `proyectos.actualizar` anota).
+ *
+ * Y lo mismo, desde septiembre de 2026, el estatus y la cuenta, la etapa, la dirección, la
+ * ubicación y el tipo. Viajaban siempre, con el valor que este teléfono tenía al encolar, y
+ * eso también pisaba: PAGOS marcaba LIQUIDADO en la hoja, Dirección movía una etapa antes de
+ * su siguiente bajada, y el estatus regresaba al de antes —y con la cuenta, el IVA de la fila—;
+ * fabricación movía la etapa de una tarjeta importada, que nace sin pin, y borraba la
+ * ubicación de la fila; un teléfono que nunca bajó la etapa nueva la regresaba al editar una
+ * nota. Ahora cada uno va cuando es lo que cambió. Una operación encolada por una versión
+ * anterior no trae `campos` (null): de ésa no se sabe qué cambió, y sus campos de la
+ * plataforma van como iban —el estatus y la cuenta no, que siempre llegaban con `campos`—.
  *
  * @param {Object} p proyecto de §4.4
  * @param {Object|null} inst su instalación, si ya tiene fecha
- * @param {{alta?:boolean, campos?:string[]}} [opts] sin `opts` se manda todo (es un alta)
+ * @param {{alta?:boolean, campos?:string[]|null}} [opts] sin `opts` se manda todo (es un alta)
  * @returns {Object} nombre de propiedad de Notion -> valor
  */
 export function aNotion(p, inst, opts) {
@@ -213,8 +221,10 @@ export function aNotion(p, inst, opts) {
   const out = {};
   const o = opts && typeof opts === 'object' ? opts : {};
   const alta = o.alta === undefined ? true : !!o.alta;
-  const campos = new Set(Array.isArray(o.campos) ? o.campos : []);
+  const sabe = Array.isArray(o.campos);
+  const campos = new Set(sabe ? o.campos : []);
   const va = campo => alta || campos.has(campo);
+  const vaPropio = (...cs) => alta || !sabe || cs.some(c => campos.has(c));
 
   if (va('nombre'))       out[P.proyecto] = texto(p.nombre);
   if (va('sub'))          out[P.subtotal] = num(p.sub);
@@ -236,22 +246,22 @@ export function aNotion(p, inst, opts) {
   if (texto(p.folio_global).trim()) out[P.folio] = texto(p.folio_global);
 
   const etapa = ETAPA_A_NOTION[p.etapa];
-  if (etapa) out[P.etapa] = etapa;
+  if (etapa && vaPropio('etapa')) out[P.etapa] = etapa;
 
-  if (ESTATUS.includes(p.estatus_notion)) out[P.estatus] = p.estatus_notion;
-  if (CUENTAS.includes(p.cuenta))         out[P.cuenta]  = p.cuenta;
+  if (va('estatus_notion') && ESTATUS.includes(p.estatus_notion)) out[P.estatus] = p.estatus_notion;
+  if (va('cuenta') && CUENTAS.includes(p.cuenta))                 out[P.cuenta]  = p.cuenta;
 
-  out[P.direccion] = texto(p.dir_texto);
+  if (vaPropio('dir_texto')) out[P.direccion] = texto(p.dir_texto);
   /* Cero coma cero no es «no sabemos dónde está»: es la Isla Nula, en el Atlántico, y un
      pin ahí se ve igual de convincente que uno bueno. Es el mismo cordón que `geo.enRango`
      ya tiene del lado del mapa, y tiene que estar de los dos: un cero de relleno que se
      cuela a Notion queda en el libro mayor y de ahí nadie lo saca. Sin coordenada, vacío. */
   const la = Number(p.lat), ln = Number(p.lng);
-  out[P.ubicacion] = (p.lat !== null && p.lng !== null && isFinite(la) && isFinite(ln) &&
+  if (vaPropio('lat', 'lng')) out[P.ubicacion] = (p.lat !== null && p.lng !== null && isFinite(la) && isFinite(ln) &&
                       Math.abs(la) <= 90 && Math.abs(ln) <= 180 && !(la === 0 && ln === 0))
     ? la + ',' + ln : '';
 
-  out[P.tipo] = Array.isArray(p.tipo_trabajo) ? p.tipo_trabajo.slice() : [];
+  if (vaPropio('tipo_trabajo')) out[P.tipo] = Array.isArray(p.tipo_trabajo) ? p.tipo_trabajo.slice() : [];
 
   /* Las dos fechas, y por qué ya NO se pisan.
      Con Notion, `Fecha Anticipo e Instalacion` era una sola columna que significaba las dos
@@ -277,8 +287,19 @@ export function aNotion(p, inst, opts) {
  * Una instalación, en propiedades de Notion. Va contra la MISMA fila del proyecto: en
  * Notion no hay una base de instalaciones y no hace falta, porque una venta tiene una
  * instalación y la fila ya tiene las columnas.
+ *
+ * `viva` es la instalación que manda en el proyecto (ver `instalacionDe` del relevo), cuando la
+ * operación se sube. Hasta septiembre de 2026 se mandaba la de la operación tal cual, y una
+ * CANCELADA escribía su fecha en la columna M como si siguiera en pie: nadie la vaciaba después,
+ * y la antigüedad de la cobranza (P, que cuenta desde M) contaba desde una instalación que no
+ * existe, a veces futura. Ahora, si el proyecto tiene otra viva —se reagendó—, va ésa; si ya
+ * no tiene ninguna, la fecha y la hora se vacían.
  */
-export function instalacionANotion(inst) {
+export function instalacionANotion(inst, viva) {
+  if (viva !== undefined) {
+    if (viva) return instalacionANotion(viva);
+    if (inst && inst.estado === 'cancelada') return { [P.fechaInst]: '', [P.horaInst]: '' };
+  }
   if (!inst || typeof inst !== 'object' || !esISO(inst.fecha)) return {};
   /* Solo la columna de instalación. La del anticipo es de la venta, no de la instalación:
      ver el comentario de las dos fechas en `aNotion`. */
@@ -448,7 +469,7 @@ export function mensajePerdida(mensaje, proy) {
    saldo al revés y del % de comisión a una hoja en puente-sheets-4, que ya los tenía
    arreglados, y callaba lo único que de verdad le faltaba: que ahí entrar con Google no da
    rol. Un aviso que dice cosas que no pasan se aprende a ignorar el día que sí importa. */
-export const VERSION_ESPERADA = 'puente-sheets-6';
+export const VERSION_ESPERADA = 'puente-sheets-7';
 export function versionVieja(version) {
   const m = /^puente-sheets-(\d+)$/.exec(String(version || '').trim());
   const n = m ? Number(m[1]) : 0;
@@ -459,6 +480,7 @@ export function versionVieja(version) {
    lo que se arregló después de ella: la 4 debe lo de la 4 y lo de la 5. Al subir
    VERSION_ESPERADA se agrega ADELANTE lo que todavía le falta a la que queda atrás. */
 const FALLA_CON = [
+  /* 6 */ 'nadie puede autorizar un precio —el cotizador ya no autoriza sin el sello de la hoja— ni solicitar autorización a dirección, y Cotizar con IA no tiene llaves: desde puente-sheets-7 viven en la hoja (⚡ AL3D → Preparar las autorizaciones selladas y ⚡ AL3D → Llaves de IA)',
   /* 5 */ 'al reacomodarse la hoja, las columnas Y a AD (folio de cotización, etapa, dirección) se quedaban en su renglón y la siguiente subida podía escribir una venta encima de otra; «Registrar un cobro» escribía LIQUIDADO en la cuenta; y un cambio contra una venta borrada creaba una fila sin nombre',
   /* 4 */ 'entrar con Google no da rol: esa versión no sabe de identidades, y un teléfono sin token de dispositivo se queda fuera',
   /* 3 */ 'el saldo por cobrar baja al revés y el % de comisión no llega a la hoja',
@@ -522,14 +544,14 @@ async function tokenDeGoogle() {
  * Una petición al Worker. Devuelve `{estado, cuerpo}` y NUNCA lanza por un cuerpo raro:
  * lo que lanza es la red, y con el código que la bandeja sabe interpretar.
  */
-async function pedir(cfg, ruta, opciones = {}) {
+async function pedir(cfg, ruta, opciones = {}, espera = MS_ESPERA) {
   /* Antes del reloj de abajo: la renovación no le come los quince segundos a la petición. */
   const g = await tokenDeGoogle();
   const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
   /* Sin tope, un puente que no contesta deja el bombeo colgado para siempre y la pantalla
      de Ajustes con el botón apretado. Quince segundos: Apps Script con la red de un
      teléfono en la calle tarda, pero no tanto. */
-  const t = ctrl ? setTimeout(() => ctrl.abort(), MS_ESPERA) : 0;
+  const t = ctrl ? setTimeout(() => ctrl.abort(), espera) : 0;
 
   /* ── Todo va por POST, y el token va en el cuerpo ────────────────────────────────
      Apps Script no tiene dónde contestar un OPTIONS: un Web App solo expone doGet y
@@ -556,9 +578,11 @@ async function pedir(cfg, ruta, opciones = {}) {
      propósito —no se pregunta antes cuál usar— porque preguntar costaría una vuelta de red
      por operación y porque el token de Google puede haber caducado justo en el vuelo: que la
      hoja tenga el de reserva en la mano evita un rechazo que no le importa a nadie. */
+  /* La ruta va PRIMERO en el JSON: la hoja solo abre el tope de 64 KB a un cuerpo que empieza
+     por {"ruta":"ia", (doPost en puente/hoja-apps-script.gs). */
+  cuerpo = Object.assign({ ruta: camino.replace(/^\/+/, '') }, cuerpo);
   if (g) cuerpo.google_token = g;
   if (cfg.token) cuerpo.token = cfg.token;
-  cuerpo.ruta = camino.replace(/^\/+/, '');
 
   let r;
   try {
@@ -579,7 +603,7 @@ async function pedir(cfg, ruta, opciones = {}) {
        especificación no deja distinguirlos— así que el mensaje nombra las dos
        posibilidades en vez de mentir con una. */
     throw falla('SIN_RED', (e && e.name === 'AbortError')
-      ? 'El puente no contestó en 15 segundos. Lo que hiciste está guardado aquí y se manda solo.'
+      ? 'El puente no contestó en ' + Math.round(espera / 1000) + ' segundos. Lo que hiciste está guardado aquí y se manda solo.'
       : 'No se pudo llegar al puente. Puede ser que no haya señal, o que la implementación del Apps Script no esté publicada con acceso «Cualquier usuario».');
   } finally { if (t) clearTimeout(t); }
 
@@ -607,6 +631,23 @@ async function pedir(cfg, ruta, opciones = {}) {
     throw falla('SIN_RED', 'El puente contestó ' + estado + ' sin decir por qué.');
   }
   return { estado, cuerpo: cuerpoRes || {} };
+}
+
+/**
+ * Una pregunta suelta al puente, con la configuración de este aparato y las dos puertas —la
+ * identidad de Google si está viva y el token de dispositivo si lo hay—. Es lo que usa el
+ * cotizador empotrado a través de `window.AL3D` (js/mod/cotizador.js): el notario y la IA no
+ * son almacenes que sincronizar, son preguntas con respuesta, y no pasan por la bandeja.
+ *
+ * Devuelve el cuerpo tal como lo contestó la hoja —`{ok:false, codigo, mensaje}` incluido— y
+ * solo lanza por la red o por un rol sin permiso, con el código que `falla` pone.
+ */
+export async function hablar(ruta, cuerpo = {}, espera = MS_ESPERA) {
+  const p = Prefs.puente();
+  const cfg = { url: normalizarUrl(p.url), token: String(p.token || '') };
+  if (!cfg.url) throw falla('DATO_INVALIDO', 'Este aparato no tiene la dirección del puente.');
+  const r = await pedir(cfg, ruta, { method: 'POST', body: JSON.stringify(cuerpo) }, espera);
+  return r.cuerpo;
 }
 
 /** La URL como la quiere `fetch`: sin barra final, para no pedir `//salud`; sin cadena de
@@ -851,9 +892,9 @@ export function crear(cfg0) {
           /* Alta si la fila no existe todavía; si ya existe, el dinero y el nombre solo van
              cuando la operación dice que eso fue lo que cambió. Ver aNotion. */
           props = aNotion(op.datos, await instalacionDe(proy.id),
-                          { alta: !idNotion, campos: Array.isArray(op.campos) ? op.campos : [] });
+                          { alta: !idNotion, campos: Array.isArray(op.campos) ? op.campos : null });
         } else {
-          props = instalacionANotion(op.datos);
+          props = instalacionANotion(op.datos, await instalacionDe(proy.id));
         }
 
         let { props: enviables, fuera } = filtrar(props, permitidas);

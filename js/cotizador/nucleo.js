@@ -4,9 +4,9 @@
    Estado (Q), ayudantes de pantalla, los siete modales y el «atrás» del teléfono, preferencias, clientes conocidos y el cálculo del precio.
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
-   once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
+   doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   157 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -32,6 +32,11 @@ const Q = {
   itemsAuth:{},
   /* Huella del trabajo sobre el que se autorizó el precio. Ver authVigente(). */
   huellaAuth:'',
+  /* El sello de la hoja: {codigo, correo, ts, total, folio}. Sin él, la autorización es de
+     antes de que la hoja sellara (o se soltó al editar) y el PDF no lleva QR. Ver notario.js. */
+  sello:null,
+  /* La solicitud que salió a dirección: {enviada, ts, error}. Solo mientras está pendiente. */
+  solicitud:null,
   /* La autorizada que era, mientras se revisa un «Volver a autorizar»: {folio, autorizador,
      nota, fechaAuth, precioAuth, itemsAuth, huellaAuth, pf}. Vivía en una variable suelta y
      una recarga a media revisión la perdía: cancelar convertía la cotización en BORRADOR,
@@ -270,10 +275,12 @@ window.addEventListener('blur',_dejarDeEspiar);
    Cada una se cierra por su propia función, la misma que su botón: así no hay dos
    maneras de cerrar que puedan dejar estados distintos. */
 const _CAPAS=[
+  ['confmodal',  ()=>confirmarNo()],
   ['pdf-fallback',()=>cerrarEnlacePDF()],
   ['lightbox',   ()=>closeLightbox()],
   ['rv-modal-bg',()=>cerrarRegistrarVenta()],
   ['faltmodal',  ()=>cerrarFaltantes()],
+  ['remotamodal',()=>cerrarRevisionRemota()],
   ['aimodal',    ()=>aiClose()],
   ['histmodal',  ()=>cerrarHistorial()],
   ['climodal',   ()=>cerrarCuadernos()],
@@ -373,6 +380,23 @@ function _atrasDesdeElCodigo(){
   setTimeout(()=>{_atrasPorCodigo=false;},400);
   try{ history.back(); }catch(_){}
 }
+/* ----- Esperar a que ese atrás termine -----
+   history.back() es ASÍNCRONO. «Abrir y editar» y «Duplicar» del historial, con un borrador en
+   pantalla, preguntan con confirmar() encima del historial; al contestar, la capa de la pregunta
+   pide su atrás y en el mismo tick la función cierra el historial. _histAlCerrar ve todavía
+   `state.capa==='confmodal'`, no retrocede, y la entrada del historial se quedaba huérfana: el
+   siguiente atrás del teléfono no hacía nada visible. Esperando aquí, el historial se cierra
+   igual que cuando no hubo pregunta. Si no hay atrás pendiente, no espera nada; y si el popstate
+   no llega, el mismo tope que la marca. */
+function trasElAtrasDelCodigo(){
+  return new Promise(res=>{
+    if(!_atrasPorCodigo){ res(); return; }
+    let t=0;
+    const fin=()=>{ clearTimeout(t); window.removeEventListener('popstate',fin); res(); };
+    window.addEventListener('popstate',fin);
+    t=setTimeout(fin,450);
+  });
+}
 function _histAlAbrir(m){
   if(_CAPAS_CON_HIST_PROPIA.has(m.id))return;
   if(m.dataset.hist==='1')return;
@@ -419,8 +443,19 @@ function deLosClientesAlHistorial(){ cederEntrada('climodal','histmodal'); cerra
    Este oyente va REGISTRADO ANTES que el de las capas, a propósito: los oyentes corren en orden
    de registro, y solo corriendo primero puede ver una capa todavía abierta y cederle el gesto.
    No depende de que ningún otro oyente le avise nada; sus dos guardas son suyas. */
+/* Si ESTE atrás lo dio el código. Lo lee también el oyente de abajo, que corre después y ya no
+   puede leer _atrasPorCodigo porque éste lo apaga. */
+let _popPorCodigo=false;
+/* Lo mismo, para los oyentes del escalador y del vectorizador, que corren DESPUÉS de los dos
+   de aquí: el de abajo apaga _popPorCodigo, y para entonces ya pudo cerrar la capa que estaba
+   arriba —la pregunta de confirmar()—, así que tampoco pueden preguntar quién está arriba. Se
+   anota una vez, antes de que nadie toque nada, y se lee con atrasEsDeLaCapa(). */
+let _esteAtras={porCodigo:false,arriba:null};
+function atrasEsDeLaCapa(id){ return !_esteAtras.porCodigo&&!!_esteAtras.arriba&&_esteAtras.arriba.id===id; }
 window.addEventListener('popstate',ev=>{
   const porCodigo=_atrasPorCodigo; _atrasPorCodigo=false;
+  _popPorCodigo=porCodigo;
+  _esteAtras={porCodigo,arriba:_capaDeArriba()};
   if(_capaDeArriba()) return;                 // la capa de arriba se queda con este atrás
   const st=ev.state;
   if(!st||!st.cot) return;                    // la entrada no es de las pantallas: no es nuestra
@@ -440,6 +475,11 @@ window.addEventListener('popstate',ev=>{
   voz(_pantalla==='cliente'?'Paso 1 de 4 · Cliente':'Paso 2 de 4 · Partidas');
 });
 window.addEventListener('popstate',()=>{
+  /* El atrás que da el código al cerrar una capa con su × consume LA ENTRADA DE ESA CAPA, y nada
+     más. Sin esta guarda, cerrar una capa apilada —la pregunta de confirmar() encima del
+     historial— cerraba también la de abajo: este oyente veía un atrás y se llevaba la capa que
+     quedaba arriba, como si lo hubiera dado el dedo. */
+  if(_popPorCodigo){ _popPorCodigo=false; return; }
   const arriba=_capaDeArriba();
   if(!arriba||arriba.dataset.hist!=='1')return;
   /* Una capa se cierra por este atrás, así que la entrada de pantallas que quedó pendiente
@@ -548,6 +588,81 @@ function voz(msg,urgente){
   el.textContent='';
   requestAnimationFrame(()=>{ el.textContent=msg; });
 }
+/* ----- Las hojas del teléfono se cierran deslizando -----
+   En el teléfono los modales ya salían desde abajo como una hoja del sistema (vidrio-sube en
+   css/sistema.css), pero el gesto que va con una hoja —bajarla con el dedo— no existía: había
+   que estirarse hasta la × de arriba. Aquí está, con una condición que es la que importa: solo
+   se arrastra desde el encabezado, o desde el cuerpo cuando ya está hasta arriba. Sin ella, la
+   primera vez que alguien baja por el historial para buscar una cotización, la hoja se cerraría.
+
+   Se cierra con la función de su capa (_CAPAS), la misma de la ×, así que el foco, el atrás del
+   teléfono y lo que cada modal limpia al cerrarse pasan igual. Un solo oyente para todos. */
+const _HOJA_CIERRA=90;   // px hacia abajo a partir de los cuales soltar cierra
+let _hoja=null;
+function _esTelefono(){ try{ return matchMedia('(max-width:560px)').matches; }catch(_){ return false; } }
+document.addEventListener('touchstart',e=>{
+  if(!_esTelefono()||e.touches.length!==1) return;
+  const m=e.target.closest&&e.target.closest('.modal-bg.show>.modal'); if(!m) return;
+  if(e.target.closest('input,textarea,select,[contenteditable="true"],canvas')) return;
+  const cuerpo=e.target.closest('.modal-b');
+  if(cuerpo&&cuerpo.scrollTop>0) return;
+  if(!e.target.closest('.modal-h')&&!cuerpo) return;
+  const cerrar=(_CAPAS.find(([id])=>id===m.parentElement.id)||[])[1]; if(!cerrar) return;
+  _hoja={m,y0:e.touches[0].clientY,t0:Date.now(),dy:0,cerrar,activo:false};
+},{passive:true});
+document.addEventListener('touchmove',e=>{
+  if(!_hoja) return;
+  const dy=e.touches[0].clientY-_hoja.y0;
+  if(!_hoja.activo){ if(dy<6){ if(dy<-6) _hoja=null; return; } _hoja.activo=true; _hoja.m.style.transition='none'; }
+  _hoja.dy=Math.max(0,dy);
+  _hoja.m.style.transform='translateY('+_hoja.dy+'px)';
+  e.preventDefault();   // que no se mueva la página de atrás ni se dispare el «jalar para recargar»
+},{passive:false});
+function _soltarHoja(){
+  const h=_hoja; _hoja=null; if(!h||!h.activo) return;
+  const rapido=h.dy>40&&h.dy/(Date.now()-h.t0)>0.6;
+  h.m.style.transition='';
+  if(h.dy>_HOJA_CIERRA||rapido){ h.m.style.transform=''; try{ h.cerrar(); }catch(_){} }
+  else h.m.style.transform='';
+}
+document.addEventListener('touchend',_soltarHoja,{passive:true});
+document.addEventListener('touchcancel',_soltarHoja,{passive:true});
+
+/* ----- Sin señal, dicho -----
+   La cotización se guarda en cada tecla y funciona igual sin internet, pero nada en pantalla lo
+   decía: quien cotiza en una azotea no sabía si lo que capturaba estaba a salvo, ni por qué
+   «Autorizar» no contestaba. Un chip junto al folio, mientras dure. */
+function pintarConexion(){
+  const c=$('sin-senal'); if(!c) return;
+  c.hidden=navigator.onLine!==false;
+}
+window.addEventListener('online',()=>{ const c=$('sin-senal'), estaba=c&&!c.hidden; pintarConexion(); if(estaba) toast('Volvió la señal','ok',2200); });
+window.addEventListener('offline',pintarConexion);
+
+/* ----- Preguntar antes, sin el confirm() del navegador -----
+   Seis preguntas de esta app —borrar del historial, abrir otra cotización encima de un
+   borrador, restaurar un respaldo— salían en la ventanita gris del navegador: otra tipografía,
+   otro idioma de botones («Aceptar»), sin atrás del teléfono y bloqueando la página entera.
+   Es el momento en que la app deja de parecer una app. Ésta es la misma pregunta dentro de la
+   app: una capa más de _CAPAS —foco atrapado, Escape, el atrás del teléfono— que contesta con
+   una promesa. Cualquier forma de cerrarla que no sea el botón de seguir es un «no». */
+let _confResolver=null;
+function confirmar(o){
+  o=o||{};
+  return new Promise(res=>{
+    if(_confResolver) _confResolver(false);   // no se anidan: la de antes contesta «no»
+    _confResolver=res;
+    $('conf-titulo').textContent=o.titulo||'¿Continuar?';
+    $('conf-texto').textContent=o.texto||'';
+    const si=$('conf-si'); si.textContent=o.si||'Continuar'; si.className='btn '+(o.peligro?'btn-dgr':'btn-pri');
+    $('conf-no').textContent=o.no||'Cancelar';
+    $('confmodal').classList.add('show');
+  });
+}
+function _confCerrar(v){ $('confmodal').classList.remove('show'); const r=_confResolver; _confResolver=null; if(r) r(v); }
+function confirmarSi(){ _confCerrar(true); }
+function confirmarNo(){ _confCerrar(false); }
+
 /* Aviso emergente. Con un solo temporizador compartido: antes dos avisos seguidos
    se pisaban y el segundo se ocultaba antes de tiempo por el reloj del primero.
    Acepta un botón opcional, por ejemplo para deshacer un borrado. */
@@ -836,7 +951,9 @@ function soltarAuthSiCambio(){
   /* Aquí `authVigente()` ya es false —por eso se está soltando—, así que la pregunta es la de
      dentro: si había algo que se está perdiendo, para poder decirlo. */
   const habia = hayAjusteAuth();
-  Q.precioAuth=0; Q.itemsAuth={}; Q.huellaAuth='';
+  /* El sello se va con la autorización: firmó OTRO trabajo, y un QR que dice «auténtica» sobre
+     un PDF de partidas distintas sería el sello mintiendo. */
+  Q.precioAuth=0; Q.itemsAuth={}; Q.huellaAuth=''; Q.sello=null;
   return habia;
 }
 

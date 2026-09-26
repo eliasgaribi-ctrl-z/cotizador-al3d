@@ -1,6 +1,6 @@
 /* LAS RÉPLICAS ENTRE EL COTIZADOR Y LA PLATAFORMA, COMPARADAS.
 
-   El cotizador son once guiones clásicos que comparten el ámbito global y no exportan nada;
+   El cotizador son doce guiones clásicos que comparten el ámbito global y no exportan nada;
    la plataforma son módulos ES. Lo que las dos necesitan saber —cómo se describe una
    partida, qué campos mueven el precio, cómo se agrupan los clientes, con qué alfabeto se
    nombra un aparato, con qué sal se guardan las llaves— está escrito DOS veces por
@@ -270,12 +270,18 @@ console.log('\nLA IDENTIDAD DEL APARATO — mismo alfabeto, misma clave');
 function HTMLoJs(texto, literal) { return texto.includes("'" + literal + "'") ? literal : ''; }
 
 /* ============================================================================ */
-console.log('\nLAS LLAVES DE IA — la plataforma las lee con la receta del cotizador');
+console.log('\nLA IA — el cotizador y el asistente piden lo mismo, y lo que la hoja acepta');
 {
-  eq('la misma sal', constante(COT.ia, '_KSALT'), /const KSALT = '([^']+)'/.exec(leer('js/datos/asistente-contexto.js'))[1]);
-  eq('los mismos proveedores', constante(COT.ia, 'AI_PROVS'), Asis.PROVEEDORES);
+  eq('los mismos proveedores, en el mismo orden', constante(COT.ia, 'AI_PROVS'), Asis.PROVEEDORES);
   eq('los mismos nombres', constante(COT.ia, 'AI_NOMBRE'), Asis.PROVEEDOR_NOMBRE);
   eq('los mismos modelos por defecto', constante(COT.ia, 'AI_DEFAULTS'), Asis.MODELO_DEFECTO);
+  /* La hoja tiene una lista blanca de modelos (IA_MODELOS en el .gs): un modelo que el
+     teléfono pida y la hoja no conozca es un intento gastado en un «no». */
+  const gs = leer('puente/hoja-apps-script.gs');
+  const listaHoja = Function('return (' + /var IA_MODELOS = (\{[\s\S]*?\});/.exec(gs)[1] + ')')();
+  const pide = constante(COT.ia, 'AI_PROVS').flatMap(p => [constante(COT.ia, 'AI_DEFAULTS')[p]].concat(constante(COT.ia, 'AI_RESPALDO')[p] || []).map(m => p + ':' + m));
+  eq('cada modelo que el cotizador pide está en la lista de la hoja', pide.filter(x => { const [p, m] = x.split(':'); return !(listaHoja[p] || []).includes(m); }), []);
+  eq('y la hoja intenta los mismos proveedores', Function('return ' + /var IA_PROVS = (\[[^\]]*\]);/.exec(gs)[1])(), constante(COT.ia, 'AI_PROVS'));
 }
 
 /* ============================================================================ */

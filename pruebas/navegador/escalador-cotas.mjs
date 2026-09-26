@@ -150,7 +150,7 @@ cierto(tinta.conFoco === tinta.conTodas, 'y con solo la elegida en pantalla, tam
 console.log('\nAL CARGAR OTRA FOTO LAS COTAS VUELVEN');
 await p.evaluate(async src => {
   scSetCotas('ninguna', false);
-  window.confirm = () => true;   // sí, borra las medidas de la foto anterior
+  window.confirmar = () => Promise.resolve(true);   // sí, borra las medidas de la foto anterior (la pregunta es de la app)
   await new Promise(r => scLoadImgSrc(src, 'otra.png', r));
 }, foto);
 await p.waitForTimeout(400);
