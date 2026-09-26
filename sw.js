@@ -15,7 +15,7 @@
    están en ESE teléfono— quedaban inalcanzables por no poder cargar el HTML que los lee.
 
    Durante un año su estrategia fue «red primero, caché de respaldo», porque era UN archivo
-   que se publicaba subiéndolo a main. Ya no es un archivo: es cotizador.html más once guiones
+   que se publicaba subiéndolo a main. Ya no es un archivo: es cotizador.html más doce guiones
    en js/cotizador/ y la hoja css/sistema.css que comparte con la plataforma. Un HTML nuevo con
    un guion viejo no es un cotizador viejo: es uno roto —exactamente el problema que se
    describe abajo para la plataforma—. Así que el cotizador entra al conjunto versionado y se
@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 67;
+const APP_VERSION = 69;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -71,9 +71,10 @@ const APP_FILES = [
   './acerca.html',
   './privacidad.html',
   './condiciones.html',
+  './verificar.html',
   './css/publico.css',
   './js/tema.js',
-  /* El cotizador: la página y sus once guiones. Van juntos porque se cargan en orden y se
+  /* El cotizador: la página y sus doce guiones. Van juntos porque se cargan en orden y se
      llaman entre sí; uno nuevo con uno viejo no arranca. */
   './cotizador.html',
   './js/cotizador/catalogo.js',
@@ -86,6 +87,7 @@ const APP_FILES = [
   './js/cotizador/escalador.js',
   './js/cotizador/venta.js',
   './js/cotizador/vectorizador.js',
+  './js/cotizador/notario.js',
   './js/cotizador/arranque.js',
   './js/app.js',
   './js/nucleo/ui.js',
@@ -130,6 +132,7 @@ const APP_FILES = [
   './js/mod/control.js',
   './js/mod/herramientas.js',
   './datos/semilla.json',
+  './vendor/qrcodegen.js',
   './vendor/leaflet.css',
   './vendor/leaflet-src.esm.js',
   './vendor/images/marker-icon.png',
@@ -169,12 +172,16 @@ const APP_FILES = [
    `/x` (y redirige la primera a la segunda), así que `/cotizador` llegaba sin el `.html` y
    no casaba con nada de aquí: se iba a la red primero y traía el HTML nuevo con los guiones
    viejos de la caché, que es la mezcla que este archivo existe para impedir. */
-const PAGINAS = /\/(index|cotizador|plataforma|acerca|privacidad|condiciones)(\.html)?$/;
+/* `verificar` estuvo fuera de la lista: se precargaba en APP_FILES pero /verificar y
+   /verificar.html caían en la ruta del cotizador, que solo busca en `al3d-v1`, así que sin
+   señal daban el error del navegador —o, por el respaldo de navegación de allá, el
+   cotizador con la dirección de la verificación arriba—. */
+const PAGINAS = /\/(index|cotizador|plataforma|acerca|privacidad|condiciones|verificar)(\.html)?$/;
 function esDeLaPlataforma(url) {
   const p = url.pathname;
   return p.endsWith('/') ||                    // la portada del sitio
-         /* index, el cotizador (desde que va con el conjunto), el reenvío de plataforma y las
-            tres públicas. Éstas se precargaban en APP pero caían en la ruta del cotizador,
+         /* index, el cotizador (desde que va con el conjunto), el reenvío de plataforma, las
+            tres públicas y la verificación de cotizaciones. Éstas se precargaban en APP pero caían en la ruta del cotizador,
             que solo mira `al3d-v1`: sin haberlas abierto antes con señal, la privacidad sin
             red era la página de error del navegador. */
          PAGINAS.test(p) ||

@@ -382,9 +382,8 @@ export function nuevoId(prefijo) {
    podría volver imposible restaurar tres años de cotizaciones, que es el dato que de
    verdad no se puede perder.
 
-   `al3d_pf_puente` NO entra. Su ofuscación es reversible en dos líneas, y el propio
-   cotizador ya lo dice de su API key: un respaldo se manda por WhatsApp o por correo, y
-   una llave que viaja así deja de ser secreta.
+   `al3d_pf_puente` NO entra: guarda la URL y el token del puente en claro, y un respaldo se
+   manda por WhatsApp o por correo. Un token que viaja así deja de ser secreto.
    ============================================================================ */
 
 export const FORMATO_RESPALDO = 1;

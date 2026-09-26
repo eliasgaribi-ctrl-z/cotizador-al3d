@@ -89,9 +89,13 @@ Se enciende: los eventos entran solos al calendario, con las tres personas como 
 2. **Implementar → Nueva implementación → Aplicación web**, *Ejecutar como* **Yo** y *Quién tiene
    acceso* **Cualquier usuario**. Si queda en *Solo yo*, el teléfono recibe la pantalla de inicio
    de sesión de Google en vez de JSON.
-3. Copiar la URL que termina en `/exec`, y sacar los tres tokens —uno por rol— de
-   **⚡ AL3D → Tokens del puente**. Viven en las propiedades del script, no en el código.
-4. Pegar la liga y el token que le toca a cada teléfono en **Ajustes → El puente**, y dar **Probar**.
+3. La URL que termina en `/exec` ya viene de fábrica en la plataforma (`URL_PUENTE` en
+   `js/datos/prefs.js`); solo si es otra hay que cambiarla ahí o pegarla en cada teléfono.
+4. En la pestaña **«Accesos»** de la hoja, un renglón por persona con su correo de Google y su
+   rol. En cada teléfono, **Entrar con Google** con ese correo y, en **Ajustes → El puente**,
+   **Probar**: no hay que pegar nada. Los tres tokens de dispositivo de **⚡ AL3D → Tokens del
+   puente** (en las propiedades del script, no en el código) quedan como salida de emergencia
+   para el día que Google no conteste.
 
 Se enciende: espejo del dinero desde la hoja, creación automática de la fila de la venta al ganar,
 y sincronización entre los tres dispositivos a través del adaptador de sync, **sin que ningún
@@ -101,7 +105,8 @@ para enchufarlo.
 **Estado.** Los dos lados están escritos y probados —`puente/hoja-apps-script.gs`,
 `datos/puente.js`, el arranque y la pantalla de Ajustes— y lo que falta es únicamente lo de los
 cuatro puntos de arriba, que son clics de una persona. La versión del contrato es
-`puente-sheets-6`; «Probar» compara la que contesta la hoja con la que la plataforma espera y
+`puente-sheets-7` (la 6 más el notario —autorizar se sella en la hoja— y la IA por el puente);
+«Probar» compara la que contesta la hoja con la que la plataforma espera y
 avisa si la hoja se quedó atrás. Y una acotación honesta: **el relevo de hoy lleva `proyectos` e
 `instalaciones`, no los diez almacenes**. Lo que iría a las bases de movimientos y materiales se
 aparta en la bandeja con su razón y se reincorpora el día que existan. Ver §5.13.
@@ -155,7 +160,7 @@ Prefijo `al3d_pf_` (pf = plataforma). Todas son **cortas y de tamaño acotado**;
 | `al3d_pf_ganadas` | JSON array | **buzón de entrega** de `index.html` → plataforma. La plataforma lo drena a IndexedDB al abrir y lo vacía. Máximo unos KB | `[]` |
 | `al3d_pf_tiles` | string | `'osm'` \| `'carto'` \| `'google'` | `'osm'` |
 | `al3d_pf_gcal` | JSON | `{clientId, calendarioId}` (Fase 2) | `null` |
-| `al3d_pf_puente` | JSON | `{url, token}` del puente —la implementación `/exec` del Apps Script—, ofuscado con `keyPack()` (Fase 3) | `null` |
+| `al3d_pf_puente` | JSON | `{url, token}` del puente —la implementación `/exec` del Apps Script—, en claro. Sin `url` guardada vale la de fábrica (`URL_PUENTE`); el `token` es el de dispositivo, la salida de emergencia (Fase 3) | `null` |
 | `al3d_pf_ult_export` | string ISO | último respaldo de la plataforma. Alimenta el aviso de desalojo | `''` |
 | `al3d_pf_empresa` | string | id de empresa activa. Se lee; hoy nadie la escribe | `'al3d'` |
 | `al3d_pf_restaurar` | string JSON | la mitad del cotizador de un respaldo completo, esperando a que el cotizador la tome al abrir. La plataforma la escribe; el cotizador la ofrece, restaura y borra | `''` |
@@ -165,7 +170,7 @@ Las once están en `CLAVES` de `datos/prefs.js` y en ningún otro sitio: un mód
 
 **Regla dura, con UNA excepción escrita:** ninguna de estas claves se añade a `RESPALDO_KEYS` (`js/cotizador/historial.js`), **salvo `al3d_pf_ganadas`**, el buzón. Lo escribe el cotizador —es su constancia de «esta cotización se vendió», y de ella sale el hito «venta registrada»—, así que viaja con el historial al que pertenece: un teléfono nuevo que restaura el historial completo tiene que saber cuáles de esas cotizaciones ya se vendieron. Reinstalar un buzón viejo no duplica nada porque la plataforma lo drena por folio global y descarta lo repetido. Para las demás, verificado el mecanismo real: `restaurarDesde` hace `RESPALDO_KEYS.forEach(k => removeItem(k))` y **solo toca las claves de la lista**, así que una clave fuera de la lista sobrevive intacta a una restauración. Añadirlas tendría tres costos y ningún beneficio: (a) restaurar un respaldo viejo borraría el estado actual de la plataforma en silencio; (b) reinstalaría una cola de sync vieja que reenviaría operaciones ya aplicadas; (c) `restaurarDesde` es todo-o-nada con rollback y aborta completa si una clave no cabe, así que meter un espejo de tamaño arbitrario podría **volver imposible restaurar tres años de cotizaciones**. La plataforma tiene su propio archivo de respaldo, `{app:'plataforma-al3d', formato:1, …}`, que a su vez nunca toca claves `al3d_*` del cotizador. `pruebas/respaldo.mjs` compara las dos listas de claves del respaldo (la del cotizador y la réplica de `datos/cotizador.js`).
 
-**`al3d_pf_puente` no entra en el respaldo de la plataforma.** `keyPack()` es XOR+base64, reversible en dos líneas, y el propio código lo dice en `:6849`: *"un respaldo se manda por WhatsApp o por correo, y una key que viaja así deja de ser secreta"*.
+**`al3d_pf_puente` no entra en el respaldo de la plataforma.** Lleva el token de dispositivo en claro, y un respaldo se manda por WhatsApp o por correo: una llave que viaja así deja de ser secreta (`js/datos/db.js`, arriba de `exportar`).
 
 ### 4.3 IndexedDB — todo lo que crece
 
@@ -1039,7 +1044,7 @@ anidador-vectores/js/svgnest.js · svgparser.js · lib/*   VENDORIZADOS de SVGne
 puente/hoja-apps-script.gs          FASE 3. NO se publica como sitio: se pega en el editor de Apps Script DE LA HOJA y se implementa desde ahí. Aquí se versiona para que pruebas/puente.mjs compare los dos vocabularios
 puente/README.md · DESPLIEGUE.md    Qué hace el puente y cómo se monta. Runbook de fallas al final
 js/tema.js                          Clásico, en el <head> de las tres páginas: lee al3d_tema y pone data-tema antes del primer pintado
-js/cotizador/*.js                   Los once guiones clásicos del cotizador (catálogo, núcleo, partidas, proceso, IA, entrega, historial, escalador, venta, vectorizador, arranque). Orden fijado por cotizador.html
+js/cotizador/*.js                   Los doce guiones clásicos del cotizador (catálogo, núcleo, partidas, proceso, IA, entrega, historial, escalador, venta, vectorizador, notario, arranque). Orden fijado por cotizador.html
 ```
 
 ### Cómo se carga sin build

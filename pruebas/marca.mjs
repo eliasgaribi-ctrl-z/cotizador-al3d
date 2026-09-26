@@ -34,7 +34,7 @@ const cierto = (cond, que) => {
 const sinComentarios = t => t.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
 
 const svg = leer('logo-al3d.svg');
-/* El cotizador es su HTML más sus once guiones de js/cotizador/: la marca dibujada a mano podía
+/* El cotizador es su HTML más sus doce guiones de js/cotizador/: la marca dibujada a mano podía
    estar en cualquiera de los dos. */
 const html = sinComentarios(leer('cotizador.html') + '\n' + leer('js/cotizador/entrega.js') + '\n' + leer('js/cotizador/nucleo.js'));
 const plataforma = sinComentarios(leer('index.html'));

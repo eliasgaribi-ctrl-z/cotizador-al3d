@@ -37,7 +37,9 @@ de archivos publicado:
 | **Anidador** | Acomoda las piezas en la lámina antes de cortar | `/anidador-vectores/` |
 
 Todo corre en el navegador. **Sin servidor, sin cuenta, sin instalar nada y sin build**: son
-archivos estáticos que GitHub Pages sirve tal cual. Los datos viven en el dispositivo.
+archivos estáticos que se sirven tal cual, desde GitHub Pages
+(`eliasgaribi-ctrl-z.github.io/cotizador-al3d/`) y desde Cloudflare Pages
+(`cotizador-al3d.pages.dev`). Los datos viven en el dispositivo.
 
 ## El eslabón: de la cotización al taller
 
@@ -63,19 +65,33 @@ material que hay que comprar**. Nada de eso se captura.
 - **Partidas por tipo** — letras 3D, recorte de acrílico, bastidor, caja de luz o captura manual,
   cada una con su catálogo de materiales y tarifas. Por debajo de 10 cm no hay letras 3D: la
   regla se aplica sola y la partida se convierte en recorte de acrílico, diciendo por qué.
-- **Cotizar con IA** — analiza un JPG o PDF del proyecto y propone las partidas. Hasta 8 llaves
-  por proveedor (Gemini, Groq, OpenRouter), que se turnan y se relevan solas cuando una se cae.
+- **Cotizar con IA** — analiza un JPG, PNG o PDF del proyecto y propone las partidas. Prueba en
+  orden Qwen, DeepSeek y Gemini —el único que lee PDF—, reintenta sola cuando uno se satura y
+  se puede cancelar sin cerrar nada. **Las llaves no viven en los teléfonos**: están en la hoja
+  (⚡ AL3D → Llaves de IA) y cada consulta sale por el puente, a nombre de quien entró. Quitar a
+  alguien de «Accesos» le quita también la IA.
 - **Escalador** — mide sobre una foto o un plano sin cotas: se calibra con una referencia
   conocida y de ahí salen las demás medidas, con lupa para afinar con el dedo.
 - **Vectorizador** — convierte el JPG del cliente en trazo de corte, a escala real, y saca los
   dos datos que mueven el precio: cuántas piezas son y qué alto tienen.
-- **Autorización con huella** — el precio se bloquea al autorizar y vale mientras el trabajo no
-  cambie. En cuanto cambia, vuelve al calculado, lo dice y ofrece **volver a autorizarlo** sobre
-  el mismo folio. El ajuste se teclea **sobre el subtotal, sin IVA**, y cuando hay ajustes por
-  partida la app nombra contra qué base se mide.
+- **Autorización sellada en la hoja** — solo autoriza una cuenta de Google que la hoja tiene como
+  Dirección; el nombre del autorizador es ese correo, no un campo que se teclea. Al autorizar,
+  la hoja **recalcula el precio con su propia copia del catálogo** y, si no coincide con el del
+  teléfono, no sella. Si coincide, firma el folio, el trabajo, el precio y el total, y lo anota
+  en su pestaña «Autorizaciones». Sin señal no se autoriza: lo tecleado se queda para después.
+  Quien cotiza sin ser Dirección **solicita**, y la solicitud le llega a Dirección a su teléfono;
+  el sello regresa solo. El precio vale mientras el trabajo no cambie (la huella); en cuanto
+  cambia, vuelve al calculado, lo dice y ofrece **volver a autorizarlo** sobre el mismo folio.
+- **Un QR que delata un PDF alterado** — la cotización sellada lleva un QR y un código. Cualquiera
+  que lo escanee llega a `verificar.html`, que le pregunta a la hoja: auténtica, ya no vigente,
+  revocada o no auténtica, con folio, fecha, total y negocio para compararlos con el papel.
 - **PDF de cotización** con el plano del anuncio, la orden de trabajo del taller y el recibo de
   pago con talón. Un descuento se le enseña al cliente; un aumento se reparte entre las partidas.
 - **Deshacer con Ctrl+Z**, hasta 60 pasos, agrupando lo que se teclea seguido en un mismo campo.
+  Borrar una partida o una cotización del historial se deshace desde el aviso.
+- **Se porta como app** — las preguntas son de la app y no del navegador; en el teléfono las
+  hojas se bajan con el dedo; dice cuando no hay señal (y que todo se sigue guardando), avisa
+  cuando hay una versión nueva y se ofrece a instalarse.
 - **Historial y cuadernos de cliente** — el historial contesta «¿qué cotizamos?»; el cuaderno,
   «¿quién es este y qué le hemos hecho?». No hay alta de clientes: se arma solo con lo capturado.
 - **Los importes salen difuminados mientras es borrador**, porque se captura delante del cliente.
@@ -110,9 +126,11 @@ teléfono, con alarmas a 3 días, 1 día y 30 minutos: las dispara el calendario
 eso suenan aunque nadie abra nada. Los demás avisos se calculan al abrir la plataforma.
 
 **La hoja de cálculo es el libro mayor.** Los proyectos ganados, las fórmulas de comisión y la
-cobranza viven en **«Finanzas AL3D — Ventas y Comisiones»**. En **Ajustes → El puente** se pega
-la liga del Apps Script de esa hoja y el token de este teléfono, y a partir de ahí la venta sale
-sola y el espejo del dinero baja solo — **y solo a quien le toca verlo**: al teléfono de
+cobranza viven en **«Finanzas AL3D — Ventas y Comisiones»**. La liga de su Apps Script ya viene
+de fábrica y la llave es la cuenta de Google con la que se entra: Dirección apunta el correo y
+el rol de cada persona en la pestaña «Accesos» de la hoja, y en el teléfono no hay que pegar
+nada (el token de dispositivo de **Ajustes → El puente** queda de salida de emergencia, para
+el día que Google no conteste). A partir de ahí la venta sale sola y el espejo del dinero baja solo — **y solo a quien le toca verlo**: al teléfono de
 fabricación las cifras no le bajan. Baja también el **récord de ventas completo** de la hoja, que
 es lo que Control suma: una fila que se borra allá desaparece de aquí en la siguiente bajada.
 Sin puente no se rompe nada: la plataforma funciona completa en un dispositivo, y Control lo dice
@@ -152,8 +170,7 @@ En el pie del historial hay cuatro botones: **⬇ Respaldar** descarga un archiv
 ese teléfono, **⬆ Restaurar** lo devuelve (y antes guarda solo un respaldo de lo que estaba),
 **📄 CSV** exporta el historial para pegarlo en una hoja y **📓 Clientes** lo cruza por cliente.
 
-El respaldo **no incluye las API keys** a propósito: se manda por WhatsApp o correo, y una llave
-que viaja así deja de ser secreta.
+El respaldo no lleva llaves de IA porque ya no hay ninguna en el teléfono: viven en la hoja.
 
 > **Un aviso:** el contador de folios también es por dispositivo. Si cotizas desde dos aparatos,
 > los dos empiezan en `COT-0001`. Mientras no haya sincronización, conviene cotizar siempre desde
@@ -171,7 +188,7 @@ que viaja así deja de ser secreta.
 
 ## Cómo está acomodado el código
 
-    cotizador.html            solo el marcado (900 líneas)
+    cotizador.html            solo el marcado (unas 1 100 líneas)
     css/sistema.css           EL sistema de diseño: tokens, estructura, las ocho capas
     css/plataforma.css        lo que solo la plataforma tiene (calendario, almacén, mapa)
     css/vidrio.css            la capa de vidrio, y va LA ÚLTIMA de las tres páginas: repinta
@@ -182,20 +199,96 @@ que viaja así deja de ser secreta.
       nucleo.js                 estado, modales, preferencias, clientes conocidos, cálculo
       partidas.js               agregar, plegar, heredar, pintar, chips y resumen
       proceso.js                los cuatro pasos, la autorización, la barra fija del teléfono
-      ia.js                     cotizar con IA: proveedores, llaves, archivo, reintentos
+      ia.js                     cotizar con IA: la cadena de proveedores, el archivo, los reintentos (las llaves están en la hoja)
       entrega.js                logotipo, WhatsApp, hitos, Canva y el generador de PDF
       historial.js              historial, cuadernos, respaldo, cola, deshacer, folio
       escalador.js              medir sobre la foto
       venta.js                  registrar la venta y la vuelta a la plataforma
       vectorizador.js           imagen a trazo de corte
+      notario.js                el sello de la hoja: quién eres, solicitar, autorizar, la cola remota
       arranque.js               init(), al final, porque llama a todos los demás
     js/app.js + js/mod/       la plataforma: router y sus módulos ES
     js/datos/, js/nucleo/     la capa de datos y las primitivas de pantalla
 
-Los once de `js/cotizador/` son scripts **clásicos** que comparten el ámbito global, como cuando
-eran un solo `<script>`: los 157 manejadores en línea del marcado dependen de eso, y portarlos a
-módulos ES los dejaría mudos sin un solo error. `pruebas/sintaxis.mjs` compila los once y
+Los doce de `js/cotizador/` son scripts **clásicos** que comparten el ámbito global, como cuando
+eran un solo `<script>`: los 161 manejadores en línea del marcado dependen de eso, y portarlos a
+módulos ES los dejaría mudos sin un solo error. `pruebas/sintaxis.mjs` compila los doce y
 `pruebas/publicacion.mjs` vigila que `arranque.js` siga siendo el último.
+
+## Qué está cerrado y qué no
+
+La app corre en el navegador, así que **lo que hay en un teléfono lo controla quien tiene el
+teléfono**. Eso no cambia con ninguna pantalla de entrada. Lo que sí se cerró es que una
+trampa hecha en el teléfono **pase por buena**:
+
+| Qué | Dónde se decide |
+|---|---|
+| Quién entra y con qué rol | la hoja (pestaña «Accesos»), verificando el token de Google en cada petición |
+| Qué columnas del dinero puede leer y escribir cada rol | la hoja (`PUENTE_ROLES`, `VE_EL_DINERO`) |
+| Que un precio está autorizado, por quién y por cuánto | la hoja: recalcula el catálogo y firma (`/autorizar`) |
+| Que un PDF es auténtico | la hoja, cuando alguien escanea su QR (`/verificar`) |
+| Las llaves de IA y su cupo diario | la hoja (`/ia`) |
+| Cuántas peticiones por minuto hace cada persona | la hoja: sesenta, en ventana fija de un minuto |
+| Quién puede cancelar o consultar una solicitud de autorización | la hoja: quien la pidió, o Dirección (`/cancelar`, `/estado`) |
+| A qué servidores puede hablar cada página | su `<meta>` de Content-Security-Policy (`pruebas/csp.mjs`) |
+| Que nadie de afuera empotre la app | `js/tema.js`, el primer guion de todas las páginas |
+
+Lo que sigue abierto, dicho: el catálogo y los datos de este aparato se pueden leer con las
+herramientas del navegador de quien tenga el teléfono desbloqueado, y la plataforma admite
+guiones en línea (`'unsafe-inline'`) porque el cotizador vive de sus manejadores en el marcado
+(ver «Cómo está acomodado el código»).
+Las cabeceras de `_headers` solo llegan cuando el sitio se sirve desde Cloudflare Pages; en
+GitHub Pages no se leen, y por eso el «nadie nos empotra» también vive en `js/tema.js`.
+
+**Cerrado en septiembre de 2026, además** (el detalle, en
+[`puente/README.md`](puente/README.md#cómo-está-cerrado)):
+
+- El cupo de sesenta por minuto se cuenta en **ventana fija**. Antes cada petición le volvía
+  a dar un minuto de vida a la cuenta, y un teléfono que sincronizaba cada 30 s nunca la
+  dejaba vaciarse: acababa fuera sin haber hecho nada raro.
+- **Abono Comision** solo acepta importes positivos: uno negativo hacía subir la comisión
+  pendiente.
+- `/solicitar` ya no pisa la solicitud pendiente de otra persona, `/cancelar` solo la retira
+  quien la pidió o Dirección, y `/estado` solo entrega un sello posterior a la última
+  solicitud de quien pregunta.
+- Los diálogos del menú ⚡ AL3D escapan el nombre del proyecto antes de pintarlo: corren con
+  la sesión del dueño de la hoja, y un nombre con HTML dentro podía llamar funciones del script.
+- Al sincronizar, **el estatus, la cuenta, la etapa, la dirección, el pin y el tipo** solo
+  suben cuando son lo que cambió. Antes viajaban siempre y pisaban lo que PAGOS acababa de
+  corregir en la hoja.
+
+### El origen compartido
+
+Es lo más grande que sigue abierto, y no se arregla con código de este repositorio.
+
+La app vive en `https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/`, y GitHub Pages sirve
+**todos los repositorios de esa cuenta bajo el mismo origen**, `eliasgaribi-ctrl-z.github.io`.
+El navegador separa por origen, no por carpeta: el `localStorage`, el IndexedDB y la caché del
+service worker (CacheStorage) de esta app son también de cualquier otra página publicada desde
+esa cuenta, y hay al menos otra (`tablero-inversionistas-thiqa`). Un XSS en cualquiera de
+ellas —o un error en una dependencia que cargue— puede, sin tocar este repositorio:
+
+- leer el **token de Google** de quien entró (`al3d_pf_gtok`): en el teléfono de Dirección es
+  el que autoriza precios y ve todo el dinero, y vale hasta que caduca;
+- leer el **token de dispositivo del puente** (`al3d_pf_puente`, en claro), que no
+  caduca hasta que se generan otros;
+- leer y cambiar el historial, las cotizaciones y los proyectos del aparato;
+- **envenenar la caché del service worker**: dejar ahí su propia versión de un guion que la
+  app sirve *caché primero*, y que sigue sirviéndose aunque la otra página ya se haya corregido.
+
+Nada de la tabla de arriba lo frena. La CSP de cada página decide lo que *esa* página carga,
+no lo que otra página del mismo origen lee. Y aun dentro de la app, `connect-src` permite
+`https://script.google.com` entero, no el puente de AL3D: cabe cualquier Apps Script de
+cualquier persona, así que la CSP **no limita la salida de datos** de un guion inyectado.
+
+**Recomendación:** servir la app desde un origen que sea solo suyo —un dominio propio, o
+`cotizador-al3d.pages.dev` como único origen— y, ya mudada, **quitar
+`https://eliasgaribi-ctrl-z.github.io` de los orígenes autorizados** del cliente de OAuth en la
+consola de Google. Mientras ese origen siga autorizado, cualquier página de la cuenta puede
+pedirle a Google un token de esta app. Al mudarse hay que tocar también `ORIGENES` y `URL_APP`
+en `js/nucleo/ingreso.js`, y el comentario de `PUENTE_CLIENT_IDS` en el `.gs`; y como el
+almacenamiento es por origen, cada teléfono empieza vacío en el nuevo: respaldar antes aquí y
+restaurar allá.
 
 ## Publicar
 
@@ -206,11 +299,17 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
 > empotra. Subir el cotizador como `index.html` borra la puerta de entrada.
 
 1. Hacer commit a `main` (o fusionar el PR).
-2. En **`sw.js`**, subir **`APP_VERSION`** una unidad. Es la primera línea de código del archivo.
+2. Si cambió `puente/hoja-apps-script.gs`, **publicar el puente antes que la app** — ver
+   [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md). Con `puente-sheets-7` es obligatorio: la app
+   nueva no autoriza sin el notario de la hoja.
+3. En **`sw.js`**, subir **`APP_VERSION`** una unidad. Es la primera línea de código del archivo.
    Sin eso, los teléfonos que ya tienen la app siguen sirviendo la versión guardada.
-3. Esperar de 30 a 60 segundos a que GitHub Pages redespliegue.
+4. Esperar de 30 a 60 segundos a que GitHub Pages redespliegue. La copia de Cloudflare Pages
+   (`cotizador-al3d.pages.dev`) es la misma app; cómo y cuándo se redespliega no está escrito
+   en este repositorio (ver [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md)), así que conviene
+   abrirla y confirmar la versión nueva también ahí.
 
-Son ochenta y tres archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
+Son ochenta y seis archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
 mala señal llegarían mezclados, y **un guion nuevo con uno viejo no es una app vieja, es una app
 rota**. Por eso el conjunto se cambia completo o no se cambia.
 
@@ -219,7 +318,7 @@ plataforma con `herramientas/extraer-catalogo.sh`.
 
 ## Pruebas
 
-    pruebas/correr.sh               25 archivos, solo node, unos segundos
+    pruebas/correr.sh               30 archivos, solo node, unos segundos
     pruebas/correr.sh --navegador   20 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
@@ -248,6 +347,10 @@ píxeles** para comprobar que nada de lo que lleva texto baja de 4,5:1 de contra
   día que existan.
 - **Los modales traen tamaños del sistema viejo.** El escalador, el vectorizador y el historial
   heredan los tokens nuevos, pero sus medidas internas son de antes de la escala de siete tamaños.
+- **La revisión de una solicitud remota ajusta el precio total, no partida por partida.** Para
+  ajustar renglón por renglón, Dirección abre la cotización en su teléfono y la autoriza ahí.
+- **El QR comprueba el total y el negocio, no cada renglón.** Un PDF con los renglones
+  cambiados pero el mismo total pasa la verificación; lo que no pasa es un total distinto.
 - **El neón flex se vende y no está en ningún catálogo.** Cae en partida *manual*, que es justo
   la que el módulo de material excluye por diseño. Es un hueco de negocio: falta decidir cómo se
   cobra.

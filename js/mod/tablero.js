@@ -45,7 +45,7 @@ import * as Sync from '../datos/sync.js';
 import { masDias, iniSemana } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, fmtFecha, fmtFechaDia,
          abrirCapa, cerrarCapa, linkWa, telWa, ajustarAltoBarra, voz, segmento,
-         filaTaller, bandaFrescura, medirMarco, esqueletoMarco, cifraQueCabe }
+         filaTaller, bandaFrescura, medirMarco, esqueletoMarco, cifraQueCabe, scrollSuave }
   from '../nucleo/ui.js';
 
 const { ETAPA_NOMBRE, ICO_ETAPA, claseEtapa, ORDEN, puedeMover } = Proy;
@@ -116,7 +116,29 @@ export async function montar(contenedor, ctx) {
 
   /* El pase que dejó el módulo anterior. De un solo uso: `recibir()` lo borra al leerlo. */
   const pase = (ctx && ctx.recibir) ? ctx.recibir() : null;
-  if (pase && pase.vista) _vista = pase.vista === 'anidador' ? 'anidador' : 'tablero';
+  /* ----- El trazo del vectorizador va a la Mesa de corte de la barra, no a esta -----
+     El «Acomodar en hoja» del Cotizador empotrado (js/mod/cotizador.js) manda aquí, con
+     `vista:'anidador'` y sin proyecto. Y aquí se perdía: este Tablero NO se conserva al
+     cambiar de pestaña, así que al volver `pintarAnidador()` escribía el marco desde cero, y
+     el anidador ya había borrado `al3d_anidar` al leerlo la primera vez —es una entrega de
+     un solo uso a propósito, y pruebas/navegador/anidador.mjs lo exige—. La ruta `anidador`
+     sí se conserva: se sigue de largo hacia ella, que lee la misma clave y guarda su marco
+     vivo mientras se mira otra cosa. El pase del Calendario trae `proyecto_id` y se queda
+     aquí, porque lo que trae es el aviso de origen que solo pinta esta pantalla.
+
+     Debajo se pinta igual la CARGA del taller, sin `return`: ir a la mesa puede pedir
+     confirmación (el Cotizador que se poda al abrirla, ver `montarDeVerdad` en app.js), y si
+     la respuesta es quedarse, lo que queda en pantalla es esta, que no puede quedarse en
+     blanco. La carga y no la mesa de aquí aunque fuera la última que se vio: su marco leería
+     `al3d_anidar` —y lo borraría— antes que el de la ruta, que se quedaría vacío. */
+  const aLaMesa = !!(pase && pase.vista === 'anidador' && !pase.proyecto_id && conMesa() &&
+                     ctx && typeof ctx.ir === 'function');
+  if (aLaMesa) { _vista = 'tablero'; ctx.ir('anidador'); }
+  /* La mesa de corte solo para quien tiene la ruta `anidador`. El pase que la pide llega de
+     dos sitios que no miran el rol —el «Acomodar en hoja» del Cotizador empotrado y el del
+     Calendario—, así que la puerta está aquí y no en cada uno: pagos acababa en una mesa de
+     corte que su barra no tiene y con las herramientas del pie escondidas. */
+  if (pase && pase.vista && !aLaMesa) _vista = (pase.vista === 'anidador' && conMesa()) ? 'anidador' : 'tablero';
   _origen = (pase && pase.proyecto_id) ? pase : null;
 
   _cont.addEventListener('click', alClic);
@@ -274,6 +296,9 @@ function pintar() {
 
   _acciones = [];
 
+  /* `_vista` sobrevive a los montajes, y el rol puede cambiar entre dos: quien estaba en la
+     mesa de corte y pasa a pagos no puede seguir en ella. */
+  if (_vista === 'anidador' && !conMesa()) _vista = 'tablero';
   if (_vista === 'anidador') { pintarAnidador(); return; }
 
   /* Se suelta la guarda del remonte al volver de la mesa de corte: aquí no hay marco que
@@ -313,7 +338,17 @@ function pintar() {
    Dos lentes sobre el mismo taller: la carga —qué hay y qué se atrasa— y la mesa de corte
    —cómo caen las piezas en la lámina—. Es un segmento y no dos rutas porque son dos formas
    de mirar el mismo momento del trabajo, y porque el Anidador no puede ser una ruta: ver §5. */
+/* Si este rol tiene la mesa de corte. Sale de la lista de rutas de app.js —`ctx.tieneRuta`—,
+   que es la única que dice qué ve cada rol; la segunda línea es para cuando no hay contexto,
+   con la misma regla que tiene hoy esa lista. Sin la mesa, el segmento no se pinta: un
+   interruptor con una sola posición es un letrero. */
+function conMesa() {
+  if (_ctx && typeof _ctx.tieneRuta === 'function') return _ctx.tieneRuta('anidador');
+  return Prefs.rol() !== 'pagos';
+}
+
 function segLente() {
+  if (!conMesa()) return '';
   return segmento([{ v: 'tablero', t: 'Carga del taller' }, { v: 'anidador', t: 'Mesa de corte' }],
     _vista, 'data-vista', 'Qué ves del taller');
 }
@@ -970,7 +1005,7 @@ function pintarMbar(d, rol) {
   b.onclick = () => {
     const el = _cont && _cont.querySelector(destino);
     if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.scrollIntoView({ behavior: scrollSuave(), block: 'start' });
     const foco = el.querySelector('button, a');
     if (foco) { try { foco.focus({ preventScroll: true }); } catch (_) {} }
   };
@@ -1000,7 +1035,7 @@ async function alClic(ev) {
 
   const lente = ev.target.closest('[data-vista]');
   if (lente) {
-    const v = lente.dataset.vista === 'anidador' ? 'anidador' : 'tablero';
+    const v = (lente.dataset.vista === 'anidador' && conMesa()) ? 'anidador' : 'tablero';
     if (v === _vista) return;
     _vista = v;
     /* Al salir de la mesa de corte se olvida de dónde se venía: el aviso de origen es de esa

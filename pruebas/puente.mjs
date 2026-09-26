@@ -93,9 +93,24 @@ console.log('\nEL DINERO SOLO VIAJA EN EL ALTA O CUANDO FUE LO QUE CAMBIÓ');
   eq('ni la fecha del anticipo',              etapa[P.fecha], undefined);
   eq('ni el % de comisión',                   etapa[P.pctCom], undefined);
   eq('pero la etapa sí',                      etapa[P.etapa], 'Cortado');
-  eq('y la dirección, que es de la plataforma', etapa[P.direccion], 'Av. Vallarta 1234, Guadalajara');
-  eq('y el estatus que aprieta PAGOS',        etapa[P.estatus], 'FABRICACION');
   eq('y el folio, que es la llave',           etapa[P.folio], 'COT-0042@K7QM');
+  /* Lo que viajaba siempre y pisaba: el estatus que PAGOS acababa de marcar en la hoja, la
+     cuenta (y con ella el IVA de la fila), el pin que otro teléfono puso, el tipo. */
+  eq('ni el estatus, que PAGOS pudo cambiar en la hoja', etapa[P.estatus], undefined);
+  eq('ni la cuenta',                          etapa[P.cuenta], undefined);
+  eq('ni la dirección',                       etapa[P.direccion], undefined);
+  eq('ni la ubicación: la tarjeta importada nace sin pin y lo borraba', etapa[P.ubicacion], undefined);
+  eq('ni el tipo',                            etapa[P.tipo], undefined);
+  const est = aNotion(proy(), null, { alta: false, campos: ['estatus_notion', 'cuenta'] });
+  eq('el estatus y la cuenta van cuando son lo que cambió', [est[P.estatus], est[P.cuenta], est[P.etapa]],
+     ['FABRICACION', proy().cuenta, undefined]);
+  const pin = aNotion(proy({ lat: 20.67, lng: -103.35 }), null, { alta: false, campos: ['lat', 'lng', 'geo_fuente'] });
+  eq('el pin va cuando es lo que cambió', pin[P.ubicacion], '20.67,-103.35');
+  /* Una operación que encoló la versión anterior no trae `campos`: no se sabe qué cambió. */
+  const vieja = aNotion(proy({ etapa: 'cortado' }), null, { alta: false, campos: null });
+  eq('una operación vieja sin campos manda lo de la plataforma, como antes',
+     [vieja[P.etapa], vieja[P.direccion], vieja[P.estatus], vieja[P.subtotal]],
+     ['Cortado', 'Av. Vallarta 1234, Guadalajara', undefined, undefined]);
 
   const anti = aNotion(proy({ anti_pactado: 7000 }), null, { alta: false, campos: ['anti_pactado'] });
   eq('si lo que cambió fue el anticipo, ése sí va', anti[P.anticipo], 7000);
@@ -167,6 +182,16 @@ console.log('\nLA INSTALACIÓN SOLA, CONTRA LA MISMA FILA');
      instalacionANotion({ fecha: '2026-09-01', hora: null })['Hora instalacion'], '');
   eq('sin fecha no hay nada que mandar', instalacionANotion({ hora: '10:00' }), {});
   eq('null no revienta', instalacionANotion(null), {});
+  /* La cancelada escribía su fecha en M y nadie la vaciaba: la antigüedad de la cobranza
+     contaba desde una instalación que ya no existe. */
+  const cancelada = { fecha: '2026-10-20', hora: '09:00', estado: 'cancelada' };
+  eq('cancelada y sin otra viva: vacía la fecha y la hora de la fila',
+     instalacionANotion(cancelada, null), { 'Fecha instalacion': '', 'Hora instalacion': '' });
+  eq('cancelada porque se reagendó: va la viva, no se borra la fecha nueva',
+     instalacionANotion(cancelada, { fecha: '2026-10-27', hora: '11:00', estado: 'confirmada' }),
+     { 'Fecha instalacion': '2026-10-27', 'Hora instalacion': '11:00' });
+  eq('sin saber cuál es la viva, como antes', instalacionANotion({ fecha: '2026-09-01', hora: '10:00' }),
+     { 'Fecha instalacion': '2026-09-01', 'Hora instalacion': '10:00' });
 }
 
 console.log('\nEL ESPEJO QUE BAJA: solo lo que es de Notion');
@@ -326,8 +351,12 @@ console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 
 {
   /* El de antes le decía a una hoja en puente-sheets-4 que el saldo bajaba al revés —la 4 lo
      arregló— y callaba lo único que de verdad le faltaba: entrar con Google no da rol. */
-  eq('la plataforma espera la 6', VERSION_ESPERADA, 'puente-sheets-6');
+  eq('la plataforma espera la 7', VERSION_ESPERADA, 'puente-sheets-7');
   eq('una hoja en la 5 es vieja', versionVieja('puente-sheets-5'), true);
+  eq('y una en la 6 también', versionVieja('puente-sheets-6'), true);
+  const a6 = avisoVersion('puente-sheets-6');
+  cierto('a la 6 le dice que no se puede autorizar ni cotizar con IA', /autorizar/.test(a6) && /IA/.test(a6));
+  cierto('y no le repite lo de Y a AD, que la 6 ya arregló', !/Y a AD/.test(a6));
   const a5 = avisoVersion('puente-sheets-5'), a4 = avisoVersion('puente-sheets-4'), a3 = avisoVersion('puente-sheets-3');
   cierto('a la 5 le dice lo de Y a AD', /Y a AD/.test(a5));
   cierto('y no le dice lo que la 4 y la 3 ya arreglaron', !/Google/.test(a5) && !/al revés/.test(a5));
@@ -336,7 +365,7 @@ console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 
   cierto('a la 3, lo del saldo, y lo de las que vienen después', /al revés/.test(a3) && /Google/.test(a3) && /Y a AD/.test(a3));
   /* Y ya no manda a pegar el .gs del repo encima sin mirar: el README dice que la copia
      que manda es la de la hoja, y que se compara antes. */
-  cierto('los tres mandan a comparar antes de pegar', [a3, a4, a5].every(x => /compáralo/.test(x) && /Antes de pegar nada/.test(x)));
+  cierto('los cuatro mandan a comparar antes de pegar', [a3, a4, a5, a6].every(x => /compáralo/.test(x) && /Antes de pegar nada/.test(x)));
 }
 
 console.log('\nEL FOLIO DE COTIZACIÓN SOLO VIAJA SI LO HAY (defecto 4)');
@@ -1329,6 +1358,19 @@ console.log('\nLA VENTA QUE LA HOJA YA NO TIENE: el camino entero, con base');
   await jalarTodo();
   await S.bombear();
   eq('5j · y si su fila vuelve, le llega el «No se dio»', aFila('V-710', a710).map(o => o.datos['Etapa de obra']), ['No se dio']);
+
+  /* 6 · Dos salidas del almacén a la vez. `Reglas.refrescar` (Inicio, el asistente) y
+     `avanzarEtapa` las emiten sin candado; dos que coincidían leían el requerimiento todavía
+     'calculado' y restaban el material dos veces. */
+  await DB.poner('materiales', { id: 'mat-prueba', nombre: 'Lámina de prueba', unidad_compra: 'lamina',
+                                 familia: 'lamina', activo: true });
+  await DB.poner('proyectos', propio('proy-S', 'COT-0720@TEST', 'V-720', { nombre: 'Sastrería Sol - Letras' }));
+  await DB.poner('requerimientos', { id: 'req-S', proyecto_id: 'proy-S', material_id: 'mat-prueba', estado: 'calculado',
+                                     cantidad_compra: 2, cantidad_ajustada: null, unidad_compra: 'lamina' });
+  const [c1, c2] = await Promise.all([Proy.avanzarEtapa('proy-S', 'cortado'), Proy.avanzarEtapa('proy-S', 'cortado')]);
+  const salidasS = (await DB.listar('movimientos')).filter(m => m.requerimiento_id === 'req-S');
+  eq('6 · dos cortes a la vez restan el material UNA vez', [c1.ok, c2.ok, salidasS.length, (await DB.obtener('requerimientos', 'req-S')).estado],
+     [true, true, 1, 'consumido']);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

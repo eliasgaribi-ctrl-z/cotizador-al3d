@@ -340,41 +340,19 @@ export function mdLite(texto) {
   return out.join('');
 }
 
-/* ----- Las llaves del cotizador, leídas y nunca escritas -----
-   El cotizador guarda las API keys ofuscadas en `al3d_kxs_<proveedor>` (XOR con una sal y
-   base64, ver js/cotizador/ia.js) y el proveedor y modelo elegidos en `ai_provider` y
-   `ai_model_<proveedor>`. Aquí se leen con la misma receta. La plataforma NO escribe ninguna
-   de estas claves: la key se pega una vez, en el cotizador, y sirve para las dos apps. */
-const KSALT = 'al3d·key·v1';
-const kxor = s => { let o = ''; for (let i = 0; i < s.length; i++) o += String.fromCharCode(s.charCodeAt(i) ^ KSALT.charCodeAt(i % KSALT.length)); return o; };
-const unpack = v => { try { return kxor(atob(String(v))); } catch (_) { return ''; } };
+/* ----- Los proveedores de IA -----
+   Las llaves ya no viven en los teléfonos: están en la hoja, y la pregunta sale por el puente
+   (rutaIA_ en puente/hoja-apps-script.gs). Aquí solo queda el orden —el mismo que el cotizador,
+   AI_PROVS en js/cotizador/ia.js— y el modelo de cada uno, que es de la lista blanca de la hoja.
+   pruebas/replicas.mjs compara las dos copias. */
+export const PROVEEDORES = ['qwen', 'deepseek', 'gemini'];
+export const PROVEEDOR_NOMBRE = { qwen: 'Qwen', deepseek: 'DeepSeek', gemini: 'Gemini' };
+export const MODELO_DEFECTO = { qwen: 'qwen3.7-flash', deepseek: 'deepseek-flash', gemini: 'gemini-3.1-flash-lite' };
 
-export const PROVEEDORES = ['gemini', 'groq', 'openrouter'];
-export const PROVEEDOR_NOMBRE = { gemini: 'Gemini', groq: 'Groq', openrouter: 'OpenRouter' };
-export const MODELO_DEFECTO = { gemini: 'gemini-2.5-flash', groq: 'meta-llama/llama-4-scout-17b-16e-instruct', openrouter: 'meta-llama/llama-4-scout:free' };
-
-export function llavesDe(prov, almacen) {
-  const get = k => { try { return almacen.getItem(k); } catch (_) { return null; } };
-  const v = get('al3d_kxs_' + prov);
-  if (v) {
-    try { const a = JSON.parse(unpack(v)); if (Array.isArray(a)) return a.filter(Boolean).map(String); } catch (_) {}
-  }
-  const una = unpack(get('al3d_kx_' + prov) || '') || get('ai_key_' + prov) || (prov === 'gemini' ? get('ai_key') : '') || '';
-  return una ? [String(una)] : [];
-}
-
-/** La cadena de intentos: el proveedor elegido con sus keys, y después los demás que tengan. */
-export function cadenaIA(almacen) {
-  const get = k => { try { return almacen.getItem(k); } catch (_) { return null; } };
-  const elegido = PROVEEDORES.includes(get('ai_provider')) ? get('ai_provider') : 'gemini';
-  const orden = [elegido].concat(PROVEEDORES.filter(p => p !== elegido));
-  const out = [];
-  for (const p of orden) {
-    const ks = llavesDe(p, almacen);
-    const modelo = get('ai_model_' + p) || (p === 'gemini' ? get('ai_model') : '') || MODELO_DEFECTO[p];
-    for (const k of ks) out.push({ prov: p, model: modelo, key: k });
-  }
-  return out;
+/** La cadena de intentos. `estado` es lo que /salud dice que tiene llave en la hoja
+ *  ({qwen:true,…}); sin saberlo todavía se intenta con todos y la hoja dice «sin llave». */
+export function cadenaIA(estado) {
+  return PROVEEDORES.filter(p => !estado || estado[p]).map(p => ({ prov: p, model: MODELO_DEFECTO[p] }));
 }
 
 /* Para la etiqueta del mes en las sugerencias. */

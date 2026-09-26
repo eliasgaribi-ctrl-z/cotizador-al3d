@@ -13,8 +13,8 @@
         nada salga del teléfono (js/datos/asistente-contexto.js, `responderLocal`). Una
         pregunta escrita que case con una de ellas también se contesta así.
      2. LO DEMÁS VA A LA IA, con el mismo resumen como contexto, al proveedor que YA tenga
-        llave guardada en el cotizador (Gemini, Groq u OpenRouter). La plataforma no pide
-        una segunda llave y no escribe las del cotizador. La primera vez que algo va a salir
+        llave en la hoja (Qwen, DeepSeek o Gemini), y la pregunta sale por el puente: las llaves
+        ya no viven en ningún teléfono. La primera vez que algo va a salir
         del dispositivo se dice con todas sus letras y se pide un «entendido».
 
    La respuesta —venga de donde venga— se pinta como texto: negritas, viñetas y nada más.
@@ -31,6 +31,7 @@ import * as Taller from '../datos/taller.js';
 import * as Material from '../datos/material.js';
 import * as Ventas from '../datos/ventas.js';
 import * as Bitacora from '../datos/bitacora.js';
+import * as Puente from '../datos/puente.js';
 import { armarResumen, promptSistema, mdLite, cadenaIA, PROVEEDOR_NOMBRE, INTENCIONES,
          detectarIntencion, respuestaLocal, resumenDelDia, sugerirIntenciones } from '../datos/asistente-contexto.js';
 import { $, ico, esc, money, toast, abrirCapa, cerrarCapa, copiarTexto, hoyISO, fmtFecha } from './ui.js';
@@ -47,6 +48,12 @@ let _msgs = [];                 // [{rol:'yo'|'bot'|'espera'|'error', texto, ts,
 let _ctx = null;
 let _ocupado = false;
 let _abort = null;
+/* Qué proveedores tienen llave en la hoja, según /salud. Se pregunta al abrir el panel; null
+   mientras no se sepa, y entonces se ofrece la IA igual: si no hay llave, la hoja lo dice. */
+let _iaEstado = null;
+function refrescarIA() {
+  Puente.hablar('salud', {}).then(r => { if (r && r.ok && r.ia) { _iaEstado = r.ia; pintar(); } }).catch(() => {});
+}
 /* Cerrar el panel CANCELA la pregunta en vuelo. La cancelación se leía de `!_ocupado`, que
    durante una petición es siempre falso, así que el abort de `cerrar()` se reportaba como «el
    proveedor tardó demasiado» y el bucle pasaba al siguiente: el resumen del negocio —4.5 KB,
@@ -93,6 +100,7 @@ export function montar(ctx) {
 export async function abrir() {
   pintar();
   abrirCapa(CAPA, { hist: true });
+  refrescarIA();
   /* El resumen de hoy se lee al abrir —es local y tarda decenas de milisegundos— y se pinta
      en cuanto llega. Si tarda, el panel ya está abierto con las preguntas; nada espera. */
   try { await leerSiHaceFalta(); } catch (_) {}
@@ -112,7 +120,7 @@ export function cerrar() {
 
 function pintar() {
   const capa = $(CAPA); if (!capa) return;
-  const cadena = cadenaIA(localStorage);
+  const cadena = cadenaIA(_iaEstado);
   const hayLlave = cadena.length > 0;
   const quien = cadena[0] ? (PROVEEDOR_NOMBRE[cadena[0].prov] || cadena[0].prov) + ' · ' + cadena[0].model : '';
   const hayHilo = _msgs.length > 0;
@@ -131,7 +139,7 @@ function pintar() {
         '<textarea id="ia-pregunta" rows="1" placeholder="Escribe tu pregunta…" aria-label="Tu pregunta"' + (_ocupado ? ' disabled' : '') + '></textarea>' +
         '<button type="button" class="btn btn-pri ia-enviar" data-ia-enviar' + (_ocupado ? ' disabled' : '') + ' aria-label="Preguntar">' + ico('i-subir') + '</button>' +
       '</div>' +
-      '<p class="ia-pista">Enter envía · Shift+Enter hace renglón' + (hayLlave ? '' : ' · para preguntas libres, pega una llave de IA en el cotizador') + '</p>' +
+      '<p class="ia-pista">Enter envía · Shift+Enter hace renglón' + (hayLlave ? '' : ' · para preguntas libres, Dirección pega una llave de IA en la hoja') + '</p>' +
     '</div>' +
   '</div>';
   abajo();
@@ -180,7 +188,7 @@ function resumenHTML() {
 }
 
 function hiloHTML() {
-  const hayLlave = cadenaIA(localStorage).length > 0;
+  const hayLlave = cadenaIA(_iaEstado).length > 0;
   return '<div class="ia-hilo">' + _msgs.map(m => {
     if (m.rol === 'yo') return '<div class="ia-msg yo"><div class="ia-burbuja">' + esc(m.texto) + '</div></div>';
     if (m.rol === 'espera') return '<div class="ia-msg bot"><div class="ia-burbuja ia-espera">' + ico('i-reloj') + ' ' + esc(m.texto) + '</div></div>';
@@ -361,17 +369,17 @@ async function preguntar(texto) {
   const q = String(texto || '').trim().slice(0, 1500);
   if (!q) return;
   const intent = detectarIntencion(q);
-  const hayLlave = cadenaIA(localStorage).length > 0;
+  const hayLlave = cadenaIA(_iaEstado).length > 0;
   if (intent && (!hayLlave || intent !== 'hoy')) { await preguntarLocal(intent, q); return; }
   if (intent) { await preguntarLocal(intent, q); return; }
   if (!hayLlave) {
     _msgs.push({ rol: 'yo', texto: q, ts: Date.now() });
     const cerca = sugerirIntenciones(q).filter(k => Prefs.veDinero() || !INTENCIONES[k].dinero);
     _msgs.push({ rol: 'bot', local: true, ts: Date.now(),
-      texto: 'Eso no lo puedo calcular aquí, y este dispositivo no tiene llave de IA para preguntas libres. ' +
+      texto: 'Eso no lo puedo calcular aquí, y la hoja no tiene ninguna llave de IA para preguntas libres. ' +
         (cerca.length ? '¿Buscabas alguna de estas?' : '') +
-        '\n\nPara preguntas libres, pega una llave de Gemini, Groq u OpenRouter en el cotizador (Cotizar con IA → Configuración): sirve para las dos apps.',
-      acciones: cerca.map(k => ({ tipo: 'intent', intent: k, label: INTENCIONES[k].titulo })).concat([{ tipo: 'ir', ruta: 'cotizador', label: 'Ir al cotizador' }]) });
+        '\n\nPara preguntas libres, Dirección pega una llave de Qwen, DeepSeek o Gemini en la hoja (⚡ AL3D → Llaves de IA): sirve para el cotizador y para aquí.',
+      acciones: cerca.map(k => ({ tipo: 'intent', intent: k, label: INTENCIONES[k].titulo })) });
     pintar(); enfocarCampo();
     return;
   }
@@ -399,7 +407,7 @@ async function preguntarLocal(intent, textoPregunta) {
 /** Una pregunta libre, a la IA. Pide el «entendido» la primera vez. */
 async function preguntarIA(q, opts) {
   if (_ocupado) return;
-  const cadena = cadenaIA(localStorage);
+  const cadena = cadenaIA(_iaEstado);
   if (!cadena.length) { pintar(); return; }
   if (!opts.yaAnotada) _msgs.push({ rol: 'yo', texto: q, ts: Date.now() });
 
@@ -458,6 +466,7 @@ async function preguntarIA(q, opts) {
       /* Antes de pasar al siguiente proveedor: si se cerró el panel, no hay siguiente. */
       if (_cancelado || (e && e.cancelado)) { cancelada(); return; }
       ultimoError = e;
+      if (e && e.definitivo) break;   // cupo del día o cuenta sin permiso: es de la persona, no del proveedor
       /* Una llave inválida o un modelo que no existe no se arregla reintentando con la misma:
          se pasa a la siguiente. Un 429/5xx también pasa a la siguiente, que es la cuota nueva. */
       continue;
@@ -465,7 +474,7 @@ async function preguntarIA(q, opts) {
   }
   if (ultimoError) {
     quitarEspera();
-    _msgs.push({ rol: 'error', texto: (ultimoError.message || 'No hubo respuesta') + '. Revisa la llave en el cotizador o inténtalo en un momento. Las preguntas rápidas siguen funcionando sin IA.', ts: Date.now() });
+    _msgs.push({ rol: 'error', texto: (ultimoError.message || 'No hubo respuesta') + '. Inténtalo en un momento. Las preguntas rápidas siguen funcionando sin IA.', ts: Date.now() });
   }
   _ocupado = false;
   pintar(); enfocarCampo();
@@ -535,72 +544,34 @@ async function leerTaller() {
   });
 }
 
-/* ----- La llamada al proveedor -----
-   Gemini con su API propia; Groq y OpenRouter hablan el mismo dialecto de chat. Sin modo
-   JSON: aquí se quiere texto. Un solo intento por candidato; la cadena decide el siguiente. */
+/* ----- La llamada, por la hoja -----
+   Un intento por candidato; la cadena decide el siguiente. La hoja arma la petición de cada
+   proveedor —Gemini con su API propia, Qwen y DeepSeek con el dialecto de chat— y contesta el
+   texto, o por qué no. La petición no se puede cortar a medio vuelo: cerrar el panel marca la
+   espera como cancelada y lo que llegue se tira. */
 async function llamar(c, sistema, previos, pregunta) {
-  const ctl = new AbortController();
+  const ctl = { abortado: false, abort() { this.abortado = true; } };
   _abort = ctl;
-  const t = setTimeout(() => ctl.abort(), TIMEOUT);
+  const cancelado = () => { const x = new Error('cancelado'); x.cancelado = true; return x; };
   try {
-    if (c.prov === 'gemini') {
-      const contents = previos.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
-        .concat([{ role: 'user', parts: [{ text: pregunta }] }]);
-      const body = { systemInstruction: { parts: [{ text: sistema }] }, contents,
-        generationConfig: { temperature: 0.2, maxOutputTokens: 1200 } };
-      /* La key va en la cabecera x-goog-api-key, como en ia.js del cotizador: un ?key= en la URL
-         queda escrito en el historial de red, en los HAR que se comparten y en cualquier proxy. */
-      const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(c.model) +
-        ':generateContent';
-      const r = await pedir(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key }, body: JSON.stringify(body), signal: ctl.signal });
-      if (!r.res.ok || (r.data && r.data.error) || !r.data) throw errorDe(r, c);
-      const cand = (r.data.candidates || [])[0];
-      const txt = ((cand && cand.content && cand.content.parts) || []).map(p => p.text || '').join('').trim();
-      if (!txt) throw new Error((PROVEEDOR_NOMBRE[c.prov] || c.prov) + ' respondió vacío' + (cand && cand.finishReason ? ' (' + cand.finishReason + ')' : ''));
-      return txt;
+    let r;
+    try {
+      r = await Puente.hablar('ia', { modo: 'chat', prov: c.prov, model: c.model, sistema, mensajes: previos, pregunta }, TIMEOUT);
+    } catch (e) {
+      if (ctl.abortado) throw cancelado();
+      const x = new Error(e && e.codigo === 'ROL_SIN_PERMISO' ? e.message : 'no se pudo llegar a la hoja (revisa tu conexión)');
+      x.definitivo = !!(e && e.codigo === 'ROL_SIN_PERMISO');
+      throw x;
     }
-    const URLS = { groq: 'https://api.groq.com/openai/v1/chat/completions', openrouter: 'https://openrouter.ai/api/v1/chat/completions' };
-    const hdrs = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + c.key };
-    if (c.prov === 'openrouter') { hdrs['HTTP-Referer'] = location.origin; hdrs['X-Title'] = 'Plataforma AL3D'; }
-    const body = { model: c.model, temperature: 0.2, max_tokens: 1200,
-      messages: [{ role: 'system', content: sistema }].concat(previos, [{ role: 'user', content: pregunta }]) };
-    const r = await pedir(URLS[c.prov], { method: 'POST', headers: hdrs, body: JSON.stringify(body), signal: ctl.signal });
-    if (!r.res.ok || (r.data && r.data.error) || !r.data) throw errorDe(r, c);
-    const ch = (r.data.choices || [])[0];
-    const txt = ((ch && ch.message && ch.message.content) || '').trim();
-    if (!txt) throw new Error((PROVEEDOR_NOMBRE[c.prov] || c.prov) + ' respondió vacío');
-    return txt;
+    if (ctl.abortado) throw cancelado();
+    if (r && r.ok && r.texto) return String(r.texto);
+    if (r && r.codigo === 'SIN_LLAVE' && _iaEstado) _iaEstado[c.prov] = false;
+    const x = new Error((r && r.mensaje) || ((PROVEEDOR_NOMBRE[c.prov] || c.prov) + ' no contestó'));
+    x.definitivo = !!(r && (r.codigo === 'CUPO_AGOTADO' || r.codigo === 'ROL_SIN_PERMISO'));
+    throw x;
   } finally {
-    clearTimeout(t);
     if (_abort === ctl) _abort = null;
   }
-}
-
-async function pedir(url, opts) {
-  let res;
-  try { res = await fetch(url, opts); }
-  catch (e) {
-    if (opts.signal && opts.signal.aborted && _cancelado) { const c = new Error('cancelado'); c.cancelado = true; throw c; }
-    throw new Error(e && e.name === 'AbortError' ? 'el proveedor tardó demasiado en responder' : 'no se pudo conectar con el proveedor (revisa tu conexión)');
-  }
-  const txt = await res.text().catch(() => '');
-  let data = null; try { data = JSON.parse(txt); } catch (_) {}
-  return { res, data, txt };
-}
-
-function errorDe(r, c) {
-  const e = r.data && r.data.error;
-  const crudo = ((typeof e === 'string' ? e : (e && (e.message || e.msg))) || (r.data && r.data.message) ||
-    (r.txt || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, 140);
-  const s = (e && typeof e.code === 'number' && e.code >= 100) ? e.code : r.res.status;
-  const n = PROVEEDOR_NOMBRE[c.prov] || c.prov;
-  let msg;
-  if (s === 429) msg = n + ' alcanzó su límite de peticiones';
-  else if (s === 408 || s >= 500) msg = n + ' está saturado';
-  else if (s === 401 || s === 403) msg = 'la llave de ' + n + ' no es válida o no tiene permiso';
-  else if (s === 404) msg = n + ' no reconoce el modelo «' + c.model + '»';
-  else msg = n + ' rechazó la petición (HTTP ' + s + ')';
-  return new Error(crudo ? msg + ' — ' + crudo : msg);
 }
 
 void toast;

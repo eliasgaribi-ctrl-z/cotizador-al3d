@@ -138,6 +138,7 @@ function guardarTok(t) {
 }
 let _correo = '';
 let _cliente = null;
+let _clienteDe = '';     /* el identificador con el que se creó `_cliente`. Ver `entrar()`. */
 let _cargando = null;
 /* El hueco donde cada llamada a `entrar()` deja su forma de rendirse, para que el
    `error_callback` del cliente —que se creó una sola vez— sepa a quién contestarle. */
@@ -222,10 +223,13 @@ export async function entrar(callado) {
   if (!await cargarGis()) return mal('SIN_RED', MSG.SIN_RED);
 
   const r = await new Promise(resolve => {
-    /* Un solo cliente para toda la vida de la pestaña, por lo mismo que en `gcal.js`: crear
-       uno por petición deja retrollamadas viejas colgando y el token acaba llegando a la que
-       ya nadie espera. */
-    if (!_cliente) {
+    /* Un solo cliente mientras no cambie el identificador, por lo mismo que en `gcal.js`:
+       crear uno por petición deja retrollamadas viejas colgando y el token acaba llegando a la
+       que ya nadie espera. Se creaba UNA vez con el identificador de ese momento, así que
+       pegar otro en Ajustes —que es para lo que existe ese campo: probar uno antes de
+       escribirlo aquí— no surtía efecto hasta recargar, y la ventana seguía saliendo con el
+       de antes. */
+    if (!_cliente || _clienteDe !== id) {
       try {
         _cliente = window.google.accounts.oauth2.initTokenClient({
           client_id: id, scope: SCOPE, callback: () => {},
@@ -240,7 +244,9 @@ export async function entrar(callado) {
             return _fallo(mal('SIN_RED', MSG.SIN_RED));
           },
         });
+        _clienteDe = id;
       } catch (_) {
+        _cliente = null; _clienteDe = '';
         return resolve(mal('DATO_INVALIDO', MSG.RECHAZADO));
       }
     }

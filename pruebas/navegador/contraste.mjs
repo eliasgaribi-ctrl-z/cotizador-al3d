@@ -102,6 +102,7 @@ const nav = await chromium.launch({executablePath:'/opt/pw-browsers/chromium-119
 /* deviceScaleFactor 3: con 1 px por píxel el texto chico es casi todo antialias y la medida
    baila. A ×3 hay píxeles de tinta plena que contar. */
 const ctx = await nav.newContext({viewport:{width:1440,height:1000}, locale:'es-MX', deviceScaleFactor:3});
+await ctx.addInitScript({ path: decodeURIComponent(new URL('./hoja-de-mentiras.js', import.meta.url).pathname) });   // el notario, de mentiras
 const p = await ctx.newPage();
 let fallos = 0;
 const mal = m => { console.log('  ✗ ' + m); fallos++; };
@@ -203,7 +204,7 @@ await comprobar('el cálculo de una partida', '#authbox .ia-calc');
 await comprobar('el subtotal ajustado', '#authbox .ia-total');
 await comprobar('el mismo con IVA', '#authbox .ia-total.soft');
 
-await p.evaluate(() => { const a = document.getElementById('a-name'); if (a) { a.value = 'Elías'; Q.autorizador = 'Elías'; } autorizar(); });
+await p.evaluate(() => autorizar());
 await p.waitForTimeout(900);
 
 /* El candado de la pantalla del cliente: es el que dice cómo se corrigen los datos con el

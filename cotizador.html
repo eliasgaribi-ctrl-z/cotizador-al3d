@@ -2,6 +2,12 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<!-- ----- A dónde puede hablar el cotizador (Content-Security-Policy) -----
+     A la hoja y a nada más: desde septiembre de 2026 la IA también sale por ella, así que ni
+     Qwen ni DeepSeek ni Gemini aparecen aquí. pdf.js viene de cdnjs y arma su worker desde un
+     blob:; los PDF de referencia se enseñan en un <iframe> con data:. Ver la nota de
+     index.html y pruebas/csp.mjs. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob: https://script.google.com https://script.googleusercontent.com; worker-src 'self' blob: https://cdnjs.cloudflare.com; frame-src 'self' data: blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Cotizador AL3D</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -84,7 +90,7 @@
      del service worker, que resuelve el respaldo del cotizador SIN ignoreSearch—. Y va antes
      que todo el marcado para que el CSS pinte ya con la clase puesta. -->
 <script>if(parent!==window)document.documentElement.classList.add('empotrado');
-/* ARRANCANDO. La página pinta su marcado antes de que corran los once guiones del final, y
+/* ARRANCANDO. La página pinta su marcado antes de que corran los doce guiones del cotizador, y
    ese marcado sin datos —el riel sin paso encendido, la tarjeta con los campos vacíos, la
    columna del dinero sin importes— se veía unos cientos de milisegundos como si fuera la app.
    Con esta clase puesta, css/sistema.css enseña un esqueleto en su lugar y esconde el
@@ -146,6 +152,7 @@ document.documentElement.classList.add('arrancando');
 <symbol id="i-luna" viewBox="0 0 24 24"><path d="M20.2 14.6A8.6 8.6 0 0 1 9.4 3.8a8.6 8.6 0 1 0 10.8 10.8z"/></symbol>
 <!-- Cuatro piezas acomodadas en una lámina: el anidador de vectores. Mismo trazo abierto de
      24×24 que los demás. -->
+<symbol id="i-nube-off" viewBox="-0.935 -0.918 25.836 25.836" style="stroke-width:2.045"><path d="M6.5 18.5a4 4 0 0 1-.4-8 6 6 0 0 1 10.3-2.2"/><path d="M18 10.6a4 4 0 0 1 .5 7.9H10"/><path d="M3.5 3.5l17 17"/></symbol>
 <symbol id="i-anidar" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="11" rx="1.6"/><rect x="13" y="3" width="8" height="6" rx="1.6"/><rect x="13" y="11" width="8" height="10" rx="1.6"/><rect x="3" y="16" width="8" height="5" rx="1.6"/></symbol>
 </defs></svg>
 
@@ -190,6 +197,9 @@ document.documentElement.classList.add('arrancando');
            la vuelta la hace irAPlataforma() por postMessage. -->
       <a class="btn-hist btn-pf" href="./#/hoy" title="El taller: tablero, calendario, material y mapa" aria-label="Abrir el taller: tablero de fabricación, calendario, material y mapa"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg><span class="lbl"> Plataforma</span></a>
       <span class="folio" id="folio">COT-0001</span>
+      <!-- Sin señal, lo que importa saber es que nada se pierde: la cotización se guarda aquí en
+           cada tecla. Lo que sí espera a la señal —autorizar, la IA— lo dice cada uno. -->
+      <span class="folio sin-senal" id="sin-senal" role="status" hidden title="Sin señal: la cotización se sigue guardando en este teléfono. Autorizar y la IA esperan a la señal."><svg class="svgi" aria-hidden="true"><use href="#i-nube-off"/></svg><span class="lbl"> Sin señal · se guarda aquí</span></span>
       <div class="seg" id="roleseg" role="group" aria-label="Rol con el que trabajas" title="Cambia de rol para ver el flujo de autorización">
         <button class="on" aria-pressed="true" data-rol="vendedor" onclick="cambiarRol('vendedor')">Vendedor</button>
         <button aria-pressed="false" data-rol="autorizador" onclick="cambiarRol('autorizador')">Autorizador</button>
@@ -494,37 +504,15 @@ document.documentElement.classList.add('arrancando');
       </div>
       <p id="ai-intro" style="font-size:12.5px;color:var(--muted);margin-bottom:13px;line-height:1.5"></p>
       <details class="ai-cfg" id="ai-cfg-box">
-        <summary>Configuración · proveedores gratuitos de IA</summary>
+        <summary>Proveedores de IA</summary>
         <div style="margin-top:11px">
-          <div class="fld" style="margin-bottom:10px">
-            <div class="fld-lab" id="lab-ai-prov">Proveedor</div>
-            <div class="seg" id="ai-prov-seg" style="width:100%" role="group" aria-labelledby="lab-ai-prov">
-              <button data-p="gemini" aria-pressed="false" onclick="setAiProv('gemini')">Google Gemini</button>
-              <button data-p="groq" aria-pressed="false" onclick="setAiProv('groq')">Groq</button>
-              <button data-p="openrouter" aria-pressed="false" onclick="setAiProv('openrouter')">OpenRouter</button>
-            </div>
-          </div>
-          <div id="prov-gemini">
-            <div class="fld"><div class="fld-lab" id="lab-keys-gemini">API keys de Google Gemini</div><div class="key-list" id="keys-gemini" role="group" aria-labelledby="lab-keys-gemini"></div><div class="key-add"><input id="ai-key-gemini" class="key-in" type="text" inputmode="text" aria-label="Pega una API key de Google Gemini" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"><button type="button" class="key-btn add" onclick="aiAddKey('gemini')">Agregar</button></div></div>
-            <div class="fld"><label for="ai-model-gemini">Modelo</label><input id="ai-model-gemini" placeholder="gemini-2.5-flash" value="gemini-2.5-flash"></div>
-            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. El único que admite PDF, y en horas pico el que más se satura.</p>
-          </div>
-          <div id="prov-groq" style="display:none">
-            <div class="fld"><div class="fld-lab" id="lab-keys-groq">API keys de Groq</div><div class="key-list" id="keys-groq" role="group" aria-labelledby="lab-keys-groq"></div><div class="key-add"><input id="ai-key-groq" class="key-in" type="text" inputmode="text" aria-label="Pega una API key de Groq" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"><button type="button" class="key-btn add" onclick="aiAddKey('groq')">Agregar</button></div></div>
-            <div class="fld"><label for="ai-model-groq">Modelo</label><input id="ai-model-groq" value="meta-llama/llama-4-scout-17b-16e-instruct"></div>
-            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>. Muy rápido · solo JPG (no PDF). Buen respaldo de Gemini: no comparten la misma cola.</p>
-          </div>
-          <div id="prov-openrouter" style="display:none">
-            <div class="fld"><div class="fld-lab" id="lab-keys-openrouter">API keys de OpenRouter</div><div class="key-list" id="keys-openrouter" role="group" aria-labelledby="lab-keys-openrouter"></div><div class="key-add"><input id="ai-key-openrouter" class="key-in" type="text" inputmode="text" aria-label="Pega una API key de OpenRouter" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Pega tu key (gratis, sin tarjeta)"><button type="button" class="key-btn add" onclick="aiAddKey('openrouter')">Agregar</button></div></div>
-            <div class="fld"><label for="ai-model-openrouter">Modelo</label><input id="ai-model-openrouter" value="meta-llama/llama-4-scout:free"></div>
-            <p style="font-size:11.5px;color:var(--muted);line-height:1.5">Gratis en <a class="ai-link" href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Acceso a muchos modelos · solo JPG (no PDF). Su catálogo cambia seguido: si dice que no reconoce el modelo, copia el nombre exacto de <a class="ai-link" href="https://openrouter.ai/models?fmt=cards&input_modalities=image&max_price=0" target="_blank" rel="noopener">openrouter.ai/models</a> (los gratuitos terminan en <code>:free</code>).</p>
-          </div>
-          <p class="key-note" id="ai-respaldo"></p>
-          <p class="key-note"><svg class="svgi" aria-hidden="true"><use href="#i-candado"/></svg> Las API keys no están escritas en el código del cotizador: las pegas una sola vez, se guardan ofuscadas en <b>este</b> dispositivo y después solo se muestran sus últimos 4 caracteres. Cada una se envía directo a su proveedor. Si el dispositivo es compartido, usa <b>Borrar</b> al terminar.</p>
+          <p class="key-note" style="margin:0 0 10px">Orden de intento: <b>1 · Qwen → 2 · DeepSeek → 3 · Gemini</b>. Si uno está saturado, la app pasa sola al siguiente. Los <b>PDF</b> van directo a Gemini, que es el único que los lee.</p>
+          <div class="key-note" id="ai-estado" aria-live="polite"></div>
+          <p class="key-note"><svg class="svgi" aria-hidden="true"><use href="#i-candado"/></svg> Las llaves de IA ya no se guardan en los teléfonos: viven en la hoja de AL3D y cada consulta sale por ella, a nombre de quien entró. Quitar a alguien de «Accesos» le quita también la IA.</p>
         </div>
       </details>
       <div class="fld" id="ai-file-fld">
-        <div class="fld-lab" id="lab-ai-file">Archivo (JPG o PDF)</div>
+        <div class="fld-lab" id="lab-ai-file">Archivo (JPG, PNG o PDF)</div>
         <div class="ai-drop" id="ai-drop" role="button" tabindex="0" aria-describedby="ai-drop-s"
           onclick="$('ai-file').click()"
           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();$('ai-file').click();}">
@@ -541,7 +529,8 @@ document.documentElement.classList.add('arrancando');
         <div class="ai-merge-note" id="ai-merge-note"></div>
       </div>
       <button class="btn btn-pri" id="ai-go-btn" onclick="aiAnalyze()" style="margin-top:8px">Analizar y cotizar</button>
-      <div class="ai-status" id="ai-status"></div>
+      <button class="btn btn-gho" id="ai-cancel-btn" onclick="aiCancelar()" hidden>Cancelar el análisis</button>
+      <div class="ai-status" id="ai-status" role="status"></div>
     </div>
   </div>
 </div>
@@ -580,7 +569,7 @@ document.documentElement.classList.add('arrancando');
     </div>
     <p class="hist-ayuda"><b>Duplicar</b> copia el cliente y las partidas a una cotización nueva, en borrador: es la de cotizar lo mismo con otro material o otra medida sin capturar de nuevo.</p>
     <div class="hist-search-bar">
-      <input id="hist-search" type="search" aria-label="Buscar en el historial por folio, cliente, fecha, partida o total" placeholder="Buscar por folio, cliente, fecha o partida…" autocomplete="off" oninput="pintarHistorial()">
+      <input id="hist-search" type="search" aria-label="Buscar en el historial por folio, cliente, fecha, partida o total" placeholder="Buscar por folio, cliente, fecha o partida…" autocomplete="off" oninput="pintarHistorialPronto()">
       <span class="hist-count" id="hist-count"></span>
     </div>
     <div class="hist-body" id="hist-body"></div>
@@ -594,9 +583,45 @@ document.documentElement.classList.add('arrancando');
            cuánto lleva sin respaldarse. La segunda frase se queda tal cual: el README la
            defiende, porque un respaldo se manda por WhatsApp y una key que viaja así deja de
            ser secreta. -->
-      <p class="foot-nota" id="hist-nota">El respaldo <b>no</b> incluye tus API keys.</p>
+      <p class="foot-nota" id="hist-nota">Las llaves de IA no viven en este teléfono: están en la hoja de AL3D.</p>
     </div>
     <input type="file" id="restaurarin" accept="application/json,.json" style="display:none">
+  </div>
+</div>
+
+<!-- Una solicitud que llegó de OTRO teléfono, por la hoja. Se revisa aquí y no se carga en la
+     pantalla: no es una cotización de este aparato, no ocupa su folio ni entra a su historial.
+     Ver notario.js. -->
+<div class="modal-bg" id="remotamodal" onclick="if(event.target===this)cerrarRevisionRemota()" role="dialog" aria-modal="true" aria-labelledby="rem-titulo">
+  <div class="modal">
+    <div class="modal-h"><b id="rem-titulo">Solicitud</b><button onclick="cerrarRevisionRemota()" aria-label="Cerrar">×</button></div>
+    <div class="modal-b">
+      <p class="mini" id="rem-quien" style="text-align:left;margin-bottom:10px"></p>
+      <div id="rem-partidas"></div>
+      <div class="fld" style="margin-top:12px">
+        <label for="rem-precio" id="rem-lab">Precio final autorizado</label>
+        <div class="inp-money"><input id="rem-precio" type="number" inputmode="decimal" min="0" step="100" oninput="pintarRemotaNeto()"></div>
+        <div class="precio-auth-neto" id="rem-neto"></div>
+      </div>
+      <div class="fld"><label for="rem-nota">Nota para quien la pidió (opcional)</label><textarea id="rem-nota" placeholder="Comentario para el vendedor…"></textarea></div>
+      <div class="authnote auth-quien" id="rem-autoriza"></div>
+      <p class="mini" id="rem-estado" role="status" style="text-align:left;min-height:1.2em"></p>
+      <button class="btn btn-ok" id="rem-autorizar" onclick="autorizarRemota()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Autorizar precio</button>
+      <button class="btn btn-dgr" id="rem-rechazar" onclick="rechazarRemota()">Rechazar</button>
+    </div>
+  </div>
+</div>
+
+<!-- La pregunta de la app, en vez del confirm() del navegador (confirmar() en nucleo.js). Va
+     arriba de todas las capas: se abre encima del historial, del escalador o de la cola. -->
+<div class="modal-bg" id="confmodal" onclick="if(event.target===this)confirmarNo()" role="alertdialog" aria-modal="true" aria-labelledby="conf-titulo" aria-describedby="conf-texto">
+  <div class="modal modal-conf">
+    <div class="modal-h"><b id="conf-titulo">¿Continuar?</b><button onclick="confirmarNo()" aria-label="Cerrar">×</button></div>
+    <div class="modal-b">
+      <p class="conf-texto" id="conf-texto"></p>
+      <button class="btn btn-pri" id="conf-si" onclick="confirmarSi()">Continuar</button>
+      <button class="btn btn-gho" id="conf-no" onclick="confirmarNo()">Cancelar</button>
+    </div>
   </div>
 </div>
 
@@ -924,6 +949,7 @@ document.documentElement.classList.add('arrancando');
 <!-- El cotizador, repartido por dominio en js/cotizador/. Son scripts CLÁSICOS que comparten
      el ámbito global —los 157 manejadores en línea del marcado dependen de eso— y el orden
      importa: arranque.js va al final porque init() llama a los demás. -->
+<script src="vendor/qrcodegen.js"></script>
 <script src="js/cotizador/catalogo.js"></script>
 <script src="js/cotizador/nucleo.js"></script>
 <script src="js/cotizador/partidas.js"></script>
@@ -934,6 +960,7 @@ document.documentElement.classList.add('arrancando');
 <script src="js/cotizador/escalador.js"></script>
 <script src="js/cotizador/venta.js"></script>
 <script src="js/cotizador/vectorizador.js"></script>
+<script src="js/cotizador/notario.js"></script>
 <script src="js/cotizador/arranque.js"></script>
 
 <!-- Modal: Registrar Venta -->

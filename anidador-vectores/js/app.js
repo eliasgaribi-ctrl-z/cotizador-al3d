@@ -358,6 +358,14 @@
     }
     if (T.corriendo) detener(false);
     corrida++;   // lo que el motor todavía tuviera en vuelo era del archivo anterior
+    /* La banda de «Trazo recibido del vectorizador… Viene con su medida real» es de ESE
+       archivo. Se quedaba puesta al arrastrar o pegar otro SVG encima, y con el nuevo a otra
+       escala esa frase era justo la que no había que creerse. `recibirDelCotizador` la vuelve
+       a escribir después de esta función cuando el archivo sí viene de allá. */
+    if (opts.origen !== 'cotizador') {
+      var banda = $('an-origen');
+      if (banda) { banda.hidden = true; banda.innerHTML = ''; }
+    }
 
     A = { texto: texto, nombre: nombre || 'diseño.svg', peso: opts.peso || texto.length, raiz: raiz,
           bbox: null, escala: null, k: null, piezas: 0, avisos: [], origen: opts.origen || null };

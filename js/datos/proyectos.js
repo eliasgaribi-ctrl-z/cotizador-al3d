@@ -697,7 +697,7 @@ export async function descartar(ref, motivo = '') {
   if (nota) fila.notas = (p.notas ? p.notas + '\n' : '') + nota;
   const r = await DB.poner('proyectos', fila);
   if (!r.ok) return r;
-  await encolar('actualizar', r.valor);
+  await encolar('actualizar', r.valor, nota ? ['etapa', 'notas'] : ['etapa']);
   await anotar({ accion: 'descarto', entidad_id: p.id,
     titulo: (p.nombre || p.folio_local) + ' se canceló',
     detalle: 'Estaba en ' + (ETAPA_NOMBRE[p.etapa] || p.etapa) + (nota ? ' · ' + nota : ''),
@@ -964,7 +964,18 @@ export function puedeMover(rol, etapa) {
  * @param {'derivado'|'manual'} origenMov de dónde salió la orden
  * @param {string} nota qué decir en el libro
  */
-async function emitirSalidas(p, origenMov, nota) {
+/* En fila, una a la vez. `Reglas.refrescar` las emite y no tiene candado: lo corren Inicio al
+   montarse, el asistente al leer el taller y `avanzarEtapa` al cruzar el corte, y dos que
+   coincidían leían el mismo requerimiento todavía 'calculado' —se marca 'consumido' después de
+   cada salida— y restaban el material dos veces, con dos movimientos de id distinto que nada
+   deduplica. En fila, la segunda ya lo encuentra consumido. */
+let _salidas = Promise.resolve();
+function emitirSalidas(p, origenMov, nota) {
+  const corrida = _salidas.then(() => emitirSalidasAhora(p, origenMov, nota));
+  _salidas = corrida.catch(() => {});
+  return corrida;
+}
+async function emitirSalidasAhora(p, origenMov, nota) {
   const [Mat, St] = await Promise.all([mod('material'), mod('stock')]);
   if (!Mat || typeof Mat.requerimientos !== 'function') return { movimientos: 0, fallidos: 0 };
   if (!St || typeof St.mover !== 'function') return { movimientos: 0, fallidos: 0 };
@@ -1056,7 +1067,7 @@ export async function avanzarEtapa(id, etapa) {
   const fila = { ...p, etapa, sync: 0 };
   const r = await DB.poner('proyectos', fila);
   if (!r.ok) return r;
-  await encolar('actualizar', r.valor);
+  await encolar('actualizar', r.valor, ['etapa']);
 
   let movimientos = 0;
   if (cruzaCorte) {
@@ -1432,19 +1443,23 @@ export function filaDeOtraCotizacion(p, venta) {
 /**
  * La nota de lo que no se mandó a la hoja (`sin_mandar`), con estas operaciones sumadas. PURA.
  * Guarda desde cuándo y qué campos cambiaron, no las operaciones: cuando la fila vuelve se manda
- * UNA con el estado de hoy (la etapa, la dirección, el estatus, la cuenta y la instalación viajan
- * siempre), y los campos son para que el nombre y el dinero que sí cambiaron viajen también (ver
+ * UNA con el estado de hoy (la instalación viaja siempre), y los campos son para que lo que sí
+ * cambió —la etapa, el pin, el estatus, el nombre, el dinero— viaje también (ver
  * `aNotion`) y para que la bajada que trae la fila de vuelta no los pise con el valor viejo de la
  * fila antes de mandarlos (ver `bajar`). La de una instalación no suma campos pero sí deja la
  * nota: el reenvío lleva la fecha de la instalación viva.
  * La escriben el relevo, con el cambio que no mandó porque la venta está fuera de la hoja, y
  * `dejarFueraDeLaHoja`, con lo que ya había rebotado.
  */
+/* Una operación de una versión anterior no dice qué cambió: de ésa se reenvía lo que la
+   plataforma escribe, como se mandaba entonces (ver `aNotion`). */
+const CAMPOS_PROPIOS = ['etapa', 'dir_texto', 'lat', 'lng', 'tipo_trabajo'];
 export function sumarSinMandar(previa, ops, ahora) {
   const pv = previa && typeof previa === 'object' ? previa : null;
   const campos = new Set(pv && Array.isArray(pv.campos) ? pv.campos.map(String) : []);
   for (const op of (Array.isArray(ops) ? ops : [])) {
-    if (op && op.almacen === 'proyectos' && Array.isArray(op.campos)) for (const c of op.campos) campos.add(String(c));
+    if (!op || op.almacen !== 'proyectos') continue;
+    for (const c of (Array.isArray(op.campos) ? op.campos : CAMPOS_PROPIOS)) campos.add(String(c));
   }
   return { desde: (pv && Number(pv.desde)) || Number(ahora) || 0, campos: [...campos] };
 }

@@ -68,7 +68,7 @@ import * as Material from '../datos/material.js';
 import { masDias, masMeses, iniSemana, ultimoDia, diasEntre } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, partesISO, fechaLocal,
          fmtFecha, fmtFechaDia, fmtHora, cuando, diasHasta, segmento, chip, abrirCapa,
-         cerrarCapa, compartirArchivo, copiarTexto, linkWa, ajustarAltoBarra, filaTaller }
+         cerrarCapa, compartirArchivo, copiarTexto, linkWa, ajustarAltoBarra, filaTaller, scrollSuave }
   from '../nucleo/ui.js';
 
 /* ----- Estado del módulo -----
@@ -993,7 +993,7 @@ function pintarMbar(d) {
     if (ev.target.closest('[data-ir-decidir]')) {
       const card = _cont && _cont.querySelector('#ag-decidir');
       if (!card) return;
-      card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      card.scrollIntoView({ block: 'center', behavior: scrollSuave() });
       const primero = card.querySelector('[data-decidir]');
       if (primero) { try { primero.focus({ preventScroll: true }); } catch (_) {} }
     }

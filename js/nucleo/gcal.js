@@ -58,12 +58,23 @@ const MSG = {
   ROL: 'Los eventos del calendario los crea el dispositivo de Dirección. Desde aquí descarga el .ics.',
   SIN_TOKEN: 'Google no dio permiso. Vuelve a darle a Conectar y acepta la pantalla.',
   RECHAZADO: 'Google rechazó el evento. Revisa el Client ID en Ajustes.',
+  BLOQUEADA: 'Tu navegador bloqueó la ventana de Google. Permite las ventanas emergentes para este sitio y vuelve a darle a Conectar. Mientras tanto, el .ics funciona igual.',
+  CERRADO: 'Se cerró la ventana de Google sin conectar. Vuelve a darle a Conectar cuando quieras; el .ics funciona igual.',
+  SIN_RESPUESTA: 'Google no contestó. Vuelve a intentar en un momento; mientras tanto, descarga el .ics.',
 };
 
 /* El token vive en memoria y nada más. `expira` con un minuto de colchón: un token que
    vence en el vuelo devuelve 401 y el usuario ve un error por 40 segundos de reloj. */
 let _tok = null;         /* {token:string, expira:number} */
-let _cliente = null;     /* el tokenClient de GIS, se crea una vez */
+let _cliente = null;     /* el tokenClient de GIS */
+let _clienteDe = '';     /* …y el Client ID con el que se creó. Ver `pedirToken`. */
+/* El hueco donde cada petición deja su forma de rendirse, para que el `error_callback` del
+   cliente —que se creó una sola vez— sepa a quién contestarle. Es el patrón de ingreso.js. */
+let _fallo = () => {};
+/* Cuánto se espera a la ventana de Google antes de darse por vencido. Detrás hay una persona
+   leyendo la pantalla de permisos de Calendar —que asusta y se lee—, así que es largo: el
+   mismo techo que la puerta le da a «Entrar con Google» (MS_CON_PANTALLA en puerta.js). */
+const MS_VENTANA = 180000;
 let _correo = '';
 
 /* ---------------------------------------------------------------------------
@@ -126,33 +137,61 @@ export async function pedirToken(silencioso) {
   if (!await cargarGis()) return mal('SIN_RED', MSG.SIN_RED);
 
   return new Promise(resolve => {
-    /* Un solo tokenClient para toda la vida de la pestaña. Crear uno por petición deja
+    /* Un solo tokenClient mientras no cambie el Client ID. Crear uno por petición deja
        callbacks viejos colgando y el token acaba llegando al callback de la petición
-       anterior, que ya nadie está esperando. */
-    if (!_cliente) {
+       anterior, que ya nadie está esperando.
+
+       «Mientras no cambie» es lo que faltaba: se creaba UNA vez con el Client ID de ese
+       momento, así que corregir el Client ID en Ajustes no surtía efecto hasta recargar —se
+       seguía pidiendo permiso con el identificador equivocado, y el error de Google hablaba
+       de un cliente que la pantalla ya no enseñaba—. */
+    if (!_cliente || _clienteDe !== c.clientId) {
       try {
         _cliente = window.google.accounts.oauth2.initTokenClient({
           client_id: c.clientId, scope: SCOPE, callback: () => {},
+          /* `error_callback` es un camino APARTE del callback normal: la ventana que el
+             navegador bloquea y la que la persona cierra NO llegan por el de arriba. Sin
+             engancharlo, las dos eran una promesa que no resolvía nunca, y desde fuera se
+             veía como el botón «Crearla en Google Calendar» del Calendario deshabilitado para
+             siempre y «Conectar» de Ajustes colgado. Mismo arreglo que ya tenía ingreso.js. */
+          error_callback: err => {
+            const t = (err && err.type) || '';
+            if (t === 'popup_failed_to_open') return _fallo(mal('SIN_RED', MSG.BLOQUEADA));
+            if (t === 'popup_closed') return _fallo(mal('SIN_RED', MSG.CERRADO));
+            return _fallo(mal('SIN_RED', MSG.SIN_RED));
+          },
         });
+        _clienteDe = c.clientId;
       } catch (_) {
+        _cliente = null; _clienteDe = '';
         return resolve(mal('DATO_INVALIDO', MSG.RECHAZADO));
       }
     }
+    /* Una sola salida, se llegue por donde se llegue: el token, el `error_callback` o el
+       tope. Y el tope existe porque hay un cuarto camino que no avisa por ninguno de los dos
+       —una ventana que se queda abierta detrás de otra, o cerrada sin que Google lo
+       detecte—, y ahí el botón que espera también se quedaba muerto. */
+    let tope = 0;
+    const fin = r => { clearTimeout(tope); _fallo = () => {}; resolve(r); };
+    _fallo = fin;
+    tope = setTimeout(() => fin(mal('SIN_RED', MSG.SIN_RESPUESTA)), MS_VENTANA);
     /* El callback se reasigna en cada petición porque es el único punto donde GIS
-       entrega el token: no hay promesa que await-ear en su API. */
+       entrega el token: no hay promesa que await-ear en su API. Un token que llega DESPUÉS
+       del tope se guarda igual —la promesa ya contestó, pero el siguiente clic lo encuentra
+       vivo en vez de volver a abrir la ventana—. */
     _cliente.callback = resp => {
       if (!resp || !resp.access_token) {
-        return resolve(mal('SIN_RED', resp && resp.error === 'access_denied'
+        return fin(mal('SIN_RED', resp && resp.error === 'access_denied'
           ? MSG.SIN_TOKEN : MSG.SIN_RED));
       }
       const seg = Number(resp.expires_in) > 0 ? Number(resp.expires_in) : 3600;
       _tok = { token: resp.access_token, expira: Date.now() + (seg - 60) * 1000 };
-      resolve(ok({ ..._tok }));
+      fin(ok({ ..._tok }));
     };
     try {
       _cliente.requestAccessToken(silencioso ? { prompt: '' } : {});
     } catch (_) {
-      resolve(mal('SIN_RED', MSG.SIN_RED));
+      fin(mal('SIN_RED', MSG.SIN_RED));
     }
   });
 }

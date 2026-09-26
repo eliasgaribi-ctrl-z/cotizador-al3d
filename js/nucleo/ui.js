@@ -159,6 +159,17 @@ export function avisarResultado(r, msgOk) {
   return false;
 }
 
+/* ----- El desplazamiento, con o sin animación -----
+   Cuatro pantallas llevaban al renglón pedido con `scrollIntoView({behavior:'smooth'})` a
+   secas —el Tablero, Qué atender, el Mapa y el Calendario— y la hoja de estilos ya apaga las
+   animaciones con `prefers-reduced-motion`, pero un desplazamiento pedido desde JS no pasa
+   por la hoja: a quien le marea el movimiento le seguía corriendo la pantalla entera. Se
+   pregunta aquí, en el momento, porque la preferencia se puede cambiar con la app abierta. */
+export function scrollSuave() {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'; }
+  catch (_) { return 'auto'; }
+}
+
 /* ============================================================================
    Capas: modales, Escape, cerco de tabulador y el botón atrás del teléfono.
 
@@ -286,6 +297,46 @@ export function cerrarCapaDeArriba() {
   return false;
 }
 
+/* ----- Preguntar antes, sin el confirm() del navegador -----
+   La misma pieza que `confirmar()` del cotizador (js/cotizador/nucleo.js): una capa de la app
+   —con su foco, su Escape y su atrás del teléfono— que contesta con una promesa. Vive en su
+   propio nodo y no en #pf-pide porque ése lo rellenan seis módulos con su propio contenido y
+   sus propios clics; una pregunta genérica encima de uno de ellos se pisaría con él. El nodo
+   se crea la primera vez que hace falta. */
+let _confPf = null;
+export function confirmarPf(o = {}) {
+  let capa = $('pf-confirma');
+  if (!capa) {
+    capa = document.createElement('div');
+    capa.className = 'modal-bg pf-modal-bg'; capa.id = 'pf-confirma';
+    capa.setAttribute('role', 'alertdialog'); capa.setAttribute('aria-modal', 'true');
+    capa.setAttribute('aria-labelledby', 'pf-confirma-t'); capa.setAttribute('aria-describedby', 'pf-confirma-d');
+    capa.innerHTML = '<div class="pf-panel"><div class="pf-panel-h"><h2 id="pf-confirma-t"></h2></div>' +
+      '<div class="pf-panel-b"><p class="pf-nota conf-texto" id="pf-confirma-d"></p></div>' +
+      '<div class="pf-panel-f"><button type="button" class="btn btn-gho" data-conf="no" id="pf-confirma-no"></button>' +
+      '<button type="button" class="btn btn-pri" data-conf="si" id="pf-confirma-si"></button></div></div>';
+    capa.addEventListener('click', ev => {
+      const b = ev.target.closest('[data-conf]');
+      if (b) _cerrarConfPf(b.dataset.conf === 'si'); else if (ev.target === capa) _cerrarConfPf(false);
+    });
+    document.body.appendChild(capa);
+    registrarCapa('pf-confirma', () => _cerrarConfPf(false));
+  }
+  return new Promise(res => {
+    if (_confPf) _confPf(false);
+    _confPf = res;
+    $('pf-confirma-t').textContent = o.titulo || '¿Continuar?';
+    $('pf-confirma-d').textContent = o.texto || '';
+    const si = $('pf-confirma-si');
+    si.textContent = o.si || 'Continuar'; si.className = 'btn ' + (o.peligro ? 'btn-dgr' : 'btn-pri');
+    $('pf-confirma-no').textContent = o.no || 'Cancelar';
+    abrirCapa('pf-confirma', { hist: true });
+  });
+}
+function _cerrarConfPf(v) {
+  cerrarCapa('pf-confirma');
+  const r = _confPf; _confPf = null; if (r) r(v);
+}
 /** true si hay un panel, ficha u hoja abierta encima de la pantalla. */
 export const hayCapaAbierta = () => !!_capaDeArriba();
 

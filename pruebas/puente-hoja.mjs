@@ -71,7 +71,7 @@ const ctx = vm.createContext({
 });
 vm.runInContext(src, ctx);
 const api = vm.runInContext(
-  '({ armarCeldas, rutaExpandir, sinLoQueNoLeToca, aplanarFila, PUENTE_ROLES, PUENTE_FORMULAS, COL,' +
+  '({ armarCeldas, rutaExpandir_, sinLoQueNoLeToca, aplanarFila, PUENTE_ROLES, PUENTE_FORMULAS, COL,' +
   '   COL_FOLIO, ULTIMA_COL, HEAD, ESTATUS, CUENTAS, ETAPAS_OBRA, TIPOS_TRABAJO, DOMINIOS_MAPS,' +
   '   CAMPOS_DE_DINERO, VE_EL_DINERO, PUENTE_VERSION })',
   ctx);
@@ -161,6 +161,19 @@ console.log('\nEL ABONO DE COMISIÓN — ya no es una celda, es un renglón');
   const sinPermiso = api.armarCeldas({ 'Abono Comision': 1500 }, 'fabricacion');
   eq('fabricación no puede abonar comisiones', sinPermiso.abono, null);
   eq('y se le dice', sinPermiso.rechazadas.map(x => x.nombre), ['Abono Comision']);
+
+  /* Un abono NEGATIVO subía la comisión pendiente: el tablero y el correo la enseñaban, y el
+     reparto la habría cubierto con dinero de verdad. */
+  const neg = api.armarCeldas({ 'Abono Comision': -99999 }, 'pagos');
+  eq('un abono negativo se rechaza', neg.abono, null);
+  cierto('  y dice por qué', neg.rechazadas[0] && /positivo/.test(neg.rechazadas[0].por));
+  eq('uno absurdo, de cincuenta millones, tampoco', api.armarCeldas({ 'Abono Comision': 5e7 }, 'pagos').abono, null);
+  eq('ni uno que no es número', api.armarCeldas({ 'Abono Comision': 'mil' }, 'pagos').abono, null);
+  eq('uno normal, con centavos, sí', api.armarCeldas({ 'Abono Comision': 1234.5 }, 'pagos').abono, 1234.5);
+  for (const campo of ['Anticipo', 'Liquidacion']) {
+    eq(campo + ' negativo se rechaza', api.armarCeldas({ [campo]: -500 }, 'pagos').rechazadas.map(x => [x.nombre, x.por]), [[campo, 'no puede ser negativo']]);
+    eq('  y en cero sí entra', api.armarCeldas({ [campo]: 0 }, 'pagos').celdas.map(c => c.valor), [0]);
+  }
 }
 
 console.log('\nTEXTO QUE ENTRA DE AFUERA — que no se vuelva fórmula');
@@ -183,7 +196,7 @@ console.log('\n/EXPANDIR — solo sale a Maps');
   const fuera = ['http://169.254.169.254/latest/meta-data/', 'https://evil.example.com/x',
                  'https://maps.app.goo.gl.evil.com/x', 'file:///etc/passwd', ''];
   for (const u of fuera) {
-    const r = api.rutaExpandir({ u });
+    const r = api.rutaExpandir_({ u });
     eq('rechaza «' + (u || '(vacio)').slice(0, 34) + '»', r.ok, false);
   }
   cierto('la lista blanca incluye el dominio corto de Maps',
@@ -462,7 +475,7 @@ function hojaDeMentiras({ candadoLibre = true, props = {}, google = [] } = {}) {
   };
   const fila = folio => { for (let r = 2; r <= 310; r++) if (v._g[r][1] === folio) return r; return 0; };
   const celda = (folio, nombre) => { const r = fila(folio); return r ? v._g[r][C[nombre]] : undefined; };
-  const empujar = (ops, rol) => run('rutaEmpujar(' + JSON.stringify({ ops }) + ', ' + JSON.stringify(rol) + ')');
+  const empujar = (ops, rol) => run('rutaEmpujar_(' + JSON.stringify({ ops }) + ', ' + JSON.stringify(rol) + ')');
   /* Una hora como la guarda Sheets cuando ya la volvió hora: el Date de 1899, del contexto del .gs. */
   const hora = texto => new DateDelGs(horaDeHoja(texto));
   return { ss, hojas, v, C, pon, fila, celda, empujar, run, props, candados, cache, pedidasAGoogle, nuevaHoja, hora };
@@ -680,7 +693,7 @@ console.log('\n/JALAR — la hoja entera en una página (defecto 12)');
 {
   const H = hojaDeMentiras();
   for (let i = 1; i <= 120; i++) H.pon(i + 1, 'V-' + String(i).padStart(3, '0'), { 'Proyecto': 'Venta ' + i, 'Estatus': 'LIQUIDADO' });
-  const j = H.run('rutaJalar({}, "direccion")');
+  const j = H.run('rutaJalar_({}, "direccion")');
   eq('ciento veinte filas en una sola respuesta', j.registros.length, 120);
   eq('sin página siguiente: un reacomodo a media bajada ya no deja una fuera', [j.hay_mas, j.cursor], [false, null]);
 }
@@ -833,7 +846,7 @@ console.log('\nLA HORA DE INSTALACIÓN — Sheets la vuelve hora, y al teléfono
   H.pon(5, 'V-004', { 'Proyecto': 'Dani', 'Estatus': 'COBRANDO', 'Hora instalacion': 0.4375 });
   H.pon(6, 'V-005', { 'Proyecto': 'Eli', 'Estatus': 'COBRANDO', 'Hora instalacion': H.hora('09:59:59') });
   H.pon(7, 'V-006', { 'Proyecto': 'Fer', 'Estatus': 'COBRANDO' });
-  const horas = rol => Object.fromEntries(H.run('rutaJalar({}, ' + JSON.stringify(rol) + ')').registros
+  const horas = rol => Object.fromEntries(H.run('rutaJalar_({}, ' + JSON.stringify(rol) + ')').registros
     .map(x => [x.datos.id_notion, x.datos['Hora instalacion']]));
   const j = horas('direccion');
   eq('/jalar baja la hora que Sheets volvió Date como «10:00», no como «Sat Dec 30 1899…»', j['V-001'], '10:00');
@@ -915,7 +928,7 @@ console.log('\nLA HORA DE INSTALACIÓN — Sheets la vuelve hora, y al teléfono
   cierto('y crea «Accesos» de todos modos', !!O.ss.getSheetByName('Accesos'));
   cierto('la hora se queda como estaba, sin el «@» encima (enseñaría 0.4166…): la pasa la siguiente corrida',
          esDate(O.v._g[2][aa]) && O.v._f[2][aa] !== '@');
-  eq('y mientras, baja bien igual', O.run('rutaJalar({}, "direccion")').registros[0].datos['Hora instalacion'], '10:00');
+  eq('y mientras, baja bien igual', O.run('rutaJalar_({}, "direccion")').registros[0].datos['Hora instalacion'], '10:00');
 
   /* Los segundos, con UNA regla guarde lo que guarde Sheets: se cortan, como al teclear, salvo
      a dos segundos del minuto siguiente. Redondeando al más cercano, «10:00:45» salía «10:01»
@@ -927,7 +940,7 @@ console.log('\nLA HORA DE INSTALACIÓN — Sheets la vuelve hora, y al teléfono
   S.pon(4, 'V-003', { 'Proyecto': 'Caro', 'Estatus': 'COBRANDO', 'Hora instalacion': (10 * 3600 + 45) / 86400 });
   S.pon(5, 'V-004', { 'Proyecto': 'Dani', 'Estatus': 'COBRANDO', 'Hora instalacion': '09:59:59' });
   S.pon(6, 'V-005', { 'Proyecto': 'Eli', 'Estatus': 'COBRANDO', 'Hora instalacion': 10 / 24 - 1e-9 });
-  const s = Object.fromEntries(S.run('rutaJalar({}, "direccion")').registros
+  const s = Object.fromEntries(S.run('rutaJalar_({}, "direccion")').registros
     .map(x => [x.datos.id_notion, x.datos['Hora instalacion']]));
   eq('«10:00:45» baja «10:00» como Date, como texto y como fracción del día', [s['V-001'], s['V-002'], s['V-003']],
      ['10:00', '10:00', '10:00']);
@@ -939,6 +952,115 @@ console.log('\nLA HORA DE INSTALACIÓN — Sheets la vuelve hora, y al teléfono
   S.run('prepararHojaParaElPuente()');
   eq('y al pasarla a texto se escribe «10:00», no «10:01»', [S.celda('V-001', 'Hora instalacion'), S.celda('V-003', 'Hora instalacion')],
      ['10:00', '10:00']);
+}
+
+console.log('\nEL ABONO NEGATIVO POR EL PUENTE — no deja renglón en «Abonos comisión»');
+{
+  const H = hojaDeMentiras({ props: { PUENTE_Y_AD_ALINEADAS: '2026-09-24' } });
+  H.pon(2, 'V-050', { 'Proyecto': 'Ana', 'Estatus': 'COBRANDO' });
+  const r = H.empujar([{ id: 'x', id_notion: 'V-050', datos: { 'Abono Comision': -99999 } }], 'pagos');
+  eq('pagos manda −99 999 y la operación se rechaza', r.resultados[0].codigo, 'ROL_SIN_PERMISO');
+  eq('  sin un solo renglón en la pestaña de abonos', H.hojas['Abonos comisión'].getLastRow(), 0);
+  H.empujar([{ id: 'y', id_notion: 'V-050', datos: { 'Abono Comision': 700 } }], 'pagos');
+  eq('uno de 700 sí queda', [H.hojas['Abonos comisión']._g[2][1], H.hojas['Abonos comisión']._g[2][3]], ['V-050', 700]);
+
+  /* La pestaña llena: el abono no cabe, y el teléfono se tiene que enterar. */
+  const a = H.hojas['Abonos comisión'];
+  for (let r = 2; r <= 2000; r++) if (!a._g[r][1]) { a._g[r][1] = 'V-000'; a._g[r][3] = 1; }
+  const lleno = H.empujar([{ id: 'z', id_notion: 'V-050', datos: { 'Abono Comision': 300 } }], 'pagos');
+  eq('con la pestaña de abonos llena, un abono solo NO vuelve ok', [lleno.resultados[0].ok, lleno.resultados[0].codigo], [false, 'DESCONOCIDO']);
+  eq('  y dice qué no se escribió', lleno.resultados[0].rechazadas.map(x => x.nombre), ['Abono Comision']);
+  const conOtra = H.empujar([{ id: 'w', id_notion: 'V-050', datos: { 'Abono Comision': 300, 'Liquidacion': 1000 } }], 'pagos');
+  eq('con otra celda en la misma operación, la celda entra y el abono vuelve rechazado',
+     [conOtra.resultados[0].ok, conOtra.resultados[0].rechazadas.map(x => x.nombre), H.celda('V-050', 'Liquidacion')], [true, ['Abono Comision'], 1000]);
+  cierto('  con su razón', /no se registró/.test(conOtra.resultados[0].rechazadas[0].por));
+  eq('  y la bitácora no anota un abono que no entró', H.hojas['Bitácora del puente']._g.some(f => f.some(x => /abono de comisión 300/.test(String(x)))), false);
+}
+
+console.log('\nEL REPARTO — no escribe encima de los abonos que ya están');
+{
+  const H = hojaDeMentiras();
+  const T = 20;   // la columna de la comisión restante
+  H.pon(2, 'V-001', { 'Proyecto': 'Ana' }); H.v._g[2][T] = 300;
+  H.pon(3, 'V-002', { 'Proyecto': 'Beto' }); H.v._g[3][T] = 200;
+  const a = H.hojas['Abonos comisión'];
+  a._g[1][6] = 'Pago';
+  /* Tres abonos, y alguien vació a mano el del renglón 3. Otro, en el 5, tiene el folio borrado
+     pero todavía su importe y su pago. */
+  a._g[2] = ['', 'V-010', '', 100, 'd', '', 'P-001'];
+  a._g[4] = ['', 'V-011', '', 250, 'd', '', 'P-002'];
+  a._g[5] = ['', '', '', 80, 'd', '', 'P-002'];
+  a._g[6] = ['', 'V-012', '', 400, 'd', '', ''];
+  const msg = H.run(`guardarReparto({ monto: '500', fecha: '2026-09-25', nota: '' })`);
+  cierto('reparte entre las dos', /repartido entre 2/.test(msg));
+  eq('los abonos que ya estaban siguen intactos', [a._g[2][1], a._g[4][1], a._g[4][3], a._g[5][3], a._g[6][1]], ['V-010', 'V-011', 250, 80, 'V-012']);
+  eq('y los dos nuevos van en dos renglones libres seguidos, no desde el hueco del 3', [a._g[7][1], a._g[7][3], a._g[8][1], a._g[8][3]], ['V-001', 300, 'V-002', 200]);
+  eq('el hueco se queda como estaba', a._g[3].slice(1).filter(x => x !== ''), []);
+  H.run(`guardarAbono({ folio: 'V-001', monto: '10' })`);
+  eq('un abono suelto sí llena el hueco de uno', [a._g[3][1], a._g[3][3]], ['V-001', 10]);
+  eq('  y no el renglón al que solo le borraron el folio', a._g[5].slice(1), ['', '', 80, 'd', '', 'P-002']);
+}
+
+console.log('\nLOS DIÁLOGOS DEL DUEÑO — lo que viene de la hoja entra escapado');
+{
+  const H = hojaDeMentiras();
+  const malo = 'x</option><img src=x onerror=alert(1)>';
+  const folioMalo = 'V-9"><script>alert(2)</script>';
+  H.pon(2, folioMalo, { 'Proyecto': malo, 'Estatus': 'COBRANDO' });
+  H.v._g[2][11] = 500;   // K: el saldo
+  H.v._g[2][20] = 50;    // T: la comisión restante
+  const html = dialogo => H.run(`(function () {
+    var visto = '';
+    HtmlService = { createHtmlOutput: function (s) { visto = s; var o = { setWidth: function () { return o; }, setHeight: function () { return o; } }; return o; } };
+    SpreadsheetApp.getUi = function () { return { showModalDialog: function () {}, alert: function () {} }; };
+    ${dialogo}();
+    return visto; })()`);
+  for (const d of ['dialogoCobro', 'dialogoAbono']) {
+    const h = html(d);
+    cierto(d + ': el nombre del proyecto no abre etiquetas', !/<img/i.test(h) && /&lt;img src=x onerror=alert\(1\)&gt;/.test(h));
+    cierto('  ni el folio se sale del value="…"', !/<script>alert\(2\)/.test(h) && /value="V-9&quot;&gt;&lt;script&gt;/.test(h));
+  }
+  eq('escaparHtml cubre las cinco', H.run(`escaparHtml('<a href="x">\\'&')`), '&lt;a href=&quot;x&quot;&gt;&#39;&amp;');
+
+  /* El reparto pinta su vista previa con innerHTML EN EL NAVEGADOR: se corre su guion con un
+     DOM de mentiras y lo que manda vistaPreviaReparto. */
+  const h = html('dialogoReparto');
+  const guion = h.split('<script>')[1].split('</script>')[0];
+  const nodos = {};
+  const nodo = id => (nodos[id] = nodos[id] || { id, innerHTML: '', textContent: '', value: '', addEventListener() {} });
+  const runFalso = new Proxy({}, { get: () => () => runFalso });
+  const nav = vm.createContext({ document: { getElementById: nodo }, google: { script: { run: runFalso, host: { close() {} } } }, setTimeout, clearTimeout });
+  vm.runInContext(guion, nav);
+  const previa = H.run('vistaPreviaReparto(100)');
+  vm.runInContext('pinta', nav)(previa);
+  cierto('la vista previa del reparto no pinta el nombre como HTML', !/<img/i.test(nodos.prev.innerHTML) && /&lt;img/.test(nodos.prev.innerHTML));
+  cierto('  y el folio tampoco', !/<script>/i.test(nodos.prev.innerHTML));
+
+  /* Lo que devuelve un secreto no se puede llamar desde un diálogo: con guion bajo, Apps
+     Script no lo deja en google.script.run. */
+  eq('secretoDelSello, iaLlaves, iaOrdenDeLlaves y configurarTokensDelPuente ya no son públicas',
+     ['secretoDelSello', 'iaLlaves', 'iaOrdenDeLlaves', 'configurarTokensDelPuente'].map(f => H.run('typeof ' + f)),
+     ['undefined', 'undefined', 'undefined', 'undefined']);
+  eq('  sus versiones privadas existen', ['secretoDelSello_', 'iaLlaves_', 'iaOrdenDeLlaves_', 'configurarTokensDelPuente_'].map(f => H.run('typeof ' + f)),
+     ['function', 'function', 'function', 'function']);
+  /* Las rutas del puente, lo mismo: solo las llama doPost, que ya decidió quién eres. Públicas,
+     un guion en un diálogo llamaba rutaAutorizar con un «ingreso» inventado y sellaba un precio
+     a nombre de cualquier correo, o se bajaba la hoja entera con rutaJalar. */
+  const rutas = ['rutaSalud', 'rutaEsquema', 'rutaJalar', 'rutaEmpujar', 'rutaExpandir', 'rutaSolicitar',
+    'rutaCancelarSolicitud', 'rutaPendientes', 'rutaEstado', 'rutaAutorizar', 'rutaRechazar', 'rutaRevocar',
+    'rutaVerificar', 'rutaIA', 'anotar'];
+  eq('ninguna ruta del puente es pública', rutas.filter(f => H.run('typeof ' + f) !== 'undefined'), []);
+  eq('  y todas existen con guion bajo', rutas.filter(f => H.run('typeof ' + f + '_') !== 'function'), []);
+  eq('  ni queda otra función «ruta…» sin él', [...src.matchAll(/^function (ruta\w*)\(/gm)].map(m => m[1]).filter(f => !f.endsWith('_')), []);
+  /* Y lo que sí se corre a mano o desde el menú sigue público. */
+  eq('revocarAutorizacion y configurarAutorizaciones siguen públicas', ['revocarAutorizacion', 'configurarAutorizaciones'].map(f => H.run('typeof ' + f)),
+     ['function', 'function']);
+  /* Y todo lo que llaman los diálogos existe y es público. */
+  const llamadas = [...src.matchAll(/\.(guardar\w*|rotar\w*|vistaPrevia\w*|configurar\w*)\(/g)].map(m => m[1])
+    .filter((f, i, a) => a.indexOf(f) === i && src.includes('.' + f + '(') && new RegExp("'[^']*\\." + f + '\\(').test(src));
+  cierto('los diálogos llaman solo funciones que existen y no llevan guion bajo (' + llamadas.join(', ') + ')',
+     llamadas.length >= 6 && llamadas.every(f => !f.endsWith('_') && H.run('typeof ' + f) === 'function'));
+  cierto('el de los tokens rota sin recibirlos', /\.rotarTokensDelPuente\(\)/.test(src) && !/return/.test(H.run('rotarTokensDelPuente.toString()')));
 }
 
 console.log('\nEL MENÚ TRAE LOS PASOS DE LA ACTUALIZACIÓN (sin el selector de funciones del editor)');

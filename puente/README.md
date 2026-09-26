@@ -51,13 +51,27 @@ si alguien llega por GET, no es la plataforma.
 
 ## Los caminos
 
-| Camino | Qué hace |
-|---|---|
-| `GET /salud` | Estado y la lista de lo que **este rol** puede escribir |
-| `GET /esquema` | Qué columnas le faltan a la hoja. Las **detecta**, no las crea |
-| `GET /jalar` | **Todas** las filas de Ventas en una sola página (desde `puente-sheets-6`; antes de 50 en 50, y una fila que el reacomodo cambiaba de página a media bajada no salía): el récord de ventas de Control sale de aquí. **El dinero solo para quien lo ve** |
-| `POST /empujar` | Hasta 25 operaciones, filtradas por la lista blanca del rol. Lo que devuelve pasa por el mismo filtro de lectura que `/jalar` |
-| `GET /expandir` | Sigue un link corto de Maps hasta el largo, el que trae coordenadas |
+Todos entran por **POST** a la misma URL, con el camino en el cuerpo (`{"ruta":"jalar", …}`);
+`doGet` contesta que solo atiende POST y nada más. «Cualquier rol» quiere decir una cuenta de
+Google que esté en «Accesos» o un token de dispositivo válido: sin ninguna de las dos, la
+respuesta es `ROL_SIN_PERMISO` antes de mirar el camino. La única excepción es `/verificar`.
+
+| Camino | Quién | Qué hace |
+|---|---|---|
+| `/salud` | cualquier rol | Estado, `version`, el rol, la lista de lo que **este rol** puede escribir, por qué puerta entró (Google o token) y qué proveedores de IA tienen llave —sí o no; la llave no sale nunca— |
+| `/esquema` | cualquier rol | Qué columnas le faltan a la hoja, y si falta «Accesos». Las **detecta**, no las crea |
+| `/jalar` | cualquier rol | **Todas** las filas de Ventas en una sola página (desde `puente-sheets-6`; antes de 50 en 50, y una fila que el reacomodo cambiaba de página a media bajada no salía): el récord de ventas de Control sale de aquí. **El dinero solo para quien lo ve** |
+| `/empujar` | cualquier rol, con su lista blanca | Hasta 25 operaciones, filtradas por la lista blanca del rol (`PUENTE_ROLES`). Lo que devuelve pasa por el mismo filtro de lectura que `/jalar` |
+| `/expandir` | cualquier rol | Sigue un link corto de Maps hasta el largo, el que trae coordenadas. Solo dominios de Maps |
+| `/solicitar` | cualquier rol | Pide a Dirección que autorice un precio. La hoja recalcula el subtotal con su copia del catálogo y, si no cuadra con el del teléfono, contesta `CATALOGO_DESINCRONIZADO`. No pisa la solicitud pendiente que **otra persona** tenga sobre el mismo folio (Dirección sí puede) |
+| `/cancelar` | quien la pidió, o Dirección | Retira una solicitud pendiente: el teléfono la reabrió para editarla y lo que se pidió ya no es lo que hay |
+| `/pendientes` | Dirección (con Google o con su token) | La cola de autorizaciones de todos los teléfonos: las últimas 50 solicitudes pendientes |
+| `/estado` | cualquier rol, solo lo suyo | En qué quedó cada folio que pidió **esta misma identidad** (hasta 20 por pregunta): el sello, si ya se autorizó —y solo uno emitido después de su última solicitud y para ella—, o si se rechazó, con quién y la nota. Dirección ve todos los folios |
+| `/autorizar` | solo Dirección **entrando con Google** | Recalcula el catálogo, firma folio, trabajo, precio y total, lo anota en «Autorizaciones» y devuelve el sello. El token de dispositivo no basta: dice qué aparato es, no quién autoriza (`soloDireccionConGoogle`) |
+| `/rechazar` | solo Dirección entrando con Google | Rechaza una solicitud pendiente, con su nota |
+| `/revocar` | solo Dirección entrando con Google | La autorización vigente de un folio pasa a «revocada», y el QR de ese PDF lo dice |
+| `/verificar` | **pública, sin token** | La abre el QR de un PDF desde el teléfono de cualquiera: «auténtica», «superada», «revocada» o «no auténtica», con folio, fecha, total y negocio, y nada más. Va antes de las dos puertas, con su propio cupo: 30 consultas por folio y 400 en total cada diez minutos |
+| `/ia` | cualquier rol | **Un** intento contra **un** proveedor (Qwen, DeepSeek o Gemini) con las llaves de la hoja; la cadena y los reintentos siguen en el teléfono. Tope de 200 por persona al día. Es el único camino que acepta cuerpos de más de 64 KB —hasta 15 MB, la imagen o el PDF—, y solo si el cuerpo **empieza** por `{"ruta":"ia"` |
 
 Los tres roles y lo que cada uno puede escribir son los mismos de antes:
 
@@ -79,7 +93,9 @@ tablero, **no da permisos**: quien es fabricación sigue recibiendo un rechazo s
 1. **`Abono Comision` ya no es una celda.** En Notion se sobrescribía, y por eso solo
    sobrevivía el último pago. En la hoja es la suma de la pestaña **Abonos comisión**, así
    que escribirlo significa **agregar un renglón**. Se gana el historial de parcialidades
-   sin que el teléfono se entere.
+   sin que el teléfono se entere. Por eso solo acepta **importes positivos** (y de menos de
+   $10,000,000): un abono es un pago hecho, y un renglón negativo hacía **subir** la comisión
+   pendiente. Una corrección se hace a mano, en la pestaña.
 
 2. **`Fecha Anticipo e Instalacion` era un rango.** En la hoja son dos columnas: la del
    anticipo y la de instalación, separadas.
@@ -203,7 +219,13 @@ que Google no conteste. Alrededor de eso hay más cosas:
 1. **Todo por POST, la llave en el cuerpo.** Nunca queda escrita en una URL. Ver arriba.
 2. **Sesenta peticiones por minuto por persona** (por correo, o por token si se entró con
    uno). Es más de lo que hacen tres teléfonos trabajando, y mucho menos de lo que sirve para
-   raspar la hoja entera con una llave robada.
+   raspar la hoja entera con una llave robada. Se cuentan en **ventana fija** de un minuto.
+   Antes cada petición volvía a darle sesenta segundos de vida a la cuenta, así que solo se
+   vaciaba tras un minuto entero sin ninguna: un teléfono que sincronizaba cada 30 s no la
+   dejaba vaciarse nunca, sumaba hasta pasar de sesenta y se quedaba fuera sin haber hecho
+   nada raro (y con el token de dispositivo, que es uno por rol, todos los de su rol). Los
+   cupos de todos juntos —las verificaciones con Google, los cuerpos grandes, `/verificar`—
+   cuentan igual, en ventana fija (`contarEnVentana`).
 3. **Lista blanca de dominios en `/expandir`.** Ese camino hace que un servidor de Google
    salga a internet con una dirección que mandó quien llama. Sin la lista, un token
    cualquiera convertiría el puente en trampolín para tocar direcciones que quien llama no
@@ -211,7 +233,20 @@ que Google no conteste. Alrededor de eso hay más cosas:
 4. **El texto que entra de afuera no puede volverse fórmula.** A lo que empieza con `=`,
    `+`, `-` o `@` se le antepone un apóstrofo. Sin eso, un `=IMPORTXML(...)` metido en la
    dirección de un proyecto haría que la hoja saliera a internet sola, o leyera otra
-   pestaña y la escupiera.
+   pestaña y la escupiera. Y tampoco puede volverse HTML: los diálogos de ⚡ AL3D (y el correo
+   al dueño) **escapan el nombre del proyecto** antes de pintarlo. Ese nombre lo escribe
+   cualquier teléfono que da altas, y el diálogo corre con la sesión del dueño de la hoja,
+   desde la que `google.script.run` llama cualquier función del script que no termine en
+   guion bajo; por eso las que tocan secretos (`secretoDelSello_`, `iaLlaves_`,
+   `iaOrdenDeLlaves_`, `configurarTokensDelPuente_`) ahora sí terminan en uno. El diálogo de
+   ⚡ AL3D → Tokens del puente rota los tokens con `rotarTokensDelPuente`, que los cambia y no
+   devuelve nada. Y lo mismo las rutas que solo llama `doPost` —`rutaSalud_`, `rutaEsquema_`,
+   `rutaJalar_`, `rutaEmpujar_`, `rutaExpandir_`, `rutaSolicitar_`, `rutaCancelarSolicitud_`,
+   `rutaPendientes_`, `rutaEstado_`, `rutaAutorizar_`, `rutaRechazar_`, `rutaRevocar_`,
+   `rutaVerificar_`, `rutaIA_`— y la bitácora (`anotar_`): públicas, un guion en un diálogo
+   podía llamar `rutaAutorizar` con una identidad inventada y sellar un precio a nombre de
+   cualquier correo. Lo que se corre desde el menú o a mano (`revocarAutorizacion`,
+   `configurarAutorizaciones`) sigue sin guion bajo.
 5. **Bitácora.** Toda escritura que entra queda anotada en una pestaña oculta: cuándo, qué
    rol, qué folio y qué campos. Es lo que convierte «algo se movió» en «esto se movió, el
    martes, desde el teléfono de pagos».
@@ -225,6 +260,24 @@ que Google no conteste. Alrededor de eso hay más cosas:
    tenía guardado: esas celdas viajan en el alta de la fila, o cuando la operación dice que
    ese campo fue justo lo que se cambió. Y el anticipo corregido en la hoja **baja** al
    teléfono, que antes seguía estimando el saldo con el viejo.
+   Lo mismo, desde septiembre de 2026, con **el estatus, la cuenta, la etapa, la dirección, el
+   pin y el tipo de trabajo**: suben solo cuando son lo que cambió. Antes viajaban en cada
+   subida con lo que el teléfono tenía al encolar, y pisaban lo que PAGOS acababa de corregir
+   en la hoja: un LIQUIDADO regresaba al estatus de antes porque Dirección movió una etapa
+   antes de su siguiente bajada. Una
+   operación que encoló una versión anterior de la app no dice qué cambió, y de ésa se manda
+   lo que se mandaba entonces.
+8. **Las solicitudes son de quien las pide.** `/solicitar` no pisa la solicitud pendiente
+   que otra persona tenga sobre el mismo folio (la propia sí se reemplaza, y Dirección puede
+   con cualquiera); `/cancelar` solo la retira quien la pidió o Dirección; y `/estado` le
+   contesta a cada quien solo por sus solicitudes, y solo con un sello emitido **después** de
+   su última: un sello trae el precio autorizado, los ajustes y la nota, y fabricación no ve
+   dinero en ninguna otra parte. Antes, con una autorización vigente de antes, volver a pedir
+   contestaba «autorizada» con el sello viejo.
+9. **Un abono que no se escribió no vuelve como escrito.** Si la pestaña «Abonos comisión» no
+   existe o ya no tiene renglones libres, el `Abono Comision` vuelve en `rechazadas` con su
+   razón; y si era lo único de la operación, la operación vuelve `ok: false`. Antes se perdía
+   en silencio: el teléfono lo daba por registrado y la comisión seguía pendiente en la hoja.
 
 Y lo que el puente **no** puede hacer, por construcción: escribir una fórmula, escribir una
 columna que no esté en su mapa, mandar correo, o tocar otra hoja del Drive.
@@ -243,12 +296,16 @@ devuelve a la cola (por ejemplo, cuando ese teléfono ya entra como Dirección).
 
 - **La llave vive en el teléfono.** Quien tenga un teléfono desbloqueado con la sesión
   abierta tiene ese rol. Contra eso: quitar su renglón de «Accesos» (surte efecto en
-  minutos) y, si tenía token de emergencia, *Generar tokens nuevos* en la hoja.
+  minutos) y, si tenía token de emergencia, *Generar tokens nuevos* en la hoja. Y no solo
+  quien tiene el teléfono: el token de Google (`al3d_pf_gtok`) y el del puente
+  (`al3d_pf_puente`) están en el `localStorage` de un origen que GitHub Pages comparte con
+  todas las páginas de la misma cuenta. Ver «El origen compartido» en el
+  [`README`](../README.md#el-origen-compartido).
 - **Dirección y pagos sí ven todo el dinero.** El filtrado de lectura protege al teléfono
   de fabricación, que es el que anda en la calle y en el taller. Los otros dos roles
   valen lo que vale la hoja entera.
 - **La hoja puede quedarse con una versión vieja del código.** Guardar en Apps Script no
-  publica. `salud` contesta su `version` —hoy `puente-sheets-6`— justo para poder verlo, y
+  publica. `salud` contesta su `version` —hoy `puente-sheets-7`— justo para poder verlo, y
   «Probar» lo compara con la que la plataforma espera y dice qué falla con la que hay.
 
 ## Si algo falla

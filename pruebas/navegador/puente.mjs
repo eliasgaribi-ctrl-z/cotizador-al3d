@@ -169,6 +169,7 @@ console.log('\nservidor y puente de mentiras en ' + B);
 const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const ctx = await nav.newContext({ viewport: { width: 430, height: 932 }, isMobile: true,
   hasTouch: true, locale: 'es-MX', timezoneId: 'America/Mexico_City', serviceWorkers: 'allow' });
+await ctx.addInitScript({ path: decodeURIComponent(new URL('./hoja-de-mentiras.js', import.meta.url).pathname) });   // el notario, de mentiras
 
 /* Se siembra la configuración, no la venta. La venta se captura con clics: si se sembrara,
    la prueba diría que el puente funciona con un dato que nadie tecleó nunca. */
@@ -207,8 +208,8 @@ await p.waitForTimeout(500);
 
 await p.evaluate(() => autorizarYoMismo());
 await p.waitForTimeout(500);
-await p.evaluate(() => { const i = document.getElementById('pa-autorizador'); if (i) i.value = 'Elías'; });
-await p.evaluate(() => { if (typeof autorizar === 'function') autorizar(); });
+/* Quién autoriza no se teclea: lo pone la cuenta con la que se entró (hoja-de-mentiras.js). */
+await p.evaluate(() => autorizar());
 await p.waitForTimeout(700);
 (await p.evaluate(() => Q.estado)) === 'autorizada'
   ? bien('la cotización quedó autorizada') : mal('no se autorizó');

@@ -15,6 +15,13 @@
 /README.md
   X-Robots-Tag: noindex
 
+# Nadie de otro sitio empotra la app. En un <meta> esto no funciona —frame-ancestors solo vale
+# como cabecera—, así que en GitHub Pages lo hace js/tema.js a mano; aquí, en Cloudflare, lo hace
+# el navegador antes de pintar nada. 'self' porque la plataforma empotra el cotizador y el
+# anidador, que son de este mismo origen. El resto de la política vive en el <meta> de cada
+# página (pruebas/csp.mjs), y esta cabecera no la contradice: solo agrega esta directiva.
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
+  Content-Security-Policy: frame-ancestors 'self'
+  X-Frame-Options: SAMEORIGIN

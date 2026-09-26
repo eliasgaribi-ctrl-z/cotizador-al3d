@@ -34,7 +34,7 @@ import { ESTATUS as ESTATUS_NOTION, CUENTAS, ESTATUS_DE_PAGOS } from '../datos/p
 import {
   $, esc, money, cant, ico, toast, avisarResultado, vacio, segmento, chip,
   abrirCapa, cerrarCapa, copiarTexto, linkWa, telWa, fmtFecha, fmtFechaDia, fmtHora, cuando,
-  diasHasta, hoyISO, rotularPapel,
+  diasHasta, hoyISO, rotularPapel, confirmarPf,
 } from '../nucleo/ui.js';
 
 /* ============================================================================
@@ -1267,10 +1267,12 @@ async function moverEtapa(id, etapa) {
   const de = actual ? Proy.ORDEN[actual.etapa] : undefined, a = Proy.ORDEN[etapa];
   if (actual && de !== undefined && a !== undefined && a < de) {
     const cruzaCorte = de >= Proy.ORDEN.cortado && a < Proy.ORDEN.cortado;
-    const ok = window.confirm('¿Regresar «' + (actual.nombre || actual.folio_local) + '» de ' +
-      (Proy.ETAPA_NOMBRE[actual.etapa] || actual.etapa) + ' a ' + (Proy.ETAPA_NOMBRE[etapa] || etapa) + '?' +
-      (cruzaCorte ? '\n\nEl material que salió al cortar NO regresa al almacén, y al volver a cortar no se descuenta otra vez. Si de verdad no se cortó, corrige el almacén con un conteo.' : '') +
-      '\n\nQueda anotado en la bitácora con tu nombre.');
+    const ok = await confirmarPf({
+      titulo: '¿Regresar «' + (actual.nombre || actual.folio_local) + '» a ' + (Proy.ETAPA_NOMBRE[etapa] || etapa) + '?',
+      texto: 'Está en ' + (Proy.ETAPA_NOMBRE[actual.etapa] || actual.etapa) + '.' +
+        (cruzaCorte ? '\n\nEl material que salió al cortar NO regresa al almacén, y al volver a cortar no se descuenta otra vez. Si de verdad no se cortó, corrige el almacén con un conteo.' : '') +
+        '\n\nQueda anotado en la bitácora con tu nombre.',
+      si: 'Regresar la etapa', no: 'Dejarla como está', peligro: true });
     if (!ok) return;
   }
   const r = await Proy.avanzarEtapa(id, etapa);

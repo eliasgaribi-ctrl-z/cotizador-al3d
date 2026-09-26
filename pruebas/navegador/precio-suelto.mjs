@@ -28,6 +28,7 @@ import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 const B = 'http://127.0.0.1:' + (process.env.PUERTO || '8814');
 const nav = await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome'});
 const ctx = await nav.newContext({viewport:{width:1440,height:1000}, locale:'es-MX', timezoneId:'America/Mexico_City'});
+await ctx.addInitScript({ path: decodeURIComponent(new URL('./hoja-de-mentiras.js', import.meta.url).pathname) });   // el notario, de mentiras
 const p = await ctx.newPage();
 let fallos = 0;
 const mal  = m => { console.log('  ✗ ' + m); fallos++; };
@@ -63,7 +64,6 @@ async function autorizarAjustada(){
   await p.evaluate(()=>toggleItemAuth(Q.items[0].id));
   await p.fill('#ia-in-1','16000'); await p.waitForTimeout(200);
   await p.fill('#a-precio','17500'); await p.waitForTimeout(200);
-  await p.fill('#a-name','Elías');
   await p.evaluate(()=>autorizar()); await p.waitForTimeout(700);
 }
 const $t = (sel) => p.$eval(sel, e => e.textContent).catch(()=>'');
@@ -83,7 +83,6 @@ info = await $t('#descuento-info');
 /^Aumento: \$500\.00/.test(info) && /partidas ya ajustadas \(\$17,000\.00\)/.test(info) && /\$1,100\.00 por debajo del calculado/.test(info)
   ? bien('con $17,500 encima de $17,000 ajustados: «'+info+'»')
   : mal('el formulario de revisión dice «'+info+'» — se esperaba un aumento de $500 sobre las partidas ajustadas, $1,100 por debajo del calculado');
-await p.fill('#a-name','Elías');
 await p.evaluate(()=>autorizar()); await p.waitForTimeout(700);
 const col = await p.evaluate(()=>({estado:Q.estado, lab:document.querySelector('#s-auth-row .adj-label').textContent,
   imp:document.getElementById('s-auth').textContent, desc:document.getElementById('s-auth-desc').textContent,
@@ -266,7 +265,6 @@ const man = await p.evaluate(()=>({faltan:faltantesDe(Q.items[0]), formula:docum
   : mal('la fórmula dice «'+man.formula+'»');
 /falta descripción/.test(man.sig) ? bien('y «qué sigue» lo nombra: «'+man.sig+'»') : mal('«qué sigue» dice «'+man.sig+'»');
 await p.evaluate(()=>autorizarYoMismo()); await p.waitForTimeout(400);
-await p.fill('#a-name','Elías');
 await p.evaluate(()=>autorizar()); await p.waitForTimeout(500);
 const aviso = await p.evaluate(()=>({abierto:document.getElementById('faltmodal').classList.contains('show'), intro:document.getElementById('falt-intro').textContent, fila:document.querySelector('.falt-d')?.textContent||'', quitar:!!document.querySelector('.falt-quitar')}));
 (aviso.abierto && /sin decir qué se cobra/.test(aviso.intro) && !/\$0/.test(aviso.intro))
