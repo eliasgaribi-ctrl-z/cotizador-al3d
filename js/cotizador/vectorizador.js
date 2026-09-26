@@ -4,7 +4,7 @@
    Vectorizador: cuantización, despeckle, contorneo, esquinas y curvas, orquestación, resultados y salidas (SVG, PNG, partidas, anidador).
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
-   once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
+   doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
    161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
@@ -84,6 +84,8 @@ function cerrarVector(){
 }
 window.addEventListener('popstate',()=>{
   if(!$('vectormodal').classList.contains('show'))return;
+  /* Solo el atrás que es suyo, por lo mismo que el escalador: ver atrasEsDeLaCapa en nucleo.js. */
+  if(!atrasEsDeLaCapa('vectormodal'))return;
   VT.hist=false;              // la entrada ya la consumió el "atrás" del navegador
   vtOcultar();
 });
@@ -121,7 +123,8 @@ async function vtLoadPDF(f){
       /* s.onerror no trae mensaje, así que el catch de abajo imprimía «Error PDF: undefined»
          —el caso más común es simplemente estar sin señal, porque el lector se descarga la
          primera vez— y no había forma de saber qué había pasado ni qué hacer. */
-      await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=res;s.onerror=()=>rej(new Error('se necesita conexión para leer un PDF: el lector se descarga la primera vez. Exporta el plano como JPG o PNG y vuelve a intentar'));document.head.appendChild(s);});
+      /* Con la misma huella que el escalador (PDFJS_SRI, escalador.js, que carga antes). */
+      await new Promise((res,rej)=>{const s=document.createElement('script');s.integrity=PDFJS_SRI;s.crossOrigin='anonymous';s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=res;s.onerror=()=>rej(new Error('se necesita conexión para leer un PDF: el lector se descarga la primera vez. Exporta el plano como JPG o PNG y vuelve a intentar'));document.head.appendChild(s);});
       pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
     /* El documento se destruye al terminar de pintarlo, como en scLoadPDF: cada uno tiene
@@ -129,7 +132,7 @@ async function vtLoadPDF(f){
     const oc=document.createElement('canvas');
     let pdf;
     try{
-      pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;
+      pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer(),isEvalSupported:false}).promise;
       const page=await pdf.getPage(1);
       const base=page.getViewport({scale:1});
       // Menos resolución que en el escalador: aquí cada píxel se cuantiza y se recorre,

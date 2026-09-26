@@ -4,7 +4,7 @@
    Estado (Q), ayudantes de pantalla, los siete modales y el «atrás» del teléfono, preferencias, clientes conocidos y el cálculo del precio.
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
-   once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
+   doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
    161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
@@ -380,6 +380,23 @@ function _atrasDesdeElCodigo(){
   setTimeout(()=>{_atrasPorCodigo=false;},400);
   try{ history.back(); }catch(_){}
 }
+/* ----- Esperar a que ese atrás termine -----
+   history.back() es ASÍNCRONO. «Abrir y editar» y «Duplicar» del historial, con un borrador en
+   pantalla, preguntan con confirmar() encima del historial; al contestar, la capa de la pregunta
+   pide su atrás y en el mismo tick la función cierra el historial. _histAlCerrar ve todavía
+   `state.capa==='confmodal'`, no retrocede, y la entrada del historial se quedaba huérfana: el
+   siguiente atrás del teléfono no hacía nada visible. Esperando aquí, el historial se cierra
+   igual que cuando no hubo pregunta. Si no hay atrás pendiente, no espera nada; y si el popstate
+   no llega, el mismo tope que la marca. */
+function trasElAtrasDelCodigo(){
+  return new Promise(res=>{
+    if(!_atrasPorCodigo){ res(); return; }
+    let t=0;
+    const fin=()=>{ clearTimeout(t); window.removeEventListener('popstate',fin); res(); };
+    window.addEventListener('popstate',fin);
+    t=setTimeout(fin,450);
+  });
+}
 function _histAlAbrir(m){
   if(_CAPAS_CON_HIST_PROPIA.has(m.id))return;
   if(m.dataset.hist==='1')return;
@@ -429,9 +446,16 @@ function deLosClientesAlHistorial(){ cederEntrada('climodal','histmodal'); cerra
 /* Si ESTE atrás lo dio el código. Lo lee también el oyente de abajo, que corre después y ya no
    puede leer _atrasPorCodigo porque éste lo apaga. */
 let _popPorCodigo=false;
+/* Lo mismo, para los oyentes del escalador y del vectorizador, que corren DESPUÉS de los dos
+   de aquí: el de abajo apaga _popPorCodigo, y para entonces ya pudo cerrar la capa que estaba
+   arriba —la pregunta de confirmar()—, así que tampoco pueden preguntar quién está arriba. Se
+   anota una vez, antes de que nadie toque nada, y se lee con atrasEsDeLaCapa(). */
+let _esteAtras={porCodigo:false,arriba:null};
+function atrasEsDeLaCapa(id){ return !_esteAtras.porCodigo&&!!_esteAtras.arriba&&_esteAtras.arriba.id===id; }
 window.addEventListener('popstate',ev=>{
   const porCodigo=_atrasPorCodigo; _atrasPorCodigo=false;
   _popPorCodigo=porCodigo;
+  _esteAtras={porCodigo,arriba:_capaDeArriba()};
   if(_capaDeArriba()) return;                 // la capa de arriba se queda con este atrás
   const st=ev.state;
   if(!st||!st.cot) return;                    // la entrada no es de las pantallas: no es nuestra

@@ -4,7 +4,7 @@
    Escalador Pro: medir sobre una foto con cotas, guías, lupa, zoom, y el puente del escalador a la IA y a las partidas.
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
-   once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
+   doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
    161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
@@ -80,6 +80,11 @@ function cerrarScaler(){
 }
 window.addEventListener('popstate',()=>{
   if(!$('scalermodal').classList.contains('show'))return;
+  /* Solo si el atrás es SUYO: lo dio el dedo con el escalador como capa de arriba. Contestar el
+     confirmar() que sale encima —«¿cambiar la imagen?»— consume la entrada de la pregunta con
+     un atrás del código, y este oyente se lo tomaba como propio: cerraba el escalador con la
+     medición a medias y dejaba su entrada {sc:1} huérfana. Ver atrasEsDeLaCapa en nucleo.js. */
+  if(!atrasEsDeLaCapa('scalermodal'))return;
   SC.hist=false;            // la entrada ya la consumió el "atrás" del navegador
   scOcultarScaler();
 });
@@ -234,6 +239,20 @@ function scLoadImgSrc(src,name,alCargar){
   img.onerror=()=>toast(errImagen(name),'err',6400);
   img.src=src;
 }
+/* ----- pdf.js, el de cdnjs y ningún otro -----
+   Se descarga de un tercero la primera vez que se abre un PDF, y un PDF es un archivo de afuera
+   —el plano que mandó el cliente—. Dos defensas, las dos explícitas:
+     · `integrity`: el navegador compara el archivo con esta huella y, si cdnjs sirviera otra
+       cosa, no lo corre. La huella es la del archivo exacto de 3.11.174 (sha384, comprobado
+       también contra el sha512 que publica cdnjs). Cambiar de versión es cambiar las dos.
+     · `isEvalSupported:false` en getDocument (aquí y en vtLoadPDF): la 3.11.174 tiene la
+       CVE-2024-4367, un PDF con una fuente armada ejecuta JS por el `new Function` del cargador
+       de fuentes. La CSP de cotizador.html no deja pasar 'unsafe-eval', pero la defensa no
+       puede depender de que nadie se lo agregue algún día. No se sube a la 4.x: cambia la API.
+   El worker (GlobalWorkerOptions.workerSrc) NO admite integridad: pdf.js lo levanta con un
+   importScripts() dentro de un worker de blob, y ahí no hay atributo que poner. Lo cubre la
+   CSP (worker-src) y que el código del hilo principal ya viene verificado. */
+const PDFJS_SRI='sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e';
 async function scLoadPDF(f){
   toast('Cargando PDF…','',8000);
   try{
@@ -241,7 +260,7 @@ async function scLoadPDF(f){
       /* s.onerror no trae mensaje, así que el catch de abajo imprimía «Error PDF: undefined»
          —el caso más común es simplemente estar sin señal, porque el lector se descarga la
          primera vez— y no había forma de saber qué había pasado ni qué hacer. */
-      await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=res;s.onerror=()=>rej(new Error('se necesita conexión para leer un PDF: el lector se descarga la primera vez. Exporta el plano como JPG o PNG y vuelve a intentar'));document.head.appendChild(s);});
+      await new Promise((res,rej)=>{const s=document.createElement('script');s.integrity=PDFJS_SRI;s.crossOrigin='anonymous';s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=res;s.onerror=()=>rej(new Error('se necesita conexión para leer un PDF: el lector se descarga la primera vez. Exporta el plano como JPG o PNG y vuelve a intentar'));document.head.appendChild(s);});
       pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
     const ab=await f.arrayBuffer();
@@ -252,7 +271,7 @@ async function scLoadPDF(f){
     const oc=document.createElement('canvas');
     let pdf;
     try{
-      pdf=await pdfjsLib.getDocument({data:ab}).promise;
+      pdf=await pdfjsLib.getDocument({data:ab,isEvalSupported:false}).promise;
       const page=await pdf.getPage(1);
       // Resolución acorde a la pantalla en vez de un 2.5 fijo: los planos grandes conservan el detalle
       const base=page.getViewport({scale:1});

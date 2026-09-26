@@ -337,6 +337,13 @@ export function desmontar() {
      · sesion()      — que haya un token de Google vivo, pidiéndolo si caducó. Abre la
                        ventana de Google, así que el marco la llama dentro de un toque.
      · hablar(r,c,t) — una pregunta a la hoja con las dos puertas (datos/puente.js#hablar).
+     · avisar(m,t,f) — el aviso del notario («COT-0042 ya está autorizada · Abrir») cuando el
+                       marco está ESCONDIDO. Conservado, el cotizador sigue vivo y su vigilante
+                       sigue preguntando —dentro del marco `visibilityState` dice 'visible'—,
+                       pero su toast se pintaba en un marco que nadie ve y ya no se repetía. Con
+                       el marco a la vista contesta false y el cotizador avisa con el suyo. El
+                       texto va por textContent (ui.js#toast); `f` es la función del marco que
+                       abre esa cotización, y se llama después de volver al Cotizador.
 
    No se presta el token. El marco no lo necesita —lo pone `hablar` al salir— y un token que no
    sale de esta página no lo puede copiar nada de lo que corra dentro del marco. */
@@ -353,6 +360,20 @@ function exponerIdentidad() {
                   : { ok: false, codigo: r.codigo, mensaje: r.mensaje };
     },
     hablar(ruta, cuerpo, espera) { return Puente.hablar(ruta, cuerpo, espera); },
+    avisar(msg, tipo, abrir) {
+      if (_visible || !_ctx) return false;
+      const ctx = _ctx;
+      toast(String(msg || ''), tipo === 'err' ? 'err' : tipo === 'ok' ? 'ok' : '', 9000, {
+        label: typeof abrir === 'function' ? 'Abrir' : 'Ver',
+        fn: () => {
+          ctx.ir('cotizador');
+          /* Después de pedir la vuelta: lo que abre puede preguntar con su confirmar(), y esa
+             pregunta tiene que salir en el marco que ya se está enseñando. */
+          if (typeof abrir === 'function') setTimeout(() => { try { abrir(); } catch (_) {} }, 0);
+        },
+      });
+      return true;
+    },
   });
 }
 

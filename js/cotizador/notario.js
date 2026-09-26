@@ -145,7 +145,17 @@ function aplicarSello(sello){
   Q.nota=String(sello.nota||'');
   const d=new Date(sello.ts);
   Q.fechaAuth=(isNaN(d)?new Date():d).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
-  Q.sello={codigo:String(sello.codigo),correo:Q.autorizador,ts:String(sello.ts),total:Number(sello.total)||0,folio:folioGlobal()};
+  /* El proyecto que la hoja firmó viaja con el sello aunque la huella no lo cubra: verificar.html
+     lo enseña, y el PDF dice «si el negocio no coincide, este documento fue alterado». Corregirlo
+     después con «Corregir datos del cliente» no suelta el precio —las partidas no cambiaron—,
+     así que es aquí donde se guarda contra qué comparar (selloImprimible, entrega.js). El sello
+     de la hoja no lo trae: se toma el que se le mandó —el de la solicitud, si la hubo, porque
+     mientras se esperaba se pudo corregir— y si no, el de la pantalla, que es el que acaba de
+     salir en cotParaHoja(). */
+  const sol=Q.solicitud;
+  const proyecto=typeof sello.proyecto==='string'?sello.proyecto
+    : (sol&&typeof sol.proyecto==='string')?sol.proyecto : (Q.proy||'').trim();
+  Q.sello={codigo:String(sello.codigo),correo:Q.autorizador,ts:String(sello.ts),total:Number(sello.total)||0,folio:folioGlobal(),proyecto};
   Q.solicitud=null;
   _selfAuth=false; Q.reauth=null;
   paBorradorLimpiar();
@@ -186,24 +196,40 @@ function aplicarSello(sello){
    donde la ve dirección en el suyo. Si no sube, se reintenta sola. */
 async function enviarSolicitud(){
   if(Q.estado!=='pendiente'||!Q.solicitud) return;
-  const folio=Q.folio;
+  const folio=Q.folio, sol=Q.solicitud, cot=cotParaHoja();
   try{
-    const r=await hablarHoja('solicitar',{folio:folioGlobal(folio),cotizacion:cotParaHoja(),nota:''});
+    const r=await hablarHoja('solicitar',{folio:folioGlobal(folio),cotizacion:cot,nota:''});
+    /* Se canceló mientras iba en camino —«Editar», rechazar, otro cliente—. El «cancelar» pudo
+       llegar a la hoja ANTES que esta solicitud, y entonces la dejó viva en la cola de dirección
+       para un trabajo que ya no existe. Si la hoja la aceptó, se retira otra vez. */
+    if(sol.retirada){
+      if(!(r&&r.ok)) return;
+      /* Salvo que ya se haya vuelto a pedir el mismo folio: entonces lo que la hoja tiene puede
+         ser esto viejo encima de lo nuevo, y lo que toca es mandar lo nuevo en la siguiente
+         vuelta, no cancelarlo. */
+      if(Q.folio===folio&&Q.estado==='pendiente'&&Q.solicitud){ Q.solicitud.enviada=false; saveState(); }
+      else retirarSolicitud(folio);
+      return;
+    }
     if(Q.folio!==folio||!Q.solicitud) return;
     if(r&&r.ok){
       const nueva=!Q.solicitud.enviada;
-      Q.solicitud.enviada=true; Q.solicitud.error='';
-      saveState(); renderAuth();
+      Q.solicitud.enviada=true; Q.solicitud.error=''; delete Q.solicitud.cancelada;   // se volvió a pedir
+      /* Lo que la hoja tiene es lo de ESTE envío: su proyecto es el que el sello va a firmar. */
+      Q.solicitud.proyecto=cot.proyecto;
+      saveState(); solicitudALaCola(folio); renderAuth();
       if(nueva) toast('Solicitud enviada a Dirección · te aviso cuando la autoricen','ok',4200);
     } else {
       /* Un catálogo que no cuadra no se arregla reintentando: se dice y se para. */
       Q.solicitud.error=(r&&r.mensaje)||'La hoja no aceptó la solicitud.';
       Q.solicitud.definitivo=r&&r.codigo==='CATALOGO_DESINCRONIZADO';
-      saveState(); renderAuth();
+      saveState(); solicitudALaCola(folio); renderAuth();
       toast(Q.solicitud.error,'err',8000);
     }
   }catch(e){
-    if(Q.folio!==folio||!Q.solicitud) return;
+    /* Sin respuesta no se sabe si llegó: el tope de espera corta aquí, pero Apps Script puede
+       haberla escrito igual. Por eso retirar no pregunta si estaba `enviada` (ver reabrir). */
+    if(sol.retirada||Q.folio!==folio||!Q.solicitud) return;
     const primera=!Q.solicitud.error;
     Q.solicitud.error=e.codigo==='SIN_PUENTE'?e.message:'Sin señal: la solicitud se manda sola cuando vuelva.';
     saveState(); renderAuth();
@@ -211,10 +237,24 @@ async function enviarSolicitud(){
   }
   vigilarSolicitudes();
 }
+/* La foto de la cola se toma en solicitarConfirmado(), ANTES de mandar: se quedaba con
+   `enviada:false` y sin `definitivo` para siempre. Al abrir otra, la de la cola se seguía
+   preguntando aunque la hoja ya hubiera dicho que su catálogo no cuadra, y al volver a abrirla
+   se reenviaba una solicitud que ya estaba —o que ya se había autorizado—. Lo que la hoja
+   contestó se copia también a la cola. */
+function solicitudALaCola(folio){
+  const e=getQueue().find(x=>x.folio===folio&&x.estado==='pendiente');
+  if(e&&e.q&&Q.solicitud) updateQueueEntry(folio,{q:Object.assign({},e.q,{solicitud:JSON.parse(JSON.stringify(Q.solicitud))})});
+}
 /* La solicitud ya no corresponde —se reabrió para editar—: se retira de la cola de dirección
    para que nadie autorice un trabajo que ya no es éste. Si no hay señal, la hoja se entera por
-   el lado de la huella: autorizar lo viejo no se aplicaría aquí. */
-function retirarSolicitud(folio){
+   el lado de la huella: autorizar lo viejo no se aplicaría aquí.
+   Se llama SIEMPRE que haya solicitud, subiera o no: una que va en camino, o una que se dio por
+   perdida al vencer la espera, puede estar ya en la hoja, y /cancelar sobre un folio sin
+   solicitud viva no hace nada. `sol` es el objeto que se retira: queda marcado para que un envío
+   que todavía no contesta sepa, al volver, que lo que subió ya no vale (enviarSolicitud). */
+function retirarSolicitud(folio,sol){
+  if(sol) sol.retirada=true;
   hablarHoja('cancelar',{folio:folioGlobal(folio)}).catch(()=>{});
 }
 
@@ -225,10 +265,17 @@ function retirarSolicitud(folio){
 const VIGILA_MS=15000;
 let _vigilaT=null, _vigilaEnVuelo=false;
 const _yaAvisadas=new Set();
+/* Qué solicitudes siguen esperando una respuesta de la hoja. Dos no, aunque sigan pendientes:
+   la `definitivo` —la hoja la rechazó por el catálogo y nunca llegó a dirección, así que no hay
+   respuesta que esperar— y la que ya trae `rechazo` —la hoja ya contestó y la cotización está
+   en la cola esperando a que alguien la abra—. Las dos se preguntaban cada quince segundos para
+   siempre. Tampoco la `cancelada`: la hoja dijo que ya no está en la cola de dirección, y
+   preguntar otra vez no la devuelve (ver atenderCancelada). */
+function _esperaViva(sol){ return !!(sol&&!sol.definitivo&&!sol.rechazo&&!sol.cancelada); }
 function _foliosEsperando(){
   const fs=new Set();
-  if(Q.estado==='pendiente'&&Q.solicitud) fs.add(Q.folio);
-  getQueue().forEach(e=>{ if(e.estado==='pendiente'&&e.q&&e.q.solicitud) fs.add(e.folio); });
+  if(Q.estado==='pendiente'&&_esperaViva(Q.solicitud)) fs.add(Q.folio);
+  getQueue().forEach(e=>{ if(e.estado==='pendiente'&&e.q&&_esperaViva(e.q.solicitud)) fs.add(e.folio); });
   return [...fs].slice(0,20);
 }
 function vigilarSolicitudes(){
@@ -240,8 +287,9 @@ async function consultarSolicitudes(){
   if(_vigilaEnVuelo) return;
   _vigilaEnVuelo=true;
   try{
-    /* Lo que no subió, se vuelve a mandar antes de preguntar por ello. */
-    if(Q.estado==='pendiente'&&Q.solicitud&&!Q.solicitud.enviada&&!Q.solicitud.definitivo) await enviarSolicitud();
+    /* Lo que no subió, se vuelve a mandar antes de preguntar por ello. Lo que alguien retiró
+       de la cola de dirección, no: volver a pedirlo es decisión de quien cotiza, con su botón. */
+    if(Q.estado==='pendiente'&&Q.solicitud&&!Q.solicitud.enviada&&!Q.solicitud.definitivo&&!Q.solicitud.cancelada) await enviarSolicitud();
     const folios=_foliosEsperando();
     if(folios.length){
       const r=await hablarHoja('estado',{folios:folios.map(f=>folioGlobal(f))});
@@ -251,34 +299,120 @@ async function consultarSolicitudes(){
   }catch(_){ /* sin señal: se vuelve a preguntar en la siguiente vuelta */ }
   finally{ _vigilaEnVuelo=false; vigilarSolicitudes(); }
 }
+/* ----- Un sello de antes de pedir no contesta esta solicitud -----
+   /estado devuelve el último sello VIGENTE del folio, y un folio que ya estuvo autorizado tiene
+   uno. «Volver a autorizar el precio» (reautorizar, proceso.js) deja la cotización pendiente
+   con las MISMAS partidas —el cliente regatea el precio, no el trabajo—, así que la huella del
+   sello viejo cuadra, y a los quince segundos la vuelta lo aplicaba: autorizada otra vez, al
+   precio de antes, sin que dirección hubiera visto nada. La hoja se está arreglando para no
+   mandarlo; aquí se defiende también, por dos lados:
+     · el código del sello que se está volviendo a autorizar (Q.reauth.sello) no es respuesta,
+       sin importar la hora —cubre el regateo de cinco minutos después—;
+     · un sello emitido antes de pedir tampoco. La hora de la solicitud es la de ESTE teléfono
+       (Date.now() en solicitarConfirmado) y la del sello la de Google: la holgura es para un
+       reloj adelantado, que de otro modo tiraría el sello bueno y dejaría la cotización
+       esperando para siempre. */
+const SELLO_HOLGURA_MS=2*60*1000;
+function selloDeAntes(sello,sol,reauth,folio){
+  if(!sello) return false;
+  const viejo=reauth&&reauth.folio===folio&&reauth.sello;
+  if(viejo&&viejo.codigo&&String(viejo.codigo)===String(sello.codigo)) return true;
+  const t=Date.parse(sello.ts), pedida=Number(sol&&sol.ts)||0;
+  return pedida>0&&isFinite(t)&&t<pedida-SELLO_HOLGURA_MS;
+}
 function atenderRespuesta(folio,x){
   if(!x||!x.estado||x.estado==='pendiente') return;
   const enPantalla=folio===Q.folio&&Q.estado==='pendiente';
+  const fila=enPantalla?null:getQueue().find(e=>e.folio===folio&&e.estado==='pendiente');
+  const cot=enPantalla?Q:(fila&&fila.q)||null;
   if(x.estado==='autorizada'&&x.sello){
+    if(cot&&selloDeAntes(x.sello,cot.solicitud,cot.reauth,folio)) return;
     if(!enPantalla){
       /* Es de una cotización que está en la cola, no en pantalla: se avisa y se abre con un toque.
          Al abrirla, la siguiente vuelta la encuentra en pantalla y le aplica el sello. */
       if(_yaAvisadas.has(folio)) return;
       _yaAvisadas.add(folio);
-      toast(folio+' ya está autorizada por '+x.sello.correo,'ok',9000,{label:'Abrir',fn:()=>loadQueueEntry(folio)});
+      avisoDelNotario(folio+' ya está autorizada por '+x.sello.correo,'ok',9000,folio);
       return;
     }
     /* El sello es del trabajo que se pidió. Si en este teléfono las partidas ya son otras, esa
        autorización no es de esto: se dice y no se aplica. */
     if(x.sello.huella!==huellaTrabajo()){
-      if(!_yaAvisadas.has(folio+'#h')){ _yaAvisadas.add(folio+'#h'); toast('Dirección autorizó '+folio+', pero las partidas cambiaron aquí después de pedirla. Vuelve a solicitarla.','err',9000); }
+      if(!_yaAvisadas.has(folio+'#h')){ _yaAvisadas.add(folio+'#h'); avisoDelNotario('Dirección autorizó '+folio+', pero las partidas cambiaron aquí después de pedirla. Vuelve a solicitarla.','err',9000); }
       return;
     }
     aplicarSello(x.sello);
-    toast('✓ '+x.sello.correo+' autorizó '+folio+' · '+money(Q.sello.total),'ok',6000);
+    avisoDelNotario('✓ '+x.sello.correo+' autorizó '+folio+' · '+money(Q.sello.total),'ok',6000);
     return;
   }
-  if(x.estado==='rechazada'&&enPantalla){
-    Q.estado='rechazada'; Q.autorizador=x.resolvio||''; Q.nota=x.nota||''; Q.solicitud=null;
-    Q.precioAuth=0; Q.itemsAuth={}; Q.huellaAuth=''; Q.sello=null;
-    removeFromQueue(Q.folio); saveState(); renderItems(); vibrar([20,60,20]);
-    toast('Dirección rechazó '+folio+(x.nota?' — '+x.nota:''),'err',8000);
+  if(x.estado==='cancelada'){ atenderCancelada(folio,enPantalla,fila); return; }
+  /* `null` es «la hoja no tiene esa solicitud», y puede ser que todavía no le llegue: se sigue
+     preguntando. */
+  if(x.estado!=='rechazada') return;
+  if(!enPantalla){
+    /* Rechazada, y en la cola, no en pantalla. Antes no se decía nada y se seguía preguntando
+       por ella cada quince segundos para siempre. Se avisa como la autorizada, con «Abrir», y la
+       respuesta se guarda en su solicitud: sale de la espera (_esperaViva) y se aplica al
+       abrirla (aplicarRechazoGuardado), también si se abre días después desde la cola.
+       No se aplica aquí: rechazar la saca de la cola, y en la cola está la única copia. */
+    if(!fila||!fila.q||!fila.q.solicitud||fila.q.solicitud.rechazo) return;
+    const sol=Object.assign({},fila.q.solicitud,{rechazo:{resolvio:String(x.resolvio||''),nota:String(x.nota||'')}});
+    updateQueueEntry(folio,{q:Object.assign({},fila.q,{solicitud:sol})});
+    if(_yaAvisadas.has(folio+'#r')) return;
+    _yaAvisadas.add(folio+'#r');
+    avisoDelNotario('Dirección rechazó '+folio+(x.nota?' — '+x.nota:''),'err',9000,folio);
+    return;
   }
+  Q.estado='rechazada'; Q.autorizador=x.resolvio||''; Q.nota=x.nota||''; Q.solicitud=null;
+  Q.precioAuth=0; Q.itemsAuth={}; Q.huellaAuth=''; Q.sello=null;
+  removeFromQueue(Q.folio); saveState(); renderItems(); vibrar([20,60,20]);
+  avisoDelNotario('Dirección rechazó '+folio+(x.nota?' — '+x.nota:''),'err',8000);
+}
+/* ----- Cancelada en la hoja -----
+   La retiró Dirección, o este mismo teléfono desde otra sesión. Se preguntaba por ella cada
+   quince segundos para siempre, porque atenderRespuesta solo conocía «autorizada» y
+   «rechazada». Es una respuesta final: sale de la espera (`cancelada`, ver _esperaViva) y la
+   cotización se queda pendiente en la cola —no se borra nada: ahí puede estar la única copia—,
+   con «Volver a pedirla» a la mano (renderAuth, proceso.js) y «Editar» como siempre.
+   Se avisa una vez, y no se avisa lo que retiró este teléfono (`retirada`): eso ya lo sabe
+   quien tocó el botón. */
+function atenderCancelada(folio,enPantalla,fila){
+  const sol=enPantalla?Q.solicitud:(fila&&fila.q&&fila.q.solicitud);
+  if(!sol||sol.cancelada) return;
+  const nueva=Object.assign({},sol,{enviada:false,cancelada:true,
+    error:'La solicitud ya no está en la cola de Dirección. Vuelve a pedirla cuando esté lista, o edítala.'});
+  if(enPantalla){ Q.solicitud=nueva; saveState(); solicitudALaCola(folio); renderAuth(); }
+  else updateQueueEntry(folio,{q:Object.assign({},fila.q,{solicitud:nueva})});
+  if(sol.retirada||_yaAvisadas.has(folio+'#c')) return;
+  _yaAvisadas.add(folio+'#c');
+  avisoDelNotario('La solicitud de '+folio+' se retiró de la cola de Dirección · vuelve a pedirla cuando esté lista','err',9000,enPantalla?null:folio);
+}
+/* La que se rechazó mientras estaba en la cola, al abrirla. La llaman loadQueueEntry() y el
+   arranque: ésa es la próxima vez que la cotización está en pantalla. */
+function aplicarRechazoGuardado(){
+  const s=Q.solicitud;
+  if(Q.estado!=='pendiente'||!s||!s.rechazo) return;
+  atenderRespuesta(Q.folio,{estado:'rechazada',resolvio:s.rechazo.resolvio,nota:s.rechazo.nota});
+}
+/* El «Abrir» de esos avisos. Abierta, se pregunta en ese momento en vez de esperar a la vuelta
+   siguiente: quien tocó «Abrir» quiere ver el sello puesto, no quince segundos de pendiente. */
+async function abrirRespondida(folio){
+  await loadQueueEntry(folio);
+  if(Q.folio!==folio) return;
+  aplicarRechazoGuardado();
+  if(_foliosEsperando().includes(folio)) consultarSolicitudes();
+}
+/* ----- Un aviso que alguien tiene que ver -----
+   El cotizador conservado sigue vivo con su sección escondida en la plataforma
+   (js/mod/cotizador.js#ocultar), y dentro del marco `visibilityState` sigue diciendo
+   'visible': el vigilante pregunta, el sello llega y el aviso se pintaba en un marco que nadie
+   ve. Con _yaAvisadas, además, no se repetía nunca. Si la plataforma dice que el marco está
+   escondido, el aviso lo da ella con el suyo, y su «Abrir» trae de vuelta al Cotizador. */
+function avisoDelNotario(msg,tipo,dur,folio){
+  const abrir=folio?()=>abrirRespondida(folio):null;
+  const b=_al3d();
+  try{ if(b&&typeof b.avisar==='function'&&b.avisar(msg,tipo,abrir)===true) return; }catch(_){}
+  toast(msg,tipo,dur,abrir?{label:'Abrir',fn:abrir}:null);
 }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&(_foliosEsperando().length||_veoColaRemota())) consultarSolicitudes(); });
 window.addEventListener('online',()=>{ if(_foliosEsperando().length||_veoColaRemota()) consultarSolicitudes(); });
@@ -309,7 +443,7 @@ function remotasHTML(){
   return _remotas.map(s=>{
     const c=s.cotizacion||{}, sub=(c.items||[]).reduce((t,it)=>t+lineTotal(it),0);
     const neto=c.iva?sub*1.16:sub;
-    return `<div class="queue-item remota" ${_ABRIBLE} aria-label="Revisar ${esc(s.folio)} de otro teléfono${c.proyecto?', '+esc(c.proyecto):''}" onclick="abrirRevisionRemota('${esc(s.folio)}')">
+    return `<div class="queue-item remota" ${_ABRIBLE} aria-label="Revisar ${esc(s.folio)} de otro teléfono${c.proyecto?', '+esc(c.proyecto):''}" onclick="abrirRevisionRemota(${jsArg(s.folio)})">
       <span class="qi-dot"></span>
       <div class="qi-body">
         <div class="qi-folio">${esc(String(s.folio).split('@')[0])} <span class="qi-remota">otro teléfono</span></div>

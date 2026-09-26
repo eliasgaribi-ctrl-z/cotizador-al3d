@@ -4,7 +4,7 @@
    Las partidas: agregar, duplicar, plegar, heredar material, pintarlas (renderItems), sus chips y su resumen, y la autorización por partida.
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
-   once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
+   doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
    161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
@@ -709,10 +709,6 @@ function updProg(){
      el precio ya cerrado —y con qué se empieza la siguiente cotización, que era lo que no se
      encontraba y acababa escribiéndose encima de la anterior. */
   pintarCandadoCliente();
-  /* El resumen del encabezado plegado de «Datos del proyecto» se quedaba con el cliente de
-     la cotización anterior al abrir otra: se pintaba solo al plegar y desplegar, no cuando
-     los datos cambiaban. Va aquí por el mismo motivo que pintarObligatorios. */
-  aplicarFoldProy();
   const pct=calcProg();
   const bar=$('prog-bar'),pctEl=$('prog-pct');
   if(!bar||!pctEl)return;
@@ -867,13 +863,11 @@ function irAPendiente(){
   irAResumen();
 }
 /* Llevar el foco a un campo de «Datos del proyecto», venga del aviso de arriba o del
-   freno al mandar a autorización. Los datos pueden estar plegados: llevar ahí sin
-   abrirlos dejaría al usuario mirando un encabezado cerrado. */
+   freno al mandar a autorización. */
 function irACampoProy(id){
   /* Antes que nada, la pantalla: enfocar un campo que está en la otra no enfoca nada, y el
      usuario se queda mirando la misma pantalla creyendo que el aviso no hizo caso. */
   if(_pantalla!=='cliente') irAPantalla('cliente',{subir:false});
-  if(_foldProy){ _foldProy=false; aplicarFoldProy(); }
   irA('card-proy');
   const el=$(id);
   if(el&&!el.disabled) requestAnimationFrame(()=>{ try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); } });

@@ -4,7 +4,7 @@
    Lo que se guarda: historial de autorizadas, cuadernos de cliente, respaldo y restauración, cola de autorización, persistencia, deshacer/rehacer, plazo de taller y folio.
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
-   once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
+   doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
    161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
@@ -329,10 +329,16 @@ function cerrarHistorial(){ $('histmodal').classList.remove('show'); }
 /* Volver a abrir una cotización ya autorizada: el cliente vuelve a pedir el PDF o
    quiere copiar la venta y antes había que capturarla otra vez desde cero. */
 async function reabrirDeHistorial(folio){
+  /* Mientras la hoja sella no se cambia de cotización: el sello volvería sin dueño y la que se
+     estaba sellando se quedaría pendiente en la cola para siempre (ver selloEnVuelo). */
+  if(selloEnVuelo()) return;
   guardarAutorizadaYa();   // lo que quedó en la espera de 700 ms se guarda antes de cambiar de cotización
   const e=_histData.find(x=>x.folio===folio); if(!e) return;
   const hayTrabajo=Q.estado!=='autorizada'&&(Q.items.some(it=>!itemVacio(it))||hayDatosCliente());
   if(hayTrabajo&&!await confirmar({titulo:'Tienes una cotización sin autorizar',texto:'Si abres '+folio+', la que está en pantalla se pierde.',si:'Abrir '+folio,no:'Seguir con la mía',peligro:true})) return;
+  /* La pregunta pidió su atrás al cerrarse y todavía no llega: cerrar el historial antes deja
+     su entrada huérfana (ver trasElAtrasDelCodigo). */
+  if(hayTrabajo) await trasElAtrasDelCodigo();
   guardarParaDeshacer();
   scReset();
   Q.folio=e.folio;
@@ -408,10 +414,12 @@ async function reabrirDeHistorial(folio){
    folio nuevo, en borrador, con el precio recalculado y sin arrastrar nada de la
    autorización anterior. Tus plantillas son tus cotizaciones anteriores. */
 async function usarComoBase(folio){
+  if(selloEnVuelo()) return;   // por lo mismo que reabrirDeHistorial
   guardarAutorizadaYa();   // lo que quedó en la espera de 700 ms se guarda antes de cambiar de cotización
   const e=_histData.find(x=>x.folio===folio); if(!e) return;
   const hayTrabajo=Q.estado!=='autorizada'&&(Q.items.some(it=>!itemVacio(it))||hayDatosCliente());
   if(hayTrabajo&&!await confirmar({titulo:'Tienes una cotización sin autorizar',texto:'Si empiezas una nueva a partir de '+folio+', la que está en pantalla se pierde.',si:'Empezar desde '+folio,no:'Seguir con la mía',peligro:true})) return;
+  if(hayTrabajo) await trasElAtrasDelCodigo();
   guardarParaDeshacer();
   scReset();
   /* Lo mismo que suelta nueva() —ver allá—: el folio nuevo puede ser el mismo número
@@ -744,16 +752,19 @@ function cuaGuardarNotaYa(){
 /* Desde el cuaderno se llega a las mismas dos acciones del historial: son las mismas
    cotizaciones, así que se llaman las mismas funciones —no hay una segunda manera de
    abrir una cotización que pueda dejar la pantalla distinta. */
-function cuaAbrirCot(folio){ _histData=getHistorial(); cerrarCuadernos(); reabrirDeHistorial(folio); }
-function cuaDuplicarCot(folio){ _histData=getHistorial(); cerrarCuadernos(); usarComoBase(folio); }
+/* La guarda del sello va también aquí, antes de cerrar el cuaderno: dentro de las otras dos ya
+   lo habría cerrado y el aviso de «espera» saldría sobre una pantalla que se movió. */
+function cuaAbrirCot(folio){ if(selloEnVuelo()) return; _histData=getHistorial(); cerrarCuadernos(); reabrirDeHistorial(folio); }
+function cuaDuplicarCot(folio){ if(selloEnVuelo()) return; _histData=getHistorial(); cerrarCuadernos(); usarComoBase(folio); }
 
 /* Cotizarle algo nuevo: en blanco, pero sin volver a teclear quién es. No se pregunta
    nada antes porque nueva() ya deja «Deshacer» puesto sobre lo que había. */
 function cuaNuevaCotizacion(clave){
   const g=cuadernoDe(clave); if(!g) return;
+  if(selloEnVuelo()) return;   // nueva() también se niega; aquí, antes de cerrar el cuaderno
   const habia=Q.items.some(it=>!itemVacio(it))||!!(Q.cliente||'').trim()||!!(Q.proy||'').trim();
   cerrarCuadernos();
-  nueva();
+  if(nueva()===false) return;
   Q.cliente=(g.clave==='?')?'':(g.nombre||'');
   Q.tel=g.tel||'';
   if($('f-cli')) $('f-cli').value=Q.cliente;
@@ -844,9 +855,9 @@ function verCuadernoDe(clave){
    navegador, al cambiar de teléfono o cuando iOS limpia los sitios que llevan semanas
    sin abrirse. Hasta ahora no había forma de sacarlo ni de moverlo.
 
-   La API key se queda fuera del respaldo a propósito: un respaldo se manda por
-   WhatsApp o por correo, y una key que viaja así deja de ser secreta. Se vuelve a
-   pegar en el teléfono nuevo, que es un minuto. */
+   Las llaves de IA no viajan en el respaldo porque ya no viven en el teléfono: desde
+   septiembre de 2026 están en la hoja (ver ia.js). Un respaldo se manda por WhatsApp o
+   por correo, y una llave que viajara así dejaría de ser secreta. */
 /* Van aquí arriba y no junto a `respaldar()` porque RESPALDO_KEYS es un `const` que se
    inicializa al cargar el archivo y las nombra: declararlas después reventaba el script. */
 const RESP_TS='al3d_respaldo_ts', RESP_N='al3d_respaldo_n';
@@ -944,13 +955,24 @@ function respaldar(nombre){
 function pintarPieHistorial(){
   const el=$('hist-nota'); if(!el) return;
   const t=respaldoTexto();
-  el.innerHTML=(t?esc(t)+' ':'')+'El respaldo <b>no</b> incluye tus API keys.';
+  /* La segunda frase es la misma que trae el HTML: la de antes hablaba de «tus API keys» en el
+     teléfono, que ya no existen aquí —viven en la hoja—, y pisaba la correcta en cada repintado. */
+  el.innerHTML=(t?esc(t)+' ':'')+'Las llaves de IA no viven en este teléfono: están en la hoja de AL3D.';
 }
 function pedirRestaurar(){ $('restaurarin').click(); }
-async function restaurarDesde(texto){
+/* ----- La forma de un respaldo, revisada en UN solo sitio -----
+   Antes solo se miraba la etiqueta 'app' y de ahí se escribía directo en el almacenamiento: un
+   respaldo truncado o editado a mano pasaba el filtro, borraba lo que había y anunciaba éxito,
+   dejando la app sin arrancar. Se revisa la FORMA de lo que viene antes de tocar nada.
+   Y antes de PINTAR nada: la tarjeta de ofrecerRestauracionPendiente leía el mismo paquete sin
+   revisarlo y metía su `.length` en un innerHTML. Un `al3d_historial` que fuera el objeto
+   {"length":"<img src=x onerror=…>"} corría en cada apertura del cotizador, con los tokens del
+   teléfono a mano y la ventanilla de la plataforma (parent.AL3D) al alcance. Devuelve
+   {paquete, completo, cuantas} o {error, dur}. */
+function revisarRespaldo(texto){
   let paquete;
   try{ paquete=JSON.parse(texto); }
-  catch(_){ toast('Ese archivo no se pudo leer — ¿es el respaldo?','err',3600); return; }
+  catch(_){ return {error:'Ese archivo no se pudo leer — ¿es el respaldo?',dur:3600}; }
   /* El respaldo COMPLETO —el que baja la plataforma— trae las dos mitades en un solo archivo.
      Aquí se toma la del cotizador y se sigue igual que siempre; la otra mitad la restaura la
      plataforma desde Ajustes. Un solo archivo para mover TODO de un aparato a otro, que es la
@@ -959,34 +981,37 @@ async function restaurarDesde(texto){
   if(paquete&&paquete.app==='al3d-completo'&&paquete.cotizador&&typeof paquete.cotizador==='object'){
     paquete=paquete.cotizador; completo=true;
   }
-  if(!paquete||paquete.app!=='cotizador-al3d'||!paquete.datos){
-    toast('Ese archivo no es un respaldo del cotizador','err',3600); return;
+  if(!paquete||typeof paquete!=='object'||paquete.app!=='cotizador-al3d'||!paquete.datos){
+    return {error:'Ese archivo no es un respaldo del cotizador',dur:3600};
   }
-  if(completo) toast('Es un respaldo completo: aquí se restaura la parte del cotizador. La de la plataforma se restaura en Plataforma → Ajustes.','',6000);
-  /* Antes solo se miraba la etiqueta 'app' y de ahí se escribía directo en el
-     almacenamiento: un respaldo truncado o editado a mano pasaba el filtro, borraba lo que
-     había y anunciaba éxito, dejando la app sin arrancar. Se revisa la FORMA de lo que
-     viene antes de tocar nada. */
   const D=paquete.datos;
   if(typeof D!=='object'||Array.isArray(D)||Object.values(D).some(v=>typeof v!=='string'&&v!==null)){
-    toast('El respaldo está dañado: sus datos no tienen la forma esperada','err',4600); return;
+    return {error:'El respaldo está dañado: sus datos no tienen la forma esperada',dur:4600};
   }
   if(!Object.keys(D).some(k=>RESPALDO_KEYS.includes(k))){
-    toast('El respaldo no trae ninguno de los datos del cotizador','err',4600); return;
+    return {error:'El respaldo no trae ninguno de los datos del cotizador',dur:4600};
   }
   /* Las dos claves que pueden dejar la app inservible se parsean de prueba. */
+  let cuantas=0;
   try{
     if(D['al3d_historial']!=null && !Array.isArray(JSON.parse(D['al3d_historial']))) throw 0;
+    /* Ya se sabe que es un arreglo: su `length` es un número y no un texto de nadie. */
+    if(D['al3d_historial']!=null) cuantas=JSON.parse(D['al3d_historial']).length;
     if(D['al3d_queue']!=null && !Array.isArray(JSON.parse(D['al3d_queue']))) throw 0;
     if(D['al3d_q']!=null){
       const q=JSON.parse(D['al3d_q']);
       if(!q||typeof q!=='object'||!Array.isArray(q.items)) throw 0;
     }
   }catch(_){
-    toast('El respaldo está dañado: el historial o la cotización en curso no se pueden leer','err',5200); return;
+    return {error:'El respaldo está dañado: el historial o la cotización en curso no se pueden leer',dur:5200};
   }
-  let cuantas=0;
-  try{ cuantas=(JSON.parse(paquete.datos['al3d_historial']||'[]')||[]).length; }catch(_){}
+  return {paquete,completo,cuantas};
+}
+async function restaurarDesde(texto){
+  const rv=revisarRespaldo(texto);
+  if(rv.error){ toast(rv.error,'err',rv.dur); return; }
+  const {paquete,completo,cuantas}=rv;
+  if(completo) toast('Es un respaldo completo: aquí se restaura la parte del cotizador. La de la plataforma se restaura en Plataforma → Ajustes.','',6000);
   const fecha=fechaDeRespaldo(paquete.fecha);
   if(!await confirmar({titulo:'¿Restaurar este respaldo?',
     texto:`Reemplaza el historial, los folios y la cotización en curso de este teléfono por los del respaldo`
@@ -1036,13 +1061,17 @@ const RESTAURAR_PF_KEY='al3d_pf_restaurar';
 function ofrecerRestauracionPendiente(){
   let t=null; try{ t=localStorage.getItem(RESTAURAR_PF_KEY); }catch(_){}
   if(!t) return;
-  let fecha='', cuantas=0;
-  try{ const pq=JSON.parse(t); fecha=fechaDeRespaldo(pq.fecha); cuantas=(JSON.parse((pq.datos||{}).al3d_historial||'[]')||[]).length; }catch(_){}
+  /* Se revisa con la misma regla que al restaurar, y ANTES de pintar: un paquete que no pasaría
+     restaurarDesde() tampoco se ofrece —el botón solo llevaría a un error—, y lo que se pinta
+     sale de lo ya revisado (ver revisarRespaldo). Se queda en la clave: es de la plataforma. */
+  const rv=revisarRespaldo(t);
+  if(rv.error) return;
+  const fecha=fechaDeRespaldo(rv.paquete.fecha), cuantas=Number(rv.cuantas)||0;
   const main=$('contenido'); if(!main||$('pf-restaurar')) return;
   const card=document.createElement('div');
   card.className='cand-partidas'; card.id='pf-restaurar'; card.setAttribute('role','region'); card.setAttribute('aria-label','Respaldo pendiente de restaurar');
   card.innerHTML='<p class="cp-txt"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg> <b>La plataforma dejó un respaldo completo'+(fecha?' del '+esc(fecha):'')+'</b>'
-    +(cuantas?' con '+cuantas+(cuantas===1?' cotización':' cotizaciones'):'')+', esperando la parte del cotizador. Restaurar reemplaza lo que hay aquí; antes se descarga una copia de lo actual.</p>'
+    +(cuantas?' con '+esc(cuantas)+(cuantas===1?' cotización':' cotizaciones'):'')+', esperando la parte del cotizador. Restaurar reemplaza lo que hay aquí; antes se descarga una copia de lo actual.</p>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'
     +'<button type="button" class="btn btn-ok" style="width:auto;padding:0 16px" onclick="restaurarPendiente()">Restaurar ahora</button>'
     +'<button type="button" class="btn btn-gho" style="width:auto;padding:0 16px" onclick="ocultarRestauracionPendiente()">Ahora no</button></div>';
@@ -1174,6 +1203,9 @@ async function loadQueueEntry(folio){
   /* El autorizador entra a revisar un precio, no a capturar un cliente: la pantalla que le
      toca es la de partidas, con su resumen al lado. */
   irAPantalla('partidas',{forzar:true});
+  /* Si Dirección la rechazó mientras esperaba en la cola, la respuesta ya llegó y viene
+     guardada en su solicitud: se aplica ahora que está en pantalla (notario.js). */
+  aplicarRechazoGuardado();
 }
 
 /* ===================== Persistencia ===================== */

@@ -1,10 +1,12 @@
 /* ============================================================================
    Cotizador · ia.js
 
-   Cotizar con IA: proveedores, API keys, el archivo a analizar, arrastrar y pegar, reintentos y respaldo entre proveedores.
+   Cotizar con IA: proveedores, el archivo a analizar, arrastrar y pegar, reintentos y respaldo
+   entre proveedores. Las llaves de cada proveedor ya no viven en el teléfono: están en la hoja
+   y cada intento sale por el puente (ver «Las llaves ya no viven aquí», más abajo).
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
-   once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
+   doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
    161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
@@ -123,7 +125,7 @@ ${lista}
    que se seguía cobrando a la cuenta de AL3D.
 
    Ahora viven en la hoja —⚡ AL3D → Llaves de IA— y cada intento sale por el puente, que las
-   pone del otro lado (rutaIA en puente/hoja-apps-script.gs). Lo que se quedó aquí es lo que
+   pone del otro lado (rutaIA_ en puente/hoja-apps-script.gs). Lo que se quedó aquí es lo que
    tiene que verse mientras se espera: el orden de los proveedores, los reintentos y el
    «probando con Qwen…» con el cliente enfrente, que Apps Script no podría decir a media
    ejecución.
@@ -463,7 +465,7 @@ async function aiTraerDeUrl(url){
 }
 /* Pegar es el camino que de verdad ahorra el viaje al disco: en WhatsApp Web o en el correo
    se copia la imagen y se pega aquí. Solo se atiende cuando el portapapeles trae un
-   ARCHIVO, así que pegar una API key en su campo —o cualquier texto— sigue igual. */
+   ARCHIVO, así que pegar texto en un campo sigue igual. */
 document.addEventListener('paste',e=>{
   const m=$('aimodal'); if(!m||!m.classList.contains('show')) return;
   const cd=e.clipboardData; if(!cd) return;

@@ -4,7 +4,7 @@
    La entrega: el logotipo, los datos de la empresa, WhatsApp, los hitos, Canva, el prompt de imagen y el generador de PDF.
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
-   once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
+   doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
    161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
@@ -479,7 +479,18 @@ function selloImprimible(neto){
   const s=Q.sello;
   if(!s||!s.codigo||!s.folio||Q.estado!=='autorizada'||!authVigente()) return null;
   if(Math.abs((Number(s.total)||0)-neto)>0.01) return null;
+  if(selloDeOtroProyecto()) return null;
   return s;
+}
+/* El negocio también se firmó. «Corregir datos del cliente» deja cambiar el proyecto sin soltar
+   el precio —la huella son las partidas—, y verificar.html enseña el proyecto que la hoja
+   firmó: el PDF saldría con un nombre y un QR que contesta con otro, justo encima de la frase
+   «si el total o el negocio no coinciden, este documento fue alterado». Sin QR entonces, y
+   generarPDF lo dice. Un sello de antes de que se guardara el proyecto (sin `proyecto`) no
+   tiene contra qué compararse y se imprime como siempre. */
+function selloDeOtroProyecto(){
+  const s=Q.sello;
+  return !!(s&&typeof s.proyecto==='string'&&s.proyecto!==(Q.proy||'').trim());
 }
 function ligaDeVerificacion(s){
   const u=new URL('verificar.html',location.href);
@@ -1406,6 +1417,12 @@ ${hayRecibo?(()=>{
      previa —hojas carta verticales sobre fondo gris— y el diálogo lo abre la barra de arriba,
      cuando el que mira ya vio lo que va a mandar. */
   const printable = html;
+  /* El PDF sale igual —el precio sigue autorizado—, pero sin el QR, y hay que decir por qué y
+     cómo se recupera: sin el aviso parecería que el sello se perdió. */
+  if(Q.estado==='autorizada'&&authVigente()&&selloDeOtroProyecto()){
+    toast('Este PDF sale sin el código de verificación: el proyecto cambió después de sellar («'
+      +Q.sello.proyecto+'» → «'+(Q.proy||'').trim()+'»). Vuelve a autorizar el precio para sellarlo con el nombre nuevo.','err',10000);
+  }
   try{
     const blob = new Blob([printable], {type:'text/html'});
     const url = URL.createObjectURL(blob);

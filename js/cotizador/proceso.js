@@ -4,7 +4,7 @@
    El proceso de cuatro pasos: resumen y autorización, revisión previa, datos obligatorios, el candado de las partidas y el de los datos del cliente, las dos pantallas, la barra de pasos, el flujo de autorizar, la barra fija del teléfono y los campos generales.
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
-   once archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
+   doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
    161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
@@ -247,7 +247,7 @@ function renderAuth(){
         ? `<div class="auth-divider">Autorizando tú mismo</div>${authRevisionHTML(true)}`
         : `<div class="authnote espera${Q.solicitud&&Q.solicitud.error?' falla':''}">${esperaHTML()}</div>
            ${puedeAutorizar()?`<button class="btn btn-pri" onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizarla yo mismo</button>`:''}
-           ${Q.solicitud&&!Q.solicitud.enviada&&!Q.solicitud.definitivo?`<button class="btn btn-gho" onclick="enviarSolicitud()"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Reintentar el envío</button>`:''}
+           ${Q.solicitud&&!Q.solicitud.enviada&&!Q.solicitud.definitivo?`<button class="btn btn-gho" onclick="enviarSolicitud()"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> ${Q.solicitud.cancelada?'Volver a pedirla':'Reintentar el envío'}</button>`:''}
            <button class="btn btn-gho" onclick="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar (cancela la solicitud)</button>`;
     }
     else if(Q.estado==='autorizada'){
@@ -1328,8 +1328,20 @@ function cerrarEdicionCliente(){
     const previa=otroClienteEnEsteFolio();
     if(previa){
       const deQuien=(previa.cliente||'').trim()||'la cotización que ya estaba';
+      /* La solicitud que ya subió es la del folio viejo: la hoja no conoce el nuevo. Se seguía
+         preguntando por el nuevo con `enviada` en true —así que nunca se reenviaba— y dirección
+         veía en su cola el folio viejo con el cliente viejo. Se retira la vieja y ésta vuelve a
+         salir, completa, con su folio. */
+      const reenviar=!!Q.solicitud;
+      if(reenviar){ retirarSolicitud(antes,Q.solicitud); Q.solicitud={enviada:false,ts:Date.now(),error:''}; }
       Q.folio=nextFolio(); pintarFolio();
       pushToQueue();       // busca por Q.folio, que ya es el nuevo: agrega, no pisa
+      /* El renglón del folio viejo se queda —es la promesa de la ficha—, pero sin la solicitud
+         que se acaba de retirar: preguntar por ella sería esperar para siempre una respuesta que
+         la hoja ya no va a dar. */
+      const vieja=getQueue().find(x=>x.folio===antes);
+      if(reenviar&&vieja&&vieja.q&&vieja.q.solicitud) updateQueueEntry(antes,{q:Object.assign({},vieja.q,{solicitud:null})});
+      if(reenviar) enviarSolicitud();
       toast(antes+' sigue siendo de '+deQuien+' — ésta quedó como '+Q.folio,'',7000);
     } else {
       updateQueueEntry(Q.folio,{proy:Q.proy,cliente:Q.cliente,
@@ -1352,6 +1364,7 @@ function cerrarEdicionCliente(){
    escribir. Se compara contra lo que el historial guarda de este folio, que es la única copia
    de lo que decía antes. */
 function nuevaConEstosDatos(){
+  if(selloEnVuelo()) return;   // ver nueva(): antes de leer nada de la que se está sellando
   guardarAutorizadaYa();   // lo que quedó en la espera de 700 ms se guarda antes de cambiar de cotización
   const previa=guardadaDeEsteFolio();
   /* A dónde fue a parar la anterior, dicho según lo que era. El aviso decía siempre «quedó
@@ -1627,9 +1640,12 @@ function reabrir(){
   /* La revisión se abrió con «Volver a autorizar» sobre una cotización ya autorizada:
      cancelarla no la convierte en borrador. Vuelve a ser la autorizada que era, con el precio,
      el nombre y la nota que tenía —el formulario escribe en Q mientras se teclea—. */
-  /* La solicitud que había subido a la hoja deja de corresponder: se retira de la cola de
-     dirección. Si no hay señal, la huella se encarga —un sello de lo viejo no se aplicaría—. */
-  if(eraPendiente&&Q.solicitud){ if(Q.solicitud.enviada) retirarSolicitud(Q.folio); Q.solicitud=null; }
+  /* La solicitud deja de corresponder: se retira de la cola de dirección. Si no hay señal, la
+     huella se encarga —un sello de lo viejo no se aplicaría—. Y se retira haya o no constancia
+     de que subió: mirar solo `enviada` dejaba fantasma en la cola de dirección a la que iba en
+     camino y a la que se dio por perdida al vencer la espera pero Apps Script sí escribió.
+     /cancelar sobre un folio sin solicitud viva no hace nada. */
+  if(eraPendiente&&Q.solicitud){ retirarSolicitud(Q.folio,Q.solicitud); Q.solicitud=null; }
   if(eraPendiente&&Q.reauth&&Q.reauth.folio===Q.folio){
     const a=Q.reauth, tecleo=paBorrador()!==null; Q.reauth=null;
     _selfAuth=false; paBorradorLimpiar();
@@ -1717,11 +1733,12 @@ function ajustarAnticipoAlPrecio(){
 function rechazar(){
   if(selloEnVuelo()) return;
   /* Rechazar no se sella —no hay precio que defender—, pero sí lleva nombre: el de la cuenta,
-     como autorizar. Y si la solicitud había subido a la hoja, se retira de allá. */
+     como autorizar. Y si hay solicitud, se rechaza también allá, conste o no que subió —por lo
+     mismo que en reabrir—; marcada, un envío que siga en camino la retira al volver. */
   const i=identidadVerificada();
   Q.autorizador=i?i.correo:'';
   Q.nota=($('a-note')?.value||'').trim();
-  if(Q.solicitud&&Q.solicitud.enviada) hablarHoja('rechazar',{folio:folioGlobal(),nota:Q.nota}).catch(()=>{});
+  if(Q.solicitud){ Q.solicitud.retirada=true; hablarHoja('rechazar',{folio:folioGlobal(),nota:Q.nota}).catch(()=>{}); }
   Q.solicitud=null; Q.sello=null;
   vibrar([20,60,20]);
   Q.estado='rechazada'; _selfAuth=false; Q.reauth=null; paBorradorLimpiar();
@@ -1770,7 +1787,13 @@ function guardarParaDeshacer(){
   _vaciada=(habia||scAntes)?{q:JSON.parse(JSON.stringify(Q)),pid,rol:Q.rol,sc:scAntes}:null;
   return !!_vaciada;
 }
+/* Devuelve false si no se pudo vaciar —la hoja está sellando—, para que quien la llama no siga
+   escribiendo el cliente de la siguiente encima de la que se está sellando. */
 function nueva(){
+  /* Cambiar de cotización mientras la hoja sella dejaba el sello sin dueño: autorizarConfirmado
+     ve otro folio al volver, dice «quedó sellada» y la de verdad se queda pendiente en la cola,
+     sin `solicitud` que nadie vuelva a sondear. Es la misma guarda que loadQueueEntry. */
+  if(selloEnVuelo()) return false;
   guardarAutorizadaYa();   // lo que quedó en la espera de 700 ms se guarda antes de cambiar de cotización
   /* La copia la hace `guardarParaDeshacer()`, que es la misma de las otras dos puertas: aquí
      vivía escrita aparte y con una condición más estrecha —solo miraba el cliente y el
@@ -1800,7 +1823,7 @@ function nueva(){
   Q.folio=nextFolio(); pintarFolio();
   Q.fecha=hoy();
   scReset();
-  addItem({enfocar:false,heredar:true}); aplicarFoldProy();
+  addItem({enfocar:false,heredar:true});
   /* Una cotización en blanco empieza donde empieza: por el cliente. */
   irAPantalla('cliente',{forzar:true});
   pintarAvisoDeAntes();
@@ -1813,9 +1836,11 @@ function nueva(){
       ? 'Cotización vaciada — y las '+_vaciada.sc.items.length+' medidas del escalador'
       : 'Cotización vaciada','',7000,{label:'Deshacer',fn:deshacerVaciado});
   else toast('Nueva cotización lista');
+  return true;
 }
 function deshacerVaciado(){
   if(!_vaciada) return;
+  if(selloEnVuelo()) return;   // también cambia la cotización en pantalla: ver nueva()
   /* El rol es de quien está usando la app, no de la cotización: se respeta el actual
      igual que al abrir un pendiente de la cola. */
   const rolActual=Q.rol;
@@ -1830,7 +1855,7 @@ function deshacerVaciado(){
   updDirRaw(Q.dirRaw||''); updMaps(Q.maps||'');
   $('f-anti').value=Q.anti||'';
   sincronizarPlegado();
-  pintarFolio(); aplicarFoldProy(); saveState(); renderItems();
+  pintarFolio(); saveState(); renderItems();
   irAPantalla(pantallaSegunDatos(),{forzar:true});
   toast('Cotización restaurada','ok');
 }
@@ -1971,29 +1996,10 @@ function renderMobileBar(){
     </button>${btn}`;
 }
 
-/* ===================== Datos del proyecto plegables (móvil) =====================
-   Los datos del proyecto se capturan al principio y después solo estorban: plegados
-   dejan las partidas hasta arriba, que es donde se trabaja el resto de la cotización.
-   La preferencia YA NO se recuerda en el dispositivo: init() la arranca siempre abierta
-   —con los datos del cliente en su propia pantalla, plegarlos la dejaba en blanco— y la
-   clave `al3d_fold_proy` que la guardaba se escribía sin que nadie la leyera y viajaba en
-   cada respaldo. Se quitó de los dos lados; `_foldProy` vive solo en memoria. */
-let _foldProy=false;
-function toggleFoldProy(){
-  _foldProy=!_foldProy;
-  aplicarFoldProy();
-  if(_foldProy) irA('card-proy');
-}
-function aplicarFoldProy(){
-  const card=$('card-proy'); if(!card) return;
-  card.classList.toggle('folded',_foldProy);
-  const btn=$('fold-proy-btn'), txt=$('fold-proy-txt');
-  if(btn) btn.setAttribute('aria-expanded',_foldProy?'false':'true');
-  if(txt){
-    const resumen=[Q.cliente,Q.proy].map(s=>(s||'').trim()).filter(Boolean).join(' · ');
-    txt.textContent=_foldProy?(resumen||'Sin capturar'):'Ocultar';
-  }
-}
+/* Aquí vivían los «Datos del proyecto plegables» del celular —toggleFoldProy, aplicarFoldProy y
+   `_foldProy`—. Con los datos del cliente en su propia pantalla, plegarlos la dejaba en blanco:
+   el botón que plegaba (#fold-proy-btn) se quitó, `_foldProy` ya no podía ponerse en true y lo
+   que quedaba solo quitaba una clase que nadie ponía. Se fue entero. */
 
 /* ===================== Inputs generales ===================== */
 function upd(k,v){
