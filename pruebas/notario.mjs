@@ -27,13 +27,27 @@ const cierto = (que, v) => eq(que, !!v, true);
 /* ===================== Los dobles de Google ===================== */
 
 /* Una celda de texto escrita con apóstrofo se guarda como texto y se lee SIN él, como en la
-   hoja de verdad. Y un texto sin apóstrofo que parece fecha se vuelve fecha: es lo que la hoja
-   hace, y es la razón de que el notario escriba todo con apóstrofo. Si alguien lo quita, la
-   prueba de «la firma se comprueba desde el renglón» truena aquí y no en producción. */
+   hoja de verdad. Y un texto SIN apóstrofo se guarda como lo reconocería Sheets: es la razón de
+   que el notario escriba todo con txt(). Hasta septiembre de 2026 este doble solo convertía la
+   fecha ISO, y quitarle txt() al negocio, al cliente, a los ajustes o a la huella no rompía
+   ninguna prueba. Ahora:
+     · lo que empieza con = + - @ y no es un número sería una FÓRMULA: el doble truena, porque
+       en la hoja de verdad eso ejecuta, no guarda;
+     · «0042» o «1e3» se vuelven número (y «0042» se lee 42), «TRUE» un booleano;
+     · una fecha («2026-09-25», «25/09/2026», el ISO con hora) se vuelve Date;
+     · y «1:8500.00» o «10:30», hora —un Date—, que es lo que le pasaba a los ajustes por
+       partida sin apóstrofo. */
 const guardar = v => {
   if (typeof v !== 'string') return v;
   if (v.startsWith("'")) return v.slice(1);
-  if (/^\d{4}-\d{2}-\d{2}T/.test(v)) return new Date(v);
+  const s = v.trim();
+  if (s === '') return v;
+  if (/^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i.test(s)) return Number(s);
+  if (/^[=+\-@]/.test(s)) throw new Error('la hoja de mentiras: «' + v.slice(0, 40) + '» sin apóstrofo sería una fórmula');
+  if (/^(true|false)$/i.test(s)) return /^true$/i.test(s);
+  if (/^\d{4}-\d{2}-\d{2}([T ]|$)/.test(s)) return new Date(s);
+  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) return new Date(s);
+  if (/^\d+:\d+(:\d+)?(\.\d+)?$/.test(s)) return new Date(Date.UTC(1899, 11, 30));   // el día cero de Sheets, a «esa hora»
   return v;
 };
 function hojaFalsa(nombre) {
@@ -110,17 +124,40 @@ const UrlFetchApp = {
   },
 };
 
+/* El reloj de los cupos. Date.now() del .gs lee ESTE reloj, parado al principio de una hora
+   —que es principio de una ventana de 60 s y de una de 600 s—, para que un conteo no caiga
+   partido entre dos ventanas por la velocidad de la máquina. Solo se mueve cuando una prueba lo
+   mueve (`pasan`). `new Date()` sigue siendo el reloj de verdad: es el que fecha los renglones. */
+let ahora = Math.floor(Date.now() / 3600000) * 3600000;
+const pasan = segundos => { ahora += segundos * 1000; };
+/* La caché, con caducidad de verdad: un put con TTL vive TTL segundos del reloj de arriba, y un
+   put sobre una clave viva le REINICIA la caducidad, como en CacheService. Es lo que hacía que
+   los cupos «deslizaran» y es lo que tiene que poder verse aquí. */
+const cache = new Map();
+const cacheGoogle = {
+  get: k => { const x = cache.get(k); if (!x) return null; if (x.hasta <= ahora) { cache.delete(k); return null; } return x.v; },
+  put: (k, v, ttl = 600) => { cache.set(k, { v: String(v), hasta: ahora + ttl * 1000 }); },
+};
+/* El candado del script, con estado: si está tomado, tryLock contesta false y waitLock truena,
+   como el de verdad. `candado.ajeno` lo simula tomado por otra ejecución. */
+const candado = { tomado: false, ajeno: false, veces: 0 };
+const LockService = { getScriptLock: () => ({
+  tryLock() { if (candado.tomado || candado.ajeno) return false; candado.tomado = true; candado.veces++; return true; },
+  waitLock() { if (candado.tomado || candado.ajeno) throw new Error('ocupado'); candado.tomado = true; candado.veces++; },
+  releaseLock() { candado.tomado = false; },
+}) };
+
 const ss = libro();
 const props = propiedades();
-const cache = new Map();
 const ctx = vm.createContext({
   SpreadsheetApp: { getActive: () => ss, flush() {} },
   PropertiesService: { getScriptProperties: () => props },
-  CacheService: { getScriptCache: () => ({ get: k => (cache.has(k) ? cache.get(k) : null), put: (k, v) => cache.set(k, v) }) },
-  LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
+  CacheService: { getScriptCache: () => cacheGoogle },
+  LockService,
   ContentService: { MimeType: { JSON: 'json' }, createTextOutput: s => ({ s, setMimeType() { return this; } }) },
-  Utilities, UrlFetchApp, console,
+  Utilities, UrlFetchApp, console, __reloj: () => ahora,
 });
+vm.runInContext('Date.now = function () { return __reloj(); };', ctx);
 vm.runInContext(readFileSync(new URL('../puente/hoja-apps-script.gs', import.meta.url), 'utf8'), ctx);
 
 /* «Accesos», con los tres roles, y los tokens de dispositivo de siempre. */
@@ -281,11 +318,138 @@ console.log('\nLA SOLICITUD VIAJA — el vendedor pide, dirección ve, el sello 
 
 console.log('\nFÓRMULAS — lo que se escribe como texto no se ejecuta');
 {
-  const r = post({ ruta: 'autorizar', google_token: G.elias, folio: 'COT-0030@K7QM', cotizacion: cot({ proyecto: '=IMPORTXML("http://x.mx","//a")' }) });
+  /* Primero, que la hoja de mentiras muerda como la de verdad: sin eso, quitar un txt() no
+     rompería nada aquí. */
+  let truena = false;
+  try { guardar('=IMPORTXML("x")'); } catch (e) { truena = true; }
+  cierto('la hoja de mentiras no guarda una fórmula sin apóstrofo: truena', truena);
+  eq('  vuelve número «0042»', guardar('0042'), 42);
+  cierto('  y hora «1:8500.00», como Sheets', guardar('1:8500.00') instanceof Date);
+  eq('  con apóstrofo, todo se queda como texto', [guardar("'=1+1"), guardar("'0042"), guardar("'1:8500.00")], ['=1+1', '0042', '1:8500.00']);
+
+  const r = post({ ruta: 'autorizar', google_token: G.elias, folio: 'COT-0030@K7QM',
+    cotizacion: cot({ proyecto: '=IMPORTXML("http://x.mx","//a")', cliente: '=HYPERLINK("http://x.mx","y")' }), nota: '+52 por volumen' });
   const fila = hojaAut().filas[hojaAut().getLastRow() - 1];
   cierto('un negocio que empieza con = se sella', r.ok);
   eq('  queda escrito como texto, tal cual', fila[2], '=IMPORTXML("http://x.mx","//a")');
+  eq('  el cliente y la nota también', [fila[3], fila[15]], ['=HYPERLINK("http://x.mx","y")', '+52 por volumen']);
   eq('  y verifica', post({ ruta: 'verificar', f: 'COT-0030@K7QM', c: r.sello.codigo }).estado, 'autentica');
+
+  /* Lo que la hoja «ayuda» a convertir: un negocio que parece número y unos ajustes por
+     partida que parecen hora. Sin el apóstrofo, al leerlos ya no son lo que se firmó. */
+  const n = post({ ruta: 'autorizar', google_token: G.elias, folio: 'COT-0031@K7QM',
+    cotizacion: cot({ proyecto: '0042', cliente: '-Güero' }), itemsAuth: { 1: 8500 }, precioAuth: 11000 });
+  cierto('un negocio «0042» con un ajuste «1:8500.00» se sella', n.ok);
+  const vn = post({ ruta: 'verificar', f: 'COT-0031@K7QM', c: n.sello.codigo });
+  eq('  y verifica, con el negocio como se escribió', [vn.estado, vn.proyecto], ['autentica', '0042']);
+  eq('  y el ajuste vuelve como número', post({ ruta: 'estado', google_token: G.elias, folios: ['COT-0031@K7QM'] }).folios['COT-0031@K7QM'].sello.itemsAuth, { 1: 8500 });
+}
+
+console.log('\nLOS CUPOS — ventanas fijas: el conteo vuelve a cero aunque el tráfico no pare');
+{
+  /* Al principio de una ventana de `s` segundos (el reloj de los cupos solo avanza). */
+  const alVentana = s => { ahora = Math.ceil(ahora / (s * 1000)) * s * 1000; };
+  alVentana(600); cache.clear();
+  /* Con la caducidad que se reiniciaba en cada put, este teléfono llegaba a 60 a la media hora
+     y ya no volvía a entrar mientras siguiera sincronizando. */
+  let fuera = null;
+  for (let i = 0; i < 80 && fuera === null; i++) { if (!conCache({ ruta: 'salud', token: TOK_PAGOS }).ok) fuera = i; pasan(30); }
+  eq('un teléfono que sincroniza cada 30 s durante 40 minutos no se queda fuera', fuera, null);
+
+  alVentana(600); cache.clear();
+  let n = 0;
+  while (n < 70 && conCache({ ruta: 'salud', token: TOK_PAGOS }).ok) n++;
+  eq('sesenta peticiones por minuto, y la sesenta y uno se frena', n, 60);
+  pasan(59);
+  eq('  a los 59 segundos sigue frenado', conCache({ ruta: 'salud', token: TOK_PAGOS }).codigo, 'SIN_RED');
+  pasan(1);
+  eq('  y en el minuto siguiente vuelve a entrar, aunque nunca dejó de pedir', conCache({ ruta: 'salud', token: TOK_PAGOS }).ok, true);
+
+  /* El cupo de todos en /verificar: un anónimo lo llena y lo quiere mantener cerrado con una
+     consulta justo antes de que caduque. */
+  alVentana(600); cache.clear();
+  for (let i = 0; i < 400; i++) conCache({ ruta: 'verificar', f: 'COT-' + String(i).padStart(4, '0') + '@ANON', c: 'AAAA-BBBB-CCCC' });
+  eq('el cupo total de /verificar se cierra a las 400 en diez minutos', conCache({ ruta: 'verificar', f: 'COT-9000@ANON', c: 'AAAA-BBBB-CCCC' }).codigo, 'SIN_RED');
+  pasan(590);
+  conCache({ ruta: 'verificar', f: 'COT-9001@ANON', c: 'AAAA-BBBB-CCCC' });
+  pasan(20);
+  eq('  y a los diez minutos se abre, aunque el anónimo pidió justo antes', conCache({ ruta: 'verificar', f: 'COT-0001@K7QM', c: primero.codigo }).ok, true);
+
+  /* Las consultas a Google de todos: ciento veinte por minuto. */
+  alVentana(60); cache.clear();
+  const aGoogle = () => llamadas.filter(l => l.url.includes('tokeninfo')).length;
+  llamadas.length = 0;
+  for (let i = 0; i < 125; i++) conCache({ ruta: 'salud', google_token: 'tok-inventado-' + i + '-xxxxxxxxxxxx' });
+  eq('ciento veinte consultas a Google por minuto, y ahí para', aGoogle(), 120);
+  eq('  en ese minuto ni dirección entra con Google', conCache({ ruta: 'salud', google_token: G.elias }).codigo, 'ROL_SIN_PERMISO');
+  for (let i = 0; i < 4; i++) { pasan(50); conCache({ ruta: 'salud', google_token: 'tok-otro-anonimo-' + i + '-xxxxxxxx' }); }
+  eq('  y pasado el minuto sí, aunque el anónimo siguió mandando uno cada 50 s', conCache({ ruta: 'salud', google_token: G.elias }).ok, true);
+  cache.clear();
+}
+
+console.log('\nLAS SOLICITUDES — cada quien la suya, y el sello de ESA solicitud');
+{
+  /* Un respiro de unos milisegundos entre pasos cuyo orden importa: las fechas de los renglones
+     son las del reloj de verdad y dos pasos seguidos pueden caer en el mismo milisegundo. */
+  const espera = ms => { const t = Date.now() + ms; while (Date.now() < t); };
+  const hs = () => ss.hojas['Solicitudes de autorización'];
+  const renglones = f => hs().filas.filter(x => x[1] === f).length;
+  const enCola = f => post({ ruta: 'pendientes', google_token: G.elias }).solicitudes.find(x => x.folio === f);
+  const estado = (quien, f) => post({ ruta: 'estado', ...quien, folios: [f] }).folios[f];
+  const PAGOS = { token: TOK_PAGOS }, FAB = { google_token: G.taller }, DIR = { google_token: G.elias };
+
+  const F = 'COT-0060@PAG1';
+  post({ ruta: 'solicitar', ...PAGOS, folio: F, cotizacion: cot(), nota: 'la de pagos' });
+  const pisa = post({ ruta: 'solicitar', ...FAB, folio: F, cotizacion: cot() });
+  eq('fabricación no pisa la solicitud pendiente de pagos', pisa.codigo, 'ROL_SIN_PERMISO');
+  cierto('  y lo dice', /otra persona/.test(pisa.mensaje));
+  eq('  la de pagos sigue siendo de pagos, con su nota', [enCola(F).solicito, enCola(F).nota], ['token de pagos', 'la de pagos']);
+  eq('pagos sí vuelve a pedir la suya', post({ ruta: 'solicitar', ...PAGOS, folio: F, cotizacion: cot(), nota: 'otra vez' }).estado, 'pendiente');
+  eq('  en el mismo renglón', renglones(F), 1);
+  eq('fabricación no la cancela', post({ ruta: 'cancelar', ...FAB, folio: F }).codigo, 'ROL_SIN_PERMISO');
+  cierto('  y sigue en la cola de dirección', !!enCola(F));
+
+  /* Ya resuelta, fabricación —que conoce todos los folios por /jalar— pide sobre el ajeno. */
+  const a = post({ ruta: 'autorizar', ...DIR, folio: F, cotizacion: cot(), precioAuth: 13000 });
+  espera(3);
+  eq('con la de pagos resuelta, fabricación puede pedir sobre ese folio', post({ ruta: 'solicitar', ...FAB, folio: F, cotizacion: cot() }).estado, 'pendiente');
+  const suya = estado(FAB, F);
+  eq('  pero /estado no le entrega el precio que se autorizó para pagos', [suya.estado, suya.sello], ['pendiente', null]);
+  eq('pagos, que pidió aquélla, sigue recibiendo su sello', (estado(PAGOS, F).sello || {}).codigo, a.sello.codigo);
+  eq('dirección ve la pendiente de detrás, no el sello de antes', estado(DIR, F).estado, 'pendiente');
+  eq('dirección sí cancela la de otro', post({ ruta: 'cancelar', ...DIR, folio: F }).estado, 'cancelada');
+  /* Y si dirección le autoriza a fabricación la suya, el sello nuevo es de fabricación: pagos
+     ya no recibe ése —es el precio de otra solicitud— aunque la suya diga «autorizada». */
+  espera(3);
+  post({ ruta: 'solicitar', ...FAB, folio: F, cotizacion: cot() });
+  const af = post({ ruta: 'autorizar', ...DIR, folio: F, cotizacion: cot(), precioAuth: 12800 });
+  eq('fabricación recibe el sello de la suya', (estado(FAB, F).sello || {}).codigo, af.sello.codigo);
+  eq('  y pagos ya no recibe ninguno: el vigente se emitió para otra solicitud', estado(PAGOS, F).sello, null);
+
+  /* Volver a pedir con un sello vigente de antes. */
+  const R = 'COT-0061@PAG1';
+  post({ ruta: 'solicitar', ...PAGOS, folio: R, cotizacion: cot() });
+  const a1 = post({ ruta: 'autorizar', ...DIR, folio: R, cotizacion: cot(), precioAuth: 12000 });
+  eq('la primera, autorizada, trae su sello', estado(PAGOS, R).sello.codigo, a1.sello.codigo);
+  espera(3);
+  post({ ruta: 'solicitar', ...PAGOS, folio: R, cotizacion: cot(), nota: 'otro precio' });
+  const re = estado(PAGOS, R);
+  eq('pidió re-autorizar: contesta «pendiente», no el sello viejo que cerraba solo el teléfono', [re.estado, re.sello], ['pendiente', null]);
+  post({ ruta: 'rechazar', ...DIR, folio: R, nota: 'así no' });
+  const rr = estado(PAGOS, R);
+  eq('y si dirección rechaza la nueva, el teléfono se entera en vez de esperar para siempre', [rr.estado, rr.sello, rr.nota], ['rechazada', null, 'así no']);
+  eq('  dirección también la ve rechazada', estado(DIR, R).estado, 'rechazada');
+  espera(3);
+  post({ ruta: 'solicitar', ...PAGOS, folio: R, cotizacion: cot() });
+  const a2 = post({ ruta: 'autorizar', ...DIR, folio: R, cotizacion: cot(), precioAuth: 11500 });
+  const otra = estado(PAGOS, R);
+  eq('autorizada otra vez, recibe el sello NUEVO', [otra.estado, otra.sello.codigo, otra.sello.total], ['autorizada', a2.sello.codigo, 11500]);
+
+  /* S_TS vuelve de la hoja como Date y A_TS es texto: las dos se comparan en milisegundos. */
+  const msDe = vm.runInContext('msDe', ctx);
+  eq('una fecha de la hoja y un ISO en texto se comparan igual', [msDe(vm.runInContext('new Date(Date.UTC(2026, 8, 25, 10))', ctx)), msDe('2026-09-25T10:00:00.000Z')],
+     [Date.UTC(2026, 8, 25, 10), Date.UTC(2026, 8, 25, 10)]);
+  cierto('  y lo que no se entiende no es «después» de nada', !(msDe('basura') >= 0));
 }
 
 console.log('\nLA IA — las llaves están aquí y no salen');
@@ -378,6 +542,48 @@ console.log('\nLO QUE LA REVISIÓN ENCONTRÓ — y ya no pasa');
   const g = post({ ruta: 'solicitar', token: TOK_PAGOS, folio: 'COT-0051@PAG1', cotizacion: cot({ items: enorme, subtotal: 80 }) });
   eq('una cotización que no cabe en la hoja se rechaza', g.codigo, 'DATO_INVALIDO');
   cierto('  y dice qué hacer', /demasiado grande/.test(g.mensaje));
+}
+
+console.log('\nEL TOPE DE 64 KB — se pide contra la ruta que de verdad atiende');
+{
+  const relleno = 'A'.repeat(200000);
+  const doPost = vm.runInContext('doPost', ctx);
+  const de = x => JSON.parse(x.s);
+  cache.clear();
+  /* JSON.parse se queda con la última llave repetida: el husmeo veía "ia" y la ruta era otra. */
+  const dos = '{"ruta":"ia","ruta":"empujar","token":"' + TOK_PAGOS + '","ops":[],"relleno":"' + relleno + '"}';
+  eq('un cuerpo grande con dos "ruta" (ia primero, empujar después) se rechaza', de(doPost({ postData: { contents: dos } })).mensaje, 'El cuerpo es demasiado grande.');
+  const cuerpoIA = JSON.stringify({ ruta: 'ia', token: TOK_PAGOS, relleno });
+  eq('uno que empieza bien pero llega a /exec/empujar, también', de(doPost({ pathInfo: 'empujar', postData: { contents: cuerpoIA } })).mensaje, 'El cuerpo es demasiado grande.');
+  eq('  y a /exec/verificar, también', de(doPost({ pathInfo: 'verificar', postData: { contents: cuerpoIA } })).mensaje, 'El cuerpo es demasiado grande.');
+  cache.clear();
+}
+
+console.log('\nEL CUPO DE IA — se cuenta con candado, y el candado no espera a la IA');
+{
+  const base = { ruta: 'ia', token: TOK_PAGOS, modo: 'cotizar', prov: 'qwen', model: 'qwen3.7-flash',
+                 prompt: 'Analiza', imagen: { b64: 'QUJD', mime: 'image/jpeg' } };
+  /* La cuenta se escribe con el candado puesto: sin él, veinte consultas en paralelo leían la
+     misma cuenta y contaban como una. */
+  const escribir = props.setProperty;
+  const alEscribirCuota = [];
+  props.setProperty = (k, v) => { if (String(k).startsWith('IA_CUOTA_')) alEscribirCuota.push(candado.tomado); return escribir(k, v); };
+  let alLlamar = null;
+  proveedor = () => { alLlamar = candado.tomado; return { codigo: 200, cuerpo: { choices: [{ message: { content: 'ok' } }] } }; };
+  cierto('una consulta normal pasa', post(base).ok);
+  eq('  la cuenta del día se escribió con el candado tomado', alEscribirCuota, [true]);
+  eq('  y se soltó antes de llamar a la IA: la hoja no se queda sin escrituras mientras contesta', alLlamar, false);
+
+  const cuenta = () => Object.values(JSON.parse(props.getProperty(Object.keys(props.getProperties()).find(k => k.startsWith('IA_CUOTA_'))) || '{}')).reduce((s, x) => s + x, 0);
+  const antes = cuenta();
+  llamadas.length = 0;
+  candado.ajeno = true;   // una subida del puente lo tiene
+  const ocupada = post(base);
+  candado.ajeno = false;
+  eq('con el candado ocupado no cuenta a ciegas: niega, y el teléfono reintenta', [ocupada.codigo, ocupada.transitorio], ['SIN_RED', true]);
+  cierto('  y lo dice', /ocupada/.test(ocupada.mensaje));
+  eq('  sin gastar una llamada ni un lugar del cupo', [llamadas.filter(l => l.url.includes('dashscope')).length, cuenta()], [0, antes]);
+  props.setProperty = escribir;
 }
 
 console.log('\nVERIFICAR.HTML — lo que llega de la hoja se escribe como texto');
