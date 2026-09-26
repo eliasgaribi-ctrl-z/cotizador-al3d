@@ -4,13 +4,24 @@
 <meta charset="UTF-8">
 <!-- ----- A dónde puede hablar esta página (Content-Security-Policy) -----
      GitHub Pages no manda cabeceras propias —el _headers del repo es para Cloudflare y aquí
-     no se lee—, así que la política va en <meta>, y va antes que cualquier <script>. No
-     prohíbe los guiones en línea ('unsafe-inline': el arranque y el tema los usan); lo que
-     cierra es a DÓNDE se puede mandar algo: si un día se colara un XSS, no tendría a qué
-     servidor llevarse los datos. Cada dominio de aquí tiene su razón y pruebas/csp.mjs truena
-     si el código empieza a hablar con uno que no está. frame-ancestors no sirve en <meta>: el
-     «nadie me empotra» lo hace js/tema.js. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org https://*.basemaps.cartocdn.com; connect-src 'self' https://www.googleapis.com https://accounts.google.com https://script.google.com https://script.googleusercontent.com https://nominatim.openstreetmap.org; frame-src 'self' https://accounts.google.com; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
+     no se lee—, así que la política va en <meta>, y va antes que cualquier <script>.
+
+     Esta página NO permite guiones en línea: no tiene ni uno. Lo único que lo pedía era el
+     `onload` del <link> de las tipografías, y eso ahora lo hace js/tema.js (ver `data-fuentes`
+     abajo). Así un XSS que colara marcado —un `<img onerror=…>` en el nombre de un proyecto—
+     no se ejecuta aunque llegue al innerHTML; pruebas/csp.mjs truena si vuelve a aparecer
+     'unsafe-inline' en script-src o un manejador en un atributo.
+
+     Lo otro que cierra es a DÓNDE se puede mandar algo, y con un límite que hay que decir
+     sin adornos: connect-src tiene que dejar pasar https://script.google.com para hablar con
+     la hoja, y eso deja pasar CUALQUIER Apps Script —script.google.com/macros/s/<el de
+     otro>/exec también—. O sea que un guion que llegara a correr aquí sí tendría a dónde
+     llevarse los datos; la política le quita el resto de internet, no ese. La defensa contra
+     eso es que no llegue a correr: el escape en cada innerHTML y la línea de script-src de
+     aquí. Cada dominio tiene su razón y pruebas/csp.mjs truena si el código empieza a hablar
+     con uno que no está. frame-ancestors no sirve en <meta>: el «nadie me empotra» lo hace
+     js/tema.js. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://tile.openstreetmap.org https://*.basemaps.cartocdn.com; connect-src 'self' https://www.googleapis.com https://accounts.google.com https://script.google.com https://script.googleusercontent.com https://nominatim.openstreetmap.org; frame-src 'self' https://accounts.google.com; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>AL3D — taller</title>
 <meta name="description" content="El taller de AL3D: qué se está fabricando ahora, qué va tarde, el calendario de instalaciones, el material del almacén y el cotizador.">
@@ -35,11 +46,13 @@
 
      Con media="print" el navegador la baja sin bloquear nada, y al terminar se pasa a
      media="all" y la letra aparece. Se ve la tipografía de reserva unas décimas: eso es
-     mucho mejor que una app que no arranca. El <noscript> es para quien tenga el JS
-     apagado, que nunca va a ejecutar ese onload. -->
+     mucho mejor que una app que no arranca. El cambio a media="all" lo hace js/tema.js con
+     el <link> marcado `data-fuentes`, y no un `onload` escrito aquí: un manejador en un
+     atributo es un guion en línea, y la política de arriba ya no los deja correr. El
+     <noscript> es para quien tenga el JS apagado. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" data-fuentes>
 <noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 
 <!-- sistema.css ES el sistema de diseño —los azules muestreados del logotipo, la superficie
@@ -226,6 +239,12 @@
        escondida en «Qué atender» y otra en Control cuando falta el puente—, y en Ajustes viven
        el respaldo, tu nombre y «Salir de Google», que la política de privacidad manda a
        buscar justo ahí. El CSS lo enseña solo por debajo de 760 px. -->
+  <!-- Instalar la app, en el TELÉFONO. Es la misma historia que Ajustes: vivía solo al pie de
+       la barra lateral, que en el teléfono no existe, y el teléfono es donde se usa la app.
+       Nace escondido y lo enseña js/app.js cuando el navegador dice que se puede —o en iPhone,
+       donde explica los dos toques de Safari—; ya instalada no vuelve a salir. El CSS lo
+       apaga por encima de 760 px, donde manda el de la barra lateral. -->
+  <button type="button" class="pf-cab-tema pf-cab-instalar" id="pf-cab-instalar" hidden title="Instalar la app en este aparato" aria-label="Instalar la app"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg></button>
   <button type="button" class="pf-cab-tema pf-cab-ajustes" id="pf-cab-ajustes" title="Ajustes de la plataforma" aria-label="Ajustes"><svg class="svgi" aria-hidden="true"><use href="#i-ajustes"/></svg></button>
 </header>
 

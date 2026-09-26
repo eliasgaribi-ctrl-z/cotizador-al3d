@@ -117,6 +117,14 @@ body.pf::before{display:none}
    computadora Ajustes vive al pie de la barra lateral y ésta no se pinta. */
 .pf-cab-ajustes{margin-left:0}
 @media(min-width:760px){ .pf-cab-ajustes{display:none} }
+/* Instalar la app, en el teléfono: la misma forma y la misma regla que Ajustes, y por lo
+   mismo —la barra lateral, donde vive el otro, no existe a este ancho—. Un cuarto botón de
+   44 px no cabe junto al logotipo en 360 px: medido, al título le quedaban 44 px y «Tablero»
+   salía «Ta…». Mientras el botón está puesto —solo hasta instalarla— el logotipo se aparta;
+   instalada, el botón no vuelve a salir y el logotipo vuelve. */
+.pf-cab-instalar{margin-left:0}
+@media(min-width:760px){ .pf-cab-instalar{display:none} }
+@media(max-width:759px){ .pf-cab:has(> .pf-cab-instalar:not([hidden])) .pf-cab-logo{display:none} }
 
 /* ----- Tu cuenta, en el encabezado ----- */
 .pf-sesion{width:36px;height:36px;flex:0 0 auto;border-radius:50%;border:2px solid rgba(255,255,255,.5);

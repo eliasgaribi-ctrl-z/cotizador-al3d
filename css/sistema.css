@@ -1003,13 +1003,6 @@ button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-
 @media(hover:hover){.card-fold:hover{border-color:var(--brand);background:var(--soft-2)}}
 @media(max-width:920px){
   .card-fold{display:inline-flex}
-  /* Estas tres se quedan atadas al ancho a propósito: _foldProy se guarda en el
-     dispositivo y la tarjeta puede llegar a escritorio con la clase puesta. Si el
-     estado plegado valiera en cualquier ancho, quien la plegó en el celular se la
-     encontraría cerrada en la pantalla grande y sin el botón para abrirla. */
-  .card.folded .card-fold .chev{transform:rotate(-90deg)}
-  .card.folded .card-b{display:none}
-  .card.folded .card-h{padding-bottom:16px}
 }
 
 /* ----- La tarjeta -----
@@ -2415,9 +2408,6 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
   .srow.subtotal{background:#fff;border-color:#e6e8f2}
   .partida.folded .pbody{display:block}
   .partida.folded .psum{display:none}
-  /* Los datos del proyecto se pliegan en el celular y el estado se guarda: sin esto, un
-     Ctrl+P desde el teléfono imprime la cotización sin cliente, teléfono ni dirección. */
-  .card.folded .card-b{display:block}
 }
 
 @media(max-width:560px){
@@ -2445,7 +2435,6 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
   .card-h :is(h2,h3){white-space:nowrap;flex-shrink:0}
   .card-h .card-fold{min-width:0}
   .card-b{padding:11px 13px 15px}
-  .card.folded .card-h{padding-bottom:13px}
   .partida{padding:11px 11px 12px;margin-bottom:10px}
   .optgrp{padding:8px 9px 9px;margin-bottom:8px}
   .optgrp-h{margin-bottom:7px;gap:7px}
@@ -2736,7 +2725,6 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
 }
 .card-h h2,.card-h h3{font-size:var(--t4);font-weight:600}
 .card-b{padding-top:var(--e4)}
-.card.folded .card-h{border-bottom:none}
 
 /* ---------- Las partidas ----------
    La bandeja hundida se va: existía para que una partida saliente tuviera de

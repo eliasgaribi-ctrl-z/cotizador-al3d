@@ -17,6 +17,7 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 let bien = 0, mal = 0;
@@ -142,10 +143,64 @@ cierto('y la búsqueda encontró las salidas que tiene que encontrar', vistos.le
 cierto('js/datos/geo.js → nominatim por connect-src en index.html',
   /nominatim\.openstreetmap\.org/.test(leer('js/datos/geo.js')) && permite(POL['index.html'], 'connect-src', 'https://nominatim.openstreetmap.org/search'));
 
+console.log('\nLOS GUIONES EN LÍNEA, SOLO DONDE HACEN FALTA');
+/* 'unsafe-inline' en script-src es lo que convierte un marcado que se coló en un innerHTML
+   —un `<img onerror=…>` en el nombre de un proyecto— en código que corre. index.html lo tenía
+   por UN `onload` en el <link> de las tipografías, y las tres de texto por lo mismo. Ya no:
+   el `onload` lo hace js/tema.js (`data-fuentes`) y la política lo prohíbe. Las que siguen
+   teniéndolo es porque llevan guiones en línea de verdad: el cotizador (161 manejadores), el
+   anidador y verificar.html. */
+{
+  const SIN_EN_LINEA = ['index.html', 'acerca.html', 'privacidad.html', 'condiciones.html', 'plataforma.html'];
+  const sinComentarios = h => h.replace(/<!--[\s\S]*?-->/g, '');
+  for (const p of SIN_EN_LINEA) {
+    const pol = POL[p]; if (!pol) continue;
+    eq(p + ': script-src sin \'unsafe-inline\'', (pol['script-src'] || []).includes("'unsafe-inline'"), false);
+    const h = sinComentarios(leer(p));
+    eq(p + ':   y sin un manejador en un atributo (on…=) que lo necesitara',
+       (h.match(/<[^>]*\son[a-z]+\s*=/gi) || []), []);
+    /* Un guion en línea solo si su huella está en la política. Se recalcula aquí: cambiar el
+       reenvío de plataforma.html sin cambiar la huella lo dejaría sin correr, en silencio. */
+    const enLinea = [...h.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+    const huellas = enLinea.map(t => "'sha256-" + createHash('sha256').update(t, 'utf8').digest('base64') + "'");
+    eq(p + ':   y cada guion en línea que tenga, con su huella en la política',
+       huellas.filter(x => !(pol['script-src'] || []).includes(x)), []);
+  }
+  cierto('plataforma.html: su reenvío va por huella, que es lo que lo deja correr',
+         (POL['plataforma.html']['script-src'] || []).some(f => /^'sha256-/.test(f)));
+  /* Las tipografías siguen encendiéndose: la marca en el <link> y quien la lee. */
+  const tema = leer('js/tema.js');
+  cierto('js/tema.js enciende las tipografías marcadas con data-fuentes',
+         /link\[data-fuentes\]\[media="print"\]/.test(tema) && /media = 'all'/.test(tema));
+  for (const p of ['index.html', 'acerca.html', 'privacidad.html', 'condiciones.html']) {
+    cierto(p + ': su <link> de tipografías lleva la marca', /fonts\.googleapis\.com\/css2[^>]*media="print" data-fuentes>/.test(leer(p)));
+  }
+  /* Y los módulos de la plataforma no escriben manejadores en el marcado que generan: con la
+     política de arriba no correrían, y el botón se quedaría muerto sin error en pantalla. */
+  const js = ['js/app.js'].concat(archivos('js/mod'), archivos('js/nucleo'), archivos('js/datos'));
+  const conManejador = js.filter(r => /[\s"'<]on[a-z]{3,}\s*=\s*\\?["']/.test(
+    readFileSync(join(RAIZ, r), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')));
+  eq('ningún módulo de la plataforma escribe on…="…" en su marcado', conManejador, []);
+  /* El comentario de la política ya no promete lo que no es: connect-src deja pasar cualquier
+     Apps Script, así que un XSS SÍ tendría a dónde llevarse los datos. */
+  const nota = (leer('index.html').match(/<!-- ----- A dónde puede hablar esta página[\s\S]*?-->/) || [''])[0];
+  cierto('index.html dice sin adornos que connect-src deja pasar cualquier Apps Script',
+         !/no tendría a qué\s+servidor/.test(nota) && /CUALQUIER Apps Script/.test(nota));
+}
+
 console.log('\nNADIE DE AFUERA NOS EMPOTRA');
 {
   const tema = leer('js/tema.js');
   cierto('js/tema.js se sale de un marco de otro origen', /window\.top\.location\.href/.test(tema) && /window\.top\.location = window\.self\.location/.test(tema));
+  /* Borrar el DOM desde el <head> no servía: el <body> se crea después, entero, y la página se
+     pintaba dentro del marco ajeno. Lo que aguanta es esconder <html> con !important. */
+  cierto('  y antes se ESCONDE con un estilo !important en <html>, no borrando el DOM',
+         /documentElement\.style\.setProperty\('display', 'none', 'important'\)/.test(tema) &&
+         !/innerHTML = ''/.test(tema.replace(/\/\*[\s\S]*?\*\//g, '')));
+  const iEsconde = tema.indexOf("setProperty('display', 'none', 'important')"), iSale = tema.indexOf('window.top.location = window.self.location');
+  cierto('  y se esconde ANTES de intentar salirse: si salirse falla, ya no se ve', iEsconde > 0 && iEsconde < iSale);
+  cierto('  y el empotrado propio sigue: con top y parent del mismo origen, no hace nada',
+         /void window\.top\.location\.href;\s*void window\.parent\.location\.href;\s*return;/.test(tema));
   const sinTema = PAGINAS.filter(p => p !== 'plataforma.html' && !/<script src="(\.\.\/)?js\/tema\.js"><\/script>/.test(leer(p)));
   eq('y todas las páginas lo cargan (menos el reenvío, que no pinta nada)', sinTema, []);
 }

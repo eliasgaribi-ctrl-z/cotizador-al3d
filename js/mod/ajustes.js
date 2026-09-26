@@ -41,6 +41,9 @@ import * as Ingreso from '../nucleo/ingreso.js';
 /* Solo para CONTAR las constantes que se vuelven a sembrar (ver `NCONST`). app.js ya lo cargó
    al arrancar para sembrar el catálogo, así que no cuesta una descarga más. */
 import * as Material from '../datos/material.js';
+/* La lista de las claves del cotizador, para revisar la mitad suya de un respaldo completo
+   (`revisarMitadCotizador`). Es la misma que usa el respaldo para armarla. */
+import { RESPALDO_KEYS } from '../datos/cotizador.js';
 import {
   $, esc, ico, toast, avisarResultado, abrirCapa, cerrarCapa,
   descargarArchivo, fmtFechaDia, cuando, ajustarAltoBarra, copiarTexto, voz,
@@ -931,7 +934,14 @@ async function restaurar(inp) {
       toast('El respaldo completo viene sin la parte de la plataforma', 'err', 4600); limpiar(); return;
     }
     textoPlataforma = JSON.stringify(paquete.plataforma);
-    if (paquete.cotizador && typeof paquete.cotizador === 'object') mitadCotizador = JSON.stringify(paquete.cotizador);
+    /* La mitad del cotizador se revisa ANTES de restaurar nada, y si no sirve no entra ninguna
+       de las dos: un respaldo con una mitad editada a mano no es un respaldo en el que confiar
+       para la otra. Ver `revisarMitadCotizador`. */
+    if (paquete.cotizador != null) {
+      const motivo = revisarMitadCotizador(paquete.cotizador);
+      if (motivo) { toast(motivo + ' No se restauró nada.', 'err', 7000); limpiar(); return; }
+      mitadCotizador = JSON.stringify(paquete.cotizador);
+    }
   }
 
   const r = await DB.importar(textoPlataforma);
@@ -957,6 +967,44 @@ async function restaurar(inp) {
     toast(msg, 'ok', 5200);
   }
   if (CTX.refrescar) CTX.refrescar();
+}
+
+/**
+ * La mitad del cotizador de un respaldo completo, revisada antes de dejarla esperando en
+ * `al3d_pf_restaurar`. Devuelve '' si sirve y, si no, el motivo con palabras.
+ *
+ * Se guardaba tal como venía en el archivo, y el cotizador la lee al abrir para ofrecerla:
+ * un `al3d_historial` que fuera el objeto {"length":"<img src=x onerror=…>"} en vez de un
+ * arreglo acababa como marcado en su tarjeta de «Restaurar ahora», en cada apertura. Esa
+ * tarjeta se arregla del lado del cotizador; aquí se cierra la entrada, con la MISMA forma
+ * que el cotizador exige al restaurar (`revisarRespaldo`, js/cotizador/historial.js): que sea
+ * del cotizador, que sus datos sean texto, que traiga algo suyo, y que las claves que dejan la
+ * app sin arrancar se puedan leer como lo que son.
+ */
+export function revisarMitadCotizador(c) {
+  const DANADO = 'La parte del cotizador de este respaldo está dañada:';
+  if (!c || typeof c !== 'object' || Array.isArray(c) || c.app !== 'cotizador-al3d') {
+    return 'La parte del cotizador de este respaldo no es de un cotizador de AL3D.';
+  }
+  const D = c.datos;
+  if (!D || typeof D !== 'object' || Array.isArray(D) ||
+      Object.values(D).some(v => typeof v !== 'string' && v !== null)) {
+    return DANADO + ' sus datos no tienen la forma esperada.';
+  }
+  if (!Object.keys(D).some(k => RESPALDO_KEYS.includes(k))) {
+    return 'La parte del cotizador de este respaldo no trae ninguno de sus datos.';
+  }
+  const leer = k => { try { return { ok: true, v: JSON.parse(D[k]) }; } catch (_) { return { ok: false }; } };
+  const es = (k, prueba) => { if (D[k] == null) return true; const r = leer(k); return r.ok && prueba(r.v); };
+  const objeto = v => !!v && typeof v === 'object' && !Array.isArray(v);
+  if (!es('al3d_historial', Array.isArray) || !es('al3d_queue', Array.isArray)) {
+    return DANADO + ' el historial o la cola de ventas no se pueden leer.';
+  }
+  if (!es('al3d_q', v => objeto(v) && Array.isArray(v.items))) {
+    return DANADO + ' la cotización en curso no se puede leer.';
+  }
+  if (!es('al3d_cuadernos', objeto)) return DANADO + ' las notas de los clientes no se pueden leer.';
+  return '';
 }
 
 /** null si no se pudo leer. FileReader y no `Blob.text()`: `text()` pide Safari 14 y el

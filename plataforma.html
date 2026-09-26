@@ -1,8 +1,12 @@
 <!doctype html>
 <html lang="es">
 <meta charset="UTF-8">
-<!-- Content-Security-Policy: ver la nota de index.html y pruebas/csp.mjs. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<!-- Content-Security-Policy: ver la nota de index.html y pruebas/csp.mjs. El único guion de
+     esta página es el reenvío de abajo, y en vez de 'unsafe-inline' —que dejaría correr
+     cualquier otro— se permite ESE, por su huella sha256. Cambiarle un carácter sin cambiar la
+     huella lo deja sin correr y la página se queda en el enlace de «Abrirla»; pruebas/csp.mjs
+     recalcula la huella y truena antes de que eso se publique. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Mwe/goL4lDQTPlGfHQxgGJhVYadc8bK3BP6TuBg6qzM='; object-src 'none'; base-uri 'none'; form-action 'self'">
 <title>Plataforma AL3D</title>
 <meta name="robots" content="noindex">
 <!-- La plataforma ES la portada del sitio desde el cambio de puerta de entrada: vive en

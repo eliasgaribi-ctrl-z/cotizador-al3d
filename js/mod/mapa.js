@@ -41,7 +41,7 @@ import * as Cot from '../datos/cotizador.js';
 import { masDias } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, chip, hoyISO,
          fmtFecha, fmtFechaDia, fmtHora, cuando, diasHasta, abrirCapa, cerrarCapa,
-         copiarTexto, ajustarAltoBarra } from '../nucleo/ui.js';
+         copiarTexto, ajustarAltoBarra, scrollSuave } from '../nucleo/ui.js';
 
 /* ============================================================================
    Estado del módulo. Todo aquí, y todo se suelta en desmontar().
@@ -843,7 +843,7 @@ function abrirMano(id) {
      abajo, y la instrucción «toca en el mapa» sin el mapa enfrente es una instrucción a
      ciegas. */
   const div = $('mapa-lienzo');
-  if (div) div.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  if (div) div.scrollIntoView({ block: 'center', behavior: scrollSuave() });
 }
 
 function cerrarMano() {

@@ -159,6 +159,17 @@ export function avisarResultado(r, msgOk) {
   return false;
 }
 
+/* ----- El desplazamiento, con o sin animación -----
+   Cuatro pantallas llevaban al renglón pedido con `scrollIntoView({behavior:'smooth'})` a
+   secas —el Tablero, Qué atender, el Mapa y el Calendario— y la hoja de estilos ya apaga las
+   animaciones con `prefers-reduced-motion`, pero un desplazamiento pedido desde JS no pasa
+   por la hoja: a quien le marea el movimiento le seguía corriendo la pantalla entera. Se
+   pregunta aquí, en el momento, porque la preferencia se puede cambiar con la app abierta. */
+export function scrollSuave() {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'; }
+  catch (_) { return 'auto'; }
+}
+
 /* ============================================================================
    Capas: modales, Escape, cerco de tabulador y el botón atrás del teléfono.
 
