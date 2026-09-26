@@ -115,8 +115,11 @@ await p.waitForTimeout(400);
 
 await p.click('button:has-text("Autorizar yo mismo")');
 await p.waitForTimeout(600);
-await p.fill('#a-name','Elías');
-await p.waitForTimeout(200);
+/* Quién autoriza ya no se teclea: es la cuenta con la que se entró (aquí, la de la hoja de
+   mentiras), y el formulario lo dice en vez de pedirlo. */
+/Elías/.test(await p.$eval('.auth-quien',e=>e.textContent).catch(()=>''))
+  ? bien('la revisión dice a nombre de quién se sella, sin campo que teclear')
+  : mal('la revisión no dice a nombre de quién se sella');
 await p.click('button:has-text("Autorizar precio")');
 await p.waitForTimeout(800);
 const quitar = await p.$$('.falt-quitar');
@@ -182,7 +185,7 @@ await p.evaluate(()=>autorizarYoMismo()); await p.waitForTimeout(500);
 e = await proceso();
 e.paso===3 ? bien('mandada a autorización: el proceso va en el paso 3') : mal('en «pendiente», pasoActual() = '+e.paso);
 
-await p.evaluate(()=>{ const n=document.getElementById('a-name'); if(n){n.value='Elías'; Q.autorizador='Elías';} autorizar(); });
+await p.evaluate(()=>autorizar());
 await p.waitForTimeout(900);
 e = await proceso();
 e.estado==='autorizada' ? bien('autorizada') : mal('no llegó a autorizada: '+e.estado);
@@ -338,7 +341,7 @@ await conCliente();
 await unaPartidaCompleta();
 await p.waitForTimeout(400);
 await p.evaluate(()=>{autorizarYoMismo();}); await p.waitForTimeout(500);
-await p.evaluate(()=>{const a=document.getElementById('a-name');if(a){a.value='Elías';Q.autorizador='Elías';}autorizar();});
+await p.evaluate(()=>autorizar());
 await p.waitForTimeout(900);
 
 /* El buscador del historial encuentra por fecha, por partida y por total: los tres datos que
@@ -418,7 +421,7 @@ await p.evaluate(()=>renderAuth()); await p.waitForTimeout(300);
 (await p.$eval('#a-precio',e=>e.value))==='19000'
   ? bien('y el precio tecleado sobrevive al repintado') : mal('el precio tecleado se perdió');
 
-await p.evaluate(()=>{const a=document.getElementById('a-name');if(a){a.value='Elías';Q.autorizador='Elías';}autorizar();});
+await p.evaluate(()=>autorizar());
 await p.waitForTimeout(900);
 
 /* El pliegue de otras salidas no se cierra al teclear el anticipo, que está al lado. */
@@ -541,7 +544,6 @@ console.log('\nCORREGIR AL CLIENTE, SIN LLEVARSE POR DELANTE AL ANTERIOR');
 await conCliente();
 await unaPartidaCompleta();
 await p.evaluate(()=>autorizarYoMismo()); await p.waitForTimeout(600);
-await p.fill('#a-name','Elías');
 await p.click('button:has-text("Autorizar precio")'); await p.waitForTimeout(900);
 const folio1 = await p.evaluate(()=>Q.folio);
 await p.evaluate(()=>irAPaso(1)); await p.waitForTimeout(500);
@@ -622,7 +624,6 @@ await p.fill('#a-precio','19000'); await p.waitForTimeout(500);
 /22,040/.test(await p.$eval('#a-precio-neto',e=>e.textContent))
   ? bien('debajo se lee en vivo el neto que le corresponde: $22,040.00')
   : mal('el neto en vivo dice «'+(await p.$eval('#a-precio-neto',e=>e.textContent))+'»');
-await p.fill('#a-name','Elías');
 await p.click('button:has-text("Autorizar precio")'); await p.waitForTimeout(900);
 const cerrado = await p.evaluate(()=>({d:desgloseFinal(),pa:Q.precioAuth}));
 (Math.abs(cerrado.d.sub-19000)<0.01 && Math.abs(cerrado.d.neto-22040)<0.01 && Math.abs(cerrado.d.sub+cerrado.d.iva-cerrado.d.neto)<0.005)

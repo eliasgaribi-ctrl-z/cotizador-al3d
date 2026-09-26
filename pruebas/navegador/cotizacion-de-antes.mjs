@@ -73,7 +73,7 @@ async function cotizarYAutorizar(p,{cliente,tel,proy}){
   await p.waitForTimeout(400);
   await p.evaluate(()=>autorizarYoMismo());
   await p.waitForTimeout(400);
-  await p.evaluate(()=>{ document.getElementById('a-name').value='Elías'; autorizar(); });
+  await p.evaluate(()=>autorizar());
   await p.waitForTimeout(500);
 }
 

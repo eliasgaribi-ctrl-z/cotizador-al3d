@@ -1525,10 +1525,10 @@ Cinco verbatim:
 1. `Sin cliente, teléfono y proyecto no se pueden capturar partidas.`
 2. `Aún no hay partidas. Agrega letras 3D, un recorte de acrílico, un bastidor, una caja de luz o una partida manual.`
 3. `Todo se guarda solo en este dispositivo. El respaldo <b>no</b> incluye tus API keys.`
-4. `Solo aparecen las solicitudes hechas en <b>este</b> dispositivo — la cola se guarda aquí, no en un servidor.`
+4. `Ningún proveedor tiene llave todavía: Dirección las pega en la hoja, en <b>⚡ AL3D → Llaves de IA</b>.`
 5. `Duplicar copia el cliente y las partidas a una cotización nueva, en borrador: es la de cotizar lo mismo con otro material o otra medida sin capturar de nuevo.`
 
-Más muestras: `Mantén tocado para ver un importe` · `No falta nada por capturar` · `Igual que la anterior` · `Ábrelo para verificar la ubicación antes de compartirla.` · `Se imprime en la cotización. Vacía, sale la de arriba.` · `Ninguna cotización coincide con «…».` · `Pega tu key (gratis, sin tarjeta)` · `Ocultar del PDF — la partida sigue sumando al total` · `Fila copiada — pégala en la hoja Ventas` · `No hubo espacio para guardar en el historial — respalda y borra cotizaciones viejas`.
+Más muestras: `Mantén tocado para ver un importe` · `No falta nada por capturar` · `Igual que la anterior` · `Ábrelo para verificar la ubicación antes de compartirla.` · `Se imprime en la cotización. Vacía, sale la de arriba.` · `Ninguna cotización coincide con «…».` · `Sin señal no se puede sellar el precio. Lo que tecleaste se queda aquí: autoriza cuando vuelva la señal.` · `Ocultar del PDF — la partida sigue sumando al total` · `Fila copiada — pégala en la hoja Ventas` · `No hubo espacio para guardar en el historial — respalda y borra cotizaciones viejas`.
 
 **Títulos de `title=` y `aria-label`:** el `title` dice la **acción** (para el ratón), el `aria-label` dice el **destino** o el objeto, y el **estado** lo carga `aria-expanded`/`aria-pressed`, nunca el nombre. Ejemplo del código: `<button class="pfold" aria-expanded="false" title="Abrir la partida" aria-label="Detalle de la partida 3">`.
 

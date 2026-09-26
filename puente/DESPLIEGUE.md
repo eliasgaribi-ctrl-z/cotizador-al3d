@@ -1,18 +1,24 @@
 # Cómo se monta el puente
 
-Diez minutos, una vez. Ya no hay cuenta de Cloudflare, ni `wrangler`, ni secretos que
-guardar fuera del repo: el puente vive dentro de la hoja.
+Diez minutos, una vez. Ya no hay Worker de Cloudflare, ni `wrangler`, ni secretos que
+guardar fuera del repo: el puente vive dentro de la hoja. (Cloudflare sigue en la foto, pero
+solo como uno de los dos lugares desde donde se **sirve el sitio**, no como puente.)
 
 ## Lo que hay montado
 
 | Qué | Dónde |
 |---|---|
-| El sitio | GitHub Pages, desde `main` |
+| El sitio | GitHub Pages, desde `main` (`https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/`), y Cloudflare Pages (`https://cotizador-al3d.pages.dev`), el único de los dos que aplica `_headers` |
 | El puente | Apps Script de la hoja **«Finanzas AL3D — Ventas y Comisiones»**, publicado como aplicación web |
 | El código del puente | `puente/hoja-apps-script.gs` (este directorio), versionado para poder compararlo |
 
-El sitio se sigue redesplegando solo con cada push. **El puente no**: es código de Apps
-Script y se publica desde su editor.
+El sitio de GitHub Pages se sigue redesplegando solo con cada push a `main`. Cómo está
+conectado el de Cloudflare Pages —si lo construye desde el repositorio, desde qué rama y si
+redespliega solo— no está escrito en este repo: queda **pendiente** de anotarlo desde su
+panel. Lo que sí está en el repo es que los dos orígenes están dados de alta para entrar con
+Google (`ORIGENES` en `js/nucleo/ingreso.js` y el comentario de `PUENTE_CLIENT_IDS` en el
+`.gs`). **El puente no** se redespliega con nada de eso: es código de Apps Script y se publica
+desde su editor.
 
 ## Los pasos
 
@@ -241,7 +247,9 @@ En la raíz del repo hay un `_headers`, que Cloudflare Pages lee y GitHub Pages 
 Pages publica el repositorio entero, así que `docs/`, `pruebas/`, `puente/` y
 `herramientas/` también se sirven: no son secretos —el repo es público—, pero ese archivo
 les pone `X-Robots-Tag: noindex` para que un buscador no los enseñe antes que la app, y le
-pone a todo `X-Content-Type-Options: nosniff`.
+pone a todo `X-Content-Type-Options: nosniff` y `Content-Security-Policy: frame-ancestors
+'self'` (que nadie de otro sitio empotre la app). En GitHub Pages nada de eso llega: ahí el
+«nadie nos empotra» lo hace `js/tema.js` a mano, y `docs/`, `pruebas/`… pueden salir en un buscador.
 
 **Ojo con esto ahora que el `.gs` vive en el repo:** no contiene ningún secreto (los tokens
 están en las propiedades del script), pero sí describe el esquema completo de la hoja. Si

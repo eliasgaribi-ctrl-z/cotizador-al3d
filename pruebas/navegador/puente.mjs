@@ -208,8 +208,8 @@ await p.waitForTimeout(500);
 
 await p.evaluate(() => autorizarYoMismo());
 await p.waitForTimeout(500);
-await p.evaluate(() => { const i = document.getElementById('pa-autorizador'); if (i) i.value = 'Elías'; });
-await p.evaluate(() => { if (typeof autorizar === 'function') autorizar(); });
+/* Quién autoriza no se teclea: lo pone la cuenta con la que se entró (hoja-de-mentiras.js). */
+await p.evaluate(() => autorizar());
 await p.waitForTimeout(700);
 (await p.evaluate(() => Q.estado)) === 'autorizada'
   ? bien('la cotización quedó autorizada') : mal('no se autorizó');

@@ -204,7 +204,7 @@ await comprobar('el cálculo de una partida', '#authbox .ia-calc');
 await comprobar('el subtotal ajustado', '#authbox .ia-total');
 await comprobar('el mismo con IVA', '#authbox .ia-total.soft');
 
-await p.evaluate(() => { const a = document.getElementById('a-name'); if (a) { a.value = 'Elías'; Q.autorizador = 'Elías'; } autorizar(); });
+await p.evaluate(() => autorizar());
 await p.waitForTimeout(900);
 
 /* El candado de la pantalla del cliente: es el que dice cómo se corrigen los datos con el

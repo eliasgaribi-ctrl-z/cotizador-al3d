@@ -1,6 +1,6 @@
 /* LAS RÉPLICAS ENTRE EL COTIZADOR Y LA PLATAFORMA, COMPARADAS.
 
-   El cotizador son once guiones clásicos que comparten el ámbito global y no exportan nada;
+   El cotizador son doce guiones clásicos que comparten el ámbito global y no exportan nada;
    la plataforma son módulos ES. Lo que las dos necesitan saber —cómo se describe una
    partida, qué campos mueven el precio, cómo se agrupan los clientes, con qué alfabeto se
    nombra un aparato, con qué sal se guardan las llaves— está escrito DOS veces por

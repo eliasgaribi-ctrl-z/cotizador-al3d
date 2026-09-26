@@ -37,7 +37,9 @@ de archivos publicado:
 | **Anidador** | Acomoda las piezas en la lámina antes de cortar | `/anidador-vectores/` |
 
 Todo corre en el navegador. **Sin servidor, sin cuenta, sin instalar nada y sin build**: son
-archivos estáticos que GitHub Pages sirve tal cual. Los datos viven en el dispositivo.
+archivos estáticos que se sirven tal cual, desde GitHub Pages
+(`eliasgaribi-ctrl-z.github.io/cotizador-al3d/`) y desde Cloudflare Pages
+(`cotizador-al3d.pages.dev`). Los datos viven en el dispositivo.
 
 ## El eslabón: de la cotización al taller
 
@@ -124,9 +126,11 @@ teléfono, con alarmas a 3 días, 1 día y 30 minutos: las dispara el calendario
 eso suenan aunque nadie abra nada. Los demás avisos se calculan al abrir la plataforma.
 
 **La hoja de cálculo es el libro mayor.** Los proyectos ganados, las fórmulas de comisión y la
-cobranza viven en **«Finanzas AL3D — Ventas y Comisiones»**. En **Ajustes → El puente** se pega
-la liga del Apps Script de esa hoja y el token de este teléfono, y a partir de ahí la venta sale
-sola y el espejo del dinero baja solo — **y solo a quien le toca verlo**: al teléfono de
+cobranza viven en **«Finanzas AL3D — Ventas y Comisiones»**. La liga de su Apps Script ya viene
+de fábrica y la llave es la cuenta de Google con la que se entra: Dirección apunta el correo y
+el rol de cada persona en la pestaña «Accesos» de la hoja, y en el teléfono no hay que pegar
+nada (el token de dispositivo de **Ajustes → El puente** queda de salida de emergencia, para
+el día que Google no conteste). A partir de ahí la venta sale sola y el espejo del dinero baja solo — **y solo a quien le toca verlo**: al teléfono de
 fabricación las cifras no le bajan. Baja también el **récord de ventas completo** de la hoja, que
 es lo que Control suma: una fila que se borra allá desaparece de aquí en la siguiente bajada.
 Sin puente no se rompe nada: la plataforma funciona completa en un dispositivo, y Control lo dice
@@ -184,7 +188,7 @@ El respaldo no lleva llaves de IA porque ya no hay ninguna en el teléfono: vive
 
 ## Cómo está acomodado el código
 
-    cotizador.html            solo el marcado (900 líneas)
+    cotizador.html            solo el marcado (unas 1 100 líneas)
     css/sistema.css           EL sistema de diseño: tokens, estructura, las ocho capas
     css/plataforma.css        lo que solo la plataforma tiene (calendario, almacén, mapa)
     css/vidrio.css            la capa de vidrio, y va LA ÚLTIMA de las tres páginas: repinta
@@ -195,7 +199,7 @@ El respaldo no lleva llaves de IA porque ya no hay ninguna en el teléfono: vive
       nucleo.js                 estado, modales, preferencias, clientes conocidos, cálculo
       partidas.js               agregar, plegar, heredar, pintar, chips y resumen
       proceso.js                los cuatro pasos, la autorización, la barra fija del teléfono
-      ia.js                     cotizar con IA: proveedores, llaves, archivo, reintentos
+      ia.js                     cotizar con IA: la cadena de proveedores, el archivo, los reintentos (las llaves están en la hoja)
       entrega.js                logotipo, WhatsApp, hitos, Canva y el generador de PDF
       historial.js              historial, cuadernos, respaldo, cola, deshacer, folio
       escalador.js              medir sobre la foto
@@ -224,6 +228,8 @@ trampa hecha en el teléfono **pase por buena**:
 | Que un precio está autorizado, por quién y por cuánto | la hoja: recalcula el catálogo y firma (`/autorizar`) |
 | Que un PDF es auténtico | la hoja, cuando alguien escanea su QR (`/verificar`) |
 | Las llaves de IA y su cupo diario | la hoja (`/ia`) |
+| Cuántas peticiones por minuto hace cada persona | la hoja: sesenta, en ventana fija de un minuto |
+| Quién puede cancelar o consultar una solicitud de autorización | la hoja: quien la pidió, o Dirección (`/cancelar`, `/estado`) |
 | A qué servidores puede hablar cada página | su `<meta>` de Content-Security-Policy (`pruebas/csp.mjs`) |
 | Que nadie de afuera empotre la app | `js/tema.js`, el primer guion de todas las páginas |
 
@@ -233,6 +239,56 @@ guiones en línea (`'unsafe-inline'`) porque el cotizador vive de sus manejadore
 (ver «Cómo está acomodado el código»).
 Las cabeceras de `_headers` solo llegan cuando el sitio se sirve desde Cloudflare Pages; en
 GitHub Pages no se leen, y por eso el «nadie nos empotra» también vive en `js/tema.js`.
+
+**Cerrado en septiembre de 2026, además** (el detalle, en
+[`puente/README.md`](puente/README.md#cómo-está-cerrado)):
+
+- El cupo de sesenta por minuto se cuenta en **ventana fija**. Antes cada petición le volvía
+  a dar un minuto de vida a la cuenta, y un teléfono que sincronizaba cada 30 s nunca la
+  dejaba vaciarse: acababa fuera sin haber hecho nada raro.
+- **Abono Comision** solo acepta importes positivos: uno negativo hacía subir la comisión
+  pendiente.
+- `/solicitar` ya no pisa la solicitud pendiente de otra persona, `/cancelar` solo la retira
+  quien la pidió o Dirección, y `/estado` solo entrega un sello posterior a la última
+  solicitud de quien pregunta.
+- Los diálogos del menú ⚡ AL3D escapan el nombre del proyecto antes de pintarlo: corren con
+  la sesión del dueño de la hoja, y un nombre con HTML dentro podía llamar funciones del script.
+- Al sincronizar, **el estatus, la cuenta, la etapa, la dirección, el pin y el tipo** solo
+  suben cuando son lo que cambió. Antes viajaban siempre y pisaban lo que PAGOS acababa de
+  corregir en la hoja.
+
+### El origen compartido
+
+Es lo más grande que sigue abierto, y no se arregla con código de este repositorio.
+
+La app vive en `https://eliasgaribi-ctrl-z.github.io/cotizador-al3d/`, y GitHub Pages sirve
+**todos los repositorios de esa cuenta bajo el mismo origen**, `eliasgaribi-ctrl-z.github.io`.
+El navegador separa por origen, no por carpeta: el `localStorage`, el IndexedDB y la caché del
+service worker (CacheStorage) de esta app son también de cualquier otra página publicada desde
+esa cuenta, y hay al menos otra (`tablero-inversionistas-thiqa`). Un XSS en cualquiera de
+ellas —o un error en una dependencia que cargue— puede, sin tocar este repositorio:
+
+- leer el **token de Google** de quien entró (`al3d_pf_gtok`): en el teléfono de Dirección es
+  el que autoriza precios y ve todo el dinero, y vale hasta que caduca;
+- leer el **token de dispositivo del puente** (`al3d_pf_puente`, en claro), que no
+  caduca hasta que se generan otros;
+- leer y cambiar el historial, las cotizaciones y los proyectos del aparato;
+- **envenenar la caché del service worker**: dejar ahí su propia versión de un guion que la
+  app sirve *caché primero*, y que sigue sirviéndose aunque la otra página ya se haya corregido.
+
+Nada de la tabla de arriba lo frena. La CSP de cada página decide lo que *esa* página carga,
+no lo que otra página del mismo origen lee. Y aun dentro de la app, `connect-src` permite
+`https://script.google.com` entero, no el puente de AL3D: cabe cualquier Apps Script de
+cualquier persona, así que la CSP **no limita la salida de datos** de un guion inyectado.
+
+**Recomendación:** servir la app desde un origen que sea solo suyo —un dominio propio, o
+`cotizador-al3d.pages.dev` como único origen— y, ya mudada, **quitar
+`https://eliasgaribi-ctrl-z.github.io` de los orígenes autorizados** del cliente de OAuth en la
+consola de Google. Mientras ese origen siga autorizado, cualquier página de la cuenta puede
+pedirle a Google un token de esta app. Al mudarse hay que tocar también `ORIGENES` y `URL_APP`
+en `js/nucleo/ingreso.js`, y el comentario de `PUENTE_CLIENT_IDS` en el `.gs`; y como el
+almacenamiento es por origen, cada teléfono empieza vacío en el nuevo: respaldar antes aquí y
+restaurar allá.
 
 ## Publicar
 
@@ -248,7 +304,10 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
    nueva no autoriza sin el notario de la hoja.
 3. En **`sw.js`**, subir **`APP_VERSION`** una unidad. Es la primera línea de código del archivo.
    Sin eso, los teléfonos que ya tienen la app siguen sirviendo la versión guardada.
-4. Esperar de 30 a 60 segundos a que GitHub Pages redespliegue.
+4. Esperar de 30 a 60 segundos a que GitHub Pages redespliegue. La copia de Cloudflare Pages
+   (`cotizador-al3d.pages.dev`) es la misma app; cómo y cuándo se redespliega no está escrito
+   en este repositorio (ver [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md)), así que conviene
+   abrirla y confirmar la versión nueva también ahí.
 
 Son ochenta y seis archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
 mala señal llegarían mezclados, y **un guion nuevo con uno viejo no es una app vieja, es una app
@@ -259,7 +318,7 @@ plataforma con `herramientas/extraer-catalogo.sh`.
 
 ## Pruebas
 
-    pruebas/correr.sh               28 archivos, solo node, unos segundos
+    pruebas/correr.sh               30 archivos, solo node, unos segundos
     pruebas/correr.sh --navegador   20 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
