@@ -105,7 +105,11 @@ const servidor = createServer(async (req, res) => {
       return json({ ok: true, ts: Date.now(), version: 'falso-1', rol: 'direccion',
                     escribibles: ESCRIBIBLES_DIRECCION, destino: 'google-sheets' });
     }
-    if (ruta === 'esquema') { RECIBIDO.esquema++; return json({ ok: true, faltan: [], nota: 'ya está todo' }); }
+    /* Sin la pestaña «Accesos», como una hoja que se preparó antes de puente-sheets-5: las
+       ocho columnas están, pero nadie entraría con Google. «Revisar el esquema» lo tiene que
+       decir; hasta septiembre de 2026 el relevo tiraba el dato y la pantalla decía que todo
+       estaba bien. */
+    if (ruta === 'esquema') { RECIBIDO.esquema++; return json({ ok: true, faltan: [], accesos: false, nota: 'falta «Accesos»' }); }
     if (ruta === 'jalar') {
       RECIBIDO.jalar++;
       /* Como el Apps Script: TODAS las filas de la pestaña, tengan o no proyecto en el
@@ -124,6 +128,17 @@ const servidor = createServer(async (req, res) => {
     if (ruta === 'empujar') {
       const op = (entrada.ops || [])[0] || {};
       RECIBIDO.empujar.push(op);
+      /* Las ventas de «la fila que ya no está» (sección 4c) llevan folios COT-94…: no tocan la
+         fila V-201 de la venta de arriba. La V-404 se borró de la hoja; un alta sin fila entra
+         como una fila nueva, la V-405. Las frases son las de `unaOperacion` en el .gs. */
+      if (/^COT-94/.test(String(op.folio_cotizacion || ''))) {
+        if (op.id_notion === 'V-404') {
+          return json({ ok: true, resultados: [{ id: op.id, ok: false, codigo: 'NO_ENCONTRADO',
+            mensaje: 'La venta V-404 ya no está en la hoja: alguien borró su fila. Este cambio no se escribió en ninguna otra. Si la venta sigue viva, vuelve a registrarla desde el cotizador.' }] });
+        }
+        return json({ ok: true, resultados: [{ id: op.id, ok: true,
+          remoto: { id_notion: op.id_notion || 'V-405' }, rechazadas: [] }] });
+      }
       FILA = { id: 'V-201', editado: new Date().toISOString(),
                datos: { ...(FILA ? FILA.datos : {}), ...op.datos } };
       return json({ ok: true, resultados: [{ id: op.id, ok: true,
@@ -432,6 +447,361 @@ apart.frases.every(t => !/(compra|listas) se queda /.test(t))
   ? bien('y ninguna razón concuerda mal en plural')
   : mal('una razón dice «las listas de compra se queda»: ' + JSON.stringify(apart.frases));
 
+// ── 4b. Un rechazo de UNA operación no traba la bandeja ──────────────────────
+/* Un alta desde un teléfono cuyo rol no escribe el nombre del proyecto vuelve rechazada, y
+   reintentar no la arregla. Hasta septiembre de 2026 volvía como un ROL_SIN_PERMISO pelón
+   —el mismo código que una llave que la hoja no reconoce— y `bombear` se paraba en ella:
+   lo que estaba detrás no salía nunca. Ahora el relevo la marca `definitivo` y el bombeo
+   la aparta con su razón y sigue. */
+console.log('\nUN RECHAZO DE UNA SOLA OPERACIÓN NO TRABA LA BANDEJA');
+const traba = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const S = await import('./js/datos/sync.js');
+  const P = await import('./js/datos/puente.js');
+  const mandadas = [];
+  S.registrar({
+    nombre: 'falso', lleva: a => a === 'proyectos', motivo: () => 'no lo lleva',
+    async subir(ops) {
+      return ops.map(op => {
+        mandadas.push(op.registro_id);
+        return op.registro_id === 'alta-sin-permiso'
+          ? { id: op.id, ok: false, codigo: 'ROL_SIN_PERMISO', definitivo: true,
+              mensaje: 'Este teléfono no puede dar de alta la venta en la hoja: su rol no escribe el nombre del proyecto.' }
+          : { id: op.id, ok: true, remoto: null, rechazadas: [] };
+      });
+    },
+    async bajar() { return { registros: [], cursor: null, hay_mas: false }; },
+  });
+  try {
+    await S.encolar({ id: 'op-traba-a', tipo: 'crear', almacen: 'proyectos', registro_id: 'alta-sin-permiso', datos: { id: 'alta-sin-permiso' }, ts: 1 });
+    await S.encolar({ id: 'op-traba-b', tipo: 'actualizar', almacen: 'proyectos', registro_id: 'etapa-de-otro', datos: { id: 'etapa-de-otro' }, ts: 2 });
+    const b1 = await S.bombear();
+    const b2 = await S.bombear();
+    const rech = await S.rechazadas();
+    const banda = (await S.frescura()).texto;
+    const pendientes = (await S.pendientes()).length;
+    const sigueGuardada = !!(await DB.obtener('pendientes', 'op-traba-a'));
+    const errorVivo = S.estado().ultimo_error || '';
+    const mandadasAntes = mandadas.slice();   // lo de abajo la vuelve a mandar a propósito
+    /* «Volver a intentarlos» (Ajustes): regresa a la cola y, si rebota otra vez, se vuelve a apartar. */
+    const re = await S.reintentarRechazadas();
+    const enCola = (await S.pendientes()).length;
+    await S.bombear();
+    const otraVezApartada = (await S.rechazadas()).length;
+    const tirada = await S.resolver('op-traba-a', 'suyo');
+    return { mandadas: mandadasAntes, b1: b1.valor, b2: b2.valor, pendientes, rech: rech.map(o => [o.id, o.ultimo_error]), banda,
+             sigueGuardada, tirada: tirada.ok, quedan: (await S.rechazadas()).length,
+             errorVivo, reencoladas: re.valor && re.valor.reencoladas, enCola, otraVezApartada };
+  } finally {
+    S.registrar(P.desdePrefs());   // el relevo de verdad, para lo que sigue
+  }
+});
+traba.mandadas.includes('etapa-de-otro') ? bien('la operación de detrás de la rechazada SÍ salió')
+  : mal('la bandeja se trabó en la rechazada: ' + JSON.stringify(traba.mandadas));
+traba.mandadas.filter(x => x === 'alta-sin-permiso').length === 1 ? bien('y la rechazada no se reintenta en cada bombeo')
+  : mal('la rechazada se mandó ' + traba.mandadas.filter(x => x === 'alta-sin-permiso').length + ' veces');
+traba.b1 && traba.b1.rechazadas === 1 && traba.b1.fallidas === 1 && traba.b1.subidas === 1
+  ? bien('el bombeo lo cuenta: 1 subida, 1 rechazada (y fallida, para que Ajustes no diga «nada que mandar» en verde)')
+  : mal('conteo del bombeo: ' + JSON.stringify(traba.b1));
+traba.pendientes === 0 ? bien('la rechazada ya no se cuenta como pendiente') : mal('pendientes: ' + traba.pendientes);
+traba.rech.length === 1 && /no puede dar de alta/.test(traba.rech[0][1]) && traba.sigueGuardada
+  ? bien('se apartó con su razón, sin perderse: «' + traba.rech[0][1] + '»') : mal('apartadas: ' + JSON.stringify(traba.rech));
+/No se pudo mandar 1 cambio/.test(traba.banda || '') && /Ajustes/.test(traba.banda || '') ? bien('y la banda de frescura lo dice, y dónde se reintenta: «' + traba.banda + '»')
+  : mal('la banda no dice nada del rechazo: «' + traba.banda + '»');
+traba.errorVivo === '' ? bien('lo apartado no queda como «último error»: la banda de «no ha podido mandar» no se enciende por él')
+  : mal('el rechazo quedó como último error: «' + traba.errorVivo + '»');
+traba.reencoladas === 1 && traba.enCola === 1 && traba.otraVezApartada === 1
+  ? bien('«Volver a intentarlos» lo regresa a la cola, y si rebota otra vez se vuelve a apartar')
+  : mal('reintentar: ' + JSON.stringify({ r: traba.reencoladas, c: traba.enCola, a: traba.otraVezApartada }));
+traba.tirada && traba.quedan === 0 ? bien('y se puede descartar con resolver(…, "suyo")') : mal('no se pudo descartar');
+
+// ── 4c. La venta que la hoja ya no tiene: el aviso, el botón y «Qué atender» ──
+/* pruebas/puente.mjs recorre el camino de datos; esto es lo que ve la persona. Nada se borra
+   solo: la ficha lo dice, Dirección aprieta, y la otra pantalla —«Qué atender»— lleva a la
+   ficha de la tarjeta importada cuya fila ya no vino. */
+console.log('\nLA VENTA QUE LA HOJA YA NO TIENE');
+const sembrar = async (proys, rol) => p.evaluate(async ([lista, rol]) => {
+  const DB = await import('./js/datos/db.js');
+  for (const x of lista) await DB.poner('proyectos', x);
+  localStorage.setItem('al3d_pf_rol', rol);
+}, [proys, rol]);
+const proyPrueba = (id, fg, np, o) => ({ id, folio_local: fg.split('@')[0], dispositivo: 'PRUEBA', folio_global: fg,
+  nombre: 'Lavandería Azul - Letras', contacto: 'Rosa', negocio: 'Lavandería Azul', etapa: 'ganado',
+  tipo_trabajo: ['Letras 3D con iluminacion'], fecha_ganado: HOY_MX, dir_texto: 'Calle 5 #10', lat: null, lng: null,
+  sub: 8000, neto: 9280, precio_auth: 9280, anti_pactado: 4000, iva: true, notion_page_id: np, notion_estado: 'enviado',
+  estatus_notion: 'FABRICACION', cuenta: 'Elias BBVA', pago_pendiente: null, comision_restante: null, pct_comision: 0,
+  plazo_k: null, notas: '', origen: { folio: fg.split('@')[0], items: [] }, ...o });
+await sembrar([proyPrueba('proy-pr-404', 'COT-9404@PRUEBA', 'V-404'),
+               proyPrueba('proy-pr-com', 'COT-9415@PRUEBA', 'V-201x', { nombre: 'Tintorería Vieja - Caja', pct_comision: 15 })], 'direccion');
+const marca404 = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const P = await import('./js/datos/proyectos.js');
+  const S = await import('./js/datos/sync.js');
+  await P.actualizar('proy-pr-404', { notas: 'el cliente cambió de local' });
+  await S.bombear();
+  const x = await DB.obtener('proyectos', 'proy-pr-404');
+  return { marca: x.hoja_perdida, fila: x.notion_page_id,
+           apartadas: (await S.rechazadas()).filter(o => o.registro_id === 'proy-pr-404').length };
+});
+marca404.marca && marca404.marca.motivo === 'borrada' && marca404.fila === 'V-404' && marca404.apartadas === 1
+  ? bien('el cambio contra la fila borrada se aparta y el proyecto queda marcado, con su fila intacta')
+  : mal('la marca quedó así: ' + JSON.stringify(marca404));
+
+const abrirLaFicha = async id => {
+  await p.evaluate(() => { location.hash = '#/tablero'; });
+  await p.waitForTimeout(600);
+  await p.evaluate(() => { location.hash = '#/proyectos'; });
+  await p.waitForTimeout(1500);
+  await p.click('[data-abrir="' + id + '"]');
+  await p.waitForTimeout(700);
+  return p.evaluate(() => {
+    const f = document.getElementById('pf-ficha');
+    return { txt: (f && f.innerText) || '', alta: !!(f && f.querySelector('[data-hoja-alta]')),
+             fuera: !!(f && f.querySelector('[data-hoja-fuera]')), quitar: !!(f && f.querySelector('[data-hoja-quitar]')) };
+  });
+};
+
+await sembrar([], 'fabricacion');
+const fab404 = await abrirLaFicha('proy-pr-404');
+/* Sin botones, y sin prometerle una decisión que desde otro teléfono no llega: las marcas son de
+   este aparato. */
+/ya no está en la hoja/.test(fab404.txt) && !fab404.alta && !fab404.fuera && /con su cuenta en este teléfono/.test(fab404.txt)
+  ? bien('fabricación ve el aviso, sin los botones, y dice la verdad: lo decide Dirección con su cuenta en ESTE teléfono')
+  : mal('fabricación ve: ' + JSON.stringify({ ...fab404, txt: fab404.txt.slice(0, 300) }));
+const fabCom = await abrirLaFicha('proy-pr-com');
+!/Comisi/.test(fabCom.txt) ? bien('y en la ficha con % de comisión, fabricación no ve ni una línea de dinero') : mal('fabricación ve la comisión');
+
+await sembrar([], 'direccion');
+const dirCom = await abrirLaFicha('proy-pr-com');
+/Comisión pactada \(antes de fijarla en 10 %\)\s*15 %/.test(dirCom.txt)
+  ? bien('un 15 % viejo se rotula como lo que es: lo pactado antes de fijarla en 10 %, no lo que se cobra')
+  : mal('la comisión dice: ' + ((/Comisi[^\n]*\n?[^\n]*/.exec(dirCom.txt) || [''])[0]));
+const dir404 = await abrirLaFicha('proy-pr-404');
+/Alguien borró su fila \(V-404\)/.test(dir404.txt) && dir404.alta && dir404.fuera
+  ? bien('Dirección ve qué pasó y las dos salidas: volver a darla de alta, o dejarla fuera')
+  : mal('la ficha de Dirección dice: ' + dir404.txt.slice(0, 300));
+const antesRealta = RECIBIDO.empujar.length;
+await p.click('#pf-ficha [data-hoja-alta]');
+await p.waitForTimeout(2500);
+const realta = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const S = await import('./js/datos/sync.js');
+  const x = await DB.obtener('proyectos', 'proy-pr-404');
+  const f = document.getElementById('pf-ficha');
+  return { fila: x.notion_page_id, marca: x.hoja_perdida, apartadas: (await S.rechazadas()).filter(o => o.registro_id === 'proy-pr-404').length,
+           aviso: /ya no está en la hoja/.test((f && f.innerText) || ''), toast: (document.getElementById('toast') || {}).innerText || '' };
+});
+const altaNueva = RECIBIDO.empujar.slice(antesRealta).find(o => o.folio_cotizacion === 'COT-9404@PRUEBA') || null;
+altaNueva && altaNueva.tipo === 'crear' && !altaNueva.id_notion && altaNueva.datos['Proyecto'] && altaNueva.datos['Precio Subtotal'] === 8000
+  ? bien('«Volver a darla de alta» manda UN alta completa, sin la fila muerta: nombre, subtotal y lo demás')
+  : mal('lo que salió: ' + JSON.stringify(altaNueva));
+realta.fila === 'V-405' && !realta.marca && realta.apartadas === 0 && !realta.aviso
+  ? bien('y la venta queda en su fila nueva, sin marca, sin lo apartado y sin aviso: «' + realta.toast + '»')
+  : mal('después del alta: ' + JSON.stringify(realta));
+
+/* La tarjeta importada cuya fila se borró, desde «Qué atender». */
+HISTORICAS.push(filaHoja('V-300', 'Taller Sur - Vinil', { 'Estatus': 'FABRICACION', 'Fecha Anticipo e Instalacion': HOY_MX }));
+await p.evaluate(async () => { const S = await import('./js/datos/sync.js'); await S.jalar(); });
+HISTORICAS = HISTORICAS.filter(h => h.id_notion !== 'V-300');
+const huer = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const S = await import('./js/datos/sync.js');
+  const antes = !!(await DB.obtener('proyectos', 'proy-hoja-V-300'));
+  const r = await S.jalar();
+  const x = await DB.obtener('proyectos', 'proy-hoja-V-300');
+  return { antes, completa: r.ok && r.valor.completa, sigue: !!x, marca: x && x.hoja_perdida };
+});
+huer.antes && huer.completa && huer.sigue && huer.marca && huer.marca.motivo === 'no_bajo'
+  ? bien('la tarjeta importada cuya fila ya no vino se MARCA en la bajada completa; no se borra')
+  : mal('la tarjeta importada quedó así: ' + JSON.stringify(huer));
+/* «Qué atender», primero con Dirección y luego en el teléfono del taller, que es donde viven las
+   tarjetas importadas: las marcas no viajan, y lo que Dirección decida en el suyo no llega ahí.
+   A fabricación le sale el mismo aviso, sin un peso, y la ficha le deja decidir. */
+const filaDeAtender = async abrir => {
+  await p.evaluate(() => { location.hash = '#/tablero'; });
+  await p.waitForTimeout(600);
+  await p.evaluate(() => { location.hash = '#/atender'; });
+  await p.waitForTimeout(2500);
+  return p.evaluate(abrir => {
+    const f = [...document.querySelectorAll('.pf-fila')].find(x => /Taller Sur - Vinil ya no está en la hoja/.test(x.innerText));
+    const b = f && [...f.querySelectorAll('[data-acc]')].find(x => /Abrir la ficha/.test(x.innerText));
+    if (b && abrir) b.click();
+    return { hay: !!f, boton: !!b, txt: f ? f.innerText : '' };
+  }, abrir);
+};
+const reglaDir = await filaDeAtender(false);
+reglaDir.hay && reglaDir.boton ? bien('«Qué atender» la nombra para Dirección, con «Abrir la ficha»') : mal('«Qué atender» (Dirección): ' + JSON.stringify(reglaDir));
+await sembrar([], 'fabricacion');
+const regla = await filaDeAtender(true);
+regla.hay && regla.boton && !/\$|\d{1,3},\d{3}/.test(regla.txt)
+  ? bien('y en el teléfono de fabricación también, sin un peso: «' + regla.txt.replace(/\s+/g, ' ').slice(0, 90) + '…»')
+  : mal('«Qué atender» (fabricación): ' + JSON.stringify(regla));
+await p.waitForTimeout(2000);
+const fichaHuer = await p.evaluate(() => {
+  const f = document.getElementById('pf-ficha');
+  return { abierta: !!(f && f.classList.contains('show')), txt: (f && f.innerText) || '',
+           quitar: !!(f && f.querySelector('[data-hoja-quitar]')), dejar: !!(f && f.querySelector('[data-hoja-dejar]')) };
+});
+fichaHuer.abierta && /Taller Sur/.test(fichaHuer.txt) && fichaHuer.quitar && fichaHuer.dejar
+  ? bien('el botón abre SU ficha, y fabricación tiene «Quitar del tablero» y «Dejarla»') : mal('la ficha: ' + JSON.stringify({ ...fichaHuer, txt: fichaHuer.txt.slice(0, 200) }));
+let pregunta = '';
+p.once('dialog', d => { pregunta = d.message(); d.accept(); });
+await p.click('#pf-ficha [data-hoja-quitar]');
+await p.waitForTimeout(1500);
+const quitada = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  return !(await DB.obtener('proyectos', 'proy-hoja-V-300'));
+});
+/Quitar «Taller Sur - Vinil» del tablero/.test(pregunta) && quitada
+  ? bien('«Quitar del tablero» pregunta antes y, con el sí, la quita, desde el teléfono de fabricación') : mal('quitar: ' + JSON.stringify({ pregunta, quitada }));
+
+/* La copia REPETIDA cuya fila solo coincide en el folio de la hoja —la celda de cotización vacía
+   y otro nombre—: puede ser la misma venta o una venta de otro con el folio repartido dos veces.
+   No se junta sola; Dirección elige entre «Juntar» y «No es la misma venta». Y la copia de una
+   lápida, que no se puede juntar, se quita. */
+await sembrar([proyPrueba('proy-pr-520', 'COT-9520@PRUEBA', 'V-520', { nombre: 'Imprenta Rubén - Letras', lat: 20.6, lng: -103.3 }),
+               proyPrueba('proy-pr-530', 'COT-9530@PRUEBA', 'V-530', { nombre: 'Florería Sol - Caja', etapa: 'cancelado' })], 'direccion');
+HISTORICAS.push(filaHoja('V-520', 'Rubén - Imprenta Centro', { 'Estatus': 'FABRICACION', 'Fecha Anticipo e Instalacion': HOY_MX }),
+                filaHoja('V-530', 'Sol Florería', { 'Estatus': 'FABRICACION', 'Fecha Anticipo e Instalacion': HOY_MX }));
+const rep = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const S = await import('./js/datos/sync.js');
+  await S.jalar();
+  /* La copia trae un pin distinto del de aquí: la confirmación no puede prometer que pasa. */
+  const c = await DB.obtener('proyectos', 'proy-hoja-V-520');
+  if (c) await DB.poner('proyectos', { ...c, lat: 20.7, lng: -103.4 });
+  await S.jalar();
+  const x = await DB.obtener('proyectos', 'proy-hoja-V-520'), y = await DB.obtener('proyectos', 'proy-hoja-V-530');
+  return { c520: x && x.duplicado_de && x.duplicado_de.claves, c530: y && y.duplicado_de && y.duplicado_de.claves };
+});
+(rep.c520 || []).includes('identidad') && (rep.c530 || []).includes('cancelada')
+  ? bien('las dos copias quedan repetidas, por confirmar, sin juntarse solas') : mal('las repetidas: ' + JSON.stringify(rep));
+const botones = async id => {
+  const f = await abrirLaFicha(id);
+  return p.evaluate(f => {
+    const el = document.getElementById('pf-ficha');
+    const hay = s => !!(el && el.querySelector(s));
+    return { ...f, juntar: hay('[data-hoja-juntar]'), noesla: hay('[data-hoja-noesla]'), quitar: hay('[data-hoja-quitar]') };
+  }, f);
+};
+const f520 = await botones('proy-hoja-V-520');
+f520.juntar && f520.noesla && !f520.quitar && /parece la misma venta/.test(f520.txt)
+  ? bien('Dirección ve «Juntar» y «No es la misma venta», y el aviso dice que solo lo parece')
+  : mal('la ficha de la repetida: ' + JSON.stringify({ ...f520, txt: f520.txt.slice(0, 300) }));
+/* La fila de la lápida viene VIVA (FABRICACION): la hoja y este teléfono no dicen lo mismo, y
+   quitar la copia no decide quién tiene razón. Ni «Juntar» (se negaría) ni «Quitar»: las dos
+   salidas de verdad, dichas. */
+const f530 = await botones('proy-hoja-V-530');
+!f530.quitar && !f530.juntar && /trae esta obra viva/.test(f530.txt) && /márcala «No se dio» también en la hoja/.test(f530.txt)
+  ? bien('la copia de una lápida con su fila viva no ofrece «Juntar» ni «Quitar»: dice que la hoja la trae viva y qué hacer')
+  : mal('la ficha de la copia de la lápida: ' + JSON.stringify({ ...f530, txt: f530.txt.slice(0, 400) }));
+await sembrar([], 'fabricacion');
+const fab520 = await botones('proy-hoja-V-520');
+!fab520.juntar && !fab520.noesla && !fab520.quitar && /con su cuenta en este teléfono/.test(fab520.txt)
+  ? bien('fabricación la ve sin botones, y sin que se le prometa una decisión desde otro teléfono') : mal('fabricación ve: ' + JSON.stringify({ ...fab520, txt: fab520.txt.slice(0, 300) }));
+await sembrar([], 'direccion');
+await botones('proy-hoja-V-520');
+let pJuntar = '';
+p.once('dialog', d => { pJuntar = d.message(); d.dismiss(); });
+await p.click('#pf-ficha [data-hoja-juntar]');
+await p.waitForTimeout(600);
+/solo si «Imprenta Rubén - Letras» no tiene los suyos/.test(pJuntar) && /se queda la de este teléfono/.test(pJuntar) &&
+  /queda como de «Imprenta Rubén - Letras»/.test(pJuntar)
+  ? bien('«Juntar» dice lo que de verdad pasa: el pin de la copia se pierde, y la fila queda como de la de aquí')
+  : mal('la confirmación de juntar dice: ' + pJuntar);
+let pNo = '';
+p.once('dialog', d => { pNo = d.message(); d.accept(); });
+await p.click('#pf-ficha [data-hoja-noesla]');
+await p.waitForTimeout(1500);
+const sep = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const c = await DB.obtener('proyectos', 'proy-hoja-V-520'), r = await DB.obtener('proyectos', 'proy-pr-520');
+  const f = document.getElementById('pf-ficha');
+  return { copia: !!c, marca: c && c.duplicado_de, real: r && r.hoja_perdida && r.hoja_perdida.motivo,
+           aviso: /repite una venta|repetir una venta/.test((f && f.innerText) || '') };
+});
+/dos ventas distintas/.test(pNo) && sep.copia && !sep.marca && sep.real === 'de_otra' && !sep.aviso
+  ? bien('«No es la misma venta» pregunta, deja la copia como su propia venta y la de aquí queda sin fila')
+  : mal('no es la misma: ' + JSON.stringify({ pNo: pNo.slice(0, 80), ...sep }));
+/* En la hoja se marca «No se dio»: ahora las dos dicen lo mismo, y la copia ya se puede quitar. */
+HISTORICAS = HISTORICAS.map(h => (h.id_notion === 'V-530' ? { ...h, 'Etapa de obra': 'No se dio' } : h));
+await p.evaluate(async () => { const S = await import('./js/datos/sync.js'); await S.jalar(); });
+const f530b = await botones('proy-hoja-V-530');
+f530b.quitar && !f530b.juntar
+  ? bien('con la fila marcada «No se dio» en la hoja, la copia de la lápida ya ofrece quitarla')
+  : mal('la ficha de la copia de la lápida, con la fila «No se dio»: ' + JSON.stringify({ ...f530b, txt: f530b.txt.slice(0, 300) }));
+p.once('dialog', d => d.accept());
+await p.click('#pf-ficha [data-hoja-quitar]');
+await p.waitForTimeout(1500);
+const sin530 = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const S = await import('./js/datos/sync.js');
+  const ida = !(await DB.obtener('proyectos', 'proy-hoja-V-530'));
+  await S.jalar();
+  return { ida, vuelve: !!(await DB.obtener('proyectos', 'proy-hoja-V-530')) };
+});
+sin530.ida && !sin530.vuelve ? bien('la copia de la lápida se quita, y la siguiente bajada no la vuelve a importar') : mal('la de la lápida: ' + JSON.stringify(sin530));
+
+/* «No se dio» sobre una venta cuya fila ya no está: la lápida no avisa (ya se decidió), pero lo
+   apartado se quedaba para siempre en Ajustes y la ficha no tenía ninguna salida. Ahora una línea
+   callada con «Dejarla fuera de la hoja», y la confirmación dice que lo que rebotó no se tira. */
+await sembrar([proyPrueba('proy-pr-470', 'COT-9470@PRUEBA', 'V-470', { nombre: 'Nevería Sol - Letras', etapa: 'cancelado',
+  hoja_perdida: { motivo: 'borrada', folio: 'V-470', desde: Date.now(), mensaje: 'La venta V-470 ya no está en la hoja.' } })], 'direccion');
+await p.evaluate(() => { location.hash = '#/tablero'; });
+await p.waitForTimeout(600);
+await p.evaluate(() => { location.hash = '#/proyectos'; });
+await p.waitForTimeout(1500);
+await p.click('#pj-filtros [data-etapa="cancelado"]');
+await p.waitForTimeout(500);
+await p.click('[data-abrir="proy-pr-470"]');
+await p.waitForTimeout(700);
+const fLap = await p.evaluate(() => {
+  const f = document.getElementById('pf-ficha');
+  return { txt: (f && f.innerText) || '', fuera: !!(f && f.querySelector('[data-hoja-fuera]')), alta: !!(f && f.querySelector('[data-hoja-alta]')) };
+});
+/Está como «No se dio», y su fila V-470 ya no está en la hoja/.test(fLap.txt) && fLap.fuera && !fLap.alta
+  ? bien('la lápida cuya fila ya no está le enseña a Dirección su única salida: «Dejarla fuera de la hoja»')
+  : mal('la ficha de la lápida: ' + JSON.stringify({ ...fLap, txt: fLap.txt.slice(0, 300) }));
+let pFuera = '';
+p.once('dialog', d => { pFuera = d.message(); d.accept(); });
+if (fLap.fuera) await p.click('#pf-ficha [data-hoja-fuera]');
+await p.waitForTimeout(1200);
+const lapFuera = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const x = await DB.obtener('proyectos', 'proy-pr-470');
+  return { fuera: !!(x && x.fuera_de_hoja), marca: x && x.hoja_perdida };
+});
+/no se tiran: se guardan en este teléfono/.test(pFuera) && !/se tiran\./.test(pFuera) && !/Volver a darla de alta/.test(pFuera) && lapFuera.fuera && !lapFuera.marca
+  ? bien('su confirmación dice que lo que rebotó se guarda (y no ofrece darla de alta a una lápida), y la deja fuera')
+  : mal('dejar fuera la lápida: ' + JSON.stringify({ pFuera, ...lapFuera }));
+/* El filtro de la lista vive en el módulo y sobrevive a la navegación: se regresa a «Todas». */
+await p.evaluate(() => { const b = document.querySelector('#pf-ficha [data-cerrar-ficha]'); if (b) b.click(); });
+await p.waitForTimeout(400);
+await p.click('#pj-filtros [data-etapa="todas"]');
+await p.waitForTimeout(400);
+
+/* La venta de aquí en DOS filas de la hoja: las dos traen su folio de cotización (Dirección la
+   volvió a dar de alta y después alguien deshizo el borrado de la vieja). La bajada completa la
+   marca, la ficha lo dice sin botones —cuál sobra se borra en la hoja— y el tablero lo enseña. */
+await sembrar([proyPrueba('proy-pr-460', 'COT-9460@PRUEBA', 'V-460', { nombre: 'Kiosko Luna - Letras' })], 'direccion');
+HISTORICAS.push(filaHoja('V-460', 'Kiosko Luna - Letras', { 'Estatus': 'COBRANDO', 'Folio cotizacion': 'COT-9460@PRUEBA', 'Fecha Anticipo e Instalacion': HOY_MX }),
+                filaHoja('V-461', 'Kiosko Luna - Letras', { 'Estatus': 'COBRANDO', 'Folio cotizacion': 'COT-9460@PRUEBA', 'Fecha Anticipo e Instalacion': HOY_MX }));
+const dob = await p.evaluate(async () => {
+  const DB = await import('./js/datos/db.js');
+  const S = await import('./js/datos/sync.js');
+  await S.jalar();
+  const x = await DB.obtener('proyectos', 'proy-pr-460');
+  return { fila: x && x.notion_page_id, marca: x && x.hoja_doble && x.hoja_doble.folios };
+});
+const fDob = await abrirLaFicha('proy-pr-460');
+const tagDob = await p.evaluate(() => [...document.querySelectorAll('.pf-sem')].some(s => /Dos veces en la hoja/.test(s.innerText)));
+dob.fila === 'V-460' && JSON.stringify(dob.marca) === '["V-460","V-461"]' && /Esta venta está dos veces en la hoja/.test(fDob.txt) &&
+  /Las filas V-460 y V-461/.test(fDob.txt) && !fDob.alta && !fDob.fuera && !fDob.quitar && tagDob
+  ? bien('la venta en dos filas se marca, se queda con su fila, y la ficha y el tablero lo dicen sin botones')
+  : mal('la venta en dos filas: ' + JSON.stringify({ ...dob, tagDob, ...fDob, txt: fDob.txt.slice(0, 300) }));
+HISTORICAS = HISTORICAS.filter(h => h.id_notion !== 'V-460' && h.id_notion !== 'V-461');
+await p.evaluate(async () => { const S = await import('./js/datos/sync.js'); await S.jalar(); });
+
 // ── 5. La pantalla de Ajustes ────────────────────────────────────────────────
 console.log('\nLA PANTALLA DE AJUSTES');
 await p.evaluate(() => { location.hash = '#/ajustes'; });
@@ -455,6 +825,10 @@ else {
   await btnEsq.click();
   await p.waitForTimeout(1500);
   RECIBIDO.esquema > 0 ? bien('y de verdad lee el esquema de la hoja') : mal('no llamó a /esquema');
+  const txtEsq = await p.evaluate(() => document.querySelector('.pf-mod:not([hidden])').innerText);
+  /Accesos/.test(txtEsq) && !/ya tiene las ocho/.test(txtEsq)
+    ? bien('y dice que falta la pestaña «Accesos», en vez de «ya tiene todo»')
+    : mal('una hoja sin «Accesos» pasó por completa');
 }
 
 if (errs.length) mal('errores de página: ' + [...new Set(errs)].slice(0, 3).join(' | '));

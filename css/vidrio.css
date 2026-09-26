@@ -224,6 +224,14 @@ html[data-tema="oscuro"]{
 .card{border-radius:var(--cv-tarjeta)}
 .btn,.btn-hist,.btn-gho,.btn-pri,.chip,.seg,.seg button,.folio,
 .btn-scaler-open,.btn-vector-open,.ai-btn{border-radius:var(--cv-pastilla)}
+/* Los otros dos segmentados del cotizador: el tipo de la partida («Letras · Recorte ·
+   Bastidor · Caja · Manual») y el de los aparatos («Original · Comparar · Vector», «Libre ·
+   Horizontal · Vertical»). La línea de arriba nombró a `.seg` y a ellos no, así que se
+   quedaron con el carril de la capa (4) —esquina de 6 px— y el elegido en CAJA de esquina
+   viva: un rectángulo marino recortado dentro de un carril redondeado, a un palmo del
+   «Vendedor · Autorizador» de la cabecera, que ya es píldora. En la plataforma `.tipo-seg`
+   tiene su propio radio con `body.pf`, que pesa más y no se toca. */
+.tipo-seg,.tipo-seg button,.tool-seg,.tool-seg button{border-radius:var(--cv-pastilla)}
 .btn-pri{background:var(--cv-accion);border-color:rgba(var(--af-rgb),.5);
   box-shadow:0 14px 30px -16px rgba(var(--af-rgb),.7),inset 0 1px 0 rgba(255,255,255,.4)}
 /* Al pasar el cursor el degradado se queda: sistema.css pinta `.btn-pri:hover` con el azul
@@ -258,6 +266,20 @@ body.pf .card{border-radius:var(--cv-tarjeta)}
 body.pf .btn{border-radius:23px}
 body.pf .seg{border-radius:var(--cv-pastilla)}
 body.pf .seg button,body.pf .tipo-seg button{border-radius:var(--cv-pastilla)}
+/* EL SELECTOR DE ROL DE LA BARRA LATERAL no es una píldora de un renglón como los demás .seg.
+   En la banda de la tableta (760–1023 px) plataforma.css lo pone en COLUMNA, y la píldora de
+   999 px de aquí arriba, sobre tres renglones apilados, es un CÍRCULO que se come la «D» de
+   Dirección y la «P» de Pagos: se veía roto en cuanto se abría la plataforma en una tableta.
+   Ahí lleva el radio de una tarjeta chica.
+   Y en la computadora los tres caben en fila solo si cada botón toma el ancho de su palabra:
+   repartidos a partes iguales, «Fabricación» pedía 59 px en una casilla de 48 y se montaba
+   sobre sus vecinos. Con el ancho de su palabra sobran 4 px; el recorte con puntos es para
+   la letra de reserva de otra computadora, no para esta. */
+body.pf .pf-lat-rol .seg button{flex:1 1 auto;padding:0 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(min-width:760px) and (max-width:1023px){
+  body.pf .pf-lat-rol .seg{border-radius:14px}
+  body.pf .pf-lat-rol .seg button{padding:0 10px}
+}
 
 /* Los modales —el de IA, el escalador, el vectorizador, la orden de trabajo—
    comparten el mismo vidrio. */
@@ -304,6 +326,12 @@ body.pf .seg button,body.pf .tipo-seg button{border-radius:var(--cv-pastilla)}
 .pf-panel,.pf-cuenta:where(:not(.tb-etapa)){border-radius:var(--cv-tarjeta);
   background:var(--cv-relleno);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
   border:var(--cv-borde);box-shadow:var(--cv-luz),var(--cv-sombra)}
+/* Y la misma sombra para las que dicen algo. plataforma.css repone `--sombra-reposo` en
+   `.pf-cuenta.urge/.mal/.dinero` —para borrar el filete de arriba que llevaban antes— y esa
+   regla pesa dos clases: le ganaba a la de arriba justo en esas tres. Resultado medido en el
+   tablero: las fichas neutras flotaban con su sombra de vidrio y las de «Van tarde», «Sin
+   material» y el dinero se quedaban planas, pegadas al lienzo. La jerarquía al revés. */
+.pf-cuenta:is(.urge,.mal,.dinero):where(:not(.tb-etapa)){box-shadow:var(--cv-luz),var(--cv-sombra)}
 body.pf .pf-panel{border-radius:var(--cv-tarjeta)}
 @media(max-width:560px){ body.pf .pf-panel{border-radius:var(--cv-tarjeta) var(--cv-tarjeta) 0 0} }
 

@@ -52,7 +52,7 @@ const camposPrecio = /const _CAMPOS_PRECIO=\[[^\]]*\];/.exec(nucleo)[0];
 vm.runInContext([
   'var Q={items:[],iva:true,estado:"borrador",precioAuth:0,itemsAuth:{},huellaAuth:""};',
   'const M2_MINIMO=1;', camposPrecio,
-  ...['m2Total', 'lineTotal', 'lineTotalCrudo', 'totals', 'huellaTrabajo', 'authVigente',
+  ...['m2Total', 'lineTotal', 'lineTotalCrudo', 'totals', 'huellaTrabajo', 'huellaOrdenada', 'authVigente',
       'precioFinal', 'desgloseFinal'].map(n => fuente(nucleo, n)),
 ].join('\n'), cot);
 const C = vm.runInContext('({MATERIALES,COMPLEJIDAD,RECORTES,RECORTE_COMP_EXTRA,BASTIDORES,M2_MINIMO,' +

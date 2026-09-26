@@ -199,7 +199,7 @@ comparar('los oninput de cotizador.html', porTipo('oninput'),
 const NUM = { veinticinco: 25, treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60,
   setenta: 70, 'setenta y cuatro': 74, 'setenta y cinco': 75, 'setenta y seis': 76,
   ochenta: 80, 'ochenta y un': 81, 'ochenta y dos': 82, 'ochenta y tres': 83, 'ochenta y cuatro': 84,
-  'ochenta y cinco': 85, noventa: 90, cien: 100 };
+  'ochenta y cinco': 85, 'ochenta y seis': 86, 'ochenta y siete': 87, 'ochenta y ocho': 88, noventa: 90, cien: 100 };
 const mConj = /Son ([a-zá-ú ]+?) archivos que se cargan en orden/.exec(readme);
 if (!mConj) mal('el README ya no dice cuántos archivos son el conjunto versionado');
 else if (NUM[mConj[1].trim()] === undefined) mal('el README dice «' + mConj[1].trim() + ' archivos» y esta prueba no sabe leer ese número; añádelo a NUM');

@@ -77,6 +77,11 @@ eq('pipeline: cuenta y suma con el precio autorizado si difiere', [K.pipeline.n,
 eq('perdido este mes', [K.perdidoMes.n, K.perdidoMes.total], [1, 7000]);
 /* Últimos 12 meses desde el 14 de septiembre: a, b, c (e es de 2025-01, f sin fecha). */
 eq('últimos doce meses', [K.ultimos12.n, K.ultimos12.total], [3, 36600]);
+/* La ventana es la de la gráfica: octubre de 2025 a septiembre de 2026. Septiembre de 2025
+   ya es el mes TRECE y no entra, aunque caiga después del día 14. */
+{ const K13 = indicadores([...P, proy({ id: 'g', fecha_ganado: '2025-09-20', precio_auth: 800 }),
+                          proy({ id: 'h', fecha_ganado: '2025-10-01', precio_auth: 300 })], [], { hoy: HOY });
+  eq('el mes trece queda fuera y el primero de la gráfica entra', [K13.ultimos12.n, K13.ultimos12.total], [4, 36900]); }
 eq('ticket promedio', K.ticket, 12200);
 /* Por cobrar: a 5800, b 20000-5800=14200, c 0 (5000-5800<0), e 999999-5800, f 0 (50-5800<0). d cancelado. */
 eq('por cobrar: cuántos y cuánto', [K.porCobrar.n, K.porCobrar.total], [3, 5800 + 14200 + 994199]);
@@ -255,6 +260,87 @@ console.log('\nDE LA FILA EN FABRICACIÓN AL TABLERO');
   const m = resumenMensual(u.ventas, { hoy: '2026-09-20', meses: 2 });
   eq('septiembre suma 43,500 y no 87,000', m[1].vendido, 43500);
   eq('y una venta, no dos', m[1].ganados, 1);
+
+  /* La fila se borra en la hoja. El barrido la quita de `ventas_hoja`, pero el proyecto que se
+     importó de ella se queda en este teléfono: se contaba como venta «solo de aquí», con su
+     importe y su saldo, cuando el README dice que lo borrado allá desaparece de aquí. */
+  const otra = fila({ id: 'hoja:V-215', folio_hoja: 'V-215', nombre: 'Otra - Venta' });
+  const b = unificar([p], [otra]);
+  eq('borrada en la hoja: el importado ya no es una venta', b.ventas.map(x => x.id), ['hoja:V-215']);
+  eq('ni se cuenta como «solo en este dispositivo»', [b.enlazados, b.de_hoja, b.solo_aqui], [0, 1, 0]);
+  eq('sin espejo bajado todavía no hay con qué saberlo, y se cuenta como siempre',
+     unificar([p], []).ventas.map(x => x.id), ['proy-hoja-V-214']);
+  eq('un proyecto nacido aquí sin fila sigue siendo «solo de aquí»',
+     unificar([proy({ id: 'p7', folio_global: 'COT-0007@AAAA' })], [otra]).solo_aqui, 1);
+
+  /* La copia REPETIDA que espera a Dirección (ver proyectos.revisarContraLaHoja): la de aquí
+     ya está atada a la fila por su folio de hoja, y la copia también se ataría a ella. */
+  const deAqui = proy({ id: 'p214', folio_global: 'COT-0214@AAAA', folio_hoja: 'V-214', precio_auth: 43500, neto: 43500 });
+  const rep = { ...p, duplicado_de: { id: 'p214', nombre: 'Joaquín', folio_hoja: 'V-214', por: ['x'], claves: ['etapa'] } };
+  const d = unificar([deAqui, rep], [fila()]);
+  eq('la copia repetida no se cuenta: la venta sale una vez, la de aquí', d.ventas.map(x => x.id), ['p214']);
+  eq('septiembre suma la venta una vez, no dos', resumenMensual(d.ventas, { hoy: '2026-09-20', meses: 2 })[1].vendido, 43500);
+  eq('y si la de aquí ya no está, la copia se vuelve a contar', unificar([rep], [fila()]).ventas.map(x => x.id), ['proy-hoja-V-214']);
+  /* «No es la misma venta»: la de aquí no se ató a esa fila. Sin la copia, la fila se cuenta
+     sola: la venta que era de otro no se pierde de Control. */
+  eq('una repetida cuya fila no es de la de aquí: la fila se cuenta sola, y la de aquí también',
+     unificar([proy({ id: 'p9', folio_global: 'COT-0009@AAAA' }), { ...rep, duplicado_de: { ...rep.duplicado_de, id: 'p9' } }], [fila()])
+       .ventas.map(x => x.id).sort(), ['hoja:V-214', 'p9']);
+
+  /* La copia repetida de una LÁPIDA cuya fila está viva (la marca trae 'cancelada' y 'viva'): la
+     lápida se ata a la fila por su folio de cotización, el camino de siempre. Saltar la copia
+     dejaba solo la lápida en esa fila, y el saldo que la hoja dice que se debe salía del por
+     cobrar mientras Dirección decide cuál de las dos tiene razón. Se cuenta la obra viva, como
+     antes de la marca, y la lápida como perdida. */
+  const viva = fila({ folio_cotizacion: 'COT-0360@AAAA', etapa: 'armado', pago_pendiente: 6600 });
+  const lapida = proy({ id: 'pL', folio_global: 'COT-0360@AAAA', etapa: 'cancelado', fecha_ganado: '2026-09-18' });
+  const copiaViva = { ...p, etapa: 'armado', duplicado_de: { id: 'pL', nombre: 'Lupita', folio_hoja: 'V-214', por: ['x'], claves: ['cancelada', 'viva'] } };
+  const otraQueDebe = { id: 'hoja:V-361', folio_hoja: 'V-361', folio_cotizacion: '', nombre: 'Otra', estatus: 'FABRICACION',
+    fecha_anticipo: '2026-09-10', sub: 10000, neto: 11600, anticipo: 10600, pago_pendiente: 1000 };
+  const ul = unificar([lapida, copiaViva], [viva, otraQueDebe]);
+  const il = indicadores(ul.ventas, [], { hoy: '2026-09-20' });
+  eq('lápida + copia viva atada por el folio: el saldo de la obra viva se sigue cobrando',
+     [ul.ventas.filter(x => x.folio_hoja === 'V-214').map(x => [x.id, x.etapa]).sort(), il.porCobrar.total],
+     [[['pL', 'cancelado'], ['proy-hoja-V-214', 'armado']], 7600]);
+  eq('y la lápida cuenta como perdida, no como vendida', [il.perdidoMes.n, il.ultimos12.n], [1, 2]);
+  /* Con la fila también en «No se dio» las dos dicen lo mismo, y la copia deja de contarse. */
+  eq('con la fila también en «No se dio», la copia ya no se cuenta',
+     unificar([lapida, { ...copiaViva, duplicado_de: { ...copiaViva.duplicado_de, claves: ['cancelada'] } }],
+              [fila({ folio_cotizacion: 'COT-0360@AAAA', etapa: 'cancelado' })]).ventas.map(x => x.id), ['pL']);
+
+  /* La venta de aquí que se ató a su fila por el NOMBRE (le quedó `folio_hoja`) y cuya fila hoy
+     dice ser de OTRA cotización: ya no es la suya. Control no la ata por el folio de la hoja, y
+     cuenta las dos ventas, cada una con su importe. Antes contaba dos veces la del otro. */
+  const deOtro = fila({ id: 'hoja:V-330', folio_hoja: 'V-330', folio_cotizacion: 'COT-0777@OTRO', nombre: 'Café Luna - Letras',
+    sub: 40000, neto: 46400, anticipo: 20000, pago_pendiente: 26400 });
+  const atadaPorNombre = proy({ id: 'pD', folio_global: 'COT-0330@AAAA', folio_hoja: 'V-330', nombre: 'Café Luna - Letras' });
+  const copiaDeOtro = desdeVentaDeHoja(deOtro);
+  const uo = unificar([atadaPorNombre, copiaDeOtro], [deOtro]);
+  eq('una fila que dice ser de otra cotización ya no se ata por el folio de la hoja: dos ventas, cada una con lo suyo',
+     uo.ventas.map(x => [x.id, x.neto]).sort(), [['pD', 11600], ['proy-hoja-V-330', 46400]]);
+  eq('con la huella del defecto (su propio folio de hoja en «Folio cotizacion») sí se ata',
+     unificar([atadaPorNombre], [{ ...deOtro, folio_cotizacion: 'V-330' }]).ventas.map(x => [x.id, x.neto]), [['pD', 46400]]);
+
+  /* La venta de aquí en DOS filas (`hoja_doble`): Dirección la volvió a dar de alta y alguien
+     deshizo el borrado de la vieja. Se cuenta una vez, con la fila a la que manda sus cambios. */
+  const vieja = fila({ id: 'hoja:V-404', folio_hoja: 'V-404', folio_cotizacion: 'COT-0404@AAAA', pago_pendiente: 0, liquidacion: 21750 });
+  const nueva = fila({ id: 'hoja:V-500', folio_hoja: 'V-500', folio_cotizacion: 'COT-0404@AAAA', pago_pendiente: 21750 });
+  const enDos = proy({ id: 'pA', folio_global: 'COT-0404@AAAA', notion_page_id: 'V-500', hoja_doble: { folios: ['V-500', 'V-404'], desde: 1 } });
+  const ud = unificar([enDos], [vieja, nueva]);
+  eq('la venta en dos filas se cuenta UNA vez, con la fila a la que manda', ud.ventas.map(x => [x.id, x.folio_hoja]), [['pA', 'V-500']]);
+  eq('y sin la marca de la vieja (sin folio de cotización) también, mientras la marca la nombre',
+     unificar([{ ...enDos, hoja_doble: { folios: ['V-500', 'V-404'] } }], [{ ...vieja, folio_cotizacion: '' }, nueva]).ventas.map(x => x.id), ['pA']);
+}
+
+console.log('\nLA COMISIÓN DE LA HOJA VIAJA CON LA VENTA');
+{
+  /* «Comisiones» (R) es la fórmula de la hoja: 10 % del subtotal. Baja con la fila y la unión
+     la lleva, para que el asistente lea la de allá en vez de volver a calcularla. */
+  const f = { id: 'hoja:V-300', folio_hoja: 'V-300', folio_cotizacion: 'COT-0300@AAAA', nombre: 'Tres', estatus: 'COBRANDO',
+    fecha_anticipo: '2026-09-02', sub: 20000, neto: 23200, anticipo: 10000, comisiones: 2000, comision_restante: 2000 };
+  eq('la fila suelta la trae', ventaDesdeHoja(f).comisiones, 2000);
+  eq('y la enlazada también', unificar([proy({ id: 'p30', folio_global: 'COT-0300@AAAA' })], [f]).ventas[0].comisiones, 2000);
+  eq('sin la columna (fabricación) queda en null, no en cero', ventaDesdeHoja({ ...f, comisiones: undefined }).comisiones, null);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

@@ -252,6 +252,16 @@ console.log('\nLO QUE LA PUERTA PROMETE');
   cierto('la puerta enlaza la privacidad y las condiciones, que es donde Google las pide',
          src.includes('privacidad.html') && src.includes('condiciones.html'));
 
+  /* LA COPIA LOCAL. Las pruebas de navegador corren contra 127.0.0.1, y sin esta exención la
+     puerta las paraba en «Entrar con Google»: las que miran la plataforma se caían por tiempo
+     o contaban «0 proyectos» sin un solo error de página. Las cuatro exenciones son las de
+     las otras dos puertas y ninguna más: un dominio «de pruebas» añadido aquí dejaría la
+     puerta abierta de par en par sin que nada fallara. */
+  cierto('la copia local entra sin puerta, con las MISMAS cuatro exenciones que las otras dos',
+         src.includes("if (esCopiaLocal()) return dentro('local'") &&
+         /location\.protocol === 'file:' \|\| h === 'localhost' \|\| h === '127\.0\.0\.1' \|\| h === '';/.test(src) &&
+         (src.match(/h === '/g) || []).length === 3);
+
   /* El arranque no puede montar nada antes de esto. Se comprueba del lado de app.js. */
   /* Los saltos de línea se normalizan: en un clon de Windows con `core.autocrlf` el archivo
      llega con CRLF y el ancla de abajo, que lleva un `\n` dentro, dejaba de casar. La prueba
@@ -265,8 +275,13 @@ console.log('\nLO QUE LA PUERTA PROMETE');
   const iMontar = app.indexOf('await montar(rutaDelHash())');
   cierto('app.js espera a la puerta ANTES de montar el primer módulo',
          iPuerta > 0 && iMontar > 0 && iPuerta < iMontar);
+  /* El salto de línea va con \r opcional: en un clon de Windows con core.autocrlf=true el
+     archivo llega en CRLF y un indexOf con '\n' pelado no casa NUNCA, así que esta condición
+     era falsa con app.js perfecto. Es el mismo modo de falla que publicacion.mjs ya tuvo que
+     arreglar con las barras de las rutas: el fallo era de la prueba, no del código. */
+  const rolseg = /pintarRolSeg\(\);\r?\n  pintarNav\(\);/.exec(app);
   cierto('y antes de pintar la barra, que depende del rol',
-         iPuerta > 0 && iPuerta < app.indexOf('pintarRolSeg();\n  pintarNav();'));
+         iPuerta > 0 && !!rolseg && iPuerta < rolseg.index);
 
   /* La guarda del rol tiene que estar en la FUNCIÓN, no solo en el atributo `disabled` del
      botón: Ajustes llega a `cambiarRol` simulando un clic y se saltaría el atributo. */
@@ -329,9 +344,8 @@ console.log('\nLO QUE LA PUERTA PROMETE');
  * reenviaba a la plataforma salvo con `?solo=1` —su salida de emergencia—, y esa excepción
  * era la rendija: con la liga bastaba para ver las tarifas y el historial del aparato.
  *
- * Ahora las dos piden lo mismo: un pase de la puerta o un token de dispositivo. Quien llega
- * de verdad por la salida de emergencia viene de dentro y tiene uno; quien solo tiene la liga
- * no tiene ninguno. */
+ * Ahora las dos piden lo mismo que la puerta: un pase de Google. El token de dispositivo ya
+ * no abre ninguna de las tres (decisión de Dirección, septiembre de 2026). */
 console.log('\nEL COTIZADOR Y LA MESA DE CORTE TAMBIÉN PIDEN CREDENCIAL');
 {
   const cot = readFileSync(join(aqui, '..', 'cotizador.html'), 'utf8');
@@ -343,8 +357,8 @@ console.log('\nEL COTIZADOR Y LA MESA DE CORTE TAMBIÉN PIDEN CREDENCIAL');
            src.includes("localStorage.getItem('al3d_pf_pase')"));
     cierto(nombre + ': un pase caducado no vale tampoco aquí',
            src.includes('Number(p.hasta)>Date.now()'));
-    cierto(nombre + ': el token de dispositivo sigue sirviendo, que es la salida de emergencia',
-           src.includes("localStorage.getItem('al3d_pf_puente')"));
+    cierto(nombre + ': el token de dispositivo ya NO abre esta puerta',
+           !src.includes("localStorage.getItem('al3d_pf_puente')"));
     cierto(nombre + ': empotrado no hace nada — la puerta ya se pasó del otro lado',
            src.includes('if(parent!==window)return;'));
     cierto(nombre + ': sin credencial se va a la plataforma, que es donde está la puerta',
@@ -355,6 +369,16 @@ console.log('\nEL COTIZADOR Y LA MESA DE CORTE TAMBIÉN PIDEN CREDENCIAL');
     cierto(nombre + ': solo se exime file:// y 127.0.0.1/localhost, que nadie alcanza con la liga',
            /location\.protocol==='file:'\|\|h==='localhost'\|\|h==='127\.0\.0\.1'\|\|h===''/.test(src));
   }
+}
+
+console.log('\nSOLO UNA CUENTA DE GOOGLE ABRE LA PLATAFORMA');
+{
+  const pu = readFileSync(join(aqui, '..', 'js', 'nucleo', 'puerta.js'), 'utf8');
+  const app = readFileSync(join(aqui, '..', 'js', 'app.js'), 'utf8');
+  cierto('custodiar() no tiene camino de entrada por token', !/dentro\('token'/.test(pu));
+  cierto('ni mira si hay token pegado', !pu.includes('hayToken'));
+  cierto('sin el marcado de la puerta no se entra: se avisa', pu.includes('sinPuerta();'));
+  cierto('si la puerta no carga, app.js tampoco entra', !app.includes("via: 'roto'"));
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

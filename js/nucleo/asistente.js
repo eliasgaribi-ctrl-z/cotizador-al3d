@@ -54,6 +54,12 @@ let _iaEstado = null;
 function refrescarIA() {
   Puente.hablar('salud', {}).then(r => { if (r && r.ok && r.ia) { _iaEstado = r.ia; pintar(); } }).catch(() => {});
 }
+/* Cerrar el panel CANCELA la pregunta en vuelo. La cancelación se leía de `!_ocupado`, que
+   durante una petición es siempre falso, así que el abort de `cerrar()` se reportaba como «el
+   proveedor tardó demasiado» y el bucle pasaba al siguiente: el resumen del negocio —4.5 KB,
+   con importes— salía a Groq cuando la persona ya había cerrado el asistente. Una bandera
+   propia, puesta por quien cierra, es lo único que distingue «me fui» de «no contestó». */
+let _cancelado = false;
 let _montado = false;
 let _resumen = null;            // la última lectura del taller
 let _leido = 0;                 // cuándo
@@ -103,6 +109,7 @@ export async function abrir() {
 }
 
 export function cerrar() {
+  if (_ocupado) _cancelado = true;
   if (_abort) { try { _abort.abort(); } catch (_) {} _abort = null; }
   cerrarCapa(CAPA);
 }
@@ -165,7 +172,9 @@ function resumenHTML() {
   c.push('<button type="button" class="ia-cifra' + (d.tarde ? ' urge' : '') + '" data-ia-intent="tarde"><b>' + d.enTaller + '</b><span>' + (d.enTaller === 1 ? 'en el taller' : 'en el taller') + (d.tarde ? ' · <em>' + d.tarde + ' tarde</em>' : '') + '</span></button>');
   c.push('<button type="button" class="ia-cifra' + (d.vencidas ? ' urge' : '') + '" data-ia-intent="semana"><b>' + d.semana + '</b><span>' + (d.semana === 1 ? 'instalación en 7 días' : 'instalaciones en 7 días') + (d.vencidas ? ' · <em>' + d.vencidas + ' sin marcar</em>' : '') + '</span></button>');
   if (dinero) {
-    c.push('<button type="button" class="ia-cifra dinero" data-ia-intent="cobranza"><b>' + esc(money(d.porCobrar)) + '</b><span>por cobrar · ' + d.conSaldo + (d.conSaldo === 1 ? ' proyecto' : ' proyectos') + '</span></button>');
+    /* «Ventas»: `conSaldo` cuenta la cartera del récord, con las que solo están en la hoja y no
+       tienen ficha aquí. Decía «3 proyectos» con dos botones «Abrir» y Control diciendo «3 ventas». */
+    c.push('<button type="button" class="ia-cifra dinero" data-ia-intent="cobranza"><b>' + esc(money(d.porCobrar)) + '</b><span>por cobrar · ' + d.conSaldo + (d.conSaldo === 1 ? ' venta' : ' ventas') + '</span></button>');
     c.push('<button type="button" class="ia-cifra' + (d.comisionAbonable > 0 ? ' bien' : '') + '" data-ia-intent="comisiones"><b>' + esc(d.comisionAbonable > 0 ? money(d.comisionAbonable) : '—') + '</b><span>' + (d.comisionAbonable > 0 ? 'comisiones abonables ya' : 'sin comisiones abonables') + '</span></button>');
   } else {
     c.push('<button type="button" class="ia-cifra' + (d.comprar ? ' urge' : '') + '" data-ia-intent="material"><b>' + d.comprar + '</b><span>' + (d.comprar === 1 ? 'material por comprar' : 'materiales por comprar') + '</span></button>');
@@ -208,6 +217,13 @@ function hiloHTML() {
    abre Control en Por cobrar. Un enlace de fuera (Notion) se abre en otra pestaña. */
 function accionesHTML(acciones) {
   if (!Array.isArray(acciones) || !acciones.length) return '';
+  /* Sin los botones a pantallas que este rol no tiene: «Ver la lista de compra» le salía a
+     pagos, que no tiene Material, y el toque cerraba el asistente y dejaba el Tablero donde
+     estaba. La lista de qué rol tiene qué es la del router (`ctx.tieneRuta`). */
+  const puede = a => !((a.tipo === 'ir' || a.tipo === 'pasar') && _ctx && typeof _ctx.tieneRuta === 'function' &&
+                       !_ctx.tieneRuta(a.ruta));
+  acciones = acciones.filter(puede);
+  if (!acciones.length) return '';
   return '<div class="ia-acciones">' + acciones.map((a, i) => {
     if (a.tipo === 'link') {
       return '<a class="chip" href="' + esc(a.href) + '" target="_blank" rel="noopener">' + ico('i-libre') + ' ' + esc(a.label) + '</a>';
@@ -403,6 +419,7 @@ async function preguntarIA(q, opts) {
   }
 
   _ocupado = true;
+  _cancelado = false;
   _msgs.push({ rol: 'espera', texto: 'Leyendo el taller…', ts: Date.now() });
   pintar();
 
@@ -416,6 +433,17 @@ async function preguntarIA(q, opts) {
     _ocupado = false; pintar(); return;
   }
 
+  /* Lo que queda en el hilo cuando se cerró el panel antes de la respuesta: se dice, para que
+     al volver a abrirlo la pregunta no parezca colgada, y se dice que no salió a nadie más. */
+  const cancelada = () => {
+    quitarEspera();
+    _msgs.push({ rol: 'error', ts: Date.now(),
+      texto: 'Quedó sin respuesta: cerraste el asistente y la pregunta se canceló, así que no se le mandó a ningún otro proveedor.' });
+    _cancelado = false; _ocupado = false;
+    pintar();
+  };
+  if (_cancelado) { cancelada(); return; }
+
   const sistema = promptSistema(resumen);
   /* El hilo que viaja: las últimas vueltas, sin los avisos de espera ni los errores. Las
      respuestas locales van también: la IA sabe qué se le contestó ya y puede seguir de ahí. */
@@ -428,12 +456,15 @@ async function preguntarIA(q, opts) {
     ponerEspera('Preguntando a ' + (PROVEEDOR_NOMBRE[c.prov] || c.prov) + (i ? ' (intento ' + (i + 1) + ')' : '') + '…');
     try {
       const r = await llamar(c, sistema, previos, q);
+      /* Una respuesta que llegó justo después de cerrar tampoco se pinta como si nada. */
+      if (_cancelado) { cancelada(); return; }
       quitarEspera();
       _msgs.push({ rol: 'bot', texto: r, ts: Date.now(), con: (PROVEEDOR_NOMBRE[c.prov] || c.prov) + ' · ' + c.model });
       ultimoError = null;
       break;
     } catch (e) {
-      if (e && e.cancelado) { quitarEspera(); ultimoError = null; break; }
+      /* Antes de pasar al siguiente proveedor: si se cerró el panel, no hay siguiente. */
+      if (_cancelado || (e && e.cancelado)) { cancelada(); return; }
       ultimoError = e;
       if (e && e.definitivo) break;   // cupo del día o cuenta sin permiso: es de la persona, no del proveedor
       /* Una llave inválida o un modelo que no existe no se arregla reintentando con la misma:
@@ -502,9 +533,13 @@ async function leerTaller() {
   try { const R = await import('../datos/reglas.js'); avisos = await R.refrescar({ hoy }); } catch (_) {}
   try { bitacora = await Bitacora.listar({ limite: 25 }); } catch (_) {}
 
+  /* `proyectos` arma el taller; `ventas`, el dinero. Se le pasaba solo `proyectos`, y la
+     comisión de cada renglón salía del subtotal de este aparato mientras la restante venía de
+     la hoja: dos cifras que se contradecían, y las ventas que solo están en la hoja no
+     entraban a las comisiones. Sin dinero no viaja: a fabricación no le toca el récord. */
   return armarResumen({
     hoy, rol: Prefs.ROL_NOMBRE[Prefs.rol()] || Prefs.rol(), nombre: Prefs.nombre(), veDinero,
-    proyectos, instalaciones: insts, ventanas, materialDe, kpi, conversion, faltantes, bajoMinimo,
+    proyectos, ventas: veDinero ? ventas : null, instalaciones: insts, ventanas, materialDe, kpi, conversion, faltantes, bajoMinimo,
     avisos, sinDecidir, cola: Cot.cola(), bitacora, valorDe: Cot.totalVendido,
   });
 }

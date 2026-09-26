@@ -15,6 +15,8 @@
        el que se pinta la hoja en la mesa.
      · Aviso de lo que se va a quedar fuera: textos sin convertir, símbolos <use>, piezas
        más grandes que la hoja. El motor los descarta callado; aquí se dicen.
+     · Lo que no es dibujo no entra. El SVG llega de fuera y esta página comparte origen con
+       el cotizador: antes de pintarlo se le quita todo lo que ejecuta código (sanear).
      · Se detiene solo. El algoritmo genético no termina nunca: sigue buscando mejores
        acomodos mientras nadie lo pare. Cuando lleva 25 intentos y 40 segundos sin mejorar,
        se detiene y lo dice; «Seguir buscando» continúa desde donde iba.
@@ -53,9 +55,78 @@
   var NO_SE_CORTAN = ['defs', 'clipPath', 'mask', 'marker', 'pattern', 'symbol', 'metadata',
                       'title', 'desc', 'text', 'image', 'use', 'foreignObject', 'script'];
 
+  /* Lo que un SVG trae y NO es dibujo: código. Un SVG es un documento activo, y esta página
+     comparte el origen —y con él el localStorage— con el cotizador, donde viven las API keys
+     de la IA (al3d_kxs_*). Quitar solo <script> no alcanzaba: un <set onbegin=…> corría al
+     cargar, un <image href="data:x" onerror=…> también, y un <rect onmouseover=…> pasaba
+     intacto al resultado acomodado. El archivo llega de un cliente, por WhatsApp o por
+     correo: se trata como lo que es, y se limpia UNA vez, en cargarTexto, antes de que la
+     vista previa, el motor o la salida lo copien. Se compara el nombre local en minúsculas
+     porque un «html:script» o un «animateTransform» con otro prefijo también cuentan. */
+  var ACTIVOS = ['script', 'foreignobject', 'set', 'animate', 'animatemotion', 'animatetransform',
+                 'animatecolor', 'discard', 'handler', 'listener', 'iframe', 'embed', 'object',
+                 'audio', 'video'];
+  var NS_XHTML = 'http://www.w3.org/1999/xhtml';
+  /* ¿Pide algo de fuera? url(…), image-set(…) o @import que no apunte a #algo. La barra
+     invertida también cuenta: en CSS «\75 rl(» se lee url(. */
+  function pideDeFuera(v) {
+    v = String(v || '');
+    if (v.indexOf('\\') >= 0 || /@import/i.test(v)) return true;
+    var re = /(url|image-set)\s*\(\s*(['"]?)\s*([^'")\s]*)/gi, m;
+    while ((m = re.exec(v))) if (m[3].charAt(0) !== '#') return true;
+    return false;
+  }
+  function sanear(raiz) {
+    lista(raiz.getElementsByTagName('*')).concat([raiz]).forEach(function (e) {
+      var nombre = String(e.localName || e.nodeName).toLowerCase();
+      /* Un elemento de HTML metido en el SVG (un <html:iframe>, un <html:img onerror>) es HTML
+         de verdad al pintarse, esté donde esté: fuera, como el <foreignObject> que lo traería. */
+      if (e !== raiz && (ACTIVOS.indexOf(nombre) >= 0 || e.namespaceURI === NS_XHTML)) {
+        if (e.parentNode) e.parentNode.removeChild(e);
+        return;
+      }
+      lista(e.attributes).forEach(function (at) {
+        var n = String(at.localName || at.name).toLowerCase();
+        if (n.indexOf('on') === 0) { e.removeAttributeNode(at); return; }   // onload, onbegin, onerror…
+        /* href y xlink:href: dentro del archivo (#algo) sí, que es como apuntan <use>, los
+           degradados y los recortes. Una imagen incrustada (data:image/…) también, en
+           <image>. Lo demás —javascript:, una dirección de fuera que avisaría a quien la
+           sirve que el archivo se abrió— se quita. */
+        if (n === 'href') {
+          var v = String(at.value || '').trim();
+          var ok = v.charAt(0) === '#' || ((nombre === 'image' || nombre === 'feimage') && /^data:image\//i.test(v));
+          if (!ok) e.removeAttributeNode(at);
+          return;
+        }
+        /* Lo mismo en el CSS: un style="fill:url(https://…)" o un clip-path="url(https://…)"
+           pide la dirección al pintarse, igual que un href. Solo url(#algo) se queda. Del
+           style se quita la declaración y no el atributo entero: los colores y trazos se
+           conservan (LightBurn arma sus capas con ellos). */
+        if (n === 'style' && e.style) {
+          for (var i = e.style.length - 1; i >= 0; i--) {
+            if (pideDeFuera(e.style.getPropertyValue(e.style[i]))) e.style.removeProperty(e.style[i]);
+          }
+          if (!e.style.length) e.removeAttribute('style');
+        } else if (pideDeFuera(at.value)) e.removeAttributeNode(at);
+      });
+      /* Un <style> que pide algo de fuera (@import, url(https://…)) se va entero: el <style>
+         viaja en el SVG de corte. Uno sin nada de fuera se queda, porque lleva las clases. */
+      if (nombre === 'style' && e !== raiz && pideDeFuera(e.textContent) && e.parentNode) e.parentNode.removeChild(e);
+    });
+  }
+
   /* ---------- Estado ---------- */
   var A = null;   // el archivo: texto, nombre, raíz parseada, bbox, escala, piezas
   var T = { corriendo: false, intentos: 0, sinMejora: 0, ultimaMejora: 0, mejor: null, detenidoSolo: false };
+  /* Qué corrida del motor es la vigente. SvgNest.stop() solo apaga el reloj que lanza
+     intentos: el que ya iba en los workers termina y llama igual. Sin este número, un
+     intento de la corrida de 3 mm llegaba DESPUÉS de «Volver a acomodar» con 30 mm y se
+     enseñaba —y se descargaba— como resultado de la nueva, y detenido el cálculo el
+     contador de intentos seguía subiendo. Sube al arrancar, al seguir, al detener y al
+     cargar otro archivo; cada arranque le da al motor una llamada que sabe de qué corrida es.
+     El motor lleva su propio número (la «corrida» de svgnest.js, un cambio local): aquel
+     impide que el intento viejo se meta en su caché y en su «mejor»; éste, que se enseñe. */
+  var corrida = 0;
   var R = [];     // los retazos guardados
   var QUIETO = false;
   try { QUIETO = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
@@ -201,9 +272,10 @@
   ['an-ancho', 'an-alto', 'an-sep'].forEach(function (id) {
     $(id).addEventListener('input', function () { sincronizarHoja(); leerMaterial(false); guardarMaterial(); habilitar(); });
   });
-  $('an-rot').addEventListener('change', guardarMaterial);
-  $('an-huecos').addEventListener('click', function () { alternar('an-huecos'); guardarMaterial(); });
-  $('an-concavas').addEventListener('click', function () { alternar('an-concavas'); guardarMaterial(); });
+  /* Los tres cambian lo que el motor calcula: habilitar() decide si «Seguir buscando» vale. */
+  $('an-rot').addEventListener('change', function () { guardarMaterial(); habilitar(); });
+  $('an-huecos').addEventListener('click', function () { alternar('an-huecos'); guardarMaterial(); habilitar(); });
+  $('an-concavas').addEventListener('click', function () { alternar('an-concavas'); guardarMaterial(); habilitar(); });
   $('an-contorno').addEventListener('click', function () { alternar('an-contorno'); guardarMaterial(); });
   $('an-girar').addEventListener('click', function () {
     var a = $('an-ancho').value; $('an-ancho').value = $('an-alto').value; $('an-alto').value = a;
@@ -285,6 +357,7 @@
       return false;
     }
     if (T.corriendo) detener(false);
+    corrida++;   // lo que el motor todavía tuviera en vuelo era del archivo anterior
 
     A = { texto: texto, nombre: nombre || 'diseño.svg', peso: opts.peso || texto.length, raiz: raiz,
           bbox: null, escala: null, k: null, piezas: 0, avisos: [], origen: opts.origen || null };
@@ -300,6 +373,9 @@
     if ((c = n('use'))) A.avisos.push('Trae ' + c + (c === 1 ? ' símbolo reutilizado' : ' símbolos reutilizados') + ' (<use>) que se van a quedar fuera. Expándelos antes de exportar (Objeto → Expandir).');
     if ((c = n('image'))) A.avisos.push('Trae ' + c + (c === 1 ? ' imagen incrustada' : ' imágenes incrustadas') + ', que no se cortan: se ignoran.');
     if (n('clipPath') || n('mask')) A.avisos.push('Trae máscaras de recorte. Se ignoran: la geometría que recortaban se acomoda entera.');
+    /* Después de contar y antes de pintar: los avisos hablan del archivo como llegó, y todo
+       lo que viene abajo —la vista previa, el motor, la salida— copia la raíz ya limpia. */
+    sanear(raiz);
 
     pintarOriginal();
     A.escala = M.escalaDelArchivo({ width: raiz.getAttribute('width'), height: raiz.getAttribute('height'), viewBox: raiz.getAttribute('viewBox') });
@@ -319,17 +395,29 @@
     return true;
   }
 
-  /* La vista previa de lo que llegó. Sin <style> ni <script>: un <style> dentro de un SVG en
-     línea vale para TODA la página, y un `svg{display:none}` de Illustrator apagaría hasta
-     los iconos de la barra. Se pinta como silueta, con la hoja de estilos de esta pantalla. */
+  /* Por nombre local y en minúsculas, como sanear(): getElementsByTagName compara el nombre
+     calificado, y un <s:style> (que sigue siendo un <style> de SVG) se le escapaba y
+     reestilizaba la página entera. */
+  function quitarEtiquetas(nodo, tags) {
+    var quitar = tags.map(function (t) { return String(t).toLowerCase(); });
+    lista(nodo.getElementsByTagName('*')).forEach(function (e) {
+      if (quitar.indexOf(String(e.localName || e.nodeName).toLowerCase()) >= 0 && e.parentNode) e.parentNode.removeChild(e);
+    });
+  }
+
+  /* La vista previa de lo que llegó. Sin <style>: un <style> dentro de un SVG en línea vale
+     para TODA la página, y un `svg{display:none}` de Illustrator apagaría hasta los iconos de
+     la barra. Se pinta como silueta, con la hoja de estilos de esta pantalla. El <script> y
+     el resto de lo activo ya no llegan hasta aquí: los quitó sanear() al cargar. */
   function pintarOriginal() {
     var cont = $('an-orig'); cont.innerHTML = '';
     var clon = document.importNode(A.raiz, true);
-    ['style', 'script', 'foreignObject'].forEach(function (tag) {
-      lista(clon.getElementsByTagName(tag)).forEach(function (e) { if (e.parentNode) e.parentNode.removeChild(e); });
-    });
+    quitarEtiquetas(clon, ['style']);
     clon.removeAttribute('width'); clon.removeAttribute('height');
     clon.setAttribute('role', 'img'); clon.setAttribute('aria-label', 'Las piezas del archivo, sin acomodar');
+    /* Sin viewBox, el lienzo es el width/height pasado a px —las unidades del dibujo, según
+       el estándar—; medidas.js lo arma así. Con el lienzo en mm la vista enseñaba un recorte
+       3.78 veces más chico que el dibujo. */
     var vb = M.leerViewBox(A.raiz.getAttribute('viewBox'));
     if (!vb) {
       var e = M.escalaDelArchivo({ width: A.raiz.getAttribute('width'), height: A.raiz.getAttribute('height') });
@@ -337,20 +425,29 @@
     }
     $('an-res').hidden = true; cont.hidden = false;
     cont.appendChild(clon);
-    /* El recuadro de la tinta, en unidades del archivo. Hace falta que esté en pantalla. */
-    var b = null;
-    try { b = clon.getBBox(); } catch (_) {}
+    /* El recuadro de la tinta, en unidades del archivo. Hace falta que esté en pantalla, y se
+       mide sobre una copia SIN lo que no se corta —el mismo filtro de svgParaMotor—: medido
+       sobre la vista, una imagen de referencia de 1000 unidades junto a una letra de 100 hacía
+       que «el diseño mide 400 mm» diera una letra de 40, y la ficha «Diseño» mentía igual. */
+    var b = null, todo = null;
+    try { todo = clon.getBBox(); } catch (_) {}
+    var medir = clon.cloneNode(true);
+    quitarEtiquetas(medir, NO_SE_CORTAN);
+    medir.setAttribute('aria-hidden', 'true');
+    medir.style.cssText = 'position:absolute;left:0;top:0;visibility:hidden;pointer-events:none';
+    cont.appendChild(medir);
+    try { b = medir.getBBox(); } catch (_) {}
+    cont.removeChild(medir);
     A.bbox = (b && b.width > 0 && b.height > 0) ? { x: b.x, y: b.y, w: b.width, h: b.height } : null;
-    if (!clon.getAttribute('viewBox') && A.bbox) clon.setAttribute('viewBox', [A.bbox.x, A.bbox.y, A.bbox.w, A.bbox.h].join(' '));
+    /* Para encuadrar la vista sí cuenta todo lo que se ve, imágenes y textos incluidos. */
+    if (!clon.getAttribute('viewBox') && todo && todo.width > 0 && todo.height > 0) clon.setAttribute('viewBox', [todo.x, todo.y, todo.width, todo.height].join(' '));
   }
 
   /* El SVG que se le da al motor: sin lo que no se corta y ya en milímetros. La escala va
      como transform en la raíz; el parser del motor la aplica a cada elemento y la quita. */
   function svgParaMotor(k) {
     var clon = A.raiz.cloneNode(true);
-    NO_SE_CORTAN.forEach(function (tag) {
-      lista(clon.getElementsByTagName(tag)).forEach(function (e) { if (e.parentNode) e.parentNode.removeChild(e); });
-    });
+    quitarEtiquetas(clon, NO_SE_CORTAN);
     clon.removeAttribute('width'); clon.removeAttribute('height');
     if (k && Math.abs(k - 1) > 1e-12) clon.setAttribute('transform', 'scale(' + k + ')');
     else clon.removeAttribute('transform');
@@ -394,8 +491,12 @@
     if (!A || !A.bbox) return;
     var v = parseFloat(val);
     if (!(v > 0)) {
-      /* Se vació el campo. Si el archivo traía escala se vuelve a ella; si no, se queda sin. */
-      A.k = A.escala.origen === 'archivo' ? A.escala.mmPorUnidad : null;
+      /* Se vació el campo. Si el archivo traía escala se vuelve a ella; si no, se queda sin.
+         Se pregunta a la escala del archivo y no a `origen`: para vaciar el campo hay que
+         borrarlo, y la primera tecla ya lo había dejado en 'mano', así que la vuelta a la
+         medida del archivo no ocurría nunca y el botón se apagaba con la escala a la vista. */
+      A.k = A.escala.mmPorUnidad > 0 ? A.escala.mmPorUnidad : null;
+      A.escala.origen = A.k ? 'archivo' : 'falta';
       if (A.k > 0) { $('an-ancho-d').value = fmtMm(A.bbox.w * A.k); $('an-alto-d').value = fmtMm(A.bbox.h * A.k); }
       else (campo === 'ancho' ? $('an-alto-d') : $('an-ancho-d')).value = '';
     } else {
@@ -422,10 +523,27 @@
   }
 
   function habilitar() {
-    var puede = !!(A && A.k > 0 && A.piezas > 0 && leerMaterial(false));
+    var mat = leerMaterial(false);
+    var puede = !!(A && A.k > 0 && A.piezas > 0 && mat);
     var ir = $('an-ir');
     ir.disabled = T.corriendo ? false : !puede;
-    $('an-seguir').hidden = T.corriendo || !T.mejor || !puede;
+    /* «Seguir buscando» continúa el MISMO cálculo: el motor no vuelve a leer la hoja ni la
+       separación. Con otra hoja, otra separación o otra medida del diseño ya no hay nada que
+       seguir, y ofrecerlo entregaba piezas a 3 mm cuando el campo decía 20. Queda «Volver a
+       acomodar desde cero», que sí las lee. */
+    $('an-seguir').hidden = T.corriendo || !T.mejor || !puede || huellaMotor(mat) !== T.huella;
+  }
+  /* Lo que el motor usó para acomodar: si algo de esto cambia, el acomodo ya es de otra hoja. */
+  function huellaMotor(mat) {
+    return mat ? [mat.ancho, mat.alto, mat.sep, mat.rot, mat.huecos, mat.concavas, A && A.k].join('|') : '';
+  }
+  /* La llamada que recibe el motor en cada arranque: lleva su número de corrida, y lo que
+     llegue de una corrida que ya no es la vigente —o con el cálculo detenido— se tira. */
+  function mostrarDe(mia) {
+    return function (svglist, eficiencia, colocadas, total) {
+      if (mia !== corrida || !T.corriendo) return;
+      alMostrar(svglist, eficiencia, colocadas, total);
+    };
   }
 
   /* ---------- Acomodar ---------- */
@@ -440,16 +558,24 @@
        de una «C» cuenta como lleno y nada se acomoda dentro. Tarda bastante más, por eso
        nace apagado, igual que allá. */
     SN.config({ spacing: mat.sep, rotations: mat.rot, useHoles: mat.huecos, exploreConcave: mat.concavas, curveTolerance: TOLERANCIA_MM });
+    /* config() y parsesvg() ya borraron del motor el cálculo anterior (su GA, su mejor y la
+       hoja): si de aquí en adelante algo frena el arranque —no cabe ninguna pieza, el SVG no
+       se lee—, ya no hay qué «seguir». El acomodo en pantalla se queda para descargarlo. */
+    T.huella = null;
     var svg;
     try { svg = SN.parsesvg(svgParaMotor(A.k)); }
     catch (e) { mensaje('No se pudo procesar el SVG: ' + (e && e.message || e), 'mal'); return; }
 
-    /* Lo que no cabe ni girado se dice antes de empezar, no después de diez minutos. */
+    /* Lo que no cabe ni girado se dice antes de empezar, no después de diez minutos.
+       La hoja se descuenta DOS veces la separación, que es lo que hace el motor: engorda cada
+       pieza media separación por lado y adelgaza la hoja otro tanto por lado. Con una sola,
+       una pieza de 395 en una hoja de 400 con 3 mm pasaba este filtro, el motor la dejaba
+       fuera callado y el marcador se quedaba en «1/2» sin decir por qué. */
     var partes = SN.getParts(hijos(svg));
     if (!partes.length) { mensaje('No encontré contornos que acomodar en este archivo.', 'mal'); return; }
     var fuera = partes.filter(function (p) {
       var b = window.GeometryUtil.getPolygonBounds(p);
-      return !M.cabe({ w: b.width, h: b.height }, { ancho: mat.ancho - mat.sep, alto: mat.alto - mat.sep }, mat.rot);
+      return !M.cabe({ w: b.width, h: b.height }, { ancho: mat.ancho - 2 * mat.sep, alto: mat.alto - 2 * mat.sep }, mat.rot);
     }).length;
     if (fuera === partes.length) {
       mensaje('Ninguna de las ' + partes.length + ' piezas cabe en una hoja de ' + mat.ancho + ' × ' + mat.alto + ' mm. Revisa la medida del diseño o la de la hoja.', 'mal');
@@ -462,8 +588,8 @@
     svg.appendChild(bin);
     SN.setbin(bin);
 
-    T = { corriendo: true, intentos: 0, sinMejora: 0, ultimaMejora: Date.now(), mejor: null, detenidoSolo: false, material: mat, fuera: fuera, total: partes.length };
-    if (SN.start(alAvanzar, alMostrar) === false) {
+    T = { corriendo: true, intentos: 0, sinMejora: 0, ultimaMejora: Date.now(), mejor: null, detenidoSolo: false, material: mat, huella: huellaMotor(mat), fuera: fuera, total: partes.length };
+    if (SN.start(alAvanzar, mostrarDe(++corrida)) === false) {
       T.corriendo = false;
       mensaje('El motor no pudo arrancar con esa hoja. Revisa que el ancho y el alto sean mayores que la separación.', 'mal');
       return;
@@ -487,6 +613,7 @@
   }
 
   function detener(solo) {
+    corrida++;   // el intento que siga en los workers ya no se enseña
     window.SvgNest.stop();
     T.corriendo = false; T.detenidoSolo = !!solo;
     $('an-mesa').classList.remove('corriendo');
@@ -501,8 +628,14 @@
 
   function seguir() {
     if (!A || T.corriendo || !T.mejor) return;
+    /* El botón se esconde cuando la hoja cambió (ver habilitar), pero seguir() también se
+       llama desde window.Anidador: con otros ajustes no se sigue, se acomoda desde cero. */
+    var mat = leerMaterial(false);
+    if (!mat || huellaMotor(mat) !== T.huella) { iniciar(); return; }
+    /* start() contesta false cuando el motor ya no tiene la hoja o las piezas: sin mirarlo, la
+       mesa se quedaba en «Acomodando…» para siempre, sin un solo intento. */
+    if (window.SvgNest.start(alAvanzar, mostrarDe(++corrida)) === false) { T.huella = null; iniciar(); return; }
     T.corriendo = true; T.sinMejora = 0; T.ultimaMejora = Date.now(); T.detenidoSolo = false;
-    window.SvgNest.start(alAvanzar, alMostrar);
     $('an-mesa').classList.add('corriendo');
     pintarEstadoTrabajo();
     $('an-vista-tab').textContent = 'Acomodando…';

@@ -1062,7 +1062,12 @@ textarea{resize:vertical;min-height:46px}
    Sin borde propio, sin sombra y sin el filete azul de tres píxeles, que competía con el
    único azul que sí significa algo —lo seleccionado— en cada renglón de la cotización. */
 .partida{padding:var(--e5) 0;border-top:1px solid var(--n2);position:relative;background:none}
-#items>.partida:first-of-type{border-top:none;padding-top:var(--e2)}
+/* Aquí vivía `#items>.partida:first-of-type{border-top:none;padding-top:var(--e2)}`, de
+   cuando las partidas eran renglones separados por una raya y la primera no la llevaba. La
+   capa (4) las volvió tarjetas con su borde y su relleno, pero esa regla pesa un ID y les
+   ganaba a todas: la primera partida salía SIN borde de arriba y con 8 px de relleno en vez
+   de --pp, así que su encabezado pegado —que se sube con un margen de -pp— asomaba por
+   encima de la tarjeta. Se quita entera; la separación ya la da el margen entre tarjetas. */
 .partida-top{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
 .pnum{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .ptop-actions{display:flex;align-items:center;gap:2px;margin-left:auto;flex-shrink:0}
@@ -2641,8 +2646,11 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
    que el min-width:0 de .wrap está evitando. */
 .salto{position:fixed;top:8px;left:8px;z-index:200;min-height:44px;display:inline-flex;align-items:center;background:#fff;color:var(--brand-strong);
   padding:10px 16px;border-radius:10px;font-size:13px;font-weight:800;text-decoration:none;
-  box-shadow:0 8px 30px rgba(0,0,0,.28);transform:translateY(calc(-100% - 16px));transition:transform .15s}
-.salto:focus{transform:translateY(0)}
+  transform:translateY(calc(-100% - 16px));transition:transform .15s}
+/* La sombra solo al aparecer. Escondido, el enlace queda a 8 px del borde de arriba y su
+   sombra de 30 px de desenfoque asomaba dentro de la pantalla: una mancha gris permanente
+   sobre el logotipo del cotizador y del anidador. */
+.salto:focus{transform:translateY(0);box-shadow:0 8px 30px rgba(0,0,0,.28)}
 
 /* Sin animaciones para quien las pidió apagadas en el sistema */
 @media(prefers-reduced-motion:reduce){
@@ -4092,6 +4100,10 @@ html.va-atras #card-proy,html.va-atras .p1-cierre{animation-name:entra-izq}
 .partida.drag-over{
   box-shadow:inset 0 4px 0 var(--pc),0 14px 28px -8px rgba(var(--pc-rgb),.28);
 }
+/* En la mitad de abajo se suelta DESPUÉS de ésta, y el filete lo dice: va abajo. */
+.partida.drag-over.drag-abajo{
+  box-shadow:inset 0 -4px 0 var(--pc),0 14px 28px -8px rgba(var(--pc-rgb),.28);
+}
 
 /* ---------- En papel no hay relieve ----------
    Queda muy poco que apagar: la dirección nueva ya es plana, así que este bloque pasó de
@@ -4707,13 +4719,18 @@ body::after{
   position:relative;overflow:hidden;isolation:isolate;
   border:1px solid transparent;
   color:#fff;font-weight:600;
+  /* El degradado EMPIEZA Y ACABA EN EL MISMO TONO, y no es estética. Mide el triple del botón
+     y la animación lo corre de largo, así que el fondo es el mismo trozo repetido uno tras otro;
+     acababa en --ia-b y empezaba en --ia-a, y donde se pegaban dos trozos quedaba una COSTURA
+     vertical dura —un azul contra otro, sin transición— cruzando el botón cada vuelta. Se veía
+     en cualquier captura de «Cotizar con IA». Con la vuelta cerrada (a → b → c → b → a) el
+     pegue no se nota. Los tonos son los mismos, así que el contraste medido abajo no cambia. */
   background:linear-gradient(100deg,
     var(--ia-a) 0%,
-    var(--ia-b) 22%,
-    var(--ia-c) 42%,
-    var(--ia-b) 62%,
-    var(--ia-a) 82%,
-    var(--ia-b) 100%);
+    var(--ia-b) 25%,
+    var(--ia-c) 50%,
+    var(--ia-b) 75%,
+    var(--ia-a) 100%);
   background-size:300% 100%;
   background-position:0% 50%;
   box-shadow:var(--filo-corto),
@@ -4779,7 +4796,7 @@ body::after{
 }
 @media(hover:hover){.ai-btn:hover{
   background:linear-gradient(100deg,
-    var(--ia-a) 0%,var(--ia-b) 22%,var(--ia-c) 42%,var(--ia-b) 62%,var(--ia-a) 82%,var(--ia-b) 100%);
+    var(--ia-a) 0%,var(--ia-b) 25%,var(--ia-c) 50%,var(--ia-b) 75%,var(--ia-a) 100%);
   background-size:300% 100%;
   border-color:transparent;
   transform:translateY(-2px);
@@ -4809,7 +4826,7 @@ body::after{
 .sp-ai:not(:disabled){
   position:relative;overflow:hidden;border-color:transparent;color:#fff;
   background:linear-gradient(100deg,
-    var(--ia-a) 0%,var(--ia-b) 22%,var(--ia-c) 42%,var(--ia-b) 62%,var(--ia-a) 82%,var(--ia-b) 100%);
+    var(--ia-a) 0%,var(--ia-b) 25%,var(--ia-c) 50%,var(--ia-b) 75%,var(--ia-a) 100%);
   background-size:300% 100%;
   box-shadow:var(--filo-corto),0 4px 16px -6px rgba(var(--a-rgb),.6);
   animation:ia-aurora var(--mv-lento) linear infinite;
@@ -4972,13 +4989,13 @@ body::after{
    escrito por qué no pueden ser los acentos aclarados—. */
 html[data-tema="oscuro"] .ai-btn{
   background:linear-gradient(100deg,
-    var(--ia-a) 0%,var(--ia-b) 22%,var(--ia-c) 42%,var(--ia-b) 62%,var(--ia-a) 82%,var(--ia-b) 100%);
+    var(--ia-a) 0%,var(--ia-b) 25%,var(--ia-c) 50%,var(--ia-b) 75%,var(--ia-a) 100%);
   background-size:300% 100%;
   border-color:transparent;
 }
 @media(hover:hover){html[data-tema="oscuro"] .ai-btn:hover{
   background:linear-gradient(100deg,
-    var(--ia-a) 0%,var(--ia-b) 22%,var(--ia-c) 42%,var(--ia-b) 62%,var(--ia-a) 82%,var(--ia-b) 100%);
+    var(--ia-a) 0%,var(--ia-b) 25%,var(--ia-c) 50%,var(--ia-b) 75%,var(--ia-a) 100%);
   background-size:300% 100%;
   border-color:transparent;
   filter:brightness(1.12);

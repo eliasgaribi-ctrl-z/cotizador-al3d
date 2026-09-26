@@ -231,7 +231,8 @@ Lo que sigue abierto, dicho: el catálogo y los datos de este aparato se pueden 
 herramientas del navegador de quien tenga el teléfono desbloqueado, y la plataforma admite
 guiones en línea (`'unsafe-inline'`) porque el cotizador vive de sus manejadores en el marcado
 (ver «Cómo está acomodado el código»).
-Las cabeceras de `_headers` no llegan a nadie mientras el sitio esté en GitHub Pages.
+Las cabeceras de `_headers` solo llegan cuando el sitio se sirve desde Cloudflare Pages; en
+GitHub Pages no se leen, y por eso el «nadie nos empotra» también vive en `js/tema.js`.
 
 ## Publicar
 
@@ -243,13 +244,13 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
 
 1. Hacer commit a `main` (o fusionar el PR).
 2. Si cambió `puente/hoja-apps-script.gs`, **publicar el puente antes que la app** — ver
-   [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md). Con `puente-sheets-6` es obligatorio: la app
+   [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md). Con `puente-sheets-7` es obligatorio: la app
    nueva no autoriza sin el notario de la hoja.
 3. En **`sw.js`**, subir **`APP_VERSION`** una unidad. Es la primera línea de código del archivo.
    Sin eso, los teléfonos que ya tienen la app siguen sirviendo la versión guardada.
 4. Esperar de 30 a 60 segundos a que GitHub Pages redespliegue.
 
-Son ochenta y cuatro archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
+Son ochenta y seis archivos que se cargan en orden y se llaman entre sí, servidos *caché primero*: con
 mala señal llegarían mezclados, y **un guion nuevo con uno viejo no es una app vieja, es una app
 rota**. Por eso el conjunto se cambia completo o no se cambia.
 
@@ -258,8 +259,8 @@ plataforma con `herramientas/extraer-catalogo.sh`.
 
 ## Pruebas
 
-    pruebas/correr.sh               27 archivos, solo node, unos segundos
-    pruebas/correr.sh --navegador   17 más, que piden Chromium y un servidor
+    pruebas/correr.sh               28 archivos, solo node, unos segundos
+    pruebas/correr.sh --navegador   20 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
 contra una hoja de mentiras, sin cuenta y sin red; otra rasteriza cada pieza y **cuenta sus

@@ -1,12 +1,13 @@
-/* Prueba SOLO las dos funciones puras de datos/proyectos.js: tiposDerivados y
-   nombreDerivado. Puras significa que corren en node sin DOM, sin localStorage y sin
-   IndexedDB, y por eso se pueden probar sin montar nada. Es el criterio de éxito número 1
-   del proyecto —`tipo_trabajo` lleno en el 100 % de las filas— así que tiene prueba propia.
+/* Prueba SOLO las funciones puras de datos/proyectos.js: tiposDerivados y nombreDerivado
+   —y, al final, camposDelRecalculo y las de la venta que la hoja ya no tiene—. Puras significa que corren en node sin DOM, sin
+   localStorage y sin IndexedDB, y por eso se pueden probar sin montar nada. Las dos primeras
+   son el criterio de éxito número 1 del proyecto —`tipo_trabajo` lleno en el 100 % de las
+   filas— así que tienen prueba propia.
 
    Corre:  node /tmp/probar-proyectos.mjs
    El código de salida es 0 si todo pasó y 1 si algo falló, para que un guion lo sepa. */
 
-import { tiposDerivados, nombreDerivado, TIPOS_TRABAJO }
+import { tiposDerivados, nombreDerivado, TIPOS_TRABAJO, camposDelRecalculo }
   from '../js/datos/proyectos.js';
 import { readFileSync } from 'fs';
 
@@ -16,6 +17,7 @@ const eq = (que, dio, esperado) => {
   if (a === b) { bien++; console.log('  ok   ' + que + '  ->  ' + a); }
   else { mal++; console.log('  FALLA ' + que + '\n         dio: ' + a + '\n         esp: ' + b); }
 };
+const ok_ = (que, cond) => { if (cond) { bien++; console.log('  ok   ' + que); } else { mal++; console.log('  FALLA ' + que); } };
 
 /* Partidas como las guarda el cotizador. Los campos son los suyos: `luz` default true,
    `acab` solo en recorte, `bas` solo en bastidor. */
@@ -141,6 +143,195 @@ eq('sin contacto',       nombreDerivado({ proy: 'Parentesis', items: [caja()] },
 eq('solo el folio',      nombreDerivado({ folio: 'COT-0042', items: [letras()] }, []), 'COT-0042 (Letras Luz)');
 eq('nada de nada',       nombreDerivado(null, null), 'Sin nombre');
 eq('sin partidas y sin tipos', nombreDerivado(org(), []), 'Ale - Parentesis');
+
+/* ----- Recalcular sube el precio nuevo a la hoja -----
+   `resincronizar` es «la única puerta por la que el importe cambia», y encolaba el cambio sin
+   `campos`: `aNotion` no manda ni el nombre ni el dinero de una fila que ya existe si la
+   operación no dice que eso cambió, así que la hoja seguía cobrando el precio viejo. */
+console.log('\nRECALCULAR: LO QUE CAMBIÓ VIAJA, LO QUE NO, NO PISA LA HOJA');
+const antes = { nombre: 'Ale - Parentesis (Caja Luz)', sub: 10000, iva: true, anti_pactado: 6000,
+  origen: { folio: 'COT-0007', anti: 5800 } };
+eq('subió el precio: viaja el subtotal', camposDelRecalculo(antes, { ...antes, sub: 12000, anti_pactado: 5800 }), ['sub']);
+eq('cambió el nombre y el IVA', camposDelRecalculo(antes, { ...antes, nombre: 'Ale - Parentesis (Letras Luz)', iva: false, anti_pactado: 5800 }), ['nombre', 'iva']);
+eq('el anticipo de la COTIZACIÓN cambió: viaja', camposDelRecalculo(antes, { ...antes, anti_pactado: 7000, origen: { anti: 7000 } }), ['anti_pactado']);
+eq('nada cambió: no se pisa lo que PAGOS corrigió allá (ni el anticipo de 6,000 que bajó de la hoja)',
+   camposDelRecalculo(antes, { ...antes, anti_pactado: 5800 }), []);
+const { aNotion, P: COLS } = await import('../js/datos/puente.js');
+ok_('y son nombres que `aNotion` entiende: el subtotal nuevo llega a su columna',
+   aNotion({ ...antes, sub: 12000 }, null, { alta: false, campos: ['sub'] })[COLS.subtotal] === 12000 &&
+   !(COLS.subtotal in aNotion({ ...antes, sub: 12000 }, null, { alta: false, campos: [] })));
+ok_('resincronizar encola con esos campos',
+   /await encolar\('actualizar', r\.valor, camposDelRecalculo\(p, r\.valor\)\);/.test(mio));
+
+/* ----- La venta que la hoja ya no tiene, y la que está dos veces -----
+   Las cuatro piezas puras con las que la capa de datos decide qué se marca, qué se junta sola
+   y qué espera a Dirección. La decisión del dueño es que NADA se borre solo sin que se pueda
+   decir qué se perdió: estas son las que lo dicen. El camino con base de datos (el relevo, la
+   bandeja y la revisión al bajar) está en pruebas/puente.mjs. */
+console.log('\nLA VENTA Y LA HOJA NO CUADRAN: QUÉ SE MARCA Y QUÉ SE JUNTA');
+const { avisoDeHoja, marcaPerdida, huerfanasDeLaHoja, repetidasDeLaHoja, loQueSePerderia, mismaVentaQueLaFila } =
+  await import('../js/datos/proyectos.js');
+const imp = (fh, o = {}) => ({ id: 'proy-hoja-' + fh, de_hoja: true, folio_hoja: fh, notion_page_id: fh, folio_global: '',
+  etapa: 'ganado', nombre: 'Copia ' + fh, lat: null, lng: null, notas: '', plazo_k: null, ...o });
+const propio = (fg, np, o = {}) => ({ id: 'proy-' + fg, folio_global: fg, notion_page_id: np, etapa: 'ganado',
+  nombre: 'Propio ' + fg, lat: null, lng: null, notas: '', plazo_k: null, ...o });
+
+eq('una bajada completa sin V-300: su tarjeta importada queda huérfana, la de V-301 no',
+   huerfanasDeLaHoja([imp('V-300'), imp('V-301')], new Set(['V-301'])).map(p => p.id), ['proy-hoja-V-300']);
+eq('sin un solo folio visto no se marca nada: una lectura vacía no es una hoja vacía',
+   huerfanasDeLaHoja([imp('V-300')], new Set()), []);
+eq('la venta de este teléfono no se marca por aquí: la marca el rebote de su cambio',
+   huerfanasDeLaHoja([propio('COT-0001@A', 'V-9')], ['V-1']), []);
+eq('ni lo que Dirección ya decidió dejar, ni la lápida',
+   huerfanasDeLaHoja([imp('V-300', { fuera_de_hoja: 1 }), imp('V-302', { etapa: 'cancelado' })], ['V-1']), []);
+
+const ventasHoja = [{ folio_hoja: 'V-310', folio_cotizacion: 'COT-0310@A' }, { folio_hoja: 'V-320', folio_cotizacion: '' },
+  { folio_hoja: 'V-330', folio_cotizacion: 'V-330' }, { folio_hoja: 'V-340', folio_cotizacion: 'COT-9999@OTRO' }];
+const tablero = [propio('COT-0310@A', 'V-310'), imp('V-310'), propio('COT-0320@A', 'V-320'), imp('V-320'),
+  propio('COT-0330@A', 'V-330'), imp('V-330'), propio('COT-0340@A', 'V-340'), imp('V-340'), imp('V-350')];
+const rep = repetidasDeLaHoja(tablero, ventasHoja);
+eq('la copia es la misma venta por el folio de cotización de la fila, por su folio de hoja con la celda vacía y con la huella del defecto',
+   rep.map(x => [x.copia.id, x.real && x.real.id]),
+   [['proy-hoja-V-310', 'proy-COT-0310@A'], ['proy-hoja-V-320', 'proy-COT-0320@A'], ['proy-hoja-V-330', 'proy-COT-0330@A']]);
+ok_('una fila atada a OTRA cotización no es la misma venta aunque el folio de hoja coincida',
+   !rep.some(x => x.copia.id === 'proy-hoja-V-340'));
+ok_('y sin la fila en el espejo no se decide nada', !rep.some(x => x.copia.id === 'proy-hoja-V-350'));
+/* Qué tan seguro es que sea la misma venta. Solo el folio de la hoja NO basta: es justo el que
+   se repartió dos veces, y la fila puede ser de otra venta dada de alta a mano, sin folio de
+   cotización. Esa identidad no se junta sola ni le echa su dinero a la de aquí. */
+eq('la identidad de cada una: por el folio de cotización, y solo por el folio de la hoja (celda vacía o huella)',
+   rep.map(x => x.identidad), ['folio', 'debil', 'debil']);
+const ana = propio('COT-0510@A', 'V-510', { nombre: 'Ana - Café (Letras)' });
+eq('con la celda vacía: su mismo nombre (sin acentos ni mayúsculas) sí la ata; otro nombre no',
+   [mismaVentaQueLaFila(ana, { folio_hoja: 'V-510', folio_cotizacion: '', nombre: 'ana - cafe  (letras)' }),
+    mismaVentaQueLaFila(ana, { folio_hoja: 'V-510', folio_cotizacion: 'V-510', nombre: 'Ana - Café (Letras)' }),
+    mismaVentaQueLaFila(ana, { folio_hoja: 'V-510', folio_cotizacion: '', nombre: 'Luis - Taller' })],
+   ['nombre', 'nombre', 'debil']);
+eq('lo que Dirección ya confirmó ata aunque el nombre no cuadre; otra cotización o otra fila, nunca',
+   [mismaVentaQueLaFila({ ...ana, hoja_confirmada: 'V-510' }, { folio_hoja: 'V-510', folio_cotizacion: '', nombre: 'Luis' }),
+    mismaVentaQueLaFila(ana, { folio_hoja: 'V-510', folio_cotizacion: 'COT-9999@B', nombre: 'Ana - Café (Letras)' }),
+    mismaVentaQueLaFila(ana, { folio_hoja: 'V-511', folio_cotizacion: '', nombre: 'Ana - Café (Letras)' })],
+   ['confirmada', '', '']);
+eq('lo que Dirección dijo que NO es la misma no se vuelve a preguntar',
+   repetidasDeLaHoja([propio('COT-0320@A', 'V-320'), imp('V-320', { distinta_de: ['proy-COT-0320@A'] })], ventasHoja), []);
+eq('dos proyectos de aquí con la misma venta: no se adivina con cuál juntarla',
+   repetidasDeLaHoja([propio('COT-0310@A', 'V-310'), propio('COT-0311@A', 'V-310'), imp('V-310')],
+                     [{ folio_hoja: 'V-310', folio_cotizacion: '' }]).map(x => [x.real, x.candidatos.length]), [[null, 2]]);
+
+/* Con la fila de la que salió la copia, que se sigue llamando como ella: el nombre de la copia es
+   el de la hoja y ése no se pierde al juntarlas (la fila lo conserva). */
+const claves = (c, r, ctx) => loQueSePerderia(c, r, { venta: { folio_hoja: c.folio_hoja, nombre: c.nombre }, ...ctx }).map(x => x.clave);
+eq('la copia igual o más atrasada no pierde nada: se junta sola',
+   claves(imp('V-1', { etapa: 'cortado' }), propio('C', 'V-1', { etapa: 'armado' }), {}), []);
+eq('la copia más adelantada sí: su etapa se perdería', claves(imp('V-1', { etapa: 'cortado' }), propio('C', 'V-1'), {}), ['etapa']);
+eq('y sus notas, su pin y su plazo, si la de aquí no los tiene',
+   claves(imp('V-1', { notas: 'llamar antes', lat: 20.6, lng: -103.3, plazo_k: 3 }), propio('C', 'V-1'), {}), ['notas', 'pin', 'plazo']);
+eq('las mismas notas y el mismo pin no son pérdida',
+   claves(imp('V-1', { notas: 'llamar antes', lat: 20.6, lng: -103.3 }), propio('C', 'V-1', { notas: 'x\nllamar antes', lat: 20.6, lng: -103.3 }), {}), []);
+eq('dos instalaciones vivas, material de la copia, o la de aquí como «No se dio»: no se juntan',
+   [claves(imp('V-1'), propio('C', 'V-1'), { instCopia: [{ estado: 'confirmada' }], instReal: [{ estado: 'propuesta' }] }),
+    claves(imp('V-1'), propio('C', 'V-1'), { reqCopia: [{ id: 'r' }] }),
+    claves(imp('V-1'), propio('C', 'V-1', { etapa: 'cancelado' }), { venta: { nombre: 'Copia V-1', etapa: 'cancelado' } })],
+   [['instalaciones'], ['material'], ['cancelada']]);
+eq('una instalación cancelada de la de aquí no estorba', claves(imp('V-1'), propio('C', 'V-1'),
+   { instCopia: [{ estado: 'confirmada' }], instReal: [{ estado: 'cancelada' }] }), []);
+eq('sin nada que perder, pero con la identidad por confirmar: no se junta sola',
+   claves(imp('V-1'), propio('C', 'V-1'), { identidad: 'debil' }), ['identidad']);
+/* El texto lo lee la confirmación de «Juntar»: no puede prometer que el pin y el plazo de la copia
+   pasan cuando la de aquí ya tiene los suyos, porque `juntar` deja los de aquí. */
+const textos = loQueSePerderia(imp('V-1', { lat: 20.71, lng: -103.41, plazo_k: 2 }),
+  propio('C', 'V-1', { lat: 20.6, lng: -103.3, plazo_k: 5 }), {}).map(x => x.texto).join(' | ');
+ok_('con dos pines y dos plazos, dice que se quedan los de aquí y los de la copia se pierden: ' + textos,
+   /otra ubicación.*se queda la de este teléfono.*se pierde/.test(textos) && /otro plazo.*se queda el de este teléfono.*se pierde/.test(textos));
+
+/* Los datos de la venta que se escriben en la ficha. La copia nace con el teléfono, las
+   entrecalles y el compromiso vacíos: si los tiene, alguien los escribió en este teléfono, y
+   juntarla sola los borraba con ella. */
+eq('la copia con su teléfono del cliente, sus entrecalles y su compromiso: no se junta sola',
+   claves(imp('V-1', { tel: '33 1234 5678', entrecalles: 'entre Juárez y Morelos', compromiso_texto: 'antes del 30' }), propio('C', 'V-1'), {}),
+   ['datos']);
+const tDatos = loQueSePerderia(imp('V-1', { tel: '33 1234 5678', entrecalles: 'portón verde' }), propio('C', 'V-1'), {}).map(x => x.texto).join(' | ');
+ok_('y el porqué dice cuáles, y que al juntarlas pasan: ' + tDatos,
+   /el teléfono del cliente y las entrecalles/.test(tDatos) && /pasan a la de este teléfono/.test(tDatos));
+/* La dirección la manda la de aquí en CADA cambio: una dirección corregida en la copia, aunque
+   ya haya llegado a la fila, la pisaría la de aquí con la vieja en cuanto alguien moviera la
+   etapa. Y la de aquí ya tiene la suya: al juntar se queda la de aquí, y eso se dice. */
+const dirCorregida = imp('V-1', { dir_texto: 'Calle Real 250, local 3' });
+eq('una dirección corregida en la copia no se junta sola, aunque la fila ya la traiga',
+   loQueSePerderia(dirCorregida, propio('C', 'V-1', { dir_texto: 'Av. Siempre Viva 1' }),
+     { venta: { folio_hoja: 'V-1', nombre: dirCorregida.nombre, direccion: 'Calle Real 250, local 3' } }).map(x => x.clave), ['datos_distintos']);
+ok_('y el porqué dice que se queda la de este teléfono y la de la copia se pierde',
+   /no coincide con la de este teléfono en la dirección: al juntarlas se quedan los datos de este teléfono/.test(
+     loQueSePerderia(dirCorregida, propio('C', 'V-1', { dir_texto: 'Av. Siempre Viva 1' }),
+       { venta: { nombre: dirCorregida.nombre } }).map(x => x.texto).join(' | ')));
+eq('la misma dirección, con otros espacios, y el mismo tipo de trabajo no son pérdida',
+   claves(imp('V-1', { dir_texto: ' Av.  Siempre Viva 1', tipo_trabajo: ['Letras 3D con iluminacion'] }),
+          propio('C', 'V-1', { dir_texto: 'Av. Siempre Viva 1', tipo_trabajo: ['Letras 3D con iluminacion'] }), {}), []);
+eq('otro tipo de trabajo sí', claves(imp('V-1', { tipo_trabajo: ['Caja de luz con iluminacion'] }),
+   propio('C', 'V-1', { tipo_trabajo: ['Letras 3D con iluminacion'] }), {}), ['datos_distintos']);
+/* El nombre, el contacto y el negocio de una copia son los de su fila: la fila los conserva
+   (la de aquí solo manda el nombre cuando lo cambia), así que no cuentan. Uno que ya no es el de
+   la fila sí: se escribió aquí, o la fila se corrigió después, y eso no se puede saber. Un
+   contacto escrito en la copia, con la de aquí sin contacto, pasa al juntarlas. */
+eq('el nombre de la fila y el contacto y negocio que salen de él no son pérdida; otro nombre u otro contacto sí',
+   [claves(imp('V-1', { nombre: 'Café Luna - Letras', contacto: 'Café Luna', negocio: 'Letras' }), propio('C', 'V-1'), {}),
+    loQueSePerderia(imp('V-1', { nombre: 'Café Luna Centro' }), propio('C', 'V-1'), { venta: { nombre: 'Café Luna' } }).map(x => x.clave),
+    claves(imp('V-1', { nombre: 'Café Luna - Letras', contacto: 'Doña Lupe' }), propio('C', 'V-1'), {})],
+   [[], ['datos_distintos'], ['datos']]);
+/* La lápida con su fila VIVA: la de aquí dice «No se dio» y la hoja no. Quitar la copia no es la
+   salida (ver pruebas/puente.mjs), y la marca tiene que decirlo. */
+eq('la lápida: con su fila viva lleva «viva»; con la fila que también dice «No se dio», no',
+   [loQueSePerderia(imp('V-1'), propio('C', 'V-1', { etapa: 'cancelado' }), { venta: { nombre: 'Copia V-1', etapa: null } }).map(x => x.clave),
+    loQueSePerderia(imp('V-1'), propio('C', 'V-1', { etapa: 'cancelado' }), { venta: { nombre: 'Copia V-1', etapa: 'cancelado' } }).map(x => x.clave)],
+   [['cancelada', 'viva'], ['cancelada']]);
+
+const m1 = marcaPerdida(null, 'borrada', 'V-404', 'La venta V-404 ya no está en la hoja', 1000);
+eq('la marca dice por qué, qué fila y desde cuándo', [m1.motivo, m1.folio, m1.desde], ['borrada', 'V-404', 1000]);
+ok_('el mismo rebote otra vez no reinicia la fecha', marcaPerdida(m1, 'borrada', 'V-404', 'otra vez', 5000) === m1);
+eq('otro motivo sí es otra marca', marcaPerdida(m1, 'de_otra', 'V-404', '', 5000).desde, 5000);
+eq('qué aviso lleva cada una: nada, perdida, repetida (manda sobre perdida), fuera, y la lápida ninguno',
+   [avisoDeHoja({}), avisoDeHoja({ hoja_perdida: m1 }), avisoDeHoja({ duplicado_de: { id: 'x' }, hoja_perdida: m1 }),
+    avisoDeHoja({ fuera_de_hoja: 1 }), avisoDeHoja({ etapa: 'cancelado', hoja_perdida: m1 })],
+   ['', 'perdida', 'repetida', 'fuera', '']);
+/* La venta de aquí en dos filas de la hoja (`hoja_doble`): con una sola fila no hay nada que avisar. */
+eq('la venta en dos filas avisa «doble»; con una sola, nada; y la perdida manda sobre ella',
+   [avisoDeHoja({ hoja_doble: { folios: ['V-500', 'V-404'] } }), avisoDeHoja({ hoja_doble: { folios: ['V-500'] } }),
+    avisoDeHoja({ hoja_doble: { folios: ['V-500', 'V-404'] }, hoja_perdida: m1 })], ['doble', '', 'perdida']);
+
+console.log('\nLA FILA QUE TUVO, LA DE OTRA COTIZACIÓN Y LO QUE NO SE MANDÓ');
+const { ataLaFila, filaDeOtraCotizacion, sumarSinMandar, foliosDeHoja } = await import('../js/datos/proyectos.js');
+/* La fila que la venta tuvo antes de volver a darse de alta (`folios_previos`) sigue siendo suya:
+   si alguien deshace el borrado, sale como la misma venta y no como otra tarjeta. */
+const realta = propio('COT-0330@A', 'V-500', { nombre: 'Café Luna - Letras', hoja_confirmada: 'V-330', folios_previos: ['V-330'] });
+eq('la fila vieja restaurada, sin folio de cotización, es de la venta que la tuvo',
+   [mismaVentaQueLaFila(realta, { folio_hoja: 'V-330', folio_cotizacion: '', nombre: 'Otro nombre' }),
+    mismaVentaQueLaFila({ ...realta, hoja_confirmada: null }, { folio_hoja: 'V-330', folio_cotizacion: '', nombre: 'Café Luna - Letras' }),
+    mismaVentaQueLaFila({ ...realta, folios_previos: [] }, { folio_hoja: 'V-330', folio_cotizacion: '', nombre: 'Café Luna - Letras' })],
+   ['confirmada', 'nombre', '']);
+eq('los folios de la hoja de una venta: el de hoy y los de antes', [...foliosDeHoja(realta)], ['V-500', 'V-330']);
+/* La regla de la bajada: a una lápida no le cae una fila viva salvo por su folio de cotización, y
+   una tarjeta importada no es «la venta de aquí» de nadie. */
+const lap = propio('COT-0360@A', 'V-360', { nombre: 'Lupita', etapa: 'cancelado' });
+eq('a quién le cae la fila: la lápida no se queda con una fila viva por el nombre, sí por su folio de cotización',
+   [ataLaFila(lap, { folio_hoja: 'V-360', folio_cotizacion: '', nombre: 'Lupita', etapa: 'armado' }),
+    ataLaFila(lap, { folio_hoja: 'V-360', folio_cotizacion: '', nombre: 'Lupita', etapa: 'cancelado' }),
+    ataLaFila(lap, { folio_hoja: 'V-360', folio_cotizacion: 'COT-0360@A', nombre: 'Lupita', etapa: 'armado' }),
+    ataLaFila(imp('V-360'), { folio_hoja: 'V-360', folio_cotizacion: '', nombre: 'Copia V-360' }),
+    ataLaFila(ana, { folio_hoja: 'V-510', folio_cotizacion: '', nombre: 'Luis - Taller' })],
+   ['', 'nombre', 'folio', '', '']);
+eq('la fila de otra cotización: no lo es la celda vacía, la huella del defecto ni su propio folio',
+   [filaDeOtraCotizacion(ana, { folio_hoja: 'V-510', folio_cotizacion: 'COT-0777@OTRO' }),
+    filaDeOtraCotizacion(ana, { folio_hoja: 'V-510', folio_cotizacion: '' }),
+    filaDeOtraCotizacion(ana, { folio_hoja: 'V-510', folio_cotizacion: 'V-510' }),
+    filaDeOtraCotizacion(ana, { folio_hoja: 'V-510', folio_cotizacion: 'COT-0510@A' })],
+   [true, false, false, false]);
+/* Lo que no se mandó: desde cuándo y qué campos. La de una instalación deja la nota sin campos
+   (el reenvío lleva la fecha de la instalación viva). */
+const sm = sumarSinMandar({ desde: 100, campos: ['etapa'] },
+  [{ almacen: 'proyectos', campos: ['anti_pactado', 'etapa'] }, { almacen: 'instalaciones', campos: ['fecha'] }, { almacen: 'proyectos', campos: null }], 900);
+eq('la nota suma los campos sin repetir y se queda con su fecha', sm, { desde: 100, campos: ['etapa', 'anti_pactado'] });
+eq('sin nota previa, desde ahora; una instalación sola deja la nota vacía',
+   sumarSinMandar(null, [{ almacen: 'instalaciones', datos: {} }], 900), { desde: 900, campos: [] });
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');
 process.exit(mal ? 1 : 0);

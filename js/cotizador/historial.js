@@ -144,7 +144,13 @@ function guardarEnHistorial(){
     /* Qué aparato emitió este folio. Es lo único que desempata dos COT-0042 pegados en el
        mismo Sheet, que es el escenario real del CSV. */
     disp:dispositivo(),
-    ts:Date.now()
+    /* El sello es el de la AUTORIZACIÓN, no el de la última escritura. Se reescribía en cada
+       guardado —cambiar el anticipo, ocultar una partida del PDF— y de ahí leen la plataforma
+       («autorizada hace 3 días», los días sin decidir) y los cuadernos, que ordenaban una
+       cotización de enero como la más nueva y escribían «la primera fue el 5 mar; la última, el
+       10 ene». Se conserva mientras la autorización sea la misma; una nueva lo renueva. */
+    ts:(idx>=0&&arr[idx].ts&&arr[idx].fechaAuth===Q.fechaAuth&&arr[idx].autorizador===Q.autorizador)
+      ? arr[idx].ts : Date.now()
   };
   if(idx>=0) arr[idx]=entry; else arr.unshift(entry);
   const ok=saveHistorial(arr);
@@ -219,8 +225,13 @@ function histDsc(it){
    las partidas de todas las entradas en cada tecla. */
 function indexarHistorial(){
   _histData.forEach(e=>{
-    e._busca=[e.folio,e.proy,e.cliente,e.tel,e.dirRaw,e.autorizador,e.fechaAuth,
-      money(totalFinalHist(e)),(e.items||[]).map(histDsc).join(' '),
+    /* El total y el teléfono también SIN formato. El total entraba como «$35,000.00» y el
+       teléfono con sus espacios, así que «la de treinta y cinco mil» buscada como «35000» no
+       encontraba nada, y el teléfono tecleado de corrido tampoco — que es justo como se busca
+       con el cliente al teléfono. */
+    const tot=totalFinalHist(e);
+    e._busca=[e.folio,e.proy,e.cliente,e.tel,String(e.tel||'').replace(/\D/g,''),e.dirRaw,e.autorizador,e.fechaAuth,
+      money(tot),String(+(+tot||0).toFixed(2)),(+tot||0).toFixed(2),(e.items||[]).map(histDsc).join(' '),
       HITOS.filter(x=>hitosDe(e.folio)[x.k]).map(x=>x.hecho).join(' ')]
       .map(v=>String(v||'')).join(' ').toLowerCase();
   });
@@ -252,7 +263,7 @@ function pintarHistorial(){
     html=lista.map(e=>{
       const isImg=e.aiFile&&e.aiFile.type&&e.aiFile.type.indexOf('image/')===0&&e.aiFile.url;
       const imgHTML=isImg
-        ? `<img class="hentry-img" src="${urlImagenSegura(e.aiFile.url)}" ${_ABRIBLE} onclick="openHistImg('${esc(e.folio)}')" title="Ver imagen completa" alt="Referencia">`
+        ? `<img class="hentry-img" src="${urlImagenSegura(e.aiFile.url)}" ${_ABRIBLE} onclick="openHistImg(${jsArg(e.folio)})" title="Ver imagen completa" alt="Referencia">`
         : `<div class="hentry-img-ph">${e.aiFile?ico('i-doc'):ico('i-imagen')}</div>`;
       const rows=(e.items||[]).map((it,i)=>{
         const ia=(e.itemsAuth&&e.itemsAuth[it.id]!==undefined)?e.itemsAuth[it.id]
@@ -271,9 +282,9 @@ function pintarHistorial(){
             <div class="hentry-auth"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> ${esc(e.autorizador||'—')} · ${esc(e.fechaAuth||'')}</div>
           </div>
           <div class="hentry-acts">
-            <button class="hentry-open" onclick="reabrirDeHistorial('${esc(e.folio)}')" title="Cargarla en el cotizador para reimprimir su PDF, o editarla con «Editar partidas»"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Abrir y editar</button>
-            <button class="hentry-open" onclick="usarComoBase('${esc(e.folio)}')" title="Empezar una cotización nueva con estas mismas partidas, para cambiarles el material o la medida sin recapturarlas"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Duplicar</button>
-            <button class="hentry-del" onclick="borrarDeHistorial('${esc(e.folio)}')" title="Eliminar" aria-label="Eliminar cotización">${ico('i-basura')}</button>
+            <button class="hentry-open" onclick="reabrirDeHistorial(${jsArg(e.folio)})" title="Cargarla en el cotizador para reimprimir su PDF, o editarla con «Editar partidas»"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Abrir y editar</button>
+            <button class="hentry-open" onclick="usarComoBase(${jsArg(e.folio)})" title="Empezar una cotización nueva con estas mismas partidas, para cambiarles el material o la medida sin recapturarlas"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Duplicar</button>
+            <button class="hentry-del" onclick="borrarDeHistorial(${jsArg(e.folio)})" title="Eliminar" aria-label="Eliminar cotización">${ico('i-basura')}</button>
           </div>
         </div>
         <table class="htable">${rows}</table>
@@ -318,6 +329,7 @@ function cerrarHistorial(){ $('histmodal').classList.remove('show'); }
 /* Volver a abrir una cotización ya autorizada: el cliente vuelve a pedir el PDF o
    quiere copiar la venta y antes había que capturarla otra vez desde cero. */
 async function reabrirDeHistorial(folio){
+  guardarAutorizadaYa();   // lo que quedó en la espera de 700 ms se guarda antes de cambiar de cotización
   const e=_histData.find(x=>x.folio===folio); if(!e) return;
   const hayTrabajo=Q.estado!=='autorizada'&&(Q.items.some(it=>!itemVacio(it))||hayDatosCliente());
   if(hayTrabajo&&!await confirmar({titulo:'Tienes una cotización sin autorizar',texto:'Si abres '+folio+', la que está en pantalla se pierde.',si:'Abrir '+folio,no:'Seguir con la mía',peligro:true})) return;
@@ -329,7 +341,7 @@ async function reabrirDeHistorial(folio){
   Q.entrecalles=e.entrecalles||''; Q.entrega=e.entrega||''; Q.notaCliente=e.notaCliente||'';
   Q.plazoK=(e.plazoK>=1&&e.plazoK<=5)?e.plazoK:null;
   Q.fecha=e.fecha||Q.fecha;
-  Q.items=JSON.parse(JSON.stringify(e.items||[]));
+  Q.items=normalizarItems(JSON.parse(JSON.stringify(e.items||[])));
   Q.itemsAuth=JSON.parse(JSON.stringify(e.itemsAuth||{}));
   Q.iva=e.iva!==false;
   Q.precioAuth=e.precioAuth||0;
@@ -396,11 +408,15 @@ async function reabrirDeHistorial(folio){
    folio nuevo, en borrador, con el precio recalculado y sin arrastrar nada de la
    autorización anterior. Tus plantillas son tus cotizaciones anteriores. */
 async function usarComoBase(folio){
+  guardarAutorizadaYa();   // lo que quedó en la espera de 700 ms se guarda antes de cambiar de cotización
   const e=_histData.find(x=>x.folio===folio); if(!e) return;
   const hayTrabajo=Q.estado!=='autorizada'&&(Q.items.some(it=>!itemVacio(it))||hayDatosCliente());
   if(hayTrabajo&&!await confirmar({titulo:'Tienes una cotización sin autorizar',texto:'Si empiezas una nueva a partir de '+folio+', la que está en pantalla se pierde.',si:'Empezar desde '+folio,no:'Seguir con la mía',peligro:true})) return;
   guardarParaDeshacer();
   scReset();
+  /* Lo mismo que suelta nueva() —ver allá—: el folio nuevo puede ser el mismo número
+     provisional del borrador que había, y entonces nada «cambia de folio». */
+  _deAntes=null; _vaciadoAMano=null; Q.reauth=null; paBorradorLimpiar();
   Q.folio=nextFolio();
   Q.proy=e.proy||''; Q.cliente=e.cliente||''; Q.tel=e.tel||'';
   Q.dirRaw=e.dirRaw||''; Q.direccion=e.direccion||''; Q.maps=e.maps||'';
@@ -413,7 +429,7 @@ async function usarComoBase(folio){
   /* Ids nuevos: los del historial pueden chocar con los de la cotización en pantalla. */
   /* El importe congelado no se copia: la cotización es nueva y su precio se calcula con el
      catálogo de hoy, que es justo para lo que sirve duplicar. */
-  Q.items=(e.items||[]).map(it=>{ const c=JSON.parse(JSON.stringify(it)); c.id=++pid; c.showInPdf=true; c.matAuto=false; delete c._lt; return c; });
+  Q.items=normalizarItems(e.items).map(it=>{ const c=JSON.parse(JSON.stringify(it)); c.id=++pid; c.showInPdf=true; c.matAuto=false; delete c._lt; return c; });
   Q.iva=e.iva!==false;
   Q.itemsAuth={}; Q.precioAuth=0; Q.huellaAuth=''; Q.sello=null; Q.solicitud=null;
   Q.autorizador=''; Q.nota=''; Q.fechaAuth='';
@@ -424,6 +440,8 @@ async function usarComoBase(folio){
   sincronizarPlegado();
   pintarFolio(); saveState(); renderItems();
   irAPantalla(pantallaSegunDatos(),{forzar:true});
+  /* Y la pila de Ctrl+Z arranca aquí, por lo mismo que en nueva(). */
+  pintarAvisoDeAntes(); undoBarrera();
   cerrarHistorial();
   const n=Q.items.length;
   /* La cotización que se copia puede venir sin teléfono —el historial guarda entradas de
@@ -631,7 +649,7 @@ function pintarCuadernos(){
     html=lista.map(g=>{
       const n=g.cots.length;
       const sub=[g.tel||'', g.alias.length?('también «'+g.alias[0]+'»'):''].filter(Boolean).join(' · ');
-      return `<button class="cua-card" onclick="abrirCuaderno('${esc(g.clave)}')" title="Abrir el cuaderno de ${esc(cuaTitulo(g))}">
+      return `<button class="cua-card" onclick="abrirCuaderno(${jsArg(g.clave)})" title="Abrir el cuaderno de ${esc(cuaTitulo(g))}">
         <span class="cua-ini" aria-hidden="true">${esc(cuaIniciales(cuaTitulo(g)))}</span>
         <span class="cua-card-meta">
           <span class="cua-nombre">${esc(cuaTitulo(g))}</span>
@@ -667,8 +685,8 @@ function abrirCuaderno(clave){
       </div>
       <div class="cua-cot-tot">${money(totalFinalHist(e))}</div>
       <div class="cua-cot-acts">
-        <button onclick="cuaAbrirCot('${esc(e.folio)}')" title="Cargarla en el cotizador para reimprimir su PDF">Abrir</button>
-        <button onclick="cuaDuplicarCot('${esc(e.folio)}')" title="Empezar una cotización nueva con estas mismas partidas">Duplicar</button>
+        <button onclick="cuaAbrirCot(${jsArg(e.folio)})" title="Cargarla en el cotizador para reimprimir su PDF">Abrir</button>
+        <button onclick="cuaDuplicarCot(${jsArg(e.folio)})" title="Empezar una cotización nueva con estas mismas partidas">Duplicar</button>
       </div>
     </div>`).join('');
   const datos=[
@@ -682,9 +700,9 @@ function abrirCuaderno(clave){
       ${datos?`<div class="cua-det-datos">${datos}</div>`:''}
       ${g.alias.length?`<div class="cua-alias">También capturado como ${g.alias.map(a=>'«'+esc(a)+'»').join(', ')}</div>`:''}
       <div class="cua-det-acts">
-        <button onclick="cuaNuevaCotizacion('${esc(g.clave)}')" title="Empieza una cotización en blanco con estos datos de cliente ya puestos">${ico('i-lapiz')} Cotizarle algo nuevo</button>
-        ${g.tel?`<button onclick="cuaWhatsApp('${esc(g.clave)}')" title="Abre el chat de WhatsApp con este cliente">${ico('i-chat')} WhatsApp</button>`:''}
-        <button onclick="cuaCSV('${esc(g.clave)}')" title="Descarga las cotizaciones de este cliente">${ico('i-doc')} CSV</button>
+        <button onclick="cuaNuevaCotizacion(${jsArg(g.clave)})" title="Empieza una cotización en blanco con estos datos de cliente ya puestos">${ico('i-lapiz')} Cotizarle algo nuevo</button>
+        ${g.tel?`<button onclick="cuaWhatsApp(${jsArg(g.clave)})" title="Abre el chat de WhatsApp con este cliente">${ico('i-chat')} WhatsApp</button>`:''}
+        <button onclick="cuaCSV(${jsArg(g.clave)})" title="Descarga las cotizaciones de este cliente">${ico('i-doc')} CSV</button>
       </div>
     </div>
     <div class="cua-cifras">
@@ -809,7 +827,7 @@ function actualizarAvisoCuaderno(){
   if(!util){ el.style.display='none'; el.innerHTML=''; return; }
   const n=g.cots.length;
   el.innerHTML=`${ico('i-cuaderno')} <span>Ya tiene cuaderno · ${plCot(n)} · ${money(g.vendido)}</span>`
-    +` <button type="button" onclick="verCuadernoDe('${esc(g.clave)}')">Ver cuaderno</button>`;
+    +` <button type="button" onclick="verCuadernoDe(${jsArg(g.clave)})">Ver cuaderno</button>`;
   el.style.display='flex';
 }
 /* Entrar al cuaderno de un cliente sin pasar por la lista. _cuaData tiene que quedar
@@ -843,6 +861,17 @@ const RESP_DIAS=30, RESP_COTS=10, RESP_PRIMERAS=3;
 const RESPALDO_KEYS=['al3d_historial','al3d_folio','al3d_q','al3d_queue','al3d_logo',CANVA_KEY,HITOS_KEY,'al3d_pf_ganadas',
   CUA_NOTAS,AI_FILE_KEY,PREF_AUTORIZADOR,PREF_MATERIAL,PREF_RV_PCT,PREF_RV_CUENTA,
   RESP_TS,RESP_N];
+/* El día de un respaldo, en la hora de aquí. El archivo guarda la fecha en ISO —en UTC, que es
+   lo que se lee de vuelta sin ambigüedad— y aquí se enseñaba recortada a sus diez primeros
+   caracteres: en Guadalajara, de las seis de la tarde en adelante eso es MAÑANA, y el aviso de
+   restaurar decía «el respaldo del 24» de uno que se bajó el 23 — con el nombre del archivo,
+   que sí va en hora local, diciendo lo contrario. */
+function fechaDeRespaldo(iso){
+  const d=new Date(iso||'');
+  if(isNaN(d.getTime())) return String(iso||'').slice(0,10);
+  const p=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+}
 function selloFecha(){
   const d=new Date(), p=n=>String(n).padStart(2,'0');
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
@@ -948,6 +977,7 @@ async function restaurarDesde(texto){
   /* Las dos claves que pueden dejar la app inservible se parsean de prueba. */
   try{
     if(D['al3d_historial']!=null && !Array.isArray(JSON.parse(D['al3d_historial']))) throw 0;
+    if(D['al3d_queue']!=null && !Array.isArray(JSON.parse(D['al3d_queue']))) throw 0;
     if(D['al3d_q']!=null){
       const q=JSON.parse(D['al3d_q']);
       if(!q||typeof q!=='object'||!Array.isArray(q.items)) throw 0;
@@ -957,7 +987,7 @@ async function restaurarDesde(texto){
   }
   let cuantas=0;
   try{ cuantas=(JSON.parse(paquete.datos['al3d_historial']||'[]')||[]).length; }catch(_){}
-  const fecha=(paquete.fecha||'').slice(0,10);
+  const fecha=fechaDeRespaldo(paquete.fecha);
   if(!await confirmar({titulo:'¿Restaurar este respaldo?',
     texto:`Reemplaza el historial, los folios y la cotización en curso de este teléfono por los del respaldo`
       +(fecha?` del ${fecha}`:'')+` (${cuantas} ${cuantas===1?'cotización':'cotizaciones'}).\n\nAntes de reemplazar se descarga un respaldo de lo que hay ahora.`,
@@ -1007,7 +1037,7 @@ function ofrecerRestauracionPendiente(){
   let t=null; try{ t=localStorage.getItem(RESTAURAR_PF_KEY); }catch(_){}
   if(!t) return;
   let fecha='', cuantas=0;
-  try{ const pq=JSON.parse(t); fecha=(pq.fecha||'').slice(0,10); cuantas=(JSON.parse((pq.datos||{}).al3d_historial||'[]')||[]).length; }catch(_){}
+  try{ const pq=JSON.parse(t); fecha=fechaDeRespaldo(pq.fecha); cuantas=(JSON.parse((pq.datos||{}).al3d_historial||'[]')||[]).length; }catch(_){}
   const main=$('contenido'); if(!main||$('pf-restaurar')) return;
   const card=document.createElement('div');
   card.className='cand-partidas'; card.id='pf-restaurar'; card.setAttribute('role','region'); card.setAttribute('aria-label','Respaldo pendiente de restaurar');
@@ -1072,7 +1102,10 @@ function exportarHistorialCSV(){
 }
 
 /* ===================== Cola de autorización ===================== */
-function getQueue(){ try{return JSON.parse(localStorage.getItem('al3d_queue')||'[]');}catch(_){return [];} }
+/* Con la misma guarda que getHistorial(): un respaldo cuya cola llegó como objeto y no como
+   lista pasaba la validación de restaurarDesde() y después `findIndex is not a function`
+   tronaba a media autorización. */
+function getQueue(){ try{ const a=JSON.parse(localStorage.getItem('al3d_queue')||'[]'); return Array.isArray(a)?a:[]; }catch(_){return [];} }
 /* La cola guardaba una copia COMPLETA de cada cotización —partidas incluidas— para
    siempre, también de las ya autorizadas o rechazadas, que no se listan en ningún lado, y
    borrar del historial no la liberaba. Lo que ya cerró su ciclo se queda sin snapshot: de
@@ -1103,6 +1136,7 @@ function updateQueueEntry(folio,changes){
 async function loadQueueEntry(folio){
   if(folio===Q.folio) return;
   if(selloEnVuelo()) return;
+  guardarAutorizadaYa();   // lo que quedó en la espera de 700 ms se guarda antes de cambiar de cotización
   const arr=getQueue();
   const entry=arr.find(x=>x.folio===folio);
   if(!entry||!entry.q) return;
@@ -1124,6 +1158,7 @@ async function loadQueueEntry(folio){
   scReset();
   const rolActual=Q.rol;
   Object.assign(Q,entry.q);
+  Q.items=normalizarItems(Q.items);
   Q.rol=rolActual;
   Q.editMode=false; _selfAuth=false; _marcarOblig=false;
   Q.aiFile=null;
@@ -1171,7 +1206,11 @@ function saveState(){
     }
   }
   sincronizarAiFile();
-  undoRegistrar(serie);
+  /* A la pila va SIN el rol. El rol es de quien usa la app, no de la cotización —deshacer lo
+     respeta, ver _undoAplicar()—, así que cambiar de Vendedor a Autorizador apilaba un paso que
+     al deshacerse no cambiaba nada en pantalla y aun así decía «Cambio deshecho». */
+  const {rol,...sinRol}=rest;
+  undoRegistrar(JSON.stringify({...sinRol,aiFile:null}));
 }
 
 /* ===================== Deshacer y rehacer =====================
@@ -1260,7 +1299,7 @@ function undoBarrera(foto){
   _undoPila=[]; _redoPila=[];
   _undoUltimo={sig:'',ts:0};
   if(foto) _undoBase=foto;
-  else { const {editMode,...rest}=Q; _undoBase=_undoFoto(JSON.stringify({...rest,aiFile:null})); }
+  else { const {editMode,rol,...rest}=Q; _undoBase=_undoFoto(JSON.stringify({...rest,aiFile:null})); }
   pintarUndo();
 }
 function puedeDeshacer(){ return !locked() && _undoPila.length>0; }
@@ -1329,7 +1368,7 @@ function _undoAplicar(foto){
 /* No se pregunta por locked() solo para tapar el botón: el atajo de teclado llega aquí sin
    pasar por él, y una cotización autorizada no acepta escrituras por ningún otro camino. */
 function deshacer(){
-  if(locked()){ toast('La cotización está autorizada — usa «Editar partidas» para poder deshacer','err',4600); return; }
+  if(locked()){ toast(msgCandadoCaptura('para poder deshacer'),'err',4600); return; }
   if(!_undoPila.length){ toast('No hay cambios que deshacer en esta cotización'); return; }
   const foco=_undoEsNuestro();
   const anterior=_undoPila.pop();
@@ -1341,7 +1380,7 @@ function deshacer(){
   _undoDevolverFoco(foco);
 }
 function rehacer(){
-  if(locked()){ toast('La cotización está autorizada — usa «Editar partidas» para poder rehacer','err',4600); return; }
+  if(locked()){ toast(msgCandadoCaptura('para poder rehacer'),'err',4600); return; }
   if(!_redoPila.length){ toast('No hay nada que rehacer'); return; }
   const foco=_undoEsNuestro();
   const siguiente=_redoPila.pop();
@@ -1522,8 +1561,28 @@ function pintarPlazo(){
 function setPlazo(k){
   undoJuntar('q:plazoK');
   Q.plazoK=(Q.plazoK===k)?null:k;
-  saveState(); pintarPlazo();
+  saveState(); pintarPlazo(); guardarAutorizadaLuego();
 }
+/* ----- Lo que se sigue pactando después de autorizar -----
+   El anticipo, la fecha límite, las entrecalles, la nota al cliente y el plazo se pueden
+   cambiar con el precio ya cerrado —no lo mueven—, pero solo iban a al3d_q: el historial se
+   quedaba con los de la autorización. Al abrir la app la pantalla se soltaba por estar
+   «guardada», y reabrir el folio devolvía el anticipo de $6,380 en vez de los $3,000 que se
+   acababan de pactar. Se escribe en el historial un momento después de dejar de teclear, y al
+   salir de la app si quedó algo pendiente. */
+let _tGuardarAut=0;
+function guardarAutorizadaLuego(){
+  if(Q.estado!=='autorizada'||Q.editMode) return;
+  clearTimeout(_tGuardarAut);
+  _tGuardarAut=setTimeout(guardarAutorizadaYa,700);
+}
+function guardarAutorizadaYa(){
+  if(!_tGuardarAut) return;
+  clearTimeout(_tGuardarAut); _tGuardarAut=0;
+  if(Q.estado==='autorizada'&&!Q.editMode) guardarEnHistorial();
+}
+window.addEventListener('pagehide',guardarAutorizadaYa);
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') guardarAutorizadaYa(); });
 function loadState(){
   try{
     const s=localStorage.getItem('al3d_q');
@@ -1533,6 +1592,12 @@ function loadState(){
        más abajo: Q quedaba ya contaminado con la basura y la app arrancaba a medias, con
        loadState devolviendo false como si no hubiera encontrado nada. */
     if(!saved||typeof saved!=='object'||!Array.isArray(saved.items)) return false;
+    /* Y las partidas se normalizan ANTES de asignar: ver normalizarItems() en nucleo.js. */
+    saved.items=normalizarItems(saved.items);
+    /* Un estado que la app no conoce —un respaldo de otra versión, o editado a mano— dejaba la
+       insignia diciendo «undefined» y ningún botón del proceso que tocar. Se lee como borrador,
+       que es lo único que se puede seguir trabajando sin prometer nada. */
+    if(!['borrador','pendiente','autorizada','rechazada'].includes(saved.estado)) saved.estado='borrador';
     Object.assign(Q,saved);
     /* Una cotización guardada por una versión anterior no trae la bandera, y la que llega
        con partidas evidentemente ya se estrenó: se deduce de lo que hay en vez de confiar
@@ -1599,6 +1664,12 @@ function firmaDeCotizacion(o){
     (o.cliente||'').trim(), (o.tel||'').trim(), (o.proy||'').trim(),
     o.iva!==false, Number(o.precioAuth)||0,
     (o.items||[]).map(it=>_CAMPOS_PRECIO.map(k=>it[k]===undefined?'':String(it[k])).join('~')),
+    /* Y lo que se sigue pactando DESPUÉS de autorizar, que no mueve el total pero sí sale en el
+       PDF y en el WhatsApp. Faltaba: con el anticipo o la fecha límite cambiados en pantalla, la
+       firma decía «el historial tiene esto igualito», al abrir la app se empezaba en blanco y
+       reabrir el folio devolvía el anticipo y la fecha de antes. */
+    Number(o.anti)||0, (o.entrega||'').trim(), (o.entrecalles||'').trim(), (o.notaCliente||'').trim(),
+    (o.plazoK>=1&&o.plazoK<=5)?o.plazoK:null,
   ]);
 }
 /* ¿Lo que hay en pantalla está guardado en otro sitio, tal cual? Solo entonces se puede

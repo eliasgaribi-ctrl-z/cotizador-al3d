@@ -15,8 +15,9 @@ import * as DB from './datos/db.js';
 import * as Prefs from './datos/prefs.js';
 import * as Cot from './datos/cotizador.js';
 import * as Sync from './datos/sync.js';
-import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, cerrarCapa, ajustarAltoBarra, esqueletoModulo }
+import { $, ico, esc, toast, voz, vigilarCapas, registrarCapa, hayCapaAbierta, cerrarCapa, ajustarAltoBarra, esqueletoModulo }
   from './nucleo/ui.js';
+import { planDeMontaje, TOPE_CONSERVADAS } from './nucleo/conservar.js';
 
 /* ----- Los módulos -----
    `rutas` es la única lista: de aquí sale la barra, el router y qué ve cada rol. Añadir un
@@ -61,19 +62,27 @@ const RUTAS = [
   { ruta: 'agenda',    mod: 'fabricacion', seccion: 'mod-fabricacion', icono: 'i-agenda',    nombre: 'Calendario',  sub: 'taller e instalaciones',               movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'proyectos', mod: 'proyectos',   seccion: 'mod-proyectos',   icono: 'i-proyectos', nombre: 'Proyectos',   sub: 'por etapa de obra',                    movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
   { ruta: 'material',  mod: 'material',    seccion: 'mod-material',    icono: 'i-material',  nombre: 'Material',    sub: 'lista de compra y almacén',                         roles: ['direccion', 'fabricacion'] },
-  { ruta: 'cotizador', mod: 'cotizador',   seccion: 'mod-cotizador',   icono: 'i-venta',     nombre: 'Cotizador',   sub: 'capturar y autorizar una cotización',  movil: true, roles: ['direccion', 'fabricacion', 'pagos'] },
+  /* `conservar` — ver js/nucleo/conservar.js. Esta pantalla NO es DOM que se repinta: es un
+     documento entero dentro de un <iframe>. Vaciarle la sección al salir y volver a escribir
+     el marco al entrar costaba 795 KB de guiones reinterpretados por visita. Con la marca, el
+     router la esconde en vez de tirarla y al volver solo la enseña. */
+  { ruta: 'cotizador', mod: 'cotizador',   seccion: 'mod-cotizador',   icono: 'i-venta',     nombre: 'Cotizador',   sub: 'capturar y autorizar una cotización',  movil: true, roles: ['direccion', 'fabricacion', 'pagos'], conservar: true },
   { ruta: 'mapa',      mod: 'mapa',        seccion: 'mod-mapa',        icono: 'i-mapa',      nombre: 'Mapa',        sub: 'obras por instalar e instaladas',      movil: true, roles: ['direccion', 'fabricacion'] },
   /* La mesa de corte. Vivía como pestaña del Tablero —«Carga del taller» / «Mesa de corte»— y
      ahí no la encontraba nadie: es una herramienta de uso diario del taller escondida detrás
      de un segmento de otra pantalla. Sale a la barra, y con los dos roles que la usan. La
-     pestaña del Tablero sigue existiendo para no romper `#/hoy/anidador`, que es a donde
-     apuntan el vectorizador del cotizador y la orden de obra. */
-  { ruta: 'anidador',  mod: 'herramientas', seccion: 'mod-anidador',   icono: 'i-anidar',    nombre: 'Mesa de corte', sub: 'acomodar las piezas en la lámina',                roles: ['direccion', 'fabricacion'] },
+     pestaña del Tablero sigue existiendo porque es a donde llegan con un pase
+     (`ctx.pasar('hoy', {vista:'anidador'})`) el «Acomodar en hoja» del vectorizador del
+     Cotizador empotrado (js/mod/cotizador.js) y el «Acomodar en la lámina» del Calendario,
+     que trae el proyecto puesto. NO es por `#/hoy/anidador`: eso no es una ruta
+     —`rutaDelHash()` exige un solo segmento, lo reescribe a `#/hoy` y abre la carga— y nada
+     apunta ahí. */
+  { ruta: 'anidador',  mod: 'herramientas', seccion: 'mod-anidador',   icono: 'i-anidar',    nombre: 'Mesa de corte', sub: 'acomodar las piezas en la lámina',                roles: ['direccion', 'fabricacion'], conservar: true },
   /* El vectorizador, por la misma razón: convertir un logotipo en trazo de corte se hace con
      el archivo en la mano, y estaba detrás del botón «Vectorizar» de una partida. Para usarlo
      había que abrir una cotización que nadie iba a mandar. El botón del cotizador se queda
      donde está: son dos puertas al mismo documento, no dos implementaciones. */
-  { ruta: 'vectorizar', mod: 'herramientas', seccion: 'mod-vectorizar', icono: 'i-vector',   nombre: 'Vectorizador',  sub: 'del logotipo al trazo de corte',                  roles: ['direccion', 'fabricacion'] },
+  { ruta: 'vectorizar', mod: 'herramientas', seccion: 'mod-vectorizar', icono: 'i-vector',   nombre: 'Vectorizador',  sub: 'del logotipo al trazo de corte',                  roles: ['direccion', 'fabricacion'], conservar: true },
   /* La pantalla del dinero: ventas por mes, cartera y bitácora. Fabricación no la tiene —es
      el rol que no ve importes— y en el teléfono no entra a la barra de abajo por lo mismo que
      Material: se llega desde el Tablero. */
@@ -90,6 +99,12 @@ const rutaPorNombre = n => RUTAS.find(r => r.ruta === n) || null;
    en el diff quién empezó a depender de qué. */
 const ctx = {
   ir,                       // navegar a otro módulo
+  /* Si el rol de ahora tiene esa ruta. Para no pintar un botón a una pantalla que el rol no
+     tiene: el router lo rebota al Tablero y el toque deja una entrada de historial de más, así
+     que el atrás siguiente tampoco hace nada. Lo preguntan el Tablero («Ver la ruta en el
+     mapa», que pagos no tiene) y el asistente («Ver la lista de compra»). Sale de RUTAS, que
+     es la única lista. */
+  tieneRuta: ruta => { const r = rutaPorNombre(ruta); return !!r && r.roles.includes(Prefs.rol()); },
   refrescar: () => montar(_actual, { forzar: true }),
   cuentas: pintarCuentasNav, // un módulo puede pedir que se repinten las cuentas de la barra
   banda: pintarBanda,
@@ -119,7 +134,19 @@ const ctx = {
 };
 
 let _actual = null;      // nombre de ruta
-let _vivo = null;        // el módulo montado, para desmontarlo
+
+/* ----- Lo que está montado -----
+   Era `_vivo`, una sola ranura: el módulo en pantalla, para desmontarlo al salir. Dejó de
+   bastar cuando las tres pantallas de marco —Cotizador, Mesa de corte y Vectorizador—
+   pasaron a sobrevivir al cambio de pantalla: puede haber una montada y oculta MIENTRAS otra
+   cosa está en pantalla, y las dos necesitan que alguien las desmonte algún día.
+
+   El orden del Map importa y es parte del contrato de `planDeMontaje`: de la más vieja a la
+   más reciente. Por eso al montar o al volver a enseñar una ruta se borra y se vuelve a
+   poner, que en un Map es moverla al final. Lo que se poda es lo primero de la fila.
+
+   `_vivas.get(_actual)` es el antiguo `_vivo`. */
+const _vivas = new Map();
 
 /* ----- El buzón de un solo uso -----
    Lo que un módulo le deja al siguiente: «abre la ficha de ESTE proyecto», «abre la hoja de
@@ -191,11 +218,16 @@ export function ir(ruta) {
 
    Lo que se rompe no son oyentes duplicados: los cuatro manejadores de cada módulo son
    funciones de nivel de módulo, así que `addEventListener` con la misma referencia es un
-   no-op y no se acumulan. Lo que se rompe es `_vivo`. El prefijo síncrono de `montar` lo
-   pone en null antes del primer `await`, así que el segundo toque entra y NO desmonta a
-   nadie; después gana la asignación del montaje que acabe último. El resultado reproducible
-   es `_vivo` apuntando a un módulo que no está en pantalla, y el otro montado para siempre
-   sin nadie que lo desmonte.
+   no-op y no se acumulan. Lo que se rompe es el registro de lo que está montado. Cuando era
+   una sola ranura —`_vivo`— el prefijo síncrono de `montar` la ponía en null antes del
+   primer `await`, así que el segundo toque entraba y NO desmontaba a nadie; después ganaba
+   la asignación del montaje que acabara último, y quedaba la ranura apuntando a un módulo
+   que no está en pantalla y el otro montado para siempre sin nadie que lo desmonte.
+
+   Hoy el registro es `_vivas`, que guarda una entrada por ruta, así que el segundo montaje ya
+   no puede pisar la anotación del primero. La fila sigue haciendo falta igual: dos montajes
+   solapados sobre la MISMA ruta harían dos `cont.innerHTML = ''` y dos `mod.montar` sobre el
+   mismo contenedor, y el que acabara antes dejaría su mitad debajo de la del otro.
 
    Y eso tiene una cara concreta: `agenda.desmontar()` es lo único que limpia `#pf-mbar`, y
    su propio comentario dice para qué —«el botón de agendar se quedaría flotando encima de
@@ -326,6 +358,24 @@ function montar(ruta, opts = {}) {
    implementa a propósito y se dice aquí. */
 const _scrollPorRuta = new Map();
 
+/* ----- Soltar una ruta montada -----
+   Desmontar su módulo y olvidarla. `vaciar` es aparte y no siempre: el router NUNCA vació la
+   sección que se abandona —la vacía su próximo montaje— y eso se queda igual para las
+   normales. Se vacía cuando nadie va a montar encima, que es el caso de una conservada
+   podada: mientras el `<iframe>` siga en el árbol, su documento sigue en la memoria del
+   teléfono, y podarla sin vaciarla no libera absolutamente nada. */
+function soltar(ruta, vaciar) {
+  const mod = _vivas.get(ruta);
+  _vivas.delete(ruta);
+  if (mod && typeof mod.desmontar === 'function') {
+    try { mod.desmontar(); } catch (e) { console.warn('desmontar falló', e); }
+  }
+  if (!vaciar) return;
+  const r = rutaPorNombre(ruta);
+  const s = r && $(r.seccion);
+  if (s) s.innerHTML = '';
+}
+
 async function montarDeVerdad(ruta, opts = {}) {
   const r = rutaPorNombre(ruta);
   if (!r) return;
@@ -333,16 +383,40 @@ async function montarDeVerdad(ruta, opts = {}) {
   if (_actual) _scrollPorRuta.set(_actual, window.scrollY);
   /* En el prefijo síncrono, antes del primer await: la guarda es de quien está montado, y
      el que se va ya no manda. Si se apagara en `desmontar()` y un módulo reventara a mitad,
-     se quedaría pegada para siempre. */
+     se quedaría pegada para siempre. Una pantalla conservada que se vuelve a enseñar tiene
+     que volver a pedirla en su `mostrar()`, y lo hace. */
   _sinRemonte = false;
+
+  /* El plan: qué se desmonta, qué se esconde y si lo que hay en la sección del destino
+     sirve. Es aritmética sobre nombres de ruta y vive aparte, en js/nucleo/conservar.js, para
+     poder probarla en node sin navegador. Aquí solo se ejecuta. */
+  const plan = planDeMontaje({
+    actual: _actual,
+    destino: ruta,
+    vivas: [..._vivas.keys()],
+    forzar: !!opts.forzar,
+    tope: TOPE_CONSERVADAS,
+    conservar: n => !!(rutaPorNombre(n) || {}).conservar,
+    permitida: n => rutasDeRol().some(x => x.ruta === n),
+  });
 
   /* Desmontar antes de montar. Los módulos que se cuelgan de algo global —el mapa se
      suscribe a resize, la agenda a un temporizador— tienen que soltarlo o se acumulan: seis
      idas y venidas al mapa son seis oyentes de resize repintando seis mapas muertos. */
-  if (_vivo && typeof _vivo.desmontar === 'function') {
-    try { _vivo.desmontar(); } catch (e) { console.warn('desmontar falló', e); }
+  const aVaciar = new Set(plan.vaciar);
+  for (const x of plan.soltar) soltar(x, aVaciar.has(x));
+
+  /* Y la que se conserva: se le avisa que deja de verse, no se desmonta. `ocultar()` tiene
+     que soltar todo lo que su `desmontar()` suelta del DOCUMENTO —la clase
+     `pf-marco-lleno` del body, la barra fija del teléfono, los oyentes de `resize` que miden
+     geometría— y quedarse solo con lo suyo. Lo de dentro del <iframe> sigue vivo; lo que
+     escribe fuera de su sección, no. */
+  if (plan.ocultar) {
+    const mod = _vivas.get(plan.ocultar);
+    if (mod && typeof mod.ocultar === 'function') {
+      try { mod.ocultar(); } catch (e) { console.warn('ocultar falló', e); }
+    }
   }
-  _vivo = null;
 
   /* Las acciones del encabezado son del módulo que se va: se vacían ANTES de montar el
      siguiente. Sin esto, «COT-0152 · Clientes · Historial» se quedaba puesto encima del
@@ -364,6 +438,21 @@ async function montarDeVerdad(ruta, opts = {}) {
 
   const cont = $(r.seccion);
   if (!cont) return;
+
+  /* ----- La que ya estaba montada: se enseña, no se rehace -----
+     Ni esqueleto ni barra de progreso: no hay nada que esperar, así que enseñarlos sería
+     pintar una espera que no existe. `mostrar()` puede tardar si el módulo decide que lo que
+     guardaba ya no sirve y se rehace por dentro —el Cotizador lo hace cuando su marco se
+     cambió por la tarjeta de «no se pudo abrir»—, así que se espera. */
+  if (plan.reutilizar) {
+    const mod = _vivas.get(ruta);
+    _vivas.delete(ruta); _vivas.set(ruta, mod);   // la más reciente, al final de la fila
+    try { if (typeof mod.mostrar === 'function') await mod.mostrar(); }
+    catch (e) { console.warn('mostrar falló', e); }
+    rematar(r, ruta, opts);
+    return;
+  }
+
   /* La sección se vacía y el esqueleto va DELANTE de ella, no dentro: el módulo tiene que
      recibir el contenedor vacío que siempre recibió. Ver «Lo que se ve mientras carga». */
   cont.innerHTML = '';
@@ -391,11 +480,12 @@ async function montarDeVerdad(ruta, opts = {}) {
   try {
     cont.innerHTML = '';
     /* ANTES de montar, no después. Si `mod.montar` revienta a mitad, el módulo ya dejó
-       oyentes puestos y su barra escrita; con la asignación después, `_vivo` se quedaba en
-       null y ese módulo no se desmontaba nunca. Los seis toleran que les llamen a
-       `desmontar()` sin haber terminado de montar: los tres que guardan oyentes iteran una
-       lista que puede estar vacía y los demás hacen `$(id)` con guarda. */
-    _vivo = mod;
+       oyentes puestos y su barra escrita; con la anotación después, la ranura se quedaba
+       vacía y ese módulo no se desmontaba nunca. Los diez módulos de js/mod/ tienen que
+       tolerar que les llamen a `desmontar()` sin haber terminado de montar: los que guardan
+       oyentes en una lista la iteran aunque esté vacía, y los demás hacen `$(id)` con guarda
+       o sueltan lo que esté puesto sin suponer que se llegó a poner. */
+    _vivas.delete(ruta); _vivas.set(ruta, mod);
     await mod.montar(cont, ctx);
   } catch (e) {
     console.error('el módulo ' + r.mod + ' falló al montar', e);
@@ -404,7 +494,17 @@ async function montarDeVerdad(ruta, opts = {}) {
       '<p class="vacio-d">' + esc(e && e.message ? e.message : 'Error desconocido') + '</p></div>';
   }
   listo();
+  rematar(r, ruta, opts);
+}
 
+/* Lo que se hace igual tanto si la pantalla se acaba de montar como si solo se volvió a
+   enseñar. Está aparte para que no haya dos copias que se separen: el día que una de estas
+   cinco líneas cambie, cambia para los dos caminos. */
+function rematar(r, ruta, opts) {
+  /* Idempotente: en el camino de montaje ya lo llamó `listo()`. Se repite aquí porque el de
+     reutilizar no pasa por `listo()`, y dejar el esqueleto de arranque puesto es dejar la app
+     tapada para siempre. */
+  quitarArranque();
   /* El foco al contenido y no al principio del documento: cambiar de módulo con teclado
      dejaba al usuario recorriendo otra vez las seis pestañas. */
   const main = $('pf-contenido');
@@ -478,6 +578,36 @@ function pintarCuentasNav() {
   }
 }
 ctx.ponerCuenta = ponerCuenta;
+
+/* ----- Los globos, sin tener que entrar a cada pantalla -----
+   Cada módulo publicaba su cuenta al montarse, así que los pendientes de Proyectos o del
+   Mapa no aparecían en la barra hasta que alguien entraba ahí. Ahora cada uno sabe contar
+   sin pintar (`contar()`), y aquí se les pregunta a todos los de este rol: al arrancar,
+   después de cada sincronización que trajo algo y al cambiar de pantalla. La pantalla que
+   está montada contesta null y se queda con la cuenta que publicó ella. Uno a la vez y
+   después de pintar: son lecturas locales, pero no tienen por qué competir con la pantalla
+   que la persona está mirando. */
+const MODS_CON_CUENTA = ['tablero', 'fabricacion', 'proyectos', 'material', 'mapa'];
+let _contando = null, _contarOtraVez = false;
+function contarTodo() {
+  if (_contando) { _contarOtraVez = true; return _contando; }
+  _contando = (async () => {
+    do {
+      _contarOtraVez = false;
+      for (const r of rutasDeRol()) {
+        if (r.oculto || !MODS_CON_CUENTA.includes(r.mod)) continue;
+        try {
+          const m = await import('./mod/' + r.mod + '.js');
+          if (typeof m.contar !== 'function') continue;
+          const c = await m.contar();
+          if (c) for (const [ruta, n] of Object.entries(c)) ponerCuenta(ruta, n);
+        } catch (e) { console.warn('no se pudo contar ' + r.mod, e); }
+      }
+    } while (_contarOtraVez);
+  })().finally(() => { _contando = null; });
+  return _contando;
+}
+ctx.contarTodo = contarTodo;
 
 function pintarRolSeg() {
   const seg = $('pf-rolseg'); if (!seg) return;
@@ -559,19 +689,10 @@ function revisarDispositivo() {
     return;
   }
 
-  const d = Prefs.diasSinRespaldo();
-  /* Safari desaloja el almacenamiento de sitios que llevan semanas sin abrirse, y iOS es
-     donde esto se usa. Un respaldo es la única defensa, y el aviso es lo único que hace que
-     alguien se acuerde de bajarlo. */
-  if (d === null) {
-    pintarBanda({ texto: 'Nunca has respaldado la plataforma. Si el navegador limpia este sitio, se va todo lo del almacén y la agenda.',
-      accion: { label: 'Respaldar', fn: respaldar } });
-  } else if (d >= 9) {
-    pintarBanda({ html: 'Van <b>' + d + ' días</b> sin respaldo de la plataforma.',
-      accion: { label: 'Respaldar', fn: respaldar } });
-  } else {
-    pintarBanda(null);
-  }
+  /* Aquí iba el recordatorio de respaldo («Nunca has respaldado…», «Van N días…»), en cada
+     pantalla. Se quitó por decisión de Dirección (septiembre de 2026): ocupaba el lugar más
+     visible de la app con algo que no se usa. Respaldar sigue en Ajustes. */
+  pintarBanda(null);
 }
 
 /* El respaldo baja COMPLETO: la plataforma y el cotizador en un solo archivo. Antes eran dos
@@ -655,9 +776,21 @@ async function arrancar() {
       if (_bandaLista) revisarDispositivo();
     });
   } catch (e) {
+    /* Sin puerta no se entra. Hubo un tiempo en que aquí se entraba igual, para no dejar la
+       app muerta por un archivo que no bajó; Dirección decidió que la plataforma solo se ve
+       con cuenta de Google, y eso incluye este caso. Se avisa y se ofrece recargar. */
     console.error('no se pudo cargar la puerta', e);
-    _quien = { ok: true, via: 'roto', correo: '', rol: Prefs.rol(),
-      nota: 'Esta copia de la plataforma no pudo comprobar tu cuenta de Google. Recárgala cuando tengas señal.' };
+    const arr = $('pf-arranque'); if (arr) arr.hidden = true;
+    for (const hijo of Array.from(document.body.children)) hijo.setAttribute('inert', '');
+    const d = document.createElement('div');
+    d.setAttribute('role', 'alert');
+    d.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;' +
+      'justify-content:center;padding:24px;text-align:center;background:#0b1020;color:#fff;font:16px/1.5 system-ui,sans-serif';
+    d.innerHTML = '<div><p>No se pudo cargar la pantalla para entrar con Google, así que la plataforma no se abre.</p>' +
+      '<p><button type="button" style="font:inherit;padding:10px 18px;border-radius:8px;border:0;cursor:pointer">Recargar</button></p></div>';
+    d.querySelector('button').onclick = () => location.reload();
+    document.body.appendChild(d);
+    return;
   }
 
   /* Si a los ocho segundos el esqueleto del arranque sigue en pantalla, algo de lo de abajo
@@ -670,6 +803,7 @@ async function arrancar() {
   _lentoArranque = setTimeout(() => avisarLento($('pf-arranque'), null), MS_LENTO_ARRANQUE);
   pintarRolSeg();
   pintarNav();
+  import('./nucleo/cuenta.js').then(m => m.montar(_quien)).catch(() => {});
   vigilarCapas();
   registrarCapa('pf-ficha', () => cerrarCapa('pf-ficha'));
   registrarCapa('pf-hoja',  () => cerrarCapa('pf-hoja'));
@@ -691,8 +825,12 @@ async function arrancar() {
       const b = ev.target.closest('[data-ruta]'); if (b) ir(b.dataset.ruta);
     });
   }
-  const aj = $('pf-ajustes-btn');
-  if (aj) aj.onclick = () => ir('ajustes');
+  /* Dos puertas a Ajustes: la del pie de la barra lateral y la del encabezado del teléfono,
+     donde la barra lateral no existe. */
+  for (const id of ['pf-ajustes-btn', 'pf-cab-ajustes']) {
+    const aj = $(id);
+    if (aj) aj.onclick = () => ir('ajustes');
+  }
   const ins = $('pf-instalar');
   if (ins) { ins.onclick = instalarApp; pintarInstalar(); }
 
@@ -778,6 +916,8 @@ async function arrancar() {
      por algo que ni siquiera hace falta para trabajar. */
   await enchufarPuente();
   sincronizarCallado();
+  contarTodo();
+  window.addEventListener('hashchange', () => setTimeout(contarTodo, 800));
 
   /* El asistente: solo cuelga el oyente del botón; el panel se pinta al abrir. Si el módulo
      no carga —service worker a medias— el botón no hace nada y la plataforma sigue igual. */
@@ -787,6 +927,36 @@ async function arrancar() {
      le faltaba a la bandeja: guardar sin señal ya funcionaba desde fase 1, y lo que no
      existía era el momento en que eso sale solo. */
   window.addEventListener('online', () => sincronizarCallado());
+
+  /* ----- Traer lo nuevo sin cerrar ni abrir -----
+     Lo que otro teléfono o la hoja cambian llega solo: cada 30 segundos mientras la app está
+     a la vista, y en cuanto vuelves a ella desde otra pestaña o app. Con la app en segundo
+     plano no se pregunta nada, que es batería y cupo del Apps Script gastados en una pantalla
+     que nadie mira. 30 s son dos peticiones por minuto; el cupo del puente es de 60. */
+  setInterval(() => {
+    if (document.visibilityState === 'visible') sincronizarCallado();
+  }, MS_SINCRONIZAR);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') sincronizarCallado();
+  });
+
+  /* ----- El permiso de Google, renovado con tu siguiente clic -----
+     Google da el permiso por una hora, y renovarlo abre un instante su ventana. El navegador
+     solo deja abrir ventanas cuando la persona acaba de tocar algo, así que un temporizador
+     no puede hacerlo: se hace en el primer clic después de que caducó. Con la cuenta ya
+     escogida la ventana se abre y se cierra sola. Sin esto, pasada la hora la app dejaba de
+     sincronizar hasta la siguiente vez que alguien entraba. */
+  document.addEventListener('click', async () => {
+    /* Con la pantalla de entrar puesta, el clic es suyo: dos peticiones a Google a la vez se
+       pisan la ventana. */
+    if (document.documentElement.classList.contains('con-puerta')) return;
+    try {
+      const Ingreso = await import('./nucleo/ingreso.js');
+      if (!Ingreso.configurado() || !Ingreso.correo() || Ingreso.dentro()) return;
+      const r = await Ingreso.renovar();
+      if (r && r.ok) sincronizarCallado();
+    } catch (_) {}
+  }, true);
 
   /* El resize dispara decenas de veces mientras se gira el teléfono o se abre el teclado, y
      `ajustarAltoBarra` lee geometría: leer y escribir el layout en cada evento es el camino
@@ -826,17 +996,34 @@ ctx.enchufarPuente = enchufarPuente;
  * SOLO si algo cambió: repintar por costumbre tira el scroll y el filtro que la persona
  * acababa de poner.
  */
-async function sincronizarCallado() {
+const MS_SINCRONIZAR = 30000;
+let _sincronizando = null;
+let _repintarDebe = false;
+
+function sincronizarCallado() {
+  /* Una a la vez: el reloj de 30 s, volver a la pestaña y recuperar señal caen juntos más
+     seguido de lo que parece. Quien llega segundo espera la misma. */
+  if (_sincronizando) return _sincronizando;
+  _sincronizando = sincronizarDeVerdad().finally(() => { _sincronizando = null; });
+  return _sincronizando;
+}
+
+/* Repintar tira lo que la persona está escribiendo o el panel que tiene abierto. Ahora que
+   esto corre cada 30 segundos, se repinta solo cuando no estorba; si estorba, se apunta y se
+   hace en la siguiente vuelta en la que ya no. */
+function puedeRepintar() {
+  if (_sinRemonte || hayCapaAbierta()) return false;
+  const a = document.activeElement;
+  return !(a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)));
+}
+
+async function sincronizarDeVerdad() {
   if (!Sync.configurado()) return;
-  /* Primero la identidad, y CALLADA. El token de Google vive solo en memoria —ver
-     js/nucleo/ingreso.js— así que en cada arranque hay que volver a pedirlo, y la renovación
-     sin pantalla funciona mientras la sesión de Google de este navegador siga viva. Si falla
-     no se dice nada y no se para: la petición sale igual con el token de dispositivo, que es
-     justo para lo que se quedó. */
-  try {
-    const Ingreso = await import('./nucleo/ingreso.js');
-    if (Ingreso.configurado() && Ingreso.correo() && !Ingreso.dentro()) await Ingreso.renovar();
-  } catch (_) {}
+  if (navigator.onLine === false) return;
+  /* La identidad NO se renueva aquí. Renovarla abre la ventana de Google, y esto corre solo,
+     sin clic: el navegador la bloquearía cada 30 segundos. Se renueva en el siguiente clic
+     —ver el oyente de `click` en el arranque— y mientras tanto la petición sale con el token
+     de dispositivo si lo hay. */
   let movio = 0;
   try { const r = await Sync.bombear(); if (r.ok) movio += Number(r.valor.subidas) || 0; } catch (_) {}
   /* Página por página mientras el Worker diga que hay más, con tope: las 199 filas anteriores
@@ -850,40 +1037,58 @@ async function sincronizarCallado() {
       if (!r.valor.hay_mas) break;
     }
   } catch (_) {}
-  if (movio && _actual) montar(_actual, { forzar: true });
+  if (movio) { _repintarDebe = true; contarTodo(); }
+  if (_repintarDebe && _actual && puedeRepintar()) {
+    _repintarDebe = false;
+    montar(_actual, { forzar: true });
+  }
 }
 ctx.sincronizar = sincronizarCallado;
 
-/* El service worker guarda una copia de la app para que abra sin señal. Va al final del
-   arranque y en su propio try: si el navegador no lo soporta —o el sitio se abrió como
-   file:// para probarlo— no puede estorbar a nada de lo de arriba. */
+/* El service worker guarda una copia de la app para que abra sin señal. Se registra al
+   PRINCIPIO del arranque, antes de la puerta —el porqué está escrito en `arrancar()`—, y en su
+   propio try: si el navegador no lo soporta —o el sitio se abrió como file:// para probarlo—
+   no puede estorbar a nada de lo que sigue. */
 function registrarSW() {
   if (!('serviceWorker' in navigator)) return;
   if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
-  try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (_) {}
-  avisarVersionNueva();
-}
-
-/* ----- «Hay una versión nueva» -----
-   sw.js se promueve solo —skipWaiting en install, clients.claim en activate—, y eso está bien:
-   un teléfono nunca se queda con media app de una versión y media de otra. Pero la página que
-   ya estaba abierta sigue siendo la vieja hasta que se recarga, y nada lo decía: se publicaba
-   un arreglo y quien tenía la app abierta seguía con el defecto sin saberlo.
-
-   `controllerchange` es justo ese momento: el service worker nuevo tomó esta pestaña. La
-   primera vez que la app se instala también dispara —pasa de no tener controlador a tenerlo—,
-   y ahí no hay nada nuevo que anunciar: por eso se mira si ya había uno al arrancar.
-
-   Recargar es decisión de quien usa la app, nunca de la app: a media cotización, una recarga
-   sola sería un susto aunque no se pierda nada (el cotizador guarda en cada tecla). */
-function avisarVersionNueva() {
-  const yaHabia = !!navigator.serviceWorker.controller;
-  let avisado = false;
+  /* ----- La versión nueva se pone sola -----
+     El service worker nuevo se instala por detrás y toma el control (skipWaiting + claim),
+     pero la página que ya estaba abierta sigue corriendo el código viejo hasta que alguien
+     recarga. En la práctica eso era «subí los cambios y sigo viendo lo de antes». Así que
+     cuando el control cambia de manos se recarga UNA vez. Solo si ya había un service worker
+     antes: en la primera instalación también cambia el control, y ahí no hay nada viejo. */
+  const habia = !!navigator.serviceWorker.controller;
+  let recargado = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!yaHabia || avisado) return;
-    avisado = true;
-    toast('Hay una versión nueva de la app', '', 15000, { label: 'Actualizar', fn: () => location.reload() });
+    if (!habia || recargado) return;
+    const recargar = () => { if (recargado) return; recargado = true; location.reload(); };
+    /* Si alguien está escribiendo, no se le tira. Pero tampoco se olvida: aquí decía «entra en
+       la siguiente apertura», y mientras tanto el worker nuevo ya controla la página y la
+       siguiente pestaña que se abre importa su módulo de la caché NUEVA contra los viejos que
+       siguen en memoria — la mezcla de versiones que la cabecera de sw.js existe para evitar.
+       Se recarga en la siguiente navegación: cambiar de pantalla desmonta lo que se estaba
+       escribiendo de todos modos. */
+    const a = document.activeElement;
+    if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) {
+      window.addEventListener('hashchange', recargar, { once: true });
+      return;
+    }
+    recargar();
   });
+  try {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      /* Y se pregunta por una versión nueva cada vez que se vuelve a la app, no solo al
+         abrirla: con la app abierta todo el día en el taller, «al abrirla» era nunca. Una
+         vez cada diez minutos como mucho. */
+      let ultima = Date.now();
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible' || Date.now() - ultima < 600000) return;
+        ultima = Date.now();
+        reg.update().catch(() => {});
+      });
+    }).catch(() => {});
+  } catch (_) {}
 }
 
 /* ----- Instalar la app -----
@@ -917,7 +1122,8 @@ async function instalarApp() {
    scripts, y con la petición de las fuentes de Google colgada el módulo no se evaluaba y la
    plataforma se quedaba en blanco, sin un solo error en la consola.
 
-   Eso ya se arregló donde tocaba —en plataforma.html las fuentes se cargan sin bloquear—,
+   Eso ya se arregló donde tocaba —en index.html, que es donde vive la plataforma desde que
+   plataforma.html solo reenvía, las fuentes se cargan sin bloquear—,
    pero la lección se queda escrita en código: arrancar no depende de UNA señal. Se intenta
    en la que llegue primero y `_arranco` garantiza que solo pase una vez. */
 let _arranco = false;

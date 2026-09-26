@@ -67,5 +67,328 @@ eq('exige que el historial sea un arreglo', html.includes("!Array.isArray(JSON.p
 eq('ofrece la restauración que deja la plataforma al arrancar', /ofrecerRestauracionPendiente\(\);\s*\n\}/.test(html), true);
 eq('y la lee de la clave que la plataforma escribe', html.includes("const RESTAURAR_PF_KEY='al3d_pf_restaurar'"), true);
 
+/* ---------------------------------------------------------------------------
+   LA BASE QUE RECIBE EL RESPALDO — js/datos/db.js contra una IndexedDB de mentira.
+
+   Node no trae IndexedDB, así que se arma una de juguete con lo único que estas
+   comprobaciones necesitan, y con el comportamiento que costó: en Chrome la cuota llena
+   llega como un `abort` de la transacción DESPUÉS de que el `put` ya dijo `onsuccess`
+   (pruebas hechas con Storage.overrideQuotaForOrigin). La transacción de aquí escribe sobre
+   una copia y solo la vuelve verdad al cerrar; si al cerrar no cabe, la tira y aborta.
+
+   Y dos reglas de la especificación que la primera versión no tenía, y sin las que esta
+   prueba veía fallos que un navegador no tiene nunca:
+     · una transacción de solo lectura NO devuelve nada al cerrar. Devolvía su copia, y una
+       lectura que terminaba tarde deshacía lo que otra transacción acababa de guardar o de
+       borrar;
+     · las que tocan el mismo almacén van EN FILA, en el orden en que se crearon: una de
+       escritura espera a todas las anteriores que lo toquen, y una de lectura, a las de
+       escritura anteriores. Sin fila, dos `poner` a la vez partían de la misma copia y el
+       segundo se llevaba por delante al primero.
+   Por eso la copia se toma al ARRANCAR y no al crearse: es lo que hace que quien esperó en la
+   fila vea lo que dejó el de delante.
+
+   Y la tercera manera de fallar, la que no pasa por ningún evento: como en el navegador, `get`,
+   `put` y `delete` LANZAN en el acto con una clave que no es clave —null, undefined en el
+   keyPath, un objeto, NaN— (DataError), `put` lanza con lo que no se clona (DataCloneError), y
+   `abort()` existe y deshace. Sin eso, un db.js que dejaba escapar la excepción y escribía la
+   mitad de un respaldo salía en verde aquí: la de juguete lo aceptaba todo.
+   --------------------------------------------------------------------------- */
+function idbDeMentira() {
+  const almacenes = new Map();          // nombre → { keyPath, datos: Map }
+  const cuota = { bytes: Infinity };
+  /* El otro aborto después del `onsuccess`, el que la cuota no sabe fingir: un borrado encoge
+     la base y nunca se pasa del tope. Con `falla.proxima` puesto, la próxima transacción de
+     escritura que cierre aborta con ese error, con todas sus peticiones ya contestadas bien
+     —como cuando el disco no confirma—. Se gasta en esa y vuelve a null.
+     Y `falla.put` es una función del registro: el `put` para el que devuelva un error contesta
+     con ÉL en vez de con éxito —lo que en un navegador da un índice único repetido—. Como manda
+     la especificación, si nadie le hace preventDefault la transacción aborta; si alguien se lo
+     hace, sigue y confirma lo demás. Se queda puesta hasta que la prueba la quita. */
+  const falla = { proxima: null, put: null };
+  const vivas = [];                     // las que no han terminado, en el orden en que se crearon
+  const tam = () => { let n = 0; for (const a of almacenes.values()) for (const v of a.datos.values()) n += JSON.stringify(v).length; return n; };
+  const choca = (antes, t) => (antes._modo === 'readwrite' || t._modo === 'readwrite') &&
+    antes._nombres.some(n => t._nombres.includes(n));
+  const arrancarLasQuePuedan = () => vivas.forEach((t, i) => {
+    if (!t._copia && !t._fin && !vivas.slice(0, i).some(antes => choca(antes, t))) t._arrancar();
+  });
+  const lanzar = (nombre, msg) => { throw new DOMException(msg, nombre); };
+  /* Lo que la especificación acepta como clave: número que no sea NaN, texto, fecha válida,
+     binario, o una lista (sin ciclos) de esas. Todo lo demás —null, undefined, booleanos,
+     objetos— no. */
+  const esClave = (k, vistos = []) => {
+    if (typeof k === 'number') return !Number.isNaN(k);
+    if (typeof k === 'string') return true;
+    if (k instanceof Date) return !Number.isNaN(k.getTime());
+    if (k instanceof ArrayBuffer || ArrayBuffer.isView(k)) return true;
+    if (Array.isArray(k)) return !vistos.includes(k) && k.every(x => esClave(x, [...vistos, k]));
+    return false;
+  };
+  const clave = k => { if (!esClave(k)) lanzar('DataError', 'The parameter is not a valid key.'); return k; };
+  /* El evento de error de una petición: se puede cancelar, y cancelarlo es lo que decide si la
+     transacción sigue. */
+  const eventoDeError = p => ({ type: 'error', target: p, defaultPrevented: false,
+    preventDefault() { this.defaultPrevented = true; } });
+  class Peticion { constructor() { this.result = undefined; this.error = null; } }
+  class Transaccion extends EventTarget {
+    constructor(nombres, modo) {
+      super();
+      this.error = null; this._pend = 0; this._fin = false; this._modo = modo;
+      this._nombres = nombres; this._copia = null; this._cola = []; this._abortada = false;
+      vivas.push(this);
+      arrancarLasQuePuedan();
+    }
+    _arrancar() {
+      this._copia = new Map(this._nombres.map(n => [n, new Map(almacenes.get(n).datos)]));
+      for (const correr of this._cola.splice(0)) correr();
+      this._revisar();
+    }
+    _disparar(tipo) { const ev = new Event(tipo); this.dispatchEvent(ev); if (this['on' + tipo]) this['on' + tipo](ev); }
+    _revisar() { setTimeout(() => { if (this._copia && !this._pend && !this._fin) this._cerrar(); }, 0); }
+    _cerrar() {
+      this._fin = true;
+      let err = null;
+      if (this._modo === 'readwrite') {
+        const antes = new Map([...this._copia.keys()].map(n => [n, almacenes.get(n).datos]));
+        for (const [n, d] of this._copia) almacenes.get(n).datos = d;
+        err = falla.proxima || (tam() > cuota.bytes ? { name: 'QuotaExceededError', message: 'cuota' } : null);
+        falla.proxima = null;
+        if (err) for (const [n, d] of antes) almacenes.get(n).datos = d;
+      }
+      vivas.splice(vivas.indexOf(this), 1);
+      if (err) { this.error = err; this._disparar('abort'); }
+      else this._disparar('complete');
+      arrancarLasQuePuedan();
+    }
+    /* `abort()` a mano, y el aborto que deja una petición fallida sin preventDefault. La copia se
+       tira sin volverse verdad; lo que no había contestado contesta AbortError, y DESPUÉS sale el
+       `abort` de la transacción, en ese orden, como en el navegador. Un abort() de quien la
+       aborta a mano deja `error` en null; el otro, el error de la petición. */
+    abort() {
+      if (this._fin) lanzar('InvalidStateError', 'The transaction has finished.');
+      this._abortarCon(null);
+    }
+    _abortarCon(err) {
+      this._fin = true; this._abortada = true; this.error = err;
+      const cola = this._cola.splice(0);
+      setTimeout(() => {
+        for (const correr of cola) correr();
+        setTimeout(() => {
+          vivas.splice(vivas.indexOf(this), 1);
+          this._disparar('abort');
+          arrancarLasQuePuedan();
+        }, 0);
+      }, 0);
+    }
+    /* Una petición hecha mientras la transacción espera su turno se queda en la cola y corre al
+       arrancar, en el mismo orden: así lo hace el navegador, y `pedir()` de db.js no se entera. */
+    _pedir(hacer, errPeticion = null) {
+      const p = new Peticion();
+      this._pend++;
+      const correr = () => setTimeout(() => {
+        const err = this._abortada ? new DOMException('The transaction was aborted.', 'AbortError') : errPeticion;
+        if (err) {
+          p.error = err;
+          const ev = eventoDeError(p);
+          if (p.onerror) p.onerror(ev);
+          if (this.onerror) this.onerror(ev);          // burbujea a la transacción
+          if (!ev.defaultPrevented && !this._fin) this._abortarCon(err);
+        } else {
+          p.result = hacer();
+          if (p.onsuccess) p.onsuccess({ target: p });
+        }
+        this._pend--; this._revisar();
+      }, 0);
+      if (this._copia) correr(); else this._cola.push(correr);
+      return p;
+    }
+    /* Lo que el navegador revisa AL PEDIR, antes de encolar nada, y que por eso lanza en vez de
+       llegar por onerror: que la transacción siga viva, que se pueda escribir, que el valor se
+       clone y que la clave sea clave. El clon se toma ahí mismo, como en la especificación. */
+    _puedo(escribe) {
+      if (this._fin) lanzar('TransactionInactiveError', 'The transaction has finished.');
+      if (escribe && this._modo !== 'readwrite') lanzar('ReadOnlyError', 'The transaction is read-only.');
+    }
+    objectStore(n) {
+      const kp = almacenes.get(n).keyPath;
+      const d = () => this._copia.get(n);   // hasta que arranca no hay copia: se busca al correr
+      return {
+        get: k => { this._puedo(false); clave(k);
+          return this._pedir(() => d().has(k) ? structuredClone(d().get(k)) : undefined); },
+        put: v => {
+          this._puedo(true);
+          const copia = structuredClone(v);
+          const k = copia[kp];
+          if (!esClave(k)) lanzar('DataError', "Evaluating the object store's key path yielded a value that is not a valid key.");
+          const errPeticion = falla.put ? falla.put(copia) : null;
+          return this._pedir(() => { d().set(k, copia); return k; }, errPeticion);
+        },
+        delete: k => { this._puedo(true); clave(k); return this._pedir(() => { d().delete(k); }); },
+        clear: () => { this._puedo(true); return this._pedir(() => { d().clear(); }); },
+      };
+    }
+  }
+  const db = {
+    objectStoreNames: { contains: n => almacenes.has(n) },
+    createObjectStore(n, { keyPath }) {
+      almacenes.set(n, { keyPath, datos: new Map() });
+      const ind = new Set();
+      return { indexNames: { contains: i => ind.has(i) }, createIndex: i => ind.add(i) };
+    },
+    transaction: (nombres, modo) => new Transaccion([].concat(nombres), modo),
+  };
+  return {
+    cuota, falla,
+    /* db.js le pregunta a `cmp` si algo es clave antes de restaurar; lanza igual que el `put`.
+       El orden es el de la especificación para lo que aquí se compara: números, fechas, textos. */
+    cmp(a, b) {
+      clave(a); clave(b);
+      const rango = k => typeof k === 'number' ? 0 : k instanceof Date ? 1 : typeof k === 'string' ? 2 : Array.isArray(k) ? 4 : 3;
+      const x = rango(a) === 1 ? a.getTime() : a, y = rango(b) === 1 ? b.getTime() : b;
+      if (rango(a) !== rango(b)) return rango(a) < rango(b) ? -1 : 1;
+      return x < y ? -1 : x > y ? 1 : 0;
+    },
+    open() {
+      const p = new Peticion();
+      setTimeout(() => { p.result = db; if (p.onupgradeneeded) p.onupgradeneeded({ oldVersion: 0 }); p.onsuccess(); }, 0);
+      return p;
+    },
+  };
+}
+
+globalThis.window = globalThis;
+const IDB = idbDeMentira();
+globalThis.indexedDB = IDB;
+const DB = await import('../js/datos/db.js');
+eq('la base de mentira abre', await DB.abrir(), true);
+
+console.log('\nLO QUE `poner` DICE QUE GUARDÓ, LO GUARDÓ');
+/* El incidente: cuatro fotos de 900 KB, las cuatro con «ok», una sola escrita, y el
+   SIN_ESPACIO de la cabecera sin salir nunca. Aquí la cuota son 2,000 caracteres. */
+IDB.cuota.bytes = 2000;
+const chico = await DB.poner('blobs', { id: 'g1', texto: 'x'.repeat(500) });
+eq('lo que cabe se guarda y dice que sí', [chico.ok, !!(await DB.obtener('blobs', 'g1'))], [true, true]);
+const grande = await DB.poner('blobs', { id: 'g2', texto: 'x'.repeat(5000) });
+eq('lo que no cabe dice SIN_ESPACIO, aunque el put haya contestado bien', grande.ok ? 'ok' : grande.codigo, 'SIN_ESPACIO');
+eq('y de verdad no quedó escrito', await DB.obtener('blobs', 'g2'), null);
+IDB.cuota.bytes = Infinity;
+
+console.log('\nLO QUE LA BASE DESHIZO AL ABORTAR, NO SE DA POR HECHO');
+/* La petición contesta `onsuccess` y DESPUÉS la transacción aborta: el caso para el que existe
+   `confirmada()`. Aquí decía «borrar espera a la transacción y borra» con un borrado que
+   terminaba bien, y eso no lo probaba: con la fila de la especificación, un `borrar` que
+   contestara en el `onsuccess` del delete también «borra», porque la lectura de después espera
+   su turno y ya no ve el registro. Lo único que separa esperar de no esperar es el aborto. */
+const abortada = { name: 'UnknownError', message: 'el disco no confirmó' };
+const texto1 = 'x'.repeat(500);          // el g1 que dejó escrito «lo que cabe se guarda»
+IDB.falla.proxima = abortada;
+const noBorro = await DB.borrar('blobs', 'g1');
+eq('si aborta después del onsuccess, borrar dice que no', noBorro.ok ? 'ok' : noBorro.codigo, 'DESCONOCIDO');
+eq('y el registro sigue ahí, como estaba', (await DB.obtener('blobs', 'g1') || {}).texto, texto1);
+IDB.falla.proxima = abortada;
+const noVacio = await DB.vaciar('blobs');
+eq('vaciar, igual: dice que no y no vació', [noVacio.ok, !!(await DB.obtener('blobs', 'g1'))], [false, true]);
+IDB.falla.proxima = abortada;
+const noPuso = await DB.poner('blobs', { id: 'g1', texto: 'nuevo' });
+eq('y poner encima de uno que ya estaba dice que no y deja el viejo',
+  [noPuso.ok, (await DB.obtener('blobs', 'g1') || {}).texto], [false, texto1]);
+eq('borrar, cuando la transacción sí termina, dice que sí y borra',
+  [(await DB.borrar('blobs', 'g1')).ok, await DB.obtener('blobs', 'g1')], [true, null]);
+
+console.log('\nA LA VEZ, COMO EN UN NAVEGADOR');
+/* Estas dos vigilan a la de mentira, no a db.js: que haga la fila. Con la primera versión salían
+   mal las dos, y en cualquier navegador salen bien. Que la lectura no escriba al cerrar no se
+   ve desde aquí mientras haya fila —nadie escribe mientras una lectura está abierta—; sin fila
+   era lo que deshacía lo guardado, y se queda para que las dos cosas no dependan una de otra. */
+const [pa, pb] = await Promise.all([DB.poner('blobs', { id: 'a1' }), DB.poner('blobs', { id: 'b1' })]);
+eq('dos poner a la vez guardan los dos',
+  [pa.ok, pb.ok, !!(await DB.obtener('blobs', 'a1')), !!(await DB.obtener('blobs', 'b1'))], [true, true, true, true]);
+/* Con su propio registro, puesto y comprobado antes: si dependiera del de arriba, el día que
+   aquél no se guardara esta saldría en verde sobre nada que borrar. */
+const habia = (await DB.poner('blobs', { id: 'c1' })).ok && !!(await DB.obtener('blobs', 'c1'));
+const [, visto] = await Promise.all([DB.borrar('blobs', 'c1'), DB.obtener('blobs', 'c1')]);
+eq('leer detrás de un borrado espera su turno y ya no ve lo borrado',
+  [habia, visto, await DB.obtener('blobs', 'c1')], [true, null, null]);
+
+console.log('\nRESTAURAR EL VIEJO Y LUEGO EL BUENO');
+/* El incidente: alguien se equivoca de archivo, restaura el del día 1, se da cuenta y
+   restaura el del 15. Con el sello de «ahora» puesto al primero, el segundo salía entero en
+   `conservados` y el proyecto se quedaba en la etapa vieja. */
+const paquete = (etapa, ts) => JSON.stringify({ app: 'plataforma-al3d', formato: 1, fecha: new Date(ts).toISOString(),
+  datos: { proyectos: [{ id: 'proy-1', nombre: 'Ana - Cafe', etapa, actualizado_en: ts, creado_en: 1 }] } });
+const del1 = Date.parse('2026-09-01T12:00:00Z'), del15 = Date.parse('2026-09-15T12:00:00Z');
+const a = await DB.importar(paquete('ganado', del1));
+eq('el viejo entra', [a.ok, a.valor && a.valor.registros], [true, 1]);
+eq('y conserva la fecha en que de verdad se editó', (await DB.obtener('proyectos', 'proy-1')).actualizado_en, del1);
+const b = await DB.importar(paquete('instalado', del15));
+eq('el bueno entra, no se «conserva» lo viejo', [b.valor && b.valor.registros, b.valor && b.valor.conservados], [1, 0]);
+eq('y el proyecto queda en la etapa del bueno', (await DB.obtener('proyectos', 'proy-1')).etapa, 'instalado');
+const c = await DB.importar(paquete('ganado', del1));
+eq('volver a restaurar el viejo ya no pisa al bueno', [c.valor && c.valor.conservados, (await DB.obtener('proyectos', 'proy-1')).etapa], [1, 'instalado']);
+
+console.log('\nLO QUE NO ES CLAVE: NI SE ESCRIBE A MEDIAS NI LANZA');
+/* El incidente: un respaldo con `"id": null` detrás de un proyecto bueno. El `put` lanzó dentro
+   de `ponerVarios`, la promesa se rechazó —«las mutaciones nunca lanzan»—, y el proyecto bueno
+   quedó escrito —«todo o nada»—. En Ajustes: sin aviso, y el campo de archivo sin vaciar. Primero
+   se comprueba que la de mentira lance como un navegador; sin eso, lo de abajo no prueba nada. */
+const petCruda = IDB.open();
+await new Promise(r => { petCruda.onsuccess = r; });
+const tr = petCruda.result.transaction(['blobs'], 'readwrite');
+const stCrudo = tr.objectStore('blobs');
+const lanza = f => { try { f(); return null; } catch (e) { return e.name; } };
+stCrudo.put({ id: 'm1' });
+const lanzados = [lanza(() => stCrudo.put({ id: null })), lanza(() => stCrudo.put({})), lanza(() => stCrudo.get({ x: 1 })),
+  lanza(() => stCrudo.delete(NaN)), lanza(() => stCrudo.put({ id: 'm2', f: () => 1 }))];
+tr.abort();
+await new Promise(r => tr.addEventListener('abort', r));
+eq('la de mentira lanza en el acto, como un navegador', lanzados, ['DataError', 'DataError', 'DataError', 'DataError', 'DataCloneError']);
+eq('y su abort() deshace lo que la transacción llevaba', await DB.obtener('blobs', 'm1'), null);
+
+const sinLanzar = async f => { try { return await f(); } catch (e) { return { lanzo: e.name }; } };
+const forma = r => r && typeof r === 'object' && 'ok' in r ? [r.ok, r.codigo] : r;
+for (const [que, id] of [['null', null], ['undefined', undefined], ['de objeto', { x: 1 }], ['NaN', NaN]]) {
+  const bueno = 'pv-' + que.replace(/ /g, '');
+  const r = await sinLanzar(() => DB.ponerVarios('proyectos', [{ id: bueno }, { id }]));
+  eq('ponerVarios con un id ' + que + ' detrás de uno bueno: dice que no, sin lanzar', forma(r), [false, 'DATO_INVALIDO']);
+  eq('  y el bueno no quedó escrito: todo o nada', await DB.obtener('proyectos', bueno), null);
+}
+eq('ponerVarios con una fila que no es objeto: dice que no, sin lanzar',
+  forma(await sinLanzar(() => DB.ponerVarios('proyectos', [{ id: 'pf-1' }, null]))), [false, 'DATO_INVALIDO']);
+eq('  y la buena no quedó escrita', await DB.obtener('proyectos', 'pf-1'), null);
+/* El otro camino al «todo o nada» roto: la petición que contesta con error. El preventDefault del
+   onerror le quita a la base su aborto automático, y los demás se confirmaban. */
+IDB.falla.put = v => v.id === 'pe-2' ? new DOMException('Ya hay uno con ese folio.', 'ConstraintError') : null;
+const rPe = await sinLanzar(() => DB.ponerVarios('proyectos', [{ id: 'pe-1' }, { id: 'pe-2' }, { id: 'pe-3' }]));
+IDB.falla.put = null;
+eq('ponerVarios con un put que contesta error: dice que no', forma(rPe), [false, 'DESCONOCIDO']);
+eq('  y no confirma los otros dos', [await DB.obtener('proyectos', 'pe-1'), await DB.obtener('proyectos', 'pe-3')], [null, null]);
+
+const respaldo = datos => JSON.stringify({ app: 'plataforma-al3d', formato: 1, fecha: new Date().toISOString(), datos });
+const rNull = await sinLanzar(() => DB.importar(respaldo({ proyectos: [{ id: 'imp-1', nombre: 'Ana - Cafe' }, { id: null, nombre: 'roto' }] })));
+eq('importar un respaldo con un id null: dice que no, sin lanzar', forma(rNull), [false, 'DATO_INVALIDO']);
+eq('  y no escribe nada', await DB.obtener('proyectos', 'imp-1'), null);
+/* Cada almacén va en su transacción: el «todo o nada» de ponerVarios no alcanza a los de antes. */
+const rObj = await sinLanzar(() => DB.importar(respaldo({ proyectos: [{ id: 'imp-2' }], materiales: [{ id: { x: 1 } }] })));
+eq('importar con un id de objeto en un almacén de después: dice que no', forma(rObj), [false, 'DATO_INVALIDO']);
+eq('  y tampoco escribió el almacén de antes', await DB.obtener('proyectos', 'imp-2'), null);
+const rSin = await sinLanzar(() => DB.importar(respaldo({ proyectos: [{ nombre: 'sin id' }, { id: 'imp-3' }] })));
+eq('un registro SIN id se sigue descartando y contando, y lo demás entra',
+  [rSin.ok, rSin.valor && rSin.valor.registros, rSin.valor && rSin.valor.descartados, !!(await DB.obtener('proyectos', 'imp-3'))],
+  [true, 1, 1, true]);
+
+eq('obtener con un id de objeto da null, sin lanzar', await sinLanzar(() => DB.obtener('proyectos', { x: 1 })), null);
+eq('poner con un id de objeto: dice que no, sin lanzar',
+  forma(await sinLanzar(() => DB.poner('proyectos', { id: { x: 1 } }))), [false, 'DATO_INVALIDO']);
+eq('poner con algo que no se clona: dice que no, sin lanzar',
+  forma(await sinLanzar(() => DB.poner('proyectos', { id: 'pn-1', f: () => 1 }))), [false, 'DATO_INVALIDO']);
+eq('  y no quedó escrito', await DB.obtener('proyectos', 'pn-1'), null);
+eq('borrar con un id null o de objeto: dice que no, sin lanzar',
+  [forma(await sinLanzar(() => DB.borrar('proyectos', null))), forma(await sinLanzar(() => DB.borrar('proyectos', { x: 1 })))],
+  [[false, 'DATO_INVALIDO'], [false, 'DATO_INVALIDO']]);
+const sigue = await DB.ponerVarios('proyectos', [{ id: 'ok-1' }, { id: 'ok-2' }]);
+eq('y después de todo eso la base sigue escribiendo',
+  [sigue.ok, !!(await DB.obtener('proyectos', 'ok-1')), !!(await DB.obtener('proyectos', 'ok-2'))], [true, true, true]);
+
 console.log(fallos ? '\n' + fallos + ' FALLO(S)' : '\nEl respaldo completo cuadra de los dos lados.');
 process.exit(fallos ? 1 : 0);

@@ -32,7 +32,8 @@ import * as Proy from '../datos/proyectos.js';
 import * as Agenda from '../datos/agenda.js';
 import {
   $, esc, money, cant, plural, ico, toast, avisarResultado, vacio, segmento,
-  abrirCapa, cerrarCapa, linkWa, telWa, fmtFecha, cuando, diasHasta, hoyISO, ajustarAltoBarra, cantHay, rotularPapel } from '../nucleo/ui.js';
+  abrirCapa, cerrarCapa, linkWa, telWa, fmtFecha, cuando, diasHasta, hoyISO, ajustarAltoBarra, cantHay, rotularPapel,
+  cifraQueCabe } from '../nucleo/ui.js';
 
 /* ============================================================================
    Estado del módulo. Todo aquí, y todo se suelta en desmontar().
@@ -89,6 +90,18 @@ const un  = (n, u) => (Number(n) === 1 ? (UC[u] || u) : plural(UC[u] || u));
    «¿Cuántas metros hay de Fleje?»: la pregunta se escribió mirando láminas y bolsas. */
 const UC_MASC = { unidad: false, bolsa: false, caja: false, lamina: false, litro: true, metro: true };
 const cuantos = u => (UC_MASC[u] ? '¿Cuántos ' : '¿Cuántas ');
+
+/* La unidad de compra con su medida delante: «lámina 1.22 × 2.44 m». Pero hay medidas que ya
+   traen la unidad escrita —«caja de 100 módulos», «bolsa de 50»— y pegarle la unidad otra vez
+   daba «caja caja de 100 módulos» en la lista de compra, que es la hoja que se imprime y se
+   lleva al mostrador. Si la medida ya empieza por la unidad, va sola. */
+function unidadYMedida(u, medida) {
+  const unidad = UC[u] || u || '';
+  const m = String(medida || '').trim();
+  if (!m) return unidad;
+  if (unidad && m.toLowerCase().startsWith(unidad.toLowerCase() + ' ')) return m;
+  return (unidad ? unidad + ' ' : '') + m;
+}
 
 /* «Estimado» no es un adorno: es la diferencia entre comprar con esto y comprar con esto
    sabiendo qué se supuso. */
@@ -229,7 +242,21 @@ async function cargar() {
     cuerpo.innerHTML = '<div class="vacio">' + ico('i-reloj') +
       '<p class="vacio-t">Sumando el libro del almacén…</p></div>';
   }
+  await leerDatos();
+  pintar();
+  publicarCuenta();
+}
 
+/** El globo de la barra sin montar la pantalla: lo llama app.js al arrancar y después de
+ *  cada sincronización, para que los pendientes se vean sin tener que entrar aquí. Solo lee;
+ *  no pinta nada. */
+export async function contar() {
+  if (CTX) return null;          // montado: la cuenta la publica la pantalla
+  await leerDatos();
+  return { material: cuantosComprar() };
+}
+
+async function leerDatos() {
   /* Todo en paralelo y todo local: esta pantalla se abre en el taller, sin señal, y
      `listaCompra` y `existencias` recorren el libro de movimientos completo cada una. En
      serie se nota en un celular viejo justo cuando alguien está esperando.
@@ -272,9 +299,6 @@ async function cargar() {
   REQS = new Map();
   const reqs = await Promise.all(PROYS.map(p => Material.requerimientos(p.id)));
   PROYS.forEach((p, k) => REQS.set(p.id, reqs[k] || []));
-
-  pintar();
-  publicarCuenta();
 }
 
 /* ----- Lo que hay que ir a pedir -----
@@ -287,6 +311,10 @@ const yaEstan = () => COMPRA.filter(l => !hayQueComprar(l));
 
 function publicarCuenta() {
   if (!CTX || typeof CTX.ponerCuenta !== 'function') return;
+  CTX.ponerCuenta('material', cuantosComprar());
+}
+
+function cuantosComprar() {
   /* Se juntan por material y no se suman: un material bajo mínimo Y pedido por un proyecto
      es UNA cosa que comprar, y contarlo dos veces manda a fabricación a buscar un renglón
      que no existe. Es la misma cuenta que publica Inicio, a propósito: dos números
@@ -296,7 +324,7 @@ function publicarCuenta() {
   for (const e of EXIS) {
     if (num(e.min_stock) > 0 && e.cantidad < num(e.min_stock)) ids.add(e.material_id);
   }
-  CTX.ponerCuenta('material', ids.size);
+  return ids.size;
 }
 
 /* ============================================================================
@@ -337,7 +365,7 @@ function cuentas() {
     /* Sin un solo costo capturado no se pinta «$0.00»: eso se lee como que la compra sale
        gratis. Se pinta el renglón que dice qué falta para que ese número exista. */
     c.push(costo > 0
-      ? '<p class="pf-cuenta dinero"><b>' + esc(money(costo)) + '</b>Costo de lo que hay que comprar</p>'
+      ? '<p class="pf-cuenta dinero">' + cifraQueCabe(money(costo)) + 'Costo de lo que hay que comprar</p>'
       : '<p class="pf-cuenta"><b>—</b>Sin costos capturados</p>');
   }
   return '<div class="pf-cuentas">' + c.join('') + '</div>';
@@ -397,7 +425,7 @@ function tabComprar() {
   const acciones =
     '<div class="btn-fila no-papel">' +
       (pedir.some(l => num(l.comprar) > 0)
-        ? '<button type="button" class="btn btn-ok" data-recibi>' + ico('i-check') + ' ' +
+        ? '<button type="button" class="btn btn-ok mat-recibi-cuerpo" data-recibi>' + ico('i-check') + ' ' +
             textoRecibi(pedir) + '</button>'
         : '') +
       '<button type="button" class="btn btn-gho" data-imprimir>' + ico('i-imprimir') +
@@ -462,8 +490,7 @@ function filaCompra(l) {
 
   /* La medida como la dice el proveedor, con su unidad delante: «lámina 1.22 × 2.44 m» es
      lo que se pide en el mostrador; «2.9768» es lo que se calcula con eso. */
-  const medida = [UC[l.unidad_compra] || l.unidad_compra, mat && mat.medida ? mat.medida : '']
-    .filter(Boolean).join(' ');
+  const medida = unidadYMedida(l.unidad_compra, mat && mat.medida);
 
   const proyectos = (l.proyectos || []);
   const paraQuien = proyectos.length
@@ -537,8 +564,12 @@ function chipCuando(fecha) {
   if (!fecha) return '<span class="pf-cuando lejos">sin fecha</span>';
   const d = diasHasta(fecha);
   const k = d === null ? 'lejos' : (d < 0 ? 'tarde' : (d <= 3 ? 'hoy' : 'lejos'));
-  return '<span class="pf-cuando ' + k + '">se instala ' + esc(cuando(fecha)) + '</span>';
+  return '<span class="pf-cuando ' + k + '">' + verboInstala(fecha) + esc(cuando(fecha)) + '</span>';
 }
+
+/* El verbo según el lado del calendario: «se instala hace 2 días» no es español y además
+   miente —dice que ya se hizo—; lo que dice el dato es que tocaba y nadie la marcó. */
+const verboInstala = fecha => { const d = diasHasta(fecha); return d !== null && d < 0 ? 'se debía instalar ' : 'se instala '; };
 
 /* ============================================================================
    B) EN ALMACÉN
@@ -579,8 +610,7 @@ function filaExistencia(e) {
   const mat = MATS.get(e.material_id) || null;
   const veDinero = Prefs.veDinero();
 
-  const medida = [UC[e.unidad_compra] || e.unidad_compra, mat && mat.medida ? mat.medida : '']
-    .filter(Boolean).join(' ');
+  const medida = unidadYMedida(e.unidad_compra, mat && mat.medida);
 
   const marcas = [];
   if (bajo) {
@@ -660,7 +690,7 @@ function cardProyecto(p) {
 
   const sub = '<p class="mat-med">' + esc(p.folio_local || '') +
     (inst && inst.fecha
-      ? ' · se instala ' + esc(fmtFecha(inst.fecha)) + ' (' + esc(cuando(inst.fecha)) + ')'
+      ? ' · ' + verboInstala(inst.fecha) + esc(fmtFecha(inst.fecha)) + ' (' + esc(cuando(inst.fecha)) + ')'
       : ' · sin fecha de instalación') + '</p>';
 
   const cuerpo = reqs.length
@@ -693,7 +723,7 @@ function filaReq(p, r) {
     '<div>' +
       '<div class="mat-n">' + esc(mat ? mat.nombre : r.material_id) + '</div>' +
       '<div class="mat-med">' + esc(mat
-        ? [UC[mat.unidad_compra] || mat.unidad_compra, mat.medida].filter(Boolean).join(' ')
+        ? unidadYMedida(mat.unidad_compra, mat.medida)
         : 'No está en el catálogo de material') + '</div>' +
       '<div>' +
         '<span class="mat-conf ' + esc(r.confianza || 'estimada') + '">' +
@@ -727,15 +757,22 @@ const estadoReq = e => ESTADO_REQ[e] || String(e || '');
 /* ----- La verdad del final -----
    Va siempre, en letra chica y sin caja. No es un consejo: es cómo funciona el sistema, y
    sin decirlo alguien va a comparar un precio de la plataforma con el ejemplo del tarifario
-   viejo y va a creer que hay un error de $10. */
+   viejo y va a creer que hay un error de $10.
+
+   Los precios del párrafo son precios de venta, y FABRICACIÓN no ve importes (regla 3 de la
+   cabecera): el párrafo se pintaba igual para ella, con seis cifras en pesos. Sin dinero queda
+   la última frase, que es la que le sirve a quien corta: de dónde sale el material. */
 function laVerdad() {
-  return '<p class="pf-nota no-papel">Los dos tarifarios de AL3D cobran por ejes distintos: el ' +
-    '<b>catálogo del cotizador</b> cobra por MATERIAL —$30 el aluminio pintado, $55 el acero, ' +
-    'más $5 la cursiva o $10 la compleja—, y el tarifario de <b>«¿Cómo Cotizar?»</b> cobra ' +
-    'por TIPO DE LETRA —$30 / $35 / $40 / $50, con −20 % sin iluminación—. Manda el catálogo ' +
-    'del cotizador, que es más nuevo y es el que está en producción: si un precio no cuadra con ' +
-    'el otro ejemplo, no es un error, son dos tarifarios. Y el material de esta pantalla ' +
-    'no sale de ninguno de los dos: sale de las medidas de las partidas.</p>' +
+  return (Prefs.veDinero()
+    ? '<p class="pf-nota no-papel">Los dos tarifarios de AL3D cobran por ejes distintos: el ' +
+      '<b>catálogo del cotizador</b> cobra por MATERIAL —$30 el aluminio pintado, $55 el acero, ' +
+      'más $5 la cursiva o $10 la compleja—, y el tarifario de <b>«¿Cómo Cotizar?»</b> cobra ' +
+      'por TIPO DE LETRA —$30 / $35 / $40 / $50, con −20 % sin iluminación—. Manda el catálogo ' +
+      'del cotizador, que es más nuevo y es el que está en producción: si un precio no cuadra con ' +
+      'el otro ejemplo, no es un error, son dos tarifarios. Y el material de esta pantalla ' +
+      'no sale de ninguno de los dos: sale de las medidas de las partidas.</p>'
+    : '<p class="pf-nota no-papel">El material de esta pantalla no sale de ningún tarifario: ' +
+      'sale de las medidas de las partidas.</p>') +
     '<div class="btn-fila no-papel">' +
       '<button type="button" class="btn btn-gho" data-hoja="catalogo">' +
         ico('i-material') + ' Catálogo de material</button>' +
@@ -942,8 +979,7 @@ function htmlCatalogo() {
     return '<div class="mat-fila">' +
       '<div>' +
         '<div class="mat-n">' + esc(m.nombre) + ' <span class="folio">' + esc(m.id) + '</span></div>' +
-        '<div class="mat-med">' + esc([UC[m.unidad_compra] || m.unidad_compra, m.medida]
-          .filter(Boolean).join(' ')) + ' · familia ' + esc(m.familia || 'sin familia') + '</div>' +
+        '<div class="mat-med">' + esc(unidadYMedida(m.unidad_compra, m.medida)) + ' · familia ' + esc(m.familia || 'sin familia') + '</div>' +
         '<div class="mat-med">Merma ' + esc(String(Math.round(num(m.merma_pct) * 100))) + ' % · ' +
           'mínimo de compra ' + esc(uc(m.min_compra, m.unidad_compra)) +
           (num(m.min_stock) > 0 ? ' · avisa bajo ' + esc(uc(m.min_stock, m.unidad_compra)) : ' · sin mínimo de almacén') +

@@ -31,6 +31,10 @@
 
 import { partesISO, descargarArchivo } from './ui.js';
 import { masDias } from './fechas.js';
+/* Qué ventanas llevan la alarma larga lo decide la agenda —es operación, no formato; ver su
+   comentario— y aquí se lee de ahí. Con una lista propia, «Madrugada» prometía en pantalla
+   «la alarma de salir suena 2 horas antes» y el archivo le ponía la de media hora. */
+import { VENTANA_ALARMA_LARGA } from '../datos/agenda.js';
 
 const CRLF = '\r\n';
 
@@ -119,8 +123,9 @@ function ahoraUTC(ms) {
    Cada DESCRIPTION es una orden, no un parte de guerra. «Revisa el material» se puede
    obedecer a las 7 de la mañana leyendo la notificación de reojo; «Recordatorio: hay una
    instalación en 3 días» no se puede obedecer, y eso vuelve la alarma ruido en dos
-   semanas. La de 30 minutos se estira a 120 cuando la ventana es de noche porque a esa
-   hora el tráfico de Guadalajara decide si se llega o no. */
+   semanas. La de 30 minutos se estira a 120 cuando la ventana es de noche o de madrugada
+   —las de `VENTANA_ALARMA_LARGA`— porque a esa hora el tráfico de Guadalajara y el acceso a
+   la plaza deciden si se llega o no. */
 const TEXTO_ALARMA = {
   '-P3D': 'Revisa el material: abre la plataforma y ve la lista de compra de ',
   '-P1D': 'Confirma con el cliente por WhatsApp: ',
@@ -130,9 +135,11 @@ const TEXTO_ALARMA = {
 const textoAlarma = (t, resumen) =>
   (TEXTO_ALARMA[t] || 'Abre la plataforma: ') + String(resumen || 'la instalación');
 
-function alarmasDe(ev) {
+/* Exportada: Google Calendar pone las MISMAS alarmas que este archivo (js/nucleo/gcal.js), y
+   la única forma de que no diverjan es que las dos salgan de aquí. */
+export function alarmasDe(ev) {
   if (Array.isArray(ev.alarmas)) return ev.alarmas.filter(Boolean);
-  const cerca = ev.ventana === 'noche' ? '-PT120M' : '-PT30M';
+  const cerca = VENTANA_ALARMA_LARGA.has(ev.ventana) ? '-PT120M' : '-PT30M';
   /* Un evento de todo el día empieza a las 00:00, así que -PT30M sonaría a las 11:30 de la
      noche anterior. A esa hora nadie carga una camioneta: en un evento sin hora las dos
      alarmas que quedan son las que sí se pueden atender. */

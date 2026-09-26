@@ -50,6 +50,12 @@ for (const [f, propia, otras] of [
   ['cotizador.html', 'css/vidrio.css', ['css/sistema.css']],
   ['index.html', 'css/vidrio.css', ['css/sistema.css', 'css/plataforma.css', 'vendor/leaflet.css']],
   ['anidador-vectores/index.html', '../css/vidrio.css', ['../css/sistema.css', 'css/anidador.css']],
+  /* Las tres páginas públicas también. Nacieron sin ella y se pintaban en la letra de reserva
+     del sistema: pedían Sora y Manrope a Google, pero el token que las nombra vive aquí, y sin
+     esta hoja --f-texto seguía diciendo Figtree, que ninguna página baja. */
+  ['acerca.html', 'css/vidrio.css', ['css/sistema.css', 'css/publico.css']],
+  ['privacidad.html', 'css/vidrio.css', ['css/sistema.css', 'css/publico.css']],
+  ['condiciones.html', 'css/vidrio.css', ['css/sistema.css', 'css/publico.css']],
 ]) {
   const t = leer(f);
   const iVid = t.indexOf('<link rel="stylesheet" href="' + propia + '">');
@@ -63,7 +69,8 @@ for (const [f, propia, otras] of [
    baja es el <link> de Google Fonts, y son dos sitios distintos que ya se desincronizaron una
    vez con Outfit y Figtree. Si el <link> se queda atrás, la app cae a la reserva y nadie lo
    nota hasta que alguien compara dos capturas. */
-for (const f of ['cotizador.html', 'index.html', 'anidador-vectores/index.html']) {
+for (const f of ['cotizador.html', 'index.html', 'anidador-vectores/index.html',
+                 'acerca.html', 'privacidad.html', 'condiciones.html']) {
   const t = leer(f);
   cierto(/family=Sora:/.test(t) && /family=Manrope:/.test(t), f + ' pide Sora y Manrope a Google Fonts');
   cierto(!/family=(Outfit|Figtree):/.test(t), f + ' ya no pide Outfit ni Figtree');

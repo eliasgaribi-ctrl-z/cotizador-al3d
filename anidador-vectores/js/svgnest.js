@@ -42,6 +42,15 @@
 		var best = null;
 		var workerTimer = null;
 		var progress = 0;
+		/* AL3D · cambio local al código vendorizado (lo usa anidador-vectores/js/app.js, ver
+		   ahí «corrida»). stop() solo apagaba el reloj: el intento que ya iba en los workers
+		   terminaba y escribía en el estado de la corrida NUEVA —NFP calculados con la separación
+		   vieja en su caché, y su acomodo en `best`—. Detener un cálculo a 3 mm y volver a
+		   acomodar a 30 mm dejaba la corrida nueva comparándose contra un acomodo de 3 mm que no
+		   podía superar: «Calculando el primer acomodo…» para siempre. Cada intento se lleva el
+		   número de la corrida en la que nació y, si al volver ya no es la vigente, no toca nada.
+		   Sube en stop() y en config(), que es donde el estado de una corrida deja de valer. */
+		var corrida = 0;
 		
 		this.parsesvg = function(svgstring){
 			// reset if in progress
@@ -117,7 +126,8 @@
 			}
 			
 			SvgParser.config({ tolerance: config.curveTolerance});
-			
+
+			corrida++;   // AL3D: ver la declaración de `corrida`
 			best = null;
 			nfpCache = {};
 			binPolygon = null;
@@ -241,6 +251,7 @@
 		}
 		
 		this.launchWorkers = function(tree, binPolygon, config, progressCallback, displayCallback){
+			var mia = corrida;   // AL3D: ver la declaración de `corrida`
 			function shuffle(array) {
 			  var currentIndex = array.length, temporaryValue, randomIndex ;
 
@@ -523,6 +534,7 @@
 				
 				return {key: pair.key, value: nfp};
 			}).then(function(generatedNfp){
+				if(mia !== corrida){ return; }   // AL3D: intento de una corrida que ya no es la vigente
 				if(generatedNfp){
 					for(var i=0; i<generatedNfp.length; i++){
 						var Nfp = generatedNfp[i];
@@ -551,6 +563,7 @@
 				p2.require('placementworker.js');				
 				
 				p2.map(worker.placePaths).then(function(placements){
+					if(mia !== corrida){ return; }   // AL3D: ídem, ni `best` ni `working` ni la llamada
 					if(!placements || placements.length == 0){
 						return;
 					}
@@ -813,6 +826,7 @@
 		}
 		
 		this.stop = function(){
+			corrida++;   // AL3D: ver la declaración de `corrida`
 			this.working = false;
 			if(workerTimer){
 				clearInterval(workerTimer);

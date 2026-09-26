@@ -78,8 +78,13 @@ anidador-vectores/
         └── pathsegpolyfill.js pathSegList, que Chrome quitó              ┘
 ```
 
-El único cambio al motor original es la ruta de `eval.js` en `svgnest.js` (`util/eval.js` →
-`js/lib/eval.js`), para que coincida con esta carpeta. El algoritmo no se tocó.
+Hay dos cambios locales al motor original, los dos en `svgnest.js` y marcados con `AL3D`:
+la ruta de `eval.js` (`util/eval.js` → `js/lib/eval.js`), para que coincida con esta carpeta,
+y la «corrida»: un número que sube en `stop()` y en `config()`; cada intento en los workers se
+lleva el suyo y, si al volver ya no es el vigente, no toca la caché de NFP ni `best`. Sin ella,
+detener un cálculo a 3 mm y volver a acomodar a 30 mm se quedaba en «Calculando el primer
+acomodo…» para siempre (lo cubre `pruebas/navegador/anidador.mjs`). El algoritmo de
+anidamiento no se tocó.
 
 Se sirve **caché primero** con el resto de la plataforma (está en `APP_FILES` de `sw.js`),
 así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se sube
@@ -102,7 +107,9 @@ así que un cambio aquí llega a los aparatos que ya tienen la app **solo si se 
 - «Buscar también dentro de las concavidades» (el *Explore concave areas* del demo original)
   mete piezas en el hueco abierto de una «C», una «U» o una «G», que de entrada se trata
   como lleno. Tarda bastante más; nace apagado, igual que en svgnest.com.
-- Lo vendorizado es byte por byte el `master` de SVGnest, salvo la ruta de `eval.js`; los
+- Lo vendorizado es byte por byte el `master` de SVGnest, salvo los dos cambios de
+  `svgnest.js` descritos arriba (ruta de `eval.js` y «corrida»): al actualizar el motor hay que
+  volver a aplicarlos. Los
   parámetros que el demo original expone y aquí no se piden —tolerancia de curva, tamaño de
   población y mutación del genético— van con sus valores por omisión (0.3, 10 y 10 %),
   porque en mm la tolerancia de 0.3 ya es fina para rotulación y los otros dos no cambian

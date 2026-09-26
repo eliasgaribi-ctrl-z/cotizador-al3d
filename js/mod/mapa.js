@@ -210,7 +210,23 @@ export function desmontar() {
    Leer — todo por la capa de datos, cero cuentas propias
    ============================================================================ */
 
+/** El globo de la barra sin montar la pantalla: lo llama app.js al arrancar y después de
+ *  cada sincronización, para que los pendientes se vean sin tener que entrar aquí. Solo lee;
+ *  no pinta nada. */
+export async function contar() {
+  if (CTX) return null;          // montado: la cuenta la publica la pantalla
+  await leerDatos();
+  return { mapa: sinUbicar().length };
+}
+
 async function cargar() {
+  await leerDatos();
+  /* Una ruta calculada con los proyectos de antes apuntaría a pines que ya se movieron. */
+  RUTA = null;
+  pintar();
+}
+
+async function leerDatos() {
   HOY = hoyISO();
   PROYS = await Proyectos.listar({ vivos: true });
 
@@ -229,10 +245,6 @@ async function cargar() {
       INST.set(i.proyecto_id, dato);
     }
   }
-
-  /* Una ruta calculada con los proyectos de antes apuntaría a pines que ya se movieron. */
-  RUTA = null;
-  pintar();
 }
 
 /* ============================================================================
@@ -693,7 +705,21 @@ function calcularRuta() {
 function pintarRuta() {
   const caja = $('mapa-ruta');
   if (!caja) return;
-  if (!RUTA) { caja.innerHTML = ''; return; }
+  /* Sin ruta la tarjeta NO desaparece: se queda chica y dice por qué. Vacía, en el monitor la
+     columna de la derecha medía 0 px cuando además nada estaba sin pin, y el 40 % de la
+     pantalla al lado del mapa quedaba en blanco: parecía una pantalla rota. En el teléfono va
+     debajo del mapa, así que una tarjeta corta no estorba. Dos casos, porque se arreglan
+     distinto: hay paradas y falta ordenarlas —el botón está arriba del mapa—, o no hay. */
+  if (!RUTA) {
+    const n = deHoy().length;
+    caja.innerHTML = '<div class="card"><div class="card-h"><h2>' + ico('i-camion') +
+      'La ruta de hoy</h2></div><div class="card-b"><p class="pf-fila-d">' + (n
+        ? (n === 1 ? 'Hoy hay 1 parada con pin.' : 'Hoy hay ' + n + ' paradas con pin.') +
+          ' «Ordenar la ruta de hoy», arriba del mapa, las pone en orden para no cruzar la ciudad tres veces.'
+        : 'Hoy no hay instalaciones con fecha y pin. Cuando las haya, aquí sale el orden de las paradas para no cruzar la ciudad tres veces.') +
+      '</p></div></div>';
+    return;
+  }
 
   const filas = RUTA.orden.map((p, i) => {
     const f = INST.get(p.id);

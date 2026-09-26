@@ -134,6 +134,9 @@ async function sellarEnLaHoja(folio,cot,precioAuth,itemsAuth,nota){
    —autorizar en este teléfono, o que llegue el que se pidió a dirección— y no pueden dejar la
    cotización en dos estados distintos. */
 function aplicarSello(sello){
+  /* La autorizada que era, si esto cierra un «Volver a autorizar»: de ahí sale el precio que el
+     cliente ya tiene en la mano (re.pf). */
+  const re=(Q.reauth&&Q.reauth.folio===Q.folio)?Q.reauth:null;
   Q.precioAuth=Number(sello.precioAuth)||0;
   Q.itemsAuth=JSON.parse(JSON.stringify(sello.itemsAuth||{}));
   sellarAuth();
@@ -144,8 +147,16 @@ function aplicarSello(sello){
   Q.fechaAuth=(isNaN(d)?new Date():d).toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
   Q.sello={codigo:String(sello.codigo),correo:Q.autorizador,ts:String(sello.ts),total:Number(sello.total)||0,folio:folioGlobal()};
   Q.solicitud=null;
-  _selfAuth=false; _reautorizando=null;
+  _selfAuth=false; Q.reauth=null;
   paBorradorLimpiar();
+  /* EL CLIENTE QUE REGATEA: el mismo folio a otro precio sin tocar una partida. La huella no
+     cambió, así que nada desmarcaba el «PDF generado» ni el «Chat abierto», y «qué sigue» saltaba
+     a «Registrar venta» con el cliente sosteniendo un PDF con el precio viejo. Si el precio cambió,
+     esos dos papeles ya no dicen la verdad y se vuelven a pedir. */
+  if(re&&Math.abs((Number(re.pf)||0)-precioFinal())>0.01) desmarcarHitos(['pdf','wa']);
+  /* El anticipo se pone al precio autorizado ANTES de guardar en el historial: si no, el
+     historial se quedaba con la mitad del precio CALCULADO y su firma no cuadraba con la de Q. */
+  const antiAcotado=ajustarAnticipoAlPrecio();
   confirmarFolio(Q.folio);
   updateQueueEntry(Q.folio,{estado:'autorizada',precioAuth:Q.precioAuth,autorizador:Q.autorizador,nota:Q.nota,fechaAuth:Q.fechaAuth,itemsAuth:Q.itemsAuth,huellaAuth:Q.huellaAuth});
   const guardada=guardarEnHistorial();
@@ -163,6 +174,7 @@ function aplicarSello(sello){
   }
   const _r=respaldoEstado();
   if(guardada&&_saveOk&&_r.vencido) toast('✓ Autorizada y sellada · '+(_r.sinRespaldar||_r.total)+' sin respaldar en este teléfono','',6000,{label:'Respaldar',fn:()=>respaldar()});
+  else if(guardada&&_saveOk&&antiAcotado) toast('✓ Autorizada y sellada. El anticipo pactado era mayor que el total autorizado de '+money(precioFinal())+': se dejó igual al total.','err',6400);
   else if(guardada&&_saveOk) toast('✓ Autorizada y sellada en la hoja · '+Q.sello.codigo,'ok',4200);
   else if(guardada) toast('Autorizada y guardada, pero la cotización en curso ya no cabe en este teléfono — respalda y borra cotizaciones viejas','err',9000,{label:'Respaldar',fn:()=>respaldar()});
   return guardada;
