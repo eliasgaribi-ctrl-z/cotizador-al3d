@@ -335,3 +335,27 @@ html.empotrado .an-wrap,html.empotrado .an-pie{max-width:none;padding-left:var(-
 .an-arranque-cols{grid-template-columns:minmax(280px,400px) minmax(0,1fr)}
 .an-arranque .esq-mesa{height:380px}
 @media(max-width:920px){ .an-arranque-cols{grid-template-columns:1fr} }
+
+/* ============================================================================
+   LA MESA CON LAS PIEZAS COMPARTIDAS
+   ============================================================================
+   Lo que el anidador añade al usar las piezas de js/piezas.js (su estilo base está en
+   css/sistema.css, bloque «Piezas compartidas»). Dos bloques con su marca de fin —los controles
+   de la izquierda y la mesa de la derecha— y su apagado para menos movimiento abajo.
+   ============================================================================ */
+/* ── Anidador · controles, material, medida y descarga ── */
+
+/* ── fin de an-controles ── */
+
+/* ── Anidador · la mesa: hojas, piezas, zoom y resultado ── */
+
+/* ── fin de an-mesa ── */
+
+@media(prefers-reduced-motion:reduce){
+/* ── rm · an-controles ── */
+
+/* ── fin de rm · an-controles ── */
+/* ── rm · an-mesa ── */
+
+/* ── fin de rm · an-mesa ── */
+}
