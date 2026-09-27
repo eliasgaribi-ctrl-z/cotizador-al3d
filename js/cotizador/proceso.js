@@ -770,7 +770,11 @@ function capturaBloqueada(){ return locked()||faltanDatosCliente(); }
    sitio, así que aquí solo se atiende el candado nuevo. */
 function exigirDatosParaPartidas(opts){
   if(locked()) return true;
-  return exigirDatosCliente('Antes de capturar partidas',opts);
+  const ok=exigirDatosCliente('Antes de capturar partidas',opts);
+  /* Se tocó algo bloqueado: la ficha del candado late otra vez (una), que es la que dice qué
+     falta. Al aparecer ya latió sola; esto es la segunda llamada que pide la ficha C7. */
+  if(!ok) volverALatir($('cand-partidas'));
+  return ok;
 }
 /* Lo mismo desde el escalador o el vectorizador, que viven en un modal encima de la
    página: el aviso deja el cursor en el campo que falta, y un campo enfocado detrás de

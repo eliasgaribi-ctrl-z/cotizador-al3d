@@ -111,5 +111,20 @@ console.log('\nEL CÓDIGO QUE PINTA — lo que no se ve en la decisión');
 eq('voz() junta los mensajes del mismo fotograma en vez de quedarse con el último', /_vozPend\[id\]\.push\(msg\)/.test(nucleo), true);
 eq('toast() sigue anunciando cada aviso, también el que espera o se descarta', /\n  voz\(msg\+\(accion&&accion\.label\?' — '\+accion\.label\+' disponible':''\),type==='err'\);\r?\n\}/.test(nucleo), true);
 
+/* La otra llamada que no se puede perder ni repetir de más: la tarjeta de «sin decidir» de la
+   plataforma. Se rehace en cada repintado, así que late solo cuando aparece o la cuenta sube
+   (ficha P11). claseSiSube() de js/nucleo/ui.js decide eso sin DOM. */
+console.log('\nLA TARJETA QUE LATE — solo al aparecer y cuando la cuenta sube');
+{
+  const { claseSiSube } = await import('../js/nucleo/ui.js');
+  eq('la primera vez que aparece, late', claseSiSube('prueba', 2), ' late');
+  eq('repintada con la misma cuenta, no', claseSiSube('prueba', 2), '');
+  eq('si baja, tampoco', claseSiSube('prueba', 1), '');
+  eq('si sube, otra vez', claseSiSube('prueba', 3), ' late');
+  eq('sin tarjeta no hay a quién', claseSiSube('prueba', 0), '');
+  eq('y la siguiente que llegue vuelve a llamar', claseSiSube('prueba', 1), ' late');
+  eq('cada pantalla cuenta aparte', claseSiSube('otra', 1), ' late');
+}
+
 console.log(fallos ? '\n' + fallos + ' FALLO(S)' : '\nNingún aviso que importa se queda debajo de otro.');
 process.exit(fallos ? 1 : 0);

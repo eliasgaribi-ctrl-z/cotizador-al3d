@@ -34,7 +34,7 @@ import { ESTATUS as ESTATUS_NOTION, CUENTAS, ESTATUS_DE_PAGOS } from '../datos/p
 import {
   $, esc, money, cant, ico, toast, avisarResultado, vacio, segmento, chip,
   abrirCapa, cerrarCapa, copiarTexto, linkWa, telWa, fmtFecha, fmtFechaDia, fmtHora, cuando,
-  diasHasta, hoyISO, rotularPapel, confirmarPf, repintarEnSitio,
+  diasHasta, hoyISO, rotularPapel, confirmarPf, repintarEnSitio, claseSiSube,
 } from '../nucleo/ui.js';
 
 /* ============================================================================
@@ -604,7 +604,7 @@ const tonoCuando = iso => {
 
 function pintarCand() {
   const el = $('pj-cand'); if (!el) return;
-  if (!SIN_DECIDIR.length) { el.innerHTML = ''; return; }
+  if (!SIN_DECIDIR.length) { el.innerHTML = ''; claseSiSube('proyectos', 0); return; }
 
   const n = SIN_DECIDIR.length;
   const hoy = hoyISO();
@@ -632,8 +632,9 @@ function pintarCand() {
      —«esto pide que hagas algo antes de seguir»— y si aquí se viera distinta, parecerían
      dos cosas. `.pf-decidir` es la variante en bloque que Inicio ya dejó puesta, porque son
      N cotizaciones con dos botones cada una y no un renglón que se toca completo. */
+  /* Late al aparecer y cuando la cuenta sube, no en cada repintado (claseSiSube, ui.js). */
   el.innerHTML =
-    '<div class="cand-partidas pf-decidir">' +
+    '<div class="cand-partidas pf-decidir' + claseSiSube('proyectos', n) + '">' +
       '<p class="cp-txt">' + ico('i-aviso') + ' Tienes <b>' + n + '</b> ' +
       (n === 1 ? 'cotización autorizada sin decidir' : 'cotizaciones autorizadas sin decidir') +
       '. Mientras no digas si se ganó, no tiene material, ni fecha, ni existe en ningún sistema.</p>' +

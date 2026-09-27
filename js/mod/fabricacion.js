@@ -69,7 +69,7 @@ import { masDias, masMeses, iniSemana, ultimoDia, diasEntre } from '../nucleo/fe
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, partesISO, fechaLocal,
          fmtFecha, fmtFechaDia, fmtHora, cuando, diasHasta, segmento, chip, abrirCapa,
          cerrarCapa, compartirArchivo, copiarTexto, linkWa, ajustarAltoBarra, filaTaller, scrollSuave,
-         conservandoFoco, repintarAlrededor }
+         conservandoFoco, repintarAlrededor, claseSiSube }
   from '../nucleo/ui.js';
 
 /* ----- Estado del módulo -----
@@ -428,7 +428,7 @@ function pintar() {
      del otro. Mismo marcado en el monitor y en el teléfono: solo cambia dónde cae cada cosa. */
   _cont.innerHTML =
     pintarCuentas(d) +
-    (d.pendientes.length ? pintarDecidir(d) : '') +
+    (d.pendientes.length ? pintarDecidir(d) : (claseSiSube('calendario', 0), '')) +
     barra +
     (_lente === 'instalaciones'
       ? calendario
@@ -451,7 +451,8 @@ function pintarDecidir(d) {
   const lista = d.pendientes || [];
   const n = lista.length;
   const veDinero = Prefs.veDinero();
-  return '<div class="cand-partidas pf-decidir" id="ag-decidir">' +
+  /* Late al aparecer y cuando la cuenta sube, no en cada repintado (claseSiSube, ui.js). */
+  return '<div class="cand-partidas pf-decidir' + claseSiSube('calendario', n) + '" id="ag-decidir">' +
     '<p class="cp-txt">' + ico('i-venta') + ' <b>' +
     (n === 1 ? 'Una cotización autorizada' : n + ' cotizaciones autorizadas') +
     '</b> sin decidir. Sin este toque no hay proyecto, ni ventana de taller, ni fecha: es lo único de esta pantalla que nadie más puede contestar.</p>' +

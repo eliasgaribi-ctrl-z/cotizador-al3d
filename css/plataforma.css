@@ -902,8 +902,14 @@ html[data-nav="teclado"] .pf-mod{animation:none}
    activa la tarjeta: lo que se toca son los botones de adentro, y quitarle el latido al
    pasar por encima haría creer que ya se atendió. */
 .pf-decidir{display:block;cursor:default}
-/* El latido llama tres veces y se calla (ver .cand-partidas en sistema.css); el hover ya no lo
-   reinicia con otro nombre, que era un salto del aro a mitad de camino. */
+/* Nace QUIETA. Esta tarjeta se rehace con innerHTML en cada repintado, y con la animación en
+   la clase base (la de .cand-partidas) volvía a latir tres veces tras cada sincronización o
+   filtro: latir en bucle con otro nombre. Lleva .late —tres veces y se calla— solo cuando
+   aparece por primera vez en la pantalla o cuando la cuenta SUBE (claseSiSube() en
+   js/nucleo/ui.js). El hover no la reinicia con otro nombre, que era un salto del aro a mitad
+   de camino. */
+.pf-decidir{animation:none}
+.pf-decidir.late{animation:late 2.8s ease-in-out 3}
 @media(hover:hover){.pf-decidir:hover{transform:none}}
 /* Los renglones de dentro se separan con el borde de la tarjeta, que desde el rediseño es
    azul y no ámbar: el latido de esta tarjeta ya no es una sombra ámbar que crece, es el aro

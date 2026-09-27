@@ -586,6 +586,18 @@ else _vigilarModales();
    El textContent='' y la escritura en el fotograma siguiente son los que hacen que la
    región activa cuente el mensaje como inserción nueva aunque el texto se repita: sin
    eso, «4 partidas plegadas» dos veces seguidas se oye una sola. */
+/* ----- Una llamada más, de un solo disparo -----
+   Lo que late en esta app late una vez (o tres) y se calla: nada se mueve solo en bucle.
+   Esto es la llamada SIGUIENTE, cuando hay razón —se tocó algo bloqueado, el avance subió—.
+   Con `clase`, la quita y la vuelve a poner (para lo que late desde una clase o un ::after);
+   sin ella, reinicia la animación del propio elemento. El reflow de en medio es lo que hace
+   que el navegador la cuente como nueva. Un elemento escondido no se toca: no hay a quién
+   llamar, y el reflow saldría de balde. */
+function volverALatir(el,clase){
+  if(!el||el.hidden||!el.getClientRects().length) return;
+  if(clase){ el.classList.remove(clase); void el.offsetWidth; el.classList.add(clase); return; }
+  el.style.animation='none'; void el.offsetWidth; el.style.animation='';
+}
 /* Dos mensajes en el mismo fotograma se dicen JUNTOS. Con la pila de avisos pasa seguido
    —«Mandando…» y «Venta registrada» en el mismo tick—, y el segundo borraba al primero antes
    de que el lector llegara a oírlo: la pila se veía y no se oía. */

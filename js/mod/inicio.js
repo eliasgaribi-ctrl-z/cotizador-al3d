@@ -38,7 +38,7 @@ import * as Material from '../datos/material.js';
 import { masDias } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO,
          fmtFecha, fmtFechaDia, abrirCapa, cerrarCapa, copiarTexto, ajustarAltoBarra,
-         bandaFrescura, cifraQueCabe, scrollSuave }
+         bandaFrescura, cifraQueCabe, scrollSuave, claseSiSube }
   from '../nucleo/ui.js';
 
 /* ----- Estado del módulo -----
@@ -160,6 +160,7 @@ function pintar() {
   partes.push(bandaFrescura(d.fres, Sync.disponible()));
   partes.push(cuentas(d, rol, veDinero));
   if (decidir.length) partes.push(tarjetaDecidir(decidir));
+  else claseSiSube('inicio', 0);
   partes.push(tarjetaAvisos(resto, decidir.length));
   if (rol === 'direccion') {
     partes.push(tarjetaCola(veDinero));
@@ -223,7 +224,8 @@ function unaCuenta(n, etiqueta, urge) {
    la tarjeta y el aviso dirían lo mismo con dos palabras distintas. */
 function tarjetaDecidir(lista) {
   const n = lista.length;
-  const h = ['<div class="cand-partidas pf-decidir">',
+  /* Late al aparecer y cuando la cuenta sube, no en cada repintado (claseSiSube, ui.js). */
+  const h = ['<div class="cand-partidas pf-decidir' + claseSiSube('inicio', n) + '">',
     '<p class="cp-txt">' + ico('i-venta') + ' <b>' +
     (n === 1 ? 'Una cotización autorizada' : n + ' cotizaciones autorizadas') +
     '</b> sin decidir. Sin este toque no hay proyecto, ni agenda, ni material, ni mapa: es lo único de esta pantalla que nadie más puede contestar.</p>'];

@@ -655,7 +655,7 @@ Modal de pantalla completa (escalador/vectorizador): armazón reutilizable `.sp-
 <div class="hintnote">Se imprime en la cotización. Vacía, sale la de arriba.</div>
 <div class="hintnote nota-av">El acrílico sin luz sale más caro que el aluminio.</div>
 ```
-Avisos grandes que **piden acción** (mismo ámbar, con latido): `.cand-partidas` (botón) y `.edit-mode-banner` (div).
+Avisos grandes que **piden acción** (mismo ámbar, con latido): `.cand-partidas` (botón) y `.edit-mode-banner` (div). El latido es de **un solo disparo**: una vez al aparecer y otra con `volverALatir(el)` (`js/cotizador/nucleo.js`) cuando se toca algo bloqueado. En la plataforma, `.pf-decidir` nace quieta y lleva `.late` (tres latidos) solo al aparecer o cuando la cuenta sube: `claseSiSube(clave, n)` en `js/nucleo/ui.js`.
 ```css
 .cand-partidas,.edit-mode-banner{border-radius:var(--rr2);border:1px solid rgba(255,255,255,.75);
   background:linear-gradient(168deg,#fffaf0,var(--av-bg));
@@ -686,7 +686,8 @@ Avisos grandes que **piden acción** (mismo ámbar, con latido): `.cand-partidas
   transition:width .5s cubic-bezier(.22,1,.36,1),background .5s;width:0%}
 .prog-next{font-size:11px;color:var(--brand);font-weight:700;margin-top:6px;display:flex;align-items:center;gap:5px}
 .prog-next:empty{display:none}
-/* capa de estructura: brillo que recorre */
+/* capa de estructura: brillo que recorre (hoy: una pasada, solo cuando el porcentaje SUBE —
+   updProg() pone #prog-bar.destello con volverALatir()—; lo de abajo es el bucle de antes) */
 .prog-track{border-radius:999px;box-shadow:var(--clay-in);background:var(--n2)}
 #prog-bar{border-radius:999px;box-shadow:0 2px 8px -2px rgba(64,96,248,.5);position:relative;overflow:hidden;
   transition:width var(--mv)}

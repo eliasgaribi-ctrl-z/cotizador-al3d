@@ -442,10 +442,9 @@ body.pf .pf-panel-f .btn{border-radius:18px}
    para el barrido: si no se puede usar, tampoco puede estar llamando. */
 .ai-btn:disabled>span::after,.ai-btn[disabled]>span::after{animation:none;opacity:0}
 
-/* La zona de arrastre del modal de IA y la del anidador respiran mientras
-   esperan el archivo: es lo único que se mueve en una pantalla vacía. */
-.ai-drop .ico,.modal .ai-drop .ico{animation:vid-respira 2.6s ease-in-out 3}
-@keyframes vid-respira{0%,100%{opacity:.55}50%{opacity:1}}
+/* La zona de arrastre del modal de IA y la del anidador ya no respiran mientras esperan el
+   archivo: al lado está «Cotizar con IA», que es lo único que se mueve solo, y un icono que
+   late en reposo era la segunda. Se moverá cuando alguien acerque un archivo (ficha H20). */
 
 /* Quien las pidió sin animación no las tiene. Misma regla que sistema.css.
 

@@ -45,7 +45,8 @@ import * as Sync from '../datos/sync.js';
 import { masDias, iniSemana } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, fmtFecha, fmtFechaDia,
          abrirCapa, cerrarCapa, linkWa, telWa, ajustarAltoBarra, voz, segmento,
-         filaTaller, bandaFrescura, medirMarco, esqueletoMarco, cifraQueCabe, scrollSuave, conservandoFoco }
+         filaTaller, bandaFrescura, medirMarco, esqueletoMarco, cifraQueCabe, scrollSuave, conservandoFoco,
+         claseSiSube }
   from '../nucleo/ui.js';
 
 const { ETAPA_NOMBRE, ICO_ETAPA, claseEtapa, ORDEN, puedeMover } = Proy;
@@ -578,8 +579,9 @@ function noLlegan(d) {
    lista sin ella. Es lo mismo que ya dice el Calendario en `pintarDecidir`. */
 function decidir(d, rol) {
   const n = d.pendientes.length;
-  if (rol !== 'direccion' || !n) return '';
-  return '<div class="cand-partidas pf-decidir">' +
+  if (rol !== 'direccion' || !n) { claseSiSube('tablero', 0); return ''; }
+  /* Late al aparecer y cuando la cuenta sube, no en cada repintado (claseSiSube, ui.js). */
+  return '<div class="cand-partidas pf-decidir' + claseSiSube('tablero', n) + '">' +
     '<p class="cp-txt">' + ico('i-venta') + ' <b>' +
     (n === 1 ? 'Una cotización autorizada' : n + ' cotizaciones autorizadas') +
     '</b> sin decidir. Sin este toque no hay proyecto, ni agenda, ni material, ni nada en ' +

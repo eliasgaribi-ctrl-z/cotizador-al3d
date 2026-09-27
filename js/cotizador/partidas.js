@@ -717,6 +717,7 @@ function calcProg(){
   }
   return Math.min(100,Math.round(pts/max*100));
 }
+let _progAntes=null;   // el último porcentaje pintado: el destello solo cuando sube
 function updProg(){
   /* Aquí y no en cada llamador: los datos del proyecto cambian por muchos caminos
      —se teclean, los llena un cliente conocido, llegan de la IA, de la cola o del
@@ -741,6 +742,11 @@ function updProg(){
      colores para una medida: el ámbar en esta app significa «falta un dato obligatorio», no
      «vas por el 30 %». */
   bar.classList.toggle('lleno',pct>=100);
+  /* El destello pasa una vez cuando el porcentaje SUBE, no en cada tecla: esto corre con cada
+     letra del nombre del cliente, y lo que se mueve en cada tecla deja de decir nada. El
+     primer pintado no cuenta —no subió nada, solo se abrió—. */
+  if(_progAntes!==null&&pct>_progAntes) volverALatir(bar,'destello');
+  _progAntes=pct;
   pintarPendiente();
 }
 
@@ -858,9 +864,13 @@ function irAlCandado(){
    importe tapado— y el ojo del PDF. Sin la cara plegada, abrir una partida para leerla
    funcionaba Y sacaba un aviso rojo diciendo que había fallado, en el mismo toque. */
 function _candTocarPartida(e){
-  if(locked()||!faltanDatosCliente()) return;
   const t=e.target;
   if(t&&t.closest&&t.closest('.pfold,.pdf-vis,.psum,[href]')) return;
+  /* Con el precio cerrado no se dice nada en rojo —la ficha del candado ya lo explica arriba,
+     con la puerta escrita—, pero la ficha late una vez: es la respuesta a «toqué y no pasó
+     nada», y señala dónde se abre. */
+  if(locked()){ volverALatir($('cand-partidas')); return; }
+  if(!faltanDatosCliente()) return;
   exigirDatosParaPartidas({llevar:false});
 }
 function irAPendiente(){

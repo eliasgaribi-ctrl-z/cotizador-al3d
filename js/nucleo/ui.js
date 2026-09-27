@@ -443,6 +443,22 @@ export function repintarAlrededor(cont, html, vivo) {
   return injertar(cont, tmp, false);
 }
 
+/* ----- La tarjeta que late, solo cuando hay algo nuevo -----
+   `.pf-decidir` se pinta con innerHTML en cada repintado —una sincronización, un filtro,
+   volver a la pantalla—, y una animación en su clase base volvía a arrancar cada vez: tres
+   latidos después de cada toque de cualquier otra cosa, que es latir en bucle con otro
+   nombre. Ahora la tarjeta nace quieta y lleva `.late` (tres latidos, css/plataforma.css)
+   solo la primera vez que aparece en esa pantalla y cuando la cuenta SUBE: «hay una más por
+   decidir». Contesta la clase para meterla en el HTML; `clave` separa las pantallas, porque
+   cada una tiene su tarjeta. Si la cuenta baja o llega a 0 se guarda igual, para que la
+   siguiente que llegue vuelva a llamar. */
+const _cuentas = new Map();
+export function claseSiSube(clave, n, clase = 'late') {
+  const antes = _cuentas.get(clave);
+  _cuentas.set(clave, n);
+  return (antes === undefined || n > antes) && n > 0 ? ' ' + clase : '';
+}
+
 /* Durante dos cuadros no corre ninguna transición: para cerrar con el teclado sin la salida. */
 export function sinMovimiento() {
   const h = document.documentElement;

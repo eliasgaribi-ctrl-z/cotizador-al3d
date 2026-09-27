@@ -56,6 +56,8 @@ for (const [f, propia, otras] of [
   ['acerca.html', 'css/vidrio.css', ['css/sistema.css', 'css/publico.css']],
   ['privacidad.html', 'css/vidrio.css', ['css/sistema.css', 'css/publico.css']],
   ['condiciones.html', 'css/vidrio.css', ['css/sistema.css', 'css/publico.css']],
+  /* Y verificar, la que ve un tercero: la ficha A3 la encontró sin la hoja. */
+  ['verificar.html', 'css/vidrio.css', ['css/sistema.css', 'css/publico.css']],
 ]) {
   const t = leer(f);
   const iVid = t.indexOf('<link rel="stylesheet" href="' + propia + '">');
@@ -207,6 +209,29 @@ function hoverSueltos(css) {
 for (const f of ['css/sistema.css', 'css/vidrio.css', 'css/plataforma.css', 'anidador-vectores/css/anidador.css']) {
   const s = hoverSueltos(leer(f));
   cierto(!s.length, f + ': ningún :hover fuera de @media(hover:hover)' + (s.length ? ' — ' + s.join(' · ') : ''));
+}
+
+/* ----- Nada se mueve solo en bucle -----
+   Una sola pieza se mueve sola: «Cotizar con IA». Estas cuatro latían en bucle a su lado; la
+   auditoría de septiembre de 2026 les quitó el `infinite` y el PR 0 de las animaciones las dejó
+   en disparos únicos con su razón (fichas C7, C19, H20 y P11). Se mira la declaración, que es
+   donde vuelve a colarse. */
+console.log('\nNADA SE MUEVE SOLO EN BUCLE');
+{
+  const sis = sinComentarios(sistema), pla = sinComentarios(plataforma), vid = sinComentarios(vidrio);
+  const sisSinReducido = sis.split('@media(prefers-reduced-motion')[0];
+  cierto(/\.cand-partidas\{animation:late [^;}]* 1\}/.test(sis), '.cand-partidas late UNA vez al aparecer (C7)');
+  cierto(/\.cand-cliente\.ojo\{[^}]*animation:late-av [^;}]* 1\}/.test(sis), '.cand-cliente.ojo late una vez (C7)');
+  const tras = /#prog-bar::after\{([^}]*)\}/.exec(sis);
+  cierto(!!tras && !/animation/.test(tras[1]), '#prog-bar::after no se anima en reposo (C19)');
+  cierto(/#prog-bar\.destello::after\{animation:brillo [^;}]* 1\}/.test(sis), '  y el destello es de una pasada, con .destello: updProg() lo pone cuando el porcentaje SUBE');
+  cierto(!/\.ai-drop \.ico[^{}]*\{[^}]*animation:(?!none)/.test(vid) && !/\.ai-drop \.ico[^{}]*\{[^}]*animation:(?!none)/.test(sisSinReducido),
+    '.ai-drop .ico se queda quieto en reposo (H20)');
+  cierto(/\.pf-decidir\{animation:none\}/.test(pla) && /\.pf-decidir\.late\{animation:late [^;}]* 3\}/.test(pla),
+    '.pf-decidir nace quieta y late tres veces solo con .late (P11): no vuelve a latir al repintar');
+  for (const [nombre, t] of [['sistema.css', sis], ['plataforma.css', pla], ['vidrio.css', vid]])
+    for (const sel of ['cand-partidas', 'cand-cliente', 'prog-bar', 'ai-drop', 'pf-decidir'])
+      cierto(!new RegExp('[.#]' + sel + '[^{}]*\\{[^}]*infinite').test(t), nombre + ': ' + sel + ' sin infinite');
 }
 
 console.log(`\n${fallas === 0 ? 'Un solo sistema de diseño, en las tres superficies.' : fallas + ' fallo(s).'}`);
