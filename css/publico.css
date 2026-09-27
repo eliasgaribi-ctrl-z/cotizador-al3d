@@ -139,4 +139,6 @@ a { color: var(--a-tx); }
   background: var(--n0); border: 1px solid var(--linea); border-radius: var(--rr2); padding: 10px 12px;
 }
 .ver-form .pub-btn { margin-top: var(--e4); border: 0; cursor: pointer; font-family: inherit; }
+/* Lo que le falta a lo tecleado. En --av, que sí lleva texto (6:1 de día, 9:1 de noche). */
+.ver-falta { margin: var(--e3) 0 0; font-size: var(--t2); color: var(--av); font-weight: 600; }
 @media (max-width: 480px) { .ver-datos { grid-template-columns: 1fr; } }

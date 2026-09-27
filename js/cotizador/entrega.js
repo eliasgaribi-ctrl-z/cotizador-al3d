@@ -510,11 +510,16 @@ function qrSVG(texto,px){
   for(let y=0;y<q.size;y++) for(let x=0;x<q.size;x++) if(q.getModule(x,y)) d+='M'+(x+m)+','+(y+m)+'h1v1h-1z';
   return `<svg class="qr" viewBox="0 0 ${n} ${n}" width="${px}" height="${px}" shape-rendering="crispEdges" role="img" aria-label="Código QR para verificar la cotización"><rect width="${n}" height="${n}" fill="#fff"/><path d="${d}" fill="#1a1d33"/></svg>`;
 }
+/* El folio que se imprime aquí es el COMPLETO (COT-0042@K7QM), no el de la cabecera. Es lo
+   que la hoja busca, y verificar.html pide los dos datos: antes este bloque solo traía el
+   código, la cabecera solo el corto, y quien tecleaba desde el papel una cotización buena
+   recibía «No auténtica». La hoja ya acepta también el corto (los PDF que ya se imprimieron),
+   pero el completo es lo que no depende de qué versión del puente esté publicada. */
 function verificacionHTML(neto){
   const s=selloImprimible(neto); if(!s) return '';
   const liga=ligaDeVerificacion(s);
   return `<div class="verif">${qrSVG(liga,62)}<div class="verif-t"><span class="lbl">Cotización verificable</span>
-    <p>Escanea el código o entra a <b>${esc(liga.split('?')[0].replace(/^https?:\/\//,''))}</b> con el código <b class="num">${esc(s.codigo)}</b>. Si el total o el negocio no coinciden, este documento fue alterado.</p></div></div>`;
+    <p>Escanea el código o entra a <b>${esc(liga.split('?')[0].replace(/^https?:\/\//,''))}</b> con el folio <b class="num">${esc(s.folio)}</b> y el código <b class="num">${esc(s.codigo)}</b>. Si el total o el negocio no coinciden, este documento fue alterado.</p></div></div>`;
 }
 
 /* ===================== Generador de PDF ===================== */

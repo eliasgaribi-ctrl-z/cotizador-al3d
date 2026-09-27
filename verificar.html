@@ -62,11 +62,13 @@
 
   <form class="ver-form" id="ver-form" hidden>
     <h2>Verificar a mano</h2>
-    <p>Escribe el folio completo y el código que vienen en la cotización, junto al QR.</p>
+    <p>Copia lo que viene junto al QR de la cotización: el folio y el código de verificación.
+    Si tu papel solo trae el folio corto (COT-0042), escríbelo así.</p>
     <label for="f-f">Folio</label>
-    <input id="f-f" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="COT-0042@K7QM">
-    <label for="f-c">Código</label>
-    <input id="f-c" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="A1B2-C3D4-E5F6">
+    <input id="f-f" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="COT-0042@K7QM" aria-describedby="ver-falta">
+    <label for="f-c">Código de verificación</label>
+    <input id="f-c" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="A1B2-C3D4-E5F6" aria-describedby="ver-falta">
+    <p class="ver-falta" id="ver-falta" role="status" hidden></p>
     <button type="submit" class="pub-btn">Verificar</button>
   </form>
 
@@ -79,6 +81,7 @@
 
 <script type="module">
 import { URL_PUENTE } from './js/datos/prefs.js';
+import { normalizarFolio, codigoLegible, faltaParaVerificar, esFolioCorto } from './js/datos/verificacion.js';
 
 const $ = id => document.getElementById(id);
 const dinero = n => Number(n).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
@@ -125,7 +128,12 @@ async function consultar(f, c) {
   }
   if (!r || r.ok !== true) { pintar('av', 'Espera un momento', (r && r.mensaje) || 'El registro no contestó.'); return; }
   const [clase, titulo, texto] = ESTADOS[r.estado] || ESTADOS.no_autentica;
-  pintar(clase, titulo, texto);
+  /* Con el folio corto, un «no auténtica» puede ser de una hoja que todavía no lo acepta (se
+     publica a mano, puente/DESPLIEGUE.md). No se puede distinguir desde aquí, así que se dice
+     qué más intentar antes de mandar a nadie a desconfiar de un papel bueno. */
+  const extra = r.estado === 'no_autentica' && esFolioCorto(f)
+    ? ' Si tu papel trae junto al QR el folio con «@» (por ejemplo COT-0042@K7QM), escríbelo completo, o escanea el QR.' : '';
+  pintar(clase, titulo, texto + extra);
   if (r.estado !== 'no_autentica') {
     $('ver-folio').textContent = r.folio || '—';
     $('ver-fecha').textContent = r.fecha || '—';
@@ -139,13 +147,23 @@ const q = new URLSearchParams(location.search);
 const f = (q.get('f') || '').trim(), c = (q.get('c') || '').trim();
 $('f-f').value = f; $('f-c').value = c;
 $('ver-form').hidden = false;
+/* Lo tecleado se limpia antes de preguntar (js/datos/verificacion.js): espacios, minúsculas, el
+   guion que el teléfono volvió largo, O por 0 e I/L por 1 en el código. Y lo que falta se dice
+   aquí, porque la hoja contesta lo mismo a todo lo que no cuadra. Antes un campo vacío hacía
+   que el botón no hiciera nada, sin decir por qué. */
+const falta = $('ver-falta');
 $('ver-form').addEventListener('submit', ev => {
   ev.preventDefault();
-  const nf = $('f-f').value.trim(), nc = $('f-c').value.trim();
-  if (!nf || !nc) return;
+  const nf = normalizarFolio($('f-f').value), nc = codigoLegible($('f-c').value);
+  const motivo = faltaParaVerificar(nf, nc);
+  falta.hidden = !motivo; falta.textContent = motivo || '';
+  if (motivo) return;
+  $('f-f').value = nf; $('f-c').value = nc;
   history.replaceState(null, '', '?f=' + encodeURIComponent(nf) + '&c=' + encodeURIComponent(nc));
   verificar(nf, nc);
 });
+/* Al corregir, el aviso de lo que faltaba se va: ya no describe lo que hay en el campo. */
+$('ver-form').addEventListener('input', () => { if (!falta.hidden) { falta.hidden = true; falta.textContent = ''; } });
 if (f && c) verificar(f, c);
 else pintar('', 'Falta el código', 'Escanea el QR de la cotización, o escribe abajo el folio y el código.');
 </script>

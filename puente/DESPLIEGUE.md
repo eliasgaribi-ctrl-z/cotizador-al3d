@@ -241,6 +241,17 @@ Para comprobarlo: en **Ajustes → El puente → Probar** tiene que decir `puent
 el cotizador, **Cotizar con IA → Proveedores de IA** tiene que marcar «listo» en los que
 tengan llave.
 
+### 26 de septiembre de 2026 — `/verificar` acepta lo que viene en el papel (sigue siendo la 7)
+
+`/verificar` ahora acepta el folio **corto** (`COT-0042`, el de la cabecera de los PDF ya
+impresos) además del completo (`COT-0042@K7QM`), y el código con **O en vez de 0** o **I/L en
+vez de 1**. Es compatible hacia los dos lados —la app vieja y la nueva preguntan igual—, así
+que no cambia `PUENTE_VERSION`, pero **hay que volver a publicar** para que los PDF viejos
+tecleados a mano dejen de decir «no auténtica»: pega el `.gs` (con el cuidado de siempre,
+`puente/README.md`) y **Implementar → Gestionar implementaciones → lápiz → Versión nueva →
+Implementar**. Mientras no se publique, `verificar.html` ya le dice a quien teclea el corto que
+escanee el QR o agregue la parte de la `@`.
+
 ## Las cabeceras del sitio
 
 En la raíz del repo hay un `_headers`, que Cloudflare Pages lee y GitHub Pages ignora.

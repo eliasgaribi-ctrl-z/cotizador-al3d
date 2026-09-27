@@ -1711,7 +1711,9 @@ function dialogoTokens() {
    puente-sheets-7: el notario y la IA. Autorizar un precio se sella aquí —/autorizar, con la
    cuenta de Google de dirección y el catálogo recalculado— y se comprueba con /verificar, que
    es pública; las solicitudes viajan con /solicitar, /pendientes y /estado. Y las llaves de
-   IA se mudaron de los teléfonos a las propiedades de este script: /ia llama por ellos. */
+   IA se mudaron de los teléfonos a las propiedades de este script: /ia llama por ellos.
+   El 26 de septiembre, sin cambiar de versión porque la pregunta es la misma: /verificar
+   acepta el folio corto que trae el papel (COT-0042) y el código con O por 0 e I/L por 1. */
 var PUENTE_VERSION = 'puente-sheets-7';
 var BITACORA = 'Bitácora del puente';
 
@@ -2901,6 +2903,8 @@ function folioValido(f) {
      teléfonos; con el aparato no. */
   return typeof f === 'string' && /^[A-Za-z0-9-]{1,24}@[A-Za-z0-9_-]{1,24}$/.test(f);
 }
+/* COT-0042, sin aparato: lo que trae la cabecera de un PDF impreso. Solo lo acepta /verificar. */
+function folioCortoValido(f) { return typeof f === 'string' && /^[A-Za-z0-9-]{1,24}$/.test(f); }
 function limpiarItemsAuth(ia, items) {
   var ids = {};
   items.forEach(function (it) { ids[String(it.id)] = true; });
@@ -2967,7 +2971,15 @@ function codigoDe(firma) {
   var c = String(firma).slice(0, 12).toUpperCase();
   return c.slice(0, 4) + '-' + c.slice(4, 8) + '-' + c.slice(8, 12);
 }
-function normalizarCodigo(c) { return String(c || '').toUpperCase().replace(/[^0-9A-F]/g, '').slice(0, 12); }
+/* O→0 e I/L→1 antes de tirar lo que no es hexadecimal: el código se teclea desde el papel, y
+   en muchas letras de imprenta un 0 y una O son el mismo dibujo. Sin esto la O se TIRABA, el
+   código quedaba de once y una cotización buena contestaba «no auténtica». El hexadecimal no
+   tiene O, I ni L, así que la conversión no puede volver bueno un código que no lo es. La misma
+   regla vive en js/datos/verificacion.js, para que la página enseñe lo que se va a preguntar. */
+function normalizarCodigo(c) {
+  return String(c || '').toUpperCase().replace(/O/g, '0').replace(/[IL]/g, '1')
+    .replace(/[^0-9A-F]/g, '').slice(0, 12);
+}
 /* Todo texto se escribe con el apóstrofo delante, empiece por lo que empiece. Por dos
    razones: un texto que empieza con = + - @ es una FÓRMULA para la hoja —y una fórmula
    metida desde afuera puede leer cualquier parte de ella o salir a internet—, y la hoja
@@ -3006,6 +3018,13 @@ function filasDe(h, ncols) {
   return n > 0 ? h.getRange(2, 1, n, ncols).getValues() : [];
 }
 /* El último renglón de ese folio que cumpla la condición, con su número de fila. */
+/* La última fila cuyo folio, sin la parte del aparato, es `corto`. Solo para /verificar. */
+function ultimaFilaCorta(filas, corto, cond) {
+  for (var i = filas.length - 1; i >= 0; i--) {
+    if (String(filas[i][A_FOLIO]).split('@')[0] === corto && cond(filas[i])) return { fila: i + 2, v: filas[i] };
+  }
+  return null;
+}
 function ultimaFila(filas, colFolio, folio, cond) {
   for (var i = filas.length - 1; i >= 0; i--) {
     if (String(filas[i][colFolio]) === folio && (!cond || cond(filas[i]))) return { fila: i + 2, v: filas[i] };
@@ -3286,15 +3305,24 @@ function revocarAutorizacion(folio) {
 var VERIFICAR_POR_FOLIO = 30;      // cada 10 minutos
 var VERIFICAR_EN_TOTAL = 400;
 function rutaVerificar_(cuerpo) {
-  var folio = String((cuerpo && cuerpo.f) || '').trim();
+  var folio = String((cuerpo && cuerpo.f) || '').replace(/\s+/g, '').toUpperCase();
   var cod = normalizarCodigo(cuerpo && cuerpo.c);
-  if (!folioValido(folio) || cod.length !== 12) return { ok: true, estado: 'no_autentica' };
+  /* El folio CORTO también vale. Los PDF impresos hasta septiembre de 2026 traen «COT-0042» en
+     la cabecera y el código junto al QR, pero no la parte del aparato (@K7QM): quien tecleaba
+     desde el papel recibía «no auténtica» con una cotización buena. Lo que prueba que es
+     auténtica es el código —doce del HMAC, recalculados abajo—, no el sufijo; el sufijo solo
+     desempata dos COT-0042 de dos teléfonos, y el código ya los desempata con 48 bits. El cupo
+     se cuenta entonces por el corto, que es más estricto: junta los folios de todos los
+     teléfonos. */
+  var corto = folio.indexOf('@') < 0;
+  if (!(corto ? folioCortoValido(folio) : folioValido(folio)) || cod.length !== 12) return { ok: true, estado: 'no_autentica' };
   if (!cupoDeVerificar(folio)) return { ok: false, codigo: 'SIN_RED', mensaje: 'Demasiadas consultas seguidas. Espera unos minutos.' };
   var h = SpreadsheetApp.getActive().getSheetByName(HOJA_AUTORIZACIONES);
   var secreto = secretoDelSello_(false);
   if (!h || !secreto) return { ok: true, estado: 'no_autentica' };
   var filas = filasDe(h, COLS_AUT.length);
-  var hallada = ultimaFila(filas, A_FOLIO, folio, function (v) { return normalizarCodigo(v[A_CODIGO]) === cod; });
+  var conCodigo = function (v) { return normalizarCodigo(v[A_CODIGO]) === cod; };
+  var hallada = corto ? ultimaFilaCorta(filas, folio, conCodigo) : ultimaFila(filas, A_FOLIO, folio, conCodigo);
   if (!hallada) return { ok: true, estado: 'no_autentica' };
   /* La firma se RECALCULA desde el renglón. Si alguien cambió el total o el negocio a mano en
      la hoja, deja de cuadrar: el renglón existe, pero ya no dice lo que se firmó. */

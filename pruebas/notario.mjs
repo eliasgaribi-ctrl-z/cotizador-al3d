@@ -247,6 +247,15 @@ let segundo;
   eq('un código inventado no', post({ ruta: 'verificar', f: 'COT-0001@K7QM', c: 'AAAA-BBBB-CCCC' }).estado, 'no_autentica');
   eq('  y no suelta nada más', Object.keys(post({ ruta: 'verificar', f: 'COT-0001@K7QM', c: 'AAAA-BBBB-CCCC' })).sort(), ['estado', 'ok']);
   eq('el código bueno en otro folio tampoco', post({ ruta: 'verificar', f: 'COT-0009@K7QM', c: primero.codigo }).estado, 'no_autentica');
+  /* Lo que viene en el papel: los PDF impresos antes traen COT-0001 en la cabecera y el código
+     junto al QR, sin la parte del aparato. Quien los teclea recibía «no auténtica». */
+  eq('el folio corto del papel, con su código, es auténtico', post({ ruta: 'verificar', f: 'COT-0001', c: primero.codigo }).estado, 'autentica');
+  eq('  y contesta el folio corto', post({ ruta: 'verificar', f: 'COT-0001', c: primero.codigo }).folio, 'COT-0001');
+  eq('  con espacios y en minúsculas', post({ ruta: 'verificar', f: ' cot-0001 ', c: primero.codigo }).estado, 'autentica');
+  eq('  el corto con un código inventado no', post({ ruta: 'verificar', f: 'COT-0001', c: 'AAAA-BBBB-CCCC' }).estado, 'no_autentica');
+  eq('  ni el código bueno con otro corto', post({ ruta: 'verificar', f: 'COT-0009', c: primero.codigo }).estado, 'no_autentica');
+  const conLetras = primero.codigo.replace(/0/g, 'O').replace(/1/g, 'l');
+  eq('O por 0 y l por 1 en el código, como se lee en el papel', post({ ruta: 'verificar', f: 'COT-0001@K7QM', c: conLetras }).estado, 'autentica');
 
   /* Volver a autorizar con otro precio: el PDF viejo no es falso, es de antes. */
   const r = post({ ruta: 'autorizar', google_token: G.elias, folio: 'COT-0001@K7QM', cotizacion: cot(), precioAuth: 11900 });
