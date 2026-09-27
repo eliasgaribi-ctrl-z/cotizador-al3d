@@ -4034,6 +4034,207 @@ html.va-atras #card-proy,html.va-atras .p1-cierre{animation-name:entra-izq}
 /* ── fin de piezas · 2 ── */
 
 /* ── Piezas · 3 · números, medidas y campos ── */
+/* Las piezas de números, medidas y campos (js/piezas.js, sección 3). Casi nada de esto se mueve
+   en reposo: la rueda del total, la ficha que viaja y la liga del deslizador existen mientras
+   dura el gesto o el cambio y se van. Lo que queda quieto —el medidor, las casillas, el
+   contador del teléfono— se dice con lleno, rayado, muesca, borde y palabra, nunca solo con
+   color. Todo con tokens: el tema oscuro (7) los cambia y aquí no hay una regla por tema salvo
+   la pastilla del deslizador, que va en marino de día y se invierte de noche. */
+
+/* ----- 1 · La cifra que rueda -----
+   El texto real se queda en su sitio, transparente, y la capa `.rueda-vista` pinta encima las
+   tiras de dígitos con contenido generado: el `textContent` del elemento sigue siendo el
+   número. `:where()` para no pisar un `position` que el elemento ya traiga (un total dentro
+   de algo pegajoso): solo ancla la capa si nadie más lo hizo. */
+.rueda-cifra{font-variant-numeric:tabular-nums}
+:where(.rueda-cifra){position:relative}
+.rueda-rodando{-webkit-text-fill-color:transparent;text-shadow:none}
+.rueda-vista{position:absolute;display:flex;align-items:flex-start;white-space:pre;pointer-events:none;
+  -webkit-user-select:none;user-select:none;-webkit-text-fill-color:currentColor}
+.rueda-col{display:block;overflow:hidden}
+.rueda-tira{display:block}
+.rueda-tira::before{content:"0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9";display:block;white-space:pre}
+.rueda-ch::before{content:attr(data-c)}
+/* El «+1» junto a la cifra que cambió (P18). Es un momento: sube, se lee y se va. */
+.rueda-delta{position:absolute;margin-left:6px;pointer-events:none;white-space:nowrap;
+  font:600 var(--t1)/1.4 var(--f-texto);letter-spacing:0;color:var(--a-tx);-webkit-text-fill-color:currentColor;
+  animation:rueda-delta 1.4s var(--ease-out) both}
+.rueda-delta::before{content:attr(data-d)}
+@keyframes rueda-delta-quieta{0%{opacity:0}15%,75%{opacity:1}100%{opacity:0}}
+@keyframes rueda-delta{
+  0%{opacity:0;transform:translateY(0)}
+  15%{opacity:1;transform:translateY(-55%)}
+  75%{opacity:1;transform:translateY(-55%)}
+  100%{opacity:0;transform:translateY(-85%)}
+}
+
+/* ----- 2 · La ficha que viaja -----
+   Existe solo mientras viaja. Va detrás de los botones —z-index negativo dentro de un grupo
+   aislado—, así que el texto nunca queda debajo de ella; y el destino esconde su propio relleno
+   mientras ella llega, para que no haya dos. El aspecto lo copia el JS del destino, así que no
+   hace falta una regla por variante (marino, apagado, oscuro, filete de la barra lateral). */
+:where(.con-ficha){position:relative;isolation:isolate}
+.ficha-viaja{position:absolute;left:0;top:0;z-index:-1;box-sizing:border-box;pointer-events:none;
+  transform-origin:0 0;will-change:transform}
+@media screen{
+  .con-ficha .ficha-destino{background-color:transparent!important;background-image:none!important;
+    box-shadow:none!important;border-color:transparent!important}
+}
+/* Un grupo de chips con fondo propio (#f-plazo, #rv-plazo) taparía la ficha a mitad de camino:
+   `.ficha-transparente` deja sin fondo a los NO elegidos —el borde se queda— para que se vea
+   pasar por debajo. En una tarjeta de --sup no cambia nada a la vista. */
+.ficha-transparente>:not(.ficha-viaja):not(.on):not(.active):not([aria-pressed="true"]):not([aria-checked="true"]){background-color:transparent}
+
+/* ----- 3 · Arrastrar sobre la etiqueta -----
+   La etiqueta es el mango: `pan-y` deja que el dedo que baja por la tarjeta desplace la página,
+   y solo el arrastre de lado mueve la medida. Las tres rayitas dicen que se arrastra; en táctil
+   la zona crece por fuera (inset negativo), no la letra, para no mover nada de sitio. */
+.arrastrable,[data-arrastrar]{position:relative;cursor:ew-resize;touch-action:pan-y;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.arrastrable::after,[data-arrastrar]::after{content:"";display:inline-block;width:11px;height:9px;margin-left:6px;
+  vertical-align:-1px;color:var(--tinta3);background:linear-gradient(90deg,currentColor 1.5px,transparent 0) 0 0/4px 100%}
+@media(hover:hover) and (pointer:fine){
+  .arrastrable:hover::after,[data-arrastrar]:hover::after{color:var(--a)}
+}
+@media(hover:none),(pointer:coarse){
+  .arrastrable::before,[data-arrastrar]::before{content:"";position:absolute;inset:-14px -8px}
+}
+.arrastrable.arrastre-activo,[data-arrastrar].arrastre-activo{color:var(--a-tx)}
+.arrastrable.arrastre-activo::after,[data-arrastrar].arrastre-activo::after{color:var(--a)}
+.arrastre-activo :is(input,.inp-money){border-color:var(--a);box-shadow:0 0 0 3px var(--a-suave)}
+.arrastre-medida,.arrastre-medida *{cursor:ew-resize!important}
+
+/* ----- 18 · Opciones con resaltado que se desliza -----
+   Las opciones que no están elegidas no llevan fondo ni borde: la pastilla viaja por DEBAJO de
+   ellas, y una ficha opaca en medio la taparía a mitad de camino. La elegida es un `.chip.on`
+   de los de siempre (capa 8), y la ficha copia ese aspecto al viajar. */
+.glide{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(150px,100%),1fr));gap:4px;padding:4px;
+  border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup2)}
+.glide>.chip{flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;min-height:48px;margin:0;
+  padding:6px 12px;text-align:left;min-width:0}
+.glide>.chip:not(.on){background:transparent;border-color:transparent;box-shadow:none}
+.glide>.chip small{display:block;font-size:var(--t1);font-weight:600}
+@media(hover:hover) and (pointer:fine){
+  .glide>.chip:not(.on):not([aria-disabled="true"]):hover{background:var(--sup);border-color:var(--linea)}
+}
+
+/* ----- 19 · Casillas de código -----
+   El campo de verdad va encima, transparente, y se queda con el foco, el pegado y el lector de
+   pantalla; las casillas son dibujo. La fila entera es la zona táctil. Las casillas se encogen
+   con la fila (flex 1 con mínimo 0): doce de 30 px más sus huecos no caben en 302 px, que es lo
+   que queda de una tarjeta a 360. */
+.casillas{position:relative;display:flex;align-items:center;gap:10px;width:100%;max-width:26rem;min-height:48px;
+  border-radius:var(--rr2)}
+.casillas-in{position:absolute;inset:0;z-index:1;width:100%;height:100%;min-height:0;margin:0;padding:0;border:0;
+  opacity:0;font-size:16px;color:transparent;background:transparent;caret-color:transparent;cursor:text}
+.casillas-in:focus{border:0;box-shadow:none}
+.casillas-grupo{display:flex;flex:1 1 0;gap:4px;min-width:0;pointer-events:none}
+.casilla{position:relative;isolation:isolate;flex:1 1 0;min-width:0;max-width:36px;height:44px;display:grid;place-items:center;
+  border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup2);color:var(--tinta);
+  font:600 18px/1 var(--f-cifra);font-variant-numeric:tabular-nums}
+/* El verde del acierto entra por opacidad, casilla por casilla, en un velo detrás de la letra. */
+.casilla::after{content:"";position:absolute;inset:-1px;z-index:-1;border-radius:inherit;border:1px solid var(--ok-borde);
+  background:var(--ok-bg);opacity:0;transition:opacity var(--mv-r)}
+.casillas:focus-within{outline:2px solid var(--a);outline-offset:4px}
+.casillas:focus-within .casilla.cursor{border-color:var(--a);box-shadow:0 0 0 2px var(--a-suave)}
+.casillas.completo .casilla{border-color:var(--a-borde)}
+.casilla.mal{border-color:var(--mal);color:var(--mal)}
+.casillas.acierto .casilla{border-color:var(--ok-borde)}
+.casillas.acierto .casilla::after{opacity:1;transition-delay:calc(var(--i,0) * 25ms)}
+.casillas.fallo .casilla,.casillas.rechazo .casilla{border-color:var(--mal)}
+.casillas.rechazo{animation:casillas-sacude .32s var(--ease-out)}
+@keyframes casillas-sacude{20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+
+/* ----- 19 · El teléfono que se ve completo -----
+   El contador vive dentro del borde derecho del campo, sin tapar lo tecleado: el campo le
+   deja 64 px. A 10 dígitos es un ✓ en verde, con el borde verde; lo que contradice a la regla
+   (un «+52» con ocho dígitos detrás, once dígitos sin «+») va en ámbar, con su frase. */
+.tel-vivo{position:relative;display:block}
+.tel-vivo .tel-vivo-in{padding-right:64px}
+.tel-cuenta{position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;
+  font:600 var(--t1)/1 var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta3)}
+.tel-vivo.completo .tel-vivo-in{border-color:var(--ok-borde)}
+.tel-vivo.completo .tel-cuenta{color:var(--ok);font-size:var(--t4)}
+.tel-vivo.revisa .tel-vivo-in{border-color:var(--av-borde)}
+.tel-vivo.revisa .tel-cuenta{color:var(--av)}
+.tel-vivo.recien .tel-cuenta{animation:tel-palomita .36s var(--ease-out)}
+@keyframes tel-palomita{from{opacity:0;transform:translateY(-50%) scale(.6)}}
+
+/* ----- 20 · Medidores quietos -----
+   Seis píxeles, sin transición: el lleno, el rayado de lo que tiene dueño (o de todo el lleno
+   si el dato es estimado), el hueco punteado en ámbar hasta la meta y la muesca. La muesca
+   sobresale arriba y abajo para leerse sin color. `print-color-adjust` para que salga en papel
+   con los fondos apagados; y si no sale, la frase de al lado va de todos modos. */
+.medidor{position:relative;display:block;height:6px;margin:6px 0 4px;border-radius:3px;background:var(--n2);
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+.medidor>i{position:absolute;top:0;bottom:0;display:block}
+.medidor>.medidor-lleno{left:0;width:calc(var(--v,0) * 100%);border-radius:3px;background-color:var(--a-fill)}
+.medidor.tono-ok>.medidor-lleno{background-color:var(--ok-fill)}
+.medidor.tono-av>.medidor-lleno{background-color:var(--av)}
+.medidor.tono-mal>.medidor-lleno{background-color:var(--mal)}
+.medidor>.medidor-rayado{left:0;width:calc(var(--r,0) * 100%);border-radius:3px 0 0 3px;
+  background:repeating-linear-gradient(135deg,rgba(var(--sup-rgb),.72) 0 2px,transparent 2px 5px)}
+.medidor.estimado>.medidor-lleno{background-image:repeating-linear-gradient(135deg,rgba(var(--sup-rgb),.72) 0 2px,transparent 2px 5px)}
+.medidor>.medidor-falta{left:calc(var(--v,0) * 100%);width:calc((var(--meta,0) - var(--v,0)) * 100%);border-radius:0 3px 3px 0;
+  background:repeating-linear-gradient(90deg,var(--av) 0 3px,transparent 3px 6px)}
+.medidor>.medidor-muesca{left:calc(var(--muesca,0) * 100%);top:-4px;bottom:-4px;width:2px;margin-left:-1px;border-radius:1px;background:var(--tinta)}
+.medidor>.medidor-cero{left:0;top:-4px;bottom:-4px;width:3px;border-radius:1px;background:var(--mal)}
+
+/* ----- El deslizador con imanes -----
+   Sobre el <input type="range"> nativo: el pulgar mide 44 px —la zona táctil— y se ve de 24;
+   el resto del círculo es transparente. La pastilla y las marcas usan la MISMA cuenta que el
+   centro del pulgar: 22px + p·(100% − 44px). El riel se rellena desde `--p0` (el mínimo, o el
+   «sin ajuste» del autorizador) hasta `--p`. `pan-y`: el dedo que baja por la pantalla la
+   desplaza, no mueve el valor. */
+.desl-caja{position:relative;display:block;min-width:0;--p:0;--p0:0}
+.desl-caja.con-pastilla{padding-top:30px}
+input[type=range].desl-iman{-webkit-appearance:none;appearance:none;display:block;width:100%;height:44px;min-height:44px;
+  margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;cursor:pointer;touch-action:pan-y;
+  --desl-riel:var(--n3);--desl-lleno:var(--a-fill);--desl-pulgar:var(--a)}
+input[type=range].desl-iman:focus{border:0;box-shadow:none}
+input[type=range].desl-iman:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+.desl-caja.fuera input[type=range].desl-iman{--desl-pulgar:var(--av)}
+input[type=range].desl-iman::-webkit-slider-runnable-track{height:6px;border-radius:3px;
+  background:linear-gradient(90deg,var(--desl-riel) 0 calc(22px + min(var(--p0),var(--p)) * (100% - 44px)),
+    var(--desl-lleno) 0 calc(22px + max(var(--p0),var(--p)) * (100% - 44px)),var(--desl-riel) 0)}
+input[type=range].desl-iman::-moz-range-track{height:6px;border-radius:3px;
+  background:linear-gradient(90deg,var(--desl-riel) 0 calc(22px + min(var(--p0),var(--p)) * (100% - 44px)),
+    var(--desl-lleno) 0 calc(22px + max(var(--p0),var(--p)) * (100% - 44px)),var(--desl-riel) 0)}
+input[type=range].desl-iman::-moz-range-progress{background:transparent}
+input[type=range].desl-iman::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:44px;height:44px;margin-top:-19px;
+  border:0;border-radius:50%;cursor:grab;
+  background:radial-gradient(circle,var(--sup) 0 8.5px,var(--desl-pulgar) 9px 12px,rgba(var(--tinta-rgb),.22) 12.5px 13.5px,transparent 14px)}
+input[type=range].desl-iman::-moz-range-thumb{width:44px;height:44px;border:0;border-radius:50%;cursor:grab;
+  background:radial-gradient(circle,var(--sup) 0 8.5px,var(--desl-pulgar) 9px 12px,rgba(var(--tinta-rgb),.22) 12.5px 13.5px,transparent 14px)}
+input[type=range].desl-iman:active::-webkit-slider-thumb{cursor:grabbing}
+/* El grueso es la barra de dos tramos del anticipo (C17): «Hoy» lleno y «Al instalar» tenue. */
+input[type=range].desl-iman.grueso{--desl-riel:var(--a-suave)}
+input[type=range].desl-iman.grueso::-webkit-slider-runnable-track{height:28px;border-radius:var(--rr2);box-shadow:inset 0 0 0 1px var(--a-borde)}
+input[type=range].desl-iman.grueso::-moz-range-track{height:28px;border-radius:var(--rr2);box-shadow:inset 0 0 0 1px var(--a-borde)}
+input[type=range].desl-iman.grueso::-webkit-slider-thumb{margin-top:-8px;border-radius:var(--rr2);
+  background:linear-gradient(90deg,transparent 13px,var(--desl-pulgar) 13px 15px,var(--sup) 15px 29px,var(--desl-pulgar) 29px 31px,transparent 31px) center/44px 36px no-repeat}
+input[type=range].desl-iman.grueso::-moz-range-thumb{border-radius:var(--rr2);
+  background:linear-gradient(90deg,transparent 13px,var(--desl-pulgar) 13px 15px,var(--sup) 15px 29px,var(--desl-pulgar) 29px 31px,transparent 31px) center/44px 36px no-repeat}
+.desl-marcas{position:relative;display:block;height:26px;margin-top:-8px}
+.desl-marca{position:absolute;top:0;left:calc(22px + var(--k,0) * (100% - 44px));transform:translateX(-50%);
+  display:grid;justify-items:center;gap:3px}
+.desl-marca::before{content:"";width:2px;height:6px;border-radius:1px;background:var(--n4)}
+.desl-marca.iman::before{height:10px;background:var(--tinta2)}
+.desl-marca b{font:600 11px/1 var(--f-texto);color:var(--tinta2);white-space:nowrap}
+.desl-marca.en b{color:var(--tinta)}
+.desl-marca.sin-texto b{visibility:hidden}
+.desl-pastilla{position:absolute;left:0;top:0;min-width:34px;padding:5px 9px;border-radius:999px;background:var(--nav);color:#fff;
+  font:600 var(--t1)/1 var(--f-cifra);font-variant-numeric:tabular-nums;text-align:center;white-space:nowrap;pointer-events:none}
+.desl-pastilla::after{content:"";position:absolute;left:calc(50% + var(--fx,0px));bottom:-4px;width:8px;height:8px;margin-left:-4px;
+  background:inherit;border-radius:1px;transform:rotate(45deg);z-index:-1}
+html[data-tema="oscuro"] .desl-pastilla{background:var(--tinta);color:var(--nav)}
+
+/* En papel no hay movimiento: ni la capa de la rueda, ni el «+1», ni la ficha a medio viaje. */
+@media print{
+  .rueda-vista,.rueda-delta,.ficha-viaja{display:none!important}
+  .rueda-rodando{-webkit-text-fill-color:initial!important}
+  .desl-pastilla{background:none!important;color:#12162b!important;border:1px solid #999}
+}
 
 /* ── fin de piezas · 3 ── */
 
@@ -5239,6 +5440,17 @@ html[data-tema="oscuro"] .ai-btn:disabled,html[data-tema="oscuro"] .ai-btn[disab
 
 /* ── fin de rm · piezas · 2 ── */
 /* ── rm · piezas · 3 ── */
+/* La rueda del total y la ficha que viaja ya no arrancan con menos movimiento: eso lo decide
+   js/piezas.js al preguntar en el momento. Aquí se apaga lo que es de la hoja: la sacudida de las
+   casillas (el borde rojo y la frase se quedan), la cascada del verde (entra de una vez), la
+   palomita que brota en el teléfono, la liga del deslizador y el «+1», que se queda como un
+   fundido porque dice cuánto cambió la cuenta. */
+.casillas.rechazo{animation:none}
+.casillas.acierto .casilla::after{transition-delay:0s}
+.tel-vivo.recien .tel-cuenta{animation:none}
+.rueda-delta{animation-name:rueda-delta-quieta}
+.ficha-viaja{transition:none!important}
+input[type=range].desl-iman{transform:none!important}
 
 /* ── fin de rm · piezas · 3 ── */
 /* ── rm · piezas · 4 ── */
