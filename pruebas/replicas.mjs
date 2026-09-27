@@ -31,6 +31,7 @@ const COT = {
   nucleo: leer('js/cotizador/nucleo.js'), historial: leer('js/cotizador/historial.js'),
   entrega: leer('js/cotizador/entrega.js'), venta: leer('js/cotizador/venta.js'),
   ia: leer('js/cotizador/ia.js'), catalogo: leer('js/cotizador/catalogo.js'),
+  proceso: leer('js/cotizador/proceso.js'),
 };
 const HTML = leer('cotizador.html');
 
@@ -353,6 +354,36 @@ console.log('\nEL TELÉFONO DE WHATSAPP — la misma regla de los dos lados');
      UI.linkWa('', 'hola'), 'https://wa.me/?text=hola');
   eq('con un teléfono que no lo es, tampoco inventa destinatario',
      UI.linkWa('ext. 204', 'hola'), 'https://wa.me/?text=hola');
+}
+
+/* El hito de WhatsApp avisa ANTES de tocarlo (ficha H2). El aviso de «número no válido» salía
+   después de window.open, con WhatsApp ya abierto sin chat, y el hito se marcaba «Chat
+   abierto» de un chat que no existió. */
+console.log('\nEL HITO DE WHATSAPP — dice a qué número va antes de abrir');
+{
+  const Q = { tel: '' };
+  const abiertas = [], hitos = [], avisos = [];
+  const ctx = evaluar(['telWhatsApp', 'telLegible', 'pistaWhatsApp', 'enviarPorWhatsApp'].map(n => fuente(COT.entrega, n)).join('\n'), {
+    Q, encodeURIComponent, mensajeWhatsApp: () => 'hola',
+    window: { open: u => { abiertas.push(u); return {}; } },
+    marcarHito: k => hitos.push(k), toast: (m, t) => avisos.push(t),
+  });
+  const pista = t => { Q.tel = t; return ctx.pistaWhatsApp(); };
+  eq('Guadalajara se agrupa 2-4-4', pista('3328130092').texto, 'a +52 33 2813 0092 · adjunta el PDF');
+  eq('una lada de tres, 3-3-4', pista('477 123 4567').texto, 'a +52 477 123 4567 · adjunta el PDF');
+  eq('el de antes con 044 ya sale limpio', pista('044 33 1234 5678').texto, 'a +52 33 1234 5678 · adjunta el PDF');
+  eq('fuera de México no se adivina la agrupación', pista('+1 415 555 2671').texto, 'a +14155552671 · adjunta el PDF');
+  eq('  y ninguno de esos va en ámbar', [pista('3328130092').av, pista('+1 415 555 2671').av], [false, false]);
+  eq('un número a medias lo dice antes, en ámbar', [pista('33 12').texto, pista('33 12').av],
+     ['el teléfono no parece válido: WhatsApp abrirá sin chat', true]);
+  eq('sin teléfono también', pista('').texto, 'sin teléfono: WhatsApp abrirá sin chat');
+  Q.tel = '33 12'; ctx.enviarPorWhatsApp();
+  eq('sin número válido, WhatsApp abre para elegir el chat', abiertas.pop(), 'https://wa.me/?text=hola');
+  eq('  y el hito «Chat abierto» NO se marca', hitos, []);
+  Q.tel = '3328130092'; ctx.enviarPorWhatsApp();
+  eq('con número, abre su chat y el hito se marca', [abiertas.pop(), hitos], ['https://wa.me/523328130092?text=hola', ['wa']]);
+  eq('el hito de la pantalla lleva la pista calculada, no la frase fija',
+     /typeof x\.pista==='function'\?x\.pista\(\)/.test(fuente(COT.proceso, 'entregaHTML')), true);
 }
 
 console.log('\n' + bien + ' bien, ' + mal + ' mal');

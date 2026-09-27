@@ -375,12 +375,17 @@ function entregaHTML(opts){
 
        El hecho se dice con la palomita y la fecha, no cambiando el nombre del botón: quien
        vuelva a tocarlo tiene que seguir sabiendo qué hace. */
+    /* Una pista que es función se calcula ahora y sale SIEMPRE mientras el paso no esté hecho:
+       la de WhatsApp dice a qué número va (o que no hay uno válido), y eso hay que poder verlo
+       antes de que sea su turno —se corrige el teléfono en el paso 1, no después de abrir
+       un WhatsApp sin chat—. Las de texto fijo siguen saliendo solo en el paso que toca. */
+    const p=typeof x.pista==='function'?x.pista():(toca&&x.pista?{texto:x.pista,av:false}:null);
     return `<button class="btn hito ${ts?'btn-gho hito-hecho':(toca?'btn-pri':propia)}" onclick="${x.fn}">`
       +(ts?`<svg class="svgi hito-ok" aria-hidden="true"><use href="#i-check"/></svg>`
           :`<svg class="svgi" aria-hidden="true"><use href="#${x.ico}"/></svg>`)
       +` ${x.label}`
       +(ts?`<small class="hito-fecha">${esc(x.hecho)} · ${esc(hitoFecha(ts))}</small>`
-          :(toca&&x.pista?`<small class="hito-pista">${esc(x.pista)}</small>`:''))
+          :(p&&p.texto?(p.av?`<small class="hito-pista av"><span>${esc(p.texto)}</span></small>`:`<small class="hito-pista">${esc(p.texto)}</small>`):''))
       +`</button>`;
   }).join('');
 }

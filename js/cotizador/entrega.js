@@ -136,6 +136,30 @@ function telWhatsApp(t){
   if(d.length>=11&&d.length<=15) return d;         // internacional con lada plausible
   return '';
 }
+/* El número como se dice en voz alta, para que el vendedor lo reconozca: +52 33 2813 0092.
+   Guadalajara, la Ciudad de México y Monterrey tienen lada de dos dígitos (33, 55, 81) y se
+   agrupan 2-4-4; las demás, de tres, 3-3-4. Fuera de México no se adivina la agrupación. */
+function telLegible(n){
+  if(!n) return '';
+  let m=/^52(1?)(\d{10})$/.exec(n);
+  if(m){
+    const d=m[2], dos=/^(33|55|81)/.test(d);
+    const g=dos?[d.slice(0,2),d.slice(2,6),d.slice(6)]:[d.slice(0,3),d.slice(3,6),d.slice(6)];
+    return '+52 '+(m[1]?'1 ':'')+g.join(' ');
+  }
+  return '+'+n;
+}
+/* Lo que dice el hito de WhatsApp ANTES de tocarlo. El aviso de «número no válido» salía
+   después de window.open, cuando WhatsApp ya había abierto sin chat y el vendedor estaba en
+   la otra app; ahora se lee en el botón, y si el número está bien, se ve a cuál va. `av` pinta
+   la pista en ámbar (ver .hito-pista.av). */
+function pistaWhatsApp(){
+  const num=telWhatsApp(Q.tel);
+  if(num) return {texto:'a '+telLegible(num)+' · adjunta el PDF', av:false};
+  const teniaTel=String(Q.tel||'').replace(/\D/g,'').length>0;
+  return {texto:teniaTel?'el teléfono no parece válido: WhatsApp abrirá sin chat'
+                        :'sin teléfono: WhatsApp abrirá sin chat', av:true};
+}
 function mensajeWhatsApp(){
   const pf=precioFinal();
   const n=Q.items.filter(it=>it.showInPdf!==false).length;
@@ -170,8 +194,10 @@ function enviarPorWhatsApp(){
   const w=window.open(url,'_blank');
   if(!w){ toast('Permite ventanas emergentes para abrir WhatsApp','err',3400); return; }
   /* El hito dice «chat abierto», que es exactamente lo que acaba de pasar: el PDF se
-     adjunta a mano y desde aquí no hay manera de saber si se mandó. */
-  marcarHito('wa');
+     adjunta a mano y desde aquí no hay manera de saber si se mandó. Sin número NO se marca:
+     WhatsApp abrió sin chat, y la palomita decía «Chat abierto» de un chat que no existió
+     —el paso quedaba por hecho y la cotización nunca le llegó al cliente—. */
+  if(num) marcarHito('wa');
   const teniaTel=String(Q.tel||'').replace(/\D/g,'').length>0;
   /* El aviso de éxito se fue: se pintaba en la pestaña que el vendedor acaba de abandonar, así
      que nadie lo leía. Lo que decía —«falta adjuntar el PDF»— ahora vive en el renglón del
@@ -281,7 +307,9 @@ const HITOS_KEY='al3d_hitos';
    adjuntó. Puestas aquí se leen a tiempo, en el teléfono y en el escritorio. */
 const HITOS=[
   {k:'pdf',  label:'Generar PDF',        hecho:'PDF generado',  pista:'elige «Guardar como PDF»',  fn:'generarPDF()',        cls:'btn-pri', ico:'i-doc'},
-  {k:'wa',   label:'Enviar por WhatsApp',hecho:'Chat abierto',  pista:'adjunta el PDF que guardaste', fn:'enviarPorWhatsApp()', cls:'btn-wa',  ico:'i-chat'},
+  /* La de WhatsApp no es fija: dice a qué número va, o que no hay número válido, y sale
+     siempre, no solo en el paso que toca (pistaWhatsApp(), en entregaHTML). */
+  {k:'wa',   label:'Enviar por WhatsApp',hecho:'Chat abierto',  pista:pistaWhatsApp, fn:'enviarPorWhatsApp()', cls:'btn-wa',  ico:'i-chat'},
   {k:'venta',label:'Registrar venta',    hecho:'Venta registrada',fn:'abrirRegistrarVenta()',cls:'btn-vta',ico:'i-venta'},
 ];
 function getHitos(){

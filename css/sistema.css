@@ -3629,6 +3629,11 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
    son la palomita y la fecha, no un texto apagado. */
 .hito-fecha,.hito-pista{font-size:var(--t1);font-weight:400;color:var(--tinta3)}
 .btn-pri .hito-pista,.btn-ok .hito-pista{color:#fff}
+/* La pista que avisa —«el teléfono no parece válido: WhatsApp abrirá sin chat»— va en ámbar
+   con su fondo, no en ámbar suelto: el botón puede estar relleno de azul cuando es el paso que
+   toca, y --av sobre el azul no se lee. --av sobre --av-bg da 5.9:1 de día y 8:1 de noche. */
+.hito .hito-pista.av{color:var(--av);font-weight:600;margin-top:3px}
+.hito .hito-pista.av>span{background:var(--av-bg);border-radius:var(--rr1);padding:1px 6px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 .hito-hecho{color:var(--tinta)}
 .hito-ok{color:var(--ok)}
 /* El pliegue de «otras salidas» es el último renglón de la columna y no una caja más: la
