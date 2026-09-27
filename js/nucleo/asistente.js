@@ -88,7 +88,25 @@ export function montar(ctx) {
   if (_montado) return;
   _montado = true;
   const b = $('pf-ia-btn');
-  if (b) b.addEventListener('click', abrir);
+  if (b) {
+    b.addEventListener('click', abrir);
+    /* En el teléfono el botón se aparta mientras se baja por la página y vuelve al subir: con el
+       dock y la barra de acción eran tres capas flotantes encima de la lista que se está
+       leyendo. Al llegar al final vuelve, que es donde ya tiene su hueco reservado. */
+    let y0 = window.scrollY, pend = false;
+    window.addEventListener('scroll', () => {
+      if (pend) return; pend = true;
+      requestAnimationFrame(() => {
+        pend = false;
+        const y = window.scrollY, dy = y - y0;
+        const alFondo = y + innerHeight >= document.documentElement.scrollHeight - 8;
+        if (Math.abs(dy) < 12 && !alFondo) return;
+        const telefono = matchMedia('(max-width:759px)').matches;
+        b.classList.toggle('apartado', telefono && dy > 0 && y > 80 && !alFondo);
+        y0 = y;
+      });
+    }, { passive: true });
+  }
   const capa = $(CAPA);
   if (capa) {
     capa.addEventListener('click', alClic);
@@ -120,6 +138,13 @@ export function cerrar() {
 
 function pintar() {
   const capa = $(CAPA); if (!capa) return;
+  /* El panel se reescribe entero, con el <textarea> dentro. Cuando /salud contestaba con la
+     pregunta a medio escribir —con mala señal tarda segundos—, el texto desaparecía. Se guarda
+     lo escrito, el foco y el cursor, y se devuelven al final. */
+  const ta0 = $('ia-pregunta');
+  const borrador = ta0 ? ta0.value : '';
+  const conFoco = !!ta0 && document.activeElement === ta0;
+  const sel = ta0 ? [ta0.selectionStart, ta0.selectionEnd] : null;
   const cadena = cadenaIA(_iaEstado);
   const hayLlave = cadena.length > 0;
   const quien = cadena[0] ? (PROVEEDOR_NOMBRE[cadena[0].prov] || cadena[0].prov) + ' · ' + cadena[0].model : '';
@@ -142,6 +167,11 @@ function pintar() {
       '<p class="ia-pista">Enter envía · Shift+Enter hace renglón' + (hayLlave ? '' : ' · para preguntas libres, Dirección pega una llave de IA en la hoja') + '</p>' +
     '</div>' +
   '</div>';
+  const ta = $('ia-pregunta');
+  if (ta && borrador) { ta.value = borrador; alEscribir({ target: ta }); }
+  if (ta && conFoco && !_ocupado) {
+    try { ta.focus({ preventScroll: true }); if (sel) ta.setSelectionRange(sel[0], sel[1]); } catch (_) {}
+  }
   abajo();
 }
 
@@ -257,7 +287,11 @@ function abajo() {
   if (c) requestAnimationFrame(() => { c.scrollTop = _msgs.length ? c.scrollHeight : 0; });
 }
 
+/* Con el dedo, no: en el teléfono un focus() abre el teclado, que tapaba justo la respuesta y
+   sus botones después de cada pregunta. El teclado lo abre quien toca el campo. */
+const conDedo = () => { try { return matchMedia('(pointer:coarse)').matches; } catch (_) { return false; } };
 function enfocarCampo() {
+  if (conDedo()) return;
   const ta = $('ia-pregunta');
   if (ta && !_ocupado) requestAnimationFrame(() => { try { ta.focus({ preventScroll: true }); } catch (_) {} });
 }

@@ -46,7 +46,7 @@ import * as Material from '../datos/material.js';
 import { RESPALDO_KEYS } from '../datos/cotizador.js';
 import {
   $, esc, ico, toast, avisarResultado, abrirCapa, cerrarCapa,
-  descargarArchivo, fmtFechaDia, cuando, ajustarAltoBarra, copiarTexto, voz,
+  descargarArchivo, fmtFechaDia, cuando, ajustarAltoBarra, copiarTexto, voz, confirmarPf,
 } from '../nucleo/ui.js';
 
 /* ============================================================================
@@ -1179,6 +1179,13 @@ async function guardarPuente() {
 }
 
 async function quitarPuente() {
+  /* Pregunta antes: el token no se vuelve a mostrar ni entra al respaldo, así que quitarlo por
+     un toque equivocado obligaba a pedirle uno nuevo a Dirección. */
+  if (!await confirmarPf({
+    titulo: '¿Quitar el puente de este teléfono?',
+    texto: 'El token no se puede volver a ver: para reconectar hay que pegar uno otra vez. Lo que está en la bandeja se queda esperando.',
+    si: 'Quitar el puente', no: 'Dejarlo', peligro: true,
+  })) return;
   if (!Prefs.setPuente(null)) { toast('No se pudo quitar el puente', 'err', 4200); return; }
   Sync.registrar(null);
   SALUD = null; ESQ = null;

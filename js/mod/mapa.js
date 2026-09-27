@@ -166,8 +166,7 @@ export async function montar(contenedor, ctx) {
     return;
   }
 
-  cont.innerHTML = '<div class="vacio">' + ico('i-reloj') +
-    '<p class="vacio-t">Leyendo las obras…</p></div>';
+  /* Sin texto de espera: deja puesto el esqueleto del router, que tiene la forma del mapa. */
   await cargar();
 }
 
@@ -424,7 +423,7 @@ function refrescarPiezas() {
       const n = porGrupo.get(g.g) || 0;
       const etiq = g.marca + ' · ' + g.palabra + ' (' + n + ')';
       const on = GRUPOS_ON.has(g.g);
-      return '<button type="button" class="chip' + (on ? ' on' : '') + '"' +
+      return '<button type="button" class="chip' + (on ? ' on' : '') + (n ? '' : ' cero') + '"' +
         ' aria-pressed="' + (on ? 'true' : 'false') + '" data-g="' + g.g + '"' +
         ' title="' + esc(etiq) + '" aria-label="' + esc(etiq) + '">' +
         '<span class="lg">' + esc(g.marca + ' · ' + g.palabra) + '</span>' +
@@ -669,7 +668,17 @@ function encuadrar() {
 function volarA(id) {
   const p = PROYS.find(x => x.id === id);
   if (!mapa || !tienePin(p)) return;
-  mapa.setView([Number(p.lat), Number(p.lng)], 16);
+  /* En el teléfono la ruta va DEBAJO del mapa: «Ver en el mapa» movía el mapa fuera de la
+     vista y no llevaba a él. Si no está a la vista, se baja; y el mapa vuela en vez de saltar
+     (Leaflet salta sin animar con más de 4 niveles de zoom de diferencia). */
+  const lienzo = $('mapa-lienzo');
+  const suave = scrollSuave();
+  if (lienzo) {
+    const r = lienzo.getBoundingClientRect();
+    if (r.bottom < 80 || r.top > innerHeight - 80) lienzo.scrollIntoView({ block: 'center', behavior: suave });
+  }
+  if (suave === 'smooth') mapa.flyTo([Number(p.lat), Number(p.lng)], 16, { duration: .6 });
+  else mapa.setView([Number(p.lat), Number(p.lng)], 16);
   const m = MARCAS.get(id);
   if (m) { try { m.openPopup(); } catch (_) {} return; }
   /* El pin se guardó pero el filtro de arriba no lo pinta —lo más común: no tiene fecha de
@@ -895,8 +904,10 @@ function pintarModo() {
     '<span>' + (puesto
       ? 'Arrástralo si quedó cerca y guarda cuando esté bien.'
       : 'Toca en el mapa donde está <b>' + esc(MANO.nombre) + '</b>.') + '</span>' +
-    (puesto ? '<button type="button" class="btn btn-ok pf-btn-corto" data-mano-ok>' +
-      ico('i-check') + 'Guardar aquí</button>' : '') +
+    /* «Guardar aquí» está en los dos estados —apagado mientras no hay pin—: si aparecía al tocar
+       el mapa, la barra cambiaba de alto justo bajo el dedo y empujaba el mapa. */
+    '<button type="button" class="btn btn-ok pf-btn-corto" data-mano-ok' + (puesto ? '' : ' disabled') + '>' +
+      ico('i-check') + 'Guardar aquí</button>' +
     '<button type="button" class="btn btn-gho pf-btn-corto" data-mano-no>Cancelar</button>' +
     '</div>';
 }

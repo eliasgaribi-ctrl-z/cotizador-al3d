@@ -33,7 +33,7 @@ import * as Agenda from '../datos/agenda.js';
 import {
   $, esc, money, cant, plural, ico, toast, avisarResultado, vacio, segmento,
   abrirCapa, cerrarCapa, linkWa, telWa, fmtFecha, cuando, diasHasta, hoyISO, ajustarAltoBarra, cantHay, rotularPapel,
-  cifraQueCabe } from '../nucleo/ui.js';
+  cifraQueCabe, repintarEnSitio, conservandoFoco } from '../nucleo/ui.js';
 
 /* ============================================================================
    Estado del módulo. Todo aquí, y todo se suelta en desmontar().
@@ -197,7 +197,7 @@ export async function montar(c, ctx) {
      por renglón se va con el renglón: seis idas y venidas dejaban seis oyentes vivos
      repintando renglones muertos. Y por eso ningún id de material viaja en un `onclick`
      interpolado: va en un data-* escapado y se lee del dataset. */
-  on(cont, 'click', clicCuerpo);
+  on(cont, 'click', conservandoFoco(clicCuerpo));
   on($('pf-hoja'), 'click', clicHoja);
   on($('pf-pide'), 'click', clicPide);
   on(window, 'afterprint', trasImprimir);
@@ -238,7 +238,10 @@ export function desmontar() {
 
 async function cargar() {
   const cuerpo = $('mt-cuerpo');
-  if (cuerpo) {
+  /* Solo la primera vez. cargar() corre también después de cada acción («Así está», guardar un
+     material), y vaciar el cuerpo a un renglón para rellenarlo después hacía parpadear la lista
+     y saltar el scroll. Con algo ya pintado, se repinta encima cuando llegan los datos. */
+  if (cuerpo && !cuerpo.childElementCount) {
     cuerpo.innerHTML = '<div class="vacio">' + ico('i-reloj') +
       '<p class="vacio-t">Sumando el libro del almacén…</p></div>';
   }
@@ -643,7 +646,7 @@ function filaExistencia(e) {
         esc(money(num(e.cantidad) * num(e.costo_compra))) + '</div>'
       : '') +
     '<div class="mat-acc btn-fila no-papel">' +
-      '<button type="button" class="btn btn-ok" data-asi="' + esc(e.material_id) + '">' +
+      '<button type="button" class="btn btn-gho btn-ganar" data-asi="' + esc(e.material_id) + '">' +
         'Así está' + '</button>' +
       '<button type="button" class="btn btn-gho" data-contar="' + esc(e.material_id) + '">' +
         'Corregir' + '</button>' +
@@ -933,7 +936,7 @@ function abrirHoja(modo) {
 function repintarHoja() {
   const capa = $('pf-hoja');
   if (!capa || !capa.classList.contains('show')) return;
-  capa.innerHTML = htmlHoja();
+  repintarEnSitio(capa, htmlHoja());   // editar un material no devuelve el catálogo arriba
 }
 
 function htmlHoja() {

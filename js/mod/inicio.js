@@ -75,9 +75,7 @@ export async function montar(contenedor, ctx) {
     return;
   }
 
-  _cont.innerHTML = '<div class="vacio">' + ico('i-reloj') +
-    '<p class="vacio-t">Calculando qué se rompe primero…</p></div>';
-
+  /* Sin texto de espera: tapaba el esqueleto del router, que tiene la forma de la lista. */
   await recargar();
 }
 
@@ -334,7 +332,9 @@ function botonAccion(a, ac, primaria) {
       { rid: a.rid, tipo: 'copiar', datos: { texto: m.texto } });
   }
 
-  return boton(ac.label, 'btn ' + (primaria ? 'btn-pri' : 'btn-gho'),
+  /* Todas quietas: la primera acción de cada aviso iba en azul, y con nueve avisos eran nueve
+     botones de color en una pantalla cuya regla es uno. */
+  return boton(ac.label, 'btn btn-gho' + (primaria ? ' pf-btn-corto' : ''),
     { rid: a.rid, tipo: ac.tipo, datos, titulo: a.titulo });
 }
 

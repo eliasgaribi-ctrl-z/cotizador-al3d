@@ -30,6 +30,15 @@
    escribe en localStorage, no viaja al historial ni acaba en el PDF; es una
    preferencia de cómo se está viendo la pantalla, no un dato de la cotización. */
 const _plegadas=new Set();
+/* Las ids que había en la pintura anterior, para que SOLO entre la partida que nace.
+   renderItems() rehace la lista entera en cada toque, y con la entrada puesta en todas las
+   partidas cada chip hacía que la lista completa parpadeara (medido: tres entradas por un
+   chip, doce por un Ctrl+Z). null = no animar nada: el arranque, abrir otra cotización o
+   deshacer, que no «crean» una partida sino que devuelven una pantalla. */
+let _idsPintados=null;
+/* Cuándo fue la última tecla en un campo de partida. La lee latirTotal() (proceso.js) para no
+   hacer latir el total con cada dígito. */
+let _tecleoTs=0;
 /* Al abrir una partida se recogen las demás: se ve el resumen de lo que ya iba y el
    formulario de lo que se está capturando, sin desplazarse a ciegas. */
 function plegarOtras(dejarAbierta){
@@ -52,7 +61,13 @@ function togglePartida(id,opts){
      misma partida, que es el único punto de anclaje que sobrevive al repintado. */
   const a=document.activeElement;
   const teniaFoco=!!(a&&a.closest&&a.closest('.partida')&&a.closest('.partida').id==='p-'+id);
+  /* Lo que se toca se queda bajo el dedo. Se mide dónde estaba la partida antes de repintar y
+     se compensa el scroll AL INSTANTE: antes eran dos movimientos por un toque —la lista
+     saltaba y luego un desplazamiento suave la traía de vuelta—. */
+  const antes=$('p-'+id)?$('p-'+id).getBoundingClientRect().top:null;
   renderItems();
+  const tras=$('p-'+id);
+  if(tras&&antes!==null){ const d=tras.getBoundingClientRect().top-antes; if(Math.abs(d)>1) window.scrollBy(0,d); }
   if(teniaFoco){
     const b=$('p-'+id)&&$('p-'+id).querySelector('.pfold');
     if(b){ try{ b.focus({preventScroll:true}); }catch(_){ b.focus(); } }
@@ -84,6 +99,7 @@ function togglePlegarTodas(){
 /* Al abrir una cotización guardada solo se deja desplegada la última: si no, cinco
    partidas ya capturadas son seis mil píxeles de desplazamiento antes de ver el total. */
 function sincronizarPlegado(){
+  _idsPintados=null;   // llega otra cotización: no entra partida por partida
   _plegadas.clear();
   if(Q.items.length<2)return;
   Q.items.slice(0,-1).forEach(it=>_plegadas.add(it.id));
@@ -234,6 +250,7 @@ function setItem(id,k,v){
 /* Escritura ligera: no re-renderiza el input (evita perder el foco), solo refresca total y resumen */
 function typeItem(id,k,v){
   if(capturaBloqueada())return;
+  _tecleoTs=Date.now();   // el latido del total espera a que se termine de teclear
   const it=Q.items.find(x=>x.id===id); if(!it)return;
   undoJuntar('it:'+id+':'+k);
   const antes=it[k];
@@ -428,6 +445,7 @@ function guardarCambiosEdicion(){
 }
 function autoContarLetras(id,texto){
   if(capturaBloqueada())return;
+  _tecleoTs=Date.now();
   const n=texto.replace(/\s/g,'').length;
   const it=Q.items.find(x=>x.id===id); if(!it)return;
   undoJuntar('it:'+id+':texto');
@@ -543,6 +561,7 @@ function renderItems(){
   }
   Q.items.forEach((it,i)=>{
     const d=document.createElement('div'); d.className='partida'; d.id='p-'+it.id;
+    if(_idsPintados&&!_idsPintados.has(it.id)) d.classList.add('nace');
     /* El matiz de la partida. Va por POSICIÓN y no por id: lo que hay que poder distinguir
        de un vistazo es la de arriba de la de abajo, así que el color tiene que decir lo
        mismo que el número —y con seis tonos, dos vecinas nunca coinciden—. Por id, borrar
@@ -672,6 +691,7 @@ function renderItems(){
   pintarPlazo();
   renderSummary(); updProg(); saveState();
   _devolverFocoItems(_focoPrevio);
+  _idsPintados=new Set(Q.items.map(x=>x.id));
 }
 function calcProg(){
   let pts=0,max=0;
@@ -712,7 +732,7 @@ function updProg(){
   const pct=calcProg();
   const bar=$('prog-bar'),pctEl=$('prog-pct');
   if(!bar||!pctEl)return;
-  bar.style.width=pct+'%';
+  bar.style.transform='scaleX('+(pct/100)+')';
   pctEl.textContent=pct+'%';
   /* El color lo pone la hoja: aquí solo se dice si ya está completa. Antes se escribían tres
      degradados como estilo EN LÍNEA, que gana a cualquier regla de css/sistema.css, así que el

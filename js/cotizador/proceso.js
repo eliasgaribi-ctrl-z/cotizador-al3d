@@ -240,7 +240,7 @@ function renderAuth(){
             ${hayPartidas?'':`<p class="mini">${!locked()&&faltanDatosCliente()
               ? 'Falta el paso 1.'
               : 'Agrega partidas con precio para continuar.'}</p>`}
-            <button class="btn btn-gho" onclick="pedirConfNueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Vaciar y empezar cotización nueva</button>`;
+            <button class="btn btn-gho btn-vaciar" onclick="pedirConfNueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Vaciar y empezar cotización nueva</button>`;
     }
     else if(Q.estado==='pendiente'){
       body=_selfAuth
@@ -314,7 +314,7 @@ function renderAuth(){
     else if(Q.estado==='rechazada'){
       body=`<div class="authnote">Rechazada por <b>${esc(Q.autorizador)||'—'}</b>.${Q.nota?'<br>Motivo: '+esc(Q.nota):''}</div>
             <button class="btn btn-gho" onclick="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar y volver a enviar</button>
-            <button class="btn btn-gho" onclick="pedirConfNueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Vaciar y empezar cotización nueva</button>`;
+            <button class="btn btn-gho btn-vaciar" onclick="pedirConfNueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Vaciar y empezar cotización nueva</button>`;
     }
   }
 
@@ -325,6 +325,10 @@ function renderAuth(){
   const _abierto=box.querySelector('details.otras-salidas')?.open;
   box.innerHTML=`<div class="statusrow"><span class="lab">Autorización</span>${badge}</div>${body}`;
   if(_abierto){ const d=box.querySelector('details.otras-salidas'); if(d) d.open=true; }
+  /* El giro de espera nace nuevo en cada repintado —que aquí es cada tecla— y volvía a arrancar
+     desde arriba: daba tirones. Con un retardo negativo sacado del reloj, todos los giros que
+     nacen van en la misma fase (una vuelta dura .8 s) y el repintado no se nota. */
+  box.querySelectorAll('.espera-giro').forEach(g=>{ g.style.animationDelay=(-(performance.now()%800))+'ms'; });
   // Inicializar display de descuento tras render
   /* Solo PINTAR: esto corre en cada repintado, sin que nadie haya tecleado. Apuntaba el valor
      del campo como «lo que llevabas escrito», y de ahí salían dos mentiras —«se canceló la
@@ -946,7 +950,10 @@ function _direccionDePantalla(clase){
   h.classList.remove('va-adelante','va-atras');
   void h.offsetWidth;
   h.classList.add(clase);
-  clearTimeout(_dirT); _dirT=setTimeout(()=>h.classList.remove(clase),420);
+  /* La clase se QUEDA hasta el siguiente cambio de pantalla. Se quitaba a los 420 ms, y al
+     quitarla `animation-name` volvía a `entra`: el navegador arrancaba una animación nueva y la
+     tarjeta, ya a opacidad 1, caía a 0 y volvía a entrar. Medido: opacidad 1 a los 300 ms, 0 a
+     los 400 y otra vez 1 a los 680, en cada cambio de paso. */
 }
 const _menosMovimiento=()=>{
   try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(_){ return false; }
@@ -972,6 +979,9 @@ function _volarTotal(){
   /* El mismo elemento en el mismo sitio no vuela: pasa cuando se toca la pestaña en la que ya
      se está, y una cifra que se encoge y vuelve a crecer sin moverse se lee como un parpadeo. */
   if(Math.abs(rl-n.left)<1&&Math.abs(rt-n.top)<1&&Math.abs(r.height-n.height)<1) return;
+  /* Sin los dos extremos a la vista no hay relación que enseñar: en el teléfono la columna del
+     dinero vive debajo de las partidas, y el número bajaba 2 400 px hasta salir de la pantalla. */
+  if(n.bottom<0||n.top>innerHeight||rt+r.height<0||rt>innerHeight) return;
   const dx=rl-n.left, dy=rt-n.top, s=r.height/n.height;
   el.style.transition='none';
   el.style.transformOrigin='left top';
@@ -981,7 +991,9 @@ function _volarTotal(){
      la lleva en el mismo recálculo de estilo, y no anima nada. Es el mismo truco que ya usa
      la maqueta del rediseño. */
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    el.style.transition='transform var(--mv-t),opacity .4s';
+    /* Viaja DENTRO de la pantalla, así que va con ease-in-out y por debajo de 400 ms; la opacidad
+       llega antes, con la de salida fuerte. */
+    el.style.transition='transform var(--mv-t),opacity .2s var(--ease-out)';
     el.style.transform='';
     el.style.opacity='';
     /* Se limpia al terminar: un `transform` vacío pero declarado deja al elemento con su
@@ -1869,15 +1881,22 @@ function deshacerVaciado(){
    quien está capturando no sabe si el material que acaba de tocar movió el precio o no. El
    latido dura lo que un parpadeo y solo ocurre cuando el importe cambia de verdad —no en
    cada repintado— porque una pantalla que se mueve sola todo el tiempo cansa. */
-let _netoPrev=null;
+/* Y no late con cada tecla. Al teclear «120» en la altura el número más grande de la pantalla
+   crecía y se encogía tres veces, delante del cliente. Si el cambio viene del teclado, late UNA
+   vez, 700 ms después de la última tecla; si viene de un toque —un chip, el IVA, agregar o
+   borrar—, al instante. `_tecleoTs` lo marcan typeItem() y autoContarLetras(). */
+let _netoPrev=null, _latidoT=0;   // _tecleoTs vive en partidas.js, que carga antes
+function _latir(el){ if(!el) return; el.classList.remove('cambio'); void el.offsetWidth; el.classList.add('cambio'); }
+function _latirCuando(el){
+  if(Date.now()-_tecleoTs<700){
+    clearTimeout(_latidoT);
+    _latidoT=setTimeout(()=>{ _latir($('s-neto')); _latir($('s-sub-box')); },700);
+  } else _latir(el);
+}
 function latirTotal(){
   const el=$('s-neto'); if(!el) return;
   const ahora=el.textContent;
-  if(_netoPrev!==null&&_netoPrev!==ahora){
-    el.classList.remove('cambio');
-    void el.offsetWidth;          // reinicia la animación: sin esto solo late la primera vez
-    el.classList.add('cambio');
-  }
+  if(_netoPrev!==null&&_netoPrev!==ahora) _latirCuando(el);
   _netoPrev=ahora;
 }
 /* ----- Y el subtotal también late -----
@@ -1896,11 +1915,7 @@ function latirSubtotal(){
   const caja=$('s-sub-box'), el=$('s-sub');
   if(!caja||!el) return;
   const ahora=el.textContent;
-  if(_subPrev!==null&&_subPrev!==ahora){
-    caja.classList.remove('cambio');
-    void caja.offsetWidth;        // reinicia la animación: sin esto solo late la primera vez
-    caja.classList.add('cambio');
-  }
+  if(_subPrev!==null&&_subPrev!==ahora&&Date.now()-_tecleoTs>=700) _latir(caja);
   _subPrev=ahora;
 }
 /* El subtotal que va en el documento del cliente: el autorizado cuando lo hay y sigue

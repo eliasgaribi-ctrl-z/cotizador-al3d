@@ -80,8 +80,11 @@ const desenfoque = await p.evaluate(() => {
   return { topbar: b('.topbar'), pasos: b('.pasos'), sum: b('.side>.sum'), partida: b('#items .partida') };
 });
 cierto(/blur/.test(desenfoque.topbar || ''), 'la barra de arriba lleva vidrio');
-cierto(/blur/.test(desenfoque.pasos || ''), 'el riel de pasos lleva vidrio');
-cierto(/blur/.test(desenfoque.sum || ''), 'la columna del dinero lleva vidrio');
+/* Desde la auditoría de movimiento el riel y la columna del dinero son vidrio DENSO, sin
+   desenfoque: debajo de ellos no pasa contenido, y cada backdrop-filter se recalcula en cada
+   cuadro. El desenfoque se queda en lo que flota sobre algo que se desplaza. */
+cierto(!/blur/.test(desenfoque.pasos || ''), 'el riel de pasos NO desenfoca (' + desenfoque.pasos + ')');
+cierto(!/blur/.test(desenfoque.sum || ''), 'la columna del dinero NO desenfoca (' + desenfoque.sum + ')');
 cierto(desenfoque.partida === null || !/blur/.test(desenfoque.partida),
   'y una partida NO lo lleva, que es a propósito (' + desenfoque.partida + ')');
 

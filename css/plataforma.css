@@ -138,6 +138,11 @@ body.pf::before{display:none}
    tiene que verse sólido, porque es tu cuenta y no un mando más. */
 .pf-cab button.pf-sesion{background:#4060f8 !important;color:#fff !important;box-shadow:none !important;
   backdrop-filter:none !important;padding:0 !important;font-size:15px !important;font-weight:600 !important}
+/* Un menú que sale de su botón: crece desde la esquina de arriba a la derecha, que es donde
+   está el disco de la cuenta, en 150 ms. Se cierra en seco, que es lo que pide algo que se
+   cierra tocando fuera. */
+.pf-sesion-menu{transform-origin:top right;transition:opacity .15s var(--ease-out),transform .15s var(--ease-out)}
+@starting-style{.pf-sesion-menu{opacity:0;transform:scale(.96) translateY(-4px)}}
 .pf-sesion-menu{position:absolute;top:calc(100% + 6px);right:max(var(--e4),env(safe-area-inset-right,0px));
   z-index:60;width:min(300px,calc(100vw - 32px));padding:14px;border-radius:14px;
   background:var(--sup);color:var(--tinta);border:1px solid var(--linea);box-shadow:var(--sombra-alta)}
@@ -284,11 +289,16 @@ body.pf::before{display:none}
    verdad, que sí hace falta, no se toca. */
 #pf-contenido:focus{outline:none}
 
-/* Cambiar de módulo es un movimiento, no un corte: la pantalla nueva entra desde 10 px abajo
-   en .32 s. Va en la sección —que es lo que el router enciende— y no en cada módulo, así que
-   los ocho entran igual sin tener que acordarse. El `@media` de movimiento reducido de
-   css/sistema.css lo apaga con los demás. */
-.pf-mod{animation:entra .32s cubic-bezier(.2,.8,.2,1) both}
+/* Cambiar de módulo ES un corte, y a propósito. Entraba desde 10 px abajo en .32 s, y la
+   auditoría de movimiento lo midió: pasaba en cada toque del dock, con las teclas 1-9 y al
+   volver a un marco conservado —decenas de veces al día—, y anidado con la entrada de cada
+   tarjeta. Una entrada dice «esto es nuevo»; repetida en la navegación, se lee como que la
+   app va lenta. Lo que queda es un fundido de 120 ms, solo de opacidad: sin desplazamiento
+   no hay nada que medir corto (ver alTerminarDeEntrar en ui.js). */
+.pf-mod{animation:pf-aparece .12s var(--ease-out) both}
+@keyframes pf-aparece{from{opacity:.001}}
+/* Con las teclas 1-9 ni eso: lo que dispara el teclado se repite cien veces y no se anima. */
+html[data-nav="teclado"] .pf-mod{animation:none}
 
 /* El ancho de las pantallas de la plataforma. La maqueta las topa en 1 240 px y la .wrap del
    cotizador venía topando en 1 180; con la barra lateral fuera del flujo, el contenido puede
@@ -477,7 +487,8 @@ body.pf::before{display:none}
   border-radius:var(--rr2);background:var(--sup);color:var(--tinta2);cursor:pointer;
   box-shadow:none;font-size:var(--t4)}
 @media(hover:hover){.cal-nav:hover{border-color:var(--a-borde);color:var(--tinta)}}
-.cal-nav:active{box-shadow:none;transform:translateY(1px)}
+.cal-nav{transition:background var(--mv-s),border-color var(--mv-s),transform var(--mv-liq)}
+.cal-nav:active{box-shadow:none;transform:scale(.95)}
 .cal-nav .svgi{width:var(--ico1);height:var(--ico1)}
 /* Los 44 px del mínimo táctil, donde de verdad se toca con el dedo. En un monitor con ratón
    un botón de 34 px es cómodo y es el que pide la maqueta. */
@@ -746,6 +757,10 @@ body.pf::before{display:none}
 /* El pin de una obra sin ubicar no existe: no hay pin en medio del océano. Van en una lista
    aparte, y la lista lo dice. */
 .mapa-sinubicar{margin-top:var(--e4)}
+/* Leaflet trae su propio destello celeste al tocar (vendor/leaflet.css), que carga después de
+   esta hoja; el resto de la app no destella. Y su globo aparece con una curva lineal. */
+#mapa-lienzo .leaflet-container a,#mapa-lienzo.leaflet-container a{-webkit-tap-highlight-color:transparent}
+#mapa-lienzo .leaflet-fade-anim .leaflet-popup,#mapa-lienzo.leaflet-fade-anim .leaflet-popup{transition:opacity .16s var(--ease-out)}
 
 /* ============================================================================
    Modales de la plataforma
@@ -769,6 +784,12 @@ body.pf::before{display:none}
   .pf-modal-bg{padding:0;align-items:flex-end}
   .pf-panel{max-width:none;border-radius:var(--rr3) var(--rr3) 0 0;
     max-height:calc(100dvh - 32px - env(safe-area-inset-top,0px))}
+  /* El asa, como en el cotizador: dice que la hoja se baja con el dedo (ver ui.js). Y el cuerpo
+     no le pasa el scroll a la página de atrás cuando llega al final. */
+  .pf-panel-h{position:relative;padding-top:22px}
+  .pf-panel-h::before{content:'';position:absolute;top:8px;left:50%;width:38px;height:4px;
+    margin-left:-19px;border-radius:2px;background:var(--linea)}
+  .pf-panel-b{overscroll-behavior:contain}
 }
 
 /* ============================================================================
@@ -856,7 +877,7 @@ body.pf::before{display:none}
   min-height:44px;padding:0 var(--e4);border:1px solid var(--ok-borde);border-radius:var(--rr2);
   background:var(--ok-bg);color:var(--ok);font-weight:700;font-size:var(--t3);line-height:1;cursor:pointer;
   text-decoration:none;box-shadow:var(--clay)}
-.btn-wa:active{box-shadow:var(--clay-in);transform:translateY(1px)}
+.btn-wa:active{box-shadow:none;transform:scale(.97)}
 
 /* La barra fija del teléfono. Mismo esqueleto que la del cotizador. */
 .pf-mbar{gap:var(--e2)}
@@ -881,7 +902,9 @@ body.pf::before{display:none}
    activa la tarjeta: lo que se toca son los botones de adentro, y quitarle el latido al
    pasar por encima haría creer que ya se atendió. */
 .pf-decidir{display:block;cursor:default}
-@media(hover:hover){.pf-decidir:hover{transform:none;animation:latido 2.8s ease-in-out infinite}}
+/* El latido llama tres veces y se calla (ver .cand-partidas en sistema.css); el hover ya no lo
+   reinicia con otro nombre, que era un salto del aro a mitad de camino. */
+@media(hover:hover){.pf-decidir:hover{transform:none}}
 /* Los renglones de dentro se separan con el borde de la tarjeta, que desde el rediseño es
    azul y no ámbar: el latido de esta tarjeta ya no es una sombra ámbar que crece, es el aro
    del acento —el mismo que usa la maqueta— y un filete ámbar dentro de una pieza azul se
@@ -1073,7 +1096,8 @@ body.pf::before{display:none}
   color:var(--n7);font-family:inherit;font-weight:600;font-size:var(--t1);line-height:1;white-space:nowrap}
 button.cal-plazo{cursor:pointer}
 button.cal-plazo::after{content:'▾';font-size:9px;color:var(--muted)}
-button.cal-plazo:active{transform:translateY(1px) scale(.98)}
+button.cal-plazo{transition:background var(--mv-s),border-color var(--mv-s),transform var(--mv-liq)}
+button.cal-plazo:active{transform:scale(.97)}
 .cal-plazo .svgi{width:var(--ico1);height:var(--ico1);color:var(--n6)}
 .cal-plazo.mano{border-color:var(--a-borde);background:var(--a-suave);color:var(--a-fuerte)}
 .cal-plazo.mano .svgi{color:var(--a)}
@@ -1276,6 +1300,7 @@ button.cal-plazo:active{transform:translateY(1px) scale(.98)}
 .mapa-modo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2);width:100%;
   margin-bottom:var(--e3)}
 .mapa-modo>span{flex:1 1 12ch;min-width:0}
+.mapa-modo{min-height:52px}
 
 /* La dirección tal como la escribieron, con sus renglones. Reacomodarla en un párrafo es lo
    que convierte «interior 4, atrás de la farmacia» en una calle que no existe, y esa
@@ -1305,7 +1330,7 @@ button.cal-plazo:active{transform:translateY(1px) scale(.98)}
   box-shadow:none;cursor:pointer;transition:background var(--mv-s),border-color var(--mv-s)}
 .tb-etapa b{font-size:var(--t6);margin-bottom:5px}
 @media(hover:hover){.tb-etapa:hover{transform:none;border-color:var(--a-borde)}}
-.tb-etapa:active{box-shadow:none;transform:translateY(1px)}
+.tb-etapa:active{box-shadow:none;transform:scale(.97)}
 .tb-etapa.on{background:var(--a-suave);border-color:var(--a-borde);color:var(--tinta2);box-shadow:none}
 .tb-etapa.on b{color:var(--tinta)}
 /* «2 atrasados» va en ámbar y en su propio renglón. Es el dato que no existía en ninguna
@@ -1360,7 +1385,7 @@ button.cal-plazo:active{transform:translateY(1px) scale(.98)}
   background:var(--sup);box-shadow:var(--sombra);cursor:pointer;font-family:inherit;
   transition:border-color var(--mv-s)}
 @media(hover:hover){.pj-tarj:hover{border-color:var(--a-borde)}}
-.pj-tarj:active{transform:translateY(1px)}
+/* El :active de la tarjeta vive abajo, con su transición (ver .pj-tarj:active). */
 .pj-tarj-t{font-weight:600;font-size:var(--t3);line-height:1.3;color:var(--ink)}
 .pj-tarj-d{font-size:var(--t2);line-height:1.35;color:var(--tinta2)}
 .pj-tarj-f{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:7px}
@@ -1542,15 +1567,16 @@ body.pf{
     radial-gradient(1100px 520px at 6% -8%, rgba(var(--a-rgb),.075), transparent 62%),
     radial-gradient(800px 420px at 100% 4%, rgba(var(--a2-rgb),.045), transparent 60%),
     var(--fondo);
-  background-attachment:fixed;
 }
 html[data-tema="oscuro"] body.pf{
   background:
     radial-gradient(1100px 520px at 6% -8%, rgba(var(--a-rgb),.14), transparent 62%),
     radial-gradient(800px 420px at 100% 4%, rgba(var(--a2-rgb),.08), transparent 60%),
     var(--fondo);
-  background-attachment:fixed;
 }
+/* Sin `background-attachment:fixed`: el propio sistema explica que repinta el lienzo entero en
+   cada scroll del teléfono (sistema.css, «El lienzo que respira»), y el tinte de arriba ya lo da
+   la aurora, que es una capa fija que no se repinta. */
 
 /* ----- Las piezas ----- */
 body.pf .card{border-radius:var(--rr3);box-shadow:var(--sombra-reposo)}
@@ -1613,7 +1639,7 @@ body.pf .pf-panel{border-radius:var(--rr4)}
   box-shadow:none;background:var(--sup);border-radius:var(--rr2)}
 .tb-etapa::before{display:none}
 .tb-etapa b{font-size:var(--t6);letter-spacing:-.4px;margin-bottom:5px}
-@media(hover:hover){.tb-etapa:hover{transform:none;box-shadow:var(--sombra-reposo);border-color:var(--a-borde)}}
+@media(hover:hover) and (pointer:fine){.tb-etapa:hover{transform:none;box-shadow:var(--sombra-reposo);border-color:var(--a-borde)}}
 .tb-etapa.on{background:var(--a-suave);border-color:var(--a-borde);box-shadow:inset 0 0 0 1px var(--a-borde)}
 .tb-etapa.on b{color:var(--a-tx)}
 
@@ -1636,8 +1662,11 @@ body.pf .pf-decidir{border-radius:var(--rr3);padding:var(--e4)}
    borde se hunden en la superficie hundida al pasar. */
 body.pf .btn{border-radius:var(--rr2);font-weight:600}
 body.pf .btn-pri{box-shadow:var(--sombra-accion)}
-@media(hover:hover){body.pf .btn-pri:hover{box-shadow:var(--sombra-accion);transform:translateY(-1px)}}
-body.pf .btn-pri:active:not(:disabled){transform:translateY(0);box-shadow:none}
+@media(hover:hover) and (pointer:fine){body.pf .btn-pri:hover{box-shadow:var(--sombra-accion);transform:translateY(-1px)}}
+/* Presionar el botón de color encoge, como todo lo demás. Antes era translateY(0): con esta
+   especificidad (0,4,1) le ganaba al scale(.97) del sistema y el único botón de color de la
+   pantalla no respondía al dedo. */
+body.pf .btn-pri:active:not(:disabled){transform:scale(.97);box-shadow:none}
 @media(hover:hover){body.pf .btn-gho:hover,body.pf .btn-dgr:hover{background:var(--sup2)}}
 @media(hover:hover){body.pf .btn-dgr:hover{background:var(--mal-bg)}}
 body.pf .btn-ok{box-shadow:0 4px 14px -6px rgba(var(--ok-rgb),.55)}
@@ -1651,6 +1680,7 @@ body.pf .btn-ok{box-shadow:0 4px 14px -6px rgba(var(--ok-rgb),.55)}
   padding:var(--e3) var(--e4);box-shadow:var(--sombra-reposo)}
 .pf-banda.mal{border-left-color:var(--mal)}
 .pf-banda button{border-radius:var(--rr2);background:var(--sup);border-color:var(--av-borde);min-height:40px}
+@media(hover:none),(pointer:coarse){.pf-banda button{min-height:44px}}
 .pf-banda.mal button{border-color:var(--mal-borde)}
 
 /* ----- Estado vacío ----- el icono va en un círculo hundido, que es lo que lo vuelve
@@ -1720,8 +1750,9 @@ body.pf .btn-ok{box-shadow:0 4px 14px -6px rgba(var(--ok-rgb),.55)}
 .pj-col-n{min-width:22px;padding:0 7px;line-height:20px;text-align:center;border-radius:999px;
   background:var(--sup);border:1px solid var(--linea)}
 .pj-tarj{box-shadow:var(--sombra-reposo);transition:transform var(--mv-s),box-shadow var(--mv-s),border-color var(--mv-s)}
-@media(hover:hover){.pj-tarj:hover{transform:translateY(-2px);box-shadow:var(--sombra)}}
-.pj-tarj:active{transform:translateY(0);box-shadow:var(--sombra-reposo)}
+@media(hover:hover) and (pointer:fine){.pj-tarj:hover{transform:translateY(-2px);box-shadow:var(--sombra)}}
+/* Con el dedo la tarjeta no hacía nada: el :active era idéntico al reposo. */
+.pj-tarj:active{transform:scale(.985);box-shadow:var(--sombra-reposo);transition-duration:.1s}
 @media(hover:hover){.pj-lista-movil .pj-tarj:hover{transform:none}}
 
 /* ----- El calendario ----- */
@@ -1784,8 +1815,11 @@ body.pf .pf-lat-rol .seg{background:rgba(0,0,0,.25)}
 .ct-mes-t{font-weight:600;font-size:var(--t2);color:var(--tinta2);text-transform:capitalize;white-space:nowrap}
 .ct-mes.actual .ct-mes-t{color:var(--a-tx)}
 .ct-barras{display:flex;flex-direction:column;gap:3px;min-width:0}
-.ct-b{display:block;height:10px;min-width:2px;border-radius:999px;background:var(--a-fill);
-  transition:width var(--mv)}
+/* Sin transición: las barras nacen en cada innerHTML con su ancho puesto, así que la de
+   `width` nunca corría, y si algún día se actualizan en sitio tiene que ser con scaleX. */
+.ct-b{display:block;height:10px;min-width:2px;border-radius:999px;background:var(--a-fill)}
+/* El botón de traer la hoja no cambia de ancho entre «Actualizar» y «Trayendo la hoja…». */
+.ct-hoja .btn{min-width:17ch;justify-content:center}
 .ct-b.perdido{height:6px;background:var(--n4)}
 .ct-mes.actual .ct-b.vendido{background:var(--a-fuerte)}
 .ct-mes-v{text-align:right;font-family:var(--f-cifra);font-weight:600;font-size:var(--t3);color:var(--tinta);
@@ -1851,8 +1885,8 @@ body.pf .pf-lat-rol .seg{background:rgba(0,0,0,.25)}
   transition:transform var(--mv-s),box-shadow var(--mv-s),background var(--mv-s);
 }
 .pf-ia-btn .svgi{width:var(--ico3);height:var(--ico3)}
-@media(hover:hover){.pf-ia-btn:hover{background:var(--a-fuerte);transform:translateY(-1px)}}
-.pf-ia-btn:active{transform:translateY(0)}
+@media(hover:hover) and (pointer:fine){.pf-ia-btn:hover{background:var(--a-fuerte);transform:translateY(-1px)}}
+.pf-ia-btn:active{transform:scale(.96)}
 .pf-ia-btn:focus-visible{outline:2px solid #fff;outline-offset:2px;box-shadow:0 0 0 4px var(--a-borde)}
 @media(hover:hover){html[data-tema="oscuro"] .pf-ia-btn:hover{background:var(--a-fill);filter:brightness(1.1)}}
 @media(max-width:759px){
@@ -1914,7 +1948,8 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
   padding:10px 12px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup);
   font-family:inherit;cursor:pointer;box-shadow:var(--sombra-reposo);
   transition:border-color var(--mv-s),transform var(--mv-s)}
-@media(hover:hover){.ia-frecuente:hover{border-color:var(--a-borde);transform:translateY(-1px)}}
+@media(hover:hover) and (pointer:fine){.ia-frecuente:hover{border-color:var(--a-borde);transform:translateY(-1px)}}
+.ia-frecuente:active{transform:scale(.985)}
 .ia-frecuente .pf-fila-ico{width:36px;height:36px}
 .ia-frecuente-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .ia-frecuente-tx b{font-weight:600;font-size:var(--t3);color:var(--tinta);line-height:1.3}
@@ -2098,7 +2133,12 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
   html:has(body.pf){scroll-padding-bottom:calc(var(--dock) + var(--e3) + var(--mbar-h,0px))}
   .pf-mbar{bottom:var(--dock)}
   body.pf .toast{bottom:calc(var(--dock) + var(--e3) + var(--mbar-h,0px))}
-  .pf-ia-btn{bottom:calc(var(--dock) + var(--e2) + var(--mbar-h,0px))}
+  /* La barra de acción lo sube con `translate` y no con `bottom`: así el cambio se anima (entre
+     Material, con barra, y el Mapa, sin ella, el botón brincaba 60-70 px) y se compone con el
+     transform del hover y del press. `.apartado` lo baja fuera de la vista al bajar la página. */
+  .pf-ia-btn{bottom:calc(var(--dock) + var(--e2));translate:0 calc(-1 * var(--mbar-h,0px));
+    transition:translate .22s var(--ease-out),opacity .18s var(--ease-out),transform var(--mv-liq),box-shadow var(--mv-r)}
+  .pf-ia-btn.apartado{translate:0 calc(var(--dock) + 64px);opacity:0;pointer-events:none}
 }
 
 /* ----- El botón del asistente -----
@@ -2126,8 +2166,12 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
   box-shadow:var(--filo-corto),
              0 4px 16px -4px rgba(var(--a-rgb),.6),
              0 14px 36px -14px rgba(var(--a2-rgb),.55);
-  animation:ia-aurora var(--mv-lento) linear infinite;
-  transition:transform var(--mv-liq),box-shadow var(--mv-r);
+  /* Quieto. Corría `ia-aurora` en bucle —background-position, que repinta el botón 60 veces por
+     segundo en las ocho pantallas— junto con el barrido y la chispa: cuatro cosas moviéndose
+     solas todo el día en una herramienta de trabajo. Se queda el degradado detenido en su
+     mejor tono, dos barridos al llegar (para que se encuentre) y uno al pasar el ratón. */
+  background-position:30% 50%;
+  transition:transform var(--mv-liq),box-shadow var(--mv-r),translate .22s var(--ease-out),opacity .18s var(--ease-out);
 }
 /* El filo y el barrido llevan la MISMA máscara vertical que los del botón de «Cotizar con IA»,
    y por el mismo motivo medido que está escrito allá: el tono más claro del degradado da
@@ -2145,10 +2189,10 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
   -webkit-mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,#000 100%);
   mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,#000 100%);
   transform:translateX(-110%);
-  animation:ia-barrido 5.5s cubic-bezier(.2,.8,.2,1) infinite;
+  animation:ia-barrido 5.5s cubic-bezier(.2,.8,.2,1) 1.2s 2;
 }
-.pf-ia-btn .svgi{transform-origin:center;animation:ia-chispa 2.6s ease-in-out infinite}
-@media(hover:hover){.pf-ia-btn:hover{
+.pf-ia-btn .svgi{transform-origin:center}
+@media(hover:hover) and (pointer:fine){.pf-ia-btn:hover{
   background:linear-gradient(100deg,
     var(--ia-a) 0%,var(--ia-b) 25%,var(--ia-c) 50%,var(--ia-b) 75%,var(--ia-a) 100%);
   background-size:300% 100%;
@@ -2156,9 +2200,10 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
   box-shadow:var(--filo-corto),
              0 8px 24px -4px rgba(var(--a-rgb),.72),
              0 20px 50px -16px rgba(var(--a2-rgb),.7);
-  animation-duration:5s;
 }}
-@media(hover:hover){.pf-ia-btn:hover::after{animation-duration:2.6s}}
+/* Un barrido de una vez al entrar el ratón. Antes el hover cambiaba `animation-duration` a media
+   animación, y eso recalcula el avance: el degradado y el barrido saltaban. */
+@media(hover:hover) and (pointer:fine){.pf-ia-btn:hover::after{animation:ia-barrido-una .7s var(--ease-out) 1 both}}
 .pf-ia-btn:active{transform:scale(.96)}
 @media(hover:hover){html[data-tema="oscuro"] .pf-ia-btn:hover{filter:brightness(1.1)}}
 
@@ -2209,6 +2254,7 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
   .pf-lat-rol .seg{flex-direction:column;gap:3px}
   .pf-lat-rol .seg button{min-height:36px;padding:0 10px;text-align:left;font-size:var(--t2)}
 }
+@media(min-width:760px) and (max-width:1023px) and (pointer:coarse){ .pf-lat-rol .seg button{min-height:44px} }
 
 /* ----- Lo que apaga esta capa ----- */
 @media(prefers-reduced-motion:reduce){
@@ -2250,7 +2296,11 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 .pf-progreso.on::before{animation:pf-progreso-corre 1.1s cubic-bezier(.4,0,.6,1) infinite}
 @keyframes pf-progreso-corre{from{transform:translateX(-100%)}to{transform:translateX(260%)}}
 .pf-progreso.fin{opacity:1;transition-delay:0s}
-.pf-progreso.fin::before{width:100%;transform:none;animation:none;transition:width .2s}
+/* El remate llena la barra y la desvanece ENTERA. Antes animaba width —layout en cada cuadro— y
+   al quitar .fin el relleno volvía de golpe a -100 % mientras el contenedor se desvanecía: el
+   fundido se veía vacío. Ahora .sale baja la opacidad con el relleno puesto (app.js). */
+.pf-progreso.fin::before{width:100%;transform:none;animation:none}
+.pf-progreso.fin.sale{opacity:0;transition:opacity .2s var(--ease-out)}
 
 .pf-arranque,.pf-esqueleto{animation:pf-esq-aparece .3s ease both}
 .pf-esqueleto{animation-delay:.18s}
@@ -2261,18 +2311,24 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 .pf-cuenta.esq{min-height:88px}
 .pf-cuenta.esq b,.pf-cuenta.esq .esq-d{display:block}
 .pf-fila.esq{pointer-events:none}
-.pf-fila.esq .pf-fila-ico{border:0;background:var(--esq-brillo);background-size:220% 100%;animation:esq-brilla 1.5s linear infinite}
+.pf-fila.esq .pf-fila-ico{border:0;background:var(--sup2);position:relative;overflow:hidden}
+.pf-fila.esq .pf-fila-ico::after{content:'';position:absolute;inset:0;transform:translateX(-100%);pointer-events:none;
+  background:linear-gradient(90deg,transparent,var(--n2) 45%,transparent 90%);animation:esq-barre 1.5s linear infinite}
 .pf-fila.esq .pf-fila-tx{flex:1;padding-top:4px}
 
 .pf-marco-caja{position:relative}
-.pf-marco{transition:opacity .35s}
+/* El cruce del esqueleto al documento: el marco entra un poco después y en 220 ms, y el
+   esqueleto sale en 160 con 2 px de desenfoque, que funde las dos imágenes en una en vez de
+   enseñarlas encimadas. */
+.pf-marco{transition:opacity .22s var(--ease-out) .06s}
 .pf-marco-cargando .pf-marco{opacity:0}
 .pf-marco-esq{position:absolute;left:0;right:0;top:0;bottom:env(safe-area-inset-bottom,0px);
-  padding:var(--e4);overflow:hidden;border-radius:inherit;background:var(--fondo);transition:opacity .35s}
+  padding:var(--e4);overflow:hidden;border-radius:inherit;background:var(--fondo);transition:opacity .16s var(--ease-out),filter .16s var(--ease-out)}
 .pf-marco-esq-t{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + var(--e6));
   display:flex;align-items:center;justify-content:center;gap:8px;margin:0;padding:0 var(--e4);
-  color:var(--tinta2);font-size:var(--t2);font-weight:500;text-align:center;transition:opacity .35s}
+  color:var(--tinta2);font-size:var(--t2);font-weight:500;text-align:center;transition:opacity .16s var(--ease-out)}
 .pf-marco-listo .pf-marco-esq,.pf-marco-listo .pf-marco-esq-t{opacity:0;pointer-events:none}
+.pf-marco-listo .pf-marco-esq{filter:blur(2px)}
 .esq-riel{height:64px;border-radius:999px;max-width:560px;margin:0 auto var(--e4);border:1px solid var(--linea)}
 .esq-cols{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:var(--e4);align-items:start}
 .esq-cols.an-esq{grid-template-columns:minmax(280px,400px) minmax(0,1fr)}
@@ -2284,5 +2340,36 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 @media(prefers-reduced-motion:reduce){
   .pf-arranque,.pf-esqueleto{animation:none}
   .pf-progreso.on::before{animation:none;width:100%;transform:none;opacity:.6}
+  .pf-fila.esq .pf-fila-ico::after{animation:none;content:none}
 }
 @media print{ .pf-progreso,.pf-arranque,.pf-esqueleto,.pf-marco-esq,.pf-marco-esq-t{display:none!important} }
+
+/* ==========================================================================
+   Presionar y repintar — la auditoría de movimiento de septiembre de 2026
+   Con el destello de toque apagado en todo botón (sistema.css, capa del dedo), un control sin
+   `:active` no confirma nada: se medían el dock, la × de los paneles, las celdas del mes y los
+   botones de la cabecera sin un solo píxel de respuesta. Todos encogen igual y en 160 ms.
+   ========================================================================== */
+.pf-abajo button .pil{transition:background .2s,box-shadow var(--mv-s),transform var(--mv-liq)}
+.pf-abajo button:active .pil{transform:scale(.92);transition-duration:.1s}
+.pf-cerrar,.pf-cab-tema,.pf-sesion,.pf-banda button,.ia-cifra,.ia-copiar{
+  transition:background var(--mv-s),border-color var(--mv-s),color var(--mv-s),transform var(--mv-liq)}
+.pf-cerrar:active,.pf-cab-tema:active,.pf-sesion:active,.pf-banda button:active,.ia-copiar:active{transform:scale(.95)}
+.ia-cifra:active{transform:scale(.97)}
+/* La celda del mes no escala —es una rejilla y encogería contra sus vecinas—: se tiñe. */
+.cal-dia:not(:disabled):active{background:var(--a-suave)}
+@media(hover:hover) and (pointer:fine){.cal-dia:not(:disabled):hover{background:var(--sup2)}}
+
+/* Las tarjetas de la plataforma no vuelven a «entrar» cuando un módulo repinta. La entrada de
+   sistema.css (.card{animation:entra}) se disparaba con cada innerHTML: un filtro, una tecla
+   del Calendario, cada pausa al buscar en Control y cada sincronización hacían que la pantalla
+   que se estaba leyendo bajara 10 px y volviera a aparecer. Acotado con body.pf, así que el
+   cotizador empotrado —que es otro documento— conserva lo suyo. */
+body.pf .card{animation:none}
+
+/* Un botón de color por pantalla. Lo que se repite por renglón —«Se ganó», «Así está»— va
+   quieto, con su acento en la letra; y en el teléfono «Decidir» no sale dos veces (la barra de
+   abajo ya lo lleva), como ya hacía Material con «Recibí lo de la lista». */
+.btn-ganar{color:var(--ok)}
+.btn-ganar .svgi{color:var(--ok)}
+@media(max-width:759px){.tb-decidir-cuerpo{display:none}}

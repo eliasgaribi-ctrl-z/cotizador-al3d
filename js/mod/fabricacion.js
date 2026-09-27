@@ -68,7 +68,8 @@ import * as Material from '../datos/material.js';
 import { masDias, masMeses, iniSemana, ultimoDia, diasEntre } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, partesISO, fechaLocal,
          fmtFecha, fmtFechaDia, fmtHora, cuando, diasHasta, segmento, chip, abrirCapa,
-         cerrarCapa, compartirArchivo, copiarTexto, linkWa, ajustarAltoBarra, filaTaller, scrollSuave }
+         cerrarCapa, compartirArchivo, copiarTexto, linkWa, ajustarAltoBarra, filaTaller, scrollSuave,
+         conservandoFoco, repintarAlrededor }
   from '../nucleo/ui.js';
 
 /* ----- Estado del módulo -----
@@ -89,6 +90,7 @@ let _pide = null;            // estado del panel de preguntar
 let _soloCobro = false;      // el filtro de PAGOS
 let _pasadas = false;        // en la vista de lista, incluir lo que ya pasó
 let _oyendo = false;
+let _alTocar = null, _alTeclear = null;   // los manejadores envueltos con conservandoFoco()
 
 const MIME_ICS = 'text/calendar;charset=utf-8';
 
@@ -113,7 +115,7 @@ export async function montar(contenedor, ctx) {
     _lente = Prefs.rol() === 'pagos' ? 'instalaciones' : (ancho ? 'todo' : 'taller');
   }
   if (Prefs.rol() === 'pagos') _lente = 'instalaciones';
-  window.addEventListener('keydown', alTeclear);
+  window.addEventListener('keydown', _alTeclear = conservandoFoco(alTeclear, _cont));
 
   /* Los atajos, escritos en el encabezado. Existían desde siempre —← → cambian de mes, `t`
      vuelve a hoy— y no estaban dichos en ningún sitio: un atajo que nadie sabe que existe es
@@ -130,7 +132,7 @@ export async function montar(contenedor, ctx) {
      botones que se rehacen cada vez que se toca uno: un oyente por celda serían cuarenta y
      dos oyentes tirados a la basura en cada repintado, y los del repintado anterior siguen
      enganchados a nodos que ya nadie ve. */
-  _cont.addEventListener('click', alTocar);
+  _cont.addEventListener('click', _alTocar = conservandoFoco(alTocar));
   const hoja = $('pf-hoja');
   if (hoja) { hoja.addEventListener('click', alTocarHoja); hoja.addEventListener('input', alEscribirHoja); }
   const pide = $('pf-pide');
@@ -156,11 +158,10 @@ export async function montar(contenedor, ctx) {
     if (pase.dia && /^\d{4}-\d{2}-\d{2}$/.test(pase.dia)) { _ancla = pase.dia; _dia = pase.dia; }
   }
 
-  _cont.innerHTML = '<div class="vacio">' + ico('i-reloj') +
-    /* El nombre de la pantalla, que es «Calendario». El esqueleto del router ya escribió
-       «Cargando Calendario…» un instante antes: dos nombres para lo mismo en el mismo
-       segundo se leen como dos pantallas. */
-    '<p class="vacio-t">Leyendo el calendario…</p></div>';
+  /* Sin «Leyendo el calendario…» aquí. El router quita su esqueleto —que tiene la forma de la
+     pantalla— en cuanto la sección recibe un hijo, y este texto centrado lo tapaba al instante:
+     se veía un renglón que luego saltaba a la pantalla real. Ahora el esqueleto se queda hasta
+     que llega lo de verdad. */
   await recargar();
 
   /* Y la hoja de agendar CON EL PROYECTO YA ELEGIDO. Va después de `recargar()` porque
@@ -195,8 +196,8 @@ export async function contar() {
 }
 
 export function desmontar() {
-  if (_cont && _oyendo) _cont.removeEventListener('click', alTocar);
-  window.removeEventListener('keydown', alTeclear);
+  if (_cont && _oyendo) _cont.removeEventListener('click', _alTocar);
+  window.removeEventListener('keydown', _alTeclear);
   const hoja = $('pf-hoja');
   if (hoja) { hoja.removeEventListener('click', alTocarHoja); hoja.removeEventListener('input', alEscribirHoja); }
   const pide = $('pf-pide');
@@ -465,7 +466,7 @@ function pintarDecidir(d) {
             (e.entrega ? ' · prometido: ' + esc(e.entrega) : '') + '</p>' +
         '</div>' +
         '<div class="pf-fila-acc">' +
-          '<button type="button" class="btn btn-ok" data-decidir="ganar" data-folio="' + esc(String(e.folio)) + '">Se ganó</button>' +
+          '<button type="button" class="btn btn-gho btn-ganar" data-decidir="ganar" data-folio="' + esc(String(e.folio)) + '">Se ganó</button>' +
           '<button type="button" class="btn btn-gho" data-decidir="descartar" data-folio="' + esc(String(e.folio)) + '">No se dio</button>' +
         '</div>' +
       '</div>';
@@ -949,7 +950,7 @@ function pintarExportar(d) {
         ? 'Un solo archivo con todas las instalaciones y sus alarmas. Se importa una vez.'
         : 'Aquí no hay nada agendado todavía, así que no hay archivo que bajar.') +
       '</div></div>' +
-      '<div class="pf-fila-acc"><button type="button" class="btn btn-pri" data-acc="ics-mes"' +
+      '<div class="pf-fila-acc"><button type="button" class="btn btn-gho" data-acc="ics-mes"' +
         (hay ? '' : ' disabled') + '>Bajar</button></div>' +
     '</div>' +
     '<div class="pf-fila">' +
@@ -1067,6 +1068,10 @@ async function alTocar(ev) {
     if (libre && puedeAgendar() && iso >= (_d ? _d.hoy : hoyISO())) { abrirAgendar(iso); return; }
     _dia = _dia === iso ? null : iso;
     await recargar();
+    /* En el teléfono la lista del día se pinta DEBAJO de la rejilla: el toque cambiaba algo que
+       no se veía. Si quedó abajo del doblez, se la acerca. */
+    const l = _dia && _cont && _cont.querySelector('.dia-lista');
+    if (l && l.getBoundingClientRect().top > innerHeight * .7) l.scrollIntoView({ block: 'nearest', behavior: scrollSuave() });
     return;
   }
 
@@ -1221,7 +1226,14 @@ async function bajarVarias() {
 function ponerEnCapa(id, html) {
   const capa = $(id);
   if (!capa) return;
-  capa.innerHTML = '<div class="pf-panel">' + html + '</div>';
+  const todo = '<div class="pf-panel">' + html + '</div>';
+  /* Mientras se escribe en el buscador de «Agendar», se repinta ALREDEDOR del campo: rehacer el
+     panel entero en cada tecla reemplazaba el <input> —en iPhone se cierra el teclado— y
+     devolvía el scroll del panel arriba. */
+  const vivo = document.activeElement;
+  if (capa.classList.contains('show') && vivo && vivo.matches && vivo.matches('input,textarea') &&
+      capa.contains(vivo) && repintarAlrededor(capa, todo, vivo)) return;
+  capa.innerHTML = todo;
   if (!capa.classList.contains('show')) { abrirCapa(id, { hist: true }); return; }
   const f = capa.querySelector('button:not([disabled]),input,textarea,a[href]');
   if (f) requestAnimationFrame(() => { try { f.focus(); } catch (_) {} });
@@ -1292,7 +1304,7 @@ function pintarPaso1() {
         '<div class="pf-fila-d">' + esc([p.folio_local, (p.tipo_trabajo || []).join(', '),
             p.compromiso_texto ? 'Se le prometió: ' + p.compromiso_texto : ''
           ].filter(Boolean).join(' · ')) + '</div></div>' +
-        '<div class="pf-fila-acc"><button type="button" class="btn btn-pri" data-h="elige" data-pid="' +
+        '<div class="pf-fila-acc"><button type="button" class="btn btn-gho pf-btn-corto" data-h="elige" data-pid="' +
           esc(p.id) + '">Elegir</button></div></div>').join('')
     : '<p class="pf-cuenta">Ningún proyecto sin fecha coincide con eso.</p>';
 
@@ -1691,9 +1703,9 @@ function alTeclear(ev) {
   if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
     const n = ev.key === 'ArrowLeft' ? -1 : 1;
     _ancla = _vista === 'semana' ? masDias(iniSemana(_ancla), n * 7) : masMeses(_ancla, n);
-    _dia = null; ev.preventDefault(); recargar();
+    _dia = null; ev.preventDefault(); return recargar();   // se espera: el foco vuelve después del repintado
   } else if (ev.key === 't' || ev.key === 'T') {
-    _ancla = hoyISO(); _dia = null; ev.preventDefault(); recargar();
+    _ancla = hoyISO(); _dia = null; ev.preventDefault(); return recargar();
   }
 }
 
@@ -1713,7 +1725,7 @@ function abrirCancelar(i) {
     '</div>' +
     '<div class="pf-panel-f">' +
       '<button type="button" class="btn btn-gho" data-pide="cerrar">No, déjala</button>' +
-      '<button type="button" class="btn btn-pri" data-pide="cancelar">Cancelarla</button>' +
+      '<button type="button" class="btn btn-dgr" data-pide="cancelar">Cancelarla</button>' +
     '</div>');
 }
 

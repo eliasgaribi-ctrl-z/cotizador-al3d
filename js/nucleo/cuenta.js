@@ -60,7 +60,11 @@ export function montar(quien) {
     }
   };
   document.addEventListener('click', ev => {
-    if (!menu.hidden && !menu.contains(ev.target) && ev.target !== btn) abrir(false);
+    if (menu.hidden || menu.contains(ev.target) || ev.target === btn) return;
+    /* Si el foco estaba dentro del menú, vuelve al botón que lo abrió: si no, se cae al <body>. */
+    const dentro = menu.contains(document.activeElement);
+    abrir(false);
+    if (dentro) btn.focus();
   });
   document.addEventListener('keydown', ev => {
     if (ev.key === 'Escape' && !menu.hidden) { abrir(false); btn.focus(); }

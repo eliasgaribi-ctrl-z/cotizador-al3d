@@ -1391,6 +1391,8 @@ function _undoAplicar(foto){
     /* renderItems() repinta las partidas, el resumen, la barra del celular y el «f-anti»
        —renderSummary lo reescribe respetando antiManual y el foco— y termina en saveState(),
        que con la bandera puesta adopta la foto como base sin apilar nada. */
+    /* Deshacer es teclado casi siempre (Ctrl+Z): lo que devuelve no «entra», aparece. */
+    _idsPintados=null;
     renderItems(); renderAuth(); updProg();
   } finally {
     _undoAplicando=false;

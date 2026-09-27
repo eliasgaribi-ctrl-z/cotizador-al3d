@@ -80,9 +80,12 @@ La (8) va la última a propósito: tiene que ganarle a la capa plana de la (4), 
   --mv:.32s cubic-bezier(.2,.8,.2,1);     /* lo que aparece */
   --mv-r:.2s cubic-bezier(.2,.8,.2,1);    /* un cambio de estado */
   --mv-s:.16s cubic-bezier(.2,.8,.2,1);   /* un color */
-  --mv-t:.5s cubic-bezier(.2,.8,.2,1);    /* la transición de elemento compartido */
-  --mv-liq:.42s cubic-bezier(.34,1.26,.5,1);  /* la elástica: SOLO lo que es de vidrio */
-  --mv-lento:12s;                             /* la respiración: lo que se mueve solo */
+  --mv-t:.38s cubic-bezier(.77,0,.175,1); /* el total que VIAJA por la pantalla: ease-in-out */
+  --mv-liq:.16s cubic-bezier(.23,1,.32,1);   /* PRESIONAR: el transform de todo lo presionable */
+  --mv-lento:12s;                             /* la respiración (ya nada la usa en bucle) */
+  --ease-out:cubic-bezier(.23,1,.32,1);    /* lo que entra, sale o se presiona */
+  --ease-io:cubic-bezier(.77,0,.175,1);    /* lo que se mueve DENTRO de la pantalla */
+  --ease-hoja:cubic-bezier(.32,.72,0,1);   /* las hojas del teléfono, la del sistema operativo */
 
   /* ===================== El vidrio líquido =====================
      La lámina, su filo y sus dos sombras. El desenfoque lo llevan seis piezas y ninguna más;
@@ -274,8 +277,8 @@ Capa de estructura (la que de verdad se ve):
 .btn-wa,.btn-vta{background:var(--sup);border:1px solid var(--linea);color:var(--tinta);box-shadow:none}
 .btn-wa:hover,.btn-vta:hover{border-color:var(--ok-borde);background:var(--ok-bg);color:var(--ok)}
 .btn-wa .svgi{color:var(--wa)}   .btn-vta .svgi{color:var(--ok)}
-/* Cede 1 px al tocar, y nada más. El pellizco de escala era del barro. */
-.btn:active:not(:disabled),…{transform:translateY(1px);box-shadow:none}
+/* Presionar: encoge al 97 % en 160 ms (--mv-liq), igual en todo lo presionable. */
+.btn:active:not(:disabled),…{transform:scale(.97);box-shadow:none}
 .btn:disabled,.mbar-btn:disabled{box-shadow:none;transform:none;opacity:.55}
 ```
 
@@ -358,7 +361,7 @@ El botón de IA es **el único con color propio** (violeta→azul, respira):
 .chips-catalogo{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(250px,100%),1fr));gap:6px}
 .chips-catalogo .chip{min-height:44px;justify-content:flex-start;text-align:left}
 .chips-catalogo .chip small{margin-left:auto;padding-left:var(--e2)}
-.chip:active:not([aria-disabled]){transform:translateY(1px) scale(.97);box-shadow:var(--clay-in)}
+.chip:active:not([aria-disabled]){transform:scale(.97)}   /* transition: transform var(--mv-liq) */
 .chip.on{background:var(--a-suave);color:var(--a-fuerte);border-color:var(--a-borde);
   box-shadow:var(--clay-in);font-weight:600}   /* HUNDIDO, no relleno de marca */
 .chip[aria-disabled="true"]{box-shadow:var(--clay-in);background:var(--n1);transform:none}
@@ -552,8 +555,9 @@ Es un **`<button role="switch">`**, no un `<label>` (sin `for` y sin control den
 @media(max-width:920px){ .toast{bottom:calc(20px + 66px + env(safe-area-inset-bottom,0px))} }
 /* capa de estructura */
 #toast{border-radius:var(--rr2);box-shadow:var(--sombra-alta)}
-#toast.show{animation:toast-sube var(--mv-s)}
-@keyframes toast-sube{from{opacity:0;transform:translate(-50%,10px)}}
+/* Sin keyframe: la entrada y la salida son la transición de .toast (240 ms entra desde 8 px,
+   150 ms sale con opacidad). Un aviso que llega con otro a la vista solo cambia el texto, y el
+   temporizador se pausa con la pestaña oculta o con el dedo encima (toast() en nucleo.js/ui.js). */
 /* subidas por modal de pantalla completa: */
 .scaler-modal-bg.show+.toast{bottom:calc(16px + var(--sc-acc-h,150px))}   /* ≤1000px */
 .vt-modal-bg.show~.toast{bottom:calc(26px + var(--vt-acc-h,150px))}       /* ≤1000px */
@@ -590,8 +594,11 @@ Es un **`<button role="switch">`**, no un `<label>` (sin `for` y sin control den
 }
 @keyframes modal-entra{from{opacity:0;transform:translateY(18px) scale(.94)} to{opacity:1;transform:none}}
 .modal-bg,.rv-modal-bg{backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2)}
-.modal-bg.show,.rv-modal-bg.show{animation:vela var(--mv-s)}
-@keyframes vela{from{opacity:0}to{opacity:1}}
+/* capa 8 · «Entrar y salir»: TRANSICIÓN con @starting-style y display … allow-discrete. Entra en
+   220 ms desde scale(.96), sale en 140 ms a scale(.98); en ≤560 px es una hoja pegada abajo que
+   entra desde translateY(100%) con --ease-hoja y sale por donde vino. Cerrar sigue siendo
+   quitar .show; en la plataforma, ui.js pone .entra al abrir para que un repintado dentro de la
+   capa no repita la entrada. Con Escape se cierra sin animación. */
 /* el fondo se queda quieto */
 html.modal-abierto,html.modal-abierto body{overflow:hidden}
 @media(hover:none),(pointer:coarse){ .modal-h button{width:44px;height:44px} }
@@ -853,12 +860,12 @@ Cuatro capas, y cada una hace una cosa distinta:
 
 | Capa | Qué es | Cómo se mueve |
 |---|---|---|
-| Fondo | Aurora de `--ia-a/-b/-c` al 300 % de ancho | `background-position` 0 % → −300 % en `--mv-lento` (12 s), lineal e infinita |
+| Fondo | Aurora de `--ia-a/-b/-c` al 300 % de ancho | **Quieto** en `background-position:30% 50%` (desde la auditoría de movimiento: animar background-position repintaba el botón en cada cuadro) |
 | `::before` | El filo: luz arriba, reflejo callado abajo | Quieto |
-| `::after` | El barrido: banda del 45 % del ancho | `translateX(-110% → 330%)` en 1,2 s, y **pausa hasta los 5,5** |
-| `.svgi` | La chispa | `scale(1 → 1.14)` cada 2,6 s, desfasada del barrido |
+| `::after` | El barrido: banda del 45 % del ancho | `translateX(-110% → 330%)`: **dos pasadas al llegar** y una al pasar el cursor (`ia-barrido-una`) |
+| `.svgi` | La chispa | Quieta |
 
-Al pasar el cursor todo acelera y el botón sube 2 px; al apretarlo encoge al 97 % con `--mv-liq`. **Deshabilitado se para entero y se queda plano** —si no se puede tocar, tampoco puede estar llamando—. Bajo `prefers-reduced-motion` no queda nada en movimiento.
+Al pasar el cursor (solo con puntero fino) sube 2 px y barre una vez; al apretarlo encoge al 97 % con `--mv-liq`. **Deshabilitado se para entero y se queda plano** —si no se puede tocar, tampoco puede estar llamando—. Bajo `prefers-reduced-motion` no queda nada en movimiento.
 
 **Los dos detalles que la versión obvia hace mal, y que no se pueden quitar:**
 
@@ -870,6 +877,25 @@ El botón del asistente de la plataforma (`.pf-ia-btn`) es la misma acción en l
 En papel los tres (`.ai-btn`, `.sp-ai`, `.pf-ia-btn`) salen con borde y tinta oscura. Quitarles el degradado no basta: `background:linear-gradient(…)` es el **atajo**, así que al anular la imagen el color de fondo se queda en transparente y lo que queda es texto blanco sobre el papel, o sea nada.
 
 ---
+
+### 2.18 El movimiento — las reglas que dejó la auditoría de septiembre de 2026
+
+Se midió en el render (cada animación que arranca con cada toque, tecla o cambio de pantalla) y se corrigió lo que se sentía. Para un módulo nuevo, esto es lo que hay que respetar:
+
+| Regla | Cómo se escribe | Por qué |
+|---|---|---|
+| Presionar responde en 160 ms, igual en todo | `transition:transform var(--mv-liq)` y `:active{transform:scale(.97)}` (`.985` en tarjetas grandes) | El destello de toque está apagado: sin `:active` un control no confirma nada. Nada de `translateY(1px)` |
+| Una entrada significa «esto es nuevo» | La entrada va en lo que **nace**, nunca en la clase base de algo que se repinta con innerHTML (ver `.partida.nace`, `body.pf .card{animation:none}`) | Un filtro, una tecla o una sincronización no deben hacer que la pantalla «vuelva a entrar» |
+| Cambiar de pantalla es casi un corte | `.pf-mod`: fundido de 120 ms, sin desplazamiento; con las teclas 1-9, nada | Pasa decenas de veces al día |
+| El teclado no anima | Escape cierra sin salida; las teclas de navegación no disparan entradas | Lo que se repite cien veces se siente lento si se anima |
+| Nada se mueve solo en bucle | Una llamada (latido, barrido) va con `animation-iteration-count` finito | Batería, calor y el ojo que se va del precio |
+| Solo `transform` y `opacity` | Barras con `scaleX` y `transform-origin:left`; perillas con `translate`; nada de `width`, `left` ni `background-position` animados | Lo demás recalcula layout o repinta en cada cuadro |
+| Nunca `transition:all` | Las propiedades, escritas | `all` anima lo que nadie pensó |
+| Capas: entrar y SALIR | Transición + `@starting-style` + `display … allow-discrete`; salida más corta que la entrada | Lo que se va de golpe se siente roto |
+| Desenfoque solo en lo que flota sobre algo que se desplaza | Barra de arriba, cabecera, dock, barra fija y el velo; ≤ 16 px | Cada `backdrop-filter` se recalcula cuando lo de atrás cambia |
+| Hover solo con puntero fino | `@media(hover:hover) and (pointer:fine)` para todo lo que se levanta o cambia de forma | En táctil el hover se queda pegado |
+| Repintar sin perder el lugar | `repintarEnSitio()`, `repintarAlrededor()` y `conservandoFoco()` en `js/nucleo/ui.js` | El scroll, el foco y el campo en el que se escribe sobreviven al innerHTML |
+| Menos movimiento no es ninguno | Ver el bloque al cierre de la capa 8 | Los fundidos explican qué cambió |
 
 ## 3. Breakpoints exactos y qué cambia en cada uno
 
@@ -896,7 +922,7 @@ En papel los tres (`.ai-btn`, `.sp-ai`, `.pf-ia-btn`) salen con borde y tinta os
 | `max-width:340px` | `.mbar-btn{white-space:normal;line-height:1.15;padding:0 12px;text-align:center}`. |
 | `max-width:399px` | Los tres accesos envuelven: `.scaler-ai-row{flex-wrap:wrap}`, `.ai-btn{flex:1 1 100%}`. |
 | `@media(hover:none),(pointer:coarse)` | **Por tipo de puntero, no por ancho** — vale igual en iPhone y en las dos pantallas del Fold. Sube la **caja**, nunca la letra: `.modal-h button{44×44}`; `.toast-act,.falt-quitar,.key-btn,.sp-gclear,.hist-foot button,.card-fold,.btn-maps,.chip,.seg button,.tipo-seg button{min-height:44px}`; `.hentry-del,.sp-ibtn{44×44}`; `.del,.dup,.pdf-vis{40×40}`; `.optgrp .chip{min-height:44px}`; `.hist-close{44×44}`; `.autoctr input{min-height:44px}`; `.pfold{44×44}`; `.vt-sw{32×32}`; `.vt-split::after{48×48}`. |
-| `@media(prefers-reduced-motion:reduce)` (4 bloques, el cuarto al cierre de la capa 8) | `*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}`; `#prog-bar::after,.cand-partidas{animation:none!important}`; `.btn:hover,.chip:hover,.paso-tab:hover,.ai-btn:hover{transform:none!important}`; `.chip:active,…,.mbar-btn:active{transform:none}`. El cuarto bloque, al final de la capa 8, apaga lo que esa capa añadió y que a los otros tres se les escapaba por vivir 700 líneas más arriba: `body::after` (la aurora del lienzo), el fondo que fluye y el barrido del botón de IA, el latido de la chispa y la entrada elástica de los modales. Y la **transición de elemento compartido** no se acorta: se apaga entera en su propio código (`_medirTotal()` en `js/cotizador/proceso.js` no mide, así que no hay vuelo). |
+| `@media(prefers-reduced-motion:reduce)` (el principal al cierre de la capa 8, «Menos movimiento no es ninguno») | Desde la auditoría de movimiento **ya no pone todo a .001 ms**. Quita lo que desplaza o escala y lo que se mueve solo —la aurora, los barridos, los latidos, los brillos de los esqueletos, el `scale` al presionar y al pasar el cursor, el desplazamiento de modales, hojas y aviso—, y **deja** lo que explica qué cambió: las entradas pasan a un fundido de 150 ms (`aparece`), el aviso, el velo y los modales se desvanecen en 150 ms, y los giros de espera laten despacio en opacidad (`pulso-lento`) en vez de quedarse quietos. Los otros dos bloques de la hoja solo apagan `scroll-behavior` y el fondo fijo. La **transición de elemento compartido** se sigue apagando entera en su propio código (`_medirTotal()` no mide). |
 
 **Sin zoom por doble toque ni destello gris** (base): `button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-action:manipulation;-webkit-tap-highlight-color:transparent}`.
 
@@ -1051,7 +1077,7 @@ Tres detalles que cuestan si faltan:
 - **Dos `requestAnimationFrame` anidados**, no uno: con uno solo, Chrome agrupa la escritura sin transición y la que sí la lleva en el mismo recálculo de estilo y no anima nada.
 - **Se limpia el `transform` al terminar** (`transitionend`): un `transform` vacío pero declarado deja al elemento con su propio contexto de apilamiento, y el resumen fijo de una partida le pasaba por encima.
 
-`prefers-reduced-motion` lo apaga **entero** —`_medirTotal()` no mide, así que no hay vuelo—, y no dejándolo en 1 ms: aquí no hay nada que apagar a medias.
+`prefers-reduced-motion` lo apaga **entero** —`_medirTotal()` no mide, así que no hay vuelo—, y no dejándolo en 1 ms: aquí no hay nada que apagar a medias. Tampoco vuela si el origen o el destino están fuera de la vista (en el teléfono la columna del dinero vive debajo de las partidas), y desde la auditoría de movimiento viaja con `--mv-t` = 380 ms en ease-in-out.
 
 ---
 

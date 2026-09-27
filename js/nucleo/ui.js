@@ -120,7 +120,28 @@ export function voz(msg, urgente) {
   requestAnimationFrame(() => { el.textContent = String(msg || ''); });
 }
 
-let _toastT = 0;
+let _toastT = 0, _toastFin = 0, _toastResta = 0;
+/* El temporizador se detiene con la pestaña oculta o con el dedo o el cursor encima: un
+   «Deshacer» de 8 s caducaba mientras alguien estaba en WhatsApp pegando los datos. */
+function _toastProgramar(t, ms) {
+  clearTimeout(_toastT); _toastFin = Date.now() + ms;
+  _toastT = setTimeout(() => { _toastT = 0; t.classList.remove('show'); }, ms);
+}
+function _toastPausa() {
+  if (!_toastT) return;
+  clearTimeout(_toastT); _toastT = 0; _toastResta = Math.max(1500, _toastFin - Date.now());
+}
+function _toastSigue() {
+  const t = $('toast');
+  if (!_toastT && _toastResta && t && t.classList.contains('show')) { _toastProgramar(t, _toastResta); _toastResta = 0; }
+}
+let _toastVigilado = false;
+function _toastVigilar(t) {
+  if (_toastVigilado) return; _toastVigilado = true;
+  document.addEventListener('visibilitychange', () => document.hidden ? _toastPausa() : _toastSigue());
+  ['pointerenter', 'focusin'].forEach(n => t.addEventListener(n, _toastPausa));
+  ['pointerleave', 'focusout'].forEach(n => t.addEventListener(n, _toastSigue));
+}
 /**
  * Aviso emergente. Misma firma que el del cotizador.
  * @param {string} msg
@@ -134,6 +155,7 @@ export function toast(msg, type = '', dur = 2600, accion = null) {
      respeta lo que pida. */
   if (accion && dur < 8000) dur = 8000;
   const t = $('toast'); if (!t) return;
+  _toastVigilar(t);
   t.innerHTML = '';
   const sp = document.createElement('span');
   sp.textContent = msg;
@@ -141,14 +163,18 @@ export function toast(msg, type = '', dur = 2600, accion = null) {
   if (accion && accion.label && typeof accion.fn === 'function') {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'toast-act'; b.textContent = accion.label;
-    b.onclick = () => { clearTimeout(_toastT); t.classList.remove('show'); accion.fn(); };
+    b.onclick = () => { clearTimeout(_toastT); _toastT = 0; _toastResta = 0; t.classList.remove('show'); accion.fn(); };
     t.appendChild(b);
   }
-  t.className = 'toast ' + type;
-  void t.offsetWidth;
-  t.classList.add('show');
-  clearTimeout(_toastT);
-  _toastT = setTimeout(() => t.classList.remove('show'), dur);
+  /* Si ya había uno a la vista, solo cambia el contenido y no vuelve a «entrar»: antes cada
+     aviso quitaba .show y forzaba un reflow, y dos seguidos parpadeaban. */
+  const ya = t.classList.contains('show');
+  t.className = 'toast ' + type + (ya ? ' show' : '');
+  if (!ya) { void t.offsetWidth; t.classList.add('show'); }
+  else if (t.animate && scrollSuave() === 'smooth')
+    t.animate([{ opacity: .6, filter: 'blur(2px)' }, { opacity: 1, filter: 'none' }], { duration: 160, easing: 'cubic-bezier(.23,1,.32,1)' });
+  _toastResta = 0;
+  _toastProgramar(t, dur);
   voz(msg + (accion && accion.label ? ' — ' + accion.label + ' disponible' : ''), type === 'err');
 }
 
@@ -233,7 +259,9 @@ const _pushPendiente = new Set();
    los seis módulos como si fueran del modal: exactamente el defecto que esta función existe
    para no tener. */
 function _fondoInerte(v) {
-  document.querySelectorAll('.wrap,.topbar,.mbar,.pf-lat,.pf-cab,.pf-abajo')
+  /* .pf-ia-btn también: flota fuera de todo y, con un panel abierto, seguía en el árbol de
+     accesibilidad aunque el tabulador ya estuviera cercado. */
+  document.querySelectorAll('.wrap,.topbar,.mbar,.pf-lat,.pf-cab,.pf-abajo,.pf-ia-btn')
     .forEach(e => { try { e.inert = v; } catch (_) {} });
   document.documentElement.classList.toggle('modal-abierto', v);
 }
@@ -253,7 +281,10 @@ export function abrirCapa(id, opts = {}) {
   const prev = opts.volverA || (document.activeElement !== document.body ? document.activeElement : null);
   const enOtraCapa = prev && prev.closest && _CAPAS.some(c => { const x = $(c.id); return x && x.contains(prev); });
   _focoPrevio.set(id, enOtraCapa ? null : prev);
-  el.classList.add('show');
+  /* `entra` acota la entrada del panel al momento de abrir: ficha, hoja y asistente se
+     repintan con la capa abierta, y sin esto cada repintado volvía a hacerlo subir. */
+  el.classList.add('show', 'entra');
+  clearTimeout(el._tEntra); el._tEntra = setTimeout(() => el.classList.remove('entra'), 360);
   _fondoInerte(true);
   if (opts.hist) {
     if (_backPropio > 0) { el.dataset.hist = '1'; _pushPendiente.add(id); }
@@ -268,7 +299,8 @@ export function abrirCapa(id, opts = {}) {
 
 export function cerrarCapa(id) {
   const el = $(id); if (!el) return;
-  el.classList.remove('show');
+  clearTimeout(el._tEntra);
+  el.classList.remove('show', 'entra');
   if (el.dataset.hist === '1') {
     delete el.dataset.hist;
     /* Si su pushState seguía aplazado, no hay entrada que consumir: solo se olvida. */
@@ -290,6 +322,132 @@ export function cerrarCapa(id) {
   if (prev && prev.isConnected && (prev.offsetWidth || prev.offsetHeight)) {
     requestAnimationFrame(() => { try { prev.focus(); } catch (_) {} });
   }
+}
+
+/* ----- Las hojas del teléfono se bajan con el dedo -----
+   El mismo gesto que el cotizador (js/cotizador/nucleo.js, «Las hojas del teléfono se cierran
+   deslizando»), que aquí no existía: la ficha, la hoja de trabajo y el asistente son hojas
+   altas pegadas abajo y la × queda lejos del pulgar. Solo desde el encabezado, o desde el
+   cuerpo cuando ya está hasta arriba; cierra por distancia (90 px) o por la velocidad del
+   último tramo (0,11 px/ms); hacia arriba cede con resistencia; y al soltar para cerrar, la
+   salida de CSS parte desde donde la dejó el dedo. */
+let _hoja = null;
+const _esTelefono = () => { try { return matchMedia('(max-width:560px)').matches; } catch (_) { return false; } };
+/* Solo en un documento: este módulo también lo importan las pruebas de node. */
+if (typeof document !== 'undefined') document.addEventListener('touchstart', e => {
+  if (_hoja || !_esTelefono() || e.touches.length !== 1) return;
+  const m = e.target.closest && e.target.closest('.pf-modal-bg.show>.pf-panel'); if (!m) return;
+  if (e.target.closest('input,textarea,select,[contenteditable="true"],canvas,.leaflet-container')) return;
+  const cuerpo = e.target.closest('.pf-panel-b');
+  if (cuerpo && cuerpo.scrollTop > 0) return;
+  if (!e.target.closest('.pf-panel-h') && !cuerpo) return;
+  const capa = _CAPAS.find(c => c.id === m.parentElement.id); if (!capa) return;
+  _hoja = { m, velo: m.parentElement, y0: e.touches[0].clientY, dy: 0, cerrar: capa.cerrar, activo: false, pts: [] };
+  document.addEventListener('touchmove', _moverHoja, { passive: false });
+}, { passive: true });
+function _moverHoja(e) {
+  if (!_hoja || e.touches.length !== 1) return;
+  const dy = e.touches[0].clientY - _hoja.y0;
+  if (!_hoja.activo) {
+    if (Math.abs(dy) < 6) return;
+    if (dy < 0) { _soltarHoja(); return; }
+    _hoja.activo = true; _hoja.m.style.transition = 'none'; _hoja.velo.style.transition = 'none';
+  }
+  _hoja.dy = dy > 0 ? dy : -Math.sqrt(-dy) * 3;
+  _hoja.pts.push([e.timeStamp, dy]);
+  while (_hoja.pts.length > 2 && e.timeStamp - _hoja.pts[0][0] > 100) _hoja.pts.shift();
+  _hoja.m.style.transform = 'translateY(' + _hoja.dy + 'px)';
+  _hoja.velo.style.opacity = String(Math.max(.35, 1 - Math.max(0, _hoja.dy) / (_hoja.m.offsetHeight || 600)));
+  e.preventDefault();
+}
+function _soltarHoja() {
+  document.removeEventListener('touchmove', _moverHoja);
+  const h = _hoja; _hoja = null; if (!h || !h.activo) return;
+  const a = h.pts[0], b = h.pts[h.pts.length - 1];
+  const v = (a && b && b[0] > a[0]) ? (b[1] - a[1]) / (b[0] - a[0]) : 0;
+  h.m.style.transition = ''; h.velo.style.transition = ''; h.velo.style.opacity = '';
+  h.m.style.transform = '';
+  if (h.dy > 90 || (h.dy > 12 && v > 0.11)) { try { h.cerrar(); } catch (_) {} }
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('touchend', _soltarHoja, { passive: true });
+  document.addEventListener('touchcancel', _soltarHoja, { passive: true });
+}
+
+/* ----- Repintar una capa abierta sin perder el lugar -----
+   La ficha de un proyecto, la hoja de trabajo y las hojas del Calendario se rehacen con
+   innerHTML después de cada toque (Etapa, Estatus, Cuenta, guardar un material). El
+   `.pf-panel-b` nuevo nacía con el scroll en 0 y el foco se caía al <body>: quien tocaba algo
+   al pie de la ficha volvía arriba de todo, en una hoja casi a pantalla completa. Esto guarda el
+   scroll del cuerpo y el control enfocado —por su primer atributo data-*, que es lo que los
+   identifica en estos paneles— y los devuelve. */
+export function repintarEnSitio(capa, html) {
+  if (!capa) return;
+  const b = capa.querySelector('.pf-panel-b'), y = b ? b.scrollTop : 0;
+  const a = document.activeElement;
+  const at = a && capa.contains(a) ? Array.from(a.attributes).find(x => x.name.startsWith('data-')) : null;
+  capa.innerHTML = html;
+  const nb = capa.querySelector('.pf-panel-b'); if (nb) nb.scrollTop = y;
+  if (at) {
+    let f = null;
+    try { f = capa.querySelector('[' + at.name + '="' + CSS.escape(at.value) + '"]'); } catch (_) {}
+    if (f) { try { f.focus({ preventScroll: true }); } catch (_) {} }
+  }
+}
+
+/* ----- El foco sobrevive a un repintado -----
+   Los módulos repintan con innerHTML después de cada toque —una estación del Tablero, «Mes
+   siguiente», una pestaña de Material o de Control—, y el botón enfocado deja de existir: quien
+   navega con teclado caía al <body>, al principio del documento. Esto envuelve un manejador:
+   recuerda los atributos data-* del control enfocado dentro del contenedor y, si después del
+   repintado el foco se perdió, lo devuelve al control equivalente. */
+export function conservandoFoco(fn, contFijo) {
+  return async function (ev) {
+    const cont = contFijo || ev.currentTarget;
+    const a = document.activeElement;
+    const at = a && cont && cont.contains && cont.contains(a)
+      ? Array.from(a.attributes).filter(x => x.name.startsWith('data-')) : null;
+    await fn.call(this, ev);
+    if (!at || !at.length || a.isConnected) return;
+    if (document.activeElement && document.activeElement !== document.body) return;   // otro lo tomó
+    let b = null;
+    try { b = cont.querySelector(at.map(x => '[' + x.name + '="' + CSS.escape(x.value) + '"]').join('')); } catch (_) {}
+    if (b) { try { b.focus({ preventScroll: true }); } catch (_) {} }
+  };
+}
+
+/* ----- Repintar alrededor de un campo vivo -----
+   Una búsqueda que repinta la pantalla entera con innerHTML reemplaza también el <input> en el
+   que se está escribiendo: en iPhone el teclado se cierra en cada pausa, y re-enfocar desde un
+   setTimeout no lo vuelve a abrir. Esto pinta el HTML nuevo aparte y lo injerta alrededor del
+   campo, que NUNCA sale del documento: se sustituye todo lo que no es su camino. Si la forma no
+   coincide (otra pestaña, otro módulo), contesta false y quien llama repinta como siempre. */
+export function repintarAlrededor(cont, html, vivo) {
+  if (!cont || !vivo || !cont.contains(vivo)) return false;
+  const tmp = document.createElement('div'); tmp.innerHTML = html;
+  const injertar = (viejo, nuevo, copiarAtributos) => {
+    const vk = Array.from(viejo.childNodes), nk = Array.from(nuevo.childNodes);
+    const i = vk.findIndex(n => n === vivo || (n.contains && n.contains(vivo)));
+    if (i < 0 || !nk[i] || nk[i].nodeName !== vk[i].nodeName) return false;
+    if (copiarAtributos) {
+      Array.from(viejo.attributes).forEach(a => { if (!nuevo.hasAttribute(a.name)) viejo.removeAttribute(a.name); });
+      Array.from(nuevo.attributes).forEach(a => { if (viejo.getAttribute(a.name) !== a.value) viejo.setAttribute(a.name, a.value); });
+    }
+    const ancla = vk[i];
+    if (ancla !== vivo && !injertar(ancla, nk[i], true)) return false;
+    vk.forEach((n, k) => { if (k !== i) n.remove(); });
+    nk.slice(0, i).forEach(n => viejo.insertBefore(n, ancla));
+    nk.slice(i + 1).forEach(n => viejo.appendChild(n));
+    return true;
+  };
+  return injertar(cont, tmp, false);
+}
+
+/* Durante dos cuadros no corre ninguna transición: para cerrar con el teclado sin la salida. */
+export function sinMovimiento() {
+  const h = document.documentElement;
+  h.classList.add('sin-transicion');
+  requestAnimationFrame(() => requestAnimationFrame(() => h.classList.remove('sin-transicion')));
 }
 
 export function cerrarCapaDeArriba() {
@@ -343,7 +501,8 @@ export const hayCapaAbierta = () => !!_capaDeArriba();
 /** Una vez, desde app.js. */
 export function vigilarCapas() {
   window.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { if (cerrarCapaDeArriba()) e.preventDefault(); return; }
+    /* Cerrar con Escape no anima: lo que dispara el teclado se va en el acto (ver .sin-mov). */
+    if (e.key === 'Escape') { sinMovimiento(); if (cerrarCapaDeArriba()) e.preventDefault(); return; }
     if (e.key !== 'Tab') return;
     /* El tabulador se escapa del modal al primer golpe y sigue recorriendo la plataforma
        que está detrás del velo. Solo se interviene en los dos extremos, así que dentro del

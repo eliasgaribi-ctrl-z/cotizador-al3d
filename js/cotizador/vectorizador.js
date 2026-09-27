@@ -207,10 +207,16 @@ function vtSetVista(v){
   out.style.clipPath=(hay&&v==='cmp')?'inset(0 0 0 '+(VT.split*100).toFixed(2)+'%)':'inset(0 0 0 0)';
   vtColocarSplit();
 }
+/* El asa se coloca con el MODELO y no midiendo el escenario. vtZoomBy() cambia la escala con
+   una transición de 120 ms y llama aquí en el mismo instante, cuando getBoundingClientRect()
+   todavía devuelve la escala vieja: medido con el asa al 25 %, quedaba 107 px fuera del borde
+   real del recorte después de un zoom y 150 px después de otro. El escenario escala desde su
+   centro, y el centro no se mueve a mitad de la transición: de ahí y de VT.z sale el ancho final. */
 function vtColocarSplit(){
   const h=$('vt-split'); if(!h||!h.classList.contains('on'))return;
-  const st=$('vt-stage').getBoundingClientRect(), ar=$('vt-canvas-area').getBoundingClientRect();
-  h.style.left=(st.left-ar.left+st.width*VT.split)+'px';
+  const st=$('vt-stage'), r=st.getBoundingClientRect(), ar=$('vt-canvas-area').getBoundingClientRect();
+  const centro=r.left+r.width/2-ar.left, ancho=st.offsetWidth*VT.z;
+  h.style.left=(centro-ancho/2+ancho*VT.split)+'px';
 }
 function vtSplitDown(e){
   e.preventDefault();
@@ -816,7 +822,7 @@ function vtAjustarLazo(P,tol,errSq,angMin){
 
 /* ===================== Orquestación ===================== */
 function vtProg(pct,txt){
-  $('vt-prog-bar').style.width=Math.max(0,Math.min(100,pct))+'%';
+  $('vt-prog-bar').style.transform='scaleX('+Math.max(0,Math.min(100,pct))/100+')';
   if(txt)$('vt-prog-txt').textContent=txt;
 }
 const vtRespirar=()=>new Promise(r=>setTimeout(r,0));

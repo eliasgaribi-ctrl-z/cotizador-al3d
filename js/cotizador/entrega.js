@@ -1487,6 +1487,7 @@ function mostrarEnlacePDF(url){
 function cerrarEnlacePDF(){
   const ov=document.getElementById('pdf-fallback'); if(!ov) return;
   ov.classList.remove('show');
-  requestAnimationFrame(()=>ov.remove());
+  /* Se quita cuando termina de desvanecerse (sistema.css, #pdf-fallback): 150 ms. */
+  setTimeout(()=>ov.remove(),160);
 }
 
