@@ -137,14 +137,58 @@
   aplicar();
   if (mq) { var oye = function () { if (guardado() === 'auto') aplicar(); }; mq.addEventListener ? mq.addEventListener('change', oye) : mq.addListener(oye); }
   window.addEventListener('storage', function (ev) { if (!ev.key || ev.key === CLAVE) aplicar(); });
+
+  /* ----- El tema nuevo se abre en círculo desde el toque -----
+     Sale de Skiper UI · skiper26 (Theme toggle, con atribución) y de View Transitions. El
+     navegador fotografía la pantalla en el tema de antes, se cambia el tema debajo, y la foto
+     del tema nuevo se descubre con un círculo que crece desde donde cayó el dedo hasta la
+     esquina más lejana, en 380 ms. Vive aquí y no en js/piezas.js porque este botón está en
+     TODAS las páginas y las tres de texto no cargan las piezas; Ajustes lo pide por
+     `AL3D_TEMA.revelar(evento, cambiar)`.
+
+     Se cambia de golpe, como siempre, cuando: no hay View Transitions (Firefox viejo, Safari <
+     18), se pidió menos movimiento, la pestaña está oculta, ya hay un revelado en curso (dos
+     toques seguidos: el segundo no espera al primero), o la página se lo prohíbe con
+     `html.sin-revelado` —el anidador con el motor corriendo: fotografiar una mesa llena
+     cuesta justo cuando el teléfono no tiene de dónde—. El estilo de las dos fotos está en
+     css/sistema.css («El tema se abre en círculo»). Con el teclado, el círculo sale del centro
+     del botón: un Enter no trae coordenadas. */
+  function punto(desde) {
+    var w = window.innerWidth, h = window.innerHeight;
+    if (desde && typeof desde.clientX === 'number' && (desde.clientX || desde.clientY) && desde.detail !== 0)
+      return [desde.clientX, desde.clientY];
+    var el = desde && desde.getBoundingClientRect ? desde : (desde && desde.currentTarget && desde.currentTarget.getBoundingClientRect ? desde.currentTarget : null);
+    if (!el && desde && desde.target && desde.target.closest) el = desde.target.closest('[data-tema-btn],button') || null;
+    if (el) { var r = el.getBoundingClientRect(); if (r.width || r.height) return [r.left + r.width / 2, r.top + r.height / 2]; }
+    if (desde && typeof desde.x === 'number' && typeof desde.y === 'number') return [desde.x, desde.y];
+    return [w / 2, h / 2];
+  }
+  function revelar(desde, cambiar) {
+    var h = document.documentElement, quieto = false;
+    try { quieto = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
+    if (typeof document.startViewTransition !== 'function' || quieto || document.hidden ||
+        h.classList.contains('sin-revelado') || h.classList.contains('tema-revela')) return cambiar();
+    var p = punto(desde), x = Math.round(p[0]), y = Math.round(p[1]);
+    var radio = Math.ceil(Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y)));
+    var vt;
+    h.classList.add('tema-revela');
+    try { vt = document.startViewTransition(function () { cambiar(); }); }
+    catch (_) { h.classList.remove('tema-revela'); return cambiar(); }
+    vt.ready.then(function () {
+      h.animate({ clipPath: ['circle(0px at ' + x + 'px ' + y + 'px)', 'circle(' + radio + 'px at ' + x + 'px ' + y + 'px)'] },
+        { duration: 380, easing: 'cubic-bezier(.2,.8,.2,1)', pseudoElement: '::view-transition-new(root)' });
+    }).catch(function () {});
+    vt.finished.catch(function () {}).then(function () { h.classList.remove('tema-revela'); });
+  }
+
   /* Los botones se pintan cuando el documento existe; el atributo ya está puesto desde antes. */
   document.addEventListener('DOMContentLoaded', function () {
     aplicar();
     document.addEventListener('click', function (ev) {
       var b = ev.target && ev.target.closest ? ev.target.closest('[data-tema-btn]') : null;
-      if (b) { ev.preventDefault(); alternar(); }
+      if (b) { ev.preventDefault(); revelar(ev.detail === 0 ? b : ev, alternar); }
     });
   });
 
-  window.AL3D_TEMA = { actual: function () { return efectivo(guardado()); }, preferencia: guardado, poner: poner, alternar: alternar, CLAVE: CLAVE };
+  window.AL3D_TEMA = { actual: function () { return efectivo(guardado()); }, preferencia: guardado, poner: poner, alternar: alternar, revelar: revelar, CLAVE: CLAVE };
 })();

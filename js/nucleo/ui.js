@@ -294,54 +294,25 @@ export function cerrarCapa(id) {
 }
 
 /* ----- Las hojas del teléfono se bajan con el dedo -----
-   El mismo gesto que el cotizador (js/cotizador/nucleo.js, «Las hojas del teléfono se cierran
-   deslizando»), que aquí no existía: la ficha, la hoja de trabajo y el asistente son hojas
-   altas pegadas abajo y la × queda lejos del pulgar. Solo desde el encabezado, o desde el
-   cuerpo cuando ya está hasta arriba; cierra por distancia (90 px) o por la velocidad del
-   último tramo (0,11 px/ms); hacia arriba cede con resistencia; y al soltar para cerrar, la
-   salida de CSS parte desde donde la dejó el dedo. */
-let _hoja = null;
-const _esTelefono = () => { try { return matchMedia('(max-width:560px)').matches; } catch (_) { return false; } };
-/* Solo en un documento: este módulo también lo importan las pruebas de node. */
-if (typeof document !== 'undefined') document.addEventListener('touchstart', e => {
-  if (_hoja || !_esTelefono() || e.touches.length !== 1) return;
-  const m = e.target.closest && e.target.closest('.pf-modal-bg.show>.pf-panel'); if (!m) return;
-  if (e.target.closest('input,textarea,select,[contenteditable="true"],canvas,.leaflet-container')) return;
-  const cuerpo = e.target.closest('.pf-panel-b');
-  if (cuerpo && cuerpo.scrollTop > 0) return;
-  if (!e.target.closest('.pf-panel-h') && !cuerpo) return;
-  const capa = _CAPAS.find(c => c.id === m.parentElement.id); if (!capa) return;
-  _hoja = { m, velo: m.parentElement, y0: e.touches[0].clientY, dy: 0, cerrar: capa.cerrar, activo: false, pts: [] };
-  document.addEventListener('touchmove', _moverHoja, { passive: false });
-}, { passive: true });
-function _moverHoja(e) {
-  if (!_hoja || e.touches.length !== 1) return;
-  const dy = e.touches[0].clientY - _hoja.y0;
-  if (!_hoja.activo) {
-    if (Math.abs(dy) < 6) return;
-    if (dy < 0) { _soltarHoja(); return; }
-    _hoja.activo = true; _hoja.m.style.transition = 'none'; _hoja.velo.style.transition = 'none';
-  }
-  _hoja.dy = dy > 0 ? dy : -Math.sqrt(-dy) * 3;
-  _hoja.pts.push([e.timeStamp, dy]);
-  while (_hoja.pts.length > 2 && e.timeStamp - _hoja.pts[0][0] > 100) _hoja.pts.shift();
-  _hoja.m.style.transform = 'translateY(' + _hoja.dy + 'px)';
-  _hoja.velo.style.opacity = String(Math.max(.35, 1 - Math.max(0, _hoja.dy) / (_hoja.m.offsetHeight || 600)));
-  e.preventDefault();
+   La ficha, la hoja de trabajo, el asistente y las preguntas son hojas altas pegadas abajo, y
+   la × queda lejos del pulgar. El gesto era una copia del del cotizador, y las dos llevaban el
+   mismo defecto —el velo se aclaraba con `opacity` sobre el padre de la hoja, así que la ficha
+   entera se iba al 35 % con el dedo encima—; ahora es UNA pieza, P.hojasDeslizables() en
+   js/piezas.js, con sus medidas y su porqué. Aquí solo se le dice qué es hoja en la plataforma
+   y con qué se cierra cada una: la función de su capa, la misma de la ×, de Escape y del atrás,
+   así que el cierre por gesto consume la entrada de historial igual que ellos.
+   Solo en un documento: este módulo también lo importan las pruebas de node. */
+const _piezas = typeof window !== 'undefined' ? window.Piezas : null;
+if (_piezas && _piezas.hojasDeslizables) {
+  _piezas.hojasDeslizables({
+    hoja: '.pf-modal-bg.show>.pf-panel', cabeza: '.pf-panel-h', cuerpo: '.pf-panel-b',
+    excluir: 'input,textarea,select,[contenteditable="true"],canvas,.leaflet-container',
+    cierre: velo => { const c = _CAPAS.find(x => x.id === velo.id); return c ? c.cerrar : null; },
+  });
 }
-function _soltarHoja() {
-  document.removeEventListener('touchmove', _moverHoja);
-  const h = _hoja; _hoja = null; if (!h || !h.activo) return;
-  const a = h.pts[0], b = h.pts[h.pts.length - 1];
-  const v = (a && b && b[0] > a[0]) ? (b[1] - a[1]) / (b[0] - a[0]) : 0;
-  h.m.style.transition = ''; h.velo.style.transition = ''; h.velo.style.opacity = '';
-  h.m.style.transform = '';
-  if (h.dy > 90 || (h.dy > 12 && v > 0.11)) { try { h.cerrar(); } catch (_) {} }
-}
-if (typeof document !== 'undefined') {
-  document.addEventListener('touchend', _soltarHoja, { passive: true });
-  document.addEventListener('touchcancel', _soltarHoja, { passive: true });
-}
+/* Y lo que pasa por debajo de la barra de módulos del teléfono —y de la barra de acción, cuando
+   un módulo la pone encima— se funde en vez de cortarse contra su canto (pieza 11). */
+if (_piezas && _piezas.desenfoqueProgresivo) _piezas.desenfoqueProgresivo(['#pf-abajo', '#pf-mbar'], { lado: 'abajo' });
 
 /* ----- Repintar una capa abierta sin perder el lugar -----
    La ficha de un proyecto, la hoja de trabajo y las hojas del Calendario se rehacen con
