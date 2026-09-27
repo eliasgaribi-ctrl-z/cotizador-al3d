@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- La misma política que la plataforma: sin guiones en línea. Si una pieza de la sección 3
+     necesitara un onclick escrito en el marcado, aquí no correría y la prueba lo diría. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'">
+<title>Vitrina · piezas de números, medidas y campos</title>
+<script src="../../js/tema.js"></script>
+<link rel="stylesheet" href="../../css/sistema.css">
+<!-- La de la plataforma también: las cuentas (.pf-cuenta) que ruedan en P18 y F23 viven ahí. -->
+<link rel="stylesheet" href="../../css/plataforma.css">
+<link rel="stylesheet" href="../../css/vidrio.css">
+<style>
+  /* Solo el marco de la vitrina: el contenido es marcado del repo (.card, .fld, .seg, .chip…). */
+  .vit{max-width:760px;margin:0 auto;padding:16px 16px 80px;display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+  .vit h1{font-size:var(--t5);margin:0}
+  .vit .card{min-width:0}
+  .vit .card-b{display:grid;gap:12px}
+  .vit .fila{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .vit .nota{margin:0;font-size:var(--t2);color:var(--tinta2)}
+  .vit .escalado{transform:scale(.6);transform-origin:left top;height:34px}
+  .vit .mat{display:grid;gap:2px;padding:10px 12px;border:1px solid var(--linea);border-radius:var(--rr3)}
+  .vit .mat-t{display:flex;justify-content:space-between;gap:10px;font-weight:600}
+  .vit .mat small{color:var(--tinta2);font-size:var(--t1)}
+  .vit .dif{font:600 var(--t4)/1.3 var(--f-cifra)}
+  .vit .dif[data-signo="menos"]{color:var(--av)}
+</style>
+</head>
+<body>
+<main class="vit" id="contenido">
+  <h1>Piezas · números, medidas y campos</h1>
+
+  <!-- 1 · El total que rueda -->
+  <section class="card" id="s-rueda" aria-labelledby="t-rueda">
+    <div class="card-h"><h2 id="t-rueda">1 · El total que rueda</h2></div>
+    <div class="card-b">
+      <div class="neto"><span class="lab">Total neto</span> <span class="amt" id="v-neto" data-shared="total">$0.00</span></div>
+      <div class="fila">
+        <button type="button" class="btn" id="b-mas">Otra partida</button>
+        <button type="button" class="btn" id="b-menos">Quitar partida</button>
+        <button type="button" class="btn" id="b-precios">Difuminar precios</button>
+      </div>
+      <div class="mbar-tot" style="position:static;display:flex"><span class="mbar-lab">Total</span><span class="mbar-amt" id="v-dock">$0.00</span></div>
+      <div class="escalado"><span class="mbar-amt" id="v-escalado">$0.00</span></div>
+      <div class="pf-cuentas">
+        <p class="pf-cuenta urge"><b class="ajusta" id="v-cuenta" style="--c:1">2</b>Van tarde</p>
+      </div>
+      <div class="fld"><label for="v-cuenta-in">Contar (el libro dice 2.4)</label>
+        <input id="v-cuenta-in" type="number" inputmode="decimal" step="0.1" min="0" value="2.4"></div>
+      <p class="dif" id="v-dif" aria-live="polite">0 láminas</p>
+    </div>
+  </section>
+
+  <!-- 2 · La ficha que viaja -->
+  <section class="card" id="s-ficha" aria-labelledby="t-ficha">
+    <div class="card-h"><h2 id="t-ficha">2 · La ficha que viaja</h2></div>
+    <div class="card-b">
+      <div class="seg" id="v-seg" role="group" aria-label="Rol">
+        <button type="button" class="on" aria-pressed="true">Vendedor</button>
+        <button type="button" aria-pressed="false">Autorizador</button>
+      </div>
+      <div class="tipo-seg" id="v-tipo" role="group" aria-label="Tipo de la partida 1">
+        <button type="button" class="on" aria-pressed="true"><span class="lg">Letras 3D</span><span class="sm">Letras</span></button>
+        <button type="button" aria-pressed="false"><span class="lg">Recorte</span><span class="sm">Recorte</span></button>
+        <button type="button" aria-pressed="false"><span class="lg">Bastidor</span><span class="sm">Bastidor</span></button>
+        <button type="button" aria-pressed="false"><span class="lg">Caja de luz</span><span class="sm">Caja</span></button>
+        <button type="button" aria-pressed="false"><span class="lg">Manual</span><span class="sm">Manual</span></button>
+      </div>
+      <!-- Como pintarNav(): el contenedor se queda y los botones se reescriben con innerHTML. -->
+      <nav class="seg" id="v-nav" aria-label="Módulos"></nav>
+      <!-- Como #f-plazo: chips con fondo propio, que sin .ficha-transparente taparían la ficha. -->
+      <div class="chips ficha-transparente" id="v-plazo" role="group" aria-label="Plazo">
+        <button type="button" class="chip on" aria-pressed="true">1 semana</button>
+        <button type="button" class="chip" aria-pressed="false">2 semanas</button>
+        <button type="button" class="chip" aria-pressed="false">3 semanas o más</button>
+      </div>
+      <div class="tool-seg" id="v-tool" role="group" aria-label="Vista">
+        <button type="button" class="active">Original</button><button type="button">Comparar</button><button type="button">Vector</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · Arrastrar sobre la etiqueta -->
+  <section class="card" id="s-medida" aria-labelledby="t-medida">
+    <div class="card-h"><h2 id="t-medida">3 · Arrastrar la medida</h2></div>
+    <div class="card-b">
+      <div class="grid3" id="v-medidas">
+        <div class="fld"><label for="v-alto" class="arrastrable">Altura (cm)</label>
+          <input id="v-alto" type="number" inputmode="decimal" min="0" step="0.5" value="30"></div>
+        <div class="fld"><label for="v-letras" class="arrastrable">Letras</label>
+          <input id="v-letras" type="number" inputmode="numeric" min="0" value="9"></div>
+        <div class="fld"><label for="v-m2" data-arrastrar="v-m2">m²</label>
+          <input id="v-m2" type="number" inputmode="decimal" min="0" max="20" step="0.01" value="0.72"></div>
+      </div>
+      <p class="nota" id="v-medida-eco">—</p>
+    </div>
+  </section>
+
+  <!-- 18 · Opciones con resaltado que se desliza -->
+  <section class="card" id="s-glide" aria-labelledby="t-glide">
+    <div class="card-h"><h2 id="t-glide">18 · La cuenta de cobro</h2></div>
+    <div class="card-b" id="v-glide-caja"></div>
+  </section>
+
+  <!-- 19 · Casillas y teléfono -->
+  <section class="card" id="s-casillas" aria-labelledby="t-casillas">
+    <div class="card-h"><h2 id="t-casillas">19 · Casillas y teléfono</h2></div>
+    <div class="card-b">
+      <div class="fld"><span class="fld-lab" id="l-codigo">Código de la cotización</span><span id="v-codigo-caja"></span></div>
+      <div class="fld"><label for="v-borrar">Escribe BORRAR</label><input id="v-borrar" type="text"></div>
+      <div class="fila"><button type="button" class="btn" id="v-borrar-b" aria-disabled="true">Borrar de verdad</button></div>
+      <div class="fld" id="fld-tel"><label for="v-tel">Teléfono</label>
+        <input id="v-tel" type="tel" inputmode="tel" placeholder="33 0000 0000" autocomplete="off" aria-describedby="v-hint"></div>
+      <span class="solo-voz" id="v-hint">Sin cliente, teléfono y proyecto no se pueden capturar partidas.</span>
+    </div>
+  </section>
+
+  <!-- 20 · Medidores quietos -->
+  <section class="card" id="s-medidor" aria-labelledby="t-medidor">
+    <div class="card-h"><h2 id="t-medidor">20 · Medidores quietos</h2></div>
+    <div class="card-b" id="v-medidores"></div>
+  </section>
+
+  <!-- Deslizadores con imanes -->
+  <section class="card" id="s-desl" aria-labelledby="t-desl">
+    <div class="card-h"><h2 id="t-desl">Deslizadores con imanes</h2></div>
+    <div class="card-b">
+      <div class="fld"><label for="v-anti-r">Anticipo</label><input type="range" id="v-anti-r" min="0" max="12528" step="any" value="6264"></div>
+      <div class="fld"><label for="v-anti">Anticipo sugerido (50%)</label><div class="inp-money"><input id="v-anti" type="number" inputmode="decimal" min="0" step="0.01" value="6264"></div></div>
+      <div class="fld"><label for="v-precio-r">Precio autorizado</label><input type="range" id="v-precio-r" min="8640" max="11880" step="any" value="10800"></div>
+      <div class="fld"><label for="v-precio">Precio autorizado (subtotal)</label><input id="v-precio" type="number" inputmode="decimal" min="0" step="1" value="10800"></div>
+      <div class="fld"><label for="v-colores">Colores (máximo)</label><input type="range" id="v-colores" min="2" max="24" step="1" value="6"></div>
+      <div class="fld"><label for="v-detalle">Detalle</label><input type="range" id="v-detalle" min="0" max="2" step="1" value="1"></div>
+      <p class="nota" id="v-retrazos">Re-trazado 0 veces</p>
+    </div>
+  </section>
+</main>
+<script src="../../js/piezas.js"></script>
+<script src="piezas-numeros-vitrina.js"></script>
+</body>
+</html>
