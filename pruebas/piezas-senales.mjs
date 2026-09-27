@@ -103,7 +103,7 @@ eq('«331234» encuentra «33 1234 5678»', P.coincide('33 1234 5678', '331234')
 eq('y lo marca sin los espacios de en medio fuera', P.resaltar('33 1234 5678', '331234'), '<mark class="coincide">33 1234</mark> 5678');
 eq('«2813 0092» encuentra el +52 pegado', P.coincide('+52 33 2813 0092', '2813 0092'), true);
 eq('un texto sin dígitos no coincide con una búsqueda de números', P.coincide('Gym Titanio', '0092'), false);
-eq('plegar lleva la cuenta de dónde empieza cada letra', P.plegar('Óp', false), { txt: 'op', ini: [0, 1], fin: [1, 2] });
+eq('plegar lleva la cuenta de dónde empieza cada letra', P.plegarTexto('Óp', false), { txt: 'op', ini: [0, 1], fin: [1, 2] });
 eq('y no se corre con un emoji delante', P.resaltar('🔥 Óptica', 'optica'), '🔥 <mark class="coincide">Óptica</mark>');
 
 console.log('\nLAS FICHAS DE FILTRO');

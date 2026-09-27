@@ -1,0 +1,1131 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Muestras de UI 3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============================================================================
+   Muestras de UI · parte 3 — 26-sep-2026
+   EL COTIZADOR DELANTE DEL CLIENTE
+
+   La parte 1 era el cotizador de uno; la parte 2, las piezas compartidas. Esta es la
+   pantalla cuando el teléfono está volteado hacia el cliente: comparar materiales sin
+   tocar la partida, pactar el anticipo, regatear con topes, esconder la comisión, enseñarle
+   su letrero en su fachada y que la vigencia de 10 días deje de ser letra chiquita.
+
+   Igual que las otras dos: JS y CSS sin librerías, sin build, con los tokens de sistema.css
+   copiados aquí solo para que la página se vea sola. Cada muestra es UNA función suelta.
+   Nada se mueve solo: todo responde a un toque, o es un momento breve que se apaga.
+   ============================================================================ */
+:root{
+  color-scheme:light;
+  --fondo:#f3f4fb; --sup:#ffffff; --sup2:#f7f8fd; --linea:#dcdff2; --linea2:#eceef8;
+  --tinta:#1a1d33; --tinta2:#5c6184; --tinta3:#666d9b; --nav:#171a33;
+  --n1:#f3f4fb; --n2:#eceef8; --n3:#dcdff2; --n6:#5c6184; --n8:#1a1d33;
+  --a:#4060f8; --a-fuerte:#3018f8; --a-claro:#6090f8; --a-suave:#e9edff; --a-borde:#b9c5fe;
+  --a-fill:#4060f8; --a-tx:#3018f8; --a-rgb:64,96,248; --tinta-rgb:35,39,68; --sup-rgb:255,255,255;
+  --ok:#0a7d4a; --ok-bg:#e2f8ec; --ok-borde:#a9e8c6; --ok-fill:#0a7d4a;
+  --av:#8a5100; --av-bg:#fff2dd; --av-borde:#ffd79c;
+  --mal:#c62828; --mal-bg:#ffeceb; --mal-borde:#ffc4c1;
+  --rr1:4px; --rr2:6px; --rr3:10px; --rr4:12px;
+  --t1:12px; --t2:13.5px; --t3:15px; --t4:18px; --t6:28px;
+  --mv-s:.16s cubic-bezier(.2,.8,.2,1); --mv-r:.2s cubic-bezier(.2,.8,.2,1);
+  --mv-t:.5s cubic-bezier(.2,.8,.2,1); --mv-liq:.42s cubic-bezier(.34,1.26,.5,1);
+  --f-cifra:'Sora',system-ui,sans-serif; --f-texto:'Manrope',system-ui,sans-serif;
+  --sombra-alta:0 2px 8px rgba(35,39,68,.08),0 32px 64px -24px rgba(48,24,248,.42);
+}
+/* Tema oscuro mínimo, para revisar que cada muestra se lea en los dos (botón de arriba). */
+html[data-tema="oscuro"]{
+  color-scheme:dark;
+  --fondo:#0f1122; --sup:#181b33; --sup2:#1d2140; --linea:#2c3158; --linea2:#232744;
+  --tinta:#eef0ff; --tinta2:#b6bbe0; --tinta3:#9aa0cc; --n1:#1d2140; --n2:#2c3158; --n3:#3a4070; --n6:#b6bbe0; --n8:#eef0ff;
+  --a-suave:#23285a; --a-borde:#4a58c8; --a-tx:#9fb3ff; --a-fill:#4a5ff0; --sup-rgb:24,27,51;
+  --ok:#6fd6a4; --ok-bg:#13352a; --ok-borde:#2f6d52; --ok-fill:#0a7d4a;
+  --av:#ffc979; --av-bg:#3a2a10; --av-borde:#7a5a22;
+  --mal:#ff8f88; --mal-bg:#3d1a1c; --mal-borde:#7a3236;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--fondo);color:var(--tinta);font:500 var(--t3)/1.5 var(--f-texto);-webkit-font-smoothing:antialiased;padding:24px 16px 120px}
+main{max-width:760px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+.card{min-width:0}
+h1{font:700 22px/1.2 var(--f-cifra);margin:0} h2{font:600 var(--t4)/1.25 var(--f-cifra);margin:0}
+.intro,.nota{color:var(--tinta2);margin:0;font-size:var(--t2)} .intro{font-size:var(--t3);margin-top:6px}
+.card{background:var(--sup);border:1px solid var(--linea);border-radius:var(--rr4);padding:18px;display:grid;gap:12px;box-shadow:0 1px 2px rgba(var(--tinta-rgb),.05),0 16px 40px -24px rgba(48,24,248,.25)}
+.card-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px}
+.fuente{font-size:var(--t1);color:var(--tinta3);font-weight:700;letter-spacing:.02em}
+.fila{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.btn{position:relative;font:600 var(--t2)/1 var(--f-texto);min-height:44px;padding:0 16px;border-radius:var(--rr2);border:1px solid var(--linea);background:var(--sup);color:var(--tinta);cursor:pointer}
+.btn-pri{background:var(--a-fill);border-color:var(--a-fill);color:#fff}
+.btn:disabled{cursor:default;color:var(--tinta2);background:var(--n1)}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--a-fuerte);outline-offset:2px}
+html[data-tema="oscuro"] :is(button,input,[tabindex]):focus-visible{outline-color:var(--a-tx)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.fld{display:grid;gap:4px} .fld label{font-size:var(--t1);font-weight:700;color:var(--tinta2);text-transform:uppercase;letter-spacing:.04em}
+.fld input{font:600 16px/1 var(--f-texto);min-height:44px;min-width:0;padding:0 12px;border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup2);color:var(--tinta)}
+.chip{min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--linea);background:var(--sup);font:600 var(--t2)/1.1 var(--f-texto);color:var(--tinta2);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-tx)}
+.caja-check{display:flex;gap:8px;align-items:center;min-height:44px;font-size:var(--t2);color:var(--tinta2);cursor:pointer}
+.caja-check input{width:20px;height:20px;accent-color:var(--a-fill);margin:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+@keyframes sacude{20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+@keyframes dibuja{to{stroke-dashoffset:0}}
+@keyframes gira{to{transform:rotate(360deg)}}
+.cab{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:10px}
+
+/* ============================================================================
+   27) COMPARAR MATERIALES SIN CAMBIAR LA PARTIDA
+   Sale de: React Bits PeekRating (probar antes de decidir: se asoma, no se escribe).
+   Va en: js/cotizador/partidas.js 1045 (matChips en bodyFor()), 880–888 (chip()) y 264–266
+   (repintado ligero de #lt-<id>); js/cotizador/nucleo.js 806–811 (lineTotalCrudo());
+   css/sistema.css 3104–3107 (.chips-catalogo).
+   Hoy saber cuánto saldría en brush obliga a elegirlo y regresar, y eso de paso le quita la
+   marca de «heredado» y cambia la preferencia guardada (setItem, línea 231). Aquí asomarse
+   calcula lineTotal({...it, material:k}) SIN escribir en Q: la etiqueta de heredado se queda.
+   Ratón: pasar el cursor. Dedo: 350 ms quieto (si se mueve antes, es scroll y no pasa nada).
+   Teclado: el foco visible hace de cursor. Tocar, como hoy, elige.
+   El fantasma ocupa su lugar aunque esté apagado: que aparezca no empuja nada.
+   ============================================================================ */
+.mats{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.mat-chip{position:relative;min-height:58px;padding:9px 30px 9px 12px;border-radius:var(--rr3);border:1px solid var(--linea);background:var(--sup);color:var(--tinta);text-align:left;cursor:pointer;
+  font:600 var(--t2)/1.2 var(--f-texto);-webkit-touch-callout:none;user-select:none;-webkit-user-select:none;touch-action:manipulation;transition:border-color var(--mv-s),background-color var(--mv-s)}
+.mat-chip small{display:block;margin-top:4px;font-size:var(--t1);font-weight:700;color:var(--tinta2)}
+.mat-chip[aria-pressed="true"]{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-tx)}
+.mat-chip[aria-pressed="true"] small{color:var(--a-tx)}
+.mat-chip[aria-pressed="true"]::after{content:"";position:absolute;right:11px;top:12px;width:11px;height:6px;border:solid currentColor;border-width:0 0 2.5px 2.5px;transform:rotate(-45deg)}
+.mat-chip.espiado{border-style:dashed;border-color:var(--tinta3);background:var(--sup2)}
+.lt-caja{display:grid;gap:4px;padding:12px 14px;border:1px solid var(--linea2);border-radius:var(--rr3);background:var(--sup2)}
+.lt-lab{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:var(--t1);font-weight:700;color:var(--tinta2);text-transform:uppercase;letter-spacing:.04em}
+.lt-tag{text-transform:none;letter-spacing:0;padding:2px 8px;border-radius:999px;background:var(--av-bg);color:var(--av);border:1px solid var(--av-borde)}
+.lt-tag[hidden]{display:none}
+.lt-fila{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;min-height:44px}
+.lt{font:700 var(--t6)/1.1 var(--f-cifra);font-variant-numeric:tabular-nums}
+/* «Tinta fantasma»: más delgada, en tinta2 y con filete punteado. No baja de 4.5:1: lo que
+   la distingue del real es el filete y el peso, no un gris ilegible. */
+.lt-fantasma{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:0 8px;padding:3px 10px;border:1.5px dashed var(--tinta3);border-radius:var(--rr2);color:var(--tinta2);
+  opacity:0;transform:translateX(-6px);transition:opacity var(--mv-r),transform var(--mv-r);pointer-events:none}
+.lt-fantasma.show{opacity:1;transform:none}
+.lt-fantasma b{font:500 20px/1.25 var(--f-cifra);font-variant-numeric:tabular-nums}
+.lt-fantasma span{font-size:var(--t1);font-weight:700}
+.lt-formula{font-size:var(--t1);color:var(--tinta2);font-weight:600}
+
+/* ============================================================================
+   28) EL ANTICIPO PARTIDO A LA VISTA
+   Sale de: React Bits WakeSlider (una barra que se arrastra) — sin el oleaje de sus barras.
+   Va en: cotizador.html 468–474 (#f-anti, #s-anti-rest); js/cotizador/proceso.js 90–108
+   (renderSummary(), que ya reescribe el rótulo «Anticipo (46%)»), 2096 y 2109–2124 (oyentes).
+   La barra NO guarda nada: escribe #f-anti y despacha input y change, así el acotado y
+   Q.antiManual siguen saliendo del código de hoy. Imán a cientos, y un imán más fuerte en el
+   50 % exacto (con factura el 50 % no es redondo: $6,264). Tope en el total.
+   Con factura, el anticipo lleva IVA (precioFinal() ya lo incluye): se dice en qué parte.
+   Pendiente de confirmar con Elías: la excepción de $60,000 se mide aquí contra el TOTAL que
+   se cobra (con IVA si hay factura). Si es contra el subtotal, es una constante.
+   ============================================================================ */
+.ap{display:grid;gap:8px}
+.ap-cifras{display:flex;justify-content:space-between;gap:12px}
+.ap-cifras>div{display:grid;gap:1px;min-width:0}
+.ap-cifras>div+div{text-align:right;justify-items:end;margin-left:auto}
+.ap-cifras small{font-size:var(--t1);font-weight:700;color:var(--tinta2);text-transform:uppercase;letter-spacing:.04em}
+.ap-cifras b{font:700 20px/1.2 var(--f-cifra);font-variant-numeric:tabular-nums}
+.ap-cifras em{font:600 var(--t2)/1.2 var(--f-texto);font-style:normal;color:var(--tinta2)}
+.ap-barra{position:relative;height:44px;margin:4px 0 24px;border-radius:var(--rr3);background:var(--a-suave);border:1px solid var(--a-borde);touch-action:none;cursor:pointer;--p:.5}
+.ap-hoy{position:absolute;left:0;top:0;bottom:0;width:calc(var(--p) * 100%);border-radius:var(--rr3) 0 0 var(--rr3);background:var(--a-fill);transition:width var(--mv-r)}
+.ap-marca{position:absolute;left:50%;top:-5px;bottom:-5px;width:2px;margin-left:-1px;background:var(--tinta2);pointer-events:none}
+.ap-marca::after{content:"50%";position:absolute;top:calc(100% + 3px);left:50%;transform:translateX(-50%);font:700 var(--t1)/1 var(--f-texto);color:var(--tinta2);white-space:nowrap}
+.ap-asa{position:absolute;top:50%;left:calc(var(--p) * 100%);width:44px;height:44px;margin:-22px 0 0 -22px;display:grid;place-items:center;border-radius:50%;transition:left var(--mv-r)}
+.ap-asa::before{content:"";width:18px;height:34px;border-radius:8px;background:var(--sup);border:2px solid var(--a-fill);box-shadow:0 2px 6px rgba(var(--tinta-rgb),.25)}
+.ap-barra.arrastrando .ap-hoy,.ap-barra.arrastrando .ap-asa{transition:none}
+.ap-campo{display:grid;grid-template-columns:minmax(0,220px);gap:4px}
+.ap-iva{font-size:var(--t2);color:var(--tinta2);margin:0}
+.ap-excep{margin:0;padding:10px 12px;border-radius:var(--rr2);border:1px solid var(--av-borde);background:var(--av-bg);color:var(--av);font-size:var(--t2);font-weight:600}
+.ap-excep[hidden]{display:none}
+
+/* ============================================================================
+   29) AJUSTAR EL PRECIO CON IMANES
+   Sale de: React Bits ElasticSlider (resistencia elástica más allá de los extremos).
+   Va en: js/cotizador/proceso.js 444–450 (#a-precio en authRevisionHTML()) y 475–501
+   (updPrecioAuth()); cotizador.html 603 (#rem-precio) y js/cotizador/notario.js 471–484
+   (abrirRevisionRemota(), pintarRemotaNeto()).
+   El precio se decide SIN IVA: el campo es el subtotal y sigue siendo la fuente. El
+   deslizador escribe el campo y despacha input (en el repo: updPrecioAuth(+v, subCalc)); si
+   alguien teclea −25 %, la perilla se queda en el tope y la frase dice la verdad del campo.
+   Imanes a 12 px de 0, −5, −10 y −15 %; fuera de ellos, cientos redondos.
+   NO vibra en los imanes: vibrar() está reservado para autorizar, borrar y rechazar.
+   «(10%)» sin espacio, como escribe el resto de la columna del dinero.
+   ============================================================================ */
+.pi{display:grid;gap:4px}
+.pi-pista{position:relative;height:44px;margin:0 14px;touch-action:none;cursor:pointer;--r:.667}
+.pi-riel{position:absolute;left:0;right:0;top:50%;height:6px;margin-top:-3px;border-radius:3px;background:var(--n3)}
+.pi-lleno{position:absolute;top:0;bottom:0;border-radius:3px;background:var(--a-fill)}
+.pi-tick{position:absolute;top:50%;width:2px;height:12px;margin:-6px 0 0 -1px;border-radius:1px;background:var(--tinta3);pointer-events:none}
+.pi-tick.iman{height:18px;margin-top:-9px;background:var(--tinta2)}
+.pi-asa{position:absolute;top:50%;left:calc(var(--r) * 100%);width:44px;height:44px;margin:-22px 0 0 -22px;display:grid;place-items:center;border-radius:50%}
+.pi-asa::before{content:"";width:24px;height:24px;border-radius:50%;background:var(--sup);border:2px solid var(--a-fill);box-shadow:0 2px 6px rgba(var(--tinta-rgb),.25)}
+.pi-pista.suelta .pi-riel,.pi-pista.suelta .pi-asa{transition:transform .55s cubic-bezier(.34,1.56,.64,1)}
+.pi-marcas{position:relative;height:16px;margin:0 14px}
+.pi-marcas span{position:absolute;top:0;transform:translateX(-50%);font:700 var(--t1)/1 var(--f-texto);color:var(--tinta2);white-space:nowrap}
+.pi-marcas span.iman{color:var(--tinta)}
+.pi-frase{margin:6px 0 0;font:700 var(--t4)/1.3 var(--f-cifra);font-variant-numeric:tabular-nums}
+.pi-frase.inc{color:var(--av)}
+.pi-neto{margin:0;font-size:var(--t2);color:var(--tinta2)}
+.pi-fuera{margin:0;font-size:var(--t2);font-weight:600;color:var(--av)}
+.pi-fuera[hidden]{display:none}
+
+/* ============================================================================
+   30) AUTOCOMPLETAR CLIENTES QUE SE ENTIENDE
+   Sale de: React Bits GlideSelect (una sola pastilla que se desliza de renglón a renglón);
+   el lavado de color, de CodeSlots.
+   Va en: cotizador.html 311 (#f-cli con <datalist id="clientes-conocidos">) y 314
+   (#cua-aviso); js/cotizador/nucleo.js 737–759 (clientesConocidos(), pintarClientes()) y
+   776–787 (autocompletarCliente()).
+   Hoy el <datalist> sale en Android como una tira sobre el teclado, sin teléfono ni pista de
+   cuál «Farmacia Guadalupe» es. Aquí: patrón combobox (role=combobox, aria-activedescendant,
+   flechas, Enter, Esc); el foco nunca sale del campo. En el repo va sobre popover="manual".
+   Las mismas reglas de autocompletarCliente(): solo llena lo vacío y respeta vaciadoAMano()
+   —lo que alguien borró a propósito no vuelve—. En borrador, el importe de la última
+   cotización se difumina como los demás (precios-ocultos).
+   ============================================================================ */
+.combo{position:relative}
+.combo-menu{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:6;background:var(--sup);border:1px solid var(--linea);border-radius:var(--rr3);box-shadow:var(--sombra-alta);padding:4px;max-height:300px;overflow:auto;overscroll-behavior:contain}
+.combo-menu[hidden]{display:none}
+.combo-lista{position:relative}
+.combo-pil{position:absolute;left:0;right:0;top:0;height:0;border-radius:var(--rr2);background:var(--a-suave);opacity:0;pointer-events:none;transition:transform var(--mv-r),height var(--mv-r),opacity .15s}
+.combo-op{position:relative;z-index:1;min-height:60px;padding:8px 10px;border-radius:var(--rr2);cursor:pointer;display:grid;gap:1px;align-content:center}
+.combo-op b{font-weight:700;font-size:var(--t3)} .combo-op b i{font-style:normal;font-weight:600;color:var(--tinta2)}
+.combo-op span{font:600 var(--t2)/1.3 var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta)}
+.combo-op small{font-size:var(--t1);color:var(--tinta2);font-weight:600}
+.combo-op[aria-selected="true"] b{color:var(--a-tx)}
+.combo-vacio{margin:0;padding:12px;color:var(--tinta2);font-size:var(--t2)}
+.combo-vacio[hidden]{display:none}
+.fld input.lavado{animation:lava 1s cubic-bezier(.2,.8,.2,1)}
+.fld input.lavado-quieto{background-color:var(--ok-bg);border-color:var(--ok-borde)}
+@keyframes lava{0%,40%{background-color:var(--ok-bg);border-color:var(--ok-borde)}}
+.cli-aviso{min-height:1.5em}
+
+/* ============================================================================
+   31) MODO CLIENTE: EL DINERO INTERNO TAPADO
+   Sale de: React Bits BlurText (el paso de nítido a borroso, escalonado por renglón) +
+   función nueva: el interruptor «Enseñar al cliente».
+   Va en: js/mod/proyectos.js 808–815 y 818–819 (comisión pactada y restante en htmlFicha());
+   js/mod/tablero.js 528–539 (.pf-cuenta.dinero «En el taller»). El patrón de espiar ya
+   existe en js/cotizador/nucleo.js 241–263 (_SEL_PRECIO, _espiarPrecios(), delegados).
+   Lo nuevo es el MODO: un interruptor que tapa lo interno (comisión, costo, margen), agranda el
+   total y deja nítido lo que el cliente sí debe ver (partidas, IVA, total, anticipo).
+   Mantener presionado un renglón tapado lo destapa mientras dura el dedo; con teclado,
+   mientras dura la tecla. Se tapa el renglón ENTERO: que el cliente no lea ni «Comisión».
+   Cuidado: el importe del propio proyecto no se tapa (proyectos.js 563–565), y Fabricación
+   no ve ninguna de estas cifras: ahí no se pintan, no se difuminan.
+   ============================================================================ */
+.sw{display:inline-flex;align-items:center;gap:10px;min-height:44px;padding:0 6px 0 0;border:0;background:none;cursor:pointer;font:700 var(--t3) var(--f-texto);color:var(--tinta)}
+.sw-pista{position:relative;flex:none;width:46px;height:28px;border-radius:14px;background:var(--n3);border:1px solid var(--linea);transition:background-color var(--mv-r)}
+.sw-pista::after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(var(--tinta-rgb),.35);transition:transform var(--mv-liq)}
+.sw[aria-checked="true"] .sw-pista{background:var(--a-fill);border-color:var(--a-fill)}
+.sw[aria-checked="true"] .sw-pista::after{transform:translateX(18px)}
+.resumen{display:grid;padding:10px 14px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup)}
+.rs-cab{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 10px;padding-bottom:6px;font-size:var(--t2);color:var(--tinta2);font-weight:600}
+.rs-cab b{color:var(--tinta);font-weight:700}
+.rs{display:flex;justify-content:space-between;align-items:baseline;gap:12px;min-height:36px;padding:6px 0;border-top:1px solid var(--linea2)}
+.rs>span:first-child{min-width:0}
+.rs>span:last-child{font:600 var(--t3)/1.2 var(--f-cifra);font-variant-numeric:tabular-nums;white-space:nowrap}
+.rs small{display:block;color:var(--tinta2);font-size:var(--t1);font-weight:600}
+.rs.total>span:first-child{font-weight:700}
+.rs.total>span:last-child{font-size:var(--t4);font-weight:700;transition:font-size var(--mv-t)}
+.interno{margin-top:8px;padding:4px 10px;border-radius:var(--rr2);background:var(--n1);display:grid;position:relative}
+.interno h3{margin:6px 0 2px;font:700 var(--t1)/1.2 var(--f-texto);color:var(--tinta2);text-transform:uppercase;letter-spacing:.04em}
+.interno .rs{border-top-color:var(--linea);transition:filter .32s cubic-bezier(.2,.8,.2,1) calc(var(--i,0) * 60ms)}
+.tapa-aviso{display:none;margin:0 0 4px;font-size:var(--t1);font-weight:700;color:var(--tinta2)}
+.modo-cliente .tapa-aviso{display:block}
+.modo-cliente .interno h3{display:none}
+.modo-cliente .interno .rs{filter:blur(7px);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.modo-cliente .interno .rs{cursor:pointer;touch-action:manipulation}
+.modo-cliente .interno .rs.destapado{filter:none;transition-duration:.12s;transition-delay:0s}
+.modo-cliente .rs.total{background:var(--a-suave);margin:0 -14px;padding:10px 14px;border-top-color:var(--a-borde)}
+.modo-cliente .rs.total>span:last-child{font-size:var(--t6);color:var(--a-tx)}
+
+/* ============================================================================
+   32) EL LETRERO SOBRE LA FOTO DEL LOCAL — función nueva
+   Sale de: C14 (el letrero de la muestra 26: DepthText + el brillo de ShinyText) puesto
+   sobre la escala del escalador.
+   Va en: js/cotizador/partidas.js 1082 (.autoctr en bodyFor()) y 429–475
+   (autoContarLetras()); js/cotizador/escalador.js 1352–1360 (scConfirmCalib(), que ya deja
+   SC.nativePxPerCm); cotizador.html 860–872 (la calibración con «una puerta mide 200 cm»).
+   Aquí la «foto» es una fachada en SVG con una referencia conocida (la puerta: 210 cm). En el
+   repo es la foto que ya se calibró: px por cm sale de la referencia, y el alto del letrero
+   se dice en cm reales. El alto de la letra es la ALTURA DE LA MAYÚSCULA (se mide la «H» de
+   la fuente en un canvas), que es lo que se cobra: $30 × alto × letras.
+   Regla del negocio: ALUMINIO = LED posterior (el halo cae en la pared); ACRÍLICO = LED
+   frontal (la cara brilla). Por debajo de 10 cm ya no es letra 3D: recorte de acrílico.
+   Dice «Ilustrativo»: no es la tipografía del cliente ni su fachada.
+   ============================================================================ */
+.fachada{position:relative;aspect-ratio:600/380;border-radius:var(--rr3);overflow:hidden;background:#2a2e42}
+.fachada svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.fachada::after{content:"Ilustrativo";position:absolute;right:10px;bottom:6px;font:700 10px/1 var(--f-texto);letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.75);pointer-events:none}
+.letrero-f{position:absolute;left:0;top:0;transform:translate(-50%,-50%);padding:max(4px,calc((44px - var(--fs,20px)) / 2)) 8px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;border-radius:var(--rr2);--fs:20px}
+.letrero-f.arrastrando{cursor:grabbing;background:rgba(255,255,255,.06)}
+.lf-t{display:block;font:800 var(--fs)/1 var(--f-cifra);letter-spacing:.04em;white-space:nowrap}
+/* Aluminio: cara opaca, canto apilado en gris, y la luz es un halo DETRÁS que lava la pared.
+   Todo en em: el canto y el halo crecen con la letra. */
+.letrero-f.aluminio .lf-t{color:#f4f5f8;
+  text-shadow:.02em .02em 0 #9aa0ad,.04em .04em 0 #8a909d,.06em .06em 0 #7b818e,.08em .08em 0 #6c7280;
+  filter:drop-shadow(0 0 calc(var(--fs) * .28) rgba(170,205,255,.9)) drop-shadow(0 0 calc(var(--fs) * .7) rgba(170,205,255,.6))}
+/* Acrílico: la cara ES la luz (brilla al frente) y el canto es de aluminio. */
+.letrero-f.acrilico .lf-t{color:#f3f8ff;
+  text-shadow:0 0 .12em rgba(170,205,255,.95),0 0 .36em rgba(170,205,255,.8),.02em .02em 0 #b9bdc7,.04em .04em 0 #a2a7b3,.06em .06em 0 #8d929f}
+/* Menos de 10 cm: recorte plano, sin canto ni luz. */
+.letrero-f.recorte .lf-t{color:#eef0f6;text-shadow:none;filter:none}
+.lf-ctrl{display:grid;gap:10px}
+.lf-rango{display:grid;gap:2px}
+.lf-rango label{font-size:var(--t1);font-weight:700;color:var(--tinta2);text-transform:uppercase;letter-spacing:.04em}
+.lf-rango input{width:100%;height:44px;margin:0;accent-color:var(--a-fill)}
+.lf-dice{margin:0;font-size:var(--t2);color:var(--tinta2);font-weight:600}
+.lf-precio{margin:0;font:600 var(--t3)/1.35 var(--f-texto)}
+.lf-precio b{font:700 var(--t4) var(--f-cifra);font-variant-numeric:tabular-nums}
+.lf-precio.av{color:var(--av)}
+
+/* ============================================================================
+   33) LA VIGENCIA DE 10 DÍAS A LA VISTA — función nueva
+   Sale de: nada de las bibliotecas; el anillo usa el mismo trazo con pathLength=1 que el
+   glifo de StatusMark (muestra 24), para que la app tenga un solo dibujo de «cuánto falta».
+   Va en: js/cotizador/historial.js 249–300 (pintarHistorial(), cada .hentry) y 148–153 (e.ts);
+   js/cotizador/entrega.js 926 («La cotización es válida por 10 días.»).
+   La cuenta sale de e.ts (el número), NO de e.fechaAuth, que es texto es-MX («22 sept 2026»)
+   y no se resta. Días naturales, por medianoche local: autorizada el 22, vence el 2.
+   Ficha: > 3 días en verde, 3 o menos en ámbar, vencida en rojo; el color nunca va solo, el
+   texto dice lo mismo. El anillo se consume por días que quedan; se mueve solo cuando cambia
+   el día o se reenvía, nunca en reposo.
+   Cuidado: «Reenviar con fecha nueva» es un PDF nuevo. Si el precio se movió (material que
+   subió), tiene que volver a pasar por Dirección antes de salir.
+   ============================================================================ */
+.vig-cab{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between}
+.vig-cab b{font:700 var(--t2) var(--f-cifra)}
+.vigs{display:grid;gap:8px}
+.vig{display:grid;grid-template-columns:48px minmax(0,1fr);gap:8px 12px;align-items:center;padding:10px 12px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup)}
+.vig .btn{grid-column:1/-1}
+@media(min-width:620px){.vig{grid-template-columns:48px minmax(0,1fr) auto}.vig .btn{grid-column:auto}}
+.anillo{position:relative;width:48px;height:48px}
+.anillo svg{width:48px;height:48px;display:block;transform:rotate(-90deg)}
+.anillo circle{fill:none;stroke-width:4}
+.anillo .base{stroke:var(--n2)}
+.anillo .resto{stroke:var(--ok-fill);stroke-linecap:round;stroke-dasharray:1;transition:stroke-dashoffset var(--mv-t),stroke var(--mv-r)}
+.anillo b{position:absolute;inset:0;display:grid;place-items:center;font:700 var(--t3)/1 var(--f-cifra);font-variant-numeric:tabular-nums}
+.vig[data-estado="av"] .anillo .resto{stroke:var(--av)}
+.vig[data-estado="mal"] .anillo .base{stroke:var(--mal);stroke-dasharray:3 4}
+.vig[data-estado="mal"] .anillo .resto{stroke:transparent}
+.vig-d b{display:block;font-weight:700;font-size:var(--t3)}
+.vig-d small{display:block;font-size:var(--t1);color:var(--tinta2);font-weight:600}
+.vig-t{display:inline-block;margin-top:3px;padding:2px 8px;border-radius:999px;font-size:var(--t1);font-weight:800;border:1px solid transparent}
+.vig[data-estado="ok"] .vig-t{color:var(--ok);background:var(--ok-bg);border-color:var(--ok-borde)}
+.vig[data-estado="av"] .vig-t{color:var(--av);background:var(--av-bg);border-color:var(--av-borde)}
+.vig[data-estado="mal"] .vig-t{color:var(--mal);background:var(--mal-bg);border-color:var(--mal-borde)}
+.vig[data-estado="mal"]{border-color:var(--mal-borde)}
+
+/* ============================================================================
+   34) LA ISLA DE ESTADO JUNTO AL FOLIO
+   Sale de: la idea de Skiper skiper2 Dynamic island (sin su código) + el cruce de BellToggle.
+   Va en: cotizador.html 199–202 (#folio, #sin-senal); js/cotizador/nucleo.js 631–640
+   (pintarConexion()); css/sistema.css 3461–3463; los estados salen de proceso.js 1685
+   (_sellando) y notario.js 274–280 (_foliosEsperando()).
+   Una sola pastilla role="status" para lo que pasa fuera de la pantalla. Se desenrolla al
+   cambiar el estado y se enrolla sola: «Sin señal» y «Esperando a Dirección» quedan como
+   icono mientras duren; «Sellando» se queda abierto porque es una espera de segundos; al
+   terminar dice el resultado 1.6 s y se va. El ancho se mide del rótulo (flex:none).
+   La barra de arriba está medida al píxel (sistema.css 790–890): en ≤560 px solo el icono,
+   sin crecer; el texto sigue ahí para el lector de pantalla. El único giro es el del sello,
+   y solo MIENTRAS sella.
+   ============================================================================ */
+.barra-top{display:flex;align-items:center;gap:8px;min-height:56px;padding:6px 10px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup2);min-width:0;overflow:hidden}
+.barra-top .marca{font:700 var(--t3)/1 var(--f-cifra);margin-right:auto;white-space:nowrap}
+.folio-p{flex:none;display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--linea);background:var(--sup);font:700 var(--t2)/1 var(--f-cifra);font-variant-numeric:tabular-nums}
+.isla{position:relative;flex:none;display:inline-flex;align-items:center;height:32px;width:0;border-radius:999px;background:var(--nav);color:#fff;overflow:hidden;white-space:nowrap;opacity:0;
+  transition:width .42s cubic-bezier(.2,.8,.2,1),opacity .2s,background-color .25s}
+html[data-tema="oscuro"] .isla{background:#000;box-shadow:0 0 0 1px var(--linea)}
+.isla.ver{opacity:1}
+.isla-ic{flex:none;width:32px;height:32px;display:grid;place-items:center}
+.isla-ic svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.isla[data-estado="sin-senal"] .isla-ic{color:#ffc979}
+.isla[data-estado="sellando"] .isla-ic svg{animation:gira .9s linear infinite}
+.isla-t{flex:none;padding:0 14px 0 2px;font:700 var(--t1)/1 var(--f-texto);opacity:0;transition:opacity .18s}
+.isla.abierta .isla-t{opacity:1;transition-delay:.14s}
+.isla[data-tono="ok"]{background:var(--ok-fill)}
+@media(max-width:560px){
+  .isla.ver{width:32px!important}
+  .isla-t{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0 0 0 0)}
+}
+
+/* ============================================================================
+   35) EL FOLIO QUE CAMBIA SE NOTA
+   Sale de: React Bits SplitFlapText (tablero de salidas) — UNA vuelta, sin caracteres al azar.
+   Va en: cotizador.html 199 (#folio); cambia en js/cotizador/proceso.js 1823 (nueva()) y 1337
+   (cerrarEdicionCliente()); se pinta en js/cotizador/historial.js 1757–1770 (pintarFolio()).
+   El error documentado es capturar otro cliente encima del mismo folio: voltean SOLO los
+   caracteres que cambiaron, escalonados 45 ms, y solo si había un folio antes. La marca
+   «sin guardar» va aparte y no voltea. Las casillas son aria-hidden; el folio se lee entero.
+   ============================================================================ */
+.folio-f{display:inline-flex;align-items:center;gap:0;min-height:48px;padding:0 16px;border-radius:999px;border:1px solid var(--linea);background:var(--sup);font:700 22px/1 var(--f-cifra);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.fcs{display:inline-flex;perspective:260px}
+.fc{display:inline-block;min-width:.64em;text-align:center;transform-origin:50% 50%;backface-visibility:hidden}
+.fc.volteando{background:linear-gradient(transparent calc(50% - .5px),rgba(var(--tinta-rgb),.35) calc(50% - .5px) calc(50% + .5px),transparent calc(50% + .5px))}
+.sin-guardar{display:inline-flex;align-items:center;min-height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--av-borde);background:var(--av-bg);color:var(--av);font-size:var(--t1);font-weight:800}
+.sin-guardar[hidden]{display:none}
+
+/* ============================================================================
+   36) LA COTIZACIÓN QUE SE GUARDA VUELA A DONDE QUEDÓ
+   Sale de: React Bits FolderFloat (lo que entra a la carpeta) — con Web Animations, sin física.
+   Va en: js/cotizador/proceso.js 1792–1840 (nueva()); js/cotizador/arranque.js 107–122
+   (separarDeLaCotizacionAnterior()); js/cotizador/venta.js 423–436 (registrarGanada(), que
+   vuela a Plataforma). Destinos: cotizador.html 168 (Historial) y 198 (Plataforma).
+   El miedo documentado es «se borró». Una copia fija de la tarjeta se encoge en arco hacia el
+   botón y el botón da UN pulso; la cuenta sube. Solo si de verdad quedó guardada
+   (copiaGuardadaDeQ()): un borrador que se vacía no vuela, su vuelta es «Deshacer».
+   Empotrado, .btn-pf está oculto y no hay destino: no vuela. Con movimiento reducido: nada
+   vuela, pero la cuenta sube y el aviso lo dice.
+   ============================================================================ */
+.vuelo-top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:56px;padding:6px 10px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup2)}
+.vuelo-top .marca{font:700 var(--t3)/1 var(--f-cifra)}
+.btn-hist{display:inline-flex;align-items:center;gap:6px}
+.btn-hist svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.hist-n{display:inline-grid;place-items:center;min-width:24px;height:22px;padding:0 6px;border-radius:11px;background:var(--a-suave);color:var(--a-tx);font:700 var(--t1)/1 var(--f-cifra);font-variant-numeric:tabular-nums}
+.cot-t{display:grid;gap:2px;padding:14px 16px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup);box-shadow:0 1px 2px rgba(var(--tinta-rgb),.06),0 10px 24px -16px rgba(48,24,248,.35)}
+.cot-t .ct-folio{font:700 var(--t2)/1.2 var(--f-cifra);color:var(--a-tx)}
+.cot-t .ct-cli{font:700 var(--t4)/1.25 var(--f-cifra)}
+.cot-t .ct-tot{font-size:var(--t2);color:var(--tinta2);font-weight:600}
+.cot-t.nueva{border-style:dashed;box-shadow:none}
+.cot-t.nueva .ct-folio{color:var(--tinta2)}
+.vuela{position:fixed;z-index:60;margin:0;pointer-events:none;transform-origin:50% 50%;will-change:transform,opacity}
+
+/* ----- Movimiento reducido: fuera el adorno, se queda la información ----- */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;transition-delay:0s!important}
+  .isla[data-estado="sellando"] .isla-ic svg{animation:none}
+}
+</style>
+</head>
+<body>
+<main>
+  <header class="cab">
+    <div>
+      <h1>Muestras de UI · parte 3: el cotizador delante del cliente</h1>
+      <p class="intro">Diez piezas para cuando el teléfono está volteado hacia el cliente: comparar, pactar, regatear, tapar lo interno, enseñarle su letrero y que la vigencia se vea. Todo se puede tocar.</p>
+    </div>
+    <button type="button" class="btn" id="b-tema" aria-pressed="false">Tema oscuro</button>
+  </header>
+
+  <!-- 27 -->
+  <section class="card" aria-labelledby="t27" id="m27">
+    <div class="card-h"><h2 id="t27">27 · Comparar materiales sin cambiar la partida</h2><span class="fuente">PeekRating</span></div>
+    <p class="nota">Letras 3D, 30 cm × 9 letras. Pasa el cursor sobre otro material (o mantén el dedo 350 ms): el total que quedaría aparece al lado, en punteado. Suelta y se va. Toca y lo eliges.</p>
+    <div class="mats" role="group" aria-label="Material de la partida"></div>
+    <div class="lt-caja">
+      <div class="lt-lab">Total de la partida <span class="lt-tag">Material heredado de la partida 1</span></div>
+      <div class="lt-fila"><span class="lt" id="lt-1">$0</span><span class="lt-fantasma" aria-hidden="true"><b></b><span class="dif"></span><span class="con"></span></span></div>
+      <div class="lt-formula"></div>
+    </div>
+    <p class="sr" aria-live="polite" id="lt-voz"></p>
+  </section>
+
+  <!-- 28 -->
+  <section class="card" aria-labelledby="t28" id="m28">
+    <div class="card-h"><h2 id="t28">28 · El anticipo partido a la vista</h2><span class="fuente">WakeSlider</span></div>
+    <p class="nota">Arrastra la barra: se imanta a cientos y al 50 % exacto, y no pasa del total. El campo de abajo sigue ahí para teclear. Prueba el proyecto de Gym Titanio para ver la excepción.</p>
+    <div class="fila" role="group" aria-label="Proyecto de ejemplo">
+      <button type="button" class="chip" data-sub="10800" aria-pressed="true">Panadería La Espiga · $10,800</button>
+      <button type="button" class="chip" data-sub="63200" aria-pressed="false">Gym Titanio · $63,200</button>
+    </div>
+    <label class="caja-check"><input type="checkbox" id="ap-factura" checked> Lleva factura (IVA 16%)</label>
+    <div class="ap">
+      <div class="ap-cifras">
+        <div><small>Hoy</small><b class="ap-hoy-v">$0</b><em class="ap-pct">50%</em></div>
+        <div><small>Al instalar</small><b class="ap-resto-v">$0</b><em>máx. 2 días hábiles</em></div>
+      </div>
+      <div class="ap-barra"><span class="ap-hoy"></span><span class="ap-marca" aria-hidden="true"></span>
+        <span class="ap-asa" role="slider" tabindex="0" aria-label="Anticipo" aria-valuemin="0"></span></div>
+      <div class="fld ap-campo"><label for="f-anti" class="ap-lbl">Anticipo sugerido (50%)</label><input id="f-anti" type="number" inputmode="decimal" min="0" step="0.01"></div>
+      <p class="ap-iva"></p>
+      <p class="ap-excep" role="status" hidden>Este proyecto pasa de $60,000: aquí aplica la excepción de las condiciones de pago. El 50 % es solo la referencia.</p>
+    </div>
+  </section>
+
+  <!-- 29 -->
+  <section class="card" aria-labelledby="t29" id="m29">
+    <div class="card-h"><h2 id="t29">29 · Ajustar el precio con imanes</h2><span class="fuente">ElasticSlider</span></div>
+    <p class="nota">Vista del autorizador. Subtotal calculado $10,800 (sin IVA). Arrastra: se pega en 0, −5, −10 y −15 %. Jala más allá de un extremo y cede como liga. El campo manda: teclea −25 % y mira.</p>
+    <div class="pi">
+      <div class="pi-pista"><span class="pi-riel"><span class="pi-lleno"></span></span>
+        <span class="pi-asa" role="slider" tabindex="0" aria-label="Precio autorizado, subtotal sin IVA"></span></div>
+      <div class="pi-marcas" aria-hidden="true"></div>
+      <p class="pi-frase" aria-live="polite"></p>
+      <p class="pi-neto"></p>
+      <p class="pi-fuera" hidden></p>
+    </div>
+    <div class="fld" style="max-width:240px"><label for="a-precio">Precio autorizado (subtotal)</label><input id="a-precio" type="number" inputmode="decimal" min="0" step="1"></div>
+  </section>
+
+  <!-- 30 -->
+  <section class="card" aria-labelledby="t30" id="m30">
+    <div class="card-h"><h2 id="t30">30 · Autocompletar clientes que se entiende</h2><span class="fuente">GlideSelect · CodeSlots</span></div>
+    <p class="nota">Escribe «farm»: hay dos Farmacia Guadalupe y ahora se distinguen. Flechas para moverte, Enter para elegir, Esc para cerrar. Lo que llenó la app se lava de verde un instante.</p>
+    <div class="combo">
+      <div class="fld"><label for="f-cli">Cliente</label>
+        <input id="f-cli" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="cli-lista" autocomplete="off" placeholder="Nombre, negocio o teléfono"></div>
+      <div class="combo-menu" id="cli-menu" hidden>
+        <div class="combo-lista"><span class="combo-pil" aria-hidden="true"></span><div role="listbox" id="cli-lista" aria-label="Clientes del cuaderno"></div></div>
+        <p class="combo-vacio" hidden>Nadie con ese nombre en los cuadernos: se guarda como cliente nuevo.</p>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="fld"><label for="f-tel3">Teléfono</label><input id="f-tel3" inputmode="tel" placeholder="33 1234 5678" autocomplete="off"></div>
+      <div class="fld"><label for="f-dir3">Dirección</label><input id="f-dir3" placeholder="Calle, número, colonia" autocomplete="off"></div>
+    </div>
+    <p class="nota cli-aviso" id="cli-aviso" role="status"></p>
+  </section>
+
+  <!-- 31 -->
+  <section class="card" aria-labelledby="t31" id="m31">
+    <div class="card-h"><h2 id="t31">31 · Modo cliente: el dinero interno tapado</h2><span class="fuente">BlurText · función nueva</span></div>
+    <p class="nota">Prende «Enseñar al cliente»: la comisión, el costo y el margen se difuminan, el total crece y lo demás queda nítido. Mantén presionado un renglón tapado para leerlo; al soltar, se tapa.</p>
+    <button type="button" class="sw" role="switch" aria-checked="false" id="sw-cliente"><span class="sw-pista" aria-hidden="true"></span>Enseñar al cliente</button>
+    <div class="resumen" id="resumen">
+      <div class="rs-cab"><b>Panadería La Espiga</b><span>COT-0042 · vigente 10 días</span></div>
+      <div class="rs"><span>Letras 3D acrílico + aluminio<small>30 cm × 9 letras · LED frontal</small></span><span>$10,800</span></div>
+      <div class="rs"><span>Subtotal</span><span>$10,800</span></div>
+      <div class="rs"><span>IVA 16%</span><span>$1,728</span></div>
+      <div class="rs total"><span>Total</span><span>$12,528</span></div>
+      <div class="rs"><span>Anticipo (50% + IVA)<small>el resto, máx. 2 días hábiles tras instalar</small></span><span>$6,264</span></div>
+      <div class="interno">
+        <h3>Solo AL3D</h3>
+        <p class="tapa-aviso">Tapado para el cliente · mantén presionado un renglón para verlo</p>
+        <div class="rs"><span>Comisión 10% del subtotal</span><span>$1,080</span></div>
+        <div class="rs"><span>Costo de material</span><span>$4,120</span></div>
+        <div class="rs"><span>Margen</span><span>$5,600 · 52%</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 32 -->
+  <section class="card" aria-labelledby="t32" id="m32">
+    <div class="card-h"><h2 id="t32">32 · El letrero sobre la foto del local</h2><span class="fuente">C14 · escalador · función nueva</span></div>
+    <p class="nota">La puerta mide 210 cm: con eso la foto ya tiene escala. Arrastra el letrero a donde iría (o muévelo con las flechas) y cambia su alto: dice cuánto mide de verdad y cuánto cuesta.</p>
+    <div class="fachada" id="fachada">
+      <svg viewBox="0 0 600 380" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <defs>
+          <linearGradient id="fx-muro" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#363b53"/><stop offset="1" stop-color="#2b2f44"/></linearGradient>
+          <linearGradient id="fx-vidrio" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b4566"/><stop offset=".55" stop-color="#4a4f72"/><stop offset="1" stop-color="#5b5670"/></linearGradient>
+          <linearGradient id="fx-interior" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b5a4a" stop-opacity=".0"/><stop offset="1" stop-color="#8a6d4d" stop-opacity=".55"/></linearGradient>
+        </defs>
+        <rect width="600" height="380" fill="url(#fx-muro)"/>
+        <rect width="600" height="22" fill="#22263a"/><rect y="22" width="600" height="4" fill="#424862"/>
+        <!-- ventanal -->
+        <rect x="264" y="186" width="316" height="174" fill="#1d2132"/>
+        <rect x="272" y="194" width="300" height="158" fill="url(#fx-vidrio)"/>
+        <rect x="272" y="194" width="300" height="158" fill="url(#fx-interior)"/>
+        <rect x="420" y="194" width="4" height="158" fill="#1d2132"/>
+        <g fill="#2a2d40" opacity=".8"><rect x="284" y="300" width="124" height="8"/><rect x="436" y="300" width="124" height="8"/><rect x="284" y="262" width="124" height="6"/><rect x="436" y="262" width="124" height="6"/></g>
+        <!-- puerta: 100 × 210 cm, la referencia de la escala -->
+        <rect id="fx-puerta" x="40" y="150" width="100" height="210" fill="#1d2132"/>
+        <rect x="48" y="158" width="84" height="202" fill="url(#fx-vidrio)"/>
+        <rect x="118" y="246" width="6" height="34" rx="3" fill="#c9ccd8"/>
+        <!-- cota de la referencia -->
+        <g stroke="#e8eaf6" stroke-width="2"><line x1="156" y1="150" x2="156" y2="360"/><line x1="149" y1="150" x2="163" y2="150"/><line x1="149" y1="360" x2="163" y2="360"/></g>
+        <text x="163" y="262" fill="#eef0ff" font-size="24" font-weight="700" font-family="Manrope, system-ui, sans-serif">210 cm</text>
+        <!-- banqueta -->
+        <rect y="360" width="600" height="20" fill="#1a1d2b"/><rect y="360" width="600" height="2" fill="#4a5070"/>
+      </svg>
+      <div class="letrero-f aluminio" id="letrero-f" tabindex="0" role="img" aria-roledescription="letrero movible" aria-label="Letrero PANADERÍA; flechas para moverlo"><span class="lf-t">PANADERÍA</span></div>
+    </div>
+    <div class="lf-ctrl">
+      <div class="fld"><label for="lf-texto">Texto del anuncio</label><input id="lf-texto" value="PANADERÍA" maxlength="18" autocomplete="off"></div>
+      <div class="fila" role="group" aria-label="Material y luz">
+        <button type="button" class="chip" data-lfmat="aluminio" aria-pressed="true">Aluminio · LED posterior</button>
+        <button type="button" class="chip" data-lfmat="acrilico" aria-pressed="false">Acrílico · LED frontal</button>
+      </div>
+      <div class="lf-rango"><label for="lf-alto">Alto de letra: <span id="lf-alto-v">30 cm</span></label><input id="lf-alto" type="range" min="5" max="90" step="1" value="30"></div>
+      <p class="lf-dice" id="lf-dice"></p>
+      <p class="lf-precio" id="lf-precio" aria-live="polite"></p>
+    </div>
+  </section>
+
+  <!-- 33 -->
+  <section class="card" aria-labelledby="t33" id="m33">
+    <div class="card-h"><h2 id="t33">33 · La vigencia de 10 días a la vista</h2><span class="fuente">función nueva</span></div>
+    <p class="nota">Cuatro cotizaciones del historial. «Pasa un día» adelanta el reloj para ver cómo se consume el anillo y cuándo cambia de color. «Reenviar con fecha nueva» le devuelve sus 10 días.</p>
+    <div class="vig-cab"><span>Hoy: <b id="vig-hoy"></b></span><div class="fila"><button type="button" class="btn" id="vig-dia">Pasa un día</button><button type="button" class="btn" id="vig-reset">Volver a hoy</button></div></div>
+    <div class="vigs" id="vigs"></div>
+    <p class="nota" id="vig-aviso" role="status"></p>
+  </section>
+
+  <!-- 34 -->
+  <section class="card" aria-labelledby="t34" id="m34">
+    <div class="card-h"><h2 id="t34">34 · La isla de estado junto al folio</h2><span class="fuente">idea de Skiper skiper2 · BellToggle</span></div>
+    <p class="nota">Simula cada estado. La pastilla se desenrolla para decirlo y se enrolla sola; al terminar dice cómo acabó y se va. En pantallas de 560 px o menos solo se ve el icono.</p>
+    <div class="barra-top"><span class="marca">Cotizador</span><span class="folio-p">COT-0042</span><span class="isla" id="isla" role="status"><span class="isla-ic" aria-hidden="true"></span><span class="isla-t"></span></span></div>
+    <div class="fila">
+      <button type="button" class="btn" id="is-senal" aria-pressed="false">Quitar la señal</button>
+      <button type="button" class="btn" id="is-sellar">Sellar en la hoja (4 s)</button>
+      <button type="button" class="btn" id="is-pedir">Pedir a Dirección (7 s)</button>
+    </div>
+  </section>
+
+  <!-- 35 -->
+  <section class="card" aria-labelledby="t35" id="m35">
+    <div class="card-h"><h2 id="t35">35 · El folio que cambia se nota</h2><span class="fuente">SplitFlapText</span></div>
+    <p class="nota">Solo voltean los caracteres que cambian, una vez y en escalera. De 0042 a 0043 voltea uno; de ahí a 0039, dos.</p>
+    <div class="fila"><span class="folio-f" id="folio-f"><span class="sr"></span><span class="fcs" aria-hidden="true"></span></span><span class="sin-guardar" id="sin-guardar" hidden>sin guardar</span></div>
+    <div class="fila">
+      <button type="button" class="btn btn-pri" id="fo-nueva">Nueva cotización</button>
+      <button type="button" class="btn" id="fo-abrir">Abrir COT-0039 del historial</button>
+    </div>
+  </section>
+
+  <!-- 36 -->
+  <section class="card" aria-labelledby="t36" id="m36">
+    <div class="card-h"><h2 id="t36">36 · La cotización que se guarda vuela a donde quedó</h2><span class="fuente">FolderFloat</span></div>
+    <p class="nota">«Nueva cotización» vacía la pantalla. Si la anterior quedó guardada, se ve irse al Historial y el botón lo confirma. Si era un borrador, no vuela: su vuelta es «Deshacer».</p>
+    <div class="vuelo-top"><span class="marca">Cotizador</span>
+      <button type="button" class="btn btn-hist" id="b-hist" aria-label="Historial, 12 cotizaciones"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/><path d="M12 7v5l3 2"/></svg>Historial <span class="hist-n" id="hist-n">12</span></button></div>
+    <div class="cot-t" id="cot-t"><span class="ct-folio">COT-0042</span><span class="ct-cli">Panadería La Espiga</span><span class="ct-tot">$12,528 · autorizada por Dirección</span></div>
+    <label class="caja-check"><input type="checkbox" id="cot-guardada" checked> Esta cotización ya está autorizada y guardada</label>
+    <div class="fila"><button type="button" class="btn btn-pri" id="b-nueva">Nueva cotización</button><button type="button" class="btn" id="b-otra">Cargar otra de ejemplo</button></div>
+    <p class="nota" id="vuelo-aviso" role="status"></p>
+  </section>
+</main>
+
+<script>
+const reducido = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = id => document.getElementById(id);
+const topar = (v, a, b) => Math.min(b, Math.max(a, v));
+/* Pesos como los escribe la app: sin centavos cuando no hay, con dos cuando sí. */
+const dinero = n => { const r = Math.round(n * 100) / 100; return (r < 0 ? '−$' : '$') + Math.abs(r).toLocaleString('es-MX', { minimumFractionDigits: Math.abs(r) % 1 ? 2 : 0, maximumFractionDigits: 2 }); };
+const fmtPct = n => (Math.round(n * 10) / 10).toLocaleString('es-MX');
+
+$('b-tema').addEventListener('click', e => {
+  const h = document.documentElement, osc = h.dataset.tema !== 'oscuro';
+  h.dataset.tema = osc ? 'oscuro' : ''; e.currentTarget.setAttribute('aria-pressed', osc); e.currentTarget.textContent = osc ? 'Tema claro' : 'Tema oscuro';
+});
+
+/* ======================= 27) compararMaterial(caja, {alto, letras, materiales, elegido}) =======================
+   Asomarse NO es elegir: calcula el importe con otro material sin tocar la partida. La
+   iluminación de cada chip viene del catálogo (MATERIALES[].ilum), no se deduce. */
+const MATERIALES = [
+  { key: 'al-paint', label: 'Aluminio pintado', precio: 30, ilum: 'LED posterior' },
+  { key: 'al-brush', label: 'Aluminio brush', precio: 35, ilum: 'LED posterior' },
+  { key: 'acr-vol', label: 'Acrílico + aluminio', precio: 40, ilum: 'LED frontal' },
+  { key: 'acr-vinil', label: 'Acrílico + vinil', precio: 45, ilum: 'LED frontal' }
+];
+function compararMaterial(caja, { alto, letras, materiales, elegido, alElegir }) {
+  const chips = caja.querySelector('.mats'), lt = caja.querySelector('.lt'), formula = caja.querySelector('.lt-formula');
+  const fant = caja.querySelector('.lt-fantasma'), voz = caja.querySelector('[aria-live]'), heredado = caja.querySelector('.lt-tag');
+  const mat = k => materiales.find(m => m.key === k);
+  const importe = m => m.precio * alto * letras;                 // lineTotal({...it, material:k}) sin escribir en Q
+  let actual = elegido, espiando = null;
+  chips.innerHTML = materiales.map(m => `<button type="button" class="mat-chip" data-k="${m.key}" aria-pressed="false">${m.label}<small>$${m.precio}/cm · ${m.ilum}</small></button>`).join('');
+  const pintarReal = () => {
+    const m = mat(actual);
+    lt.textContent = dinero(importe(m)); formula.textContent = `${alto} cm × ${letras} letras × $${m.precio}`;
+    chips.querySelectorAll('.mat-chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.k === actual));
+    caja.dataset.material = actual;
+  };
+  const espiar = k => {
+    if (k === actual) k = null;
+    if (k === espiando) return;
+    espiando = k; caja.dataset.fantasma = k || '';
+    chips.querySelectorAll('.mat-chip').forEach(b => b.classList.toggle('espiado', b.dataset.k === k));
+    if (!k) { fant.classList.remove('show'); voz.textContent = ''; return; }
+    const m = mat(k), d = importe(m) - importe(mat(actual));
+    fant.querySelector('b').textContent = dinero(importe(m));
+    fant.querySelector('.dif').textContent = (d > 0 ? '+' : '−') + dinero(Math.abs(d));
+    fant.querySelector('.con').textContent = 'con ' + m.label;
+    fant.classList.add('show');
+    voz.textContent = `Con ${m.label} saldría ${dinero(importe(m))}, ${dinero(Math.abs(d))} ${d > 0 ? 'más' : 'menos'}. Tócalo para elegirlo.`;
+  };
+  /* Ratón: entrar y salir. pointerover/out porque enter/leave no burbujean y los chips se rehacen. */
+  chips.addEventListener('pointerover', e => { const b = e.target.closest('.mat-chip'); if (b && e.pointerType === 'mouse') espiar(b.dataset.k); });
+  chips.addEventListener('pointerout', e => { const b = e.target.closest('.mat-chip'); if (b && e.pointerType === 'mouse' && !b.contains(e.relatedTarget)) espiar(null); });
+  /* Dedo: 350 ms quieto. Si se mueve antes, era scroll. Tras asomarse, el click que llega
+     al soltar se traga: soltar devuelve, no elige. */
+  let reloj = 0, dedo = null, x0 = 0, y0 = 0, tragar = false;
+  chips.addEventListener('pointerdown', e => {
+    tragar = false;
+    const b = e.target.closest('.mat-chip'); if (!b || e.pointerType === 'mouse') return;
+    dedo = e.pointerId; x0 = e.clientX; y0 = e.clientY; clearTimeout(reloj);
+    reloj = setTimeout(() => { espiar(b.dataset.k); tragar = true; }, 350);
+  });
+  chips.addEventListener('pointermove', e => { if (e.pointerId === dedo && Math.hypot(e.clientX - x0, e.clientY - y0) > 10) clearTimeout(reloj); });
+  const soltarDedo = e => { if (e.pointerId !== dedo) return; dedo = null; clearTimeout(reloj); if (tragar) espiar(null); };
+  chips.addEventListener('pointerup', soltarDedo); chips.addEventListener('pointercancel', soltarDedo);
+  chips.addEventListener('contextmenu', e => { if (e.target.closest('.mat-chip')) e.preventDefault(); });
+  /* Teclado: el foco visible hace de cursor. */
+  chips.addEventListener('focusin', e => { const b = e.target.closest('.mat-chip'); if (b && b.matches(':focus-visible')) espiar(b.dataset.k); });
+  chips.addEventListener('focusout', () => espiar(null));
+  chips.addEventListener('click', e => {
+    const b = e.target.closest('.mat-chip'); if (!b) return;
+    if (tragar) { tragar = false; return; }
+    actual = b.dataset.k; if (heredado) heredado.hidden = true;   // elegir SÍ cambia la partida, como hoy
+    espiando = null; fant.classList.remove('show'); chips.querySelectorAll('.espiado').forEach(x => x.classList.remove('espiado'));
+    caja.dataset.fantasma = ''; voz.textContent = `Elegido ${mat(actual).label}: ${dinero(importe(mat(actual)))}`;
+    pintarReal(); alElegir?.(actual);
+  });
+  pintarReal();
+}
+compararMaterial($('m27'), { alto: 30, letras: 9, materiales: MATERIALES, elegido: 'acr-vol' });
+
+/* ======================= 28) anticipoPartido(caja, campo, {total, conIva}) =======================
+   La barra escribe el campo y despacha input + change; el campo escribe la barra. */
+function anticipoPartido(caja, campo, { total, conIva = false }) {
+  const barra = caja.querySelector('.ap-barra'), asa = caja.querySelector('.ap-asa');
+  const vHoy = caja.querySelector('.ap-hoy-v'), vPct = caja.querySelector('.ap-pct'), vResto = caja.querySelector('.ap-resto-v');
+  const lbl = caja.querySelector('.ap-lbl'), iva = caja.querySelector('.ap-iva'), excep = caja.querySelector('.ap-excep');
+  let T = total, A = total / 2, conIVA = conIva;
+  /* El 50 % exacto pesa más que los cientos: a ±2 % del total, se pega ahí. */
+  const imanar = bruto => {
+    if (Math.abs(bruto - T / 2) <= T * .02) return T / 2;
+    if (bruto >= T - 50) return T;
+    return topar(Math.round(bruto / 100) * 100, 0, T);
+  };
+  const pintar = () => {
+    const p = T ? A / T : 0, pct = p * 100;
+    barra.style.setProperty('--p', p);
+    vHoy.textContent = dinero(A); vResto.textContent = dinero(T - A); vPct.textContent = fmtPct(pct) + '%';
+    asa.setAttribute('aria-valuemax', T); asa.setAttribute('aria-valuenow', +A.toFixed(2));
+    asa.setAttribute('aria-valuetext', `Hoy ${dinero(A)} (${fmtPct(pct)}%), al instalar ${dinero(T - A)}`);
+    /* Mismo rótulo que renderSummary(): sin espacio antes del %. */
+    lbl.textContent = Math.abs(A - T / 2) < .005 ? 'Anticipo sugerido (50%)' : `Anticipo (${Math.round(pct)}%)`;
+    iva.textContent = conIVA ? `Con factura el anticipo lleva IVA: ${dinero(A / 1.16)} + IVA ${dinero(A - A / 1.16)}.` : 'Sin factura: el anticipo va sin IVA.';
+    excep.hidden = !(T > 60000);
+    caja.dataset.anticipo = +A.toFixed(2);
+  };
+  const escribir = v => {
+    A = +v.toFixed(2); campo.value = A;
+    campo.dispatchEvent(new Event('input', { bubbles: true }));
+    campo.dispatchEvent(new Event('change', { bubbles: true }));
+    pintar();
+  };
+  const desdeX = x => { const r = barra.getBoundingClientRect(); const v = imanar(topar((x - r.left) / r.width, 0, 1) * T); if (v !== A) escribir(v); };
+  let id = null;
+  barra.addEventListener('pointerdown', e => {
+    if (e.button > 0) return; id = e.pointerId; barra.setPointerCapture(id); barra.classList.add('arrastrando');
+    asa.focus({ preventScroll: true }); desdeX(e.clientX);
+  });
+  barra.addEventListener('pointermove', e => { if (e.pointerId === id) desdeX(e.clientX); });
+  const soltar = e => { if (e.pointerId !== id) return; id = null; barra.classList.remove('arrastrando'); };
+  barra.addEventListener('pointerup', soltar); barra.addEventListener('pointercancel', soltar);
+  asa.addEventListener('keydown', e => {
+    const k = e.key, pasos = {
+      ArrowRight: Math.floor(A / 100) * 100 + 100, ArrowUp: Math.floor(A / 100) * 100 + 100,
+      ArrowLeft: Math.ceil(A / 100) * 100 - 100, ArrowDown: Math.ceil(A / 100) * 100 - 100,
+      PageUp: A + 1000, PageDown: A - 1000, Home: 0, End: T };
+    if (!(k in pasos)) return; e.preventDefault(); escribir(topar(pasos[k], 0, T));
+  });
+  /* Teclear sigue siendo la otra puerta. El acotado al total, como hoy, al salir del campo. */
+  campo.addEventListener('input', e => { if (!e.isTrusted) return; const v = parseFloat(campo.value); A = isNaN(v) ? 0 : topar(v, 0, T); pintar(); });
+  campo.addEventListener('change', e => { if (!e.isTrusted) return; if (parseFloat(campo.value) > T) campo.value = T; });
+  escribir(A);
+  return {
+    /* Cambia el total (otra partida, factura sí/no) y conserva el porcentaje pactado. */
+    ponerTotal(t, iva) { const p = T ? A / T : .5; T = t; conIVA = iva; escribir(Math.abs(p - .5) < 1e-6 ? T / 2 : imanar(p * T)); }
+  };
+}
+const ap = anticipoPartido($('m28'), $('f-anti'), { total: 10800 * 1.16, conIva: true });
+const apSub = () => +$('m28').querySelector('[data-sub][aria-pressed="true"]').dataset.sub;
+$('m28').querySelectorAll('[data-sub]').forEach(b => b.addEventListener('click', () => {
+  $('m28').querySelectorAll('[data-sub]').forEach(x => x.setAttribute('aria-pressed', x === b));
+  const f = $('ap-factura').checked; ap.ponerTotal(apSub() * (f ? 1.16 : 1), f);
+}));
+$('ap-factura').addEventListener('change', e => ap.ponerTotal(apSub() * (e.target.checked ? 1.16 : 1), e.target.checked));
+
+/* ======================= 29) precioConImanes(caja, campo, {calculado, desde, hasta, imanes}) =======================
+   ElasticSlider: fuera de la pista el riel se estira con decaimiento sigmoide y la perilla lo
+   sigue unos píxeles; al soltar regresa con rebote. Dentro, imanes y cientos. */
+function decaer(v, max) { if (!max) return 0; const s = 2 * (1 / (1 + Math.exp(-v / max)) - .5); return s * max; }
+function precioConImanes(caja, campo, { calculado, desde = -20, hasta = 10, imanes = [0, -5, -10, -15] }) {
+  const pista = caja.querySelector('.pi-pista'), riel = caja.querySelector('.pi-riel'), lleno = caja.querySelector('.pi-lleno'), asa = caja.querySelector('.pi-asa');
+  const marcas = caja.querySelector('.pi-marcas'), frase = caja.querySelector('.pi-frase'), neto = caja.querySelector('.pi-neto'), fuera = caja.querySelector('.pi-fuera');
+  const vMin = calculado * (1 + desde / 100), vMax = calculado * (1 + hasta / 100);
+  const razon = v => (topar(v, vMin, vMax) - vMin) / (vMax - vMin);
+  const deIman = m => calculado * (1 + m / 100);
+  const etiqueta = m => (m > 0 ? '+' : m < 0 ? '−' : '') + Math.abs(m) + '%';
+  [...new Set([desde, ...imanes, hasta])].sort((a, b) => a - b).forEach(m => {
+    const r = razon(deIman(m)), es = imanes.includes(m);
+    pista.insertAdjacentHTML('beforeend', `<span class="pi-tick${es ? ' iman' : ''}" style="left:${r * 100}%"></span>`);
+    marcas.insertAdjacentHTML('beforeend', `<span class="${es ? 'iman' : ''}" style="left:${r * 100}%">${etiqueta(m)}</span>`);
+  });
+  pista.append(asa);                                           // la perilla encima de las marcas
+  let v = calculado;
+  const fraseDe = x => {
+    const d = calculado - x, p = Math.abs((x / calculado - 1) * 100);
+    if (Math.abs(d) < .5) return { t: `Sin ajuste · igual al calculado (${dinero(calculado)})`, inc: false };
+    return d > 0 ? { t: `Descuento ${dinero(d)} (${fmtPct(p)}%)`, inc: false } : { t: `Aumento ${dinero(-d)} (${fmtPct(p)}%)`, inc: true };
+  };
+  const pintar = () => {
+    const r = razon(v), r0 = razon(calculado), f = fraseDe(v);
+    pista.style.setProperty('--r', r);
+    lleno.style.left = Math.min(r, r0) * 100 + '%'; lleno.style.width = Math.abs(r - r0) * 100 + '%';
+    frase.textContent = f.t; frase.classList.toggle('inc', f.inc);
+    neto.textContent = `Con IVA 16%: ${dinero(v * 1.16)}`;
+    const afuera = v < vMin - .5 || v > vMax + .5;
+    fuera.hidden = !afuera; if (afuera) fuera.textContent = `Tecleado fuera del deslizador (${etiqueta(Math.round((v / calculado - 1) * 1000) / 10)}): la perilla se queda en el tope y manda el campo.`;
+    asa.setAttribute('aria-valuemin', vMin); asa.setAttribute('aria-valuemax', vMax); asa.setAttribute('aria-valuenow', +v.toFixed(2)); asa.setAttribute('aria-valuetext', `${dinero(v)}. ${f.t}`);
+    caja.dataset.valor = +v.toFixed(2);
+  };
+  const escribir = x => { v = x; campo.value = +x.toFixed(2); campo.dispatchEvent(new Event('input', { bubbles: true })); pintar(); };  // en el repo: updPrecioAuth(+v, subCalc)
+  const estirar = (px, lado) => {
+    riel.style.transformOrigin = lado < 0 ? 'right center' : 'left center';
+    const w = pista.getBoundingClientRect().width;
+    riel.style.transform = px ? `scaleX(${1 + px / w}) scaleY(${1 - Math.min(.35, px / 90)})` : '';
+    asa.style.transform = px ? `translateX(${lado * Math.min(px * .6, 14)}px)` : '';   // sigue al dedo sin salirse de la tarjeta
+    caja.dataset.estira = Math.round(px);
+  };
+  const desdeX = x => {
+    const rc = pista.getBoundingClientRect();
+    if (x < rc.left) estirar(decaer(rc.left - x, 40), -1); else if (x > rc.right) estirar(decaer(x - rc.right, 40), 1); else estirar(0, 0);
+    let nv = vMin + topar((x - rc.left) / rc.width, 0, 1) * (vMax - vMin);
+    const iman = imanes.find(m => Math.abs(rc.left + razon(deIman(m)) * rc.width - x) <= 12);
+    nv = iman !== undefined ? deIman(iman) : topar(Math.round(nv / 100) * 100, vMin, vMax);
+    if (Math.abs(nv - v) > .001) escribir(nv);
+  };
+  let id = null;
+  pista.addEventListener('pointerdown', e => { if (e.button > 0) return; id = e.pointerId; pista.setPointerCapture(id); pista.classList.remove('suelta'); asa.focus({ preventScroll: true }); desdeX(e.clientX); });
+  pista.addEventListener('pointermove', e => { if (e.pointerId === id) desdeX(e.clientX); });
+  const soltar = e => { if (e.pointerId !== id) return; id = null; pista.classList.add('suelta'); estirar(0, 0); setTimeout(() => pista.classList.remove('suelta'), 560); };
+  pista.addEventListener('pointerup', soltar); pista.addEventListener('pointercancel', soltar);
+  asa.addEventListener('keydown', e => {
+    const ordenados = imanes.map(deIman).sort((a, b) => a - b);
+    const sig = { PageUp: ordenados.find(x => x > v + .5) ?? vMax, PageDown: [...ordenados].reverse().find(x => x < v - .5) ?? vMin,
+      ArrowRight: Math.floor(v / 100) * 100 + 100, ArrowUp: Math.floor(v / 100) * 100 + 100,
+      ArrowLeft: Math.ceil(v / 100) * 100 - 100, ArrowDown: Math.ceil(v / 100) * 100 - 100, Home: vMin, End: vMax }[e.key];
+    if (sig === undefined) return; e.preventDefault(); escribir(topar(sig, vMin, vMax));
+  });
+  campo.addEventListener('input', e => { if (!e.isTrusted) return; const n = parseFloat(campo.value); if (!isNaN(n) && n > 0) { v = n; pintar(); } });
+  escribir(calculado);
+}
+precioConImanes($('m29'), $('a-precio'), { calculado: 10800 });
+
+/* ======================= 30) autocompletarClientes(input, menu, clientes, {campos, aviso}) ======================= */
+const CLIENTES = [
+  { id: 'c1', nombre: 'Panadería La Espiga', zona: 'Americana', tel: '33 1234 5678', dir: 'Av. Chapultepec 480, Col. Americana, Guadalajara', ult: 'COT-0041 · 22 sep · $12,528' },
+  { id: 'c2', nombre: 'Farmacia Guadalupe', zona: 'Centro', tel: '33 2813 0092', dir: 'Av. Juárez 215, Centro, Guadalajara', ult: 'COT-0038 · 12 sep · $4,640' },
+  { id: 'c3', nombre: 'Farmacia Guadalupe', zona: 'Tlaquepaque', tel: '33 3615 4471', dir: 'Independencia 90, Centro, Tlaquepaque', ult: 'COT-0031 · 28 ago · $9,280' },
+  { id: 'c4', nombre: 'Barbería El Toro', zona: 'Providencia', tel: '33 1987 2210', dir: 'Rubén Darío 1120, Providencia, Guadalajara', ult: 'COT-0036 · 16 sep · $13,920' },
+  { id: 'c5', nombre: 'Dental Sonrisa', zona: 'Chapalita', tel: '33 3640 7788', dir: 'Av. Guadalupe 1450, Chapalita, Zapopan', ult: 'COT-0039 · 18 sep · $15,660' },
+  { id: 'c6', nombre: 'Taquería Los Primos', zona: 'Oblatos', tel: '33 1450 3321', dir: 'Calz. Independencia Nte. 2210, Guadalajara', ult: 'COT-0033 · 13 sep · $6,960' },
+  { id: 'c7', nombre: 'Gym Titanio', zona: 'Zapopan', tel: '33 2255 9014', dir: 'Av. Patria 900, Zapopan', ult: 'COT-0029 · 20 ago · $73,312' },
+  { id: 'c8', nombre: 'Café Barrio', zona: 'Santa Tere', tel: '33 3812 6650', dir: 'Juan Manuel 1502, Santa Teresita, Guadalajara', ult: 'COT-0027 · 14 ago · $5,568' },
+  { id: 'c9', nombre: 'Óptica Visión', zona: 'Tlajomulco', tel: '33 1678 4402', dir: 'Av. López Mateos Sur 5100, Tlajomulco', ult: 'COT-0024 · 2 ago · $8,120' }
+];
+function autocompletarClientes(input, menu, clientes, { campos, aviso }) {
+  const lista = menu.querySelector('[role="listbox"]'), pil = menu.querySelector('.combo-pil'), vacio = menu.querySelector('.combo-vacio');
+  const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let vis = [], activo = -1;
+  /* Dos clientes con el mismo nombre: la zona va pegada al nombre, que es lo que se busca. */
+  const repetido = c => clientes.filter(x => norm(x.nombre) === norm(c.nombre)).length > 1;
+  const abrir = () => { menu.hidden = false; input.setAttribute('aria-expanded', 'true'); };
+  const cerrar = () => { menu.hidden = true; input.setAttribute('aria-expanded', 'false'); activo = -1; mover(); };
+  const mover = (desplazar = true) => {
+    const ops = lista.querySelectorAll('[role="option"]');
+    ops.forEach((o, i) => o.setAttribute('aria-selected', i === activo));
+    if (activo < 0 || !ops[activo]) { pil.style.opacity = 0; input.removeAttribute('aria-activedescendant'); return; }
+    const o = ops[activo], salto = pil.style.opacity !== '1' || reducido();
+    if (salto) pil.style.transition = 'none';
+    pil.style.transform = `translateY(${o.offsetTop}px)`; pil.style.height = o.offsetHeight + 'px'; pil.style.opacity = 1;
+    if (salto) { void pil.offsetHeight; pil.style.transition = ''; }
+    input.setAttribute('aria-activedescendant', o.id);
+    if (desplazar) o.scrollIntoView({ block: 'nearest' });
+  };
+  const filtrar = () => {
+    const q = norm(input.value.trim()), qd = q.replace(/\D/g, '');
+    vis = clientes.filter(c => !q || norm(c.nombre + ' ' + c.zona).includes(q) || (qd.length >= 3 && c.tel.replace(/\D/g, '').includes(qd)));
+    lista.innerHTML = vis.map((c, i) => `<div role="option" class="combo-op" id="cli-op-${c.id}" data-i="${i}" aria-selected="false"><b>${esc(c.nombre)}${repetido(c) ? ` <i>· ${esc(c.zona)}</i>` : ''}</b><span>${c.tel}</span><small>Última: ${esc(c.ult)}</small></div>`).join('');
+    vacio.hidden = vis.length > 0; activo = -1; mover();
+  };
+  const elegir = c => {
+    input.value = c.nombre; cerrar();
+    const puestos = [];
+    campos.forEach(({ el, clave, nombre }) => {
+      if (el.dataset.vaciado === '1') return;                       // vaciadoAMano(): lo borró alguien a propósito
+      if (el.value.trim() && el.dataset.puso !== 'app') return;       // lo tecleó alguien: no se pisa
+      el.value = c[clave]; el.dataset.puso = 'app';
+      /* Con movimiento reducido no hay fundido, pero la señal de «esto lo puso la app» se queda:
+         el mismo verde, quieto, 1.2 s. */
+      if (reducido()) { el.classList.add('lavado-quieto'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('lavado-quieto'), 1200); }
+      else { el.classList.remove('lavado'); void el.offsetWidth; el.classList.add('lavado'); }
+      puestos.push(nombre);
+    });
+    aviso.textContent = puestos.length ? `Del cuaderno de ${c.nombre}${repetido(c) ? ' (' + c.zona + ')' : ''}: la app llenó ${puestos.join(' y ')}.` : 'Los demás campos ya tenían algo tuyo: no se tocaron.';
+  };
+  campos.forEach(({ el }) => {
+    el.addEventListener('input', () => { el.dataset.puso = 'mano'; if (el.value === '') el.dataset.vaciado = '1'; else delete el.dataset.vaciado; });
+    el.addEventListener('animationend', () => el.classList.remove('lavado'));
+  });
+  input.addEventListener('input', () => { abrir(); filtrar(); });
+  input.addEventListener('click', () => { if (menu.hidden) { abrir(); filtrar(); } });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault(); if (menu.hidden) { abrir(); filtrar(); } if (!vis.length) return;
+      activo = e.key === 'ArrowDown' ? (activo + 1) % vis.length : (activo <= 0 ? vis.length - 1 : activo - 1); mover();
+    } else if (e.key === 'Enter') { if (!menu.hidden && activo >= 0) { e.preventDefault(); elegir(vis[activo]); } }
+    else if (e.key === 'Escape') { if (!menu.hidden) { e.preventDefault(); cerrar(); } }
+  });
+  input.addEventListener('blur', cerrar);
+  /* El foco nunca sale del campo: pointerdown en la lista no se lo lleva. */
+  menu.addEventListener('pointerdown', e => e.preventDefault());
+  lista.addEventListener('pointermove', e => { const o = e.target.closest('[role="option"]'); if (o && +o.dataset.i !== activo) { activo = +o.dataset.i; mover(false); } });
+  lista.addEventListener('click', e => { const o = e.target.closest('[role="option"]'); if (o) elegir(vis[+o.dataset.i]); });
+}
+autocompletarClientes($('f-cli'), $('cli-menu'), CLIENTES, {
+  campos: [{ el: $('f-tel3'), clave: 'tel', nombre: 'el teléfono' }, { el: $('f-dir3'), clave: 'dir', nombre: 'la dirección' }],
+  aviso: $('cli-aviso')
+});
+
+/* ======================= 31) modoCliente(interruptor, zona) =======================
+   Delegado, como _espiarPrecios(): los renglones se rehacen y no hay que volver a engancharlos. */
+function modoCliente(interruptor, zona) {
+  const renglones = () => zona.querySelectorAll('.interno .rs');
+  const poner = on => {
+    interruptor.setAttribute('aria-checked', on); zona.classList.toggle('modo-cliente', on);
+    renglones().forEach((r, i) => { r.style.setProperty('--i', i); r.tabIndex = on ? 0 : -1; if (!on) r.classList.remove('destapado'); });
+  };
+  interruptor.addEventListener('click', () => poner(interruptor.getAttribute('aria-checked') !== 'true'));
+  let fila = null, id = null;
+  const tapar = () => { fila?.classList.remove('destapado'); fila = null; id = null; };
+  zona.addEventListener('pointerdown', e => {
+    if (!zona.classList.contains('modo-cliente')) return;
+    const r = e.target.closest('.interno .rs'); if (!r) return;
+    fila = r; id = e.pointerId; try { r.setPointerCapture(id); } catch (_) {} r.classList.add('destapado');
+  });
+  zona.addEventListener('pointerup', e => { if (e.pointerId === id) tapar(); });
+  zona.addEventListener('pointercancel', e => { if (e.pointerId === id) tapar(); });
+  zona.addEventListener('contextmenu', e => { if (e.target.closest('.interno')) e.preventDefault(); });
+  /* Teclado: se destapa mientras se sostiene Espacio o Enter sobre el renglón. */
+  zona.addEventListener('keydown', e => { if ((e.key === ' ' || e.key === 'Enter') && e.target.matches('.interno .rs') && zona.classList.contains('modo-cliente')) { e.preventDefault(); e.target.classList.add('destapado'); } });
+  zona.addEventListener('keyup', e => { if ((e.key === ' ' || e.key === 'Enter') && e.target.matches('.interno .rs')) e.target.classList.remove('destapado'); });
+  zona.addEventListener('focusout', e => e.target.classList?.remove('destapado'));
+  return { poner };
+}
+modoCliente($('sw-cliente'), $('resumen'));
+
+/* ======================= 32) letreroEnFachada(fachada, {refCm, puerta, letrero, ...}) =======================
+   px por cm sale de la referencia (la puerta), igual que SC.nativePxPerCm del escalador. El
+   letrero guarda su posición en CM de la fachada: al cambiar el ancho de la pantalla no se va. */
+function letreroEnFachada(fachada, { refCm, puerta, refCmX, letrero, texto, alto, altoV, chips, dice, precio }) {
+  const t = letrero.querySelector('.lf-t');
+  const MAT = { aluminio: { label: 'Aluminio pintado', precio: 30 }, acrilico: { label: 'Acrílico + aluminio', precio: 40 } };
+  const S = { x: 420, y: 104, cm: +alto.value, mat: 'aluminio' };
+  let cap = .72;
+  /* La altura de la MAYÚSCULA en esta fuente, medida: font-size × cap = alto de letra. */
+  const medirCap = () => {
+    const c = document.createElement('canvas').getContext('2d');
+    c.font = `800 100px ${getComputedStyle(t).fontFamily}`;
+    const m = c.measureText('H'); if (m.actualBoundingBoxAscent > 10) cap = m.actualBoundingBoxAscent / 100;
+  };
+  const escala = () => {
+    const pr = puerta.getBoundingClientRect(), fr = fachada.getBoundingClientRect(), k = pr.height / refCm;
+    return { k, ox: pr.left - fr.left - refCmX * k, oy: pr.bottom - fr.top - 360 * k };   // origen de la fachada en px
+  };
+  const letras = () => (texto.value.match(/[\p{L}\p{N}]/gu) || []).length;
+  const pintar = () => {
+    const { k, ox, oy } = escala(); if (!k) return;
+    letrero.style.setProperty('--fs', (S.cm * k / cap).toFixed(2) + 'px');
+    letrero.style.left = ox + S.x * k + 'px'; letrero.style.top = oy + S.y * k + 'px';
+    letrero.classList.toggle('aluminio', S.mat === 'aluminio'); letrero.classList.toggle('acrilico', S.mat === 'acrilico');
+    letrero.classList.toggle('recorte', S.cm < 10);
+    const anchoCm = t.getBoundingClientRect().width / k, n = letras(), m = MAT[S.mat];
+    altoV.textContent = S.cm + ' cm'; alto.setAttribute('aria-valuetext', S.cm + ' cm de alto');
+    dice.textContent = `Letra de ${S.cm} cm de alto · ancho aprox. ${(anchoCm / 100).toLocaleString('es-MX', { maximumFractionDigits: 1 })} m · ${n} ${n === 1 ? 'letra' : 'letras'}` + (anchoCm > 600 ? ' · no cabe en esta fachada (6 m)' : '');
+    precio.classList.toggle('av', S.cm < 10);
+    precio.innerHTML = S.cm < 10 ? 'Menos de 10 cm ya no es letra 3D: se cotiza como recorte de acrílico.'
+      : `${m.label} · $${m.precio} × ${S.cm} cm × ${n} = <b>${dinero(m.precio * S.cm * n)}</b>`;
+    Object.assign(fachada.dataset, { cm: S.cm, x: Math.round(S.x), y: Math.round(S.y), anchocm: Math.round(anchoCm) });
+  };
+  let id = null, px0 = 0, py0 = 0, sx0 = 0, sy0 = 0;
+  letrero.addEventListener('pointerdown', e => { if (e.button > 0) return; id = e.pointerId; letrero.setPointerCapture(id); letrero.classList.add('arrastrando'); px0 = e.clientX; py0 = e.clientY; sx0 = S.x; sy0 = S.y; });
+  letrero.addEventListener('pointermove', e => {
+    if (e.pointerId !== id) return; const { k } = escala();
+    S.x = topar(sx0 + (e.clientX - px0) / k, 0, 600); S.y = topar(sy0 + (e.clientY - py0) / k, 0, 360); pintar();
+  });
+  const soltar = e => { if (e.pointerId !== id) return; id = null; letrero.classList.remove('arrastrando'); };
+  letrero.addEventListener('pointerup', soltar); letrero.addEventListener('pointercancel', soltar);
+  letrero.addEventListener('keydown', e => {
+    const d = e.shiftKey ? 50 : 10, mv = { ArrowLeft: [-d, 0], ArrowRight: [d, 0], ArrowUp: [0, -d], ArrowDown: [0, d] }[e.key];
+    if (!mv) return; e.preventDefault(); S.x = topar(S.x + mv[0], 0, 600); S.y = topar(S.y + mv[1], 0, 360); pintar();
+  });
+  alto.addEventListener('input', () => { S.cm = +alto.value; pintar(); });
+  texto.addEventListener('input', () => { const v = texto.value.toUpperCase(); t.textContent = v || ' '; letrero.setAttribute('aria-label', `Letrero ${v}; flechas para moverlo`); pintar(); });
+  chips.forEach(b => b.addEventListener('click', () => { chips.forEach(x => x.setAttribute('aria-pressed', x === b)); S.mat = b.dataset.lfmat; pintar(); }));
+  new ResizeObserver(pintar).observe(fachada);
+  medirCap(); pintar();
+  document.fonts?.ready.then(() => { medirCap(); pintar(); });
+}
+letreroEnFachada($('fachada'), {
+  refCm: 210, refCmX: 40, puerta: $('fx-puerta'), letrero: $('letrero-f'), texto: $('lf-texto'), alto: $('lf-alto'), altoV: $('lf-alto-v'),
+  chips: [...document.querySelectorAll('[data-lfmat]')], dice: $('lf-dice'), precio: $('lf-precio')
+});
+
+/* ======================= 33) vigencias(lista, cots, {hoy, alReenviar}) =======================
+   Días NATURALES entre medianoches locales. 10 = el día que se autorizó; 0 = vence hoy. */
+const DIA = 864e5;
+const medianoche = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const diasQueQuedan = (ts, hoy, vigencia = 10) => vigencia - Math.round((medianoche(hoy) - medianoche(ts)) / DIA);
+const fechaCorta = t => new Date(t).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }).replace('.', '');
+function vigencias(lista, cots, { hoy, alReenviar }) {
+  let H = hoy;
+  lista.innerHTML = cots.map(c => `<article class="vig" data-folio="${c.folio}">
+      <div class="anillo" aria-hidden="true"><svg viewBox="0 0 48 48"><circle class="base" cx="24" cy="24" r="20"/><circle class="resto" cx="24" cy="24" r="20" pathLength="1"/></svg><b></b></div>
+      <div class="vig-d"><b>${c.folio} · ${c.cliente}</b><small class="vig-sub"></small><span class="vig-t"></span></div>
+      <button type="button" class="btn">Reenviar con fecha nueva</button></article>`).join('');
+  const pintarUna = c => {
+    const el = lista.querySelector(`[data-folio="${c.folio}"]`), q = diasQueQuedan(c.ts, H), vence = medianoche(c.ts) + 10 * DIA;
+    const estado = q > 3 ? 'ok' : q >= 0 ? 'av' : 'mal';
+    el.dataset.estado = estado; el.dataset.quedan = q;
+    const resto = el.querySelector('.resto');
+    resto.style.strokeDashoffset = 1 - topar(q, 0, 10) / 10;
+    resto.style.opacity = q > 0 ? '' : 0;                          // sin días no queda ni el punto del remate redondo
+    el.querySelector('.anillo b').textContent = Math.max(q, 0);
+    el.querySelector('.vig-sub').textContent = `${dinero(c.neto)} · autorizada ${fechaCorta(c.ts)}`;
+    el.querySelector('.vig-t').textContent = q > 1 ? `Vence en ${q} días · ${fechaCorta(vence)}` : q === 1 ? `Vence mañana · ${fechaCorta(vence)}` : q === 0 ? 'Vence hoy'
+      : `Vencida hace ${-q} ${q === -1 ? 'día' : 'días'} · venció el ${fechaCorta(vence)}`;
+    el.querySelector('.btn').classList.toggle('btn-pri', estado === 'mal');
+  };
+  lista.addEventListener('click', e => {
+    const b = e.target.closest('.btn'); if (!b) return;
+    const c = cots.find(x => x.folio === b.closest('.vig').dataset.folio);
+    c.ts = H; pintarUna(c); alReenviar?.(c, H);
+  });
+  const pintar = () => cots.forEach(pintarUna);
+  pintar();
+  return { ponerHoy(h) { H = h; pintar(); }, reiniciar(nuevas, h) { cots.splice(0, cots.length, ...nuevas); H = h; pintar(); } };
+}
+const HOY = Date.now();
+const COTS = () => [
+  { folio: 'COT-0041', cliente: 'Panadería La Espiga', neto: 12528, ts: HOY - 4 * DIA },
+  { folio: 'COT-0039', cliente: 'Dental Sonrisa', neto: 15660, ts: HOY - 8 * DIA },
+  { folio: 'COT-0036', cliente: 'Barbería El Toro', neto: 13920, ts: HOY - 10 * DIA },
+  { folio: 'COT-0033', cliente: 'Taquería Los Primos', neto: 6960, ts: HOY - 13 * DIA }
+];
+let hoySim = HOY;
+const vig = vigencias($('vigs'), COTS(), { hoy: HOY, alReenviar: (c, h) => { $('vig-aviso').textContent = `${c.folio} · ${c.cliente} sale con fecha ${fechaCorta(h)}: vence el ${fechaCorta(medianoche(h) + 10 * DIA)}. Si el precio se movió, antes pasa por Dirección.`; } });
+const pintarHoy = () => { $('vig-hoy').textContent = fechaCorta(hoySim) + (hoySim !== HOY ? ' (simulado)' : ''); };
+$('vig-dia').onclick = () => { hoySim += DIA; vig.ponerHoy(hoySim); pintarHoy(); };
+/* Volver a hoy también regresa los datos: una reenviada en el día simulado quedaría con fecha
+   de mañana (y «11 días»). En el repo no existe el día simulado: e.ts nunca está en el futuro. */
+$('vig-reset').onclick = () => { hoySim = HOY; vig.reiniciar(COTS(), HOY); $('vig-aviso').textContent = ''; pintarHoy(); };
+pintarHoy();
+
+/* ======================= 34) islaDeEstado(isla) → {poner, quitar} =======================
+   Un Map de estados vivos; se enseña el último que llegó. Al quitarse uno se dice cómo acabó
+   y la isla regresa, enrollada, al que siga vivo (o se va). */
+const ICONO = {
+  'sin-senal': '<svg viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M8.5 7.2A5 5 0 0 1 16.9 10H18a4 4 0 0 1 1.9 7.5M16 18H7a5 5 0 0 1-2.3-9.4"/></svg>',
+  sellando: '<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 1-8.5 6"/></svg>',
+  esperando: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  ok: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
+};
+function islaDeEstado(isla) {
+  const t = isla.querySelector('.isla-t'), ic = isla.querySelector('.isla-ic');
+  const vivos = new Map(); let tEnrolla = 0, tSigue = 0;
+  const enrollar = () => { isla.classList.remove('abierta'); isla.style.width = '32px'; };
+  const mostrar = (clave, texto, { tono = '', abrir = true, enrollarEn = 0 } = {}) => {
+    isla.dataset.estado = clave; isla.dataset.tono = tono;
+    if (ic.dataset.k !== clave) { ic.innerHTML = ICONO[clave]; ic.dataset.k = clave; }
+    t.textContent = texto; isla.classList.add('ver'); clearTimeout(tEnrolla);
+    if (abrir) { isla.classList.add('abierta'); isla.style.width = 32 + t.offsetWidth + 'px'; } else enrollar();
+    if (enrollarEn) tEnrolla = setTimeout(enrollar, enrollarEn);
+  };
+  const siguiente = () => {
+    const ultimo = [...vivos.keys()].pop();
+    if (!ultimo) { clearTimeout(tEnrolla); isla.classList.remove('abierta', 'ver'); isla.style.width = '0px'; delete isla.dataset.estado; t.textContent = ''; return; }
+    mostrar(ultimo, vivos.get(ultimo), { abrir: false });
+  };
+  return {
+    /* «Sellando» se queda abierto (son segundos y es lo que se está esperando); lo demás se enrolla. */
+    poner(clave, texto) { vivos.delete(clave); vivos.set(clave, texto); clearTimeout(tSigue); mostrar(clave, texto, { enrollarEn: clave === 'sellando' ? 0 : 3500 }); },
+    quitar(clave, final) { if (!vivos.delete(clave)) return; clearTimeout(tSigue); mostrar('ok', final, { tono: 'ok', enrollarEn: 1600 }); tSigue = setTimeout(siguiente, 2100); },
+    vivos
+  };
+}
+const isla = islaDeEstado($('isla'));
+$('is-senal').onclick = e => {
+  const b = e.currentTarget, sin = b.getAttribute('aria-pressed') !== 'true';
+  b.setAttribute('aria-pressed', sin); b.textContent = sin ? 'Volver la señal' : 'Quitar la señal';
+  sin ? isla.poner('sin-senal', 'Sin señal · se guarda aquí') : isla.quitar('sin-senal', 'Volvió la señal');
+};
+$('is-sellar').onclick = e => { const b = e.currentTarget; b.disabled = true; isla.poner('sellando', 'Sellando en la hoja…'); setTimeout(() => { isla.quitar('sellando', 'Sellada · A1B2-C3D4'); b.disabled = false; }, 4000); };
+$('is-pedir').onclick = e => { const b = e.currentTarget; b.disabled = true; isla.poner('esperando', 'Esperando a Dirección'); setTimeout(() => { isla.quitar('esperando', 'Dirección autorizó · $12,528'); b.disabled = false; }, 7000); };
+
+/* ======================= 35) folioQueVoltea(el, nuevo) → cuántos voltearon =======================
+   Cada casilla guarda su destino en data-c: si llega otro folio a media vuelta, la vuelta
+   anterior termina escribiendo el destino NUEVO y no el viejo. */
+function folioQueVoltea(el, nuevo) {
+  const viejo = el.dataset.folio || '', caja = el.querySelector('.fcs');
+  el.dataset.folio = nuevo; el.querySelector('.sr').textContent = nuevo;
+  while (caja.children.length < nuevo.length) { const s = document.createElement('span'); s.className = 'fc'; caja.append(s); }
+  while (caja.children.length > nuevo.length) caja.lastElementChild.remove();
+  let k = 0;
+  [...caja.children].forEach((s, i) => {
+    const c = nuevo[i];
+    if (s.dataset.c === c) return;
+    s.dataset.c = c;
+    if (!viejo || reducido() || !s.animate) { s.getAnimations?.().forEach(a => a.cancel()); s.textContent = c; return; }
+    const baja = s.animate([{ transform: 'rotateX(0deg)' }, { transform: 'rotateX(-90deg)' }], { duration: 110, delay: k++ * 45, easing: 'cubic-bezier(.5,0,1,1)', fill: 'forwards' });
+    s.classList.add('volteando');
+    baja.finished.then(() => {
+      s.textContent = s.dataset.c; baja.cancel();
+      s.animate([{ transform: 'rotateX(90deg)' }, { transform: 'rotateX(0deg)' }], { duration: 150, easing: 'cubic-bezier(0,0,.2,1)' }).finished.then(() => s.classList.remove('volteando'), () => {});
+    }, () => {});
+  });
+  el.dataset.voltean = k;
+  return k;
+}
+let folioN = 42;
+const folioTxt = n => 'COT-' + String(n).padStart(4, '0');
+folioQueVoltea($('folio-f'), folioTxt(folioN));
+$('fo-nueva').onclick = () => { folioN = Math.max(folioN, 42) + 1; folioQueVoltea($('folio-f'), folioTxt(folioN)); $('sin-guardar').hidden = false; };
+$('fo-abrir').onclick = () => { folioQueVoltea($('folio-f'), 'COT-0039'); $('sin-guardar').hidden = true; };
+
+/* ======================= 36) guardadaVuela(tarjeta, destino, {alLlegar}) =======================
+   Web Animations nativo: una copia fija de la tarjeta, en arco, hasta el centro del botón. */
+function guardadaVuela(tarjeta, destino, { alLlegar } = {}) {
+  if (reducido() || !tarjeta.animate || destino.offsetParent === null) { alLlegar?.(); return Promise.resolve(false); }
+  const r = tarjeta.getBoundingClientRect(), d = destino.getBoundingClientRect();
+  const copia = tarjeta.cloneNode(true); copia.removeAttribute('id'); copia.classList.add('vuela'); copia.setAttribute('aria-hidden', 'true');
+  Object.assign(copia.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+  document.body.append(copia);
+  const dx = d.left + d.width / 2 - (r.left + r.width / 2), dy = d.top + d.height / 2 - (r.top + r.height / 2);
+  const s = Math.max(.12, Math.min(d.width / r.width, d.height / r.height));
+  const vuelo = copia.animate([
+    { transform: 'translate(0,0) scale(1)', opacity: 1 },
+    { transform: `translate(${dx * .45}px,${dy * .45 - 36}px) scale(.6)`, opacity: .95, offset: .5 },
+    { transform: `translate(${dx}px,${dy}px) scale(${s})`, opacity: .15 }
+  ], { duration: 560, easing: 'cubic-bezier(.45,0,.2,1)' });
+  return vuelo.finished.then(() => {
+    copia.remove(); alLlegar?.();
+    const rgb = getComputedStyle(document.documentElement).getPropertyValue('--a-rgb').trim();
+    destino.animate([{ transform: 'scale(1)', boxShadow: `0 0 0 0 rgba(${rgb},.5)` }, { transform: 'scale(1.08)', offset: .35 }, { transform: 'scale(1)', boxShadow: `0 0 0 12px rgba(${rgb},0)` }], { duration: 460, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    return true;
+  }, () => { copia.remove(); return false; });
+}
+const EJEMPLOS = [['COT-0042', 'Panadería La Espiga', '$12,528'], ['COT-0044', 'Café Barrio', '$5,568'], ['COT-0045', 'Óptica Visión', '$8,120']];
+let ej = 0, histN = 12;
+const pintarTarjeta = ([f, c, t], guardada) => {
+  const el = $('cot-t'); el.classList.toggle('nueva', !c);
+  el.querySelector('.ct-folio').textContent = f; el.querySelector('.ct-cli').textContent = c || 'Sin cliente todavía';
+  el.querySelector('.ct-tot').textContent = c ? `${t} · ${guardada ? 'autorizada por Dirección' : 'borrador sin autorizar'}` : '$0 · cotización nueva';
+};
+$('cot-guardada').addEventListener('change', e => { const [f, c, t] = EJEMPLOS[ej]; if ($('cot-t').classList.contains('nueva')) return; pintarTarjeta([f, c, t], e.target.checked); });
+$('b-otra').onclick = () => { ej = (ej + 1) % EJEMPLOS.length; pintarTarjeta(EJEMPLOS[ej], $('cot-guardada').checked); $('vuelo-aviso').textContent = ''; };
+$('b-nueva').onclick = async () => {
+  const el = $('cot-t'); if (el.classList.contains('nueva')) { $('vuelo-aviso').textContent = 'Ya estás en una cotización nueva.'; return; }
+  const [f, c] = EJEMPLOS[ej], guardada = $('cot-guardada').checked, n = +f.slice(4) + 1, sig = folioTxt(Math.max(n, 43));
+  if (!guardada) { pintarTarjeta([sig, '', ''], false); $('vuelo-aviso').textContent = `Era un borrador: no vuela. Si fue sin querer, «Deshacer» lo regresa.`; return; }
+  const llegar = () => { histN++; $('hist-n').textContent = histN; $('b-hist').setAttribute('aria-label', `Historial, ${histN} cotizaciones`); };
+  const vuelo = guardadaVuela(el, $('b-hist'), { alLlegar: llegar });
+  pintarTarjeta([sig, '', ''], false);                        // la pantalla se vacía mientras la copia vuela
+  $('vuelo-aviso').textContent = `${f} · ${c} quedó en Historial.`;
+  await vuelo;
+};
+</script>
+</body>
+</html>

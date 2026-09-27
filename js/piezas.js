@@ -5578,9 +5578,9 @@
        La marca va en --a-suave con la tinta completa (--a-claro y --a3 no llevan texto). */
     const DIACRITICOS = /[̀-ͯ]/g;
 
-    /** P.plegar(s, soloDigitos) → {txt, ini, fin}: el texto plegado y, por cada unidad de txt,
+    /** P.plegarTexto(s, soloDigitos) → {txt, ini, fin}: el texto plegado y, por cada unidad de txt,
         dónde empieza y dónde termina en el original. */
-    P.plegar = function (s, soloDigitos) {
+    P.plegarTexto = function (s, soloDigitos) {
       s = String(s == null ? '' : s);
       let txt = '';
       const ini = [], fin = [];
@@ -5604,8 +5604,8 @@
     P.coincide = function (s, q) {
       q = limpiarBusqueda(q);
       if (!q) return true;
-      const n = numerica(q), qq = P.plegar(q, n).txt;
-      return !qq || P.plegar(s, n).txt.includes(qq);
+      const n = numerica(q), qq = P.plegarTexto(q, n).txt;
+      return !qq || P.plegarTexto(s, n).txt.includes(qq);
     };
 
     /** P.resaltar(texto, busqueda) → HTML escapado con <mark class="coincide"> en cada tramo que
@@ -5614,7 +5614,7 @@
       s = String(s == null ? '' : s);
       q = limpiarBusqueda(q);
       if (!q) return P.esc(s);
-      const n = numerica(q), p = P.plegar(s, n), qq = P.plegar(q, n).txt;
+      const n = numerica(q), p = P.plegarTexto(s, n), qq = P.plegarTexto(q, n).txt;
       if (!qq) return P.esc(s);
       let out = '', desde = 0, i = p.txt.indexOf(qq);
       while (i !== -1) {

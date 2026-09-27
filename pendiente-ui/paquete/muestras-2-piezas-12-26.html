@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Muestras de UI 2 · AL3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============================================================================
+   Muestras de UI · parte 2 — 26-sep-2026
+
+   Las PIEZAS COMPARTIDAS que salieron de recorrer el repo entero: cada una se construye
+   una vez (casi todas en js/nucleo/ui.js y js/cotizador/nucleo.js) y se usa en muchos
+   lugares. El brief dice, para cada una, en qué archivos y líneas entra.
+
+   Igual que la parte 1: JS y CSS sin librerías, sin build, con los tokens de sistema.css
+   copiados aquí solo para que la página se vea sola.
+   ============================================================================ */
+:root{
+  color-scheme:light;
+  --fondo:#f3f4fb; --sup:#ffffff; --sup2:#f7f8fd; --linea:#dcdff2; --linea2:#eceef8;
+  --tinta:#1a1d33; --tinta2:#5c6184; --tinta3:#666d9b; --nav:#171a33;
+  --n1:#f3f4fb; --n2:#eceef8; --n3:#dcdff2; --n6:#5c6184; --n8:#1a1d33;
+  --a:#4060f8; --a-fuerte:#3018f8; --a-claro:#6090f8; --a-suave:#e9edff; --a-borde:#b9c5fe;
+  --a-fill:#4060f8; --a-tx:#3018f8; --a-rgb:64,96,248; --tinta-rgb:35,39,68; --sup-rgb:255,255,255;
+  --ok:#0a7d4a; --ok-bg:#e2f8ec; --ok-borde:#a9e8c6; --ok-fill:#0a7d4a;
+  --av:#8a5100; --av-bg:#fff2dd; --av-borde:#ffd79c;
+  --mal:#c62828; --mal-bg:#ffeceb; --mal-borde:#ffc4c1;
+  --rr1:4px; --rr2:6px; --rr3:10px; --rr4:12px;
+  --t1:12px; --t2:13.5px; --t3:15px; --t4:18px; --t6:28px;
+  --mv-s:.16s cubic-bezier(.2,.8,.2,1); --mv-r:.2s cubic-bezier(.2,.8,.2,1);
+  --mv-t:.5s cubic-bezier(.2,.8,.2,1); --mv-liq:.42s cubic-bezier(.34,1.26,.5,1);
+  --f-cifra:'Sora',system-ui,sans-serif; --f-texto:'Manrope',system-ui,sans-serif;
+  --sombra-alta:0 2px 8px rgba(35,39,68,.08),0 32px 64px -24px rgba(48,24,248,.42);
+}
+/* Tema oscuro mínimo, solo para que la muestra 21 (revelado del tema) tenga a dónde ir. */
+html[data-tema="oscuro"]{
+  color-scheme:dark;
+  --fondo:#0f1122; --sup:#181b33; --sup2:#1d2140; --linea:#2c3158; --linea2:#232744;
+  --tinta:#eef0ff; --tinta2:#b6bbe0; --tinta3:#9aa0cc; --n1:#1d2140; --n2:#2c3158; --n3:#3a4070; --n6:#b6bbe0; --n8:#eef0ff;
+  --a-suave:#23285a; --a-borde:#4a58c8; --a-tx:#9fb3ff; --a-fill:#4a5ff0; --sup-rgb:24,27,51;
+  --ok:#6fd6a4; --ok-bg:#13352a; --ok-borde:#2f6d52; --ok-fill:#0a7d4a;
+  --av:#ffc979; --av-bg:#3a2a10; --av-borde:#7a5a22;
+  --mal:#ff8f88; --mal-bg:#3d1a1c; --mal-borde:#7a3236;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--fondo);color:var(--tinta);font:500 var(--t3)/1.5 var(--f-texto);-webkit-font-smoothing:antialiased;padding:24px 16px 120px}
+main{max-width:760px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+.card{min-width:0}
+h1{font:700 22px/1.2 var(--f-cifra);margin:0} h2{font:600 var(--t4)/1.25 var(--f-cifra);margin:0}
+.intro,.nota{color:var(--tinta2);margin:0;font-size:var(--t2)} .intro{font-size:var(--t3);margin-top:6px}
+.card{background:var(--sup);border:1px solid var(--linea);border-radius:var(--rr4);padding:18px;display:grid;gap:12px;box-shadow:0 1px 2px rgba(var(--tinta-rgb),.05),0 16px 40px -24px rgba(48,24,248,.25)}
+.card-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px}
+.fuente{font-size:var(--t1);color:var(--tinta3);font-weight:700;letter-spacing:.02em}
+.fila{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.btn{position:relative;font:600 var(--t2)/1 var(--f-texto);min-height:44px;padding:0 16px;border-radius:var(--rr2);border:1px solid var(--linea);background:var(--sup);color:var(--tinta);cursor:pointer}
+.btn-pri{background:var(--a-fill);border-color:var(--a-fill);color:#fff}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--a-fuerte);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.fld{display:grid;gap:4px} .fld label{font-size:var(--t1);font-weight:700;color:var(--tinta2);text-transform:uppercase;letter-spacing:.04em}
+.fld input{font:600 16px/1 var(--f-texto);min-height:44px;padding:0 12px;border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup2);color:var(--tinta)}
+.chip{min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--linea);background:var(--sup);font:600 var(--t2)/1.1 var(--f-texto);color:var(--tinta2);cursor:pointer}
+
+/* ============================================================================
+   12) AVISO CON MECHA, PAUSA, DESLIZAR Y PILA — el toast() nuevo
+   Sale de: React Bits SwipeToast (mecha, deslizar para cerrar, pila) + FuseButton.
+   Va en: js/cotizador/nucleo.js toast() y js/nucleo/ui.js toast() — las DOS copias.
+   El filete ES el temporizador: se hace con WAAPI y el aviso se cierra en anim.finished,
+   así que «la ventana de Deshacer dura lo que dura el aviso» deja de ser una promesa y se
+   vuelve el mismo número. Se congela con dedo, cursor o foco encima, y con la pestaña oculta.
+   Pila de dos: un error o un aviso con botón NO lo pisa uno informativo (el bug del notario).
+   ============================================================================ */
+.avisos{position:fixed;left:50%;bottom:max(16px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:50;display:grid;gap:8px;width:min(460px,calc(100vw - 24px));pointer-events:none}
+.aviso{pointer-events:auto;position:relative;overflow:hidden;display:flex;align-items:center;gap:12px;padding:12px 14px 14px;border-radius:var(--rr3);background:var(--nav);color:#fff;
+  box-shadow:var(--sombra-alta);font-size:var(--t2);touch-action:pan-x;user-select:none;-webkit-user-select:none;animation:aviso-entra var(--mv-r);transition:transform var(--mv-r),opacity var(--mv-r)}
+.aviso span{flex:1}
+.aviso.ok{background:#0c5a38} .aviso.err{background:#8e1f1f}
+.aviso button{min-height:36px;padding:0 12px;border-radius:var(--rr2);border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff;font:700 var(--t2)/1 var(--f-texto);cursor:pointer}
+.aviso .mecha{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.75);transform-origin:left}
+.aviso.sale{opacity:0;transform:translateY(16px)}
+@keyframes aviso-entra{from{opacity:0;transform:translateY(12px)}}
+
+/* ============================================================================
+   13) HOJA DEL TELÉFONO QUE SE CIERRA DESLIZANDO
+   Sale de: React Bits SwipeToast (descartar por distancia o por latigazo) + Stack.
+   Va en: .pf-panel de la plataforma (hoy aparece de golpe y no se desliza) y el velo de las
+   hojas del cotizador (nucleo.js ya las cierra deslizando, pero el velo no sigue al dedo).
+   El velo se aclara con el dedo; hacia arriba la hoja cede 12 px con resistencia y regresa.
+   ============================================================================ */
+.hoja-bg{position:fixed;inset:0;z-index:40;background:rgba(23,26,51,calc(.45 * (1 - var(--arr,0))));display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity var(--mv-r)}
+.hoja-bg.show{opacity:1;pointer-events:auto}
+.hoja{width:min(560px,100%);max-height:80dvh;background:var(--sup);border-radius:18px 18px 0 0;box-shadow:var(--sombra-alta);transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.8,.2,1);display:grid;grid-template-rows:auto 1fr}
+.hoja-bg.show .hoja{transform:translateY(var(--dy,0px))}
+.hoja.arrastrando{transition:none}
+.hoja-h{padding:10px 18px 12px;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;display:grid;gap:8px}
+.hoja-asa{width:36px;height:4px;border-radius:2px;background:var(--n3);justify-self:center}
+.hoja-b{padding:0 18px 24px;overflow:auto}
+
+/* ============================================================================
+   14) EL BOTÓN QUE ESTÁ TRABAJANDO LO DICE — con reloj, y termina en ✓ o en reintentar
+   Sale de: React Bits CallChip (relleno, contador vivo, éxito, error) + LatticeLoader.
+   Va en: Autorizar/sellar (proceso.js), Registrar venta (venta.js), los botones del puente
+   en Ajustes, «Traer la hoja» en Control, la puerta de entrada con Google.
+   El relleno no finge saber cuánto falta: se acerca al 90 % con 1 − e^(−t/τ) y solo llega al
+   100 % cuando contesta la hoja. El ancho no brinca: min-width del rótulo original.
+   ============================================================================ */
+.estado-btn{overflow:hidden;isolation:isolate;min-width:var(--w,auto);transition:background var(--mv-r),border-color var(--mv-r),color var(--mv-r)}
+.estado-btn::before{content:"";position:absolute;inset:0;z-index:-1;background:rgba(255,255,255,.22);transform-origin:left;transform:scaleX(var(--p,0))}
+.estado-btn[data-estado="trabajando"]{cursor:progress}
+.estado-btn[data-estado="ok"]{background:var(--ok-fill);border-color:var(--ok-fill);color:#fff}
+.estado-btn[data-estado="ok"]::before,.estado-btn[data-estado="mal"]::before{display:none}
+.estado-btn[data-estado="mal"]{background:var(--mal-bg);border-color:var(--mal-borde);color:var(--mal);animation:sacude .32s}
+@keyframes sacude{20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+.cronom{font-variant-numeric:tabular-nums;opacity:.85}
+
+/* ============================================================================
+   15) «DESHACER» EN EL MISMO BOTÓN, CON MECHA
+   Sale de: React Bits FuseButton.
+   Va en: «Ya se armó / Ya se pintó» del Tablero, «Recibí lo de la lista» en Material,
+   «Volver a acomodar desde cero» en el anidador, quitar un retazo.
+   La escritura se hace al APAGARSE la mecha, no al tocar: mientras corre, el renglón no
+   salta de grupo y deshacer no escribe nada. Nunca para el cruce de corte (saca material).
+   ============================================================================ */
+.renglon{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup2)}
+.renglon small{display:block;color:var(--tinta3);font-size:var(--t1)}
+.mecha-btn{overflow:hidden}
+.mecha-btn .mecha{position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--a-fill);transform-origin:left}
+.renglon.hecho{border-color:var(--ok-borde);background:var(--ok-bg)}
+
+/* ============================================================================
+   16) RIEL DE PASOS — hitos de entrega, etapa de obra, calibración, agendar
+   Sale de: React Bits Stepper (vertical y mini) + StatusMark.
+   Va en: entregaHTML() (PDF → WhatsApp → Venta), la ficha de proyecto (7 etapas), el riel de
+   4 pasos del cotizador, la calibración del escalador, la hoja de agendar, y los puntos del
+   historial. El conector se llena en --ok, no en azul: el azul es «el botón de la pantalla».
+   ============================================================================ */
+.riel{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.riel li{position:relative;display:grid;grid-template-columns:28px 1fr;gap:12px;padding:0 0 18px}
+.riel li:last-child{padding-bottom:0}
+.riel li::before{content:"";position:absolute;left:13px;top:28px;bottom:0;width:2px;background:var(--n3)}
+.riel li::after{content:"";position:absolute;left:13px;top:28px;bottom:0;width:2px;background:var(--ok-fill);transform-origin:top;transform:scaleY(0);transition:transform .45s cubic-bezier(.2,.8,.2,1)}
+.riel li:last-child::before,.riel li:last-child::after{display:none}
+.riel li.hecho::after{transform:scaleY(1)}
+.riel .punto{width:28px;height:28px;border-radius:50%;border:2px dashed var(--av-borde);display:grid;place-items:center;background:var(--sup)}
+.riel li[aria-current="step"] .punto{border:2px solid var(--a-fill);background:var(--a-suave)}
+.riel li.hecho .punto{border:0;background:var(--ok-fill)}
+.riel .punto svg{width:16px;height:16px;display:none}
+.riel li.hecho .punto svg{display:block}
+.riel .punto path{fill:none;stroke:#fff;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1}
+.riel li.hecho .punto path{animation:dibuja .4s .1s forwards}
+@keyframes dibuja{to{stroke-dashoffset:0}}
+.riel .paso-t{min-height:28px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.riel .paso-t b{font-weight:700}
+.riel .paso-t small{color:var(--tinta3);font-size:var(--t1);display:block}
+.mini-hitos{display:flex;gap:6px;align-items:center;font-size:var(--t1);color:var(--tinta3)}
+.mini-hitos i{width:12px;height:12px;border-radius:50%;border:2px solid var(--n3)}
+.mini-hitos i.si{border-color:var(--ok-fill);background:var(--ok-fill)}
+
+/* ============================================================================
+   17) LAS ESQUINAS QUE SEÑALAN A DÓNDE LLEGASTE
+   Sale de: React Bits TargetCursor (cuatro esquinas que se cierran sobre el objetivo).
+   Va en: irACampoProy(), llevarAPartida(), enfocarHueco() del cotizador; las cuentas
+   tocables del Tablero; los avisos del anidador («estos 3 textos»); la lupa del escalador.
+   Una sola pieza fija para toda la app; entra, se cierra sobre el blanco y se va en 0.9 s.
+   ============================================================================ */
+.mira{position:fixed;z-index:45;pointer-events:none;left:0;top:0;width:0;height:0;opacity:0;
+  transition:transform .38s cubic-bezier(.2,.8,.2,1),width .38s cubic-bezier(.2,.8,.2,1),height .38s cubic-bezier(.2,.8,.2,1),opacity .2s}
+.mira i{position:absolute;width:14px;height:14px;border:3px solid var(--a-fill)}
+.mira i:nth-child(1){left:-4px;top:-4px;border-right:0;border-bottom:0;border-top-left-radius:4px}
+.mira i:nth-child(2){right:-4px;top:-4px;border-left:0;border-bottom:0;border-top-right-radius:4px}
+.mira i:nth-child(3){left:-4px;bottom:-4px;border-right:0;border-top:0;border-bottom-left-radius:4px}
+.mira i:nth-child(4){right:-4px;bottom:-4px;border-left:0;border-top:0;border-bottom-right-radius:4px}
+.mira.av i{border-color:var(--av)}
+
+/* ============================================================================
+   18) LA CUENTA DE COBRO DICE SI LLEVA IVA
+   Sale de: React Bits GlideSelect (una sola pastilla que se desliza entre opciones).
+   Va en: #rv-cuenta de «Registrar venta» (cotizador.html 1032–1046, venta.js).
+   La tabla sale de la hoja: CUENTA_SIN_FACTURA = Elias BBVA; las demás llevan IVA.
+   Solo AVISA: nunca cambia el IVA solo. El valor sigue en un input hidden #rv-cuenta.
+   ============================================================================ */
+.cuentas{position:relative;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;padding:4px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--n1)}
+.cuentas button{position:relative;z-index:1;min-height:52px;padding:6px 10px;border:0;border-radius:var(--rr2);background:none;text-align:left;cursor:pointer;color:var(--tinta);font:600 var(--t2)/1.2 var(--f-texto)}
+.cuentas button small{display:block;font-size:var(--t1);font-weight:700;margin-top:3px}
+.cuentas .con small{color:var(--a-tx)} .cuentas .sin small{color:var(--av)}
+.cuentas-pil{position:absolute;left:0;top:0;z-index:0;border-radius:var(--rr2);background:var(--sup);box-shadow:0 1px 2px rgba(var(--tinta-rgb),.08),0 4px 12px -6px rgba(48,24,248,.3);transition:transform var(--mv-liq),width var(--mv-liq),height var(--mv-liq);pointer-events:none}
+.alerta-iva{display:none;padding:10px 12px;border-radius:var(--rr2);border:1px solid var(--av-borde);background:var(--av-bg);color:var(--av);font-size:var(--t2);font-weight:600}
+.alerta-iva.show{display:block;animation:aviso-entra var(--mv-r)}
+
+/* ============================================================================
+   19) CASILLAS DE CÓDIGO y TELÉFONO QUE SE VE COMPLETO
+   Sale de: React Bits CodeSlots (ranuras que se llenan y se lavan al completar).
+   Va en: verificar.html (código de 12 en 3 grupos de 4) y #f-tel del cotizador (contador 8/10).
+   Un solo <input> transparente encima de las casillas: se queda con foco, pegado y
+   autocompletado; las casillas son dibujo. Acepta «A1B2-C3D4-E5F6», pasa O→0 e I/L→1.
+   ============================================================================ */
+.codigo{position:relative;display:inline-flex;gap:clamp(6px,2.4vw,14px);padding:6px 0;max-width:100%}
+.codigo input{position:absolute;inset:0;opacity:0;font-size:16px;cursor:text;letter-spacing:1em}
+.codigo .grupo{display:flex;gap:4px}
+.codigo .cas{width:clamp(22px,6.2vw,30px);height:44px;border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup2);display:grid;place-items:center;font:700 18px/1 var(--f-cifra);transition:background var(--mv-r),border-color var(--mv-r)}
+.codigo .cas.cursor{border-color:var(--a-fill);box-shadow:0 0 0 2px rgba(var(--a-rgb),.2)}
+.codigo.completo .cas{background:var(--ok-bg);border-color:var(--ok-borde);transition-delay:calc(var(--i) * 25ms)}
+.codigo.rechazo{animation:sacude .32s}
+.tel{position:relative}
+.tel input{width:100%;padding-right:64px}
+.tel .cuenta{position:absolute;right:10px;bottom:13px;font:700 var(--t1)/1 var(--f-cifra);color:var(--tinta3);font-variant-numeric:tabular-nums}
+.tel.completo input{border-color:var(--ok-borde);background:var(--ok-bg)}
+.tel.completo .cuenta{color:var(--ok)}
+
+/* ============================================================================
+   20) MEDIDORES QUIETOS — existencia en Material y lo cobrado en «Por cobrar»
+   Sale de: React Bits SloshGauge (solo la lectura del nivel, sin el oleaje).
+   Va en: filaCompra() y filaExistencia() de material.js; filaCobro() de control.js;
+   cardRespaldo() de ajustes.js. CSS puro: --v, --comp, --min, --pide en style=.
+   Lleno + rayado + muesca: el color nunca es la única señal. La frase de hoy se queda.
+   ============================================================================ */
+.medidor{position:relative;height:8px;border-radius:4px;background:var(--n2);overflow:visible;margin:6px 0 4px}
+.medidor .lleno{position:absolute;left:0;top:0;bottom:0;width:calc(var(--v) * 100%);border-radius:4px;background:var(--a-fill)}
+.medidor .comp{position:absolute;left:0;top:0;bottom:0;width:calc(var(--comp) * 100%);border-radius:4px 0 0 4px;background:repeating-linear-gradient(135deg,rgba(255,255,255,.55) 0 3px,transparent 3px 6px)}
+.medidor .falta{position:absolute;top:0;bottom:0;left:calc(var(--v) * 100%);width:calc((var(--pide) - var(--v)) * 100%);background:repeating-linear-gradient(90deg,var(--av-borde) 0 4px,transparent 4px 7px);border-radius:0 4px 4px 0}
+.medidor .muesca{position:absolute;top:-4px;bottom:-4px;width:2px;left:calc(var(--min) * 100%);background:var(--tinta)}
+.medidor.cobro .lleno{background:var(--ok-fill)}
+.medidor.cobro .falta{background:var(--av-borde)}
+.mat{display:grid;gap:2px;padding:12px 14px;border:1px solid var(--linea);border-radius:var(--rr3)}
+.mat-t{display:flex;justify-content:space-between;gap:10px;font-weight:700}
+.mat small{color:var(--tinta2);font-size:var(--t1)}
+
+/* ============================================================================
+   22) LA TARJETA VIAJA A SU COLUMNA (View Transitions)
+   Sale de: React Bits Masonry / CardSwap (reacomodo animado).
+   Va en: pintar() del Tablero, tarjeta() de Proyectos, renderItems() de partidas (solo en
+   las acciones estructurales), las piezas del anidador (FLIP). Nombre SOLO a la tarjeta que
+   se movió, no a las 200: view-transition-name se pone y se quita en la misma llamada.
+   ============================================================================ */
+.columnas{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.col{background:var(--n1);border:1px solid var(--linea2);border-radius:var(--rr3);padding:8px;display:grid;gap:6px;align-content:start;min-height:170px}
+.col h3{margin:0 0 2px;font:700 var(--t1)/1.2 var(--f-texto);color:var(--tinta2);text-transform:uppercase;letter-spacing:.04em;display:flex;justify-content:space-between}
+.tj{background:var(--sup);border:1px solid var(--linea);border-radius:var(--rr2);padding:8px;font-size:var(--t1);display:grid;gap:6px}
+.tj b{font-size:var(--t2)}
+.tj button{min-height:36px;font-size:var(--t1);padding:0 8px}
+::view-transition-group(*){animation-duration:.42s;animation-timing-function:cubic-bezier(.2,.8,.2,1)}
+
+/* ============================================================================
+   23) EL RÓTULO QUE CAMBIA SIN BRINCAR
+   Sale de: React Bits BellToggle (cruce de rótulo) + la sacudida de SlideCommit.
+   Va en: «Copiar» → «✓ Copiado» (subtotal, link, Canva, Gemini, SVG, orden de trabajo),
+   el botón principal del dock (Autorizar → Generar PDF → Enviar), la barra de acción de la
+   plataforma. Los dos rótulos en la misma celda de rejilla: el ancho es el del más largo.
+   ============================================================================ */
+.cruza{display:inline-grid}
+.cruza>span{grid-area:1/1;display:flex;align-items:center;justify-content:center;gap:6px;transition:opacity .18s,transform .18s,filter .18s}
+.cruza>span+span{opacity:0;transform:translateY(6px);filter:blur(2px)}
+.cruza.alt>span:first-child{opacity:0;transform:translateY(-6px);filter:blur(2px)}
+.cruza.alt>span+span{opacity:1;transform:none;filter:none}
+.btn.falta{animation:sacude .32s}
+
+/* ============================================================================
+   24) EL VEREDICTO DE VERIFICAR.HTML — el giro se vuelve ✓, ✕ o !, y un sello
+   Sale de: React Bits StatusMark (anillo → arco → marca) y CircularText (sin su giro).
+   Va en: verificar.html (#ver-est, .ver-giro, el h1). El sello lleva hora de consulta y
+   dominio: una captura bonita se falsifica fácil; la prueba es la dirección, no la imagen.
+   ============================================================================ */
+.veredicto{display:flex;align-items:center;gap:14px}
+.glifo{width:44px;height:44px;flex:none}
+.glifo circle{fill:none;stroke-width:3;stroke:var(--n3)}
+.glifo .arco{stroke:var(--a-fill);stroke-dasharray:30 200;transform-origin:center;animation:gira .9s linear infinite}
+.glifo .marca{fill:none;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;display:none}
+.veredicto[data-v] .arco{display:none}
+.veredicto[data-v="ok"] .glifo .base{stroke:var(--ok-fill);fill:var(--ok-bg)} .veredicto[data-v="ok"] .m-ok{display:block;stroke:var(--ok)}
+.veredicto[data-v="mal"] .glifo .base{stroke:var(--mal);fill:var(--mal-bg)} .veredicto[data-v="mal"] .m-mal{display:block;stroke:var(--mal)}
+.veredicto[data-v="av"] .glifo .base{stroke:var(--av);fill:var(--av-bg)} .veredicto[data-v="av"] .m-av{display:block;stroke:var(--av)}
+.veredicto[data-v] .marca{animation:dibuja .42s .05s forwards}
+.veredicto h3{margin:0;font:700 20px/1.2 var(--f-cifra)}
+.veredicto p{margin:2px 0 0;color:var(--tinta2);font-size:var(--t2)}
+@keyframes gira{to{transform:rotate(360deg)}}
+.sello{width:150px;height:150px;justify-self:center;display:none}
+.sello.cae{display:block;animation:sello-cae .5s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes sello-cae{from{transform:scale(1.25) rotate(-12deg);opacity:0}}
+.sello text{font:700 9.5px var(--f-texto);letter-spacing:.14em;fill:var(--ok)}
+.sello .aro{fill:none;stroke:var(--ok);stroke-width:2}
+.sello .aro2{fill:none;stroke:var(--ok);stroke-width:.8}
+
+/* ============================================================================
+   25) CARGA CON LOS AZULES DEL LOGO (efecto gooey)
+   Sale de: Skiper UI skiper64 Gooey Effect (GRATIS, pide atribución). La idea original es
+   React Bits MetaBalls, que es WebGL; esto es un filtro SVG de 3 círculos.
+   Va en: verificar.html (lo único que ve un tercero) y la puerta de entrada.
+   ============================================================================ */
+.gooey{width:96px;height:40px}
+.gooey circle{animation:goo 1.6s ease-in-out infinite}
+.gooey circle:nth-child(2){animation-delay:-.53s} .gooey circle:nth-child(3){animation-delay:-1.06s}
+@keyframes goo{0%,100%{transform:translateX(0)}50%{transform:translateX(18px)}}
+
+/* ============================================================================
+   26) EL LETRERO MIENTRAS SE ESCRIBE — letras 3D con la luz correcta
+   Sale de: React Bits DepthText (letras extruidas por capas) + el brillo de ShinyText.
+   Va en: la partida de letras 3D, debajo de «Escribe el texto →» (partidas.js .autoctr).
+   Regla del negocio: ALUMINIO = cara opaca, LED POSTERIOR (el halo cae en la pared);
+   ACRÍLICO = canto de aluminio, LED FRONTAL (la cara brilla). CSS puro, sin canvas.
+   Dice «ilustrativo»: no es la tipografía del cliente.
+   ============================================================================ */
+.pared{position:relative;border-radius:var(--rr3);background:linear-gradient(#2a2d3d,#1e2130);padding:34px 14px;display:grid;place-items:center;overflow:hidden;min-height:150px}
+.pared::after{content:"Ilustrativo";position:absolute;right:10px;bottom:8px;font:700 10px/1 var(--f-texto);letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.55)}
+.letrero{font:800 clamp(34px,11vw,64px)/1 var(--f-cifra);letter-spacing:.04em;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:clip}
+/* Aluminio: la cara es del color del material, el canto se apila en gris y la luz es un
+   halo DETRÁS (drop-shadow grande y del color de la luz), como si lavara la pared. */
+.letrero.aluminio{color:var(--cara,#f4f5f8);
+  text-shadow:1px 1px 0 #9aa0ad,2px 2px 0 #8a909d,3px 3px 0 #7b818e,4px 4px 0 #6c7280,5px 5px 0 #5e6371;
+  filter:drop-shadow(0 0 14px var(--luz)) drop-shadow(0 0 30px var(--luz))}
+/* Acrílico: la cara ES la luz (brilla hacia el frente) y el canto es de aluminio. */
+.letrero.acrilico{color:var(--luz-cara);
+  text-shadow:0 0 6px var(--luz),0 0 16px var(--luz),1px 1px 0 #b9bdc7,2px 2px 0 #a2a7b3,3px 3px 0 #8d929f,4px 4px 0 #787d8b}
+.letrero.fria{--luz:rgba(170,205,255,.85);--luz-cara:#f3f8ff}
+.letrero.calida{--luz:rgba(255,200,130,.85);--luz-cara:#fff6e8}
+
+/* ----- Movimiento reducido: fuera el adorno, se queda la información ----- */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+  .glifo .arco{animation:none}
+  .gooey circle{animation:none}
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Muestras de UI · parte 2: las piezas compartidas</h1>
+    <p class="intro">Quince piezas que se construyen una vez y entran en muchos lugares del repo. El brief dice en cuáles. Todo se puede tocar.</p>
+  </header>
+
+  <section class="card" aria-labelledby="t12">
+    <div class="card-h"><h2 id="t12">12 · Aviso con mecha, pausa, deslizar y pila</h2><span class="fuente">SwipeToast · FuseButton</span></div>
+    <p class="nota">La línea de abajo es el reloj. Pon el dedo o el cursor encima y se congela. Deslízalo hacia abajo para quitarlo. Prueba «el bug del notario»: el error ya no se lo come el ✓.</p>
+    <div class="fila">
+      <button type="button" class="btn" id="av-borrar">Borrar partida (con Deshacer)</button>
+      <button type="button" class="btn" id="av-notario">El bug del notario: error + ✓</button>
+      <button type="button" class="btn" id="av-info">Aviso informativo</button>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="t13">
+    <div class="card-h"><h2 id="t13">13 · Hoja que se cierra deslizando</h2><span class="fuente">SwipeToast · Stack</span></div>
+    <p class="nota">Ábrela y jálala hacia abajo desde el asa. Si la sueltas antes de un tercio, regresa. Hacia arriba cede un poco y vuelve.</p>
+    <div class="fila"><button type="button" class="btn" id="abrir-hoja">Abrir la ficha del proyecto</button></div>
+  </section>
+
+  <section class="card" aria-labelledby="t14">
+    <div class="card-h"><h2 id="t14">14 · El botón que está trabajando lo dice</h2><span class="fuente">CallChip · LatticeLoader</span></div>
+    <p class="nota">Sellar puede tardar hasta 30 s. En vez de un botón apagado: relleno que avanza, reloj, y al final ✓ con el código o «Reintentar».</p>
+    <div class="fila">
+      <button type="button" class="btn btn-pri estado-btn" id="b-sellar">Autorizar y sellar</button>
+      <button type="button" class="btn estado-btn" id="b-falla">Traer la hoja (falla)</button>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="t15">
+    <div class="card-h"><h2 id="t15">15 · «Deshacer» en el mismo botón</h2><span class="fuente">FuseButton</span></div>
+    <p class="nota">La escritura pasa cuando se apaga la mecha (5 s). Mientras, el renglón no se mueve y «Deshacer» no escribe nada.</p>
+    <div class="renglon" id="r-armar"><span>Panadería La Espiga<small>En armado · 9 letras acrílico</small></span><button type="button" class="btn mecha-btn" id="b-armar">Ya se armó</button></div>
+  </section>
+
+  <section class="card" aria-labelledby="t16">
+    <div class="card-h"><h2 id="t16">16 · Riel de pasos</h2><span class="fuente">Stepper · StatusMark</span></div>
+    <p class="nota">Los tres hitos de Entrega, unidos. Toca el paso actual para marcarlo. Abajo, los mismos hitos en miniatura como irían en cada renglón del historial.</p>
+    <ol class="riel" id="riel">
+      <li aria-current="step"><span class="punto"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.4l3 3 6-6.4" pathLength="1"/></svg></span><div class="paso-t"><span><b>PDF generado</b><small>Hoja carta · 3 hojas</small></span><button type="button" class="btn">Marcar</button></div></li>
+      <li><span class="punto"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.4l3 3 6-6.4" pathLength="1"/></svg></span><div class="paso-t"><span><b>Enviado por WhatsApp</b><small>a +52 33 2813 0092</small></span><button type="button" class="btn">Marcar</button></div></li>
+      <li><span class="punto"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.4l3 3 6-6.4" pathLength="1"/></svg></span><div class="paso-t"><span><b>Venta registrada</b><small>Anticipo 50 %</small></span><button type="button" class="btn">Marcar</button></div></li>
+    </ol>
+    <div class="mini-hitos" id="mini" aria-label="Propuesta sí, PDF no, chat no, venta no"><i class="si"></i><i></i><i></i><i></i> <span>Propuesta · PDF · Chat · Venta</span></div>
+  </section>
+
+  <section class="card" aria-labelledby="t17">
+    <div class="card-h"><h2 id="t17">17 · Las esquinas que señalan a dónde llegaste</h2><span class="fuente">TargetCursor</span></div>
+    <p class="nota">Hoy «llevar a lo que falta» hace scroll y enfoca, pero si el campo queda bajo la barra o bajo el dedo no se ve a dónde llegó.</p>
+    <div class="fila"><button type="button" class="btn" id="b-mira">Llévame a lo que falta</button></div>
+    <div class="fld" style="max-width:320px"><label for="tel-falta">Teléfono del cliente</label><input id="tel-falta" inputmode="tel" placeholder="33 1234 5678"></div>
+  </section>
+
+  <section class="card" aria-labelledby="t18">
+    <div class="card-h"><h2 id="t18">18 · La cuenta de cobro dice si lleva IVA</h2><span class="fuente">GlideSelect</span></div>
+    <p class="nota">La cotización de ejemplo lleva factura. Elige «Elias BBVA» y mira el aviso: la hoja le quitaría el IVA y el neto registrado no sería el del PDF.</p>
+    <label class="fila" style="gap:6px;font-size:var(--t2);color:var(--tinta2)"><input type="checkbox" id="cot-iva" checked> La cotización lleva factura (IVA)</label>
+    <div class="cuentas" role="radiogroup" aria-label="Cuenta de cobro" id="cuentas">
+      <button type="button" role="radio" aria-checked="true" class="con" data-v="Moni MPago">Moni MPago<small>con IVA</small></button>
+      <button type="button" role="radio" aria-checked="false" class="con" data-v="Tatis BNT">Tatis BNT<small>con IVA</small></button>
+      <button type="button" role="radio" aria-checked="false" class="con" data-v="Constru BNT">Constru BNT<small>con IVA</small></button>
+      <button type="button" role="radio" aria-checked="false" class="con" data-v="Rul HSBC">Rul HSBC<small>con IVA</small></button>
+      <button type="button" role="radio" aria-checked="false" class="sin" data-v="Elias BBVA">Elias BBVA<small>sin IVA</small></button>
+    </div>
+    <input type="hidden" id="rv-cuenta" value="Moni MPago">
+    <p class="alerta-iva" id="alerta-iva" role="status"></p>
+  </section>
+
+  <section class="card" aria-labelledby="t19">
+    <div class="card-h"><h2 id="t19">19 · Casillas de código y teléfono completo</h2><span class="fuente">CodeSlots</span></div>
+    <p class="nota">Pega o teclea el código de la cotización. Prueba pegar <b>a1b2-c3d4-e5f6</b> o una letra que no es del código (se rechaza con una sacudida).</p>
+    <div class="codigo" id="codigo"><input id="cod-in" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" inputmode="text" aria-label="Código de verificación, 12 caracteres"></div>
+    <div class="fld tel" id="tel-caja" style="max-width:320px"><label for="tel">Teléfono (10 dígitos)</label><input id="tel" inputmode="tel" autocomplete="tel-national" placeholder="33 1234 5678"><span class="cuenta" id="tel-cuenta" aria-hidden="true">0/10</span></div>
+  </section>
+
+  <section class="card" aria-labelledby="t20">
+    <div class="card-h"><h2 id="t20">20 · Medidores quietos</h2><span class="fuente">SloshGauge (sin oleaje)</span></div>
+    <div class="mat">
+      <div class="mat-t"><span>Acrílico blanco 3 mm</span><span>2.4 láminas</span></div>
+      <div class="medidor" style="--v:.48;--comp:.2;--pide:.6;--min:.4" aria-hidden="true"><i class="lleno"></i><i class="comp"></i><i class="falta"></i><i class="muesca"></i></div>
+      <small>Hay 2.4 · 1 ya tiene dueño (rayado) · piden 3 (faltan 0.6, en ámbar) · mínimo 2 (la muesca)</small>
+    </div>
+    <div class="mat">
+      <div class="mat-t"><span>Barbería El Toro · por cobrar</span><span>$6,960</span></div>
+      <div class="medidor cobro" style="--v:.5;--comp:0;--pide:1;--min:.5" aria-hidden="true"><i class="lleno"></i><i class="falta"></i></div>
+      <small>Cobrado 50 % ($6,960 de $13,920) · saldo al instalar $6,960</small>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="t21">
+    <div class="card-h"><h2 id="t21">21 · El tema se abre en círculo desde el botón</h2><span class="fuente">Skiper skiper26 · View Transitions</span></div>
+    <div class="fila"><button type="button" class="btn" id="b-tema">Cambiar tema</button></div>
+  </section>
+
+  <section class="card" aria-labelledby="t22">
+    <div class="card-h"><h2 id="t22">22 · La tarjeta viaja a su columna</h2><span class="fuente">Masonry / CardSwap · View Transitions</span></div>
+    <p class="nota">Hoy el tablero se repinta con innerHTML y la tarjeta aparece en otra columna sin que nadie vea de dónde vino.</p>
+    <div class="columnas" id="columnas">
+      <div class="col" data-col="0"><h3>Ganado <span>2</span></h3></div>
+      <div class="col" data-col="1"><h3>En taller <span>1</span></h3></div>
+      <div class="col" data-col="2"><h3>Listo <span>0</span></h3></div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="t23">
+    <div class="card-h"><h2 id="t23">23 · El rótulo que cambia sin brincar</h2><span class="fuente">BellToggle · SlideCommit</span></div>
+    <div class="fila">
+      <button type="button" class="btn" id="b-copiar"><span class="cruza"><span>Copiar subtotal</span><span>✓ Copiado</span></span></button>
+      <button type="button" class="btn btn-pri" id="b-dock"><span class="cruza"><span>Autorizar</span><span>Falta el teléfono</span></span></button>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="t24">
+    <div class="card-h"><h2 id="t24">24 · verificar.html: el giro se vuelve el veredicto</h2><span class="fuente">StatusMark · CircularText</span></div>
+    <div class="veredicto" id="veredicto">
+      <svg class="glifo" viewBox="0 0 44 44" aria-hidden="true"><circle class="base" cx="22" cy="22" r="19"/><circle class="arco" cx="22" cy="22" r="19"/>
+        <path class="marca m-ok" d="M13 22.5l6 6 12-13" pathLength="1"/><path class="marca m-mal" d="M15 15l14 14M29 15L15 29" pathLength="1"/><path class="marca m-av" d="M22 12v12M22 30.5v.5" pathLength="1"/></svg>
+      <div><h3 id="ver-h">Consultando…</h3><p id="ver-p">el registro de AL3D</p></div>
+    </div>
+    <svg class="sello" id="sello" viewBox="0 0 150 150" aria-hidden="true">
+      <defs><path id="circ" d="M75,75 m-58,0 a58,58 0 1,1 116,0 a58,58 0 1,1 -116,0"/></defs>
+      <circle class="aro" cx="75" cy="75" r="70"/><circle class="aro2" cx="75" cy="75" r="46"/>
+      <text><textPath href="#circ" id="sello-txt">AL3D · COTIZACIÓN AUTÉNTICA · CONSULTADA 26/09/2026 14:32 ·</textPath></text>
+      <text x="75" y="72" text-anchor="middle" style="font:800 22px var(--f-cifra);letter-spacing:.02em">AL3D</text>
+      <text x="75" y="90" text-anchor="middle" style="font:700 8px var(--f-texto);letter-spacing:.1em">VERIFICADA</text>
+    </svg>
+    <div class="fila"><button type="button" class="btn" data-v="ok">Auténtica</button><button type="button" class="btn" data-v="mal">No auténtica</button><button type="button" class="btn" data-v="av">Ya no vigente</button></div>
+    <p class="nota">Bug real en el repo: el formulario «Verificar a mano» pide <code>COT-0042@K7QM</code>, pero el PDF solo imprime <code>COT-0042</code>. Quien teclea desde el papel recibe «No auténtica». Ver el brief, sección 1.</p>
+  </section>
+
+  <section class="card" aria-labelledby="t25">
+    <div class="card-h"><h2 id="t25">25 · Carga con los azules del logo</h2><span class="fuente">Skiper skiper64 Gooey</span></div>
+    <svg class="gooey" viewBox="0 0 96 40" role="img" aria-label="Consultando">
+      <defs><filter id="goo"><feGaussianBlur in="SourceGraphic" stdDeviation="4" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -9"/></filter></defs>
+      <g filter="url(#goo)"><circle cx="30" cy="20" r="11" fill="#3018f8"/><circle cx="48" cy="20" r="9" fill="#4060f8"/><circle cx="64" cy="20" r="7" fill="#6090f8"/></g>
+    </svg>
+  </section>
+
+  <section class="card" aria-labelledby="t26">
+    <div class="card-h"><h2 id="t26">26 · El letrero mientras se escribe</h2><span class="fuente">DepthText · ShinyText</span></div>
+    <p class="nota">Aluminio lleva LED posterior (el halo cae en la pared); acrílico lleva LED frontal (la cara brilla). Delante del cliente, esto vende.</p>
+    <div class="fld"><label for="txt-letrero">Texto del anuncio</label><input id="txt-letrero" value="PANADERÍA" maxlength="18"></div>
+    <div class="fila" role="group" aria-label="Material y luz">
+      <button type="button" class="chip" data-mat="aluminio" aria-pressed="true">Aluminio · LED posterior</button>
+      <button type="button" class="chip" data-mat="acrilico" aria-pressed="false">Acrílico · LED frontal</button>
+      <button type="button" class="chip" data-luz="fria" aria-pressed="true">Luz fría</button>
+      <button type="button" class="chip" data-luz="calida" aria-pressed="false">Luz cálida</button>
+    </div>
+    <div class="pared"><div class="letrero aluminio fria" id="letrero" aria-live="polite">PANADERÍA</div></div>
+  </section>
+</main>
+
+<div class="avisos" id="avisos" aria-live="polite"></div>
+<div class="mira" id="mira" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+<div class="hoja-bg" id="hoja-bg">
+  <div class="hoja" id="hoja" role="dialog" aria-modal="true" aria-labelledby="hoja-t">
+    <div class="hoja-h" id="hoja-h"><span class="hoja-asa" aria-hidden="true"></span><div class="fila" style="justify-content:space-between"><h2 id="hoja-t">Panadería La Espiga</h2><button type="button" class="btn" id="cerrar-hoja" aria-label="Cerrar">✕</button></div></div>
+    <div class="hoja-b"><p class="nota">Letras 3D acrílico · 30 cm · 9 letras · LED frontal. Instalación el vie 2 de octubre.</p><p class="nota">Jala desde el asa hacia abajo para cerrar. El velo de atrás se aclara con el dedo.</p></div>
+  </div>
+</div>
+
+<script>
+const reducido = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = id => document.getElementById(id);
+
+/* ======================= 12) aviso(msg, {tipo, dur, accion}) =======================
+   Reemplaza al toast() de hoy con la MISMA firma de fondo (msg, tipo, dur, accion).
+   Prioridad: 2 = error, 1 = trae botón, 0 = informativo. Un informativo nuevo reemplaza al
+   informativo que haya; nunca a uno de prioridad mayor. Máximo dos a la vez. */
+const AVISOS = [];
+function aviso(msg, { tipo = '', dur = 2600, accion = null } = {}) {
+  if (accion && dur < 8000) dur = 8000;                       // el mínimo de hoy con botón
+  const prio = tipo === 'err' ? 2 : accion ? 1 : 0;
+  if (prio === 0) AVISOS.filter(a => a.prio === 0).forEach(a => a.cerrar());
+  while (AVISOS.length >= 2) AVISOS.slice().sort((a, b) => a.prio - b.prio)[0].cerrar();
+  const el = document.createElement('div'); el.className = 'aviso ' + tipo; el.setAttribute('role', tipo === 'err' ? 'alert' : 'status');
+  const sp = document.createElement('span'); sp.textContent = msg; el.append(sp);
+  const a = { el, prio, cerrado: false };
+  if (accion) { const b = document.createElement('button'); b.type = 'button'; b.textContent = accion.label; b.onclick = () => { a.cerrar(); accion.fn(); }; el.append(b); }
+  const mecha = document.createElement('i'); mecha.className = 'mecha'; mecha.setAttribute('aria-hidden', 'true'); el.append(mecha);
+  $('avisos').append(el); AVISOS.push(a);
+  /* El reloj ES la animación: pausarla pausa el aviso. */
+  const anim = mecha.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: dur, easing: 'linear', fill: 'forwards' });
+  anim.finished.then(() => a.cerrar()).catch(() => {});
+  const pausas = new Set();
+  const pausa = (k, si) => { si ? pausas.add(k) : pausas.delete(k); pausas.size ? anim.pause() : anim.play(); };
+  el.addEventListener('pointerenter', () => pausa('ptr', true));
+  el.addEventListener('pointerleave', () => pausa('ptr', false));
+  el.addEventListener('focusin', () => pausa('foco', true));
+  el.addEventListener('focusout', () => pausa('foco', false));
+  const alOcultar = () => pausa('oculto', document.hidden);
+  document.addEventListener('visibilitychange', alOcultar);
+  /* Deslizar hacia abajo lo quita: 40 px o un latigazo. */
+  let y0 = 0, t0 = 0, dy = 0, id = null;
+  el.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; id = e.pointerId; el.setPointerCapture(id); y0 = e.clientY; t0 = performance.now(); el.style.transition = 'none'; pausa('arr', true); });
+  el.addEventListener('pointermove', e => { if (e.pointerId !== id) return; dy = Math.max(0, e.clientY - y0); el.style.transform = `translateY(${dy}px)`; el.style.opacity = 1 - Math.min(.8, dy / 120); });
+  const soltar = e => { if (e.pointerId !== id) return; id = null; el.style.transition = ''; const v = dy / Math.max(1, performance.now() - t0);
+    if (dy > 40 || v > .5) a.cerrar(); else { el.style.transform = ''; el.style.opacity = ''; pausa('arr', false); } dy = 0; };
+  el.addEventListener('pointerup', soltar); el.addEventListener('pointercancel', soltar);
+  a.cerrar = () => {
+    if (a.cerrado) return; a.cerrado = true; anim.cancel();
+    document.removeEventListener('visibilitychange', alOcultar);
+    AVISOS.splice(AVISOS.indexOf(a), 1);
+    el.classList.add('sale'); setTimeout(() => el.remove(), reducido() ? 0 : 200);
+  };
+  return a;
+}
+$('av-borrar').onclick = () => aviso('Partida borrada · Letras 3D acrílico', { accion: { label: 'Deshacer', fn: () => aviso('Partida restaurada', { tipo: 'ok' }) } });
+$('av-notario').onclick = () => {
+  aviso('El total de este teléfono ($12,528) no es el que selló la hoja ($12,580). Actualiza la app antes de mandar el PDF.', { tipo: 'err', dur: 12000 });
+  aviso('✓ direccion@al3d autorizó COT-0042 · $12,580', { tipo: 'ok', dur: 6000 });   // hoy este SE COME al de arriba
+};
+$('av-info').onclick = () => aviso('Guardada en este dispositivo');
+
+/* ======================= 13) hojaDeslizable(bg, hoja, asa, cerrar) ======================= */
+function hojaDeslizable(bg, hoja, asa, alCerrar) {
+  let y0 = 0, t0 = 0, dy = 0, id = null;
+  asa.addEventListener('pointerdown', e => {
+    if (e.target.closest('button')) return;
+    id = e.pointerId; asa.setPointerCapture(id); y0 = e.clientY; t0 = performance.now(); hoja.classList.add('arrastrando');
+  });
+  asa.addEventListener('pointermove', e => {
+    if (e.pointerId !== id) return;
+    const bruto = e.clientY - y0;
+    dy = bruto >= 0 ? bruto : Math.max(-12, bruto * .2);          // hacia arriba cede poco
+    hoja.style.setProperty('--dy', dy + 'px');
+    bg.style.setProperty('--arr', Math.max(0, Math.min(1, dy / hoja.offsetHeight)));
+  });
+  const soltar = e => {
+    if (e.pointerId !== id) return; id = null; hoja.classList.remove('arrastrando');
+    const v = dy / Math.max(1, performance.now() - t0);
+    if (dy > hoja.offsetHeight / 3 || v > .6) alCerrar();
+    hoja.style.setProperty('--dy', '0px'); bg.style.setProperty('--arr', 0); dy = 0;
+  };
+  asa.addEventListener('pointerup', soltar); asa.addEventListener('pointercancel', soltar);
+}
+const bg = $('hoja-bg');
+const cerrarHoja = () => { bg.classList.remove('show'); $('abrir-hoja').focus(); };
+$('abrir-hoja').onclick = () => { bg.classList.add('show'); $('cerrar-hoja').focus(); };
+$('cerrar-hoja').onclick = cerrarHoja;
+bg.addEventListener('click', e => { if (e.target === bg) cerrarHoja(); });
+addEventListener('keydown', e => { if (e.key === 'Escape' && bg.classList.contains('show')) cerrarHoja(); });
+hojaDeslizable(bg, $('hoja'), $('hoja-h'), cerrarHoja);
+
+/* ======================= 14) conEstado(btn, trabajo, {verbo, tau}) =======================
+   trabajo: función que devuelve una promesa. Resuelve con el texto de éxito; rechaza con
+   el motivo. τ es «lo que suele tardar»: el relleno llega al 63 % en τ y nunca al 100 %
+   hasta que de verdad termina. */
+function conEstado(btn, trabajo, { verbo = 'Trabajando', tau = 4000 } = {}) {
+  const original = btn.textContent;
+  btn.style.setProperty('--w', btn.offsetWidth + 'px');
+  let corriendo = false;
+  btn.addEventListener('click', async () => {
+    if (corriendo) return;
+    corriendo = true; btn.dataset.estado = 'trabajando'; btn.setAttribute('aria-busy', 'true');
+    const t0 = performance.now();
+    const tic = () => { const t = performance.now() - t0; btn.style.setProperty('--p', (0.9 * (1 - Math.exp(-t / tau))).toFixed(3));
+      btn.innerHTML = `${verbo}… <span class="cronom">${Math.floor(t / 1000)} s</span>`; };
+    tic(); const iv = setInterval(tic, 100);
+    try { const txt = await trabajo(); btn.dataset.estado = 'ok'; btn.textContent = '✓ ' + txt; }
+    catch (err) { btn.dataset.estado = 'mal'; btn.textContent = (err && err.message || 'No contestó') + ' · Reintentar'; }
+    finally { clearInterval(iv); btn.removeAttribute('aria-busy'); corriendo = false; }
+    if (btn.dataset.estado === 'ok') setTimeout(() => { delete btn.dataset.estado; btn.style.removeProperty('--p'); btn.textContent = original; }, 3500);
+  });
+}
+const tarda = (ms, ok, dato) => () => new Promise((res, rej) => setTimeout(() => ok ? res(dato) : rej(new Error(dato)), ms));
+conEstado($('b-sellar'), tarda(3200, true, 'Sellada · A1B2-C3D4'), { verbo: 'Sellando en la hoja', tau: 3000 });
+conEstado($('b-falla'), tarda(2600, false, 'La hoja no contestó'), { verbo: 'Trayendo la hoja', tau: 2500 });
+
+/* ======================= 15) botonConDeshacer(btn, {hacer, deshacer, ms}) ======================= */
+function botonConDeshacer(btn, { alConfirmar, ms = 5000 }) {
+  const original = btn.textContent; let anim = null;
+  btn.addEventListener('click', () => {
+    if (anim) { anim.cancel(); anim = null; btn.textContent = original; aviso('Se deshizo: sigue en armado'); return; }
+    btn.textContent = 'Deshacer';
+    const m = document.createElement('i'); m.className = 'mecha'; m.setAttribute('aria-hidden', 'true'); btn.append(m);
+    anim = m.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: ms, easing: 'linear', fill: 'forwards' });
+    anim.finished.then(() => { anim = null; m.remove(); alConfirmar(); }).catch(() => m.remove());
+  });
+}
+botonConDeshacer($('b-armar'), { alConfirmar: () => { $('r-armar').classList.add('hecho'); $('r-armar').querySelector('small').textContent = 'Armado · pasa a pintura'; $('b-armar').textContent = 'Listo ✓'; $('b-armar').disabled = true; } });
+
+/* ======================= 16) riel de pasos ======================= */
+const riel = $('riel');
+riel.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const li = b.closest('li'); if (li.getAttribute('aria-current') !== 'step') { aviso('Ese paso todavía no toca'); return; }
+  li.classList.add('hecho'); li.removeAttribute('aria-current'); b.remove();
+  const sig = li.nextElementSibling; if (sig) sig.setAttribute('aria-current', 'step');
+  const n = riel.querySelectorAll('li.hecho').length;
+  $('mini').querySelectorAll('i').forEach((i, k) => i.classList.toggle('si', k <= n));
+});
+
+/* ======================= 17) senalar(el) — las esquinas ======================= */
+function cuandoQuieto(el, tope = 1000) {
+  return new Promise(res => {
+    const t0 = performance.now(); let ultimo = null, iguales = 0;
+    const mira = () => {
+      const y = Math.round(el.getBoundingClientRect().top);
+      iguales = y === ultimo ? iguales + 1 : 0; ultimo = y;
+      if (iguales >= 3 || performance.now() - t0 > tope) res(); else requestAnimationFrame(mira);
+    };
+    requestAnimationFrame(mira);
+  });
+}
+function senalar(el, { tono = '' } = {}) {
+  const m = $('mira');
+  const r = el.getBoundingClientRect(), pad = 18;
+  m.className = 'mira ' + tono;
+  m.style.transition = 'none';
+  m.style.width = r.width + pad * 2 + 'px'; m.style.height = r.height + pad * 2 + 'px';
+  m.style.transform = `translate(${r.left - pad}px,${r.top - pad}px)`; m.style.opacity = 0;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    m.style.transition = '';
+    m.style.width = r.width + 'px'; m.style.height = r.height + 'px';
+    m.style.transform = `translate(${r.left}px,${r.top}px)`; m.style.opacity = 1;
+    setTimeout(() => { m.style.opacity = 0; }, reducido() ? 1000 : 900);
+  }));
+}
+$('b-mira').onclick = () => {
+  const campo = $('tel-falta');
+  campo.scrollIntoView({ block: 'center', behavior: reducido() ? 'auto' : 'smooth' });
+  campo.focus({ preventScroll: true });
+  /* Medir cuando el campo DEJA DE MOVERSE: scrollend puede llegar de un scroll anterior, así
+     que se espera a que su posición quede igual tres cuadros seguidos (tope de 1 s). */
+  cuandoQuieto(campo).then(() => senalar(campo, { tono: 'av' }));
+};
+
+/* ======================= 18) cuentas de cobro con IVA ======================= */
+const SIN_FACTURA = 'Elias BBVA';      // la misma constante que CUENTA_SIN_FACTURA de la hoja
+const cuentas = $('cuentas');
+const pil = document.createElement('span'); pil.className = 'cuentas-pil'; pil.setAttribute('aria-hidden', 'true'); cuentas.prepend(pil);
+function moverPil(animar = true) {
+  const b = cuentas.querySelector('[aria-checked="true"]');
+  if (!animar || reducido()) pil.style.transition = 'none';
+  pil.style.width = b.offsetWidth + 'px'; pil.style.height = b.offsetHeight + 'px';
+  pil.style.transform = `translate(${b.offsetLeft}px,${b.offsetTop}px)`;
+  if (!animar) requestAnimationFrame(() => pil.style.transition = '');
+}
+function revisarIva() {
+  const v = $('rv-cuenta').value, conIva = $('cot-iva').checked, al = $('alerta-iva');
+  const choca = conIva && v === SIN_FACTURA ? `Esta cotización lleva IVA y ${v} cobra sin factura: la hoja le va a quitar el IVA y el neto registrado no será el del PDF.`
+    : !conIva && v !== SIN_FACTURA ? `Esta cotización va sin factura y ${v} lleva IVA: la hoja le va a sumar el 16 %.` : '';
+  al.textContent = choca; al.classList.toggle('show', !!choca);
+}
+cuentas.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  cuentas.querySelectorAll('button').forEach(x => x.setAttribute('aria-checked', x === b));
+  $('rv-cuenta').value = b.dataset.v; moverPil(); revisarIva();
+});
+cuentas.addEventListener('keydown', e => {
+  if (!['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
+  const bs = [...cuentas.querySelectorAll('button')], i = bs.findIndex(x => x.getAttribute('aria-checked') === 'true');
+  const j = (i + (e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1) + bs.length) % bs.length;
+  bs[j].click(); bs[j].focus(); e.preventDefault();
+});
+$('cot-iva').addEventListener('change', revisarIva);
+new ResizeObserver(() => moverPil(false)).observe(cuentas);
+moverPil(false); revisarIva();
+
+/* ======================= 19) casillasDeCodigo(caja, input, n=12) y teléfono ======================= */
+function casillasDeCodigo(caja, input, { n = 12, grupo = 4, alCompletar } = {}) {
+  const cas = [];
+  for (let g = 0; g < n / grupo; g++) {
+    const gr = document.createElement('span'); gr.className = 'grupo'; gr.setAttribute('aria-hidden', 'true');
+    for (let k = 0; k < grupo; k++) { const c = document.createElement('span'); c.className = 'cas'; c.style.setProperty('--i', cas.length); gr.append(c); cas.push(c); }
+    caja.append(gr);
+  }
+  input.maxLength = n + 4;
+  const limpiar = s => s.toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
+  const pintar = () => {
+    const bruto = limpiar(input.value), bueno = bruto.replace(/[^0-9A-F]/g, '').slice(0, n);
+    if (bruto.length > bueno.length && bruto.slice(0, n) !== bueno) { caja.classList.remove('rechazo'); void caja.offsetWidth; caja.classList.add('rechazo'); }
+    input.value = bueno;
+    cas.forEach((c, i) => { c.textContent = bueno[i] || ''; c.classList.toggle('cursor', document.activeElement === input && i === Math.min(bueno.length, n - 1)); });
+    const lleno = bueno.length === n; caja.classList.toggle('completo', lleno);
+    if (lleno) alCompletar?.(bueno.match(/.{4}/g).join('-'));
+  };
+  input.addEventListener('input', pintar); input.addEventListener('focus', pintar); input.addEventListener('blur', pintar);
+  pintar();
+}
+casillasDeCodigo($('codigo'), $('cod-in'), { alCompletar: c => aviso('Código completo: ' + c + ' — consultando…') });
+
+function telefonoVivo(input, cuenta, caja) {
+  input.addEventListener('input', () => {
+    const pos = input.selectionStart, digAntes = input.value.slice(0, pos).replace(/\D/g, '').length;
+    let d = input.value.replace(/\D/g, ''); if (d.length > 10 && d.startsWith('52')) d = d.slice(2); d = d.slice(0, 10);
+    const f = d.length > 6 ? `${d.slice(0, 2)} ${d.slice(2, 6)} ${d.slice(6)}` : d.length > 2 ? `${d.slice(0, 2)} ${d.slice(2)}` : d;
+    input.value = f;
+    /* El cursor se queda después del mismo número de DÍGITOS, no de caracteres. */
+    let k = 0, p = 0; while (p < f.length && k < digAntes) { if (/\d/.test(f[p])) k++; p++; } input.setSelectionRange(p, p);
+    cuenta.textContent = d.length === 10 ? '✓' : d.length + '/10'; caja.classList.toggle('completo', d.length === 10);
+  });
+}
+telefonoVivo($('tel'), $('tel-cuenta'), $('tel-caja'));
+
+/* ======================= 21) cambiar tema en círculo ======================= */
+$('b-tema').addEventListener('click', e => {
+  const poner = () => { const h = document.documentElement; h.dataset.tema = h.dataset.tema === 'oscuro' ? '' : 'oscuro'; };
+  if (!document.startViewTransition || reducido()) return poner();
+  const x = e.clientX || innerWidth / 2, y = e.clientY || innerHeight / 2, r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+  const vt = document.startViewTransition(poner);
+  vt.ready.then(() => document.documentElement.animate({ clipPath: [`circle(0 at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`] },
+    { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)', pseudoElement: '::view-transition-new(root)' }));
+});
+
+/* ======================= 22) la tarjeta viaja ======================= */
+const TRABAJOS = [{ id: 't1', n: 'Farmacia Guadalupe', d: 'Caja de luz', c: 0 }, { id: 't2', n: 'Dental Sonrisa', d: 'Acrílico + vinil', c: 0 }, { id: 't3', n: 'Barbería El Toro', d: 'Neón flex', c: 1 }];
+function pintarTablero() {
+  document.querySelectorAll('#columnas .col').forEach(col => {
+    const k = +col.dataset.col, ts = TRABAJOS.filter(t => t.c === k);
+    col.querySelector('h3 span').textContent = ts.length;
+    col.querySelectorAll('.tj').forEach(x => x.remove());
+    ts.forEach(t => col.insertAdjacentHTML('beforeend', `<div class="tj" id="${t.id}"><b>${t.n}</b><span>${t.d}</span>${k < 2 ? `<button type="button" class="btn" data-avanza="${t.id}">Avanzar ›</button>` : ''}</div>`));
+  });
+}
+$('columnas').addEventListener('click', e => {
+  const b = e.target.closest('[data-avanza]'); if (!b) return;
+  const t = TRABAJOS.find(x => x.id === b.dataset.avanza);
+  const antes = $(t.id);
+  if (!document.startViewTransition || reducido()) { t.c++; return pintarTablero(); }
+  antes.style.viewTransitionName = 'viaja';                     // SOLO la que se mueve
+  const vt = document.startViewTransition(() => { t.c++; pintarTablero(); $(t.id).style.viewTransitionName = 'viaja'; });
+  vt.finished.finally(() => { const el = $(t.id); if (el) el.style.viewTransitionName = ''; });
+});
+pintarTablero();
+
+/* ======================= 23) cruzar rótulo ======================= */
+function cruzarRotulo(btn, ms = 1500) {
+  const c = btn.querySelector('.cruza'); c.classList.add('alt');
+  clearTimeout(btn._t); btn._t = setTimeout(() => c.classList.remove('alt'), ms);
+}
+$('b-copiar').onclick = () => { navigator.clipboard?.writeText('$10,800').catch(() => {}); cruzarRotulo($('b-copiar')); };
+$('b-dock').onclick = () => { const b = $('b-dock'); b.classList.remove('falta'); void b.offsetWidth; b.classList.add('falta'); cruzarRotulo(b); };
+
+/* ======================= 24) veredicto de verificar.html ======================= */
+const VER = { ok: ['Auténtica.', 'AL3D autorizó esta cotización con estos datos.'], mal: ['No auténtica.', 'No hay una cotización de AL3D con ese folio y ese código.'], av: ['Ya no vigente.', 'Se volvió a autorizar con otro precio. Pide la versión más reciente.'] };
+document.querySelectorAll('[data-v]').forEach(b => { if (b.closest('#cuentas')) return; b.addEventListener('click', () => {
+  const v = b.dataset.v, ver = $('veredicto'), sello = $('sello');
+  delete ver.dataset.v; sello.classList.remove('cae'); $('ver-h').textContent = 'Consultando…'; $('ver-p').textContent = 'el registro de AL3D';
+  setTimeout(() => {
+    ver.dataset.v = v; $('ver-h').textContent = VER[v][0]; $('ver-p').textContent = VER[v][1];
+    if (v === 'ok') { const d = new Date(); $('sello-txt').textContent = `AL3D · COTIZACIÓN AUTÉNTICA · CONSULTADA ${d.toLocaleDateString('es-MX')} ${d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })} ·`; void sello.getBoundingClientRect(); sello.classList.add('cae'); }
+  }, 900);
+}); });
+
+/* ======================= 26) letrero en vivo ======================= */
+const letrero = $('letrero');
+$('txt-letrero').addEventListener('input', e => { letrero.textContent = e.target.value.toUpperCase() || ' '; });
+document.querySelectorAll('[data-mat],[data-luz]').forEach(b => b.addEventListener('click', () => {
+  const grupo = b.dataset.mat ? 'mat' : 'luz';
+  document.querySelectorAll(`[data-${grupo}]`).forEach(x => x.setAttribute('aria-pressed', x === b));
+  if (grupo === 'mat') { letrero.classList.toggle('aluminio', b.dataset.mat === 'aluminio'); letrero.classList.toggle('acrilico', b.dataset.mat === 'acrilico'); }
+  else { letrero.classList.toggle('fria', b.dataset.luz === 'fria'); letrero.classList.toggle('calida', b.dataset.luz === 'calida'); }
+}));
+</script>
+</body>
+</html>

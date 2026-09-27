@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Muestras de UI · Cotizador AL3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============================================================================
+   Muestras de UI para el cotizador AL3D — 26-sep-2026
+
+   Once piezas sacadas de React Bits, Skiper UI y Vengeance UI, reescritas en JS y CSS
+   sin librerías, sin build y sin React, con los tokens de css/sistema.css. Cada bloque
+   dice de dónde sale la idea y en qué capa de la hoja iría. Nada de aquí es código de
+   producción: es la muestra que Claude Design toma para meterlo en el repo con las
+   reglas de la casa (capas, contraste medido, prefers-reduced-motion).
+
+   Los tokens de :root son COPIA de css/sistema.css para que esta página se vea sola.
+   En el repo no se copian: ya existen.
+   ============================================================================ */
+:root{
+  color-scheme:light;
+  --fondo:#f3f4fb; --sup:#ffffff; --sup2:#f7f8fd; --linea:#dcdff2; --linea2:#eceef8;
+  --tinta:#1a1d33; --tinta2:#5c6184; --tinta3:#666d9b;
+  --n1:#f3f4fb; --n2:#eceef8; --n3:#dcdff2; --n5:#8b90b8; --n6:#5c6184; --n8:#1a1d33;
+  --a:#4060f8; --a-fuerte:#3018f8; --a-claro:#6090f8; --a-suave:#e9edff; --a-borde:#b9c5fe;
+  --a-fill:#4060f8; --a-tx:#3018f8; --a-rgb:64,96,248; --tinta-rgb:35,39,68;
+  --ok:#0a7d4a; --ok-bg:#e2f8ec; --ok-borde:#a9e8c6; --ok-fill:#0a7d4a;
+  --av:#8a5100; --av-bg:#fff2dd;
+  --mal:#c62828; --mal-bg:#ffeceb; --mal-borde:#ffc4c1;
+  --rr1:4px; --rr2:6px; --rr3:10px; --rr4:12px;
+  --t1:12px; --t2:13.5px; --t3:15px; --t4:18px; --t6:28px;
+  --mv-s:.16s cubic-bezier(.2,.8,.2,1);
+  --mv-r:.2s cubic-bezier(.2,.8,.2,1);
+  --mv-t:.5s cubic-bezier(.2,.8,.2,1);
+  --mv-liq:.42s cubic-bezier(.34,1.26,.5,1);
+  --f-cifra:'Sora',system-ui,sans-serif;
+  --f-texto:'Manrope',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--fondo);color:var(--tinta);font:500 var(--t3)/1.5 var(--f-texto);-webkit-font-smoothing:antialiased;padding:24px 16px 80px}
+main{max-width:760px;margin:0 auto;display:grid;gap:18px}
+h1{font:700 22px/1.2 var(--f-cifra);margin:0}
+h2{font:600 var(--t4)/1.25 var(--f-cifra);margin:0}
+.intro{color:var(--tinta2);margin:6px 0 0}
+.card{background:var(--sup);border:1px solid var(--linea);border-radius:var(--rr4);padding:18px;display:grid;gap:12px;box-shadow:0 1px 2px rgba(var(--tinta-rgb),.05),0 16px 40px -24px rgba(48,24,248,.25)}
+.card-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px}
+.fuente{font-size:var(--t1);color:var(--tinta3);font-weight:600;letter-spacing:.02em}
+.nota{font-size:var(--t2);color:var(--tinta2);margin:0}
+.btn{font:600 var(--t2)/1 var(--f-texto);min-height:44px;padding:0 16px;border-radius:var(--rr2);border:1px solid var(--linea);background:var(--sup);color:var(--tinta);cursor:pointer}
+.btn:focus-visible,.seg button:focus-visible,.cant:focus-visible,.precio-partida:focus-visible{outline:2px solid var(--a-fuerte);outline-offset:2px}
+.fila{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ============================================================================
+   1) EL TOTAL QUE RUEDA — odómetro de cifras
+   Idea: Counter / CountUp (React Bits), Animated number skiper37 (Skiper UI, que por
+   dentro es NumberFlow), animated-number (Vengeance UI).
+   Por qué así y no con NumberFlow: la CSP de cotizador.html solo deja scripts propios y
+   de cdnjs, y NumberFlow viene de npm. Esto son 40 líneas y no pide nada.
+   Cada dígito es una tira 0-9 de 10 renglones dentro de una ventana de 1 renglón; se
+   mueve con transform, que no repinta la columna del dinero. Se alinea por la DERECHA:
+   las unidades siguen siendo unidades cuando el total gana un dígito.
+   Capa en sistema.css: (4) estructura y movimiento; se apaga en el bloque reducido.
+   ============================================================================ */
+.rueda-cifra{font:700 var(--t6)/1 var(--f-cifra);font-variant-numeric:tabular-nums;display:inline-flex;align-items:flex-end;letter-spacing:-.01em}
+.rueda{display:inline-block;height:1em;overflow:hidden;position:relative}
+.rueda-tira{display:flex;flex-direction:column;transition:transform .62s cubic-bezier(.2,.8,.2,1)}
+.rueda-tira>span{height:1em;line-height:1em;text-align:center}
+
+/* ============================================================================
+   2) LA PÍLDORA QUE SE DESLIZA en .seg / .tipo-seg
+   Idea: RubberSegment (React Bits · Micro), spotlight-navbar (Vengeance UI).
+   Hoy .seg button.on cambia de fondo de golpe. Aquí la ficha blanca es UNA pieza que
+   viaja al botón elegido. No toca el marcado ni el JS de la app: un MutationObserver
+   mira quién tiene .on, así que la app sigue poniendo la clase como siempre.
+   ============================================================================ */
+.seg{position:relative;display:inline-flex;flex-wrap:wrap;background:var(--n1);border:1px solid var(--n2);border-radius:var(--rr1);padding:3px;gap:2px}
+.seg button{position:relative;z-index:1;border:none;background:none;min-height:44px;padding:7px 14px;font:500 var(--t2)/1.2 var(--f-texto);color:var(--n6);border-radius:6px;cursor:pointer;transition:color .12s}
+.seg button.on{color:var(--n8);font-weight:600}
+.seg:not(.con-pildora) button.on{background:var(--sup);box-shadow:0 1px 2px rgba(var(--tinta-rgb),.07)}
+.seg-pildora{position:absolute;left:0;top:0;z-index:0;background:var(--sup);border-radius:6px;box-shadow:0 1px 2px rgba(var(--tinta-rgb),.07),0 4px 12px -6px rgba(48,24,248,.25);
+  transition:transform var(--mv-liq),width var(--mv-liq),height var(--mv-liq);pointer-events:none}
+
+/* ============================================================================
+   3) ARRASTRAR SOBRE LA MEDIDA para cambiarla
+   Idea: ScrubField (React Bits · Micro). Se arrastra la ETIQUETA, no el campo: el campo
+   sigue siendo un <input> normal que se teclea, y la etiqueta es el mango. Cada 6 px es
+   un paso; Shift ×10. touch-action:none SOLO en el mango, para que el resto de la
+   tarjeta siga desplazando la página en el teléfono.
+   ============================================================================ */
+.medidas{display:flex;flex-wrap:wrap;gap:10px}
+.medida{display:flex;align-items:center;border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup2);overflow:hidden}
+.medida-mango{display:flex;align-items:center;gap:6px;min-height:44px;padding:0 10px;font:600 var(--t1)/1 var(--f-texto);color:var(--tinta2);text-transform:uppercase;letter-spacing:.04em;
+  cursor:ew-resize;touch-action:none;user-select:none;-webkit-user-select:none;border-right:1px solid var(--linea)}
+.medida-mango::before{content:"";width:14px;height:10px;background:linear-gradient(90deg,currentColor 1.5px,transparent 0) 0 0/4px 100%;opacity:.55}
+.medida.arrastrando{border-color:var(--a-borde);box-shadow:0 0 0 3px rgba(var(--a-rgb),.15)}
+.medida.arrastrando .medida-mango{color:var(--a-tx);background:var(--a-suave)}
+.cant{width:5.2em;border:0;background:none;font:700 var(--t3)/1 var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta);padding:0 6px 0 10px;min-height:44px}
+.medida-u{font-size:var(--t1);color:var(--tinta3);padding-right:10px}
+
+/* ============================================================================
+   4) DESGLOSE DEL PRECIO en la cifra de la partida (popover nativo)
+   Idea: WarmTooltip (React Bits · Micro), Custom tooltip skiper101. La diferencia: no
+   es un adorno, es la cuenta. Delante del cliente, tocar el precio y que diga
+   «$40 × 30 cm × 9 letras» es lo que da confianza. Usa el atributo popover del
+   navegador —cierra con Esc y tocando fuera, sin código— y 12 líneas para ubicarlo.
+   ============================================================================ */
+.precio-partida{font:700 var(--t4)/1 var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--a-tx);background:var(--a-suave);border:1px dashed var(--a-borde);border-radius:var(--rr2);min-height:44px;padding:0 12px;cursor:pointer}
+.desglose{margin:0;inset:auto;position:fixed;border:1px solid var(--linea);border-radius:var(--rr3);background:rgba(255,255,255,.94);backdrop-filter:blur(16px) saturate(1.6);-webkit-backdrop-filter:blur(16px) saturate(1.6);
+  box-shadow:0 2px 8px rgba(35,39,68,.08),0 32px 64px -24px rgba(48,24,248,.42);padding:12px 14px;font-size:var(--t2);color:var(--tinta);max-width:300px}
+.desglose:popover-open{animation:desglose-entra var(--mv-r)}
+@keyframes desglose-entra{from{opacity:0;transform:translateY(6px) scale(.97)}}
+.desglose dl{display:grid;grid-template-columns:1fr auto;gap:4px 14px;margin:0}
+.desglose dt{color:var(--tinta2)} .desglose dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+.desglose .suma{border-top:1px solid var(--linea);padding-top:6px;margin-top:2px}
+
+/* ============================================================================
+   5) MANTENER PRESIONADO PARA CONFIRMAR
+   Idea: HoldButton (React Bits · Micro). Sustituye al window.confirm() que todavía
+   usa js/mod/proyectos.js en cinco lugares, y sirve para Autorizar y Borrar partida.
+   El relleno avanza de izquierda a derecha y el texto de encima cambia de color JUSTO
+   donde pasa el relleno (una segunda capa de texto recortada con clip-path), así que
+   nunca queda rojo sobre rojo. El avance sí se ve con movimiento reducido: es
+   información, no adorno. Lo que se apaga es el encogerse al apretar.
+   ============================================================================ */
+.mantener{position:relative;overflow:hidden;isolation:isolate;min-height:48px;padding:0 20px;border-radius:var(--rr2);border:1px solid var(--mal-borde);background:var(--mal-bg);color:var(--mal);
+  font:700 var(--t2)/1 var(--f-texto);cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation;transition:transform var(--mv-liq)}
+.mantener::after{content:attr(data-lleno);position:absolute;inset:0;display:grid;place-items:center;background:var(--mal);color:#fff;
+  clip-path:inset(0 calc(100% - var(--p,0) * 100%) 0 0)}
+.mantener.manteniendo{transform:scale(.97)}
+.mantener.azul{border-color:var(--a-borde);background:var(--a-suave);color:var(--a-tx)}
+.mantener.azul::after{background:var(--a-fill)}
+.mantener.hecho{border-color:var(--ok-borde);background:var(--ok-fill);color:#fff;cursor:default}
+.mantener.hecho::after{display:none}
+.mantener-aviso{font-size:var(--t1);color:var(--tinta2);min-height:1.5em;margin:0}
+
+/* ============================================================================
+   6) LA PALOMITA QUE SE DIBUJA y 7) EL ENCENDIDO DE NEÓN
+   Idea: StatusMark / SpringCheck (React Bits · Micro) para la palomita; border-beam
+   (Vengeance UI) y ElectricBorder / StarBorder (React Bits) para el filo de luz.
+   El giro propio de AL3D: la tarjeta de la cotización autorizada se ENCIENDE como un
+   anuncio de neón flex —dos parpadeos y queda prendida— y una luz recorre el borde
+   dos vueltas. Dura 2.6 s y se apaga sola: la regla de la hoja es que una sola pieza
+   se mueve sola (el botón de IA), y esto es un momento, no una pieza que se mueve.
+   ============================================================================ */
+.palomita{width:22px;height:22px;flex:none}
+.palomita circle{fill:var(--ok-fill)}
+.palomita path{fill:none;stroke:#fff;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:dibuja .42s .12s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes dibuja{to{stroke-dashoffset:0}}
+
+@property --haz-ang{syntax:'<angle>';initial-value:0deg;inherits:false}
+.sellada{position:relative;border:1px solid var(--linea);border-radius:var(--rr4);padding:14px 16px;background:var(--sup);display:grid;gap:8px}
+.sellada.enciende{animation:neon-enciende 1.1s steps(1,end) both, neon-queda 1.5s 1.1s ease-out both}
+.sellada.enciende::after{content:"";position:absolute;inset:-1px;border-radius:inherit;padding:2px;pointer-events:none;
+  background:conic-gradient(from var(--haz-ang),transparent 0 72%,var(--a-claro) 86%,#fff 91%,transparent 96%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);
+  animation:haz-gira 1.3s linear 2}
+@keyframes haz-gira{to{--haz-ang:360deg}}
+/* El parpadeo de un neón que arranca: prende, se va, prende, se va, queda. */
+@keyframes neon-enciende{
+  0%{box-shadow:none;border-color:var(--linea)}
+  12%{box-shadow:0 0 0 1px var(--a-claro),0 0 18px 2px rgba(96,144,248,.55);border-color:var(--a-claro)}
+  20%{box-shadow:none;border-color:var(--linea)}
+  34%{box-shadow:0 0 0 1px var(--a-claro),0 0 22px 3px rgba(96,144,248,.6);border-color:var(--a-claro)}
+  40%{box-shadow:none;border-color:var(--linea)}
+  52%,100%{box-shadow:0 0 0 1px var(--a-claro),0 0 26px 4px rgba(96,144,248,.55);border-color:var(--a-claro)}
+}
+@keyframes neon-queda{to{box-shadow:0 1px 2px rgba(var(--tinta-rgb),.05);border-color:var(--ok-borde)}}
+.sellada-t{display:flex;align-items:center;gap:10px;font:600 var(--t3)/1.2 var(--f-cifra)}
+.sellada[hidden]{display:none}
+
+/* ============================================================================
+   8) LA IA DICE QUÉ ESTÁ HACIENDO, paso por paso
+   Idea: ThoughtLine (React Bits · Micro) para la lista, ShinyText (React Bits) y
+   generate-button / kinetic-text-loader (Vengeance UI) para el renglón vivo.
+   Hoy #ai-status es UN renglón que se reescribe («⏳ … reintentando en 4 s…»). Con el
+   cliente enfrente se lee mejor como una lista que avanza: qué se hizo, en quién va,
+   quién sigue. Se alimenta de los mismos aiStatus() que ya existen en ia.js.
+   El brillo del renglón vivo va de --tinta2 a --a-tx: los DOS pasan 4.5:1 sobre
+   blanco, así que en ningún punto del barrido el texto se deja de leer.
+   ============================================================================ */
+.ia-pasos{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.ia-pasos li{display:grid;grid-template-columns:20px 1fr;gap:10px;align-items:center;font-size:var(--t2);color:var(--tinta2);animation:paso-entra var(--mv-r) both}
+@keyframes paso-entra{from{opacity:0;transform:translateY(4px)}}
+.ia-pasos li::before{content:"";width:14px;height:14px;justify-self:center;border-radius:50%;border:2px solid var(--n3)}
+.ia-pasos li[data-estado="trabaja"]{color:var(--tinta);font-weight:600}
+.ia-pasos li[data-estado="trabaja"]::before{border-color:var(--a-borde);border-top-color:var(--a-fill);animation:gira .8s linear infinite}
+.ia-pasos li[data-estado="ok"]::before{border:0;background:var(--ok-fill) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.4l2.6 2.6L12 5.4' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/100% no-repeat}
+.ia-pasos li[data-estado="salta"]::before{border:0;background:linear-gradient(var(--av),var(--av)) center/8px 2px no-repeat,var(--av-bg)}
+.ia-pasos li[data-estado="mal"]::before{border-color:var(--mal);background:var(--mal-bg)}
+.ia-pasos li[data-estado="salta"] .ia-t,.ia-pasos li[data-estado="ok"] .ia-t{color:var(--tinta2)}
+.ia-pasos li[data-estado="trabaja"] .ia-t{background:linear-gradient(90deg,var(--tinta2) 0 35%,var(--a-tx) 50%,var(--tinta2) 65% 100%) 0 0/300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:brillo-t 1.8s linear infinite}
+@keyframes brillo-t{to{background-position:-150% 0}}
+@keyframes gira{to{transform:rotate(360deg)}}
+.ia-pasos .ia-d{color:var(--tinta3);font-weight:500}
+
+/* ============================================================================
+   9) DESLIZAR UNA PARTIDA para duplicarla o borrarla (teléfono)
+   Idea: SwipeRow (React Bits · Micro). touch-action:pan-y en la cara: el dedo que baja
+   desplaza la página como siempre; el que va de lado abre las acciones. Es ATAJO: las
+   mismas acciones siguen en el menú de la partida. Con teclado, enfocar la fila la
+   abre, así que Tab llega a los dos botones.
+   ============================================================================ */
+.partidas{display:grid;gap:8px}
+.fila-p{position:relative;border-radius:var(--rr3);overflow:hidden;background:var(--sup2);border:1px solid var(--linea)}
+.fila-acc{position:absolute;inset:0 0 0 auto;display:flex}
+.fila-acc button{width:76px;border:0;font:700 var(--t1)/1.1 var(--f-texto);color:#fff;cursor:pointer}
+.fila-acc .dup{background:var(--a-fill)} .fila-acc .bor{background:var(--mal)}
+.fila-cara{position:relative;z-index:1;background:var(--sup);padding:12px 14px;display:flex;justify-content:space-between;gap:10px;align-items:center;touch-action:pan-y;transition:transform var(--mv-liq);cursor:grab;user-select:none;-webkit-user-select:none}
+.fila-cara b{font-family:var(--f-cifra);font-variant-numeric:tabular-nums}
+.fila-cara small{display:block;color:var(--tinta3);font-size:var(--t1)}
+.fila-p:has(:focus-visible) .fila-cara{transform:translateX(-152px)}
+.fila-p.se-va{animation:se-va .32s ease-in forwards}
+@keyframes se-va{to{opacity:0;transform:translateX(-30px);height:0;margin:0;padding:0;border-width:0}}
+
+/* ============================================================================
+   10) BORDES QUE SE DESVANECEN en una fila de chips con desplazamiento
+   Idea: Scroll with fade effect skiper87 (Skiper UI) — CSS puro. La fila se funde en
+   el lado donde queda más, y deja de fundirse al llegar al tope. Sin JS: animación
+   ligada al desplazamiento. Donde el navegador no la tiene (Firefox), queda un solo
+   degradado fijo a la derecha, que ya dice «hay más».
+   ============================================================================ */
+@property --izq{syntax:'<length>';initial-value:0px;inherits:false}
+@property --der{syntax:'<length>';initial-value:0px;inherits:false}
+.fila-chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 0;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 var(--izq),#000 calc(100% - var(--der)),transparent 100%);
+  mask-image:linear-gradient(90deg,transparent 0,#000 var(--izq),#000 calc(100% - var(--der)),transparent 100%);
+  animation:bordes-fila linear both;animation-timeline:scroll(self inline)}
+.fila-chips::-webkit-scrollbar{display:none}
+@keyframes bordes-fila{0%{--izq:0px;--der:36px}10%{--izq:36px}90%{--der:36px}100%{--izq:36px;--der:0px}}
+@supports not (animation-timeline:scroll()){.fila-chips{--der:36px}}
+.chip{flex:none;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--linea);background:var(--sup);font:600 var(--t2)/1 var(--f-texto);color:var(--tinta2);white-space:nowrap}
+
+/* ============================================================================
+   11) DESENFOQUE PROGRESIVO bajo el dock y la barra de arriba
+   Idea: Progressive Blur skiper41 (Skiper UI), GradualBlur (React Bits). Hoy el dock
+   del teléfono flota con vidrio, pero la lista se corta en seco contra él. Tres capas
+   con desenfoque creciente y máscaras escalonadas: lo que pasa por debajo se va
+   perdiendo de a poco. Tres capas, no ocho: backdrop-filter cuesta en gama media.
+   En el repo va position:fixed; aquí va dentro de una caja para que se vea.
+   ============================================================================ */
+.caja-lista{position:relative;height:260px;border:1px solid var(--linea);border-radius:var(--rr3);overflow:hidden;background:var(--fondo)}
+.caja-lista .desplaza{height:100%;overflow-y:auto;padding:12px 12px 90px;display:grid;gap:8px}
+.caja-lista .renglon{background:var(--sup);border:1px solid var(--linea);border-radius:var(--rr2);padding:12px;font-size:var(--t2)}
+.desenfoque{position:absolute;left:0;right:0;bottom:0;height:96px;pointer-events:none}
+.desenfoque>i{position:absolute;inset:0;-webkit-backdrop-filter:blur(var(--b));backdrop-filter:blur(var(--b));
+  -webkit-mask-image:linear-gradient(to top,#000 var(--m1),transparent var(--m2));mask-image:linear-gradient(to top,#000 var(--m1),transparent var(--m2))}
+.desenfoque>i:nth-child(1){--b:1px;--m1:30%;--m2:100%}
+.desenfoque>i:nth-child(2){--b:3px;--m1:20%;--m2:70%}
+.desenfoque>i:nth-child(3){--b:8px;--m1:0%;--m2:45%;background:linear-gradient(to top,rgba(243,244,251,.7),transparent)}
+.dock-muestra{position:absolute;left:10px;right:10px;bottom:10px;height:56px;border-radius:20px;background:rgba(255,255,255,.88);-webkit-backdrop-filter:blur(24px) saturate(1.8);backdrop-filter:blur(24px) saturate(1.8);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 2px 8px rgba(35,39,68,.08),0 32px 64px -24px rgba(48,24,248,.42);display:flex;align-items:center;justify-content:space-between;padding:0 16px;font:700 var(--t3)/1 var(--f-cifra)}
+
+/* ----- Movimiento reducido: se apaga todo lo que es adorno ----- */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+  .rueda-tira{transition:none}
+  .mantener.manteniendo{transform:none}
+  .sellada.enciende::after{display:none}
+  .ia-pasos li[data-estado="trabaja"] .ia-t{animation:none;color:var(--tinta);background:none}
+  .fila-chips{animation:none;--der:36px}
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Muestras de UI para el cotizador</h1>
+    <p class="intro">Once piezas de React Bits, Skiper UI y Vengeance UI, reescritas sin React ni librerías, con los tokens de <code>css/sistema.css</code>. Todo se puede tocar.</p>
+  </header>
+
+  <!-- 1 · 2 · 3 · 4 juntos: una partida de verdad -->
+  <section class="card" aria-labelledby="t-partida">
+    <div class="card-h"><h2 id="t-partida">Una partida: material, medidas y total</h2><span class="fuente">1 · 2 · 3 · 4</span></div>
+    <p class="nota">Cambia el material (la ficha viaja), arrastra sobre «ALTO» o «LETRAS» para mover la medida, toca el precio para ver la cuenta y mira cómo rueda el total.</p>
+
+    <div class="seg" role="group" aria-label="Material de las letras" id="seg-material">
+      <button type="button" data-tarifa="30" class="on">Aluminio</button>
+      <button type="button" data-tarifa="35">Brush</button>
+      <button type="button" data-tarifa="40">Acrílico</button>
+      <button type="button" data-tarifa="45">Acrílico + vinil</button>
+    </div>
+
+    <div class="medidas">
+      <label class="medida" id="m-alto"><span class="medida-mango">Alto</span><input class="cant" id="alto" type="number" inputmode="decimal" min="10" max="200" step="1" value="30" aria-label="Alto de letra en centímetros"><span class="medida-u">cm</span></label>
+      <label class="medida" id="m-letras"><span class="medida-mango">Letras</span><input class="cant" id="letras" type="number" inputmode="numeric" min="1" max="60" step="1" value="9" aria-label="Cantidad de letras"><span class="medida-u">pzas</span></label>
+      <label class="fila" style="gap:6px;font-size:var(--t2);color:var(--tinta2)"><input type="checkbox" id="iva"> Con factura (IVA 16 %)</label>
+    </div>
+
+    <div class="fila" style="justify-content:space-between">
+      <div><span class="fuente">PRECIO DE LA PARTIDA</span><br><button type="button" class="precio-partida" id="precio" popovertarget="desglose">$8,100</button></div>
+      <div style="text-align:right"><span class="fuente">TOTAL</span><br><span class="rueda-cifra" id="total" role="status" aria-live="polite"></span></div>
+    </div>
+
+    <div popover id="desglose" class="desglose" role="dialog" aria-label="Cómo sale el precio">
+      <dl id="desglose-dl"></dl>
+    </div>
+  </section>
+
+  <!-- 5 · 6 · 7 -->
+  <section class="card" aria-labelledby="t-autorizar">
+    <div class="card-h"><h2 id="t-autorizar">Autorizar manteniendo presionado</h2><span class="fuente">5 · 6 · 7</span></div>
+    <p class="nota">Un toque corto no hace nada: avisa. Hay que sostener 1.2 s (o Espacio / Enter con teclado; Esc cancela). Al completarse, la tarjeta se enciende como neón.</p>
+    <div class="fila">
+      <button type="button" class="mantener azul" id="btn-autorizar" aria-describedby="aviso-aut">Mantén para autorizar</button>
+      <button type="button" class="mantener" id="btn-borrar" aria-describedby="aviso-aut">Mantén para borrar partida</button>
+      <button type="button" class="btn" id="btn-reinicia">Reiniciar muestra</button>
+    </div>
+    <p class="mantener-aviso" id="aviso-aut" aria-live="polite"></p>
+    <div class="sellada" id="sellada" hidden>
+      <div class="sellada-t">
+        <svg class="palomita" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12"/><path d="M6.8 12.4l3.4 3.4 7-7.4" pathLength="1"/></svg>
+        Cotización autorizada y sellada en la hoja
+      </div>
+      <p class="nota">Panadería La Espiga · sellada el 26-sep-2026 por dirección@al3d</p>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section class="card" aria-labelledby="t-ia">
+    <div class="card-h"><h2 id="t-ia">Cotizar con IA: qué está haciendo</h2><span class="fuente">8</span></div>
+    <p class="nota">Simula una corrida real: Qwen saturado, DeepSeek no puede, Gemini contesta.</p>
+    <div class="fila"><button type="button" class="btn" id="btn-ia">Simular una corrida</button></div>
+    <ol class="ia-pasos" id="ia-pasos" aria-live="polite"></ol>
+  </section>
+
+  <!-- 9 -->
+  <section class="card" aria-labelledby="t-swipe">
+    <div class="card-h"><h2 id="t-swipe">Deslizar la partida</h2><span class="fuente">9</span></div>
+    <p class="nota">Arrastra una partida a la izquierda (dedo o ratón). Con teclado, Tab la abre.</p>
+    <div class="partidas" id="partidas">
+      <div class="fila-p"><div class="fila-acc"><button type="button" class="dup">Duplicar</button><button type="button" class="bor">Borrar</button></div>
+        <div class="fila-cara" tabindex="0"><span>Letras 3D acrílico<small>30 cm · 9 letras · LED frontal</small></span><b>$10,800</b></div></div>
+      <div class="fila-p"><div class="fila-acc"><button type="button" class="dup">Duplicar</button><button type="button" class="bor">Borrar</button></div>
+        <div class="fila-cara" tabindex="0"><span>Caja de luz rectangular<small>1.2 × 0.6 m · 0.72 m²</small></span><b>$2,808</b></div></div>
+      <div class="fila-p"><div class="fila-acc"><button type="button" class="dup">Duplicar</button><button type="button" class="bor">Borrar</button></div>
+        <div class="fila-cara" tabindex="0"><span>Caja de luz tipo nube<small>0.8 m² · sigue el logo</small></span><b>$3,680</b></div></div>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section class="card" aria-labelledby="t-chips">
+    <div class="card-h"><h2 id="t-chips">Fila de opciones que se desvanece en el borde</h2><span class="fuente">10</span></div>
+    <div class="fila-chips" aria-label="Tipo de trabajo">
+      <button type="button" class="chip">Letras 3D</button><button type="button" class="chip">Recorte de acrílico</button><button type="button" class="chip">Bastidor</button>
+      <button type="button" class="chip">Caja de luz</button><button type="button" class="chip">Caja tipo nube</button><button type="button" class="chip">Neón flex</button>
+      <button type="button" class="chip">Rotulación de vinil</button><button type="button" class="chip">Captura manual</button>
+    </div>
+  </section>
+
+  <!-- 11 -->
+  <section class="card" aria-labelledby="t-blur">
+    <div class="card-h"><h2 id="t-blur">Desenfoque progresivo bajo el dock</h2><span class="fuente">11</span></div>
+    <div class="caja-lista">
+      <div class="desplaza" id="desplaza"></div>
+      <div class="desenfoque" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="dock-muestra"><span style="font:600 var(--t2)/1 var(--f-texto);color:var(--tinta2)">Total</span><span>$12,528</span></div>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ============================================================================
+   Todo lo de abajo son funciones sueltas, cada una con su propio arranque, para que se
+   puedan llevar al repo de una en una (js/nucleo/ui.js es su casa natural).
+   ============================================================================ */
+const reducido = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const MXN = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 });
+
+/* ----- 1) cifraRueda(el, valor) — el total que rueda -----
+   Guarda el texto anterior en data-valor. Cada dígito nuevo arranca en el dígito que
+   había en esa MISMA posición contando desde la derecha y viaja al nuevo. Los que no
+   existían arrancan en 0. El lector de pantalla oye el número completo, una vez. */
+function cifraRueda(el, valor) {
+  const nuevo = MXN.format(valor);
+  const viejo = el.dataset.valor || '';
+  if (nuevo === viejo) return;
+  el.dataset.valor = nuevo;
+  const sr = document.createElement('span'); sr.className = 'sr'; sr.textContent = nuevo;
+  const vista = document.createElement('span'); vista.setAttribute('aria-hidden', 'true'); vista.style.display = 'inline-flex';
+  const tiras = [];
+  for (let i = 0; i < nuevo.length; i++) {
+    const ch = nuevo[i];
+    if (!/\d/.test(ch)) { const s = document.createElement('span'); s.textContent = ch; vista.append(s); continue; }
+    const antes = viejo[viejo.length - nuevo.length + i];
+    const desde = /\d/.test(antes || '') ? +antes : 0;
+    const col = document.createElement('span'); col.className = 'rueda';
+    const tira = document.createElement('span'); tira.className = 'rueda-tira';
+    for (let d = 0; d <= 9; d++) { const s = document.createElement('span'); s.textContent = d; tira.append(s); }
+    const quieto = reducido() || !viejo;
+    tira.style.transition = 'none';
+    tira.style.transform = `translateY(${-(quieto ? +ch : desde) * 10}%)`;
+    if (!quieto) tira.style.transitionDelay = `${(nuevo.length - i) * 18}ms`;
+    col.append(tira); vista.append(col);
+    tiras.push([tira, +ch, quieto]);
+  }
+  el.replaceChildren(sr, vista);
+  /* Dos requestAnimationFrame anidados, como _volarTotal() en proceso.js: con uno solo,
+     Chrome junta la escritura sin transición y la que sí la lleva, y no anima nada. */
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    for (const [tira, d, quieto] of tiras) {
+      if (quieto) continue;
+      tira.style.transition = '';
+      tira.style.transform = `translateY(${-d * 10}%)`;
+    }
+  }));
+}
+
+/* ----- 2) pildoraSeg(seg) — la ficha que viaja en .seg / .tipo-seg ----- */
+function pildoraSeg(seg) {
+  const p = document.createElement('span');
+  p.className = 'seg-pildora'; p.setAttribute('aria-hidden', 'true');
+  seg.prepend(p); seg.classList.add('con-pildora');
+  const mover = (animar = true) => {
+    const b = seg.querySelector('button.on');
+    if (!b) { p.style.opacity = 0; return; }
+    if (!animar || reducido()) p.style.transition = 'none';
+    p.style.width = b.offsetWidth + 'px';
+    p.style.height = b.offsetHeight + 'px';
+    p.style.transform = `translate(${b.offsetLeft}px,${b.offsetTop}px)`;
+    p.style.opacity = 1;
+    if (!animar) requestAnimationFrame(() => { p.style.transition = ''; });
+  };
+  /* Quien ponga .on —la app, un clic, una restauración del historial— mueve la ficha. */
+  new MutationObserver(() => mover()).observe(seg, { subtree: true, attributes: true, attributeFilter: ['class'] });
+  new ResizeObserver(() => mover(false)).observe(seg);
+  document.fonts?.ready.then(() => mover(false));
+  mover(false);
+}
+
+/* ----- 3) arrastrarMedida(etiqueta, input) — la etiqueta es el mango -----
+   Cada `px` píxeles de arrastre es un `step` del input; Shift lo multiplica por 10.
+   Al soltar dispara 'change', igual que si se hubiera tecleado. En Android da un
+   golpecito de vibración por paso, si el teléfono lo deja. */
+function arrastrarMedida(mango, input, { px = 6 } = {}) {
+  const caja = mango.closest('.medida');
+  const paso = +input.step || 1, min = +input.min, max = +input.max;
+  let x0 = 0, v0 = 0, ultimo = 0, id = null;
+  mango.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    id = e.pointerId; mango.setPointerCapture(id);
+    x0 = e.clientX; v0 = ultimo = +input.value || 0;
+    caja.classList.add('arrastrando');
+    e.preventDefault();
+  });
+  mango.addEventListener('pointermove', e => {
+    if (e.pointerId !== id) return;
+    const mult = e.shiftKey ? 10 : 1;
+    let v = v0 + Math.round((e.clientX - x0) / px) * paso * mult;
+    v = Math.min(max, Math.max(min, v));
+    if (v === ultimo) return;
+    ultimo = v; input.value = v;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    navigator.vibrate?.(4);
+  });
+  const soltar = e => {
+    if (e.pointerId !== id) return;
+    id = null; caja.classList.remove('arrastrando');
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  mango.addEventListener('pointerup', soltar);
+  mango.addEventListener('pointercancel', soltar);
+  /* Tocar el mango sin arrastrar enfoca el campo: el dedo que quería teclear, teclea. */
+  mango.addEventListener('click', () => input.focus());
+}
+
+/* ----- 4) desglose — el popover nativo, ubicado junto a su botón ----- */
+function ubicarPopover(pop, boton) {
+  pop.addEventListener('toggle', e => {
+    if (e.newState !== 'open') return;
+    const r = boton.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+    let x = Math.min(innerWidth - w - 12, Math.max(12, r.left));
+    let y = r.bottom + 8; if (y + h > innerHeight - 12) y = r.top - h - 8;
+    pop.style.left = x + 'px'; pop.style.top = y + 'px';
+  });
+}
+
+/* ----- 5) mantenerParaConfirmar(btn, alConfirmar) -----
+   Puntero: pointerdown empieza, soltar o salirse 10 px del botón cancela. Teclado:
+   Espacio o Enter sostenido; Esc cancela. Perder la ventana (llamada entrante, cambio
+   de app) cancela. Un toque de menos de 250 ms no es un intento: es alguien que no sabía,
+   y se le dice cómo. */
+function mantenerParaConfirmar(btn, alConfirmar, { ms = 1200, aviso, textoHecho = 'Listo' } = {}) {
+  /* La capa de encima lleva EL MISMO texto: donde pasa el relleno solo cambia de color. */
+  const texto = btn.textContent; btn.dataset.lleno = texto;
+  let t0 = 0, raf = 0, p = 0, estado = 'quieto', rect = null;
+  const pintar = v => { p = v; btn.style.setProperty('--p', v.toFixed(4)); };
+  const regresar = () => {
+    const desde = p, t = performance.now();
+    const paso = now => { const k = Math.min(1, (now - t) / 180); pintar(desde * (1 - (1 - Math.pow(1 - k, 3)))); if (k < 1) raf = requestAnimationFrame(paso); };
+    cancelAnimationFrame(raf); raf = requestAnimationFrame(paso);
+  };
+  const empezar = () => {
+    if (estado !== 'quieto' || btn.disabled) return;
+    estado = 'sosteniendo'; t0 = performance.now(); rect = btn.getBoundingClientRect();
+    btn.classList.add('manteniendo');
+    const paso = now => {
+      const k = Math.min(1, (now - t0) / ms); pintar(k);
+      if (k < 1) { raf = requestAnimationFrame(paso); return; }
+      estado = 'hecho'; btn.classList.remove('manteniendo'); btn.classList.add('hecho');
+      btn.textContent = textoHecho; btn.setAttribute('aria-disabled', 'true');
+      if (aviso) aviso.textContent = '';
+      alConfirmar?.();
+    };
+    cancelAnimationFrame(raf); raf = requestAnimationFrame(paso);
+  };
+  const soltar = (salio = false) => {
+    if (estado !== 'sosteniendo') return;
+    estado = 'quieto'; btn.classList.remove('manteniendo'); regresar();
+    if (!salio && performance.now() - t0 < 250 && aviso) aviso.textContent = 'Mantén presionado un momento para confirmar — un toque no alcanza.';
+  };
+  btn.addEventListener('pointerdown', e => { if (e.button !== 0 || !e.isPrimary) return; btn.setPointerCapture(e.pointerId); empezar(); });
+  btn.addEventListener('pointerup', () => soltar());
+  btn.addEventListener('pointercancel', () => soltar(true));
+  btn.addEventListener('pointermove', e => {
+    if (estado !== 'sosteniendo' || !rect) return;
+    const pad = 10;
+    if (e.clientX < rect.left - pad || e.clientX > rect.right + pad || e.clientY < rect.top - pad || e.clientY > rect.bottom + pad) soltar(true);
+  });
+  btn.addEventListener('keydown', e => {
+    if (e.key === 'Escape') return soltar(true);
+    if ((e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); if (!e.repeat) empezar(); }
+  });
+  btn.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); soltar(); } });
+  btn.addEventListener('contextmenu', e => e.preventDefault());   // el menú de pulsación larga de Android
+  addEventListener('blur', () => soltar(true));
+  return { reiniciar() { cancelAnimationFrame(raf); estado = 'quieto'; pintar(0); btn.textContent = texto; btn.classList.remove('hecho', 'manteniendo'); btn.removeAttribute('aria-disabled'); } };
+}
+
+/* ----- 7) encenderNeon(el) — dura lo que dura y se quita sola ----- */
+function encenderNeon(el) {
+  el.classList.remove('enciende'); void el.offsetWidth; el.classList.add('enciende');
+  setTimeout(() => el.classList.remove('enciende'), 2700);
+}
+
+/* ----- 8) iaPasos(ol) — la lista que avanza -----
+   paso(clave, texto, estado, detalle): si la clave ya existe, se actualiza en su lugar;
+   si no, se añade al final. Estados: espera · trabaja · ok · salta · mal.
+   En ia.js, cada aiStatus(msg,'work') de hoy se vuelve un paso('qwen', …, 'trabaja'). */
+function iaPasos(ol) {
+  const filas = new Map();
+  return {
+    limpiar() { filas.clear(); ol.replaceChildren(); },
+    paso(clave, texto, estado = 'trabaja', detalle = '') {
+      let li = filas.get(clave);
+      if (!li) { li = document.createElement('li'); li.innerHTML = '<span><span class="ia-t"></span> <span class="ia-d"></span></span>'; ol.append(li); filas.set(clave, li); }
+      li.dataset.estado = estado;
+      li.querySelector('.ia-t').textContent = texto;
+      li.querySelector('.ia-d').textContent = detalle;
+    }
+  };
+}
+
+/* ----- 9) deslizarFila(fila) — atajo de dedo para Duplicar / Borrar ----- */
+function deslizarFila(fila, { ancho = 152 } = {}) {
+  const cara = fila.querySelector('.fila-cara');
+  let x0 = 0, y0 = 0, dx = 0, abierto = 0, decidido = false, activo = false;
+  cara.addEventListener('pointerdown', e => { x0 = e.clientX; y0 = e.clientY; activo = true; decidido = false; });
+  cara.addEventListener('pointermove', e => {
+    if (!activo) return;
+    const mx = e.clientX - x0, my = e.clientY - y0;
+    if (!decidido) {
+      if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
+      if (Math.abs(my) > Math.abs(mx)) { activo = false; return; }   // era desplazar la página
+      decidido = true; cara.setPointerCapture(e.pointerId); cara.style.transition = 'none';
+    }
+    dx = Math.min(0, Math.max(-ancho * 1.15, abierto + mx));
+    cara.style.transform = `translateX(${dx}px)`;
+  });
+  const soltar = () => {
+    if (!activo) return; activo = false;
+    if (!decidido) return;
+    cara.style.transition = '';
+    abierto = dx < -ancho / 2 ? -ancho : 0;
+    cara.style.transform = abierto ? `translateX(${abierto}px)` : '';
+  };
+  cara.addEventListener('pointerup', soltar);
+  cara.addEventListener('pointercancel', soltar);
+  fila.querySelector('.bor').addEventListener('click', () => { fila.classList.add('se-va'); fila.addEventListener('animationend', () => fila.remove(), { once: true }); });
+  fila.querySelector('.dup').addEventListener('click', () => { const copia = fila.cloneNode(true); copia.querySelector('.fila-cara').style.transform = ''; fila.after(copia); deslizarFila(copia, { ancho }); cara.style.transform = ''; abierto = 0; });
+}
+
+/* ============================ Arranque de la muestra ============================ */
+const seg = document.getElementById('seg-material');
+const alto = document.getElementById('alto'), letras = document.getElementById('letras'), iva = document.getElementById('iva');
+const total = document.getElementById('total'), precio = document.getElementById('precio'), dl = document.getElementById('desglose-dl');
+
+seg.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  recalcular();
+});
+pildoraSeg(seg);
+arrastrarMedida(document.querySelector('#m-alto .medida-mango'), alto);
+arrastrarMedida(document.querySelector('#m-letras .medida-mango'), letras);
+ubicarPopover(document.getElementById('desglose'), precio);
+[alto, letras, iva].forEach(x => x.addEventListener('input', recalcular));
+iva.addEventListener('change', recalcular);
+
+function recalcular() {
+  const b = seg.querySelector('button.on');
+  const tarifa = +b.dataset.tarifa, h = +alto.value || 0, n = +letras.value || 0;
+  const sub = tarifa * h * n, conIva = iva.checked ? sub * 1.16 : sub;
+  precio.textContent = MXN.format(sub);
+  dl.innerHTML =
+    `<dt>${b.textContent}</dt><dd>$${tarifa} por cm</dd>` +
+    `<dt>Alto de letra</dt><dd>× ${h} cm</dd>` +
+    `<dt>Letras</dt><dd>× ${n}</dd>` +
+    `<dt class="suma">Partida</dt><dd class="suma">${MXN.format(sub)}</dd>` +
+    (iva.checked ? `<dt>IVA 16 %</dt><dd>${MXN.format(sub * .16)}</dd>` : '');
+  cifraRueda(total, conIva);
+}
+recalcular();
+
+const aviso = document.getElementById('aviso-aut'), sellada = document.getElementById('sellada');
+const hAut = mantenerParaConfirmar(document.getElementById('btn-autorizar'), () => { sellada.hidden = false; encenderNeon(sellada); }, { aviso, textoHecho: 'Autorizada' });
+const hBor = mantenerParaConfirmar(document.getElementById('btn-borrar'), () => { aviso.textContent = 'Partida borrada. (En la app: toast con «Deshacer».)'; }, { aviso, textoHecho: 'Borrada' });
+document.getElementById('btn-reinicia').addEventListener('click', () => {
+  hAut.reiniciar(); hBor.reiniciar(); sellada.hidden = true; aviso.textContent = '';
+});
+
+const ia = iaPasos(document.getElementById('ia-pasos'));
+const espera = ms => new Promise(r => setTimeout(r, ms));
+document.getElementById('btn-ia').addEventListener('click', async e => {
+  const btn = e.currentTarget;   // después del primer await, currentTarget ya es null
+  btn.disabled = true; ia.limpiar();
+  ia.paso('foto', 'Reduciendo la foto', 'trabaja', '6.4 MB');
+  await espera(900); ia.paso('foto', 'Foto lista', 'ok', '1.1 MB');
+  ia.paso('qwen', 'Qwen leyendo el diseño', 'trabaja'); ia.paso('deepseek', 'DeepSeek', 'espera'); ia.paso('gemini', 'Gemini', 'espera');
+  await espera(1400); ia.paso('qwen', 'Qwen', 'salta', '· saturado, sigo con el siguiente');
+  ia.paso('deepseek', 'DeepSeek leyendo el diseño', 'trabaja');
+  await espera(1300); ia.paso('deepseek', 'DeepSeek', 'salta', '· no ve esta imagen');
+  ia.paso('gemini', 'Gemini leyendo el diseño', 'trabaja');
+  await espera(1600); ia.paso('gemini', 'Gemini', 'ok', '· 3 partidas propuestas');
+  btn.disabled = false;
+});
+
+document.querySelectorAll('.fila-p').forEach(f => deslizarFila(f));
+
+const desplaza = document.getElementById('desplaza');
+['Panadería La Espiga · letras 3D', 'Farmacia Guadalupe · caja de luz', 'Barbería El Toro · neón flex', 'Taquería Los Primos · caja tipo nube', 'Dental Sonrisa · acrílico + vinil', 'Gym Titanio · aluminio brush', 'Café Barrio · recorte de acrílico', 'Óptica Visión · bastidor', 'Estética Bella · letras 3D', 'Ferretería Juárez · caja de luz']
+  .forEach(t => { const d = document.createElement('div'); d.className = 'renglon'; d.textContent = t; desplaza.append(d); });
+</script>
+</body>
+</html>

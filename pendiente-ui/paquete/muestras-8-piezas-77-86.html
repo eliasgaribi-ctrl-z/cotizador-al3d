@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Muestras de UI 8 · AL3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============================================================================
+   Muestras de UI · parte 8 — 26-sep-2026 (base copiada de la parte 2)
+
+   Las PIEZAS COMPARTIDAS que salieron de recorrer el repo entero: cada una se construye
+   una vez (casi todas en js/nucleo/ui.js y js/cotizador/nucleo.js) y se usa en muchos
+   lugares. El brief dice, para cada una, en qué archivos y líneas entra.
+
+   Igual que la parte 1: JS y CSS sin librerías, sin build, con los tokens de sistema.css
+   copiados aquí solo para que la página se vea sola.
+   ============================================================================ */
+:root{
+  color-scheme:light;
+  --fondo:#f3f4fb; --sup:#ffffff; --sup2:#f7f8fd; --linea:#dcdff2; --linea2:#eceef8;
+  --tinta:#1a1d33; --tinta2:#5c6184; --tinta3:#666d9b; --nav:#171a33;
+  --n1:#f3f4fb; --n2:#eceef8; --n3:#dcdff2; --n6:#5c6184; --n8:#1a1d33;
+  --a:#4060f8; --a-fuerte:#3018f8; --a-claro:#6090f8; --a-suave:#e9edff; --a-borde:#b9c5fe;
+  --a-fill:#4060f8; --a-tx:#3018f8; --a-rgb:64,96,248; --tinta-rgb:35,39,68; --sup-rgb:255,255,255;
+  --ok:#0a7d4a; --ok-bg:#e2f8ec; --ok-borde:#a9e8c6; --ok-fill:#0a7d4a;
+  --av:#8a5100; --av-bg:#fff2dd; --av-borde:#ffd79c;
+  --mal:#c62828; --mal-bg:#ffeceb; --mal-borde:#ffc4c1;
+  --rr1:4px; --rr2:6px; --rr3:10px; --rr4:12px;
+  --t1:12px; --t2:13.5px; --t3:15px; --t4:18px; --t6:28px;
+  --mv-s:.16s cubic-bezier(.2,.8,.2,1); --mv-r:.2s cubic-bezier(.2,.8,.2,1);
+  --mv-t:.5s cubic-bezier(.2,.8,.2,1); --mv-liq:.42s cubic-bezier(.34,1.26,.5,1);
+  --f-cifra:'Sora',system-ui,sans-serif; --f-texto:'Manrope',system-ui,sans-serif;
+  --sombra-alta:0 2px 8px rgba(35,39,68,.08),0 32px 64px -24px rgba(48,24,248,.42);
+}
+/* Tema oscuro mínimo, solo para que la muestra 21 (revelado del tema) tenga a dónde ir. */
+html[data-tema="oscuro"]{
+  color-scheme:dark;
+  --fondo:#0f1122; --sup:#181b33; --sup2:#1d2140; --linea:#2c3158; --linea2:#232744;
+  --tinta:#eef0ff; --tinta2:#b6bbe0; --tinta3:#9aa0cc; --n1:#1d2140; --n2:#2c3158; --n3:#3a4070; --n6:#b6bbe0; --n8:#eef0ff;
+  --a-suave:#23285a; --a-borde:#4a58c8; --a-tx:#9fb3ff; --a-fill:#4a5ff0; --sup-rgb:24,27,51;
+  --ok:#6fd6a4; --ok-bg:#13352a; --ok-borde:#2f6d52; --ok-fill:#0a7d4a;
+  --av:#ffc979; --av-bg:#3a2a10; --av-borde:#7a5a22;
+  --mal:#ff8f88; --mal-bg:#3d1a1c; --mal-borde:#7a3236;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--fondo);color:var(--tinta);font:500 var(--t3)/1.5 var(--f-texto);-webkit-font-smoothing:antialiased;padding:24px 16px 120px}
+main{max-width:760px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+.card{min-width:0}
+h1{font:700 22px/1.2 var(--f-cifra);margin:0} h2{font:600 var(--t4)/1.25 var(--f-cifra);margin:0}
+.intro,.nota{color:var(--tinta2);margin:0;font-size:var(--t2)} .intro{font-size:var(--t3);margin-top:6px}
+.card{background:var(--sup);border:1px solid var(--linea);border-radius:var(--rr4);padding:18px;display:grid;gap:12px;box-shadow:0 1px 2px rgba(var(--tinta-rgb),.05),0 16px 40px -24px rgba(48,24,248,.25)}
+.card-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px}
+.fuente{font-size:var(--t1);color:var(--tinta3);font-weight:700;letter-spacing:.02em}
+.fila{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.btn{position:relative;font:600 var(--t2)/1 var(--f-texto);min-height:44px;padding:0 16px;border-radius:var(--rr2);border:1px solid var(--linea);background:var(--sup);color:var(--tinta);cursor:pointer}
+.btn-pri{background:var(--a-fill);border-color:var(--a-fill);color:#fff}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--a-fuerte);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.fld{display:grid;gap:4px} .fld label{font-size:var(--t1);font-weight:700;color:var(--tinta2);text-transform:uppercase;letter-spacing:.04em}
+.fld input{font:600 16px/1 var(--f-texto);min-height:44px;padding:0 12px;border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup2);color:var(--tinta)}
+.chip{min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--linea);background:var(--sup);font:600 var(--t2)/1.1 var(--f-texto);color:var(--tinta2);cursor:pointer}
+
+/* ============================================================================
+   Parte 8 · plataforma y anidador: lo que faltaba — piezas 77 a 86.
+   ============================================================================ */
+:root{--a3:#18b6d8} html[data-tema="oscuro"]{--a3:#39c6e4}
+@keyframes sacude{20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+@keyframes dibuja{to{stroke-dashoffset:0}}
+@keyframes gira{to{transform:rotate(360deg)}}
+.pop{margin:0;inset:auto;position:fixed;max-width:min(320px,calc(100vw - 24px));padding:12px 14px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup);color:var(--tinta);box-shadow:var(--sombra-alta);font-size:var(--t2)}
+
+/* 77) ARRASTRAR TARJETAS ENTRE COLUMNAS — Sale de: Vengeance Highlight Grid + la captura del puntero de
+   React Bits SwipeRow (skiper5 es PRO: solo la idea) · Va en: js/mod/proyectos.js 496–515 (tablero()),
+   526–527 y 1260–1306 (moverEtapa(), que ya confirma retrocesos). Mantener 250 ms levanta la tarjeta; un
+   toque corto sigue abriendo la ficha. Teclado: Alt + → / ←. En el repo, solo a 760 px o más. */
+.cols77{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.col77{background:var(--n1);border:2px solid transparent;border-radius:var(--rr3);padding:8px;display:grid;gap:6px;align-content:start;min-height:150px;transition:border-color .12s,background .12s}
+.col77.sobre{border-color:var(--a-fill);background:var(--a-suave)}
+.col77 h3{margin:0;font:700 var(--t1)/1.2 var(--f-texto);text-transform:uppercase;letter-spacing:.04em;color:var(--tinta2)}
+.tj77{padding:8px;border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup);font-size:var(--t1);font-weight:700;cursor:grab;touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.tj77.levantada{opacity:.35}
+.fantasma77{position:fixed;z-index:60;pointer-events:none;padding:8px;border:1px solid var(--a-borde);border-radius:var(--rr2);background:var(--sup);font-size:var(--t1);font-weight:700;box-shadow:var(--sombra-alta);transform:rotate(-2deg)}
+
+/* 78) LA MARCA DEL MÓDULO ACTIVO SE DESLIZA, Y EL GLOBO AVISA CUANDO SUBE — Sale de: React Bits PillNav
+   + PulseHeart · Va en: js/app.js 595–628 (pintarNav() reescribe las barras en cada montaje: las
+   transiciones de .pil nunca corren) y 632–648 (ponerCuenta()); @keyframes chipPop ya existe (sistema.css
+   1128). Pintar la barra UNA vez y mover solo la marca. El globo salta solo si la cuenta SUBE. */
+.lat78{position:relative;display:grid;gap:2px;width:200px;max-width:100%;padding:6px;border-radius:var(--rr3);background:var(--nav)}
+.lat78 button{position:relative;z-index:1;display:flex;justify-content:space-between;align-items:center;min-height:44px;padding:0 12px;border:0;border-radius:var(--rr2);background:none;color:#c9cdf0;font:600 var(--t2)/1 var(--f-texto);cursor:pointer;text-align:left}
+.lat78 button[aria-current="page"]{color:#fff}
+.lat78 .marca{position:absolute;left:6px;right:6px;top:0;z-index:0;border-radius:var(--rr2);background:#2c3160;transition:transform var(--mv-liq),height var(--mv-liq)}
+.lat78 .marca::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:2px;background:#8aa4ff}
+.globo{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:#e0413a;color:#fff;font:800 11px/20px var(--f-cifra);text-align:center}
+.globo.sube{animation:chipPop .38s cubic-bezier(.34,1.26,.5,1)}
+@keyframes chipPop{0%{transform:scale(.84)}65%{transform:scale(1.18)}100%{transform:scale(1)}}
+
+/* 79) «SÍ, YA SE CORTÓ» COMO DESLIZADOR QUE ENSEÑA EL RESULTADO — Sale de: React Bits SlideCommit ·
+   Va en: js/mod/tablero.js 1134–1163 (abrirPide(), alClicPide()): la única escritura irreversible del
+   Tablero (saca material del almacén). Deslizar hasta el final confirma; soltar antes regresa; Enter
+   sobre el pulgar también confirma. Termina en una píldora con el resultado, o regresa con una sacudida. */
+.riel79{position:relative;height:56px;border-radius:28px;background:var(--mal-bg);border:1px solid var(--mal-borde);overflow:hidden;user-select:none;-webkit-user-select:none;transition:background .2s,border-color .2s}
+.riel79 .txt{position:absolute;inset:0;display:grid;place-items:center;padding-left:40px;font:700 var(--t2)/1.2 var(--f-texto);color:var(--mal)}
+.riel79 .rastro{position:absolute;left:0;top:0;bottom:0;width:calc(var(--x,0px) + 52px);background:var(--mal);border-radius:28px}
+.riel79 .pulgar{position:absolute;left:3px;top:3px;width:48px;height:48px;border-radius:50%;background:#fff;border:0;display:grid;place-items:center;transform:translateX(var(--x,0px));touch-action:none;cursor:grab;box-shadow:0 2px 6px rgba(0,0,0,.2);color:var(--mal);font:800 20px/1 var(--f-cifra)}
+.riel79.suelta .pulgar,.riel79.suelta .rastro{transition:transform .3s cubic-bezier(.2,.8,.2,1),width .3s cubic-bezier(.2,.8,.2,1)}
+.riel79.trabaja .pulgar::after{content:"";width:22px;height:22px;border-radius:50%;border:3px solid var(--mal-borde);border-top-color:var(--mal);animation:gira .8s linear infinite;position:absolute}
+.riel79.ok{background:var(--ok-bg);border-color:var(--ok-borde)}
+.riel79.ok .rastro,.riel79.ok .pulgar{display:none}
+.riel79.ok .txt{color:var(--ok);padding:0 12px}
+.riel79.mal{animation:sacude .32s}
+
+/* 80) BARRAS DE DOCE MESES QUE CRECEN UNA VEZ, Y UN MES QUE SE PUEDE ABRIR — Sale de: Vengeance Stats
+   Counter (disparo único al verse) + el desglose en popover de la pieza 4 · Va en: js/mod/control.js
+   334–359 (graficaMeses()) y plataforma.css 1781–1799 (.ct-b tiene transition:width que nunca corre).
+   IntersectionObserver dispara una sola vez; buscar/repintar no vuelve a animar. Un mes en 0 no lleva barra. */
+.meses{display:grid;gap:4px}
+.mes80{display:grid;grid-template-columns:34px 1fr 76px;align-items:center;gap:8px;min-height:32px;border:0;background:none;padding:0;cursor:pointer;color:var(--tinta);font:600 var(--t1)/1 var(--f-texto);text-align:left}
+.mes80 .b{height:14px;border-radius:3px;background:var(--a-fill);width:0;transition:width .7s cubic-bezier(.2,.8,.2,1)}
+.meses.visto .mes80 .b{width:var(--w)}
+.mes80 .m{text-align:right;font-variant-numeric:tabular-nums;color:var(--tinta2)}
+.mes80[disabled]{cursor:default}
+
+/* 81) LA BANDA DE AVISO ENTRA SIN EMPUJAR LA PANTALLA, Y DICE QUE SE ACTUALIZÓ — Sale de: React Bits
+   FadeContent + SwipeToast · Va en: js/app.js 729–774 (pintarBanda(), revisarDispositivo()) y 1193–1217
+   (recargar(), controllerchange). [hidden]{display:none!important} mata cualquier transición: se usa una
+   clase. Si ya se había bajado, se compensa el scroll para que lo que se está leyendo no se mueva. */
+.pantalla81{height:260px;overflow:auto;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--fondo);position:relative}
+.banda81{display:grid;grid-template-rows:0fr;transition:grid-template-rows .2s cubic-bezier(.2,.8,.2,1);position:sticky;top:0;z-index:2}
+.banda81>div{overflow:hidden;min-height:0}
+.banda81 .in{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:var(--a-suave);border-bottom:1px solid var(--a-borde);font-size:var(--t2);font-weight:700;color:var(--a-tx)}
+.banda81.abierta{grid-template-rows:1fr}
+.renglon81{margin:8px 10px;padding:10px 12px;border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup);font-size:var(--t2)}
+.aviso81{position:absolute;left:10px;right:10px;bottom:10px;padding:10px 12px;border-radius:var(--rr3);background:var(--nav);color:#fff;font-size:var(--t2);opacity:0;transform:translateY(10px);transition:opacity .2s,transform .2s;pointer-events:none}
+.aviso81.show{opacity:1;transform:none}
+
+/* 82) «GUARDAR LO QUE CAMBIASTE» SE ENCIENDE CUANDO HAY CAMBIOS — Sale de: React Bits PromptBar (el
+   botón que se llena cuando hay algo que mandar) · Va en: js/mod/material.js 1082–1117 (filaConstante()
+   con data-antes, guardarConstantes()). Un solo botón de color, y solo cuando hay qué guardar. */
+.ctes{display:grid;gap:8px}
+.cte{display:grid;grid-template-columns:1fr 110px;gap:4px 10px;align-items:center;padding:6px 10px;border-left:3px solid transparent;border-radius:var(--rr1)}
+.cte label{font-size:var(--t2);font-weight:600}
+.cte input{font:600 16px/1 var(--f-cifra);min-height:44px;padding:0 10px;border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup2);color:var(--tinta);width:100%}
+.cte small{grid-column:1/-1;font-size:var(--t1);color:var(--av);font-weight:700;display:none}
+.cte.cambiado{border-left-color:var(--av);background:var(--av-bg)}
+.cte.cambiado small{display:block}
+.btn.fantasma{background:var(--sup);color:var(--tinta3);border-style:dashed}
+
+/* 83) EL ÍNDICE QUE SIGUE AL SCROLL, CON PROGRESO DE LECTURA — Sale de: React Bits PillNav + Skiper
+   skiper89 Scroll progress 001 (GRATIS, atribución) · Va en: js/mod/ajustes.js 291–326 (nueve tarjetas
+   largas) y, sin JS, condiciones.html / privacidad.html (A19, A26). La ficha marca la sección visible
+   (IntersectionObserver); la barra se llena con animation-timeline donde exista y con scroll donde no. */
+.doc83{height:300px;overflow:auto;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup)}
+.idx83{position:sticky;top:0;z-index:2;background:rgba(var(--sup-rgb),.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--linea)}
+.idx83 nav{position:relative;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:6px}
+.idx83 a{position:relative;z-index:1;flex:none;min-height:36px;display:grid;place-items:center;padding:0 12px;border-radius:999px;font:700 var(--t1)/1 var(--f-texto);color:var(--tinta2);text-decoration:none}
+.idx83 a[aria-current="true"]{color:var(--a-tx)}
+.idx83 .pil{position:absolute;left:0;top:6px;height:36px;z-index:0;border-radius:999px;background:var(--a-suave);transition:transform .25s cubic-bezier(.2,.8,.2,1),width .25s}
+.idx83 .prog{height:3px;background:var(--a-fill);transform-origin:left;transform:scaleX(var(--p,0))}
+.sec83{padding:14px 14px 40px;scroll-margin-top:52px}
+.sec83 h3{margin:0 0 6px;font:700 var(--t3)/1.2 var(--f-cifra)} .sec83 p{margin:0 0 8px;font-size:var(--t2);color:var(--tinta2)}
+
+/* 84) LAS COTAS SOBRE EL DIBUJO AL PEDIR LA MEDIDA REAL — Sale de: React Bits Crosshair (solo las guías)
+   · Va en: anidador-vectores/index.html 158–168 (#an-sec-medida) y js/app.js 420–517 (pintarOriginal(),
+   pintarMedida(), escalaDiseno()). Las líneas van en --a3 (informa sin ser acción); el número, en tinta,
+   porque --a3 no lleva texto. La cota del campo con foco se engruesa. Sin escala: «¿? mm» en ámbar. */
+.mesa84{background:#1e2130;border-radius:var(--rr3);padding:10px}
+.mesa84 svg{display:block;width:100%;height:auto}
+.cota{stroke:var(--a3);stroke-width:1.2;vector-effect:non-scaling-stroke}
+.cota.foco{stroke-width:3}
+.num84{font:700 13px var(--f-cifra);fill:#fff;paint-order:stroke;stroke:#1e2130;stroke-width:4px}
+.num84.av{fill:#ffc979}
+.medidas84{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.medidas84 input{min-width:0;width:100%}
+
+/* 85) LA VETA Y LA ORIENTACIÓN DE LA HOJA — Sale de: React Bits WarmTooltip + FlipCard (el asentado, a 90°)
+   · Va en: anidador-vectores/index.html 177–237 (#an-mats, #an-rot «cada 90°» seleccionado — falla 6 del
+   brief) y js/app.js 193–221 (elegirMaterial(), sincronizarHoja()). Es una PREGUNTA, no una regla: el
+   aluminio blanco, negro o pintado no tiene veta; el cepillado y el MDF sí. Las piezas giradas 90° van rayadas. */
+.aviso85{display:none;gap:8px;padding:10px 12px;border:1px solid var(--av-borde);border-radius:var(--rr2);background:var(--av-bg);color:var(--av);font-size:var(--t2);font-weight:700}
+.aviso85.show{display:grid}
+.hoja85{display:grid;place-items:center;min-height:170px}
+.hoja85 svg{width:200px;max-width:100%;transition:transform .42s cubic-bezier(.34,1.26,.5,1)}
+.hoja85.acostada svg{transform:rotate(90deg) scale(.72)}
+.p85{fill:var(--a-suave);stroke:var(--a-fill);stroke-width:1.2}
+.p85.girada{fill:url(#raya85)}
+.chip[aria-pressed="true"]{background:var(--a-fill);border-color:var(--a-fill);color:#fff}
+
+/* 86) «COMO VIENEN / ACOMODADAS» CON EL BARRIDO DEL LÁSER — Sale de: Skiper skiper66 SVG clip path mask
+   (GRATIS, atribución) · Va en: anidador-vectores/index.html 260 (#an-vista-tab, hoy una etiqueta) y
+   js/app.js 611 y 720 (#an-orig se esconde y ya no se puede volver a ver). Las dos vistas en la misma celda;
+   clip-path:inset() al paso del haz. La ficha del control es la de la pieza 2. */
+.vistas86{display:grid;border-radius:var(--rr3);overflow:hidden;background:#1e2130}
+.vistas86>svg{grid-area:1/1;width:100%;height:auto;display:block}
+.vistas86 .acom{clip-path:inset(0 100% 0 0);transition:clip-path .7s cubic-bezier(.4,0,.2,1)}
+.vistas86.acomodadas .acom{clip-path:inset(0 0 0 0)}
+.vistas86 .haz{grid-area:1/1;width:3px;height:100%;background:linear-gradient(#fff,#8aa4ff,#fff);box-shadow:0 0 12px 2px rgba(138,164,255,.8);transform:translateX(-4px);opacity:0;pointer-events:none}
+.vistas86.barre .haz{animation:haz86 .7s cubic-bezier(.4,0,.2,1) forwards}
+@keyframes haz86{0%{opacity:1;transform:translateX(0)}100%{opacity:1;transform:translateX(var(--ancho))}}
+.seg86{position:relative;display:inline-flex;background:var(--n1);border:1px solid var(--n2);border-radius:var(--rr1);padding:3px;gap:2px}
+.seg86 button{position:relative;z-index:1;min-height:44px;padding:0 14px;border:0;background:none;border-radius:6px;font:600 var(--t2)/1 var(--f-texto);color:var(--n6);cursor:pointer}
+.seg86 button[aria-checked="true"]{color:var(--n8)}
+.seg86 .pil{position:absolute;top:3px;left:0;height:44px;border-radius:6px;background:var(--sup);box-shadow:0 1px 2px rgba(var(--tinta-rgb),.08);transition:transform var(--mv-liq),width var(--mv-liq)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+  .vistas86 .haz{display:none}
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Muestras de UI · parte 8: plataforma y anidador, lo que faltaba</h1>
+    <p class="intro">Piezas 77–86: tablero, barra lateral, corte, ventas, avisos, constantes, índices, y tres del anidador.</p>
+  </header>
+
+  <section class="card"><div class="card-h"><h2>77 · Arrastrar tarjetas entre columnas</h2><span class="fuente">Highlight Grid · SwipeRow · P9</span></div>
+    <p class="nota">Mantén una tarjeta 250 ms y arrástrala. Un toque corto «abre la ficha». Con teclado: Alt + → / ←.</p>
+    <div class="cols77" id="cols77"><div class="col77" data-c="0"><h3>Ganado</h3></div><div class="col77" data-c="1"><h3>En diseño</h3></div><div class="col77" data-c="2"><h3>Cortado</h3></div></div>
+    <p class="nota" id="n77" aria-live="polite"></p>
+  </section>
+
+  <section class="card"><div class="card-h"><h2>78 · La marca del módulo se desliza, y el globo avisa cuando sube</h2><span class="fuente">PillNav · PulseHeart · P19, P20</span></div>
+    <div class="fila" style="align-items:flex-start">
+      <nav class="lat78" id="lat78" aria-label="Módulos"><span class="marca" aria-hidden="true"></span>
+        <button type="button" aria-current="page">Tablero <span class="globo" id="g78">2</span></button><button type="button">Proyectos</button><button type="button">Calendario</button><button type="button">Material</button><button type="button">Mapa</button><button type="button">Control</button></nav>
+      <div style="display:grid;gap:8px"><button type="button" class="btn" id="sube78">Llega un aviso (+1)</button><button type="button" class="btn" id="baja78">Se atiende uno (−1)</button></div>
+    </div>
+  </section>
+
+  <section class="card"><div class="card-h"><h2>79 · «Sí, ya se cortó» se desliza y enseña el resultado</h2><span class="fuente">SlideCommit · P21</span></div>
+    <p class="nota">Sacar material del almacén no tiene vuelta: se desliza hasta el final. Soltar antes regresa.</p>
+    <div class="riel79" id="riel79"><i class="rastro"></i><span class="txt" id="txt79">Desliza: sí, ya se cortó</span><button type="button" class="pulgar" id="pul79" aria-label="Sí, ya se cortó. Enter para confirmar">›</button></div>
+    <label class="fila" style="gap:6px;font-size:var(--t2);color:var(--tinta2)"><input type="checkbox" id="falla79"> Que la hoja no conteste</label>
+  </section>
+
+  <section class="card"><div class="card-h"><h2>80 · Doce meses que crecen una vez, y un mes que se abre</h2><span class="fuente">Stats Counter · P27</span></div>
+    <div class="meses" id="meses80"></div>
+    <div popover id="pop80" class="pop" role="dialog" aria-label="Ventas del mes"></div>
+  </section>
+
+  <section class="card"><div class="card-h"><h2>81 · La banda de aviso entra sin empujar, y dice que se actualizó</h2><span class="fuente">FadeContent · SwipeToast · P26, A22</span></div>
+    <p class="nota">Baja un poco en la caja y toca «Llega versión nueva»: lo que lees no se mueve.</p>
+    <div class="pantalla81" id="pan81"><div class="banda81" id="ban81"><div><div class="in">Hay una versión nueva de la app <button type="button" class="btn" id="rec81">Ponerla</button></div></div></div><div id="cont81"></div><div class="aviso81" id="av81" role="status">Se puso la versión nueva de la app.</div></div>
+    <div class="fila"><button type="button" class="btn" id="llega81">Llega versión nueva</button></div>
+  </section>
+
+  <section class="card"><div class="card-h"><h2>82 · «Guardar» se enciende cuando cambiaste algo</h2><span class="fuente">PromptBar · F20</span></div>
+    <div class="ctes" id="ctes82"></div>
+    <div class="fila"><button type="button" class="btn fantasma" id="g82">No hay cambios</button></div>
+  </section>
+
+  <section class="card"><div class="card-h"><h2>83 · El índice que sigue al scroll, con progreso</h2><span class="fuente">PillNav · skiper89 · F22, A19, A26</span></div>
+    <div class="doc83" id="doc83"><div class="idx83"><nav id="nav83"></nav><div class="prog" id="prog83"></div></div><div id="secs83"></div></div>
+  </section>
+
+  <section class="card"><div class="card-h"><h2>84 · Las cotas sobre el dibujo al pedir la medida</h2><span class="fuente">Crosshair · A6</span></div>
+    <div class="mesa84"><svg id="svg84" viewBox="0 0 360 180" aria-hidden="true"></svg></div>
+    <div class="medidas84"><div class="fld"><label for="an84">Ancho real (mm)</label><input id="an84" inputmode="decimal" placeholder="¿?"></div><div class="fld"><label for="al84">Alto real (mm)</label><input id="al84" inputmode="decimal" placeholder="¿?"></div></div>
+  </section>
+
+  <section class="card"><div class="card-h"><h2>85 · La veta y la orientación de la hoja</h2><span class="fuente">WarmTooltip · FlipCard · A5, A21</span></div>
+    <div class="fila" role="group" aria-label="Material" id="mat85"><button type="button" class="chip" data-m="acrilico" aria-pressed="true">Acrílico</button><button type="button" class="chip" data-m="brush" aria-pressed="false">Aluminio cepillado</button><button type="button" class="chip" data-m="mdf" aria-pressed="false">MDF</button></div>
+    <div class="aviso85" id="av85" role="status"><span>¿Lleva veta (cepillado, madera)? Con giros de 90° la veta queda atravesada; con 0° y 180° queda igual.</span><button type="button" class="btn" id="usar85">Usar 0° y 180°</button></div>
+    <div class="fila"><span class="nota" id="rot85">Giros permitidos: cada 90°</span><button type="button" class="btn" id="girar85">Girar la hoja</button></div>
+    <div class="hoja85" id="hoja85"></div>
+  </section>
+
+  <section class="card"><div class="card-h"><h2>86 · «Como vienen / Acomodadas» con el barrido del láser</h2><span class="fuente">skiper66 · A25</span></div>
+    <div class="seg86" role="radiogroup" aria-label="Vista" id="seg86"><span class="pil" aria-hidden="true"></span><button type="button" role="radio" aria-checked="true" data-v="vienen">Como vienen</button><button type="button" role="radio" aria-checked="false" data-v="acom">Acomodadas</button></div>
+    <div class="vistas86" id="vis86"></div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const reducido = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const MXN = n => n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 });
+const ubicar = (pop, ancla) => { const r = ancla.getBoundingClientRect(); pop.style.left = Math.max(12, Math.min(innerWidth - pop.offsetWidth - 12, r.left)) + 'px'; const y = r.bottom + 6; pop.style.top = (y + pop.offsetHeight > innerHeight - 12 ? Math.max(12, r.top - pop.offsetHeight - 6) : y) + 'px'; };
+
+/* 77 · arrastrarEntreColumnas(tablero) */
+const T77 = [['Farmacia Guadalupe', 0], ['Dental Sonrisa', 0], ['Gym Titanio', 1], ['Café Barrio', 2]];
+function pintar77() { document.querySelectorAll('.col77').forEach(c => { c.querySelectorAll('.tj77').forEach(x => x.remove()); T77.forEach(([n, k], i) => { if (k === +c.dataset.c) c.insertAdjacentHTML('beforeend', `<div class="tj77" tabindex="0" data-i="${i}">${n}</div>`); }); }); }
+pintar77();
+let arr = null;
+$('cols77').addEventListener('pointerdown', e => {
+  const t = e.target.closest('.tj77'); if (!t) return;
+  const x0 = e.clientX, y0 = e.clientY, id = e.pointerId;
+  const cancelar = () => { clearTimeout(tm); t.removeEventListener('pointermove', antes); t.removeEventListener('pointerup', toque); };
+  const antes = ev => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) cancelar(); };   // era desplazar: no levanta
+  const toque = () => { cancelar(); $('n77').textContent = `Abrir la ficha de ${t.textContent}`; };
+  t.addEventListener('pointermove', antes); t.addEventListener('pointerup', toque, { once: true });
+  const tm = setTimeout(() => { cancelar(); t.setPointerCapture(id); t.classList.add('levantada'); navigator.vibrate?.(10);
+    const f = document.createElement('div'); f.className = 'fantasma77'; f.textContent = t.textContent; document.body.append(f);
+    arr = { t, f, col: null }; mover(e.clientX, e.clientY);
+    t.addEventListener('pointermove', mv); t.addEventListener('pointerup', soltar, { once: true }); t.addEventListener('pointercancel', soltar, { once: true }); }, 250);
+});
+function mover(x, y) { if (!arr) return; arr.f.style.left = x - 40 + 'px'; arr.f.style.top = y - 18 + 'px'; arr.f.hidden = true;
+  const c = document.elementFromPoint(x, y)?.closest('.col77'); arr.f.hidden = false;
+  document.querySelectorAll('.col77').forEach(k => k.classList.toggle('sobre', k === c)); arr.col = c; }
+const mv = e => mover(e.clientX, e.clientY);
+function soltar() { if (!arr) return; const { t, f, col } = arr; arr = null; f.remove(); t.removeEventListener('pointermove', mv); t.classList.remove('levantada');
+  document.querySelectorAll('.col77').forEach(k => k.classList.remove('sobre'));
+  if (col) { const i = +t.dataset.i, de = T77[i][1], a = +col.dataset.c; if (a !== de) { T77[i][1] = a; pintar77(); $('n77').textContent = `${T77[i][0]} pasó a ${col.querySelector('h3').textContent}` + (a < de ? ' (en la app, retroceder pide confirmación)' : ''); } } }
+$('cols77').addEventListener('keydown', e => { const t = e.target.closest('.tj77'); if (!t || !e.altKey || !['ArrowRight', 'ArrowLeft'].includes(e.key)) return;
+  e.preventDefault(); const i = +t.dataset.i, a = Math.max(0, Math.min(2, T77[i][1] + (e.key === 'ArrowRight' ? 1 : -1))); T77[i][1] = a; pintar77();
+  document.querySelector(`.tj77[data-i="${i}"]`).focus(); $('n77').textContent = `${T77[i][0]} pasó a ${document.querySelectorAll('.col77 h3')[a].textContent}`; });
+
+/* 78 · marcaQueSeDesliza(nav) y globo que avisa cuando sube */
+const nav = $('lat78'), marca = nav.querySelector('.marca');
+const moverMarca = (anim = true) => { const b = nav.querySelector('[aria-current="page"]'); if (!anim || reducido()) marca.style.transition = 'none';
+  marca.style.height = b.offsetHeight + 'px'; marca.style.transform = `translateY(${b.offsetTop}px)`; if (!anim) requestAnimationFrame(() => marca.style.transition = ''); };
+nav.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; nav.querySelectorAll('button').forEach(x => x.toggleAttribute('aria-current', x === b)); b.setAttribute('aria-current', 'page'); moverMarca(); });
+moverMarca(false);
+let n78 = 2;
+const cuenta78 = d => { const g = $('g78'), antes = n78; n78 = Math.max(0, n78 + d); g.textContent = n78; g.hidden = n78 === 0;
+  if (n78 > antes) { g.classList.remove('sube'); void g.offsetWidth; g.classList.add('sube'); } };
+$('sube78').onclick = () => cuenta78(1); $('baja78').onclick = () => cuenta78(-1);
+
+/* 79 · deslizarParaConfirmar(riel, hacer) */
+const riel = $('riel79'), pul = $('pul79');
+let x0 = 0, dx = 0, id79 = null;
+const max79 = () => riel.clientWidth - 54;
+const poner = x => riel.style.setProperty('--x', x + 'px');
+pul.addEventListener('pointerdown', e => { if (riel.classList.contains('trabaja') || riel.classList.contains('ok')) return; id79 = e.pointerId; pul.setPointerCapture(id79); x0 = e.clientX - dx; riel.classList.remove('suelta', 'mal'); });
+pul.addEventListener('pointermove', e => { if (e.pointerId !== id79) return; dx = Math.max(0, Math.min(max79(), e.clientX - x0)); poner(dx); });
+pul.addEventListener('pointerup', e => { if (e.pointerId !== id79) return; id79 = null; if (dx >= max79() * .9) confirmar79(); else { riel.classList.add('suelta'); dx = 0; poner(0); } });
+pul.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); dx = max79(); riel.classList.add('suelta'); poner(dx); confirmar79(); } });
+function confirmar79() {
+  riel.classList.add('trabaja'); $('txt79').textContent = 'Sacando material del almacén…';
+  setTimeout(() => { riel.classList.remove('trabaja');
+    if ($('falla79').checked) { riel.classList.add('suelta', 'mal'); dx = 0; poner(0); $('txt79').textContent = 'La hoja no contestó · desliza para reintentar'; return; }
+    riel.classList.add('ok'); $('txt79').textContent = '✓ Salieron 4 materiales · Ver almacén'; }, 1300);
+}
+
+/* 80 · mesesQueCrecenUnaVez(cont) */
+const M80 = [['Ene', 182400, 7], ['Feb', 96500, 4], ['Mar', 0, 0], ['Abr', 214800, 9], ['May', 158000, 6], ['Jun', 121300, 5], ['Jul', 276900, 11], ['Ago', 203400, 8], ['Sep', 244100, 10], ['Oct', 0, 0], ['Nov', 0, 0], ['Dic', 0, 0]];
+const top80 = Math.max(...M80.map(m => m[1]));
+$('meses80').innerHTML = M80.map(([m, v, n], i) => `<button type="button" class="mes80" data-i="${i}" ${v ? '' : 'disabled'}><span>${m}</span><span class="b" style="--w:${v ? v / top80 * 100 : 0}%"></span><span class="m">${v ? MXN(v) : '—'}</span></button>`).join('');
+new IntersectionObserver((es, o) => { if (es.some(e => e.isIntersecting)) { $('meses80').classList.add('visto'); o.disconnect(); } }, { threshold: .3 }).observe($('meses80'));
+$('meses80').addEventListener('click', e => { const b = e.target.closest('.mes80'); if (!b || b.disabled) return; const [m, v, n] = M80[b.dataset.i], p = $('pop80');
+  p.innerHTML = `<b>${m} 2026 · ${n} ventas</b><br><span style="font-variant-numeric:tabular-nums">${MXN(v)} · ticket promedio ${MXN(v / n)}</span><br><small style="color:var(--tinta2)">En la app: la lista de las ventas de ese mes, filtrada.</small>`;
+  p.showPopover(); ubicar(p, b); });
+
+/* 81 · bandaSinEmpujar(pantalla, banda) + aviso de actualización */
+$('cont81').innerHTML = Array.from({ length: 12 }, (_, i) => `<div class="renglon81">Renglón ${i + 1} · ${['Farmacia Guadalupe', 'Dental Sonrisa', 'Gym Titanio', 'Café Barrio'][i % 4]}</div>`).join('');
+$('llega81').onclick = () => { const pan = $('pan81'), ban = $('ban81'); if (ban.classList.contains('abierta')) return;
+  const y = pan.scrollTop; ban.classList.add('abierta');
+  if (y > 0) { const alto = ban.querySelector('.in').offsetHeight;   // lo que se estaba leyendo se queda donde estaba
+    if (reducido()) pan.scrollTop = y + alto; else { const t0 = performance.now(); const paso = n => { const k = Math.min(1, (n - t0) / 200); pan.scrollTop = y + alto * k; if (k < 1) requestAnimationFrame(paso); }; requestAnimationFrame(paso); } } };
+$('rec81').onclick = () => { $('ban81').classList.remove('abierta'); $('pan81').scrollTop = 0; const a = $('av81'); a.classList.add('show'); setTimeout(() => a.classList.remove('show'), 3000); };
+
+/* 82 · guardarCuandoCambia(campos, boton) */
+const C82 = [['Profundidad de canto', 5, 'cm'], ['Profundidad de caja', 12, 'cm'], ['Lámina de acrílico', 122, '× 244 cm'], ['Merma que se cobra', 10, '%']];
+$('ctes82').innerHTML = C82.map(([n, v, u], i) => `<div class="cte" data-i="${i}"><label for="c82-${i}">${n} <span style="color:var(--tinta3);font-weight:500">(${u})</span></label><input id="c82-${i}" inputmode="decimal" value="${v}" data-antes="${v}"><small>antes: ${v} ${u}</small></div>`).join('');
+function pintar82() { let n = 0; document.querySelectorAll('.cte').forEach(c => { const i = c.querySelector('input'), camb = i.value.trim() !== i.dataset.antes; c.classList.toggle('cambiado', camb); n += camb; });
+  const b = $('g82'); b.classList.toggle('btn-pri', n > 0); b.classList.toggle('fantasma', n === 0); b.textContent = n ? `Guardar ${n} cambio${n > 1 ? 's' : ''}` : 'No hay cambios'; b.setAttribute('aria-disabled', n ? 'false' : 'true'); }
+$('ctes82').addEventListener('input', pintar82);
+$('g82').onclick = () => { if ($('g82').getAttribute('aria-disabled') === 'true') return; document.querySelectorAll('.cte input').forEach(i => { i.dataset.antes = i.value.trim(); i.nextElementSibling.textContent = 'antes: ' + i.value.trim(); }); pintar82(); $('g82').textContent = '✓ Guardado'; setTimeout(pintar82, 1400); };
+pintar82();
+
+/* 83 · indiceQueSigue(doc) */
+const S83 = ['Quién eres', 'Tema', 'Respaldo', 'Mapa', 'Calendar', 'Puente', 'Borrar'];
+$('nav83').innerHTML = '<span class="pil" aria-hidden="true"></span>' + S83.map((s, i) => `<a href="#s83-${i}" data-i="${i}">${s}</a>`).join('');
+$('secs83').innerHTML = S83.map((s, i) => `<section class="sec83" id="s83-${i}"><h3>${s}</h3><p>Texto de ejemplo de la tarjeta «${s}» de Ajustes. En el repo son nueve tarjetas largas.</p><p>Segundo párrafo para que haya qué desplazar.</p></section>`).join('');
+const doc = $('doc83'), pil83 = $('nav83').querySelector('.pil');
+const marcar83 = i => { const a = $('nav83').querySelector(`[data-i="${i}"]`); $('nav83').querySelectorAll('a').forEach(x => x.setAttribute('aria-current', x === a)); pil83.style.width = a.offsetWidth + 'px'; pil83.style.transform = `translateX(${a.offsetLeft}px)`; const nv = $('nav83');   // solo el desplazamiento de lado del índice: scrollIntoView movería también el documento
+  if (a.offsetLeft < nv.scrollLeft) nv.scrollLeft = a.offsetLeft - 6; else if (a.offsetLeft + a.offsetWidth > nv.scrollLeft + nv.clientWidth) nv.scrollLeft = a.offsetLeft + a.offsetWidth - nv.clientWidth + 6; };
+/* La sección vigente es la última cuyo título ya pasó bajo el índice. Con un scroll pasivo basta:
+   IntersectionObserver no dice «cuál va arriba», dice «cuáles se ven». */
+const topEnDoc = el => el.getBoundingClientRect().top - doc.getBoundingClientRect().top + doc.scrollTop;
+let vig83 = -1;
+function alDesplazar83() {
+  $('prog83').style.setProperty('--p', doc.scrollTop / Math.max(1, doc.scrollHeight - doc.clientHeight));
+  let m = 0; document.querySelectorAll('.sec83').forEach((s, i) => { if (topEnDoc(s) - doc.scrollTop <= 60) m = i; });
+  if (doc.scrollTop >= doc.scrollHeight - doc.clientHeight - 2) m = S83.length - 1;
+  if (m !== vig83) { vig83 = m; marcar83(m); }
+}
+doc.addEventListener('scroll', alDesplazar83, { passive: true }); alDesplazar83();
+$('nav83').addEventListener('click', e => { const a = e.target.closest('a'); if (!a) return; e.preventDefault(); const s = $('s83-' + a.dataset.i); doc.scrollTo({ top: topEnDoc(s) - 50, behavior: reducido() ? 'auto' : 'smooth' }); });
+
+/* 84 · cotasSobreElDibujo(svg, ancho, alto) — bbox del diseño: 60,40 → 300,140 (proporción 2.4 : 1) */
+const B = { x: 70, y: 46, w: 220, h: 92 }, RAZON = B.w / B.h;
+function pintar84(foco) {
+  const an = parseFloat($('an84').value), al = parseFloat($('al84').value), hay = isFinite(an) && isFinite(al);
+  const t = v => isFinite(v) ? `${Math.round(v)} mm` : '¿? mm';
+  $('svg84').innerHTML = `<defs><marker id="fl" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L8 4L0 8z" fill="var(--a3)"/></marker></defs>
+    <g fill="#e9edff"><path d="M70 138L100 46h22l30 92h-22l-6-20h-26l-6 20zM106 102h16l-8-28z"/><path d="M162 46h22v72h40v20h-62z"/><rect x="236" y="46" width="54" height="92" rx="14"/></g>
+    <line class="cota ${foco === 'an' ? 'foco' : ''}" x1="${B.x}" y1="24" x2="${B.x + B.w}" y2="24" marker-start="url(#fl)" marker-end="url(#fl)"/>
+    <line class="cota" x1="${B.x}" y1="18" x2="${B.x}" y2="${B.y}" /><line class="cota" x1="${B.x + B.w}" y1="18" x2="${B.x + B.w}" y2="${B.y}"/>
+    <text class="num84 ${isFinite(an) ? '' : 'av'}" x="${B.x + B.w / 2}" y="19" text-anchor="middle">${t(an)}</text>
+    <line class="cota ${foco === 'al' ? 'foco' : ''}" x1="318" y1="${B.y}" x2="318" y2="${B.y + B.h}" marker-start="url(#fl)" marker-end="url(#fl)"/>
+    <line class="cota" x1="${B.x + B.w}" y1="${B.y}" x2="326" y2="${B.y}"/><line class="cota" x1="${B.x + B.w}" y1="${B.y + B.h}" x2="326" y2="${B.y + B.h}"/>
+    <text class="num84 ${isFinite(al) ? '' : 'av'}" x="340" y="${B.y + B.h / 2 + 4}" text-anchor="middle">${isFinite(al) ? Math.round(al) : '¿?'}</text>`;
+}
+let foco84 = '';
+$('an84').addEventListener('input', () => { const v = parseFloat($('an84').value); $('al84').value = isFinite(v) ? Math.round(v / RAZON) : ''; pintar84('an'); });
+$('al84').addEventListener('input', () => { const v = parseFloat($('al84').value); $('an84').value = isFinite(v) ? Math.round(v * RAZON) : ''; pintar84('al'); });
+['an84', 'al84'].forEach(id => { $(id).addEventListener('focus', () => pintar84(id.slice(0, 2))); $(id).addEventListener('blur', () => pintar84('')); });
+pintar84('');
+
+/* 85 · vetaYOrientacion(material, giros, hoja) */
+let giros85 = 4, acostada = false;
+const P85 = [[10, 10, 60, 40, 0], [80, 10, 40, 60, 90], [130, 10, 60, 40, 0], [10, 60, 60, 40, 0], [130, 60, 60, 40, 90], [10, 110, 90, 60, 0], [110, 110, 80, 60, 90], [10, 180, 60, 40, 0], [80, 180, 110, 40, 0]];
+function pintar85() {
+  $('hoja85').innerHTML = `<svg viewBox="0 0 200 240" aria-hidden="true"><defs><pattern id="raya85" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="var(--av-bg)"/><rect width="2" height="6" fill="var(--av)"/></pattern></defs>
+    <rect x="1" y="1" width="198" height="238" fill="var(--sup)" stroke="var(--linea)" stroke-width="2"/>
+    ${P85.map(([x, y, w, h, r]) => `<rect class="p85 ${r && giros85 === 4 ? 'girada' : ''}" x="${x}" y="${y}" width="${w}" height="${h}" rx="3"/>`).join('')}</svg>`;
+  $('hoja85').classList.toggle('acostada', acostada);
+  $('rot85').textContent = giros85 === 4 ? 'Giros permitidos: cada 90° · las rayadas van giradas' : 'Giros permitidos: 0° y 180° · la veta queda derecha';
+}
+$('mat85').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; $('mat85').querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b));
+  $('av85').classList.toggle('show', b.dataset.m !== 'acrilico' && giros85 === 4); });
+$('usar85').onclick = () => { giros85 = 2; $('av85').classList.remove('show'); pintar85(); };
+$('girar85').onclick = () => { acostada = !acostada; pintar85(); };
+pintar85();
+
+/* 86 · vistasConLaser(cont, control) */
+const piezas = (acom) => { const P = [[30, 40, 50, 60], [95, 35, 40, 70], [150, 50, 60, 45], [230, 30, 45, 75], [290, 45, 55, 55]];
+  return P.map(([x, y, w, h], i) => { const [ax, ay] = [[12, 12], [66, 12], [110, 12], [174, 12], [223, 12]][i]; return `<rect x="${acom ? ax : x}" y="${acom ? ay : y}" width="${w}" height="${h}" rx="4" fill="${acom ? '#9fb3ff' : '#e9edff'}" stroke="#6b77b8"/>`; }).join(''); };
+$('vis86').innerHTML = `<svg class="vien" viewBox="0 0 360 150" aria-hidden="true"><rect width="360" height="150" fill="#1e2130"/>${piezas(false)}</svg>
+  <svg class="acom" viewBox="0 0 360 150" aria-hidden="true"><rect width="360" height="150" fill="#1e2130"/><rect x="6" y="6" width="348" height="138" fill="none" stroke="#3a4070" stroke-dasharray="4 4"/>${piezas(true)}</svg><i class="haz"></i>`;
+const seg = $('seg86'), pil86 = seg.querySelector('.pil');
+const moverPil86 = () => { const b = seg.querySelector('[aria-checked="true"]'); pil86.style.width = b.offsetWidth + 'px'; pil86.style.transform = `translateX(${b.offsetLeft}px)`; };
+seg.addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.getAttribute('aria-checked') === 'true') return;
+  seg.querySelectorAll('button').forEach(x => x.setAttribute('aria-checked', x === b)); moverPil86();
+  const v = $('vis86'); v.style.setProperty('--ancho', v.offsetWidth + 'px'); v.classList.remove('barre'); void v.offsetWidth; v.classList.add('barre');
+  v.classList.toggle('acomodadas', b.dataset.v === 'acom'); });
+new ResizeObserver(moverPil86).observe(seg); moverPil86();
+</script>
+</body>
+</html>

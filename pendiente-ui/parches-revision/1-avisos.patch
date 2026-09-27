@@ -1,0 +1,111 @@
+diff --git a/js/piezas.js b/js/piezas.js
+index 46547fa..0489d07 100644
+--- a/js/piezas.js
++++ b/js/piezas.js
+@@ -115,7 +115,9 @@
+       const t = e.target && e.target.closest ? e.target : (e.target && e.target.parentElement);
+       if (!t || !t.closest) return;
+       const para = () => { e.preventDefault(); e.stopImmediatePropagation(); };
+-      const ocupado = t.closest('.con-estado[data-estado="trabajando"],[data-espera]');
++      /* El éxito también: mientras dice «Registrada ✓» el botón no dice su acción, y un segundo
++         toque ahí registraba otra venta sin que nada lo anunciara. */
++      const ocupado = t.closest('.con-estado:is([data-estado="trabajando"],[data-estado="ok"]),[data-espera]');
+       if (ocupado) { para(); return; }
+       const des = t.closest('[data-deshacer]');
+       if (des) { para(); const h = _DESHACER.get(des); if (h) h.deshacer(); return; }
+@@ -279,9 +281,10 @@
+      como mínimo, el texto va por textContent, al tocar el botón el aviso se va y la función
+      corre en el mismo toque, y cada aviso se dice en la región que habla —lo urgente, en la
+      asertiva— en cuanto se pide, aunque espere su turno para verse. Un aviso que se repite tal
+-     cual no vuelve a entrar ni parpadea, y si no trae botón tampoco reinicia su tiempo: un
+-     aviso que se pide en cada tecla se iría nunca. Si trae botón sí se rearma: es un acto
+-     nuevo, y su ventana de Deshacer empieza ahora.
++     cual no vuelve a entrar ni parpadea, y si es informativo tampoco reinicia su tiempo: un
++     aviso que se pide en cada tecla se iría nunca. Un error o uno con botón sí se rearma: es
++     un acto nuevo —el reintento que volvió a fallar, el borrado de ahora— y quitarlo con el
++     reloj del primero era esconder el fallo justo cuando alguien lo buscaba.
+ 
+      En el teléfono los avisos van al ancho del dock y encima de él, nunca sobre el botón
+      principal; en la computadora, abajo a la izquierda. Eso lo dice la hoja (css/sistema.css,
+@@ -311,7 +314,7 @@
+     const dec = P.aviso.decidir(pila.vivos, n, AVISO_MAX);
+     if (dec.que === 'reusar' || dec.que === 'reemplazar') {
+       const v = pila.vivos[dec.i];
+-      const reloj = dec.que === 'reemplazar' || !!n.fn;
++      const reloj = dec.que === 'reemplazar' || n.prio > 0;
+       Object.assign(v, { msg: n.msg, tipo: n.tipo, label: n.label, fn: n.fn, clave: n.clave, prio: n.prio, dur: n.dur });
+       if (dec.que === 'reemplazar') { v.ficha = null; v.mango = null; _mango(v); }
+       _pintarUno(v, reloj);
+@@ -381,7 +384,13 @@
+     _PILAS.set(cont, p);
+     /* Si alguien vació el contenedor a mano (un innerHTML='' de antes), empieza limpio. */
+     cont.querySelectorAll(':scope > :not(.toast-uno)').forEach(x => x.remove());
+-    cont.addEventListener('focusin', () => _pausaPila(p, 'foco', true));
++    /* De dónde llegó el foco, para devolverlo ahí cuando el aviso que lo tenía se vaya: si no,
++       quien llegó con el tabulador a «Deshacer» y lo tocó (o apretó Escape) se quedaba en el
++       <body>, a decenas de tabulaciones de donde estaba trabajando. */
++    cont.addEventListener('focusin', e => {
++      if (e.relatedTarget && !cont.contains(e.relatedTarget)) p.volverA = e.relatedTarget;
++      _pausaPila(p, 'foco', true);
++    });
+     cont.addEventListener('focusout', e => { if (!e.relatedTarget || !cont.contains(e.relatedTarget)) _pausaPila(p, 'foco', false); });
+     d.addEventListener('visibilitychange', () => _pausaPila(p, 'oculto', d.hidden));
+     if (d.hidden) p.razones.add('oculto');
+@@ -451,7 +460,9 @@
+       const b = d.createElement('button');
+       b.type = 'button'; b.className = 'toast-act';
+       /* La función se lee al tocar, no al pintar: un aviso reusado trae la suya, nueva. */
+-      b.addEventListener('click', () => { const fn = n.fn; _cerrar(n); if (fn) fn(); });
++      /* Una sola vez: el aviso tarda 160 ms en irse, y un Enter sostenido o el doble toque de
++         un lector de pantalla llegaban a ese mismo botón y deshacían dos veces. */
++      b.addEventListener('click', () => { if (n.cerrado) return; const fn = n.fn; _cerrar(n); if (fn) fn(); });
+       n.actEl = b;
+       el.insertBefore(b, n.mecha && n.mecha.el && n.mecha.el.parentNode === el ? n.mecha.el : null);
+     } else if (!n.fn && n.actEl) { n.actEl.remove(); n.actEl = null; }
+@@ -498,6 +509,9 @@
+     if (!el) return;
+     const teniaFoco = el.contains(d.activeElement);
+     el.classList.add('sale');
++    /* Mientras se desvanece ya no es un aviso: fuera del tabulador y del lector de pantalla. */
++    el.inert = true;
++    if (teniaFoco) _devolverFoco(p);
+     if (desdeY != null) { el.style.transform = 'translateY(' + (desdeY + 28) + 'px)'; el.style.opacity = '0'; }
+     const quitar = () => {
+       if (!el.parentNode) return;
+@@ -512,6 +526,15 @@
+     };
+     g.setTimeout(quitar, 160);
+   }
++  /* El foco vuelve a donde estaba antes de entrar al aviso; si eso ya no existe, al botón del
++     otro aviso, si lo hay. Va antes de la función del botón, así que ella todavía puede llevarlo
++     a otro lado (historial.js lo manda al «Rehacer»). */
++  function _devolverFoco(p) {
++    const v = p.volverA; p.volverA = null;
++    const otro = p.vivos.map(x => x.actEl).filter(Boolean).pop();
++    const dest = v && v.isConnected && !p.cont.contains(v) && !(v.closest && v.closest('[inert]')) ? v : otro;
++    if (dest && dest.focus) { try { dest.focus({ preventScroll: true }); } catch (_) {} }
++  }
+   function _deLaCola(p) {
+     while (p.vivos.length < AVISO_MAX && p.cola.length) {
+       p.cola.sort((a, b) => b.prio - a.prio || a.pedido - b.pedido);
+@@ -714,7 +737,8 @@
+          pinta tal cual. El botón pasa a aria-busy y aria-disabled —no `disabled`: el foco se
+          queda donde estaba— y la guardia se come los toques mientras tanto.
+        · data-estado="ok": se lava en verde con su palomita y el texto de éxito («Sellada ·
+-         A1B2»), y a los 3.5 s regresa a su rótulo.
++         A1B2»), y a los 3.5 s regresa a su rótulo. Mientras lo dice no acepta toques: el
++         rótulo no es su acción, y tocar «Registrada ✓» registraba otra venta.
+        · data-estado="mal": tiembla y dice «No contestó · Reintentar» sin cerrar nada. Tocarlo
+          vuelve a correr SU propio manejador, que es el reintento: la pieza no necesita saber
+          cuál es.
+@@ -814,7 +838,9 @@
+         parar(); tomar(); soltarHermanos();
+         btn.dataset.estado = 'ok';
+         btn.removeAttribute('aria-busy');
+-        s.aria == null ? btn.removeAttribute('aria-disabled') : btn.setAttribute('aria-disabled', s.aria);
++        /* Sigue sin aceptar toques hasta que vuelva a su rótulo (la guardia); se dice. */
++        btn.setAttribute('aria-disabled', 'true');
++        _guardia();
+         const t = d.createElement('span'); t.className = 'estado-t'; t.textContent = texto == null ? 'Listo' : String(texto);
+         btn.replaceChildren(P.palomita(null, { dibujar: true }), t);
+         s.rel = s.tEl = s.relojEl = null;

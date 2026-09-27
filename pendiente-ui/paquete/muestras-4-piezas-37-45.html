@@ -1,0 +1,1369 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Muestras de UI 4 · AL3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============================================================================
+   Muestras de UI · parte 4 — 26-sep-2026
+
+   LAS HERRAMIENTAS: el escalador (la lupa), el vectorizador (el trazo y los deslizadores),
+   el historial (pliegues, filtros, coincidencias), la IA (lo que leyó) y dos piezas del flujo
+   de partidas que viven junto a ellas (reordenar y los pliegues). Números 37 a 45.
+
+   Igual que las partes 1 y 2: JS y CSS sin librerías, sin build, con los tokens de
+   sistema.css copiados aquí solo para que la página se vea sola. Cada muestra es una función
+   suelta con nombre en español para llevarla al repo de una en una.
+   ============================================================================ */
+:root{
+  color-scheme:light;
+  --fondo:#f3f4fb; --sup:#ffffff; --sup2:#f7f8fd; --linea:#dcdff2; --linea2:#eceef8;
+  --tinta:#1a1d33; --tinta2:#5c6184; --tinta3:#666d9b; --nav:#171a33;
+  --n1:#f3f4fb; --n2:#eceef8; --n3:#dcdff2; --n6:#5c6184; --n8:#1a1d33;
+  --a:#4060f8; --a-fuerte:#3018f8; --a-claro:#6090f8; --a-suave:#e9edff; --a-borde:#b9c5fe;
+  --a-fill:#4060f8; --a-tx:#3018f8; --a-rgb:64,96,248; --tinta-rgb:35,39,68; --sup-rgb:255,255,255;
+  --ok:#0a7d4a; --ok-bg:#e2f8ec; --ok-borde:#a9e8c6; --ok-fill:#0a7d4a;
+  --av:#8a5100; --av-bg:#fff2dd; --av-borde:#ffd79c;
+  --mal:#c62828; --mal-bg:#ffeceb; --mal-borde:#ffc4c1;
+  --rr1:4px; --rr2:6px; --rr3:10px; --rr4:12px;
+  --t1:12px; --t2:13.5px; --t3:15px; --t4:18px; --t6:28px;
+  --mv-s:.16s cubic-bezier(.2,.8,.2,1); --mv-r:.2s cubic-bezier(.2,.8,.2,1);
+  --mv-t:.5s cubic-bezier(.2,.8,.2,1); --mv-liq:.42s cubic-bezier(.34,1.26,.5,1);
+  --f-cifra:'Sora',system-ui,sans-serif; --f-texto:'Manrope',system-ui,sans-serif;
+  --sombra-alta:0 2px 8px rgba(35,39,68,.08),0 32px 64px -24px rgba(48,24,248,.42);
+}
+/* Tema oscuro mínimo, para ver cada muestra en los dos temas (botón de arriba). */
+html[data-tema="oscuro"]{
+  color-scheme:dark;
+  --fondo:#0f1122; --sup:#181b33; --sup2:#1d2140; --linea:#2c3158; --linea2:#232744;
+  --tinta:#eef0ff; --tinta2:#b6bbe0; --tinta3:#9aa0cc; --n1:#1d2140; --n2:#2c3158; --n3:#3a4070; --n6:#b6bbe0; --n8:#eef0ff;
+  --a-suave:#23285a; --a-borde:#4a58c8; --a-tx:#9fb3ff; --a-fill:#4a5ff0; --sup-rgb:24,27,51;
+  --ok:#6fd6a4; --ok-bg:#13352a; --ok-borde:#2f6d52; --ok-fill:#0a7d4a;
+  --av:#ffc979; --av-bg:#3a2a10; --av-borde:#7a5a22;
+  --mal:#ff8f88; --mal-bg:#3d1a1c; --mal-borde:#7a3236;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--fondo);color:var(--tinta);font:500 var(--t3)/1.5 var(--f-texto);-webkit-font-smoothing:antialiased;padding:24px 16px 120px}
+main{max-width:760px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+.card{min-width:0}
+h1{font:700 22px/1.2 var(--f-cifra);margin:0} h2{font:600 var(--t4)/1.25 var(--f-cifra);margin:0}
+.intro,.nota{color:var(--tinta2);margin:0;font-size:var(--t2)} .intro{font-size:var(--t3);margin-top:6px}
+.card{background:var(--sup);border:1px solid var(--linea);border-radius:var(--rr4);padding:18px;display:grid;gap:12px;box-shadow:0 1px 2px rgba(var(--tinta-rgb),.05),0 16px 40px -24px rgba(48,24,248,.25)}
+.card-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px}
+.fuente{font-size:var(--t1);color:var(--tinta3);font-weight:700;letter-spacing:.02em}
+.fila{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.btn{position:relative;font:600 var(--t2)/1 var(--f-texto);min-height:44px;padding:0 16px;border-radius:var(--rr2);border:1px solid var(--linea);background:var(--sup);color:var(--tinta);cursor:pointer}
+.btn-pri{background:var(--a-fill);border-color:var(--a-fill);color:#fff}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn-ic{width:44px;padding:0;display:inline-grid;place-items:center}
+.btn-ic svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+button:focus-visible,input:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--a-fuerte);outline-offset:2px}
+html[data-tema="oscuro"] :is(button,input,summary,[tabindex]):focus-visible{outline-color:#9fb3ff}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.fld{display:grid;gap:4px} .fld label{font-size:var(--t1);font-weight:700;color:var(--tinta2);text-transform:uppercase;letter-spacing:.04em}
+.fld input{font:600 16px/1 var(--f-texto);min-height:44px;padding:0 12px;border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup2);color:var(--tinta)}
+.chip{min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--linea);background:var(--sup);font:600 var(--t2)/1.1 var(--f-texto);color:var(--tinta2);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-tx)}
+@keyframes sacude{20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+@keyframes dibuja{to{stroke-dashoffset:0}}
+@keyframes gira{to{transform:rotate(360deg)}}
+/* La entrada única del repo (sistema.css 3886), sin escalera de retardos. */
+@keyframes entra{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.cab{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:12px}
+
+/* ============================================================================
+   37) LA LUPA QUE DICE CUÁNTO MIDE Y AVISA CUANDO SE PEGA
+   Sale de: React Bits Crosshair (la lectura que sigue al puntero) + TargetCursor (las cuatro
+   esquinas que se cierran sobre el blanco).
+   Va en: js/cotizador/escalador.js 519–555 (SC_LOUPE, scLoupe()), 673–677 (la cota provisional
+   de scScene()), 1077–1096 (scMoveHandle()), 595–622 (scSceneLite(), donde las guías salen
+   siempre punteadas), 982–998 (scSnapGuides()) y 1047–1076 (scHandleHit()); css/sistema.css
+   1943–1944 (.sp-loupe). La vibración es vibrar([6]) de notario.js 528.
+   Por qué así: en el teléfono el número de la medida se dibuja sobre la línea, que queda bajo
+   el dedo. La cifra va DEBAJO del círculo (que tiene overflow:hidden), entre la lupa y el dedo:
+   se lee mientras se mueve y se suelta en la buena. El pegado se veía solo en el lienzo de
+   atrás, tapado por la mano; ahora lo dice la lupa: la cruz se vuelve esquinas y la guía, sólida.
+   Sin requestAnimationFrame propio: se repinta porque se mueve el dedo. La única excepción es
+   el cierre de las esquinas (120 ms, solo al cambiar de estado), por si el dedo se detiene
+   justo a media transición; es un momento que se apaga solo.
+   ============================================================================ */
+.plano-medir{position:relative;border-radius:var(--rr3);overflow:hidden;border:1px solid var(--linea);background:#ddd3c6}
+.plano-medir canvas{display:block;width:100%;touch-action:none;cursor:crosshair}
+.lupa{position:fixed;left:0;top:0;z-index:30;width:132px;height:168px;display:none;pointer-events:none}
+.lupa.ver{display:block}
+.lupa-circ{width:132px;height:132px;border-radius:50%;overflow:hidden;border:3px solid #fff;background:#fff;box-shadow:0 0 0 1px rgba(23,26,51,.4),var(--sombra-alta)}
+.lupa-circ canvas{display:block;width:132px;height:132px}
+/* Blanco sobre marino: 17:1. Cifras tabulares para que el número no baile al cambiar. */
+.lupa-cifra{position:absolute;left:0;top:140px;font:700 var(--t2)/1 var(--f-cifra);font-variant-numeric:tabular-nums;color:#fff;background:var(--nav);padding:7px 11px;border-radius:999px;white-space:nowrap;box-shadow:0 4px 14px -4px rgba(23,26,51,.6)}
+.medida-lectura{font:600 var(--t2)/1.4 var(--f-texto);color:var(--tinta2);margin:0}
+.medida-lectura b{font-family:var(--f-cifra);color:var(--tinta);font-variant-numeric:tabular-nums}
+
+/* ============================================================================
+   38) EL TRAZO DE CORTE SE DIBUJA AL TERMINAR DE VECTORIZAR
+   Sale de: React Bits StrokeText (el contorno que se recorre y luego se rellena).
+   Va en: js/cotizador/vectorizador.js 911–920 (final de vtVectorizar(), justo antes de
+   vtSetVista('cmp')) y 958–999 (vtArmarSVG(), vtPintarVector()). Un <svg> encima de #vt-stage
+   con los path de VT.svg en fill:none, que se retira al terminar.
+   Por qué así: hoy el velo se quita y el vector aparece de golpe. Este momento de menos de un
+   segundo le enseña al cliente «esto es lo que corta la máquina», y el perímetro de corte sale
+   de las mismas longitudes (getTotalLength) que mueven la animación: un solo cálculo.
+   Se salta con reduced-motion y con más de 3000 nodos (getTotalLength cuesta en gama media).
+   ============================================================================ */
+/* El lienzo del vectorizador es papel: blanco en los dos temas, como la mesa de corte. */
+.vt-escena{position:relative;border:1px solid var(--linea);border-radius:var(--rr3);background:#fff;overflow:hidden}
+.vt-escena svg{display:block;width:100%;height:auto;max-height:360px}
+.vt-barra{position:absolute;left:0;right:0;top:0;height:3px;background:#3018f8;transform-origin:left;transform:scaleX(0);opacity:0;z-index:1}
+.vt-foto{transition:opacity .3s}
+.vt-escena[data-estado="listo"] .vt-foto{opacity:.18}
+.vt-corte{visibility:hidden}
+.vt-escena[data-estado="dibujando"] .vt-corte,.vt-escena[data-estado="listo"] .vt-corte{visibility:visible}
+.vt-corte path{stroke:#3018f8;stroke-width:.7;stroke-linejoin:round;fill-rule:evenodd;fill-opacity:0}
+.vt-corte .letra{fill:#1a1d33} .vt-corte .nube{fill:#e9edff}
+.vt-escena[data-estado="listo"] .vt-corte path{fill-opacity:1}
+.vt-etq{position:absolute;left:10px;bottom:8px;font:700 10px/1 var(--f-texto);letter-spacing:.08em;text-transform:uppercase;color:#5c6184}
+.perimetro{margin:0;font:600 var(--t3)/1.4 var(--f-texto)}
+.perimetro b{font:700 var(--t4)/1 var(--f-cifra);font-variant-numeric:tabular-nums}
+.perimetro small{display:block;color:var(--tinta3);font-size:var(--t1);font-weight:700;font-variant-numeric:tabular-nums}
+
+/* ============================================================================
+   39) EL PLANO A PANTALLA COMPLETA CON ZOOM
+   Sale de: React Bits DomeGallery (solo el «enlarge»: la miniatura crece con velo y regresa).
+   Va en: js/cotizador/historial.js 163–168 (openHistImg()); js/cotizador/partidas.js 1202–1211
+   (openAiFile(), closeLightbox()); cotizador.html 538–541; css/sistema.css 1603 (.lightbox-img).
+   Los gestos reusan la cuenta de scGestureStart/scGestureMove (escalador.js 482–517): lo que
+   estaba bajo los dedos se queda bajo los dedos.
+   Por qué así: en el teléfono un plano con cotas ajustado a la pantalla no se lee. Crecer DESDE
+   la miniatura dice de dónde salió y a dónde regresa (la técnica de _volarTotal()).
+   touch-action:none solo sobre el lienzo del visor; fuera de él la página hace scroll normal.
+   ============================================================================ */
+.miniatura{display:block;width:min(100%,280px);padding:0;border:1px solid var(--linea);border-radius:var(--rr3);background:#fff;cursor:zoom-in;overflow:hidden}
+.miniatura svg{display:block;width:100%;height:auto}
+.visor{position:fixed;inset:0;z-index:60}
+.visor[hidden]{display:none}
+.visor-velo{position:absolute;inset:0;background:rgba(12,14,30,.92)}
+.visor-lienzo{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:grab}
+.visor-lienzo:active{cursor:grabbing}
+.visor-img{position:absolute;left:0;top:0;transform-origin:0 0;background:#fff;border-radius:6px;box-shadow:0 30px 80px -20px rgba(0,0,0,.6)}
+.visor-img svg{display:block;width:100%;height:100%}
+.visor-cerrar{position:absolute;z-index:2;top:max(12px,env(safe-area-inset-top));right:12px;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.4);background:rgba(23,26,51,.85);color:#fff;display:grid;place-items:center;cursor:pointer}
+.visor-cerrar svg{width:18px;height:18px;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;fill:none}
+.visor-cerrar:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.visor-pie{position:absolute;z-index:2;left:50%;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;gap:10px;align-items:center;padding:6px 12px;border-radius:999px;background:rgba(23,26,51,.88);color:#fff;font:600 var(--t1)/1.3 var(--f-texto);white-space:nowrap;pointer-events:none}
+.visor-pie b{font:700 var(--t2)/1 var(--f-cifra);font-variant-numeric:tabular-nums}
+
+/* ============================================================================
+   40) REORDENAR PARTIDAS CON EL DEDO
+   Sale de: React Bits CardSwap (las vecinas se apartan con transición) + el gesto de Pointer
+   Events de SwipeRow (setPointerCapture, umbral, soltar).
+   Va en: js/cotizador/partidas.js 593 (.drag-handle) y 616–657 (el arrastre HTML5 de hoy; al
+   soltar se usa el MISMO splice que ya corrige el índice, línea 650); css/sistema.css 2378–2383
+   (.drag-handle{display:none} hasta 920 px, que es por qué en el teléfono no se puede).
+   Por qué así: el arrastre HTML5 no funciona con el dedo. Mantener 300 ms el NÚMERO lo levanta
+   (así no choca con SwipeRow, que es horizontal y sobre el renglón). touch-action:none solo en
+   el número: el resto del renglón deja hacer scroll. El orden es el de los renglones del PDF.
+   ============================================================================ */
+.partidas{list-style:none;margin:0;padding:0;display:grid;gap:8px;position:relative}
+.partida{position:relative;display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup)}
+.partida .num{position:relative;width:44px;height:44px;border-radius:var(--rr2);border:1px solid var(--linea);background:var(--n1);color:var(--tinta);font:700 var(--t3)/1 var(--f-cifra);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.p-desc{min-width:0;display:grid;gap:1px;font-size:var(--t2);line-height:1.3}
+.p-desc b{font-weight:700}
+.p-desc small{color:var(--tinta3);font-size:var(--t1);font-weight:600}
+.p-desc .p-precio{font:600 var(--t2)/1.3 var(--f-cifra);font-variant-numeric:tabular-nums}
+.p-mover{display:flex;gap:4px}
+/* 300 ms: el borde se recorre mientras se sostiene; si se suelta antes, no pasa nada. */
+.partida.armando .num::after{content:"";position:absolute;inset:-3px;border-radius:8px;border:2px solid var(--a-fill);animation:arma .3s linear forwards}
+@keyframes arma{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
+.partida.levantada{z-index:3;border-color:var(--a-borde);box-shadow:var(--sombra-alta);scale:1.02}
+.partida.levantada .num{cursor:grabbing;background:var(--a-suave);border-color:var(--a-borde);color:var(--a-tx)}
+.partidas.arrastrando .partida:not(.levantada){transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.orden-pdf{margin:0;font-size:var(--t1);color:var(--tinta3);font-weight:700}
+
+/* ============================================================================
+   41) LOS PLIEGUES ABREN CON SU ALTURA
+   Sale de: Vengeance FAQ Accordion (sin el rebote de Skiper skiper103).
+   Va en: cotizador.html 339–363 (#pdf-extra-box); js/cotizador/proceso.js 302–308
+   (details.otras-salidas); js/cotizador/partidas.js 1233–1244 (toggleItemAuth(), que usa
+   display:none); css/sistema.css 1389–1394. Y la entrada del historial (H16): historial.js
+   263–302 (plantilla .hentry con la .htable siempre abierta), sistema.css 1682–1699.
+   Por qué así: donde hay ::details-content e interpolate-size, es CSS puro y el navegador
+   hace todo (también el cierre). Donde no, el respaldo es grid-template-rows 0fr→1fr y el
+   open se quita AL TERMINAR de cerrar. La flecha gira con la misma curva y el mismo tiempo.
+   Cuidado: renderAuth() reabre «otras salidas» a mano (proceso.js 325–327): esa reapertura va
+   con abrirSinAnimar(), que no dispara la transición.
+   ============================================================================ */
+.pliegue{interpolate-size:allow-keywords}
+.pliegue::details-content{height:0;overflow:clip;transition:height .2s cubic-bezier(.2,.8,.2,1),content-visibility .2s allow-discrete}
+.pliegue[open]::details-content{height:auto}
+.pliegue summary{list-style:none;min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 10px;margin:0 -10px;border-radius:var(--rr2);cursor:pointer;font:700 var(--t2)/1.2 var(--f-texto);color:var(--a-tx)}
+.pliegue summary::-webkit-details-marker{display:none}
+.pliegue summary:hover{background:var(--a-suave)}
+.flecha{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.pliegue[open]:not(.cerrando) .flecha{transform:rotate(180deg)}
+.pliegue-cuerpo{display:grid;grid-template-rows:1fr}
+.pliegue-cuerpo>div{min-height:0;overflow:hidden}
+/* Respaldo: el alto lo mueve la rejilla; ::details-content se queda quieto. */
+.respaldo .pliegue::details-content{height:auto;transition:none}
+.respaldo .pliegue .pliegue-cuerpo{grid-template-rows:0fr;transition:grid-template-rows .2s cubic-bezier(.2,.8,.2,1)}
+.respaldo .pliegue.abierto .pliegue-cuerpo{grid-template-rows:1fr}
+.pliegue.sin-anim::details-content,.pliegue.sin-anim .pliegue-cuerpo,.pliegue.sin-anim .flecha{transition:none!important}
+.hentry{border:1px solid var(--linea);border-radius:var(--rr3);padding:12px 14px;display:grid;gap:8px;background:var(--sup)}
+.hentry-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.hentry-folio{font:700 var(--t1)/1 var(--f-cifra);color:var(--tinta3);letter-spacing:.03em}
+.hentry-name{display:block;font-weight:700}
+.hentry-sub{display:block;font-size:var(--t1);color:var(--tinta3);font-weight:600}
+.hentry-total{font:700 var(--t3)/1.2 var(--f-cifra);font-variant-numeric:tabular-nums;white-space:nowrap}
+.htable{width:100%;border-collapse:collapse;font-size:var(--t1);margin:4px 0 2px}
+.htable td{padding:8px 4px;border-top:1px solid var(--linea2);vertical-align:top}
+.htable td:first-child{width:22px;color:var(--tinta3);font-weight:700}
+.htable td:last-child{text-align:right;font-family:var(--f-cifra);font-variant-numeric:tabular-nums;white-space:nowrap}
+.hentry-nota{margin:4px 0 0;font-size:var(--t1);color:var(--tinta2)}
+.hentry .acts .btn{min-height:44px;font-size:var(--t1)}
+.hitos{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:var(--t1);color:var(--tinta3);font-weight:700}
+.hito{display:inline-flex;align-items:center;gap:5px}
+.hito::before{content:"";width:10px;height:10px;border-radius:50%;border:2px solid var(--tinta3);box-sizing:border-box}
+.hito.si{color:var(--ok)} .hito.si::before{border-color:var(--ok-fill);background:var(--ok-fill)}
+.fila-chk{display:flex;align-items:center;gap:8px;min-height:44px;font-size:var(--t2);color:var(--tinta2)}
+.fila-chk input{width:20px;height:20px}
+
+/* ============================================================================
+   42) LA ZONA DE ARRASTRE QUE ABRE SU CARPETA
+   Sale de: React Bits FolderFloat (la tapa que se abre y la hoja que asoma); alternativa Folder.
+   Va en: css/vidrio.css 441–444 (.ai-drop .ico con vid-respira INFINITA, que se quita);
+   css/sistema.css 1546–1559 (.ai-drop, .sobre); js/cotizador/ia.js 408–425 (aiPintarArrastre(),
+   aiDragEntra/Sobre/Sale). En los lienzos del vectorizador y del escalador (cotizador.html 671
+   y 828), la misma clase .sobre en vez del style.outline en línea, con «Suelta para medir» /
+   «Suelta para vectorizar».
+   Por qué así: la respiración perpetua rompía «una sola pieza se mueve sola». Ahora la carpeta
+   solo se mueve cuando el usuario trae un archivo. Dos SVG (cuerpo y tapa) y no uno: las
+   transformaciones 3D no se aplican a los hijos de un <svg>, sí a dos elementos hermanos.
+   El contador de dragenter/dragleave evita el parpadeo al pasar por encima de los hijos.
+   ============================================================================ */
+.zona-carpeta{display:grid;justify-items:center;gap:10px;padding:18px 14px;border:2px dashed var(--linea);border-radius:var(--rr3);background:var(--sup2);text-align:center;transition:border-color var(--mv-r),background var(--mv-r)}
+.zona-carpeta.sobre{border-style:solid;border-color:var(--a-fill);background:var(--a-suave)}
+.zona-carpeta.recibido{border-style:solid;border-color:var(--ok-borde);background:var(--ok-bg)}
+.carpeta{position:relative;width:160px;height:120px;perspective:520px}
+.carpeta svg{position:absolute;left:0;width:160px;display:block}
+.c-atras{top:0;height:120px}
+.c-frente{bottom:0;height:92px;transform-origin:50% 100%;transition:transform .18s cubic-bezier(.2,.8,.2,1)}
+.c-hoja{position:absolute;left:20px;right:20px;top:30px;height:72px;border-radius:6px;background:#fff;border:1px solid #dcdff2;box-shadow:0 2px 6px rgba(23,26,51,.18);color:#1a1d33;font:800 12px/1.1 var(--f-texto);display:grid;justify-items:center;align-content:start;padding-top:7px;transform:translateY(14px);transition:transform .18s cubic-bezier(.2,.8,.2,1)}
+.c-hoja i{display:block;width:70%;height:3px;border-radius:2px;background:#dcdff2;margin-top:6px}
+.zona-carpeta.sobre .c-frente{transform:rotateX(-38deg)}
+.zona-carpeta.sobre .c-hoja{transform:translateY(-30px)}
+.zona-t{margin:0;font:700 var(--t3)/1.3 var(--f-texto);overflow-wrap:anywhere}
+.zona-s{margin:0;font-size:var(--t1);color:var(--tinta2);font-weight:700}
+.zona-carpeta.recibido .zona-s{color:var(--ok)}
+
+/* ============================================================================
+   43) EL HISTORIAL CON FICHAS DE FILTRO Y COINCIDENCIA RESALTADA
+   Sale de: Vengeance Search Modal (fichas de filtro con su conteo y resultado en vivo).
+   Va en: js/cotizador/historial.js 226–238 (indexarHistorial(), que ya indexa los hitos),
+   249–306 (pintarHistorial()) y 632–679 (pintarCuadernos()); cotizador.html 571–574
+   (.hist-search-bar).
+   Por qué así: «¿cuáles autoricé y no he mandado?» no tenía respuesta directa, y no se veía
+   POR QUÉ salió cada resultado (sobre todo si coincidió en una partida o en el teléfono).
+   La ficha activa NO es el botón con relleno de la pantalla: va en --a-suave. La marca va en
+   --a-suave con tinta completa (--a-claro y --a3 no llevan texto). Se escapa SIEMPRE: el único
+   HTML que se agrega es <mark>, y se arma por tramos (esc(antes) + <mark>esc(tramo)</mark>),
+   así que buscar «amp» nunca rompe un &amp;. Sin acentos: «optica» encuentra «Óptica».
+   ============================================================================ */
+.fichas{display:flex;flex-wrap:wrap;gap:8px}
+.ficha{display:inline-flex;align-items:center;gap:8px}
+.ficha .cta{min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--n2);color:var(--tinta);font:700 var(--t1)/22px var(--f-cifra);font-variant-numeric:tabular-nums}
+.ficha[aria-pressed="true"] .cta{background:var(--sup);color:var(--a-tx)}
+.h-cuenta{margin:0;font:700 var(--t2)/1 var(--f-cifra);color:var(--tinta2);font-variant-numeric:tabular-nums}
+.h-lista{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.h-item{border:1px solid var(--linea);border-radius:var(--rr3);padding:10px 12px;display:grid;gap:3px;background:var(--sup)}
+.h-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.h-folio{font:700 var(--t1)/1 var(--f-cifra);color:var(--tinta3);letter-spacing:.03em}
+.h-total{font:700 var(--t2)/1 var(--f-cifra);font-variant-numeric:tabular-nums}
+.h-cli{font-weight:700}
+.h-sub,.h-part{font-size:var(--t1);color:var(--tinta2);font-weight:600}
+.h-part{color:var(--tinta3)}
+mark{background:var(--a-suave);color:var(--tinta);font-weight:800;border-radius:3px;padding:0 1px;box-shadow:inset 0 -2px 0 var(--a-borde)}
+.h-vacio{padding:14px;border:1px dashed var(--linea);border-radius:var(--rr3);display:grid;gap:10px;justify-items:start;color:var(--tinta2);font-size:var(--t2)}
+
+/* ============================================================================
+   44) LO QUE LEYÓ LA IA, ANTES DE CERRAR
+   Sale de: React Bits StatusMark (la marca de cada renglón: aro → ✓ o «!») + AnimatedList (la
+   entrada, recortada: todo entra junto con la animación «entra» de siempre, en ≤240 ms).
+   Va en: js/cotizador/ia.js 812–848 (aiAnalyze(); se quita el setTimeout(()=>{…aiClose()},1500)
+   de la 848) y 1013–1023 (applyAi(), que devuelva el arreglo `nuevos`); cotizador.html 533
+   (#ai-status). La entrada es la de sistema.css 3880–3886, que quitó la escalera a propósito.
+   Por qué así: hoy las partidas entran directo a Q.items, el modal se cierra solo a los 1.5 s y
+   lo que faltó se dice con un número en un aviso. Aquí se ve renglón por renglón, lo que falta
+   se resuelve ahí mismo, y hay UN solo botón con relleno: «Ver partidas».
+   El «!» ámbar va con texto, nunca solo con color. El cruce medida↔partida compara cm contra
+   altura/ancho/alto con ±0.05.
+   ============================================================================ */
+.modal-sim{border:1px solid var(--linea);border-radius:var(--rr4);background:var(--sup);box-shadow:var(--sombra-alta);overflow:hidden}
+.ms-h{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 8px 8px 16px;border-bottom:1px solid var(--linea2)}
+.ms-h b{font:700 var(--t3)/1.2 var(--f-cifra)}
+.ms-h .btn-ic{border-color:transparent;background:none}
+.ms-b{padding:14px 16px 16px;display:grid;gap:12px}
+.ms-archivo{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup2);font-size:var(--t2);font-weight:700;min-width:0}
+.ms-archivo span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ms-archivo small{display:block;color:var(--tinta3);font-size:var(--t1);white-space:normal}
+.ms-archivo svg{width:32px;height:32px;flex:none}
+.ia-leyendo{display:flex;align-items:center;gap:12px;font-weight:700;font-size:var(--t2)}
+.ia-leyendo .cronom{font-family:var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta3)}
+.gs{width:28px;height:28px;flex:none}
+.gs circle{fill:none;stroke-width:2.6;stroke:var(--n3)}
+.gs .arco{stroke:var(--a-fill);stroke-dasharray:22 200;transform-origin:center;animation:gira .9s linear infinite}
+.gs .marca{fill:none;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;display:none}
+[data-e="ok"] .gs .base{stroke:var(--ok-fill);fill:var(--ok-bg)} [data-e="ok"] .gs .m-ok{display:block;stroke:var(--ok);animation:dibuja .24s .06s forwards}
+[data-e="av"] .gs .base{stroke:var(--av);fill:var(--av-bg)} [data-e="av"] .gs .m-av{display:block;stroke:var(--av);animation:dibuja .24s .06s forwards}
+[data-e] .gs .arco{display:none}
+.ia-resumen-t{margin:0;font:700 var(--t3)/1.35 var(--f-texto)}
+.ia-resumen-t small{display:block;font-size:var(--t1);color:var(--tinta3);font-weight:700}
+.ia-lista{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.ia-p{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;align-items:start;padding:10px 12px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup);animation:entra .24s cubic-bezier(.2,.8,.2,1) backwards}
+.ia-p[data-e="av"]{border-color:var(--av-borde);background:var(--av-bg)}
+.ia-p b{display:block;font-size:var(--t2);line-height:1.3}
+.ia-p small{display:block;font-size:var(--t1);color:var(--tinta2);font-weight:600;line-height:1.4}
+.ia-p .falta{color:var(--av);font-weight:800}
+.ia-p .precio{font-family:var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta)}
+.ia-mat{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}
+.ia-mat button{min-height:52px;padding:6px 10px;border-radius:var(--rr2);border:1px solid var(--av-borde);background:var(--sup);color:var(--tinta);font:700 var(--t2)/1.2 var(--f-texto);text-align:left;cursor:pointer}
+.ia-mat button small{display:block;color:var(--tinta2);font-size:var(--t1);font-weight:600}
+.ia-p.quieto,.ia-p.tocado{animation:none}
+.ia-p.quieto .marca{animation:none;stroke-dashoffset:0}
+.ia-dif{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px;margin-top:8px;padding:6px 6px 6px 10px;border-radius:var(--rr2);background:var(--sup2);border:1px solid var(--linea2);font-size:var(--t1);font-weight:700;color:var(--tinta2)}
+.ia-dif .btn{min-height:44px;font-size:var(--t1)}
+.ia-medidas{margin:0;font-size:var(--t1);color:var(--tinta2);font-weight:700;display:flex;flex-wrap:wrap;gap:6px 12px}
+.ia-medidas .m-si{color:var(--ok)} .ia-medidas .m-no{color:var(--av)}
+.ms-pie{display:flex;justify-content:flex-end;gap:10px;padding-top:4px}
+
+/* ============================================================================
+   45) LOS DESLIZADORES DEL VECTORIZADOR CON MARCAS
+   Sale de: React Bits ElasticSlider (pasos que se acomodan y valor pegado al pulgar), sin su
+   estiramiento elástico; alternativa WakeSlider.
+   Va en: cotizador.html 715–724 (#vt-colores, #vt-detalle, #vt-ruido, #vt-esq);
+   js/cotizador/vectorizador.js 261–269 (vtOpt()) y 274–279 (vtSucio()); css/sistema.css 1985.
+   Por qué así: hoy mover un ajuste solo dice «Ajustes cambiados» y hay que tocar «Volver a
+   vectorizar». Detalle y Esquinas son rangos de tres pasos sin marcas y con el pulgar nativo
+   chico. Re-trazar en `change` (al soltar) y NO en `input`: en gama media vectorizar a cada
+   pixel del arrastre congela el dedo. La espera es una barra fina ARRIBA del lienzo: el trazo
+   anterior se sigue viendo, no un velo oscuro. El botón manual se queda.
+   El pulgar mide 44 px (la zona táctil) y se ve de 26: el resto es transparente.
+   En el repo Colores va de 2 a 24; con marcas legibles a 360 px caben 2–8 (o marcas cada 4).
+   ============================================================================ */
+.desl{display:grid;gap:2px}
+.desl-t{display:flex;justify-content:space-between;align-items:baseline;font-size:var(--t1);font-weight:700;color:var(--tinta2);text-transform:uppercase;letter-spacing:.04em}
+.desl-pista{position:relative;padding-top:34px}
+.desl input[type=range]{-webkit-appearance:none;appearance:none;display:block;width:100%;height:44px;margin:0;background:transparent;cursor:pointer}
+.desl input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(90deg,var(--a-fill) 0 calc(22px + var(--p) * (100% - 44px)),var(--n3) 0)}
+.desl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:44px;height:44px;margin-top:-19px;border:0;border-radius:50%;cursor:grab;
+  background:radial-gradient(circle,var(--a-fill) 0 9.5px,#fff 10px 12.5px,rgba(var(--tinta-rgb),.3) 13px 13.5px,transparent 14px)}
+.desl input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--n3)}
+.desl input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:var(--a-fill)}
+.desl input[type=range]::-moz-range-thumb{width:44px;height:44px;border:0;border-radius:50%;cursor:grab;
+  background:radial-gradient(circle,var(--a-fill) 0 9.5px,#fff 10px 12.5px,rgba(var(--tinta-rgb),.3) 13px 13.5px,transparent 14px)}
+.desl input[type=range]:active::-webkit-slider-thumb{cursor:grabbing}
+/* La pastilla y las marcas usan la MISMA cuenta que el centro del pulgar: 22px + p·(100% − 44px). */
+.desl-pil{position:absolute;top:0;left:calc(22px + var(--p) * (100% - 44px));transform:translateX(-50%);min-width:34px;padding:5px 9px;border-radius:999px;background:var(--nav);color:#fff;font:700 var(--t1)/1 var(--f-cifra);text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums;pointer-events:none}
+.desl-pil::after{content:"";position:absolute;left:calc(50% + var(--fx,0px));bottom:-4px;width:8px;height:8px;background:inherit;transform:translateX(-50%) rotate(45deg);border-radius:1px;z-index:-1}
+html[data-tema="oscuro"] .desl-pil{background:#eef0ff;color:#171a33}
+.desl-marcas{position:relative;height:30px;margin-top:-6px}
+.desl-marcas span{position:absolute;top:0;left:calc(22px + var(--k) * (100% - 44px));transform:translateX(-50%);display:grid;justify-items:center;gap:3px;font:700 11.5px/1 var(--f-texto);color:var(--tinta3);white-space:nowrap}
+.desl-marcas span::before{content:"";width:2px;height:7px;border-radius:1px;background:var(--n3)}
+.desl-marcas span.en{color:var(--tinta)} .desl-marcas span.en::before{background:var(--a-fill)}
+.vt-lienzo{position:relative;border:1px solid var(--linea);border-radius:var(--rr3);background:#fff;overflow:hidden}
+.vt-lienzo canvas{display:block;width:100%;height:200px}
+.vt-info{margin:0;font-size:var(--t1);color:var(--tinta2);font-weight:700;font-variant-numeric:tabular-nums}
+
+/* ----- Movimiento reducido: fuera el adorno, se queda la información ----- */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+  .gs .arco{animation:none}
+  .pliegue::details-content{transition:none!important}   /* el comodín * no alcanza a este seudoelemento */
+  .partida.levantada{scale:none}
+  .zona-carpeta.sobre .c-frente{transform:none}   /* sin tapa; la hoja con «Suéltalo aquí» se queda */
+}
+</style>
+</head>
+<body>
+<main>
+  <header class="cab">
+    <div>
+      <h1>Muestras de UI · parte 4: las herramientas</h1>
+      <p class="intro">La lupa del escalador, el vectorizador, el historial y lo que leyó la IA, más dos piezas del flujo de partidas. Números 37 a 45. Todo se puede tocar.</p>
+    </div>
+    <button type="button" class="btn" id="b-tema" aria-pressed="false">Tema oscuro</button>
+  </header>
+
+  <!-- 37 -->
+  <section class="card" aria-labelledby="t37">
+    <div class="card-h"><h2 id="t37">37 · La lupa que dice cuánto mide y avisa cuando se pega</h2><span class="fuente">Crosshair · TargetCursor</span></div>
+    <p class="nota">Arrastra un extremo de la línea azul: bajo la lupa va la cifra viva (la puerta mide 210 cm, esa es la escala). Llévalo al borde del letrero: la cruz se vuelve cuatro esquinas y la guía, sólida. Teclado: flechas (Mayús: 10 cm) y Espacio para cambiar de extremo.</p>
+    <div class="plano-medir"><canvas id="c37" tabindex="0" role="application" aria-roledescription="plano para medir" aria-label="Fachada de Panadería La Espiga con una medida ajustable. Flechas para mover el extremo, Mayús para 10 cm, Espacio para cambiar de extremo"></canvas></div>
+    <p class="medida-lectura" id="m37-lectura" aria-live="polite">Medida 1: <b>330 cm</b></p>
+  </section>
+
+  <!-- 38 -->
+  <section class="card" aria-labelledby="t38">
+    <div class="card-h"><h2 id="t38">38 · El trazo de corte se dibuja al terminar de vectorizar</h2><span class="fuente">StrokeText</span></div>
+    <p class="nota">Toca «Vectorizar». Al terminar la barra, el contorno de corte recorre cada letra y la caja nube, luego se rellena. El perímetro sale de las mismas longitudes.</p>
+    <div class="vt-escena" id="e38" data-estado="foto">
+      <i class="vt-barra" aria-hidden="true"></i>
+      <svg id="s38" viewBox="-13 2 124 114" role="img" aria-label="Logo AL3D con letras de 30 cm y una caja de luz tipo nube">
+        <defs><filter id="f-foto" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4" result="r"/><feDisplacementMap in="SourceGraphic" in2="r" scale="1.6" result="d"/><feGaussianBlur in="d" stdDeviation=".45"/></filter></defs>
+        <g class="vt-foto" filter="url(#f-foto)"></g>
+        <g class="vt-corte"></g>
+      </svg>
+      <span class="vt-etq" id="e38-etq">Foto del logo</span>
+    </div>
+    <div class="fila"><button type="button" class="btn btn-pri" id="b38">Vectorizar</button></div>
+    <p class="perimetro" id="o38" aria-live="polite">Letras de 30 cm y una caja de luz tipo nube, aún en foto.</p>
+  </section>
+
+  <!-- 39 -->
+  <section class="card" aria-labelledby="t39">
+    <div class="card-h"><h2 id="t39">39 · El plano a pantalla completa con zoom</h2><span class="fuente">DomeGallery (solo el «enlarge»)</span></div>
+    <p class="nota">Toca la miniatura: crece hasta llenar la pantalla. Adentro: pellizca con dos dedos, usa la rueda del ratón, arrastra, y doble toque para 2×. Cierra con ✕ o Esc y regresa a su sitio. Con teclado: + y − acercan, flechas mueven.</p>
+    <button type="button" class="miniatura" id="mini39" aria-label="Ver el plano de Farmacia Guadalupe a pantalla completa">
+      <svg viewBox="0 0 800 520" aria-hidden="true" font-family="Manrope, system-ui, sans-serif">
+        <rect width="800" height="520" fill="#fff"/>
+        <text x="24" y="36" font-size="17" font-weight="800" fill="#1a1d33">FARMACIA GUADALUPE · FACHADA</text>
+        <text x="24" y="56" font-size="11" fill="#5c6184">COT-0040 · Av. Chapultepec 1250, Guadalajara · medidas en cm</text>
+        <rect x="80" y="120" width="640" height="340" fill="#f3efe8" stroke="#1a1d33" stroke-width="2"/>
+        <rect x="160" y="160" width="480" height="90" rx="6" fill="#e9edff" stroke="#3018f8" stroke-width="3"/>
+        <text x="400" y="216" text-anchor="middle" font-size="34" font-weight="800" fill="#1a1d33" letter-spacing="1">FARMACIA GUADALUPE</text>
+        <rect x="130" y="300" width="100" height="160" fill="none" stroke="#1a1d33" stroke-width="1.5"/>
+        <circle cx="215" cy="385" r="4" fill="#1a1d33"/>
+        <rect x="280" y="300" width="380" height="120" fill="none" stroke="#1a1d33" stroke-width="1.5"/>
+        <path d="M470 300V420" stroke="#1a1d33" stroke-width="1.5"/>
+        <g stroke="#3018f8" stroke-width="1.2" fill="#3018f8">
+          <path d="M160 140H640M160 133v14M640 133v14" fill="none"/>
+          <path d="M160 140l9-4v8zM640 140l-9-4v8z"/>
+          <path d="M670 160V250M663 160h14M663 250h14" fill="none"/>
+          <path d="M670 160l-4 9h8zM670 250l-4-9h8z"/>
+          <path d="M110 250V460M103 250h14" fill="none"/>
+          <path d="M110 250l-4 9h8zM110 460l-4-9h8z"/>
+        </g>
+        <g font-size="12" font-weight="800" fill="#3018f8">
+          <text x="400" y="132" text-anchor="middle">480</text>
+          <text x="684" y="209">90</text>
+          <text x="96" y="360" text-anchor="middle" transform="rotate(-90 96 360)">210 al piso</text>
+        </g>
+        <g font-size="10.5" fill="#5c6184">
+          <text x="24" y="488">Caja de luz rectangular 4.80 × 0.90 m = 4.32 m² × $3,900 = $16,848</text>
+          <text x="24" y="505">Contacto a 1.80 m del piso · garantía: 1 año en material eléctrico, 2 años en colorimetría</text>
+        </g>
+      </svg>
+    </button>
+  </section>
+
+  <!-- 40 -->
+  <section class="card" aria-labelledby="t40">
+    <div class="card-h"><h2 id="t40">40 · Reordenar partidas con el dedo</h2><span class="fuente">CardSwap · SwipeRow</span></div>
+    <p class="nota" id="m40-ayuda">Mantén presionado el número de una partida (300 ms) hasta que se levante y arrástrala hacia arriba o abajo: las vecinas se apartan. Con teclado, «Subir» y «Bajar». Los números se reescriben: es el orden del PDF.</p>
+    <ol class="partidas" id="l40"></ol>
+    <p class="orden-pdf" id="o40"></p>
+    <p class="sr" id="v40" aria-live="polite"></p>
+  </section>
+
+  <!-- 41 -->
+  <section class="card" aria-labelledby="t41">
+    <div class="card-h"><h2 id="t41">41 · Los pliegues abren con su altura</h2><span class="fuente">Vengeance FAQ Accordion</span></div>
+    <p class="nota">Toca «3 partidas»: la tabla se abre con su altura y la flecha gira a la vez. «Abrir y editar» y «Duplicar» siguen a la vista. La casilla fuerza el respaldo para navegadores sin <code>::details-content</code>; «Reabrir sin animar» es como debe reabrir renderAuth().</p>
+    <div id="h41" style="display:grid;gap:10px">
+      <article class="hentry">
+        <div class="hentry-top"><div><span class="hentry-folio">COT-0042</span><b class="hentry-name">Panadería La Espiga</b><span class="hentry-sub">33 1234 5678 · 24 sep</span></div><span class="hentry-total">$15,450</span></div>
+        <div class="hitos"><span class="hito si">PDF</span><span class="hito">Enviado</span><span class="hito">Venta</span></div>
+        <details class="pliegue">
+          <summary><span>3 partidas</span><svg class="flecha" viewBox="0 0 18 18" aria-hidden="true"><path d="M4.5 7l4.5 4.5L13.5 7"/></svg></summary>
+          <div class="pliegue-cuerpo"><div>
+            <table class="htable"><tbody>
+              <tr><td>1</td><td>Letras 3D acrílico con cantos de aluminio · 30 cm × 9 letras · LED frontal</td><td>$10,800</td></tr>
+              <tr><td>2</td><td>Caja de luz rectangular · 1.00 × 0.50 m (0.50 m²)</td><td>$1,950</td></tr>
+              <tr><td>3</td><td>Letras 3D aluminio blanco · 15 cm × 6 letras · LED posterior</td><td>$2,700</td></tr>
+            </tbody></table>
+            <p class="hentry-nota">Nota: instalar antes del 5 de octubre; el cliente pone la escalera.</p>
+          </div></div>
+        </details>
+        <div class="fila acts"><button type="button" class="btn">Abrir y editar</button><button type="button" class="btn">Duplicar</button></div>
+      </article>
+      <article class="hentry">
+        <div class="hentry-top"><div><span class="hentry-folio">COT-0041</span><b class="hentry-name">Gym Titanio</b><span class="hentry-sub">33 2813 0092 · 22 sep</span></div><span class="hentry-total">$19,060</span></div>
+        <div class="hitos"><span class="hito si">PDF</span><span class="hito si">Enviado</span><span class="hito si">Venta</span></div>
+        <details class="pliegue">
+          <summary><span>2 partidas</span><svg class="flecha" viewBox="0 0 18 18" aria-hidden="true"><path d="M4.5 7l4.5 4.5L13.5 7"/></svg></summary>
+          <div class="pliegue-cuerpo"><div>
+            <table class="htable"><tbody>
+              <tr><td>1</td><td>Letras 3D aluminio brush · 40 cm × 10 letras · LED posterior</td><td>$14,000</td></tr>
+              <tr><td>2</td><td>Caja de luz tipo nube · 1.10 m²</td><td>$5,060</td></tr>
+            </tbody></table>
+          </div></div>
+        </details>
+        <div class="fila acts"><button type="button" class="btn">Abrir y editar</button><button type="button" class="btn">Duplicar</button></div>
+      </article>
+    </div>
+    <div class="fila">
+      <label class="fila-chk"><input type="checkbox" id="k41"> Forzar el respaldo (rejilla 0fr→1fr)</label>
+      <button type="button" class="btn" id="b41">Reabrir sin animar</button>
+    </div>
+  </section>
+
+  <!-- 42 -->
+  <section class="card" aria-labelledby="t42">
+    <div class="card-h"><h2 id="t42">42 · La zona de arrastre que abre su carpeta</h2><span class="fuente">FolderFloat · Folder</span></div>
+    <p class="nota">Quieta en reposo. Arrastra un archivo encima: la tapa se abre y asoma una hoja. Al soltar, la hoja entra y aparece el nombre. Si no tienes un archivo a mano, «Simular arrastre».</p>
+    <div class="zona-carpeta" id="z42">
+      <div class="carpeta" aria-hidden="true">
+        <svg class="c-atras" viewBox="0 0 160 120"><path d="M8 4h42q4 0 6.5 3l7 8h88.5a8 8 0 0 1 8 8v89a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8V12a8 8 0 0 1 8-8z" fill="#3018f8"/></svg>
+        <div class="c-hoja">Suéltalo aquí<i></i><i></i></div>
+        <svg class="c-frente" viewBox="0 0 160 92"><rect x="0" y="0" width="160" height="92" rx="8" fill="#4060f8"/><rect x="0" y="0" width="160" height="3" rx="1.5" fill="#6f8bff"/></svg>
+      </div>
+      <p class="zona-t" id="z42-t">Arrastra aquí el plano o la foto</p>
+      <p class="zona-s" id="z42-s" aria-live="polite">PDF, JPG o PNG</p>
+      <input type="file" id="f42" class="sr" tabindex="-1" aria-hidden="true">
+      <div class="fila" style="justify-content:center">
+        <button type="button" class="btn" id="b42-elegir">Elegir archivo</button>
+        <button type="button" class="btn" id="b42-sim">Simular arrastre</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 43 -->
+  <section class="card" aria-labelledby="t43">
+    <div class="card-h"><h2 id="t43">43 · El historial con fichas de filtro y coincidencia resaltada</h2><span class="fuente">Vengeance Search Modal</span></div>
+    <p class="nota">Busca sin acentos (<b>panaderia</b>, <b>optica</b>), por partida (<b>nube</b>) o por teléfono pegado (<b>331234</b>). Las fichas se combinan con la búsqueda. Prueba <b>&amp;</b>: la marca no rompe el texto.</p>
+    <div class="fld"><label for="q43">Buscar en el historial</label><input id="q43" type="search" autocomplete="off" placeholder="Folio, cliente, teléfono, partida…"></div>
+    <div class="fichas" id="f43" role="group" aria-label="Filtrar por lo que falta"></div>
+    <p class="h-cuenta" id="c43" aria-live="polite"></p>
+    <ol class="h-lista" id="l43"></ol>
+  </section>
+
+  <!-- 44 -->
+  <section class="card" aria-labelledby="t44">
+    <div class="card-h"><h2 id="t44">44 · Lo que leyó la IA, antes de cerrar</h2><span class="fuente">StatusMark · AnimatedList</span></div>
+    <p class="nota">Así se ve dentro del modal de IA. Toca «Analizar»: en vez de cerrarse, enseña cada partida con ✓ si ya cotiza o «!» si falta material. Resuelve el «!» ahí mismo y prueba «Usar» con lo que la IA leyó distinto.</p>
+    <div class="modal-sim" id="p44">
+      <div class="ms-h"><b>Cotizar con IA</b><button type="button" class="btn btn-ic" id="x44" aria-label="Cerrar"><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M4.5 4.5l9 9M13.5 4.5l-9 9"/></svg></button></div>
+      <div class="ms-b" id="b44"></div>
+    </div>
+  </section>
+
+  <!-- 45 -->
+  <section class="card" aria-labelledby="t45">
+    <div class="card-h"><h2 id="t45">45 · Los deslizadores del vectorizador con marcas</h2><span class="fuente">ElasticSlider</span></div>
+    <p class="nota">Mueve un ajuste: la pastilla sigue al pulgar y el trazo NO se rehace mientras arrastras. Al soltar, se re-traza solo con una barra fina arriba del lienzo; el trazo anterior se sigue viendo mientras.</p>
+    <div class="vt-lienzo" id="v45"><i class="vt-barra" aria-hidden="true"></i><canvas id="c45" role="img" aria-label="Vista previa del vector"></canvas></div>
+    <p class="vt-info" id="i45" aria-live="polite"></p>
+    <div class="desl" id="d45-colores">
+      <div class="desl-t"><label for="r45-colores">Colores</label></div>
+      <div class="desl-pista">
+        <output class="desl-pil" for="r45-colores"></output>
+        <input type="range" id="r45-colores" min="2" max="8" step="1" value="6" list="m45-colores">
+        <div class="desl-marcas" aria-hidden="true"></div>
+      </div>
+      <datalist id="m45-colores"></datalist>
+    </div>
+    <div class="desl" id="d45-detalle">
+      <div class="desl-t"><label for="r45-detalle">Detalle</label></div>
+      <div class="desl-pista">
+        <output class="desl-pil" for="r45-detalle"></output>
+        <input type="range" id="r45-detalle" min="0" max="2" step="1" value="1" list="m45-detalle">
+        <div class="desl-marcas" aria-hidden="true"></div>
+      </div>
+      <datalist id="m45-detalle"></datalist>
+    </div>
+    <div class="desl" id="d45-esq">
+      <div class="desl-t"><label for="r45-esq">Esquinas</label></div>
+      <div class="desl-pista">
+        <output class="desl-pil" for="r45-esq"></output>
+        <input type="range" id="r45-esq" min="0" max="2" step="1" value="1" list="m45-esq">
+        <div class="desl-marcas" aria-hidden="true"></div>
+      </div>
+      <datalist id="m45-esq"></datalist>
+    </div>
+    <div class="fila"><button type="button" class="btn" id="b45">Volver a vectorizar</button></div>
+  </section>
+</main>
+
+<!-- Piezas fijas: la lupa del 37 y el visor del 39 -->
+<div class="lupa" id="lupa37" aria-hidden="true"><div class="lupa-circ"><canvas></canvas></div><span class="lupa-cifra"></span></div>
+<div class="visor" id="visor39" hidden role="dialog" aria-modal="true" aria-label="Plano a pantalla completa">
+  <div class="visor-velo"></div>
+  <div class="visor-lienzo" tabindex="0" aria-label="Plano ampliado. + y − para acercar, flechas para mover, Esc para cerrar"><div class="visor-img"></div></div>
+  <button type="button" class="visor-cerrar" aria-label="Cerrar el plano"><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M4.5 4.5l9 9M13.5 4.5l-9 9"/></svg></button>
+  <div class="visor-pie" aria-live="polite"><b>100 %</b><span>doble toque: 2×</span></div>
+</div>
+
+<script>
+const reducido = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+const dinero = n => '$' + Math.round(n).toLocaleString('es-MX');
+const cifra = n => { const r = Math.round(n * 2) / 2; return r % 1 ? r.toFixed(1) : String(r); };   // al medio centímetro
+const azul = () => getComputedStyle(document.documentElement).getPropertyValue('--a-fill').trim() || '#4060f8';
+/* La misma de notario.js 528: respeta reduced-motion y no truena sin un toque previo. */
+function vibrar(patron) {
+  try { if (reducido()) return; } catch (_) {}
+  try { if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return; } catch (_) {}
+  try { if (navigator.vibrate) navigator.vibrate(patron); } catch (_) {}
+}
+/* Repintar los lienzos cuando cambia el tema (leen los tokens al pintar). */
+const alCambiarTema = [];
+$('b-tema').addEventListener('click', () => {
+  const h = document.documentElement, oscuro = h.dataset.tema !== 'oscuro';
+  h.dataset.tema = oscuro ? 'oscuro' : ''; $('b-tema').setAttribute('aria-pressed', oscuro);
+  $('b-tema').textContent = oscuro ? 'Tema claro' : 'Tema oscuro';
+  alCambiarTema.forEach(f => f());
+});
+
+/* ======================= 37) lupaConMedida(canvas, lupa, opciones) =======================
+   Todo en centímetros: la foto ya está calibrada (la puerta mide 210 cm), así que la cifra es
+   la distancia entre los extremos, sin más cuentas. «crudo» es donde está el dedo; lo que se
+   dibuja es el punto ya pegado. La lupa se centra en el punto que VA A QUEDAR (scLoupePt()),
+   no en el dedo, que es lo que tapa. */
+function lupaConMedida(cvs, lupa, { ancho, alto, letrero, a, b, salida, pintarFondo }) {
+  const TAM = 132, AUM = 2.8, UMBRAL_PX = 10, ESQ_MS = 120;
+  const M = { a: { ...a }, b: { ...b } };
+  const guias = [{ eje: 'x', v: letrero.x }, { eje: 'x', v: letrero.x + letrero.w }, { eje: 'y', v: letrero.y }, { eje: 'y', v: letrero.y + letrero.h }];
+  const ctx = cvs.getContext('2d'), lc = lupa.querySelector('canvas'), lctx = lc.getContext('2d'), etq = lupa.querySelector('.lupa-cifra');
+  let k = 1, arr = null, activo = false, conTeclado = false, foco = 'b', crudoTecla = null;
+  let pegado = { x: null, y: null };
+  const esq = { desde: 0, hasta: 0, t0: 0, raf: 0 };      // 0 = cruz, 1 = esquinas cerradas
+  const dist = () => Math.hypot(M.b.x - M.a.x, M.b.y - M.a.y);
+
+  function medirLienzo() {
+    const w = cvs.clientWidth || 300, dpr = devicePixelRatio || 1;
+    k = w / ancho; cvs.style.height = Math.round(alto * k) + 'px';
+    cvs.width = Math.round(w * dpr); cvs.height = Math.round(alto * k * dpr);
+    lc.width = lc.height = Math.round(TAM * dpr);
+    pintar();
+  }
+  function escena(c, px, tx, ty, enLupa) {
+    const dpr = devicePixelRatio || 1, u = n => n / px, az = azul();
+    c.setTransform(dpr * px, 0, 0, dpr * px, dpr * tx, dpr * ty);
+    pintarFondo(c, u);
+    if (activo) guias.forEach(g => {
+      const si = pegado[g.eje] === g.v;
+      c.strokeStyle = si ? az : 'rgba(48,24,248,.55)'; c.lineWidth = u(si ? 2 : 1); c.setLineDash(si ? [] : [u(5), u(4)]);
+      c.beginPath(); if (g.eje === 'x') { c.moveTo(g.v, 0); c.lineTo(g.v, alto); } else { c.moveTo(0, g.v); c.lineTo(ancho, g.v); } c.stroke();
+    });
+    c.setLineDash([]);
+    const { a: p, b: q } = M, ang = Math.atan2(q.y - p.y, q.x - p.x), nx = -Math.sin(ang) * u(8), ny = Math.cos(ang) * u(8);
+    c.strokeStyle = az; c.lineWidth = u(2.5); c.lineCap = 'round';
+    c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(q.x, q.y); [p, q].forEach(e => { c.moveTo(e.x - nx, e.y - ny); c.lineTo(e.x + nx, e.y + ny); }); c.stroke();
+    [['a', p], ['b', q]].forEach(([id, e]) => {
+      if (conTeclado && foco === id) { c.beginPath(); c.arc(e.x, e.y, u(13), 0, 7); c.strokeStyle = '#fff'; c.lineWidth = u(3); c.stroke(); c.strokeStyle = az; c.lineWidth = u(1.5); c.stroke(); }
+      c.beginPath(); c.arc(e.x, e.y, u(7), 0, 7); c.fillStyle = '#fff'; c.fill(); c.strokeStyle = az; c.lineWidth = u(2.5); c.stroke();
+    });
+    if (!enLupa) {             // la cota de siempre, sobre la línea (la que tapa el dedo)
+      const t = cifra(dist()) + ' cm', mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2 + u(18);
+      c.font = `700 ${u(12)}px Sora, system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+      const w = c.measureText(t).width + u(12);
+      c.fillStyle = 'rgba(255,255,255,.94)'; c.beginPath(); c.roundRect(mx - w / 2, my - u(10), w, u(20), u(10)); c.fill();
+      c.fillStyle = '#1a1d33'; c.fillText(t, mx, my + u(.5));
+    }
+  }
+  function pintar() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cvs.width, cvs.height);
+    escena(ctx, k, 0, 0, false);
+    if (lupa.classList.contains('ver')) pintarLupa();
+    cvs.dataset.medida = cifra(dist()); cvs.dataset.pegado = (pegado.x !== null ? 'x' : '') + (pegado.y !== null ? 'y' : '');
+  }
+  const nivelEsquinas = () => {
+    if (reducido()) return esq.hasta;
+    const t = Math.min(1, (performance.now() - esq.t0) / ESQ_MS), e = 1 - Math.pow(1 - t, 3);
+    return esq.desde + (esq.hasta - esq.desde) * e;
+  };
+  function pintarLupa() {
+    const pt = M[foco], px = k * AUM, dpr = devicePixelRatio || 1, c0 = TAM / 2;
+    lctx.setTransform(1, 0, 0, 1, 0, 0); lctx.clearRect(0, 0, lc.width, lc.height);
+    escena(lctx, px, c0 - pt.x * px, c0 - pt.y * px, true);
+    lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const q = nivelEsquinas(), az = azul();
+    lctx.lineCap = 'round'; lctx.lineWidth = 2.5; lctx.strokeStyle = az;
+    if (q < 1) {             // la cruz de hoy
+      lctx.globalAlpha = 1 - q; lctx.lineWidth = 1.5;
+      lctx.beginPath(); lctx.moveTo(c0 - 16, c0); lctx.lineTo(c0 + 16, c0); lctx.moveTo(c0, c0 - 16); lctx.lineTo(c0, c0 + 16); lctx.stroke();
+    }
+    if (q > 0) {             // cuatro esquinas que se cierran sobre el punto (TargetCursor)
+      const r = 26 - 14 * q, l = 7; lctx.globalAlpha = q; lctx.lineWidth = 2.5;
+      lctx.beginPath();
+      [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy]) => {
+        const x = c0 + sx * r, y = c0 + sy * r;
+        lctx.moveTo(x, y - sy * l); lctx.lineTo(x, y); lctx.lineTo(x - sx * l, y);
+      });
+      lctx.stroke();
+    }
+    lctx.globalAlpha = 1;
+    etq.textContent = `Medida 1 · ${cifra(dist())} cm${pegado.x !== null || pegado.y !== null ? ' · en el borde' : ''}`;
+  }
+  /* Detección de flanco: el cierre de 120 ms solo corre cuando CAMBIA el estado. */
+  function cambiaEsquinas(hasta) {
+    esq.desde = nivelEsquinas(); esq.hasta = hasta; esq.t0 = performance.now();
+    cancelAnimationFrame(esq.raf);
+    if (reducido()) return;
+    const paso = () => { pintarLupa(); if (performance.now() - esq.t0 < ESQ_MS) esq.raf = requestAnimationFrame(paso); };
+    esq.raf = requestAnimationFrame(paso);
+  }
+  function mover(crudo, umbralCm) {
+    const p = { x: Math.max(0, Math.min(ancho, crudo.x)), y: Math.max(0, Math.min(alto, crudo.y)) };
+    const antes = { ...pegado };
+    pegado = { x: null, y: null };
+    for (const g of guias) if (Math.abs(p[g.eje] - g.v) <= umbralCm && pegado[g.eje] === null) { p[g.eje] = g.v; pegado[g.eje] = g.v; }
+    M[foco] = p;
+    const eraPegado = antes.x !== null || antes.y !== null, esPegado = pegado.x !== null || pegado.y !== null;
+    const otraGuia = esPegado && (pegado.x !== antes.x || pegado.y !== antes.y);
+    if (otraGuia) vibrar([6]);
+    if (esPegado !== eraPegado) cambiaEsquinas(esPegado ? 1 : 0);
+    pintar();
+  }
+  function ponerLupa(cx, cy, sobrePunto) {
+    const H = TAM + 8 + 28;
+    let lx = cx - TAM / 2, ly = cy - H - (sobrePunto ? 22 : 34);
+    if (ly < 8) ly = cy + (sobrePunto ? 22 : 34);
+    lx = Math.max(8, Math.min(innerWidth - TAM - 8, lx));
+    lupa.style.transform = `translate(${Math.round(lx)}px,${Math.round(ly)}px)`;
+    lupa.classList.add('ver'); pintarLupa();
+    /* La cifra es más ancha que el círculo: se centra bajo él pero nunca se sale de la pantalla. */
+    const ew = etq.offsetWidth, ex = Math.max(8, Math.min(innerWidth - ew - 8, lx + TAM / 2 - ew / 2));
+    etq.style.transform = `translateX(${Math.round(ex - lx)}px)`;
+  }
+  function quitarLupa() {
+    lupa.classList.remove('ver'); activo = false; pegado = { x: null, y: null };
+    esq.desde = esq.hasta = 0; cancelAnimationFrame(esq.raf); pintar();
+  }
+  const enCm = e => { const r = cvs.getBoundingClientRect(); return { x: (e.clientX - r.left) / k, y: (e.clientY - r.top) / k }; };
+  const anunciar = () => salida(M, dist(), foco);
+
+  cvs.addEventListener('pointerdown', e => {
+    const p = enCm(e);
+    const cerca = ['a', 'b'].map(id => [id, Math.hypot(M[id].x - p.x, M[id].y - p.y) * k]).sort((x, y) => x[1] - y[1])[0];
+    if (cerca[1] > 22) return;                      // 44 px de zona alrededor de cada extremo
+    e.preventDefault();
+    try { cvs.setPointerCapture(e.pointerId); } catch (_) {}
+    foco = cerca[0]; conTeclado = false; activo = true;
+    arr = { id: e.pointerId, dx: M[foco].x - p.x, dy: M[foco].y - p.y };   // sin brinco al agarrar
+    mover(M[foco], 0);
+    ponerLupa(e.clientX, e.clientY, false);
+  });
+  cvs.addEventListener('pointermove', e => {
+    if (!arr || e.pointerId !== arr.id) return;
+    const p = enCm(e);
+    mover({ x: p.x + arr.dx, y: p.y + arr.dy }, UMBRAL_PX / k);
+    ponerLupa(e.clientX, e.clientY, false);
+  });
+  const soltar = e => { if (!arr || e.pointerId !== arr.id) return; arr = null; quitarLupa(); anunciar(); };
+  cvs.addEventListener('pointerup', soltar); cvs.addEventListener('pointercancel', soltar);
+
+  /* Teclado: 1 cm por flecha (Mayús: 10). El pegado con teclado usa 3 cm; con el umbral del
+     dedo se quedaría atorado en la guía durante veinte pulsaciones. */
+  cvs.addEventListener('keydown', e => {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); foco = foco === 'a' ? 'b' : 'a'; crudoTecla = { ...M[foco] }; conTeclado = true; activo = true; pintar(); anunciar(); return; }
+    if (e.key === 'Escape') { quitarLupa(); return; }
+    const n = e.shiftKey ? 10 : 1, d = { ArrowLeft: [-n, 0], ArrowRight: [n, 0], ArrowUp: [0, -n], ArrowDown: [0, n] }[e.key];
+    if (!d) return;
+    e.preventDefault(); conTeclado = true; activo = true;
+    if (!crudoTecla) crudoTecla = { ...M[foco] };
+    crudoTecla.x += d[0]; crudoTecla.y += d[1];
+    mover(crudoTecla, 3);
+    const r = cvs.getBoundingClientRect();
+    ponerLupa(r.left + M[foco].x * k, r.top + M[foco].y * k, true);
+  });
+  cvs.addEventListener('keyup', e => { if (e.key.startsWith('Arrow')) anunciar(); });
+  cvs.addEventListener('focus', () => { conTeclado = cvs.matches(':focus-visible'); crudoTecla = { ...M[foco] }; pintar(); });
+  cvs.addEventListener('blur', () => { conTeclado = false; crudoTecla = null; quitarLupa(); });
+  new ResizeObserver(medirLienzo).observe(cvs);
+  alCambiarTema.push(pintar);
+  medirLienzo();
+}
+/* La fachada de ejemplo, en cm. En el repo esto es la foto: scScene() la redibuja centrada
+   en el punto y con más aumento, en vez de ampliar píxeles ya dibujados. */
+const LETRERO37 = { x: 150, y: 48, w: 420, h: 80 };
+function pintarFachada37(c, u) {
+  c.fillStyle = '#ddd3c6'; c.fillRect(0, 0, 700, 400);
+  c.fillStyle = '#cabfb0'; c.fillRect(0, 0, 700, 20);
+  c.strokeStyle = 'rgba(90,70,50,.10)'; c.lineWidth = u(1);
+  for (let y = 150; y < 388; y += 60) { c.beginPath(); c.moveTo(0, y); c.lineTo(700, y); c.stroke(); }
+  c.fillStyle = '#a39a8e'; c.fillRect(0, 388, 700, 12);
+  c.fillStyle = '#6b4a33'; c.fillRect(70, 178, 100, 210);
+  c.fillStyle = '#5a3d2a'; c.fillRect(80, 190, 80, 90); c.fillRect(80, 292, 80, 86);
+  c.fillStyle = '#e9c46a'; c.beginPath(); c.arc(156, 292, 3.5, 0, 7); c.fill();
+  c.fillStyle = '#efe8dd'; c.fillRect(214, 172, 432, 176);
+  const g = c.createLinearGradient(0, 180, 0, 340); g.addColorStop(0, '#9dbccf'); g.addColorStop(1, '#d5e4ec');
+  c.fillStyle = g; c.fillRect(222, 180, 416, 160);
+  c.fillStyle = '#efe8dd'; c.fillRect(427, 180, 6, 160);
+  c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 8; c.beginPath(); c.moveTo(250, 330); c.lineTo(300, 190); c.moveTo(470, 330); c.lineTo(520, 190); c.stroke();
+  const L = LETRERO37;
+  c.fillStyle = '#1f2340'; c.fillRect(L.x, L.y, L.w, L.h);
+  c.fillStyle = '#f6e7c1'; c.font = '800 34px Sora, system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  const t = 'PANADERÍA LA ESPIGA', f = Math.min(1, (L.w - 44) / c.measureText(t).width);
+  c.save(); c.translate(L.x + L.w / 2, L.y + L.h / 2 + 1); c.scale(f, f); c.fillText(t, 0, 0); c.restore();
+  c.fillStyle = '#fff'; c.font = `700 ${u(10)}px Manrope, system-ui, sans-serif`; c.textAlign = 'center';
+  c.fillText('Puerta', 120, 330); c.fillText('210 cm', 120, 330 + u(13));
+}
+lupaConMedida($('c37'), $('lupa37'), {
+  ancho: 700, alto: 400, letrero: LETRERO37, a: { x: 190, y: 170 }, b: { x: 520, y: 170 }, pintarFondo: pintarFachada37,
+  salida: (M, d, foco) => { $('m37-lectura').innerHTML = `Medida 1: <b>${cifra(d)} cm</b> · extremo ${foco === 'a' ? 'izquierdo' : 'derecho'} activo`; }
+});
+
+/* ======================= 38) vectorizarConTrazo(btn, escena, salida) =======================
+   Las formas son las de VT.svg; aquí, «AL3D» en trazos rectos (cm, letras de 30) y una caja
+   tipo nube. Las letras con hueco son un solo path de dos subtrazos (fill-rule evenodd). */
+const FORMAS38 = [
+  { n: 'A', c: 'letra', d: 'M0 40L9 10H15L24 40H18L16 33H8L6 40Z M9.9 27H14.1L12 20Z' },
+  { n: 'L', c: 'letra', d: 'M28 10H34V34H48V40H28Z' },
+  { n: '3', c: 'letra', d: 'M52 10H67L72 15V22L70 25L72 28V35L67 40H52V34H66V28H58V22H66V16H52Z' },
+  { n: 'D', c: 'letra', d: 'M76 10H90L98 18V32L90 40H76Z M82 16H87.5L92 20.5V29.5L87.5 34H82Z' },
+  { n: 'nube', c: 'nube', d: 'M12 98H86A14 14 0 0 0 88 72A16 16 0 0 0 66 58A18 18 0 0 0 36 56A15 15 0 0 0 14 70A15 15 0 0 0 12 98Z' }
+];
+function dibujarContorno(paths, { saltar = false } = {}) {
+  if (saltar) return Promise.resolve();
+  const DUR = 480, ESC = 50, RELL = 200;          // ≤ 0.9 s en total con cinco formas
+  const fin = paths.map((p, i) => {
+    const L = p.getTotalLength();
+    p.style.strokeDasharray = `${L} ${L}`;
+    p.animate([{ strokeDashoffset: L + 'px' }, { strokeDashoffset: '0px' }], { duration: DUR, delay: i * ESC, easing: 'cubic-bezier(.45,.05,.3,1)', fill: 'both' });
+    return p.animate([{ fillOpacity: 0 }, { fillOpacity: 1 }], { duration: RELL, delay: i * ESC + DUR, fill: 'both' }).finished;
+  });
+  return Promise.all(fin).then(() => paths.forEach(p => { p.getAnimations().forEach(a => a.cancel()); p.style.strokeDasharray = ''; }));
+}
+function vectorizarConTrazo(btn, escena, salida, formas) {
+  const svgNS = 'http://www.w3.org/2000/svg', foto = escena.querySelector('.vt-foto'), corte = escena.querySelector('.vt-corte'), barra = escena.querySelector('.vt-barra');
+  formas.forEach(f => {
+    const a = document.createElementNS(svgNS, 'path'); a.setAttribute('d', f.d); a.setAttribute('fill', f.c === 'nube' ? '#7d95ff' : '#23263d'); a.setAttribute('fill-rule', 'evenodd'); foto.append(a);
+    const b = document.createElementNS(svgNS, 'path'); b.setAttribute('d', f.d); b.setAttribute('class', f.c); b.dataset.n = f.n; corte.append(b);
+  });
+  let corriendo = false;
+  btn.addEventListener('click', async () => {
+    if (corriendo) return;
+    corriendo = true; btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+    escena.dataset.estado = 'trabajando'; salida.textContent = 'Vectorizando…';
+    const paths = [...corte.querySelectorAll('path')];
+    paths.forEach(p => p.getAnimations().forEach(a => a.cancel()));
+    /* La barra es información: se queda con reduced-motion. (Aquí simula el trabajo real.) */
+    await barra.animate([{ transform: 'scaleX(0)', opacity: 1 }, { transform: 'scaleX(1)', opacity: 1 }], { duration: 900, easing: 'cubic-bezier(.3,.6,.4,1)', fill: 'forwards' }).finished;
+    barra.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, fill: 'forwards' });
+    const nodos = paths.reduce((n, p) => n + (p.getAttribute('d').match(/[MLHVCSQTAZ]/gi) || []).length, 0);
+    const largos = paths.map(p => p.getTotalLength());
+    escena.dataset.estado = 'dibujando'; $('e38-etq').textContent = 'Trazo de corte';
+    await dibujarContorno(paths, { saltar: reducido() || nodos > 3000 });
+    escena.dataset.estado = 'listo'; $('e38-etq').textContent = 'Vector sobre la foto';
+    const m = largos.reduce((s, l) => s + l, 0) / 100;      // el viewBox está en cm
+    salida.innerHTML = `Perímetro de corte: <b>${m.toFixed(2)} m</b><small>Por pieza, en m: ${formas.map((f, i) => `${f.n} ${(largos[i] / 100).toFixed(2)}`).join(' · ')}</small>`;
+    btn.textContent = 'Volver a vectorizar'; btn.disabled = false; btn.removeAttribute('aria-busy'); corriendo = false;
+    escena.dataset.perimetro = m.toFixed(2);
+  });
+}
+vectorizarConTrazo($('b38'), $('e38'), $('o38'), FORMAS38);
+
+/* ======================= 39) visorConZoom(miniatura, visor) =======================
+   V = {x, y, s}: la esquina de la imagen en pantalla y su escala. El vuelo es FLIP: se coloca
+   ya en su lugar final y se anima DESDE el rectángulo de la miniatura. */
+function visorConZoom(mini, visor) {
+  const lienzo = visor.querySelector('.visor-lienzo'), img = visor.querySelector('.visor-img'), velo = visor.querySelector('.visor-velo');
+  const cerrarB = visor.querySelector('.visor-cerrar'), lectura = visor.querySelector('.visor-pie b');
+  const fuente = mini.querySelector('svg'), vb = fuente.viewBox.baseVal, aspecto = vb.width / vb.height;
+  img.append(fuente.cloneNode(true));
+  let base = { w: 0, h: 0 }, V = { x: 0, y: 0, s: 1 }, abierto = false;
+  const punteros = new Map(); let g = null, movido = false, toque = { t: 0, x: 0, y: 0 };
+  const ancho = () => lienzo.clientWidth, alto = () => lienzo.clientHeight;
+  function ajustar() {
+    let w = ancho() - 24, h = w / aspecto;
+    if (h > alto() - 132) { h = alto() - 132; w = h * aspecto; }
+    base = { w, h }; img.style.width = w + 'px'; img.style.height = h + 'px';
+  }
+  function limitar() {
+    const w = base.w * V.s, h = base.h * V.s;
+    V.x = w <= ancho() ? (ancho() - w) / 2 : Math.min(0, Math.max(ancho() - w, V.x));
+    V.y = h <= alto() ? (alto() - h) / 2 : Math.min(0, Math.max(alto() - h, V.y));
+  }
+  function aplicar() {
+    img.style.transform = `translate(${V.x}px,${V.y}px) scale(${V.s})`;
+    lectura.textContent = Math.round(V.s * 100) + ' %'; visor.dataset.escala = V.s.toFixed(2);
+  }
+  function zoomEn(px, py, s2, suave) {
+    s2 = Math.max(1, Math.min(5, s2));
+    V.x = px - (px - V.x) * (s2 / V.s); V.y = py - (py - V.y) * (s2 / V.s); V.s = s2;
+    limitar();
+    if (suave && !reducido()) { img.style.transition = 'transform .22s cubic-bezier(.2,.8,.2,1)'; setTimeout(() => img.style.transition = '', 240); }
+    aplicar();
+  }
+  const enMini = () => { const r = fuente.getBoundingClientRect(); return `translate(${r.left}px,${r.top}px) scale(${r.width / base.w})`; };
+  function abrir() {
+    visor.hidden = false; abierto = true; ajustar(); V = { x: 0, y: 0, s: 1 }; limitar(); aplicar();
+    document.documentElement.style.overflow = 'hidden';
+    if (!reducido()) {
+      img.animate([{ transform: enMini() }, { transform: img.style.transform }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      velo.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260 });
+    }
+    mini.style.visibility = 'hidden';            // la miniatura «es» la que vuela
+    cerrarB.focus();
+  }
+  function cerrar() {
+    if (!abierto) return; abierto = false; punteros.clear(); g = null;
+    const fin = () => { visor.hidden = true; mini.style.visibility = ''; document.documentElement.style.overflow = ''; mini.focus(); };
+    if (reducido()) return fin();
+    velo.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240, fill: 'forwards' }).finished.then(a => a.cancel());
+    const a = img.animate([{ transform: img.style.transform }, { transform: enMini() }], { duration: 280, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' });
+    a.finished.then(() => { fin(); a.cancel(); });
+  }
+  const empezarGesto = () => {
+    const ps = [...punteros.values()];
+    g = { V: { ...V }, p0: ps[0], d0: ps[1] ? Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y) || 1 : 0, m0: ps[1] ? { x: (ps[0].x + ps[1].x) / 2, y: (ps[0].y + ps[1].y) / 2 } : null };
+  };
+  lienzo.addEventListener('pointerdown', e => {
+    try { lienzo.setPointerCapture(e.pointerId); } catch (_) {}
+    punteros.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (punteros.size === 1) movido = false; else movido = true;
+    empezarGesto();
+  });
+  lienzo.addEventListener('pointermove', e => {
+    if (!punteros.has(e.pointerId) || !g) return;
+    punteros.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const ps = [...punteros.values()];
+    if (ps.length >= 2 && g.m0) {
+      /* Pellizco: lo que estaba bajo los dedos se queda bajo los dedos. */
+      const d = Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y), m = { x: (ps[0].x + ps[1].x) / 2, y: (ps[0].y + ps[1].y) / 2 };
+      const s2 = Math.max(1, Math.min(5, g.V.s * d / g.d0)), f = s2 / g.V.s;
+      V.s = s2; V.x = m.x - (g.m0.x - g.V.x) * f; V.y = m.y - (g.m0.y - g.V.y) * f;
+    } else {
+      const dx = e.clientX - g.p0.x, dy = e.clientY - g.p0.y;
+      if (Math.hypot(dx, dy) > 6) movido = true;
+      V.x = g.V.x + dx; V.y = g.V.y + dy;
+    }
+    limitar(); aplicar();
+  });
+  const soltar = e => {
+    if (!punteros.has(e.pointerId)) return;
+    punteros.delete(e.pointerId);
+    if (punteros.size) { empezarGesto(); return; }
+    g = null;
+    if (movido || e.type === 'pointercancel') return;
+    const t = performance.now();
+    if (t - toque.t < 300 && Math.hypot(e.clientX - toque.x, e.clientY - toque.y) < 24) {
+      zoomEn(e.clientX, e.clientY, V.s < 1.5 ? 2 : 1, true); toque.t = 0;      // doble toque: 2× o de vuelta
+    } else toque = { t, x: e.clientX, y: e.clientY };
+  };
+  lienzo.addEventListener('pointerup', soltar); lienzo.addEventListener('pointercancel', soltar);
+  lienzo.addEventListener('wheel', e => { e.preventDefault(); zoomEn(e.clientX, e.clientY, V.s * Math.exp(-e.deltaY * .0015)); }, { passive: false });
+  visor.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); return cerrar(); }
+    if (e.key === 'Tab') { e.preventDefault(); (document.activeElement === cerrarB ? lienzo : cerrarB).focus(); return; }   // el foco no sale del visor
+    const cx = ancho() / 2, cy = alto() / 2;
+    if (e.key === '+' || e.key === '=') zoomEn(cx, cy, V.s * 1.25, true);
+    else if (e.key === '-') zoomEn(cx, cy, V.s / 1.25, true);
+    else if (e.key === '0') zoomEn(cx, cy, 1, true);
+    else if (e.key.startsWith('Arrow') && document.activeElement === lienzo) {
+      const d = { ArrowLeft: [40, 0], ArrowRight: [-40, 0], ArrowUp: [0, 40], ArrowDown: [0, -40] }[e.key];
+      V.x += d[0]; V.y += d[1]; limitar(); aplicar();
+    } else return;
+    e.preventDefault();
+  });
+  addEventListener('resize', () => { if (abierto) { ajustar(); V = { x: 0, y: 0, s: 1 }; limitar(); aplicar(); } });
+  mini.addEventListener('click', abrir);
+  cerrarB.addEventListener('click', cerrar);
+}
+visorConZoom($('mini39'), $('visor39'));
+
+/* ======================= 40) reordenarPartidas(lista, partidas, {alCambiar}) =======================
+   Mantener 300 ms el número arma el arrastre; si el dedo se mueve más de 8 px antes, era un
+   scroll o un titubeo y no pasa nada. Al soltar: el mismo splice del repo y FLIP para todos. */
+const PARTIDAS40 = [
+  { id: 'p1', t: 'Letras 3D aluminio negro', d: '40 cm · 10 letras · LED posterior', p: 12000 },
+  { id: 'p2', t: 'Caja de luz tipo nube', d: '1.20 × 0.80 m · 0.96 m²', p: 4416 },
+  { id: 'p3', t: 'Letras acrílico con cantos', d: '15 cm · 8 letras · LED frontal', p: 4800 },
+  { id: 'p4', t: 'Letras acrílico + vinil', d: '20 cm · 5 letras · LED frontal', p: 4500 }
+];
+function reordenarPartidas(lista, partidas, { alCambiar, vivo }) {
+  const ico = d => `<svg viewBox="0 0 18 18" aria-hidden="true"><path d="${d}"/></svg>`;
+  lista.innerHTML = partidas.map(p => `<li class="partida" data-id="${p.id}">
+      <button type="button" class="num"></button>
+      <div class="p-desc"><b>${esc(p.t)}</b><small>${esc(p.d)}</small><span class="p-precio">${dinero(p.p)}</span></div>
+      <div class="p-mover"><button type="button" class="btn btn-ic" data-mover="-1" aria-label="Subir ${esc(p.t)}">${ico('M4.5 11l4.5-4.5L13.5 11')}</button><button type="button" class="btn btn-ic" data-mover="1" aria-label="Bajar ${esc(p.t)}">${ico('M4.5 7l4.5 4.5L13.5 7')}</button></div>
+    </li>`).join('');
+  const filas = () => [...lista.children];
+  function numerar() {
+    const fs = filas(), n = fs.length;
+    fs.forEach((f, i) => {
+      const num = f.querySelector('.num'); num.textContent = i + 1;
+      num.setAttribute('aria-label', `Partida ${i + 1} de ${n}. Mantén presionado para moverla`);
+      f.querySelector('[data-mover="-1"]').disabled = i === 0; f.querySelector('[data-mover="1"]').disabled = i === n - 1;
+    });
+    lista.dataset.orden = fs.map(f => f.dataset.id).join(',');
+    alCambiar(fs.map(f => partidas.find(p => p.id === f.dataset.id)));
+  }
+  /* FLIP: medir, cambiar el DOM, medir, invertir y soltar. */
+  function flip(cambio) {
+    const fs = filas(), antes = new Map(fs.map(f => [f, f.getBoundingClientRect().top]));
+    cambio();
+    if (reducido()) return;
+    fs.forEach(f => { const d = antes.get(f) - f.getBoundingClientRect().top; if (Math.abs(d) > .5) f.animate([{ transform: `translateY(${d}px)` }, { transform: 'none' }], { duration: 200, easing: 'cubic-bezier(.2,.8,.2,1)' }); });
+  }
+  function moverA(li, a) {                          // el splice de partidas.js 650, sobre el DOM
+    const resto = filas().filter(f => f !== li);
+    lista.insertBefore(li, resto[a] || null);
+    numerar();
+    const p = partidas.find(x => x.id === li.dataset.id);
+    vivo.textContent = `${p.t}: ahora es la partida ${a + 1} de ${resto.length + 1}`;
+  }
+  lista.addEventListener('click', e => {
+    const b = e.target.closest('[data-mover]'); if (!b || b.disabled) return;
+    const li = b.closest('.partida'), i = filas().indexOf(li), a = i + +b.dataset.mover;
+    flip(() => moverA(li, a));
+    /* Mover el nodo le quita el foco: se le devuelve al mismo botón, o al otro si este se apagó. */
+    (b.disabled ? li.querySelector(`[data-mover="${-b.dataset.mover}"]`) : b).focus();
+  });
+  lista.addEventListener('contextmenu', e => { if (e.target.closest('.num')) e.preventDefault(); });
+  let A = null;                                     // el arrastre en curso
+  lista.addEventListener('pointerdown', e => {
+    const num = e.target.closest('.num'); if (!num || A) return;
+    const li = num.closest('.partida');
+    try { num.setPointerCapture(e.pointerId); } catch (_) {}
+    A = { li, num, id: e.pointerId, x0: e.clientX, y0: e.clientY, arriba: false, dy: 0 };
+    li.classList.add('armando');
+    A.espera = setTimeout(levantar, 300);
+  });
+  function levantar() {
+    const fs = filas(), de = fs.indexOf(A.li);
+    const cajas = fs.map(f => ({ top: f.offsetTop, h: f.offsetHeight }));
+    const gap = cajas[1] ? cajas[1].top - cajas[0].top - cajas[0].h : 8;
+    Object.assign(A, { arriba: true, fs, de, a: de, cajas, paso: cajas[de].h + gap,
+      min: cajas[0].top - cajas[de].top, max: cajas.at(-1).top + cajas.at(-1).h - cajas[de].top - cajas[de].h });
+    A.li.classList.remove('armando'); A.li.classList.add('levantada'); lista.classList.add('arrastrando');
+    vibrar([8]);
+    vivo.textContent = `Partida ${de + 1} levantada. Arrástrala y suéltala en su lugar.`;
+  }
+  lista.addEventListener('pointermove', e => {
+    if (!A || e.pointerId !== A.id) return;
+    if (!A.arriba) { if (Math.hypot(e.clientX - A.x0, e.clientY - A.y0) > 8) cancelar(); return; }
+    e.preventDefault();
+    A.dy = Math.max(A.min, Math.min(A.max, e.clientY - A.y0));
+    A.li.style.transform = `translateY(${A.dy}px)`;
+    const { cajas, de, paso } = A, centro = cajas[de].top + cajas[de].h / 2 + A.dy;
+    let a = 0; cajas.forEach((c, i) => { if (i !== de && c.top + c.h / 2 < centro) a++; });
+    A.a = a;
+    A.fs.forEach((f, i) => {
+      if (i === de) return;
+      const t = de < a && i > de && i <= a ? -paso : a < de && i >= a && i < de ? paso : 0;
+      f.style.transform = t ? `translateY(${t}px)` : '';
+    });
+  });
+  function cancelar() { clearTimeout(A.espera); A.li.classList.remove('armando'); A = null; }
+  const soltar = e => {
+    if (!A || e.pointerId !== A.id) return;
+    if (!A.arriba) return cancelar();
+    const { li, a, de } = A; A = null;
+    flip(() => {
+      lista.classList.remove('arrastrando'); li.classList.remove('levantada');
+      filas().forEach(f => { f.style.transform = ''; });
+      if (a !== de) moverA(li, a); else vivo.textContent = 'Se quedó en su lugar';
+    });
+  };
+  lista.addEventListener('pointerup', soltar); lista.addEventListener('pointercancel', soltar);
+  numerar();
+}
+reordenarPartidas($('l40'), PARTIDAS40, {
+  vivo: $('v40'),
+  alCambiar: orden => { $('o40').textContent = 'Así sale en el PDF: ' + orden.map((p, i) => `${i + 1}. ${p.t}`).join(' · '); }
+});
+
+/* ======================= 41) plieguesConAltura(raiz) y abrirSinAnimar(details) =======================
+   Con ::details-content no hay JS: el navegador anima abrir y cerrar. El respaldo intercepta
+   el toque del summary: abre y deja que la rejilla crezca; al cerrar, primero encoge y el open
+   se quita cuando termina (si no, el contenido desaparecería de golpe). */
+const HAY_DETAILS_CONTENT = CSS.supports('selector(::details-content)') && CSS.supports('interpolate-size', 'allow-keywords');
+function plieguesConAltura(raiz) {
+  raiz.classList.toggle('respaldo', !HAY_DETAILS_CONTENT);
+  raiz.querySelectorAll('details.pliegue').forEach(d => {
+    const cuerpo = d.querySelector('.pliegue-cuerpo');
+    d.querySelector('summary').addEventListener('click', e => {
+      if (!raiz.classList.contains('respaldo')) return;
+      e.preventDefault();
+      if (d.open && !d.classList.contains('cerrando')) {
+        d.classList.add('cerrando'); d.classList.remove('abierto');
+        let hecho = false; const fin = () => { if (hecho) return; hecho = true; d.open = false; d.classList.remove('cerrando'); };
+        cuerpo.addEventListener('transitionend', fin, { once: true }); setTimeout(fin, 260);
+      } else {
+        /* Primero la rejilla en 0fr SIN transición (el contenido cerrado no tiene estilo «de antes»
+           y podría arrancar desde un 1fr viejo), y un cuadro después, a 1fr con transición. */
+        d.classList.remove('cerrando'); d.classList.add('sin-anim'); d.open = true; void cuerpo.offsetHeight; d.classList.remove('sin-anim');
+        requestAnimationFrame(() => requestAnimationFrame(() => { if (d.open && !d.classList.contains('cerrando')) d.classList.add('abierto'); }));
+      }
+    });
+  });
+}
+function abrirSinAnimar(d) {
+  d.classList.add('sin-anim'); d.classList.remove('cerrando'); d.open = true; d.classList.add('abierto');
+  requestAnimationFrame(() => requestAnimationFrame(() => d.classList.remove('sin-anim')));
+}
+plieguesConAltura($('h41'));
+$('k41').addEventListener('change', e => {
+  const r = $('h41');
+  r.querySelectorAll('details.pliegue').forEach(d => { d.classList.add('sin-anim'); d.open = false; d.classList.remove('abierto', 'cerrando'); requestAnimationFrame(() => requestAnimationFrame(() => d.classList.remove('sin-anim'))); });
+  r.classList.toggle('respaldo', e.target.checked || !HAY_DETAILS_CONTENT);
+});
+$('b41').addEventListener('click', () => $('h41').querySelectorAll('details.pliegue').forEach(abrirSinAnimar));
+
+/* ======================= 42) carpetaDeArrastre(zona, input, {alRecibir}) =======================
+   El contador evita el parpadeo: dragenter/dragleave llegan también al pasar por los hijos. */
+function carpetaDeArrastre(zona, input, { titulo, sub, alRecibir }) {
+  let dentro = 0, t = 0;
+  const conArchivos = e => [...(e.dataTransfer?.types || [])].includes('Files');
+  const kb = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+  function abrir() { clearTimeout(t); zona.classList.remove('recibido'); zona.classList.add('sobre'); titulo.textContent = 'Suéltalo aquí'; sub.textContent = 'Se abre para analizarlo'; }
+  function cerrar() { zona.classList.remove('sobre'); titulo.textContent = 'Arrastra aquí el plano o la foto'; sub.textContent = 'PDF, JPG o PNG'; }
+  function recibir(nombre, bytes) {
+    zona.classList.remove('sobre'); zona.classList.add('recibido');
+    titulo.textContent = nombre; sub.textContent = `✓ Recibido · ${kb(bytes)} · listo para analizar`;
+    zona.dataset.archivo = nombre; alRecibir?.(nombre);
+  }
+  zona.addEventListener('dragenter', e => { if (!conArchivos(e)) return; e.preventDefault(); if (dentro++ === 0) abrir(); });
+  zona.addEventListener('dragover', e => { if (!conArchivos(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+  zona.addEventListener('dragleave', e => { if (!conArchivos(e)) return; if (--dentro <= 0) { dentro = 0; cerrar(); } });
+  zona.addEventListener('drop', e => { e.preventDefault(); dentro = 0; const f = e.dataTransfer?.files?.[0]; f ? recibir(f.name, f.size) : cerrar(); });
+  input.addEventListener('change', () => { const f = input.files[0]; if (f) recibir(f.name, f.size); });
+  /* Que un archivo soltado fuera de la zona no haga que el navegador lo abra y se pierda la cotización. */
+  addEventListener('dragover', e => { if (conArchivos(e) && !zona.contains(e.target)) e.preventDefault(); });
+  addEventListener('drop', e => { if (!zona.contains(e.target)) e.preventDefault(); });
+  return { simular(nombre, bytes) { abrir(); t = setTimeout(() => recibir(nombre, bytes), 1100); } };
+}
+const carpeta42 = carpetaDeArrastre($('z42'), $('f42'), { titulo: $('z42-t'), sub: $('z42-s') });
+$('b42-elegir').addEventListener('click', () => $('f42').click());
+$('b42-sim').addEventListener('click', () => carpeta42.simular('plano-fachada-dental-sonrisa.pdf', 2516582));
+
+/* ======================= 43) historialConFiltros(...) y marcar(texto, q) =======================
+   plegar() quita acentos y mayúsculas SIN perder la cuenta de a qué letra original corresponde
+   cada letra plegada: así la marca cae en «Panadería» aunque se buscó «panaderia». Con una
+   búsqueda de puros números, se comparan solo dígitos: «331234» encuentra «33 1234 5678». */
+function plegar(s, soloDigitos) {
+  let txt = ''; const mapa = [];
+  for (let i = 0; i < s.length; i++) {
+    const f = s[i].normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    for (const c of f) { if (soloDigitos && !/\d/.test(c)) continue; txt += c; mapa.push(i); }
+  }
+  return { txt, mapa };
+}
+const esNumerica = q => /\d/.test(q) && /^[\d\s,.$-]+$/.test(q);
+function coincide(s, q) { if (!q) return true; const n = esNumerica(q); return plegar(s, n).txt.includes(plegar(q, n).txt); }
+function marcar(s, q) {
+  s = String(s ?? '');
+  if (!q) return esc(s);
+  const n = esNumerica(q), { txt, mapa } = plegar(s, n), qq = plegar(q, n).txt;
+  if (!qq) return esc(s);
+  let out = '', desde = 0, i = txt.indexOf(qq);
+  while (i !== -1) {
+    const a = mapa[i], b = mapa[i + qq.length - 1] + 1;
+    out += esc(s.slice(desde, a)) + '<mark>' + esc(s.slice(a, b)) + '</mark>';   // escapado por tramos
+    desde = b; i = txt.indexOf(qq, i + qq.length);
+  }
+  return out + esc(s.slice(desde));
+}
+const HOY43 = new Date(2026, 8, 26);           // fija, para que «Este mes» cuadre con los datos
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const H43 = [
+  ['COT-0042', 'Panadería La Espiga', '33 1234 5678', '2026-09-24', [['Letras 3D acrílico · 30 cm × 9', 10800], ['Caja de luz rectangular · 0.50 m²', 1950], ['Letras aluminio blanco · 15 cm × 6', 2700]], 1, 0, 0],
+  ['COT-0041', 'Gym Titanio', '33 2813 0092', '2026-09-22', [['Letras aluminio brush · 40 cm × 10', 14000], ['Caja de luz tipo nube · 1.10 m²', 5060]], 1, 1, 1],
+  ['COT-0040', 'Farmacia Guadalupe', '33 3654 1290', '2026-09-18', [['Caja de luz rectangular · 4.32 m²', 16848]], 1, 1, 0],
+  ['COT-0039', 'Barbería El Toro', '33 1478 2236', '2026-09-15', [['Letras acrílico + vinil · 30 cm × 8', 10800], ['Caja de luz redonda · 0.80 m²', 3120]], 1, 1, 1],
+  ['COT-0038', 'Dental Sonrisa', '33 9021 4455', '2026-09-11', [['Letras acrílico + vinil · 25 cm × 6', 6750], ['Letras aluminio pintado · 12 cm × 14', 5040]], 0, 0, 0],
+  ['COT-0037', 'Taquería Los Primos & Hijos', '33 7740 1188', '2026-09-08', [['Caja de luz tipo nube · 1.40 m²', 6440], ['Letras aluminio negro · 20 cm × 10', 6000]], 1, 0, 0],
+  ['COT-0036', 'Café Barrio', '33 5512 9087', '2026-09-03', [['Letras aluminio negro · 40 cm × 10', 12000], ['Letras acrílico cursiva · 15 cm × 8', 6000]], 1, 1, 0],
+  ['COT-0035', 'Óptica Visión', '33 4402 7719', '2026-08-28', [['Letras acrílico · 35 cm × 6', 8400], ['Caja de luz cuadrada · 0.36 m²', 1404]], 1, 1, 1],
+  ['COT-0034', 'Panadería La Espiga · Chapalita', '33 1234 5678', '2026-08-21', [['Caja de luz redonda · 0.64 m²', 2496]], 0, 0, 0],
+  ['COT-0033', 'Gym Titanio · Zapopan', '33 2813 0092', '2026-08-14', [['Letras aluminio blanco · 50 cm × 5', 7500]], 1, 0, 0],
+  ['COT-0032', 'Dental Sonrisa', '33 9021 4455', '2026-08-09', [['Letras aluminio brush · 20 cm × 12', 8400]], 1, 1, 1],
+  ['COT-0031', 'Barbería El Toro', '33 1478 2236', '2026-08-02', [['Letras acrílico · 18 cm × 7', 5040], ['Caja de luz tipo nube · 0.60 m²', 2760]], 1, 1, 0]
+].map(([folio, cliente, tel, fecha, partidas, pdf, env, venta]) => ({ folio, cliente, tel, fecha, partidas, pdf, env, venta, total: partidas.reduce((s, p) => s + p[1], 0) }));
+function historialConFiltros({ entrada, fichas, cuenta, lista }, datos) {
+  const mes = `${HOY43.getFullYear()}-${String(HOY43.getMonth() + 1).padStart(2, '0')}`;
+  const FILTROS = [
+    ['todas', 'Todas', () => true], ['pdf', 'Sin PDF', e => !e.pdf], ['env', 'Sin enviar', e => !e.env],
+    ['venta', 'Sin venta', e => !e.venta], ['mes', 'Este mes', e => e.fecha.startsWith(mes)]
+  ];
+  let filtro = 'todas';
+  /* Los conteos se calculan una vez al abrir: dicen cuántas hay, no cuántas quedan tras buscar. */
+  fichas.innerHTML = FILTROS.map(([id, t, f]) => `<button type="button" class="chip ficha" data-f="${id}" aria-pressed="${id === filtro}">${t} <span class="cta">${datos.filter(f).length}</span></button>`).join('');
+  const campos = e => [e.folio, e.cliente, e.tel, dinero(e.total), ...e.partidas.map(p => p[0])];
+  const fecha = f => { const [, m, d] = f.split('-'); return `${+d} ${MESES[m - 1]}`; };
+  function pintar() {
+    const q = entrada.value.trim().replace(/\s+/g, ' '), pred = FILTROS.find(f => f[0] === filtro)[2];
+    const r = datos.filter(e => pred(e) && campos(e).some(c => coincide(c, q)));
+    cuenta.textContent = `${r.length} de ${datos.length}`;
+    lista.dataset.n = r.length;
+    if (!r.length) {
+      const fn = FILTROS.find(f => f[0] === filtro)[1];
+      lista.innerHTML = `<li class="h-vacio">Nada coincide${q ? ` con «${esc(q)}»` : ''}${filtro !== 'todas' ? ` en «${fn}»` : ''}.${filtro !== 'todas' ? ' <button type="button" class="btn" data-todas>Buscar en todas</button>' : ''}</li>`;
+      return;
+    }
+    lista.innerHTML = r.map(e => `<li class="h-item">
+        <div class="h-top"><span class="h-folio">${marcar(e.folio, q)}</span><span class="h-total">${marcar(dinero(e.total), q)}</span></div>
+        <b class="h-cli">${marcar(e.cliente, q)}</b>
+        <span class="h-sub">${marcar(e.tel, q)} · ${fecha(e.fecha)}</span>
+        <span class="h-part">${e.partidas.map(p => marcar(p[0], q)).join(' · ')}</span>
+        <span class="hitos"><span class="hito${e.pdf ? ' si' : ''}">PDF<span class="sr">${e.pdf ? ' hecho' : ' pendiente'}</span></span><span class="hito${e.env ? ' si' : ''}">Enviado<span class="sr">${e.env ? ' hecho' : ' pendiente'}</span></span><span class="hito${e.venta ? ' si' : ''}">Venta<span class="sr">${e.venta ? ' hecha' : ' pendiente'}</span></span></span>
+      </li>`).join('');
+  }
+  function elegir(id) { filtro = id; fichas.querySelectorAll('.ficha').forEach(b => b.setAttribute('aria-pressed', b.dataset.f === id)); pintar(); }
+  fichas.addEventListener('click', e => { const b = e.target.closest('.ficha'); if (b) elegir(b.dataset.f); });
+  lista.addEventListener('click', e => { if (e.target.closest('[data-todas]')) { elegir('todas'); fichas.querySelector('[data-f="todas"]').focus(); } });
+  entrada.addEventListener('input', pintar);
+  pintar();
+}
+historialConFiltros({ entrada: $('q43'), fichas: $('f43'), cuenta: $('c43'), lista: $('l43') }, H43);
+
+/* ======================= 44) resumenDeLaIA(panel, partidas, medidas) =======================
+   `detectadas` es lo que devolvería applyAi(). Cada una trae su precio con las tarifas de AL3D;
+   la que no tiene material no cotiza y lo dice. `leido` es el _aiLeido del repo. */
+const TARIFA = { aluminio: 30, brush: 35, acrilico: 40, vinil: 45 };
+const IA44 = () => [
+  { id: 1, tipo: 'Letras 3D', cm: 40, pz: 10, mat: 'aluminio', nombreMat: 'Aluminio negro · LED posterior', leido: 45 },
+  { id: 2, tipo: 'Caja de luz tipo nube', ancho: 120, alto: 80, pz: 1, mat: 'nube', nombreMat: 'Sigue la silueta del logo' },
+  { id: 3, tipo: 'Letras 3D', cm: 15, pz: 8, mat: null },
+  { id: 4, tipo: 'Letras 3D', cm: 20, pz: 5, mat: 'vinil', nombreMat: 'Acrílico + vinil · LED frontal' }
+];
+const MEDIDAS44 = [40, 120, 80, 85];               // lo que venía medido del escalador
+function precio44(p) {
+  if (p.mat === 'nube') return 4600 * (p.ancho / 100) * (p.alto / 100);
+  if (!p.mat) return null;
+  return TARIFA[p.mat] * p.cm * p.pz;
+}
+function resumenDeLaIA(cuerpo, cerrarB) {
+  let P = IA44(), cron = 0;
+  const glifo = `<svg class="gs" viewBox="0 0 28 28" aria-hidden="true"><circle class="base" cx="14" cy="14" r="12"/><circle class="arco" cx="14" cy="14" r="12"/><path class="marca m-ok" d="M8.5 14.5l3.8 3.8 7.4-8" pathLength="1"/><path class="marca m-av" d="M14 7.5v8M14 20v.4" pathLength="1"/></svg>`;
+  function inicial() {
+    clearInterval(cron); cuerpo.dataset.fase = 'inicial';
+    cuerpo.innerHTML = `<div class="ms-archivo"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="3" width="24" height="26" rx="4" fill="var(--a-suave)" stroke="var(--a-borde)"/><path d="M8 22l5-6 4 4 3-3 4 5z" fill="var(--a-fill)"/><circle cx="21" cy="10" r="2.4" fill="var(--a-fill)"/></svg><span>fachada-cafe-barrio.jpg<small>1.8 MB · con 4 medidas del escalador</small></span></div>
+      <div class="ms-pie"><button type="button" class="btn btn-pri" data-accion="analizar">Analizar</button></div>`;
+  }
+  function leyendo() {
+    cuerpo.dataset.fase = 'leyendo';
+    cuerpo.innerHTML = `<div class="ia-leyendo" role="status">${glifo}<span>Leyendo el plano… <span class="cronom">0 s</span></span></div>`;
+    const t0 = performance.now(), c = cuerpo.querySelector('.cronom');
+    cron = setInterval(() => { c.textContent = Math.floor((performance.now() - t0) / 1000) + ' s'; }, 250);
+    setTimeout(() => { clearInterval(cron); P = IA44(); resumen(); }, 1300);
+  }
+  const usada = cm => P.some(p => [p.cm, p.ancho, p.alto].some(v => v != null && Math.abs(v - cm) <= .05));
+  function renglon(p) {
+    const pr = precio44(p), ok = pr != null;
+    const med = p.mat === 'nube' ? `${(p.ancho / 100).toFixed(2)} × ${(p.alto / 100).toFixed(2)} m` : `${p.cm} cm`;
+    let extra = '';
+    if (!ok) extra = `<div class="ia-mat" role="group" aria-label="Elegir material"><button type="button" data-mat="aluminio" data-id="${p.id}">Aluminio<small>LED posterior</small><small>${dinero(TARIFA.aluminio * p.cm * p.pz)}</small></button><button type="button" data-mat="acrilico" data-id="${p.id}">Acrílico<small>LED frontal</small><small>${dinero(TARIFA.acrilico * p.cm * p.pz)}</small></button></div>`;
+    if (p.leido != null && p.leido !== p.cm) extra += `<div class="ia-dif"><span>La IA leyó ${p.leido} cm, tu medida dice ${p.cm}</span><button type="button" class="btn" data-usar="${p.id}">Usar ${p.leido}</button></div>`;
+    else if (p.antes != null) extra += `<div class="ia-dif"><span>Se usa ${p.cm} cm, lo que leyó la IA</span><button type="button" class="btn" data-volver="${p.id}">Volver a ${p.antes}</button></div>`;
+    return `<li class="ia-p" data-e="${ok ? 'ok' : 'av'}" data-id="${p.id}">${glifo}<div>
+      <b>${p.tipo} · ${med} · ${p.pz} ${p.pz === 1 ? 'pieza' : 'piezas'}</b>
+      ${ok ? `<small>${p.nombreMat} · <span class="precio">${dinero(pr)}</span><span class="sr">, ya cotiza</span></small>` : '<small class="falta">Falta el material: ¿aluminio o acrílico? No cotiza hasta elegir.</small>'}${extra}</div></li>`;
+  }
+  function resumen(conEntrada = true) {
+    cuerpo.dataset.fase = 'resumen';
+    const oks = P.filter(p => precio44(p) != null), suma = oks.reduce((s, p) => s + precio44(p), 0), faltan = P.length - oks.length;
+    cuerpo.innerHTML = `<p class="ia-resumen-t">La IA leyó ${P.length} partidas<small>${oks.length} ya cotizan · ${dinero(suma)}${faltan ? ` · ${faltan} ${faltan === 1 ? 'pide' : 'piden'} material` : ''}</small></p>
+      <ol class="ia-lista">${P.map(renglon).join('')}</ol>
+      <p class="ia-medidas"><span>Medidas del escalador:</span>${MEDIDAS44.map(m => usada(m) ? `<span class="m-si">${m} cm ✓</span>` : `<span class="m-no">${m} cm ✕ ninguna partida la usa</span>`).join('')}</p>
+      <div class="ms-pie"><button type="button" class="btn btn-pri" data-accion="ver">Ver partidas</button></div>`;
+    if (!conEntrada) cuerpo.querySelectorAll('.ia-p').forEach(li => li.classList.add('quieto'));
+  }
+  /* Re-pintar tras resolver algo no vuelve a correr la entrada: solo se dibuja la marca del renglón tocado. */
+  function repintar(idTocado) {
+    resumen(false);
+    const li = cuerpo.querySelector(`.ia-p[data-id="${idTocado}"]`); if (li) li.classList.replace('quieto', 'tocado');   // solo su marca se dibuja
+    const foco = cuerpo.querySelector(`.ia-p[data-id="${idTocado}"] button`) || cuerpo.querySelector('[data-accion="ver"]'); foco?.focus();
+  }
+  cuerpo.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.accion === 'analizar') return leyendo();
+    if (b.dataset.accion === 'ver') {
+      const faltan = P.filter(p => precio44(p) == null).length;
+      cuerpo.dataset.fase = 'cerrado';
+      cuerpo.innerHTML = `<p class="ia-resumen-t">Listo: ${P.length} partidas en la cotización<small>${faltan ? `${faltan} con «!» te espera en Partidas` : 'Todas cotizan'} · aquí se cerraría el modal</small></p><div class="ms-pie"><button type="button" class="btn" data-accion="otra">Volver a probar</button></div>`;
+      return;
+    }
+    if (b.dataset.accion === 'otra') return inicial();
+    if (b.dataset.mat) { const p = P.find(x => x.id === +b.dataset.id); p.mat = b.dataset.mat; p.nombreMat = b.dataset.mat === 'aluminio' ? 'Aluminio · LED posterior' : 'Acrílico con cantos · LED frontal'; return repintar(p.id); }
+    if (b.dataset.usar) { const p = P.find(x => x.id === +b.dataset.usar); p.antes = p.cm; p.cm = p.leido; p.leido = null; return repintar(p.id); }
+    if (b.dataset.volver) { const p = P.find(x => x.id === +b.dataset.volver); p.leido = p.cm; p.cm = p.antes; p.antes = null; return repintar(p.id); }
+  });
+  cerrarB.addEventListener('click', inicial);
+  inicial();
+}
+resumenDeLaIA($('b44'), $('x44'));
+
+/* ======================= 45) deslizadorConMarcas(input, {valores, texto, alSoltar}) =======================
+   `input` solo mueve la pastilla y las marcas (barato). `change` —al soltar, o una vez por tecla—
+   es el que re-traza. retrazar() no se encima: si llega otro change mientras corre, se hace
+   UNO más al terminar con los valores de ese momento (VT.corriendo del repo). */
+function deslizadorConMarcas(input, { etiquetas, alSoltar }) {
+  const caja = input.closest('.desl'), pil = caja.querySelector('.desl-pil'), marcas = caja.querySelector('.desl-marcas');
+  const min = +input.min, max = +input.max, lista = document.getElementById(input.getAttribute('list'));
+  const txt = v => etiquetas ? etiquetas[v - min] : String(v);
+  for (let v = min; v <= max; v++) {
+    const s = document.createElement('span'); s.style.setProperty('--k', (v - min) / (max - min)); s.textContent = txt(v); s.dataset.v = v; marcas.append(s);
+    const o = document.createElement('option'); o.value = v; o.label = txt(v); lista?.append(o);
+  }
+  const pintar = () => {
+    const v = +input.value;
+    caja.style.setProperty('--p', (v - min) / (max - min));
+    pil.textContent = txt(v); input.setAttribute('aria-valuetext', txt(v));
+    marcas.querySelectorAll('span').forEach(s => s.classList.toggle('en', +s.dataset.v === v));
+    /* En los extremos la pastilla no se sale de la pista: se recorre, y su piquito sigue al pulgar. */
+    const W = input.offsetWidth, pw = pil.offsetWidth, cx = 22 + (v - min) / (max - min) * (W - 44);
+    const x = Math.max(pw / 2, Math.min(W - pw / 2, cx));
+    pil.style.left = x + 'px'; pil.style.setProperty('--fx', (cx - x) + 'px');
+  };
+  new ResizeObserver(() => pintar()).observe(input);
+  input.addEventListener('input', pintar);
+  input.addEventListener('change', () => { pintar(); alSoltar(); });
+  pintar();
+}
+function vectorPrevio(cvs, barra, info) {
+  const V = { corriendo: false, pendiente: false, veces: 0 };
+  const DETALLE = [12, 24, 72], ESQ = ['suaves', 'medias', 'filosas'];
+  const opciones = () => ({ colores: +$('r45-colores').value, detalle: +$('r45-detalle').value, esquinas: +$('r45-esq').value });
+  function contorno(c, pts, esquinas) {
+    const n = pts.length, m = (p, q, t) => ({ x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t });
+    if (esquinas === 2) { c.moveTo(pts[0].x, pts[0].y); pts.slice(1).forEach(p => c.lineTo(p.x, p.y)); c.closePath(); return; }
+    const t = esquinas === 0 ? .5 : .22;            // suaves: curva de medio lado; medias: solo la punta
+    for (let i = 0; i < n; i++) {
+      const p = pts[i], a = m(p, pts[(i - 1 + n) % n], t), b = m(p, pts[(i + 1) % n], t);
+      i ? c.lineTo(a.x, a.y) : c.moveTo(a.x, a.y); c.quadraticCurveTo(p.x, p.y, b.x, b.y);
+    }
+    c.closePath();
+  }
+  function pintar(o = opciones()) {
+    const w = cvs.clientWidth || 300, h = cvs.clientHeight || 200, dpr = devicePixelRatio || 1;
+    if (cvs.width !== Math.round(w * dpr)) { cvs.width = Math.round(w * dpr); cvs.height = Math.round(h * dpr); }
+    const c = cvs.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * .42, n = DETALLE[o.detalle];
+    const oscuro = [27, 15, 168], claro = [201, 211, 255];
+    for (let k = 0; k < o.colores; k++) {          // cada color, una banda anidada
+      const s = 1 - k * (.78 / o.colores), t = o.colores > 1 ? k / (o.colores - 1) : 0;
+      const pts = Array.from({ length: n }, (_, i) => { const a = i / n * Math.PI * 2 - Math.PI / 2, r = R * s * (.8 + .2 * Math.cos(6 * a)); return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r }; });
+      c.beginPath(); contorno(c, pts, o.esquinas);
+      c.fillStyle = `rgb(${oscuro.map((v, j) => Math.round(v + (claro[j] - v) * t)).join(',')})`; c.fill();
+      if (k === 0) { c.fillStyle = '#fff'; pts.forEach(p => { c.beginPath(); c.arc(p.x, p.y, 1.8, 0, 7); c.fill(); }); }
+    }
+    info.textContent = `${o.colores} colores · ${n} nodos por contorno · esquinas ${ESQ[o.esquinas]} · re-trazado ${V.veces} ${V.veces === 1 ? 'vez' : 'veces'}`;
+    cvs.dataset.retrazos = V.veces; cvs.dataset.opciones = `${o.colores}/${o.detalle}/${o.esquinas}`;
+  }
+  async function retrazar() {
+    if (V.corriendo) { V.pendiente = true; return; }
+    V.corriendo = true; cvs.parentElement.setAttribute('aria-busy', 'true');
+    /* La barra es la espera: el trazo anterior se queda a la vista. */
+    await barra.animate([{ transform: 'scaleX(0)', opacity: 1 }, { transform: 'scaleX(1)', opacity: 1 }], { duration: 650, easing: 'cubic-bezier(.3,.6,.4,1)', fill: 'forwards' }).finished;
+    V.veces++; pintar();
+    barra.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, fill: 'forwards' });
+    V.corriendo = false; cvs.parentElement.removeAttribute('aria-busy');
+    if (V.pendiente) { V.pendiente = false; retrazar(); }
+  }
+  new ResizeObserver(() => pintar()).observe(cvs);
+  return { retrazar, pintar };
+}
+const vt45 = vectorPrevio($('c45'), $('v45').querySelector('.vt-barra'), $('i45'));
+deslizadorConMarcas($('r45-colores'), { alSoltar: vt45.retrazar });
+deslizadorConMarcas($('r45-detalle'), { etiquetas: ['Bajo', 'Medio', 'Alto'], alSoltar: vt45.retrazar });
+deslizadorConMarcas($('r45-esq'), { etiquetas: ['Suaves', 'Medias', 'Filosas'], alSoltar: vt45.retrazar });
+$('b45').addEventListener('click', vt45.retrazar);
+</script>
+</body>
+</html>
