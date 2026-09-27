@@ -120,62 +120,31 @@ export function voz(msg, urgente) {
   requestAnimationFrame(() => { el.textContent = String(msg || ''); });
 }
 
-let _toastT = 0, _toastFin = 0, _toastResta = 0;
-/* El temporizador se detiene con la pestaña oculta o con el dedo o el cursor encima: un
-   «Deshacer» de 8 s caducaba mientras alguien estaba en WhatsApp pegando los datos. */
-function _toastProgramar(t, ms) {
-  clearTimeout(_toastT); _toastFin = Date.now() + ms;
-  _toastT = setTimeout(() => { _toastT = 0; t.classList.remove('show'); }, ms);
-}
-function _toastPausa() {
-  if (!_toastT) return;
-  clearTimeout(_toastT); _toastT = 0; _toastResta = Math.max(1500, _toastFin - Date.now());
-}
-function _toastSigue() {
-  const t = $('toast');
-  if (!_toastT && _toastResta && t && t.classList.contains('show')) { _toastProgramar(t, _toastResta); _toastResta = 0; }
-}
-let _toastVigilado = false;
-function _toastVigilar(t) {
-  if (_toastVigilado) return; _toastVigilado = true;
-  document.addEventListener('visibilitychange', () => document.hidden ? _toastPausa() : _toastSigue());
-  ['pointerenter', 'focusin'].forEach(n => t.addEventListener(n, _toastPausa));
-  ['pointerleave', 'focusout'].forEach(n => t.addEventListener(n, _toastSigue));
-}
 /**
- * Aviso emergente. Misma firma que el del cotizador.
+ * Aviso emergente. Misma firma que el del cotizador, y el mismo cuerpo: la pieza compartida
+ * (js/piezas.js, P.aviso), que la plataforma pide por window.Piezas porque es un guion clásico
+ * que index.html carga antes que este módulo.
+ *
+ * Era un solo #toast con un solo temporizador, y un aviso reescribía al otro: en Material,
+ * hacerContar() lanza dos seguidos y el segundo se comía el primero aunque ése trajera
+ * «Deshacer». Ahora #toast es una pila de dos: un error y uno con botón no se pisan —se apilan
+ * o esperan su turno—, los informativos se reemplazan como siempre, y la mecha de 2 px dice
+ * cuánto le queda y se pausa con el dedo, el cursor o el foco encima y con la app en segundo
+ * plano. Se quita deslizándolo hacia abajo. Lo que es contrato no cambia: con botón dura 8 s
+ * como mínimo —quien lo oye en vez de verlo tiene que encontrar el botón deslizando, y 2.6 s no
+ * alcanzan ni para llegar—, el texto va por textContent y cada aviso se dice en la región que
+ * habla (la asertiva para los errores), también el que espera su turno.
  * @param {string} msg
  * @param {''|'ok'|'err'} type
  * @param {number} dur ms
  * @param {{label:string, fn:Function}|null} accion
+ * @returns {{cerrar:Function, vivo:boolean}|null}
  */
 export function toast(msg, type = '', dur = 2600, accion = null) {
-  /* Con botón, 8 s como mínimo: quien lo oye en vez de verlo tiene que encontrar el
-     botón deslizando, y 2.6 s no alcanzan ni para llegar. Si el llamador pide más, se
-     respeta lo que pida. */
   if (accion && dur < 8000) dur = 8000;
-  const t = $('toast'); if (!t) return;
-  _toastVigilar(t);
-  t.innerHTML = '';
-  const sp = document.createElement('span');
-  sp.textContent = msg;
-  t.appendChild(sp);
-  if (accion && accion.label && typeof accion.fn === 'function') {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'toast-act'; b.textContent = accion.label;
-    b.onclick = () => { clearTimeout(_toastT); _toastT = 0; _toastResta = 0; t.classList.remove('show'); accion.fn(); };
-    t.appendChild(b);
-  }
-  /* Si ya había uno a la vista, solo cambia el contenido y no vuelve a «entrar»: antes cada
-     aviso quitaba .show y forzaba un reflow, y dos seguidos parpadeaban. */
-  const ya = t.classList.contains('show');
-  t.className = 'toast ' + type + (ya ? ' show' : '');
-  if (!ya) { void t.offsetWidth; t.classList.add('show'); }
-  else if (t.animate && scrollSuave() === 'smooth')
-    t.animate([{ opacity: .6, filter: 'blur(2px)' }, { opacity: 1, filter: 'none' }], { duration: 160, easing: 'cubic-bezier(.23,1,.32,1)' });
-  _toastResta = 0;
-  _toastProgramar(t, dur);
-  voz(msg + (accion && accion.label ? ' — ' + accion.label + ' disponible' : ''), type === 'err');
+  const P = window.Piezas;
+  if (!P || !P.aviso) { voz(msg + (accion && accion.label ? ' — ' + accion.label + ' disponible' : ''), type === 'err'); return null; }
+  return P.aviso(String(msg == null ? '' : msg), { tipo: type, dur, accion, pila: 'toast' });
 }
 
 /** Todo `Resultado` fallido se enseña igual. El mensaje ya viene escrito por la capa de datos. */
@@ -561,28 +530,20 @@ export function segmento(opciones, actual, atributo, etiqueta) {
 }
 
 /* ----- Copiar al portapapeles, con respaldo -----
-   En iOS y en páginas no seguras la API moderna falla. Mismo respaldo que el cotizador:
-   sin él, copiar dependía del botón que tocaras. */
+   En iOS y en páginas no seguras la API moderna falla. El respaldo es el mismo que el del
+   cotizador porque es la misma función: P.copiar, en js/piezas.js. Sin él, copiar dependía del
+   botón que tocaras. Y el botón que se tocó lo dice él mismo —«✓ Copiado» con su palomita,
+   1.8 s— además del aviso, que trae la instrucción («pégala en el chat del instalador»): el
+   botón sale del clic que está corriendo (P.botonDelEvento), así que ninguna llamada cambia. */
 export function copiarTexto(txt, msgOk, extra) {
   const ok = () => { if (msgOk) toast(msgOk, 'ok', 3400); if (typeof extra === 'function') extra(); };
-  const manual = () => {
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = txt;
-      ta.setAttribute('readonly', '');
-      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
-      document.body.appendChild(ta);
-      ta.focus(); ta.select(); ta.setSelectionRange(0, txt.length);
-      const bien = document.execCommand('copy');
-      ta.remove();
-      bien ? ok() : toast('Este navegador no dejó copiar — selecciona el texto a mano', 'err', 4200);
-    } catch (_) { toast('Este navegador no dejó copiar', 'err', 3600); }
-  };
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(txt).then(ok).catch(manual);
-    } else manual();
-  } catch (_) { manual(); }
+  const noSe = () => toast('Este navegador no dejó copiar — selecciona el texto a mano', 'err', 4200);
+  const P = window.Piezas;
+  if (!P || !P.copiar) {
+    try { navigator.clipboard.writeText(txt).then(ok, noSe); } catch (_) { noSe(); }
+    return;
+  }
+  P.copiar(txt, { boton: P.botonDelEvento() }).then(bien => { bien ? ok() : noSe(); });
 }
 
 /* ----- Descargar un archivo generado en el momento -----

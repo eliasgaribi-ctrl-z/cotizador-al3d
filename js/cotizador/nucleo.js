@@ -689,70 +689,50 @@ function _confCerrar(v){ $('confmodal').classList.remove('show'); const r=_confR
 function confirmarSi(){ _confCerrar(true); }
 function confirmarNo(){ _confCerrar(false); }
 
-/* Aviso emergente. Con un solo temporizador compartido: antes dos avisos seguidos
-   se pisaban y el segundo se ocultaba antes de tiempo por el reloj del primero.
-   Acepta un botón opcional, por ejemplo para deshacer un borrado. */
-let _toastT=null, _toastFin=0, _toastResta=0;
-/* El temporizador se detiene si la pestaña se oculta o si el dedo o el cursor están encima.
-   Un «Deshacer» de 8 s caducaba mientras el vendedor estaba en WhatsApp pegando los datos. */
-function _toastProgramar(ms){
-  clearTimeout(_toastT); _toastFin=Date.now()+ms;
-  _toastT=setTimeout(()=>{ _toastT=null; $('toast').classList.remove('show'); },ms);
-}
-function _toastPausa(){
-  if(!_toastT) return;
-  clearTimeout(_toastT); _toastT=null; _toastResta=Math.max(1500,_toastFin-Date.now());
-}
-function _toastSigue(){ if(!_toastT&&_toastResta&&$('toast').classList.contains('show')){ _toastProgramar(_toastResta); _toastResta=0; } }
-document.addEventListener('visibilitychange',()=>document.hidden?_toastPausa():_toastSigue());
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_toastVigilar,{once:true}); else _toastVigilar();
-function _toastVigilar(){
-  const t=$('toast'); if(!t) return;
-  ['pointerenter','focusin'].forEach(n=>t.addEventListener(n,_toastPausa));
-  ['pointerleave','focusout'].forEach(n=>t.addEventListener(n,_toastSigue));
-}
+/* Aviso emergente. El cuerpo es la pieza compartida (js/piezas.js, P.aviso): la pila de hasta dos
+   avisos con su mecha. Aquí queda la firma de siempre, que es contrato para las ~150 llamadas
+   del cotizador: toast(msg, tipo, dur, accion).
+
+   Hasta esta versión había un solo #toast con un solo temporizador, y un aviso reescribía al
+   otro en el mismo tick. El caso que importaba: aplicarSello() avisa «el total de este teléfono
+   no es el que selló la hoja» y la línea siguiente del notario dice «✓ … autorizó», que lo
+   tapaba —y ese error es justo el que impide mandar un PDF con un total y un QR con otro—.
+   Ahora un error y un aviso con botón no se pisan: se apilan (dos como mucho) o esperan su
+   turno, y los informativos se reemplazan como antes. La mecha de 2 px es el reloj: se pausa
+   con el dedo, el cursor o el foco encima y con la app en segundo plano —un «Deshacer» de 8 s
+   caducaba mientras el vendedor estaba en WhatsApp pegando los datos—, y el aviso se quita
+   deslizándolo hacia abajo. Todo eso vive en la pieza; lo que se promete aquí no cambia:
+     · con botón, 8 s como mínimo —quien lo oye en vez de verlo tiene que encontrar «Deshacer»
+       deslizando, y los 2.6 s de siempre no alcanzan ni para llegar—; si el llamador pide más,
+       se respeta;
+     · el texto va por textContent;
+     · cada aviso se dice en la región que habla (P.voz, la misma de voz()), también el que
+       espera su turno para verse, y los errores en la asertiva. El aviso se escribe fuera del
+       árbol de accesibilidad mientras entra, así que sin esa región ni VoiceOver ni TalkBack
+       decían nada.
+   Devuelve un mango con cerrar(), por si alguien necesita quitar su aviso («Mandando…») al
+   llegar la respuesta. Sin la pieza —un js/piezas.js que no cargó— el aviso al menos se dice. */
 function toast(msg,type='',dur=2600,accion=null){
-  /* Con botón, 8 s como mínimo: quien lo oye en vez de verlo tiene que encontrar
-     «Deshacer» deslizando, y los 2.6 s de siempre no alcanzan ni para llegar. Si el
-     llamador ya pide más, se respeta lo que pida. */
   if(accion&&dur<8000) dur=8000;
-  const t=$('toast');
-  t.innerHTML='';
-  const sp=document.createElement('span'); sp.textContent=msg; t.appendChild(sp);
-  if(accion&&accion.label&&typeof accion.fn==='function'){
-    const b=document.createElement('button');
-    b.type='button'; b.className='toast-act'; b.textContent=accion.label;
-    b.onclick=()=>{ clearTimeout(_toastT); _toastT=null; _toastResta=0; t.classList.remove('show'); accion.fn(); };
-    t.appendChild(b);
-  }
-  /* Si ya había uno a la vista, solo cambia el contenido: no vuelve a «entrar». Antes cada aviso
-     quitaba .show y forzaba un reflow, y «Eliminada → Deshacer → Restaurada» parpadeaba. Un
-     desenfoque de 2 px que se disuelve disimula el cambio de texto. */
-  const ya=t.classList.contains('show');
-  t.className='toast '+type+(ya?' show':'');
-  if(!ya){ void t.offsetWidth; t.classList.add('show'); }
-  else if(t.animate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)
-    t.animate([{opacity:.6,filter:'blur(2px)'},{opacity:1,filter:'none'}],{duration:160,easing:'cubic-bezier(.23,1,.32,1)'});
-  _toastResta=0;
-  _toastProgramar(dur);
-  /* Todo lo de arriba se escribe con el aviso todavía en visibility:hidden, o sea
-     fuera del árbol de accesibilidad: la región activa no veía ninguna mutación, y
-     volverlo visible con el texto ya puesto tampoco es una inserción. Ni VoiceOver ni
-     TalkBack decían nada —ni «Partida 3 eliminada» con su Deshacer, ni los errores de
-     la IA—. Por eso el mensaje se repite en una región que nunca se oculta. */
-  voz(msg+(accion&&accion.label?' — '+accion.label+' disponible':''),type==='err');
+  const P=window.Piezas;
+  if(!P||!P.aviso){ voz(msg+(accion&&accion.label?' — '+accion.label+' disponible':''),type==='err'); return null; }
+  return P.aviso(msg,{tipo:type,dur,accion,pila:'toast'});
 }
 
 /* Copiar al portapapeles, con respaldo. En iOS y en páginas no seguras la API
    moderna falla; antes cada botón reaccionaba distinto (uno tenía respaldo y los
-   otros solo avisaban del error), así que copiar dependía del botón que tocaras. */
+   otros solo avisaban del error), así que copiar dependía del botón que tocaras.
+   El respaldo y la confirmación viven en la pieza compartida (P.copiar, el mismo de la
+   plataforma), y el botón que se tocó lo dice él mismo —«✓ Copiado», 1.8 s— además del
+   aviso, que trae la instrucción de dónde pegarlo. El botón sale del clic que está corriendo
+   (P.botonDelEvento), así que ninguna llamada cambia. */
 function copiarTexto(txt,msgOk,extra){
   const ok=()=>{ if(msgOk) toast(msgOk,'ok',3400); if(typeof extra==='function') extra(); };
-  try{
-    if(navigator.clipboard&&navigator.clipboard.writeText){
-      navigator.clipboard.writeText(txt).then(ok).catch(()=>_copiaManual(txt,ok));
-    } else _copiaManual(txt,ok);
-  }catch(_){ _copiaManual(txt,ok); }
+  const P=window.Piezas;
+  if(!P||!P.copiar){ _copiaManual(txt,ok); return; }
+  P.copiar(txt,{boton:P.botonDelEvento()}).then(bien=>{
+    if(bien) ok(); else toast('No se pudo copiar automáticamente','err',3000);
+  });
 }
 
 /* ===================== Preferencias del dispositivo =====================

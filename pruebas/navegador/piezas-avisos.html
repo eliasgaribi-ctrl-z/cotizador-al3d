@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Vitrina · piezas 1 (avisos y botones)</title>
+<!-- La vitrina de la sección 1 de js/piezas.js: cada pieza sola, con las hojas de verdad de la
+     app (sistema y vidrio) y el tema de verdad, para que pruebas/navegador/piezas-avisos.mjs las
+     toque con ratón, dedo y teclado sin tener que montar una cotización entera. No es una página
+     de la app: no la sirve el service worker ni la enlaza nadie. -->
+<script src="../../js/tema.js"></script>
+<link rel="stylesheet" href="../../css/sistema.css">
+<link rel="stylesheet" href="../../css/vidrio.css">
+<style>
+  body{margin:0;padding:16px 16px 180px}
+  main{max-width:640px;margin:0 auto;display:grid;gap:14px}
+  .fila{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .fila .btn{width:auto;margin-top:0}
+  .renglon-v{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup2)}
+  .renglon-v small{display:block;color:var(--tinta2);font-size:var(--t1)}
+  .marcas{display:flex;flex-wrap:wrap;gap:14px;align-items:center;color:var(--tinta)}
+  #aviso-mantener{min-height:1.5em;margin:0;color:var(--tinta2);font-size:var(--t2)}
+</style>
+</head>
+<body>
+<main>
+  <section class="card" aria-labelledby="t12"><div class="card-h"><h2 id="t12">12 · Aviso con mecha y pila</h2></div>
+    <div class="card-b"><div class="fila">
+      <button type="button" class="btn btn-gho" id="v-info">Aviso informativo</button>
+      <button type="button" class="btn btn-gho" id="v-deshacer">Borrar (con Deshacer)</button>
+      <button type="button" class="btn btn-gho" id="v-notario">Error + ✓ del notario</button>
+    </div></div>
+  </section>
+
+  <section class="card" aria-labelledby="t14"><div class="card-h"><h2 id="t14">14 · El botón que trabaja</h2></div>
+    <div class="card-b"><div class="fila">
+      <button type="button" class="btn btn-pri" id="b-sellar">Autorizar y sellar</button>
+      <button type="button" class="btn btn-gho" id="b-traer">Traer la hoja</button>
+      <button type="button" class="btn btn-gho" id="b-hermano">Otro botón</button>
+    </div></div>
+  </section>
+
+  <section class="card" aria-labelledby="t15"><div class="card-h"><h2 id="t15">15 · Deshacer en el mismo botón</h2></div>
+    <div class="card-b" id="delegado">
+      <div class="renglon-v"><span>Panadería La Espiga<small id="r-armar-est">En armado · 9 letras</small></span>
+        <button type="button" class="btn btn-gho" id="b-armar" data-acc="armar">Ya se armó</button></div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="t23"><div class="card-h"><h2 id="t23">23 · El rótulo que cambia sin brincar</h2></div>
+    <div class="card-b"><div class="fila">
+      <button type="button" class="btn btn-gho" id="b-copiar">Copiar subtotal</button>
+      <button type="button" class="btn btn-gho" id="b-icono" aria-label="Copiar dirección"><svg class="svgi" viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
+      <button type="button" class="btn btn-pri" id="b-dock">Autorizar</button>
+    </div>
+    <p id="r-sigue" style="margin:10px 0 0">Falta el teléfono ›</p>
+    <div class="fila" style="margin-top:8px"><button type="button" class="btn btn-gho" id="b-sigue">Siguiente paso</button></div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="t5"><div class="card-h"><h2 id="t5">5 · Mantener presionado</h2></div>
+    <div class="card-b"><div class="fila">
+      <button type="button" class="btn btn-dgr" id="b-borrar" onclick="window.__onclickDirecto=(window.__onclickDirecto||0)+1">Borrar partida</button>
+      <button type="button" class="btn btn-ok" id="b-autorizar">Autorizar</button>
+    </div>
+    <p id="aviso-mantener" aria-live="polite"></p></div>
+  </section>
+
+  <section class="card" aria-labelledby="t6"><div class="card-h"><h2 id="t6">6 y 24 · Palomita, veredicto y sello</h2></div>
+    <div class="card-b">
+      <div class="marcas" id="marcas">
+        <span id="pal-caja"></span>
+        <span id="me-14" style="font-size:12.5px">Nota guardada</span>
+        <span id="me-16">Solicitud</span>
+        <span id="me-20">Sincronizado</span>
+        <span id="me-44"></span>
+      </div>
+      <div class="fila" style="margin-top:10px">
+        <button type="button" class="btn btn-gho" data-me="trabaja">Consultando</button>
+        <button type="button" class="btn btn-gho" data-me="ok">Auténtica</button>
+        <button type="button" class="btn btn-gho" data-me="av">Ya no vigente</button>
+        <button type="button" class="btn btn-gho" data-me="mal">No auténtica</button>
+      </div>
+      <div id="sello-caja" style="margin-top:12px;display:flex;gap:14px;flex-wrap:wrap"></div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+<div id="vozStatus" class="solo-voz" role="status" aria-live="polite"></div>
+<div id="vozAlert" class="solo-voz" role="alert" aria-live="assertive"></div>
+
+<script src="../../js/piezas.js"></script>
+<script>
+/* El cableado de la vitrina: lo mismo que haría una pantalla, con tiempos cortos. La prueba lo
+   usa y además llama a las piezas directo. */
+(function () {
+  const P = window.Piezas, $ = id => document.getElementById(id);
+  window.__cuentas = { armar: 0, confirmado: 0, deshecho: 0, borrar: 0, autorizar: 0, delegado: 0 };
+  $('v-info').addEventListener('click', () => P.aviso('Guardada en este dispositivo', { tipo: 'ok' }));
+  const deshacerBorrado = () => P.aviso('Partida restaurada', { tipo: 'ok' });
+  $('v-deshacer').addEventListener('click', () => P.aviso('Partida 2 eliminada', { dur: 6000, accion: { label: 'Deshacer', fn: deshacerBorrado } }));
+  $('v-notario').addEventListener('click', () => {
+    P.aviso('El total de este teléfono ($12,528.00) no es el que selló la hoja ($12,580.00). Actualiza la app antes de mandar el PDF.', { tipo: 'err', dur: 12000 });
+    P.aviso('✓ direccion@al3d.mx autorizó COT-0042 · $12,580.00', { tipo: 'ok', dur: 6000 });
+  });
+  window.__trabajo = { ms: 1500, ok: true };
+  const trabajo = () => new Promise((res, rej) => setTimeout(() => window.__trabajo.ok ? res('A1B2-C3D4') : rej(new Error('La hoja no contestó')), window.__trabajo.ms));
+  $('b-sellar').addEventListener('click', () => P.trabajando($('b-sellar'), trabajo, { verbo: 'Sellando', tau: 1500, ok: c => 'Sellada · ' + c, hermanos: [$('b-hermano')] }));
+  $('b-traer').addEventListener('click', () => P.trabajando($('b-traer'), () => new Promise((_, rej) => setTimeout(() => rej(new Error('x')), 900)), { verbo: 'Trayendo la hoja', tau: 1000, mal: 'No contestó' }));
+  $('b-hermano').addEventListener('click', () => { window.__cuentas.hermano = (window.__cuentas.hermano || 0) + 1; });
+  window.__armarMs = 1600;
+  $('delegado').addEventListener('click', e => {
+    const b = e.target.closest('[data-acc="armar"]'); if (!b) return;
+    window.__cuentas.delegado++;
+    P.deshacerEnBoton(b, { ms: window.__armarMs,
+      alConfirmar: () => { window.__cuentas.confirmado++; $('r-armar-est').textContent = 'Armado · pasa a pintura'; },
+      alDeshacer: () => { window.__cuentas.deshecho++; } });
+  });
+  $('b-copiar').addEventListener('click', () => P.copiar('$10,800.00', { boton: $('b-copiar') }).then(b => { window.__copio = b; }));
+  $('b-icono').addEventListener('click', () => P.copiar('Av. Vallarta 1234, Guadalajara', { boton: $('b-icono'), ok: 'Copiada' }));
+  $('b-dock').addEventListener('click', () => P.rotuloTemporal($('b-dock'), 'Falta el teléfono', { ms: 1500, sacudir: true }));
+  const pasos = ['Falta el teléfono ›', 'Falta la dirección ›', 'Todo listo: agrega partidas ›'];
+  let paso = 0;
+  $('b-sigue').addEventListener('click', () => { paso = (paso + 1) % pasos.length; P.cambiarRotulo($('r-sigue'), pasos[paso]); });
+  window.__mantenerMs = 900;
+  P.mantener($('b-borrar'), { ms: window.__mantenerMs, aviso: $('aviso-mantener'), alConfirmar: () => { window.__cuentas.borrar++; } });
+  P.mantener($('b-autorizar'), { ms: window.__mantenerMs, tono: 'ok', alConfirmar: () => { window.__cuentas.autorizar++; } });
+  P.palomita($('pal-caja'), { circulo: true });
+  P.marcaEstado($('me-14'), 'espera');
+  P.marcaEstado($('me-16'), 'espera', { tam: 16 });
+  P.marcaEstado($('me-20'), 'ok', { tam: 20 });
+  P.marcaEstado($('me-44'), 'espera', { tam: 44, etiqueta: 'Consultando' });
+  document.querySelectorAll('[data-me]').forEach(b => b.addEventListener('click', () => {
+    ['me-14', 'me-16', 'me-44'].forEach(id => P.marcaEstado($(id), b.dataset.me));
+    const caja = $('sello-caja'); caja.textContent = '';
+    if (b.dataset.me === 'ok') P.sello(caja, { texto: 'AL3D · COTIZACIÓN AUTÉNTICA · al3d.mx · CONSULTADA 27/09/2026 14:32 ·', sub: 'AUTÉNTICA' });
+    if (b.dataset.me === 'av') P.sello(caja, { texto: 'AL3D · YA NO VIGENTE · al3d.mx · CONSULTADA 27/09/2026 14:32 ·', sub: 'NO VIGENTE', gris: true });
+  }));
+})();
+</script>
+</body>
+</html>
