@@ -2373,3 +2373,70 @@ body.pf .card{animation:none}
 .btn-ganar{color:var(--ok)}
 .btn-ganar .svgi{color:var(--ok)}
 @media(max-width:759px){.tb-decidir-cuerpo{display:none}}
+
+/* ============================================================================
+   LAS PANTALLAS DE LA PLATAFORMA, CON LAS PIEZAS COMPARTIDAS
+   ============================================================================
+   Lo que cada módulo añade al usar las piezas de js/piezas.js (su estilo base está en
+   css/sistema.css, bloque «Piezas compartidas»). Un bloque por zona, con su marca de fin, y su
+   apagado para menos movimiento dentro del bloque de abajo.
+   ============================================================================ */
+
+/* ── Plataforma · esqueleto, navegación, arranque y puerta ── */
+
+/* ── fin de pf-esqueleto ── */
+
+/* ── Plataforma · Hoy y Tablero ── */
+
+/* ── fin de pf-tablero ── */
+
+/* ── Plataforma · Proyectos, ficha y garantía ── */
+
+/* ── fin de pf-proyectos ── */
+
+/* ── Plataforma · Control y comisiones ── */
+
+/* ── fin de pf-control ── */
+
+/* ── Plataforma · Fabricación y calendario ── */
+
+/* ── fin de pf-fabricacion ── */
+
+/* ── Plataforma · Material ── */
+
+/* ── fin de pf-material ── */
+
+/* ── Plataforma · Mapa ── */
+
+/* ── fin de pf-mapa ── */
+
+/* ── Plataforma · Ajustes y asistente ── */
+
+/* ── fin de pf-ajustes ── */
+
+@media(prefers-reduced-motion:reduce){
+/* ── rm · pf-esqueleto ── */
+
+/* ── fin de rm · pf-esqueleto ── */
+/* ── rm · pf-tablero ── */
+
+/* ── fin de rm · pf-tablero ── */
+/* ── rm · pf-proyectos ── */
+
+/* ── fin de rm · pf-proyectos ── */
+/* ── rm · pf-control ── */
+
+/* ── fin de rm · pf-control ── */
+/* ── rm · pf-fabricacion ── */
+
+/* ── fin de rm · pf-fabricacion ── */
+/* ── rm · pf-material ── */
+
+/* ── fin de rm · pf-material ── */
+/* ── rm · pf-mapa ── */
+
+/* ── fin de rm · pf-mapa ── */
+/* ── rm · pf-ajustes ── */
+
+/* ── fin de rm · pf-ajustes ── */
+}
