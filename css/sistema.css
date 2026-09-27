@@ -1442,6 +1442,15 @@ details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
 .toast-act:active{transform:scale(.96)}
 @media(hover:hover){.toast-act:hover{background:rgba(255,255,255,.24);border-color:#fff}}
 .toast.ok{background:var(--ok)} .toast.err{background:var(--mal)}
+/* La pila de dos (toast() en js/cotizador/nucleo.js). Cada aviso es una .toast-fila; con uno
+   solo la fila no existe para el layout y #toast se ve exactamente como antes. Con dos, #toast
+   (.pila) deja de ser la pastilla y cada fila es la suya, con su color: un error no se tiñe del
+   verde del «autorizó» que tiene al lado. Los dos se quedan al ancho del aviso de siempre. */
+.toast-fila{display:contents}
+.toast.pila{background:none;padding:0;box-shadow:none;flex-direction:column;align-items:stretch;gap:8px}
+.toast.pila .toast-fila{display:flex;align-items:center;gap:14px;padding:13px 20px;border-radius:13px;background:#11162e;color:#fff;box-shadow:0 8px 40px rgba(0,0,0,.28)}
+.toast.pila .toast-fila.ok{background:var(--ok)} .toast.pila .toast-fila.err{background:var(--mal)}
+.toast.pila .toast-fila>span{flex:1;min-width:0}
 /* En móvil el aviso se sube por encima de la barra de acción: si no, la tapa justo
    cuando trae un botón —«Deshacer»— que hay que poder apretar. Va aquí abajo, después
    de la regla base, porque una media query no gana por sí sola cuando empata la
@@ -3917,6 +3926,9 @@ details.ai-cfg summary{font-size:var(--t2);font-weight:600;color:var(--tinta2)}
 
 /* ---------- Aviso emergente ---------- */
 #toast{border-radius:var(--rr2);box-shadow:var(--sombra-alta)}
+/* Con dos avisos la sombra y el radio pasan a cada fila (ver .toast.pila en la capa 1). */
+#toast.pila{box-shadow:none;border-radius:0}
+#toast.pila .toast-fila{border-radius:var(--rr2);box-shadow:var(--sombra-alta)}
 /* Sin la keyframe `toast-sube`: traía el translateX(-50%) del teléfono, y a partir de 760 px
    —donde el aviso ya no se centra— lo hacía nacer medio ancho a la izquierda y cruzar de lado
    desde la barra lateral. La entrada es la transición de .toast. */
@@ -4365,6 +4377,10 @@ html[data-tema="oscuro"] body{background:var(--fondo)}
 html[data-tema="oscuro"] .toast:not(.ok):not(.err){background:var(--n8);color:var(--n1)}
 html[data-tema="oscuro"] .toast:not(.ok):not(.err) .toast-act{border-color:rgba(var(--n1-rgb),.35);background:rgba(var(--n1-rgb),.08);color:var(--n1)}
 @media(hover:hover){html[data-tema="oscuro"] .toast:not(.ok):not(.err) .toast-act:hover{background:rgba(var(--n1-rgb),.18);border-color:var(--n1)}}
+/* La pila de dos: el contenedor no pinta, y cada fila neutra lleva el tono de noche. */
+html[data-tema="oscuro"] .toast.pila:not(.ok):not(.err){background:none}
+html[data-tema="oscuro"] .toast.pila .toast-fila:not(.ok):not(.err){background:var(--n8);color:var(--n1)}
+html[data-tema="oscuro"] .toast.pila .toast-fila.ok .toast-act,html[data-tema="oscuro"] .toast.pila .toast-fila.err .toast-act{border-color:rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff}
 /* Los campos: el degradado claro→blanco se vuelve hondo→superficie. */
 html[data-tema="oscuro"] input:-webkit-autofill,html[data-tema="oscuro"] input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100px var(--sup) inset}
 html[data-tema="oscuro"] .mbar{box-shadow:0 -10px 30px -10px rgba(0,0,0,.6)}

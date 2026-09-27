@@ -586,10 +586,16 @@ else _vigilarModales();
    El textContent='' y la escritura en el fotograma siguiente son los que hacen que la
    región activa cuente el mensaje como inserción nueva aunque el texto se repita: sin
    eso, «4 partidas plegadas» dos veces seguidas se oye una sola. */
+/* Dos mensajes en el mismo fotograma se dicen JUNTOS. Con la pila de avisos pasa seguido
+   —«Mandando…» y «Venta registrada» en el mismo tick—, y el segundo borraba al primero antes
+   de que el lector llegara a oírlo: la pila se veía y no se oía. */
+const _vozPend={};
 function voz(msg,urgente){
-  const el=$(urgente?'vozAlert':'vozStatus'); if(!el) return;
+  const id=urgente?'vozAlert':'vozStatus', el=$(id); if(!el) return;
+  if(_vozPend[id]){ if(!_vozPend[id].includes(msg)) _vozPend[id].push(msg); return; }
+  _vozPend[id]=[msg];
   el.textContent='';
-  requestAnimationFrame(()=>{ el.textContent=msg; });
+  requestAnimationFrame(()=>{ const m=_vozPend[id]; _vozPend[id]=null; el.textContent=m.join(' · '); });
 }
 /* ----- Las hojas del teléfono se cierran deslizando -----
    En el teléfono los modales ya salían desde abajo como una hoja del sistema (vidrio-sube en
@@ -689,52 +695,164 @@ function _confCerrar(v){ $('confmodal').classList.remove('show'); const r=_confR
 function confirmarSi(){ _confCerrar(true); }
 function confirmarNo(){ _confCerrar(false); }
 
-/* Aviso emergente. Con un solo temporizador compartido: antes dos avisos seguidos
-   se pisaban y el segundo se ocultaba antes de tiempo por el reloj del primero.
-   Acepta un botón opcional, por ejemplo para deshacer un borrado. */
-let _toastT=null, _toastFin=0, _toastResta=0;
-/* El temporizador se detiene si la pestaña se oculta o si el dedo o el cursor están encima.
-   Un «Deshacer» de 8 s caducaba mientras el vendedor estaba en WhatsApp pegando los datos. */
-function _toastProgramar(ms){
-  clearTimeout(_toastT); _toastFin=Date.now()+ms;
-  _toastT=setTimeout(()=>{ _toastT=null; $('toast').classList.remove('show'); },ms);
+/* ===================== Los avisos: una pila de dos =====================
+   Había UN #toast y UN temporizador, y el segundo aviso reescribía al primero en el mismo
+   tick. Pasaba justo donde más duele: aplicarSello() avisa «el total no es el que selló la
+   hoja» y en la línea siguiente avisoDelNotario('✓ … autorizó') lo tapaba —es el aviso que
+   impide mandar un PDF con un total y un QR con otro—, y en venta.js el «Abrir plataforma» de
+   «Venta registrada» se iba debajo del aviso que venía después.
+
+   Ahora caben DOS a la vista, con prioridad: error > con botón > informativo.
+     · Un informativo a la vista es el que cede: lo que llega ocupa su lugar («Mandando…» ya
+       no dice nada cuando llega «Venta registrada»).
+     · Un error o un aviso con botón no se pisan nunca. Si ya hay dos de esos, el que llega
+       ESPERA y entra en cuanto se va uno; un informativo, en ese caso, solo se dice en voz.
+     · El mismo aviso otra vez no entra de nuevo: solo vuelve a contar su tiempo.
+   La decisión vive en avisosAcomodar() y avisosQuitar(), sin DOM, para poder probarla
+   (pruebas/avisos.mjs). toast() solo pinta lo que ellas deciden.
+
+   Cada aviso lleva su propio reloj, y todos se detienen si la pestaña se oculta o si el dedo o
+   el cursor están encima: un «Deshacer» de 8 s caducaba mientras el vendedor estaba en
+   WhatsApp pegando los datos.
+
+   Para quien siga (la pieza 12: mecha visible y deslizar para quitar, y un solo toast() con el
+   de js/nucleo/ui.js): la firma de toast() no cambia, y cada aviso es un objeto
+   {msg, type, dur, accion} con su fila en `a.nodo`. La mecha sale de `a.fin`/`a.resta`, y
+   quitar uno a mano es _avisoQuitar(a). */
+const AVISOS_A_LA_VISTA=2, AVISOS_EN_ESPERA=4;
+const _avisos={vis:[],espera:[],pausa:false};
+function avisoPrioridad(a){ return a.type==='err'?3:(a.accion?2:1); }
+function avisoMismo(a,b){
+  return a.msg===b.msg&&(a.type||'')===(b.type||'')&&((a.accion&&a.accion.label)||'')===((b.accion&&b.accion.label)||'');
+}
+/* Dónde cae un aviso nuevo. No toca las listas que recibe: devuelve las nuevas y qué pasó
+   (`paso`: 'repite' | 'reemplaza' | 'agrega' | 'espera' | 'descarta') con el lugar `i`. */
+function avisosAcomodar(vis,espera,n){
+  vis=vis.slice(); espera=espera.slice();
+  const igual=vis.findIndex(a=>avisoMismo(a,n));
+  if(igual>=0) return {vis,espera,paso:'repite',i:igual};
+  const cede=vis.findIndex(a=>avisoPrioridad(a)===1);
+  if(cede>=0){ vis[cede]=n; return {vis,espera,paso:'reemplaza',i:cede}; }
+  if(vis.length<AVISOS_A_LA_VISTA){ vis.push(n); return {vis,espera,paso:'agrega',i:vis.length-1}; }
+  if(avisoPrioridad(n)===1) return {vis,espera,paso:'descarta',i:-1};
+  if(!espera.some(a=>avisoMismo(a,n))){
+    /* En espera, por prioridad y en orden de llegada dentro de la misma. Si se llena, se cae
+       el último: el de menos prioridad y más reciente. */
+    let k=espera.findIndex(a=>avisoPrioridad(a)<avisoPrioridad(n));
+    if(k<0) k=espera.length;
+    espera.splice(k,0,n);
+    if(espera.length>AVISOS_EN_ESPERA) espera.pop();
+  }
+  return {vis,espera,paso:'espera',i:-1};
+}
+/* Se va el de la posición `i`; si había alguno esperando, entra (`entra`). */
+function avisosQuitar(vis,espera,i){
+  vis=vis.slice(); espera=espera.slice();
+  if(i>=0&&i<vis.length) vis.splice(i,1);
+  let entra=null;
+  if(espera.length&&vis.length<AVISOS_A_LA_VISTA){ entra=espera.shift(); vis.push(entra); }
+  return {vis,espera,entra};
+}
+
+function _avisoProgramar(a,ms){
+  clearTimeout(a.t); a.t=null; a.fin=Date.now()+ms; a.resta=0;
+  if(_avisos.pausa){ a.resta=ms; return; }
+  a.t=setTimeout(()=>{ a.t=null; _avisoQuitar(a); },ms);
 }
 function _toastPausa(){
-  if(!_toastT) return;
-  clearTimeout(_toastT); _toastT=null; _toastResta=Math.max(1500,_toastFin-Date.now());
+  _avisos.pausa=true;
+  _avisos.vis.forEach(a=>{ if(a.t){ clearTimeout(a.t); a.t=null; a.resta=Math.max(1500,a.fin-Date.now()); } });
 }
-function _toastSigue(){ if(!_toastT&&_toastResta&&$('toast').classList.contains('show')){ _toastProgramar(_toastResta); _toastResta=0; } }
+function _toastSigue(){
+  _avisos.pausa=false;
+  _avisos.vis.forEach(a=>{ if(!a.t&&a.resta) _avisoProgramar(a,a.resta); });
+}
 document.addEventListener('visibilitychange',()=>document.hidden?_toastPausa():_toastSigue());
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_toastVigilar,{once:true}); else _toastVigilar();
 function _toastVigilar(){
   const t=$('toast'); if(!t) return;
   ['pointerenter','focusin'].forEach(n=>t.addEventListener(n,_toastPausa));
-  ['pointerleave','focusout'].forEach(n=>t.addEventListener(n,_toastSigue));
+  /* focusout también sale al pasar el foco de un botón del aviso al otro: solo se sigue si el
+     foco de verdad se fue del aviso. */
+  t.addEventListener('pointerleave',_toastSigue);
+  t.addEventListener('focusout',e=>{ if(!t.contains(e.relatedTarget)) _toastSigue(); });
+}
+function _avisoFila(a){
+  const f=document.createElement('div');
+  f.className='toast-fila'+(a.type?' '+a.type:'');
+  const sp=document.createElement('span'); sp.textContent=a.msg; f.appendChild(sp);
+  if(a.accion){
+    const b=document.createElement('button');
+    b.type='button'; b.className='toast-act'; b.textContent=a.accion.label;
+    /* a.accion y no la del cierre: si el mismo aviso se repite, el botón hace lo último que
+       se pidió. */
+    b.onclick=()=>{ const fn=a.accion.fn; _avisoQuitar(a); fn(); };
+    f.appendChild(b);
+  }
+  a.nodo=f;
+  return f;
+}
+/* Con uno, el aviso se ve como siempre: la fila no existe para el layout (display:contents) y
+   el color va en #toast. Con dos, #toast deja de ser la pastilla y cada fila es la suya. */
+function _avisosClase(t){
+  const v=_avisos.vis;
+  if(!v.length) return;   // saliendo: se queda como estaba mientras se desvanece
+  t.className='toast'+(v.length>1?' pila':(v[0].type?' '+v[0].type:''))+(t.classList.contains('show')?' show':'');
+}
+const _avisoSinMovimiento=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+function _avisoQuitar(a){
+  const t=$('toast'), i=_avisos.vis.indexOf(a);
+  if(i<0){ _avisos.espera=_avisos.espera.filter(x=>x!==a); return; }
+  clearTimeout(a.t); a.t=null;
+  const r=avisosQuitar(_avisos.vis,_avisos.espera,i);
+  _avisos.vis=r.vis; _avisos.espera=r.espera;
+  if(!t) return;
+  /* El último se queda pintado mientras se desvanece; lo limpia el siguiente que entre. */
+  if(!_avisos.vis.length){ t.classList.remove('show'); return; }
+  if(a.nodo) a.nodo.remove();
+  if(r.entra){ t.appendChild(_avisoFila(r.entra)); _avisoProgramar(r.entra,r.entra.dur); }
+  _avisosClase(t);
 }
 function toast(msg,type='',dur=2600,accion=null){
   /* Con botón, 8 s como mínimo: quien lo oye en vez de verlo tiene que encontrar
      «Deshacer» deslizando, y los 2.6 s de siempre no alcanzan ni para llegar. Si el
      llamador ya pide más, se respeta lo que pida. */
   if(accion&&dur<8000) dur=8000;
+  const n={msg:String(msg),type:type||'',dur,accion:(accion&&accion.label&&typeof accion.fn==='function')?accion:null};
   const t=$('toast');
-  t.innerHTML='';
-  const sp=document.createElement('span'); sp.textContent=msg; t.appendChild(sp);
-  if(accion&&accion.label&&typeof accion.fn==='function'){
-    const b=document.createElement('button');
-    b.type='button'; b.className='toast-act'; b.textContent=accion.label;
-    b.onclick=()=>{ clearTimeout(_toastT); _toastT=null; _toastResta=0; t.classList.remove('show'); accion.fn(); };
-    t.appendChild(b);
+  if(t){
+    const antes=_avisos.vis, r=avisosAcomodar(antes,_avisos.espera,n);
+    _avisos.vis=r.vis; _avisos.espera=r.espera;
+    if(r.paso==='repite'){
+      /* El mismo aviso: no vuelve a entrar, solo vuelve a contar (y su botón hace lo nuevo). */
+      const a=r.vis[r.i]; a.accion=n.accion; a.dur=n.dur; _avisoProgramar(a,n.dur);
+    } else if(r.paso==='reemplaza'){
+      /* Ocupa el lugar del informativo sin volver a «entrar»: antes cada aviso quitaba .show y
+         forzaba un reflow, y «Eliminada → Deshacer → Restaurada» parpadeaba. Un desenfoque de
+         2 px que se disuelve disimula el cambio de texto. */
+      const viejo=antes[r.i]; clearTimeout(viejo.t); viejo.t=null;
+      const f=_avisoFila(n);
+      if(viejo.nodo&&viejo.nodo.parentNode===t) viejo.nodo.replaceWith(f); else t.appendChild(f);
+      _avisosClase(t);
+      const quien=r.vis.length>1?f:t;
+      if(quien.animate&&!_avisoSinMovimiento())
+        quien.animate([{opacity:.6,filter:'blur(2px)'},{opacity:1,filter:'none'}],{duration:160,easing:'cubic-bezier(.23,1,.32,1)'});
+      _avisoProgramar(n,dur);
+    } else if(r.paso==='agrega'){
+      const f=_avisoFila(n);
+      if(!t.classList.contains('show')){
+        /* Lo que quedó del aviso anterior mientras se desvanecía. */
+        t.textContent=''; t.appendChild(f); _avisosClase(t);
+        void t.offsetWidth; t.classList.add('show');
+      } else {
+        t.appendChild(f); _avisosClase(t);
+        if(f.animate&&!_avisoSinMovimiento())
+          f.animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'none'}],{duration:200,easing:'cubic-bezier(.23,1,.32,1)'});
+      }
+      _avisoProgramar(n,dur);
+    }
+    /* 'espera' entra solo cuando se vaya uno (_avisoQuitar); 'descarta' se queda en la voz. */
   }
-  /* Si ya había uno a la vista, solo cambia el contenido: no vuelve a «entrar». Antes cada aviso
-     quitaba .show y forzaba un reflow, y «Eliminada → Deshacer → Restaurada» parpadeaba. Un
-     desenfoque de 2 px que se disuelve disimula el cambio de texto. */
-  const ya=t.classList.contains('show');
-  t.className='toast '+type+(ya?' show':'');
-  if(!ya){ void t.offsetWidth; t.classList.add('show'); }
-  else if(t.animate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)
-    t.animate([{opacity:.6,filter:'blur(2px)'},{opacity:1,filter:'none'}],{duration:160,easing:'cubic-bezier(.23,1,.32,1)'});
-  _toastResta=0;
-  _toastProgramar(dur);
   /* Todo lo de arriba se escribe con el aviso todavía en visibility:hidden, o sea
      fuera del árbol de accesibilidad: la región activa no veía ninguna mutación, y
      volverlo visible con el texto ya puesto tampoco es una inserción. Ni VoiceOver ni

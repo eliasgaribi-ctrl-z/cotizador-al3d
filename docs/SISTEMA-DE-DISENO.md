@@ -535,7 +535,7 @@ Es un **`<button role="switch">`**, no un `<label>` (sin `for` y sin control den
 </button>
 ```
 
-### 2.7 `.toast` — aviso emergente (uno solo en la página, `#toast`)
+### 2.7 `.toast` — aviso emergente (un solo `#toast` por página; en el cotizador caben dos avisos dentro)
 
 ```css
 .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(90px);
@@ -1309,7 +1309,7 @@ function toast(msg,type='',dur=2600,accion=null){
 | `dur` | ms | `2600` | con `accion`, se fuerza a **≥ 8000** |
 | `accion` | `{label:string, fn:function}` \| `null` | `null` | pinta un `.toast-act`; al pulsarlo cancela el temporizador, oculta el aviso y llama `fn()` |
 
-Un solo temporizador compartido (`_toastT`): dos avisos seguidos ya no se pisan. Llamadas reales:
+**En el cotizador, una pila de dos** (`js/cotizador/nucleo.js`, desde el 26 de septiembre de 2026): cada aviso lleva su reloj y su `.toast-fila` dentro de `#toast`; con uno solo se ve igual que siempre y con dos `#toast` toma `.pila` y cada fila pinta su color. Prioridad error > con botón > informativo: un informativo a la vista cede su lugar al que llega; un error o un aviso con botón no se pisan (si ya hay dos, el nuevo espera); el mismo aviso repetido solo vuelve a contar. La decisión es `avisosAcomodar()` / `avisosQuitar()`, sin DOM, y la prueba `pruebas/avisos.mjs`. La plataforma (`js/nucleo/ui.js`) sigue con uno solo hasta que se unifiquen. Llamadas reales:
 ```js
 toast('Partida '+(idx+1)+' eliminada','',6000,{label:'Deshacer',fn:deshacerBorrado});
 toast('Cotización vaciada','',7000,{label:'Deshacer',fn:deshacerVaciado});
