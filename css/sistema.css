@@ -1422,33 +1422,45 @@ details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
 .authnote b{color:var(--ink)}
 .mini{font-size:11.5px;color:var(--muted);margin-top:9px;text-align:center;line-height:1.5}
 
-/* Una sola TRANSICIÓN, de ida y de vuelta, y sin keyframes. Antes entraba con una keyframe de
-   160 ms y salía deslizándose 90 px en 300 ms, opaco: tardaba más en irse que en llegar, en el
-   teléfono acababa encima del dock y se apagaba de golpe. Ahora aparece desde 8 px en 240 ms y
-   se va desvaneciéndose en 150. Una transición se puede interrumpir: dos avisos seguidos ya no
-   reinician nada (ver toast() en nucleo.js y ui.js). */
-.toast{position:fixed;bottom:26px;left:50%;opacity:0;transform:translateX(-50%) translateY(8px);background:#11162e;color:#fff;padding:13px 20px;border-radius:13px;font-size:14px;font-weight:600;z-index:100;box-shadow:0 8px 40px rgba(0,0,0,.28);display:flex;align-items:center;gap:14px;width:max-content;max-width:min(92vw,540px);text-align:left;visibility:hidden;transition:opacity .15s var(--ease-out),transform .15s var(--ease-out),visibility 0s linear .15s}
-/* Al aparecer se hace visible de inmediato; al ocultarse espera a que termine de
-   desvanecerse. Con una transición normal de visibility el botón "Deshacer" tardaba
-   en volverse tocable. */
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0);visibility:visible;transition:opacity .2s var(--ease-out),transform .24s var(--ease-out),visibility 0s linear 0s}
-/* Mientras se va deslizando sigue visible 0.3 s y se comía el toque del botón que
-   quedaba debajo: ya retirado, no estorba. */
-.toast:not(.show){pointer-events:none}
+/* EL AVISO ES UNA PILA. #toast ya no es el aviso: es el CONTENEDOR de hasta dos (.toast-uno), y
+   por eso conserva su id, su clase y su sitio en el documento —todas las reglas que lo suben
+   sobre el dock, sobre el pie del escalador y sobre el panel de la plataforma lo nombran a él—.
+   Hasta aquí era uno solo y el segundo aviso reescribía al primero en el mismo tick: el error
+   del notario «el total no es el que selló la hoja» lo tapaba el «✓ autorizó» de la línea de
+   abajo (la falla 2 del brief). Qué se ve y en qué orden lo decide P.aviso() en js/piezas.js.
+   El contenedor no se mueve ni atrapa toques: se mueve cada aviso, y solo con transform y
+   opacity —entra desde 8 px en 240 ms y se va desvaneciéndose en 150, que es lo que ya hacía—. */
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:100;display:grid;gap:8px;justify-items:center;
+  width:max-content;max-width:min(92vw,540px);pointer-events:none}
+.toast-uno{pointer-events:auto;position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;max-width:100%;
+  background:var(--nav);color:#fff;padding:13px 20px 14px;border-radius:13px;font-size:14px;font-weight:600;text-align:left;
+  box-shadow:0 8px 40px rgba(0,0,0,.28);touch-action:none;user-select:none;-webkit-user-select:none;
+  animation:aviso-entra .24s var(--ease-out)}
+/* Al irse deja de atrapar toques en el acto: mientras se desvanece se comía el del botón que
+   quedaba debajo. */
+.toast-uno.sale{opacity:0;transform:translateY(6px);pointer-events:none;
+  transition:opacity .15s var(--ease-out),transform .15s var(--ease-out)}
+.toast-msg{flex:1 1 auto;min-width:0}
 /* Solo se animan color y borde: con "transition:.13s" (que aplica a todas las
    propiedades) el botón heredaba la animación de visibility del aviso y tardaba
    en volverse tocable justo cuando el usuario quiere apretarlo. */
 .toast-act{flex-shrink:0;border:1.5px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;font-family:inherit;font-size:13px;font-weight:800;padding:7px 15px;border-radius:9px;cursor:pointer;transition:background .13s,border-color .13s,transform var(--mv-liq)}
 .toast-act:active{transform:scale(.96)}
 @media(hover:hover){.toast-act:hover{background:rgba(255,255,255,.24);border-color:#fff}}
-.toast.ok{background:var(--ok)} .toast.err{background:var(--mal)}
+/* El verde es el RELLENO (--ok-fill), no la tinta: de noche --ok sube a #6fd6a4 para poder ser
+   letra, y con blanco encima daba 1,78:1 —el «✓ Autorizada y sellada» era ilegible de noche—. */
+.toast-uno.ok{background:var(--ok-fill)} .toast-uno.err{background:var(--mal)}
 /* En móvil el aviso se sube por encima de la barra de acción: si no, la tapa justo
    cuando trae un botón —«Deshacer»— que hay que poder apretar. Va aquí abajo, después
    de la regla base, porque una media query no gana por sí sola cuando empata la
    especificidad. La regla del escalador (.scaler-modal-bg.show+.toast) manda sobre
    esta por ser más específica, así que el escalador conserva su propia altura. */
 @media(max-width:759px){
-  .toast{bottom:calc(20px + 66px + env(safe-area-inset-bottom,0px))}
+  /* Y al ancho del dock: la pila ocupa su mismo carril —los mismos márgenes que .mbar en la capa
+     8— y se posa encima, así que dos avisos nunca tapan el botón principal ni se salen de lado. */
+  .toast{bottom:calc(20px + 66px + env(safe-area-inset-bottom,0px));
+    left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));
+    transform:none;width:auto;max-width:none;justify-items:stretch}
 }
 /* En la computadora el aviso va abajo a la IZQUIERDA, no al centro. El centro de abajo es
    exactamente donde caen los botones principales de la columna única del paso 1 y del pie
@@ -1459,8 +1471,7 @@ details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
    existe: el cotizador suelto y el empotrado). El teléfono se queda centrado: ahí la barra fija
    ocupa todo el ancho y el aviso ya se pone encima de ella. */
 @media(min-width:760px){
-  .toast{left:calc(var(--lat,0px) + 24px);right:auto;transform:translateY(8px)}
-  .toast.show{transform:none}
+  .toast{left:calc(var(--lat,0px) + 24px);right:auto;transform:none;justify-items:start}
   /* Con una capa abierta, el aviso SUBE lo justo para librar el pie del panel. «Abajo a la
      izquierda no hay nada que tapar» vale para la página, pero la ficha del proyecto y la
      orden de trabajo se centran en un panel de 640 px cuyo pie de botones cae exactamente en
@@ -3916,10 +3927,12 @@ details.ai-cfg summary{font-size:var(--t2);font-weight:600;color:var(--tinta2)}
 .sp-tb-btn.active{background:var(--a-fill);color:#fff;border-color:var(--a-fill);box-shadow:none}
 
 /* ---------- Aviso emergente ---------- */
-#toast{border-radius:var(--rr2);box-shadow:var(--sombra-alta)}
+/* El radio y la sombra son de cada aviso, no de la pila: puestos en #toast dibujaban una sombra
+   alrededor del hueco entre los dos. */
+#toast>.toast-uno{border-radius:var(--rr2);box-shadow:var(--sombra-alta)}
 /* Sin la keyframe `toast-sube`: traía el translateX(-50%) del teléfono, y a partir de 760 px
    —donde el aviso ya no se centra— lo hacía nacer medio ancho a la izquierda y cruzar de lado
-   desde la barra lateral. La entrada es la transición de .toast. */
+   desde la barra lateral. La entrada es `aviso-entra`, en cada .toast-uno y solo al nacer. */
 
 /* ---------- Entradas ----------
    Una sola animación para todo lo que aparece: 10 px hacia arriba y de
@@ -4026,7 +4039,143 @@ html.va-atras #card-proy,html.va-atras .p1-cierre{animation-name:entra-izq}
    ===================================================================== */
 
 /* ── Piezas · 1 · avisos y botones que dicen lo que pasa ── */
+/* El reloj que se ve (P.mecha): un filete de 2 px al pie que se consume con transform:scaleX,
+   nunca con width. Va en el color del texto de lo que lo lleva, así sirve igual en el aviso
+   marino, en el verde, en el claro de noche y en un botón fantasma. No lleva texto, así que la
+   opacidad aquí no apaga nada que haya que leer. :where() para no pisar el `position` de quien
+   ya lo tenga fijo o absoluto. */
+:where(.con-mecha){position:relative}
+.mecha{position:absolute;left:0;right:0;bottom:0;height:2px;background:currentColor;opacity:.62;
+  transform-origin:left center;pointer-events:none}
 
+/* ----- El aviso (pieza 12): lo que la pila añade a las reglas de .toast de más arriba ----- */
+@keyframes aviso-entra{from{opacity:0;transform:translateY(8px)}}
+/* Mientras el dedo lo lleva, nada de transición: el aviso va pegado al dedo. */
+.toast-uno.arrastrando{transition:none;cursor:grabbing}
+/* Con menos movimiento la mecha se queda quieta y lo que falta del «Deshacer» va con letra. */
+.toast-seg{flex:none;font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+/* La portada del Fold pega el dock a 6 px del borde (capa 8); la pila, con él. */
+@media(max-width:385px){.toast{left:6px;right:6px}}
+
+/* ----- El rótulo que cambia sin brincar (pieza 23) -----
+   Los dos rótulos en la MISMA celda: el ancho es el del más largo y el de al lado no se mueve.
+   Solo opacity y transform, 180 ms. El gap se hereda del botón, así el icono y el texto quedan
+   a la distancia que ya tenían. */
+.rotulo{display:inline-grid;align-items:center;justify-items:start;gap:inherit;max-width:100%;vertical-align:middle}
+:is(button,[role="button"])>.rotulo{justify-items:center}
+.rotulo>span{grid-area:1/1;display:inline-flex;align-items:center;gap:inherit;min-width:0;
+  transition:opacity .18s var(--ease-out),transform .18s var(--ease-out)}
+.rotulo>.rotulo-b,.rotulo>.rotulo-entra{opacity:0;transform:translateY(.45em)}
+.rotulo>.rotulo-sale{opacity:0;transform:translateY(-.45em)}
+.rotulo.alt>.rotulo-a{opacity:0;transform:translateY(-.45em)}
+.rotulo.alt>.rotulo-b{opacity:1;transform:none}
+/* La sacudida de «falta un dato» y del botón que falló: ±4 px, tres veces, 320 ms. */
+.sacudida{animation:sacudida .32s var(--ease-out)}
+@keyframes sacudida{20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+
+/* ----- La palomita que se dibuja (pieza 6) -----
+   El trazo va de dashoffset 1 a 0 una vez. Es la única propiedad de esta sección que no es
+   transform ni opacity, y se queda a propósito: es un trazo de 24 px que se pinta una sola vez,
+   y es exactamente lo que pide cada ficha que la usa (F6, P2, P13, A2, A14). */
+.palomita{width:1.2em;height:1.2em;flex:none;overflow:visible;vertical-align:-.22em}
+.palomita path{fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.palomita.con-circulo circle{fill:var(--ok-fill)}
+.palomita.con-circulo path{stroke:#fff;stroke-width:2.4}
+.palomita.dibuja path{stroke-dasharray:1;stroke-dashoffset:1;animation:dibuja-trazo .42s .12s var(--ease-out) forwards}
+@keyframes dibuja-trazo{to{stroke-dashoffset:0}}
+
+/* ----- El botón que está trabajando lo dice (pieza 14) -----
+   El relleno es un <span> de verdad detrás del texto (z-index:-1 dentro del aislamiento del
+   botón) y avanza con scaleX. En un botón claro es un tinte suave con la letra oscura encima; en
+   uno de color con letra blanca OSCURECE —un blanco al 22 % aclaraba el azul de 4,95:1 a 3,5:1—,
+   así que la letra se queda en 4.5:1 o más en las dos mitades. data-relleno lo mide la pieza. */
+.con-estado{position:relative;isolation:isolate;overflow:hidden}
+.trabajo-relleno{position:absolute;inset:0;z-index:-1;transform-origin:left center;transform:scaleX(0);
+  background:var(--a-suave);pointer-events:none}
+.con-estado[data-relleno="oscuro"] .trabajo-relleno{background:rgba(var(--tinta-rgb),.32)}
+/* Letra clara sobre una superficie honda (un fantasma de noche): oscurecer no se vería. */
+.con-estado[data-relleno="luz"] .trabajo-relleno{background:rgba(var(--luz-rgb),.18)}
+.con-estado[data-estado="trabajando"]{cursor:progress}
+/* El espacio entre el verbo y el reloj lo lleva el propio reloj (« · 6 s»), así se ve igual en un
+   botón flex con su gap que en uno que no lo es; y la palomita del éxito lleva el suyo. */
+.con-estado[data-estado]{gap:0}
+.con-estado .palomita{margin-right:.4em}
+/* Los hermanos del que trabaja (F7): esperan, y se nota. La opacidad va en el control entero,
+   que es donde el sistema la permite (§4.3), y el porqué lo dice el botón de al lado. */
+[data-espera]{opacity:.55;cursor:progress}
+.con-estado .estado-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trabajo-reloj{flex:none;font-variant-numeric:tabular-nums;white-space:pre}
+/* El éxito y el fallo le ganan al color del botón con dos clases: .mbar-btn:not(.gho):not(.ok)
+   pesa tres, y la capa de vidrio repinta .btn-pri DESPUÉS de esta hoja. */
+.con-estado.con-estado[data-estado="ok"]{background:var(--ok-fill);border-color:var(--ok-fill);color:#fff}
+.con-estado.con-estado[data-estado="mal"]{background:var(--mal-bg);border-color:var(--mal-borde);color:var(--mal)}
+
+/* ----- «Deshacer» en el mismo botón (pieza 15) ----- */
+[data-deshacer]{position:relative;overflow:hidden}
+.deshacer-seg{margin-left:.35em;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* ----- Mantener presionado para confirmar (pieza 5) -----
+   Dos capas con el mismo rótulo. La de color se descubre con dos translate opuestos: la ventana
+   (.mantener-capa) viaja de -100 % a 0 y su contenido de +100 % a 0, así el texto blanco se
+   queda quieto exactamente encima del de abajo y solo se corre el borde. Todo el acomodo se
+   hereda del botón (padding, justify-content, gap), para que las dos capas coincidan al píxel
+   en cualquier botón de la app. */
+.mantener{position:relative;overflow:hidden;isolation:isolate;user-select:none;-webkit-user-select:none;
+  -webkit-touch-callout:none;touch-action:manipulation}
+.mantener-base{display:inline-flex;align-items:center;justify-content:center;gap:inherit;min-width:0}
+.mantener-capa{position:absolute;inset:0;overflow:hidden;pointer-events:none;border-radius:inherit;
+  padding:inherit;gap:inherit;justify-content:inherit;transform:translateX(-100%)}
+.mantener-capa-t{position:absolute;inset:0;box-sizing:border-box;display:flex;align-items:center;
+  justify-content:inherit;gap:inherit;padding:inherit;white-space:inherit;line-height:inherit;
+  transform:translateX(100%);background:var(--mal);color:#fff}
+.mantener[data-tono="azul"] .mantener-capa-t{background:var(--a-fill)}
+.mantener[data-tono="ok"] .mantener-capa-t{background:var(--ok-fill)}
+.mantener[data-relleno="oscuro"] .mantener-capa-t{background:rgba(var(--tinta-rgb),.36);color:inherit}
+/* De noche --mal es la tinta clara (#ff8a80): con blanco encima no se lee, con la letra honda sí. */
+html[data-tema="oscuro"] .mantener[data-tono="mal"]:not([data-relleno="oscuro"]) .mantener-capa-t{color:var(--n1)}
+.mantener.manteniendo{transform:scale(.97)}
+.mantener.hecho{cursor:default}
+
+/* ----- El veredicto y el sello (pieza 24) ----- */
+.marca-estado{display:inline-grid;place-items:center;width:var(--tam,1.15em);height:var(--tam,1.15em);flex:none;vertical-align:-.2em}
+.marca-estado svg{width:100%;height:100%;overflow:visible}
+.marca-estado .me-base{fill:none;stroke:var(--linea);stroke-width:2}
+.marca-estado .me-arco{display:none;fill:none;stroke:var(--a);stroke-width:2.4;stroke-linecap:round;stroke-dasharray:26 100;transform-origin:12px 12px}
+.marca-estado .me-m{display:none;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.marca-estado[data-estado="espera"] .me-base{stroke:var(--tinta2);stroke-dasharray:1.4 3.4;stroke-linecap:round}
+/* El arco gira SOLO mientras hay una espera de verdad: en cuanto llega el veredicto se va. */
+.marca-estado[data-estado="trabaja"] .me-arco{display:inline;animation:giro-estado .9s linear infinite}
+.marca-estado[data-estado="ok"] .me-base{stroke:var(--ok);fill:var(--ok-bg)}
+.marca-estado[data-estado="ok"] .me-ok{display:inline;stroke:var(--ok)}
+.marca-estado[data-estado="av"] .me-base{stroke:var(--av);fill:var(--av-bg)}
+.marca-estado[data-estado="av"] .me-av{display:inline;stroke:var(--av)}
+.marca-estado[data-estado="mal"] .me-base{stroke:var(--mal);fill:var(--mal-bg)}
+.marca-estado[data-estado="mal"] .me-mal{display:inline;stroke:var(--mal)}
+.marca-estado.dibuja .me-m{stroke-dasharray:1;stroke-dashoffset:1;animation:dibuja-trazo .42s .05s var(--ease-out) forwards}
+@keyframes giro-estado{to{transform:rotate(360deg)}}
+.sello-circular{width:var(--tam,150px);height:var(--tam,150px);display:block;flex:none;color:var(--ok);overflow:visible}
+.sello-circular .sc-aro{fill:none;stroke:currentColor;stroke-width:2.2}
+.sello-circular .sc-aro2{fill:none;stroke:currentColor;stroke-width:.9}
+.sello-circular text{fill:currentColor;font-family:var(--f-texto);font-weight:700;letter-spacing:.12em}
+.sello-circular .sc-centro{font-family:var(--f-cifra);font-weight:800;font-size:27px;letter-spacing:.02em}
+.sello-circular .sc-sub{font-size:8.5px;letter-spacing:.16em}
+.sello-circular .sc-cruz{display:none;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round}
+.sello-circular.gris{color:var(--tinta2)}
+.sello-circular.gris .sc-cruz{display:inline}
+/* Cae una vez, con el golpe de un sello de goma, y se queda quieto. */
+.sello-circular.estampa{animation:sello-cae .5s cubic-bezier(.2,1.5,.4,1) both;transform-origin:50% 50%}
+@keyframes sello-cae{from{opacity:0;transform:scale(1.08) rotate(-8deg)}}
+
+/* Con el dedo, la caja sube a 44 px; la letra no. */
+@media(hover:none),(pointer:coarse){
+  .mantener,.con-estado,[data-deshacer],.toast-uno{min-height:44px}
+}
+/* En papel no hay avisos, ni relojes, ni nada que se dibuje: lo que se imprime ya está puesto. */
+@media print{
+  .toast,.mecha{display:none!important}
+  .palomita.dibuja path,.marca-estado.dibuja .me-m{animation:none!important;stroke-dashoffset:0!important}
+  .sello-circular.estampa,.marca-estado .me-arco{animation:none!important}
+}
 /* ── fin de piezas · 1 ── */
 
 /* ── Piezas · 2 · hojas, listas y transiciones ── */
@@ -4431,9 +4580,13 @@ html[data-tema="oscuro"]{
 /* El lienzo de noche también respira, y más que el de día: ver arriba, con --aurora-1. */
 html[data-tema="oscuro"] body{background:var(--fondo)}
 /* El aviso emergente era azul marino sobre blanco; sobre un fondo marino se perdería. */
-html[data-tema="oscuro"] .toast:not(.ok):not(.err){background:var(--n8);color:var(--n1)}
-html[data-tema="oscuro"] .toast:not(.ok):not(.err) .toast-act{border-color:rgba(var(--n1-rgb),.35);background:rgba(var(--n1-rgb),.08);color:var(--n1)}
-@media(hover:hover){html[data-tema="oscuro"] .toast:not(.ok):not(.err) .toast-act:hover{background:rgba(var(--n1-rgb),.18);border-color:var(--n1)}}
+html[data-tema="oscuro"] .toast-uno:not(.ok):not(.err){background:var(--n8);color:var(--n1)}
+html[data-tema="oscuro"] .toast-uno:not(.ok):not(.err) .toast-act{border-color:rgba(var(--n1-rgb),.35);background:rgba(var(--n1-rgb),.08);color:var(--n1)}
+@media(hover:hover){html[data-tema="oscuro"] .toast-uno:not(.ok):not(.err) .toast-act:hover{background:rgba(var(--n1-rgb),.18);border-color:var(--n1)}}
+/* El error de noche no puede ir en --mal: es #ff8a80, la tinta roja que se lee sobre marino, y
+   con blanco encima da 2,2:1. Va al revés, como el aviso neutro: fondo hondo y letra roja. */
+html[data-tema="oscuro"] .toast-uno.err{background:var(--mal-bg);color:var(--mal);border:1px solid var(--mal-borde)}
+html[data-tema="oscuro"] .toast-uno.err .toast-act{border-color:var(--mal-borde);background:rgba(var(--mal-rgb),.1);color:var(--mal)}
 /* Los campos: el degradado claro→blanco se vuelve hondo→superficie. */
 html[data-tema="oscuro"] input:-webkit-autofill,html[data-tema="oscuro"] input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100px var(--sup) inset}
 html[data-tema="oscuro"] .mbar{box-shadow:0 -10px 30px -10px rgba(0,0,0,.6)}
@@ -5218,12 +5371,11 @@ html[data-tema="oscuro"] .ai-btn:disabled,html[data-tema="oscuro"] .ai-btn[disab
   .pf-abajo button:active .pil{transform:none!important}
   /* 4 · Modales, hojas y aviso: fundido sí, desplazamiento no */
   :is(.modal-bg,.rv-modal-bg)>:is(.modal,.hist-panel,.rv-modal,.pf-panel){transform:none!important;transition:opacity .15s ease!important}
-  .toast,.toast.show{transform:translateX(-50%)!important;transition:opacity .15s ease,visibility 0s linear .15s!important}
-  .toast.show{transition:opacity .15s ease,visibility 0s!important}
+  .toast-uno{animation-name:aparece!important;animation-duration:.15s!important}
+  .toast-uno.sale{transform:none!important;transition:opacity .15s ease!important}
   /* 5 · Esperar se sigue viendo: un pulso lento de opacidad en vez de un giro */
   .esq-giro,.espera-giro,.ia-espera .svgi,.ia-hoy-cargando .svgi,.ai-status.work::before{animation:pulso-lento 1.6s ease-in-out infinite!important}
 }
-@media(prefers-reduced-motion:reduce) and (min-width:760px){ .toast,.toast.show{transform:none!important} }
 @keyframes aparece{from{opacity:0}}
 @keyframes pulso-lento{50%{opacity:.35}}
 
@@ -5233,7 +5385,16 @@ html[data-tema="oscuro"] .ai-btn:disabled,html[data-tema="oscuro"] .ai-btn[disab
    Un bloque por sección, con su marca de fin. */
 @media(prefers-reduced-motion:reduce){
 /* ── rm · piezas · 1 ── */
-
+  /* El rótulo cambia sin fundido (H18, H28); la marca y la palomita aparecen ya dibujadas (A2);
+     el arco de espera se queda quieto y lo dice el texto de al lado (C9). Lo que NO se apaga:
+     el relleno de mantener presionado y la mecha, que son información (la mecha, quieta, con
+     los segundos en letra: eso lo hace la pieza). El sello solo aparece. */
+  .rotulo>span{transition:none!important}
+  .sacudida{animation:none!important}
+  .palomita.dibuja path,.marca-estado.dibuja .me-m{animation:none!important;stroke-dashoffset:0!important}
+  .marca-estado[data-estado="trabaja"] .me-arco{animation:none!important}
+  .sello-circular.estampa{animation:aparece .15s ease both!important}
+  .mantener.manteniendo{transform:none!important}
 /* ── fin de rm · piezas · 1 ── */
 /* ── rm · piezas · 2 ── */
 

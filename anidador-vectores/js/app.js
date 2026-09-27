@@ -132,22 +132,19 @@
   try { QUIETO = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
 
   /* ---------- Utilidades de interfaz ---------- */
-  var _toastT = null;
-  /* Con `accion` ({label, fn}) lleva botón, como el del cotizador, y dura 8 s como mínimo. */
+  /* El aviso es la misma pieza del cotizador y la plataforma (js/piezas.js, P.aviso): la pila de
+     dos con su mecha, que se pausa con el dedo, el cursor o el foco encima y se quita
+     deslizándola. Aquí era una copia sin pausa, sin mecha y con un solo nodo: «Retazo quitado ·
+     Deshacer» lo borraba el aviso siguiente. Con `accion` ({label, fn}) lleva botón y dura 8 s
+     como mínimo; sin `dur`, 3.2 s, que era lo de esta página. Se dice en #vozStatus, la única
+     región que habla aquí (P.voz manda ahí también lo urgente). */
   function toast(msg, tipo, dur, accion) {
-    var t = $('toast'); if (!t) return;
-    t.textContent = '';
-    var sp = document.createElement('span'); sp.textContent = msg; t.appendChild(sp);
-    if (accion && accion.label && typeof accion.fn === 'function') {
-      if (!dur || dur < 8000) dur = 8000;
-      var b = document.createElement('button'); b.type = 'button'; b.className = 'toast-act'; b.textContent = accion.label;
-      b.onclick = function () { clearTimeout(_toastT); t.className = 'toast'; accion.fn(); };
-      t.appendChild(b);
+    var P = window.Piezas;
+    if (!P || !P.aviso) {
+      var voz = $('vozStatus'); if (voz) voz.textContent = msg + (accion && accion.label ? ' — ' + accion.label + ' disponible' : '');
+      return null;
     }
-    t.className = 'toast show' + (tipo ? ' ' + tipo : '');
-    var voz = $('vozStatus'); if (voz) voz.textContent = msg + (accion && accion.label ? ' — ' + accion.label + ' disponible' : '');
-    clearTimeout(_toastT);
-    _toastT = setTimeout(function () { t.className = 'toast'; }, dur || 3200);
+    return P.aviso(msg, { tipo: tipo || '', dur: dur || 3200, accion: accion || null, pila: 'toast' });
   }
   function mensaje(txt, tipo) {
     var m = $('an-msg'); m.textContent = txt || '';
