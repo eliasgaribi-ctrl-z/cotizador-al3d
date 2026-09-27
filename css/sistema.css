@@ -4030,7 +4030,188 @@ html.va-atras #card-proy,html.va-atras .p1-cierre{animation-name:entra-izq}
 /* ── fin de piezas · 1 ── */
 
 /* ── Piezas · 2 · hojas, listas y transiciones ── */
+/* El estilo de lo que js/piezas.js mueve en su sección 2. Todo se anima con transform u opacity,
+   salvo dos cosas que se explican donde están (el pliegue, que ES espacio, y el color del velo,
+   que es un color). Nada de aquí se mueve solo, y todo lo que se toca mide 44 px con el dedo. */
 
+/* ----- 13 · La hoja que se baja con el dedo -----
+   Mientras el dedo la lleva, el velo se aclara en su COLOR y no en su opacidad: el velo es el
+   padre de la hoja, y bajarle la opacidad se llevaba la hoja entera —texto incluido— hasta el
+   35 %. `--arrastre` va de 0 a 1 con lo que bajó la hoja; al soltar sin cerrar, el tinte vuelve
+   con la curva de la hoja, y al cerrar se desvanece desde donde quedó (la transición de .show,
+   repetida entera porque `transition` no se suma: sin `display … allow-discrete` el velo se iba
+   de golpe). El .52 es el del velo en la capa 8 y en plataforma.css. */
+.hoja-arrastrando{user-select:none;-webkit-user-select:none;cursor:grabbing}
+html :is(.modal-bg,.pf-modal-bg).hoja-velo-sigue{background-color:rgba(var(--nav-rgb),calc(.52 * (1 - var(--arrastre,0))))}
+html :is(.modal-bg,.pf-modal-bg).hoja-velo-suelta{
+  transition:opacity .14s var(--ease-out),display .14s allow-discrete,background-color .32s var(--ease-hoja)}
+
+/* ----- 22 · La tarjeta viaja (View Transitions) -----
+   html.vt-pieza la pone P.transicion() solo mientras dura el viaje. La raíz NO se funde: cambia
+   en seco, y solo viajan las piezas con nombre. Con el fundido de siempre parpadeaban el aviso,
+   la cuenta de cada columna y el velo que se estaba cerrando. `vt-contenedor` es la pantalla o
+   la rejilla que cambia entera (P24, F11, H27): sale hacia un lado y entra del otro, según
+   data-va, en los 0,32 s que las pantallas de marco esperan para medirse. */
+html.vt-pieza::view-transition-old(root),html.vt-pieza::view-transition-new(root){animation:none;mix-blend-mode:normal}
+html.vt-pieza::view-transition-group(*){animation-duration:var(--vt-dur,.32s);animation-timing-function:var(--ease-out)}
+html.vt-pieza::view-transition-group(vt-contenedor){animation:none}
+html.vt-pieza::view-transition-old(vt-contenedor),html.vt-pieza::view-transition-new(vt-contenedor){
+  animation-duration:var(--vt-dur,.32s);animation-timing-function:var(--ease-out);animation-fill-mode:both;mix-blend-mode:normal}
+html.vt-pieza[data-va="adelante"]::view-transition-old(vt-contenedor){animation-name:vt-sale-izq}
+html.vt-pieza[data-va="adelante"]::view-transition-new(vt-contenedor){animation-name:vt-entra-der}
+html.vt-pieza[data-va="atras"]::view-transition-old(vt-contenedor){animation-name:vt-sale-der}
+html.vt-pieza[data-va="atras"]::view-transition-new(vt-contenedor){animation-name:vt-entra-izq}
+html.vt-pieza[data-va="sube"]::view-transition-old(vt-contenedor){animation-name:vt-desvanece}
+html.vt-pieza[data-va="sube"]::view-transition-new(vt-contenedor){animation-name:entra}
+@keyframes vt-sale-izq{to{opacity:0;transform:translateX(-24px)}}
+@keyframes vt-sale-der{to{opacity:0;transform:translateX(24px)}}
+@keyframes vt-entra-der{from{opacity:0;transform:translateX(24px)}}
+@keyframes vt-entra-izq{from{opacity:0;transform:translateX(-24px)}}
+@keyframes vt-desvanece{to{opacity:0}}
+
+/* ----- 21 · El tema se abre en círculo -----
+   js/tema.js pone html.tema-revela mientras dura el revelado y anima el clip-path de la foto
+   nueva desde el punto del toque. Las dos fotos se quedan quietas y opacas, sin el fundido ni la
+   mezcla «plus-lighter» que el navegador pone por omisión: con ellas, a media transición los dos
+   temas se sumaban y el blanco se quemaba. */
+html.tema-revela::view-transition-old(root),html.tema-revela::view-transition-new(root){animation:none;mix-blend-mode:normal}
+html.tema-revela::view-transition-new(root){z-index:1}
+
+/* ----- 10 · Bordes que se desvanecen -----
+   La máscara solo del lado donde queda contenido; las clases las pone P.bordesDesvanecidos() y
+   cambian tres veces en todo el recorrido, no en cada píxel. En papel no hay máscara: la fórmula
+   de material también se imprime. */
+.bordes{--borde:32px}
+.bordes-x.hay-despues{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - var(--borde,32px)),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - var(--borde,32px)),transparent)}
+.bordes-x.hay-antes{-webkit-mask-image:linear-gradient(90deg,transparent,#000 var(--borde,32px));mask-image:linear-gradient(90deg,transparent,#000 var(--borde,32px))}
+.bordes-x.hay-antes.hay-despues{-webkit-mask-image:linear-gradient(90deg,transparent,#000 var(--borde,32px),#000 calc(100% - var(--borde,32px)),transparent);mask-image:linear-gradient(90deg,transparent,#000 var(--borde,32px),#000 calc(100% - var(--borde,32px)),transparent)}
+.bordes-y.hay-despues{-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - var(--borde,32px)),transparent);mask-image:linear-gradient(180deg,#000 calc(100% - var(--borde,32px)),transparent)}
+.bordes-y.hay-antes{-webkit-mask-image:linear-gradient(180deg,transparent,#000 var(--borde,32px));mask-image:linear-gradient(180deg,transparent,#000 var(--borde,32px))}
+.bordes-y.hay-antes.hay-despues{-webkit-mask-image:linear-gradient(180deg,transparent,#000 var(--borde,32px),#000 calc(100% - var(--borde,32px)),transparent);mask-image:linear-gradient(180deg,transparent,#000 var(--borde,32px),#000 calc(100% - var(--borde,32px)),transparent)}
+
+/* ----- 11 · Desenfoque progresivo bajo el dock -----
+   Una franja hermana de la barra, fija, una capa por debajo de ella: 4 px de desenfoque y un
+   tinte del lienzo, enmascarados para que se funda en los últimos `--db-alto` px. UNA capa y no
+   tres: cada backdrop-filter se recalcula en cada cuadro de scroll (regla 1 del vidrio). Se
+   enciende solo con algo debajo que fundir, no tapa toques, y con transparencia reducida o en
+   papel no existe. */
+.desenfoque-borde{position:fixed;left:0;right:0;height:0;pointer-events:none;
+  visibility:hidden;opacity:0;transition:opacity var(--mv-r),visibility 0s linear .2s;
+  background:rgba(var(--n1-rgb),.34);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+  -webkit-mask-image:linear-gradient(var(--db-dir,to top),#000 calc(100% - var(--db-alto,28px)),transparent);
+  mask-image:linear-gradient(var(--db-dir,to top),#000 calc(100% - var(--db-alto,28px)),transparent)}
+.desenfoque-borde.abajo{bottom:0;--db-dir:to top}
+.desenfoque-borde.arriba{top:0;--db-dir:to bottom}
+.desenfoque-borde.activa{visibility:visible;opacity:1;transition:opacity var(--mv-r)}
+@media(prefers-reduced-transparency:reduce){ .desenfoque-borde{display:none} }
+
+/* ----- 9 · El renglón que se desliza -----
+   La cara es opaca (--sup) porque las acciones viven DEBAJO de ella; su contenido es el de la
+   pantalla. Las tres acciones se pintan con tokens que ya aguantan su texto en los dos temas:
+   la principal con el relleno del acento (blanco encima, 4,95:1 de día y 5,69:1 de noche), la
+   neutra teñida, y la de peligro como .btn-dgr, teñida y NO rellena: de noche --mal es tinta
+   clara y con blanco encima no se leería. `overflow:clip` con margen para que el aro de foco de
+   lo que va en la cara no quede cortado en el canto. */
+.desliza{position:relative;overflow:clip;overflow-clip-margin:4px;isolation:isolate;border-radius:var(--rr3)}
+.desliza-cara{position:relative;z-index:1;background:var(--sup);touch-action:pan-y;transition:transform .26s var(--ease-out)}
+.desliza.arrastrando .desliza-cara{user-select:none;-webkit-user-select:none;cursor:grabbing}
+.desliza-acciones{position:absolute;top:0;right:0;bottom:0;display:flex}
+.desliza-principal{position:absolute;inset:0;display:flex;background:var(--a-fill)}
+.desliza-acc{min-width:76px;min-height:44px;padding:0 14px;border:0;display:flex;align-items:center;justify-content:center;gap:6px;
+  background:var(--a-suave);color:var(--a-tx);font:600 var(--t2)/1.15 var(--f-texto);cursor:pointer;
+  transition:background-color var(--mv-s),color var(--mv-s)}
+.desliza-acc.peligro{background:var(--mal-bg);color:var(--mal)}
+.desliza-principal .desliza-acc{flex:1;justify-content:flex-start;padding-left:18px;background:var(--a-fill);color:#fff}
+/* Cada lado enseña solo lo suyo: con la cara a la derecha se esconden las acciones de la izquierda
+   —viven pegadas a la derecha y asomaban entre la principal y la cara—, y al revés. Con opacidad
+   y no con visibility: un botón escondido con visibility no se puede enfocar, y con `soloAqui` el
+   Tab tiene que llegar a la principal para abrir el renglón. */
+.desliza.a-la-derecha .desliza-acciones,.desliza:not(.a-la-derecha) .desliza-principal{opacity:0}
+/* Pasado el umbral, la acción se confirma antes de soltar: el relleno pasa al verde de «hecho». */
+.desliza.lista .desliza-principal,.desliza.lista .desliza-principal .desliza-acc{background:var(--ok-fill)}
+.desliza-acc:focus-visible{outline:2px solid var(--a-tx);outline-offset:-4px}
+
+/* ----- Entra lo nuevo, sale lo quitado -----
+   La entrada es la de siempre (10 px hacia arriba, de transparente a opaco), solo en lo que no se
+   había visto. La marca «nuevo» es un filete del acento y un tinte en un ::after que se apaga en
+   `--lista-marca`; su retardo negativo (`--lista-edad`) es lo que hace que un repintado no la
+   vuelva a empezar. El renglón con marca no debe usar su propio ::after. */
+.lista-entra{animation:lista-entra .24s var(--ease-out) backwards}
+@keyframes lista-entra{from{opacity:0;transform:translateY(8px)}}
+.lista-nueva{position:relative}
+.lista-nueva::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 3px 0 0 var(--a),inset 0 0 0 1px var(--a-borde);background:rgba(var(--a-rgb),.06);
+  animation:lista-marca var(--lista-marca,4s) linear var(--lista-edad,0s) both}
+@keyframes lista-marca{0%,75%{opacity:1}to{opacity:0}}
+
+/* ----- El pliegue abre con su altura -----
+   <details class="pliegue">: CSS puro donde el navegador conoce ::details-content e
+   interpolate-size; donde no, abre en seco como antes. `overflow:clip` con 4 px de margen para
+   no cortar el aro de foco del primer campo. .pliegue-flecha gira con la misma curva y el mismo
+   tiempo. `.pliegue-quieto` (P.abrirSinAnimar) es para reabrir desde el código sin animar.
+   .plegable es lo mismo para lo que se pliega con clases: una rejilla de 0fr a 1fr, y lo de
+   dentro fuera del tabulador (visibility) al terminar de cerrar. */
+.pliegue{interpolate-size:allow-keywords}
+.pliegue::details-content{block-size:0;overflow:clip;overflow-clip-margin:4px;
+  transition:block-size .2s var(--ease-out),content-visibility .2s allow-discrete}
+.pliegue[open]::details-content{block-size:auto}
+.pliegue-flecha{flex:none;transition:transform .2s var(--ease-out)}
+.pliegue[open]>summary .pliegue-flecha,[aria-expanded="true"]>.pliegue-flecha{transform:rotate(180deg)}
+.pliegue.pliegue-quieto::details-content,.pliegue-quieto .pliegue-flecha{transition:none}
+.plegable{display:grid;grid-template-rows:0fr;transition:grid-template-rows .2s var(--ease-out)}
+.plegable>*{min-height:0;overflow:clip;overflow-clip-margin:4px;visibility:hidden;transition:visibility 0s linear .2s}
+.plegable.abierto{grid-template-rows:1fr}
+.plegable.abierto>*{visibility:visible;transition:visibility 0s}
+.plegable.pliegue-quieto,.plegable.pliegue-quieto>*{transition:none}
+
+/* ----- Páginas con scroll-snap -----
+   El desplazamiento es del navegador; la pieza pone el punto de cada página, las flechas y el
+   anuncio. `--pag-ancho` deja asomar la siguiente (las paradas del mapa van al 84 %). Con más de
+   cinco páginas los puntos se vuelven «2 / 7»: seis puntos de 44 px más dos flechas ya no caben
+   en 360. */
+.paginas{display:grid;grid-auto-flow:column;grid-auto-columns:var(--pag-ancho,100%);gap:var(--pag-hueco,12px);
+  overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none}
+.paginas::-webkit-scrollbar{display:none}
+.paginas>*{min-width:0;scroll-snap-align:center;scroll-snap-stop:always}
+.paginas-barra{display:flex;align-items:center;justify-content:center;gap:2px;margin-top:var(--e2)}
+.paginas-punto{width:44px;height:44px;padding:0;border:0;border-radius:var(--rr2);background:none;cursor:pointer;display:grid;place-items:center}
+.paginas-punto::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--n4);transition:transform var(--mv-r),background-color var(--mv-s)}
+.paginas-punto[aria-current="true"]::before{background:var(--a-fill);transform:scale(1.35)}
+.paginas-flecha{min-width:44px;min-height:44px;padding:0;border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup);color:var(--tinta);
+  font:600 20px/1 var(--f-texto);cursor:pointer;display:grid;place-items:center;transition:border-color var(--mv-s),transform var(--mv-liq)}
+.paginas-flecha:active:not(:disabled){transform:scale(.97)}
+.paginas-flecha:disabled{opacity:.45;cursor:default}
+.paginas-cuenta{min-width:4.5em;text-align:center;font:600 var(--t2)/1 var(--f-cifra);color:var(--tinta2);font-variant-numeric:tabular-nums}
+@media(hover:hover) and (pointer:fine){ .paginas-flecha:hover:not(:disabled){border-color:var(--a-borde)} }
+
+/* ----- La silueta en vez de «Leyendo…» -----
+   Las mismas barras del esqueleto (.esq-b y sus medidas, «Las pantallas de carga»), con el brillo
+   de UNA pasada al aparecer: el del esqueleto corre en bucle, y diez segundos de brillo mientras
+   la IA piensa es la pantalla moviéndose sola. Lo que dice «sigo» es el giro junto al texto. */
+.silueta{display:grid;gap:var(--e3)}
+.silueta-dibujo{display:grid;gap:var(--e2)}
+.silueta .esq-b::after{animation:esq-barre .9s var(--ease-out) .12s 1 both}
+.silueta-fila{display:flex;align-items:center;gap:var(--e3);padding:var(--e1) 0}
+.silueta-ico{flex:0 0 36px;width:36px;height:36px;border-radius:var(--rr2)}
+.silueta-tx{flex:1;min-width:0}
+.silueta-tx .esq-t{margin-bottom:6px}
+.silueta-cifras{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:var(--e3)}
+.silueta-cifra .esq-n{width:70%}
+.silueta-mini{width:100%;border-radius:var(--rr3)}
+.silueta-t{display:flex;align-items:center;justify-content:center;gap:8px;margin:0;color:var(--tinta2);font-size:var(--t3);font-weight:500}
+
+/* En papel: ni franjas, ni máscaras, ni lo escondido detrás de un renglón; los pliegues de clase,
+   abiertos (como se despliega todo lo plegado en el papel del sistema); las páginas, una debajo
+   de otra; y ninguna silueta. */
+@media print{
+  .desenfoque-borde,.desliza-acciones,.desliza-principal,.paginas-barra,.silueta{display:none!important}
+  .bordes{-webkit-mask-image:none!important;mask-image:none!important}
+  .desliza-cara{transform:none!important}
+  .plegable{grid-template-rows:1fr!important}
+  .plegable>*{visibility:visible!important}
+  .paginas{display:block!important;overflow:visible!important}
+}
 /* ── fin de piezas · 2 ── */
 
 /* ── Piezas · 3 · números, medidas y campos ── */
@@ -5236,7 +5417,22 @@ html[data-tema="oscuro"] .ai-btn:disabled,html[data-tema="oscuro"] .ai-btn[disab
 
 /* ── fin de rm · piezas · 1 ── */
 /* ── rm · piezas · 2 ── */
-
+/* Se va lo que desplaza o se mueve solo; se queda lo que informa. La hoja no baja con el dedo
+   (el bloque de arriba ya le prohíbe el desplazamiento), pero el velo se sigue aclarando: es un
+   color. El renglón deslizable sigue al dedo —eso no es adorno, es la mano— y regresa sin
+   recorrido. La marca «nuevo» se queda quieta el mismo tiempo. Los pliegues abren en seco: el
+   comodín `*` no alcanza a ::details-content, así que se apaga por su nombre. Las transiciones
+   de vista ni siquiera arrancan (P.transicion() pregunta antes); esto es por si otra pieza las
+   pide. */
+.desliza-cara,.pliegue-flecha,.paginas-punto::before,.desliza-acc{transition:none}
+.pliegue::details-content{transition:none}
+.plegable,.plegable>*{transition:none}
+.lista-entra{animation:none}
+.lista-nueva::after{animation:none}
+.silueta .esq-b::after{animation:none;opacity:0}
+.desenfoque-borde,.desenfoque-borde.activa{transition:none}
+html.vt-pieza::view-transition-group(*),html.vt-pieza::view-transition-old(*),html.vt-pieza::view-transition-new(*){animation:none!important}
+.paginas{scroll-behavior:auto}
 /* ── fin de rm · piezas · 2 ── */
 /* ── rm · piezas · 3 ── */
 

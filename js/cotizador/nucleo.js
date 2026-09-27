@@ -592,67 +592,26 @@ function voz(msg,urgente){
   requestAnimationFrame(()=>{ el.textContent=msg; });
 }
 /* ----- Las hojas del teléfono se cierran deslizando -----
-   En el teléfono los modales ya salían desde abajo como una hoja del sistema (vidrio-sube en
-   css/sistema.css), pero el gesto que va con una hoja —bajarla con el dedo— no existía: había
-   que estirarse hasta la × de arriba. Aquí está, con una condición que es la que importa: solo
-   se arrastra desde el encabezado, o desde el cuerpo cuando ya está hasta arriba. Sin ella, la
-   primera vez que alguien baja por el historial para buscar una cotización, la hoja se cerraría.
-
-   Se cierra con la función de su capa (_CAPAS), la misma de la ×, así que el foco, el atrás del
-   teléfono y lo que cada modal limpia al cerrarse pasan igual. Un solo oyente para todos. */
-/* Revisado en la auditoría de movimiento, en tres cosas que se sentían:
-   · La velocidad era el PROMEDIO desde que se tocó —`dy/(ahora-t0) > 0.6` y más de 40 px—:
-     «tocar, pensarlo y deslizar» nunca cerraba, y un deslizón corto y rápido tampoco. Ahora es
-     la velocidad del último tramo (~100 ms), con el umbral de Sonner y Vaul: 0,11 px/ms.
-   · Hacia arriba había una pared (`Math.max(0,dy)`). Ahora cede con resistencia, como una hoja
-     del sistema.
-   · Al soltar para cerrar, la hoja volvía a 0 y se apagaba en el mismo cuadro. Ahora la salida
-     de CSS (translateY(100%), ver sistema.css) arranca desde donde la dejó el dedo, y el velo
-     se aclara mientras se arrastra.
-   Y el `touchmove` con passive:false se registra solo durante el gesto: registrado siempre,
-   cada scroll de la página esperaba a este JS antes de moverse. */
-const _HOJA_CIERRA=90;   // px hacia abajo a partir de los cuales soltar cierra
-const _HOJA_VEL=0.11;    // px/ms en el último tramo: un deslizón basta
-let _hoja=null;
-function _esTelefono(){ try{ return matchMedia('(max-width:560px)').matches; }catch(_){ return false; } }
-document.addEventListener('touchstart',e=>{
-  if(_hoja||!_esTelefono()||e.touches.length!==1) return;
-  const m=e.target.closest&&e.target.closest('.modal-bg.show>.modal'); if(!m) return;
-  if(e.target.closest('input,textarea,select,[contenteditable="true"],canvas')) return;
-  const cuerpo=e.target.closest('.modal-b');
-  if(cuerpo&&cuerpo.scrollTop>0) return;
-  if(!e.target.closest('.modal-h')&&!cuerpo) return;
-  const cerrar=(_CAPAS.find(([id])=>id===m.parentElement.id)||[])[1]; if(!cerrar) return;
-  _hoja={m,velo:m.parentElement,y0:e.touches[0].clientY,dy:0,cerrar,activo:false,pts:[]};
-  document.addEventListener('touchmove',_moverHoja,{passive:false});
-},{passive:true});
-function _moverHoja(e){
-  if(!_hoja||e.touches.length!==1) return;   // un segundo dedo no mueve la hoja
-  const dy=e.touches[0].clientY-_hoja.y0;
-  if(!_hoja.activo){
-    if(Math.abs(dy)<6) return;
-    if(dy<0){ _soltarHoja(); return; }   // hacia arriba al empezar: es scroll, no la hoja
-    _hoja.activo=true; _hoja.m.style.transition='none'; _hoja.velo.style.transition='none';
-  }
-  _hoja.dy=dy>0?dy:-Math.sqrt(-dy)*3;
-  _hoja.pts.push([e.timeStamp,dy]);
-  while(_hoja.pts.length>2&&e.timeStamp-_hoja.pts[0][0]>100) _hoja.pts.shift();
-  _hoja.m.style.transform='translateY('+_hoja.dy+'px)';
-  const alto=_hoja.m.offsetHeight||600;
-  _hoja.velo.style.opacity=String(Math.max(.35,1-Math.max(0,_hoja.dy)/alto));
-  e.preventDefault();   // que no se mueva la página de atrás ni se dispare el «jalar para recargar»
+   En el teléfono los modales salen desde abajo como una hoja del sistema, y el gesto que va con
+   una hoja —bajarla con el dedo— vive ahora en js/piezas.js (P.hojasDeslizables), UNA vez para
+   las dos apps: era una copia de la de la plataforma y las dos llevaban el mismo defecto, el velo
+   aclarándose con `opacity` sobre el padre de la hoja, o sea con la hoja entera encima al 35 %.
+   Las medidas —solo desde el encabezado o con el cuerpo arriba del todo, 90 px o el latigazo de
+   0,11 px/ms, el touchmove colgado solo durante el gesto— y su porqué están allí.
+   Aquí solo se dice qué es hoja en el cotizador y con qué se cierra: la función de su capa
+   (_CAPAS), la misma de la ×, así que el foco, el atrás del teléfono y lo que cada modal limpia
+   al cerrarse pasan igual. */
+if(window.Piezas&&Piezas.hojasDeslizables) Piezas.hojasDeslizables({
+  hoja:'.modal-bg.show>.modal',cabeza:'.modal-h',cuerpo:'.modal-b',
+  cierre:velo=>(_CAPAS.find(([id])=>id===velo.id)||[])[1]||null
+});
+/* Y lo que pasa por debajo del dock y de la barra de arriba del teléfono se funde en vez de
+   cortarse contra su canto (pieza 11). La de arriba solo a ≤560 px: más ancho, el resumen de la
+   partida se pega justo debajo de la barra y quedaría borroso. */
+if(window.Piezas&&Piezas.desenfoqueProgresivo){
+  Piezas.desenfoqueProgresivo('#mbar',{lado:'abajo'});
+  Piezas.desenfoqueProgresivo('.topbar',{lado:'arriba',media:'(max-width:560px)'});
 }
-function _soltarHoja(){
-  document.removeEventListener('touchmove',_moverHoja);
-  const h=_hoja; _hoja=null; if(!h||!h.activo) return;
-  const a=h.pts[0], b=h.pts[h.pts.length-1];
-  const v=(a&&b&&b[0]>a[0])?(b[1]-a[1])/(b[0]-a[0]):0;
-  h.m.style.transition=''; h.velo.style.transition=''; h.velo.style.opacity='';
-  h.m.style.transform='';
-  if(h.dy>_HOJA_CIERRA||(h.dy>12&&v>_HOJA_VEL)){ try{ h.cerrar(); }catch(_){} }
-}
-document.addEventListener('touchend',_soltarHoja,{passive:true});
-document.addEventListener('touchcancel',_soltarHoja,{passive:true});
 
 /* ----- Sin señal, dicho -----
    La cotización se guarda en cada tecla y funciona igual sin internet, pero nada en pantalla lo
