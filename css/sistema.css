@@ -4570,6 +4570,371 @@ html[data-tema="oscuro"] .desl-pastilla{background:var(--tinta);color:var(--nav)
 
 /* ── Piezas · 4 · señalar, explicar y sellar ── */
 
+/* Lo que flota —el globo, el nombre de un icono, las esquinas— va en la capa superior del
+   navegador (atributo `popover`), así que nada de esto pide z-index. El navegador le pone a un
+   popover `inset:0;margin:auto`, un borde, relleno, overflow:auto y los colores del sistema: se
+   deshacen aquí, pieza por pieza. Donde no hay popover (Safari 16), el mismo nodo se pinta fijo
+   con z-index 90: encima de los modales (60) y debajo del aviso (100). */
+@supports not selector(:popover-open){
+  .vistazo:not(.pz-abierto),.nombre-tip:not(.pz-abierto),.mira:not(.pz-abierto){display:none}
+  .vistazo,.nombre-tip,.mira{z-index:90}
+}
+
+/* ----- 4 · El globo que explica: desglose o vistazo -----
+   Superficie sólida y no vidrio: lleva cifras que se comparan con un papel, y el contraste se
+   mide en el render. El ancho se limita a 320 px o a la pantalla menos 24: en un teléfono de 360
+   el globo nunca toca los bordes. JS pone left/top; el lado lo dice data-lado. */
+.vistazo{position:fixed;inset:auto;left:0;top:0;margin:0;box-sizing:border-box;
+  width:max-content;max-width:min(var(--vz-ancho,320px),calc(100vw - 24px));
+  max-height:calc(100vh - 24px);overflow:auto;overscroll-behavior:contain;
+  padding:12px 14px;border:1px solid var(--linea);border-radius:var(--rr3);
+  background:var(--sup);color:var(--tinta);box-shadow:var(--sombra-alta);
+  font:500 var(--t3)/1.45 var(--f-texto);text-align:left;
+  transform-origin:var(--vz-origen,top left);
+  transition:opacity .16s var(--ease-out),transform .16s var(--ease-out);
+  transition:opacity .16s var(--ease-out),transform .16s var(--ease-out),display .16s allow-discrete,overlay .16s allow-discrete}
+.vistazo:popover-open{opacity:1;transform:none}
+@starting-style{.vistazo:popover-open{opacity:0;transform:translateY(4px) scale(.98)}}
+/* La salida es más corta que la entrada (§2.18): lo que se va no tiene que explicarse. */
+.vistazo:not(:popover-open){opacity:0;transform:scale(.98);transition-duration:.1s}
+.vistazo.vz-corte{transition:none}
+/* En el teléfono, los globos largos (el mensaje de WhatsApp, el cuaderno) salen como hoja de
+   abajo: un globo de 300 px de texto junto a un botón al fondo de la pantalla no cabe en
+   ningún lado. */
+.vistazo.en-hoja{top:auto;bottom:0;left:0;right:0;width:auto;max-width:none;max-height:min(72vh,560px);
+  border-radius:16px 16px 0 0;border-bottom:0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));
+  transform-origin:bottom center}
+@starting-style{.vistazo.en-hoja:popover-open{opacity:0;transform:translateY(16px)}}
+.vistazo.en-hoja:not(:popover-open){transform:translateY(12px)}
+.vistazo-t{display:block;margin:0 0 6px;font:600 var(--t3)/1.3 var(--f-cifra);color:var(--tinta)}
+.vistazo p{margin:0}
+.vistazo p+p{margin-top:6px}
+.vistazo ul{margin:4px 0 0;padding-left:18px}
+.vistazo li+li{margin-top:2px}
+/* El desglose: concepto a la izquierda, cifra a la derecha, la suma con su filete. */
+.vistazo dl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;margin:0}
+.vistazo dt{color:var(--tinta2)}
+.vistazo dd{margin:0;text-align:right;font-weight:700;font-family:var(--f-cifra);font-variant-numeric:tabular-nums}
+.vistazo .suma{border-top:1px solid var(--linea);padding-top:6px;margin-top:2px;color:var(--tinta)}
+/* El texto exacto que va a salir (el mensaje de WhatsApp): con sus saltos de renglón. */
+.vistazo-texto{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font:500 var(--t3)/1.5 var(--f-texto);
+  background:var(--sup2);border:1px solid var(--linea2);border-radius:var(--rr2);padding:10px 12px}
+.vistazo-acciones{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.vistazo-acciones .btn{width:auto;margin:0;min-height:40px;padding:0 14px}
+.vistazo[role="menu"]{padding:6px;min-width:200px}
+.vistazo [role="menuitem"]{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;margin:0;padding:0 10px;
+  border:0;border-radius:var(--rr2);background:none;color:var(--tinta);font:500 var(--t3)/1.2 var(--f-texto);text-align:left;cursor:pointer;
+  transition:background var(--mv-s),transform var(--mv-liq)}
+.vistazo [role="menuitem"]:active{transform:scale(.98)}
+@media(hover:hover) and (pointer:fine){.vistazo [role="menuitem"]:hover{background:var(--sup2)}}
+/* El ancla abierta se marca con un contorno, sin cambiar de tamaño ni pisar su sombra: el
+   globo sale de ahí. */
+.vistazo-ancla-abierta{outline:2px solid var(--a-borde);outline-offset:2px}
+/* El «?» que explica (H19, muestra 73). */
+.porque{display:inline-grid;place-items:center;flex:none;width:40px;height:40px;padding:0;border-radius:999px;
+  border:1px solid var(--linea);background:var(--sup);color:var(--a-tx);cursor:pointer;
+  font:700 var(--t4)/1 var(--f-cifra);transition:border-color var(--mv-s),background var(--mv-s),transform var(--mv-liq)}
+.porque:active{transform:scale(.97)}
+.porque[aria-expanded="true"]{border-color:var(--a-borde);background:var(--a-suave);box-shadow:none}
+@media(hover:hover) and (pointer:fine){.porque:hover{border-color:var(--a-borde)}}
+
+/* ----- Variante · el nombre de un icono (WarmTooltip) -----
+   Tinta sobre superficie invertida: en claro, marino con blanco; en oscuro, al revés. Los dos
+   pasan de 12:1. No recibe el puntero: pasar por encima de la etiqueta no la mantiene. */
+.nombre-tip{position:fixed;inset:auto;left:0;top:0;margin:0;box-sizing:border-box;
+  max-width:calc(100vw - 16px);padding:6px 10px;border:0;border-radius:var(--rr2);overflow:hidden;
+  background:var(--tinta);color:var(--sup);box-shadow:var(--sombra);
+  font:600 var(--t2)/1.2 var(--f-texto);white-space:nowrap;text-overflow:ellipsis;pointer-events:none;
+  transition:opacity .12s var(--ease-out),transform .12s var(--ease-out)}
+@starting-style{.nombre-tip:popover-open{opacity:0;transform:translateY(3px)}}
+.nombre-tip[data-lado="abajo"]{transform-origin:top center}
+.nombre-tip kbd{display:inline-block;min-width:18px;margin-left:6px;padding:1px 5px;border-radius:4px;
+  border:1px solid rgba(var(--sup-rgb),.45);font:700 var(--t1)/1.3 var(--f-cifra);text-align:center}
+/* Mientras se mantiene el dedo: sin menú de copiar, sin selección de texto. */
+.nombre-presionando{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+
+/* ----- 7 · El encendido de neón, un momento -----
+   Todo en capas que se crean al encender y se quitan al terminar: en reposo no queda nada. El
+   parpadeo es de opacidad a saltos (steps), el haz es un cuadro que gira con transform recortado
+   a un anillo de 2 px, y el halo es una sombra QUIETA dentro de la capa que parpadea: se anima la
+   opacidad de la capa, nunca la sombra. --a-claro es decoración (§4.1) y aquí no lleva texto. */
+.neon-ancla{position:relative}
+.neon-capa{position:absolute;inset:-1px;z-index:1;border-radius:inherit;pointer-events:none;
+  box-shadow:0 0 0 1px var(--a-claro),0 0 18px 2px rgba(var(--ac-rgb),.55);opacity:0;
+  animation:neon-prende 2.6s linear both}
+.neon-discreta>.neon-capa{box-shadow:0 0 0 1px rgba(var(--ac-rgb),.6),0 0 14px 1px rgba(var(--ac-rgb),.25);
+  animation-name:neon-suave;animation-duration:1.7s}
+.neon-haz{position:absolute;inset:0;border-radius:inherit;padding:2px;overflow:hidden;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+.neon-haz::before{content:"";position:absolute;left:50%;top:50%;width:var(--neon-d,640px);height:var(--neon-d,640px);
+  margin:calc(var(--neon-d,640px) / -2) 0 0 calc(var(--neon-d,640px) / -2);
+  background:conic-gradient(from 0deg,transparent 0 70%,var(--a-claro) 84%,rgba(var(--luz-rgb),1) 90%,transparent 96%);
+  animation:neon-gira 1.25s linear 2}
+/* Prende, se va, prende, se va, se queda… y se apaga. Los saltos son del neón que arranca; el
+   final es un fundido, porque apagarse de golpe se lee como una falla. */
+@keyframes neon-prende{
+  0%{opacity:0;animation-timing-function:steps(1,end)}
+  6%{opacity:1;animation-timing-function:steps(1,end)}
+  11%{opacity:.15;animation-timing-function:steps(1,end)}
+  17%{opacity:1;animation-timing-function:steps(1,end)}
+  21%{opacity:.25;animation-timing-function:steps(1,end)}
+  27%{opacity:1;animation-timing-function:linear}
+  70%{opacity:1;animation-timing-function:ease-in}
+  100%{opacity:0}}
+@keyframes neon-suave{0%{opacity:0}18%{opacity:1}30%{opacity:.4}42%,70%{opacity:1}100%{opacity:0}}
+@keyframes neon-gira{to{transform:rotate(360deg)}}
+@keyframes neon-fundido{0%,100%{opacity:0}20%,75%{opacity:1}}
+/* El título que se enciende (A27): una copia del texto, transparente, que solo lleva el halo.
+   Discreto: alfa .25. `neon-al-cargar` lo enciende sin guion (acerca.html no tiene), y
+   `neon-queda` lo deja prendido y quieto al final. */
+.neon-texto{position:relative}
+.neon-texto::after{content:attr(data-neon);position:absolute;inset:0;padding:inherit;color:transparent;pointer-events:none;
+  text-shadow:0 0 2px rgba(var(--ac-rgb),.25),0 0 12px rgba(var(--ac-rgb),.25);opacity:0}
+.neon-texto.neon-encendido::after,.neon-texto.neon-al-cargar::after{animation:neon-letras 1.7s linear both}
+.neon-texto.neon-queda::after{opacity:1}
+.neon-texto.neon-al-cargar.neon-queda::after{animation-name:neon-letras-queda}
+@keyframes neon-letras{
+  0%{opacity:0;animation-timing-function:steps(1,end)}
+  10%{opacity:1;animation-timing-function:steps(1,end)}
+  16%{opacity:.2;animation-timing-function:steps(1,end)}
+  24%{opacity:1;animation-timing-function:linear}
+  70%{opacity:1;animation-timing-function:ease-in}
+  100%{opacity:0}}
+@keyframes neon-letras-queda{
+  0%{opacity:0;animation-timing-function:steps(1,end)}
+  10%{opacity:1;animation-timing-function:steps(1,end)}
+  16%{opacity:.2;animation-timing-function:steps(1,end)}
+  24%,100%{opacity:1}}
+/* El logo apagado que se enciende (A17): gris quieto; al encender, una copia a color parpadea
+   encima y un halo redondo se asoma detrás. Al terminar la copia se va y el logo queda a color. */
+.neon-apagado :is(img,svg){filter:grayscale(1) contrast(.92)}
+.neon-logo{isolation:isolate}
+.neon-logo-copia{position:absolute;inset:0;pointer-events:none;opacity:0;animation:neon-letras-queda 1.8s linear both}
+.neon-logo-copia>:is(img,svg){display:block;width:100%;height:100%;object-fit:contain;filter:none}
+.neon-halo{position:absolute;inset:-14%;z-index:-1;border-radius:50%;pointer-events:none;opacity:0;
+  background:radial-gradient(closest-side,rgba(var(--ac-rgb),.35),transparent);animation:neon-fundido 1.8s linear both}
+
+/* ----- 8 · Pasos que avanzan -----
+   Una marca por paso: anillo gris (en espera), anillo que gira (trabajando; lo único que se
+   mueve, y solo mientras hay trabajo de verdad), palomita, guion ámbar (se saltó) o equis roja.
+   Cada estado tiene su forma además de su color, y el lector lo oye en texto. */
+.traza{display:grid;gap:6px;min-width:0}
+.traza-pasos{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.traza-paso{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:center;min-height:24px;
+  font-size:var(--t2);color:var(--tinta2)}
+.traza-paso.nace{animation:traza-entra .2s var(--ease-out) both}
+@keyframes traza-entra{from{opacity:0;transform:translateY(4px)}}
+.traza-txt{min-width:0;overflow-wrap:anywhere}
+.traza-d{color:var(--tinta3);font-weight:500}
+.traza-reloj{font:600 var(--t1)/1 var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta3);white-space:nowrap}
+.traza-marca{justify-self:center;width:14px;height:14px;box-sizing:border-box;border-radius:50%;border:2px solid var(--n4)}
+.traza-paso[data-estado="espera"]>.traza-marca{border-style:dashed}
+.traza-paso[data-estado="trabaja"]{color:var(--tinta);font-weight:600}
+.traza-paso[data-estado="trabaja"]>.traza-marca{border-color:var(--a-borde);border-top-color:var(--a-fill);animation:esq-gira .8s linear infinite}
+.traza-paso[data-estado="ok"]>.traza-marca,.traza-resumen[data-estado="ok"]>.traza-marca{border:0;
+  background:var(--ok-fill) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.4l2.6 2.6L12 5.4' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/100% no-repeat}
+.traza-paso[data-estado="salta"]>.traza-marca{border:0;background:linear-gradient(var(--av),var(--av)) center/8px 2px no-repeat,var(--av-bg)}
+.traza-paso[data-estado="mal"]>.traza-marca,.traza-resumen[data-estado="mal"]>.traza-marca{border-color:var(--mal);
+  background:linear-gradient(45deg,transparent 42%,var(--mal) 42% 58%,transparent 58%) center/8px 8px no-repeat,
+    linear-gradient(-45deg,transparent 42%,var(--mal) 42% 58%,transparent 58%) center/8px 8px no-repeat,var(--mal-bg)}
+.traza-paso[data-estado="mal"] .traza-d{color:var(--mal)}
+/* Plegada al terminar: un renglón que se abre si alguien quiere ver por qué tardó. */
+.traza-pliegue{animation:aparece .2s var(--ease-out)}
+.traza-resumen{display:flex;align-items:center;gap:8px;min-height:32px;list-style:none;cursor:pointer;
+  font:600 var(--t2)/1.3 var(--f-texto);color:var(--tinta);border-radius:var(--rr2)}
+.traza-resumen::-webkit-details-marker{display:none}
+.traza-resumen::after{content:"";width:6px;height:6px;margin:0 0 3px 4px;border:solid var(--tinta2);border-width:0 2px 2px 0;
+  transform:rotate(45deg);transition:transform var(--mv-r)}
+.traza-pliegue[open]>.traza-resumen::after{transform:translateY(3px) rotate(225deg)}
+.traza-pliegue>.traza-pasos{margin-top:6px;padding-left:4px}
+
+/* ----- 16 · Riel de pasos -----
+   Un vocabulario: hecho (relleno verde con palomita), actual (anillo azul, aria-current),
+   pendiente (anillo neutro), espera (anillo punteado ámbar), tarde (anillo rojo con muesca). El
+   conector se llena en --ok-fill con scaleY/scaleX, y solo cuando un paso CAMBIA a hecho: un
+   riel recién pintado con innerHTML nace ya lleno, sin transición. */
+.riel{list-style:none;margin:0;padding:0;min-width:0}
+.riel-punto{position:relative;z-index:1;display:grid;place-items:center;box-sizing:border-box;flex:none;
+  width:28px;height:28px;border-radius:50%;border:2px solid var(--n4);background:var(--sup);color:var(--tinta2);
+  font:700 var(--t2)/1 var(--f-cifra);font-variant-numeric:tabular-nums}
+.riel-punto>b{font:inherit}
+.riel-punto>svg{display:none;width:16px;height:16px}
+.riel-punto>svg path{fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+:is(.riel-paso[data-estado="hecho"] .riel-punto,.riel-punto[data-estado="hecho"]){border-color:var(--ok-fill);background:var(--ok-fill);color:#fff}
+:is(.riel-paso[data-estado="hecho"] .riel-punto,.riel-punto[data-estado="hecho"])>svg{display:block}
+.riel-paso[data-estado="hecho"] .riel-punto>b{display:none}
+.riel-paso[data-estado="actual"] .riel-punto{border-color:var(--a-fill);background:var(--a-suave);color:var(--a-tx)}
+:is(.riel-paso[data-estado="espera"] .riel-punto,.riel-punto[data-estado="espera"]){border-style:dashed;border-color:var(--av);color:var(--av)}
+/* La muesca de «tarde» es un corte en la esquina de arriba (clip-path, quieto): se ve sobre
+   cualquier fondo, cosa que un recorte pintado con --sup no hacía sobre --sup2. */
+:is(.riel-paso[data-estado="tarde"] .riel-punto,.riel-punto[data-estado="tarde"]){border-color:var(--mal);background:var(--mal-bg);color:var(--mal);
+  clip-path:polygon(0 0,60% 0,100% 40%,100% 100%,0 100%)}
+.riel-t{font-weight:600;color:var(--tinta)}
+.riel-nota{display:block;margin-top:1px;font-size:var(--t1);font-weight:500;color:var(--tinta3)}
+.riel-paso[data-estado="pendiente"] .riel-t{color:var(--tinta2);font-weight:500}
+.riel-paso[data-estado="actual"] .riel-t{font-weight:700}
+.riel-paso.recien .riel-punto>svg{animation:riel-marca .32s var(--ease-out) both}
+@keyframes riel-marca{from{opacity:0;transform:scale(.5)}}
+.riel-paso.niega .riel-punto{animation:riel-niega .25s var(--ease-out)}
+@keyframes riel-niega{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+.riel-boton{display:grid;grid-column:1 / -1;margin:0;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:inherit;
+  cursor:pointer;border-radius:var(--rr2);transition:transform var(--mv-liq)}
+.riel-boton:active{transform:scale(.98)}
+@media(hover:hover) and (pointer:fine){.riel-boton:hover .riel-t{text-decoration:underline;text-underline-offset:3px}}
+.riel-extra{grid-column:2;min-width:0;margin-top:6px}
+/* Vertical: los hitos de entrega (H3), la calibración (H11), agendar (F19), Google Cloud (F32). */
+.riel-v{display:grid}
+.riel-v>.riel-paso{position:relative;display:grid;grid-template-columns:28px minmax(0,1fr);column-gap:12px;align-items:start;padding-bottom:16px}
+.riel-v>.riel-paso:last-child{padding-bottom:0}
+.riel-v .riel-boton{grid-template-columns:28px minmax(0,1fr);column-gap:12px;align-items:start;min-height:28px}
+.riel-v .riel-txt{min-width:0;padding-top:4px;overflow-wrap:anywhere}
+.riel-v>.riel-paso::before,.riel-v>.riel-paso::after{content:"";position:absolute;left:13px;top:30px;bottom:2px;width:2px;border-radius:1px;background:var(--linea)}
+.riel-v>.riel-paso::after{background:var(--ok-fill);transform-origin:top;transform:scaleY(0);transition:transform .45s var(--ease-out)}
+.riel-v>.riel-paso[data-estado="hecho"]::after{transform:scaleY(1)}
+.riel-v>.riel-paso:last-child::before,.riel-v>.riel-paso:last-child::after{display:none}
+/* Horizontal: los cuatro pasos del cotizador (C12), la etapa en la ficha (P7), instalar (A18).
+   Cada conector va del centro de un punto al del siguiente, porque los pasos miden lo mismo. */
+.riel-h{display:flex;align-items:flex-start}
+.riel-h>.riel-paso{position:relative;flex:1 1 0;min-width:0;display:grid;justify-items:center;gap:6px;text-align:center}
+.riel-h .riel-boton{justify-items:center;gap:6px;width:100%;padding:2px 2px 4px}
+.riel-h .riel-txt{max-width:100%;font-size:var(--t1);line-height:1.25;overflow-wrap:anywhere;-webkit-hyphens:auto;hyphens:auto}
+.riel-h .riel-t{font-size:var(--t1)}
+.riel-h .riel-extra{grid-column:auto;margin-top:0}
+.riel-h>.riel-paso::before,.riel-h>.riel-paso::after{content:"";position:absolute;top:13px;left:calc(50% + 18px);right:calc(-50% + 18px);height:2px;border-radius:1px;background:var(--linea)}
+.riel-h>.riel-paso::after{background:var(--ok-fill);transform-origin:left;transform:scaleX(0);transition:transform .45s var(--ease-out)}
+.riel-h>.riel-paso[data-estado="hecho"]::after{transform:scaleX(1)}
+.riel-h>.riel-paso:last-child::before,.riel-h>.riel-paso:last-child::after{display:none}
+.riel-h:has(.riel-boton)>.riel-paso::before,.riel-h:has(.riel-boton)>.riel-paso::after{top:15px}
+/* Siete etapas no caben en 360 px con su nombre: `desliza` las pone en una tira que se recorre
+   con el dedo (las estaciones del Tablero, P25), en vez de partir cada nombre en tres. */
+.riel-h.riel-desliza{overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none;padding-bottom:2px}
+.riel-h.riel-desliza::-webkit-scrollbar{display:none}
+.riel-h.riel-desliza>.riel-paso{flex:0 0 auto;width:88px;scroll-snap-align:start}
+/* Mini: los cuatro puntos de cada entrada del historial. Lleno lleva palomita, no solo color. */
+.riel-mini{display:inline-flex;align-items:center;gap:4px;vertical-align:middle}
+.riel-mini>.riel-punto{width:14px;height:14px;border-width:2px}
+.riel-mini>.riel-punto>svg{width:10px;height:10px}
+.riel-mini>.riel-punto>svg path{stroke-width:3}
+/* Con marcas: el riel del taller (F5). Las marcas se colocan por su fecha (--riel-pos, de 0 a 1)
+   y caben enteras en los dos extremos. */
+.riel-marcas{position:relative;height:16px;min-width:0}
+.riel-pista{position:absolute;left:0;right:0;top:7px;height:2px;border-radius:1px;background:var(--linea)}
+.riel-marca{position:absolute;top:2px;left:calc(var(--riel-pos,0) * (100% - 12px));width:12px;height:12px;box-sizing:border-box;
+  border-radius:50%;border:2px solid var(--n4);background:var(--sup)}
+.riel-marca[data-estado="hecho"]{border-color:var(--ok-fill);background:var(--ok-fill)}
+.riel-marca[data-estado="actual"]{border-color:var(--a-fill);background:var(--a-suave)}
+.riel-marca[data-estado="tarde"]{border-color:var(--mal);background:var(--mal-bg);clip-path:polygon(0 0,58% 0,100% 42%,100% 100%,0 100%)}
+.riel-hoy{position:absolute;top:0;left:calc(5px + var(--riel-pos,0) * (100% - 12px));width:2px;height:16px;border-radius:1px;background:var(--a-fill)}
+
+/* ----- 17 · Las esquinas que señalan -----
+   Cuatro cajas de 14 px que se trasladan: el marco no cambia de tamaño, se cierra. Un contorno de
+   la superficie alrededor de cada esquina las despega del fondo que tengan debajo. */
+.mira{position:fixed;inset:auto;left:0;top:0;width:0;height:0;margin:0;padding:0;border:0;background:none;
+  overflow:visible;pointer-events:none;color:var(--a-fill)}
+.mira>i{position:absolute;left:0;top:0;width:14px;height:14px;box-sizing:border-box;border:3px solid currentColor;opacity:0;
+  filter:drop-shadow(0 0 1px rgba(var(--sup-rgb),.95));
+  transition:transform .38s var(--ease-out),opacity .2s linear}
+.mira>i:nth-child(1){border-right:0;border-bottom:0;border-top-left-radius:4px}
+.mira>i:nth-child(2){border-left:0;border-bottom:0;border-top-right-radius:4px}
+.mira>i:nth-child(3){border-right:0;border-top:0;border-bottom-left-radius:4px}
+.mira>i:nth-child(4){border-left:0;border-top:0;border-bottom-right-radius:4px}
+.mira.ve>i{opacity:1}
+.mira.sin-transicion>i{transition:none}
+.mira.sigue>i{transition:opacity .2s linear}
+.mira[data-tono="av"]{color:var(--av)}
+.mira[data-tono="mal"]{color:var(--mal)}
+.mira[data-tono="ok"]{color:var(--ok)}
+/* La retícula del pin a mano (F9): quieta en el centro de su contenedor, tinta del tema con
+   contorno de la superficie, para que se lea sobre el mapa de día y de noche. */
+.reticula{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;pointer-events:none;color:var(--tinta);
+  filter:drop-shadow(0 0 1px var(--sup)) drop-shadow(0 0 1px var(--sup))}
+.reticula>i{position:absolute;width:13px;height:13px;box-sizing:border-box;border:2.5px solid currentColor}
+.reticula>i:nth-child(1){left:0;top:0;border-right:0;border-bottom:0}
+.reticula>i:nth-child(2){right:0;top:0;border-left:0;border-bottom:0}
+.reticula>i:nth-child(3){left:0;bottom:0;border-right:0;border-top:0}
+.reticula>i:nth-child(4){right:0;bottom:0;border-left:0;border-top:0}
+.reticula::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:currentColor}
+
+/* ----- 25 · Carga con los azules del logo (gooey, Skiper skiper64) -----
+   Solo se mueve con data-carga="espera"; al terminar, los tres círculos se juntan en la forma
+   del logo y se quedan quietos. */
+.carga-logo{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
+.carga-logo-svg{display:block;width:72px;height:30px;overflow:visible}
+.carga-logo-chica .carga-logo-svg{width:48px;height:20px}
+.carga-logo .c1{fill:var(--a-fuerte)}
+.carga-logo .c2{fill:var(--a)}
+.carga-logo .c3{fill:var(--a-claro)}
+.carga-logo[data-carga="espera"] circle{animation:goo-va 1.6s ease-in-out infinite}
+.carga-logo[data-carga="espera"] .c2{animation-delay:-.53s}
+.carga-logo[data-carga="espera"] .c3{animation-delay:-1.06s}
+@keyframes goo-va{0%,100%{transform:translateX(0)}50%{transform:translateX(18px)}}
+.carga-logo:not([data-carga="espera"]) circle{transition:transform .45s var(--ease-out)}
+.carga-logo:not([data-carga="espera"]) .c1{transform:translateX(7px)}
+.carga-logo:not([data-carga="espera"]) .c2{transform:translateX(2px)}
+.carga-logo:not([data-carga="espera"]) .c3{transform:translateX(-3px)}
+
+/* ----- 26 · El letrero mientras se escribe -----
+   Los colores de aquí son del MATERIAL, no de la interfaz: el aluminio no cambia de color de
+   noche, y la pared donde va el letrero tampoco. Por eso viven como variables de la pieza y no
+   en el tema. El canto se apila con text-shadow en em —crece con la letra— y se oscurece a
+   partir de la cara con color-mix donde existe; donde no, grises de aluminio fijos.
+   Aluminio: halo DETRÁS (drop-shadow del color de la luz). Acrílico: la cara es la luz. */
+.letrero{--luz-fria:#b4d2ff;--luz-calida:#ffcd8c;--letrero-cara:#eef0f4;--letrero-luz:var(--luz-fria);
+  --lt-c1:#a4a9b5;--lt-c2:#949aa6;--lt-c3:#858b98;--lt-c4:#767c8a;--lt-c5:#686e7c;--lt-c6:#5b606e;
+  display:inline-block;max-width:100%;padding:.1em .12em .18em;vertical-align:middle;white-space:nowrap;
+  font:800 clamp(34px,11vw,64px)/1.05 var(--f-cifra);letter-spacing:.02em;color:var(--letrero-cara)}
+@supports (color:color-mix(in srgb,red 50%,blue)){
+  .letrero{--lt-c1:color-mix(in srgb,var(--letrero-cara) 70%,black);--lt-c2:color-mix(in srgb,var(--letrero-cara) 64%,black);
+    --lt-c3:color-mix(in srgb,var(--letrero-cara) 58%,black);--lt-c4:color-mix(in srgb,var(--letrero-cara) 52%,black);
+    --lt-c5:color-mix(in srgb,var(--letrero-cara) 46%,black);--lt-c6:color-mix(in srgb,var(--letrero-cara) 40%,black)}
+  .letrero-acrilico{--lt-cara-luz:color-mix(in srgb,var(--letrero-cara) 78%,var(--letrero-luz))}
+}
+.luz-fria{--letrero-luz:var(--luz-fria)}
+.luz-calida{--letrero-luz:var(--luz-calida)}
+.letrero-aluminio{
+  text-shadow:.012em .012em 0 var(--lt-c1),.024em .024em 0 var(--lt-c2),.036em .036em 0 var(--lt-c3),
+    .048em .048em 0 var(--lt-c4),.06em .06em 0 var(--lt-c5),.072em .072em 0 var(--lt-c6);
+  filter:drop-shadow(0 0 .16em var(--letrero-luz)) drop-shadow(0 0 .45em var(--letrero-luz))}
+/* Acrílico: la cara brilla (el resplandor va primero en la lista, encima del canto) y el canto es
+   de aluminio aunque la cara sea de color. */
+.letrero-acrilico{--letrero-cara:#f7f9ff;color:var(--lt-cara-luz,var(--letrero-cara));
+  text-shadow:0 0 .06em var(--letrero-luz),0 0 .22em var(--letrero-luz),
+    .012em .012em 0 #b9bdc7,.024em .024em 0 #a2a7b3,.036em .036em 0 #8d929f,.048em .048em 0 #787d8b,.06em .06em 0 #666b79}
+.letrero-aluminio.sin-luz{filter:none}
+.letrero-acrilico.sin-luz{color:var(--letrero-cara);
+  text-shadow:.012em .012em 0 #b9bdc7,.024em .024em 0 #a2a7b3,.036em .036em 0 #8d929f,.048em .048em 0 #787d8b,.06em .06em 0 #666b79}
+.letrero-pared{position:relative;display:grid;place-items:center;min-width:0;min-height:120px;padding:28px 14px 30px;
+  border-radius:var(--rr3);overflow:hidden;background:linear-gradient(180deg,var(--nav2),var(--nav))}
+.letrero-nota{position:absolute;right:10px;bottom:8px;font:700 10px/1 var(--f-texto);letter-spacing:.08em;text-transform:uppercase;
+  color:rgba(255,255,255,.82)}
+
+/* ----- Búsqueda con fichas y coincidencia resaltada ----- */
+mark.coincide{background:var(--a-suave);color:var(--tinta);font-weight:700;border-radius:3px;padding:0 1px;
+  box-shadow:inset 0 -2px 0 var(--a-borde)}
+.fichas{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.ficha{display:inline-flex;align-items:center;gap:8px;width:auto;margin:0}
+.ficha[aria-pressed="true"]{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-tx);font-weight:600}
+.ficha-n{box-sizing:border-box;min-width:22px;height:22px;padding:0 6px;border-radius:999px;border:1px solid var(--linea);
+  background:var(--sup2);color:var(--tinta);font:700 var(--t1)/20px var(--f-cifra);font-variant-numeric:tabular-nums;text-align:center}
+.ficha[aria-pressed="true"] .ficha-n{background:var(--sup);border-color:var(--a-borde);color:var(--a-tx)}
+
+/* Con el dedo, 44 px: lo que sube es la caja, nunca la letra (§4.5). */
+@media(hover:none),(pointer:coarse){
+  .porque{width:44px;height:44px}
+  .ficha{min-height:44px}
+  .riel-boton,.riel-v .riel-boton{min-height:44px}
+  .riel-h .riel-boton{min-height:52px}
+  .traza-resumen{min-height:44px}
+  .vistazo [role="menuitem"],.vistazo-acciones .btn{min-height:44px}
+}
+
+/* En papel no hay movimiento ni nada que flote. */
+@media print{
+  .vistazo,.nombre-tip,.mira,.neon-capa,.neon-halo,.neon-logo-copia{display:none!important}
+  .neon-texto::after{content:none}
+  .carga-logo circle{animation:none!important}
+}
 /* ── fin de piezas · 4 ── */
 
 /* =====================================================================
@@ -5811,7 +6176,30 @@ input[type=range].desl-iman{transform:none!important}
 
 /* ── fin de rm · piezas · 3 ── */
 /* ── rm · piezas · 4 ── */
-
+/* El globo y el nombre: fundido, sin desplazarse ni crecer. */
+@starting-style{.vistazo:popover-open,.vistazo.en-hoja:popover-open,.nombre-tip:popover-open{transform:none}}
+.vistazo:not(:popover-open),.vistazo.en-hoja:not(:popover-open){transform:none}
+.porque:active,.riel-boton:active,.vistazo [role="menuitem"]:active{transform:none}
+/* El neón pierde el parpadeo y el haz; el halo aparece y se va. */
+.neon-capa,.neon-discreta>.neon-capa{animation:neon-fundido 1s ease both!important}
+.neon-haz{display:none}
+.neon-texto.neon-encendido::after,.neon-texto.neon-al-cargar::after{animation:neon-fundido 1s ease both!important}
+.neon-texto.neon-al-cargar.neon-queda::after{animation:aparece .15s ease both!important;opacity:1}
+.neon-logo-copia{animation:aparece .15s ease both!important;opacity:1}
+.neon-halo{animation:neon-fundido 1s ease both!important}
+/* Los pasos: entran en fundido y la espera late despacio en vez de girar. */
+.traza-paso.nace,.traza-pliegue{animation-name:aparece!important;animation-duration:.15s!important}
+.traza-paso[data-estado="trabaja"]>.traza-marca{animation:pulso-lento 1.6s ease-in-out infinite!important}
+.traza-resumen::after{transition:none}
+/* El riel: el conector y la palomita ya están donde van; no se llenan ni entran. */
+.riel-v>.riel-paso::after,.riel-h>.riel-paso::after{transition:none}
+.riel-paso.recien .riel-punto>svg,.riel-paso.niega .riel-punto{animation:none}
+/* Las esquinas no vuelan: aparecen en su sitio (el JS ya las pone ahí) y se van en fundido. */
+.mira>i{transition:opacity .15s linear!important}
+/* La carga: un pulso lento, sin líquido. */
+.carga-logo[data-carga="espera"] circle{animation:none!important}
+.carga-logo[data-carga="espera"] .carga-logo-svg{animation:pulso-lento 1.6s ease-in-out infinite}
+.carga-logo circle{transition:none!important}
 /* ── fin de rm · piezas · 4 ── */
 /* ── rm · cot-cliente ── */
 

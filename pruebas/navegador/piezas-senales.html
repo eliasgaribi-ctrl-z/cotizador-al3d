@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Vitrina · señalar, explicar y sellar</title>
+<link rel="icon" href="data:,">
+<!-- La vitrina de la sección 4 de js/piezas.js: cada pieza montada como la montaría una
+     pantalla, para que pruebas/navegador/piezas-senales.mjs la toque con ratón, dedo y teclado.
+     Carga las mismas hojas y el mismo guion que la app, y nada más. -->
+<script src="../../js/tema.js"></script>
+<link rel="stylesheet" href="../../css/sistema.css">
+<link rel="stylesheet" href="../../css/vidrio.css">
+<style>
+  /* Solo el andamio de la vitrina: la barra fija de arriba (como la del cotizador, con su
+     --top-fijo), las tarjetas y un velo de modal. Lo que se prueba viene de sistema.css. */
+  body{margin:0;background:var(--fondo);color:var(--tinta)}
+  .vt-barra{position:fixed;top:0;left:0;right:0;height:56px;z-index:30;display:flex;align-items:center;gap:8px;
+    padding:0 16px;background:var(--sup);border-bottom:1px solid var(--linea);font:600 var(--t4)/1 var(--f-cifra)}
+  .vt-barra span{flex:1}
+  .vt-main{max-width:720px;margin:0 auto;padding:72px 16px 120px;display:grid;gap:16px}
+  .vt-main>section{background:var(--sup);border:1px solid var(--linea);border-radius:var(--rr4);padding:16px;display:grid;gap:12px;min-width:0}
+  .vt-main h2{margin:0;font:600 var(--t4)/1.25 var(--f-cifra)}
+  .vt-fila{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:0}
+  .vt-fila>.btn{width:auto;margin:0}
+  .vt-der{display:flex;justify-content:flex-end}
+  .vt-precio{font:700 var(--t5)/1 var(--f-cifra);color:var(--a-tx);background:var(--a-suave);border:1px dashed var(--a-borde);
+    border-radius:var(--rr2);min-height:44px;padding:0 12px;cursor:pointer}
+  .vt-cuenta{width:44px;height:44px;border-radius:999px;border:1px solid var(--linea);background:var(--sup2);color:var(--tinta);font:700 var(--t2)/1 var(--f-cifra)}
+  .vt-meses{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:4px;align-items:end;height:90px}
+  .vt-meses .mes{height:100%;display:flex;align-items:flex-end;padding:0;border:0;background:none;cursor:pointer}
+  .vt-meses .mes i{display:block;width:100%;border-radius:3px 3px 0 0;background:var(--a-fill)}
+  .vt-mesa{width:100%;height:auto;background:var(--sup2);border:1px solid var(--linea);border-radius:var(--rr2)}
+  .vt-mesa .pieza rect{fill:var(--a-suave);stroke:var(--a-fill);stroke-width:1.5}
+  .vt-mesa .pieza:focus{outline:none}.vt-mesa .pieza:focus-visible rect{stroke-width:3}
+  .vt-ico{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:var(--rr2);border:1px solid var(--linea);background:var(--sup);color:var(--tinta);cursor:pointer}
+  .vt-ico svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .vt-lat{display:grid;gap:4px;max-width:240px}
+  .vt-lat button{min-height:40px;text-align:left;padding:0 12px;border-radius:var(--rr2);border:1px solid var(--linea);background:var(--sup);color:var(--tinta);font:500 var(--t3)/1 var(--f-texto)}
+  .vt-sellada{border:1px solid var(--linea);border-radius:var(--rr4);padding:14px 16px;background:var(--sup);display:grid;gap:6px}
+  .vt-titulo{font:700 var(--t6)/1.2 var(--f-cifra)}
+  .vt-logo{display:inline-block;width:120px;height:60px}
+  .vt-logo img{display:block;width:100%;height:100%}
+  .vt-lejos{height:900px;border-left:2px dashed var(--linea);margin-left:8px}
+  .vt-mapa{position:relative;height:160px;border-radius:var(--rr2);border:1px solid var(--linea);
+    background:repeating-linear-gradient(45deg,var(--sup2) 0 12px,var(--linea2) 12px 24px)}
+  .vt-foto{position:relative;height:180px;border-radius:var(--rr2);overflow:hidden;background:linear-gradient(160deg,#8a7d6b,#4d443a)}
+  .vt-foto .letrero{position:absolute;left:12px;top:40px}
+  .vt-lista{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+  .vt-lista li{border:1px solid var(--linea);border-radius:var(--rr2);padding:8px 10px;font-size:var(--t2)}
+  .vt-velo{position:fixed;inset:0;z-index:60;display:grid;place-items:end center;background:rgba(var(--nav-rgb,23,26,51),.55)}
+  .vt-velo[hidden]{display:none}
+  .vt-modal{width:min(520px,100%);background:var(--sup);border-radius:16px 16px 0 0;padding:16px;display:grid;gap:12px;transform:translateZ(0)}
+  label.vt-campo{display:grid;gap:4px;font-size:var(--t2);font-weight:600;color:var(--tinta2)}
+  label.vt-campo input{font:500 16px/1 var(--f-texto);min-height:44px;padding:0 12px;border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup2);color:var(--tinta);min-width:0}
+</style>
+</head>
+<body>
+<header class="vt-barra" id="barra"><span>Piezas · 4</span>
+  <button type="button" class="vt-ico" aria-label="Historial" title="Abrir el historial"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9 9 0 00-7 3.5"/><path d="M3 4v4h4M12 7v5l3 2"/></svg></button>
+</header>
+<main class="vt-main" id="contenido">
+
+  <section id="s-vistazo" aria-labelledby="t-vistazo">
+    <h2 id="t-vistazo">4 · El globo que explica</h2>
+    <div class="vt-fila"><button type="button" class="vt-precio" id="precio">$8,100</button>
+      <button type="button" class="btn btn-gho" id="ver-msg">Ver mensaje</button>
+      <button type="button" class="btn btn-gho" id="abrir-modal">Abrir una hoja</button></div>
+    <div class="vt-fila" id="plazos" role="group" aria-label="Plazo de taller"></div>
+    <div class="vt-der"><button type="button" class="vt-cuenta" id="cuenta" aria-label="Tu cuenta">EG</button></div>
+    <div class="vt-meses" id="meses"></div>
+    <svg class="vt-mesa" id="mesa" viewBox="0 0 200 70" role="group" aria-label="Mesa de corte">
+      <g class="pieza" id="pz-1" tabindex="0" role="button" aria-label="Pieza 1"><rect x="8" y="8" width="50" height="40" rx="3"/></g>
+      <g class="pieza" id="pz-2" tabindex="0" role="button" aria-label="Pieza 2"><rect x="70" y="14" width="60" height="30" rx="3"/></g>
+      <g class="pieza" id="pz-3" tabindex="0" role="button" aria-label="Pieza 3"><rect x="142" y="6" width="50" height="56" rx="3"/></g>
+    </svg>
+  </section>
+
+  <section id="s-nombres" aria-labelledby="t-nombres">
+    <h2 id="t-nombres">Los iconos dicen su nombre</h2>
+    <div class="vt-fila" id="iconos">
+      <button type="button" class="vt-ico" aria-label="Deshacer" id="ico-deshacer"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/></svg></button>
+      <button type="button" class="vt-ico" aria-label="Clientes" id="ico-clientes"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0114 0"/></svg></button>
+      <button type="button" class="vt-ico" title="Duplicar la partida" id="ico-duplicar"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V4h12"/></svg></button>
+      <button type="button" class="vt-ico" aria-label="Borrar partida" id="ico-borrar" onclick="window.__borrados=(window.__borrados||0)+1"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+      <button type="button" class="btn btn-gho" aria-label="Guardar la cotización" id="con-texto">Guardar</button>
+    </div>
+    <nav class="vt-lat" id="lateral" aria-label="Módulos">
+      <button type="button" aria-keyshortcuts="1">Tablero</button>
+      <button type="button" aria-keyshortcuts="2">Proyectos</button>
+      <button type="button" aria-keyshortcuts="3">Fabricación</button>
+    </nav>
+  </section>
+
+  <section id="s-neon" aria-labelledby="t-neon">
+    <h2 id="t-neon">7 · El encendido de neón</h2>
+    <article class="vt-sellada" id="sellada"><b>Cotización autorizada y sellada en la hoja</b><span>Panadería La Espiga · COT-0042</span></article>
+    <h3 class="vt-titulo" id="titulo-neon">La plataforma del taller</h3>
+    <span class="vt-logo neon-apagado" id="logo"><img src="../../logo-al3d.svg" alt="AL3D"></span>
+    <div class="vt-fila"><button type="button" class="btn btn-gho" id="encender">Autorizar</button>
+      <button type="button" class="btn btn-gho" id="encender-titulo">Encender el título</button>
+      <button type="button" class="btn btn-gho" id="encender-logo">Volvió la señal</button></div>
+  </section>
+
+  <section id="s-traza" aria-labelledby="t-traza">
+    <h2 id="t-traza">8 · Pasos que avanzan</h2>
+    <div id="traza"></div>
+    <div id="arranque"></div>
+  </section>
+
+  <section id="s-riel" aria-labelledby="t-riel">
+    <h2 id="t-riel">16 · Riel de pasos</h2>
+    <div id="caja-riel-v"></div>
+    <div id="caja-riel-h"></div>
+    <p class="vt-fila" id="caja-mini"></p>
+    <div id="caja-marcas"></div>
+    <div id="caja-lista"></div>
+  </section>
+
+  <section id="s-senalar" aria-labelledby="t-senalar">
+    <h2 id="t-senalar">17 · Las esquinas que señalan</h2>
+    <div class="vt-fila"><button type="button" class="btn btn-gho" id="llevar">Llévame a lo que falta</button></div>
+    <div class="vt-mapa" id="mapa"></div>
+    <canvas id="lupa" width="120" height="120" style="width:120px;height:120px;border-radius:50%;border:1px solid var(--linea)"></canvas>
+    <div class="vt-lejos" aria-hidden="true"></div>
+    <label class="vt-campo">Teléfono del cliente <input id="campo-falta" inputmode="tel" placeholder="33 1234 5678"></label>
+  </section>
+
+  <section id="s-carga" aria-labelledby="t-carga">
+    <h2 id="t-carga">25 · Carga con los azules del logo</h2>
+    <div class="vt-fila" id="carga"><button type="button" class="btn btn-gho" id="consultar">Consultar</button><span>Consultando el registro de AL3D…</span></div>
+  </section>
+
+  <section id="s-letrero" aria-labelledby="t-letrero">
+    <h2 id="t-letrero">26 · El letrero mientras se escribe</h2>
+    <label class="vt-campo">Texto del anuncio <input id="txt-letrero" value="PANADERÍA" maxlength="40"></label>
+    <div id="elige-material"></div>
+    <div class="letrero-pared"><span id="letrero-vista"></span><span class="letrero-nota" aria-hidden="true">Ilustrativo</span></div>
+    <div class="vt-foto" id="foto"><span id="letrero-foto" class="vt-sobre-foto"></span></div>
+  </section>
+
+  <section id="s-busqueda" aria-labelledby="t-busqueda">
+    <h2 id="t-busqueda">Búsqueda con fichas</h2>
+    <label class="vt-campo">Buscar en el historial <input id="q" type="search" autocomplete="off"></label>
+    <div id="caja-fichas"></div>
+    <p id="cuenta-h" aria-live="polite"></p>
+    <ol class="vt-lista" id="resultados"></ol>
+  </section>
+</main>
+
+<div class="vt-velo" id="velo" hidden>
+  <div class="vt-modal" role="dialog" aria-modal="true" aria-labelledby="modal-t">
+    <h2 id="modal-t">Una hoja encima</h2>
+    <div class="vt-fila"><button type="button" class="vt-precio" id="precio-modal">$12,528</button>
+      <button type="button" class="vt-ico" aria-label="Duplicar partida" id="ico-modal"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V4h12"/></svg></button>
+      <button type="button" class="btn btn-gho" id="cerrar-modal">Cerrar</button></div>
+  </div>
+</div>
+
+<script src="../../js/piezas.js"></script>
+<script>
+(function () {
+  'use strict';
+  const P = window.Piezas, $ = id => document.getElementById(id);
+  document.documentElement.style.setProperty('--top-fijo', '56px');
+  const V = window.V = { eventos: [] };
+
+  /* ---- 4 · globos ---- */
+  V.precio = P.vistazo('precio', { titulo: 'Cómo sale el precio', contenido: () =>
+    '<dl><dt>Acrílico</dt><dd>$30 por cm</dd><dt>Alto de letra</dt><dd>× 30 cm</dd><dt>Letras</dt><dd>× 9</dd>' +
+    '<dt class="suma">Partida</dt><dd class="suma">$8,100</dd></dl>' });
+  V.mensaje = P.vistazo('ver-msg', { titulo: 'Mensaje de WhatsApp', hoja: true, contenido: () =>
+    '<span class="vistazo-t">A +52 33 2813 0092</span><pre class="vistazo-texto">Hola, Panadería La Espiga.\nTe comparto la cotización COT-0042 por $8,100.</pre>' +
+    '<div class="vistazo-acciones"><button type="button" class="btn btn-gho" id="copiar-msg">Copiar</button></div>' });
+  document.addEventListener('click', e => { if (e.target.id === 'copiar-msg') { V.eventos.push('copiado'); V.mensaje.cerrar(); } });
+  $('plazos').innerHTML = ['1 semana', '2 semanas', '2.5 semanas'].map((t, i) => `<button type="button" class="chip" aria-pressed="${i === 2}">${t}</button>`).join('') +
+    P.porqueHTML({ id: 'por-que-plazo', etiqueta: 'Por qué ese plazo', titulo: 'Por qué 2.5 semanas',
+      cuerpo: '<span class="vistazo-t">Por qué 2.5 semanas</span><ul><li>Letras 3D con iluminación</li><li>2 tipos de trabajo</li><li>El lado mayor pasa de una lámina (2.44 m)</li></ul>' });
+  V.cuenta = P.vistazo('cuenta', { rol: 'menu', alinear: 'fin', titulo: 'Tu cuenta', contenido:
+    '<button type="button" data-accion="ajustes">Ajustes</button><button type="button" data-accion="rol">Cambiar de rol</button><button type="button" data-accion="salir">Cerrar sesión</button>' });
+  const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  $('meses').innerHTML = MESES.map((m, i) => `<button type="button" class="mes" data-mes="${i}" aria-label="Ventas de ${m}"><i style="height:${20 + (i * 37) % 70}%"></i></button>`).join('');
+  V.meses = P.vistazo('meses', { delegar: '.mes', titulo: 'Ventas del mes', contenido: el =>
+    `<span class="vistazo-t">${MESES[+el.dataset.mes]} · 4 ventas</span><p>$${(12 + +el.dataset.mes) * 1000} en total</p>` });
+  V.mesa = P.vistazo('mesa', { delegar: '.pieza', rol: 'nota', contenido: el => `Pieza ${el.id.slice(3)} · 238 × 180 mm · girada 90°` });
+  V.modalPrecio = P.vistazo('precio-modal', { titulo: 'Desglose del total', contenido: '<dl><dt>Subtotal</dt><dd>$10,800</dd><dt>IVA</dt><dd>$1,728</dd></dl>' });
+  /* El velo imita a _CAPAS del cotizador: un oyente de Escape en window, en la burbuja. */
+  $('abrir-modal').addEventListener('click', () => { $('velo').hidden = false; $('precio-modal').focus(); });
+  $('cerrar-modal').addEventListener('click', () => { $('velo').hidden = true; $('abrir-modal').focus(); });
+  window.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('velo').hidden) { V.eventos.push('modal-escape'); $('velo').hidden = true; } });
+
+  /* ---- nombres ---- */
+  V.nombres = P.nombres(document);
+  V.lateral = P.nombres('lateral', { selector: 'button', siempre: true, toque: false });
+
+  /* ---- 7 · neón ---- */
+  $('encender').addEventListener('click', () => { V.neon = P.encenderNeon('sellada'); });
+  $('encender-titulo').addEventListener('click', () => { V.neonTitulo = P.encenderNeon('titulo-neon', { modo: 'texto', fuerza: 'discreta' }); });
+  $('encender-logo').addEventListener('click', () => { V.neonLogo = P.encenderNeon('logo', { modo: 'logo' }); });
+
+  /* ---- 8 · traza ---- */
+  V.traza = P.traza('traza', { reloj: 's' });
+  $('arranque').innerHTML = P.trazaHTML({ etiqueta: 'Arranque', pasos: [
+    { clave: 'sesion', texto: 'Tu sesión', estado: 'ok' }, { clave: 'datos', texto: 'Los proyectos', estado: 'espera' },
+    { clave: 'hoja', texto: 'La hoja', estado: 'espera' }, { clave: 'listo', texto: 'Pintar el Tablero', estado: 'espera' }] });
+  V.arranque = P.traza($('arranque').firstElementChild, { reloj: 'ds' });
+
+  /* ---- 16 · riel ---- */
+  const HITOS = [{ texto: 'PDF generado', nota: 'Hoja carta · 3 hojas' }, { texto: 'Enviado por WhatsApp', nota: 'a +52 33 2813 0092' }, { texto: 'Venta registrada', nota: 'Anticipo 50 %' }];
+  $('caja-riel-v').innerHTML = P.rielHTML(HITOS, { actual: 0, tocable: true, etiqueta: 'Hitos de entrega' });
+  let hecho = 0;
+  V.rielV = P.riel('caja-riel-v', { enOrden: true, alTocar(i) { V.eventos.push('hito-' + i); hecho = i + 1; V.rielV.fijar(HITOS.map(() => ({})), hecho); } });
+  $('caja-riel-h').innerHTML = P.rielHTML(['Cliente', 'Partidas', 'Revisar', 'Entregar'], { forma: 'horizontal', actual: 1, tocable: true, etiqueta: 'Pasos del cotizador' });
+  V.rielH = P.riel('caja-riel-h', { enOrden: true, alTocar(i) { V.eventos.push('paso-' + i); } });
+  $('caja-mini').innerHTML = P.rielHTML([{ texto: 'Propuesta', titulo: 'Propuesta · 27 ago' }, 'PDF', 'Chat', 'Venta'], { forma: 'mini', actual: 1 }) + ' <span>Propuesta · PDF · Chat · Venta</span>';
+  $('caja-marcas').innerHTML = P.rielHTML([{ texto: 'Cortar', pos: 0.25, estado: 'hecho' }, { texto: 'Armar', pos: 0.5, estado: 'tarde' }, { texto: 'Listo', pos: 1, estado: 'pendiente' }], { forma: 'marcas', hoy: 0.62 });
+  $('caja-lista').innerHTML = P.rielHTML(['Abre la consola de Google Cloud', 'Crea un proyecto', 'Activa la API de Calendar'], { actual: 0, tocable: true, etiqueta: 'Pasos de Google Cloud' });
+  V.lista = P.riel('caja-lista', { marcable: true, alCambiar(e) { V.eventos.push('lista:' + e.join(',')); } });
+
+  /* ---- 17 · esquinas ---- */
+  $('llevar').addEventListener('click', () => { V.senal = P.senalar('campo-falta', { desplazar: true, tono: 'av' }); V.senal.listo.then(() => V.eventos.push('senal-fin')); $('campo-falta').focus({ preventScroll: true }); });
+  $('mapa').innerHTML = P.reticulaHTML();
+  const cx = $('lupa').getContext('2d'); P.senalar.lienzo(cx, { x: 40, y: 40, w: 40, h: 40 });
+
+  /* ---- 25 · carga ---- */
+  $('consultar').addEventListener('click', () => { V.carga = P.cargaLogo('carga', { etiqueta: 'Consultando el registro' }); });
+
+  /* ---- 26 · letrero ---- */
+  $('elige-material').innerHTML = P.fichasHTML([{ id: 'aluminio', texto: 'Aluminio · LED posterior' }, { id: 'acrilico', texto: 'Acrílico · LED frontal' }], { activo: 'aluminio', etiqueta: 'Material' }) +
+    P.fichasHTML([{ id: 'fria', texto: 'Luz fría' }, { id: 'calida', texto: 'Luz cálida' }], { activo: 'fria', etiqueta: 'Luz' });
+  const grupos = $('elige-material').querySelectorAll('.fichas');
+  V.letrero = P.letrero('letrero-vista', { texto: $('txt-letrero').value, ajustar: true });
+  V.fotoLetrero = P.letrero('letrero-foto', { texto: 'CAFÉ', material: 'acrilico', luz: 'calida', alto: 40 });
+  P.fichas(grupos[0], { alElegir: v => V.letrero.fijar({ material: v || 'aluminio' }) });
+  P.fichas(grupos[1], { alElegir: v => V.letrero.fijar({ luz: v || 'fria' }) });
+  $('txt-letrero').addEventListener('input', e => V.letrero.fijar({ texto: e.target.value }));
+
+  /* ---- búsqueda ---- */
+  const H = [['COT-0042', 'Panadería La Espiga', '33 1234 5678', 'Letras 3D acrílico', 1, 0], ['COT-0041', 'Gym Titanio', '33 2813 0092', 'Caja de luz tipo nube', 1, 1],
+    ['COT-0037', 'Taquería Los Primos & Hijos', '33 7740 1188', 'Letras aluminio negro', 0, 0], ['COT-0035', 'Óptica Visión', '33 4402 7719', 'Caja de luz cuadrada', 1, 1]];
+  const FILTROS = { todas: () => true, pdf: e => !e[4], venta: e => !e[5] };
+  $('caja-fichas').innerHTML = P.fichasHTML([{ id: 'todas', texto: 'Todas', n: H.length }, { id: 'pdf', texto: 'Sin PDF', n: H.filter(FILTROS.pdf).length }, { id: 'venta', texto: 'Sin venta', n: H.filter(FILTROS.venta).length }], { activo: 'todas', etiqueta: 'Filtrar por lo que falta' });
+  const pintar = () => {
+    const q = $('q').value, f = FILTROS[V.fichas.valor() || 'todas'];
+    const r = H.filter(e => f(e) && e.slice(0, 4).some(c => P.coincide(c, q)));
+    $('cuenta-h').textContent = r.length + ' de ' + H.length;
+    $('resultados').innerHTML = r.map(e => `<li><b>${P.resaltar(e[0], q)}</b> · ${P.resaltar(e[1], q)}<br>${P.resaltar(e[2], q)} · ${P.resaltar(e[3], q)}</li>`).join('');
+  };
+  V.fichas = P.fichas('caja-fichas', { todas: 'todas', alElegir: pintar });
+  $('q').addEventListener('input', pintar);
+  pintar();
+})();
+</script>
+</body>
+</html>
