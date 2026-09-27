@@ -53,7 +53,7 @@ ul { margin: 0 0 var(--e3); padding-left: var(--e5); }
 li { margin-bottom: var(--e2); }
 b, strong { color: var(--tinta); font-weight: 600; }
 a { color: var(--a-tx); }
-a:hover { text-decoration: none; }
+@media (hover: hover) and (pointer: fine) { a:hover { text-decoration: none; } }
 
 /* La entradilla: el párrafo que contesta «¿qué es esto?» antes de que nadie pregunte. */
 .pub-entrada { font-size: var(--t5); line-height: 1.5; color: var(--tinta); margin-bottom: var(--e5); }
@@ -77,7 +77,12 @@ a:hover { text-decoration: none; }
   font-weight: 600; font-size: var(--t4);
   box-shadow: var(--sombra);
 }
-.pub-btn:hover { background: var(--a-fuerte); }
+/* El hover solo con puntero fino (en el teléfono se quedaba pegado tras tocar), y el botón
+   encoge al presionarlo como en la app. */
+@media (hover: hover) and (pointer: fine) { .pub-btn:hover { background: var(--a-fuerte); } }
+.pub-btn { transition: background-color .15s ease, transform .16s var(--ease-out); }
+.pub-btn:active { transform: scale(.97); }
+.pub-btn:disabled { opacity: .6; cursor: default; transform: none; }
 
 /* ----- El pie ----- */
 .pub-pie {
@@ -107,6 +112,7 @@ a:hover { text-decoration: none; }
   padding: var(--e4) var(--e5); margin: var(--e4) 0 var(--e5);
 }
 .ver-caja.ok  { background: var(--ok-bg);  border-color: var(--ok-borde); }
+.ver-caja { transition: background-color .2s ease, border-color .2s ease; }
 .ver-caja.av  { background: var(--av-bg);  border-color: var(--av-borde); }
 .ver-caja.mal { background: var(--mal-bg); border-color: var(--mal-borde); }
 .ver-est { margin: 0; color: var(--tinta); display: flex; gap: var(--e2); align-items: baseline; flex-wrap: wrap; }
@@ -117,14 +123,19 @@ a:hover { text-decoration: none; }
   width: 14px; height: 14px; border-radius: 50%; align-self: center;
   border: 2px solid var(--linea); border-top-color: var(--a-tx); animation: esq-gira .8s linear infinite;
 }
-@media (prefers-reduced-motion: reduce) { .ver-giro { animation: none; } }
+/* Con menos movimiento el giro no se queda quieto —quieto no dice «estoy trabajando»—: late
+   despacio en opacidad. */
+@media (prefers-reduced-motion: reduce) { .ver-giro { animation: pub-pulso 1.6s ease-in-out infinite; } }
+@keyframes pub-pulso { 50% { opacity: .35; } }
 .ver-datos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--e3) var(--e5); margin: var(--e4) 0 0; }
 .ver-datos dt { font-size: var(--t1); color: var(--tinta3); text-transform: uppercase; letter-spacing: .06em; }
 .ver-datos dd { margin: 2px 0 0; color: var(--tinta); font-weight: 600; overflow-wrap: anywhere; }
 .ver-num { font-family: var(--f-cifra); font-size: var(--t5); font-variant-numeric: tabular-nums; }
 .ver-form label { display: block; font-size: var(--t2); color: var(--tinta2); margin: var(--e3) 0 var(--e1); }
+/* 16 px como mínimo: con `font: inherit` heredaba 15 y le ganaba a la regla del sistema, y en
+   iOS la página hacía zoom al tocar el campo. */
 .ver-form input {
-  width: 100%; box-sizing: border-box; font: inherit; color: var(--tinta);
+  width: 100%; box-sizing: border-box; font: inherit; font-size: max(16px, 1em); color: var(--tinta);
   background: var(--n0); border: 1px solid var(--linea); border-radius: var(--rr2); padding: 10px 12px;
 }
 .ver-form .pub-btn { margin-top: var(--e4); border: 0; cursor: pointer; font-family: inherit; }

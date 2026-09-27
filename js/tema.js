@@ -92,6 +92,11 @@
   function aplicar() {
     var pref = guardado(), t = efectivo(pref);
     var h = document.documentElement;
+    /* Durante dos cuadros no corre ninguna transición: si no, al cambiar de tema los botones y
+       chips cruzaban de color en 160 ms y el resto de la pantalla cambiaba de golpe. */
+    h.classList.add('sin-transicion');
+    try { requestAnimationFrame(function () { requestAnimationFrame(function () { h.classList.remove('sin-transicion'); }); }); }
+    catch (_) { h.classList.remove('sin-transicion'); }
     h.setAttribute('data-tema', t);
     h.setAttribute('data-tema-pref', pref);
     /* El color de la barra del navegador y del marco de la PWA. Un <meta> no entiende

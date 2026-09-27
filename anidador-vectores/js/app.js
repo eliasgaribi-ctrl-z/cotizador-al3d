@@ -133,11 +133,19 @@
 
   /* ---------- Utilidades de interfaz ---------- */
   var _toastT = null;
-  function toast(msg, tipo, dur) {
+  /* Con `accion` ({label, fn}) lleva botón, como el del cotizador, y dura 8 s como mínimo. */
+  function toast(msg, tipo, dur, accion) {
     var t = $('toast'); if (!t) return;
-    t.textContent = msg;
+    t.textContent = '';
+    var sp = document.createElement('span'); sp.textContent = msg; t.appendChild(sp);
+    if (accion && accion.label && typeof accion.fn === 'function') {
+      if (!dur || dur < 8000) dur = 8000;
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'toast-act'; b.textContent = accion.label;
+      b.onclick = function () { clearTimeout(_toastT); t.className = 'toast'; accion.fn(); };
+      t.appendChild(b);
+    }
     t.className = 'toast show' + (tipo ? ' ' + tipo : '');
-    var voz = $('vozStatus'); if (voz) voz.textContent = msg;
+    var voz = $('vozStatus'); if (voz) voz.textContent = msg + (accion && accion.label ? ' — ' + accion.label + ' disponible' : '');
     clearTimeout(_toastT);
     _toastT = setTimeout(function () { t.className = 'toast'; }, dur || 3200);
   }
@@ -318,10 +326,16 @@
     sincronizarHoja(); leerMaterial(false); guardarMaterial(); habilitar();
     toast('Hoja: ' + r.nombre + ' · ' + fmtMm(r.ancho) + ' × ' + fmtMm(r.alto) + ' mm', 'ok', 2400);
   }
+  /* Quitar se deshace desde el aviso, como borrar una partida en el cotizador: la × es chica y
+     está junto a «Usar», y un retazo guardado son medidas que alguien tomó con el flexómetro. */
   function quitarRetazo(r) {
+    var i = R.indexOf(r);
     R = R.filter(function (x) { return x !== r; });
     guardarRetazos(); pintarRetazos();
-    toast('Retazo «' + r.nombre + '» quitado', '', 2200);
+    toast('Retazo «' + r.nombre + '» quitado', '', 8000, { label: 'Deshacer', fn: function () {
+      R.splice(Math.max(0, Math.min(i, R.length)), 0, r); guardarRetazos(); pintarRetazos();
+      toast('Retazo «' + r.nombre + '» de vuelta', 'ok', 2200);
+    } });
   }
   $('an-retazo-guardar').addEventListener('click', function () {
     var mat = leerMaterial(true); if (!mat) return;
@@ -602,7 +616,7 @@
       mensaje('El motor no pudo arrancar con esa hoja. Revisa que el ancho y el alto sean mayores que la separación.', 'mal');
       return;
     }
-    $('an-prog').hidden = false; $('an-prog-bar').style.width = '0%';
+    $('an-prog').hidden = false; alAvanzar(0);
     ['an-st-uso', 'an-st-col', 'an-st-hojas', 'an-st-merma', 'an-st-int'].forEach(function (id) { $(id).textContent = '—'; $(id).removeAttribute('data-v'); });
     $('an-st-col').textContent = '0/' + partes.length; $('an-st-int').textContent = '0';
     $('an-st-uso-lbl').textContent = 'buscando…';
@@ -650,7 +664,16 @@
     mensaje('Sigue buscando desde el mejor acomodo que llevaba.', '');
   }
 
-  function alAvanzar(p) { $('an-prog-bar').style.width = Math.round((p || 0) * 100) + '%'; }
+  /* scaleX y no width; y con transición solo cuando sube: en cada intento nuevo la barra
+     volvía de 100 % a 0 % animada, que se leía como un retroceso. */
+  var _progV = 0;
+  function alAvanzar(p) {
+    var b = $('an-prog-bar'); if (!b) return;
+    var v = Math.max(0, Math.min(1, p || 0));
+    b.classList.toggle('sube', v >= _progV);
+    b.style.transform = 'scaleX(' + v + ')';
+    _progV = v;
+  }
 
   /* El motor llama esto por cada intento evaluado: con resultado cuando mejoró, sin nada
      cuando no. Ahí se cuenta cuánto lleva sin mejorar, que es lo que decide el paro solo. */
@@ -699,7 +722,7 @@
       var vb = s.viewBox && s.viewBox.baseVal;
       if (vb) { W = vb.width; H = vb.height; }
       var alta = vb ? vb.height > vb.width : false;
-      var fig = document.createElement('figure'); fig.className = 'an-hoja' + (alta ? ' alta' : '');
+      var fig = document.createElement('figure'); fig.className = 'an-hoja' + (alta ? ' alta' : '') + (mejora ? ' mejora' : '');
       s.removeAttribute('width'); s.removeAttribute('height');
       s.setAttribute('role', 'img'); s.setAttribute('aria-label', 'Hoja ' + (i + 1) + ' con las piezas acomodadas');
       var piezas = 0;
@@ -718,6 +741,9 @@
       cont.appendChild(fig);
     });
     $('an-orig').hidden = true; cont.hidden = false;
+    /* La mesa crece al pintar las hojas: el haz láser se medía una sola vez, al arrancar, y no
+       recorría la mesa entera. Se vuelve a medir con las hojas puestas. */
+    $('an-mesa').style.setProperty('--an-mesa-h', $('an-mesa').offsetHeight + 'px');
     $('an-dl').disabled = false;
     var hojas = $('an-dl-hojas'); hojas.innerHTML = '';
     if (T.mejor.svglist.length > 1) {

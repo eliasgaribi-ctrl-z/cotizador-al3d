@@ -279,7 +279,7 @@ const Progreso = {
     const e = $('pf-progreso'); if (!e) return;
     clearTimeout(this._t);
     this._desde = performance.now();
-    e.classList.remove('fin'); e.classList.add('on');
+    e.classList.remove('fin', 'sale'); e.classList.add('on');
   },
   terminar() {
     const e = $('pf-progreso'); if (!e || !e.classList.contains('on')) return;
@@ -288,7 +288,11 @@ const Progreso = {
        el relleno completo sería enseñar una barra que nadie vio empezar. */
     if (performance.now() - this._desde < 150) return;
     e.classList.add('fin');
-    this._t = setTimeout(() => e.classList.remove('fin'), 600);
+    /* Lleno un instante, luego se desvanece entero (.sale) y solo entonces se quita. */
+    this._t = setTimeout(() => {
+      e.classList.add('sale');
+      this._t = setTimeout(() => e.classList.remove('fin', 'sale'), 220);
+    }, 220);
   },
 };
 
@@ -322,6 +326,10 @@ function avisarLento(caja, r) {
 function ponerEsqueleto(cont, r) {
   const main = $('pf-contenido');
   if (!main) return () => {};
+  /* Con el esqueleto del ARRANQUE todavía puesto no se pone otro encima: en un primer montaje
+     lento (más de 180 ms) se veían dos siluetas apiladas. */
+  const arr = $('pf-arranque');
+  if (arr && !arr.hidden) return () => {};
   for (const viejo of main.querySelectorAll('.pf-esqueleto')) viejo.remove();
   cont.insertAdjacentHTML('beforebegin', esqueletoModulo(r.mod, r.nombre));
   const esq = cont.previousElementSibling;
@@ -418,6 +426,12 @@ async function montarDeVerdad(ruta, opts = {}) {
   if (!r) return;
   if (_actual === ruta && !opts.forzar) return;
   if (_actual) _scrollPorRuta.set(_actual, window.scrollY);
+  /* Un remonte que nadie pidió —la sincronización, un 'storage', el cambio de rol— sobre la
+     pantalla que se está mirando va EN SILENCIO: sin esqueleto, sin barra de progreso y con el
+     alto de la sección reservado mientras se rehace. Antes la sección se vaciaba, el documento
+     se encogía, el navegador recortaba el scroll y todo volvía a aparecer: cada 30 s, si otro
+     teléfono había movido algo. */
+  const enSilencio = !!opts.forzar && _actual === ruta;
 
   /* El plan: qué se desmonta, qué se esconde y si lo que hay en la sección del destino
      sirve. Es aritmética sobre nombres de ruta y vive aparte, en js/nucleo/conservar.js, para
@@ -524,10 +538,14 @@ async function montarDeVerdad(ruta, opts = {}) {
 
   /* La sección se vacía y el esqueleto va DELANTE de ella, no dentro: el módulo tiene que
      recibir el contenedor vacío que siempre recibió. Ver «Lo que se ve mientras carga». */
+  if (enSilencio) cont.style.minHeight = cont.offsetHeight + 'px';
   cont.innerHTML = '';
-  const quitarEsqueleto = ponerEsqueleto(cont, r);
-  Progreso.iniciar();
-  const listo = () => { quitarEsqueleto(); Progreso.terminar(); quitarArranque(); };
+  const quitarEsqueleto = enSilencio ? () => {} : ponerEsqueleto(cont, r);
+  if (!enSilencio) Progreso.iniciar();
+  const listo = () => {
+    quitarEsqueleto(); if (!enSilencio) Progreso.terminar(); quitarArranque();
+    if (enSilencio) requestAnimationFrame(() => { cont.style.minHeight = ''; });
+  };
 
   let mod;
   try {
@@ -927,8 +945,12 @@ async function arrancar() {
     const r = visibles[Number(ev.key) - 1];
     if (!r) return;
     ev.preventDefault();
+    /* Lo que dispara el teclado no se anima: ni el fundido de la pantalla. La marca se quita en
+       cuanto vuelve el puntero (ver .pf-mod en plataforma.css). */
+    document.documentElement.dataset.nav = 'teclado';
     ir(r.ruta);
   });
+  window.addEventListener('pointerdown', () => { delete document.documentElement.dataset.nav; }, { passive: true, capture: true });
 
   faseArranque('Abriendo la base de este dispositivo…');
   await DB.abrir();
@@ -950,13 +972,16 @@ async function arrancar() {
        en otra pestaña. */
     try {
       const r = await Cot.drenarBuzon();
-      if (r.creados) toast(r.creados === 1 ? 'Se agregó 1 proyecto ganado' : 'Se agregaron ' + r.creados + ' proyectos ganados', 'ok', 4200);
+      /* Un solo aviso: los dos salían en el mismo tick y el segundo tapaba al primero antes de
+         que se pudiera leer. Si hubo de los dos, se dicen juntos. */
+      const creados = r.creados ? (r.creados === 1 ? 'Se agregó 1 proyecto ganado' : 'Se agregaron ' + r.creados + ' proyectos ganados') : '';
+      if (r.creados && !r.fallidos) toast(creados, 'ok', 4200);
       /* Y se dice qué hacer, que es lo que faltaba. No se manda a la bitácora: `drenarBuzon`
          no anota ahí sus fallos (ver js/datos/cotizador.js), así que ese destino era una
          puerta a un cuarto vacío. Los dos motivos reales son los que se nombran: la
          cotización se registró en otro teléfono y su folio no está en el historial de este
          —ese renglón ya no se reintenta—, o no hubo espacio y sí se reintenta al abrir. */
-      if (r.fallidos) toast((r.fallidos === 1
+      if (r.fallidos) toast((creados ? creados + '. ' : '') + (r.fallidos === 1
         ? 'Hay 1 registro de venta que no se pudo convertir en proyecto'
         : 'Hay ' + r.fallidos + ' registros de venta que no se pudieron convertir en proyecto') +
         '. Si se registraron en otro teléfono, hay que ganarlos desde ahí; si no, se vuelve a intentar al abrir la plataforma.',

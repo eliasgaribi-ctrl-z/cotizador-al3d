@@ -644,9 +644,22 @@ const fichaHuer = await p.evaluate(() => {
 });
 fichaHuer.abierta && /Taller Sur/.test(fichaHuer.txt) && fichaHuer.quitar && fichaHuer.dejar
   ? bien('el botón abre SU ficha, y fabricación tiene «Quitar del tablero» y «Dejarla»') : mal('la ficha: ' + JSON.stringify({ ...fichaHuer, txt: fichaHuer.txt.slice(0, 200) }));
-let pregunta = '';
-p.once('dialog', d => { pregunta = d.message(); d.accept(); });
+/* Las decisiones sobre la hoja preguntan con la pregunta de la APP (#pf-confirma, confirmarPf en
+   js/nucleo/ui.js) y ya no con el confirm() del navegador: aquel salía gris, sin rojo para lo
+   que borra y, en la app instalada del iPhone, con la dirección del sitio encima. Se lee lo que
+   dice —título y texto, en el mismo orden en que los armaba el confirm()— y se contesta con su
+   botón. */
+async function contestarPf(si) {
+  await p.waitForSelector('#pf-confirma.show', { timeout: 5000 });
+  const msg = await p.evaluate(() => {
+    const t = document.getElementById('pf-confirma-t'), d = document.getElementById('pf-confirma-d');
+    return (t ? t.textContent : '') + '\n\n' + (d ? d.textContent : '');
+  });
+  await p.click(si ? '#pf-confirma-si' : '#pf-confirma-no');
+  return msg;
+}
 await p.click('#pf-ficha [data-hoja-quitar]');
+const pregunta = await contestarPf(true);
 await p.waitForTimeout(1500);
 const quitada = await p.evaluate(async () => {
   const DB = await import('./js/datos/db.js');
@@ -701,17 +714,15 @@ const fab520 = await botones('proy-hoja-V-520');
   ? bien('fabricación la ve sin botones, y sin que se le prometa una decisión desde otro teléfono') : mal('fabricación ve: ' + JSON.stringify({ ...fab520, txt: fab520.txt.slice(0, 300) }));
 await sembrar([], 'direccion');
 await botones('proy-hoja-V-520');
-let pJuntar = '';
-p.once('dialog', d => { pJuntar = d.message(); d.dismiss(); });
 await p.click('#pf-ficha [data-hoja-juntar]');
+const pJuntar = await contestarPf(false);
 await p.waitForTimeout(600);
 /solo si «Imprenta Rubén - Letras» no tiene los suyos/.test(pJuntar) && /se queda la de este teléfono/.test(pJuntar) &&
   /queda como de «Imprenta Rubén - Letras»/.test(pJuntar)
   ? bien('«Juntar» dice lo que de verdad pasa: el pin de la copia se pierde, y la fila queda como de la de aquí')
   : mal('la confirmación de juntar dice: ' + pJuntar);
-let pNo = '';
-p.once('dialog', d => { pNo = d.message(); d.accept(); });
 await p.click('#pf-ficha [data-hoja-noesla]');
+const pNo = await contestarPf(true);
 await p.waitForTimeout(1500);
 const sep = await p.evaluate(async () => {
   const DB = await import('./js/datos/db.js');
@@ -730,8 +741,8 @@ const f530b = await botones('proy-hoja-V-530');
 f530b.quitar && !f530b.juntar
   ? bien('con la fila marcada «No se dio» en la hoja, la copia de la lápida ya ofrece quitarla')
   : mal('la ficha de la copia de la lápida, con la fila «No se dio»: ' + JSON.stringify({ ...f530b, txt: f530b.txt.slice(0, 300) }));
-p.once('dialog', d => d.accept());
 await p.click('#pf-ficha [data-hoja-quitar]');
+await contestarPf(true);
 await p.waitForTimeout(1500);
 const sin530 = await p.evaluate(async () => {
   const DB = await import('./js/datos/db.js');
@@ -763,8 +774,7 @@ const fLap = await p.evaluate(() => {
   ? bien('la lápida cuya fila ya no está le enseña a Dirección su única salida: «Dejarla fuera de la hoja»')
   : mal('la ficha de la lápida: ' + JSON.stringify({ ...fLap, txt: fLap.txt.slice(0, 300) }));
 let pFuera = '';
-p.once('dialog', d => { pFuera = d.message(); d.accept(); });
-if (fLap.fuera) await p.click('#pf-ficha [data-hoja-fuera]');
+if (fLap.fuera) { await p.click('#pf-ficha [data-hoja-fuera]'); pFuera = await contestarPf(true); }
 await p.waitForTimeout(1200);
 const lapFuera = await p.evaluate(async () => {
   const DB = await import('./js/datos/db.js');

@@ -78,7 +78,9 @@
      al 86 %: debajo de ellos no se desplaza nada. */
   --cv-relleno-denso:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05)),rgba(var(--sup-rgb),.93);
   --cv-borde:1px solid rgba(255,255,255,.85);
-  --cv-blur:blur(22px) saturate(1.6);
+  /* 16 px y no 22: por encima de 20 el desenfoque es caro —en Safari sobre todo— y con un
+     relleno al 86-93 % la diferencia no se ve. Lo pidió la auditoría de movimiento. */
+  --cv-blur:blur(16px) saturate(1.5);
   --cv-luz:inset 0 1px 0 rgba(255,255,255,.95);
   --cv-sombra:0 26px 54px -34px rgba(20,23,43,.55);
 
@@ -137,11 +139,11 @@ html[data-tema="oscuro"]{
 
 /* Los cuatro pasos dejan de ser pestañas cuadradas dentro de una tarjeta y
    pasan a ser un riel de vidrio con pastillas. Mismo alto, mismo orden. */
+/* Sin desenfoque: debajo del riel no pasa contenido, solo el lienzo, y el filo y la sombra ya
+   lo despegan. El desenfoque se queda en lo que flota sobre algo que se desplaza. */
 .pasos{
   gap:4px;padding:6px;border-radius:var(--cv-pastilla);
-  background:var(--cv-relleno);
-  backdrop-filter:var(--cv-blur);
-  -webkit-backdrop-filter:var(--cv-blur);
+  background:var(--cv-relleno-denso);
   border:var(--cv-borde);
   box-shadow:var(--cv-luz),0 16px 36px -26px rgba(20,23,43,.5);
 }
@@ -182,9 +184,7 @@ html[data-tema="oscuro"]{
    NETO». Se vio en la captura; a ojo parecía una tapa mal puesta. */
 .side .sum{border-radius:var(--cv-tarjeta)}
 .side>.sum{
-  background:var(--cv-relleno);
-  backdrop-filter:var(--cv-blur);
-  -webkit-backdrop-filter:var(--cv-blur);
+  background:var(--cv-relleno-denso);
   border:var(--cv-borde);
   box-shadow:var(--cv-luz),var(--cv-sombra);
 }
@@ -283,8 +283,9 @@ body.pf .pf-lat-rol .seg button{flex:1 1 auto;padding:0 2px;overflow:hidden;text
 
 /* Los modales —el de IA, el escalador, el vectorizador, la orden de trabajo—
    comparten el mismo vidrio. */
-.modal{border-radius:24px;background:var(--cv-relleno);
-  backdrop-filter:blur(28px) saturate(1.7);-webkit-backdrop-filter:blur(28px) saturate(1.7);
+/* Sin desenfoque propio: el velo de detrás ya desenfoca, y dentro de otro backdrop-filter solo
+   se lee lo que pinta el padre. Eran 28 px por nada. */
+.modal{border-radius:24px;background:var(--cv-relleno-denso);
   border:var(--cv-borde);box-shadow:var(--cv-luz),0 34px 70px -30px rgba(0,0,0,.55)}
 
 /* ==========================================================================
@@ -298,8 +299,7 @@ body.pf .pf-lat-rol .seg button{flex:1 1 auto;padding:0 2px;overflow:hidden;text
    se fue: ningún elemento lleva esa pareja de clases —el módulo encendido es `.pf-tab.on`,
    que plataforma.css ya pinta de vidrio—. */
 .pf-lat-item{border-radius:14px}
-.pf-lat-rol{border-radius:18px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
-  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.pf-lat-rol{border-radius:18px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12)}
 
 /* La cabecera: clara con la barra lateral a la vista, marina en el teléfono, donde es lo
    único que lleva la marca y su texto es blanco. El corte a 760 px es el de plataforma.css. */
@@ -323,8 +323,11 @@ body.pf .pf-lat-rol .seg button{flex:1 1 auto;padding:0 2px;overflow:hidden;text
    con 18 px de desenfoque cada una. `:where()` no suma especificidad, así que la regla sigue
    pesando lo mismo que `.pf-cuenta` y `.pf-cuenta.dinero` —el tinte azul del importe— sigue
    ganándole como hasta ahora. */
+/* Sin backdrop-filter, que es la regla 1 del propio sistema («una tarjeta de la lista NO lo
+   lleva»). Medido: cinco o seis cuentas por pantalla, cada una con 18 px de desenfoque sobre un
+   degradado suave que no se distinguía, y el panel encima de un velo que ya desenfoca. */
 .pf-panel,.pf-cuenta:where(:not(.tb-etapa)){border-radius:var(--cv-tarjeta);
-  background:var(--cv-relleno);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  background:var(--cv-relleno-denso);
   border:var(--cv-borde);box-shadow:var(--cv-luz),var(--cv-sombra)}
 /* Y la misma sombra para las que dicen algo. plataforma.css repone `--sombra-reposo` en
    `.pf-cuenta.urge/.mal/.dinero` —para borrar el filete de arriba que llevaban antes— y esa
@@ -424,9 +427,10 @@ body.pf .pf-panel-f .btn{border-radius:18px}
    donde el span no empieza en el borde izquierdo. */
 .ai-btn>span,.pf-ia-btn .tx{position:relative}
 
-.ai-btn:focus-visible>span::after,.ai-btn:active>span::after,.pf-ia-btn:focus-visible .tx::after,.pf-ia-btn:active .tx::after{
+/* Con el dedo y con el cursor, sí; con el tabulador, no: lo que dispara el teclado no se anima. */
+.ai-btn:active>span::after,.pf-ia-btn:active .tx::after{
   animation:vid-chispas 1s ease-out forwards;
-}@media(hover:hover){.ai-btn:hover>span::after,.pf-ia-btn:hover .tx::after{
+}@media(hover:hover) and (pointer:fine){.ai-btn:hover>span::after,.pf-ia-btn:hover .tx::after{
   animation:vid-chispas 1s ease-out forwards;
 }}
 @keyframes vid-chispas{
@@ -440,7 +444,7 @@ body.pf .pf-panel-f .btn{border-radius:18px}
 
 /* La zona de arrastre del modal de IA y la del anidador respiran mientras
    esperan el archivo: es lo único que se mueve en una pantalla vacía. */
-.ai-drop .ico,.modal .ai-drop .ico{animation:vid-respira 2.6s ease-in-out infinite}
+.ai-drop .ico,.modal .ai-drop .ico{animation:vid-respira 2.6s ease-in-out 3}
 @keyframes vid-respira{0%,100%{opacity:.55}50%{opacity:1}}
 
 /* Quien las pidió sin animación no las tiene. Misma regla que sistema.css.
@@ -479,3 +483,15 @@ body.pf .pf-panel-f .btn{border-radius:18px}
   }
   .ai-btn>span::after,.pf-ia-btn .tx::after{display:none!important}
 }
+
+/* ==========================================================================
+   8. Dónde NO hay desenfoque — la auditoría de movimiento, septiembre de 2026
+   --------------------------------------------------------------------------
+   Medido en el render: de cinco a ocho capas con backdrop-filter por pantalla, encima de un
+   lienzo que se movía. Cada una se volvía a desenfocar en cada cuadro. El desenfoque se queda
+   solo en lo que flota sobre algo que se desplaza —la barra de arriba, la cabecera, el dock y
+   la barra fija— y el velo de los modales. Lo de aquí va explícito porque sistema.css y
+   plataforma.css les ponen el suyo, y esta hoja es la que gana.
+   ========================================================================== */
+.pasos,.side>.sum,.wrap>aside .sum,.modal,.pf-lat-rol,
+.pf-panel,.pf-cuenta:where(:not(.tb-etapa)){backdrop-filter:none;-webkit-backdrop-filter:none}

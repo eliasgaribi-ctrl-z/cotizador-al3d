@@ -45,7 +45,7 @@ import * as Sync from '../datos/sync.js';
 import { masDias, iniSemana } from '../nucleo/fechas.js';
 import { $, esc, ico, money, toast, avisarResultado, vacio, hoyISO, fmtFecha, fmtFechaDia,
          abrirCapa, cerrarCapa, linkWa, telWa, ajustarAltoBarra, voz, segmento,
-         filaTaller, bandaFrescura, medirMarco, esqueletoMarco, cifraQueCabe, scrollSuave }
+         filaTaller, bandaFrescura, medirMarco, esqueletoMarco, cifraQueCabe, scrollSuave, conservandoFoco }
   from '../nucleo/ui.js';
 
 const { ETAPA_NOMBRE, ICO_ETAPA, claseEtapa, ORDEN, puedeMover } = Proy;
@@ -79,6 +79,7 @@ let _vista = 'tablero';
 let _origen = null;       // de qué proyecto se viene, cuando se entró con un pase
 let _pide = null;         // qué está preguntando el modal, si está abierto
 let _oyendo = false;
+let _alClic = null;   // alClic envuelto con conservandoFoco()
 let _reloj = null;        // el retardo del esqueleto
 /* Las acciones del pintado actual. El botón lleva su ÍNDICE en un atributo: un índice no se
    puede escapar mal; un JSON dentro de un atributo dentro de una comilla, sí. Se vacía en
@@ -141,7 +142,7 @@ export async function montar(contenedor, ctx) {
   if (pase && pase.vista && !aLaMesa) _vista = (pase.vista === 'anidador' && conMesa()) ? 'anidador' : 'tablero';
   _origen = (pase && pase.proyecto_id) ? pase : null;
 
-  _cont.addEventListener('click', alClic);
+  _cont.addEventListener('click', _alClic = conservandoFoco(alClic));
   const capa = $('pf-pide');
   if (capa) capa.addEventListener('click', alClicPide);
   _oyendo = true;
@@ -174,7 +175,7 @@ export async function contar() {
 export function desmontar() {
   if (_reloj) { clearTimeout(_reloj); _reloj = null; }
   if (_relojMarco) { clearTimeout(_relojMarco); _relojMarco = null; }
-  if (_cont && _oyendo) _cont.removeEventListener('click', alClic);
+  if (_cont && _oyendo) _cont.removeEventListener('click', _alClic);
   const capa = $('pf-pide');
   if (capa) capa.removeEventListener('click', alClicPide);
   /* Si el modal quedó abierto —se cambió de rol con la pregunta enfrente— se cierra: la capa
@@ -585,7 +586,7 @@ function decidir(d, rol) {
     'este tablero: es lo único que nadie más puede contestar.</p>' +
     '<div class="pf-fila-acc">' +
       btn(n === 1 ? 'Decidir la cotización' : 'Decidir ' + n + ' cotizaciones',
-          'btn btn-ok pf-btn-corto', { tipo: 'ir', ruta: 'proyectos' }) +
+          'btn btn-ok pf-btn-corto tb-decidir-cuerpo', { tipo: 'ir', ruta: 'proyectos' }) +
     '</div></div>';
 }
 

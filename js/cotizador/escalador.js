@@ -537,7 +537,9 @@ function scLoupe(e){
   let lx=t.clientX-size/2,ly=t.clientY-size-30;
   if(ly<8)ly=t.clientY+34;
   lx=Math.max(8,Math.min(window.innerWidth-size-8,lx));
-  lp.style.left=lx+'px';lp.style.top=ly+'px';lp.style.display='block';
+  /* Con transform y no con left/top: sigue al dedo igual de instantánea, pero se compone en la
+     GPU en vez de recalcular el layout en cada movimiento del dedo. */
+  lp.style.transform='translate3d('+lx+'px,'+ly+'px,0)';lp.style.display='block';
   const lc=$('sc-loupe-cvs'),dpr=scDPR(),px=Math.round(size*dpr);
   if(lc.width!==px){lc.width=lc.height=px;lc.style.width=lc.style.height=size+'px';}
   const lctx=lc.getContext('2d');
@@ -1322,7 +1324,7 @@ function scCommitLine(a,b){
     // (con él, el botón de confirmar quedaba debajo del teclado). Se acerca y se resalta.
     if(scIsMobile()){
       const row=$('sc-ref-confirm-row');
-      try{row.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(_){}
+      try{row.scrollIntoView({block:'nearest',behavior:_menosMovimiento()?'auto':'smooth'});}catch(_){}   // la hoja no alcanza un scroll pedido desde JS
       row.classList.remove('sc-flash');void row.offsetWidth;row.classList.add('sc-flash');
     }else{
       try{$('sc-ref-cm-input').focus({preventScroll:true});}catch(_){$('sc-ref-cm-input').focus();}

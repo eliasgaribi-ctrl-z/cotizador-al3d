@@ -39,10 +39,11 @@ import * as Ventas from '../datos/ventas.js';
 import * as Bitacora from '../datos/bitacora.js';
 import * as Sync from '../datos/sync.js';
 import { $, ico, esc, money, toast, vacio, segmento, chip, fmtFecha, linkWa, telWa, descargarArchivo,
-         hoyISO, cifraQueCabe } from '../nucleo/ui.js';
+         hoyISO, cifraQueCabe, repintarAlrededor, conservandoFoco } from '../nucleo/ui.js';
 import { masMeses } from '../nucleo/fechas.js';
 
 let cont = null;
+let _alClic = null;             // alClic envuelto con conservandoFoco()
 let CTX = null;
 let TAB = 'ventas';          // ventas | cobrar | bitacora — sobrevive a salir y volver
 let PERIODO = '3m';          // mes | 3m | 12m | todo
@@ -64,7 +65,7 @@ function alCambiarAncho() { pintar(); }
 export async function montar(contenedor, ctx) {
   cont = contenedor;
   CTX = ctx;
-  cont.addEventListener('click', alClic);
+  cont.addEventListener('click', _alClic = conservandoFoco(alClic));
   cont.addEventListener('input', alEscribir);
   if (_mqTelefono && _mqTelefono.addEventListener) _mqTelefono.addEventListener('change', alCambiarAncho);
   /* El pase de quien manda aquí —el asistente, el tablero—: «abre en Por cobrar». */
@@ -72,7 +73,11 @@ export async function montar(contenedor, ctx) {
   if (pase && ['ventas', 'cobrar', 'bitacora'].includes(pase.tab)) TAB = pase.tab;
 
   if (!DB.estado().ok) {
-    cont.innerHTML = vacio('No se pudo abrir la base de este dispositivo', DB.motivoTexto());
+    /* Con el botón de recargar que los demás módulos ya ofrecen: sin él, la pantalla era un
+       callejón sin salida. */
+    cont.innerHTML = vacio('No se pudo abrir la base de este dispositivo', DB.motivoTexto(),
+      '<button type="button" class="btn btn-pri" data-recargar>Recargar</button>');
+    const b = cont.querySelector('[data-recargar]'); if (b) b.onclick = () => location.reload();
     return;
   }
   if (CTX.acciones) {
@@ -87,7 +92,7 @@ export async function montar(contenedor, ctx) {
 }
 
 export function desmontar() {
-  if (cont) { cont.removeEventListener('click', alClic); cont.removeEventListener('input', alEscribir); }
+  if (cont) { cont.removeEventListener('click', _alClic); cont.removeEventListener('input', alEscribir); }
   if (_mqTelefono && _mqTelefono.removeEventListener) _mqTelefono.removeEventListener('change', alCambiarAncho);
   /* El hueco de acciones del encabezado NO es de este módulo: vive en index.html y lo
      comparten todos. El router le vacía el marcado antes de montar el siguiente —«las
@@ -179,7 +184,10 @@ async function traerDeLaHoja(silencioso) {
     return;
   }
   TRAYENDO = true;
-  pintar();
+  /* Solo el botón. Repintar la pantalla entera aquí era el segundo de tres repintados al
+     entrar con datos viejos, y las cifras que se estaban leyendo parpadeaban por un botón. */
+  const bt = cont && cont.querySelector('[data-act="hoja-traer"]');
+  if (bt) { bt.disabled = true; bt.innerHTML = ico('i-reloj') + ' ' + esc('Trayendo la hoja…'); }
   let error = null, cambios = 0, borrados = 0;
   try {
     try { await Sync.bombear(); } catch (_) { /* lo pendiente sale cuando pueda; bajar no depende de eso */ }
@@ -250,6 +258,10 @@ function lineaHoja() {
 
 function pintar() {
   if (!cont || !D) return;
+  cont.innerHTML = htmlPantalla();
+}
+
+function htmlPantalla() {
   const tabs = segmento([
     { v: 'ventas', t: 'Ventas' },
     { v: 'cobrar', t: 'Por cobrar' + (D.kpi.porCobrar.n ? ' · ' + D.kpi.porCobrar.n : '') },
@@ -261,7 +273,7 @@ function pintar() {
   else if (TAB === 'bitacora') cuerpo = pintarBitacora();
   else cuerpo = pintarVentas();
 
-  cont.innerHTML = '<div class="ag-barra">' + tabs + '</div>' + cuerpo;
+  return '<div class="ag-barra">' + tabs + '</div>' + cuerpo;
 }
 
 /* «Por cobrar» es de la hoja cuando TODOS los saldos bajaron de allá; «(estimado)» si alguno
@@ -616,9 +628,12 @@ function alEscribir(ev) {
   if (!esProy && !esBit) return;
   if (esProy) BUSCA = t.value; else BUSCA_BIT = t.value;
   clearTimeout(_espera);
-  /* Se repinta con un respiro: repintar la lista en cada tecla tira el foco del campo. Al
-     repintar se le devuelve, con el cursor al final. */
+  /* Se repinta con un respiro, y ALREDEDOR del campo: el <input> en el que se escribe no se
+     reemplaza, así que ni pierde el foco ni se le cierra el teclado al iPhone en cada pausa.
+     Solo si la forma de la pantalla cambió se repinta entera y se le devuelve el foco. */
   _espera = setTimeout(() => {
+    if (!cont || !D) return;
+    if (repintarAlrededor(cont, htmlPantalla(), t)) return;
     pintar();
     const campo = cont && cont.querySelector(esProy ? '[data-busca]' : '[data-busca-bit]');
     if (campo) { campo.focus(); try { campo.setSelectionRange(campo.value.length, campo.value.length); } catch (_) {} }

@@ -34,7 +34,7 @@ import { ESTATUS as ESTATUS_NOTION, CUENTAS, ESTATUS_DE_PAGOS } from '../datos/p
 import {
   $, esc, money, cant, ico, toast, avisarResultado, vacio, segmento, chip,
   abrirCapa, cerrarCapa, copiarTexto, linkWa, telWa, fmtFecha, fmtFechaDia, fmtHora, cuando,
-  diasHasta, hoyISO, rotularPapel, confirmarPf,
+  diasHasta, hoyISO, rotularPapel, confirmarPf, repintarEnSitio,
 } from '../nucleo/ui.js';
 
 /* ============================================================================
@@ -203,7 +203,9 @@ export function desmontar() {
 
 async function cargar() {
   const lista = $('pj-lista');
-  if (lista) lista.innerHTML = '<div class="vacio">' + ico('i-reloj') + '<p class="vacio-t">Leyendo proyectos…</p></div>';
+  /* Solo si todavía no hay nada: después de cada acción la lista ya está, y vaciarla a un
+     renglón para volverla a llenar la hacía parpadear. */
+  if (lista && !lista.childElementCount) lista.innerHTML = '<div class="vacio">' + ico('i-reloj') + '<p class="vacio-t">Leyendo proyectos…</p></div>';
   await leerDatos();
   pintarCand();
   pintarFiltros();
@@ -1083,23 +1085,32 @@ async function decisionHoja(que, id, boton) {
   if (!p) { toast('Ese proyecto ya no está en este dispositivo', 'err'); await cargar(); return; }
   const nombre = p.nombre || p.folio_local || 'este proyecto';
   const d = p.duplicado_de && typeof p.duplicado_de === 'object' ? p.duplicado_de : null;
+  /* La pregunta de la app y no el confirm() del navegador: aquel salía gris, sin rojo para lo
+     que borra y, en la app instalada del iPhone, con la dirección del sitio encima. Es «el
+     momento en que la app deja de parecer una app» (js/cotizador/nucleo.js). El título es la
+     primera frase; lo demás, el texto. */
+  const SI = { fuera: 'Dejarla fuera', dejar: 'Dejarla en el tablero', quitar: 'Quitar del tablero', juntar: 'Juntarlas', noesla: 'Son distintas' };
+  const preguntar = msg => {
+    const [titulo, ...resto] = String(msg).split('\n\n');
+    return confirmarPf({ titulo, texto: resto.join('\n\n'), si: SI[que] || 'Seguir', no: 'Cancelar', peligro: que === 'quitar' || que === 'fuera' });
+  };
   const otra = (d && d.nombre) || 'la de este teléfono';
   const fila = (d && d.folio_hoja) || p.folio_hoja || '';
 
   if (que === 'fuera') {
     /* Lo que rebotó no se tira: `dejarFueraDeLaHoja` lo anota en el proyecto (`sin_mandar`) y
        viaja con lo demás si la fila vuelve. Una lápida no tiene «Volver a darla de alta». */
-    if (!window.confirm('¿Dejar «' + nombre + '» fuera de la hoja?\n\nEl proyecto se queda en este teléfono y deja de mandarse a la hoja. ' +
+    if (!await preguntar('¿Dejar «' + nombre + '» fuera de la hoja?\n\nEl proyecto se queda en este teléfono y deja de mandarse a la hoja. ' +
       'Los cambios que rebotaron contra su fila no se tiran: se guardan en este teléfono, y si su fila vuelve a la hoja se mandan solos, con lo de ese día.' +
       (p.etapa === 'cancelado' ? '' : ' Si después cambias de idea, en su ficha está «Volver a darla de alta en la hoja».'))) return;
   } else if (que === 'dejar') {
     /* «Vuelve a mandarse sola» es cierto desde que el relevo anota lo que no manda (`sin_mandar`),
        `dejarFueraDeLaHoja` anota ahí también lo que ya había rebotado, y la bajada lo manda
        cuando la fila vuelve; antes lo cambiado mientras tanto, y lo que rebotó, se perdía. */
-    if (!window.confirm('¿Dejar «' + nombre + '» en el tablero aunque la hoja ya no la tenga?\n\nNo se vuelve a preguntar por ella, y sus cambios ya no se mandan a la hoja. ' +
+    if (!await preguntar('¿Dejar «' + nombre + '» en el tablero aunque la hoja ya no la tenga?\n\nNo se vuelve a preguntar por ella, y sus cambios ya no se mandan a la hoja. ' +
       'Si su fila vuelve a la hoja, vuelve a mandarse sola, con lo que hayas cambiado mientras tanto y lo que ya había rebotado.')) return;
   } else if (que === 'quitar') {
-    if (!window.confirm(d
+    if (!await preguntar(d
       ? '¿Quitar esta copia de «' + nombre + '» del tablero?\n\nEs la copia importada de la fila ' + fila + ', que repite «' + otra + '». ' +
         'Se borra de este teléfono; la hoja no se toca, y su fila se queda con «' + otra + '»: la siguiente bajada ya no la vuelve a importar. ' +
         'Si algo de este teléfono la nombra —una instalación, un movimiento del almacén, material calculado— no se quita. Queda anotado en la bitácora.'
@@ -1111,7 +1122,7 @@ async function decisionHoja(que, id, boton) {
        «su ubicación pasa» cuando la de aquí ya tenía una era mentira: se quedaba la de aquí y la
        de la copia se borraba con ella. Cuáles datos son, lo dice el porqué de arriba. */
     const porConfirmar = !!(d && Array.isArray(d.claves) && d.claves.includes('identidad'));
-    if (!window.confirm('¿Juntar esta tarjeta con «' + otra + '»?' +
+    if (!await preguntar('¿Juntar esta tarjeta con «' + otra + '»?' +
       (d && Array.isArray(d.por) && d.por.length ? '\n\nPor qué no se juntó sola: ' + d.por.join('; ') + '.' : '') +
       '\n\nLas notas de la copia se suman a las de «' + otra + '». Su ubicación, su plazo y sus datos (dirección, teléfono del cliente, entrecalles, compromiso…) ' +
       'pasan solo si «' + otra + '» no tiene los suyos; si los tiene, se quedan los de «' + otra + '». ' +
@@ -1119,7 +1130,7 @@ async function decisionHoja(que, id, boton) {
       (porConfirmar ? '\n\nY la fila ' + fila + ' queda como de «' + otra + '»: desde la siguiente bajada, su dinero es el de «' + otra + '».' : '') +
       ' Queda anotado en la bitácora.')) return;
   } else if (que === 'noesla') {
-    if (!window.confirm('¿«' + nombre + '» y «' + otra + '» son dos ventas distintas?\n\nEsta tarjeta se queda en el tablero como la de su venta, con su fila ' + fila +
+    if (!await preguntar('¿«' + nombre + '» y «' + otra + '» son dos ventas distintas?\n\nEsta tarjeta se queda en el tablero como la de su venta, con su fila ' + fila +
       ', y no se vuelve a preguntar. «' + otra + '» se queda sin fila en la hoja —la ' + fila + ' es de esta otra venta— y deja de mandarle cambios: ' +
       'en su ficha decides si se vuelve a dar de alta o se queda fuera. Queda anotado en la bitácora.')) return;
   }
@@ -1246,7 +1257,7 @@ async function refrescarFicha() {
   const p = await Proy.obtener(fichaId);
   const capa = $('pf-ficha');
   if (!p || !capa) return;
-  capa.innerHTML = htmlFicha(p);
+  repintarEnSitio(capa, htmlFicha(p));   // sin volver arriba ni perder el foco en cada toque
 }
 
 async function parchar(id, campos, msgOk) {

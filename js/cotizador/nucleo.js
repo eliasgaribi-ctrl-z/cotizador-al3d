@@ -289,6 +289,9 @@ const _CAPAS=[
 ];
 window.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
+    /* Cerrar con el teclado no anima: html.sin-transicion (sistema.css) durante dos cuadros. */
+    const h=document.documentElement; h.classList.add('sin-transicion');
+    requestAnimationFrame(()=>requestAnimationFrame(()=>h.classList.remove('sin-transicion')));
     for(const [id,cerrar] of _CAPAS){
       const el=document.getElementById(id);
       if(el&&el.classList.contains('show')){ e.preventDefault(); try{cerrar();}catch(_){} return; }
@@ -597,33 +600,56 @@ function voz(msg,urgente){
 
    Se cierra con la función de su capa (_CAPAS), la misma de la ×, así que el foco, el atrás del
    teléfono y lo que cada modal limpia al cerrarse pasan igual. Un solo oyente para todos. */
+/* Revisado en la auditoría de movimiento, en tres cosas que se sentían:
+   · La velocidad era el PROMEDIO desde que se tocó —`dy/(ahora-t0) > 0.6` y más de 40 px—:
+     «tocar, pensarlo y deslizar» nunca cerraba, y un deslizón corto y rápido tampoco. Ahora es
+     la velocidad del último tramo (~100 ms), con el umbral de Sonner y Vaul: 0,11 px/ms.
+   · Hacia arriba había una pared (`Math.max(0,dy)`). Ahora cede con resistencia, como una hoja
+     del sistema.
+   · Al soltar para cerrar, la hoja volvía a 0 y se apagaba en el mismo cuadro. Ahora la salida
+     de CSS (translateY(100%), ver sistema.css) arranca desde donde la dejó el dedo, y el velo
+     se aclara mientras se arrastra.
+   Y el `touchmove` con passive:false se registra solo durante el gesto: registrado siempre,
+   cada scroll de la página esperaba a este JS antes de moverse. */
 const _HOJA_CIERRA=90;   // px hacia abajo a partir de los cuales soltar cierra
+const _HOJA_VEL=0.11;    // px/ms en el último tramo: un deslizón basta
 let _hoja=null;
 function _esTelefono(){ try{ return matchMedia('(max-width:560px)').matches; }catch(_){ return false; } }
 document.addEventListener('touchstart',e=>{
-  if(!_esTelefono()||e.touches.length!==1) return;
+  if(_hoja||!_esTelefono()||e.touches.length!==1) return;
   const m=e.target.closest&&e.target.closest('.modal-bg.show>.modal'); if(!m) return;
   if(e.target.closest('input,textarea,select,[contenteditable="true"],canvas')) return;
   const cuerpo=e.target.closest('.modal-b');
   if(cuerpo&&cuerpo.scrollTop>0) return;
   if(!e.target.closest('.modal-h')&&!cuerpo) return;
   const cerrar=(_CAPAS.find(([id])=>id===m.parentElement.id)||[])[1]; if(!cerrar) return;
-  _hoja={m,y0:e.touches[0].clientY,t0:Date.now(),dy:0,cerrar,activo:false};
+  _hoja={m,velo:m.parentElement,y0:e.touches[0].clientY,dy:0,cerrar,activo:false,pts:[]};
+  document.addEventListener('touchmove',_moverHoja,{passive:false});
 },{passive:true});
-document.addEventListener('touchmove',e=>{
-  if(!_hoja) return;
+function _moverHoja(e){
+  if(!_hoja||e.touches.length!==1) return;   // un segundo dedo no mueve la hoja
   const dy=e.touches[0].clientY-_hoja.y0;
-  if(!_hoja.activo){ if(dy<6){ if(dy<-6) _hoja=null; return; } _hoja.activo=true; _hoja.m.style.transition='none'; }
-  _hoja.dy=Math.max(0,dy);
+  if(!_hoja.activo){
+    if(Math.abs(dy)<6) return;
+    if(dy<0){ _soltarHoja(); return; }   // hacia arriba al empezar: es scroll, no la hoja
+    _hoja.activo=true; _hoja.m.style.transition='none'; _hoja.velo.style.transition='none';
+  }
+  _hoja.dy=dy>0?dy:-Math.sqrt(-dy)*3;
+  _hoja.pts.push([e.timeStamp,dy]);
+  while(_hoja.pts.length>2&&e.timeStamp-_hoja.pts[0][0]>100) _hoja.pts.shift();
   _hoja.m.style.transform='translateY('+_hoja.dy+'px)';
+  const alto=_hoja.m.offsetHeight||600;
+  _hoja.velo.style.opacity=String(Math.max(.35,1-Math.max(0,_hoja.dy)/alto));
   e.preventDefault();   // que no se mueva la página de atrás ni se dispare el «jalar para recargar»
-},{passive:false});
+}
 function _soltarHoja(){
+  document.removeEventListener('touchmove',_moverHoja);
   const h=_hoja; _hoja=null; if(!h||!h.activo) return;
-  const rapido=h.dy>40&&h.dy/(Date.now()-h.t0)>0.6;
-  h.m.style.transition='';
-  if(h.dy>_HOJA_CIERRA||rapido){ h.m.style.transform=''; try{ h.cerrar(); }catch(_){} }
-  else h.m.style.transform='';
+  const a=h.pts[0], b=h.pts[h.pts.length-1];
+  const v=(a&&b&&b[0]>a[0])?(b[1]-a[1])/(b[0]-a[0]):0;
+  h.m.style.transition=''; h.velo.style.transition=''; h.velo.style.opacity='';
+  h.m.style.transform='';
+  if(h.dy>_HOJA_CIERRA||(h.dy>12&&v>_HOJA_VEL)){ try{ h.cerrar(); }catch(_){} }
 }
 document.addEventListener('touchend',_soltarHoja,{passive:true});
 document.addEventListener('touchcancel',_soltarHoja,{passive:true});
@@ -666,7 +692,25 @@ function confirmarNo(){ _confCerrar(false); }
 /* Aviso emergente. Con un solo temporizador compartido: antes dos avisos seguidos
    se pisaban y el segundo se ocultaba antes de tiempo por el reloj del primero.
    Acepta un botón opcional, por ejemplo para deshacer un borrado. */
-let _toastT=null;
+let _toastT=null, _toastFin=0, _toastResta=0;
+/* El temporizador se detiene si la pestaña se oculta o si el dedo o el cursor están encima.
+   Un «Deshacer» de 8 s caducaba mientras el vendedor estaba en WhatsApp pegando los datos. */
+function _toastProgramar(ms){
+  clearTimeout(_toastT); _toastFin=Date.now()+ms;
+  _toastT=setTimeout(()=>{ _toastT=null; $('toast').classList.remove('show'); },ms);
+}
+function _toastPausa(){
+  if(!_toastT) return;
+  clearTimeout(_toastT); _toastT=null; _toastResta=Math.max(1500,_toastFin-Date.now());
+}
+function _toastSigue(){ if(!_toastT&&_toastResta&&$('toast').classList.contains('show')){ _toastProgramar(_toastResta); _toastResta=0; } }
+document.addEventListener('visibilitychange',()=>document.hidden?_toastPausa():_toastSigue());
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_toastVigilar,{once:true}); else _toastVigilar();
+function _toastVigilar(){
+  const t=$('toast'); if(!t) return;
+  ['pointerenter','focusin'].forEach(n=>t.addEventListener(n,_toastPausa));
+  ['pointerleave','focusout'].forEach(n=>t.addEventListener(n,_toastSigue));
+}
 function toast(msg,type='',dur=2600,accion=null){
   /* Con botón, 8 s como mínimo: quien lo oye en vez de verlo tiene que encontrar
      «Deshacer» deslizando, y los 2.6 s de siempre no alcanzan ni para llegar. Si el
@@ -678,13 +722,19 @@ function toast(msg,type='',dur=2600,accion=null){
   if(accion&&accion.label&&typeof accion.fn==='function'){
     const b=document.createElement('button');
     b.type='button'; b.className='toast-act'; b.textContent=accion.label;
-    b.onclick=()=>{ clearTimeout(_toastT); t.classList.remove('show'); accion.fn(); };
+    b.onclick=()=>{ clearTimeout(_toastT); _toastT=null; _toastResta=0; t.classList.remove('show'); accion.fn(); };
     t.appendChild(b);
   }
-  t.className='toast '+type;
-  void t.offsetWidth; t.classList.add('show');
-  clearTimeout(_toastT);
-  _toastT=setTimeout(()=>t.classList.remove('show'),dur);
+  /* Si ya había uno a la vista, solo cambia el contenido: no vuelve a «entrar». Antes cada aviso
+     quitaba .show y forzaba un reflow, y «Eliminada → Deshacer → Restaurada» parpadeaba. Un
+     desenfoque de 2 px que se disuelve disimula el cambio de texto. */
+  const ya=t.classList.contains('show');
+  t.className='toast '+type+(ya?' show':'');
+  if(!ya){ void t.offsetWidth; t.classList.add('show'); }
+  else if(t.animate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)
+    t.animate([{opacity:.6,filter:'blur(2px)'},{opacity:1,filter:'none'}],{duration:160,easing:'cubic-bezier(.23,1,.32,1)'});
+  _toastResta=0;
+  _toastProgramar(dur);
   /* Todo lo de arriba se escribe con el aviso todavía en visibility:hidden, o sea
      fuera del árbol de accesibilidad: la región activa no veía ninguna mutación, y
      volverlo visible con el texto ya puesto tampoco es una inserción. Ni VoiceOver ni

@@ -301,7 +301,8 @@
   --mv:.32s cubic-bezier(.2,.8,.2,1);
   --mv-r:.2s cubic-bezier(.2,.8,.2,1);
   --mv-s:.16s cubic-bezier(.2,.8,.2,1);
-  --mv-t:.5s cubic-bezier(.2,.8,.2,1);
+  /* Era .5 s con la salida fuerte. Es un viaje dentro de la pantalla: ease-in-out y 380 ms. */
+  --mv-t:.38s cubic-bezier(.77,0,.175,1);
 
   /* ----- Alias de los nombres viejos -----
      Esta lista ES el rediseño, para las mil líneas de abajo: cada nombre viejo cuelga del
@@ -441,9 +442,22 @@
 
      Y una duración más, la de la RESPIRACIÓN: lo que se mueve solo, sin que nadie lo toque,
      se mide en segundos y no en décimas. A .3 s un brillo que va y viene es un parpadeo; a 12
-     es una lámina de vidrio bajo una luz que cambia. */
-  --mv-liq:.42s cubic-bezier(.34,1.26,.5,1);
+     es una lámina de vidrio bajo una luz que cambia.
+
+     ----- Revisión de la auditoría de movimiento (26 sep 2026) -----
+     La curva elástica se va, y el nombre se queda porque lo piden seis reglas. Medido en el
+     render: todo lo presionable heredaba .42 s con rebote en su `transform`, y un toque normal
+     dura ~80 ms —el botón llegaba al 70 % de su hundimiento y tardaba casi medio segundo en
+     volver—. El sobrepaso de esa curva, calculado, es de 0,1 %: no se veía; solo se sentía
+     blando. Presionar vive entre 100 y 160 ms y con una salida fuerte, sin rebote.
+     --ease-out y --ease-io son las dos curvas de la auditoría: la primera para lo que entra,
+     sale o se presiona; la segunda para lo que VIAJA dentro de la pantalla (el total que vuela).
+     --ease-hoja es la de las hojas del teléfono, la del sistema operativo. */
+  --mv-liq:.16s cubic-bezier(.23,1,.32,1);
   --mv-lento:12s;
+  --ease-out:cubic-bezier(.23,1,.32,1);
+  --ease-io:cubic-bezier(.77,0,.175,1);
+  --ease-hoja:cubic-bezier(.32,.72,0,1);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 /* ----- `hidden` tiene que ganar -----
@@ -456,6 +470,11 @@
    css/plataforma.css lleva esta misma regla escrita desde entonces. Aquí vale para las tres
    superficies, y así no hay una cuarta. */
 [hidden]{display:none!important}
+/* Mientras cambia el tema (dos cuadros, ver js/tema.js) no hay transiciones: todo cambia a la vez. */
+html.sin-transicion *,html.sin-transicion *::before,html.sin-transicion *::after{transition:none!important}
+/* El hueco de la barra de desplazamiento se reserva siempre: al abrir un modal, html.modal-abierto
+   la quita (overflow:hidden) y todo el contenido se corría 6 px a la derecha y volvía al cerrar. */
+html{scrollbar-gutter:stable}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(var(--n5-rgb),.22);border-radius:4px}
@@ -688,7 +707,7 @@ body.precios-ocultos .precios-nota{display:flex}
 .wrap.p-cliente .paso-total small{display:none}
 .pasos{grid-column:1/-1;display:flex;align-items:stretch;gap:4px;margin-bottom:2px}
 .paso-tab{display:flex;align-items:center;gap:9px;min-height:44px;padding:9px 15px 9px 11px;border:1px solid transparent;border-radius:var(--r-sm);
-  background:rgba(var(--sup-rgb),.7);cursor:pointer;text-align:left;color:var(--muted);font-family:inherit;transition:.15s;min-width:0}
+  background:rgba(var(--sup-rgb),.7);cursor:pointer;text-align:left;color:var(--muted);font-family:inherit;min-width:0}
 .paso-tab .tx{display:flex;flex-direction:column;min-width:0;font-size:var(--t2);font-weight:550;line-height:1.25}
 /* El nombre del cliente debajo del paso 1: es el único dato de la pantalla que se acaba de
    dejar atrás y que hace falta no perder de vista mientras se captura la otra. Nunca
@@ -890,7 +909,10 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:calc
 }
 /* Nada de zoom por doble toque ni destello gris al tocar: en el celular ese medio
    segundo de espera del navegador hace que la app se sienta lenta. */
-button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary,[role="button"]{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+/* El scroll de una lista dentro de un panel no se escapa a la página de atrás al llegar al final
+   (dentro del marco empotrado, el historial arrastraba la plataforma). */
+.hist-body,.rv-modal,.modal-b{overscroll-behavior:contain}
 
 /* ---------- El texto de la interfaz no es texto que se edita ----------
    Reporte textual: «los textos de los títulos se pueden borrar como si fuese un texto
@@ -972,7 +994,8 @@ button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-
 .mbar-undo{flex:0 0 auto;width:46px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;
   border:1px solid var(--n3);border-radius:var(--rr1);background:var(--sup);color:var(--brand);
   font-size:17px;cursor:pointer;font-family:inherit;padding:0}
-.mbar-undo:active{transform:scale(.96)}
+.mbar-undo{transition:transform var(--mv-liq)}
+.mbar-undo:active{transform:scale(.95)}
 /* Con el deshacer al lado, el botón principal deja de ser hijo único y perdía su ancho
    completo contra el tope del 62%: en la pantalla del cliente, «Continuar a partidas» se
    encogía a dos tercios en cuanto había algo que deshacer, sin que nada más cambiara. */
@@ -999,7 +1022,7 @@ button,.chip,.tg,.switch,.ptok,.psum,.tipo-seg button,.seg button,summary{touch-
    nombre de cliente largo el resumen no se recortaba, empujaba la tarjeta y con
    ella toda la página a lo ancho. */
 .card-fold .txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.card-fold .chev{font-size:10px;flex-shrink:0;transition:transform .18s}
+.card-fold .chev{font-size:10px;flex-shrink:0;transition:transform .18s var(--ease-out)}
 @media(hover:hover){.card-fold:hover{border-color:var(--brand);background:var(--soft-2)}}
 @media(max-width:920px){
   .card-fold{display:inline-flex}
@@ -1083,7 +1106,7 @@ textarea{resize:vertical;min-height:46px}
   .tipo-seg{order:9;flex-basis:100%;width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
   .tipo-seg button{padding:10px 5px;font-size:11.5px;line-height:1.25;text-align:center;min-height:44px}
 }
-.del{border:none;background:none;color:var(--n5);font-size:19px;cursor:pointer;line-height:1;padding:3px 6px;border-radius:7px;transition:.12s}
+.del{border:none;background:none;color:var(--n5);font-size:19px;cursor:pointer;line-height:1;padding:3px 6px;border-radius:7px}
 @media(hover:hover){.del:hover{color:var(--red);background:var(--red-bg)}}
 
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
@@ -1125,7 +1148,6 @@ textarea{resize:vertical;min-height:46px}
 .tipo-seg button:is(:disabled,[aria-disabled="true"]).on{background:var(--gray-bg);color:var(--ink);box-shadow:none;animation:none}
 .del:is(:disabled,[aria-disabled="true"]){cursor:default;color:var(--n4)}
 @media(hover:hover){.del:is(:disabled,[aria-disabled="true"]):hover{color:var(--n4);background:none}}
-@keyframes chipPop{0%{transform:scale(.84)}65%{transform:scale(1.07)}100%{transform:scale(1)}}
 /* `inline-flex` y no `inline-block`: la nota casi siempre empieza con un icono, y como
    caja de bloque el único separador entre el icono y el texto era un espacio de texto
    literal —' ' en el JS— que a 12,5 px mide 3,3 px, contra los 8 del resto del sistema. Era
@@ -1167,13 +1189,13 @@ textarea{resize:vertical;min-height:46px}
    reposo, y el texto conserva su color de siempre. */
 .switch:disabled .tg{background:var(--n4);box-shadow:none}
 .switch:disabled .tg.on{background:var(--n5)}
-.tg{width:42px;height:24px;background:var(--n5);border-radius:13px;position:relative;transition:.2s;flex-shrink:0}
+.tg{width:42px;height:24px;background:var(--n5);border-radius:13px;position:relative;flex-shrink:0}
 /* La perilla se ve de 42×24, pero se toca en 50×44: la capa invisible crece la zona
    sensible sin mover nada de sitio. Es el control del IVA, de la iluminación y del
    pegado a guías; con 24 px de alto se erraba. */
 .tg::before{content:'';position:absolute;inset:-10px -4px;border-radius:16px}
 .tg.on{background:var(--brand-grd)}
-.tg::after{content:'';width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:3px;left:3px;transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.tg::after{content:'';width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:3px;left:3px;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .tg.on::after{left:21px}
 
 .pline{display:flex;align-items:center;justify-content:flex-start;gap:var(--e3);margin-top:var(--e4);padding-top:var(--e3);border-top:1px solid var(--linea2)}
@@ -1390,7 +1412,7 @@ details.ai-cfg>summary{list-style:none}
 details.ai-cfg>summary::-webkit-details-marker{display:none}
 details.ai-cfg>summary::marker{content:''}
 details.ai-cfg>summary::after{content:'\25be';margin-left:auto;font-size:11px;font-weight:700;
-  color:var(--n5);transition:transform var(--mv);flex-shrink:0}
+  color:var(--n5);transition:transform .2s var(--ease-out);flex-shrink:0}
 details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
 /* «Nueva cotización» estaba a un dedo de «Registrar venta». Una línea y aire la separan de
    lo que se hace con ESTA cotización. */
@@ -1400,18 +1422,24 @@ details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
 .authnote b{color:var(--ink)}
 .mini{font-size:11.5px;color:var(--muted);margin-top:9px;text-align:center;line-height:1.5}
 
-.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(90px);background:#11162e;color:#fff;padding:13px 20px;border-radius:13px;font-size:14px;font-weight:600;z-index:100;transition:transform .3s cubic-bezier(.2,.8,.2,1);box-shadow:0 8px 40px rgba(0,0,0,.28);display:flex;align-items:center;gap:14px;width:max-content;max-width:min(92vw,540px);text-align:left;visibility:hidden;transition:transform .3s cubic-bezier(.2,.8,.2,1),visibility 0s linear .3s}
+/* Una sola TRANSICIÓN, de ida y de vuelta, y sin keyframes. Antes entraba con una keyframe de
+   160 ms y salía deslizándose 90 px en 300 ms, opaco: tardaba más en irse que en llegar, en el
+   teléfono acababa encima del dock y se apagaba de golpe. Ahora aparece desde 8 px en 240 ms y
+   se va desvaneciéndose en 150. Una transición se puede interrumpir: dos avisos seguidos ya no
+   reinician nada (ver toast() en nucleo.js y ui.js). */
+.toast{position:fixed;bottom:26px;left:50%;opacity:0;transform:translateX(-50%) translateY(8px);background:#11162e;color:#fff;padding:13px 20px;border-radius:13px;font-size:14px;font-weight:600;z-index:100;box-shadow:0 8px 40px rgba(0,0,0,.28);display:flex;align-items:center;gap:14px;width:max-content;max-width:min(92vw,540px);text-align:left;visibility:hidden;transition:opacity .15s var(--ease-out),transform .15s var(--ease-out),visibility 0s linear .15s}
 /* Al aparecer se hace visible de inmediato; al ocultarse espera a que termine de
-   deslizarse. Con una transición normal de visibility el botón "Deshacer" tardaba
+   desvanecerse. Con una transición normal de visibility el botón "Deshacer" tardaba
    en volverse tocable. */
-.toast.show{transform:translateX(-50%) translateY(0);visibility:visible;transition:transform .3s cubic-bezier(.2,.8,.2,1),visibility 0s linear 0s}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);visibility:visible;transition:opacity .2s var(--ease-out),transform .24s var(--ease-out),visibility 0s linear 0s}
 /* Mientras se va deslizando sigue visible 0.3 s y se comía el toque del botón que
    quedaba debajo: ya retirado, no estorba. */
 .toast:not(.show){pointer-events:none}
 /* Solo se animan color y borde: con "transition:.13s" (que aplica a todas las
    propiedades) el botón heredaba la animación de visibility del aviso y tardaba
    en volverse tocable justo cuando el usuario quiere apretarlo. */
-.toast-act{flex-shrink:0;border:1.5px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;font-family:inherit;font-size:13px;font-weight:800;padding:7px 15px;border-radius:9px;cursor:pointer;transition:background .13s,border-color .13s}
+.toast-act{flex-shrink:0;border:1.5px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;font-family:inherit;font-size:13px;font-weight:800;padding:7px 15px;border-radius:9px;cursor:pointer;transition:background .13s,border-color .13s,transform var(--mv-liq)}
+.toast-act:active{transform:scale(.96)}
 @media(hover:hover){.toast-act:hover{background:rgba(255,255,255,.24);border-color:#fff}}
 .toast.ok{background:var(--ok)} .toast.err{background:var(--mal)}
 /* En móvil el aviso se sube por encima de la barra de acción: si no, la tapa justo
@@ -1431,8 +1459,8 @@ details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
    existe: el cotizador suelto y el empotrado). El teléfono se queda centrado: ahí la barra fija
    ocupa todo el ancho y el aviso ya se pone encima de ella. */
 @media(min-width:760px){
-  .toast{left:calc(var(--lat,0px) + 24px);right:auto;transform:translateY(90px)}
-  .toast.show{transform:translateY(0)}
+  .toast{left:calc(var(--lat,0px) + 24px);right:auto;transform:translateY(8px)}
+  .toast.show{transform:none}
   /* Con una capa abierta, el aviso SUBE lo justo para librar el pie del panel. «Abajo a la
      izquierda no hay nada que tapar» vale para la página, pero la ficha del proyecto y la
      orden de trabajo se centran en un panel de 640 px cuyo pie de botones cae exactamente en
@@ -1455,7 +1483,7 @@ details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
 /* ----- Cola de autorización ----- */
 .queue-list{border:1.5px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-bottom:11px}
 .queue-empty{font-size:12.5px;color:var(--muted);text-align:center;padding:16px 10px;background:var(--soft)}
-.queue-item{display:flex;align-items:center;gap:9px;padding:10px 13px;cursor:pointer;border-bottom:1px solid var(--line);transition:.12s;background:var(--sup)}
+.queue-item{display:flex;align-items:center;gap:9px;padding:10px 13px;cursor:pointer;border-bottom:1px solid var(--line);background:var(--sup)}
 .queue-item:last-child{border-bottom:none}
 @media(hover:hover){.queue-item:hover:not(.active){background:var(--soft)}}
 .queue-item.active{background:var(--soft-2);border-left:3px solid var(--brand);padding-left:10px}
@@ -1498,7 +1526,7 @@ details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
   display:flex;flex-direction:column;max-height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
 .modal-h{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--sup);flex-shrink:0}
 .modal-h b{font-size:15px;font-weight:700}
-.modal-h button{border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:.12s}
+.modal-h button{border:none;background:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center}
 @media(hover:hover){.modal-h button:hover{background:var(--soft);color:var(--ink)}}
 .modal-b{padding:18px 20px 20px;overflow-y:auto;flex:1 1 auto;min-height:0;-webkit-overflow-scrolling:touch}
 .ai-status{font-size:12.5px;margin-top:11px;min-height:16px;font-weight:600}
@@ -1586,7 +1614,7 @@ details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:
 .ai-prev-big{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--soft);padding:12px;margin-bottom:14px}
 .ai-prev-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
 .ai-prev-head .ttl{font-size:11.5px;font-weight:700;color:var(--brand);line-height:1.4}
-.ai-prev-head .x{border:none;background:none;color:var(--n5);font-size:18px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px;flex-shrink:0;transition:.12s}
+.ai-prev-head .x{border:none;background:none;color:var(--n5);font-size:18px;cursor:pointer;line-height:1;padding:2px 6px;border-radius:6px;flex-shrink:0;transition:color var(--mv-s),background var(--mv-s)}
 @media(hover:hover){.ai-prev-head .x:hover{color:var(--red);background:var(--red-bg)}}
 .ai-prev-img{display:block;width:100%;max-height:440px;object-fit:contain;border-radius:9px;border:1px solid var(--line);background:repeating-conic-gradient(var(--n1) 0% 25%,var(--sup) 0% 50%) 50%/16px 16px;cursor:zoom-in}
 .ai-prev-pdf{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:130px;border-radius:9px;border:1.5px dashed var(--red);background:var(--red-bg);color:var(--red);font-weight:700;font-size:13px;cursor:pointer;text-align:center;padding:10px}
@@ -1598,7 +1626,7 @@ details.ai-cfg summary{display:flex;align-items:center;gap:var(--e2);min-height:
 .sc-prev-head .chev{font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;flex-shrink:0}
 .sc-prev-img{display:block;width:100%;height:auto;max-height:420px;margin-top:9px;border-radius:9px;border:1px solid var(--line);background:repeating-conic-gradient(var(--n1) 0% 25%,var(--sup) 0% 50%) 50%/16px 16px;cursor:pointer;object-fit:contain}
 .sc-prev-box .sub{font-size:11px;color:var(--muted);margin-top:8px;text-align:center}
-.lightbox-close{position:fixed;top:max(20px,calc(env(safe-area-inset-top,0px) + 8px));right:max(24px,calc(env(safe-area-inset-right,0px) + 8px));width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:70;transition:.12s}
+.lightbox-close{position:fixed;top:max(20px,calc(env(safe-area-inset-top,0px) + 8px));right:max(24px,calc(env(safe-area-inset-right,0px) + 8px));width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:70;transition:background var(--mv-s)}
 @media(hover:hover){.lightbox-close:hover{background:rgba(255,255,255,.28)}}
 .lightbox-img{max-width:calc(100vw - 36px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px));max-height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.5);display:block}
 .lightbox-iframe{width:min(88vw,calc(100vw - 36px));height:calc(100dvh - 36px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));border:0;border-radius:8px;background:#fff}
@@ -1676,7 +1704,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 .hist-count{font-size:11px;font-weight:800;color:var(--a-fuerte);background:var(--soft-2);border:1px solid rgba(var(--a-rgb),.12);padding:5px 12px;border-radius:20px;white-space:nowrap}
 .hist-body{overflow-y:auto;flex:1}
 .hentry-acts{display:flex;flex-direction:column;gap:5px;align-self:flex-start;flex-shrink:0}
-.hentry-open{border:1.5px solid var(--line);background:var(--sup);color:var(--brand);font-family:inherit;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap;transition:.12s}
+.hentry-open{border:1.5px solid var(--line);background:var(--sup);color:var(--brand);font-family:inherit;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap}
 @media(hover:hover){.hentry-open:hover{border-color:var(--brand);background:var(--soft-2)}}
 .hist-empty{text-align:center;color:var(--muted);font-size:13px;padding:50px 20px}
 .hentry{border-bottom:1px solid var(--line);padding:18px 20px}
@@ -1689,7 +1717,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 .hentry-name{font-size:14px;font-weight:800;color:var(--ink);margin:3px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hentry-sub{font-size:11.5px;color:var(--muted);line-height:1.6}
 .hentry-auth{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;background:var(--green-bg);color:var(--green);padding:3px 11px;border-radius:20px;margin-top:6px}
-.hentry-del{border:none;background:none;color:var(--n5);cursor:pointer;font-size:16px;padding:5px 7px;border-radius:9px;transition:.12s;align-self:flex-start;flex-shrink:0}
+.hentry-del{border:none;background:none;color:var(--n5);cursor:pointer;font-size:16px;padding:5px 7px;border-radius:9px;transition:color var(--mv-s),background var(--mv-s);align-self:flex-start;flex-shrink:0}
 @media(hover:hover){.hentry-del:hover{color:var(--red);background:var(--red-bg)}}
 .htable{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:10px}
 .htable td{padding:5px 7px;border-bottom:1px solid var(--line);color:var(--n7);vertical-align:top}
@@ -1703,7 +1731,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
    gesto —abrir una libreta encima del cotizador— y dos cajas distintas para lo mismo se
    ven como dos apps. Lo que cambia es lo de adentro. */
 .cua-card{display:flex;align-items:center;gap:13px;width:100%;text-align:left;border:none;background:none;font-family:inherit;
-  border-bottom:1px solid var(--line);padding:15px 20px;cursor:pointer;transition:.12s}
+  border-bottom:1px solid var(--line);padding:15px 20px;cursor:pointer;transition:background var(--mv-s),border-color var(--mv-s)}
 .cua-card:last-child{border-bottom:none}
 @media(hover:hover){.cua-card:hover{background:var(--soft)}}
 .cua-ini{display:flex;width:42px;height:42px;flex-shrink:0;border-radius:12px;background:var(--soft-2);color:var(--a-fuerte);
@@ -1726,7 +1754,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 .cua-alias{font-size:11px;color:var(--muted);margin-top:4px;font-style:italic}
 .cua-det-acts{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
 .cua-det-acts button{border:1.5px solid var(--line);background:var(--sup);color:var(--brand);font-family:inherit;font-size:11.5px;
-  font-weight:700;padding:7px 12px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap;transition:.12s}
+  font-weight:700;padding:7px 12px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap}
 @media(hover:hover){.cua-det-acts button:hover{border-color:var(--brand);background:var(--soft-2)}}
 .cua-cifras{display:flex;gap:9px;padding:13px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .cua-cifra{flex:1;min-width:96px;background:var(--soft);border:1px solid var(--line);border-radius:var(--rr1);padding:9px 11px}
@@ -1746,7 +1774,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 .cua-cot-tot{font-size:13px;font-weight:800;color:var(--green);white-space:nowrap;flex-shrink:0}
 .cua-cot-acts{display:flex;gap:5px;flex-shrink:0}
 .cua-cot-acts button{border:1.5px solid var(--line);background:var(--sup);color:var(--brand);font-family:inherit;font-size:11px;
-  font-weight:700;padding:6px 9px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap;transition:.12s}
+  font-weight:700;padding:6px 9px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap}
 @media(hover:hover){.cua-cot-acts button:hover{border-color:var(--brand);background:var(--soft-2)}}
 
 /* El aviso que sale bajo el campo Cliente cuando el que se está capturando ya tiene cuaderno */
@@ -1756,7 +1784,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
   cursor:pointer;padding:0;text-decoration:underline;white-space:nowrap}
 /* ----- Dirección raw del cliente ----- */
 .dir-raw-actions{display:flex;gap:8px;margin-top:7px}
-.btn-maps{flex:1;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--sup);color:var(--brand);font-size:12px;font-weight:700;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:5px}
+.btn-maps{flex:1;padding:8px 10px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--sup);color:var(--brand);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px}
 @media(hover:hover){.btn-maps:hover{border-color:var(--brand);background:var(--soft-2)}}
 .btn-maps.copy{color:var(--green);border-color:rgba(var(--ok-rgb),.25)}@media(hover:hover){.btn-maps.copy:hover{background:var(--green-bg);border-color:var(--green)}}
 /* ----- AI preview en sidebar ----- */
@@ -1770,7 +1798,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 .inp-money input{padding-left:26px}
 /* ----- Auth por partida ----- */
 .ia-row{border:1px solid var(--line);border-radius:8px;margin-bottom:5px;overflow:hidden;background:var(--sup)}
-.ia-hdr{display:flex;align-items:center;gap:7px;padding:8px 10px;cursor:pointer;user-select:none;transition:.1s}
+.ia-hdr{display:flex;align-items:center;gap:7px;padding:8px 10px;cursor:pointer;user-select:none}
 @media(hover:hover){.ia-hdr:hover{background:var(--soft)}}
 .ia-num{width:20px;height:20px;border-radius:6px;background:var(--brand-grd);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .ia-desc{flex:1;font-size:11px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
@@ -1793,7 +1821,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 .prog-label span:first-child{font-size:var(--t2);font-weight:500;color:var(--n6)}
 #prog-pct{font-size:12.5px;font-weight:900;color:var(--brand)}
 .prog-track{height:7px;background:var(--line);border-radius:10px;overflow:hidden}
-#prog-bar{height:100%;background:linear-gradient(90deg,#f59e0b,#fb923c);border-radius:10px;transition:width .5s cubic-bezier(.22,1,.36,1),background .5s;width:0%}
+#prog-bar{height:100%;background:var(--a-fill)}
 /* ----- Escalador Pro (modal pantalla completa) ----- */
 /* 100dvh además de inset: en el celular la barra de direcciones cambia de alto y con
    solo inset:0 el pie del panel quedaba fuera de la pantalla, sin manera de volver. */
@@ -1836,26 +1864,26 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 .sp-mitem.sel{border-color:var(--brand-strong);background:var(--soft-2);box-shadow:0 0 0 3px rgba(var(--a-rgb),.12)}
 .sp-mitem-cm{font-size:17px;font-weight:900;color:var(--brand-strong);line-height:1;letter-spacing:.1px;font-variant-numeric:tabular-nums}
 .sp-mitem-cm small{font-size:11px;font-weight:600;color:var(--muted);margin-left:2px}
-.sp-mitem-label{display:block;width:100%;border:none;background:transparent;padding:3px 0;font-size:12px;color:var(--ink);font-family:inherit;cursor:text;margin-top:4px;outline:none;border-bottom:1px solid transparent;transition:.15s}
+.sp-mitem-label{display:block;width:100%;border:none;background:transparent;padding:3px 0;font-size:12px;color:var(--ink);font-family:inherit;cursor:text;margin-top:4px;outline:none;border-bottom:1px solid transparent;transition:border-color var(--mv-s),color var(--mv-s)}
 .sp-mitem-label:focus{color:var(--ink);border-bottom-color:var(--line)}
 .sp-mitem-label::placeholder{color:var(--n5)}
 .sp-mitem-actions{display:flex;flex-direction:column;gap:4px;flex-shrink:0;padding-top:2px}
 .sp-mitem-add{margin-top:8px;width:100%;padding:7px 10px;background:var(--brand-grd);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px}
 .sp-mitem-add.done{background:var(--green-bg);color:var(--green);border:1px solid rgba(var(--ok-rgb),.25);font-weight:600}
-.sp-addall{margin:0 14px 10px;padding:9px 12px;width:calc(100% - 28px);border:1.5px solid var(--brand);border-radius:var(--r-sm);background:var(--soft-2);color:var(--brand-strong);font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;transition:.15s}
+.sp-addall{margin:0 14px 10px;padding:9px 12px;width:calc(100% - 28px);border:1.5px solid var(--brand);border-radius:var(--r-sm);background:var(--soft-2);color:var(--brand-strong);font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer}
 @media(hover:hover){.sp-addall:hover{background:var(--a-suave)}}
 .sp-addall:disabled{opacity:.45;cursor:default}
 .sp-addall-note{margin:0 14px 10px;font-size:11.5px;color:var(--green);font-weight:700;text-align:center}
 /* Del escalador a la IA: la otra salida de las medidas, la que devuelve la partida
    completa en vez de solo su altura. */
-.sp-ai{margin:0 14px 7px;padding:9px 12px;width:calc(100% - 28px);border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 10px rgba(var(--a-rgb),.25);transition:.15s}
+.sp-ai{margin:0 14px 7px;padding:9px 12px;width:calc(100% - 28px);border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:12.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 10px rgba(var(--a-rgb),.25)}
 @media(hover:hover){.sp-ai:hover{filter:brightness(1.06)}}
 .sp-ai:disabled{opacity:.45;cursor:default;box-shadow:none}
 .sp-ai-note{margin:0 14px 10px;font-size:11px;color:var(--muted);line-height:1.45;text-align:center}
 /* Volver al cotizador desde el pie del panel: en el celular es el botón que se queda
    pegado abajo, siempre a la vista aunque la lista de medidas crezca. */
 .sp-back-m{display:none}
-.sp-ibtn{border:none;background:none;color:var(--n5);font-size:15px;cursor:pointer;padding:3px 6px;border-radius:6px;line-height:1;transition:.12s}
+.sp-ibtn{border:none;background:none;color:var(--n5);font-size:15px;cursor:pointer;padding:3px 6px;border-radius:6px;line-height:1;transition:color var(--mv-s),background var(--mv-s)}
 @media(hover:hover){.sp-ibtn:hover{color:var(--red);background:var(--red-bg)}}
 /* ----- Secciones plegables del panel -----
    El panel del escalador es una columna de 412 px visibles en el teléfono y su
@@ -1868,7 +1896,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 .sp-fold>summary::marker{content:''}
 .sp-fold>summary h3{flex:1;min-width:0}
 .sp-fold>summary::after{content:'▾';font-size:11px;font-weight:700;color:var(--muted);
-  flex-shrink:0;transition:transform .18s}
+  flex-shrink:0;transition:transform .18s var(--ease-out)}
 .sp-fold[open]>summary::after{transform:rotate(180deg)}
 .sp-fold>summary:active{background:var(--soft)}
 .sp-fold[open]>summary{padding-bottom:0}
@@ -1881,23 +1909,23 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 .sp-gitem{display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;border:1px solid rgba(var(--n3-rgb),.8);border-left:3px solid var(--sc-guide);border-radius:var(--r-sm);background:var(--sup);font-size:12.5px}
 .sp-gitem .ico{color:var(--sc-guide);width:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px}
 .sp-gitem .lbl{flex:1;color:var(--ink);font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sp-gclear{display:block;width:100%;margin-top:2px;padding:6px;border:none;background:none;color:var(--muted);font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;border-radius:7px;transition:.12s}
+.sp-gclear{display:block;width:100%;margin-top:2px;padding:6px;border:none;background:none;color:var(--muted);font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;border-radius:7px;transition:color var(--mv-s),background var(--mv-s)}
 @media(hover:hover){.sp-gclear:hover{color:var(--red);background:var(--red-bg)}}
 .sp-calib-badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:20px;white-space:nowrap;flex-shrink:0;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(var(--av-rgb),.2)}
 .sp-calib-badge.ok{background:var(--green-bg);color:var(--green);border-color:rgba(var(--ok-rgb),.2)}
 .sp-calib-badge .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
 .tool-seg{display:inline-flex;background:var(--soft);border:1px solid var(--line);border-radius:var(--r-sm);padding:3px;gap:2px}
-.tool-seg button{border:none;background:none;padding:7px 13px;font-size:12.5px;font-weight:600;color:var(--muted);border-radius:9px;cursor:pointer;transition:.15s;font-family:inherit;white-space:nowrap}
+.tool-seg button{border:none;background:none;padding:7px 13px;font-size:12.5px;font-weight:600;color:var(--muted);border-radius:9px;cursor:pointer;font-family:inherit;white-space:nowrap}
 @media(hover:hover){.tool-seg button:hover:not(.active){background:rgba(var(--a-rgb),.06);color:var(--brand)}}
 .tool-seg button.active{background:var(--brand-grd);color:#fff;box-shadow:0 2px 10px rgba(var(--a-rgb),.3)}
 .tool-seg button:disabled{opacity:.38;pointer-events:none}
-.sp-tb-btn{border:1.5px solid var(--line);background:var(--sup);border-radius:var(--r-sm);padding:8px 14px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;transition:.14s;display:flex;align-items:center;gap:6px;white-space:nowrap;font-family:inherit}
+.sp-tb-btn{border:1.5px solid var(--line);background:var(--sup);border-radius:var(--r-sm);padding:8px 14px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;font-family:inherit}
 @media(hover:hover){.sp-tb-btn:hover{border-color:var(--brand);color:var(--brand);background:var(--soft)}}
 .sp-tb-btn.active{background:var(--brand-grd);color:#fff;border-color:var(--brand);box-shadow:0 2px 10px rgba(var(--a-rgb),.28)}
 .sp-tb-btn:disabled{opacity:.42;cursor:not-allowed;pointer-events:none}
 /* Salida del escalador. En el celular deja de ser una × suelta y se vuelve un botón
    con texto: es la manera obvia de regresar al cotizador. */
-.sp-close{border:none;background:none;color:var(--muted);cursor:pointer;line-height:1;width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;gap:6px;flex-shrink:0;transition:.12s;font-family:inherit}
+.sp-close{border:none;background:none;color:var(--muted);cursor:pointer;line-height:1;width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;gap:6px;flex-shrink:0;transition:background var(--mv-s),color var(--mv-s);font-family:inherit}
 @media(hover:hover){.sp-close:hover{background:var(--soft);color:var(--ink)}}
 .sp-close .ico{font-size:19px;line-height:1;display:flex}
 .sp-close .back,.sp-close .lbl{display:none}
@@ -1915,7 +1943,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 @keyframes scFlash{0%,55%{box-shadow:0 0 0 3px rgba(var(--a-rgb),.35);border-radius:var(--r-sm)}100%{box-shadow:0 0 0 3px rgba(var(--a-rgb),0);border-radius:var(--r-sm)}}
 .ref-known{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:8px}
 .ref-known-title{font-size:11px;font-weight:700;color:var(--muted);margin-right:2px;white-space:nowrap}
-.ref-known button{padding:5px 9px;border:1.5px solid var(--line);border-radius:8px;background:var(--sup);font-size:11.5px;font-weight:600;cursor:pointer;color:var(--ink);transition:.12s;white-space:nowrap;font-family:inherit}
+.ref-known button{padding:5px 9px;border:1.5px solid var(--line);border-radius:8px;background:var(--sup);font-size:11.5px;font-weight:600;cursor:pointer;color:var(--ink);transition:border-color var(--mv-s),background var(--mv-s),color var(--mv-s);white-space:nowrap;font-family:inherit}
 @media(hover:hover){.ref-known button:hover{border-color:var(--brand);background:var(--soft-2);color:var(--brand)}}
 /* ----- Cuánto se enseña de las cotas -----
    El botón vive en la esquina de abajo a la izquierda, a la misma altura que los de zoom
@@ -1928,7 +1956,8 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 .sp-cotas-fab button{width:42px;height:42px;border:none;border-radius:11px;background:rgba(255,255,255,.95);color:var(--ink);font-size:19px;cursor:pointer;box-shadow:0 3px 14px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;line-height:1;font-family:inherit}
 .sp-cotas-fab button.foco{background:var(--brand-grd);color:#fff}
 .sp-cotas-fab button.off{background:rgba(20,24,44,.92);color:rgba(255,255,255,.78);box-shadow:0 3px 14px rgba(0,0,0,.34),inset 0 0 0 1px rgba(255,255,255,.22)}
-.sp-cotas-fab button:active{transform:scale(.94)}
+.sp-cotas-fab button{transition:transform var(--mv-liq)}
+.sp-cotas-fab button:active{transform:scale(.95)}
 /* El mismo mando en el panel, con los tres modos escritos */
 .sp-cotas{padding:10px 14px 11px;border-bottom:1px solid var(--line);background:var(--soft)}
 .sp-cotas-lbl{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px}
@@ -1939,8 +1968,9 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 /* ----- Zoom / desplazamiento y lupa del escalador ----- */
 .sp-zoom{position:absolute;right:12px;bottom:52px;display:none;flex-direction:column;gap:7px;z-index:6}
 .sp-zoom button{width:42px;height:42px;border:none;border-radius:11px;background:rgba(255,255,255,.95);color:var(--ink);font-size:20px;font-weight:800;cursor:pointer;box-shadow:0 3px 14px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;line-height:1;font-family:inherit}
-.sp-zoom button:active{background:var(--a-suave);transform:scale(.94)}
-.sp-loupe{position:fixed;width:132px;height:132px;border-radius:50%;border:3px solid rgba(255,255,255,.92);box-shadow:0 6px 26px rgba(0,0,0,.45);display:none;pointer-events:none;z-index:60;overflow:hidden;background:#181c2e}
+.sp-zoom button{transition:background var(--mv-s),transform var(--mv-liq)}
+.sp-zoom button:active{background:var(--a-suave);transform:scale(.95)}
+.sp-loupe{position:fixed;left:0;top:0;will-change:transform;width:132px;height:132px;border-radius:50%;border:3px solid rgba(255,255,255,.92);box-shadow:0 6px 26px rgba(0,0,0,.45);display:none;pointer-events:none;z-index:60;overflow:hidden;background:#181c2e}
 .sp-loupe canvas{display:block}
 /* ===================== Vectorizador =====================
    Reaprovecha el armazón del escalador (.sp-topbar, .sp-main, .sp-canvas-area,
@@ -1977,20 +2007,20 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 .vt-prog.on{display:flex}
 .vt-prog-txt{font-size:13px;font-weight:700;color:#fff;letter-spacing:.3px}
 .vt-prog-track{width:min(260px,62%);height:6px;border-radius:4px;background:rgba(255,255,255,.18);overflow:hidden}
-.vt-prog-bar{height:100%;width:0;background:var(--a);border-radius:3px;transition:width .2s}
+.vt-prog-bar{height:100%;width:100%;background:var(--a);transform-origin:left center;transform:scaleX(0);transition:transform .2s var(--ease-out)}
 /* Controles del panel */
 .vt-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:11px}
 .vt-row>label{font-size:12.5px;font-weight:600;color:var(--ink);flex:1;min-width:0}
 .vt-val{font-size:12px;font-weight:800;color:var(--brand-strong);background:var(--soft-2);border:1px solid rgba(var(--a-rgb),.14);border-radius:20px;padding:2px 10px;min-width:38px;text-align:center;flex-shrink:0}
 .vt-modal-bg input[type=range]{width:100%;accent-color:var(--brand);height:26px}
 .vt-modo{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.vt-modo button{padding:9px 4px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--sup);font-family:inherit;font-size:12px;font-weight:700;color:var(--ink);cursor:pointer;transition:.14s;display:flex;flex-direction:column;align-items:center;gap:3px;line-height:1.25}
+.vt-modo button{padding:9px 4px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--sup);font-family:inherit;font-size:12px;font-weight:700;color:var(--ink);cursor:pointer;transition:border-color var(--mv-s),background-color var(--mv-s),color var(--mv-s),box-shadow var(--mv-s);display:flex;flex-direction:column;align-items:center;gap:3px;line-height:1.25}
 .vt-modo button .svgi{font-size:17px}
 .vt-modo button small{font-size:9.5px;font-weight:600;color:var(--muted);letter-spacing:.2px}
 @media(hover:hover){.vt-modo button:hover{border-color:var(--brand);background:var(--soft)}}
 .vt-modo button.on{background:var(--brand-grd);color:#fff;border-color:var(--brand);box-shadow:0 2px 10px rgba(var(--a-rgb),.26)}
 .vt-modo button.on small{color:rgba(255,255,255,.82)}
-.vt-go{width:100%;padding:12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:13.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 12px rgba(var(--a-rgb),.3);transition:.16s;display:flex;align-items:center;justify-content:center;gap:7px}
+.vt-go{width:100%;padding:12px;border:none;border-radius:var(--r-sm);background:var(--brand-grd);color:#fff;font-size:13.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 12px rgba(var(--a-rgb),.3);transition:filter var(--mv-s),opacity var(--mv-s),transform var(--mv-liq);display:flex;align-items:center;justify-content:center;gap:7px}
 @media(hover:hover){.vt-go:hover{filter:brightness(1.07)}}
 .vt-go:disabled{opacity:.45;cursor:default;box-shadow:none}
 /* Ficha de resultados */
@@ -2002,7 +2032,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 .vt-stat.hl{background:var(--soft-2);border-color:rgba(var(--a-rgb),.18)}
 .vt-stat.hl .v{color:var(--brand-strong)}
 .vt-swatches{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
-.vt-sw{width:24px;height:24px;border-radius:7px;border:1.5px solid rgba(var(--tinta-rgb),.14);cursor:pointer;position:relative;transition:.12s;padding:0;background-clip:padding-box}
+.vt-sw{width:24px;height:24px;border-radius:7px;border:1.5px solid rgba(var(--tinta-rgb),.14);cursor:pointer;position:relative;transition:transform var(--mv-s),opacity var(--mv-s);padding:0;background-clip:padding-box}
 @media(hover:hover){.vt-sw:hover{transform:scale(1.12)}}
 .vt-sw.off{opacity:.25}
 .vt-sw.off::after{content:'';position:absolute;left:1px;right:1px;top:50%;height:2px;background:var(--red);transform:rotate(-45deg)}
@@ -2134,7 +2164,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
   .sp-hint-bar{padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 }
 /* ----- Visibilidad en PDF / modo edición ----- */
-.pdf-vis{border:none;background:none;font-size:15px;cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1;transition:.12s;color:var(--brand)}
+.pdf-vis{border:none;background:none;font-size:15px;cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1;color:var(--brand)}
 .pdf-vis.off{opacity:.4;color:var(--muted)}
 @media(hover:hover){.pdf-vis:hover{background:var(--soft)}}
 /* Oculta del PDF: no se atenúa con opacidad —eso hundía su texto a 2:1 y la partida sigue
@@ -2237,14 +2267,14 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 /* ===================== Revisión previa: partidas sin terminar ===================== */
 .falt-intro{font-size:12.5px;color:var(--muted);line-height:1.5;margin-bottom:13px}
 .falt-list{display:flex;flex-direction:column;gap:8px;margin-bottom:15px}
-.falt-row{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1.5px solid rgba(var(--av-rgb),.45);background:var(--amber-bg);border-radius:var(--r-sm);width:100%;text-align:left;font-family:inherit;transition:.14s}
+.falt-row{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1.5px solid rgba(var(--av-rgb),.45);background:var(--amber-bg);border-radius:var(--r-sm);width:100%;text-align:left;font-family:inherit;transition:background var(--mv-s),border-color var(--mv-s)}
 .falt-ir{flex:1;min-width:0;display:flex;align-items:center;gap:11px;border:none;background:none;font-family:inherit;text-align:left;cursor:pointer;padding:0}
 .falt-n{width:26px;height:26px;border-radius:8px;background:var(--amber);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .falt-b{flex:1;min-width:0}
 .falt-t{display:block;font-size:12.5px;font-weight:800;color:var(--ink);line-height:1.35}
 .falt-d{display:block;font-size:11.5px;color:var(--av);line-height:1.45;margin-top:2px}
 .falt-go{font-size:14px;color:var(--amber);flex-shrink:0;font-weight:800}
-.falt-quitar{border:1.5px solid rgba(var(--mal-rgb),.3);background:var(--sup);color:var(--red);font-family:inherit;font-size:11px;font-weight:700;padding:6px 10px;border-radius:8px;cursor:pointer;flex-shrink:0;transition:.14s}
+.falt-quitar{border:1.5px solid rgba(var(--mal-rgb),.3);background:var(--sup);color:var(--red);font-family:inherit;font-size:11px;font-weight:700;padding:6px 10px;border-radius:8px;cursor:pointer;flex-shrink:0;transition:background var(--mv-s),border-color var(--mv-s)}
 @media(hover:hover){.falt-quitar:hover{background:var(--red-bg);border-color:var(--red)}}
 
 .hist-ayuda{margin:0;padding:0 20px 12px;font-size:11.5px;color:var(--muted);line-height:1.5}
@@ -2252,7 +2282,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 
 /* ===================== Respaldo, restauración y CSV ===================== */
 .hist-foot{display:flex;gap:8px;padding:11px 20px 13px;border-top:1px solid var(--line);flex-shrink:0;background:var(--soft);flex-wrap:wrap;border-radius:0 0 var(--rr4) var(--rr4)}
-.hist-foot button{flex:1;min-width:104px;border:1.5px solid var(--line);background:var(--sup);color:var(--brand);font-family:inherit;font-size:12px;font-weight:700;padding:9px 8px;border-radius:var(--rr1);cursor:pointer;transition:.14s;white-space:nowrap}
+.hist-foot button{flex:1;min-width:104px;border:1.5px solid var(--line);background:var(--sup);color:var(--brand);font-family:inherit;font-size:12px;font-weight:700;padding:9px 8px;border-radius:var(--rr1);cursor:pointer;white-space:nowrap}
 @media(hover:hover){.hist-foot button:hover{border-color:var(--brand);background:var(--soft-2)}}
 .hist-foot .foot-nota{flex-basis:100%;font-size:10.5px;color:var(--muted);line-height:1.45;text-align:center;margin-top:2px}
 /* Lo que ya se hizo con esta cotización. Va entre la tabla y el total, en el secundario de la
@@ -2571,6 +2601,9 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
      el ancho: es que se toque con el dedo. Un Fold abierto, una tableta o un teléfono
      acostado son todos el mismo caso. */
   input,select,textarea{font-size:max(16px,var(--t3))}
+  /* Estas dos llevan su tamaño con dos clases y le ganaban a la de arriba por encima de 920 px
+     —un iPhone Pro Max acostado mide 932—: el campo del texto de las letras hacía zoom. */
+  .rv-field input,.rv-field select,.autoctr input{font-size:16px}
   .toast-act,.falt-quitar,.key-btn,.sp-gclear,.hist-foot button,
   .card-fold,.btn-maps,.chip,.seg button,.tipo-seg button{min-height:44px}
   .key-btn,.falt-quitar{padding-left:14px;padding-right:14px}
@@ -2642,11 +2675,11 @@ html.modal-abierto,html.modal-abierto body{overflow:hidden}
 .salto:focus{transform:translateY(0);box-shadow:0 8px 30px rgba(0,0,0,.28)}
 
 /* Sin animaciones para quien las pidió apagadas en el sistema */
+/* Lo que sigue apagado siempre con la preferencia: el desplazamiento suave y el fondo fijo. El
+   resto —qué se quita y qué se queda— vive en un solo bloque al final de la capa 8, «Menos
+   movimiento no es ninguno». */
 @media(prefers-reduced-motion:reduce){
-  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
-    transition-duration:.001ms!important;scroll-behavior:auto!important}
-  .chip:active,.tipo-seg button:active,.seg button:active,.mbar-btn:active,
-  .sp-zoom button:active,.sp-cotas-fab button:active{transform:none}
+  *,*::before,*::after{scroll-behavior:auto!important}
   body{background-attachment:scroll}
 }
 
@@ -3020,11 +3053,13 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
 @media(hover:hover){.btn-wa:hover .svgi,.btn-vta:hover .svgi{color:inherit}}
 .btn-dgr{border-color:var(--mal-borde);color:var(--mal)}
 @media(hover:hover){.btn-dgr:hover{background:var(--mal-bg);border-color:var(--mal)}}
-/* Cede 1 px al tocar, y nada más. El pellizco de escala era del barro. */
+/* Cedía 1 px al tocar, que en un teléfono casi no se ve. Ahora es el mismo gesto que el resto
+   de lo presionable (la capa 8 lo repite para .btn y .chip): encoge al 97 % en 160 ms. */
 .btn:active:not(:disabled),.mbar-btn:active:not(:disabled),.ai-btn:active,.btn-scaler-open:active,
 .btn-vector-open:active,.addbtn:active,.precios-ver:active,.btn-maps:active,.card-fold:active,.btn-hist:active{
-  transform:translateY(1px);box-shadow:none;
+  transform:scale(.97);box-shadow:none;
 }
+.btn-scaler-open,.btn-vector-open,.precios-ver,.card-fold,.btn-hist{transition:background var(--mv-s),color var(--mv-s),border-color var(--mv-s),transform var(--mv-liq)}
 .btn:disabled,.mbar-btn:disabled{box-shadow:none;transform:none;opacity:.55}
 .addbtn{
   background:var(--sup);
@@ -3047,10 +3082,13 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
   width:14px;height:14px;top:2px;left:2px;
   background:#fff;
   box-shadow:0 1px 2px rgba(var(--tinta-rgb),.25);
-  transition:left .2s;
+  /* La perilla se desliza con `translate` y no con `left`: left recalcula el layout en cada
+     cuadro. Es la propiedad independiente y no `transform`, así que no choca con el
+     `.switch:active .tg::after{transform:none}` de abajo. */
+  transition:translate .16s var(--ease-out);
 }
 .tg.on{background:var(--a-fill);box-shadow:none}
-.tg.on::after{left:16px}
+.tg.on::after{left:2px;translate:14px 0}
 .switch:active .tg::after{transform:none}
 
 /* ---------- Fichas, insignias y avisos ----------
@@ -3140,7 +3178,9 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
   box-shadow:none;
 }
 .edit-mode-banner{border-color:var(--av-borde);background:var(--av-bg)}
-.cand-partidas{animation:late 2.8s ease-in-out infinite}
+/* Tres veces y se calla. Un aro de box-shadow repinta en cada cuadro, y una llamada que no
+   termina deja de llamar: se vuelve fondo. irAlCandado() la reinicia cuando hace falta. */
+.cand-partidas{animation:late 2.8s ease-in-out 3}
 @media(hover:hover){.cand-partidas:hover{transform:none;animation:none;box-shadow:0 0 0 3px rgba(var(--a-rgb),.2)}}
 
 /* ---------- Barra de pasos ----------
@@ -3282,9 +3322,11 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
   filter:none;
   display:inline-block;
 }
-.neto .amt.cambio{animation:total-late var(--mv)}
+/* Un destello de color y no un cambio de escala: escalar el número lo re-rasterizaba y se veía
+   borroso a medio latido. */
+.neto .amt.cambio{animation:total-late .5s var(--ease-out)}
 @keyframes total-late{
-  0%{transform:scale(1)} 35%{transform:scale(1.04)} 70%{transform:scale(.995)} 100%{transform:scale(1)}
+  0%{color:var(--a-tx)} 100%{}
 }
 
 /* ---------- El recuadro del Precio Subtotal ----------
@@ -3359,7 +3401,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
   0%,100%{box-shadow:0 0 0 0 rgba(var(--av-rgb),.35)}
   60%{box-shadow:0 0 0 8px rgba(var(--av-rgb),0)}
 }
-.cand-cliente.ojo{border-color:var(--av-borde);background:var(--av-bg);animation:late-av 2.8s ease-in-out infinite}
+.cand-cliente.ojo{border-color:var(--av-borde);background:var(--av-bg);animation:late-av 2.8s ease-in-out 3}
 .cand-cliente.ojo>.svgi{color:var(--amber-ico)}
 /* La misma ficha, pero de la rejilla y no de la tarjeta: el aviso de «esto venía de antes»
    cuelga de .wrap, encima de las dos columnas, porque tiene que leerse en las dos pantallas.
@@ -3385,8 +3427,11 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
    empezada gritaba lo mismo que una a la que le falta el material. Queda una barra en el
    acento mientras se captura y verde cuando ya está: el mismo semáforo que la barra de pasos,
    y el bloque de al lado sigue diciendo con palabras QUÉ falta. */
-#prog-bar{border-radius:3px;box-shadow:none;position:relative;overflow:hidden;background:var(--a-fill);
-  transition:width .4s cubic-bezier(.2,.8,.2,1),background var(--mv)}
+/* Se llena con scaleX y no con width (width recalcula el layout en cada cuadro). El radio lo
+   pone .prog-track, que recorta: un radio sobre una pieza escalada se deformaría. */
+#prog-bar{border-radius:0;box-shadow:none;position:relative;overflow:hidden;background:var(--a-fill);
+  width:100%;transform-origin:left center;transform:scaleX(0);
+  transition:transform .3s var(--ease-out),background var(--mv)}
 #prog-bar.lleno{background:var(--ok-fill)}
 /* Al 100 % deja de brillar. El destello significa «la app está trabajando contigo mientras se
    captura», y cuando ya no falta nada no tiene nada que anunciar: se quedaba corriendo en
@@ -3396,7 +3441,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
 #prog-bar::after{
   content:'';position:absolute;inset:0;width:30%;
   background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);
-  animation:brillo 2.4s linear infinite;
+  animation:brillo 2.4s linear 2;
 }
 @keyframes brillo{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
 .prog-track{border-radius:3px;box-shadow:none;background:var(--linea);height:6px}
@@ -3462,7 +3507,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
 .folio.sin-senal[hidden]{display:none}
 @media(max-width:560px){.folio.sin-senal .lbl{display:none}}
 .conf-texto{white-space:pre-line;color:var(--tinta2);font-size:var(--t3);line-height:1.55;margin:0 0 var(--e4)}
-@media(prefers-reduced-motion:reduce){.espera-giro{animation:none}}
+/* Con menos movimiento late en vez de girar (ver «Menos movimiento no es ninguno»). */
 .mini,.anti-rest{font-size:var(--t1);color:var(--tinta3);line-height:1.5}
 .anti-rest{font-weight:500;margin-top:var(--e2)}
 
@@ -3587,11 +3632,10 @@ details.ai-cfg.otras-salidas summary{
    que el radio del rediseño solo lo alcanzaba aquí; ahora las seis superficies flotantes de la
    app —IA, registrar venta, escalador, vectorizador, historial y la imagen a pantalla
    completa— salen de una sola declaración. */
-.modal,.rv-modal,.sc-modal,.vt-modal,.hist-panel,.lightbox-body{
+.modal,.rv-modal,.hist-panel{
   border-radius:var(--rr3);
   border:1px solid var(--linea);
   box-shadow:var(--sombra-alta);
-  animation:entra .32s cubic-bezier(.2,.8,.2,1) both;
 }
 .modal{border-radius:var(--rr3);box-shadow:var(--sombra-alta)}
 /* El velo se queda; el desenfoque se va. Es la misma atmósfera que el barro: cuesta una capa
@@ -3601,8 +3645,7 @@ details.ai-cfg.otras-salidas summary{
   backdrop-filter:none;-webkit-backdrop-filter:none;
   background:rgba(var(--nav-rgb),.55);
 }
-.modal-bg.show,.rv-modal-bg.show{animation:vela var(--mv-s)}
-@keyframes vela{from{opacity:0}to{opacity:1}}
+/* El velo entra y SALE con una transición (ver «8.2 · Entrar y salir», en la capa 8). */
 
 /* ----- El encabezado y el cierre, una sola vez -----
    `.modal-h` y `.hist-head` son el mismo renglón y venían con dos alturas, dos tamaños de
@@ -3735,7 +3778,7 @@ details.ai-cfg summary{font-size:var(--t2);font-weight:600;color:var(--tinta2)}
 .ai-status.work{display:flex;align-items:center;gap:var(--e2)}
 .ai-status.work::before{content:'';flex:0 0 auto;width:14px;height:14px;border-radius:50%;
   border:2px solid var(--linea);border-top-color:var(--a-tx);animation:esq-gira .8s linear infinite}
-@media(prefers-reduced-motion:reduce){.ai-status.work::before{animation:none}}
+/* Con menos movimiento late en vez de girar (ver «Menos movimiento no es ninguno»). */
 .ai-link{color:var(--a-tx);font-weight:500}
 .key-btn{
   border:1px solid var(--linea);background:var(--sup);color:var(--tinta2);
@@ -3874,8 +3917,9 @@ details.ai-cfg summary{font-size:var(--t2);font-weight:600;color:var(--tinta2)}
 
 /* ---------- Aviso emergente ---------- */
 #toast{border-radius:var(--rr2);box-shadow:var(--sombra-alta)}
-#toast.show{animation:toast-sube var(--mv-s)}
-@keyframes toast-sube{from{opacity:0;transform:translate(-50%,10px)}}
+/* Sin la keyframe `toast-sube`: traía el translateX(-50%) del teléfono, y a partir de 760 px
+   —donde el aviso ya no se centra— lo hacía nacer medio ancho a la izquierda y cruzar de lado
+   desde la barra lateral. La entrada es la transición de .toast. */
 
 /* ---------- Entradas ----------
    Una sola animación para todo lo que aparece: 10 px hacia arriba y de
@@ -3884,20 +3928,21 @@ details.ai-cfg summary{font-size:var(--t2);font-weight:600;color:var(--tinta2)}
    segundo después de que la pantalla ya se pudiera usar, y en una app que se
    abre cincuenta veces al día eso se siente como que va lenta. */
 @keyframes entra{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-/* Los nombres viejos apuntan a la misma. */
-@keyframes barro-entra{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-@keyframes barro-pop{from{transform:none}to{transform:none}}
-.card,.sum,.pasos,.p1-cierre{animation:entra .32s cubic-bezier(.2,.8,.2,1) both}
-.pasos,#card-proy,#card-partidas,.p1-cierre,#sidebox .sum{animation-delay:0s}
-.partida{animation:entra .32s cubic-bezier(.2,.8,.2,1) backwards}
-#items>.partida:nth-child(1),#items>.partida:nth-child(2),#items>.partida:nth-child(3),
-#items>.partida:nth-child(4),#items>.partida:nth-child(n+5){animation-delay:0s}
-.wrap>main>.card,.wrap>aside{animation-name:entra}
+/* .2 s y `backwards`: con `both` la animación se quedaba viva para siempre, con su capa y su
+   contexto de apilamiento. `.sum` ya no entra: es a donde vuela el total, y moverla debajo del
+   número lo hacía aterrizar en un sitio que todavía se movía. */
+.card,.pasos,.p1-cierre{animation:entra .2s var(--ease-out) backwards}
+/* La partida entra SOLO cuando nace. renderItems() rehace la lista entera con innerHTML en cada
+   toque —un chip, plegar, el tipo, Ctrl+Z—, y con la entrada puesta en .partida cada toque hacía
+   que TODAS las partidas, plegadas incluidas, volvieran de opacidad 0 bajando 10 px: medido, un
+   chip creaba tres entradas y un Ctrl+Z doce. La clase .nace la pone renderItems() a la id nueva. */
+.partida{animation:none}
+.partida.nace{animation:entra .22s var(--ease-out) backwards}
 /* Cambiar de pantalla dice hacia dónde: las tarjetas de Partidas entran desde la derecha, las
    del cliente desde la izquierda, como pasar de hoja. El resumen de la derecha se queda con su
    entrada de siempre, porque a él vuela el total (ver irAPantalla en proceso.js). */
-@keyframes entra-der{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
-@keyframes entra-izq{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
+@keyframes entra-der{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
+@keyframes entra-izq{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
 html.va-adelante #card-partidas{animation-name:entra-der}
 html.va-atras #card-proy,html.va-atras .p1-cierre{animation-name:entra-izq}
 
@@ -3905,10 +3950,11 @@ html.va-atras #card-proy,html.va-atras .p1-cierre{animation-name:entra-izq}
 .svgi{transition:none}
 @media(hover:hover){.btn:hover .svgi,.ai-btn:hover .svgi,.btn-hist:hover .svgi{transform:none}}
 @media(hover:hover){.del:hover,.dup:hover,.pdf-vis:hover{transform:none;background:var(--sup2)}}
-.del,.dup,.pdf-vis,.pfold{transition:color var(--mv-s),background var(--mv-s)}
+.del,.dup,.pdf-vis{transition:color var(--mv-s),background var(--mv-s),transform var(--mv-liq)}
 @media(hover:hover){.del:hover{background:var(--mal-bg);color:var(--mal)}}
-.del:active,.dup:active,.pdf-vis:active,.pfold:active{transform:translateY(1px)}
-.pfold{transition:transform .25s}
+.del:active,.dup:active,.pdf-vis:active{transform:scale(.95)}
+/* El ▾ no lleva transición: el botón se recrea en cada repintado y el giro nunca se veía. */
+.pfold:active{background:var(--sup2)}
 
 /* ---------- La IA sigue teniendo su propio color ----------
    Es la única cosa de la pantalla que trae algo de fuera, y el rediseño la
@@ -3962,11 +4008,8 @@ html.va-atras #card-proy,html.va-atras .p1-cierre{animation-name:entra-izq}
    superficie, así que aquí se puede apagar el movimiento ENTERO sin que la
    app pierda una sola señal. La transición del total también se apaga, y lo
    hace en su propio código: mide, y si esto está activo no anima. */
-@media (prefers-reduced-motion: reduce){
-  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
-  #prog-bar::after,.cand-partidas,.cand-cliente.ojo,.srow.subtotal.cambio{animation:none!important}
-  @media(hover:hover){.btn:hover,.chip:hover,.paso-tab:hover,.ai-btn:hover{transform:none!important}}
-}
+/* (El bloque de «menos movimiento» se mudó al final de la capa 8: ver «Menos movimiento no es
+   ninguno». Aquí apagaba TODO a .001 ms, fundidos incluidos.) */
 
 /* ===================== Cierre de la hoja: lo que tiene que ganar por orden =====================
    Va aquí —después de la capa de barro y del pase visual, y ANTES del @media print— porque
@@ -4554,8 +4597,11 @@ body::after{
     radial-gradient(62vw 54vw at -6% -16%,var(--aurora-1),transparent 66%),
     radial-gradient(58vw 50vw at 112% -8%,var(--aurora-2),transparent 64%),
     radial-gradient(54vw 48vw at 50% 118%,var(--aurora-3),transparent 62%);
-  animation:aurora 28s ease-in-out infinite alternate;
-  will-change:transform;
+  /* Quieta desde la auditoría de movimiento. «Cuesta cero» era cierto sin nada encima; con
+     vidrio encima, cada backdrop-filter de la pantalla se volvía a calcular en cada cuadro
+     porque lo de atrás cambiaba, todo el día y sin que nadie tocara nada. Las manchas se ven
+     igual; lo que se fue es el recorrido de 28 s que nadie alcanzaba a ver. */
+  animation:none;
 }
 @keyframes aurora{
   from{transform:translate3d(0,0,0) scale(1)}
@@ -4600,9 +4646,10 @@ body::after{
    `(hover:none)` que ya hay en la hoja no lo enciende porque esto está acotado a `:hover`, y
    iOS dispara `:hover` al tocar, así que se acota además al puntero fino. */
 @media(hover:hover) and (pointer:fine){
-  .partida{transition:border-color var(--mv-s),box-shadow var(--mv-r),transform var(--mv-r)}
+  /* Solo el borde y la sombra. Subía 2 px, y la partida es una superficie donde se escribe:
+     el cursor vive encima, así que casi siempre estaba levantada y brincaba al pasar a la otra. */
+  .partida{transition:border-color var(--mv-s),box-shadow var(--mv-r)}
   .partida:hover{
-    transform:translateY(-2px);
     box-shadow:var(--filo),var(--sombra-vidrio);
     border-color:var(--a-borde);
   }
@@ -4612,10 +4659,16 @@ body::after{
 /* El resumen pegado de una partida y el encabezado de la partida abierta. Los dos se quedan
    fijos mientras se hace scroll por encima de su propio cuerpo, así que los dos son vidrio de
    verdad: sin desenfoque se veía el texto de abajo cruzando por detrás del encabezado. */
-.pcab,.partida:not(.folded) .partida-top{
-  background:var(--vidrio);
-  backdrop-filter:blur(14px) saturate(var(--vid-sat));
-  -webkit-backdrop-filter:blur(14px) saturate(var(--vid-sat));
+.pcab,.partida:not(.folded) .partida-top{background:var(--vidrio-solido)}
+/* Desenfoque solo donde algo pasa por debajo: el resumen pegado de una partida ABIERTA, y solo
+   donde se pega (a ≤560 px no se pega ninguno). La plegada y .partida-top —un desenfoque dentro
+   de otro— se quedan con el relleno casi opaco. */
+@media(min-width:561px){
+  .partida:not(.folded) .pcab{
+    background:var(--vidrio);
+    backdrop-filter:blur(14px) saturate(var(--vid-sat));
+    -webkit-backdrop-filter:blur(14px) saturate(var(--vid-sat));
+  }
 }
 
 /* El velo de un modal. Era un marino al 60 % con 4 px de desenfoque; con 14 y algo de
@@ -4627,34 +4680,78 @@ body::after{
   -webkit-backdrop-filter:blur(14px) saturate(1.3);
 }
 /* Y el diálogo, que es la pieza que más flota de toda la app. */
+/* Sin desenfoque propio: ya está sobre el velo desenfocado, y un backdrop-filter dentro de otro
+   solo lee lo que pinta el padre. Relleno casi opaco en su lugar. */
 .modal{
-  background:var(--vidrio);
-  backdrop-filter:blur(30px) saturate(1.9);
-  -webkit-backdrop-filter:blur(30px) saturate(1.9);
+  background:var(--vidrio-solido);
   border:1px solid var(--vidrio-fino);
   border-radius:18px;
   box-shadow:var(--filo),var(--sombra-vidrio-alta);
 }
 .modal-h{background:transparent;border-bottom-color:rgba(var(--n3-rgb),.6)}
-/* Entra creciendo desde el 96 % con la curva elástica, no apareciendo. Medio golpe de vista. */
-.modal-bg.show>.modal{animation:vidrio-entra .34s cubic-bezier(.34,1.26,.5,1) both}
-@keyframes vidrio-entra{
-  from{opacity:0;transform:scale(.94) translateY(12px)}
-  to{opacity:1;transform:none}
+/* ---------- 8.2 · Entrar y salir ----------
+   Antes: el velo hacía `vela` en 160 ms, el diálogo entraba en .34 s con la curva elástica, y
+   al cerrar TODO se iba en seco —quitar `.show` era `display:none` en el mismo cuadro—. Medido
+   en historial, cuadernos, IA, confirmar, la ficha y el asistente. Lo que llega con movimiento
+   y se va de golpe se siente roto; y el rebote de aquella curva, calculado, no pasaba de 1,0013
+   de escala: no se veía, solo alargaba la espera.
+
+   Ahora es una sola TRANSICIÓN —interrumpible— con `@starting-style` para la entrada y
+   `display … allow-discrete` para que el velo siga pintado mientras se desvanece. Entra en
+   220 ms desde el 96 %, sale en 140 ms: la salida más corta que la entrada. Donde el navegador
+   no conoce estas dos piezas (Safari < 17.4) queda instantáneo, como era la salida hasta hoy.
+   Sin tocar el JS: todos los cierres siguen siendo quitar `.show`.
+
+   La plataforma rehace su panel con innerHTML con la capa abierta (la ficha, la hoja, el
+   asistente), y `@starting-style` vale para todo elemento recién puesto: por eso ahí la entrada
+   se acota a `.entra`, que ui.js pone al abrir y quita a los 360 ms. */
+.modal-bg,.rv-modal-bg{
+  opacity:0;
+  transition:opacity .14s var(--ease-out),display .14s allow-discrete;
+}
+.modal-bg.show,.rv-modal-bg.show{opacity:1;transition-duration:.2s}
+@starting-style{.modal-bg.show,.rv-modal-bg.show{opacity:0}}
+.modal-bg:not(.show),.rv-modal-bg:not(.show){pointer-events:none}
+:is(.modal-bg,.rv-modal-bg)>:is(.modal,.hist-panel,.rv-modal,.pf-panel){
+  animation:none;
+  transition:transform .22s var(--ease-out),opacity .22s var(--ease-out);
+}
+:is(.modal-bg,.rv-modal-bg):not(.show)>:is(.modal,.hist-panel,.rv-modal,.pf-panel){
+  opacity:0;transform:scale(.98);transition-duration:.14s;
+}
+@starting-style{
+  :is(.modal-bg:not(.pf-modal-bg),.rv-modal-bg).show>:is(.modal,.hist-panel,.rv-modal){opacity:0;transform:scale(.96) translateY(6px)}
+  .pf-modal-bg.show.entra>.pf-panel{opacity:0;transform:scale(.96) translateY(6px)}
 }
 
 /* ---------- 8.3 · Lo que se elige, se enciende ----------
    El chip elegido y el interruptor encendido. Siguen siendo el mismo azul —el azul significa
    ELEGIDO y eso no se toca— y lo que se les añade es el filo y un halo corto del acento: la
    diferencia entre un rectángulo pintado de azul y una pastilla de vidrio azul. */
+/* Revisión de la auditoría: el chip elegido deja el RELLENO sólido y pasa a teñido —fondo
+   --a-suave, borde y texto del acento, con su ✓—. Sigue siendo azul, que es lo que dice
+   «elegido»; lo que cambia es que el azul lleno queda para UNA cosa por pantalla, la acción.
+   Medido en las capturas: en el Mapa los cuatro filtros y «Todo» iban rellenos (también los
+   que contaban 0), y en una partida los chips elegidos competían con «Cotizar con IA» y con
+   «Solicitar autorización». --a-tx sobre --a-suave da 6,9:1 de día y 7,1:1 de noche. El borde
+   de 2 px se dibuja por dentro para no mover el renglón. */
 .chip.on,.partida .chip.on{
-  box-shadow:var(--filo-corto),0 2px 10px -4px rgba(var(--a-rgb),.55);
+  background:var(--a-suave);color:var(--a-tx);border-color:var(--a);
+  box-shadow:inset 0 0 0 1px var(--a);
 }
+.chip.on small,.partida .chip.on small{color:var(--a-tx);opacity:.8}
+.chip.on .ck,.partida .chip.on .ck{color:var(--a-tx)}
+/* Un filtro que no tiene nada que enseñar se ve apagado, aunque se pueda tocar. */
+.chip.cero:not(.on){color:var(--tinta3);border-style:dashed}
 /* Y al encenderse, cede: 300 ms del 94 % al 100 % con la curva elástica. Es el único
    movimiento de la captura y confirma el toque sin un solo píxel de color de más. */
 .chip{transition:border-color var(--mv-s),background var(--mv-s),color var(--mv-s),box-shadow var(--mv-s),transform var(--mv-liq)}
-.chip.on{animation:chip-cede .3s cubic-bezier(.34,1.26,.5,1)}
-@keyframes chip-cede{from{transform:scale(.94)}to{transform:none}}
+/* El chip ya NO cede con una animación al encenderse. La keyframe vivía en `.chip.on`, y todo
+   chip que nace encendido la arranca: como las listas se repintan con innerHTML, en cada toque
+   saltaban TODOS los chips elegidos —los del cotizador, los filtros del Mapa, el Calendario,
+   Control y el asistente—, no el que se tocó. El toque ya lo confirman el :active (97 % en
+   160 ms) y el cambio de color. */
+.chip.on{animation:none}
 .tg.on{box-shadow:var(--filo-corto),0 2px 8px -3px rgba(var(--a-rgb),.6)}
 
 /* El único botón de color de la pantalla, de vidrio: el filo arriba y la sombra teñida del
@@ -4720,11 +4817,13 @@ body::after{
     var(--ia-b) 75%,
     var(--ia-a) 100%);
   background-size:300% 100%;
-  background-position:0% 50%;
+  /* Quieto en su mejor tono. La aurora corría en bucle sobre background-position —que no se
+     compone en la GPU: repintaba el botón 60 veces por segundo en la pantalla donde se captura—.
+     Para que se encuentre bastan los dos barridos al llegar y el del cursor. */
+  background-position:30% 50%;
   box-shadow:var(--filo-corto),
              0 4px 16px -6px rgba(var(--a-rgb),.65),
              0 10px 30px -14px rgba(var(--a2-rgb),.55);
-  animation:ia-aurora var(--mv-lento) linear infinite;
   transition:transform var(--mv-liq),box-shadow var(--mv-r),filter var(--mv-r);
 }
 @keyframes ia-aurora{from{background-position:0% 50%} to{background-position:-300% 50%}}
@@ -4768,21 +4867,25 @@ body::after{
   -webkit-mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,#000 100%);
   mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,#000 100%);
   transform:translateX(-110%);
-  animation:ia-barrido 5.5s cubic-bezier(.2,.8,.2,1) infinite;
+  animation:ia-barrido 5.5s cubic-bezier(.2,.8,.2,1) .6s 2;
 }
 @keyframes ia-barrido{
   0%{transform:translateX(-110%)}
   22%,100%{transform:translateX(330%)}
 }
+/* Una sola pasada, la del cursor. Nombre propio para que empiece de cero al entrar. */
+@keyframes ia-barrido-una{from{transform:translateX(-110%)}to{transform:translateX(330%)}}
 /* La chispa late. El `transform-origin:center` es explícito y no heredado: `.svgi` mide 1em y
    su caja no siempre es cuadrada, y con el origen en otro sitio un icono «que crece» se ve
    saltar en diagonal en vez de latir. */
-.ai-btn .svgi{transform-origin:center;animation:ia-chispa 2.6s ease-in-out infinite}
+/* La chispa ya no late sola: el barrido basta para encontrar el botón, y dos cosas moviéndose
+   solas junto a los precios eran una de más. */
+.ai-btn .svgi{transform-origin:center}
 @keyframes ia-chispa{
   0%,72%,100%{transform:scale(1);opacity:.92}
   84%{transform:scale(1.14);opacity:1}
 }
-@media(hover:hover){.ai-btn:hover{
+@media(hover:hover) and (pointer:fine){.ai-btn:hover{
   background:linear-gradient(100deg,
     var(--ia-a) 0%,var(--ia-b) 25%,var(--ia-c) 50%,var(--ia-b) 75%,var(--ia-a) 100%);
   background-size:300% 100%;
@@ -4791,9 +4894,10 @@ body::after{
   box-shadow:var(--filo-corto),
              0 8px 22px -6px rgba(var(--a-rgb),.75),
              0 16px 44px -16px rgba(var(--a2-rgb),.7);
-  animation-duration:5s;
 }}
-@media(hover:hover){.ai-btn:hover::after{animation-duration:2.6s}}
+/* Antes el hover cambiaba animation-duration a media vuelta, y eso recalcula el avance: el
+   degradado saltaba cada vez que el cursor entraba o salía. */
+@media(hover:hover) and (pointer:fine){.ai-btn:hover::after{animation:ia-barrido-una .7s var(--ease-out) 1 both}}
 .ai-btn:active{transform:scale(.97) translateY(0)}
 .ai-btn:focus-visible{outline:2px solid var(--a-fuerte);outline-offset:3px}
 /* Deshabilitado: se para todo. Un botón que no se puede tocar y sigue brillando miente. */
@@ -4816,10 +4920,9 @@ body::after{
   background:linear-gradient(100deg,
     var(--ia-a) 0%,var(--ia-b) 25%,var(--ia-c) 50%,var(--ia-b) 75%,var(--ia-a) 100%);
   background-size:300% 100%;
+  background-position:30% 50%;
   box-shadow:var(--filo-corto),0 4px 16px -6px rgba(var(--a-rgb),.6);
-  animation:ia-aurora var(--mv-lento) linear infinite;
 }
-.sp-ai:not(:disabled) .svgi{transform-origin:center;animation:ia-chispa 2.6s ease-in-out infinite}
 
 /* ---------- 8.5 · El teléfono: un dock de vidrio ----------
    Aquí está la mitad de «se ve igual que la compu». En el teléfono la barra de abajo era un
@@ -4876,20 +4979,24 @@ body::after{
   .partida{border-radius:12px}
   /* Los modales del teléfono salen desde abajo, como una hoja, y no crecen desde el centro:
      es el gesto que ya tiene el sistema operativo debajo y el pulgar los alcanza. */
-  .modal{border-radius:20px}
-  .modal-bg.show>.modal{animation:vidrio-sube .34s cubic-bezier(.2,.8,.2,1) backwards}
+  /* Una hoja de verdad: pegada abajo, entra desde su propio alto (translateY(100%)) con la curva
+     de hoja del sistema operativo y se va por donde vino. Antes subía solo 26 px con opacidad y
+     quedaba CENTRADA —medido: de 294 a 550 px en un teléfono de 844— aunque llevaba asa. */
+  .modal-bg:has(>.modal){align-items:flex-end;padding:calc(18px + env(safe-area-inset-top,0px)) 0 0}
+  .modal{border-radius:20px 20px 0 0;max-width:none;padding-bottom:env(safe-area-inset-bottom,0px)}
   /* El asa: dice que la hoja se baja con el dedo (ver «Las hojas del teléfono se cierran
      deslizando» en nucleo.js). Al soltar sin llegar, la hoja vuelve a su sitio con esta
-     transición; el cuerpo no le pasa el arrastre a la página de atrás. */
-  .modal-bg>.modal{transition:transform .22s cubic-bezier(.2,.8,.2,1)}
+     transición; al soltar para cerrar, la salida parte desde donde la dejó el dedo. */
+  .modal-bg>.modal,.pf-modal-bg>.pf-panel{transition:transform .32s var(--ease-hoja)}
+  .modal-bg:not(.show)>.modal,.pf-modal-bg:not(.show)>.pf-panel{opacity:1;transform:translateY(100%);transition-duration:.22s}
+  @starting-style{
+    .modal-bg.show>.modal{opacity:1;transform:translateY(100%)}
+    .pf-modal-bg.show.entra>.pf-panel{opacity:1;transform:translateY(100%)}
+  }
   .modal-bg>.modal>.modal-h{position:relative;padding-top:22px}
   .modal-bg>.modal>.modal-h::before{content:'';position:absolute;top:8px;left:50%;width:38px;height:4px;
     margin-left:-19px;border-radius:2px;background:var(--linea)}
   .modal-bg>.modal>.modal-b{overscroll-behavior:contain}
-}
-@keyframes vidrio-sube{
-  from{opacity:0;transform:translateY(26px)}
-  to{opacity:1;transform:none}
 }
 
 /* ---------- 8.6 · El Fold 6 ----------
@@ -5017,9 +5124,39 @@ html[data-tema="oscuro"] .ai-btn:disabled,html[data-tema="oscuro"] .ai-btn[disab
   .ai-btn::after{animation:none;opacity:0}
   .ai-btn .svgi,.sp-ai .svgi{animation:none}
   .chip.on{animation:none}
-  .modal-bg.show>.modal{animation:none}
-  .btn:active,.mbar-btn:active,.chip:active,.ai-btn:active{transform:none!important}@media(hover:hover){.ai-btn:hover,.partida:hover{transform:none!important}}
 }
+
+/* ---------- Menos movimiento no es ninguno ----------
+   Hasta la auditoría de movimiento, la preferencia ponía TODO a .001 ms —`*{transition-duration:
+   .001ms!important}`, escrito dos veces—: el aviso aparecía y desaparecía de un corte y el ojo
+   no lo cazaba, el velo de un modal caía de golpe, los botones perdían toda respuesta y el giro
+   de espera —la única señal de «estoy trabajando»— se quedaba quieto.
+   Ahora se quita lo que DESPLAZA o ESCALA y lo que se mueve solo, y se queda lo que explica qué
+   cambió: los fundidos cortos, los cambios de color y un pulso lento en las esperas. */
+@media(prefers-reduced-motion:reduce){
+  /* 1 · Nada se mueve solo */
+  #prog-bar::after,.cand-partidas,.cand-cliente.ojo,.srow.subtotal.cambio,.esq-b,.esq-boton,.ai-drop .ico,
+  .pf-ia-btn,.pf-ia-btn::after,.pf-ia-btn .svgi,.pf-decidir{animation:none!important}
+  /* 2 · Las entradas son solo un fundido */
+  .card,.pasos,.p1-cierre,.partida.nace,.pf-mod,.an-paso,.an-vista,.an-banda,.an-archivo,.an-retazos,.an-hoja,.an-hoja g>*{
+    animation-name:aparece!important;animation-duration:.15s!important;animation-delay:0s!important}
+  /* 3 · Presionar y pasar el cursor: sin escala ni desplazamiento (el color sí cambia) */
+  :is(.btn,.mbar-btn,.chip,.ai-btn,.addbtn,.pf-tab,.pf-lat-item,.pf-ia-btn,.pj-tarj,.tb-etapa,.cal-nav,.del,.dup,.pdf-vis,
+    .toast-act,.pf-cerrar,.an-tile,.sp-zoom button,.sp-cotas-fab button,.mbar-undo):active{transform:none!important}
+  @media(hover:hover){
+    :is(.btn,.chip,.ai-btn,.addbtn,.pf-ia-btn,.pj-tarj,.tb-etapa,.an-tile,.ia-frecuente):hover{transform:none!important}
+  }
+  .pf-abajo button:active .pil{transform:none!important}
+  /* 4 · Modales, hojas y aviso: fundido sí, desplazamiento no */
+  :is(.modal-bg,.rv-modal-bg)>:is(.modal,.hist-panel,.rv-modal,.pf-panel){transform:none!important;transition:opacity .15s ease!important}
+  .toast,.toast.show{transform:translateX(-50%)!important;transition:opacity .15s ease,visibility 0s linear .15s!important}
+  .toast.show{transition:opacity .15s ease,visibility 0s!important}
+  /* 5 · Esperar se sigue viendo: un pulso lento de opacidad en vez de un giro */
+  .esq-giro,.espera-giro,.ia-espera .svgi,.ia-hoy-cargando .svgi,.ai-status.work::before{animation:pulso-lento 1.6s ease-in-out infinite!important}
+}
+@media(prefers-reduced-motion:reduce) and (min-width:760px){ .toast,.toast.show{transform:none!important} }
+@keyframes aparece{from{opacity:0}}
+@keyframes pulso-lento{50%{opacity:.35}}
 
 /* En papel no hay vidrio. El bloque de `@media print` de más arriba escribe con `!important` y
    le gana a todo esto por su cuenta —fondos blancos, sin sombra y sin animación—, pero no
@@ -5067,19 +5204,23 @@ html[data-tema="oscuro"] .ai-btn:disabled,html[data-tema="oscuro"] .ai-btn[disab
    solo, y con prefers-reduced-motion se queda quieto: una silueta fija sigue diciendo
    «aquí va a aparecer algo» sin moverse. En papel no hay nada de esto.
    ========================================================================== */
-:root{ --esq-brillo:linear-gradient(90deg,var(--sup2) 0%,var(--n2) 45%,var(--sup2) 90%); }
-.esq-b{display:block;border-radius:8px;background:var(--esq-brillo);background-size:220% 100%;
-  animation:esq-brilla 1.5s linear infinite}
-@keyframes esq-brilla{from{background-position:120% 0}to{background-position:-120% 0}}
+/* El brillo corre en un ::after con transform y no moviendo background-position: aquello
+   repintaba cada pieza en el hilo principal en cada cuadro, justo mientras el módulo monta
+   y más necesita ese hilo. */
+.esq-b{display:block;border-radius:8px;background:var(--sup2);position:relative;overflow:hidden}
+.esq-b::after{content:'';position:absolute;inset:0;transform:translateX(-100%);pointer-events:none;
+  background:linear-gradient(90deg,transparent,var(--n2) 45%,transparent 90%);animation:esq-barre 1.5s linear infinite}
+@keyframes esq-barre{to{transform:translateX(100%)}}
 .esq-n{width:38%;height:26px;margin-bottom:10px}
 .esq-t{width:62%;height:14px;margin-bottom:8px}
 .esq-d{width:44%;height:11px}
 .esq-campo{width:100%;height:42px;border-radius:10px;margin-top:12px}
 .esq-largo{height:84px}
-.esq-boton{height:46px;border-radius:999px;margin-top:16px;
-  background:linear-gradient(90deg,rgba(var(--a-rgb),.16),rgba(var(--a-rgb),.30) 45%,rgba(var(--a-rgb),.16) 90%);background-size:220% 100%}
+.esq-boton{height:46px;border-radius:999px;margin-top:16px;background:rgba(var(--a-rgb),.16)}
+.esq-boton::after{background:linear-gradient(90deg,transparent,rgba(var(--a-rgb),.2) 45%,transparent 90%)}
 .esq-bloque{width:100%;height:220px;border-radius:14px;margin-top:12px}
-.esq-drop{height:170px;border:2px dashed var(--linea);background:none;animation:none}
+.esq-drop{height:170px;border:2px dashed var(--linea);background:none}
+.esq-drop::after{content:none}
 .card.esq{pointer-events:none;box-shadow:none}
 .esq-giro{display:inline-block;width:14px;height:14px;border-radius:50%;flex:0 0 auto;
   border:2px solid var(--linea);border-top-color:var(--a);animation:esq-gira .8s linear infinite}
@@ -5089,13 +5230,16 @@ html[data-tema="oscuro"] .ai-btn:disabled,html[data-tema="oscuro"] .ai-btn[disab
 .arranque{display:none}
 html.arrancando .arranque{display:block}
 html.arrancando .wrap,html.arrancando .mbar,html.arrancando .an-wrap,html.arrancando .an-pie{visibility:hidden}
+/* Las entradas no corren con la app escondida: terminaban antes de que se viera nada y, al
+   quitar `arrancando`, unas piezas aparecían de golpe y otras entraban. */
+html.arrancando .card,html.arrancando .pasos,html.arrancando .p1-cierre,html.arrancando .an-paso,html.arrancando .an-vista{animation:none}
 .arranque-in{max-width:1180px;margin:0 auto;padding:var(--e5) var(--e4)}
 .arranque-riel{height:64px;border-radius:999px;margin:0 auto var(--e4);max-width:560px}
 .arranque-cols{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:var(--e4);align-items:start}
 @media(max-width:920px){ .arranque-cols{grid-template-columns:1fr} .arranque-lado{display:none} }
 .arranque-t{display:flex;align-items:center;justify-content:center;gap:8px;margin:var(--e5) 0 0;
   color:var(--tinta2);font-size:var(--t3);font-weight:500}
-@media(prefers-reduced-motion:reduce){ .esq-b,.esq-boton,.esq-giro{animation:none} }
+/* Con menos movimiento el brillo se apaga y el giro late (ver «Menos movimiento no es ninguno»). */
 @media print{ .arranque,.esq-giro{display:none!important} }
 
 /* ============================================================================
@@ -5145,8 +5289,10 @@ html.con-puerta,html.con-puerta body{overflow:hidden}
   width:100%;min-height:52px;padding:14px 22px;border:none;border-radius:var(--rr3);
   background:var(--a-fill);color:#fff;font-family:var(--f-texto);font-size:var(--t4);font-weight:600;
   cursor:pointer;box-shadow:var(--sombra);transition:background .12s}
-@media(hover:hover){.puerta-btn:hover:not(:disabled){background:var(--a-fuerte)}}
+@media(hover:hover) and (pointer:fine){.puerta-btn:hover:not(:disabled){background:var(--a-fuerte)}}
 .puerta-btn:disabled{opacity:.72;cursor:default}
+.puerta-btn{transition:background var(--mv-s),transform var(--mv-liq)}
+.puerta-btn:active:not(:disabled){transform:scale(.97)}
 /* La G va sobre un cuadro blanco SIEMPRE: sus cuatro colores de marca están pensados para
    fondo claro y sobre el azul del botón el rojo y el verde se apagan. */
 .puerta-g{flex:0 0 auto;background:#fff;border-radius:3px;padding:3px;box-sizing:content-box}
@@ -5172,3 +5318,41 @@ html.con-puerta,html.con-puerta body{overflow:hidden}
 .pf-candado{display:inline-flex;align-items:center;gap:4px;margin-left:8px;
   font-size:var(--t1);font-weight:600;color:var(--tinta3);text-transform:none;letter-spacing:0}
 .pf-candado .svgi{width:13px;height:13px}
+
+/* ==========================================================================
+   Detalles del teléfono y de la jerarquía — la auditoría de movimiento, sep 2026
+   ========================================================================== */
+/* «Vaciar y empezar cotización nueva» pesaba casi como la acción primaria, justo debajo de ella:
+   un botón destructivo a un dedo del que se quiere apretar. Queda como botón de texto, con su
+   icono de basura y separado; se sigue deshaciendo desde el aviso. */
+.btn.btn-vaciar{background:none;border-color:transparent;box-shadow:none;color:var(--tinta2);font-weight:500;margin-top:var(--e3)}
+@media(hover:hover) and (pointer:fine){.btn.btn-vaciar:hover{background:var(--mal-bg);color:var(--mal);border-color:transparent}}
+/* La pastilla del conteo junto al buscador de Historial y Cuadernos salía vacía, como un
+   control sin rótulo, cuando no había nada que contar. */
+.hist-count:empty{display:none}
+/* El aviso de «Tu PDF está listo» entra y sale como los demás modales: aparecía y desaparecía en
+   seco. Lo crea mostrarEnlacePDF() (entrega.js) con la clase .show un cuadro después. */
+#pdf-fallback{opacity:0;transition:opacity .14s var(--ease-out)}
+#pdf-fallback.show{opacity:1;transition-duration:.2s}
+#pdf-fallback>div{transform:scale(.96);transition:transform .22s var(--ease-out)}
+#pdf-fallback.show>div{transform:none}
+@media(prefers-reduced-motion:reduce){#pdf-fallback>div{transform:none}}
+/* El pie pegado del escalador y del vectorizador tapaba lo último de la columna al llegar con
+   el tabulador o al enfocar un campo: el navegador desplaza teniendo en cuenta este margen. */
+.sp-side{scroll-padding-bottom:140px}
+/* El encabezado de una partida en el teléfono: número, precio y acciones en un renglón; el tipo
+   en el segundo. Se partía en tres —con los tres iconos solos en uno— y eran ~140 px antes del
+   contenido. */
+@media(max-width:560px){
+  .partida .partida-top{flex-wrap:wrap;row-gap:var(--e2)}
+  .partida .partida-top>.pnum{order:1}
+  .partida .partida-top>.lt{order:2;margin-left:auto;min-width:0}
+  .partida .partida-top>.ptop-actions{order:3;margin-left:0;gap:0}
+  /* 42 de ancho y 44 de alto: con el importe puesto (≈110 px) los tres iconos a 50 no cabían al
+     lado y bajaban a un renglón propio. */
+  .partida .partida-top>.ptop-actions>button{width:38px;min-width:38px;min-height:44px;padding:0}
+  .partida .partida-top{column-gap:6px}
+  .partida .partida-top .pfold{width:36px;min-width:36px}
+  .partida .partida-top>.lt{font-size:15px}
+  .partida .partida-top>.tipo-seg{order:9}
+}

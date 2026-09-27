@@ -20,6 +20,10 @@
 <script src="js/tema.js"></script>
 <link rel="stylesheet" href="css/sistema.css">
 <link rel="stylesheet" href="css/publico.css">
+<!-- vidrio.css es la que pone Sora y Manrope, que es lo que pide el <link> de arriba. Sin ella
+     la página pedía las fuentes y no las usaba: se veía con la del sistema, la única pantalla
+     que ve el cliente y la única que parecía de otra empresa. Las otras tres ya la cargan. -->
+<link rel="stylesheet" href="css/vidrio.css">
 </head>
 <!-- ============================================================================
      VERIFICAR — la página que abre el QR de un PDF.
@@ -85,17 +89,28 @@ const ESTADOS = {
   no_autentica: ['mal', 'No auténtica', 'No hay una cotización de AL3D con ese folio y ese código. Si te la mandaron, confírmala directo con AL3D.'],
 };
 
-function pintar(clase, titulo, texto) {
+/* `girando` deja el giro delante del texto. Antes pintar() vaciaba el renglón —giro incluido—
+   justo al empezar a consultar, así que «Consultando» salía sin la única señal de que algo
+   estaba pasando. */
+function pintar(clase, titulo, texto, girando) {
   const e = $('ver-est');
   $('ver').className = 'ver-caja ' + clase;
   e.textContent = '';
+  if (girando) { const g = document.createElement('span'); g.className = 'ver-giro'; g.setAttribute('aria-hidden', 'true'); e.append(g); }
   const b = document.createElement('b'); b.textContent = titulo;
   e.append(b, ' · ' + texto);
 }
 
 async function verificar(f, c) {
   $('ver-datos').hidden = true;
-  pintar('', 'Consultando', 'el registro de AL3D…');
+  pintar('', 'Consultando', 'el registro de AL3D…', true);
+  /* El botón se apaga mientras pregunta: dos toques mandaban dos consultas. */
+  const boton = document.querySelector('#ver-form button[type="submit"]');
+  if (boton) boton.disabled = true;
+  try { await consultar(f, c); } finally { if (boton) boton.disabled = false; }
+}
+
+async function consultar(f, c) {
   let r;
   try {
     const res = await fetch(URL_PUENTE, {
