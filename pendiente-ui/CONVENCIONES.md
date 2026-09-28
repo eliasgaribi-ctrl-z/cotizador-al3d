@@ -5,8 +5,8 @@ El paquete está en:
 
     PAQ=pendiente-ui/paquete
 
-- `$PAQ/00-LEEME-brief-v3.md` — el brief: reglas (§0), fallas (§1), las 26 piezas (§2), piezas 27–86 (§2b–2e), los 153 lugares por pantalla (§3), orden, descartes (§6), licencias (§7).
-- `$PAQ/01-anexo-153-fichas.md` — las 153 fichas completas (Dónde · Hoy · Propuesta · Sale de · Cómo en vanilla · Cuidado). **Tu fuente principal**: busca tus ID con `grep -n "^### C7\." ...`.
+- `pendiente-ui/paquete/00-LEEME-brief-v3.md` — el brief: reglas (§0), fallas (§1), las 26 piezas (§2), piezas 27–86 (§2b–2e), los 153 lugares por pantalla (§3), orden, descartes (§6), licencias (§7).
+- `pendiente-ui/paquete/01-anexo-153-fichas.md` — las 153 fichas completas (Dónde · Hoy · Propuesta · Sale de · Cómo en vanilla · Cuidado). **Tu fuente principal**: busca tus ID con `grep -n "^### C7\." ...`.
 - Las muestras funcionando (vanilla JS, cada pieza con un comentario «Va en:»). El brief las cita con nombres viejos; en el paquete se llaman:
   - `muestras-1-piezas-01-11.html` (piezas 1–11) · `muestras-2-piezas-12-26.html` (12–26) · `muestras-3-piezas-27-36.html` · `muestras-4-piezas-37-45.html` · `muestras-5-piezas-46-56.html` · `muestras-6-piezas-57-66.html` · `muestras-7-piezas-67-76.html` · `muestras-8-piezas-77-86.html`.
   - Porta desde la muestra: su comportamiento, sus medidas y sus cuidados ya se probaron. Pero **el repo manda**: sus tokens, su tono, sus funciones existentes.
@@ -73,7 +73,7 @@ Tu tarea dice qué archivos son tuyos. Puedes leer todo; **edita solo lo tuyo** 
 Trabajas en un *worktree* de git aislado. Al terminar:
 1. `git add -A && git commit` en tu worktree — uno o varios commits, mensaje en español con el estilo del repo (título que dice el resultado para quien usa la app, p. ej. «El aviso de Deshacer enseña su mecha y un aviso ya no borra al otro»; cuerpo con viñetas por ficha/pieza e ID). Termina cada mensaje con estas dos líneas exactas:
 
-       Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+       Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
        Claude-Session: https://claude.ai/code/session_01XuZW5if1eH6GakngoRFE3P
 
    No pongas identificadores de modelo en ningún otro lado.
