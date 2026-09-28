@@ -4101,8 +4101,12 @@ html.va-atras #card-proy,html.va-atras .p1-cierre{animation-name:entra-izq}
 .con-estado[data-estado]{gap:0}
 .con-estado .palomita{margin-right:.4em}
 /* Los hermanos del que trabaja (F7): esperan, y se nota. La opacidad va en el control entero,
-   que es donde el sistema la permite (§4.3), y el porqué lo dice el botón de al lado. */
-[data-espera]{opacity:.55;cursor:progress}
+   que es donde el sistema la permite (§4.3), y el porqué lo dice el botón de al lado. El .55 de
+   `:disabled` no sirve aquí: medido en el render, el rótulo de un botón fantasma quedaba en
+   3,81:1 de día (rgb(129,130,143) sobre blanco) y este botón no está deshabilitado —está
+   esperando, y su rótulo es justo lo que se lee para saber por qué no contesta—. Con .68 mide
+   5,2:1 y se sigue viendo apagado al lado del que trabaja. */
+[data-espera]{opacity:.68;cursor:progress}
 .con-estado .estado-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .trabajo-reloj{flex:none;font-variant-numeric:tabular-nums;white-space:pre}
 /* El éxito y el fallo le ganan al color del botón con dos clases: .mbar-btn:not(.gho):not(.ok)

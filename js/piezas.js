@@ -115,7 +115,12 @@
       const t = e.target && e.target.closest ? e.target : (e.target && e.target.parentElement);
       if (!t || !t.closest) return;
       const para = () => { e.preventDefault(); e.stopImmediatePropagation(); };
-      const ocupado = t.closest('.con-estado[data-estado="trabajando"],[data-espera]');
+      /* El éxito también: mientras dice «Registrada ✓» el botón no dice su acción, y un segundo
+         toque ahí registraba otra venta sin que nada lo anunciara. Lo marca `data-ocupado`, y no
+         `data-estado="ok"` a secas, porque un éxito pedido con `volver:0` se queda a propósito y
+         un botón mudo para siempre es un botón muerto. Lista de selectores separados por comas
+         —nada de :is()— porque esto corre en el closest() de teléfonos viejos. */
+      const ocupado = t.closest('.con-estado[data-estado="trabajando"],.con-estado[data-ocupado],[data-espera]');
       if (ocupado) { para(); return; }
       const des = t.closest('[data-deshacer]');
       if (des) { para(); const h = _DESHACER.get(des); if (h) h.deshacer(); return; }
@@ -197,9 +202,12 @@
      segundo plano no la reanuda. `reiniciar()` la rellena de golpe: es lo que pide el paro del
      anidador cada vez que el acomodo mejora (A4).
 
-     Con menos movimiento la línea se queda quieta —sigue diciendo «esto tiene reloj»— y, si se
-     le da un elemento en `segundos`, los segundos que faltan se escriben con letra, una vez por
-     segundo (H6). */
+     `segundos` escribe lo que falta una vez por segundo, SIEMPRE que se dé, con movimiento o
+     sin él: con menos movimiento la línea se queda quieta —sigue diciendo «esto tiene reloj»— y
+     esa letra es la única cuenta regresiva que queda (H6); con movimiento acompaña a la mecha
+     donde la pantalla la quiere en palabras (A4). Puede ser un elemento (o su id), y entonces se
+     le escribe «18 s», o una función (msQueFaltan, «18 s») y entonces la pantalla escribe la
+     frase entera. */
   P.mecha = function (cont, o) {
     cont = P.$(cont); o = o || {};
     let linea = null, anim = null, tic = 0;
@@ -211,8 +219,18 @@
       cont.appendChild(linea);
     }
     const quieta = P.sinMovimiento() || !linea || typeof linea.animate !== 'function';
-    const seg = o.segundos ? P.$(o.segundos) : null;
-    const pintarSeg = () => { if (seg) seg.textContent = P.reloj(r.resta(), { falta: true }); };
+    /* `segundos` puede ser un elemento (o su id) y entonces la mecha le escribe «18 s», o una
+       FUNCIÓN y entonces la pantalla escribe lo que quiera con lo que falta. Lo pide A4: el paro
+       del anidador tiene dos condiciones —40 s sin mejorar Y 25 intentos—, así que su renglón
+       dice «Sin mejora hace 18 s · faltan 7 intentos», y la mitad de esa frase no la sabe la
+       pieza. Sin esto, pasarle una función no fallaba: le ponía un .textContent a la función y
+       el renglón se quedaba callado para siempre. */
+    const seg = typeof o.segundos === 'function' ? o.segundos : (o.segundos ? P.$(o.segundos) : null);
+    const pintarSeg = () => {
+      if (!seg) return;
+      const falta = r.resta(), txt = P.reloj(falta, { falta: true });
+      if (typeof seg === 'function') seg(falta, txt); else seg.textContent = txt;
+    };
     const dibujar = () => {
       if (quieta) return;
       if (anim) anim.cancel();
@@ -279,9 +297,10 @@
      como mínimo, el texto va por textContent, al tocar el botón el aviso se va y la función
      corre en el mismo toque, y cada aviso se dice en la región que habla —lo urgente, en la
      asertiva— en cuanto se pide, aunque espere su turno para verse. Un aviso que se repite tal
-     cual no vuelve a entrar ni parpadea, y si no trae botón tampoco reinicia su tiempo: un
-     aviso que se pide en cada tecla se iría nunca. Si trae botón sí se rearma: es un acto
-     nuevo, y su ventana de Deshacer empieza ahora.
+     cual no vuelve a entrar ni parpadea, y si es informativo tampoco reinicia su tiempo: un
+     aviso que se pide en cada tecla se iría nunca. Un error o uno con botón sí se rearma: es
+     un acto nuevo —el reintento que volvió a fallar, el borrado de ahora— y quitarlo con el
+     reloj del primero era esconder el fallo justo cuando alguien lo buscaba.
 
      En el teléfono los avisos van al ancho del dock y encima de él, nunca sobre el botón
      principal; en la computadora, abajo a la izquierda. Eso lo dice la hoja (css/sistema.css,
@@ -311,7 +330,7 @@
     const dec = P.aviso.decidir(pila.vivos, n, AVISO_MAX);
     if (dec.que === 'reusar' || dec.que === 'reemplazar') {
       const v = pila.vivos[dec.i];
-      const reloj = dec.que === 'reemplazar' || !!n.fn;
+      const reloj = dec.que === 'reemplazar' || n.prio > 0;
       Object.assign(v, { msg: n.msg, tipo: n.tipo, label: n.label, fn: n.fn, clave: n.clave, prio: n.prio, dur: n.dur });
       if (dec.que === 'reemplazar') { v.ficha = null; v.mango = null; _mango(v); }
       _pintarUno(v, reloj);
@@ -381,7 +400,13 @@
     _PILAS.set(cont, p);
     /* Si alguien vació el contenedor a mano (un innerHTML='' de antes), empieza limpio. */
     cont.querySelectorAll(':scope > :not(.toast-uno)').forEach(x => x.remove());
-    cont.addEventListener('focusin', () => _pausaPila(p, 'foco', true));
+    /* De dónde llegó el foco, para devolverlo ahí cuando el aviso que lo tenía se vaya: si no,
+       quien llegó con el tabulador a «Deshacer» y lo tocó (o apretó Escape) se quedaba en el
+       <body>, a decenas de tabulaciones de donde estaba trabajando. */
+    cont.addEventListener('focusin', e => {
+      if (e.relatedTarget && !cont.contains(e.relatedTarget)) p.volverA = e.relatedTarget;
+      _pausaPila(p, 'foco', true);
+    });
     cont.addEventListener('focusout', e => { if (!e.relatedTarget || !cont.contains(e.relatedTarget)) _pausaPila(p, 'foco', false); });
     d.addEventListener('visibilitychange', () => _pausaPila(p, 'oculto', d.hidden));
     if (d.hidden) p.razones.add('oculto');
@@ -401,7 +426,14 @@
     }
     if (!p.sobre.size) _pausaPila(p, 'puntero', false);
     if (!p.cont.contains(d.activeElement)) _pausaPila(p, 'foco', false);
-    if (!p.vivos.length) p.cont.classList.remove('show');
+    /* Sin nadie a la vista no queda nada que pausar, y hay que decirlo: un aviso que alguien
+       estaba arrastrando cuando la pantalla vació #toast a mano nunca recibe su pointerup, así
+       que la razón «arrastre» se quedaba puesta y el aviso SIGUIENTE nacía congelado. Un aviso
+       que no se va nunca es peor que uno que se va antes de tiempo. */
+    if (!p.vivos.length) {
+      ['puntero', 'foco', 'arrastre'].forEach(r => _pausaPila(p, r, false));
+      p.cont.classList.remove('show');
+    }
   }
   /* El mango que devuelve P.aviso() es del AVISO, no del nodo: cuando otro aviso toma su lugar
      en la pila, el mango viejo muere (vivo=false, cerrar() no hace nada) y el nuevo recibe uno
@@ -451,7 +483,9 @@
       const b = d.createElement('button');
       b.type = 'button'; b.className = 'toast-act';
       /* La función se lee al tocar, no al pintar: un aviso reusado trae la suya, nueva. */
-      b.addEventListener('click', () => { const fn = n.fn; _cerrar(n); if (fn) fn(); });
+      /* Una sola vez: el aviso tarda 160 ms en irse, y un Enter sostenido o el doble toque de
+         un lector de pantalla llegaban a ese mismo botón y deshacían dos veces. */
+      b.addEventListener('click', () => { if (n.cerrado) return; const fn = n.fn; _cerrar(n); if (fn) fn(); });
       n.actEl = b;
       el.insertBefore(b, n.mecha && n.mecha.el && n.mecha.el.parentNode === el ? n.mecha.el : null);
     } else if (!n.fn && n.actEl) { n.actEl.remove(); n.actEl = null; }
@@ -498,6 +532,9 @@
     if (!el) return;
     const teniaFoco = el.contains(d.activeElement);
     el.classList.add('sale');
+    /* Mientras se desvanece ya no es un aviso: fuera del tabulador y del lector de pantalla. */
+    el.inert = true;
+    if (teniaFoco) _devolverFoco(p);
     if (desdeY != null) { el.style.transform = 'translateY(' + (desdeY + 28) + 'px)'; el.style.opacity = '0'; }
     const quitar = () => {
       if (!el.parentNode) return;
@@ -511,6 +548,21 @@
       if (!p.vivos.length) p.cont.classList.remove('show');
     };
     g.setTimeout(quitar, 160);
+  }
+  /* El foco vuelve a donde estaba antes de entrar al aviso; si eso ya no existe, al botón del
+     otro aviso, si lo hay. Va antes de la función del botón, así que ella todavía puede llevarlo
+     a otro lado (historial.js lo manda al «Rehacer»). */
+  function _devolverFoco(p) {
+    const v = p.volverA;
+    const otro = p.vivos.map(x => x.actEl).filter(Boolean).pop();
+    const sirve = v && v.isConnected && !p.cont.contains(v) && !(v.closest && v.closest('[inert]'));
+    const dest = sirve ? v : otro;
+    /* El camino de vuelta se olvida solo cuando el foco SALE de la pila. Si pasa al botón del
+       otro aviso —dos avisos con botón, se cierra el de arriba— sigue habiendo de dónde volver,
+       y borrarlo dejaba al segundo «Deshacer» sin salida: al cerrarlo, el foco se caía al
+       <body>, a decenas de tabulaciones de donde se estaba trabajando. */
+    if (!otro || dest !== otro) p.volverA = null;
+    if (dest && dest.focus) { try { dest.focus({ preventScroll: true }); } catch (_) {} }
   }
   function _deLaCola(p) {
     while (p.vivos.length < AVISO_MAX && p.cola.length) {
@@ -679,12 +731,19 @@
       (o.circulo ? '<circle cx="12" cy="12" r="12"/><path d="M6.8 12.4l3.4 3.4 7-7.4" pathLength="1"/>'
                  : '<path d="M4.8 12.8l4.6 4.6L19.4 7.2" pathLength="1"/>') + '</svg>';
   };
+  /* Idempotente en la caja que se le da: si ya hay una palomita ahí, la NUEVA toma su lugar en
+     vez de ponerse al lado. A14 marca «Coincide» renglón por renglón y F6 repinta el conteo del
+     mes, y los dos llaman otra vez sobre la misma caja al tocar de nuevo: apilar palomitas es
+     una fila de ✓ creciendo dentro de un botón de 44 px. */
   P.palomita = function (cont, o) {
     const t = d.createElement('span');
     t.innerHTML = P.palomitaHTML(o);
     const svg = t.firstChild;
     cont = P.$(cont);
-    if (cont) cont.appendChild(svg);
+    if (cont) {
+      const ya = cont.querySelector(':scope > .palomita');
+      if (ya) ya.replaceWith(svg); else cont.appendChild(svg);
+    }
     return svg;
   };
   P.dibujar = function (el) {
@@ -714,7 +773,11 @@
          pinta tal cual. El botón pasa a aria-busy y aria-disabled —no `disabled`: el foco se
          queda donde estaba— y la guardia se come los toques mientras tanto.
        · data-estado="ok": se lava en verde con su palomita y el texto de éxito («Sellada ·
-         A1B2»), y a los 3.5 s regresa a su rótulo.
+         A1B2»), y a los 3.5 s regresa a su rótulo. Mientras lo dice no acepta toques: el
+         rótulo no es su acción, y tocar «Registrada ✓» registraba otra venta. Con `volver:0`
+         —el éxito que se queda— el botón sí sigue aceptándolos: quien pidió que se quedara es
+         el dueño de lo que pase después, y un botón mudo para siempre no es un estado, es una
+         avería.
        · data-estado="mal": tiembla y dice «No contestó · Reintentar» sin cerrar nada. Tocarlo
          vuelve a correr SU propio manejador, que es el reintento: la pieza no necesita saber
          cuál es.
@@ -759,7 +822,12 @@
       }
       btn.classList.add('con-estado');
       btn.dataset.relleno = s.relleno;
-      if (s.w) btn.style.minWidth = Math.ceil(s.w) + 'px';
+      /* El ancho de antes, pero nunca más que lo que quepa. Un `min-width` en píxeles pelados
+         sobrevive al giro del teléfono: «Registrar venta» tomado a 800 px de ancho dejaba 640 px
+         de mínimo, y al volver a vertical la página entera se iba de lado (656 px de contenido
+         en 360 de pantalla, medido). Con min() el botón conserva su ancho mientras haya sitio y
+         cede cuando no lo hay, que es exactamente lo que se quería decir. */
+      if (s.w) btn.style.minWidth = 'min(' + Math.ceil(s.w) + 'px, 100%)';
     };
     const pintarReloj = () => {
       if (!btn.isConnected) { parar(); return; }
@@ -814,11 +882,18 @@
         parar(); tomar(); soltarHermanos();
         btn.dataset.estado = 'ok';
         btn.removeAttribute('aria-busy');
-        s.aria == null ? btn.removeAttribute('aria-disabled') : btn.setAttribute('aria-disabled', s.aria);
+        const ms = o.volver == null ? 3500 : +o.volver;
+        /* Mientras el éxito es un momento que se apaga solo, el botón NO acepta toques: lo que
+           dice es «Registrada», no su acción, y ahí se registraba una segunda venta. En cuanto
+           vuelve a su rótulo vuelve a ser suyo. Con `volver:0` el éxito se queda porque quien
+           llama lo pidió —«Ya se instaló»—, y entonces el botón sigue siendo suyo desde el
+           primer momento: dejarlo mudo para siempre sería un botón muerto que solo reiniciar()
+           puede revivir, y quien lea la API no tiene por qué adivinarlo. */
+        if (ms > 0) { btn.dataset.ocupado = ''; btn.setAttribute('aria-disabled', 'true'); _guardia(); }
+        else { delete btn.dataset.ocupado; s.aria == null ? btn.removeAttribute('aria-disabled') : btn.setAttribute('aria-disabled', s.aria); }
         const t = d.createElement('span'); t.className = 'estado-t'; t.textContent = texto == null ? 'Listo' : String(texto);
         btn.replaceChildren(P.palomita(null, { dibujar: true }), t);
         s.rel = s.tEl = s.relojEl = null;
-        const ms = o.volver == null ? 3500 : +o.volver;
         if (ms > 0) s.volverT = g.setTimeout(() => h.reiniciar(), ms);
         return h;
       },
@@ -827,6 +902,7 @@
         parar(); tomar(); soltarHermanos();
         btn.dataset.estado = 'mal';
         btn.removeAttribute('aria-busy');
+        delete btn.dataset.ocupado;      // el reintento es tocarlo otra vez
         s.aria == null ? btn.removeAttribute('aria-disabled') : btn.setAttribute('aria-disabled', s.aria);
         const t = d.createElement('span'); t.className = 'estado-t';
         t.textContent = (motivo == null ? 'No se pudo' : String(motivo)) + ' · ' + (o.reintentar || 'Reintentar');
@@ -845,7 +921,7 @@
           s.aria == null ? btn.removeAttribute('aria-disabled') : btn.setAttribute('aria-disabled', s.aria);
         }
         btn.removeAttribute('aria-busy');
-        delete btn.dataset.estado; delete btn.dataset.relleno;
+        delete btn.dataset.estado; delete btn.dataset.relleno; delete btn.dataset.ocupado;
         btn.classList.remove('con-estado');
         s.nodos = null; s.rel = s.tEl = s.relojEl = null;
         return h;
@@ -922,7 +998,9 @@
     const ms = +o.ms > 0 ? +o.ms : 5000;
     const rotulo = o.rotulo || 'Deshacer';
     const minW = btn.style.minWidth;
-    btn.style.minWidth = Math.ceil(btn.getBoundingClientRect().width) + 'px';
+    /* Con min(): el ancho de antes mientras quepa, y lo que quepa si el teléfono gira a vertical
+       con la mecha viva. Unos píxeles pelados dejaban la página desbordada de lado. */
+    btn.style.minWidth = 'min(' + Math.ceil(btn.getBoundingClientRect().width) + 'px, 100%)';
     const rot = P.rotuloTemporal(btn, rotulo, { ms: 0 });
     let seg = null;
     if (P.sinMovimiento()) {
@@ -968,11 +1046,16 @@
      toque, un control por voz—: un clic que no viene de un puntero (detail = 0) arma la
      confirmación y dice «Otra vez para confirmar»; un segundo dentro de 5 s confirma.
 
+     Al confirmar, el botón queda `.hecho` y aria-disabled, y si se dio `textoHecho` se dice y
+     pasa a ser la coletilla del nombre del botón: la capa de color va aria-hidden —es la copia
+     del rótulo—, así que escribirlo ahí solo servía para el que lo ve.
+
      El avance NO se apaga con menos movimiento: es información, no adorno. Lo que se apaga es
      el encogerse al apretar. La acción va en alConfirmar: mientras el botón esté bajo esta
      pieza, su onclick y la delegación de la pantalla no reciben el clic (la guardia), y
      destruir() se lo devuelve. Llamarla otra vez sobre el mismo botón no duplica oyentes:
-     actualiza las opciones y reinicia. */
+     actualiza las opciones y reinicia. En reposo no deja NADA colgado fuera del botón: los dos
+     oyentes de ventana y documento existen solo mientras alguien sostiene. */
   P.mantener = function (btn, o) {
     btn = P.$(btn); o = o || {};
     if (!btn) return null;
@@ -1028,10 +1111,17 @@
     const completo = () => {
       if (estado === 'hecho') return;
       estado = 'hecho'; armado = 0;
+      soltarGlobales();
       btn.classList.remove('manteniendo');
       btn.classList.add('hecho');
       btn.setAttribute('aria-disabled', 'true');
       if (op.textoHecho) capaT.textContent = op.textoHecho;
+      /* La capa de color va aria-hidden —es la copia del rótulo—, así que `textoHecho` no lo
+         oía nadie: quien no ve el relleno llenarse solo sabía que confirmó si la pantalla
+         avisaba después. Se dice aquí, y la instrucción de «mantén presionado» se borra, que
+         ya no es cierta: el botón está hecho. */
+      sv.textContent = op.textoHecho ? ' — ' + op.textoHecho : '';
+      if (op.textoHecho) P.voz(op.textoHecho);
       if (op.aviso) { const a = P.$(op.aviso); if (a) a.textContent = ''; }
       if (typeof op.alConfirmar === 'function') op.alConfirmar();
     };
@@ -1042,16 +1132,29 @@
       else { pistaR = P.rotuloTemporal(base, txt, { ms: 1800 }); P.sacudir(btn); }
       P.voz(txt);
     };
+    /* Los dos oyentes que NO cuelgan del botón —la ventana que pierde el foco y la pestaña que
+       se va— se ponen solo mientras alguien sostiene, y se quitan al soltar. Puestos de por vida
+       eran una fuga: proyectos.js repinta su lista con innerHTML y cada repintado deja un botón
+       nuevo con su mantener, así que al cabo de una tarde de tocar el tablero había decenas de
+       oyentes en `document` apuntando a botones que ya no existen. Mientras nadie sostiene no
+       hay nada que cancelar, así que no hacen falta. */
+    const globales = [];
+    const soltarGlobales = () => { globales.forEach(f => f()); globales.length = 0; };
+    const oirGlobal = (x, ev, f) => { x.addEventListener(ev, f); globales.push(() => x.removeEventListener(ev, f)); };
     const empezar = () => {
       if (estado !== 'quieto' || bloqueado()) return;
       if (pistaR) { pistaR.volver(); pistaR = null; }
       estado = 'sosteniendo'; sosT0 = ahora();
       btn.classList.add('manteniendo');
+      soltarGlobales();
+      oirGlobal(g, 'blur', () => soltar(true));
+      oirGlobal(d, 'visibilitychange', () => { if (d.hidden) soltar(true); });
       ir(1, ms() * (1 - progreso()));
     };
     const soltar = salio => {
       if (estado !== 'sosteniendo') return;
       estado = 'quieto';
+      soltarGlobales();
       btn.classList.remove('manteniendo');
       const corto = ahora() - sosT0 < 250;
       ir(0, 180 * progreso());
@@ -1081,8 +1184,6 @@
     oir(btn, 'keyup', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); soltar(false); } });
     oir(btn, 'blur', () => soltar(true));
     oir(btn, 'contextmenu', e => e.preventDefault());   // el menú de pulsación larga de Android
-    oir(g, 'blur', () => soltar(true));
-    oir(d, 'visibilitychange', () => { if (d.hidden) soltar(true); });
     copiar();
     const h = {
       get progreso() { return progreso(); },
@@ -1092,7 +1193,7 @@
       _soltar() {
         anims.forEach(x => { try { x.cancel(); } catch (_) {} });
         g.clearTimeout(finT);
-        quitar.forEach(f => f());
+        quitar.forEach(f => f()); soltarGlobales();
         btn.classList.remove('hecho', 'manteniendo');
         ariaAntes == null ? btn.removeAttribute('aria-disabled') : btn.setAttribute('aria-disabled', ariaAntes);
         _MANTENER.delete(btn);
@@ -1109,7 +1210,7 @@
       },
       reiniciar() {
         anims.forEach(x => { try { x.cancel(); } catch (_) {} });
-        anims = []; g.clearTimeout(finT); finT = 0;
+        anims = []; g.clearTimeout(finT); finT = 0; soltarGlobales();
         estado = 'quieto'; desde = hacia = dur = 0; armado = 0;
         capa.style.transform = ''; capaT.style.transform = '';
         btn.classList.remove('hecho', 'manteniendo');
@@ -1121,7 +1222,7 @@
       destruir() {
         if (!h._intacto()) { h._soltar(); btn.classList.remove('mantener', 'hecho', 'manteniendo'); btn.removeAttribute('data-mantener'); return; }
         h.reiniciar();
-        quitar.forEach(f => f());
+        quitar.forEach(f => f()); soltarGlobales();
         capa.remove(); sv.remove();
         const r = base.querySelector(':scope > .rotulo');
         if (r) { const a = r.querySelector(':scope > .rotulo-a'); r.replaceWith(...(a ? a.childNodes : [])); }
@@ -1224,12 +1325,19 @@
       (o.sub !== '' ? '<text class="sc-sub" x="80" y="104" text-anchor="middle">' + P.esc(o.sub || 'AUTÉNTICA') + '</text>' : '') +
       '<path class="sc-cruz" d="M34 126L126 34"/></svg>';
   };
+  /* También idempotente: verificar.html sella la misma caja cuando la hoja contesta, y si la
+     respuesta cambia —«auténtica» y luego «ya no vigente», o una segunda consulta— el sello
+     nuevo tiene que SUSTITUIR al de antes, no ponerse junto. Dos sellos de 150 px uno al lado
+     del otro no caben en un teléfono, y además dicen dos cosas distintas a la vez. */
   P.sello = function (cont, o) {
     const t = d.createElement('span');
     t.innerHTML = P.selloHTML(o);
     const svg = t.firstChild;
     cont = P.$(cont);
-    if (cont) cont.appendChild(svg);
+    if (cont) {
+      const ya = cont.querySelector(':scope > .sello-circular');
+      if (ya) ya.replaceWith(svg); else cont.appendChild(svg);
+    }
     return svg;
   };
 

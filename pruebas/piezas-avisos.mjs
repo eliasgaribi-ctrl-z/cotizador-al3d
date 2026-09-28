@@ -144,6 +144,19 @@ console.log('\nEL RELOJ QUE SE PAUSA');
   const despues = corto.resta();
   cierto('al volver de una pausa quedan por lo menos 1.5 s (el mismo piso de los dos toast())', antes < 400 && despues >= 1490, { antes, despues });
   corto.cancelar();
+  /* A4: el paro del anidador tiene DOS condiciones y su renglón dice «Sin mejora hace 18 s ·
+     faltan 7 intentos». La mitad de esa frase no la sabe la pieza, así que `segundos` también
+     acepta una función. Antes no fallaba: le ponía un .textContent a la función y el renglón se
+     quedaba mudo, que es la peor forma de romperse. */
+  const dichos = [];
+  const conFn = P.mecha(null, { ms: 2500, segundos: (falta, txt) => dichos.push([Math.round(falta / 100) * 100, txt]) });
+  await espera(60);
+  eq('`segundos` puede ser una función y se llama al arrancar con lo que falta', dichos.length && dichos[0][1], '3 s');
+  conFn.pausar('dedo');
+  const cuantos = dichos.length;
+  await espera(1100);
+  cierto('  y en pausa sigue diciendo lo mismo, no baja', dichos.slice(cuantos).every(x => x[1] === dichos[0][1]), dichos);
+  conFn.cancelar();
 }
 
 console.log('\nEL SELLO Y EL GLIFO, ESCAPADOS');

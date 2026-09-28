@@ -47,6 +47,19 @@ async function abrir({ ancho, reducido, tema, tacto }) {
     hasTouch: !!tacto, isMobile: !!tacto, permissions: ['clipboard-read', 'clipboard-write'],
   });
   await ctx.addInitScript(t => { try { localStorage.setItem('al3d_tema', t); } catch (_) {} }, tema);
+  /* Lo que de verdad hay DEBAJO de un elemento: el primer ancestro con un fondo opaco. Un botón
+     fantasma no tiene fondo propio —de noche es transparente— y medir su contraste contra
+     `backgroundColor: rgba(0,0,0,0)` es medirlo contra negro, que no es lo que se ve. */
+  await ctx.addInitScript(() => {
+    window.fondoOpaco = el => {
+      for (let x = el; x && x.nodeType === 1; x = x.parentElement) {
+        const f = getComputedStyle(x).backgroundColor;
+        const m = /rgba?\(\s*[\d.]+[,\s]+[\d.]+[,\s]+[\d.]+(?:\s*[,/]\s*([\d.]+))?/.exec(f);
+        if (m && (m[1] == null || +m[1] > .95)) return f;
+      }
+      return 'rgb(255, 255, 255)';
+    };
+  });
   const p = await ctx.newPage();
   const errs = [], fallidas = [];
   p.on('pageerror', e => errs.push(e.message));
@@ -178,7 +191,28 @@ async function conRaton(ancho, reducido, tema, completo) {
   cierto(pila.errTomaLugar.join('|') === 'Partida 2 eliminada|No se pudo guardar', 'un error toma el lugar del informativo y deja el «Deshacer»', pila.errTomaLugar);
   cierto(pila.esperaVivos === 2 && pila.esperaVivo, 'con dos que no se pisan, el tercero espera (nunca más de dos a la vista)');
   cierto(pila.fnCorrio && pila.entroElQueEsperaba.join('|') === 'No se pudo guardar|Otro error', 'al tocar «Deshacer» corre su función, se va, y entra el que esperaba', pila.entroElQueEsperaba);
-  cierto(pila.repiteResta < 2300, 'un aviso que se repite tal cual no reinicia su tiempo', pila.repiteResta);
+  cierto(pila.repiteResta < 2300, 'un aviso INFORMATIVO que se repite tal cual no reinicia su tiempo', pila.repiteResta);
+  /* La otra mitad de la regla: lo que se repite y ES un acto nuevo —el reintento que volvió a
+     fallar, el borrado de ahora— sí rearma su reloj. Quitarlo con el reloj del primero era
+     esconder el fallo justo cuando alguien lo estaba buscando, y dejar un «Deshacer» con dos
+     segundos de ventana para algo que se acaba de hacer. */
+  const rearma = await p.evaluate(async () => {
+    const A = Piezas.aviso, out = {};
+    for (const [k, o] of [['err', { tipo: 'err', dur: 4000, voz: false }], ['accion', { dur: 9000, accion: { label: 'Deshacer', fn: () => {} }, voz: false }]]) {
+      A.limpiar();
+      A('No contestó', o);
+      await new Promise(r => setTimeout(r, 900));
+      const antes = A.vivos()[0].resta;
+      A('No contestó', o);
+      out[k] = { antes: Math.round(antes), despues: Math.round(A.vivos()[0].resta), nodos: document.querySelectorAll('#toast .toast-uno').length };
+    }
+    A.limpiar();
+    return out;
+  });
+  cierto(rearma.err.despues > rearma.err.antes + 500 && rearma.err.nodos === 1,
+    'un ERROR repetido rearma su reloj sin volver a entrar: el reintento que falló otra vez no se va con el tiempo del primero', rearma.err);
+  cierto(rearma.accion.despues > rearma.accion.antes + 500 && rearma.accion.nodos === 1,
+    '  y uno con botón también: la ventana de «Deshacer» empieza ahora', rearma.accion);
   cierto(pila.minimo8 > 7000, 'con botón dura 8 s como mínimo', pila.minimo8);
   cierto(!pila.mango.viejo && pila.mango.nuevo && pila.mango.quedan.join() === 'Venta registrada en la hoja',
     'el mango de «Mandando…» muere al ceder su lugar: cerrarlo ya no se lleva «Abrir plataforma»', pila.mango);
@@ -229,6 +263,20 @@ async function conRaton(ancho, reducido, tema, completo) {
   await p.keyboard.press('Escape');
   await p.waitForTimeout(250);
   cierto((await vivos(p)).length === 0, 'Escape con el foco en el aviso lo quita');
+  /* Y el foco vuelve a donde estaba. El aviso vive al final del documento: quien llegó a
+     «Deshacer» con el tabulador y lo usó se quedaba en el <body>, o sea a toda la página de
+     distancia de lo que estaba haciendo. Se prueba por las dos salidas: el botón y Escape. */
+  for (const [salida, hacer] of [['tocando «Deshacer»', async () => p.keyboard.press('Enter')], ['con Escape', async () => p.keyboard.press('Escape')]]) {
+    await limpiar(p);
+    await p.click('#v-deshacer');          // el clic deja el foco en ese botón: de ahí se viene
+    await p.waitForTimeout(250);
+    await p.evaluate(() => document.querySelector('#toast .toast-act').focus());
+    await hacer();
+    await p.waitForTimeout(300);
+    const vuelve = await p.evaluate(() => document.activeElement && (document.activeElement.id || document.activeElement.tagName));
+    cierto(vuelve === 'v-deshacer', 'al irse el aviso ' + salida + ' el foco vuelve al botón de donde salió, no al <body>', vuelve);
+    await limpiar(p);
+  }
   await p.click('#v-deshacer');
   await p.waitForTimeout(200);
   await p.evaluate(() => {
@@ -261,6 +309,26 @@ async function conRaton(ancho, reducido, tema, completo) {
   await p.waitForTimeout(300);
   cierto((await vivos(p)).map(x => x.msg).join() === 'Partida restaurada', '«Deshacer» con el ratón corre su función: «Partida restaurada»');
   await limpiar(p);
+  /* El arrastre que se queda a medias. Una pantalla de antes vacía #toast con innerHTML: el
+     aviso que el dedo llevaba no recibe nunca su pointerup, así que su razón de pausa se queda
+     puesta y el aviso SIGUIENTE nace congelado y no se va nunca. */
+  {
+    const a0 = await p.evaluate(() => { Piezas.aviso('Se está arrastrando', { dur: 3000, voz: false });
+      return document.querySelector('#toast .toast-uno').getBoundingClientRect(); });
+    await p.mouse.move(a0.x + a0.width / 2, a0.y + a0.height / 2);
+    await p.mouse.down();
+    await p.mouse.move(a0.x + a0.width / 2, a0.y + a0.height / 2 + 20);
+    await p.evaluate(() => { document.getElementById('toast').innerHTML = ''; });
+    await p.mouse.up();
+    await p.mouse.move(2, 2);          // el cursor fuera: lo que se prueba es el arrastre, no el hover
+    await p.waitForTimeout(80);
+    await p.evaluate(() => Piezas.aviso('El de después', { dur: 3000, voz: false }));
+    const q1 = (await vivos(p))[0].resta;
+    await p.waitForTimeout(700);
+    const q2 = (await vivos(p))[0].resta;
+    cierto(q2 < q1 - 350, 'si el aviso que se arrastraba desaparece del DOM, el siguiente NO nace congelado', { q1, q2 });
+    await limpiar(p);
+  }
 
   /* ---------- 14 · el botón que trabaja ---------- */
   await alCentro(p, '#b-sellar');
@@ -272,7 +340,8 @@ async function conRaton(ancho, reducido, tema, completo) {
     const b = document.getElementById('b-sellar'), rel = b.querySelector('.trabajo-relleno');
     const s = getComputedStyle(b);
     return { estado: b.dataset.estado, busy: b.getAttribute('aria-busy'), dis: b.getAttribute('aria-disabled'), txt: b.textContent.replace(/\s+/g, ' '), ancho: b.getBoundingClientRect().width,
-      anims: rel ? rel.getAnimations().length : -1, letra: s.color, fondo: s.backgroundColor, grad: s.backgroundImage, relleno: rel ? getComputedStyle(rel).backgroundColor : '' };
+      anims: rel ? rel.getAnimations().length : -1, letra: s.color, fondo: s.backgroundColor, grad: s.backgroundImage, detras: fondoOpaco(b.parentElement),
+      relleno: rel ? getComputedStyle(rel).backgroundColor : '' };
   });
   cierto(tr.estado === 'trabajando' && tr.busy === 'true' && tr.dis === 'true' && /Sellando/.test(tr.txt) && /\d s/.test(tr.txt),
     'el botón dice lo que hace y cuánto lleva: «' + tr.txt.trim() + '»', tr);
@@ -280,7 +349,9 @@ async function conRaton(ancho, reducido, tema, completo) {
   cierto(reducido ? tr.anims === 0 : tr.anims === 1, reducido ? 'con menos movimiento no hay relleno que avance: lo dice el reloj' : 'el relleno avanza con una animación de transform');
   {
     const letra = rgba(tr.letra), fondos = todos(tr.grad).concat(rgba(tr.fondo)).filter(c => c[3] > .5), rel = rgba(tr.relleno);
+    if (!fondos.length) fondos.push(rgba(tr.detras));      // un botón sin fondo propio: manda la tarjeta
     const peor = Math.min(...fondos.map(f => Math.min(contraste(letra, f), contraste(letra, sobre(rel, f)))));
+    cierto(fondos.length > 0 && isFinite(peor), 'hay un fondo de verdad contra el que medir el relleno que avanza', { fondos, detras: tr.detras });
     cierto(peor >= 4.5, 'la letra blanca mide 4.5:1 o más sobre el botón y sobre el relleno a medias (' + peor.toFixed(2) + ':1)');
   }
   /* force: Playwright da por deshabilitado lo que lleva aria-disabled y esperaría a que se
@@ -288,10 +359,46 @@ async function conRaton(ancho, reducido, tema, completo) {
   await p.click('#b-sellar', { force: true });
   await p.click('#b-hermano', { force: true });
   cierto(await p.evaluate(() => !(window.__cuentas.hermano > 0)), 'mientras trabaja, ni él ni su hermano aceptan otro toque');
+  /* El hermano espera, y eso se dice apagando el control entero, que es donde el sistema permite
+     la opacidad (§4.3). Pero su rótulo es justo lo que se lee para saber por qué no contesta: con
+     el .55 de `:disabled` medía 3,81:1 de día sobre la tarjeta. Se mide aquí para que no vuelva. */
+  {
+    const he = await p.evaluate(() => {
+      const b = document.getElementById('b-hermano'), s = getComputedStyle(b);
+      const opaco = el => { for (let x = el; x; x = x.parentElement) { const f = getComputedStyle(x).backgroundColor;
+        const m = /rgba?\(\s*[\d.]+[,\s]+[\d.]+[,\s]+[\d.]+(?:\s*[,/]\s*([\d.]+))?/.exec(f); if (m && (m[1] == null || +m[1] > .95)) return f; } return 'rgb(255,255,255)'; };
+      return { letra: s.color, op: +s.opacity, fondo: opaco(b.parentElement), espera: b.hasAttribute('data-espera') };
+    });
+    const f = rgba(he.fondo), l = rgba(he.letra);
+    const r = contraste(sobre([l[0], l[1], l[2], he.op], f), f);
+    cierto(he.espera && he.op < 1 && r >= 4.5, 'el hermano que espera se ve apagado pero su rótulo se sigue leyendo (' + r.toFixed(2) + ':1)', he);
+  }
   await p.waitForTimeout(1600);
   const ok = await p.evaluate(() => { const b = document.getElementById('b-sellar'), s = getComputedStyle(b); return { estado: b.dataset.estado, txt: b.textContent, pal: !!b.querySelector('.palomita'), letra: s.color, fondo: s.backgroundColor, hermano: document.getElementById('b-hermano').hasAttribute('data-espera') }; });
   cierto(ok.estado === 'ok' && ok.txt.includes('Sellada · A1B2-C3D4') && ok.pal && !ok.hermano, 'termina en verde con su palomita: «' + ok.txt + '», y el hermano se suelta', ok);
   cierto(contraste(rgba(ok.letra), rgba(ok.fondo)) >= 4.5, 'el éxito se lee: ' + contraste(rgba(ok.letra), rgba(ok.fondo)).toFixed(2) + ':1');
+  /* El éxito tampoco acepta toques: lo que dice es «Sellada», no su acción, y ahí se registraba
+     una segunda venta. Pero solo mientras es un momento que se apaga solo: con `volver:0` el
+     rótulo se queda porque quien llama lo pidió, y entonces el botón vuelve a ser suyo —si no,
+     sería un botón muerto que nadie puede desbloquear sin conocer reiniciar(). */
+  {
+    await p.evaluate(() => { window.__cuentas.hermano = 0; });
+    await p.click('#b-sellar', { force: true });
+    await p.waitForTimeout(120);
+    const enOk = await p.evaluate(() => ({ estado: document.getElementById('b-sellar').dataset.estado, n: window.__cuentas.hermano }));
+    cierto(enOk.estado === 'ok', 'mientras dice el éxito no acepta otro toque (no se registra una segunda venta)', enOk);
+    const fijo = await p.evaluate(async () => {
+      const b = document.getElementById('b-hermano');
+      window.__cuentas.hermano = 0;
+      Piezas.estadoBoton(b).ok('Ya se instaló', { volver: 0 });
+      await new Promise(r => setTimeout(r, 60));
+      b.click();
+      const out = { estado: b.dataset.estado, aria: b.getAttribute('aria-disabled'), clics: window.__cuentas.hermano };
+      Piezas.estadoBoton(b).reiniciar();
+      return out;
+    });
+    cierto(fijo.estado === 'ok' && fijo.aria === null && fijo.clics === 1, 'un éxito que se queda (volver:0) sigue siendo del que llama: acepta toques', fijo);
+  }
   if (completo) {
     await p.waitForTimeout(3700);
     const vuelta = await p.evaluate(() => { const b = document.getElementById('b-sellar'); return { txt: b.textContent, estado: b.dataset.estado || '', minW: b.style.minWidth, clase: b.classList.contains('con-estado') }; });
@@ -301,8 +408,11 @@ async function conRaton(ancho, reducido, tema, completo) {
   await p.waitForTimeout(120);
   {
     const g = await p.evaluate(() => { const b = document.getElementById('b-traer'), s = getComputedStyle(b), r = b.querySelector('.trabajo-relleno');
-      return { letra: s.color, fondo: s.backgroundColor, relleno: getComputedStyle(r).backgroundColor, tipo: b.dataset.relleno }; });
-    const f = rgba(g.fondo), peor = Math.min(contraste(rgba(g.letra), f), contraste(rgba(g.letra), sobre(rgba(g.relleno), f)));
+      return { letra: s.color, fondo: s.backgroundColor, relleno: getComputedStyle(r).backgroundColor, tipo: b.dataset.relleno, detras: fondoOpaco(b.parentElement) }; });
+    /* El fantasma no tiene fondo propio (de noche es transparente): lo que hay debajo es la
+       tarjeta, y contra ella se mide, no contra el negro de un rgba(0,0,0,0). */
+    const f = rgba(g.fondo)[3] > .5 ? sobre(rgba(g.fondo), rgba(g.detras)) : rgba(g.detras);
+    const peor = Math.min(contraste(rgba(g.letra), f), contraste(rgba(g.letra), sobre(rgba(g.relleno), f)));
     cierto(peor >= 4.5 && g.tipo === (tema === 'oscuro' ? 'luz' : 'claro'), 'en un botón fantasma el relleno es un tinte (' + g.tipo + ') y la letra sigue en ' + peor.toFixed(2) + ':1', g);
   }
   await p.waitForTimeout(980);
@@ -410,14 +520,19 @@ async function conRaton(ancho, reducido, tema, completo) {
   const medio = await p.evaluate(() => {
     const b = document.getElementById('b-borrar'), t = b.querySelector('.mantener-capa-t'), s = getComputedStyle(t), bs = getComputedStyle(b);
     return { capa: b.querySelector('.mantener-capa').getAnimations().length, letra: s.color, fondo: s.backgroundColor, base: bs.color,
-      fondoBase: bs.backgroundColor, grad: bs.backgroundImage, relleno: b.dataset.relleno };
+      fondoBase: bs.backgroundColor, grad: bs.backgroundImage, relleno: b.dataset.relleno, detras: fondoOpaco(b) };
   });
   cierto(medio.capa === 1, 'mientras se sostiene, el relleno avanza (también con menos movimiento: es información)');
-  /* Contra lo que de verdad queda debajo: la capa compuesta sobre el fondo del botón. */
+  /* Contra lo que de verdad queda debajo: la capa compuesta sobre el fondo del botón. Si el
+     botón no trae fondo propio —de noche los fantasmas son transparentes— lo que hay debajo es
+     la tarjeta, y hay que medir contra ella: sin ese respaldo la lista salía vacía, Math.min()
+     de nada es Infinity y la comprobación pasaba sin medir nada. */
   const bajo = todos(medio.grad).concat(rgba(medio.fondoBase)).filter(c => c[3] > .5);
+  if (!bajo.length) bajo.push(rgba(medio.detras));
+  cierto(bajo.length > 0 && bajo.every(Boolean), 'hay un fondo de verdad contra el que medir el relleno de mantener', { bajo, detras: medio.detras });
   const cM = Math.min(...bajo.map(f => contraste(rgba(medio.letra), sobre(rgba(medio.fondo), f))));
   cierto(medio.relleno !== 'oscuro' && rgba(medio.fondo)[3] === 1, 'el botón de borrar se llena de rojo sólido, que se ve también de noche', medio);
-  cierto(cM >= 4.5, 'la letra encima del relleno se lee: ' + cM.toFixed(2) + ':1');
+  cierto(isFinite(cM) && cM >= 4.5, 'la letra encima del relleno se lee: ' + cM.toFixed(2) + ':1');
   await p.waitForTimeout(700);
   await p.mouse.up();
   await p.waitForTimeout(150);
@@ -467,6 +582,20 @@ async function conRaton(ancho, reducido, tema, completo) {
   const rehecho = await p.evaluate(() => { const b = document.getElementById('b-borrar'); return { b: window.__cuentas.borrar, base: b.querySelector('.mantener-base').textContent, capa: b.querySelector('.mantener-capa-t').textContent, capas: b.querySelectorAll('.mantener-capa').length }; });
   cierto(rehecho.b === 1 && rehecho.base === 'Sí, borrar todo' && rehecho.capa === 'Sí, borrar todo' && rehecho.capas === 1,
     'con el rótulo reescrito por la pantalla, se vuelve a armar sobre el nuevo y confirma una vez', rehecho);
+  /* `textoHecho` vive en la capa de color, que va aria-hidden porque es la copia del rótulo: sin
+     esto, quien no ve el relleno llenarse no se enteraba de que había confirmado. */
+  const dicho = await p.evaluate(async () => {
+    const b = document.getElementById('b-borrar');
+    Piezas.mantener(b, { ms: 60, textoHecho: 'Borrando…', alConfirmar: () => {} });
+    document.getElementById('vozStatus').textContent = '';
+    b.dispatchEvent(new PointerEvent('pointerdown', { isPrimary: true, button: 0, pointerId: 31, bubbles: true }));
+    await new Promise(r => setTimeout(r, 300));
+    const out = { voz: document.getElementById('vozStatus').textContent, coletilla: b.querySelector('.solo-voz').textContent, hecho: b.classList.contains('hecho') };
+    Piezas.mantener(b, { ms: 900, aviso: 'aviso-mantener', alConfirmar: () => { window.__cuentas.borrar++; } });
+    return out;
+  });
+  cierto(dicho.hecho && dicho.voz === 'Borrando…' && /Borrando…/.test(dicho.coletilla),
+    'al confirmar se DICE el textoHecho y deja de prometer «mantén presionado», que ya no es cierto', dicho);
 
   /* ---------- 6 · la palomita ---------- */
   const pal = await p.evaluate(async () => {
@@ -477,6 +606,23 @@ async function conRaton(ancho, reducido, tema, completo) {
   });
   cierto(reducido ? pal.a.length === 0 : pal.a.join() === '1', reducido ? 'con menos movimiento la palomita aparece ya dibujada' : 'la palomita se dibuja una sola vez', pal.a);
   cierto(parseFloat(pal.fin) === 0 && !/dibuja/.test(pal.html), 'y queda completa; la que ya estaba se pinta sin volver a dibujarse', pal);
+  /* Idempotente en la caja: A14 marca «Coincide» renglón por renglón y F6 repinta el conteo del
+     mes, y los dos vuelven a llamar sobre la misma caja. Apilar palomitas es una fila de ✓
+     creciendo dentro de un botón de 44 px; lo mismo con dos sellos de 150 px, que además dirían
+     dos cosas distintas a la vez. */
+  const repetidas = await p.evaluate(() => {
+    const c = document.getElementById('pal-caja');
+    Piezas.palomita(c, { circulo: true }); Piezas.palomita(c, { circulo: true });
+    const s = document.createElement('div'); document.body.appendChild(s);
+    Piezas.sello(s, { texto: 'AL3D · AUTÉNTICA ·' });
+    Piezas.sello(s, { texto: 'AL3D · YA NO VIGENTE ·', gris: true });
+    const out = { palomitas: c.querySelectorAll('.palomita').length, sellos: s.querySelectorAll('.sello-circular').length,
+      ultimo: s.querySelector('.sello-circular').classList.contains('gris') };
+    s.remove();
+    return out;
+  });
+  cierto(repetidas.palomitas === 1 && repetidas.sellos === 1 && repetidas.ultimo,
+    'llamarlas otra vez sobre la misma caja SUSTITUYE: una palomita, un sello, y el que manda es el último', repetidas);
 
   /* ---------- 24 · el veredicto y el sello ---------- */
   await alCentro(p, '[data-me="trabaja"]');
@@ -499,6 +645,41 @@ async function conRaton(ancho, reducido, tema, completo) {
   cierto(dos[0] !== dos[1], 'dos sellos en la misma página no comparten el id de su círculo', dos);
   await p.click('[data-me="av"]');
   cierto(await p.evaluate(() => document.querySelector('#sello-caja svg').classList.contains('gris') && document.querySelector('#me-16 .marca-estado').dataset.estado === 'av'), '«Ya no vigente»: la marca pasa a ! y el sello sale gris y cruzado');
+
+  /* Girar el teléfono con un botón trabajando. El ancho se conserva con `min-width` para que el
+     rótulo no encoja al cambiar de texto, y en píxeles pelados ese mínimo sobrevivía al giro:
+     «Registrar venta» medido en horizontal dejaba 640 px de mínimo y al volver a vertical la
+     página entera se iba de lado. Se prueba también con la mecha de «Deshacer», que hace lo mismo. */
+  {
+    await limpiar(p);
+    await p.setViewportSize({ width: 800, height: 700 });
+    await p.evaluate(() => {
+      const caja = document.createElement('div');
+      caja.id = 'caja-ancha'; caja.style.cssText = 'width:100%;display:flex';
+      caja.innerHTML = '<button type="button" id="b-ancho" class="btn btn-pri" style="flex:1">Registrar venta</button>';
+      document.querySelector('main').appendChild(caja);
+      Piezas.estadoBoton('b-ancho').trabajando({ verbo: 'Registrando', tau: 600000 });
+    });
+    await p.waitForTimeout(150);
+    await p.setViewportSize({ width: 360, height: 780 });
+    await p.waitForTimeout(250);
+    const giro = await p.evaluate(() => ({ doc: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth,
+      w: Math.round(document.getElementById('b-ancho').getBoundingClientRect().width) }));
+    cierto(giro.scroll <= giro.doc + 1, 'girado a vertical con un botón trabajando, la página no se va de lado', giro);
+    await p.evaluate(() => {
+      Piezas.estadoBoton('b-ancho').reiniciar();
+      Piezas.deshacerEnBoton('b-ancho', { ms: 600000, alConfirmar: () => {}, alDeshacer: () => {}, voz: false });
+    });
+    await p.setViewportSize({ width: 800, height: 700 });
+    await p.waitForTimeout(80);
+    await p.setViewportSize({ width: 360, height: 780 });
+    await p.waitForTimeout(250);
+    const giro2 = await p.evaluate(() => ({ doc: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
+    cierto(giro2.scroll <= giro2.doc + 1, '  y con la mecha de «Deshacer» viva, tampoco', giro2);
+    await p.evaluate(() => { const c = document.getElementById('caja-ancha'); if (c) c.remove(); });
+    await p.setViewportSize({ width: ancho, height: 780 });
+    await p.waitForTimeout(200);
+  }
 
   if (CAPTURAS) {
     await limpiar(p);
