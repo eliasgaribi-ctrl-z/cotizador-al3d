@@ -1412,7 +1412,16 @@
      el navegador ya se quedó con el gesto (pointercancel) para cuando se sabe.
      Con menos movimiento la hoja no se desplaza —la hoja de estilos se lo impide con
      !important—, pero el velo sí se aclara y soltar lejos sigue cerrando: se va el adorno, no
-     el gesto. */
+     el gesto.
+
+     Y la hoja que se rehace a medio gesto. La plataforma rehace la ficha con innerHTML con la
+     capa abierta (repintarEnSitio), y un touchmove o un touchend van SIEMPRE al elemento donde
+     empezó el toque: si ese nodo ya no está en el documento, no suben hasta `document`. Con los
+     oyentes colgados solo del documento, el gesto se quedaba vivo para siempre —el velo aclarado
+     a medias y ningún otro arrastre posible hasta recargar—, que es lo que encontró la revisión.
+     Por eso el touchmove y el touchend se oyen en el nodo del toque mismo, un toque nuevo suelta
+     cualquier gesto que se haya quedado colgado, y si la hoja deja el documento a medio camino
+     el gesto se suelta sin cerrar. */
   const _HOJA = { cierra: 90, velocidad: 0.11, cede: 12 };
   /** Lo que baja la hoja por cada píxel del dedo: todo hacia abajo; hacia arriba, 0,2 y hasta 12. */
   P.hojaResistencia = (bruto, tope = _HOJA.cede) => (bruto >= 0 ? bruto : -Math.min(tope, -bruto * 0.2));
@@ -1452,8 +1461,6 @@
     if (!_hojasOyen) {
       _hojasOyen = true;
       d.addEventListener('touchstart', _hojaToca, { passive: true });
-      d.addEventListener('touchend', () => _hojaSuelta(true), { passive: true });
-      d.addEventListener('touchcancel', () => _hojaSuelta(false), { passive: true });
       d.addEventListener('pointerdown', _hojaPuntero);
       d.addEventListener('pointermove', _hojaPunteroMueve);
       d.addEventListener('pointerup', e => { if (_gesto && _gesto.id === e.pointerId) _hojaSuelta(true); });
@@ -1483,11 +1490,17 @@
     return true;
   }
   function _hojaToca(e) {
-    if (_gesto || e.touches.length !== 1) return;
-    const h = _hojaDe(e.target); if (!h) return;
+    if (e.touches.length !== 1) return;
+    /* Un solo dedo en la pantalla quiere decir que cualquier gesto anterior ya terminó, aunque su
+       touchend no haya llegado nunca. */
+    if (_gesto) _hojaSuelta(false);
+    const t = e.target, h = _hojaDe(t); if (!h) return;
     const p = e.touches[0];
-    if (_hojaEmpieza(h.cfg, h.hoja, e.target, p.clientX, p.clientY, { tipo: 'toque' }))
-      d.addEventListener('touchmove', _hojaToqueMueve, { passive: false });
+    if (_hojaEmpieza(h.cfg, h.hoja, t, p.clientX, p.clientY, { tipo: 'toque', blanco: t })) {
+      t.addEventListener('touchmove', _hojaToqueMueve, { passive: false });
+      t.addEventListener('touchend', _hojaToqueSuelta, { passive: true });
+      t.addEventListener('touchcancel', _hojaToqueCancela, { passive: true });
+    }
   }
   function _hojaToqueMueve(e) {
     if (!_gesto || _gesto.tipo !== 'toque') return;
@@ -1496,8 +1509,14 @@
     /* Que no se mueva la página de atrás ni se dispare el «jalar para recargar». */
     if (_hojaMueve(p.clientX, p.clientY, e.timeStamp) && e.cancelable) e.preventDefault();
   }
+  function _hojaToqueSuelta() { if (_gesto && _gesto.tipo === 'toque') _hojaSuelta(true); }
+  function _hojaToqueCancela() { if (_gesto && _gesto.tipo === 'toque') _hojaSuelta(false); }
   function _hojaPuntero(e) {
-    if (_gesto || e.pointerType === 'touch' || e.button !== 0) return;
+    if (e.pointerType === 'touch' || e.button !== 0) return;
+    /* Un botón que baja sin que el anterior haya subido: aquel pointerup se perdió (un diálogo
+       del sistema, una ventana encima). Se suelta sin cerrar. */
+    if (_gesto && _gesto.tipo === 'puntero') _hojaSuelta(false);
+    if (_gesto) return;
     const t = e.target, h = _hojaDe(t); if (!h) return;
     if (!h.cfg.cabeza || !t.closest(h.cfg.cabeza) || t.closest(_NO_ARRASTRA)) return;
     _hojaEmpieza(h.cfg, h.hoja, t, e.clientX, e.clientY, { tipo: 'puntero', id: e.pointerId, capta: t });
@@ -1515,6 +1534,8 @@
   /* true si el movimiento es de la hoja. */
   function _hojaMueve(x, y, ts) {
     const gs = _gesto, bruto = y - gs.y0;
+    /* La pantalla rehízo la hoja: el dedo ya no lleva nada que se vea. */
+    if (!gs.hoja.isConnected) { _hojaSuelta(false); return false; }
     if (!gs.activo) {
       const ax = Math.abs(x - gs.x0), ay = Math.abs(bruto);
       if (ax < 6 && ay < 6) return false;
@@ -1526,6 +1547,13 @@
       gs.hoja.style.transition = 'none';
       gs.hoja.classList.add('hoja-arrastrando');
       clearTimeout(gs.velo._tHoja);
+      /* El tinte del velo se lee del render, antes de tocarlo: las dos apps lo pintan al .52,
+         pero otra superficie (el anidador, una capa con su propio velo) puede traer otro, y
+         aclararse desde un número que no es el suyo sería un brinco al primer píxel. */
+      if (!gs.velo.classList.contains('hoja-velo-sigue')) {
+        const a = /^rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*([\d.]+)\s*\)$/.exec(g.getComputedStyle(gs.velo).backgroundColor || '');
+        if (a) gs.velo.style.setProperty('--velo-a', a[1]); else gs.velo.style.removeProperty('--velo-a');
+      }
       gs.velo.classList.remove('hoja-velo-suelta');
       gs.velo.classList.add('hoja-velo-sigue');
     }
@@ -1537,8 +1565,12 @@
     return true;
   }
   function _hojaSuelta(evaluar) {
-    d.removeEventListener('touchmove', _hojaToqueMueve);
     const gs = _gesto; _gesto = null;
+    if (gs && gs.blanco) {
+      gs.blanco.removeEventListener('touchmove', _hojaToqueMueve);
+      gs.blanco.removeEventListener('touchend', _hojaToqueSuelta);
+      gs.blanco.removeEventListener('touchcancel', _hojaToqueCancela);
+    }
     if (!gs || !gs.activo) return;
     if (gs.captado) { try { gs.capta.releasePointerCapture(gs.id); } catch (_) {} }
     const cierra = !!evaluar && P.hojaSeCierra({ dy: gs.dy, v: _vel(gs.pts), alto: gs.alto,
@@ -1557,8 +1589,15 @@
     velo._tHoja = setTimeout(() => {
       velo.classList.remove('hoja-velo-sigue', 'hoja-velo-suelta');
       velo.style.removeProperty('--arrastre');
+      velo.style.removeProperty('--velo-a');
     }, 360);
-    if (cierra) { try { gs.cerrar(); } catch (_) {} }
+    if (cierra) {
+      try { gs.cerrar(); } catch (_) {}
+      /* Una capa puede negarse a cerrar (lo que se estaba escribiendo, una pregunta pendiente):
+         la hoja ya regresa sola con su transición, y el velo tiene que regresar con ella en vez
+         de quedarse aclarado hasta que venza el reloj y oscurecerse de golpe. */
+      if (gs.hoja.isConnected && gs.hoja.matches(gs.cfg.hoja)) velo.style.setProperty('--arrastre', '0');
+    }
   }
 
   /* ----- 22 · La tarjeta viaja -----
@@ -1584,7 +1623,21 @@
 
      Con menos movimiento solo corre `fn`. Si llega otra mientras una va en curso —dos toques
      seguidos—, la primera se salta: la segunda ya trae el estado final. Y nunca se envuelve lo
-     que corre al teclear: cada tecla fotografiaría la pantalla entera. */
+     que corre al teclear: cada tecla fotografiaría la pantalla entera. La pieza lo cuida sola
+     también: llamada desde un evento de escritura (input, beforeinput, composición) o desde
+     una tecla que se repite por tenerla apretada, solo corre `fn`.
+
+     Dos cosas de View Transitions que la pantalla tiene que saber, y que salieron en la
+     revisión:
+       · `fn` NO corre en el acto: el navegador primero fotografía el antes y la llama en el
+         cuadro siguiente. Lo que dependa del DOM nuevo —devolver el foco al botón que se usó,
+         medir, llevar algo a la vista— va DENTRO de `fn`, no en la línea de después. (Sin View
+         Transitions y con menos movimiento sí corre en el acto; dentro de `fn` vale siempre.)
+       · Mientras dura el viaje, Chrome manda TODO toque al <html>: la página se ve viva pero no
+         recibe nada. Dos toques seguidos en «Agregar» agregaban una. Aquí el toque que cae en
+         el <html> durante un viaje salta el viaje y, al soltar, se entrega a lo que está debajo
+         del dedo: la segunda partida se agrega y el viaje se corta, que es lo que se espera de
+         algo que se toca. */
   const _VELOS = '.modal-bg.show,.rv-modal-bg.show,.scaler-modal-bg.show,.vt-modal-bg.show';
   const _ENTRADAS = {
     adelante: [{ opacity: 0, transform: 'translateX(24px)' }, { opacity: 1, transform: 'none' }],
@@ -1618,9 +1671,37 @@
     };
   }
   let _vt = null;
+  /* El toque que el viaje se tragó (ver arriba). Se oye en captura, antes que nadie, y solo
+     mientras hay un viaje o justo después: un clic en el <html> fuera de eso no es de aquí. */
+  let _tragado = null, _vtOyen = false;
+  const _TECLEO = /^(input|beforeinput|compositionstart|compositionupdate|compositionend)$/;
+  function _vtOir() {
+    if (_vtOyen) return;
+    _vtOyen = true;
+    d.addEventListener('pointerdown', e => {
+      if (!_vt || e.target !== d.documentElement || e.isPrimary === false || e.button > 0) return;
+      _tragado = { x: e.clientX, y: e.clientY, t: e.timeStamp, vt: _vt };
+      try { _vt.skipTransition(); } catch (_) {}
+    }, true);
+    d.addEventListener('click', e => {
+      const tr = _tragado; _tragado = null;
+      if (!tr || e.target !== d.documentElement) return;
+      if (e.timeStamp - tr.t > 1000 || Math.abs(e.clientX - tr.x) > 12 || Math.abs(e.clientY - tr.y) > 12) return;
+      e.stopImmediatePropagation();
+      const entregar = () => {
+        const el = d.elementFromPoint(tr.x, tr.y);
+        if (!el || el === d.documentElement || el === d.body) return;
+        const foco = el.closest('button,a[href],input,select,textarea,summary,[tabindex]');
+        if (foco) { try { foco.focus({ preventScroll: true }); } catch (_) {} }
+        el.click();
+      };
+      tr.vt.finished.then(entregar, entregar);
+    }, true);
+  }
   /**
    * Corre `fn` —el repintado— y enseña el viaje de lo nombrado.
-   * @param {Function} fn
+   * @param {Function} fn  con View Transitions corre en el cuadro siguiente: lo que dependa del
+   *                       DOM nuevo (foco, medidas) va dentro
    * @param {{nombres?:string|string[]|Object, clave?:Function, contenedor?:string|Element,
    *          direccion?:'adelante'|'atras'|'sube', duracion?:number, vt?:boolean}} o
    * @returns {Promise<void>}  se cumple al terminar el viaje (o en el acto, sin movimiento)
@@ -1630,6 +1711,8 @@
     const correr = () => { try { fn(); return Promise.resolve(); } catch (e) { return Promise.reject(e); } };
     if (_vt) { try { _vt.skipTransition(); } catch (_) {} }
     if (P.sinMovimiento() || d.hidden) return correr();
+    const ev = g.event;
+    if (ev && (_TECLEO.test(ev.type) || (ev.type === 'keydown' && ev.repeat))) return correr();
     const leer = _objetivos(o);
     const cont = o.contenedor ? _el(o.contenedor) : null;
     const dir = _ENTRADAS[o.direccion] ? o.direccion : '';
@@ -1655,7 +1738,10 @@
     poner(antes);
     raiz.classList.add('vt-pieza');
     if (dir) raiz.dataset.va = dir; else delete raiz.dataset.va;
-    if (o.duracion) raiz.style.setProperty('--vt-dur', o.duracion + 'ms');
+    /* Siempre se escribe o se quita: si la anterior se saltó, su final no limpia (ya no es la
+       vigente) y esta heredaba su duración. */
+    if (o.duracion) raiz.style.setProperty('--vt-dur', o.duracion + 'ms'); else raiz.style.removeProperty('--vt-dur');
+    _vtOir();
     let error = null, vt;
     try {
       vt = d.startViewTransition(() => { quitar(); try { fn(); } catch (e) { error = e; } poner(leer()); });
@@ -1783,72 +1869,147 @@
      GPU compone. Se mide en un cuadro de animación, nunca en el evento de scroll mismo.
 
      Y el enfoque: tabular hasta una ficha que queda debajo del borde fundido la dejaría medio
-     borrada; al enfocarla, la fila se corre lo justo para que se lea entera. */
-  const _bordes = new WeakMap();
+     borrada; al enfocarla, la fila se corre lo justo para que se lea entera.
+
+     Casi todas sus filas se REHACEN con innerHTML: la fórmula de material viene en cada renglón
+     de la lista (hay veinte a la vez), la tira del asistente y el tablero de Proyectos se pintan
+     de nuevo en cada repintado. Con un control por elemento la pantalla tenía que volver a
+     llamar la pieza después de cada repintado, y cada llamada dejaba colgados su oyente de
+     resize y sus dos observadores sobre un nodo muerto —veinte repintados, veinte oyentes—, y
+     con un selector de varios solo se atendía el primero. Por eso ahora:
+       · con un SELECTOR, la pieza se pone en todo lo que case, hoy y en cada repintado, sin que
+         nadie la vuelva a llamar: `P.bordesDesvanecidos('.mat-formula')` una vez, al montar;
+       · con un ELEMENTO, lo de antes, para una fila que no se rehace;
+       · los oyentes son de la pieza y no de cada fila —un scroll en captura, un focusin, un
+         resize, un ResizeObserver y un MutationObserver para todo el documento—, y la fila que
+         deja el documento se suelta sola en el siguiente cuadro. */
+  const _bordes = new WeakMap();      // fila → { eje, margen, horiz, rq, control }
+  const _bordesVivas = new Set();     // las filas con la pieza puesta, para el resize y la poda
+  const _bordesSel = new Map();       // clave del selector → { sel, o, control }
+  let _bordesRO = null, _bordesMO = null, _bordesOyen = false, _bordesBarrido = 0;
   /** ¿Hay contenido escondido antes y después? pos, tamaño total, tamaño visible. */
   P.bordesDe = (pos, total, vista, tol = 2) => ({ antes: pos > tol, despues: pos + vista < total - tol });
+  function _bordesMedir(el) {
+    const s = _bordes.get(el); if (!s) return;
+    s.rq = 0;
+    if (!el.isConnected) return;
+    s.horiz = s.eje === 'x' || (s.eje === 'auto' && el.scrollWidth - el.clientWidth > el.scrollHeight - el.clientHeight);
+    const b = s.horiz ? P.bordesDe(Math.abs(el.scrollLeft), el.scrollWidth, el.clientWidth)
+                      : P.bordesDe(el.scrollTop, el.scrollHeight, el.clientHeight);
+    el.classList.toggle('bordes-x', s.horiz);
+    el.classList.toggle('bordes-y', !s.horiz);
+    el.classList.toggle('hay-antes', b.antes);
+    el.classList.toggle('hay-despues', b.despues);
+  }
+  const _bordesPedir = el => { const s = _bordes.get(el); if (s && !s.rq) s.rq = _raf(() => _bordesMedir(el)); };
+  function _bordesRevelar(el, h, suave) {
+    const s = _bordes.get(el); if (!s) return;
+    const hijo = typeof h === 'string' ? el.querySelector(h) : h;
+    if (!hijo || hijo === el || !el.contains(hijo)) return;
+    const r = hijo.getBoundingClientRect(), c = el.getBoundingClientRect(), m = s.margen;
+    const comp = { behavior: suave ? _suave() : 'auto' };
+    if (s.horiz) {
+      const dx = r.left < c.left + m ? r.left - c.left - m : r.right > c.right - m ? r.right - c.right + m : 0;
+      if (Math.abs(dx) >= 1) el.scrollBy(Object.assign({ left: dx }, comp));
+    } else {
+      const dy = r.top < c.top + m ? r.top - c.top - m : r.bottom > c.bottom - m ? r.bottom - c.bottom + m : 0;
+      if (Math.abs(dy) >= 1) el.scrollBy(Object.assign({ top: dy }, comp));
+    }
+  }
+  function _bordesSoltar(el) {
+    const s = _bordes.get(el); if (!s) return;
+    _bordes.delete(el); _bordesVivas.delete(el);
+    if (_bordesRO) { try { _bordesRO.unobserve(el); } catch (_) {} }
+    el.classList.remove('bordes', 'bordes-x', 'bordes-y', 'hay-antes', 'hay-despues');
+    if (s.puso) el.style.removeProperty('--borde');
+  }
+  /* Poda y enganche, en un cuadro: lo que dejó el documento se suelta; lo nuevo que casa con un
+     selector pedido se engancha. Corre solo cuando entraron o salieron nodos. */
+  function _bordesBarrer() {
+    _bordesBarrido = 0;
+    _bordesVivas.forEach(el => { if (!el.isConnected) _bordesSoltar(el); });
+    _bordesSel.forEach(r => { d.querySelectorAll(r.sel).forEach(el => _bordesPoner(el, r.o)); });
+  }
+  function _bordesOir() {
+    if (_bordesOyen) return;
+    _bordesOyen = true;
+    /* El scroll no sube, pero se oye en captura: un solo oyente para todas las filas. */
+    d.addEventListener('scroll', e => { const t = e.target; if (t && t.nodeType === 1 && _bordes.has(t)) _bordesPedir(t); }, { capture: true, passive: true });
+    /* Un cuadro después: el navegador también corre la fila al enfocar, y lo hace DESPUÉS del
+       evento; corregir antes que él sería corregir para nada. */
+    d.addEventListener('focusin', e => {
+      const t = e.target, el = t && t.parentElement && t.parentElement.closest('.bordes');
+      if (el && _bordes.has(el)) _raf(() => { _bordesRevelar(el, t, false); _bordesPedir(el); });
+    });
+    g.addEventListener('resize', () => _bordesVivas.forEach(_bordesPedir), { passive: true });
+    try { _bordesRO = new g.ResizeObserver(es => es.forEach(en => _bordesPedir(en.target))); } catch (_) {}
+    /* Las fichas cambian con cada repintado y la fila no cambia de tamaño: sin esto, un filtro
+       que deja tres fichas seguiría diciendo que hay más. */
+    try {
+      _bordesMO = new g.MutationObserver(regs => {
+        let nodos = false;
+        for (const r of regs) {
+          const t = r.target.nodeType === 1 ? r.target : r.target.parentElement;
+          const el = t && t.closest && t.closest('.bordes');
+          if (el) _bordesPedir(el);
+          if (r.type === 'childList' && (r.addedNodes.length || r.removedNodes.length)) nodos = true;
+        }
+        if (nodos && !_bordesBarrido) _bordesBarrido = _raf(_bordesBarrer);
+      });
+      _bordesMO.observe(d.documentElement, { childList: true, subtree: true, characterData: true });
+    } catch (_) {}
+    if (d.fonts && d.fonts.ready) d.fonts.ready.then(() => _bordesVivas.forEach(_bordesPedir), () => {});
+  }
+  function _bordesPoner(el, o) {
+    if (_bordes.has(el)) return _bordes.get(el);
+    const s = { eje: o.eje || 'auto', margen: o.margen || 32, horiz: o.eje === 'x', rq: 0, puso: !!o.margen, control: null };
+    _bordes.set(el, s); _bordesVivas.add(el);
+    el.classList.add('bordes');
+    if (o.margen) el.style.setProperty('--borde', s.margen + 'px');
+    if (_bordesRO) { try { _bordesRO.observe(el); } catch (_) {} }
+    _bordesMedir(el);
+    return s;
+  }
   /**
-   * @param {string|Element} x  la fila (o lista) que se desplaza
+   * @param {string|Element} x  la fila (o lista) que se desplaza; con un selector, TODAS las que
+   *   casen, hoy y después de cada repintado
    * @param {{eje?:'x'|'y'|'auto', margen?:number}} o
    * @returns {{medir():void, revelar(el:string|Element, suave?:boolean):void, destruir():void}|null}
    */
   P.bordesDesvanecidos = function (x, o = {}) {
-    const el = _el(x); if (!el) return null;
-    if (_bordes.has(el)) return _bordes.get(el);
-    const eje = o.eje || 'auto', margen = o.margen || 32;
-    let horiz = eje === 'x', rq = 0;
-    el.classList.add('bordes');
-    if (o.margen) el.style.setProperty('--borde', margen + 'px');
-    const medir = () => {
-      rq = 0;
-      if (!el.isConnected) return;
-      horiz = eje === 'x' || (eje === 'auto' && el.scrollWidth - el.clientWidth > el.scrollHeight - el.clientHeight);
-      const b = horiz ? P.bordesDe(Math.abs(el.scrollLeft), el.scrollWidth, el.clientWidth)
-                      : P.bordesDe(el.scrollTop, el.scrollHeight, el.clientHeight);
-      el.classList.toggle('bordes-x', horiz);
-      el.classList.toggle('bordes-y', !horiz);
-      el.classList.toggle('hay-antes', b.antes);
-      el.classList.toggle('hay-despues', b.despues);
+    if (!x) return null;
+    _bordesOir();
+    if (typeof x === 'string') {
+      const k = x + '|' + (o.eje || 'auto') + '|' + (o.margen || '');
+      if (_bordesSel.has(k)) return _bordesSel.get(k).control;
+      const reg = { sel: x, o, control: null };
+      const todas = () => Array.from(d.querySelectorAll(x)).filter(el => _bordes.has(el));
+      reg.control = {
+        medir() { todas().forEach(_bordesMedir); },
+        /* El hijo dice en cuál de las filas: la que lo contiene (P23 lleva el chip encendido a la
+           vista justo después de pintar, antes de que la poda del cuadro siguiente la enganche). */
+        revelar(h, suave) {
+          const hijo = typeof h === 'string' ? d.querySelector(h) : h;
+          const el = hijo && hijo.closest && hijo.closest(x);
+          if (!el) return;
+          _bordesPoner(el, o);
+          _bordesRevelar(el, hijo, suave);
+        },
+        destruir() { _bordesSel.delete(k); todas().forEach(_bordesSoltar); },
+      };
+      _bordesSel.set(k, reg);
+      d.querySelectorAll(x).forEach(el => _bordesPoner(el, o));
+      return reg.control;
+    }
+    const el = _el(x); if (!el || el.nodeType !== 1) return null;
+    const s = _bordesPoner(el, o);
+    if (s.control) return s.control;
+    s.control = {
+      medir() { if (!_bordes.has(el) && el.isConnected) _bordesPoner(el, o); _bordesMedir(el); },
+      revelar(h, suave) { if (!_bordes.has(el) && el.isConnected) _bordesPoner(el, o); _bordesRevelar(el, h, suave); },
+      destruir() { _bordesSoltar(el); },
     };
-    const pedir = () => { if (!rq) rq = _raf(medir); };
-    const revelar = (h, suave) => {
-      const hijo = typeof h === 'string' ? el.querySelector(h) : h;
-      if (!hijo || !el.contains(hijo)) return;
-      const r = hijo.getBoundingClientRect(), c = el.getBoundingClientRect();
-      const comp = { behavior: suave ? _suave() : 'auto' };
-      if (horiz) {
-        const dx = r.left < c.left + margen ? r.left - c.left - margen : r.right > c.right - margen ? r.right - c.right + margen : 0;
-        if (Math.abs(dx) >= 1) el.scrollBy(Object.assign({ left: dx }, comp));
-      } else {
-        const dy = r.top < c.top + margen ? r.top - c.top - margen : r.bottom > c.bottom - margen ? r.bottom - c.bottom + margen : 0;
-        if (Math.abs(dy) >= 1) el.scrollBy(Object.assign({ top: dy }, comp));
-      }
-    };
-    /* Un cuadro después: el navegador también corre la fila al enfocar, y lo hace DESPUÉS del
-       evento; corregir antes que él sería corregir para nada. */
-    const alEnfocar = e => { const t = e.target; if (t !== el) _raf(() => { revelar(t, false); pedir(); }); };
-    el.addEventListener('scroll', pedir, { passive: true });
-    el.addEventListener('focusin', alEnfocar);
-    g.addEventListener('resize', pedir, { passive: true });
-    let ro = null, mo = null;
-    try { ro = new g.ResizeObserver(pedir); ro.observe(el); } catch (_) {}
-    /* Las fichas cambian con cada repintado y el contenedor no cambia de tamaño: sin esto, un
-       filtro que deja tres fichas seguiría diciendo que hay más. */
-    try { mo = new g.MutationObserver(pedir); mo.observe(el, { childList: true, subtree: true, characterData: true }); } catch (_) {}
-    if (d.fonts && d.fonts.ready) d.fonts.ready.then(pedir, () => {});
-    medir();
-    const control = {
-      medir, revelar,
-      destruir() {
-        el.removeEventListener('scroll', pedir); el.removeEventListener('focusin', alEnfocar);
-        g.removeEventListener('resize', pedir);
-        if (ro) ro.disconnect(); if (mo) mo.disconnect();
-        el.classList.remove('bordes', 'bordes-x', 'bordes-y', 'hay-antes', 'hay-despues');
-        _bordes.delete(el);
-      },
-    };
-    _bordes.set(el, control);
-    return control;
+    return s.control;
   };
 
   /* ----- 11 · Desenfoque progresivo bajo el dock -----
@@ -1873,6 +2034,18 @@
      No tapa toques (pointer-events:none), va una capa por debajo de su barra, se esconde con la
      barra y no existe en papel ni con transparencia reducida. */
   const _bandas = new Map();
+  /* Con qué se reconoce una barra ya pedida. Un selector o un id se dicen solos; un elemento sin
+     id llevaba un '?' y dos barras distintas compartían clave: la segunda devolvía la franja de
+     la primera y se quedaba sin la suya, sin decir nada. Se le pone un número propio. */
+  let _bandaN = 0;
+  const _bandaNombre = new WeakMap();
+  const _bandaClave = b => {
+    if (typeof b === 'string') return b;
+    if (!b || b.nodeType !== 1) return '?';
+    if (b.id) return '#' + b.id;
+    if (!_bandaNombre.has(b)) _bandaNombre.set(b, '@' + (++_bandaN));
+    return _bandaNombre.get(b);
+  };
   /**
    * @param {string|Element|Array<string|Element>} barras  la barra (o las barras apiladas)
    * @param {{lado?:'abajo'|'arriba', alto?:number, media?:string}} o
@@ -1881,7 +2054,7 @@
   P.desenfoqueProgresivo = function (barras, o = {}) {
     const lado = o.lado === 'arriba' ? 'arriba' : 'abajo';
     const lista = Array.isArray(barras) ? barras : [barras];
-    const clave = lado + '|' + lista.map(b => (typeof b === 'string' ? b : (b && b.id) || '?')).join(',');
+    const clave = lado + '|' + lista.map(_bandaClave).join(',');
     if (_bandas.has(clave)) return _bandas.get(clave);
     const alto = o.alto || 28;
     const banda = d.createElement('div');
@@ -1894,6 +2067,9 @@
       if (!b || !b.isConnected || b.hidden) return false;
       const r = b.getBoundingClientRect();
       if (r.width < 1 || r.height < 1) return false;
+      /* Una barra que no va pegada (la de arriba se suelta en el teléfono acostado) y ya salió de
+         la pantalla no tiene franja: quedaba una tira borrosa pegada al borde sin barra encima. */
+      if (lado === 'arriba' ? r.bottom <= 0 : r.top >= g.innerHeight) return false;
       const cs = g.getComputedStyle(b);
       return cs.visibility !== 'hidden' && cs.display !== 'none';
     });
@@ -2011,11 +2187,17 @@
       poner(f, px, true);
       if (abierta !== f) { abierta = f; d.addEventListener('pointerdown', fuera, true); }
     }
+    /* El gesto se ancla al RENGLÓN y no a su cara: mientras la cara regresa a su sitio —los
+       260 ms de después de un latigazo— debajo del dedo ya no está la cara sino el hueco que
+       deja, y anclándolo a la cara el segundo latigazo seguido se perdía sin decir nada. Sobre
+       una acción descubierta no se empieza: ahí se toca, no se arrastra. */
     const alBajar = e => {
       if (e.button > 0 || e.isPrimary === false) return;
-      const c = e.target.closest && e.target.closest('.desliza-cara');
-      const f = c && c.parentElement;
-      if (!f || !f.classList.contains('desliza') || !cont.contains(f)) return;
+      const t = e.target.closest ? e.target : e.target.parentElement;
+      if (!t || t.closest('.desliza-acc')) return;
+      const f = t.closest('.desliza');
+      if (!f || !cont.contains(f)) return;
+      const c = cara(f); if (!c) return;
       const a = accs(f);
       gs = { f, c, id: e.pointerId, x0: e.clientX, y0: e.clientY, dx: 0, decidido: false,
         base: abierta === f ? (f.classList.contains('abierta') ? -(a ? a.offsetWidth : 0) : 0) : 0,
@@ -2062,7 +2244,28 @@
     const alClic = e => {
       if (Date.now() - suprimir < 350 && e.target.closest && e.target.closest('.desliza-cara')) { e.preventDefault(); e.stopPropagation(); return; }
       const acc = e.target.closest && e.target.closest('.desliza-acc');
-      if (acc) { const f = acc.closest('.desliza'); setTimeout(() => { if (f && f.isConnected) cerrar(f); }, 0); }
+      if (!acc) return;
+      const f = acc.closest('.desliza');
+      setTimeout(() => {
+        if (!f || !f.isConnected) return;
+        cerrar(f);
+        /* El toque enfoca el botón, y un botón mudo (aria-hidden) con el foco dentro deja al lector
+           de pantalla sin saber dónde está, y al Tab siguiente saliendo de algo que no se ve. Si
+           la pantalla no se llevó el foco a otro lado, vuelve a la cara del renglón. */
+        const a = d.activeElement;
+        if (a && f.contains(a) && a.closest('[aria-hidden="true"]')) devolverFoco(f);
+      }, 0);
+    };
+    /* El foco vuelve a la cara del renglón. Si la cara no trae nada enfocable —que es justo el
+       caso de `soloAqui`: se usa PORQUE no hay otro botón— la cara misma lo recibe con un
+       tabindex de -1, que no la mete en el tabulador pero sí deja que el foco aterrice ahí.
+       Antes se quedaba en un botón invisible (o se caía al <body>, y el Tab siguiente volvía a
+       empezar desde arriba de la página). */
+    const devolverFoco = f => {
+      const c = cara(f); if (!c) return;
+      let foco = c.querySelector('button,a[href],input,select,textarea,summary,[tabindex]:not([tabindex="-1"])');
+      if (!foco) { foco = c; if (!c.hasAttribute('tabindex')) c.tabIndex = -1; }
+      try { foco.focus({ preventScroll: true }); } catch (_) {}
     };
     /* Teclado: enfocar una acción abre su lado; salir del renglón lo cierra; Escape también. */
     const alEnfocar = e => {
@@ -2076,9 +2279,9 @@
     };
     const alTecla = e => {
       if (e.key !== 'Escape' || !abierta) return;
-      const f = abierta; cerrar(f);
-      const c = cara(f), foco = c && c.querySelector('button,a[href],[tabindex]:not([tabindex="-1"])');
-      if (foco && f.contains(d.activeElement)) { try { foco.focus({ preventScroll: true }); } catch (_) {} }
+      const f = abierta, dentro = f.contains(d.activeElement);
+      cerrar(f);
+      if (dentro) devolverFoco(f);
       e.stopPropagation();
     };
     const alCambiarTam = () => { if (abierta) cerrar(abierta, false); };
@@ -2133,7 +2336,11 @@
      siempre. El nodo nuevo hereda la edad del viejo con un animation-delay negativo, así que el
      fundido sigue exactamente donde iba.
      Con menos movimiento no hay entrada ni viaje, pero la marca «nuevo» se queda quieta el mismo
-     tiempo: es información, no adorno. */
+     tiempo: es información, no adorno.
+
+     La clave tiene que ser la IDENTIDAD del renglón —el folio, el id de la medida—, nunca su
+     lugar en la lista: con el índice, borrar la medida 2 de cinco hacía «irse» a la 5 y la medida
+     que se agregaba después heredaba un número ya visto y no se marcaba nueva. */
   const _listas = new WeakMap();
   /** Qué claves llegaron y cuáles se fueron entre dos pintados. */
   P.cambiosDeLista = (antes, ahora) => {
@@ -2144,7 +2351,7 @@
    * @param {string|Element} x  el contenedor cuyos hijos son los renglones
    * @param {{clave?:(el:Element)=>string, marca?:number, animarPrimera?:boolean, anunciar?:(el:Element)=>string}} o
    * @returns {{repintar(fn?:Function):{nuevos:Element[], quitados:string[]}, quitar(el:Element):Promise<void>,
-   *            olvidar(clave:string):void, destruir():void}|null}
+   *            mostrar(el:Element, bloque?:'nearest'|'start'):void, olvidar(clave:string):void, destruir():void}|null}
    */
   P.listaViva = function (x, o = {}) {
     const cont = _el(x); if (!cont) return null;
@@ -2185,6 +2392,16 @@
       for (const el of hijos()) antes.set(clave(el), { el, r: mov ? el.getBoundingClientRect() : null });
       if (typeof fn === 'function') fn();
       const ahora = hijos(), t = Date.now(), nuevos = [];
+      /* Lo que quitar() despidió y el repintado dejó en su sitio —el borrado falló, o la pantalla
+         reutiliza sus nodos en vez de rehacerlos— vuelve a verse: si no, se quedaba un renglón
+         invisible, con su lugar ocupado y sus botones tocables. */
+      for (const el of ahora) if (el.dataset.listaSeFue) {
+        delete el.dataset.listaSeFue;
+        if (el._listaSale) { try { el._listaSale.cancel(); } catch (_) {} el._listaSale = null; }
+        el.removeAttribute('aria-hidden');
+        try { el.inert = false; } catch (_) {}
+        el.style.removeProperty('pointer-events');
+      }
       if (!lista) {
         ahora.forEach(el => vistas.set(clave(el), -1));
         lista = true;
@@ -2235,9 +2452,35 @@
       quitar(el) {
         if (!el || !cont.contains(el)) return Promise.resolve();
         el.dataset.listaSeFue = '1';
+        /* El renglón que se está yendo deja de existir para el dedo y para el teclado en el
+           mismo momento en que empieza a irse, no cuando termina: durante el fundido es algo
+           transparente con sus botones todavía tocables encima de la lista, y si el repintado
+           no llega (falló el borrado, se perdió la señal) se queda así. Igual que el fantasma
+           de repintar(); y repintar() lo deshace si el renglón sigue vivo. */
+        el.setAttribute('aria-hidden', 'true');
+        try { el.inert = true; } catch (_) {}
+        el.style.pointerEvents = 'none';
         if (P.sinMovimiento() || !el.animate) return Promise.resolve();
-        return el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-6px) scale(.98)' }],
-          { duration: 180, easing: 'ease-in', fill: 'forwards' }).finished.then(() => {}, () => {});
+        el._listaSale = el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-6px) scale(.98)' }],
+          { duration: 180, easing: 'ease-in', fill: 'forwards' });
+        return el._listaSale.finished.then(() => {}, () => {});
+      },
+      /* Llevar a la vista lo que llegó moviendo SOLO la caja con scroll que lo contiene, nunca la
+         página: el escalador (H24) mide sobre la foto y un scrollIntoView movía la página debajo
+         del dedo; el asistente (F15) ancla la respuesta nueva a su principio ('start'). */
+      mostrar(el, bloque = 'nearest') {
+        if (!el || !el.isConnected) return;
+        let caja = el.parentElement;
+        const raiz = d.scrollingElement || d.documentElement;
+        for (; caja && caja !== d.body && caja !== raiz; caja = caja.parentElement) {
+          const oy = g.getComputedStyle(caja).overflowY;
+          if ((oy === 'auto' || oy === 'scroll') && caja.scrollHeight > caja.clientHeight + 1) break;
+        }
+        if (!caja || caja === d.body || caja === raiz) return;
+        const r = el.getBoundingClientRect(), c = caja.getBoundingClientRect();
+        const dy = bloque === 'start' ? r.top - c.top
+          : r.top < c.top ? r.top - c.top : r.bottom > c.bottom ? Math.min(r.bottom - c.bottom, r.top - c.top) : 0;
+        if (Math.abs(dy) >= 1) caja.scrollBy({ top: dy, behavior: _suave() });
       },
       olvidar(k) { vistas.delete(k); },
       destruir() { clearTimeout(tMarca); _listas.delete(cont); },
@@ -2315,7 +2558,18 @@
      al centro), puntos que la dicen y llevan a cada una, flechas ‹ › para el ratón, las flechas
      del teclado con la tira enfocada, y «Hoja 2 de 5» al lector de pantalla cuando se ASIENTA en
      otra página, no en cada píxel del camino.
-     Con menos movimiento, ir a una página es un salto y no un desplazamiento. */
+     Con menos movimiento, ir a una página es un salto y no un desplazamiento.
+
+     Dos cosas que salieron en la revisión:
+       · Los puntos miden 44 px y NO se encogen. Con seis o siete páginas no caben con sus dos
+         flechas en una tarjeta de 360 (9 × 44 = 396), y la barra de flex los encogía a 30 px sin
+         avisar. Ahora, con más de cinco páginas o cuando no caben a su medida en el ancho que
+         hay, la barra dice «2 / 7» entre las flechas; y se vuelve a decidir al cambiar el ancho.
+       · Las pantallas repintan sus páginas con innerHTML (las columnas de Proyectos, cada vez que
+         cambia un proyecto). Repintar no es cambiar de página: la barra no se rehace si el número
+         de páginas no cambió —el foco que estaba en un punto se queda ahí— y `alCambiar` solo se
+         llama cuando cambia la página o el número de páginas. Antes se llamaba en cada
+         repintado, y una pantalla que repintara desde su alCambiar entraba en un ciclo. */
   const _paginas = new WeakMap();
   /** La página más cercana a `pos`, dados los centros de cada una. */
   P.paginaMasCercana = (pos, centros) => {
@@ -2334,6 +2588,7 @@
     if (_paginas.has(tira)) return _paginas.get(tira);
     const nombre = o.nombre || 'hoja', Nombre = nombre.charAt(0).toUpperCase() + nombre.slice(1);
     let pags = [], actual = -1, anunciada = -1, tAnuncio = 0, rq = 0, barra = null, mo = null;
+    let pintadas = -1, modo = '', vivo = true;
     tira.classList.add('paginas');
     if (!tira.hasAttribute('tabindex')) tira.tabIndex = 0;
     if (!tira.hasAttribute('role')) tira.setAttribute('role', 'region');
@@ -2343,16 +2598,36 @@
       const c = tira.getBoundingClientRect();
       return pags.map(p => { const r = p.getBoundingClientRect(); return r.left - c.left + tira.scrollLeft + r.width / 2; });
     };
-    const pintarBarra = () => {
-      if (!barra) return;
-      const n = pags.length, muchos = n > 7;
+    /* Qué cabe en la barra, midiendo su ancho de verdad (44 px por botón y 2 de hueco; nada se
+       encoge, flex:none). El orden con que se cede importa: las fichas piden PUNTOS, uno por
+       columna y de 44 px (P28 son cinco, A12 hasta tres), así que lo primero que se suelta son
+       las flechas ‹ › —son el camino del ratón, y el teclado ya tiene ← → Inicio Fin y los
+       puntos mismos—; solo si tampoco así caben los puntos, la barra dice «2 / 7». Con más de
+       cinco páginas se dice la cuenta siempre: seis puntos ya no son un vistazo. Sin ancho
+       medible —la barra escondida, o todavía sin pintar— se decide solo por el número. */
+    const modoQueToca = n => {
+      if (n > 5) return 'cuenta';
+      const ancho = barra ? barra.clientWidth : 0;
+      if (!ancho) return 'puntos';
+      const cabe = k => k * 44 + (k - 1) * 2 <= ancho;
+      if (cabe(n + (o.flechas !== false ? 2 : 0))) return 'puntos';
+      return cabe(n) ? 'sin-flechas' : 'cuenta';
+    };
+    /* true si la rehízo. */
+    const pintarBarra = (forzar) => {
+      if (!barra) return false;
+      const n = pags.length;
       barra.hidden = n < 2;
+      const m = modoQueToca(n), muchos = m === 'cuenta', flechas = o.flechas !== false && m !== 'sin-flechas';
+      if (!forzar && n === pintadas && m === modo) return false;
+      pintadas = n; modo = m;
       let h = '';
-      if (o.flechas !== false) h += '<button type="button" class="paginas-flecha" data-pag="-1" aria-label="' + P.esc(Nombre) + ' anterior">‹</button>';
+      if (flechas) h += '<button type="button" class="paginas-flecha" data-pag="-1" aria-label="' + P.esc(Nombre) + ' anterior">‹</button>';
       if (muchos) h += '<span class="paginas-cuenta" aria-hidden="true"></span>';
       else for (let i = 0; i < n; i++) h += '<button type="button" class="paginas-punto" data-pag-ir="' + i + '" aria-label="Ir a la ' + P.esc(nombre) + ' ' + (i + 1) + ' de ' + n + '"></button>';
-      if (o.flechas !== false) h += '<button type="button" class="paginas-flecha" data-pag="1" aria-label="' + P.esc(Nombre) + ' siguiente">›</button>';
+      if (flechas) h += '<button type="button" class="paginas-flecha" data-pag="1" aria-label="' + P.esc(Nombre) + ' siguiente">›</button>';
       barra.innerHTML = h;
+      return true;
     };
     const marcar = () => {
       if (!barra) return;
@@ -2362,14 +2637,18 @@
       if (f[0]) f[0].disabled = actual <= 0;
       if (f[1]) f[1].disabled = actual >= pags.length - 1;
     };
-    const calcular = () => {
+    /* `repaso`: las páginas se acaban de leer; se vuelven a marcar aunque la página sea la misma
+       (los nodos son otros), y se avisa a la pantalla solo si cambió el número. */
+    const calcular = (repaso, cambioN) => {
       rq = 0;
-      if (!pags.length) return;
+      if (!vivo || !pags.length) return;
       const i = P.paginaMasCercana(tira.scrollLeft + tira.clientWidth / 2, centros());
-      if (i === actual) return;
+      const cambio = i !== actual;
+      if (!cambio && !repaso) return;
       actual = i;
       pags.forEach((p, k) => p.classList.toggle('pagina-actual', k === i));
       marcar();
+      if (!cambio && !cambioN) return;
       if (typeof o.alCambiar === 'function') { try { o.alCambiar(i, pags[i]); } catch (_) {} }
       /* Se anuncia cuando se ASIENTA: 180 ms sin cambiar. Deslizar de la 1 a la 4 dice «4 de 5»,
          no «2, 3, 4». */
@@ -2381,6 +2660,8 @@
       }, 180);
     };
     const leer = () => {
+      if (!vivo) return;
+      const n0 = pags.length;
       pags = Array.from(tira.children).filter(p => p.nodeType === 1 && !p.hidden);
       pags.forEach((p, i) => {
         if (!p.hasAttribute('role')) p.setAttribute('role', 'group');
@@ -2389,9 +2670,9 @@
            nuestro, y el nuestro se reescribe al cambiar la cuenta. */
         if (!p.hasAttribute('aria-label') || p.dataset.pagRotulo) { p.setAttribute('aria-label', Nombre + ' ' + (i + 1) + ' de ' + pags.length); p.dataset.pagRotulo = '1'; }
       });
-      pintarBarra();
-      actual = -1;            // que calcular() vuelva a marcar el punto y avise a la pantalla
-      calcular();
+      const rehizo = pintarBarra();
+      if (rehizo || pags.length !== n0) actual = -1;   // otra barra u otra cuenta: se marca y se avisa de nuevo
+      calcular(true, pags.length !== n0);
     };
     const ir = (i, salto) => {
       if (!pags.length) return;
@@ -2417,19 +2698,23 @@
       if (j == null) return;
       e.preventDefault(); ir(j);
     };
-    const pedir = () => { if (!rq) rq = _raf(calcular); };
+    const pedir = () => { if (!rq) rq = _raf(() => calcular()); };
+    /* Con otro ancho puede que los puntos quepan o dejen de caber. */
+    const alCambiarTam = () => { if (pintarBarra()) marcar(); pedir(); };
     tira.addEventListener('scroll', pedir, { passive: true });
     tira.addEventListener('keydown', alTecla);
     if (barra) { barra.addEventListener('click', alClicBarra); barra.addEventListener('keydown', alTecla); }
-    g.addEventListener('resize', pedir, { passive: true });
+    g.addEventListener('resize', alCambiarTam, { passive: true });
     try { mo = new g.MutationObserver(leer); mo.observe(tira, { childList: true }); } catch (_) {}
     leer();
     const control = {
-      ir: i => ir(i), actual: () => actual, medir: leer,
+      ir: i => ir(i), actual: () => actual, medir: () => { leer(); if (pintarBarra()) marcar(); },
       destruir() {
+        vivo = false;
         clearTimeout(tAnuncio);
         tira.removeEventListener('scroll', pedir); tira.removeEventListener('keydown', alTecla);
-        g.removeEventListener('resize', pedir);
+        g.removeEventListener('resize', alCambiarTam);
+        tira.classList.remove('paginas');
         if (mo) mo.disconnect();
         if (barra) { barra.removeEventListener('click', alClicBarra); barra.removeEventListener('keydown', alTecla); if (!o.puntos || !o.puntos.nodeType) barra.remove(); }
         _paginas.delete(tira);
@@ -2451,14 +2736,19 @@
      pasa UNA vez, al aparecer, y no en bucle. Un brillo que corre diez segundos seguidos mientras
      la IA piensa es la pantalla moviéndose sola; lo que dice «sigo trabajando» es el giro junto al
      texto y el texto mismo. Con menos movimiento, ni el brillo.
-     El dibujo es mudo (aria-hidden); lo que se oye es el texto de estado, en role="status". */
+     El dibujo es mudo (aria-hidden); lo que se oye es el texto de estado, en role="status".
+
+     La miniatura de la IA (H7) no es un hueco gris: es la foto que se está leyendo, en su
+     proporción reservada. `o.dentro` pone ese contenido (la <img> de la pantalla) dentro de la
+     caja del bloque o de la miniatura, debajo del brillo; y la proporción solo acepta números
+     («4 / 3»), porque va a dar a un style. */
   const _BARRAS = { t: 'esq-t', d: 'esq-d', n: 'esq-n', campo: 'esq-campo', largo: 'esq-campo esq-largo', boton: 'esq-boton', bloque: 'esq-bloque' };
   const _barra = b => '<span class="esq-b ' + (_BARRAS[b] || 'esq-t') + '"></span>';
   /**
    * El HTML de una silueta. `forma`: 'lista' | 'cifras' | 'tarjeta' | 'bloque' | 'miniatura', o una
    * lista de barras (['t','d','campo','boton'…]).
    * @param {string|string[]} forma
-   * @param {{texto?:string, filas?:number, cifras?:number, alto?:number, proporcion?:string, clase?:string, giro?:boolean}} o
+   * @param {{texto?:string, filas?:number, cifras?:number, alto?:number, proporcion?:string, dentro?:string, clase?:string, giro?:boolean}} o
    * @returns {string}
    */
   P.silueta = function (forma, o = {}) {
@@ -2466,8 +2756,13 @@
     if (Array.isArray(forma)) cuerpo = forma.map(_barra).join('');
     else if (forma === 'lista') cuerpo = ('<span class="silueta-fila"><span class="esq-b silueta-ico"></span><span class="silueta-tx">' + _barra('t') + _barra('d') + '</span></span>').repeat(o.filas || 3);
     else if (forma === 'cifras') cuerpo = '<span class="silueta-cifras">' + ('<span class="silueta-cifra">' + _barra('n') + _barra('d') + '</span>').repeat(o.cifras || 4) + '</span>';
-    else if (forma === 'bloque') cuerpo = '<span class="esq-b esq-bloque" style="height:' + (+o.alto || 220) + 'px"></span>';
-    else if (forma === 'miniatura') cuerpo = '<span class="esq-b silueta-mini" style="aspect-ratio:' + P.esc(o.proporcion || '4 / 3') + '"></span>';
+    /* El alto va a dar a un style, así que solo pasan números y dentro de lo que cabe en una
+       pantalla: un negativo o una letra caen al de siempre en vez de volverse otra medida. */
+    else if (forma === 'bloque') cuerpo = '<span class="esq-b esq-bloque" style="height:' + (Math.min(2000, Math.max(0, +o.alto || 0)) || 220) + 'px">' + (o.dentro || '') + '</span>';
+    else if (forma === 'miniatura') {
+      const pr = /^\s*\d+(\.\d+)?\s*(\/\s*\d+(\.\d+)?\s*)?$/.test(String(o.proporcion || '')) ? String(o.proporcion).trim() : '4 / 3';
+      cuerpo = '<span class="esq-b silueta-mini" style="aspect-ratio:' + pr + '">' + (o.dentro || '') + '</span>';
+    }
     else cuerpo = _barra('t') + _barra('d') + _barra('campo') + _barra('campo');
     const texto = o.texto ? '<p class="silueta-t" role="status">' + (o.giro === false ? '' : '<span class="esq-giro" aria-hidden="true"></span> ') + '<span>' + P.esc(o.texto) + '</span></p>' : '';
     return '<div class="silueta' + (o.clase ? ' ' + P.esc(o.clase) : '') + '" aria-busy="true"><div class="silueta-dibujo" aria-hidden="true">' + cuerpo + '</div>' + texto + '</div>';
