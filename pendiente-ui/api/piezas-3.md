@@ -9,7 +9,10 @@ Reglas comunes a todas:
 - **Sin manejadores en línea.** Las funciones `…HTML()` devuelven marcado sin `onclick`; después de pintarlo, llama a la pieza sobre él.
 - Menos movimiento lo preguntan **en el momento** (`Piezas.sinMovimiento()`); en papel nada rueda ni viaja.
 - Lo que despachan son **los mismos eventos que teclear** (`input` / `change`, con `bubbles`), así que tu código recalcula por donde siempre.
-- Probadas: `pruebas/piezas-numeros.mjs` (node) y `pruebas/navegador/piezas-numeros.mjs` (vitrina `pruebas/navegador/piezas-numeros.html`, 8 rondas: 360/420 px × con/sin movimiento × claro/oscuro).
+- **Lo que le escribes al campo sin evento también llega.** `$('f-tel').value = Q.tel` (historial.js), `$('f-anti').value = auto` (renderSummary), la cuenta recordada en `#rv-cuenta` (venta.js): las piezas de campo —`telefonoVivo`, `casillasCodigo`, `opcionesDeslizantes` y el `campo` del deslizador— envuelven el `value` **de ese elemento** (no del prototipo) y se repintan solas. No tienes que llamar a `repintar()` después de escribir; queda para lo que no pasa por ahí (un `form.reset()`, cambiar la regla). Al destruir la última pieza que lo vigila, el campo vuelve a su `value` de fábrica.
+  **Ojo:** repintar no despacha nada —restaurar una cotización no puede parecer tecleada—, así que si además guardas lo que hay en el campo, léelo **del campo** después (o de `estado()`): la pieza puede haberlo reescrito con espacios.
+- Probadas: `pruebas/piezas-numeros.mjs` (node, con 5 000 teléfonos y 3 000 cuentas generados) y `pruebas/navegador/piezas-numeros.mjs` (vitrina `pruebas/navegador/piezas-numeros.html`, 8 rondas: 360/420 px × con/sin movimiento × claro/oscuro; contraste medido sobre el render en los dos temas; y el cotizador y la plataforma de verdad).
+- **Conviven con lo que ya hace el cotizador**, comprobado en el navegador: el difuminado del borrador (`body.precios-ocultos`, `_SEL_PRECIO`: la capa de la rueda es hija del elemento, así que se difumina con él y el dedo que espía toca el mismo elemento), el vuelo del total entre pasos (`data-shared="total"`, `_medirTotal`/`_volarTotal` escalan por el ALTO, que la rueda no cambia) y el papel (`@media print`: nunca rueda ni viaja).
 
 Índice: [1 · rodarCifra](#1--el-total-que-rueda-rodarcifra) · [diferenciaViva](#variante-número-animado-diferenciaviva) · [2 · fichaQueViaja](#2--la-ficha-que-viaja-fichaqueviaja) · [3 · arrastrarMedida(s)](#3--arrastrar-sobre-la-etiqueta-arrastrarmedida--arrastrarmedidas) · [18 · opcionesDeslizantes](#18--opciones-con-resaltado-que-se-desliza-opcionesdeslizantes) · [19 · casillasCodigo](#19--casillas-de-código-casillascodigo) · [19 · telefonoVivo](#19--el-teléfono-que-se-ve-completo-telefonovivo) · [20 · medidorHTML](#20--medidores-quietos-medidorhtml--pintarmedidor) · [deslizadorConImanes](#patrón--deslizador-con-imanes-deslizadorconimanes) · [cuentas puras](#las-cuentas-sin-pantalla)
 
@@ -37,6 +40,8 @@ Piezas.rodarCifra.olvidar(clave?)                                               
 - La caja no cambia de tamaño (la cifra real ocupa su sitio, en transparente): `_medirTotal()/_volarTotal()` (escala por el ALTO) y `cifraQueCabe()` (`--c`) siguen igual. Probado bajo `scale(.6)`.
 - Convive con `body.precios-ocultos`: el `filter:blur` está en tu elemento y la capa es su hija. `_SEL_PRECIO` sigue encontrando el elemento (`closest`).
 - La primera vez que ve un número **no rueda**. La misma cifra otra vez no reinicia la rueda que va. Una cifra nueva a media rueda sigue desde donde iba.
+- Si **otra ruta de la app** escribe el elemento a media rueda (un `textContent=` que no pasa por aquí: `renderSummary()`, abrir otra cotización), la rueda se detiene sola y el número de verdad se ve. Y si lo que hay escrito no es lo último que ella pintó, rueda **desde lo que se estaba viendo**.
+- El «+1» va a la derecha de la cifra; si ahí no cabe —una cifra que llena su tarjeta, con `cifraQueCabe()`— se pone encima, pegado al final (`.rueda-delta.arriba`), para que no lo recorte la tarjeta.
 - Con menos movimiento, en papel, con la pestaña oculta o sin caja: cambia sin rodar. El «+1» con menos movimiento es un fundido (dice cuánto cambió).
 - El elemento debe tener **solo texto** (el número). Añade la clase `rueda-cifra` (tabular-nums y `position:relative` con `:where`, así que no pisa un `position` tuyo).
 
@@ -105,9 +110,13 @@ Piezas.fichasQueViajan(raiz = document.body, selector = '.seg,.tipo-seg,.tool-se
 
 Si solo se reescriben los **hijos** (como `pintarNav()`), no hace falta clave: sale del rectángulo que midió antes.
 
-**Clases:** `.con-ficha` (en el grupo: `position:relative; isolation:isolate` con `:where`), `.ficha-viaja` (la ficha), `.ficha-destino` (en el destino mientras llega; esconde su relleno). **`.ficha-transparente`** en el grupo: los NO elegidos pierden el fondo (el borde se queda) para que la ficha se vea pasar por debajo — ponla en grupos de `.chip` con fondo propio (`#f-plazo`, `#rv-plazo`, las fichas de filtro H8).
+La ficha se mete **al final** del grupo, no al principio: así ningún botón cambia de `:nth-child()` mientras viaja (`body.pf .tipo-seg:not(:has(>button:nth-child(5)))` es la rejilla del teléfono, y un grupo de cuatro se volvía de cinco a medio vuelo) ni se corren los `children[i]` de quien recorra los botones. Detrás del texto la pone el `z-index`, no el orden.
 
-**Teclado/toque:** los tuyos (la pieza no toca botones). **Menos movimiento / papel:** no viaja; el elegido cambia como cambiaba. Cambiar el ancho re-mide sin animar.
+Lo que el elegido pinta con **`::before` o `::after`** —el filete de 3 px de `.pf-tab.on`— viaja **dentro** de la ficha (`.ficha-adorno`) y el del destino se esconde hasta que llega, para que no haya dos marcas llegando por separado. Solo se copian adornos: pseudo absoluto, sin texto y con algo pintado.
+
+**Clases:** `.con-ficha` (en el grupo: `position:relative; isolation:isolate` con `:where`), `.ficha-viaja` (la ficha), `.ficha-destino` (en el destino mientras llega; esconde su relleno), `.ficha-sin-antes` / `.ficha-sin-despues` (esconden su `::before` / `::after` mientras el adorno viaja). **`.ficha-transparente`** en el grupo: los NO elegidos pierden el fondo (el borde se queda) para que la ficha se vea pasar por debajo — ponla en grupos de `.chip` con fondo propio (`#f-plazo`, `#rv-plazo`, las fichas de filtro H8).
+
+**Teclado/toque:** los tuyos (la pieza no toca botones). **Menos movimiento / papel / pestaña escondida:** no viaja; el elegido cambia como cambiaba. Cambiar el ancho re-mide sin animar. `fichasQueViajan(...).destruir()` suelta lo que enganchó él (no lo que ya estaba).
 
 ```js
 // .seg y .tipo-seg de todo el cotizador, también las partidas que se repintan (una vez, al arrancar):
@@ -133,11 +142,17 @@ Piezas.fichaQueViaja('aj-indice');
 ## 3 · Arrastrar sobre la etiqueta — `arrastrarMedida` / `arrastrarMedidas`
 
 ```js
-Piezas.arrastrarMedidas(raiz = document, { px, paso, min, max, alMover, alSoltar }) → { destruir() }   // delegado
-Piezas.arrastrarMedida(etiqueta, input?, { px = 6, paso, min, max, caja, alMover, alSoltar }) → { destruir() }
+Piezas.arrastrarMedidas(raiz = document, { px, paso, min, max, salir, alMover, alSoltar }) → { destruir() }   // delegado
+Piezas.arrastrarMedida(etiqueta, input?, { px = 6, paso, min, max, caja, salir, alMover, alSoltar }) → { destruir() }
 ```
 
 La **etiqueta** es el mango; el campo sigue siendo un `<input>` que se teclea. Cada `px` px horizontales = un `step` del campo (con su `min`/`max`), Shift ×10. En cada paso escribe el campo y despacha `input`; al soltar, `change`. **No roba el scroll del teléfono** (`touch-action:pan-y` + zona muerta de 4 px): el dedo que baja desplaza la página y no mueve la medida (probado). Un toque sin arrastrar enfoca el campo, como siempre; el clic que llega al soltar un arrastre se traga (no abre el teclado). No vibra.
+
+Tres cosas que respeta del repo, probadas en el cotizador de verdad y no solo en la vitrina:
+
+- **Dentro de algo `draggable`** (la `.partida` se reordena arrastrándola) el arrastre nativo no arranca: con el ratón se lo comía a los 4 px y la partida salía volando a otro lugar de la lista.
+- **Al soltar, el campo recibe `blur` y `focusout`** además del `change`, porque ahí vive la mitad de las reglas (`saneaNum()`, la regla de los 10 cm de `revisarAlturaMinima()`, todas en el `onblur` de las partidas) y arrastrar nunca enfoca el campo, así que nunca salía de él. `salir: false` lo apaga.
+- **En táctil la zona de la etiqueta crece 14 px por fuera** para llegar a 44, y a esa distancia puede quedar encima de otro control. Un toque ahí es de ese control: no arrastra, y el clic se le pasa a él.
 
 **Marcado que espera:** `<label for="id-del-campo" class="arrastrable">` o cualquier elemento con `data-arrastrar="id-del-campo"`. Opcional `data-arrastre-px`. El `step`, `min` y `max` salen del campo. Para lo que se repinta, **un solo `arrastrarMedidas(raiz)`** al arrancar: sirve para las etiquetas de ahora y las de después.
 
@@ -158,13 +173,13 @@ Piezas.arrastrarMedida(document.querySelector('label[for="sc-ref-cm-input"]'), n
 ## 18 · Opciones con resaltado que se desliza — `opcionesDeslizantes`
 
 ```js
-Piezas.opcionesDeslizantesHTML({ id, etiqueta, etiquetadaPor, oculto, valor, opciones: [{ v, t, sub, clase, apagada }] }) → string
+Piezas.opcionesDeslizantesHTML({ id, etiqueta, etiquetadaPor, oculto, valor, opciones: [{ v, t, sub, tono, clase, apagada }] }) → string
 Piezas.opcionesDeslizantes(grupo, { valor /* hidden */, alCambiar(v, boton), clave }) → { valor(), fijar(v, avisar), destruir() }
 ```
 
 Un `role="radiogroup"` de `.chip` (`role="radio"`, `aria-checked` y `.on`, así que se ve como un chip elegido de la app) con una pastilla que viaja (es `fichaQueViaja` por dentro). **Teclado de radio de verdad:** flechas (dan la vuelta), Inicio, Fin; la flecha mueve el foco y elige; solo la elegida está en el tabulador. El valor va al `<input type="hidden">` (`oculto` o `valor`) y se despachan `input` y `change` en él. `alCambiar` solo cuando cambia de verdad. Opciones con `apagada` se saltan.
 
-**No decide nada del negocio:** las etiquetas «con IVA / sin IVA» (`sub`), el orden («la que coincide primero») y el aviso ámbar de C4 son de la pantalla. **Nunca cambies el IVA en automático.**
+**No decide nada del negocio:** las etiquetas «con IVA / sin IVA» (`sub`), el orden («la que coincide primero») y el aviso ámbar de C4 son de la pantalla. **Nunca cambies el IVA en automático.** `tono` (`'av'` · `'ok'` · `'mal'`) pinta esa línea de abajo —el «sin IVA» en ámbar de la muestra—; la palabra va de todos modos, el color nunca es la única señal.
 
 **HTML que genera:** `<div class="glide" role="radiogroup" aria-label… data-valor="rv-cuenta"><button type="button" class="chip on" role="radio" aria-checked="true" tabindex="0" data-v="…">Texto<small>sub</small></button>…</div><input type="hidden" id="rv-cuenta" value="…">`. Clase `.glide`: rejilla de opciones de ≥150 px, 48 px de alto, los no elegidos sin fondo.
 
@@ -187,11 +202,11 @@ Piezas.casillasCodigo(input, { n, grupo, alfabeto, equivalencias, esperado, boto
                                textoRechazo, alCambiar(valor, completo), alCompletar(agrupado) })
   → { valor(), completo(), fijar(v), vaciar(cascada), marcar('ok'|'mal'|null), destruir() }
 Piezas.codigo.HEX          // { alfabeto: /[0-9A-F]/, equivalencias: { O:'0', I:'1', L:'1' } }
-Piezas.codigo.normalizar(bruto, { n, alfabeto, equivalencias }) → { valor, rechazados }
+Piezas.codigo.normalizar(bruto, { n, alfabeto, equivalencias }) → { valor, rechazados, sobran }
 Piezas.codigo.agrupar('A1B2C3D4E5F6', 4) → 'A1B2-C3D4-E5F6'
 ```
 
-Un solo `<input>` transparente encima se queda con el foco, el pegado, el autocompletado y el lector; las casillas son dibujo (`aria-hidden`); **la fila entera es la zona táctil**. Al teclear y al pegar: mayúsculas, sin espacios ni guiones, `equivalencias`, y lo que no es del `alfabeto` (o sobra del largo) se quita → la fila se sacude una vez (con menos movimiento no, el borde rojo se queda) y una región viva dice qué se quitó. El cursor vive al final. `alCompletar` recibe el código agrupado.
+Un solo `<input>` transparente encima se queda con el foco, el pegado, el autocompletado y el lector; las casillas son dibujo (`aria-hidden`); **la fila entera es la zona táctil**. Al teclear y al pegar: mayúsculas, sin espacios ni guiones, `equivalencias`, y lo que no es del `alfabeto` (o sobra del largo) se quita → la fila se sacude una vez (con menos movimiento no, el borde rojo se queda) y una región viva dice qué se quitó, distinguiendo lo ajeno («No va en el código: «G»») de lo que **sobró** («Ya van los 12: sobra «A»»): pegar trece no es pegar una letra que no existe. El cursor vive al final. `alCompletar` recibe el código agrupado.
 
 - **Por omisión el alfabeto es `[0-9A-Z]` sin equivalencias**: para verificar (A1) pasa `...Piezas.codigo.HEX`.
 - `esperado: 'BORRAR'` (F27): cada casilla que no coincide sale en rojo (`.casilla.mal`) al teclearla, `completo` solo con la palabra exacta, y `boton` lleva `aria-disabled="true|false"` (no `disabled`). Sin festejo al completar.
@@ -224,7 +239,7 @@ Piezas.telefono.contador(lectura) / .frase(lectura)
 
 «33 2813 0092 ✓» en vivo y un contador «8/10» en el borde derecho del campo. **El criterio es el de la app**: usa `telWhatsApp` si está cargado (cotizador), o el `numeroWa` que le pases (en la plataforma, `telWa` de ui.js), o `Piezas.telefono.numeroWa`, que es la misma regla. Pegar «+52 3328130092» deja «33 2813 0092 ✓». Con un prefijo tecleado (+52, 044, 01, 00) deja el texto como va hasta que la regla lo reconoce. El formato se aplica **antes** que tu `oninput` (oyente en captura en la caja), así que `upd('tel', this.value)` ya recibe el número con espacios. El cursor se conserva por dígitos y el retroceso sobre un espacio borra el dígito de antes.
 
-`estado`: `vacio` · `faltan` · `completo` · `internacional` · `internacional-parcial` · `revisa` · `sobran` · `no`. **`revisa`** es cuando lo tecleado contradice la lectura de la regla: «+52 33 1234 56» (la regla ve diez dígitos y lo lee como 52 3312 3456) o once dígitos sin «+» (la regla lo acepta como internacional). No lleva ✓ y va en ámbar con su frase. El estado va en un `<span class="solo-voz">` enlazado por `aria-describedby` (se añade al que ya tenga el campo).
+`estado`: `vacio` · `faltan` · `completo` · `internacional` · `internacional-parcial` · `revisa` · `sobran` · `no`. **`no`** es también «+52 0248 0602 12»: la regla cuenta dígitos y lo deja pasar, pero ningún teléfono de México empieza con 0 y escribirlo como «02 4806 0212» lo volvía uno que la misma regla RECHAZA —el chat que sí abría dejaba de abrir—. Ni palomita ni reescritura: se dice. **`revisa`** es cuando lo tecleado contradice la lectura de la regla: «+52 33 1234 56» (la regla ve diez dígitos y lo lee como 52 3312 3456) o once dígitos sin «+» (la regla lo acepta como internacional). No lleva ✓ y va en ámbar con su frase. El estado va en un `<span class="solo-voz">` enlazado por `aria-describedby` (se añade al que ya tenga el campo).
 
 **Envuelve** el campo en `<span class="tel-vivo">` (con `.tel-cuenta` y `.tel-estado`); `.fld input`, `.fld.falta input` y el `id` siguen funcionando. **Cuando escribas el campo sin evento** (`historial.js` al abrir una cotización, `autocompletarCliente()`), llama a `repintar()`.
 
@@ -233,8 +248,7 @@ Piezas.telefono.contador(lectura) / .frase(lectura)
 ```js
 // C8 · cotizador.html #f-tel (su oninput="upd('tel',this.value)" se queda)
 const tel = Piezas.telefonoVivo('f-tel');
-// y después de $('f-tel').value = Q.tel en historial.js / nucleo.js:
-tel.repintar();
+// $('f-tel').value = Q.tel en historial.js / nucleo.js se repinta solo: no hace falta tel.repintar()
 // Plataforma (módulo ES): con la regla de ui.js
 import { telWa } from '../nucleo/ui.js';
 window.Piezas.telefonoVivo(input, { numeroWa: telWa });
@@ -246,7 +260,7 @@ window.Piezas.telefonoVivo(input, { numeroWa: telWa });
 
 ```js
 Piezas.medidorHTML({ valor, max = 1, rayado, meta, muesca, estimado, tono, texto, clase }) → string
-Piezas.pintarMedidor(el, mismasOpciones) → fracciones
+Piezas.pintarMedidor(el, mismasOpciones) → fracciones   // solo toca lo suyo: deja tus clases y tu estilo
 Piezas.cifras.medidor(opciones) → { v, r, meta, muesca, bajoCero }   // todas entre 0 y 1
 ```
 
@@ -287,6 +301,7 @@ Sobre un `<input type="range">` **nativo**: el teclado (flechas, Re Pág/Av Pág
 - **Liga** (`elastico`): jalar más allá de un tope estira el riel y regresa al soltar (C18). Nunca con menos movimiento.
 - **`campo` espejo** (`#f-anti`, `#a-precio`): el deslizador lo escribe y despacha `input` al moverse y `change` al soltar; lo tecleado en el campo mueve el pulgar. **El campo manda**: fuera de rango, el pulgar se queda en el tope y la caja lleva `.fuera` (pulgar ámbar) para que tú lo digas.
 - **`alSoltar`** en el `change` nativo: al soltar el dedo, o una vez por tecla — H9: re-trazar aquí y no en `input`.
+- `rango()` puede llamarse en cada `renderSummary()` (en cada tecla de una partida): si nada de lo que se ve cambió, no rehace las marcas. Los rótulos que no caben en la caja se corren lo justo para quedar dentro (la rayita no se mueve), y las marcas no le quitan al pulgar sus 44 px (`pointer-events:none`). `destruir()` cancela la liga y le devuelve al campo su `transform`.
 - El oyente de `input` va en captura: cuando corre tu `oninput`, el imán ya se aplicó. No vibra.
 
 **Envuelve** el range en `<span class="desl-caja">` (con `.desl-pastilla` y `.desl-marcas`). **Clases:** `.desl-iman` (`.grueso` = la barra de dos tramos de C17), `.desl-caja` (`.con-pastilla`, `.fuera`, `data-estira`), `.desl-marca` (`.iman`, `.en`, `.sin-texto`), `.desl-pastilla`. El pulgar mide 44 px (zona táctil) y se ve de 24.

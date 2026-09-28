@@ -155,10 +155,12 @@ console.log('\n20 · EL MEDIDOR QUIETO');
 console.log('\n19 · LAS CASILLAS DEL CÓDIGO');
 {
   const HEX = Object.assign({ n: 12 }, K.HEX);
-  eq('pegar «a1b2-c3d4-e5f6» deja el código limpio', K.normalizar('a1b2-c3d4-e5f6', HEX), { valor: 'A1B2C3D4E5F6', rechazados: [] });
+  eq('pegar «a1b2-c3d4-e5f6» deja el código limpio', K.normalizar('a1b2-c3d4-e5f6', HEX), { valor: 'A1B2C3D4E5F6', rechazados: [], sobran: [] });
   eq('la O es cero y la I y la L son uno: lo que se lee mal del papel', K.normalizar('OIL0 abcd ef12', HEX).valor, '0110ABCDEF12');
-  eq('lo que no es del alfabeto se rechaza, y se dice qué', K.normalizar('A1G2', HEX), { valor: 'A12', rechazados: ['G'] });
-  eq('lo que sobra del largo también se rechaza', K.normalizar('A1B2C3D4E5F6A', HEX).rechazados, ['A']);
+  eq('lo que no es del alfabeto se rechaza, y se dice qué', K.normalizar('A1G2', HEX), { valor: 'A12', rechazados: ['G'], sobran: [] });
+  eq('lo que sobra del largo también se rechaza, y se sabe que sobró (no que no va)', K.normalizar('A1B2C3D4E5F6A', HEX), { valor: 'A1B2C3D4E5F6', rechazados: ['A'], sobran: ['A'] });
+  eq('el folio pegado donde va el código: la O de «COT» ya es un cero, y lo que no es hexadecimal se dice',
+    K.normalizar('COT-0042@K7QM', HEX), { valor: 'C000427', rechazados: ['T', '@', 'K', 'Q', 'M'], sobran: [] });
   eq('agrupado de cuatro en cuatro', K.agrupar('A1B2C3D4E5F6', 4), 'A1B2-C3D4-E5F6');
   eq('«borrar» en minúsculas cuenta', K.normalizar('borrar', { n: 6, alfabeto: /[A-ZÑ]/ }).valor, 'BORRAR');
   eq('un alfabeto con la bandera g no se descompone entre letras', K.normalizar('ABAB', { n: 4, alfabeto: /[AB]/g }).valor, 'ABAB');
@@ -204,6 +206,8 @@ console.log('\n19 · EL TELÉFONO, CON LA MISMA REGLA QUE WHATSAPP');
   eq('con «+» y otra lada es internacional y completo', L('+1 415 555 2671'), ['internacional', '', '✓']);
   eq('  y mientras se escribe, dice que va', L('+1 415'), ['internacional-parcial', '', '+4']);
   eq('un teléfono de México no empieza con 0', L('0 33 1234 5678')[0], 'no');
+  eq('  tampoco detrás del +52: sin palomita y sin reescribirlo en un número que la regla ya no abre',
+    [L('+52 0248 0602 12'), L('5210000026866')[0]], [['no', '0248060212', '10/10'], 'no']);
   eq('vacío', L(''), ['vacio', '', '0/10']);
   eq('la frase de estado para el lector', [T.frase(T.leer('33 2813')), T.frase(T.leer('33 2813 009')), T.frase(T.leer('+52 33 1234 56'))],
     ['Faltan 4 dígitos', 'Falta 1 dígito', 'Después del +52 van 10 dígitos: llevas 8']);
@@ -211,6 +215,85 @@ console.log('\n19 · EL TELÉFONO, CON LA MISMA REGLA QUE WHATSAPP');
   eq('agrupa dos, cuatro y cuatro también a medias', [T.formato('33'), T.formato('332'), T.formato('3328130')], ['33', '33 2', '33 2813 0']);
   const th = P.telefonoVivoHTML({ id: 'f-tel', valor: '+52 3328130092' });
   cierto(/value="33 2813 0092"/.test(th) && /tel-vivo completo/.test(th) && />✓</.test(th), 'el HTML del campo nace ya formateado y completo');
+
+  /* Veinticuatro casos escogidos a mano prueban lo que a alguien se le ocurrió. La regla tiene
+     seis ramas y los números se dictan de mil maneras, así que además se generan cinco mil
+     teléfonos —con prefijos de antes, ladas de país, separadores, letras y largos de 0 a 17— y
+     en TODOS la pieza tiene que leer lo mismo que el cotizador y que la plataforma. Con una
+     semilla fija: si algo falla, falla igual la siguiente vez. */
+  let semilla = 20260927;
+  const azar = n => { semilla = (semilla * 1103515245 + 12345) % 2147483648; return semilla % n; };
+  const uno = xs => xs[azar(xs.length)];
+  const genera = () => {
+    let t = uno(['', '', '', '+', '+ ', '00', '00 ', '01 ', '044 ', '045', '0', '(', 'Tel. ']);
+    t += uno(['', '', '52', '52 1', '521', '1', '44', '34 ', '52 ']);
+    const n = azar(14);
+    for (let i = 0; i < n; i++) {
+      t += String(azar(10));
+      if (azar(5) === 0) t += uno([' ', '-', '.', ') ', ' ', '/']);
+    }
+    if (azar(12) === 0) t += uno([' ext 12', 'x', ' cel', '#']);
+    return t;
+  };
+  /* telIncompleto(), la que frena el paso 1 del cotizador, también del texto de proceso.js. */
+  const proc = leer('js/cotizador/proceso.js');
+  const lin = proc.match(/function telIncompleto\([^)]*\)\{[^\n]*\}/);
+  const cot2 = vm.createContext({});
+  if (lin) vm.runInContext(lin[0], cot2);
+  cierto(!!lin && typeof cot2.telIncompleto === 'function', 'telIncompleto() se lee de proceso.js');
+  const distintos2 = [], falsaPalomita = [], noVuelve = [], cuentaMal = [];
+  for (let i = 0; i < 5000; i++) {
+    const t = genera();
+    const a = T.numeroWa(t), b = cot.telWhatsApp(t), c = UI.telWa(t);
+    if (a !== b || a !== c) distintos2.push([t, a, b, c]);
+    const r = T.leer(t, cot.telWhatsApp);
+    /* El ✓ nunca sobre algo que el cotizador todavía frena, ni sobre algo que WhatsApp no abre. */
+    if (r.completo && (!r.wa || (cot2.telIncompleto && cot2.telIncompleto(t)))) falsaPalomita.push(t);
+    /* Lo que la pieza escribe en el campo (el nacional con espacios) es la MISMA línea para la
+       regla: reescribir el campo no puede cambiar a quién le llega el chat. El único cambio que
+       se permite es quitar el «1» del formato viejo (521 → 52), que es la misma línea desde
+       2019 y es justo lo que C8 pide: «+52 1 33…» queda «33 …». */
+    if (r.estado === 'completo') {
+      const w2 = cot.telWhatsApp(T.formato(r.nacional));
+      if (w2 !== r.wa && !(r.wa.length === 13 && r.wa.startsWith('521') && w2 === '52' + r.wa.slice(3))) noVuelve.push(t);
+    }
+    if (r.estado === 'faltan' && !(r.cuenta < 10)) cuentaMal.push(t);
+  }
+  eq('5,000 teléfonos generados: la pieza, el cotizador y la plataforma leen el mismo número', distintos2.slice(0, 5), []);
+  eq('  ninguno lleva ✓ si el cotizador lo frena o si WhatsApp no lo abre', falsaPalomita.slice(0, 5), []);
+  eq('  el número que la pieza deja escrito le llega al mismo chat', noVuelve.slice(0, 5), []);
+  eq('  y «faltan» siempre cuenta menos de diez', cuentaMal.slice(0, 5), []);
+}
+
+console.log('\nLAS CUENTAS AGUANTAN LO QUE NO SE ESCOGIÓ A MANO');
+{
+  let semilla = 7;
+  const azar = n => { semilla = (semilla * 1103515245 + 12345) % 2147483648; return semilla % n; };
+  const money = n => '$' + n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const malPlan = [], malPaso = [], malIman = [], malMarca = [], malMed = [];
+  for (let i = 0; i < 3000; i++) {
+    const a = money(azar(2000000) / 100), b = money(azar(2000000) / 100);
+    const plan = C.plan(a, b);
+    /* El plan pinta exactamente el texto nuevo, cada tira sale de 0–9 y llega a su cifra. */
+    if (plan.map(x => x.ch).join('') !== b || plan.some(x => x.digito && (x.desde < 0 || x.desde > 9 || x.hasta !== +x.ch))) malPlan.push([a, b]);
+    const paso = [0.5, 1, 0.01, 0.1][azar(4)], v0 = azar(400) * paso, dx = azar(800) - 400, min = 0, max = azar(2) ? 20 : Infinity;
+    const v = C.pasoDeArrastre(v0, dx, { px: 6, paso, min, max });
+    const pasos = (v - v0) / paso;
+    if (v < min || v > max || (v > min && v < max && Math.abs(pasos - Math.round(pasos)) > 1e-6)) malPaso.push([v0, dx, paso, v]);
+    const T0 = 1000 + azar(50000), o = { min: 0, max: T0, redondeo: 100, radio: 150, imanes: [{ v: T0 / 2, radio: T0 * .02 }, { v: T0 }] };
+    const im = C.imanar(azar(T0 + 2000) - 1000, o);
+    if (im < 0 || im > T0 || !(im === T0 / 2 || im === T0 || im % 100 === 0 || im === 0)) malIman.push(im);
+    const marcas = Array.from({ length: 2 + azar(30) }, (_, j) => ({ x: 22 + j * (3 + azar(20)), w: 4 + azar(40), prioridad: azar(3) }));
+    const ver = C.marcasQueCaben(marcas, 6), puestas = marcas.filter((m, j) => ver[j]);
+    if (puestas.some((m, j) => puestas.some((q, k) => k !== j && Math.abs(m.x - q.x) < (m.w + q.w) / 2 + 6 - 1e-9))) malMarca.push(marcas.length);
+    const m = C.medidor({ valor: azar(300) - 100, max: 1 + azar(200), rayado: azar(300), meta: azar(3) ? azar(300) : null, muesca: azar(300) });
+    if (![m.v, m.r].every(x => x >= 0 && x <= 1) || m.r > m.v || (m.meta != null && (m.meta <= m.v || m.meta > 1)) || (m.muesca != null && (m.muesca < 0 || m.muesca > 1))) malMed.push(m);
+  }
+  eq('3,000 totales al azar: la rueda pinta el texto nuevo y cada tira va de una cifra a otra', malPlan.slice(0, 3), []);
+  eq('3,000 arrastres: siempre dentro del rango y en pasos enteros del campo', malPaso.slice(0, 3), []);
+  eq('3,000 anticipos: el imán deja el 50 %, el total o un múltiplo de cien, nunca fuera del rango', malIman.slice(0, 3), []);
+  eq('3,000 rieles: ningún rótulo pisa a otro', malMarca.slice(0, 3), []);
+  eq('3,000 medidores: todas las fracciones entre 0 y 1, y el rayado nunca pasa del lleno', malMed.slice(0, 3), []);
 }
 
 console.log('\n18 · LAS OPCIONES COMO CADENA');
@@ -225,6 +308,8 @@ console.log('\n18 · LAS OPCIONES COMO CADENA');
   cierto(/tabindex="-1" data-v="A" aria-disabled="true"/.test(sin) && /tabindex="0" data-v="B"/.test(sin),
     'sin elegida, entra la primera que se puede elegir');
   cierto(/&lt;b&gt;/.test(P.opcionesDeslizantesHTML({ opciones: [{ v: '<b>' }] })), 'lo interpolado pasa por esc()');
+  const ton = P.opcionesDeslizantesHTML({ opciones: [{ v: 'Elias BBVA', sub: 'sin IVA', tono: 'av' }, { v: 'X', tono: '"><img>' }] });
+  cierto(/class="chip tono-av"/.test(ton) && !/tono-"/.test(ton) && !/<img>/.test(ton), 'el tono de la línea de abajo entra como clase, y uno que no existe no entra');
 }
 
 console.log(`\n${fallas === 0 ? 'Las piezas de números, medidas y campos cuentan bien.' : fallas + ' fallo(s).'}`);

@@ -2943,6 +2943,57 @@
     const avisar = (el, tipo) => el.dispatchEvent(new Event(tipo, { bubbles: true }));
     const fmtNum = x => (+x).toLocaleString('es-MX', { maximumFractionDigits: 2 });
 
+    /* ----- Lo que la app escribe en un campo sin avisar -----
+       La app escribe sus campos a mano y sin evento en más sitios de los que se recuerdan:
+       `$('f-tel').value=Q.tel` al abrir una cotización del historial (historial.js) y al
+       autocompletar el cliente (nucleo.js), `$('f-anti').value=auto` en cada renderSummary()
+       (proceso.js), la cuenta recordada en #rv-cuenta al abrir «Registrar venta» (venta.js).
+       Ninguna despacha `input`, así que una pieza que solo escuchara eventos se quedaba
+       enseñando lo de antes: el teléfono de la cotización anterior con su ✓ junto a «33 12»,
+       el pulgar del anticipo en otro sitio que el número del campo. Pedirle a cada pantalla
+       que llame a repintar() después de cada escritura es una regla que se olvida en la
+       quinta, y el síntoma no truena: se ve un dato que parece bueno.
+
+       Así que la pieza escucha la escritura misma: envuelve `value` EN EL ELEMENTO (no en el
+       prototipo) con el mismo getter y setter de siempre, y después de escribir avisa a quien
+       vigila ese campo. El valor que se guarda y se lee es exactamente el de antes; solo se
+       entera la pieza. Lo que las piezas escriben ellas mismas pasa por `escribir()`, que no
+       avisa: si no, la pieza se contestaría a sí misma a mitad de su propio pintado. Al
+       destruir la última pieza que lo vigila, el campo vuelve a su `value` de fábrica. */
+    const vigilados = new WeakMap();
+    let propias = 0;
+    const escribir = (el, v) => { propias++; try { el.value = v; } finally { propias--; } };
+    const vigilarValor = (el, f) => {
+      let v = vigilados.get(el);
+      if (!v) {
+        let base = Object.getOwnPropertyDescriptor(el, 'value');
+        for (let o = Object.getPrototypeOf(el); !base && o; o = Object.getPrototypeOf(o)) base = Object.getOwnPropertyDescriptor(o, 'value');
+        if (!base || !base.get || !base.set || base.configurable === false) return () => { };
+        const propio = Object.prototype.hasOwnProperty.call(el, 'value') ? base : null;
+        v = { lista: new Set(), propio, dentro: false };
+        try {
+          Object.defineProperty(el, 'value', {
+            configurable: true, enumerable: base.enumerable,
+            get() { return base.get.call(this); },
+            set(x) {
+              base.set.call(this, x);
+              if (propias || v.dentro) return;
+              v.dentro = true;
+              try { v.lista.forEach(fn => { try { fn(); } catch (_) { } }); } finally { v.dentro = false; }
+            }
+          });
+        } catch (_) { return () => { }; }
+        vigilados.set(el, v);
+      }
+      v.lista.add(f);
+      return () => {
+        v.lista.delete(f);
+        if (v.lista.size) return;
+        vigilados.delete(el);
+        if (v.propio) Object.defineProperty(el, 'value', v.propio); else delete el.value;
+      };
+    };
+
     /* ----- La lógica sin pantalla -----
        Lo que se puede decidir sin DOM vive aquí, a la vista y probado en node
        (pruebas/piezas-numeros.mjs). Las piezas de abajo solo lo pintan. */
@@ -3089,7 +3140,7 @@
     const ruedaDe = el => {
       let st = ruedas.get(el);
       if (!st) {
-        st = { ultimo: null, vista: null, anims: [], token: 0, X: 0, promesa: null };
+        st = { ultimo: null, vista: null, anims: [], token: 0, X: 0, promesa: null, vigia: null };
         ruedas.set(el, st);
         el.classList.add('rueda-cifra');
       }
@@ -3110,6 +3161,7 @@
     };
     const pararRueda = (el, st) => {
       st.token++;
+      if (st.vigia) { st.vigia.disconnect(); st.vigia = null; }
       st.anims.forEach(a => { try { a.cancel(); } catch (_) { } });
       st.anims = [];
       if (st.vista) { st.vista.remove(); st.vista = null; }
@@ -3187,6 +3239,15 @@
       el.classList.add('rueda-rodando');
       el.appendChild(vista);
       st.vista = vista;
+      /* Si otra ruta de la app escribe el elemento a media rueda —un `textContent=` que no pasa
+         por aquí: al abrir otra cotización, al vaciarla—, la capa se va con lo que había y el
+         texto se quedaba transparente, sin cifras encima, hasta que terminaran unas animaciones
+         que ya no pintaban nada: el total desaparecía medio segundo. Se vigila el elemento
+         mientras rueda, y si la capa ya no está, la rueda se detiene y el texto vuelve. */
+      if (typeof g.MutationObserver === 'function') {
+        st.vigia = new g.MutationObserver(() => { if (vista.parentNode !== el) pararRueda(el, st); });
+        st.vigia.observe(el, { childList: true });
+      }
       const token = st.token;
       st.anims = pedidos.map(([nodo, kf, ms, retraso]) => nodo.animate(kf, { duration: ms, delay: retraso, easing: CURVA, fill: 'backwards' }));
       return Promise.all(st.anims.map(a => a.finished.catch(() => null))).then(() => {
@@ -3214,6 +3275,15 @@
       s.setAttribute('data-d', String(txt));
       if (c) { s.style.left = (c.izquierda + c.ancho) + 'px'; s.style.top = c.arriba + 'px'; }
       el.appendChild(s);
+      /* Una cifra que llena su caja —`cifraQueCabe()` la achica justo hasta que quepa— no deja
+         sitio a su derecha, y `.pf-cuenta` recorta lo que se sale: el «+1» quedaba cortado o
+         invisible. Entonces va encima, pegado al final de la cifra. */
+      if (c && el.clientWidth && c.izquierda + c.ancho + 6 + s.offsetWidth > el.clientWidth) {
+        s.classList.add('arriba');
+        s.style.left = 'auto';
+        s.style.right = Math.max(0, c.derecha) + 'px';
+        s.style.top = (c.arriba - s.offsetHeight) + 'px';
+      }
       const quitar = () => { if (s.parentNode) s.remove(); };
       s.addEventListener('animationend', quitar, { once: true });
       g.setTimeout(quitar, 1800);
@@ -3233,9 +3303,12 @@
          en una región viva lo vuelve a anunciar). */
       if (nuevo === st.ultimo && el.textContent === nuevo &&
           (o.clave == null || memoriaCifras.get(o.clave) === nuevo)) return st.promesa || Promise.resolve(false);
+      /* Lo anterior es lo último que ESTA pieza pintó, salvo que la app haya escrito el elemento
+         por otro lado entretanto: entonces lo que se estaba viendo es lo que había. */
+      const visto = el.textContent;
       const previo = o.desde != null ? String(o.desde)
         : o.clave != null && memoriaCifras.has(o.clave) ? memoriaCifras.get(o.clave)
-          : st.ultimo;
+          : st.ultimo != null && visto !== st.ultimo && /\d/.test(visto) ? visto : st.ultimo;
       st.ultimo = nuevo;
       if (o.clave != null) memoriaCifras.set(o.clave, nuevo);
       const vivas = vivasDe(st);
@@ -3300,14 +3373,28 @@
        rehace con innerHTML al tocar su tipo—, y no alcanza para que la ficha «vuelva a viajar»
        al regresar a una pantalla que alguien dejó hace un rato. */
     const MEMORIA_MS = 1500;
+    const DESTINO = ['ficha-destino', 'ficha-sin-antes', 'ficha-sin-despues'];
+    const transparente = c => !c || c === 'transparent' || /^rgba\([^)]*,\s*0\)$/.test(c);
+    /* Lo que el elegido pinta con ::before o ::after y no con su fondo: el filete de 3 px de la
+       barra lateral de la plataforma (`.pf-tab.on::before`). Copiar solo el fondo dejaba el
+       filete brincando al destino mientras el fondo viajaba —dos marcas que llegaban por
+       separado—, y la ficha de P19 pide que el filete se deslice. Solo se copian adornos: un
+       pseudo con posición absoluta, sin texto y con algo pintado. */
+    const adornosDe = el => ['::before', '::after'].map(ps => {
+      const pc = g.getComputedStyle(el, ps);
+      if (!pc || pc.position !== 'absolute' || !/^(["'])\1$/.test(pc.content || '')) return null;
+      if (transparente(pc.backgroundColor) && (!pc.backgroundImage || pc.backgroundImage === 'none')) return null;
+      return { ps, left: pc.left, top: pc.top, width: pc.width, height: pc.height,
+        backgroundColor: pc.backgroundColor, backgroundImage: pc.backgroundImage, borderRadius: pc.borderRadius };
+    }).filter(Boolean);
     const soloPropias = (recs, fantasma) => recs.every(r => {
+      if (fantasma && (r.target === fantasma || fantasma.contains(r.target))) return true;
       if (r.type === 'childList') return Array.from(r.addedNodes).concat(Array.from(r.removedNodes)).every(x => x === fantasma);
-      if (r.target === fantasma) return true;
       if (r.type === 'attributes' && r.attributeName === 'class') {
         const antes = new Set(String(r.oldValue || '').split(/\s+/).filter(Boolean));
         const ahora = new Set(Array.from(r.target.classList));
         const dif = Array.from(antes).filter(x => !ahora.has(x)).concat(Array.from(ahora).filter(x => !antes.has(x)));
-        return dif.every(x => x === 'ficha-destino' || x.indexOf('rueda-') === 0);
+        return dif.every(x => x.indexOf('ficha-') === 0 || x.indexOf('rueda-') === 0);
       }
       return false;
     });
@@ -3370,7 +3457,7 @@
         const v = vuelo;
         vuelo = null;
         g.clearTimeout(v.reloj);
-        quieto(v.dest, () => v.dest.classList.remove('ficha-destino'));
+        quieto(v.dest, () => v.dest.classList.remove(...DESTINO));
         if (fantasma && fantasma.parentNode) fantasma.remove();
         medirReposo();
       };
@@ -3393,7 +3480,9 @@
           borderRadius: cs.borderRadius, boxShadow: cs.boxShadow,
           border: cs.borderTopWidth + ' ' + cs.borderTopStyle + ' ' + cs.borderTopColor
         };
+        const adornos = adornosDe(dest);
         dest.classList.add('ficha-destino');
+        adornos.forEach(a => dest.classList.add(a.ps === '::before' ? 'ficha-sin-antes' : 'ficha-sin-despues'));
         void dest.offsetWidth;
         g.requestAnimationFrame(() => { if (dest.style.transition === 'none') dest.style.transition = t0; });
         if (!fantasma) {
@@ -3411,9 +3500,21 @@
         s.borderRadius = look.borderRadius;
         s.boxShadow = look.boxShadow;
         s.border = look.border;
+        fantasma.textContent = '';
+        adornos.forEach(a => {
+          const i = d.createElement('i');
+          i.className = 'ficha-adorno';
+          ['left', 'top', 'width', 'height', 'backgroundColor', 'backgroundImage', 'borderRadius'].forEach(k => { i.style[k] = a[k]; });
+          fantasma.appendChild(i);
+        });
         /* FLIP: ya mide lo que el destino, y una escala inversa lo hace del tamaño del origen. */
         s.transform = 'translate(' + desde.x + 'px,' + desde.y + 'px) scale(' + (desde.w / a.w) + ',' + (desde.h / a.h) + ')';
-        if (fantasma.parentNode !== grupo) grupo.insertBefore(fantasma, grupo.firstChild);
+        /* Al FINAL del grupo, no al principio: delante de los botones cambiaba lo que cuentan los
+           `:nth-child()` —`body.pf .tipo-seg:not(:has(>button:nth-child(5)))` es la rejilla de
+           la plataforma en el teléfono, y a media ficha un grupo de cuatro se volvía de cinco y
+           se rehacía en tres columnas— y los `children[i]` de quien recorra los botones. Detrás
+           del texto la pone el z-index, no el orden. */
+        if (fantasma.parentNode !== grupo || fantasma.nextSibling) grupo.appendChild(fantasma);
         void fantasma.offsetWidth;
         vuelo = { dest, reloj: g.setTimeout(aterrizar, dur + 160) };
         dosCuadros(() => {
@@ -3435,12 +3536,15 @@
           const v = vuelo;
           vuelo = null;
           g.clearTimeout(v.reloj);
-          quieto(v.dest, () => v.dest.classList.remove('ficha-destino'));
+          quieto(v.dest, () => v.dest.classList.remove(...DESTINO));
         }
         const viejo = pintado;
         activo = nuevo;
         pintado = nuevoPint;
-        if (!nuevo || !desde || P.sinMovimiento() || enPapel() || !seVe(pintado)) {
+        /* Con la pestaña escondida —la sincronización cambió el módulo encendido mientras nadie
+           miraba— no hay cuadros: la ficha se quedaba parada en la salida hasta que el reloj de
+           respaldo la aterrizara. Nadie la vería viajar, así que no viaja. */
+        if (!nuevo || !desde || P.sinMovimiento() || enPapel() || d.visibilityState === 'hidden' || !seVe(pintado)) {
           if (fantasma && fantasma.parentNode) fantasma.remove();
           medirReposo();
           return;
@@ -3466,7 +3570,7 @@
           vivo = false;
           mo.disconnect();
           if (ro) ro.disconnect();
-          if (vuelo) { g.clearTimeout(vuelo.reloj); vuelo.dest.classList.remove('ficha-destino'); vuelo = null; }
+          if (vuelo) { g.clearTimeout(vuelo.reloj); vuelo.dest.classList.remove(...DESTINO); vuelo = null; }
           if (fantasma && fantasma.parentNode) fantasma.remove();
           grupo.classList.remove('con-ficha');
           fichas.delete(grupo);
@@ -3498,15 +3602,19 @@
       if (porSel.has(sel)) return porSel.get(sel);
       const opciones = Object.assign({}, o || {});
       delete opciones.clave;
+      /* Las que engancha este vigía, para soltarlas al destruirlo; las que ya existían (de una
+         llamada suelta a fichaQueViaja) son de quien las creó. */
+      const creadas = new Set();
+      const uno = x => { const ya = fichas.get(x), f = P.fichaQueViaja(x, opciones); if (!ya && f) creadas.add(f); };
       const enganchar = nodo => {
         if (!nodo || nodo.nodeType !== 1) return;
-        if (nodo.matches(sel)) P.fichaQueViaja(nodo, opciones);
-        nodo.querySelectorAll(sel).forEach(x => P.fichaQueViaja(x, opciones));
+        if (nodo.matches(sel)) uno(nodo);
+        nodo.querySelectorAll(sel).forEach(uno);
       };
       enganchar(raiz);
       const mo = new g.MutationObserver(recs => { for (const r of recs) r.addedNodes.forEach(enganchar); });
       mo.observe(raiz, { childList: true, subtree: true });
-      const api = { destruir() { mo.disconnect(); porSel.delete(sel); } };
+      const api = { destruir() { mo.disconnect(); porSel.delete(sel); creadas.forEach(f => f.destruir()); creadas.clear(); } };
       porSel.set(sel, api);
       return api;
     };
@@ -3526,34 +3634,100 @@
        toque es un toque, y un toque en la etiqueta enfoca el campo, como siempre. Lo que sí se
        traga es el clic que llega al soltar un arrastre: enfocar el campo ahí abría el teclado.
 
+       Tres cosas que la app ya hacía y que el arrastre tiene que respetar, las tres vistas en
+       el cotizador de verdad y no en la vitrina:
+         · La `.partida` es `draggable` —se reordena arrastrándola—, y con el ratón el
+           navegador arrancaba ESE arrastre a los 4 px: `pointercancel`, la medida se quedaba
+           quieta y la partida salía volando a otro lugar de la lista. Mientras el puntero está
+           abajo sobre una etiqueta, el `dragstart` que nazca se cancela.
+         · Teclear termina al salir del campo, y ahí vive la mitad de las reglas: saneaNum() y
+           la regla de los 10 cm (revisarAlturaMinima()) corren en el `onblur` de las
+           partidas. Arrastrar nunca enfoca el campo, así que nunca salía de él: bajar la
+           altura a 8 cm dejaba unas letras 3D que no se fabrican. Al soltar, después del
+           `change`, el campo recibe `blur` y `focusout` —en ese orden, el de salir de verdad—
+           si no es el que tiene el foco. (`salir:false` lo apaga.)
+         · En táctil la zona de la etiqueta crece 14 px por fuera para llegar a 44, y a esa
+           distancia puede quedar encima de OTRO control —el chip de arriba, el campo del
+           renglón anterior—. Un toque ahí es de ese control: no arrastra, y el clic se le
+           pasa a él en vez de enfocar el campo de la etiqueta.
+
        No vibra: vibrar() está reservado para autorizar, borrar y rechazar (notario.js).
        ====================================================================== */
     const UMBRAL = 4;
     const arrastres = new WeakMap();
     const tragarHasta = new WeakMap();
-    let tragaClicPuesto = false;
-    const tragarClic = et => {
-      tragarHasta.set(et, Date.now() + 450);
-      if (tragaClicPuesto) return;
-      tragaClicPuesto = true;
+    const redirigir = new WeakMap();
+    let sesiones = 0, docPuesto = false;
+    const CLICABLE = 'button,a[href],summary,label,input[type=checkbox],input[type=radio],input[type=button],input[type=submit],[role=button],[role=radio],[role=tab]';
+    const ponerDoc = () => {
+      if (docPuesto) return;
+      docPuesto = true;
       d.addEventListener('click', e => {
         const t = e.target && e.target.closest ? e.target.closest('.arrastrable,[data-arrastrar]') : null;
-        if (t && tragarHasta.get(t) > Date.now()) { tragarHasta.delete(t); e.preventDefault(); e.stopPropagation(); }
+        if (!t) return;
+        if (tragarHasta.get(t) > Date.now()) { tragarHasta.delete(t); e.preventDefault(); e.stopPropagation(); return; }
+        const r = redirigir.get(t);
+        redirigir.delete(t);
+        if (!r || r.hasta < Date.now() || !r.control.isConnected) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (r.control.matches(CLICABLE)) r.control.click(); else r.control.focus();
       }, true);
+      /* Cancelarlo no basta: el `dragstart` de la partida corre igual (pone `.dragging`, que la
+         deja al 35 %, y su `dragId`), y como el arrastre ya no empieza nunca llega el `dragend`
+         que lo quita. Se para aquí, en la captura del documento, antes de llegar a nadie. */
+      d.addEventListener('dragstart', e => { if (sesiones > 0) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
     };
+    const tragarClic = et => { tragarHasta.set(et, Date.now() + 450); ponerDoc(); };
     const campoDe = et => et.control ||
       (et.getAttribute('data-arrastrar') && d.getElementById(et.getAttribute('data-arrastrar'))) ||
       (et.htmlFor && d.getElementById(et.htmlFor)) || et.querySelector('input');
+    /* El control que queda debajo del dedo, si no es el de la etiqueta. Se baja por la pila de
+       lo que hay en ese punto hasta llegar a un ancestro de la etiqueta: lo que haya antes y
+       sea un control es de otro. */
+    const FOCO = 'input,select,textarea,button,a[href],summary,[contenteditable],[tabindex]:not([tabindex="-1"])';
+    const controlDebajo = (et, propio, x, y) => {
+      if (typeof d.elementsFromPoint !== 'function') return null;
+      for (const n of d.elementsFromPoint(x, y)) {
+        if (n === et || et.contains(n)) continue;
+        if (n.contains(et)) return null;
+        if (n === propio) return null;
+        if (n.matches && n.matches(FOCO)) return n;
+      }
+      return null;
+    };
     const empezarArrastre = (e, et, input, o) => {
       if ((e.button != null && e.button > 0) || e.isPrimary === false) return;
       if (!input || input.disabled || input.readOnly || input.getAttribute('aria-disabled') === 'true') return;
+      /* El encargo anterior de esta etiqueta se borra SIEMPRE al empezar otro. Si no, el que se
+         apuntó en un toque que acabó en arrastre —o en un desplazamiento, que no deja clic— se
+         quedaba esperando, y el siguiente toque en la etiqueta misma se lo comía: el campo no se
+         enfocaba y el chip de arriba se apretaba solo. */
+      redirigir.delete(et);
+      const otro = controlDebajo(et, input, e.clientX, e.clientY);
+      if (otro) {
+        redirigir.set(et, { control: otro, hasta: Date.now() + 900 });
+        /* Si el navegador se lleva el gesto (el dedo desplazó la página), no va a haber clic:
+           el encargo se borra ahí mismo y no espera a caducar. */
+        const olvidar = ev2 => {
+          if (ev2.pointerId != null && ev2.pointerId !== e.pointerId) return;
+          g.removeEventListener('pointercancel', olvidar);
+          redirigir.delete(et);
+        };
+        g.addEventListener('pointercancel', olvidar);
+        g.setTimeout(() => g.removeEventListener('pointercancel', olvidar), 1000);
+        ponerDoc();
+        return;
+      }
+      ponerDoc();
       const lee = (a, def) => { const v = parseFloat(a); return isFinite(v) ? v : def; };
       const px = o.px > 0 ? o.px : lee(et.getAttribute('data-arrastre-px'), 6);
       const paso = o.paso > 0 ? o.paso : lee(input.step, 1) || 1;
       const min = o.min != null ? o.min : lee(input.min, -Infinity), max = o.max != null ? o.max : lee(input.max, Infinity);
       const caja = (o.caja && et.closest(o.caja)) || et.closest('.fld') || et.parentElement || et;
       const id = e.pointerId, x0 = e.clientX, y0 = e.clientY;
-      let activo = false, cambio = false, v0 = 0, ultimo = null;
+      let activo = false, cambio = false, v0 = 0, ultimo = null, vivo = true;
+      sesiones++;
       const mover = ev => {
         if (ev.pointerId !== id) return;
         if (!input.isConnected) { soltar(ev); return; }
@@ -3578,24 +3752,38 @@
         avisar(input, 'input');
         if (o.alMover) o.alMover(v, input);
       };
+      /* La ventana que pierde el foco a media sesión (otra app, un diálogo) también la termina:
+         una sesión que nunca recibe su pointerup dejaría cancelado todo `dragstart` del
+         documento, y las partidas ya no se podrían reordenar. */
       const soltar = ev => {
-        if (ev && ev.pointerId !== id) return;
+        if (ev && ev.pointerId != null && ev.pointerId !== id) return;
+        if (!vivo) return;
+        vivo = false;
+        sesiones = Math.max(0, sesiones - 1);
         g.removeEventListener('pointermove', mover);
         g.removeEventListener('pointerup', soltar);
         g.removeEventListener('pointercancel', soltar);
+        g.removeEventListener('blur', soltar);
         if (!activo) return;
         caja.classList.remove('arrastre-activo');
         et.classList.remove('arrastre-activo');
         d.documentElement.classList.remove('arrastre-medida');
         tragarClic(et);
-        if (cambio) { avisar(input, 'change'); if (o.alSoltar) o.alSoltar(ultimo, input); }
+        if (!cambio) return;
+        avisar(input, 'change');
+        if (o.salir !== false && d.activeElement !== input && input.isConnected) {
+          input.dispatchEvent(new g.FocusEvent('blur'));
+          input.dispatchEvent(new g.FocusEvent('focusout', { bubbles: true }));
+        }
+        if (o.alSoltar) o.alSoltar(ultimo, input);
       };
       g.addEventListener('pointermove', mover, { passive: false });
       g.addEventListener('pointerup', soltar);
       g.addEventListener('pointercancel', soltar);
+      g.addEventListener('blur', soltar);
     };
 
-    /* arrastrarMedida(etiqueta, input?, {px, paso, min, max, caja, alMover, alSoltar}) → {destruir()}
+    /* arrastrarMedida(etiqueta, input?, {px, paso, min, max, caja, salir, alMover, alSoltar}) → {destruir()}
        Para un campo que no se repinta. Sin `input`, el de la etiqueta (`for`). */
     P.arrastrarMedida = function (etiqueta, input, o) {
       etiqueta = el$(etiqueta);
@@ -3682,7 +3870,7 @@
         const antes = actual();
         pintar(b);
         const v = valorDe(b);
-        if (oculto && oculto.value !== v) { oculto.value = v; if (avisarlo) { avisar(oculto, 'input'); avisar(oculto, 'change'); } }
+        if (oculto && oculto.value !== v) { escribir(oculto, v); if (avisarlo) { avisar(oculto, 'input'); avisar(oculto, 'change'); } }
         if (avisarlo && antes !== b && o.alCambiar) o.alCambiar(v, b);
       };
       const alClic = e => {
@@ -3704,20 +3892,25 @@
         elegir(lista[j], true);
         lista[j].focus();
       };
-      pintar((oculto && opciones().find(b => valorDe(b) === oculto.value)) || actual());
+      const delOculto = () => (oculto && opciones().find(b => valorDe(b) === oculto.value)) || null;
+      pintar(delOculto() || actual());
       grupo.addEventListener('click', alClic);
       grupo.addEventListener('keydown', alTecla);
+      /* venta.js escribe la cuenta recordada en #rv-cuenta al abrir el modal, sin evento: la
+         pastilla va a esa opción (sin avisar: la app ya lo sabe). */
+      const soltarOculto = oculto ? vigilarValor(oculto, () => pintar(delOculto())) : () => { };
       const ficha = P.fichaQueViaja(grupo, { activo: '[aria-checked="true"]', clave: o.clave });
       const api = {
         valor() { const b = actual(); return b ? valorDe(b) : ''; },
         fijar(v, avisarlo) {
           const b = opciones().find(x => valorDe(x) === String(v));
           if (b) elegir(b, !!avisarlo);
-          else { pintar(null); if (oculto) oculto.value = ''; }
+          else { pintar(null); if (oculto) escribir(oculto, ''); }
         },
         destruir() {
           grupo.removeEventListener('click', alClic);
           grupo.removeEventListener('keydown', alTecla);
+          soltarOculto();
           if (ficha) ficha.destruir();
           glides.delete(grupo);
         }
@@ -3727,7 +3920,11 @@
     };
     /* El mismo grupo como cadena, para las pantallas que pintan con innerHTML. Sin manejadores
        en línea: se le llama opcionesDeslizantes() al grupo después de pintarlo.
-       {id, etiqueta, etiquetadaPor, oculto (id del hidden), valor, opciones:[{v, t, sub, clase, apagada}]} */
+       {id, etiqueta, etiquetadaPor, oculto (id del hidden), valor,
+        opciones:[{v, t, sub, tono, clase, apagada}]}
+       `tono` ('av' · 'ok' · 'mal') pinta la línea de abajo: el «sin IVA» en ámbar de la muestra
+       de C4. Qué opción lleva qué tono lo decide la pantalla; la palabra va de todos modos. */
+    const TONOS_SUB = ['av', 'ok', 'mal'];
     P.opcionesDeslizantesHTML = function (o) {
       o = o || {};
       const e = P.esc, v = o.valor != null ? String(o.valor) : null, ops = o.opciones || [];
@@ -3736,7 +3933,8 @@
         const si = v != null && String(op.v) === v;
         let tab = si ? 0 : -1;
         if (primera && !op.apagada) { tab = 0; primera = false; }
-        return '<button type="button" class="chip' + (si ? ' on' : '') + (op.clase ? ' ' + e(op.clase) : '') +
+        return '<button type="button" class="chip' + (si ? ' on' : '') + (TONOS_SUB.indexOf(op.tono) >= 0 ? ' tono-' + op.tono : '') +
+          (op.clase ? ' ' + e(op.clase) : '') +
           '" role="radio" aria-checked="' + (si ? 'true' : 'false') + '" tabindex="' + tab + '" data-v="' + e(op.v) + '"' +
           (op.apagada ? ' aria-disabled="true"' : '') + '>' + e(op.t != null ? op.t : op.v) +
           (op.sub ? '<small>' + e(op.sub) + '</small>' : '') + '</button>';
@@ -3774,7 +3972,10 @@
       /* Las reglas del código de verificación: el alfabeto de normalizarCodigo() en la hoja
          (0-9A-F) y lo que se confunde al leerlo del papel. */
       HEX,
-      /* {valor, rechazados}: lo que queda del texto y lo que se quitó (para decirlo). */
+      /* {valor, rechazados, sobran}: lo que queda del texto y lo que se quitó (para decirlo).
+         `sobran` es la parte de `rechazados` que sí era del alfabeto pero ya no cabía: pegar
+         trece caracteres no es lo mismo que pegar una «G», y decir «no va en el código» de una
+         «A» que sí va manda a buscar un error que no está. */
       normalizar(bruto, o) {
         o = o || {};
         const n = o.n > 0 ? o.n : 12, alf = sinGlobal(o.alfabeto) || /[0-9A-Z]/, eq = o.equivalencias || null;
@@ -3782,14 +3983,15 @@
         let s = String(bruto == null ? '' : bruto);
         if (o.mayusculas !== false) s = s.toLocaleUpperCase('es-MX');
         let valor = '';
-        const rechazados = [];
+        const rechazados = [], sobran = [];
         for (const ch of s) {
           if (sep.test(ch)) continue;
           const c = eq && Object.prototype.hasOwnProperty.call(eq, ch) ? eq[ch] : ch;
-          if (!alf.test(c) || valor.length >= n) { rechazados.push(ch); continue; }
+          if (!alf.test(c)) { rechazados.push(ch); continue; }
+          if (valor.length >= n) { rechazados.push(ch); sobran.push(ch); continue; }
           valor += c;
         }
-        return { valor, rechazados };
+        return { valor, rechazados, sobran };
       },
       /* «A1B2C3D4E5F6» → «A1B2-C3D4-E5F6». */
       agrupar(valor, grupo, sep) {
@@ -3857,12 +4059,15 @@
         input.setAttribute('aria-label', o.etiqueta || ('Código de ' + n + ' caracteres'));
       }
       const boton = el$(o.boton);
-      let completoAntes = null, reloj = 0, cascada = 0;
-      const decir = t => { voz.textContent = ''; g.setTimeout(() => { voz.textContent = t; }, 40); };
-      const rechazar = chars => {
-        const unicos = Array.from(new Set(chars)).slice(0, 3).map(c => c === ' ' ? 'un espacio' : '«' + c + '»');
+      let completoAntes = null, reloj = 0, cascada = 0, relojVoz = 0, relojFallo = 0;
+      const decir = t => { voz.textContent = ''; g.clearTimeout(relojVoz); relojVoz = g.setTimeout(() => { voz.textContent = t; }, 40); };
+      const rechazar = (chars, sobran) => {
+        const lista = xs => Array.from(new Set(xs)).slice(0, 3).map(c => c === ' ' ? 'un espacio' : '«' + c + '»').join(', ');
+        const ajenos = chars.slice();
+        (sobran || []).forEach(c => { const i = ajenos.indexOf(c); if (i >= 0) ajenos.splice(i, 1); });
         decir(typeof o.textoRechazo === 'function' ? o.textoRechazo(chars)
-          : (o.textoRechazo || 'No va en el código') + ': ' + unicos.join(', '));
+          : ajenos.length ? (o.textoRechazo || 'No va en el código') + ': ' + lista(ajenos)
+            : 'Ya van los ' + n + ': sobra ' + lista(sobran));
         caja.classList.remove('rechazo');
         void caja.offsetWidth;
         caja.classList.add('rechazo');
@@ -3872,8 +4077,8 @@
       const alFinal = () => { try { const k = input.value.length; input.setSelectionRange(k, k); } catch (_) { } };
       const pintar = tecleo => {
         const r = P.codigo.normalizar(input.value, reglas);
-        if (input.value !== r.valor) { input.value = r.valor; alFinal(); }
-        if (tecleo && r.rechazados.length) rechazar(r.rechazados);
+        if (input.value !== r.valor) { escribir(input, r.valor); alFinal(); }
+        if (tecleo && r.rechazados.length) rechazar(r.rechazados, r.sobran);
         const v = r.valor, foco = d.activeElement === input;
         cas.forEach((c, i) => {
           const ch = v[i] || '';
@@ -3903,19 +4108,21 @@
       input.addEventListener('click', alFoco);
       input.addEventListener('blur', alSalir);
       input.addEventListener('keydown', alTecla);
+      /* `$('f-c').value = codigoDelQR` sin evento también pinta las casillas. */
+      const soltarValor = vigilarValor(input, () => pintar(false));
       pintar(false);
       const api = {
         valor: () => input.value,
         completo: () => caja.classList.contains('completo'),
-        fijar(v) { input.value = String(v == null ? '' : v); pintar(false); },
+        fijar(v) { escribir(input, String(v == null ? '' : v)); pintar(false); },
         /* Vaciar en cascada es borrar de derecha a izquierda, una casilla cada 35 ms: la cascada
            de A1 sin animar ninguna propiedad. Con menos movimiento, de una vez. */
         vaciar(conCascada) {
           g.clearTimeout(cascada);
-          if (!conCascada || P.sinMovimiento() || !input.value) { input.value = ''; pintar(false); return Promise.resolve(); }
+          if (!conCascada || P.sinMovimiento() || !input.value) { escribir(input, ''); pintar(false); return Promise.resolve(); }
           return new Promise(res => {
             const paso = () => {
-              input.value = input.value.slice(0, -1);
+              escribir(input, input.value.slice(0, -1));
               pintar(false);
               if (input.value) cascada = g.setTimeout(paso, 35); else res();
             };
@@ -3927,17 +4134,20 @@
           if (estado === 'ok') caja.classList.add('acierto');
           else if (estado === 'mal') {
             caja.classList.add('fallo');
-            g.setTimeout(() => caja.classList.remove('fallo'), 900);
+            g.clearTimeout(relojFallo);
+            relojFallo = g.setTimeout(() => caja.classList.remove('fallo'), 900);
             return api.vaciar(true);
           }
           return Promise.resolve();
         },
         destruir() {
+          [reloj, cascada, relojVoz, relojFallo].forEach(t => g.clearTimeout(t));
           input.removeEventListener('input', alEscribir);
           input.removeEventListener('focus', alFoco);
           input.removeEventListener('click', alFoco);
           input.removeEventListener('blur', alSalir);
           input.removeEventListener('keydown', alTecla);
+          soltarValor();
           casillasVivas.delete(input);
         }
       };
@@ -4032,6 +4242,11 @@
         if (mex) {
           const nac = wa.slice(-10);
           if (intl && tras !== nac) { out.estado = 'revisa'; out.nacional = tras || ''; out.cuenta = out.nacional.length; return out; }
+          /* La regla deja pasar «+52 0248 0602 12» y «5210000026866» —cuenta dígitos y ya—, pero
+             ningún número de México empieza con 0, y escribirlo como «02 4806 0212» lo volvía
+             uno que la misma regla RECHAZA: el chat que sí abría dejaba de abrir. Lo encontró la
+             prueba con cinco mil teléfonos al azar. Ni palomita ni reescritura: se dice. */
+          if (nac[0] === '0') { out.estado = 'no'; out.nacional = nac; out.cuenta = 10; return out; }
           out.nacional = nac; out.estado = 'completo'; out.completo = true; out.cuenta = 10;
           return out;
         }
@@ -4086,8 +4301,9 @@
     };
     const telefonos = new WeakMap();
     /* telefonoVivo(input, {numeroWa, alCambiar}) → {repintar(), estado(), destruir()}
-       `repintar()` es para cuando la app escribe el campo sin evento (historial.js al abrir una
-       cotización, autocompletarCliente()). */
+       Lo que la app escribe en el campo sin evento —historial.js al abrir una cotización,
+       autocompletarCliente() en nucleo.js— se repinta solo (ver vigilarValor()); `repintar()`
+       queda para quien cambie la regla o el campo por otro lado. */
     P.telefonoVivo = function (input, o) {
       input = el$(input);
       o = o || {};
@@ -4147,7 +4363,7 @@
           cursorDig = antesCursor;
         }
         if (texto !== input.value) {
-          input.value = texto;
+          escribir(input, texto);
           if (d.activeElement === input && cursorDig != null) {
             const p = P.telefono.cursor(texto, cursorDig);
             try { input.setSelectionRange(p, p); } catch (_) { }
@@ -4179,14 +4395,17 @@
       const alSalir = () => pintar(null);
       input.addEventListener('change', alSalir);
       input.addEventListener('blur', alSalir);
+      const soltarValor = vigilarValor(input, () => pintar(null));
       pintar(null);
       const api = {
         repintar: () => pintar(null),
         estado: () => ultimo,
         destruir() {
+          g.clearTimeout(reloj);
           caja.removeEventListener('input', alEscribir, true);
           input.removeEventListener('change', alSalir);
           input.removeEventListener('blur', alSalir);
+          soltarValor();
           telefonos.delete(input);
         }
       };
@@ -4238,14 +4457,25 @@
       return '<span class="' + e(medidorClases(m, o)) + '" style="' + medidorEstilo(m) + '"' +
         (o.texto ? ' role="img" aria-label="' + e(o.texto) + '"' : ' aria-hidden="true"') + '>' + medidorPartes(m) + '</span>';
     };
-    /* pintarMedidor(el, opciones): el mismo medidor sobre un elemento que ya existe. */
+    /* pintarMedidor(el, opciones): el mismo medidor sobre un elemento que ya existe. Solo toca
+       lo suyo: las clases `medidor…`, `tono-…`, `estimado` y `bajo-cero`, y sus cuatro
+       variables. Reescribir `className` y `style` enteros se llevaba lo de la pantalla —el
+       `.no-papel` con que F3 lo esconde al imprimir, un margen puesto a mano—. */
+    const MIAS = /^(medidor|tono-(ok|av|mal)|estimado|bajo-cero)$/;
+    const medidorPropias = new WeakMap();
     P.pintarMedidor = function (el, o) {
       el = el$(el);
       o = o || {};
       if (!el) return null;
       const m = P.cifras.medidor(o);
-      el.className = medidorClases(m, o);
-      el.setAttribute('style', medidorEstilo(m));
+      const antes = medidorPropias.get(el);
+      if (antes) antes.forEach(c => el.classList.remove(c));
+      Array.from(el.classList).filter(c => MIAS.test(c)).forEach(c => el.classList.remove(c));
+      const nuevas = medidorClases(m, o).split(/\s+/).filter(Boolean);
+      nuevas.forEach(c => el.classList.add(c));
+      medidorPropias.set(el, nuevas);
+      ['--v', '--r', '--meta', '--muesca'].forEach(k => el.style.removeProperty(k));
+      medidorEstilo(m).split(';').forEach(par => { const i = par.indexOf(':'); if (i > 0) el.style.setProperty(par.slice(0, i), par.slice(i + 1)); });
       if (o.texto) { el.setAttribute('role', 'img'); el.setAttribute('aria-label', o.texto); el.removeAttribute('aria-hidden'); }
       else { el.removeAttribute('role'); el.removeAttribute('aria-label'); el.setAttribute('aria-hidden', 'true'); }
       el.innerHTML = medidorPartes(m);
@@ -4277,6 +4507,9 @@
        oninput de la app. No vibra en los imanes (vibrar() es de autorizar, borrar y rechazar).
        ====================================================================== */
     const PULGAR = 44;              // el pulgar mide 44 px: la zona táctil; se ve de 24
+    /* La escala de un ancestro (un modal que entra con scale): las medidas con
+       getBoundingClientRect vienen escaladas, las de offsetWidth no. */
+    const escalaDe = el => { const r = el.getBoundingClientRect(); return el.offsetWidth ? r.width / el.offsetWidth : 1; };
     const deslizadores = new WeakMap();
     const normImanes = l => (l || []).map(im => typeof im === 'object' ? { v: +im.v, radio: im.radio, t: im.t } : { v: +im });
     /* deslizadorConImanes(input, {imanes, radioPx, redondeo, pasoTeclado, marcas, etiqueta, texto,
@@ -4335,21 +4568,34 @@
         } else if (!Array.isArray(l)) l = cfg.imanes.map(im => ({ v: im.v, t: im.t }));
         return l.map(m => typeof m === 'object' ? { v: +m.v, t: m.t != null ? String(m.t) : etiqueta(+m.v) } : { v: +m, t: etiqueta(+m) });
       };
+      /* Un rótulo va centrado en su rayita, y la de un extremo está a 22 px de la orilla: uno más
+         ancho que 44 px («$12,528.00», «Sin ajuste») se salía de la caja por la mitad que no
+         cabía y empujaba la página a lo ancho. Se corre lo justo para quedar dentro; la rayita
+         no se mueve. */
       const acomodarMarcas = () => {
         const W = input.offsetWidth;
         if (!W) return;
         const hijos = Array.from(marcas.children);
-        const datos = hijos.map((s, i) => ({
-          x: PULGAR / 2 + (+s.style.getPropertyValue('--k')) * (W - PULGAR),
-          w: s.firstChild ? s.firstChild.getBoundingClientRect().width : 0,
-          prioridad: (i === 0 || i === hijos.length - 1) ? 2 : s.classList.contains('iman') ? 1 : 0
-        }));
+        const datos = hijos.map((s, i) => {
+          const b = s.firstChild, w = b ? b.getBoundingClientRect().width / (escalaDe(caja) || 1) : 0;
+          const x = PULGAR / 2 + (+s.style.getPropertyValue('--k')) * (W - PULGAR);
+          const corre = x - w / 2 < 0 ? w / 2 - x : x + w / 2 > W ? W - w / 2 - x : 0;
+          if (b) b.style.transform = corre ? 'translateX(' + corre.toFixed(1) + 'px)' : '';
+          return { x: x + corre, w, prioridad: (i === 0 || i === hijos.length - 1) ? 2 : s.classList.contains('iman') ? 1 : 0 };
+        });
         const ver = P.cifras.marcasQueCaben(datos, 6);
         hijos.forEach((s, i) => s.classList.toggle('sin-texto', !ver[i]));
       };
+      /* rango() corre en cada renderSummary() —en cada tecla de una partida—, y rehacer las
+         marcas es rehacer su DOM y medir cada rótulo. Si no cambió nada que se vea, se deja. */
+      let marcasPuestas = '';
       const pintarMarcas = () => {
+        const lista = listaMarcas();
+        const firma = cfg.min + '|' + cfg.max + '|' + lista.map(m => m.v + ':' + m.t).join(',') + '|' + cfg.imanes.map(im => im.v).join(',');
+        if (firma === marcasPuestas && marcas.children.length === lista.length) return;
+        marcasPuestas = firma;
         marcas.textContent = '';
-        listaMarcas().forEach(m => {
+        lista.forEach(m => {
           const s = d.createElement('span');
           s.className = 'desl-marca' + (cfg.imanes.some(im => Math.abs(im.v - m.v) < 1e-9) ? ' iman' : '');
           s.style.setProperty('--k', String(+k(m.v).toFixed(5)));
@@ -4386,7 +4632,7 @@
         const t = f(+input.value);
         escribiendo = true;
         try {
-          if (campo.value !== t) campo.value = t;
+          if (campo.value !== t) escribir(campo, t);
           avisar(campo, tipo);
         } finally { escribiendo = false; }
         caja.classList.remove('fuera');
@@ -4397,7 +4643,7 @@
           const bruto = +input.value, W = input.offsetWidth - PULGAR;
           const radio = W > 0 ? (o.radioPx > 0 ? o.radioPx : 12) * (cfg.max - cfg.min) / W : 0;
           const vv = P.cifras.imanar(bruto, { min: cfg.min, max: cfg.max, imanes: cfg.imanes, radio, redondeo: o.redondeo });
-          if (vv !== bruto) input.value = String(vv);
+          if (vv !== bruto) escribir(input, String(vv));
         }
         pintar();
         escribirCampo('input');
@@ -4465,7 +4711,7 @@
         e.preventDefault();
         dest = acotar(redondear(dest, Math.max(2, decimalesDe(pt))), cfg.min, cfg.max);
         if (dest === val) return;
-        input.value = String(dest);
+        escribir(input, String(dest));
         avisar(input, 'input');
         avisar(input, 'change');
       };
@@ -4473,7 +4719,7 @@
         if (escribiendo) return;
         const n = parseFloat(String(campo.value).replace(/[^\d.-]/g, ''));
         if (!isFinite(n)) return;
-        input.value = String(acotar(n, cfg.min, cfg.max));
+        escribir(input, String(acotar(n, cfg.min, cfg.max)));
         caja.classList.toggle('fuera', n < cfg.min - 1e-9 || n > cfg.max + 1e-9);
         pintar();
       };
@@ -4482,6 +4728,10 @@
       caja.addEventListener('pointerdown', alBajar, true);
       input.addEventListener('keydown', alTecla);
       if (campo) campo.addEventListener('input', alCampo);
+      /* Lo que la app escribe sin evento: `$('f-anti').value=auto` en renderSummary() mueve el
+         pulgar, y un preset del vectorizador que escribe el rango mueve su pastilla. */
+      const soltarCampo = campo ? vigilarValor(campo, alCampo) : () => { };
+      const soltarRango = vigilarValor(input, () => { if (vivo) pintar(); });
       const ro = typeof g.ResizeObserver === 'function' ? new g.ResizeObserver(() => { if (vivo) { acomodarMarcas(); ponerPastilla(); } }) : null;
       if (ro) ro.observe(caja);
       pintarMarcas();
@@ -4489,7 +4739,7 @@
       const api = {
         valor: () => +input.value,
         fijar(x, avisarlo) {
-          input.value = String(acotar(+x, cfg.min, cfg.max));
+          escribir(input, String(acotar(+x, cfg.min, cfg.max)));
           caja.classList.toggle('fuera', +x < cfg.min - 1e-9 || +x > cfg.max + 1e-9);
           pintar();
           if (avisarlo) escribirCampo('input');
@@ -4516,6 +4766,11 @@
           caja.removeEventListener('pointerdown', alBajar, true);
           input.removeEventListener('keydown', alTecla);
           if (campo) campo.removeEventListener('input', alCampo);
+          soltarCampo();
+          soltarRango();
+          if (liga) { try { liga.cancel(); } catch (_) { } liga = null; }
+          input.style.transform = '';
+          caja.removeAttribute('data-estira');
           if (ro) ro.disconnect();
           deslizadores.delete(input);
         }
