@@ -1,0 +1,1356 @@
+diff --git a/cotizador.html b/cotizador.html
+index 8cec4fd..13e35c7 100644
+--- a/cotizador.html
++++ b/cotizador.html
+@@ -495,7 +495,11 @@ document.documentElement.classList.add('arrancando');
+     <div class="modal-h"><b><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar con IA</b><button onclick="aiClose()" aria-label="Cerrar">×</button></div>
+     <div class="modal-b">
+       <div class="ai-src" id="ai-src-box" style="display:none">
+-        <img class="ai-src-img" id="ai-src-img" alt="Imagen medida en el escalador">
++        <div class="ia-marco">
++          <img class="ai-src-img" id="ai-src-img" alt="Imagen medida en el escalador">
++          <span class="ia-etapa" hidden aria-hidden="true"></span>
++          <div class="ia-velo" hidden><p class="ia-velo-motivo"></p><button type="button" class="btn btn-pri ia-velo-re">Reintentar</button></div>
++        </div>
+         <div class="ai-src-b">
+           <div class="ai-src-t"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Imagen del escalador</div>
+           <div class="ai-src-n" id="ai-src-n"></div>
+@@ -516,9 +520,14 @@ document.documentElement.classList.add('arrancando');
+         <div class="ai-drop" id="ai-drop" role="button" tabindex="0" aria-describedby="ai-drop-s"
+           onclick="$('ai-file').click()"
+           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();$('ai-file').click();}">
+-          <svg class="svgi ico" aria-hidden="true"><use href="#i-carpeta"/></svg>
++          <div class="ai-carpeta" aria-hidden="true">
++            <svg class="cp-cuerpo" viewBox="0 0 160 120"><path d="M8 4h42q4 0 6.5 3l7 8h88.5a8 8 0 0 1 8 8v89a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8V12a8 8 0 0 1 8-8z"/></svg>
++            <span class="cp-hoja">Suéltalo aquí</span>
++            <svg class="cp-tapa" viewBox="0 0 160 92"><rect x="0" y="0" width="160" height="92" rx="8"/><rect class="cp-filo" x="0" y="0" width="160" height="3" rx="1.5"/></svg>
++          </div>
+           <div class="t"><span class="solo-raton">Arrastra aquí la foto o el PDF</span><span class="solo-dedo">Toca para elegir la foto o el PDF</span></div>
+           <div class="s" id="ai-drop-s"><span class="solo-raton">o <b>toca para elegirlo</b> · si ya lo tienes copiado, <b>pégalo</b> con Ctrl+V</span><span class="solo-dedo">de tu galería, de Archivos o de lo que te mandaron</span></div>
++          <div class="ai-drop-sobre" aria-hidden="true">Se abre para analizarlo</div>
+         </div>
+         <input id="ai-file" class="ai-file-in" type="file" accept="image/*,application/pdf"
+           aria-labelledby="lab-ai-file" onchange="aiArchivoElegido(this.files[0])">
+@@ -527,10 +536,13 @@ document.documentElement.classList.add('arrancando');
+       <div class="ai-merge" id="ai-merge-box" style="display:none">
+         <button type="button" class="switch" role="switch" aria-checked="false" style="margin:0" onclick="toggleAiMerge()"><span class="tg" id="ai-merge-tg" aria-hidden="true"></span> Conservar las partidas que ya capturé</button>
+         <div class="ai-merge-note" id="ai-merge-note"></div>
++        <ul class="ai-merge-lista" id="ai-merge-lista"></ul>
+       </div>
+       <button class="btn btn-pri" id="ai-go-btn" onclick="aiAnalyze()" style="margin-top:8px">Analizar y cotizar</button>
+       <button class="btn btn-gho" id="ai-cancel-btn" onclick="aiCancelar()" hidden>Cancelar el análisis</button>
+       <div class="ai-status" id="ai-status" role="status"></div>
++      <div class="ai-traza" id="ai-traza" hidden></div>
++      <div class="ai-resumen" id="ai-resumen" role="group" aria-label="Lo que leyó la IA" hidden></div>
+     </div>
+   </div>
+ </div>
+diff --git a/css/sistema.css b/css/sistema.css
+index 8efe445..bed9802 100644
+--- a/css/sistema.css
++++ b/css/sistema.css
+@@ -4961,7 +4961,148 @@ mark.coincide{background:var(--a-suave);color:var(--tinta);font-weight:700;borde
+ /* ── fin de cot-entrega ── */
+ 
+ /* ── Cotizador · Cotizar con IA ── */
+-
++/* H20 · LA CARPETA QUE SE ABRE AL ACERCAR EL ARCHIVO, Y QUE EN REPOSO NO HACE NADA
++   El icono de la zona de arrastre respiraba en bucle (css/vidrio.css, `vid-respira`), y era una
++   de las cuatro piezas que rompían la regla del sistema de diseño: «una sola pieza se mueve
++   sola, el botón de Cotizar con IA». En una pantalla vacía, a las siete de la tarde, lo único
++   que se mueve se lleva el ojo: ese latido llamaba la atención sobre un recuadro que no tenía
++   nada que decir todavía.
++
++   Ahora se mueve cuando el usuario trae un archivo, y solo entonces: la tapa se abre 38° y de
++   dentro asoma una hoja que dice «Suéltalo aquí». Dos SVG hermanos y no uno solo con dos grupos
++   dentro, porque las transformaciones 3D no se aplican a los hijos de un <svg> —se aplican al
++   <svg>—; el cuerpo va detrás, la hoja en medio y la tapa delante, en ese orden del marcado.
++   El movimiento son 180 ms de `transform`, nada más: en gama media eso es una capa que el
++   compositor ya tiene y no cuesta un repintado.
++
++   El conteo de dragenter/dragleave que evita el parpadeo ya vive en ia.js (`_aiDragN`). */
++.ai-carpeta{position:relative;width:96px;height:72px;perspective:340px;margin-bottom:var(--e1)}
++.ai-carpeta svg{position:absolute;left:0;width:96px;display:block}
++.ai-carpeta .cp-cuerpo{top:0;height:72px;fill:var(--a-fuerte)}
++.ai-carpeta .cp-tapa{bottom:0;height:55px;fill:var(--a);transform-origin:50% 100%;
++  transition:transform .18s cubic-bezier(.2,.8,.2,1)}
++.ai-carpeta .cp-filo{fill:var(--a-claro)}
++/* La hoja: papel de verdad —superficie y línea del tema, no un blanco fijo—, para que de noche
++   no sea un rectángulo encendido dentro de una carpeta apagada. */
++.ai-carpeta .cp-hoja{position:absolute;left:11px;right:11px;top:14px;height:46px;border-radius:5px;
++  background:var(--sup);border:1px solid var(--linea);box-shadow:0 2px 6px rgba(var(--tinta-rgb),.18);
++  color:var(--tinta);font-size:var(--t1);font-weight:700;line-height:1.2;text-align:center;
++  padding-top:5px;transform:translateY(9px);transition:transform .18s cubic-bezier(.2,.8,.2,1)}
++.ai-drop.sobre .ai-carpeta .cp-tapa{transform:rotateX(-38deg)}
++.ai-drop.sobre .ai-carpeta .cp-hoja{transform:translateY(-22px)}
++/* Con el archivo encima, el recuadro cambia de frase: la hoja ya dice «Suéltalo aquí» y las dos
++   líneas de instrucciones («arrastra… o toca… o pega con Ctrl+V») estorban justo cuando ya no
++   hay nada que elegir. Se cambian por una sola, que dice qué va a pasar al soltar. */
++.ai-drop-sobre{display:none;font-size:var(--t1);color:var(--a-fuerte);font-weight:700}
++.ai-drop.sobre .t,.ai-drop.sobre .s{display:none}
++.ai-drop.sobre .ai-drop-sobre{display:block}
++
++/* H7 · LA FICHA DEL ARCHIVO SE LEE MIENTRAS LA IA TRABAJA
++   El análisis tarda de diez segundos a un minuto entero y hasta ahora, en todo ese rato, solo
++   giraba un punto junto a una frase y el archivo se quedaba en una miniatura de 52 px: no había
++   forma de comprobar que se mandó el plano correcto, que es la única pregunta que uno se hace
++   mientras espera. Ahora el marco crece al ancho del modal con la proporción reservada (4:3, así
++   el modal no brinca al cambiar de tamaño) y una banda de luz lo recorre.
++
++   La banda va en `::after` con `transform:translateX` —la misma técnica que `ia-barrido` del
++   botón de IA— y NO con `filter:blur`, que en un teléfono de gama media cuesta fotogramas. Se
++   repite mientras dura el análisis, que es una espera real que el usuario disparó, y se apaga
++   sola al terminar porque vive dentro de `.trabajando`: en reposo no queda nada en bucle. */
++.ai-pick .ia-marco,.ai-src .ia-marco{position:relative;flex:0 0 auto;overflow:hidden;
++  border-radius:8px;transition:width .3s cubic-bezier(.2,.8,.2,1)}
++.ai-pick .ia-marco{width:52px;height:52px}
++.ai-src .ia-marco{width:76px;height:76px}
++.ai-pick .ia-marco>img,.ai-src .ia-marco>img{width:100%;height:100%;margin:0;border-radius:0;border:0}
++.ai-pick .ia-marco>.ai-pick-ph{width:100%;height:100%;border-radius:0}
++.ai-pick.trabajando,.ai-pick.mal,.ai-src.trabajando,.ai-src.mal{flex-direction:column;align-items:stretch}
++.ai-pick.trabajando .ia-marco,.ai-pick.mal .ia-marco,
++.ai-src.trabajando .ia-marco,.ai-src.mal .ia-marco{width:100%;height:auto;aspect-ratio:4/3;
++  border:1px solid var(--linea);background:var(--sup2)}
++.ai-pick.trabajando .ia-marco>img,.ai-pick.mal .ia-marco>img,
++.ai-src.trabajando .ia-marco>img,.ai-src.mal .ia-marco>img{object-fit:contain}
++.ai-pick.trabajando .ia-marco::after,.ai-src.trabajando .ia-marco::after{
++  content:'';position:absolute;inset:0;pointer-events:none;
++  background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.5) 50%,transparent 70%);
++  transform:translateX(-100%);animation:ia-lee 1.6s linear infinite}
++@keyframes ia-lee{to{transform:translateX(100%)}}
++/* La pastilla de etapa: Preparando · Analizando · Reintentando · Leyendo. Va sobre la figura y
++   no sobre texto, con su propio fondo honda para leerse encima de una foto de cualquier color. */
++.ia-etapa{position:absolute;left:var(--e2);top:var(--e2);padding:4px 9px;border-radius:999px;
++  background:rgba(23,26,51,.84);color:#fff;font-size:var(--t1);font-weight:700;line-height:1}
++/* EL ERROR, ENCIMA DE LA IMAGEN Y NO EN UN PÁRRAFO ROJO DE ABAJO
++   El velo cae sobre la figura —nunca sobre el nombre del archivo ni sobre el renglón de estado,
++   §4.3— y trae el motivo en corto y un «Reintentar» que es el mismo gesto que se acaba de
++   intentar, en el mismo sitio donde se estaba mirando. */
++.ia-velo{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;
++  gap:var(--e2);padding:var(--e3);text-align:center;background:rgba(23,26,51,.74);color:#fff}
++.ia-velo[hidden]{display:none}
++.ia-velo-motivo{margin:0;font-size:var(--t2);font-weight:600;line-height:1.35;
++  overflow-wrap:anywhere;max-width:100%}
++.ia-velo-re{min-height:44px;padding:0 var(--e4)}
++/* Con la ficha chica (52 px) el velo no cabe: si el error llega antes de crecer, crece igual. */
++.ai-pick.mal .ai-pick-b,.ai-src.mal .ai-src-b{margin-top:var(--e2)}
++/* Con la ficha en columna, la × de «quitar el archivo» se estiraba de lado a lado y quedaba
++   centrada bajo el nombre, donde parece el botón principal del recuadro. Se queda a su lado. */
++.ai-pick.trabajando .ai-pick-x,.ai-pick.mal .ai-pick-x{align-self:flex-end;margin-top:-30px}
++/* El renglón de estado ya no repite el giro cuando la traza está a la vista: dos cosas girando a
++   la vez por la misma espera se leen como dos esperas. La frase sí se queda —es la que lee el
++   lector de pantalla de un tirón—, solo se va su punto. */
++.ai-status.con-traza.work::before{display:none}
++
++/* H13 · QUÉ PARTIDAS SE VAN A REEMPLAZAR
++   El aviso decía «tus 3 partidas ya capturadas se reemplazarán»: un número, con la lista tapada
++   por el propio modal. Ahora se ven, y al apagar «Conservar» se tachan de izquierda a derecha,
++   como quien tacha una lista en papel. El tachado es un `background` lineal de 2 px que crece en
++   `background-size` —`text-decoration` no se puede animar— y NO se baja la opacidad del renglón:
++   el estado no se dice con opacity sobre texto (§4.3). La letra se queda en --av, medida. */
++.ai-merge-lista{list-style:none;margin:var(--e2) 0 0;padding:0;display:grid;gap:3px;
++  font-size:var(--t1);font-weight:600;color:var(--av);line-height:1.5}
++.ai-merge-lista li{display:flex;gap:var(--e2);min-width:0}
++.ai-merge-lista li::before{content:'·';flex:0 0 auto;opacity:1}
++.ai-merge-lista span{background:linear-gradient(var(--mal),var(--mal)) 0 58%/0% 2px no-repeat;
++  transition:background-size .22s ease-out;overflow-wrap:anywhere}
++.ai-merge-lista.tacha span{background-size:100% 2px}
++
++/* PIEZA 8 · LA ESPERA, PASO A PASO (la traza vive en js/piezas.js; aquí solo su sitio) */
++.ai-traza{margin-top:var(--e3)}
++.ai-traza[hidden]{display:none}
++
++/* H1 · EL RESUMEN DE LO QUE LEYÓ LA IA
++   Entra completo en ≤240 ms y sin escalera de retardos: la escalera se quitó a propósito de este
++   proyecto (ver el comentario junto a @keyframes entra), porque con cinco renglones ya se lee
++   como que la pantalla va lenta. */
++.ai-resumen{margin-top:var(--e3);display:grid;gap:var(--e3)}
++.ai-resumen[hidden]{display:none}
++.ia-resumen-t{margin:0;font:700 var(--t3)/1.35 var(--f-texto);color:var(--tinta)}
++.ia-resumen-t small{display:block;margin-top:2px;font-size:var(--t1);color:var(--tinta2);font-weight:700}
++.ia-resumen-quien{margin:0;font-size:var(--t1);font-weight:700;color:var(--av);
++  background:var(--av-bg);border:1px solid var(--av-borde);border-radius:var(--rr2);padding:7px 10px;line-height:1.45}
++.ia-lista{list-style:none;margin:0;padding:0;display:grid;gap:var(--e2)}
++.ia-p{display:grid;grid-template-columns:20px minmax(0,1fr);gap:var(--e2);align-items:start;
++  padding:9px 11px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup);
++  animation:entra .24s cubic-bezier(.2,.8,.2,1) backwards}
++.ia-p[data-e="av"]{border-color:var(--av-borde);background:var(--av-bg)}
++.ia-p>.marca-estado{margin-top:1px}
++.ia-p b{display:block;font-size:var(--t2);font-weight:700;line-height:1.3;color:var(--tinta);overflow-wrap:anywhere}
++.ia-p small{display:block;margin-top:2px;font-size:var(--t1);font-weight:600;line-height:1.45;color:var(--tinta2)}
++.ia-p .ia-precio{font-family:var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta)}
++.ia-p .ia-falta{color:var(--av);font-weight:700}
++/* Las cotas del escalador: cuál quedó explicada y cuál se quedó sin partida. La marca de color
++   no va sola — la que falta lo dice con palabras. */
++.ia-cotas{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:6px var(--e3);
++  font-size:var(--t1);font-weight:700;color:var(--tinta2)}
++.ia-cotas-t{color:var(--tinta3)}
++.ia-cota{display:inline-flex;align-items:center;gap:4px}
++.ia-cota[data-e="ok"]{color:var(--ok)}
++.ia-cota[data-e="av"]{color:var(--av)}
++/* Lo que la IA leyó distinto, con su «Usar» de 44 px */
++.ia-dif{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px var(--e3);
++  padding:6px 6px 6px 11px;border:1px solid var(--linea2);border-radius:var(--rr2);background:var(--sup2);
++  font-size:var(--t1);font-weight:700;color:var(--tinta2)}
++.ia-dif span{min-width:0;overflow-wrap:anywhere}
++.ia-dif-btn{min-height:44px;padding:0 var(--e3);font-size:var(--t1)}
++.ia-resumen-pie{display:flex;justify-content:flex-end}
++.ia-resumen-pie .btn{min-height:44px}
+ /* ── fin de cot-ia ── */
+ 
+ /* ── Cotizador · escalador y el letrero sobre la fachada ── */
+@@ -6214,7 +6355,19 @@ input[type=range].desl-iman{transform:none!important}
+ 
+ /* ── fin de rm · cot-entrega ── */
+ /* ── rm · cot-ia ── */
+-
++/* Se va el adorno y se queda la información. La tapa de la carpeta no se abre (H20: «con
++   reduced-motion, sin tapa»), pero la hoja SIGUE asomando con su «Suéltalo aquí»: eso no es
++   adorno, es la única confirmación de que el recuadro va a recibir el archivo. La banda que
++   recorre la miniatura se va del todo —es lo único de esta pantalla que se repite— y en su lugar
++   la pastilla de etapa late despacio, que es la señal de «esto sigue trabajando». Los renglones
++   del resumen entran en fundido, sin subir. */
++.ai-drop.sobre .ai-carpeta .cp-tapa{transform:none!important}
++.ai-carpeta .cp-tapa,.ai-carpeta .cp-hoja{transition:none!important}
++.ai-pick .ia-marco,.ai-src .ia-marco{transition:none!important}
++.ai-pick.trabajando .ia-marco::after,.ai-src.trabajando .ia-marco::after{animation:none!important;display:none}
++.ai-pick.trabajando .ia-etapa,.ai-src.trabajando .ia-etapa{animation:pulso-lento 1.6s ease-in-out infinite}
++.ia-p{animation-name:aparece!important;animation-duration:.15s!important}
++.ai-merge-lista span{transition:none!important}
+ /* ── fin de rm · cot-ia ── */
+ /* ── rm · cot-escalador ── */
+ 
+diff --git a/css/vidrio.css b/css/vidrio.css
+index 914030f..9d9b798 100644
+--- a/css/vidrio.css
++++ b/css/vidrio.css
+@@ -442,10 +442,20 @@ body.pf .pf-panel-f .btn{border-radius:18px}
+    para el barrido: si no se puede usar, tampoco puede estar llamando. */
+ .ai-btn:disabled>span::after,.ai-btn[disabled]>span::after{animation:none;opacity:0}
+ 
+-/* La zona de arrastre del modal de IA y la del anidador respiran mientras
+-   esperan el archivo: es lo único que se mueve en una pantalla vacía. */
+-.ai-drop .ico,.modal .ai-drop .ico{animation:vid-respira 2.6s ease-in-out 3}
+-@keyframes vid-respira{0%,100%{opacity:.55}50%{opacity:1}}
++/* FALLA 3 DEL BRIEF · La zona de arrastre ya no respira sola.
++   Aquí decía que el icono de las dos zonas de arrastre —la del modal de IA y la del anidador—
++   «respiran mientras esperan el archivo: es lo único que se mueve en una pantalla vacía», y esa
++   frase era el diagnóstico, no la defensa: el sistema de diseño dice que una sola pieza se mueve
++   sola —el botón «Cotizar con IA»— y ésta era una de las cuatro que lo rompían. La revisión de
++   movimiento ya la había bajado de infinita a tres vueltas; tres vueltas siguen siendo ocho
++   segundos de latido sobre un recuadro que todavía no tiene nada que decir, y en un teléfono de
++   gama media a las siete de la tarde eso se lleva el ojo hacia donde no hace falta.
++
++   El movimiento se mudó a donde sí hay algo que decir: con un archivo encima, la carpeta abre la
++   tapa y asoma una hoja que dice «Suéltalo aquí» (ficha H20, bloque «cot-ia» de sistema.css). Se
++   mueve porque alguien trajo un archivo, y se queda quieta el resto del tiempo.
++   El `@keyframes vid-respira` se va con ella: un fotograma que ya no anima nada es una invitación
++   a volver a encenderlo sin releer por qué se apagó. */
+ 
+ /* Quien las pidió sin animación no las tiene. Misma regla que sistema.css.
+ 
+@@ -456,7 +466,7 @@ body.pf .pf-panel-f .btn{border-radius:18px}
+    cursor con la preferencia puesta. Medido en Chromium con
+    `prefers-reduced-motion:reduce`: animationName devolvía «vid-chispas». */
+ @media(prefers-reduced-motion:reduce){
+-  .ai-btn>span::after,.pf-ia-btn .tx::after,.ai-drop .ico{animation:none}
++  .ai-btn>span::after,.pf-ia-btn .tx::after{animation:none}
+   .ai-btn:focus-visible>span::after,.ai-btn:active>span::after,.pf-ia-btn:focus-visible .tx::after,.pf-ia-btn:active .tx::after{
+     animation:none;opacity:0;
+   }@media(hover:hover){.ai-btn:hover>span::after,.pf-ia-btn:hover .tx::after{
+diff --git a/js/cotizador/ia.js b/js/cotizador/ia.js
+index dea477a..3ef8d09 100644
+--- a/js/cotizador/ia.js
++++ b/js/cotizador/ia.js
+@@ -189,7 +189,8 @@ function toggleAiMerge(){
+ }
+ function aiPintarMerge(){
+   const box=$('ai-merge-box'), note=$('ai-merge-note'); if(!box) return;
+-  const n=Q.items.filter(it=>!itemVacio(it)).length;
++  const mias=Q.items.filter(it=>!itemVacio(it));
++  const n=mias.length;
+   box.style.display=n?'':'none';
+   if(!n) return;
+   /* Con una sola partida, «tus 1 partida» se lee mal: la frase entera cambia de número. */
+@@ -197,6 +198,32 @@ function aiPintarMerge(){
+   note.textContent=aiMerge
+     ? `Se ${n===1?'conservará':'conservarán'} ${suyas} y las de la IA se agregarán al final.`
+     : `⚠️ Apagado: ${suyas} se ${n===1?'reemplazará':'reemplazarán'} por lo que detecte la IA.`;
++  aiPintarReemplazo(mias);
++}
++/* ----- H13 · Cuáles son «tus partidas», con nombre y apellido -----
++   El aviso decía «tus 3 partidas ya capturadas se reemplazarán» y ahí se quedaba: tres es un
++   número, y quien lleva media hora capturando no se acuerda de memoria de qué hay en la lista
++   de atrás — el modal la tapa entera. Decidir si vale la pena reemplazarlas exige verlas, así
++   que se ven: un renglón por partida con la misma descripción corta que usa el historial
++   (`histDsc`, que es la que el vendedor ya reconoce de los folios viejos).
++
++   El tachado crece de izquierda a derecha al apagar «Conservar» y se retira al encenderlo, con
++   el mismo gesto de tachar una lista en papel. Se hace con un `background` lineal de 2 px que
++   crece en `background-size`, no con `text-decoration`, porque el decorado no se puede animar;
++   y NO se baja la opacidad del renglón (§4.3: el estado no se dice con opacity sobre texto).
++   Tachado más el ámbar del aviso, los dos con letra que aguanta 4.5:1.
++
++   La lista se repinta solo cuando cambian las partidas —no en cada toque del interruptor—:
++   volver a escribir el innerHTML reiniciaba el tachado a la mitad del recorrido y el renglón
++   parpadeaba en vez de tacharse. */
++function aiPintarReemplazo(mias){
++  const ul=$('ai-merge-lista'); if(!ul) return;
++  const firma=mias.map(it=>it.id+':'+histDsc(it)).join('|');
++  if(ul.dataset.firma!==firma){
++    ul.dataset.firma=firma;
++    ul.innerHTML=mias.map(it=>'<li><span>'+esc(histDsc(it))+'</span></li>').join('');
++  }
++  ul.classList.toggle('tacha',!aiMerge);
+ }
+ /* Fuente del análisis. Normalmente es el archivo que el usuario elige en el modal;
+    cuando se entra desde el escalador es la foto que ya se midió, con sus cotas
+@@ -216,6 +243,9 @@ function aiOpen(fuente){
+   aiOlvidarArchivo();
+   _aiDragN=0; aiPintarArrastre(false);
+   aiPintarProveedores(); aiConsultarHoja();
++  /* Se abre en limpio: el resumen del análisis anterior y su velo de error no son de esta
++     cotización, y dejarlos puestos hacía leer partidas viejas como si fueran las nuevas. */
++  aiPintarResumen(null); aiQuitarFalloIA(); aiTrazaLimpia();
+   aiPintarTrabajando(aiTrabajando);
+   aiStatus(aiTrabajando?'Hay un análisis en curso…':''
+     ,aiTrabajando?'work':'');
+@@ -232,12 +262,81 @@ function aiCancelar(){
+   if(!aiTrabajando) return;
+   _aiRun++; aiTrabajando=false;
+   aiPintarTrabajando(false);
++  /* La traza se queda con lo que alcanzó a pasar, cerrada: cancelar no es que no haya pasado
++     nada, y ver que Qwen ya había contestado explica por qué el siguiente intento va más rápido. */
++  const t=aiTrazaViva(); if(t) t.terminar({ok:false,resumen:'Análisis cancelado'});
+   aiStatus('Análisis cancelado. El archivo sigue elegido: vuelve a darle a Analizar cuando quieras.','');
+ }
+ function aiPintarTrabajando(si){
+   const go=$('ai-go-btn'), no=$('ai-cancel-btn');
+   if(go){ go.disabled=si; go.classList.toggle('trabajando',si); }
+   if(no) no.hidden=!si;
++  /* H7 · La ficha del archivo crece y «se lee» mientras dura el análisis, y solo mientras dura:
++     la banda de luz vive en una clase que se pone al empezar y se quita al terminar, de modo que
++     en reposo no queda nada moviéndose (regla 3 del sistema de diseño). */
++  const ficha=aiFicha();
++  if(ficha){
++    ficha.classList.toggle('trabajando',!!si);
++    if(si) aiQuitarFalloIA();
++  }
++  if(!si) aiEtapa('');
++}
++/* ----- H7 · Qué se está leyendo, mientras se lee -----
++   Durante diez segundos o un minuto entero —con el cliente enfrente— la única señal de vida era
++   un punto que giraba junto a una frase, y el archivo se quedaba en una miniatura de 52 px en la
++   que no se distingue si se mandó el plano correcto. Ahora esa miniatura crece a una vista de
++   proporción reservada (4:3, así que el modal no da un brinco al cambiar de tamaño), una banda
++   de luz la recorre mientras hay análisis y una pastilla dice la etapa. Es la misma técnica del
++   barrido del botón de IA: un `::after` que se mueve con `transform`, nada de `filter:blur`, que
++   en gama media cuesta fotogramas.
++
++   `aiFicha()` devuelve la ficha que está a la vista: la del archivo elegido o, cuando se entra
++   desde el escalador, la de la imagen ya medida. Las dos llevan el mismo marco, la misma pastilla
++   y el mismo velo de error, porque las dos son «lo que se está analizando». */
++function aiFicha(){
++  const pick=$('ai-pick');
++  if(pick&&pick.style.display!=='none') return pick;
++  const src=$('ai-src-box');
++  if(src&&src.style.display!=='none') return src;
++  return null;
++}
++function aiEtapa(txt){
++  /* Las dos fichas comparten la pastilla, y solo una está a la vista: se escriben las dos y se
++     acabó la pregunta de cuál toca. */
++  document.querySelectorAll('#aimodal .ia-etapa').forEach(e=>{
++    e.textContent=txt||'';
++    e.hidden=!txt;
++  });
++}
++/* El error deja de ser un párrafo rojo debajo y se queda ENCIMA de la imagen, que es lo que se
++   estaba mirando: un velo sobre la figura —nunca sobre texto, §4.3— con el motivo en corto y un
++   «Reintentar» que vuelve a llamar a aiAnalyze() sin tener que buscar el botón de arriba.
++   El botón es la pieza 14: mientras reintenta se llena, dice los segundos y, si vuelve a fallar,
++   se queda él mismo con el motivo, en vez de dejar el velo mudo. */
++function aiPintarFalloIA(motivo){
++  const ficha=aiFicha(); if(!ficha) return;
++  const velo=ficha.querySelector('.ia-velo'); if(!velo) return;
++  const m=velo.querySelector('.ia-velo-motivo');
++  if(m) m.textContent=motivo||'No se pudo analizar';
++  velo.hidden=false;
++  ficha.classList.add('mal');
++  const btn=velo.querySelector('.ia-velo-re');
++  if(btn&&!btn.dataset.cableado){
++    btn.dataset.cableado='1';
++    btn.addEventListener('click',()=>{
++      if(aiTrabajando) return;
++      /* aiAnalyze() nunca se rechaza —escribe el error en pantalla y vuelve—, así que aquí se
++         convierte su resultado en lo que la pieza 14 entiende: si no salió, se lanza el motivo
++         para que el botón lo enseñe. `ok:false` porque el éxito ya se ve en el resumen de abajo:
++         un «Listo» en el botón de un velo que desaparece no lo lee nadie. */
++      Piezas.trabajando(btn,()=>aiAnalyze().then(r=>{ if(!r||!r.ok) throw new Error((r&&r.motivo)||'No se pudo analizar'); }),
++        {verbo:'Analizando',tau:20000,ok:false,mal:e=>e.message});
++    });
++  }
++}
++function aiQuitarFalloIA(){
++  document.querySelectorAll('#aimodal .ia-velo').forEach(v=>{ v.hidden=true; });
++  document.querySelectorAll('#aimodal .ai-pick, #aimodal .ai-src').forEach(f=>f.classList.remove('mal'));
+ }
+ function aiClose(){
+   _aiRun++;
+@@ -377,9 +476,20 @@ function aiQuitarArchivo(){
+   aiStatus('','');
+   const z=$('ai-drop'); if(z) try{ z.focus(); }catch(_){}
+ }
++/* El marco que envuelve la figura: es lo que crece al analizar, lo que lleva la banda de luz,
++   la pastilla de etapa y el velo de error. Va aparte del texto de al lado a propósito —el velo
++   no puede caer sobre letras (§4.3)—, y se arma igual para el archivo elegido y para la imagen
++   que llega del escalador. El botón del velo no lleva manejador en línea: lo cablea
++   aiPintarFalloIA() con la pieza 14, y así el marcado del cotizador no suma otro `onclick`. */
++function aiMarcoHTML(figura){
++  return '<div class="ia-marco">'+figura
++    +'<span class="ia-etapa" hidden aria-hidden="true"></span>'
++    +'<div class="ia-velo" hidden><p class="ia-velo-motivo"></p>'
++    +'<button type="button" class="btn btn-pri ia-velo-re">Reintentar</button></div></div>';
++}
+ function aiPintarArchivo(){
+   const el=$('ai-pick'); if(!el) return;
+-  if(!aiArchivo){ el.style.display='none'; el.innerHTML=''; return; }
++  if(!aiArchivo){ el.style.display='none'; el.innerHTML=''; el.classList.remove('trabajando','mal'); return; }
+   const f=aiArchivo, esImg=aiEsImagen(f);
+   let mini='<div class="ai-pick-ph">'+ico('i-doc')+'</div>';
+   if(esImg){
+@@ -389,7 +499,8 @@ function aiPintarArchivo(){
+     }catch(_){}
+   }
+   el.style.display='flex';
+-  el.innerHTML=mini
++  el.classList.remove('trabajando','mal');
++  el.innerHTML=aiMarcoHTML(mini)
+     +'<div class="ai-pick-b"><div class="ai-pick-n">'+esc(f.name||'archivo')+'</div>'
+     +'<div class="ai-pick-m">'+(esImg?'Imagen':'PDF')+' · '+aiPeso(f.size)+'</div></div>'
+     +'<button type="button" class="ai-pick-x" onclick="aiQuitarArchivo()" title="Quitar este archivo" aria-label="Quitar el archivo elegido">×</button>';
+@@ -496,8 +607,61 @@ document.addEventListener('paste',e=>{
+   const t=e.dataTransfer&&e.dataTransfer.types;
+   if(t&&Array.prototype.indexOf.call(t,'Files')>=0) e.preventDefault();
+ }));
++/* ===================== Pieza 8 · La espera, contada por pasos =====================
++   `#ai-status` era UN renglón que se reescribía encima de sí mismo: «probando con DeepSeek…»
++   borraba que Qwen no tenía llave, «reintentando en 7 s» borraba por qué, y a los cuarenta
++   segundos —que es lo que tarda esto de verdad— no quedaba en pantalla ni una pista de si la
++   app estaba trabajando o colgada. Con el cliente enfrente eso se paga caro: el vendedor acaba
++   tocando «Analizar» otra vez, que es exactamente lo que vuelve a cobrar.
++
++   La traza de la pieza 8 deja el rastro a la vista: qué se hizo, en qué va y cuánto lleva cada
++   paso. Avanza POR EVENTOS REALES —el archivo quedó listo, el proveedor contestó, se leyó el
++   JSON—; la pieza no inventa progreso, así que un paso que se queda en 40 s se ve que se quedó.
++   Un renglón por PROVEEDOR y no por candidato: Qwen con sus dos modelos hermanos es una sola
++   espera para quien mira, y el modelo concreto va en el detalle del renglón.
++
++   El renglón de estado se queda para lo de siempre (el error final, «borrador generado»), que es
++   lo que tiene que leer el lector de pantalla de un tirón. */
++let _aiTraza=null;
++function aiTrazaViva(){
++  const el=$('ai-traza'); if(!el) return null;
++  if(!_aiTraza&&window.Piezas&&Piezas.traza) _aiTraza=Piezas.traza(el,{reloj:'s'});
++  return _aiTraza;
++}
++function aiTrazaPaso(clave,texto,estado,detalle){
++  const t=aiTrazaViva(); if(t) t.paso(clave,texto,estado,detalle);
++}
++function aiTrazaLimpia(){
++  const t=aiTrazaViva(); if(t) t.limpiar();
++  const el=$('ai-traza'); if(el) el.hidden=true;
++  const st=$('ai-status'); if(st) st.classList.remove('con-traza');
++}
++
++function aiTrazaEmpieza(){
++  const t=aiTrazaViva(); if(!t) return;
++  t.limpiar();
++  const el=$('ai-traza'); if(el) el.hidden=false;
++  /* Con la traza a la vista, el renglón de estado se calla su punto que gira: dos giros por la
++     misma espera se leen como dos esperas. La clase la pone aiStatus, que es quien escribe ahí. */
++  const st=$('ai-status'); if(st) st.classList.add('con-traza');
++}
++/* Al terminar, la traza se pliega en un renglón con el resumen —«Contestó Gemini en 18 s»— y los
++   pasos quedan dentro, por si alguien quiere ver por qué tardó. Es el dato que pide Dirección
++   cuando se plantea pagar otra llave: cuánto tarda de verdad y quién acabó contestando. */
++function aiTrazaTermina(ok,t0,usado){
++  const t=aiTrazaViva(); if(!t) return;
++  const ms=Math.max(1000,Date.now()-t0);
++  const cuanto=Piezas.reloj(ms);
++  t.terminar({ok,resumen:ok?`Contestó ${aiEtq(usado)} en ${cuanto}`:`No se pudo analizar · ${cuanto}`});
++}
++
+ function aiStatus(msg,cls=''){
+-  const e=$('ai-status'); e.textContent=msg; e.className='ai-status '+cls;
++  const e=$('ai-status'); e.textContent=msg;
++  /* `con-traza` se deduce aquí y no se pega desde fuera: esta línea reescribe `className` entero
++     en cada mensaje, así que una clase puesta por otro lado se perdía en el primer aviso y el
++     punto que gira volvía a aparecer al lado de la traza, girando los dos por la misma espera. */
++  const tz=$('ai-traza');
++  e.className='ai-status '+cls+((tz&&!tz.hidden)?' con-traza':'');
+   /* Por vozAlert los errores (role=alert, assertive) y por vozStatus el progreso, igual
+      que toast(). Este bloque tenía su propia copia del truco del fotograma siguiente y
+      además llamaba `voz` a la región: una const local que tapaba al helper del mismo
+@@ -669,6 +833,11 @@ async function aiCandidato(c,prompt,b64,mime,verbo,esperas,hayMas,run){
+     aiSigue(run);
+     try{
+       aiStatus(`${verbo} con ${aiEtq(c)}…${i?` (intento ${i+1} de ${E.length+1})`:''}`,'work');
++      /* El paso del proveedor se actualiza EN SU SITIO: el modelo en el detalle y, si es un
++         reintento, cuál va. Un renglón por proveedor y no uno por intento — cuatro renglones
++         iguales de «Qwen» no dicen más que uno que va por el cuarto. */
++      aiTrazaPaso(c.prov,AI_NOMBRE[c.prov]||c.prov,'trabaja',i?`${c.model} · intento ${i+1} de ${E.length+1}`:c.model);
++      aiEtapa(i?'Reintentando':'Analizando');
+       return await aiLlamar(c,prompt,b64,mime,false,run);
+     }catch(e){
+       /* Cerrar aborta la petición en vuelo, y ese aborto no es «el proveedor tardó»: con el
+@@ -680,6 +849,8 @@ async function aiCandidato(c,prompt,b64,mime,verbo,esperas,hayMas,run){
+       if(e.cancelado||e.definitivo||e.sinLlave) throw e;
+       if(!e.transitorio||i>=E.length) throw e;
+       aiStatus(`⏳ ${e.message} · reintentando en ${Math.round(E[i]/1000)} s…`,'work');
++      aiTrazaPaso(c.prov,null,'trabaja',`${e.message} · reintentando en ${Math.round(E[i]/1000)} s`);
++      aiEtapa('Reintentando');
+       await aiSleep(E[i]);
+     }
+   }
+@@ -716,30 +887,38 @@ function aiCancelacion(){ const c=new Error('análisis cancelado'); c.cancelado=
+ function aiSigue(run){ if(run!==undefined&&run!==_aiRun) throw aiCancelacion(); }
+ 
+ async function aiAnalyze(){
+-  if(aiTrabajando) return;   // el botón queda deshabilitado, pero el Enter del teclado no
++  /* Devuelve `{ok}` y nunca se rechaza: el «Reintentar» del velo de error lo envuelve con la
++     pieza 14 y necesita saber si salió, sin que un error suelto le rompa el botón. */
++  if(aiTrabajando) return {ok:false,motivo:'Hay un análisis en curso'};   // el botón queda deshabilitado, pero el Enter del teclado no
+   /* La misma guarda que ya tiene scCotizarConIA. Sin ella, un análisis sobre una
+      cotización autorizada la devolvía a borrador y le borraba el precio: había que volver
+      a pedir la autorización con el cliente enfrente. */
+-  if(locked()){ aiStatus('La cotización está autorizada · usa «Editar partidas» antes de analizar','err'); return; }
++  if(locked()){ const m='La cotización está autorizada · usa «Editar partidas» antes de analizar'; aiStatus(m,'err'); return {ok:false,motivo:'La cotización está autorizada'}; }
+   /* La fuente se toma UNA vez, aquí, y de aquí en adelante solo se lee `src`. aiSrc es de la
+      pantalla: «Analizar otro archivo» o soltar un archivo lo ponen en null, y releerlo después
+      de las esperas reventaba con «Cannot read properties of null (reading 'name')» y tiraba
+      una respuesta ya pagada. */
+   const src=aiSrc, f=aiArchivo;
+-  if(!src && !f){ aiStatus('Arrastra aquí el archivo, pégalo, o toca el recuadro para elegirlo.','err'); return; }
++  if(!src && !f){ aiStatus('Arrastra aquí el archivo, pégalo, o toca el recuadro para elegirlo.','err'); return {ok:false,motivo:'Falta el archivo'}; }
+   const esPdf=!src && f.type==='application/pdf';
+   /* Sin señal no hay IA: contesta desde la hoja. Se dice antes de leer el archivo. */
+-  if(navigator.onLine===false){ aiStatus('Sin señal no se puede analizar: la IA contesta a través de la hoja de AL3D.','err'); return; }
++  if(navigator.onLine===false){ aiStatus('Sin señal no se puede analizar: la IA contesta a través de la hoja de AL3D.','err'); return {ok:false,motivo:'Sin señal'}; }
+   /* Un PDF solo lo lee Gemini. Si la hoja ya dijo que Gemini no tiene llave, se dice antes
+      de intentar nada en vez de dejar que Qwen y DeepSeek lo rechacen uno por uno. */
+   if(esPdf&&_iaEnHoja&&!_iaEnHoja.gemini){
+     aiStatus('Los PDF solo los lee Gemini, y Gemini no tiene llave en la hoja. Sube el diseño como JPG o PNG, o pídele a Dirección que pegue la de Gemini.','err');
+-    return;
++    return {ok:false,motivo:'Gemini no tiene llave y es el único que lee PDF'};
+   }
+-  if(_iaEnHoja&&!AI_PROVS.some(p=>_iaEnHoja[p])){ aiStatus('Ningún proveedor de IA tiene llave en la hoja. Dirección la pega en ⚡ AL3D → Llaves de IA.','err'); return; }
++  if(_iaEnHoja&&!AI_PROVS.some(p=>_iaEnHoja[p])){ aiStatus('Ningún proveedor de IA tiene llave en la hoja. Dirección la pega en ⚡ AL3D → Llaves de IA.','err'); return {ok:false,motivo:'Ningún proveedor tiene llave en la hoja'}; }
+   const verbo=src?'Analizando la imagen medida':'Analizando';
+   aiStatus(verbo+'…','work');
+   const run=++_aiRun; aiTrabajando=true; aiPintarTrabajando(true);
++  /* Cada análisis empieza con la traza y el resumen en blanco: los pasos del anterior mezclados
++     con los de éste se leen como un solo intento larguísimo. */
++  aiTrazaEmpieza(); aiPintarResumen(null);
++  aiEtapa('Preparando');
++  aiTrazaPaso('archivo',src?'Usando la imagen que mediste':'Preparando el archivo','trabaja');
++  const _t0=Date.now();
+   /* La cuenta de intentos es de ESTE análisis: si falla antes de la cadena —un formato que la IA
+      no lee—, el mensaje no puede contar los intentos del anterior. */
+   _aiIntentados=0; _aiProvsProbados=0; _aiEraPdf=esPdf;
+@@ -749,7 +928,10 @@ async function aiAnalyze(){
+        comprimir. Y como esas cotas son medidas reales, al prompt se le añade la
+        lista para que las use tal cual. */
+     const {b64,mime}=src?{b64:src.url.split(',')[1],mime:src.mime||'image/jpeg'}:await aiImagen(f);
+-    if(run!==_aiRun) return;   // se cerró mientras se preparaba la imagen
++    if(run!==_aiRun) return {ok:false,motivo:'Análisis cancelado'};   // se cerró mientras se preparaba la imagen
++    /* Lo que de verdad se manda, no lo que pesaba el archivo: la imagen se reduce a 1600 px y
++       sale JPEG, y en 4G eso es la diferencia entre esperar tres segundos o veinte. */
++    aiTrazaPaso('archivo',null,'ok',aiPeso(Math.round(b64.length*3/4))+' de subida');
+     const prompt=src?PROMPT_IA+promptMedidas(src.medidas):PROMPT_IA;
+     const cadena=aiCadena(esPdf);
+     if(!cadena.length) throw new Error('ningún proveedor de IA tiene llave en la hoja para este archivo');
+@@ -771,6 +953,10 @@ async function aiAnalyze(){
+           if(_iaEnHoja) _iaEnHoja[cadena[i].prov]=false;
+           while(i+1<cadena.length&&cadena[i+1].prov===cadena[i].prov) i++;
+         }
++        /* En la traza, «sin llave» no es un fallo del proveedor: es un paso que no se intentó.
++           Se pinta como saltado (guion ámbar) y lo demás como falla, que es la diferencia entre
++           «Dirección no ha pegado la llave» y «Qwen está caído». */
++        aiTrazaPaso(cadena[i].prov,null,e.sinLlave?'salta':'mal',e.sinLlave?'sin llave en la hoja':e.message);
+         /* Un 404 es «ese modelo no existe», no «esa key no sirve»: repetirlo con las otras
+            keys del mismo proveedor es gastar intentos en el mismo error. El README promete
+            justo esto —«los errores que no se arreglan reintentando no gastan intentos»— y
+@@ -783,10 +969,15 @@ async function aiAnalyze(){
+     }
+     /* El usuario cerró el modal a media petición —o durante una espera—: lo que haya
+        llegado ya no es de nadie, y no se aplica ni se cuenta. */
+-    if(run!==_aiRun) return;
++    if(run!==_aiRun) return {ok:false,motivo:'Análisis cancelado'};
+     _aiIntentados=intentados;
+     _aiProvsProbados=provs.size;
+     if(!parsed) throw ultimo||new Error('No se pudo analizar el archivo.');
++    aiTrazaPaso(usado.prov,null,'ok',usado.model);
++    /* Leer la respuesta es un paso aparte porque falla aparte: el proveedor puede contestar
++       de maravilla y devolver algo que no es una cotización, y ahí el error no es suyo. */
++    aiTrazaPaso('lectura','Leyendo las partidas','trabaja');
++    aiEtapa('Leyendo');
+     /* ----- La imagen SÍ se guarda, también la del escalador -----
+        Aquí decía que la foto del escalador no se guarda «porque ya se ve, con sus cotas, en
+        la vista previa del escalador que está junto a las partidas, y duplicarla repetiría la
+@@ -809,45 +1000,42 @@ async function aiAnalyze(){
+       ? {name:'medidas-al3d.jpg', type:src.mime||'image/jpeg', url:src.url, deEscalador:true}
+       : {name:f.name,type:mime,url:'data:'+mime+';base64,'+b64};
+     saveState(); renderAiPreview();
+-    const medidas=(src&&src.origen==='escalador')?src.medidas.length:0;
++    const cotas=(src&&src.origen==='escalador')?src.medidas:[];
++    const medidas=cotas.length;
+     const creadas=applyAi(parsed);
+     /* Lo que la IA leyó del cliente o del proyecto y no se escribió porque ya había algo
+-       (ver applyAi): va al final del aviso de éxito, que es el que se queda en pantalla. */
+-    const leyo=_aiLeido.length?` · la IA leyó ${_aiLeido.join(' y ')}; se dejó lo que escribiste`:'';
++       (ver applyAi): se dice en el resumen, con un botón para usarlo si de verdad era mejor. */
++    const leyo=_aiLeido.length?` · la IA leyó ${aiLeidoTexto()}; se dejó lo que escribiste`:'';
+     if(!creadas){
++      aiTrazaPaso('lectura',null,'mal','ninguna partida');
++      aiTrazaTermina(false,_t0,usado);
++      aiPintarFalloIA('La IA no detectó ninguna partida en este archivo');
+       aiStatus('La IA no detectó ninguna partida en este archivo. Prueba con otra foto, o captura a mano.','err');
+       if(medidas) toast('La IA no devolvió ninguna partida — tus medidas siguen ahí para agregarlas a mano','err',5600);
+-      return;   // sin cerrar el modal, sin felicitar y sin marcar las medidas como usadas
++      return {ok:false,motivo:'Sin partidas en este archivo'};   // sin cerrar el modal, sin felicitar y sin marcar las medidas como usadas
+     }
++    aiTrazaPaso('lectura',null,'ok',creadas===1?'1 partida':creadas+' partidas');
++    aiTrazaTermina(true,_t0,usado);
+     /* Si contestó un modelo distinto al elegido conviene decirlo: el borrador puede
+        venir de otra IA y quien lo revisa tiene derecho a saber de cuál. */
+     const cambio=usado.prov!==cadena[0].prov||usado.model!==cadena[0].model;
+     aiStatus(cambio
+       ? `${AI_NOMBRE[cadena[0].prov]} no respondió · borrador generado con ${aiEtq(usado)}. Revísalo antes de autorizar.`
+       : 'Borrador generado. Revísalo y ajústalo antes de autorizar.','ok');
+-    if(cambio) toast(`⚠️ ${aiEtq(cadena[0])} no respondió · lo resolvió ${aiEtq(usado)}`,'',5200);
+-    if(medidas){
+-      scMarcarMedidasUsadas();
+-      /* Se le pidió una partida por medida, pero el modelo puede saltarse elementos. Si
+-         alguna medida se quedó sin partida conviene decirlo: quien midió sabe cuántas cosas
+-         midió y es el único que puede notar la que falta.
++    if(medidas) scMarcarMedidasUsadas();
++    /* ----- H1 · El modal ya no se cierra solo -----
++       Hasta aquí el modal se iba a los 1.5 s y dejaba al vendedor mirando una lista de partidas
++       que aparecieron de golpe, con lo que faltó dicho en un aviso que se iba solo («una medida
++       se quedó sin partida — revisa cuál falta»: ¿cuál?). Ahora se queda y enseña lo que leyó,
++       renglón por renglón, con su marca: ✓ si esa partida ya cotiza y «!» ámbar —con el texto
++       de qué le falta, no solo el color— si le falta material o acabado. Se sale por «Ver
++       partidas», que es un solo botón con relleno.
+ 
+-         Lo que se compara ya no son partidas contra medidas, sino MEDIDAS CUBIERTAS contra
+-         medidas: desde que el ancho y el alto de una caja de luz caben en una sola partida,
+-         menos partidas que medidas es el resultado correcto y no una advertencia. */
+-      const faltan=Math.max(0,medidas-_aiCubiertas);
+-      toast((faltan
+-        ? `⚠️ La IA devolvió ${creadas} ${creadas===1?'partida':'partidas'} y ${faltan===1?'una medida se quedó':`${faltan} medidas se quedaron`} sin partida — revisa cuál falta`
+-        : `${medidas} ${medidas===1?'medida cotizada':'medidas cotizadas'} con IA (borrador)`)+leyo,
+-        faltan?'':'ok', faltan||leyo?6000:3200);
+-    } else {
+-      toast('Cotización IA lista (borrador)'+leyo,'ok',leyo?6000:2600);
+-    }
+-    /* Se cierra solo si en ese segundo y medio nadie lo cerró ni arrancó otro análisis: si
+-       no, este cierre tardío tumbaba el modal que ya se había vuelto a abrir. */
+-    setTimeout(()=>{ if(run===_aiRun) aiClose(); },1500);
++       El segundo y medio de cierre automático no era un adorno: era el tiempo que se le daba a
++       una persona para leer un resumen que no existía. */
++    aiPintarResumen({nuevos:_aiNuevos,cotas,cambio,usado,primero:cadena[0],leyo});
+   }catch(e){
+-    if((e&&e.cancelado)||run!==_aiRun) return;   // se canceló a propósito: no hay error que enseñar
++    if((e&&e.cancelado)||run!==_aiRun) return {ok:false,motivo:'Análisis cancelado'};   // se canceló a propósito: no hay error que enseñar
+     /* Si solo hay una API cargada, insistir más no arregla nada: lo que lo arregla es
+        tener a dónde caerse. Se dice aquí, que es cuando duele.
+        Y se cuenta lo que se intentó, no lo que hay guardado. «Se probaron las 5 APIs
+@@ -861,11 +1049,17 @@ async function aiAnalyze(){
+           ? ' · Ya reintenté varias veces. Si sigue pasando, Dirección puede agregar otra llave en la hoja (⚡ AL3D → Llaves de IA) y la app cambiará sola.'
+           : '');
+     aiStatus('Error: '+e.message+nota,'err');
++    /* El velo se queda con el motivo EN CORTO sobre la figura: la nota de cuántas combinaciones
++       se probaron es para el renglón de estado, no para un velo de cuatro centímetros. */
++    aiTrazaTermina(false,_t0,null);
++    aiPintarFalloIA(e.message);
++    return {ok:false,motivo:e.message};
+   }finally{
+     /* Si se canceló, aiCancelar() ya soltó el botón y quizá ya arrancó otro análisis: no se le
+        pisa el estado a ése. */
+     if(run===_aiRun){ aiTrabajando=false; aiPintarTrabajando(false); }
+   }
++  return {ok:true};
+ }
+ 
+ /* La respuesta del modelo es el único dato que entra de fuera del dispositivo, y se
+@@ -939,10 +1133,17 @@ function medidasCubiertas(items){
+    casi siempre por el único dato que no puede traer. Lo que pasa es lo correcto: las
+    partidas entran, y el candado se vuelve a cerrar sobre ellas si de verdad falta algo.
+    No se pierde nada. */
+-/* Lo que la IA leyó del cliente o del proyecto y NO se escribió, para que aiAnalyze lo diga. */
++/* Lo que la IA leyó del cliente o del proyecto y NO se escribió, para que el resumen lo diga.
++   Antes eran frases hechas; ahora cada una guarda además el campo y el valor, porque el resumen
++   de H1 ofrece un botón «Usar» al lado: leer «la IA leyó el cliente «Farmacia San Juan»» y tener
++   que ir a teclearlo a mano es la mitad de un favor. */
+ let _aiLeido=[];
++function aiLeidoTexto(){ return _aiLeido.map(x=>x.etiqueta).join(' y '); }
++/* Lo que devolvió el último análisis, para pintar el resumen sin volver a filtrar Q.items: ahí
++   ya están mezcladas con las conservadas y no habría manera de distinguirlas. */
++let _aiNuevos=[];
+ function applyAi(p){
+-  _aiLeido=[];
++  _aiLeido=[]; _aiNuevos=[];
+   if(!p||typeof p!=='object') return 0;
+   _aiCubiertas=0;
+   if(locked()) return 0;
+@@ -956,11 +1157,11 @@ function applyAi(p){
+   const mismo=(a,b)=>a.toLowerCase()===String(b||'').trim().toLowerCase();
+   if(p.proyecto){
+     if(!(Q.proy||'').trim()){ Q.proy=p.proyecto; if($('f-proy')) $('f-proy').value=p.proyecto; }
+-    else if(!mismo(p.proyecto,Q.proy)) _aiLeido.push(`el proyecto «${p.proyecto}»`);
++    else if(!mismo(p.proyecto,Q.proy)) _aiLeido.push({campo:'proy',valor:p.proyecto,etiqueta:`el proyecto «${p.proyecto}»`});
+   }
+   if(p.cliente){
+     if(!(Q.cliente||'').trim()){ Q.cliente=p.cliente; if($('f-cli')) $('f-cli').value=p.cliente; }
+-    else if(!mismo(p.cliente,Q.cliente)) _aiLeido.push(`el cliente «${p.cliente}»`);
++    else if(!mismo(p.cliente,Q.cliente)) _aiLeido.push({campo:'cliente',valor:p.cliente,etiqueta:`el cliente «${p.cliente}»`});
+   }
+   /* Antes esto escribía en un campo #f-dir que ya no existe, así que la dirección
+      detectada se quedaba invisible. Se llena el campo real y solo si está vacío,
+@@ -1012,6 +1213,7 @@ function applyAi(p){
+     /* Y lo mismo con el par ancho + alto: el prompt lo pide junto y esto lo junta. */
+     fusionarParesDeArea(nuevos);
+     _aiCubiertas=medidasCubiertas(nuevos);
++    _aiNuevos=nuevos.slice();
+     const conservadas=aiMerge?Q.items.filter(it=>!itemVacio(it)):[];
+     Q.items=conservadas.concat(nuevos);
+     // La cotización vuelve a borrador: cualquier precio autorizado antes ya no aplica
+@@ -1036,3 +1238,145 @@ function applyAi(p){
+   return 0;
+ }
+ 
++
++/* ============================================================================
++   H1 · EL RESUMEN DE LO QUE LEYÓ LA IA, ANTES DE CERRAR
++
++   El modal se cerraba solo a los 1,5 s y las partidas aparecían de golpe en la lista de atrás.
++   Con cuatro o cinco partidas nuevas y el cliente enfrente, eso obliga a reconstruir de memoria
++   qué pidió la IA y qué le faltó; y lo que faltó se decía en un aviso que se iba solo, con un
++   número en vez de un nombre: «una medida se quedó sin partida — revisa cuál falta». Cuál,
++   nunca se dijo.
++
++   Ahora el modal se queda y enseña un renglón por partida —tipo · medida · piezas · material—
++   con su marca: palomita si esa partida YA COTIZA, y «!» ámbar, con el texto de qué le falta,
++   si no. La marca de color nunca va sola: al lado va la palabra (§4.3 y regla 10).
++
++   Cuando el análisis vino del escalador, debajo van las medidas que se enviaron, cada una con
++   su marca o con «sin partida»: quien midió sabe cuántas cosas midió, y es el único que puede
++   notar la que falta. El cruce compara la cifra contra altura/ancho/alto con ±0,05 cm, que es
++   la tolerancia con la que el escalador ya escribe sus cotas.
++
++   Y un solo botón con relleno: «Ver partidas». Salir del modal y llegar al paso 2 es lo que se
++   vino a hacer; todo lo demás de este panel es de leer.
++   ============================================================================ */
++/* El nombre de cada tipo sale de TIPO_NOMBRE (catalogo.js), que es el que ya leen los chips, el
++   historial y el PDF: una segunda lista aquí acabaría diciendo «Recorte de acrílico» donde la
++   pantalla de al lado dice «Recorte acrílico». */
++/* La misma tolerancia con la que el escalador escribe sus cotas: dos cifras que difieren en
++   cinco centésimas de centímetro son la misma medida, no dos. */
++const AI_TOL_CM=0.05;
++function aiMedidaDe(it){
++  if(it.tipo==='bastidor'||it.tipo==='caja'){
++    if(!it.ancho&&!it.alto) return '';
++    return `${it.ancho||0} × ${it.alto||0} cm`;
++  }
++  return it.altura?`${it.altura} cm`:'';
++}
++function aiPiezasDe(it){
++  if(it.tipo==='letras')  return it.n?`${it.n} ${it.n===1?'letra':'letras'}`:'';
++  if(it.tipo==='recorte') return it.n?`${it.n} ${it.n===1?'pieza':'piezas'}`:'';
++  if(it.tipo==='manual')  return it.pz?`${it.pz} ${it.pz===1?'pieza':'piezas'}`:'';
++  return '';
++}
++function aiMaterialDe(it){
++  if(it.tipo==='letras')   return (matOf(it.material)||{}).label||'';
++  if(it.tipo==='recorte')  return (recOf(it.acab)||{}).label||'';
++  if(it.tipo==='bastidor') return (basOf(it.bas)||{}).label||'';
++  if(it.tipo==='caja')     return (cajaOf(it.tarifa)||{}).label||'';
++  return '';
++}
++/* ¿Esta partida usa esta cifra? Se miran los tres lados con los que una partida puede
++   explicarla: la altura de unas letras o un recorte, y el ancho o el alto de un área. */
++function aiMideIgual(it,cm){
++  const v=+cm||0;
++  if(!v) return false;
++  return [it.altura,it.ancho,it.alto].some(x=>(+x||0)>0&&Math.abs((+x||0)-v)<=AI_TOL_CM);
++}
++function aiCotaCubierta(nuevos,cm){ return (nuevos||[]).some(it=>aiMideIgual(it,cm)); }
++/* Una partida «ya cotiza» cuando cumple las dos cosas: que no le falte ningún campo Y que el
++   precio salga. Solo con los campos, una partida de área con sus dos lados en cero pasaría por
++   buena; solo con el precio, una partida manual sin descripción —que sí cobra— saldría en ámbar
++   sin decir por qué. Los campos que faltan salen de faltantesDe(), que es el único lugar donde
++   se decide qué le falta a una partida (lo mismo que lee la barra de completitud). */
++function aiYaCotiza(it){ return !faltantesDe(it).length&&lineTotal(it)>0; }
++function aiResumenFilaHTML(it){
++  const faltan=faltantesDe(it), cotiza=aiYaCotiza(it);
++  const cabeza=[TIPO_NOMBRE[it.tipo]||'Partida',aiMedidaDe(it),aiPiezasDe(it)].filter(Boolean).join(' · ');
++  const mat=aiMaterialDe(it);
++  const cuerpo=cotiza
++    ? `<small>${mat?esc(mat)+' · ':''}<span class="ia-precio">${esc(money(lineTotal(it)))}</span><span class="solo-voz">, ya cotiza</span></small>`
++    : `<small class="ia-falta">${faltan.length>1?'Faltan':'Falta'} ${esc(faltan.join(', '))} — no cotiza hasta completarla.</small>`;
++  return `<li class="ia-p" data-e="${cotiza?'ok':'av'}" data-id="${it.id}">`
++    +Piezas.marcaEstadoHTML(cotiza?'ok':'av',{tam:20})
++    +`<div><b>${esc(cabeza)}</b>${cuerpo}</div></li>`;
++}
++function aiPintarResumen(r){
++  const box=$('ai-resumen'); if(!box) return;
++  if(!r||!r.nuevos||!r.nuevos.length){ box.hidden=true; box.innerHTML=''; return; }
++  const nuevos=r.nuevos;
++  const buenas=nuevos.filter(aiYaCotiza);
++  const suma=buenas.reduce((s,it)=>s+lineTotal(it),0);
++  const piden=nuevos.length-buenas.length;
++  const sub=[`${buenas.length} ${buenas.length===1?'ya cotiza':'ya cotizan'} · ${money(suma)}`]
++    .concat(piden?[`${piden} ${piden===1?'pide':'piden'} lo que le falta`]:[]).join(' · ');
++  /* De qué IA salió el borrador. Cuando contestó la que tocaba no se dice: nombrar al proveedor
++     de siempre es ruido, y quien revisa solo necesita saberlo cuando NO fue ése —el borrador
++     viene de otro modelo y eso sí cambia con cuánta desconfianza se lee—. */
++  const deQuien=r.cambio
++    ? `<p class="ia-resumen-quien">${esc(AI_NOMBRE[r.primero.prov]||r.primero.prov)} no respondió · lo resolvió ${esc(aiEtq(r.usado))}.</p>`
++    : '';
++  /* Las cotas del escalador, una por una, con la misma marca que las partidas: las dos listas se
++     leen con el mismo vocabulario. */
++  const cotas=(r.cotas||[]).length
++    ? '<p class="ia-cotas"><span class="ia-cotas-t">Tus medidas:</span>'
++      +r.cotas.map(m=>{
++          const usada=aiCotaCubierta(nuevos,m.cm);
++          return `<span class="ia-cota" data-e="${usada?'ok':'av'}">`
++            +Piezas.marcaEstadoHTML(usada?'ok':'av',{tam:14})
++            +` ${esc(scFmtCm(m.cm))} cm${usada?'':' · sin partida'}</span>`;
++        }).join('')
++      +'</p>'
++    : '';
++  /* Lo que la IA leyó distinto: se enseña con su botón, porque a veces el letrero trae el nombre
++     bueno y lo tecleado era el del contacto. Nunca se escribe solo —applyAi ya decidió no pisar
++     lo que escribió una persona—: lo decide quien mira. */
++  const leidos=_aiLeido.map(x=>`<div class="ia-dif"><span>La IA leyó ${esc(x.etiqueta)}</span>`
++    +`<button type="button" class="btn ia-dif-btn" data-ia="usar" data-campo="${esc(x.campo)}">Usar</button></div>`).join('');
++  box.hidden=false;
++  box.innerHTML=`<p class="ia-resumen-t">La IA leyó ${nuevos.length} ${nuevos.length===1?'partida':'partidas'}<small>${esc(sub)}</small></p>`
++    +deQuien
++    +`<ol class="ia-lista">${nuevos.map(aiResumenFilaHTML).join('')}</ol>`
++    +cotas+leidos
++    +'<div class="ia-resumen-pie"><button type="button" class="btn btn-pri" data-ia="ver">Ver partidas</button></div>';
++  /* El cuerpo del modal tiene su propio scroll y el resumen nace debajo del pliegue: sin esto, la
++     recompensa de haber esperado cuarenta segundos se queda fuera de la pantalla y parece que no
++     pasó nada. Se lleva el foco al único botón con relleno, que además es el que resuelve el
++     teclado: al volver de la espera, Enter hace lo que toca. */
++  const ver=box.querySelector('[data-ia="ver"]');
++  if(ver){
++    try{ ver.scrollIntoView({block:'nearest',behavior:Piezas.sinMovimiento()?'auto':'smooth'}); }catch(_){ }
++    try{ ver.focus({preventScroll:true}); }catch(_){ try{ ver.focus(); }catch(__){} }
++  }
++}
++/* Un solo oyente delegado para los botones del resumen, y con `addEventListener`: el marcado del
++   cotizador no tiene por qué sumar otro manejador en línea por una lista que se repinta sola. */
++document.addEventListener('click',e=>{
++  const b=(e.target&&e.target.closest)?e.target.closest('#ai-resumen [data-ia]'):null;
++  if(!b) return;
++  if(b.dataset.ia==='ver'){ aiClose(); irAPantalla('partidas'); return; }
++  if(b.dataset.ia==='usar'){
++    const x=_aiLeido.find(y=>y.campo===b.dataset.campo); if(!x) return;
++    if(x.campo==='proy'){ Q.proy=x.valor; if($('f-proy')) $('f-proy').value=x.valor; }
++    else { Q.cliente=x.valor; if($('f-cli')) $('f-cli').value=x.valor; }
++    /* Se sale de la lista de «leído y no usado» en cuanto se usa: dejar el botón puesto invita a
++       tocarlo dos veces y a preguntarse si la segunda hizo algo. */
++    _aiLeido=_aiLeido.filter(y=>y!==x);
++    /* Asignarle `.value` a un input NO dispara su `oninput`, así que la barra de completitud y el
++       candado de las partidas se quedaban con la cuenta de antes. Es la misma razón por la que
++       applyAi llama a updProg() al salir por su otra rama. */
++    updProg(); saveState();
++    aiPintarResumen({nuevos:_aiNuevos,cotas:[],cambio:false});
++    toast((x.campo==='proy'?'Proyecto':'Cliente')+' actualizado con lo que leyó la IA','ok',2600);
++  }
++});
+diff --git a/pruebas/navegador/cot-ia.mjs b/pruebas/navegador/cot-ia.mjs
+new file mode 100644
+index 0000000..cc8f393
+--- /dev/null
++++ b/pruebas/navegador/cot-ia.mjs
+@@ -0,0 +1,476 @@
++/* COTIZAR CON IA: LA ESPERA SE VE, EL ARCHIVO SE RECONOCE Y EL BORRADOR SE REVISA ANTES DE SALIR.
++ *
++ * Esta pantalla es la que más se usa delante del cliente y la que más tarda: entre diez segundos
++ * y un minuto con el teléfono en la mano. Lo que defiende esta prueba es lo que se rompía ahí, y
++ * ninguno de los cuatro se ve mirando la pantalla una sola vez:
++ *
++ *  · H1 · El modal se cerraba SOLO a los 1,5 s y dejaba las partidas apareciendo de golpe en la
++ *    lista de atrás. Lo que faltó se decía con un número en un aviso que también se iba solo
++ *    («una medida se quedó sin partida — revisa cuál falta»: cuál, nunca). Ahora se queda, y
++ *    enseña un renglón por partida con ✓ si ya cotiza o «!» —con la palabra, no solo el color—
++ *    si le falta algo. Aquí se comprueba que a los tres segundos el modal SIGUE abierto: un
++ *    cierre automático que vuelva a colarse mata toda la ficha sin dar ningún error.
++ *
++ *  · H7 · La miniatura de 52 px no dejaba comprobar que se mandó el plano correcto, que es la
++ *    única pregunta que uno se hace mientras espera. Ahora crece y la recorre una banda de luz
++ *    MIENTRAS HAY ANÁLISIS, y solo entonces: la regla del sistema de diseño dice que una sola
++ *    pieza se mueve sola. Se comprueban las dos mitades —que se mueva trabajando y que no se
++ *    mueva en reposo—, porque la mitad fácil de romper es la segunda.
++ *
++ *  · H13 · «Se reemplazarán tus 3 partidas» con la lista tapada por el propio modal. Ahora se
++ *    ven y se tachan al apagar «Conservar». El tachado NO puede bajar la opacidad del texto
++ *    (§4.3), y eso es justo lo que hace cualquiera que implemente un tachado a ojo.
++ *
++ *  · H20 · El icono de la zona de arrastre respiraba en bucle en una pantalla vacía (falla 3 del
++ *    brief). Ahora la carpeta se abre al acercar el archivo y se está quieta el resto del tiempo.
++ *
++ *  · Pieza 8 · La espera era un renglón que se reescribía encima de sí mismo. Ahora es una traza
++ *    que avanza por eventos reales: el proveedor sin llave se salta, el que contesta se palomea.
++ *
++ * Todo con ratón, con el dedo y con el teclado, a 360 y 420 px, en claro y en oscuro, con y sin
++ * movimiento reducido, sin errores de página y sin desborde horizontal.
++ *
++ * Uso:  npx --yes http-server -p 8905 -c-1 --silent &
++ *       PUERTO=8905 node pruebas/navegador/cot-ia.mjs
++ */
++import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
++
++const B = 'http://127.0.0.1:' + (process.env.PUERTO || '8905');
++const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
++
++let fallos = 0;
++const mal = m => { console.log('  ✗ ' + m); fallos++; };
++const bien = m => console.log('  ✓ ' + m);
++const cierto = (c, q) => c ? bien(q) : mal(q);
++
++/* ---- La hoja de mentiras de ESTA prueba ----------------------------------------------------
++   La de pruebas/navegador/hoja-de-mentiras.js contesta SIN_LLAVE a la IA a propósito, que es lo
++   correcto para las demás pruebas: ninguna llama a un proveedor de verdad. Aquí hace falta una
++   que SÍ conteste, porque lo que se prueba es lo que pasa con la respuesta. `window.__ia` la
++   gobierna desde la prueba: qué proveedores tienen llave, cuánto tarda y si el primero falla. */
++const HOJA = () => {
++  if (!/cotizador\.html$/.test(location.pathname)) return;
++  window.__ia = { tarda: 300, falla: false, llaves: { qwen: true, deepseek: false, gemini: true } };
++  window.__ia.respuesta = { proyecto: 'Farmacia San Juan', cliente: 'Farmacia San Juan', partidas: [
++    { tipo: 'letras', material: 'acr-vinil', complejidad: 'recta', altura_cm: 40, n_letras: 9, iluminacion: true, descripcion: 'Letras «FARMACIA»' },
++    { tipo: 'caja', tarifa: 4600, ancho_cm: 120, alto_cm: 80, descripcion: 'Cruz médica' },
++    { tipo: 'letras', material: '', complejidad: 'recta', altura_cm: 22, n_letras: 7, descripcion: 'Slogan «SAN JUAN»' },
++  ] };
++  const tarde = v => new Promise(r => setTimeout(() => r(v), window.__ia.tarda));
++  window.AL3D = {
++    identidad: () => ({ correo: 'Elías', rol: 'direccion' }),
++    sesion: () => Promise.resolve({ ok: true, correo: 'Elías' }),
++    hablar: (ruta, cuerpo) => {
++      if (ruta === 'salud') return Promise.resolve({ ok: true, rol: 'direccion', escribibles: [],
++        correo: 'Elías', ia: window.__ia.llaves });
++      if (ruta === 'ia') {
++        /* Qwen va primero en la cadena y aquí nunca contesta: sirve para ver el paso que se cae y
++           el «lo resolvió Gemini» del resumen. Sin llave, para que no gaste reintentos. */
++        if (cuerpo.prov !== 'gemini') return tarde({ ok: false, codigo: 'SIN_LLAVE', prov: cuerpo.prov,
++          mensaje: (cuerpo.prov === 'qwen' ? 'Qwen' : 'DeepSeek') + ' no tiene llave en la hoja', transitorio: false });
++        if (window.__ia.falla) return tarde({ ok: false, codigo: 'VACIO', razon: 'SAFETY',
++          mensaje: 'Gemini bloqueó la imagen con sus filtros', transitorio: false });
++        return tarde({ ok: true, texto: JSON.stringify(window.__ia.respuesta) });
++      }
++      return Promise.resolve({ ok: false, codigo: 'NO_ENCONTRADO', mensaje: 'Camino desconocido.' });
++    },
++  };
++};
++
++/* Un PNG de un píxel: lo que importa es que sea un archivo de verdad con su tipo. */
++const PNG = () => ({ name: 'plano-farmacia.png', mimeType: 'image/png',
++  buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') });
++
++async function abrir({ ancho = 360, tema = 'claro', rm = false, dedo = false } = {}) {
++  const ctx = await nav.newContext({ viewport: { width: ancho, height: 820 }, locale: 'es-MX',
++    timezoneId: 'America/Mexico_City', serviceWorkers: 'block', hasTouch: dedo,
++    reducedMotion: rm ? 'reduce' : 'no-preference' });
++  await ctx.addInitScript(HOJA);
++  await ctx.addInitScript(t => { try { localStorage.setItem('al3d_tema', t); } catch (_) {} }, tema);
++  const p = await ctx.newPage();
++  p.__errs = []; p.on('pageerror', e => p.__errs.push(e.message));
++  await p.goto(B + '/cotizador.html?solo=1', { waitUntil: 'load' });
++  await p.waitForTimeout(900);
++  p.__ctx = ctx;
++  return p;
++}
++/* Los tres obligatorios: sin ellos aiOpen() ni siquiera abre (y hace bien). */
++async function conCliente(p) {
++  await p.fill('#f-cli', 'Farmacia San Juan');
++  await p.fill('#f-tel', '33 1234 5678');
++  await p.fill('#f-proy', 'Letrero de fachada');
++  await p.waitForTimeout(300);
++}
++/* Una partida capturada a mano, que es lo que hace aparecer el bloque de «Conservar». */
++async function unaPartidaMia(p) {
++  await p.evaluate(() => irAPantalla('partidas'));
++  await p.waitForTimeout(300);
++  await p.click('.chip:has-text("Acero Inoxidable")');
++  await p.fill('#h-1', '30');
++  await p.fill('#n-1', '5');
++  await p.waitForTimeout(300);
++}
++const infinitas = p => p.evaluate(() => document.getAnimations()
++  .filter(a => a.effect && a.effect.getComputedTiming().iterations === Infinity)
++  .map(a => {
++    const t = a.effect.target;
++    const cn = t && (typeof t.className === 'string' ? t.className : (t.className && t.className.baseVal) || t.tagName || '?');
++    return cn + (a.effect.pseudoElement || '');
++  }));
++const desborde = p => p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
++/* Arrastrar de verdad: un DataTransfer con un archivo dentro, que es lo único que aiTraeArchivo()
++   acepta (mira los `types`). */
++async function arrastre(p, tipo, conArchivo) {
++  const dt = await p.evaluateHandle(con => {
++    const d = new DataTransfer();
++    if (con) d.items.add(new File([new Uint8Array([1, 2, 3])], 'plano.png', { type: 'image/png' }));
++    else d.items.add('hola', 'text/plain');
++    return d;
++  }, conArchivo);
++  await p.dispatchEvent('#ai-drop', tipo, { dataTransfer: dt });
++  await p.waitForTimeout(260);
++}
++
++// ═══ 1 · H20 · LA CARPETA SE ABRE AL ACERCAR EL ARCHIVO, Y EN REPOSO NO HACE NADA ═══════════
++console.log('\nH20 · LA ZONA DE ARRASTRE');
++{
++  const p = await abrir({});
++  await conCliente(p);
++  await p.evaluate(() => aiOpen());
++  await p.waitForTimeout(400);
++
++  const quieta = await infinitas(p);
++  cierto(quieta.length === 0, 'con el modal abierto y esperando el archivo, nada se mueve solo'
++    + (quieta.length ? ' — se mueven: ' + quieta.join(', ') : ''));
++  cierto(await p.evaluate(() => !!document.querySelector('#ai-drop .ai-carpeta .cp-tapa')),
++    'la carpeta tiene tapa y cuerpo por separado (una sola pieza no se puede abrir)');
++
++  const tapaQuieta = await p.evaluate(() => getComputedStyle(document.querySelector('#ai-drop .cp-tapa')).transform);
++  cierto(tapaQuieta === 'none' || tapaQuieta === 'matrix(1, 0, 0, 1, 0, 0)', 'en reposo la tapa está cerrada');
++
++  await arrastre(p, 'dragenter', true);
++  cierto(await p.evaluate(() => document.getElementById('ai-drop').classList.contains('sobre')),
++    'con el archivo encima, el recuadro se enciende');
++  const tapa = await p.evaluate(() => getComputedStyle(document.querySelector('#ai-drop .cp-tapa')).transform);
++  cierto(tapa !== 'none' && tapa !== 'matrix(1, 0, 0, 1, 0, 0)', 'y la tapa se abre');
++  cierto(await p.evaluate(() => {
++    const h = document.querySelector('#ai-drop .cp-hoja');
++    return h.textContent.trim() === 'Suéltalo aquí' && getComputedStyle(h).transform !== 'none';
++  }), 'y asoma la hoja con «Suéltalo aquí»');
++  cierto(await p.evaluate(() => {
++    const s = document.querySelector('#ai-drop .ai-drop-sobre');
++    return getComputedStyle(s).display !== 'none' && getComputedStyle(document.querySelector('#ai-drop .t')).display === 'none';
++  }), 'el recuadro cambia sus dos líneas de instrucciones por una que dice qué va a pasar');
++
++  await arrastre(p, 'dragleave', true);
++  cierto(!(await p.evaluate(() => document.getElementById('ai-drop').classList.contains('sobre'))),
++    'al alejar el archivo, la carpeta se cierra');
++
++  /* Lo que NO es un archivo no abre nada: el arrastre de reordenar partidas mueve texto. */
++  await arrastre(p, 'dragenter', false);
++  cierto(!(await p.evaluate(() => document.getElementById('ai-drop').classList.contains('sobre'))),
++    'un arrastre que no trae archivos no abre la carpeta');
++
++  await arrastre(p, 'drop', true);
++  cierto(await p.evaluate(() => document.getElementById('ai-pick').style.display !== 'none'),
++    'al soltarlo, el archivo queda elegido y con su ficha');
++
++  cierto(await p.evaluate(() => {
++    const z = document.getElementById('ai-drop');
++    return z.getAttribute('role') === 'button' && z.tabIndex >= 0;
++  }), 'el recuadro sigue siendo alcanzable con el teclado (hay alternativa al gesto)');
++  cierto(!(await desborde(p)), 'a 360 px no hay desborde horizontal');
++  cierto(p.__errs.length === 0, 'sin errores de página' + (p.__errs.length ? ': ' + p.__errs[0] : ''));
++  await p.__ctx.close();
++}
++
++// ═══ 2 · H20 · CON MENOS MOVIMIENTO, SIN TAPA, PERO LA HOJA SE QUEDA ════════════════════════
++console.log('\nH20 · CON MENOS MOVIMIENTO');
++{
++  const p = await abrir({ rm: true });
++  await conCliente(p);
++  await p.evaluate(() => aiOpen());
++  await p.waitForTimeout(300);
++  await arrastre(p, 'dragenter', true);
++  const t = await p.evaluate(() => getComputedStyle(document.querySelector('#ai-drop .cp-tapa')).transform);
++  cierto(t === 'none' || t === 'matrix(1, 0, 0, 1, 0, 0)', 'la tapa no gira: es adorno');
++  cierto(await p.evaluate(() => document.querySelector('#ai-drop .cp-hoja').textContent.trim() === 'Suéltalo aquí'
++    && getComputedStyle(document.querySelector('#ai-drop .ai-drop-sobre')).display !== 'none'),
++    'pero «Suéltalo aquí» se queda: eso es información, no adorno');
++  cierto(p.__errs.length === 0, 'sin errores de página');
++  await p.__ctx.close();
++}
++
++// ═══ 3 · H13 · QUÉ PARTIDAS SE VAN A REEMPLAZAR ═════════════════════════════════════════════
++console.log('\nH13 · EL TACHADO DE LO QUE SE REEMPLAZA');
++{
++  const p = await abrir({ dedo: true });
++  await conCliente(p);
++  await unaPartidaMia(p);
++  await p.evaluate(() => aiOpen());
++  await p.waitForTimeout(400);
++
++  cierto(await p.evaluate(() => {
++    const li = document.querySelectorAll('#ai-merge-lista li');
++    return li.length === 1 && /Acero Inoxidable/.test(li[0].textContent);
++  }), 'la partida que se va a reemplazar se ve con su nombre, no como un número');
++
++  const tachado = () => p.evaluate(() => {
++    const s = document.querySelector('#ai-merge-lista span'), cs = getComputedStyle(s);
++    return { clase: document.getElementById('ai-merge-lista').classList.contains('tacha'),
++             tam: cs.backgroundSize, opacidad: cs.opacity };
++  });
++  const antes = await tachado();
++  cierto(!antes.clase && /^0/.test(antes.tam), 'con «Conservar» encendido no hay tachado');
++
++  await p.tap('#ai-merge-box .switch');          // con el dedo
++  await p.waitForTimeout(450);
++  const luego = await tachado();
++  cierto(luego.clase && /100%/.test(luego.tam), 'al apagarlo con el dedo, el renglón se tacha entero');
++  cierto(luego.opacidad === '1', 'y el texto NO baja de opacidad: el estado no se dice con opacity (§4.3)');
++
++  /* Con el teclado, que es la otra manera de llegar al mismo interruptor. */
++  await p.evaluate(() => document.querySelector('#ai-merge-box .switch').focus());
++  await p.keyboard.press('Enter');
++  await p.waitForTimeout(450);
++  cierto(!(await tachado()).clase, 'con el teclado se vuelve a encender y el tachado se retira');
++
++  cierto((await infinitas(p)).length === 0, 'el tachado no deja nada moviéndose');
++  cierto(p.__errs.length === 0, 'sin errores de página' + (p.__errs.length ? ': ' + p.__errs[0] : ''));
++  await p.__ctx.close();
++}
++
++// ═══ 4 · H7 + PIEZA 8 · LA ESPERA SE VE, Y SE APAGA AL TERMINAR ═════════════════════════════
++console.log('\nH7 · LA MINIATURA QUE SE LEE  ·  PIEZA 8 · LA TRAZA');
++{
++  const p = await abrir({});
++  await conCliente(p);
++  await p.evaluate(() => aiOpen());
++  await p.waitForTimeout(300);
++  await p.setInputFiles('#ai-file', PNG());
++  await p.waitForTimeout(300);
++  /* Cada petición tarda lo mismo, así que la cadena entera son dos: Qwen se cae sin llave y
++     Gemini contesta. Se mira en tres momentos, porque lo que se defiende es el ORDEN. */
++  await p.evaluate(() => { window.__ia.tarda = 900; });
++
++  p.evaluate(() => aiAnalyze()).catch(() => {});
++  await p.waitForTimeout(450);
++
++  cierto(await p.evaluate(() => document.getElementById('ai-pick').classList.contains('trabajando')),
++    'mientras analiza, la ficha del archivo se pone a trabajar');
++  cierto(await p.evaluate(() => document.querySelector('#ai-pick .ia-marco').offsetWidth > 150),
++    'y el marco crece para poder reconocer el plano que se mandó');
++  cierto(await p.evaluate(() => {
++    const e = document.querySelector('#ai-pick .ia-etapa');
++    return !e.hidden && /Analizando|Preparando|Reintentando|Leyendo/.test(e.textContent);
++  }), 'la pastilla dice en qué etapa va');
++  const enMarcha = await infinitas(p);
++  cierto(enMarcha.some(x => /ia-marco/.test(x)), 'la banda recorre la miniatura mientras hay análisis');
++  cierto(enMarcha.length <= 2, 'y no hay tres cosas girando por la misma espera (van ' + enMarcha.length + ')');
++  /* La traza avanza por lo que pasó de verdad, y en orden. Primero: el archivo ya está listo y
++     Qwen —que es el primero de la cadena— está esperando respuesta. */
++  cierto(await p.evaluate(() => {
++    const a = document.querySelector('#ai-traza li[data-clave="archivo"]');
++    return a && a.dataset.estado === 'ok';
++  }), 'el paso del archivo ya está palomeado: la traza avanza por hechos, no por un reloj');
++  cierto(await p.evaluate(() => {
++    const q = document.querySelector('#ai-traza li[data-clave="qwen"]');
++    return q && q.dataset.estado === 'trabaja';
++  }), 'y el primer proveedor de la cadena se ve preguntando');
++  cierto(await p.evaluate(() => !document.querySelector('#ai-traza li[data-clave="gemini"]')),
++    'el que todavía no se ha intentado no aparece: la traza no inventa progreso');
++
++  await p.waitForTimeout(900);
++  cierto(await p.evaluate(() => {
++    const q = document.querySelector('#ai-traza li[data-clave="qwen"]');
++    return q && q.dataset.estado === 'salta' && /llave/.test(q.textContent);
++  }), 'el proveedor sin llave se queda como saltado, no como fallo: no es lo mismo');
++  cierto(await p.evaluate(() => {
++    const g = document.querySelector('#ai-traza li[data-clave="gemini"]');
++    return g && g.dataset.estado === 'trabaja';
++  }), 'y el siguiente ya se ve trabajando');
++
++  await p.waitForTimeout(1800);
++  cierto(!(await p.evaluate(() => document.getElementById('ai-pick').classList.contains('trabajando'))),
++    'al terminar, la ficha deja de trabajar');
++  cierto(await p.evaluate(() => document.querySelector('#ai-pick .ia-etapa').hidden), 'y la pastilla se retira');
++  const reposo = await infinitas(p);
++  cierto(reposo.length === 0, 'y no queda NADA moviéndose en reposo'
++    + (reposo.length ? ' — se mueven: ' + reposo.join(', ') : ''));
++  cierto(await p.evaluate(() => document.getElementById('ai-traza').dataset.estado === 'ok'
++    && /Contestó Gemini/.test(document.getElementById('ai-traza').textContent)),
++    'la traza se pliega en «Contestó Gemini en N s»');
++  cierto(p.__errs.length === 0, 'sin errores de página' + (p.__errs.length ? ': ' + p.__errs[0] : ''));
++  await p.__ctx.close();
++}
++
++// ═══ 5 · H7 · EL ERROR QUEDA SOBRE LA IMAGEN, CON «REINTENTAR» ══════════════════════════════
++console.log('\nH7 · EL ERROR Y SU REINTENTO');
++{
++  const p = await abrir({ dedo: true });
++  await conCliente(p);
++  await p.evaluate(() => aiOpen());
++  await p.waitForTimeout(300);
++  await p.setInputFiles('#ai-file', PNG());
++  await p.evaluate(() => { window.__ia.falla = true; window.__ia.tarda = 200; });
++  await p.evaluate(() => aiAnalyze());
++  await p.waitForTimeout(600);
++
++  cierto(await p.evaluate(() => document.getElementById('ai-pick').classList.contains('mal')),
++    'cuando la IA no puede, la ficha se queda marcada');
++  cierto(await p.evaluate(() => {
++    const v = document.querySelector('#ai-pick .ia-velo');
++    return !v.hidden && /filtros|bloqueó|no se pudo/i.test(v.textContent);
++  }), 'y el motivo queda encima de la imagen, en corto');
++  /* §4.3: el velo va sobre la figura, nunca sobre texto. Se comprueba con las cajas: el nombre
++     del archivo tiene que quedar fuera del rectángulo del velo. */
++  cierto(await p.evaluate(() => {
++    const v = document.querySelector('#ai-pick .ia-velo').getBoundingClientRect();
++    const t = document.querySelector('#ai-pick .ai-pick-n').getBoundingClientRect();
++    return t.top >= v.bottom - 1 || t.bottom <= v.top + 1;
++  }), 'el velo no cae sobre el texto del nombre del archivo');
++  cierto(await p.evaluate(() => {
++    const b = document.querySelector('#ai-pick .ia-velo-re');
++    return b.getBoundingClientRect().height >= 44;
++  }), '«Reintentar» mide 44 px de alto: se toca con el pulgar');
++
++  await p.evaluate(() => { window.__ia.falla = false; window.__ia.tarda = 200; });
++  await p.tap('#ai-pick .ia-velo-re');
++  await p.waitForTimeout(1600);
++  cierto(await p.evaluate(() => document.querySelector('#ai-pick .ia-velo').hidden),
++    'el reintento con el dedo vuelve a analizar y el velo se va');
++  cierto(await p.evaluate(() => !document.getElementById('ai-resumen').hidden),
++    'y esta vez sí sale el resumen');
++  cierto((await infinitas(p)).length === 0, 'tras el error resuelto no queda nada en bucle');
++  cierto(p.__errs.length === 0, 'sin errores de página' + (p.__errs.length ? ': ' + p.__errs[0] : ''));
++  await p.__ctx.close();
++}
++
++// ═══ 6 · H1 · EL RESUMEN, Y QUE EL MODAL YA NO SE CIERRA SOLO ═══════════════════════════════
++console.log('\nH1 · EL RESUMEN ANTES DE CERRAR');
++{
++  const p = await abrir({});
++  await conCliente(p);
++  await p.evaluate(() => aiOpen());
++  await p.waitForTimeout(300);
++  await p.setInputFiles('#ai-file', PNG());
++  await p.evaluate(() => aiAnalyze());
++  await p.waitForTimeout(600);
++
++  /* Lo primero, porque es lo que se vuelve a colar sin dar ningún error: el cierre a 1,5 s. */
++  await p.waitForTimeout(2200);
++  cierto(await p.evaluate(() => document.getElementById('aimodal').classList.contains('show')),
++    'pasados tres segundos el modal SIGUE abierto: ya no se cierra solo');
++
++  const r = await p.evaluate(() => {
++    const b = document.getElementById('ai-resumen');
++    const filas = [...b.querySelectorAll('.ia-p')].map(li => ({ e: li.dataset.e, txt: li.innerText }));
++    return { oculto: b.hidden, filas, pri: b.querySelectorAll('.btn-pri').length,
++             cabeza: b.querySelector('.ia-resumen-t').innerText, quien: (b.querySelector('.ia-resumen-quien') || {}).innerText || '' };
++  });
++  cierto(!r.oculto && r.filas.length === 3, 'se ve un renglón por partida detectada (' + r.filas.length + ')');
++  cierto(r.filas.filter(f => f.e === 'ok').length === 2 && r.filas.filter(f => f.e === 'av').length === 1,
++    'dos ya cotizan y una pide lo que le falta');
++  cierto(/[Ff]alta material/.test(r.filas.find(f => f.e === 'av').txt),
++    'el «!» ámbar va con la palabra, no solo con el color');
++  cierto(r.pri === 1, 'hay UN solo botón con relleno en el resumen (van ' + r.pri + ')');
++  cierto(/3 partidas/.test(r.cabeza) && /\$/.test(r.cabeza), 'la cabecera dice cuántas leyó y cuánto suman');
++  cierto(/Qwen/.test(r.quien) && /Gemini/.test(r.quien),
++    'y dice que contestó otra IA, que es lo que cambia cómo se revisa el borrador');
++
++  cierto(await p.evaluate(() => document.activeElement === document.querySelector('#ai-resumen [data-ia="ver"]')),
++    'el foco cae en «Ver partidas»: al volver de la espera, Enter hace lo que toca');
++  await p.keyboard.press('Enter');
++  await p.waitForTimeout(700);
++  cierto(!(await p.evaluate(() => document.getElementById('aimodal').classList.contains('show'))),
++    '«Ver partidas» con el teclado cierra el modal');
++  cierto(await p.evaluate(() => Q.items.length === 3), 'y las tres partidas están en la cotización');
++  cierto(!(await desborde(p)), 'sin desborde horizontal');
++  cierto(p.__errs.length === 0, 'sin errores de página' + (p.__errs.length ? ': ' + p.__errs[0] : ''));
++  await p.__ctx.close();
++}
++
++// ═══ 7 · H1 · LAS COTAS DEL ESCALADOR, UNA POR UNA, Y EL «USAR» DE LO QUE LEYÓ ══════════════
++console.log('\nH1 · LAS MEDIDAS QUE SE MANDARON A MEDIR');
++{
++  const p = await abrir({});
++  await conCliente(p);
++  /* Se entra como se entra de verdad: con la foto ya medida y sus cotas dibujadas encima. */
++  await p.evaluate(() => {
++    SC.items = [{ cm: 40, label: 'FARMACIA', type: 'v' }, { cm: 120, label: 'cruz', type: 'h' },
++                { cm: 80, label: 'cruz', type: 'v' }, { cm: 85, label: 'rótulo bajo', type: 'v' }];
++    aiOpen({ origen: 'escalador', mime: 'image/jpeg',
++      url: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==',
++      medidas: SC.items.map(m => ({ cm: m.cm, label: m.label, dir: m.type })) });
++  });
++  await p.waitForTimeout(400);
++  await p.evaluate(() => aiAnalyze());
++  await p.waitForTimeout(1400);
++
++  const c = await p.evaluate(() => [...document.querySelectorAll('#ai-resumen .ia-cota')]
++    .map(s => ({ e: s.dataset.e, txt: s.innerText.trim() })));
++  cierto(c.length === 4, 'salen las cuatro medidas que se mandaron (van ' + c.length + ')');
++  cierto(c.filter(x => x.e === 'ok').length === 3, 'tres quedaron explicadas por una partida');
++  const sinPartida = c.find(x => x.e === 'av');
++  cierto(!!sinPartida && /85/.test(sinPartida.txt) && /sin partida/.test(sinPartida.txt),
++    'y la que se quedó sin partida se nombra por su cifra, no por un número de cuántas faltan');
++  cierto(await p.evaluate(() => {
++    const b = document.querySelector('#ai-resumen [data-ia="usar"]');
++    return b && /Usar/.test(b.textContent);
++  }), 'lo que la IA leyó distinto trae su botón «Usar»');
++  await p.click('#ai-resumen [data-ia="usar"]');
++  await p.waitForTimeout(400);
++  cierto(await p.evaluate(() => Q.proy === 'Farmacia San Juan' && document.getElementById('f-proy').value === 'Farmacia San Juan'),
++    'y al tocarlo, el proyecto pasa a ser el que leyó la IA');
++  cierto(await p.evaluate(() => !document.querySelector('#ai-resumen [data-ia="usar"]')),
++    'el botón se retira al usarlo: tocarlo dos veces no tiene que dejar dudas');
++  cierto(p.__errs.length === 0, 'sin errores de página' + (p.__errs.length ? ': ' + p.__errs[0] : ''));
++  await p.__ctx.close();
++}
++
++// ═══ 8 · EL MISMO CAMINO A 360 Y 420, EN CLARO Y OSCURO, CON Y SIN MOVIMIENTO ═══════════════
++console.log('\nEL MISMO CAMINO EN LAS OCHO COMBINACIONES');
++for (const ancho of [360, 420]) {
++  for (const tema of ['claro', 'oscuro']) {
++    for (const rm of [false, true]) {
++      const etq = `${ancho} px · ${tema}${rm ? ' · menos movimiento' : ''}`;
++      const p = await abrir({ ancho, tema, rm, dedo: true });
++      await conCliente(p);
++      await unaPartidaMia(p);
++      await p.evaluate(() => aiOpen());
++      await p.waitForTimeout(300);
++      await p.setInputFiles('#ai-file', PNG());
++      await p.evaluate(() => { window.__ia.tarda = 700; });
++      p.evaluate(() => aiAnalyze()).catch(() => {});
++      await p.waitForTimeout(500);
++      const trabajando = await infinitas(p);
++      /* Con menos movimiento la banda se va del todo; sin ella, la etapa la sigue diciendo con
++         letra, que es la mitad que informa. */
++      const bandaOk = rm ? !trabajando.some(x => /ia-marco/.test(x)) : trabajando.some(x => /ia-marco/.test(x));
++      const etapaOk = await p.evaluate(() => {
++        const e = document.querySelector('#ai-pick .ia-etapa');
++        return !e.hidden && e.textContent.trim().length > 0;
++      });
++      await p.waitForTimeout(2200);
++      const reposo = await infinitas(p);
++      const ancho2 = await desborde(p);
++      const tema2 = await p.evaluate(() => document.documentElement.getAttribute('data-tema'));
++      const resumen = await p.evaluate(() => !document.getElementById('ai-resumen').hidden
++        && document.querySelectorAll('#ai-resumen .ia-p').length === 3);
++      cierto(tema2 === tema, etq + ' · la página está en el tema que se pidió');
++      cierto(bandaOk, etq + ' · la banda ' + (rm ? 'no se pinta' : 'recorre la miniatura mientras trabaja'));
++      cierto(etapaOk, etq + ' · la etapa se dice con letra');
++      cierto(resumen, etq + ' · el resumen sale con sus tres renglones');
++      cierto(reposo.length === 0, etq + ' · nada se mueve en reposo'
++        + (reposo.length ? ' — ' + reposo.join(', ') : ''));
++      cierto(!ancho2, etq + ' · sin desborde horizontal');
++      cierto(p.__errs.length === 0, etq + ' · sin errores de página' + (p.__errs.length ? ': ' + p.__errs[0] : ''));
++      await p.__ctx.close();
++    }
++  }
++}
++
++console.log(fallos ? '\n' + fallos + ' FALLO(S)\n'
++  : '\nLa espera se ve, el archivo se reconoce, lo que se reemplaza se lee y el borrador se revisa antes de salir.\n');
++await nav.close();
++process.exit(fallos ? 1 : 0);
