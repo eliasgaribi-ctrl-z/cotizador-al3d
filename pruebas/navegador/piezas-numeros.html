@@ -26,6 +26,18 @@
   .vit .mat small{color:var(--tinta2);font-size:var(--t1)}
   .vit .dif{font:600 var(--t4)/1.3 var(--f-cifra)}
   .vit .dif[data-signo="menos"]{color:var(--av)}
+  /* Una barra lateral como la de la plataforma: el elegido lleva un filete de 3 px con ::before
+     (`.pf-tab.on::before`), que tiene que viajar con la ficha y no brincar. */
+  .vit .vit-lat{display:grid;gap:2px;padding:6px;border-radius:var(--rr3);background:var(--nav)}
+  .vit .vit-lat button{position:relative;min-height:44px;border:0;border-radius:var(--rr2);background:transparent;
+    color:rgba(255,255,255,.78);text-align:left;padding:0 14px;font:inherit;cursor:pointer}
+  .vit .vit-lat button.on{background:rgba(255,255,255,.12);color:#fff}
+  .vit .vit-lat button.on::before{content:'';position:absolute;left:0;top:11px;bottom:11px;width:3px;
+    border-radius:0 3px 3px 0;background:var(--a-claro)}
+  /* Un chip pegado encima de una etiqueta que se arrastra: en táctil la zona de la etiqueta crece
+     14 px hacia arriba y queda sobre la orilla de abajo del chip. */
+  .vit .apretado{display:grid;gap:2px;justify-items:start}
+  .vit .apretado .fld{margin:0}
 </style>
 </head>
 <body>
@@ -46,6 +58,8 @@
       <div class="escalado"><span class="mbar-amt" id="v-escalado">$0.00</span></div>
       <div class="pf-cuentas">
         <p class="pf-cuenta urge"><b class="ajusta" id="v-cuenta" style="--c:1">2</b>Van tarde</p>
+        <!-- Una cifra que llena su tarjeta (cifraQueCabe): su «+1» no cabe a la derecha. -->
+        <p class="pf-cuenta dinero" id="v-dinero-caja"><b class="ajusta" id="v-dinero" style="--c:13">$1,228,200.00</b>En el taller</p>
       </div>
       <div class="fld"><label for="v-cuenta-in">Contar (el libro dice 2.4)</label>
         <input id="v-cuenta-in" type="number" inputmode="decimal" step="0.1" min="0" value="2.4"></div>
@@ -79,6 +93,13 @@
       <div class="tool-seg" id="v-tool" role="group" aria-label="Vista">
         <button type="button" class="active">Original</button><button type="button">Comparar</button><button type="button">Vector</button>
       </div>
+      <nav class="vit-lat" id="v-lat" aria-label="Módulos (barra lateral)">
+        <button type="button" class="on" aria-current="page">Tablero</button>
+        <button type="button" aria-current="false">Proyectos</button>
+        <button type="button" aria-current="false">Control</button>
+      </nav>
+      <!-- Aquí la prueba mete grupos nuevos, como una pantalla que se pinta con innerHTML. -->
+      <div id="v-dinamico"></div>
     </div>
   </section>
 
@@ -86,7 +107,9 @@
   <section class="card" id="s-medida" aria-labelledby="t-medida">
     <div class="card-h"><h2 id="t-medida">3 · Arrastrar la medida</h2></div>
     <div class="card-b">
-      <div class="grid3" id="v-medidas">
+      <!-- draggable, como .partida (se reordena arrastrándola): con el ratón, el arrastre nativo
+           se comía el de la etiqueta. -->
+      <div class="grid3" id="v-medidas" draggable="true">
         <div class="fld"><label for="v-alto" class="arrastrable">Altura (cm)</label>
           <input id="v-alto" type="number" inputmode="decimal" min="0" step="0.5" value="30"></div>
         <div class="fld"><label for="v-letras" class="arrastrable">Letras</label>
@@ -95,6 +118,11 @@
           <input id="v-m2" type="number" inputmode="decimal" min="0" max="20" step="0.01" value="0.72"></div>
       </div>
       <p class="nota" id="v-medida-eco">—</p>
+      <div class="apretado" id="v-apretado">
+        <button type="button" class="chip" id="v-vecino">Chip de arriba</button>
+        <div class="fld"><label for="v-ancho" class="arrastrable">Ancho (cm)</label>
+          <input id="v-ancho" type="number" inputmode="decimal" min="0" step="0.5" value="120"></div>
+      </div>
     </div>
   </section>
 
@@ -120,7 +148,9 @@
   <!-- 20 · Medidores quietos -->
   <section class="card" id="s-medidor" aria-labelledby="t-medidor">
     <div class="card-h"><h2 id="t-medidor">20 · Medidores quietos</h2></div>
-    <div class="card-b" id="v-medidores"></div>
+    <div class="card-b"><div id="v-medidores"></div>
+      <!-- Un medidor sobre un elemento de la pantalla, con sus propias clases y su margen. -->
+      <span class="no-papel vit-mio" id="v-med-pintado" style="margin-top:9px"></span></div>
   </section>
 
   <!-- Deslizadores con imanes -->

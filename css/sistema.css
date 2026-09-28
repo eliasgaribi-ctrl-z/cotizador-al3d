@@ -4390,6 +4390,9 @@ html.tema-revela::view-transition-new(root){z-index:1}
   font:600 var(--t1)/1.4 var(--f-texto);letter-spacing:0;color:var(--a-tx);-webkit-text-fill-color:currentColor;
   animation:rueda-delta 1.4s var(--ease-out) both}
 .rueda-delta::before{content:attr(data-d)}
+/* Sin sitio a la derecha —una cifra que llena su tarjeta—, encima y pegado al final de la cifra.
+   Ahí no sube: subiendo se salía por arriba de la tarjeta, que lo recorta. Se funde en su sitio. */
+.rueda-delta.arriba{margin-left:0;animation-name:rueda-delta-quieta}
 @keyframes rueda-delta-quieta{0%{opacity:0}15%,75%{opacity:1}100%{opacity:0}}
 @keyframes rueda-delta{
   0%{opacity:0;transform:translateY(0)}
@@ -4409,7 +4412,11 @@ html.tema-revela::view-transition-new(root){z-index:1}
 @media screen{
   .con-ficha .ficha-destino{background-color:transparent!important;background-image:none!important;
     box-shadow:none!important;border-color:transparent!important}
+  /* El filete de la barra lateral (`.pf-tab.on::before`) viaja dentro de la ficha: el del
+     destino se esconde hasta que ella llega, para que no haya dos. */
+  .con-ficha .ficha-sin-antes::before,.con-ficha .ficha-sin-despues::after{visibility:hidden!important}
 }
+.ficha-viaja>.ficha-adorno{position:absolute;display:block;pointer-events:none}
 /* Un grupo de chips con fondo propio (#f-plazo, #rv-plazo) taparía la ficha a mitad de camino:
    `.ficha-transparente` deja sin fondo a los NO elegidos —el borde se queda— para que se vea
    pasar por debajo. En una tarjeta de --sup no cambia nada a la vista. */
@@ -4444,6 +4451,11 @@ html.tema-revela::view-transition-new(root){z-index:1}
   padding:6px 12px;text-align:left;min-width:0}
 .glide>.chip:not(.on){background:transparent;border-color:transparent;box-shadow:none}
 .glide>.chip small{display:block;font-size:var(--t1);font-weight:600}
+/* El tono de la línea de abajo (el «sin IVA» de C4). Sin la opacidad de `.chip.on small`: en
+   ámbar sobre el azul tenue del elegido, ese 80 % lo bajaba de 4.5:1. */
+.glide>.chip.tono-av small{color:var(--av);opacity:1}
+.glide>.chip.tono-ok small{color:var(--ok);opacity:1}
+.glide>.chip.tono-mal small{color:var(--mal);opacity:1}
 @media(hover:hover) and (pointer:fine){
   .glide>.chip:not(.on):not([aria-disabled="true"]):hover{background:var(--sup);border-color:var(--linea)}
 }
@@ -4545,7 +4557,10 @@ input[type=range].desl-iman.grueso::-webkit-slider-thumb{margin-top:-8px;border-
   background:linear-gradient(90deg,transparent 13px,var(--desl-pulgar) 13px 15px,var(--sup) 15px 29px,var(--desl-pulgar) 29px 31px,transparent 31px) center/44px 36px no-repeat}
 input[type=range].desl-iman.grueso::-moz-range-thumb{border-radius:var(--rr2);
   background:linear-gradient(90deg,transparent 13px,var(--desl-pulgar) 13px 15px,var(--sup) 15px 29px,var(--desl-pulgar) 29px 31px,transparent 31px) center/44px 36px no-repeat}
-.desl-marcas{position:relative;display:block;height:26px;margin-top:-8px}
+/* Las marcas suben 8 px sobre el campo para quedar pegadas al riel, y encima de él se comían la
+   franja de abajo de los 44 px del pulgar: un dedo ahí tocaba un rótulo y el valor no se movía.
+   Son dibujo (aria-hidden), así que el toque pasa de largo al deslizador. */
+.desl-marcas{position:relative;display:block;height:26px;margin-top:-8px;pointer-events:none}
 .desl-marca{position:absolute;top:0;left:calc(22px + var(--k,0) * (100% - 44px));transform:translateX(-50%);
   display:grid;justify-items:center;gap:3px}
 .desl-marca::before{content:"";width:2px;height:6px;border-radius:1px;background:var(--n4)}
