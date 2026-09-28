@@ -17,6 +17,9 @@ Reglas comunes a toda la sección:
 - **Nunca envuelvas lo que corre al teclear** (`transicion`, `listaViva.repintar` con
   animación): solo acciones de estructura (abrir, mover, borrar, cambiar de mes o de pantalla).
   `listaViva.repintar` sí se puede llamar en cada tecla: no reinicia nada, esa es su gracia.
+  (`transicion` además se defiende sola: llamada desde un evento de escritura —`input`,
+  `beforeinput`, composición— o desde una tecla que se repite por tenerla apretada, solo corre
+  `fn`.)
 - **Menos movimiento** se pregunta en el momento (`P.sinMovimiento()`); cada pieza dice abajo qué
   apaga y qué conserva.
 
@@ -47,8 +50,14 @@ Parámetros (para otra superficie que quiera lo mismo, p. ej. el anidador):
 | `cierra`, `velocidad` | px, px/ms | 90 y 0,11. El umbral real es `min(90, 40 % del alto)`. |
 
 Devuelve `{ destruir() }`. Clases que pone: `.hoja-arrastrando` en la hoja; `.hoja-velo-sigue` y
-`.hoja-velo-suelta` en el velo, con `--arrastre` (0–1): el velo se aclara en su **color**
-(`rgba(var(--nav-rgb), .52·(1−arrastre))`), la hoja nunca pierde opacidad.
+`.hoja-velo-suelta` en el velo, con `--arrastre` (0–1) y `--velo-a` (el tinte que el velo tenía,
+leído del render): el velo se aclara en su **color**
+(`rgba(var(--nav-rgb), velo-a·(1−arrastre))`), la hoja nunca pierde opacidad.
+
+Dos cosas que tu capa puede hacer y la pieza ya aguanta: **rehacer la hoja a medio gesto**
+(`repintarEnSitio`, que reemplaza el `.pf-panel` entero) suelta el arrastre y devuelve el velo,
+y el gesto siguiente vuelve a funcionar; y **negarse a cerrar** (tu `cerrar` no cierra porque hay
+algo sin guardar) devuelve el velo con la hoja en vez de dejarlo aclarado.
 
 - Dedo: eventos de toque (decide a medio gesto si es scroll). Hacia arriba desde la cabeza cede
   12 px. De lado no es de la hoja (deja pasar carruseles y renglones deslizables).
@@ -81,6 +90,13 @@ Funciones puras (probadas en node): `P.hojaResistencia(bruto, tope=12)`,
 - Sin View Transitions, o con una capa abierta encima de lo que viaja: FLIP con Web Animations.
 - Menos movimiento: solo `fn()`. Dos seguidas: la primera se salta.
 - La promesa rechaza si `fn` lanzó.
+- **`fn` NO corre en el acto** con View Transitions: el navegador fotografía el antes y la llama
+  en el cuadro siguiente. Lo que dependa del DOM nuevo —devolver el foco al botón que se usó,
+  medir, llevar algo a la vista— va **dentro de `fn`**, no en la línea de después. (Sin View
+  Transitions y con menos movimiento sí corre en el acto; dentro de `fn` vale siempre.)
+- Mientras dura el viaje, Chrome manda TODO toque al `<html>`: la página se ve viva y no recibe
+  nada, y dos toques seguidos en «Agregar» agregaban uno. La pieza lo atiende: ese toque salta el
+  viaje y se entrega a lo que está debajo del dedo. No hay nada que hacer en la pantalla.
 
 `P.flip(objetivo, fn, o) → Promise<Element[]>` (los que se movieron): para MUCHAS piezas. Mide
 cada una por `clave` (por omisión `id`), repinta, y cada una viaja de donde estaba; las que no
@@ -121,7 +137,9 @@ Vive en `js/tema.js` (lo cargan TODAS las páginas; las de texto no cargan pieza
   transición, así la foto nueva ya trae el repintado.
 - Cambia de golpe, como hoy, sin View Transitions, con menos movimiento, con la pestaña oculta,
   con un revelado en curso o si la página pone `html.sin-revelado` (el anidador mientras el motor
-  corre: A32 pide saltarlo con la mesa llena).
+  corre: A32 pide saltarlo con la mesa llena). Con un revelado en curso, además, el primero se
+  salta antes de cambiar: cambiar el tema POR DEBAJO del círculo que sigue creciendo descubría,
+  dentro del círculo, el mismo tema que había fuera.
 - Atajo con el nombre de las piezas: `P.temaEnCirculo(pref, desde, despues)`.
 
 ```js
@@ -137,8 +155,11 @@ document.documentElement.classList.toggle('sin-revelado', T.corriendo);
 
 `→ { medir(), revelar(hijo, suave?), destruir() }`
 
-- `el`: la fila o lista con scroll (selector o elemento). No se reemplaza al repintar (sus
-  hijos sí: un MutationObserver vuelve a medir).
+- `el`: la fila o lista con scroll. **Con un SELECTOR se pone en TODAS las que casen, hoy y
+  después de cada repintado**, sin que nadie la vuelva a llamar: llámala UNA vez al montar la
+  pantalla, aunque la fila todavía no exista y aunque haya veinte (`.mat-formula` viene en cada
+  renglón de la lista, F30). Con un ELEMENTO, solo ese, para una fila que no se rehace. La fila
+  que deja el documento se suelta sola.
 - `o.eje`: `'x'`, `'y'` o `'auto'` (el que tenga más desborde). `o.margen`: largo del fundido en
   px (32; también pone `--borde`).
 - Clases: `.bordes`, `.bordes-x`/`.bordes-y`, `.hay-antes`, `.hay-despues` → la máscara
@@ -153,7 +174,7 @@ document.documentElement.classList.toggle('sin-revelado', T.corriendo);
 
 ```js
 // P23 · la tira de etapas del teléfono y el tablero del Fold
-const b = P.bordesDesvanecidos('#pj-filtros .tipo-seg', { eje: 'x' });
+const b = P.bordesDesvanecidos('#pj-filtros .tipo-seg', { eje: 'x' });   // una vez, al montar
 b.revelar('#pj-filtros .on');          // después de pintar
 P.bordesDesvanecidos('.pj-tablero', { eje: 'x' });
 // F30 · la fórmula de material y la tira del asistente
@@ -212,9 +233,11 @@ Controlador (una vez, en el contenedor que no se reemplaza):
   soltar **pulsa tu botón principal** (`.click()`): corre tu código, con su Deshacer.
 - El clic que sigue a un arrastre se tira (deslizar un renglón no lo abre). Tocar fuera, Escape,
   pulsar una acción o cambiar el tamaño de la ventana cierran el renglón abierto. Uno abierto a
-  la vez.
+  la vez. El lado que está debajo de la cara no recibe toques mientras no esté abierto: durante
+  los 260 ms en que la cara vuelve, un segundo toque en el mismo punto corría la acción otra vez.
 - Teclado (con `soloAqui`): enfocar una acción abre su lado; salir del renglón o Escape lo
-  cierra y devuelve el foco a la cara.
+  cierra y devuelve el foco a la cara —a la cara misma (`tabindex="-1"`) si no trae nada
+  enfocable, que es lo normal con `soloAqui`—.
 - `pista()`: la primera vez en ese aparato (clave de localStorage `o.pista`), el primer renglón
   asoma 28 px y regresa. Llámala después de pintar. Nunca con menos movimiento.
 - Menos movimiento: la cara sigue al dedo (es la mano), pero regresa sin recorrido.
@@ -244,18 +267,28 @@ Pura: `P.filaDecide({dx, v, anchoAcc, anchoFila, principal, umbral}) → 'princi
 
 ## Entra lo nuevo, sale lo quitado — `P.listaViva(cont, o)`
 
-`→ { repintar(fn) → {nuevos: Element[], quitados: string[]}, quitar(el) → Promise, olvidar(clave), destruir() }`
+`→ { repintar(fn) → {nuevos: Element[], quitados: string[]}, quitar(el) → Promise,
+     mostrar(el, bloque?), olvidar(clave), destruir() }`
 
 - `cont`: el contenedor cuyos HIJOS son los renglones, cada uno con clave (`data-clave` o `id`;
-  o `o.clave(el)`). No se reemplaza el contenedor, sí sus hijos.
+  o `o.clave(el)`). No se reemplaza el contenedor, sí sus hijos. La clave tiene que ser la
+  **identidad** del renglón (el folio, el id de la medida), nunca su lugar en la lista: con el
+  índice, borrar la medida 2 de cinco hace «irse» a la 5, y la que se agrega después hereda un
+  número ya visto y no se marca nueva.
 - `repintar(fn)`: mide, corre `fn` (tu innerHTML), y: lo que no se había visto entra
   (`.lista-entra`) y queda marcado `.lista-nueva` durante `o.marca` ms (4000); lo que siguió se
   corre a su sitio (FLIP); lo quitado se desvanece en su lugar (fantasma inerte, `.lista-se-va`).
   **La marca no se reinicia** al repintar (hereda su edad con `--lista-edad`): llámalo en cada
-  tecla si quieres. Devuelve los nuevos (p. ej. para `scrollIntoView` del primero).
+  tecla si quieres. Devuelve los nuevos (p. ej. para `mostrar()` del primero).
 - El primer pintado con la lista vacía no marca nada (lo que ya había no es «nuevo»), salvo
   `o.animarPrimera:true`.
 - `quitar(el)`: la salida ANTES de repintar (C22 «Quitar»): `lista.quitar(fila).then(() => lista.repintar(pintar))`.
+  El renglón queda mudo, inerte y fuera del alcance del dedo desde el primer momento; si el
+  repintado lo deja vivo (el borrado falló), vuelve entero.
+- `mostrar(el, bloque='nearest'|'start')`: llevar a la vista lo que llegó moviendo **solo la caja
+  con scroll** que lo contiene, nunca la página. Úsalo en vez de `scrollIntoView`: el escalador
+  (H24) mide sobre la foto y un `scrollIntoView` movía la página debajo del dedo; el asistente
+  (F15) ancla la respuesta nueva a su principio con `'start'`.
 - `o.anunciar(elUltimo, nuevos) → string`: lo que se dice al lector de pantalla cuando llega algo.
 - La marca es un `::after` con filete del acento: el renglón no debe usar su propio `::after` ni
   ir `position:absolute` (la marca le pone `position:relative`).
@@ -266,12 +299,12 @@ Pura: `P.filaDecide({dx, v, anchoAcc, anchoFila, principal, umbral}) → 'princi
 // C22 · la cola de solicitudes (renderAuth corre en cada tecla del anticipo: no pasa nada)
 const cola = Piezas.listaViva('#auth-cola', { clave: el => el.dataset.folio, anunciar: el => 'Llegó la solicitud ' + el.dataset.folio });
 cola.repintar(() => { $('auth-cola').innerHTML = remotasHTML(); });
-// H24 · escalador: la medida nueva llega a la lista y la lista va hasta ella
-const r = Piezas.listaViva('.sp-mlist').repintar(() => scUpdateList());
-if (r.nuevos[0]) { r.nuevos[0].classList.add('sc-flash'); r.nuevos[0].scrollIntoView({ block: 'nearest' }); }
+// H24 · escalador: la medida nueva llega a la lista y la lista va hasta ella, sin mover la foto
+const L = Piezas.listaViva('.sp-mlist'), r = L.repintar(() => scUpdateList());
+if (r.nuevos[0]) { r.nuevos[0].classList.add('sc-flash'); L.mostrar(r.nuevos[0]); }
 // F15 · asistente: la burbuja nueva entra y el hilo se ancla a su principio
-const { nuevos } = P.listaViva('.ia-hilo').repintar(() => pintar());
-if (nuevos[0]) nuevos[0].scrollIntoView({ block: 'start', behavior: scrollSuave() });
+const hilo = P.listaViva('.ia-hilo'), { nuevos } = hilo.repintar(() => pintar());
+if (nuevos[0]) hilo.mostrar(nuevos[0], 'start');
 ```
 
 ---
@@ -315,9 +348,15 @@ if (nuevos[0]) nuevos[0].scrollIntoView({ block: 'start', behavior: scrollSuave(
 - `o.nombre` ('hoja' · 'columna' · 'parada'), `o.etiqueta` (aria-label de la tira),
   `o.alCambiar(i, pagina)` (sincroniza tu tira de filtros, tu mapa…), `o.puntos` (false = sin
   barra; un elemento = pintarla ahí), `o.flechas` (false = sin ‹ ›), `o.anunciar` (false = mudo).
-- Barra `.paginas-barra`: ‹ › (44 px) y un punto de 44 px por página (`aria-current`); con más de
-  5 páginas, «2 / 7». `--pag-ancho` (100 %) deja asomar la siguiente (F12: `84%`),
-  `--pag-hueco` el hueco.
+- Barra `.paginas-barra`: ‹ › (44 px) y un punto de 44 px por página (`aria-current`).
+  **Ningún botón se encoge**, así que la barra mide lo que hay y decide, y se vuelve a decidir al
+  cambiar el ancho: puntos con flechas; si no caben, puntos SIN flechas (los puntos son de todos,
+  las flechas son del ratón, y el teclado ya tiene ← → Inicio Fin); y si tampoco, «2 / 7». Con
+  más de 5 páginas, «2 / 7» siempre. En un teléfono de 360 px caben cinco puntos sin flechas.
+  `--pag-ancho` (100 %) deja asomar la siguiente (F12: `84%`), `--pag-hueco` el hueco.
+- Repintar las páginas con innerHTML NO es cambiar de página: la barra no se rehace si el número
+  no cambió (el foco que estaba en un punto se queda ahí) y `alCambiar` solo se llama cuando
+  cambia la página o el número. Una pantalla puede repintar desde su `alCambiar` sin hacer ciclo.
 - Dedo: el scroll-snap del navegador. Ratón: ‹ › y puntos. Teclado (tira o barra enfocada): ← →,
   RePág/AvPág, Inicio, Fin. Anuncia «Hoja 2 de 5» cuando se ASIENTA (180 ms quieta).
 - Menos movimiento: `ir()` salta.
@@ -344,6 +383,10 @@ pone en `cont` (con `aria-busy`) y la quita al llegar.
 - `forma`: `'lista'` (o.filas, 3) · `'cifras'` (o.cifras, 4: la forma de `.ia-cifras`) ·
   `'tarjeta'` · `'bloque'` (o.alto px) · `'miniatura'` (o.proporcion, `'4 / 3'`: la vista
   reservada de H7) · o una lista de barras `['t','d','n','campo','largo','boton','bloque']`.
+- `o.dentro`: HTML que va DENTRO de la caja del bloque o de la miniatura, debajo del brillo —la
+  foto que la IA está leyendo (H7) no es un hueco gris—. Va tal cual: escápalo tú.
+  `o.proporcion` y `o.alto` acaban en un `style`, así que solo pasan números; lo demás cae en el
+  de siempre.
 - `o.texto`: el estado («Leyendo el taller…»), en `role="status"`, con el giro `.esq-giro`
   (`o.giro:false` sin él). `o.clase`: una clase más para acomodarla.
 - Marcado: `.silueta[aria-busy] > .silueta-dibujo[aria-hidden] (barras .esq-b …) + p.silueta-t`.
@@ -357,8 +400,8 @@ pone en `cont` (con `aria-busy`) y la quita al llegar.
 const s = P.conSilueta(cont, 'lista', { texto: 'Leyendo el taller…' }); … s.quitar(html);
 // F16 · asistente: las cuatro cifras
 resumen.innerHTML = P.silueta('cifras', { cifras: 4, texto: 'Leyendo el taller…' });
-// H7 · la miniatura que la IA está leyendo
-Piezas.silueta('miniatura', { proporcion: '4 / 3', texto: 'Analizando…' })
+// H7 · la miniatura que la IA está leyendo, con la foto dentro
+Piezas.silueta('miniatura', { proporcion: '4 / 3', dentro: '<img src="' + P.esc(url) + '" alt="">', texto: 'Analizando…' })
 ```
 
 ---
