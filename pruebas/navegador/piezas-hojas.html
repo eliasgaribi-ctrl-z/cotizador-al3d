@@ -130,7 +130,8 @@
 
   /* 13 · la hoja: .show como en las apps, Escape cierra, la pieza baja con el dedo. */
   const bg = $('hoja-bg');
-  const cerrar = () => { if (!bg.classList.contains('show')) return; bg.classList.remove('show'); window.__v.cerradas++; $('abrir-hoja').focus(); };
+  /* `__v.niega`: la capa se niega a cerrar, como una con algo sin guardar. */
+  const cerrar = () => { if (!bg.classList.contains('show')) return; if (window.__v.niega) { window.__v.negadas = (window.__v.negadas || 0) + 1; return; } bg.classList.remove('show'); window.__v.cerradas++; $('abrir-hoja').focus(); };
   $('abrir-hoja').addEventListener('click', () => { bg.classList.add('show'); requestAnimationFrame(() => $('cerrar-hoja').focus()); });
   $('cerrar-hoja').addEventListener('click', cerrar);
   bg.addEventListener('click', e => { if (e.target === bg) cerrar(); });

@@ -484,6 +484,178 @@ async function vitrina(ancho, tema, mov) {
     await p.evaluate(() => window.__v.silueta.quitar('<p>Listo</p>'));
   }
 
+  /* ---------- Lo que se rompía y no daba error ----------
+     Cada uno de estos salió de intentar romper la pieza a mano, y ninguno avisaba: la acción se
+     repetía sin que se viera, el foco se quedaba en un botón invisible, el gesto se moría, los
+     puntos de 44 px se encogían o desaparecían. Se quedan aquí porque son justo los que vuelven
+     al primer descuido. */
+  {
+    /* Páginas. Ningún botón de la barra se encoge, así que la barra tiene que decidir qué cabe:
+       primero suelta las flechas ‹ › —los puntos son de todos, las flechas son del ratón— y solo
+       si tampoco así caben dice «n / 7». Las fichas P28 (cinco columnas) y A12 (hasta tres hojas)
+       piden PUNTOS, uno por página y de 44 px. */
+    await alVista(p, '#paginas');
+    const barra = n => p.evaluate(async k => {
+      const t = document.getElementById('paginas');
+      t.innerHTML = Array.from({ length: k }, (_, i) => '<div class="pag">Etapa ' + (i + 1) + '</div>').join('');
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const b = document.querySelector('.paginas-barra');
+      return { puntos: b.querySelectorAll('.paginas-punto').length, flechas: b.querySelectorAll('.paginas-flecha').length,
+        cuenta: (b.querySelector('.paginas-cuenta') || {}).textContent || '',
+        chico: [...b.querySelectorAll('button')].some(x => x.getBoundingClientRect().width < 43.5 || x.getBoundingClientRect().height < 43.5) };
+    }, n);
+    const b5 = await barra(5);
+    ok(b5.puntos === 5 && !b5.chico, 'con cinco páginas hay cinco puntos, y ninguno baja de 44 px', b5);
+    ok(await desborde(p) <= 0, 'sin que la barra se salga a lo ancho', await desborde(p));
+    const b7 = await barra(7);
+    ok(b7.puntos === 0 && /^\d+ \/ 7$/.test(b7.cuenta) && b7.flechas === 2 && !b7.chico, 'con siete, la barra dice «n / 7» entre sus flechas', b7);
+    const ciclo = await p.evaluate(async () => {
+      window.__v.cambios.length = 0;
+      const t = document.getElementById('paginas');
+      t.innerHTML = t.innerHTML;                       // un repintado como el de las pantallas
+      await new Promise(r => setTimeout(r, 200));
+      return window.__v.cambios.slice();
+    });
+    ok(ciclo.length === 0, 'y repintar las páginas sin cambiar de página no vuelve a avisar a la pantalla (una que repinte desde ahí entraría en ciclo)', ciclo);
+    await barra(4);
+
+    /* El renglón. Los 260 ms en que la cara vuelve a su sitio dejaban las acciones a la
+       intemperie: el segundo toque en el mismo punto caía sobre «Ya se armó» y lo corría otra
+       vez; y un segundo latigazo seguido se perdía porque el gesto se anclaba a la cara. */
+    await alVista(p, '#filas');
+    const cara2 = await centro(p, '#f2 .desliza-cara');
+    const dosVeces = await p.evaluate(() => { window.__v.principal = 0; return 0; });
+    await dedo(p, cdp, cara2.r.x + 20, cara2.y, cara2.r.x + 260, cara2.y, { pasos: 8, ms: 8 });
+    await p.waitForTimeout(60);
+    await p.touchscreen.tap(cara2.r.x + 20, cara2.y);   // con la cara todavía volviendo
+    await p.waitForTimeout(500);
+    ok((await p.evaluate(() => window.__v.principal)) === 1, 'un latigazo y un toque en el hueco que deja la cara: la acción principal corre UNA vez', dosVeces);
+    await p.evaluate(() => { window.__v.principal = 0; });
+    for (let i = 0; i < 2; i++) {
+      await dedo(p, cdp, cara2.r.x + 20, cara2.y, cara2.r.x + 260, cara2.y, { pasos: 8, ms: 8 });
+      await p.waitForTimeout(60);
+    }
+    await p.waitForTimeout(500);
+    ok((await p.evaluate(() => window.__v.principal)) === 2, 'y dos latigazos seguidos cuentan los dos: el segundo ya no se pierde');
+
+    /* El foco después de una acción. La cara de un renglón `soloAqui` no tiene nada enfocable
+       —se usa `soloAqui` PORQUE no hay otro botón—, así que el foco se quedaba en la acción
+       invisible, o se caía al <body> y el Tab siguiente empezaba desde arriba de la página. */
+    await p.focus('#f3 [data-acc="bor-medida"]'); await p.waitForTimeout(300);
+    await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+    const foco = await p.evaluate(() => { const a = document.activeElement; return { cara: a.classList.contains('desliza-cara'), enF3: document.getElementById('f3').contains(a), tab: a.tabIndex, mudo: !!(a.closest && a.closest('[aria-hidden="true"]')) }; });
+    ok(foco.cara && foco.enF3 && foco.tab === -1 && !foco.mudo, 'Escape cierra el renglón y devuelve el foco a su cara, fuera del tabulador y no a algo invisible', foco);
+
+    /* La lista. Un renglón que se está yendo es transparente, pero sus botones seguían encima de
+       la lista hasta que llegara el repintado; y si el repintado no llega (falló el borrado), se
+       quedaba así para siempre. */
+    const yendo = await p.evaluate(async () => {
+      const div = document.createElement('div'); div.innerHTML = '<p data-clave="a"><button>x</button></p>';
+      document.body.appendChild(div);
+      const L = window.Piezas.listaViva(div);
+      const el = div.firstElementChild;
+      L.quitar(el);
+      const r = { aria: el.getAttribute('aria-hidden'), inerte: el.inert === true, pe: el.style.pointerEvents };
+      await new Promise(x => setTimeout(x, 260));
+      L.repintar(() => {});                            // el borrado falló: el renglón sigue
+      r.vuelve = { aria: el.getAttribute('aria-hidden'), inerte: el.inert === true, op: getComputedStyle(el).opacity };
+      L.destruir(); div.remove();
+      return r;
+    });
+    ok(yendo.aria === 'true' && yendo.inerte && yendo.pe === 'none', 'el renglón que se va deja de tocarse y de oírse en el acto, no al terminar el fundido', yendo);
+    ok(yendo.vuelve.aria === null && !yendo.vuelve.inerte && +yendo.vuelve.op === 1, 'y si el repintado lo deja vivo, vuelve entero', yendo.vuelve);
+
+    /* mostrar(): lo que llega se ve moviendo SOLO su caja con scroll. Un scrollIntoView movía la
+       página debajo del dedo mientras el escalador mide sobre la foto (H24). */
+    const most = await p.evaluate(async () => {
+      const caja = document.createElement('div');
+      caja.style.cssText = 'height:80px;overflow-y:auto';
+      caja.innerHTML = Array.from({ length: 12 }, (_, i) => '<p data-clave="m' + i + '" style="margin:0;height:30px">m' + i + '</p>').join('');
+      document.body.appendChild(caja);
+      const L = window.Piezas.listaViva(caja);
+      const y0 = scrollY, s0 = caja.scrollTop;
+      L.mostrar(caja.lastElementChild);
+      await new Promise(r => setTimeout(r, 400));
+      const r = { pagina: scrollY - y0, caja: caja.scrollTop - s0 };
+      L.destruir(); caja.remove();
+      return r;
+    });
+    ok(most.caja > 100 && most.pagina === 0, 'mostrar() mueve la caja con scroll y deja la página quieta', most);
+
+    /* Los bordes, con un SELECTOR: casi todas sus filas se rehacen con innerHTML (la fórmula de
+       material viene en cada renglón, F30), y con un control por elemento cada repintado dejaba
+       colgados sus observadores sobre un nodo muerto y solo se atendía la primera fila. */
+    const sel = await p.evaluate(async () => {
+      const caja = document.createElement('div'); caja.id = 'sel-caja';
+      const pintar = n => { caja.innerHTML = Array.from({ length: n }, () => '<div class="mat-f" style="display:flex;overflow-x:auto;width:120px"><span style="flex:none;width:90px">uno</span><span style="flex:none;width:90px">dos</span></div>').join(''); };
+      document.body.appendChild(caja); pintar(2);
+      const c = window.Piezas.bordesDesvanecidos('.mat-f', { eje: 'x' });
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const antes = document.querySelectorAll('.mat-f.bordes.hay-despues').length;
+      pintar(3);                                       // la pantalla repinta y no vuelve a llamar
+      await new Promise(r => setTimeout(r, 200));
+      const despues = document.querySelectorAll('.mat-f.bordes.hay-despues').length;
+      c.destruir(); caja.remove();
+      await new Promise(r => setTimeout(r, 60));
+      return { antes, despues, sueltas: document.querySelectorAll('.bordes.mat-f').length };
+    });
+    ok(sel.antes === 2 && sel.despues === 3 && sel.sueltas === 0, 'con un selector, los bordes se ponen en TODAS las filas y siguen ahí después de un repintado, sin que nadie vuelva a llamar', sel);
+
+    /* La hoja que la pantalla rehace a medio gesto (repintarEnSitio de la plataforma). Un
+       touchmove va SIEMPRE al nodo donde empezó el toque, y si ese nodo ya no está en el
+       documento no sube hasta `document`: con los oyentes solo ahí, el gesto se quedaba vivo
+       para siempre y no se podía volver a arrastrar nada. */
+    await p.evaluate(() => window.scrollTo(0, 0)); await p.waitForTimeout(200);
+    await abrir();
+    const cabR = await centro(p, '#hoja-bg .modal-h b');
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: cabR.x, y: cabR.y, id: 1 }] });
+    for (let i = 1; i <= 5; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: cabR.x, y: cabR.y + i * 8, id: 1 }] }); await espera(16); }
+    await p.evaluate(() => { const bg = document.getElementById('hoja-bg'); bg.innerHTML = bg.innerHTML.replace(/ style="[^"]*"/g, ''); });
+    for (let i = 6; i <= 10; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: cabR.x, y: cabR.y + i * 8, id: 1 }] }); await espera(16); }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await p.waitForTimeout(500);
+    const tras = await p.evaluate(() => { const bg = document.getElementById('hoja-bg'); return { sigue: bg.classList.contains('hoja-velo-sigue'), arr: bg.style.getPropertyValue('--arrastre'), abierta: bg.classList.contains('show') }; });
+    ok(tras.abierta && !tras.sigue && !tras.arr, 'si la pantalla rehace la hoja a medio gesto, el arrastre se suelta y el velo vuelve a su tinte', tras);
+    const cab2 = await centro(p, '#hoja-bg .modal-h b');
+    const cAntes = await cerradas();
+    await dedo(p, cdp, cab2.x, cab2.y, cab2.x, cab2.y + 200, { pasos: 10 });
+    await p.waitForTimeout(500);
+    ok(!(await abierta()) && (await cerradas()) === cAntes + 1, 'y el gesto siguiente vuelve a cerrar la hoja: no se quedó colgado', cAntes);
+
+    /* Una capa puede negarse a cerrar (algo sin guardar). La hoja regresa sola con su transición
+       y el velo tiene que regresar con ella, no quedarse aclarado hasta que venza el reloj. */
+    await abrir();
+    await p.evaluate(() => { window.__v.niega = true; });
+    const cabN = await centro(p, '#hoja-bg .modal-h b');
+    await dedo(p, cdp, cabN.x, cabN.y, cabN.x, cabN.y + 200, { pasos: 10 });
+    await p.waitForTimeout(120);
+    const niega = await p.evaluate(() => { const bg = document.getElementById('hoja-bg'); const a = (getComputedStyle(bg).backgroundColor.match(/[\d.]+/g) || []).map(Number); return { abierta: bg.classList.contains('show'), negadas: window.__v.negadas, arr: bg.style.getPropertyValue('--arrastre'), alfa: a.length > 3 ? a[3] : 1 }; });
+    ok(niega.abierta && niega.negadas >= 1 && niega.arr === '0', 'con una capa que se niega a cerrar, el velo vuelve con la hoja en vez de quedarse a medias', niega);
+    /* Con Escape y no con la ×: el rehecho de arriba cambió el nodo de la × y la vitrina se la
+       tenía colgada al viejo (la plataforma de verdad reparte sus clics por delegación). */
+    await p.evaluate(() => { window.__v.niega = false; });
+    await p.keyboard.press('Escape');
+    await p.waitForTimeout(400);
+    ok(!(await abierta()), 'y Escape la cierra después');
+
+    /* El toque que se traga una transición de vista. Mientras dura el viaje, Chrome manda TODO
+       toque al <html> —la página se ve viva y no recibe nada—, así que dos toques seguidos en
+       «Avanzar» avanzaban uno. */
+    if (!quieto && await p.evaluate(() => typeof document.startViewTransition === 'function')) {
+      await alVista(p, '#s-hoja');
+      await p.evaluate(() => { window.__tr = []; document.addEventListener('pointerdown', e => window.__tr.push(e.target.tagName + '#' + (e.target.id || '')), true); });
+      await p.evaluate(() => { window.Piezas.transicion(() => { document.getElementById('pantalla').textContent = 'tragado'; }, { contenedor: '#pantalla', direccion: 'adelante', duracion: 1200 }); });
+      await p.waitForTimeout(120);
+      const bt = await centro(p, '#abrir-hoja');
+      await p.mouse.click(bt.x, bt.y);
+      await p.waitForTimeout(900);
+      ok(await abierta(), 'un toque que se traga una transición de vista llega a su botón igual',
+        await p.evaluate(() => ({ tr: window.__tr, vt: document.documentElement.classList.contains('vt-pieza'), show: document.getElementById('hoja-bg').className })));
+      await p.evaluate(() => { document.getElementById('cerrar-hoja').click(); });
+      await p.waitForTimeout(400);
+    }
+  }
+
   /* ---------- Idempotencia ---------- */
   ok(await p.evaluate(() => {
     const P = window.Piezas;

@@ -163,22 +163,39 @@
     if (desde && typeof desde.x === 'number' && typeof desde.y === 'number') return [desde.x, desde.y];
     return [w / 2, h / 2];
   }
+  /* El segundo toque con un revelado a medias —de vuelta al tema de antes— no espera a que el
+     primero termine, pero tampoco cambia el tema POR DEBAJO del círculo que sigue creciendo:
+     eso descubría, dentro del círculo, el mismo tema que había fuera. Se salta el primero y el
+     segundo cambia de golpe; y si el primero ni siquiera había cambiado todavía (su foto se toma
+     un cuadro después del toque), el segundo espera a que lo haga, para que los dos cambios
+     queden en el orden en que se pidieron: Ajustes pide temas concretos, no «el otro». */
+  var enCurso = null;
   function revelar(desde, cambiar) {
     var h = document.documentElement, quieto = false;
     try { quieto = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
+    if (enCurso) {
+      var previo = enCurso; enCurso = null;
+      try { previo.vt.skipTransition(); } catch (_) {}
+      if (!previo.corrio) { previo.vt.updateCallbackDone.then(cambiar, cambiar); return; }
+      return cambiar();
+    }
     if (typeof document.startViewTransition !== 'function' || quieto || document.hidden ||
-        h.classList.contains('sin-revelado') || h.classList.contains('tema-revela')) return cambiar();
+        h.classList.contains('sin-revelado')) return cambiar();
     var p = punto(desde), x = Math.round(p[0]), y = Math.round(p[1]);
     var radio = Math.ceil(Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y)));
-    var vt;
+    var vt, este = { vt: null, corrio: false };
     h.classList.add('tema-revela');
-    try { vt = document.startViewTransition(function () { cambiar(); }); }
+    try { vt = document.startViewTransition(function () { este.corrio = true; cambiar(); }); }
     catch (_) { h.classList.remove('tema-revela'); return cambiar(); }
+    este.vt = vt; enCurso = este;
     vt.ready.then(function () {
       h.animate({ clipPath: ['circle(0px at ' + x + 'px ' + y + 'px)', 'circle(' + radio + 'px at ' + x + 'px ' + y + 'px)'] },
         { duration: 380, easing: 'cubic-bezier(.2,.8,.2,1)', pseudoElement: '::view-transition-new(root)' });
     }).catch(function () {});
-    vt.finished.catch(function () {}).then(function () { h.classList.remove('tema-revela'); });
+    vt.finished.catch(function () {}).then(function () {
+      if (enCurso === este) enCurso = null;
+      if (!enCurso) h.classList.remove('tema-revela');
+    });
   }
 
   /* Los botones se pintan cuando el documento existe; el atributo ya está puesto desde antes. */

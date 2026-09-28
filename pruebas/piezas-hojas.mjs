@@ -124,6 +124,12 @@ cierto(!/role="status"/.test(P.silueta('cifras')), 'sin texto no hay estado que 
 cierto((P.silueta('cifras', { cifras: 4 }).match(/silueta-cifra"/g) || []).length === 4, 'las cifras del asistente son cuatro');
 cierto(/esq-t.*esq-d.*esq-boton/.test(P.silueta(['t', 'd', 'boton'])), 'y se arma con las barras que se pidan');
 cierto(/aspect-ratio:16 \/ 9/.test(P.silueta('miniatura', { proporcion: '16 / 9' })), 'la miniatura reserva su proporción (la de la IA)');
+/* La proporción y el alto van a dar a un atributo style, así que solo pasan números: lo demás
+   cae en el de siempre en vez de colarse dentro de la regla o de volverse otra medida. */
+cierto(/aspect-ratio:4 \/ 3"/.test(P.silueta('miniatura', { proporcion: '1/1;background:url(x)' })), 'una proporción que no son números se ignora');
+cierto(/height:220px/.test(P.silueta('bloque', { alto: -400 })) && /height:220px/.test(P.silueta('bloque', { alto: 'alto' })), 'y un alto negativo o que no es número también');
+cierto(/height:2000px/.test(P.silueta('bloque', { alto: 99999 })), 'y uno enorme se queda en lo que cabe en una pantalla');
+cierto(/silueta-mini[^>]*><img src="foto.jpg"><\/span>/.test(P.silueta('miniatura', { dentro: '<img src="foto.jpg">' })), 'la foto que la IA está leyendo (H7) va DENTRO de la miniatura, en su proporción');
 
 console.log('\nUNA SOLA HOJA PARA LAS DOS APPS');
 const ui = leer('js/nucleo/ui.js'), nucleo = leer('js/cotizador/nucleo.js');
@@ -149,6 +155,14 @@ for (const cls of ['.hoja-velo-sigue', '.vt-pieza', '.tema-revela', '.bordes-x',
   cierto(b2.includes(cls), 'el bloque trae ' + cls);
 cierto(!/infinite/.test(sinCom(b2)), 'nada infinito en el bloque: todo lo mueve alguien');
 cierto(!/transition:\s*all/.test(sinCom(b2)), 'ni transition:all');
+/* Dos reglas del renglón deslizable que se ven poco y se rompen mucho: el gesto se reserva en
+   TODO el renglón —si solo lo reserva la cara, el latigazo que empieza en el hueco que ella deja
+   al volver se lo lleva el navegador— y lo que está debajo de la cara no recibe toques, porque
+   durante esos 260 ms «Ya se armó» y «Borrar» quedan a la intemperie. */
+cierto(/\.desliza\{[^}]*touch-action:pan-y/.test(b2), 'el renglón entero reserva el movimiento de lado, no solo su cara');
+cierto(/\.desliza:not\(\.abierta\) \.desliza-acciones,\.desliza:not\(\.a-la-derecha\) \.desliza-principal\{pointer-events:none\}/.test(b2),
+  'y el lado que está tapado por la cara no se toca');
+cierto(/--velo-a,\s*\.52/.test(b2), 'el velo se aclara desde el tinte que tenía de verdad, con el .52 de respaldo');
 cierto(/\.pliegue::details-content\{transition:none\}/.test(rm2), 'el apagado nombra ::details-content, que el comodín no alcanza');
 cierto(/\.lista-nueva::after\{animation:none\}/.test(rm2) && !/\.lista-nueva\{display:none/.test(rm2), 'con menos movimiento la marca «nuevo» se queda quieta, no se va');
 const fuera = css.replace(b2, '').replace(rm2, '');
