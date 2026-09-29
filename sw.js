@@ -40,7 +40,7 @@
    completa y sirviendo.
    ============================================================================ */
 
-const APP_VERSION = 71;
+const APP_VERSION = 72;
 
 const CACHE = 'al3d-v1';                       // el cotizador. Su comportamiento NO cambia.
 const APP   = 'al3d-app-' + APP_VERSION;       // la plataforma, versionada.
@@ -162,6 +162,30 @@ const APP_FILES = [
   './anidador-vectores/js/lib/placementworker.js',
   './anidador-vectores/js/lib/eval.js',
   './anidador-vectores/js/lib/json.js',
+  /* Publicaciones, por la misma razón que el anidador: el editor, su motor y el núcleo que
+     comparten se importan entre sí, y un editor nuevo con unas plantillas viejas pinta campos
+     que ya no existen. Las plantillas pesan un mega, y aun así van: abrir Publicaciones sin
+     señal y encontrarla vacía es peor que un mega más en la instalación. La lista entera la
+     vigila pruebas/publicacion.mjs, que cuenta la carpeta. */
+  './vendor/html-to-image.js',
+  './publicaciones/',
+  './publicaciones/index.html',
+  './publicaciones/motor.html',
+  './publicaciones/css/publicaciones.css',
+  './publicaciones/css/motor.css',
+  './publicaciones/js/previo.js',
+  './publicaciones/js/plantillas.js',
+  './publicaciones/js/editor.js',
+  './publicaciones/js/motor.js',
+  './publicaciones/automatizacion/plantillas.json',
+  './publicaciones/automatizacion/contenido-ejemplo.json',
+  './publicaciones/fuentes/plus-jakarta-sans-latin.woff2',
+  './publicaciones/fuentes/figtree-latin.woff2',
+  './publicaciones/assets/al3d_isotipo.png',
+  './publicaciones/assets/logos/c1d.png',
+  './publicaciones/assets/logos/c1i.png',
+  './publicaciones/assets/logos/c1l.png',
+  './publicaciones/assets/logos/c7i.png',
 ];
 
 /* ¿Esta petición es de la plataforma? Se decide por ruta y no por una lista, para que un
@@ -190,6 +214,7 @@ function esDeLaPlataforma(url) {
          PAGINAS.test(p) ||
          p.endsWith('/manifest-plataforma.webmanifest') ||
          p.indexOf('/anidador-vectores/') >= 0 ||   // el anidador entero, con sus workers
+         p.indexOf('/publicaciones/') >= 0 ||       // el editor de publicaciones, con sus plantillas
          /\/(css|js|vendor|datos)\//.test(p);
 }
 

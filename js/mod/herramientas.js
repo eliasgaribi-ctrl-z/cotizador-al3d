@@ -64,6 +64,17 @@ const HERRAMIENTAS = {
     cargando: 'Abriendo el vectorizador…',
     titulo: 'Vectorizador — del logotipo al trazo de corte',
   },
+  /* El editor de publicaciones. Llegó como sitio aparte (al3d-editor) y entra como las otras
+     dos: un documento completo en publicaciones/, con su propia política de contenido. Su
+     previo.js pone `arrancando` y editor.js la quita cuando la rejilla ya tiene plantillas,
+     que es lo que `vigilar()` espera. */
+  'mod-publicaciones': {
+    src: 'publicaciones/',
+    marco: 'pf-herr-publicaciones',
+    esqueleto: 'publicaciones',
+    cargando: 'Abriendo las plantillas…',
+    titulo: 'Publicaciones — plantillas de marca para redes',
+  },
 };
 
 let _cont = null;

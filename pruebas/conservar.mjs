@@ -30,9 +30,9 @@ const eq = (que, dio, esperado) => {
   else { mal++; console.log('  FALLA ' + que + '\n         dio: ' + a + '\n         esp: ' + b); }
 };
 
-/* Las rutas como están en RUTAS de js/app.js: tres se conservan y las demás no. `permitida`
+/* Las rutas como están en RUTAS de js/app.js: cuatro se conservan y las demás no. `permitida`
    por defecto dice que sí a todo; el caso del rol va aparte, más abajo. */
-const CONSERVA = ['cotizador', 'anidador', 'vectorizar'];
+const CONSERVA = ['cotizador', 'anidador', 'vectorizar', 'publicaciones'];
 const plan = (o) => planDeMontaje({
   conservar: r => CONSERVA.includes(r),
   tope: TOPE_CONSERVADAS,

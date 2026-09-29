@@ -31,7 +31,8 @@ const cierto = (que, v) => eq(que, !!v, true);
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
 const leer = r => readFileSync(join(RAIZ, r), 'utf8');
 const PAGINAS = ['index.html', 'cotizador.html', 'verificar.html', 'acerca.html', 'privacidad.html',
-                 'condiciones.html', 'plataforma.html', 'anidador-vectores/index.html'];
+                 'condiciones.html', 'plataforma.html', 'anidador-vectores/index.html',
+                 'publicaciones/index.html', 'publicaciones/motor.html'];
 
 /* La política como {directiva: [fuentes]}. */
 function politica(html) {
@@ -113,6 +114,7 @@ function archivos(dir) {
 }
 const donde = r => r.startsWith('js/cotizador/') ? ['cotizador.html']
   : r.startsWith('anidador-vectores/') ? ['anidador-vectores/index.html']
+  : r.startsWith('publicaciones/') ? ['publicaciones/index.html', 'publicaciones/motor.html']
   : ['index.html'];
 /* Las formas en que el código sale de verdad: fetch, un guion, un worker, un mosaico. Lo que
    solo se ENLAZA —wa.me, Google Maps, la hoja de finanzas— es navegación y no pasa por aquí. */
@@ -125,7 +127,7 @@ const SALIDAS = [
   { re: /const API = '(https:\/\/[^']+)'/g, dir: 'connect-src' },
 ];
 const vistos = [];
-for (const r of archivos('js').concat(archivos('anidador-vectores/js'))) {
+for (const r of archivos('js').concat(archivos('anidador-vectores/js'), archivos('publicaciones/js'))) {
   /* Sin comentarios: los de este repo traen ejemplos de ataques con su fetch() y todo. */
   const t = readFileSync(join(RAIZ, r), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   for (const { re, dir } of SALIDAS) {
@@ -151,7 +153,8 @@ console.log('\nLOS GUIONES EN LÍNEA, SOLO DONDE HACEN FALTA');
    teniéndolo es porque llevan guiones en línea de verdad: el cotizador (161 manejadores), el
    anidador y verificar.html. */
 {
-  const SIN_EN_LINEA = ['index.html', 'acerca.html', 'privacidad.html', 'condiciones.html', 'plataforma.html'];
+  const SIN_EN_LINEA = ['index.html', 'acerca.html', 'privacidad.html', 'condiciones.html', 'plataforma.html',
+                        'publicaciones/index.html', 'publicaciones/motor.html'];
   const sinComentarios = h => h.replace(/<!--[\s\S]*?-->/g, '');
   for (const p of SIN_EN_LINEA) {
     const pol = POL[p]; if (!pol) continue;
@@ -187,6 +190,18 @@ console.log('\nLOS GUIONES EN LÍNEA, SOLO DONDE HACEN FALTA');
   cierto('index.html dice sin adornos que connect-src deja pasar cualquier Apps Script',
          !/no tendría a qué\s+servidor/.test(nota) && /CUALQUIER Apps Script/.test(nota));
 }
+
+console.log('\nPUBLICACIONES NO HABLA CON NADIE');
+/* El editor empotra marcado que viene de un JSON (las plantillas) y lee fotos que sube
+   cualquiera. Que ninguna de las dos cosas pueda salir a otro servidor es lo que hace seguro
+   el innerHTML de las plantillas. */
+for (const p of ['publicaciones/index.html', 'publicaciones/motor.html']) {
+  const pol = POL[p]; if (!pol) continue;
+  eq(p + ': connect-src solo este sitio y lo local', pol['connect-src'], ["'self'", 'data:', 'blob:']);
+  eq(p + ': img-src igual', pol['img-src'], ["'self'", 'data:', 'blob:']);
+  eq(p + ': no empotra nada', pol['frame-src'], ["'none'"]);
+}
+cierto('y la plataforma sí puede empotrar Publicaciones, que es de aquí', (POL['index.html']['frame-src'] || []).includes("'self'"));
 
 console.log('\nNADIE DE AFUERA NOS EMPOTRA');
 {

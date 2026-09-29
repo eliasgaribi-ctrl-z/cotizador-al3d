@@ -731,6 +731,14 @@ export function esqueletoMarco(tipo, texto) {
       _esqTarjeta('<div class="esq-b esq-t"></div><div class="esq-b esq-bloque esq-drop"></div>') +
       _esqTarjeta('<div class="esq-b esq-t"></div><div class="esq-b esq-campo"></div><div class="esq-b esq-campo"></div>') +
       '</div>' + _esqTarjeta('<div class="esq-b esq-t"></div><div class="esq-b esq-bloque esq-mesa"></div>') + '</div>';
+  } else if (tipo === 'publicaciones') {
+    /* La rejilla de miniaturas y el panel del editor: la silueta de lo que va a aparecer, para
+       que la pantalla no salte de «un formulario» a «una galería» al terminar de cargar. */
+    let mini = '';
+    for (let i = 0; i < 6; i++) mini += '<div class="esq-b esq-mini"></div>';
+    cuerpo = '<div class="esq-cols pb-esq-cols"><div><div class="esq-b esq-campo"></div><div class="esq-mosaico">' + mini + '</div></div>' +
+      _esqTarjeta('<div class="esq-b esq-bloque esq-drop"></div><div class="esq-b esq-campo"></div><div class="esq-b esq-boton"></div>', 'esq-lado') +
+      '</div>';
   } else {
     cuerpo = '<div class="esq-b esq-riel"></div><div class="esq-cols cot-esq">' +
       _esqTarjeta('<div class="esq-b esq-t"></div><div class="esq-b esq-campo"></div><div class="esq-b esq-campo"></div><div class="esq-b esq-campo esq-largo"></div>') +
