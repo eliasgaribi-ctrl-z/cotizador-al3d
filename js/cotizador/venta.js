@@ -30,6 +30,93 @@ const COMISION_PCT=10;
    devuelve el día siguiente. Se arma con los campos locales. */
 function hoyISO(){ const d=new Date(),p=n=>String(n).padStart(2,'0');
   return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+
+/* ============================================================================
+   LA CUENTA DE COBRO DICE SI LLEVA IVA (C4)
+
+   La cuenta no es un dato administrativo: DECIDE el IVA del renglón. La hoja lo realinea sola
+   —`aplicarIva()` en puente/hoja-apps-script.gs mira la columna «Cuenta» y reescribe la de IVA—
+   y nadie se entera. Elegir una cuenta sin factura para una cotización CON IVA dejaba registrado
+   un neto distinto del que el cliente tiene impreso en la mano; y al revés, una cuenta con
+   factura en una cotización sin IVA le suma un 16 % que nadie cobró. Eso salía a la luz en
+   cobranza, semanas después, cuando el saldo no cuadraba con el papel.
+
+   La tabla es LA DE LA HOJA y se copia aquí porque el .gs vive en Apps Script y el teléfono no
+   lo puede leer: `ivaDeCuenta()` dice que solo `CUENTA_SIN_FACTURA` —Elias BBVA— cobra sin
+   factura, y cualquier otra lleva IVA. Si allá cambia, cambia aquí: son dos líneas y están
+   nombradas igual a propósito, para que una búsqueda por «CUENTA_SIN_FACTURA» encuentre las dos.
+
+   Y no se toca el IVA en automático, nunca: el IVA es del trato con el cliente y ya está
+   impreso en el PDF. Lo que esta pantalla hace es AVISAR, para que se corrija la cuenta —que es
+   lo que todavía se puede corregir— antes de registrar. */
+const CUENTA_SIN_FACTURA='Elias BBVA';
+const RV_CUENTAS=['Elias BBVA','Constru BNT','Moni MPago','Rul HSBC','Tatis BNT'];
+function cuentaLlevaIva(c){ return String(c||'').trim()!==CUENTA_SIN_FACTURA; }
+function cuentaElegida(){ const e=document.getElementById('rv-cuenta'); return e?e.value:''; }
+/* El orden en que se enseñan las cinco: las que coinciden con el IVA de ESTA cotización primero,
+   y dentro de cada grupo el orden de la hoja, que es el que la gente ya se sabe. Va aparte de
+   pintarCuentas() para poder probarlo sin pantalla: es la regla, no el pintado. */
+function cuentasOrdenadas(conIva){
+  const quiere=!!conIva;
+  return RV_CUENTAS.slice().sort((a,b)=>(cuentaLlevaIva(a)===quiere?0:1)-(cuentaLlevaIva(b)===quiere?0:1));
+}
+function cuentaCoincide(c,conIva){ return cuentaLlevaIva(c)===!!conIva; }
+/* Las cinco cuentas como fichas, con la que coincide con esta cotización primero (pieza 18).
+   «Primero» es de verdad primero: con el <select> había que abrirlo y leer cinco renglones sin
+   ninguna pista de cuál correspondía. Dentro de cada grupo se conserva el orden de la hoja, que
+   es el que la gente ya se sabe de memoria.
+
+   La etiqueta de cada ficha va en ámbar cuando esa cuenta NO coincide con el IVA de esta
+   cotización. Se probó pintar en ámbar solo la «sin IVA» —como en la muestra—, y con una
+   cotización sin IVA quedaba en ámbar justo la cuenta que sí corresponde: un aviso donde no había
+   nada que avisar. La palabra («con IVA» / «sin IVA») va siempre; el color solo dice «ésta movería
+   el IVA», y lo que dice qué pasaría con el dinero es el aviso de abajo.
+
+   Cuál queda elegida al abrir: la que se recordó en este aparato, si sigue siendo una de las
+   cinco; si no, la primera de las que coinciden —antes era la primera de la lista, que es la
+   única que cobra sin factura—. NO se conserva la que quedó puesta en la apertura anterior: con
+   el <select> pasaba sin querer (el campo se acordaba de lo último), y una cotización nueva
+   abría con la cuenta de la anterior, que a veces ni siquiera coincidía con su IVA. Elegir una
+   cuenta NO cambia el IVA: se avisa, nada más.
+
+   El valor sigue en un <input type="hidden" id="rv-cuenta">, así que `datosParaLaHoja()` y
+   `rvRecordarPreferencias()` leen exactamente lo de antes. Se vuelve a pintar en cada apertura,
+   y la pieza anterior se suelta antes: si no, cada apertura dejaba colgado el observador de la
+   ficha del grupo que ya no existe. */
+let _rvCuentas=null;
+function pintarCuentas(){
+  const caja=document.getElementById('rv-cuentas-caja'); if(!caja) return;
+  const orden=cuentasOrdenadas(Q.iva);
+  const pref=prefGet(PREF_RV_CUENTA,'');
+  const actual=RV_CUENTAS.indexOf(pref)>=0?pref:orden[0];
+  if(_rvCuentas){ try{ _rvCuentas.destruir(); }catch(_){} _rvCuentas=null; }
+  caja.innerHTML=Piezas.opcionesDeslizantesHTML({
+    etiquetadaPor:'rv-cuenta-l', oculto:'rv-cuenta', valor:actual,
+    opciones:orden.map(c=>({v:c, sub:cuentaLlevaIva(c)?'con IVA':'sin IVA',
+      tono:cuentaCoincide(c,Q.iva)?'':'av',
+      clase:cuentaLlevaIva(c)?'cta-con-iva':'cta-sin-iva'}))
+  });
+  _rvCuentas=Piezas.opcionesDeslizantes(caja.firstElementChild,{alCambiar:revisarIvaDeLaCuenta});
+  revisarIvaDeLaCuenta();
+}
+/* El aviso ámbar, con la consecuencia dicha en pesos. No dice «IVA no corresponde»: dice qué va
+   a pasar con el dinero, que es lo que hace que alguien cambie la cuenta.
+
+   Se dice con `voz()` y el párrafo NO es una región viva: un elemento con `hidden` no está en el
+   árbol de accesibilidad, y quitarle el atributo al mismo tiempo que se le pone el texto es la
+   manera más segura de que el lector no diga nada. La región de `voz()` ya existe desde que
+   carga la página. */
+function revisarIvaDeLaCuenta(){
+  const av=document.getElementById('rv-cuenta-av'); if(!av) return;
+  const c=cuentaElegida();
+  if(!c||cuentaCoincide(c,Q.iva)){ av.hidden=true; av.textContent=''; return; }
+  const neto=money(precioFinal());
+  const t=Q.iva
+    ? 'La cotización lleva IVA y '+c+' cobra sin factura: la hoja le quita el IVA y el neto registrado no será el del PDF ('+neto+').'
+    : 'La cotización va sin IVA y '+c+' cobra con factura: la hoja le suma el 16 % y el neto registrado no será el del PDF ('+neto+').';
+  if(av.textContent!==t){ av.textContent=t; voz(t); }
+  av.hidden=false;
+}
 function abrirRegistrarVenta(){
   // Si el autorizador ajustó el precio, se avisa aquí: la venta se registra por ese
   // precio, no por el calculado.
@@ -74,15 +161,42 @@ function abrirRegistrarVenta(){
   const elPct=document.getElementById('rv-pct');
   elPct.value=COMISION_PCT; elPct.readOnly=true;
   elPct.title='La comisión es '+COMISION_PCT+' % fijo del subtotal, sin IVA: la misma que calcula la hoja de finanzas';
-  /* La cuenta casi nunca cambia y se volvía a poner en cada venta. */
-  const selCuenta=document.getElementById('rv-cuenta');
-  const cuentaPref=prefGet(PREF_RV_CUENTA,'');
-  if(cuentaPref&&[...selCuenta.options].some(o=>o.value===cuentaPref)) selCuenta.value=cuentaPref;
   document.getElementById('rv-estatus').value='FABRICACION';
-  document.getElementById('rv-copied').classList.remove('show');
+  /* La cuenta casi nunca cambia y se volvía a poner en cada venta: la preferencia guardada la
+     elige, y pintarCuentas() ordena las cinco con la que corresponde al IVA de esta cotización
+     por delante. */
+  pintarCuentas();
+  rvListo(null);
   pintarPlazo();
-  rvRecalc();
+  /* Los cubos del plazo son un grupo de opciones como cualquier otro: la ficha viaja del que
+     estaba al que se toca (pieza 2, C23 #2). Es idempotente, así que llamarla en cada apertura
+     no cuelga oyentes de más; y va DESPUÉS de pintarPlazo(), que reescribe los hijos. */
+  Piezas.fichaQueViaja('rv-plazo');
+  /* `true` = pinta sin rodar. Abrir el modal no es un cambio de cifra: las de la venta anterior
+     no tienen nada que ver con éstas, y verlas rodar de unas a otras invita a leer mal. */
+  rvRecalc(true);
+  /* Y si el intento anterior se quedó en «No se registró · Reintentar», el botón vuelve a su
+     rótulo: el modal se abre limpio, no a medio camino de una venta de hace media hora. */
+  try{ Piezas.estadoBoton('rv-registrar').reiniciar(); }catch(_){}
   document.getElementById('rv-modal-bg').classList.add('show');
+}
+/* ----- El recibo verde del pie del modal -----
+   `texto` null lo apaga (al abrir); con texto lo enciende y dibuja la palomita en ese momento
+   (pieza 6, C23 #6). Se dibuja al aparecer y no antes: una palomita ya trazada dentro de una
+   caja escondida se ve «vieja» al descubrirla, y lo que se está diciendo es que ACABA de pasar.
+   `html` es para el respaldo de copiar, que nombra dos columnas en negritas. */
+function rvListo(texto,html){
+  const el=document.getElementById('rv-copied'); if(!el) return;
+  if(texto==null&&html==null){
+    el.classList.remove('show');
+    const ico=el.querySelector('.rv-copied-ico'); if(ico) ico.innerHTML='';
+    return;
+  }
+  const t=el.querySelector('span:not(.rv-copied-ico)');
+  if(t){ if(html!=null) t.innerHTML=html; else t.textContent=texto; }
+  const ico=el.querySelector('.rv-copied-ico');
+  if(ico) ico.innerHTML=Piezas.palomitaHTML({circulo:true});
+  el.classList.add('show');
 }
 function cerrarRegistrarVenta(){
   document.getElementById('rv-modal-bg').classList.remove('show');
@@ -103,7 +217,10 @@ function rvAcotar(){
   if(Math.abs(anti-(parseFloat(elA.value)||0))>0.005) elA.value=anti;
   return {anti,aviso};
 }
-function rvRecalc(){
+/* `alAbrir` pinta sin rodar: ver rvRecalc más abajo. Lo pasa abrirRegistrarVenta() y nadie más;
+   los dos manejadores del marcado (`oninput` del anticipo, `onchange` del estatus) llaman sin
+   argumentos, que es cuando sí hay un cambio que enseñar. */
+function rvRecalc(alAbrir){
   // Se registra lo que realmente se va a cobrar (precio autorizado), no el calculado.
   const t=desgloseFinal();
   const sub=t.sub, neto=t.neto;
@@ -118,10 +235,17 @@ function rvRecalc(){
      $1,758.56. `money()` redondea a centavos, igual que el ROUND(…,2) de allá. */
   const com=sub*COMISION_PCT/100;
   const pend=estatus==='LIQUIDADO'?0:Math.max(0,neto-anti);
-  document.getElementById('rv-sub-disp').textContent=money(sub);
-  document.getElementById('rv-neto-disp').textContent=money(neto);
-  document.getElementById('rv-com-disp').textContent=money(com);
-  document.getElementById('rv-pend-disp').textContent=money(pend);
+  /* Las cuatro cifras ruedan dígito a dígito cuando cambian (pieza 1, C23 #1). Es el reemplazo
+     directo de `textContent=`: el texto final está puesto desde el primer cuadro —la rueda es una
+     capa aparte— así que el lector de pantalla lee el número una vez, y la caja no cambia de
+     tamaño. Aquí sirve de verdad: se teclea el anticipo con el cliente enfrente y el pago
+     pendiente es el número que se le dice en voz alta; verlo moverse es ver que la cuenta
+     respondió a lo que se acaba de escribir. Con menos movimiento cambia sin rodar. */
+  const rodar=(id,t)=>Piezas.rodarCifra(id,t,{animar:!alAbrir});
+  rodar('rv-sub-disp',money(sub));
+  rodar('rv-neto-disp',money(neto));
+  rodar('rv-com-disp',money(com));
+  rodar('rv-pend-disp',money(pend));
 }
 /* ----- Una sola cifra de anticipo -----
    Se capturaba en dos sitios. El de la columna del resumen escribe `Q.anti`, y de ahí salen el
@@ -277,7 +401,16 @@ function mandarALaHoja(cierre){
   const datos=datosParaLaHoja();
   if(!datos['Proyecto']){ toast('Ponle nombre al proyecto antes de registrarlo','err',4000); return Promise.resolve(false); }
   rvRecordarPreferencias();
-  toast('Mandando la venta a la hoja…','',PUENTE_ESPERA);
+  /* Ya no sale «Mandando la venta a la hoja…» como aviso de quince segundos. Eso lo dice ahora el
+     propio botón, con su relleno y su cronómetro (pieza 14, C5): la espera pertenece al botón que
+     se apretó, no al pie de la pantalla, y un aviso de quince segundos ocupaba la pila entera —los
+     avisos de verdad, los que dicen que algo salió mal, le llegaban por detrás—.
+
+     Lo que sí se conserva es lo que ese aviso le decía a quien no ve la pantalla: el aviso lo
+     leía el lector de pantalla, y el botón cambia su rótulo en silencio. Por eso el comienzo de la
+     espera se dice aquí, en la región de siempre; el resultado ya lo dicen el aviso de éxito o de
+     error y el recibo verde, así que el botón no lo repite (`voz:false` en registrarEnLaHoja). */
+  voz('Mandando la venta a la hoja…');
   return puentePost(cfg,'empujar',{ops:[{id:datos['Folio cotizacion'],datos:datos}]})
     .then(j=>{
       const r=(j&&j.resultados&&j.resultados[0])||null;
@@ -287,12 +420,7 @@ function mandarALaHoja(cierre){
          del relevo; aplanarFila no devuelve ninguna clave «Folio». */
       const folio=(r.remoto&&r.remoto.id_notion)||'';
       const rech=(r.rechazadas||[]).map(x=>x&&x.nombre).filter(Boolean);
-      const el=document.getElementById('rv-copied');
-      if(el){
-        el.querySelector('span').textContent=(r.creada?'Venta registrada en la hoja':'Venta actualizada en la hoja')+
-          (folio?' — '+folio:'');
-        el.classList.add('show');
-      }
+      rvListo((r.creada?'Venta registrada en la hoja':'Venta actualizada en la hoja')+(folio?' — '+folio:''));
       toast((r.creada?'Venta registrada en la hoja':'Se actualizó la venta en la hoja')+(folio?' — '+folio:'')+
         ((cierre&&cierre.sufijo)||''),'ok',5600,(cierre&&cierre.accion)||null);
       /* Lo rechazado se dice con nombre. Un campo que no se escribió y nadie nombró es la
@@ -327,11 +455,7 @@ function copiarDatosVenta(){
   marcarHito('venta');
   const anti=parseFloat(document.getElementById('rv-anticipo').value)||0;
   copiarTexto(row,'Datos copiados — pégalos en la columna Proyecto del primer renglón vacío de Ventas',()=>{
-    const el=document.getElementById('rv-copied');
-    if(el){
-      el.querySelector('span').innerHTML='Pégalos en la columna <b>Proyecto</b> del primer renglón vacío de <b>Ventas</b>. Falta capturar a mano el anticipo ('+money(anti)+') y la fecha.';
-      el.classList.add('show');
-    }
+    rvListo(null,'Pégalos en la columna <b>Proyecto</b> del primer renglón vacío de <b>Ventas</b>. Falta capturar a mano el anticipo ('+money(anti)+') y la fecha.');
   });
 }
 /* ----- «Esta cotización se ganó» -----
@@ -356,7 +480,43 @@ function copiarDatosVenta(){
    camino y se volvía a elegir cada vez. Se recuerda aquí, en un solo sitio, y la llaman los
    dos caminos. La comisión ya no se recuerda: no se elige (ver COMISION_PCT). */
 function rvRecordarPreferencias(){
-  prefSet(PREF_RV_CUENTA,document.getElementById('rv-cuenta').value);
+  prefSet(PREF_RV_CUENTA,cuentaElegida());
+}
+/* ----- El botón que está trabajando lo dice (pieza 14, C5) -----
+   «Registrar venta» habla con la hoja y eso tarda: el puente espera hasta quince segundos, y en
+   una tienda con dos rayas de señal los tarda. El botón no cambiaba EN ABSOLUTO —salía un aviso
+   abajo y ahí se quedaba—, así que se podía volver a tocar, y con el cliente enfrente se toca:
+   no pasa nada visible, luego algo se rompió, luego otra vez. (No duplicaba la venta, porque el
+   puente busca por folio antes de crear, pero eso el vendedor no lo sabe.)
+
+   Ahora la espera vive en el botón: relleno que avanza, cronómetro («Registrando · 6 s»), y al
+   llegar la respuesta se lava en verde con su palomita o se pone en rojo con «Reintentar». Y
+   mientras trabaja, la pieza se come los toques: el segundo dedazo ya no hace nada.
+
+   `tau` es 9 s y no los 15 del tope: es lo que tarda una respuesta normal, y el relleno se acerca
+   al 90 % con esa curva pero SOLO llega al final con la respuesta de verdad. Una barra que llega
+   al 100 % y se queda ahí esperando es peor que ninguna.
+
+   El reintento sale del propio marcado: en «mal» el botón vuelve a aceptar toques y su
+   `onclick="registrarGanada()"` corre otra vez, que es el camino correcto —vuelve a pasar por la
+   constancia local y por la deduplicación por folio—.
+
+   «Copiar datos para la hoja» espera con él (`hermanos`): es el respaldo para cuando el puente
+   falla, y darle un toque en mitad de la espera copiaba la fila y marcaba «venta» mientras el
+   puente todavía podía escribirla, o sea dos caminos a la vez para la misma venta. En cuanto la
+   hoja contesta —bien o mal— vuelve a aceptar toques, que es cuando hace falta. «Cancelar» no
+   espera: cerrar el modal no cancela la petición, y el resultado sigue llegando por el aviso.
+
+   Cada intento empieza con el recibo verde apagado. Si el de una venta ya registrada seguía
+   encendido y el reintento fallaba, el pie del modal decía a la vez «Venta registrada en la hoja»
+   y «No se registró · Reintentar»: dos verdades contrarias sobre la misma venta, una encima de la
+   otra. */
+function registrarEnLaHoja(cierre){
+  rvListo(null);
+  return Piezas.trabajando('rv-registrar',
+    ()=>mandarALaHoja(cierre).then(ok=>{ if(!ok) throw new Error('la hoja no la escribió'); }),
+    {verbo:'Registrando', tau:9000, ok:'Registrada', mal:'No se registró',
+     hermanos:[document.getElementById('rv-copiar')].filter(Boolean), voz:false});
 }
 function registrarGanada(){
   rvComprometerAnticipo();
@@ -399,7 +559,7 @@ function registrarGanada(){
          antes de crear, así que no puede duplicar, y este es justo el camino de «se
          registró pero ese día no había señal». */
       if(puenteCfg()){
-        mandarALaHoja({sufijo:' — ya estaba registrada como proyecto ganado',
+        registrarEnLaHoja({sufijo:' — ya estaba registrada como proyecto ganado',
           accion:{label:'Abrir plataforma',fn:()=>{ irAPlataforma('proyectos'); }}});
         return;
       }
@@ -428,7 +588,7 @@ function registrarGanada(){
      la hoja, que es el libro mayor del dinero. Se avisa UNA vez: dos avisos seguidos se
      pisan y el segundo borra al primero antes de que nadie lo lea. */
   if(puenteCfg()){
-    mandarALaHoja({sufijo:' · registrada como proyecto ganado'+(sinFecha?', le falta la fecha de instalación':''),
+    registrarEnLaHoja({sufijo:' · registrada como proyecto ganado'+(sinFecha?', le falta la fecha de instalación':''),
       accion:abrir});
     return;
   }

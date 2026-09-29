@@ -1014,7 +1014,10 @@ document.documentElement.classList.add('arrancando');
              apretados en la media columna derecha, debajo de la nota de la fecha. -->
         <div class="rv-field full">
           <label id="rv-plazo-l">¿Cuánto tarda en el taller?</label>
-          <div class="chips" id="rv-plazo" role="group" aria-labelledby="rv-plazo-l"></div>
+          <!-- `ficha-transparente`: los cubos del plazo tienen fondo propio, y sin esto la
+               ficha que viaja (pieza 2) pasaría por debajo de ellos sin verse. El elegido se
+               sigue pintando con la regla de siempre de `.chip.on`. -->
+          <div class="chips ficha-transparente" id="rv-plazo" role="group" aria-labelledby="rv-plazo-l"></div>
           <div class="hintnote" id="rv-plazo-h" style="margin-top:6px"></div>
         </div>
         <div class="rv-field">
@@ -1032,21 +1035,6 @@ document.documentElement.classList.add('arrancando');
           <input type="number" inputmode="decimal" id="rv-pct" value="10" min="0" max="100" step="0.5" readonly title="La comisión es 10 % fijo del subtotal, sin IVA: la misma que calcula la hoja de finanzas" oninput="rvRecalc()">
         </div>
         <div class="rv-field">
-          <label for="rv-cuenta">Cuenta</label>
-          <!-- Las cinco cuentas que existen en la columna «Cuenta» de la hoja. Faltaban Rul
-               HSBC y Tatis BNT, y sobraba «Otra», que allá no existe: el puente valida
-               contra la lista real y rechaza lo que no esté. La preferencia guardada se
-               sigue leyendo con el guardia de más abajo, así que un teléfono que tenía
-               «Otra» simplemente no la aplica y se queda con la primera. -->
-          <select id="rv-cuenta">
-            <option>Elias BBVA</option>
-            <option>Constru BNT</option>
-            <option>Moni MPago</option>
-            <option>Rul HSBC</option>
-            <option>Tatis BNT</option>
-          </select>
-        </div>
-        <div class="rv-field">
           <label for="rv-estatus">Estatus</label>
           <!-- Los cuatro valores que de verdad existen en la columna Estatus de la pestaña
                Ventas. Antes decían ANTICIPO, CANCELADO y PENDIENTE, que no existen allá:
@@ -1059,28 +1047,53 @@ document.documentElement.classList.add('arrancando');
             <option>LIQUIDADO</option>
           </select>
         </div>
+        <!-- LA CUENTA, Y SI ESA CUENTA LLEVA IVA (C4).
+
+             Las cinco cuentas que existen en la columna «Cuenta» de la hoja. Faltaban Rul HSBC
+             y Tatis BNT, y sobraba «Otra», que allá no existe: el puente valida contra la lista
+             real y rechaza lo que no esté.
+
+             Era un <select> suelto, y la cuenta decide el IVA del renglón: la hoja «realinea» la
+             columna F según la cuenta (aplicarIva) sin avisarle a nadie. Elegir una cuenta sin
+             factura para una cotización CON IVA dejaba registrado un neto distinto del que dice
+             el PDF que el cliente tiene en la mano, y eso se descubría semanas después en
+             cobranza. Ahora las cinco se ven a la vez con su etiqueta, la que coincide con esta
+             cotización va primero, y si no coincide sale el aviso de abajo.
+
+             El valor sigue viviendo en un <input type="hidden" id="rv-cuenta"> que pinta la
+             pieza, así que datosParaLaHoja() y rvRecordarPreferencias() no cambian una línea.
+             La lista y el orden los arma pintarCuentas() en venta.js. -->
+        <div class="rv-field full">
+          <label id="rv-cuenta-l">Cuenta</label>
+          <div id="rv-cuentas-caja"></div>
+          <p class="rv-iva-av" id="rv-cuenta-av" hidden></p>
+        </div>
       </div>
       <div class="rv-calc">
         <div class="rv-calc-item">
           <span>Precio Subtotal</span>
-          <span id="rv-sub-disp">—</span>
+          <span class="rueda-cifra" id="rv-sub-disp">—</span>
         </div>
         <div class="rv-calc-item accent">
           <span>Precio Neto</span>
-          <span id="rv-neto-disp">—</span>
+          <span class="rueda-cifra" id="rv-neto-disp">—</span>
         </div>
         <div class="rv-calc-item">
           <span>Comisiones</span>
-          <span id="rv-com-disp">—</span>
+          <span class="rueda-cifra" id="rv-com-disp">—</span>
         </div>
         <div class="rv-calc-item">
           <span>Pago Pendiente</span>
-          <span id="rv-pend-disp">—</span>
+          <span class="rueda-cifra" id="rv-pend-disp">—</span>
         </div>
       </div>
     </div>
     <div class="rv-footer">
-      <div class="rv-copied" id="rv-copied"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg><span>Listo</span></div>
+      <!-- La palomita ya no es un icono fijo: la dibuja la pieza 6 en el momento en que la hoja
+           contesta, que es cuando hay algo que celebrar. El hueco nace vacío a propósito —una
+           palomita pintada de antemano dentro de una caja escondida se ve «ya hecha» al
+           aparecer— y lo llena rvListo() en venta.js. -->
+      <div class="rv-copied" id="rv-copied"><span class="rv-copied-ico" aria-hidden="true"></span><span>Listo</span></div>
       <!-- Un solo botón: deja constancia de que la cotización se ganó —de ahí salen el
            material, la agenda y el mapa— y escribe el renglón en la hoja de finanzas, que
            es el libro mayor del dinero. El de copiar se queda como respaldo para el

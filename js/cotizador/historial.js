@@ -314,15 +314,33 @@ function pintarHistorial(){
    convertiría el historial en una lista de regaños; lo que hace falta saber de un folio de
    hace tres semanas es qué se le hizo, no qué le falta. Y la propuesta de Canva entra aquí
    también, que era la otra constancia que se escribía y nadie leía. */
+/* ----- Los cuatro puntos de cada entrada (H3) -----
+   Era una línea de texto: «✓ Propuesta · 27 ago · PDF generado · 28 ago · Chat abierto · 28 ago».
+   Se lee entera, y a 360 px se parte en tres renglones dentro de una tarjeta que ya tiene folio,
+   cliente, fecha y total. Lo que casi siempre se quiere saber de una cotización vieja no es qué
+   día se generó el PDF: es cuáles pasos quedaron a medias.
+
+   Ahora son los mismos cuatro hitos como el riel mini de la pieza 16 —lleno o hueco, con
+   palomita y no solo color—, en el mismo orden en que se hacen, y al lado el ÚLTIMO que se hizo
+   con su fecha: el dato que de verdad se busca es «¿en qué se quedó?». Los puntos llevan la
+   lista completa en su nombre accesible (role="img") y la fecha de cada uno en su title, así que
+   con ratón y con lector no se pierde nada de lo que decía la línea larga.
+
+   Igual que antes: una entrada sin nada hecho no pinta nada. */
 function hitosHist(folio){
   const h=hitosDe(folio);
-  const marcas=HITOS.filter(x=>h[x.k]).map(x=>x.hecho+' · '+hitoFecha(h[x.k]));
-  try{
-    const pr=getPropuestas()[folio];
-    if(pr&&pr.primera) marcas.unshift('Propuesta · '+hitoFecha(pr.primera));
-  }catch(_){}
-  if(!marcas.length) return '';
-  return `<div class="hentry-hitos">${ico('i-check')} ${esc(marcas.join('  ·  '))}</div>`;
+  let propuesta=0;
+  try{ const pr=getPropuestas()[folio]; if(pr&&pr.primera) propuesta=pr.primera; }catch(_){}
+  const pasos=[{t:'Propuesta',ts:propuesta,hecho:'Propuesta'}]
+    .concat(HITOS.map(x=>({t:x.paso,ts:h[x.k],hecho:x.hecho})));
+  const puestos=pasos.filter(p=>p.ts);
+  if(!puestos.length) return '';
+  const ultimo=puestos[puestos.length-1];
+  const riel=Piezas.rielHTML(pasos.map(p=>({
+    texto:p.t, estado:p.ts?'hecho':'pendiente',
+    titulo:p.t+(p.ts?' · '+hitoFecha(p.ts):' · pendiente'),
+  })),{forma:'mini'});
+  return `<div class="hentry-hitos">${riel}<span class="hentry-ultimo">${esc(ultimo.hecho)} · ${esc(hitoFecha(ultimo.ts))}</span></div>`;
 }
 function cerrarHistorial(){ $('histmodal').classList.remove('show'); }
 

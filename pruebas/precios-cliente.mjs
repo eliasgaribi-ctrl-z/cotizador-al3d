@@ -43,7 +43,34 @@ const window = {
 };
 window.window = window; window.parent = window; window.self = window;
 class Observador { observe() {} disconnect() {} }
+/* ---- Las piezas compartidas, de mentiras ----
+   Esta prueba mide ARITMÉTICA: cómo se reparte un aumento, qué comisión sale y qué viaja a la
+   hoja. Corre los guiones del cotizador en un contexto sin ventana, y desde que el modal de
+   Registrar venta llama a las piezas (C4, C5, C23) necesita que `Piezas` exista.
+
+   Se pone un doble y no `js/piezas.js` de verdad porque las piezas se prueban solas
+   —pruebas/piezas-*.mjs y sus vitrinas de navegador— y meterlas aquí cambiaría lo que esta
+   prueba defiende por lo que ya defienden otras.
+
+   `rodarCifra` SÍ escribe el texto, y no es un detalle: la pieza de verdad garantiza que
+   `el.textContent` es el texto final desde el primer cuadro (la rueda es una capa aparte), que
+   es justo lo que estas comprobaciones leen. Un doble que no escribiera dejaría pasar un modal
+   que enseña la comisión equivocada. */
+const Piezas = {
+  sinMovimiento: () => true, voz: noop, esc: String,
+  rodarCifra: (el, texto) => { const e = typeof el === 'string' ? document.getElementById(el) : el; if (e) e.textContent = texto; },
+  fichaQueViaja: () => ({ mover: noop, destruir: noop }),
+  palomitaHTML: () => '<svg class="palomita"></svg>',
+  rielHTML: () => '', riel: () => null,
+  vistazoHTML: () => '', vistazo: () => ({ cerrar: noop }),
+  opcionesDeslizantesHTML: () => '', opcionesDeslizantes: () => ({ valor: () => '', fijar: noop, destruir: noop }),
+  estadoBoton: () => ({ reiniciar: noop }),
+  trabajando: (b, trabajo) => Promise.resolve(typeof trabajo === 'function' ? trabajo() : trabajo).then(v => ({ ok: true, valor: v }), e => ({ ok: false, error: e })),
+  telefono: { formato: d => String(d) },
+};
+window.Piezas = Piezas;
 const ctx = vm.createContext({
+  Piezas,
   window, document, self: window, location: window.location, history: window.history,
   localStorage: { getItem: () => null, setItem: noop, removeItem: noop },
   navigator: { userAgent: 'node' }, console, setTimeout, clearTimeout,
