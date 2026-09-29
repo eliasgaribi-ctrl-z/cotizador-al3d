@@ -25,7 +25,7 @@
      nombra Figtree y Outfit y ninguna página las baja. -->
 <link rel="stylesheet" href="css/vidrio.css">
 </head>
-<body class="pub">
+<body class="pub pub-doc">
 <main class="pub-wrap">
 
   <div class="pub-marca">
@@ -40,15 +40,55 @@
   a quién se lo manda y qué no hace, porque el código está a la vista y cualquiera puede
   comprobarlo.</p>
 
-  <h2>De quién es</h2>
+  <!-- ============================================================================
+     A19 · El índice, y A26 · el filete que dice cuánto llevas leído.
+
+     Las dos cosas que le faltaban a un documento largo que se lee en un teléfono: saber qué
+     hay dentro sin bajarlo entero, y saber cuánto falta. Para llegar a «Respaldos» o a «Cómo
+     quitas tu acceso» había que recorrerlo todo con el dedo.
+
+     Las dos van SIN UNA LÍNEA DE JAVASCRIPT, y no por lucirse: estas páginas declaran
+     `script-src 'self'` y no cargan un solo guion propio a propósito (ver la cabecera de
+     css/publico.css). Una política de privacidad que necesita ejecutar código para leerse es
+     una contradicción, y Google las revisa con herramientas que no siempre esperan a que un
+     guion pinte. Así que el índice son enlaces con `#` y un <details> nativo, el destello del
+     título al llegar es `h2:target`, y el avance de lectura es una animación ligada al scroll
+     (`animation-timeline`) dentro de un @supports: donde no la haya, queda el filete de
+     siempre y no falta nada.
+
+     Tampoco hay `scrollIntoView`: un salto de ancla nativo respeta `scroll-margin-top` y no se
+     pelea con el scroll del documento.
+     ============================================================================ -->
+  <div class="pub-avance" aria-hidden="true"></div>
+  <div class="pub-doc-cuerpo">
+  <details class="pub-indice pliegue">
+    <summary>En esta página <span class="pliegue-flecha" aria-hidden="true">▾</span></summary>
+    <nav aria-label="Índice de la política de privacidad">
+      <ol>
+      <li><a href="#de-quien-es">De quién es</a></li>
+      <li><a href="#para-quien-es-la-aplicacion">Para quién es la aplicación</a></li>
+      <li><a href="#que-te-pedimos-de-tu-cuenta-de-google">Qué te pedimos de tu cuenta de Google</a></li>
+      <li><a href="#que-datos-guarda-la-aplicacion">Qué datos guarda la aplicación</a></li>
+      <li><a href="#a-quien-mas-le-llegan-datos">A quién más le llegan datos</a></li>
+      <li><a href="#que-no-hacemos">Qué NO hacemos</a></li>
+      <li><a href="#cuanto-tiempo-se-guarda">Cuánto tiempo se guarda</a></li>
+      <li><a href="#como-quitas-tu-acceso-y-tus-datos">Cómo quitas tu acceso y tus datos</a></li>
+      <li><a href="#menores">Menores</a></li>
+      <li><a href="#si-esto-cambia">Si esto cambia</a></li>
+      </ol>
+    </nav>
+  </details>
+
+  <div class="pub-doc-texto">
+  <h2 id="de-quien-es">De quién es</h2>
   <p>De <b>AL3D — Elías Garibi</b>, Guadalajara, Jalisco, México. Para cualquier cosa sobre
   tus datos: <a href="mailto:eliasgaribi@gmail.com">eliasgaribi@gmail.com</a>.</p>
 
-  <h2>Para quién es la aplicación</h2>
+  <h2 id="para-quien-es-la-aplicacion">Para quién es la aplicación</h2>
   <p>Para el equipo de AL3D. No se registra nadie por su cuenta: la dirección de AL3D pone
   los correos que pueden entrar y los quita cuando hace falta.</p>
 
-  <h2>Qué te pedimos de tu cuenta de Google</h2>
+  <h2 id="que-te-pedimos-de-tu-cuenta-de-google">Qué te pedimos de tu cuenta de Google</h2>
   <div class="pub-caja">
     <h3>Una sola cosa: tu correo</h3>
     <p>El permiso que la aplicación le pide a Google se llama <b>«openid email»</b>, y es el
@@ -65,7 +105,7 @@
   es tu correo, para que la pantalla pueda decirte con quién estás dentro sin tener que
   preguntarle otra vez a Google.</p>
 
-  <h2>Qué datos guarda la aplicación</h2>
+  <h2 id="que-datos-guarda-la-aplicacion">Qué datos guarda la aplicación</h2>
   <p>La mayor parte de lo que haces <b>se queda en tu propio aparato</b>, en el
   almacenamiento del navegador: las cotizaciones, los proyectos, el catálogo de material, el
   libro del almacén y la agenda. Si borras los datos del sitio, eso se va contigo.</p>
@@ -77,7 +117,7 @@
   campos— para poder saber quién movió qué. Es una bitácora de trabajo, no un seguimiento de
   personas: no registra dónde estás, ni qué pantallas abriste, ni cuánto tiempo pasaste.</p>
 
-  <h2>A quién más le llegan datos</h2>
+  <h2 id="a-quien-mas-le-llegan-datos">A quién más le llegan datos</h2>
   <p>Solo a estos, y solo para lo que dice cada renglón:</p>
   <ul>
     <li><b>Google</b> — para verificar quién eres al entrar, y para la hoja de cálculo donde
@@ -95,7 +135,7 @@
     Google. Si no lo usas, nunca se llama a ninguno.</li>
   </ul>
 
-  <h2>Qué NO hacemos</h2>
+  <h2 id="que-no-hacemos">Qué NO hacemos</h2>
   <div class="pub-caja">
     <ul>
       <li><b>No vendemos ni compartimos tus datos con nadie.</b></li>
@@ -108,12 +148,12 @@
     </ul>
   </div>
 
-  <h2>Cuánto tiempo se guarda</h2>
+  <h2 id="cuanto-tiempo-se-guarda">Cuánto tiempo se guarda</h2>
   <p>Los datos del negocio —las ventas, los proyectos— se guardan mientras AL3D los necesite
   para su operación y para lo que la ley le exija conservar de su contabilidad. Tu correo en
   la lista de accesos se guarda mientras trabajes con AL3D.</p>
 
-  <h2>Cómo quitas tu acceso y tus datos</h2>
+  <h2 id="como-quitas-tu-acceso-y-tus-datos">Cómo quitas tu acceso y tus datos</h2>
   <ul>
     <li><b>Salir de este aparato:</b> en Ajustes, «Salir de Google en este dispositivo».</li>
     <li><b>Quitar el permiso que le diste a la aplicación:</b> desde tu cuenta de Google, en
@@ -128,16 +168,20 @@
   <p>Si quieres saber qué datos tuyos hay, corregirlos o pedir que se borren, escribe al
   mismo correo. Contestamos a la misma persona que pregunta.</p>
 
-  <h2>Menores</h2>
+  <h2 id="menores">Menores</h2>
   <p>Es una herramienta de trabajo. No está dirigida a menores de edad ni la usan.</p>
 
-  <h2>Si esto cambia</h2>
+  <h2 id="si-esto-cambia">Si esto cambia</h2>
   <p>Cuando cambie, cambia la fecha de arriba. Si el cambio es de fondo —datos nuevos, o un
   tercero nuevo— se avisa al equipo antes.</p>
+
+  </div>
+  </div>
 
   <nav class="pub-pie">
     <a href="acerca.html">Qué es AL3D Taller</a>
     <a href="./">La plataforma</a>
+    <a href="acerca.html#creditos">Créditos</a>
     <a href="condiciones.html">Condiciones del servicio</a>
   </nav>
 
