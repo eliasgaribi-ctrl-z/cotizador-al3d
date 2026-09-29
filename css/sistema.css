@@ -4037,6 +4037,75 @@ html.va-atras #card-proy,html.va-atras .p1-cierre{animation-name:entra-izq}
 /* (El bloque de «menos movimiento» se mudó al final de la capa 8: ver «Menos movimiento no es
    ninguno». Aquí apagaba TODO a .001 ms, fundidos incluidos.) */
 
+/* =====================================================================
+   ================  PIEZAS COMPARTIDAS  (js/piezas.js)  ===============
+   =====================================================================
+   Las piezas que se construyen una vez y entran en muchos lugares: el aviso con mecha, el botón
+   que dice que está trabajando, el total que rueda, el riel de pasos… Van aquí, al final de la
+   capa de estructura y movimiento y antes del cierre, porque son estructura y movimiento: la
+   capa (5) todavía tiene que poder ganarles por orden, y el tema oscuro (7) y el vidrio (8)
+   repintarlas. Su apagado para menos movimiento vive al cierre de la capa 8, en el bloque
+   «Menos movimiento, para las piezas y las pantallas nuevas».
+
+   Cada bloque es de una sección de js/piezas.js y lleva su marca de fin: lo nuevo va DENTRO
+   de su bloque, no pegado a otro.
+   ===================================================================== */
+
+/* ── Piezas · 1 · avisos y botones que dicen lo que pasa ── */
+
+/* ── fin de piezas · 1 ── */
+
+/* ── Piezas · 2 · hojas, listas y transiciones ── */
+
+/* ── fin de piezas · 2 ── */
+
+/* ── Piezas · 3 · números, medidas y campos ── */
+
+/* ── fin de piezas · 3 ── */
+
+/* ── Piezas · 4 · señalar, explicar y sellar ── */
+
+/* ── fin de piezas · 4 ── */
+
+/* =====================================================================
+   ================  LAS PANTALLAS DEL COTIZADOR, CON LAS PIEZAS  ======
+   =====================================================================
+   Lo que cada pantalla del cotizador añade al usar las piezas de arriba. Un bloque por zona,
+   con su marca de fin.
+   ===================================================================== */
+
+/* ── Cotizador · cliente, folio e iconos ── */
+
+/* ── fin de cot-cliente ── */
+
+/* ── Cotizador · partidas y completitud ── */
+
+/* ── fin de cot-partidas ── */
+
+/* ── Cotizador · precio, autorización, notario y hitos ── */
+
+/* ── fin de cot-precio ── */
+
+/* ── Cotizador · entrega (PDF, WhatsApp) y registrar venta ── */
+
+/* ── fin de cot-entrega ── */
+
+/* ── Cotizador · Cotizar con IA ── */
+
+/* ── fin de cot-ia ── */
+
+/* ── Cotizador · escalador y el letrero sobre la fachada ── */
+
+/* ── fin de cot-escalador ── */
+
+/* ── Cotizador · vectorizador ── */
+
+/* ── fin de cot-vector ── */
+
+/* ── Cotizador · historial, cuadernos y respaldos ── */
+
+/* ── fin de cot-historial ── */
+
 /* ===================== Cierre de la hoja: lo que tiene que ganar por orden =====================
    Va aquí —después de la capa de barro y del pase visual, y ANTES del @media print— porque
    entre dos reglas con la misma especificidad gana la última. Es el mismo tropiezo que ya
@@ -5187,6 +5256,49 @@ html[data-tema="oscuro"] .ai-btn:disabled,html[data-tema="oscuro"] .ai-btn[disab
 @media(prefers-reduced-motion:reduce) and (min-width:760px){ .toast,.toast.show{transform:none!important} }
 @keyframes aparece{from{opacity:0}}
 @keyframes pulso-lento{50%{opacity:.35}}
+
+/* ---------- Menos movimiento, para las piezas y las pantallas nuevas ----------
+   Va después del bloque de arriba y con la misma regla: se quita lo que desplaza, escala o se
+   mueve solo, y se queda lo que informa —la mecha quieta, el relleno de avance, el fundido—.
+   Un bloque por sección, con su marca de fin. */
+@media(prefers-reduced-motion:reduce){
+/* ── rm · piezas · 1 ── */
+
+/* ── fin de rm · piezas · 1 ── */
+/* ── rm · piezas · 2 ── */
+
+/* ── fin de rm · piezas · 2 ── */
+/* ── rm · piezas · 3 ── */
+
+/* ── fin de rm · piezas · 3 ── */
+/* ── rm · piezas · 4 ── */
+
+/* ── fin de rm · piezas · 4 ── */
+/* ── rm · cot-cliente ── */
+
+/* ── fin de rm · cot-cliente ── */
+/* ── rm · cot-partidas ── */
+
+/* ── fin de rm · cot-partidas ── */
+/* ── rm · cot-precio ── */
+
+/* ── fin de rm · cot-precio ── */
+/* ── rm · cot-entrega ── */
+
+/* ── fin de rm · cot-entrega ── */
+/* ── rm · cot-ia ── */
+
+/* ── fin de rm · cot-ia ── */
+/* ── rm · cot-escalador ── */
+
+/* ── fin de rm · cot-escalador ── */
+/* ── rm · cot-vector ── */
+
+/* ── fin de rm · cot-vector ── */
+/* ── rm · cot-historial ── */
+
+/* ── fin de rm · cot-historial ── */
+}
 
 /* En papel no hay vidrio. El bloque de `@media print` de más arriba escribe con `!important` y
    le gana a todo esto por su cuenta —fondos blancos, sin sombra y sin animación—, pero no

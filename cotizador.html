@@ -950,6 +950,8 @@ document.documentElement.classList.add('arrancando');
      el ámbito global —los 157 manejadores en línea del marcado dependen de eso— y el orden
      importa: arranque.js va al final porque init() llama a los demás. -->
 <script src="vendor/qrcodegen.js"></script>
+<!-- Las piezas compartidas van antes que el núcleo: toast() las usa desde el primer aviso. -->
+<script src="js/piezas.js"></script>
 <script src="js/cotizador/catalogo.js"></script>
 <script src="js/cotizador/nucleo.js"></script>
 <script src="js/cotizador/partidas.js"></script>

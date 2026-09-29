@@ -74,6 +74,8 @@ const APP_FILES = [
   './verificar.html',
   './css/publico.css',
   './js/tema.js',
+  /* Las piezas compartidas: las cargan el cotizador, la plataforma, el anidador y verificar. */
+  './js/piezas.js',
   /* El cotizador: la página y sus doce guiones. Van juntos porque se cargan en orden y se
      llaman entre sí; uno nuevo con uno viejo no arranca. */
   './cotizador.html',

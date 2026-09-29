@@ -219,7 +219,7 @@ comparar('los oninput de cotizador.html', porTipo('oninput'),
 const NUM = { veinticinco: 25, treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60,
   setenta: 70, 'setenta y cuatro': 74, 'setenta y cinco': 75, 'setenta y seis': 76,
   ochenta: 80, 'ochenta y un': 81, 'ochenta y dos': 82, 'ochenta y tres': 83, 'ochenta y cuatro': 84,
-  'ochenta y cinco': 85, 'ochenta y seis': 86, 'ochenta y siete': 87, 'ochenta y ocho': 88, noventa: 90, cien: 100, 'ciento seis': 106 };
+  'ochenta y cinco': 85, 'ochenta y seis': 86, 'ochenta y siete': 87, 'ochenta y ocho': 88, noventa: 90, cien: 100, 'ciento seis': 106, 'ciento siete': 107 };
 const mConj = /Son ([a-zá-ú ]+?) archivos que se cargan en orden/.exec(readme);
 if (!mConj) mal('el README ya no dice cuántos archivos son el conjunto versionado');
 else if (NUM[mConj[1].trim()] === undefined) mal('el README dice «' + mConj[1].trim() + ' archivos» y esta prueba no sabe leer ese número; añádelo a NUM');
@@ -235,8 +235,9 @@ comparar('las pruebas de node', readdirSync(join(RAIZ, 'pruebas')).filter(n => n
 /* 4 · Los módulos ES de LA PLATAFORMA, que es el argumento del service worker para servirla
    caché primero: «un módulo nuevo con uno viejo no es una app vieja, es una app rota».
    Quedan fuera los doce guiones clásicos del cotizador —que comparten ámbito global y no se
-   importan entre sí— y `js/tema.js`, que también es clásico y corre antes del primer pintado. */
-const modulosES = enDisco.filter(f => f !== 'js/tema.js' && !f.startsWith('js/cotizador/')).length;
+   importan entre sí—, `js/tema.js`, que también es clásico y corre antes del primer pintado, y
+   `js/piezas.js`, el otro clásico: lo cargan las cuatro superficies con un <script> normal. */
+const modulosES = enDisco.filter(f => f !== 'js/tema.js' && f !== 'js/piezas.js' && !f.startsWith('js/cotizador/')).length;
 comparar('los módulos ES de la plataforma', modulosES, [
   cuentaDicha(sw, /La plataforma son (\d+) módulos ES/, 'sw.js'),
   cuentaDicha(sw, /la plataforma pide (\d+) módulos al arrancar/, 'sw.js'),
