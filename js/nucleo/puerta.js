@@ -252,8 +252,8 @@ const MS_SEGUNDA_OPINION = 4000;
 
 /** Lanza la comprobación y devuelve las DOS cosas: la que tiene tope, para no colgar el
  *  arranque, y la de verdad, que sigue viva por si contesta tarde y todavía sirve. */
-function confirmarSuelto(conPantalla) {
-  const real = confirmarDeVerdad(conPantalla);
+function confirmarSuelto(conPantalla, alPaso) {
+  const real = confirmarDeVerdad(conPantalla, alPaso);
   const conTope = Promise.race([
     real,
     new Promise(r => setTimeout(() => r({ estado: 'sin_red', tarde: true }),
@@ -264,8 +264,8 @@ function confirmarSuelto(conPantalla) {
   return { real, conTope };
 }
 
-async function confirmar(conPantalla) {
-  return await confirmarSuelto(conPantalla).conTope;
+async function confirmar(conPantalla, alPaso) {
+  return await confirmarSuelto(conPantalla, alPaso).conTope;
 }
 
 /**
@@ -278,19 +278,36 @@ async function confirmar(conPantalla) {
  *
  * @param {boolean} [conPantalla] true para abrir la ventana de Google; por omisión renueva
  *        callado, que es lo que se puede hacer sin un click de la persona.
+ * @param {Function} [alPaso] `(clave, estado, detalle)` — quién está esperando a quién, para que
+ *        la pantalla lo pueda enseñar (F10). Los dos pasos son `google` y `hoja`, en ese orden,
+ *        que es el orden real: primero Google dice quién eres, después la hoja dice qué te toca.
+ *        Solo lo pasa el camino con pantalla; el callado corre por detrás y no tiene a quién
+ *        contarle nada. Es opcional a propósito: esta función tiene que poder correr sin nadie
+ *        mirando.
  */
-async function confirmarDeVerdad(conPantalla) {
+async function confirmarDeVerdad(conPantalla, alPaso) {
+  const paso = (c, e, d) => { if (alPaso) { try { alPaso(c, e, d); } catch (_) {} } };
   if (!Ingreso.configurado()) return { estado: 'sin_red' };
 
+  /* Esto corre DENTRO del clic y antes de `requestAccessToken`: es lo único que puede haber ahí,
+     porque es una clase y un atributo, sin esperas. Cualquier `await` de más aquí y el navegador
+     tapa la ventana de Google (ver la cabecera de este archivo). */
+  paso('google', 'trabaja');
   const e = conPantalla ? await Ingreso.entrar(false) : await Ingreso.renovar();
   if (!e.ok) {
+    /* El detalle del renglón es corto a propósito: la frase entera de por qué no se pudo —la
+       ventana que se cerró, la que el navegador bloqueó— sale en el aviso de la puerta, y
+       repetirla aquí la cortaría a media palabra en un teléfono de 360 px. */
+    paso('google', 'mal', 'no se completó');
     /* Que la persona cierre la ventana de Google no es quedarse fuera para siempre: es no
        haber entrado todavía. Se trata como «no se pudo preguntar» y la puerta sigue puesta.
        El mensaje sí viaja tal cual: distinguir «cerraste la ventana» de «tu navegador la
        bloqueó» es la diferencia entre volver a intentar y saber qué hay que tocar. */
     return { estado: 'sin_red', mensaje: e.mensaje || '' };
   }
+  paso('google', 'ok', Ingreso.correo() || '');
 
+  paso('hoja', 'trabaja');
   let v = await preguntarALaHoja();
 
   /* ── Echar a alguien se comprueba DOS veces ────────────────────────────────────
@@ -310,6 +327,11 @@ async function confirmarDeVerdad(conPantalla) {
     const v2 = await preguntarALaHoja();
     if (v2.estado !== 'fuera') v = v2;   // era un tropiezo, no una baja
   }
+  /* El paso de la hoja termina como terminó de verdad: `ok` solo cuando contestó con un correo y
+     un rol. «Fuera» y «sin red» son dos fallos distintos y el detalle lo dice, porque lo que se
+     hace después no es lo mismo: uno se arregla entrando con otra cuenta y el otro esperando. */
+  paso('hoja', v.estado === 'ok' ? 'ok' : 'mal',
+    v.estado === 'fuera' ? 'tu cuenta no está dada de alta' : (v.estado === 'ok' ? '' : 'no contestó'));
   return v;
 }
 
@@ -436,7 +458,7 @@ function pedirEntrada(av, pendiente, echando) {
     document.documentElement.classList.add('con-puerta');
     caja.hidden = false;
 
-    pintar(caja, av, false);
+    pintar(caja, av);
 
     /* El guion de Google se pide AHORA, mientras la persona lee la pantalla, y no cuando
        aprieta. Es la otra mitad de por qué la ventana se bloqueaba: `entrar()` espera a que
@@ -466,12 +488,18 @@ function pedirEntrada(av, pendiente, echando) {
     if (pendiente) pendiente.then(r => {
       if (caja.hidden) return;                       // ya entró por el botón: llegó tarde
       if (r && r.estado === 'ok') return entrar(r);
-      if (r && r.estado === 'fuera') { Prefs.borrarPase(); pintar(caja, MSG.FUERA(r.correo || ''), false); }
+      if (r && r.estado === 'fuera') { Prefs.borrarPase(); pintar(caja, MSG.FUERA(r.correo || '')); }
     }).catch(() => {});
 
     caja.addEventListener('click', async ev => {
       const b = ev.target.closest('[data-puerta]');
       if (!b) return;
+      /* El botón que cuenta lo que pasa es SIEMPRE el principal, se toque el que se toque: «Entrar
+         con otra cuenta» arranca la misma entrada, y que el progreso saliera en un botón chico
+         de texto subrayado no lo habría visto nadie. */
+      const btn = caja.querySelector('[data-puerta="entrar"]');
+      if (!btn || btn.dataset.estado === 'trabajando') return;
+      const otra = caja.querySelector('[data-puerta="otra"]');
       if (b.dataset.puerta === 'otra') {
         /* «Entrar con otra cuenta»: se suelta la sesión de ESTE aparato para que Google
            vuelva a preguntar cuál, en vez de reintentar con la que acaba de ser rechazada.
@@ -480,19 +508,149 @@ function pedirEntrada(av, pendiente, echando) {
         Ingreso.salir();
         Prefs.borrarPase();
       }
-      pintar(caja, av, true);
-      /* `true`: esto sale de un click, así que aquí SÍ se puede abrir la ventana de Google.
-         Es la única parte del arranque donde eso es posible. */
-      const r = await confirmar(true);
-      if (r.estado === 'ok') return entrar(r);
+      /* ----- F10 · LA PUERTA DICE EN QUÉ PASO VA -----
+         Hasta 180 segundos con «Entrando…» y un anillo gris. Un Apps Script en frío tarda de 5
+         a 10 s y la pantalla parecía congelada; y si el reintento fallaba con el mismo aviso, el
+         HTML quedaba IDÉNTICO y parecía que el toque no había hecho nada.
+
+         Ya no se repinta la caja al tocar, ni al fallar. En su lugar:
+           · el botón se encarga de sí mismo (pieza 14): «Entrando · 6 s», su relleno, y si
+             falla vuelve a aceptar toques con «Volver a intentar» — sin `disabled`, así que el
+             foco se queda donde estaba;
+           · debajo salen los dos pasos de verdad (pieza 8) con su reloj, y cada uno termina en
+             palomita o en cruz: «Google · tu cuenta» y «La hoja · qué te toca». Cuál de los dos
+             se quedó colgado ES la respuesta a «¿por qué no entro?», y por eso se quedan a la
+             vista cuando falla: repintar la caja entera con el aviso —lo que se hacía— los
+             habría borrado justo cuando alguien los busca;
+           · y las manchas del logo (pieza 25) sustituyen al anillo gris mientras tanto.
+
+         Nada de esto pasa antes de `requestAccessToken`: lo único que corre dentro del clic es
+         preparar la traza y encender el botón, que no esperan a nada. */
+      const t = arrancarPasos(caja);
+      const res = await pedirConGoogle(btn, t, otra);
+      if (res.ocupado) return;
+      if (res.ok && res.valor && res.valor.estado === 'ok') return entrar(res.valor);
+      const r = res.valor || { estado: 'sin_red' };
       av = r.estado === 'fuera' ? MSG.FUERA(r.correo)
          : (r.mensaje ? aviso(r.mensaje) : MSG.SIN_RED_PRIMERA);
-      pintar(caja, av, false);
+      ponerAviso(caja, av);
     });
   });
 }
 
-function pintar(caja, av, esperando) {
+/* Los dos pasos de la entrada, en el orden en que ocurren de verdad. Las claves son las que
+   usa `confirmarDeVerdad()` al avisar, y los rótulos dicen quién contesta qué: a Google se le
+   pregunta QUIÉN eres, a la hoja QUÉ te toca. Con esos dos renglones delante, «no entro» deja de
+   ser una sola cosa. */
+const PASOS_PUERTA = [
+  { clave: 'google', texto: 'Google · tu cuenta' },
+  { clave: 'hoja', texto: 'La hoja · qué te toca' },
+];
+
+/** Enseña los dos pasos en espera y devuelve la traza, o null si las piezas no cargaron (la
+ *  puerta tiene que seguir abriéndose sin ellas). Se puede llamar en cada intento: los pasos del
+ *  anterior se borran y los relojes empiezan de cero, que es lo que dice «lo volví a intentar». */
+function arrancarPasos(caja) {
+  const P = typeof window !== 'undefined' ? window.Piezas : null;
+  const el = caja.querySelector('.puerta-pasos');
+  if (!P || !P.traza || !el) return null;
+  el.hidden = false;
+  const t = P.traza(el.querySelector('.puerta-traza'), { reloj: 's', plegar: false });
+  if (t) { t.limpiar(); for (const x of PASOS_PUERTA) t.paso(x.clave, x.texto, 'espera'); }
+  return t;
+}
+
+/** Pide la entrada con el botón puesto a trabajar (pieza 14) y los pasos avanzando (pieza 8).
+ *  Nunca se rechaza: devuelve lo mismo que `Piezas.trabajando`, con el veredicto de la hoja en
+ *  `valor` —sea bueno o no— y `ocupado` si el botón ya estaba trabajando. */
+function pedirConGoogle(btn, t, otra) {
+  const P = typeof window !== 'undefined' ? window.Piezas : null;
+  const carga = btn.closest('.puerta-caja') && btn.closest('.puerta-caja').querySelector('.carga-logo');
+  const cl = (P && P.cargaLogo && carga) ? P.cargaLogo(carga) : null;
+  /* Lo que llegue DESPUÉS de que el intento se dio por terminado no pinta: con el tope de 180 s
+     de `confirmar()` la petición de fondo sigue viva, y si contestara tarde volvería a poner
+     palomita en un renglón que ya se marcó con cruz. */
+  let cerrado = false;
+  const alPaso = (clave, estado, detalle) => { if (t && !cerrado) t.paso(clave, null, estado, detalle); };
+  /* `true`: esto sale de un click, así que aquí SÍ se puede abrir la ventana de Google. Es la
+     única parte del arranque donde eso es posible, y por eso `confirmar()` se llama sin esperar
+     a nada antes. */
+  const trabajo = () => confirmar(true, alPaso).then(v => {
+    if (v.estado === 'ok') return v;
+    /* Un veredicto que no es «ok» es un fallo PARA EL BOTÓN, pero no es una excepción: el
+       veredicto viaja colgado del error para que quien llama pinte el aviso de siempre. */
+    const e = new Error(v.estado === 'fuera' ? 'Sin acceso' : 'No se pudo entrar');
+    e.puerta = v;
+    throw e;
+  });
+  const cierra = r => {
+    cerrado = true;
+    if (t) t.terminar({ ok: r.ok });
+    if (cl) cl.terminar(r.ok ? 'ok' : 'mal');
+    return Object.assign({}, r, { valor: r.ok ? r.valor : (r.error && r.error.puerta) });
+  };
+  if (!P || !P.trabajando) {
+    /* Sin las piezas, el camino de siempre: se pide y se pinta el resultado. */
+    return trabajo().then(v => ({ ok: true, valor: v }), e => ({ ok: false, error: e })).then(cierra);
+  }
+  return P.trabajando(btn, trabajo, {
+    verbo: 'Entrando', tau: 8000,
+    /* `ok:false`: no hay «Listo» que enseñar, porque en cuanto la hoja dice que sí la puerta se
+       quita entera y detrás está el taller. */
+    ok: false,
+    /* La frase corta del botón; la explicación entera va en el aviso de arriba y no se repite
+       aquí, donde se cortaría con puntos suspensivos. */
+    mal: e => (e && e.message) || 'No se pudo entrar',
+    reintentar: 'Volver a intentar',
+    /* El aviso de arriba ya lo dice y es `role="alert"`; que el botón también lo gritara por la
+       región asertiva era decir dos veces lo mismo, una tras otra. */
+    voz: false,
+    hermanos: otra ? [otra] : [],
+  }).then(r => r.ocupado ? r : cierra(r));
+}
+
+/* Lo último que dijo la puerta. Si el reintento falla con exactamente el mismo aviso, el HTML
+   queda idéntico y parece que el toque no hizo nada: una sacudida corta de 250 ms lo dice sin
+   escribir una palabra más. Con movimiento reducido no sacude —la regla del sistema— y ahí lo
+   que dice que se intentó otra vez son los relojes de los dos pasos, que empezaron de cero. */
+let _ultimoAviso = null;
+
+/** Cambia el aviso EN SU SITIO, sin repintar la caja: los dos pasos de abajo y el botón siguen
+ *  donde estaban. El aviso es siempre un nodo nuevo, y no un `innerHTML` sobre el de antes: un
+ *  `role="alert"` cuyo texto no cambió no se vuelve a anunciar, y un reintento que falla igual es
+ *  justo el caso en que hay que decirlo otra vez. */
+function ponerAviso(caja, av) {
+  const fuera = !!(av && av.fuera);
+  const cuerpo = av ? (av.html != null ? av.html : esc(av.texto || '')) : '';
+  const repetido = !!cuerpo && cuerpo === _ultimoAviso;
+  _ultimoAviso = cuerpo || null;
+  const viejo = caja.querySelector('.puerta-aviso');
+  if (viejo) viejo.remove();
+  const btn = caja.querySelector('[data-puerta="entrar"]');
+  if (cuerpo && btn) {
+    const p = document.createElement('p');
+    p.className = 'puerta-aviso' + (fuera ? ' es-no' : '') + (repetido ? ' otra-vez' : '');
+    p.setAttribute('role', 'alert');
+    p.innerHTML = cuerpo;
+    btn.before(p);
+    if (repetido) p.addEventListener('animationend', () => p.classList.remove('otra-vez'), { once: true });
+  }
+  /* «Entrar con otra cuenta» solo existe cuando la hoja dijo que no: es lo que se puede hacer. */
+  const otra = caja.querySelector('[data-puerta="otra"]');
+  if (fuera && !otra && btn) {
+    const o = document.createElement('button');
+    o.type = 'button'; o.className = 'puerta-otra'; o.dataset.puerta = 'otra';
+    o.textContent = 'Entrar con otra cuenta';
+    btn.after(o);
+  } else if (!fuera && otra) otra.remove();
+}
+
+/* Esta es la caja ENTERA, y se escribe una vez: al poner la puerta y cuando una comprobación
+   tardía dice que la cuenta no entra. Lo que pasa DESPUÉS de tocar el botón no repinta nada:
+   quien dice que está trabajando es el propio botón (pieza 14) y los dos pasos de abajo (pieza
+   8), y volver a escribir la caja encima era justo lo que borraba los relojes que la persona
+   estaba mirando. */
+function pintar(caja, av) {
   /* `fuera` sale de un campo del aviso, no de buscarle palabras al texto. Lo que había aquí
      era una expresión regular probando el mensaje contra la frase del cartel, y con eso
      reescribir el cartel —cambiar esa frase por «no estás dado de alta», por ejemplo— habría
@@ -509,6 +667,13 @@ function pintar(caja, av, esperando) {
      existían al cargar la página, y éste se escribe después. */
   const logo = document.documentElement.getAttribute('data-tema') === 'oscuro'
     ? 'logo-al3d-oscuro.svg' : 'logo-al3d.svg';
+  const P = typeof window !== 'undefined' ? window.Piezas : null;
+  /* Las manchas del logo en vez del anillo gris (pieza 25). Es la misma carga que verificar.html
+     —la única página que ve un tercero— y ésta es la otra: las dos pantallas que alguien mira
+     sin haber entrado todavía se ven de la casa. Va escondida y la enciende el clic. */
+  const carga = (P && P.cargaLogoHTML) ? P.cargaLogoHTML({ chica: true }) : '';
+  _ultimoAviso = cuerpo || null;
+
   caja.innerHTML =
     '<div class="puerta-caja">' +
       '<img class="puerta-logo logoimg" src="' + logo + '" width="72" height="36" alt="AL3D">' +
@@ -516,22 +681,22 @@ function pintar(caja, av, esperando) {
       '<p class="puerta-sub">Entra con la cuenta de Google que usas en AL3D. ' +
         'La app solo le pide a Google tu correo, y con eso sabe qué te toca hacer.</p>' +
       (cuerpo ? '<p class="puerta-aviso' + (fuera ? ' es-no' : '') + '" role="alert">' + cuerpo + '</p>' : '') +
-      '<button type="button" class="puerta-btn" data-puerta="entrar"' + (esperando ? ' disabled' : '') + '>' +
-        (esperando
-          ? '<span class="esq-giro" aria-hidden="true"></span> Entrando…'
-          : G_GOOGLE + ' Entrar con Google') +
-      '</button>' +
+      '<button type="button" class="puerta-btn" data-puerta="entrar">' + G_GOOGLE + ' Entrar con Google</button>' +
       (fuera ? '<button type="button" class="puerta-otra" data-puerta="otra">Entrar con otra cuenta</button>' : '') +
+      /* Los dos pasos nacen escondidos: antes de tocar no hay nada que esperar, y enseñar una
+         lista de pendientes a quien todavía no ha apretado sería pintarle trabajo que no pidió. */
+      '<div class="puerta-pasos" hidden>' +
+        '<span class="puerta-carga">' + carga + '</span>' +
+        '<div class="puerta-traza"></div>' +
+      '</div>' +
       '<p class="puerta-pie">' +
         '<a href="acerca.html">Qué es esto</a> · ' +
         '<a href="privacidad.html">Privacidad</a> · ' +
         '<a href="condiciones.html">Condiciones</a>' +
       '</p>' +
     '</div>';
-  if (!esperando) {
-    const b = caja.querySelector('[data-puerta="entrar"]');
-    if (b) b.focus();
-  }
+  const b = caja.querySelector('[data-puerta="entrar"]');
+  if (b) b.focus();
 }
 
 /** Lo que se ve cuando la puerta no se puede poner: un aviso y nada más. Lo usa también

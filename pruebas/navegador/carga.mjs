@@ -74,8 +74,11 @@ console.log('\nEL ARRANQUE DE LA PLATAFORMA');
     await p.waitForTimeout(25);
     visto = await p.evaluate(() => {
       const a = document.getElementById('pf-arranque'); if (!a) return null;
-      const tx = document.getElementById('pf-arranque-tx');
-      return a.getBoundingClientRect().height > 50 ? (tx ? tx.textContent : '(sin texto)') : null;
+      /* El arranque ya no es una línea que se reescribe sino cuatro renglones de la traza (P22):
+         lo que se lee en pantalla son los pasos, no un texto suelto. */
+      const tx = document.getElementById('pf-arranque-traza');
+      return a.getBoundingClientRect().height > 50
+        ? (tx ? tx.textContent.replace(/\s+/g, ' ').trim() : '(sin texto)') : null;
     }).catch(() => null);
   }
   cierto(!!visto, 'el esqueleto del arranque está en pantalla desde el primer pintado: «' + visto + '» (' + (Date.now() - t) + ' ms tras el commit)');

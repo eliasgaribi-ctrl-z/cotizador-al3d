@@ -16,8 +16,7 @@ import { $, esc, confirmarPf } from './ui.js';
 /** Pinta el botón y su menú. `quien` es lo que devolvió `Puerta.custodiar()`. */
 export function montar(quien) {
   const btn = $('pf-sesion');
-  const menu = $('pf-sesion-menu');
-  if (!btn || !menu || !quien) return;
+  if (!btn || !quien) return;
 
   const correo = quien.correo || '';
   const rol = Prefs.ROL_NOMBRE[quien.rol] || '';
@@ -28,7 +27,7 @@ export function montar(quien) {
   btn.setAttribute('aria-label', btn.title);
   btn.hidden = false;
 
-  menu.innerHTML =
+  const cuerpo =
     '<div class="pf-sesion-quien">' +
       '<span class="pf-sesion-ava" aria-hidden="true">' + esc(inicial) + '</span>' +
       '<span class="pf-sesion-dat">' +
@@ -40,17 +39,46 @@ export function montar(quien) {
     '<button type="button" class="pf-sesion-op" data-cuenta="ajustes">Ajustes</button>' +
     '<button type="button" class="pf-sesion-op es-salir" data-cuenta="salir">Cerrar sesión</button>';
 
-  const abrir = si => {
-    menu.hidden = !si;
-    btn.setAttribute('aria-expanded', String(si));
-    if (si) { const b = menu.querySelector('button'); if (b) b.focus(); }
-  };
+  /* ----- F28 · EL MENÚ SALE DE SU BOTÓN -----
+     Aparecía de golpe, con `role="menu"` y sin navegación con flechas: decir que es un menú sin
+     serlo. Ahora lo abre la pieza 4 (el globo): crece desde la esquina del disco de la cuenta,
+     se cierra tocando fuera, con Escape y al tabular pasado el último botón, y el foco vuelve
+     al disco.
 
-  btn.onclick = ev => { ev.stopPropagation(); abrir(menu.hidden); };
-  menu.onclick = async ev => {
+     Lo que se va con esto son los DOS oyentes de `document` que había aquí —un clic global y un
+     keydown global, vivos toda la sesión para algo que se abre tres veces al día— y el
+     `#pf-sesion-menu` del HTML: el globo se pinta solo en la capa superior, así que no necesita
+     z-index ni vivir dentro del encabezado.
+
+     El rol es de DIÁLOGO y no de menú. La ficha dejaba elegir —«el rol debe ser de diálogo, o
+     el menú necesita flechas»— y lo que hay dentro no son solo opciones: el renglón de quién
+     eres y una nota van antes de «Ajustes» y «Cerrar sesión». Un `role="menu"` con párrafos
+     dentro no cumple lo que promete (sus hijos tienen que ser elementos de menú), y la pieza le
+     pondría `menuitem` a los botones y flechas a un panel de dos renglones. Como diálogo, el
+     lector dice «Tu cuenta», lee el correo y encuentra dos botones; el tabulador los recorre.
+
+     `alinear:'fin'` porque el botón está pegado al filo derecho del encabezado: alineado al
+     principio, el globo se salía de la pantalla en el teléfono. */
+  const P = typeof window !== 'undefined' ? window.Piezas : null;
+  if (!P || !P.vistazo) {
+    /* Sin las piezas no hay globo, pero un botón que no hace nada es peor que uno que lleva a
+       donde vive «Salir». */
+    btn.onclick = () => { location.hash = '#/ajustes'; };
+    return;
+  }
+  const menu = P.vistazo(btn, {
+    rol: 'dialog', alinear: 'fin', lado: 'abajo', titulo: 'Tu cuenta',
+    clase: 'pf-sesion-vz', contenido: cuerpo,
+  });
+  if (!menu) return;
+
+  menu.pop.addEventListener('click', async ev => {
     const b = ev.target.closest('[data-cuenta]');
     if (!b) return;
-    abrir(false);
+    /* El globo vive en la capa superior del navegador, por encima de cualquier modal: si se
+       quedara abierto, flotaría encima de la pregunta de «¿Cerrar sesión?» que viene enseguida.
+       Se cierra ANTES de preguntar, y el foco vuelve al disco de la cuenta. */
+    menu.cerrar('codigo');
     if (b.dataset.cuenta === 'ajustes') { location.hash = '#/ajustes'; return; }
     if (b.dataset.cuenta === 'salir') {
       if (!await confirmarPf({ titulo: '¿Cerrar sesión en este aparato?', texto: 'Vas a tener que volver a entrar con Google.',
@@ -58,15 +86,5 @@ export function montar(quien) {
       const Puerta = await import('./puerta.js');
       Puerta.salir();
     }
-  };
-  document.addEventListener('click', ev => {
-    if (menu.hidden || menu.contains(ev.target) || ev.target === btn) return;
-    /* Si el foco estaba dentro del menú, vuelve al botón que lo abrió: si no, se cae al <body>. */
-    const dentro = menu.contains(document.activeElement);
-    abrir(false);
-    if (dentro) btn.focus();
-  });
-  document.addEventListener('keydown', ev => {
-    if (ev.key === 'Escape' && !menu.hidden) { abrir(false); btn.focus(); }
   });
 }

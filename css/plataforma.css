@@ -125,6 +125,14 @@ body.pf::before{display:none}
 .pf-cab-instalar{margin-left:0}
 @media(min-width:760px){ .pf-cab-instalar{display:none} }
 @media(max-width:759px){ .pf-cab:has(> .pf-cab-instalar:not([hidden])) .pf-cab-logo{display:none} }
+/* Y la lupa de buscar (P6) es un cuarto botón, éste permanente. Medido a 360 px: con el
+   logotipo puesto al título le quedaban 44 px y «Tablero» pedía 58, así que salía «Ta…» —el
+   mismo defecto que ya se midió con el botón de instalar, ahora en todos los anchos de teléfono
+   y para siempre—. Por debajo de 420 px el logotipo se aparta; de ahí para arriba caben los dos
+   y «Calendario», que es el nombre más largo, entra entero. La marca no se pierde: está en la
+   puerta, en el icono de la pantalla de inicio y en cada PDF; poder buscar un proyecto sin salir
+   de donde estás, no estaba en ninguna parte. */
+@media(max-width:419px){ .pf-cab-logo{display:none} }
 
 /* ----- Tu cuenta, en el encabezado ----- */
 .pf-sesion{width:36px;height:36px;flex:0 0 auto;border-radius:50%;border:2px solid rgba(255,255,255,.5);
@@ -138,14 +146,12 @@ body.pf::before{display:none}
    tiene que verse sólido, porque es tu cuenta y no un mando más. */
 .pf-cab button.pf-sesion{background:#4060f8 !important;color:#fff !important;box-shadow:none !important;
   backdrop-filter:none !important;padding:0 !important;font-size:15px !important;font-weight:600 !important}
-/* Un menú que sale de su botón: crece desde la esquina de arriba a la derecha, que es donde
-   está el disco de la cuenta, en 150 ms. Se cierra en seco, que es lo que pide algo que se
-   cierra tocando fuera. */
-.pf-sesion-menu{transform-origin:top right;transition:opacity .15s var(--ease-out),transform .15s var(--ease-out)}
-@starting-style{.pf-sesion-menu{opacity:0;transform:scale(.96) translateY(-4px)}}
-.pf-sesion-menu{position:absolute;top:calc(100% + 6px);right:max(var(--e4),env(safe-area-inset-right,0px));
-  z-index:60;width:min(300px,calc(100vw - 32px));padding:14px;border-radius:14px;
-  background:var(--sup);color:var(--tinta);border:1px solid var(--linea);box-shadow:var(--sombra-alta)}
+/* El menú de la cuenta ya no vive aquí. Lo pinta la pieza 4 (el globo) en la capa superior del
+   navegador, que es la que le da el crecer desde la esquina del disco, el cierre al tocar fuera,
+   el Escape y las flechas —y, de paso, se lleva el `position:absolute`, el z-index y los dos
+   oyentes de `document` que esto necesitaba—. Lo que se queda es lo de DENTRO, que sigue siendo
+   nuestro: el renglón de quién eres, la nota y las dos opciones. El ancho del globo se pide en
+   el bloque «pf-esqueleto» del final (`.vistazo.pf-sesion-vz`). */
 .pf-sesion-quien{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .pf-sesion-ava{width:40px;height:40px;flex:0 0 auto;border-radius:50%;background:#4060f8;color:#fff;
   display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:17px}
@@ -268,7 +274,6 @@ body.pf::before{display:none}
   .pf-cab-tema{background:transparent;color:var(--tinta2);border:1px solid var(--linea)}
   @media(hover:hover){.pf-cab-tema:hover{background:var(--sup2);color:var(--tinta)}}
   .pf-sesion{border-color:var(--linea)}
-  .pf-sesion-menu{right:max(var(--e5),env(safe-area-inset-right,0px))}
 }
 /* Los atajos de teclado escritos, en el encabezado. Solo donde hay teclado: el hueco de
    acciones ya está apagado en el teléfono, así que esto no necesita su propia media query. */
@@ -2384,6 +2389,239 @@ body.pf .card{animation:none}
 
 /* ── Plataforma · esqueleto, navegación, arranque y puerta ── */
 
+/* ----- El encabezado del teléfono con la lupa (P6) -----
+   `.pf-cab-tema` pone `margin-left:auto` a cada botón que lleva la clase, y ahora son dos —la
+   lupa y el interruptor de tema—: los dos autos se repartían el hueco y quedaba un vacío de 55
+   px entre ellos. El auto lo lleva solo el primero de la fila, y los demás se pegan a él. */
+.pf-cab-buscar{margin-left:auto}
+.pf-cab-tema.btn-tema{margin-left:0}
+@media(min-width:760px){ .pf-cab-buscar{margin-left:0} }
+/* Y el sitio. A 360 px el título compartía la fila con cuatro botones de 44 px, el glifo de
+   sincronización y hasta doce píxeles de aire entre cada par, y le quedaban 72: «Calendario»
+   salía «Calenda…» y con el botón de instalar del iPhone puesto, «Tablero» era «T…» —medido—. Los
+   botones ya miden lo mínimo para el dedo, así que lo que cede es el aire: cuatro píxeles entre
+   ellos, y doce de margen a cada lado en pantallas de 400 o menos. Con el botón de instalar
+   puesto —solo hasta que se instala— el glifo de sincronización se aparta, como ya lo hace el
+   logotipo: no hay sitio para los dos. */
+@media(max-width:759px){
+  .pf-cab{gap:var(--e1)}
+  .pf-cab-t{margin-right:var(--e1)}
+  .pf-cab:has(> .pf-cab-instalar:not([hidden])) .pf-sync{display:none}
+}
+@media(max-width:400px){
+  .pf-cab{padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
+}
+/* El wrap es una rejilla con `gap`: con la banda apagada con `hidden` no existía y no había hueco;
+   ahora su caja siempre está, en 0fr, y el `gap` de 16 px se sumaba encima de todas las pantallas
+   aunque no hubiera nada que decir. El aire entre la banda y la pantalla ya lo pone el margen de
+   la propia banda, que va DENTRO de la caja y se recoge con ella. */
+.pf-wrap{row-gap:0}
+
+/* ----- P22 · el arranque en pasos -----
+   La traza ocupa el sitio donde antes iba la línea de estado, centrada y angosta: son cuatro
+   renglones cortos y a 360 px una lista a todo el ancho se lee como una lista de tareas. El
+   hueco del aviso de los ocho segundos nace vacío y se esconde mientras lo esté; sin esto dejaba
+   su relleno debajo de la traza en todos los arranques normales, que son todos menos uno. */
+.pf-arranque .traza{max-width:340px;margin:var(--e5) auto 0;text-align:left}
+/* El reloj de cada renglón va pegado a su nombre y no en el filo derecho: el botón del asistente
+   flota abajo a la derecha y, a 360 px, tapaba justo la columna donde caía el «8 s». */
+.pf-arranque .traza-paso{grid-template-columns:18px auto auto;justify-content:start}
+.pf-arranque .pf-esqueleto-t:empty{display:none}
+/* El aviso de los ocho segundos es lo más urgente de la pantalla y nace debajo de todo lo demás:
+   con la lista de pasos puesta, en un teléfono de 740 px de alto caía detrás de la barra de
+   abajo, o sea que quien más lo necesitaba tenía que adivinar que había que desplazarse. Se
+   queda pegado encima de la barra, en su propia tarjeta para que se lea sobre el esqueleto. */
+.pf-arranque .pf-esqueleto-t:not(:empty){position:sticky;bottom:var(--e4);z-index:50;
+  background:var(--sup);border:1px solid var(--av-borde);border-radius:var(--rr3);
+  padding:var(--e3) var(--e4);box-shadow:var(--sombra)}
+@media(max-width:759px){
+  .pf-arranque .pf-esqueleto-t:not(:empty){bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+}
+
+/* ----- P15 · el indicador de sincronización -----
+   Veinte píxeles pegados al título, no en la fila de botones de la derecha: no es un mando, es
+   una condición de lo que estás leyendo. En reposo es una nube dibujada y QUIETA; la marca de
+   estado solo existe cuando hay algo que decir, y las dos nunca se ven a la vez. Sin señal es la
+   misma nube, tachada —el mismo dibujo de trazo, sin color nuevo—: no es una falla, es la
+   respuesta a «¿esto está al día?». */
+.pf-sync{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
+  width:20px;height:20px;color:rgba(255,255,255,.72)}
+.pf-sync .svgi{width:18px;height:18px}
+.pf-sync-nube{display:inline-flex}
+.pf-sync .nube-off,.pf-sync .marca-estado{display:none}
+.pf-sync[data-sync="sin-senal"] .nube{display:none}
+.pf-sync[data-sync="sin-senal"] .nube-off{display:inline}
+.pf-sync[data-sync="trabaja"] .pf-sync-nube,
+.pf-sync[data-sync="ok"] .pf-sync-nube,
+.pf-sync[data-sync="mal"] .pf-sync-nube{display:none}
+.pf-sync[data-sync="trabaja"] .marca-estado,
+.pf-sync[data-sync="ok"] .marca-estado,
+.pf-sync[data-sync="mal"] .marca-estado{display:inline-grid}
+/* Sobre el marino del encabezado del teléfono el arco que gira tiene que separarse del fondo: el
+   azul de `--a` está medido contra papel, no contra la barra. Las dos marcas con relleno —la
+   palomita y la cruz— llevan su propio disco claro y se leen solas. */
+.pf-sync .marca-estado[data-estado="trabaja"] .me-base{stroke:rgba(255,255,255,.34)}
+.pf-sync .marca-estado[data-estado="trabaja"] .me-arco{stroke:#fff}
+@media(min-width:760px){
+  /* De 760 para arriba el encabezado es claro y todo vuelve a los tokens del sistema. */
+  .pf-sync{color:var(--tinta3)}
+  .pf-sync .marca-estado[data-estado="trabaja"] .me-base{stroke:var(--linea)}
+  .pf-sync .marca-estado[data-estado="trabaja"] .me-arco{stroke:var(--a)}
+}
+
+/* ----- El globo, legible en los dos temas -----
+   El globo de una cuenta era `--av` con la tinta de la barra encima, y `--av` es el ámbar de TEXTO:
+   de día es #8a5100, un café oscuro, y la tinta #171a33 sobre él mide 2,6:1 —medido en el render
+   de la barra de abajo y de la lateral—, o sea que el número, que es lo único que dice el globo,
+   apenas se leía. De día lleva letra blanca (6,4:1); de noche `--av` sube a #f5c26b y la tinta
+   oscura de siempre mide más de 10:1. */
+.pf-tab .cta,.pf-abajo .cta,.pf-mas-op .cta{color:#fff}
+html[data-tema="oscuro"] .pf-tab .cta,html[data-tema="oscuro"] .pf-abajo .cta,
+html[data-tema="oscuro"] .pf-mas-op .cta{color:var(--nav)}
+
+/* ----- P20 · el globo salta cuando la cuenta sube -----
+   Un solo disparo, solo hacia arriba, y con el rebote corto: la escala llega a 1.18 y vuelve.
+   Cuando baja no hay nada, porque bajar es que alguien atendió algo y ya lo sabe. */
+@keyframes pf-globo-sube{0%{transform:scale(.84)}65%{transform:scale(1.18)}100%{transform:scale(1)}}
+.pf-tab .cta.sube{animation:pf-globo-sube .38s cubic-bezier(.34,1.26,.5,1)}
+/* En la barra de abajo el globo ya va colocado con un `transform`, así que la animación no puede
+   escalar sobre él sin perderlo: se repite la misma traslación en cada cuadro clave. */
+@keyframes pf-globo-sube-abajo{0%{transform:translate(14px,-9px) scale(.84)}65%{transform:translate(14px,-9px) scale(1.18)}100%{transform:translate(14px,-9px) scale(1)}}
+.pf-abajo .cta.sube{animation:pf-globo-sube-abajo .38s cubic-bezier(.34,1.26,.5,1)}
+
+/* ----- P5 · «Más» en la barra de abajo -----
+   El quinto botón es de la misma familia que los otros cuatro —las reglas de `.pf-abajo button`
+   ya lo visten— y lo único suyo es que su globo suma los de las rutas que esconde. */
+.pf-mas-rej{list-style:none;margin:0;padding:0;display:grid;gap:var(--e2)}
+.pf-mas-op{display:grid;grid-template-columns:auto 1fr auto;align-items:center;
+  gap:var(--e1) var(--e3);width:100%;min-height:56px;padding:var(--e3);
+  border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup);
+  color:var(--tinta);font:inherit;text-align:left;cursor:pointer}
+.pf-mas-op .svgi{grid-row:1/3;width:22px;height:22px;color:var(--tinta2)}
+.pf-mas-n{font-weight:700}
+.pf-mas-d{grid-column:2;color:var(--tinta3);font-size:var(--t1);line-height:1.3}
+.pf-mas-op .cta{grid-row:1/3;grid-column:3;min-width:22px;height:22px;padding:0 6px;border-radius:11px;
+  background:var(--av);font-weight:700;font-size:var(--t1);line-height:22px;text-align:center}
+/* El color de la letra NO va aquí: lo pone la regla «El globo, legible en los dos temas», más
+   arriba en este archivo. Aquí llevaba `color:var(--nav)` y, con la misma especificidad y más
+   abajo en la hoja, le ganaba a la de arriba: tinta oscura sobre ámbar de texto, 2,6:1 de día. */
+.pf-mas-op[aria-current="page"]{border-color:var(--a-borde);background:var(--a-suave);color:var(--a-tx)}
+.pf-mas-op[aria-current="page"] .svgi{color:var(--a-fuerte)}
+@media(hover:hover) and (pointer:fine){ .pf-mas-op:hover{border-color:var(--a-borde);background:var(--sup2)} }
+.pf-mas-op{transition:transform var(--mv-liq)}
+.pf-mas-op:active{transform:scale(.97)}
+
+/* ----- P6 · la paleta de búsqueda -----
+   Es una hoja de las de siempre: el campo va en su cabeza (con el asa para bajarla) y la cuenta
+   con la lista en su cuerpo. En el teléfono la hoja es ALTA y no se ajusta a lo que trae: con el
+   teclado abierto la mitad de abajo queda tapada —en iPhone el teclado no encoge la ventana—, y
+   una hoja corta anclada abajo dejaría el campo justo debajo del teclado. Con la altura fija el
+   campo queda arriba, donde se ve, y los resultados debajo. */
+.pf-buscar-cab{gap:var(--e2);padding:var(--e2) var(--e2) var(--e2) var(--e4)}
+@media(max-width:560px){
+  .pf-buscar-cab{padding-top:22px}
+  .pf-buscar-panel{height:calc(100dvh - 32px - env(safe-area-inset-top,0px))}
+}
+@media(min-width:561px){
+  .pf-buscar-panel{max-height:min(560px,calc(100dvh - 64px - env(safe-area-inset-top,0px)))}
+}
+.pf-buscar-lupa{flex:0 0 auto;width:var(--ico2);height:var(--ico2);color:var(--tinta3)}
+.pf-buscar-q{flex:1;min-width:0;min-height:44px;border:0;background:none;color:var(--tinta);
+  font:600 16px/1.2 var(--f-texto);outline:none;box-shadow:none}
+.pf-buscar-q::-webkit-search-cancel-button{display:none}
+/* Un solo aviso de foco: la línea de abajo de toda la cabeza. `input:focus` de sistema.css le
+   ponía además un halo de 3 px al campo, y los dos juntos eran un recuadro dentro de otro. */
+.pf-buscar-cab .pf-buscar-q:focus,.pf-buscar-cab .pf-buscar-q:focus-visible{outline:none;box-shadow:none;border-color:transparent}
+.pf-buscar-cab:focus-within{box-shadow:inset 0 -2px 0 var(--a)}
+.pf-buscar-cuerpo{padding:0 0 var(--e3);flex:1 1 auto;min-height:0}
+.pf-buscar-cuenta{margin:0;padding:var(--e3) var(--e4) var(--e1);color:var(--tinta3);
+  font-size:var(--t1);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.pf-buscar-lista{list-style:none;margin:0;padding:var(--e1) var(--e2) 0}
+.pf-buscar-op{display:grid;gap:3px;padding:var(--e2) var(--e3);min-height:52px;
+  border-radius:var(--rr2);cursor:pointer}
+/* El elegido con relleno y filete, no con `opacity` sobre los demás: el estado no se dice
+   apagando texto (§4.3 del sistema de diseño). Y la marca de la coincidencia, sobre ese mismo
+   relleno, llevaría el mismo color de fondo que el renglón y desaparecería: ahí va con el fondo
+   de la tarjeta y un filo. */
+.pf-buscar-op[aria-selected="true"]{background:var(--a-suave);box-shadow:inset 3px 0 0 var(--a)}
+.pf-buscar-op[aria-selected="true"] mark.coincide{background:var(--sup);box-shadow:0 0 0 1px var(--a-borde)}
+/* El nombre de un proyecto es «cliente — proyecto» y a 360 px se va a cuatro renglones, con lo
+   que tres resultados llenan la pantalla. Dos renglones y corta: lo que identifica el proyecto
+   —el cliente— está al principio, y el folio va debajo. */
+.pf-buscar-n{font-weight:700;color:var(--tinta);display:-webkit-box;-webkit-box-orient:vertical;
+  -webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+.pf-buscar-m{display:flex;flex-wrap:wrap;align-items:center;gap:3px var(--e2);
+  color:var(--tinta2);font-size:var(--t1);font-weight:600}
+.pf-buscar-folio{font-family:var(--f-cifra);letter-spacing:.2px}
+@media(hover:none),(pointer:coarse){ .pf-buscar-op{min-height:56px} }
+@media(hover:hover) and (pointer:fine){ .pf-buscar-op:hover{background:var(--sup2)} }
+
+/* ----- F28 · el menú de tu cuenta, como globo -----
+   El ancho lo pide el correo, que es lo más largo que lleva dentro y no se puede partir. */
+.vistazo.pf-sesion-vz{--vz-ancho:300px}
+/* Con el dedo, «Ajustes» y «Cerrar sesión» miden 44 px: eran de 40, y «Cerrar sesión» pega con
+   otro botón a cuatro píxeles. */
+@media(hover:none),(pointer:coarse){ .pf-sesion-op{min-height:44px} }
+
+/* ----- P26 · la banda se despliega -----
+   La caja de fuera pasa de 0fr a 1fr y la de dentro recorta: es la única forma de animar algo
+   que hasta ahora se encendía con `hidden`, que es `display:none` y de ahí no hay transición.
+   Recogida no mide ni un píxel, margen incluido. */
+.pf-banda-caja{display:grid;grid-template-rows:0fr;transition:grid-template-rows .2s var(--ease-out)}
+.pf-banda-caja.abierta{grid-template-rows:1fr}
+.pf-banda-in{overflow:hidden;min-height:0}
+
+/* ----- P24 · la pantalla entra por donde está en la barra -----
+   Se reutilizan los keyframes que css/sistema.css ya tiene para el cotizador (12 px, no 24).
+   200 ms y solo cuando las dos pantallas tienen sitio en la barra. Son CLASES y no `data-va`:
+   `Piezas.transicion()` escribe `html[data-va]` mientras dura un viaje, y una regla de `.pf-mod`
+   colgada de ese atributo deslizaría la pantalla entera al cambiar de mes en el calendario.
+   Las teclas 1-9 no animan nada (js/app.js no pone la clase y la regla de `data-nav` de más
+   arriba manda), y el movimiento reducido las apaga en el bloque «rm» de abajo. */
+html.va-adelante .pf-mod{animation:entra-der .2s var(--ease-out) both}
+html.va-atras .pf-mod{animation:entra-izq .2s var(--ease-out) both}
+html[data-nav="teclado"].va-adelante .pf-mod,html[data-nav="teclado"].va-atras .pf-mod{animation:none}
+
+/* ----- A18 · los dos pasos de Safari -----
+   El dibujo de cada paso va dentro del renglón del riel, debajo del texto: es la forma del
+   botón que hay que encontrar en OTRA app, así que se enseña al lado de lo que hay que hacer. La
+   flecha va pegada al icono de Compartir y apunta hacia la barra de Safari, que en el iPhone
+   está abajo; en el iPad no se dibuja. */
+.pf-ios-ico{display:inline-flex;align-items:center;justify-content:center;
+  width:44px;height:44px;margin-top:var(--e1);
+  border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup2);color:var(--tinta2)}
+.pf-ios-abajo{display:inline-flex;align-items:center;margin:var(--e1) 0 0 var(--e2);color:var(--a-tx);vertical-align:top;height:44px}
+.pf-ios-g{width:24px;height:24px}
+.pf-ios-simple{margin:0;padding-left:1.2em;display:grid;gap:var(--e3)}
+.pf-ios-simple b{display:block}
+.pf-ios-simple span{color:var(--tinta2);font-size:var(--t2)}
+
+/* ----- F10 · la puerta dice en qué paso va -----
+   Las reglas base de la puerta viven en css/sistema.css (la comparten el cotizador suelto y el
+   anidador a través del sistema); esto es lo que solo existe aquí, y por eso va en este bloque y
+   no allá. Esta hoja se lee después, así que gana sin subir la especificidad.
+
+   La carga y los dos pasos nacen escondidos y los enciende el clic: antes de tocar no hay nada
+   que esperar. */
+.puerta-pasos{display:grid;justify-items:center;gap:var(--e2);margin-top:var(--e4)}
+.puerta-carga{display:block;min-height:22px}
+/* Al fallar, las tres manchas se juntan en la forma del logo y se quedan quietas: como cierre de
+   una espera que salió bien es bonito, y como cierre de una que falló es un adorno solo en medio
+   de la cruz roja. Con la falla se van; los dos pasos de abajo son los que hablan. */
+.puerta-carga:has(.carga-logo[data-carga="mal"]){display:none}
+.puerta-traza{width:100%;max-width:300px;text-align:left}
+.puerta-traza .traza-paso{font-size:var(--t2)}
+/* El botón que trabaja ya no es `disabled` sino `aria-disabled` (el foco se queda donde estaba), y
+   `.puerta-btn:hover` de sistema.css solo excluye `:disabled`: sin esto, con el ratón encima el
+   fondo cambiaba de color a mitad del relleno. */
+@media(hover:hover) and (pointer:fine){
+  .puerta-btn.con-estado:hover{background:var(--a-fill)}
+  .puerta-btn.con-estado[data-estado="mal"]:hover{background:var(--mal-bg)}
+}
+/* El mismo aviso otra vez deja el HTML idéntico y el toque parece perdido: 250 ms de sacudida
+   lo dicen sin escribir una palabra más. `sacudida` ya existe en el sistema. */
+.puerta-aviso.otra-vez{animation:sacudida .25s var(--ease-out)}
+
 /* ── fin de pf-esqueleto ── */
 
 /* ── Plataforma · Hoy y Tablero ── */
@@ -2416,7 +2654,17 @@ body.pf .card{animation:none}
 
 @media(prefers-reduced-motion:reduce){
 /* ── rm · pf-esqueleto ── */
-
+/* El globo no salta: la cifra nueva la dice el número mismo. La dirección de la pantalla tampoco:
+   el fundido de `.pf-mod` ya está apagado más arriba, y aquí se apagan los dos nombres nuevos. */
+.pf-tab .cta.sube,.pf-abajo .cta.sube{animation:none}
+html.va-adelante .pf-mod,html.va-atras .pf-mod{animation:none}
+/* La banda sigue apareciendo —es información, no adorno— pero sin desplegarse, y el scroll se
+   compensa de un salto (lo hace js/app.js). */
+.pf-banda-caja{transition:none}
+.pf-mas-op:active{transform:none}
+/* El aviso repetido de la puerta no se sacude: lo que dice «lo intenté otra vez» son los relojes
+   de los dos pasos, que empezaron de cero, y el borde rojo se queda. */
+.puerta-aviso.otra-vez{animation:none}
 /* ── fin de rm · pf-esqueleto ── */
 /* ── rm · pf-tablero ── */
 
