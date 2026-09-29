@@ -831,10 +831,31 @@ document.documentElement.classList.add('arrancando');
         ontouchstart="scDown(event)" ontouchmove="scMove(event)" ontouchend="scUp(event)" ontouchcancel="scUp(event)">
       </canvas>
       <div class="sp-overlay" id="sp-overlay">
-        <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(var(--a-rgb),.4))"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg></div>
-        <div style="font-size:16px;font-weight:700;color:rgba(255,255,255,.82)">Carga una imagen para medir</div>
-        <div style="font-size:12px;color:rgba(255,255,255,.55);letter-spacing:.4px">JPG · PNG · SVG · PDF — o usa la imagen de IA</div>
-        <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(var(--a-rgb),.4)" onclick="$('scaler-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
+        <!-- Dos caras del mismo recuadro: la invitación de siempre y, mientras se abre un
+             PDF, la traza con su reloj (H12). Antes el PDF se anunciaba en un aviso de 8 s
+             abajo y el lienzo seguía diciendo «Carga una imagen»: parecía que no había
+             pasado nada, y el error llegaba en otro aviso, lejos de donde se estaba mirando. -->
+        <div class="sp-overlay-cara" id="sc-overlay-vacio">
+          <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(var(--a-rgb),.4))"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg></div>
+          <div style="font-size:16px;font-weight:700;color:rgba(255,255,255,.82)">Carga una imagen para medir</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.55);letter-spacing:.4px">JPG · PNG · SVG · PDF — o usa la imagen de IA</div>
+          <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(var(--a-rgb),.4)" onclick="$('scaler-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
+        </div>
+        <div class="sp-overlay-cara sp-overlay-pdf" id="sc-overlay-pdf" hidden>
+          <!-- Una sola tarjeta oscura con los pasos, el motivo y las salidas: con la foto ya
+               cargada el recuadro queda ENCIMA de ella, y el texto blanco suelto sobre una
+               fachada clara no se leía. -->
+          <div class="sp-overlay-tarjeta">
+            <div class="sp-overlay-pasos" id="sc-overlay-pasos"></div>
+            <div class="sp-overlay-mal" id="sc-overlay-mal" hidden>
+              <p class="sp-overlay-motivo" id="sc-overlay-motivo"></p>
+              <div class="sp-overlay-salidas">
+                <button type="button" class="sp-overlay-btn pri" data-sc-accion="elegir">Elegir otro archivo</button>
+                <button type="button" class="sp-overlay-btn" id="sc-overlay-seguir" hidden data-sc-accion="dejar">Volver a la foto</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="sp-hint-bar hide" id="sp-hint-bar"></div>
       <!-- Cuánto se enseña de las cotas ya trazadas. Va en el lienzo y no solo en el
@@ -850,6 +871,16 @@ document.documentElement.classList.add('arrancando');
         <button onclick="scZoomReset()" title="Ajustar a la pantalla" aria-label="Ajustar la imagen a la pantalla" style="font-size:16px"><svg class="svgi" aria-hidden="true"><use href="#i-ajustar"/></svg></button>
       </div>
       <div class="sp-loupe" id="sc-loupe"><canvas id="sc-loupe-cvs"></canvas></div>
+      <!-- La cifra viva de la lupa (H4). Va FUERA del círculo y no dentro: .sp-loupe
+           recorta con overflow:hidden por su border-radius, así que un hijo suyo debajo
+           del centro se corta. Se coloca en el mismo scLoupe(), con su propio transform. -->
+      <span class="sp-loupe-cifra" id="sc-loupe-cifra" aria-hidden="true"></span>
+      <!-- El letrero sobre la foto de la fachada (función 32). Nace vacío y escondido: lo
+           enciende la sección «Letrero sobre la foto» del panel, y solo con escala calibrada. -->
+      <span class="sc-letrero" id="sc-letrero" role="group" tabindex="0" aria-label="Letrero sobre la foto" aria-describedby="sc-lf-ayuda" hidden><span class="sc-letrero-texto" id="sc-letrero-texto"></span></span>
+      <!-- Siempre que el letrero está a la vista, la foto dice que es ilustrativo: no es la
+           tipografía del cliente ni su fachada de noche. Va fija en la esquina, no se mueve con él. -->
+      <span class="sc-letrero-nota" id="sc-letrero-nota" aria-hidden="true" hidden>Letrero ilustrativo</span>
     </div>
     <!-- Sidebar -->
     <aside class="sp-side">
@@ -857,19 +888,22 @@ document.documentElement.classList.add('arrancando');
       <details class="sp-sec sp-fold" id="sc-sec-calib" open>
         <summary class="sp-sec-h"><h3>Calibración de escala</h3></summary>
         <div class="sp-sec-b">
-          <p id="sc-calib-help" style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:13px">Toca un extremo y luego el otro sobre un elemento de medida conocida —una puerta mide 200 cm, una persona 175 cm—. Sin soltar el dedo puedes deslizarlo hasta dejar el punto donde va —la lupa enseña qué hay debajo— y después arrastrar sus extremos para corregirla.</p>
+          <!-- Calibrar son tres pasos y hasta hoy había que deducirlos de qué bloque
+               aparecía. El riel los nombra y marca en cuál vas (H11, pieza 16). -->
+          <div class="sc-calib-riel" id="sc-calib-riel"></div>
+          <p id="sc-calib-help" style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:13px">Toca un extremo y luego el otro sobre un elemento de medida conocida —una puerta mide <span data-sc-puerta>200</span> cm, una persona 175 cm—. Sin soltar el dedo puedes deslizarlo hasta dejar el punto donde va —la lupa enseña qué hay debajo— y después arrastrar sus extremos para corregirla.</p>
           <button class="btn btn-pri" id="sc-btn-calib" onclick="scSetMode('ref')" disabled>1 · Marcar referencia (2 puntos)</button>
           <div id="sc-ref-confirm-row" style="display:none;margin-top:13px">
-            <div class="fld"><label for="sc-ref-cm-input">¿Cuánto mide en cm?</label><input id="sc-ref-cm-input" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="Ej. 175"></div>
-            <div class="ref-known">
-              <span class="ref-known-title">Rápidos:</span>
-              <button onclick="$('sc-ref-cm-input').value=200"><span class="emo">🚪</span> 200</button>
-              <button onclick="$('sc-ref-cm-input').value=175"><span class="emo">🧍</span> 175</button>
-              <button onclick="$('sc-ref-cm-input').value=120"><span class="emo">🪟</span> 120</button>
-              <button onclick="$('sc-ref-cm-input').value=145"><span class="emo">🚗</span> 145</button>
-              <button onclick="$('sc-ref-cm-input').value=40"><span class="emo">⬜</span> 40</button>
+            <!-- La etiqueta es el mango: arrastrarla de lado mueve los centímetros sin abrir
+                 el teclado (H26 #3, pieza 3). El campo se sigue tecleando igual. -->
+            <div class="fld"><label for="sc-ref-cm-input" class="arrastrable">¿Cuánto mide en cm?</label><input id="sc-ref-cm-input" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="Ej. 175"></div>
+            <!-- Las medidas de referencia conocidas, como opciones elegidas (H30, pieza 18).
+                 Las pinta scPintarRefRapidos() desde SC_REF_RAPIDOS: la puerta de 200 cm es
+                 una constante, la misma que usa el letrero sobre la foto. -->
+            <div class="ref-known" id="sc-ref-rapidos">
+              <span class="ref-known-title" id="sc-ref-rapidos-l">Medidas de siempre</span>
             </div>
-            <button class="btn btn-ok" onclick="scConfirmCalib()" style="margin-top:11px"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Confirmar escala</button>
+            <button class="btn btn-ok" id="sc-btn-confirm-calib" onclick="scConfirmCalib()" style="margin-top:11px"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Confirmar escala</button>
           </div>
           <div id="sc-calib-done" style="display:none">
             <div style="background:var(--green-bg);border:1px solid rgba(21,160,106,.2);border-radius:var(--r-sm);padding:11px 13px;font-size:12.5px;color:var(--green);font-weight:600;margin-bottom:10px"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Escala calibrada</div>
@@ -921,6 +955,30 @@ document.documentElement.classList.add('arrancando');
         <div class="sp-addall-note" id="sc-addall-note" style="display:none"></div>
         <button class="sp-back-m" onclick="cerrarScaler()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver al cotizador</button>
       </div>
+      <!-- El letrero sobre la foto del local (función 32). Abrirla lo enciende sobre la
+           foto; plegarla lo apaga y devuelve el lienzo entero a medir. -->
+      <details class="sp-sec sp-fold" id="sc-sec-letrero">
+        <summary class="sp-sec-h"><h3>Letrero sobre la foto</h3></summary>
+        <div class="sp-sec-b">
+          <div class="hintnote" id="sc-lf-falta"></div>
+          <div id="sc-lf-caja" hidden>
+            <div class="sc-lf-cuales" id="sc-lf-cuales"></div>
+            <!-- El deslizador y el precio van ARRIBA y juntos: en el teléfono el panel enseña unos
+                 210 px entre el título y el pie pegado, y con el precio al final de la sección
+                 había que desplazarlo para leerlo, justo lo que esta sección existe para decir.
+                 Lo que se teclea —el texto— y lo que se pasa a la partida van debajo. -->
+            <div class="sc-lf-rango">
+              <label for="sc-lf-alto">Alto de letra: <span id="sc-lf-alto-v"></span></label>
+              <input id="sc-lf-alto" type="range" min="5" max="120" step="1">
+            </div>
+            <p class="sc-lf-precio" id="sc-lf-precio" role="status"></p>
+            <p class="sc-lf-dice" id="sc-lf-dice"></p>
+            <div class="fld"><label for="sc-lf-texto">Texto del letrero</label><input id="sc-lf-texto" maxlength="24" autocomplete="off"></div>
+            <button class="btn btn-gho" id="sc-lf-pasar" type="button" style="font-size:13px"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> Pasar este alto a la partida</button>
+            <div class="hintnote" id="sc-lf-ayuda" style="margin-top:8px">Arrastra el letrero sobre la foto para colocarlo, o enfócalo y muévelo con las flechas (Mayús, más rápido). Es ilustrativo: no es la tipografía del cliente.</div>
+          </div>
+        </div>
+      </details>
       <!-- Exportar -->
       <details class="sp-sec sp-fold" id="sc-sec-export">
         <summary class="sp-sec-h"><h3>Exportar</h3></summary>
