@@ -4996,7 +4996,198 @@ mark.coincide{background:var(--a-suave);color:var(--tinta);font-weight:700;borde
 /* ── fin de cot-entrega ── */
 
 /* ── Cotizador · Cotizar con IA ── */
+/* H20 · LA CARPETA QUE SE ABRE AL ACERCAR EL ARCHIVO, Y QUE EN REPOSO NO HACE NADA
+   El icono de la zona de arrastre respiraba en bucle (css/vidrio.css, `vid-respira`), y era una
+   de las cuatro piezas que rompían la regla del sistema de diseño: «una sola pieza se mueve
+   sola, el botón de Cotizar con IA». En una pantalla vacía, a las siete de la tarde, lo único
+   que se mueve se lleva el ojo: ese latido llamaba la atención sobre un recuadro que no tenía
+   nada que decir todavía.
 
+   Ahora se mueve cuando el usuario trae un archivo, y solo entonces: la tapa se abre 38° y de
+   dentro asoma una hoja que dice «Suéltalo aquí». Dos SVG hermanos y no uno solo con dos grupos
+   dentro, porque las transformaciones 3D no se aplican a los hijos de un <svg> —se aplican al
+   <svg>—; el cuerpo va detrás, la hoja en medio y la tapa delante, en ese orden del marcado.
+   El movimiento son 180 ms de `transform`, nada más: en gama media eso es una capa que el
+   compositor ya tiene y no cuesta un repintado.
+
+   El conteo de dragenter/dragleave que evita el parpadeo ya vive en ia.js (`_aiDragN`). */
+.ai-carpeta{position:relative;width:96px;height:72px;perspective:340px;margin-bottom:var(--e1)}
+.ai-carpeta svg{position:absolute;left:0;width:96px;display:block}
+.ai-carpeta .cp-cuerpo{top:0;height:72px;fill:var(--a-fuerte)}
+.ai-carpeta .cp-tapa{bottom:0;height:55px;fill:var(--a);transform-origin:50% 100%;
+  transition:transform .18s cubic-bezier(.2,.8,.2,1)}
+.ai-carpeta .cp-filo{fill:var(--a-claro)}
+/* La hoja: papel de verdad —superficie y línea del tema, no un blanco fijo—, para que de noche
+   no sea un rectángulo encendido dentro de una carpeta apagada. */
+.ai-carpeta .cp-hoja{position:absolute;left:11px;right:11px;top:14px;height:46px;border-radius:5px;
+  background:var(--sup);border:1px solid var(--linea);box-shadow:0 2px 6px rgba(var(--tinta-rgb),.18);
+  color:var(--tinta);font-size:var(--t1);font-weight:700;line-height:1.2;text-align:center;
+  padding-top:5px;transform:translateY(9px);transition:transform .18s cubic-bezier(.2,.8,.2,1)}
+.ai-drop.sobre .ai-carpeta .cp-tapa{transform:rotateX(-38deg)}
+.ai-drop.sobre .ai-carpeta .cp-hoja{transform:translateY(-22px)}
+/* Con el archivo encima, el recuadro cambia de frase: la hoja ya dice «Suéltalo aquí» y las dos
+   líneas de instrucciones («arrastra… o toca… o pega con Ctrl+V») estorban justo cuando ya no
+   hay nada que elegir. Se cambian por una sola, que dice qué va a pasar al soltar.
+
+   El cambio de frase NO puede cambiar la altura del recuadro. La primera versión escondía las dos
+   líneas con `display:none` y el recuadro se encogía 26 px en el momento de acercar el archivo:
+   todo lo de abajo subía justo cuando la mano ya iba hacia allá, y un puntero que estaba en el
+   borde de abajo quedaba de golpe fuera del recuadro. Ahora las tres frases comparten la misma
+   celda de una rejilla —las dos de siempre en sus filas y la nueva encima de las dos— y las de
+   siempre solo se vuelven invisibles: la caja conserva su alto, con cualquier número de líneas. */
+.ai-drop-tx{display:grid;justify-items:center;gap:5px}
+.ai-drop-tx>.t{grid-area:1/1}
+.ai-drop-tx>.s{grid-area:2/1}
+.ai-drop-sobre{display:none;grid-area:1/1/3/2;align-self:center;font-size:var(--t1);color:var(--a-fuerte);font-weight:700}
+.ai-drop.sobre .t,.ai-drop.sobre .s{visibility:hidden}
+.ai-drop.sobre .ai-drop-sobre{display:block}
+
+/* H7 · LA FICHA DEL ARCHIVO SE LEE MIENTRAS LA IA TRABAJA
+   El análisis tarda de diez segundos a un minuto entero y hasta ahora, en todo ese rato, solo
+   giraba un punto junto a una frase y el archivo se quedaba en una miniatura de 52 px: no había
+   forma de comprobar que se mandó el plano correcto, que es la única pregunta que uno se hace
+   mientras espera. Ahora el marco crece al ancho del modal con la proporción reservada (4:3, así
+   el modal no brinca al cambiar de tamaño) y una banda de luz lo recorre.
+
+   La banda va en `::after` con `transform:translateX` —la misma técnica que `ia-barrido` del
+   botón de IA— y NO con `filter:blur`, que en un teléfono de gama media cuesta fotogramas. Se
+   repite mientras dura el análisis, que es una espera real que el usuario disparó, y se apaga
+   sola al terminar porque vive dentro de `.trabajando`: en reposo no queda nada en bucle. */
+.ai-pick .ia-marco,.ai-src .ia-marco{position:relative;flex:0 0 auto;overflow:hidden;border-radius:8px}
+.ai-pick .ia-marco{width:52px;height:52px}
+.ai-src .ia-marco{width:76px;height:76px}
+.ai-pick .ia-marco>img,.ai-src .ia-marco>img{width:100%;height:100%;margin:0;border-radius:0;border:0}
+.ai-pick .ia-marco>.ai-pick-ph{width:100%;height:100%;border-radius:0}
+.ai-pick.trabajando,.ai-pick.mal,.ai-src.trabajando,.ai-src.mal{flex-direction:column;align-items:stretch}
+.ai-pick.trabajando .ia-marco,.ai-pick.mal .ia-marco,
+.ai-src.trabajando .ia-marco,.ai-src.mal .ia-marco{width:100%;height:auto;aspect-ratio:4/3;
+  border:1px solid var(--linea);background:var(--sup2)}
+.ai-pick.trabajando .ia-marco>img,.ai-pick.mal .ia-marco>img,
+.ai-src.trabajando .ia-marco>img,.ai-src.mal .ia-marco>img{object-fit:contain}
+/* Un PDF no tiene nada que «leer» a la vista: en vez de un cuadro 4:3 casi vacío se queda en una
+   franja baja con su icono, y sin el punteado rojo de la miniatura chica —que en grande, con la
+   palabra «Analizando» encima, se leía como un error—. Con `:has()`; donde no exista, se queda el
+   4:3, que es feo pero no está mal. */
+.ai-pick.trabajando .ia-marco>.ai-pick-ph,.ai-pick.mal .ia-marco>.ai-pick-ph{border:0;
+  background:transparent;color:var(--tinta2);font-size:34px}
+.ai-pick.trabajando .ia-marco:has(>.ai-pick-ph),.ai-pick.mal .ia-marco:has(>.ai-pick-ph){aspect-ratio:16/7}
+.ai-pick.trabajando .ia-marco::after,.ai-src.trabajando .ia-marco::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.5) 50%,transparent 70%);
+  transform:translateX(-100%);animation:ia-lee 1.6s linear infinite}
+@keyframes ia-lee{to{transform:translateX(100%)}}
+/* Crecer es un cambio de caja —la ficha pasa de fila a columna y el marco de un cuadro fijo a uno
+   proporcional— y eso no se anima: un `width` con transición iría por su lado mientras el alto y
+   la dirección ya cambiaron de golpe, y además repinta todo lo de abajo en cada cuadro. Lo que
+   se anima es el marco recién crecido —opacidad y una escala de 4 %, que son cosas que el
+   compositor ya tiene— una sola vez, en 220 ms. */
+.ai-pick.trabajando .ia-marco,.ai-src.trabajando .ia-marco{animation:ia-crece .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes ia-crece{from{opacity:.55;transform:scale(.96)}}
+/* La pastilla de etapa: Preparando · Analizando · Reintentando · Leyendo. Va sobre la figura y
+   no sobre texto, con su propio fondo oscuro para leerse encima de una foto de cualquier color:
+   medida sobre una imagen blanca, que es el peor caso, da más de 10:1. */
+.ia-etapa{position:absolute;left:var(--e2);top:var(--e2);padding:4px 9px;border-radius:999px;
+  background:rgba(var(--nav-rgb),.84);color:#fff;font-size:var(--t1);font-weight:700;line-height:1}
+/* EL ERROR, ENCIMA DE LA IMAGEN Y NO EN UN PÁRRAFO ROJO DE ABAJO
+   El velo cae sobre la figura —nunca sobre el nombre del archivo ni sobre el renglón de estado,
+   §4.3— y trae el motivo en corto y un «Reintentar» que es el mismo gesto que se acaba de
+   intentar, en el mismo sitio donde se estaba mirando. */
+.ia-velo{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;
+  gap:var(--e2);padding:var(--e3);text-align:center;background:rgba(var(--nav-rgb),.74);color:#fff;
+  overflow-y:auto}
+.ia-velo[hidden]{display:none}
+.ia-velo-motivo{margin:0;font-size:var(--t2);font-weight:600;line-height:1.35;
+  overflow-wrap:anywhere;max-width:100%}
+.ia-velo-re{min-height:44px;padding:0 var(--e4)}
+/* El error deja la ficha crecida —`.mal` comparte las medidas de `.trabajando`—: con la miniatura
+   de 52 px no cabría ni el botón de «Reintentar». El nombre del archivo, debajo, respira un poco. */
+.ai-pick.mal .ai-pick-b,.ai-src.mal .ai-src-b{margin-top:var(--e2)}
+/* Con la ficha en columna, la × de «quitar el archivo» se estiraba de lado a lado y quedaba
+   centrada bajo el nombre, donde parece el botón principal del recuadro. Se queda a su lado. */
+.ai-pick.trabajando .ai-pick-x,.ai-pick.mal .ai-pick-x{align-self:flex-end;margin-top:-30px}
+/* El renglón de estado ya no repite el giro cuando la traza está a la vista: dos cosas girando a
+   la vez por la misma espera se leen como dos esperas. La frase sí se queda —es la que lee el
+   lector de pantalla de un tirón—, solo se va su punto. */
+.ai-status.con-traza.work::before{display:none}
+
+/* H13 · QUÉ PARTIDAS SE VAN A REEMPLAZAR
+   El aviso decía «tus 3 partidas ya capturadas se reemplazarán»: un número, con la lista tapada
+   por el propio modal. Ahora se ven, y al apagar «Conservar» se tachan de izquierda a derecha,
+   como quien tacha una lista en papel. El tachado es un `background` lineal de 2 px que crece en
+   `background-size` —`text-decoration` no se puede animar— y NO se baja la opacidad del renglón:
+   el estado no se dice con opacity sobre texto (§4.3). La letra se queda en --av, medida. */
+.ai-merge-lista{list-style:none;margin:var(--e2) 0 0;padding:0;display:grid;gap:3px;
+  font-size:var(--t1);font-weight:600;color:var(--av);line-height:1.5}
+.ai-merge-lista li{padding-left:1em;text-indent:-1em;overflow-wrap:anywhere}
+.ai-merge-lista li::before{content:'·';display:inline-block;width:1em;text-indent:0}
+/* El `span` se queda EN LÍNEA a propósito. Dentro de un flex se volvía un bloque, y un fondo de
+   bloque se pinta una sola vez sobre toda la caja: una descripción larga que da dos renglones se
+   tachaba con UNA raya entre los dos, no con una por renglón. En línea, el fondo sigue cada
+   fragmento del texto. */
+.ai-merge-lista span{background:linear-gradient(var(--mal),var(--mal)) 0 58%/0% 2px no-repeat;
+  transition:background-size .22s ease-out}
+.ai-merge-lista.tacha span{background-size:100% 2px}
+
+/* PIEZA 8 · LA ESPERA, PASO A PASO (la traza vive en js/piezas.js; aquí solo su sitio) */
+.ai-traza{margin-top:var(--e3)}
+.ai-traza[hidden]{display:none}
+
+/* H1 · EL RESUMEN DE LO QUE LEYÓ LA IA
+   Entra completo en ≤240 ms y sin escalera de retardos: la escalera se quitó a propósito de este
+   proyecto (ver el comentario junto a @keyframes entra), porque con cinco renglones ya se lee
+   como que la pantalla va lenta. */
+.ai-resumen{margin-top:var(--e3);display:grid;gap:var(--e3)}
+.ai-resumen[hidden]{display:none}
+.ia-resumen-t{margin:0;font:700 var(--t3)/1.35 var(--f-texto);color:var(--tinta)}
+.ia-resumen-t small{display:block;margin-top:2px;font-size:var(--t1);color:var(--tinta2);font-weight:700}
+.ia-resumen-quien{margin:0;font-size:var(--t1);font-weight:700;color:var(--av);
+  background:var(--av-bg);border:1px solid var(--av-borde);border-radius:var(--rr2);padding:7px 10px;line-height:1.45}
+.ia-lista{list-style:none;margin:0;padding:0;display:grid;gap:var(--e2)}
+.ia-p{display:grid;grid-template-columns:20px minmax(0,1fr);gap:var(--e2);align-items:start;
+  padding:9px 11px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup);
+  animation:entra .24s cubic-bezier(.2,.8,.2,1) backwards}
+.ia-p[data-e="av"]{border-color:var(--av-borde);background:var(--av-bg)}
+.ia-p>.marca-estado{margin-top:1px}
+.ia-p b{display:block;font-size:var(--t2);font-weight:700;line-height:1.3;color:var(--tinta);overflow-wrap:anywhere}
+.ia-p small{display:block;margin-top:2px;font-size:var(--t1);font-weight:600;line-height:1.45;color:var(--tinta2)}
+.ia-p .ia-precio{font-family:var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta)}
+.ia-p .ia-falta{color:var(--av);font-weight:700}
+/* Las cotas del escalador: cuál quedó explicada y cuál se quedó sin partida. La marca de color
+   no va sola — la que falta lo dice con palabras. */
+.ia-cotas{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:6px var(--e3);
+  font-size:var(--t1);font-weight:700;color:var(--tinta2)}
+.ia-cotas-t{color:var(--tinta3)}
+.ia-cota{display:inline-flex;align-items:center;gap:4px}
+.ia-cota[data-e="ok"]{color:var(--ok)}
+.ia-cota[data-e="av"]{color:var(--av)}
+/* Lo que la IA leyó distinto, con su «Usar» de 44 px */
+.ia-dif{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px var(--e3);
+  padding:6px 6px 6px 11px;border:1px solid var(--linea2);border-radius:var(--rr2);background:var(--sup2);
+  font-size:var(--t1);font-weight:700;color:var(--tinta2)}
+.ia-dif span{flex:1 1 9em;min-width:0;overflow-wrap:anywhere}
+.ia-dif .ia-dif-btn{flex:0 0 auto;width:auto;min-height:44px;margin:0 0 0 auto;padding:0 var(--e4);font-size:var(--t1)}
+.ia-resumen-pie{display:flex;justify-content:flex-end}
+.ia-resumen-pie .btn{min-height:44px}
+/* Con el resumen a la vista, «Analizar y cotizar» y el interruptor de «Conservar» ya no son de
+   nadie: ver aiFaseResumen() en ia.js. Un solo botón con relleno, y es «Ver partidas». */
+#aimodal.con-resumen #ai-go-btn,#aimodal.con-resumen #ai-merge-box{display:none}
+
+/* H20 · LOS DOS LIENZOS TAMBIÉN DICEN QUÉ VA A PASAR AL SOLTAR
+   El arrastre sobre el escalador y sobre el vectorizador solo pintaba un contorno punteado, sin una
+   palabra: nada decía si soltar ahí iba a medir, a vectorizar o a abrir el archivo en otra pestaña.
+   Ahora, con un ARCHIVO encima —un arrastre de texto no enciende nada—, el lienzo se cubre con
+   un velo y dice qué va a hacer. Lo pone ia.js con oyentes de documento, sin tocar el marcado de
+   esos dos modales, y se quita solo al soltar o al alejar el archivo.
+
+   El contorno en línea que pone el marcado (`ondragover="…style.outline=…"`) se neutraliza aquí:
+   con los dos avisos a la vez —el punteado y el velo— el lienzo decía lo mismo dos veces y con un
+   arrastre de texto seguía encendiéndose el punteado. El velo es plano, sin `backdrop-filter`: esos
+   dos lienzos lo perdieron a propósito y no es este el lugar para devolverlo. */
+.sp-canvas-area{outline:none!important}
+.sp-canvas-area.suelta::after{content:attr(data-suelta);position:absolute;inset:var(--e2);z-index:6;
+  display:grid;place-content:center;padding:var(--e4);text-align:center;pointer-events:none;
+  border:3px dashed rgba(255,255,255,.85);border-radius:var(--rr3);background:rgba(var(--nav-rgb),.95);
+  color:#fff;font:700 var(--t4)/1.3 var(--f-texto);animation:aparece .15s ease-out}
 /* ── fin de cot-ia ── */
 
 /* ── Cotizador · escalador y el letrero sobre la fachada ── */
@@ -6249,7 +6440,25 @@ input[type=range].desl-iman{transform:none!important}
 
 /* ── fin de rm · cot-entrega ── */
 /* ── rm · cot-ia ── */
+/* Se va el adorno y se queda la información. La tapa de la carpeta no se abre (H20: «con
+   reduced-motion, sin tapa»), pero la hoja SIGUE asomando con su «Suéltalo aquí»: eso no es
+   adorno, es la única confirmación de que el recuadro va a recibir el archivo. La banda que
+   recorre la miniatura se va del todo —es lo único de esta pantalla que se repite— y el marco no
+   se hace notar al crecer.
 
+   La pastilla de etapa se queda QUIETA. Una primera versión la hacía latir con `pulso-lento` para
+   decir «sigue trabajando», pero el latido baja su opacidad a 35 % y con ella el texto blanco
+   sobre el fondo oscuro: durante media vuelta la palabra «Analizando» dejaba de leerse, que es
+   justo lo que la pastilla existe para decir (§4.3). Que sigue trabajando ya lo dicen el reloj de
+   cada paso de la traza y la traza misma, que es de la pieza 8 y late a su manera. Los
+   renglones del resumen entran en fundido, sin subir. */
+.ai-drop.sobre .ai-carpeta .cp-tapa{transform:none!important}
+.ai-carpeta .cp-tapa,.ai-carpeta .cp-hoja{transition:none!important}
+.ai-pick.trabajando .ia-marco,.ai-src.trabajando .ia-marco{animation:none!important}
+.ai-pick.trabajando .ia-marco::after,.ai-src.trabajando .ia-marco::after{animation:none!important;display:none}
+.ia-p{animation-name:aparece!important;animation-duration:.15s!important}
+.ai-merge-lista span{transition:none!important}
+.sp-canvas-area.suelta::after{animation:none!important}
 /* ── fin de rm · cot-ia ── */
 /* ── rm · cot-escalador ── */
 
