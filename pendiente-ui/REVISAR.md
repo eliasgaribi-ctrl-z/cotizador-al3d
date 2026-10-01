@@ -3,8 +3,7 @@
 Cada zona del paquete de UI entrega aquí lo que dejó a medias, lo que no alcanzó a probar y los
 supuestos que tomó. **La auditoría mira esta lista, no las ~50,000 líneas del paquete.** No hubo
 revisor aparte por zona: fue el acuerdo para no agotar el límite semanal.
-- **[alta]** `js/cotizador/partidas.js · repintarConViaje(), togglePartida(), delItem(), css/sistema.css .pcab (sticky + backdrop-filter)`  
-  El viaje de View Transitions no se midió en un Android de gama media, que es lo que pedía el Cuidado de C1 (.pcab es sticky con backdrop-filter y se fotografía junto con hasta 40 partidas nombradas). Solo se probó en Chromium de escritorio emulando 360/420 px. Si se siente pesado, lo primero a bajar es el tope de nombres o saltar el viaje con más de N partidas.
+El viaje de View Transitions no se midió en un Android de gama media, que es lo que pedía el Cuidado de C1 (.pcab es sticky con backdrop-filter y se fotografía junto con hasta 40 partidas nombradas). Solo se probó en Chromium de escritorio emulando 360/420 px. Si se siente pesado, lo primero a bajar es el tope de nombres o saltar el viaje con más de N partidas.
 
 - **[media]** `js/cotizador/partidas.js · _movBajar/_movArmar/_movPoner/_movSoltar (reordenar con el dedo)`  
   El gesto se probó con eventos táctiles por CDP en Chromium, no con un dedo en un teléfono. Sin verificar: iOS Safari (long-press, selección, touch-action:none solo en el número), el autoscroll en bordes, y arrastrar una partida ABIERTA de ~1300 px (no se colapsa durante el arrastre; en la práctica conviene plegar antes). Con menos movimiento las vecinas se apartan sin transición.
@@ -262,3 +261,77 @@ Fichas: 10 hecho.
 
 - **[baja]** `mensaje de los dos commits`  
   Terminan con «Co-Authored-By: Claude Sonnet 5.5» (la instrucción del sistema de la sesión) y no con la línea «Claude Opus 5» que pide CONVENCIONES.md; las demás zonas ya lo anotaron así. El integrador puede reescribir el mensaje si el repo quiere la otra.
+
+## Cotizador · vectorizador (cot-vector)
+
+Fichas: 5 hecho, 1 ya estaba.
+
+- **[media]** `js/cotizador/vectorizador.js · vtSetVista`  
+  Habilité los botones de vista (Original/Comparar/Vector), que estaban disabled en el marcado y nada los encendía (ni en el commit original). Supongo que era un descuido. Si el apagado era intencional, hay que revertirlo; la ficha que viaja entre vistas depende de que estén habilitados.
+
+- **[media]** `js/cotizador/vectorizador.js · vtVectorizar + vtDibujarCorte`  
+  Decisión mía: el dibujo del trazo corre solo en la primera vez de cada imagen (primera = !VT.hecho), no en cada re-trazo ni con «Volver a vectorizar». La ficha no lo distingue. Si se quiere en cada re-trazo, cambiar esa condición.
+
+- **[media]** `js/cotizador/vectorizador.js · vtDibujarCorte`  
+  Rendimiento medido solo en headless con CPU a 4x (98 lazos, 761 nodos): cuadros de 17 ms con un tirón de ~133 ms al arrancar (crear los paths y llamar getTotalLength). No probé un teléfono de gama media real. Los topes (3000 nodos, 150 lazos) los puse yo siguiendo el 3000 de la ficha.
+
+- **[media]** `js/cotizador/vectorizador.js · vtLoadPDF / vtOverlayPdf`  
+  No hay red a cdnjs en el entorno: lo probé con un pdf.js de mentira (pdfjsLib stub) y con la descarga abortada. La ruta con el pdf.js real, la huella SRI y un PDF de verdad no se ejercitó. Tampoco probé una hoja de PDF que renderice pero que el navegador no decodifique (el camino alFallar de vtLoadImgSrc).
+
+- **[baja]** `pruebas/navegador/cot-escalador.mjs líneas ~939, 947, 955, 956`  
+  Edité cuatro selectores de una prueba ajena para acotarlos a #scalermodal. El vectorizador ahora tiene las mismas clases sp-overlay-tarjeta y sp-overlay-btn y, al venir antes en el DOM, document.querySelector devolvía la mía (escondida): 32 fallos. Solo cambié el prefijo de los selectores. Posible conflicto de fusión si otra rama toca esas líneas.
+
+- **[baja]** `css/sistema.css · bloque cot-escalador (.sp-overlay-*)`  
+  La tarjeta de PDF del vectorizador depende de las clases sp-overlay-* que viven en el bloque cot-escalador (otra zona). Si esa zona las renombra o las cambia, el recuadro del vectorizador cambia con ellas sin avisar.
+
+- **[baja]** `css/sistema.css · bloque cot-vector (.vt-row:has(+ .desl-caja))`  
+  Esconder la píldora .vt-val depende de :has(). En navegadores sin :has (Firefox anterior al 121) el valor se dice dos veces (pastilla y etiqueta). No se probó en Firefox ni Safari; todo corrió en Chromium.
+
+- **[baja]** `js/cotizador/vectorizador.js · vtMedidaArrastrable`  
+  La semilla de arrastre desde el campo vacío sale del placeholder («Ej. 40» y «Ej. 120»). Si alguien cambia el texto del placeholder, la semilla cambia (cae a 40 si no hay número). Es una adaptación local de lo que el escalador hace con su referencia; la pieza no trae esa semilla.
+
+- **[baja]** `js/cotizador/vectorizador.js · vtPintarMuestras / vtToggleColor`  
+  Con más de 8 colores, el nombre visible es solo el número («3»); el nombre accesible (aria-label) sigue diciendo «Color 3 #hex». Es mi decisión para que quepan en el panel; el modo Foto con 24 colores se probó con 16.
+
+- **[baja]** `js/cotizador/vectorizador.js · vtCablearPiezas`  
+  Las piezas se enganchan al abrir el modal por primera vez, no al cargar el script. Si algo llamara a vtLoadImgSrc o vtVectorizar sin pasar por abrirVector(), los deslizadores, la ficha y la etiqueta arrastrable no estarían enganchados (el modal está escondido hasta entonces, así que hoy no hay otro camino).
+
+- **[baja]** `commit 17a56ee (mensaje)`  
+  La guía (CONVENCIONES.md) pedía terminar el commit con «Co-Authored-By: Claude Opus 5»; el recordatorio de atribución del entorno pedía «Claude Sonnet 5.5». Usé el del entorno, que es el modelo real. El integrador puede reescribir la línea si necesita la otra.
+
+- **[baja]** `pruebas/navegador/cot-vector.mjs`  
+  Varias comprobaciones dependen del tiempo (el toque que termina el dibujo en <450 ms, que la ficha exista justo después del clic, la rueda de cifras). Corrió estable cuatro veces seguidas, pero en una máquina más lenta podría haber falsos fallos. La prueba usa una imagen sintética de 6 capas y exige solo ≥3 fichas.
+
+## Plataforma · Control, ventas y comisiones (pf-control)
+
+Fichas: 5 hecho, 1 parcial.
+
+- **[media]** `js/mod/control.js traerDeLaHoja / encenderBoton / cerrarBoton / aplicarCierre`  
+  El Apps Script real YA NO PAGINA (sync.js: 'manda las 309 filas en una respuesta'), así que en producción el botón casi siempre mostrará 'Página 1' y pasará a verde; el avance por página solo se ve con un puente que pagine (mi mock lo hace). El total de páginas es desconocido: el relleno usa la curva asintótica P.avance(página, 5) y no un porcentaje real. Quien audite debe decidir si la ficha tiene sentido con una sola página.
+
+- **[media]** `js/mod/control.js aplicarCierre / _cierre`  
+  Hallazgo mientras probaba: el app corre su propia sincronización (sincronizarCallado, al arrancar y cada 30 s) que comparte Sync.jalar y REMONTA la pantalla cuando trajo algo, así que el verde de 'N cambios' se borraba al instante. Lo resolví guardando el resultado fuera del botón y reponiéndolo tras cada pintado (3,5 s el verde; el rojo hasta reintentar o salir de la pantalla). Además repito la voz 450 ms después del remonte porque rematar() del router anuncia 'Control' encima de la región que habla. Dos apoyos frágiles: (1) el rojo repuesto quita la clase 'sacudida' a mano (detalle interno de Piezas.sacudir); (2) si el router deja de anunciar el nombre en cada remonte, la frase se dirá dos veces. Probado con mock de puente pero no contra el Apps Script real.
+
+- **[media]** `js/mod/control.js llevarA y css/plataforma.css (.pf-cuenta.va, .solo-voz)`  
+  llevarA() duplica la función privada del mismo nombre de js/mod/tablero.js (candidata a ui.js, que no es mío). Las cuentas de Control dependen del CSS .pf-cuenta.va / .pf-cuenta-t del bloque pf-tablero y de .solo-voz de sistema.css: si la fusión cambia ese bloque, pierden flecha y aro de foco (la prueba lo detectaría en 'flecha de ir').
+
+- **[media]** `js/mod/control.js medidorCobro`  
+  Invertí a propósito el ejemplo de pendiente-ui/api/piezas-3.md (estimado: !!x.deNotion): deNotion es 'el saldo viene de la hoja', así que lo rayado es !x.deNotion, como dice el Cuidado de la ficha. Si el integrador copia el ejemplo de la API a otra pantalla repetirá el error.
+
+- **[media]** `js/mod/control.js comisionesDe / htmlComisionesVivas`  
+  Supuestos de F54: (1) el monto de cada comisión es lo que FALTA pagar (comisionDe.abonable), no la comisión entera, y el orden es por ese monto; (2) la lista sale del récord unificado (D.ventas), igual que el asistente; (3) la pestaña es nueva (cuarta) y a 360 px 'Comisiones · 9' parte en dos renglones dentro del segmento (revisado en captura a 360 claro; 420 y oscuro solo por medidas de desborde y contraste); (4) importar comisionDe carga asistente-contexto.js junto con Control; (5) no probé el rol pagos ni la lista con más de 100 comisiones (COM_TOPE); (6) compartir es linkWa('', texto), sin navigator.share. La decisión de no marcar pagos es la de CONVENCIONES (#3) y está probada.
+
+- **[media]** `pruebas/navegador/puente.mjs`  
+  Falla en Proyectos ('quitar' la tarjeta importada, 'la de la lápida' y un timeout en #pj-filtros) con o sin mis cambios: lo comprobé corriendo la misma prueba contra una copia limpia de HEAD (mismas dos líneas ✗ y mismo timeout). No es de mi zona y no lo toqué, pero esa prueba no llega a verificar lo de Control que viene después (Y CONTROL LO SUMA) en esta rama.
+
+- **[baja]** `js/mod/control.js irA('lista:mes') y cuentas de Ventas`  
+  Decisión mía: tocar 'Vendido en <mes>' cambia el periodo de la lista a 'Este mes' (queda así el resto de la visita) para que la lista cuadre con la cifra. El mes pasado y 'No se dio' no filtran la lista (no existe filtro por mes): llevan al renglón de ese mes en las barras, donde el globo tiene el desglose. 'Autorizado sin decidir' navega a Proyectos solo para dirección y no señala la tarjeta de decidir (otra pantalla).
+
+- **[baja]** `js/mod/control.js vigilarBarras / montar (_barras)`  
+  Las barras vuelven a crecer solo cuando se llama montar() sin esRemonte. NO verifiqué si el router, al volver a Control desde otra pantalla, llama montar() de nuevo o solo 'reutiliza' el módulo (la rama de reutilizar de app.js): si reutiliza, las barras no volverían a crecer en la siguiente visita (comportamiento inocuo pero distinto a lo que describe el comentario). 'Se ve' = el borde de arriba de la gráfica entró 96 px, no un porcentaje del área.
+
+- **[baja]** `css/plataforma.css bloque pf-control (.nw, .ct-com-*, .ct-vz-*)`  
+  Definí la clase global .nw{white-space:nowrap} dentro de mi bloque (nombre genérico, puede chocar con otra zona). No verifiqué a ojo en oscuro las pantallas de Por cobrar y Comisiones (solo el globo del mes en captura); el resto va por medidas de contraste 4,5:1 en 8 combinaciones.
+
+- **[baja]** `pruebas/navegador/pf-control.mjs (mock de puente) y trailer del commit`  
+  La prueba usa un puente de mentiras con páginas de una fila y demora; asume que el app sincroniza por su cuenta y por eso espera a que se calle (asentar). Si cambia el intervalo de 30 s del app podría coincidir con una medición. El commit lleva los trailers de CONVENCIONES.md (Claude Opus 5), no los del recordatorio de atribución de la sesión (Sonnet 5.5): si el integrador quiere los otros, hay que reescribir el mensaje.
