@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -14,6 +14,67 @@
    ============================================================================ */
 
 /* ===================== Resumen + Autorización ===================== */
+
+/* ----- La cuenta del anticipo, sin pantalla (C17) -----
+   La regla de las condiciones de pago es «50 % de anticipo y el resto a más tardar dos días hábiles
+   después de la instalación», con una excepción para los proyectos mayores a $60,000. La excepción
+   se mide sobre el SUBTOTAL, sin IVA —lo confirmó Dirección—, y no sobre el total que se cobra: el
+   tamaño del proyecto es el trabajo que lleva, y el mismo trabajo no puede caer de un lado o del
+   otro de la regla según se facture o no. Con factura son $69,600 de total los que la disparan.
+
+   Ojo con la cuenta: el subtotal NO es «lo capturado», es el del precio que se va a cobrar, que es
+   el que cambia cuando el autorizador ajusta. Sale de desgloseFinal().sub, que divide entre 1.16 el
+   neto ya redondeado para que los tres números cierren entre sí.
+
+   El reparto (hoy / al instalar) sí va sobre el total: es dinero que se cobra. La excepción es lo
+   único que mira el subtotal, y por eso entra como un tercer dato y no cambia el resto. */
+const ANTICIPO_EXCEPCION=60000;
+function partirAnticipo(total,anti,sub){
+  const t=Math.max(0,+total||0), a=Math.max(0,+anti||0), resta=t-a;
+  /* Sin subtotal se mide contra el total: es el caso sin factura, donde valen lo mismo. */
+  const base=(sub===undefined||sub===null||!isFinite(+sub))?t:Math.max(0,+sub);
+  return {hoy:a, alInstalar:Math.max(0,+resta.toFixed(2)), supera:resta<-0.01,
+    pct:t>0?Math.round(a/t*100):0, excepcion:base>ANTICIPO_EXCEPCION};
+}
+/* La barra de dos tramos del anticipo. Se monta una vez y después solo se le ajusta el rango: el
+   total cambia en cada tecla de una partida y el deslizador conserva el porcentaje pactado al
+   moverse. Imán fuerte en el 50 % exacto —con factura el 50 % no es redondo: $6,264.48— que pesa
+   más que los cientos, y tope en el total. Sin total no hay nada que partir y la barra se esconde. */
+let _antiDesl=null, _antiTotal=0;
+function montarAnticipoPartido(pf,sub){
+  const P=window.Piezas, caja=$('s-anti-partido'), r=$('f-anti-r'), ex=$('s-anti-excep');
+  if(ex){
+    const si=partirAnticipo(pf,0,sub).excepcion;
+    if(ex.hidden===si) ex.hidden=!si;
+    if(si&&!ex.textContent) ex.textContent='El subtotal pasa de '+money(ANTICIPO_EXCEPCION).replace(/\.00$/,'')+': aplica la excepción de las condiciones de pago. El 50% es solo la referencia.';
+  }
+  if(!caja||!r) return;
+  const hay=pf>0&&!!(P&&P.deslizadorConImanes);
+  if(caja.hidden===hay) caja.hidden=!hay;
+  if(!hay) return;
+  _antiTotal=pf;
+  const imanes=[{v:pf/2,radio:pf*.02,t:'50%'},{v:pf,t:'Total'}];
+  const marcas=[{v:0,t:'$0'}].concat(imanes);
+  if(!_antiDesl){
+    r.min='0'; r.max=String(pf);
+    _antiDesl=P.deslizadorConImanes(r,{campo:'f-anti',grueso:true,redondeo:100,pasoTeclado:100,imanes,marcas,
+      texto:v=>{ const c=partirAnticipo(_antiTotal,v); return 'Hoy '+money(c.hoy)+' ('+c.pct+'%), al instalar '+money(c.alInstalar); }});
+  }
+  if(_antiDesl) _antiDesl.rango(0,pf,{imanes,marcas});
+}
+
+/* ----- Las cifras que ruedan (C23 #1) -----
+   El total del dock y el de la barra de pasos rodaban de golpe o no rodaban: se reescriben con
+   cada tecla aunque el importe no cambie. La pieza solo rueda cuando la cifra es DISTINTA de la que
+   pintó, y aquí se le agrega lo que no sabe: que abrir otra cotización, o vaciar, no es «el importe
+   cambió» sino «es otra cotización», y ahí las cifras cambian en seco. */
+let _cifrasFolio=null, _cifrasQuietas=false;
+function rodarImporte(el,texto,clave){
+  const P=window.Piezas;
+  if(!el) return;
+  if(!P||!P.rodarCifra){ if(el.textContent!==texto) el.textContent=texto; return; }
+  P.rodarCifra(el,texto,{clave,animar:!_cifrasQuietas&&_cifrasFolio===Q.folio});
+}
 function renderSummary(){
   /* Único punto donde se limpia una autorización vencida. Está aquí porque todo lo que
      cambia el trabajo —renderItems, typeItem, toggleIva— pasa por renderSummary antes de
@@ -101,11 +162,19 @@ function renderSummary(){
       ? `Anticipo (${Math.round((Q.anti/pf)*100)}%)`
       : 'Anticipo sugerido (50%)';
   }
+  /* ----- El anticipo, partido a la vista (C17) -----
+     «Resta al entregar: $X» era un renglón gris que solo decía una mitad de la cuenta. Ahora dice las
+     dos —«Hoy $X · Al instalar $Y»— y encima va la barra de dos tramos que se arrastra, que escribe
+     #f-anti y deja que el `input` y el `change` de siempre hagan el resto (acotado, `antiManual`). */
   const restEl=$('s-anti-rest');
   if(restEl){
-    const resta=pf-(Q.anti||0);
-    restEl.textContent = pf>0 ? `Resta al entregar: ${money(Math.max(0,resta))}${resta<-0.01?' · el anticipo supera el total':''}` : '';
+    const c=partirAnticipo(pf,Q.anti,desgloseFinal().sub);
+    const html=pf>0
+      ? `<span class="anti-tramo">Hoy <b>${money(c.hoy)}</b></span><span class="anti-tramo">Al instalar <b>${money(c.alInstalar)}</b></span>${c.supera?'<span class="anti-sobra">El anticipo supera el total</span>':''}`
+      : '';
+    if(restEl.dataset.firma!==html){ restEl.dataset.firma=html; restEl.innerHTML=html; }
   }
+  montarAnticipoPartido(pf,desgloseFinal().sub);
   // Precio autorizado (descuento o aumento respecto al calculado)
   const authRow=$('s-auth-row');
   if(authRow){
@@ -164,24 +233,104 @@ function renderSummary(){
   if($('ivabtn')) $('ivabtn').disabled=locked();
   /* Cotizar con IA reemplaza las partidas, así que se bloquea igual que agregarlas. */
   if($('aibtn')) $('aibtn').disabled=locked();
+  /* La barra del anticipo se apaga con su campo: arrastrarla con el precio cerrado escribiría en
+     un campo que no deja escribir. */
+  const antiR=$('f-anti-r'); if(antiR) antiR.disabled=$('f-anti').disabled;
   renderMobileBar();
+  /* El folio al que pertenecen las cifras que rodaron en este pintado (C23 #1). Se anota DESPUÉS de
+     pintar: así la primera vez que se ve una cotización distinta —abrir otra, vaciar— las cifras
+     cambian de golpe y solo ruedan los cambios de la MISMA cotización. */
+  _cifrasFolio=Q.folio; _cifrasQuietas=false;
 }
 
 /* Qué pasa con la solicitud mientras se espera, dicho sin adornos: si ya llegó a la hoja, si
    se está reintentando, o si la hoja la rechazó por una razón que reintentar no arregla. */
+/* ----- El recorrido de la solicitud (C9) -----
+   Antes era una frase y un giro: «Solicitud en el teléfono de Dirección…». No decía cuándo se
+   preguntó por última vez ni que la app vuelve a preguntar sola, así que una espera de tres
+   minutos y una app colgada se veían idénticas. Ahora son tres tramos —en este teléfono, en la
+   hoja, Dirección decide— cada uno con el glifo de estado de la pieza 24: anillo punteado (todavía
+   no), arco que gira (pasando ahora), palomita (listo), «!» ámbar (se está reintentando) y cruz
+   (no pasó). El arco gira SOLO mientras hay una espera de verdad (`_esperaViva`, notario.js):
+   una solicitud que la hoja ya rechazó por el catálogo, o que Dirección retiró, no está esperando
+   nada y no puede seguir girando. */
+function etapasEspera(s){
+  if(!s) return ['espera','espera','espera'];
+  const viva=_esperaViva(s);
+  /* Sin llegar a la hoja: la cruz si la hoja ya dijo que no (catálogo), el aviso ámbar si se está
+     reintentando o Dirección la retiró, y el arco solo si de verdad se está mandando. */
+  const hoja=s.enviada?'ok':s.definitivo?'mal':(s.error||!viva)?'av':'trabaja';
+  const dir=s.enviada?(viva?'trabaja':(s.cancelada||s.rechazo?'mal':'espera')):'espera';
+  return ['ok',hoja,dir];
+}
+/* El estado que resume todo el recorrido, para el glifo de la insignia «Pendiente». */
+function glifoDeEspera(){
+  if(_selfAuth||!Q.solicitud) return 'espera';
+  const e=etapasEspera(Q.solicitud);
+  if(e.includes('mal')||e.includes('av')) return 'av';
+  return e.includes('trabaja')?'trabaja':'espera';
+}
+const _DICE_ETAPA={ok:'listo',trabaja:'en curso',espera:'todavía no',av:'se está reintentando',mal:'no pasó'};
 function esperaHTML(){
   const s=Q.solicitud;
   if(!s) return 'Esperando autorización del precio en este teléfono. Dirección la aprueba o la rechaza desde <b>Autorizador</b>.';
-  if(s.enviada) return '<span class="espera-giro" aria-hidden="true"></span> Solicitud en el teléfono de Dirección. En cuanto la autorice, el precio se sella y aparece aquí solo.';
-  if(s.definitivo) return esc(s.error);
-  return (s.error?esc(s.error):'Mandando la solicitud a Dirección…');
+  const P=window.Piezas, nombres=['En este teléfono','En la hoja','Dirección decide'];
+  const tramos=etapasEspera(s).map((e,i)=>`<li class="tramo" data-e="${e}">${P&&P.marcaEstadoHTML?P.marcaEstadoHTML(e,{tam:22}):''}<span class="tramo-t">${nombres[i]}<span class="solo-voz"> · ${_DICE_ETAPA[e]}</span></span></li>`).join('');
+  const frase=s.enviada?'Solicitud en el teléfono de Dirección. En cuanto la autorice, el precio se sella y aparece aquí solo.'
+    :s.definitivo?esc(s.error)
+    :(s.error?esc(s.error):'Mandando la solicitud a Dirección…');
+  /* «Revisado hace…» solo cuenta una respuesta POSTERIOR a esta solicitud: la hora de la consulta
+     de la solicitud anterior no dice nada de ésta. Sin respuesta todavía, se dice lo que se hace. */
+  const ts=(s.enviada&&_estadoTs>=(Number(s.ts)||0)&&_estadoTs>0)?_estadoTs:0;
+  const hace=s.enviada&&_esperaViva(s)
+    ? `<span class="espera-hace" data-hace="${ts}">${ts?'Revisado hace '+haceTexto(Date.now()-ts):'La app vuelve a preguntar sola cada 15 s'}</span>`
+    : '';
+  return `<ol class="recorrido" aria-label="Recorrido de la solicitud">${tramos}</ol><span class="espera-frase">${frase}</span>${hace}`;
 }
+/* Cuánto hace, en palabras cortas: «9 s», «3 min», «más de 1 h». */
+function haceTexto(ms){
+  const s=Math.max(0,Math.round(ms/1000));
+  if(s<60) return s+' s';
+  if(s<3600) return Math.floor(s/60)+' min';
+  return 'más de 1 h';
+}
+/* El reloj de «revisado hace…», un solo renglón de texto por segundo y solo con la pantalla a la
+   vista. Lo escribe en TODOS los elementos que lo lleven (`[data-hace]`): el de la espera del
+   vendedor y el de la cola del autorizador. Un reloj que corre con la pantalla apagada gasta
+   batería para que nadie lea el resultado, y al volver a la pantalla (visibilitychange, más
+   abajo) se pinta de una vez. */
+let _haceT=0;
+function pintarHaceEspera(){
+  const els=document.querySelectorAll('[data-hace]');
+  els.forEach(el=>{
+    const ts=Number(el.dataset.hace);
+    if(el.classList.contains('espera-hace')){
+      /* Si la consulta contestó después de pintar el renglón, se entera aquí. */
+      const nuevo=(Q.solicitud&&Q.solicitud.enviada&&_estadoTs>=(Number(Q.solicitud.ts)||0))?_estadoTs:0;
+      if(nuevo&&nuevo!==ts) el.dataset.hace=String(nuevo);
+    }
+    const t=Number(el.dataset.hace);
+    const txt=t?(el.dataset.prefijo||'Revisado')+' hace '+haceTexto(Date.now()-t):el.textContent;
+    if(el.textContent!==txt) el.textContent=txt;
+  });
+  if(!els.length||document.visibilityState==='hidden'){ clearInterval(_haceT); _haceT=0; }
+  else if(!_haceT) _haceT=setInterval(pintarHaceEspera,1000);
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible') pintarHaceEspera();
+  else{ clearInterval(_haceT); _haceT=0; }
+});
 function renderAuth(){
   const box=$('authbox');
   const LABELS={borrador:'Borrador',pendiente:'Pendiente de autorización',autorizada:'Autorizada',rechazada:'Rechazada'};
-  const badge=`<span class="badge ${Q.estado}"><span class="dot"></span>${LABELS[Q.estado]}</span>`;
+  /* La insignia usa el mismo glifo que el recorrido de la solicitud (C9): pendiente gira mientras
+     espera de verdad, autorizada lleva su palomita y rechazada su cruz. El borrador conserva el
+     puntito, que es «todavía no se ha pedido nada». */
+  const _GL={pendiente:glifoDeEspera(),autorizada:'ok',rechazada:'mal'}[Q.estado];
+  const badge=`<span class="badge ${Q.estado}">${_GL&&window.Piezas&&Piezas.marcaEstadoHTML?Piezas.marcaEstadoHTML(_GL,{tam:14}):'<span class="dot"></span>'}${LABELS[Q.estado]}</span>`;
   let body='';
   const hayPartidas=Q.items.length>0&&totals().sub>0;
+  let colaHTML=null;   // lo que va dentro de la lista viva de la cola (C22), o null si no hay cola
 
   if(Q.rol==='autorizador'&&!puedeAutorizar()){
     /* El segmentado ya no deja llegar aquí sin pase de dirección, pero una cotización guardada
@@ -197,15 +346,21 @@ function renderAuth(){
        (notario.js). Antes esta nota decía que solo aparecían las de este dispositivo —y era
        verdad—: el flujo de dos personas solo funcionaba si compartían teléfono. */
     const remotas=remotasHTML();
-    const qNota=`<p class="mini" style="text-align:left;margin-top:8px">Aquí llegan también las solicitudes de los otros teléfonos${_remotasTs?' · revisado a las '+new Date(_remotasTs).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',hour12:false}):' · buscando…'}</p>`;
+    /* «Revisado hace N s», con reloj (C9): la hora de reloj de pared decía a qué hora se miró, pero
+       no cuánto llevaba mirando sin respuesta. El texto lo mantiene vivo pintarHaceEspera(). */
+    const qNota=`<p class="mini" style="text-align:left;margin-top:8px">Aquí llegan también las solicitudes de los otros teléfonos${_remotasTs?' · <span data-hace="'+_remotasTs+'" data-prefijo="revisado">revisado hace '+haceTexto(Date.now()-_remotasTs)+'</span>':' · buscando…'}</p>`;
     if(!_remotasTs||Date.now()-_remotasTs>VIGILA_MS) setTimeout(consultarSolicitudes,0);
+    /* La lista de la cola NO se rehace con el resto del panel: este panel se repinta en cada tecla
+       del anticipo, y una lista que se rehace entera no puede saber qué llegó (C22). Aquí solo se
+       arma lo que va adentro; lo monta _montarCola() sobre un contenedor que sobrevive. */
     if(!pendientes.length&&!remotas){
-      qHTML=`<div class="queue-list"><div class="queue-empty">Sin cotizaciones pendientes por autorizar.</div></div>${qNota}`;
+      colaHTML='<div class="queue-empty">Sin cotizaciones pendientes por autorizar.</div>';
+      qHTML=`<div id="auth-cola-sitio"></div>${qNota}`;
     } else {
       /* El renglón era un div con onclick y nada más: el autorizador que navega con teclado
          no podía cargar ninguna cotización pendiente, que es lo único que hace esta pantalla.
          aria-current marca la que está abierta, que hasta ahora solo se distinguía por color. */
-      const rows=pendientes.map(e=>`<div class="queue-item${e.folio===Q.folio?' active':''}" ${_ABRIBLE} ${e.folio===Q.folio?'aria-current="true"':''} aria-label="Revisar ${esc(e.folio)}${e.proy||e.cliente?', '+esc(e.proy||e.cliente):''}" onclick="loadQueueEntry(${jsArg(e.folio)})">
+      const rows=pendientes.map(e=>`<div class="queue-item${e.folio===Q.folio?' active':''}" data-clave="${esc(e.folio)}" ${_ABRIBLE} ${e.folio===Q.folio?'aria-current="true"':''} aria-label="Revisar ${esc(e.folio)}${e.proy||e.cliente?', '+esc(e.proy||e.cliente):''}" onclick="loadQueueEntry(${jsArg(e.folio)})">
         <span class="qi-dot"></span>
         <div class="qi-body">
           <div class="qi-folio">${esc(e.folio)}</div>
@@ -214,7 +369,8 @@ function renderAuth(){
         </div>
         <div style="text-align:right"><div class="qi-total">${money(e.neto)}</div></div>
       </div>`).join('');
-      qHTML=`<div class="queue-list">${rows}${remotas}</div>${qNota}`;
+      colaHTML=rows+remotas;
+      qHTML=`<div id="auth-cola-sitio"></div>${qNota}`;
     }
 
     // --- Formulario de revisión (solo si la cotización cargada está pendiente) ---
@@ -299,7 +455,7 @@ function renderAuth(){
               <!-- Canva y el prompt de Gemini son salidas que se usan a veces, no pasos de la
                    entrega: sacadas de la fila de arriba dejan de competir con lo que sí se
                    hace siempre, y siguen a un toque de distancia. -->
-              <details class="ai-cfg otras-salidas"${_hayPropuestas()?' open':''}>
+              <details class="ai-cfg otras-salidas pliegue"${_hayPropuestas()?' open':''}>
                 <summary>Otras salidas de esta cotización</summary>
                 <div style="margin-top:2px">
                   <button class="btn btn-gho" onclick="copiarParaCanva()"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Copiar datos para Canva</button>
@@ -323,12 +479,26 @@ function renderAuth(){
      renglón de distancia: abrir «otras salidas», bajar a corregir el anticipo y ver el pliegue
      cerrarse solo. Se lee antes y se devuelve después. */
   const _abierto=box.querySelector('details.otras-salidas')?.open;
+  /* Lo que el panel repintado NO puede perder, porque vive un rato y nadie lo ha terminado de
+     decir: el botón de «Autorizar» mientras sella, lava en verde o ofrece «Reintentar» (C5), y la
+     capa del neón que acaba de encenderse (C23 #7). Se sacan del panel viejo y se devuelven a su
+     sitio en el nuevo. Sin esto, el primer repintado a media espera —llega una solicitud nueva a la
+     cola, se toca un renglón— se llevaba el reloj, el relleno y el «Reintentar». */
+  const _vivo=box.querySelector('#a-autorizar[data-estado]');
+  const _neon=box.querySelector(':scope > .neon-capa');
   box.innerHTML=`<div class="statusrow"><span class="lab">Autorización</span>${badge}</div>${body}`;
-  if(_abierto){ const d=box.querySelector('details.otras-salidas'); if(d) d.open=true; }
-  /* El giro de espera nace nuevo en cada repintado —que aquí es cada tecla— y volvía a arrancar
-     desde arriba: daba tirones. Con un retardo negativo sacado del reloj, todos los giros que
-     nacen van en la misma fase (una vuelta dura .8 s) y el repintado no se nota. */
-  box.querySelectorAll('.espera-giro').forEach(g=>{ g.style.animationDelay=(-(performance.now()%800))+'ms'; });
+  if(_vivo){ const nuevo=box.querySelector('#a-autorizar'); if(nuevo) nuevo.replaceWith(_vivo); }
+  if(_neon) box.appendChild(_neon);
+  /* Reabrir «otras salidas» no es un toque: sin animar (C16), o cada tecla del anticipo lo
+     abriría de nuevo con su altura. */
+  if(_abierto){ const d=box.querySelector('details.otras-salidas'); if(d){ if(window.Piezas&&Piezas.abrirSinAnimar) Piezas.abrirSinAnimar(d,true); else d.open=true; } }
+  _montarCola(box,colaHTML);
+  armarBotonesDelPanel(box);
+  /* El arco de espera nace nuevo en cada repintado —que aquí es cada tecla— y volvía a arrancar
+     desde arriba: daba tirones. Con un retardo negativo sacado del reloj, todos los arcos que
+     nacen van en la misma fase (una vuelta dura .9 s) y el repintado no se nota. */
+  box.querySelectorAll('.marca-estado[data-estado="trabaja"] .me-arco').forEach(g=>{ g.style.animationDelay=(-(performance.now()%900))+'ms'; });
+  pintarHaceEspera();
   // Inicializar display de descuento tras render
   /* Solo PINTAR: esto corre en cada repintado, sin que nadie haya tecleado. Apuntaba el valor
      del campo como «lo que llevabas escrito», y de ahí salían dos mentiras —«se canceló la
@@ -337,6 +507,84 @@ function renderAuth(){
   if(Q.estado==='pendiente'&&(Q.rol==='autorizador'||_selfAuth)){
     updPrecioAuth(parseFloat($('a-precio')?.value)||0, totals().sub, true);
   }
+}
+
+/* ----- La cola de dirección, viva (C22) -----
+   Cuando llegaba una solicitud de otro teléfono la lista se repintaba entera y nada distinguía a
+   la nueva; y renderAuth() corre en cada tecla del anticipo, así que cualquier marca que se
+   pusiera al repintar volvía a empezar en cada tecla. La pieza de la lista viva lo resuelve —
+   la que llega entra deslizándose y queda marcada «nueva» unos segundos, la que se va se
+   desvanece en su sitio, y repintar no reinicia nada— pero pide un contenedor que NO se rehaga.
+   Aquí el panel entero sí se rehace, así que el contenedor de la cola se saca del panel viejo y se
+   devuelve al nuevo: es el mismo nodo de un pintado al siguiente, con sus renglones dentro.
+
+   Si lo que va adentro es exactamente lo mismo que la vez pasada no se toca nada: la marca
+   «nueva» de un renglón sigue su fundido sin que nadie le cambie el retardo. */
+let _colaEl=null, _colaLista=null, _colaFirma=null;
+function _montarCola(box,html){
+  const sitio=box.querySelector('#auth-cola-sitio');
+  if(!sitio||html===null){
+    /* Se salió de la vista del autorizador: la lista se olvida entera, para que la próxima vez que
+       se entre sus renglones sean «lo que ya estaba» y no una lluvia de «nueva». */
+    if(_colaLista){ _colaLista.destruir(); _colaLista=null; }
+    _colaEl=null; _colaFirma=null;
+    return;
+  }
+  const P=window.Piezas;
+  if(!_colaEl){ _colaEl=document.createElement('div'); _colaEl.className='queue-list'; _colaEl.id='auth-cola'; _colaFirma=null; }
+  sitio.replaceWith(_colaEl);
+  if(!P||!P.listaViva){ if(_colaFirma!==html){ _colaEl.innerHTML=html; _colaFirma=html; } return; }
+  if(!_colaLista) _colaLista=P.listaViva(_colaEl,{clave:el=>el.dataset.clave||'',
+    anunciar:el=>'Llegó una solicitud: '+((el.querySelector('.qi-folio')||{}).textContent||'').trim()});
+  if(_colaFirma===html) return;
+  _colaFirma=html;
+  _colaLista.repintar(()=>{ _colaEl.innerHTML=html; });
+}
+/* Lo que hay que volver a armar sobre el panel cada vez que se repinta. Las piezas son
+   idempotentes y ligeras: lo que vive en el botón se arma aquí, no en el marcado, porque el
+   marcado no puede llevar manejadores nuevos sin mover los conteos del cotizador. */
+function armarBotonesDelPanel(box){
+  const P=window.Piezas; if(!P) return;
+  /* «Rechazar» se mantiene presionado (C23 #5): es lo destructivo del panel —tira el precio que se
+     tecleó y devuelve la cotización al vendedor— y un toque de más no debe poder. Con teclado,
+     Enter sostenido; sin poder sostener (lector de pantalla), la pieza pide un segundo toque. */
+  const rech=box.querySelector('#a-rechazar');
+  if(rech&&P.mantener) P.mantener(rech,{tono:'mal',alConfirmar:rechazar,textoHecho:'Rechazando…'});
+  /* El deslizador del precio (C18), sobre el campo que acaba de pintar authRevisionHTML(). */
+  if($('a-precio-r')) deslizadorDelPrecio('a-precio-r','a-precio',totals().sub);
+}
+
+/* ----- El deslizador del precio, con imanes (C18) -----
+   Regatear delante del cliente era teclear y borrar. El deslizador va de −20 % a +10 % del
+   subtotal calculado, con imanes en 0, −5, −10 y −15 % y, fuera de ellos, en cientos redondos;
+   más allá de los extremos cede como una liga. El campo SIGUE siendo la fuente: el deslizador lo
+   escribe y despacha `input`, así updPrecioAuth(+v, subCalc) corre por el camino de siempre, y si
+   alguien teclea −25 % la perilla se queda en el tope y la frase de abajo dice la verdad.
+
+   Todo es SIN IVA, igual que el campo: el precio se decide sobre el subtotal. Y no vibra en los
+   imanes: vibrar() es de autorizar, borrar y rechazar (notario.js). Lo comparten el formulario de
+   este teléfono y la revisión de una solicitud remota (notario.js), por eso vive aquí. */
+const AJUSTE_DESDE=-20, AJUSTE_HASTA=10, AJUSTE_IMANES=[0,-5,-10,-15];
+function ajusteDelPrecio(subCalc){
+  const en=p=>+(subCalc*(1+p/100)).toFixed(2);
+  const rotulo=p=>p===0?'0%':(p<0?'−':'+')+Math.abs(p)+'%';
+  const imanes=AJUSTE_IMANES.map(p=>({v:en(p),t:rotulo(p)}));
+  return {min:en(AJUSTE_DESDE),max:en(AJUSTE_HASTA),imanes,
+    marcas:[{v:en(AJUSTE_DESDE),t:rotulo(AJUSTE_DESDE)}].concat(imanes,[{v:en(AJUSTE_HASTA),t:rotulo(AJUSTE_HASTA)}])};
+}
+function deslizadorDelPrecio(rangoId,campoId,subCalc){
+  const P=window.Piezas, el=$(rangoId);
+  if(!P||!P.deslizadorConImanes||!el||!(subCalc>0)) return null;
+  const a=ajusteDelPrecio(subCalc);
+  el.min=String(a.min); el.max=String(a.max);
+  const d=P.deslizadorConImanes(el,{campo:campoId,elastico:true,redondeo:100,pasoTeclado:100,origen:subCalc,
+    imanes:a.imanes,marcas:a.marcas,
+    formatoCampo:v=>String(+(+v).toFixed(2)),
+    texto:v=>{ const f=fraseAjuste(v,subCalc,subCalc); return 'Subtotal '+money(v)+(f?', '+f.tipo.toLowerCase()+' del '+f.pct+'%':', sin ajuste'); }});
+  /* La misma pieza puede venir de un repintado anterior (el modal remoto no se rehace): se le dan
+     el rango y los imanes de ESTE calculado. */
+  if(d) d.rango(a.min,a.max,{imanes:a.imanes,marcas:a.marcas,origen:subCalc});
+  return d;
 }
 
 /* ----- Los tres pasos de la entrega -----
@@ -363,26 +611,46 @@ function entregaHTML(opts){
      autorizar», y dos rellenos en la misma columna son dos «esto es lo que sigue». */
   const sinRelleno=!!(opts&&opts.sinRelleno);
   const primero=sinRelleno?null:HITOS.find(x=>!h[x.k]);
-  return HITOS.map(x=>{
+  const pasos=HITOS.map(x=>{
     const ts=h[x.k];
     const toca=primero&&primero.k===x.k;
     const propia=(sinRelleno&&x.cls==='btn-pri')?'btn-gho':x.cls;
-    /* Tres estados y tres pesos. El que TOCA lleva el relleno de marca, que es el único de la
-       pantalla: «un solo botón lleva color, el que hace lo que se vino a hacer», y aquí ese
-       botón es literalmente el siguiente paso. Los que todavía no tocan conservan su propia
-       tinta —el verde de WhatsApp, el aguamarina de la venta— porque así se encuentran sin
-       gritar, que es para lo que se les dio. El que ya está se va a neutro con su palomita.
+    /* La pista de WhatsApp se calcula aquí y no es texto fijo: es el número al que va a abrir el
+       chat, con la misma regla que usa el botón (H2, falla 5). Antes decía siempre «adjunta el
+       PDF que guardaste» y el número no se veía en ningún lado hasta que WhatsApp ya había
+       abierto — a veces sin chat. */
+    const w=(x.k==='wa')?pistaWhatsApp():null;
+    /* La nota del paso dice, en este orden: qué se hizo y cuándo, a dónde va el chat, y qué hay
+       que hacer con la mano después de tocar. El número se lee SIEMPRE que se pueda marcar,
+       también con el hito ya puesto, porque un chat se vuelve a abrir; la instrucción sale solo
+       en el paso que toca, que es cuando sirve. */
+    const nota=[ts?x.hecho+' · '+hitoFecha(ts):'', (w&&w.ok)?w.destino:'',
+                (toca&&x.pista&&(!w||w.ok))?x.pista:''].filter(Boolean).join(' · ');
+    /* Tres estados y tres pesos, los mismos de antes. El que TOCA lleva el relleno de marca, que
+       es el único de la pantalla: «un solo botón lleva color, el que hace lo que se vino a
+       hacer», y aquí ese botón es literalmente el siguiente paso. Los que todavía no tocan
+       conservan su propia tinta —el verde de WhatsApp, el aguamarina de la venta— porque así se
+       encuentran sin gritar. El que ya está se va a neutro.
 
-       El hecho se dice con la palomita y la fecha, no cambiando el nombre del botón: quien
-       vuelva a tocarlo tiene que seguir sabiendo qué hace. */
-    return `<button class="btn hito ${ts?'btn-gho hito-hecho':(toca?'btn-pri':propia)}" onclick="${x.fn}">`
-      +(ts?`<svg class="svgi hito-ok" aria-hidden="true"><use href="#i-check"/></svg>`
-          :`<svg class="svgi" aria-hidden="true"><use href="#${x.ico}"/></svg>`)
-      +` ${x.label}`
-      +(ts?`<small class="hito-fecha">${esc(x.hecho)} · ${esc(hitoFecha(ts))}</small>`
-          :(toca&&x.pista?`<small class="hito-pista">${esc(x.pista)}</small>`:''))
-      +`</button>`;
-  }).join('');
+       El hecho se dice con la palomita del riel y la fecha, no cambiando el nombre del botón:
+       quien vuelva a tocarlo tiene que seguir sabiendo qué hace. */
+    const boton=`<button class="btn hito ${ts?'btn-gho hito-hecho':(toca?'btn-pri':propia)}" onclick="${x.fn}">`
+      +`<svg class="svgi" aria-hidden="true"><use href="#${x.ico}"/></svg> ${x.label}</button>`;
+    /* El estorbo va en ámbar y con palabras, encima del botón: el color no dice nada solo, y
+       quien lo lee tiene que poder arreglarlo (corregir el teléfono) antes de tocar. */
+    const av=(w&&!w.ok)?`<p class="hito-av"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> ${esc(w.destino)}</p>`:'';
+    return {texto:x.paso, nota:nota, clave:x.k,
+      estado:ts?'hecho':(toca?'actual':'pendiente'),
+      extra:av+boton+(w?verMensajeHTML():'')};
+  });
+  /* Un riel vertical con el conector en verde entre los tres pasos (pieza 16). Eran tres botones
+     apilados sin nada que los uniera, y «vas en el 2 de 3» había que deducirlo contando
+     palomitas. El conector va en --ok y no en el azul de marca a propósito: el azul es el del
+     botón que hace lo que se vino a hacer, y un riel lleno de azul competiría con él.
+
+     Nace quieto —se repinta en cada tecla del anticipo— y solo se anima cuando alguien marca un
+     hito: eso lo hace animarHitoDelRiel() desde marcarHito(). */
+  return Piezas.rielHTML(pasos,{etiqueta:'Entrega de la cotización',clase:'entrega-riel'});
 }
 
 /* ----- Formulario de revisión del precio -----
@@ -448,6 +716,9 @@ function authRevisionHTML(soloAutorizar){
     <div class="fld">
       <label for="a-precio">Precio final autorizado ${Q.iva?'· subtotal, SIN IVA':'(sin IVA)'}</label>
       <div class="precio-auth-orig" style="font-size:11.5px;color:var(--muted);margin-bottom:4px">${Q.iva?'Subtotal':'Total'} calculado: <b>${money(subCalc)}</b></div>
+      <!-- El deslizador de −20 % a +10 % con imanes (C18): lo monta armarBotonesDelPanel() después de
+           pintar. El campo de abajo sigue siendo la fuente del número. -->
+      <div class="precio-desl"><input type="range" id="a-precio-r" class="precio-r" min="0" max="1" step="any" value="0" aria-label="Ajustar el precio autorizado, subtotal sin IVA" aria-describedby="descuento-info"></div>
       <div class="inp-money"><input id="a-precio" type="number" inputmode="decimal" min="0" step="100" value="${paCurrent}" oninput="updPrecioAuth(+this.value,${subCalc})"></div>
       ${Q.iva?`<div class="precio-auth-neto" id="a-precio-neto">Con IVA 16%: <b>${money(conIva(paCurrent))}</b></div>`:''}
       <div class="descuento-info" id="descuento-info"></div>
@@ -464,10 +735,14 @@ function authRevisionHTML(soloAutorizar){
          repintado —plegar una partida, ajustar un precio— borraba lo que se llevaba
          escrito, sin nada que lo insinuara. -->
     <div class="fld"><label for="a-note">Nota (opcional)</label><textarea id="a-note" placeholder="Comentario para el vendedor…" oninput="Q.nota=this.value">${esc(Q.nota||'')}</textarea></div>
-    <button class="btn btn-ok${_sellando?' trabajando':''}" id="a-autorizar" ${_sellando||!puedeAutorizar()?'disabled':''} onclick="autorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> ${_sellando?'Sellando en la hoja…':'Autorizar precio'}</button>
+    <!-- «Autorizar precio» ya no se pinta «trabajando» a mano: mientras sella, es la pieza 14 la que lo
+         vuelve una ficha de estado (relleno que avanza, reloj, palomita o «Reintentar»), y
+         renderAuth() conserva ese botón vivo entre repintados. Con el atributo disabled el foco se
+         perdía a media espera; la pieza usa aria-disabled y se come los toques. -->
+    <button class="btn btn-ok" id="a-autorizar" ${puedeAutorizar()?'':'disabled'} onclick="autorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Autorizar precio</button>
     ${soloAutorizar
       ? '<button class="btn btn-gho" '+(_sellando?'disabled ':'')+'onclick="cancelarAutoAutorizacion()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver a editar</button>'
-      : '<button class="btn btn-dgr" '+(_sellando?'disabled ':'')+'onclick="rechazar()">Rechazar</button>'}`;
+      : '<button class="btn btn-dgr" id="a-rechazar" '+(_sellando?'disabled ':'')+'onclick="rechazar()">Rechazar</button>'}`;
 }
 
 /* `paSub` y `subCalc` son los dos SIN IVA: lo que se teclea y lo que sale de las partidas.
@@ -481,7 +756,13 @@ function updPrecioAuth(paSub, subCalc, soloPintar){
      repintado del formulario. Va fuera del early return de abajo porque borrar el
      campo —dejarlo en cero— también es algo que el autorizador acaba de escribir.
      `soloPintar` es el repintado del formulario: ahí no teclió nadie. */
-  if(!soloPintar) paBorradorSet(paSub);
+  if(!soloPintar){
+    paBorradorSet(paSub);
+    /* Lo que se teclea o se arrastra es otro precio: el «No se selló · Reintentar» de antes ya no
+       habla de esto, y el botón vuelve a decir «Autorizar precio». */
+    const bt=$('a-autorizar');
+    if(bt&&bt.dataset.estado==='mal'&&window.Piezas&&Piezas.estadoBoton) Piezas.estadoBoton(bt).reiniciar();
+  }
   /* El neto que le corresponde, pegado al campo. Es el número que acaba en el papel del
      cliente, y no verlo mientras se teclea el subtotal es la mitad de la confusión. */
   const netoEl=$('a-precio-neto');
@@ -553,6 +834,11 @@ function revisarAntesDe(accion,etiqueta){
   if(!pend.length){ accion(); return; }
   _faltSeguir=accion;
   $('falt-seguir').textContent=etiqueta;
+  /* La lista nace de cero cada vez que el aviso se abre: lo que quedó de la vez pasada no es
+     «lo que ya estaba» de esta, y la pieza de lista viva tomaría por nuevos renglones que solo
+     están de vuelta. */
+  if(_faltLista){ _faltLista.destruir(); _faltLista=null; }
+  $('falt-list').innerHTML='';
   pintarFaltantes(pend);
   $('faltmodal').classList.add('show');
 }
@@ -568,7 +854,7 @@ function pintarFaltantes(pend){
   else if(!ceros) como=` y ${s?'saldría':'saldrían'} en el PDF con precio y <b>sin decir qué se cobra</b>.`;
   else como=`: ${ceros===1?'una vale':ceros+' valen'} <b>$0</b> y ${conPrecio===1?'otra saldría':'las otras '+conPrecio+' saldrían'} en el PDF con precio y sin decir qué se cobra.`;
   $('falt-intro').innerHTML=`${s?'Esta partida está':'Estas '+n+' partidas están'} sin terminar${como} Toca ${s?'la partida':'una'} para ir a completarla.`;
-  $('falt-list').innerHTML=pend.map(x=>`<div class="falt-row">
+  const filas=pend.map(x=>`<div class="falt-row" data-clave="p${x.it.id}">
       <button class="falt-ir" onclick="irAPartida(${x.it.id})">
         <span class="falt-n">${x.n}</span>
         <span class="falt-b">
@@ -578,7 +864,16 @@ function pintarFaltantes(pend){
       </button>
       ${x.vacia&&puedeQuitarVacia()?`<button class="falt-quitar" onclick="quitarDesdeFaltantes(${x.it.id})">Quitar</button>`:'<span class="falt-go">›</span>'}
     </div>`).join('');
+  /* Con la lista viva (C22), «Quitar» ya no desaparece el renglón de golpe: se despide en su sitio
+     y los de abajo se corren a su lugar. Nada aquí llega «nuevo»: las partidas sin terminar solo
+     se acaban, no aparecen mientras el aviso está abierto. */
+  const P=window.Piezas;
+  if(P&&P.listaViva){
+    if(!_faltLista) _faltLista=P.listaViva('#falt-list',{clave:el=>el.dataset.clave||''});
+    _faltLista.repintar(()=>{ $('falt-list').innerHTML=filas; });
+  } else $('falt-list').innerHTML=filas;
 }
+let _faltLista=null;
 function cerrarFaltantes(){ $('faltmodal').classList.remove('show'); _faltSeguir=null; }
 function faltSeguir(){
   const f=_faltSeguir;
@@ -614,15 +909,26 @@ const _HUECOS={letras:['h-','n-'],recorte:['h-','n-'],bastidor:['an-','al-'],caj
 function enfocarHueco(id){
   const caja=$('p-'+id); if(!caja) return;
   const chip=caja.querySelector('.optgrp.falta .chip[tabindex]');
-  if(chip){ try{ chip.focus({preventScroll:true}); }catch(_){} return; }
+  if(chip){
+    try{ chip.focus({preventScroll:true}); }catch(_){}
+    /* Lo que se señala es el GRUPO en ámbar y no el chip: el hueco es «falta elegir el
+       material», no «el primero de los cinco». C7: cuatro esquinas se cierran sobre él cuando el
+       scroll termina y se van solas. */
+    senalarLlegada(chip.closest('.optgrp')||chip,'av');
+    return;
+  }
   const it=Q.items.find(x=>x.id===id); if(!it) return;
   for(const pre of (_HUECOS[it.tipo]||[])){
     const el=$(pre+id);
     if(el&&!el.disabled&&!String(el.value||'').trim()){
       try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); }
+      senalarLlegada(el,'av');
       return;
     }
   }
+  /* Ningún hueco que enfocar —partida congelada, o el hueco es la descripción, que no cuenta—:
+     al menos se dice cuál es la partida. */
+  senalarLlegada(caja,'av');
 }
 function irAPartida(id){
   $('faltmodal').classList.remove('show'); _faltSeguir=null;
@@ -641,12 +947,23 @@ function puedeQuitarVacia(){ return Q.rol!=='autorizador'&&!faltanDatosCliente()
    si era la última pendiente, se sigue con lo que se iba a hacer. */
 function quitarDesdeFaltantes(id){
   const f=_faltSeguir;
-  delItem(id,{vacia:true});
-  const pend=partidasSinTerminar();
-  if(pend.length){ pintarFaltantes(pend); return; }
-  $('faltmodal').classList.remove('show'); _faltSeguir=null;
-  if(f&&Q.items.length&&totals().sub>0) f();
-  else toast('Listo — ya no quedan partidas sin terminar','ok',3000);
+  const fila=document.querySelector('#falt-list [data-clave="p'+id+'"]');
+  /* Primero se cierra el renglón y DESPUÉS se borra la partida (C22). El renglón queda mudo e inerte
+     desde el primer momento, así que un segundo toque no encuentra nada que quitar. */
+  const salida=(_faltLista&&fila)?_faltLista.quitar(fila):Promise.resolve();
+  salida.then(()=>{
+    /* Si mientras se cerraba el renglón se cerró el aviso —Escape, el fondo—, la partida sí se
+       quita, que es lo que se tocó, pero no se sigue con lo que el aviso iba a hacer: quien lo
+       cerró dijo que no. */
+    const abierto=$('faltmodal').classList.contains('show');
+    delItem(id,{vacia:true});
+    if(!abierto) return;
+    const pend=partidasSinTerminar();
+    if(pend.length){ pintarFaltantes(pend); return; }
+    $('faltmodal').classList.remove('show'); _faltSeguir=null;
+    if(f&&Q.items.length&&totals().sub>0) f();
+    else toast('Listo — ya no quedan partidas sin terminar','ok',3000);
+  });
 }
 
 /* ===================== Datos obligatorios del cliente =====================
@@ -722,6 +1039,7 @@ function exigirDatosCliente(motivo,opts){
   if(!faltan.length) return true;
   const lista=listaY(faltan.map(faltaTexto));
   toast(`${motivo||'Antes de mandar a autorización'} ${faltan.length===1?'falta':'faltan'} ${lista}.`,'err',4600);
+  decirFaltaEnElBoton(faltan);
   /* `llevar:false` para los frenos que nacen DENTRO de una partida. irACampoProy no solo
      sube la pantalla: además ESCRIBE la preferencia de plegado en el dispositivo. Cambiar
      una preferencia guardada porque alguien rozó un chip mientras leía es desproporcionado,
@@ -731,6 +1049,18 @@ function exigirDatosCliente(motivo,opts){
   return false;
 }
 
+/* ----- El botón dice qué falta (C10) -----
+   El aviso de arriba sale una vez y se va en unos segundos; el botón que se tocó se queda donde
+   estaba mirándolo el dedo. Durante 1.5 s dice «Falta el teléfono», con una sacudida corta, y
+   vuelve a su rótulo (pieza 23). Es el del dock en el teléfono o el de «Continuar a partidas» en
+   la computadora, el que esté a la vista; con varios huecos cuenta cuántos, porque el dock mide
+   poco más de 200 px y «el cliente, el teléfono y el proyecto» no cabe. */
+function decirFaltaEnElBoton(faltan){
+  const P=window.Piezas; if(!P||!P.rotuloTemporal||!faltan.length) return;
+  const txt=faltan.length===1?'Falta '+faltan[0].corto:'Faltan '+faltan.length+' datos';
+  const b=[document.querySelector('#mbar .mbar-btn'),$('p1-btn')].find(x=>x&&x.offsetParent!==null&&!x.disabled);
+  if(b) P.rotuloTemporal(b,txt,{ms:1500,sacudir:true});
+}
 /* ===================== El candado de las partidas =====================
    Una cotización se captura de arriba abajo, pero nada obligaba a hacerlo: se podía
    llenar la cotización entera —cinco partidas, materiales, medidas— y llegar hasta el
@@ -907,6 +1237,7 @@ function _llevarAlPaso(n){
   if(!hayTrabajoCotizado()){
     toast('Antes del precio hace falta una partida con precio mayor a cero.','err',3600);
     irA(Q.items.length?'items':'addbtn');
+    senalarLlegada(Q.items.length?'items':'addbtn','av');
     return 0;
   }
   if(n===4&&Q.estado!=='autorizada'){
@@ -920,9 +1251,12 @@ function _llevarAlPaso(n){
   }
   /* Cada paso a su sitio. Los dos acababan en el mismo scroll al principio de la columna, así
      que tocar «4 · Entrega» sobre una cotización autorizada dejaba mirando el IVA. */
-  if(n===4&&$('entrega')) _anclarPaso('entrega');
-  else if(n===3&&$('authbox')&&Q.estado!=='borrador') _anclarPaso('authbox');
-  else _anclarPaso('sidebox');
+  const destino=(n===4&&$('entrega'))?'entrega':(n===3&&$('authbox')&&Q.estado!=='borrador')?'authbox':'sidebox';
+  _anclarPaso(destino);
+  /* Y se señala el bloque del paso (C7): llegar a una pestaña es un scroll al principio de una
+     columna larga, y no se veía cuál de sus partes era «el paso». Con el aside entero sería un
+     marco de media página; se enmarca la tarjeta del total, que es donde empieza el paso. */
+  senalarLlegada(destino==='sidebox'?(document.querySelector('#sidebox .sum')||'sidebox'):destino);
   return n;
 }
 /* ----- La transición de elemento compartido -----
@@ -1066,7 +1400,13 @@ function pintarCierrePaso1(){
   const b=$('p1-btn'); if(!b) return;
   const v=vueltaDelPaso1();
   const t=esc(v.txt)+' <span aria-hidden="true">→</span>';
-  if(b.innerHTML!==t) b.innerHTML=t;
+  /* Se pinta en cada tecla del paso 1 y reescribirlo con innerHTML lo hacía saltar. La primera vez
+     se escribe directo —no hay de dónde cruzarse— y de ahí en adelante solo cambia, con el fundido
+     de la pieza, cuando el texto es otro de verdad (cambiarRotulo compara antes de tocar). */
+  if(window.Piezas&&Piezas.cambiarRotulo){
+    if(!b.dataset.rotulado){ b.innerHTML=t; b.dataset.rotulado='1'; }
+    Piezas.cambiarRotulo(b,{html:t});
+  } else if(b.innerHTML!==t) b.innerHTML=t;
   b.onclick=()=>irAPaso(v.paso);
 }
 function pintarPantalla(){
@@ -1096,8 +1436,32 @@ function pintarPantalla(){
    entrega puestas—, y entonces cambia su número por la palomita. Está EN ESPERA, en ámbar,
    cuando todavía no le toca. Ninguno se deshabilita: tocar el que no toca dice qué falta,
    que es la mitad del trabajo; un botón gris no explica nada. */
+/* ----- Cuánto va (C12) -----
+   Un filete fino dentro del riel que se llena de 0 a 100 % según los pasos hechos: nada unía a los
+   cuatro pasos y «vas en la mitad» había que contarlo palomita por palomita. Lo dibuja el CSS
+   (`.pasos::after`, scaleX de --avance) y aquí solo se calcula el número. Se mueve cuando cambia,
+   o sea al autorizar o al entregar, y no en cada tecla: escribir el mismo valor no dispara la
+   transición. */
+function avancePasos(hecho){
+  return [1,2,3,4].filter(i=>hecho&&hecho[i]).length/4;
+}
+let _pasosVistos=null;   // qué pasos estaban «hechos» en el pintado anterior
+function pintarNumeroDelPaso(n,num,ok,nace){
+  const P=window.Piezas, tiene=!!n.querySelector('.palomita');
+  if(ok){
+    if(tiene) return;
+    n.innerHTML=(P&&P.palomitaHTML)?P.palomitaHTML({dibujar:!!nace}):'✓';
+  } else if(tiene||n.textContent!==String(num)) n.textContent=String(num);
+}
+let _pasosFolio=null;
 function pintarPasos(){
   caducarPedido();
+  const visto={};
+  /* Una palomita nace dibujada solo si lo que cambió fue ESTA cotización, con la app ya abierta: no
+     al arrancar —init() repinta la barra dos veces, y la segunda cambia el paso actual— ni al abrir
+     otra cotización, que cambia todo a la vez. Nunca al entrar a una pantalla. */
+  const nacen=!!_pasosVistos&&_pasosFolio===Q.folio&&!document.documentElement.classList.contains('arrancando');
+  _pasosFolio=Q.folio;
   const act=pasoActual();
   /* Dos preguntas distintas, y compartían respuesta. «¿Están los tres datos?» es
      `faltanDatosCliente()` a secas; el `&&!locked()` se añadió para no pintar en ámbar el
@@ -1131,12 +1495,19 @@ function pintarPasos(){
     const etiq='Paso '+p.n+' de 4 · '+p.nombre+(sub[p.n]?' · '+sub[p.n]:'')
       +(esta?'':ok?' · hecho':espera[p.n]?' · todavía no':'');
     if(t.getAttribute('aria-label')!==etiq) t.setAttribute('aria-label',etiq);
-    const n=$('tab-'+p.n+'-n'); if(n) n.textContent=ok?'':String(p.n);
+    /* El número se vuelve el glifo de su estado (C12/C23 #6): palomita DIBUJADA para el que ya
+       está, el número para los demás. Solo se dibuja la que nace —la barra se repinta en cada
+       tecla de los tres obligatorios—. */
+    const n=$('tab-'+p.n+'-n'); if(n) pintarNumeroDelPaso(n,p.n,ok,nacen&&!_pasosVistos[p.n]);
+    visto[p.n]=ok;
     /* Solo si cambió: la barra se repinta en cada tecla de los tres obligatorios, y
        reescribir un nodo de texto vivo le repite la misma frase al oído a quien teclea. */
     const sb=$('tab-'+p.n+'-sub');
     if(sb){ const v=sub[p.n]||''; if(sb.textContent!==v) sb.textContent=v; }
   });
+  _pasosVistos=visto;
+  const riel=$('pasos');
+  if(riel){ const v=avancePasos(hecho).toFixed(2); if(riel.style.getPropertyValue('--avance')!==v) riel.style.setProperty('--avance',v); }
   pintarTotalDePaso();
 }
 
@@ -1146,7 +1517,13 @@ function pintarTotalDePaso(){
   const caja=$('paso-total'); if(!caja) return;
   const enCliente=_pantalla==='cliente';
   caja.hidden=!enCliente;
-  if(!enCliente) return;
+  /* Escondida, la cifra se mantiene al día EN SECO: lo que cambió mientras nadie la veía no es un
+     cambio que enseñar, y al volver a la pantalla del cliente rodaría desde un número viejo. */
+  if(!enCliente){
+    const P=window.Piezas, v0=$('paso-total-v');
+    if(v0&&P&&P.rodarCifra) P.rodarCifra(v0,money(precioFinal()),{clave:'cot-paso-total',animar:false});
+    return;
+  }
   /* La misma pareja que usa renderMobileBar, y por la misma razón. Con `totals().neto` esta
      caja enseñaba el CALCULADO y lo rotulaba «Total» aunque el autorizador hubiera fijado
      otro: con un descuento de $23,664 a $20,000, tocar «1 · Cliente» para corregir la
@@ -1163,8 +1540,8 @@ function pintarTotalDePaso(){
   const lab=hayAjuste?'Precio autorizado':'Total';
   if(rot&&rot.textContent!==lab) rot.textContent=lab;
   const v=$('paso-total-v');
-  const t=money(pf);
-  if(v&&v.textContent!==t) v.textContent=t;
+  /* Rueda solo si el importe cambió (C23 #1): esta caja se repinta en cada tecla del paso 1. */
+  rodarImporte(v,money(pf),'cot-paso-total');
 }
 
 /* Pintar el candado: la ficha ámbar de la tarjeta de Partidas y el repintado de las
@@ -1715,22 +2092,53 @@ async function autorizarConfirmado(){
      reintentar la hoja sellaba el mismo trabajo por segunda vez. */
   const folio=Q.folio;
   _sellando=true; renderAuth(); renderMobileBar();
+  /* ----- El botón que sella lo dice, con reloj (C5) -----
+     Sellar puede tardar hasta 30 s, y el botón solo cambiaba su texto a «Sellando en la hoja…» con
+     la opacidad al 80 %: se veía apagado, no trabajando. Ahora es la pieza 14: un relleno que
+     avanza sin fingir que sabe cuánto falta, el reloj («Sellando · 6 s»), y al terminar se lava en
+     verde con el código del sello o tiembla en rojo y ofrece «Reintentar» sin cerrar nada. Es una
+     espera real y se apaga con la respuesta; el festejo del éxito es el neón de más abajo. */
+  const pedir=()=>sellarEnLaHoja(folioGlobal(),cotParaHoja(),precioAuth,Q.itemsAuth,nota);
+  const P=window.Piezas, btn=$('a-autorizar');
   let sello;
-  try{ sello=await sellarEnLaHoja(folioGlobal(),cotParaHoja(),precioAuth,Q.itemsAuth,nota); }
-  catch(e){
-    _sellando=false;
-    if(Q.folio===folio){ renderAuth(); renderMobileBar(); }
-    toast(e.message,'err',9000);
-    return;
+  if(btn&&P&&P.trabajando){
+    /* `voz:false`: el aviso de abajo ya dice el resultado, y dicho dos veces estorba. */
+    const r=await P.trabajando(btn,pedir,{verbo:'Sellando',tau:6000,ok:s=>'Sellada · '+s.codigo,mal:'No se selló',voz:false});
+    if(!r.ok){
+      _sellando=false;
+      if(Q.folio===folio){ renderAuth(); renderMobileBar(); }
+      toast((r.error&&r.error.message)||'No se pudo sellar el precio.','err',9000);
+      return;
+    }
+    sello=r.valor;
+    /* Un rato para que el verde se lea antes de que el panel cambie entero a «Autorizada por…».
+       `_sellando` sigue en alto: nada de lo que bloquea cambia mientras tanto. */
+    await new Promise(ok=>setTimeout(ok,SELLO_RATO_MS));
+  } else {
+    try{ sello=await pedir(); }
+    catch(e){
+      _sellando=false;
+      if(Q.folio===folio){ renderAuth(); renderMobileBar(); }
+      toast(e.message,'err',9000);
+      return;
+    }
   }
   _sellando=false;
   /* Mientras se sellaba no se pudo tocar nada —la cotización está bloqueada en pendiente—,
      pero sí cambiar de cotización. Si ya no es ésta la que está en pantalla, el sello existe en
      la hoja y la de aquí se entera la próxima vez que se abra. */
   if(Q.folio!==folio||Q.estado!=='pendiente'){ toast(folio+' quedó sellada en la hoja','ok',4000); return; }
-  if(sello.huella!==huellaTrabajo()){ renderAuth(); toast('La hoja selló un trabajo distinto del que está en pantalla. Vuelve a autorizar.','err',9000); return; }
+  if(sello.huella!==huellaTrabajo()){
+    /* El botón no puede quedarse diciendo «Sellada» sobre un sello que no es de este trabajo. */
+    try{ if(btn&&P&&P.estadoBoton) P.estadoBoton(btn).reiniciar(); }catch(_){}
+    renderAuth(); toast('La hoja selló un trabajo distinto del que está en pantalla. Vuelve a autorizar.','err',9000); return;
+  }
   aplicarSello(sello);
 }
+/* Lo que dura el verde de «Sellada · A1B2» antes de que el panel cambie. Un cuarto de segundo se
+   pierde; un segundo entero estorba a quien viene a seguir con la entrega. 450 ms alcanzan para leer
+   el código y para que la palomita se dibuje casi entera (420 ms). */
+const SELLO_RATO_MS=450;
 /* El anticipo, al precio que se va a cobrar. Sin anticipo a mano, el 50 % de ese precio. Con
    uno a mano mayor que el total —el autorizador dio descuento después de pactarlo: $12,760
    contra $10,440—, se deja igual al total, que es lo que el `change` de #f-anti hace al
@@ -1770,9 +2178,13 @@ function pedirConfNueva(){
   box.innerHTML=`<div class="statusrow"><span class="lab">Autorización</span>${badge}</div>
     <div style="background:var(--red-bg);border:1.5px solid rgba(216,69,63,.3);border-radius:var(--r-sm);padding:13px">
       <p style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:11px">¿Borrar toda la cotización y empezar de nuevo? Vas a tener unos segundos para deshacerlo.</p>
-      <button class="btn btn-dgr" onclick="nueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Sí, borrar todo</button>
+      <button class="btn btn-dgr" id="conf-nueva-si" onclick="nueva()"><svg class="svgi" aria-hidden="true"><use href="#i-basura"/></svg> Sí, borrar todo</button>
       <button class="btn btn-gho" style="margin-top:9px" onclick="renderAuth()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Cancelar</button>
     </div>`;
+  /* Borrar la cotización entera es lo más destructivo de la pantalla (C23 #5): mantener presionado
+     confirma, y un toque suelto solo dice cómo. Sigue teniendo «Deshacer» siete segundos después.
+     El `onclick` de arriba solo corre si la pieza no está —la guardia se lo come cuando sí—. */
+  if(window.Piezas&&Piezas.mantener) Piezas.mantener('conf-nueva-si',{tono:'mal',alConfirmar:()=>nueva(),textoHecho:'Borrando…'});
 }
 /* ----- Vaciar, con vuelta atrás -----
    Borrar UNA partida por accidente ya tenía Deshacer y funciona bien. Borrar la
@@ -1807,6 +2219,9 @@ function nueva(){
      sin `solicitud` que nadie vuelva a sondear. Es la misma guarda que loadQueueEntry. */
   if(selloEnVuelo()) return false;
   guardarAutorizadaYa();   // lo que quedó en la espera de 700 ms se guarda antes de cambiar de cotización
+  /* ANTES de vaciar nada: si de verdad quedó guardada, y de dónde sale su tarjeta (C20). */
+  const vuelo=cotizacionQueVuela();
+  _cifrasQuietas=true;     // otra cotización: las cifras no ruedan hacia el cero (ver rodarImporte)
   /* La copia la hace `guardarParaDeshacer()`, que es la misma de las otras dos puertas: aquí
      vivía escrita aparte y con una condición más estrecha —solo miraba el cliente y el
      proyecto—, así que un borrador con el teléfono y la dirección puestos y nada más se
@@ -1844,10 +2259,65 @@ function nueva(){
      de teclear el cliente nuevo devolvían al anterior con sus partidas DENTRO de la cotización
      nueva. La vuelta atrás de un vaciado es el botón del aviso, no el teclado. */
   undoBarrera();
-  if(_vaciada) toast(_vaciada.sc&&_vaciada.sc.items.length
+  /* El miedo que se documentó es «se borró». Si la anterior está en el Historial, el aviso lo dice con
+     su folio, y una tarjeta con ese folio vuela hasta el botón (C20). */
+  const dondeQuedo=vuelo?' · '+vuelo.folio+' quedó en el Historial':'';
+  if(_vaciada) toast((_vaciada.sc&&_vaciada.sc.items.length
       ? 'Cotización vaciada — y las '+_vaciada.sc.items.length+' medidas del escalador'
-      : 'Cotización vaciada','',7000,{label:'Deshacer',fn:deshacerVaciado});
-  else toast('Nueva cotización lista');
+      : 'Cotización vaciada')+dondeQuedo,'',7000,{label:'Deshacer',fn:deshacerVaciado});
+  else toast('Nueva cotización lista'+dondeQuedo);
+  if(vuelo) volarCotizacion(vuelo,'historial');
+  return true;
+}
+/* ----- La cotización que se guarda vuela a donde quedó (C20) -----
+   Al vaciar, o al abrir con la anterior ya guardada, la pantalla queda en blanco y un aviso dice
+   dónde quedó; el miedo documentado es que se borró. Una copia fija de la tarjeta, con su folio y el
+   cliente, se encoge en arco hasta el botón de destino y el botón da UN pulso. Es Web Animations,
+   nativo y sin física, y nada queda corriendo: la copia se quita al terminar.
+
+   Solo cuando DE VERDAD quedó guardada (copiaGuardadaDeQ): un borrador que se vacía no vuela, su
+   vuelta es «Deshacer», y una pendiente está en la cola y no en el Historial. Empotrado en la
+   plataforma, `.btn-pf` está oculto y no hay destino: no vuela. Con menos movimiento no vuela
+   nada —el aviso ya dice dónde quedó—. El total NO viaja en la tarjeta: en un borrador los importes
+   van difuminados, y una tarjeta que vuela por la pantalla no tiene por qué enseñarlo.
+
+   `registrarGanada()` (venta.js) puede pedir lo mismo hacia «Plataforma»: volarCotizacion(v,
+   'plataforma'). */
+function cotizacionQueVuela(){
+  if(typeof copiaGuardadaDeQ!=='function'||!copiaGuardadaDeQ()) return null;
+  const caja=[$('card-proy'),$('card-partidas'),$('sidebox')].find(e=>e&&!e.hidden&&e.offsetParent!==null);
+  const r=caja?caja.getBoundingClientRect():null;
+  return {folio:Q.folio,cliente:(Q.cliente||'').trim(),desde:r?{left:r.left,top:r.top,width:r.width}:null};
+}
+function volarCotizacion(v,destino){
+  const P=window.Piezas;
+  if(!v||(P&&P.sinMovimiento&&P.sinMovimiento())||document.visibilityState!=='visible') return false;
+  const dest=destino==='plataforma'?document.querySelector('.btn-pf'):document.querySelector('.btn-hist[onclick^="abrirHistorial"]');
+  if(!dest||typeof dest.animate!=='function') return false;
+  const rd=dest.getBoundingClientRect();
+  if(!rd.width||!rd.height) return false;   // oculto (empotrado) o sin caja: no hay a dónde volar
+  const gw=Math.min(260,Math.max(150,(v.desde?v.desde.width:280)-24));
+  const x0=v.desde?v.desde.left+(v.desde.width-gw)/2:(innerWidth-gw)/2;
+  const y0=Math.min(Math.max(v.desde?v.desde.top:80,8),Math.max(8,innerHeight-100))+16;
+  const g=document.createElement('div');
+  g.className='vuelo-cot'; g.setAttribute('aria-hidden','true');
+  g.innerHTML='<span class="vc-folio">'+esc(v.folio)+'</span><span class="vc-cli">'+esc(v.cliente||'Sin nombre')+'</span>';
+  g.style.left=x0+'px'; g.style.top=y0+'px'; g.style.width=gw+'px';
+  document.body.appendChild(g);
+  const h=g.offsetHeight||52;
+  const dx=(rd.left+rd.width/2)-(x0+gw/2), dy=(rd.top+rd.height/2)-(y0+h/2);
+  const fin=Math.max(.1,Math.min(.3,rd.width/gw));
+  const pulso=()=>{ try{ dest.animate([{transform:'scale(1)'},{transform:'scale(1.14)'},{transform:'scale(1)'}],{duration:320,easing:'cubic-bezier(.23,1,.32,1)'}); }catch(_){} };
+  const quitar=()=>{ try{ g.remove(); }catch(_){} };
+  try{
+    g.animate([
+      {transform:'translate(0,0) scale(1)',opacity:1,offset:0},
+      {transform:'translate('+dx*.45+'px,'+(dy*.45-34)+'px) scale('+((1+fin)/2*.8)+')',opacity:.95,offset:.5},
+      {transform:'translate('+dx+'px,'+dy+'px) scale('+fin+')',opacity:.12,offset:1}
+    ],{duration:560,easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'}).finished.then(()=>{ quitar(); pulso(); },quitar);
+  }catch(_){ quitar(); return false; }
+  /* El cinturón: una pestaña que se va a segundo plano a media animación no dispara su final. */
+  setTimeout(quitar,1800);
   return true;
 }
 function deshacerVaciado(){
@@ -1856,6 +2326,7 @@ function deshacerVaciado(){
   /* El rol es de quien está usando la app, no de la cotización: se respeta el actual
      igual que al abrir un pendiente de la cola. */
   const rolActual=Q.rol;
+  _cifrasQuietas=true;     // vuelve otra cotización: las cifras cambian en seco
   Object.assign(Q,_vaciada.q);
   Q.rol=rolActual;
   Q.editMode=false; _selfAuth=false; _editCliente=null;
@@ -1934,20 +2405,35 @@ function copiarSubtotal(){
   if(sub<=0){ toast('Todavía no hay subtotal que copiar','',2600); return; }
   copiarTexto(money(sub),(ajustado?'Subtotal autorizado copiado: ':'Subtotal copiado: ')+money(sub)+' — va en «Subtotal» de Canva');
 }
+/* ----- La barra fija, que ya no brinca (C10) -----
+   Se rescribía entera con innerHTML en cada tecla, y por eso cuando el siguiente paso cambiaba
+   —Autorizar → Generar PDF → Enviar por WhatsApp— el rótulo se sustituía de golpe y el botón
+   cambiaba de ancho de un cuadro al siguiente. Y cada tecla reescribía el número del total aunque
+   fuera el mismo, así que no había forma de que rodara solo cuando cambia.
+
+   Ahora la estructura —la pantalla en que se está y si hay «Deshacer»— se pinta una vez y de ahí en
+   adelante se ajusta EN SU SITIO: el botón principal cambia de rótulo con el fundido de la pieza 23
+   (que compara antes de tocar el DOM: el mismo texto no hace nada), el total rueda solo si el
+   importe cambió, y los dos conservan su nodo, su foco y su sacudida a medias. El botón lleva
+   dentro sus dos manejadores de siempre, en línea: es marcado que se escribe desde aquí y no del
+   archivo HTML, así que no mueve el conteo de manejadores de cotizador.html. */
 function renderMobileBar(){
   const bar=$('mbar'); if(!bar) return;
+  const P=window.Piezas;
   /* En el teléfono éste es el único deshacer que hay —el de la barra de arriba se esconde a
      partir de 920 px justo para no partir esa fila—, y va primero por lo mismo que un
      «atrás»: es a la izquierda donde se busca. */
   const undo=puedeDeshacer()
     ? `<button class="mbar-undo" onclick="deshacer()" title="Deshacer el último cambio" aria-label="Deshacer el último cambio">${ico('i-deshacer')}</button>`
     : '';
-  /* En la pantalla del cliente la barra fija es el botón de continuar: ahí no hay total que
-     mirar todavía, y el «Autorizar yo mismo» de más abajo es de la otra pantalla. */
+  /* Qué botón principal toca ahora: {cls, on, dis, ico, txt, post, full}. */
+  let b, modo='total';
+  const pf=precioFinal(), aj=ajusteAuth(), hayAjuste=subParaCanva().ajustado;
   if(_pantalla==='cliente'){
     /* Siempre «Continuar», nunca «Falta el cliente»: en esta pantalla los tres campos están
        a la vista con su asterisco, así que nombrar el hueco aquí es decir lo que ya se ve.
-       La acción es una sola, y si falta algo lo dice al tocarla, con el cursor puesto.
+       La acción es una sola, y si falta algo lo dice al tocarla, con el cursor puesto (y con el
+       propio botón: ver decirFaltaEnElBoton).
 
        Lo que sí cambia es a dónde se vuelve. Esta rama no miraba el estado, así que quien
        abría una cotización autorizada del historial y tocaba el paso 1 para corregir el
@@ -1955,42 +2441,36 @@ function renderMobileBar(){
        paso, sobre unas partidas congeladas: la pieza que este proyecto encarga de nombrar el
        paso real en el teléfono volvía a decir algo que no era. */
     const vuelta=vueltaDelPaso1();
-    bar.innerHTML=undo+`<button class="mbar-btn" style="width:100%" onclick="irAPaso(${vuelta.paso})">${esc(vuelta.txt)} <span aria-hidden="true">→</span></button>`;
-    return;
-  }
-  /* La misma pregunta que la columna y la barra de pasos: ver pintarTotalDePaso(). `aj` sigue
-     haciendo falta para pintar en verde un descuento global. */
-  const pf=precioFinal(), aj=ajusteAuth(), hayAjuste=subParaCanva().ajustado;
-  const lab=hayAjuste?'Precio autorizado':(Q.iva?'Total neto':'Total');
-  let btn;
-  if(Q.rol==='autorizador'){
-    btn=Q.estado==='pendiente'
-      ? `<button class="mbar-btn ok" onclick="irAResumen()">Revisar precio</button>`
-      : `<button class="mbar-btn gho" onclick="irAResumen()">Ver cola</button>`;
+    modo='cliente';
+    b={cls:'mbar-btn',on:'irAPaso('+vuelta.paso+')',txt:vuelta.txt,post:' <span aria-hidden="true">→</span>',full:true};
+  } else if(Q.rol==='autorizador'){
+    b=Q.estado==='pendiente'
+      ? {cls:'mbar-btn ok',on:'irAResumen()',txt:'Revisar precio'}
+      : {cls:'mbar-btn gho',on:'irAResumen()',txt:'Ver cola'};
   } else if(Q.estado==='pendiente'){
     /* Autorizándote a ti mismo, el siguiente paso es cerrar el precio; si la solicitud
        va para alguien más, el único paso propio es volver a editarla. */
-    btn=_selfAuth
-      ? `<button class="mbar-btn ok" ${_sellando?'disabled':''} onclick="autorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> ${_sellando?'Sellando…':'Autorizar'}</button>`
-      : `<button class="mbar-btn gho" onclick="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar</button>`;
+    b=_selfAuth
+      ? {cls:'mbar-btn ok',dis:_sellando,on:'autorizar()',ico:'i-check',txt:_sellando?'Sellando…':'Autorizar'}
+      : {cls:'mbar-btn gho',on:'reabrir()',ico:'i-atras',txt:'Editar'};
   } else if(Q.estado==='autorizada'){
     if(Q.editMode){
-      btn=`<button class="mbar-btn ok" onclick="guardarCambiosEdicion()"><svg class="svgi" aria-hidden="true"><use href="#i-guardar"/></svg> Guardar</button>`;
+      b={cls:'mbar-btn ok',on:'guardarCambiosEdicion()',ico:'i-guardar',txt:'Guardar'};
     } else if(autorizacionSuelta()){
       /* El precio quedó suelto al editar: lo que sigue no es la entrega, es cerrarlo otra vez. */
-      btn=`<button class="mbar-btn ok" onclick="reautorizar()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Volver a autorizar</button>`;
+      b={cls:'mbar-btn ok',on:'reautorizar()',ico:'i-rayo',txt:'Volver a autorizar'};
     } else {
       /* Decía «Generar PDF» para siempre, así que después de generarlo seguía ofreciendo lo
          que ya se hizo y nunca nombraba los dos pasos que faltaban. Ahora avanza con la
          entrega, y cuando los tres están puestos deja de empujar: lleva al resumen, que es
          lo que se viene a mirar de una cotización ya cerrada. */
       const h=hitosDe(Q.folio), falta=HITOS.find(x=>!h[x.k]);
-      btn=falta
-        ? `<button class="mbar-btn" onclick="${falta.fn}"><svg class="svgi" aria-hidden="true"><use href="#${falta.ico}"/></svg> ${esc(falta.label)}</button>`
-        : `<button class="mbar-btn gho" onclick="irAResumen()"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Entregada</button>`;
+      b=falta
+        ? {cls:'mbar-btn',on:falta.fn,ico:falta.ico,txt:falta.label}
+        : {cls:'mbar-btn gho',on:'irAResumen()',ico:'i-check',txt:'Entregada'};
     }
   } else if(Q.estado==='rechazada'){
-    btn=`<button class="mbar-btn gho" onclick="reabrir()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Editar</button>`;
+    b={cls:'mbar-btn gho',on:'reabrir()',ico:'i-atras',txt:'Editar'};
   } else if(!locked()&&faltanDatosCliente()){
     /* Mientras el candado está puesto, esta barra pintaba «Autorizar yo mismo» gris y
        muerto, que es lo contrario de conducir. En el celular la columna del resumen —con la
@@ -1998,18 +2478,78 @@ function renderMobileBar(){
        que esta barra fija es lo único que puede nombrar el siguiente paso mientras se mira
        la tarjeta de Partidas. */
     const f=datosFaltantes()[0];
-    btn=`<button class="mbar-btn" onclick="irAlCandado()">${esc('Falta '+f.corto)} ›</button>`;
+    b={cls:'mbar-btn',on:'irAlCandado()',txt:'Falta '+f.corto,post:' ›'};
   } else {
     const listo=Q.items.length>0&&totals().sub>0;
-    btn=puedeAutorizar()
-      ? `<button class="mbar-btn" ${listo?'':'disabled'} onclick="autorizarYoMismo()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Autorizar yo mismo</button>`
-      : `<button class="mbar-btn" ${listo?'':'disabled'} onclick="solicitar()"><svg class="svgi" aria-hidden="true"><use href="#i-rayo"/></svg> Solicitar autorización</button>`;
+    b=puedeAutorizar()
+      ? {cls:'mbar-btn',dis:!listo,on:'autorizarYoMismo()',ico:'i-rayo',txt:'Autorizar yo mismo'}
+      : {cls:'mbar-btn',dis:!listo,on:'solicitar()',ico:'i-rayo',txt:'Solicitar autorización'};
   }
-  bar.innerHTML=undo+`<button class="mbar-tot" onclick="irAResumen()" title="Ir al resumen">
+  const dentro=x=>(x.ico?ico(x.ico)+' ':'')+esc(x.txt)+(x.post||'');
+  const atributos=x=>'class="'+x.cls+'"'+(x.dis?' disabled':'')+(x.full?' style="width:100%"':'')+' onclick="'+x.on+'"';
+  /* La barra de la pantalla del cliente: solo el botón de continuar. */
+  const lab=hayAjuste?'Precio autorizado':(Q.iva?'Total neto':'Total');
+  /* La estructura es solo la pantalla en que se está. «Deshacer» va y viene con cada cambio y NO
+     rehace la barra: se pone o se quita en su sitio, para que el botón principal siga siendo el
+     mismo nodo —y conserve su foco y su rótulo a medio cruzar— aunque aparezca el deshacer. */
+  const firma=modo;
+  const enSitio=!!(P&&P.cambiarRotulo)&&bar.dataset.firma===firma&&bar.querySelector('.mbar-btn');
+  if(enSitio){
+    const yaUndo=bar.querySelector(':scope > .mbar-undo');
+    if(undo&&!yaUndo) bar.insertAdjacentHTML('afterbegin',undo);
+    else if(!undo&&yaUndo) yaUndo.remove();
+    const bt=bar.querySelector('.mbar-btn');
+    if(bt.dataset.cls!==b.cls){ bt.className=b.cls; bt.dataset.cls=b.cls; }
+    if(bt.disabled!==!!b.dis) bt.disabled=!!b.dis;
+    if(bt.getAttribute('onclick')!==b.on) bt.setAttribute('onclick',b.on);
+    P.cambiarRotulo(bt,{html:dentro(b)});
+    if(modo==='total'){
+      const lb=bar.querySelector('.mbar-lab'), am=bar.querySelector('.mbar-amt');
+      if(lb&&lb.firstChild&&lb.firstChild.nodeValue!==lab) lb.firstChild.nodeValue=lab;
+      if(am){ am.classList.toggle('desc',hayAjuste&&aj>0); rodarImporte(am,money(pf),'cot-dock'); }
+    }
+    return;
+  }
+  bar.dataset.firma=firma;
+  if(modo==='cliente'){
+    bar.innerHTML=undo+`<button ${atributos(b)} data-cls="${b.cls}">${dentro(b)}</button>`;
+    return;
+  }
+  /* El total es el botón que EXPLICA el total (C23 #4): tocarlo abre el desglose —subtotal, IVA,
+     total— en un globo, y desde ahí se va al resumen. Hasta ahora llevaba directo al resumen; ese
+     camino sigue, un toque más adentro. */
+  bar.innerHTML=undo+`<button class="mbar-tot" aria-haspopup="dialog" aria-expanded="false" title="Ver cómo sale el total">
       <span class="mbar-lab">${lab}<span class="chev">▾</span></span>
       <span class="mbar-amt${hayAjuste&&aj>0?' desc':''}">${money(pf)}</span>
-    </button>${btn}`;
+    </button><button ${atributos(b)} data-cls="${b.cls}">${dentro(b)}</button>`;
+  /* Barra nueva: en seco. Rueda lo que cambia EN SU SITIO (arriba), no lo que acaba de nacer. */
+  if(P&&P.rodarCifra) P.rodarCifra(bar.querySelector('.mbar-amt'),money(pf),{clave:'cot-dock',animar:false});
 }
+/* El desglose del total del dock, calculado AL ABRIR. Con la cotización en borrador los importes
+   van difuminados, y el globo los difumina también (`.desglose-total` en la hoja): quien toca el
+   total para ver cómo sale no debería leer lo que el resto de la pantalla le esconde. */
+function desgloseDelDock(){
+  const d=desgloseFinal(), t=totals(), aj=subParaCanva().ajustado;
+  const fila=(a,b,suma)=>`<dt${suma?' class="suma"':''}>${a}</dt><dd${suma?' class="suma"':''}>${b}</dd>`;
+  let h='<span class="vistazo-t">Cómo sale el total</span><dl class="desglose-total">';
+  if(aj) h+=fila('Calculado',money(t.neto));
+  h+=fila(aj?'Subtotal autorizado':'Subtotal',money(d.sub));
+  if(Q.iva) h+=fila('IVA 16%',money(d.iva));
+  h+=fila(Q.iva?(aj?'Precio autorizado':'Total neto'):'Total',money(d.neto),true);
+  return h+'</dl><div class="vistazo-acciones"><button type="button" class="btn btn-gho" data-ir-resumen>Ver el resumen</button></div>';
+}
+(function(){
+  const P=window.Piezas;
+  if(!P||!P.vistazo||!$('mbar')) return;
+  const g=P.vistazo('mbar',{delegar:'.mbar-tot',titulo:'Cómo sale el total',contenido:()=>desgloseDelDock()});
+  /* «Ver el resumen» vive dentro del globo, que se pinta al abrir: un oyente en el documento y no
+     un onclick, que además ya no cabe en el marcado nuevo. */
+  document.addEventListener('click',e=>{
+    const x=e.target.closest&&e.target.closest('[data-ir-resumen]'); if(!x) return;
+    if(g) g.cerrar('codigo');
+    irAResumen();
+  });
+})();
 
 /* Aquí vivían los «Datos del proyecto plegables» del celular —toggleFoldProy, aplicarFoldProy y
    `_foldProy`—. Con los datos del cliente en su propia pantalla, plegarlos la dejaba en blanco:
@@ -2017,13 +2557,15 @@ function renderMobileBar(){
    que quedaba solo quitaba una clase que nadie ponía. Se fue entero. */
 
 /* ===================== Inputs generales ===================== */
-function upd(k,v){
+function upd(k,v,cuaderno){
   undoJuntar('q:'+k);
   Q[k]=v; saveState(); updProg();   // updProg ya repinta el encabezado plegado
   /* Los tres de texto que se siguen pactando con el precio cerrado van también al historial:
      ver guardarAutorizadaLuego() en historial.js. */
   if(k==='entrecalles'||k==='entrega'||k==='notaCliente') guardarAutorizadaLuego();
-  if(k==='cliente') autocompletarCliente(v);
+  /* `cuaderno` solo lo manda la lista de clientes (C6, nucleo.js) cuando alguien toca UNA fila:
+     con dos clientes del mismo nombre, el nombre no alcanza para saber cuál se eligió. */
+  if(k==='cliente') autocompletarCliente(v,cuaderno);
   /* Los dos campos que dicen de quién es esto son los dos que pueden destapar un cuaderno. */
   if(k==='cliente'||k==='tel') actualizarAvisoCuaderno();
 }

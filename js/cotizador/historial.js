@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -104,7 +104,7 @@ function reFoliarSiEsOtroCliente(){
   toast(antes+' sigue siendo de '+deQuien+' — ésta quedó como '+Q.folio,'',7000);
   return true;
 }
-function guardarEnHistorial(){
+function guardarEnHistorial(extra){
   reFoliarSiEsOtroCliente();
   const t=totals();
   const arr=getHistorial();
@@ -150,7 +150,12 @@ function guardarEnHistorial(){
        cotización de enero como la más nueva y escribían «la primera fue el 5 mar; la última, el
        10 ene». Se conserva mientras la autorización sea la misma; una nueva lo renueva. */
     ts:(idx>=0&&arr[idx].ts&&arr[idx].fechaAuth===Q.fechaAuth&&arr[idx].autorizador===Q.autorizador)
-      ? arr[idx].ts : Date.now()
+      ? arr[idx].ts : Date.now(),
+    /* El día en que se reenvió con fecha nueva (función 33). Es suyo y no de `ts`: `ts` es la
+       autorización y la lee la plataforma. Cada guardado lo conserva; solo
+       reenviarConFechaNueva() lo mueve, y una autorización más nueva lo deja atrás por sí sola
+       (la vigencia cuenta desde el mayor de los dos). */
+    reenviada:(extra&&extra.reenviada)||(idx>=0&&arr[idx].reenviada)||0
   };
   if(idx>=0) arr[idx]=entry; else arr.unshift(entry);
   const ok=saveHistorial(arr);
@@ -160,11 +165,214 @@ function guardarEnHistorial(){
 }
 
 let _histData=[];
-function openHistImg(folio){
+/* `origen` es la miniatura que se tocó (la pasa el onclick con `this`): de ella crece el plano y
+   a ella regresa. Sin miniatura —se llamó desde la consola, o la lista se repintó— el plano
+   simplemente aparece. */
+function openHistImg(folio,origen){
   const e=_histData.find(x=>x.folio===folio);
   if(!e||!e.aiFile||!e.aiFile.url) return;
-  $('lightboxBody').innerHTML=`<img class="lightbox-img" src="${urlImagenSegura(e.aiFile.url)}" alt="${esc(e.aiFile.name||'')}" onclick="event.stopPropagation()">`;
-  $('lightbox').classList.add('show');
+  visorAbrir(e.aiFile.url,e.aiFile.name||'',origen);
+}
+/* ----- El plano a pantalla completa, con zoom (H14) -----
+   Un plano con cotas, ajustado al ancho de un teléfono, no se lee: las cifras miden dos píxeles.
+   El visor de antes era una <img> con `max-width` dentro del velo, sin zoom ni arrastre ni
+   salida, así que para leer una cota había que salir de la app y abrir la foto en la galería.
+
+   Ahora la imagen crece DESDE la miniatura que se tocó y regresa a ella al cerrar —la misma
+   técnica de FLIP que ya usa _volarTotal(): se coloca en su lugar final y se anima desde el
+   rectángulo de la miniatura—, y adentro se puede pellizcar, arrastrar y tocar dos veces para
+   2×. La cuenta del pellizco es la de scGestureStart/scGestureMove del escalador —lo que estaba
+   bajo los dedos se queda bajo los dedos—, pero escrita aquí y no llamada de allá: esas dos
+   funciones escriben en SC (el lienzo del escalador, su lupa, sus guías) y el visor no tiene nada
+   de eso. Una sola implementación del visor: openAiFile() de partidas.js llama a esta misma, no
+   trae la suya.
+
+   `touch-action:none` va SOLO sobre el lienzo del visor (css, «Cotizador · historial»): fuera de
+   él la página sigue haciendo scroll. Con Pointer Events y no con touchstart porque el ratón y
+   la rueda caen en la misma cuenta: en la computadora la rueda acerca y se arrastra con el botón.
+   Teclado: «+», «−» y «0» acercan, alejan y ajustan; con el lienzo enfocado las flechas lo mueven.
+   Escape y el «atrás» del teléfono ya cierran la capa (_CAPAS), y los dos llegan a closeLightbox().
+
+   Cierre: el vuelo de regreso tarda unos 260 ms y la capa sigue puesta mientras tanto, así que
+   closeLightbox() lo pide a visorCerrar() y NO quita `.show` por su cuenta (lo quita el visor al
+   aterrizar). Con menos movimiento no hay vuelo: la capa se va en el acto, como siempre.
+   La miniatura recorta (object-fit:cover) y el plano no: el vuelo parte del cuadro más chico que
+   cubre la miniatura, centrado en ella, así que no calza al píxel. Se midió que a ojo no se nota
+   y se descartó recortar con clip-path, que animaría el área de pintado entera en cada cuadro.
+   Se mueve solo `transform` (y `opacity` en el velo). */
+const VISOR_MAX=5;
+let _visor=null, _visorEsperando=false;
+function visorAbrir(url,alt,origen){
+  if(_visor||_visorEsperando||!urlImagenSegura(url)) return;
+  const img=new Image();
+  img.className='visor-img'; img.alt=''; img.draggable=false;
+  /* La URL cruda y no la de urlImagenSegura(): esa viene ESCAPADA para escribirse dentro de un
+     atributo, y asignarla a `src` como propiedad dejaría un &amp; literal. Aquí no hay HTML de
+     por medio, y la guarda de arriba ya dijo que el esquema es data: o blob: de imagen. */
+  img.src=String(url);
+  _visorEsperando=true;
+  const listo=()=>{ _visorEsperando=false; visorMontar(img,alt,origen); };
+  /* Se decodifica ANTES de abrir la capa: el vuelo necesita saber la proporción real, y abrir
+     un velo vacío para que la imagen salte adentro es justo el parpadeo que esto quita. */
+  (img.decode?img.decode():Promise.reject()).then(listo,listo);
+}
+function visorMontar(img,alt,origen){
+  const lb=$('lightbox'), cuerpo=$('lightboxBody'); if(!lb||!cuerpo) return;
+  const P=window.Piezas, sinMov=()=>!!(P&&P.sinMovimiento&&P.sinMovimiento());
+  const aspecto=(img.naturalWidth>0&&img.naturalHeight>0)?img.naturalWidth/img.naturalHeight:1.5;
+  const lienzo=document.createElement('div');
+  lienzo.className='visor-lienzo'; lienzo.tabIndex=0; lienzo.setAttribute('role','img');
+  lienzo.setAttribute('aria-label',(alt?alt+'. ':'')+'Plano a pantalla completa. Pellizca o toca dos veces para acercar; con teclado, más y menos acercan y las flechas lo mueven.');
+  const pie=document.createElement('div'); pie.className='visor-pie'; pie.setAttribute('aria-hidden','true');
+  pie.innerHTML='<b>100 %</b><span>Pellizca o toca dos veces</span>';
+  const lectura=pie.firstChild;
+  lienzo.append(img);
+  cuerpo.replaceChildren(lienzo,pie);
+  /* `con-visor` oscurece el velo (css): el de siempre, a medio tono, dejaba ver el modal de atrás
+     a través del plano, y con cotas de dos píxeles todo lo que distrae es ruido. */
+  lb.classList.add('show','con-visor');
+  const V={x:0,y:0,s:1}; let base={w:0,h:0};
+  const punteros=new Map(); let ges=null, movido=false, toque={t:0,x:0,y:0}, cerrarAlClic=false;
+  const ancho=()=>lienzo.clientWidth, alto=()=>lienzo.clientHeight;
+  /* El plano se ajusta dejando aire para el botón de cerrar (arriba) y la lectura del zoom (abajo). */
+  function ajustar(){
+    const mx=16, mv=64;
+    let w=ancho()-2*mx, h=w/aspecto;
+    if(h>alto()-2*mv){ h=alto()-2*mv; w=h*aspecto; }
+    base={w:Math.max(40,w),h:Math.max(40,h)};
+    img.style.width=base.w+'px'; img.style.height=base.h+'px';
+  }
+  /* Si cabe, se centra; si no, no deja ver el vacío de afuera. */
+  function limitar(){
+    const w=base.w*V.s, h=base.h*V.s;
+    V.x=w<=ancho()?(ancho()-w)/2:Math.min(0,Math.max(ancho()-w,V.x));
+    V.y=h<=alto()?(alto()-h)/2:Math.min(0,Math.max(alto()-h,V.y));
+  }
+  function aplicar(){
+    img.style.transform='translate('+V.x.toFixed(1)+'px,'+V.y.toFixed(1)+'px) scale('+V.s.toFixed(4)+')';
+    lectura.textContent=Math.round(V.s*100)+' %';
+    lb.dataset.escala=V.s.toFixed(2);
+  }
+  /* Acerca o aleja alrededor de (px,py): ese punto de la imagen se queda bajo el dedo. */
+  function zoomEn(px,py,s2,suave){
+    s2=Math.max(1,Math.min(VISOR_MAX,s2));
+    V.x=px-(px-V.x)*(s2/V.s); V.y=py-(py-V.y)*(s2/V.s); V.s=s2;
+    limitar();
+    if(suave&&!sinMov()){ img.style.transition='transform .22s cubic-bezier(.2,.8,.2,1)'; setTimeout(()=>{ img.style.transition=''; },240); }
+    aplicar();
+  }
+  /* Dónde está la miniatura, como el transform que la imita: el cuadro más chico que la cubre,
+     centrado en ella. */
+  function enMini(){
+    const r=origen&&origen.isConnected?origen.getBoundingClientRect():null;
+    if(!r||!r.width||!r.height) return null;
+    const k=Math.max(r.width/base.w,r.height/base.h);
+    return 'translate('+(r.left+r.width/2-base.w*k/2).toFixed(1)+'px,'+(r.top+r.height/2-base.h*k/2).toFixed(1)+'px) scale('+k.toFixed(4)+')';
+  }
+  const quitar=[];
+  const oir=(x,ev,f,o)=>{ x.addEventListener(ev,f,o); quitar.push(()=>x.removeEventListener(ev,f,o)); };
+  ajustar(); limitar(); aplicar();
+  const desde=enMini();
+  if(origen&&origen.isConnected) origen.style.visibility='hidden';
+  if(desde&&!sinMov()&&img.animate) img.animate([{transform:desde},{transform:img.style.transform}],{duration:320,easing:'cubic-bezier(.2,.8,.2,1)'});
+  const v=_visor={lb,cuerpo,lienzo,img,origen,cerrando:false,
+    soltar(){
+      quitar.forEach(f=>f()); quitar.length=0;
+      if(origen) origen.style.visibility='';
+      lb.classList.remove('con-visor'); delete lb.dataset.escala;
+      _visor=null;
+    },
+    enMini,transformActual:()=>img.style.transform,punteros};
+  const empezarGesto=()=>{
+    const ps=[...punteros.values()];
+    ges={V:{...V},p0:ps[0],d0:ps[1]?Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y)||1:0,
+      m0:ps[1]?{x:(ps[0].x+ps[1].x)/2,y:(ps[0].y+ps[1].y)/2}:null};
+  };
+  oir(lienzo,'pointerdown',e=>{
+    if(v.cerrando) return;
+    try{ lienzo.setPointerCapture(e.pointerId); }catch(_){}
+    punteros.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    movido=punteros.size>1; cerrarAlClic=false;
+    empezarGesto();
+  });
+  oir(lienzo,'pointermove',e=>{
+    if(!punteros.has(e.pointerId)||!ges) return;
+    punteros.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    const ps=[...punteros.values()];
+    if(ps.length>=2&&ges.m0){
+      /* Pellizco: lo que estaba bajo los dedos se queda bajo los dedos. */
+      const dd=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y), m={x:(ps[0].x+ps[1].x)/2,y:(ps[0].y+ps[1].y)/2};
+      const s2=Math.max(1,Math.min(VISOR_MAX,ges.V.s*dd/ges.d0)), f=s2/ges.V.s;
+      V.s=s2; V.x=m.x-(ges.m0.x-ges.V.x)*f; V.y=m.y-(ges.m0.y-ges.V.y)*f;
+    }else{
+      const dx=e.clientX-ges.p0.x, dy=e.clientY-ges.p0.y;
+      if(Math.hypot(dx,dy)>6) movido=true;
+      V.x=ges.V.x+dx; V.y=ges.V.y+dy;
+    }
+    limitar(); aplicar();
+  });
+  const soltarPuntero=e=>{
+    if(!punteros.has(e.pointerId)) return;
+    punteros.delete(e.pointerId);
+    if(punteros.size){ empezarGesto(); return; }
+    ges=null;
+    if(movido||e.type==='pointercancel'||v.cerrando) return;
+    /* Un toque, no un gesto. Fuera de la imagen es el velo y cierra, como siempre cerró; sobre la
+       imagen, dos toques seguidos la llevan a 2× o la devuelven a su ajuste. El cierre NO se hace
+       aquí sino en el clic que sigue a soltar: con menos movimiento la capa se va en el acto, y
+       ese clic caía en el historial que está debajo —en su velo, que también cierra— y se llevaba
+       los dos de un toque. Con el clic ya consumido por el lienzo, no hay a dónde caiga. */
+    const r=img.getBoundingClientRect();
+    if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom){ cerrarAlClic=true; return; }
+    const t=performance.now();
+    if(t-toque.t<300&&Math.hypot(e.clientX-toque.x,e.clientY-toque.y)<24){
+      zoomEn(e.clientX,e.clientY,V.s<1.5?2:1,true); toque.t=0;
+    }else toque={t,x:e.clientX,y:e.clientY};
+  };
+  oir(lienzo,'pointerup',soltarPuntero); oir(lienzo,'pointercancel',soltarPuntero);
+  /* Tras un arrastre el navegador manda un clic al lienzo, y el clic subiría al onclick del velo
+     (#lightbox) y cerraría el visor a media lectura. Quién cierra lo decide el toque de arriba, y
+     lo hace aquí, con el clic ya detenido. */
+  oir(lienzo,'click',e=>{ e.stopPropagation(); if(cerrarAlClic){ cerrarAlClic=false; visorCerrar(); } });
+  oir(lienzo,'wheel',e=>{ e.preventDefault(); zoomEn(e.clientX,e.clientY,V.s*Math.exp(-e.deltaY*.0015)); },{passive:false});
+  oir(lb,'keydown',e=>{
+    if(v.cerrando||e.ctrlKey||e.metaKey||e.altKey) return;
+    const cx=ancho()/2, cy=alto()/2;
+    if(e.key==='+'||e.key==='=') zoomEn(cx,cy,V.s*1.25,true);
+    else if(e.key==='-'||e.key==='_') zoomEn(cx,cy,V.s/1.25,true);
+    else if(e.key==='0') zoomEn(cx,cy,1,true);
+    else if(e.key.indexOf('Arrow')===0&&document.activeElement===lienzo){
+      const d={ArrowLeft:[40,0],ArrowRight:[-40,0],ArrowUp:[0,40],ArrowDown:[0,-40]}[e.key];
+      V.x+=d[0]; V.y+=d[1]; limitar(); aplicar();
+    }else return;
+    e.preventDefault();
+  });
+  oir(window,'resize',()=>{ ajustar(); V.x=V.y=0; V.s=1; limitar(); aplicar(); });
+}
+/* Cierra el visor si hay uno. Devuelve true si lo atendió (aunque ya estuviera cerrándose): así
+   closeLightbox() sabe que NO le toca quitar la capa, y un segundo Escape o un segundo toque
+   durante el vuelo no hacen nada. */
+function visorCerrar(){
+  const v=_visor; if(!v) return false;
+  if(v.cerrando) return true;
+  v.cerrando=true; v.punteros.clear();
+  const fin=()=>{
+    v.soltar();
+    $('lightbox').classList.remove('show'); $('lightboxBody').innerHTML='';
+    /* El foco a la miniatura, ANTES de que el vigilante de capas (nucleo.js) lo reparta: la
+       miniatura vive dentro del historial, que es otra capa, y esa regla no guarda como «foco de
+       antes» lo que está dentro de una capa —así que, sin esto, caía en el primer control del
+       historial (la ×) y quien navega con teclado perdía el sitio donde iba. */
+    if(v.origen&&v.origen.isConnected) try{ v.origen.focus({preventScroll:true}); }catch(_){}
+  };
+  const P=window.Piezas, hacia=v.enMini();
+  if(!hacia||(P&&P.sinMovimiento&&P.sinMovimiento())||!v.img.animate){ fin(); return true; }
+  v.lienzo.style.pointerEvents='none';
+  const a=v.img.animate([{transform:v.transformActual()},{transform:hacia}],{duration:260,easing:'cubic-bezier(.2,.8,.2,1)',fill:'forwards'});
+  const velo=v.lb.animate([{opacity:1},{opacity:0}],{duration:260,fill:'forwards'});
+  const aterrizar=()=>{ try{ a.cancel(); velo.cancel(); }catch(_){} fin(); };
+  a.finished.then(aterrizar,aterrizar);
+  return true;
 }
 /* ----- Borrar del historial, con Deshacer -----
    Preguntaba con el confirm() del navegador y prometía «no se puede deshacer». Borrar una
@@ -176,7 +384,12 @@ function openHistImg(folio){
    una pausa: 140 ms no se notan al escribir y ahorran nueve de cada diez repintados. Abrir el
    modal, borrar y restaurar siguen llamando a pintarHistorial() directo. */
 let _histBuscaT=null;
-function pintarHistorialPronto(){ clearTimeout(_histBuscaT); _histBuscaT=setTimeout(pintarHistorial,140); }
+function pintarHistorialPronto(){
+  clearTimeout(_histBuscaT);
+  /* Una búsqueda nueva empieza arriba: con el scroll donde estaba, el primer resultado quedaba
+     escondido bajo el borde de la lista. */
+  _histBuscaT=setTimeout(()=>{ pintarHistorial(); const b=$('hist-body'); if(b) b.scrollTop=0; },140);
+}
 let _histBorrada=null;
 function borrarDeHistorial(folio){
   const arr=getHistorial(), idx=arr.findIndex(x=>x.folio===folio);
@@ -186,7 +399,8 @@ function borrarDeHistorial(folio){
   saveHistorial(arr);
   _histData=getHistorial(); indexarHistorial();
   pintarClientes();
-  pintarHistorial(); // se conserva lo que el usuario tenía escrito en el buscador
+  pintarFichasHistorial();   // los conteos de las fichas cambian con cada borrado
+  pintarHistorial(); // se conserva lo que el usuario tenía escrito en el buscador y la ficha activa
   vibrar([8,40,8]);
   toast(folio+' eliminada del historial','',8000,{label:'Deshacer',fn:deshacerBorradoHistorial});
 }
@@ -198,7 +412,7 @@ function deshacerBorradoHistorial(){
   saveHistorial(arr);
   _histData=getHistorial(); indexarHistorial();
   pintarClientes();
-  if($('histmodal').classList.contains('show')) pintarHistorial();
+  if($('histmodal').classList.contains('show')){ pintarFichasHistorial(); pintarHistorial(); }
   toast(b.entry.folio+' volvió al historial','ok',2600);
 }
 
@@ -224,71 +438,260 @@ function histDsc(it){
    La cadena se arma UNA vez al abrir el modal y no dentro del filtro: ahí correría sobre todas
    las partidas de todas las entradas en cada tecla. */
 function indexarHistorial(){
+  const P=window.Piezas;
   _histData.forEach(e=>{
     /* El total y el teléfono también SIN formato. El total entraba como «$35,000.00» y el
        teléfono con sus espacios, así que «la de treinta y cinco mil» buscada como «35000» no
        encontraba nada, y el teléfono tecleado de corrido tampoco — que es justo como se busca
        con el cliente al teléfono. */
     const tot=totalFinalHist(e);
-    e._busca=[e.folio,e.proy,e.cliente,e.tel,String(e.tel||'').replace(/\D/g,''),e.dirRaw,e.autorizador,e.fechaAuth,
+    /* Los hitos se leen UNA vez por entrada y se guardan: de aquí salen el texto que se busca
+       y las fichas «Sin PDF / Sin enviar / Sin venta» (H8). Antes se releía el almacenamiento
+       completo una vez por cada hito de cada entrada. */
+    e._h=hitosDe(e.folio);
+    const bruto=[e.folio,e.proy,e.cliente,e.tel,String(e.tel||'').replace(/\D/g,''),e.dirRaw,e.autorizador,e.fechaAuth,
       money(tot),String(+(+tot||0).toFixed(2)),(+tot||0).toFixed(2),(e.items||[]).map(histDsc).join(' '),
-      HITOS.filter(x=>hitosDe(e.folio)[x.k]).map(x=>x.hecho).join(' ')]
-      .map(v=>String(v||'')).join(' ').toLowerCase();
+      HITOS.filter(x=>e._h[x.k]).map(x=>x.hecho).join(' ')]
+      .map(v=>String(v||'')).join(' ');
+    /* Sin acentos ni mayúsculas, con la MISMA regla con la que luego se marca lo que coincide
+       (P.resaltar, H15): si el filtro dejara pasar «optica» pero la marca no encontrara «Óptica»,
+       saldría un resultado sin nada resaltado, que es peor que no marcar. */
+    e._busca=P.plegarTexto(bruto).txt;
   });
+  _histCuentas=histCuentas(_histData,Date.now());
 }
+/* ----- Las fichas bajo el buscador (H8) -----
+   Solo había un buscador de texto, y «¿cuáles autoricé y no he mandado?» —la pregunta que se
+   hace un viernes— no tenía respuesta sin abrir las cotizaciones una por una. Las fichas la
+   contestan con un toque: lo que falta entregar, con cuántas son.
+
+   «Sin enviar» mira el hito del chat de WhatsApp, que es lo único que la app puede saber: abre
+   wa.me y el PDF se adjunta a mano (ver HITOS en entrega.js), así que «enviado» de verdad no
+   existe como dato. Se combinan con la búsqueda —la ficha manda primero y el texto afina— y el
+   contador dice «3 de 41». Los conteos se calculan UNA vez al abrir (y al borrar o deshacer): dicen
+   cuántas hay de cada tipo, no cuántas quedan tras buscar, que es lo que el contador de arriba
+   ya dice. La ficha activa va hundida en --a-suave: no es el botón con relleno de la pantalla. */
+const HIST_FILTROS=[
+  {id:'todas',   texto:'Todas',     ok:()=>true},
+  {id:'sinpdf',  texto:'Sin PDF',   ok:e=>!(e._h&&e._h.pdf),   dice:'Sin PDF generado'},
+  {id:'sinenv',  texto:'Sin enviar',ok:e=>!(e._h&&e._h.wa),    dice:'Sin chat de WhatsApp abierto'},
+  {id:'sinventa',texto:'Sin venta', ok:e=>!(e._h&&e._h.venta), dice:'Sin venta registrada'},
+  {id:'mes',     texto:'Este mes',  ok:(e,ahora)=>enEsteMes(e.ts,ahora),dice:'Autorizadas este mes'},
+];
+let _histFiltro='todas', _histCuentas={};
+/* Del mes de AQUÍ: una autorizada a las 11 de la noche del último día no es «del mes que entra». */
+function enEsteMes(ts,ahora){
+  if(!(+ts>0)) return false;
+  const a=new Date(+ts), b=new Date(ahora==null?Date.now():ahora);
+  return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth();
+}
+function histCuentas(datos,ahora){
+  const c={};
+  HIST_FILTROS.forEach(f=>{ c[f.id]=datos.filter(e=>f.ok(e,ahora)).length; });
+  return c;
+}
+function pintarFichasHistorial(){
+  const c=$('hist-fichas'); if(!c) return;
+  const P=window.Piezas;
+  if(!_histData.length){ c.hidden=true; c.innerHTML=''; return; }
+  c.innerHTML=P.fichasHTML(HIST_FILTROS.map(f=>({id:f.id,texto:f.texto,n:_histCuentas[f.id]})),
+    {activo:_histFiltro,etiqueta:'Filtrar por lo que falta'});
+  c.hidden=false;
+  HIST_FILTROS.forEach(f=>{
+    const b=c.querySelector('[data-ficha="'+f.id+'"]');
+    if(b&&f.dice) b.title=f.dice;
+  });
+  P.fichas(c,{todas:'todas',alElegir:v=>{
+    _histFiltro=v||'todas';
+    const body=$('hist-body'); if(body) body.scrollTop=0;
+    pintarHistorial();
+    const n=$('hist-body').querySelectorAll('.hentry').length;
+    voz(n===1?'1 cotización':n+' cotizaciones');
+  }});
+}
+function histFiltroActual(){ return HIST_FILTROS.find(f=>f.id===_histFiltro)||HIST_FILTROS[0]; }
 function abrirHistorial(){
   _histData=getHistorial();
   indexarHistorial();
   const s=$('hist-search'); if(s) s.value='';
+  _histFiltro='todas';
+  ocultarRestauracion(true);
+  pintarFichasHistorial();
   pintarPieHistorial();
   pintarHistorial();
   $('histmodal').classList.add('show');
 }
-/* Lista del historial, filtrada por el buscador. Con decenas de folios encontrar
-   uno a mano era imposible. */
+/* ----- La vigencia de 10 días a la vista (función 33) -----
+   «La cotización es válida por 10 días» está escrito en el PDF y en ningún otro sitio: el
+   vendedor no sabía cuántos le quedaban a una cotización de hace una semana, ni que la del
+   cliente que no contestó ya venció. Cada entrada del historial lo dice ahora, con un anillo que
+   se consume y con palabras —«Vigente», «Por vencer», «Vencida»—: el color nunca va solo.
+
+   La cuenta sale de `e.ts`, que es un NÚMERO, y no de `e.fechaAuth`, que es texto es-MX
+   («22 sept 2026») y no se resta. Son días NATURALES entre medianoches locales: autorizada el 22,
+   vence el 2 —el día 22 quedan 10, el 2 queda 0, el 3 está vencida—. Se redondea la resta porque
+   un cambio de horario hace días de 23 o 25 horas, y truncar contaría uno de menos. Más de 3 días,
+   verde; 3 o menos, ámbar; vencida, rojo.
+
+   El reloj arranca de `e.ts` —la autorización, que la plataforma también lee— o de
+   `e.reenviada` si es más nueva: «Reenviar con fecha nueva» NO toca `e.ts` (diría «autorizada
+   hoy» sobre un precio que nadie volvió a autorizar), anota su propio sello. Una entrada sin
+   ninguno de los dos —las más viejas del historial— no pinta nada: no se inventa una fecha. */
+const VIG_DIAS=10, VIG_AMBAR=3, DIA_MS=864e5;
+function medianocheLocal(t){ const d=new Date(t); d.setHours(0,0,0,0); return d.getTime(); }
+function vigenciaDe(e,ahora){
+  const base=Math.max(+e.ts||0,+e.reenviada||0);
+  if(!(base>0)) return null;
+  const hoyT=ahora==null?Date.now():+ahora;
+  const pasados=Math.max(0,Math.round((medianocheLocal(hoyT)-medianocheLocal(base))/DIA_MS));
+  const quedan=VIG_DIAS-pasados;
+  const f=new Date(base); f.setHours(0,0,0,0); f.setDate(f.getDate()+VIG_DIAS);
+  return {quedan,estado:quedan>VIG_AMBAR?'ok':quedan>=0?'av':'mal',vence:f.getTime(),base};
+}
+function vigFecha(ts){
+  try{ return new Date(ts).toLocaleDateString('es-MX',{day:'numeric',month:'short'}).replace('.',''); }
+  catch(_){ return ''; }
+}
+function vigenciaTexto(v){
+  const f=vigFecha(v.vence), q=v.quedan;
+  if(v.estado==='mal') return {titulo:'Vencida',detalle:'Hace '+(-q)+(q===-1?' día':' días')+' · venció el '+f};
+  const d=q>1?'Vence en '+q+' días · '+f:q===1?'Vence mañana · '+f:'Vence hoy';
+  return {titulo:v.estado==='av'?'Por vencer':'Vigente',detalle:d};
+}
+function vigenciaHTML(e,ahora,boton){
+  const v=vigenciaDe(e,ahora); if(!v) return '';
+  const t=vigenciaTexto(v);
+  const resto=(1-Math.max(0,Math.min(VIG_DIAS,v.quedan))/VIG_DIAS).toFixed(3);
+  return `<div class="hvig" data-estado="${v.estado}" data-quedan="${v.quedan}">
+    <span class="hvig-anillo" aria-hidden="true"><svg viewBox="0 0 36 36"><circle class="base" cx="18" cy="18" r="15"/><circle class="resto" cx="18" cy="18" r="15" pathLength="1" style="stroke-dashoffset:${resto}"/></svg><b>${Math.max(0,v.quedan)}</b></span>
+    <span class="hvig-d"><b class="hvig-t">${esc(t.titulo)}</b><small>${esc(t.detalle)}</small></span>
+    ${boton||''}</div>`;
+}
+/* ¿Se movió el precio desde que se cotizó? La MISMA pregunta que ya se hace al reabrir una
+   cotización (reabrirDeHistorial congela el importe de cada partida cuyo `_lt` ya no coincide
+   con el catálogo de hoy): escrita aparte porque aquí hay que saberlo ANTES de abrirla. */
+function precioSeMovio(e){
+  const hoyIt=normalizarItems(JSON.parse(JSON.stringify(e.items||[])));
+  return (e.items||[]).some(it=>{
+    if(it._lt===undefined) return false;
+    const act=hoyIt.find(x=>x.id===it.id);
+    return !!act&&Math.abs(it._lt-lineTotal(act))>0.01;
+  });
+}
+/* «Reenviar con fecha nueva» es un PDF NUEVO: lleva la fecha de hoy y vuelve a tener sus 10
+   días. Dos caminos, y la diferencia es el dinero:
+     · el precio sigue siendo el que se cotizó: se abre la cotización con la fecha de hoy y se
+       anota la renovación; solo falta generar el PDF y mandarlo;
+     · el precio del catálogo se movió (el material subió): prometer otros 10 días a un precio
+       que ya no es el de hoy es una decisión de Dirección. Se pregunta y se abre «Volver a
+       autorizar el precio» (reautorizar), el mismo camino de siempre —el autorizador lo revisa,
+       el vendedor lo solicita—, y el reloj NO se renueva hasta que alguien lo autorice: al
+       autorizar de nuevo `ts` se renueva solo, y mientras tanto el anillo sigue diciendo la verdad.
+   En el camino del precio movido la fecha NO se cambia al abrir: si la revisión se cancela, la
+   cotización vuelve como estaba, y un PDF con fecha de hoy y el precio viejo sería justo lo que
+   este paso existe para impedir. Cuando Dirección autoriza, las partidas quedan congeladas con
+   el precio de hoy, el precio ya no «se movió» y el mismo botón, tocado otra vez, toma el camino
+   corto. La renovación se anota al abrir y no al generar el PDF: entrega.js es de otra pantalla y
+   esa marca se pierde si nunca se genera; queda dicho en el aviso, que pide generar el PDF. */
+async function reenviarConFechaNueva(folio){
+  if(selloEnVuelo()) return;
+  const e=_histData.find(x=>x.folio===folio); if(!e) return;
+  const movido=precioSeMovio(e);
+  if(movido&&!await confirmar({titulo:'El precio de hoy no es el que se cotizó',
+    texto:'Desde que se autorizó '+folio+' cambió el precio del material. Una cotización con fecha nueva es un PDF nuevo, y con otro precio tiene que volver a pasar por Dirección antes de salir.\n\nSe abre para volver a autorizar el precio; cuando quede autorizado, toca «Reenviar con fecha nueva» otra vez.',
+    si:'Abrir y volver a autorizar',no:'Dejarla como está'})) return;
+  await reabrirDeHistorial(folio,{fechaNueva:!movido,sinAviso:true});
+  /* Si la pregunta de la cotización que estaba en pantalla contestó «no», no se abrió nada. */
+  if(Q.folio!==folio||Q.estado!=='autorizada') return;
+  if(movido){
+    saveState();
+    reautorizar();
+    return;
+  }
+  guardarEnHistorial({reenviada:Date.now()});
+  saveState();
+  const f=new Date(); f.setHours(0,0,0,0); f.setDate(f.getDate()+VIG_DIAS);
+  toast(folio+' sale con la fecha de hoy y vence el '+vigFecha(f.getTime())+' — genera su PDF nuevo','ok',6000);
+}
+/* Lista del historial, filtrada por las fichas y por el buscador. Con decenas de folios
+   encontrar uno a mano era imposible. */
 function pintarHistorial(){
-  const dsc=histDsc;
-  const q=($('hist-search')?.value||'').trim().toLowerCase();
-  const lista=q ? _histData.filter(e=>(e._busca||'').includes(q)) : _histData;
+  const P=window.Piezas, ahora=Date.now();
+  const q=($('hist-search')?.value||'').trim();
+  const qf=P.plegarTexto(q).txt;
+  const filtro=histFiltroActual();
+  const filtrando=!!q||filtro.id!=='todas';
+  const lista=filtrando
+    ? _histData.filter(e=>filtro.ok(e,ahora)&&(!qf||(e._busca||'').includes(qf)))
+    : _histData;
   const cnt=$('hist-count');
   if(cnt) cnt.textContent=_histData.length
-    ? (q?`${lista.length} de ${_histData.length}`:plCot(_histData.length))
+    ? (filtrando?`${lista.length} de ${_histData.length}`:plCot(_histData.length))
     : '';
-  let html='';
-  if(!_histData.length){
-    html='<div class="hist-empty">Aún no hay cotizaciones autorizadas.<br><span style="font-size:12px">Aparecerán aquí automáticamente cuando autorices una cotización.</span></div>';
-  } else if(!lista.length){
-    html=`<div class="hist-empty">Ninguna cotización coincide con «${esc(q)}».</div>`;
-  } else {
-    html=lista.map(e=>{
-      const isImg=e.aiFile&&e.aiFile.type&&e.aiFile.type.indexOf('image/')===0&&e.aiFile.url;
-      const imgHTML=isImg
-        ? `<img class="hentry-img" src="${urlImagenSegura(e.aiFile.url)}" ${_ABRIBLE} onclick="openHistImg(${jsArg(e.folio)})" title="Ver imagen completa" alt="Referencia">`
-        : `<div class="hentry-img-ph">${e.aiFile?ico('i-doc'):ico('i-imagen')}</div>`;
-      const rows=(e.items||[]).map((it,i)=>{
-        const ia=(e.itemsAuth&&e.itemsAuth[it.id]!==undefined)?e.itemsAuth[it.id]
-                 :(it._lt!==undefined?it._lt:lineTotal(it));
-        return `<tr><td>${i+1}</td><td>${esc(dsc(it))}</td><td>${money(ia)}</td></tr>`;
-      }).join('');
-      const pFin=totalFinalHist(e);
-      const ajuste=+(e.neto-pFin).toFixed(2);
-      return `<div class="hentry">
+  const body=$('hist-body');
+  body.innerHTML=!_histData.length ? histVacioHTML()
+    : !lista.length ? histSinCoincidenciasHTML(q,filtro)
+    : lista.map(e=>histEntradaHTML(e,q,ahora)).join('');
+  armarEntradasHistorial(body);   // solo la primera vez: pone el oyente delegado que arma cada bote al tocarlo
+}
+/* ----- Cada entrada, compacta (H16) -----
+   Era una tarjeta con la imagen de 96 px, la tabla de TODAS las partidas, los hitos, el total y
+   la nota, siempre abiertas: con 40 cotizaciones, un pergamino. Ahora por omisión se ven lo que
+   se busca de un vistazo —folio, nombre, vigencia, hitos y total— y la tabla, la dirección y la
+   nota se abren con un toque sobre «3 partidas»: un <details class="pliegue">, que abre y cierra
+   con su altura donde el navegador sabe (::details-content) y en seco donde no. «Abrir y
+   editar» y «Duplicar» siguen a la vista: son para lo que se viene a hacer.
+
+   Con una búsqueda activa, la entrada se abre sola si lo que coincidió está ADENTRO (una partida
+   o la dirección): una marca escondida en un pliegue cerrado no explica por qué salió el
+   resultado, que es para lo que existe (H15). Todo lo que viene de datos pasa por esc() o por
+   P.resaltar() —que escapa por tramos—, y la marca es lo único que se agrega. */
+function histEntradaHTML(e,q,ahora){
+  const P=window.Piezas, dsc=histDsc, R=t=>P.resaltar(t,q);
+  const isImg=e.aiFile&&e.aiFile.type&&e.aiFile.type.indexOf('image/')===0&&e.aiFile.url;
+  const imgHTML=isImg
+    ? `<img class="hentry-img" src="${urlImagenSegura(e.aiFile.url)}" loading="lazy" decoding="async" ${_ABRIBLE} onclick="openHistImg(${jsArg(e.folio)},this)" title="Ver imagen completa" alt="Referencia">`
+    : `<div class="hentry-img-ph">${e.aiFile?ico('i-doc'):ico('i-imagen')}</div>`;
+  const items=e.items||[];
+  const rows=items.map((it,i)=>{
+    const ia=(e.itemsAuth&&e.itemsAuth[it.id]!==undefined)?e.itemsAuth[it.id]
+             :(it._lt!==undefined?it._lt:lineTotal(it));
+    return `<tr><td>${i+1}</td><td>${R(dsc(it))}</td><td>${money(ia)}</td></tr>`;
+  }).join('');
+  const pFin=totalFinalHist(e);
+  const ajuste=+(e.neto-pFin).toFixed(2);
+  const v=vigenciaDe(e,ahora);
+  const reenviar=`<button type="button" class="hentry-reenviar" data-reenviar="${esc(e.folio)}" title="Es un PDF nuevo con la fecha de hoy y sus 10 días otra vez. Si el precio cambió, pasa antes por Dirección.">${ico('i-recalibrar')} Reenviar con fecha nueva</button>`;
+  /* Por vencer o vencida, el botón está a la vista junto al anillo; vigente, queda dentro del
+     pliegue: nadie reenvía lo que le sobra y cada entrada con su botón era otro renglón de 44 px. */
+  const botonAfuera=v&&v.estado!=='ok';
+  const dir=e.dirRaw?`<p class="hentry-dir">${ico('i-pin')} ${R(e.dirRaw)}</p>`:'';
+  const nota=e.nota?`<p class="hentry-nota">${ico('i-chat')} ${esc(e.nota)}</p>`:'';
+  const abre=!!q&&(items.some(it=>P.coincide(dsc(it),q))||P.coincide(e.dirRaw||'',q));
+  const dentro=(rows?`<table class="htable">${rows}</table>`:'')+dir+nota+(v&&!botonAfuera?`<div class="hentry-reenvio">${reenviar}</div>`:'');
+  const n=items.length;
+  const pliegue=dentro?`<details class="pliegue hentry-det"${abre?' open':''}>
+        <summary class="hentry-resumen"><span>${n?`${n} ${n===1?'partida':'partidas'}`:'Detalle'}</span><svg class="pliegue-flecha" viewBox="0 0 18 18" aria-hidden="true" focusable="false"><path d="M4.5 7l4.5 4.5L13.5 7"/></svg></summary>
+        <div class="hentry-det-c">${dentro}</div>
+      </details>`:'';
+  return `<div class="hentry" data-folio="${esc(e.folio)}">
         <div class="hentry-top">
           ${imgHTML}
           <div class="hentry-meta">
-            <div class="hentry-folio">${esc(e.folio)}</div>
-            <div class="hentry-name">${esc(e.proy||e.cliente||'Sin nombre')}</div>
-            <div class="hentry-sub">${esc(e.cliente||'')+(e.tel?' · '+esc(e.tel):'')+(e.dirRaw?'<br>'+ico('i-pin')+' '+esc(e.dirRaw):'')}</div>
-            <div class="hentry-auth"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> ${esc(e.autorizador||'—')} · ${esc(e.fechaAuth||'')}</div>
+            <div class="hentry-folio">${R(e.folio)}</div>
+            <div class="hentry-name">${R(e.proy||e.cliente||'Sin nombre')}</div>
+            <div class="hentry-sub">${R(e.cliente||'')+(e.tel?' · '+R(e.tel):'')}</div>
+            <div class="hentry-auth"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> ${R(e.autorizador||'—')} · ${R(e.fechaAuth||'')}</div>
           </div>
           <div class="hentry-acts">
             <button class="hentry-open" onclick="reabrirDeHistorial(${jsArg(e.folio)})" title="Cargarla en el cotizador para reimprimir su PDF, o editarla con «Editar partidas»"><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Abrir y editar</button>
             <button class="hentry-open" onclick="usarComoBase(${jsArg(e.folio)})" title="Empezar una cotización nueva con estas mismas partidas, para cambiarles el material o la medida sin recapturarlas"><svg class="svgi" aria-hidden="true"><use href="#i-copiar"/></svg> Duplicar</button>
-            <button class="hentry-del" onclick="borrarDeHistorial(${jsArg(e.folio)})" title="Eliminar" aria-label="Eliminar cotización">${ico('i-basura')}</button>
+            <button type="button" class="hentry-del" title="Eliminar: mantén presionado" aria-label="Eliminar cotización">${ico('i-basura')}</button>
+            <span class="hentry-pista" aria-hidden="true"></span>
           </div>
         </div>
-        <table class="htable">${rows}</table>
         ${hitosHist(e.folio)}
+        ${vigenciaHTML(e,ahora,botonAfuera?reenviar:'')}
         <div class="hentry-total">
           <span>Total autorizado</span>
           <!-- El importe va en la tinta de la app y no en verde. En este historial hay diez
@@ -296,13 +699,133 @@ function pintarHistorial(){
                dice «hecho» en todas partes; aquí no decía nada, porque TODAS las cotizaciones
                del historial están autorizadas. Lo que lo hace el número importante del renglón
                son la cifra y el peso, y el verde queda libre para la insignia de arriba, que sí
-               dice un estado. El ahorro y el aumento conservan su color: esos sí comparan. --><span>${money(pFin)}${ajuste>0.01?`&nbsp;<small class="hentry-ajuste">(ahorro ${money(ajuste)})</small>`:''}${ajuste<-0.01?`&nbsp;<small class="hentry-ajuste inc">(aumento ${money(-ajuste)})</small>`:''}</span>
+               dice un estado. El ahorro y el aumento conservan su color: esos sí comparan. --><span>${R(money(pFin))}${ajuste>0.01?`&nbsp;<small class="hentry-ajuste">(ahorro ${money(ajuste)})</small>`:''}${ajuste<-0.01?`&nbsp;<small class="hentry-ajuste inc">(aumento ${money(-ajuste)})</small>`:''}</span>
         </div>
-        ${e.nota?`<div style="font-size:11.5px;color:var(--muted);margin-top:7px;padding-top:7px;border-top:1px solid var(--line)">${ico('i-chat')} ${esc(e.nota)}</div>`:''}
+        ${pliegue}
       </div>`;
-    }).join('');
+}
+/* ----- Mantener presionado para eliminar (H26 · #5) -----
+   El borrado ya se podía devolver con «Deshacer» (borrarDeHistorial), pero el bote de basura
+   está pegado a «Duplicar» y en un teléfono el dedo se equivoca. Sostenerlo 0,9 s lo hace
+   deliberado sin pedir otra pregunta; el aviso con Deshacer sigue ahí para el que aun así se
+   arrepiente. La acción va en alConfirmar: sin onclick en el marcado, porque mientras el botón
+   está bajo la pieza su clic no llega. Se vuelve a armar en cada repintado de la lista: la pieza
+   es idempotente y no deja nada colgado fuera del botón. Sin poder sostener (lector de pantalla,
+   control por voz) un segundo «activar» dentro de 5 s confirma, y lo dice.
+
+   La pista de un toque corto («Mantén presionado para eliminar») NO sale dentro del botón, que es
+   un bote de 44 px: el rótulo temporal de la pieza ensanchaba el botón hasta sacar el renglón de
+   acciones de la tarjeta. Va en un globo propio (`.hentry-pista`, encima del botón, sin ocupar
+   sitio) que la pieza escribe y que se desvanece solo a los 2 s; al terminar se vacía, para que
+   el siguiente toque corto vuelva a encenderlo. Los lectores de pantalla la oyen por la región
+   viva de la pieza, no por el globo (aria-hidden).
+
+   La pieza se arma SOLO sobre el bote que se toca, no sobre los de toda la lista. Armar uno cuesta
+   unos 2 ms —tres cajas nuevas, doce oyentes y una lectura de estilo— y con 80 cotizaciones, en un
+   teléfono de gama media, eran 170 ms más en CADA repintado, o sea en cada pausa al teclear en el
+   buscador. Un oyente delegado en la lista (en captura, antes de que el evento llegue al botón)
+   la arma en el primer toque, ratón, foco o tecla: los oyentes que la pieza cuelga del botón en
+   ese momento sí reciben el mismo evento, así que el primer toque ya cuenta. Quien navega con
+   lector llega por foco y la encuentra armada antes de activar. */
+function armarBoteDeBasura(b){
+  const P=window.Piezas; if(!P||!P.mantener||b.hasAttribute('data-mantener')) return;
+  const caja=b.closest('.hentry'); if(!caja) return;
+  const folio=caja.dataset.folio, pista=caja.querySelector('.hentry-pista');
+  if(pista) pista.addEventListener('animationend',()=>{ pista.textContent=''; });
+  P.mantener(b,{ms:900,tono:'mal',aviso:pista||undefined,pista:'mantén presionado para eliminar la cotización',
+    otraVez:'Otra vez para eliminar',alConfirmar:()=>borrarDeHistorial(folio)});
+}
+function armarEntradasHistorial(body){
+  if(body._bote) return;
+  body._bote=true;
+  const alAcercarse=e=>{ const b=e.target.closest&&e.target.closest('.hentry-del'); if(b) armarBoteDeBasura(b); };
+  ['pointerdown','focusin','keydown'].forEach(ev=>body.addEventListener(ev,alAcercarse,true));
+}
+/* ----- Estados vacíos con salida (H17) -----
+   «Aún no hay cotizaciones autorizadas» y «Ninguna cotización coincide con «x»» eran texto gris
+   y sin nada que tocar. Ahora llevan una carpeta quieta —dos tarjetas desplazadas y el icono del
+   historial; no se mueve— y la salida que corresponde:
+     · vacío de verdad y un aparato que nunca se ha respaldado: «Restaurar un respaldo», que es
+       el caso del teléfono nuevo;
+     · sin coincidencias: «Borrar búsqueda» y «Buscar en clientes», o «Ver todas» si lo que no
+       encuentra es una ficha.
+   Un solo botón con relleno por vacío. Los botones llevan data-vacio y los atiende un oyente
+   delegado (vacioAccion), así que ni el marcado ni los guiones en línea crecen. */
+function vacioHTML(titulo,texto,botones){
+  return `<div class="hist-empty hvacio">
+    <div class="hvacio-ilu" aria-hidden="true"><i class="c1"></i><i class="c2"></i><i class="c3">${ico('i-historial')}</i></div>
+    <p class="hvacio-t">${titulo}</p>
+    ${texto?`<p class="hvacio-d">${texto}</p>`:''}
+    ${botones.length?`<div class="hvacio-acts">${botones.map(b=>`<button type="button" class="btn ${b.primario?'btn-pri':'btn-gho'}" data-vacio="${b.que}">${b.texto}</button>`).join('')}</div>`:''}
+  </div>`;
+}
+function nuncaRespaldado(){ return !(parseInt(prefGet(RESP_TS,'0'),10)>0); }
+function histVacioHTML(){
+  const sinRespaldo=nuncaRespaldado();
+  return vacioHTML('Aún no hay cotizaciones autorizadas',
+    'Aparecerán aquí automáticamente cuando autorices una cotización.'+(sinRespaldo?' ¿Cambiaste de teléfono? Restaura el respaldo que descargaste.':''),
+    sinRespaldo?[{que:'restaurar',texto:'Restaurar un respaldo',primario:true}]:[]);
+}
+function histSinCoincidenciasHTML(q,filtro){
+  const b=[{que:'borrar',texto:q?'Borrar búsqueda':'Ver todas',primario:true}];
+  if(q) b.push({que:'clientes',texto:'Buscar en clientes'});
+  const titulo=q
+    ? 'Ninguna cotización coincide con «'+esc(q)+'»'+(filtro.id!=='todas'?' en «'+esc(filtro.texto)+'»':'')
+    : 'Ninguna cotización en «'+esc(filtro.texto)+'»';
+  return vacioHTML(titulo,'',b);
+}
+function cuaVacioHTML(){
+  return vacioHTML('Todavía no hay clientes','Cada cotización que autorices abre o alimenta el cuaderno de su cliente.'
+    +(nuncaRespaldado()?' ¿Cambiaste de teléfono? Restaura el respaldo que descargaste.':''),
+    nuncaRespaldado()?[{que:'restaurar',texto:'Restaurar un respaldo',primario:true}]:[]);
+}
+function cuaSinCoincidenciasHTML(q){
+  return vacioHTML('Ningún cliente coincide con «'+esc(q)+'»','',
+    [{que:'cua-borrar',texto:'Borrar búsqueda',primario:true},{que:'cua-historial',texto:'Buscar en el historial'}]);
+}
+/* Una sola función para los botones de los dos vacíos. «Borrar búsqueda» deja el buscador limpio
+   y con el foco, y también suelta la ficha activa: dejarla puesta mostraría una lista vacía por
+   un filtro que ya nadie ve. */
+function vacioAccion(que){
+  if(que==='borrar'){
+    const s=$('hist-search'); if(s) s.value='';
+    _histFiltro='todas'; pintarFichasHistorial(); pintarHistorial();
+    if(s) try{ s.focus(); }catch(_){}
+  }else if(que==='clientes'){
+    const q=($('hist-search')?.value||'').trim();
+    delHistorialALosClientes();
+    const s=$('cua-search'); if(s&&q){ s.value=q; pintarCuadernos(); }
+  }else if(que==='restaurar'){
+    pedirRestaurar();
+  }else if(que==='cua-borrar'){
+    const s=$('cua-search'); if(s) s.value='';
+    pintarCuadernos();
+    if(s) try{ s.focus(); }catch(_){}
+  }else if(que==='cua-historial'){
+    const q=($('cua-search')?.value||'').trim();
+    deLosClientesAlHistorial();
+    const s=$('hist-search'); if(s&&q){ s.value=q; pintarHistorial(); }
   }
-  $('hist-body').innerHTML=html;
+}
+['hist-body','cua-body'].forEach(id=>{
+  const c=$(id); if(!c) return;
+  c.addEventListener('click',e=>{
+    const r=e.target.closest&&e.target.closest('[data-reenviar]');
+    if(r){ reenviarConFechaNueva(r.getAttribute('data-reenviar')); return; }
+    const v=e.target.closest&&e.target.closest('[data-vacio]');
+    if(v) vacioAccion(v.getAttribute('data-vacio'));
+  });
+});
+/* ----- Bordes que se desvanecen (H26 · #10) -----
+   El historial y los cuadernos son listas largas dentro de una caja con scroll, y la lista se
+   cortaba en seco contra el borde: nada decía que había más abajo. `.hist-body` es la clase de
+   las dos cajas (#hist-body y #cua-body), así que una sola llamada las cubre y sigue cubriéndolas
+   después de cada repintado con innerHTML. El fundido es una máscara quieta que solo aparece del
+   lado donde hay contenido escondido; con el dedo y con el ratón el scroll es el nativo. */
+if(window.Piezas&&Piezas.bordesDesvanecidos){
+  Piezas.bordesDesvanecidos('.hist-body',{eje:'y'});
+  /* Y la fila de fichas del historial (H8), que se desplaza de lado en el teléfono. */
+  Piezas.bordesDesvanecidos('.hist-fichas .fichas',{eje:'x'});
 }
 /* ----- Qué se hizo con cada cotización, en el historial -----
    Los hitos se guardaban por folio y no se enseñaban en ninguna lista: solo en la cotización
@@ -314,21 +837,42 @@ function pintarHistorial(){
    convertiría el historial en una lista de regaños; lo que hace falta saber de un folio de
    hace tres semanas es qué se le hizo, no qué le falta. Y la propuesta de Canva entra aquí
    también, que era la otra constancia que se escribía y nadie leía. */
+/* ----- Los cuatro puntos de cada entrada (H3) -----
+   Era una línea de texto: «✓ Propuesta · 27 ago · PDF generado · 28 ago · Chat abierto · 28 ago».
+   Se lee entera, y a 360 px se parte en tres renglones dentro de una tarjeta que ya tiene folio,
+   cliente, fecha y total. Lo que casi siempre se quiere saber de una cotización vieja no es qué
+   día se generó el PDF: es cuáles pasos quedaron a medias.
+
+   Ahora son los mismos cuatro hitos como el riel mini de la pieza 16 —lleno o hueco, con
+   palomita y no solo color—, en el mismo orden en que se hacen, y al lado el ÚLTIMO que se hizo
+   con su fecha: el dato que de verdad se busca es «¿en qué se quedó?». Los puntos llevan la
+   lista completa en su nombre accesible (role="img") y la fecha de cada uno en su title, así que
+   con ratón y con lector no se pierde nada de lo que decía la línea larga.
+
+   Igual que antes: una entrada sin nada hecho no pinta nada. */
 function hitosHist(folio){
   const h=hitosDe(folio);
-  const marcas=HITOS.filter(x=>h[x.k]).map(x=>x.hecho+' · '+hitoFecha(h[x.k]));
-  try{
-    const pr=getPropuestas()[folio];
-    if(pr&&pr.primera) marcas.unshift('Propuesta · '+hitoFecha(pr.primera));
-  }catch(_){}
-  if(!marcas.length) return '';
-  return `<div class="hentry-hitos">${ico('i-check')} ${esc(marcas.join('  ·  '))}</div>`;
+  let propuesta=0;
+  try{ const pr=getPropuestas()[folio]; if(pr&&pr.primera) propuesta=pr.primera; }catch(_){}
+  const pasos=[{t:'Propuesta',ts:propuesta,hecho:'Propuesta'}]
+    .concat(HITOS.map(x=>({t:x.paso,ts:h[x.k],hecho:x.hecho})));
+  const puestos=pasos.filter(p=>p.ts);
+  if(!puestos.length) return '';
+  const ultimo=puestos[puestos.length-1];
+  const riel=Piezas.rielHTML(pasos.map(p=>({
+    texto:p.t, estado:p.ts?'hecho':'pendiente',
+    titulo:p.t+(p.ts?' · '+hitoFecha(p.ts):' · pendiente'),
+  })),{forma:'mini'});
+  return `<div class="hentry-hitos">${riel}<span class="hentry-ultimo">${esc(ultimo.hecho)} · ${esc(hitoFecha(ultimo.ts))}</span></div>`;
 }
 function cerrarHistorial(){ $('histmodal').classList.remove('show'); }
 
 /* Volver a abrir una cotización ya autorizada: el cliente vuelve a pedir el PDF o
    quiere copiar la venta y antes había que capturarla otra vez desde cero. */
-async function reabrirDeHistorial(folio){
+async function reabrirDeHistorial(folio,o){
+  /* `o.fechaNueva`: el PDF sale con la fecha de hoy (reenviarConFechaNueva). `o.sinAviso`: quien
+     la llamó dice lo suyo y no hace falta «Cotización abierta…». */
+  o=o||{};
   /* Mientras la hoja sella no se cambia de cotización: el sello volvería sin dueño y la que se
      estaba sellando se quedaría pendiente en la cola para siempre (ver selloEnVuelo). */
   if(selloEnVuelo()) return;
@@ -346,7 +890,7 @@ async function reabrirDeHistorial(folio){
   Q.dirRaw=e.dirRaw||''; Q.direccion=e.direccion||''; Q.maps=e.maps||'';
   Q.entrecalles=e.entrecalles||''; Q.entrega=e.entrega||''; Q.notaCliente=e.notaCliente||'';
   Q.plazoK=(e.plazoK>=1&&e.plazoK<=5)?e.plazoK:null;
-  Q.fecha=e.fecha||Q.fecha;
+  Q.fecha=o.fechaNueva?hoy():(e.fecha||Q.fecha);
   Q.items=normalizarItems(JSON.parse(JSON.stringify(e.items||[])));
   Q.itemsAuth=JSON.parse(JSON.stringify(e.itemsAuth||{}));
   Q.iva=e.iva!==false;
@@ -402,7 +946,7 @@ async function reabrirDeHistorial(folio){
      partidas, que es donde está el trabajo y desde donde se reimprime. */
   irAPantalla(pantallaSegunDatos(),{forzar:true});
   cerrarHistorial();
-  toast('Cotización '+e.folio+' abierta — reimprime su PDF, o toca «Editar partidas» para cambiarla','ok',
+  if(!o.sinAviso) toast('Cotización '+e.folio+' abierta — reimprime su PDF, o toca «Editar partidas» para cambiarla','ok',
     _vaciada?7000:5200, _vaciada?{label:'Deshacer',fn:deshacerVaciado}:null);
 }
 
@@ -607,9 +1151,10 @@ function guardarNotaCuaderno(g,txt){
 let _cuaData=[], _cuaAbierto=null, _cuaNotaTimer=null;
 function abrirCuadernos(){
   _cuaData=cuadernos();
-  _cuaAbierto=null;
+  _cuaAbierto=null; _cuaScrollLista=0;
   const s=$('cua-search'); if(s) s.value='';
   pintarCuadernos();
+  $('cua-body').scrollTop=0;
   $('climodal').classList.add('show');
 }
 function cerrarCuadernos(){
@@ -629,16 +1174,23 @@ function cuaIniciales(nom){
 }
 function cuaTitulo(g){ return g.clave==='?' ? 'Sin identificar' : (g.nombre||'Sin nombre'); }
 
-function pintarCuadernos(){
+/* ----- Lo que coincide, marcado, y sin acentos (H15) -----
+   El filtro de aquí buscaba con `includes` sobre el texto en minúsculas: «optica» no encontraba
+   «Óptica». Ahora filtra con la misma regla con la que marca (P.plegarTexto / P.resaltar), para
+   que lo que sale siempre traiga su marca. El teléfono se sigue buscando por dígitos sueltos. */
+function pintarCuadernos(volver){
+  const P=window.Piezas;
   _cuaAbierto=null;
   const lv=$('cua-lista-vista'); if(lv) lv.style.display='';
   $('cua-titulo').textContent='Cuadernos de cliente';
-  const q=($('cua-search')?.value||'').trim().toLowerCase();
+  const q=($('cua-search')?.value||'').trim();
+  const qf=P.plegarTexto(q).txt;
   const qd=q.replace(/\D/g,'');
+  const pl=t=>P.plegarTexto(t).txt;
   const lista=q
     ? _cuaData.filter(g=>{
-        if(cuaTitulo(g).toLowerCase().includes(q)) return true;
-        if(g.alias.some(a=>a.toLowerCase().includes(q))) return true;
+        if(pl(cuaTitulo(g)).includes(qf)) return true;
+        if(g.alias.some(a=>pl(a).includes(qf))) return true;
         /* Buscar por teléfono se hace tecleando dígitos sueltos, sin los espacios con los
            que se capturó: se comparan los dígitos contra los dígitos. */
         return !!qd && telClave(g.tel).includes(qd);
@@ -650,18 +1202,22 @@ function pintarCuadernos(){
     : '';
   let html='';
   if(!_cuaData.length){
-    html='<div class="hist-empty">Todavía no hay clientes.<br><span style="font-size:12px">Cada cotización que autorices abre o alimenta el cuaderno de su cliente.</span></div>';
+    html=cuaVacioHTML();
   } else if(!lista.length){
-    html=`<div class="hist-empty">Ningún cliente coincide con «${esc(q)}».</div>`;
+    html=cuaSinCoincidenciasHTML(q);
   } else {
+    const R=t=>P.resaltar(t,q);
     html=lista.map(g=>{
       const n=g.cots.length;
-      const sub=[g.tel||'', g.alias.length?('también «'+g.alias[0]+'»'):''].filter(Boolean).join(' · ');
+      /* El alias que se enseña es el que coincidió, si la búsqueda cayó en uno: es lo que
+         explica por qué este cliente salió con otro nombre. */
+      const alias=g.alias.length?(qf&&g.alias.find(a=>pl(a).includes(qf))||g.alias[0]):'';
+      const sub=[g.tel?R(g.tel):'', alias?'también «'+R(alias)+'»':''].filter(Boolean).join(' · ');
       return `<button class="cua-card" onclick="abrirCuaderno(${jsArg(g.clave)})" title="Abrir el cuaderno de ${esc(cuaTitulo(g))}">
-        <span class="cua-ini" aria-hidden="true">${esc(cuaIniciales(cuaTitulo(g)))}</span>
+        <span class="cua-ini" data-clave="${esc(g.clave)}" aria-hidden="true">${esc(cuaIniciales(cuaTitulo(g)))}</span>
         <span class="cua-card-meta">
-          <span class="cua-nombre">${esc(cuaTitulo(g))}</span>
-          <span class="cua-sub">${esc(sub||'Sin teléfono')}</span>
+          <span class="cua-nombre">${R(cuaTitulo(g))}</span>
+          <span class="cua-sub">${sub||'Sin teléfono'}</span>
         </span>
         <span class="cua-card-num">
           <b>${money(g.vendido)}</b>
@@ -676,10 +1232,53 @@ function pintarCuadernos(){
     `<button onclick="exportarClientesCSV()" title="Descarga un renglón por cliente para Google Sheets">${ico('i-doc')} CSV de clientes</button>
      <button onclick="deLosClientesAlHistorial()" title="Ver las cotizaciones una por una">${ico('i-historial')} Ver el historial</button>
      <p class="foot-nota">Los cuadernos se arman solos con las cotizaciones autorizadas. Todo vive en este dispositivo: respalda desde el historial.</p>`;
+  /* Al volver de un cuaderno, la lista queda donde estaba: sin esto regresaba arriba del todo y
+     había que volver a bajar hasta el cliente que se acababa de ver. */
+  $('cua-body').scrollTop=volver===true?_cuaScrollLista:0;
 }
 
+/* ----- De la lista al cuaderno, deslizando (H27) -----
+   El cuaderno reemplazaba el innerHTML de #cua-body de golpe, y «Todos los clientes» lo regresaba
+   igual: dos pantallas que se intercambian sin que nada diga cuál es la de adentro. Ahora el
+   detalle entra por la derecha y la lista vuelve por la izquierda (P.transicion con
+   `contenedor` y `direccion`), y las iniciales de la tarjeta tocada VIAJAN hasta el encabezado
+   del cuaderno —el mismo `view-transition-name` en las dos—: es el mismo cliente, y se ve.
+
+   Con View Transitions donde las hay y con FLIP de Web Animations donde no (la pieza elige); con
+   menos movimiento solo corre el repintado. Sin retardos encadenados. Ojo con una cosa de las
+   View Transitions: `fn` corre en el cuadro siguiente, no en el acto, así que TODO lo que
+   depende del DOM nuevo —el scroll, el foco— va dentro de pintarDetalleCuaderno().
+
+   Solo se anima cuando el modal ya está abierto. verCuadernoDe() abre el modal Y el cuaderno a la
+   vez desde el formulario del cliente: ahí no hay lista de la que salir y un repintado diferido
+   dejaría el modal un cuadro vacío, así que pinta directo. Y pintarCuadernos() desde el buscador
+   NUNCA viaja: es teclear, y la pieza se defiende sola de eso pero aquí ni se le pide. */
+let _cuaScrollLista=0;
+function cuaIniDe(clave){
+  const b=$('cua-body'); if(!b) return null;
+  const k=(window.CSS&&CSS.escape)?CSS.escape(clave):String(clave).replace(/["\\]/g,'\\$&');
+  return b.querySelector('.cua-ini[data-clave="'+k+'"]');
+}
 function abrirCuaderno(clave){
   const g=cuadernoDe(clave); if(!g) return;
+  const P=window.Piezas;
+  if(!$('climodal').classList.contains('show')||!P||!P.transicion){ pintarDetalleCuaderno(clave); return; }
+  _cuaScrollLista=$('cua-body').scrollTop;
+  P.transicion(()=>pintarDetalleCuaderno(clave),
+    {contenedor:'#cua-body',direccion:'adelante',nombres:{'cua-ini':()=>cuaIniDe(clave)}});
+}
+function volverALosClientes(){
+  const clave=_cuaAbierto, P=window.Piezas;
+  if(!clave||!P||!P.transicion){ pintarCuadernos(true); return; }
+  /* Lo escrito en la nota se guarda antes de cambiar de vista: el repintado se llevaría el
+     textarea. */
+  cuaGuardarNotaYa();
+  P.transicion(()=>pintarCuadernos(true),
+    {contenedor:'#cua-body',direccion:'atras',nombres:{'cua-ini':()=>cuaIniDe(clave)}});
+}
+function pintarDetalleCuaderno(clave){
+  const g=cuadernoDe(clave); if(!g) return;
+  const P=window.Piezas;
   _cuaAbierto=clave;
   const lv=$('cua-lista-vista'); if(lv) lv.style.display='none';
   $('cua-titulo').textContent=cuaTitulo(g);
@@ -703,8 +1302,11 @@ function abrirCuaderno(clave){
   ].filter(Boolean).join('<br>');
   $('cua-body').innerHTML=`
     <div class="cua-det-head">
-      <button class="cua-volver" onclick="pintarCuadernos()">${ico('i-atras')} Todos los clientes</button>
-      <div class="cua-det-nom">${esc(cuaTitulo(g))}</div>
+      <button class="cua-volver" onclick="volverALosClientes()">${ico('i-atras')} Todos los clientes</button>
+      <div class="cua-det-fila">
+        <span class="cua-ini" data-clave="${esc(g.clave)}" aria-hidden="true">${esc(cuaIniciales(cuaTitulo(g)))}</span>
+        <div class="cua-det-nom">${esc(cuaTitulo(g))}</div>
+      </div>
       ${datos?`<div class="cua-det-datos">${datos}</div>`:''}
       ${g.alias.length?`<div class="cua-alias">También capturado como ${g.alias.map(a=>'«'+esc(a)+'»').join(', ')}</div>`:''}
       <div class="cua-det-acts">
@@ -714,28 +1316,56 @@ function abrirCuaderno(clave){
       </div>
     </div>
     <div class="cua-cifras">
-      <div class="cua-cifra"><b>${n}</b><span>${n===1?'Cotización':'Cotizaciones'}</span></div>
-      <div class="cua-cifra"><b>${money(g.vendido)}</b><span>Autorizado</span></div>
-      <div class="cua-cifra"><b>${money(prom)}</b><span>Promedio</span></div>
+      <div class="cua-cifra"><b class="rueda-cifra" data-cifra="n">${n}</b><span>${n===1?'Cotización':'Cotizaciones'}</span></div>
+      <div class="cua-cifra"><b class="rueda-cifra" data-cifra="autorizado">${money(g.vendido)}</b><span>Autorizado</span></div>
+      <div class="cua-cifra"><b class="rueda-cifra" data-cifra="promedio">${money(prom)}</b><span>Promedio</span></div>
     </div>
     <div class="cua-nota-wrap">
       <label for="cua-nota">Nota del cuaderno</label>
       <textarea id="cua-nota" maxlength="${CUA_NOTA_MAX}" placeholder="Lo que no cabe en una cotización — cómo paga, con quién se habla, qué quedó pendiente." oninput="cuaNotaEscrita()">${esc(notaCuaderno(g))}</textarea>
-      <div class="cua-nota-estado" id="cua-nota-estado">Se guarda sola en este dispositivo.</div>
+      <div class="cua-nota-estado" id="cua-nota-estado"><span class="cua-nota-txt">Se guarda sola en este dispositivo.</span></div>
     </div>
     <div class="cua-cots-tit">Cotizaciones autorizadas</div>
     ${cots}`;
+  /* Las tres cifras ruedan SOLO si cambiaron desde la última vez que se vieron en este cuaderno
+     (la memoria es por la clave y sobrevive al innerHTML): abrir el de un cliente al que se le
+     acaba de autorizar otra cotización enseña de 3 a 4 en vez de llegar con el número ya
+     cambiado y sin que se note. La primera vez que se abre no rueda nada. */
+  if(P&&P.rodarCifra) $('cua-body').querySelectorAll('.cua-cifra b[data-cifra]').forEach(b=>
+    P.rodarCifra(b,b.textContent,{clave:'cua:'+g.clave+':'+b.getAttribute('data-cifra')}));
   $('cua-foot').innerHTML=
-    `<button onclick="pintarCuadernos()">${ico('i-atras')} Todos los clientes</button>
+    `<button onclick="volverALosClientes()">${ico('i-atras')} Todos los clientes</button>
      <p class="foot-nota">La primera fue el ${esc(cuaFecha(g.cots[g.cots.length-1]))||'—'}; la última, el ${esc(cuaFecha(g.cots[0]))||'—'}.</p>`;
   $('cua-body').scrollTop=0;
 }
 
+/* ----- El estado de la nota, con un glifo (H29) -----
+   Era una frase gris que cambiaba entre «Escribiendo…», «Guardada…» y el error, y con el cuaderno
+   abierto en el teléfono nadie la miraba. Ahora lleva delante el glifo de estado de la pieza 24,
+   de 14 px: anillo punteado mientras se escribe, el arco que gira mientras se guarda, la
+   palomita al quedar guardada y la ✕ si no hubo espacio. El color nunca va solo: la frase de al
+   lado dice lo mismo, y la ✕ es una forma.
+
+   El giro dura lo que dura el guardado, que en localStorage es un solo cuadro: se pinta
+   «Guardando…» y el resultado entra en el cuadro siguiente. No se alarga a propósito para que se
+   luzca —un giro de 300 ms sobre algo ya guardado sería decir «guardando» cuando ya se guardó—, y
+   por eso casi no se ve girar: lo que sí se ve es la palomita que se dibuja al terminar. La pieza
+   no ofrece una ✕ ámbar (es roja, o un «!» ámbar): se usó la ✕ roja, que es la de fallar. El
+   marcado de la frase vive en un <span> aparte porque la pieza crea el glifo al principio del
+   elemento y escribir su textContent entero se lo llevaría. */
+function cuaEstadoNota(estado,txt){
+  const est=$('cua-nota-estado'); if(!est) return;
+  let t=est.querySelector('.cua-nota-txt');
+  if(!t){ t=document.createElement('span'); t.className='cua-nota-txt'; est.appendChild(t); }
+  t.textContent=txt;
+  const P=window.Piezas;
+  if(P&&P.marcaEstado&&estado) P.marcaEstado(est,estado,{tam:14});
+}
 /* La nota se guarda sola, medio segundo después de dejar de teclear: guardar en cada
    letra escribe en el almacenamiento decenas de veces por frase, y un botón «Guardar»
    es una cosa más que se olvida antes de cerrar. */
 function cuaNotaEscrita(){
-  const est=$('cua-nota-estado'); if(est) est.textContent='Escribiendo…';
+  cuaEstadoNota('espera','Escribiendo…');
   clearTimeout(_cuaNotaTimer);
   _cuaNotaTimer=setTimeout(cuaGuardarNotaYa,500);
 }
@@ -743,9 +1373,15 @@ function cuaGuardarNotaYa(){
   clearTimeout(_cuaNotaTimer); _cuaNotaTimer=null;
   const ta=$('cua-nota'); if(!ta||!_cuaAbierto) return;
   const g=cuadernoDe(_cuaAbierto); if(!g) return;
+  cuaEstadoNota('trabaja','Guardando…');
   const ok=guardarNotaCuaderno(g,ta.value);
-  const est=$('cua-nota-estado');
-  if(est) est.textContent=ok?'Guardada en este dispositivo.':'No hubo espacio para guardar la nota — respalda y borra cotizaciones viejas.';
+  /* El resultado en el cuadro siguiente: el giro alcanza a pintarse una vez. Si el modal se cerró
+     mientras tanto el elemento sigue en el documento y la escritura es inofensiva. */
+  const dijo=()=>{
+    if(ok) cuaEstadoNota('ok','Guardada en este dispositivo.');
+    else cuaEstadoNota('mal','No hubo espacio para guardar la nota — respalda y borra cotizaciones viejas.');
+  };
+  if(window.requestAnimationFrame) requestAnimationFrame(dijo); else dijo();
   if(!ok) toast('No hubo espacio para guardar la nota','err',4200,{label:'Respaldar',fn:()=>respaldar()});
 }
 
@@ -838,14 +1474,74 @@ function actualizarAvisoCuaderno(){
   if(!util){ el.style.display='none'; el.innerHTML=''; return; }
   const n=g.cots.length;
   el.innerHTML=`${ico('i-cuaderno')} <span>Ya tiene cuaderno · ${plCot(n)} · ${money(g.vendido)}</span>`
-    +` <button type="button" onclick="verCuadernoDe(${jsArg(g.clave)})">Ver cuaderno</button>`;
+    +` <button type="button" class="cua-aviso-ver" data-clave="${esc(g.clave)}" aria-haspopup="dialog" aria-expanded="false">Ver cuaderno</button>`;
   el.style.display='flex';
 }
+/* ----- Un vistazo al cuaderno, sin salir del formulario (H21) -----
+   «Ya tiene cuaderno · 3 cotizaciones · $45,000 · Ver cuaderno» abría el modal completo ENCIMA del
+   formulario del cliente, y para decir «la vez pasada le cotizamos esto» —que es lo único que se
+   quería saber, con el cliente al teléfono— había que cerrarlo y volver a buscar dónde se había
+   quedado uno. Ahora el toque abre una tarjeta flotante anclada al aviso (P.vistazo, un popover
+   de la capa superior) con las iniciales, las tres cotizaciones más recientes —folio, proyecto,
+   total y fecha— y dos acciones: «Duplicar la última» y «Abrir cuaderno», que es lo que antes
+   hacía el botón. Lo capturado en el formulario no se toca; en el teléfono sale como hoja de
+   abajo.
+
+   Se abre con el toque, no con el cursor encima: en el teléfono no hay cursor, y una tarjeta que
+   sale sola al pasar por el aviso estorba más de lo que dice. Entra con el fundido breve de la
+   pieza y no se mueve en reposo. Un solo globo para todos los avisos (`delegar`): el aviso se
+   repinta con innerHTML cuando cambia el cuaderno, y el oyente vive en #cua-aviso, que es fijo.
+   El contenido se arma en CADA apertura, con los datos de ese momento (cuadernoDe), no con los del
+   momento de pintar el aviso: el cuaderno puede haber cambiado desde entonces.
+
+   «Duplicar la última» pasa por cuaDuplicarCot() → usarComoBase(), que ya pregunta antes de
+   dejar atrás una cotización a medias (y deja «Deshacer»): lo que está capturado en el formulario
+   no se pierde en silencio. */
+let _cuaVista=null;
+function cuaVistazoHTML(g){
+  const filas=g.cots.slice(0,3).map(e=>`<li>
+      <span class="hvz-folio">${esc(e.folio)}</span>
+      <span class="hvz-proy">${esc(e.proy||e.cliente||'Sin nombre')}</span>
+      <span class="hvz-tot">${money(totalFinalHist(e))}</span>
+      <span class="hvz-fecha">${esc(cuaFecha(e))}</span>
+    </li>`).join('');
+  return `<div class="hvz-cab">
+      <span class="cua-ini" aria-hidden="true">${esc(cuaIniciales(cuaTitulo(g)))}</span>
+      <div><b class="hvz-nom">${esc(cuaTitulo(g))}</b><small>${esc(plCot(g.cots.length))} · ${money(g.vendido)}</small></div>
+    </div>
+    <ul class="hvz-cots" aria-label="Las cotizaciones más recientes">${filas}</ul>
+    <div class="vistazo-acciones">
+      <button type="button" class="btn btn-gho" data-cua="duplicar">Duplicar la última</button>
+      <button type="button" class="btn btn-gho" data-cua="abrir">Abrir cuaderno</button>
+    </div>`;
+}
+function montarVistazoCuaderno(){
+  const P=window.Piezas; if(!P||!P.vistazo||!$('cua-aviso')||_cuaVista) return;
+  _cuaVista=P.vistazo('cua-aviso',{delegar:'.cua-aviso-ver',titulo:'Cuaderno del cliente',hoja:true,
+    contenido:(ancla,pop)=>{
+      const g=cuadernoDe(ancla.getAttribute('data-clave'));
+      pop.dataset.clave=g?g.clave:'';
+      return g?cuaVistazoHTML(g):'<p class="vistazo-texto">Este cuaderno ya no existe.</p>';
+    },
+    alAbrir:pop=>{
+      if(pop._cuaOyente) return;
+      pop._cuaOyente=true;
+      pop.addEventListener('click',e=>{
+        const b=e.target.closest&&e.target.closest('[data-cua]'); if(!b) return;
+        const g=cuadernoDe(pop.dataset.clave); if(!g) return;
+        const que=b.getAttribute('data-cua');
+        _cuaVista.cerrar('codigo');
+        if(que==='abrir') verCuadernoDe(g.clave);
+        else if(que==='duplicar'&&g.cots.length) cuaDuplicarCot(g.cots[0].folio);
+      });
+    }});
+}
+montarVistazoCuaderno();
 /* Entrar al cuaderno de un cliente sin pasar por la lista. _cuaData tiene que quedar
    cargado igual: es de donde sale la lista cuando se toca «Todos los clientes». */
 function verCuadernoDe(clave){
   _cuaData=cuadernos();
-  abrirCuaderno(clave);
+  pintarDetalleCuaderno(clave);   // directo y no abrirCuaderno(): el modal aún no está abierto, no hay de dónde deslizar
   $('climodal').classList.add('show');
 }
 
@@ -1007,22 +1703,108 @@ function revisarRespaldo(texto){
   }
   return {paquete,completo,cuantas};
 }
-async function restaurarDesde(texto){
-  const rv=revisarRespaldo(texto);
-  if(rv.error){ toast(rv.error,'err',rv.dur); return; }
-  const {paquete,completo,cuantas}=rv;
-  if(completo) toast('Es un respaldo completo: aquí se restaura la parte del cotizador. La de la plataforma se restaura en Plataforma → Ajustes.','',6000);
-  const fecha=fechaDeRespaldo(paquete.fecha);
-  if(!await confirmar({titulo:'¿Restaurar este respaldo?',
-    texto:`Reemplaza el historial, los folios y la cotización en curso de este teléfono por los del respaldo`
-      +(fecha?` del ${fecha}`:'')+` (${cuantas} ${cuantas===1?'cotización':'cotizaciones'}).\n\nAntes de reemplazar se descarga un respaldo de lo que hay ahora.`,
-    si:'Restaurar',no:'Cancelar',peligro:true})) return;
+/* ----- Restaurar, con los pasos a la vista (H25) -----
+   Tras confirmar, salía «Respaldo restaurado — recargando…» y la página se recargaba a los 900 ms
+   sin que se viera qué había pasado: si la copia de lo de antes no se descargó, o si algo no
+   cupo, lo que quedaba era una pantalla que se reiniciaba sola. Restaurar es lo único de la app
+   que reemplaza TODO lo de un teléfono, y es justo donde quien lo hace quiere ver que va bien.
+
+   Ahora es una vista dentro del propio historial —la capa que ya existe, con su Escape, su
+   «atrás» y su foco—, con tres renglones de la traza (pieza 8): «Copia de lo que había,
+   descargada», «23 cotizaciones escritas» y «Recargando». Cada uno se marca cuando ese paso de
+   verdad terminó, y si uno falla se queda en ✕ con su motivo y la frase «No se cambió nada»: los
+   dos primeros pasos son las dos guardas de siempre (no se reemplaza nada si la copia no bajó, y
+   si no cupo todo se devuelve lo anterior clave por clave). Los pasos son síncronos y duran un
+   parpadeo; entre uno y otro se deja un respiro de 450 ms para que se alcance a leer la marca,
+   que es lo que se compra con los 700 ms de más antes de recargar.
+
+   La confirmación es de las que no tienen vuelta, así que se sostiene (pieza 5): mantener
+   presionado «Restaurar» 1,2 s; con teclado, Enter o Espacio sostenidos, y sin poder sostener
+   un segundo «activar» dentro de 5 s. Antes era el confirmar() de siempre, con un toque. La vista
+   la abren por igual el botón «Restaurar» del pie, el vacío del historial y la tarjeta que deja
+   la plataforma (restaurarPendiente): las tres llegan a restaurarDesde(). */
+let _restPaquete=null, _restTraza=null, _restOcupada=false, _restCuantas=0;
+function mostrarRestauracion(rv){
+  const P=window.Piezas, panel=$('hist-restaurar');
+  if(!P||!panel){ toast('No se pudo abrir la vista de restaurar — no se cambió nada','err',4200); return; }
+  /* La vista vive en el historial. Si lo que está abierto es Cuadernos, se pasa a él igual que
+     con «Ver el historial» (cede la entrada del «atrás»); si no hay nada, se abre. */
+  if($('climodal').classList.contains('show')) deLosClientesAlHistorial();
+  else if(!$('histmodal').classList.contains('show')) abrirHistorial();
+  _restPaquete=rv.paquete; _restCuantas=rv.cuantas; _restOcupada=false;
+  const fecha=fechaDeRespaldo(rv.paquete.fecha), n=rv.cuantas;
+  $('hist-rest-txt').textContent='Reemplaza el historial, los folios y la cotización en curso de este teléfono por los del respaldo'
+    +(fecha?' del '+fecha:'')+' ('+n+' '+(n===1?'cotización':'cotizaciones')+'). Antes se descarga una copia de lo que hay ahora.'
+    +(rv.completo?' Es un respaldo completo: aquí se restaura la parte del cotizador; la de la plataforma se restaura en Plataforma → Ajustes.':'');
+  const caja=$('hist-rest-pasos');
+  caja.innerHTML=P.trazaHTML({etiqueta:'Pasos de la restauración',pasos:[
+    {clave:'copia',texto:'Descargar una copia de lo que hay ahora',estado:'espera'},
+    {clave:'escribir',texto:'Escribir '+(n===1?'la cotización':'las '+n+' cotizaciones')+' del respaldo',estado:'espera'},
+    {clave:'recarga',texto:'Recargar la app',estado:'espera'}]});
+  _restTraza=P.traza(caja.firstElementChild,{reloj:false});
+  $('hist-rest-fin').textContent='';
+  const no=$('hist-rest-no'); no.textContent='Cancelar';
+  const si=$('hist-rest-si'); si.hidden=false; si.disabled=false;
+  /* La pista de «mantén presionado» sale en la línea de estado de la vista, no en el botón. */
+  P.mantener(si,{ms:1200,tono:'mal',aviso:'hist-rest-fin',pista:'mantén presionado para restaurar',
+    otraVez:'Otra vez para restaurar',textoHecho:'Restaurando…',alConfirmar:ejecutarRestauracion});
+  panel.hidden=false;
+  panel.closest('.hist-panel').classList.add('restaurando');
+  /* El foco va al título de la vista —el lector la anuncia— y no a «Cancelar»: así ningún botón
+     queda enfocado de entrada con su aro, y lo destructivo no queda a un Enter de distancia. */
+  const alTitulo=()=>{ if(!panel.hidden) try{ $('hist-rest-t').focus({preventScroll:true}); }catch(_){} };
+  alTitulo();
+  /* Si el modal se acaba de abrir, el foco del vigilante de capas llega en el cuadro siguiente y
+     se llevaba el nuestro: se vuelve a pedir cuando ya pasó. */
+  setTimeout(alTitulo,90);
+}
+/* Se va la vista y vuelve la lista. Con una restauración en marcha no se esconde (la recarga viene
+   en camino y los pasos son lo único que dice qué pasa), salvo que se pida a la fuerza: abrir el
+   historial de nuevo siempre empieza por la lista. Cerrar el modal NO la esconde: no hace falta,
+   porque abrirlo otra vez la esconde (abrirHistorial), y así cerrarHistorial() queda como era. */
+function ocultarRestauracion(forzar){
+  const panel=$('hist-restaurar'); if(!panel||panel.hidden) return;
+  if(_restOcupada&&!forzar) return;
+  panel.hidden=true;
+  const hp=panel.closest('.hist-panel'); if(hp) hp.classList.remove('restaurando');
+  _restPaquete=null; _restTraza=null; _restOcupada=false;
+}
+async function ejecutarRestauracion(){
+  if(_restOcupada||!_restPaquete) return;
+  _restOcupada=true;
+  const P=window.Piezas, t=_restTraza, paquete=_restPaquete, n=_restCuantas;
+  /* Un respiro para que la marca se vea; con menos movimiento, apenas uno. Con setTimeout y no con
+     requestAnimationFrame: en una pestaña en segundo plano el segundo no corre nunca. */
+  const pausa=ms=>new Promise(r=>setTimeout(r,P.sinMovimiento()?Math.min(ms,120):ms));
+  const fin=$('hist-rest-fin'), no=$('hist-rest-no'), si=$('hist-rest-si');
+  /* El renglón que falla se reescribe en pasado y con lo que pasó: «Descargando una copia…» con una ✕
+     al lado se leía como que todavía estaba en curso. */
+  const fallo=(clave,texto,detalle,aviso)=>{
+    t.paso(clave,texto,'mal',detalle);
+    t.terminar({ok:false});
+    fin.textContent='No se cambió nada.';
+    voz('No se cambió nada',true);   // la traza dice qué paso falló; esta frase, lo que importa de todo eso
+    no.textContent='Volver';
+    /* «Restaurar» NO se esconde: el dedo sigue encima cuando esto falla (se sostiene 1,2 s) y, al
+       quitarlo, «Volver» se corría a ese mismo lugar y recibía el toque de soltar: la vista se
+       cerraba antes de que se pudiera leer «No se cambió nada». Se queda donde estaba, apagado, y
+       sin la pieza: es un botón de «Restaurar» que ya no se puede sostener. */
+    P.mantener.quitar(si); si.disabled=true;
+    _restOcupada=false;
+    toast(aviso,'err',5200);
+  };
+  t.paso('copia','Descargando una copia de lo que hay ahora…','trabaja');
+  await pausa(60);
   /* La pregunta acaba de prometer que antes de reemplazar se descarga un respaldo de lo
      que hay ahora. Si la descarga no salió, no se reemplaza nada: en la app instalada
      de iOS descargarArchivo() devuelve false y antes se destruía el historial igual. */
   if(!descargarArchivo(armarRespaldo(),`cotizador-al3d-antes-de-restaurar-${selloFecha()}.json`,'application/json')){
-    toast('No se pudo descargar el respaldo previo — no se cambió nada','err',5200); return;
+    return fallo('copia','La copia de lo que había no se descargó','','No se pudo descargar el respaldo previo — no se cambió nada');
   }
+  t.paso('copia','Copia de lo que había, descargada','ok');
+  await pausa(450);
+  t.paso('escribir','Escribiendo '+(n===1?'la cotización':'las '+n+' cotizaciones')+'…','trabaja');
+  await pausa(60);
   /* Copia de lo que hay, para poder devolverlo. Antes se borraba todo y se reescribía
      con un catch vacío por clave: si una no cabía se quedaba a medias, sin lo viejo y
      sin lo nuevo, y el aviso de éxito salía igual. */
@@ -1041,13 +1823,22 @@ async function restaurarDesde(texto){
     RESPALDO_KEYS.forEach(k=>{
       try{ localStorage.removeItem(k); if(previo[k]!=null) localStorage.setItem(k,previo[k]); }catch(_){}
     });
-    toast('No cupo el respaldo en este dispositivo ('+fallaron.length+' '+(fallaron.length===1?'clave':'claves')+') — no se cambió nada','err',6000);
-    return;
+    return fallo('escribir','No cupo el respaldo en este dispositivo','('+fallaron.length+' '+(fallaron.length===1?'clave':'claves')+')','No cupo el respaldo en este dispositivo ('+fallaron.length+' '+(fallaron.length===1?'clave':'claves')+') — no se cambió nada');
   }
   try{ localStorage.removeItem(RESTAURAR_PF_KEY); }catch(_){}
-  toast('Respaldo restaurado — recargando…','ok',2000);
-  setTimeout(()=>location.reload(),900);
+  t.paso('escribir',n>0?(n===1?'1 cotización escrita':n+' cotizaciones escritas'):'Datos del respaldo escritos','ok');
+  await pausa(450);
+  t.paso('recarga','Recargando…','trabaja');
+  fin.textContent='Listo: se recarga la app con lo del respaldo.';
+  await pausa(600);
+  location.reload();
 }
+function restaurarDesde(texto){
+  const rv=revisarRespaldo(texto);
+  if(rv.error){ toast(rv.error,'err',rv.dur); return; }
+  mostrarRestauracion(rv);
+}
+$('hist-rest-no').addEventListener('click',()=>{ if(!_restOcupada) ocultarRestauracion(); });
 /* ----- La restauración que deja la plataforma -----
    Cuando en Plataforma → Ajustes se restaura un respaldo completo, la plataforma restaura su
    mitad y deja la del cotizador aquí, en una clave suya, porque tiene prohibido escribir las
@@ -1556,7 +2347,12 @@ function tipoTrabajoCot(it){
    partidas sin terminar tiene su «continuar de todos modos»— el plazo inflado se quedaba
    escrito en el proyecto. `itemVacio` es la misma prueba que ya usan el aviso de partidas
    sin terminar y la IA; la plataforma lleva su gemela en `tiposDerivados`. */
-function plazoSugeridoCot(items){
+/* `razones` es opcional (H19): un arreglo al que se le agregan, en palabras, las cuentas de las que
+   salió el plazo —el trabajo más lento, cuántos tipos hay, si alguna pieza no cabe en una lámina—.
+   Delante del cliente, eso es lo que sostiene el plazo («Letras 3D con iluminación · 2 tipos de
+   trabajo · lado mayor a 2.44 m → 2.5 semanas»). Sin él la función es la de siempre y devuelve solo
+   el cubo, que es lo que leen la plataforma y las pruebas. */
+function plazoSugeridoCot(items,razones){
   const tipos=new Set(), n=x=>(isFinite(Number(x))&&Number(x)>0)?Number(x):0;
   let mayor=0;
   for(const it of (items||[])){
@@ -1566,18 +2362,39 @@ function plazoSugeridoCot(items){
     const lado=(it.tipo==='letras'||it.tipo==='recorte')?n(it.altura):(it.tipo==='caja'||it.tipo==='bastidor')?Math.max(n(it.ancho),n(it.alto)):0;
     if(lado>mayor) mayor=lado;
   }
-  if(!tipos.size) return 4;
-  let k=Math.max(...[...tipos].map(t=>CUBO_POR_TIPO_COT[t]||4));
-  k+=tipos.size-1;
-  if(mayor>244) k+=1;
-  return Math.min(5,k);
+  const dice=Array.isArray(razones)?razones:null;
+  const semanas=c=>(PLAZOS_COT.find(p=>p.k===c)||{etiqueta:''}).etiqueta;
+  if(!tipos.size){ if(dice) dice.push('Todavía no hay trabajo capturado: se propone el plazo de un proyecto especial'); return 4; }
+  const base=Math.max(...[...tipos].map(t=>CUBO_POR_TIPO_COT[t]||4));
+  let k=base;
+  if(dice){
+    /* Los nombres de Notion van sin acentos a propósito (son los siete valores exactos); aquí se
+       leen, y un «iluminacion» sin tilde delante del cliente desentona. */
+    const leer={'Rotulacion de vinil':'Rotulación de vinil','Recorte acrilico':'Recorte de acrílico',
+      'Letras 3D sin iluminacion':'Letras 3D sin iluminación','Caja de luz sin iluminacion':'Caja de luz sin iluminación',
+      'Letras 3D con iluminacion':'Letras 3D con iluminación','Caja de luz con iluminacion':'Caja de luz con iluminación',
+      'Custome / Proyecto Especial':'Proyecto especial'};
+    const lento=[...tipos].find(t=>(CUBO_POR_TIPO_COT[t]||4)===base);
+    dice.push((leer[lento]||lento)+': '+semanas(base));
+  }
+  if(tipos.size>1){ k+=tipos.size-1; if(dice) dice.push(tipos.size+' tipos de trabajo: suma media semana por cada uno de más'); }
+  if(mayor>244){
+    k+=1;
+    if(dice) dice.push('Una pieza de '+(mayor/100).toFixed(2)+' m no cabe en una lámina de 2.44 m: suma media semana');
+  }
+  k=Math.min(5,k);
+  if(dice) dice.push('Plazo sugerido: '+semanas(k));
+  return k;
 }
 /* Los chips. El marcado es el propuesto salvo que alguien haya elegido; la nota de abajo dice
    cuál de los dos casos es, para que «2 semanas» resaltado no se lea como una decisión que
    nadie tomó. Se repinta desde renderItems, porque la propuesta depende de las partidas. */
 function pintarPlazo(){
-  const sug=plazoSugeridoCot(Q.items);
+  const razones=[], sug=plazoSugeridoCot(Q.items,razones);
   const elegido=(Q.plazoK>=1&&Q.plazoK<=5)?Q.plazoK:null;
+  /* La propuesta solo se marca «sugerido» y se explica cuando hay trabajo capturado de verdad: con la
+     lista vacía, el 2.5 de siempre es un valor por omisión y no el resultado de ninguna cuenta. */
+  const hayBase=(Q.items||[]).some(it=>it&&typeof it==='object'&&!itemVacio(it));
   const on=elegido!==null?elegido:sug;
   const nota=elegido!==null
     ?'Elegido a mano. Tócalo otra vez para volver al propuesto.'
@@ -1587,9 +2404,25 @@ function pintarPlazo(){
      función los pinta a los dos para que nunca digan cosas distintas. */
   for(const [boxId,hId] of [['f-plazo','f-plazo-h'],['rv-plazo','rv-plazo-h']]){
     const box=$(boxId), h=$(hId); if(!box) continue;
-    box.innerHTML=PLAZOS_COT.map(p=>chip(p.k===on,`setPlazo(${p.k})`,esc(p.etiqueta),'',true)).join('');
-    if(h) h.textContent=nota;
+    /* El chip que la app propone lleva «sugerido» en chiquito (H19), esté o no elegido: si alguien
+       eligió otro, es la manera de saber cuál era la propuesta y de dónde sale. */
+    box.innerHTML=PLAZOS_COT.map(p=>chip(p.k===on,`setPlazo(${p.k})`,esc(p.etiqueta),hayBase&&p.k===sug?'sugerido':'',true)).join('');
+    if(h){
+      h.classList.add('plazo-nota');
+      /* La nota y, al lado, el «?» que abre la razón: un globo y no un tooltip, porque se abre con el
+         toque y no con el cursor encima. Cada lugar lleva su propio id: el formulario del cliente y
+         el modal de Registrar venta pintan los dos. */
+      const porque=hayBase&&window.Piezas&&Piezas.porqueHTML
+        ? Piezas.porqueHTML({id:'plazo-porque-'+boxId,etiqueta:'Por qué ese plazo',titulo:'Por qué '+(PLAZOS_COT.find(p=>p.k===sug)||{etiqueta:''}).etiqueta,
+            cuerpo:'<span class="vistazo-t">Por qué '+esc((PLAZOS_COT.find(p=>p.k===sug)||{etiqueta:''}).etiqueta)+'</span><ul>'+razones.map(r=>'<li>'+esc(r)+'</li>').join('')+'</ul>'})
+        : '';
+      h.innerHTML='<span>'+esc(nota)+'</span>'+porque;
+    }
   }
+  /* La ficha que viaja de un plazo al otro (C23 #2). Los hijos se reescriben en cada pintado, y la
+     pieza lo sabe: sale del rectángulo que midió antes. El modal de Registrar venta lo hace en su
+     archivo. */
+  if(window.Piezas&&Piezas.fichaQueViaja&&$('f-plazo')) Piezas.fichaQueViaja('f-plazo');
 }
 /* Tocar el que ya está elegido lo suelta: vuelve a mandar el propuesto. */
 function setPlazo(k){
@@ -1762,7 +2595,14 @@ function pintarFolio(){
   /* La píldora del folio ya significa provisional/confirmado, así que «sin guardar» va como
      marca APARTE y no reescribiendo su texto: son dos cosas distintas y confundirlas sería
      peor que no decir nada. */
-  el.innerHTML=esc(Q.folio||'')+(_saveOk?'':' <b class="folio-mal">sin guardar</b>');
+  /* El número voltea solo si cambió y solo si ya había uno (C24, folioQueVoltea en nucleo.js);
+     pintarFolio() corre en cada guardado fallido y al arrancar, y repintar el MISMO folio no
+     mueve nada. La marca de «sin guardar» es hermana de las casillas, no una de ellas: no voltea,
+     y se pone y se quita sin tocar el folio. */
+  folioQueVoltea(el,Q.folio||'');
+  const mal=el.querySelector(':scope>.folio-mal');
+  if(_saveOk){ if(mal) mal.remove(); }
+  else if(!mal){ const b=document.createElement('b'); b.className='folio-mal'; b.textContent='sin guardar'; el.append(b); }
   el.classList.toggle('prov',!conf);
   el.classList.toggle('nosave',!_saveOk);
   el.title=!_saveOk

@@ -120,62 +120,31 @@ export function voz(msg, urgente) {
   requestAnimationFrame(() => { el.textContent = String(msg || ''); });
 }
 
-let _toastT = 0, _toastFin = 0, _toastResta = 0;
-/* El temporizador se detiene con la pestaña oculta o con el dedo o el cursor encima: un
-   «Deshacer» de 8 s caducaba mientras alguien estaba en WhatsApp pegando los datos. */
-function _toastProgramar(t, ms) {
-  clearTimeout(_toastT); _toastFin = Date.now() + ms;
-  _toastT = setTimeout(() => { _toastT = 0; t.classList.remove('show'); }, ms);
-}
-function _toastPausa() {
-  if (!_toastT) return;
-  clearTimeout(_toastT); _toastT = 0; _toastResta = Math.max(1500, _toastFin - Date.now());
-}
-function _toastSigue() {
-  const t = $('toast');
-  if (!_toastT && _toastResta && t && t.classList.contains('show')) { _toastProgramar(t, _toastResta); _toastResta = 0; }
-}
-let _toastVigilado = false;
-function _toastVigilar(t) {
-  if (_toastVigilado) return; _toastVigilado = true;
-  document.addEventListener('visibilitychange', () => document.hidden ? _toastPausa() : _toastSigue());
-  ['pointerenter', 'focusin'].forEach(n => t.addEventListener(n, _toastPausa));
-  ['pointerleave', 'focusout'].forEach(n => t.addEventListener(n, _toastSigue));
-}
 /**
- * Aviso emergente. Misma firma que el del cotizador.
+ * Aviso emergente. Misma firma que el del cotizador, y el mismo cuerpo: la pieza compartida
+ * (js/piezas.js, P.aviso), que la plataforma pide por window.Piezas porque es un guion clásico
+ * que index.html carga antes que este módulo.
+ *
+ * Era un solo #toast con un solo temporizador, y un aviso reescribía al otro: en Material,
+ * hacerContar() lanza dos seguidos y el segundo se comía el primero aunque ése trajera
+ * «Deshacer». Ahora #toast es una pila de dos: un error y uno con botón no se pisan —se apilan
+ * o esperan su turno—, los informativos se reemplazan como siempre, y la mecha de 2 px dice
+ * cuánto le queda y se pausa con el dedo, el cursor o el foco encima y con la app en segundo
+ * plano. Se quita deslizándolo hacia abajo. Lo que es contrato no cambia: con botón dura 8 s
+ * como mínimo —quien lo oye en vez de verlo tiene que encontrar el botón deslizando, y 2.6 s no
+ * alcanzan ni para llegar—, el texto va por textContent y cada aviso se dice en la región que
+ * habla (la asertiva para los errores), también el que espera su turno.
  * @param {string} msg
  * @param {''|'ok'|'err'} type
  * @param {number} dur ms
  * @param {{label:string, fn:Function}|null} accion
+ * @returns {{cerrar:Function, vivo:boolean}|null}
  */
 export function toast(msg, type = '', dur = 2600, accion = null) {
-  /* Con botón, 8 s como mínimo: quien lo oye en vez de verlo tiene que encontrar el
-     botón deslizando, y 2.6 s no alcanzan ni para llegar. Si el llamador pide más, se
-     respeta lo que pida. */
   if (accion && dur < 8000) dur = 8000;
-  const t = $('toast'); if (!t) return;
-  _toastVigilar(t);
-  t.innerHTML = '';
-  const sp = document.createElement('span');
-  sp.textContent = msg;
-  t.appendChild(sp);
-  if (accion && accion.label && typeof accion.fn === 'function') {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'toast-act'; b.textContent = accion.label;
-    b.onclick = () => { clearTimeout(_toastT); _toastT = 0; _toastResta = 0; t.classList.remove('show'); accion.fn(); };
-    t.appendChild(b);
-  }
-  /* Si ya había uno a la vista, solo cambia el contenido y no vuelve a «entrar»: antes cada
-     aviso quitaba .show y forzaba un reflow, y dos seguidos parpadeaban. */
-  const ya = t.classList.contains('show');
-  t.className = 'toast ' + type + (ya ? ' show' : '');
-  if (!ya) { void t.offsetWidth; t.classList.add('show'); }
-  else if (t.animate && scrollSuave() === 'smooth')
-    t.animate([{ opacity: .6, filter: 'blur(2px)' }, { opacity: 1, filter: 'none' }], { duration: 160, easing: 'cubic-bezier(.23,1,.32,1)' });
-  _toastResta = 0;
-  _toastProgramar(t, dur);
-  voz(msg + (accion && accion.label ? ' — ' + accion.label + ' disponible' : ''), type === 'err');
+  const P = window.Piezas;
+  if (!P || !P.aviso) { voz(msg + (accion && accion.label ? ' — ' + accion.label + ' disponible' : ''), type === 'err'); return null; }
+  return P.aviso(String(msg == null ? '' : msg), { tipo: type, dur, accion, pila: 'toast' });
 }
 
 /** Todo `Resultado` fallido se enseña igual. El mensaje ya viene escrito por la capa de datos. */
@@ -325,54 +294,25 @@ export function cerrarCapa(id) {
 }
 
 /* ----- Las hojas del teléfono se bajan con el dedo -----
-   El mismo gesto que el cotizador (js/cotizador/nucleo.js, «Las hojas del teléfono se cierran
-   deslizando»), que aquí no existía: la ficha, la hoja de trabajo y el asistente son hojas
-   altas pegadas abajo y la × queda lejos del pulgar. Solo desde el encabezado, o desde el
-   cuerpo cuando ya está hasta arriba; cierra por distancia (90 px) o por la velocidad del
-   último tramo (0,11 px/ms); hacia arriba cede con resistencia; y al soltar para cerrar, la
-   salida de CSS parte desde donde la dejó el dedo. */
-let _hoja = null;
-const _esTelefono = () => { try { return matchMedia('(max-width:560px)').matches; } catch (_) { return false; } };
-/* Solo en un documento: este módulo también lo importan las pruebas de node. */
-if (typeof document !== 'undefined') document.addEventListener('touchstart', e => {
-  if (_hoja || !_esTelefono() || e.touches.length !== 1) return;
-  const m = e.target.closest && e.target.closest('.pf-modal-bg.show>.pf-panel'); if (!m) return;
-  if (e.target.closest('input,textarea,select,[contenteditable="true"],canvas,.leaflet-container')) return;
-  const cuerpo = e.target.closest('.pf-panel-b');
-  if (cuerpo && cuerpo.scrollTop > 0) return;
-  if (!e.target.closest('.pf-panel-h') && !cuerpo) return;
-  const capa = _CAPAS.find(c => c.id === m.parentElement.id); if (!capa) return;
-  _hoja = { m, velo: m.parentElement, y0: e.touches[0].clientY, dy: 0, cerrar: capa.cerrar, activo: false, pts: [] };
-  document.addEventListener('touchmove', _moverHoja, { passive: false });
-}, { passive: true });
-function _moverHoja(e) {
-  if (!_hoja || e.touches.length !== 1) return;
-  const dy = e.touches[0].clientY - _hoja.y0;
-  if (!_hoja.activo) {
-    if (Math.abs(dy) < 6) return;
-    if (dy < 0) { _soltarHoja(); return; }
-    _hoja.activo = true; _hoja.m.style.transition = 'none'; _hoja.velo.style.transition = 'none';
-  }
-  _hoja.dy = dy > 0 ? dy : -Math.sqrt(-dy) * 3;
-  _hoja.pts.push([e.timeStamp, dy]);
-  while (_hoja.pts.length > 2 && e.timeStamp - _hoja.pts[0][0] > 100) _hoja.pts.shift();
-  _hoja.m.style.transform = 'translateY(' + _hoja.dy + 'px)';
-  _hoja.velo.style.opacity = String(Math.max(.35, 1 - Math.max(0, _hoja.dy) / (_hoja.m.offsetHeight || 600)));
-  e.preventDefault();
+   La ficha, la hoja de trabajo, el asistente y las preguntas son hojas altas pegadas abajo, y
+   la × queda lejos del pulgar. El gesto era una copia del del cotizador, y las dos llevaban el
+   mismo defecto —el velo se aclaraba con `opacity` sobre el padre de la hoja, así que la ficha
+   entera se iba al 35 % con el dedo encima—; ahora es UNA pieza, P.hojasDeslizables() en
+   js/piezas.js, con sus medidas y su porqué. Aquí solo se le dice qué es hoja en la plataforma
+   y con qué se cierra cada una: la función de su capa, la misma de la ×, de Escape y del atrás,
+   así que el cierre por gesto consume la entrada de historial igual que ellos.
+   Solo en un documento: este módulo también lo importan las pruebas de node. */
+const _piezas = typeof window !== 'undefined' ? window.Piezas : null;
+if (_piezas && _piezas.hojasDeslizables) {
+  _piezas.hojasDeslizables({
+    hoja: '.pf-modal-bg.show>.pf-panel', cabeza: '.pf-panel-h', cuerpo: '.pf-panel-b',
+    excluir: 'input,textarea,select,[contenteditable="true"],canvas,.leaflet-container',
+    cierre: velo => { const c = _CAPAS.find(x => x.id === velo.id); return c ? c.cerrar : null; },
+  });
 }
-function _soltarHoja() {
-  document.removeEventListener('touchmove', _moverHoja);
-  const h = _hoja; _hoja = null; if (!h || !h.activo) return;
-  const a = h.pts[0], b = h.pts[h.pts.length - 1];
-  const v = (a && b && b[0] > a[0]) ? (b[1] - a[1]) / (b[0] - a[0]) : 0;
-  h.m.style.transition = ''; h.velo.style.transition = ''; h.velo.style.opacity = '';
-  h.m.style.transform = '';
-  if (h.dy > 90 || (h.dy > 12 && v > 0.11)) { try { h.cerrar(); } catch (_) {} }
-}
-if (typeof document !== 'undefined') {
-  document.addEventListener('touchend', _soltarHoja, { passive: true });
-  document.addEventListener('touchcancel', _soltarHoja, { passive: true });
-}
+/* Y lo que pasa por debajo de la barra de módulos del teléfono —y de la barra de acción, cuando
+   un módulo la pone encima— se funde en vez de cortarse contra su canto (pieza 11). */
+if (_piezas && _piezas.desenfoqueProgresivo) _piezas.desenfoqueProgresivo(['#pf-abajo', '#pf-mbar'], { lado: 'abajo' });
 
 /* ----- Repintar una capa abierta sin perder el lugar -----
    La ficha de un proyecto, la hoja de trabajo y las hojas del Calendario se rehacen con
@@ -561,28 +501,20 @@ export function segmento(opciones, actual, atributo, etiqueta) {
 }
 
 /* ----- Copiar al portapapeles, con respaldo -----
-   En iOS y en páginas no seguras la API moderna falla. Mismo respaldo que el cotizador:
-   sin él, copiar dependía del botón que tocaras. */
+   En iOS y en páginas no seguras la API moderna falla. El respaldo es el mismo que el del
+   cotizador porque es la misma función: P.copiar, en js/piezas.js. Sin él, copiar dependía del
+   botón que tocaras. Y el botón que se tocó lo dice él mismo —«✓ Copiado» con su palomita,
+   1.8 s— además del aviso, que trae la instrucción («pégala en el chat del instalador»): el
+   botón sale del clic que está corriendo (P.botonDelEvento), así que ninguna llamada cambia. */
 export function copiarTexto(txt, msgOk, extra) {
   const ok = () => { if (msgOk) toast(msgOk, 'ok', 3400); if (typeof extra === 'function') extra(); };
-  const manual = () => {
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = txt;
-      ta.setAttribute('readonly', '');
-      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
-      document.body.appendChild(ta);
-      ta.focus(); ta.select(); ta.setSelectionRange(0, txt.length);
-      const bien = document.execCommand('copy');
-      ta.remove();
-      bien ? ok() : toast('Este navegador no dejó copiar — selecciona el texto a mano', 'err', 4200);
-    } catch (_) { toast('Este navegador no dejó copiar', 'err', 3600); }
-  };
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(txt).then(ok).catch(manual);
-    } else manual();
-  } catch (_) { manual(); }
+  const noSe = () => toast('Este navegador no dejó copiar — selecciona el texto a mano', 'err', 4200);
+  const P = window.Piezas;
+  if (!P || !P.copiar) {
+    try { navigator.clipboard.writeText(txt).then(ok, noSe); } catch (_) { noSe(); }
+    return;
+  }
+  P.copiar(txt, { boton: P.botonDelEvento() }).then(bien => { bien ? ok() : noSe(); });
 }
 
 /* ----- Descargar un archivo generado en el momento -----
@@ -778,6 +710,61 @@ export function corta(iso) {
   return p.d + ' ' + MES_CORTO[p.m - 1];
 }
 
+/* ----- El riel con sus hitos (F5) -----
+   Antes el riel era una barra de «empezar» a «listo» con un punto en «hoy», y los hitos de en
+   medio —cuándo hay que haber cortado, armado, dejado listo— y cuál de ellos ya pasó el
+   proyecto estaban solo en la frase. Quien miraba treinta renglones tenía que leerlos todos para
+   saber cuál iba tarde. Ahora el riel lleva una marca por hito, en su fecha, y se ve de un
+   vistazo en qué va cada uno:
+
+     · rellena (verde)  — la etapa real del proyecto ya llegó a ese hito;
+     · hueca            — todavía no toca, o todavía no ha pasado;
+     · roja, con muesca — el hito quedó DETRÁS del punto de hoy y sigue sin hacerse: «voy tarde»
+                          dicho con una forma, no solo con un color (uno de cada doce no
+                          distingue el rojo del verde).
+
+   La marca de «en diseño» cae en el extremo de la izquierda —empezar y entrar a diseño son el
+   mismo día en `ventanaTaller`— y es la que hace que un proyecto recién ganado se vea «en
+   camino» y no con las tres marcas vacías. Las cuatro vienen en `v.hitos`; este archivo no las
+   calcula ni decide cuándo algo va tarde: compara dos fechas que ya trae la ventana y la etapa
+   que ya trae el proyecto. El orden de las etapas se repite aquí (`ORDEN_DEL_RIEL`) solo para
+   decir «ya llegó»; pruebas/pf-fabricacion.mjs lo compara con `ETAPAS` de datos/proyectos.js
+   para que no se desfasen en silencio. */
+export const HITOS_DEL_RIEL = [['en_diseno', 'En diseño'], ['cortado', 'Cortado'], ['armado', 'Armado'], ['listo', 'Listo']];
+export const ORDEN_DEL_RIEL = ['ganado', 'en_diseno', 'cortado', 'armado', 'listo', 'instalado', 'garantia'];
+
+/** Las marcas del riel de una ventana y dónde cae hoy, ambos de 0 a 1 sobre el largo de la
+ *  ventana. Función pura (sin DOM) para poder probarla en node. Una ventana sin fechas
+ *  —«Ganado sin fecha y sin venta», que no tiene de dónde contar— no lleva marcas: un riel que
+ *  inventara posiciones diría un plan que nadie hizo. */
+export function marcasDelRiel(v, hoy) {
+  const vacio = { marcas: [], hoy: 0 };
+  if (!v || !partesISO(v.empezar) || !partesISO(v.listo)) return vacio;
+  const dia = partesISO(hoy) ? hoy : hoyISO();
+  const largo = Math.max(1, diasEntre(v.empezar, v.listo) || 1);
+  const sobre = iso => Math.max(0, Math.min(1, (diasEntre(v.empezar, iso) || 0) / largo));
+  const llego = ORDEN_DEL_RIEL.indexOf(v.etapa_real);
+  const marcas = [];
+  for (const [clave, nombre] of HITOS_DEL_RIEL) {
+    const f = v.hitos && v.hitos[clave];
+    if (!partesISO(f)) continue;
+    const hecho = llego >= ORDEN_DEL_RIEL.indexOf(clave);
+    const estado = hecho ? 'hecho' : f < dia ? 'tarde' : 'pendiente';
+    marcas.push({ clave, texto: nombre, pos: sobre(f), estado,
+      titulo: nombre + ' · ' + corta(f) + (estado === 'hecho' ? ' · hecho' : estado === 'tarde' ? ' · va tarde' : '') });
+  }
+  return { marcas, hoy: sobre(dia) };
+}
+
+/** El riel pintado con la pieza 16 (`P.rielHTML`, forma «marcas»). `aria-hidden` lo pone la
+ *  pieza: la frase de arriba es la que se lee y el riel es su dibujo. */
+function rielDelTaller(v, dia, clases) {
+  const r = marcasDelRiel(v, dia);
+  const P = typeof window !== 'undefined' ? window.Piezas : null;
+  if (!P || !P.rielHTML) return '<span class="riel riel-marcas tal-riel' + clases + '" aria-hidden="true"></span>';
+  return P.rielHTML(r.marcas, { forma: 'marcas', hoy: r.hoy, clase: 'tal-riel' + clases });
+}
+
 /**
  * Un renglón de trabajo del taller.
  *
@@ -793,9 +780,6 @@ export function corta(iso) {
  */
 export function filaTaller(v, hoy, opts = {}) {
   const dia = partesISO(hoy) ? hoy : hoyISO();
-  /* Dónde va hoy dentro de la ventana, de 0 a 100. Fuera de ella se pega a los bordes. */
-  const largo = Math.max(1, diasEntre(v.empezar, v.listo) || 1);
-  const pos = Math.max(0, Math.min(100, Math.round((diasEntre(v.empezar, dia) || 0) / largo * 100)));
   const tono = TONO_TALLER[v.estado] || '';
   const verbo = VERBO_TALLER[v.etapa_real] || '';
   const mano = v.plazo_fuente === 'elegido';
@@ -808,8 +792,7 @@ export function filaTaller(v, hoy, opts = {}) {
       (opts.extraHTML || '') +
       '<div class="tal-pista" aria-hidden="true">' +
         '<span class="tal-fecha">' + esc(corta(v.empezar)) + '</span>' +
-        '<span class="tal-riel' + (v.ancla === 'ganado' ? ' propuesta' : '') + (tono === 'mal' || tono === 'urge' ? ' tarde' : '') + '">' +
-          '<i class="tal-hoy" style="left:' + pos + '%"></i></span>' +
+        rielDelTaller(v, dia, (v.ancla === 'ganado' ? ' propuesta' : '') + (tono === 'mal' || tono === 'urge' ? ' tarde' : '')) +
         '<span class="tal-fecha">' + esc(corta(v.listo)) + (v.instalacion ? ' · instala ' + esc(corta(v.instalacion)) : '') + '</span>' +
       '</div>' +
       '<div class="pf-fila-d">' +

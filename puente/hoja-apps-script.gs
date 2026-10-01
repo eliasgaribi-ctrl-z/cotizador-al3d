@@ -2901,6 +2901,30 @@ function folioValido(f) {
      teléfonos; con el aparato no. */
   return typeof f === 'string' && /^[A-Za-z0-9-]{1,24}@[A-Za-z0-9_-]{1,24}$/.test(f);
 }
+/* ----- El folio como sale IMPRESO, y solo para /verificar -----
+   Aquí estaba la falla 1 del paquete, y costaba clientes: el PDF imprime «COT-0042» en la
+   cabecera y junto al QR pone nada más la dirección y el código. Quien no escanea y teclea lo
+   que ve en el papel mandaba un folio sin «@», folioValido() lo rechazaba y la página le
+   contestaba «No auténtica» —con una cotización buena y autorizada—. El peor error posible en
+   la única pantalla que ve un tercero: dice que AL3D falsificó su propio documento.
+
+   Por qué NO se aflojó folioValido() para todos: el comentario de arriba tiene razón, y la
+   razón es de fondo. El folio corto SE REPITE entre teléfonos (cada aparato numera el suyo),
+   así que en las rutas que escriben —autorizar, revocar, resolver una solicitud— un folio sin
+   aparato es ambiguo y aceptarlo sería tocar el renglón de otra cotización. Ahí el rechazo es
+   correcto y se queda.
+
+   En /verificar no hay ambigüedad, porque el folio no es lo que identifica: lo que identifica
+   es el código de doce hexadecimales, que son los primeros 48 bits del HMAC del renglón. Se
+   busca por código, se confirma que el folio corto del renglón es el que se tecleó, y después
+   la firma se RECALCULA entera desde el renglón (con su folio largo, el guardado). Un folio
+   corto no le abre la puerta a nada: sin el código bueno no hay renglón, y sin la firma buena
+   no hay respuesta. Por eso aquí sí se acepta, y solo aquí. */
+function folioDePapel_(f) {
+  return typeof f === 'string' && /^[A-Za-z0-9-]{1,24}(@[A-Za-z0-9_-]{1,24})?$/.test(f);
+}
+/* «COT-0042@K7QM» → «COT-0042». Lo que va impreso y lo que se contesta. */
+function folioCorto_(f) { return String(f == null ? '' : f).split('@')[0]; }
 function limpiarItemsAuth(ia, items) {
   var ids = {};
   items.forEach(function (it) { ids[String(it.id)] = true; });
@@ -3288,13 +3312,17 @@ var VERIFICAR_EN_TOTAL = 400;
 function rutaVerificar_(cuerpo) {
   var folio = String((cuerpo && cuerpo.f) || '').trim();
   var cod = normalizarCodigo(cuerpo && cuerpo.c);
-  if (!folioValido(folio) || cod.length !== 12) return { ok: true, estado: 'no_autentica' };
-  if (!cupoDeVerificar(folio)) return { ok: false, codigo: 'SIN_RED', mensaje: 'Demasiadas consultas seguidas. Espera unos minutos.' };
+  /* folioDePapel_ y no folioValido: aquí llega lo que está impreso, con «@aparato» si se
+     escaneó el QR y sin él si se tecleó de la hoja. Ver la nota de folioDePapel_. */
+  if (!folioDePapel_(folio) || cod.length !== 12) return { ok: true, estado: 'no_autentica' };
+  /* El cupo se cuenta por el folio CORTO: «COT-0042» y «COT-0042@K7QM» son la misma
+     cotización, y con dos cubetas alguien podría pedir el doble alternando las dos formas. */
+  if (!cupoDeVerificar(folioCorto_(folio))) return { ok: false, codigo: 'SIN_RED', mensaje: 'Demasiadas consultas seguidas. Espera unos minutos.' };
   var h = SpreadsheetApp.getActive().getSheetByName(HOJA_AUTORIZACIONES);
   var secreto = secretoDelSello_(false);
   if (!h || !secreto) return { ok: true, estado: 'no_autentica' };
   var filas = filasDe(h, COLS_AUT.length);
-  var hallada = ultimaFila(filas, A_FOLIO, folio, function (v) { return normalizarCodigo(v[A_CODIGO]) === cod; });
+  var hallada = ultimaFilaDeVerificar_(filas, folio, cod);
   if (!hallada) return { ok: true, estado: 'no_autentica' };
   /* La firma se RECALCULA desde el renglón. Si alguien cambió el total o el negocio a mano en
      la hoja, deja de cuadrar: el renglón existe, pero ya no dice lo que se firmó. */
@@ -3303,9 +3331,35 @@ function rutaVerificar_(cuerpo) {
   var est = String(hallada.v[A_ESTADO]);
   var tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
   var cuando = new Date(String(hallada.v[A_TS]));
+  /* El folio que se contesta sale del RENGLÓN, no de lo que se tecleó: si alguien mandó
+     «cot-0042» en minúsculas o con el aparato pegado, lo que se enseña al lado del papel es lo
+     que la hoja tiene guardado. */
   return { ok: true, estado: est === 'vigente' ? 'autentica' : (est === 'revocada' ? 'revocada' : 'superada'),
-           folio: folio.split('@')[0], fecha: isNaN(cuando) ? '' : Utilities.formatDate(cuando, tz, 'dd/MM/yyyy'),
+           folio: folioCorto_(hallada.v[A_FOLIO]), fecha: isNaN(cuando) ? '' : Utilities.formatDate(cuando, tz, 'dd/MM/yyyy'),
            total: Number(hallada.v[A_TOTAL]), proyecto: String(hallada.v[A_PROY]) };
+}
+/* ----- Buscar la autorización con lo que trae el papel -----
+   ultimaFila() compara el folio con «===» y ahí no cabe el folio corto, así que /verificar
+   tiene la suya. Manda el CÓDIGO: doce hexadecimales del HMAC del renglón. El folio solo
+   estrecha la búsqueda —exacto si trae «@aparato», por el corto si no—, y quien decide de
+   verdad es la firma que rutaVerificar_ recalcula después.
+
+   De atrás para adelante, como ultimaFila(), porque una cotización reautorizada deja varios
+   renglones con el mismo folio: el último es el que vale, y los de antes salen «superada». */
+function ultimaFilaDeVerificar_(filas, folio, cod) {
+  /* El folio corto se compara sin distinguir mayúsculas: el prefijo es siempre «COT-» y lo
+     que sigue son dígitos, así que dos folios no pueden diferenciarse solo por la caja, y
+     quien teclea del papel en un teclado físico escribe «cot-42» tan fácil como «COT-42».
+     La parte del aparato (la que solo llega por QR, ya bien escrita) sí se compara exacta:
+     ahí sí hay minúsculas y mayúsculas que significan cosas distintas. */
+  var conAparato = String(folio).indexOf('@') >= 0, corto = folioCorto_(folio).toUpperCase();
+  for (var i = filas.length - 1; i >= 0; i--) {
+    var v = filas[i], f = String(v[A_FOLIO]);
+    if (conAparato ? f !== folio : folioCorto_(f).toUpperCase() !== corto) continue;
+    if (normalizarCodigo(v[A_CODIGO]) !== cod) continue;
+    return { fila: i + 2, v: v };
+  }
+  return null;
 }
 function cupoDeVerificar(folio) {
   try {

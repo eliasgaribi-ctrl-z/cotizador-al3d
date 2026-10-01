@@ -35,7 +35,13 @@
     <div><b>AL3D Taller</b><span>Anuncios luminosos · Guadalajara, Jalisco</span></div>
   </div>
 
-  <h1>La plataforma del taller</h1>
+  <!-- A27 · El contorno del título se enciende una vez y se queda. Es CSS puro y tiene que
+       serlo: esta página declara `script-src 'self'` y no carga un solo guion propio, así que
+       el encendido va en las clases (.neon-texto .neon-al-cargar .neon-queda de la pieza 7) y
+       el texto se repite en `data-neon` porque el halo vive en un ::after. Discreto a
+       propósito, alfa .25: el neón fuerte es el de autorizar una cotización, y aquí lo que
+       importa es que el título se lea igual si el halo no se ve. -->
+  <h1 class="neon-texto neon-al-cargar neon-queda" data-neon="La plataforma del taller">La plataforma del taller</h1>
 
   <p class="pub-entrada">Es la herramienta con la que AL3D cotiza un anuncio, lleva la obra
   hasta instalarla y sabe qué se vendió. La usa el equipo de AL3D y nadie más.</p>
@@ -45,15 +51,52 @@
   igual de rápido.</p>
 
   <h2>Qué hace</h2>
-  <ul>
-    <li><b>Cotiza.</b> Letras 3D, cajas de luz, recorte de acrílico y vinil, con las tarifas
-    reales del taller y la medida de cada pieza.</li>
-    <li><b>Lleva la obra.</b> En qué etapa va cada trabajo, qué material hace falta, qué se
-    instala esta semana y qué va tarde.</li>
-    <li><b>Prepara el corte.</b> Convierte el logotipo del cliente en trazo vectorial y
-    acomoda las piezas en la lámina para gastar lo menos posible.</li>
-    <li><b>Cuenta el dinero.</b> Lo vendido por mes y lo que está en la calle sin cobrar,
-    leído de la hoja de cálculo donde AL3D lleva sus ventas.</li>
+  <!-- A28 · Eran cuatro viñetas y son cuatro tarjetas, 2 x 2, una columna bajo 480 px. Cada
+       dibujo está hecho con las piezas del propio sistema —una letra con volumen, los puntos
+       de una etapa, el trazo del anidador, la línea de las ventas— y va en SVG en línea, sin
+       un archivo más que bajar. Todo quieto: ni hover ni entrada, porque en el teléfono el
+       hover no existe y esta página se abre una vez para leerla. Los colores salen de los
+       tokens; publico.css no declara ni uno propio. -->
+  <ul class="pub-tarjetas">
+    <li class="pub-tarjeta">
+      <svg class="pub-dibujo" viewBox="0 0 64 40" aria-hidden="true" focusable="false">
+        <path class="pd-canto" d="M14 14h13l6 16H20z"/>
+        <path class="pd-cara" d="M11 10h13l6 16H17z"/>
+        <path class="pd-canto" d="M38 10h12v4h-8v4h7v4h-7v4h8v4H38z"/>
+      </svg>
+      <div><b>Cotiza.</b> Letras 3D, cajas de luz, recorte de acrílico y vinil, con las
+      tarifas reales del taller y la medida de cada pieza.</div>
+    </li>
+    <li class="pub-tarjeta">
+      <svg class="pub-dibujo" viewBox="0 0 64 40" aria-hidden="true" focusable="false">
+        <path class="pd-linea" d="M12 20h40"/>
+        <circle class="pd-punto pd-hecho" cx="12" cy="20" r="5"/>
+        <circle class="pd-punto pd-hecho" cx="32" cy="20" r="5"/>
+        <circle class="pd-punto" cx="52" cy="20" r="5"/>
+      </svg>
+      <div><b>Lleva la obra.</b> En qué etapa va cada trabajo, qué material hace falta, qué se
+      instala esta semana y qué va tarde.</div>
+    </li>
+    <li class="pub-tarjeta">
+      <svg class="pub-dibujo" viewBox="0 0 64 40" aria-hidden="true" focusable="false">
+        <rect class="pd-hoja" x="10" y="7" width="44" height="26" rx="2"/>
+        <path class="pd-pieza" d="M15 12h12v9H15z"/>
+        <path class="pd-pieza" d="M29 12h9v16h-9z"/>
+        <path class="pd-pieza" d="M15 23h12v5H15z"/>
+        <path class="pd-pieza" d="M40 12h9v16h-9z"/>
+      </svg>
+      <div><b>Prepara el corte.</b> Convierte el logotipo del cliente en trazo vectorial y
+      acomoda las piezas en la lámina para gastar lo menos posible.</div>
+    </li>
+    <li class="pub-tarjeta">
+      <svg class="pub-dibujo" viewBox="0 0 64 40" aria-hidden="true" focusable="false">
+        <path class="pd-eje" d="M11 32h42"/>
+        <path class="pd-curva" d="M13 28l10-6 9 4 10-11 9 4"/>
+        <circle class="pd-punto pd-hecho" cx="51" cy="15" r="3.5"/>
+      </svg>
+      <div><b>Cuenta el dinero.</b> Lo vendido por mes y lo que está en la calle sin cobrar,
+      leído de la hoja de cálculo donde AL3D lleva sus ventas.</div>
+    </li>
   </ul>
 
   <h2>Cómo se entra</h2>
@@ -71,6 +114,52 @@
     <p style="margin-top:var(--e4)"><a class="pub-btn" href="./">Abrir la plataforma</a></p>
   </div>
 
+  <!-- A20 · Créditos y licencias en UN solo lugar. Hasta ahora el único crédito de toda la
+       app era el de SVGnest, escondido en el pie del anidador; Leaflet, qrcodegen y los mapas
+       no aparecían en ningún lado, y tres de esas licencias lo piden por escrito. Va aquí
+       porque «acerca» es la página que Google revisa y la que enlaza el pie de las otras
+       tres. Cada renglón dice la licencia y adónde está el texto completo dentro del repo,
+       que es lo que sirve cuando alguien pregunta de verdad. -->
+  <h2 id="creditos">Créditos y licencias</h2>
+  <p>Esta aplicación se apoya en trabajo de otras personas. Estas son, con su licencia:</p>
+  <ul class="pub-creditos">
+    <li><a href="https://github.com/Jack000/SVGnest" target="_blank" rel="noopener">SVGnest</a>
+    — MIT, Jack Qiao. Es el motor que acomoda las piezas en la lámina.
+    <span class="pub-lic">Texto completo en <code>anidador-vectores/js/SVGNEST-LICENSE.txt</code>.</span></li>
+
+    <li><a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>
+    — BSD 2 cláusulas, Volodymyr Agafonkin. Dibuja el mapa del taller.
+    <span class="pub-lic">Texto completo en <code>vendor/LEAFLET-LICENSE.txt</code>.</span></li>
+
+    <li><a href="https://www.nayuki.io/page/qr-code-generator-library" target="_blank" rel="noopener">QR Code generator</a>
+    — MIT, Project Nayuki. Arma el QR que lleva a esta misma página de verificación.
+    <span class="pub-lic">Texto completo en <code>vendor/QRCODEGEN-LICENSE.txt</code>.</span></li>
+
+    <li><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
+    y <a href="https://carto.com/attributions" target="_blank" rel="noopener">Carto</a>
+    — los datos del mapa son de quienes colaboran en OpenStreetMap (licencia ODbL) y los
+    mosaicos con que se dibujan son de Carto. La dirección que se escribe se convierte en
+    coordenadas con el buscador de OpenStreetMap.</li>
+
+    <li><a href="https://reactbits.dev" target="_blank" rel="noopener">React Bits</a>
+    — MIT con Commons Clause, David Haz. De ahí salieron varias ideas de interfaz, reescritas
+    desde cero en JavaScript sin librerías.
+    <span class="pub-lic">La licencia permite usarlas dentro de esta aplicación; no permite
+    venderlas ni redistribuirlas como librería, ni siquiera portadas.</span></li>
+
+    <li><a href="https://vengenceui.com" target="_blank" rel="noopener">Vengeance UI</a>
+    — MIT, Ashutoshx7. Otras tantas ideas de interfaz, también reescritas.</li>
+
+    <li><a href="https://skiper-ui.com" target="_blank" rel="noopener">Skiper UI</a>
+    — sus componentes gratuitos permiten el uso comercial y <b>piden atribución</b>: aquí
+    queda. De ahí vienen la carga con las manchas del logo de la página de verificación
+    (skiper64), el avance de lectura de estas páginas (skiper89), el cambio de tema en círculo
+    (skiper26), el total que rueda (skiper37), el desenfoque bajo la barra de abajo (skiper41),
+    las páginas que se deslizan (skiper54) y los bordes que se desvanecen en las filas
+    (skiper87).</li>
+  </ul>
+  <p>Las fuentes Sora y Manrope se sirven desde Google Fonts, con licencia SIL Open Font.</p>
+
   <h2>Quién responde por esto</h2>
   <p>AL3D — Elías Garibi, Guadalajara, Jalisco, México.<br>
   Para cualquier cosa sobre esta aplicación o sobre tus datos:
@@ -78,6 +167,7 @@
 
   <nav class="pub-pie">
     <a href="./">La plataforma</a>
+    <a href="#creditos">Créditos</a>
     <a href="privacidad.html">Privacidad</a>
     <a href="condiciones.html">Condiciones del servicio</a>
   </nav>

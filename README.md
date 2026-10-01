@@ -194,6 +194,10 @@ El respaldo no lleva llaves de IA porque ya no hay ninguna en el teléfono: vive
     css/vidrio.css            la capa de vidrio, y va LA ÚLTIMA de las tres páginas: repinta
                               las dos familias y el cromado. Si se quita, la app vuelve a como estaba
     js/tema.js                claro, oscuro o el del sistema; corre antes del primer pintado
+    js/piezas.js              las piezas compartidas de la interfaz, una sola vez para las cuatro
+                              superficies: el aviso con mecha y pila, el botón que dice que está
+                              trabajando, el total que rueda, el riel de pasos, las esquinas que
+                              señalan, el letrero 3D… (docs/SISTEMA-DE-DISENO.md §6.7)
     js/cotizador/             el cotizador, por dominio y en el orden en que se carga:
       catalogo.js               precios — lo único que se edita a mano cuando sube el aluminio
       nucleo.js                 estado, modales, preferencias, clientes conocidos, cálculo
@@ -211,7 +215,7 @@ El respaldo no lleva llaves de IA porque ya no hay ninguna en el teléfono: vive
     js/datos/, js/nucleo/     la capa de datos y las primitivas de pantalla
 
 Los doce de `js/cotizador/` son scripts **clásicos** que comparten el ámbito global, como cuando
-eran un solo `<script>`: los 161 manejadores en línea del marcado dependen de eso, y portarlos a
+eran un solo `<script>`: los 156 manejadores en línea del marcado dependen de eso, y portarlos a
 módulos ES los dejaría mudos sin un solo error. `pruebas/sintaxis.mjs` compila los doce y
 `pruebas/publicacion.mjs` vigila que `arranque.js` siga siendo el último.
 
@@ -318,8 +322,8 @@ plataforma con `herramientas/extraer-catalogo.sh`.
 
 ## Pruebas
 
-    pruebas/correr.sh               30 archivos, solo node, unos segundos
-    pruebas/correr.sh --navegador   20 más, que piden Chromium y un servidor
+    pruebas/correr.sh               46 archivos, solo node, unos segundos
+    pruebas/correr.sh --navegador   44 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
 contra una hoja de mentiras, sin cuenta y sin red; otra rasteriza cada pieza y **cuenta sus

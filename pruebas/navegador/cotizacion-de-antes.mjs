@@ -74,7 +74,9 @@ async function cotizarYAutorizar(p,{cliente,tel,proy}){
   await p.evaluate(()=>autorizarYoMismo());
   await p.waitForTimeout(400);
   await p.evaluate(()=>autorizar());
-  await p.waitForTimeout(500);
+  /* Sellar ya no es instantáneo en pantalla: el botón se lava en verde con el código 450 ms antes
+     de que el panel pase a «Autorizada» (C5, proceso.js). */
+  await p.waitForTimeout(1100);
 }
 
 // ── 1. La recarga de siempre: no cambia nada, no dice nada ───────────────────
