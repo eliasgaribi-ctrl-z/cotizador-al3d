@@ -16,7 +16,7 @@
  *   · P9  · una tarjeta se arrastra de columna con el ratón, con el dedo y con Alt+→/←; un toque
  *           corto sigue abriendo la ficha; pagos no levanta nada; Escape suelta;
  *   · P10 · la ficha del teléfono sube desde abajo y se baja con el dedo (la pieza 13);
- *   · P11 · la tarjeta de «sin decidir» late tres veces y se calla, y solo vuelve a latir si sube;
+ *   · P11 · la tarjeta de «sin decidir» da UN latido y se calla, y solo vuelve a latir si sube;
  *   · P12 + 31 · el modo cliente tapa la comisión y NO el total del proyecto, destapa SOLO el
  *           renglón que se sostiene, y se maneja con el dedo, con el ratón y con el teclado;
  *   · P18 · las cuentas no ruedan al ENTRAR a la pantalla y sí cuando algo cambia frente a ti;
@@ -1034,7 +1034,12 @@ for (const rm of activa('p10') ? [false, true] : []) {
 }
 
 // ══ 11 · P11 y P18 · lo que NO se mueve, y lo que rueda cuando algo cambió ═
-titulo('p11', 'P11 · «SIN DECIDIR» LATE TRES VECES Y SE CALLA · P18 · LAS CUENTAS RUEDAN CUANDO ALGO CAMBIÓ');
+/* Un latido, no tres: lo fija la falla 3 del brief —«hay que dejarlos en un solo disparo cuando
+   algo cambia»— y la regla del sistema de diseño de que nada se mueve en bucle. La clase
+   `.cand-partidas` la comparten el cotizador y Proyectos, así que el número se decide en un solo
+   sitio (css/sistema.css). Esta prueba pedía tres y el CSS daba uno: se corrigió la prueba, porque
+   el que estaba equivocado era el número que ella esperaba. */
+titulo('p11', 'P11 · «SIN DECIDIR» DA UN LATIDO Y SE CALLA · P18 · LAS CUENTAS RUEDAN CUANDO ALGO CAMBIÓ');
 if (activa('p11')) {
   const c = await abrir({ ancho: 360, touch: true });
   const { p, errs } = c;
@@ -1057,7 +1062,7 @@ if (activa('p11')) {
     return { quieta: el.classList.contains('quieta'), nombre: cs.animationName, veces: cs.animationIterationCount };
   });
   const l1 = await late();
-  que(l1 && !l1.quieta && l1.veces === '3', 'la primera vez que aparece la tarjeta late TRES veces y no en bucle (' + JSON.stringify(l1) + ')');
+  que(l1 && !l1.quieta && l1.veces === '1', 'la primera vez que aparece, la tarjeta da UN latido y no late en bucle (' + JSON.stringify(l1) + ')');
   /* Se repinta (guardar una cuenta lo hace) y NO vuelve a latir. */
   await abrirFicha(p, h.diseno.id);
   await p.locator('#pf-ficha .chips [data-cuenta]').first().tap();
@@ -1072,7 +1077,7 @@ if (activa('p11')) {
   await esp(p, 1300);
   await cerrarFicha(p);
   const l3 = await late();
-  que(l3 && !l3.quieta && l3.veces === '3', 'pero si la cuenta SUBE (de 1 a 2), vuelve a latir tres veces (' + JSON.stringify(l3) + ')');
+  que(l3 && !l3.quieta && l3.veces === '1', 'pero si la cuenta SUBE (de 1 a 2), vuelve a dar su latido (' + JSON.stringify(l3) + ')');
   await sinDecidir(1);
   await abrirFicha(p, h.diseno.id);
   await p.locator('#pf-ficha .chips [data-cuenta]').nth(2).tap();
