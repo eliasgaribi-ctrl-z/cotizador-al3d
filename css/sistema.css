@@ -1947,8 +1947,9 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 @keyframes scFlash{0%,55%{box-shadow:0 0 0 3px rgba(var(--a-rgb),.35);border-radius:var(--r-sm)}100%{box-shadow:0 0 0 3px rgba(var(--a-rgb),0);border-radius:var(--r-sm)}}
 .ref-known{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:8px}
 .ref-known-title{font-size:11px;font-weight:700;color:var(--muted);margin-right:2px;white-space:nowrap}
-.ref-known button{padding:5px 9px;border:1.5px solid var(--line);border-radius:8px;background:var(--sup);font-size:11.5px;font-weight:600;cursor:pointer;color:var(--ink);transition:border-color var(--mv-s),background var(--mv-s),color var(--mv-s);white-space:nowrap;font-family:inherit}
-@media(hover:hover){.ref-known button:hover{border-color:var(--brand);background:var(--soft-2);color:var(--brand)}}
+/* Los botones sueltos de aquí (con su emoji) ya no existen: son las opciones de la pieza 18, que
+   traen su propio aspecto, y las reglas de `.ref-known button` les pisaban el borde, el relleno y
+   el hover. Ver «H30» en el bloque de esta zona. */
 /* ----- Cuánto se enseña de las cotas -----
    El botón vive en la esquina de abajo a la izquierda, a la misma altura que los de zoom
    y en el lado contrario: es el otro mando del lienzo y así ninguno tapa al otro. Toma
@@ -2115,7 +2116,6 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
   .sp-mitem{padding:10px;margin-bottom:7px}
   .sp-mitem-add{min-height:44px;font-size:13px;margin-top:6px}
   .sp-mitem-label{padding:6px 0;font-size:13px}
-  .ref-known button{min-height:40px;padding:8px 12px;font-size:12.5px}
   .sp-zoom button{width:46px;height:46px}
   .sp-cotas-fab button{width:46px;height:46px}
   /* Ver el comentario de la nota en cotizador.html: en el celular el panel no da para
@@ -5252,7 +5252,144 @@ mark.coincide{background:var(--a-suave);color:var(--tinta);font-weight:700;borde
 /* ── fin de cot-ia ── */
 
 /* ── Cotizador · escalador y el letrero sobre la fachada ── */
+/* ----- H4 · la cifra viva de la lupa -----
+   Va FUERA del círculo: .sp-loupe recorta con overflow:hidden por su border-radius, así que
+   un hijo suyo por debajo del centro se corta. Se coloca en el mismo scLoupe() con su propio
+   transform, centrada bajo la lupa y entre ella y el dedo. Blanco sobre el marino de la app
+   (--nav, que de noche es aún más hondo): más de 15:1 en los dos temas. Cifras tabulares para
+   que el número no baile mientras el dedo se mueve. Sin recortar con puntos suspensivos: es
+   justo la unidad —«cm»— lo que un texto cortado se llevaría. */
+.sp-loupe-cifra{position:fixed;left:0;top:0;z-index:60;display:none;pointer-events:none;
+  max-width:calc(100vw - 16px);padding:7px 11px;border-radius:999px;white-space:nowrap;
+  background:var(--nav);color:#fff;font:700 var(--t2)/1 var(--f-cifra);font-variant-numeric:tabular-nums;
+  box-shadow:0 4px 14px rgba(0,0,0,.5);will-change:transform}
 
+/* ----- Los botones que flotan sobre la foto, de noche -----
+   El zoom y el ojo de las cotas son blancos en los dos temas —van sobre la foto, no sobre el
+   panel—, pero su icono se pintaba con --ink, que de noche es casi blanco: un «+» de 1.2:1
+   sobre un botón blanco, invisible justo cuando más hace falta acercar. El icono va en el marino
+   del sistema, que es oscuro en los dos temas. (El ojo encendido y el apagado traen su color
+   propio, más específico, y no se tocan.) */
+.sp-zoom button,.sp-cotas-fab button{color:var(--nav)}
+
+/* ----- H28 · la pista cruza sin brincar -----
+   La barra flota sobre un lienzo que se repinta con el dedo, así que el cruce es solo opacity
+   y transform (los pone la pieza 23). Aquí únicamente se deja al rótulo ocupar el ancho que
+   le toca y centrarse, que es como se veía el <span> de antes. Y la barra pasa por encima del
+   letrero de la función 32: la instrucción es lo que no puede taparse. */
+.sp-hint-bar{z-index:5}
+.sp-hint-bar .sp-hint-txt{min-width:0;text-align:center}
+.sp-hint-bar .rotulo{justify-items:center}
+
+/* ----- H11 · los tres pasos de la calibración -----
+   El riel es la pieza 16 en horizontal. En el panel de 306 px los tres rótulos caben en una
+   línea cada uno con la letra chica del propio riel; por debajo de eso parte palabras, que es
+   mejor que salirse. */
+.sc-calib-riel{margin:0 0 13px}
+.sc-calib-riel .riel-h{gap:2px}
+.sc-calib-riel .riel-t{font-size:10.5px;line-height:1.2}
+
+/* ----- H30 · las medidas de siempre -----
+   La pieza 18 reparte sus opciones en columnas de 150 px, que es lo que pide una cuenta de
+   cobro con su «con IVA» debajo. Aquí son cinco fichas de dos palabras en un panel de 306 px:
+   con 150 px caerían en una sola columna y cinco renglones de 48 px se comerían la lista de
+   medidas entera. 84 px las deja en tres columnas, y siguen midiendo 48 px de alto. */
+#sc-ref-rapidos{display:block}
+#sc-ref-rapidos .glide{grid-template-columns:repeat(auto-fill,minmax(84px,1fr));margin-top:6px}
+#sc-ref-rapidos .glide>.chip{align-items:center;justify-content:center;text-align:center;gap:1px;padding:0 6px}
+#sc-ref-rapidos .glide>.chip small{color:var(--muted);font-variant-numeric:tabular-nums}
+#sc-ref-rapidos .glide>.chip.on small{color:inherit}
+
+/* ----- H24 y H26 · la lista de medidas -----
+   position:relative porque el fantasma de la medida que se va (pieza «entra lo nuevo, sale lo
+   quitado») se coloca en absoluto contra la lista. */
+.sp-mlist{position:relative}
+/* La fila deslizable es ahora el renglón, así que el margen y el radio viven en ella y no en
+   la tarjeta de dentro; si no, la sombra y el filete de «nueva» quedarían recortados. */
+.sp-mfila{margin-bottom:9px;border-radius:var(--r-sm)}
+.sp-mfila .sp-mitem{margin-bottom:0}
+/* El número de la medida: era un estilo en línea de doce declaraciones repetido en cada
+   renglón; con la lista pintada de una vez por innerHTML vale más como clase. */
+.sp-mitem-n{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;
+  background:var(--brand-grd);color:#fff;font-size:9px;font-weight:800;margin-bottom:4px;box-shadow:0 2px 6px rgba(var(--a-rgb),.25)}
+/* La palomita de «Agregada» va del tamaño del rótulo y del color del texto del botón hecho. */
+.sp-mitem-add.done .palomita{width:1.05em;height:1.05em;flex-shrink:0}
+/* El contador da un salto corto cuando SUBE. Una sola vez, disparado desde el código. */
+.sc-cuenta-salta{animation:sc-cuenta-salta .34s var(--ease-out) 1}
+@keyframes sc-cuenta-salta{40%{transform:scale(1.18)}to{transform:none}}
+
+/* ----- H12 · el PDF se abre dentro del lienzo -----
+   Las dos caras del recuadro comparten el sitio; solo una está a la vez. La del PDF es UNA
+   tarjeta oscura con los pasos, el motivo y las salidas, y no texto blanco suelto: con una foto
+   ya cargada el recuadro se pinta encima de ella, y sobre una fachada clara el blanco no se leía
+   (con un beige de fachada, 1.6:1). El fondo del lienzo sí es siempre oscuro, pero la foto no. Con una pantalla
+   baja —el teléfono acostado deja unos 150 px de lienzo— la tarjeta se desplaza en vez de
+   salirse. */
+.sp-overlay-cara{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;max-width:min(92%,420px);text-align:center}
+.sp-overlay-cara[hidden]{display:none}
+/* Por encima de los botones de zoom (z-index 6): con la tarjeta de error abierta sobre una foto
+   cargada, el «+» le tapaba la esquina y el botón de al lado. */
+.sp-overlay{z-index:7}
+.sp-overlay-pdf{width:100%;max-height:100%;padding:8px 0;box-sizing:border-box;pointer-events:none}
+.sp-overlay-tarjeta{width:100%;max-height:100%;overflow:auto;box-sizing:border-box;padding:12px 14px;text-align:left;
+  border-radius:var(--r-sm);background:rgba(var(--nav-rgb),.95);border:1px solid rgba(255,255,255,.18);color:#fff;
+  box-shadow:0 10px 30px rgba(0,0,0,.45)}
+/* La tarjeta solo recibe toques cuando trae salidas: mientras trabaja, el lienzo de abajo sigue
+   siendo del dedo. */
+.sp-overlay-pdf.mal .sp-overlay-tarjeta{pointer-events:auto}
+/* El color del paso lo pone `.traza-paso` (y su estado, más específico), y la tarjeta es
+   oscura en los dos temas: se le pone letra blanca a todos, y la equis y el giro llevan su
+   forma además de su color. */
+.sp-overlay-pasos .traza-paso,.sp-overlay-pasos .traza-paso[data-estado]{color:#fff}
+.sp-overlay-pasos .traza-d,.sp-overlay-pasos .traza-reloj,.sp-overlay-pasos .traza-paso[data-estado="mal"] .traza-d{color:rgba(255,255,255,.78)}
+/* «0.0 s» junto a una equis no informa de nada. */
+.sp-overlay-pasos .traza-paso[data-estado="mal"] .traza-reloj{display:none}
+.sp-overlay-mal{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.16);pointer-events:auto}
+.sp-overlay-mal[hidden]{display:none}
+.sp-overlay-motivo{margin:0 0 10px;font-size:13px;line-height:1.5;color:#fff;text-wrap:pretty}
+.sp-overlay-salidas{display:flex;flex-wrap:wrap;gap:8px}
+.sp-overlay-btn{min-height:44px;padding:0 14px;border-radius:var(--r-sm);border:1px solid rgba(255,255,255,.34);
+  background:rgba(255,255,255,.1);color:#fff;font:700 13px/1 inherit;font-family:inherit;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:1 1 auto;transition:transform var(--mv-liq)}
+.sp-overlay-btn.pri{background:var(--a-fill);border-color:transparent}
+.sp-overlay-btn:active{transform:scale(.97)}
+@media(hover:hover) and (pointer:fine){.sp-overlay-btn:hover{background:rgba(255,255,255,.18)}
+  .sp-overlay-btn.pri:hover{background:var(--a-fill);filter:brightness(1.1)}}
+
+/* ----- Función 32 · el letrero sobre la foto de la fachada -----
+   #sc-letrero es la caja que se agarra y se mueve; la letra es su hija (la pieza 26 le pone su
+   cara, su canto y su luz). La caja mide 44 px como mínimo aunque la letra mida 5 cm en la foto,
+   y el transform la centra sobre su punto. `width:max-content` para que un letrero más ancho
+   que el lienzo se centre sobre su propio ancho y no sobre el disponible. Va por debajo de los
+   botones de zoom y del ojo de las cotas (z-index 6): si cae encima de ellos, se sigue pudiendo
+   acercar la foto. No se mueve solo: solo cuando lo arrastran. */
+.sc-letrero{position:absolute;left:0;top:0;z-index:4;display:inline-flex;align-items:center;justify-content:center;
+  width:max-content;min-width:44px;min-height:44px;padding:0 6px;border-radius:var(--r-sm);
+  cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;will-change:transform}
+.sc-letrero[hidden]{display:none}
+.sc-letrero.arrastrando{cursor:grabbing;background:rgba(255,255,255,.07)}
+.sc-letrero:focus-visible{outline:2px solid #fff;outline-offset:3px;box-shadow:0 0 0 5px rgba(var(--nav-rgb),.7)}
+.sc-letrero .letrero{max-width:none;pointer-events:none}
+.sc-letrero-nota{position:absolute;right:10px;top:10px;z-index:5;pointer-events:none;padding:6px 10px;border-radius:999px;
+  background:rgba(var(--nav-rgb),.8);color:#fff;font:700 10px/1 var(--f-texto);letter-spacing:.08em;text-transform:uppercase}
+.sc-letrero-nota[hidden]{display:none}
+.sc-lf-cuales{margin-bottom:11px}
+.sc-lf-cuales[hidden]{display:none}
+.sc-lf-cuales .tool-seg{display:flex;width:100%}
+.sc-lf-cuales .tool-seg button{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;padding:8px 4px;font-size:11.5px}
+/* Apretado a propósito: en el teléfono el panel deja ver unos 160 px entre el pie pegado y el
+   principio de la sección, y ahí tienen que caber el título, el deslizador y las dos líneas del
+   precio —lo que se mira mientras se mueve—. Con los márgenes de un formulario cualquiera el
+   precio quedaba una línea más abajo, debajo del pie. */
+#sc-sec-letrero .sp-sec-b{padding-top:6px}
+.sc-lf-rango{display:grid;gap:2px;margin:0 0 2px}
+.sc-lf-rango label{font-size:11.5px;font-weight:700;color:var(--muted)}
+.sc-lf-rango input{width:100%;height:44px;margin:0;accent-color:var(--a)}
+.sc-lf-dice{margin:0 0 6px;font-size:12px;line-height:1.55;color:var(--muted)}
+.sc-lf-precio{margin:0 0 8px;font-size:12.5px;line-height:1.5;color:var(--ink)}
+.sc-lf-precio b{font-size:15px;font-variant-numeric:tabular-nums}
+/* El ámbar dice «esto todavía no es un precio»; el texto lo dice también, nunca el color solo. */
+.sc-lf-precio.av{color:var(--amber)}
 /* ── fin de cot-escalador ── */
 
 /* ── Cotizador · vectorizador ── */
@@ -6529,7 +6666,16 @@ input[type=range].desl-iman{transform:none!important}
 .sp-canvas-area.suelta::after{animation:none!important}
 /* ── fin de rm · cot-ia ── */
 /* ── rm · cot-escalador ── */
-
+/* Se va lo que desplaza o se agranda: el salto del contador de medidas (el JS tampoco lo
+   dispara con menos movimiento; esto es por si algo más le pone la clase) y el encogerse de los
+   botones de la tarjeta del PDF. Se queda lo que informa: la cifra de la lupa y la pista siguen
+   diciendo cuánto mide la línea y qué toca —esta última cambia en seco, que es lo que hace la
+   pieza 23—, las esquinas de la lupa saltan a su sitio sin pedir un solo cuadro (eso lo decide
+   el JS al preguntar en el momento), y el giro de los pasos del PDF lo apaga el bloque de la
+   traza. El letrero de la fachada no anima nada: solo se mueve cuando lo arrastran. */
+.sc-cuenta-salta{animation:none}
+.sp-overlay-btn{transition:none}
+.sp-overlay-btn:active{transform:none}
 /* ── fin de rm · cot-escalador ── */
 /* ── rm · cot-vector ── */
 
