@@ -495,7 +495,11 @@ document.documentElement.classList.add('arrancando');
     <div class="modal-h"><b><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar con IA</b><button onclick="aiClose()" aria-label="Cerrar">×</button></div>
     <div class="modal-b">
       <div class="ai-src" id="ai-src-box" style="display:none">
-        <img class="ai-src-img" id="ai-src-img" alt="Imagen medida en el escalador">
+        <div class="ia-marco">
+          <img class="ai-src-img" id="ai-src-img" alt="Imagen medida en el escalador">
+          <span class="ia-etapa" hidden aria-hidden="true"></span>
+          <div class="ia-velo" hidden><p class="ia-velo-motivo"></p><button type="button" class="btn btn-pri ia-velo-re">Reintentar</button></div>
+        </div>
         <div class="ai-src-b">
           <div class="ai-src-t"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Imagen del escalador</div>
           <div class="ai-src-n" id="ai-src-n"></div>
@@ -516,9 +520,16 @@ document.documentElement.classList.add('arrancando');
         <div class="ai-drop" id="ai-drop" role="button" tabindex="0" aria-describedby="ai-drop-s"
           onclick="$('ai-file').click()"
           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();$('ai-file').click();}">
-          <svg class="svgi ico" aria-hidden="true"><use href="#i-carpeta"/></svg>
-          <div class="t"><span class="solo-raton">Arrastra aquí la foto o el PDF</span><span class="solo-dedo">Toca para elegir la foto o el PDF</span></div>
-          <div class="s" id="ai-drop-s"><span class="solo-raton">o <b>toca para elegirlo</b> · si ya lo tienes copiado, <b>pégalo</b> con Ctrl+V</span><span class="solo-dedo">de tu galería, de Archivos o de lo que te mandaron</span></div>
+          <div class="ai-carpeta" aria-hidden="true">
+            <svg class="cp-cuerpo" viewBox="0 0 160 120"><path d="M8 4h42q4 0 6.5 3l7 8h88.5a8 8 0 0 1 8 8v89a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8V12a8 8 0 0 1 8-8z"/></svg>
+            <span class="cp-hoja">Suéltalo aquí</span>
+            <svg class="cp-tapa" viewBox="0 0 160 92"><rect x="0" y="0" width="160" height="92" rx="8"/><rect class="cp-filo" x="0" y="0" width="160" height="3" rx="1.5"/></svg>
+          </div>
+          <div class="ai-drop-tx">
+            <div class="t"><span class="solo-raton">Arrastra aquí la foto o el PDF</span><span class="solo-dedo">Toca para elegir la foto o el PDF</span></div>
+            <div class="s" id="ai-drop-s"><span class="solo-raton">o <b>toca para elegirlo</b> · si ya lo tienes copiado, <b>pégalo</b> con Ctrl+V</span><span class="solo-dedo">de tu galería, de Archivos o de lo que te mandaron</span></div>
+            <div class="ai-drop-sobre" aria-hidden="true">Al soltarlo queda elegido</div>
+          </div>
         </div>
         <input id="ai-file" class="ai-file-in" type="file" accept="image/*,application/pdf"
           aria-labelledby="lab-ai-file" onchange="aiArchivoElegido(this.files[0])">
@@ -527,10 +538,13 @@ document.documentElement.classList.add('arrancando');
       <div class="ai-merge" id="ai-merge-box" style="display:none">
         <button type="button" class="switch" role="switch" aria-checked="false" style="margin:0" onclick="toggleAiMerge()"><span class="tg" id="ai-merge-tg" aria-hidden="true"></span> Conservar las partidas que ya capturé</button>
         <div class="ai-merge-note" id="ai-merge-note"></div>
+        <ul class="ai-merge-lista" id="ai-merge-lista"></ul>
       </div>
       <button class="btn btn-pri" id="ai-go-btn" onclick="aiAnalyze()" style="margin-top:8px">Analizar y cotizar</button>
       <button class="btn btn-gho" id="ai-cancel-btn" onclick="aiCancelar()" hidden>Cancelar el análisis</button>
       <div class="ai-status" id="ai-status" role="status"></div>
+      <div class="ai-traza" id="ai-traza" hidden></div>
+      <div class="ai-resumen" id="ai-resumen" role="group" aria-label="Lo que leyó la IA" hidden></div>
     </div>
   </div>
 </div>
