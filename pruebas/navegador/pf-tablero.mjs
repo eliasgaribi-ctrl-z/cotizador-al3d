@@ -12,7 +12,7 @@
  *   · P4  · «Ya se armó» se vuelve «Deshacer» con su mecha, NO escribe hasta que se apaga, el
  *           renglón no salta de grupo mientras dura, sobrevive a un repintado y NUNCA se ofrece
  *           en el cruce de corte ni en «Ya se instaló»;
- *   · P11 · la tarjeta de «sin decidir» late tres veces al aparecer, se calla al repintarse y
+ *   · P11 · la tarjeta de «sin decidir» da UN latido al aparecer, se calla al repintarse y
  *           vuelve a latir solo cuando la cuenta sube;
  *   · P13 · en «Qué atender» lo atendido se palomea, se tacha y se pliega en su sitio ANTES de
  *           repintar; si la acción falla no se tacha; con menos movimiento no hay pliegue;
@@ -451,7 +451,11 @@ if (activa('p4')) {
 }
 
 /* ══ 3 · P11 · EL LATIDO SE APAGA ═══════════════════════════════════════════ */
-titulo('p11', 'P11 · «SIN DECIDIR» LATE TRES VECES Y SE CALLA; VUELVE A LATIR SOLO SI LA CUENTA SUBE');
+/* Un latido, no tres: lo fija la falla 3 del brief —«hay que dejarlos en un solo disparo cuando
+   algo cambia»—. La clase `.cand-partidas` la comparten el cotizador, el Tablero y Proyectos, así
+   que el número se decide en un solo sitio (css/sistema.css) y aquí solo se comprueba. Esta prueba
+   pedía tres y el CSS daba uno: se corrigió la prueba, que era la equivocada. */
+titulo('p11', 'P11 · «SIN DECIDIR» DA UN LATIDO Y SE CALLA; VUELVE A LATIR SOLO SI LA CUENTA SUBE');
 if (activa('p11')) {
   const c = await entrar({ touch: true, decidir: 1 });
   const { p, errs } = c;
@@ -461,7 +465,7 @@ if (activa('p11')) {
     return { quieta: el.classList.contains('quieta'), nombre: cs.animationName, veces: cs.animationIterationCount };
   });
   const l1 = await late();
-  que(l1 && !l1.quieta && l1.veces === '3', 'la primera vez que aparece la tarjeta late TRES veces y no en bucle (' + JSON.stringify(l1) + ')');
+  que(l1 && !l1.quieta && l1.veces === '1', 'la primera vez que aparece, la tarjeta da UN latido y no late en bucle (' + JSON.stringify(l1) + ')');
   await p.locator('.tb-etapa[data-etapa="armado"]').tap();      // repinta por otra cosa
   await esp(p, 500);
   const l2 = await late();
@@ -469,7 +473,7 @@ if (activa('p11')) {
   await sinDecidir(p, 2);
   await remontar(p);
   const l3 = await late();
-  que(l3 && !l3.quieta && l3.veces === '3', 'pero si la cuenta SUBE (de 1 a 2) vuelve a latir tres veces (' + JSON.stringify(l3) + ')');
+  que(l3 && !l3.quieta && l3.veces === '1', 'pero si la cuenta SUBE (de 1 a 2) vuelve a dar su latido (' + JSON.stringify(l3) + ')');
   await sinDecidir(p, 1);
   await remontar(p);
   que((await late()).quieta, 'y si BAJA no late');
@@ -479,7 +483,7 @@ if (activa('p11')) {
   /* «Qué atender» tiene la misma tarjeta y la misma regla. */
   await irA(p, '#/atender', 1500);
   const lq = await p.evaluate(() => { const e = document.querySelector('#mod-atender .cand-partidas'); return e && { quieta: e.classList.contains('quieta'), veces: getComputedStyle(e).animationIterationCount }; });
-  que(lq && !lq.quieta && lq.veces === '3', 'en «Qué atender» la primera vez también late tres veces (' + JSON.stringify(lq) + ')');
+  que(lq && !lq.quieta && lq.veces === '1', 'en «Qué atender» la primera vez también da un solo latido (' + JSON.stringify(lq) + ')');
   await p.locator('#mod-atender [data-acc]').first().focus();
   await sinDecidir(p, 1);
   await remontar(p);
