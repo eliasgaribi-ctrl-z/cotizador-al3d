@@ -247,6 +247,20 @@ function dispositivo(){
   prefSet(DISP_KEY,d);
   return d;
 }
+/* La letra que lleva el folio impreso: COT-0042-B. El contador sigue siendo de cada teléfono,
+   y sin ella dos aparatos le daban el mismo COT-0042 a dos clientes distintos; el @K7QM del
+   folio global desempataba por dentro pero no en el papel. Sale de la primera letra del id del
+   aparato y se puede cambiar en Ajustes (A, B, C… una por teléfono), porque una letra al azar
+   puede caerle igual a dos. Solo letras: un dígito se leería como parte del número. Misma
+   regla que letraFolio() en js/datos/prefs.js. */
+const LETRA_KEY='al3d_pf_letra_folio';
+function letraFolio(){
+  let l=prefGet(LETRA_KEY,'');
+  if(/^[A-Z]$/.test(l)) return l;
+  l=(/[A-Z]/.exec(dispositivo())||['A'])[0];
+  prefSet(LETRA_KEY,l);
+  return l;
+}
 
 /* ===================== Los hitos de la entrega =====================
    Autorizar no es terminar. Después vienen tres cosas que se hacen SIEMPRE y en este orden

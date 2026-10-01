@@ -172,9 +172,10 @@ ese teléfono, **⬆ Restaurar** lo devuelve (y antes guarda solo un respaldo de
 
 El respaldo no lleva llaves de IA porque ya no hay ninguna en el teléfono: viven en la hoja.
 
-> **Un aviso:** el contador de folios también es por dispositivo. Si cotizas desde dos aparatos,
-> los dos empiezan en `COT-0001`. Mientras no haya sincronización, conviene cotizar siempre desde
-> el mismo.
+> **Los folios llevan la letra del teléfono.** El contador es de cada aparato, así que dos
+> teléfonos cuentan cada uno desde 1; por eso el folio termina en una letra —`COT-0042-B`— y dos
+> clientes ya no tienen el mismo en la mano. La letra sale sola del id del aparato y se cambia en
+> **Ajustes**: dale una distinta (A, B, C…) a cada teléfono que cotiza.
 
 ## Una sola puerta
 
@@ -318,7 +319,7 @@ plataforma con `herramientas/extraer-catalogo.sh`.
 
 ## Pruebas
 
-    pruebas/correr.sh               30 archivos, solo node, unos segundos
+    pruebas/correr.sh               31 archivos, solo node, unos segundos
     pruebas/correr.sh --navegador   20 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
@@ -338,9 +339,6 @@ píxeles** para comprobar que nada de lo que lleva texto baja de 4,5:1 de contra
 
 ## Pendientes
 
-- **Los folios se repiten entre dispositivos.** El contador es local a cada teléfono. La
-  plataforma lo desempata por dentro con el identificador del aparato, pero el folio que el
-  cliente tiene en la mano sigue pudiendo repetirse.
 - **El puente lleva la venta, y por ahora nada más.** El almacén, el catálogo de material y las
   listas de compra no tienen todavía pestaña en la hoja a la que ir, así que se quedan en cada
   dispositivo. No se pierden: se apartan en la bandeja con su razón y se reincorporan solos el
