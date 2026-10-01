@@ -3,8 +3,7 @@
 Cada zona del paquete de UI entrega aquí lo que dejó a medias, lo que no alcanzó a probar y los
 supuestos que tomó. **La auditoría mira esta lista, no las ~50,000 líneas del paquete.** No hubo
 revisor aparte por zona: fue el acuerdo para no agotar el límite semanal.
-- **[media]** `js/cotizador/partidas.js · _movBajar/_movArmar/_movPoner/_movSoltar (reordenar con el dedo)`  
-  El gesto se probó con eventos táctiles por CDP en Chromium, no con un dedo en un teléfono. Sin verificar: iOS Safari (long-press, selección, touch-action:none solo en el número), el autoscroll en bordes, y arrastrar una partida ABIERTA de ~1300 px (no se colapsa durante el arrastre; en la práctica conviene plegar antes). Con menos movimiento las vecinas se apartan sin transición.
+El gesto se probó con eventos táctiles por CDP en Chromium, no con un dedo en un teléfono. Sin verificar: iOS Safari (long-press, selección, touch-action:none solo en el número), el autoscroll en bordes, y arrastrar una partida ABIERTA de ~1300 px (no se colapsa durante el arrastre; en la práctica conviene plegar antes). Con menos movimiento las vecinas se apartan sin transición.
 
 - **[media]** `js/cotizador/partidas.js · _ratonArma() y el bloque dragstart/drop de renderItems()`  
   El arrastre HTML5 con ratón real no se pudo ejercitar: en este arnés ni el código original completa un drag nativo (se comprobó contra una copia del commit base). Solo están probados el drop por eventos sintéticos (cotizador-flujo.mjs, sigue verde) y que draggable se arma en pointerdown con el ratón y se desarma al soltar. Cambio de comportamiento: antes toda la partida era arrastrable, incluso desde un campo de texto; ahora presionar sobre input/textarea/select/etiqueta arrastrable no la arma. Firefox/Safari sin probar.
@@ -419,3 +418,89 @@ Fichas: 11 hecho, 1 parcial, 1 ya estaba.
 
 - **[baja]** `git log (trailer)`  
   Los commits terminan con «Co-Authored-By: Claude Opus 5» exactamente como manda CONVENCIONES.md, aunque el recordatorio del arnés pedía otro identificador de modelo; seguí la guía del repo.
+
+## Anidador · la mesa de corte (an-mesa)
+
+Fichas: 9 hecho.
+
+- **[alta]** `anidador-vectores/js/app.js · listeners pointerdown/pointermove/touchmove de #an-res`  
+  Pellizco, arrastre y mantener-para-levantar solo se probaron con toques sintéticos de Chromium (CDP), nunca en un teléfono real. Con touch-action: pan-x pan-y sin zoom, un navegador real puede reclamar el pellizco como scroll de dos dedos y mandar pointercancel (el gesto se suelta limpio); los botones +/− y el doble toque son la alternativa. El touchmove.preventDefault al levantar una pieza no está probado en iOS Safari. Probar en un teléfono de gama media.
+
+- **[alta]** `anidador-vectores/js/app.js · porQueNoCabe(), constantes HOLGURA_MM (0.3), CHOQUE_MM2 (1) y margen de orilla = separación/2`  
+  Son criterios míos: del borde exijo media separación (no una entera como dice la ficha) porque el motor deja sus piezas a 1.5 mm de arriba/izquierda con separación de 3; en choques perdono traslapes de menos de 1 mm² y desfaso media separación menos 0.15 mm por pieza. Una pieza puede quedar a ~2.7 mm de otra en vez de 3. Validar con el taller si esa tolerancia es aceptable para el corte.
+
+- **[media]** `anidador-vectores/js/app.js · svgParaMotor() y rotular()`  
+  Los ids originales de los elementos del archivo se SOBREESCRIBEN con an-e<N> en el clon que va al motor y se quitan en la salida (como pide la ficha): el SVG descargado ya no conserva los ids de Illustrator/Inkscape. En la vista previa se usa data-e para no romper <use>/clip-path.
+
+- **[media]** `anidador-vectores/js/app.js · iniciar, detener, cargarTexto, pintarOriginal, pintarArchivo, svgParaMotor, armarSalida, pintarEstadoTrabajo, window.Anidador`  
+  Toqué con ediciones pequeñas funciones compartidas con an-controles (una línea o un bloque corto en cada una). Es donde puede haber conflicto de fusión. Reemplacé por completo pintarStats() y pintarResultado(); si an-controles las tocó, hay que fusionar a mano. window.Anidador.mesa y .mesa.cabe son nuevos.
+
+- **[media]** `anidador-vectores/js/app.js · construirHojas/usoDeHoja/areaDelMotor`  
+  El % por hoja depende de métodos del motor vendorizado (SvgNest.cleanPolygon, polygonOffset, SvgParser.polygonify) y del config() vigente; si el motor cambia esos nombres el % no aparece (NaN, se omite sin error). Con hojas de distinto tamaño el 'promedio = marcador' deja de valer.
+
+- **[media]** `anidador-vectores/js/app.js · accesibilidad de teclado`  
+  Las piezas no están en el orden de tabulación (tabindex -1): se llega con Enter en la hoja y flechas, descrito en #an-mesa-ayuda (aria-describedby). No se probó con lector de pantalla. El carrusel responde a las flechas solo con la tira (#an-res) enfocada, no con una hoja enfocada.
+
+- **[media]** `Todo el cambio`  
+  Solo se probó en Chromium (sin Firefox ni WebKit); el costo del recorte clip-path y de los viajes de P.flip (se animan <g> de SVG, no se componen en GPU) no se midió en un teléfono de gama media. Por eso hay topes: 150 piezas para viaje y barrido.
+
+- **[baja]** `pruebas/navegador/anidador.mjs (línea de la leyenda de la hoja)`  
+  Edité una prueba ajena: ahora lee '.an-cap-t' y acepta «Hoja 1 de N» porque la leyenda con varias hojas cambió con motivo (A12). Es el único cambio a una prueba existente.
+
+- **[baja]** `anidador-vectores/js/app.js · pintarResultado con sobran (A11) y P.flip`  
+  Una pieza que pasa de una hoja a otra no viaja (P.flip solo anima dentro de la misma hoja): aparece. La hoja que sobra se muestra vacía mientras viajan las demás. Con carrusel, la hoja que sobra cuenta como página (puntos de más) ~0.8 s.
+
+- **[baja]** `anidador-vectores/js/app.js · A.numeros (numerarPartes en iniciar)`  
+  El número de pieza se calcula con la escala vigente al correr iniciar(); un acomodo recuperado con «Recuperar» tras un cambio de medida usa la tabla del último arranque (puede variar si una pieza diminuta sale o entra del filtro de área).
+
+- **[baja]** `anidador-vectores/css/anidador.css · .vistazo[role="note"]{pointer-events:none}`  
+  Regla global dentro de la hoja del anidador: toda nota de P.vistazo deja pasar el toque (para que la ficha de una pieza no tape a su vecina). Hoy solo la ficha de la pieza es una nota en esta página.
+
+- **[baja]** `Mensaje de commit`  
+  CONVENCIONES.md pide «Co-Authored-By: Claude Opus 5»; usé la atribución que dio la sesión (Claude Sonnet 5.5) porque es el modelo real. El integrador puede reescribirlo si quiere el otro nombre.
+
+- **[baja]** `anidador-vectores/css/anidador.css · .an-mesa.corriendo::after (an-laser, infinite)`  
+  No lo toqué: el haz horizontal del motor sigue siendo una animación infinita mientras el cálculo corre (es el indicador de trabajo, no reposo). Las pruebas lo permiten solo mientras corre.
+
+## Plataforma · Mapa
+
+Fichas: 7 hecho, 1 ya estaba.
+
+- **[media]** `css/plataforma.css «#mapa-ruta.con-tira .mapa-ruta-filas» + js/mod/mapa.js pintarRuta()/pintarTira()`  
+  La ficha dice que la lista de abajo «se queda para la computadora y para el lector de pantalla». Yo la dejé en display:none en el teléfono mientras la tira existe, y la tira es la que queda accesible (región con un grupo «Parada N de M» por parada, flechas de teclado, anuncio al asentarse, tabulador entre sus enlaces, tocar una tarjeta lleva el mapa). Razón: dos listas con el mismo contenido son leer cada parada dos veces. Es una desviación de la letra de la ficha; si se prefiere la lista visualmente oculta para lector de pantalla y la tira aria-hidden, hay que cambiarlo. Verificado solo con Chromium, no con VoiceOver ni TalkBack.
+
+- **[media]** `css/plataforma.css .mapa-caja>.mapa-tira (--mapa-cred: 26px)`  
+  El margen que deja libre el crédito de OpenStreetMap es una constante de 26 px. La prueba mide que no se cruzan con el proveedor por omisión (una línea). Si Prefs.tiles() cambia a un proveedor de Geo.TILES con atribución más larga que parta en dos renglones a 360 px, la tira podría taparla (la licencia lo prohíbe). No se probó con los otros proveedores.
+
+- **[media]** `js/mod/mapa.js alCambiarParada()/alTocarPin()/alTocarTarjeta()`  
+  La sincronización tira-mapa usa un debounce de 140 ms, una bandera de silencio al pintar la tira (_silenciarTira, setTimeout 0) y una ventana de 900 ms (250 con menos movimiento) en que la tira ignora lo que la pieza avisa después de un toque en un pin. Son tiempos medidos en Chromium de escritorio; en un teléfono de gama media con scroll-snap más lento podría colarse un vuelo intermedio. El deslizamiento se probó con eventos táctiles sintéticos por CDP, sin inercia real de dedo ni Safari/iOS (donde scroll-snap-stop y la altura de la barra del navegador se comportan distinto).
+
+- **[media]** `js/mod/mapa.js abrirMano()/alMoverseConMano()/ponerReticula()`  
+  1) «Guardar aquí» se enciende con cualquier movimiento del mapa desde que se abrió el modo, incluido el corrimiento automático de un globo que se abra; no distingue arrastre de persona. 2) La retícula (z-index 500) se pinta por encima de un globo abierto si se traslapan. 3) Tocar el mapa en este modo también salta aunque el toque solo quisiera cerrar un globo. 4) Se hace focus() al lienzo al abrir el modo: con teclado se ve el anillo del navegador sobre el mapa, sin estilo propio. 5) Si Piezas.reticulaHTML no existiera, el modo funciona sin cruz (no hay respaldo).
+
+- **[baja]** `js/mod/mapa.js alturaTira(), afinarGlobo(), moverA(), encuadrar()`  
+  La altura que cubre la tira se mide en el momento de volar/encuadrar/abrir un globo; no se vuelve a medir al girar el teléfono ni con letra grande. El margen del globo (autoPanPaddingBottomRight) se fija justo antes de abrirlo (clic del pin y alTerminarDeMoverse), no sigue cambios de tamaño. Tampoco se probó el cruce del punto de corte de 760 px con la ruta puesta: ahí la tira aparece con la primera tarjeta marcada pero sin que el mapa vaya a ella.
+
+- **[baja]** `js/mod/mapa.js prepararTraza()/empezarTraza()`  
+  El trazo arranca con moveend (o a los 900 ms) y mide getTotalLength() a la escala final; si la persona hace zoom durante los 800 ms la línea se redibuja con otro largo y el trazo se ve cortado un instante. Los pines se numeran por fracción de distancia haversine con setTimeout, no atados al progreso real de la animación: en un teléfono con cuadros perdidos pueden desfasarse unos milisegundos. Probado en Chromium en vacío; no con el procesador estrangulado.
+
+- **[baja]** `js/mod/mapa.js animarPin()/quitarPin()/refrescarPines()`  
+  La animación de los pines supone que Leaflet coloca el marcador con transform inline (translate3d); sin soporte 3D (Browser.any3d falso) usaría left/top y el scale se aplicaría sin traslado (no probado). Si un proyecto sale y vuelve en menos de 160 ms, queda un pin viejo encogiéndose junto al nuevo ese rato. El tope de 40 cambios para no animar es una cifra mía, no medida en un teléfono real.
+
+- **[baja]** `js/mod/mapa.js volarA()/alTerminarDeMoverse()`  
+  Cambio de comportamiento: el globo de «Ver en el mapa» y de después de guardar un pin ahora se abre cuando el mapa LLEGA (moveend), unos 0.6 s después, y no al salir. Lo hice porque abrirlo con el vuelo a medias hacía que el corrimiento del globo peleara con el vuelo; no lo medí contra el comportamiento anterior en un dispositivo real.
+
+- **[baja]** `css/plataforma.css @starting-style{.pf-mbar.mapa-mbar}`  
+  La subida de la barra depende de @starting-style (Chrome 117+, Safari 17.5+, Firefox 129+). En navegadores más viejos la barra aparece de golpe, como antes; no se probó en ninguno de ellos.
+
+- **[baja]** `css/plataforma.css «#mapa-ruta .pf-fila-t,#mapa-ruta .pf-fila-d{display:block}» y «.esq-mapa»`  
+  Dos cambios chicos fuera de lo que pedían las fichas, dentro de las reglas del mapa: (a) en la lista de la ruta de la computadora, el nombre y la hora salían pegados («…(Letras Luz)A las 9:00 a.m.»), ya pasaba antes; (b) .esq-mapa pasa de 420 px a la altura del lienzo. La silueta sigue sin tener las tiras de chips que el mapa real trae arriba (esqueletoModulo es de js/nucleo/ui.js, no mío), así que un salto menor al llegar el mapa sigue existiendo.
+
+- **[baja]** `pruebas/navegador/pf-mapa.mjs (mapaListo, sinDesbordeEnReposo)`  
+  Hallazgo ajeno a esta zona: durante los primeros ~350 ms de cualquier entrada de módulo el documento mide 2 px de más a lo ancho (scrollWidth 362 contra 360; la sección .pf-mod se desliza con su animación de entrada). La prueba espera a que asiente y a que la barra #pf-progreso termine antes de medir el desborde; si alguien lo mide antes lo verá como falla. No lo toqué (es del router/hoja general).
+
+- **[baja]** `js/mod/mapa.js (lógica pura)`  
+  No hay prueba de node: lo puro (fracciones del recorrido, ajuste de coordenadas) vive en mapa.js, que importa Leaflet y no carga sin DOM. La cobertura es solo la de navegador (Chromium, tiles externos bloqueados: se mide geometría, no el dibujo de calles). Tampoco se probó con 30+ pines ni con tema de Leaflet distinto.
+
+- **[baja]** `scratchpad compartido`  
+  Otro agente sobrescribió un archivo temporal mío en el scratchpad compartido (dep2.mjs, solo depuración, ya no se usaba). Nada de eso está en el repo, pero conviene que cada agente use una subcarpeta propia.
