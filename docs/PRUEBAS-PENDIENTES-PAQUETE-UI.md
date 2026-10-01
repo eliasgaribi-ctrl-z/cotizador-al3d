@@ -72,5 +72,5 @@ entre 500 y 1,800 comprobaciones cada uno.
 ---
 
 La lista de lo que las zonas dejaron anotado para revisar está en **`docs/REVISAR-PAQUETE-UI.md`**:
-20 zonas y 194 puntos, cada uno con archivo, qué revisar y gravedad, más las dos decisiones de
-producto que siguen abiertas.
+20 zonas y 194 puntos, cada uno con archivo, qué revisar y gravedad, más la decisión de producto
+que sigue abierta.

@@ -116,6 +116,8 @@
 .an-tile.on .an-tile-d{color:var(--a-fuerte)}
 
 .an-girar{margin-top:var(--e3)}
+.an-corte{margin-bottom:var(--e2)}
+#lab-corte{margin-top:var(--e4)}
 
 /* ----- Los retazos guardados -----
    Aparecen cuando la hoja es un retazo o cuando ya hay alguno guardado. Cada uno es un chip

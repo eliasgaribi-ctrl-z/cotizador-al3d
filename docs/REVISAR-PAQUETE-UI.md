@@ -15,10 +15,10 @@ media y un iPhone de verdad siguen pendientes, y es donde más probable es que a
 
 Cada punto trae su gravedad —alta, media o baja— puesta por quien lo escribió.
 
-## Decisiones de producto que siguen abiertas
+## Decisiones de producto
 
-Tres salieron del paquete y Dirección ya resolvió una. Las otras dos **siguen pendientes** y
-conviene cerrarlas antes de publicar, porque las dos cambian lo que ve o firma un cliente.
+Tres salieron del paquete. Dos ya se resolvieron; la tercera **sigue pendiente** y conviene
+cerrarla antes de publicar, porque cambia lo que firma un cliente.
 
 ### ✅ Resuelta · Sostener para confirmar
 
@@ -32,19 +32,30 @@ una sola pregunta: cargar otra imagen en el escalador, que borra las medidas tom
 sostiene en la app (la × de una partida con datos, borrar del historial, «Sí, borrar todo» y
 restaurar un respaldo) no pasa por `confirmar()`: lo arma cada pantalla sobre su propio botón.
 
-### ⬜ Pendiente · La tolerancia del choque en la mesa de corte
+### ✅ Resuelta · La separación en la mesa de corte
 
-**Es una pregunta para el taller, no para la pantalla.** Al mover una pieza a mano sobre la hoja, el
-choque perdona traslapes de **menos de 1 mm²** y deja que dos piezas queden a **~2.7 mm** en vez de
-los 3 mm de separación. No fue capricho: el propio motor del anidador deja sus piezas a media
-separación del borde, así que exigir los 3 mm completos habría rechazado posiciones que el motor
-mismo produce.
+La pregunta era si los **~2.7 mm** que deja el choque al mover una pieza a mano —3 mm de separación
+menos la holgura de 0.3 que perdona el redondeo de las curvas— alcanzaban para cortar.
 
-La pregunta concreta: **¿2.7 mm entre dos piezas alcanzan para el corte**, contando el grosor del
-haz y el calor? Si el cortador necesita los 3 completos, es cambiar una constante.
+**Lo contestó el taller (Leonel, 1-oct-2026):** depende de con qué se corta, y 3 mm no sirven para
+todo. El router corta con brocas de **1/8″, 3/16″ y 1/4″**, y la separación tiene que pasar la broca
+entera «y un poco más». El láser pide **1.5 a 2 mm**.
 
-Dónde: `anidador-vectores/js/app.js`, `porQueNoCabe()`, constantes `HOLGURA_MM` (0.3) y
-`CHOQUE_MM2` (1), y el margen de orilla = separación/2.
+**Hecho:** el anidador tiene ahora «Se corta con», cuatro chips bajo la separación que la escriben con
+un toque: láser 2 mm, broca 1/8″ 4.5 mm, 3/16″ 6 mm y 1/4″ 7.5 mm (el diámetro de la broca más
+~1.2 mm, redondeado al medio milímetro). El campo sigue mandando y acepta cualquier otra medida.
+Las constantes `HOLGURA_MM` y `CHOQUE_MM2` se quedan como estaban: con esas separaciones, lo
+que perdona el choque sigue dejando más que la broca (4.2 mm con la de 1/8″) y dentro de lo que pide
+el láser (1.7 mm con 2).
+
+Dos cosas quedan para después:
+
+- **La separación de siempre sigue en 3 mm**, que es menos que la broca más chica (3.175 mm). Si el
+  taller corta casi todo en router, conviene que la de omisión sea la de su broca de diario. Es
+  cambiar `value="3"` de `#an-sep` en `anidador-vectores/index.html`.
+- **El corte de línea común en láser.** Leonel dijo que el 1.5-2 mm aplica «si no son líneas
+  rectas que se puedan hacer una sola»: dos piezas que comparten un borde recto se pueden cortar
+  con una sola pasada, a separación cero. El motor no sabe hacerlo; sería una función nueva.
 
 ### ⬜ Pendiente · Mandar una cotización con opciones sin elegir
 

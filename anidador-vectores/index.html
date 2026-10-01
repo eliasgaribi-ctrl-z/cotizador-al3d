@@ -230,6 +230,18 @@ document.documentElement.classList.add('arrancando');
         </div>
         <button type="button" class="btn btn-gho an-girar" id="an-girar" title="Intercambiar el ancho y el alto de la hoja"><svg class="svgi" aria-hidden="true"><use href="#i-horiz"/></svg> Girar la hoja</button>
 
+        <!-- Con qué se corta decide la separación, y no al revés: el router tiene que pasar la
+             broca entera entre dos piezas, más un poco de aire; el láser corta fino y pide de
+             1.5 a 2 mm. Los números son los del taller (Leonel, 1/10/2026). Cada chip solo
+             escribe la separación: el campo sigue mandando y se puede poner otra. -->
+        <div class="fld-lab" id="lab-corte">Se corta con</div>
+        <div class="chips an-corte" id="an-corte" role="group" aria-labelledby="lab-corte">
+          <button type="button" class="chip" aria-pressed="false" data-sep="2">Láser <small>2 mm</small></button>
+          <button type="button" class="chip" aria-pressed="false" data-sep="4.5">Broca 1/8″ <small>4.5 mm</small></button>
+          <button type="button" class="chip" aria-pressed="false" data-sep="6">Broca 3/16″ <small>6 mm</small></button>
+          <button type="button" class="chip" aria-pressed="false" data-sep="7.5">Broca 1/4″ <small>7.5 mm</small></button>
+        </div>
+
         <!-- Los retazos del taller. Un sobrante se mide una vez, se guarda con su nombre y
              la próxima vez se elige de aquí, sin volver a medirlo. Viven en este aparato. -->
         <div class="an-retazos" id="an-retazos" hidden>

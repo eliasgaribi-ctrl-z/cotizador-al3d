@@ -257,6 +257,15 @@
       tarjetas.classList.remove('sin-giro');
     } else tarjetas.classList.toggle('acostada', acostada);
   }
+  /* El chip de «Se corta con» que coincide con la separación escrita queda marcado; con otra
+     separación a mano no se marca ninguno, que es la verdad: no es ninguno de los cuatro. */
+  function marcarCorte() {
+    var v = parseFloat($('an-sep').value);
+    lista(document.querySelectorAll('#an-corte .chip')).forEach(function (c) {
+      var en = parseFloat(c.getAttribute('data-sep')) === v;
+      c.classList.toggle('on', en); c.setAttribute('aria-pressed', en ? 'true' : 'false');
+    });
+  }
   function leerMaterial(avisar) {
     var ancho = parseFloat($('an-ancho').value), alto = parseFloat($('an-alto').value), sep = parseFloat($('an-sep').value);
     var ok = true;
@@ -277,10 +286,11 @@
   function cargarMaterial() {
     var g = null;
     try { g = JSON.parse(localStorage.getItem(LS_MATERIAL) || 'null'); } catch (_) {}
-    if (!g) { sincronizarHoja(true); return; }
+    if (!g) { marcarCorte(); sincronizarHoja(true); return; }
     if (g.ancho) $('an-ancho').value = g.ancho;
     if (g.alto) $('an-alto').value = g.alto;
     if (g.sep !== undefined && g.sep !== '') $('an-sep').value = g.sep;
+    marcarCorte();
     if (g.rot) $('an-rot').value = String(g.rot);
     if (typeof g.huecos === 'boolean' && g.huecos !== interruptor('an-huecos')) alternar('an-huecos');
     if (typeof g.concavas === 'boolean' && g.concavas !== interruptor('an-concavas')) alternar('an-concavas');
@@ -317,7 +327,13 @@
     });
   });
   ['an-ancho', 'an-alto', 'an-sep'].forEach(function (id) {
-    $(id).addEventListener('input', function () { sincronizarHoja(); leerMaterial(false); guardarMaterial(); habilitar(); });
+    $(id).addEventListener('input', function () { if (id === 'an-sep') marcarCorte(); sincronizarHoja(); leerMaterial(false); guardarMaterial(); habilitar(); });
+  });
+  lista(document.querySelectorAll('#an-corte .chip')).forEach(function (c) {
+    c.addEventListener('click', function () {
+      $('an-sep').value = c.getAttribute('data-sep');
+      marcarCorte(); sincronizarHoja(); leerMaterial(false); guardarMaterial(); habilitar();
+    });
   });
   /* Los tres cambian lo que el motor calcula: habilitar() decide si «Seguir buscando» vale. */
   $('an-rot').addEventListener('change', function () { _veta.rotPrevia = null; guardarMaterial(); habilitar(); });
@@ -901,6 +917,7 @@
   }
   function restaurarHoja(c, k) {
     $('an-ancho').value = c.ancho; $('an-alto').value = c.alto; $('an-sep').value = c.sep; $('an-rot').value = String(c.rot);
+    marcarCorte();
     if (c.huecos !== interruptor('an-huecos')) alternar('an-huecos');
     if (c.concavas !== interruptor('an-concavas')) alternar('an-concavas');
     _veta.rotPrevia = null;
