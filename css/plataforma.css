@@ -2956,6 +2956,103 @@ html.pj-arrastrando,html.pj-arrastrando *{cursor:grabbing!important;-webkit-user
 
 /* ── Plataforma · Control y comisiones ── */
 
+/* ----- P3 · las cuentas de Control que llevan a lo que cuentan -----
+   Con algo que contar la cuenta es un `<button class="pf-cuenta ct-cuenta va">`; con 0 sigue
+   siendo el párrafo. Todo su aspecto —la flechita de «ir» tras la etiqueta, el aro de foco, el
+   hover— es el de `.pf-cuenta.va` del bloque del Tablero: una sola implementación. Aquí solo
+   lo que Control tiene de más: la tercera línea (`em`) dentro del botón, que el botón alinea
+   a la izquierda como el párrafo, y los cuatro botones de pestañas en un teléfono angosto. */
+.ct-cuenta.va em{text-align:left}
+.ct-pestanas .tipo-seg button{overflow-wrap:anywhere}
+@media(max-width:400px){
+  .ct-pestanas .tipo-seg button{padding-inline:3px}
+}
+
+/* ----- P27 · las doce barras: nacen en cero, crecen una vez y cada mes se abre -----
+   `.espera` solo está puesta mientras las barras no se han visto (ver `vigilarBarras` en
+   js/mod/control.js): `scaleX(0)` desde el borde izquierdo, y la animación de crecer la hace
+   `Element.animate` —solo `transform`—. Después de verse la clase se quita para siempre en
+   esta visita, así que un repintado (el buscador) las vuelve a pintar ya terminadas. En
+   papel nunca se esconden: lo que se imprime es lo que dice la pantalla ya vista. */
+.ct-b{transform-origin:left center}
+.ct-grafica.espera .ct-b{transform:scaleX(0)}
+@media print{.ct-grafica.espera .ct-b{transform:none}}
+/* El mes con algo que contar es un botón de ancho completo con la misma rejilla del renglón
+   de siempre; solo hay que quitarle lo que el navegador le pone a un botón. */
+button.ct-mes-ver{width:100%;appearance:none;-webkit-appearance:none;background:none;border:0;
+  border-radius:var(--rr2);font:inherit;color:inherit;text-align:left;cursor:pointer;
+  transition:transform var(--mv-liq),background-color var(--mv-s)}
+button.ct-mes-ver:active{transform:scale(.98)}
+button.ct-mes-ver:focus-visible{outline:2px solid var(--a-tx);outline-offset:2px}
+button.ct-mes-ver[aria-expanded="true"]{background:var(--a-suave)}
+@media(hover:hover) and (pointer:fine){
+  button.ct-mes-ver:hover{background:var(--a-suave)}
+}
+@media(hover:none),(pointer:coarse){
+  button.ct-mes-ver{min-height:44px}
+}
+/* El globo de un mes: el total arriba, la lista que se desplaza si es larga (con foco, para
+   poder recorrerla con las flechas) y lo que no se dio al final. */
+.ct-vz-tot,.ct-vz-perd{margin:6px 0 0}
+/* La línea del total es de la caja entera y no de cada celda (la pieza 4 la pone en `dt` y en `dd` por
+   separado, y con el hueco de la rejilla se veía partida). */
+.ct-vz-tot{padding-bottom:6px;border-bottom:1px solid var(--linea)}
+.ct-vz-tot .suma{border-top:0;padding-top:0;margin-top:0}
+.ct-vz-lista{max-height:min(46vh,280px);overflow-y:auto;overscroll-behavior:contain;margin-top:8px;padding-right:4px}
+.ct-vz-lista:focus-visible{outline:2px solid var(--a-tx);outline-offset:2px}
+.ct-vz-lista dt small{display:block;font-weight:400;font-size:var(--t1);color:var(--tinta2)}
+.ct-vz-nota,.ct-vz-mas{margin:8px 0 0;font-size:var(--t2);color:var(--tinta2)}
+.ct-vz-perd{padding-top:8px;border-top:1px solid var(--linea)}
+
+/* ----- P30 · cuánto va cobrado, bajo el texto de cada saldo -----
+   La barra es el medidor quieto de la pieza 20 (6 px, sin transición); el porcentaje va escrito
+   al lado de su propia barra, en la tinta secundaria, porque el verde y el rayado solos no lo
+   dicen. */
+.ct-cobro{margin-top:6px;max-width:28rem}
+.ct-cobro .medidor{margin:4px 0 2px}
+.ct-cobro-t{display:block;font-size:var(--t1);line-height:1.4;color:var(--tinta2);font-variant-numeric:tabular-nums}
+
+/* ----- F54 · comisiones, primero las chicas -----
+   Una cuenta de lo que se puede pagar y una caja: el monto, la barra de cuánto alcanza (el
+   medidor de la pieza 20: lleno = lo que se liquida, muesca = el dinero que hay), la frase, el
+   botón y la lista de menor a mayor con su estado DICHO («Alcanza», «En la lista»,
+   «Pendiente») además de pintado: el aro verde y el rayado no son la única señal. */
+.ct-com-nota{margin:0 0 var(--e3)}
+.ct-com-campo{max-width:260px}
+.ct-com-campo input{font-variant-numeric:tabular-nums}
+.ct-com-med{margin-top:var(--e3)}
+.ct-com-res{margin:0 0 var(--e3);font-size:var(--t2);line-height:1.45;color:var(--tinta2);font-weight:600}
+.ct-com-res b{display:block;color:var(--tinta);font:700 var(--t3)/1.3 var(--f-cifra)}
+.nw{white-space:nowrap}
+.ct-com-pagar{margin-bottom:var(--e3)}
+.ct-com-pagar:disabled{cursor:default}
+.ct-com-lista{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.ct-com-fila{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:var(--e3);align-items:center;
+  padding:10px 12px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup)}
+.ct-com-fila.alcanza,.ct-com-fila.lista{border-color:var(--ok-borde);background:var(--ok-bg)}
+.ct-com-nom{font-weight:700;font-size:var(--t2);min-width:0;overflow-wrap:anywhere}
+.ct-com-nom small{display:block;font-weight:600;font-size:var(--t1);color:var(--tinta2)}
+.ct-com-fila.alcanza .ct-com-nom small,.ct-com-fila.lista .ct-com-nom small{color:var(--ok)}
+.ct-com-monto{text-align:right;font:700 var(--t2)/1.2 var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta)}
+.ct-com-monto small{display:block;font:600 var(--t1)/1.3 var(--f-texto);color:var(--tinta2);margin-top:2px}
+/* El aro: punteado si todavía no, verde y lleno si alcanza, y con su palomita si ya está en la lista. */
+.ct-com-ck{width:26px;height:26px;border-radius:50%;border:2px dashed var(--n3);display:grid;place-items:center;box-sizing:border-box}
+.ct-com-fila.alcanza .ct-com-ck{border:2px solid var(--ok-fill)}
+.ct-com-fila.lista .ct-com-ck{border:0}
+.ct-com-ck .palomita{width:26px;height:26px}
+/* La lista armada: el texto que se copia, tal cual, en una caja que se puede recorrer. */
+.ct-com-armada{margin:0 0 var(--e3);padding:var(--e3);border:1px solid var(--a-borde);border-radius:var(--rr3);background:var(--sup2)}
+.ct-com-texto{margin:var(--e2) 0;max-height:220px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;
+  font:500 var(--t2)/1.5 var(--f-texto);color:var(--tinta);padding:var(--e2);border-radius:var(--rr2);background:var(--sup);border:1px solid var(--linea)}
+.ct-com-texto:focus-visible{outline:2px solid var(--a-tx);outline-offset:2px}
+.ct-com-acc{display:flex;flex-wrap:wrap;gap:var(--e2);align-items:center;margin-bottom:var(--e2)}
+@media(max-width:560px){
+  .ct-com-fila{grid-template-columns:26px minmax(0,1fr);}
+  .ct-com-fila .ct-com-monto{grid-column:2;text-align:left}
+  .ct-com-monto small{display:inline;margin-left:6px}
+}
+
+
 /* ── fin de pf-control ── */
 
 /* ── Plataforma · Fabricación y calendario ── */
@@ -3077,7 +3174,10 @@ body.pf-cliente .pf-cuenta.dinero{transition:none}
 
 /* ── fin de rm · pf-proyectos ── */
 /* ── rm · pf-control ── */
-
+/* La barra de doce meses no se esconde para crecer, y el botón de un mes no se hunde. */
+.ct-grafica.espera .ct-b{transform:none}
+button.ct-mes-ver{transition:none}
+button.ct-mes-ver:active{transform:none}
 /* ── fin de rm · pf-control ── */
 /* ── rm · pf-fabricacion ── */
 
