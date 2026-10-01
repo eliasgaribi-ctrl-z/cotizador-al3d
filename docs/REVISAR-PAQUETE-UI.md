@@ -1,9 +1,32 @@
-# Qué revisar — lista para la auditoría
+# Qué revisar del paquete de UI — lista para la auditoría
 
-Cada zona del paquete de UI entrega aquí lo que dejó a medias, lo que no alcanzó a probar y los
-supuestos que tomó. **La auditoría mira esta lista, no las ~50,000 líneas del paquete.** No hubo
-revisor aparte por zona: fue el acuerdo para no agotar el límite semanal.
-El arrastre HTML5 con ratón real no se pudo ejercitar: en este arnés ni el código original completa un drag nativo (se comprobó contra una copia del commit base). Solo están probados el drop por eventos sintéticos (cotizador-flujo.mjs, sigue verde) y que draggable se arma en pointerdown con el ratón y se desarma al soltar. Cambio de comportamiento: antes toda la partida era arrastrable, incluso desde un campo de texto; ahora presionar sobre input/textarea/select/etiqueta arrastrable no la arma. Firefox/Safari sin probar.
+El paquete «Ideas de UI para todo el repo AL3D» (brief v3, septiembre de 2026) se implementó
+entero: las 26 piezas compartidas de `js/piezas.js`, las 19 zonas de pantalla con sus 153 fichas,
+las seis fallas que el propio brief encontró y las seis funciones nuevas.
+
+**Se construyó sin un revisor por zona**, para no agotar el límite de uso semanal. A cambio, cada
+zona entregó por escrito lo que dejó a medias, lo que no alcanzó a probar y los supuestos que tomó.
+Eso es esta lista. **La auditoría mira esto, no las ~72,000 líneas del paquete.**
+
+Lo que casi todas repiten, y conviene leer una sola vez: **nada se probó en un teléfono real.** Los
+gestos (pellizco, arrastre, mantener presionado, deslizar) se ejercitaron con toques sintéticos de
+Chromium, a 360 y 420 px, en claro y oscuro, con y sin movimiento reducido. Un Android de gama
+media y un iPhone de verdad siguen pendientes, y es donde más probable es que algo se sienta mal.
+
+Cada punto trae su gravedad —alta, media o baja— puesta por quien lo escribió.
+
+## Cotizador · partidas y completitud (cot-partidas)
+
+Fichas: 9 hecho, 2 parcial.
+
+- **[alta]** `js/cotizador/partidas.js · repintarConViaje(), togglePartida(), delItem(), css/sistema.css .pcab (sticky + backdrop-filter)`  
+  El viaje de View Transitions no se midió en un Android de gama media, que es lo que pedía el Cuidado de C1 (.pcab es sticky con backdrop-filter y se fotografía junto con hasta 40 partidas nombradas). Solo se probó en Chromium de escritorio emulando 360/420 px. Si se siente pesado, lo primero a bajar es el tope de nombres o saltar el viaje con más de N partidas.
+
+- **[media]** `js/cotizador/partidas.js · _movBajar/_movArmar/_movPoner/_movSoltar (reordenar con el dedo)`  
+  El gesto se probó con eventos táctiles por CDP en Chromium, no con un dedo en un teléfono. Sin verificar: iOS Safari (long-press, selección, touch-action:none solo en el número), el autoscroll en bordes, y arrastrar una partida ABIERTA de ~1300 px (no se colapsa durante el arrastre; en la práctica conviene plegar antes). Con menos movimiento las vecinas se apartan sin transición.
+
+- **[media]** `js/cotizador/partidas.js · _ratonArma() y el bloque dragstart/drop de renderItems()`  
+  El arrastre HTML5 con ratón real no se pudo ejercitar: en este arnés ni el código original completa un drag nativo (se comprobó contra una copia del commit base). Solo están probados el drop por eventos sintéticos (cotizador-flujo.mjs, sigue verde) y que draggable se arma en pointerdown con el ratón y se desarma al soltar. Cambio de comportamiento: antes toda la partida era arrastrable, incluso desde un campo de texto; ahora presionar sobre input/textarea/select/etiqueta arrastrable no la arma. Firefox/Safari sin probar.
 
 - **[media]** `js/cotizador/partidas.js · renderItems() (.pmover-par dentro de .pline) y css/sistema.css .partida.folded .pline{display:none}`  
   Los botones visibles ↑/↓ de C15 viven en la línea de la fórmula, que CSS oculta con la partida plegada. Plegada, la alternativa sin gesto son solo las flechas del teclado sobre el número (un lector de pantalla en modo navegación puede no mandar flechas a un botón). Habría que decidir si los ↑/↓ merecen un sitio que se vea también plegada.
@@ -587,3 +610,87 @@ Fichas: 1 hecho.
 
 - **[baja]** `pendiente-ui/fichas/cot-opciones.md`  
   El archivo de fichas que la tarea manda leer NO existe en el worktree (solo hay cot-partidas, cot-precio, etc.). Se trabajó con el texto de la tarea, el brief §2d fila 76 y la muestra muestras-7-piezas-67-76.html (pieza 76); no se leyó ninguna ficha C* aparte de cot-partidas.md.
+
+## Cotizador · Cotizar con IA (cot-ia)
+
+Fichas: 5 hecho.
+
+> Esta zona se construyó **antes** de que existiera el campo `revisar`, así que lo de abajo
+> sale de lo que dejó escrito para el integrador y de las fichas que no quedaron «hecho».
+
+- **[baja]** `lo que le faltó a una pieza compartida`  
+  Nada bloqueante. Rodeé estas cosas. (a) P.silueta('miniatura') trae el brillo de una sola pasada y H7 pide una banda que se repite mientras hay análisis y un velo de error con Reintentar, así que la ficha vive en `.ia-marco`, propio de la zona. (b) P.trazaHTML/traza no quitan del detalle el nombre del proveedor que ya va en el renglón: lo hago en ia.js con aiSinNombre(). (c) Piezas.trabajando pone el motivo entero en el botón cuando falla; con un motivo largo sale cortado y se come «Reintentar». Paso `mal:'No se pudo'` y el motivo va en el velo. Podría ser un límite de la pieza 14: `mal` como función que devuelva una frase corta. (d) El difuminado de importes en borrador y el toque sostenido no son una pieza: reuso la clase `lt` de nucleo.js, que ya entra en _SEL_PRECIO. Una pieza compartida «importe tapado» evitaría depender de ese nombre.
+
+- **[baja]** `nota para el integrador`  
+  1) Conteos de publicacion.mjs que se movieron (no los toqué): pruebas de navegador 24→25 (cot-ia.mjs) y pruebas de node 34→35 (cot-ia-logica.mjs). Los manejadores en línea de cotizador.html siguen en 144. 2) Puse el marcado nuevo del modal en cotizador.html (.ia-marco, .ai-carpeta, .ai-drop-tx, #ai-merge-lista, #ai-traza, #ai-resumen) sin manejadores en línea. Al integrar puede borrar `ondragover` y `ondragleave` de #vt-canvas-area y #sp-canvas-area: mi CSS los neutraliza, y con ellos fuera el arrastre de texto ya no enciende nada. 3) css/vidrio.css: el latido de `.ai-drop .ico` se fue también en el anidador, que usa la misma clase. Es la misma falla 3. 4) Los avisos que salían por toast al terminar el análisis (medida sin partida, «lo resolvió Gemini», «la IA leyó el cliente…») ahora los da el resumen dentro del modal. Sigue el toast de applyAi («N partidas tuyas + M de la IA»). 5) pendiente-ui/avance-fase2/cot-ia.patch: lo apliqué con `git apply --3way` (aplicó limpio) y lo revisé hunk por hunk. Lo que ya tenía y se quedó: CSS base, carpeta, marco y velo, la traza, el resumen y su prueba de navegador (que pasaba entera). Lo corregí: el velo escondía la pieza 14, el motivo largo comía «Reintentar», los importes salían en claro, el aviso de «Conservar» quedaba obsoleto, «Analizar» seguía con relleno junto a «Ver partidas», «Ver partidas» pisaba el scroll, «Usar» repintaba todo y el recuadro se encogía. El parche queda obsoleto: no lo aplique de nuevo. 6) Fase 4: subir APP_VERSION en sw.js. Docs: el modal ya no se cierra solo y hay un resumen. `_aiCubiertas` y `medidasCubiertas` se quedan porque reglas-de-partida.mjs las fija. 7) Commit: 249475b, sobre 682912e, con el pie de CONVENCIONES.md (Claude Opus 5), sin push. Solo toqué mis archivos: js/cotizador/ia.js, cotizador.html (modal de IA), css/sistema.css (solo cot-ia y rm · cot-ia), css/vidrio.css (solo `.ai-drop .ico`) y dos pruebas nuevas.
+
+## Cotizador · escalador y el letrero sobre la fachada
+
+Fichas: 9 hecho.
+
+> Esta zona se construyó **antes** de que existiera el campo `revisar`, así que lo de abajo
+> sale de lo que dejó escrito para el integrador y de las fichas que no quedaron «hecho».
+
+- **[baja]** `lo que le faltó a una pieza compartida`  
+  1) listaViva.mostrar() no descuenta una barra sticky (el pie .sp-actions del teléfono tapa la fila): se rodeó con scLlevarAVista. 2) arrastrarMedida arranca en el mínimo con el campo vacío y su paso por omisión es el step del input: se rodeó con paso:1 y una siembra condicional de 200 en pointerdown. 3) opcionesDeslizantes.alCambiar no dice si el cambio vino de puntero o de teclado: se rodeó con una captura de click con e.detail>0 para mover el foco solo con toque. 4) Piezas.letrero.fijar() no compara antes de tocar y medir: se evita llamarla si la firma no cambió. 5) cambiarRotulo deja los dos textos en la misma celda durante el cruce: se reajusta el lienzo a los 260 ms. 6) La traza usa tokens de superficie clara: se forzó blanco dentro de la tarjeta oscura del overlay. 7) filasDeslizables.pista() solo asoma el primer renglón. 8) El sprite de iconos no trae puerta, persona, ventana, auto ni loseta, por eso H30 va sin iconos. 9) bordesDesvanecidos sobre .sp-side apagaría el pie sticky en el teléfono, por eso H26 #10 solo actúa en escritorio.
+
+- **[baja]** `nota para el integrador`  
+  Archivos tocados: js/cotizador/escalador.js, cotizador.html (solo el modal #scalermodal), css/sistema.css (bloques cot-escalador y rm · cot-escalador; se eliminaron 3 reglas muertas de .ref-known button), pruebas/cot-escalador.mjs y pruebas/navegador/cot-escalador.mjs (nuevos). No se tocó piezas.js, sw.js, README, docs ni publicacion.mjs, ni el parche pendiente-ui/avance-fase2/cot-escalador.patch, que queda aplicado y superado por este commit. Falta corregir los números en los documentos: manejadores en línea 161 a 156, onclick 116 a 111 (oninput sigue en 19), pruebas de node 34 a 35, pruebas de navegador 24 a 25. El comentario de notario.js «En tres momentos y en ninguno más» sobre vibrar() quedó obsoleto: la ficha H5 añade una vibración al pegarse la lupa. Las funciones 32 y 37 y la pieza 26 necesitan su fila en la documentación de funciones y de piezas. La decisión 4 (puerta de 200 cm en una sola constante) está cumplida con SC_REF_PUERTA_CM. El commit termina con las dos líneas de trailer exactas de pendiente-ui/CONVENCIONES.md (Claude Opus 5 + Claude-Session), que son la regla del repo. El recordatorio del arnés pedía otro nombre de modelo en el trailer, pero esa regla dice que no se cambie, así que la seguí. Sin push.
+
+## Páginas públicas y PWA (verificar, acerca, legales, sin señal)
+
+Fichas: 11 hecho.
+
+> Esta zona se construyó **antes** de que existiera el campo `revisar`, así que lo de abajo
+> sale de lo que dejó escrito para el integrador y de las fichas que no quedaron «hecho».
+
+- **[baja]** `lo que le faltó a una pieza compartida`  
+  Ninguna faltó de verdad; solo cosas rodeadas en mi zona: (a) Piezas.senalar/pliegues no aplican a las páginas de texto, que no cargan js/piezas.js (script-src 'self' sin guiones propios), así que el índice usa el CSS de .pliegue/.pliegue-flecha de sistema.css sin P.plegables ni P.abrirSinAnimar, y el «índice que sigue al scroll» se hizo con scroll-target-group/:target-current en vez del IntersectionObserver de la muestra 83. (b) P.cargaLogo.terminar() solo junta las manchas; el paso al glifo del veredicto (A2 después de A23) lo secuencié en verificar.html con un relevo de 420 ms (sin espera con menos movimiento). (c) P.casillasCodigo.alCompletar solo dispara al teclear/pegar, no con fijar(), así que la consulta automática al completar los doce depende de que ya esté el folio; si falta, no consulta y el botón Verificar dice qué falta. (d) La página de sin señal del service worker no puede cargar piezas.js (caché vacía): el «encendido» del logo (pieza 7, modo logo) se reimplementó en unas líneas de CSS y JS en línea dentro de sw.js.
+
+- **[baja]** `nota para el integrador`  
+  1) Avance guardado: pendiente-ui/avance-fase2/publicas.patch aplicó limpio con git apply --3way; lo revisé hunk por hunk y lo conservé casi entero (HTML, CSS, sw.js, .gs, dos pruebas de node), corrigiendo: grid del índice que encimaba hijos (se reestructuró con un envoltorio), renglones del índice con doble numeración, reglas rm del neón que no ganaban a las de sistema.css, colores de la página sin señal que no llegaban a 4.5:1 de noche, HTML de sin señal servido también a guiones e imágenes, aserción de APP_VERSION en la prueba de sw (se rompería al subirla; ya no compara), link de Carto, contraste de dt, sello sin su línea de aviso, y la tarjeta que seguía verde con un «No coincide». El patch puede borrarse con pendiente-ui/. 2) Nota de atribución: los commits llevan las dos líneas de CONVENCIONES.md (Claude Opus 5 + Claude-Session), como el resto del historial de la rama; el recordatorio del arnés pedía Sonnet 5.5 y quien integre puede reescribirlas si prefiere esa. 3) Decisión de la ficha A14 (sin opacity) y el mailto fijo a eliasgaribi@gmail.com: falta confirmar con Elías. 4) Lo que le toca a otro: cot-entrega debe imprimir el folio completo en el PDF (falla 1, lado del papel); el formulario y la hoja ya aceptan tanto el corto como el largo. Al desplegar, el Apps Script (puente/hoja-apps-script.gs) tiene que volver a publicarse para que /verificar acepte el folio corto. 5) Al subir APP_VERSION en sw.js, css/publico.css y las páginas ya están en APP_FILES (no hay archivos nuevos que agregar). 6) docs: verificar.html y acerca.html/condiciones/privacidad cambiaron de descripción; vale una línea en docs sobre :target-current/animation-timeline como mejora progresiva (sin soporte el índice queda quieto y el filete de siempre). 7) Dos hallazgos fuera de mi zona: page.fill('') sobre las casillas (pieza 19) no vacía un campo que no tenía el foco, porque la pieza deja el cursor al final en cada focus; a una persona no le afecta (selecciona y borra), a una prueba sí, y se rodeó en la prueba con Ctrl+A y Retroceso. Además el pliegue de A14 no anima el ancho del hueco de la palomita a propósito (solo transform/opacity).
+
+## Cotizador · entrega (PDF, WhatsApp) y registrar venta
+
+Fichas: 7 hecho, 1 ya estaba.
+
+> Esta zona se construyó **antes** de que existiera el campo `revisar`, así que lo de abajo
+> sale de lo que dejó escrito para el integrador y de las fichas que no quedaron «hecho».
+
+- **[baja]** `lo que le faltó a una pieza compartida`  
+  1) Riel (pieza 16): rielHTML() no tiene manera de decir «este paso acaba de pasar a hecho» en un riel recién pintado, y fijar() solo anima en su sitio. Como el panel se repinta con innerHTML, rodeé en entrega.js con animarHitoDelRiel(): devuelve un cuadro el estado anterior, con transiciones apagadas, y suelta. Una opción {recien: clave} en rielHTML lo haría sin truco. 2) Opciones deslizantes (pieza 18): el mínimo de 150 px de .glide deja las cinco cuentas de una en una a 360 px; lo cambié en mi bloque de CSS a 128 px. Convendría una variable --glide-min. 3) Vistazo (pieza 4): el declarativo (data-vistazo + vistazoHTML) deja el texto congelado en el último repintado. Para un texto que debe ser el de ahora usé P.vistazo(contenedor, {delegar, contenido}); anotarlo en la API. 4) Nada de esto me obligó a copiar una pieza ni a editar js/piezas.js.
+
+- **[baja]** `nota para el integrador`  
+  1) Conteos: pruebas/publicacion.mjs falla solo en dos y son de este cambio: pruebas de navegador 25 (README dice 24) y de node 35 (README dice 34). Los manejadores en línea de cotizador.html siguen en 161 y APP_FILES en 87; no toqué sw.js. 2) Commit: la guía pide terminar con «Co-Authored-By: Claude Opus 5», y las instrucciones de esta sesión dicen «Claude Sonnet 5.5». Usé las de la sesión, que son las del modelo real, así que si quieres el trailer de la guía hay que reescribirlo. 3) Duda de negocio (C4): la tabla es la de la hoja (solo Elias BBVA sin factura), como manda la decisión 7. La ficha dice que las instrucciones del proyecto afirman que Rul HSBC tampoco lleva IVA. Si Elías lo confirma hay que cambiarlo en la hoja (CUENTA_SIN_FACTURA / ivaDeCuenta) y en venta.js, y pruebas/cot-entrega.mjs lo vigila contra el .gs. 4) El documento del PDF ahora lleva un <script> en el <head> y minimum-scale=1 en su viewport (los tres motivos están comentados en entrega.js). 5) El modal de Registrar venta es .rv-modal-bg, no .modal-bg, así que la pieza 13 (bajar la hoja con el dedo) no lo cubre: no era de mi zona. 6) `git add -A` incluyó el parche pendiente-ui/avance-fase2/cot-entrega.patch sin cambios; la carpeta se borra al cerrar el paquete. 7) Documentación pendiente para ti: la zona cambió cómo se enseña el folio en el PDF, la barra del visor y el orden de las cuentas. El texto de «Ver mensaje» se arma al abrir. Al abrir el modal, la cuenta ya no se hereda de la apertura anterior. Con el teléfono inválido el hito wa no se marca a propósito.
+
+## Plataforma · Proyectos, ficha, modo cliente y garantía
+
+Fichas: 12 hecho, 1 ya estaba.
+
+> Esta zona se construyó **antes** de que existiera el campo `revisar`, así que lo de abajo
+> sale de lo que dejó escrito para el integrador y de las fichas que no quedaron «hecho».
+
+- **[baja]** `lo que le faltó a una pieza compartida`  
+  1) Piezas.paginas().ir(i) no acepta salto sin animación, así que para reponer la página tras un repintado asigno scrollLeft de la tira directamente. 2) P.riel con enOrden dice «Sigue: (el paso actual)» y no el siguiente, así que no lo usé y hice mi propio tocarPaso(). 3) alCambiar de P.paginas se dispara al crearse con la página 0 y en cada página intermedia de un salto programático; lo rodeé con una bandera de arranque y con _yendoA. 4) La pieza 5 (mantener) sobre el botón compartido #pf-confirma-si necesita soltarse a mano al terminar la pregunta porque confirmarPf reescribe su rótulo; lo resuelve conMantenerPresionado(). 5) Piezas.palomita no cubre un botón de segmento (.tipo-seg), por eso el estatus no lleva palomita y solo el chip de cuenta.
+
+- **[baja]** `nota para el integrador`  
+  1) Conteos: pruebas/publicacion.mjs dice 25 de navegador y 35 de node y el README 24 y 34 (subió uno de cada, pf-proyectos.mjs y pf-proyectos-garantia.mjs); no los toqué. 2) El avance pendiente-ui/avance-fase2/pf-proyectos.patch queda sin borrar; ya está todo integrado. 3) Trailer: usé el de CONVENCIONES.md (Claude Opus 5) porque la guía dice «exactas» y es lo que llevan todos los commits, aunque el recordatorio del arnés pedía otro; cámbialo al fusionar si quieres. 4) El modo cliente lo enciende el interruptor de Proyectos y persiste al cambiar de pantalla, pero el Tablero no tiene interruptor: si se enciende y se va al Tablero solo se apaga volviendo a Proyectos (zona de pf-tablero o de pf-esqueleto si quieren otro). 5) Cambié reglas existentes de plataforma.css: .pj-lista-movil pasó a :not(.paginas) y agregué el estatus de la hoja en dos columnas en el teléfono. 6) REMONTE_MS de 4 s en montar() distingue remonte de la sincronización de entrar; si app.js pasa un indicador de remonte a ctx, se puede sustituir. 7) Desde el commit 1c3f391 la hoja sube sola por sistema.css; no hace falta CSS de esta zona para P10. 8) Las pruebas seedean como Dirección y luego cambian el rol (fabricación no puede instalar, pagos no puede ganar).
+
+## Plataforma · esqueleto, navegación, arranque y puerta
+
+Fichas: 12 hecho, 2 parcial.
+
+> Esta zona se construyó **antes** de que existiera el campo `revisar`, así que lo de abajo
+> sale de lo que dejó escrito para el integrador y de las fichas que no quedaron «hecho».
+
+- **[media]** `ficha P5` (parcial)  
+  Barra de abajo del teléfono con cinco botones y el quinto es «Más», que abre una hoja con el resto de las rutas del rol (`repartirBarra`, tope 5). Se pinta una sola vez (mismos nodos). En RUTAS solo hoy, agenda, proyectos y cotizador llevan `movil`. Falta el gesto de subir la barra para abrir «Más»: no lo hice, se abre con toque, con el atrás cerrándola y con Escape.
+
+- **[media]** `ficha A18` (parcial)  
+  El botón de instalar en iPhone/iPad abre una hoja con dos pasos dibujados (Compartir y Agregar a inicio) con `rielHTML`, con la flecha hacia la barra de Safari solo en iPhone y la nota que corresponde a cada aparato. Con cinco botones en el encabezado el título sigue entero a 360 px. Faltan las capturas `screenshots` del manifest y el atajo «Mesa de corte»: son de manifest.json, fuera de mi zona.
+
+- **[baja]** `lo que le faltó a una pieza compartida`  
+  1) `P.nombres` (variante 4): el globo solo sale arriba o abajo; en la barra lateral, que es vertical, cae sobre el ítem anterior. No lo rodeé, queda como límite. 2) `P.transicion` escribe `html[data-va]`, así que no pude colgar de ahí el deslizamiento de la pantalla: usé mis propias clases `va-adelante`/`va-atras`, que se quitan al terminar la entrada. 3) No hay pieza que compense el scroll cuando algo crece arriba de lo que se lee: `moverBanda` en js/app.js es código propio (scroll absoluto tras forzar la maquetación, inmune a Chrome scroll anchoring); si otra zona necesita lo mismo, conviene subirlo a piezas.js. 4) `P.vistazo` no trae navegación de flechas de `role=menu`: el menú de la cuenta es un popover con rol dialog y dos botones, no un menú. 5) El gesto de subir la barra de abajo para abrir «Más» no existe en `hojasDeslizables`, así que no lo implementé.
+
+- **[baja]** `nota para el integrador`  
+  1) Parche guardado: `pendiente-ui/avance-fase2/pf-esqueleto.patch` lo apliqué al empezar con `git apply --index` (el índice quedó idéntico al parche) y lo verifiqué y terminé encima; alrededor del 75 % de sus líneas sobreviven tal cual. El commit incluye parche y trabajo. No toqué el archivo del parche ni su fila en `pendiente-ui/ESTADO.md` (no son de mi zona): al fusionar se pueden retirar. 2) Trailer: CONVENCIONES.md decía «Opus 5», usé el del recordatorio del sistema: `Co-Authored-By: Claude Sonnet 5.5` y el `Claude-Session`. 3) APP_VERSION de sw.js NO lo subí (no es mío): cambiaron index.html, js/app.js, js/nucleo/*.js y css/plataforma.css, así que hay que subirlo al publicar. 4) Para los módulos: `ctx.esRemonte()` dice si el montaje es un remonte en silencio (evento storage) y `olvidarCifras()` se llama al entrar a cada pantalla; los módulos con `rodarCifra` deben usar su `clave`. 5) En RUTAS solo hoy, agenda, proyectos y cotizador llevan `movil`; Mapa y demás viven en «Más». 6) Las clases `va-adelante`/`va-atras` de css/sistema.css ya existían para el cotizador (atadas a ids que index.html no tiene): las de `.pf-mod` no chocan. 7) El aviso de los 8 s del arranque queda pegado (sticky) encima de la barra y tapa la traza de pasos: es a propósito, porque el aviso ya nombra el paso. 8) La prueba de navegador pf-esqueleto tarda unos 390 s; con `SOLO=360-claro-n` (o `360-oscuro-r`, etc.) corre una sola ronda. 9) Límites conocidos: a 320 px con cinco botones en el encabezado (iPhone sin instalar) se cortan títulos largos; el manifest (screenshots y atajo «Mesa de corte») queda fuera de zona.

@@ -194,6 +194,10 @@ El respaldo no lleva llaves de IA porque ya no hay ninguna en el teléfono: vive
     css/vidrio.css            la capa de vidrio, y va LA ÚLTIMA de las tres páginas: repinta
                               las dos familias y el cromado. Si se quita, la app vuelve a como estaba
     js/tema.js                claro, oscuro o el del sistema; corre antes del primer pintado
+    js/piezas.js              las piezas compartidas de la interfaz, una sola vez para las cuatro
+                              superficies: el aviso con mecha y pila, el botón que dice que está
+                              trabajando, el total que rueda, el riel de pasos, las esquinas que
+                              señalan, el letrero 3D… (docs/SISTEMA-DE-DISENO.md §6.7)
     js/cotizador/             el cotizador, por dominio y en el orden en que se carga:
       catalogo.js               precios — lo único que se edita a mano cuando sube el aluminio
       nucleo.js                 estado, modales, preferencias, clientes conocidos, cálculo

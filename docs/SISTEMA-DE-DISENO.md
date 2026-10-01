@@ -1499,6 +1499,64 @@ abrirScaler();
 
 ---
 
+### 6.7 `js/piezas.js` — las piezas compartidas, y por qué hay un archivo más
+
+Hasta octubre de 2026 había **dos** de cada cosa: dos `toast()`, dos `copiarTexto()`, dos hojas que
+se bajan con el dedo —una en `js/cotizador/nucleo.js` y otra en `js/nucleo/ui.js`—, y cada arreglo
+había que hacerlo dos veces. La segunda se olvidaba, y así es como las dos apps empezaron a
+sentirse distintas. `js/piezas.js` es la respuesta: **una sola implementación por patrón**, que
+cargan las cuatro superficies (cotizador, plataforma, anidador y `verificar.html`).
+
+Es un guion **clásico**, no un módulo, y eso es a propósito: el cotizador son guiones clásicos que
+comparten el ámbito global y llama a `toast()` mientras carga, y un módulo llega diferido. Todo
+cuelga de `window.Piezas`; la plataforma lo pide por ese nombre y `js/nucleo/ui.js` lo envuelve
+donde tiene que conservar su firma de siempre. Las dos `toast()` y las dos `copiarTexto()` siguen
+existiendo con la misma firma —nadie tuvo que cambiar sus 300 llamadas— y por dentro delegan.
+
+**No sabe de la app.** Nada que dependa de `Q`, de las partidas, de un proyecto o de la hoja vive
+aquí: esto solo sabe de pantalla. Por eso se puede cargar en node sin `window` (las pruebas lo
+comprueban) y por eso una pieza se puede usar igual en el cotizador que en el anidador.
+
+**Sin manejadores en línea.** La política de contenido de `index.html` no permite guiones en línea,
+así que todo se cuelga con `addEventListener`. El cotizador sí los usa en su marcado, pero la pieza
+no puede.
+
+Las cuatro secciones del archivo, cada una con su bloque de CSS en `css/sistema.css` («Piezas · N»)
+y su apagado en el bloque de movimiento reducido del cierre de la capa 8:
+
+| Sección | Qué trae |
+|---|---|
+| 1 · Avisos y botones | `aviso` (mecha, pausa, deslizar y **pila con prioridad**: un error nunca cede su lugar a un informativo), `trabajando` (reloj, relleno, ✓ o «Reintentar»), `deshacerEnBoton`, `cambiarRotulo` y `rotuloTemporal` (el rótulo cambia sin que brinque el ancho), `mantener` (sostener para confirmar), `palomita`, `marcaEstado` y `sello`, `copiar` |
+| 2 · Hojas y transiciones | `hojaSeCierra` (la hoja del teléfono, una sola para las dos apps), `transicion` y `flip` (la tarjeta que viaja, con View Transitions o FLIP), `temaEnCirculo`, `bordesDesvanecidos`, `desenfoqueProgresivo`, `filasDeslizables`, `listaViva` (entra lo nuevo, sale lo quitado), `plegar`, `paginas`, `silueta` |
+| 3 · Números y campos | `rodarCifra` (el odómetro), `diferenciaViva`, `fichaQueViaja`, `arrastrarMedida`, `opcionesDeslizantes`, `casillasCodigo`, `telefonoVivo`, `medidorHTML`, `deslizadorConImanes` |
+| 4 · Señalar y sellar | `vistazo` y `porqueHTML` (popover nativo), `nombres` (el icono dice su nombre con el dedo), `encenderNeon`, `traza` (los pasos de lo que está pasando), `riel`, `senalar` (las esquinas), `cargaLogo`, `letrero` (el letrero 3D), `resaltar` y `fichas` |
+
+**Tres reglas que valen para todas**, y que son las del sistema de diseño llevadas a la pieza:
+
+1. **Nada se mueve solo.** Se mueve porque alguien tocó algo, o es un momento breve que se apaga.
+   La única excepción sigue siendo el botón de «Cotizar con IA» (§2.17).
+2. **Menos movimiento apaga el adorno, no la información.** Una mecha o un relleno de avance se
+   quedan, quietos o en un fundido; el aviso con «Deshacer» sigue diciendo sus segundos en texto.
+3. **Idempotentes y desmontables.** Llamar una dos veces sobre el mismo elemento no duplica
+   oyentes, y lo que arma se puede quitar: las pantallas se repintan con `innerHTML` todo el tiempo.
+
+**Cómo se usa desde una pantalla.** Las que pintan con `innerHTML` piden el marcado y después
+cablean; las que ya tienen el nodo, solo cablean:
+
+```js
+// La pantalla arma su HTML y después engancha la pieza (riel, casillas, medidor, vistazo…)
+cont.innerHTML = Piezas.rielHTML(pasos, { modo: 'h' });
+Piezas.riel(cont, { alTocar: n => irAPaso(n) });
+
+// Y las que trabajan sobre un nodo que ya existe
+Piezas.rodarCifra('#s-neto', total, { clave: 'neto' });   // rueda solo si la cifra cambió
+Piezas.trabajando('#a-autorizar', { verbo: 'Sellando' }); // devuelve {ok(), mal(), quitar()}
+```
+
+Cada pieza devuelve algo controlable (`{ fijar(), quitar() }`, una promesa, o un objeto con sus
+acciones), nunca deja basura en el DOM y respeta el foco: el repintado en sitio
+(`repintarEnSitio`, `conservandoFoco`) sigue siendo la regla de §6.6.
+
 ## 7. El tono del proyecto
 
 ### 7.1 Cómo se escriben los comentarios
