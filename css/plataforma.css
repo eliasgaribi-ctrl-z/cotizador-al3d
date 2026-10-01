@@ -1080,14 +1080,18 @@ html[data-nav="teclado"] .pf-mod{animation:none}
 .tal-pista{display:flex;align-items:center;gap:var(--e2);margin-top:6px;
   font-weight:500;font-size:var(--t1);line-height:1;color:var(--muted);white-space:nowrap}
 .tal-fecha{flex-shrink:0;font-variant-numeric:tabular-nums}
-.tal-riel{position:relative;flex:1;min-width:40px;height:6px;border-radius:999px;
+/* El riel ya no es una barra con un punto: es la pieza 16 en su forma «marcas» (F5), con una marca
+   por hito y una raya en «hoy». Lo que era el cuerpo del riel (el fondo, el borde, la tinta ámbar
+   de «va tarde» y el punteado de la hipótesis) pasó a su pista, y es lo único que se pinta aquí;
+   las marcas y su raya las dibuja `sistema.css`. El mínimo de 72 px es para que las cuatro marcas
+   de 12 px quepan sin pisarse en un teléfono, donde las dos fechas de los lados ya se llevan lo
+   suyo. */
+.tal-pista>.tal-riel{flex:1;min-width:72px}
+.tal-riel .riel-pista{top:5px;height:6px;border-radius:999px;box-sizing:border-box;
   background:var(--a-suave);border:1px solid var(--a-borde)}
-.tal-riel.tarde{background:var(--av-bg);border-color:var(--av-borde)}
+.tal-riel.tarde .riel-pista{background:var(--av-bg);border-color:var(--av-borde)}
 /* La ventana sin fecha de instalación es una hipótesis, y se ve: punteada. */
-.tal-riel.propuesta{background:none;border-style:dashed;border-color:var(--n4)}
-.tal-hoy{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;
-  background:var(--a);border:2px solid #fff;box-shadow:0 0 0 1px var(--a-borde)}
-.tal-riel.tarde .tal-hoy{background:var(--amber-ico)}
+.tal-riel.propuesta .riel-pista{background:none;border-style:dashed;border-color:var(--n4)}
 
 /* ----- La ficha del plazo, que además es el botón que lo corrige -----
    El plazo sale de una tabla y una tabla se equivoca con el proyecto que la contradice. Si
@@ -3056,6 +3060,84 @@ button.ct-mes-ver[aria-expanded="true"]{background:var(--a-suave)}
 /* ── fin de pf-control ── */
 
 /* ── Plataforma · Fabricación y calendario ── */
+/* Lo que el Calendario y el taller le deben a las piezas compartidas. Las piezas traen su CSS en
+   sistema.css; lo de aquí es dónde se acomodan en ESTA pantalla. Solo `transform` y `opacity` se
+   animan y nada se mueve en reposo (el único bucle infinito del documento sigue siendo el del botón
+   de IA). El riel del taller (F5) y la ficha del plazo del renglón viven más arriba, en `.tal-*`:
+   son reglas que ya existían y se cambiaron donde estaban. */
+
+/* F11 · el lienzo del calendario —rejilla, nota y lista del día— es lo que se arrastra a los lados y
+   lo que viaja al cambiar de mes. `pan-y` deja lo vertical a la página y hace que el navegador no se
+   lleve el gesto horizontal; sin eso, el primer arrastre de lado era un `pointercancel`. La rejilla
+   no se puede seleccionar: son botones, y un arrastre que selecciona texto por debajo es ruido. El
+   texto de la lista del día sí (una dirección se copia). */
+.cal-lienzo{touch-action:pan-y}
+.cal-rej{-webkit-user-select:none;user-select:none}
+
+/* F18 · la lista del día sube corto al abrirla con un toque (`data-recien`; un repintado con el día ya
+   abierto no la lleva). La curva y el desplazamiento son los de `entra`, que ya existía; `backwards`
+   y no `both`, para que no se quede viva con su capa de composición. El margen de desplazamiento
+   aparta de la lista las barras fijas de abajo —el dock de módulos y la barra de acción, que
+   publica su alto en `--mbar-h`—: `scrollIntoView({block:'nearest'})` alinea la lista contra el
+   borde del visor, y sin el margen su último renglón quedaba detrás de ellas. */
+.dia-lista[data-recien]{animation:entra .22s var(--ease-out) backwards}
+.dia-lista{scroll-margin-block:12px}
+@media(max-width:759px){
+  .dia-lista{scroll-margin-bottom:calc(var(--mbar-h,0px) + 96px + env(safe-area-inset-bottom,0px))}
+}
+/* El título recibe el foco al abrir el día; con un toque no se ve anillo, con teclado sí. */
+.dia-t:focus:not(:focus-visible){outline:none}
+
+/* F26 · la ficha de cada día con el ratón es la de la pieza `nombres` (`.nombre-tip`), que es de una
+   línea con puntos suspensivos porque sus nombres son cortos. El de un día es una frase larga
+   —cuántas instalaciones, qué vence, el semáforo—, así que, mientras la ficha es de una celda del
+   calendario, baja de renglón y se acota en vez de cortarse. `:has()` en vez de una clase propia
+   porque la ficha es un solo nodo de toda la página que la pieza no deja marcar; sin `:has()`
+   (navegadores viejos) queda la línea con puntos suspensivos, que sigue diciendo lo principal. */
+body:has(.cal-dia:focus-visible) .nombre-tip{white-space:normal;text-overflow:clip;
+  max-width:min(340px,calc(100vw - 16px));line-height:1.4}
+@media(hover:hover) and (pointer:fine){
+  body:has(.cal-dia:hover) .nombre-tip{white-space:normal;text-overflow:clip;
+    max-width:min(340px,calc(100vw - 16px));line-height:1.4}
+}
+
+/* F29 · la barra de acción sube 12 px con un fundido de 180 ms al aparecer. `@starting-style` vale
+   para un elemento que pasa de `display:none` a visible, que es lo que hace `hidden=false`; en un
+   navegador que no lo conoce la barra aparece de golpe, como hasta hoy. Solo para la barra de
+   ESTA pantalla (`.cal-mbar`, que pone js/mod/fabricacion.js y quita al salir): `.pf-mbar` es de todo
+   el documento. */
+.pf-mbar.cal-mbar{transition:opacity .18s var(--ease-out),transform .18s var(--ease-out)}
+@starting-style{.pf-mbar.cal-mbar{opacity:0;transform:translateY(12px)}}
+
+/* F19 · el riel de tres pasos arriba de la hoja de agendar, y el «‹ Otro proyecto» del paso 2. */
+.pf-pasos{margin:0 0 var(--e4)}
+.pf-pasos .riel-h .riel-t{white-space:nowrap}
+.pf-volver{margin:0 0 var(--e3)}
+
+/* F17 · lo que implica la ventana elegida, debajo de los chips. `.hintnote` es `inline-flex`; aquí
+   ocupa su renglón. La altura la fijan los dos textos del cruce (viven en la misma celda), así que
+   cambiar de ventana no mueve lo de abajo. */
+.hintnote.pf-vent-desc{display:flex;margin:var(--e2) 0 var(--e3)}
+
+/* F24 · la ficha que salta con los chips del plazo: «Entra al taller el lun 8 oct · listo el vie 19
+   oct». Tinta sobre superficie invertida, como la ficha de nombres (claro: marino con blanco;
+   oscuro: al revés), y no recibe el puntero. Va SOBRE el grupo, o debajo si arriba no cabe. Aparece
+   con un fundido y 4 px de subida; el nodo ocupa su sitio aunque no se vea (`visibility`) para poder
+   medirlo. El chip que se prueba lleva su propio filete, salvo el ya elegido. */
+.pf-peek-caja{position:relative;touch-action:pan-y}
+.pf-peek{position:absolute;left:0;bottom:calc(100% + 10px);z-index:2;box-sizing:border-box;width:max-content;
+  max-width:100%;padding:8px 11px;border-radius:var(--rr2);background:var(--tinta);color:var(--sup);
+  box-shadow:var(--sombra);font:600 var(--t1)/1.35 var(--f-texto);pointer-events:none;
+  opacity:0;visibility:hidden;transform:translate(var(--x,0px),4px);
+  transition:opacity .12s var(--ease-out),transform .12s var(--ease-out),visibility 0s .12s}
+.pf-peek.ve{opacity:1;visibility:visible;transform:translate(var(--x,0px),0);transition-delay:0s}
+.pf-peek::after{content:"";position:absolute;top:100%;left:var(--flecha,50%);margin-left:-6px;
+  border:6px solid transparent;border-top-color:var(--tinta)}
+.pf-peek[data-lado="abajo"]{bottom:auto;top:calc(100% + 10px)}
+.pf-peek[data-lado="abajo"]::after{top:auto;bottom:100%;border-top-color:transparent;border-bottom-color:var(--tinta)}
+.pf-peek-t{display:block}
+.pf-peek-s{display:block;margin-top:2px;font-weight:500;font-size:var(--t1)}
+.pf-peek-caja .chip.probando:not([aria-pressed="true"]){border-color:var(--a-borde);background:var(--a-suave)}
 
 /* ── fin de pf-fabricacion ── */
 
@@ -3180,7 +3262,16 @@ button.ct-mes-ver{transition:none}
 button.ct-mes-ver:active{transform:none}
 /* ── fin de rm · pf-control ── */
 /* ── rm · pf-fabricacion ── */
-
+/* Se apaga el ADORNO, no la información. Lo que se queda: el lienzo sigue al dedo mientras se arrastra
+   (es la mano, no un adorno), la barra de acción sigue apareciendo —llegó una acción— pero solo con
+   el fundido, la ficha del plazo sigue saliendo con su fecha y los pasos de agendar siguen
+   diciendo en cuál va uno. Lo que se va: la subida de la lista del día, el viaje de lado del mes
+   nuevo (lo apaga la pieza 22 por su cuenta), el regreso animado del lienzo (en el módulo) y los
+   4 px de subida de la ficha. */
+.dia-lista[data-recien]{animation:none}
+.pf-mbar.cal-mbar{transition-duration:.15s}
+@starting-style{.pf-mbar.cal-mbar{transform:none}}
+.pf-peek,.pf-peek.ve{transform:translate(var(--x,0px),0);transition-duration:.15s}
 /* ── fin de rm · pf-fabricacion ── */
 /* ── rm · pf-material ── */
 /* La barra de acción sigue apareciendo —es información: llegó una acción—, pero sin subir: solo el
