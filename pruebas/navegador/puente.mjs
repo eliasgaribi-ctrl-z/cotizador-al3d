@@ -655,7 +655,22 @@ async function contestarPf(si) {
     const t = document.getElementById('pf-confirma-t'), d = document.getElementById('pf-confirma-d');
     return (t ? t.textContent : '') + '\n\n' + (d ? d.textContent : '');
   });
-  await p.click(si ? '#pf-confirma-si' : '#pf-confirma-no');
+  if (!si) { await p.click('#pf-confirma-no'); return msg; }
+  /* Algunas preguntas piden SOSTENER el botón en vez de tocarlo: hoy solo «Quitar», que borra la
+     tarjeta de este teléfono (ver conMantenerPresionado en js/mod/proyectos.js). Se detecta por la
+     marca que deja la pieza en el botón, en vez de llevar aquí una lista de cuáles son: la lista se
+     desactualiza y el síntoma —«el diálogo no responde»— no se parece a su causa. */
+  const sostener = await p.evaluate(() => {
+    const b = document.getElementById('pf-confirma-si');
+    return !!b && (b.hasAttribute('data-mantener') || b.classList.contains('mantener'));
+  });
+  if (!sostener) { await p.click('#pf-confirma-si'); return msg; }
+  const c = await p.locator('#pf-confirma-si').boundingBox();
+  await p.mouse.move(c.x + c.width / 2, c.y + c.height / 2);
+  await p.mouse.down();
+  await p.waitForTimeout(1600);          // la pieza pide 1200 ms; se le da margen
+  await p.mouse.up();
+  await p.waitForTimeout(300);
   return msg;
 }
 await p.click('#pf-ficha [data-hoja-quitar]');
@@ -787,7 +802,11 @@ const lapFuera = await p.evaluate(async () => {
 /* El filtro de la lista vive en el módulo y sobrevive a la navegación: se regresa a «Todas». */
 await p.evaluate(() => { const b = document.querySelector('#pf-ficha [data-cerrar-ficha]'); if (b) b.click(); });
 await p.waitForTimeout(400);
-await p.click('#pj-filtros [data-etapa="todas"]');
+/* «Todas» ya no existe en el teléfono: desde P28 la tira dejó de ser un filtro y pasó a ser el
+   PASADOR de las páginas —una por etapa—, y un botón que no lleva a ningún lado se quitó a
+   propósito. Lo que esta prueba defiende es que el filtro SOBREVIVE a la navegación, así que se
+   vuelve a la primera etapa, que es el equivalente de «ver desde el principio». */
+await p.evaluate(() => { const b = document.querySelector('#pj-filtros [data-etapa]'); if (b) b.click(); });
 await p.waitForTimeout(400);
 
 /* La venta de aquí en DOS filas de la hoja: las dos traen su folio de cotización (Dirección la
