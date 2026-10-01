@@ -1297,10 +1297,11 @@ button.cal-plazo:active{transform:scale(.97)}
    sugerido, no un trazado por calles. */
 .mapa-ruta-linea{stroke:var(--a);stroke-width:3;stroke-dasharray:7 7;fill:none;opacity:.85}
 
-/* Mientras se pone un pin a mano, el cursor deja de ser la manita de arrastrar el mapa: lo
-   que se va a hacer es apuntar. Va con el id porque vendor/leaflet.css se carga DESPUÉS de
-   esta hoja y su `.leaflet-container{cursor:grab}` le gana a una sola clase. */
-#mapa-lienzo.poniendo .leaflet-container{cursor:crosshair}
+/* Mientras se pone un pin a mano ya NO se cambia el cursor a una mira en cruz (F9): la mira ahora
+   es la retícula fija del centro, y lo que se hace con el ratón y con el dedo es arrastrar el
+   mapa debajo de ella; una cruz de cursor diría «haz clic donde va», que es lo contrario. De
+   paso se va una regla que nunca llegó a aplicarse: el lienzo ES el `.leaflet-container`, y un
+   selector de descendiente no se alcanza a sí mismo. */
 
 /* La barra del modo «pin a mano». Es `.hintnote.nota-av` —el mismo ámbar de «esto que
    estás viendo tiene una condición»— pero lleva dos botones adentro, y `.hintnote` es un
@@ -2349,7 +2350,11 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 .esq-mesa{height:380px}
 /* El del mapa va suelto, sin tarjeta alrededor, y su brillo —de --sup2 a --n2— se confunde
    con el lienzo de la página: con el borde de tarjeta se lee como lo que es, el hueco del mapa. */
-.esq-mapa{height:420px;border:1px solid var(--linea);border-radius:var(--rr3)}
+/* Con el alto del lienzo de verdad (60 dvh, y 45 en el teléfono) y no con 420 px sueltos (F16): la
+   silueta y el mapa que la reemplaza tienen que medir lo mismo, o al llegar el mapa lo de abajo
+   salta justo cuando se empezaba a leer. */
+.esq-mapa{height:60dvh;min-height:320px;border:1px solid var(--linea);border-radius:var(--rr3)}
+@media(max-width:759px){.esq-mapa{height:45dvh;min-height:280px}}
 @media(prefers-reduced-motion:reduce){
   .pf-arranque,.pf-esqueleto{animation:none}
   .pf-progreso.on::before{animation:none;width:100%;transform:none;opacity:.6}
@@ -3209,6 +3214,65 @@ body:has(.cal-dia:focus-visible) .nombre-tip{white-space:normal;text-overflow:cl
 
 /* ── Plataforma · Mapa ── */
 
+/* F9 · La retícula del pin a mano. La forma, el tamaño y el contorno con el color de la superficie
+   son de la pieza (`.reticula`, sistema.css); aquí solo se decide dónde se apila y cómo llega.
+   500 queda por encima de los paneles de Leaflet (400) y por debajo de sus controles (800 y 1000),
+   para que la cruz nunca tape el zoom ni el crédito de OpenStreetMap. Llega con un fundido breve
+   y un asentarse de 1.5 a 1: es un momento, no un bucle. */
+.mapa-reticula{z-index:500;animation:mapa-reticula-entra .2s var(--ease-out)}
+@keyframes mapa-reticula-entra{from{opacity:0;scale:1.5}}
+
+/* F12 · Las paradas del día como tarjetas sobre el mapa. La caja envuelve al lienzo y a la tira para
+   pegar la segunda al borde de abajo de la primera. La tira es del teléfono: en la computadora la
+   ruta ya está en su columna, al lado del mapa, y la lista se queda. Con dos clases y no con una,
+   porque `.paginas{display:grid}` (sistema.css) pesa una, y así esta regla le gana sin depender de
+   qué hoja se lea después. */
+.mapa-caja{position:relative}
+.mapa-caja>.mapa-tira{display:none}
+@media(max-width:759px){
+  /* Con la tira encima, los 45 dvh de antes dejaban poco mapa a la vista: se agranda, y la lista de
+     abajo ya no lo necesita (sus filas se esconden más abajo). */
+  .mapa-caja.con-tira #mapa-lienzo{height:62dvh;min-height:380px}
+  /* `bottom` deja libre el crédito de OpenStreetMap (10 px de letra más su caja, unos 20 px): su
+     licencia exige que se vea, y las pruebas miden que las dos cajas no se toquen. El contenedor de
+     la tira no recibe toques (el mapa de entre tarjeta y tarjeta sigue arrastrándose); las tarjetas
+     sí. El 8 % de cada lado es lo que deja la tarjeta de en medio centrada y asomar las vecinas. */
+  .mapa-caja>.mapa-tira:not([hidden]){display:grid;position:absolute;left:0;right:0;
+    bottom:var(--mapa-cred,26px);z-index:2;padding:0 8%;--pag-ancho:100%;--pag-hueco:10px;
+    pointer-events:none;overflow-y:hidden}
+  /* Las filas de la ruta se esconden mientras la tira dice lo mismo; la nota de la salida supuesta,
+     que está en el mismo recuadro, se queda. `display:none` y no solo a la vista: que el lector de
+     pantalla tampoco lea cada parada dos veces. */
+  #mapa-ruta.con-tira .mapa-ruta-filas{display:none}
+}
+.mapa-parada{display:grid;grid-template-columns:28px minmax(0,1fr);column-gap:var(--e3);row-gap:var(--e2);
+  align-items:center;padding:var(--e3);border:1px solid var(--linea);border-radius:var(--rr3);
+  background:var(--sup);box-shadow:var(--clay);pointer-events:auto;
+  transition:border-color var(--mv-r),transform var(--mv-liq)}
+/* La tarjeta de ahora lleva el borde del acento: forma (grosor) y color a la vez, y la pieza ya
+   marca `.pagina-actual`. */
+.mapa-parada.pagina-actual{border-color:var(--a);box-shadow:0 0 0 1px var(--a),var(--clay)}
+.mapa-parada:active{transform:scale(.98)}
+.mapa-parada-n{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;
+  background:var(--a-fill);color:#fff;font:700 var(--t2)/1 var(--f-cifra)}
+.mapa-parada-tx{display:grid;min-width:0}
+.mapa-parada-t{font-weight:700;font-size:var(--t3);line-height:1.25;color:var(--tinta);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mapa-parada-d{font-size:var(--t2);line-height:1.3;color:var(--tinta2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mapa-parada-ir{grid-column:1 / -1;min-height:44px;text-decoration:none}
+
+/* El nombre de la parada y su hora de la lista de la ruta son dos `<span>` en línea y se leían
+   pegados («…(Letras Luz)A las 9:00 a.m.»). Cada uno en su renglón, que es como los pinta el
+   resto de las listas de la app (sus contenedores los hacen bloque). */
+#mapa-ruta .pf-fila-t,#mapa-ruta .pf-fila-d{display:block}
+
+/* F29 · La barra de acción sube 12 px con un fundido de 180 ms al aparecer. `@starting-style` vale
+   para un elemento que pasa de `display:none` a visible, que es lo que hace `hidden=false`; en un
+   navegador que no lo conoce la barra aparece de golpe, como hasta hoy. Solo para la barra de ESTA
+   pantalla (`.mapa-mbar`, que pone js/mod/mapa.js): `.pf-mbar` es de todo el documento. */
+.pf-mbar.mapa-mbar{transition:opacity .18s var(--ease-out),transform .18s var(--ease-out)}
+@starting-style{.pf-mbar.mapa-mbar{opacity:0;transform:translateY(12px)}}
 /* ── fin de pf-mapa ── */
 
 /* ── Plataforma · Ajustes y asistente ── */
@@ -3281,7 +3345,15 @@ button.ct-mes-ver:active{transform:none}
 @starting-style{.pf-mbar.mat-mbar{transform:none}}
 /* ── fin de rm · pf-material ── */
 /* ── rm · pf-mapa ── */
-
+/* Se apaga el ADORNO, no la información. Lo que se queda: la retícula (es la mira), el borde de la
+   tarjeta de ahora y todo lo que la pieza de las páginas dice con palabras. Lo que se va: la
+   llegada de la retícula, el apretón de la tarjeta, y la barra de acción sigue apareciendo —llegó
+   una acción— pero sin subir: solo el fundido, en 150 ms. El trazo de la ruta, el crecer y encogerse
+   de los pines y la rueda de las cuentas son de JavaScript y se quedan quietos por su cuenta. */
+.mapa-reticula{animation:none}
+.mapa-parada:active{transform:none}
+.pf-mbar.mapa-mbar{transition-duration:.15s}
+@starting-style{.pf-mbar.mapa-mbar{transform:none}}
 /* ── fin de rm · pf-mapa ── */
 /* ── rm · pf-ajustes ── */
 
