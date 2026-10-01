@@ -347,8 +347,6 @@ píxeles** para comprobar que nada de lo que lleva texto baja de 4,5:1 de contra
   listas de compra no tienen todavía pestaña en la hoja a la que ir, así que se quedan en cada
   dispositivo. No se pierden: se apartan en la bandeja con su razón y se reincorporan solos el
   día que existan.
-- **Los modales traen tamaños del sistema viejo.** El escalador, el vectorizador y el historial
-  heredan los tokens nuevos, pero sus medidas internas son de antes de la escala de siete tamaños.
 - **La revisión de una solicitud remota ajusta el precio total, no partida por partida.** Para
   ajustar renglón por renglón, Dirección abre la cotización en su teléfono y la autoriza ahí.
 - **El QR comprueba el total y el negocio, no cada renglón.** Un PDF con los renglones
