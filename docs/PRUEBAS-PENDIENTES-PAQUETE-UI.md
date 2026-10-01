@@ -7,8 +7,8 @@ con sus 153 fichas, las seis fallas del brief y las seis funciones nuevas.
 Lo que queda pendiente es **terminar de correr la tanda completa de pruebas de navegador**, que se
 cortó a propósito: cada archivo tarda unos 20 minutos en esta máquina de cuatro procesadores —las
 pruebas nuevas traen entre 500 y 1,800 comprobaciones cada una, y cada una levanta su navegador—,
-así que la tanda entera son unas 14 horas de reloj. Se decidió cerrarla al llegar a 20 y dejar el
-resto para después, con esto escrito.
+así que la tanda entera son unas 14 horas de reloj. Se cerró al llegar a 20 —decisión de Elías— y el resto
+queda para después, con esto escrito.
 
 ## Lo que SÍ está verificado
 
@@ -22,7 +22,13 @@ resto para después, con esto escrito.
 
 `an-controles`, `an-mesa`, `anidador`, `camino-completo`, `capas`, `carga`, `contraste`,
 `cot-cliente`, `cot-entrega`, `cot-escalador`, `cot-historial`, `cot-ia`, `cot-opciones`,
-`cot-partidas`, `cot-precio`, y las cinco siguientes hasta completar 20 (ver el commit de cierre).
+`cot-partidas`, `cot-precio`, `cotizador-flujo`, `piezas-avisos`, `piezas-hojas`, `piezas-numeros`,
+`piezas-senales`.
+
+Las cinco últimas se eligieron a propósito: las cuatro de `piezas-*` prueban el aviso, el botón que
+trabaja, el total que rueda, el riel, las esquinas y las demás, que son las que usa **cada una** de
+las 19 pantallas —si algo se rompió al juntar todo, es ahí donde se nota—, y `cotizador-flujo`
+recorre el camino completo, de capturar al cliente hasta autorizar.
 
 Entre ellas van las tres transversales que más valen: **`contraste`** (nada de lo que lleva texto
 baja de 4.5:1, medido en el render), **`capas`** (cada capa se cierra sola y el atrás cierra una por
@@ -38,16 +44,15 @@ condición de verdad, en vez de confiar en un cronómetro fijo. **Era la prueba,
 ## Lo que FALTA correr
 
 ```
-cot-vector            pf-ajustes        piezas-avisos          service-worker
-cotizacion-de-antes   pf-control        piezas-hojas           service-worker-actualizacion
-cotizador-flujo       pf-esqueleto      piezas-numeros         service-worker-redireccion
-escalador-cotas       pf-fabricacion    piezas-senales         tablero
-pdf-hoja-carta        pf-mapa           plegable               total-que-viaja
-publicas              pf-material       precio-suelto          vidrio
-puente                pf-proyectos      puerta                 volver-atras
+cot-vector            pf-esqueleto      precio-suelto          service-worker-redireccion
+cotizacion-de-antes   pf-fabricacion    publicas               tablero
+escalador-cotas       pf-mapa           puente                 total-que-viaja
+pdf-hoja-carta        pf-material       puerta                 vidrio
+pf-ajustes            pf-proyectos      service-worker         volver-atras
+pf-control            pf-tablero        service-worker-actualizacion   plegable
 ```
 
-Son 24, menos las que alcanzaron a correr antes del corte.
+Son 24.
 
 **Ojo:** varias de estas ya se corrieron en verde **antes**, en fusiones anteriores (`contraste`,
 `capas`, `carga`, `cotizador-flujo`, `tablero`, `total-que-viaja`, `vidrio`, `volver-atras`,
