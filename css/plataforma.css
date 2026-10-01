@@ -2805,7 +2805,63 @@ html.pj-arrastrando,html.pj-arrastrando *{cursor:grabbing!important;-webkit-user
 /* ── fin de pf-fabricacion ── */
 
 /* ── Plataforma · Material ── */
+/* Lo que la pantalla de Material le debe a las piezas compartidas: el medidor debajo de la cantidad
+   (F3), la caja del conteo que se llena con su palomita y «Contados hoy» (F6), la diferencia viva
+   al corregir un conteo (F4), el campo que dice qué cambió y el botón que se enciende (F20) y la
+   barra de acción que sube al aparecer (F29). Las piezas traen su propio CSS en sistema.css; lo
+   de aquí es dónde se acomodan en ESTA pantalla. Solo `transform` y `opacity` se animan, y nada se
+   mueve en reposo. */
 
+/* F3 · el medidor vive dentro de `.mat-cant`, que es una columna `fit-content(42%)`: la barra no
+   tiene ancho propio y sin un mínimo quedaría tan angosta como el número («0 láminas»). */
+.mat-cant .medidor{min-width:96px;margin:8px 0 0}
+
+/* F6 · la caja del icono, a la izquierda del nombre. Vacía es un cuadro de borde; contada, se llena
+   de verde y lleva la palomita. El verde es el RELLENO (--ok-fill) y no la tinta, y la palomita es
+   blanca encima: no es texto, pero tampoco se queda con un contraste que dependa de qué tema es.
+   El texto del renglón NO se atenúa ni se tacha (§4.3): la marca va en la caja y en el sello. */
+.mat-caja{display:inline-grid;place-items:center;box-sizing:border-box;width:20px;height:20px;margin-right:8px;
+  border:2px solid var(--n3);border-radius:6px;vertical-align:-4px;color:#fff}
+.mat-caja .palomita{width:14px;height:14px;vertical-align:0}
+.mat-fila.contado .mat-caja{border-color:var(--ok-fill);background:var(--ok-fill)}
+.mat-sello.hoy{color:var(--ok)}
+
+/* F6 · «Contados hoy: 7 de 19», arriba de la lista, con su barra quieta. */
+.mat-contados{margin:0 0 var(--e3)}
+.mat-contados-t{margin:0;font-weight:600;font-size:var(--t2);line-height:1.4;color:var(--ink)}
+.mat-contados-t b{display:inline-block;font-weight:700}
+.mat-contados .medidor{margin:var(--e2) 0 0}
+
+/* F4 · la línea que dice cuánto se aparta el conteo del libro, justo debajo del campo. Es un
+   `<output aria-live="polite">`: lo que se ve es lo que se lee. Con una proporción de tres a uno
+   pasa a ámbar y trae su frase aparte; el ámbar es el de siempre (`--av`, el de «falta un dato»)
+   y nunca va sin palabras. */
+.mat-dif{display:block;margin-top:var(--e2);padding:var(--e2) var(--e3);border:1px solid var(--line);
+  border-radius:var(--rr1);background:var(--sup2);color:var(--ink);font-weight:600;font-size:var(--t2);line-height:1.45}
+.mat-dif-n{display:inline-block;font-weight:700;font-variant-numeric:tabular-nums}
+.mat-dif-aviso{display:block;margin-top:var(--e1);font-weight:700}
+.mat-dif[data-dudoso]{background:var(--av-bg);border-color:var(--av-borde);color:var(--av)}
+
+/* F20 · el campo de una constante lleva un filete a la izquierda que SIEMPRE ocupa su lugar
+   (transparente) y se pone ámbar cuando cambia: así marcar un campo no lo mueve. Debajo, en chico,
+   el valor de antes. El valor actual del campo no se toca: contraste completo. */
+.mat-fila>.fld{padding-left:var(--e2);border-left:3px solid transparent;border-radius:var(--rr1)}
+.mat-fila>.fld.cambiado{border-left-color:var(--av)}
+.cte-antes{display:block;margin-top:var(--e1);font-weight:500;font-size:var(--t1);line-height:1.3;color:var(--tinta2)}
+/* «Guardar» fantasma, sin nada que guardar: el borde punteado lo distingue de «Cerrar», que también
+   es fantasma, sin tener que apagar el texto —que tiene que seguirse leyendo—. */
+.mat-guardar[aria-disabled="true"]{border-style:dashed}
+
+/* F29 · la barra de acción sube 12 px con un fundido de 180 ms al aparecer. `@starting-style` vale
+   para un elemento que pasa de `display:none` a visible, que es lo que hace `hidden=false`; en un
+   navegador que no lo conoce la barra aparece de golpe, como hasta hoy. Solo para la barra de
+   ESTA pantalla (`.mat-mbar`, que pone js/mod/material.js): `.pf-mbar` es de todo el documento. */
+.pf-mbar.mat-mbar{transition:opacity .18s var(--ease-out),transform .18s var(--ease-out)}
+@starting-style{.pf-mbar.mat-mbar{opacity:0;transform:translateY(12px)}}
+
+/* En papel no hay caja de conteo ni medidor de pantalla: la lista que se imprime es la de compra y
+   su casilla de tachar es otra (`.compra-check`). */
+@media print{ .mat-caja{display:none} }
 /* ── fin de pf-material ── */
 
 /* ── Plataforma · Mapa ── */
@@ -2853,7 +2909,11 @@ body.pf-cliente .pf-cuenta.dinero{transition:none}
 
 /* ── fin de rm · pf-fabricacion ── */
 /* ── rm · pf-material ── */
-
+/* La barra de acción sigue apareciendo —es información: llegó una acción—, pero sin subir: solo el
+   fundido, en 150 ms. La palomita aparece ya dibujada, el número no rueda y el medidor nunca se
+   anima: eso lo resuelven las piezas por su cuenta. */
+.pf-mbar.mat-mbar{transition-duration:.15s}
+@starting-style{.pf-mbar.mat-mbar{transform:none}}
 /* ── fin de rm · pf-material ── */
 /* ── rm · pf-mapa ── */
 
