@@ -64,6 +64,19 @@ Aplicar con `git apply --3way pendiente-ui/avance-fase2/<zona>.patch`, **verific
 
 Entre ellas quedan tres de las seis fallas del brief: la 3 (los latidos en bucle de `.cand-partidas`, `.cand-cliente.ojo` y `#prog-bar::after`), la 6 (la veta del anidador) y el resto de la 1 (imprimir el folio completo en el PDF, en `cot-entrega`, que sí se empezó).
 
+## PENDIENTE AL CERRAR: abrir un PR nuevo
+
+El PR **#72** solo llevaba el andamiaje (10 archivos, +262) y **ya está fusionado y cerrado**: no
+recoge nada de lo que vino después. Todo el paquete vive en la rama `claude/cambios-paquetes-individuales-1itp1x`,
+hoy con 35+ commits y ~48,600 líneas que no están en `main`.
+
+Al terminar las zonas hay que **abrir un PR nuevo** de esa rama hacia `main`. Es un acuerdo explícito
+con Elías: esperar a terminar y entonces subirlo. No lo olvides.
+
+(Nota: al fusionar el #72, GitHub rebasó el commit y creó `192a22a` como punta de `main`. Ese commit
+tiene el andamiaje VACÍO, y es de donde nacían los worktrees de los agentes: por eso el paso 0 de
+cada agente es `git reset --hard` a la rama. Ya se trajo `main` a la rama, así que fusiona limpio.)
+
 ## Cómo seguir el miércoles
 
 1. **Lee este archivo y `CONVENCIONES.md`.**
