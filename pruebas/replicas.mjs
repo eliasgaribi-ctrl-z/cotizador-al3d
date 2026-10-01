@@ -309,7 +309,18 @@ console.log('\nEL MODAL DE REGISTRAR VENTA — los desplegables, en el orden de 
     return m ? [...m[1].matchAll(/<option>([^<]+)<\/option>/g)].map(x => x[1]) : null;
   };
   eq('los estatus del modal son los de la hoja, en su orden', opciones('rv-estatus'), Puente.ESTATUS);
-  eq('las cuentas también', opciones('rv-cuenta'), Puente.CUENTAS);
+  /* Las cuentas ya no son un <select> del marcado: son fichas con su etiqueta «con IVA / sin
+     IVA» y la lista vive en venta.js (C4), porque la pantalla necesita saber cuál lleva IVA y no
+     solo cómo se llaman. La comprobación es la misma de siempre —las mismas cinco, en el orden
+     de la hoja— leída donde ahora vive. */
+  eq('las cuentas del modal son las de la hoja, en su orden', constante(COT.venta, 'RV_CUENTAS'), Puente.CUENTAS);
+  /* Y la regla de qué cuenta cobra sin factura. Es la que decide el aviso ámbar de C4, y la de
+     verdad vive en la hoja (`ivaDeCuenta` mira `CUENTA_SIN_FACTURA`): si allá cambia y aquí no,
+     el modal avisaría al revés, que es peor que no avisar. Se comparan por el mismo nombre. */
+  const cuentaSinFactura = /var CUENTA_SIN_FACTURA\s*=\s*'([^']+)'/.exec(leer('puente/hoja-apps-script.gs'));
+  cierto('la hoja nombra su cuenta sin factura', !!cuentaSinFactura);
+  eq('y el modal usa la misma para decir «sin IVA»', constante(COT.venta, 'CUENTA_SIN_FACTURA'), cuentaSinFactura[1]);
+  cierto('que además es una de las cinco', Puente.CUENTAS.includes(cuentaSinFactura[1]));
 }
 
 /* ============================================================================ */

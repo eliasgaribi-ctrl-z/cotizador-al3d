@@ -163,7 +163,7 @@ document.documentElement.classList.add('arrancando');
       <h1 class="t">Cotizador <small>Anuncios Luminosos 3D</small></h1>
     </div>
     <div class="rolewrap">
-      <button class="btn-hist btn-undo oculto" id="undobtn" onclick="deshacer()" title="Deshacer el último cambio (Ctrl+Z)" aria-label="Deshacer el último cambio"><svg class="svgi" aria-hidden="true"><use href="#i-deshacer"/></svg><span class="lbl"> Deshacer</span></button>
+      <button class="btn-hist btn-undo oculto" id="undobtn" data-tecla="Ctrl+Z" onclick="deshacer()" title="Deshacer el último cambio (Ctrl+Z)" aria-label="Deshacer el último cambio"><svg class="svgi" aria-hidden="true"><use href="#i-deshacer"/></svg><span class="lbl"> Deshacer</span></button>
       <button class="btn-hist" onclick="abrirCuadernos()" title="Cuadernos de cliente" aria-label="Cuadernos de cliente"><svg class="svgi" aria-hidden="true"><use href="#i-cuaderno"/></svg><span class="lbl"> Clientes</span></button>
       <button class="btn-hist" onclick="abrirHistorial()" title="Historial de cotizaciones" aria-label="Historial de cotizaciones"><svg class="svgi" aria-hidden="true"><use href="#i-historial"/></svg><span class="lbl"> Historial</span></button>
       <!-- El interruptor del tema. Empotrado se apaga (html.empotrado .btn-tema): el de la barra
@@ -197,9 +197,13 @@ document.documentElement.classList.add('arrancando');
            la vuelta la hace irAPlataforma() por postMessage. -->
       <a class="btn-hist btn-pf" href="./#/hoy" title="El taller: tablero, calendario, material y mapa" aria-label="Abrir el taller: tablero de fabricación, calendario, material y mapa"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg><span class="lbl"> Plataforma</span></a>
       <span class="folio" id="folio">COT-0001</span>
-      <!-- Sin señal, lo que importa saber es que nada se pierde: la cotización se guarda aquí en
-           cada tecla. Lo que sí espera a la señal —autorizar, la IA— lo dice cada uno. -->
-      <span class="folio sin-senal" id="sin-senal" role="status" hidden title="Sin señal: la cotización se sigue guardando en este teléfono. Autorizar y la IA esperan a la señal."><svg class="svgi" aria-hidden="true"><use href="#i-nube-off"/></svg><span class="lbl"> Sin señal · se guarda aquí</span></span>
+      <!-- La isla de estado (C21): una sola pastilla para lo que pasa FUERA de la pantalla —sin señal,
+           sellando en la hoja, esperando a Dirección—. Es el único role="status" de la barra y está
+           siempre en el árbol, vacía y recortada a 1 px, para que el lector de pantalla la oiga al
+           cambiar su texto; nunca lleva `hidden`, que la sacaría del árbol justo cuando va a hablar.
+           La pinta pintarConexion() en js/cotizador/nucleo.js. Sin señal, lo que importa saber es
+           que nada se pierde: la cotización se guarda aquí en cada tecla. -->
+      <span class="isla" id="isla" role="status"><span class="isla-ic" aria-hidden="true"></span><span class="isla-t"></span></span>
       <div class="seg" id="roleseg" role="group" aria-label="Rol con el que trabajas" title="Cambia de rol para ver el flujo de autorización">
         <button class="on" aria-pressed="true" data-rol="vendedor" onclick="cambiarRol('vendedor')">Vendedor</button>
         <button aria-pressed="false" data-rol="autorizador" onclick="cambiarRol('autorizador')">Autorizador</button>
@@ -308,8 +312,18 @@ document.documentElement.classList.add('arrancando');
              pintarCandadoCliente(). -->
         <div class="cand-cliente" id="cli-candado" role="region" aria-label="Estado de los datos del cliente" hidden></div>
         <div class="grid2">
-          <div class="fld" id="fld-cli"><label for="f-cli">Cliente<span class="req" aria-hidden="true">*</span></label><input id="f-cli" list="clientes-conocidos" placeholder="Nombre o negocio" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('cliente',this.value)"><datalist id="clientes-conocidos"></datalist></div>
-          <div class="fld" id="fld-tel"><label for="f-tel">Teléfono<span class="req" aria-hidden="true">*</span></label><input id="f-tel" type="tel" inputmode="tel" placeholder="33 0000 0000" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('tel',this.value)"></div>
+          <div class="fld" id="fld-cli"><label for="f-cli">Cliente<span class="req" aria-hidden="true">*</span></label><input id="f-cli" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="cli-lista" placeholder="Nombre o negocio" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('cliente',this.value)">
+            <!-- La lista de clientes que ya tienen cuaderno (C6). Sustituye al <datalist> nativo, que en
+                 Android salía como una tira sobre el teclado, sin teléfono y sin decir cuál de dos
+                 «Farmacia San Juan» era. Es un popover manual: va en la capa superior, así que no la
+                 recorta ninguna tarjeta, y el foco nunca sale del campo. La arma armarComboClientes()
+                 en js/cotizador/nucleo.js. -->
+            <div class="combo-menu" id="cli-menu" popover="manual"><div class="combo-lista"><span class="combo-pil" aria-hidden="true"></span><div role="listbox" id="cli-lista" aria-label="Clientes con cuaderno"></div></div></div></div>
+          <!-- El teléfono se ve completo mientras se teclea (C8): Piezas.telefonoVivo('f-tel') lo envuelve en
+               arranque.js y le da el formato «33 1234 5678» y el contador del borde. El contador se come el
+               final del texto de ejemplo en este campo angosto —«33 0000 0000» se leía «33 0000 000(»—,
+               así que el ejemplo dice lo que se pide, «10 dígitos», y el formato lo enseña el campo al llenarse. -->
+          <div class="fld" id="fld-tel"><label for="f-tel">Teléfono<span class="req" aria-hidden="true">*</span></label><input id="f-tel" type="tel" inputmode="tel" placeholder="10 dígitos" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('tel',this.value)"></div>
         </div>
         <div class="cua-aviso" id="cua-aviso" style="display:none"></div>
         <div class="fld" id="fld-proy"><label for="f-proy">Proyecto<span class="req" aria-hidden="true">*</span></label><input id="f-proy" placeholder="Ej. Farmacia San Juan – Letrero fachada" autocomplete="off" aria-required="true" aria-describedby="hint-oblig" oninput="upd('proy',this.value)">
@@ -336,7 +350,7 @@ document.documentElement.classList.add('arrancando');
           </div>
           <div class="hintnote" id="maps-hint" style="margin-top:7px;display:none">Pega el link completo, empezando con <b>https://</b> — o escribe la dirección en el campo de arriba y usa «Abrir en Maps».</div>
         </div>
-        <details class="ai-cfg" id="pdf-extra-box" style="margin-bottom:0">
+        <details class="ai-cfg pliegue" id="pdf-extra-box" style="margin-bottom:0">
           <summary>Datos que salen en el PDF (opcional)</summary>
           <div style="margin-top:12px">
             <div class="grid2">
@@ -351,7 +365,7 @@ document.documentElement.classList.add('arrancando');
                  corrige, cero toques lo aceptan. No mueve un peso: no está en _CAMPOS_PRECIO. -->
             <div class="fld">
               <label id="f-plazo-l">Plazo de taller</label>
-              <div class="chips" id="f-plazo" role="group" aria-labelledby="f-plazo-l"></div>
+              <div class="chips ficha-transparente" id="f-plazo" role="group" aria-labelledby="f-plazo-l"></div>
               <div class="hintnote" id="f-plazo-h" style="margin-top:7px"></div>
             </div>
             <div class="fld" style="margin-bottom:0">
@@ -416,7 +430,7 @@ document.documentElement.classList.add('arrancando');
     <div id="aiPreview"></div>
     <div class="sum">
       <button class="prog-box" onclick="irAPendiente()" title="Ir a lo primero que falta por capturar">
-        <div class="prog-label"><span>Completitud</span><span id="prog-pct">0%</span></div>
+        <div class="prog-label"><span>Completitud</span><span id="prog-pct" class="rueda-cifra">0%</span></div>
         <div class="prog-track"><div id="prog-bar"></div></div>
         <div class="prog-next" id="prog-next"></div>
       </button>
@@ -470,7 +484,20 @@ document.documentElement.classList.add('arrancando');
              ver js/cotizador/proceso.js. Este es el texto de arranque, con el 50 % sugerido. -->
         <label for="f-anti" id="f-anti-lbl">Anticipo sugerido (50%)</label>
         <div class="inp-money"><input id="f-anti" type="number" inputmode="decimal" min="0" placeholder="0"></div>
+        <!-- La barra de dos tramos (C17): lo que se paga hoy y lo que se paga al instalar. Es un
+             <input type="range"> nativo que escribe #f-anti y despacha input y change, así el
+             acotado y `Q.antiManual` siguen saliendo del código de siempre y el teclado, el foco
+             y el lector de pantalla vienen del navegador. La monta renderSummary() con la pieza
+             del deslizador con imanes: imán a cientos, imán fuerte en el 50 % y tope en el total
+             que se cobra. Escondida mientras no hay total (no hay nada que partir). -->
+        <div class="anti-partido" id="s-anti-partido" hidden>
+          <input type="range" id="f-anti-r" class="anti-r" min="0" max="1" step="any" value="0" aria-label="Anticipo: lo que se paga hoy y lo que se paga al instalar">
+        </div>
         <div class="anti-rest" id="s-anti-rest"></div>
+        <!-- La excepción de las condiciones de pago, dicha donde se pacta el anticipo: arriba de
+             $60,000 el 50 % es solo la referencia. Se mide sobre el total que se cobra, con IVA si
+             lleva (decisión del paquete de UI; la constante vive en proceso.js). -->
+        <p class="anti-excep" id="s-anti-excep" hidden></p>
       </div>
       <!-- El botón no es un adorno: espiar era «mantener tocado», o sea imposible sin dedo ni
            ratón, y quien navega con teclado no tenía manera de leer un solo importe. -->
@@ -495,7 +522,11 @@ document.documentElement.classList.add('arrancando');
     <div class="modal-h"><b><svg class="svgi" aria-hidden="true"><use href="#i-ia"/></svg> Cotizar con IA</b><button onclick="aiClose()" aria-label="Cerrar">×</button></div>
     <div class="modal-b">
       <div class="ai-src" id="ai-src-box" style="display:none">
-        <img class="ai-src-img" id="ai-src-img" alt="Imagen medida en el escalador">
+        <div class="ia-marco">
+          <img class="ai-src-img" id="ai-src-img" alt="Imagen medida en el escalador">
+          <span class="ia-etapa" hidden aria-hidden="true"></span>
+          <div class="ia-velo" hidden><p class="ia-velo-motivo"></p><button type="button" class="btn btn-pri ia-velo-re">Reintentar</button></div>
+        </div>
         <div class="ai-src-b">
           <div class="ai-src-t"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg> Imagen del escalador</div>
           <div class="ai-src-n" id="ai-src-n"></div>
@@ -516,9 +547,16 @@ document.documentElement.classList.add('arrancando');
         <div class="ai-drop" id="ai-drop" role="button" tabindex="0" aria-describedby="ai-drop-s"
           onclick="$('ai-file').click()"
           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();$('ai-file').click();}">
-          <svg class="svgi ico" aria-hidden="true"><use href="#i-carpeta"/></svg>
-          <div class="t"><span class="solo-raton">Arrastra aquí la foto o el PDF</span><span class="solo-dedo">Toca para elegir la foto o el PDF</span></div>
-          <div class="s" id="ai-drop-s"><span class="solo-raton">o <b>toca para elegirlo</b> · si ya lo tienes copiado, <b>pégalo</b> con Ctrl+V</span><span class="solo-dedo">de tu galería, de Archivos o de lo que te mandaron</span></div>
+          <div class="ai-carpeta" aria-hidden="true">
+            <svg class="cp-cuerpo" viewBox="0 0 160 120"><path d="M8 4h42q4 0 6.5 3l7 8h88.5a8 8 0 0 1 8 8v89a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8V12a8 8 0 0 1 8-8z"/></svg>
+            <span class="cp-hoja">Suéltalo aquí</span>
+            <svg class="cp-tapa" viewBox="0 0 160 92"><rect x="0" y="0" width="160" height="92" rx="8"/><rect class="cp-filo" x="0" y="0" width="160" height="3" rx="1.5"/></svg>
+          </div>
+          <div class="ai-drop-tx">
+            <div class="t"><span class="solo-raton">Arrastra aquí la foto o el PDF</span><span class="solo-dedo">Toca para elegir la foto o el PDF</span></div>
+            <div class="s" id="ai-drop-s"><span class="solo-raton">o <b>toca para elegirlo</b> · si ya lo tienes copiado, <b>pégalo</b> con Ctrl+V</span><span class="solo-dedo">de tu galería, de Archivos o de lo que te mandaron</span></div>
+            <div class="ai-drop-sobre" aria-hidden="true">Al soltarlo queda elegido</div>
+          </div>
         </div>
         <input id="ai-file" class="ai-file-in" type="file" accept="image/*,application/pdf"
           aria-labelledby="lab-ai-file" onchange="aiArchivoElegido(this.files[0])">
@@ -527,10 +565,13 @@ document.documentElement.classList.add('arrancando');
       <div class="ai-merge" id="ai-merge-box" style="display:none">
         <button type="button" class="switch" role="switch" aria-checked="false" style="margin:0" onclick="toggleAiMerge()"><span class="tg" id="ai-merge-tg" aria-hidden="true"></span> Conservar las partidas que ya capturé</button>
         <div class="ai-merge-note" id="ai-merge-note"></div>
+        <ul class="ai-merge-lista" id="ai-merge-lista"></ul>
       </div>
       <button class="btn btn-pri" id="ai-go-btn" onclick="aiAnalyze()" style="margin-top:8px">Analizar y cotizar</button>
       <button class="btn btn-gho" id="ai-cancel-btn" onclick="aiCancelar()" hidden>Cancelar el análisis</button>
       <div class="ai-status" id="ai-status" role="status"></div>
+      <div class="ai-traza" id="ai-traza" hidden></div>
+      <div class="ai-resumen" id="ai-resumen" role="group" aria-label="Lo que leyó la IA" hidden></div>
     </div>
   </div>
 </div>
@@ -572,7 +613,23 @@ document.documentElement.classList.add('arrancando');
       <input id="hist-search" type="search" aria-label="Buscar en el historial por folio, cliente, fecha, partida o total" placeholder="Buscar por folio, cliente, fecha o partida…" autocomplete="off" oninput="pintarHistorialPronto()">
       <span class="hist-count" id="hist-count"></span>
     </div>
+    <!-- Las fichas de «lo que falta» (H8): Todas · Sin PDF · Sin enviar · Sin venta · Este mes. Las
+         pinta pintarFichasHistorial() al abrir; vacío y oculto mientras no hay nada que filtrar. -->
+    <div class="hist-fichas" id="hist-fichas" hidden></div>
     <div class="hist-body" id="hist-body"></div>
+    <!-- La vista de restaurar un respaldo (H25), dentro del mismo historial: sustituye a la lista
+         mientras dura y la recarga de la app es su último paso. Sin manejadores en línea: los
+         botones los cablea historial.js (el «Restaurar» se sostiene, pieza 5). -->
+    <div class="hist-restaurar" id="hist-restaurar" role="region" aria-labelledby="hist-rest-t" hidden>
+      <h2 class="hist-rest-t" id="hist-rest-t" tabindex="-1">Restaurar este respaldo</h2>
+      <p class="hist-rest-txt" id="hist-rest-txt"></p>
+      <div id="hist-rest-pasos"></div>
+      <p class="hist-rest-fin" id="hist-rest-fin"></p>
+      <div class="hist-rest-acts">
+        <button type="button" class="btn btn-dgr" id="hist-rest-si">Restaurar</button>
+        <button type="button" class="btn btn-gho" id="hist-rest-no">Cancelar</button>
+      </div>
+    </div>
     <div class="hist-foot">
       <button onclick="respaldar()" title="Descarga un archivo con el historial, los folios y la cotización en curso"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> Respaldar</button>
       <button onclick="pedirRestaurar()" title="Reemplaza los datos de este dispositivo con los de un respaldo"><svg class="svgi" aria-hidden="true"><use href="#i-subir"/></svg> Restaurar</button>
@@ -600,8 +657,10 @@ document.documentElement.classList.add('arrancando');
       <div id="rem-partidas"></div>
       <div class="fld" style="margin-top:12px">
         <label for="rem-precio" id="rem-lab">Precio final autorizado</label>
+        <div class="precio-desl"><input type="range" id="rem-precio-r" class="precio-r" min="0" max="1" step="any" value="0" aria-label="Ajustar el precio autorizado, subtotal sin IVA" aria-describedby="rem-ajuste"></div>
         <div class="inp-money"><input id="rem-precio" type="number" inputmode="decimal" min="0" step="100" oninput="pintarRemotaNeto()"></div>
         <div class="precio-auth-neto" id="rem-neto"></div>
+        <div class="descuento-info" id="rem-ajuste"></div>
       </div>
       <div class="fld"><label for="rem-nota">Nota para quien la pidió (opcional)</label><textarea id="rem-nota" placeholder="Comentario para el vendedor…"></textarea></div>
       <div class="authnote auth-quien" id="rem-autoriza"></div>
@@ -619,6 +678,7 @@ document.documentElement.classList.add('arrancando');
     <div class="modal-h"><b id="conf-titulo">¿Continuar?</b><button onclick="confirmarNo()" aria-label="Cerrar">×</button></div>
     <div class="modal-b">
       <p class="conf-texto" id="conf-texto"></p>
+      <p class="conf-pista" id="conf-pista" aria-hidden="true" hidden>Mantén presionado el botón para confirmar.</p>
       <button class="btn btn-pri" id="conf-si" onclick="confirmarSi()">Continuar</button>
       <button class="btn btn-gho" id="conf-no" onclick="confirmarNo()">Cancelar</button>
     </div>
@@ -680,10 +740,29 @@ document.documentElement.classList.add('arrancando');
       <div class="vt-split" id="vt-split"
         onmousedown="vtSplitDown(event)" ontouchstart="vtSplitDown(event)"></div>
       <div class="sp-overlay" id="vt-overlay">
-        <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(106,59,216,.45))"><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg></div>
-        <div style="font-size:16px;font-weight:700;color:rgba(255,255,255,.82)">Carga el logotipo del cliente</div>
-        <div style="font-size:12px;color:rgba(255,255,255,.55);letter-spacing:.4px">JPG · PNG · PDF — lo convierte en trazo vectorial para cortar</div>
-        <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(var(--a-rgb),.4)" onclick="$('vt-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
+        <!-- Dos caras del mismo recuadro, como en el escalador: la invitación de siempre y,
+             mientras se abre un PDF, los pasos con su reloj (H12). Antes el PDF se anunciaba en
+             un aviso de 8 s abajo y el lienzo seguía diciendo «Carga el logotipo»: parecía que
+             el toque no había hecho nada, y el error llegaba en otro aviso, lejos de donde se
+             estaba mirando. Las clases `sp-overlay-*` son las del escalador: es el mismo recuadro. -->
+        <div class="sp-overlay-cara" id="vt-overlay-vacio">
+          <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(106,59,216,.45))"><svg class="svgi" aria-hidden="true"><use href="#i-vector"/></svg></div>
+          <div style="font-size:16px;font-weight:700;color:rgba(255,255,255,.82)">Carga el logotipo del cliente</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.55);letter-spacing:.4px">JPG · PNG · PDF — lo convierte en trazo vectorial para cortar</div>
+          <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(var(--a-rgb),.4)" onclick="$('vt-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
+        </div>
+        <div class="sp-overlay-cara sp-overlay-pdf" id="vt-overlay-pdf" hidden>
+          <div class="sp-overlay-tarjeta">
+            <div class="sp-overlay-pasos" id="vt-overlay-pasos"></div>
+            <div class="sp-overlay-mal" id="vt-overlay-mal" hidden>
+              <p class="sp-overlay-motivo" id="vt-overlay-motivo"></p>
+              <div class="sp-overlay-salidas">
+                <button type="button" class="sp-overlay-btn pri" data-vt-accion="elegir">Elegir otro archivo</button>
+                <button type="button" class="sp-overlay-btn" id="vt-overlay-seguir" hidden data-vt-accion="dejar">Volver a la imagen</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="vt-prog" id="vt-prog">
         <div class="vt-prog-txt" id="vt-prog-txt">Vectorizando…</div>
@@ -700,7 +779,7 @@ document.documentElement.classList.add('arrancando');
       <div class="sp-sec">
         <div class="sp-sec-h"><h3>Qué se está vectorizando</h3></div>
         <div class="sp-sec-b">
-          <div class="vt-modo" role="group" aria-label="Qué se va a vectorizar">
+          <div class="vt-modo ficha-transparente" role="group" aria-label="Qué se va a vectorizar">
             <button id="vt-modo-bn"   class="on" aria-pressed="true" onclick="vtSetModo('bn')"><svg class="svgi" aria-hidden="true"><use href="#i-corte"/></svg>Corte<small>1 color</small></button>
             <button id="vt-modo-logo" aria-pressed="false" onclick="vtSetModo('logo')"><svg class="svgi" aria-hidden="true"><use href="#i-colores"/></svg>Logotipo<small>pocos colores</small></button>
             <button id="vt-modo-foto" aria-pressed="false" onclick="vtSetModo('foto')"><svg class="svgi" aria-hidden="true"><use href="#i-imagen"/></svg>Foto<small>muchos colores</small></button>
@@ -831,10 +910,31 @@ document.documentElement.classList.add('arrancando');
         ontouchstart="scDown(event)" ontouchmove="scMove(event)" ontouchend="scUp(event)" ontouchcancel="scUp(event)">
       </canvas>
       <div class="sp-overlay" id="sp-overlay">
-        <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(var(--a-rgb),.4))"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg></div>
-        <div style="font-size:16px;font-weight:700;color:rgba(255,255,255,.82)">Carga una imagen para medir</div>
-        <div style="font-size:12px;color:rgba(255,255,255,.55);letter-spacing:.4px">JPG · PNG · SVG · PDF — o usa la imagen de IA</div>
-        <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(var(--a-rgb),.4)" onclick="$('scaler-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
+        <!-- Dos caras del mismo recuadro: la invitación de siempre y, mientras se abre un
+             PDF, la traza con su reloj (H12). Antes el PDF se anunciaba en un aviso de 8 s
+             abajo y el lienzo seguía diciendo «Carga una imagen»: parecía que no había
+             pasado nada, y el error llegaba en otro aviso, lejos de donde se estaba mirando. -->
+        <div class="sp-overlay-cara" id="sc-overlay-vacio">
+          <div style="font-size:58px;filter:drop-shadow(0 4px 16px rgba(var(--a-rgb),.4))"><svg class="svgi" aria-hidden="true"><use href="#i-escalar"/></svg></div>
+          <div style="font-size:16px;font-weight:700;color:rgba(255,255,255,.82)">Carga una imagen para medir</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.55);letter-spacing:.4px">JPG · PNG · SVG · PDF — o usa la imagen de IA</div>
+          <button style="pointer-events:all;margin-top:6px;padding:10px 24px;background:var(--brand-grd);color:#fff;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(var(--a-rgb),.4)" onclick="$('scaler-img-input').click()"><svg class="svgi" aria-hidden="true"><use href="#i-carpeta"/></svg> Seleccionar archivo</button>
+        </div>
+        <div class="sp-overlay-cara sp-overlay-pdf" id="sc-overlay-pdf" hidden>
+          <!-- Una sola tarjeta oscura con los pasos, el motivo y las salidas: con la foto ya
+               cargada el recuadro queda ENCIMA de ella, y el texto blanco suelto sobre una
+               fachada clara no se leía. -->
+          <div class="sp-overlay-tarjeta">
+            <div class="sp-overlay-pasos" id="sc-overlay-pasos"></div>
+            <div class="sp-overlay-mal" id="sc-overlay-mal" hidden>
+              <p class="sp-overlay-motivo" id="sc-overlay-motivo"></p>
+              <div class="sp-overlay-salidas">
+                <button type="button" class="sp-overlay-btn pri" data-sc-accion="elegir">Elegir otro archivo</button>
+                <button type="button" class="sp-overlay-btn" id="sc-overlay-seguir" hidden data-sc-accion="dejar">Volver a la foto</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="sp-hint-bar hide" id="sp-hint-bar"></div>
       <!-- Cuánto se enseña de las cotas ya trazadas. Va en el lienzo y no solo en el
@@ -850,6 +950,16 @@ document.documentElement.classList.add('arrancando');
         <button onclick="scZoomReset()" title="Ajustar a la pantalla" aria-label="Ajustar la imagen a la pantalla" style="font-size:16px"><svg class="svgi" aria-hidden="true"><use href="#i-ajustar"/></svg></button>
       </div>
       <div class="sp-loupe" id="sc-loupe"><canvas id="sc-loupe-cvs"></canvas></div>
+      <!-- La cifra viva de la lupa (H4). Va FUERA del círculo y no dentro: .sp-loupe
+           recorta con overflow:hidden por su border-radius, así que un hijo suyo debajo
+           del centro se corta. Se coloca en el mismo scLoupe(), con su propio transform. -->
+      <span class="sp-loupe-cifra" id="sc-loupe-cifra" aria-hidden="true"></span>
+      <!-- El letrero sobre la foto de la fachada (función 32). Nace vacío y escondido: lo
+           enciende la sección «Letrero sobre la foto» del panel, y solo con escala calibrada. -->
+      <span class="sc-letrero" id="sc-letrero" role="group" tabindex="0" aria-label="Letrero sobre la foto" aria-describedby="sc-lf-ayuda" hidden><span class="sc-letrero-texto" id="sc-letrero-texto"></span></span>
+      <!-- Siempre que el letrero está a la vista, la foto dice que es ilustrativo: no es la
+           tipografía del cliente ni su fachada de noche. Va fija en la esquina, no se mueve con él. -->
+      <span class="sc-letrero-nota" id="sc-letrero-nota" aria-hidden="true" hidden>Letrero ilustrativo</span>
     </div>
     <!-- Sidebar -->
     <aside class="sp-side">
@@ -857,19 +967,22 @@ document.documentElement.classList.add('arrancando');
       <details class="sp-sec sp-fold" id="sc-sec-calib" open>
         <summary class="sp-sec-h"><h3>Calibración de escala</h3></summary>
         <div class="sp-sec-b">
-          <p id="sc-calib-help" style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:13px">Toca un extremo y luego el otro sobre un elemento de medida conocida —una puerta mide 200 cm, una persona 175 cm—. Sin soltar el dedo puedes deslizarlo hasta dejar el punto donde va —la lupa enseña qué hay debajo— y después arrastrar sus extremos para corregirla.</p>
+          <!-- Calibrar son tres pasos y hasta hoy había que deducirlos de qué bloque
+               aparecía. El riel los nombra y marca en cuál vas (H11, pieza 16). -->
+          <div class="sc-calib-riel" id="sc-calib-riel"></div>
+          <p id="sc-calib-help" style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:13px">Toca un extremo y luego el otro sobre un elemento de medida conocida —una puerta mide <span data-sc-puerta>200</span> cm, una persona 175 cm—. Sin soltar el dedo puedes deslizarlo hasta dejar el punto donde va —la lupa enseña qué hay debajo— y después arrastrar sus extremos para corregirla.</p>
           <button class="btn btn-pri" id="sc-btn-calib" onclick="scSetMode('ref')" disabled>1 · Marcar referencia (2 puntos)</button>
           <div id="sc-ref-confirm-row" style="display:none;margin-top:13px">
-            <div class="fld"><label for="sc-ref-cm-input">¿Cuánto mide en cm?</label><input id="sc-ref-cm-input" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="Ej. 175"></div>
-            <div class="ref-known">
-              <span class="ref-known-title">Rápidos:</span>
-              <button onclick="$('sc-ref-cm-input').value=200"><span class="emo">🚪</span> 200</button>
-              <button onclick="$('sc-ref-cm-input').value=175"><span class="emo">🧍</span> 175</button>
-              <button onclick="$('sc-ref-cm-input').value=120"><span class="emo">🪟</span> 120</button>
-              <button onclick="$('sc-ref-cm-input').value=145"><span class="emo">🚗</span> 145</button>
-              <button onclick="$('sc-ref-cm-input').value=40"><span class="emo">⬜</span> 40</button>
+            <!-- La etiqueta es el mango: arrastrarla de lado mueve los centímetros sin abrir
+                 el teclado (H26 #3, pieza 3). El campo se sigue tecleando igual. -->
+            <div class="fld"><label for="sc-ref-cm-input" class="arrastrable">¿Cuánto mide en cm?</label><input id="sc-ref-cm-input" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="Ej. 175"></div>
+            <!-- Las medidas de referencia conocidas, como opciones elegidas (H30, pieza 18).
+                 Las pinta scPintarRefRapidos() desde SC_REF_RAPIDOS: la puerta de 200 cm es
+                 una constante, la misma que usa el letrero sobre la foto. -->
+            <div class="ref-known" id="sc-ref-rapidos">
+              <span class="ref-known-title" id="sc-ref-rapidos-l">Medidas de siempre</span>
             </div>
-            <button class="btn btn-ok" onclick="scConfirmCalib()" style="margin-top:11px"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Confirmar escala</button>
+            <button class="btn btn-ok" id="sc-btn-confirm-calib" onclick="scConfirmCalib()" style="margin-top:11px"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Confirmar escala</button>
           </div>
           <div id="sc-calib-done" style="display:none">
             <div style="background:var(--green-bg);border:1px solid rgba(21,160,106,.2);border-radius:var(--r-sm);padding:11px 13px;font-size:12.5px;color:var(--green);font-weight:600;margin-bottom:10px"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg> Escala calibrada</div>
@@ -921,6 +1034,30 @@ document.documentElement.classList.add('arrancando');
         <div class="sp-addall-note" id="sc-addall-note" style="display:none"></div>
         <button class="sp-back-m" onclick="cerrarScaler()"><svg class="svgi" aria-hidden="true"><use href="#i-atras"/></svg> Volver al cotizador</button>
       </div>
+      <!-- El letrero sobre la foto del local (función 32). Abrirla lo enciende sobre la
+           foto; plegarla lo apaga y devuelve el lienzo entero a medir. -->
+      <details class="sp-sec sp-fold" id="sc-sec-letrero">
+        <summary class="sp-sec-h"><h3>Letrero sobre la foto</h3></summary>
+        <div class="sp-sec-b">
+          <div class="hintnote" id="sc-lf-falta"></div>
+          <div id="sc-lf-caja" hidden>
+            <div class="sc-lf-cuales" id="sc-lf-cuales"></div>
+            <!-- El deslizador y el precio van ARRIBA y juntos: en el teléfono el panel enseña unos
+                 210 px entre el título y el pie pegado, y con el precio al final de la sección
+                 había que desplazarlo para leerlo, justo lo que esta sección existe para decir.
+                 Lo que se teclea —el texto— y lo que se pasa a la partida van debajo. -->
+            <div class="sc-lf-rango">
+              <label for="sc-lf-alto">Alto de letra: <span id="sc-lf-alto-v"></span></label>
+              <input id="sc-lf-alto" type="range" min="5" max="120" step="1">
+            </div>
+            <p class="sc-lf-precio" id="sc-lf-precio" role="status"></p>
+            <p class="sc-lf-dice" id="sc-lf-dice"></p>
+            <div class="fld"><label for="sc-lf-texto">Texto del letrero</label><input id="sc-lf-texto" maxlength="24" autocomplete="off"></div>
+            <button class="btn btn-gho" id="sc-lf-pasar" type="button" style="font-size:13px"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> Pasar este alto a la partida</button>
+            <div class="hintnote" id="sc-lf-ayuda" style="margin-top:8px">Arrastra el letrero sobre la foto para colocarlo, o enfócalo y muévelo con las flechas (Mayús, más rápido). Es ilustrativo: no es la tipografía del cliente.</div>
+          </div>
+        </div>
+      </details>
       <!-- Exportar -->
       <details class="sp-sec sp-fold" id="sc-sec-export">
         <summary class="sp-sec-h"><h3>Exportar</h3></summary>
@@ -950,6 +1087,8 @@ document.documentElement.classList.add('arrancando');
      el ámbito global —los 157 manejadores en línea del marcado dependen de eso— y el orden
      importa: arranque.js va al final porque init() llama a los demás. -->
 <script src="vendor/qrcodegen.js"></script>
+<!-- Las piezas compartidas van antes que el núcleo: toast() las usa desde el primer aviso. -->
+<script src="js/piezas.js"></script>
 <script src="js/cotizador/catalogo.js"></script>
 <script src="js/cotizador/nucleo.js"></script>
 <script src="js/cotizador/partidas.js"></script>
@@ -1012,7 +1151,10 @@ document.documentElement.classList.add('arrancando');
              apretados en la media columna derecha, debajo de la nota de la fecha. -->
         <div class="rv-field full">
           <label id="rv-plazo-l">¿Cuánto tarda en el taller?</label>
-          <div class="chips" id="rv-plazo" role="group" aria-labelledby="rv-plazo-l"></div>
+          <!-- `ficha-transparente`: los cubos del plazo tienen fondo propio, y sin esto la
+               ficha que viaja (pieza 2) pasaría por debajo de ellos sin verse. El elegido se
+               sigue pintando con la regla de siempre de `.chip.on`. -->
+          <div class="chips ficha-transparente" id="rv-plazo" role="group" aria-labelledby="rv-plazo-l"></div>
           <div class="hintnote" id="rv-plazo-h" style="margin-top:6px"></div>
         </div>
         <div class="rv-field">
@@ -1030,21 +1172,6 @@ document.documentElement.classList.add('arrancando');
           <input type="number" inputmode="decimal" id="rv-pct" value="10" min="0" max="100" step="0.5" readonly title="La comisión es 10 % fijo del subtotal, sin IVA: la misma que calcula la hoja de finanzas" oninput="rvRecalc()">
         </div>
         <div class="rv-field">
-          <label for="rv-cuenta">Cuenta</label>
-          <!-- Las cinco cuentas que existen en la columna «Cuenta» de la hoja. Faltaban Rul
-               HSBC y Tatis BNT, y sobraba «Otra», que allá no existe: el puente valida
-               contra la lista real y rechaza lo que no esté. La preferencia guardada se
-               sigue leyendo con el guardia de más abajo, así que un teléfono que tenía
-               «Otra» simplemente no la aplica y se queda con la primera. -->
-          <select id="rv-cuenta">
-            <option>Elias BBVA</option>
-            <option>Constru BNT</option>
-            <option>Moni MPago</option>
-            <option>Rul HSBC</option>
-            <option>Tatis BNT</option>
-          </select>
-        </div>
-        <div class="rv-field">
           <label for="rv-estatus">Estatus</label>
           <!-- Los cuatro valores que de verdad existen en la columna Estatus de la pestaña
                Ventas. Antes decían ANTICIPO, CANCELADO y PENDIENTE, que no existen allá:
@@ -1057,28 +1184,53 @@ document.documentElement.classList.add('arrancando');
             <option>LIQUIDADO</option>
           </select>
         </div>
+        <!-- LA CUENTA, Y SI ESA CUENTA LLEVA IVA (C4).
+
+             Las cinco cuentas que existen en la columna «Cuenta» de la hoja. Faltaban Rul HSBC
+             y Tatis BNT, y sobraba «Otra», que allá no existe: el puente valida contra la lista
+             real y rechaza lo que no esté.
+
+             Era un <select> suelto, y la cuenta decide el IVA del renglón: la hoja «realinea» la
+             columna F según la cuenta (aplicarIva) sin avisarle a nadie. Elegir una cuenta sin
+             factura para una cotización CON IVA dejaba registrado un neto distinto del que dice
+             el PDF que el cliente tiene en la mano, y eso se descubría semanas después en
+             cobranza. Ahora las cinco se ven a la vez con su etiqueta, la que coincide con esta
+             cotización va primero, y si no coincide sale el aviso de abajo.
+
+             El valor sigue viviendo en un <input type="hidden" id="rv-cuenta"> que pinta la
+             pieza, así que datosParaLaHoja() y rvRecordarPreferencias() no cambian una línea.
+             La lista y el orden los arma pintarCuentas() en venta.js. -->
+        <div class="rv-field full">
+          <label id="rv-cuenta-l">Cuenta</label>
+          <div id="rv-cuentas-caja"></div>
+          <p class="rv-iva-av" id="rv-cuenta-av" hidden></p>
+        </div>
       </div>
       <div class="rv-calc">
         <div class="rv-calc-item">
           <span>Precio Subtotal</span>
-          <span id="rv-sub-disp">—</span>
+          <span class="rueda-cifra" id="rv-sub-disp">—</span>
         </div>
         <div class="rv-calc-item accent">
           <span>Precio Neto</span>
-          <span id="rv-neto-disp">—</span>
+          <span class="rueda-cifra" id="rv-neto-disp">—</span>
         </div>
         <div class="rv-calc-item">
           <span>Comisiones</span>
-          <span id="rv-com-disp">—</span>
+          <span class="rueda-cifra" id="rv-com-disp">—</span>
         </div>
         <div class="rv-calc-item">
           <span>Pago Pendiente</span>
-          <span id="rv-pend-disp">—</span>
+          <span class="rueda-cifra" id="rv-pend-disp">—</span>
         </div>
       </div>
     </div>
     <div class="rv-footer">
-      <div class="rv-copied" id="rv-copied"><svg class="svgi" aria-hidden="true"><use href="#i-check"/></svg><span>Listo</span></div>
+      <!-- La palomita ya no es un icono fijo: la dibuja la pieza 6 en el momento en que la hoja
+           contesta, que es cuando hay algo que celebrar. El hueco nace vacío a propósito —una
+           palomita pintada de antemano dentro de una caja escondida se ve «ya hecha» al
+           aparecer— y lo llena rvListo() en venta.js. -->
+      <div class="rv-copied" id="rv-copied"><span class="rv-copied-ico" aria-hidden="true"></span><span>Listo</span></div>
       <!-- Un solo botón: deja constancia de que la cotización se ganó —de ahí salen el
            material, la agenda y el mapa— y escribe el renglón en la hoja de finanzas, que
            es el libro mayor del dinero. El de copiar se queda como respaldo para el

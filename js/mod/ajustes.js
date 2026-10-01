@@ -46,7 +46,7 @@ import * as Material from '../datos/material.js';
 import { RESPALDO_KEYS } from '../datos/cotizador.js';
 import {
   $, esc, ico, toast, avisarResultado, abrirCapa, cerrarCapa,
-  descargarArchivo, fmtFechaDia, cuando, ajustarAltoBarra, copiarTexto, voz, confirmarPf,
+  descargarArchivo, fmtFechaDia, cuando, ajustarAltoBarra, copiarTexto, voz, confirmarPf, scrollSuave,
 } from '../nucleo/ui.js';
 
 /* ============================================================================
@@ -79,12 +79,22 @@ let ROL_GATE = null;
 
 const _oyentes = [];     // [[elemento, tipo, fn]]
 let _t = 0;              // el temporizador de la recarga posterior al borrado
+let _vig = -1;           // la sección del índice que va marcada (F22); -1 = ninguna todavía
+let _rafIndice = 0;      // el cuadro pendiente del índice: un desplazamiento pide uno solo
 
-function on(el, tipo, fn) {
+function on(el, tipo, fn, opciones) {
   if (!el) return;
-  el.addEventListener(tipo, fn);
+  el.addEventListener(tipo, fn, opciones);
   _oyentes.push([el, tipo, fn]);
 }
+
+/* Los pasos de Google Cloud y del puente se recuerdan en ESTE dispositivo (F32): son la comodidad
+   de quien va y viene de la consola de Google en el teléfono, no un dato del negocio. Por eso no
+   están en `Prefs.CLAVES` —esa lista es de lo que el respaldo y el cordón tienen que conocer— y
+   por eso el cordón sí las suelta al borrar. Lo que se guarda es {n, hechos}: si un día cambia el
+   número de pasos que dicta `instrucciones()`, lo palomeado deja de valer y se empieza limpio, en
+   vez de palomear un paso que ya es otro. */
+const CLAVE_PASOS = { gcal: 'al3d_pf_pasos_gcal', puente: 'al3d_pf_pasos_puente' };
 
 const REPO = 'https://github.com/eliasgaribi-ctrl-z/cotizador-al3d/blob/main/docs/ARQUITECTURA.md';
 
@@ -124,6 +134,9 @@ export async function montar(c, ctx) {
   on(cont, 'change', cambio);
   on($('pf-mbar'), 'click', clic);
   on($('pf-pide'), 'click', clicPide);
+  /* El índice mide al desplazarse y al girar el teléfono. Pasivos: no frenan el scroll. */
+  on(window, 'scroll', alDesplazar, { passive: true });
+  on(window, 'resize', alDesplazar, { passive: true });
 }
 
 export function desmontar() {
@@ -133,6 +146,8 @@ export function desmontar() {
   _oyentes.length = 0;
 
   clearTimeout(_t); _t = 0;
+  if (_rafIndice) { cancelAnimationFrame(_rafIndice); _rafIndice = 0; }
+  _vig = -1;
 
   /* La barra fija es del documento, no de este módulo. Salir de Ajustes con «Respaldar»
      puesto lo deja abajo en la Agenda, y el primer dedo del día lo aprieta creyendo que es
@@ -178,8 +193,11 @@ function diaLocalDe(sello) {
    diferencia, que es ruido del navegador. */
 const mb = n => (Number(n || 0) / 1048576).toLocaleString('es-MX', { maximumFractionDigits: 1 }) + ' MB';
 
-const tarjeta = (icono, titulo, cuerpo) =>
-  '<div class="card"><div class="card-h"><h2>' + ico(icono) + esc(titulo) + '</h2></div>' +
+/* `id`: las tarjetas que el índice de arriba nombra (F22) llevan el suyo, con el prefijo `aj-s-`
+   —`aj-borrar` ya es el campo de la confirmación del cordón, y dos ids iguales en un documento son
+   un salto que cae donde no es—. */
+const tarjeta = (icono, titulo, cuerpo, id) =>
+  '<div class="card aj-tarjeta"' + (id ? ' id="' + id + '"' : '') + '><div class="card-h"><h2>' + ico(icono) + esc(titulo) + '</h2></div>' +
   '<div class="card-b">' + cuerpo + '</div></div>';
 
 const nota = (txt, tono) =>
@@ -292,6 +310,7 @@ function pintar() {
   const e = DB.estado();
 
   cont.innerHTML =
+    indiceHTML() +
     /* La base cerrada se dice aquí arriba y no se esconde: Ajustes es justo la pantalla a
        la que se llega cuando algo no funciona, así que se pinta completa —el rol, el mapa
        y las llaves son localStorage y siguen sirviendo— y lo único que se apaga es lo que
@@ -323,6 +342,138 @@ function pintar() {
     b.hidden = false;
     ajustarAltoBarra();
   }
+  armarPantalla();
+}
+
+/* ----- El índice que sigue al scroll (F22) -----
+   Nueve tarjetas largas en una columna: llegar a «Respaldo» o al «Puente» era desplazarse a
+   ciegas, y en el teléfono, mucho. Una tira fija debajo del encabezado nombra las siete que se
+   buscan —las otras dos, «Lo que esta pantalla tiene que decir» y «Por qué las cosas están como
+   están», son lectura— y marca la que se está leyendo, con una ficha que se desliza de una a otra
+   (la pieza 2) y una raya de progreso de la lectura en el borde de abajo. Tocar un nombre lleva a
+   su tarjeta.
+
+   Mientras se lee una de esas dos de lectura, la marcada es la última de la lista que pasó:
+   «Puente». Es lo más cercano a la verdad que cabe sin inventar una octava entrada para dos
+   párrafos, y la tira no se queda sin nada marcado. */
+const SECCIONES = [
+  ['aj-s-quien', 'Quién eres'], ['aj-s-tema', 'Tema'], ['aj-s-respaldo', 'Respaldo'], ['aj-s-mapa', 'Mapa'],
+  ['aj-s-gcal', 'Calendar'], ['aj-s-puente', 'Puente'], ['aj-s-borrar', 'Borrar'],
+];
+
+function indiceHTML() {
+  return '<div class="aj-indice" id="aj-indice-caja">' +
+    '<nav class="aj-indice-tira" id="aj-indice" aria-label="Secciones de Ajustes" data-ficha-clave="aj-indice">' +
+    SECCIONES.map(([id, t]) => '<button type="button" class="aj-ir" data-aj-ir="' + id + '">' + esc(t) + '</button>').join('') +
+    '</nav><div class="aj-progreso" aria-hidden="true"><i></i></div></div>';
+}
+
+/* Lo que hay que enganchar después de CADA pintar(): la pantalla se rehace entera con innerHTML
+   (cambiar de tema, de rol, guardar), así que las piezas se vuelven a pedir sobre los nodos nuevos. */
+function armarPantalla() {
+  const P = window.Piezas;
+  const nav = $('aj-indice');
+  _vig = -1;
+  medirIndice();
+  if (P && nav) {
+    /* En el teléfono la tira se desliza de lado: los bordes se desvanecen del lado donde todavía
+       hay nombres (pieza 10). Se pide ANTES de la ficha que viaja para que la máscara ya esté
+       puesta cuando la ficha medida pase por debajo. */
+    if (P.bordesDesvanecidos) P.bordesDesvanecidos(nav, { eje: 'x' });
+    /* La ficha solo existe durante el viaje; en reposo el marcado lo pinta `[aria-current]` en el
+       CSS. Se pide DESPUÉS de marcar la primera sección, para que no viaje desde ninguna parte. */
+    if (P.fichaQueViaja) P.fichaQueViaja(nav, { activo: '[aria-current="true"]' });
+  }
+  if (P && P.riel) {
+    for (const k of ['gcal', 'puente']) {
+      const el = $('aj-pasos-' + k);
+      if (el) P.riel(el, { marcable: true, alCambiar: estados => guardarPasos(k, estados) });
+    }
+  }
+}
+
+/* Qué sección va marcada y cuánto se lleva leído. Un oyente de scroll pasivo que pide UN cuadro:
+   un IntersectionObserver dice cuáles tarjetas se VEN, no cuál va arriba, y la marcada es «la
+   última cuyo título ya pasó bajo la tira». Al llegar al fondo, la última: «Borrar» es la tarjeta
+   más corta y a veces no alcanza a subir hasta la línea. */
+function alDesplazar() {
+  if (_rafIndice) return;
+  _rafIndice = requestAnimationFrame(() => { _rafIndice = 0; medirIndice(); });
+}
+
+function medirIndice() {
+  const caja = $('aj-indice-caja');
+  if (!caja) return;
+  const linea = caja.getBoundingClientRect().bottom + 24;
+  let m = 0;
+  SECCIONES.forEach(([id], i) => { const c = $(id); if (c && c.getBoundingClientRect().top <= linea) m = i; });
+  const raiz = document.documentElement;
+  const largo = raiz.scrollHeight - window.innerHeight;
+  if (largo > 0 && window.scrollY >= largo - 2) m = SECCIONES.length - 1;
+  const barra = caja.querySelector('.aj-progreso i');
+  if (barra) barra.style.setProperty('--p', largo > 0 ? Math.max(0, Math.min(1, window.scrollY / largo)).toFixed(4) : '0');
+  if (m === _vig) return;
+  const primera = _vig === -1;
+  _vig = m;
+  const nav = $('aj-indice');
+  if (!nav) return;
+  const botones = Array.from(nav.querySelectorAll('.aj-ir'));
+  botones.forEach((b, i) => { if (i === m) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current'); });
+  /* La marcada tiene que verse en la tira. Se corre la tira, no la página: `scrollIntoView` movería
+     también el documento que se está leyendo. La pieza 10 lo sabe hacer ('revelar'). */
+  const b = botones[m];
+  const bordes = window.Piezas && window.Piezas.bordesDesvanecidos ? window.Piezas.bordesDesvanecidos(nav, { eje: 'x' }) : null;
+  if (bordes && bordes.revelar) bordes.revelar(b, !primera);
+  else if (b) {
+    if (b.offsetLeft < nav.scrollLeft) nav.scrollLeft = b.offsetLeft - 8;
+    else if (b.offsetLeft + b.offsetWidth > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = b.offsetLeft + b.offsetWidth - nav.clientWidth + 8;
+  }
+}
+
+/* Tocar un nombre lleva a su tarjeta, debajo de la tira. Con teclado el foco se va al título de la
+   tarjeta: si no, el siguiente Tab seguiría en la tira, atrás de donde acaba de llegar la vista. */
+function irASeccion(id, conTeclado) {
+  const c = $(id), caja = $('aj-indice-caja');
+  if (!c) return;
+  const tope = caja ? (parseFloat(getComputedStyle(caja).top) || 0) + caja.offsetHeight : 0;
+  const y = c.getBoundingClientRect().top + window.scrollY - tope - 12;
+  try { window.scrollTo({ top: Math.max(0, y), behavior: scrollSuave() }); }
+  catch (_) { window.scrollTo(0, Math.max(0, y)); }
+  if (conTeclado) {
+    const h = c.querySelector('h2');
+    if (h) { h.tabIndex = -1; try { h.focus({ preventScroll: true }); } catch (_) {} }
+  }
+}
+
+/* ----- Los pasos que se palomean y se recuerdan (F32) -----
+   Quien configura Google Cloud va y viene entre la consola y esta pantalla, en el teléfono, y al
+   volver no sabe por qué paso iba. Cada paso es un botón: tocarlo lo palomea, el primero sin
+   palomear queda como «vas aquí», y se guarda en este dispositivo. Los TEXTOS siguen saliendo de
+   `Gcal.instrucciones()` y `Puente.instrucciones()`: si Google cambia un paso, cambia en el
+   archivo donde vive el código que lo usa. */
+function pasosGuardados(k, n) {
+  const g = Prefs.get(CLAVE_PASOS[k], null);
+  if (!g || g.n !== n || !Array.isArray(g.hechos)) return new Set();
+  return new Set(g.hechos.filter(i => Number.isInteger(i) && i >= 0 && i < n));
+}
+
+function guardarPasos(k, estados) {
+  const hechos = [];
+  (estados || []).forEach((e, i) => { if (e === 'hecho') hechos.push(i); });
+  /* Sin nada palomeado se suelta la clave: no deja una entrada vacía en el almacenamiento. */
+  Prefs.set(CLAVE_PASOS[k], hechos.length ? { n: (estados || []).length, hechos } : null);
+}
+
+function pasosHTML(k, textos, etiqueta) {
+  const P = window.Piezas;
+  if (!P || !P.rielHTML) {
+    return '<ol class="aj-pasos">' + textos.map(p => '<li>' + esc(p) + '</li>').join('') + '</ol>';
+  }
+  const hechos = pasosGuardados(k, textos.length);
+  const primero = textos.findIndex((_, i) => !hechos.has(i));
+  const pasos = textos.map((texto, i) => ({ texto, estado: hechos.has(i) ? 'hecho' : i === primero ? 'actual' : 'pendiente' }));
+  return '<div class="aj-pasos-riel" id="aj-pasos-' + k + '">' +
+    P.rielHTML(pasos, { tocable: true, etiqueta }) + '</div>';
 }
 
 /* ----- 1. Quién eres ----- */
@@ -371,7 +522,7 @@ function cardQuienEres() {
     '<button type="button" class="btn btn-gho pf-btn-corto" data-act="letra">' +
     ico('i-guardar') + ' Guardar la letra</button>' +
     '<p class="pf-nota">Va al final de cada folio nuevo: COT-0042-' + esc(Prefs.letraFolio()) +
-    '. Dale una distinta a cada teléfono que cotiza; los folios ya emitidos no cambian.</p>');
+    '. Dale una distinta a cada teléfono que cotiza; los folios ya emitidos no cambian.</p>', 'aj-s-quien');
 }
 
 /* ----- 1b. Apariencia -----
@@ -388,7 +539,7 @@ function cardApariencia() {
         pref, 'data-tema-elegir', 'aj-tema-lab') + '</div>' +
     '<p class="pf-nota">Se guarda en este dispositivo y aplica a la app entera: el tablero, el ' +
     'calendario, el cotizador y el anidador. El sol y la luna de la barra de arriba hacen lo mismo ' +
-    'con un toque. El PDF que se manda al cliente siempre sale en claro.</p>');
+    'con un toque. El PDF que se manda al cliente siempre sale en claro.</p>', 'aj-s-tema');
 }
 
 /* ----- 2. Respaldo ----- */
@@ -410,9 +561,18 @@ function cardRespaldo(baseOk) {
         'semanas es cuando Safari empieza a desalojar sitios que nadie abre.', 'av') : '');
   }
 
+  /* El medidor quieto (la pieza 20, F3): lo usado contra lo que presta el navegador, una barra de
+     6 px sin animación. La frase de al lado se queda, porque es la que dice la cifra: la barra es
+     aria-hidden y no lleva texto encima. El ámbar y el rojo no son la única señal, para eso está
+     el porcentaje escrito. Sin cuota conocida no hay contra qué medir y no se pinta. */
+  const barra = ESPACIO && ESPACIO.cuota > 0 && window.Piezas && window.Piezas.medidorHTML
+    ? '<div class="aj-medidor">' + window.Piezas.medidorHTML({
+        valor: ESPACIO.usado, max: ESPACIO.cuota,
+        tono: ESPACIO.pct >= 95 ? 'mal' : ESPACIO.pct >= 80 ? 'av' : '' }) + '</div>'
+    : '';
   const esp = ESPACIO
     ? '<dl class="pf-dato"><dt>Espacio</dt><dd>' + esc(mb(ESPACIO.usado)) + ' usados de ' +
-      esc(mb(ESPACIO.cuota)) + ' (' + ESPACIO.pct + '%)</dd></dl>' +
+      esc(mb(ESPACIO.cuota)) + ' (' + ESPACIO.pct + '%)</dd></dl>' + barra +
       '<p class="pf-nota">Es lo que este navegador le presta a todo el sitio, cotizador ' +
       'incluido. Es una cifra para orientarse, no un límite exacto: el navegador la mueve.</p>'
     : '<p class="pf-nota">Este navegador no dice cuánto espacio queda. No es un problema: ' +
@@ -442,7 +602,7 @@ function cardRespaldo(baseOk) {
       'o correo al otro aparato, y ábrelo ahí desde esta misma pantalla. Los respaldos viejos, ' +
       'de la plataforma sola, siguen entrando igual.') +
 
-    esp);
+    esp, 'aj-s-respaldo');
 }
 
 /* ----- 3. El mapa ----- */
@@ -472,7 +632,7 @@ function cardMapa() {
 
     '<p class="pf-nota">Los cuadros del mapa nunca se guardan para verlos sin señal: la ' +
     'licencia de OpenStreetMap lo prohíbe y es la forma más rápida de que nos corten. El ' +
-    'mapa necesita señal; los datos no.</p>');
+    'mapa necesita señal; los datos no.</p>', 'aj-s-mapa');
 }
 
 /* ----- 4. Fase 2, Google Calendar ----- */
@@ -486,7 +646,8 @@ function cardGcal() {
      pantalla: si el scope o el nombre de un campo de Google Cloud cambia, tienen que
      cambiar en el mismo archivo donde está el código que los usa. Dos copias de un
      tutorial es una copia mintiendo. */
-  const pasos = '<ol class="aj-pasos">' + ins.pasos.map(p => '<li>' + esc(p) + '</li>').join('') + '</ol>';
+  const pasos = '<p class="pf-nota aj-pasos-pista">Toca cada paso al terminarlo: se queda palomeado en este teléfono y el siguiente queda marcado.</p>' +
+    pasosHTML('gcal', ins.pasos, 'Pasos de Google Cloud');
   const notas = ins.notas.map(n => '<p class="pf-nota">' + esc(n) + '</p>').join('');
 
   const estado = Gcal.conectado()
@@ -514,7 +675,7 @@ function cardGcal() {
       '<p class="pf-nota">Tú no tienes que configurar nada. Cuando Dirección manda una ' +
       'instalación a Google Calendar desde su ficha, te llega la invitación al correo y al ' +
       'calendario del teléfono. Agendarla no la manda sola: si no te llega, pídeselo, o ' +
-      'baja el .ics de esa instalación, que funciona sin cuentas.</p>');
+      'baja el .ics de esa instalación, que funciona sin cuentas.</p>', 'aj-s-gcal');
   }
 
   return tarjeta('i-agenda', ins.titulo + ' · Fase 2',
@@ -558,7 +719,7 @@ function cardGcal() {
     (Gcal.disponible() ? '' : ' disabled') + '>' + ico('i-nube') + ' Conectar con Google</button>' +
     '</div>' +
 
-    notas);
+    notas, 'aj-s-gcal');
 }
 
 /* ----- 5. Fase 3, el puente a la hoja de finanzas ----- */
@@ -574,7 +735,8 @@ function cardPuente() {
   /* Los pasos y las notas se le piden a `puente.js` y no se escriben aquí, aunque sean
      texto de pantalla: el día que cambie un paso del puente tiene que
      cambiar en el mismo archivo donde está el código que la usa. */
-  const pasos = '<ol class="aj-pasos">' + ins.pasos.map(x => '<li>' + esc(x) + '</li>').join('') + '</ol>';
+  const pasos = '<p class="pf-nota aj-pasos-pista">Toca cada paso al terminarlo: se queda palomeado en este teléfono y el siguiente queda marcado.</p>' +
+    pasosHTML('puente', ins.pasos, 'Pasos para armar el puente');
   const notas = ins.notas.map(n => '<p class="pf-nota">' + esc(n) + '</p>').join('');
 
   const cuentaPend = PEND
@@ -749,7 +911,7 @@ function cardPuente() {
     'la garantía sí es total: el id lo pone este dispositivo y un reintento no resta el material ' +
     'dos veces.</p>' +
 
-    notas);
+    notas, 'aj-s-puente');
 }
 
 /* ----- 6. Lo que esta pantalla tiene que decir ----- */
@@ -813,7 +975,7 @@ function cardCordon(baseOk) {
     '<div class="pf-acciones">' +
     '<button type="button" class="btn btn-dgr" data-act="borrar"' + (baseOk ? '' : ' disabled') + '>' +
     ico('i-basura') + ' Borrar todo lo de la plataforma en este dispositivo</button>' +
-    '</div>');
+    '</div>', 'aj-s-borrar');
 }
 
 /* ============================================================================
@@ -829,13 +991,10 @@ async function clic(ev) {
   if (rol) { guardarNombreCallado(); aplicarRol(rol.dataset.rol); return; }
 
   const tema = t.closest('[data-tema-elegir]');
-  if (tema) {
-    if (window.AL3D_TEMA) window.AL3D_TEMA.poner(tema.dataset.temaElegir);
-    guardarNombreCallado();
-    pintar();
-    voz('Tema: ' + tema.textContent.trim());
-    return;
-  }
+  if (tema) { elegirTema(tema, ev); return; }
+
+  const ir = t.closest('[data-aj-ir]');
+  if (ir) { irASeccion(ir.dataset.ajIr, ev.detail === 0); return; }
 
   const tile = t.closest('[data-tile]');
   if (tile) { elegirTiles(tile.dataset.tile); return; }
@@ -847,13 +1006,17 @@ async function clic(ev) {
   if (t.closest('[data-act="gcal-conectar"]')) { conectarGcal(); return; }
   if (t.closest('[data-act="ingreso-entrar"]')) { entrarConGoogle(); return; }
   if (t.closest('[data-act="ingreso-salir"]')) { salirDeGoogle(); return; }
-  if (t.closest('[data-act="puente-guardar"]')) { guardarPuente(); return; }
-  if (t.closest('[data-act="puente-quitar"]')) { quitarPuente(); return; }
-  if (t.closest('[data-act="puente-bombear"]')) { bombear(); return; }
-  if (t.closest('[data-act="puente-reintentar"]')) { reintentarApartadas(); return; }
-  if (t.closest('[data-act="puente-probar"]')) { probarPuente(); return; }
-  if (t.closest('[data-act="puente-esquema"]')) { revisarEsquema(); return; }
-  if (t.closest('[data-act="puente-jalar"]')) { jalar(); return; }
+  /* El botón tocado viaja hasta la acción (F7): es el que dice qué está haciendo, cuánto lleva y
+     cómo terminó. */
+  const acc = a => t.closest('[data-act="' + a + '"]');
+  let b;
+  if ((b = acc('puente-guardar'))) { guardarPuente(b); return; }
+  if (acc('puente-quitar')) { quitarPuente(); return; }
+  if ((b = acc('puente-bombear'))) { bombear(b); return; }
+  if ((b = acc('puente-reintentar'))) { reintentarApartadas(b); return; }
+  if ((b = acc('puente-probar'))) { probarPuente(b); return; }
+  if ((b = acc('puente-esquema'))) { revisarEsquema(b); return; }
+  if ((b = acc('puente-jalar'))) { jalar(b); return; }
   if (t.closest('[data-act="puente-copiar-faltan"]')) { copiarFaltan(); return; }
   if (t.closest('[data-act="borrar"]')) { abrirCordon(); return; }
 }
@@ -861,6 +1024,35 @@ async function clic(ev) {
 function cambio(ev) {
   const inp = ev.target.closest('#aj-archivo');
   if (inp) restaurar(inp);
+}
+
+/* ----- El tema (F21) -----
+   El tema nuevo se abre en círculo desde el botón que se tocó, en unos 380 ms (la pieza 21, que
+   vive en js/tema.js porque el botón del encabezado está en todas las páginas). El cambio y el
+   repintado van DENTRO de la transición: la foto nueva ya trae la pantalla en su tema. Sin View
+   Transitions, con menos movimiento o con la pestaña oculta `revelar` cambia de golpe, como antes.
+
+   Con teclado el círculo sale del centro del botón: un Enter no trae coordenadas, y el evento
+   delegado tiene a todo el contenedor como `currentTarget`, así que se le pasa el botón mismo.
+   Como `pintar()` rehace la pantalla, el botón tocado deja de existir: el foco se devuelve al
+   equivalente del repintado, o quien navega con teclado caería al principio del documento. */
+function elegirTema(boton, ev) {
+  const T = window.AL3D_TEMA;
+  const valor = boton.dataset.temaElegir;
+  const nombre = boton.textContent.trim();
+  const teniaFoco = document.activeElement === boton;
+  guardarNombreCallado();
+  const cambiar = () => {
+    if (T) T.poner(valor);
+    if (!cont) return;                // se salió de Ajustes mientras la transición esperaba su cuadro
+    pintar();
+    if (teniaFoco && (!document.activeElement || document.activeElement === document.body)) {
+      const nuevo = cont.querySelector('[data-tema-elegir="' + valor + '"]');
+      if (nuevo) { try { nuevo.focus({ preventScroll: true }); } catch (_) {} }
+    }
+  };
+  if (T && T.revelar) T.revelar(ev.detail === 0 ? boton : ev, cambiar); else cambiar();
+  voz('Tema: ' + nombre);
 }
 
 /* ----- Nombre y rol ----- */
@@ -1148,6 +1340,9 @@ async function conectarGcal() {
 /** Vuelve a leer los dos contadores de la bandeja y repinta, sin remontar. */
 async function repintar() {
   const [cola, sinDest, rech] = await Promise.all([Sync.pendientes(), Sync.sinDestino(), Sync.rechazadas().catch(() => [])]);
+  /* Una acción lenta del puente puede terminar cuando ya se salió de Ajustes: sin pantalla no hay
+     nada que repintar, y `pintar()` tronaría sobre un contenedor que ya no existe. */
+  if (!cont) return;
   PEND = cola.length;
   APARTADAS = sinDest.length;
   RECHAZ = rech || [];
@@ -1156,19 +1351,67 @@ async function repintar() {
 
 /* Un solo botón del puente a la vez. Todos tocan la red y ninguno es instantáneo: sin
    esto, tres toques impacientes son tres peticiones en vuelo y la última en contestar es
-   la que se pinta, que no es la última que se pidió. */
+   la que se pinta, que no es la última que se pidió.
+
+   Lo que cambia con F7 es que ya no se calla. Una llamada de 5 a 30 s solo se anunciaba con un
+   aviso que se iba a los 2 s; los otros botones seguían pareciendo vivos y un segundo toque no
+   hacía nada ni decía por qué; y el resultado llegaba en otro aviso, lejos de lo que se tocó.
+   Ahora el botón tocado ES la ficha de lo que pasa (la pieza 14): su rótulo dice lo que hace y
+   cuánto lleva («Trayendo la hoja · vuelta 3 · 12 s»), se va llenando de izquierda a derecha, sus
+   hermanos del puente pasan a `aria-disabled` y se atenúan, y al final dice «Listo» en verde un
+   momento, o «No contestó · Reintentar» con una sacudida corta. El aviso y la voz se quedan: es
+   lo que se oye y lo que trae el detalle.
+
+   Una dificultad que explica la forma de `correr()`: terminar una acción REPINTA la pantalla (los
+   contadores de la bandeja, el resultado de la prueba), y el botón tocado deja de existir. El
+   estado final se le pone al botón equivalente del repintado, no al que ya salió del documento. */
 let _ocupado = false;
-async function conElPuente(etiqueta, fn) {
-  if (_ocupado) return;
-  const rel = Puente.desdePrefs();
-  if (!rel) { toast('Primero guarda la liga y el token del puente', 'err', 4200); return; }
-  _ocupado = true;
-  toast(etiqueta, '', 2000);
-  try { await fn(rel); } finally { _ocupado = false; }
-  await repintar();
+let _haciendo = '';      // lo que está pasando, para decirlo si alguien insiste
+
+function decirOcupado() {
+  const msg = 'Todavía está ' + (_haciendo || 'trabajando') + '. Espera a que termine.';
+  toast(msg, '', 3000);
 }
 
-async function guardarPuente() {
+/**
+ * Corre `trabajo(mango)` con `btn` como ficha de lo que pasa. `trabajo` contesta
+ * `{ok:false, motivo}` cuando salió mal y `{ok:true, texto?}` (o nada) cuando salió bien; el
+ * mango sirve para `avance(p, texto)`. Después repinta la pantalla y le dice al botón nuevo cómo
+ * terminó. Si no hay pieza o no hay botón, cae al aviso de 2 s de siempre.
+ */
+async function correr(btn, verbo, trabajo, opc = {}) {
+  const P = window.Piezas;
+  const act = btn && btn.dataset ? btn.dataset.act : '';
+  const h = btn && P && P.estadoBoton ? P.estadoBoton(btn) : null;
+  _ocupado = true; _haciendo = verbo.charAt(0).toLowerCase() + verbo.slice(1);
+  if (h) {
+    const hermanos = Array.from(cont ? cont.querySelectorAll('#aj-s-puente [data-act]') : []).filter(x => x !== btn);
+    h.trabajando({ verbo, tau: opc.tau || 4000, hermanos });
+  } else toast(verbo + '…', '', 2000);
+  let r;
+  try { r = await trabajo(h); }
+  catch (e) {
+    toast('No salió: ' + ((e && e.message) || 'error desconocido'), 'err', 5200);
+    r = { ok: false, motivo: 'No salió' };
+  } finally { _ocupado = false; _haciendo = ''; }
+  await repintar();
+  const nuevo = act && cont ? cont.querySelector('[data-act="' + act + '"]') : null;
+  const h2 = nuevo && P && P.estadoBoton ? P.estadoBoton(nuevo) : null;
+  if (!h2) return r;
+  if (r && r.ok === false) h2.mal(r.motivo || 'No se pudo');
+  else h2.ok((r && r.texto) || 'Listo', { volver: 1800 });
+  return r;
+}
+
+async function conElPuente(btn, verbo, fn, opc) {
+  if (_ocupado) { decirOcupado(); return; }
+  const rel = Puente.desdePrefs();
+  if (!rel) { toast('Primero guarda la liga y el token del puente', 'err', 4200); return; }
+  return correr(btn, verbo, h => fn(rel, h), opc);
+}
+
+async function guardarPuente(btn) {
+  if (_ocupado) { decirOcupado(); return; }
   const url = ($('aj-worker-url') && $('aj-worker-url').value || '').trim();
   const nuevo = ($('aj-worker-tok') && $('aj-worker-tok').value || '').trim();
   /* `puenteGuardado` y no `puente`: lo segundo trae la dirección de fábrica inyectada, y
@@ -1193,9 +1436,14 @@ async function guardarPuente() {
 
   /* Enchufar y probar de corrido. Guardar una URL y NO decir si sirve es cómo alguien se
      va del taller creyendo que ya sincroniza, y se entera tres días después de que el
-     token traía un espacio pegado. */
-  if (CTX.enchufarPuente) await CTX.enchufarPuente();
-  await probarPuente();
+     token traía un espacio pegado. El botón tocado es «Guardar el puente», y lo que tarda es
+     la prueba: ahí es donde dice «Guardando y probando» y cómo salió. */
+  await correr(btn, 'Guardando y probando', async () => {
+    if (CTX.enchufarPuente) await CTX.enchufarPuente();
+    const rel = Puente.desdePrefs();
+    if (!rel) { toast('Primero guarda la liga y el token del puente', 'err', 4200); return { ok: false, motivo: 'Falta la liga' }; }
+    return pruebaDelPuente(rel);
+  }, { tau: 3500 });
 }
 
 async function quitarPuente() {
@@ -1214,37 +1462,44 @@ async function quitarPuente() {
 }
 
 /** /salud. Guarda el rol que el puente reconoció, que es el que de verdad manda. */
-async function probarPuente() {
-  await conElPuente('Preguntándole al puente…', async rel => {
-    SALUD = await rel.salud();
-    if (SALUD.ok) {
-      /* El rol se recuerda junto a la URL para que la pantalla pueda decir de qué es este
-         token sin volver a preguntar. El token NO se vuelve a escribir aquí: ya está. */
-      const prev = Prefs.puenteGuardado() || {};
-      Prefs.setPuente({ ...prev, rol: SALUD.rol || '', probado: Date.now() });
-      /* Contesta, pero ¿con el contrato que esta plataforma espera? Una hoja con el Apps
-         Script de antes manda el saldo al revés y no conoce el % de comisión, y «contesta»
-         no lo dice. Se dice aquí, con los pasos. */
-      const viejo = Puente.avisoVersion(SALUD.version);
-      if (viejo) toast(viejo, 'err', 12000);
-      else toast('El puente contesta', 'ok', 3000);
-    } else {
-      toast(SALUD.mensaje || 'El puente no contestó', 'err', 5600);
-    }
-  });
+async function probarPuente(btn) {
+  await conElPuente(btn, 'Preguntándole al puente', rel => pruebaDelPuente(rel), { tau: 3500 });
+}
+
+/* La prueba en sí, sin botón: la usan «Probar» y «Guardar el puente», que prueba al guardar. */
+async function pruebaDelPuente(rel) {
+  SALUD = await rel.salud();
+  if (SALUD.ok) {
+    /* El rol se recuerda junto a la URL para que la pantalla pueda decir de qué es este
+       token sin volver a preguntar. El token NO se vuelve a escribir aquí: ya está. */
+    const prev = Prefs.puenteGuardado() || {};
+    Prefs.setPuente({ ...prev, rol: SALUD.rol || '', probado: Date.now() });
+    /* Contesta, pero ¿con el contrato que esta plataforma espera? Una hoja con el Apps
+       Script de antes manda el saldo al revés y no conoce el % de comisión, y «contesta»
+       no lo dice. Se dice aquí, con los pasos. */
+    const viejo = Puente.avisoVersion(SALUD.version);
+    if (viejo) toast(viejo, 'err', 12000);
+    else toast('El puente contesta', 'ok', 3000);
+  } else {
+    toast(SALUD.mensaje || 'El puente no contestó', 'err', 5600);
+  }
+  /* Con una hoja de contrato viejo el aviso sale en rojo pero el puente SÍ contestó: el botón
+     dice lo que pasó con la llamada, que es lo que él puede saber. */
+  return SALUD.ok ? { ok: true, texto: 'Contesta' } : { ok: false, motivo: 'No contestó' };
 }
 
 /** GET /esquema. Detecta lo que falta en Notion; NO lo crea, y eso es a propósito. */
-async function revisarEsquema() {
-  await conElPuente('Leyendo las columnas de la hoja…', async rel => {
+async function revisarEsquema(btn) {
+  await conElPuente(btn, 'Leyendo las columnas de la hoja', async rel => {
     ESQ = await rel.esquema();
-    if (!ESQ.ok) { toast(ESQ.mensaje || 'No se pudo leer el esquema', 'err', 5600); return; }
+    if (!ESQ.ok) { toast(ESQ.mensaje || 'No se pudo leer el esquema', 'err', 5600); return { ok: false, motivo: 'No se pudo leer' }; }
     const nc = columnasQueFaltan().length;
     toast(nc
       ? 'Le faltan ' + nc + (nc === 1 ? ' columna' : ' columnas') + ' a la hoja' + (ESQ.accesos === false ? ' y la pestaña «Accesos»' : '')
       : ESQ.faltan.length ? 'Falta la pestaña «Accesos» en la hoja'
       : 'La hoja ya tiene todo lo que hace falta', ESQ.faltan.length ? '' : 'ok', 4200);
-  });
+    return { ok: true, texto: 'Revisado' };
+  }, { tau: 4000 });
 }
 
 /* Las columnas, sin la pestaña «Accesos» que puente.js mete en la misma lista. */
@@ -1261,43 +1516,45 @@ function copiarFaltan() {
   copiarTexto(txt, 'Lista copiada — o córrele prepararHojaParaElPuente() en Apps Script');
 }
 
-async function reintentarApartadas() {
-  if (_ocupado) return;
+async function reintentarApartadas(btn) {
+  if (_ocupado) { decirOcupado(); return; }
   const r = await Sync.reintentarRechazadas();
   const n = (r && r.ok && r.valor && r.valor.reencoladas) || 0;
   if (!n) { toast('No había cambios apartados', '', 3200); await repintar(); return; }
   toast(n === 1 ? 'El cambio volvió a la bandeja: se manda ahora' : n + ' cambios volvieron a la bandeja: se mandan ahora', 'ok', 3600);
-  await bombear();
+  await bombear(btn);
 }
 
-async function bombear() {
-  if (_ocupado) return;
-  _ocupado = true;
-  let r;
-  try { r = await Sync.bombear(); } finally { _ocupado = false; }
-  if (!avisarResultado(r)) { await repintar(); return; }
-  const v = r.valor || {};
-  const n = Number(v.subidas || v.mandadas) || 0;
-  const partes = [];
-  if (n) partes.push('Se ' + (n === 1 ? 'mandó 1 operación' : 'mandaron ' + n + ' operaciones'));
-  if (v.fallidas) partes.push(v.fallidas + (v.fallidas === 1 ? ' no se pudo' : ' no se pudieron'));
-  if (v.conflictos) partes.push(v.conflictos + (v.conflictos === 1 ? ' cambió en la hoja' : ' cambiaron en la hoja'));
-  if (v.sin_destino) partes.push(v.sin_destino + ' se apartaron: este puente no las lleva');
-  /* Lo que se mandó pero no se escribió entero. El puente devuelve qué propiedad rechazó y
-     por qué; hasta ahora eso moría en un console.warn y el aviso decía «se mandó» a secas.
-     Va en rojo y dura más: es la única señal de que una fila de Notion quedó a medias. */
-  const rech = Array.isArray(v.rechazos) ? v.rechazos : [];
-  if (rech.length) {
-    const props = [...new Set(rech.flatMap(x => (x.lista || []).map(y => y.nombre)))];
-    partes.push('pero la hoja no aceptó ' + props.join(', '));
-  }
-  toast(partes.length ? partes.join(' · ') : 'No había nada que mandar',
-        (v.fallidas || rech.length) ? 'err' : 'ok', rech.length ? 7000 : 4600);
-  if (rech.length) {
-    const detalle = rech.flatMap(x => (x.lista || []).map(y => y.nombre + ': ' + y.por));
-    voz('La hoja no escribió ' + detalle.length + ' campos. ' + detalle.join('. '), true);
-  }
-  await repintar();
+async function bombear(btn) {
+  if (_ocupado) { decirOcupado(); return; }
+  await correr(btn, 'Mandando lo pendiente', async () => {
+    const r = await Sync.bombear();
+    if (!avisarResultado(r)) return { ok: false, motivo: 'No se pudo mandar' };
+    const v = r.valor || {};
+    const n = Number(v.subidas || v.mandadas) || 0;
+    const partes = [];
+    if (n) partes.push('Se ' + (n === 1 ? 'mandó 1 operación' : 'mandaron ' + n + ' operaciones'));
+    if (v.fallidas) partes.push(v.fallidas + (v.fallidas === 1 ? ' no se pudo' : ' no se pudieron'));
+    if (v.conflictos) partes.push(v.conflictos + (v.conflictos === 1 ? ' cambió en la hoja' : ' cambiaron en la hoja'));
+    if (v.sin_destino) partes.push(v.sin_destino + ' se apartaron: este puente no las lleva');
+    /* Lo que se mandó pero no se escribió entero. El puente devuelve qué propiedad rechazó y
+       por qué; hasta ahora eso moría en un console.warn y el aviso decía «se mandó» a secas.
+       Va en rojo y dura más: es la única señal de que una fila de Notion quedó a medias. */
+    const rech = Array.isArray(v.rechazos) ? v.rechazos : [];
+    if (rech.length) {
+      const props = [...new Set(rech.flatMap(x => (x.lista || []).map(y => y.nombre)))];
+      partes.push('pero la hoja no aceptó ' + props.join(', '));
+    }
+    toast(partes.length ? partes.join(' · ') : 'No había nada que mandar',
+          (v.fallidas || rech.length) ? 'err' : 'ok', rech.length ? 7000 : 4600);
+    if (rech.length) {
+      const detalle = rech.flatMap(x => (x.lista || []).map(y => y.nombre + ': ' + y.por));
+      voz('La hoja no escribió ' + detalle.length + ' campos. ' + detalle.join('. '), true);
+    }
+    /* «Listo» es mentira si algo no salió entero: el botón lo dice con la misma verdad que el aviso. */
+    if (v.fallidas || rech.length) return { ok: false, motivo: rech.length ? 'La hoja no aceptó todo' : 'Algo no se mandó' };
+    return { ok: true, texto: n ? 'Mandado' : 'Al día' };
+  }, { tau: 5000 });
 }
 
 /**
@@ -1306,12 +1563,12 @@ async function bombear() {
  * siete páginas. Con una sola vuelta por toque, alguien tendría que apretar el botón siete
  * veces sin que la pantalla le dijera por qué.
  */
-async function jalar() {
-  if (_ocupado) return;
-  _ocupado = true;
-  toast('Trayendo lo de la hoja…', '', 2000);
-  let nuevos = 0, actualizados = 0, borrados = 0, vueltas = 0, error = null;
-  try {
+async function jalar(btn) {
+  if (_ocupado) { decirOcupado(); return; }
+  await correr(btn, 'Trayendo la hoja', async h => {
+    let nuevos = 0, actualizados = 0, borrados = 0, vueltas = 0, error = null;
+    const desde = Date.now();
+    const P = window.Piezas;
     /* Tope de veinte vueltas —mil filas— para que un cursor que no avanza no deje esto
        dando vueltas para siempre contra una API que sí cobra peticiones. */
     while (vueltas < 20) {
@@ -1325,16 +1582,20 @@ async function jalar() {
       /* Se sigue mientras el puente diga que hay más páginas: los contadores no sirven de
          señal, porque una página entera de filas sin cambios da 0/0/0. */
       if (!v.hay_mas) break;
+      /* Nadie sabe cuántas páginas son hasta que se acaban, así que el relleno no finge un
+         porcentaje: sigue la curva que se acerca al 90 % con el tiempo (la de la pieza), y lo que
+         sí se sabe —en qué vuelta va— se dice en el rótulo. */
+      if (h) h.avance(P && P.avance ? P.avance(Date.now() - desde, 9000) : 0.5, 'Trayendo la hoja · vuelta ' + (vueltas + 1));
     }
-  } finally { _ocupado = false; }
-  const n = nuevos + actualizados;
-  if (error) toast(error, 'err', 5200);
-  else toast(n || borrados
-    ? 'La hoja trajo ' + n + (n === 1 ? ' cambio' : ' cambios') +
-      (borrados ? ' y quitó ' + borrados + (borrados === 1 ? ' venta que ya no está allá' : ' ventas que ya no están allá') : '') +
-      '. El récord de ventas de Control ya está al día.'
-    : 'No había nada nuevo en la hoja: el récord de ventas ya estaba al día', 'ok', 4600);
-  await repintar();
+    const n = nuevos + actualizados;
+    if (error) toast(error, 'err', 5200);
+    else toast(n || borrados
+      ? 'La hoja trajo ' + n + (n === 1 ? ' cambio' : ' cambios') +
+        (borrados ? ' y quitó ' + borrados + (borrados === 1 ? ' venta que ya no está allá' : ' ventas que ya no están allá') : '') +
+        '. El récord de ventas de Control ya está al día.'
+      : 'No había nada nuevo en la hoja: el récord de ventas ya estaba al día', 'ok', 4600);
+    return error ? { ok: false, motivo: 'No se pudo traer' } : { ok: true, texto: n || borrados ? 'Traído' : 'Al día' };
+  }, { tau: 9000 });
 }
 
 /* ============================================================================
@@ -1412,29 +1673,42 @@ function cordonRespaldo() {
 }
 
 /** Segunda confirmación, ya con el respaldo en la mano. Se escribe la palabra: este botón
- *  no se puede apretar con el dedo equivocado. */
+ *  no se puede apretar con el dedo equivocado.
+ *
+ *  La palabra se escribe en SEIS CASILLAS que se van llenando (F27, la pieza 19). Antes era un
+ *  campo libre y el error —una «borrar» en minúsculas, una letra de más— se descubría al tocar
+ *  «Borrar de verdad». Ahora cada casilla que no coincide sale en rojo al teclearla, las
+ *  mayúsculas se ponen solas, y el botón solo se habilita con BORRAR completo. Se habilita con
+ *  `aria-disabled` y no con `disabled`: un botón apagado de verdad no recibe el toque y no puede
+ *  explicar por qué no se puede; este sí, y `cordonBorrar()` sigue validando al apretar. Nada de
+ *  festejo al completar: es la confirmación de borrar todo, no un logro. */
 function cordonFinal(sello) {
+  const P = window.Piezas;
+  const casillas = !!(P && P.casillasCodigoHTML && P.casillasCodigo);
   panel(cabeza('El respaldo ya está en tu teléfono') +
     '<div class="pf-panel-b">' +
       nota(ico('i-check') + ' Se descargó <b>plataforma-al3d-antes-de-borrar-' + esc(sello) +
         '.json</b>. Guárdalo donde no se borre solo: con ese archivo, «Restaurar» de esta ' +
         'misma pantalla trae todo de vuelta.', 'ok') +
-      '<p class="aj-p">Ahora sí, lo último. Escribe <b>BORRAR</b> con mayúsculas para ' +
-      'confirmar.</p>' +
+      '<p class="aj-p">Ahora sí, lo último. Escribe <b>BORRAR</b> para confirmar.</p>' +
       '<div class="fld"><label for="aj-borrar">Confirmación</label>' +
-      '<input type="text" id="aj-borrar" autocomplete="off" spellcheck="false" ' +
-      'autocapitalize="characters" placeholder="BORRAR"></div>' +
+      (casillas
+        ? P.casillasCodigoHTML({ id: 'aj-borrar', esperado: 'BORRAR', etiqueta: 'Confirmación: escribe BORRAR' })
+        : '<input type="text" id="aj-borrar" autocomplete="off" spellcheck="false" ' +
+          'autocapitalize="characters" placeholder="BORRAR">') + '</div>' +
     '</div>' +
     '<div class="pf-panel-f">' +
       '<button type="button" class="btn btn-gho" data-cordon="cerrar">Cancelar</button>' +
-      '<button type="button" class="btn btn-dgr" data-cordon="borrar">Borrar de verdad</button>' +
+      '<button type="button" class="btn btn-dgr" id="aj-borrar-b" data-cordon="borrar"' +
+        (casillas ? ' aria-disabled="true"' : '') + '>Borrar de verdad</button>' +
     '</div>');
+  if (casillas) P.casillasCodigo('aj-borrar', { esperado: 'BORRAR', boton: 'aj-borrar-b' });
 }
 
 async function cordonBorrar() {
   const c = $('aj-borrar');
   if (((c && c.value) || '').trim() !== 'BORRAR') {
-    toast('Escribe BORRAR con mayúsculas para confirmar', 'err', 4200);
+    toast('Escribe BORRAR para confirmar: el botón se habilita con las seis letras', 'err', 4200);
     if (c) { try { c.focus(); } catch (_) {} }
     return;
   }
@@ -1464,6 +1738,10 @@ async function cordonBorrar() {
   Prefs.set(Prefs.CLAVES.GANADAS, []);
   Prefs.setPuente(null);
   Prefs.setGcal(null);
+  /* Los pasos palomeados son de la comodidad de este aparato; sin Calendar ni puente no tienen a
+     qué referirse. */
+  Prefs.set(CLAVE_PASOS.gcal, null);
+  Prefs.set(CLAVE_PASOS.puente, null);
 
   panel(cabeza('Se borró todo') +
     '<div class="pf-panel-b">' +

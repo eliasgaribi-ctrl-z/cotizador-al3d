@@ -401,4 +401,75 @@ export function rangoMes(ym) {
   return { desde: ym + '-01', hasta: ym + '-' + String(ult).padStart(2, '0') };
 }
 
+/* ============================================================================
+   COMISIONES: PAGAR PRIMERO LAS CHICAS (función 54)
+
+   La regla del negocio: con un monto en la mano, se pagan primero las comisiones de los
+   proyectos más chicos, para bajar cuanto antes el número de pendientes. Esta parte es la
+   aritmética de «¿a cuántas les alcanza?» y no sabe de dónde sale cada comisión: la lista
+   entra ya armada por quien la llama (Control la saca de `comisionDe()` de
+   asistente-contexto.js, que es la fórmula de la hoja, 10 % del subtotal a dos decimales, y
+   solo deja pasar la de una venta LIQUIDADA). Se queda aquí, junto a la cartera, y no
+   importa a `asistente-contexto.js`, que ya importa este archivo.
+
+   Por qué un prefijo y no un cálculo más listo. Ordenadas de menor a mayor, las que alcanzan
+   son SIEMPRE las primeras: si una no cabe, las que siguen valen lo mismo o más y tampoco.
+   Y para contar la mayor cantidad de comisiones completas que caben en un monto, empezar por
+   las más chicas es lo óptimo (cualquier otra combinación de k comisiones suma al menos lo
+   que suman las k más chicas). La prueba lo comprueba contra la fuerza bruta.
+
+   Todo en CENTAVOS enteros: 0.1 + 0.2 no es 0.3 en punto flotante, y «alcanza» contra
+   «le faltan tres centavos» es justo la frontera que el usuario va a mirar.
+   ============================================================================ */
+const centavos = v => Math.round((num(v) + Number.EPSILON) * 100);
+
+/**
+ * El monto que se tecleó, como número: «$4,000», «4000.5», « 4,000.50 ». Quita todo lo que no
+ * sea dígito o punto (la coma es la de los miles en México), conserva solo el primer punto y
+ * redondea a centavos. Vacío, basura o negativo dan 0: un campo a medias no es un error.
+ */
+export function montoDeTexto(s) {
+  if (/^\s*[-−]/.test(String(s == null ? '' : s))) return 0;
+  const limpio = String(s == null ? '' : s).replace(/[^\d.]/g, '');
+  const i = limpio.indexOf('.');
+  const t = i < 0 ? limpio : limpio.slice(0, i + 1) + limpio.slice(i + 1).replace(/\./g, '');
+  const n = parseFloat(t);
+  return isFinite(n) && n > 0 ? centavos(n) / 100 : 0;
+}
+
+/**
+ * Cuántas comisiones completas alcanza a liquidar `disponible`, empezando por las más chicas.
+ *
+ * @param {{id:*, monto:number, sub?:number, nombre?:string}[]} lista  lo que falta pagar de cada
+ *        una (`monto`, mayor que cero; las de cero se ignoran). `sub` y `nombre` solo desempatan.
+ * @param {number} disponible  el dinero que hay para pagar
+ * @returns {{orden:Object[], k:number, suma:number, total:number, disponible:number, sobra:number,
+ *            siguiente:Object|null, falta:number}}
+ *   `orden` es la lista de menor a mayor (copias); las primeras `k` alcanzan, y juntas suman
+ *   `suma`. `total` es lo que suman todas. `sobra` es lo que queda del monto tras pagar esas `k`.
+ *   `siguiente` es la primera que ya no alcanza y `falta` cuánto le falta a lo que sobra para
+ *   pagarla; sin `siguiente` (alcanzan todas) `falta` es 0.
+ */
+export function alcanceDeComisiones(lista, disponible) {
+  const disp = Math.max(0, centavos(disponible));
+  const orden = (Array.isArray(lista) ? lista : []).filter(x => x && centavos(x.monto) > 0)
+    .map(x => ({ x, c: centavos(x.monto) }))
+    .sort((a, b) => a.c - b.c || num(a.x.sub) - num(b.x.sub) ||
+      String(a.x.nombre || '').localeCompare(String(b.x.nombre || ''), 'es') ||
+      String(a.x.id).localeCompare(String(b.x.id)));
+  let suma = 0, k = 0;
+  while (k < orden.length && suma + orden[k].c <= disp) { suma += orden[k].c; k++; }
+  const sig = orden[k] || null;
+  return {
+    orden: orden.map(o => ({ ...o.x })),
+    k,
+    suma: suma / 100,
+    total: orden.reduce((s, o) => s + o.c, 0) / 100,
+    disponible: disp / 100,
+    sobra: (disp - suma) / 100,
+    siguiente: sig ? { ...sig.x } : null,
+    falta: sig ? (sig.c - (disp - suma)) / 100 : 0,
+  };
+}
+
 void partesISO;

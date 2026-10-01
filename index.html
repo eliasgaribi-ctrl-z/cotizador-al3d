@@ -162,6 +162,14 @@
 <!-- Cuatro piezas acomodadas en una lámina: el anidador de vectores. El mismo símbolo vive
      en el sprite del cotizador. -->
 <symbol id="i-anidar" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="11" rx="1.6"/><rect x="13" y="3" width="8" height="6" rx="1.6"/><rect x="13" y="11" width="8" height="10" rx="1.6"/><rect x="3" y="16" width="8" height="5" rx="1.6"/></symbol>
+<!-- La lupa de «buscar un proyecto desde cualquier pantalla». No estaba porque hasta ahora el
+     único buscador vivía dentro de Proyectos y llevaba su campo a la vista, sin icono. Dos
+     trazos, que es lo que sobrevive a los 18 px de --ico2: el aro y el mango. -->
+<symbol id="i-buscar" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="M15.8 15.8 21 21"/></symbol>
+<!-- Los tres puntos de «Más» en la barra de abajo del teléfono. `i-asa` son seis puntos en dos
+     columnas y significa «agárrame para arrastrar»; esto significa «aquí hay más cosas», y
+     confundirlos en una barra que además se puede deslizar sería pedir el gesto equivocado. -->
+<symbol id="i-puntos" viewBox="0 0 24 24"><circle fill="currentColor" stroke="none" cx="6" cy="12" r="1.7"/><circle fill="currentColor" stroke="none" cx="12" cy="12" r="1.7"/><circle fill="currentColor" stroke="none" cx="18" cy="12" r="1.7"/></symbol>
 </defs></svg>
 
 <!-- ============================================================================
@@ -227,13 +235,32 @@
        cuando el tema es claro. Con ella puesta, el «AL3D» negro desaparecía sobre el marino. -->
   <img class="pf-cab-logo" src="logo-al3d-oscuro.svg" width="260" height="130" alt="AL3D">
   <h1 class="pf-cab-t" id="pf-sub">Tablero</h1>
+  <!-- El estado de la sincronización, pegado al título y no en la fila de botones: no es un
+       mando, es una condición de lo que estás leyendo —«esto que ves está al día»—, y la fila
+       de la derecha son cosas que se tocan. En reposo es una nube quieta; solo cambia cuando
+       una vuelta tarda más de un segundo, cuando bajó algo o cuando falló, y sin señal es la
+       misma nube, tachada. Lo escribe js/app.js con la pieza 24 (marcaEstado). Es una imagen
+       con su frase en `aria-label` y nace escondida: sin puente configurado no hay con qué
+       estar al día. -->
+  <span class="pf-sync" id="pf-sync" role="img" data-sync="quieto" title="Sincronización: al día" aria-label="Sincronización: al día" hidden><span class="pf-sync-nube" aria-hidden="true"><svg class="svgi nube"><use href="#i-nube"/></svg><svg class="svgi nube-off"><use href="#i-nube-off"/></svg></span></span>
   <span class="pf-cab-d" id="pf-cab-sub"></span>
   <div class="pf-cab-acc" id="pf-cab-acc"></div>
+  <!-- Buscar un proyecto desde cualquier pantalla. Antes había que ir a Proyectos, escribir y
+       abrir la tarjeta para contestarle al cliente «¿cómo va mi letrero?»; ahora la lupa (y la
+       tecla «/» en la computadora) abre la paleta desde donde sea. Va ANTES del interruptor de
+       tema porque es lo que más se usa de esta fila y el pulgar llega antes al centro. -->
+  <button type="button" class="pf-cab-tema pf-cab-buscar" id="pf-cab-buscar" title="Buscar un proyecto" aria-label="Buscar un proyecto" aria-keyshortcuts="/"><svg class="svgi" aria-hidden="true"><use href="#i-buscar"/></svg></button>
   <button type="button" class="pf-cab-tema btn-tema" data-tema-btn aria-pressed="false" title="Cambiar a tema oscuro" aria-label="Cambiar a tema oscuro"><svg class="svgi sol" aria-hidden="true"><use href="#i-sol"/></svg><svg class="svgi luna" aria-hidden="true"><use href="#i-luna"/></svg></button>
   <!-- Tu cuenta: la inicial, y al tocarla el correo, el rol y «Cerrar sesión». Nace escondido
-       y lo pinta js/nucleo/cuenta.js cuando la puerta ya dejó pasar. -->
-  <button type="button" class="pf-sesion" id="pf-sesion" hidden aria-haspopup="true" aria-expanded="false" aria-controls="pf-sesion-menu"></button>
-  <div class="pf-sesion-menu" id="pf-sesion-menu" role="menu" hidden></div>
+       y lo pinta js/nucleo/cuenta.js cuando la puerta ya dejó pasar.
+
+       Lo que sale al tocarla ya no vive en este archivo: era un `<div role="menu" hidden>` con
+       su clic fuera y su Escape hechos a mano. Ahora lo pinta la pieza 4 (el globo) en la capa
+       superior del navegador, sin hueco en el encabezado ni z-index, y ella misma pone
+       `aria-controls` y mantiene `aria-expanded`. Es `dialog` y no `menu` a propósito: lleva
+       el correo y una nota además de las dos opciones, y un `role="menu"` con párrafos dentro
+       promete un patrón de flechas que no le corresponde. -->
+  <button type="button" class="pf-sesion" id="pf-sesion" hidden aria-haspopup="dialog" aria-expanded="false"></button>
   <!-- Ajustes, en el TELÉFONO. En la computadora vive al pie de la barra lateral, y la barra
        lateral en el teléfono no existe: ahí no había ninguna puerta a la vista —solo una
        escondida en «Qué atender» y otra en Control cuando falta el puente—, y en Ajustes viven
@@ -259,7 +286,16 @@
        abrió», «lo que ves del almacén tiene tres días», «no hay respaldo desde el 12»— es
        verdad en las seis pantallas, y repetirla en cada una era garantizar que en alguna
        faltara. Nace oculta y solo la enciende app.js cuando hay algo que decir. -->
-  <div class="pf-banda" id="pf-banda" hidden role="status" aria-live="polite"></div>
+  <!-- La banda va dentro de una caja de una sola fila que pasa de 0fr a 1fr. Es la única forma
+       de que se despliegue: `hidden` lo apaga con display:none —y la regla [hidden]{display:none
+       !important} de plataforma.css lo hace ganar siempre—, y de display:none no hay transición
+       posible. Apagada, la caja mide cero y la banda de dentro queda recortada por el
+       overflow, margen incluido. La enciende y apaga js/app.js con la clase `abierta`, y
+       cuando la persona ya había bajado en la pantalla compensa el scroll para que lo que
+       estaba leyendo no se le mueva debajo del dedo. -->
+  <div class="pf-banda-caja" id="pf-banda-caja"><div class="pf-banda-in">
+    <div class="pf-banda" id="pf-banda" role="status" aria-live="polite"></div>
+  </div></div>
 
   <main id="pf-contenido" tabindex="-1">
     <!-- EL ESQUELETO DEL ARRANQUE. Es marcado fijo, sin un solo script, así que se ve desde el
@@ -282,7 +318,28 @@
         <div class="pf-fila esq"><div class="pf-fila-ico esq-b"></div><div class="pf-fila-tx"><div class="esq-b esq-t"></div><div class="esq-b esq-d"></div></div></div>
         <div class="pf-fila esq"><div class="pf-fila-ico esq-b"></div><div class="pf-fila-tx"><div class="esq-b esq-t"></div><div class="esq-b esq-d"></div></div></div>
       </div></div>
-      <p class="pf-esqueleto-t" role="status" aria-live="polite"><span class="esq-giro" aria-hidden="true"></span> <span id="pf-arranque-tx">Abriendo la plataforma…</span></p>
+      <!-- EN QUÉ PASO VA EL ARRANQUE. Era una sola línea que se reescribía cuatro veces, y
+           cuando algo se atoraba el aviso de los ocho segundos decía «tarda más de lo normal»
+           sin decir EN QUÉ: con la base cerrada y con un import colgado se leía igual, y son
+           dos cosas distintas de arreglar. Ahora son cuatro renglones que se quedan: el que
+           terminó con su palomita y su tiempo, el que trabaja con su reloj corriendo, y los que
+           faltan en gris. Si se atora, el renglón que gira ES la respuesta.
+
+           Es marcado FIJO, escrito a mano con la forma que devuelve Piezas.trazaHTML(), por lo
+           mismo que el resto de este esqueleto: tiene que verse desde el primer pintado, antes
+           de que corra un solo guion. js/app.js llama a Piezas.traza() sobre esto y la adopta
+           tal como está; faseArranque() va moviendo los estados. Los cuatro nacen en espera
+           —anillo punteado, quieto—: nada se mueve hasta que app.js dice que algo trabaja. -->
+      <div class="traza" id="pf-arranque-traza" role="group" aria-label="Arranque de la plataforma"><ol class="traza-pasos">
+        <li class="traza-paso" data-clave="puerta" data-estado="espera"><span class="traza-marca" aria-hidden="true"></span><span class="traza-txt"><span class="traza-t">Quién entra</span> <span class="traza-d"></span></span><span class="traza-reloj" aria-hidden="true"></span><span class="solo-voz traza-e"> · en espera</span></li>
+        <li class="traza-paso" data-clave="base" data-estado="espera"><span class="traza-marca" aria-hidden="true"></span><span class="traza-txt"><span class="traza-t">La base de este aparato</span> <span class="traza-d"></span></span><span class="traza-reloj" aria-hidden="true"></span><span class="solo-voz traza-e"> · en espera</span></li>
+        <li class="traza-paso" data-clave="catalogo" data-estado="espera"><span class="traza-marca" aria-hidden="true"></span><span class="traza-txt"><span class="traza-t">El catálogo de material</span> <span class="traza-d"></span></span><span class="traza-reloj" aria-hidden="true"></span><span class="solo-voz traza-e"> · en espera</span></li>
+        <li class="traza-paso" data-clave="pantalla" data-estado="espera"><span class="traza-marca" aria-hidden="true"></span><span class="traza-txt"><span class="traza-t">La primera pantalla</span> <span class="traza-d"></span></span><span class="traza-reloj" aria-hidden="true"></span><span class="solo-voz traza-e"> · en espera</span></li>
+      </ol><p class="solo-voz traza-voz" role="status" aria-live="polite"></p></div>
+      <!-- El hueco del aviso de los ocho segundos, que escribe avisarLento(). Nace vacío y el
+           CSS esconde lo vacío: sin eso dejaba su relleno debajo de la traza en cada arranque
+           normal, que son todos menos uno. -->
+      <p class="pf-esqueleto-t" id="pf-arranque-tx"></p>
     </div>
     <!-- Un <section> por módulo, todos vacíos. El router monta uno y desmonta el anterior.
          Cero lógica en este archivo: si algo de aquí decidiera algo, habría dos lugares
@@ -314,6 +371,19 @@
      por lo mismo que las tres de arriba: el registro de Escape, cerco y botón atrás se da de
      alta una vez. -->
 <div class="modal-bg pf-modal-bg" id="pf-ia" role="dialog" aria-modal="true" aria-label="Asistente del taller"></div>
+<!-- Buscar un proyecto desde cualquier pantalla (la lupa del encabezado y la tecla «/»). Es una
+     capa más y no un <dialog>: así Escape, el cerco del tabulador y el botón atrás del teléfono
+     salen del mismo registro que las otras cuatro, y en el teléfono se baja con el dedo como
+     las demás hojas. Su contenido lo escribe js/app.js al abrir. -->
+<div class="modal-bg pf-modal-bg pf-buscar-bg" id="pf-buscar" role="dialog" aria-modal="true" aria-label="Buscar un proyecto"></div>
+<!-- «Más»: los módulos del rol que no caben en la barra de cinco del teléfono. La lista sale de
+     RUTAS, como la barra, así que un módulo nuevo aparece aquí con el mismo renglón. -->
+<div class="modal-bg pf-modal-bg" id="pf-mas" role="dialog" aria-modal="true" aria-label="Más módulos"></div>
+<!-- Los dos pasos de Safari para dejar la app en la pantalla de inicio del iPhone. Ahí no hay
+     `beforeinstallprompt` y lo único que se puede hacer es enseñar el gesto; hasta ahora se
+     explicaba con un aviso de nueve segundos que se iba solo mientras la persona buscaba el
+     botón. -->
+<div class="modal-bg pf-modal-bg" id="pf-ios" role="dialog" aria-modal="true" aria-label="Instalar la app en este iPhone"></div>
 
 <!-- La barra fija del teléfono. Su contenido cambia con el módulo. Va ENCIMA de la barra de
      módulos de abajo, que es lo que hace la maqueta: primero la acción de esta pantalla,
@@ -366,6 +436,9 @@
      Advertencia real: esto NO funciona por file://. Para probar en local hace falta un
      servidor. El cotizador —cotizador.html, un solo archivo con el script en línea— sigue
      abriéndose con doble clic; ESTE archivo, que es la raíz del sitio, no. -->
+<!-- Las piezas compartidas con el cotizador y el anidador (js/piezas.js). Guion clásico y antes
+     que el módulo: los módulos se ejecutan diferidos, así que cuando app.js arranca ya está. -->
+<script src="./js/piezas.js"></script>
 <script type="module" src="./js/app.js"></script>
 </body>
 </html>

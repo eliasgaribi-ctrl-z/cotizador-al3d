@@ -11,7 +11,7 @@
 
    ----- POR QUÉ NO SE PORTA A MÓDULO ES. NO LO INTENTES. -----
 
-   `cotizador.html` tiene 161 manejadores en línea —116 `onclick`, 19 `oninput`, y el resto
+   `cotizador.html` tiene 156 manejadores en línea —111 `onclick`, 19 `oninput`, y el resto
    repartido entre onchange, los cuatro de arrastrar y soltar, onkeydown, onload y los de
    ratón y dedo— y CERO asignaciones explícitas a `window.X`. Un manejador en línea se
    resuelve contra el objeto global; en un módulo ES el ámbito superior NO es el global, así

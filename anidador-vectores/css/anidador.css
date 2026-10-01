@@ -116,6 +116,8 @@
 .an-tile.on .an-tile-d{color:var(--a-fuerte)}
 
 .an-girar{margin-top:var(--e3)}
+.an-corte{margin-bottom:var(--e2)}
+#lab-corte{margin-top:var(--e4)}
 
 /* ----- Los retazos guardados -----
    Aparecen cuando la hoja es un retazo o cuando ya hay alguno guardado. Cada uno es un chip
@@ -157,9 +159,6 @@
 /* ----- Acciones y mensaje ----- */
 .an-acciones{margin-top:var(--e4)}
 .an-acciones .btn[hidden]{display:none}
-.an-dl-hojas{display:flex;flex-wrap:wrap;gap:var(--e2);margin-top:var(--e2)}
-.an-dl-hojas[hidden]{display:none}
-.an-dl-hojas .btn{width:auto;flex:1 1 140px;margin:0;font-size:var(--t2);padding:10px 12px}
 /* Sobre la superficie de tarjeta, no suelto sobre el lienzo: el verde del sistema sobre el
    lavanda del fondo daba 4,30:1; sobre la tarjeta, 5,6:1. Superficie del TEMA y no `#fff`:
    con el blanco escrito a mano, el tema oscuro dejaba una caja blanca con la letra pensada
@@ -200,12 +199,6 @@
 .an-ficha{background:var(--n1);border:1px solid var(--n2);border-radius:var(--rr1);padding:8px 10px;box-shadow:var(--clay-in)}
 .an-ficha .k{display:block;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--n6);margin-bottom:2px}
 .an-ficha .v{font-size:var(--t4);font-weight:700;color:var(--n8);line-height:1.15;font-variant-numeric:tabular-nums}
-.an-prog-track{grid-column:1/-1}
-/* Se llena con scaleX y no con width: width recalcula el layout en cada cuadro. Sin transición
-   cuando baja —en cada intento nuevo volvía de 100 % a 0 % animada—: la pone app.js solo al subir. */
-.an-prog-bar{height:100%;width:100%;border-radius:999px;background:linear-gradient(90deg,var(--a-claro),var(--a));
-  box-shadow:0 2px 8px -2px rgba(64,96,248,.5);transform-origin:left center;transform:scaleX(0)}
-.an-prog-bar.sube{transition:transform .2s var(--ease-out)}
 @media(max-width:560px){.an-marcador{grid-template-columns:1fr;justify-items:center;padding:var(--e3) var(--e3) 0}.an-fichas{width:100%}}
 
 /* ----- La mesa -----
@@ -241,10 +234,9 @@
 .an-hoja{margin:0;width:100%;display:flex;flex-direction:column;align-items:center;gap:var(--e2);animation:an-hoja-entra .3s var(--ease-out) backwards}
 /* Una mejora no vuelve a hacer caer las piezas: el motor mejora cada pocos segundos durante un
    minuto, y cada vez la mesa se vaciaba y las 40 piezas caían otra vez (la última, a los 2,3 s).
-   En una mejora la hoja solo se funde en 180 ms. */
-.an-hoja.mejora{animation:an-fundido .18s var(--ease-out) backwards}
+   Después se fundía la hoja entera en 180 ms; ahora ni eso: las piezas que cambian de lugar viajan
+   a él (P.flip, ver el bloque «la mesa» al final) y las demás no se mueven. */
 .an-hoja.mejora g>*{animation:none}
-@keyframes an-fundido{from{opacity:.4}}
 @keyframes an-hoja-entra{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
 .an-hoja>svg{display:block;width:100%;height:auto;max-height:70vh;border-radius:6px;
   background:var(--an-hoja-fondo,#fff);
@@ -264,7 +256,9 @@
 .an-mesa[data-mat="mdf"]{--an-hoja-fondo:repeating-linear-gradient(100deg,#c69d74 0 6px,#d3ac84 6px 11px,#bf9268 11px 19px);--an-hueco:#c9a077}
 
 /* El original, como silueta: lo que ocupa la pieza, no cómo venía pintada. */
-#an-orig svg *{fill:var(--n8);stroke:none}
+/* La hoja de la vista es blanca en los dos temas (.an-lienzo>svg), así que la tinta es fija: con
+   var(--n8) la silueta de noche salía en lavanda claro sobre blanco y casi no se veía. */
+#an-orig svg *{fill:#1a1d33;stroke:none}
 
 /* Las piezas acomodadas, cada una de su color, como fichas sobre la mesa. Seis tonos del
    sistema que se van turnando; el trazo fino las separa cuando quedan pegadas. Los huecos
@@ -306,7 +300,7 @@
 @media(prefers-reduced-motion:reduce){
   .an-paso,.an-vista,.an-banda,.an-archivo,.an-retazos,.an-hoja,.an-hoja g>*,.an-marcador.mejora .an-gauge-wrap{animation:none}
   .an-mesa.corriendo::after{animation:none;display:none}
-  .an-gauge-fg,.an-prog-bar,.an-prog-bar.sube,.an-tile,.an-tile-hoja{transition:none}
+  .an-gauge-fg,.an-tile,.an-tile-hoja{transition:none}
   /* Una mejora no se funde: el fundido corto de sistema.css («Menos movimiento no es ninguno»)
      va con !important y hacía parpadear la hoja desde 0 cada pocos segundos. */
   .an-hoja.mejora,.an-hoja.mejora g>*{animation:none!important}
@@ -338,3 +332,298 @@ html.empotrado .an-wrap,html.empotrado .an-pie{max-width:none;padding-left:var(-
 .an-arranque-cols{grid-template-columns:minmax(280px,400px) minmax(0,1fr)}
 .an-arranque .esq-mesa{height:380px}
 @media(max-width:920px){ .an-arranque-cols{grid-template-columns:1fr} }
+
+/* ============================================================================
+   LA MESA CON LAS PIEZAS COMPARTIDAS
+   ============================================================================
+   Lo que el anidador añade al usar las piezas de js/piezas.js (su estilo base está en
+   css/sistema.css, bloque «Piezas compartidas»). Dos bloques con su marca de fin —los controles
+   de la izquierda y la mesa de la derecha— y su apagado para menos movimiento abajo.
+   ============================================================================ */
+/* ── Anidador · controles, material, medida y descarga ── */
+
+/* ----- A4 · El paro automático, a la vista -----
+   Bajo «Detener»: un hilo que se consume durante los 40 s desde la última mejora (la pone
+   P.mecha dentro de #an-mecha-paro) y la frase de lo que falta. El hilo va en --a3, el color de
+   lo que informa sin ser acción: el azul del sistema es «elegido» y esto no se elige. La pista
+   es el neutro de siempre; la mecha pasa a llenar la caja y no el filete de 2 px de las piezas. */
+.an-paro{margin-top:var(--e2)}
+.an-paro[hidden]{display:none}
+.an-paro-hilo{position:relative;height:4px;border-radius:999px;background:var(--n2);overflow:hidden;color:var(--a3)}
+.an-paro-hilo .mecha{height:100%;opacity:1;border-radius:999px}
+.an-paro-t{margin:6px 0 0;font-size:var(--t2);line-height:1.4;color:var(--n6);font-variant-numeric:tabular-nums}
+
+/* ----- A5 · La veta -----
+   La pregunta es el globo de P.vistazo. En el teléfono, botones de 44 px. */
+.an-pregunta-veta .an-veta-nota{margin-top:6px;color:var(--tinta2)}
+@media(hover:none),(pointer:coarse){.an-pregunta-veta .vistazo-acciones .btn{min-height:44px}}
+/* El rayado de las piezas giradas. Un relleno es UN paint server, y los seis tonos de la mesa
+   tienen su propio patrón (en el sprite de index.html: el tono de fondo y las rayas encima).
+   Solo con veta (.con-veta, que pone app.js según el material y lo que se contestó) y solo en la
+   pieza, no en su hueco: el hueco deja ver la hoja. Las rayas giran con la pieza, que es lo que
+   hace que se lea «esta va girada». */
+.an-mesa.con-veta .an-hoja g.girada.an-p0>*:not(.hole){fill:url(#an-raya-0)}
+.an-mesa.con-veta .an-hoja g.girada.an-p1>*:not(.hole){fill:url(#an-raya-1)}
+.an-mesa.con-veta .an-hoja g.girada.an-p2>*:not(.hole){fill:url(#an-raya-2)}
+.an-mesa.con-veta .an-hoja g.girada.an-p3>*:not(.hole){fill:url(#an-raya-3)}
+.an-mesa.con-veta .an-hoja g.girada.an-p4>*:not(.hole){fill:url(#an-raya-4)}
+.an-mesa.con-veta .an-hoja g.girada.an-p5>*:not(.hole){fill:url(#an-raya-5)}
+
+/* ----- A6 · Las cotas sobre el dibujo -----
+   La vista del original va sobre hoja blanca en los dos temas, así que las tres tintas de la cota
+   son fijas y se midieron contra blanco: la línea en el aguamarina de --a3 (informa, no es acción),
+   el número en tinta —--a3 no lleva texto—, y el «¿? mm» en el ámbar oscuro de --av (7:1 sobre
+   blanco; el --av de noche es claro y se perdería). Los selectores llevan #an-orig para ganarle a
+   `#an-orig svg *`, la regla que pinta la silueta. El filete es de px a cualquier escala. */
+#an-orig svg .an-cotas{--cota:#18b6d8;--cota-tinta:#1a1d33;--cota-av:#8a5100}
+#an-orig svg .an-cotas .linea{fill:none;stroke:var(--cota);stroke-width:1.5px;vector-effect:non-scaling-stroke;
+  stroke-linecap:round;transition:stroke-width var(--mv-s)}
+#an-orig svg .an-cotas .punta{fill:var(--cota);stroke:none}
+#an-orig svg .an-cotas .num{fill:var(--cota-tinta);stroke:#fff;stroke-width:.3em;stroke-linejoin:round;paint-order:stroke;
+  font-family:var(--f-cifra);font-weight:700;font-variant-numeric:tabular-nums}
+#an-orig svg .an-cotas .num.falta{fill:var(--cota-av)}
+/* La del campo que tiene el foco se engruesa: es lo que dice «estás midiendo ESTO». */
+#an-orig svg .an-cotas .foco .linea{stroke-width:3.5px}
+#an-orig svg .an-cotas .foco .num{font-weight:800}
+
+/* ----- A16 · Descargar por hoja desde un menú -----
+   La flecha gira al abrir. El menú es el globo de P.vistazo con rol de menú; sus renglones son de
+   44 px y el resaltado es UN solo div que viaja con transform (lo mueve app.js con el puntero y
+   con el foco del teclado). El :hover del sistema se apaga aquí para que no haya dos resaltados. */
+.an-dl-flecha{width:var(--ico1);height:var(--ico1);transition:transform var(--mv-s)}
+.an-dl-flecha[hidden]{display:none}
+.an-dl[aria-expanded="true"] .an-dl-flecha{transform:rotate(180deg)}
+.vistazo.an-menu-dl{padding:6px}
+.an-menu-dl [role="menuitem"]{position:relative;z-index:1;min-height:44px;justify-content:space-between;gap:var(--e4)}
+.an-menu-dl [role="menuitem"] small{font-size:var(--t1);font-weight:500;color:var(--tinta2);white-space:nowrap}
+@media(hover:hover) and (pointer:fine){.vistazo.an-menu-dl [role="menuitem"]:hover{background:none}}
+.an-menu-dl [role="menuitem"]:focus-visible{outline:2.5px solid var(--brand);outline-offset:-2px}
+.an-menu-resalte{position:absolute;left:0;top:0;z-index:0;border-radius:var(--rr2);background:var(--sup2);
+  pointer-events:none;opacity:0;transition:transform .18s var(--ease-out),opacity .12s linear}
+.an-menu-resalte.on{opacity:1}
+
+/* ----- A21 · La orientación de la hoja, a la vista -----
+   Con la hoja acostada (.acostada en #an-tiles, la pone sincronizarHoja) cada hojita gira 90° con
+   un pequeño rebote, y el ícono de «Girar la hoja» con ella. El giro va en la propiedad `rotate`
+   y no en `transform`: así el levantarse al pasar el ratón sigue siendo `transform`, con su
+   transición corta de siempre, y no hereda el rebote. El rebote es de esta pieza: --mv-r (.2 s)
+   no lo tiene y --mv-liq es SOLO de lo que es de vidrio. Al girar sobre su centro la hojita
+   quedaría flotando 11 px por encima de la base; `translate` la vuelve a posar (mitad de la
+   diferencia entre su alto y su ancho, en la escala de 44 px de la figura). La completa acostada
+   mide 44 × 22 y cabe en el marco de 46 px. */
+.an-tile-hoja{transition:transform var(--mv-r),rotate .38s cubic-bezier(.34,1.26,.5,1),translate .38s cubic-bezier(.34,1.26,.5,1)}
+.an-tiles.acostada .an-tile-hoja{rotate:90deg;translate:0 calc((var(--h) - var(--w)) * 22px)}
+/* Girada, «arriba» queda a la izquierda de la hojita: el levantarse del hover va por ahí. */
+@media(hover:hover) and (pointer:fine){.an-tiles.acostada .an-tile:hover .an-tile-hoja{transform:translateX(-2px)}}
+.an-girar .svgi{transition:rotate .38s cubic-bezier(.34,1.26,.5,1)}
+.an-tiles.acostada~.an-girar .svgi{rotate:90deg}
+/* Al abrir la página con la hoja ya acostada, nace girada y no se ve girar. */
+.an-tiles.sin-giro .an-tile-hoja,.an-tiles.sin-giro~.an-girar .svgi{transition:none}
+
+/* ----- A29 · El reflejo de aluminio sobre el logo, una vez al terminar la carga -----
+   Un <img> no admite pseudoelementos: el reflejo es el ::after de #brandLogo, del tamaño del
+   logo (38 px de alto, 2:1), recortado con el propio logotipo como máscara y con un degradado
+   metálico que lo cruza una sola vez en 600 ms. Mismo archivo de máscara en los dos temas: solo
+   cuenta su forma, no su color. La clase `brilla` la pone app.js al quitar el esqueleto y la
+   quita al terminar. background-position y no transform: lo que se mueve es la luz dentro de la
+   máscara, y es un recuadro de 76 × 38 px durante 600 ms. */
+#brandLogo{position:relative}
+#brandLogo.brilla::after{content:'';position:absolute;left:0;top:50%;height:38px;aspect-ratio:2/1;margin-top:-19px;pointer-events:none;
+  -webkit-mask:url(../../logo-al3d.svg) center/contain no-repeat;mask:url(../../logo-al3d.svg) center/contain no-repeat;
+  background:linear-gradient(105deg,transparent 34%,rgba(255,255,255,.55) 41%,rgba(236,239,248,.98) 46%,rgba(255,255,255,.75) 50%,rgba(168,177,201,.85) 55%,transparent 63%) 100% 0/260% 100% no-repeat;
+  animation:an-brillo .6s var(--ease-io) 1 both}
+@keyframes an-brillo{from{background-position:100% 0}to{background-position:0% 0}}
+
+/* ----- A30 · El arranque con el ícono de la Mesa de corte -----
+   Los cuatro rectángulos de #i-anidar caen a su lugar, uno tras otro, una sola vez: el arranque
+   dura de 700 a 950 ms y un bucle ahí no llegaría a darse. Trazo en el azul de marca, que es la
+   misma pieza que el sprite. */
+.an-arranque-ico{width:28px;height:28px;flex:0 0 auto;fill:none;stroke:var(--a);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.an-arranque-ico rect{animation:an-pieza-cae .5s var(--ease-out) backwards}
+.an-arranque-ico .an-ar-2{animation-delay:.12s}
+.an-arranque-ico .an-ar-3{animation-delay:.24s}
+.an-arranque-ico .an-ar-4{animation-delay:.36s}
+@keyframes an-pieza-cae{from{opacity:0;transform:translateY(-9px)}to{opacity:1;transform:none}}
+
+/* ----- A31 · Probar con un ejemplo -----
+   Dos puertas al mismo botón: un enlace bajo el recuadro de arrastrar (el primer lugar donde mira
+   quien llega, también en el teléfono, donde la mesa queda debajo) y el botón de la mesa vacía. El
+   enlace se esconde con un archivo cargado. */
+.an-ejemplo-enlace{display:block;margin:var(--e3) auto 0;padding:10px 14px;min-height:44px;border:0;border-radius:var(--rr1);
+  background:none;font:inherit;font-size:var(--t2);font-weight:600;color:var(--a-fuerte);text-decoration:underline;
+  text-underline-offset:3px;cursor:pointer;transition:transform var(--mv-liq)}
+.an-ejemplo-enlace[hidden]{display:none}
+.an-ejemplo-enlace:active{transform:scale(.97)}
+.an-ejemplo-enlace:focus-visible{outline:2.5px solid var(--brand);outline-offset:2px}
+@media(hover:hover) and (pointer:fine){.an-ejemplo-enlace:hover{color:var(--a)}}
+.an-vacio .an-ejemplo{width:auto;margin:var(--e3) auto 0;padding-left:var(--e5);padding-right:var(--e5)}
+/* La banda de «Ejemplo» va en ámbar, que en el sistema es «ojo»: que nadie lo mande a cortar. */
+.an-banda.ejemplo{background:var(--av-bg);border-color:var(--av-borde);color:var(--av)}
+/* Los contornos se trazan y se rellenan al llegar (la silueta se pinta con `#an-orig svg *`).
+   pathLength=1 lo pone app.js: el dash mide «1» a cualquier tamaño de contorno. */
+#an-orig svg.dibuja-ejemplo>path{stroke:#1a1d33;stroke-width:var(--traza-ancho,4px);stroke-linejoin:round;
+  stroke-dasharray:1;stroke-dashoffset:1;fill-opacity:0;
+  animation:an-traza .9s var(--ease-out) calc(var(--i,0) * .12s) both,an-rellena .4s var(--ease-out) calc(.9s + var(--i,0) * .12s) both}
+@keyframes an-traza{to{stroke-dashoffset:0}}
+@keyframes an-rellena{from{fill-opacity:0;stroke-opacity:1}to{fill-opacity:1;stroke-opacity:0}}
+
+/* ── fin de an-controles ── */
+
+/* ── Anidador · la mesa: hojas, piezas, zoom y resultado ── */
+
+/* ----- Merma en metros cuadrados y la noticia de una hoja menos (A11) -----
+   Debajo del porcentaje de «Merma», lo que ese porcentaje es en material: 1.78 m² son una cifra
+   que se compra, 62 % no. Y cuando el acomodo baja de hoja, la ficha «Hojas» da un pulso más
+   grande que el latido de cualquier mejora (an-late, 1.07): pasar de 3 a 2 hojas no es un uno
+   por ciento más. Solo transform. */
+.an-ficha .sub{display:block;margin-top:2px;font-size:var(--t1);font-weight:600;color:var(--n6);font-variant-numeric:tabular-nums}
+.an-ficha .sub:empty{display:none}
+.an-ficha.baja{animation:an-ficha-baja .6s var(--ease-out)}
+@keyframes an-ficha-baja{0%{transform:scale(1)}30%{transform:scale(1.1)}100%{transform:scale(1)}}
+
+/* ----- «Como vienen / Acomodadas» (A25) -----
+   Un radiogroup de la pieza «opciones que se deslizan» (.glide), que por omisión es una rejilla de
+   opciones de 150 px: aquí son dos, del ancho de su palabra y de 48 px de alto (la zona táctil
+   pide 44). La apagada se dice con otro color y con aria-disabled, no con opacity: sigue siendo
+   texto y se sigue leyendo a 4.5:1. Idea del barrido: Skiper · skiper66 (SVG clip path mask,
+   gratuito con atribución). */
+.an-ver{padding:var(--e4) var(--e5) 0}
+@media(max-width:560px){.an-ver{padding:var(--e3) var(--e3) 0}}
+.an-ver .glide{display:inline-grid;grid-template-columns:repeat(2,auto);gap:2px;padding:3px;max-width:100%}
+.an-ver .glide>.chip{align-items:center;justify-content:center;text-align:center;padding:6px 16px;white-space:nowrap}
+.an-ver .glide>.chip[aria-disabled="true"]{color:var(--n6);cursor:default}
+
+/* ----- La mesa: dos vistas en una celda -----
+   El original y el resultado comparten la celda de la rejilla, el resultado encima: para destapar
+   uno con el otro hace falta que estén los dos a la vez. Terminado el barrido, el que quedó tapado
+   vuelve a `hidden` (no se lee, no se enfoca, no ocupa). El pie es la segunda fila. */
+.an-mesa{display:grid;grid-template-columns:minmax(0,1fr)}
+.an-mesa>.an-lienzo{grid-area:1/1;min-width:0}
+.an-haz{grid-area:1/1;align-self:stretch;justify-self:start;width:3px;z-index:3;opacity:0;pointer-events:none;
+  background:linear-gradient(rgba(24,182,216,.9),#fff 50%,rgba(24,182,216,.9));box-shadow:0 0 14px 3px rgba(24,182,216,.55)}
+
+/* ----- El primer acomodo no deja la mesa vacía (A13) -----
+   Las piezas se quedan donde las dejó el archivo, atenuadas y con un desenfoque FIJO (no se anima:
+   un filter sobre un SVG grande cuesta en un teléfono de gama media, y cambiarlo cuadro por cuadro
+   lo repinta entero). El haz de la mesa (.corriendo::after) hace de banda de avance; la ficha solo
+   dice qué se está haciendo y cuánto lleva. */
+.an-mesa.calculando #an-orig>svg{filter:blur(2px) saturate(.6);opacity:.5}
+.an-calculando{grid-area:1/1;place-self:center;z-index:2;display:flex;gap:8px;align-items:baseline;padding:10px 16px;
+  border-radius:999px;background:rgba(18,21,38,.94);color:#fff;font:600 var(--t3)/1.2 var(--f-texto);
+  box-shadow:0 6px 20px -6px rgba(0,0,0,.6);pointer-events:none;max-width:calc(100% - 2 * var(--e3))}
+.an-calculando[hidden]{display:none}
+.an-calculando b{min-width:3ch;color:#c9cef0;font-weight:700;font-variant-numeric:tabular-nums}
+
+/* ----- La noticia: una hoja menos (A11) ----- */
+.an-noticia{grid-area:1/1;align-self:start;justify-self:center;z-index:3;margin:var(--e3);max-width:calc(100% - 2 * var(--e3));
+  padding:10px 14px;border-radius:var(--rr3);background:var(--ok-bg);border:1px solid var(--ok-borde);color:var(--ok);
+  font:700 var(--t3)/1.3 var(--f-texto);text-align:center;pointer-events:none;box-shadow:0 8px 24px -8px rgba(0,0,0,.55)}
+.an-noticia[hidden]{display:none}
+.an-noticia.sale{animation:an-noticia-sale .42s var(--ease-out) both}
+@keyframes an-noticia-sale{from{opacity:0;transform:translateY(10px) scale(.96)}}
+
+/* ----- Varias hojas en carrusel (A12) -----
+   Con más de una hoja, en pantalla angosta o táctil, las hojas son páginas de un carrusel (P.paginas:
+   scroll-snap horizontal, puntos de 44 px, flechas del teclado). La pieza pone `.paginas` y el CSS
+   de la capa 4 pone la rejilla en columna, pero `.an-lienzo` (flex en columna) viene después y
+   gana, así que se repone aquí con la especificidad de dos clases. En computadora las hojas se
+   quedan en columna, que sí cabe. */
+.an-lienzo.paginas{display:grid;grid-auto-flow:column;grid-auto-columns:100%;gap:var(--e3);align-items:start;overflow-y:hidden}
+.an-lienzo.paginas:focus-visible{outline:2px solid #c9cef0;outline-offset:-3px}
+.an-hoja figcaption{display:flex;flex-direction:column;align-items:center;gap:var(--e1)}
+.an-cap-uso{display:flex;align-items:center;gap:var(--e2)}
+.an-cap-barra{position:relative;display:block;width:96px;height:6px;border-radius:3px;background:rgba(255,255,255,.18);overflow:hidden}
+.an-cap-barra>i{position:absolute;inset:0;border-radius:3px;background:#18b6d8;transform:scaleX(var(--uso,0));transform-origin:left center}
+.an-cap-pct{font-weight:700;color:#fff}
+.an-cap-retazo{min-height:44px;padding:0 14px;border-radius:var(--rr2);border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);
+  color:#e8ebff;font:600 var(--t2)/1 var(--f-texto);cursor:pointer}
+
+/* ----- El zoom y el paneo (A7) -----
+   Sin zoom, un dedo desplaza la PÁGINA (pan-x pan-y: el scroll y el carrusel son del navegador);
+   con zoom, el dedo es del dibujo (touch-action:none), y es la clase .con-zoom la que lo dice. El
+   zoom cambia el viewBox del SVG, así que sigue siendo vector, y los trazos son
+   non-scaling-stroke: a 8x se ven del mismo grosor. */
+.an-hoja>svg{touch-action:pan-x pan-y;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.an-hoja>svg:focus{outline:none}
+.an-hoja>svg:focus-visible{outline:3px solid var(--a);outline-offset:2px}
+.an-hoja>svg.con-zoom{touch-action:none;cursor:grab}
+.an-hoja>svg.con-zoom.arrastrando,.an-hoja>svg.arrastrando{cursor:grabbing}
+
+/* ----- El pie de la mesa ----- */
+.an-mesa-pie{grid-area:2/1;position:relative;z-index:1;display:flex;flex-direction:column;gap:var(--e2);padding:0 var(--e3) var(--e3)}
+.an-mesa-pie[hidden]{display:none}
+.an-pie-fila{display:flex;flex-wrap:wrap;align-items:center;gap:var(--e2);min-height:44px;margin:0}
+.an-pie-fila[hidden]{display:none}
+.an-btn-mesa{min-width:44px;min-height:44px;padding:0 14px;border-radius:var(--rr2);border:1px solid rgba(255,255,255,.28);
+  background:rgba(255,255,255,.08);color:#e8ebff;font:600 var(--t2)/1 var(--f-texto);cursor:pointer;touch-action:manipulation;
+  transition:transform var(--mv-liq)}
+.an-btn-mesa:active:not([aria-disabled="true"]){transform:scale(.97)}
+.an-btn-mesa:focus-visible{outline:3px solid #c9cef0;outline-offset:2px}
+.an-btn-mesa[aria-disabled="true"]{color:#9aa1d6;border-style:dashed;cursor:default}
+.an-btn-mesa[aria-pressed="true"]{background:#e8ebff;color:#1a1d33;border-color:#e8ebff}
+.an-btn-cuadro{padding:0;font:700 20px/1 var(--f-cifra)}
+@media(hover:hover) and (pointer:fine){.an-btn-mesa:hover:not([aria-disabled="true"]):not([aria-pressed="true"]){border-color:#e8ebff}}
+.an-escala{display:flex;align-items:flex-end;gap:8px;margin-left:auto;min-width:0;font:700 var(--t1)/1 var(--f-cifra);color:#c9cef0;white-space:nowrap}
+.an-escala>i{display:block;flex:none;height:8px;width:var(--w,28px);border:2px solid #c9cef0;border-top:0}
+.an-pieza-t{font-weight:700;font-size:var(--t2);color:#fff;margin-right:var(--e1)}
+/* Los puntos y las flechas del carrusel (sistema.css) están pensados para una tarjeta clara; la mesa es
+   oscura en los dos temas. */
+.an-pags.paginas-barra{margin-top:0;justify-content:center}
+.an-pags:empty,.an-pags.oculta{display:none}
+.an-mesa .paginas-punto::before{background:rgba(255,255,255,.4)}
+.an-mesa .paginas-punto[aria-current="true"]::before{background:#fff}
+.an-mesa .paginas-flecha{border-color:rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:#e8ebff}
+.an-mesa .paginas-cuenta{color:#e8ebff}
+
+/* ----- Las piezas se deslizan, se eligen y se mueven (A8, A10, A24) -----
+   La hoja ya no se funde al mejorar: las piezas viajan (P.flip) y las que se movieron llevan el
+   contorno oscuro mientras lo hacen. La misma marca sirve para la elegida (su ficha está abierta)
+   y para la que tiene el foco del teclado: solo se pinta el contorno, nunca el relleno. */
+.an-hoja.mejora{animation:none}
+.an-hoja svg>g{cursor:pointer}
+.an-hoja svg>g:focus{outline:none}
+.an-hoja svg>g.se-movio>*:not(.hole),
+.an-hoja svg>g.vistazo-ancla-abierta>*:not(.hole),
+.an-hoja svg>g:focus-visible>*:not(.hole){stroke:#14162b;stroke-width:2.6px}
+.an-hoja svg>g.levantada>*:not(.hole){stroke:#14162b;stroke-width:3px;stroke-dasharray:7 4}
+.an-hoja svg>g.rechazada>*:not(.hole){stroke:#c8261c;stroke-width:3px}
+/* La ficha de la pieza es una nota que solo se lee: si queda encima de otra pieza, el toque pasa de largo
+   hasta ella (con el dedo, la ficha de una pieza tapaba a su vecina). */
+.vistazo[role="note"]{pointer-events:none}
+.an-mesa.editable .an-hoja svg>g{cursor:grab}
+.an-hoja svg>g.levantada{cursor:grabbing}
+
+/* ----- Los avisos que señalan (A15) ----- */
+.an-avisos .hintnote{flex-wrap:wrap}
+.an-avisos .hintnote>span{flex:1 1 12rem;min-width:0}
+.an-aviso-ver{width:auto;flex:none;min-height:44px;padding:0 14px;margin-left:auto}
+.an-aviso-ver[aria-pressed="true"]{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-fuerte)}
+
+/* ── fin de an-mesa ── */
+
+@media(prefers-reduced-motion:reduce){
+/* ── rm · an-controles ── */
+/* La mecha del paro se va y queda la frase (A4): una línea quieta que nunca se acorta diría que
+   el paro no corre. */
+.an-paro-hilo{display:none}
+/* El resaltado del menú salta al renglón sin viajar; el de las cotas, sin engrosarse despacio. */
+.an-menu-resalte,.an-dl-flecha,#an-orig svg .an-cotas .linea{transition:none}
+/* Las hojitas y el ícono de girar cambian de lado de golpe. Va AQUÍ y no en el apagado de más
+   arriba porque la transición nueva se declaró después y le ganaría. */
+.an-tile-hoja,.an-girar .svgi{transition:none}
+/* Sin reflejo en el logo, sin caída de piezas en el arranque, sin trazo del ejemplo (que aparece
+   ya relleno). */
+#brandLogo.brilla::after{display:none}
+.an-arranque-ico rect{animation:none}
+#an-orig svg.dibuja-ejemplo>path{animation:none;stroke:none;stroke-dasharray:none;stroke-dashoffset:0;fill-opacity:1}
+/* ── fin de rm · an-controles ── */
+/* ── rm · an-mesa ── */
+/* El haz no cruza (la vista cambia de golpe, en js/app.js), la silueta del primer acomodo solo se
+   atenúa —el desenfoque es un cambio de imagen, no información— y la ficha de «una hoja menos» y
+   el pulso de «Hojas» aparecen sin entrar: la noticia se queda, el adorno no. */
+.an-haz{display:none}
+.an-mesa.calculando #an-orig>svg{filter:none}
+.an-ficha.baja,.an-noticia.sale{animation:none}
+.an-btn-mesa{transition:none}
+/* ── fin de rm · an-mesa ── */
+}

@@ -34,7 +34,7 @@ import * as Bitacora from '../datos/bitacora.js';
 import * as Puente from '../datos/puente.js';
 import { armarResumen, promptSistema, mdLite, cadenaIA, PROVEEDOR_NOMBRE, INTENCIONES,
          detectarIntencion, respuestaLocal, resumenDelDia, sugerirIntenciones } from '../datos/asistente-contexto.js';
-import { $, ico, esc, money, toast, abrirCapa, cerrarCapa, copiarTexto, hoyISO, fmtFecha } from './ui.js';
+import { $, ico, esc, money, toast, voz, scrollSuave, abrirCapa, cerrarCapa, copiarTexto, hoyISO, fmtFecha } from './ui.js';
 
 const CAPA = 'pf-ia';
 const CLAVE_OK = Prefs.CLAVES.IA_OK;    // «entendido»: lo que pregunte a la IA viaja con un resumen
@@ -44,7 +44,7 @@ const FRESCURA_MS = 45000;                // cuánto vale una lectura del taller
 
 /* La conversación vive en memoria mientras la pestaña esté abierta. No se guarda: es una
    consulta, no un registro, y guardarla sería guardar copias del resumen del negocio. */
-let _msgs = [];                 // [{rol:'yo'|'bot'|'espera'|'error', texto, ts, con?, local?, intent?}]
+let _msgs = [];                 // [{rol:'yo'|'bot'|'traza'|'error'|'permiso', texto, ts, con?, local?, intent?, nodo?}]
 let _ctx = null;
 let _ocupado = false;
 let _abort = null;
@@ -60,6 +60,18 @@ function refrescarIA() {
    con importes— salía a Groq cuando la persona ya había cerrado el asistente. Una bandera
    propia, puesta por quien cierra, es lo único que distingue «me fui» de «no contestó». */
 let _cancelado = false;
+/* Quién canceló, para decirlo con verdad en el hilo: «cerraste el asistente» y «la detuviste» no
+   son lo mismo, y poner la primera frase cuando se tocó «Detener» era mentirle a quien lo tocó. */
+let _canceloPor = '';
+/* Verdadero SOLO mientras se espera a la IA (no al contestar con lo que se calcula aquí, que
+   tarda decenas de milisegundos y no hay nada que detener). Es lo que vuelve «Preguntar» en
+   «Detener» (F2). */
+let _detenible = false;
+/* Lo último que se pintó en el hilo —cuántos mensajes y de cuándo es el último—: sirve para saber
+   si un pintar() trae algo NUEVO (y entonces se acomoda el scroll y entra la burbuja) o es un
+   repintado cualquiera, que no debe mover a quien está leyendo (F15). */
+let _firma = '';
+let _trazas = 0;                // para darle a cada traza un id que no se repita
 let _montado = false;
 let _resumen = null;            // la última lectura del taller
 let _leido = 0;                 // cuándo
@@ -113,6 +125,10 @@ export function montar(ctx) {
     capa.addEventListener('keydown', alTecla);
     capa.addEventListener('input', alEscribir);
   }
+  /* La tira de preguntas rápidas se corta por la derecha sin decir que hay más (F30). El fundido
+     solo sale del lado donde todavía hay contenido, y como se pasa un SELECTOR sirve para la tira
+     de cada repintado del panel: se pide una vez aquí y no hay que volver a pedirla. */
+  if (window.Piezas && window.Piezas.bordesDesvanecidos) window.Piezas.bordesDesvanecidos('.ia-tira', { eje: 'x' });
 }
 
 export async function abrir() {
@@ -127,9 +143,20 @@ export async function abrir() {
 }
 
 export function cerrar() {
-  if (_ocupado) _cancelado = true;
+  if (_ocupado) { _cancelado = true; _canceloPor = 'cerro'; }
   if (_abort) { try { _abort.abort(); } catch (_) {} _abort = null; }
   cerrarCapa(CAPA);
+}
+
+/* «Detener» (F2): cancela la pregunta en vuelo SIN cerrar el panel, por el mismo camino que
+   `cerrar()` —la bandera `_cancelado` y el corte de `_abort`—. Antes la única forma de no seguir
+   esperando era cerrar el asistente, y una respuesta que se tarda 60 s por proveedor (hasta cuatro)
+   obligaba a irse de la pantalla donde estaba la conversación. */
+function detener() {
+  if (!_ocupado || !_detenible || _cancelado) return;
+  _cancelado = true; _canceloPor = 'detuvo';
+  if (_abort) { try { _abort.abort(); } catch (_) {} _abort = null; }
+  voz('Pregunta detenida');
 }
 
 /* ============================================================================
@@ -145,6 +172,18 @@ function pintar() {
   const borrador = ta0 ? ta0.value : '';
   const conFoco = !!ta0 && document.activeElement === ta0;
   const sel = ta0 ? [ta0.selectionStart, ta0.selectionEnd] : null;
+  const enviarConFoco = !!document.activeElement && document.activeElement.classList &&
+    document.activeElement.classList.contains('ia-enviar') && capa.contains(document.activeElement);
+  /* Y el lugar donde se iba leyendo. Cada repintado nacía con el scroll en 0 y lo mandaba al
+     fondo: quien leía el principio de una respuesta larga perdía el sitio cuando /salud contestaba. */
+  const cuerpo0 = $('ia-cuerpo');
+  const y0 = cuerpo0 ? cuerpo0.scrollTop : 0;
+  /* Al abrir, el panel se pinta ANTES de mostrarse (ver abrir()): ahí no hay animación que valga. */
+  const alAbrir = !capa.classList.contains('show');
+  const ultimo = _msgs[_msgs.length - 1];
+  const firma = _msgs.length + ':' + (ultimo ? ultimo.ts : '');
+  const nuevo = firma !== _firma;
+  _firma = firma;
   const cadena = cadenaIA(_iaEstado);
   const hayLlave = cadena.length > 0;
   const quien = cadena[0] ? (PROVEEDOR_NOMBRE[cadena[0].prov] || cadena[0].prov) + ' · ' + cadena[0].model : '';
@@ -157,12 +196,18 @@ function pintar() {
       (hayHilo ? '<button type="button" class="pf-cerrar" data-ia-limpiar title="Empezar de nuevo" aria-label="Borrar la conversación">' + ico('i-basura') + '</button>' : '') +
       '<button type="button" class="pf-cerrar" data-ia-cerrar aria-label="Cerrar el asistente">' + ico('i-cerrar') + '</button>' +
     '</div>' +
-    '<div class="pf-panel-b ia-cuerpo" id="ia-cuerpo">' + (hayHilo ? hiloHTML() : portadaHTML()) + '</div>' +
+    '<div class="pf-panel-b ia-cuerpo" id="ia-cuerpo">' + (hayHilo ? hiloHTML(nuevo && !alAbrir) : portadaHTML()) + '</div>' +
     '<div class="ia-pie-caja">' +
       (hayHilo ? tiraHTML() : '') +
       '<div class="pf-panel-f ia-pie">' +
         '<textarea id="ia-pregunta" rows="1" placeholder="Escribe tu pregunta…" aria-label="Tu pregunta"' + (_ocupado ? ' disabled' : '') + '></textarea>' +
-        '<button type="button" class="btn btn-pri ia-enviar" data-ia-enviar' + (_ocupado ? ' disabled' : '') + ' aria-label="Preguntar">' + ico('i-subir') + '</button>' +
+        /* «Preguntar» nace fantasma y se llena de color en cuanto hay texto (`.listo`, ver
+           `alEscribir`); mientras la IA contesta se vuelve el cuadro de «Detener». Siempre
+           `aria-disabled` y nunca `disabled`: un botón apagado no recibe el toque, y «Detener»
+           tiene que recibirlo justo cuando todo lo demás está esperando (F2). */
+        (_detenible
+          ? '<button type="button" class="btn ia-enviar detener" data-ia-enviar aria-label="Detener la pregunta">' + '<span class="ia-parar" aria-hidden="true"></span></button>'
+          : '<button type="button" class="btn ia-enviar" data-ia-enviar aria-disabled="true" aria-label="Preguntar">' + ico('i-subir') + '</button>') +
       '</div>' +
       '<p class="ia-pista">Enter envía · Shift+Enter hace renglón' + (hayLlave ? '' : ' · para preguntas libres, Dirección pega una llave de IA en la hoja') + '</p>' +
     '</div>';
@@ -172,12 +217,24 @@ function pintar() {
   const panel = capa.querySelector(':scope>.ia-panel');
   if (panel) panel.innerHTML = inner;
   else capa.innerHTML = '<div class="pf-panel ia-panel">' + inner + '</div>';
+  /* Las trazas (la espera y las ya plegadas) viven en su propio nodo, con su reloj andando: se
+     devuelven a su sitio en vez de pintarse otra vez, porque repintarlas reiniciaría el «14 s». */
+  capa.querySelectorAll('[data-ia-traza]').forEach(ph => {
+    const m = _msgs.find(x => x.id === ph.dataset.iaTraza);
+    if (m && m.nodo) ph.replaceWith(m.nodo);
+  });
   const ta = $('ia-pregunta');
   if (ta && borrador) { ta.value = borrador; alEscribir({ target: ta }); }
   if (ta && conFoco && !_ocupado) {
     try { ta.focus({ preventScroll: true }); if (sel) ta.setSelectionRange(sel[0], sel[1]); } catch (_) {}
   }
-  abajo();
+  /* Si el foco estaba en el campo y empieza la espera, o ya estaba en «Detener», se queda en
+     «Detener»: quien navega con teclado no puede caer al <body> justo cuando necesita cancelar. */
+  if (_detenible && (conFoco || enviarConFoco)) {
+    const b = capa.querySelector('.ia-enviar');
+    if (b) { try { b.focus({ preventScroll: true }); } catch (_) {} }
+  }
+  acomodar(y0, alAbrir, nuevo);
 }
 
 /* La portada: el resumen de hoy en cinco cifras, y las preguntas de siempre como renglones
@@ -199,7 +256,14 @@ function portadaHTML() {
 function resumenHTML() {
   const dinero = Prefs.veDinero();
   if (!_resumen) {
-    return '<div class="ia-hoy ia-hoy-cargando" aria-busy="true"><p class="ia-hoy-t">' + ico('i-reloj') + ' Leyendo el taller…</p></div>';
+    /* La forma de lo que va a llegar, en vez de un reloj fijo con un renglón: cuatro cajas con el
+       alto y el ritmo de `.ia-cifras`, así que al llegar las cifras no se mueve nada (F16). La
+       pieza ya trae `aria-busy` y el texto de estado en un `role="status"`. */
+    const P = window.Piezas;
+    if (P && P.silueta) {
+      return '<div class="ia-hoy ia-hoy-cargando">' + P.silueta('cifras', { cifras: dinero ? 4 : 3, texto: 'Leyendo el taller…' }) + '</div>';
+    }
+    return '<div class="ia-hoy ia-hoy-cargando" aria-busy="true"><p class="ia-hoy-t">Leyendo el taller…</p></div>';
   }
   const d = resumenDelDia(_resumen);
   const cifra = (v, t, cls) => '<button type="button" class="ia-cifra' + (cls ? ' ' + cls : '') + '" data-ia-intent="' + (cls === 'dinero' ? 'cobranza' : 'hoy') + '"><b>' + esc(v) + '</b><span>' + esc(t) + '</span></button>';
@@ -222,14 +286,23 @@ function resumenHTML() {
   '</div>';
 }
 
-function hiloHTML() {
+/* `conNueva`: el último mensaje acaba de llegar. Solo ESE entra con su subida de 150 ms (F15): como
+   el panel se pinta entero en cada cambio, una entrada en todas las burbujas las haría saltar a
+   todas cada vez. */
+function hiloHTML(conNueva) {
   const hayLlave = cadenaIA(_iaEstado).length > 0;
-  return '<div class="ia-hilo">' + _msgs.map(m => {
+  const ult = _msgs.length - 1;
+  const bot = i => '<div class="ia-msg bot"' + (conNueva && i === ult ? ' data-nueva' : '') + '>';
+  return '<div class="ia-hilo">' + _msgs.map((m, i) => {
     if (m.rol === 'yo') return '<div class="ia-msg yo"><div class="ia-burbuja">' + esc(m.texto) + '</div></div>';
-    if (m.rol === 'espera') return '<div class="ia-msg bot"><div class="ia-burbuja ia-espera">' + ico('i-reloj') + ' ' + esc(m.texto) + '</div></div>';
-    if (m.rol === 'error') return '<div class="ia-msg bot"><div class="ia-burbuja ia-mal">' + ico('i-aviso') + ' ' + esc(m.texto) + '</div></div>';
+    /* La traza no se pinta aquí: se deja el hueco y `pintar()` mete su nodo, que lleva el reloj. */
+    if (m.rol === 'traza') {
+      return '<div class="ia-msg bot"><div class="ia-burbuja ia-traza-caja" data-ia-traza="' + esc(m.id) + '">' +
+        (m.nodo ? '' : esc(m.texto || 'Preguntando…')) + '</div></div>';
+    }
+    if (m.rol === 'error') return bot(i) + '<div class="ia-burbuja ia-mal">' + ico('i-aviso') + ' ' + esc(m.texto) + '</div></div>';
     if (m.rol === 'permiso') {
-      return '<div class="ia-msg bot"><div class="ia-burbuja ia-permiso">' + ico('i-aviso') +
+      return bot(i) + '<div class="ia-burbuja ia-permiso">' + ico('i-aviso') +
         '<div><b>Esta pregunta va a la IA.</b> Viaja a <b>' + esc(m.con || '') + '</b> junto con un resumen de lo que hay en este dispositivo: ' +
         'proyectos con su etapa' + (Prefs.veDinero() ? ', importes y saldos' : '') + ', agenda, material y los últimos movimientos. Sin teléfonos ni direcciones. Se pregunta una sola vez.</div>' +
         '<div class="btn-fila"><button type="button" class="btn btn-pri pf-btn-corto" data-ia-ok>Entendido, enviar</button>' +
@@ -239,7 +312,7 @@ function hiloHTML() {
     const fuente = m.local
       ? '<span class="ia-fuente local" title="Calculado en este dispositivo, sin mandar nada a la IA">' + ico('i-candado') + ' Calculado aquí · ' + hora + '</span>'
       : '<span class="ia-fuente">' + ico('i-ia') + ' ' + esc(m.con || 'IA') + ' · ' + hora + '</span>';
-    return '<div class="ia-msg bot"><div class="ia-burbuja">' + mdLite(m.texto) + '</div>' +
+    return bot(i) + '<div class="ia-burbuja">' + mdLite(m.texto) + '</div>' +
       accionesHTML(m.acciones) +
       '<div class="ia-meta">' + fuente +
         (m.local && hayLlave ? '<button type="button" class="ia-copiar" data-ia-ampliar="' + esc(m.ts) + '" title="Mandar la misma pregunta a la IA, con estos datos">' + ico('i-ia') + ' Preguntarle a la IA</button>' : '') +
@@ -285,11 +358,36 @@ function horaDe(ts) {
   return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 }
 
-/* El hilo se lee de abajo —lo último que se contestó—; la portada se lee de arriba, que es
-   donde están las cifras de hoy. Desplazar la portada al fondo le cortaba el encabezado. */
-function abajo() {
+/* Dónde queda el scroll después de pintar (F15).
+
+   La portada se lee de arriba, que es donde están las cifras de hoy: desplazarla al fondo le
+   cortaba el encabezado. El hilo, en cambio, se bajaba SIEMPRE hasta `scrollHeight`, y una
+   cobranza de 20 renglones se abría mostrando su final: había que subir con el dedo para leer
+   por dónde empezaba. Ahora una respuesta nueva se ancla en SU principio, y lo que se escribe
+   (tu pregunta, la traza de la espera) sigue bajando al fondo porque ahí es donde pasa algo.
+
+   Un repintado sin nada nuevo —/salud que contesta, un cambio de llave— devuelve el scroll
+   adonde estaba: antes mandaba al fondo a quien leía el principio. Y al abrir el panel con una
+   conversación empezada se ve el principio de lo último que se contestó, sin animar. */
+function acomodar(y0, alAbrir, nuevo) {
   const c = $('ia-cuerpo');
-  if (c) requestAnimationFrame(() => { c.scrollTop = _msgs.length ? c.scrollHeight : 0; });
+  if (!c) return;
+  if (!_msgs.length) { c.scrollTop = 0; return; }
+  if (!nuevo && !alAbrir) { c.scrollTop = y0; return; }
+  c.scrollTop = alAbrir ? 0 : y0;
+  requestAnimationFrame(() => {
+    const cuerpo = $('ia-cuerpo');
+    if (!cuerpo) return;
+    const ult = _msgs[_msgs.length - 1];
+    const respuesta = !!ult && (ult.rol === 'bot' || ult.rol === 'error');
+    const el = respuesta ? cuerpo.querySelector('.ia-hilo > .ia-msg:last-child') : null;
+    /* Se mide y se desplaza el cuerpo a mano, sin scrollIntoView: éste además corre los
+       antepasados con scroll, y el panel no tiene por qué mover la página de abajo. */
+    const top = el ? cuerpo.scrollTop + el.getBoundingClientRect().top - cuerpo.getBoundingClientRect().top - 4
+                   : cuerpo.scrollHeight;
+    try { cuerpo.scrollTo({ top: Math.max(0, top), behavior: alAbrir ? 'auto' : scrollSuave() }); }
+    catch (_) { cuerpo.scrollTop = Math.max(0, top); }
+  });
 }
 
 /* Con el dedo, no: en el teléfono un focus() abre el teclado, que tapaba justo la respuesta y
@@ -297,6 +395,8 @@ function abajo() {
 const conDedo = () => { try { return matchMedia('(pointer:coarse)').matches; } catch (_) { return false; } };
 function enfocarCampo() {
   if (conDedo()) return;
+  const capa = $(CAPA);
+  if (!capa || !capa.classList.contains('show')) return;      // con el panel cerrado no hay campo que enfocar
   const ta = $('ia-pregunta');
   if (ta && !_ocupado) requestAnimationFrame(() => { try { ta.focus({ preventScroll: true }); } catch (_) {} });
 }
@@ -342,12 +442,34 @@ function alClic(ev) {
     if (pregunta) preguntarIA(pregunta.texto, {});
     return;
   }
-  if (t.closest('[data-ia-enviar]')) { enviarDelCampo(); return; }
+  const env = t.closest('[data-ia-enviar]');
+  if (env) {
+    /* Durante la espera de la IA este mismo botón es «Detener». Con el campo vacío no hace nada,
+       pero tampoco se queda mudo: lleva al campo, que es lo que falta. */
+    if (_detenible) { detener(); return; }
+    if (_ocupado) return;
+    if (env.getAttribute('aria-disabled') === 'true') { const ta = $('ia-pregunta'); if (ta) { try { ta.focus(); } catch (_) {} } return; }
+    enviarDelCampo();
+    return;
+  }
   const cp = t.closest('[data-ia-copiar]');
   if (cp) {
     const m = _msgs.find(x => String(x.ts) === cp.dataset.iaCopiar);
-    if (m) copiarTexto(m.texto, 'Respuesta copiada');
+    if (m) copiarRespuesta(m.texto, cp);
   }
+}
+
+/* Copiar una respuesta (F31). El botón que se tocó lo dice él mismo —la palomita se dibuja y el
+   rótulo pasa a «Copiada» 1.8 s—, además del aviso de siempre, que es el que se oye. `copiarTexto`
+   también confirma en su botón, pero con su «Copiado» genérico; una respuesta es femenina y aquí se
+   quiere el rótulo bien dicho. Si la pieza no está, se cae a `copiarTexto` como antes. */
+function copiarRespuesta(texto, boton) {
+  const P = window.Piezas;
+  if (!P || !P.copiar) { copiarTexto(texto, 'Respuesta copiada'); return; }
+  P.copiar(texto, { boton, ok: 'Copiada' }).then(bien => {
+    if (bien) toast('Respuesta copiada', 'ok', 3400);
+    else toast('Este navegador no dejó copiar — selecciona el texto a mano', 'err', 4200);
+  });
 }
 
 /* Cerrar el panel y llegar a la pantalla con el dato en la mano: la ficha abierta, la
@@ -388,6 +510,15 @@ function alEscribir(ev) {
   if (!ta || ta.id !== 'ia-pregunta') return;
   ta.style.height = 'auto';
   ta.style.height = Math.min(ta.scrollHeight, 132) + 'px';
+  /* El botón de enviar se llena de color SOLO cuando hay algo que enviar (F2). Un botón de color
+     con el campo vacío miente: parece lo que hay que tocar y no hace nada, y en esta pantalla hay
+     un solo botón de color a la vez. Sin texto vuelve a fantasma y a `aria-disabled`. */
+  const b = document.querySelector('#' + CAPA + ' .ia-enviar');
+  if (b && !_detenible) {
+    const listo = ta.value.trim().length > 0 && !_ocupado;
+    b.classList.toggle('listo', listo);
+    b.setAttribute('aria-disabled', listo ? 'false' : 'true');
+  }
 }
 
 function enviarDelCampo() {
@@ -457,29 +588,82 @@ async function preguntarIA(q, opts) {
     return;
   }
 
-  _ocupado = true;
-  _cancelado = false;
-  _msgs.push({ rol: 'espera', texto: 'Leyendo el taller…', ts: Date.now() });
+  _ocupado = true; _detenible = true;
+  _cancelado = false; _canceloPor = '';
+  /* Las banderas se sueltan SIEMPRE: la función tiene seis salidas y cada una lo repetía a mano.
+     Una que lo olvidara dejaba el asistente mudo («Detener» sin nada que detener, o el campo
+     apagado) hasta recargar la página. */
+  try { await correrIA(q, cadena); }
+  finally { _ocupado = false; _detenible = false; _cancelado = false; _canceloPor = ''; }
+  pintar(); enfocarCampo();
+}
+
+/* La espera como una lista que avanza (F14), en vez de un renglón que se reescribe.
+
+   Antes: «Preguntando a Gemini (intento 2)…» BORRABA que Qwen no tenía llave y por qué, y a los
+   40 s nadie sabía si la app trabajaba o se había colgado. Ahora cada cosa que pasa de verdad es un
+   paso —«Leí el taller», «Qwen · sin llave», «Preguntando a Gemini · 14 s»— con su reloj, y al
+   contestar la lista se pliega en «Contestó Gemini en 18 s», con los pasos adentro por si alguien
+   quiere ver por qué tardó. La pieza (P.traza) no inventa progreso: aquí se llama a `paso()` en
+   cada vuelta del recorrido REAL por los proveedores.
+
+   La traza vive en su propio nodo, guardado en el mensaje del hilo, y `pintar()` lo devuelve a su
+   sitio cada vez: el panel se reescribe entero con innerHTML, y un nodo nuevo reiniciaría el reloj.
+   Los textos y los motivos —que llegan de la hoja— entran como texto, nunca como marcado. */
+function abrirTraza() {
+  const nodo = document.createElement('div');
+  nodo.className = 'ia-burbuja ia-traza-caja';
+  const P = window.Piezas;
+  const t = P && P.traza ? P.traza(nodo, { reloj: 's' }) : null;
+  /* Con `id` propio y no con `ts`: la pregunta y su traza nacen en el mismo milisegundo, y buscar la
+     traza por la hora devolvía la pregunta —que no trae nodo—, así que la espera salía vacía. */
+  const msg = { rol: 'traza', id: 'traza-' + (++_trazas), ts: Date.now(), nodo: t ? nodo : null, texto: 'Preguntando…' };
+  _msgs.push(msg);
+  const desde = Date.now();
+  const enCuanto = () => {
+    const r = P && P.traza && P.traza.reloj ? P.traza.reloj(Date.now() - desde, 's') : '';
+    return r ? ' en ' + r : '';
+  };
+  return {
+    paso(clave, texto, estado, detalle) { if (t) t.paso(clave, texto, estado, detalle); else msg.texto = texto; },
+    cerrar(ok, resumen) { if (t) t.terminar({ ok, resumen }); },
+    enCuanto,
+  };
+}
+
+/* Cada motivo cabe en un renglón del hilo: el de la hoja puede traer un párrafo. Y sin el nombre del
+   proveedor delante: el paso ya lo dice («DeepSeek» + «DeepSeek no contestó» se leía repetido). */
+const motivoCorto = (e, nombre) => {
+  let m = String((e && e.message) || 'no contestó').replace(/\s+/g, ' ').trim();
+  if (nombre && m.toLowerCase().startsWith(String(nombre).toLowerCase() + ' ')) m = m.slice(nombre.length + 1);
+  return m.slice(0, 120);
+};
+
+async function correrIA(q, cadena) {
+  const tz = abrirTraza();
+  tz.paso('taller', 'Leyendo el taller', 'trabaja');
   pintar();
 
   let resumen;
   try {
     await leerSiHaceFalta(true);
     resumen = _resumen;
+    tz.paso('taller', 'Leí el taller', 'ok');
   } catch (e) {
-    quitarEspera();
-    _msgs.push({ rol: 'error', texto: 'No pude leer los datos de este dispositivo: ' + (e && e.message ? e.message : 'error desconocido'), ts: Date.now() });
-    _ocupado = false; pintar(); return;
+    const msg = 'No pude leer los datos de este dispositivo: ' + (e && e.message ? e.message : 'error desconocido');
+    tz.paso('taller', 'No pude leer el taller', 'mal');
+    tz.cerrar(false, 'Sin respuesta');
+    _msgs.push({ rol: 'error', texto: msg, ts: Date.now() });
+    return;
   }
 
-  /* Lo que queda en el hilo cuando se cerró el panel antes de la respuesta: se dice, para que
-     al volver a abrirlo la pregunta no parezca colgada, y se dice que no salió a nadie más. */
+  /* Lo que queda en el hilo cuando se cerró el panel o se tocó «Detener» antes de la respuesta: se
+     dice, para que la pregunta no parezca colgada, y se dice que no salió a nadie más. */
   const cancelada = () => {
-    quitarEspera();
+    tz.cerrar(false, 'Detenida');
     _msgs.push({ rol: 'error', ts: Date.now(),
-      texto: 'Quedó sin respuesta: cerraste el asistente y la pregunta se canceló, así que no se le mandó a ningún otro proveedor.' });
-    _cancelado = false; _ocupado = false;
-    pintar();
+      texto: 'Quedó sin respuesta: ' + (_canceloPor === 'detuvo' ? 'la detuviste' : 'cerraste el asistente') +
+        ' y la pregunta se canceló, así que no se le mandó a ningún otro proveedor.' });
   };
   if (_cancelado) { cancelada(); return; }
 
@@ -492,19 +676,25 @@ async function preguntarIA(q, opts) {
   let ultimoError = null;
   for (let i = 0; i < Math.min(cadena.length, 4); i++) {
     const c = cadena[i];
-    ponerEspera('Preguntando a ' + (PROVEEDOR_NOMBRE[c.prov] || c.prov) + (i ? ' (intento ' + (i + 1) + ')' : '') + '…');
+    const nombre = PROVEEDOR_NOMBRE[c.prov] || c.prov;
+    const clave = 'prov' + i;
+    tz.paso(clave, 'Preguntando a ' + nombre + (i ? ' (intento ' + (i + 1) + ')' : ''), 'trabaja', '');
     try {
       const r = await llamar(c, sistema, previos, q);
       /* Una respuesta que llegó justo después de cerrar tampoco se pinta como si nada. */
-      if (_cancelado) { cancelada(); return; }
-      quitarEspera();
-      _msgs.push({ rol: 'bot', texto: r, ts: Date.now(), con: (PROVEEDOR_NOMBRE[c.prov] || c.prov) + ' · ' + c.model });
+      if (_cancelado) { tz.paso(clave, nombre, 'mal', 'detenida'); cancelada(); return; }
+      tz.paso(clave, nombre, 'ok', '');
+      tz.cerrar(true, 'Contestó ' + nombre + tz.enCuanto());
+      _msgs.push({ rol: 'bot', texto: r, ts: Date.now(), con: nombre + ' · ' + c.model });
       ultimoError = null;
       break;
     } catch (e) {
-      /* Antes de pasar al siguiente proveedor: si se cerró el panel, no hay siguiente. */
-      if (_cancelado || (e && e.cancelado)) { cancelada(); return; }
+      /* Antes de pasar al siguiente proveedor: si se cerró el panel o se detuvo, no hay siguiente. */
+      if (_cancelado || (e && e.cancelado)) { tz.paso(clave, nombre, 'mal', 'detenida'); cancelada(); return; }
       ultimoError = e;
+      /* Sin llave no es una falla: es un paso que se salta, y se lee distinto (guion ámbar). */
+      if (e && e.sinLlave) tz.paso(clave, nombre, 'salta', 'sin llave');
+      else tz.paso(clave, nombre, 'mal', motivoCorto(e, nombre));
       if (e && e.definitivo) break;   // cupo del día o cuenta sin permiso: es de la persona, no del proveedor
       /* Una llave inválida o un modelo que no existe no se arregla reintentando con la misma:
          se pasa a la siguiente. Un 429/5xx también pasa a la siguiente, que es la cuota nueva. */
@@ -512,20 +702,10 @@ async function preguntarIA(q, opts) {
     }
   }
   if (ultimoError) {
-    quitarEspera();
+    tz.cerrar(false, 'Ningún proveedor contestó');
     _msgs.push({ rol: 'error', texto: (ultimoError.message || 'No hubo respuesta') + '. Inténtalo en un momento. Las preguntas rápidas siguen funcionando sin IA.', ts: Date.now() });
   }
-  _ocupado = false;
-  pintar(); enfocarCampo();
 }
-
-function ponerEspera(texto) {
-  const e = _msgs.find(m => m.rol === 'espera');
-  if (e) e.texto = texto; else _msgs.push({ rol: 'espera', texto, ts: Date.now() });
-  const el = document.querySelector('#ia-cuerpo .ia-espera');
-  if (el) el.innerHTML = ico('i-reloj') + ' ' + esc(texto);
-}
-function quitarEspera() { _msgs = _msgs.filter(m => m.rol !== 'espera'); }
 
 /* ----- Leer el taller: todo local, por la capa de datos -----
    Se relee si la última lectura tiene más de 45 s o si se pide a la fuerza (antes de
@@ -589,13 +769,21 @@ async function leerTaller() {
    texto, o por qué no. La petición no se puede cortar a medio vuelo: cerrar el panel marca la
    espera como cancelada y lo que llegue se tira. */
 async function llamar(c, sistema, previos, pregunta) {
-  const ctl = { abortado: false, abort() { this.abortado = true; } };
+  /* La petición a la hoja no se puede cortar a medio vuelo (el puente no recibe señal de aborto),
+     pero ESPERARLA sí: `abort()` rechaza una promesa de corte que compite con la respuesta. Antes
+     cerrar el panel dejaba `_ocupado` puesto hasta que la hoja contestara —hasta 60 s—, y «Detener»
+     no habría servido de nada: la pregunta siguiente se ignoraba mientras tanto. Lo que la hoja
+     conteste después se tira. */
+  const ctl = { abortado: false, abort() { this.abortado = true; if (this._corta) this._corta(); } };
   _abort = ctl;
   const cancelado = () => { const x = new Error('cancelado'); x.cancelado = true; return x; };
+  const corte = new Promise((_, no) => { ctl._corta = () => no(cancelado()); });
   try {
     let r;
     try {
-      r = await Puente.hablar('ia', { modo: 'chat', prov: c.prov, model: c.model, sistema, mensajes: previos, pregunta }, TIMEOUT);
+      r = await Promise.race([
+        Puente.hablar('ia', { modo: 'chat', prov: c.prov, model: c.model, sistema, mensajes: previos, pregunta }, TIMEOUT),
+        corte]);
     } catch (e) {
       if (ctl.abortado) throw cancelado();
       const x = new Error(e && e.codigo === 'ROL_SIN_PERMISO' ? e.message : 'no se pudo llegar a la hoja (revisa tu conexión)');
@@ -607,10 +795,10 @@ async function llamar(c, sistema, previos, pregunta) {
     if (r && r.codigo === 'SIN_LLAVE' && _iaEstado) _iaEstado[c.prov] = false;
     const x = new Error((r && r.mensaje) || ((PROVEEDOR_NOMBRE[c.prov] || c.prov) + ' no contestó'));
     x.definitivo = !!(r && (r.codigo === 'CUPO_AGOTADO' || r.codigo === 'ROL_SIN_PERMISO'));
+    x.sinLlave = !!(r && r.codigo === 'SIN_LLAVE');
     throw x;
   } finally {
     if (_abort === ctl) _abort = null;
   }
 }
 
-void toast;

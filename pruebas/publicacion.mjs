@@ -215,8 +215,9 @@ comparar('las pruebas de node', readdirSync(join(RAIZ, 'pruebas')).filter(n => n
 /* 4 · Los módulos ES de LA PLATAFORMA, que es el argumento del service worker para servirla
    caché primero: «un módulo nuevo con uno viejo no es una app vieja, es una app rota».
    Quedan fuera los doce guiones clásicos del cotizador —que comparten ámbito global y no se
-   importan entre sí— y `js/tema.js`, que también es clásico y corre antes del primer pintado. */
-const modulosES = enDisco.filter(f => f !== 'js/tema.js' && !f.startsWith('js/cotizador/')).length;
+   importan entre sí—, `js/tema.js`, que también es clásico y corre antes del primer pintado, y
+   `js/piezas.js`, el otro clásico: lo cargan las cuatro superficies con un <script> normal. */
+const modulosES = enDisco.filter(f => f !== 'js/tema.js' && f !== 'js/piezas.js' && !f.startsWith('js/cotizador/')).length;
 comparar('los módulos ES de la plataforma', modulosES, [
   cuentaDicha(sw, /La plataforma son (\d+) módulos ES/, 'sw.js'),
   cuentaDicha(sw, /la plataforma pide (\d+) módulos al arrancar/, 'sw.js'),

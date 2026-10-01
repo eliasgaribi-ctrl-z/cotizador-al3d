@@ -43,6 +43,9 @@ import * as Prefs from './prefs.js';
 import * as Cot from './cotizador.js';
 import { parseGmaps } from './geo.js';
 import { hoyISO, partesISO } from '../nucleo/ui.js';
+/* La aritmética de días es de fechas.js y nada más: esta zona (función 53) necesita sumar días,
+   contarlos y saber qué día de la semana es, y las tres ya existen allá con su prueba. */
+import { masDias, diasEntre, diaSemana, diasDelMes } from '../nucleo/fechas.js';
 
 /** @typedef {{ok:true, valor:*}|{ok:false, codigo:string, mensaje:string}} Resultado */
 const ok  = valor => ({ ok: true, valor });
@@ -2220,4 +2223,132 @@ export async function juntarConLaDeAqui(id) {
       'Deja que salga' + (esperando.length === 1 ? '' : 'n') + ' —Ajustes → «Mandar lo que está pendiente», con señal— y vuelve a intentarlo.');
   }
   return juntar(copia, real, true);
+}
+
+/* ============================================================================
+   GARANTÍA Y LIQUIDACIÓN — lo que hoy vive en la cabeza de quien cobra (función 53)
+   ============================================================================
+   Tres reglas del negocio que no estaban escritas en ningún archivo y que, por no estarlo,
+   se preguntan por teléfono: el otro 50 % se liquida como máximo 2 días HÁBILES después de
+   instalar, la garantía del material eléctrico dura 1 año y la de colorimetría 2. Aquí no
+   hay interfaz: solo la cuenta, para que la pantalla la pinte y una prueba de node la
+   defienda.
+
+   Días HÁBILES, y es la única cuenta del repo que los usa: el plazo del taller
+   (js/datos/taller.js) va en días de CALENDARIO a propósito —«dos semanas son catorce días,
+   no diez»— porque ahí se promete una fecha de entrega. Esto es otra cosa: es una regla de
+   COBRO, y quien paga no paga en domingo. Las dos conviven porque contestan preguntas
+   distintas, y por eso la constante tiene nombre y vive junto a la cuenta que la usa.
+
+   No conoce festivos, igual que taller.js. Un 16 de septiembre cuenta como hábil y la fecha
+   sale un día antes de lo real; lo contrario —inventar un calendario de festivos que nadie
+   mantiene— empieza a dar fechas falsas en cuanto pasa un año. Se prefiere errar del lado
+   de cobrar antes.
+
+   La excepción de los $60,000 NO cuenta nada: en un proyecto grande el saldo se liquida
+   como se haya pactado, y forzar «vence en 2 días» sobre una obra de $70,000 es enseñarle a
+   quien cobra a ignorar el aviso. Se dice que aplica y se calla la cuenta regresiva.
+
+   El día 0 es el de la instalación y NUNCA `hoy`: una ficha que se abre tres semanas después
+   tiene que decir lo mismo que el día que se instaló, corrido por el calendario.
+   ============================================================================ */
+
+/** Los dos días hábiles del cobro. Con nombre para que cambiarlos sea un renglón. */
+export const LIQUIDACION_HABILES = 2;
+/** Arriba de esto el saldo se liquida como se pactó (decisión 1 de CONVENCIONES.md: se mide
+ *  sobre el total que se cobra, con IVA si lo lleva, igual que la excepción del anticipo). */
+export const LIQUIDACION_EXCEPCION = 60000;
+/** Las dos garantías, en meses. Eléctrico 1 año, colorimetría 2. */
+export const GARANTIAS = [
+  { clave: 'electrico', nombre: 'Material eléctrico', meses: 12 },
+  { clave: 'colorimetria', nombre: 'Colorimetría', meses: 24 },
+];
+
+/** Lunes a viernes. Sin festivos, y está dicho arriba por qué. */
+export const esHabil = iso => { const w = diaSemana(iso); return w !== null && w >= 1 && w <= 5; };
+
+/** `n` días hábiles DESPUÉS de `iso`. El propio día no cuenta: instalar un lunes con 2
+ *  hábiles da el miércoles, y un viernes da el martes. Suma día por día con `masDias()` de
+ *  fechas.js, que trabaja sobre los campos y nunca con `new Date(iso)`. */
+export function masHabiles(iso, n) {
+  if (!partesISO(iso)) return null;
+  let d = iso, k = 0;
+  const tope = Math.max(0, Math.trunc(n || 0));
+  while (k < tope) { d = masDias(d, 1); if (esHabil(d)) k++; }
+  return d;
+}
+
+/** Hábiles que faltan para llegar de `desde` a `hasta` (los que hay que vivir). 0 si ya se
+ *  llegó o si `hasta` quedó atrás. */
+export function habilesEntre(desde, hasta) {
+  if (!partesISO(desde) || !partesISO(hasta) || String(desde) >= String(hasta)) return 0;
+  let d = desde, k = 0;
+  /* Tope de vuelta: una fecha corrupta —un respaldo viejo con el año en 9999— colgaría el
+     bucle, y colgar la ficha de un proyecto es peor que dar una cuenta grande. */
+  while (String(d) < String(hasta) && k < 4000) { d = masDias(d, 1); if (esHabil(d)) k++; }
+  return k;
+}
+
+/** El mismo día del mes, `n` meses después. `masMeses()` de fechas.js cae siempre en el día
+ *  1 —lo necesita el calendario para no saltarse febrero— y una garantía tiene que vencer el
+ *  mismo día: instalado el 14 de marzo, hasta el 14 de marzo. El 31 en un mes de 30 baja al
+ *  último día de ese mes, que es como se lee un año de garantía. */
+export function mismoDiaMesesDespues(iso, n) {
+  const p = partesISO(iso);
+  if (!p) return null;
+  let m = p.m - 1 + Math.trunc(n || 0);
+  const a = p.a + Math.floor(m / 12);
+  m = ((m % 12) + 12) % 12;
+  return a + '-' + String(m + 1).padStart(2, '0') + '-' + String(Math.min(p.d, diasDelMes(a, m + 1))).padStart(2, '0');
+}
+
+/**
+ * La ficha de garantía y liquidación de un proyecto instalado.
+ *
+ * @param {{instalado:string, total:number, saldo:number|null, hoy:string}} d
+ *   `instalado` la fecha de la instalación (ISO), `total` lo que se cobra (con IVA si lo
+ *   lleva), `saldo` el pago pendiente de la hoja si lo hay —null = no se sabe, y entonces se
+ *   usa la mitad, que es lo que se pacta—, `hoy` la fecha contra la que se mide.
+ * @returns {null|{instalado:string, hoy:string, saldo:number, liquidacion:Object, garantias:Array}}
+ *   `null` si no hay fecha de instalación: sin ella no hay de dónde contar, y decir «vence
+ *   hoy» contando desde hoy sería inventar la regla.
+ */
+export function garantiaYLiquidacion(d) {
+  const inst = d && d.instalado;
+  const hoy = d && partesISO(d.hoy) ? d.hoy : hoyISO();
+  if (!partesISO(inst)) return null;
+
+  const total = Number(d.total) || 0;
+  const saldo = d.saldo === null || d.saldo === undefined || !isFinite(Number(d.saldo))
+    ? total / 2
+    : Math.max(0, Number(d.saldo));
+
+  const vence = masHabiles(inst, LIQUIDACION_HABILES);
+  let estado;
+  if (saldo <= 0) estado = 'pagada';
+  else if (total > LIQUIDACION_EXCEPCION) estado = 'excepcion';
+  else if (String(hoy) < String(vence)) estado = 'aTiempo';
+  else if (String(hoy) === String(vence)) estado = 'venceHoy';
+  else estado = 'vencida';
+
+  const liquidacion = {
+    estado, vence, saldo,
+    excepcion: total > LIQUIDACION_EXCEPCION,
+    /* Hábiles que faltan (aTiempo) o que van de retraso (vencida). Nunca negativo: el signo
+       lo dice el estado, y una cifra negativa junto a la palabra «vencida» se lee dos veces. */
+    dias: estado === 'aTiempo' ? habilesEntre(hoy, vence)
+        : estado === 'vencida' ? habilesEntre(vence, hoy)
+        : 0,
+  };
+
+  const garantias = GARANTIAS.map(g => {
+    const hasta = mismoDiaMesesDespues(inst, g.meses);
+    const largo = diasEntre(inst, hasta) || 1;
+    const van = Math.max(0, diasEntre(inst, hoy));
+    const quedan = diasEntre(hoy, hasta);
+    return { ...g, hasta, quedan, vencida: quedan < 0,
+      consumido: Math.min(1, Math.max(0, van / largo)) };
+  });
+
+  return { instalado: inst, hoy, saldo, liquidacion, garantias };
 }

@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -136,6 +136,35 @@ function telWhatsApp(t){
   if(d.length>=11&&d.length<=15) return d;         // internacional con lada plausible
   return '';
 }
+/* ----- A qué número va a ir el chat, dicho ANTES de tocar (falla 5 del brief) -----
+   `telWhatsApp` decide a qué número abre wa.me, y hasta ahora esa decisión solo se veía DESPUÉS
+   de tocar: el aviso de «no parece un número válido» se pintaba justo después de `window.open`,
+   o sea en la pestaña que el vendedor acababa de abandonar —en el teléfono, en la app que se
+   fue al fondo—. Cuando volvía, el aviso ya había caducado y el paso decía «Chat abierto».
+
+   Aquí la misma cuenta se hace antes, para pintarla en la pista del paso. `destino` es lo que
+   se lee en el renglón; `aviso` es la frase entera del toast, que ya existía y no cambia. */
+function waLegible(num){
+  if(!num) return '';
+  /* `telWhatsApp` devuelve los dígitos pegados con su lada de país (523328130092). Se enseña
+     por grupos, que es como se dicta y como se compara con la agenda del teléfono. Los dos
+     formatos mexicanos llevan su «+52» aparte; cualquier otra lada sale con el «+» delante y
+     sin agrupar, porque agrupar de dos en cuatro solo es cierto para México. */
+  const T=Piezas.telefono;
+  if(num.length===12&&num.startsWith('52')) return '+52 '+T.formato(num.slice(2));
+  if(num.length===13&&num.startsWith('521')) return '+52 1 '+T.formato(num.slice(3));
+  return '+'+num;
+}
+function pistaWhatsApp(){
+  const num=telWhatsApp(Q.tel);
+  if(num) return {ok:true,num:num,destino:'a '+waLegible(num),aviso:''};
+  const teniaTel=String(Q.tel||'').replace(/\D/g,'').length>0;
+  return {ok:false,num:'',
+    destino:teniaTel?'el teléfono no parece válido: WhatsApp abrirá sin chat'
+                    :'sin teléfono capturado: WhatsApp abrirá sin chat',
+    aviso:teniaTel?'El teléfono capturado no parece un número válido — elige el chat en WhatsApp'
+                  :'Sin teléfono capturado: elige el chat en WhatsApp'};
+}
 function mensajeWhatsApp(){
   const pf=precioFinal();
   const n=Q.items.filter(it=>it.showInPdf!==false).length;
@@ -148,6 +177,9 @@ function mensajeWhatsApp(){
   if((Q.proy||'').trim()) L.push(`*${Q.proy.trim()}*`);
   L.push(`${n} ${n===1?'partida':'partidas'}`);
   L.push(`Total: ${money(pf)}${Q.iva?' (IVA incluido)':' (sin IVA)'}`);
+  /* Con una propuesta con opciones (pieza 76) el total suma solo la abierta: sin esta línea el
+     cliente leería ese número como el precio de todo y no abriría la hoja que lo explica. */
+  if(Q.items.some(it=>it.showInPdf!==false&&opcionesParaPdf(it))) L.push('Incluye una propuesta con opciones: en el PDF viene la hoja «Opciones propuestas» para elegir.');
   if(Q.anti>0) L.push(`Anticipo para arrancar: ${money(Q.anti)}`);
   if((Q.entrega||'').trim()) L.push(`Límite de fabricación: ${Q.entrega.trim()}`);
   /* Solo la nota que se escribió a mano. La de respaldo —«El cliente debe proporcionar
@@ -161,26 +193,61 @@ function mensajeWhatsApp(){
   return L.join('\n');
 }
 function enviarPorWhatsApp(){
-  const num=telWhatsApp(Q.tel);
-  const url='https://wa.me/'+num+'?text='+encodeURIComponent(mensajeWhatsApp());
+  const w=pistaWhatsApp();
+  /* El aviso va ANTES de abrir, no después. `window.open` se lleva la pestaña —en el teléfono,
+     la app entera se va al fondo— y el aviso se pintaba en la que el vendedor acababa de
+     abandonar: cuando volvía ya había caducado, y encima el paso decía «Chat abierto». Puesto
+     aquí se lee con el pulgar todavía encima del botón, y la pista del renglón se lo venía
+     diciendo desde antes de tocarlo (H2). */
+  if(!w.ok) toast(w.aviso,'err',5200);
+  const url='https://wa.me/'+w.num+'?text='+encodeURIComponent(mensajeWhatsApp());
   /* Sin el 'noopener': window.open lo devuelve null POR ESPECIFICACIÓN cuando se pide, así
      que la app siempre creía que el navegador había bloqueado la ventana y enseñaba el aviso
      de emergencia aunque WhatsApp hubiera abierto bien. Aquí no hace falta: wa.me es un
      destino conocido y la pestaña se abre por acción directa del usuario. */
-  const w=window.open(url,'_blank');
-  if(!w){ toast('Permite ventanas emergentes para abrir WhatsApp','err',3400); return; }
-  /* El hito dice «chat abierto», que es exactamente lo que acaba de pasar: el PDF se
-     adjunta a mano y desde aquí no hay manera de saber si se mandó. */
-  marcarHito('wa');
-  const teniaTel=String(Q.tel||'').replace(/\D/g,'').length>0;
-  /* El aviso de éxito se fue: se pintaba en la pestaña que el vendedor acaba de abandonar, así
-     que nadie lo leía. Lo que decía —«falta adjuntar el PDF»— ahora vive en el renglón del
-     paso, donde se lee ANTES de tocarlo. Los dos avisos de error se quedan: ésos sí dicen que
-     algo salió mal, y quien los tiene que leer sigue en esta pestaña porque WhatsApp abrió
-     sin chat. */
-  if(!num) toast(teniaTel
-    ?'El teléfono capturado no parece un número válido — elige el chat en WhatsApp'
-    :'Sin teléfono capturado: elige el chat en WhatsApp','err',5200);
+  const v=window.open(url,'_blank');
+  if(!v){ toast('Permite ventanas emergentes para abrir WhatsApp','err',3400); return; }
+  /* El hito dice «chat abierto», y sin número NO hay chat: wa.me abre WhatsApp en su lista para
+     que alguien elija el destinatario a mano. Marcarlo igual era la otra mitad de la falla 5: el
+     panel enseñaba «Chat abierto · 28 ago» de una cotización que nunca se mandó, y el riel
+     ofrecía registrar la venta como si el cliente ya la tuviera. Con número sí se marca: el PDF
+     se adjunta a mano y desde aquí no hay manera de saber si se mandó, pero el chat se abrió. */
+  if(w.ok) marcarHito('wa');
+}
+/* ----- El texto exacto, antes de salir (H2) -----
+   El mensaje se arma con el folio, el total autorizado, el anticipo, el límite de fabricación y
+   la nota, y hasta ahora nadie lo veía hasta que ya estaba dentro de WhatsApp —que es tarde para
+   descubrir que el anticipo no era ése—. El globo lo enseña tal cual va, con su «Copiar» para
+   pegarlo donde haga falta.
+
+   Se cablea sobre el contenedor estable del panel (`#authbox`, que nunca se reemplaza) y el texto
+   se arma AL ABRIR, no al pintar. La primera versión llevaba el globo dentro del marcado del
+   paso (un vistazo declarativo), y ahí el texto se congelaba en el último repintado del panel:
+   pero el panel no se repinta cuando alguien cambia el límite de fabricación o la nota desde la
+   otra pantalla —`upd()` no llama a renderSummary—, y «Ver mensaje» enseñaba un texto que ya no
+   era el que se iba a mandar, que es justo lo único que no puede hacer. Con `delegar` un solo
+   globo sirve a los botones que el panel rehace cada vez, y el botón lleva id para que, si el
+   panel se repinta con el globo abierto, la pieza lo encuentre de nuevo. */
+function alistarVerMensaje(){
+  const P=window.Piezas; if(!P||!P.vistazo) return null;
+  return P.vistazo('authbox',{delegar:'.hito-ver',hoja:true,alinear:'fin',titulo:'Mensaje de WhatsApp',
+    contenido:()=>{
+      const w=pistaWhatsApp();
+      return `<span class="vistazo-t">${w.ok?'A '+esc(waLegible(w.num)):'WhatsApp abrirá sin chat: elige el destinatario ahí'}</span>`
+        +`<pre class="vistazo-texto">${esc(mensajeWhatsApp())}</pre>`
+        +`<div class="vistazo-acciones"><button type="button" class="btn btn-gho" onclick="copiarMensajeWhatsApp()">Copiar</button></div>`;
+    }});
+}
+function verMensajeHTML(){
+  alistarVerMensaje();
+  return `<button type="button" class="btn btn-gho hito-ver" id="wa-ver" aria-haspopup="dialog" aria-expanded="false">Ver mensaje</button>`;
+}
+function copiarMensajeWhatsApp(){
+  copiarTexto(mensajeWhatsApp(),'Mensaje copiado — pégalo donde lo necesites');
+  /* Y se cierra: ya se leyó, y lo que sigue es pegarlo o mandar el chat. La pieza devuelve el
+     foco a «Ver mensaje», que es de donde salió. El recibo del copiado lo da el aviso de abajo;
+     la palomita en el botón no se vería con el globo cerrándose encima. */
+  const g=alistarVerMensaje(); if(g) g.cerrar('codigo');
 }
 
 /* ----- Dejar constancia de que se hizo la propuesta -----
@@ -293,10 +360,14 @@ const HITOS_KEY='al3d_hitos';
    pestaña que el vendedor acaba de abandonar: en el celular wa.me se va a la app y cuando
    vuelve, el aviso ya caducó — y el mensaje le promete al cliente un archivo que nadie
    adjuntó. Puestas aquí se leen a tiempo, en el teléfono y en el escritorio. */
+/* `paso` es el nombre corto del hito, el que va en el riel (H3). Es a propósito distinto del
+   rótulo del botón: el botón dice lo que se va a HACER —«Enviar por WhatsApp»— y el riel dice
+   en qué VA la entrega —«WhatsApp», el 2 de 3—. Repetir la misma frase dos renglones seguidos
+   ocupa el alto de un teléfono y no añade nada. */
 const HITOS=[
-  {k:'pdf',  label:'Generar PDF',        hecho:'PDF generado',  pista:'elige «Guardar como PDF»',  fn:'generarPDF()',        cls:'btn-pri', ico:'i-doc'},
-  {k:'wa',   label:'Enviar por WhatsApp',hecho:'Chat abierto',  pista:'adjunta el PDF que guardaste', fn:'enviarPorWhatsApp()', cls:'btn-wa',  ico:'i-chat'},
-  {k:'venta',label:'Registrar venta',    hecho:'Venta registrada',fn:'abrirRegistrarVenta()',cls:'btn-vta',ico:'i-venta'},
+  {k:'pdf',  label:'Generar PDF',        paso:'PDF',     hecho:'PDF generado',  pista:'elige «Guardar como PDF»',  fn:'generarPDF()',        cls:'btn-pri', ico:'i-doc'},
+  {k:'wa',   label:'Enviar por WhatsApp',paso:'WhatsApp',hecho:'Chat abierto',  pista:'adjunta el PDF que guardaste', fn:'enviarPorWhatsApp()', cls:'btn-wa',  ico:'i-chat'},
+  {k:'venta',label:'Registrar venta',    paso:'Venta',   hecho:'Venta registrada',fn:'abrirRegistrarVenta()',cls:'btn-vta',ico:'i-venta'},
 ];
 function getHitos(){
   try{ const o=JSON.parse(localStorage.getItem(HITOS_KEY)||'{}'); return (o&&typeof o==='object'&&!Array.isArray(o))?o:{}; }
@@ -309,13 +380,14 @@ function hitosDe(folio){
 }
 function marcarHito(k){
   if(!Q.folio||!HITOS.some(h=>h.k===k)) return;
+  let nuevo=false;
   try{
     const o=getHitos();
     const y=(o[Q.folio]&&typeof o[Q.folio]==='object')?o[Q.folio]:{};
     /* La PRIMERA vez manda: reimprimir un PDF en octubre no convierte la entrega de agosto
        en una de octubre. Volver a hacerlo es normal —se corrige el documento, se reabre el
        chat— y no debería parecer un hito nuevo. */
-    if(!y[k]) y[k]=Date.now();
+    if(!y[k]){ y[k]=Date.now(); nuevo=true; }
     o[Q.folio]=y;
     localStorage.setItem(HITOS_KEY,JSON.stringify(o));
   }catch(_){ /* sin espacio: se pierde la constancia y nada más. No frena la entrega. */ }
@@ -324,6 +396,39 @@ function marcarHito(k){
      updProg. Con los dos primeros el panel decía «✓ PDF generado» y la barra de completitud,
      dos dedos más arriba, seguía ofreciendo «Generar PDF ›». */
   renderSummary(); pintarPasos(); updProg();
+  /* Solo si el hito NO estaba: volver a tocar «Enviar por WhatsApp» con el chat ya abierto una
+     vez repintaba el riel igual, y el conector se volvía a llenar por un paso que no cambió. */
+  if(nuevo) animarHitoDelRiel(k);
+}
+/* ----- Que el conector se llene SOLO cuando alguien marcó el hito (H3) -----
+   El riel de la entrega vive dentro del panel, y el panel se reconstruye desde una cadena en
+   cada tecla del anticipo: si el conector se llenara al nacer, la columna entera se estaría
+   animando mientras alguien teclea, que es justo lo que el sistema de diseño prohíbe. Por eso
+   `rielHTML()` nace quieto y la pieza solo anima en `fijar()`, «en su sitio».
+
+   Aquí está el único momento en que sí hay que moverse: acaba de marcarse un hito y el renglón
+   ya se repintó con su palomita puesta. Se le devuelve por un cuadro el estado de antes —con las
+   transiciones apagadas, para que ese salto atrás no se vea— y se suelta: entonces el conector
+   se llena en verde y la palomita se dibuja, una vez, porque alguien tocó algo.
+
+   Con menos movimiento no se hace nada: el riel ya está en su sitio, que es la información. */
+function animarHitoDelRiel(k){
+  if(Piezas.sinMovimiento()) return;
+  const ol=document.querySelector('#entrega .entrega-riel'); if(!ol) return;
+  const li=ol.querySelector('.riel-paso[data-clave="'+k+'"]');
+  if(!li||li.dataset.estado!=='hecho') return;
+  const r=Piezas.riel(ol); if(!r) return;
+  /* El estado de un cuadro antes: los que ya estaban hechos siguen hechos, el recién marcado es el
+     que tocaba y todos los demás esperan. Con solo «el marcado pasa a actual» quedaban DOS pasos
+     con el anillo azul en ese cuadro (el marcado y el que toca ahora), y aunque no se ve —no hay
+     transición— es un estado que la entrega nunca tuvo. */
+  const fin=r.estados(), i=[...ol.children].indexOf(li);
+  const antes=fin.map((e,j)=>j===i?'actual':(e==='hecho'?'hecho':'pendiente'));
+  ol.classList.add('entrega-quieta');
+  r.fijar(antes);
+  void ol.offsetWidth;                 // el estado de partida queda pintado, sin transición
+  ol.classList.remove('entrega-quieta');
+  r.fijar(fin);
 }
 /* Quitar los hitos que dejaron de ser ciertos. Lo llama la liberación del precio autorizado
    (renderSummary → soltarAuthSiCambio) y nadie más: el PDF y el chat que ya se hicieron eran de
@@ -524,11 +629,23 @@ function qrSVG(texto,px){
   for(let y=0;y<q.size;y++) for(let x=0;x<q.size;x++) if(q.getModule(x,y)) d+='M'+(x+m)+','+(y+m)+'h1v1h-1z';
   return `<svg class="qr" viewBox="0 0 ${n} ${n}" width="${px}" height="${px}" shape-rendering="crispEdges" role="img" aria-label="Código QR para verificar la cotización"><rect width="${n}" height="${n}" fill="#fff"/><path d="${d}" fill="#1a1d33"/></svg>`;
 }
+/* ----- El folio COMPLETO en el papel (falla 1 del brief) -----
+   Aquí decía «entra a … con el código A1B2-C3D4-E5F6» y nada más, y la cabecera del PDF imprime
+   el folio corto, «COT-0042». Pero el formulario de verificar.html pide el folio COMPLETO, el que
+   lleva el aparato pegado —«COT-0042@K7QM»—, porque `folioValido()` de la hoja rechaza cualquier
+   folio sin la «@» y la ruta contesta `no_autentica` sin mirar nada más. O sea: quien no escaneaba
+   el QR y tecleaba desde el papel recibía «No auténtica» con una cotización buena, en la única
+   página que ve un cliente o su contador. No había forma de acertar: el dato no venía impreso.
+
+   El que se imprime es `s.folio`, el del SELLO —folioGlobal() en el momento de autorizar—, que es
+   exactamente la llave con la que la hoja guardó el renglón, y no `Q.folio`, que es el corto.
+   verificar.html acepta las dos formas al teclear (lo hace el agente de páginas públicas), así
+   que quien copie solo «COT-0042» tampoco se queda fuera; esto quita la causa. */
 function verificacionHTML(neto){
   const s=selloImprimible(neto); if(!s) return '';
   const liga=ligaDeVerificacion(s);
   return `<div class="verif">${qrSVG(liga,62)}<div class="verif-t"><span class="lbl">Cotización verificable</span>
-    <p>Escanea el código o entra a <b>${esc(liga.split('?')[0].replace(/^https?:\/\//,''))}</b> con el código <b class="num">${esc(s.codigo)}</b>. Si el total o el negocio no coinciden, este documento fue alterado.</p></div></div>`;
+    <p>Escanea el código o entra a <b>${esc(liga.split('?')[0].replace(/^https?:\/\//,''))}</b> con el folio <b class="num">${esc(s.folio)}</b> y el código <b class="num">${esc(s.codigo)}</b>. Si el total o el negocio no coinciden, este documento fue alterado.</p></div></div>`;
 }
 
 /* ===================== Generador de PDF ===================== */
@@ -575,7 +692,7 @@ function generarPDF(){
      negro, y la especificación va debajo en gris: se puede leer solo la columna de conceptos
      de un barrido y bajar al detalle nada más en el que interesa. Las palabras son las mismas.
      Lo único que cambió de texto es la «e» de «estructura tubular», que ahora abre renglón. */
-  function desc(it){
+  function desc(it,para){
     let tit='', esp='';
     if(it.tipo==='letras'){
       tit='Letras Individuales 3D';
@@ -592,10 +709,21 @@ function generarPDF(){
       esp=`${tp?tp+', ':''}Caras en Acrílico con Iluminación LED Fría.`;
     }
     const libre = it.desc ? esc(it.desc) : '';
-    if(!tit) return libre ? `<span class="cs">${libre}</span>` : '<span class="cs">—</span>';
+    /* Una partida con opciones por elegir (pieza 76). En el papel del cliente remite a la hoja de
+       opciones; en la hoja del taller avisa que lo que sigue NO está decidido: la orden de trabajo
+       imprime la opción abierta, y fabricar esa sin que el cliente haya elegido cuesta un anuncio.
+       Solo se dice si la partida tiene la propuesta: en una opción suelta (la de la hoja de
+       comparación) `it.opciones` no existe y no sale nada. */
+    const ops = para==='taller' ? opcionesDe(it) : opcionesParaPdf(it);
+    const abierta = ops && opcionesVivas(it).find(x=>x.abierta);
+    const linOp = !ops ? '' : para==='taller'
+      ? `<span class="cs"><b class="cs-op">Ojo: el cliente aún no elige entre ${ops.lista.length} opciones.</b></span>`
+      : `<span class="cs"><b class="cs-op">Opción ${abierta.letra} de ${ops.n}: ver la hoja de opciones.</b></span>`;
+    if(!tit) return (libre ? `<span class="cs">${libre}</span>` : '<span class="cs">—</span>') + linOp;
     return `<span class="cn">${tit}</span>`
       + (esp  ? `<span class="cs">${esp}</span>`  : '')
-      + (libre? `<span class="cs">${libre}</span>`: '');
+      + (libre? `<span class="cs">${libre}</span>`: '')
+      + linOp;
   }
   /* ----- Lo que se imprime como número, como número -----
      med() y la columna de piezas escribían `altura`, `ancho`, `alto`, `n` y `pz` CRUDOS en el
@@ -797,8 +925,20 @@ function generarPDF(){
      escribir encima y para cortar por la mitad, y la cinta se transparentaba justo por el
      hueco vacío del campo «Fecha». Lo único que se le deja es el pie, por el número de hoja:
      un juego de hojas que se desordena sobre un escritorio no se vuelve a armar. */
-  const TOTAL_HOJAS = trozos.length + 1 + trozosOT.length + (hayInstal?1:0) + (hayRecibo?1:0);
-  const HOJA_TERMINOS = trozos.length + 1;
+  /* ----- La hoja de opciones (pieza 76) -----
+     Si una partida lleva una propuesta con opciones, el cliente tiene que verlas lado a lado en el
+     papel, con su cuenta cada una: el PDF solo imprimía la que estaba abierta y las otras se
+     quedaban en la pantalla del vendedor. Va justo después de la cotización y antes de los
+     términos, que es donde el cliente decide. Como las demás hojas es carta, sin movimiento ni
+     vidrio, y se parte sola: dos partidas con opciones por hoja, porque cada una mide unos 240 px
+     con tres tarjetas (medido, ver pruebas/navegador/cot-opciones.mjs) y tres ya no caben con la
+     ficha y la nota. Una partida oculta del PDF no se explica aquí tampoco. */
+  const opcPdf = itemsForPDF.map(it=>({it,op:opcionesParaPdf(it)})).filter(x=>x.op);
+  const trozosOpc = [];
+  for(let i=0;i<opcPdf.length;i+=2) trozosOpc.push(opcPdf.slice(i,i+2));
+  const TOTAL_HOJAS = trozos.length + trozosOpc.length + 1 + trozosOT.length + (hayInstal?1:0) + (hayRecibo?1:0);
+  const HOJA_OPC = trozos.length + 1;
+  const HOJA_TERMINOS = trozos.length + trozosOpc.length + 1;
   const HOJA_TRABAJO  = HOJA_TERMINOS + 1;
   const HOJA_INSTAL   = HOJA_TRABAJO + trozosOT.length;
   const HOJA_RECIBO   = HOJA_INSTAL + (hayInstal?1:0);
@@ -920,6 +1060,30 @@ function generarPDF(){
     {label:'WhatsApp',val:esc(EMPRESA.whatsapp)}
   ],hoja);
 
+  /* ----- Un bloque de la hoja de opciones: la partida y sus tarjetas -----
+     Cada tarjeta lleva lo mismo que lleva la fila de la cotización —concepto, especificación,
+     medidas y piezas— porque es el mismo desc()/med()/pzas(), y el importe. La que cuenta en el
+     total lleva su marca y su importe es el de la tabla (pc[id]), que es el que el cliente suma;
+     las demás salen de lineTotal() sobre su copia, con las mismas tarifas. Si el autorizador ajustó
+     la partida, el importe de la abierta ya es el ajustado y las otras siguen al catálogo: un caso
+     raro —el aviso de partidas sin terminar frena antes de autorizar— que el PDF no inventa. */
+  const bloqueOpc = ({it,op}) => {
+    const mismas = op.opciones.every(o=>(o.d.desc||'')===(op.opciones[0].d.desc||''));
+    const titulo = (op.opciones[0].d.desc||'').trim() || ('Partida '+(Q.items.indexOf(it)+1));
+    return `<section class="opc-b">
+      <div class="opc-bh"><span class="lbl">Opciones para</span><span class="opc-bt">${esc(titulo)}</span></div>
+      <div class="opc-g opc-g${op.opciones.length}">${op.opciones.map(o=>{
+        const importe = o.abierta ? pc[it.id] : o.total;
+        const p = pzas(o.d);
+        return `<div class="opc-c${o.abierta?' opc-en':''}">
+        <div class="opc-cl"><span class="opc-l">${o.letra}</span>${o.abierta?'<span class="opc-et">Incluida en el total</span>':''}</div>
+        ${desc(mismas?Object.assign({},o.d,{desc:''}):o.d)}
+        <span class="opc-m">${med(o.d)} &middot; ${p} ${p===1?'pieza':'piezas'}</span>
+        <span class="opc-p num">${money(importe)}</span>
+      </div>`; }).join('')}</div>
+    </section>`;
+  };
+
   /* La figura del plano, con su rótulo. Antes era una imagen suelta centrada debajo de la
      nota, con media hoja en blanco por debajo: la partida más común es una sola —14 de las 25
      cotizaciones que se revisaron traen una— así que la hoja quedaba con un tercio de tinta
@@ -959,8 +1123,16 @@ function generarPDF(){
      es el del aparato, con la barra del visor encogida al mismo paso. Y de rebote deja muerta la
      maqueta de teléfono escrita más abajo: el bloque de max-width:880px no puede casar
      nunca si el visor siempre mide 980. O sea que la regla que existe justo para que la hoja
-     quepa no se aplicaba en el único sitio donde hacía falta. -->
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+     quepa no se aplicaba en el único sitio donde hacía falta.
+
+     «minimum-scale=1» es de la hoja a lo ancho (H23): tocar una hoja la pone a sus 816 px, y un
+     navegador de teléfono, ante una página más ancha que la pantalla, la aleja hasta que TODA
+     quepa —medido con la emulación móvil de Chromium: a 360 px la vista pasó a un alto de 1 678 px
+     de CSS, o sea a 44 %—, que es casi el 37 % de antes: «al ancho» no ampliaba nada y la hoja
+     seguía sin leerse. Con la escala mínima en 1 la hoja ancha se desplaza de lado, que es lo que
+     se pidió, y las hojas encogidas de siempre caben de sobra y no cambian. Lo que se pierde es
+     alejar con los dos dedos, y no hace falta: en reposo todo cabe. Acercar sigue permitido. -->
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,viewport-fit=cover">
 <title>Cotización ${esc(Q.folio)} · AL3D</title>
 <!-- Inter, sin bloquear, igual que en las dos apps. Sin señal no llega y el documento cae a la
      misma reserva que la app: las dos superficies siguen coincidiendo, que es lo que se pedía. -->
@@ -1097,6 +1269,23 @@ td.c{color:var(--ink2)}
 .fig-box{flex:1 1 auto;min-height:0;max-height:430px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;background:#fff;padding:9px}
 .fig-box img{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px}
 .sigue{text-align:center;font-size:9px;color:var(--ink3);letter-spacing:.03em;margin-bottom:12px}
+/* Hoja de opciones (pieza 76). Solo papel: sin transiciones ni sombras. Cada tarjeta tiene un alto
+   máximo para que un texto largo no empuje el pie fuera de la carta. */
+.cs-op{color:var(--brandd);font-weight:600}
+.opc-intro{font-size:9.5px;line-height:1.5;color:var(--ink2);margin-bottom:12px}
+.opc-b{margin-bottom:14px;break-inside:avoid}
+.opc-bh{display:flex;align-items:baseline;gap:8px;margin-bottom:7px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+.opc-bh>.lbl{flex:0 0 auto;color:var(--ink3)}
+.opc-bt{min-width:0;font-size:10px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.opc-g{display:grid;gap:8px;grid-template-columns:repeat(3,minmax(0,1fr))}
+.opc-g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.opc-c{display:flex;flex-direction:column;gap:3px;min-height:150px;max-height:215px;overflow:hidden;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:#fff}
+.opc-en{border:1.5px solid var(--brand);background:var(--brandl)}
+.opc-cl{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:3px}
+.opc-l{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--brand);color:#fff;font-size:9px;font-weight:800}
+.opc-et{font-size:7px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--brandd);text-align:right}
+.opc-m{display:block;margin-top:auto;font-size:9px;color:var(--ink2)}
+.opc-p{display:block;font-size:14px;font-weight:800;color:var(--ink)}
 
 /* Pie */
 .pie{bottom:26px;left:34px;right:34px;z-index:1}
@@ -1209,9 +1398,41 @@ td.c{color:var(--ink2)}
     box-shadow:0 1px 6px rgba(20,22,43,.06)}
   .visor-t{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
   .visor-h{font-size:11px;color:var(--ink2);margin-left:auto}
+  /* En qué hoja va quien mira, con cifras tabulares para que el número no baile al pasar de la
+     9 a la 10. El guion solo reescribe el número; el resto de la frase se queda. */
+  .visor-h b{font-variant-numeric:tabular-nums;color:var(--ink);font-weight:700}
   .visor-b{font:inherit;font-size:12px;font-weight:700;border:0;border-radius:6px;padding:9px 16px;
-    background:var(--brand);color:#fff;cursor:pointer}
+    background:var(--brand);color:#fff;cursor:pointer;white-space:nowrap}
   .visor-b:hover{background:var(--brandd)}
+  /* El botón de ancho es la alternativa de teclado del gesto de tocar la hoja: el gesto no puede
+     ser la única manera de hacer algo. Va en fantasma para que el único relleno de la barra siga
+     siendo «Imprimir», que es a lo que se vino. */
+  .visor-w{font:inherit;font-size:12px;font-weight:600;border:1px solid var(--line);border-radius:6px;
+    padding:8px 12px;background:#fff;color:var(--ink2);cursor:pointer;white-space:nowrap}
+  .visor-w:hover{border-color:var(--brand);color:var(--brandd)}
+  .visor-w:focus-visible,.visor-b:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+  /* La línea de avance vive en el borde de abajo de la barra, no encima del papel: es un dato de
+     la pantalla. Solo transform, que es lo único que un teléfono de gama media anima barato. */
+  .visor-prog{position:absolute;left:0;right:0;bottom:-1px;height:2px;overflow:hidden}
+  .visor-prog>i{display:block;height:100%;background:var(--brand);transform-origin:left;
+    transform:scaleX(var(--p,0));transition:transform .18s linear}
+  @media (prefers-reduced-motion:reduce){.visor-prog>i{transition:none}}
+  /* Con el dedo, los dos botones miden 44 px de alto (la barra mide 54: caben con 5 px de aire). */
+  @media (hover:none),(pointer:coarse){.visor-b,.visor-w{min-height:44px}}
+  /* En un teléfono la barra ya no cabía ni antes de esto: «Vista previa», la frase, y «Imprimir /
+     Guardar PDF» partido en tres renglones que se salía de los 54 px de la barra, medido a 360.
+     Con un botón más, lo que se puede callar se calla: el rótulo «Vista previa» es evidente
+     (es lo único que hay en la pestaña), «carta vertical» es lo mismo en todas las hojas, y
+     «Imprimir /» sobra cuando el diálogo que abre es el de guardar. Queda el número de hoja, el
+     botón de ancho y el de guardar, con el ancho que sobra para la frase. */
+  @media (max-width:480px){
+    .visor{gap:8px;padding:0 10px}
+    .visor-t,.visor-carta{display:none}
+    .visor-h{margin-left:0;flex:1 1 auto;min-width:0;font-size:12px}
+    .visor-b{padding:9px 12px}
+    .visor-w{padding:8px 10px}
+  }
+  @media (max-width:400px){.visor-imprimir{display:none}}
   html{background:#e9eaf0}
   body{background:transparent;padding:calc(var(--visor-alto) + 22px) 16px 44px}
   /* 816×1056 son 8.5×11 pulgadas a 96 ppp. «height» y no «min-height»: una hoja de papel no
@@ -1233,13 +1454,130 @@ td.c{color:var(--ink2)}
 @media screen and (max-width:440px){ .pg{zoom:.46} }
 @media screen and (max-width:390px){ .pg{zoom:.41} }
 @media screen and (max-width:360px){ .pg{zoom:.37} }
+/* ----- Una hoja a lo ancho, para enseñársela al cliente -----
+   En el teléfono la hoja sale al 37–52 % y las medidas de una partida no se leen. Tocarla la
+   pone a su tamaño de papel y se recorre con el dedo a lo ancho; tocarla otra vez la devuelve.
+   Va DESPUÉS de los escalones y con la misma especificidad, así que gana por orden.
+
+   El desplazamiento lateral es el precio de verla completa y es a propósito: encogerla menos no
+   la haría legible, y partirla en columnas dejaría de ser la hoja que se va a imprimir. Nada de
+   esto existe en papel: todo está dentro de @media screen y el @media print no se toca.
+
+   «scroll-margin-top» porque al ampliar se lleva la hoja al principio con scrollIntoView, y la
+   barra es «position:fixed»: sin el margen, los primeros 54 px de la hoja —justo el encabezado
+   con el folio— quedaban debajo de ella. */
+@media screen{
+  .pg{cursor:zoom-in;scroll-margin-top:calc(var(--visor-alto) + 8px)}
+  .pg.ampliada{zoom:1;cursor:zoom-out;outline:2px solid var(--brand);outline-offset:6px}
+}
 /* Al imprimir, la hoja también mide lo que mide el papel. Con solo «min-height» el .pg no tenía
    alto definido, el plano no se encogía a su hueco (su max-height:100% no tenía contra qué
    medirse) y un plano alto empujaba la hoja más allá de la carta: la impresora sacaba hojas
    físicas de más, con los totales cortados. */
 @media print{@page{margin:0;size:letter portrait}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .pg{height:100vh;min-height:0}}
-</style></head><body>
+</style>
+<!-- ============================================================================
+     LA BARRA DEL VISOR, VIVA (H23)
+
+     Solo pantalla. Hace dos cosas y ninguna toca el papel: decir en qué hoja va quien mira
+     —con una línea de avance en el borde de la barra— y poner una hoja a su tamaño real para
+     enseñársela al cliente, que a 360 px sale al 37 % y no se lee.
+
+     Va en línea dentro de este documento y no en un archivo: lo que se abre es un blob del
+     mismo origen, sin nada más que cargar, y así la vista previa sigue funcionando aunque se
+     guarde el HTML y se abra después.
+
+     Va en el <head> y espera a DOMContentLoaded, y no al final del <body> como parecía natural:
+     un <script> después de la última hoja hace que esa hoja deje de ser «.pg:last-child», que es
+     lo único que le quita el salto de página, y TODO documento sale con una hoja física de más
+     en blanco (la misma trampa que la barra de arriba cuenta de sí misma).
+
+     Nada de esto existe al imprimir: la clase .ampliada y la barra viven dentro de @media
+     screen, y este guion no hace nada en el papel.
+     ============================================================================ -->
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  var hojas=[].slice.call(document.querySelectorAll('.pg'));
+  var barraEl=document.querySelector('.visor');
+  var rotulo=document.getElementById('visor-h');
+  var linea=document.getElementById('visor-prog');
+  var ancho=document.getElementById('visor-w');
+  var voz=document.getElementById('visor-voz');
+  if(!hojas.length||!rotulo) return;
+  var total=hojas.length, actual=-1, pedido=0;
+  function reducido(){ try{ return matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(_){ return false; } }
+
+  /* El botón dice lo que va a PASAR al tocarlo, sobre la hoja en la que se va. */
+  function rotularAncho(){
+    if(!ancho) return;
+    var i=actual<0?0:actual, am=hojas[i].classList.contains('ampliada');
+    ancho.hidden=false;
+    ancho.textContent=am?'Completa':'Al ancho';
+    ancho.setAttribute('aria-label',am?'Ver la hoja '+(i+1)+' completa':'Ver la hoja '+(i+1)+' al ancho');
+  }
+  function pintar(i){
+    if(i<0||i>=total) return;
+    if(i!==actual){
+      actual=i;
+      rotulo.innerHTML='Hoja <b>'+(i+1)+'</b> de <b>'+total+'</b><span class="visor-carta"> · carta vertical</span>';
+      /* La línea avanza por hojas, no por píxeles: con una sola se queda llena, y con cinco
+         marca los quintos. Medida por scroll daría saltos al ampliar una hoja, que cambia el alto
+         del documento sin que nadie haya avanzado. */
+      if(linea) linea.style.setProperty('--p',total>1?((i+1)/total).toFixed(3):'1');
+    }
+    rotularAncho();
+  }
+
+  /* Cuál es «la hoja en la que vas»: la última cuya cabeza ya pasó una línea de lectura a un
+     tercio debajo de la barra; y al llegar al fondo del documento, la última.
+     Se probó con un IntersectionObserver sobre una franja fina bajo la barra, y falla justo al
+     final: la última hoja de un juego mide menos que la pantalla, así que nunca llega a cruzar
+     la franja y el rótulo se quedaba en la penúltima con el documento ya en su fondo. Son cinco
+     rectángulos por cuadro, y solo cuando algo se desplazó. */
+  function cual(){
+    var de=document.documentElement, vh=window.innerHeight||de.clientHeight;
+    var alto=barraEl?barraEl.offsetHeight:0, marca=alto+(vh-alto)*0.35, i=0;
+    for(var k=0;k<total;k++){ if(hojas[k].getBoundingClientRect().top<=marca) i=k; else break; }
+    if((window.pageYOffset||de.scrollTop)+vh>=de.scrollHeight-2) i=total-1;
+    return i;
+  }
+  function pedir(){
+    if(pedido) return;
+    pedido=requestAnimationFrame(function(){ pedido=0; pintar(cual()); });
+  }
+  window.addEventListener('scroll',pedir,{passive:true});
+  window.addEventListener('resize',pedir);
+  pintar(cual());
+
+  function alternar(h){
+    var n=hojas.indexOf(h);
+    if(n<0) return;
+    var am=h.classList.toggle('ampliada');
+    /* Una sola a la vez: dos hojas a 816 px con el documento encogido no se comparan, se pierden. */
+    if(am) hojas.forEach(function(o){ if(o!==h) o.classList.remove('ampliada'); });
+    /* Al ampliar, la hoja pasa a ser aquella en la que se va —el rótulo no espera al scroll— y se
+       lleva a la esquina de arriba y de la izquierda: a mitad de la tabla no se ve de qué hoja se
+       trata, y con la hoja más ancha que la pantalla «lo más cercano» la dejaba a la derecha. */
+    pintar(n);
+    try{ h.scrollIntoView({block:'start',inline:'start',behavior:reducido()?'auto':'smooth'}); }catch(_){ h.scrollIntoView(); }
+    pedir();
+    if(voz) voz.textContent=am?('Hoja '+(n+1)+' a lo ancho'):('Hoja '+(n+1)+' completa');
+  }
+  document.addEventListener('click',function(e){
+    var h=e.target&&e.target.closest?e.target.closest('.pg'):null;
+    if(!h) return;
+    /* Seleccionar un precio para copiarlo termina en un clic sobre la hoja: si hay texto
+       seleccionado, ese clic no era para ampliar. Y un enlace dentro del papel sigue siendo un
+       enlace. */
+    if(e.target.closest('a,button')) return;
+    try{ if(String(window.getSelection())) return; }catch(_){}
+    alternar(h);
+  });
+  if(ancho) ancho.addEventListener('click',function(){ alternar(hojas[actual<0?0:actual]); });
+});
+</script>
+</head><body>
 <!-- La barra del visor. Va ANTES de la primera hoja y no al final del <body>, y no es cuestión
      de gusto: «.pg:last-child» es lo que le quita el «page-break-after:always» a la última hoja.
      Puesta al final, la última «.pg» deja de ser «:last-child», recupera el salto y TODO
@@ -1247,9 +1585,21 @@ td.c{color:var(--ink2)}
      aun así podía costar una hoja de papel por cotización. -->
 <div class="visor">
   <span class="visor-t">Vista previa</span>
-  <span class="visor-h">Hoja carta vertical &middot; ${TOTAL_HOJAS} ${TOTAL_HOJAS===1?'hoja':'hojas'}</span>
-  <button class="visor-b" type="button" onclick="window.print()">Imprimir / Guardar PDF</button>
+  <!-- Decía fijo «Hoja carta vertical · 5 hojas», que es lo mismo arriba y abajo del documento.
+       Ahora dice en cuál va quien mira, y la línea del borde de abajo lo dibuja. La cuenta la
+       lleva el guion del final; sin guion se queda la frase de siempre, que sigue siendo cierta. -->
+  <span class="visor-h" id="visor-h">Hoja carta vertical &middot; ${TOTAL_HOJAS} ${TOTAL_HOJAS===1?'hoja':'hojas'}</span>
+  <!-- La alternativa de teclado del gesto de tocar la hoja: nace escondido y lo enciende el
+       guion, para que sin guion no quede un botón que no hace nada. Su rótulo dice lo que va a
+       PASAR al tocarlo («Al ancho» / «Completa»), no el estado, y por eso no lleva aria-pressed:
+       un botón que cambia de nombre y además de estado se lee dos veces al revés. -->
+  <button class="visor-w" type="button" id="visor-w" hidden>Al ancho</button>
+  <button class="visor-b" type="button" onclick="window.print()"><span class="visor-imprimir">Imprimir / </span>Guardar PDF</button>
+  <span class="visor-prog" aria-hidden="true"><i id="visor-prog"></i></span>
 </div>
+<!-- Lo que el lector de pantalla oye al cambiar de hoja. Va fuera de la barra para que no se
+     lea junto con el botón de imprimir. -->
+<p id="visor-voz" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap"></p>
 ${marcaDef}
 
 <!-- HOJAS DE COTIZACIÓN: una por cada trozo de filas, ya no se numeran fijo porque
@@ -1304,6 +1654,23 @@ ${trozos.map((trozo,ti)=>{
 </div>`;
 }).join('')}
 
+<!-- HOJAS DE OPCIONES · solo si alguna partida lleva una propuesta con opciones (pieza 76).
+     Cada partida con opciones enseña sus tarjetas lado a lado, con la cuenta de cada una y la
+     marca de la que ya está sumada en el total. Sin movimiento ni vidrio: es papel. -->
+${trozosOpc.map((grupo,gi)=>`
+<div class="pg">
+  ${deco}
+  ${hdr('Opciones propuestas',Q.fecha)}
+  ${fichaDatos()}
+  <p class="opc-intro">Cada opción es el mismo trabajo hecho de otra manera, con su propio precio. Elige una por partida.</p>
+  ${grupo.map(bloqueOpc).join('')}
+  <div class="nota">
+    <span class="lbl">Cómo se lee esta hoja</span>
+    <p>El total de la cotización suma la opción marcada «Incluida en el total»; si eliges otra, solo cambia el importe de esa partida. ${Q.iva?'Los importes de esta hoja van antes de I.V.A.':'Los importes de esta hoja van sin I.V.A.'}</p>
+  </div>
+  ${footerCot(HOJA_OPC+gi)}
+</div>`).join('')}
+
 <!-- HOJA DE TÉRMINOS Y CONDICIONES · los ocho apartados, palabra por palabra.
      Antes eran ocho párrafos en negrita seguidos de sus viñetas, a 9.5 px, en dos columnas sin
      separación: una mancha de texto donde no se distinguía dónde acaba un apartado y empieza
@@ -1347,7 +1714,7 @@ ${trozosOT.map((trozo,ti)=>{
       <th class="c" style="width:16%">Pzas.</th>
     </tr></thead>
     <tbody>${trozo.map((it,i)=>`
-      <tr class="${i%2===0?'re':'ro'}"><td>${desc(it)}</td><td class="c">${med(it)}</td><td class="c">${pzas(it)}</td></tr>`).join('')}</tbody>
+      <tr class="${i%2===0?'re':'ro'}"><td>${desc(it,'taller')}</td><td class="c">${med(it)}</td><td class="c">${pzas(it)}</td></tr>`).join('')}</tbody>
   </table>
   ${ultima?`<div class="nota"><span class="lbl">Nota</span><p>${esc(notaCliente())}</p></div>
   <div class="sello"><div class="sello-in">

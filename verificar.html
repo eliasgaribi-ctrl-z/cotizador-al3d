@@ -37,77 +37,355 @@
      Enseña lo mínimo que hace falta para comparar con el papel —folio, fecha, total y
      negocio— y nada que no deba andar en un QR: ni teléfono, ni dirección, ni correo. Lo
      escribe con textContent, nunca con innerHTML: lo que llega de la hoja es un dato.
+
+     ---- Lo que cambió con el paquete de UI (fichas A1, A2, A3, A14, A23) ----
+
+     A1 · El formulario de «a mano» estaba roto de origen, y era la falla 1 del paquete: pedía
+     el «folio completo» (COT-0042@K7QM) cuando el PDF solo imprime COT-0042. Ahora acepta el
+     folio TAL COMO SALE EN EL PAPEL, con «@aparato» o sin él, y del otro lado la hoja lo
+     busca por el código (ver folioDePapel_ en puente/hoja-apps-script.gs). El código va en
+     doce casillas, que es como se dicta y como se copia de un papel.
+
+     A2 y A23 · La espera dejó de ser el anillo gris de toda la app: son las tres manchas de
+     los azules del logo, y cuando la hoja contesta se juntan y les sigue el veredicto, un
+     glifo de 44 px con su palabra. El <h1> deja de preguntar y contesta.
+
+     A3 · El sello circular cuando es auténtica, y el logo con .logoimg para que de noche no
+     se pierda el «AL» sobre el marino (eso era la falla 4; la otra mitad, enlazar vidrio.css,
+     ya venía hecha del PR #71).
+
+     A14 · Comparar con el papel renglón por renglón: cada dato lleva «Coincide» y «No
+     coincide». Un solo «No coincide» pasa la TARJETA entera al aviso de documento alterado y
+     quita el sello (contarCotejo); soltarlo la devuelve a lo que contestó la hoja. No se guarda
+     nada de lo que se marca — es una ayuda para leer, no un registro.
      ============================================================================ -->
 <body class="pub">
 <main class="pub-wrap">
 
+  <!-- .logoimg: es la clase que js/tema.js busca para cambiar el logo de día a noche. Sin
+       ella esta página se quedaba con el logo claro sobre el marino y el «AL» desaparecía —el
+       mismo defecto que ya se había corregido en js/nucleo/puerta.js. -->
   <div class="pub-marca">
-    <img src="logo-al3d.svg" width="54" height="27" alt="AL3D">
+    <img class="logoimg" src="logo-al3d.svg" width="54" height="27" alt="AL3D">
     <div><b>AL3D</b><span>Verificar una cotización</span></div>
   </div>
 
-  <h1>¿Esta cotización es auténtica?</h1>
+  <h1 id="ver-titulo">¿Esta cotización es auténtica?</h1>
   <p class="pub-entrada">Compara lo que dice aquí con tu papel. Si el total o el negocio no
   coinciden, el documento se modificó después de que AL3D lo autorizara.</p>
 
-  <section class="ver-caja" id="ver" aria-live="polite">
-    <p class="ver-est" id="ver-est"><span class="ver-giro" aria-hidden="true"></span> Consultando el registro de AL3D…</p>
+  <section class="ver-caja" id="ver">
+    <!-- El aria-live vive en el renglón del veredicto y no en la <section> entera. Antes
+         envolvía también la lista de datos, y con los botones de «Coincide» de A14 dentro
+         cada palomita que se dibuja es un nodo que se agrega: el lector habría vuelto a leer
+         la tarjeta completa en cada toque. El resultado del cotejo tiene su propio
+         role="status", que es una frase corta y se anuncia sola. -->
+    <p class="ver-est" id="ver-est" aria-live="polite"><span class="ver-est-tx"><b>Consultando</b> · el registro de AL3D…</span></p>
+    <!-- A3 · El sello y la línea que lo desmiente: un sello bonito se falsifica con una captura,
+         así que lo que vale es la dirección de arriba, no la imagen. -->
+    <div class="ver-sello-caja" id="ver-sello-caja" hidden>
+      <span id="ver-sello"></span>
+      <p class="ver-sello-nota">La prueba es esta dirección, no la imagen.</p>
+    </div>
     <dl class="ver-datos" id="ver-datos" hidden>
-      <div><dt>Folio</dt><dd id="ver-folio"></dd></div>
-      <div><dt>Autorizada el</dt><dd id="ver-fecha"></dd></div>
-      <div><dt>Negocio</dt><dd id="ver-proy"></dd></div>
-      <div><dt>Total</dt><dd id="ver-total" class="ver-num"></dd></div>
+      <div class="ver-reng" data-reng="folio">
+        <dt>Folio</dt>
+        <dd><span class="ver-valor" id="ver-folio"></span><span class="ver-cotejo"></span></dd>
+      </div>
+      <div class="ver-reng" data-reng="fecha">
+        <dt>Autorizada el</dt>
+        <dd><span class="ver-valor" id="ver-fecha"></span><span class="ver-cotejo"></span></dd>
+      </div>
+      <div class="ver-reng" data-reng="negocio">
+        <dt>Negocio</dt>
+        <dd><span class="ver-valor" id="ver-proy"></span><span class="ver-cotejo"></span></dd>
+      </div>
+      <div class="ver-reng" data-reng="total">
+        <dt>Total</dt>
+        <dd><span class="ver-valor ver-num" id="ver-total"></span><span class="ver-cotejo"></span></dd>
+      </div>
     </dl>
+    <p class="ver-cotejo-fin" id="ver-cotejo-fin" role="status" hidden></p>
+    <div class="ver-alterado" id="ver-alterado" hidden>
+      <p>No lo pagues sin confirmarlo. El correo a AL3D sale con el folio y lo que no coincide ya escritos.</p>
+      <p><a class="pub-btn" id="ver-escribir" href="mailto:eliasgaribi@gmail.com">Escribir a AL3D</a></p>
+    </div>
   </section>
 
-  <form class="ver-form" id="ver-form" hidden>
-    <h2>Verificar a mano</h2>
-    <p>Escribe el folio completo y el código que vienen en la cotización, junto al QR.</p>
-    <label for="f-f">Folio</label>
-    <input id="f-f" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="COT-0042@K7QM">
-    <label for="f-c">Código</label>
-    <input id="f-c" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="A1B2-C3D4-E5F6">
-    <button type="submit" class="pub-btn">Verificar</button>
-  </form>
+  <!-- A1 · Plegado cuando ya hay respuesta por QR: quien escaneó no tiene nada que teclear, y
+       el formulario abierto debajo de un veredicto verde solo invita a dudar de él. Quien
+       llega sin código lo encuentra abierto, que es su única salida. Es <details> nativo: se
+       abre con Enter y con el dedo sin una línea de guion. -->
+  <details class="ver-form-caja pliegue" id="ver-form-caja">
+    <summary>Verificar a mano <span class="pliegue-flecha" aria-hidden="true">▾</span></summary>
+    <form class="ver-form" id="ver-form">
+      <p class="ver-form-ayuda">Copia el folio y el código que vienen en la cotización, junto
+      al QR. El folio va tal como está impreso.</p>
+      <label for="f-f">Folio</label>
+      <input id="f-f" autocomplete="off" autocapitalize="characters" spellcheck="false"
+             inputmode="text" placeholder="COT-0042" aria-describedby="ver-folio-ayuda">
+      <p class="ver-ayuda" id="ver-folio-ayuda">Como sale en el papel. Si lo copias de la liga
+      del QR, puede traer algo después de una arroba: también sirve.</p>
+      <!-- El <input> va aquí entero y en el HTML, no lo pinta el guion: P.casillasCodigo lo
+           envuelve con las doce casillas usando el DOM. Así esta página no escribe ni un
+           fragmento de HTML desde una cadena —lo defiende pruebas/notario.mjs— y si
+           js/piezas.js no cargara, lo que queda es un campo de texto que sigue sirviendo. -->
+      <label for="f-c">Código</label>
+      <input id="f-c" autocomplete="off" autocapitalize="characters" spellcheck="false"
+             placeholder="A1B2-C3D4-E5F6" aria-describedby="ver-cod-ayuda">
+      <p class="ver-ayuda" id="ver-cod-ayuda">Doce caracteres, del 0 al 9 y de la A a la F.</p>
+      <button type="submit" class="pub-btn" id="ver-enviar">Verificar</button>
+    </form>
+  </details>
 
   <div class="pub-pie">
     <span>AL3D · Anuncios Luminosos 3D · Guadalajara, Jalisco</span>
+    <a href="acerca.html#creditos">Créditos</a>
     <a href="privacidad.html">Privacidad</a>
     <a href="condiciones.html">Condiciones</a>
   </div>
 </main>
 
+<script src="js/piezas.js"></script>
 <script type="module">
 import { URL_PUENTE } from './js/datos/prefs.js';
 
+const P = window.Piezas || {};
 const $ = id => document.getElementById(id);
 const dinero = n => Number(n).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
-const ESTADOS = {
-  autentica: ['ok', 'Auténtica', 'AL3D autorizó esta cotización con estos datos.'],
-  superada: ['av', 'Ya no vigente', 'Esta cotización se volvió a autorizar con otro precio. Pide a AL3D la versión más reciente.'],
-  revocada: ['mal', 'Revocada', 'AL3D retiró esta autorización. Ya no vale como cotización.'],
-  no_autentica: ['mal', 'No auténtica', 'No hay una cotización de AL3D con ese folio y ese código. Si te la mandaron, confírmala directo con AL3D.'],
-};
+const sinMovimiento = () => (P.sinMovimiento ? P.sinMovimiento() : false);
 
-/* `girando` deja el giro delante del texto. Antes pintar() vaciaba el renglón —giro incluido—
-   justo al empezar a consultar, así que «Consultando» salía sin la única señal de que algo
-   estaba pasando. */
-function pintar(clase, titulo, texto, girando) {
-  const e = $('ver-est');
-  $('ver').className = 'ver-caja ' + clase;
-  e.textContent = '';
-  if (girando) { const g = document.createElement('span'); g.className = 'ver-giro'; g.setAttribute('aria-hidden', 'true'); e.append(g); }
-  const b = document.createElement('b'); b.textContent = titulo;
-  e.append(b, ' · ' + texto);
+/* El cuarto valor es el título que pasa al <h1> (A2): la página deja de preguntar y contesta.
+   El quinto es el estado del glifo de la pieza 24, y nunca va solo: al lado siempre está la
+   palabra, porque el color no se puede leer a contraluz ni lo ve todo el mundo igual. */
+const ESTADOS = {
+  autentica:    ['ok',  'Auténtica',      'AL3D autorizó esta cotización con estos datos.', 'Auténtica.', 'ok'],
+  superada:     ['av',  'Ya no vigente',  'Esta cotización se volvió a autorizar con otro precio. Pide a AL3D la versión más reciente.', 'Ya no vigente.', 'av'],
+  revocada:     ['mal', 'Revocada',       'AL3D retiró esta autorización. Ya no vale como cotización.', 'Revocada.', 'mal'],
+  no_autentica: ['mal', 'No auténtica',   'No hay una cotización de AL3D con ese folio y ese código. Revisa que los copiaste completos; si te la mandaron así, confírmala directo con AL3D.', 'No auténtica.', 'mal'],
+};
+const TITULO_PREGUNTA = '¿Esta cotización es auténtica?';
+
+/* ------------------------------------------------------------------ el folio tal como viene
+   El PDF imprime «COT-0042»; la liga del QR trae «COT-0042@K7QM». Los dos valen, y desde el
+   arreglo de la falla 1 la hoja también los acepta a los dos (folioDePapel_). Lo único que se
+   normaliza aquí es la caja de la parte corta —siempre es COT y dígitos— y los espacios que
+   deja el copiar y pegar. La parte del aparato se respeta tal cual: ahí las minúsculas y las
+   mayúsculas sí significan cosas distintas. */
+function folioDelPapel(bruto) {
+  const s = String(bruto == null ? '' : bruto).trim().replace(/\s+/g, '');
+  const i = s.indexOf('@');
+  return i < 0 ? s.toLocaleUpperCase('es-MX') : s.slice(0, i).toLocaleUpperCase('es-MX') + s.slice(i);
+}
+const folioSeVe = f => /^[A-Za-z0-9-]{1,24}(@[A-Za-z0-9_-]{1,24})?$/.test(f);
+
+/* --------------------------------------------------------------- el renglón del veredicto
+   Tres momentos, y en cada uno una sola cosa se mueve:
+     esperando  · las tres manchas de los azules del logo (pieza 25, ficha A23). Reemplazan al
+                  anillo gris que era igual en toda la app, también en la única pantalla que
+                  ve alguien de fuera.
+     contestó   · las manchas se juntan en la forma del logo y se quedan quietas —eso es
+                  terminar()— y en su lugar entra el glifo del veredicto, 44 px, que dibuja su
+                  trazo una vez (pieza 24, ficha A2).
+     el título  · se cruza con un fundido corto a la respuesta.
+
+   Van uno detrás de otro y no a la vez: dos glifos al mismo tiempo en un renglón de una línea
+   se leen como que la página se atoró. Con menos movimiento no hay espera entre los dos. */
+let cargaViva = null, relevo = 0;
+
+/* El renglón es una caja flexible con dos hijos —el glifo y la frase— y no tres. Con el <b> y
+   el texto sueltos, cada uno era un elemento flexible por su cuenta y el «·» se iba solo al
+   siguiente renglón: «Auténtica» arriba y «· AL3D autorizó…» debajo, como si fueran dos
+   cosas. Envuelta, la frase se parte por donde se parten las frases. */
+function frase(encabezado, texto) {
+  const s = document.createElement('span');
+  s.className = 'ver-est-tx';
+  const b = document.createElement('b'); b.textContent = encabezado;
+  s.append(b, ' · ' + texto);
+  return s;
 }
 
+function limpiarRenglon() {
+  clearTimeout(relevo);
+  if (cargaViva) { try { cargaViva.destruir(); } catch (_) {} cargaViva = null; }
+  $('ver-est').textContent = '';
+}
+
+function esperando(texto) {
+  limpiarRenglon();
+  $('ver').className = 'ver-caja';
+  const e = $('ver-est');
+  if (P.cargaLogo) cargaViva = P.cargaLogo(e, { etiqueta: 'Consultando el registro de AL3D' });
+  e.append(frase('Consultando', texto));
+  titulo(TITULO_PREGUNTA, false);
+}
+
+function veredicto(clase, encabezado, texto, tituloNuevo, glifo) {
+  const e = $('ver-est');
+  $('ver').className = 'ver-caja ' + clase;
+  const ponerGlifo = () => {
+    if (cargaViva) { try { cargaViva.destruir(); } catch (_) {} cargaViva = null; }
+    e.textContent = '';
+    if (P.marcaEstado) P.marcaEstado(e, glifo, { tam: 44 });
+    e.append(frase(encabezado, texto));
+  };
+  if (cargaViva && !sinMovimiento()) {
+    /* Las manchas se juntan primero (A23) y el glifo entra cuando ya están quietas. */
+    try { cargaViva.terminar(glifo === 'ok' ? 'ok' : 'mal', encabezado); } catch (_) {}
+    clearTimeout(relevo);
+    relevo = setTimeout(ponerGlifo, 420);
+  } else {
+    clearTimeout(relevo);
+    ponerGlifo();
+  }
+  titulo(tituloNuevo, true);
+}
+
+/* El <h1> no es una región viva, y no debe serlo: el renglón de arriba ya anuncia el
+   veredicto, y con los dos el lector lo diría dos veces. El fundido es puro adorno. */
+function titulo(texto, cambia) {
+  const h = $('ver-titulo');
+  if (h.textContent === texto) return;
+  h.textContent = texto;
+  if (!cambia || sinMovimiento()) return;
+  h.classList.remove('ver-titulo-cambia');
+  void h.offsetWidth;
+  h.classList.add('ver-titulo-cambia');
+}
+
+/* --------------------------------------------------------------------------- A3 · el sello */
+function pintarSello(estado, cuando) {
+  const caja = $('ver-sello-caja');
+  $('ver-sello').textContent = '';
+  if (!P.sello || estado === 'no_autentica') { caja.hidden = true; return; }
+  const bueno = estado === 'autentica';
+  const rotulo = bueno ? 'COTIZACIÓN AUTÉNTICA' : (estado === 'revocada' ? 'AUTORIZACIÓN RETIRADA' : 'YA NO VIGENTE');
+  P.sello('ver-sello', {
+    texto: 'AL3D · ' + rotulo + ' · ' + location.host + ' · CONSULTADA ' + cuando + ' ·',
+    sub: bueno ? 'AUTÉNTICA' : (estado === 'revocada' ? 'REVOCADA' : 'NO VIGENTE'),
+    gris: !bueno,
+    etiqueta: 'Sello de AL3D: ' + rotulo.toLocaleLowerCase('es-MX'),
+  });
+  caja.hidden = false;
+}
+
+/* --------------------------------------------- A14 · comparar con el papel, renglón a renglón
+   Cada dato lleva sus dos botones. Marcar «Coincide» dibuja la palomita de la pieza 6 y deja
+   el renglón con su filete verde —filete y palomita, no `opacity`: atenuar el texto de un
+   renglón es decir el estado con transparencia, y el sistema de diseño lo prohíbe sobre
+   bloques con texto (§4.3)—. Con los cuatro marcados sale la frase de abajo.
+
+   Un solo «No coincide» pesa más que tres «Coincide»: la tarjeta se vuelve el aviso de
+   documento alterado, con el correo de AL3D ya redactado. Nada de esto se guarda: quien
+   recargue la página vuelve a empezar, que es lo correcto para una ayuda de lectura. */
+const RENGLONES = ['folio', 'fecha', 'negocio', 'total'];
+let cotejo = {}, folioActual = '';
+/* Lo que la hoja contestó, para poder volver a ello si quien comparaba se equivocó de botón, y
+   si la tarjeta está enseñando el aviso de «alterado» en vez del veredicto de la hoja. */
+let contestado = null, enAlterado = false;
+
+function armarCotejo() {
+  cotejo = {};
+  for (const div of $('ver-datos').querySelectorAll('.ver-reng')) {
+    const cual = div.dataset.reng, dato = div.querySelector('dt').textContent;
+    const caja = div.querySelector('.ver-cotejo');
+    div.classList.remove('coincide', 'no-coincide');
+    caja.textContent = '';
+    for (const [valor, rotulo] of [['si', 'Coincide'], ['no', 'No coincide']]) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ver-cot ver-cot-' + valor;
+      b.setAttribute('aria-pressed', 'false');
+      /* El nombre accesible lleva el dato: cuatro botones «Coincide» seguidos no se
+         distinguen de oídas, y este es el renglón por el que se navega con teclado. */
+      b.setAttribute('aria-label', rotulo + ' · ' + dato);
+      const t = document.createElement('span'); t.className = 'ver-cot-tx'; t.textContent = rotulo;
+      const ico = document.createElement('span'); ico.className = 'ver-cot-ico';
+      b.append(ico, t);
+      b.addEventListener('click', () => marcarRenglon(div, cual, valor, b));
+      caja.append(b);
+    }
+  }
+  $('ver-cotejo-fin').hidden = true;
+  $('ver-cotejo-fin').textContent = '';
+  $('ver-alterado').hidden = true;
+  enAlterado = false;
+}
+
+function marcarRenglon(div, cual, valor, boton) {
+  const antes = cotejo[cual];
+  const nuevo = antes === valor ? null : valor;      // volver a tocarlo lo desmarca
+  cotejo[cual] = nuevo;
+  for (const b of div.querySelectorAll('.ver-cot')) {
+    const suyo = b.classList.contains('ver-cot-si') ? 'si' : 'no';
+    b.setAttribute('aria-pressed', String(suyo === nuevo));
+    const ico = b.querySelector('.ver-cot-ico');
+    /* La palomita se dibuja solo cuando nace: si se repintara en cada toque, el renglón de
+       al lado volvería a dibujar la suya sin que nadie la haya tocado. */
+    if (suyo === 'si' && nuevo === 'si') { if (!ico.firstChild && P.palomita) P.palomita(ico); }
+    else if (suyo === 'si') ico.textContent = '';
+  }
+  div.classList.toggle('coincide', nuevo === 'si');
+  div.classList.toggle('no-coincide', nuevo === 'no');
+  contarCotejo();
+  /* El correo se rearma con lo que está marcado ahora mismo. Se hace aquí y no con un oyente
+     sobre la lista: la lista se repinta en cada consulta y los oyentes se iban acumulando. */
+  armarContacto(folioActual, RENGLONES.filter(k => cotejo[k] === 'no'));
+}
+
+/* Un solo «No coincide» pesa más que tres «Coincide»: la TARJETA cambia al aviso de documento
+   alterado —rojo, con su ✕ y su palabra— y el sello se va. Dejar un «Auténtica» verde con su sello
+   de goma encima de un renglón que dice «no coincide» era mostrar en la misma pantalla las dos
+   cosas, y el sello es justo lo que alguien se llevaría en una captura. Si quien comparaba se
+   equivocó de botón y lo suelta, la tarjeta vuelve a decir lo que la hoja contestó. */
+function contarCotejo() {
+  const hayNo = RENGLONES.some(k => cotejo[k] === 'no');
+  const todos = RENGLONES.every(k => cotejo[k] === 'si');
+  $('ver-alterado').hidden = !hayNo;
+  const fin = $('ver-cotejo-fin');
+  if (hayNo && !enAlterado && contestado) {
+    enAlterado = true;
+    veredicto('mal', 'No coincide con tu papel', 'Lo que dice tu papel no es lo que AL3D tiene autorizado: ese documento se modificó.', 'Documento alterado.', 'mal');
+    $('ver-sello-caja').hidden = true;
+  } else if (!hayNo && enAlterado && contestado) {
+    enAlterado = false;
+    veredicto(contestado.clase, contestado.encabezado, contestado.texto, contestado.titulo, contestado.glifo);
+    pintarSello(contestado.estado, contestado.hora);
+  }
+  if (hayNo) { fin.hidden = true; fin.textContent = ''; return; }
+  fin.textContent = todos ? 'Todo coincide con tu papel.' : '';
+  fin.hidden = !todos;
+}
+
+/* El correo lleva el folio ya puesto: quien escribe desde el teléfono de la calle no tiene
+   que copiar nada, y del lado de AL3D llega con qué buscar. El contacto es el de AL3D y no el
+   del cliente, porque esta página promete no enseñar datos de nadie. */
+function armarContacto(folio, cuales) {
+  const a = $('ver-escribir');
+  const asunto = 'Cotización ' + (folio || 'sin folio') + ': un dato no coincide';
+  const cuerpo = 'Hola, estoy verificando la cotización ' + (folio || '(sin folio)') + '.\n'
+    + 'En mi papel no coincide: ' + (cuales.length ? cuales.join(', ') : '(escribe aquí qué dato)') + '.\n\n'
+    + 'Consultado en ' + location.host + '.';
+  a.href = 'mailto:eliasgaribi@gmail.com?subject=' + encodeURIComponent(asunto) + '&body=' + encodeURIComponent(cuerpo);
+}
+
+/* ------------------------------------------------------------------------- la consulta */
+let consultando = false;
+
 async function verificar(f, c) {
+  if (consultando) return;
+  consultando = true;
+  contestado = null; enAlterado = false;
   $('ver-datos').hidden = true;
-  pintar('', 'Consultando', 'el registro de AL3D…', true);
+  $('ver-sello-caja').hidden = true;
+  $('ver-alterado').hidden = true;
+  $('ver-cotejo-fin').hidden = true;
+  esperando('el registro de AL3D…');
+  const boton = $('ver-enviar');
   /* El botón se apaga mientras pregunta: dos toques mandaban dos consultas. */
-  const boton = document.querySelector('#ver-form button[type="submit"]');
   if (boton) boton.disabled = true;
-  try { await consultar(f, c); } finally { if (boton) boton.disabled = false; }
+  try { await consultar(f, c); }
+  finally { consultando = false; if (boton) boton.disabled = false; }
 }
 
 async function consultar(f, c) {
@@ -120,34 +398,119 @@ async function consultar(f, c) {
     });
     r = await res.json();
   } catch (_) {
-    pintar('av', 'Sin respuesta', 'No se pudo consultar el registro. Revisa tu conexión y vuelve a abrir la liga.');
+    veredicto('av', 'Sin respuesta', 'No se pudo consultar el registro. Revisa tu conexión: se vuelve a intentar solo en cuanto haya señal.', TITULO_PREGUNTA, 'av');
+    reintentarConSenal(f, c);
     return;
   }
-  if (!r || r.ok !== true) { pintar('av', 'Espera un momento', (r && r.mensaje) || 'El registro no contestó.'); return; }
-  const [clase, titulo, texto] = ESTADOS[r.estado] || ESTADOS.no_autentica;
-  pintar(clase, titulo, texto);
-  if (r.estado !== 'no_autentica') {
-    $('ver-folio').textContent = r.folio || '—';
-    $('ver-fecha').textContent = r.fecha || '—';
-    $('ver-proy').textContent = r.proyecto || '—';
-    $('ver-total').textContent = Number.isFinite(Number(r.total)) ? dinero(r.total) : '—';
-    $('ver-datos').hidden = false;
+  if (!r || r.ok !== true) {
+    veredicto('av', 'Espera un momento', (r && r.mensaje) || 'El registro no contestó.', TITULO_PREGUNTA, 'av');
+    return;
   }
+  const [clase, encabezado, texto, tit, glifo] = ESTADOS[r.estado] || ESTADOS.no_autentica;
+  veredicto(clase, encabezado, texto, tit, glifo);
+
+  /* El lavado verde de las casillas cuando la hoja confirmó, y el vaciado en cascada cuando
+     dice que no hay nada con ese código. «Sin respuesta» y «espera un momento» no vacían: el
+     código no tuvo la culpa y borrarlo obligaría a teclearlo otra vez. */
+  if (casillas) {
+    if (r.estado === 'autentica') casillas.marcar('ok');
+    else if (r.estado === 'no_autentica') casillas.marcar('mal');
+    else casillas.marcar(null);
+  }
+
+  if (r.estado === 'no_autentica') {
+    pintarSello(r.estado);
+    /* Quien llegó por el QR con el formulario plegado y recibió «No auténtica» lo necesita: es
+       la única forma de probar con otro folio o con el código bien copiado. */
+    $('ver-form-caja').open = true;
+    return;
+  }
+  $('ver-folio').textContent = r.folio || '—';
+  $('ver-fecha').textContent = r.fecha || '—';
+  $('ver-proy').textContent = r.proyecto || '—';
+  $('ver-total').textContent = Number.isFinite(Number(r.total)) ? dinero(r.total) : '—';
+  armarCotejo();
+  folioActual = r.folio || '';
+  armarContacto(folioActual, []);
+  $('ver-datos').hidden = false;
+  const hora = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  contestado = { estado: r.estado, clase, encabezado, texto, titulo: tit, glifo, hora };
+  pintarSello(r.estado, hora);
 }
 
-const q = new URLSearchParams(location.search);
-const f = (q.get('f') || '').trim(), c = (q.get('c') || '').trim();
-$('f-f').value = f; $('f-c').value = c;
-$('ver-form').hidden = false;
-$('ver-form').addEventListener('submit', ev => {
-  ev.preventDefault();
-  const nf = $('f-f').value.trim(), nc = $('f-c').value.trim();
-  if (!nf || !nc) return;
+/* A2 · «Sin respuesta» se reintenta sola al volver la señal: el caso típico es el cliente en
+   la banqueta con una raya de red. Un solo reintento por caída, y el oyente se quita al
+   dispararse para que no se acumulen. */
+let esperandoSenal = null;
+function reintentarConSenal(f, c) {
+  if (esperandoSenal) removeEventListener('online', esperandoSenal);
+  esperandoSenal = () => {
+    removeEventListener('online', esperandoSenal);
+    esperandoSenal = null;
+    verificar(f, c);
+  };
+  addEventListener('online', esperandoSenal);
+}
+
+/* ------------------------------------------------------- A1 · el código en doce casillas
+   Tres grupos de cuatro. La pieza 19 envuelve el <input> que ya está en el HTML: el campo de
+   verdad se queda debajo, transparente, con el foco, el pegado y el lector; las casillas son
+   dibujo y la zona táctil es la fila entera.
+
+   El alfabeto es el de la hoja (normalizarCodigo: 0-9 y A-F) y con él van las equivalencias
+   que importan al copiar de un papel impreso: la O se lee 0, la I y la L se leen 1. Sin eso,
+   quien escribe «O» donde hay un cero recibe «No auténtica» con la cotización buena en la
+   mano, que es exactamente la falla que esta ficha vino a cerrar.
+
+   Al completar los doce se consulta sola, si ya hay folio: en un teléfono eso es un toque
+   menos, y el toque que se ahorra es el de un botón que estaba fuera de la pantalla. */
+let casillas = null;
+if (P.casillasCodigo) {
+  casillas = P.casillasCodigo('f-c', {
+    ...P.codigo.HEX,
+    textoRechazo: 'El código solo lleva números del 0 al 9 y letras de la A a la F',
+    alCompletar: () => { if ($('f-f').value.trim()) enviar(); },
+  });
+}
+const codigoTecleado = () => (casillas ? casillas.valor() : String($('f-c').value || '').toUpperCase().replace(/[^0-9A-F]/g, '').slice(0, 12));
+
+function enviar() {
+  const nf = folioDelPapel($('f-f').value);
+  const nc = codigoTecleado();
+  if (!nf || !folioSeVe(nf)) {
+    veredicto('av', 'Falta el folio', 'Escribe el folio como sale en tu cotización, por ejemplo COT-0042.', TITULO_PREGUNTA, 'av');
+    $('f-f').focus();
+    return;
+  }
+  if (nc.length !== 12) {
+    veredicto('av', 'Falta el código', 'El código son doce caracteres, del 0 al 9 y de la A a la F.', TITULO_PREGUNTA, 'av');
+    const caja = document.getElementById('f-c'); if (caja) caja.focus();
+    return;
+  }
+  $('f-f').value = nf;
   history.replaceState(null, '', '?f=' + encodeURIComponent(nf) + '&c=' + encodeURIComponent(nc));
   verificar(nf, nc);
-});
-if (f && c) verificar(f, c);
-else pintar('', 'Falta el código', 'Escanea el QR de la cotización, o escribe abajo el folio y el código.');
+}
+
+$('ver-form').addEventListener('submit', ev => { ev.preventDefault(); enviar(); });
+/* Que el folio quede normalizado en cuanto se sale del campo, para que lo que se ve sea lo
+   que se va a mandar. */
+$('f-f').addEventListener('blur', () => { const v = folioDelPapel($('f-f').value); if (v) $('f-f').value = v; });
+
+/* --------------------------------------------------------------------- arranque */
+const q = new URLSearchParams(location.search);
+const f = folioDelPapel(q.get('f') || ''), c = (q.get('c') || '').trim();
+$('f-f').value = f;
+if (casillas) casillas.fijar(c); else if ($('f-c')) $('f-c').value = c;
+
+if (f && c) {
+  /* Llegó por el QR: el formulario se queda plegado. */
+  $('ver-form-caja').open = false;
+  verificar(f, c);
+} else {
+  $('ver-form-caja').open = true;
+  veredicto('', 'Falta el código', 'Escanea el QR de la cotización, o escribe abajo el folio y el código.', TITULO_PREGUNTA, 'espera');
+}
 </script>
 </body>
 </html>

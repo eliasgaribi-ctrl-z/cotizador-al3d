@@ -89,6 +89,17 @@ document.documentElement.classList.add('arrancando');
 <symbol id="i-sol" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5.3 5.3l1.7 1.7M17 17l1.7 1.7M18.7 5.3 17 7M7 17l-1.7 1.7"/></symbol>
 <symbol id="i-luna" viewBox="0 0 24 24"><path d="M20.2 14.6A8.6 8.6 0 0 1 9.4 3.8a8.6 8.6 0 1 0 10.8 10.8z"/></symbol>
 <symbol id="i-anidar" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="11" rx="1.6"/><rect x="13" y="3" width="8" height="6" rx="1.6"/><rect x="13" y="11" width="8" height="10" rx="1.6"/><rect x="3" y="16" width="8" height="5" rx="1.6"/></symbol>
+<symbol id="i-desplegar" viewBox="0 0 24 24"><path d="M6.5 9.5 12 15l5.5-5.5"/></symbol>
+<!-- El rayado de las piezas giradas (A5, la veta). Un relleno solo puede ser UN paint server,
+     así que cada uno de los seis tonos de la mesa (.an-p0 a .an-p5, ver css/anidador.css)
+     lleva el suyo: el color de la pieza de fondo y las rayas finas encima. Van en el sprite y
+     no en cada hoja porque las hojas se vuelven a pintar con cada mejora del motor. -->
+<pattern id="an-raya-0" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="#4060f8"/><rect width="4" height="12" fill="#ffffff" fill-opacity=".72"/></pattern>
+<pattern id="an-raya-1" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="#7b3ff8"/><rect width="4" height="12" fill="#ffffff" fill-opacity=".72"/></pattern>
+<pattern id="an-raya-2" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="#18b6d8"/><rect width="4" height="12" fill="#ffffff" fill-opacity=".72"/></pattern>
+<pattern id="an-raya-3" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="#15a06a"/><rect width="4" height="12" fill="#ffffff" fill-opacity=".72"/></pattern>
+<pattern id="an-raya-4" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="#e0862d"/><rect width="4" height="12" fill="#ffffff" fill-opacity=".72"/></pattern>
+<pattern id="an-raya-5" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="#e0507a"/><rect width="4" height="12" fill="#ffffff" fill-opacity=".72"/></pattern>
 </defs></svg>
 
 <div class="topbar">
@@ -116,7 +127,10 @@ document.documentElement.classList.add('arrancando');
       </div>
       <div class="card esq"><div class="card-b"><div class="esq-b esq-t"></div><div class="esq-b esq-bloque esq-mesa"></div></div></div>
     </div>
-    <p class="arranque-t"><span class="esq-giro" aria-hidden="true"></span> Abriendo el anidador…</p>
+    <!-- El ícono de la Mesa de corte —los cuatro rectángulos de #i-anidar— en vez del punto que
+         gira en todas las cargas: cada pieza cae a su lugar, una tras otra (A30). Son los
+         mismos cuatro rectángulos, uno por uno para poder animarlos. -->
+    <p class="arranque-t"><svg class="an-arranque-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect class="an-ar-1" x="3" y="3" width="8" height="11" rx="1.6"/><rect class="an-ar-2" x="13" y="3" width="8" height="6" rx="1.6"/><rect class="an-ar-3" x="13" y="11" width="8" height="10" rx="1.6"/><rect class="an-ar-4" x="3" y="16" width="8" height="5" rx="1.6"/></svg> Abriendo el anidador…</p>
   </div>
 </div>
 
@@ -141,6 +155,10 @@ document.documentElement.classList.add('arrancando');
           <span class="s">El que exporta Illustrator o Inkscape, o el que baja el vectorizador del cotizador. Solo contornos: los textos se convierten en trazos antes.</span>
         </label>
         <input type="file" id="an-file" class="solo-voz" accept=".svg,image/svg+xml" aria-label="Elegir el archivo SVG">
+
+        <!-- Para quien llega por primera vez y no tiene un archivo a la mano (A31). Se esconde
+             en cuanto hay uno cargado: el de abajo, en la mesa vacía, es el mismo botón. -->
+        <button type="button" class="an-ejemplo-enlace" id="an-ejemplo-drop" data-an-ejemplo>o prueba con un ejemplo</button>
 
         <div class="an-archivo" id="an-archivo" hidden>
           <div class="an-archivo-n"><b id="an-nombre"></b><span class="an-dim" id="an-peso"></span></div>
@@ -212,6 +230,18 @@ document.documentElement.classList.add('arrancando');
         </div>
         <button type="button" class="btn btn-gho an-girar" id="an-girar" title="Intercambiar el ancho y el alto de la hoja"><svg class="svgi" aria-hidden="true"><use href="#i-horiz"/></svg> Girar la hoja</button>
 
+        <!-- Con qué se corta decide la separación, y no al revés: el router tiene que pasar la
+             broca entera entre dos piezas, más un poco de aire; el láser corta fino y pide de
+             1.5 a 2 mm. Los números son los del taller (Leonel, 1/10/2026). Cada chip solo
+             escribe la separación: el campo sigue mandando y se puede poner otra. -->
+        <div class="fld-lab" id="lab-corte">Se corta con</div>
+        <div class="chips an-corte" id="an-corte" role="group" aria-labelledby="lab-corte">
+          <button type="button" class="chip" aria-pressed="false" data-sep="2">Láser <small>2 mm</small></button>
+          <button type="button" class="chip" aria-pressed="false" data-sep="4.5">Broca 1/8″ <small>4.5 mm</small></button>
+          <button type="button" class="chip" aria-pressed="false" data-sep="6">Broca 3/16″ <small>6 mm</small></button>
+          <button type="button" class="chip" aria-pressed="false" data-sep="7.5">Broca 1/4″ <small>7.5 mm</small></button>
+        </div>
+
         <!-- Los retazos del taller. Un sobrante se mide una vez, se guarda con su nombre y
              la próxima vez se elige de aquí, sin volver a medirlo. Viven en este aparato. -->
         <div class="an-retazos" id="an-retazos" hidden>
@@ -248,9 +278,17 @@ document.documentElement.classList.add('arrancando');
 
     <div class="an-acciones">
       <button type="button" class="btn btn-pri" id="an-ir" disabled>Acomodar las piezas</button>
+      <!-- El paro automático, a la vista (A4): una mecha que se consume en los 40 s desde la
+           última mejora y, debajo, lo que falta dicho con palabras. Solo mientras el motor
+           corre y ya hay un acomodo del que contar. La mecha la pone js/piezas.js. -->
+      <div class="an-paro" id="an-paro" hidden>
+        <div class="an-paro-hilo" id="an-mecha-paro" aria-hidden="true"></div>
+        <p class="an-paro-t" id="an-paro-t"></p>
+      </div>
       <button type="button" class="btn btn-gho" id="an-seguir" hidden><svg class="svgi" aria-hidden="true"><use href="#i-recalibrar"/></svg> Seguir buscando un acomodo mejor</button>
-      <button type="button" class="btn btn-gho" id="an-dl" disabled><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> Descargar el SVG acomodado</button>
-      <div class="an-dl-hojas" id="an-dl-hojas" hidden></div>
+      <!-- Un solo botón de descarga. Con varias hojas, o con dónde compartir, abre un menú
+           (A16); con una hoja y sin compartir, descarga directo y no lleva flecha. -->
+      <button type="button" class="btn btn-gho an-dl" id="an-dl" disabled><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> <span id="an-dl-t">Descargar SVG</span><svg class="svgi an-dl-flecha" id="an-dl-flecha" aria-hidden="true" hidden><use href="#i-desplegar"/></svg></button>
     </div>
     <div class="an-msg" id="an-msg" role="status" aria-live="polite"></div>
   </main>
@@ -275,18 +313,52 @@ document.documentElement.classList.add('arrancando');
         </div>
         <div class="an-fichas">
           <div class="an-ficha"><span class="k">Colocadas</span><span class="v" id="an-st-col">—</span></div>
-          <div class="an-ficha"><span class="k">Hojas</span><span class="v" id="an-st-hojas">—</span></div>
-          <div class="an-ficha"><span class="k">Merma</span><span class="v" id="an-st-merma">—</span></div>
+          <div class="an-ficha" id="an-ficha-hojas"><span class="k">Hojas</span><span class="v" id="an-st-hojas">—</span></div>
+          <div class="an-ficha"><span class="k">Merma</span><span class="v" id="an-st-merma">—</span><span class="sub" id="an-st-merma-m2"></span></div>
           <div class="an-ficha"><span class="k">Intentos</span><span class="v" id="an-st-int">—</span></div>
         </div>
-        <div class="prog-track an-prog-track" aria-hidden="true"><div class="an-prog-bar" id="an-prog-bar"></div></div>
+      </div>
+
+      <!-- Qué piezas se ven en la mesa (A25): «Como vienen» es el archivo tal cual llegó y
+           «Acomodadas» es lo que encontró el motor. Es un radiogroup de P.opcionesDeslizantes;
+           «Acomodadas» queda apagada (aria-disabled, que sí se puede enfocar y leer) mientras
+           no haya un primer acomodo. Al cambiar, el haz del láser cruza la mesa una vez (la idea del
+           barrido es de Skiper · skiper66, SVG clip path mask: gratuito con atribución). -->
+      <div class="an-ver">
+        <div class="glide" id="an-vista-ver" role="radiogroup" aria-label="Qué piezas ver en la mesa">
+          <button type="button" class="chip on" role="radio" aria-checked="true" tabindex="0" data-v="vienen">Como vienen</button>
+          <button type="button" class="chip" role="radio" aria-checked="false" tabindex="-1" data-v="acomodadas" aria-disabled="true">Acomodadas</button>
+        </div>
       </div>
 
       <!-- La mesa: fondo oscuro con cuadrícula, como la cama de un láser, y las hojas de
-           material encima con su acabado. -->
+           material encima con su acabado. Las dos vistas comparten la misma celda de la rejilla
+           (la de resultados encima) para que el haz pueda destapar una con la otra. Abajo, el pie
+           de la mesa: lo que se hace con lo que se ve (zoom, hojas, la pieza elegida). -->
       <div class="an-mesa" id="an-mesa" data-mat="acrilico">
-        <div class="an-lienzo" id="an-orig"><p class="an-vacio">Sube un SVG para verlo aquí, sobre la mesa.</p></div>
+        <div class="an-lienzo" id="an-orig"><div class="an-vacio"><p>Sube un SVG para verlo aquí, sobre la mesa.</p><button type="button" class="btn btn-gho an-ejemplo" data-an-ejemplo>Probar con un ejemplo</button></div></div>
         <div class="an-lienzo an-lienzo-res" id="an-res" hidden></div>
+        <p class="solo-voz" id="an-mesa-ayuda">Con la hoja enfocada: más y menos acercan y alejan, cero regresa a la hoja entera y las flechas la desplazan. Enter pasa a las piezas, las flechas cambian de pieza y Enter abre su ficha. Con el cálculo detenido, Mayús y una flecha empuja la pieza 5 milímetros y la tecla R la gira 90 grados, o 180 si el material tiene veta.</p>
+        <i class="an-haz" id="an-haz" aria-hidden="true"></i>
+        <div class="an-calculando" id="an-calculando" role="status" hidden><span>Calculando las formas…</span> <b id="an-calculando-s" aria-hidden="true"></b></div>
+        <p class="an-noticia" id="an-noticia" hidden></p>
+        <div class="an-mesa-pie" id="an-mesa-pie" hidden>
+          <div class="an-pie-fila an-pags" id="an-pags"></div>
+          <div class="an-pie-fila an-zoom" id="an-zoom" role="group" aria-label="Zoom de la hoja" hidden>
+            <button type="button" class="an-btn-mesa an-btn-cuadro" id="an-zoom-menos" aria-label="Alejar">&minus;</button>
+            <button type="button" class="an-btn-mesa an-btn-cuadro" id="an-zoom-mas" aria-label="Acercar">+</button>
+            <button type="button" class="an-btn-mesa" id="an-zoom-todo">Ver hoja completa</button>
+            <span class="an-escala" id="an-escala" aria-hidden="true"><i></i><b>100&nbsp;mm</b></span>
+          </div>
+          <div class="an-pie-fila an-pieza" id="an-pieza" role="group" aria-label="Pieza elegida" hidden>
+            <span class="an-pieza-t" id="an-pieza-t"></span>
+            <button type="button" class="an-btn-mesa" id="an-pieza-girar">Girar 90°</button>
+            <button type="button" class="an-btn-mesa" id="an-pieza-devolver" hidden>Devolver a su lugar</button>
+          </div>
+          <div class="an-pie-fila an-fuera" id="an-fuera" hidden>
+            <button type="button" class="an-btn-mesa" id="an-fuera-ver" aria-pressed="false"></button>
+          </div>
+        </div>
       </div>
     </section>
   </aside>
@@ -310,6 +382,8 @@ document.documentElement.classList.add('arrancando');
 <script src="js/svgnest.js"></script>
 <!-- Lo nuestro: la aritmética de unidades (probada en node) y la interfaz. -->
 <script src="js/medidas.js"></script>
+<!-- Las piezas compartidas con el cotizador y la plataforma. -->
+<script src="../js/piezas.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

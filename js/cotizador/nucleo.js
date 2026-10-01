@@ -6,7 +6,7 @@
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -246,7 +246,9 @@ function togglePreciosALaVista(){
    número chiquito es EL ÚNICO importe en pantalla —y era el único que no se difuminaba—.
    Abrir una cotización de $23,664 y tocar «1 · Cliente» para corregir el teléfono la dejaba
    escrita en claro justo enfrente de quien no tenía que leerla todavía. */
-const _SEL_PRECIO='.lt,#s-sub,#s-iva,#s-neto,#s-calc,#s-anti-rest,#paso-total-v,.mbar-amt,.anti .inp-money,.partida .inp-money,.formula,.ptok.dinero';
+/* Y las tarjetas de la propuesta con opciones (pieza 76): el importe de cada opción y su cuenta son
+   precio de ESTE trabajo, y delante del cliente se leerían en las tres a la vez. */
+const _SEL_PRECIO='.lt,#s-sub,#s-iva,#s-neto,#s-calc,#s-anti-rest,#paso-total-v,.mbar-amt,.anti .inp-money,.partida .inp-money,.formula,.ptok.dinero,.op-precio,.op-cuenta';
 function _espiarPrecios(e){
   if(!document.body.classList.contains('precios-ocultos'))return;
   const t=e.target.closest&&e.target.closest(_SEL_PRECIO);
@@ -592,96 +594,228 @@ function voz(msg,urgente){
   requestAnimationFrame(()=>{ el.textContent=msg; });
 }
 /* ----- Las hojas del teléfono se cierran deslizando -----
-   En el teléfono los modales ya salían desde abajo como una hoja del sistema (vidrio-sube en
-   css/sistema.css), pero el gesto que va con una hoja —bajarla con el dedo— no existía: había
-   que estirarse hasta la × de arriba. Aquí está, con una condición que es la que importa: solo
-   se arrastra desde el encabezado, o desde el cuerpo cuando ya está hasta arriba. Sin ella, la
-   primera vez que alguien baja por el historial para buscar una cotización, la hoja se cerraría.
-
-   Se cierra con la función de su capa (_CAPAS), la misma de la ×, así que el foco, el atrás del
-   teléfono y lo que cada modal limpia al cerrarse pasan igual. Un solo oyente para todos. */
-/* Revisado en la auditoría de movimiento, en tres cosas que se sentían:
-   · La velocidad era el PROMEDIO desde que se tocó —`dy/(ahora-t0) > 0.6` y más de 40 px—:
-     «tocar, pensarlo y deslizar» nunca cerraba, y un deslizón corto y rápido tampoco. Ahora es
-     la velocidad del último tramo (~100 ms), con el umbral de Sonner y Vaul: 0,11 px/ms.
-   · Hacia arriba había una pared (`Math.max(0,dy)`). Ahora cede con resistencia, como una hoja
-     del sistema.
-   · Al soltar para cerrar, la hoja volvía a 0 y se apagaba en el mismo cuadro. Ahora la salida
-     de CSS (translateY(100%), ver sistema.css) arranca desde donde la dejó el dedo, y el velo
-     se aclara mientras se arrastra.
-   Y el `touchmove` con passive:false se registra solo durante el gesto: registrado siempre,
-   cada scroll de la página esperaba a este JS antes de moverse. */
-const _HOJA_CIERRA=90;   // px hacia abajo a partir de los cuales soltar cierra
-const _HOJA_VEL=0.11;    // px/ms en el último tramo: un deslizón basta
-let _hoja=null;
-/* El velo CONTIENE la hoja: bajarle la opacidad volvía translúcida también la hoja y su texto.
-   Se aclara solo su color de fondo, con el alfa que ya trae de la hoja de estilos. */
-function _fondoDe(el){
-  const m=/rgba?\(([^)]+)\)/.exec(getComputedStyle(el).backgroundColor||''); if(!m) return null;
-  const p=m[1].split(',').map(s=>s.trim()); if(p.length<3) return null;
-  return {rgb:p.slice(0,3).join(','),a:p[3]!=null?Number(p[3]):1};
+   En el teléfono los modales salen desde abajo como una hoja del sistema, y el gesto que va con
+   una hoja —bajarla con el dedo— vive ahora en js/piezas.js (P.hojasDeslizables), UNA vez para
+   las dos apps: era una copia de la de la plataforma y las dos llevaban el mismo defecto, el velo
+   aclarándose con `opacity` sobre el padre de la hoja, o sea con la hoja entera encima al 35 %.
+   Las medidas —solo desde el encabezado o con el cuerpo arriba del todo, 90 px o el latigazo de
+   0,11 px/ms, el touchmove colgado solo durante el gesto— y su porqué están allí.
+   Aquí solo se dice qué es hoja en el cotizador y con qué se cierra: la función de su capa
+   (_CAPAS), la misma de la ×, así que el foco, el atrás del teléfono y lo que cada modal limpia
+   al cerrarse pasan igual. */
+if(window.Piezas&&Piezas.hojasDeslizables) Piezas.hojasDeslizables({
+  hoja:'.modal-bg.show>.modal',cabeza:'.modal-h',cuerpo:'.modal-b',
+  cierre:velo=>(_CAPAS.find(([id])=>id===velo.id)||[])[1]||null
+});
+/* Y lo que pasa por debajo del dock y de la barra de arriba del teléfono se funde en vez de
+   cortarse contra su canto (pieza 11). La de arriba solo a ≤560 px: más ancho, el resumen de la
+   partida se pega justo debajo de la barra y quedaría borroso. */
+if(window.Piezas&&Piezas.desenfoqueProgresivo){
+  Piezas.desenfoqueProgresivo('#mbar',{lado:'abajo'});
+  Piezas.desenfoqueProgresivo('.topbar',{lado:'arriba',media:'(max-width:560px)'});
 }
-function _esTelefono(){ try{ return matchMedia('(max-width:560px)').matches; }catch(_){ return false; } }
-document.addEventListener('touchstart',e=>{
-  if(_hoja||!_esTelefono()||e.touches.length!==1) return;
-  const m=e.target.closest&&e.target.closest('.modal-bg.show>.modal'); if(!m) return;
-  if(e.target.closest('input,textarea,select,[contenteditable="true"],canvas')) return;
-  const cuerpo=e.target.closest('.modal-b');
-  if(cuerpo&&cuerpo.scrollTop>0) return;
-  if(!e.target.closest('.modal-h')&&!cuerpo) return;
-  const cerrar=(_CAPAS.find(([id])=>id===m.parentElement.id)||[])[1]; if(!cerrar) return;
-  _hoja={m,velo:m.parentElement,y0:e.touches[0].clientY,dy:0,cerrar,activo:false,pts:[]};
-  document.addEventListener('touchmove',_moverHoja,{passive:false});
-},{passive:true});
-function _moverHoja(e){
-  if(!_hoja||e.touches.length!==1) return;   // un segundo dedo no mueve la hoja
-  const dy=e.touches[0].clientY-_hoja.y0;
-  if(!_hoja.activo){
-    if(Math.abs(dy)<6) return;
-    if(dy<0){ _soltarHoja(); return; }   // hacia arriba al empezar: es scroll, no la hoja
-    _hoja.activo=true; _hoja.m.style.transition='none'; _hoja.velo.style.transition='none';
-    _hoja.fondo=_fondoDe(_hoja.velo);
+
+/* ----- La isla de estado (C21) -----
+   Tres cosas pasan fuera de esta pantalla y las tres eran invisibles desde aquí: que no hay señal,
+   que la hoja está sellando el precio, y que una solicitud espera a que Dirección conteste. La
+   primera era un chip que aparecía de golpe junto al folio; las otras dos solo se veían bajando
+   hasta la columna del dinero. Ahora es UNA pastilla, la de #isla, con un solo role="status": se
+   desenrolla al cambiar el estado, dice lo que pasa y se enrolla sola.
+
+   Quién se queda abierto lo decide la espera: «Sellando» es cosa de segundos y es justo lo que se
+   está esperando, así que se queda abierto; «Sin señal» y «Esperando a Dirección» pueden durar
+   horas, así que dicen su frase 3,5 s y se quedan en el icono mientras duren. Al terminar, si hay
+   un resultado que se pueda afirmar, lo dice 1,6 s con la palomita dibujada y se va. Si no se
+   puede afirmar —sellar falló y el error ya salió en su aviso; la solicitud se canceló—, se va sin
+   decir nada: una pastilla que anuncia «Sellada» sobre un sello que no existe es peor que callar.
+
+   De dónde sale cada estado, sin tocar a los dueños de ellos: `navigator.onLine`, `_sellando`
+   (proceso.js) y `_foliosEsperando()` (notario.js). Esos dos cambian en funciones que no son de
+   esta pieza, así que arranque.js engancha un aviso detrás de saveState, saveQueue y renderAuth
+   (programarIsla), y la pastilla compara lo que hay con lo que enseñaba: solo se mueve cuando
+   cambió el estado, nunca por repintar. Con las tres cosas apagadas no hay nada en pantalla y
+   nada que se mueva.
+
+   Hasta 560 px la barra de arriba está medida al píxel: ahí es solo el icono, sin crecer (el
+   texto sigue en el árbol, recortado, para el lector de pantalla). Desde 561 px el ancho sí
+   se anima: es un elemento de 32 px entre ocho hermanos, tres veces por sesión, y es el único
+   sitio de la hoja donde se anima un ancho —clip-path hubiera dejado el hueco reservado—. El
+   texto entra en opacidad. El único giro es el arco de «Sellando», y solo mientras sella. */
+const _ISLA_FRASES={'sin-senal':'Sin señal · se guarda aquí',sellando:'Sellando en la hoja…',esperando:'Esperando a Dirección'};
+const _ISLA_TITULOS={
+  'sin-senal':'Sin señal: la cotización se sigue guardando en este teléfono. Autorizar y la IA esperan a la señal.',
+  sellando:'La hoja está sellando el precio.',
+  esperando:'Una solicitud espera a que Dirección conteste.',
+  ok:''
+};
+let _islaVivos=new Map(), _islaEnrolla=0, _islaSigue=0, _islaFin=0, _islaPide=0;
+function _islaAncha(){ try{ return !window.matchMedia('(max-width:560px)').matches; }catch(_){ return true; } }
+function _islaIcono(ic,clave){
+  const P=window.Piezas;
+  if(clave==='sin-senal'||!P||!P.marcaEstado){ ic.innerHTML=ico(clave==='sin-senal'?'i-nube-off':'i-check'); return; }
+  /* El glifo de estado de la hoja, el mismo de la cola del notario y de la sincronización: un arco
+     que gira mientras se espera, un anillo punteado mientras Dirección piensa, y la palomita que
+     se dibuja al terminar. Pasar de uno a otro conserva el nodo, así el arco «se vuelve» palomita. */
+  if(!ic.querySelector('.marca-estado')) ic.innerHTML='';
+  P.marcaEstado(ic,{sellando:'trabaja',esperando:'espera',ok:'ok'}[clave],{tam:18});
+}
+function _islaEnrollar(){ const el=$('isla'); if(!el) return; el.classList.remove('abierta'); el.style.width='32px'; }
+function _islaMostrar(clave,texto,o){
+  const el=$('isla'); if(!el) return;
+  o=o||{};
+  const t=el.querySelector('.isla-t'), ic=el.querySelector('.isla-ic');
+  clearTimeout(_islaFin); clearTimeout(_islaEnrolla);
+  el.classList.remove('se-va');
+  el.dataset.estado=clave;
+  if(o.tono) el.dataset.tono=o.tono; else delete el.dataset.tono;
+  el.title=_ISLA_TITULOS[clave]||'';
+  _islaIcono(ic,clave);
+  t.textContent=texto;
+  el.classList.add('ver');
+  let ancho=32;
+  if(o.abrir!==false&&_islaAncha()){
+    ancho=32+t.offsetWidth;
+    /* ¿Cabe sin romper la barra? Con el ancho de una laptop chica (1100 px) la frase ancha empujaba
+       el grupo de botones a un segundo renglón y TODA la pantalla bajaba 50 px mientras duraba, para
+       volver a subir al enrollarse. Se prueba en seco —sin transición, en el mismo cuadro, sin que
+       se vea— si la barra crece con el ancho abierto; si crece, la isla se queda en el icono. */
+    const cab=document.querySelector('.topbar-in');
+    if(cab){
+      const trans=el.style.transition, w0=el.style.width;
+      el.style.transition='none';
+      el.style.width='32px'; const alto0=cab.offsetHeight;
+      el.style.width=ancho+'px'; const cabe=cab.offsetHeight<=alto0;
+      el.style.width=w0; void el.offsetWidth; el.style.transition=trans;
+      if(!cabe) ancho=32;
+    }
   }
-  _hoja.dy=dy>0?dy:-Math.sqrt(-dy)*3;
-  _hoja.pts.push([e.timeStamp,dy]);
-  while(_hoja.pts.length>2&&e.timeStamp-_hoja.pts[0][0]>100) _hoja.pts.shift();
-  /* important: con «menos movimiento» la hoja lleva transform:none!important (sistema.css) y
-     sin esto no seguía al dedo. */
-  _hoja.m.style.setProperty('transform','translateY('+_hoja.dy+'px)','important');
-  const alto=_hoja.m.offsetHeight||600;
-  if(_hoja.fondo) _hoja.velo.style.backgroundColor='rgba('+_hoja.fondo.rgb+','+(_hoja.fondo.a*Math.max(.35,1-Math.max(0,_hoja.dy)/alto))+')';
-  e.preventDefault();   // que no se mueva la página de atrás ni se dispare el «jalar para recargar»
+  if(ancho>32){ el.classList.add('abierta'); el.style.width=ancho+'px'; }
+  else _islaEnrollar();
+  if(o.enrollarEn) _islaEnrolla=setTimeout(_islaEnrollar,o.enrollarEn);
 }
-function _soltarHoja(e){
-  document.removeEventListener('touchmove',_moverHoja);
-  const h=_hoja; _hoja=null; if(!h||!h.activo) return;
-  const a=h.pts[0], b=h.pts[h.pts.length-1];
-  /* La velocidad es la del ÚLTIMO tramo antes de soltar: si el dedo se quedó quieto más de
-     100 ms, ya no hay deslizón aunque los dos últimos puntos lo parezcan. */
-  const t=(e&&e.timeStamp)||performance.now();
-  const v=(a&&b&&b[0]>a[0]&&t-b[0]<=100)?(b[1]-a[1])/(b[0]-a[0]):0;
-  h.m.style.transition=''; h.velo.style.transition='';
-  h.m.style.removeProperty('transform');
-  const cierra=h.dy>_HOJA_CIERRA||(h.dy>12&&v>_HOJA_VEL);
-  /* Al cerrar, el velo se desvanece desde el tono al que lo llevó el dedo; devolverle el suyo
-     en el mismo cuadro lo oscurecía de golpe antes de irse. */
-  if(cierra) setTimeout(()=>{ h.velo.style.backgroundColor=''; },300);
-  else h.velo.style.backgroundColor='';
-  if(cierra){ try{ h.cerrar(); }catch(_){} }
+function _islaSiguiente(){
+  const el=$('isla'); if(!el) return;
+  const ultimo=[..._islaVivos.keys()].pop();
+  if(ultimo){ _islaMostrar(ultimo,_islaVivos.get(ultimo),{abrir:false}); return; }
+  /* Nada más que decir: se desvanece y, ya invisible, se recorta. Quitar `.ver` de golpe la
+     habría hecho desaparecer a media palabra. */
+  clearTimeout(_islaEnrolla);
+  el.classList.add('se-va'); el.style.width='0px';
+  _islaFin=setTimeout(()=>{
+    if(_islaVivos.size) return;
+    el.classList.remove('ver','abierta','se-va'); el.style.width='';
+    delete el.dataset.estado; delete el.dataset.tono; el.title='';
+    const t=el.querySelector('.isla-t'); if(t) t.textContent='';
+    /* Sin glifo: el arco de «Sellando» sigue girando aunque la pastilla esté invisible, y en reposo
+       no se mueve nada. */
+    const ic=el.querySelector('.isla-ic'); if(ic) ic.innerHTML='';
+  },340);
 }
-document.addEventListener('touchend',_soltarHoja,{passive:true});
-document.addEventListener('touchcancel',_soltarHoja,{passive:true});
-
-/* ----- Sin señal, dicho -----
-   La cotización se guarda en cada tecla y funciona igual sin internet, pero nada en pantalla lo
-   decía: quien cotiza en una azotea no sabía si lo que capturaba estaba a salvo, ni por qué
-   «Autorizar» no contestaba. Un chip junto al folio, mientras dure. */
+function _islaPoner(clave,texto){
+  _islaVivos.delete(clave); _islaVivos.set(clave,texto);
+  clearTimeout(_islaSigue);
+  _islaMostrar(clave,texto,{enrollarEn:clave==='sellando'?0:3500});
+}
+function _islaQuitar(clave,final){
+  if(!_islaVivos.delete(clave)) return;
+  clearTimeout(_islaSigue);
+  if(final){ _islaMostrar('ok',final,{tono:'ok',enrollarEn:1600}); _islaSigue=setTimeout(_islaSiguiente,2100); }
+  else _islaSiguiente();
+}
+/* Qué se puede afirmar al terminar. Solo lo que la pantalla sabe de cierto: la cotización de
+   ahora quedó autorizada. */
+function _islaFinal(clave){
+  if(clave==='sin-senal') return 'Volvió la señal';
+  if(Q.estado==='autorizada') return clave==='sellando'?'Sellada':'Dirección autorizó';
+  return '';
+}
+/* El nombre es el de siempre —lo llaman el arranque, 'online' y 'offline'— y ahora pinta la
+   isla entera: compara lo que hay con lo que enseñaba y solo se mueve si cambió. */
 function pintarConexion(){
-  const c=$('sin-senal'); if(!c) return;
-  c.hidden=navigator.onLine!==false;
+  clearTimeout(_islaPide); _islaPide=0;
+  if(!$('isla')) return;
+  let sellando=false, esperan=0;
+  try{ sellando=typeof _sellando!=='undefined'&&!!_sellando; }catch(_){}
+  try{ esperan=typeof _foliosEsperando==='function'?_foliosEsperando().length:0; }catch(_){}
+  const hay={'sin-senal':navigator.onLine===false,sellando,esperando:esperan>0};
+  ['sin-senal','sellando','esperando'].forEach(k=>{
+    const texto=_ISLA_FRASES[k]+(k==='esperando'&&esperan>1?' · '+esperan:'');
+    if(hay[k]){ if(_islaVivos.get(k)!==texto) _islaPoner(k,texto); }
+    else if(_islaVivos.has(k)) _islaQuitar(k,_islaFinal(k));
+  });
 }
-window.addEventListener('online',()=>{ const c=$('sin-senal'), estaba=c&&!c.hidden; pintarConexion(); if(estaba) toast('Volvió la señal','ok',2200); });
+/* Detrás de cada guardado y de cada repintado del panel, pero SIN mirar nada en el momento:
+   saveState corre en cada tecla y _foliosEsperando() lee la cola entera del almacenamiento. Se
+   pide una vez y se resuelve un cuarto de segundo después, y las peticiones de en medio se juntan. */
+function programarIsla(){ if(!_islaPide) _islaPide=setTimeout(pintarConexion,250); }
+window.addEventListener('online',()=>{
+  const estaba=_islaVivos.has('sin-senal');
+  pintarConexion();
+  /* Con la palabra a la vista la isla ya lo dijo. En el teléfono es solo un icono, y en una barra
+     llena la frase tampoco cupo: ahí sale como aviso. */
+  const el=$('isla');
+  if(estaba&&!(el&&el.classList.contains('abierta'))) toast('Volvió la señal','ok',2200);
+});
 window.addEventListener('offline',pintarConexion);
+
+/* ----- El folio que cambia se nota (C24) -----
+   El folio se reescribía sin ninguna señal, y el error que ya está documentado en este repo es
+   capturar a otro cliente encima del mismo folio: el número cambia —al empezar una cotización
+   nueva, al abrir una del historial, al re-foliar—, nadie lo ve cambiar, y lo siguiente que se
+   teclea cae en la cotización equivocada. Ahora, al pasar a otro número, VOLTEAN los caracteres
+   que cambiaron, como un tablero de salidas: una vuelta (110 ms hacia abajo, 150 ms de regreso),
+   escalonada de 30 ms en 30 ms de izquierda a derecha, sin caracteres al azar en medio.
+
+   Solo voltean los que cambiaron —de COT-0042 a COT-0043 gira un solo dígito—, y solo si ya había
+   un folio escrito: al arrancar, o al repintar el mismo número, no se mueve nada. Con menos
+   movimiento el número cambia en seco. La marca «sin guardar» no es de este folio y NO voltea:
+   la pone pintarFolio() aparte, como hermana.
+
+   Cada casilla guarda su destino (data-c): si llega otro folio a media vuelta, se cancela la
+   vuelta de esa casilla y empieza una nueva hacia el destino nuevo, así nunca queda escrito un
+   número que ya no es el vigente. Las casillas van aria-hidden y el folio entero va en un
+   <span class="folio-sr">, recortado pero en el árbol: el lector de pantalla lee «COT-0043» de un
+   tirón y no letra por letra. Solo se anima `transform` (rotateX) en un elemento de ocho
+   caracteres. Devuelve cuántas casillas voltearon. */
+function folioQueVoltea(el,nuevo){
+  if(!el) return 0;
+  nuevo=String(nuevo==null?'':nuevo);
+  let sr=el.querySelector(':scope>.folio-sr'), caja=el.querySelector(':scope>.fcs');
+  if(!sr||!caja){
+    el.textContent='';
+    sr=document.createElement('span'); sr.className='folio-sr solo-voz';
+    caja=document.createElement('span'); caja.className='fcs'; caja.setAttribute('aria-hidden','true');
+    el.append(sr,caja);
+    delete el.dataset.folio;
+  }
+  const viejo=el.dataset.folio||'';
+  if(viejo===nuevo&&caja.children.length===nuevo.length) return 0;
+  el.dataset.folio=nuevo; sr.textContent=nuevo;
+  while(caja.children.length<nuevo.length){ const s=document.createElement('span'); s.className='fc'; caja.append(s); }
+  while(caja.children.length>nuevo.length) caja.lastElementChild.remove();
+  const P=window.Piezas;
+  const quieto=!viejo||!caja.animate||(P&&P.sinMovimiento&&P.sinMovimiento());
+  let k=0;
+  [...caja.children].forEach((s,i)=>{
+    const c=nuevo[i];
+    if(s.dataset.c===c&&s.textContent===c) return;
+    s.dataset.c=c;
+    clearTimeout(s._volT);
+    if(s.getAnimations) s.getAnimations().forEach(a=>a.cancel());
+    s.classList.remove('volteando');
+    if(quieto){ s.textContent=c; return; }
+    const demora=k++*30;
+    /* La línea del medio de la casilla solo se ve mientras gira, no mientras espera su turno. */
+    s._volT=setTimeout(()=>s.classList.add('volteando'),demora);
+    const baja=s.animate([{transform:'rotateX(0deg)'},{transform:'rotateX(-90deg)'}],{duration:110,delay:demora,easing:'cubic-bezier(.5,0,1,1)',fill:'forwards'});
+    baja.finished.then(()=>{
+      s.textContent=s.dataset.c; baja.cancel();
+      s.animate([{transform:'rotateX(90deg)'},{transform:'rotateX(0deg)'}],{duration:150,easing:'cubic-bezier(0,0,.2,1)'})
+        .finished.then(()=>s.classList.remove('volteando'),()=>{});
+    },()=>{});   // cancelada por un folio más nuevo: ya no escribe nada
+  });
+  return k;
+}
 
 /* ----- Preguntar antes, sin el confirm() del navegador -----
    Seis preguntas de esta app —borrar del historial, abrir otra cotización encima de un
@@ -689,7 +823,17 @@ window.addEventListener('offline',pintarConexion);
    otro idioma de botones («Aceptar»), sin atrás del teléfono y bloqueando la página entera.
    Es el momento en que la app deja de parecer una app. Ésta es la misma pregunta dentro de la
    app: una capa más de _CAPAS —foco atrapado, Escape, el atrás del teléfono— que contesta con
-   una promesa. Cualquier forma de cerrarla que no sea el botón de seguir es un «no». */
+   una promesa. Cualquier forma de cerrarla que no sea el botón de seguir es un «no».
+
+   Lo que se pregunta con `peligro` es lo que no tiene vuelta —la cotización de la pantalla se
+   pierde si se abre otra encima, las medidas del escalador se borran—, y un toque no alcanza para
+   contestarlo: el botón de seguir se vuelve «mantener presionado» (pieza 5, C23 #5), con la
+   acción en su alConfirmar. La pieza deja sin clic de siempre al botón, así que el `onclick` del
+   marcado no corre mientras esté armada; en las preguntas sin peligro se le devuelve. Como este
+   diálogo se reusa y aquí se reescribe el rótulo (y la clase) en cada pregunta, se vuelve a armar
+   o a quitar en cada una: la pieza reconoce que su marcado ya no está y no deja oyentes de más.
+   Un segundo y no más: son preguntas que salen mientras se trabaja (abrir otra cotización desde el
+   historial), y los 1,2 s de la pieza por omisión pesan cuando se repiten. */
 let _confResolver=null;
 function confirmar(o){
   o=o||{};
@@ -700,6 +844,27 @@ function confirmar(o){
     $('conf-texto').textContent=o.texto||'';
     const si=$('conf-si'); si.textContent=o.si||'Continuar'; si.className='btn '+(o.peligro?'btn-dgr':'btn-pri');
     $('conf-no').textContent=o.no||'Cancelar';
+    /* ----- Sostener para confirmar: solo donde se BORRA, y por eso no cuelga de `peligro` -----
+       La primera versión ató el sostener a `peligro`, que es lo que pedía el paquete para «lo
+       destructivo». Pero las cinco preguntas marcadas así en el cotizador no borran nada: dicen
+       «si abres COT-0042, la que está en pantalla se pierde», y abrir otra cotización del historial
+       se hace muchas veces al día. Un segundo de espera cada vez deja de ser una red y se vuelve un
+       peaje, y un peaje se aprende a pagar sin leer: justo lo contrario de lo que se buscaba.
+
+       Así que `peligro` se queda con lo suyo —el botón rojo, que dice de qué lado está la pregunta—
+       y el sostener se pide aparte, con `sostener:true`, solo donde algo se borra de verdad. Hoy lo
+       usa una: cargar otra imagen en el escalador, que sí borra las medidas tomadas. Lo demás que
+       sostiene en la app (la × de una partida con datos, borrar del historial, «Sí, borrar todo» y
+       restaurar un respaldo) no pasa por aquí: lo arma cada pantalla sobre su propio botón. */
+    const P=window.Piezas;
+    if(P&&P.mantener){
+      if(o.sostener) P.mantener(si,{tono:'mal',ms:1000,alConfirmar:confirmarSi});
+      else P.mantener.quitar(si);
+    }
+    /* Dicho también en la pantalla, antes de que alguien toque y no pase nada: la pieza solo avisa
+       cuando un toque corto ya falló. Va aria-hidden porque el botón mismo ya dice «mantén
+       presionado para confirmar» a quien no lo ve. */
+    const pista=$('conf-pista'); if(pista) pista.hidden=!o.sostener;
     $('confmodal').classList.add('show');
   });
 }
@@ -707,70 +872,50 @@ function _confCerrar(v){ $('confmodal').classList.remove('show'); const r=_confR
 function confirmarSi(){ _confCerrar(true); }
 function confirmarNo(){ _confCerrar(false); }
 
-/* Aviso emergente. Con un solo temporizador compartido: antes dos avisos seguidos
-   se pisaban y el segundo se ocultaba antes de tiempo por el reloj del primero.
-   Acepta un botón opcional, por ejemplo para deshacer un borrado. */
-let _toastT=null, _toastFin=0, _toastResta=0;
-/* El temporizador se detiene si la pestaña se oculta o si el dedo o el cursor están encima.
-   Un «Deshacer» de 8 s caducaba mientras el vendedor estaba en WhatsApp pegando los datos. */
-function _toastProgramar(ms){
-  clearTimeout(_toastT); _toastFin=Date.now()+ms;
-  _toastT=setTimeout(()=>{ _toastT=null; $('toast').classList.remove('show'); },ms);
-}
-function _toastPausa(){
-  if(!_toastT) return;
-  clearTimeout(_toastT); _toastT=null; _toastResta=Math.max(1500,_toastFin-Date.now());
-}
-function _toastSigue(){ if(!_toastT&&_toastResta&&$('toast').classList.contains('show')){ _toastProgramar(_toastResta); _toastResta=0; } }
-document.addEventListener('visibilitychange',()=>document.hidden?_toastPausa():_toastSigue());
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',_toastVigilar,{once:true}); else _toastVigilar();
-function _toastVigilar(){
-  const t=$('toast'); if(!t) return;
-  ['pointerenter','focusin'].forEach(n=>t.addEventListener(n,_toastPausa));
-  ['pointerleave','focusout'].forEach(n=>t.addEventListener(n,_toastSigue));
-}
+/* Aviso emergente. El cuerpo es la pieza compartida (js/piezas.js, P.aviso): la pila de hasta dos
+   avisos con su mecha. Aquí queda la firma de siempre, que es contrato para las ~150 llamadas
+   del cotizador: toast(msg, tipo, dur, accion).
+
+   Hasta esta versión había un solo #toast con un solo temporizador, y un aviso reescribía al
+   otro en el mismo tick. El caso que importaba: aplicarSello() avisa «el total de este teléfono
+   no es el que selló la hoja» y la línea siguiente del notario dice «✓ … autorizó», que lo
+   tapaba —y ese error es justo el que impide mandar un PDF con un total y un QR con otro—.
+   Ahora un error y un aviso con botón no se pisan: se apilan (dos como mucho) o esperan su
+   turno, y los informativos se reemplazan como antes. La mecha de 2 px es el reloj: se pausa
+   con el dedo, el cursor o el foco encima y con la app en segundo plano —un «Deshacer» de 8 s
+   caducaba mientras el vendedor estaba en WhatsApp pegando los datos—, y el aviso se quita
+   deslizándolo hacia abajo. Todo eso vive en la pieza; lo que se promete aquí no cambia:
+     · con botón, 8 s como mínimo —quien lo oye en vez de verlo tiene que encontrar «Deshacer»
+       deslizando, y los 2.6 s de siempre no alcanzan ni para llegar—; si el llamador pide más,
+       se respeta;
+     · el texto va por textContent;
+     · cada aviso se dice en la región que habla (P.voz, la misma de voz()), también el que
+       espera su turno para verse, y los errores en la asertiva. El aviso se escribe fuera del
+       árbol de accesibilidad mientras entra, así que sin esa región ni VoiceOver ni TalkBack
+       decían nada.
+   Devuelve un mango con cerrar(), por si alguien necesita quitar su aviso («Mandando…») al
+   llegar la respuesta. Sin la pieza —un js/piezas.js que no cargó— el aviso al menos se dice. */
 function toast(msg,type='',dur=2600,accion=null){
-  /* Con botón, 8 s como mínimo: quien lo oye en vez de verlo tiene que encontrar
-     «Deshacer» deslizando, y los 2.6 s de siempre no alcanzan ni para llegar. Si el
-     llamador ya pide más, se respeta lo que pida. */
   if(accion&&dur<8000) dur=8000;
-  const t=$('toast');
-  t.innerHTML='';
-  const sp=document.createElement('span'); sp.textContent=msg; t.appendChild(sp);
-  if(accion&&accion.label&&typeof accion.fn==='function'){
-    const b=document.createElement('button');
-    b.type='button'; b.className='toast-act'; b.textContent=accion.label;
-    b.onclick=()=>{ clearTimeout(_toastT); _toastT=null; _toastResta=0; t.classList.remove('show'); accion.fn(); };
-    t.appendChild(b);
-  }
-  /* Si ya había uno a la vista, solo cambia el contenido: no vuelve a «entrar». Antes cada aviso
-     quitaba .show y forzaba un reflow, y «Eliminada → Deshacer → Restaurada» parpadeaba. Un
-     desenfoque de 2 px que se disuelve disimula el cambio de texto. */
-  const ya=t.classList.contains('show');
-  t.className='toast '+type+(ya?' show':'');
-  if(!ya){ void t.offsetWidth; t.classList.add('show'); }
-  else if(t.animate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)
-    t.animate([{opacity:.6,filter:'blur(2px)'},{opacity:1,filter:'none'}],{duration:160,easing:'cubic-bezier(.23,1,.32,1)'});
-  _toastResta=0;
-  _toastProgramar(dur);
-  /* Todo lo de arriba se escribe con el aviso todavía en visibility:hidden, o sea
-     fuera del árbol de accesibilidad: la región activa no veía ninguna mutación, y
-     volverlo visible con el texto ya puesto tampoco es una inserción. Ni VoiceOver ni
-     TalkBack decían nada —ni «Partida 3 eliminada» con su Deshacer, ni los errores de
-     la IA—. Por eso el mensaje se repite en una región que nunca se oculta. */
-  voz(msg+(accion&&accion.label?' — '+accion.label+' disponible':''),type==='err');
+  const P=window.Piezas;
+  if(!P||!P.aviso){ voz(msg+(accion&&accion.label?' — '+accion.label+' disponible':''),type==='err'); return null; }
+  return P.aviso(msg,{tipo:type,dur,accion,pila:'toast'});
 }
 
 /* Copiar al portapapeles, con respaldo. En iOS y en páginas no seguras la API
    moderna falla; antes cada botón reaccionaba distinto (uno tenía respaldo y los
-   otros solo avisaban del error), así que copiar dependía del botón que tocaras. */
+   otros solo avisaban del error), así que copiar dependía del botón que tocaras.
+   El respaldo y la confirmación viven en la pieza compartida (P.copiar, el mismo de la
+   plataforma), y el botón que se tocó lo dice él mismo —«✓ Copiado», 1.8 s— además del
+   aviso, que trae la instrucción de dónde pegarlo. El botón sale del clic que está corriendo
+   (P.botonDelEvento), así que ninguna llamada cambia. */
 function copiarTexto(txt,msgOk,extra){
   const ok=()=>{ if(msgOk) toast(msgOk,'ok',3400); if(typeof extra==='function') extra(); };
-  try{
-    if(navigator.clipboard&&navigator.clipboard.writeText){
-      navigator.clipboard.writeText(txt).then(ok).catch(()=>_copiaManual(txt,ok));
-    } else _copiaManual(txt,ok);
-  }catch(_){ _copiaManual(txt,ok); }
+  const P=window.Piezas;
+  if(!P||!P.copiar){ _copiaManual(txt,ok); return; }
+  P.copiar(txt,{boton:P.botonDelEvento()}).then(bien=>{
+    if(bien) ok(); else toast('No se pudo copiar automáticamente','err',3000);
+  });
 }
 
 /* ===================== Preferencias del dispositivo =====================
@@ -819,8 +964,9 @@ function clientesConocidos(){
   return _clientesCache;
 }
 function pintarClientes(){
-  const dl=$('clientes-conocidos');
-  if(dl) dl.innerHTML=clientesConocidos().map(c=>`<option value="${esc(c.cliente)}"></option>`).join('');
+  /* La lista del campo Cliente (C6) se pinta al abrirse, con lo que haya entonces. Si ya está
+     abierta y el historial cambió por debajo —se guardó una cotización, se borró otra—, se rehace. */
+  if(_comboAbierto()) _comboFiltrar();
   /* Esta función ya corría después de cada escritura del historial y al arrancar, que es
      exactamente cuando el aviso de «ya tiene cuaderno» puede haber cambiado. */
   actualizarAvisoCuaderno();
@@ -841,17 +987,255 @@ function marcarVaciado(k,v){
   if(!_vaciadoAMano||_vaciadoAMano.folio!==Q.folio) _vaciadoAMano={folio:Q.folio,set:new Set()};
   if(String(v||'').trim()) _vaciadoAMano.set.delete(k); else _vaciadoAMano.set.add(k);
 }
-function autocompletarCliente(v){
+/* ----- Lo que puso la app se ve, y se distingue de lo que tecleaste (C6) -----
+   Al reconocer a un cliente, la app llena el teléfono, la dirección y el link de Maps que estén
+   VACÍOS, y hasta ahora lo único que lo decía era un aviso que se va solo: nada mostraba CUÁL
+   campo había cambiado, y con el aviso ya ido no había forma de saber si ese teléfono lo escribió
+   alguien o lo puso la app. Cada campo que la app llena se ilumina en verde un instante (600 ms,
+   el lavado de CodeSlots). Con menos movimiento no hay fundido pero la señal se queda: el mismo
+   verde, quieto, 1,2 s —es información, no adorno—.
+
+   Y la app se acuerda de lo que escribió (_puestoApp): si el campo sigue diciendo exactamente lo
+   que ella puso, nadie lo tocó, y elegir OTRO cliente de la lista —dos «Farmacia Guadalupe» con
+   distinto teléfono— sí lo cambia. Lo que tecleó una persona nunca se pisa, y lo que una persona
+   borró a propósito (vaciadoAMano) tampoco vuelve. */
+const _CAMPOS_CLIENTE=[
+  {k:'tel',id:'f-tel',nombre:'el teléfono'},
+  {k:'dirRaw',id:'f-dir-raw',nombre:'la dirección'},
+  {k:'maps',id:'f-maps',nombre:'el link de Maps'}
+];
+let _puestoApp=null;
+function lavarCampo(el){
+  if(!el) return;
+  clearTimeout(el._lavT);
+  el.classList.remove('lavado','lavado-quieto');
+  const P=window.Piezas;
+  if(P&&P.sinMovimiento&&P.sinMovimiento()){
+    el.classList.add('lavado-quieto');
+    el._lavT=setTimeout(()=>el.classList.remove('lavado-quieto'),1200);
+    return;
+  }
+  void el.offsetWidth;   // reinicia la animación si se lavó hace nada
+  el.classList.add('lavado');
+  el._lavT=setTimeout(()=>el.classList.remove('lavado'),700);
+}
+/* `elegido` es el cuaderno que se tocó en la lista (C6); sin él, es el cliente que se reconoció
+   por teclear su nombre completo, que es lo que hacía desde siempre. */
+function autocompletarCliente(v,elegido){
   if(locked()) return;
-  const c=clientesConocidos().find(x=>normNom(x.cliente)===normNom(v));
+  const c=elegido
+    ? {cliente:elegido.nombre,tel:elegido.tel||'',dirRaw:elegido.dirRaw||'',maps:elegido.maps||''}
+    : clientesConocidos().find(x=>normNom(x.cliente)===normNom(v));
   if(!c) return;
-  const puestos=[];
-  if(c.tel && !(Q.tel||'').trim() && !vaciadoAMano('tel')){ Q.tel=c.tel; if($('f-tel')) $('f-tel').value=c.tel; puestos.push('el teléfono'); }
-  if(c.dirRaw && !(Q.dirRaw||'').trim() && !vaciadoAMano('dirRaw')){ if($('f-dir-raw')) $('f-dir-raw').value=c.dirRaw; updDirRaw(c.dirRaw); puestos.push('la dirección'); }
-  if(c.maps && !(Q.maps||'').trim() && !vaciadoAMano('maps')){ if($('f-maps')) $('f-maps').value=c.maps; updMaps(c.maps); Q.maps=c.maps; puestos.push('el link de Maps'); }
-  if(!puestos.length) return;   // ya estaban llenos: nada que avisar
+  if(!_puestoApp||_puestoApp.folio!==Q.folio) _puestoApp={folio:Q.folio};
+  const puestos=[]; let respetados=0;
+  _CAMPOS_CLIENTE.forEach(f=>{
+    const valor=c[f.k]; if(!valor) return;
+    const el=$(f.id), actual=String((f.k==='tel'?Q.tel:f.k==='dirRaw'?Q.dirRaw:Q.maps)||'').trim();
+    const mio=!!(elegido&&actual&&el&&_puestoApp[f.k]!==undefined&&el.value.trim()===_puestoApp[f.k]&&actual!==String(valor).trim());
+    if(vaciadoAMano(f.k)||(actual&&!mio)){ if(actual) respetados++; return; }
+    if(el) el.value=valor;
+    if(f.k==='tel') Q.tel=el?el.value:valor;   // la pieza del teléfono pudo darle formato al escribirlo
+    else if(f.k==='dirRaw') updDirRaw(valor);
+    else { updMaps(valor); Q.maps=valor; }
+    _puestoApp[f.k]=el?el.value.trim():String(valor).trim();
+    lavarCampo(el);
+    puestos.push(f.nombre);
+  });
+  if(!puestos.length){
+    /* Elegido con la mano y sin nada que llenar porque ya había datos tuyos: se dice, para que
+       no parezca que el toque no hizo nada. */
+    if(elegido&&respetados) toast('Los datos que ya tenías no se tocaron','',2600);
+    return;   // ya estaban llenos: nada que avisar
+  }
+  /* El lavado se vería debajo de la lista si siguiera abierta: se cierra y no vuelve a abrirse con
+     esta misma tecla (el oyente de 'input' de la lista corre justo después de upd(), en el mismo
+     evento, y ahí se gasta la marca; el temporizador la quita si upd() se llamó sin tecla). */
+  _comboCerrar();
+  if(!elegido){ _comboNoAbrir=true; setTimeout(()=>{ _comboNoAbrir=false; },0); }
   saveState(); updProg();
   toast('Cliente conocido — se '+(puestos.length===1?'llenó':'llenaron')+' '+listaY(puestos),'ok',3400);
+}
+
+/* ----- La lista de clientes, propia (C6) -----
+   El <datalist> nativo era una tira sobre el teclado de Android, sin teléfono y sin decir cuál de
+   dos «Farmacia San Juan» era cuál. Aquí es una lista bajo el campo con el nombre, el teléfono y
+   la última cotización del cuaderno —folio, fecha e importe—, y la fila que se recorre con las
+   flechas es UN solo resalte que se desliza (translateY) de un renglón al siguiente, no un fondo
+   por fila. El patrón es el combobox de siempre: el campo conserva el foco, `aria-activedescendant`
+   dice cuál fila está activa, flechas, Enter y Escape, y tocar una fila la elige.
+
+   Va sobre un popover manual: sube a la capa superior, así que ninguna tarjeta ni la barra fija de
+   abajo la recorta, y se coloca contra el teclado con visualViewport. Si el campo está tan abajo
+   que no cabe, se abre hacia arriba. Renglones de 60 px: el dedo acierta sin apuntar.
+
+   Las filas salen de cuadernos() —no de clientesConocidos()— a propósito: ahí dos clientes con el
+   mismo nombre y distinto teléfono son DOS renglones, que es justo lo que hay que poder distinguir;
+   clientesConocidos() los junta por nombre, que es lo que hace falta para reconocer a quien
+   teclea el nombre completo. El importe de la última cotización es de este trabajo, no del
+   catálogo: en borrador se difumina como los demás (precios-ocultos). Sin ningún cuaderno, o sin
+   coincidencias, la lista no se abre: un «nadie con ese nombre» cada vez que se captura un cliente
+   nuevo era ruido encima del campo del teléfono. */
+let _comboAct=-1, _comboFilas=[], _comboDentro=false, _comboNoAbrir=false, _comboRepos=0, _comboVozT=0, _comboVozN=-1, _comboArmado=false;
+function _comboAbierto(){ const m=$('cli-menu'); return !!m&&m.dataset.abierto==='1'; }
+function _comboFilasPara(q){
+  const P=window.Piezas;
+  q=String(q||'').trim();
+  const todos=(typeof cuadernos==='function'?cuadernos():[]).filter(g=>g.nombre);
+  if(!q||!P||!P.coincide) return todos;   // ya vienen del que se habló hace menos al más viejo
+  const num=P.esNumerica(q)&&q.replace(/\D/g,'').length>=3;
+  return todos.filter(g=>P.coincide(g.nombre,q)||g.alias.some(a=>P.coincide(a,q))||(num&&P.coincide(g.tel||'',q)));
+}
+function _comboTel(g){
+  const d=typeof telClave==='function'?telClave(g.tel):'';
+  const P=window.Piezas;
+  return d&&P&&P.telefono?P.telefono.formato(d):String(g.tel||'');
+}
+function _comboFilaHTML(g,i,q){
+  const P=window.Piezas, e=g.cots[0];
+  const ult=e?'Última: '+esc(e.folio)+' · '+esc(cuaFecha(e))+' · <span class="combo-importe">'+money(totalFinalHist(e))+'</span>':'Sin cotizaciones';
+  const tel=_comboTel(g);
+  return '<div role="option" class="combo-op" id="cli-op-'+i+'" data-i="'+i+'" aria-selected="false">'
+    +'<b>'+(P&&P.resaltar?P.resaltar(g.nombre,q):esc(g.nombre))+'</b>'
+    +(tel?'<span>'+esc(tel)+'</span>':'')
+    +'<small>'+ult+'</small></div>';
+}
+function _comboPintarAct(desplazar){
+  const inp=$('f-cli'), menu=$('cli-menu'), lista=$('cli-lista'); if(!inp||!menu||!lista) return;
+  const pil=menu.querySelector('.combo-pil'), ops=lista.querySelectorAll('[role="option"]');
+  ops.forEach((o,i)=>o.setAttribute('aria-selected',i===_comboAct?'true':'false'));
+  if(_comboAct<0||!ops[_comboAct]){ if(pil) pil.style.opacity='0'; inp.removeAttribute('aria-activedescendant'); return; }
+  const o=ops[_comboAct];
+  if(pil){
+    /* La primera vez, o con menos movimiento, el resalte aparece en su sitio; después se desliza. */
+    const salto=pil.style.opacity!=='1'||(window.Piezas&&Piezas.sinMovimiento&&Piezas.sinMovimiento());
+    if(salto) pil.style.transition='none';
+    pil.style.transform='translateY('+o.offsetTop+'px)'; pil.style.height=o.offsetHeight+'px'; pil.style.opacity='1';
+    if(salto){ void pil.offsetHeight; pil.style.transition=''; }
+  }
+  inp.setAttribute('aria-activedescendant',o.id);
+  if(desplazar){
+    /* A mano y no con scrollIntoView: éste desplaza también la página si la lista está a medias. */
+    const arriba=o.offsetTop, abajo=arriba+o.offsetHeight;
+    if(arriba<menu.scrollTop) menu.scrollTop=Math.max(0,arriba-4);
+    else if(abajo>menu.scrollTop+menu.clientHeight-8) menu.scrollTop=abajo-menu.clientHeight+12;
+  }
+}
+function _comboColocar(){
+  const inp=$('f-cli'), menu=$('cli-menu'); if(!inp||!menu||!_comboAbierto()) return;
+  const r=inp.getBoundingClientRect(), vv=window.visualViewport;
+  const vTop=vv?vv.offsetTop:0, vAlto=vv?vv.height:innerHeight;
+  /* Si el campo se fue —cambió de pantalla, o se desplazó fuera de la vista— la lista no se queda
+     flotando donde ya no hay nada que completar. */
+  if((!r.width&&!r.height)||r.bottom<vTop||r.top>vTop+vAlto){ _comboCerrar(); return; }
+  const abajo=vTop+vAlto-r.bottom-10, arriba=r.top-vTop-10;
+  menu.style.maxHeight='';
+  const natural=Math.min(menu.scrollHeight+2,300);
+  const haciaArriba=abajo<Math.min(natural,132)&&arriba>abajo;
+  const hueco=Math.max(96,Math.min(300,haciaArriba?arriba:abajo));
+  menu.style.maxHeight=hueco+'px';
+  const ancho=Math.min(Math.max(r.width,300),innerWidth-16);
+  menu.style.width=ancho+'px';
+  menu.style.left=Math.max(8,Math.min(r.left,innerWidth-ancho-8))+'px';
+  menu.style.top=Math.round(haciaArriba?r.top-menu.offsetHeight-6:r.bottom+6)+'px';
+}
+function _comboRepintarPos(e){
+  if(e&&e.target&&e.target.id==='cli-menu') return;   // el desplazamiento de la propia lista no la mueve
+  if(_comboRepos) return;
+  _comboRepos=requestAnimationFrame(()=>{ _comboRepos=0; _comboColocar(); });
+}
+function _comboVigilar(on){
+  const f=on?'addEventListener':'removeEventListener';
+  window[f]('scroll',_comboRepintarPos,{capture:true,passive:true});
+  window[f]('resize',_comboRepintarPos);
+  if(window.visualViewport){ visualViewport[f]('resize',_comboRepintarPos); visualViewport[f]('scroll',_comboRepintarPos); }
+}
+function _comboAbrir(){
+  const inp=$('f-cli'), menu=$('cli-menu'); if(!inp||!menu||_comboAbierto()) return;
+  menu.dataset.abierto='1';
+  if(menu.showPopover){ try{ menu.showPopover(); }catch(_){} } else menu.hidden=false;
+  inp.setAttribute('aria-expanded','true');
+  _comboVigilar(true);
+}
+function _comboCerrar(){
+  const inp=$('f-cli'), menu=$('cli-menu'); if(!menu||!_comboAbierto()) return;
+  delete menu.dataset.abierto;
+  if(menu.hidePopover){ try{ menu.hidePopover(); }catch(_){} } else menu.hidden=true;
+  if(inp){ inp.setAttribute('aria-expanded','false'); inp.removeAttribute('aria-activedescendant'); }
+  _comboAct=-1; _comboVozN=-1; clearTimeout(_comboVozT);
+  _comboVigilar(false);
+}
+/* Dice cuántos hay cuando la cuenta cambia, sin atropellar al que teclea: un cuarto de segundo
+   después de la última tecla, y solo si el número es otro. */
+function _comboDecir(){
+  clearTimeout(_comboVozT);
+  const n=_comboFilas.length;
+  if(n===_comboVozN) return;
+  _comboVozT=setTimeout(()=>{ _comboVozN=n; voz(n===1?'1 cliente con cuaderno':n+' clientes con cuaderno'); },450);
+}
+function _comboFiltrar(){
+  const inp=$('f-cli'), lista=$('cli-lista'); if(!inp||!lista) return;
+  const q=inp.value;
+  _comboFilas=_comboFilasPara(q);
+  if(!_comboFilas.length){ _comboCerrar(); return; }
+  lista.innerHTML=_comboFilas.map((g,i)=>_comboFilaHTML(g,i,q)).join('');
+  _comboAct=-1; _comboPintarAct(false);
+  _comboAbrir(); _comboColocar(); _comboDecir();
+}
+function _comboElegir(g){
+  const inp=$('f-cli');
+  _comboCerrar();
+  if(!g||!inp||locked()) return;
+  inp.value=g.nombre;
+  upd('cliente',g.nombre,g);
+  try{ inp.focus({preventScroll:true}); }catch(_){}
+}
+function armarComboClientes(){
+  const inp=$('f-cli'), menu=$('cli-menu'), lista=$('cli-lista');
+  if(!inp||!menu||!lista||_comboArmado) return;
+  _comboArmado=true;
+  /* Sin popover (navegadores de antes de 2024) el elemento sería un bloque visible más: se esconde
+     y se muestra a mano, con la misma posición fija. */
+  if(!menu.showPopover) menu.hidden=true;
+  inp.addEventListener('input',()=>{
+    /* upd() corre antes que este oyente (es el oninput del marcado) y, si reconoció al cliente
+       por su nombre completo, ya cerró la lista para que el lavado de los campos se vea. */
+    if(_comboNoAbrir){ _comboNoAbrir=false; _comboCerrar(); return; }
+    _comboFiltrar();
+  });
+  inp.addEventListener('click',()=>{ if(!_comboAbierto()) _comboFiltrar(); });
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+      if(!_comboAbierto()) _comboFiltrar();
+      if(!_comboFilas.length||!_comboAbierto()) return;
+      e.preventDefault();
+      const n=_comboFilas.length;
+      _comboAct=e.key==='ArrowDown'?(_comboAct+1)%n:(_comboAct<=0?n-1:_comboAct-1);
+      _comboPintarAct(true);
+    } else if(e.key==='Enter'){
+      if(_comboAbierto()&&_comboAct>=0){ e.preventDefault(); _comboElegir(_comboFilas[_comboAct]); }
+    } else if(e.key==='Escape'){
+      if(_comboAbierto()){ e.preventDefault(); e.stopPropagation(); _comboCerrar(); }
+    }
+  });
+  /* El foco nunca sale del campo: apretar en la lista no se lo lleva (mousedown) ni la cierra
+     (blur), pero DESLIZAR la lista con el dedo sigue funcionando. */
+  inp.addEventListener('blur',()=>{ if(!_comboDentro) _comboCerrar(); });
+  menu.addEventListener('pointerdown',e=>{ _comboDentro=true; e.preventDefault(); });
+  menu.addEventListener('mousedown',e=>e.preventDefault());
+  const suelta=()=>{ _comboDentro=false; };
+  menu.addEventListener('pointerup',suelta); menu.addEventListener('pointercancel',suelta);
+  window.addEventListener('blur',suelta);
+  lista.addEventListener('pointermove',e=>{
+    if(e.pointerType!=='mouse') return;   // con el dedo no hay «encima»: el resalte sale al tocar
+    const o=e.target.closest('[role="option"]');
+    if(o&&+o.dataset.i!==_comboAct){ _comboAct=+o.dataset.i; _comboPintarAct(false); }
+  });
+  lista.addEventListener('click',e=>{
+    const o=e.target.closest('[role="option"]');
+    suelta();
+    if(o) _comboElegir(_comboFilas[+o.dataset.i]);
+  });
 }
 
 /* ===================== Cálculo ===================== */

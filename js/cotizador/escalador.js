@@ -1,12 +1,12 @@
 /* ============================================================================
    Cotizador · escalador.js
 
-   Escalador Pro: medir sobre una foto con cotas, guías, lupa, zoom, y el puente del escalador a la IA y a las partidas.
+   Escalador Pro: medir sobre una foto con cotas, guías, lupa, zoom, el letrero de la partida pintado sobre la fachada a su tamaño real, y el puente del escalador a la IA y a las partidas.
 
    Es un script CLÁSICO, no un módulo ES, y el orden de carga lo fija cotizador.html. Los
    doce archivos comparten el mismo ámbito global —como cuando eran un solo <script> en
    línea—, así que un `let` o una `function` de un archivo se ve desde los demás, y los
-   161 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
+   156 manejadores en línea del marcado (onclick, oninput…) siguen resolviendo contra ese
    ámbito. Portarlo a módulos ES los dejaría mudos en silencio: ver js/mod/cotizador.js.
 
    Hasta septiembre de 2026 todo esto vivía en línea dentro de cotizador.html, en un solo
@@ -66,6 +66,11 @@ function abrirScaler(){
   // regresar es el botón "atrás", y sin esto se salía de la cotización entera.
   if(!SC.hist){ _sellarScrollDePantalla(); try{history.pushState({sc:1},'');SC.hist=true;}catch(_){} }
   if(SC.img){setTimeout(()=>{scFitCanvas();scRender();},60);}
+  scCablearPiezas();scPintarCalibRiel();scPintarRefRapidos();
+  /* El letrero se vuelve a montar al abrir: entre una vez y otra la partida pudo cambiar de
+     texto, de alto o de material, y lo que enseña tiene que ser lo que se está cotizando. La
+     posición sobre la foto sí se conserva. */
+  SC_LF.montado=false;scLetreroPintar();
   scUpdateList();scAjustarToast();
 }
 function scOcultarScaler(){
@@ -93,6 +98,7 @@ async function cargarImagenScaler(input){
   const f=input.files[0];if(!f)return;
   if(!await scPuedeCambiarImagen()){input.value='';return;}
   if(f.type==='application/pdf'){scLoadPDF(f);input.value='';return;}
+  _scPdfSeq++;   // una imagen elegida ahora gana a un PDF que todavía se esté abriendo
   const r=new FileReader();
   r.onload=ev=>scLoadImgSrc(ev.target.result,f.name);
   r.readAsDataURL(f);
@@ -105,11 +111,21 @@ async function usarImagenAIEnScaler(){
      y pasado por un <img> salía «puede estar dañada», que es falso y no dice qué hacer. Se
      abre por el mismo lector que el PDF elegido a mano. */
   if(scEsPdfIA()){
+    /* El mismo recuadro del lienzo que el PDF elegido a mano (H12): traer el archivo que
+       analizó la IA es un paso más de la misma traza, y el error se queda ahí, no en un
+       aviso que se va solo mientras el lienzo sigue invitando a cargar una imagen. */
+    const t=scOverlayPdf(true),mio=_scPdfSeq;
+    if(t)t.paso('traer','Trayendo el plano que analizó la IA','trabaja');
     fetch(Q.aiFile.url).then(r=>r.blob())
-      .then(b=>scLoadPDF(new File([b],Q.aiFile.name||'plano.pdf',{type:'application/pdf'})))
-      .catch(()=>toast('No se pudo abrir el PDF analizado — ábrelo de nuevo con «Cargar imagen»','err',5200));
+      .then(b=>{
+        if(mio!==_scPdfSeq)return;   // se pidió otro archivo mientras este venía
+        if(t)t.hecho('traer');
+        return scLoadPDF(new File([b],Q.aiFile.name||'plano.pdf',{type:'application/pdf'}),t,mio);
+      })
+      .catch(()=>{ if(mio===_scPdfSeq)scOverlayPdfFalla(t,'traer','No se pudo traer el PDF analizado — ábrelo de nuevo con «Cargar imagen»'); });
     return;
   }
+  _scPdfSeq++;
   scLoadImgSrc(Q.aiFile.url,'imagen IA');
 }
 /* ¿Lo que analizó la IA es un PDF? Lo usan el escalador y el vectorizador. */
@@ -134,6 +150,7 @@ function scResetMMode(){ SC.mMode='libre'; try{ scSetMeasMode&&scSetMeasMode('li
    así que no se podían volver a agregar. */
 function scReset(){
   if(typeof SC==='undefined') return;
+  try{ scListaOlvidar(); }catch(_){}
   SC.img=null; SC.items=[]; SC.guides=[]; SC.sel=null; SC.nid=1; SC.nc=0;
   SC.building=false; SC.tapA=null; SC.dragH=null; SC.down=false;
   SC.cotas='todas';
@@ -185,6 +202,9 @@ function scRestaurar(s){
       $('sc-calib-txt').textContent='Escala calibrada';
     }catch(_){}
   }
+  /* El riel de tres pasos (H11) también: sin esto, tras «deshacer» un vaciado el panel decía
+     «Escala calibrada» y el riel seguía en el paso 1 de una foto que ya tiene escala. */
+  try{ scPintarCalibRiel(); }catch(_){}
   try{ scUpdateList(); }catch(_){}
   try{ scUpdateGuideList(); }catch(_){}
   try{ scUpdateCotasUI(); }catch(_){}
@@ -196,7 +216,11 @@ function scRestaurar(s){
 function scPuedeCambiarImagen(){
   if(!(SC.img&&SC.items&&SC.items.length)) return Promise.resolve(true);
   const n=SC.items.length;
-  return confirmar({titulo:'La imagen actual tiene '+n+(n===1?' medida':' medidas'),texto:'Al cargar otra imagen se borran.',si:'Cargar la otra',no:'Conservar las medidas',peligro:true});
+  /* Con `sostener`: es la única pregunta del cotizador que de verdad BORRA —las medidas tomadas
+     sobre la foto, que no se pueden deshacer—, y por eso se confirma sosteniendo el botón. Las otras
+     cuatro preguntas rojas solo avisan de que se pierde lo que está en pantalla, y se contestan con
+     un toque (ver confirmar() en nucleo.js). */
+  return confirmar({titulo:'La imagen actual tiene '+n+(n===1?' medida':' medidas'),texto:'Al cargar otra imagen se borran.',si:'Cargar la otra',no:'Conservar las medidas',peligro:true,sostener:true});
 }
 /* ----- Un error que dice qué hacer, no solo qué falló -----
    Los dos <input> aceptan `image/*`, así que un .HEIC que llegó por AirDrop o por correo se
@@ -211,7 +235,7 @@ function errImagen(name){
     ? `No se pudo abrir «${n}» — este navegador no lee ese formato. Ábrela en Fotos y guárdala como JPG, o mándala por WhatsApp, que la convierte`
     : `No se pudo abrir «${n||'la imagen'}» — puede estar dañada o ser demasiado grande. Guárdala como JPG y vuelve a intentar`;
 }
-function scLoadImgSrc(src,name,alCargar){
+function scLoadImgSrc(src,name,alCargar,alFallar){
   const img=new Image();
   img.onload=()=>{
     SC.img=img;SC.imgW=img.naturalWidth;SC.imgH=img.naturalHeight;scDropCache();
@@ -221,12 +245,15 @@ function scLoadImgSrc(src,name,alCargar){
     if(SC.objUrl&&SC.objUrl!==src&&SC.objUrl!==VT.objUrl){try{URL.revokeObjectURL(SC.objUrl);}catch(_){}}
     SC.objUrl=/^blob:/.test(src)?src:null;
     scResetCalib(false);
+    scListaOlvidar();   // los números de las medidas vuelven a empezar en 1: la lista no debe creerlas vistas
     SC.items=[];SC.sel=null;SC.nid=1;SC.nc=0;_scBorrada=null;
     SC.guides=[];SC.gid=1;SC.draggingGuide=null;SC.dragH=null;
+    SC_LF.nx=.5;SC_LF.ny=.34;   // el letrero de la función 32 vuelve a su sitio de salida sobre la foto nueva
     /* Las cotas vuelven a verse enteras: una foto nueva empieza sin medidas, y heredar
        «ninguna» de la anterior dejaba al que mide trazando líneas que no aparecían. */
     SC.cotas='todas';
     $('sp-overlay').classList.add('hide');
+    scOverlayPdf(false);   // y el recuadro vuelve a su cara de siempre, por si venía de un PDF
     $('sp-zoom').style.display='flex';
     scEnableTools(true);scFitCanvas();scRender();scUpdateList();scUpdateGuideList();
     scSetMode('ref');
@@ -236,7 +263,9 @@ function scLoadImgSrc(src,name,alCargar){
        que quede en pantalla. */
     if(alCargar){ try{ alCargar(); }catch(_){} }
   };
-  img.onerror=()=>toast(errImagen(name),'err',6400);
+  /* Quien abre un PDF ya tiene el recuadro del lienzo en sus pasos: si la hoja se pintó pero el
+     navegador no la decodifica, el motivo va AHÍ (alFallar) y no en un aviso que se va. */
+  img.onerror=()=>{ if(alFallar){ try{ alFallar(errImagen(name)); }catch(_){} } else toast(errImagen(name),'err',6400); };
   img.src=src;
 }
 /* ----- pdf.js, el de cdnjs y ningún otro -----
@@ -253,17 +282,74 @@ function scLoadImgSrc(src,name,alCargar){
    importScripts() dentro de un worker de blob, y ahí no hay atributo que poner. Lo cubre la
    CSP (worker-src) y que el código del hilo principal ya viene verificado. */
 const PDFJS_SRI='sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e';
-async function scLoadPDF(f){
-  toast('Cargando PDF…','',8000);
+/* ----- H12 · el PDF se abre DENTRO del lienzo, con su reloj y su error en su sitio -----
+   Abrir un plano en PDF puede tardar: la primera vez se baja el lector de cdnjs y luego se
+   renderiza una hoja que puede pesar. Todo eso se anunciaba con un aviso abajo de 8 s —«Cargando
+   PDF…»— mientras el recuadro del lienzo seguía diciendo «Carga una imagen para medir». Los dos
+   síntomas eran del mismo defecto: se veía como que el toque no había hecho nada, así que se
+   volvía a tocar; y cuando fallaba, el motivo llegaba en OTRO aviso, lejos de donde se estaba
+   mirando y sin decir qué hacer a continuación.
+
+   Ahora el mismo recuadro pasa a los pasos que están corriendo (pieza 8, la traza, con reloj de
+   décimas) y, si falla, ahí se queda el motivo con «Elegir otro archivo». Con una foto ya
+   cargada hay además una salida para dejarla como estaba: el error no puede secuestrar el
+   lienzo de una medición a medias. */
+/* Cuál es la apertura de PDF vigente. Se pide otro archivo mientras el anterior sigue bajando el
+   lector o pintando su hoja —es lo que hace quien eligió el equivocado—, y los dos terminaban:
+   el más lento pisaba al más nuevo con su foto y su recuadro. Cada apertura anota su número al
+   empezar y, al volver de cada espera, si ya no es el vigente calla y se va. */
+let _scPdfSeq=0;
+function scOverlayPdf(ver){
+  const ov=$('sp-overlay'),vacio=$('sc-overlay-vacio'),pdf=$('sc-overlay-pdf');
+  if(!ov||!vacio||!pdf)return null;
+  pdf.classList.remove('mal');
+  if(!ver){
+    pdf.hidden=true;vacio.hidden=false;
+    $('sc-overlay-mal').hidden=true;
+    if(SC.img)ov.classList.add('hide');
+    return null;
+  }
+  _scPdfSeq++;
+  ov.classList.remove('hide');
+  vacio.hidden=true;pdf.hidden=false;
+  $('sc-overlay-mal').hidden=true;
+  $('sc-overlay-seguir').hidden=!SC.img;
+  const t=window.Piezas?Piezas.traza('sc-overlay-pasos',{reloj:'ds'}):null;
+  /* La traza es la misma de siempre sobre el mismo nodo: sin vaciarla, el segundo PDF del día
+     arrancaba con los pasos del primero ya marcados. */
+  if(t)t.limpiar();
+  return t;
+}
+/* La salida cuando el PDF falló y ya había una foto cargada: se vuelve a lo que había. */
+function scCerrarOverlayPdf(){ _scPdfSeq++; scOverlayPdf(false); }
+/* El paso que falló lleva solo la ✕ y su nombre; el motivo, completo y con lo que hay que hacer,
+   va debajo, con las dos salidas. Escrito en las dos partes se leía dos veces seguidas. */
+function scOverlayPdfFalla(t,clave,motivo){
+  if(t){ t.falla(clave,null); t.terminar({ok:false}); }   // terminar: que ningún paso se quede girando
+  const caja=$('sc-overlay-mal'),p=$('sc-overlay-motivo');
+  if(p)p.textContent=motivo;
+  if(caja)caja.hidden=false;
+  const pdf=$('sc-overlay-pdf');if(pdf)pdf.classList.add('mal');
+  $('sc-overlay-seguir').hidden=!SC.img;
+  voz('No se pudo abrir el PDF. '+motivo,true);
+}
+async function scLoadPDF(f,traza,mio){
+  if(mio===undefined){ traza=scOverlayPdf(true); mio=_scPdfSeq; }
+  const t=traza,vigente=()=>mio===_scPdfSeq;
   try{
     if(!window.pdfjsLib){
+      if(t)t.paso('lector','Bajando el lector de PDF','trabaja');
       /* s.onerror no trae mensaje, así que el catch de abajo imprimía «Error PDF: undefined»
          —el caso más común es simplemente estar sin señal, porque el lector se descarga la
          primera vez— y no había forma de saber qué había pasado ni qué hacer. */
       await new Promise((res,rej)=>{const s=document.createElement('script');s.integrity=PDFJS_SRI;s.crossOrigin='anonymous';s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=res;s.onerror=()=>rej(new Error('se necesita conexión para leer un PDF: el lector se descarga la primera vez. Exporta el plano como JPG o PNG y vuelve a intentar'));document.head.appendChild(s);});
       pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      if(!vigente())return;
+      if(t)t.hecho('lector');
     }
+    if(t)t.paso('hoja','Abriendo la primera hoja','trabaja');
     const ab=await f.arrayBuffer();
+    if(!vigente())return;
     /* Cada documento de pdf.js levanta su propio Web Worker y lo tiene vivo hasta destroy():
        sin él, cada PDF abierto dejaba un worker más con el plano entero en memoria, uno por
        cada plano que se abriera en el día. Se destruye en cuanto la página ya quedó pintada
@@ -288,8 +374,15 @@ async function scLoadPDF(f){
       try{oc.toBlob(b=>res(b?URL.createObjectURL(b):oc.toDataURL()),'image/png');}
       catch(_){res(oc.toDataURL());}
     });
-    scLoadImgSrc(url,f.name);
-  }catch(e){toast('No se pudo abrir el PDF: '+((e&&e.message)||'el archivo no se pudo leer'),'err',7000);}
+    if(!vigente())return;
+    if(t)t.terminar({ok:true});
+    /* scLoadImgSrc esconde el recuadro en cuanto la imagen carga. Si la hoja se pintó pero el
+       navegador no la decodifica, el motivo se queda en el recuadro, con sus salidas. */
+    scLoadImgSrc(url,f.name,null,m=>{ if(vigente())scOverlayPdfFalla(t,'hoja',m); });
+  }catch(e){
+    if(!vigente())return;
+    scOverlayPdfFalla(t,window.pdfjsLib?'hoja':'lector',(e&&e.message)||'el archivo no se pudo leer');
+  }
 }
 
 /* ----- Resolución de dibujo -----
@@ -516,6 +609,48 @@ function scGestureMove(e){
   scApplyTransform();
 }
 /* ----- Lupa (para ver bajo el dedo al trazar) ----- */
+/* Lo que se cablea UNA vez, la primera vez que se abre el escalador. Aquí y no al cargar el
+   guion: cotizador.html pinta el modal antes que los guiones, pero las piezas se enganchan a
+   elementos que pueden repintarse, y hacerlo al abrir deja el enganche siempre sobre lo que
+   hay de verdad en pantalla. Todas las piezas son idempotentes, así que llamar de más no
+   duplica oyentes. */
+let _scCableado=false;
+function scCablearPiezas(){
+  if(_scCableado)return;
+  _scCableado=true;
+  /* Todo lo que este archivo suma al modal se engancha AQUÍ, con addEventListener y no con
+     atributos en el marcado: cotizador.html lleva contados sus manejadores en línea y cada
+     `onclick` nuevo movía esa cuenta, que la documentación afirma. */
+  /* H12 · las dos salidas del recuadro cuando el PDF falla. */
+  const mal=$('sc-overlay-mal');
+  if(mal)mal.addEventListener('click',e=>{
+    const b=e.target.closest&&e.target.closest('[data-sc-accion]');if(!b)return;
+    if(b.dataset.scAccion==='elegir')$('scaler-img-input').click();
+    else if(b.dataset.scAccion==='dejar')scCerrarOverlayPdf();
+  });
+  /* Función 32 · el letrero sobre la foto. */
+  const sec=$('sc-sec-letrero');
+  if(sec)sec.addEventListener('toggle',()=>{
+    scLetreroPintar();
+    /* Al abrirla, sus controles a la vista: en el teléfono la sección nace debajo de la lista y
+       del pie pegado, y abrirla sin que se viera qué cambió parecía un toque perdido. */
+    if(sec.open)requestAnimationFrame(()=>scLlevarAVista(sec));
+  });
+  const on=(id,ev,fn)=>{ const n=$(id); if(n)n.addEventListener(ev,fn); };
+  on('sc-lf-texto','input',e=>scLetreroTexto(e.target.value));
+  on('sc-lf-alto','input',e=>scLetreroAlto(e.target.value));
+  on('sc-lf-pasar','click',scLetreroPasarAlto);
+  on('sc-lf-cuales','click',e=>{
+    const b=e.target.closest&&e.target.closest('[data-lf-partida]');
+    if(b)scLetreroElegir(Number(b.dataset.lfPartida));
+  });
+  scLetreroCablear();
+  if(!window.Piezas)return;
+  /* H26 #2 · la ficha que viaja en el selector de cotas: el resaltado se deslizaba de golpe
+     entre «Todas», «La elegida» y «Ninguna» y no se veía de dónde a dónde había ido. */
+  const cotas=$('sc-cotas-todas');
+  if(cotas&&cotas.parentElement)Piezas.fichaQueViaja(cotas.parentElement);
+}
 const SC_LOUPE=132;
 /* Dónde se centra la lupa: en el punto que va a quedar —el extremo que se está
    moviendo, o el punto ya ajustado al eje— y no en el dedo, que es lo que tapa. */
@@ -530,32 +665,145 @@ function scLoupePt(){
   if(SC.down&&SC.sp&&SC.cp)return scSnap(SC.sp,SC.cp);
   return SC.cp||SC.sp;
 }
-function scLoupe(e){
-  const tt=scTT(e);if(!tt)return;
-  const src=scLoupePt();if(!src)return;
-  const lp=$('sc-loupe'),size=SC_LOUPE,mag=2.8,t=tt[0];
-  let lx=t.clientX-size/2,ly=t.clientY-size-30;
-  if(ly<8)ly=t.clientY+34;
-  lx=Math.max(8,Math.min(window.innerWidth-size-8,lx));
-  /* Con transform y no con left/top: sigue al dedo igual de instantánea, pero se compone en la
-     GPU en vez de recalcular el layout en cada movimiento del dedo. */
-  lp.style.transform='translate3d('+lx+'px,'+ly+'px,0)';lp.style.display='block';
-  const lc=$('sc-loupe-cvs'),dpr=scDPR(),px=Math.round(size*dpr);
+/* ----- H5 · la cruz de la lupa se cierra en cuatro esquinas cuando el punto se engancha -----
+   El pegado a una guía solo se marcaba en el lienzo de atrás (guía sólida), que es lo que
+   tapa la mano justo al medir con el dedo: dentro de la lupa la guía se veía igual, pegada o
+   no, y no había forma de saber si el punto había enganchado antes de soltar. Ahora la cruz
+   de siempre se convierte en las cuatro esquinas de la pieza 17 (P.senalar.lienzo), que se
+   cierran sobre el punto, y la guía enganchada se pinta sólida (scSceneLite).
+
+   El cierre dura 120 ms y corre SOLO al cambiar de estado (detección de flanco). No es un
+   bucle en reposo: la lupa se repinta con cada movimiento del dedo, pero si el dedo se queda
+   quieto justo a media transición nadie la repintaría, así que esos 120 ms sí piden cuadros
+   propios —y se apagan solos al llegar—. Con menos movimiento no hay transición: se salta al
+   estado final y no se pide un solo cuadro.
+
+   Cada uno de esos cuadros VUELVE A DIBUJAR la lupa entera (scLoupeDibujar), no solo la mira.
+   La primera versión repintaba nada más las esquinas encima de lo que ya había: cada cuadro
+   dejaba su marca y, con el dedo quieto sobre la guía —que es justo cuando se quiere ver si
+   enganchó—, la lupa se quedaba con siete juegos de esquinas a distintos radios, como una
+   estela. La foto se lee del original en un círculo de 132 px, así que redibujar ocho veces en
+   120 ms cuesta menos que cualquier movimiento del dedo. */
+const SC_ESQ_MS=120;
+const SC_ESQ={desde:0,hasta:0,t0:0,raf:0};
+function scEsqNivel(){
+  if(_scSinMov())return SC_ESQ.hasta;
+  const t=Math.min(1,(performance.now()-SC_ESQ.t0)/SC_ESQ_MS);
+  const e=1-Math.pow(1-t,3);
+  return SC_ESQ.desde+(SC_ESQ.hasta-SC_ESQ.desde)*e;
+}
+function scEsqCambia(hasta){
+  if(SC_ESQ.hasta===hasta)return;
+  SC_ESQ.desde=scEsqNivel();SC_ESQ.hasta=hasta;SC_ESQ.t0=performance.now();
+  cancelAnimationFrame(SC_ESQ.raf);SC_ESQ.raf=0;
+  if(_scSinMov())return;
+  const paso=()=>{
+    SC_ESQ.raf=0;
+    if($('sc-loupe').style.display!=='block')return;   // se soltó el dedo a media transición
+    scLoupeDibujar();
+    if(performance.now()-SC_ESQ.t0<SC_ESQ_MS)SC_ESQ.raf=requestAnimationFrame(paso);
+  };
+  SC_ESQ.raf=requestAnimationFrame(paso);
+}
+/* ¿El punto que se va a dejar está enganchado a algo? Con una guía pegada o con un extremo
+   ya puesto en la mano, sí: las dos son «llegaste a un sitio exacto». */
+function scLupaEnganchada(){ return !!(SC.snapH||SC.snapV||SC.dragH); }
+/* ----- H4 · lo que dice la etiqueta de la lupa -----
+   Cifras cortas: la etiqueta vive entre el círculo y el dedo, y a 360 px un texto de dos
+   renglones la haría crecer hacia abajo, justo encima de lo que se está mirando. */
+function scTextoLupa(){
+  const pegado=(SC.snapH||SC.snapV)?' · en la guía':'';
+  const h=SC.dragH;
+  if(h){
+    if(h.kind==='ref')return (SC.refCm>0?'Referencia · '+scFmtCm(SC.refCm)+' cm':'Referencia')+pegado;
+    const i=SC.items.indexOf(h.item)+1;
+    return 'Medida '+i+' · '+scFmtCm(h.item.cm||0)+' cm'+pegado;
+  }
+  const esRef=(SC.mode==='ref'||SC.mode==='ref-drawn');
+  if(SC.down&&SC.sp&&SC.cp){
+    const d=scDist(SC.sp,esRef?SC.cp:scSnap(SC.sp,SC.cp));
+    if(esRef)return 'Referencia'+pegado;
+    const cm=SC.nativePxPerCm>0?(d*SC.scaleFactor)/SC.nativePxPerCm:0;
+    return (cm>0?scFmtCm(cm)+' cm':'Sin escala')+pegado;
+  }
+  return (esRef?'Primer punto de la referencia':'Primer punto')+pegado;
+}
+/* Lo último que se pintó en la lupa: el punto de la foto que enseña y dónde quedó el círculo
+   en la pantalla. Los cuadros del cierre de esquinas —que llegan sin que el dedo se mueva— lo
+   reusan para volver a dibujar exactamente lo mismo. */
+const SC_LUPA={src:null,cx:0,ly:0,ancho:0};
+/* La mira: la cruz de siempre y, cerrándose sobre ella, las cuatro esquinas de la pieza 17.
+   Dibuja SOLO la mira, encima de la escena que scScene ya puso: quien la llama es
+   scLoupeDibujar, que empieza siempre por la escena. */
+function scLoupePintarMira(lctx){
+  const size=SC_LOUPE,dpr=scDPR(),c0=size/2;
+  lctx.setTransform(dpr,0,0,dpr,0,0);
+  const q=window.Piezas&&Piezas.senalar?scEsqNivel():0,az=azulMarca();
+  /* El azul de la marca por azulMarca(), no por var(): «rgba(var(--a-rgb),.95)» el lienzo lo
+     ignora callado y la cruz salía negra, justo sobre la foto oscura donde más hace falta. */
+  if(q<1){
+    lctx.save();lctx.globalAlpha=.95*(1-q);
+    lctx.strokeStyle=az;lctx.lineWidth=1.5;
+    lctx.beginPath();lctx.moveTo(c0-16,c0);lctx.lineTo(c0+16,c0);
+    lctx.moveTo(c0,c0-16);lctx.lineTo(c0,c0+16);lctx.stroke();
+    lctx.restore();
+  }
+  if(q>0){
+    const r=26-14*q;   // de 26 px a 12: las esquinas se cierran sobre el punto
+    lctx.save();lctx.globalAlpha=q;
+    Piezas.senalar.lienzo(lctx,{x:c0-r,y:c0-r,w:2*r,h:2*r},{largo:7,grosor:2.5,color:az});
+    lctx.restore();
+  }
+}
+/* La cifra va centrada bajo el círculo y nunca se sale de la pantalla: es más ancha que él
+   («Medida 12 · 1234.5 cm · en la guía») y con la lupa pegada a un borde, alineada a su
+   esquina, se cortaba justo la unidad. El ancho se mide solo cuando el texto cambia. */
+function scLoupeCifra(){
+  const etq=$('sc-loupe-cifra');if(!etq)return;
+  const t=scTextoLupa();
+  if(etq.textContent!==t){etq.textContent=t;SC_LUPA.ancho=0;}
+  if(!SC_LUPA.ancho)SC_LUPA.ancho=etq.offsetWidth||0;
+  const w=SC_LUPA.ancho,x=Math.max(8,Math.min(window.innerWidth-w-8,SC_LUPA.cx-w/2));
+  etq.style.transform='translate3d('+Math.round(x)+'px,'+Math.round(SC_LUPA.ly+SC_LOUPE+8)+'px,0)';
+}
+/* La lupa entera: la escena centrada en el punto, la mira y la cifra. */
+function scLoupeDibujar(){
+  const src=SC_LUPA.src;if(!src)return;
+  const size=SC_LOUPE,mag=2.8,lc=$('sc-loupe-cvs'),dpr=scDPR(),px=Math.round(size*dpr);
   if(lc.width!==px){lc.width=lc.height=px;lc.style.width=lc.style.height=size+'px';}
   const lctx=lc.getContext('2d');
   // La lupa redibuja la escena centrada en el punto y con más aumento, en vez de
   // ampliar el lienzo ya dibujado: así enseña detalle real de la foto, no píxeles estirados.
   scScene(lctx,size,size,src.x,src.y,(SC.z||1)*mag,dpr,false,true);
-  lctx.setTransform(dpr,0,0,dpr,0,0);
-  /* El azul de la marca por azulMarca(), no por var(): «rgba(var(--a-rgb),.95)» el lienzo lo
-     ignora callado y la cruz salía negra, justo sobre la foto oscura donde más hace falta. */
-  lctx.save();lctx.globalAlpha=.95;
-  lctx.strokeStyle=azulMarca();lctx.lineWidth=1.5;
-  lctx.beginPath();lctx.moveTo(size/2-16,size/2);lctx.lineTo(size/2+16,size/2);
-  lctx.moveTo(size/2,size/2-16);lctx.lineTo(size/2,size/2+16);lctx.stroke();
-  lctx.restore();
+  scLoupePintarMira(lctx);
+  scLoupeCifra();
 }
-function scHideLoupe(){const lp=$('sc-loupe');if(lp)lp.style.display='none';}
+function scLoupe(e){
+  const tt=scTT(e);if(!tt)return;
+  const src=scLoupePt();if(!src)return;
+  const lp=$('sc-loupe'),size=SC_LOUPE,t=tt[0];
+  /* El círculo sube 34 px más que antes: la cifra (H4) ocupa el hueco entre él y el dedo, y
+     con los 30 px de siempre quedaba justo debajo de la yema, es decir, tapada por la mano
+     que se le quería ahorrar. Con la lupa por debajo del dedo —cerca del borde de arriba— la
+     cifra va bajo el círculo, más lejos aún. */
+  let lx=t.clientX-size/2,ly=t.clientY-size-64;
+  if(ly<8)ly=t.clientY+34;
+  lx=Math.max(8,Math.min(window.innerWidth-size-8,lx));
+  /* Con transform y no con left/top: sigue al dedo igual de instantánea, pero se compone en la
+     GPU en vez de recalcular el layout en cada movimiento del dedo. */
+  lp.style.transform='translate3d('+lx+'px,'+ly+'px,0)';lp.style.display='block';
+  const etq=$('sc-loupe-cifra');if(etq)etq.style.display='block';
+  SC_LUPA.src=src;SC_LUPA.cx=lx+size/2;SC_LUPA.ly=ly;
+  scEsqCambia(scLupaEnganchada()?1:0);
+  scLoupeDibujar();
+}
+function scHideLoupe(){
+  const lp=$('sc-loupe');if(lp)lp.style.display='none';
+  const etq=$('sc-loupe-cifra');if(etq)etq.style.display='none';
+  cancelAnimationFrame(SC_ESQ.raf);SC_ESQ.raf=0;
+  SC_ESQ.desde=SC_ESQ.hasta=0;   // la próxima lupa nace con su cruz, sin heredar el cierre
+  SC_LUPA.src=null;SC_LUPA.ancho=0;
+}
 window.addEventListener('resize',()=>{
   if(!(SC.img&&$('scalermodal').classList.contains('show')))return;
   // Teclado en pantalla: en Chrome Android encoge el viewport ~300 px, así que tocar el
@@ -603,9 +851,15 @@ function scSceneLite(ctx,k){
   };
   // Las guías también en la lupa: sirven para pegar el punto al borde ya marcado
   // sin tener que alejar la foto para verlo.
+  /* Y la que tiene pegado el punto se pinta SÓLIDA, igual que en el lienzo de atrás
+     (scDrawGuides). Hasta hoy dentro de la lupa todas salían punteadas, pegada o no: el
+     único sitio donde se veía el enganche era el lienzo principal, que es justo lo que
+     tapa la mano al medir con el dedo. Ver H5. */
   SC.guides.forEach(g=>{
-    if(g.type==='h'){const y=g.pos*SC.cvsH;linea({x:-SC.cvsW,y},{x:SC.cvsW*2,y},SC_GUIDE_COLOR,true);}
-    else{const x=g.pos*SC.cvsW;linea({x,y:-SC.cvsH},{x,y:SC.cvsH*2},SC_GUIDE_COLOR,true);}
+    const pegada=(SC.down||SC.dragH)&&(g===SC.snapH||g===SC.snapV);
+    const col=pegada?'#0e7490':SC_GUIDE_COLOR;
+    if(g.type==='h'){const y=g.pos*SC.cvsH;linea({x:-SC.cvsW,y},{x:SC.cvsW*2,y},col,!pegada);}
+    else{const x=g.pos*SC.cvsW;linea({x,y:-SC.cvsH},{x,y:SC.cvsH*2},col,!pegada);}
   });
   if(SC.refLine)linea({x:SC.refLine.nx1*SC.cvsW,y:SC.refLine.ny1*SC.cvsH},
                       {x:SC.refLine.nx2*SC.cvsW,y:SC.refLine.ny2*SC.cvsH},'#f59e0b',true);
@@ -707,6 +961,10 @@ function scRender(){
   // El centro de la vista en coordenadas lógicas, a partir del zoom y el desplazamiento
   const cx=SC.cvsW/2-SC.tx/SC.z,cy=SC.cvsH/2-SC.ty/SC.z;
   scScene($('scalerCanvas').getContext('2d'),SC.vw,SC.vh,cx,cy,SC.z,SC.rs,true);
+  /* El letrero de la función 32 va encima de la foto, así que se recoloca en el MISMO cuadro
+     en el que la foto se redibuja: por su cuenta iría un cuadro por detrás y se vería nadar
+     sobre la fachada al acercar o al desplazar. */
+  scLetreroColocar();
 }
 /* Guías: líneas de referencia que el usuario coloca a mano para ubicar dónde termina
    un diseño y empieza otro. Cruzan todo lo visible (no solo la foto) y no se cuentan
@@ -981,7 +1239,8 @@ const SC_SNAP_PX=13; // a esta distancia de una guía (px de pantalla) el punto 
    X, y si hay una de cada una el punto cae justo en el cruce. Es lo que hace útiles a
    las guías para medir: se marca una vez dónde termina un diseño y desde ese borde
    salen todas las medidas, sin tener que atinarle a pulso cada vez. */
-function scSnapGuides(pt){
+function scSnapGuides(pt,callado){
+  const antesH=SC.snapH,antesV=SC.snapV;
   SC.snapH=null;SC.snapV=null;
   if(!SC.snapOn||!SC.guides.length)return pt;
   const thr=SC_SNAP_PX/(SC.z||1);
@@ -996,6 +1255,15 @@ function scSnapGuides(pt){
       if(d<dv){dv=d;out.x=x;SC.snapV=g;}
     }
   });
+  /* Un golpecito al ENGANCHAR, y solo al enganchar (H5). El pegado es lo único que pasa sin
+     que el dedo haga nada distinto —la mano tapa la guía— y con el aviso en la mano ya no
+     hace falta despegar el dedo para comprobar si quedó en el borde. Soltar la guía no
+     vibra: sería ruido en la mano cada vez que el punto pasa de largo. Tampoco al AGARRAR un
+     extremo que ya estaba sobre una guía (`callado`): ahí no hay nada que enganchar, solo se
+     calcula el estado para que la lupa lo diga. vibrar() ya respeta «reducir movimiento» y no
+     vibra si nadie ha tocado la pantalla todavía. */
+  if(!callado&&(SC.down||SC.dragH)&&((SC.snapH&&SC.snapH!==antesH)||(SC.snapV&&SC.snapV!==antesV)))
+    try{vibrar([6]);}catch(_){}
   return out;
 }
 /* Punto del evento ya pegado a las guías. Lo usan todos los puntos que se colocan
@@ -1192,6 +1460,10 @@ function scGuideDragStart(g,e){
 function scDown(e){
   if(scNT(e)>=2){scGestureStart(e);return;}
   if(SC.gesture)return;
+  /* Cada gesto empieza sin nada pegado. snapH/snapV se quedaban con la guía del gesto anterior
+     hasta el primer movimiento, y la lupa (H4/H5) —que los lee para decir «en la guía»— arrancaba
+     diciéndolo sobre un punto que todavía no había tocado ninguna. */
+  SC.snapH=null;SC.snapV=null;
   const pt=scGetXY(e),touch=!!(e.touches&&e.touches.length);
   // La pestaña de una guía gana al resto: es un objetivo pequeño y del borde, no estorba
   if(SC.img){
@@ -1209,6 +1481,9 @@ function scDown(e){
       if(h.kind==='item'){SC.sel=h.item.id;h.cm0=h.item.cm;}   // para saber al soltar si cambió (scEndHandle)
       else h.ref0=JSON.parse(JSON.stringify(SC.refLine));   // la referencia antes de moverla: «Deshacer» la regresa a su lugar
       SC.cp={...pt};
+      /* El extremo que se agarra puede estar ya sobre una guía —así se puso—: se dice desde el
+         primer cuadro de la lupa, no hasta que el dedo lo mueva. */
+      { const p0=scLoupePt(); if(p0) scSnapGuides(p0,true); }
       scSetHint(h.kind==='ref'
         ?'Ajustando la referencia — suelta donde va'
         :'Ajustando la medida '+(SC.items.indexOf(h.item)+1)+' — suelta donde va');
@@ -1320,11 +1595,15 @@ function scCommitLine(a,b){
     SC.mode='ref-drawn';
     $('sc-ref-confirm-row').style.display='';
     $('sc-ref-cm-input').value='';
+    scPintarCalibRiel();
+    scPintarRefRapidos();
     // En el celular no se le roba el foco al campo: el teclado tapa el panel entero
     // (con él, el botón de confirmar quedaba debajo del teclado). Se acerca y se resalta.
     if(scIsMobile()){
       const row=$('sc-ref-confirm-row');
-      try{row.scrollIntoView({block:'nearest',behavior:_menosMovimiento()?'auto':'smooth'});}catch(_){}   // la hoja no alcanza un scroll pedido desde JS
+      /* Por scLlevarAVista y no por scrollIntoView: el pie pegado del panel tapa el fondo de la
+         caja, y «a la vista» para scrollIntoView era debajo de los botones de agregar. */
+      scLlevarAVista(row);
       row.classList.remove('sc-flash');void row.offsetWidth;row.classList.add('sc-flash');
     }else{
       try{$('sc-ref-cm-input').focus({preventScroll:true});}catch(_){$('sc-ref-cm-input').focus();}
@@ -1351,6 +1630,110 @@ function scCommitLine(a,b){
   return true;
 }
 
+/* ----- H30 · las medidas de siempre, como opciones elegidas -----
+   Eran cinco botones con un emoji cada uno (🚪🧍🪟🚗⬜) que escribían un número en el campo y
+   no dejaban rastro: tocar «200» y volver a mirar el panel no decía cuál se había elegido, y
+   dos toques seguidos en botones distintos se veían exactamente igual. Los emojis, además,
+   están fuera del sprite y los pinta cada teléfono a su manera: el de la puerta sale marrón
+   en uno y gris en otro, y en el Fold ni siquiera es una puerta.
+
+   Ahora es un grupo de opciones de verdad (pieza 18): la elegida queda marcada, se recorre con
+   las flechas, mide 48 px de alto y se DESMARCA sola si alguien teclea otra cifra —el campo
+   sigue mandando—. No llevan icono: el sprite del cotizador no tiene puerta, persona, ventana
+   ni auto, y meter cinco símbolos nuevos al sprite compartido por un rótulo de cinco letras no
+   se paga. Lo que se lee es lo que importa: qué objeto y cuánto mide.
+
+   La puerta son 200 cm y vive en UNA constante, la misma que usa el letrero sobre la foto
+   (función 32) para decir contra qué calibrar. Es la decisión 4 del paquete: se queda la
+   medida del repo, no la de la muestra. */
+const SC_REF_PUERTA_CM=200;
+const SC_REF_RAPIDOS=[
+  {cm:SC_REF_PUERTA_CM,que:'Puerta'},
+  {cm:175,que:'Persona'},
+  {cm:120,que:'Ventana'},
+  {cm:145,que:'Auto'},
+  {cm:40, que:'Loseta'},
+];
+let _scRefOpc=null;
+/* Si la última elección salió de un toque o de un clic. Las flechas de un grupo de radio eligen
+   al pasar, y si cada flecha mandara el foco a «Confirmar escala», quien recorre las opciones
+   con el teclado saldría del grupo en la primera. El foco salta solo cuando hubo un toque. */
+let _scRefPorToque=false;
+function scPintarRefRapidos(){
+  const cont=$('sc-ref-rapidos');if(!cont||!window.Piezas)return;
+  /* «una puerta mide 200 cm» del texto de ayuda sale de la misma constante que la ficha de la
+     puerta y que el letrero sobre la foto (función 32): una sola cifra que cambiar. */
+  document.querySelectorAll('#scalermodal [data-sc-puerta]').forEach(n=>{ n.textContent=SC_REF_PUERTA_CM; });
+  if(!cont.querySelector('.glide')){
+    cont.insertAdjacentHTML('beforeend',Piezas.opcionesDeslizantesHTML({
+      etiquetadaPor:'sc-ref-rapidos-l',
+      opciones:SC_REF_RAPIDOS.map(r=>({v:String(r.cm),t:r.que,sub:r.cm+' cm'})),
+    }));
+    const grupo=cont.querySelector('.glide');
+    /* En captura, para correr ANTES del oyente de la pieza: `detail` es 0 en el clic que el
+       navegador fabrica con Enter o Espacio, y 1 o más con el dedo o el ratón. */
+    grupo.addEventListener('click',e=>{ _scRefPorToque=e.detail>0; setTimeout(()=>{ _scRefPorToque=false; },0); },true);
+    _scRefOpc=Piezas.opcionesDeslizantes(grupo,{alCambiar:scRefRapidoElegido});
+    /* El campo manda: teclear otra cifra desmarca la opción. Va con addEventListener y no con
+       un oninput en el marcado para no mover la cuenta de manejadores en línea que la
+       documentación afirma sobre cotizador.html. */
+    $('sc-ref-cm-input').addEventListener('input',scRefSincronizar);
+    scRefArrastrable();
+  }
+  scRefSincronizar();
+}
+/* ----- H26 #3 · arrastrar sobre la etiqueta mueve los centímetros -----
+   Sin abrir el teclado, que en el celular tapa el panel entero. Se mueve de centímetro en
+   centímetro y no de décima en décima —el `step` del campo—: una referencia mide 40, 120, 175 o
+   200, y a 0.1 por cada 4 px ir de 175 a 200 eran mil píxeles de dedo, más ancho que cualquier
+   pantalla. Las décimas siguen tecleándose.
+
+   Y con el campo VACÍO —que es como queda al trazar la línea— el gesto arrancaba en 0.1, el
+   mínimo del campo. Se le da un punto de partida sensato (la referencia anterior o la puerta),
+   pero SOLO si el dedo de verdad arrastra: un toque en la etiqueta es enfocar el campo, y
+   dejarle escrito un «200» que nadie eligió sería que el teclado abriera sobre una cifra ajena.
+   Si al soltar no hubo movimiento, se borra. */
+function scRefArrastrable(){
+  const et=document.querySelector('label[for="sc-ref-cm-input"]'),campo=$('sc-ref-cm-input');
+  if(!et||!campo)return;
+  Piezas.arrastrarMedida(et,null,{paso:1,px:4});
+  et.addEventListener('pointerdown',e=>{
+    if(campo.value!==''||(e.button!=null&&e.button>0))return;
+    const semilla=String(SC.refCm>0?SC.refCm:SC_REF_PUERTA_CM);
+    let hubo=false;
+    const alInput=()=>{ hubo=true; };
+    const fin=()=>{
+      window.removeEventListener('pointerup',fin,true);window.removeEventListener('pointercancel',fin,true);
+      campo.removeEventListener('input',alInput);
+      if(!hubo&&campo.value===semilla)campo.value='';
+    };
+    campo.value=semilla;
+    campo.addEventListener('input',alInput);
+    window.addEventListener('pointerup',fin,true);window.addEventListener('pointercancel',fin,true);
+  });
+}
+function scRefRapidoElegido(v){
+  $('sc-ref-cm-input').value=v;
+  /* Y el foco salta a «Confirmar escala»: elegir una medida de siempre deja el paso 2
+     terminado, y lo único que falta es el toque que fija la escala. Es un botón, así que en
+     el celular esto NO levanta el teclado —que es lo que obligó a no enfocar el campo. */
+  if(_scRefPorToque){
+    const b=$('sc-btn-confirm-calib');
+    if(b){
+      try{b.focus({preventScroll:true});}catch(_){b.focus();}
+      /* Sin preventScroll el navegador la trae él, pero al borde de la caja, o sea bajo el pie. */
+      scLlevarAVista(b);
+    }
+  }
+  const r=SC_REF_RAPIDOS.find(x=>String(x.cm)===String(v));
+  voz((r?r.que:'Referencia')+' de '+v+' centímetros');
+}
+function scRefSincronizar(){
+  if(!_scRefOpc)return;
+  const v=($('sc-ref-cm-input').value||'').trim();
+  if(_scRefOpc.valor()!==v)_scRefOpc.fijar(v,false);
+}
+
 function scConfirmCalib(){
   const v=parseFloat($('sc-ref-cm-input').value);
   if(!v||v<=0){toast('Ingresa una medida válida en cm','err');return;}
@@ -1373,6 +1756,7 @@ function scConfirmCalib(){
   $('sc-btn-calib').style.display='none';
   $('sc-calib-badge').className='sp-calib-badge ok';
   $('sc-calib-txt').textContent='Escala calibrada';
+  scPintarCalibRiel();
   // Con la escala puesta, la sección de calibración ya no es el trabajo: se plega para
   // que la lista de medidas —que es a lo que se viene— quede arriba y a la vista.
   const secC=$('sc-sec-calib'); if(secC) secC.open=false;
@@ -1395,8 +1779,41 @@ function scResetCalib(full=true){
   $('sc-ref-cm-input').value='';
   $('sc-calib-badge').className='sp-calib-badge';
   $('sc-calib-txt').textContent='Sin calibrar';
+  scPintarCalibRiel();
+  scLetreroPintar();
   const secC=$('sc-sec-calib'); if(secC) secC.open=true;
   if(full){scSetMode('ref');scRender();}
+}
+/* ----- H11 · la calibración, como tres pasos visibles -----
+   Calibrar siempre fueron tres pasos, pero no estaban escritos en ningún lado: el avance se
+   deducía de QUÉ BLOQUE aparecía —la ayuda, luego la fila de los cm con su destello, luego la
+   caja verde— y de una pastilla arriba que solo sabe decir «Sin calibrar». Quien lo hace la
+   primera vez no sabe cuántos pasos faltan ni en cuál va, y si el primer punto cayó mal no
+   sabe si se puede volver.
+
+   El riel es la pieza 16, la misma de los hitos de entrega y de los cuatro pasos del
+   cotizador: los hechos con palomita, el actual en azul, el resto neutro. No se mueve solo;
+   solo cambia cuando cambia el estado, y el estado se DERIVA de SC —no se guarda aparte—,
+   que es lo que evita que el riel y la pantalla digan cosas distintas después de
+   «Re-calibrar» o de cargar otra foto. */
+const SC_PASOS_CALIB=['Marca 2 puntos','Escribe cuánto mide','Mide'];
+function scPasoCalib(){
+  if(SC.nativePxPerCm>0)return 2;
+  return SC.refLine?1:0;
+}
+function scPintarCalibRiel(){
+  const el=$('sc-calib-riel');if(!el||!window.Piezas)return;
+  const paso=scPasoCalib();
+  if(!el.firstElementChild){
+    el.innerHTML=Piezas.rielHTML(SC_PASOS_CALIB,{forma:'horizontal',actual:paso,etiqueta:'Pasos para calibrar la escala'});
+    Piezas.riel(el);
+    return;
+  }
+  /* fijar() cambia los estados EN SU SITIO: solo así se dibuja la palomita del paso que
+     acaba de quedar. Repintado con innerHTML el riel nace quieto, que es lo que se quiere
+     al abrir el escalador pero no al confirmar la escala. */
+  const r=Piezas.riel(el);
+  if(r)r.fijar(SC_PASOS_CALIB.map((_,i)=>i<paso?'hecho':i===paso?'actual':'pendiente'));
 }
 /* Texto de ayuda del modo actual, para volver a él al terminar o cancelar una línea */
 function scModeHint(){
@@ -1440,17 +1857,49 @@ let _scHintT=null;
    quedó a medias—, que en el celular es la salida cuando el primer toque cayó mal.
    tempMs: aviso pasajero; al terminar vuelve la indicación de la herramienta activa,
    sin tocar el estado (a media medición no se pierde el primer punto ya colocado). */
+/* ----- H28 · la pista cruza, no parpadea -----
+   El texto se borraba y se reescribía en el mismo cuadro. Con la vista puesta en la foto —que
+   es donde está la mano— un cambio de instrucción («✓ Primer punto — toca el otro extremo»)
+   pasaba desapercibido: la barra se veía igual antes y después. Ahora el viejo sale hacia
+   arriba y entra el nuevo en 180 ms, con la pieza 23 (cambiarRotulo), que además conserva el
+   ancho del más largo para que nada de alrededor se mueva. Solo opacity y transform: la barra
+   flota sobre un lienzo que se repinta con cada movimiento del dedo.
+
+   Y si el texto es el MISMO, la pieza no toca el DOM: scSetHint(scModeHint()) se llama al
+   terminar cada medida y cada pista temporal, así que la mitad de las llamadas repiten lo que
+   ya se ve y antes reconstruían la barra igual.
+
+   Un cuidado que la pieza no puede tener por su cuenta: mientras se cruzan, los dos textos
+   comparten celda y la barra mide lo que mida el MÁS ALTO de los dos. Si el viejo ocupaba dos
+   renglones y el nuevo uno, scAjustarPorPista() —que corre al instante— reservaba en el lienzo
+   la altura de los dos y, ya ido el viejo, la foto se quedaba con un renglón de aire de más
+   hasta el siguiente cambio. Por eso se vuelve a ajustar cuando el cruce termina. */
+let _scHintFit=0;
 function scSetHint(txt,accion,tempMs){
   const bar=$('sp-hint-bar');
   clearTimeout(_scHintT);
-  bar.innerHTML='';
-  if(!txt){bar.classList.add('hide');return;}
-  const sp=document.createElement('span');sp.textContent=txt;bar.appendChild(sp);
+  let sp=bar.querySelector('.sp-hint-txt');
+  if(!sp){bar.innerHTML='';sp=document.createElement('span');sp.className='sp-hint-txt';bar.appendChild(sp);}
+  const b=bar.querySelector('.sp-hint-act');
+  /* El botón se quita SIEMPRE que la pista nueva no traiga uno —y al ocultarse la barra—: con
+     `.hide` la barra solo baja su opacidad, así que un botón que se quedara ahí seguiría
+     recibiendo el tabulador y el lector de pantalla lo seguiría nombrando. */
+  if(b&&!(accion&&accion.label&&typeof accion.fn==='function'))b.remove();
+  const poner=t=>{
+    if(window.Piezas)return Piezas.cambiarRotulo(sp,t);
+    if(sp.textContent===t)return false;
+    sp.textContent=t;return true;
+  };
+  if(!txt){
+    if(poner('')){clearTimeout(_scHintFit);_scHintFit=setTimeout(scAjustarPorPista,260);}
+    bar.classList.add('hide');scAjustarPorPista();return;
+  }
+  if(poner(txt)&&!_scSinMov()){clearTimeout(_scHintFit);_scHintFit=setTimeout(scAjustarPorPista,260);}
   if(accion&&accion.label&&typeof accion.fn==='function'){
-    const b=document.createElement('button');
-    b.type='button';b.className='sp-hint-act';b.textContent=accion.label;
-    b.onclick=ev=>{ev.stopPropagation();accion.fn();};
-    bar.appendChild(b);
+    const btn=b||document.createElement('button');
+    btn.type='button';btn.className='sp-hint-act';btn.textContent=accion.label;
+    btn.onclick=ev=>{ev.stopPropagation();accion.fn();};
+    if(!b)bar.appendChild(btn);
   }
   bar.classList.remove('hide');
   if(tempMs)_scHintT=setTimeout(()=>scSetHint(scModeHint()),tempMs);
@@ -1505,10 +1954,161 @@ function scUpdateGuideList(){
     </div>`;
   }).join('');
 }
+/* Seleccionar o soltar una medida al tocar su tarjeta. Salió del `el.onclick` de cada
+   renglón porque ahora la lista se pinta con innerHTML de una vez: el renglón tiene que
+   poder nacer ya cableado, sin una vuelta por el DOM para colgarle el oyente. */
+function scTocarMedida(id){
+  SC.sel=SC.sel===id?null:id;
+  scUpdateList();scRender();
+}
+/* Las medidas que ACABAN de quedar «Agregada». La palomita se dibuja una vez, cuando pasa
+   algo: en un repintado de la lista —que ocurre en cada tecla del nombre de una medida— las
+   que ya estaban aparecen ya dibujadas. Ver pieza 6, «se dibuja solo lo que nace». */
+const _scUsadasNuevas=new Set();
+/* «Menos movimiento» se pregunta en el momento, no al cargar, y sin depender de que las
+   piezas estén: este archivo también se carga en las pruebas de node sin window.Piezas. */
+const _scSinMov=()=>{ try{ return window.Piezas?Piezas.sinMovimiento():matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(_){ return false; } };
+let _scLista=null;      // el control de «entra lo nuevo, sale lo quitado» sobre .sp-mlist
+let _scFilas=null;      // el de «deslizar un renglón», sobre la misma lista
+let _scPistaT=0;
+let _scCuentaAntes=0;
+/* La cara del renglón: lo que se ve sin deslizar. Va dentro de la fila deslizable. */
+function scMedidaCaraHTML(m,i){
+  /* La pareja de área —la medida de arriba, si es la otra dirección y ninguna se ha
+     usado— decide si este renglón enseña el segundo botón. Ver scParDeArea. */
+  const par=scParDeArea(i);
+  const palomita=window.Piezas?Piezas.palomitaHTML({dibujar:_scUsadasNuevas.has(m.id)}):'';
+  return `<div class="sp-mitem${m.id===SC.sel?' sel':''}" style="border-left-color:${m.color}" onclick="scTocarMedida(${m.id})">
+      <div style="flex:1;min-width:0">
+        <div class="sp-mitem-n" aria-hidden="true">${i+1}</div>
+        <div class="sp-mitem-cm">${scFmtCm(m.cm)}<small> cm</small></div>
+        <input class="sp-mitem-label" placeholder="Letras, logo, fachada…" value="${scEsc(m.label)}" aria-label="Nombre de la medida ${i+1}"
+          onclick="event.stopPropagation()" oninput="scSetLabel(${m.id},this.value)">
+        <button class="sp-mitem-add${m.usada?' done':''}"
+          onclick="event.stopPropagation();scUsarMedida(${m.id})" aria-label="${m.usada?'Agregada · agregar otra vez':'Agregar como partida'} — medida ${i+1} de ${scFmtCm(m.cm)} cm">${m.usada?palomita+' Agregada · agregar otra vez':'→ Agregar como partida'}</button>
+        ${par?`<button class="sp-mitem-add par"
+          onclick="event.stopPropagation();scUsarPar(${m.id})" aria-label="Unir con la medida ${i} de ${scFmtCm(par.cm)} cm en una sola partida de ancho por alto">${ico('i-ajustar')} Ancho × alto con la ${i}</button>`:''}
+      </div>
+      <div class="sp-mitem-actions">
+        <button class="sp-ibtn" onclick="event.stopPropagation();scDelMedida(${m.id})" title="Eliminar medida ${i+1}" aria-label="Eliminar medida ${i+1}">×</button>
+      </div>
+    </div>`;
+}
+/* ----- H26 #9 · deslizar un renglón para borrar la medida -----
+   La × sigue a la vista en el renglón, así que la acción de deslizar es un ATAJO y no el
+   único camino: por eso va `aria-hidden` y fuera del tabulador (soloAqui en falso), para que
+   ni el Tab ni el lector de pantalla encuentren dos veces lo mismo. Borrar sigue teniendo su
+   «Deshacer» de 6 s en el aviso, que es lo que hace que deslizar no dé miedo. */
+function scMedidaFilaHTML(m,i){
+  if(!window.Piezas)return '<div class="sp-mfila" data-clave="'+m.id+'">'+scMedidaCaraHTML(m,i)+'</div>';
+  return Piezas.filaDeslizableHTML({
+    clase:'sp-mfila',
+    attrs:'data-clave="'+m.id+'"',
+    cara:scMedidaCaraHTML(m,i),
+    acciones:[{texto:'Borrar',peligro:true,attrs:'onclick="scDelMedida('+m.id+')"'}],
+  });
+}
+/* Lleva un elemento —el renglón de una medida, la sección del letrero— a la vista moviendo
+   SOLO la caja que se desplaza —en el escritorio la propia lista; en el teléfono, donde la
+   lista no se desplaza sola, el panel entero (.sp-side)— y nunca la página: desplazar la
+   página mientras el dedo mide sobre la foto movería el lienzo bajo la mano.
+
+   Es lo que hace listaViva().mostrar(), y no se usó a propósito por una cosa que la pieza no
+   sabe: en el teléfono el pie del panel (.sp-actions: agregar todas, cotizar con IA, volver) va
+   `position:sticky` y mide entre 175 y 240 px encima del fondo de la caja. Para la pieza, un
+   renglón que termina en el borde de la caja está «entero a la vista»; en pantalla estaba
+   DEBAJO del pie. Medido a 360×780: con cuatro medidas la quinta llegaba y lo único que se
+   veía de ella era un filo de tarjeta asomando sobre los botones. Aquí la franja visible es la
+   de la caja hasta donde empieza el pie. */
+function scLlevarAVista(el){
+  if(!el||!el.isConnected)return;
+  let caja=el.parentElement;
+  for(;caja&&caja!==document.body;caja=caja.parentElement){
+    const oy=getComputedStyle(caja).overflowY;
+    if((oy==='auto'||oy==='scroll')&&caja.scrollHeight>caja.clientHeight+1)break;
+  }
+  if(!caja||caja===document.body)return;
+  const c=caja.getBoundingClientRect(),r=el.getBoundingClientRect(),margen=8;
+  let fondo=c.bottom;
+  const pie=caja.querySelector('.sp-actions');
+  if(pie&&getComputedStyle(pie).position==='sticky')fondo=Math.min(fondo,pie.getBoundingClientRect().top);
+  let dy=0;
+  if(r.bottom>fondo-margen)dy=r.bottom-(fondo-margen);
+  if(r.top-dy<c.top+margen)dy=r.top-(c.top+margen);   // si no cabe entera, gana su principio
+  if(Math.abs(dy)<1)return;
+  try{caja.scrollBy({top:dy,behavior:_scSinMov()?'auto':'smooth'});}catch(_){caja.scrollTop+=dy;}
+}
+/* ¿Cabe el primer renglón, entero, en la franja que se ve? Solo entonces se le enseña el gesto de
+   deslizar: la pista asoma UNA vez en la vida del aparato, y gastarla con el renglón fuera de
+   pantalla era no enseñársela a nadie. */
+function scPistaDeDeslizar(){
+  if(!_scFilas||!SC.items.length)return;
+  const f=document.querySelector('#sc-medidas-list .desliza');
+  if(!f||!$('scalermodal').classList.contains('show'))return;
+  const r=f.getBoundingClientRect();
+  let caja=f.parentElement;
+  for(;caja&&caja!==document.body;caja=caja.parentElement){
+    const oy=getComputedStyle(caja).overflowY;
+    if(oy==='auto'||oy==='scroll')break;
+  }
+  const c=caja&&caja!==document.body?caja.getBoundingClientRect():{top:0,bottom:innerHeight};
+  let fondo=c.bottom;
+  const pie=caja&&caja.querySelector?caja.querySelector('.sp-actions'):null;
+  if(pie&&getComputedStyle(pie).position==='sticky')fondo=Math.min(fondo,pie.getBoundingClientRect().top);
+  /* Con dos píxeles de holgura: la lista termina de acomodarse con fracciones (443.53 contra
+     443.59) y sin ella un renglón perfectamente a la vista contaba como fuera. */
+  if(r.height>0&&r.top>=c.top-2&&r.bottom<=fondo+2)_scFilas.pista();
+}
+/* Al cargar otra foto o vaciar la cotización, los números de las medidas vuelven a empezar en 1.
+   La lista viva recuerda las claves que ya vio para no marcar como «nueva» lo que solo se
+   repinta, así que la primera medida de la foto nueva —el 1 otra vez— pasaba por una que ya
+   estaba: sin entrada, sin marca y sin desplazarse hasta ella, justo lo que H24 arregla. */
+function scListaOlvidar(){
+  if(!_scLista)return;
+  for(let i=1;i<SC.nid;i++)_scLista.olvidar(String(i));
+}
+/* ----- H24 · la medida nueva se ve llegar -----
+   La lista se rehacía entera y en el teléfono queda DEBAJO del lienzo: se sumaba una medida y
+   no se notaba nada —ni que había una tarjeta más, ni dónde—. Con la pieza «entra lo nuevo,
+   sale lo quitado» la tarjeta nueva entra con su filete, las de abajo se corren desde donde
+   estaban y la lista se desplaza hasta ella. El contador da un salto corto, una vez.
+
+   Todas las llamadas a scUpdateList() pasan por aquí, y no pasa nada: la pieza recuerda qué
+   claves ya vio, así que repintar por una tecla del nombre de una medida no vuelve a marcar
+   nada como nuevo. */
 function scUpdateList(){
   const list=$('sc-medidas-list');
-  $('sc-mcount').textContent=SC.items.length;
-  list.innerHTML='';
+  if(!_scLista&&window.Piezas){
+    _scLista=Piezas.listaViva(list,{anunciar:el=>'Medida agregada: '+(el.querySelector('.sp-mitem-cm')||{textContent:''}).textContent.trim()});
+    /* Los bordes que se desvanecen dicen que la lista sigue hacia abajo (H26 #10): con cuatro
+       medidas en el escritorio el corte era seco y parecía que ahí se acababa. En el teléfono
+       la lista no se desplaza sola —lo hace el panel, y con su pie pegado un fundido en él
+       apagaría los botones—, así que allí la pieza no tiene nada que hacer y no hace nada. */
+    Piezas.bordesDesvanecidos(list,{eje:'y'});
+    _scFilas=Piezas.filasDeslizables(list,{pista:'al3d_pista_medidas'});
+  }
+  const pintar=()=>scUpdateListPintar(list);
+  const r=_scLista?_scLista.repintar(pintar):(pintar(),{nuevos:[]});
+  if(r&&r.nuevos&&r.nuevos.length)scLlevarAVista(r.nuevos[r.nuevos.length-1]);
+  _scUsadasNuevas.clear();
+  /* La pista de deslizar espera a que la lista termine de desplazarse hasta la medida nueva: al
+     pedirla en el acto, el primer renglón todavía estaba fuera de la franja que se ve, no
+     asomaba, y la única vez de la vida del aparato se gastaba —o no llegaba— sin que nadie la
+     viera. Solo con una medida llegada: es cuando hay algo que enseñar deslizar. */
+  if(r&&r.nuevos&&r.nuevos.length){ clearTimeout(_scPistaT); _scPistaT=setTimeout(scPistaDeDeslizar,800); }
+  /* Agregar una medida como partida crea una partida de letras: el letrero sobre la foto
+     puede pasar de «agrega una partida» a tener algo que enseñar. */
+  scLetreroPintar();
+}
+function scUpdateListPintar(list){
+  const cuenta=$('sc-mcount');
+  cuenta.textContent=SC.items.length;
+  /* El salto del contador solo cuando SUBE: al borrar, la lista ya lo dice por sí sola y un
+     brinco al bajar se lee como que algo salió mal. Una sola vez, no en reposo. */
+  if(SC.items.length>_scCuentaAntes&&!_scSinMov()){
+    cuenta.classList.remove('sc-cuenta-salta');void cuenta.offsetWidth;cuenta.classList.add('sc-cuenta-salta');
+  }
+  _scCuentaAntes=SC.items.length;
   scUpdateAddAll();
   // El mando de las cotas aparece con la segunda medida y se va con ella: depende de
   // cuántas hay, así que se recalcula aquí, que es por donde pasa todo cambio de la lista.
@@ -1518,30 +2118,7 @@ function scUpdateList(){
     list.innerHTML='<div class="sp-mlist-empty">'+(SC.nativePxPerCm>0?'Traza líneas sobre los elementos<br>para registrar sus medidas.':'Calibra la escala primero,<br>luego traza líneas para medir.')+'</div>';
     $('sc-btn-export').disabled=true;return;
   }
-  SC.items.forEach((m,i)=>{
-    /* La pareja de área —la medida de arriba, si es la otra dirección y ninguna se ha
-       usado— decide si este renglón enseña el segundo botón. Ver scParDeArea. */
-    const par=scParDeArea(i);
-    const el=document.createElement('div');
-    el.className='sp-mitem'+(m.id===SC.sel?' sel':'');
-    el.style.borderLeftColor=m.color;
-    el.onclick=()=>{SC.sel=SC.sel===m.id?null:m.id;scUpdateList();scRender();};
-    el.innerHTML=`
-      <div style="flex:1;min-width:0">
-        <div style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;background:var(--brand-grd);color:#fff;font-size:9px;font-weight:800;margin-bottom:4px;box-shadow:0 2px 6px rgba(var(--a-rgb),.25)">${i+1}</div>
-        <div class="sp-mitem-cm">${scFmtCm(m.cm)}<small> cm</small></div>
-        <input class="sp-mitem-label" placeholder="Letras, logo, fachada…" value="${scEsc(m.label)}" aria-label="Nombre de la medida ${i+1}"
-          onclick="event.stopPropagation()" oninput="scSetLabel(${m.id},this.value)">
-        <button class="sp-mitem-add${m.usada?' done':''}"
-          onclick="event.stopPropagation();scUsarMedida(${m.id})" aria-label="${m.usada?'Agregada · agregar otra vez':'Agregar como partida'} — medida ${i+1} de ${scFmtCm(m.cm)} cm">${m.usada?'<svg class=\'svgi\' aria-hidden=\'true\'><use href=\'#i-check\'/></svg> Agregada · agregar otra vez':'→ Agregar como partida'}</button>
-        ${par?`<button class="sp-mitem-add par"
-          onclick="event.stopPropagation();scUsarPar(${m.id})" aria-label="Unir con la medida ${i} de ${scFmtCm(par.cm)} cm en una sola partida de ancho por alto">${ico('i-ajustar')} Ancho × alto con la ${i}</button>`:''}
-      </div>
-      <div class="sp-mitem-actions">
-        <button class="sp-ibtn" onclick="event.stopPropagation();scDelMedida(${m.id})" title="Eliminar medida ${i+1}" aria-label="Eliminar medida ${i+1}">×</button>
-      </div>`;
-    list.appendChild(el);
-  });
+  list.innerHTML=SC.items.map(scMedidaFilaHTML).join('');
   $('sc-btn-export').disabled=false;
   scAjustarToast();
 }
@@ -1595,6 +2172,9 @@ function scAgregarPartida(m){
      partida que acaba de nacer. Ver ALTURA_MIN_LETRAS en catalogo.js. */
   m.recorte=forzarRecortePorAltura(it);
   m.usada=true;
+  /* Solo ésta dibuja su palomita en el repintado que viene: las que ya estaban aparecen ya
+     dibujadas (pieza 6). */
+  _scUsadasNuevas.add(m.id);
   return h;
 }
 /* ----- Dos medidas, UNA partida: el ancho y el alto del mismo letrero -----
@@ -1696,6 +2276,298 @@ function scUsarTodas(){
   if(cortas){toast(`${cortas} ${cortas===1?'medida da':'medidas dan'} menos de medio centímetro — se ${cortas===1?'agregó':'agregaron'} con 0.5 cm, revisa la calibración de escala`,'err',5600);}
   else toast(`${pend.length} ${pend.length===1?'partida agregada':'partidas agregadas'}${nota} — falta elegir ${recortes?'el material o el acabado':'el material'} en ${pend.length===1?'ella':'ellas'}`,'ok',recortes?6400:4200,{label:'Ir al cotizador',fn:cerrarScaler});
 }
+/* ============================================================================
+   Función 32 · El letrero sobre la foto del local
+
+   El escalador ya sabe cuántos píxeles de la foto son un centímetro: es justo lo que deja
+   calibrar la referencia (SC.nativePxPerCm). Con ese número, el texto de una partida de letras
+   se puede pintar ENCIMA de la fachada a su tamaño real, arrastrarlo a donde iría y decir, al
+   mismo tiempo, cuánto mide de alto y cuánto cuesta.
+
+   Por qué vale la pena: la conversación de venta entera es «¿de qué tamaño se ve?». Hasta hoy
+   se contestaba con las manos, y el cliente decidía sobre una cifra en centímetros que no
+   significa nada hasta que el letrero está montado. Aquí lo ve sobre SU fachada, a escala
+   medida, antes de firmar.
+
+   Tres reglas que no se negocian:
+     · El precio NO se inventa: sale de lineTotal(), la misma función que cobra la partida en el
+       PDF y en el registro de venta. Aquí solo se le cambia la altura. Si a la partida le falta
+       el material, se dice que falta —no se enseña un $0 que parece un precio.
+     · La luz es la del material, y no se invierte: ALUMINIO = LED posterior (el halo cae sobre
+       la pared), ACRÍLICO = LED frontal (la cara brilla). Lo dibuja la pieza 26, que es la
+       misma que pinta la vista previa de la partida mientras se escribe el texto.
+     · Por debajo de ALTURA_MIN_LETRAS ya no es letra 3D: se dice que se cotiza como recorte de
+       acrílico y NO se enseña precio, porque el acabado del recorte —$20, $25 o $55 el
+       centímetro— lo elige una persona. Es la misma regla de forzarRecortePorAltura().
+
+   La posición se guarda NORMALIZADA contra la foto (0–1 de cvsW × cvsH), no en píxeles de
+   pantalla: al acercar, al desplazar, al girar el teléfono o al plegar una sección del panel
+   —que cambia el alto del lienzo— el letrero se queda donde lo pusieron, sobre el mismo ladrillo
+   de la fachada. Es el mismo criterio con el que SC.items guarda sus extremos.
+
+   Dice «Ilustrativo» siempre: no es la tipografía del cliente ni su fachada iluminada de noche.
+   ============================================================================ */
+/* Estado del letrero. `montado`: si se está enseñando sobre la foto. `kBase`: el zoom con el que
+   se le puso su tamaño de letra por última vez (ver scLetreroColocar). `firma`: lo último que
+   se le pidió a la pieza, para no pedírselo dos veces igual. */
+const SC_LF={nx:.5,ny:.34,cm:30,id:0,texto:'',montado:false,kBase:0,firma:''};
+/* Píxeles LÓGICOS de la foto ajustada por centímetro real. Es la misma cuenta que convierte
+   una línea trazada en centímetros (scCommitLine), leída al revés. */
+function scLetreroPxPorCm(){
+  return SC.nativePxPerCm>0?SC.nativePxPerCm/(SC.scaleFactor||1):0;
+}
+/* Las partidas que se pueden enseñar sobre la foto: las de letras 3D. Un recorte, un bastidor
+   o una caja no son letras sueltas y pintarlos como tales sería enseñar otro producto. */
+function scLetreroPartidas(){
+  return (typeof Q==='object'&&Q&&Q.items?Q.items:[]).filter(it=>it.tipo==='letras');
+}
+function scLetreroItem(){
+  const l=scLetreroPartidas();
+  return l.find(it=>it.id===SC_LF.id)||l[0]||null;
+}
+/* El texto que se pinta: el que ya se tecleó en la partida, o su descripción. */
+function scLetreroTextoDe(it){
+  return String((it&&(it.textoAuto||it.desc))||'AL3D').toUpperCase().slice(0,24);
+}
+/* De qué lado sale la luz lo dice el CATÁLOGO —«LED posterior» o «LED frontal» en cada
+   material—, no el nombre de la clave: así el acero, que también lleva la luz por detrás, se
+   pinta como lo que es y no como un acrílico. La regla no se invierte nunca. */
+function scLetreroMaterialDe(it){
+  const m=matOf(it&&it.material);
+  return m&&/frontal/i.test(m.ilum||'')?'acrilico':'aluminio';
+}
+function scLetreroLuzDe(it){
+  return it&&it.luz?(it.ilumTipo==='calida'?'calida':'fria'):'ninguna';
+}
+/* La cuenta del letrero, sin pantalla: qué dice y cuánto cuesta. Devuelve también con qué se
+   pidió el precio, para que la prueba pueda comprobar que es el de siempre. */
+function scLetreroCuenta(it,cm){
+  const alto=Math.max(0.5,Number(cm)||0);
+  const n=Math.max(0,Number(it&&it.n)||0);
+  const recorte=alturaDeRecorte(alto);
+  const conMaterial=!!(it&&matOf(it.material));
+  const como={...it,altura:alto};
+  return {
+    alto,n,recorte,conMaterial,
+    sinLuz:!!(it&&!it.luz),
+    porCm:it?factorOf(it):0,
+    total:(!recorte&&conMaterial&&n>0)?lineTotal(como):0,
+  };
+}
+/* Lo que dice el renglón del precio. `av` = «esto todavía no es un precio»: se pinta en ámbar,
+   pero el texto lo dice con palabras, nunca el color solo. Sin luz baja un 20 %, y se escribe
+   en la cuenta para que el número que se ve sea el resultado de lo que está escrito.
+
+   La cuenta va SOLA y corta —«$40 × 45 cm × 9 letras = $16,200.00»—: es lo que tiene que caber
+   junto al deslizador en el panel del teléfono. El material que explica el $40 va en el renglón
+   de abajo (scLetreroDecir); con los dos juntos la cifra se iba a una tercera línea, bajo el pie. */
+function scLetreroPrecio(it,c){
+  if(c.recorte)
+    return {av:true,html:'Menos de '+ALTURA_MIN_LETRAS+' cm ya no es letra 3D: se cotiza como recorte de acrílico, y el acabado se elige en la partida.'};
+  if(!c.conMaterial)
+    return {av:true,html:'Falta elegir el material de la partida para poder decir el precio.'};
+  if(!c.n)
+    return {av:true,html:'Falta el número de letras de la partida para poder decir el precio.'};
+  return {av:false,html:'$'+c.porCm+' × '+c.alto+' cm × '+c.n+(c.n===1?' letra':' letras')+
+    (c.sinLuz?', sin luz −20 %':'')+' = <b>'+money(c.total)+'</b>'};
+}
+function scLetreroApagar(){
+  SC_LF.montado=false;SC_LF.firma='';
+  const el=$('sc-letrero'),nota=$('sc-letrero-nota');
+  if(el)el.hidden=true;
+  if(nota)nota.hidden=true;
+}
+/* Le pide a la pieza 26 el letrero al tamaño que toca. Solo cuando algo cambió: scRender corre
+   en cada movimiento del dedo sobre la foto, y la pieza mide la «H» de la tipografía y toca las
+   clases cada vez que se le llama. */
+function scLetreroAplicar(){
+  const el=$('sc-letrero-texto'),it=scLetreroItem();
+  if(!el||!it||!window.Piezas)return;
+  const px=Math.max(1,SC_LF.cm*scLetreroPxPorCm()*(SC.z||1));
+  const mat=scLetreroMaterialDe(it),luz=scLetreroLuzDe(it),texto=SC_LF.texto||' ';
+  const firma=[texto,mat,luz,px.toFixed(1)].join('|');
+  if(firma===SC_LF.firma)return;
+  SC_LF.firma=firma;SC_LF.kBase=SC.z||1;
+  Piezas.letrero(el,{texto,material:mat,luz,alto:px});
+  /* El ancho que dice el panel se mide sobre la letra ya puesta: si cambió su tamaño —la foto se
+     ajustó al abrir, se acercó, se agrandó con el deslizador— hay que volver a decirlo. */
+  scLetreroDecir(it);
+}
+/* Coloca el letrero sobre la foto. Se llama desde scRender, así que sigue al zoom y al
+   desplazamiento con el mismo cuadro en el que se redibuja la foto: si fuera por su cuenta,
+   el letrero iría un cuadro por detrás de la fachada y se vería nadar.
+
+   Con el pellizco puesto no se le cambia el tamaño de letra en cada cuadro: cada cambio de
+   `font-size` rehace el texto y sus dos sombras de luz, y en un teléfono de gama media eso sale
+   caro justo mientras el dedo tiene que seguirle el paso a la foto. Durante el gesto el letrero
+   crece con un `scale` —que es solo compositor— relativo al zoom con el que se le puso su
+   tamaño, y al soltar se le pone el tamaño de verdad y el `scale` se va. */
+function scLetreroColocar(){
+  if(!SC_LF.montado)return;
+  const el=$('sc-letrero');if(!el)return;
+  const v=scViewCenter();
+  const x=(SC_LF.nx*SC.cvsW-v.cx)*v.k+SC.vw/2;
+  const y=(SC_LF.ny*SC.cvsH-v.cy)*v.k+SC.vh/2;
+  let escala='';
+  if(SC.gesture&&SC_LF.kBase>0){
+    const r=(SC.z||1)/SC_LF.kBase;
+    if(Math.abs(r-1)>.001)escala=' scale('+r.toFixed(4)+')';
+  }else scLetreroAplicar();
+  el.style.transform='translate3d('+Math.round(x)+'px,'+Math.round(y)+'px,0) translate(-50%,-50%)'+escala;
+}
+function scLetreroPintar(){
+  const caja=$('sc-lf-caja'),falta=$('sc-lf-falta'),el=$('sc-letrero'),nota=$('sc-letrero-nota');
+  if(!caja||!falta||!el)return;
+  const abierta=!!($('sc-sec-letrero')&&$('sc-sec-letrero').open);
+  const it=scLetreroItem();
+  /* Lo que falta se dice una cosa a la vez y en el orden en que se resuelve: primero la foto,
+     después la escala, después la partida. Decir las tres juntas manda a hacer tres cosas
+     cuando con la primera se ve si las otras hacen falta. */
+  let porQue='';
+  if(!SC.img)porQue='Carga la foto de la fachada para ver el letrero encima.';
+  else if(SC.nativePxPerCm<=0)porQue='Calibra la escala primero: una puerta mide '+SC_REF_PUERTA_CM+' cm.';
+  else if(!it)porQue='Agrega una partida de letras 3D y aquí se verá sobre la foto, a su tamaño real.';
+  falta.textContent=porQue;
+  falta.hidden=!porQue;
+  caja.hidden=!!porQue;
+  if(porQue||!abierta){scLetreroApagar();return;}
+  SC_LF.id=it.id;
+  if(!SC_LF.montado){
+    SC_LF.montado=true;
+    el.hidden=false;
+    if(nota)nota.hidden=false;
+    SC_LF.texto=scLetreroTextoDe(it);
+    /* El alto arranca en el de la partida si ya lo tiene: el letrero enseña lo que se está
+       cotizando, no un número de ejemplo. */
+    if(it.altura>0)SC_LF.cm=Math.min(120,Math.max(5,Math.round(it.altura)));
+    $('sc-lf-texto').value=SC_LF.texto;
+    $('sc-lf-alto').value=SC_LF.cm;
+  }
+  scLetreroCuales();
+  scLetreroColocar();
+  scLetreroDecir(it);
+}
+/* Si hay varias partidas de letras, cuál se está enseñando. Con una sola no se pregunta. */
+function scLetreroCuales(){
+  const cont=$('sc-lf-cuales');if(!cont)return;
+  const l=scLetreroPartidas();
+  if(l.length<2){cont.innerHTML='';cont.hidden=true;cont.dataset.firma='';return;}
+  cont.hidden=false;
+  const firma=l.map(it=>it.id+':'+(it.desc||it.textoAuto||'')).join('|')+'@'+SC_LF.id;
+  if(cont.dataset.firma===firma)return;   // sin repintar: la ficha que viaja necesita el mismo grupo
+  cont.dataset.firma=firma;
+  cont.innerHTML='<div class="tool-seg" role="group" aria-label="Qué partida se enseña sobre la foto">'+
+    l.map((it,i)=>'<button type="button" data-lf-partida="'+it.id+'" aria-pressed="'+(it.id===SC_LF.id)+'"'+
+      (it.id===SC_LF.id?' class="active"':'')+'>'+
+      scEsc(String(it.desc||it.textoAuto||('Partida '+(i+1))).slice(0,18))+'</button>').join('')+'</div>';
+  if(window.Piezas)Piezas.fichaQueViaja(cont.firstElementChild);
+}
+function scLetreroElegir(id){
+  if(SC_LF.id===id)return;
+  SC_LF.id=id;
+  const it=scLetreroItem();if(!it)return;
+  SC_LF.texto=scLetreroTextoDe(it);
+  if(it.altura>0)SC_LF.cm=Math.min(120,Math.max(5,Math.round(it.altura)));
+  $('sc-lf-texto').value=SC_LF.texto;
+  $('sc-lf-alto').value=SC_LF.cm;
+  scLetreroPintar();
+}
+/* Lo que dice de sí mismo: el precio (arriba, junto al deslizador), el material que lo explica y
+   el ancho aproximado que ocupa en la fachada. */
+function scLetreroDecir(it){
+  const dice=$('sc-lf-dice'),precio=$('sc-lf-precio'),letra=$('sc-letrero-texto');
+  if(!dice||!precio||!letra)return;
+  const c=scLetreroCuenta(it,SC_LF.cm);
+  const k=scLetreroPxPorCm()*(SC.z||1);
+  const anchoCm=k>0?letra.getBoundingClientRect().width/k:0;
+  $('sc-lf-alto-v').textContent=SC_LF.cm+' cm';
+  const rango=$('sc-lf-alto');
+  /* El deslizador sigue al estado, no al revés: el alto también cambia por otros caminos (elegir
+     otra partida, volver a montar el letrero) y el pulgar se quedaba en el valor de antes. */
+  if(String(rango.value)!==String(SC_LF.cm))rango.value=SC_LF.cm;
+  rango.setAttribute('aria-valuetext',SC_LF.cm+' cm de alto de letra');
+  const letrasTexto=(SC_LF.texto.match(/[^\s]/g)||[]).length;
+  /* Si el texto que se está enseñando no trae las mismas letras que cobra la partida se dice,
+     y NO se cambia el precio: la cuenta de letras de la partida la puede haber corregido una
+     persona a mano, y pisarla desde una vista previa sería moverle el precio a escondidas. */
+  const ojo=(letrasTexto&&c.n&&letrasTexto!==c.n)?' · el texto trae '+letrasTexto+', la partida cobra '+c.n:'';
+  const mat=matOf(it.material);
+  dice.textContent=(mat?mat.label+' · ':'')+'ancho aprox. '+
+    (anchoCm/100).toLocaleString('es-MX',{maximumFractionDigits:1})+' m'+ojo;
+  const p=scLetreroPrecio(it,c);
+  precio.classList.toggle('av',p.av);
+  if(precio.dataset.html!==p.html){precio.dataset.html=p.html;precio.innerHTML=p.html;}
+}
+function scLetreroTexto(v){
+  SC_LF.texto=String(v||'').toUpperCase();
+  scLetreroPintar();
+}
+function scLetreroAlto(v){
+  SC_LF.cm=Math.max(5,Math.min(120,Math.round(Number(v)||0)));
+  scLetreroPintar();
+}
+/* ----- Pasar el alto a la partida -----
+   Explícito y con su botón: el letrero es una vista previa, y una vista previa que reescribe
+   el precio mientras alguien juega con un deslizador delante del cliente es una trampa. Va por
+   typeItem, el mismo camino que teclear la altura en la partida: entra en la pila de Deshacer de
+   la cotización —el aviso lo ofrece—, suelta la autorización si la había, y la regla de los
+   10 cm se aplica con su aviso de siempre (revisarAlturaMinima). */
+function scLetreroPasarAlto(){
+  const it=scLetreroItem();if(!it)return;
+  if(locked()){toast('La cotización está bloqueada','err');return;}
+  const h=Math.max(0.5,Math.round(SC_LF.cm*2)/2);
+  if(Math.abs((it.altura||0)-h)<0.01){toast('La partida ya mide '+h+' cm de alto','',2600);return;}
+  typeItem(it.id,'altura',h);
+  revisarAlturaMinima(it.id);
+  renderItems();
+  scLetreroPintar();
+  /* Si la regla de los 10 cm convirtió la partida, su aviso ya lo dijo: un segundo aviso encima
+     de ése sería tapar la explicación con la confirmación. */
+  if(it.tipo==='letras')toast('La partida quedó en '+h+' cm de alto','ok',6000,{label:'Deshacer',fn:deshacer});
+}
+/* Arrastrar con el dedo o el ratón, y mover con las flechas: un gesto siempre tiene su
+   alternativa de teclado. El letrero es el único elemento sobre el lienzo que recibe toques;
+   el resto de la foto sigue midiendo como siempre. */
+let _scLfArrastre=null;
+function scLetreroCablear(){
+  const el=$('sc-letrero');if(!el||el.dataset.cableado)return;
+  el.dataset.cableado='1';
+  const mover=(dx,dy)=>{
+    const k=SC.z||1;
+    SC_LF.nx=Math.max(0,Math.min(1,SC_LF.nx+dx/((SC.cvsW*k)||1)));
+    SC_LF.ny=Math.max(0,Math.min(1,SC_LF.ny+dy/((SC.cvsH*k)||1)));
+    scLetreroColocar();
+  };
+  el.addEventListener('pointerdown',e=>{
+    if(e.button>0)return;
+    e.preventDefault();e.stopPropagation();
+    _scLfArrastre={id:e.pointerId,x:e.clientX,y:e.clientY};
+    try{el.setPointerCapture(e.pointerId);}catch(_){}
+    el.classList.add('arrastrando');
+    try{el.focus({preventScroll:true});}catch(_){}
+  });
+  el.addEventListener('pointermove',e=>{
+    if(!_scLfArrastre||e.pointerId!==_scLfArrastre.id)return;
+    e.preventDefault();e.stopPropagation();
+    mover(e.clientX-_scLfArrastre.x,e.clientY-_scLfArrastre.y);
+    _scLfArrastre.x=e.clientX;_scLfArrastre.y=e.clientY;
+  });
+  const soltar=e=>{
+    if(!_scLfArrastre||e.pointerId!==_scLfArrastre.id)return;
+    _scLfArrastre=null;el.classList.remove('arrastrando');
+    scLetreroDecir(scLetreroItem());
+  };
+  el.addEventListener('pointerup',soltar);
+  el.addEventListener('pointercancel',soltar);
+  el.addEventListener('keydown',e=>{
+    const d=e.shiftKey?20:5;
+    const mv={ArrowLeft:[-d,0],ArrowRight:[d,0],ArrowUp:[0,-d],ArrowDown:[0,d]}[e.key];
+    if(!mv)return;
+    e.preventDefault();e.stopPropagation();
+    mover(mv[0],mv[1]);
+  });
+}
+
 /* ===================== Del escalador a la IA =====================
    Eran dos caminos sueltos que resolvían mitades distintas del mismo problema: el
    escalador sabe CUÁNTO mide cada elemento —lo midió sobre la foto, calibrado contra

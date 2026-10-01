@@ -229,14 +229,19 @@ await p.waitForTimeout(500);
 
 console.log('\nPASO 4 · LA ENTREGA');
 await comprobar('el paso que toca', '#authbox .btn-pri');
-await comprobar('su pista, dentro del relleno', '#authbox .btn-pri .hito-pista');
+/* La pista salió del relleno y se fue a la nota del riel (H3): el número de WhatsApp y el
+   «elige Guardar como PDF» se leen junto al punto del paso, no dentro del botón. Se mide donde
+   vive ahora, sobre el fondo del panel. */
+await comprobar('su pista, en la nota del paso', '.entrega-riel .riel-paso[data-estado="actual"] .riel-nota');
+await comprobar('el nombre del paso que toca', '.entrega-riel .riel-paso[data-estado="actual"] .riel-t');
+await comprobar('el nombre de un paso que todavía no toca', '.entrega-riel .riel-paso[data-estado="pendiente"] .riel-t');
 await comprobar('un paso que todavía no toca', '.btn-vta');
 await comprobar('la nota de quién autorizó', '#authbox .authnote');
 await comprobar('el resumen del pliegue de otras salidas', 'details.otras-salidas summary');
 await p.evaluate(() => marcarHito('pdf'));
 await p.waitForTimeout(600);
 await comprobar('el nombre de un paso ya hecho', '.hito-hecho');
-await comprobar('su fecha', '.hito-hecho .hito-fecha');
+await comprobar('su fecha, en la nota del riel', '.entrega-riel .riel-paso[data-estado="hecho"] .riel-nota');
 
 console.log('\nLO QUE AVISA DE UN PROBLEMA');
 await p.evaluate(() => { _saveOk = false; pintarFolio(); });

@@ -719,7 +719,6 @@ body.precios-ocultos .precios-nota{display:flex}
 .paso-tab.on{background:var(--sup);border-color:var(--n3);color:var(--n8)}
 .paso-tab.on .n{background:var(--a);color:#fff}
 .paso-tab.hecho .n{background:var(--ok-bg);color:var(--ok)}
-.paso-tab.hecho .n::after{content:'✓'}
 .paso-tab.hecho .n>span,.paso-tab.hecho .n{font-size:12px}
 /* El paso que todavía no toca: ámbar, el mismo de todo lo que falta. No se deshabilita
    —tocarlo dice qué falta y lleva al hueco—, porque un botón gris no explica nada. */
@@ -1358,29 +1357,22 @@ textarea{resize:vertical;min-height:46px}
 .btn-gho{background:var(--sup);color:var(--n7);border-color:var(--n3)}@media(hover:hover){.btn-gho:hover{border-color:var(--n4);background:var(--n1)}}
 .btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
 /* ----- Los tres pasos de la entrega -----
-   Un renglón por paso, en el orden en que se hacen. El que toca lleva el único relleno de la
-   columna; el que ya está se queda neutro, con su palomita y su fecha, y sigue tocable: un
-   PDF se reimprime y un chat se vuelve a abrir. La palomita va en verde y la fecha en el
-   secundario de la app —5,5:1 sobre blanco—, porque son un dato al margen y no la acción. */
-.hito-ok{color:var(--ok)}
-.hito-fecha{font-size:var(--t1);font-weight:400;color:var(--muted);white-space:nowrap}
-/* La pista va DENTRO del botón de relleno, así que hereda su tinta blanca. Sin opacidad: la
-   separan el tamaño y el peso, que es como este proyecto hace la jerarquía, y así no hay nada
-   que medir — blanco sobre el degradado de marca son 10:1 de sobra. Con un 82 % de opacidad
-   quedaba en 5,1:1, que pasa, pero pagar contraste por una diferencia que ya está hecha con
-   el cuerpo de la letra es pagar de más. */
-/* La pista va en su propio renglón dentro del botón: al lado le robaba el ancho al nombre y lo
-   partía en dos —«Enviar por / WhatsApp  adjunta el PDF…»—, que es peor que no decir nada,
-   porque lo primero que hay que leer de un botón es qué hace.
-   El `flex-wrap` se pone SOLO en estos tres botones y no en `.btn`, que es la clase de todos
-   los botones grandes de las dos apps: `css/sistema.css` se genera de esta hoja y la plataforma
-   la hereda, así que envolver ahí habría cambiado el alto de botones de seis pantallas que no
-   tienen nada que ver con esto. */
-.btn.hito{flex-wrap:wrap}
-.hito-pista{flex-basis:100%;font-size:var(--t1);font-weight:400;color:var(--muted);text-align:center;margin-top:1px}
-.btn-pri .hito-pista{color:inherit}
-/* Sin relleno y con la palomita, el nombre del botón ya no es lo primero que se lee, así que
-   se le devuelve el peso: es el nombre de la acción, y sigue siendo tocable. */
+   Un botón por paso, en el orden en que se hacen, colgado del riel que los une (H3, pieza 16).
+   El que toca lleva el único relleno de la columna; el que ya está se queda neutro y sigue
+   tocable: un PDF se reimprime y un chat se vuelve a abrir.
+
+   Lo que ya se hizo con su fecha, y a qué número va a abrir el chat, se dicen en la nota del
+   riel y ya no en un <small> dentro del botón. Ahí le robaban el ancho al nombre y lo partían
+   en dos —«Enviar por / WhatsApp  adjunta el PDF…»—, que es peor que no decir nada, porque lo
+   primero que hay que leer de un botón es qué hace. El estilo del riel y del aviso ámbar del
+   teléfono inválido viven en el bloque «Cotizador · entrega» de más abajo.
+
+   Con la pista fuera del botón se fue también el `flex-wrap:wrap` que solo tenía sentido para
+   ella —le daba su propio renglón dentro del botón—: un botón de icono y rótulo en una línea no
+   lo necesita, y dejarlo era permitir que el icono se separara de su nombre en una columna
+   angosta. */
+/* Sin relleno, el nombre del botón ya no es lo primero que se lee, así que se le devuelve el
+   peso: es el nombre de la acción, y sigue siendo tocable. */
 .hito-hecho{color:var(--n7)}
 /* El pliegue de «otras salidas» va después de los tres renglones y antes del cierre. El
    <details> no es un .btn, así que se le da el mismo aire que separa dos botones. Va en
@@ -1422,33 +1414,45 @@ details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
 .authnote b{color:var(--ink)}
 .mini{font-size:11.5px;color:var(--muted);margin-top:9px;text-align:center;line-height:1.5}
 
-/* Una sola TRANSICIÓN, de ida y de vuelta, y sin keyframes. Antes entraba con una keyframe de
-   160 ms y salía deslizándose 90 px en 300 ms, opaco: tardaba más en irse que en llegar, en el
-   teléfono acababa encima del dock y se apagaba de golpe. Ahora aparece desde 8 px en 240 ms y
-   se va desvaneciéndose en 150. Una transición se puede interrumpir: dos avisos seguidos ya no
-   reinician nada (ver toast() en nucleo.js y ui.js). */
-.toast{position:fixed;bottom:26px;left:50%;opacity:0;transform:translateX(-50%) translateY(8px);background:#11162e;color:#fff;padding:13px 20px;border-radius:13px;font-size:14px;font-weight:600;z-index:100;box-shadow:0 8px 40px rgba(0,0,0,.28);display:flex;align-items:center;gap:14px;width:max-content;max-width:min(92vw,540px);text-align:left;visibility:hidden;transition:opacity .15s var(--ease-out),transform .15s var(--ease-out),visibility 0s linear .15s}
-/* Al aparecer se hace visible de inmediato; al ocultarse espera a que termine de
-   desvanecerse. Con una transición normal de visibility el botón "Deshacer" tardaba
-   en volverse tocable. */
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0);visibility:visible;transition:opacity .2s var(--ease-out),transform .24s var(--ease-out),visibility 0s linear 0s}
-/* Mientras se va deslizando sigue visible 0.3 s y se comía el toque del botón que
-   quedaba debajo: ya retirado, no estorba. */
-.toast:not(.show){pointer-events:none}
+/* EL AVISO ES UNA PILA. #toast ya no es el aviso: es el CONTENEDOR de hasta dos (.toast-uno), y
+   por eso conserva su id, su clase y su sitio en el documento —todas las reglas que lo suben
+   sobre el dock, sobre el pie del escalador y sobre el panel de la plataforma lo nombran a él—.
+   Hasta aquí era uno solo y el segundo aviso reescribía al primero en el mismo tick: el error
+   del notario «el total no es el que selló la hoja» lo tapaba el «✓ autorizó» de la línea de
+   abajo (la falla 2 del brief). Qué se ve y en qué orden lo decide P.aviso() en js/piezas.js.
+   El contenedor no se mueve ni atrapa toques: se mueve cada aviso, y solo con transform y
+   opacity —entra desde 8 px en 240 ms y se va desvaneciéndose en 150, que es lo que ya hacía—. */
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:100;display:grid;gap:8px;justify-items:center;
+  width:max-content;max-width:min(92vw,540px);pointer-events:none}
+.toast-uno{pointer-events:auto;position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;max-width:100%;
+  background:var(--nav);color:#fff;padding:13px 20px 14px;border-radius:13px;font-size:14px;font-weight:600;text-align:left;
+  box-shadow:0 8px 40px rgba(0,0,0,.28);touch-action:none;user-select:none;-webkit-user-select:none;
+  animation:aviso-entra .24s var(--ease-out)}
+/* Al irse deja de atrapar toques en el acto: mientras se desvanece se comía el del botón que
+   quedaba debajo. */
+.toast-uno.sale{opacity:0;transform:translateY(6px);pointer-events:none;
+  transition:opacity .15s var(--ease-out),transform .15s var(--ease-out)}
+.toast-msg{flex:1 1 auto;min-width:0}
 /* Solo se animan color y borde: con "transition:.13s" (que aplica a todas las
    propiedades) el botón heredaba la animación de visibility del aviso y tardaba
    en volverse tocable justo cuando el usuario quiere apretarlo. */
 .toast-act{flex-shrink:0;border:1.5px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;font-family:inherit;font-size:13px;font-weight:800;padding:7px 15px;border-radius:9px;cursor:pointer;transition:background .13s,border-color .13s,transform var(--mv-liq)}
 .toast-act:active{transform:scale(.96)}
 @media(hover:hover){.toast-act:hover{background:rgba(255,255,255,.24);border-color:#fff}}
-.toast.ok{background:var(--ok)} .toast.err{background:var(--mal)}
+/* El verde es el RELLENO (--ok-fill), no la tinta: de noche --ok sube a #6fd6a4 para poder ser
+   letra, y con blanco encima daba 1,78:1 —el «✓ Autorizada y sellada» era ilegible de noche—. */
+.toast-uno.ok{background:var(--ok-fill)} .toast-uno.err{background:var(--mal)}
 /* En móvil el aviso se sube por encima de la barra de acción: si no, la tapa justo
    cuando trae un botón —«Deshacer»— que hay que poder apretar. Va aquí abajo, después
    de la regla base, porque una media query no gana por sí sola cuando empata la
    especificidad. La regla del escalador (.scaler-modal-bg.show+.toast) manda sobre
    esta por ser más específica, así que el escalador conserva su propia altura. */
 @media(max-width:759px){
-  .toast{bottom:calc(20px + 66px + env(safe-area-inset-bottom,0px))}
+  /* Y al ancho del dock: la pila ocupa su mismo carril —los mismos márgenes que .mbar en la capa
+     8— y se posa encima, así que dos avisos nunca tapan el botón principal ni se salen de lado. */
+  .toast{bottom:calc(20px + 66px + env(safe-area-inset-bottom,0px));
+    left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));
+    transform:none;width:auto;max-width:none;justify-items:stretch}
 }
 /* En la computadora el aviso va abajo a la IZQUIERDA, no al centro. El centro de abajo es
    exactamente donde caen los botones principales de la columna única del paso 1 y del pie
@@ -1459,8 +1463,7 @@ details.ai-cfg[open]>summary::after{transform:rotate(180deg)}
    existe: el cotizador suelto y el empotrado). El teléfono se queda centrado: ahí la barra fija
    ocupa todo el ancho y el aviso ya se pone encima de ella. */
 @media(min-width:760px){
-  .toast{left:calc(var(--lat,0px) + 24px);right:auto;transform:translateY(8px)}
-  .toast.show{transform:none}
+  .toast{left:calc(var(--lat,0px) + 24px);right:auto;transform:none;justify-items:start}
   /* Con una capa abierta, el aviso SUBE lo justo para librar el pie del panel. «Abajo a la
      izquierda no hay nada que tapar» vale para la página, pero la ficha del proyecto y la
      orden de trabajo se centran en un panel de 640 px cuyo pie de botones cae exactamente en
@@ -1943,8 +1946,9 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 @keyframes scFlash{0%,55%{box-shadow:0 0 0 3px rgba(var(--a-rgb),.35);border-radius:var(--r-sm)}100%{box-shadow:0 0 0 3px rgba(var(--a-rgb),0);border-radius:var(--r-sm)}}
 .ref-known{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:8px}
 .ref-known-title{font-size:11px;font-weight:700;color:var(--muted);margin-right:2px;white-space:nowrap}
-.ref-known button{padding:5px 9px;border:1.5px solid var(--line);border-radius:8px;background:var(--sup);font-size:11.5px;font-weight:600;cursor:pointer;color:var(--ink);transition:border-color var(--mv-s),background var(--mv-s),color var(--mv-s);white-space:nowrap;font-family:inherit}
-@media(hover:hover){.ref-known button:hover{border-color:var(--brand);background:var(--soft-2);color:var(--brand)}}
+/* Los botones sueltos de aquí (con su emoji) ya no existen: son las opciones de la pieza 18, que
+   traen su propio aspecto, y las reglas de `.ref-known button` les pisaban el borde, el relleno y
+   el hover. Ver «H30» en el bloque de esta zona. */
 /* ----- Cuánto se enseña de las cotas -----
    El botón vive en la esquina de abajo a la izquierda, a la misma altura que los de zoom
    y en el lado contrario: es el otro mando del lienzo y así ninguno tapa al otro. Toma
@@ -2032,10 +2036,6 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 .vt-stat.hl{background:var(--soft-2);border-color:rgba(var(--a-rgb),.18)}
 .vt-stat.hl .v{color:var(--brand-strong)}
 .vt-swatches{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
-.vt-sw{width:24px;height:24px;border-radius:7px;border:1.5px solid rgba(var(--tinta-rgb),.14);cursor:pointer;position:relative;transition:transform var(--mv-s),opacity var(--mv-s);padding:0;background-clip:padding-box}
-@media(hover:hover){.vt-sw:hover{transform:scale(1.12)}}
-.vt-sw.off{opacity:.25}
-.vt-sw.off::after{content:'';position:absolute;left:1px;right:1px;top:50%;height:2px;background:var(--red);transform:rotate(-45deg)}
 .vt-empty{text-align:center;color:var(--muted);font-size:12.5px;padding:22px 12px;line-height:1.65;border:1.5px dashed var(--line);border-radius:var(--r-sm);background:var(--soft)}
 .vt-esc-note{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:8px}
 .vt-esc-ok{background:var(--green-bg);border:1px solid rgba(var(--ok-rgb),.2);border-radius:var(--r-sm);padding:9px 11px;font-size:12px;color:var(--green);font-weight:700;margin-bottom:10px;line-height:1.45}
@@ -2059,7 +2059,6 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
   .vt-modal-bg .sp-side{width:100%}
   .vt-modo button{min-height:52px}
   .vt-go{min-height:48px}
-  .vt-sw{width:30px;height:30px}
   .vt-dl button{min-height:46px}
 }
 /* Estos tres viven en la tarjeta de partidas, no en el modal: siguen en 760 px */
@@ -2111,7 +2110,6 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
   .sp-mitem{padding:10px;margin-bottom:7px}
   .sp-mitem-add{min-height:44px;font-size:13px;margin-top:6px}
   .sp-mitem-label{padding:6px 0;font-size:13px}
-  .ref-known button{min-height:40px;padding:8px 12px;font-size:12.5px}
   .sp-zoom button{width:46px;height:46px}
   .sp-cotas-fab button{width:46px;height:46px}
   /* Ver el comentario de la nota en cotizador.html: en el celular el panel no da para
@@ -2165,7 +2163,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 }
 /* ----- Visibilidad en PDF / modo edición ----- */
 .pdf-vis{border:none;background:none;font-size:15px;cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1;color:var(--brand)}
-.pdf-vis.off{opacity:.4;color:var(--muted)}
+.pdf-vis.off{color:var(--tinta2)}
 @media(hover:hover){.pdf-vis:hover{background:var(--soft)}}
 /* Oculta del PDF: no se atenúa con opacidad —eso hundía su texto a 2:1 y la partida sigue
    siendo legible por derecho— sino que se marca en el margen y lo dice con palabras. */
@@ -2289,7 +2287,6 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
    app: es un dato al margen y no una acción. */
 .hentry-hitos{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:7px;
   font-size:var(--t1);color:var(--muted);line-height:1.5}
-.hentry-hitos .svgi{width:13px;height:13px;color:var(--ok);flex-shrink:0}
 
 /* ===================== WhatsApp ===================== */
 .btn-wa{background:var(--sup);color:var(--wa);border:1.5px solid rgba(var(--wa-rgb),.32)}
@@ -2627,7 +2624,6 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
   .ptop-actions .del{margin-left:2px}
   .sp-ibtn{min-width:44px;min-height:44px}
   .optgrp .chip{min-height:44px}
-  .vt-sw{width:32px;height:32px}
   /* La cola del inventario, medida en el iPhone 15 Pro Max: cerrar el historial 32×32,
      el contador de letras 37 px de alto (16 px de letra + 5+5 de padding), el plegado
      de la partida 30×30 y el asa de la cortina de comparación 38 px de diámetro. */
@@ -3178,9 +3174,12 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
   box-shadow:none;
 }
 .edit-mode-banner{border-color:var(--av-borde);background:var(--av-bg)}
-/* Tres veces y se calla. Un aro de box-shadow repinta en cada cuadro, y una llamada que no
-   termina deja de llamar: se vuelve fondo. irAlCandado() la reinicia cuando hace falta. */
-.cand-partidas{animation:late 2.8s ease-in-out 3}
+/* Una vez y se calla (C7, falla 3). Eran tres, y antes de eso un bucle: un aro de box-shadow
+   repinta en cada cuadro, y una llamada que no termina deja de llamar —se vuelve fondo—. Late al
+   aparecer, que es lo que hace esta regla sola (una animación de CSS arranca cuando el elemento
+   pasa de oculto a visible), y otra vez cuando se toca algo bloqueado: latirCandado() la reinicia
+   desde partidas.js. Nada de eso es movimiento en reposo: cada latido lo causa un cambio o un toque. */
+.cand-partidas{animation:late 2.8s ease-in-out 1}
 @media(hover:hover){.cand-partidas:hover{transform:none;animation:none;box-shadow:0 0 0 3px rgba(var(--a-rgb),.2)}}
 
 /* ---------- Barra de pasos ----------
@@ -3401,7 +3400,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
   0%,100%{box-shadow:0 0 0 0 rgba(var(--av-rgb),.35)}
   60%{box-shadow:0 0 0 8px rgba(var(--av-rgb),0)}
 }
-.cand-cliente.ojo{border-color:var(--av-borde);background:var(--av-bg);animation:late-av 2.8s ease-in-out 3}
+.cand-cliente.ojo{border-color:var(--av-borde);background:var(--av-bg);animation:late-av 2.8s ease-in-out 1}
 .cand-cliente.ojo>.svgi{color:var(--amber-ico)}
 /* La misma ficha, pero de la rejilla y no de la tarjeta: el aviso de «esto venía de antes»
    cuelga de .wrap, encima de las dos columnas, porque tiene que leerse en las dos pantallas.
@@ -3438,10 +3437,14 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
    bucle para siempre en una pantalla donde la capa de estructura pide «una pantalla, UNA cosa
    que se mueva sola». El cambio a verde ya dice que está. */
 #prog-bar.lleno::after{animation:none;opacity:0}
+/* El destello ya no corre por su cuenta (C19, falla 3): reposa fuera de la barra, a la izquierda, y
+   `.sube` —que updProg() pone SOLO cuando el porcentaje sube— lo pasa una vez por encima. El
+   bloque «cot-partidas» de más abajo trae esa regla. `brillo` se queda declarado: otros sitios
+   del documento de diseño lo citan. */
 #prog-bar::after{
   content:'';position:absolute;inset:0;width:30%;
   background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);
-  animation:brillo 2.4s linear 2;
+  transform:translateX(-100%);
 }
 @keyframes brillo{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
 .prog-track{border-radius:3px;box-shadow:none;background:var(--linea);height:6px}
@@ -3491,10 +3494,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
    dirección sin desaparecer: es donde la gente lo busca. */
 .authnote.espera{display:flex;gap:var(--e2);align-items:flex-start}
 .authnote.falla{border-color:var(--amber-ico);background:var(--amber-bg);color:var(--amber)}
-.espera-giro{flex:0 0 auto;width:14px;height:14px;margin-top:2px;border-radius:50%;
-  border:2px solid var(--linea);border-top-color:var(--brand);animation:esq-gira .8s linear infinite}
 .auth-quien{font-size:var(--t1)}
-.btn.trabajando{cursor:progress;opacity:.8}
 .qi-remota{display:inline-block;margin-left:var(--e1);padding:0 6px;border-radius:999px;
   background:var(--soft-2);color:var(--tinta2);font-size:9px;letter-spacing:.3px;vertical-align:1px}
 #roleseg button.apagado{opacity:.45}
@@ -3503,9 +3503,6 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
    trae el Deshacer. El texto respeta sus saltos de línea: son párrafos. */
 #confmodal,#pf-confirma{z-index:90}
 .modal-conf{max-width:420px}
-.folio.sin-senal{color:var(--av);background:var(--av-bg);border-color:var(--av-borde);display:inline-flex;align-items:center;gap:4px}
-.folio.sin-senal[hidden]{display:none}
-@media(max-width:560px){.folio.sin-senal .lbl{display:none}}
 .conf-texto{white-space:pre-line;color:var(--tinta2);font-size:var(--t3);line-height:1.55;margin:0 0 var(--e4)}
 /* Con menos movimiento late en vez de girar (ver «Menos movimiento no es ninguno»). */
 .mini,.anti-rest{font-size:var(--t1);color:var(--tinta3);line-height:1.5}
@@ -3605,14 +3602,10 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
 .inp-money::before{color:var(--tinta3);font-weight:500;font-size:var(--t3);left:11px}
 
 /* ---------- Los tres hitos de la entrega ----------
-   La fecha de un hito hecho y la pista del que toca van al escalón chico y a la tercera
-   tinta; dentro del botón relleno heredan el blanco, que es lo que ya hacía la regla de
-   arriba. El nombre del hito hecho vuelve a la tinta principal: lo que dice que está hecho
-   son la palomita y la fecha, no un texto apagado. */
-.hito-fecha,.hito-pista{font-size:var(--t1);font-weight:400;color:var(--tinta3)}
-.btn-pri .hito-pista,.btn-ok .hito-pista{color:#fff}
+   El nombre del hito hecho vuelve a la tinta principal: lo que dice que está hecho es el punto
+   verde del riel con su palomita, no un texto apagado. La fecha y la pista se fueron a la nota
+   del riel, que ya se pinta con los tokens de la pieza. */
 .hito-hecho{color:var(--tinta)}
-.hito-ok{color:var(--ok)}
 /* El pliegue de «otras salidas» es el último renglón de la columna y no una caja más: la
    misma decisión que «Datos que salen en el PDF» en la pantalla del cliente. */
 details.ai-cfg.otras-salidas{
@@ -3916,10 +3909,12 @@ details.ai-cfg summary{font-size:var(--t2);font-weight:600;color:var(--tinta2)}
 .sp-tb-btn.active{background:var(--a-fill);color:#fff;border-color:var(--a-fill);box-shadow:none}
 
 /* ---------- Aviso emergente ---------- */
-#toast{border-radius:var(--rr2);box-shadow:var(--sombra-alta)}
+/* El radio y la sombra son de cada aviso, no de la pila: puestos en #toast dibujaban una sombra
+   alrededor del hueco entre los dos. */
+#toast>.toast-uno{border-radius:var(--rr2);box-shadow:var(--sombra-alta)}
 /* Sin la keyframe `toast-sube`: traía el translateX(-50%) del teléfono, y a partir de 760 px
    —donde el aviso ya no se centra— lo hacía nacer medio ancho a la izquierda y cruzar de lado
-   desde la barra lateral. La entrada es la transición de .toast. */
+   desde la barra lateral. La entrada es `aviso-entra`, en cada .toast-uno y solo al nacer. */
 
 /* ---------- Entradas ----------
    Una sola animación para todo lo que aparece: 10 px hacia arriba y de
@@ -4010,6 +4005,1960 @@ html.va-atras #card-proy,html.va-atras .p1-cierre{animation-name:entra-izq}
    hace en su propio código: mide, y si esto está activo no anima. */
 /* (El bloque de «menos movimiento» se mudó al final de la capa 8: ver «Menos movimiento no es
    ninguno». Aquí apagaba TODO a .001 ms, fundidos incluidos.) */
+
+/* =====================================================================
+   ================  PIEZAS COMPARTIDAS  (js/piezas.js)  ===============
+   =====================================================================
+   Las piezas que se construyen una vez y entran en muchos lugares: el aviso con mecha, el botón
+   que dice que está trabajando, el total que rueda, el riel de pasos… Van aquí, al final de la
+   capa de estructura y movimiento y antes del cierre, porque son estructura y movimiento: la
+   capa (5) todavía tiene que poder ganarles por orden, y el tema oscuro (7) y el vidrio (8)
+   repintarlas. Su apagado para menos movimiento vive al cierre de la capa 8, en el bloque
+   «Menos movimiento, para las piezas y las pantallas nuevas».
+
+   Cada bloque es de una sección de js/piezas.js y lleva su marca de fin: lo nuevo va DENTRO
+   de su bloque, no pegado a otro.
+   ===================================================================== */
+
+/* ── Piezas · 1 · avisos y botones que dicen lo que pasa ── */
+/* El reloj que se ve (P.mecha): un filete de 2 px al pie que se consume con transform:scaleX,
+   nunca con width. Va en el color del texto de lo que lo lleva, así sirve igual en el aviso
+   marino, en el verde, en el claro de noche y en un botón fantasma. No lleva texto, así que la
+   opacidad aquí no apaga nada que haya que leer. :where() para no pisar el `position` de quien
+   ya lo tenga fijo o absoluto. */
+:where(.con-mecha){position:relative}
+.mecha{position:absolute;left:0;right:0;bottom:0;height:2px;background:currentColor;opacity:.62;
+  transform-origin:left center;pointer-events:none}
+
+/* ----- El aviso (pieza 12): lo que la pila añade a las reglas de .toast de más arriba ----- */
+@keyframes aviso-entra{from{opacity:0;transform:translateY(8px)}}
+/* Mientras el dedo lo lleva, nada de transición: el aviso va pegado al dedo. */
+.toast-uno.arrastrando{transition:none;cursor:grabbing}
+/* Con menos movimiento la mecha se queda quieta y lo que falta del «Deshacer» va con letra. */
+.toast-seg{flex:none;font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+/* La portada del Fold pega el dock a 6 px del borde (capa 8); la pila, con él. */
+@media(max-width:385px){.toast{left:6px;right:6px}}
+
+/* ----- El rótulo que cambia sin brincar (pieza 23) -----
+   Los dos rótulos en la MISMA celda: el ancho es el del más largo y el de al lado no se mueve.
+   Solo opacity y transform, 180 ms. El gap se hereda del botón, así el icono y el texto quedan
+   a la distancia que ya tenían. */
+.rotulo{display:inline-grid;align-items:center;justify-items:start;gap:inherit;max-width:100%;vertical-align:middle}
+:is(button,[role="button"])>.rotulo{justify-items:center}
+.rotulo>span{grid-area:1/1;display:inline-flex;align-items:center;gap:inherit;min-width:0;
+  transition:opacity .18s var(--ease-out),transform .18s var(--ease-out)}
+.rotulo>.rotulo-b,.rotulo>.rotulo-entra{opacity:0;transform:translateY(.45em)}
+.rotulo>.rotulo-sale{opacity:0;transform:translateY(-.45em)}
+.rotulo.alt>.rotulo-a{opacity:0;transform:translateY(-.45em)}
+.rotulo.alt>.rotulo-b{opacity:1;transform:none}
+/* La sacudida de «falta un dato» y del botón que falló: ±4 px, tres veces, 320 ms. */
+.sacudida{animation:sacudida .32s var(--ease-out)}
+@keyframes sacudida{20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+
+/* ----- La palomita que se dibuja (pieza 6) -----
+   El trazo va de dashoffset 1 a 0 una vez. Es la única propiedad de esta sección que no es
+   transform ni opacity, y se queda a propósito: es un trazo de 24 px que se pinta una sola vez,
+   y es exactamente lo que pide cada ficha que la usa (F6, P2, P13, A2, A14). */
+.palomita{width:1.2em;height:1.2em;flex:none;overflow:visible;vertical-align:-.22em}
+.palomita path{fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.palomita.con-circulo circle{fill:var(--ok-fill)}
+.palomita.con-circulo path{stroke:#fff;stroke-width:2.4}
+.palomita.dibuja path{stroke-dasharray:1;stroke-dashoffset:1;animation:dibuja-trazo .42s .12s var(--ease-out) forwards}
+@keyframes dibuja-trazo{to{stroke-dashoffset:0}}
+
+/* ----- El botón que está trabajando lo dice (pieza 14) -----
+   El relleno es un <span> de verdad detrás del texto (z-index:-1 dentro del aislamiento del
+   botón) y avanza con scaleX. En un botón claro es un tinte suave con la letra oscura encima; en
+   uno de color con letra blanca OSCURECE —un blanco al 22 % aclaraba el azul de 4,95:1 a 3,5:1—,
+   así que la letra se queda en 4.5:1 o más en las dos mitades. data-relleno lo mide la pieza. */
+.con-estado{position:relative;isolation:isolate;overflow:hidden}
+.trabajo-relleno{position:absolute;inset:0;z-index:-1;transform-origin:left center;transform:scaleX(0);
+  background:var(--a-suave);pointer-events:none}
+.con-estado[data-relleno="oscuro"] .trabajo-relleno{background:rgba(var(--tinta-rgb),.32)}
+/* Letra clara sobre una superficie honda (un fantasma de noche): oscurecer no se vería. */
+.con-estado[data-relleno="luz"] .trabajo-relleno{background:rgba(var(--luz-rgb),.18)}
+.con-estado[data-estado="trabajando"]{cursor:progress}
+/* El espacio entre el verbo y el reloj lo lleva el propio reloj (« · 6 s»), así se ve igual en un
+   botón flex con su gap que en uno que no lo es; y la palomita del éxito lleva el suyo. */
+.con-estado[data-estado]{gap:0}
+.con-estado .palomita{margin-right:.4em}
+/* Los hermanos del que trabaja (F7): esperan, y se nota. La opacidad va en el control entero,
+   que es donde el sistema la permite (§4.3), y el porqué lo dice el botón de al lado. El .55 de
+   `:disabled` no sirve aquí: medido en el render, el rótulo de un botón fantasma quedaba en
+   3,81:1 de día (rgb(129,130,143) sobre blanco) y este botón no está deshabilitado —está
+   esperando, y su rótulo es justo lo que se lee para saber por qué no contesta—. Con .68 mide
+   5,2:1 y se sigue viendo apagado al lado del que trabaja. */
+[data-espera]{opacity:.68;cursor:progress}
+.con-estado .estado-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trabajo-reloj{flex:none;font-variant-numeric:tabular-nums;white-space:pre}
+/* El éxito y el fallo le ganan al color del botón con dos clases: .mbar-btn:not(.gho):not(.ok)
+   pesa tres, y la capa de vidrio repinta .btn-pri DESPUÉS de esta hoja. */
+.con-estado.con-estado[data-estado="ok"]{background:var(--ok-fill);border-color:var(--ok-fill);color:#fff}
+.con-estado.con-estado[data-estado="mal"]{background:var(--mal-bg);border-color:var(--mal-borde);color:var(--mal)}
+
+/* ----- «Deshacer» en el mismo botón (pieza 15) ----- */
+[data-deshacer]{position:relative;overflow:hidden}
+.deshacer-seg{margin-left:.35em;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* ----- Mantener presionado para confirmar (pieza 5) -----
+   Dos capas con el mismo rótulo. La de color se descubre con dos translate opuestos: la ventana
+   (.mantener-capa) viaja de -100 % a 0 y su contenido de +100 % a 0, así el texto blanco se
+   queda quieto exactamente encima del de abajo y solo se corre el borde. Todo el acomodo se
+   hereda del botón (padding, justify-content, gap), para que las dos capas coincidan al píxel
+   en cualquier botón de la app. */
+.mantener{position:relative;overflow:hidden;isolation:isolate;user-select:none;-webkit-user-select:none;
+  -webkit-touch-callout:none;touch-action:manipulation}
+.mantener-base{display:inline-flex;align-items:center;justify-content:center;gap:inherit;min-width:0}
+.mantener-capa{position:absolute;inset:0;overflow:hidden;pointer-events:none;border-radius:inherit;
+  padding:inherit;gap:inherit;justify-content:inherit;transform:translateX(-100%)}
+.mantener-capa-t{position:absolute;inset:0;box-sizing:border-box;display:flex;align-items:center;
+  justify-content:inherit;gap:inherit;padding:inherit;white-space:inherit;line-height:inherit;
+  transform:translateX(100%);background:var(--mal);color:#fff}
+.mantener[data-tono="azul"] .mantener-capa-t{background:var(--a-fill)}
+.mantener[data-tono="ok"] .mantener-capa-t{background:var(--ok-fill)}
+.mantener[data-relleno="oscuro"] .mantener-capa-t{background:rgba(var(--tinta-rgb),.36);color:inherit}
+/* De noche --mal es la tinta clara (#ff8a80): con blanco encima no se lee, con la letra honda sí. */
+html[data-tema="oscuro"] .mantener[data-tono="mal"]:not([data-relleno="oscuro"]) .mantener-capa-t{color:var(--n1)}
+.mantener.manteniendo{transform:scale(.97)}
+.mantener.hecho{cursor:default}
+
+/* ----- El veredicto y el sello (pieza 24) ----- */
+.marca-estado{display:inline-grid;place-items:center;width:var(--tam,1.15em);height:var(--tam,1.15em);flex:none;vertical-align:-.2em}
+.marca-estado svg{width:100%;height:100%;overflow:visible}
+.marca-estado .me-base{fill:none;stroke:var(--linea);stroke-width:2}
+.marca-estado .me-arco{display:none;fill:none;stroke:var(--a);stroke-width:2.4;stroke-linecap:round;stroke-dasharray:26 100;transform-origin:12px 12px}
+.marca-estado .me-m{display:none;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.marca-estado[data-estado="espera"] .me-base{stroke:var(--tinta2);stroke-dasharray:1.4 3.4;stroke-linecap:round}
+/* El arco gira SOLO mientras hay una espera de verdad: en cuanto llega el veredicto se va. */
+.marca-estado[data-estado="trabaja"] .me-arco{display:inline;animation:giro-estado .9s linear infinite}
+.marca-estado[data-estado="ok"] .me-base{stroke:var(--ok);fill:var(--ok-bg)}
+.marca-estado[data-estado="ok"] .me-ok{display:inline;stroke:var(--ok)}
+.marca-estado[data-estado="av"] .me-base{stroke:var(--av);fill:var(--av-bg)}
+.marca-estado[data-estado="av"] .me-av{display:inline;stroke:var(--av)}
+.marca-estado[data-estado="mal"] .me-base{stroke:var(--mal);fill:var(--mal-bg)}
+.marca-estado[data-estado="mal"] .me-mal{display:inline;stroke:var(--mal)}
+.marca-estado.dibuja .me-m{stroke-dasharray:1;stroke-dashoffset:1;animation:dibuja-trazo .42s .05s var(--ease-out) forwards}
+@keyframes giro-estado{to{transform:rotate(360deg)}}
+.sello-circular{width:var(--tam,150px);height:var(--tam,150px);display:block;flex:none;color:var(--ok);overflow:visible}
+.sello-circular .sc-aro{fill:none;stroke:currentColor;stroke-width:2.2}
+.sello-circular .sc-aro2{fill:none;stroke:currentColor;stroke-width:.9}
+.sello-circular text{fill:currentColor;font-family:var(--f-texto);font-weight:700;letter-spacing:.12em}
+.sello-circular .sc-centro{font-family:var(--f-cifra);font-weight:800;font-size:27px;letter-spacing:.02em}
+.sello-circular .sc-sub{font-size:8.5px;letter-spacing:.16em}
+.sello-circular .sc-cruz{display:none;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round}
+.sello-circular.gris{color:var(--tinta2)}
+.sello-circular.gris .sc-cruz{display:inline}
+/* Cae una vez, con el golpe de un sello de goma, y se queda quieto. */
+.sello-circular.estampa{animation:sello-cae .5s cubic-bezier(.2,1.5,.4,1) both;transform-origin:50% 50%}
+@keyframes sello-cae{from{opacity:0;transform:scale(1.08) rotate(-8deg)}}
+
+/* Con el dedo, la caja sube a 44 px; la letra no. */
+@media(hover:none),(pointer:coarse){
+  .mantener,.con-estado,[data-deshacer],.toast-uno{min-height:44px}
+}
+/* En papel no hay avisos, ni relojes, ni nada que se dibuje: lo que se imprime ya está puesto. */
+@media print{
+  .toast,.mecha{display:none!important}
+  .palomita.dibuja path,.marca-estado.dibuja .me-m{animation:none!important;stroke-dashoffset:0!important}
+  .sello-circular.estampa,.marca-estado .me-arco{animation:none!important}
+}
+/* ── fin de piezas · 1 ── */
+
+/* ── Piezas · 2 · hojas, listas y transiciones ── */
+/* El estilo de lo que js/piezas.js mueve en su sección 2. Todo se anima con transform u opacity,
+   salvo dos cosas que se explican donde están (el pliegue, que ES espacio, y el color del velo,
+   que es un color). Nada de aquí se mueve solo, y todo lo que se toca mide 44 px con el dedo. */
+
+/* ----- 13 · La hoja que se baja con el dedo -----
+   Mientras el dedo la lleva, el velo se aclara en su COLOR y no en su opacidad: el velo es el
+   padre de la hoja, y bajarle la opacidad se llevaba la hoja entera —texto incluido— hasta el
+   35 %. `--arrastre` va de 0 a 1 con lo que bajó la hoja; al soltar sin cerrar, el tinte vuelve
+   con la curva de la hoja, y al cerrar se desvanece desde donde quedó (la transición de .show,
+   repetida entera porque `transition` no se suma: sin `display … allow-discrete` el velo se iba
+   de golpe). `--velo-a` es el tinte que el velo tenía al empezar, leído del render por la pieza;
+   el .52 de respaldo es el del velo en la capa 8 y en plataforma.css. */
+.hoja-arrastrando{user-select:none;-webkit-user-select:none;cursor:grabbing}
+html :is(.modal-bg,.pf-modal-bg).hoja-velo-sigue{background-color:rgba(var(--nav-rgb),calc(var(--velo-a,.52) * (1 - var(--arrastre,0))))}
+html :is(.modal-bg,.pf-modal-bg).hoja-velo-suelta{
+  transition:opacity .14s var(--ease-out),display .14s allow-discrete,background-color .32s var(--ease-hoja)}
+
+/* ----- 22 · La tarjeta viaja (View Transitions) -----
+   html.vt-pieza la pone P.transicion() solo mientras dura el viaje. La raíz NO se funde: cambia
+   en seco, y solo viajan las piezas con nombre. Con el fundido de siempre parpadeaban el aviso,
+   la cuenta de cada columna y el velo que se estaba cerrando. `vt-contenedor` es la pantalla o
+   la rejilla que cambia entera (P24, F11, H27): sale hacia un lado y entra del otro, según
+   data-va, en los 0,32 s que las pantallas de marco esperan para medirse. */
+html.vt-pieza::view-transition-old(root),html.vt-pieza::view-transition-new(root){animation:none;mix-blend-mode:normal}
+html.vt-pieza::view-transition-group(*){animation-duration:var(--vt-dur,.32s);animation-timing-function:var(--ease-out)}
+html.vt-pieza::view-transition-group(vt-contenedor){animation:none}
+html.vt-pieza::view-transition-old(vt-contenedor),html.vt-pieza::view-transition-new(vt-contenedor){
+  animation-duration:var(--vt-dur,.32s);animation-timing-function:var(--ease-out);animation-fill-mode:both;mix-blend-mode:normal}
+html.vt-pieza[data-va="adelante"]::view-transition-old(vt-contenedor){animation-name:vt-sale-izq}
+html.vt-pieza[data-va="adelante"]::view-transition-new(vt-contenedor){animation-name:vt-entra-der}
+html.vt-pieza[data-va="atras"]::view-transition-old(vt-contenedor){animation-name:vt-sale-der}
+html.vt-pieza[data-va="atras"]::view-transition-new(vt-contenedor){animation-name:vt-entra-izq}
+html.vt-pieza[data-va="sube"]::view-transition-old(vt-contenedor){animation-name:vt-desvanece}
+html.vt-pieza[data-va="sube"]::view-transition-new(vt-contenedor){animation-name:entra}
+@keyframes vt-sale-izq{to{opacity:0;transform:translateX(-24px)}}
+@keyframes vt-sale-der{to{opacity:0;transform:translateX(24px)}}
+@keyframes vt-entra-der{from{opacity:0;transform:translateX(24px)}}
+@keyframes vt-entra-izq{from{opacity:0;transform:translateX(-24px)}}
+@keyframes vt-desvanece{to{opacity:0}}
+
+/* ----- 21 · El tema se abre en círculo -----
+   js/tema.js pone html.tema-revela mientras dura el revelado y anima el clip-path de la foto
+   nueva desde el punto del toque. Las dos fotos se quedan quietas y opacas, sin el fundido ni la
+   mezcla «plus-lighter» que el navegador pone por omisión: con ellas, a media transición los dos
+   temas se sumaban y el blanco se quemaba. */
+html.tema-revela::view-transition-old(root),html.tema-revela::view-transition-new(root){animation:none;mix-blend-mode:normal}
+html.tema-revela::view-transition-new(root){z-index:1}
+
+/* ----- 10 · Bordes que se desvanecen -----
+   La máscara solo del lado donde queda contenido; las clases las pone P.bordesDesvanecidos() y
+   cambian tres veces en todo el recorrido, no en cada píxel. En papel no hay máscara: la fórmula
+   de material también se imprime. */
+.bordes{--borde:32px}
+.bordes-x.hay-despues{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - var(--borde,32px)),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - var(--borde,32px)),transparent)}
+.bordes-x.hay-antes{-webkit-mask-image:linear-gradient(90deg,transparent,#000 var(--borde,32px));mask-image:linear-gradient(90deg,transparent,#000 var(--borde,32px))}
+.bordes-x.hay-antes.hay-despues{-webkit-mask-image:linear-gradient(90deg,transparent,#000 var(--borde,32px),#000 calc(100% - var(--borde,32px)),transparent);mask-image:linear-gradient(90deg,transparent,#000 var(--borde,32px),#000 calc(100% - var(--borde,32px)),transparent)}
+.bordes-y.hay-despues{-webkit-mask-image:linear-gradient(180deg,#000 calc(100% - var(--borde,32px)),transparent);mask-image:linear-gradient(180deg,#000 calc(100% - var(--borde,32px)),transparent)}
+.bordes-y.hay-antes{-webkit-mask-image:linear-gradient(180deg,transparent,#000 var(--borde,32px));mask-image:linear-gradient(180deg,transparent,#000 var(--borde,32px))}
+.bordes-y.hay-antes.hay-despues{-webkit-mask-image:linear-gradient(180deg,transparent,#000 var(--borde,32px),#000 calc(100% - var(--borde,32px)),transparent);mask-image:linear-gradient(180deg,transparent,#000 var(--borde,32px),#000 calc(100% - var(--borde,32px)),transparent)}
+
+/* ----- 11 · Desenfoque progresivo bajo el dock -----
+   Una franja hermana de la barra, fija, una capa por debajo de ella: 4 px de desenfoque y un
+   tinte del lienzo, enmascarados para que se funda en los últimos `--db-alto` px. UNA capa y no
+   tres: cada backdrop-filter se recalcula en cada cuadro de scroll (regla 1 del vidrio). Se
+   enciende solo con algo debajo que fundir, no tapa toques, y con transparencia reducida o en
+   papel no existe. */
+.desenfoque-borde{position:fixed;left:0;right:0;height:0;pointer-events:none;
+  visibility:hidden;opacity:0;transition:opacity var(--mv-r),visibility 0s linear .2s;
+  background:rgba(var(--n1-rgb),.34);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+  -webkit-mask-image:linear-gradient(var(--db-dir,to top),#000 calc(100% - var(--db-alto,28px)),transparent);
+  mask-image:linear-gradient(var(--db-dir,to top),#000 calc(100% - var(--db-alto,28px)),transparent)}
+.desenfoque-borde.abajo{bottom:0;--db-dir:to top}
+.desenfoque-borde.arriba{top:0;--db-dir:to bottom}
+.desenfoque-borde.activa{visibility:visible;opacity:1;transition:opacity var(--mv-r)}
+@media(prefers-reduced-transparency:reduce){ .desenfoque-borde{display:none} }
+
+/* ----- 9 · El renglón que se desliza -----
+   La cara es opaca (--sup) porque las acciones viven DEBAJO de ella; su contenido es el de la
+   pantalla. Las tres acciones se pintan con tokens que ya aguantan su texto en los dos temas:
+   la principal con el relleno del acento (blanco encima, 4,95:1 de día y 5,69:1 de noche), la
+   neutra teñida, y la de peligro como .btn-dgr, teñida y NO rellena: de noche --mal es tinta
+   clara y con blanco encima no se leería. `overflow:clip` con margen para que el aro de foco de
+   lo que va en la cara no quede cortado en el canto. */
+.desliza{position:relative;overflow:clip;overflow-clip-margin:4px;isolation:isolate;border-radius:var(--rr3);touch-action:pan-y}
+.desliza-cara{position:relative;z-index:1;background:var(--sup);touch-action:pan-y;transition:transform .26s var(--ease-out)}
+.desliza.arrastrando .desliza-cara{user-select:none;-webkit-user-select:none;cursor:grabbing}
+.desliza-acciones{position:absolute;top:0;right:0;bottom:0;display:flex}
+.desliza-principal{position:absolute;inset:0;display:flex;background:var(--a-fill)}
+.desliza-acc{min-width:76px;min-height:44px;padding:0 14px;border:0;display:flex;align-items:center;justify-content:center;gap:6px;
+  background:var(--a-suave);color:var(--a-tx);font:600 var(--t2)/1.15 var(--f-texto);cursor:pointer;
+  transition:background-color var(--mv-s),color var(--mv-s)}
+.desliza-acc.peligro{background:var(--mal-bg);color:var(--mal)}
+.desliza-principal .desliza-acc{flex:1;justify-content:flex-start;padding-left:18px;background:var(--a-fill);color:#fff}
+/* Cada lado enseña solo lo suyo: con la cara a la derecha se esconden las acciones de la izquierda
+   —viven pegadas a la derecha y asomaban entre la principal y la cara—, y al revés. Con opacidad
+   y no con visibility: un botón escondido con visibility no se puede enfocar, y con `soloAqui` el
+   Tab tiene que llegar a la principal para abrir el renglón. */
+.desliza.a-la-derecha .desliza-acciones,.desliza:not(.a-la-derecha) .desliza-principal{opacity:0}
+/* Y lo que está DEBAJO de la cara no se toca. Los 260 ms en que la cara regresa a su sitio después
+   de un latigazo dejan las acciones a la intemperie: un segundo toque en el mismo punto caía sobre
+   «Ya se armó» —o sobre «Borrar»— y lo corría otra vez, sin que se viera nada. Solo el lado que
+   está abierto recibe toques; el aro de foco del teclado no depende de esto, así que con `soloAqui`
+   el Tab sigue llegando. */
+.desliza:not(.abierta) .desliza-acciones,.desliza:not(.a-la-derecha) .desliza-principal{pointer-events:none}
+/* Pasado el umbral, la acción se confirma antes de soltar: el relleno pasa al verde de «hecho». */
+.desliza.lista .desliza-principal,.desliza.lista .desliza-principal .desliza-acc{background:var(--ok-fill)}
+.desliza-acc:focus-visible{outline:2px solid var(--a-tx);outline-offset:-4px}
+/* Sobre el relleno del acento (o el verde de «hecho») el aro del acento no se ve: #3018f8 sobre
+   #4060f8 es 1,5:1. Blanco, con los 4,9:1 que ya tiene el texto. */
+.desliza-principal .desliza-acc:focus-visible{outline-color:#fff}
+
+/* ----- Entra lo nuevo, sale lo quitado -----
+   La entrada es la de siempre (10 px hacia arriba, de transparente a opaco), solo en lo que no se
+   había visto. La marca «nuevo» es un filete del acento y un tinte en un ::after que se apaga en
+   `--lista-marca`; su retardo negativo (`--lista-edad`) es lo que hace que un repintado no la
+   vuelva a empezar. El renglón con marca no debe usar su propio ::after. */
+.lista-entra{animation:lista-entra .24s var(--ease-out) backwards}
+@keyframes lista-entra{from{opacity:0;transform:translateY(8px)}}
+.lista-nueva{position:relative}
+.lista-nueva::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 3px 0 0 var(--a),inset 0 0 0 1px var(--a-borde);background:rgba(var(--a-rgb),.06);
+  animation:lista-marca var(--lista-marca,4s) linear var(--lista-edad,0s) both}
+@keyframes lista-marca{0%,75%{opacity:1}to{opacity:0}}
+
+/* ----- El pliegue abre con su altura -----
+   <details class="pliegue">: CSS puro donde el navegador conoce ::details-content e
+   interpolate-size; donde no, abre en seco como antes. `overflow:clip` con 4 px de margen para
+   no cortar el aro de foco del primer campo. .pliegue-flecha gira con la misma curva y el mismo
+   tiempo. `.pliegue-quieto` (P.abrirSinAnimar) es para reabrir desde el código sin animar.
+   .plegable es lo mismo para lo que se pliega con clases: una rejilla de 0fr a 1fr, y lo de
+   dentro fuera del tabulador (visibility) al terminar de cerrar. */
+.pliegue{interpolate-size:allow-keywords}
+.pliegue::details-content{block-size:0;overflow:clip;overflow-clip-margin:4px;
+  transition:block-size .2s var(--ease-out),content-visibility .2s allow-discrete}
+.pliegue[open]::details-content{block-size:auto}
+.pliegue-flecha{flex:none;transition:transform .2s var(--ease-out)}
+.pliegue[open]>summary .pliegue-flecha,[aria-expanded="true"]>.pliegue-flecha{transform:rotate(180deg)}
+.pliegue.pliegue-quieto::details-content,.pliegue-quieto .pliegue-flecha{transition:none}
+.plegable{display:grid;grid-template-rows:0fr;transition:grid-template-rows .2s var(--ease-out)}
+.plegable>*{min-height:0;overflow:clip;overflow-clip-margin:4px;visibility:hidden;transition:visibility 0s linear .2s}
+.plegable.abierto{grid-template-rows:1fr}
+.plegable.abierto>*{visibility:visible;transition:visibility 0s}
+.plegable.pliegue-quieto,.plegable.pliegue-quieto>*{transition:none}
+
+/* ----- Páginas con scroll-snap -----
+   El desplazamiento es del navegador; la pieza pone el punto de cada página, las flechas y el
+   anuncio. `--pag-ancho` deja asomar la siguiente (las paradas del mapa van al 84 %). Ningún
+   botón de la barra se encoge (flex:none): la barra de flex los llevaba a 30 px antes de que la
+   pieza decidiera. Y como no se encogen, la pieza mide: cinco puntos de 44 px con sus dos
+   flechas piden 320 px y en un teléfono de 360 la barra tiene menos, así que primero se van las
+   flechas —el ratón se queda sin ‹ ›, pero los puntos son el camino de todos— y solo si tampoco
+   así caben la barra dice «2 / 7». Con más de cinco páginas, la cuenta siempre. */
+.paginas{display:grid;grid-auto-flow:column;grid-auto-columns:var(--pag-ancho,100%);gap:var(--pag-hueco,12px);
+  overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;scrollbar-width:none}
+.paginas::-webkit-scrollbar{display:none}
+.paginas>*{min-width:0;scroll-snap-align:center;scroll-snap-stop:always}
+.paginas-barra{display:flex;align-items:center;justify-content:center;gap:2px;margin-top:var(--e2)}
+.paginas-punto{flex:none;width:44px;height:44px;padding:0;border:0;border-radius:var(--rr2);background:none;cursor:pointer;display:grid;place-items:center}
+.paginas-punto::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--n4);transition:transform var(--mv-r),background-color var(--mv-s)}
+.paginas-punto[aria-current="true"]::before{background:var(--a-fill);transform:scale(1.35)}
+.paginas-flecha{flex:none;min-width:44px;min-height:44px;padding:0;border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup);color:var(--tinta);
+  font:600 20px/1 var(--f-texto);cursor:pointer;display:grid;place-items:center;transition:border-color var(--mv-s),transform var(--mv-liq)}
+.paginas-flecha:active:not(:disabled){transform:scale(.97)}
+.paginas-flecha:disabled{opacity:.45;cursor:default}
+.paginas-cuenta{min-width:4.5em;text-align:center;font:600 var(--t2)/1 var(--f-cifra);color:var(--tinta2);font-variant-numeric:tabular-nums}
+@media(hover:hover) and (pointer:fine){ .paginas-flecha:hover:not(:disabled){border-color:var(--a-borde)} }
+
+/* ----- La silueta en vez de «Leyendo…» -----
+   Las mismas barras del esqueleto (.esq-b y sus medidas, «Las pantallas de carga»), con el brillo
+   de UNA pasada al aparecer: el del esqueleto corre en bucle, y diez segundos de brillo mientras
+   la IA piensa es la pantalla moviéndose sola. Lo que dice «sigo» es el giro junto al texto. */
+.silueta{display:grid;gap:var(--e3)}
+.silueta-dibujo{display:grid;gap:var(--e2)}
+.silueta .esq-b::after{animation:esq-barre .9s var(--ease-out) .12s 1 both}
+.silueta-fila{display:flex;align-items:center;gap:var(--e3);padding:var(--e1) 0}
+.silueta-ico{flex:0 0 36px;width:36px;height:36px;border-radius:var(--rr2)}
+.silueta-tx{flex:1;min-width:0}
+.silueta-tx .esq-t{margin-bottom:6px}
+.silueta-cifras{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:var(--e3)}
+.silueta-cifra .esq-n{width:70%}
+.silueta-mini{width:100%;border-radius:var(--rr3)}
+/* Lo que la pantalla pone dentro (o.dentro: la foto que la IA está leyendo) llena la caja,
+   debajo del brillo. */
+:is(.silueta-mini,.silueta .esq-bloque)>:is(img,canvas,svg){display:block;width:100%;height:100%;object-fit:cover}
+.silueta-t{display:flex;align-items:center;justify-content:center;gap:8px;margin:0;color:var(--tinta2);font-size:var(--t3);font-weight:500}
+
+/* En papel: ni franjas, ni máscaras, ni lo escondido detrás de un renglón; los pliegues de clase,
+   abiertos (como se despliega todo lo plegado en el papel del sistema); las páginas, una debajo
+   de otra; y ninguna silueta. */
+@media print{
+  .desenfoque-borde,.desliza-acciones,.desliza-principal,.paginas-barra,.silueta{display:none!important}
+  .bordes{-webkit-mask-image:none!important;mask-image:none!important}
+  .desliza-cara{transform:none!important}
+  .plegable{grid-template-rows:1fr!important}
+  .plegable>*{visibility:visible!important}
+  .paginas{display:block!important;overflow:visible!important}
+}
+/* ── fin de piezas · 2 ── */
+
+/* ── Piezas · 3 · números, medidas y campos ── */
+/* Las piezas de números, medidas y campos (js/piezas.js, sección 3). Casi nada de esto se mueve
+   en reposo: la rueda del total, la ficha que viaja y la liga del deslizador existen mientras
+   dura el gesto o el cambio y se van. Lo que queda quieto —el medidor, las casillas, el
+   contador del teléfono— se dice con lleno, rayado, muesca, borde y palabra, nunca solo con
+   color. Todo con tokens: el tema oscuro (7) los cambia y aquí no hay una regla por tema salvo
+   la pastilla del deslizador, que va en marino de día y se invierte de noche. */
+
+/* ----- 1 · La cifra que rueda -----
+   El texto real se queda en su sitio, transparente, y la capa `.rueda-vista` pinta encima las
+   tiras de dígitos con contenido generado: el `textContent` del elemento sigue siendo el
+   número. `:where()` para no pisar un `position` que el elemento ya traiga (un total dentro
+   de algo pegajoso): solo ancla la capa si nadie más lo hizo. */
+.rueda-cifra{font-variant-numeric:tabular-nums}
+:where(.rueda-cifra){position:relative}
+.rueda-rodando{-webkit-text-fill-color:transparent;text-shadow:none}
+.rueda-vista{position:absolute;display:flex;align-items:flex-start;white-space:pre;pointer-events:none;
+  -webkit-user-select:none;user-select:none;-webkit-text-fill-color:currentColor}
+.rueda-col{display:block;overflow:hidden}
+.rueda-tira{display:block}
+.rueda-tira::before{content:"0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9";display:block;white-space:pre}
+.rueda-ch::before{content:attr(data-c)}
+/* El «+1» junto a la cifra que cambió (P18). Es un momento: sube, se lee y se va. */
+.rueda-delta{position:absolute;margin-left:6px;pointer-events:none;white-space:nowrap;
+  font:600 var(--t1)/1.4 var(--f-texto);letter-spacing:0;color:var(--a-tx);-webkit-text-fill-color:currentColor;
+  animation:rueda-delta 1.4s var(--ease-out) both}
+.rueda-delta::before{content:attr(data-d)}
+/* Sin sitio a la derecha —una cifra que llena su tarjeta—, encima y pegado al final de la cifra.
+   Ahí no sube: subiendo se salía por arriba de la tarjeta, que lo recorta. Se funde en su sitio. */
+.rueda-delta.arriba{margin-left:0;animation-name:rueda-delta-quieta}
+@keyframes rueda-delta-quieta{0%{opacity:0}15%,75%{opacity:1}100%{opacity:0}}
+@keyframes rueda-delta{
+  0%{opacity:0;transform:translateY(0)}
+  15%{opacity:1;transform:translateY(-55%)}
+  75%{opacity:1;transform:translateY(-55%)}
+  100%{opacity:0;transform:translateY(-85%)}
+}
+
+/* ----- 2 · La ficha que viaja -----
+   Existe solo mientras viaja. Va detrás de los botones —z-index negativo dentro de un grupo
+   aislado—, así que el texto nunca queda debajo de ella; y el destino esconde su propio relleno
+   mientras ella llega, para que no haya dos. El aspecto lo copia el JS del destino, así que no
+   hace falta una regla por variante (marino, apagado, oscuro, filete de la barra lateral). */
+:where(.con-ficha){position:relative;isolation:isolate}
+.ficha-viaja{position:absolute;left:0;top:0;z-index:-1;box-sizing:border-box;pointer-events:none;
+  transform-origin:0 0;will-change:transform}
+@media screen{
+  .con-ficha .ficha-destino{background-color:transparent!important;background-image:none!important;
+    box-shadow:none!important;border-color:transparent!important}
+  /* El filete de la barra lateral (`.pf-tab.on::before`) viaja dentro de la ficha: el del
+     destino se esconde hasta que ella llega, para que no haya dos. */
+  .con-ficha .ficha-sin-antes::before,.con-ficha .ficha-sin-despues::after{visibility:hidden!important}
+}
+.ficha-viaja>.ficha-adorno{position:absolute;display:block;pointer-events:none}
+/* Un grupo de chips con fondo propio (#f-plazo, #rv-plazo) taparía la ficha a mitad de camino:
+   `.ficha-transparente` deja sin fondo a los NO elegidos —el borde se queda— para que se vea
+   pasar por debajo. En una tarjeta de --sup no cambia nada a la vista. */
+.ficha-transparente>:not(.ficha-viaja):not(.on):not(.active):not([aria-pressed="true"]):not([aria-checked="true"]){background-color:transparent}
+
+/* ----- 3 · Arrastrar sobre la etiqueta -----
+   La etiqueta es el mango: `pan-y` deja que el dedo que baja por la tarjeta desplace la página,
+   y solo el arrastre de lado mueve la medida. Las tres rayitas dicen que se arrastra; en táctil
+   la zona crece por fuera (inset negativo), no la letra, para no mover nada de sitio. */
+.arrastrable,[data-arrastrar]{position:relative;cursor:ew-resize;touch-action:pan-y;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.arrastrable::after,[data-arrastrar]::after{content:"";display:inline-block;width:11px;height:9px;margin-left:6px;
+  vertical-align:-1px;color:var(--tinta3);background:linear-gradient(90deg,currentColor 1.5px,transparent 0) 0 0/4px 100%}
+@media(hover:hover) and (pointer:fine){
+  .arrastrable:hover::after,[data-arrastrar]:hover::after{color:var(--a)}
+}
+@media(hover:none),(pointer:coarse){
+  .arrastrable::before,[data-arrastrar]::before{content:"";position:absolute;inset:-14px -8px}
+}
+.arrastrable.arrastre-activo,[data-arrastrar].arrastre-activo{color:var(--a-tx)}
+.arrastrable.arrastre-activo::after,[data-arrastrar].arrastre-activo::after{color:var(--a)}
+.arrastre-activo :is(input,.inp-money){border-color:var(--a);box-shadow:0 0 0 3px var(--a-suave)}
+.arrastre-medida,.arrastre-medida *{cursor:ew-resize!important}
+
+/* ----- 18 · Opciones con resaltado que se desliza -----
+   Las opciones que no están elegidas no llevan fondo ni borde: la pastilla viaja por DEBAJO de
+   ellas, y una ficha opaca en medio la taparía a mitad de camino. La elegida es un `.chip.on`
+   de los de siempre (capa 8), y la ficha copia ese aspecto al viajar. */
+.glide{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(150px,100%),1fr));gap:4px;padding:4px;
+  border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup2)}
+.glide>.chip{flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;min-height:48px;margin:0;
+  padding:6px 12px;text-align:left;min-width:0}
+.glide>.chip:not(.on){background:transparent;border-color:transparent;box-shadow:none}
+.glide>.chip small{display:block;font-size:var(--t1);font-weight:600}
+/* El tono de la línea de abajo (el «sin IVA» de C4). Sin la opacidad de `.chip.on small`: en
+   ámbar sobre el azul tenue del elegido, ese 80 % lo bajaba de 4.5:1. */
+.glide>.chip.tono-av small{color:var(--av);opacity:1}
+.glide>.chip.tono-ok small{color:var(--ok);opacity:1}
+.glide>.chip.tono-mal small{color:var(--mal);opacity:1}
+@media(hover:hover) and (pointer:fine){
+  .glide>.chip:not(.on):not([aria-disabled="true"]):hover{background:var(--sup);border-color:var(--linea)}
+}
+
+/* ----- 19 · Casillas de código -----
+   El campo de verdad va encima, transparente, y se queda con el foco, el pegado y el lector de
+   pantalla; las casillas son dibujo. La fila entera es la zona táctil. Las casillas se encogen
+   con la fila (flex 1 con mínimo 0): doce de 30 px más sus huecos no caben en 302 px, que es lo
+   que queda de una tarjeta a 360. */
+.casillas{position:relative;display:flex;align-items:center;gap:10px;width:100%;max-width:26rem;min-height:48px;
+  border-radius:var(--rr2)}
+.casillas-in{position:absolute;inset:0;z-index:1;width:100%;height:100%;min-height:0;margin:0;padding:0;border:0;
+  opacity:0;font-size:16px;color:transparent;background:transparent;caret-color:transparent;cursor:text}
+.casillas-in:focus{border:0;box-shadow:none}
+.casillas-grupo{display:flex;flex:1 1 0;gap:4px;min-width:0;pointer-events:none}
+.casilla{position:relative;isolation:isolate;flex:1 1 0;min-width:0;max-width:36px;height:44px;display:grid;place-items:center;
+  border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup2);color:var(--tinta);
+  font:600 18px/1 var(--f-cifra);font-variant-numeric:tabular-nums}
+/* El verde del acierto entra por opacidad, casilla por casilla, en un velo detrás de la letra. */
+.casilla::after{content:"";position:absolute;inset:-1px;z-index:-1;border-radius:inherit;border:1px solid var(--ok-borde);
+  background:var(--ok-bg);opacity:0;transition:opacity var(--mv-r)}
+.casillas:focus-within{outline:2px solid var(--a);outline-offset:4px}
+.casillas:focus-within .casilla.cursor{border-color:var(--a);box-shadow:0 0 0 2px var(--a-suave)}
+.casillas.completo .casilla{border-color:var(--a-borde)}
+.casilla.mal{border-color:var(--mal);color:var(--mal)}
+.casillas.acierto .casilla{border-color:var(--ok-borde)}
+.casillas.acierto .casilla::after{opacity:1;transition-delay:calc(var(--i,0) * 25ms)}
+.casillas.fallo .casilla,.casillas.rechazo .casilla{border-color:var(--mal)}
+.casillas.rechazo{animation:casillas-sacude .32s var(--ease-out)}
+@keyframes casillas-sacude{20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+
+/* ----- 19 · El teléfono que se ve completo -----
+   El contador vive dentro del borde derecho del campo, sin tapar lo tecleado: el campo le
+   deja 64 px. A 10 dígitos es un ✓ en verde, con el borde verde; lo que contradice a la regla
+   (un «+52» con ocho dígitos detrás, once dígitos sin «+») va en ámbar, con su frase. */
+.tel-vivo{position:relative;display:block}
+.tel-vivo .tel-vivo-in{padding-right:64px}
+.tel-cuenta{position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;
+  font:600 var(--t1)/1 var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta3)}
+.tel-vivo.completo .tel-vivo-in{border-color:var(--ok-borde)}
+.tel-vivo.completo .tel-cuenta{color:var(--ok);font-size:var(--t4)}
+.tel-vivo.revisa .tel-vivo-in{border-color:var(--av-borde)}
+.tel-vivo.revisa .tel-cuenta{color:var(--av)}
+.tel-vivo.recien .tel-cuenta{animation:tel-palomita .36s var(--ease-out)}
+@keyframes tel-palomita{from{opacity:0;transform:translateY(-50%) scale(.6)}}
+
+/* ----- 20 · Medidores quietos -----
+   Seis píxeles, sin transición: el lleno, el rayado de lo que tiene dueño (o de todo el lleno
+   si el dato es estimado), el hueco punteado en ámbar hasta la meta y la muesca. La muesca
+   sobresale arriba y abajo para leerse sin color. `print-color-adjust` para que salga en papel
+   con los fondos apagados; y si no sale, la frase de al lado va de todos modos. */
+.medidor{position:relative;display:block;height:6px;margin:6px 0 4px;border-radius:3px;background:var(--n2);
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+.medidor>i{position:absolute;top:0;bottom:0;display:block}
+.medidor>.medidor-lleno{left:0;width:calc(var(--v,0) * 100%);border-radius:3px;background-color:var(--a-fill)}
+.medidor.tono-ok>.medidor-lleno{background-color:var(--ok-fill)}
+.medidor.tono-av>.medidor-lleno{background-color:var(--av)}
+.medidor.tono-mal>.medidor-lleno{background-color:var(--mal)}
+.medidor>.medidor-rayado{left:0;width:calc(var(--r,0) * 100%);border-radius:3px 0 0 3px;
+  background:repeating-linear-gradient(135deg,rgba(var(--sup-rgb),.72) 0 2px,transparent 2px 5px)}
+.medidor.estimado>.medidor-lleno{background-image:repeating-linear-gradient(135deg,rgba(var(--sup-rgb),.72) 0 2px,transparent 2px 5px)}
+.medidor>.medidor-falta{left:calc(var(--v,0) * 100%);width:calc((var(--meta,0) - var(--v,0)) * 100%);border-radius:0 3px 3px 0;
+  background:repeating-linear-gradient(90deg,var(--av) 0 3px,transparent 3px 6px)}
+.medidor>.medidor-muesca{left:calc(var(--muesca,0) * 100%);top:-4px;bottom:-4px;width:2px;margin-left:-1px;border-radius:1px;background:var(--tinta)}
+.medidor>.medidor-cero{left:0;top:-4px;bottom:-4px;width:3px;border-radius:1px;background:var(--mal)}
+
+/* ----- El deslizador con imanes -----
+   Sobre el <input type="range"> nativo: el pulgar mide 44 px —la zona táctil— y se ve de 24;
+   el resto del círculo es transparente. La pastilla y las marcas usan la MISMA cuenta que el
+   centro del pulgar: 22px + p·(100% − 44px). El riel se rellena desde `--p0` (el mínimo, o el
+   «sin ajuste» del autorizador) hasta `--p`. `pan-y`: el dedo que baja por la pantalla la
+   desplaza, no mueve el valor. */
+.desl-caja{position:relative;display:block;min-width:0;--p:0;--p0:0}
+.desl-caja.con-pastilla{padding-top:30px}
+input[type=range].desl-iman{-webkit-appearance:none;appearance:none;display:block;width:100%;height:44px;min-height:44px;
+  margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;cursor:pointer;touch-action:pan-y;
+  --desl-riel:var(--n3);--desl-lleno:var(--a-fill);--desl-pulgar:var(--a)}
+input[type=range].desl-iman:focus{border:0;box-shadow:none}
+input[type=range].desl-iman:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+.desl-caja.fuera input[type=range].desl-iman{--desl-pulgar:var(--av)}
+input[type=range].desl-iman::-webkit-slider-runnable-track{height:6px;border-radius:3px;
+  background:linear-gradient(90deg,var(--desl-riel) 0 calc(22px + min(var(--p0),var(--p)) * (100% - 44px)),
+    var(--desl-lleno) 0 calc(22px + max(var(--p0),var(--p)) * (100% - 44px)),var(--desl-riel) 0)}
+input[type=range].desl-iman::-moz-range-track{height:6px;border-radius:3px;
+  background:linear-gradient(90deg,var(--desl-riel) 0 calc(22px + min(var(--p0),var(--p)) * (100% - 44px)),
+    var(--desl-lleno) 0 calc(22px + max(var(--p0),var(--p)) * (100% - 44px)),var(--desl-riel) 0)}
+input[type=range].desl-iman::-moz-range-progress{background:transparent}
+input[type=range].desl-iman::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:44px;height:44px;margin-top:-19px;
+  border:0;border-radius:50%;cursor:grab;
+  background:radial-gradient(circle,var(--sup) 0 8.5px,var(--desl-pulgar) 9px 12px,rgba(var(--tinta-rgb),.22) 12.5px 13.5px,transparent 14px)}
+input[type=range].desl-iman::-moz-range-thumb{width:44px;height:44px;border:0;border-radius:50%;cursor:grab;
+  background:radial-gradient(circle,var(--sup) 0 8.5px,var(--desl-pulgar) 9px 12px,rgba(var(--tinta-rgb),.22) 12.5px 13.5px,transparent 14px)}
+input[type=range].desl-iman:active::-webkit-slider-thumb{cursor:grabbing}
+/* El grueso es la barra de dos tramos del anticipo (C17): «Hoy» lleno y «Al instalar» tenue. */
+input[type=range].desl-iman.grueso{--desl-riel:var(--a-suave)}
+input[type=range].desl-iman.grueso::-webkit-slider-runnable-track{height:28px;border-radius:var(--rr2);box-shadow:inset 0 0 0 1px var(--a-borde)}
+input[type=range].desl-iman.grueso::-moz-range-track{height:28px;border-radius:var(--rr2);box-shadow:inset 0 0 0 1px var(--a-borde)}
+input[type=range].desl-iman.grueso::-webkit-slider-thumb{margin-top:-8px;border-radius:var(--rr2);
+  background:linear-gradient(90deg,transparent 13px,var(--desl-pulgar) 13px 15px,var(--sup) 15px 29px,var(--desl-pulgar) 29px 31px,transparent 31px) center/44px 36px no-repeat}
+input[type=range].desl-iman.grueso::-moz-range-thumb{border-radius:var(--rr2);
+  background:linear-gradient(90deg,transparent 13px,var(--desl-pulgar) 13px 15px,var(--sup) 15px 29px,var(--desl-pulgar) 29px 31px,transparent 31px) center/44px 36px no-repeat}
+/* Las marcas suben 8 px sobre el campo para quedar pegadas al riel, y encima de él se comían la
+   franja de abajo de los 44 px del pulgar: un dedo ahí tocaba un rótulo y el valor no se movía.
+   Son dibujo (aria-hidden), así que el toque pasa de largo al deslizador. */
+.desl-marcas{position:relative;display:block;height:26px;margin-top:-8px;pointer-events:none}
+.desl-marca{position:absolute;top:0;left:calc(22px + var(--k,0) * (100% - 44px));transform:translateX(-50%);
+  display:grid;justify-items:center;gap:3px}
+.desl-marca::before{content:"";width:2px;height:6px;border-radius:1px;background:var(--n4)}
+.desl-marca.iman::before{height:10px;background:var(--tinta2)}
+.desl-marca b{font:600 11px/1 var(--f-texto);color:var(--tinta2);white-space:nowrap}
+.desl-marca.en b{color:var(--tinta)}
+.desl-marca.sin-texto b{visibility:hidden}
+.desl-pastilla{position:absolute;left:0;top:0;min-width:34px;padding:5px 9px;border-radius:999px;background:var(--nav);color:#fff;
+  font:600 var(--t1)/1 var(--f-cifra);font-variant-numeric:tabular-nums;text-align:center;white-space:nowrap;pointer-events:none}
+.desl-pastilla::after{content:"";position:absolute;left:calc(50% + var(--fx,0px));bottom:-4px;width:8px;height:8px;margin-left:-4px;
+  background:inherit;border-radius:1px;transform:rotate(45deg);z-index:-1}
+html[data-tema="oscuro"] .desl-pastilla{background:var(--tinta);color:var(--nav)}
+
+/* En papel no hay movimiento: ni la capa de la rueda, ni el «+1», ni la ficha a medio viaje. */
+@media print{
+  .rueda-vista,.rueda-delta,.ficha-viaja{display:none!important}
+  .rueda-rodando{-webkit-text-fill-color:initial!important}
+  .desl-pastilla{background:none!important;color:#12162b!important;border:1px solid #999}
+}
+
+/* ── fin de piezas · 3 ── */
+
+/* ── Piezas · 4 · señalar, explicar y sellar ── */
+
+/* Lo que flota —el globo, el nombre de un icono, las esquinas— va en la capa superior del
+   navegador (atributo `popover`), así que nada de esto pide z-index. El navegador le pone a un
+   popover `inset:0;margin:auto`, un borde, relleno, overflow:auto y los colores del sistema: se
+   deshacen aquí, pieza por pieza. Donde no hay popover (Safari 16), el mismo nodo se pinta fijo
+   con z-index 90: encima de los modales (60) y debajo del aviso (100). */
+@supports not selector(:popover-open){
+  .vistazo:not(.pz-abierto),.nombre-tip:not(.pz-abierto),.mira:not(.pz-abierto){display:none}
+  .vistazo,.nombre-tip,.mira{z-index:90}
+}
+
+/* ----- 4 · El globo que explica: desglose o vistazo -----
+   Superficie sólida y no vidrio: lleva cifras que se comparan con un papel, y el contraste se
+   mide en el render. El ancho se limita a 320 px o a la pantalla menos 24: en un teléfono de 360
+   el globo nunca toca los bordes. JS pone left/top; el lado lo dice data-lado. */
+.vistazo{position:fixed;inset:auto;left:0;top:0;margin:0;box-sizing:border-box;
+  width:max-content;max-width:min(var(--vz-ancho,320px),calc(100vw - 24px));
+  max-height:calc(100vh - 24px);overflow:auto;overscroll-behavior:contain;
+  padding:12px 14px;border:1px solid var(--linea);border-radius:var(--rr3);
+  background:var(--sup);color:var(--tinta);box-shadow:var(--sombra-alta);
+  font:500 var(--t3)/1.45 var(--f-texto);text-align:left;
+  transform-origin:var(--vz-origen,top left);
+  transition:opacity .16s var(--ease-out),transform .16s var(--ease-out);
+  transition:opacity .16s var(--ease-out),transform .16s var(--ease-out),display .16s allow-discrete,overlay .16s allow-discrete}
+.vistazo:popover-open{opacity:1;transform:none}
+@starting-style{.vistazo:popover-open{opacity:0;transform:translateY(4px) scale(.98)}}
+/* La salida es más corta que la entrada (§2.18): lo que se va no tiene que explicarse. */
+.vistazo:not(:popover-open){opacity:0;transform:scale(.98);transition-duration:.1s}
+.vistazo.vz-corte{transition:none}
+/* En el teléfono, los globos largos (el mensaje de WhatsApp, el cuaderno) salen como hoja de
+   abajo: un globo de 300 px de texto junto a un botón al fondo de la pantalla no cabe en
+   ningún lado. */
+.vistazo.en-hoja{top:auto;bottom:0;left:0;right:0;width:auto;max-width:none;max-height:min(72vh,560px);
+  border-radius:16px 16px 0 0;border-bottom:0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));
+  transform-origin:bottom center}
+@starting-style{.vistazo.en-hoja:popover-open{opacity:0;transform:translateY(16px)}}
+.vistazo.en-hoja:not(:popover-open){transform:translateY(12px)}
+.vistazo-t{display:block;margin:0 0 6px;font:600 var(--t3)/1.3 var(--f-cifra);color:var(--tinta)}
+.vistazo p{margin:0}
+.vistazo p+p{margin-top:6px}
+.vistazo ul{margin:4px 0 0;padding-left:18px}
+.vistazo li+li{margin-top:2px}
+/* El desglose: concepto a la izquierda, cifra a la derecha, la suma con su filete. */
+.vistazo dl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;margin:0}
+.vistazo dt{color:var(--tinta2)}
+.vistazo dd{margin:0;text-align:right;font-weight:700;font-family:var(--f-cifra);font-variant-numeric:tabular-nums}
+.vistazo .suma{border-top:1px solid var(--linea);padding-top:6px;margin-top:2px;color:var(--tinta)}
+/* El texto exacto que va a salir (el mensaje de WhatsApp): con sus saltos de renglón. */
+.vistazo-texto{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font:500 var(--t3)/1.5 var(--f-texto);
+  background:var(--sup2);border:1px solid var(--linea2);border-radius:var(--rr2);padding:10px 12px}
+.vistazo-acciones{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.vistazo-acciones .btn{width:auto;margin:0;min-height:40px;padding:0 14px}
+.vistazo[role="menu"]{padding:6px;min-width:200px}
+.vistazo [role="menuitem"]{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;margin:0;padding:0 10px;
+  border:0;border-radius:var(--rr2);background:none;color:var(--tinta);font:500 var(--t3)/1.2 var(--f-texto);text-align:left;cursor:pointer;
+  transition:background var(--mv-s),transform var(--mv-liq)}
+.vistazo [role="menuitem"]:active{transform:scale(.98)}
+@media(hover:hover) and (pointer:fine){.vistazo [role="menuitem"]:hover{background:var(--sup2)}}
+/* El ancla abierta se marca con un contorno, sin cambiar de tamaño ni pisar su sombra: el
+   globo sale de ahí. */
+.vistazo-ancla-abierta{outline:2px solid var(--a-borde);outline-offset:2px}
+/* El «?» que explica (H19, muestra 73). */
+.porque{display:inline-grid;place-items:center;flex:none;width:40px;height:40px;padding:0;border-radius:999px;
+  border:1px solid var(--linea);background:var(--sup);color:var(--a-tx);cursor:pointer;
+  font:700 var(--t4)/1 var(--f-cifra);transition:border-color var(--mv-s),background var(--mv-s),transform var(--mv-liq)}
+.porque:active{transform:scale(.97)}
+.porque[aria-expanded="true"]{border-color:var(--a-borde);background:var(--a-suave);box-shadow:none}
+@media(hover:hover) and (pointer:fine){.porque:hover{border-color:var(--a-borde)}}
+
+/* ----- Variante · el nombre de un icono (WarmTooltip) -----
+   Tinta sobre superficie invertida: en claro, marino con blanco; en oscuro, al revés. Los dos
+   pasan de 12:1. No recibe el puntero: pasar por encima de la etiqueta no la mantiene. */
+.nombre-tip{position:fixed;inset:auto;left:0;top:0;margin:0;box-sizing:border-box;
+  max-width:calc(100vw - 16px);padding:6px 10px;border:0;border-radius:var(--rr2);overflow:hidden;
+  background:var(--tinta);color:var(--sup);box-shadow:var(--sombra);
+  font:600 var(--t2)/1.2 var(--f-texto);white-space:nowrap;text-overflow:ellipsis;pointer-events:none;
+  transition:opacity .12s var(--ease-out),transform .12s var(--ease-out)}
+@starting-style{.nombre-tip:popover-open{opacity:0;transform:translateY(3px)}}
+.nombre-tip[data-lado="abajo"]{transform-origin:top center}
+.nombre-tip kbd{display:inline-block;min-width:18px;margin-left:6px;padding:1px 5px;border-radius:4px;
+  border:1px solid rgba(var(--sup-rgb),.45);font:700 var(--t1)/1.3 var(--f-cifra);text-align:center}
+/* Mientras se mantiene el dedo: sin menú de copiar, sin selección de texto. */
+.nombre-presionando{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+
+/* ----- 7 · El encendido de neón, un momento -----
+   Todo en capas que se crean al encender y se quitan al terminar: en reposo no queda nada. El
+   parpadeo es de opacidad a saltos (steps), el haz es un cuadro que gira con transform recortado
+   a un anillo de 2 px, y el halo es una sombra QUIETA dentro de la capa que parpadea: se anima la
+   opacidad de la capa, nunca la sombra. --a-claro es decoración (§4.1) y aquí no lleva texto. */
+.neon-ancla{position:relative}
+.neon-capa{position:absolute;inset:-1px;z-index:1;border-radius:inherit;pointer-events:none;
+  box-shadow:0 0 0 1px var(--a-claro),0 0 18px 2px rgba(var(--ac-rgb),.55);opacity:0;
+  animation:neon-prende 2.6s linear both}
+.neon-discreta>.neon-capa{box-shadow:0 0 0 1px rgba(var(--ac-rgb),.6),0 0 14px 1px rgba(var(--ac-rgb),.25);
+  animation-name:neon-suave;animation-duration:1.7s}
+.neon-haz{position:absolute;inset:0;border-radius:inherit;padding:2px;overflow:hidden;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+.neon-haz::before{content:"";position:absolute;left:50%;top:50%;width:var(--neon-d,640px);height:var(--neon-d,640px);
+  margin:calc(var(--neon-d,640px) / -2) 0 0 calc(var(--neon-d,640px) / -2);
+  background:conic-gradient(from 0deg,transparent 0 70%,var(--a-claro) 84%,rgba(var(--luz-rgb),1) 90%,transparent 96%);
+  animation:neon-gira 1.25s linear 2}
+/* Prende, se va, prende, se va, se queda… y se apaga. Los saltos son del neón que arranca; el
+   final es un fundido, porque apagarse de golpe se lee como una falla. */
+@keyframes neon-prende{
+  0%{opacity:0;animation-timing-function:steps(1,end)}
+  6%{opacity:1;animation-timing-function:steps(1,end)}
+  11%{opacity:.15;animation-timing-function:steps(1,end)}
+  17%{opacity:1;animation-timing-function:steps(1,end)}
+  21%{opacity:.25;animation-timing-function:steps(1,end)}
+  27%{opacity:1;animation-timing-function:linear}
+  70%{opacity:1;animation-timing-function:ease-in}
+  100%{opacity:0}}
+@keyframes neon-suave{0%{opacity:0}18%{opacity:1}30%{opacity:.4}42%,70%{opacity:1}100%{opacity:0}}
+@keyframes neon-gira{to{transform:rotate(360deg)}}
+@keyframes neon-fundido{0%,100%{opacity:0}20%,75%{opacity:1}}
+/* El título que se enciende (A27): una copia del texto, transparente, que solo lleva el halo.
+   Discreto: alfa .25. `neon-al-cargar` lo enciende sin guion (acerca.html no tiene), y
+   `neon-queda` lo deja prendido y quieto al final. */
+.neon-texto{position:relative}
+.neon-texto::after{content:attr(data-neon);position:absolute;inset:0;padding:inherit;color:transparent;pointer-events:none;
+  text-shadow:0 0 2px rgba(var(--ac-rgb),.25),0 0 12px rgba(var(--ac-rgb),.25);opacity:0}
+.neon-texto.neon-encendido::after,.neon-texto.neon-al-cargar::after{animation:neon-letras 1.7s linear both}
+.neon-texto.neon-queda::after{opacity:1}
+.neon-texto.neon-al-cargar.neon-queda::after{animation-name:neon-letras-queda}
+@keyframes neon-letras{
+  0%{opacity:0;animation-timing-function:steps(1,end)}
+  10%{opacity:1;animation-timing-function:steps(1,end)}
+  16%{opacity:.2;animation-timing-function:steps(1,end)}
+  24%{opacity:1;animation-timing-function:linear}
+  70%{opacity:1;animation-timing-function:ease-in}
+  100%{opacity:0}}
+@keyframes neon-letras-queda{
+  0%{opacity:0;animation-timing-function:steps(1,end)}
+  10%{opacity:1;animation-timing-function:steps(1,end)}
+  16%{opacity:.2;animation-timing-function:steps(1,end)}
+  24%,100%{opacity:1}}
+/* El logo apagado que se enciende (A17): gris quieto; al encender, una copia a color parpadea
+   encima y un halo redondo se asoma detrás. Al terminar la copia se va y el logo queda a color. */
+.neon-apagado :is(img,svg){filter:grayscale(1) contrast(.92)}
+.neon-logo{isolation:isolate}
+.neon-logo-copia{position:absolute;inset:0;pointer-events:none;opacity:0;animation:neon-letras-queda 1.8s linear both}
+.neon-logo-copia>:is(img,svg){display:block;width:100%;height:100%;object-fit:contain;filter:none}
+.neon-halo{position:absolute;inset:-14%;z-index:-1;border-radius:50%;pointer-events:none;opacity:0;
+  background:radial-gradient(closest-side,rgba(var(--ac-rgb),.35),transparent);animation:neon-fundido 1.8s linear both}
+
+/* ----- 8 · Pasos que avanzan -----
+   Una marca por paso: anillo gris (en espera), anillo que gira (trabajando; lo único que se
+   mueve, y solo mientras hay trabajo de verdad), palomita, guion ámbar (se saltó) o equis roja.
+   Cada estado tiene su forma además de su color, y el lector lo oye en texto. */
+.traza{display:grid;gap:6px;min-width:0}
+.traza-pasos{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.traza-paso{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:center;min-height:24px;
+  font-size:var(--t2);color:var(--tinta2)}
+.traza-paso.nace{animation:traza-entra .2s var(--ease-out) both}
+@keyframes traza-entra{from{opacity:0;transform:translateY(4px)}}
+.traza-txt{min-width:0;overflow-wrap:anywhere}
+.traza-d{color:var(--tinta3);font-weight:500}
+.traza-reloj{font:600 var(--t1)/1 var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta3);white-space:nowrap}
+.traza-marca{justify-self:center;width:14px;height:14px;box-sizing:border-box;border-radius:50%;border:2px solid var(--n4)}
+.traza-paso[data-estado="espera"]>.traza-marca{border-style:dashed}
+.traza-paso[data-estado="trabaja"]{color:var(--tinta);font-weight:600}
+.traza-paso[data-estado="trabaja"]>.traza-marca{border-color:var(--a-borde);border-top-color:var(--a-fill);animation:esq-gira .8s linear infinite}
+.traza-paso[data-estado="ok"]>.traza-marca,.traza-resumen[data-estado="ok"]>.traza-marca{border:0;
+  background:var(--ok-fill) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.4l2.6 2.6L12 5.4' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/100% no-repeat}
+.traza-paso[data-estado="salta"]>.traza-marca{border:0;background:linear-gradient(var(--av),var(--av)) center/8px 2px no-repeat,var(--av-bg)}
+.traza-paso[data-estado="mal"]>.traza-marca,.traza-resumen[data-estado="mal"]>.traza-marca{border-color:var(--mal);
+  background:linear-gradient(45deg,transparent 42%,var(--mal) 42% 58%,transparent 58%) center/8px 8px no-repeat,
+    linear-gradient(-45deg,transparent 42%,var(--mal) 42% 58%,transparent 58%) center/8px 8px no-repeat,var(--mal-bg)}
+.traza-paso[data-estado="mal"] .traza-d{color:var(--mal)}
+/* Plegada al terminar: un renglón que se abre si alguien quiere ver por qué tardó. */
+.traza-pliegue{animation:aparece .2s var(--ease-out)}
+.traza-resumen{display:flex;align-items:center;gap:8px;min-height:32px;list-style:none;cursor:pointer;
+  font:600 var(--t2)/1.3 var(--f-texto);color:var(--tinta);border-radius:var(--rr2)}
+.traza-resumen::-webkit-details-marker{display:none}
+.traza-resumen::after{content:"";width:6px;height:6px;margin:0 0 3px 4px;border:solid var(--tinta2);border-width:0 2px 2px 0;
+  transform:rotate(45deg);transition:transform var(--mv-r)}
+.traza-pliegue[open]>.traza-resumen::after{transform:translateY(3px) rotate(225deg)}
+.traza-pliegue>.traza-pasos{margin-top:6px;padding-left:4px}
+
+/* ----- 16 · Riel de pasos -----
+   Un vocabulario: hecho (relleno verde con palomita), actual (anillo azul, aria-current),
+   pendiente (anillo neutro), espera (anillo punteado ámbar), tarde (anillo rojo con muesca). El
+   conector se llena en --ok-fill con scaleY/scaleX, y solo cuando un paso CAMBIA a hecho: un
+   riel recién pintado con innerHTML nace ya lleno, sin transición. */
+.riel{list-style:none;margin:0;padding:0;min-width:0}
+.riel-punto{position:relative;z-index:1;display:grid;place-items:center;box-sizing:border-box;flex:none;
+  width:28px;height:28px;border-radius:50%;border:2px solid var(--n4);background:var(--sup);color:var(--tinta2);
+  font:700 var(--t2)/1 var(--f-cifra);font-variant-numeric:tabular-nums}
+.riel-punto>b{font:inherit}
+.riel-punto>svg{display:none;width:16px;height:16px}
+.riel-punto>svg path{fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+:is(.riel-paso[data-estado="hecho"] .riel-punto,.riel-punto[data-estado="hecho"]){border-color:var(--ok-fill);background:var(--ok-fill);color:#fff}
+:is(.riel-paso[data-estado="hecho"] .riel-punto,.riel-punto[data-estado="hecho"])>svg{display:block}
+.riel-paso[data-estado="hecho"] .riel-punto>b{display:none}
+.riel-paso[data-estado="actual"] .riel-punto{border-color:var(--a-fill);background:var(--a-suave);color:var(--a-tx)}
+:is(.riel-paso[data-estado="espera"] .riel-punto,.riel-punto[data-estado="espera"]){border-style:dashed;border-color:var(--av);color:var(--av)}
+/* La muesca de «tarde» es un corte en la esquina de arriba (clip-path, quieto): se ve sobre
+   cualquier fondo, cosa que un recorte pintado con --sup no hacía sobre --sup2. */
+:is(.riel-paso[data-estado="tarde"] .riel-punto,.riel-punto[data-estado="tarde"]){border-color:var(--mal);background:var(--mal-bg);color:var(--mal);
+  clip-path:polygon(0 0,60% 0,100% 40%,100% 100%,0 100%)}
+.riel-t{font-weight:600;color:var(--tinta)}
+.riel-nota{display:block;margin-top:1px;font-size:var(--t1);font-weight:500;color:var(--tinta3)}
+.riel-paso[data-estado="pendiente"] .riel-t{color:var(--tinta2);font-weight:500}
+.riel-paso[data-estado="actual"] .riel-t{font-weight:700}
+.riel-paso.recien .riel-punto>svg{animation:riel-marca .32s var(--ease-out) both}
+@keyframes riel-marca{from{opacity:0;transform:scale(.5)}}
+.riel-paso.niega .riel-punto{animation:riel-niega .25s var(--ease-out)}
+@keyframes riel-niega{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+.riel-boton{display:grid;grid-column:1 / -1;margin:0;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:inherit;
+  cursor:pointer;border-radius:var(--rr2);transition:transform var(--mv-liq)}
+.riel-boton:active{transform:scale(.98)}
+@media(hover:hover) and (pointer:fine){.riel-boton:hover .riel-t{text-decoration:underline;text-underline-offset:3px}}
+.riel-extra{grid-column:2;min-width:0;margin-top:6px}
+/* Vertical: los hitos de entrega (H3), la calibración (H11), agendar (F19), Google Cloud (F32). */
+.riel-v{display:grid}
+.riel-v>.riel-paso{position:relative;display:grid;grid-template-columns:28px minmax(0,1fr);column-gap:12px;align-items:start;padding-bottom:16px}
+.riel-v>.riel-paso:last-child{padding-bottom:0}
+.riel-v .riel-boton{grid-template-columns:28px minmax(0,1fr);column-gap:12px;align-items:start;min-height:28px}
+.riel-v .riel-txt{min-width:0;padding-top:4px;overflow-wrap:anywhere}
+.riel-v>.riel-paso::before,.riel-v>.riel-paso::after{content:"";position:absolute;left:13px;top:30px;bottom:2px;width:2px;border-radius:1px;background:var(--linea)}
+.riel-v>.riel-paso::after{background:var(--ok-fill);transform-origin:top;transform:scaleY(0);transition:transform .45s var(--ease-out)}
+.riel-v>.riel-paso[data-estado="hecho"]::after{transform:scaleY(1)}
+.riel-v>.riel-paso:last-child::before,.riel-v>.riel-paso:last-child::after{display:none}
+/* Horizontal: los cuatro pasos del cotizador (C12), la etapa en la ficha (P7), instalar (A18).
+   Cada conector va del centro de un punto al del siguiente, porque los pasos miden lo mismo. */
+.riel-h{display:flex;align-items:flex-start}
+.riel-h>.riel-paso{position:relative;flex:1 1 0;min-width:0;display:grid;justify-items:center;gap:6px;text-align:center}
+.riel-h .riel-boton{justify-items:center;gap:6px;width:100%;padding:2px 2px 4px}
+.riel-h .riel-txt{max-width:100%;font-size:var(--t1);line-height:1.25;overflow-wrap:anywhere;-webkit-hyphens:auto;hyphens:auto}
+.riel-h .riel-t{font-size:var(--t1)}
+.riel-h .riel-extra{grid-column:auto;margin-top:0}
+.riel-h>.riel-paso::before,.riel-h>.riel-paso::after{content:"";position:absolute;top:13px;left:calc(50% + 18px);right:calc(-50% + 18px);height:2px;border-radius:1px;background:var(--linea)}
+.riel-h>.riel-paso::after{background:var(--ok-fill);transform-origin:left;transform:scaleX(0);transition:transform .45s var(--ease-out)}
+.riel-h>.riel-paso[data-estado="hecho"]::after{transform:scaleX(1)}
+.riel-h>.riel-paso:last-child::before,.riel-h>.riel-paso:last-child::after{display:none}
+.riel-h:has(.riel-boton)>.riel-paso::before,.riel-h:has(.riel-boton)>.riel-paso::after{top:15px}
+/* Siete etapas no caben en 360 px con su nombre: `desliza` las pone en una tira que se recorre
+   con el dedo (las estaciones del Tablero, P25), en vez de partir cada nombre en tres. */
+.riel-h.riel-desliza{overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:none;padding-bottom:2px}
+.riel-h.riel-desliza::-webkit-scrollbar{display:none}
+.riel-h.riel-desliza>.riel-paso{flex:0 0 auto;width:88px;scroll-snap-align:start}
+/* Mini: los cuatro puntos de cada entrada del historial. Lleno lleva palomita, no solo color. */
+.riel-mini{display:inline-flex;align-items:center;gap:4px;vertical-align:middle}
+.riel-mini>.riel-punto{width:14px;height:14px;border-width:2px}
+.riel-mini>.riel-punto>svg{width:10px;height:10px}
+.riel-mini>.riel-punto>svg path{stroke-width:3}
+/* Con marcas: el riel del taller (F5). Las marcas se colocan por su fecha (--riel-pos, de 0 a 1)
+   y caben enteras en los dos extremos. */
+.riel-marcas{position:relative;height:16px;min-width:0}
+.riel-pista{position:absolute;left:0;right:0;top:7px;height:2px;border-radius:1px;background:var(--linea)}
+.riel-marca{position:absolute;top:2px;left:calc(var(--riel-pos,0) * (100% - 12px));width:12px;height:12px;box-sizing:border-box;
+  border-radius:50%;border:2px solid var(--n4);background:var(--sup)}
+.riel-marca[data-estado="hecho"]{border-color:var(--ok-fill);background:var(--ok-fill)}
+.riel-marca[data-estado="actual"]{border-color:var(--a-fill);background:var(--a-suave)}
+.riel-marca[data-estado="tarde"]{border-color:var(--mal);background:var(--mal-bg);clip-path:polygon(0 0,58% 0,100% 42%,100% 100%,0 100%)}
+.riel-hoy{position:absolute;top:0;left:calc(5px + var(--riel-pos,0) * (100% - 12px));width:2px;height:16px;border-radius:1px;background:var(--a-fill)}
+
+/* ----- 17 · Las esquinas que señalan -----
+   Cuatro cajas de 14 px que se trasladan: el marco no cambia de tamaño, se cierra. Un contorno de
+   la superficie alrededor de cada esquina las despega del fondo que tengan debajo. */
+.mira{position:fixed;inset:auto;left:0;top:0;width:0;height:0;margin:0;padding:0;border:0;background:none;
+  overflow:visible;pointer-events:none;color:var(--a-fill)}
+.mira>i{position:absolute;left:0;top:0;width:14px;height:14px;box-sizing:border-box;border:3px solid currentColor;opacity:0;
+  filter:drop-shadow(0 0 1px rgba(var(--sup-rgb),.95));
+  transition:transform .38s var(--ease-out),opacity .2s linear}
+.mira>i:nth-child(1){border-right:0;border-bottom:0;border-top-left-radius:4px}
+.mira>i:nth-child(2){border-left:0;border-bottom:0;border-top-right-radius:4px}
+.mira>i:nth-child(3){border-right:0;border-top:0;border-bottom-left-radius:4px}
+.mira>i:nth-child(4){border-left:0;border-top:0;border-bottom-right-radius:4px}
+.mira.ve>i{opacity:1}
+.mira.sin-transicion>i{transition:none}
+.mira.sigue>i{transition:opacity .2s linear}
+.mira[data-tono="av"]{color:var(--av)}
+.mira[data-tono="mal"]{color:var(--mal)}
+.mira[data-tono="ok"]{color:var(--ok)}
+/* La retícula del pin a mano (F9): quieta en el centro de su contenedor, tinta del tema con
+   contorno de la superficie, para que se lea sobre el mapa de día y de noche. */
+.reticula{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;pointer-events:none;color:var(--tinta);
+  filter:drop-shadow(0 0 1px var(--sup)) drop-shadow(0 0 1px var(--sup))}
+.reticula>i{position:absolute;width:13px;height:13px;box-sizing:border-box;border:2.5px solid currentColor}
+.reticula>i:nth-child(1){left:0;top:0;border-right:0;border-bottom:0}
+.reticula>i:nth-child(2){right:0;top:0;border-left:0;border-bottom:0}
+.reticula>i:nth-child(3){left:0;bottom:0;border-right:0;border-top:0}
+.reticula>i:nth-child(4){right:0;bottom:0;border-left:0;border-top:0}
+.reticula::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:currentColor}
+
+/* ----- 25 · Carga con los azules del logo (gooey, Skiper skiper64) -----
+   Solo se mueve con data-carga="espera"; al terminar, los tres círculos se juntan en la forma
+   del logo y se quedan quietos. */
+.carga-logo{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
+.carga-logo-svg{display:block;width:72px;height:30px;overflow:visible}
+.carga-logo-chica .carga-logo-svg{width:48px;height:20px}
+.carga-logo .c1{fill:var(--a-fuerte)}
+.carga-logo .c2{fill:var(--a)}
+.carga-logo .c3{fill:var(--a-claro)}
+.carga-logo[data-carga="espera"] circle{animation:goo-va 1.6s ease-in-out infinite}
+.carga-logo[data-carga="espera"] .c2{animation-delay:-.53s}
+.carga-logo[data-carga="espera"] .c3{animation-delay:-1.06s}
+@keyframes goo-va{0%,100%{transform:translateX(0)}50%{transform:translateX(18px)}}
+.carga-logo:not([data-carga="espera"]) circle{transition:transform .45s var(--ease-out)}
+.carga-logo:not([data-carga="espera"]) .c1{transform:translateX(7px)}
+.carga-logo:not([data-carga="espera"]) .c2{transform:translateX(2px)}
+.carga-logo:not([data-carga="espera"]) .c3{transform:translateX(-3px)}
+
+/* ----- 26 · El letrero mientras se escribe -----
+   Los colores de aquí son del MATERIAL, no de la interfaz: el aluminio no cambia de color de
+   noche, y la pared donde va el letrero tampoco. Por eso viven como variables de la pieza y no
+   en el tema. El canto se apila con text-shadow en em —crece con la letra— y se oscurece a
+   partir de la cara con color-mix donde existe; donde no, grises de aluminio fijos.
+   Aluminio: halo DETRÁS (drop-shadow del color de la luz). Acrílico: la cara es la luz. */
+.letrero{--luz-fria:#b4d2ff;--luz-calida:#ffcd8c;--letrero-cara:#eef0f4;--letrero-luz:var(--luz-fria);
+  --lt-c1:#a4a9b5;--lt-c2:#949aa6;--lt-c3:#858b98;--lt-c4:#767c8a;--lt-c5:#686e7c;--lt-c6:#5b606e;
+  display:inline-block;max-width:100%;padding:.1em .12em .18em;vertical-align:middle;white-space:nowrap;
+  font:800 clamp(34px,11vw,64px)/1.05 var(--f-cifra);letter-spacing:.02em;color:var(--letrero-cara)}
+@supports (color:color-mix(in srgb,red 50%,blue)){
+  .letrero{--lt-c1:color-mix(in srgb,var(--letrero-cara) 70%,black);--lt-c2:color-mix(in srgb,var(--letrero-cara) 64%,black);
+    --lt-c3:color-mix(in srgb,var(--letrero-cara) 58%,black);--lt-c4:color-mix(in srgb,var(--letrero-cara) 52%,black);
+    --lt-c5:color-mix(in srgb,var(--letrero-cara) 46%,black);--lt-c6:color-mix(in srgb,var(--letrero-cara) 40%,black)}
+  .letrero-acrilico{--lt-cara-luz:color-mix(in srgb,var(--letrero-cara) 78%,var(--letrero-luz))}
+}
+.luz-fria{--letrero-luz:var(--luz-fria)}
+.luz-calida{--letrero-luz:var(--luz-calida)}
+.letrero-aluminio{
+  text-shadow:.012em .012em 0 var(--lt-c1),.024em .024em 0 var(--lt-c2),.036em .036em 0 var(--lt-c3),
+    .048em .048em 0 var(--lt-c4),.06em .06em 0 var(--lt-c5),.072em .072em 0 var(--lt-c6);
+  filter:drop-shadow(0 0 .16em var(--letrero-luz)) drop-shadow(0 0 .45em var(--letrero-luz))}
+/* Acrílico: la cara brilla (el resplandor va primero en la lista, encima del canto) y el canto es
+   de aluminio aunque la cara sea de color. */
+.letrero-acrilico{--letrero-cara:#f7f9ff;color:var(--lt-cara-luz,var(--letrero-cara));
+  text-shadow:0 0 .06em var(--letrero-luz),0 0 .22em var(--letrero-luz),
+    .012em .012em 0 #b9bdc7,.024em .024em 0 #a2a7b3,.036em .036em 0 #8d929f,.048em .048em 0 #787d8b,.06em .06em 0 #666b79}
+.letrero-aluminio.sin-luz{filter:none}
+.letrero-acrilico.sin-luz{color:var(--letrero-cara);
+  text-shadow:.012em .012em 0 #b9bdc7,.024em .024em 0 #a2a7b3,.036em .036em 0 #8d929f,.048em .048em 0 #787d8b,.06em .06em 0 #666b79}
+.letrero-pared{position:relative;display:grid;place-items:center;min-width:0;min-height:120px;padding:28px 14px 30px;
+  border-radius:var(--rr3);overflow:hidden;background:linear-gradient(180deg,var(--nav2),var(--nav))}
+.letrero-nota{position:absolute;right:10px;bottom:8px;font:700 10px/1 var(--f-texto);letter-spacing:.08em;text-transform:uppercase;
+  color:rgba(255,255,255,.82)}
+
+/* ----- Búsqueda con fichas y coincidencia resaltada ----- */
+mark.coincide{background:var(--a-suave);color:var(--tinta);font-weight:700;border-radius:3px;padding:0 1px;
+  box-shadow:inset 0 -2px 0 var(--a-borde)}
+.fichas{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.ficha{display:inline-flex;align-items:center;gap:8px;width:auto;margin:0}
+.ficha[aria-pressed="true"]{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-tx);font-weight:600}
+.ficha-n{box-sizing:border-box;min-width:22px;height:22px;padding:0 6px;border-radius:999px;border:1px solid var(--linea);
+  background:var(--sup2);color:var(--tinta);font:700 var(--t1)/20px var(--f-cifra);font-variant-numeric:tabular-nums;text-align:center}
+.ficha[aria-pressed="true"] .ficha-n{background:var(--sup);border-color:var(--a-borde);color:var(--a-tx)}
+
+/* Con el dedo, 44 px: lo que sube es la caja, nunca la letra (§4.5). */
+@media(hover:none),(pointer:coarse){
+  .porque{width:44px;height:44px}
+  .ficha{min-height:44px}
+  .riel-boton,.riel-v .riel-boton{min-height:44px}
+  .riel-h .riel-boton{min-height:52px}
+  .traza-resumen{min-height:44px}
+  .vistazo [role="menuitem"],.vistazo-acciones .btn{min-height:44px}
+}
+
+/* En papel no hay movimiento ni nada que flote. */
+@media print{
+  .vistazo,.nombre-tip,.mira,.neon-capa,.neon-halo,.neon-logo-copia{display:none!important}
+  .neon-texto::after{content:none}
+  .carga-logo circle{animation:none!important}
+}
+/* ── fin de piezas · 4 ── */
+
+/* =====================================================================
+   ================  LAS PANTALLAS DEL COTIZADOR, CON LAS PIEZAS  ======
+   =====================================================================
+   Lo que cada pantalla del cotizador añade al usar las piezas de arriba. Un bloque por zona,
+   con su marca de fin.
+   ===================================================================== */
+
+/* ── Cotizador · cliente, folio e iconos ── */
+/* ----- C6 · La lista de clientes bajo el campo -----
+   Un popover manual: sube a la capa superior y se coloca con JS (nucleo.js, _comboColocar), así que
+   aquí solo está lo que no depende del campo. El UA le da `inset:0; margin:auto; width:fit-content`
+   a todo [popover]: se anula, o la lista saldría centrada en la pantalla. Sin popover (navegadores
+   de antes de 2024) es el mismo bloque con `position:fixed`, escondido con [hidden]. */
+.combo-menu{position:fixed;inset:auto;margin:0;box-sizing:border-box;padding:4px;max-height:300px;overflow:auto;overscroll-behavior:contain;
+  background:var(--sup);color:var(--tinta);border:1px solid var(--linea);border-radius:var(--rr3);box-shadow:var(--sombra-alta);z-index:70}
+.combo-menu[hidden]{display:none}
+.combo-lista{position:relative}
+/* El resalte: UN solo elemento que se desliza de renglón a renglón con translateY. Solo transform y
+   opacity; la altura se escribe sin transición (todos los renglones miden lo mismo). */
+.combo-pil{position:absolute;left:0;right:0;top:0;height:0;border-radius:var(--rr2);background:var(--a-suave);opacity:0;pointer-events:none;
+  transition:transform var(--mv-r),opacity .15s}
+/* 60 px de alto: el dedo acierta sin apuntar y caben tres líneas sin apretar. */
+.combo-op{position:relative;z-index:1;min-height:60px;padding:8px 10px;border-radius:var(--rr2);cursor:pointer;display:grid;gap:1px;align-content:center;
+  -webkit-tap-highlight-color:transparent}
+.combo-op b{font-weight:700;font-size:var(--t3);color:var(--tinta);overflow-wrap:anywhere}
+.combo-op[aria-selected="true"] b{color:var(--a-tx)}
+.combo-op span{font:600 var(--t2)/1.3 var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta)}
+.combo-op small{font-size:var(--t1);color:var(--tinta2);font-weight:600}
+/* El toque se siente al instante, antes de que se cierre la lista (el resalte solo sigue al ratón). */
+.combo-op:active{background:var(--a-suave)}
+/* La última cotización de otro cliente es dinero de ESE trabajo: en borrador se difumina como los
+   demás importes (precios-ocultos, nucleo.js). «Ver precios» la destapa; en papel no hay lista. */
+body.precios-ocultos:not(.precios-a-la-vista) .combo-importe{filter:blur(7px);user-select:none;-webkit-user-select:none}
+
+/* El lavado de lo que llenó la app: un verde que se funde en 600 ms (los 40 % primeros quietos, para
+   que se alcance a ver) sobre el fondo y el borde del propio campo. `.lavado-quieto` es el mismo verde
+   sin fundido, 1,2 s, para quien pidió menos movimiento: la señal se queda, el movimiento no. */
+input.lavado,textarea.lavado{animation:lavado-campo .6s cubic-bezier(.2,.8,.2,1)}
+input.lavado-quieto,textarea.lavado-quieto{background-color:var(--ok-bg);border-color:var(--ok-borde)}
+@keyframes lavado-campo{0%,40%{background-color:var(--ok-bg);border-color:var(--ok-borde)}}
+
+/* ----- C23 #5 · La pista de «mantén presionado» del diálogo de confirmar ----- */
+.conf-pista{margin:0 0 var(--e3);color:var(--tinta2);font-size:var(--t2);line-height:1.4}
+.conf-pista[hidden]{display:none}
+
+/* ----- C21 · La isla de estado junto al folio -----
+   En reposo no ocupa sitio ni se ve, pero sigue en el árbol (1 px recortado) porque es el
+   role="status" que el lector de pantalla oye al cambiar su texto: con `hidden` no hablaría. Fuera
+   del reparto de la barra (position:absolute sin desplazamientos), así que ni el `gap` la cuenta.
+   Abierta es una pastilla de 32 px de alto: el glifo y, desde 561 px, la frase. El ancho lo
+   escribe JS (32 px + lo que mide la frase) y es el único ancho que esta hoja anima. */
+.isla{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;opacity:0}
+.isla.ver{position:relative;flex:none;display:inline-flex;align-items:center;box-sizing:border-box;height:32px;margin:0;
+  border:1px solid var(--linea);border-radius:999px;background:var(--sup2);color:var(--tinta);clip:auto;clip-path:none;opacity:1;
+  transition:width .42s cubic-bezier(.2,.8,.2,1),opacity .2s,background-color .25s,border-color .25s,color .25s}
+.isla.ver.se-va{opacity:0}
+.isla[data-estado="sin-senal"]{background:var(--av-bg);border-color:var(--av-borde);color:var(--av)}
+.isla[data-tono="ok"]{background:var(--ok-bg);border-color:var(--ok-borde);color:var(--ok)}
+.isla-ic{flex:none;width:30px;height:30px;display:grid;place-items:center}
+.isla-ic .svgi{width:var(--ico2);height:var(--ico2)}
+/* La frase entra en opacidad, un poco después de que la pastilla empiece a abrirse. */
+/* 11 px y no 12,5: medido, la barra de una laptop de 1280 px solo deja 188 px para la isla abierta, y
+   «Sin señal · se guarda aquí» a 12,5 px pedía 198. A 11 px cabe (178); más angosto de ~1200 px la
+   isla se queda en el icono en vez de romper la barra (ver _islaMostrar en nucleo.js). */
+.isla-t{flex:none;padding:0 12px 0 0;font:600 var(--t1)/1 var(--f-texto);opacity:0;transition:opacity .18s}
+.isla.abierta .isla-t{opacity:1;transition-delay:.14s}
+/* Hasta 560 px la barra de arriba está medida al píxel (la comparte con la marca, el rol y los dos
+   botones de icono): ahí la isla es solo el glifo, 32 px y sin crecer, en el lugar del folio que
+   tenía el chip de «sin señal». La frase sigue en el árbol para el lector, recortada. */
+@media(max-width:560px){
+  /* `margin-right:auto` la pega al folio: la barra reparte lo que sobra entre sus piezas, y sin esto la
+     isla quedaba flotando a media fila, lejos del número que acompaña. Solo con la isla a la vista:
+     en reposo no es un elemento del reparto y la fila queda exactamente como antes. */
+  .topbar-in .isla.ver{order:2;margin-right:auto}
+  .isla.ver{width:32px!important;transition:opacity .2s,background-color .25s,border-color .25s,color .25s}
+  .isla-t{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%)}
+}
+
+/* ----- C24 · El folio que voltea -----
+   Las casillas no llevan ancho mínimo: el folio mide lo mismo que cuando era un solo texto (los
+   dígitos son tabulares), y la barra de arriba, medida al píxel, no se entera. `perspective` va en
+   el contenedor de las casillas y no en el folio, para que el borde de la píldora no se deforme; la
+   línea del medio solo se pinta mientras la casilla gira. */
+.fcs{display:inline-flex;perspective:260px}
+.fc{display:inline-block;text-align:center;transform-origin:50% 50%;backface-visibility:hidden}
+.fc.volteando{background:linear-gradient(transparent calc(50% - .5px),rgba(var(--tinta-rgb),.35) calc(50% - .5px) calc(50% + .5px),transparent calc(50% + .5px))}
+#folio .folio-mal{margin-left:6px}
+/* ── fin de cot-cliente ── */
+
+/* ── Cotizador · partidas y completitud ── */
+/* ----- C1 / C15 · una partida que viaja, que se levanta o que se desliza ----- */
+/* El número es el asa de reordenar con el dedo (C15). Es un botón —tabulable, con las flechas— y
+   `touch-action:none` va SOLO en él: el resto de la partida deja desplazar la página. La zona
+   crece 11 px por arriba y por abajo con un ::before para llegar a 44 sin mover nada. */
+.pnum .n.pmover{position:relative;cursor:grab;touch-action:none;-webkit-touch-callout:none;
+  user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+.pnum .n.pmover::before{content:"";position:absolute;inset:-11px -9px}
+.pnum .n.pmover:focus-visible{outline:2px solid var(--a-tx);outline-offset:2px}
+@media(hover:hover) and (pointer:fine){ .pnum .n.pmover:hover{border-color:var(--a-borde);color:var(--a-tx)} }
+/* 300 ms: el borde se recorre mientras se sostiene; si se suelta antes, no pasa nada. */
+.partida.armando .pnum .n::after{content:"";position:absolute;inset:-3px;border-radius:calc(var(--rr1) + 3px);
+  border:2px solid var(--a-fill);animation:arma-mover .3s linear forwards;pointer-events:none}
+@keyframes arma-mover{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
+.partida.levantada{z-index:30;border-color:var(--a-borde);box-shadow:var(--sombra-alta);scale:1.015}
+.partida.levantada .pnum .n{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-tx);cursor:grabbing}
+/* Mientras hay una levantada, las demás se apartan con una transición y no saltan; y nada de la
+   lista se selecciona por accidente con el dedo arrastrando. */
+#items.arrastrando{user-select:none;-webkit-user-select:none}
+#items.arrastrando .partida:not(.levantada){transition:transform .2s var(--ease-out),border-color var(--mv-s)}
+/* «Subir» y «Bajar» en la línea de la fórmula: la alternativa sin gesto para quien no puede
+   mantener y arrastrar —teclado, lector de pantalla, control por voz—, y visible para todos. */
+.pmover-par{margin-left:auto;display:inline-flex;gap:2px;flex-shrink:0}
+.pmover-b{width:36px;min-width:36px;min-height:36px;padding:0;border:0;border-radius:var(--rr2);background:none;
+  color:var(--tinta2);font:700 16px/1 var(--f-cifra);cursor:pointer;
+  transition:background-color var(--mv-s),color var(--mv-s),transform var(--mv-liq)}
+.pmover-b:active:not([aria-disabled="true"]){transform:scale(.97)}
+.pmover-b[aria-disabled="true"]{color:var(--tinta3);cursor:default}
+.pmover-b:focus-visible{outline:2px solid var(--a-tx);outline-offset:1px}
+@media(hover:hover) and (pointer:fine){ .pmover-b:hover:not([aria-disabled="true"]){background:var(--sup2);color:var(--tinta)} }
+@media(hover:none),(pointer:coarse){ .pmover-b{width:44px;min-width:44px;min-height:44px} }
+/* La partida plegada es la fila que se desliza (pieza 9). La fila ocupa el interior del marco —el
+   relleno de la partida pasa a la cara— para que sus acciones se descubran de borde a borde, y la
+   cara conserva el fondo propio de la partida (más hundido si está oculta del PDF o congelada).
+   La cara es el último hijo de la fila y se nombra así, sin repetir su clase: las clases de la
+   pieza 9 viven en su propio bloque y pruebas/piezas-hojas.mjs vigila que no se escriban fuera. */
+.partida>.desliza-partida{margin:calc(var(--pp) * -1);border-radius:inherit}
+.partida>.desliza-partida>:last-child{padding:var(--pp);background:var(--sup)}
+.partida.hidden-pdf>.desliza-partida>:last-child,.items-cand .partida>.desliza-partida>:last-child{background:var(--sup2)}
+/* El aviso de «mantén presionado para borrar»: la × mide 38 px y la pista no cabe en ella. Es solo
+   para la vista (la pieza ya la dice en voz alta) y se borra sola. Va donde los avisos. */
+.del-pista{position:fixed;left:24px;bottom:26px;z-index:99;max-width:min(320px,calc(100vw - 32px));padding:8px 14px;
+  border-radius:var(--rr2);background:var(--tinta);color:var(--sup);font:700 var(--t2)/1.25 var(--f-texto);
+  pointer-events:none;box-shadow:var(--sombra-alta)}
+.del-pista:empty{display:none}
+@media(max-width:759px){
+  .del-pista{left:50%;transform:translateX(-50%);bottom:calc(20px + 66px + env(safe-area-inset-bottom,0px))}
+}
+
+/* ----- C11 · el ojo del PDF se tacha donde está ----- */
+/* Dos iconos en la misma celda y se cruzan con opacity: el ojo que se toca es el mismo botón y la
+   raya aparece AHÍ. El estado se dice con el icono y con la tinta de segundo nivel (4.5:1), no con
+   la opacidad: el 40 % de antes dejaba el ojo apagado en 2:1 sobre la hoja. */
+.ojo-pdf{display:inline-grid;place-items:center}
+.ojo-pdf>.svgi{grid-area:1/1;transition:opacity var(--mv-s)}
+.ojo-pdf>.ojo-b{opacity:0}
+.pdf-vis.off .ojo-a{opacity:0}
+.pdf-vis.off .ojo-b{opacity:1}
+
+/* ----- C19 · la barra avanza y destella UNA vez, cuando el porcentaje sube ----- */
+#prog-bar.sube::after{animation:brillo-una .9s ease-out 1 both}
+@keyframes brillo-una{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
+
+/* ----- C13 · comparar materiales sin elegirlos: tinta fantasma ----- */
+/* El chip que se espía lleva el filete punteado de «todavía no» y la superficie hundida; no pierde
+   su borde de 1 px, así que no se mueve nada. En el total de la partida el fantasma se marca con un
+   contorno y NO con borde ni relleno: que aparezca no empuja el encabezado. Sigue siendo un `.lt`,
+   así que en borrador se difumina igual que el importe de verdad. */
+.chip[data-peek]{-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+.chip.espiado{border-style:dashed;border-color:var(--tinta3);background:var(--sup2)}
+.lt.lt-fantasma{color:var(--tinta2);outline:1.5px dashed var(--tinta3);outline-offset:3px;border-radius:var(--rr1)}
+.peek-fila{margin-top:var(--e2);font-size:var(--t1);font-weight:600;line-height:1.4;color:var(--tinta2)}
+.peek-fila:empty{display:none}
+.peek-fila b{font-family:var(--f-cifra);font-variant-numeric:tabular-nums;font-weight:700;color:var(--tinta)}
+/* Lo que se tapa en borrador no se destapa por la puerta de al lado: el importe de esta línea se
+   difumina con el mismo filtro que `.formula .dinero` y se suelta con «Ver precios». */
+body.precios-ocultos .peek-fila .dinero{filter:blur(7px);transition:filter .16s;user-select:none;-webkit-user-select:none}
+body.precios-ocultos.precios-a-la-vista .peek-fila .dinero{filter:none}
+
+/* ----- C14 · el letrero mientras se escribe ----- */
+/* Con `display:grid` la pared ignoraba el atributo `hidden`; se escribe aquí y no en la pieza,
+   que no sabe que esta pantalla la esconde sin material elegido. */
+.letrero-caja{margin-top:var(--e3)}
+.letrero-caja[hidden],.letrero-caja .letrero-pared[hidden]{display:none}
+.letrero-pie{margin:var(--e2) 0 0;font-size:var(--t1);font-weight:600;line-height:1.4;color:var(--tinta2)}
+
+/* ----- C27 · el estado vacío empieza el trabajo ----- */
+.empty.vacio-partidas{display:grid;gap:var(--e3);text-align:left;padding:var(--e4)}
+.vacio-t{margin:0;font-size:var(--t2);font-weight:600;color:var(--tinta2)}
+.mosaicos{position:relative;display:grid;grid-template-columns:repeat(auto-fill,minmax(122px,1fr));gap:6px}
+.mos{position:relative;z-index:1;min-height:72px;padding:10px;border:1px solid var(--linea);border-radius:var(--rr3);
+  background:transparent;color:var(--tinta);text-align:left;cursor:pointer;font:700 var(--t2)/1.2 var(--f-texto);
+  -webkit-tap-highlight-color:transparent;transition:transform var(--mv-liq),border-color var(--mv-s)}
+.mos small{display:block;margin-top:4px;font-size:var(--t1);font-weight:600;color:var(--tinta2)}
+.mos:active{transform:scale(.97)}
+.mos:focus-visible{outline:2px solid var(--a-tx);outline-offset:2px}
+/* Un solo resaltado que se mueve entre mosaicos con transform. El ancho y el alto no se animan: los
+   cinco mosaicos miden lo mismo, y se escriben al llegar. */
+.resalte-mos{position:absolute;left:0;top:0;z-index:0;border-radius:var(--rr3);background:var(--a-suave);
+  opacity:0;pointer-events:none;transition:transform .22s var(--ease-out),opacity .15s linear}
+.resalte-mos.ve{opacity:1}
+.resalte-mos.sin-t{transition:none}
+.vacio-ia{margin:0;font-size:var(--t2);color:var(--tinta2)}
+.vacio-ia-b{display:inline-flex;align-items:center;min-height:32px;padding:0;border:0;background:none;color:var(--a-tx);
+  font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+@media(hover:none),(pointer:coarse){ .vacio-ia-b{min-height:44px} }
+@media print{ .letrero-caja,.pmover-par,.del-pista,.vacio-ia{display:none!important} }
+/* ----- Pieza 76 · propuesta con opciones: el cliente elige entre dos o tres -----
+   Las tarjetas van lado a lado donde caben y apiladas donde no (un teléfono de 360 px las pone una
+   debajo de otra: cada una mide lo que mide su contenido). El resaltado que sigue al cursor y al foco
+   es el mismo `.resalte-mos` de los mosaicos del estado vacío —un solo Highlight Grid—; por eso las
+   tarjetas no llevan fondo propio: el que se ve debajo es el suyo. Nada se anima solo. */
+.opciones{margin:0 0 var(--e4);padding:var(--e3);border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup2)}
+.op-barra{display:flex;align-items:center;justify-content:space-between;gap:var(--e3);margin-bottom:var(--e3)}
+.op-h{margin:0;font:700 var(--t3)/1.2 var(--f-cifra);color:var(--tinta)}
+.op-mas,.op-proponer{min-height:36px;white-space:nowrap;padding:0 var(--e3);border:1px solid var(--a-borde);border-radius:var(--rr1);background:var(--a-suave);
+  color:var(--a-tx);font:inherit;font-size:var(--t2);font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform var(--mv-liq)}
+.op-mas:active,.op-proponer:active{transform:scale(.97)}
+.opciones-rej{position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:var(--e2)}
+.op-card{position:relative;z-index:1;display:grid;gap:var(--e2);align-content:start;min-width:0;padding:var(--e3);border:1px solid var(--linea);
+  border-radius:var(--rr3);background:transparent;color:var(--tinta)}
+.op-card.abierta{border-color:var(--a-tx)}
+.op-card.elegida{border-color:var(--ok-fill);background:var(--ok-bg)}
+.op-cuerpo{display:grid;gap:var(--e2);align-content:start;min-width:0}
+.op-cab{display:flex;align-items:center;gap:var(--e2)}
+.op-letra{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:22px;height:22px;border-radius:50%;
+  background:var(--a-fill);color:#fff;font:800 var(--t2)/1 var(--f-cifra)}
+.op-etq{font-size:var(--t1);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--tinta2)}
+.op-tag{margin-left:auto;padding:2px 8px;border:1px solid var(--a-borde);border-radius:var(--rr1);background:var(--a-suave);
+  color:var(--a-tx);font-size:var(--t1);font-weight:700}
+.op-t{margin:0;font:700 var(--t3)/1.25 var(--f-cifra);overflow-wrap:anywhere}
+.op-sub{margin:0;font-size:var(--t2);line-height:1.35;color:var(--tinta2)}
+.op-cuenta{margin:0;font-size:var(--t1);font-weight:600;line-height:1.4;color:var(--tinta2);font-variant-numeric:tabular-nums}
+.op-igual{margin:0;font-size:var(--t1);font-weight:600;line-height:1.4;color:var(--av)}
+.op-precio{font:700 var(--t6)/1 var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta)}
+.op-sello{display:none;align-items:center;gap:6px;font-size:var(--t2);font-weight:700;color:var(--ok)}
+.op-card.elegida .op-sello{display:flex}
+.op-acc{display:flex;flex-wrap:wrap;gap:var(--e2);align-items:stretch}
+.op-acc .btn{flex:1 1 auto;width:auto;min-width:0;margin:0;padding:10px 12px;font-size:var(--t2);white-space:nowrap}
+.op-acc .btn+.btn{margin-top:0}
+.op-elegir[aria-disabled="true"]{background:var(--sup2);border-color:var(--linea);color:var(--tinta2)}
+@media(hover:hover) and (pointer:fine){ .op-elegir[aria-disabled="true"]:hover{background:var(--sup2);border-color:var(--linea);color:var(--tinta2)} }
+.op-quita{flex:0 0 40px;border:1px solid var(--linea);border-radius:var(--rr1);background:var(--sup);color:var(--tinta2);
+  font-size:18px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform var(--mv-liq)}
+.op-quita:active{transform:scale(.97)}
+.op-mas:focus-visible,.op-proponer:focus-visible,.op-quita:focus-visible,.op-acc .btn:focus-visible{outline:2px solid var(--a-tx);outline-offset:2px}
+.op-nota{margin:var(--e3) 0 0;font-size:var(--t1);line-height:1.45;color:var(--tinta2)}
+.op-edita{margin:var(--e3) 0 0;padding-top:var(--e3);border-top:1px dashed var(--linea);font:700 var(--t2)/1.3 var(--f-texto);color:var(--tinta)}
+.op-edita:focus-visible{outline:2px solid var(--a-tx);outline-offset:2px}
+.op-pie{display:flex;align-items:center;flex-wrap:wrap;gap:var(--e3);margin-top:var(--e4);padding-top:var(--e3);border-top:1px solid var(--linea)}
+.op-pie small{font-size:var(--t1);color:var(--tinta2)}
+/* El importe que viaja de la tarjeta al total de la partida pasa por ENCIMA de las demás. */
+::view-transition-group(vt-elegida-precio){z-index:2}
+/* Delante del cliente en borrador: el importe de cada opción y su cuenta se difuminan como todos los
+   importes (el selector de nucleo.js, _SEL_PRECIO, los deja espiar con el dedo). */
+body.precios-ocultos .op-precio,
+body.precios-ocultos .op-cuenta .dinero{filter:blur(7px);transition:filter .16s;user-select:none;-webkit-user-select:none;cursor:pointer}
+body.precios-ocultos.precios-a-la-vista .op-precio,
+body.precios-ocultos.precios-a-la-vista .op-cuenta .dinero{filter:none}
+@media(hover:none),(pointer:coarse){
+  .op-mas,.op-proponer,.op-quita,.op-acc .btn{min-height:44px}
+  .op-quita{flex-basis:44px}
+}
+@media print{ .op-acc,.op-mas,.op-pie{display:none!important} .op-card,.opciones{break-inside:avoid} }
+/* ── fin de cot-partidas ── */
+
+/* ── Cotizador · precio, autorización, notario y hitos ── */
+
+/* ----- El riel de cuatro pasos enseña cuánto va (C12) -----
+   Nada unía a los cuatro pasos —las flechas llevan tiempo en display:none— y «voy en la mitad»
+   había que contarlo palomita por palomita. Un filete de 2 px por dentro del borde de abajo se llena
+   de 0 a 100 % según los pasos hechos: lo escribe pintarPasos() en `--avance` y la transición solo
+   corre cuando el número cambia, o sea al autorizar o al entregar —escribir el mismo valor en cada
+   tecla no dispara nada—. Verde (--ok-fill) y no el azul de marca: el azul es de la pestaña actual
+   y el verde de lo que ya está, igual que el conector del riel de la entrega.
+
+   Es decorativo y va en pseudo-elementos: lo que dice el estado de cada paso con palabras es el
+   nombre accesible de la pestaña («Paso 2 de 4 · Partidas · hecho»). */
+.pasos{position:relative}
+.pasos::before,.pasos::after{content:"";position:absolute;left:14px;right:14px;bottom:3px;height:2px;
+  border-radius:1px;pointer-events:none}
+.pasos::before{background:var(--linea)}
+.pasos::after{background:var(--ok-fill);transform-origin:left center;transform:scaleX(var(--avance,0));
+  transition:transform var(--mv-t)}
+/* El círculo de cada paso es el glifo de su estado (StatusMark): anillo punteado ámbar para el que
+   todavía no toca, relleno de marca para el actual, palomita dibujada para el hecho. Cabe en los
+   22 px que le quedan a 320, donde las pestañas que no son la actual se quedan solo con su círculo. */
+.paso-tab.espera .n{border-style:dashed;border-width:1.5px;border-color:var(--av)}
+.paso-tab .n .palomita{width:14px;height:14px}
+
+/* ----- El recorrido de la solicitud (C9) -----
+   Tres tramos en un renglón, cada uno con su glifo de 22 px y su nombre debajo. Con tres columnas
+   iguales caben a 320 px: «En este teléfono» y «Dirección decide» se parten en dos renglones antes
+   que salirse. El estado va con palabras para el lector de pantalla (.solo-voz) y con el glifo para
+   el ojo; el color nunca va solo. */
+.authnote.espera{display:block}
+.recorrido{list-style:none;margin:0 0 var(--e3);padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--e1)}
+.recorrido .tramo{display:grid;justify-items:center;align-content:start;gap:var(--e1);text-align:center;
+  font-size:var(--t1);font-weight:600;line-height:1.3;color:var(--tinta2)}
+.recorrido .tramo[data-e="ok"] .tramo-t,.recorrido .tramo[data-e="trabaja"] .tramo-t{color:var(--tinta)}
+.espera-frase{display:block}
+/* «Revisado hace 9 s»: cifras tabulares para que el reloj no baile al contar, y --tinta2 porque
+   --tinta3 sobre el fondo hundido de esta nota no llega a 4.5:1. */
+.espera-hace{display:block;margin-top:var(--e1);font-size:var(--t1);color:var(--tinta2);font-variant-numeric:tabular-nums}
+/* La insignia con su glifo: el puntito era de 8 px, el glifo de 14 pide su propio hueco. */
+.badge .marca-estado{margin-right:2px}
+/* La cola del autorizador, viva (C22): el contenedor sobrevive a los repintados del panel, y los
+   renglones que se despiden —se quedan absolutos mientras se desvanecen— necesitan caja de donde
+   colgarse y que recorte lo que se sale. */
+#auth-cola{position:relative}
+/* La palabra «nueva» sale mientras la pieza tenga puesta su marca. El selector va por atributo y no por
+   clase a propósito: pruebas/piezas-hojas.mjs vigila que lo de la pieza no se escriba fuera de su
+   bloque, y esto no es de la pieza, es de la cola —solo lee la clase que ella pone y quita sola—. */
+.queue-item[class~="lista-nueva"] .qi-folio::after{content:"nueva";margin-left:var(--e1);padding:0 6px;border-radius:999px;
+  background:var(--a-suave);color:var(--a-tx);font-size:10px;letter-spacing:.3px;vertical-align:1px;text-transform:none}
+.falt-row.lista-se-va{border-radius:var(--rr2)}
+
+/* ----- El anticipo, partido a la vista (C17) -----
+   La barra de dos tramos va debajo del campo, que sigue ahí para teclear. Debajo, «Hoy $X · Al
+   instalar $Y», cada cifra en el extremo de su tramo; y cuando el anticipo se pasa del total, la
+   frase lo dice con palabras y en ámbar. El renglón de las dos cifras está difuminado en borrador
+   porque lleva importes (#s-anti-rest ya estaba en la lista de lo que se tapa). */
+.anti-partido{margin-top:var(--e2)}
+.anti-partido[hidden]{display:none}
+.anti-rest{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--e1) var(--e3)}
+.anti-tramo{color:var(--tinta2)}
+.anti-tramo b{color:var(--tinta);font-family:var(--f-cifra);font-variant-numeric:tabular-nums}
+.anti-sobra{flex-basis:100%;color:var(--av);font-weight:600}
+/* La excepción de las condiciones de pago, cuando el total que se cobra pasa de $60,000. Ámbar y con
+   palabras: avisa que el 50 % es solo la referencia. En borrador no sale, porque su sola presencia
+   diría que el total pasa de ese número. */
+.anti-excep{margin:var(--e2) 0 0;padding:10px 12px;border:1px solid var(--av-borde);border-radius:var(--rr2);
+  background:var(--av-bg);color:var(--av);font-size:var(--t2);font-weight:600;line-height:1.45}
+body.precios-ocultos:not(.precios-a-la-vista) .anti-excep{display:none}
+.anti-r:disabled{cursor:not-allowed;--desl-pulgar:var(--n6)}
+
+/* ----- El deslizador del precio (C18) -----
+   Va encima del campo, con un poco de aire arriba para las marcas del riel. La frase del ajuste
+   de la revisión remota usa la misma regla que la del formulario local (.descuento-info). */
+.precio-desl{margin:var(--e1) 0 var(--e2)}
+.precio-r:disabled{cursor:not-allowed;--desl-pulgar:var(--n6)}
+
+/* ----- La barra fija con su rótulo que cruza (C10) -----
+   El botón principal del dock ya no se reescribe con innerHTML: su contenido vive dentro del rótulo
+   de la pieza 23, donde el icono, el texto y la flecha son tres hijos de una caja flex y los
+   espacios en blanco entre ellos no cuentan. Lo que los separaba era un espacio de texto; ahora es
+   el `gap` que el rótulo hereda del botón. */
+.mbar-btn{gap:6px}
+
+/* ----- El desglose del total del dock (C23 #4) -----
+   Con la cotización en borrador los importes van difuminados en toda la pantalla; el globo que
+   explica el total los difumina también. El desglose se calcula al abrir, así que el filtro va en
+   la hoja y no en lo que pinte el guion. */
+body.precios-ocultos:not(.precios-a-la-vista) .desglose-total dd{filter:blur(7px);user-select:none;-webkit-user-select:none}
+
+/* ----- La cotización que vuela al Historial (C20) -----
+   Una copia de la tarjeta con el folio y el cliente —no el total: en un borrador va difuminado, y un
+   importe que cruza la pantalla no tiene por qué leerse—. La mueve Web Animations desde el guion;
+   aquí solo cómo se ve mientras vuela. Nada queda en reposo: se quita al llegar. */
+.vuelo-cot{position:fixed;z-index:60;margin:0;pointer-events:none;transform-origin:50% 50%;will-change:transform,opacity;
+  display:grid;gap:2px;padding:12px 14px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup);
+  box-shadow:0 1px 2px rgba(var(--tinta-rgb),.06),0 10px 24px -16px rgba(var(--a-rgb),.35)}
+.vuelo-cot .vc-folio{font:700 var(--t2)/1.2 var(--f-cifra);color:var(--a-tx)}
+.vuelo-cot .vc-cli{font:700 var(--t4)/1.25 var(--f-cifra);color:var(--tinta);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media print{.vuelo-cot{display:none}}
+
+/* ----- El plazo sugerido dice qué es y por qué (H19) -----
+   «sugerido» en chiquito dentro del chip, en tinta2 (4.5:1) y, en el chip elegido, del mismo color
+   que su rótulo (el que ya mide 4.5:1 sobre el fondo del elegido, sea el que sea). La nota
+   de abajo lleva a su lado el «?» de 44 px que abre la razón; con flex se queda al lado de la frase
+   y, si no cabe, baja sin empujar los chips. */
+#f-plazo .chip small,#rv-plazo .chip small{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--tinta2);opacity:1}
+#f-plazo .chip.on small,#rv-plazo .chip.on small{color:inherit;opacity:1}
+.plazo-nota{display:flex;align-items:center;flex-wrap:wrap;gap:var(--e1) var(--e2)}
+.plazo-nota>span{min-width:0;flex:1 1 12ch}
+.plazo-nota .porque{flex:none}
+
+/* ── fin de cot-precio ── */
+
+/* ── Cotizador · entrega (PDF, WhatsApp) y registrar venta ── */
+
+/* ----- El riel de los tres pasos (H3) -----
+   Eran tres botones apilados sin nada que los uniera: había que contar palomitas para saber si
+   faltaba uno. Ahora cuelgan del riel de la pieza 16, con el conector en --ok —no en el azul de
+   marca: el azul es el del botón que hace lo que se vino a hacer, y un riel azul competiría con
+   él—, y «vas en el 2 de 3» se lee de un vistazo.
+
+   El botón de cada paso va en `extra`, o sea en la columna del texto, con el punto y el conector
+   a su izquierda. Ancho completo, como estaban: son la acción de la pantalla. */
+.entrega-riel{margin:var(--e3) 0}
+.entrega-riel>.riel-paso{padding-bottom:var(--e4)}
+.entrega-riel .riel-extra{margin-top:var(--e2)}
+/* `.btn+.btn` da el aire entre el botón del paso y «Ver mensaje»; el primero no lo necesita. */
+.entrega-riel .riel-extra>.btn:first-child{margin-top:0}
+/* La nota lleva el número de WhatsApp y la fecha del hito: a 360 px, dentro de una columna de
+   280, un «+52 33 2813 0092» sin partir desbordaría a lo ancho. */
+.entrega-riel .riel-nota{overflow-wrap:anywhere}
+
+/* El estorbo que impide el paso, dicho con palabras y en ámbar: «el teléfono no parece válido».
+   Va encima del botón y no dentro, porque lo que hay que hacer es salir a corregir el teléfono,
+   no tocar aquí. El icono no dice nada solo: la frase va completa al lado. */
+.hito-av{display:flex;align-items:flex-start;gap:6px;margin:0 0 var(--e2);
+  padding:8px 10px;border:1px solid var(--av-borde);border-radius:var(--rr2);
+  background:var(--av-bg);color:var(--av);font-size:var(--t1);font-weight:600;line-height:1.45}
+.hito-av .svgi{width:14px;height:14px;flex:none;margin-top:1px;color:var(--av)}
+
+/* «Ver mensaje»: enseña el texto exacto antes de salir de la app (H2). Es opcional y secundario
+   —el paso se hace con el botón de arriba—, así que va en fantasma y con la letra chica; el alto
+   se queda en 44 px porque con el dedo todo lo tocable mide 44. */
+.hito-ver{font-size:var(--t2);padding:10px 14px;min-height:44px}
+
+/* El globo del mensaje: el texto va tal cual se va a mandar, con sus renglones y sus asteriscos
+   de negrita de WhatsApp, y con su propia altura máxima para que en un teléfono acostado no tape
+   la pantalla entera. El desplazamiento vertical es del globo, no de la página de abajo. */
+#wa-msg .vistazo-texto{max-height:44vh;overflow:auto}
+
+/* ----- Los cuatro puntos de cada entrada del historial (H3) -----
+   El riel mini al principio del renglón y, al lado, el último hito con su fecha: los puntos
+   dicen en qué se quedó y el texto dice cuándo fue lo último. Sin el `flex-shrink:0` los catorce
+   píxeles de cada punto se apretaban cuando el nombre del hito es largo. */
+.hentry-hitos .riel-mini{flex:none}
+.hentry-ultimo{min-width:0;overflow-wrap:anywhere}
+
+/* ----- Registrar venta: la cuenta dice si lleva IVA (C4) -----
+   Las cinco cuentas como fichas, dentro de la rejilla del modal. La pieza las acomoda de a 150 px
+   como mínimo, y en un teléfono de 360 —283 px de ancho útil dentro del modal— eso las pone de
+   una en una: cinco renglones de 52 px, un tercio de la pantalla solo para elegir una cuenta que
+   casi nunca cambia. Con 128 caben dos por renglón (tres renglones), y «Constru BNT» con su
+   «con IVA» debajo sigue entrando sin partirse; de 520 para arriba, tres.
+
+   La etiqueta «con IVA / sin IVA» y su tono ámbar los pone la pieza (`.tono-av`, con su tinta
+   entera y no la del 80 % del elegido): aquí solo se le da el fondo del campo, que es el que
+   tienen las cajas de al lado, para que el grupo se lea como un campo más del formulario. */
+#rv-cuentas-caja .glide{background:var(--soft);grid-template-columns:repeat(auto-fill,minmax(min(128px,100%),1fr))}
+
+/* El aviso de que la hoja va a mover el IVA. Ámbar, con la consecuencia en pesos, y nunca
+   cambia nada solo: lo que se puede corregir es la cuenta. */
+.rv-iva-av{margin:8px 0 0;padding:10px 12px;border:1px solid var(--av-borde);border-radius:var(--r-sm);
+  background:var(--av-bg);color:var(--av);font-size:var(--t2);font-weight:600;line-height:1.5}
+
+/* El hueco de la palomita que se dibuja al registrar (pieza 6, C23 #6). Mide lo que medía el
+   icono fijo que había antes, así que la caja verde no cambia de alto al encenderse. */
+.rv-copied-ico{display:inline-flex;align-items:center;flex:none;width:16px;height:16px}
+.rv-copied-ico .palomita{width:16px;height:16px}
+
+/* ----- El salto atrás que no se ve (H3) -----
+   marcarHito() repinta el panel entero y el riel nace con el hito ya puesto, así que para que el
+   conector se vea llenarse hay que devolverle por un cuadro el estado de antes. Esa clase apaga
+   TODO el movimiento del riel durante ese cuadro: sin ella el conector empezaría a vaciarse y el
+   viaje de vuelta se quedaría a medias, que se ve como un parpadeo. */
+.entrega-riel.entrega-quieta,.entrega-riel.entrega-quieta *,
+.entrega-riel.entrega-quieta>.riel-paso::before,
+.entrega-riel.entrega-quieta>.riel-paso::after{transition:none!important;animation:none!important}
+
+/* ── fin de cot-entrega ── */
+
+/* ── Cotizador · Cotizar con IA ── */
+/* H20 · LA CARPETA QUE SE ABRE AL ACERCAR EL ARCHIVO, Y QUE EN REPOSO NO HACE NADA
+   El icono de la zona de arrastre respiraba en bucle (css/vidrio.css, `vid-respira`), y era una
+   de las cuatro piezas que rompían la regla del sistema de diseño: «una sola pieza se mueve
+   sola, el botón de Cotizar con IA». En una pantalla vacía, a las siete de la tarde, lo único
+   que se mueve se lleva el ojo: ese latido llamaba la atención sobre un recuadro que no tenía
+   nada que decir todavía.
+
+   Ahora se mueve cuando el usuario trae un archivo, y solo entonces: la tapa se abre 38° y de
+   dentro asoma una hoja que dice «Suéltalo aquí». Dos SVG hermanos y no uno solo con dos grupos
+   dentro, porque las transformaciones 3D no se aplican a los hijos de un <svg> —se aplican al
+   <svg>—; el cuerpo va detrás, la hoja en medio y la tapa delante, en ese orden del marcado.
+   El movimiento son 180 ms de `transform`, nada más: en gama media eso es una capa que el
+   compositor ya tiene y no cuesta un repintado.
+
+   El conteo de dragenter/dragleave que evita el parpadeo ya vive en ia.js (`_aiDragN`). */
+.ai-carpeta{position:relative;width:96px;height:72px;perspective:340px;margin-bottom:var(--e1)}
+.ai-carpeta svg{position:absolute;left:0;width:96px;display:block}
+.ai-carpeta .cp-cuerpo{top:0;height:72px;fill:var(--a-fuerte)}
+.ai-carpeta .cp-tapa{bottom:0;height:55px;fill:var(--a);transform-origin:50% 100%;
+  transition:transform .18s cubic-bezier(.2,.8,.2,1)}
+.ai-carpeta .cp-filo{fill:var(--a-claro)}
+/* La hoja: papel de verdad —superficie y línea del tema, no un blanco fijo—, para que de noche
+   no sea un rectángulo encendido dentro de una carpeta apagada. */
+.ai-carpeta .cp-hoja{position:absolute;left:11px;right:11px;top:14px;height:46px;border-radius:5px;
+  background:var(--sup);border:1px solid var(--linea);box-shadow:0 2px 6px rgba(var(--tinta-rgb),.18);
+  color:var(--tinta);font-size:var(--t1);font-weight:700;line-height:1.2;text-align:center;
+  padding-top:5px;transform:translateY(9px);transition:transform .18s cubic-bezier(.2,.8,.2,1)}
+.ai-drop.sobre .ai-carpeta .cp-tapa{transform:rotateX(-38deg)}
+.ai-drop.sobre .ai-carpeta .cp-hoja{transform:translateY(-22px)}
+/* Con el archivo encima, el recuadro cambia de frase: la hoja ya dice «Suéltalo aquí» y las dos
+   líneas de instrucciones («arrastra… o toca… o pega con Ctrl+V») estorban justo cuando ya no
+   hay nada que elegir. Se cambian por una sola, que dice qué va a pasar al soltar.
+
+   El cambio de frase NO puede cambiar la altura del recuadro. La primera versión escondía las dos
+   líneas con `display:none` y el recuadro se encogía 26 px en el momento de acercar el archivo:
+   todo lo de abajo subía justo cuando la mano ya iba hacia allá, y un puntero que estaba en el
+   borde de abajo quedaba de golpe fuera del recuadro. Ahora las tres frases comparten la misma
+   celda de una rejilla —las dos de siempre en sus filas y la nueva encima de las dos— y las de
+   siempre solo se vuelven invisibles: la caja conserva su alto, con cualquier número de líneas. */
+.ai-drop-tx{display:grid;justify-items:center;gap:5px}
+.ai-drop-tx>.t{grid-area:1/1}
+.ai-drop-tx>.s{grid-area:2/1}
+.ai-drop-sobre{display:none;grid-area:1/1/3/2;align-self:center;font-size:var(--t1);color:var(--a-fuerte);font-weight:700}
+.ai-drop.sobre .t,.ai-drop.sobre .s{visibility:hidden}
+.ai-drop.sobre .ai-drop-sobre{display:block}
+
+/* H7 · LA FICHA DEL ARCHIVO SE LEE MIENTRAS LA IA TRABAJA
+   El análisis tarda de diez segundos a un minuto entero y hasta ahora, en todo ese rato, solo
+   giraba un punto junto a una frase y el archivo se quedaba en una miniatura de 52 px: no había
+   forma de comprobar que se mandó el plano correcto, que es la única pregunta que uno se hace
+   mientras espera. Ahora el marco crece al ancho del modal con la proporción reservada (4:3, así
+   el modal no brinca al cambiar de tamaño) y una banda de luz lo recorre.
+
+   La banda va en `::after` con `transform:translateX` —la misma técnica que `ia-barrido` del
+   botón de IA— y NO con `filter:blur`, que en un teléfono de gama media cuesta fotogramas. Se
+   repite mientras dura el análisis, que es una espera real que el usuario disparó, y se apaga
+   sola al terminar porque vive dentro de `.trabajando`: en reposo no queda nada en bucle. */
+.ai-pick .ia-marco,.ai-src .ia-marco{position:relative;flex:0 0 auto;overflow:hidden;border-radius:8px}
+.ai-pick .ia-marco{width:52px;height:52px}
+.ai-src .ia-marco{width:76px;height:76px}
+.ai-pick .ia-marco>img,.ai-src .ia-marco>img{width:100%;height:100%;margin:0;border-radius:0;border:0}
+.ai-pick .ia-marco>.ai-pick-ph{width:100%;height:100%;border-radius:0}
+.ai-pick.trabajando,.ai-pick.mal,.ai-src.trabajando,.ai-src.mal{flex-direction:column;align-items:stretch}
+.ai-pick.trabajando .ia-marco,.ai-pick.mal .ia-marco,
+.ai-src.trabajando .ia-marco,.ai-src.mal .ia-marco{width:100%;height:auto;aspect-ratio:4/3;
+  border:1px solid var(--linea);background:var(--sup2)}
+.ai-pick.trabajando .ia-marco>img,.ai-pick.mal .ia-marco>img,
+.ai-src.trabajando .ia-marco>img,.ai-src.mal .ia-marco>img{object-fit:contain}
+/* Un PDF no tiene nada que «leer» a la vista: en vez de un cuadro 4:3 casi vacío se queda en una
+   franja baja con su icono, y sin el punteado rojo de la miniatura chica —que en grande, con la
+   palabra «Analizando» encima, se leía como un error—. Con `:has()`; donde no exista, se queda el
+   4:3, que es feo pero no está mal. */
+.ai-pick.trabajando .ia-marco>.ai-pick-ph,.ai-pick.mal .ia-marco>.ai-pick-ph{border:0;
+  background:transparent;color:var(--tinta2);font-size:34px}
+.ai-pick.trabajando .ia-marco:has(>.ai-pick-ph),.ai-pick.mal .ia-marco:has(>.ai-pick-ph){aspect-ratio:16/7}
+.ai-pick.trabajando .ia-marco::after,.ai-src.trabajando .ia-marco::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.5) 50%,transparent 70%);
+  transform:translateX(-100%);animation:ia-lee 1.6s linear infinite}
+@keyframes ia-lee{to{transform:translateX(100%)}}
+/* Crecer es un cambio de caja —la ficha pasa de fila a columna y el marco de un cuadro fijo a uno
+   proporcional— y eso no se anima: un `width` con transición iría por su lado mientras el alto y
+   la dirección ya cambiaron de golpe, y además repinta todo lo de abajo en cada cuadro. Lo que
+   se anima es el marco recién crecido —opacidad y una escala de 4 %, que son cosas que el
+   compositor ya tiene— una sola vez, en 220 ms. */
+.ai-pick.trabajando .ia-marco,.ai-src.trabajando .ia-marco{animation:ia-crece .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes ia-crece{from{opacity:.55;transform:scale(.96)}}
+/* La pastilla de etapa: Preparando · Analizando · Reintentando · Leyendo. Va sobre la figura y
+   no sobre texto, con su propio fondo oscuro para leerse encima de una foto de cualquier color:
+   medida sobre una imagen blanca, que es el peor caso, da más de 10:1. */
+.ia-etapa{position:absolute;left:var(--e2);top:var(--e2);padding:4px 9px;border-radius:999px;
+  background:rgba(var(--nav-rgb),.84);color:#fff;font-size:var(--t1);font-weight:700;line-height:1}
+/* EL ERROR, ENCIMA DE LA IMAGEN Y NO EN UN PÁRRAFO ROJO DE ABAJO
+   El velo cae sobre la figura —nunca sobre el nombre del archivo ni sobre el renglón de estado,
+   §4.3— y trae el motivo en corto y un «Reintentar» que es el mismo gesto que se acaba de
+   intentar, en el mismo sitio donde se estaba mirando. */
+.ia-velo{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;
+  gap:var(--e2);padding:var(--e3);text-align:center;background:rgba(var(--nav-rgb),.74);color:#fff;
+  overflow-y:auto}
+.ia-velo[hidden]{display:none}
+.ia-velo-motivo{margin:0;font-size:var(--t2);font-weight:600;line-height:1.35;
+  overflow-wrap:anywhere;max-width:100%}
+.ia-velo-re{min-height:44px;padding:0 var(--e4)}
+/* El error deja la ficha crecida —`.mal` comparte las medidas de `.trabajando`—: con la miniatura
+   de 52 px no cabría ni el botón de «Reintentar». El nombre del archivo, debajo, respira un poco. */
+.ai-pick.mal .ai-pick-b,.ai-src.mal .ai-src-b{margin-top:var(--e2)}
+/* Con la ficha en columna, la × de «quitar el archivo» se estiraba de lado a lado y quedaba
+   centrada bajo el nombre, donde parece el botón principal del recuadro. Se queda a su lado. */
+.ai-pick.trabajando .ai-pick-x,.ai-pick.mal .ai-pick-x{align-self:flex-end;margin-top:-30px}
+/* El renglón de estado ya no repite el giro cuando la traza está a la vista: dos cosas girando a
+   la vez por la misma espera se leen como dos esperas. La frase sí se queda —es la que lee el
+   lector de pantalla de un tirón—, solo se va su punto. */
+.ai-status.con-traza.work::before{display:none}
+
+/* H13 · QUÉ PARTIDAS SE VAN A REEMPLAZAR
+   El aviso decía «tus 3 partidas ya capturadas se reemplazarán»: un número, con la lista tapada
+   por el propio modal. Ahora se ven, y al apagar «Conservar» se tachan de izquierda a derecha,
+   como quien tacha una lista en papel. El tachado es un `background` lineal de 2 px que crece en
+   `background-size` —`text-decoration` no se puede animar— y NO se baja la opacidad del renglón:
+   el estado no se dice con opacity sobre texto (§4.3). La letra se queda en --av, medida. */
+.ai-merge-lista{list-style:none;margin:var(--e2) 0 0;padding:0;display:grid;gap:3px;
+  font-size:var(--t1);font-weight:600;color:var(--av);line-height:1.5}
+.ai-merge-lista li{padding-left:1em;text-indent:-1em;overflow-wrap:anywhere}
+.ai-merge-lista li::before{content:'·';display:inline-block;width:1em;text-indent:0}
+/* El `span` se queda EN LÍNEA a propósito. Dentro de un flex se volvía un bloque, y un fondo de
+   bloque se pinta una sola vez sobre toda la caja: una descripción larga que da dos renglones se
+   tachaba con UNA raya entre los dos, no con una por renglón. En línea, el fondo sigue cada
+   fragmento del texto. */
+.ai-merge-lista span{background:linear-gradient(var(--mal),var(--mal)) 0 58%/0% 2px no-repeat;
+  transition:background-size .22s ease-out}
+.ai-merge-lista.tacha span{background-size:100% 2px}
+
+/* PIEZA 8 · LA ESPERA, PASO A PASO (la traza vive en js/piezas.js; aquí solo su sitio) */
+.ai-traza{margin-top:var(--e3)}
+.ai-traza[hidden]{display:none}
+
+/* H1 · EL RESUMEN DE LO QUE LEYÓ LA IA
+   Entra completo en ≤240 ms y sin escalera de retardos: la escalera se quitó a propósito de este
+   proyecto (ver el comentario junto a @keyframes entra), porque con cinco renglones ya se lee
+   como que la pantalla va lenta. */
+.ai-resumen{margin-top:var(--e3);display:grid;gap:var(--e3)}
+.ai-resumen[hidden]{display:none}
+.ia-resumen-t{margin:0;font:700 var(--t3)/1.35 var(--f-texto);color:var(--tinta)}
+.ia-resumen-t small{display:block;margin-top:2px;font-size:var(--t1);color:var(--tinta2);font-weight:700}
+.ia-resumen-quien{margin:0;font-size:var(--t1);font-weight:700;color:var(--av);
+  background:var(--av-bg);border:1px solid var(--av-borde);border-radius:var(--rr2);padding:7px 10px;line-height:1.45}
+.ia-lista{list-style:none;margin:0;padding:0;display:grid;gap:var(--e2)}
+.ia-p{display:grid;grid-template-columns:20px minmax(0,1fr);gap:var(--e2);align-items:start;
+  padding:9px 11px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup);
+  animation:entra .24s cubic-bezier(.2,.8,.2,1) backwards}
+.ia-p[data-e="av"]{border-color:var(--av-borde);background:var(--av-bg)}
+.ia-p>.marca-estado{margin-top:1px}
+.ia-p b{display:block;font-size:var(--t2);font-weight:700;line-height:1.3;color:var(--tinta);overflow-wrap:anywhere}
+.ia-p small{display:block;margin-top:2px;font-size:var(--t1);font-weight:600;line-height:1.45;color:var(--tinta2)}
+.ia-p .ia-precio{font-family:var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta)}
+.ia-p .ia-falta{color:var(--av);font-weight:700}
+/* Las cotas del escalador: cuál quedó explicada y cuál se quedó sin partida. La marca de color
+   no va sola — la que falta lo dice con palabras. */
+.ia-cotas{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:6px var(--e3);
+  font-size:var(--t1);font-weight:700;color:var(--tinta2)}
+.ia-cotas-t{color:var(--tinta3)}
+.ia-cota{display:inline-flex;align-items:center;gap:4px}
+.ia-cota[data-e="ok"]{color:var(--ok)}
+.ia-cota[data-e="av"]{color:var(--av)}
+/* Lo que la IA leyó distinto, con su «Usar» de 44 px */
+.ia-dif{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px var(--e3);
+  padding:6px 6px 6px 11px;border:1px solid var(--linea2);border-radius:var(--rr2);background:var(--sup2);
+  font-size:var(--t1);font-weight:700;color:var(--tinta2)}
+.ia-dif span{flex:1 1 9em;min-width:0;overflow-wrap:anywhere}
+.ia-dif .ia-dif-btn{flex:0 0 auto;width:auto;min-height:44px;margin:0 0 0 auto;padding:0 var(--e4);font-size:var(--t1)}
+.ia-resumen-pie{display:flex;justify-content:flex-end}
+.ia-resumen-pie .btn{min-height:44px}
+/* Con el resumen a la vista, «Analizar y cotizar» y el interruptor de «Conservar» ya no son de
+   nadie: ver aiFaseResumen() en ia.js. Un solo botón con relleno, y es «Ver partidas». */
+#aimodal.con-resumen #ai-go-btn,#aimodal.con-resumen #ai-merge-box{display:none}
+
+/* H20 · LOS DOS LIENZOS TAMBIÉN DICEN QUÉ VA A PASAR AL SOLTAR
+   El arrastre sobre el escalador y sobre el vectorizador solo pintaba un contorno punteado, sin una
+   palabra: nada decía si soltar ahí iba a medir, a vectorizar o a abrir el archivo en otra pestaña.
+   Ahora, con un ARCHIVO encima —un arrastre de texto no enciende nada—, el lienzo se cubre con
+   un velo y dice qué va a hacer. Lo pone ia.js con oyentes de documento, sin tocar el marcado de
+   esos dos modales, y se quita solo al soltar o al alejar el archivo.
+
+   El contorno en línea que pone el marcado (`ondragover="…style.outline=…"`) se neutraliza aquí:
+   con los dos avisos a la vez —el punteado y el velo— el lienzo decía lo mismo dos veces y con un
+   arrastre de texto seguía encendiéndose el punteado. El velo es plano, sin `backdrop-filter`: esos
+   dos lienzos lo perdieron a propósito y no es este el lugar para devolverlo. */
+.sp-canvas-area{outline:none!important}
+.sp-canvas-area.suelta::after{content:attr(data-suelta);position:absolute;inset:var(--e2);z-index:6;
+  display:grid;place-content:center;padding:var(--e4);text-align:center;pointer-events:none;
+  border:3px dashed rgba(255,255,255,.85);border-radius:var(--rr3);background:rgba(var(--nav-rgb),.95);
+  color:#fff;font:700 var(--t4)/1.3 var(--f-texto);animation:aparece .15s ease-out}
+/* ── fin de cot-ia ── */
+
+/* ── Cotizador · escalador y el letrero sobre la fachada ── */
+/* ----- H4 · la cifra viva de la lupa -----
+   Va FUERA del círculo: .sp-loupe recorta con overflow:hidden por su border-radius, así que
+   un hijo suyo por debajo del centro se corta. Se coloca en el mismo scLoupe() con su propio
+   transform, centrada bajo la lupa y entre ella y el dedo. Blanco sobre el marino de la app
+   (--nav, que de noche es aún más hondo): más de 15:1 en los dos temas. Cifras tabulares para
+   que el número no baile mientras el dedo se mueve. Sin recortar con puntos suspensivos: es
+   justo la unidad —«cm»— lo que un texto cortado se llevaría. */
+.sp-loupe-cifra{position:fixed;left:0;top:0;z-index:60;display:none;pointer-events:none;
+  max-width:calc(100vw - 16px);padding:7px 11px;border-radius:999px;white-space:nowrap;
+  background:var(--nav);color:#fff;font:700 var(--t2)/1 var(--f-cifra);font-variant-numeric:tabular-nums;
+  box-shadow:0 4px 14px rgba(0,0,0,.5);will-change:transform}
+
+/* ----- Los botones que flotan sobre la foto, de noche -----
+   El zoom y el ojo de las cotas son blancos en los dos temas —van sobre la foto, no sobre el
+   panel—, pero su icono se pintaba con --ink, que de noche es casi blanco: un «+» de 1.2:1
+   sobre un botón blanco, invisible justo cuando más hace falta acercar. El icono va en el marino
+   del sistema, que es oscuro en los dos temas. (El ojo encendido y el apagado traen su color
+   propio, más específico, y no se tocan.) */
+.sp-zoom button,.sp-cotas-fab button{color:var(--nav)}
+
+/* ----- H28 · la pista cruza sin brincar -----
+   La barra flota sobre un lienzo que se repinta con el dedo, así que el cruce es solo opacity
+   y transform (los pone la pieza 23). Aquí únicamente se deja al rótulo ocupar el ancho que
+   le toca y centrarse, que es como se veía el <span> de antes. Y la barra pasa por encima del
+   letrero de la función 32: la instrucción es lo que no puede taparse. */
+.sp-hint-bar{z-index:5}
+.sp-hint-bar .sp-hint-txt{min-width:0;text-align:center}
+.sp-hint-bar .rotulo{justify-items:center}
+
+/* ----- H11 · los tres pasos de la calibración -----
+   El riel es la pieza 16 en horizontal. En el panel de 306 px los tres rótulos caben en una
+   línea cada uno con la letra chica del propio riel; por debajo de eso parte palabras, que es
+   mejor que salirse. */
+.sc-calib-riel{margin:0 0 13px}
+.sc-calib-riel .riel-h{gap:2px}
+.sc-calib-riel .riel-t{font-size:10.5px;line-height:1.2}
+
+/* ----- H30 · las medidas de siempre -----
+   La pieza 18 reparte sus opciones en columnas de 150 px, que es lo que pide una cuenta de
+   cobro con su «con IVA» debajo. Aquí son cinco fichas de dos palabras en un panel de 306 px:
+   con 150 px caerían en una sola columna y cinco renglones de 48 px se comerían la lista de
+   medidas entera. 84 px las deja en tres columnas, y siguen midiendo 48 px de alto. */
+#sc-ref-rapidos{display:block}
+#sc-ref-rapidos .glide{grid-template-columns:repeat(auto-fill,minmax(84px,1fr));margin-top:6px}
+#sc-ref-rapidos .glide>.chip{align-items:center;justify-content:center;text-align:center;gap:1px;padding:0 6px}
+#sc-ref-rapidos .glide>.chip small{color:var(--muted);font-variant-numeric:tabular-nums}
+#sc-ref-rapidos .glide>.chip.on small{color:inherit}
+
+/* ----- H24 y H26 · la lista de medidas -----
+   position:relative porque el fantasma de la medida que se va (pieza «entra lo nuevo, sale lo
+   quitado») se coloca en absoluto contra la lista. */
+.sp-mlist{position:relative}
+/* La fila deslizable es ahora el renglón, así que el margen y el radio viven en ella y no en
+   la tarjeta de dentro; si no, la sombra y el filete de «nueva» quedarían recortados. */
+.sp-mfila{margin-bottom:9px;border-radius:var(--r-sm)}
+.sp-mfila .sp-mitem{margin-bottom:0}
+/* El número de la medida: era un estilo en línea de doce declaraciones repetido en cada
+   renglón; con la lista pintada de una vez por innerHTML vale más como clase. */
+.sp-mitem-n{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;
+  background:var(--brand-grd);color:#fff;font-size:9px;font-weight:800;margin-bottom:4px;box-shadow:0 2px 6px rgba(var(--a-rgb),.25)}
+/* La palomita de «Agregada» va del tamaño del rótulo y del color del texto del botón hecho. */
+.sp-mitem-add.done .palomita{width:1.05em;height:1.05em;flex-shrink:0}
+/* El contador da un salto corto cuando SUBE. Una sola vez, disparado desde el código. */
+.sc-cuenta-salta{animation:sc-cuenta-salta .34s var(--ease-out) 1}
+@keyframes sc-cuenta-salta{40%{transform:scale(1.18)}to{transform:none}}
+
+/* ----- H12 · el PDF se abre dentro del lienzo -----
+   Las dos caras del recuadro comparten el sitio; solo una está a la vez. La del PDF es UNA
+   tarjeta oscura con los pasos, el motivo y las salidas, y no texto blanco suelto: con una foto
+   ya cargada el recuadro se pinta encima de ella, y sobre una fachada clara el blanco no se leía
+   (con un beige de fachada, 1.6:1). El fondo del lienzo sí es siempre oscuro, pero la foto no. Con una pantalla
+   baja —el teléfono acostado deja unos 150 px de lienzo— la tarjeta se desplaza en vez de
+   salirse. */
+.sp-overlay-cara{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;max-width:min(92%,420px);text-align:center}
+.sp-overlay-cara[hidden]{display:none}
+/* Por encima de los botones de zoom (z-index 6): con la tarjeta de error abierta sobre una foto
+   cargada, el «+» le tapaba la esquina y el botón de al lado. */
+.sp-overlay{z-index:7}
+.sp-overlay-pdf{width:100%;max-height:100%;padding:8px 0;box-sizing:border-box;pointer-events:none}
+.sp-overlay-tarjeta{width:100%;max-height:100%;overflow:auto;box-sizing:border-box;padding:12px 14px;text-align:left;
+  border-radius:var(--r-sm);background:rgba(var(--nav-rgb),.95);border:1px solid rgba(255,255,255,.18);color:#fff;
+  box-shadow:0 10px 30px rgba(0,0,0,.45)}
+/* La tarjeta solo recibe toques cuando trae salidas: mientras trabaja, el lienzo de abajo sigue
+   siendo del dedo. */
+.sp-overlay-pdf.mal .sp-overlay-tarjeta{pointer-events:auto}
+/* El color del paso lo pone `.traza-paso` (y su estado, más específico), y la tarjeta es
+   oscura en los dos temas: se le pone letra blanca a todos, y la equis y el giro llevan su
+   forma además de su color. */
+.sp-overlay-pasos .traza-paso,.sp-overlay-pasos .traza-paso[data-estado]{color:#fff}
+.sp-overlay-pasos .traza-d,.sp-overlay-pasos .traza-reloj,.sp-overlay-pasos .traza-paso[data-estado="mal"] .traza-d{color:rgba(255,255,255,.78)}
+/* «0.0 s» junto a una equis no informa de nada. */
+.sp-overlay-pasos .traza-paso[data-estado="mal"] .traza-reloj{display:none}
+.sp-overlay-mal{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.16);pointer-events:auto}
+.sp-overlay-mal[hidden]{display:none}
+.sp-overlay-motivo{margin:0 0 10px;font-size:13px;line-height:1.5;color:#fff;text-wrap:pretty}
+.sp-overlay-salidas{display:flex;flex-wrap:wrap;gap:8px}
+.sp-overlay-btn{min-height:44px;padding:0 14px;border-radius:var(--r-sm);border:1px solid rgba(255,255,255,.34);
+  background:rgba(255,255,255,.1);color:#fff;font:700 13px/1 inherit;font-family:inherit;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:1 1 auto;transition:transform var(--mv-liq)}
+.sp-overlay-btn.pri{background:var(--a-fill);border-color:transparent}
+.sp-overlay-btn:active{transform:scale(.97)}
+@media(hover:hover) and (pointer:fine){.sp-overlay-btn:hover{background:rgba(255,255,255,.18)}
+  .sp-overlay-btn.pri:hover{background:var(--a-fill);filter:brightness(1.1)}}
+
+/* ----- Función 32 · el letrero sobre la foto de la fachada -----
+   #sc-letrero es la caja que se agarra y se mueve; la letra es su hija (la pieza 26 le pone su
+   cara, su canto y su luz). La caja mide 44 px como mínimo aunque la letra mida 5 cm en la foto,
+   y el transform la centra sobre su punto. `width:max-content` para que un letrero más ancho
+   que el lienzo se centre sobre su propio ancho y no sobre el disponible. Va por debajo de los
+   botones de zoom y del ojo de las cotas (z-index 6): si cae encima de ellos, se sigue pudiendo
+   acercar la foto. No se mueve solo: solo cuando lo arrastran. */
+.sc-letrero{position:absolute;left:0;top:0;z-index:4;display:inline-flex;align-items:center;justify-content:center;
+  width:max-content;min-width:44px;min-height:44px;padding:0 6px;border-radius:var(--r-sm);
+  cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;will-change:transform}
+.sc-letrero[hidden]{display:none}
+.sc-letrero.arrastrando{cursor:grabbing;background:rgba(255,255,255,.07)}
+.sc-letrero:focus-visible{outline:2px solid #fff;outline-offset:3px;box-shadow:0 0 0 5px rgba(var(--nav-rgb),.7)}
+.sc-letrero .letrero{max-width:none;pointer-events:none}
+.sc-letrero-nota{position:absolute;right:10px;top:10px;z-index:5;pointer-events:none;padding:6px 10px;border-radius:999px;
+  background:rgba(var(--nav-rgb),.8);color:#fff;font:700 10px/1 var(--f-texto);letter-spacing:.08em;text-transform:uppercase}
+.sc-letrero-nota[hidden]{display:none}
+.sc-lf-cuales{margin-bottom:11px}
+.sc-lf-cuales[hidden]{display:none}
+.sc-lf-cuales .tool-seg{display:flex;width:100%}
+.sc-lf-cuales .tool-seg button{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;padding:8px 4px;font-size:11.5px}
+/* Apretado a propósito: en el teléfono el panel deja ver unos 160 px entre el pie pegado y el
+   principio de la sección, y ahí tienen que caber el título, el deslizador y las dos líneas del
+   precio —lo que se mira mientras se mueve—. Con los márgenes de un formulario cualquiera el
+   precio quedaba una línea más abajo, debajo del pie. */
+#sc-sec-letrero .sp-sec-b{padding-top:6px}
+.sc-lf-rango{display:grid;gap:2px;margin:0 0 2px}
+.sc-lf-rango label{font-size:11.5px;font-weight:700;color:var(--muted)}
+.sc-lf-rango input{width:100%;height:44px;margin:0;accent-color:var(--a)}
+.sc-lf-dice{margin:0 0 6px;font-size:12px;line-height:1.55;color:var(--muted)}
+.sc-lf-precio{margin:0 0 8px;font-size:12.5px;line-height:1.5;color:var(--ink)}
+.sc-lf-precio b{font-size:15px;font-variant-numeric:tabular-nums}
+/* El ámbar dice «esto todavía no es un precio»; el texto lo dice también, nunca el color solo. */
+.sc-lf-precio.av{color:var(--amber)}
+/* ── fin de cot-escalador ── */
+
+/* ── Cotizador · vectorizador ── */
+
+/* ----- H9 · Los deslizadores, con marcas y con la pastilla pegada al pulgar -----
+   La pieza `deslizadorConImanes` envuelve cada rango en una `.desl-caja` y le pone sus marcas
+   debajo y la pastilla del valor encima del pulgar. La pastilla ya dice el valor, así que la
+   píldora de la etiqueta de arriba (`.vt-val`, la que decía «Medio») sobra: se esconde SOLO si la
+   pieza envolvió el rango; si no hubiera cargado, la etiqueta seguiría diciéndolo como siempre.
+   El renglón de la etiqueta se pega a la caja, que ya trae sus 30 px de aire para la pastilla. */
+.vt-row:has(+ .desl-caja) .vt-val{display:none}
+.vt-row:has(+ .desl-caja){margin-bottom:0}
+/* Las marcas de Colores (rayitas y números) se quedaban pegadas a la etiqueta de Detalle, que no
+   lleva el margen de arriba que sí traen las otras dos. El margen va en la caja de Colores y no en
+   Detalle: en el modo Corte esa caja no se pinta, y Detalle no tiene por qué empezar más abajo. */
+#vt-fld-colores{margin-bottom:12px}
+/* La espera de un re-trazo, cuando ya hay trazo a la vista: una barra fina pegada al borde de
+   arriba del lienzo, no el velo oscuro con desenfoque, que tapaba justo lo que se quería comparar
+   con el ajuste nuevo. No intercepta el dedo (el lienzo sigue siendo tocable mientras corre) y
+   su texto se queda para el lector de pantalla, sin pintarse. La barra de avance es información:
+   con menos movimiento se queda, y sigue creciendo. */
+.vt-prog.fina{inset:0 0 auto 0;justify-content:flex-start;gap:0;background:none;
+  -webkit-backdrop-filter:none;backdrop-filter:none;pointer-events:none}
+.vt-prog.fina .vt-prog-txt{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.vt-prog.fina .vt-prog-track{width:100%;height:3px;border-radius:0;background:transparent}
+
+/* ----- H10 · El trazo de corte que se dibuja al terminar de vectorizar -----
+   Un <svg> encima del escenario, dentro de él, así que escala con el zoom. El grosor viene en
+   unidades de la imagen (`--vt-sw`, calculado por vtDibujarCorte para que sean ~2 px de pantalla
+   con el zoom que haya) y no con `vector-effect: non-scaling-stroke`, porque con ese los guiones
+   se miden en pantalla y ya no cuadran con getTotalLength(). Existe solo mientras dura el momento
+   (menos de un segundo) y lo retira el JS: nada de esto está en reposo. */
+.vt-corte{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:2}
+.vt-corte-trazo{fill:none;stroke:var(--a);stroke-width:var(--vt-sw,2);stroke-linejoin:round;stroke-linecap:round}
+.vt-corte-relleno{fill-opacity:0;fill-rule:evenodd}
+
+/* ----- H22 · Las muestras de color, como fichas que dicen su estado -----
+   Eran cuadritos de 24 px que, quitados, se ponían al 25 % de opacidad con una raya roja: el estado
+   se decía con la opacidad (§4.3 lo prohíbe) y cuál era el fondo solo se sabía por un `title` que
+   en el teléfono no existe. Ahora son 44 px de alto, con la muestra del color de verdad, su nombre
+   y un ✓ que se vuelve ✕ al quitarlo, con el nombre tachado: el estado lo dicen el icono y la
+   palabra, no la opacidad. El borde de la muestra es un neutro y no la tinta: de noche la tinta
+   es negra y un color oscuro sobre fondo oscuro perdía su contorno. */
+.vt-sw{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px 0 7px;
+  border:1px solid var(--linea);border-radius:999px;background:var(--sup);color:var(--tinta);
+  font:600 var(--t2)/1 var(--f-texto);cursor:pointer;
+  transition:transform var(--mv-liq),background-color var(--mv-s),border-color var(--mv-s)}
+.vt-sw:active{transform:scale(.97)}
+@media(hover:hover) and (pointer:fine){.vt-sw:hover{border-color:var(--n4)}}
+.vt-sw-m{flex:none;width:30px;height:30px;border-radius:50%;border:1px solid var(--n4);background-clip:padding-box}
+/* Los dos iconos comparten la celda y se cruzan: el ✓ se encoge y el ✕ brota. */
+.vt-sw-e{display:inline-grid;place-items:center;flex:none;width:18px;height:18px;font-size:16px}
+.vt-sw-e>.svgi{grid-area:1/1;transition:opacity var(--mv-s),transform var(--mv-liq)}
+.vt-sw-si{color:var(--ok)}
+.vt-sw-no{color:var(--mal);opacity:0;transform:scale(.5)}
+.vt-sw.off{background:var(--n1)}
+.vt-sw.off .vt-sw-si{opacity:0;transform:scale(.5)}
+.vt-sw.off .vt-sw-no{opacity:1;transform:none}
+.vt-sw.off .vt-sw-n{color:var(--tinta2);text-decoration:line-through;text-decoration-thickness:2px}
+/* Con muchos colores (el modo Foto llega a 24) los nombres son solo el número: la ficha se
+   encoge y caben más por renglón. */
+.vt-swatches.denso .vt-sw{padding-right:11px;gap:6px}
+/* ── fin de cot-vector ── */
+
+/* ── Cotizador · historial, cuadernos y respaldos ── */
+
+/* ----- Las fichas de «lo que falta» (H8) -----
+   Una fila bajo el buscador. En un teléfono cinco fichas con su conteo no caben en un renglón y
+   envueltas se comían 100 px de una caja que ya tiene encabezado, ayuda y buscador: se quedan en
+   UNA fila que se desplaza de lado, con el borde que se desvanece (pieza 10) diciendo que hay más.
+   La ficha activa es la de la pieza —hundida en --a-suave—, no el botón con relleno. */
+.hist-fichas{padding:10px 20px;border-bottom:1px solid var(--linea2);background:var(--sup);flex-shrink:0}
+.hist-fichas[hidden]{display:none}
+.hist-fichas .fichas{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.hist-fichas .fichas::-webkit-scrollbar{display:none}
+.hist-fichas .ficha{flex:none;min-height:36px;white-space:nowrap}
+@media(max-width:560px){.hist-fichas{padding:10px 13px}}
+
+/* ----- Cada entrada del historial, compacta (H16) -----
+   La imagen baja de 96 (74 en el teléfono) a 64 (56): sigue siendo con lo que se reconoce una
+   cotización vieja, pero ya no manda la altura del renglón. Lo de adentro del pliegue —la tabla de
+   partidas, la dirección y la nota— se abre con un toque sobre «3 partidas». */
+.hentry{padding:var(--e3) var(--e5)}
+/* Con 80 cotizaciones, el layout de TODAS al abrir el historial era lo más caro (unos 360 ms en un
+   teléfono de gama media): las que están fuera de la pantalla no lo piden hasta que se acercan.
+   `auto` en el tamaño intrínseco recuerda el alto real una vez pintada, para que la barra de
+   desplazamiento no salte. Donde no existe (Safari anterior a 18), no hace nada. */
+.hentry{content-visibility:auto;contain-intrinsic-size:auto 250px}
+.hentry-top{margin-bottom:var(--e2)}
+.hentry-img,.hentry-img-ph{width:64px;height:64px;border-radius:var(--rr2)}
+.hentry-total{margin-top:var(--e2);padding-top:var(--e2)}
+.hentry-det{margin-top:var(--e1)}
+.hentry-resumen{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:36px;margin:0 -8px;padding:0 8px;
+  border-radius:var(--rr2);cursor:pointer;list-style:none;font-size:var(--t2);font-weight:600;color:var(--a-tx)}
+.hentry-resumen::-webkit-details-marker{display:none}
+.hentry-resumen .pliegue-flecha{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.hentry-resumen:focus-visible{outline:2px solid var(--a-borde);outline-offset:1px}
+.hentry-resumen:active{transform:scale(.98);transition:transform var(--mv-liq)}
+@media(hover:hover) and (pointer:fine){.hentry-resumen:hover{background:var(--a-suave)}}
+.hentry-det-c{padding-top:2px}
+.hentry-dir,.hentry-nota{margin:var(--e2) 0 0;font-size:var(--t2);line-height:1.5;color:var(--tinta2);overflow-wrap:anywhere}
+.hentry-nota{padding-top:var(--e2);border-top:1px solid var(--linea2)}
+.hentry-reenvio{padding-top:var(--e2)}
+@media(max-width:560px){
+  .hentry{padding:var(--e3) 13px}
+  .hentry-img,.hentry-img-ph{width:56px;height:56px}
+}
+
+/* ----- La vigencia de 10 días (función 33) -----
+   Un anillo que se consume, con la cifra de días dentro, y a su lado la palabra —«Vigente», «Por
+   vencer», «Vencida»— y la fecha: el color apoya y nunca dice solo. Vigente en verde; con 3 días o
+   menos, ámbar; vencida, un anillo punteado rojo sin arco. El anillo no se anima: la lista se
+   repinta entera con innerHTML y nace ya en su sitio; solo se mueve el aviso de reenviar. */
+.hvig{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:var(--e2) 0 0}
+.hvig-anillo{position:relative;flex:none;width:36px;height:36px}
+.hvig-anillo svg{display:block;width:36px;height:36px;transform:rotate(-90deg)}
+.hvig-anillo circle{fill:none;stroke-width:3.5}
+.hvig-anillo .base{stroke:var(--n3)}
+.hvig-anillo .resto{stroke:var(--ok-fill);stroke-linecap:round;stroke-dasharray:1}
+.hvig-anillo b{position:absolute;inset:0;display:grid;place-items:center;font:700 var(--t2)/1 var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta)}
+.hvig[data-estado="av"] .hvig-anillo .resto{stroke:var(--av)}
+.hvig[data-estado="mal"] .hvig-anillo .base{stroke:var(--mal);stroke-dasharray:3 4}
+.hvig[data-estado="mal"] .hvig-anillo .resto{stroke:transparent}
+.hvig-d{display:grid;gap:1px;min-width:0;flex:1 1 150px}
+.hvig-t{font-size:var(--t3);font-weight:700;line-height:1.25}
+.hvig[data-estado="ok"] .hvig-t{color:var(--ok)}
+.hvig[data-estado="av"] .hvig-t{color:var(--av)}
+.hvig[data-estado="mal"] .hvig-t{color:var(--mal)}
+.hvig-d small{font-size:var(--t2);font-weight:500;color:var(--tinta2);overflow-wrap:anywhere}
+.hentry-reenviar{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:0 12px;margin:0;
+  border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup);color:var(--tinta2);
+  font:500 var(--t2)/1.2 var(--f-texto);cursor:pointer;
+  transition:border-color var(--mv-s),color var(--mv-s),transform var(--mv-liq)}
+.hentry-reenviar:active{transform:scale(.97)}
+.hentry-reenviar:focus-visible{outline:2px solid var(--a-borde);outline-offset:2px}
+.hvig[data-estado="mal"] .hentry-reenviar,.hvig[data-estado="av"] .hentry-reenviar{border-color:var(--a-borde);color:var(--a-tx);font-weight:600}
+.hvig .hentry-reenviar{margin-left:auto}
+@media(hover:hover) and (pointer:fine){.hentry-reenviar:hover{border-color:var(--a-borde);color:var(--tinta)}}
+
+/* ----- Estados vacíos con salida (H17) -----
+   La carpeta es quieta: dos tarjetas desplazadas detrás de la del icono del historial. No se
+   mueve ni en reposo ni al tocar. Un solo botón con relleno por vacío. */
+.hvacio{display:grid;justify-items:center;gap:var(--e2);text-align:center}
+.hvacio-ilu{position:relative;width:96px;height:72px;margin-bottom:var(--e2)}
+.hvacio-ilu i{position:absolute;display:grid;place-items:center;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup2)}
+.hvacio-ilu .c1{inset:6px 26px 14px 0;transform:rotate(-7deg);background:var(--n1)}
+.hvacio-ilu .c2{inset:2px 4px 10px 22px;transform:rotate(5deg)}
+.hvacio-ilu .c3{inset:14px 12px 0 12px;background:var(--sup);color:var(--a-tx)}
+.hvacio-ilu .c3 .svgi{width:26px;height:26px}
+.hvacio-t{margin:0;font-size:var(--t3);font-weight:600;color:var(--tinta);overflow-wrap:anywhere}
+.hvacio-d{margin:0;max-width:34ch;font-size:var(--t2);line-height:1.5;color:var(--tinta2)}
+.hvacio-acts{display:flex;flex-wrap:wrap;justify-content:center;gap:var(--e2);margin-top:var(--e2)}
+.hvacio-acts .btn{width:auto;margin:0;padding:0 16px;min-height:40px}
+
+/* ----- Restaurar con los pasos a la vista (H25) -----
+   La vista sustituye a la lista dentro del mismo panel del historial; el encabezado se queda. */
+.hist-panel.restaurando>:is(.hist-ayuda,.hist-search-bar,.hist-fichas,.hist-body,.hist-foot){display:none}
+.hist-restaurar{display:grid;align-content:start;gap:var(--e3);flex:1;overflow-y:auto;padding:var(--e5)}
+.hist-restaurar[hidden]{display:none}
+.hist-rest-t{margin:0;font:600 var(--t5)/1.2 var(--f-cifra);color:var(--tinta)}
+.hist-rest-t:focus{outline:none}
+.hist-rest-txt{margin:0;font-size:var(--t3);line-height:1.55;color:var(--tinta2)}
+.hist-rest-fin{margin:0;min-height:1.5em;font-size:var(--t2);font-weight:600;color:var(--tinta2)}
+.hist-rest-acts{display:flex;flex-wrap:wrap;gap:var(--e2)}
+.hist-rest-acts .btn{width:auto;margin:0;padding:0 20px;min-height:44px}
+@media(max-width:560px){.hist-restaurar{padding:var(--e4) 13px}}
+
+/* La pista de «mantén presionado» del bote de basura (H26 · #5): un globo encima del botón, sin
+   ocupar sitio, que se desvanece solo. Se vacía al terminar (animationend) para volver a encender. */
+.hentry-acts{position:relative}
+.hentry-pista{position:absolute;z-index:3;right:0;bottom:calc(100% + 6px);width:max-content;max-width:min(260px,calc(100vw - 48px));
+  padding:6px 10px;border-radius:var(--rr2);background:var(--tinta);color:var(--sup);pointer-events:none;
+  font:600 var(--t2)/1.35 var(--f-texto);animation:hentry-pista-sale 2.2s ease both}
+.hentry-pista:empty{display:none}
+@keyframes hentry-pista-sale{0%{opacity:0;transform:translateY(4px)}8%{opacity:1;transform:none}85%{opacity:1}100%{opacity:0}}
+/* Con la columna de acciones a la derecha (pantalla ancha) «encima» sería fuera de la entrada, y
+   `content-visibility` recorta lo que se sale: el globo va a la izquierda de la columna. */
+@media(min-width:561px){.hentry-pista{right:calc(100% + 8px);bottom:0}}
+
+/* ----- El plano a pantalla completa, con zoom (H14) -----
+   `touch-action:none` va SOLO en el lienzo del visor: fuera de él la página hace scroll normal.
+   La imagen se coloca en (0,0) y se mueve y escala con `transform` (la cuenta está en
+   visorMontar); el fondo de cuadrícula es el mismo de las otras vistas previas, para que un
+   plano con transparencia no se pierda contra el velo. El botón de cerrar sube a 44 px. */
+.lightbox-close{width:44px;height:44px}
+#lightbox.con-visor{background:rgba(12,14,30,.92)}
+.visor-lienzo{position:fixed;inset:0;overflow:hidden;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+.visor-lienzo:active{cursor:grabbing}
+.visor-lienzo:focus-visible{outline:2px solid #fff;outline-offset:-4px}
+.visor-img{position:absolute;left:0;top:0;display:block;max-width:none;transform-origin:0 0;border-radius:6px;
+  box-shadow:0 30px 80px -20px rgba(0,0,0,.6);-webkit-user-drag:none;user-select:none;
+  background:repeating-conic-gradient(var(--n1) 0% 25%,var(--sup) 0% 50%) 50%/16px 16px}
+.visor-pie{position:fixed;left:50%;bottom:max(14px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:2;
+  display:flex;gap:10px;align-items:center;padding:6px 14px;border-radius:999px;background:rgba(23,26,51,.88);color:#fff;
+  font:600 var(--t1)/1.3 var(--f-texto);white-space:nowrap;pointer-events:none}
+.visor-pie b{font:700 var(--t2)/1 var(--f-cifra);font-variant-numeric:tabular-nums}
+
+/* ----- Cuadernos ----- */
+/* Las iniciales viajan de la tarjeta al encabezado del cuaderno (H27): el mismo cuadro, y a su
+   lado el nombre. */
+.cua-det-fila{display:flex;align-items:center;gap:var(--e3);margin-top:var(--e2)}
+.cua-det-fila .cua-ini{flex:none}
+.cua-det-fila .cua-det-nom{min-width:0;overflow-wrap:anywhere}
+/* El estado de la nota (H29): el glifo de 14 px y la frase, en un renglón. */
+.cua-nota-estado{display:flex;align-items:center;gap:6px}
+.cua-nota-txt{min-width:0;overflow-wrap:anywhere}
+/* El vistazo al cuaderno (H21), dentro del globo de la pieza 4. */
+.hvz-cab{display:flex;align-items:center;gap:var(--e3);margin-bottom:var(--e2)}
+.hvz-cab .cua-ini{flex:none}
+.hvz-cab>div{display:grid;min-width:0}
+.hvz-nom{font:600 var(--t3)/1.3 var(--f-cifra);color:var(--tinta);overflow-wrap:anywhere}
+.hvz-cab small{font-size:var(--t2);color:var(--tinta2)}
+.vistazo .hvz-cots{list-style:none;margin:0;padding:0}
+.vistazo .hvz-cots li{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:var(--e3);padding:var(--e2) 0;margin:0;border-top:1px solid var(--linea2)}
+.hvz-folio{grid-column:1;font:600 var(--t1)/1.3 var(--f-cifra);color:var(--tinta3)}
+.hvz-proy{grid-column:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:var(--tinta)}
+.hvz-fecha{grid-column:1;font-size:var(--t1);color:var(--tinta3)}
+.hvz-tot{grid-column:2;grid-row:1/4;align-self:center;font:600 var(--t3) var(--f-cifra);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+
+/* Con el dedo, 44 px (§4.5): lo que sube es la caja, nunca la letra. */
+@media(hover:none),(pointer:coarse){
+  .hist-fichas .ficha,.hentry-reenviar,.hentry-resumen{min-height:44px}
+  .hvacio-acts .btn{min-height:44px}
+}
+/* ── fin de cot-historial ── */
 
 /* ===================== Cierre de la hoja: lo que tiene que ganar por orden =====================
    Va aquí —después de la capa de barro y del pase visual, y ANTES del @media print— porque
@@ -4362,9 +6311,13 @@ html[data-tema="oscuro"]{
 /* El lienzo de noche también respira, y más que el de día: ver arriba, con --aurora-1. */
 html[data-tema="oscuro"] body{background:var(--fondo)}
 /* El aviso emergente era azul marino sobre blanco; sobre un fondo marino se perdería. */
-html[data-tema="oscuro"] .toast:not(.ok):not(.err){background:var(--n8);color:var(--n1)}
-html[data-tema="oscuro"] .toast:not(.ok):not(.err) .toast-act{border-color:rgba(var(--n1-rgb),.35);background:rgba(var(--n1-rgb),.08);color:var(--n1)}
-@media(hover:hover){html[data-tema="oscuro"] .toast:not(.ok):not(.err) .toast-act:hover{background:rgba(var(--n1-rgb),.18);border-color:var(--n1)}}
+html[data-tema="oscuro"] .toast-uno:not(.ok):not(.err){background:var(--n8);color:var(--n1)}
+html[data-tema="oscuro"] .toast-uno:not(.ok):not(.err) .toast-act{border-color:rgba(var(--n1-rgb),.35);background:rgba(var(--n1-rgb),.08);color:var(--n1)}
+@media(hover:hover){html[data-tema="oscuro"] .toast-uno:not(.ok):not(.err) .toast-act:hover{background:rgba(var(--n1-rgb),.18);border-color:var(--n1)}}
+/* El error de noche no puede ir en --mal: es #ff8a80, la tinta roja que se lee sobre marino, y
+   con blanco encima da 2,2:1. Va al revés, como el aviso neutro: fondo hondo y letra roja. */
+html[data-tema="oscuro"] .toast-uno.err{background:var(--mal-bg);color:var(--mal);border:1px solid var(--mal-borde)}
+html[data-tema="oscuro"] .toast-uno.err .toast-act{border-color:var(--mal-borde);background:rgba(var(--mal-rgb),.1);color:var(--mal)}
 /* Los campos: el degradado claro→blanco se vuelve hondo→superficie. */
 html[data-tema="oscuro"] input:-webkit-autofill,html[data-tema="oscuro"] input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100px var(--sup) inset}
 html[data-tema="oscuro"] .mbar{box-shadow:0 -10px 30px -10px rgba(0,0,0,.6)}
@@ -5178,14 +7131,193 @@ html[data-tema="oscuro"] .ai-btn:disabled,html[data-tema="oscuro"] .ai-btn[disab
   .pf-abajo button:active .pil{transform:none!important}
   /* 4 · Modales, hojas y aviso: fundido sí, desplazamiento no */
   :is(.modal-bg,.rv-modal-bg)>:is(.modal,.hist-panel,.rv-modal,.pf-panel){transform:none!important;transition:opacity .15s ease!important}
-  .toast,.toast.show{transform:translateX(-50%)!important;transition:opacity .15s ease,visibility 0s linear .15s!important}
-  .toast.show{transition:opacity .15s ease,visibility 0s!important}
+  .toast-uno{animation-name:aparece!important;animation-duration:.15s!important}
+  .toast-uno.sale{transform:none!important;transition:opacity .15s ease!important}
   /* 5 · Esperar se sigue viendo: un pulso lento de opacidad en vez de un giro */
-  .esq-giro,.espera-giro,.ia-espera .svgi,.ia-hoy-cargando .svgi,.ai-status.work::before{animation:pulso-lento 1.6s ease-in-out infinite!important}
+  .esq-giro,.ia-espera .svgi,.ia-hoy-cargando .svgi,.ai-status.work::before{animation:pulso-lento 1.6s ease-in-out infinite!important}
 }
-@media(prefers-reduced-motion:reduce) and (min-width:760px){ .toast,.toast.show{transform:none!important} }
 @keyframes aparece{from{opacity:0}}
 @keyframes pulso-lento{50%{opacity:.35}}
+
+/* ---------- Menos movimiento, para las piezas y las pantallas nuevas ----------
+   Va después del bloque de arriba y con la misma regla: se quita lo que desplaza, escala o se
+   mueve solo, y se queda lo que informa —la mecha quieta, el relleno de avance, el fundido—.
+   Un bloque por sección, con su marca de fin. */
+@media(prefers-reduced-motion:reduce){
+/* ── rm · piezas · 1 ── */
+  /* El rótulo cambia sin fundido (H18, H28); la marca y la palomita aparecen ya dibujadas (A2);
+     el arco de espera se queda quieto y lo dice el texto de al lado (C9). Lo que NO se apaga:
+     el relleno de mantener presionado y la mecha, que son información (la mecha, quieta, con
+     los segundos en letra: eso lo hace la pieza). El sello solo aparece. */
+  .rotulo>span{transition:none!important}
+  .sacudida{animation:none!important}
+  .palomita.dibuja path,.marca-estado.dibuja .me-m{animation:none!important;stroke-dashoffset:0!important}
+  .marca-estado[data-estado="trabaja"] .me-arco{animation:none!important}
+  .sello-circular.estampa{animation:aparece .15s ease both!important}
+  .mantener.manteniendo{transform:none!important}
+/* ── fin de rm · piezas · 1 ── */
+/* ── rm · piezas · 2 ── */
+/* Se va lo que desplaza o se mueve solo; se queda lo que informa. La hoja no baja con el dedo
+   (el bloque de arriba ya le prohíbe el desplazamiento), pero el velo se sigue aclarando: es un
+   color. El renglón deslizable sigue al dedo —eso no es adorno, es la mano— y regresa sin
+   recorrido. La marca «nuevo» se queda quieta el mismo tiempo. Los pliegues abren en seco: el
+   comodín `*` no alcanza a ::details-content, así que se apaga por su nombre. Las transiciones
+   de vista ni siquiera arrancan (P.transicion() pregunta antes); esto es por si otra pieza las
+   pide. */
+.desliza-cara,.pliegue-flecha,.paginas-punto::before,.desliza-acc{transition:none}
+.pliegue::details-content{transition:none}
+.plegable,.plegable>*{transition:none}
+.lista-entra{animation:none}
+.lista-nueva::after{animation:none}
+.silueta .esq-b::after{animation:none;opacity:0}
+.desenfoque-borde,.desenfoque-borde.activa{transition:none}
+html.vt-pieza::view-transition-group(*),html.vt-pieza::view-transition-old(*),html.vt-pieza::view-transition-new(*){animation:none!important}
+.paginas{scroll-behavior:auto}
+/* ── fin de rm · piezas · 2 ── */
+/* ── rm · piezas · 3 ── */
+/* La rueda del total y la ficha que viaja ya no arrancan con menos movimiento: eso lo decide
+   js/piezas.js al preguntar en el momento. Aquí se apaga lo que es de la hoja: la sacudida de las
+   casillas (el borde rojo y la frase se quedan), la cascada del verde (entra de una vez), la
+   palomita que brota en el teléfono, la liga del deslizador y el «+1», que se queda como un
+   fundido porque dice cuánto cambió la cuenta. */
+.casillas.rechazo{animation:none}
+.casillas.acierto .casilla::after{transition-delay:0s}
+.tel-vivo.recien .tel-cuenta{animation:none}
+.rueda-delta{animation-name:rueda-delta-quieta}
+.ficha-viaja{transition:none!important}
+input[type=range].desl-iman{transform:none!important}
+
+/* ── fin de rm · piezas · 3 ── */
+/* ── rm · piezas · 4 ── */
+/* El globo y el nombre: fundido, sin desplazarse ni crecer. */
+@starting-style{.vistazo:popover-open,.vistazo.en-hoja:popover-open,.nombre-tip:popover-open{transform:none}}
+.vistazo:not(:popover-open),.vistazo.en-hoja:not(:popover-open){transform:none}
+.porque:active,.riel-boton:active,.vistazo [role="menuitem"]:active{transform:none}
+/* El neón pierde el parpadeo y el haz; el halo aparece y se va. */
+.neon-capa,.neon-discreta>.neon-capa{animation:neon-fundido 1s ease both!important}
+.neon-haz{display:none}
+.neon-texto.neon-encendido::after,.neon-texto.neon-al-cargar::after{animation:neon-fundido 1s ease both!important}
+.neon-texto.neon-al-cargar.neon-queda::after{animation:aparece .15s ease both!important;opacity:1}
+.neon-logo-copia{animation:aparece .15s ease both!important;opacity:1}
+.neon-halo{animation:neon-fundido 1s ease both!important}
+/* Los pasos: entran en fundido y la espera late despacio en vez de girar. */
+.traza-paso.nace,.traza-pliegue{animation-name:aparece!important;animation-duration:.15s!important}
+.traza-paso[data-estado="trabaja"]>.traza-marca{animation:pulso-lento 1.6s ease-in-out infinite!important}
+.traza-resumen::after{transition:none}
+/* El riel: el conector y la palomita ya están donde van; no se llenan ni entran. */
+.riel-v>.riel-paso::after,.riel-h>.riel-paso::after{transition:none}
+.riel-paso.recien .riel-punto>svg,.riel-paso.niega .riel-punto{animation:none}
+/* Las esquinas no vuelan: aparecen en su sitio (el JS ya las pone ahí) y se van en fundido. */
+.mira>i{transition:opacity .15s linear!important}
+/* La carga: un pulso lento, sin líquido. */
+.carga-logo[data-carga="espera"] circle{animation:none!important}
+.carga-logo[data-carga="espera"] .carga-logo-svg{animation:pulso-lento 1.6s ease-in-out infinite}
+.carga-logo circle{transition:none!important}
+/* ── fin de rm · piezas · 4 ── */
+/* ── rm · cot-cliente ── */
+/* La isla abre y cierra en un fundido corto y sin cambiar de ancho (el ancho SÍ desplaza a sus vecinos
+   y es lo que se apaga); lo que dice —la frase, el glifo, el color— se queda. El arco de «Sellando»
+   ya lo deja quieto «rm · piezas · 1». El resalte de la lista cambia de renglón en seco; el lavado
+   de los campos lo sustituye el verde quieto que pone el propio JS (lavado-quieto). El folio cambia
+   sin voltear: folioQueVoltea() ya no anima con menos movimiento, esto es por si otra pieza lo pide. */
+.isla.ver{transition:opacity .15s linear,background-color .15s,border-color .15s,color .15s!important}
+.isla-t,.isla.abierta .isla-t{transition:opacity .15s linear!important;transition-delay:0s!important}
+.combo-pil{transition:none}
+input.lavado,textarea.lavado{animation:none!important}
+.fc,.fc.volteando{animation:none!important;background:none}
+/* ── fin de rm · cot-cliente ── */
+/* ── rm · cot-partidas ── */
+/* Se va lo que se mueve o se aprieta; se queda lo que informa. El anillo de «armando» aparece ya
+   entero (dice que el dedo está siendo contado); las vecinas se apartan sin recorrido; el ojo
+   cruza en un fundido corto; el resalte de los mosaicos cambia de sitio en seco y la partida
+   levantada no crece. */
+.partida.armando .pnum .n::after{animation:none;clip-path:none}
+.partida.levantada{scale:1}
+#items.arrastrando .partida:not(.levantada){transition:none}
+.pmover-b:active,.mos:active{transform:none}
+.resalte-mos{transition:opacity .15s linear}
+.ojo-pdf>.svgi{transition:opacity .15s linear}
+#prog-bar.sube::after{animation:none}
+/* Propuesta con opciones: los botones no se hunden y el importe difuminado no se desenfoca con
+   transición. El importe que viaja de la tarjeta al total no viaja (P.transicion solo repinta); lo que
+   informa —la tarjeta elegida en verde y su palomita— se queda. */
+.op-mas:active,.op-proponer:active,.op-quita:active{transform:none}
+body.precios-ocultos .op-precio,body.precios-ocultos .op-cuenta .dinero{transition:none}
+/* ── fin de rm · cot-partidas ── */
+/* ── rm · cot-precio ── */
+/* El filete del riel es información —cuánto va— y se queda, pero salta de un valor al otro en vez de
+   deslizarse. Lo demás de esta zona lo apagan las piezas que usa: el arco del recorrido queda quieto
+   (el texto de al lado dice «en curso»), el botón que sella no avanza su relleno pero su reloj con
+   letra sí corre, el neón se vuelve un halo de un segundo, la barra del anticipo y la del precio
+   pierden la liga, y la tarjeta que vuela ni arranca (volarCotizacion() pregunta antes). */
+.pasos::after{transition:none}
+/* ── fin de rm · cot-precio ── */
+/* ── rm · cot-entrega ── */
+/* Nada que apagar aquí, y es a propósito: todo lo que se mueve en la entrega lo mueven las
+   piezas —el conector del riel y su palomita (bloque «rm · piezas · 4»), el total que rueda del
+   modal, la ficha del plazo y el relleno de «Registrar venta»—, y cada una trae su propio
+   apagado. Lo que esta zona añadió por su cuenta (el aviso ámbar del teléfono, el globo del
+   mensaje, los puntos del historial) está quieto en los dos modos.
+
+   Lo único con movimiento propio es la línea de avance de la vista previa del PDF, y vive en el
+   documento que se genera, con su propio @media (prefers-reduced-motion) — ver entrega.js. */
+/* ── fin de rm · cot-entrega ── */
+/* ── rm · cot-ia ── */
+/* Se va el adorno y se queda la información. La tapa de la carpeta no se abre (H20: «con
+   reduced-motion, sin tapa»), pero la hoja SIGUE asomando con su «Suéltalo aquí»: eso no es
+   adorno, es la única confirmación de que el recuadro va a recibir el archivo. La banda que
+   recorre la miniatura se va del todo —es lo único de esta pantalla que se repite— y el marco no
+   se hace notar al crecer.
+
+   La pastilla de etapa se queda QUIETA. Una primera versión la hacía latir con `pulso-lento` para
+   decir «sigue trabajando», pero el latido baja su opacidad a 35 % y con ella el texto blanco
+   sobre el fondo oscuro: durante media vuelta la palabra «Analizando» dejaba de leerse, que es
+   justo lo que la pastilla existe para decir (§4.3). Que sigue trabajando ya lo dicen el reloj de
+   cada paso de la traza y la traza misma, que es de la pieza 8 y late a su manera. Los
+   renglones del resumen entran en fundido, sin subir. */
+.ai-drop.sobre .ai-carpeta .cp-tapa{transform:none!important}
+.ai-carpeta .cp-tapa,.ai-carpeta .cp-hoja{transition:none!important}
+.ai-pick.trabajando .ia-marco,.ai-src.trabajando .ia-marco{animation:none!important}
+.ai-pick.trabajando .ia-marco::after,.ai-src.trabajando .ia-marco::after{animation:none!important;display:none}
+.ia-p{animation-name:aparece!important;animation-duration:.15s!important}
+.ai-merge-lista span{transition:none!important}
+.sp-canvas-area.suelta::after{animation:none!important}
+/* ── fin de rm · cot-ia ── */
+/* ── rm · cot-escalador ── */
+/* Se va lo que desplaza o se agranda: el salto del contador de medidas (el JS tampoco lo
+   dispara con menos movimiento; esto es por si algo más le pone la clase) y el encogerse de los
+   botones de la tarjeta del PDF. Se queda lo que informa: la cifra de la lupa y la pista siguen
+   diciendo cuánto mide la línea y qué toca —esta última cambia en seco, que es lo que hace la
+   pieza 23—, las esquinas de la lupa saltan a su sitio sin pedir un solo cuadro (eso lo decide
+   el JS al preguntar en el momento), y el giro de los pasos del PDF lo apaga el bloque de la
+   traza. El letrero de la fachada no anima nada: solo se mueve cuando lo arrastran. */
+.sc-cuenta-salta{animation:none}
+.sp-overlay-btn{transition:none}
+.sp-overlay-btn:active{transform:none}
+/* ── fin de rm · cot-escalador ── */
+/* ── rm · cot-vector ── */
+/* Se va lo que se anima: el ✓ que se cruza con el ✕ cambia en seco —el nombre tachado y el icono
+   ya dicen el estado—, la ficha de color no se encoge al apretarla y el trazo de corte ni siquiera
+   arranca (vtDibujarCorte lo pregunta en el momento; esto es por si algo más lo pintara). Se
+   queda lo que informa: la barra fina del re-trazo sigue creciendo con su transición de 200 ms,
+   porque es el avance, no adorno. */
+.vt-sw{transition:none}
+.vt-sw:active{transform:none}
+.vt-sw-e>.svgi{transition:none}
+.vt-corte{display:none}
+/* ── fin de rm · cot-vector ── */
+/* ── rm · cot-historial ── */
+/* Se va lo que escala al apretar. Se queda lo que informa: el relleno del botón que se sostiene
+   (es de la pieza 5 y es información), el vistazo en fundido, y los pasos de la restauración, que
+   entran en fundido y marcan su estado con el glifo, sin giro. El visor no anima nada con menos
+   movimiento: ni vuelo de ida ni de regreso (lo decide visorMontar al preguntar en el momento) ni
+   el doble toque, que salta directo a 2×. */
+.hentry-resumen:active,.hentry-reenviar:active,.hvacio-acts .btn:active{transform:none}
+/* La pista del bote se desvanece sin desplazarse: es información, no adorno. */
+.hentry-pista{animation-name:hentry-pista-quieta}
+@keyframes hentry-pista-quieta{0%{opacity:0}8%{opacity:1}85%{opacity:1}100%{opacity:0}}
+/* ── fin de rm · cot-historial ── */
+}
 
 /* En papel no hay vidrio. El bloque de `@media print` de más arriba escribe con `!important` y
    le gana a todo esto por su cuenta —fondos blancos, sin sombra y sin animación—, pero no
