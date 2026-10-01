@@ -634,15 +634,26 @@ const _HUECOS={letras:['h-','n-'],recorte:['h-','n-'],bastidor:['an-','al-'],caj
 function enfocarHueco(id){
   const caja=$('p-'+id); if(!caja) return;
   const chip=caja.querySelector('.optgrp.falta .chip[tabindex]');
-  if(chip){ try{ chip.focus({preventScroll:true}); }catch(_){} return; }
+  if(chip){
+    try{ chip.focus({preventScroll:true}); }catch(_){}
+    /* Lo que se señala es el GRUPO en ámbar y no el chip: el hueco es «falta elegir el
+       material», no «el primero de los cinco». C7: cuatro esquinas se cierran sobre él cuando el
+       scroll termina y se van solas. */
+    senalarLlegada(chip.closest('.optgrp')||chip,'av');
+    return;
+  }
   const it=Q.items.find(x=>x.id===id); if(!it) return;
   for(const pre of (_HUECOS[it.tipo]||[])){
     const el=$(pre+id);
     if(el&&!el.disabled&&!String(el.value||'').trim()){
       try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); }
+      senalarLlegada(el,'av');
       return;
     }
   }
+  /* Ningún hueco que enfocar —partida congelada, o el hueco es la descripción, que no cuenta—:
+     al menos se dice cuál es la partida. */
+  senalarLlegada(caja,'av');
 }
 function irAPartida(id){
   $('faltmodal').classList.remove('show'); _faltSeguir=null;
@@ -927,6 +938,7 @@ function _llevarAlPaso(n){
   if(!hayTrabajoCotizado()){
     toast('Antes del precio hace falta una partida con precio mayor a cero.','err',3600);
     irA(Q.items.length?'items':'addbtn');
+    senalarLlegada(Q.items.length?'items':'addbtn','av');
     return 0;
   }
   if(n===4&&Q.estado!=='autorizada'){
@@ -940,9 +952,12 @@ function _llevarAlPaso(n){
   }
   /* Cada paso a su sitio. Los dos acababan en el mismo scroll al principio de la columna, así
      que tocar «4 · Entrega» sobre una cotización autorizada dejaba mirando el IVA. */
-  if(n===4&&$('entrega')) _anclarPaso('entrega');
-  else if(n===3&&$('authbox')&&Q.estado!=='borrador') _anclarPaso('authbox');
-  else _anclarPaso('sidebox');
+  const destino=(n===4&&$('entrega'))?'entrega':(n===3&&$('authbox')&&Q.estado!=='borrador')?'authbox':'sidebox';
+  _anclarPaso(destino);
+  /* Y se señala el bloque del paso (C7): llegar a una pestaña es un scroll al principio de una
+     columna larga, y no se veía cuál de sus partes era «el paso». Con el aside entero sería un
+     marco de media página; se enmarca la tarjeta del total, que es donde empieza el paso. */
+  senalarLlegada(destino==='sidebox'?(document.querySelector('#sidebox .sum')||'sidebox'):destino);
   return n;
 }
 /* ----- La transición de elemento compartido -----
