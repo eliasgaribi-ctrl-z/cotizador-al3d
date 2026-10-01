@@ -175,11 +175,27 @@ function aplicarSello(sello){
   if(guardada) removeFromQueue(Q.folio);
   saveState(); renderItems();
   vibrar(14);
+  /* El neón (C23 #7): un momento breve sobre la tarjeta de autorización, que ya cambió a «Autorizada
+     por…». Va aquí y no en autorizarConfirmado() porque hay DOS maneras de recibir un sello —autorizar
+     en este teléfono, o que llegue el que se pidió a Dirección— y las dos son «se autorizó». En
+     reposo no queda nada: la pieza quita sus capas por reloj, y renderAuth() conserva la capa si el
+     panel se repinta mientras dura. */
+  try{ if(window.Piezas&&Piezas.encenderNeon&&document.visibilityState==='visible') Piezas.encenderNeon('authbox'); }catch(_){}
   /* El total del sello es el que la hoja calculó. Si el de aquí no le da lo mismo, algo en este
      teléfono no es lo que la hoja firmó —una versión vieja del cálculo del total— y hay que
      decirlo antes de que salga un PDF con un número y un QR con otro. */
+  /* ----- El único aviso que no se puede perder (C3) -----
+     Impide mandar un PDF con un número y un QR con otro, y hasta aquí lo tapaban dos cosas: el
+     «✓ … autorizó» que sale en la línea siguiente de atenderRespuesta (el mismo toast, el mismo
+     lugar) y, cuando el marco del cotizador está escondido en la plataforma, el hecho de que nadie
+     mira ese marco. Lo primero ya lo cierra la pila de avisos: un error tiene prioridad sobre
+     todo lo informativo y nunca cede su lugar a uno, así que el «✓» entra en el otro de los dos
+     sitios y el error se queda sus 12 s completos. Lo segundo se cierra pasándolo por
+     avisoDelNotario(), que es quien sabe si el marco se ve: escondido, lo da la plataforma con
+     el suyo y su botón «Ver» trae de vuelta al Cotizador. Con el marco a la vista es el mismo
+     toast de siempre. */
   if(Math.abs(desgloseFinal().neto-Q.sello.total)>0.01){
-    toast('El total de este teléfono ('+money(desgloseFinal().neto)+') no es el que selló la hoja ('+money(Q.sello.total)+'). Actualiza la app antes de mandar el PDF.','err',12000);
+    avisoDelNotario('El total de este teléfono ('+money(desgloseFinal().neto)+') no es el que selló la hoja ('+money(Q.sello.total)+'). Actualiza la app antes de mandar el PDF.','err',12000);
     return guardada;
   }
   const _r=respaldoEstado();
@@ -264,6 +280,11 @@ function retirarSolicitud(folio,sol){
    pregunta nada: no hay nadie para leer la respuesta. */
 const VIGILA_MS=15000;
 let _vigilaT=null, _vigilaEnVuelo=false;
+/* Cuándo contestó la hoja la última vez que se le preguntó por las solicitudes (C9). Es lo que
+   dice «revisado hace 9 s» en la espera: sin él, una solicitud pendiente era una frase y un giro,
+   y no se sabía si la app seguía preguntando o se había quedado esperando en silencio. Solo cuenta
+   una respuesta de verdad —una consulta sin señal no mueve la hora—. */
+let _estadoTs=0;
 const _yaAvisadas=new Set();
 /* Qué solicitudes siguen esperando una respuesta de la hoja. Dos no, aunque sigan pendientes:
    la `definitivo` —la hoja la rechazó por el catálogo y nunca llegó a dirección, así que no hay
@@ -293,7 +314,13 @@ async function consultarSolicitudes(){
     const folios=_foliosEsperando();
     if(folios.length){
       const r=await hablarHoja('estado',{folios:folios.map(f=>folioGlobal(f))});
-      if(r&&r.ok&&r.folios) folios.forEach(f=>atenderRespuesta(f,r.folios[folioGlobal(f)]));
+      if(r&&r.ok&&r.folios){
+        _estadoTs=Date.now();
+        folios.forEach(f=>atenderRespuesta(f,r.folios[folioGlobal(f)]));
+        /* La espera de la pantalla repinta su «revisado hace…» con la hora nueva. Con la solicitud
+           ya contestada no queda nada que repintar, y atenderRespuesta se encargó. */
+        if(typeof pintarHaceEspera==='function') pintarHaceEspera();
+      }
     }
     if(_veoColaRemota()) await cargarPendientesRemotas();
   }catch(_){ /* sin señal: se vuelve a preguntar en la siguiente vuelta */ }
@@ -407,7 +434,13 @@ async function abrirRespondida(folio){
    (js/mod/cotizador.js#ocultar), y dentro del marco `visibilityState` sigue diciendo
    'visible': el vigilante pregunta, el sello llega y el aviso se pintaba en un marco que nadie
    ve. Con _yaAvisadas, además, no se repetía nunca. Si la plataforma dice que el marco está
-   escondido, el aviso lo da ella con el suyo, y su «Abrir» trae de vuelta al Cotizador. */
+   escondido, el aviso lo da ella con el suyo, y su «Abrir» trae de vuelta al Cotizador.
+
+   Los avisos de aquí no se escriben unos encima de otros porque la pila de toast() (pieza 12)
+   decide con la misma regla en las dos páginas: error (2) > con botón (1) > informativo (0). Lo
+   que sale con `tipo:'err'` nunca lo reemplaza un informativo, y el «Abrir» de una autorización
+   que llegó a la cola tampoco: dos así a la vez se quedan los dos, y un tercero espera su turno
+   en vez de pisar a uno. Por eso aquí no hay ninguna lógica de «cuál va primero». */
 function avisoDelNotario(msg,tipo,dur,folio){
   const abrir=folio?()=>abrirRespondida(folio):null;
   const b=_al3d();
@@ -443,7 +476,10 @@ function remotasHTML(){
   return _remotas.map(s=>{
     const c=s.cotizacion||{}, sub=(c.items||[]).reduce((t,it)=>t+lineTotal(it),0);
     const neto=c.iva?sub*1.16:sub;
-    return `<div class="queue-item remota" ${_ABRIBLE} aria-label="Revisar ${esc(s.folio)} de otro teléfono${c.proyecto?', '+esc(c.proyecto):''}" onclick="abrirRevisionRemota(${jsArg(s.folio)})">
+    /* `data-clave` es la identidad del renglón para listaViva (C22): el folio con su aparato, que no
+       se repite entre teléfonos. Con ella lo que llega entra marcado «nueva» y lo que se va se
+       pliega, en vez de repintar la lista entera sin que nada distinga la solicitud recién llegada. */
+    return `<div class="queue-item remota" data-clave="${esc(s.folio)}" ${_ABRIBLE} aria-label="Revisar ${esc(s.folio)} de otro teléfono${c.proyecto?', '+esc(c.proyecto):''}" onclick="abrirRevisionRemota(${jsArg(s.folio)})">
       <span class="qi-dot"></span>
       <div class="qi-body">
         <div class="qi-folio">${esc(String(s.folio).split('@')[0])} <span class="qi-remota">otro teléfono</span></div>
@@ -470,6 +506,9 @@ function abrirRevisionRemota(folio){
   $('rem-lab').textContent='Precio final autorizado'+(c.iva?' · subtotal, SIN IVA':' (sin IVA)');
   $('rem-precio').value=sub;
   $('rem-nota').value='';
+  /* El deslizador de la misma regla que el del formulario local (C18): −20 % a +10 % del calculado,
+     con imanes. Va DESPUÉS de escribir el campo, que es quien manda: así el pulgar nace en el 0 %. */
+  if(typeof deslizadorDelPrecio==='function') deslizadorDelPrecio('rem-precio-r','rem-precio',sub);
   pintarRemotaNeto();
   const i=identidadVerificada();
   $('rem-autoriza').innerHTML='Se sella en la hoja a nombre de <b>'+esc(i?i.correo:'—')+'</b>.';
@@ -481,12 +520,36 @@ function pintarRemotaNeto(){
   const c=(_remotaAbierta&&_remotaAbierta.cotizacion)||{};
   const v=parseFloat($('rem-precio').value)||0;
   $('rem-neto').innerHTML=c.iva?'Con IVA 16%: <b>'+money(+(v*1.16).toFixed(2))+'</b>':'';
+  /* La frase del ajuste, en vivo mientras se arrastra, con la misma cuenta del formulario local
+     (fraseAjuste: «Descuento: $1,080.00 (10%) sobre el subtotal»). Aquí no hay ajustes por
+     partida, así que la base y el calculado son la misma suma. */
+  const aj=$('rem-ajuste'); if(!aj) return;
+  const sub=+(c.items||[]).reduce((t,it)=>t+lineTotal(it),0).toFixed(2);
+  const f=(v>0&&sub>0)?fraseAjuste(v,sub,sub):null;
+  const txt=f?f.linea:'';
+  if(aj.textContent!==txt) aj.textContent=txt;
+  aj.classList.toggle('inc',!!f&&f.d<0);
 }
 function cerrarRevisionRemota(){ $('remotamodal').classList.remove('show'); _remotaAbierta=null; }
+/* Los dos botones de la revisión, juntos. «Ocupada» ya no apaga nada por su cuenta: quien trabaja
+   es el botón que se tocó (Piezas.trabajando, abajo) y él aparta a su hermano —con aria-disabled y
+   no con `disabled`, para que el foco no se pierda a media espera—. Lo que queda aquí es lo que
+   la pieza no sabe: devolverle a la revisión sus dos botones limpios al abrir otra, que es cuando
+   se llama con `false`. */
 function remotaOcupada(si){
-  ['rem-autorizar','rem-rechazar'].forEach(id=>{ const b=$(id); if(b) b.disabled=si; });
-  const b=$('rem-autorizar'); if(b) b.classList.toggle('trabajando',si);
+  const conPieza=!!(window.Piezas&&Piezas.estadoBoton&&Piezas.trabajando);
+  ['rem-autorizar','rem-rechazar'].forEach(id=>{
+    const b=$(id); if(!b) return;
+    if(conPieza){ if(!si){ const h=Piezas.estadoBoton(b); if(h) h.reiniciar(); } b.disabled=false; }
+    else b.disabled=si;
+  });
 }
+/* Lo que se ve entre que la hoja contesta y que la revisión se cierra: el botón lavado en verde con
+   el código del sello, y el neón de la tarjeta. Sin ese rato —un cuarto de segundo y poco más—
+   el modal se iba en el mismo cuadro en que el sello llegaba, y la única confirmación era un aviso
+   de abajo que se podía ni mirar. Con menos movimiento el rato es el mismo: lo que dice el botón
+   es información, no adorno. */
+const REMOTA_RATO_MS=900;
 async function autorizarRemota(){
   const s=_remotaAbierta; if(!s) return;
   const c=s.cotizacion||{}, items=c.items||[];
@@ -495,30 +558,68 @@ async function autorizarRemota(){
   /* El mismo criterio que el formulario de siempre: lo tecleado es el SUBTOTAL, y el precio
      autorizado se guarda en neto. Igual al calculado es «sin ajuste». */
   const precioAuth=(v>0&&Math.abs(v-sub)>0.01)?+(c.iva?v*1.16:v).toFixed(2):0;
-  remotaOcupada(true); $('rem-estado').textContent='Sellando en la hoja…';
-  try{
-    const sello=await sellarEnLaHoja(s.folio,Object.assign({},c,{subtotal:sub}),precioAuth,{},$('rem-nota').value.trim());
-    vibrar(14);
-    toast('✓ '+String(s.folio).split('@')[0]+' autorizada · '+money(sello.total)+' · el teléfono que la pidió la recibe solo','ok',6000);
-    _remotas=_remotas.filter(x=>x.folio!==s.folio);
-    cerrarRevisionRemota(); renderAuth(); pintarPasos();
-  }catch(e){
-    remotaOcupada(false); $('rem-estado').textContent=e.message;
+  const nota=$('rem-nota').value.trim();
+  const pedir=()=>sellarEnLaHoja(s.folio,Object.assign({},c,{subtotal:sub}),precioAuth,{},nota);
+  $('rem-estado').textContent='';
+  const conPieza=!!(window.Piezas&&Piezas.trabajando);
+  let r;
+  if(conPieza){
+    r=await Piezas.trabajando('rem-autorizar',pedir,{verbo:'Sellando',tau:6000,
+      ok:sello=>'Sellada · '+sello.codigo,mal:'No se selló',hermanos:['rem-rechazar']});
+  } else {
+    /* Sin las piezas (una página que no las cargó): el comportamiento de siempre, con sus dos
+       botones apagados y la frase de abajo. */
+    remotaOcupada(true); $('rem-estado').textContent='Sellando en la hoja…';
+    try{ r={ok:true,valor:await pedir()}; }catch(e){ r={ok:false,error:e}; }
   }
+  /* Mientras se esperaba se pudo cerrar la revisión o abrir otra: el sello existe en la hoja, pero
+     lo que hay en pantalla ya no es de esta solicitud. */
+  if(_remotaAbierta!==s&&r.ok){ _remotas=_remotas.filter(x=>x.folio!==s.folio); renderAuth(); pintarPasos(); return; }
+  if(!r.ok){
+    if(!conPieza) remotaOcupada(false);
+    /* El botón ya dice «No se selló · Reintentar»; la frase de abajo dice POR QUÉ, que es lo que
+       el botón no cabe en decir —sin señal, sin sesión de Google, catálogo que no cuadra—. */
+    if(_remotaAbierta===s) $('rem-estado').textContent=(r.error&&r.error.message)||'No se pudo sellar.';
+    return;
+  }
+  const sello=r.valor;
+  vibrar(14);
+  toast('✓ '+String(s.folio).split('@')[0]+' autorizada · '+money(sello.total)+' · el teléfono que la pidió la recibe solo','ok',6000);
+  /* El neón sobre la tarjeta de la revisión (C23 #7), mientras el botón dice «Sellada». */
+  try{ if(window.Piezas&&Piezas.encenderNeon){ const tarjeta=$('remotamodal').querySelector('.modal'); if(tarjeta) Piezas.encenderNeon(tarjeta); } }catch(_){}
+  _remotas=_remotas.filter(x=>x.folio!==s.folio);
+  await new Promise(ok=>setTimeout(ok,REMOTA_RATO_MS));
+  if(_remotaAbierta===s) cerrarRevisionRemota();
+  renderAuth(); pintarPasos();
 }
 async function rechazarRemota(){
   const s=_remotaAbierta; if(!s) return;
   if(navigator.onLine===false){ $('rem-estado').textContent='Sin señal no se puede avisar al otro teléfono.'; return; }
-  remotaOcupada(true); $('rem-estado').textContent='Avisando…';
-  try{
+  const nota=$('rem-nota').value.trim();
+  const pedir=async()=>{
     const ses=await asegurarSesion(); if(!ses.ok) throw new Error(ses.mensaje);
-    const r=await hablarHoja('rechazar',{folio:s.folio,nota:$('rem-nota').value.trim()});
+    const r=await hablarHoja('rechazar',{folio:s.folio,nota});
     if(!r||!r.ok) throw new Error((r&&r.mensaje)||'La hoja no registró el rechazo.');
-    vibrar([20,60,20]);
-    toast(String(s.folio).split('@')[0]+' rechazada · el otro teléfono se entera solo','err',5000);
-    _remotas=_remotas.filter(x=>x.folio!==s.folio);
-    cerrarRevisionRemota(); renderAuth(); pintarPasos();
-  }catch(e){ remotaOcupada(false); $('rem-estado').textContent=e.message; }
+  };
+  $('rem-estado').textContent='';
+  const conPieza=!!(window.Piezas&&Piezas.trabajando);
+  let r;
+  if(conPieza){
+    r=await Piezas.trabajando('rem-rechazar',pedir,{verbo:'Avisando',tau:3000,ok:false,mal:'No se avisó',hermanos:['rem-autorizar']});
+  } else {
+    remotaOcupada(true); $('rem-estado').textContent='Avisando…';
+    try{ await pedir(); r={ok:true}; }catch(e){ r={ok:false,error:e}; }
+  }
+  if(!r.ok){
+    if(!conPieza) remotaOcupada(false);
+    if(_remotaAbierta===s) $('rem-estado').textContent=(r.error&&r.error.message)||'No se pudo avisar.';
+    return;
+  }
+  vibrar([20,60,20]);
+  toast(String(s.folio).split('@')[0]+' rechazada · el otro teléfono se entera solo','err',5000);
+  _remotas=_remotas.filter(x=>x.folio!==s.folio);
+  if(_remotaAbierta===s) cerrarRevisionRemota();
+  renderAuth(); pintarPasos();
 }
 
 /* ----- Una vibración corta, donde el teléfono la tiene -----
