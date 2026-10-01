@@ -1,92 +1,91 @@
-# Las pruebas de navegador que faltan correr del paquete de UI
+# Las pruebas de navegador del paquete de UI: 43 de 44, y la que falta
 
 El paquete «Ideas de UI para todo el repo AL3D» (brief v3) está **implementado entero** en la rama
 `claude/cambios-paquetes-individuales-1itp1x`: las 26 piezas compartidas, las 19 zonas de pantalla
 con sus 153 fichas, las seis fallas del brief y las seis funciones nuevas.
 
-Lo que queda pendiente es **terminar de correr la tanda completa de pruebas de navegador**, que se
-cortó a propósito: cada archivo tarda unos 20 minutos en esta máquina de cuatro procesadores —las
-pruebas nuevas traen entre 500 y 1,800 comprobaciones cada una, y cada una levanta su navegador—,
-así que la tanda entera son unas 14 horas de reloj. Se cerró al llegar a 20 —decisión de Elías— y el resto
-queda para después, con esto escrito.
+**Las 46 pruebas de node pasan. De las 44 de navegador pasan 43.** Falta una: `puente`.
 
-## Lo que SÍ está verificado
+## Lo que encontró correrlas todas juntas
 
-- **Las 46 pruebas de node:** todas pasan. Se corrieron completas en cada fusión.
-- **20 de las 44 de navegador:** verde, con un solo arreglo (abajo).
-- **Cada zona pasó su propia prueba al construirse**, en su copia de trabajo y antes de fusionarse.
-  Lo que esta tanda busca no es si una zona funciona, sino si dos zonas se estorban ahora que están
-  juntas.
+Cada zona pasó su propia prueba al construirse, en su copia de trabajo. Lo que esta tanda buscaba
+era si dos zonas se estorban ahora que están juntas, y encontró **un desacuerdo real**:
 
-### Las que ya corrieron en verde
+**El latido de «sin decidir».** La clase `.cand-partidas` la comparten el cotizador, el Tablero y
+Proyectos. El agente del cotizador la dejó en **un** latido, que es lo que pide la falla 3 del brief
+(«un solo disparo cuando algo cambia»); los de Tablero y Proyectos escribieron sus pruebas esperando
+**tres**. Ninguno podía verlo: cada zona pasaba sola. Se corrigieron las pruebas, no el CSS, porque
+el número correcto es uno. Ya está arreglado y ambas pasan.
 
-`an-controles`, `an-mesa`, `anidador`, `camino-completo`, `capas`, `carga`, `contraste`,
-`cot-cliente`, `cot-entrega`, `cot-escalador`, `cot-historial`, `cot-ia`, `cot-opciones`,
-`cot-partidas`, `cot-precio`, `cotizador-flujo`, `piezas-avisos`, `piezas-hojas`, `piezas-numeros`,
-`piezas-senales`.
+También salieron **tres falsos positivos por falta de recursos** (`cot-historial`, `cot-vector` y una
+de las primeras): fallaban con cuatro navegadores a la vez y pasaban al correrlas solas. Antes de dar
+por mala una prueba, **córrela sola**.
 
-Las cinco últimas se eligieron a propósito: las cuatro de `piezas-*` prueban el aviso, el botón que
-trabaja, el total que rueda, el riel, las esquinas y las demás, que son las que usa **cada una** de
-las 19 pantallas —si algo se rompió al juntar todo, es ahí donde se nota—, y `cotizador-flujo`
-recorre el camino completo, de capturar al cliente hasta autorizar.
+## La que falta: `puente`
 
-Entre ellas van las tres transversales que más valen: **`contraste`** (nada de lo que lleva texto
-baja de 4.5:1, medido en el render), **`capas`** (cada capa se cierra sola y el atrás cierra una por
-toque) y **`camino-completo`**.
+Quedan dos comprobaciones en rojo, y **las dos son la prueba asumiendo el comportamiento viejo, no
+código roto**. Lo que cambió, y que la prueba todavía no sabe:
 
-### El único arreglo que hizo falta
+1. **«Quitar del tablero» ahora se confirma SOSTENIENDO el botón**, no con un toque. Es la única de
+   las cinco preguntas de `decisionHoja()` que borra algo de este teléfono sin más, y por eso lleva
+   la pieza 5 (ver `conMantenerPresionado()` en `js/mod/proyectos.js`).
+2. **El filtro «Todas» ya no existe en el teléfono.** Desde P28 la tira dejó de ser un filtro y pasó
+   a ser el pasador de las páginas —una por etapa—, así que un botón que no lleva a ningún lado se
+   quitó a propósito (`pintarFiltros()` en `js/mod/proyectos.js`).
 
-`pruebas/navegador/cot-historial.mjs` miraba las cifras del cuaderno 120 ms después de abrirlo —a
-propósito, porque la marca de «rodando» solo está mientras ruedan—, y con cuatro navegadores
-corriendo a la vez no alcanzaban a pintarse. Ahora espera a que las tres cifras existan, que es la
-condición de verdad, en vez de confiar en un cronómetro fijo. **Era la prueba, no el código.**
+### Lo que ya se le hizo a la prueba, y dónde se quedó
 
-## Lo que FALTA correr
+`contestarPf()` de `pruebas/navegador/puente.mjs` ya detecta si el botón pide sostener —por la marca
+que deja la pieza, no por una lista de cuáles son— y sostiene con el dedo por CDP, que es el arnés
+que sí funciona en `cot-historial` y `cot-cliente`. También espera a que la hoja **deje de
+deslizarse** antes de tomar las coordenadas, y comprueba con `elementFromPoint` que el dedo caiga
+encima; si no, falla diciendo eso.
 
-```
-cot-vector            pf-esqueleto      precio-suelto          service-worker-redireccion
-cotizacion-de-antes   pf-fabricacion    publicas               tablero
-escalador-cotas       pf-mapa           puente                 total-que-viaja
-pdf-hoja-carta        pf-material       puerta                 vidrio
-pf-ajustes            pf-proyectos      service-worker         volver-atras
-pf-control            pf-tablero        service-worker-actualizacion   plegable
-```
+**Aun así las dos comprobaciones siguen en rojo**, y la causa no está confirmada. Se intentaron cinco
+corridas y cada una tarda ~20 minutos, así que se dejó aquí escrito en vez de seguir.
 
-Son 24.
+### Por dónde seguir
 
-**Ojo:** varias de estas ya se corrieron en verde **antes**, en fusiones anteriores (`contraste`,
-`capas`, `carga`, `cotizador-flujo`, `tablero`, `total-que-viaja`, `vidrio`, `volver-atras`,
-`plegable`, `puente`, `puerta`, las de `service-worker`, `pdf-hoja-carta`, `precio-suelto`,
-`cotizacion-de-antes`, `escalador-cotas` y las cuatro de `piezas-*`). Lo que no se ha hecho es
-correrlas **todas juntas sobre el árbol final**.
+Lo primero es **saber si el sostener llega o no**, en vez de seguir adivinando: poner un
+`console.log` del valor de `sostener` y de `encima` dentro de `contestarPf()`, correrla una vez y
+mirar. De ahí salen dos caminos:
 
-## Cómo terminarlas
+- **Si el sostener no se detecta** (la marca no está en el botón cuando la prueba mira), el problema
+  es de orden: `conMantenerPresionado()` arma la pieza sobre `#pf-confirma-si` justo después de que
+  `confirmarPf()` abre la capa, y la prueba podría estar mirando antes.
+- **Si se detecta y aun así no confirma**, entonces el gesto no está llegando a la pieza, y hay que
+  mirar `P.mantener` en `js/piezas.js` con el contexto `isMobile` de esta prueba.
+
+Y hay una tercera posibilidad que **no se descartó**: que «Quitar» de verdad no borre, y sea un
+defecto del código y no de la prueba. Se dio por supuesto que era la prueba porque el diálogo sale
+con su texto correcto, pero eso no lo demuestra. **Vale la pena quitarse esa duda a mano**: abrir la
+app, provocar una tarjeta importada cuya fila ya no esté, y quitarla sosteniendo el botón. Si se
+quita, era la prueba; si no, es un defecto que borra —o más bien no borra— datos.
+
+## Cómo correrlas
 
 ```sh
 pruebas/correr.sh --navegador          # la tanda entera: node + las 44 de navegador
 ```
 
-O una por una, que es lo práctico si se quiere repartir en varias sesiones:
+Una por una, que es lo práctico:
 
 ```sh
 npx --yes http-server -p 8814 -c-1 --silent &
 PUERTO=8814 node pruebas/navegador/<archivo>.mjs
 ```
 
-Las que levantan su propio servidor (`puente`, las tres de `service-worker`) se corren con
-`env -u PUERTO node pruebas/navegador/<archivo>.mjs`, o chocan consigo mismas.
+Las que levantan su propio servidor —`puente`, `service-worker-actualizacion` y
+`service-worker-redireccion`— se corren con `env -u PUERTO`, o chocan consigo mismas. **`service-worker`
+NO es una de ellas**: necesita que le den el puerto, y confundirlas cuesta una corrida en falso.
 
-**No uses `pkill -f http-server`** si hay más de una tanda corriendo: mata la de al lado.
+**No uses `pkill -f http-server`** si hay más de una tanda: mata la de al lado.
 
-## Qué buscar si alguna falla
+Cada archivo tarda entre 5 y 20 minutos, y los que más tardan son los nuevos del paquete, que traen
+entre 500 y 1,800 comprobaciones cada uno.
 
-Antes de dar por mala una prueba, córrela **sola**: dos de los fallos que salieron en esta tanda
-fueron por falta de recursos, no por el código, y pasaron al correrlas aparte. Un fallo real se
-repite con la máquina descargada.
+---
 
-Lo que estas pruebas podrían encontrar y las de zona no: que dos zonas usen la misma clase de CSS
-para cosas distintas, que una pieza compartida se comporte distinto según quién la llame primero, o
-que el árbol final tenga más animaciones en reposo que las que cada zona vio por su lado.
-
-La lista de lo que ya quedó anotado para revisar está en **`docs/REVISAR-PAQUETE-UI.md`**: 20 zonas
-y 194 puntos, cada uno con archivo, qué revisar y gravedad.
+La lista de lo que las zonas dejaron anotado para revisar está en **`docs/REVISAR-PAQUETE-UI.md`**:
+20 zonas y 194 puntos, cada uno con archivo, qué revisar y gravedad, más las dos decisiones de
+producto que siguen abiertas.
