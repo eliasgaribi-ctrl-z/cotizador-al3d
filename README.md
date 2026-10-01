@@ -77,8 +77,9 @@ material que hay que comprar**. Nada de eso se captura.
 - **Autorización sellada en la hoja** — solo autoriza una cuenta de Google que la hoja tiene como
   Dirección; el nombre del autorizador es ese correo, no un campo que se teclea. Al autorizar,
   la hoja **recalcula el precio con su propia copia del catálogo** y, si no coincide con el del
-  teléfono, no sella. Si coincide, firma el folio, el trabajo, el precio y el total, y lo anota
-  en su pestaña «Autorizaciones». Sin señal no se autoriza: lo tecleado se queda para después.
+  teléfono, no sella. Si coincide, firma el folio, el trabajo, el precio, el total y cada renglón
+  del PDF, y lo anota en su pestaña «Autorizaciones». Sin señal no se autoriza: lo tecleado se
+  queda para después.
   Quien cotiza sin ser Dirección **solicita**, y la solicitud le llega a Dirección a su teléfono,
   donde la revisa **renglón por renglón** —cada partida con su calculado y su precio autorizado,
   y el total sale de ellos— o, de atajo, le pone un total encima; el sello regresa solo con los
@@ -86,7 +87,10 @@ material que hay que comprar**. Nada de eso se captura.
   cambia, vuelve al calculado, lo dice y ofrece **volver a autorizarlo** sobre el mismo folio.
 - **Un QR que delata un PDF alterado** — la cotización sellada lleva un QR y un código. Cualquiera
   que lo escanee llega a `verificar.html`, que le pregunta a la hoja: auténtica, ya no vigente,
-  revocada o no auténtica, con folio, fecha, total y negocio para compararlos con el papel.
+  revocada o no auténtica, con folio, fecha, total, negocio y **cada renglón** —descripción,
+  piezas e importe— para compararlos con el papel. Un PDF con un renglón cambiado y el mismo total
+  ya no pasa. Los sellos de antes de `puente-sheets-8` siguen verificando, y la página dice que
+  esos solo responden del total.
 - **PDF de cotización** con el plano del anuncio, la orden de trabajo del taller y el recibo de
   pago con talón. Un descuento se le enseña al cliente; un aumento se reparte entre las partidas.
 - **Deshacer con Ctrl+Z**, hasta 60 pasos, agrupando lo que se teclea seguido en un mismo campo.
@@ -349,8 +353,6 @@ píxeles** para comprobar que nada de lo que lleva texto baja de 4,5:1 de contra
   listas de compra no tienen todavía pestaña en la hoja a la que ir, así que se quedan en cada
   dispositivo. No se pierden: se apartan en la bandeja con su razón y se reincorporan solos el
   día que existan.
-- **El QR comprueba el total y el negocio, no cada renglón.** Un PDF con los renglones
-  cambiados pero el mismo total pasa la verificación; lo que no pasa es un total distinto.
 - **El neón flex se vende y no está en ningún catálogo.** Cae en partida *manual*, que es justo
   la que el módulo de material excluye por diseño. Es un hueco de negocio: falta decidir cómo se
   cobra.

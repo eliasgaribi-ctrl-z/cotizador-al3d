@@ -57,7 +57,7 @@
         return Promise.resolve({ ok: true, sello: sello });
       }
       /* rutaSalud_: `ia` dice qué proveedores tienen llave. Ninguno, como en la hoja sin llaves. */
-      if (ruta === 'salud') return Promise.resolve({ ok: true, ts: Date.now(), version: 'puente-sheets-7',
+      if (ruta === 'salud') return Promise.resolve({ ok: true, ts: Date.now(), version: 'puente-sheets-8',
         rol: 'direccion', escribibles: [], destino: 'google-sheets', via: 'google', correo: 'Elías',
         ia: { qwen: false, deepseek: false, gemini: false } });
       /* rutaIA_ sin llaves: el mismo codigo y la misma frase que el .gs. */

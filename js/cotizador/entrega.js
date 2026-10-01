@@ -599,7 +599,37 @@ function selloImprimible(neto){
   if(!s||!s.codigo||!s.folio||Q.estado!=='autorizada'||!authVigente()) return null;
   if(Math.abs((Number(s.total)||0)-neto)>0.01) return null;
   if(selloDeOtroProyecto()) return null;
+  if(selloDeOtrosRenglones()) return null;
   return s;
+}
+/* ----- Los renglones también se firmaron (desde puente-sheets-8) -----
+   La hoja firma, por cada partida, la descripción corta, las piezas y el importe que ve el
+   cliente, y verificar.html los enseña con la frase «si alguno no coincide, el PDF fue
+   alterado». Dos cosas pueden cambiar después de sellar sin soltar el precio —ninguna está en
+   la huella—: la descripción de una partida y el orden de las filas. La descripción haría que
+   un papel legítimo verificara como alterado, así que entonces sale sin QR, como con el
+   negocio, y generarPDF dice por qué. El orden no: se compara como conjunto, porque el renglón
+   sigue siendo el mismo aunque cambie de lugar.
+
+   Los renglones del papel se arman aquí igual que en la hoja (renglonesDe, en el .gs): la
+   descripción que viajó en cotParaHoja() cortada a 120, piezasDe() y preciosCliente(). Un sello
+   sin `renglones` —de una hoja anterior a la 8— no tiene contra qué compararse y se imprime
+   como siempre: ese sello solo responde del total, y la frase del PDF dice solo eso. */
+const RENGLON_DESC_MAX=120;   // el mismo tope que la hoja
+function renglonesDelPapel(){
+  const pc=preciosCliente();
+  return Q.items.map(it=>{
+    const d=typeof descParaHoja==='function'?descParaHoja(it):String(it.desc||'');
+    const c=Number(piezasDe(it));
+    return {descripcion:String(d).slice(0,RENGLON_DESC_MAX),cantidad:isFinite(c)?c:0,importe:+Number(pc[it.id]).toFixed(2)};
+  });
+}
+function selloDeOtrosRenglones(){
+  const s=Q.sello;
+  if(!s||!Array.isArray(s.renglones)) return false;
+  const llave=r=>JSON.stringify([String(r.descripcion),Number(r.cantidad)||0,Math.round((Number(r.importe)||0)*100)]);
+  const firmados=s.renglones.map(llave).sort(), hoy=renglonesDelPapel().map(llave).sort();
+  return firmados.length!==hoy.length||firmados.some((x,i)=>x!==hoy[i]);
 }
 /* El negocio también se firmó. «Corregir datos del cliente» deja cambiar el proyecto sin soltar
    el precio —la huella son las partidas—, y verificar.html enseña el proyecto que la hoja
@@ -644,8 +674,11 @@ function qrSVG(texto,px){
 function verificacionHTML(neto){
   const s=selloImprimible(neto); if(!s) return '';
   const liga=ligaDeVerificacion(s);
+  /* La frase promete lo que el sello de verdad cubre: con renglones firmados, también cada
+     renglón; un sello de una hoja anterior, solo el total y el negocio. */
+  const que=Array.isArray(s.renglones)?'el total, el negocio o algún renglón':'el total o el negocio';
   return `<div class="verif">${qrSVG(liga,62)}<div class="verif-t"><span class="lbl">Cotización verificable</span>
-    <p>Escanea el código o entra a <b>${esc(liga.split('?')[0].replace(/^https?:\/\//,''))}</b> con el folio <b class="num">${esc(s.folio)}</b> y el código <b class="num">${esc(s.codigo)}</b>. Si el total o el negocio no coinciden, este documento fue alterado.</p></div></div>`;
+    <p>Escanea el código o entra a <b>${esc(liga.split('?')[0].replace(/^https?:\/\//,''))}</b> con el folio <b class="num">${esc(s.folio)}</b> y el código <b class="num">${esc(s.codigo)}</b>. Si ${que} no coinciden, este documento fue alterado.</p></div></div>`;
 }
 
 /* ===================== Generador de PDF ===================== */
@@ -1803,6 +1836,8 @@ ${hayRecibo?(()=>{
   if(Q.estado==='autorizada'&&authVigente()&&selloDeOtroProyecto()){
     toast('Este PDF sale sin el código de verificación: el proyecto cambió después de sellar («'
       +Q.sello.proyecto+'» → «'+(Q.proy||'').trim()+'»). Vuelve a autorizar el precio para sellarlo con el nombre nuevo.','err',10000);
+  }else if(Q.estado==='autorizada'&&authVigente()&&selloDeOtrosRenglones()){
+    toast('Este PDF sale sin el código de verificación: la descripción de una partida cambió después de sellar, y el QR enseñaría la de antes. Vuelve a autorizar el precio para sellar los renglones nuevos.','err',10000);
   }
   try{
     const blob = new Blob([printable], {type:'text/html'});

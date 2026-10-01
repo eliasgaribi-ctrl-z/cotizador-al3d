@@ -6,7 +6,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Verificar cotización · AL3D</title>
-<meta name="description" content="Comprueba que una cotización de AL3D es auténtica: folio, fecha, total y negocio, contra el registro de la empresa.">
+<meta name="description" content="Comprueba que una cotización de AL3D es auténtica: folio, fecha, total, negocio y cada renglón, contra el registro de la empresa.">
 <meta name="theme-color" content="#4060f8">
 <meta name="robots" content="noindex">
 <link rel="icon" type="image/png" sizes="192x192" href="icono-192.png">
@@ -34,9 +34,11 @@
      recalcula la firma desde su propio renglón, así que lo que aquí sale verde es lo que se
      autorizó, no lo que alguien escribió en el PDF.
 
-     Enseña lo mínimo que hace falta para comparar con el papel —folio, fecha, total y
-     negocio— y nada que no deba andar en un QR: ni teléfono, ni dirección, ni correo. Lo
-     escribe con textContent, nunca con innerHTML: lo que llega de la hoja es un dato.
+     Enseña lo mínimo que hace falta para comparar con el papel —folio, fecha, total, negocio
+     y, desde puente-sheets-8, los renglones: descripción, piezas e importe de cada partida,
+     que el papel ya trae impresos— y nada que no deba andar en un QR: ni cliente, ni
+     teléfono, ni dirección, ni correo. Lo escribe con textContent, nunca con innerHTML: lo
+     que llega de la hoja es un dato.
 
      ---- Lo que cambió con el paquete de UI (fichas A1, A2, A3, A14, A23) ----
 
@@ -58,6 +60,14 @@
      coincide». Un solo «No coincide» pasa la TARJETA entera al aviso de documento alterado y
      quita el sello (contarCotejo); soltarlo la devuelve a lo que contestó la hoja. No se guarda
      nada de lo que se marca — es una ayuda para leer, no un registro.
+
+     ---- puente-sheets-8 · los renglones ----
+
+     Hasta la 7 el QR solo respondía del total: un PDF con los importes de dos partidas
+     intercambiados pasaba por auténtico. Ahora la hoja firma cada renglón y /verificar los
+     devuelve; aquí entran como renglones más de la misma lista, con su «Coincide» y su «No
+     coincide», así que uno que no cuadra pasa la tarjeta al aviso de alterado igual que un
+     total distinto (pintarRenglones). Un sello de antes no los trae, y la nota lo dice.
      ============================================================================ -->
 <body class="pub">
 <main class="pub-wrap">
@@ -71,8 +81,8 @@
   </div>
 
   <h1 id="ver-titulo">¿Esta cotización es auténtica?</h1>
-  <p class="pub-entrada">Compara lo que dice aquí con tu papel. Si el total o el negocio no
-  coinciden, el documento se modificó después de que AL3D lo autorizara.</p>
+  <p class="pub-entrada">Compara lo que dice aquí con tu papel. Si el total, el negocio o algún
+  renglón no coinciden, el documento se modificó después de que AL3D lo autorizara.</p>
 
   <section class="ver-caja" id="ver">
     <!-- El aria-live vive en el renglón del veredicto y no en la <section> entera. Antes
@@ -104,7 +114,9 @@
         <dt>Total</dt>
         <dd><span class="ver-valor ver-num" id="ver-total"></span><span class="ver-cotejo"></span></dd>
       </div>
+      <!-- Aquí entran los renglones que la hoja firmó, uno por partida (pintarRenglones). -->
     </dl>
+    <p class="ver-ren-nota" id="ver-ren-nota" hidden></p>
     <p class="ver-cotejo-fin" id="ver-cotejo-fin" role="status" hidden></p>
     <div class="ver-alterado" id="ver-alterado" hidden>
       <p>No lo pagues sin confirmarlo. El correo a AL3D sale con el folio y lo que no coincide ya escritos.</p>
@@ -160,7 +172,7 @@ const sinMovimiento = () => (P.sinMovimiento ? P.sinMovimiento() : false);
    palabra, porque el color no se puede leer a contraluz ni lo ve todo el mundo igual. */
 const ESTADOS = {
   autentica:    ['ok',  'Auténtica',      'AL3D autorizó esta cotización con estos datos.', 'Auténtica.', 'ok'],
-  superada:     ['av',  'Ya no vigente',  'Esta cotización se volvió a autorizar con otro precio. Pide a AL3D la versión más reciente.', 'Ya no vigente.', 'av'],
+  superada:     ['av',  'Ya no vigente',  'Esta cotización se volvió a autorizar con otro precio u otros renglones. Pide a AL3D la versión más reciente.', 'Ya no vigente.', 'av'],
   revocada:     ['mal', 'Revocada',       'AL3D retiró esta autorización. Ya no vale como cotización.', 'Revocada.', 'mal'],
   no_autentica: ['mal', 'No auténtica',   'No hay una cotización de AL3D con ese folio y ese código. Revisa que los copiaste completos; si te la mandaron así, confírmala directo con AL3D.', 'No auténtica.', 'mal'],
 };
@@ -278,7 +290,9 @@ function pintarSello(estado, cuando) {
    Un solo «No coincide» pesa más que tres «Coincide»: la tarjeta se vuelve el aviso de
    documento alterado, con el correo de AL3D ya redactado. Nada de esto se guarda: quien
    recargue la página vuelve a empezar, que es lo correcto para una ayuda de lectura. */
-const RENGLONES = ['folio', 'fecha', 'negocio', 'total'];
+/* Los cuatro de siempre y, si el sello los firmó, uno por partida: la lista se arma en
+   armarCotejo() con lo que de verdad hay en la tarjeta. */
+let RENGLONES = ['folio', 'fecha', 'negocio', 'total'];
 let cotejo = {}, folioActual = '';
 /* Lo que la hoja contestó, para poder volver a ello si quien comparaba se equivocó de botón, y
    si la tarjeta está enseñando el aviso de «alterado» en vez del veredicto de la hoja. */
@@ -286,6 +300,7 @@ let contestado = null, enAlterado = false;
 
 function armarCotejo() {
   cotejo = {};
+  RENGLONES = [...$('ver-datos').querySelectorAll('.ver-reng')].map(d => d.dataset.reng);
   for (const div of $('ver-datos').querySelectorAll('.ver-reng')) {
     const cual = div.dataset.reng, dato = div.querySelector('dt').textContent;
     const caja = div.querySelector('.ver-cotejo');
@@ -380,6 +395,7 @@ async function verificar(f, c) {
   $('ver-sello-caja').hidden = true;
   $('ver-alterado').hidden = true;
   $('ver-cotejo-fin').hidden = true;
+  $('ver-ren-nota').hidden = true;
   esperando('el registro de AL3D…');
   const boton = $('ver-enviar');
   /* El botón se apaga mientras pregunta: dos toques mandaban dos consultas. */
@@ -429,6 +445,7 @@ async function consultar(f, c) {
   $('ver-fecha').textContent = r.fecha || '—';
   $('ver-proy').textContent = r.proyecto || '—';
   $('ver-total').textContent = Number.isFinite(Number(r.total)) ? dinero(r.total) : '—';
+  pintarRenglones(r.renglones);
   armarCotejo();
   folioActual = r.folio || '';
   armarContacto(folioActual, []);
@@ -436,6 +453,46 @@ async function consultar(f, c) {
   const hora = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
   contestado = { estado: r.estado, clase, encabezado, texto, titulo: tit, glifo, hora };
   pintarSello(r.estado, hora);
+}
+
+/* ------------------------------------------------------ puente-sheets-8 · los renglones
+   Lo que la hoja firmó por cada partida —descripción, piezas e importe— entra a la misma lista
+   que el folio y el total, cada uno con sus dos botones: un renglón que no coincide pesa igual
+   que un total distinto. Todo con textContent: la descripción la tecleó un vendedor y aquí es
+   un dato, no HTML. Sin `renglones` —un sello de antes de que la hoja los guardara, o una hoja
+   que todavía no se actualiza— no se pinta ninguno, y la nota dice con honestidad hasta dónde
+   llega ese sello: callarlo haría creer que los renglones también se comprobaron. */
+function pintarRenglones(renglones) {
+  const lista = $('ver-datos'), nota = $('ver-ren-nota');
+  for (const viejo of lista.querySelectorAll('.ver-reng-partida')) viejo.remove();
+  nota.hidden = false;
+  if (!Array.isArray(renglones) || !renglones.length) {
+    nota.textContent = 'Este sello es de antes de que AL3D guardara los renglones: garantiza el folio, '
+      + 'la fecha, el negocio y el total, no cada renglón. Si dudas de alguno, confírmalo directo con AL3D.';
+    return;
+  }
+  nota.textContent = 'Compara cada renglón con tu PDF; si alguno no coincide, el PDF fue alterado. '
+    + 'Los importes son antes de I.V.A. y de cualquier descuento. Si tu PDF junta partidas en '
+    + '«Conceptos adicionales», ese importe es la suma de las de aquí que allá no aparecen.';
+  renglones.forEach((x, i) => {
+    const div = document.createElement('div');
+    div.className = 'ver-reng ver-reng-partida';
+    /* La llave es la que sale en el correo de «no coincide»: «renglón 2» se encuentra en el papel. */
+    div.dataset.reng = 'renglón ' + (i + 1);
+    const dt = document.createElement('dt');
+    dt.textContent = 'Renglón ' + (i + 1) + ' · ' + (String((x && x.descripcion) || '') || 'sin descripción');
+    const dd = document.createElement('dd');
+    const valor = document.createElement('span');
+    valor.className = 'ver-valor ver-num';
+    const cant = Number(x && x.cantidad), imp = Number(x && x.importe);
+    valor.textContent = (Number.isFinite(cant) ? cant.toLocaleString('es-MX') : '—') + ' pzas. · '
+      + (Number.isFinite(imp) ? dinero(imp) : '—');
+    const caja = document.createElement('span');
+    caja.className = 'ver-cotejo';
+    dd.append(valor, caja);
+    div.append(dt, dd);
+    lista.append(div);
+  });
 }
 
 /* A2 · «Sin respuesta» se reintenta sola al volver la señal: el caso típico es el cliente en

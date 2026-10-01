@@ -105,7 +105,8 @@ para enchufarlo.
 **Estado.** Los dos lados están escritos y probados —`puente/hoja-apps-script.gs`,
 `datos/puente.js`, el arranque y la pantalla de Ajustes— y lo que falta es únicamente lo de los
 cuatro puntos de arriba, que son clics de una persona. La versión del contrato es
-`puente-sheets-7` (la 6 más el notario —autorizar se sella en la hoja— y la IA por el puente);
+`puente-sheets-8` (la 6 más el notario —autorizar se sella en la hoja— y la IA por el puente,
+que entraron en la 7, y el sello que firma también cada renglón del PDF, que entró en la 8);
 «Probar» compara la que contesta la hoja con la que la plataforma espera y
 avisa si la hoja se quedó atrás. Y una acotación honesta: **el relevo de hoy lleva `proyectos` e
 `instalaciones`, no los diez almacenes**. Lo que iría a las bases de movimientos y materiales se

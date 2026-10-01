@@ -476,3 +476,14 @@ body.pub h2:target { animation: scFlash 1.5s ease-out 1; }
 }
 
 /* ── fin de publicas ── */
+
+/* ----- puente-sheets-8 · los renglones que firmó la hoja -----
+   Entran a la misma lista que el folio y el total (.ver-reng), con su «Coincide» y su «No
+   coincide»: un renglón que no cuadra pesa lo mismo que un total distinto. Dos ajustes nada
+   más: la cifra de un renglón va un escalón abajo de la del total —es el total lo que se busca
+   primero en el papel— y no se parte entre las piezas y el importe; y la nota que dice qué hacer
+   con ellos va en el gris de las ayudas, debajo de la lista. */
+.ver-reng-partida .ver-num { font-size: var(--t3); white-space: nowrap; }
+.ver-reng-partida dt { text-transform: none; letter-spacing: 0; overflow-wrap: anywhere; }
+.ver-ren-nota { margin: var(--e3) 0 0; font-size: var(--t2); color: var(--tinta2); }
+.ver-ren-nota[hidden] { display: none; }

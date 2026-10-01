@@ -102,7 +102,9 @@ hecho que pasó.
 Estado al 19 de septiembre de 2026: la hoja corre `puente-sheets-4`, implementada como
 **Versión 5**, en la misma URL de siempre. El 20 el repositorio pasó a `puente-sheets-5`
 (entrar con Google).
-Desde el 25 la plataforma espera **`puente-sheets-7`**: lo de la 6 (abajo) más el notario y la IA (al final). Cuál corre la hoja de verdad
+Desde el 25 la plataforma espera **`puente-sheets-7`**: lo de la 6 (abajo) más el notario y la IA (al final).
+Desde el 1 de octubre espera **`puente-sheets-8`**: el sello firma también los renglones del PDF
+(al final, después de la 7). Cuál corre la hoja de verdad
 lo dice **Ajustes → El puente → Probar**: si es vieja, el aviso dice qué falla con esa versión.
 
 ## 23 de septiembre de 2026 — `puente-sheets-6`
@@ -240,6 +242,24 @@ nadie puede autorizar y la IA no contesta. Así que, en este orden:
 Para comprobarlo: en **Ajustes → El puente → Probar** tiene que decir `puente-sheets-7`, y en
 el cotizador, **Cotizar con IA → Proveedores de IA** tiene que marcar «listo» en los que
 tengan llave.
+
+### Al pasar a `puente-sheets-8` (el QR responde de cada renglón)
+
+Aquí el orden no rompe nada: con la app nueva y la hoja en la 7 se autoriza y se verifica igual
+—el sello simplemente no trae renglones, el PDF imprime la frase de siempre y verificar.html dice
+que ese sello solo responde del total—. Pero hasta que la hoja corra la 8, **ningún sello nuevo
+firma renglones**. Así que, en cuanto se pueda:
+
+1. Baja el `Código.gs` que corre en la hoja y compáralo con `puente/hoja-apps-script.gs`
+   (`puente/README.md`, «Antes de pegar nada»). Fusiona lo que la hoja tenga de más, pégalo y guarda.
+2. **Implementar → Gestionar implementaciones → lápiz → Versión nueva → Implementar.** La URL no
+   cambia, y no hay que correr nada del menú: la columna Q, «Renglones», de «Autorizaciones» se
+   titula sola con la primera autorización. Tampoco hace falta volver a correr «Preparar las
+   autorizaciones selladas».
+3. **Ajustes → El puente → Probar** tiene que decir `puente-sheets-8`.
+4. Para comprobarlo de punta a punta: autoriza una cotización, abre su QR y mira que salga la
+   tabla «Renglones autorizados» con sus partidas. Un PDF autorizado ANTES del cambio tiene que
+   seguir diciendo «Auténtica», con la nota de que solo garantiza el total.
 
 ## Las cabeceras del sitio
 

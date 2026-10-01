@@ -67,10 +67,10 @@ respuesta es `ROL_SIN_PERMISO` antes de mirar el camino. La única excepción es
 | `/cancelar` | quien la pidió, o Dirección | Retira una solicitud pendiente: el teléfono la reabrió para editarla y lo que se pidió ya no es lo que hay |
 | `/pendientes` | Dirección (con Google o con su token) | La cola de autorizaciones de todos los teléfonos: las últimas 50 solicitudes pendientes |
 | `/estado` | cualquier rol, solo lo suyo | En qué quedó cada folio que pidió **esta misma identidad** (hasta 20 por pregunta): el sello, si ya se autorizó —y solo uno emitido después de su última solicitud y para ella—, o si se rechazó, con quién y la nota. Dirección ve todos los folios |
-| `/autorizar` | solo Dirección **entrando con Google** | Recalcula el catálogo, firma folio, trabajo, precio, ajustes por partida (`itemsAuth`, sin IVA, por id de partida) y total, lo anota en «Autorizaciones» y devuelve el sello. El token de dispositivo no basta: dice qué aparato es, no quién autoriza (`soloDireccionConGoogle`). Lo usan igual el formulario de revisión del teléfono y la revisión de una solicitud remota: desde octubre de 2026 la remota también manda `itemsAuth` lleno —antes siempre `{}`—, **sin cambio de contrato** (sigue `puente-sheets-7`): la hoja ya los validaba y firmaba, y `/estado` ya los devolvía con el sello |
+| `/autorizar` | solo Dirección **entrando con Google** | Recalcula el catálogo, firma folio, trabajo, precio, ajustes por partida (`itemsAuth`, sin IVA, por id de partida), total y —desde `puente-sheets-8`— los **renglones** del PDF (descripción corta, piezas e importe de cada partida, el que ve el cliente: con su ajuste por partida y el aumento ya repartido), lo anota en «Autorizaciones» y devuelve el sello. El token de dispositivo no basta: dice qué aparato es, no quién autoriza (`soloDireccionConGoogle`). Lo usan igual el formulario de revisión del teléfono y la revisión de una solicitud remota: desde octubre de 2026 la remota también manda `itemsAuth` lleno —antes siempre `{}`—, **sin cambio de contrato** (fue en `puente-sheets-7`): la hoja ya los validaba y firmaba, y `/estado` ya los devolvía con el sello |
 | `/rechazar` | solo Dirección entrando con Google | Rechaza una solicitud pendiente, con su nota |
 | `/revocar` | solo Dirección entrando con Google | La autorización vigente de un folio pasa a «revocada», y el QR de ese PDF lo dice |
-| `/verificar` | **pública, sin token** | La abre el QR de un PDF desde el teléfono de cualquiera: «auténtica», «superada», «revocada» o «no auténtica», con folio, fecha, total y negocio, y nada más. Va antes de las dos puertas, con su propio cupo: 30 consultas por folio y 400 en total cada diez minutos |
+| `/verificar` | **pública, sin token** | La abre el QR de un PDF desde el teléfono de cualquiera: «auténtica», «superada», «revocada» o «no auténtica», con folio, fecha, total, negocio y —si el sello los firmó— los renglones (`renglones`: `[{descripcion, cantidad, importe}]`, o `null` en un sello de antes de `puente-sheets-8`, que solo responde del total), y nada más: ni cliente, ni teléfono, ni correo. Va antes de las dos puertas, con su propio cupo: 30 consultas por folio y 400 en total cada diez minutos |
 | `/ia` | cualquier rol | **Un** intento contra **un** proveedor (Qwen, DeepSeek o Gemini) con las llaves de la hoja; la cadena y los reintentos siguen en el teléfono. Tope de 200 por persona al día. Es el único camino que acepta cuerpos de más de 64 KB —hasta 15 MB, la imagen o el PDF—, y solo si el cuerpo **empieza** por `{"ruta":"ia"` |
 
 Los tres roles y lo que cada uno puede escribir son los mismos de antes:
@@ -167,6 +167,37 @@ Una escritura contra ellas se rechaza **con su razón**, no en silencio.
 
 Y sigue sin aceptarse un valor inventado en ningún campo de lista: estatus, cuenta, etapa de
 obra y tipo de trabajo se validan contra la lista real antes de escribir.
+
+### El sello firma los renglones (`puente-sheets-8`)
+
+Hasta la 7 el QR respondía del folio, la fecha, el negocio y el total. Un PDF con los importes de
+dos partidas intercambiados —o con una partida cambiada por otra del mismo precio— seguía
+diciendo «auténtica». Desde la 8:
+
+- **Qué se firma.** `/autorizar` arma, por cada partida y en el orden del PDF, `[descripción,
+  piezas, importe]`: la descripción corta que viajó en la cotización (cortada a 120), las piezas
+  de la columna «Pzas.» (`piezasDe`) y el importe **que imprime el PDF** —`preciosCliente()`, con
+  el ajuste por partida y el aumento ya repartido—. Lo calcula la hoja con su copia del catálogo
+  y su total, nunca con importes del teléfono. Van todas las partidas, también las ocultas del
+  PDF: ocultar no suelta el precio, y el papel las junta en «Conceptos adicionales».
+- **Dónde queda.** En la columna **Q, «Renglones»**, de «Autorizaciones», como JSON en texto.
+  Va al final para no correr las dieciséis de antes; la hoja le pone el título sola la primera
+  vez que sella.
+- **La firma es otra versión.** Con renglones se firma `AL3D-AUTH-v2` + los nueve campos de
+  siempre + el texto de la columna Q. Sin renglones, la `AL3D-AUTH-v1` de siempre, igual byte por
+  byte: por eso **los PDF ya impresos siguen verificando**. Vaciar la Q de un sello v2 lo hace
+  comprobarse como v1, y como el prefijo es parte de lo firmado, da «no auténtica».
+- **Qué contesta.** `/verificar` y el sello de `/autorizar` y `/estado` traen `renglones`:
+  `[{descripcion, cantidad, importe}]`, o `null` en un sello de antes. verificar.html pinta la
+  tabla y dice «Compara cada renglón con tu PDF; si alguno no coincide, el PDF fue alterado»; con
+  `null`, que ese sello solo garantiza el total.
+- **Un detalle de la respuesta.** `/autorizar` devolvía los ajustes por partida como llegaron y
+  `/estado` como quedaron firmados, a centavo. Ahora los dos a centavo: son la base de los
+  importes de los renglones, y el teléfono que autoriza y el que recibe el sello tienen que
+  calcular lo mismo.
+- **La copia que hay que mantener.** `cotPreciosCliente`, `cotItemPrecio`, `cotPiezas` y
+  `cotPrecioFinal` son copias de `nucleo.js`, como el catálogo. `pruebas/precio-servidor.mjs` las
+  compara con tres mil cotizaciones al azar: tocar el reparto del aumento es tocar los dos lados.
 
 ---
 
@@ -305,7 +336,7 @@ devuelve a la cola (por ejemplo, cuando ese teléfono ya entra como Dirección).
   de fabricación, que es el que anda en la calle y en el taller. Los otros dos roles
   valen lo que vale la hoja entera.
 - **La hoja puede quedarse con una versión vieja del código.** Guardar en Apps Script no
-  publica. `salud` contesta su `version` —hoy `puente-sheets-7`— justo para poder verlo, y
+  publica. `salud` contesta su `version` —hoy `puente-sheets-8`— justo para poder verlo, y
   «Probar» lo compara con la que la plataforma espera y dice qué falla con la que hay.
 
 ## Si algo falla

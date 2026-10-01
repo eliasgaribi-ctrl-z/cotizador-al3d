@@ -351,10 +351,17 @@ console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 
 {
   /* El de antes le decía a una hoja en puente-sheets-4 que el saldo bajaba al revés —la 4 lo
      arregló— y callaba lo único que de verdad le faltaba: entrar con Google no da rol. */
-  eq('la plataforma espera la 7', VERSION_ESPERADA, 'puente-sheets-7');
+  eq('la plataforma espera la 8', VERSION_ESPERADA, 'puente-sheets-8');
   eq('una hoja en la 5 es vieja', versionVieja('puente-sheets-5'), true);
   eq('y una en la 6 también', versionVieja('puente-sheets-6'), true);
+  eq('y una en la 7 también', versionVieja('puente-sheets-7'), true);
+  /* A la 7 solo le falta que el sello firme los renglones: se autoriza y se verifica igual, y el
+     aviso no puede asustar con «nadie puede autorizar», que es lo de la 6. */
+  const a7 = avisoVersion('puente-sheets-7');
+  cierto('a la 7 le dice que el QR no responde de cada renglón', /renglón/.test(a7));
+  cierto('  y no que no se puede autorizar, que la 7 ya arregló', !/nadie puede autorizar/.test(a7));
   const a6 = avisoVersion('puente-sheets-6');
+  cierto('a la 6 le dice también lo de los renglones', /renglón/.test(a6));
   cierto('a la 6 le dice que no se puede autorizar ni cotizar con IA', /autorizar/.test(a6) && /IA/.test(a6));
   cierto('y no le repite lo de Y a AD, que la 6 ya arregló', !/Y a AD/.test(a6));
   const a5 = avisoVersion('puente-sheets-5'), a4 = avisoVersion('puente-sheets-4'), a3 = avisoVersion('puente-sheets-3');
@@ -365,7 +372,7 @@ console.log('\nEL AVISO DE VERSIÓN DICE LO QUE FALLA CON ESA VERSIÓN (defecto 
   cierto('a la 3, lo del saldo, y lo de las que vienen después', /al revés/.test(a3) && /Google/.test(a3) && /Y a AD/.test(a3));
   /* Y ya no manda a pegar el .gs del repo encima sin mirar: el README dice que la copia
      que manda es la de la hoja, y que se compara antes. */
-  cierto('los cuatro mandan a comparar antes de pegar', [a3, a4, a5, a6].every(x => /compáralo/.test(x) && /Antes de pegar nada/.test(x)));
+  cierto('los cinco mandan a comparar antes de pegar', [a3, a4, a5, a6, a7].every(x => /compáralo/.test(x) && /Antes de pegar nada/.test(x)));
 }
 
 console.log('\nEL FOLIO DE COTIZACIÓN SOLO VIAJA SI LO HAY (defecto 4)');

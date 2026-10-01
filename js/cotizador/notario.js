@@ -156,6 +156,12 @@ function aplicarSello(sello){
   const proyecto=typeof sello.proyecto==='string'?sello.proyecto
     : (sol&&typeof sol.proyecto==='string')?sol.proyecto : (Q.proy||'').trim();
   Q.sello={codigo:String(sello.codigo),correo:Q.autorizador,ts:String(sello.ts),total:Number(sello.total)||0,folio:folioGlobal(),proyecto};
+  /* Los renglones que la hoja firmó (desde puente-sheets-8): descripción, cantidad e importe de
+     cada partida. verificar.html los enseña para compararlos con el papel, así que el PDF los
+     compara antes de imprimir el QR (selloDeOtrosRenglones, entrega.js). Un sello de una hoja
+     vieja no los trae y se queda sin la llave: es un sello que solo responde del total. */
+  if(Array.isArray(sello.renglones)) Q.sello.renglones=sello.renglones.map(r=>({
+    descripcion:String(r&&r.descripcion!=null?r.descripcion:''),cantidad:Number(r&&r.cantidad)||0,importe:Number(r&&r.importe)||0}));
   Q.solicitud=null;
   _selfAuth=false; Q.reauth=null;
   paBorradorLimpiar();

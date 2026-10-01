@@ -1711,8 +1711,12 @@ function dialogoTokens() {
    puente-sheets-7: el notario y la IA. Autorizar un precio se sella aquí —/autorizar, con la
    cuenta de Google de dirección y el catálogo recalculado— y se comprueba con /verificar, que
    es pública; las solicitudes viajan con /solicitar, /pendientes y /estado. Y las llaves de
-   IA se mudaron de los teléfonos a las propiedades de este script: /ia llama por ellos. */
-var PUENTE_VERSION = 'puente-sheets-7';
+   IA se mudaron de los teléfonos a las propiedades de este script: /ia llama por ellos.
+   puente-sheets-8 (1 de octubre de 2026): el sello firma también los RENGLONES —descripción,
+   cantidad e importe de cada partida, tal como los imprime el PDF—, que se guardan en la columna
+   «Renglones» de «Autorizaciones»; /verificar los devuelve para compararlos con el papel. Un
+   sello de antes, sin renglones guardados, sigue verificando y dice que solo responde del total. */
+var PUENTE_VERSION = 'puente-sheets-8';
 var BITACORA = 'Bitácora del puente';
 
 /* ── Entrar con Google ─────────────────────────────────────────────────────
@@ -2767,6 +2771,10 @@ function anotar_(anotaciones) {
      · Lo deja escrito en «Autorizaciones», y `/verificar` —pública, la que abre el QR del
        PDF— recalcula la firma desde ese renglón. Editar el renglón a mano para cambiar un
        total la rompe: el QR dice «no auténtica».
+     · Desde puente-sheets-8 firma además los renglones del PDF —qué partida, cuántas piezas,
+       qué importe— y /verificar los devuelve. Hasta entonces el QR solo respondía del total:
+       un PDF con dos importes intercambiados, o con una partida cambiada por otra del mismo
+       precio, pasaba por auténtico. Ver «Los renglones del papel», más abajo.
 
    Y la solicitud viaja: quien cotiza sin ser dirección la sube con `/solicitar`, a
    dirección le aparece en su teléfono con `/pendientes`, y el teléfono que la pidió
@@ -2780,6 +2788,11 @@ function anotar_(anotaciones) {
 var HOJA_AUTORIZACIONES = 'Autorizaciones';
 var HOJA_SOLICITUDES = 'Solicitudes de autorización';
 var FIRMA_VERSION = 'AL3D-AUTH-v1';
+/* La firma con renglones. Es OTRA versión, y no la misma con un campo de más, a propósito: a un
+   renglón v2 al que alguien le vacíe la celda «Renglones» se le comprueba la firma como v1, y
+   como el prefijo es parte de lo firmado la cuenta ya no da: «no auténtica». Con el mismo
+   prefijo, borrar los renglones sería una manera de quitarle al sello lo que garantiza. */
+var FIRMA_VERSION_RENGLONES = 'AL3D-AUTH-v2';
 var PROP_SECRETO = 'SELLO_AUTORIZACION';
 var MAX_PARTIDAS = 80;
 
@@ -2848,6 +2861,129 @@ function cotHuella(iva, items) {
       return it[k] === undefined ? '' : String(it[k]);
     }).join('~');
   }).sort().join(',');
+}
+
+/* ----- Los renglones del papel -----
+   Lo que el PDF imprime en cada fila de la tabla: qué partida, cuántas piezas y qué importe. Es
+   lo que el sello firma desde puente-sheets-8 y lo que /verificar devuelve para que quien tiene
+   el papel lo compare fila por fila.
+
+   El importe NO es el del catálogo: es el que ve el cliente —preciosCliente() de nucleo.js—, que
+   lleva el ajuste por partida del autorizador y, si subió el total, su parte del aumento ya
+   repartida. Por eso aquí va una COPIA de preciosCliente(), de itemPrecio() y de piezasDe(), con
+   el mismo cuidado que el catálogo: pruebas/precio-servidor.mjs las compara contra nucleo.js con
+   miles de cotizaciones al azar, porque si la hoja firmara un importe y el PDF imprimiera otro,
+   quien verifica vería un renglón «alterado» en un papel legítimo.
+
+   Se firman a partir de lo que la hoja ya comprobó —las partidas recalculadas con SU catálogo,
+   los ajustes y el total que ella misma calculó—, nunca de importes que mande el teléfono. Lo
+   único que viene del teléfono es la descripción corta, que es la misma que dirección leyó al
+   revisar la solicitud. */
+var RENGLON_DESC_MAX = 120;
+/* piezasDe(): lo que imprime la columna «Pzas.». */
+function cotPiezas(it) {
+  if (it.tipo === 'letras' || it.tipo === 'recorte') return it.n || 0;
+  if (it.tipo === 'bastidor' || it.tipo === 'caja') return 1;
+  return it.pz || 1;
+}
+/* itemPrecio() de una cotización autorizada y vigente: el ajuste por partida si lo hay. */
+function cotItemPrecio(it, ia) {
+  var k = String(it.id);
+  return Object.prototype.hasOwnProperty.call(ia || {}, k) ? ia[k] : cotLineTotal(it);
+}
+/* precioFinal() de una cotización autorizada, SIN redondear: es lo que ajusteAuth() le resta al
+   neto ajustado, y redondearlo antes movería el umbral de un centavo en el que se decide si hubo
+   aumento. `precioAuth` es el ya redondeado a centavo, que es el que el teléfono guarda. */
+function cotPrecioFinal(subCalc, iva, precioAuth) {
+  var neto = cotNeto(subCalc, iva);
+  return (precioAuth > 0 && Math.abs(precioAuth - neto) > 0.01) ? precioAuth : neto;
+}
+/* preciosCliente(), línea por línea. `final` es cotPrecioFinal(): el precioFinal() del teléfono
+   una vez autorizada. Devuelve {id: importe}. */
+function cotPreciosCliente(items, iva, ia, final) {
+  var out = {};
+  items.forEach(function (it) { out[it.id] = cotItemPrecio(it, ia); });
+  var subBase = items.reduce(function (s, it) { return s + cotItemPrecio(it, ia); }, 0);
+  /* netoAjustado(), desgloseFinal().sub y ajusteAuth(), con sus mismos toFixed. */
+  var netoAj = +((iva ? subBase * 1.16 : subBase)).toFixed(2);
+  var neto = +Number(final).toFixed(2);
+  var subFinal = +(iva ? neto / 1.16 : neto).toFixed(2);
+  var ajuste = +(netoAj - final).toFixed(2);
+  if (!(ajuste < -0.01 && subBase > 0.005)) return out;      // hayAumentoAuth()
+  var factor = subFinal / subBase;
+  var objetivo = Math.round(subFinal * 100);
+  var rep = [], suma = 0;
+  items.forEach(function (it) {
+    var base = cotItemPrecio(it, ia);
+    if (base <= 0.005) return;
+    var pz = Math.max(1, cotPiezas(it));
+    var exacto = base * factor * 100 / pz;
+    var u = Math.floor(exacto);
+    rep.push({ it: it, pz: pz, u: u, frac: exacto - u, base: base });
+    suma += u * pz;
+  });
+  var resto = objetivo - suma;
+  rep.sort(function (a, b) { return b.frac - a.frac || b.base - a.base; });
+  var cupo = true;
+  while (resto > 0 && cupo) {
+    cupo = false;
+    for (var i = 0; i < rep.length; i++) {
+      var r = rep[i];
+      if (r.pz > resto) continue;
+      r.u++; resto -= r.pz; cupo = true;
+      if (!resto) break;
+    }
+  }
+  if (resto > 0 && rep.length > 1) {
+    var porPrecio = rep.slice().sort(function (a, b) { return b.base - a.base; });
+    buscar:
+    for (var q = 0; q < porPrecio.length; q++) {
+      var quita = porPrecio[q];
+      if (quita.u < 1) continue;
+      for (var p = 0; p < porPrecio.length; p++) {
+        var pone = porPrecio[p];
+        if (pone === quita) continue;
+        var falta = resto + quita.pz;
+        if (falta % pone.pz) continue;
+        quita.u--; pone.u += falta / pone.pz; resto = 0;
+        break buscar;
+      }
+    }
+  }
+  rep.forEach(function (r) { out[r.it.id] = +(r.u * r.pz / 100).toFixed(2); });
+  if (resto !== 0 && rep.length) {
+    var dest = rep.reduce(function (a, b) { return b.base > a.base ? b : a; });
+    out[dest.it.id] = +(out[dest.it.id] + resto / 100).toFixed(2);
+  }
+  return out;
+}
+/* El texto que se firma y se guarda: un arreglo de [descripción, cantidad, importe] en el orden
+   de las partidas, que es el orden del PDF. En JSON, por la misma razón que canonDe: una
+   descripción con comas o comillas no puede correr la frontera con la de al lado.
+   Van TODAS las partidas, también las que el vendedor ocultó del PDF: «ocultar» no está en la
+   huella —se puede cambiar sin soltar el precio—, así que firmar solo las visibles haría que
+   esconder una después de autorizar dejara el sello diciendo otra cosa que el papel. Lo que el
+   PDF agrupa en «Conceptos adicionales» es la suma de las que no salen, y verificar.html lo dice. */
+function renglonesDe(items, iva, ia, final) {
+  var pc = cotPreciosCliente(items, iva, ia, final);
+  return JSON.stringify(items.map(function (it) {
+    var c = Number(cotPiezas(it));
+    return [String(it.desc == null ? '' : it.desc).slice(0, RENGLON_DESC_MAX),
+            isFinite(c) ? c : 0, +Number(pc[it.id]).toFixed(2)];
+  }));
+}
+/* De la celda a lo que se enseña. null es «este sello no guardó renglones»: los de antes de
+   puente-sheets-8. Un texto que no se entiende también es null, pero ése no llega a verse: la
+   firma lo cubre, y uno alterado ya no verifica. */
+function renglonesDeTexto(s) {
+  if (!s) return null;
+  var a;
+  try { a = JSON.parse(String(s)); } catch (e) { return null; }
+  if (Object.prototype.toString.call(a) !== '[object Array]') return null;
+  return a.map(function (r) {
+    return { descripcion: String(r && r[0] != null ? r[0] : ''), cantidad: Number(r && r[1]) || 0,
+             importe: Number(r && r[2]) || 0 };
+  });
 }
 
 /* ----- Lo que llega del teléfono, limpio -----
@@ -2959,9 +3095,16 @@ function itemsAuthDeCanon(s) {
    lo que dice el QR sin romper la firma. JSON escapa sus comillas: dos registros distintos no
    pueden dar el mismo texto. */
 function canonDe(r) {
-  return FIRMA_VERSION + JSON.stringify([String(r.folio), String(r.huella), dinero2(r.subCalc),
+  var campos = [String(r.folio), String(r.huella), dinero2(r.subCalc),
     dinero2(r.precioAuth), String(r.itemsAuth), dinero2(r.total), String(r.proyecto),
-    String(r.correo), String(r.ts)]);
+    String(r.correo), String(r.ts)];
+  /* Con renglones, la v2: los mismos nueve campos y el texto de los renglones TAL COMO quedó en
+     su celda. Se firma el texto y no el arreglo vuelto a armar para que /verificar compruebe
+     exactamente lo que la hoja guarda, sin depender de cómo se escriba un número al serializar.
+     Sin renglones —los sellos de antes de puente-sheets-8—, la v1 de siempre, igual byte por
+     byte: si cambiara, todos los PDF ya impresos dirían «no auténtica». */
+  if (r.renglones) return FIRMA_VERSION_RENGLONES + JSON.stringify(campos.concat([String(r.renglones)]));
+  return FIRMA_VERSION + JSON.stringify(campos);
 }
 function aHex(bytes) {
   var s = '';
@@ -3003,10 +3146,14 @@ function txt(s) { return "'" + String(s == null ? '' : s); }
 /* ----- Las dos pestañas ----- */
 var COLS_AUT = ['Cuándo (ISO)', 'Folio', 'Proyecto', 'Cliente', 'Subtotal calculado',
   'Precio autorizado (neto)', 'Total', 'Ajuste %', 'Ajustes por partida', 'Huella',
-  'Autorizó', 'Solicitó', 'Código', 'Firma', 'Estado', 'Nota'];
+  'Autorizó', 'Solicitó', 'Código', 'Firma', 'Estado', 'Nota', 'Renglones'];
+/* «Renglones» va AL FINAL, y no junto al total donde se leería mejor: una hoja preparada antes de
+   puente-sheets-8 ya tiene dieciséis columnas con sellos escritos, y meter una en medio correría
+   el Estado, la Nota y la Firma de todos ellos. Al final, los renglones viejos la tienen vacía,
+   que es justo lo que los marca como sellos sin renglones (firma v1). */
 var A_TS = 0, A_FOLIO = 1, A_PROY = 2, A_CLI = 3, A_SUB = 4, A_PRECIO = 5, A_TOTAL = 6,
     A_PCT = 7, A_ITEMS = 8, A_HUELLA = 9, A_AUTORIZO = 10, A_SOLICITO = 11, A_CODIGO = 12,
-    A_FIRMA = 13, A_ESTADO = 14, A_NOTA = 15;
+    A_FIRMA = 13, A_ESTADO = 14, A_NOTA = 15, A_RENGLONES = 16;
 var COLS_SOL = ['Cuándo', 'Folio', 'Proyecto', 'Cliente', 'Subtotal', 'IVA', 'Huella',
   'Cotización', 'Solicitó', 'Estado', 'Resolvió', 'Cuándo se resolvió', 'Nota'];
 var S_TS = 0, S_FOLIO = 1, S_PROY = 2, S_CLI = 3, S_SUB = 4, S_IVA = 5, S_HUELLA = 6,
@@ -3023,7 +3170,18 @@ function hojaConCabecera(nombre, cols, oculta) {
   if (oculta) h.hideSheet();
   return h;
 }
-function hojaAutorizaciones() { return hojaConCabecera(HOJA_AUTORIZACIONES, COLS_AUT, true); }
+function hojaAutorizaciones() {
+  var h = hojaConCabecera(HOJA_AUTORIZACIONES, COLS_AUT, true);
+  /* La pestaña de una hoja preparada antes de puente-sheets-8 no tiene el título de la columna
+     nueva. Para firmar y verificar no hace falta —se lee por posición—, pero quien abra la
+     pestaña tiene que saber qué es ese texto largo de la columna Q. */
+  var cab = h.getRange(1, A_RENGLONES + 1);
+  if (String(cab.getValue() || '') === '') {
+    cab.setValue(COLS_AUT[A_RENGLONES]);
+    cab.setFontWeight('bold').setBackground(AZUL).setFontColor('#ffffff');
+  }
+  return h;
+}
 function hojaSolicitudes() { return hojaConCabecera(HOJA_SOLICITUDES, COLS_SOL, false); }
 function filasDe(h, ncols) {
   var n = h.getLastRow() - 1;
@@ -3040,13 +3198,13 @@ function registroDeFila(v) {
   return { folio: String(v[A_FOLIO]), huella: String(v[A_HUELLA]), subCalc: Number(v[A_SUB]),
            precioAuth: Number(v[A_PRECIO]), itemsAuth: String(v[A_ITEMS] || ''),
            total: Number(v[A_TOTAL]), proyecto: String(v[A_PROY]), correo: String(v[A_AUTORIZO]),
-           ts: String(v[A_TS]) };
+           ts: String(v[A_TS]), renglones: String(v[A_RENGLONES] || '') };
 }
 function selloDeFila(v) {
   var r = registroDeFila(v);
   return { codigo: String(v[A_CODIGO]), correo: r.correo, ts: r.ts, huella: r.huella,
            subCalc: r.subCalc, precioAuth: r.precioAuth, itemsAuth: itemsAuthDeCanon(r.itemsAuth),
-           total: r.total, nota: String(v[A_NOTA] || '') };
+           total: r.total, nota: String(v[A_NOTA] || ''), renglones: renglonesDeTexto(r.renglones) };
 }
 function quienSoy(rol, ingreso) { return ingreso ? ingreso.correo : 'token de ' + rol; }
 function soloDireccionConGoogle(ingreso, que) {
@@ -3226,6 +3384,11 @@ function rutaAutorizar_(cuerpo, rol, ingreso) {
             precioAuth: +dinero2(precioAuth), itemsAuth: itemsAuthCanon(ia.valor),
             total: cotTotalFinal(subCalc, c.iva, precioAuth), proyecto: c.proyecto,
             correo: ingreso.correo, ts: '' };
+  /* Los renglones salen de lo que la hoja ya comprobó —sus importes, sus ajustes ya escritos en
+     canon (los mismos centavos que el teléfono recibe con el sello) y el precio redondeado—, no
+     de importes que mande el teléfono. */
+  r.renglones = renglonesDe(c.items, c.iva, itemsAuthDeCanon(r.itemsAuth),
+                            cotPrecioFinal(subCalc, c.iva, r.precioAuth));
   /* Contra el calculado CON IVA si lo lleva, que es contra lo que se mide el total. */
   var netoCalc = cotNeto(subCalc, c.iva);
   var pct = netoCalc > 0 ? Math.round((netoCalc - r.total) / netoCalc * 1000) / 10 : 0;
@@ -3241,7 +3404,12 @@ function rutaAutorizar_(cuerpo, rol, ingreso) {
          una respuesta que se perdió. Se devuelve el MISMO sello sin escribir nada: dos
          renglones con la misma decisión harían creer que se autorizó dos veces. */
       if (antes.huella === r.huella && antes.subCalc === r.subCalc && antes.precioAuth === r.precioAuth &&
-          antes.itemsAuth === r.itemsAuth && antes.proyecto === r.proyecto) {
+          antes.itemsAuth === r.itemsAuth && antes.proyecto === r.proyecto &&
+          /* Y los mismos renglones. Una descripción corregida no mueve la huella, pero sí lo que
+             /verificar enseña: devolver el sello viejo dejaría al QR diciendo la de antes. Un
+             vigente de antes de puente-sheets-8 no trae renglones, así que volver a autorizarlo
+             tal cual le da uno nuevo que sí los firma. */
+          antes.renglones === r.renglones) {
         return { ok: true, sello: selloDeFila(vigente.v), repetida: true };
       }
       /* Otro precio u otro trabajo sobre el mismo folio: volver a autorizar. La de antes no se
@@ -3255,12 +3423,17 @@ function rutaAutorizar_(cuerpo, rol, ingreso) {
                          function (v) { return v[S_ESTADO] === 'pendiente'; });
     var fila = [txt(r.ts), txt(folio), txt(r.proyecto), txt(c.cliente), r.subCalc, r.precioAuth, r.total,
                 pct, txt(r.itemsAuth), txt(r.huella), txt(r.correo), txt(sol ? String(sol.v[S_SOLICITO] || '') : r.correo),
-                txt(codigo), txt(firma), 'vigente', txt(nota)];
+                txt(codigo), txt(firma), 'vigente', txt(nota), txt(r.renglones)];
     h.getRange(h.getLastRow() + 1, 1, 1, fila.length).setValues([fila]);
     if (sol) hojaSolicitudes().getRange(sol.fila, S_ESTADO + 1, 1, 4)
       .setValues([['autorizada', txt(r.correo), new Date(), txt(nota || String(sol.v[S_NOTA] || ''))]]);
+    /* Los ajustes por partida van como quedaron firmados —a centavo—, igual que los devuelve
+       /estado. Antes iban como llegaron, y el teléfono que autorizaba aquí se quedaba con unos
+       centavos y el que lo recibía por /estado con otros: los renglones del PDF no habrían
+       cuadrado con los firmados en uno de los dos. */
     return { ok: true, sello: { codigo: codigo, correo: r.correo, ts: r.ts, huella: r.huella,
-             subCalc: r.subCalc, precioAuth: r.precioAuth, itemsAuth: ia.valor, total: r.total, nota: nota } };
+             subCalc: r.subCalc, precioAuth: r.precioAuth, itemsAuth: itemsAuthDeCanon(r.itemsAuth), total: r.total, nota: nota,
+             renglones: renglonesDeTexto(r.renglones) } };
   });
 }
 
@@ -3304,9 +3477,9 @@ function revocarAutorizacion(folio) {
 
 /* ---------------------------------------------------------------- /verificar */
 /* PÚBLICA. La abre el QR de un PDF, desde el teléfono de cualquiera, sin cuenta y sin token.
-   Por eso contesta lo mínimo —folio, fecha, total y negocio— y nunca teléfono, dirección
-   ni correo. Y tiene su propio cupo, contado por folio y en total, porque aquí no hay
-   identidad contra la cual contarlo. */
+   Por eso contesta lo mínimo —folio, fecha, total, negocio y, desde puente-sheets-8, los
+   renglones que el papel ya trae impresos— y nunca cliente, teléfono, dirección ni correo. Y
+   tiene su propio cupo, contado por folio y en total, porque aquí no hay identidad contra la cual contarlo. */
 var VERIFICAR_POR_FOLIO = 30;      // cada 10 minutos
 var VERIFICAR_EN_TOTAL = 400;
 function rutaVerificar_(cuerpo) {
@@ -3333,10 +3506,14 @@ function rutaVerificar_(cuerpo) {
   var cuando = new Date(String(hallada.v[A_TS]));
   /* El folio que se contesta sale del RENGLÓN, no de lo que se tecleó: si alguien mandó
      «cot-0042» en minúsculas o con el aparato pegado, lo que se enseña al lado del papel es lo
-     que la hoja tiene guardado. */
+     que la hoja tiene guardado.
+     Y los renglones, si el sello los firmó: descripción, cantidad e importe de cada partida, que
+     es lo que el papel ya enseña —nada de cliente, teléfono ni correo—. `null` es un sello de
+     antes de puente-sheets-8: auténtico, pero solo responde del total, y la página lo dice. */
   return { ok: true, estado: est === 'vigente' ? 'autentica' : (est === 'revocada' ? 'revocada' : 'superada'),
            folio: folioCorto_(hallada.v[A_FOLIO]), fecha: isNaN(cuando) ? '' : Utilities.formatDate(cuando, tz, 'dd/MM/yyyy'),
-           total: Number(hallada.v[A_TOTAL]), proyecto: String(hallada.v[A_PROY]) };
+           total: Number(hallada.v[A_TOTAL]), proyecto: String(hallada.v[A_PROY]),
+           renglones: renglonesDeTexto(hallada.v[A_RENGLONES]) };
 }
 /* ----- Buscar la autorización con lo que trae el papel -----
    ultimaFila() compara el folio con «===» y ahí no cabe el folio corto, así que /verificar
