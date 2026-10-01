@@ -3,8 +3,6 @@
 Cada zona del paquete de UI entrega aquí lo que dejó a medias, lo que no alcanzó a probar y los
 supuestos que tomó. **La auditoría mira esta lista, no las ~50,000 líneas del paquete.** No hubo
 revisor aparte por zona: fue el acuerdo para no agotar el límite semanal.
-Fichas: 9 hecho, 2 parcial.
-
 - **[alta]** `js/cotizador/partidas.js · repintarConViaje(), togglePartida(), delItem(), css/sistema.css .pcab (sticky + backdrop-filter)`  
   El viaje de View Transitions no se midió en un Android de gama media, que es lo que pedía el Cuidado de C1 (.pcab es sticky con backdrop-filter y se fotografía junto con hasta 40 partidas nombradas). Solo se probó en Chromium de escritorio emulando 360/420 px. Si se siente pesado, lo primero a bajar es el tope de nombres o saltar el viaje con más de N partidas.
 
@@ -178,3 +176,89 @@ Fichas: 9 hecho.
 
 - **[baja]** `pruebas/navegador/vidrio.mjs`  
   Falló una vez («700 px, con ratón, en claro: la página está de verdad en claro (data-tema=oscuro)») y pasó en la repetición y en la base; no encontré la causa. Si reaparece, mirar el arranque de tema antes de culpar a esta zona.
+
+## Cotizador · historial, cuadernos, respaldos y vigencia (cot-historial)
+
+Fichas: 11 hecho, 1 ya estaba.
+
+- **[media]** `js/cotizador/historial.js · reenviarConFechaNueva() / guardarEnHistorial(extra)`  
+  La renovación de la vigencia se anota al ABRIR la cotización con fecha nueva, no al generar el PDF (entrega.js es de otra zona y no la toqué). Si el vendedor reenvía y nunca genera el PDF, el historial dirá 10 días aunque nada haya salido. Además `reenviada` es un campo nuevo de la entrada del historial: lo conserva guardarEnHistorial, viaja en el respaldo, pero la plataforma (js/datos/cotizador.js, réplicas) no lo conoce; no lo he mirado en esas réplicas.
+
+- **[media]** `js/cotizador/historial.js · reenviarConFechaNueva() camino de precio movido`  
+  Probé hasta quedar en estado pendiente con Q.reauth puesto y la fecha sin cambiar. NO probé el flujo completo con un Autorizador real autorizando de nuevo y luego tocando el botón por segunda vez (se supone que precioSeMovio() da false porque guardarEnHistorial congela los _lt nuevos). precioSeMovio() duplica el predicado de reabrirDeHistorial() (dos copias de la misma regla).
+
+- **[media]** `js/cotizador/historial.js · visorMontar()/visorCerrar() y partidas.js openAiFile()`  
+  El visor se probó con Pointer Events por CDP, ratón y teclado en Chromium; NO en Safari/iOS real (pellizco con touch-action:none, img.decode, ghost clicks). El cierre por velo se difiere al click que sigue a soltar (si nunca llega un click, no cierra). En openAiFile() la miniatura de origen sale de window.event.target.closest('img'), que depende de que el onclick en línea corra con window.event. El vuelo de regreso no calza al píxel con la miniatura recortada (object-fit:cover).
+
+- **[media]** `js/cotizador/historial.js · restaurarDesde()/ejecutarRestauracion()`  
+  La confirmación ya no pasa por confirmar() sino por una vista dentro del historial con P.mantener; restaurar sigue siendo destructivo. Cambia el flujo y suma ~1,6 s antes de recargar (pausas para que se vean las marcas). Cerrar el modal con Escape a media restauración no la detiene (la recarga sigue). Si cot-precio mete mantener a confirmar(), habrá dos mecanismos para lo mismo. Con la falla, «Restaurar» queda apagado y sin la pieza (P.mantener.quitar + disabled) para que el dedo que sigue encima no active «Volver» al esconderse el botón.
+
+- **[media]** `pruebas/navegador/cot-entrega.mjs · sinDesborde()`  
+  Edité una prueba de otra zona (una línea: excluir .fichas del chequeo de desborde, porque la fila de fichas del historial se desplaza de lado a propósito). Puede chocar al fusionar si cot-entrega toca esa línea.
+
+- **[media]** `js/cotizador/historial.js · armarBoteDeBasura()`  
+  P.mantener se arma con un oyente delegado en captura (pointerdown, focusin, keydown) sobre #hist-body y confía en que los oyentes que la pieza cuelga del botón en ese momento reciben el mismo evento. Funciona en Chromium (probado dedo, ratón, Enter y 'activar' sin puntero); no en otros motores. Un lector de pantalla que active sin enfocar ni tocar antes no armaría la pieza.
+
+- **[baja]** `css/sistema.css · .hentry{content-visibility:auto}`  
+  Lo añadí por rendimiento (abrir 80 entradas: ~330 ms contra ~490 ms antes, medido con CPU a 4×). content-visibility implica paint containment: recorta lo que se sale de la entrada (por eso el globo .hentry-pista va a la izquierda de la columna en ≥561 px). No lo probé en pantalla ancha con capturas ni en Safari <18 (ahí se ignora).
+
+- **[baja]** `js/cotizador/historial.js · histEntradaHTML() llama hitosHist(e.folio)`  
+  hitosHist() es de cot-entrega; la llamo tal cual y le doy su sitio entre el renglón superior y la vigencia. Si cot-entrega cambia su firma o su marcado, hay que reconciliar aquí. Mis cambios también quedan junto a ella en el archivo (evité tocar cerrarHistorial() para no dejar hunks contiguos).
+
+- **[baja]** `js/cotizador/historial.js · indexarHistorial()/pintarCuadernos()`  
+  Cambio de comportamiento del buscador: ahora ignora acentos y mayúsculas con P.plegarTexto en historial y cuadernos (antes solo minúsculas). Un número con separadores se compara tal cual contra el texto plegado. No hay prueba de node que lo fije fuera de la de navegador.
+
+- **[baja]** `js/cotizador/historial.js · H29 cuaEstadoNota()`  
+  La ficha pedía ✕ ámbar; usé la ✕ roja (la pieza no tiene ✕ ámbar). El estado «trabaja» dura un cuadro, casi invisible. El anillo de la vigencia tampoco se anima nunca (la lista se repinta con innerHTML y el modal se cierra al reenviar), aunque la muestra decía que se movería al cambiar el día o al reenviar.
+
+- **[baja]** `js/cotizador/historial.js · HIST_FILTROS 'Sin enviar'`  
+  La ficha se llama «Sin enviar» como pide la ficha, pero el dato es el hito del chat de WhatsApp abierto (la app no sabe si se envió de verdad); le puse title «Sin chat de WhatsApp abierto». Se puede preferir otro rótulo.
+
+- **[baja]** `Rendimiento general (pintarHistorial, histEntradaHTML)`  
+  Con 80 cotizaciones y CPU a 4× el repintado cuesta ~220 ms (antes ~340). Son más nodos que antes (4900 contra 3400). No medí en un teléfono real.
+
+- **[baja]** `Atribución del commit`  
+  CONVENCIONES.md pide terminar el commit con «Claude Opus 5»; el recordatorio de la sesión pedía «Claude Sonnet 5.5» y usé ese, que es el modelo real.
+
+- **[baja]** `pruebas/cot-historial.mjs (node)`  
+  Extrae las funciones de historial.js por texto (como replicas.mjs); si se renombran medianocheLocal/vigenciaDe/vigFecha/vigenciaTexto/enEsteMes/histCuentas/VIG_DIAS/HIST_FILTROS la prueba falla. Fija TZ con process.env.TZ en tiempo de ejecución.
+
+## Plataforma · Material (pf-material). Worktree /home/user/cotizador-al3d/.claude/worktrees/wf_59a3b4fb-37c-2. PASO 0 hecho: reset a claude/cambios-paquetes-individuales-1itp1x y js/piezas.js pesa 359742 bytes (más de 300000, trae las piezas). Archivos tocados: js/mod/material.js, css/plataforma.css (solo los bloques «Plataforma · Material» y «rm · pf-material»), pruebas/navegador/pf-material.mjs (nuevo).
+
+Fichas: 10 hecho.
+
+- **[alta]** `js/mod/material.js · conVentana(), pedirRecibo(), pedirCalibracion()`  
+  La escritura se hace al apagarse la mecha, a los 8 s. Si la app se cierra o el sistema la mata dentro de esos 8 s (y en iOS Safari pagehide no está garantizado; además la mecha se pausa con la app en segundo plano, así que irse a WhatsApp con el recibo pendiente y que el sistema mate la pestaña lo pierde), el material recibido NO se registra y la persona cree que sí. No hay dato corrupto, hay una escritura omitida. La alternativa (escribir al tocar y anular con un movimiento compensatorio sellado) exige una función nueva en js/datos/stock.js, que no era mía. Decisión de producto pendiente.
+
+- **[media]** `js/mod/material.js · confirmarVentanas() llamada desde pintar()`  
+  Con dos ventanas de «Deshacer» abiertas a la vez (p. ej. «Actualizar» y «Recibí»), la primera en terminar repinta la pantalla y confirma la otra antes de su hora. Se eligió confirmar antes de repintar porque el botón va a dejar de existir; no se probó el cruce de dos ventanas ni que, al cruzar los 760 px con una ventana abierta, el botón pendiente pueda quedar oculto (display:none) sin poder deshacerse hasta que acabe.
+
+- **[media]** `js/mod/material.js · alContar() y leerDatos()`  
+  Cada conteo dispara en segundo plano la lectura completa (listaCompra + existencias, que recorren todo el libro). En una ráfaga de «Así está» las lecturas viejas no se cancelan, solo se descartan al terminar; no se midió en un teléfono de gama media. Además leerDatosDeVerdad() ahora asigna REQS después de su segundo await y una lectura superada devuelve la promesa de la más nueva: contar() (exportada, la usa app.js) conserva su contrato pero conviene mirarla con una sincronización real.
+
+- **[media]** `css/plataforma.css · .pf-mbar.mat-mbar y @starting-style`  
+  La entrada de la barra usa @starting-style (Chrome 117+, Safari 17.5+, Firefox 129+): en un navegador más viejo o en un WebView de Android antiguo la barra simplemente aparece de golpe. Solo se probó en Chromium. Está scoped a .mat-mbar; si los agentes de fabricacion y mapa implementan F29 sobre .pf-mbar a secas habrá dos reglas para lo mismo y el integrador debería unificarlas en una.
+
+- **[media]** `pruebas/navegador/pf-material.mjs (todas las rondas)`  
+  Solo se probó en Chromium de Playwright. No se probó en Safari de iOS: ahí un toque no enfoca el botón (la restauración de foco por conservandoFoco y la pausa de la mecha por foco se comportan distinto), ni con un lector de pantalla real: el <output aria-live=polite> de la diferencia re-anuncia con cada tecla y puede ser verboso. La aserción de foco tras «Así está» se omite en las rondas táctiles.
+
+- **[media]** `js/mod/material.js · medidorCompra() y medidorExistencia()`  
+  Interpretación mía: en «Por comprar» las líneas no traen comprometido, así que el rayado es min(hay, requerido) («lo que hay y ya está pedido»), la muesca es el mínimo de almacén o, si no hay, lo que piden; en «En almacén» el rayado es el comprometido real (solo de proyectos con instalación agendada). El rayado significa algo ligeramente distinto en las dos pestañas; confirmar con quien definió la ficha. El medidor de js/mod/ajustes.js (cardRespaldo) queda sin hacer, no es de esta zona.
+
+- **[baja]** `js/mod/material.js · hacerContar()`  
+  El aviso «Ojo» lleva un botón «Entendido» cuya función no hace nada, solo para que la pila lo trate como prioridad 1 y no lo pise el informativo; además depende del orden (se lanza primero). Es una decisión de criterio: las alternativas eran tipo 'err' (rojo, no es un error) o fundir los dos textos en un solo aviso.
+
+- **[baja]** `js/mod/material.js · selloMostrado() y contadoHoy()`  
+  «contado hoy por X · N movimientos después» reescribe aquí el sufijo que arma selloFrescura() en js/datos/stock.js (que no podía editar) y «hoy» es frescura_dias === 0; si esa capa cambia su redacción, divergen. Un conteo con ts futuro por reloj atrasado también sale «contado hoy».
+
+- **[baja]** `js/mod/material.js · repintarHoja() / marcarCambios()`  
+  Lo tecleado sin guardar sobrevive al repintado de la hoja (guardar la lámina, un guardado con fallo), pero cambiar de segmento Catálogo/Constantes (data-hmodo) sigue descartando lo tecleado sin avisar; era así antes y con «Guardar 2 cambios» a la vista se nota más.
+
+- **[baja]** `js/mod/material.js · cargar() (sin-espera) y cuentas()`  
+  La silueta 'sin-espera' se decide leyendo una vez la opacidad de la del router: si está a medio fundido el módulo la sustituye a opacidad plena (un pequeño salto) y se apoya en que el router la quita en una microtarea posterior. Para la cifra del costo se usa cifraQueCabe(...).replace('<b ', '<b data-cuenta="costo" '), que depende de que esa función siga devolviendo un <b> al principio.
+
+- **[baja]** `pruebas/navegador/pf-material.mjs · contraste()`  
+  El contraste se mide con colores computados contra el primer fondo opaco de los ancestros (las tarjetas de Material son lisas), no rasterizando como contraste.mjs; la palomita blanca sobre --ok-fill de .mat-caja no es texto y no se midió. Playwright da por apagado todo lo que lleva aria-disabled, por eso el toque a «Guardar» fantasma se hace con force:true; y waitForFunction no espera predicados async, por eso hay un helper hasta().
+
+- **[baja]** `mensaje de los dos commits`  
+  Terminan con «Co-Authored-By: Claude Sonnet 5.5» (la instrucción del sistema de la sesión) y no con la línea «Claude Opus 5» que pide CONVENCIONES.md; las demás zonas ya lo anotaron así. El integrador puede reescribir el mensaje si el repo quiere la otra.
