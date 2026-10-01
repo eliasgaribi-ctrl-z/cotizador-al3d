@@ -983,6 +983,33 @@ await seccion(async () => {
   await ctx.close();
 });
 
+/* La veta (A5, falla 6): girar 90° una pieza de aluminio cepillado o de MDF la deja con la veta atravesada,
+   que es lo que la pregunta de la veta le quita al motor. A mano, el botón gira 180°. */
+cab('\nA24 · LA VETA TAMBIÉN MANDA A MANO');
+await seccion(async () => {
+  const { ctx, p, errs } = await abrir({ ancho: 1100 });
+  await cargar(p, SVG_PIEZAS); await motorFalso(p);
+  await p.click('#an-mats [data-mat="aluminio"]'); await dormir(300);
+  await p.click('.an-pregunta-veta [data-veta="si"]'); await dormir(200);
+  await p.evaluate(() => window.Anidador.iniciar());
+  await mejora(p, [hoja(A1)]);
+  await p.evaluate(() => window.Anidador.detener()); await dormir(100); await verHoja(p);
+  await tocar(p, 'pz-an-e3'); await dormir(150);
+  cierto(await texto(p, '#an-pieza-girar') === 'Girar 180°', 'con aluminio cepillado el botón dice «Girar 180°»: ' + await texto(p, '#an-pieza-girar'));
+  await p.click('#an-pieza-girar'); await dormir(500);
+  cierto(/rotate\(180\)/.test(await transformDe(p, 'pz-an-e3')), 'y gira 180°, que respeta la veta', await transformDe(p, 'pz-an-e3'));
+  cierto(!(await p.evaluate(() => document.getElementById('pz-an-e3').classList.contains('girada'))), 'una pieza a 180° no se marca como girada (la veta sigue paralela)');
+  await p.focus('#pz-an-e3'); await p.keyboard.press('r'); await dormir(500);
+  cierto(/rotate\(0\)/.test(await transformDe(p, 'pz-an-e3')), 'la tecla R también gira 180°: ' + await transformDe(p, 'pz-an-e3'));
+  /* Un material sin veta vuelve a los 90°. */
+  /* Con el teclado, para que la pieza siga elegida (tocar fuera de la mesa la suelta). */
+  if (!(await mesa(p)).eleccion) { await tocar(p, 'pz-an-e3'); await dormir(150); }
+  await p.focus('#an-mats [data-mat="acrilico"]'); await p.keyboard.press('Enter'); await dormir(250);
+  cierto((await mesa(p)).eleccion === 'pz-an-e3' && await texto(p, '#an-pieza-girar') === 'Girar 90°', 'con acrílico, elegido con el teclado, el botón de la pieza que sigue elegida vuelve a decir «Girar 90°»', [await mesa(p), await texto(p, '#an-pieza-girar')]);
+  cierto(errs.length === 0, 'sin errores de página', errs);
+  await ctx.close();
+});
+
 // ═══ A15 · ESQUINAS QUE SEÑALAN LO QUE SE VA A QUEDAR FUERA ══════════════════════════════════
 cab('\nA15 · ESQUINAS QUE SEÑALAN LO QUE SE VA A QUEDAR FUERA');
 await seccion(async () => {

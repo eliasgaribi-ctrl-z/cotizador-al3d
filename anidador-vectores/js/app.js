@@ -1236,6 +1236,7 @@
     if (tienePieza) {
       var g = document.getElementById(_sel);
       $('an-pieza-t').textContent = g ? nombreDe(g) : '';
+      $('an-pieza-girar').textContent = 'Girar ' + pasoDeGiro() + '°';
       $('an-pieza-devolver').hidden = !(g && fueMovida(g));
     }
     pie.hidden = $('an-zoom').hidden && $('an-pieza').hidden && $('an-fuera').hidden && !(tienePags && !$('an-pags').hidden);
@@ -1962,7 +1963,17 @@
     if (T.corriendo) mensaje('Detén el cálculo para mover piezas a mano.', 'av');
     return false;
   }
-  function rotarPieza(g, grados) {
+  /* Cuánto gira el botón. 90°, salvo donde el motor mismo no lo haría: con la veta del aluminio
+     cepillado o del MDF (A5, falla 6) girar 90° atraviesa la veta —justo lo que la pregunta de la
+     veta quita— y gira 180°, que la respeta; y si los giros que se piden son solo 0° y 180°, también.
+     Se lee de lo que dice la pantalla ahora y no de con qué se calculó: quien cambia a acrílico
+     después de acomodar ya no tiene veta que cuidar. */
+  function pasoDeGiro() {
+    if (conVeta()) return 180;
+    return parseInt($('an-rot').value, 10) === 2 ? 180 : 90;
+  }
+  function rotarPieza(g) {
+    var grados = pasoDeGiro();
     if (!g || !puedeEditar()) return;
     var t = leerTransform(g), c = centroLocal(g), r1 = t.r + grados;
     var a0 = t.r * Math.PI / 180, a1 = r1 * Math.PI / 180;
@@ -1985,7 +1996,13 @@
     escribirTransform(g, nuevo);
     marcarEditado(g);
   }
-  $('an-pieza-girar').addEventListener('click', function () { var g = _sel && document.getElementById(_sel); if (g) rotarPieza(g, 90); });
+  /* El botón dice cuánto gira según el material y los giros de la pantalla: si eso cambia con una
+     pieza elegida (otro material, la respuesta de la veta, otros giros), se vuelve a rotular. */
+  $('an-rot').addEventListener('change', function () { actualizarPie(); });
+  document.addEventListener('click', function (e) {
+    if (sobreMesa(e, '#an-mats .chip, [data-veta]')) setTimeout(actualizarPie, 0);
+  });
+  $('an-pieza-girar').addEventListener('click', function () { var g = _sel && document.getElementById(_sel); if (g) rotarPieza(g); });
   $('an-pieza-devolver').addEventListener('click', function () {
     var g = _sel && document.getElementById(_sel), o = g && _origen && _origen.get(g);
     if (!g || !o) return;
@@ -2007,7 +2024,7 @@
     var piezas = lista(svg.querySelectorAll(':scope>g[id]'));
     if (g) {
       if (k === 'Enter' || k === ' ') { alternarFicha(g); e.preventDefault(); return; }
-      if (k === 'r' || k === 'R') { rotarPieza(g, 90); e.preventDefault(); return; }
+      if (k === 'r' || k === 'R') { rotarPieza(g); e.preventDefault(); return; }
       if (k === 'Escape') { if (_gesto) { soltarGesto(true); } else svg.focus({ preventScroll: true }); return; }
       if (flecha && e.shiftKey) {
         var dx = k === 'ArrowLeft' ? -PASO_TECLA_MM : k === 'ArrowRight' ? PASO_TECLA_MM : 0, dy = k === 'ArrowUp' ? -PASO_TECLA_MM : k === 'ArrowDown' ? PASO_TECLA_MM : 0;
