@@ -1411,7 +1411,11 @@ button.cal-plazo:active{transform:scale(.97)}
 /* ----- La misma tarjeta, en una columna -----
    El lomo de 4 px es lo que en el tablero dice la columna. Va como `border-left` y no como
    sombra porque aquí sí tiene que ocupar sitio: separa el color del texto. */
-.pj-lista-movil{display:flex;flex-direction:column;gap:var(--e3)}
+.pj-lista-movil:not(.paginas){display:flex;flex-direction:column;gap:var(--e3)}
+/* `:not(.paginas)` porque con las columnas como páginas (P28) la tira es la rejilla de
+   scroll-snap de la pieza: esta misma regla, más abajo en la cascada que sistema.css, la
+   volvía una columna y las «páginas» se apilaban en vez de deslizarse. Lo delató medir
+   `scrollWidth`, no mirar que la clase estuviera puesta. */
 .pj-lista-movil .pj-tarj{border-left:4px solid var(--n5);padding:14px}
 .pj-lista-movil .pj-tarj.en_diseno,
 .pj-lista-movil .pj-tarj.cortado,
@@ -2629,6 +2633,166 @@ html[data-nav="teclado"].va-adelante .pf-mod,html[data-nav="teclado"].va-atras .
 /* ── fin de pf-tablero ── */
 
 /* ── Plataforma · Proyectos, ficha y garantía ── */
+/* ----- P7 · La etapa de la ficha, como pasos -----
+   El riel horizontal ya viene de la pieza 16 (css/sistema.css). Aquí solo lo que es de esta
+   pantalla: siete etapas no caben con su nombre en 360 px, así que la tira se recorre, y con el
+   dedo cada paso tiene que medir 44 px de alto —el punto mide 28 y el nombre cae debajo, así
+   que se le da suelo al botón en vez de agrandar el punto—. */
+#pj-etapas{margin:2px 0 10px}
+#pj-etapas .riel-boton{min-height:44px;align-content:start}
+.pj-sigue{margin:0 0 6px}
+.pj-sigue .btn{flex:1}
+
+/* El estatus de la hoja son cuatro palabras en mayúsculas de hasta once letras («FABRICACION»,
+   «REPARANDO»): en un renglón de 306 px se tocaban unas con otras («FABRICACIONREPARANDO») y el
+   dedo no sabía dónde acababa un botón. En el teléfono van de dos en dos. Mismo selector largo
+   que la regla de `.tipo-seg` de arriba, que si no gana ella. */
+@media(max-width:560px){
+  body.pf [data-grupo="estatus"] .tipo-seg:not(:has(>button:nth-child(5))){
+    grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-flow:row;grid-auto-columns:auto}
+  body.pf [data-grupo="estatus"] .tipo-seg button{min-height:44px}
+}
+
+/* ----- Función 53 · Garantía y liquidación -----
+   La cuenta regresiva del cobro va en una pieza con tono, y el tono NUNCA va solo: el título
+   dice «vence hoy», «vencida hace 3 días hábiles» o «va como se pactó». El glifo de la pieza 24
+   acompaña, no sustituye. */
+.pj-liq{display:flex;gap:10px;align-items:flex-start;margin:0 0 10px;padding:10px 12px;
+  border:1px solid var(--a-borde);border-radius:var(--rr3);background:var(--a-suave);color:var(--a-tx)}
+.pj-liq[data-tono="ok"]{border-color:var(--ok-borde);background:var(--ok-bg);color:var(--ok)}
+.pj-liq[data-tono="av"]{border-color:var(--av-borde);background:var(--av-bg);color:var(--av)}
+.pj-liq[data-tono="mal"]{border-color:var(--mal-borde);background:var(--mal-bg);color:var(--mal)}
+.pj-liq[data-tono="nada"]{border-color:var(--linea);background:var(--sup2);color:var(--tinta)}
+.pj-liq b{display:block;font-size:var(--t3);line-height:1.3}
+.pj-liq small{display:block;margin-top:2px;font-size:var(--t1);font-weight:600;color:inherit;line-height:1.4}
+.pj-liq .marca-estado{flex:none;margin-top:1px}
+
+/* Las dos garantías. El medidor es el de la pieza 20: una barra quieta, sin transición y sin
+   animación —un año de garantía no es una espera que haya que amenizar— y la frase de al lado
+   dice lo mismo que la barra. */
+.pj-gar{padding:10px 12px;border:1px solid var(--linea);border-radius:var(--rr3);
+  background:var(--sup);display:grid;gap:10px}
+.pj-gar>b{font-size:var(--t2);font-weight:700;line-height:1.35;color:var(--tinta)}
+.pj-gar-f{display:grid;gap:2px}
+.pj-gar-t{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 10px;
+  font-size:var(--t1);font-weight:700;color:var(--tinta2)}
+.pj-gar-t span:first-child{color:var(--tinta)}
+.pj-gar-h{font-size:var(--t1);font-weight:600;color:var(--tinta3)}
+.pj-gar-f.vencida .pj-gar-t span:last-child{color:var(--mal)}
+.pj-gar .medidor{margin:4px 0 0}
+
+/* ----- P12 + función 31 · El modo cliente -----
+   El interruptor vive en la cabecera de Proyectos, junto al título: es donde se mira antes de
+   girar el teléfono hacia el otro lado de la mesa. */
+.pj-cliente{display:flex;align-items:center;gap:var(--e2);margin-left:auto;flex-wrap:wrap}
+/* El título y el interruptor comparten renglón, y con «Ver importes» al lado en 360 px no caben:
+   sin dejar que la cabecera baje de renglón, el interruptor se le montaba encima al título
+   («Proyecto[interruptor]»). Así el título va arriba y el grupo cae debajo, alineado a la derecha. */
+.card-h:has(>.pj-cliente){flex-wrap:wrap;align-items:center;row-gap:0}
+.pj-cliente .switch{min-height:44px;margin:0}
+.pj-ver{min-height:36px;padding:0 12px;font-size:var(--t1)}
+@media(hover:none),(pointer:coarse){ .pj-ver{min-height:44px} }
+
+/* El aviso de que hay algo tapado. Vive FUERA de la lista de datos a propósito: dentro también
+   se difuminaría, y un borrón sin explicación se lee como un error de pintado. */
+.pf-tapado{display:none;align-items:center;gap:6px;margin:0 0 8px;
+  font-size:var(--t1);font-weight:700;color:var(--tinta2)}
+.pf-tapado .svgi{width:14px;height:14px;color:var(--tinta3)}
+body.pf-cliente .pf-tapado{display:flex}
+
+/* Lo que se tapa. El filtro va sobre el renglón entero —la etiqueta también— para que el
+   cliente no lea ni la palabra «Comisión», y sobre el TEXTO y no con un rectángulo encima, así
+   la caja no cambia de tamaño y nada se mueve de sitio al destaparse: es el mismo argumento
+   que ya está escrito para `body.precios-ocultos` en css/sistema.css.
+
+   `.pf-cuenta.dinero` es la cuenta «En el taller» del Tablero, y se alcanza POR SU CLASE: es la
+   suma de todo lo vendido que hay en el taller y abre la pantalla de entrada. Se tapa desde
+   aquí sin tocar js/mod/tablero.js, que es de otra zona. */
+body.pf-cliente .pf-interno,
+body.pf-cliente .pf-cuenta.dinero{
+  filter:blur(7px);
+  transition:filter .16s;
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+  cursor:pointer;
+}
+/* Se destapa el renglón que se sostiene (`.destapado`), o todos con «Ver importes»
+   (`.pf-cliente-ve`, en el <body>): quien no puede sostener un dedo necesita un solo toque. */
+body.pf-cliente .pf-interno.destapado,
+body.pf-cliente .pf-cuenta.dinero.destapado,
+body.pf-cliente.pf-cliente-ve .pf-interno,
+body.pf-cliente.pf-cliente-ve .pf-cuenta.dinero{filter:none;transition-duration:.12s}
+body.pf-cliente .pf-interno:focus-visible{outline:2px solid var(--a);outline-offset:2px;border-radius:var(--rr2)}
+/* Y el total crece: es lo que el cliente sí ve, y tiene que leerse desde el otro lado de la
+   mesa. Solo el tamaño y solo mientras dura el modo; la caja de al lado no se mueve porque el
+   renglón ya reparte en dos columnas. Sin transición: animar `font-size` recalcula el
+   trazado de la ficha en cada cuadro, y el modo se enciende con la ficha cerrada —cuando se
+   abre ya nace grande—. */
+body.pf-cliente .pf-dato[data-marca="total"] dd{
+  font-size:var(--t5);font-weight:700;color:var(--tinta);
+}
+
+/* ----- P9 · Arrastrar tarjetas entre columnas -----
+   De 760 px para arriba las tarjetas se mantienen 250 ms para levantarse, y con el dedo eso es una
+   pulsación larga: sin estas dos reglas el sistema aprovecha para seleccionar el texto de la
+   tarjeta (iOS) o abrir su menú (Android) justo cuando se la está agarrando. */
+@media(min-width:760px){
+  .pj-tarj{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+}
+html.pj-arrastrando,html.pj-arrastrando *{cursor:grabbing!important;-webkit-user-select:none;user-select:none}
+/* La columna que recibe se ilumina con el aro del acento y un fondo tenue detrás de sus tarjetas.
+   Las tarjetas llevan su propio fondo opaco, así que el contraste de su texto no cambia con el
+   tinte; el aro es lo que se ve con el dedo encima, que tapa casi todo lo demás. */
+.pj-col.sobre{outline:2px solid var(--a);outline-offset:2px;border-radius:var(--rr3);
+  background:var(--a-suave)}
+/* La tarjeta levantada se queda en su hueco marcada, para no perder de vista de dónde salió.
+   No se difumina con `opacity` sobre el texto (§4.3): se apaga con un borde punteado y el
+   fondo de la columna. */
+.pj-levantada{background:var(--n1);border-style:dashed;box-shadow:none}
+.pj-levantada .pj-tarj-t,.pj-levantada .pj-tarj-d,.pj-levantada .pj-tarj-pie,
+.pj-levantada .pj-tarj-f{visibility:hidden}
+/* El fantasma que sigue al dedo. `position:fixed` con `transform`, que es lo único que se
+   anima: mover con left/top repinta la página entera en cada cuadro. */
+.pj-fantasma{position:fixed;left:0;top:0;z-index:70;pointer-events:none;
+  max-width:180px;padding:8px 10px;border:1px solid var(--a-borde);border-radius:var(--rr2);
+  background:var(--sup);color:var(--tinta);box-shadow:var(--sombra-alta);
+  font:700 var(--t1)/1.25 var(--f-texto);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  rotate:-2deg}
+
+/* ----- P28 · En el teléfono, las columnas como páginas -----
+   `P.paginas()` pone la rejilla, el scroll-snap y el teclado. Aquí va lo de esta pantalla: la
+   cabecera de cada página con su cuenta, y el relleno lateral que deja el gesto de atrás de
+   Android libre en el borde de la pantalla (el «Cuidado» de la ficha). */
+@media(max-width:759px){
+  .pj-lista-movil.paginas{padding-inline:2px}
+  .pj-pag{display:flex;flex-direction:column;gap:var(--e3);min-width:0}
+  .pj-pag-h{display:flex;align-items:center;gap:var(--e2);margin:0 0 2px;padding:6px 2px;
+    border-bottom:2px solid var(--linea);font:600 var(--t3)/1.2 var(--f-cifra);color:var(--ink)}
+  .pj-pag-h.en_diseno,.pj-pag-h.cortado,.pj-pag-h.armado{border-bottom-color:var(--av)}
+  .pj-pag-h.listo{border-bottom-color:var(--a)}
+  .pj-pag-h.instalado{border-bottom-color:var(--ok)}
+  .pj-pag-t{min-width:0;overflow-wrap:anywhere}
+  .pj-pag .pj-col-n{margin-left:auto}
+  /* Con páginas, el lomo de color de la tarjeta sobra: la cabecera de la página ya dice la
+     etapa, y la ficha de etapa de dentro de la tarjeta también (igual que en el tablero). */
+  .pj-lista-movil.paginas .pj-tarj{border-left-width:0;padding-left:14px}
+  .pj-lista-movil.paginas .pj-tarj-etapa{display:none}
+}
+
+/* ----- P10 · La hoja del teléfono sube desde abajo -----
+   Ya estaba hecho, y no aquí: el PR #71 puso en sistema.css (§ «Los modales del teléfono salen
+   desde abajo») que `.pf-modal-bg.show.entra>.pf-panel` nazca en `translateY(100%)` y suba en
+   0,32 s con la curva de hoja, y la pieza 13 —colgada una vez en js/nucleo/ui.js— cierra la hoja
+   arrastrándola desde la cabecera. Esta zona empezó repitiendo esa regla para sus tres capas y se
+   quitó: dos reglas para la misma entrada es como acaba una de las dos con otra duración.
+   Lo que sí se prueba aquí es que `abrirFicha()` la use tal cual (pruebas/navegador/pf-proyectos.mjs). */
+
+/* ----- P11 · El latido de «sin decidir» se apaga -----
+   `.cand-partidas` ya late tres veces y se calla, pero la tarjeta se repinta con innerHTML en
+   cada recarga y un nodo recién nacido arranca la animación otra vez: en la práctica volvía a
+   latir en cada toque de la pantalla, que es un bucle escrito de otra manera. El módulo decide
+   por el dato —solo cuando la cuenta SUBE— y marca con `.quieta` la que no tiene que llamar. */
+.cand-partidas.quieta{animation:none}
+
 
 /* ── fin de pf-proyectos ── */
 
@@ -2670,6 +2834,16 @@ html.va-adelante .pf-mod,html.va-atras .pf-mod{animation:none}
 
 /* ── fin de rm · pf-tablero ── */
 /* ── rm · pf-proyectos ── */
+/* Se apaga el ADORNO, no la información. Lo que se queda: el relleno de las garantías (la pieza
+   20 ya es una barra quieta y dice cuánto va consumido), el tono y la palabra de la
+   liquidación, el estado de cada paso del riel y el difuminado del modo cliente —que no es
+   movimiento: es una mampara—. Lo que se va: la inclinación del fantasma y el fundido del
+   desenfoque al destapar. El deslizamiento del interruptor (`.tg`), el recorrido de la hoja al
+   subir y el latido de «sin decidir» ya los apaga sistema.css por su propia regla. */
+.pj-fantasma{rotate:none}
+body.pf-cliente .pf-interno,
+body.pf-cliente .pf-cuenta.dinero{transition:none}
+
 
 /* ── fin de rm · pf-proyectos ── */
 /* ── rm · pf-control ── */
