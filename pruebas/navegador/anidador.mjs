@@ -152,8 +152,11 @@ else {
   const capt = await p.evaluate(() => document.querySelector('#an-res figcaption').textContent);
   /^Hoja 1 · \d+ piezas? · 100\u00A0mm × 100\u00A0mm$/.test(capt) ? bien('con su leyenda: «' + capt + '»') : mal('leyenda rara: «' + capt + '»');
   (await p.evaluate(() => !document.getElementById('an-dl').disabled)) ? bien('y «Descargar» se encendió') : mal('«Descargar» sigue apagado con resultado');
-  const botonesHoja = await p.evaluate(() => document.querySelectorAll('#an-dl-hojas button').length);
-  botonesHoja === e.mejor.laminas ? bien('con un botón por hoja para bajarla sola') : mal(botonesHoja + ' botones de hoja para ' + e.mejor.laminas + ' hojas');
+  /* La descarga por hoja es un menú (A16): «Descargar SVG» abre Todas + una entrada por hoja. */
+  await p.click('#an-dl');
+  const renglonesHoja = await p.evaluate(() => document.querySelectorAll('.an-menu-dl [data-descarga]:not([data-descarga="todas"]):not([data-descarga="compartir"])').length);
+  renglonesHoja === e.mejor.laminas ? bien('con un renglón por hoja en el menú para bajarla sola') : mal(renglonesHoja + ' renglones de hoja para ' + e.mejor.laminas + ' hojas');
+  await p.keyboard.press('Escape');
   (await p.evaluate(() => document.getElementById('an-st-col').textContent)) === '6/6' ? bien('la ficha dice 6/6') : mal('la ficha de colocadas dice ' + await p.evaluate(() => document.getElementById('an-st-col').textContent));
 }
 if (llego) {
@@ -280,8 +283,10 @@ e = await estado();
 Math.abs(e.archivo.k - 25.4 / 96) < 1e-9 ? bien('k = 25.4/96 mm por unidad') : mal('k salió ' + e.archivo.k + ' y es 25.4/96');
 (await p.evaluate(() => document.getElementById('an-st-diseno').textContent)) === '200 × 100 mm'
   ? bien('la ficha dice 200 × 100 mm, lo que mide en el navegador') : mal('la ficha dice «' + await p.evaluate(() => document.getElementById('an-st-diseno').textContent) + '»');
-/^0 0 755\.9/.test(await p.evaluate(() => document.querySelector('#an-orig svg').getAttribute('viewBox')))
-  ? bien('y la vista previa encuadra el dibujo entero, en px') : mal('viewBox de la vista: ' + await p.evaluate(() => document.querySelector('#an-orig svg').getAttribute('viewBox')));
+/* El lienzo de la vista es el del archivo en px: lo que se comprueba es `data-lienzo`, el viewBox
+   ANTES de que las cotas (A6) lo agranden para tener donde dibujarse. */
+/^0 0 755\.9/.test(await p.evaluate(() => document.querySelector('#an-orig svg').getAttribute('data-lienzo')))
+  ? bien('y la vista previa encuadra el dibujo entero, en px') : mal('lienzo de la vista: ' + await p.evaluate(() => document.querySelector('#an-orig svg').getAttribute('data-lienzo')));
 
 console.log('\nLA MEDIDA DEL DISEÑO ES LA DE LO QUE SE CORTA');
 /* Una letra de 100 unidades junto a una imagen de referencia de 1000: «el diseño mide 400 mm»

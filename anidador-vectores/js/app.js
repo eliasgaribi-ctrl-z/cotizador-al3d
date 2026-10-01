@@ -19,14 +19,20 @@
        el cotizador: antes de pintarlo se le quita todo lo que ejecuta código (sanear).
      · Se detiene solo. El algoritmo genético no termina nunca: sigue buscando mejores
        acomodos mientras nadie lo pare. Cuando lleva 25 intentos y 40 segundos sin mejorar,
-       se detiene y lo dice; «Seguir buscando» continúa desde donde iba.
+       se detiene y lo dice; «Seguir buscando» continúa desde donde iba. Bajo «Detener», una
+       mecha y una frase dicen cuánto falta para ese paro (A4); y «Volver a acomodar desde cero»
+       guarda el acomodo anterior y ofrece «Recuperar» durante 8 s (A9).
      · El marcador: el aprovechamiento en una aguja con su calificación, y las piezas caen
        en su lugar cada vez que el motor encuentra algo mejor. Es lo que hace que un cálculo
        de dos minutos se pueda mirar.
      · El trazo puede llegar del vectorizador del cotizador, por localStorage, sin pasar
        por el disco.
      · El SVG sale en milímetros —width="1200mm"— para que LightBurn, RDWorks o Illustrator
-       lo abran a tamaño, con una capa por hoja.
+       lo abran a tamaño, con una capa por hoja. «Descargar SVG» es un menú: todas, una hoja o
+       compartir el archivo (A16).
+     · El aluminio y el MDF tienen veta: al elegirlos se quitan los giros de 90° y se pregunta
+       (A5). Sobre el dibujo, dos cotas dicen qué caja se está midiendo (A6). Sin archivo a la
+       mano, «Probar con un ejemplo» carga las letras del logotipo (A31).
    ============================================================================ */
 (function () {
   'use strict';
@@ -42,6 +48,9 @@
   var TOLERANCIA_MM = 0.3;                      // con qué fineza se convierten las curvas en rectas
   var HUECO_ENTRE_HOJAS_MM = 25;                // en el SVG de salida, una hoja debajo de otra
   var COLORES_PIEZA = 6;                        // cuántos tonos se turnan en la mesa
+  var CON_VETA = ['aluminio', 'mdf'];           // los que preguntan por la veta: el cepillado y la madera
+  var ALTO_EJEMPLO_MM = 400;                    // «Probar con un ejemplo»: las letras AL3D, a esta altura
+  var MS_RECUPERAR = 8000;                      // cuánto vive el «Recuperar» del acomodo anterior (§6.2)
 
   /* Las hojas del taller. Todas salen de la de 1.20 × 2.40 m: la completa, la media y el
      cuarto. Lo demás es un retazo, que se mide a mano. */
@@ -127,6 +136,11 @@
      El motor lleva su propio número (la «corrida» de svgnest.js, un cambio local): aquel
      impide que el intento viejo se meta en su caché y en su «mejor»; éste, que se enseñe. */
   var corrida = 0;
+  /* La veta (A5): `lleva` es lo que se supone del material elegido —el aluminio y el MDF, que sí la
+     tienen, hasta que se conteste otra cosa—; `rotPrevia`, los giros que había antes de que la
+     veta los quitara, para devolverlos si el material cambia a uno sin veta y nadie los tocó;
+     `globo`, la pregunta (P.vistazo), que se crea la primera vez que hace falta. */
+  var _veta = { lleva: true, rotPrevia: null, globo: null };
   var R = [];     // los retazos guardados
   var QUIETO = false;
   try { QUIETO = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
@@ -202,6 +216,7 @@
       c.classList.toggle('on', on); c.setAttribute('aria-checked', on ? 'true' : 'false');
     });
     $('an-mesa').setAttribute('data-mat', mat);
+    pintarVeta();
   }
   function hojaElegida() {
     var on = document.querySelector('.an-tile.on');
@@ -216,13 +231,31 @@
   }
   /* Las tarjetas y los dos campos dicen lo mismo: elegir una hoja llena los campos, y
      teclear una medida que no es de ninguna hoja marca «Retazo». */
-  function sincronizarHoja() {
+  function sincronizarHoja(sinAnimar) {
     var a = parseFloat($('an-ancho').value), h = parseFloat($('an-alto').value), hallada = 'retazo';
     Object.keys(HOJAS).forEach(function (k) {
       var p = HOJAS[k];
       if ((p[0] === a && p[1] === h) || (p[0] === h && p[1] === a)) hallada = k;
     });
     marcarHoja(hallada);
+    orientarTarjetas(sinAnimar);
+  }
+  /* La orientación (A21): las tarjetas dibujaban siempre la hoja parada, así que «Girar la
+     hoja» cambiaba los números y la figura se quedaba igual. Con la hoja acostada —más ancha
+     que alta— se pone `.acostada` en las tarjetas y el CSS gira la hojita 90° con su
+     asentado. Elegir una tarjeta también la llama: la media hoja, cuadrada, la deja parada
+     aunque venga de una acostada. Al abrir la página con la última hoja ya acostada, la figura
+     nace girada: se apaga la transición un instante (sin-giro) para que no se vea girar sola. */
+  function orientarTarjetas(sinAnimar) {
+    var a = parseFloat($('an-ancho').value), h = parseFloat($('an-alto').value);
+    var tarjetas = $('an-tiles'), acostada = a > h;
+    if (!tarjetas || tarjetas.classList.contains('acostada') === acostada) return;
+    if (sinAnimar) {
+      tarjetas.classList.add('sin-giro');
+      tarjetas.classList.toggle('acostada', acostada);
+      void tarjetas.offsetWidth;
+      tarjetas.classList.remove('sin-giro');
+    } else tarjetas.classList.toggle('acostada', acostada);
   }
   function leerMaterial(avisar) {
     var ancho = parseFloat($('an-ancho').value), alto = parseFloat($('an-alto').value), sep = parseFloat($('an-sep').value);
@@ -239,12 +272,12 @@
     try { localStorage.setItem(LS_MATERIAL, JSON.stringify({
       ancho: $('an-ancho').value, alto: $('an-alto').value, sep: $('an-sep').value, rot: $('an-rot').value,
       huecos: interruptor('an-huecos'), concavas: interruptor('an-concavas'), contorno: interruptor('an-contorno'),
-      mat: materialElegido() })); } catch (_) {}
+      mat: materialElegido(), sinVeta: !_veta.lleva })); } catch (_) {}
   }
   function cargarMaterial() {
     var g = null;
     try { g = JSON.parse(localStorage.getItem(LS_MATERIAL) || 'null'); } catch (_) {}
-    if (!g) { sincronizarHoja(); return; }
+    if (!g) { sincronizarHoja(true); return; }
     if (g.ancho) $('an-ancho').value = g.ancho;
     if (g.alto) $('an-alto').value = g.alto;
     if (g.sep !== undefined && g.sep !== '') $('an-sep').value = g.sep;
@@ -252,11 +285,19 @@
     if (typeof g.huecos === 'boolean' && g.huecos !== interruptor('an-huecos')) alternar('an-huecos');
     if (typeof g.concavas === 'boolean' && g.concavas !== interruptor('an-concavas')) alternar('an-concavas');
     if (typeof g.contorno === 'boolean' && g.contorno !== interruptor('an-contorno')) alternar('an-contorno');
+    if (g.sinVeta === true) _veta.lleva = false;   // ya contestó que su material no tiene veta
     if (g.mat) elegirMaterial(g.mat);
-    sincronizarHoja();
+    pintarVeta();
+    sincronizarHoja(true);
   }
   lista(document.querySelectorAll('#an-mats .chip')).forEach(function (c) {
-    c.addEventListener('click', function () { elegirMaterial(c.getAttribute('data-mat')); guardarMaterial(); });
+    c.addEventListener('click', function () {
+      var mat = c.getAttribute('data-mat'), antes = materialElegido();
+      elegirMaterial(mat);
+      /* Volver a tocar el que ya estaba elegido no es elegir otro material: no repite la pregunta. */
+      if (mat !== antes) alCambiarMaterial(c, mat);
+      guardarMaterial();
+    });
   });
   lista(document.querySelectorAll('.an-tile')).forEach(function (t) {
     t.addEventListener('click', function () {
@@ -267,6 +308,7 @@
         $('an-ancho').value = acostada ? p[1] : p[0];
         $('an-alto').value = acostada ? p[0] : p[1];
         marcarHoja(clave);
+        orientarTarjetas();
       } else {
         marcarHoja('retazo');
         $('an-ancho').focus(); $('an-ancho').select();
@@ -278,7 +320,7 @@
     $(id).addEventListener('input', function () { sincronizarHoja(); leerMaterial(false); guardarMaterial(); habilitar(); });
   });
   /* Los tres cambian lo que el motor calcula: habilitar() decide si «Seguir buscando» vale. */
-  $('an-rot').addEventListener('change', function () { guardarMaterial(); habilitar(); });
+  $('an-rot').addEventListener('change', function () { _veta.rotPrevia = null; guardarMaterial(); habilitar(); });
   $('an-huecos').addEventListener('click', function () { alternar('an-huecos'); guardarMaterial(); habilitar(); });
   $('an-concavas').addEventListener('click', function () { alternar('an-concavas'); guardarMaterial(); habilitar(); });
   $('an-contorno').addEventListener('click', function () { alternar('an-contorno'); guardarMaterial(); });
@@ -287,6 +329,94 @@
     sincronizarHoja(); guardarMaterial(); habilitar();
     toast('Hoja girada: ' + $('an-ancho').value + ' × ' + $('an-alto').value + ' mm', 'ok', 2200);
   });
+
+  /* ---------- La veta: no girar 90° el aluminio cepillado ni el MDF (A5, falla 6) ----------
+     Las piezas se giraban cada 90° con cualquier material. La mesa ya pinta la veta del
+     cepillado y de la madera, pero nada decía que una letra girada 90° la deja atravesada, y en
+     un anuncio terminado eso se ve. El motor aplica los giros a TODO el trabajo
+     (config({rotations})), no pieza por pieza, así que lo único que se puede hacer es elegir
+     bien los giros de todo el trabajo.
+
+     La decisión del taller (CONVENCIONES, nº 6) es que, al elegir aluminio o MDF, el anidador
+     pregunte y que por omisión quite los giros de 90°: quedan 0° y 180°, que respetan la veta
+     (una pieza vuelta de cabeza sigue con la veta paralela). Es una PREGUNTA y no una regla: el
+     aluminio blanco, negro o pintado no tiene veta, y quien lo sabe contesta «sin veta» y
+     recupera los 4 giros con un toque. Por eso la respuesta se guarda con el material y la
+     pregunta no vuelve a salir al abrir la página; sale cada vez que se ELIGE un material con
+     veta, no al volver a tocar el que ya estaba.
+
+     Solo se tocan los giros cuando eran los de 90° (4 o 8): si alguien dejó «Ninguno» o «0° y
+     180°», ya respeta la veta y no hay nada que preguntar. Y el cambio no es permanente: si los
+     quitó la veta y nadie los tocó a mano, al pasar a acrílico, galvanizada o alucobond vuelven. */
+  function conVeta() { return CON_VETA.indexOf(materialElegido()) >= 0 && _veta.lleva; }
+  /* `.con-veta` en la mesa enciende el rayado de las piezas giradas (css/anidador.css). */
+  function pintarVeta() { var m = $('an-mesa'); if (m) m.classList.toggle('con-veta', conVeta()); }
+  function alCambiarMaterial(chip, mat) {
+    var rot = $('an-rot');
+    if (CON_VETA.indexOf(mat) < 0) {
+      if (_veta.globo) _veta.globo.cerrar('codigo');
+      if (_veta.rotPrevia && rot.value === '2') { rot.value = String(_veta.rotPrevia); habilitar(); }
+      _veta.rotPrevia = null; _veta.lleva = true;
+      pintarVeta();
+      return;
+    }
+    _veta.lleva = true;
+    var giros = parseInt(rot.value, 10);
+    if (giros === 4 || giros === 8) {
+      _veta.rotPrevia = giros; rot.value = '2';
+      habilitar();
+      preguntarVeta(chip);
+    }
+    pintarVeta();
+  }
+  /* La pregunta es el globo de la pieza 4 (P.vistazo), anclado a la ficha del material que se
+     acaba de elegir y no a #an-rot: ese campo vive dentro de «Giros, huecos y contorno», que
+     nace cerrado, y un globo anclado a algo escondido no se ve. Tocar fuera la cierra: con la
+     omisión ya aplicada, no contestar es una respuesta («dejar así»), así que no hace falta que
+     bloquee. */
+  function preguntarVeta(ancla) {
+    var P = window.Piezas;
+    if (!P || !P.vistazo) { toast('Quedaron solo los giros de 0° y 180°, para no atravesar la veta.', '', 5000); return; }
+    if (!_veta.globo) {
+      _veta.globo = P.vistazo(null, {
+        titulo: '¿Lleva veta?', clase: 'an-pregunta-veta', lado: 'abajo', alinear: 'inicio',
+        contenido: '<span class="vistazo-t">¿Lleva veta?</span>' +
+          '<p>El aluminio cepillado y el MDF la tienen. Con 0° y 180° queda igual; girada 90°, queda atravesada. Quedaron solo esos dos giros.</p>' +
+          '<p class="an-veta-nota">El aluminio blanco, negro o pintado no tiene veta.</p>' +
+          '<div class="vistazo-acciones"><button type="button" class="btn btn-gho" data-veta="no">Sin veta: cada 90°</button>' +
+          '<button type="button" class="btn btn-gho" data-veta="si">Dejar así</button></div>',
+        alAbrir: function (pop) {
+          lista(pop.querySelectorAll('[data-veta]')).forEach(function (b) {
+            b.addEventListener('click', function () { responderVeta(b.getAttribute('data-veta') === 'si'); });
+          });
+        }
+      });
+    }
+    _veta.globo.abrir(ancla);
+  }
+  function responderVeta(lleva) {
+    _veta.lleva = lleva;
+    if (!lleva) {
+      $('an-rot').value = String(_veta.rotPrevia || 4); _veta.rotPrevia = null;
+      habilitar();
+      toast('Giros cada 90°: ese material no tiene veta', '', 2600);
+    }
+    pintarVeta(); guardarMaterial();
+    if (_veta.globo) _veta.globo.cerrar('codigo');
+  }
+  /* El rayado de las piezas giradas. Se pone sobre las <g> de primer nivel de cada hoja cuyo
+     rotate() no sea múltiplo de 180°: 90° y 270° con los giros de siempre, y también los 45° de
+     «cada 45°», que cruzan la veta igual. Lo hace un observador de #an-res y no pintarResultado()
+     porque ese pintado es de la mesa y se repite con cada mejora del motor: el observador
+     corre una vez por repintado, cuando las hojas ya están puestas. */
+  function marcarGiradas() {
+    lista(document.querySelectorAll('#an-res .an-hoja>svg>g')).forEach(function (g) {
+      var m = /rotate\(\s*(-?[\d.]+)/.exec(g.getAttribute('transform') || ''), r = 0;
+      if (m) r = ((parseFloat(m[1]) % 180) + 180) % 180;
+      g.classList.toggle('girada', r > 0.5 && r < 179.5);
+    });
+  }
+  if (window.MutationObserver) new MutationObserver(marcarGiradas).observe($('an-res'), { childList: true });
 
   /* ---------- Los retazos ----------
      Un sobrante se mide una vez y se guarda con su nombre; la próxima vez se elige de aquí.
@@ -375,7 +505,7 @@
        a escribir después de esta función cuando el archivo sí viene de allá. */
     if (opts.origen !== 'cotizador') {
       var banda = $('an-origen');
-      if (banda) { banda.hidden = true; banda.innerHTML = ''; }
+      if (banda) { banda.hidden = true; banda.innerHTML = ''; banda.className = 'an-banda'; }
     }
 
     A = { texto: texto, nombre: nombre || 'diseño.svg', peso: opts.peso || texto.length, raiz: raiz,
@@ -404,7 +534,7 @@
     if (A.piezas === 0) A.avisos.push('No encontré contornos que acomodar. Revisa que el diseño sean trazos y no una imagen o texto.');
 
     pintarArchivo(); pintarMedida(); pintarEstadoTrabajo(); habilitar();
-    $('an-dl').disabled = true; $('an-dl-hojas').hidden = true; $('an-prog').hidden = true;
+    actualizarDescarga(); $('an-prog').hidden = true;
     $('an-mesa').classList.remove('corriendo');
     $('an-vista-tab').textContent = 'Las piezas, como vienen';
 
@@ -480,10 +610,75 @@
     } catch (_) { return 0; }
   }
 
+  /* ---------- Las cotas sobre el dibujo (A6) ----------
+     La nota de «La medida real» explica que es la medida de lo dibujado y no la del lienzo,
+     pero la vista no enseñaba QUÉ caja se está midiendo: una escala mal puesta sale plausible y
+     se descubre en la máquina. Aquí se dibujan dos cotas —ancho arriba, alto a la derecha— sobre
+     la silueta, alrededor de A.bbox, con el número en mm que cambia al teclear; la del campo que
+     tiene el foco se engruesa, y sin escala dicen «¿? mm» en ámbar.
+
+     Van en una <g> del CLON de la vista (#an-orig), nunca en svgParaMotor(), que clona A.raiz
+     limpia: unas cotas en el archivo de corte se cortarían. Y el lienzo se agranda para que
+     quepan: el diseño suele llegar al borde del lienzo del archivo, y las cotas, fuera del
+     recuadro de la tinta, se recortarían. El lienzo original se guarda en data-lienzo para
+     recalcular siempre desde él: si se leyera el ya agrandado, cada tecla lo agrandaría más.
+
+     Las flechas son triángulos dibujados con su <path>, no <marker>: con
+     vector-effect:non-scaling-stroke —que es lo que mantiene el filete en px a cualquier escala—
+     el tamaño de un marker en unidades de trazo se movía con el grosor de la cota enfocada. */
+  var _focoCota = '';   // qué campo de la medida tiene el foco: 'ancho', 'alto' o ''
+  function svgEl(nombre, atributos, texto) {
+    var e = document.createElementNS('http://www.w3.org/2000/svg', nombre);
+    Object.keys(atributos || {}).forEach(function (k) { e.setAttribute(k, String(atributos[k])); });
+    if (texto != null) e.textContent = texto;
+    return e;
+  }
+  function pintarCotas() {
+    var cont = $('an-orig'), svg = cont ? cont.querySelector('svg') : null;
+    if (!svg) return;
+    var viejo = svg.querySelector('.an-cotas'); if (viejo) viejo.parentNode.removeChild(viejo);
+    var v = M.leerViewBox(svg.getAttribute('data-lienzo') || svg.getAttribute('viewBox'));
+    if (!A || !A.bbox || !v) return;
+    if (!svg.getAttribute('data-lienzo')) svg.setAttribute('data-lienzo', svg.getAttribute('viewBox'));
+    var b = A.bbox, ref = Math.max(v.w, v.h);
+    var fs = ref * 0.034, sal = ref * 0.035, pie = fs * 0.45, flecha = fs * 0.5;
+    var x0 = Math.min(v.x, b.x), y0 = Math.min(v.y, b.y - sal - fs * 1.7);
+    var x1 = Math.max(v.x + v.w, b.x + b.w + sal + fs * 1.7), y1 = Math.max(v.y + v.h, b.y + b.h);
+    svg.setAttribute('viewBox', [x0, y0, x1 - x0, y1 - y0].map(fmt).join(' '));
+
+    var falta = !(A.k > 0);
+    var g = svgEl('g', { 'class': 'an-cotas', 'aria-hidden': 'true' });
+    var num = function (mm) { return falta ? '¿? mm' : M.formatoMm(mm); };
+    /* Ancho: la línea encima del recuadro, con dos patitas que bajan hasta la tinta. */
+    var yl = b.y - sal, ca = svgEl('g', { 'class': 'an-cota an-cota-ancho' + (_focoCota === 'ancho' ? ' foco' : '') });
+    ca.appendChild(svgEl('path', { 'class': 'linea', d: 'M' + fmt(b.x) + ' ' + fmt(b.y - pie) + 'V' + fmt(yl - pie) + 'M' + fmt(b.x + b.w) + ' ' + fmt(b.y - pie) + 'V' + fmt(yl - pie) + 'M' + fmt(b.x) + ' ' + fmt(yl) + 'H' + fmt(b.x + b.w) }));
+    ca.appendChild(svgEl('path', { 'class': 'punta', d: 'M' + fmt(b.x) + ' ' + fmt(yl) + 'l' + fmt(flecha) + ' ' + fmt(-flecha * .38) + 'v' + fmt(flecha * .76) + 'zM' + fmt(b.x + b.w) + ' ' + fmt(yl) + 'l' + fmt(-flecha) + ' ' + fmt(-flecha * .38) + 'v' + fmt(flecha * .76) + 'z' }));
+    ca.appendChild(svgEl('text', { 'class': 'num' + (falta ? ' falta' : ''), x: fmt(b.x + b.w / 2), y: fmt(yl - fs * .32), 'text-anchor': 'middle', 'font-size': fmt(fs) }, num(b.w * (A.k || 0))));
+    /* Alto: la línea a la derecha, con el número girado para leerse de abajo hacia arriba. */
+    var xl = b.x + b.w + sal, cb = svgEl('g', { 'class': 'an-cota an-cota-alto' + (_focoCota === 'alto' ? ' foco' : '') });
+    cb.appendChild(svgEl('path', { 'class': 'linea', d: 'M' + fmt(b.x + b.w + pie) + ' ' + fmt(b.y) + 'H' + fmt(xl + pie) + 'M' + fmt(b.x + b.w + pie) + ' ' + fmt(b.y + b.h) + 'H' + fmt(xl + pie) + 'M' + fmt(xl) + ' ' + fmt(b.y) + 'V' + fmt(b.y + b.h) }));
+    cb.appendChild(svgEl('path', { 'class': 'punta', d: 'M' + fmt(xl) + ' ' + fmt(b.y) + 'l' + fmt(-flecha * .38) + ' ' + fmt(flecha) + 'h' + fmt(flecha * .76) + 'zM' + fmt(xl) + ' ' + fmt(b.y + b.h) + 'l' + fmt(-flecha * .38) + ' ' + fmt(-flecha) + 'h' + fmt(flecha * .76) + 'z' }));
+    var cx = xl + fs * .98, cy = b.y + b.h / 2;
+    cb.appendChild(svgEl('text', { 'class': 'num' + (falta ? ' falta' : ''), x: fmt(cx), y: fmt(cy), 'text-anchor': 'middle', 'font-size': fmt(fs), transform: 'rotate(-90 ' + fmt(cx) + ' ' + fmt(cy) + ')' }, num(b.h * (A.k || 0))));
+    g.appendChild(ca); g.appendChild(cb);
+    svg.appendChild(g);
+  }
+  function marcarCotaEnfocada() {
+    lista(document.querySelectorAll('#an-orig .an-cota')).forEach(function (c) {
+      c.classList.toggle('foco', !!_focoCota && c.classList.contains('an-cota-' + _focoCota));
+    });
+  }
+  [['an-ancho-d', 'ancho'], ['an-alto-d', 'alto']].forEach(function (par) {
+    var campo = $(par[0]);
+    campo.addEventListener('focus', function () { _focoCota = par[1]; marcarCotaEnfocada(); });
+    campo.addEventListener('blur', function () { if (_focoCota === par[1]) _focoCota = ''; marcarCotaEnfocada(); });
+  });
+
   /* ---------- La medida real ---------- */
   function pintarMedida() {
     var sec = $('an-sec-medida'); sec.hidden = !A;
     if (!A) return;
+    pintarCotas();
     var txt = $('an-medida-txt'), ancho = $('an-ancho-d'), alto = $('an-alto-d');
     var falta = !(A.k > 0);
     txt.classList.toggle('falta', falta);
@@ -531,6 +726,7 @@
 
   function pintarArchivo() {
     $('an-archivo').hidden = !A;
+    var ejemplo = $('an-ejemplo-drop'); if (ejemplo) ejemplo.hidden = !!A;
     if (!A) return;
     $('an-nombre').textContent = A.nombre;
     $('an-peso').textContent = peso(A.peso);
@@ -607,13 +803,23 @@
     svg.appendChild(bin);
     SN.setbin(bin);
 
-    T = { corriendo: true, intentos: 0, sinMejora: 0, ultimaMejora: Date.now(), mejor: null, detenidoSolo: false, material: mat, huella: huellaMotor(mat), fuera: fuera, total: partes.length };
-    if (SN.start(alAvanzar, mostrarDe(++corrida)) === false) {
+    /* Lo que se tira al volver a acomodar desde cero (A9): el mejor acomodo, que puede llevar
+       minutos de cálculo. Se guarda aparte con la hoja y la escala con las que se calculó, para
+       poder devolverlo (ver recuperarAnterior) y que la pantalla no quede diciendo otra cosa. */
+    var previo = T.mejor ? { mejor: T.mejor, material: T.material, k: T.k, intentos: T.intentos, archivo: A } : null;
+    T = { corriendo: true, intentos: 0, sinMejora: 0, ultimaMejora: Date.now(), mejor: null, detenidoSolo: false, material: mat, k: A.k, huella: huellaMotor(mat), fuera: fuera, total: partes.length, anterior: previo };
+    /* El avance de cada intento interno ya no se pinta —lo sustituyó la mecha del paro, A4—;
+       el motor pide una función, no necesita que haga nada. */
+    if (SN.start(function () {}, mostrarDe(++corrida)) === false) {
       T.corriendo = false;
+      /* Sin arrancar, el acomodo de antes sigue en pantalla y no se tiró nada: se le devuelve a T
+         para que «Descargar» siga sirviendo. Seguir buscando no: el motor ya no lo tiene. */
+      if (previo) { T.mejor = previo.mejor; T.huella = null; T.anterior = null; pintarEstadoTrabajo(); actualizarDescarga(); }
       mensaje('El motor no pudo arrancar con esa hoja. Revisa que el ancho y el alto sean mayores que la separación.', 'mal');
       return;
     }
-    $('an-prog').hidden = false; alAvanzar(0);
+    $('an-prog').hidden = false;
+    apagarParo();
     ['an-st-uso', 'an-st-col', 'an-st-hojas', 'an-st-merma', 'an-st-int'].forEach(function (id) { $(id).textContent = '—'; $(id).removeAttribute('data-v'); });
     $('an-st-col').textContent = '0/' + partes.length; $('an-st-int').textContent = '0';
     $('an-st-uso-lbl').textContent = 'buscando…';
@@ -623,8 +829,9 @@
     $('an-mesa').classList.add('corriendo');
     $('an-mesa').style.setProperty('--an-mesa-h', $('an-mesa').offsetHeight + 'px');
     $('an-vista-tab').textContent = 'Acomodando…';
-    $('an-dl').disabled = true; $('an-dl-hojas').hidden = true;
+    actualizarDescarga();
     pintarEstadoTrabajo();
+    if (previo) ofrecerRecuperar(previo);
     mensaje((fuera ? fuera + (fuera === 1 ? ' pieza no cabe' : ' piezas no caben') + ' en la hoja ni girada' + (fuera === 1 ? '' : 's') + ' y se va' + (fuera === 1 ? '' : 'n') + ' a quedar fuera. ' : '') +
       'El motor sigue buscando acomodos mejores mientras corre: detenlo cuando el resultado te convenza, o se detiene solo cuando deja de mejorar.', fuera ? 'av' : '');
     /* En pantalla angosta la mesa queda debajo de los controles: se baja a verla. */
@@ -635,6 +842,7 @@
     corrida++;   // el intento que siga en los workers ya no se enseña
     window.SvgNest.stop();
     T.corriendo = false; T.detenidoSolo = !!solo;
+    apagarParo();
     $('an-mesa').classList.remove('corriendo');
     pintarEstadoTrabajo(); habilitar();
     $('an-vista-tab').textContent = T.mejor ? 'El mejor acomodo encontrado' : 'Las piezas, como vienen';
@@ -653,23 +861,111 @@
     if (!mat || huellaMotor(mat) !== T.huella) { iniciar(); return; }
     /* start() contesta false cuando el motor ya no tiene la hoja o las piezas: sin mirarlo, la
        mesa se quedaba en «Acomodando…» para siempre, sin un solo intento. */
-    if (window.SvgNest.start(alAvanzar, mostrarDe(++corrida)) === false) { T.huella = null; iniciar(); return; }
+    if (window.SvgNest.start(function () {}, mostrarDe(++corrida)) === false) { T.huella = null; iniciar(); return; }
     T.corriendo = true; T.sinMejora = 0; T.ultimaMejora = Date.now(); T.detenidoSolo = false;
     $('an-mesa').classList.add('corriendo');
     pintarEstadoTrabajo();
+    encenderParo();
     $('an-vista-tab').textContent = 'Acomodando…';
     mensaje('Sigue buscando desde el mejor acomodo que llevaba.', '');
   }
 
-  /* scaleX y no width; y con transición solo cuando sube: en cada intento nuevo la barra
-     volvía de 100 % a 0 % animada, que se leía como un retroceso. */
-  var _progV = 0;
-  function alAvanzar(p) {
-    var b = $('an-prog-bar'); if (!b) return;
-    var v = Math.max(0, Math.min(1, p || 0));
-    b.classList.toggle('sube', v >= _progV);
-    b.style.transform = 'scaleX(' + v + ')';
-    _progV = v;
+  /* ---------- Deshacer con mecha: volver a acomodar desde cero (A9) ----------
+     Un toque en «Volver a acomodar desde cero» tira el mejor acomodo encontrado, que puede llevar
+     minutos de cálculo, y no había vuelta. iniciar() lo guarda en T.anterior —junto con la hoja y
+     la escala con las que se calculó— y el aviso «Se guardó el acomodo anterior (78 %, 2 hojas)»
+     trae «Recuperar» con la mecha de 8 s del contrato de §6.2 (lo pone P.aviso: con botón, el
+     aviso dura 8 s como mínimo). Quitar un retazo ya se deshacía igual, ver quitarRetazo().
+
+     Lo recuperado NO se puede seguir buscando: el motor ya borró su cálculo (config() y parsesvg()
+     empiezan de cero), así que «Seguir buscando» sigue escondido —T.huella en null— y lo único
+     que ofrece es descargarlo o volver a acomodar. Y «Recuperar» devuelve también la hoja, la
+     separación, los giros y la escala con los que se calculó: dejar el acomodo de una hoja de 1.20
+     × 2.40 m con los campos diciendo otra cosa sería descargar un archivo que la pantalla
+     desmiente. El aviso solo vale mientras el archivo y el acomodo guardado sean los mismos: si
+     se cargó otro SVG, o se volvió a acomodar y hay otro «anterior», ya no hay a qué volver. */
+  function ofrecerRecuperar(previo) {
+    var n = previo.mejor.svglist.length, ef = Math.round((previo.mejor.eficiencia || 0) * 100);
+    toast('Se guardó el acomodo anterior (' + ef + ' %, ' + n + (n === 1 ? ' hoja' : ' hojas') + ')', '', MS_RECUPERAR,
+      { label: 'Recuperar', fn: function () { recuperarAnterior(previo); } });
+  }
+  function restaurarHoja(c, k) {
+    $('an-ancho').value = c.ancho; $('an-alto').value = c.alto; $('an-sep').value = c.sep; $('an-rot').value = String(c.rot);
+    if (c.huecos !== interruptor('an-huecos')) alternar('an-huecos');
+    if (c.concavas !== interruptor('an-concavas')) alternar('an-concavas');
+    _veta.rotPrevia = null;
+    elegirMaterial(c.mat);   // sin preguntar por la veta: es la hoja de antes, no una elección nueva
+    sincronizarHoja();
+    if (k > 0 && A && A.bbox && Math.abs((A.k || 0) - k) > 1e-9) escalaDiseno('ancho', A.bbox.w * k);
+    guardarMaterial();
+  }
+  function recuperarAnterior(previo) {
+    if (A !== previo.archivo || T.anterior !== previo) { toast('Ese acomodo ya no se puede recuperar.', '', 3000); return; }
+    if (T.corriendo) detener(false);
+    if (previo.material) restaurarHoja(previo.material, previo.k);
+    T.mejor = previo.mejor; T.material = previo.material; T.k = previo.k; T.intentos = previo.intentos || 0;
+    T.huella = null; T.anterior = null; T.detenidoSolo = false;
+    $('an-prog').hidden = false;
+    pintarResultado(false); pintarStats();
+    $('an-vista-tab').textContent = 'El mejor acomodo encontrado';
+    pintarEstadoTrabajo();
+    var n = T.mejor.svglist.length, ef = Math.round((T.mejor.eficiencia || 0) * 100);
+    mensaje('Recuperado el acomodo anterior (' + ef + ' %, ' + n + (n === 1 ? ' hoja' : ' hojas') + '). Descárgalo, o vuelve a acomodar desde cero.', 'ok');
+    toast('Acomodo anterior recuperado', 'ok', 2400);
+  }
+
+  /* ---------- El paro automático, a la vista (A4) ----------
+     El motor se detiene solo cuando se juntan DOS cosas: 25 intentos seguidos sin mejorar Y 40 s
+     desde la última mejora. Hasta aquí nada decía cuánto faltaba, y la única barra de la mesa
+     —la del avance de cada intento interno— llegaba a 100 y volvía a 0 sin que eso significara
+     nada para quien miraba. Ahora, bajo «Detener», una mecha (P.mecha) se consume durante los 40 s
+     y se rellena de golpe cuando el acomodo mejora, y una frase dice lo que falta con palabras.
+
+     La mecha es solo el reloj de los 40 s; las dos condiciones las dice la frase, porque una
+     mecha que se acaba con menos de 25 intentos —la mecha vacía y el motor todavía buscando—
+     mentiría si el texto no lo explicara. Por eso el texto sale de Date.now() y de T.sinMejora, que
+     es lo que de verdad decide el paro (alMostrar), y no de la cuenta de la mecha: los dos relojes
+     pueden desfasarse unos milisegundos y la frase no puede contradecir al paro.
+
+     Con menos movimiento la mecha ni se ve (css/anidador.css, «rm · an-controles»): queda la frase. */
+  var _paro = null, _paroReloj = 0;
+  /* Pura: la frase del paro. `sinMejoraMs` es lo que lleva sin mejorar; `intentos`, los intentos
+     seguidos sin mejorar. Dice «hace 18 s», lo que falta de cada condición y nada más. */
+  function textoParo(sinMejoraMs, intentos) {
+    var P = window.Piezas;
+    var reloj = function (ms, falta) { return P && P.reloj ? P.reloj(ms, { falta: !!falta }) : Math.floor(ms / 1000) + ' s'; };
+    var faltanIntentos = Math.max(0, LIMITE_INTENTOS - (intentos || 0));
+    var faltaMs = Math.max(0, LIMITE_MS - sinMejoraMs);
+    var hace = 'Sin mejora hace ' + reloj(sinMejoraMs);
+    var n = faltanIntentos + (faltanIntentos === 1 ? ' intento' : ' intentos');
+    if (faltanIntentos > 0 && faltaMs > 0) return hace + ' · faltan ' + n + ' y ' + reloj(faltaMs, true);
+    if (faltanIntentos > 0) return hace + ' · ya pasó el tiempo, faltan ' + n;
+    if (faltaMs > 0) return hace + ' · ya van ' + LIMITE_INTENTOS + ' intentos, faltan ' + reloj(faltaMs, true);
+    return hace + ' · se detiene ya';
+  }
+  function pintarParo() {
+    var t = $('an-paro-t');
+    if (!t || !T.corriendo || !T.mejor) return;
+    var frase = textoParo(Date.now() - T.ultimaMejora, T.sinMejora);
+    if (t.textContent !== frase) t.textContent = frase;
+  }
+  /* Hay un acomodo del que contar: se enseña el bloque y arranca (o vuelve a empezar) la mecha. */
+  function encenderParo() {
+    var P = window.Piezas, bloque = $('an-paro');
+    if (!bloque || !T.mejor) return;
+    bloque.hidden = false;
+    if (P && P.mecha) {
+      if (_paro && _paro.el && _paro.el.isConnected) _paro.reiniciar(LIMITE_MS);
+      else _paro = P.mecha('an-mecha-paro', { ms: LIMITE_MS });
+    }
+    clearInterval(_paroReloj); _paroReloj = setInterval(pintarParo, 1000);
+    pintarParo();
+  }
+  function apagarParo() {
+    clearInterval(_paroReloj); _paroReloj = 0;
+    if (_paro) { _paro.cancelar(true); _paro = null; }
+    var bloque = $('an-paro'); if (bloque) bloque.hidden = true;
+    var t = $('an-paro-t'); if (t) t.textContent = '';
   }
 
   /* El motor llama esto por cada intento evaluado: con resultado cuando mejoró, sin nada
@@ -681,9 +977,11 @@
       T.mejor = { svglist: svglist, eficiencia: eficiencia, colocadas: colocadas, total: total };
       T.sinMejora = 0; T.ultimaMejora = Date.now();
       pintarResultado(habia);
+      encenderParo();   // la primera mejora la arranca; las demás la rellenan de golpe
     } else if (T.corriendo && T.mejor) {
       T.sinMejora++;
       if (T.sinMejora >= LIMITE_INTENTOS && Date.now() - T.ultimaMejora >= LIMITE_MS) detener(true);
+      else pintarParo();
     }
     pintarStats();
   }
@@ -741,17 +1039,7 @@
     /* La mesa crece al pintar las hojas: el haz láser se medía una sola vez, al arrancar, y no
        recorría la mesa entera. Se vuelve a medir con las hojas puestas. */
     $('an-mesa').style.setProperty('--an-mesa-h', $('an-mesa').offsetHeight + 'px');
-    $('an-dl').disabled = false;
-    var hojas = $('an-dl-hojas'); hojas.innerHTML = '';
-    if (T.mejor.svglist.length > 1) {
-      T.mejor.svglist.forEach(function (_, i) {
-        var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-gho';
-        b.textContent = 'Solo la hoja ' + (i + 1);
-        b.addEventListener('click', function () { descargar(i); });
-        hojas.appendChild(b);
-      });
-      hojas.hidden = false;
-    } else hojas.hidden = true;
+    actualizarDescarga();
     /* Cuando MEJORA —no la primera vez— el marcador late una vez. */
     if (mejora && !QUIETO) {
       var m = $('an-prog'); m.classList.remove('mejora');
@@ -765,6 +1053,10 @@
     ir.classList.toggle('btn-pri', !T.corriendo);
     ir.classList.toggle('btn-gho', T.corriendo);
     ir.setAttribute('aria-pressed', T.corriendo ? 'true' : 'false');
+    /* Con el motor corriendo, el tema cambia de golpe (A32): para abrirlo en círculo el navegador
+       fotografía la pantalla, y con una mesa llena de piezas eso cuesta justo cuando el teléfono
+       no tiene de dónde. js/tema.js lee esta clase; ver P.temaEnCirculo. */
+    document.documentElement.classList.toggle('sin-revelado', !!T.corriendo);
     habilitar();
   }
 
@@ -825,11 +1117,15 @@
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(out);
   }
 
+  /* El nombre del archivo, el mismo para bajarlo y para compartirlo. */
+  function nombreDeArchivo(indice) {
+    var base = (A ? A.nombre : 'diseño').replace(/\.svg$/i, '').replace(/[^\w\sáéíóúñÁÉÍÓÚÑ-]/g, '').replace(/\s+/g, '-').slice(0, 40) || 'diseño';
+    return base + '-' + materialElegido() + '-acomodado' + (indice === null || indice === undefined ? '' : '-hoja-' + (indice + 1)) + '.svg';
+  }
   function descargar(indice) {
     var txt = armarSalida(indice);
     if (!txt) { mensaje('Todavía no hay un acomodo que descargar.', 'mal'); return; }
-    var base = (A ? A.nombre : 'diseño').replace(/\.svg$/i, '').replace(/[^\w\sáéíóúñÁÉÍÓÚÑ-]/g, '').replace(/\s+/g, '-').slice(0, 40) || 'diseño';
-    var nombre = base + '-' + materialElegido() + '-acomodado' + (indice === null || indice === undefined ? '' : '-hoja-' + (indice + 1)) + '.svg';
+    var nombre = nombreDeArchivo(indice);
     var blob = new Blob([txt], { type: 'image/svg+xml;charset=utf-8' });
     var u = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = u; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
@@ -838,9 +1134,115 @@
     toast('SVG descargado a escala real: ' + fmt(W) + ' × ' + fmt(H) + ' mm por hoja', 'ok', 3600);
   }
 
+  /* ---------- Descargar por hoja desde un menú, y mandar el archivo (A16) ----------
+     Antes había un botón para todas y, debajo, uno fantasma por hoja: con cinco hojas eran seis
+     botones, y ninguno servía para lo que de verdad se hace con el archivo, que es mandarlo a la
+     computadora del láser desde el teléfono. Ahora «Descargar SVG» abre un menú (el globo de la
+     pieza 4, en rol de menú) con Todas las hojas —una capa por hoja—, Hoja 1, Hoja 2… y Compartir.
+
+     Compartir usa la hoja de compartir del sistema (navigator.share con archivos): WhatsApp o el
+     correo, sin pasar por la carpeta de descargas. Se esconde donde no hay soporte, y no se finge:
+     un botón que no hace nada es peor que ninguno. Ojo: Chrome de Android solo deja compartir
+     ciertos tipos de archivo y el SVG no está entre ellos, así que si el aparato rechaza
+     image/svg+xml se prueba como texto plano con el mismo nombre .svg —el que lo recibe ve un
+     archivo «…-acomodado.svg»—. Sin menú cuando no hay nada que elegir: una sola hoja y sin
+     dónde compartir descarga directo, como siempre, y el botón no lleva flecha. */
+  var _menuDl = null;
+  function archivoParaCompartir(txt, nombre) {
+    if (!(navigator.share && navigator.canShare) || typeof File !== 'function') return null;
+    var tipos = ['image/svg+xml', 'text/plain'];
+    for (var i = 0; i < tipos.length; i++) {
+      try { var f = new File([txt], nombre, { type: tipos[i] }); if (navigator.canShare({ files: [f] })) return f; } catch (_) {}
+    }
+    return null;
+  }
+  function puedeCompartir() {
+    if (!T.mejor) return false;
+    return !!archivoParaCompartir('<svg xmlns="http://www.w3.org/2000/svg"/>', 'prueba.svg');
+  }
+  function opcionesDeDescarga() {
+    var n = T.mejor ? T.mejor.svglist.length : 0, o = [];
+    if (n > 1) {
+      o.push({ v: 'todas', t: 'Todas las hojas', s: 'una capa por hoja' });
+      for (var i = 0; i < n; i++) o.push({ v: String(i), t: 'Hoja ' + (i + 1) });
+    } else o.push({ v: 'todas', t: 'Descargar SVG' });
+    if (puedeCompartir()) o.push({ v: 'compartir', t: 'Compartir', s: 'WhatsApp, correo…' });
+    return o;
+  }
+  /* El botón sigue al resultado: apagado sin acomodo, con flecha y menú solo si hay opciones. */
+  function actualizarDescarga() {
+    var b = $('an-dl'); if (!b) return;
+    var hay = !!(T.mejor && T.mejor.svglist && T.mejor.svglist.length);
+    var menu = hay && opcionesDeDescarga().length > 1;
+    b.disabled = !hay;
+    $('an-dl-flecha').hidden = !menu;
+    if (menu) b.setAttribute('aria-haspopup', 'menu');
+    else { b.removeAttribute('aria-haspopup'); b.removeAttribute('aria-expanded'); if (_menuDl) _menuDl.cerrar('codigo'); }
+  }
+  function compartir(indice) {
+    var txt = armarSalida(indice); if (!txt) return;
+    var nombre = nombreDeArchivo(indice), archivo = archivoParaCompartir(txt, nombre);
+    if (!archivo) { toast('Este aparato no puede compartir archivos. Descárgalo.', 'err', 4000); return; }
+    navigator.share({ files: [archivo], title: nombre }).catch(function (e) {
+      if (e && e.name === 'AbortError') return;   // cerró la hoja de compartir: no es un fallo
+      toast('No se pudo compartir. Descárgalo y mándalo desde ahí.', 'err', 4000);
+    });
+  }
+  function menuDescarga() {
+    var P = window.Piezas;
+    if (_menuDl || !P || !P.vistazo) return _menuDl;
+    _menuDl = P.vistazo('an-dl', {
+      sinClic: true, rol: 'menu', titulo: 'Descargar o compartir', clase: 'an-menu-dl', alinear: 'inicio',
+      contenido: function (ancla, pop) {
+        /* Al menos tan ancho como el botón: el menú sale de su esquina, no de un punto. */
+        pop.style.minWidth = ancla.offsetWidth + 'px';
+        return opcionesDeDescarga().map(function (o) {
+          return '<button type="button" data-descarga="' + o.v + '"><span class="an-menu-t">' + esc(o.t) + '</span>' +
+            (o.s ? '<small>' + esc(o.s) + '</small>' : '') + '</button>';
+        }).join('');
+      },
+      alAbrir: function (pop) {
+        /* UN solo resaltado que viaja con transform, no uno por renglón: sigue al puntero y al foco.
+           Nace escondido y solo se enseña con el puntero encima o con el foco del teclado —un
+           resaltado sobre el primer renglón al abrir con el ratón se leería como «ya elegido»—. */
+        var res = document.createElement('div'); res.className = 'an-menu-resalte'; res.setAttribute('aria-hidden', 'true');
+        pop.insertBefore(res, pop.firstChild);
+        var mover = function (b) {
+          if (!b) return;
+          var visible = res.classList.contains('on');
+          if (!visible) res.style.transition = 'none';
+          res.style.height = b.offsetHeight + 'px'; res.style.width = b.offsetWidth + 'px';
+          res.style.transform = 'translate(' + b.offsetLeft + 'px,' + b.offsetTop + 'px)';
+          if (!visible) { void res.offsetWidth; res.style.transition = ''; res.classList.add('on'); }
+        };
+        pop.addEventListener('pointerover', function (e) { mover(e.target.closest && e.target.closest('[role="menuitem"]')); });
+        pop.addEventListener('focusin', function (e) {
+          var b = e.target.closest && e.target.closest('[role="menuitem"]');
+          if (b && (!b.matches || b.matches(':focus-visible'))) mover(b);
+        });
+        pop.addEventListener('pointerleave', function () { res.classList.remove('on'); });
+        lista(pop.querySelectorAll('[data-descarga]')).forEach(function (b) {
+          b.addEventListener('click', function () {
+            var v = b.getAttribute('data-descarga');
+            /* Se cierra ANTES de actuar: el foco vuelve al botón y lo que sigue —un archivo que
+               baja, la hoja de compartir— ya no pelea con el menú por él. */
+            _menuDl.cerrar('codigo');
+            if (v === 'compartir') compartir(null);
+            else descargar(v === 'todas' ? null : parseInt(v, 10));
+          });
+        });
+      }
+    });
+    return _menuDl;
+  }
+
   $('an-ir').addEventListener('click', iniciar);
   $('an-seguir').addEventListener('click', seguir);
-  $('an-dl').addEventListener('click', function () { descargar(null); });
+  $('an-dl').addEventListener('click', function () {
+    if (!T.mejor) return;
+    var menu = opcionesDeDescarga().length > 1 ? menuDescarga() : null;
+    if (menu) menu.alternar(); else descargar(null);
+  });
 
   /* ---------- Tres maneras de darle el archivo ---------- */
   $('an-file').addEventListener('change', function (e) {
@@ -890,6 +1292,84 @@
     return true;
   }
 
+  /* ---------- Probar con un ejemplo (A31) ----------
+     La mesa vacía era una cuadrícula y una frase: alguien nuevo en el taller no tenía con qué
+     probar. «Probar con un ejemplo» carga las letras «AL3D» del logotipo a una medida conocida
+     (ALTO_EJEMPLO_MM), y sus contornos se trazan sobre la hoja y se rellenan al llegar
+     (stroke-dashoffset, ver «dibuja-ejemplo» en css/anidador.css).
+
+     Salen de ../logo-al3d.svg, que ya está en la caché del aparato porque es el logotipo de la
+     barra; es un archivo generado («No editar a mano», herramientas/trazar-logo.py) y aquí solo se
+     LEE: del dibujo se quedan los trazos de las letras —los que quedan a la derecha de la barra
+     vertical, pasado el 75 % del ancho del lienzo— y se descartan la mancha azul y la barra. Sin
+     colores: el archivo de corte los usaría como capas. Se arma un SVG nuevo con su ancho y su
+     alto en mm y se entrega a cargarTexto() como cualquier archivo, para que el ejemplo pase por
+     el mismo camino que uno de verdad: sanear(), medir, contar.
+
+     Lo único distinto es la banda de arriba, que dice «Ejemplo» en ámbar: este archivo no es un
+     trabajo y que nadie lo mande a cortar por confusión. */
+  function svgDeEjemplo(texto) {
+    var doc = null;
+    try { doc = new DOMParser().parseFromString(texto, 'image/svg+xml'); } catch (_) {}
+    var raiz = doc && doc.documentElement, vb = raiz && M.leerViewBox(raiz.getAttribute('viewBox'));
+    if (!vb || raiz.tagName.toLowerCase() !== 'svg') return null;
+    var ns = 'http://www.w3.org/2000/svg';
+    var letras = lista(raiz.getElementsByTagName('path')).filter(function (e) {
+      var t = /translate\(\s*(-?[\d.]+)/.exec(e.getAttribute('transform') || '');
+      return t && parseFloat(t[1]) > vb.x + vb.w * 0.75;
+    });
+    if (letras.length < 3) return null;
+    var nuevo = new DOMParser().parseFromString('<svg xmlns="' + ns + '" viewBox="' + [vb.x, vb.y, vb.w, vb.h].join(' ') + '"/>', 'image/svg+xml');
+    letras.forEach(function (e) {
+      var c = nuevo.importNode(e, true); c.removeAttribute('fill');
+      nuevo.documentElement.appendChild(c);
+    });
+    /* Su caja, medida con el navegador: el lienzo del logotipo trae la mancha y la barra. */
+    var medir = document.importNode(nuevo.documentElement, true);
+    medir.setAttribute('width', '1000'); medir.setAttribute('height', '500'); medir.setAttribute('aria-hidden', 'true');
+    medir.style.cssText = 'position:absolute;left:0;top:0;visibility:hidden;pointer-events:none';
+    document.body.appendChild(medir);
+    var bb = null;
+    try { bb = medir.getBBox(); } catch (_) {}
+    document.body.removeChild(medir);
+    if (!bb || !(bb.width > 0) || !(bb.height > 0)) return null;
+    var raizNueva = nuevo.documentElement;
+    raizNueva.setAttribute('viewBox', [bb.x, bb.y, bb.width, bb.height].map(fmt).join(' '));
+    raizNueva.setAttribute('width', fmt(bb.width / bb.height * ALTO_EJEMPLO_MM) + 'mm');
+    raizNueva.setAttribute('height', ALTO_EJEMPLO_MM + 'mm');
+    return new XMLSerializer().serializeToString(raizNueva);
+  }
+  function probarEjemplo() {
+    if (!window.fetch) { toast('Este navegador no puede abrir el ejemplo. Sube un SVG.', 'err', 4000); return; }
+    fetch('../logo-al3d.svg').then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(function (texto) {
+        var svg = svgDeEjemplo(texto);
+        if (!svg) throw new Error('sin letras');
+        if (!cargarTexto(svg, 'ejemplo-al3d.svg', { origen: 'ejemplo' })) return;
+        var b = $('an-origen');
+        b.className = 'an-banda ejemplo';
+        b.innerHTML = '<svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg><span><b>Ejemplo</b> · las letras AL3D del logotipo, a ' +
+          ALTO_EJEMPLO_MM + ' mm de alto. Sirve para probar el anidador: no es un trabajo para mandar a cortar.</span>';
+        b.hidden = false;
+        dibujarEjemplo();
+      })
+      .catch(function () { toast('No se pudo abrir el ejemplo. Revisa tu conexión y vuelve a intentar.', 'err', 4000); });
+  }
+  /* El trazo que se dibuja y se rellena. pathLength=1 hace que el dash mida «1» sin importar cuánto
+     mida el contorno, y --i escalona las letras. Con menos movimiento no se anima: el ejemplo
+     aparece ya relleno. La clase se quita al terminar para no dejar animaciones puestas. */
+  function dibujarEjemplo() {
+    var svg = $('an-orig').querySelector('svg');
+    if (!svg || QUIETO || (window.Piezas && window.Piezas.sinMovimiento && window.Piezas.sinMovimiento())) return;
+    lista(svg.querySelectorAll(':scope > path')).forEach(function (t, i) {
+      t.setAttribute('pathLength', '1'); t.style.setProperty('--i', String(i));
+    });
+    if (A && A.bbox) svg.style.setProperty('--traza-ancho', fmt(Math.max(A.bbox.w, A.bbox.h) * 0.012));
+    svg.classList.add('dibuja-ejemplo');
+    setTimeout(function () { svg.classList.remove('dibuja-ejemplo'); }, 2600);
+  }
+  lista(document.querySelectorAll('[data-an-ejemplo]')).forEach(function (b) { b.addEventListener('click', probarEjemplo); });
+
   /* ---------- Soporte del navegador ---------- */
   if (!window.Worker) {
     mensaje('Este navegador no tiene Web Workers y el motor no puede correr. Usa Chrome, Edge o Firefox al día.', 'mal');
@@ -909,14 +1389,35 @@
   var _arr = document.getElementById('an-arranque');
   if (_arr && _arr.parentNode) _arr.parentNode.removeChild(_arr);
 
+  /* Un reflejo de aluminio cepillado cruza el logo UNA vez al terminar la carga (A29): es la señal
+     de que la app ya cargó, y la única cosa que se mueve sola en esta pantalla, un momento. No
+     se repite al cambiar de pantalla ni al repintar; con la página empotrada en el Taller no hay
+     barra que enseñar, y con menos movimiento no hay brillo. La máscara del reflejo es el propio
+     logotipo —un <img> no admite pseudoelementos, así que el brillo vive en #brandLogo—; se
+     precarga para que el reflejo no corra antes que su máscara y se vea un rectángulo de luz. */
+  (function () {
+    var marca = $('brandLogo');
+    if (!marca || document.documentElement.classList.contains('empotrado')) return;
+    if (QUIETO || (window.Piezas && window.Piezas.sinMovimiento && window.Piezas.sinMovimiento())) return;
+    var mascara = new Image();
+    mascara.onload = function () {
+      marca.classList.add('brilla');
+      var quitar = function () { marca.classList.remove('brilla'); };
+      marca.addEventListener('animationend', function (e) { if (e.animationName === 'an-brillo') quitar(); });
+      setTimeout(quitar, 2000);
+    };
+    mascara.src = '../logo-al3d.svg';
+  })();
+
   /* Para las pruebas de navegador y para quien quiera automatizar: la misma API que usa
      esta interfaz, sin pasar por el ratón. */
   window.Anidador = {
     cargarTexto: cargarTexto, iniciar: iniciar, detener: function () { detener(false); }, seguir: seguir,
-    armarSalida: armarSalida,
+    armarSalida: armarSalida, probarEjemplo: probarEjemplo, textoParo: textoParo,
     estado: function () {
       return { archivo: A ? { nombre: A.nombre, piezas: A.piezas, k: A.k, origen: A.escala && A.escala.origen, bbox: A.bbox, avisos: A.avisos.slice() } : null,
                corriendo: T.corriendo, intentos: T.intentos, sinMejora: T.sinMejora, detenidoSolo: T.detenidoSolo,
+               anterior: !!T.anterior, paro: !!_paro, veta: conVeta(),
                hoja: hojaElegida(), material: materialElegido(), retazos: R.slice(),
                mejor: T.mejor ? { hojas: T.mejor.svglist.length, laminas: T.mejor.svglist.length, eficiencia: T.mejor.eficiencia, colocadas: T.mejor.colocadas, total: T.mejor.total } : null };
     }
