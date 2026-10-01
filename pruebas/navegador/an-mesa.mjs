@@ -347,6 +347,8 @@ await seccion(async () => {
   }, d);
   await muchas(0); await dormir(1300); await muchas(3);
   cierto(await p.evaluate(() => document.getAnimations().filter(a => a.effect && a.effect.target && a.effect.target.tagName === 'g').length) === 0, 'con 160 piezas el cambio es directo (el tope es 150)');
+  await p.click('#an-vista-ver [data-v="vienen"]');
+  cierto(await p.evaluate(() => document.getElementById('an-haz').getAnimations().length === 0 && document.getElementById('an-res').hidden && !document.getElementById('an-orig').hidden), 'y el barrido del haz también se salta: cambiar de vista es directo');
   cierto(errs.length === 0, 'sin errores de página', errs);
   await ctx.close();
 });
@@ -562,6 +564,7 @@ await seccion(async () => {
   /* Con teclado. */
   await p.focus('#an-res .an-hoja>svg');
   cierto(await p.evaluate(() => document.activeElement.tagName === 'svg' && document.activeElement.getAttribute('role') === 'group'), 'la hoja es un solo tope del tabulador, un grupo y no una imagen');
+  cierto(await p.evaluate(() => { const s = document.activeElement, a = document.getElementById(s.getAttribute('aria-describedby')); return !!a && /Enter pasa a las piezas/.test(a.textContent) && a.classList.contains('solo-voz'); }), 'la hoja se describe a sí misma: dice qué teclas tiene (aria-describedby)');
   await p.keyboard.press('Enter');
   cierto(await p.evaluate(() => document.activeElement.id) === 'pz-an-e0', 'Enter en la hoja pasa al foco de la primera pieza');
   cierto(await p.evaluate(() => { const g = document.activeElement; return g.getAttribute('role') === 'button' && g.getAttribute('aria-label') === 'Pieza 1' && g.getAttribute('tabindex') === '-1'; }), 'cada pieza es un botón con nombre, fuera del tabulador (se recorren con flechas)');
@@ -798,7 +801,7 @@ await seccion(async () => {
   /* La descarga lleva la posición nueva. */
   const sal = await p.evaluate(() => window.Anidador.armarSalida());
   cierto(transformsDeHoja(sal, 0).includes(t1), 'la descarga lleva la posición nueva de la pieza movida', transformsDeHoja(sal, 0));
-  cierto(!/an-e\d|pz-|tabindex|role=|aria-label|data-|levantada/.test(sal.replace(/<title>.*?<\/title>/, '')), 'y sigue sin ids, foco ni nombres de la mesa');
+  cierto(!/an-e\d|pz-|tabindex|role=|aria-|data-|levantada/.test(sal.replace(/<title>.*?<\/title>/, '')), 'y sigue sin ids, foco ni nombres de la mesa (con la ficha de una pieza abierta, que le pone aria-describedby)');
 
   /* Soltar encima de otra pieza: regresa sola. */
   const antes = await transformDe(p, 'pz-an-e2');
@@ -1082,6 +1085,7 @@ for (const ancho of [360, 420]) for (const tema of ['claro', 'oscuro']) for (con
   const ok = (cond, que, extra) => cierto(cond, `[${nombre}] ${que}`, extra);
   await cargar(p, SVG_AVISOS); await motorFalso(p);
   ok(await desborde(p) <= 0, 'con avisos y botones «Ver cuáles» no desborda', await desborde(p));
+  ok((await infinitas(p)).length === 0, 'con el archivo cargado y el motor quieto, nada gira ni late', await infinitas(p));
   ok((await p.evaluate(() => [...document.querySelectorAll('#an-avisos [data-aviso]')].map(b => Math.round(b.getBoundingClientRect().height)))).every(h => h >= 44), 'los «Ver cuáles» miden 44 px');
   ok(await contraste(p, '#an-vista-ver [data-v="vienen"]') >= 4.5 && await contraste(p, '#an-vista-ver [data-v="acomodadas"]') >= 4.5, 'las dos opciones de la vista se leen (la apagada también): ' + await contraste(p, '#an-vista-ver [data-v="acomodadas"]') + ':1');
   await p.evaluate(() => { const v = (id, x) => { const e = document.getElementById(id); e.value = x; e.dispatchEvent(new Event('input', { bubbles: true })); }; v('an-ancho', 200); v('an-alto', 150); });

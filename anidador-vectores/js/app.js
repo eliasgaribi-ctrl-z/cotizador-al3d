@@ -1151,7 +1151,10 @@
     soltarSenales(); cerrarFicha();
     if (_ctlVer) _ctlVer.fijar(v, false);
     var orig = $('an-orig'), res = $('an-res'), haz = $('an-haz'), mesa = $('an-mesa');
-    if (opc.sinBarrido || sinMov() || !res.animate || !haz.animate || !res.firstElementChild || !orig.firstElementChild) {
+    /* Con muchas piezas (el mismo tope del viaje de A8) el recorte repintaría cien SVG por cuadro en
+       un teléfono de gama media: ahí el cambio es directo. */
+    var muchas = res.querySelectorAll('svg>g').length > MAX_VIAJE;
+    if (opc.sinBarrido || muchas || sinMov() || !res.animate || !haz.animate || !res.firstElementChild || !orig.firstElementChild) {
       aplicarVista(); return Promise.resolve();
     }
     var tok = ++_tokBarrido, ida = v === 'acomodadas';
@@ -1344,7 +1347,7 @@
       /* Un grupo y no una imagen: role="img" vuelve decorativo todo lo de dentro, y las piezas
          se pueden elegir con el teclado. */
       s.setAttribute('role', 'group'); s.setAttribute('aria-label', 'Hoja ' + (i + 1) + ' con las piezas acomodadas');
-      s.setAttribute('tabindex', '0');
+      s.setAttribute('tabindex', '0'); s.setAttribute('aria-describedby', 'an-mesa-ayuda');
       var piezas = 0;
       hijos(s).forEach(function (g) {
         if (g.tagName !== 'g') return;
@@ -2168,7 +2171,7 @@
           /* Las clases de color y el turno de caída son de la mesa, no del archivo de corte; los
              ids, el foco y el nombre de la pieza, también. Su transform sí se queda: es donde está
              la pieza, y si se movió a mano (A24) es donde se movió. */
-          ['class', 'style', 'id', 'tabindex', 'role', 'aria-label'].forEach(function (a) { c.removeAttribute(a); });
+          ['class', 'style', 'id', 'tabindex', 'role', 'aria-label', 'aria-describedby'].forEach(function (a) { c.removeAttribute(a); });
         }
         lista(c.getElementsByTagName('*')).forEach(function (e) {
           if (/^an-e\d+$/.test(e.getAttribute('id') || '')) e.removeAttribute('id');
