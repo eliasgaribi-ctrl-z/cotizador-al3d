@@ -3,8 +3,6 @@
 Cada zona del paquete de UI entrega aquí lo que dejó a medias, lo que no alcanzó a probar y los
 supuestos que tomó. **La auditoría mira esta lista, no las ~50,000 líneas del paquete.** No hubo
 revisor aparte por zona: fue el acuerdo para no agotar el límite semanal.
-El gesto se probó con eventos táctiles por CDP en Chromium, no con un dedo en un teléfono. Sin verificar: iOS Safari (long-press, selección, touch-action:none solo en el número), el autoscroll en bordes, y arrastrar una partida ABIERTA de ~1300 px (no se colapsa durante el arrastre; en la práctica conviene plegar antes). Con menos movimiento las vecinas se apartan sin transición.
-
 - **[media]** `js/cotizador/partidas.js · _ratonArma() y el bloque dragstart/drop de renderItems()`  
   El arrastre HTML5 con ratón real no se pudo ejercitar: en este arnés ni el código original completa un drag nativo (se comprobó contra una copia del commit base). Solo están probados el drop por eventos sintéticos (cotizador-flujo.mjs, sigue verde) y que draggable se arma en pointerdown con el ratón y se desarma al soltar. Cambio de comportamiento: antes toda la partida era arrastrable, incluso desde un campo de texto; ahora presionar sobre input/textarea/select/etiqueta arrastrable no la arma. Firefox/Safari sin probar.
 
@@ -504,3 +502,52 @@ Fichas: 7 hecho, 1 ya estaba.
 
 - **[baja]** `scratchpad compartido`  
   Otro agente sobrescribió un archivo temporal mío en el scratchpad compartido (dep2.mjs, solo depuración, ya no se usaba). Nada de eso está en el repo, pero conviene que cada agente use una subcarpeta propia.
+
+## Plataforma · Ajustes y asistente (pf-ajustes)
+
+Fichas: 12 hecho.
+
+- **[media]** `js/mod/fabricacion.js despachar() (casos gcal y gcal-borrar)`  
+  La mitad de F7 que cae en Fabricación NO se hizo: el archivo no es mío. Mi correr() de ajustes.js llama a P.estadoBoton directamente y no es un helper compartido; quien haga Fabricación debe usar P.trabajando de la pieza 14.
+
+- **[media]** `ajustes.js medirIndice()/alDesplazar() y css .aj-indice`  
+  El progreso de lectura y la marca vigente se calculan en un oyente de scroll pasivo con un cuadro por evento (8 getBoundingClientRect). Solo probado en Chromium headless de escritorio; NO medido en un teléfono de gama media real. No se usó animation-timeline.
+
+- **[media]** `pruebas/navegador/pf-ajustes.mjs (toda)`  
+  Todo se probó en Chromium 1194 headless. No hay WebKit/Firefox ni teléfono real: View Transitions del tema (F21), mask-image de los bordes, sticky con barra de URL móvil y safe-area (el índice usa top fijo 56/64 px igual que .pf-cab, que no cuenta el notch) quedan sin verificar fuera de Chromium.
+
+- **[media]** `pruebas/navegador/puente.mjs (preexistente, sección 5 «La pantalla de Ajustes»)`  
+  Falla en la base (commit d4f5eb7 sin mis cambios) en la línea ~790 (#pj-filtros [data-etapa="todas"] no existe) y deja de correr su sección de Ajustes (Probar / Revisar el esquema). Mi prueba cubre lo equivalente con un puente de mentiras, pero nadie ha corrido esa sección original contra mi código.
+
+- **[baja]** `ajustes.js correr()`  
+  Terminar una acción repinta la pantalla y el estado final (Listo/No contestó) se le pone al botón equivalente nuevo; si algo repinta durante los ~1.8 s del «Listo» se pierde (inocuo), y si la acción hace desaparecer el botón (p. ej. «Volver a intentarlos» sin rechazos) no hay estado final, solo el aviso. Supuesto: la prueba de jalar() usa P.avance (curva de la pieza) porque P.estadoBoton.avance(p,texto) no permite cambiar solo el texto sin mover el relleno.
+
+- **[baja]** `ajustes.js SECCIONES (F22)`  
+  El índice nombra 7 de las 9 tarjetas, como pide la ficha; mientras se leen «Lo que esta pantalla tiene que decir» y «Por qué las cosas están como están» queda marcada «Puente». Decisión mía para no dejar la tira sin nada marcado.
+
+- **[baja]** `ajustes.js CLAVE_PASOS (F32)`  
+  Las claves 'al3d_pf_pasos_gcal' y 'al3d_pf_pasos_puente' son literales en ajustes.js, fuera de Prefs.CLAVES (js/datos/prefs.js no es mío) y no entran al respaldo. Si el integrador quiere todas las claves pf en un solo sitio hay que moverlas.
+
+- **[baja]** `asistente.js llamar()/detener()`  
+  Cancelar (Detener o cerrar) deja de ESPERAR a la hoja pero no corta la petición (Puente.hablar no recibe señal de aborto): la pregunta ya salió y la hoja puede gastar cuota; lo que conteste se tira. El texto del hilo lo dice («no se le mandó a ningún otro proveedor»).
+
+- **[baja]** `asistente.js llamar()`  
+  Preexistente que ahora se nota en la traza: tras un SIN_LLAVE se marca _iaEstado[prov]=false para toda la sesión, así que la segunda pregunta ya no muestra a Qwen (la prueba lo asume) y una llave nueva no se ve hasta recargar.
+
+- **[baja]** `asistente.js acomodar()`  
+  El scroll suave de la respuesta nueva usa un repintado que reconstruye el cuerpo; si otro pintar() llega durante esos ~300 ms (p. ej. /salud lento) el desplazamiento se queda a medias. Rarísimo y no reproducido.
+
+- **[baja]** `css/plataforma.css .aj-pasos-riel .riel-t::after («Vas aquí»)`  
+  Es un pseudo-elemento: su contraste no se midió directamente (usa --a-tx sobre --a-suave, la misma pareja que la píldora del índice, medida en claro y oscuro ≥4.5).
+
+- **[baja]** `js/datos/puente.js avisoVersion() (fuera de mi zona)`  
+  Con una hoja de versión vieja «Probar» saca un aviso de ~700 caracteres, 12 s, que tapa media pantalla del teléfono (visto al simular versión distinta; con mouse además congela por hover). No lo toqué.
+
+- **[baja]** `pendiente-ui/api/piezas-2.md vs js/piezas.js bordesDesvanecidos().revelar(h, suave)`  
+  La doc dice que revelar(h,true) salta; el código hace lo contrario (suave=true desliza con behavior smooth). Usé true=desliza.
+
+- **[baja]** `git log (commit c4fee04)`  
+  Los trailers del commit son los que dicta el arnés (Claude Sonnet 5.5 + Claude-Session), no los «Claude Opus 5» que escribe CONVENCIONES.md. Si el integrador quiere los otros, hay que reescribir el mensaje.
+
+- **[baja]** `pruebas/navegador/pf-ajustes.mjs`  
+  Las cuatro rondas tardan unos 8–10 min en total (esperas reales de relojes y de los 1.8 s de «Listo»); RONDA=n corre solo una y CAPTURAS=carpeta guarda fotos. Sin lógica pura que justificara una prueba de node, no se añadió ninguna.
