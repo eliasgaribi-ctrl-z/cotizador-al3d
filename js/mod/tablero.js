@@ -1003,6 +1003,14 @@ function pintarMbar(d, rol) {
   }
   b.innerHTML = html;
   b.hidden = false;
+  /* «Decidir» va derecho a Proyectos, como el botón de la tarjeta: en el teléfono ese botón
+     no se pinta (plataforma.css, .tb-decidir-cuerpo) porque esta barra ya lo lleva, así que
+     bajar hasta la tarjeta y enfocarlo dejaba el toque sin ningún destino. */
+  if (destino === '.pf-decidir') {
+    b.onclick = () => { if (_ctx) _ctx.ir('proyectos'); };
+    ajustarAltoBarra();
+    return;
+  }
   b.onclick = () => {
     const el = _cont && _cont.querySelector(destino);
     if (!el) return;
@@ -1026,7 +1034,10 @@ function publicarCuentas(d) {
 
 function btn(label, clase, accion) {
   const i = _acciones.push(accion) - 1;
-  return '<button type="button" class="' + clase + '" data-acc="' + i + '">' +
+  /* data-clave: qué hace el botón, estable entre pintados. conservandoFoco() (ui.js) devuelve
+     el foco por ella; por data-acc caía en la acción de otro proyecto. */
+  const clave = [accion.tipo, accion.id || accion.ruta || '', accion.etapa || ''].join(':');
+  return '<button type="button" class="' + clase + '" data-acc="' + i + '" data-clave="' + esc(clave) + '">' +
     esc(label) + '</button>';
 }
 

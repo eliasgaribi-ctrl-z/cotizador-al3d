@@ -327,8 +327,13 @@ function renderAuth(){
   if(_abierto){ const d=box.querySelector('details.otras-salidas'); if(d) d.open=true; }
   /* El giro de espera nace nuevo en cada repintado —que aquí es cada tecla— y volvía a arrancar
      desde arriba: daba tirones. Con un retardo negativo sacado del reloj, todos los giros que
-     nacen van en la misma fase (una vuelta dura .8 s) y el repintado no se nota. */
-  box.querySelectorAll('.espera-giro').forEach(g=>{ g.style.animationDelay=(-(performance.now()%800))+'ms'; });
+     nacen van en la misma fase y el repintado no se nota. El periodo sale de la animación real
+     (.8 s el giro; 1,6 s el pulso de «menos movimiento») y va con important porque el pulso
+     llega con !important desde sistema.css y su atajo pone el retardo en 0. */
+  box.querySelectorAll('.espera-giro').forEach(g=>{
+    const T=(parseFloat(getComputedStyle(g).animationDuration)||.8)*1000;
+    g.style.setProperty('animation-delay',(-(performance.now()%T))+'ms','important');
+  });
   // Inicializar display de descuento tras render
   /* Solo PINTAR: esto corre en cada repintado, sin que nadie haya tecleado. Apuntaba el valor
      del campo como «lo que llevabas escrito», y de ahí salían dos mentiras —«se canceló la

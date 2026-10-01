@@ -4709,6 +4709,10 @@ body::after{
   opacity:0;
   transition:opacity .14s var(--ease-out),display .14s allow-discrete;
 }
+/* html reserva el hueco de la barra (scrollbar-gutter:stable, arriba) y un fijo con inset:0 no
+   lo cubre: con barras clásicas quedaba una franja de 6 px sin velo a la derecha. 100vw sí
+   incluye el hueco. */
+.modal-bg,.rv-modal-bg,.scaler-modal-bg,.vt-modal-bg{right:auto;width:100vw}
 .modal-bg.show,.rv-modal-bg.show{opacity:1;transition-duration:.2s}
 @starting-style{.modal-bg.show,.rv-modal-bg.show{opacity:0}}
 .modal-bg:not(.show),.rv-modal-bg:not(.show){pointer-events:none}
@@ -4735,12 +4739,15 @@ body::after{
    que contaban 0), y en una partida los chips elegidos competían con «Cotizar con IA» y con
    «Solicitar autorización». --a-tx sobre --a-suave da 6,9:1 de día y 7,1:1 de noche. El borde
    de 2 px se dibuja por dentro para no mover el renglón. */
-.chip.on,.partida .chip.on{
+/* Sin el candado: el chip elegido de una partida bloqueada (aria-disabled, capturaBloqueada())
+   conserva su gris de «no se puede cambiar» de la regla de arriba; con el mismo peso y más
+   abajo, el teñido se lo tapaba y lo dejaba igual que uno editable. */
+.chip.on:not([aria-disabled="true"]),.partida .chip.on:not([aria-disabled="true"]){
   background:var(--a-suave);color:var(--a-tx);border-color:var(--a);
   box-shadow:inset 0 0 0 1px var(--a);
 }
-.chip.on small,.partida .chip.on small{color:var(--a-tx);opacity:.8}
-.chip.on .ck,.partida .chip.on .ck{color:var(--a-tx)}
+.chip.on:not([aria-disabled="true"]) small,.partida .chip.on:not([aria-disabled="true"]) small{color:var(--a-tx);opacity:.8}
+.chip.on:not([aria-disabled="true"]) .ck,.partida .chip.on:not([aria-disabled="true"]) .ck{color:var(--a-tx)}
 /* Un filtro que no tiene nada que enseñar se ve apagado, aunque se pueda tocar. */
 .chip.cero:not(.on){color:var(--tinta3);border-style:dashed}
 /* Y al encenderse, cede: 300 ms del 94 % al 100 % con la curva elástica. Es el único
@@ -4889,6 +4896,9 @@ body::after{
   background:linear-gradient(100deg,
     var(--ia-a) 0%,var(--ia-b) 25%,var(--ia-c) 50%,var(--ia-b) 75%,var(--ia-a) 100%);
   background-size:300% 100%;
+  /* El atajo background: devuelve la posición a 0 %; quieto está en 30 %, y sin repetirla el
+     degradado brincaba de tono al entrar y al salir el cursor. */
+  background-position:30% 50%;
   border-color:transparent;
   transform:translateY(-2px);
   box-shadow:var(--filo-corto),
@@ -4897,7 +4907,10 @@ body::after{
 }}
 /* Antes el hover cambiaba animation-duration a media vuelta, y eso recalcula el avance: el
    degradado saltaba cada vez que el cursor entraba o salía. */
-@media(hover:hover) and (pointer:fine){.ai-btn:hover::after{animation:ia-barrido-una .7s var(--ease-out) 1 both}}
+/* ia-barrido se queda PRIMERO en la lista: si el hover lo quitara, al salir el cursor volvería
+   a entrar como nombre nuevo y arrancaría otras dos pasadas. Así solo se suma y se quita la
+   pasada del cursor, que va después y gana mientras dura. */
+@media(hover:hover) and (pointer:fine){.ai-btn:hover::after{animation:ia-barrido 5.5s cubic-bezier(.2,.8,.2,1) .6s 2,ia-barrido-una .7s var(--ease-out) 1 both}}
 .ai-btn:active{transform:scale(.97) translateY(0)}
 .ai-btn:focus-visible{outline:2px solid var(--a-fuerte);outline-offset:3px}
 /* Deshabilitado: se para todo. Un botón que no se puede tocar y sigue brillando miente. */
@@ -4983,14 +4996,19 @@ body::after{
      de hoja del sistema operativo y se va por donde vino. Antes subía solo 26 px con opacidad y
      quedaba CENTRADA —medido: de 294 a 550 px en un teléfono de 844— aunque llevaba asa. */
   .modal-bg:has(>.modal){align-items:flex-end;padding:calc(18px + env(safe-area-inset-top,0px)) 0 0}
-  .modal{border-radius:20px 20px 0 0;max-width:none;padding-bottom:env(safe-area-inset-bottom,0px)}
+  /* .modal-bg>.modal y no .modal: vidrio.css —que va después— le pone el radio de las cuatro
+     esquinas a .modal, y con el mismo peso le ganaba: la hoja quedaba redondeada contra el borde. */
+  .modal-bg>.modal{border-radius:20px 20px 0 0;max-width:none;padding-bottom:env(safe-area-inset-bottom,0px)}
   /* El asa: dice que la hoja se baja con el dedo (ver «Las hojas del teléfono se cierran
      deslizando» en nucleo.js). Al soltar sin llegar, la hoja vuelve a su sitio con esta
      transición; al soltar para cerrar, la salida parte desde donde la dejó el dedo. */
   .modal-bg>.modal,.pf-modal-bg>.pf-panel{transition:transform .32s var(--ease-hoja)}
   .modal-bg:not(.show)>.modal,.pf-modal-bg:not(.show)>.pf-panel{opacity:1;transform:translateY(100%);transition-duration:.22s}
+  /* :not(.pf-modal-bg) para pesar lo mismo que el @starting-style de la computadora (8.2), que
+     lo lleva dentro de su :is(): con menos peso ganaba aquél y la hoja crecía del 96 % pegada
+     abajo en vez de subir. */
   @starting-style{
-    .modal-bg.show>.modal{opacity:1;transform:translateY(100%)}
+    .modal-bg:not(.pf-modal-bg).show>.modal{opacity:1;transform:translateY(100%)}
     .pf-modal-bg.show.entra>.pf-panel{opacity:1;transform:translateY(100%)}
   }
   .modal-bg>.modal>.modal-h{position:relative;padding-top:22px}
@@ -5086,12 +5104,14 @@ html[data-tema="oscuro"] .ai-btn{
   background:linear-gradient(100deg,
     var(--ia-a) 0%,var(--ia-b) 25%,var(--ia-c) 50%,var(--ia-b) 75%,var(--ia-a) 100%);
   background-size:300% 100%;
+  background-position:30% 50%;
   border-color:transparent;
 }
 @media(hover:hover){html[data-tema="oscuro"] .ai-btn:hover{
   background:linear-gradient(100deg,
     var(--ia-a) 0%,var(--ia-b) 25%,var(--ia-c) 50%,var(--ia-b) 75%,var(--ia-a) 100%);
   background-size:300% 100%;
+  background-position:30% 50%;
   border-color:transparent;
   filter:brightness(1.12);
 }}
@@ -5135,14 +5155,23 @@ html[data-tema="oscuro"] .ai-btn:disabled,html[data-tema="oscuro"] .ai-btn[disab
    cambió: los fundidos cortos, los cambios de color y un pulso lento en las esperas. */
 @media(prefers-reduced-motion:reduce){
   /* 1 · Nada se mueve solo */
-  #prog-bar::after,.cand-partidas,.cand-cliente.ojo,.srow.subtotal.cambio,.esq-b,.esq-boton,.ai-drop .ico,
-  .pf-ia-btn,.pf-ia-btn::after,.pf-ia-btn .svgi,.pf-decidir{animation:none!important}
+  #prog-bar::after,.cand-partidas,.cand-cliente.ojo,.srow.subtotal.cambio,.esq-b,.esq-b::after,.esq-boton,.esq-boton::after,
+  .ai-drop .ico,.pf-ia-btn,.pf-ia-btn::after,.pf-ia-btn .svgi,.pf-decidir{animation:none!important}
   /* 2 · Las entradas son solo un fundido */
-  .card,.pasos,.p1-cierre,.partida.nace,.pf-mod,.an-paso,.an-vista,.an-banda,.an-archivo,.an-retazos,.an-hoja,.an-hoja g>*{
+  /* body:not(.pf): las tarjetas de la plataforma no entran nunca (plataforma.css, body.pf .card),
+     y este !important las volvía a fundir en cada repintado, justo a quien pidió menos. */
+  body:not(.pf) .card,.pasos,.p1-cierre,.partida.nace,.pf-mod,.an-paso,.an-vista,.an-banda,.an-archivo,.an-retazos,.an-hoja,.an-hoja g>*{
     animation-name:aparece!important;animation-duration:.15s!important;animation-delay:0s!important}
+  /* Con las teclas 1-9 la pantalla no se funde (plataforma.css). Duración 0 y no animation:none:
+     así el nombre no cambia cuando vuelve el puntero y el fundido no se dispara con el primer clic. */
+  html[data-nav="teclado"] .pf-mod{animation-duration:0s!important}
+  /* Mientras arranca, oculto, nada corre: el fundido es al aparecer, todas las piezas juntas. */
+  html.arrancando :is(.card,.pasos,.p1-cierre,.an-paso,.an-vista){animation:none!important}
   /* 3 · Presionar y pasar el cursor: sin escala ni desplazamiento (el color sí cambia) */
   :is(.btn,.mbar-btn,.chip,.ai-btn,.addbtn,.pf-tab,.pf-lat-item,.pf-ia-btn,.pj-tarj,.tb-etapa,.cal-nav,.del,.dup,.pdf-vis,
-    .toast-act,.pf-cerrar,.an-tile,.sp-zoom button,.sp-cotas-fab button,.mbar-undo):active{transform:none!important}
+    .toast-act,.pf-cerrar,.an-tile,.sp-zoom button,.sp-cotas-fab button,.mbar-undo,
+    .btn-scaler-open,.btn-vector-open,.precios-ver,.btn-maps,.card-fold,.btn-hist,.puerta-btn,.tipo-seg button,.seg button,
+    .pf-sesion,.pf-cab-tema,.pf-banda button,.ia-copiar,.ia-cifra,.ia-frecuente,button.cal-plazo,.btn-wa):active{transform:none!important}
   @media(hover:hover){
     :is(.btn,.chip,.ai-btn,.addbtn,.pf-ia-btn,.pj-tarj,.tb-etapa,.an-tile,.ia-frecuente):hover{transform:none!important}
   }
@@ -5346,6 +5375,9 @@ html.con-puerta,html.con-puerta body{overflow:hidden}
 @media(max-width:560px){
   .partida .partida-top{flex-wrap:wrap;row-gap:var(--e2)}
   .partida .partida-top>.pnum{order:1}
+  /* El tipo de la partida plegada va junto al número, como en el DOM: con order 0 saltaba
+     delante del ▾ y del número. */
+  .partida .partida-top>.ptipo{order:1}
   .partida .partida-top>.lt{order:2;margin-left:auto;min-width:0}
   .partida .partida-top>.ptop-actions{order:3;margin-left:0;gap:0}
   /* 42 de ancho y 44 de alto: con el importe puesto (≈110 px) los tres iconos a 50 no cabían al

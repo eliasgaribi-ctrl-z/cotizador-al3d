@@ -677,10 +677,14 @@ function volarA(id) {
     const r = lienzo.getBoundingClientRect();
     if (r.bottom < 80 || r.top > innerHeight - 80) lienzo.scrollIntoView({ block: 'center', behavior: suave });
   }
-  if (suave === 'smooth') mapa.flyTo([Number(p.lat), Number(p.lng)], 16, { duration: .6 });
-  else mapa.setView([Number(p.lat), Number(p.lng)], 16);
   const m = MARCAS.get(id);
-  if (m) { try { m.openPopup(); } catch (_) {} return; }
+  if (suave === 'smooth') {
+    /* El globo se abre al terminar el vuelo: abierto en el mismo tick, su autoPan medía contra
+       la vista de partida y al llegar quedaba cortado contra el borde. */
+    if (m) mapa.once('moveend', () => { try { m.openPopup(); } catch (_) {} });
+    mapa.flyTo([Number(p.lat), Number(p.lng)], 16, { duration: .6 });
+  } else mapa.setView([Number(p.lat), Number(p.lng)], 16);
+  if (m) { if (suave !== 'smooth') { try { m.openPopup(); } catch (_) {} } return; }
   /* El pin se guardó pero el filtro de arriba no lo pinta —lo más común: no tiene fecha de
      instalación y el rango son 15 días—. Sin este aviso el mapa se va a un lugar vacío y
      parece que no se guardó nada. */

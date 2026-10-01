@@ -445,7 +445,9 @@ body.pf .pf-panel-f .btn{border-radius:18px}
 /* La zona de arrastre del modal de IA y la del anidador respiran mientras
    esperan el archivo: es lo único que se mueve en una pantalla vacía. */
 .ai-drop .ico,.modal .ai-drop .ico{animation:vid-respira 2.6s ease-in-out 3}
-@keyframes vid-respira{0%,100%{opacity:.55}50%{opacity:1}}
+/* Empieza y termina en su valor quieto (1): al revés, al acabar los tres respiros el icono
+   saltaba del 55 % al 100 %. */
+@keyframes vid-respira{0%,100%{opacity:1}50%{opacity:.55}}
 
 /* Quien las pidió sin animación no las tiene. Misma regla que sistema.css.
 

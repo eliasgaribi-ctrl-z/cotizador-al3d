@@ -306,7 +306,10 @@
 @media(prefers-reduced-motion:reduce){
   .an-paso,.an-vista,.an-banda,.an-archivo,.an-retazos,.an-hoja,.an-hoja g>*,.an-marcador.mejora .an-gauge-wrap{animation:none}
   .an-mesa.corriendo::after{animation:none;display:none}
-  .an-gauge-fg,.an-prog-bar,.an-tile,.an-tile-hoja{transition:none}
+  .an-gauge-fg,.an-prog-bar,.an-prog-bar.sube,.an-tile,.an-tile-hoja{transition:none}
+  /* Una mejora no se funde: el fundido corto de sistema.css («Menos movimiento no es ninguno»)
+     va con !important y hacía parpadear la hoja desde 0 cada pocos segundos. */
+  .an-hoja.mejora,.an-hoja.mejora g>*{animation:none!important}
 }
 
 /* ============================================================================

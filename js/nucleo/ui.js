@@ -332,6 +332,13 @@ export function cerrarCapa(id) {
    último tramo (0,11 px/ms); hacia arriba cede con resistencia; y al soltar para cerrar, la
    salida de CSS parte desde donde la dejó el dedo. */
 let _hoja = null;
+/* El velo CONTIENE la hoja: bajarle la opacidad volvía translúcida también la hoja y su texto.
+   Se aclara solo su color de fondo, con el alfa que ya trae de la hoja de estilos. */
+function _fondoDe(el) {
+  const m = /rgba?\(([^)]+)\)/.exec(getComputedStyle(el).backgroundColor || ''); if (!m) return null;
+  const p = m[1].split(',').map(s => s.trim()); if (p.length < 3) return null;
+  return { rgb: p.slice(0, 3).join(','), a: p[3] != null ? Number(p[3]) : 1 };
+}
 const _esTelefono = () => { try { return matchMedia('(max-width:560px)').matches; } catch (_) { return false; } };
 /* Solo en un documento: este módulo también lo importan las pruebas de node. */
 if (typeof document !== 'undefined') document.addEventListener('touchstart', e => {
@@ -352,22 +359,34 @@ function _moverHoja(e) {
     if (Math.abs(dy) < 6) return;
     if (dy < 0) { _soltarHoja(); return; }
     _hoja.activo = true; _hoja.m.style.transition = 'none'; _hoja.velo.style.transition = 'none';
+    _hoja.fondo = _fondoDe(_hoja.velo);
   }
   _hoja.dy = dy > 0 ? dy : -Math.sqrt(-dy) * 3;
   _hoja.pts.push([e.timeStamp, dy]);
   while (_hoja.pts.length > 2 && e.timeStamp - _hoja.pts[0][0] > 100) _hoja.pts.shift();
-  _hoja.m.style.transform = 'translateY(' + _hoja.dy + 'px)';
-  _hoja.velo.style.opacity = String(Math.max(.35, 1 - Math.max(0, _hoja.dy) / (_hoja.m.offsetHeight || 600)));
+  /* important: con «menos movimiento» la hoja lleva transform:none!important (sistema.css) y
+     sin esto no seguía al dedo. */
+  _hoja.m.style.setProperty('transform', 'translateY(' + _hoja.dy + 'px)', 'important');
+  if (_hoja.fondo) _hoja.velo.style.backgroundColor = 'rgba(' + _hoja.fondo.rgb + ',' +
+    (_hoja.fondo.a * Math.max(.35, 1 - Math.max(0, _hoja.dy) / (_hoja.m.offsetHeight || 600))) + ')';
   e.preventDefault();
 }
-function _soltarHoja() {
+function _soltarHoja(e) {
   document.removeEventListener('touchmove', _moverHoja);
   const h = _hoja; _hoja = null; if (!h || !h.activo) return;
   const a = h.pts[0], b = h.pts[h.pts.length - 1];
-  const v = (a && b && b[0] > a[0]) ? (b[1] - a[1]) / (b[0] - a[0]) : 0;
-  h.m.style.transition = ''; h.velo.style.transition = ''; h.velo.style.opacity = '';
-  h.m.style.transform = '';
-  if (h.dy > 90 || (h.dy > 12 && v > 0.11)) { try { h.cerrar(); } catch (_) {} }
+  /* La velocidad es la del ÚLTIMO tramo antes de soltar: si el dedo se quedó quieto más de
+     100 ms, ya no hay deslizón aunque los dos últimos puntos lo parezcan. */
+  const t = (e && e.timeStamp) || performance.now();
+  const v = (a && b && b[0] > a[0] && t - b[0] <= 100) ? (b[1] - a[1]) / (b[0] - a[0]) : 0;
+  h.m.style.transition = ''; h.velo.style.transition = '';
+  h.m.style.removeProperty('transform');
+  const cierra = h.dy > 90 || (h.dy > 12 && v > 0.11);
+  /* Al cerrar, el velo se desvanece desde el tono al que lo llevó el dedo; devolverle el suyo
+     en el mismo cuadro lo oscurecía de golpe antes de irse. */
+  if (cierra) setTimeout(() => { h.velo.style.backgroundColor = ''; }, 300);
+  else h.velo.style.backgroundColor = '';
+  if (cierra) { try { h.cerrar(); } catch (_) {} }
 }
 if (typeof document !== 'undefined') {
   document.addEventListener('touchend', _soltarHoja, { passive: true });
@@ -400,15 +419,23 @@ export function repintarEnSitio(capa, html) {
    siguiente», una pestaña de Material o de Control—, y el botón enfocado deja de existir: quien
    navega con teclado caía al <body>, al principio del documento. Esto envuelve un manejador:
    recuerda los atributos data-* del control enfocado dentro del contenedor y, si después del
-   repintado el foco se perdió, lo devuelve al control equivalente. */
+   repintado el foco se perdió, lo devuelve al control equivalente.
+   Solo cuando la acción vino del teclado (una tecla, o el clic que dispara Enter/Espacio, que
+   llega con detail 0): con el ratón el foco no se ve, y devolverlo a un control que no es el
+   que se tocó deja un Enter posterior apuntando a otra cosa. Si el control trae data-clave, es
+   su identidad estable y se busca solo por ella (el data-acc del Tablero es una posición en la
+   lista y cambia de dueño al repintar). */
 export function conservandoFoco(fn, contFijo) {
   return async function (ev) {
     const cont = contFijo || ev.currentTarget;
     const a = document.activeElement;
+    const teclado = !!ev && ev.detail === 0;
     const at = a && cont && cont.contains && cont.contains(a)
-      ? Array.from(a.attributes).filter(x => x.name.startsWith('data-')) : null;
+      ? (a.hasAttribute('data-clave') ? [a.getAttributeNode('data-clave')]
+                                      : Array.from(a.attributes).filter(x => x.name.startsWith('data-')))
+      : null;
     await fn.call(this, ev);
-    if (!at || !at.length || a.isConnected) return;
+    if (!teclado || !at || !at.length || a.isConnected) return;
     if (document.activeElement && document.activeElement !== document.body) return;   // otro lo tomó
     let b = null;
     try { b = cont.querySelector(at.map(x => '[' + x.name + '="' + CSS.escape(x.value) + '"]').join('')); } catch (_) {}

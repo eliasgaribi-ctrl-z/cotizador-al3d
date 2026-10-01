@@ -83,6 +83,7 @@ a { color: var(--a-tx); }
 .pub-btn { transition: background-color .15s ease, transform .16s var(--ease-out); }
 .pub-btn:active { transform: scale(.97); }
 .pub-btn:disabled { opacity: .6; cursor: default; transform: none; }
+@media (prefers-reduced-motion: reduce) { .pub-btn:active { transform: none; } }
 
 /* ----- El pie ----- */
 .pub-pie {
