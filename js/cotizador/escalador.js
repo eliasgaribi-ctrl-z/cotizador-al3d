@@ -216,7 +216,11 @@ function scRestaurar(s){
 function scPuedeCambiarImagen(){
   if(!(SC.img&&SC.items&&SC.items.length)) return Promise.resolve(true);
   const n=SC.items.length;
-  return confirmar({titulo:'La imagen actual tiene '+n+(n===1?' medida':' medidas'),texto:'Al cargar otra imagen se borran.',si:'Cargar la otra',no:'Conservar las medidas',peligro:true});
+  /* Con `sostener`: es la única pregunta del cotizador que de verdad BORRA —las medidas tomadas
+     sobre la foto, que no se pueden deshacer—, y por eso se confirma sosteniendo el botón. Las otras
+     cuatro preguntas rojas solo avisan de que se pierde lo que está en pantalla, y se contestan con
+     un toque (ver confirmar() en nucleo.js). */
+  return confirmar({titulo:'La imagen actual tiene '+n+(n===1?' medida':' medidas'),texto:'Al cargar otra imagen se borran.',si:'Cargar la otra',no:'Conservar las medidas',peligro:true,sostener:true});
 }
 /* ----- Un error que dice qué hacer, no solo qué falló -----
    Los dos <input> aceptan `image/*`, así que un .HEIC que llegó por AirDrop o por correo se

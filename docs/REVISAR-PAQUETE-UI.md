@@ -15,6 +15,53 @@ media y un iPhone de verdad siguen pendientes, y es donde más probable es que a
 
 Cada punto trae su gravedad —alta, media o baja— puesta por quien lo escribió.
 
+## Decisiones de producto que siguen abiertas
+
+Tres salieron del paquete y Dirección ya resolvió una. Las otras dos **siguen pendientes** y
+conviene cerrarlas antes de publicar, porque las dos cambian lo que ve o firma un cliente.
+
+### ✅ Resuelta · Sostener para confirmar
+
+Los cinco `confirmar({peligro:true})` del cotizador pedían **mantener presionado un segundo**. En
+realidad solo dicen «si abres esta, se pierde la que tienes en pantalla», y abrir otra cotización
+del historial se hace muchas veces al día: un peaje de un segundo se aprende a pagar sin leer.
+
+**Decidido (1-oct-2026):** un toque. El sostener se desligó de `peligro` —que ahora solo pinta el
+botón de rojo— y se pide aparte con `sostener:true`, solo donde algo se borra de verdad. Hoy lo usa
+una sola pregunta: cargar otra imagen en el escalador, que borra las medidas tomadas. Lo demás que
+sostiene en la app (la × de una partida con datos, borrar del historial, «Sí, borrar todo» y
+restaurar un respaldo) no pasa por `confirmar()`: lo arma cada pantalla sobre su propio botón.
+
+### ⬜ Pendiente · La tolerancia del choque en la mesa de corte
+
+**Es una pregunta para el taller, no para la pantalla.** Al mover una pieza a mano sobre la hoja, el
+choque perdona traslapes de **menos de 1 mm²** y deja que dos piezas queden a **~2.7 mm** en vez de
+los 3 mm de separación. No fue capricho: el propio motor del anidador deja sus piezas a media
+separación del borde, así que exigir los 3 mm completos habría rechazado posiciones que el motor
+mismo produce.
+
+La pregunta concreta: **¿2.7 mm entre dos piezas alcanzan para el corte**, contando el grosor del
+haz y el calor? Si el cortador necesita los 3 completos, es cambiar una constante.
+
+Dónde: `anidador-vectores/js/app.js`, `porQueNoCabe()`, constantes `HOLGURA_MM` (0.3) y
+`CHOQUE_MM2` (1), y el margen de orilla = separación/2.
+
+### ⬜ Pendiente · Mandar una cotización con opciones sin elegir
+
+Cuando se proponen aluminio, acrílico y caja de luz lado a lado, el cliente todavía no elige. Hoy el
+total suma **la opción que esté abierta**, no cero, y el PDF lleva su hoja con las tres. Al intentar
+autorizar sale el aviso de «partidas sin terminar»… pero deja seguir **«de todos modos»**.
+
+O sea que hoy **sí se puede mandar y autorizar** una cotización donde el cliente no ha elegido.
+
+Las dos salidas son defendibles: dejarlo así —a veces quieres mandar justo eso, las tres opciones
+para que el cliente decida— o cerrarlo para que no se pueda autorizar hasta elegir. Falta decidir.
+
+Dónde: `js/cotizador/partidas.js`, `resumenPartida()` y `opcionesDe()`; el aviso lo pinta
+`pintarFaltantes()` en `js/cotizador/proceso.js`.
+
+---
+
 ## Cotizador · partidas y completitud (cot-partidas)
 
 Fichas: 9 hecho, 2 parcial.

@@ -946,10 +946,10 @@ async function ronda(R, indice) {
   cierto((await ev(() => Q.proy)) === 'Otro letrero', 'y «Seguir con la mía» no pierde nada');
   await p.tap('#cua-aviso .cua-aviso-ver'); await p.waitForTimeout(400);
   await p.tap('.vistazo:popover-open [data-cua="duplicar"]'); await p.waitForTimeout(500);
-  /* Es una pregunta con `peligro` (la cotización de la pantalla se pierde): se contesta sosteniendo el
-     botón, no con un toque (C23 #5, zona cot-cliente). */
-  const bsi = await p.locator('#conf-si').boundingBox();
-  await dedo.abajo(bsi.x + bsi.width / 2, bsi.y + bsi.height / 2); await p.waitForTimeout(1250); await dedo.arriba();
+  /* Es una pregunta roja —la cotización de la pantalla se pierde— pero NO borra nada, así que se
+     contesta con un toque: el sostener se reservó para lo que de verdad borra (ver confirmar() en
+     nucleo.js). Esto se probó primero al revés y se corrigió cuando Dirección lo decidió. */
+  await p.tap('#conf-si');
   await p.waitForTimeout(900);
   const dd = await ev(() => ({ estado: Q.estado, n: Q.items.length, cli: Q.cliente, folio: Q.folio, proy: Q.proy }));
   cierto(dd.estado === 'borrador' && dd.n === 2 && dd.cli === 'Panadería La Espiga' && dd.folio !== 'COT-0050', 'confirmar duplica la última en un borrador nuevo, con sus partidas', JSON.stringify(dd));

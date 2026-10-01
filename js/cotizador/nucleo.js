@@ -844,15 +844,27 @@ function confirmar(o){
     $('conf-texto').textContent=o.texto||'';
     const si=$('conf-si'); si.textContent=o.si||'Continuar'; si.className='btn '+(o.peligro?'btn-dgr':'btn-pri');
     $('conf-no').textContent=o.no||'Cancelar';
+    /* ----- Sostener para confirmar: solo donde se BORRA, y por eso no cuelga de `peligro` -----
+       La primera versión ató el sostener a `peligro`, que es lo que pedía el paquete para «lo
+       destructivo». Pero las cinco preguntas marcadas así en el cotizador no borran nada: dicen
+       «si abres COT-0042, la que está en pantalla se pierde», y abrir otra cotización del historial
+       se hace muchas veces al día. Un segundo de espera cada vez deja de ser una red y se vuelve un
+       peaje, y un peaje se aprende a pagar sin leer: justo lo contrario de lo que se buscaba.
+
+       Así que `peligro` se queda con lo suyo —el botón rojo, que dice de qué lado está la pregunta—
+       y el sostener se pide aparte, con `sostener:true`, solo donde algo se borra de verdad. Hoy lo
+       usa una: cargar otra imagen en el escalador, que sí borra las medidas tomadas. Lo demás que
+       sostiene en la app (la × de una partida con datos, borrar del historial, «Sí, borrar todo» y
+       restaurar un respaldo) no pasa por aquí: lo arma cada pantalla sobre su propio botón. */
     const P=window.Piezas;
     if(P&&P.mantener){
-      if(o.peligro) P.mantener(si,{tono:'mal',ms:1000,alConfirmar:confirmarSi});
+      if(o.sostener) P.mantener(si,{tono:'mal',ms:1000,alConfirmar:confirmarSi});
       else P.mantener.quitar(si);
     }
     /* Dicho también en la pantalla, antes de que alguien toque y no pase nada: la pieza solo avisa
        cuando un toque corto ya falló. Va aria-hidden porque el botón mismo ya dice «mantén
        presionado para confirmar» a quien no lo ve. */
-    const pista=$('conf-pista'); if(pista) pista.hidden=!o.peligro;
+    const pista=$('conf-pista'); if(pista) pista.hidden=!o.sostener;
     $('confmodal').classList.add('show');
   });
 }

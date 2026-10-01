@@ -515,16 +515,21 @@ async function ronda(R, indice) {
     sinErrores(s, 'con los nombres'); await s.sinDesborde('con los nombres'); await s.cierra();
   }
 
-  /* ============================== 6 · MANTENER PARA CONFIRMAR LO DESTRUCTIVO (C23 #5) ============================== */
+  /* ============================== 6 · SOSTENER PARA CONFIRMAR, SOLO DONDE SE BORRA (C23 #5) ==============================
+     Lo que se defiende aquí, y que costó una vuelta: `peligro` pinta el botón de rojo y nada más;
+     el sostener se pide aparte con `sostener:true`, y hoy solo lo usa cargar otra imagen en el
+     escalador, que sí borra las medidas. Las cuatro preguntas de «se pierde lo que tienes en
+     pantalla» se contestan con un toque, porque abrir otra cotización del historial se hace muchas
+     veces al día y un peaje de un segundo se aprende a pagar sin leer. */
   {
-    console.log('\n  — mantener para confirmar —');
+    console.log('\n  — sostener para confirmar, solo donde se borra —');
     const s = await sesion(R); const { p, ev } = s;
-    const abre = peligro => ev(pe => { window.__r = undefined; confirmar({ titulo: 'Tienes una cotización sin autorizar', texto: 'Si abres COT-0038, la que está en pantalla se pierde.', si: 'Abrir COT-0038', no: 'Seguir con la mía', peligro: pe }).then(v => { window.__r = v; }); }, peligro);
+    const abre = (peligro, sostener) => ev(([pe, so]) => { window.__r = undefined; confirmar({ titulo: 'Tienes una cotización sin autorizar', texto: 'Si abres COT-0038, la que está en pantalla se pierde.', si: 'Abrir COT-0038', no: 'Seguir con la mía', peligro: pe, sostener: so }).then(v => { window.__r = v; }); }, [peligro, sostener]);
     const estado = () => ev(() => { const b = document.getElementById('conf-si'), pi = document.getElementById('conf-pista'); return { r: window.__r, abierto: document.getElementById('confmodal').classList.contains('show'),
       mant: b.classList.contains('mantener'), hecho: b.classList.contains('hecho'), pista: !pi.hidden, nombre: b.textContent.replace(/\s+/g, ' ').trim(), clase: b.className }; });
-    await abre(true); await p.waitForTimeout(250);
+    await abre(true, true); await p.waitForTimeout(250);
     const c0 = await estado();
-    cierto(c0.abierto && c0.mant && c0.pista && /mantén presionado/i.test(c0.nombre), 'con peligro el botón se vuelve «mantener presionado» y el diálogo lo dice', JSON.stringify(c0));
+    cierto(c0.abierto && c0.mant && c0.pista && /mantén presionado/i.test(c0.nombre), 'con sostener el botón se vuelve «mantener presionado» y el diálogo lo dice', JSON.stringify(c0));
     const cp = await ev(enPagina.contraste, '#conf-pista');
     cierto(cp >= 4.5, 'la pista se lee: ' + (cp && cp.toFixed(2)) + ':1');
     await s.captura('08-confirmar-peligro');
@@ -544,29 +549,29 @@ async function ronda(R, indice) {
     const c3 = await estado();
     cierto(c3.r === true && !c3.abierto, 'sostenerlo un segundo confirma y cierra el diálogo', JSON.stringify(c3));
     /* Con el teclado: Enter sostenido. */
-    await abre(true); await p.waitForTimeout(250);
+    await abre(true, true); await p.waitForTimeout(250);
     await p.focus('#conf-si'); await p.keyboard.down('Enter'); await p.waitForTimeout(450); await p.keyboard.up('Enter'); await p.waitForTimeout(250);
     cierto((await estado()).r === undefined, 'Enter suelto a la mitad no confirma');
     await p.keyboard.down('Enter'); await p.waitForTimeout(1250); await p.keyboard.up('Enter'); await p.waitForTimeout(250);
     cierto((await estado()).r === true, 'Enter sostenido sí: es la alternativa del teclado');
     /* Escape sigue siendo «no», y la siguiente pregunta vuelve a armarse limpia. */
-    await abre(true); await p.waitForTimeout(250);
+    await abre(true, true); await p.waitForTimeout(250);
     await p.keyboard.press('Escape'); await p.waitForTimeout(250);
     const c4 = await estado();
     cierto(c4.r === false && !c4.abierto, 'Escape contesta «no»', JSON.stringify(c4));
-    await abre(true); await p.waitForTimeout(250);
+    await abre(true, true); await p.waitForTimeout(250);
     const c5 = await estado();
     cierto(c5.mant && !c5.hecho && c5.abierto, 'la pregunta siguiente se arma limpia (no queda «hecho» de la anterior)', JSON.stringify(c5));
     await ev(() => confirmarNo()); await p.waitForTimeout(200);
     /* Sin peligro: un toque basta, y no queda nada de la pieza. */
-    await abre(false); await p.waitForTimeout(250);
+    await abre(true, false); await p.waitForTimeout(250);
     const c6 = await estado();
-    cierto(c6.abierto && !c6.mant && !c6.pista && c6.nombre === 'Abrir COT-0038' && /btn-pri/.test(c6.clase), 'sin peligro el botón es el de siempre, sin pieza ni pista', JSON.stringify(c6));
+    cierto(c6.abierto && !c6.mant && !c6.pista && c6.nombre === 'Abrir COT-0038' && /btn-dgr/.test(c6.clase), 'rojo pero sin sostener —el caso de las cuatro preguntas— el botón es el de siempre, sin pieza ni pista', JSON.stringify(c6));
     await p.tap('#conf-si'); await p.waitForTimeout(250);
     const c7 = await estado();
     cierto(c7.r === true && !c7.abierto, 'y un toque contesta que sí', JSON.stringify(c7));
     /* Y el «no» siempre es un toque. */
-    await abre(true); await p.waitForTimeout(250);
+    await abre(true, true); await p.waitForTimeout(250);
     await p.tap('#conf-no'); await p.waitForTimeout(250);
     cierto((await estado()).r === false, '«Seguir con la mía» contesta con un toque, aun con peligro');
     await s.sinBucles('con el diálogo', '#confmodal');
