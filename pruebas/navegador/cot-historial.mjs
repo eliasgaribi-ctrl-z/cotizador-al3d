@@ -833,7 +833,14 @@ async function ronda(R, indice) {
   await ev(() => { const a = getHistorial(); const nuevo = JSON.parse(JSON.stringify(a[0])); nuevo.folio = 'COT-0060'; nuevo.ts = Date.now(); a.unshift(nuevo); saveHistorial(a); abrirCuadernos(); });
   await p.waitForTimeout(500);
   await ev(() => abrirCuaderno('tel:3311112222'));
-  await p.waitForTimeout(120);
+  /* Se mira PRONTO a propósito: la clase `rueda-rodando` solo está mientras rueda, y con 900 ms
+     ya se perdió. Pero un `waitForTimeout(120)` fijo se cae cuando la máquina va cargada —la tanda
+     completa corre cuatro navegadores a la vez— y entonces no hay ni cifras que leer: la prueba
+     fallaba con [] y reventaba dos líneas más abajo. Se espera a que las tres existan, que es la
+     condición de verdad, y se leen en ese momento: el texto ya es el final (la pieza lo escribe de
+     una vez y anima la tira de dígitos), así que la marca de rodando sigue puesta. */
+  await p.waitForFunction(() => document.querySelectorAll('#cua-body .cua-cifra b').length === 3,
+    { timeout: 6000 }).catch(() => {});
   const cif2 = await ev(() => [...document.querySelectorAll('#cua-body .cua-cifra b')].map(b => ({ t: b.textContent, r: b.classList.contains('rueda-rodando') })));
   cierto(cif2.map(c => c.t).join('|') === '3|$34,800.00|$11,600.00', 'con una cotización más: 3 y $34,800.00', JSON.stringify(cif2));
   if (!red) cierto(cif2[0].r && cif2[1].r && !cif2[2].r, 'las que cambiaron ruedan y el promedio, que no cambió, no', JSON.stringify(cif2));
