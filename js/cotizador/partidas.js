@@ -338,6 +338,7 @@ function typeItem(id,k,v){
   if(f) f.innerHTML=formulaHTML(it);
   if(l) l.innerHTML=ltHTML(it);
   pintarResumen(it);
+  opcionesRepintar(it);
   /* updProg además de renderSummary: la barra de completitud y el «falta esto» se quedaban
      con la cuenta de antes mientras se teclea —los campos del proyecto sí la refrescan
      desde upd(), los de la partida no—, así que decía que faltaba la altura con la altura
@@ -574,6 +575,7 @@ function autoContarLetras(id,texto){
   if(f) f.innerHTML=formulaHTML(it);
   if(l) l.innerHTML=ltHTML(it);
   pintarResumen(it);
+  opcionesRepintar(it);
   /* El letrero de C14 sigue lo que se escribe. fijar() no anima ni repinta la lista: es el único
      sitio donde el letrero cambia a cada tecla y por eso NO pasa por renderItems(). */
   if(it.tipo==='letras') pintarLetrero(it);
@@ -954,7 +956,9 @@ function empezarConTipo(t){
   addItem({heredar:t==='letras',tipo:t,viaje:true});
 }
 function _mosResalte(b){
-  const caja=b&&b.closest('.mosaicos'), r=caja&&caja.querySelector('.resalte-mos'); if(!r) return;
+  /* La rejilla de opciones de una partida (pieza 76) es el mismo Highlight Grid con otra caja: un
+     solo resaltado, el mismo CSS y los mismos tres oyentes. */
+  const caja=b&&b.closest('.mosaicos,.opciones-rej'), r=caja&&caja.querySelector('.resalte-mos'); if(!r) return;
   const ya=r.classList.contains('ve');
   /* La primera vez nace en su sitio, sin recorrer el mosaico desde la esquina. */
   if(!ya){ r.classList.add('sin-t'); }
@@ -964,15 +968,15 @@ function _mosResalte(b){
 }
 function _mosSobre(e){
   if(e.pointerType!=='mouse') return;
-  const b=e.target.closest&&e.target.closest('.mos'); if(b) _mosResalte(b);
+  const b=e.target.closest&&e.target.closest('.mos,.op-card'); if(b) _mosResalte(b);
 }
 function _mosFuera(e){
-  const caja=e.target.closest&&e.target.closest('.mosaicos'); if(!caja) return;
+  const caja=e.target.closest&&e.target.closest('.mosaicos,.opciones-rej'); if(!caja) return;
   if(e.relatedTarget&&caja.contains(e.relatedTarget)) return;
   const r=caja.querySelector('.resalte-mos'); if(r) r.classList.remove('ve');
 }
 function _mosFoco(e){
-  const b=e.target.closest&&e.target.closest('.mos'); if(!b) return;
+  const b=e.target.closest&&e.target.closest('.mos,.op-card'); if(!b) return;
   let visible=true; try{ visible=b.matches(':focus-visible'); }catch(_){}
   if(visible) _mosResalte(b);
 }
@@ -1140,7 +1144,7 @@ function renderItems(){
       </div>
       ${resumenHTML(it)}
       </div>
-      <div class="pbody" id="pbody-${it.id}">${bodyFor(it)}</div>
+      <div class="pbody" id="pbody-${it.id}">${cuerpoConOpciones(it)}</div>
       <!-- La fórmula va FUERA de .pbody a propósito: es lo único del cuerpo que se queda a la
            vista al plegar. El total se subió al encabezado —ver arriba— y desde ahí sigue
            fuera de .pbody y sigue siendo donde se espían los importes tapados. -->
@@ -1597,6 +1601,10 @@ function resumenPartida(it){
     it.pz>0?ok(it.pz+(it.pz===1?' pieza':' piezas')):falta('Faltan piezas');
     it.pu>0?push(money(it.pu)+' c/u','ok',{dinero:true}):falta('Falta precio unitario');
   }
+  /* Una partida con opciones por elegir tiene un hueco más, y es de los que frenan: mientras el
+     cliente no elija, el trabajo que se va a fabricar no está decidido (pieza 76). Por esta misma
+     lista salen la barra de completitud, el «qué sigue» y el aviso de partidas sin terminar. */
+  if(opcionesDe(it)) push(FALTA_OPCION,'falta',{opcion:true});
   return t;
 }
 /* ----- La cara de la partida plegada -----
@@ -1622,10 +1630,13 @@ function resumenPartida(it){
    primer teclazo, porque el otro reescribía el innerHTML sin ella. */
 function caraPlegadaHTML(it){
   const fichas=resumenPartida(it);
-  const huecos=fichas.filter(f=>f.estado==='falta').length;
+  /* El hueco de «elegir la opción» no es un dato que falte capturar: tiene su propia ficha, que
+     dice cuál de cuántas está abierta, y no se cuenta en el «Falta 1 dato». */
+  const huecos=fichas.filter(f=>f.estado==='falta'&&!f.opcion).length;
   const desc=(it.desc||'').trim();
   const tok=(txt,cls)=>`<span class="ptok ${cls}">${esc(txt)}</span>`;
   return `<span class="pdsc${desc?'':' vacia'}">${desc?esc(desc):'Sin descripción'}</span>`
+    +opcionFichaPlegada(it,tok)
     +(huecos?tok(huecos===1?'Falta 1 dato':`Faltan ${huecos} datos`,'falta'):'')
     +fichas.filter(f=>f.estado==='ok'||(f.estado==='off'&&f.pesa))
            .map(f=>tok(f.txt,f.estado+(f.dinero?' dinero':''))).join('')
@@ -1782,7 +1793,8 @@ function formulaHTML(it){
 }
 function formulaFor(it){
   // Con datos incompletos la fórmula era "$0 ($0) × 0cm × 0": mejor decir qué falta.
-  const faltan=faltantesDe(it);
+  /* «Elegir la opción» no tapa la cuenta: la fórmula es la de la opción que está abierta. */
+  const faltan=faltantesDe(it).filter(x=>x!==_FALTA_OPCION_DICE);
   /* A la partida manual que solo le falta la descripción no se le esconde la cuenta: el
      precio existe y se cobra, y taparlo con «Falta: descripción» dejaría el total del
      encabezado sin explicar. Se dice al final de la fórmula. */
@@ -1950,3 +1962,384 @@ function updItemAuth(id,val){
   }
 }
 
+
+/* ===================== Propuesta con opciones (pieza 76) =====================
+   Hasta aquí una cotización era UNA propuesta: para enseñarle al cliente el mismo anuncio en
+   aluminio, en acrílico y en caja de luz había que armar tres cotizaciones, o capturar una y
+   cambiarle el material con el cliente mirando la pantalla (C13 lo espía sin elegir, pero de a
+   un chip). Esto deja poner dos o tres maneras de hacer el mismo trabajo lado a lado, cada una con
+   su cuenta, y la que el cliente elige pasa a ser la partida.
+
+   ----- Por qué NO es un tipo de partida nuevo ni varias partidas marcadas como alternativas -----
+   Se midieron las dos y se descartaron.
+     · Un tipo `opciones` que contenga sus variantes deja a la partida sin los campos que todos
+       leen: lineTotal, piezasDe, itemPrecio, la huella del trabajo, la orden de trabajo, el
+       registro de la venta y la lista de material a comprar preguntan por `it.tipo` y por
+       `it.altura`, `it.ancho`… Habría que enseñarle a cada uno qué es una partida con opciones,
+       en archivos que no son de esta zona (proceso, venta, notario, historial).
+     · Varias partidas normales «alternativas entre sí» obligan a que CADA lugar que suma o que
+       lista Q.items se acuerde de saltarse las no elegidas: el total, el material a comprar, la
+       orden de trabajo, el PDF, el texto de WhatsApp. Basta con que uno se olvide y la opción que
+       el cliente NO eligió se cobra y se compra.
+   Lo que se hizo es lo contrario: la partida sigue siendo UNA partida normal, con los campos de
+   siempre, y esos campos son los de la opción que está ABIERTA. Las demás opciones viven aparte,
+   en `it.opciones`, como copias de campos que nadie suma ni lista. Cambiar de opción intercambia
+   lo que hay en la partida por la copia guardada; elegir una borra `it.opciones` y ya está: lo que
+   queda es una partida de las de siempre, sin una sola rama nueva en el total, la huella, el
+   historial, la orden de trabajo ni el registro de la venta. Nunca hay más de una opción
+   contando: las no elegidas no están en el total ni en el material a comprar porque no están en
+   ningún sitio donde se sume.
+
+   La opción abierta es la única que cuenta mientras el cliente no elige. Es un compromiso a
+   propósito: la alternativa —que mientras tanto no cuente ninguna— deja una partida en $0 en el
+   total, el PDF y el anticipo, que es peor que dejar la que se está viendo. Lo que impide que eso
+   se vaya sin querer es que la partida tiene un hueco más, «Falta elegir la opción»: sale en la
+   barra de completitud, en el «qué sigue» y en el aviso de partidas sin terminar que frena —con
+   un «de todos modos»— el mandar a autorizar y el autorizar.
+
+   ----- Forma de los datos -----
+   it.opciones = { lista:[{k, d:{…campos de la opción…}}, …], activa:k }
+     · `k` es la identidad de la opción (1, 2, 3…): la letra se saca de la POSICIÓN —A, B, C—, así
+       que quitar la B hace que la C pase a ser B sin tocar nada guardado.
+     · `d` de la opción abierta está VIEJA a propósito. Lo vivo es la partida; `opcionesVivas()`
+       lo lee de ahí. Dos fuentes de la misma cifra se desfasan en cuanto alguien teclea.
+     · Todo lo que no sea id, showInPdf u opciones es de la opción (el catálogo de campos de una
+       partida lo escriben cinco módulos y crece: una lista fija de campos perdería, sin avisar,
+       `anchoMedido` o lo que se añada mañana).
+   Una partida con una forma inválida (un respaldo viejo, un historial a medias) se trata como una
+   partida sin opciones: ni truena ni cobra de más. Los precios de cada opción salen de las
+   mismas tarifas y de la misma lineTotal() que el resto, sobre una copia: nada se escribe en Q.
+
+   ----- Lo que pasa al elegir -----
+   Es el momento de la pantalla, y se trata como tal: la tarjeta elegida se marca, el importe viaja
+   de la tarjeta al total de la partida (P.transicion, pieza 22), las otras se cierran y las
+   partidas de abajo se acomodan. Con menos movimiento solo se repinta. En los dos casos hay un
+   aviso con «Deshacer» —restituir no es capturar— y se dice en voz alta. */
+const OPC_MAX=3;
+const OPC_LETRAS=['A','B','C'];
+const FALTA_OPCION='Falta elegir la opción';
+const _FALTA_OPCION_DICE=FALTA_OPCION.replace(/^Faltan? /,'').toLowerCase();
+/* Lo que NO cambia al pasar de una opción a otra: la identidad de la partida, si sale en el PDF y
+   las propias opciones. */
+const _OPC_FUERA=['id','showInPdf','opciones'];
+
+function _opCopia(v){ return (v!==null&&typeof v==='object')?JSON.parse(JSON.stringify(v)):v; }
+/* Copia de los campos de la opción que está en la partida. */
+function _opDatos(it){
+  const d={};
+  Object.keys(it).forEach(k=>{ if(!_OPC_FUERA.includes(k)) d[k]=_opCopia(it[k]); });
+  return d;
+}
+/* La misma sanidad que normalizarItems() le da a una partida que llega de un respaldo: las cifras
+   en número, un tipo que existe. Una copia guardada es dato de fuera hasta que pasa por aquí. */
+function _opNormal(d,id){
+  const x=normalizarItems([Object.assign({},d,{id:id||1})])[0]||{};
+  delete x.id;
+  return x;
+}
+/* Pone en la partida los campos de una opción guardada. */
+function _opCargar(it,d){
+  Object.keys(it).forEach(k=>{ if(!_OPC_FUERA.includes(k)) delete it[k]; });
+  const n=_opNormal(d,it.id);
+  Object.keys(n).forEach(k=>{ if(!_OPC_FUERA.includes(k)) it[k]=_opCopia(n[k]); });
+}
+/* La propuesta de una partida, o null si no tiene una válida. */
+function opcionesDe(it){
+  const o=it&&it.opciones;
+  if(!o||typeof o!=='object'||!Array.isArray(o.lista)) return null;
+  if(o.lista.length<2||o.lista.length>OPC_MAX) return null;
+  const ks=new Set();
+  for(const x of o.lista){
+    if(!x||typeof x!=='object'||!Number.isInteger(x.k)||x.k<1||ks.has(x.k)) return null;
+    if(!x.d||typeof x.d!=='object'||Array.isArray(x.d)||!_TIPOS_PARTIDA.includes(x.d.tipo)) return null;
+    ks.add(x.k);
+  }
+  return ks.has(o.activa)?o:null;
+}
+/* Las opciones con sus campos al día, cada una como una partida suelta que se puede pasar a
+   lineTotal(), faltantesDe(), formulaHTML()… {k, letra, abierta, d}. */
+function opcionesVivas(it){
+  const o=opcionesDe(it); if(!o) return null;
+  return o.lista.map((x,i)=>{
+    const abierta=x.k===o.activa;
+    return {k:x.k,letra:OPC_LETRAS[i],abierta,d:Object.assign({id:it.id},_opNormal(abierta?_opDatos(it):x.d,it.id))};
+  });
+}
+/* ¿Dos opciones dicen lo mismo? Lo que mueve el precio, más lo que se imprime. */
+function _opFirma(d){
+  return _CAMPOS_PRECIO.concat(['ilumTipo','desc']).map(k=>d[k]===undefined?'':String(d[k])).join('~');
+}
+/* Qué es la opción, dicho con el catálogo: el material (o el tipo) como título y, debajo, la
+   medida y la iluminación. La iluminación se LEE del catálogo —aluminio posterior, acrílico
+   frontal—, no se deduce del nombre. */
+function _opRotulo(d){
+  const tipo=TIPO_NOMBRE[d.tipo]||'Partida';
+  const num=v=>Number(v)||0;
+  if(d.tipo==='letras'){
+    const m=matOf(d.material);
+    const med=[num(d.altura)>0?num(d.altura)+' cm de altura':'',num(d.n)>0?'× '+num(d.n):''].filter(Boolean).join(' ');
+    return {titulo:m?m.label:'Material sin elegir',
+      sub:[tipo+(med?' · '+med:''),d.luz?(m?m.ilum:'Con iluminación'):'Sin iluminación'].join(' · ')};
+  }
+  if(d.tipo==='recorte'){
+    const r=recOf(d.acab);
+    return {titulo:r?r.label:'Acabado sin elegir',
+      sub:tipo+(num(d.altura)>0?' · '+num(d.altura)+' cm de altura':'')+(num(d.n)>0?' × '+num(d.n):'')};
+  }
+  const medidas=num(d.ancho)>0&&num(d.alto)>0?' · '+num(d.ancho)+'×'+num(d.alto)+' cm':'';
+  if(d.tipo==='bastidor'){
+    const b=basOf(d.bas);
+    return {titulo:b?b.label:'Material sin elegir',sub:tipo+medidas};
+  }
+  if(d.tipo==='caja'){
+    const c=cajaOf(d.tarifa);
+    return {titulo:'Caja de luz'+(c?' · '+c.label:''),sub:(c?c.desc:tipo)+medidas};
+  }
+  return {titulo:(d.desc||'').trim()||'Partida manual',sub:tipo+(num(d.pz)>0?' · '+num(d.pz)+(num(d.pz)===1?' pieza':' piezas'):'')};
+}
+
+/* ----- Las operaciones, sobre la partida y sin tocar la pantalla -----
+   Cada una devuelve true si cambió algo. Separadas de las que repintan para que se puedan probar en
+   node (pruebas/cot-opciones-logica.mjs) y para que la pantalla no pueda dejar una a medias. */
+/* Convierte una partida en una propuesta de dos: la que ya estaba y una copia, que queda abierta
+   para cambiarle el material o el tipo. La copia es IGUAL a la original a propósito: elegir un
+   material por la persona es decidir un precio por ella, y esta app no lo hace. */
+function _opProponer(it){
+  if(opcionesDe(it)) return false;
+  const base=_opDatos(it);
+  it.opciones={lista:[{k:1,d:base},{k:2,d:_opCopia(base)}],activa:2};
+  return true;
+}
+function _opAgregar(it){
+  const o=opcionesDe(it); if(!o||o.lista.length>=OPC_MAX) return false;
+  const cur=o.lista.find(x=>x.k===o.activa); cur.d=_opDatos(it);
+  const k=Math.max(...o.lista.map(x=>x.k))+1;
+  o.lista.push({k,d:_opCopia(cur.d)}); o.activa=k;
+  return true;
+}
+function _opIr(it,k){
+  const o=opcionesDe(it); if(!o||k===o.activa) return false;
+  const dest=o.lista.find(x=>x.k===k); if(!dest) return false;
+  const cur=o.lista.find(x=>x.k===o.activa); cur.d=_opDatos(it);
+  _opCargar(it,dest.d); o.activa=k;
+  return true;
+}
+/* Con una sola opción restante ya no hay propuesta: la partida vuelve a ser una de las de siempre. */
+function _opQuitar(it,k){
+  const o=opcionesDe(it); if(!o) return false;
+  const i=o.lista.findIndex(x=>x.k===k); if(i<0) return false;
+  o.lista.find(x=>x.k===o.activa).d=_opDatos(it);
+  o.lista.splice(i,1);
+  if(o.activa===k){
+    o.activa=o.lista[Math.min(i,o.lista.length-1)].k;
+    _opCargar(it,o.lista.find(x=>x.k===o.activa).d);
+  }
+  if(o.lista.length<2) delete it.opciones;
+  return true;
+}
+/* La elegida pasa a ser la partida; las demás se descartan. */
+function _opElegir(it,k){
+  const o=opcionesDe(it); if(!o) return false;
+  const dest=o.lista.find(x=>x.k===k); if(!dest) return false;
+  if(k!==o.activa) _opCargar(it,dest.d);
+  delete it.opciones;
+  return true;
+}
+
+/* ----- Deshacer ----- */
+let _opAntes=null;
+/* Con el folio de la cotización: el aviso dura unos segundos, y si en ese tiempo se vació la
+   cotización y arrancó otra, la partida «1» de la nueva no es la «1» de la que se deshace. */
+function _opRecordar(it){ _opAntes={id:it.id,folio:Q.folio,item:JSON.parse(JSON.stringify(it))}; }
+function deshacerOpciones(){
+  const e=_opAntes; if(!e) return;
+  if(e.folio!==Q.folio){ _opAntes=null; return; }
+  if(capturaBloqueada()){ toast('La cotización está bloqueada','err'); return; }
+  const i=Q.items.findIndex(x=>x.id===e.id);
+  _opAntes=null;
+  if(i<0) return;
+  Q.items[i]=e.item;
+  repintarConViaje();
+  voz('Las opciones volvieron como estaban');
+  toast('Opciones restauradas','ok');
+}
+
+/* ----- Lo que se ve ----- */
+/* La ficha de la cara plegada: cuál está abierta y que falta elegir. */
+function opcionFichaPlegada(it,tok){
+  const v=opcionesVivas(it); if(!v) return '';
+  const a=v.find(x=>x.abierta);
+  return tok(`Opción ${a.letra} de ${v.length} · por elegir`,'falta');
+}
+/* Lo que cambia con cada tecla de una tarjeta: título, cuenta, importe. Los botones no, para no
+   quitarle el foco a nadie. */
+function _opCuerpoHTML(it,x,v){
+  const d=x.d, tot=lineTotal(d), faltan=faltantesDe(d);
+  const r=_opRotulo(d);
+  const igual=v.find(y=>y.k!==x.k&&y.letra<x.letra&&_opFirma(y.d)===_opFirma(d));
+  return `<div class="op-cab"><span class="op-letra" aria-hidden="true">${x.letra}</span><span class="op-etq">Opción ${x.letra}</span>`
+      +(x.abierta?'<span class="op-tag">Abierta</span>':'')+`</div>
+    <h4 class="op-t" id="opt-${it.id}-${x.k}">${esc(r.titulo)}</h4>
+    <p class="op-sub">${esc(r.sub)}</p>
+    <p class="op-cuenta">${formulaHTML(d)}</p>`
+    +(igual?`<p class="op-igual">Igual que la opción ${igual.letra}: cámbiale el material o el tipo.</p>`:'')
+    +`<span class="op-precio" id="opp-${it.id}-${x.k}">${faltan.length||!(tot>0)?'—':money(tot)}</span>`;
+}
+function _opCompleta(d){ return !faltantesDe(d).length&&lineTotal(d)>0; }
+function _opCardHTML(it,x,v,bloq){
+  const ok=_opCompleta(x.d);
+  const sello=window.Piezas&&Piezas.palomitaHTML?Piezas.palomitaHTML({circulo:true,dibujar:false}):'';
+  return `<article class="op-card${x.abierta?' abierta':''}" id="opc-${it.id}-${x.k}" data-k="${x.k}" role="group" aria-labelledby="opt-${it.id}-${x.k}">
+    <div class="op-cuerpo" id="opcu-${it.id}-${x.k}">${_opCuerpoHTML(it,x,v)}</div>
+    <span class="op-sello" aria-hidden="true">${sello} Elegida</span>`
+    +(bloq?'':`<div class="op-acc">
+      <button type="button" class="btn btn-pri op-elegir" data-foco="op-elegir-${it.id}-${x.k}"${ok?'':' aria-disabled="true"'} aria-label="Elegir la opción ${x.letra}" onclick="elegirOpcion(${it.id},${x.k})">Elegir esta</button>
+      ${x.abierta?'':`<button type="button" class="btn btn-gho op-ed" data-foco="op-ed-${it.id}-${x.k}" aria-label="Editar la opción ${x.letra}" onclick="abrirOpcion(${it.id},${x.k})">Editar</button>`}
+      <button type="button" class="op-quita" data-foco="op-quita-${it.id}-${x.k}" aria-label="Quitar la opción ${x.letra}" title="Quitar la opción ${x.letra}" onclick="quitarOpcion(${it.id},${x.k})"><span aria-hidden="true">×</span></button>
+    </div>`)
+    +`</article>`;
+}
+function opcionesHTML(it,v){
+  const bloq=capturaBloqueada();
+  const a=v.find(x=>x.abierta);
+  return `<section class="opciones" id="opciones-${it.id}" aria-labelledby="oph-${it.id}">
+    <div class="op-barra">
+      <h3 class="op-h" id="oph-${it.id}">Propuesta con ${v.length} opciones</h3>
+      ${(!bloq&&v.length<OPC_MAX)?`<button type="button" class="op-mas" data-foco="op-mas-${it.id}" onclick="agregarOpcion(${it.id})">+ Otra opción</button>`:''}
+    </div>
+    <div class="opciones-rej">${v.map(x=>_opCardHTML(it,x,v,bloq)).join('')}<span class="resalte-mos" aria-hidden="true"></span></div>
+    <p class="op-nota">${Q.iva?'Importes antes de I.V.A.':'Importes sin I.V.A.'} El total de la cotización suma solo la opción abierta; al elegir una, las demás se descartan.</p>
+    <h4 class="op-edita" id="opced-${it.id}" tabindex="-1">Estás editando la opción ${a.letra}</h4>
+  </section>`;
+}
+/* El botón que convierte una partida en propuesta. Una partida en blanco no tiene nada que
+   comparar, y con el candado puesto no se puede proponer. */
+function _opPieHTML(it){
+  if(capturaBloqueada()||itemVacio(it)) return '';
+  return `<div class="op-pie"><button type="button" class="op-proponer" data-foco="op-prop-${it.id}" onclick="proponerOpciones(${it.id})">Proponer otra opción</button><small>El mismo trabajo en otro material o tipo, lado a lado.</small></div>`;
+}
+/* Lo que renderItems() pone dentro del cuerpo de la partida. */
+function cuerpoConOpciones(it){
+  const v=opcionesVivas(it);
+  return v?opcionesHTML(it,v)+bodyFor(it):bodyFor(it)+_opPieHTML(it);
+}
+/* Cada tecla en el editor cambia el importe de la opción abierta: su tarjeta lo sigue sin
+   repintar nada más. */
+function opcionesRepintar(it){
+  const v=opcionesVivas(it); if(!v) return;
+  v.forEach(x=>{
+    const c=$('opcu-'+it.id+'-'+x.k); if(c) c.innerHTML=_opCuerpoHTML(it,x,v);
+    const b=document.querySelector('#opc-'+it.id+'-'+x.k+' .op-elegir');
+    if(b){ if(_opCompleta(x.d)) b.removeAttribute('aria-disabled'); else b.setAttribute('aria-disabled','true'); }
+  });
+}
+
+/* ----- Las acciones de los botones ----- */
+function _opPartida(id){
+  if(capturaBloqueada()) return null;
+  return Q.items.find(x=>x.id===id)||null;
+}
+/* Después de repintar, el foco al encabezado «Estás editando…»: es lo que se acaba de abrir y
+   lo que un lector de pantalla tiene que leer. Y a la vista: las tarjetas miden unas tres
+   pantallas apiladas en un teléfono, así que el editor de la opción que se tocó queda lejos de
+   donde estaba el dedo. Solo se desplaza si de verdad quedó fuera de la parte alta de la pantalla. */
+function _opAlEditor(id){
+  const h=$('opced-'+id);
+  if(!h) return;
+  try{ h.focus({preventScroll:true}); }catch(_){ h.focus(); }
+  const y=h.getBoundingClientRect().top;
+  if(y<altoTopbarFija()||y>window.innerHeight*0.55) irA(h,56);
+}
+function proponerOpciones(id){
+  const it=_opPartida(id); if(!it||!_opProponer(it)) return;
+  _plegadas.delete(id);
+  repintarConViaje(()=>_opAlEditor(id));
+  voz('Propuesta con 2 opciones: la segunda quedó abierta para cambiarla');
+}
+function agregarOpcion(id){
+  const it=_opPartida(id); if(!it||!_opAgregar(it)) return;
+  const n=opcionesDe(it).lista.length;
+  repintarConViaje(()=>_opAlEditor(id));
+  voz('Opción '+OPC_LETRAS[n-1]+' agregada y abierta');
+}
+function abrirOpcion(id,k){
+  const it=_opPartida(id); if(!it||!_opIr(it,k)) return;
+  const l=opcionesVivas(it).find(x=>x.k===k).letra;
+  repintarConViaje(()=>_opAlEditor(id));
+  voz('Editando la opción '+l);
+}
+function quitarOpcion(id,k){
+  const it=_opPartida(id); if(!it) return;
+  const l=(opcionesVivas(it)||[]).find(x=>x.k===k);
+  if(!l) return;
+  _opRecordar(it);
+  if(!_opQuitar(it,k)) return;
+  const queda=!!opcionesDe(it);
+  repintarConViaje(()=>{ const b=queda?document.querySelector('#opciones-'+id+' .op-mas, #opciones-'+id+' .op-elegir'):null; if(b){ try{ b.focus({preventScroll:true}); }catch(_){ b.focus(); } } });
+  /* El aviso ya se dice en voz alta (P.aviso): una `voz()` más lo leería dos veces. */
+  toast('Opción '+l.letra+' quitada'+(queda?'':': la partida volvió a tener una sola opción'),'',6000,{label:'Deshacer',fn:deshacerOpciones});
+}
+/* Un segundo Enter o un segundo toque mientras la transición de vista todavía no repinta no debe
+   elegir dos veces: la primera ya quitó la propuesta, pero con View Transitions el repintado llega
+   un cuadro después. */
+let _opEligiendo=false;
+function elegirOpcion(id,k){
+  if(_opEligiendo) return;
+  const it=_opPartida(id); if(!it) return;
+  const v=opcionesVivas(it); if(!v) return;
+  const x=v.find(y=>y.k===k); if(!x) return;
+  /* Una opción a medias no se elige: la partida quedaría sin material o sin medidas, que es lo
+     que esta función existe para evitar. Se dice qué falta y se abre para completarla. */
+  if(!_opCompleta(x.d)){
+    const f=faltantesDe(x.d);
+    toast(`La opción ${x.letra} no está completa: `+(f.length?'falta '+f.join(', '):'no tiene importe')+'.','err',5200);
+    if(!x.abierta) abrirOpcion(id,k); else _opAlEditor(id);
+    return;
+  }
+  _opRecordar(it);
+  const otras=v.length-1, r=_opRotulo(x.d);
+  /* La tarjeta se marca ANTES de la foto del «antes»: es la que viaja. */
+  const card=$('opc-'+id+'-'+k);
+  if(card) card.classList.add('elegida');
+  _opEligiendo=true;
+  let pintada=false;
+  const nombres={};
+  Q.items.forEach(y=>{ nombres['p-'+y.id]=()=>$('p-'+y.id); });
+  /* El importe es lo que viaja: sale de la tarjeta y llega al total de la partida. */
+  nombres['elegida-precio']=()=>pintada?$('lt-'+id):(card&&card.querySelector('.op-precio'));
+  const hecho=()=>{
+    _opEligiendo=false;
+    _opElegir(it,k);
+    pintada=true;
+    renderItems();
+    /* Las tarjetas ocupaban media pantalla y se fueron: lo que quedaba bajo el dedo era el
+       editor, con el encabezado de la partida y su total fuera de la vista. Se trae el encabezado,
+       en seco y solo si de verdad se salió (igual que togglePartida al plegar). */
+    const el=$('p-'+id);
+    if(el){ const d=el.getBoundingClientRect().top-altoTopbarFija()-8; if(d<0) window.scrollBy(0,d); }
+    const b=$('p-'+id)&&$('p-'+id).querySelector('.pfold');
+    if(b){ try{ b.focus({preventScroll:true}); }catch(_){ b.focus(); } }
+  };
+  const P=window.Piezas;
+  if(P&&P.transicion) P.transicion(hecho,{nombres}).catch(e=>{ _opEligiendo=false; try{ console.error(e); }catch(_){} });
+  else hecho();
+  /* El aviso ya se dice en voz alta (P.aviso); lleva lo que se descartó para que quien no ve la
+     pantalla sepa que las otras ya no están. */
+  toast(`Opción ${x.letra} elegida: ${r.titulo}. ${otras===1?'La otra se descartó':'Las otras '+otras+' se descartaron'}.`,'ok',7000,{label:'Deshacer',fn:deshacerOpciones});
+}
+
+/* ----- Para el PDF ----- */
+/* Las opciones que se pueden poner delante del cliente: las que tienen su cuenta completa y su
+   importe, sin repetir una que dice lo mismo que otra. Con menos de dos no hay nada que comparar
+   y devuelve null (la partida sale como cualquier otra). Las letras son las de la pantalla. */
+function opcionesParaPdf(it){
+  const v=opcionesVivas(it); if(!v) return null;
+  const vistas=new Set(), buenas=[];
+  v.forEach(x=>{
+    if(!_opCompleta(x.d)) return;
+    const f=_opFirma(x.d); if(vistas.has(f)) return;
+    vistas.add(f); buenas.push({k:x.k,letra:x.letra,abierta:x.abierta,d:x.d,total:lineTotal(x.d)});
+  });
+  return buenas.length>=2?{n:v.length,opciones:buenas}:null;
+}
+/* ===================== fin de la propuesta con opciones ===================== */

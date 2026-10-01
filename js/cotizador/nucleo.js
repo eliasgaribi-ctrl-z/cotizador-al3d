@@ -246,7 +246,9 @@ function togglePreciosALaVista(){
    número chiquito es EL ÚNICO importe en pantalla —y era el único que no se difuminaba—.
    Abrir una cotización de $23,664 y tocar «1 · Cliente» para corregir el teléfono la dejaba
    escrita en claro justo enfrente de quien no tenía que leerla todavía. */
-const _SEL_PRECIO='.lt,#s-sub,#s-iva,#s-neto,#s-calc,#s-anti-rest,#paso-total-v,.mbar-amt,.anti .inp-money,.partida .inp-money,.formula,.ptok.dinero';
+/* Y las tarjetas de la propuesta con opciones (pieza 76): el importe de cada opción y su cuenta son
+   precio de ESTE trabajo, y delante del cliente se leerían en las tres a la vez. */
+const _SEL_PRECIO='.lt,#s-sub,#s-iva,#s-neto,#s-calc,#s-anti-rest,#paso-total-v,.mbar-amt,.anti .inp-money,.partida .inp-money,.formula,.ptok.dinero,.op-precio,.op-cuenta';
 function _espiarPrecios(e){
   if(!document.body.classList.contains('precios-ocultos'))return;
   const t=e.target.closest&&e.target.closest(_SEL_PRECIO);

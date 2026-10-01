@@ -177,6 +177,9 @@ function mensajeWhatsApp(){
   if((Q.proy||'').trim()) L.push(`*${Q.proy.trim()}*`);
   L.push(`${n} ${n===1?'partida':'partidas'}`);
   L.push(`Total: ${money(pf)}${Q.iva?' (IVA incluido)':' (sin IVA)'}`);
+  /* Con una propuesta con opciones (pieza 76) el total suma solo la abierta: sin esta línea el
+     cliente leería ese número como el precio de todo y no abriría la hoja que lo explica. */
+  if(Q.items.some(it=>it.showInPdf!==false&&opcionesParaPdf(it))) L.push('Incluye una propuesta con opciones: en el PDF viene la hoja «Opciones propuestas» para elegir.');
   if(Q.anti>0) L.push(`Anticipo para arrancar: ${money(Q.anti)}`);
   if((Q.entrega||'').trim()) L.push(`Límite de fabricación: ${Q.entrega.trim()}`);
   /* Solo la nota que se escribió a mano. La de respaldo —«El cliente debe proporcionar
@@ -675,7 +678,7 @@ function generarPDF(){
      negro, y la especificación va debajo en gris: se puede leer solo la columna de conceptos
      de un barrido y bajar al detalle nada más en el que interesa. Las palabras son las mismas.
      Lo único que cambió de texto es la «e» de «estructura tubular», que ahora abre renglón. */
-  function desc(it){
+  function desc(it,para){
     let tit='', esp='';
     if(it.tipo==='letras'){
       tit='Letras Individuales 3D';
@@ -692,10 +695,21 @@ function generarPDF(){
       esp=`${tp?tp+', ':''}Caras en Acrílico con Iluminación LED Fría.`;
     }
     const libre = it.desc ? esc(it.desc) : '';
-    if(!tit) return libre ? `<span class="cs">${libre}</span>` : '<span class="cs">—</span>';
+    /* Una partida con opciones por elegir (pieza 76). En el papel del cliente remite a la hoja de
+       opciones; en la hoja del taller avisa que lo que sigue NO está decidido: la orden de trabajo
+       imprime la opción abierta, y fabricar esa sin que el cliente haya elegido cuesta un anuncio.
+       Solo se dice si la partida tiene la propuesta: en una opción suelta (la de la hoja de
+       comparación) `it.opciones` no existe y no sale nada. */
+    const ops = para==='taller' ? opcionesDe(it) : opcionesParaPdf(it);
+    const abierta = ops && opcionesVivas(it).find(x=>x.abierta);
+    const linOp = !ops ? '' : para==='taller'
+      ? `<span class="cs"><b class="cs-op">Ojo: el cliente aún no elige entre ${ops.lista.length} opciones.</b></span>`
+      : `<span class="cs"><b class="cs-op">Opción ${abierta.letra} de ${ops.n}: ver la hoja de opciones.</b></span>`;
+    if(!tit) return (libre ? `<span class="cs">${libre}</span>` : '<span class="cs">—</span>') + linOp;
     return `<span class="cn">${tit}</span>`
       + (esp  ? `<span class="cs">${esp}</span>`  : '')
-      + (libre? `<span class="cs">${libre}</span>`: '');
+      + (libre? `<span class="cs">${libre}</span>`: '')
+      + linOp;
   }
   /* ----- Lo que se imprime como número, como número -----
      med() y la columna de piezas escribían `altura`, `ancho`, `alto`, `n` y `pz` CRUDOS en el
@@ -897,8 +911,20 @@ function generarPDF(){
      escribir encima y para cortar por la mitad, y la cinta se transparentaba justo por el
      hueco vacío del campo «Fecha». Lo único que se le deja es el pie, por el número de hoja:
      un juego de hojas que se desordena sobre un escritorio no se vuelve a armar. */
-  const TOTAL_HOJAS = trozos.length + 1 + trozosOT.length + (hayInstal?1:0) + (hayRecibo?1:0);
-  const HOJA_TERMINOS = trozos.length + 1;
+  /* ----- La hoja de opciones (pieza 76) -----
+     Si una partida lleva una propuesta con opciones, el cliente tiene que verlas lado a lado en el
+     papel, con su cuenta cada una: el PDF solo imprimía la que estaba abierta y las otras se
+     quedaban en la pantalla del vendedor. Va justo después de la cotización y antes de los
+     términos, que es donde el cliente decide. Como las demás hojas es carta, sin movimiento ni
+     vidrio, y se parte sola: dos partidas con opciones por hoja, porque cada una mide unos 240 px
+     con tres tarjetas (medido, ver pruebas/navegador/cot-opciones.mjs) y tres ya no caben con la
+     ficha y la nota. Una partida oculta del PDF no se explica aquí tampoco. */
+  const opcPdf = itemsForPDF.map(it=>({it,op:opcionesParaPdf(it)})).filter(x=>x.op);
+  const trozosOpc = [];
+  for(let i=0;i<opcPdf.length;i+=2) trozosOpc.push(opcPdf.slice(i,i+2));
+  const TOTAL_HOJAS = trozos.length + trozosOpc.length + 1 + trozosOT.length + (hayInstal?1:0) + (hayRecibo?1:0);
+  const HOJA_OPC = trozos.length + 1;
+  const HOJA_TERMINOS = trozos.length + trozosOpc.length + 1;
   const HOJA_TRABAJO  = HOJA_TERMINOS + 1;
   const HOJA_INSTAL   = HOJA_TRABAJO + trozosOT.length;
   const HOJA_RECIBO   = HOJA_INSTAL + (hayInstal?1:0);
@@ -1019,6 +1045,30 @@ function generarPDF(){
     {label:'Dirección del taller',val:esc(EMPRESA.taller)},
     {label:'WhatsApp',val:esc(EMPRESA.whatsapp)}
   ],hoja);
+
+  /* ----- Un bloque de la hoja de opciones: la partida y sus tarjetas -----
+     Cada tarjeta lleva lo mismo que lleva la fila de la cotización —concepto, especificación,
+     medidas y piezas— porque es el mismo desc()/med()/pzas(), y el importe. La que cuenta en el
+     total lleva su marca y su importe es el de la tabla (pc[id]), que es el que el cliente suma;
+     las demás salen de lineTotal() sobre su copia, con las mismas tarifas. Si el autorizador ajustó
+     la partida, el importe de la abierta ya es el ajustado y las otras siguen al catálogo: un caso
+     raro —el aviso de partidas sin terminar frena antes de autorizar— que el PDF no inventa. */
+  const bloqueOpc = ({it,op}) => {
+    const mismas = op.opciones.every(o=>(o.d.desc||'')===(op.opciones[0].d.desc||''));
+    const titulo = (op.opciones[0].d.desc||'').trim() || ('Partida '+(Q.items.indexOf(it)+1));
+    return `<section class="opc-b">
+      <div class="opc-bh"><span class="lbl">Opciones para</span><span class="opc-bt">${esc(titulo)}</span></div>
+      <div class="opc-g opc-g${op.opciones.length}">${op.opciones.map(o=>{
+        const importe = o.abierta ? pc[it.id] : o.total;
+        const p = pzas(o.d);
+        return `<div class="opc-c${o.abierta?' opc-en':''}">
+        <div class="opc-cl"><span class="opc-l">${o.letra}</span>${o.abierta?'<span class="opc-et">Incluida en el total</span>':''}</div>
+        ${desc(mismas?Object.assign({},o.d,{desc:''}):o.d)}
+        <span class="opc-m">${med(o.d)} &middot; ${p} ${p===1?'pieza':'piezas'}</span>
+        <span class="opc-p num">${money(importe)}</span>
+      </div>`; }).join('')}</div>
+    </section>`;
+  };
 
   /* La figura del plano, con su rótulo. Antes era una imagen suelta centrada debajo de la
      nota, con media hoja en blanco por debajo: la partida más común es una sola —14 de las 25
@@ -1205,6 +1255,23 @@ td.c{color:var(--ink2)}
 .fig-box{flex:1 1 auto;min-height:0;max-height:430px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;background:#fff;padding:9px}
 .fig-box img{max-width:100%;max-height:100%;object-fit:contain;border-radius:4px}
 .sigue{text-align:center;font-size:9px;color:var(--ink3);letter-spacing:.03em;margin-bottom:12px}
+/* Hoja de opciones (pieza 76). Solo papel: sin transiciones ni sombras. Cada tarjeta tiene un alto
+   máximo para que un texto largo no empuje el pie fuera de la carta. */
+.cs-op{color:var(--brandd);font-weight:600}
+.opc-intro{font-size:9.5px;line-height:1.5;color:var(--ink2);margin-bottom:12px}
+.opc-b{margin-bottom:14px;break-inside:avoid}
+.opc-bh{display:flex;align-items:baseline;gap:8px;margin-bottom:7px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+.opc-bh>.lbl{flex:0 0 auto;color:var(--ink3)}
+.opc-bt{min-width:0;font-size:10px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.opc-g{display:grid;gap:8px;grid-template-columns:repeat(3,minmax(0,1fr))}
+.opc-g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.opc-c{display:flex;flex-direction:column;gap:3px;min-height:150px;max-height:215px;overflow:hidden;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:#fff}
+.opc-en{border:1.5px solid var(--brand);background:var(--brandl)}
+.opc-cl{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:3px}
+.opc-l{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--brand);color:#fff;font-size:9px;font-weight:800}
+.opc-et{font-size:7px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--brandd);text-align:right}
+.opc-m{display:block;margin-top:auto;font-size:9px;color:var(--ink2)}
+.opc-p{display:block;font-size:14px;font-weight:800;color:var(--ink)}
 
 /* Pie */
 .pie{bottom:26px;left:34px;right:34px;z-index:1}
@@ -1573,6 +1640,23 @@ ${trozos.map((trozo,ti)=>{
 </div>`;
 }).join('')}
 
+<!-- HOJAS DE OPCIONES · solo si alguna partida lleva una propuesta con opciones (pieza 76).
+     Cada partida con opciones enseña sus tarjetas lado a lado, con la cuenta de cada una y la
+     marca de la que ya está sumada en el total. Sin movimiento ni vidrio: es papel. -->
+${trozosOpc.map((grupo,gi)=>`
+<div class="pg">
+  ${deco}
+  ${hdr('Opciones propuestas',Q.fecha)}
+  ${fichaDatos()}
+  <p class="opc-intro">Cada opción es el mismo trabajo hecho de otra manera, con su propio precio. Elige una por partida.</p>
+  ${grupo.map(bloqueOpc).join('')}
+  <div class="nota">
+    <span class="lbl">Cómo se lee esta hoja</span>
+    <p>El total de la cotización suma la opción marcada «Incluida en el total»; si eliges otra, solo cambia el importe de esa partida. ${Q.iva?'Los importes de esta hoja van antes de I.V.A.':'Los importes de esta hoja van sin I.V.A.'}</p>
+  </div>
+  ${footerCot(HOJA_OPC+gi)}
+</div>`).join('')}
+
 <!-- HOJA DE TÉRMINOS Y CONDICIONES · los ocho apartados, palabra por palabra.
      Antes eran ocho párrafos en negrita seguidos de sus viñetas, a 9.5 px, en dos columnas sin
      separación: una mancha de texto donde no se distinguía dónde acaba un apartado y empieza
@@ -1616,7 +1700,7 @@ ${trozosOT.map((trozo,ti)=>{
       <th class="c" style="width:16%">Pzas.</th>
     </tr></thead>
     <tbody>${trozo.map((it,i)=>`
-      <tr class="${i%2===0?'re':'ro'}"><td>${desc(it)}</td><td class="c">${med(it)}</td><td class="c">${pzas(it)}</td></tr>`).join('')}</tbody>
+      <tr class="${i%2===0?'re':'ro'}"><td>${desc(it,'taller')}</td><td class="c">${med(it)}</td><td class="c">${pzas(it)}</td></tr>`).join('')}</tbody>
   </table>
   ${ultima?`<div class="nota"><span class="lbl">Nota</span><p>${esc(notaCliente())}</p></div>
   <div class="sello"><div class="sello-in">
