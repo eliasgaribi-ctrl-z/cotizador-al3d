@@ -363,26 +363,46 @@ function entregaHTML(opts){
      autorizar», y dos rellenos en la misma columna son dos «esto es lo que sigue». */
   const sinRelleno=!!(opts&&opts.sinRelleno);
   const primero=sinRelleno?null:HITOS.find(x=>!h[x.k]);
-  return HITOS.map(x=>{
+  const pasos=HITOS.map(x=>{
     const ts=h[x.k];
     const toca=primero&&primero.k===x.k;
     const propia=(sinRelleno&&x.cls==='btn-pri')?'btn-gho':x.cls;
-    /* Tres estados y tres pesos. El que TOCA lleva el relleno de marca, que es el único de la
-       pantalla: «un solo botón lleva color, el que hace lo que se vino a hacer», y aquí ese
-       botón es literalmente el siguiente paso. Los que todavía no tocan conservan su propia
-       tinta —el verde de WhatsApp, el aguamarina de la venta— porque así se encuentran sin
-       gritar, que es para lo que se les dio. El que ya está se va a neutro con su palomita.
+    /* La pista de WhatsApp se calcula aquí y no es texto fijo: es el número al que va a abrir el
+       chat, con la misma regla que usa el botón (H2, falla 5). Antes decía siempre «adjunta el
+       PDF que guardaste» y el número no se veía en ningún lado hasta que WhatsApp ya había
+       abierto — a veces sin chat. */
+    const w=(x.k==='wa')?pistaWhatsApp():null;
+    /* La nota del paso dice, en este orden: qué se hizo y cuándo, a dónde va el chat, y qué hay
+       que hacer con la mano después de tocar. El número se lee SIEMPRE que se pueda marcar,
+       también con el hito ya puesto, porque un chat se vuelve a abrir; la instrucción sale solo
+       en el paso que toca, que es cuando sirve. */
+    const nota=[ts?x.hecho+' · '+hitoFecha(ts):'', (w&&w.ok)?w.destino:'',
+                (toca&&x.pista&&(!w||w.ok))?x.pista:''].filter(Boolean).join(' · ');
+    /* Tres estados y tres pesos, los mismos de antes. El que TOCA lleva el relleno de marca, que
+       es el único de la pantalla: «un solo botón lleva color, el que hace lo que se vino a
+       hacer», y aquí ese botón es literalmente el siguiente paso. Los que todavía no tocan
+       conservan su propia tinta —el verde de WhatsApp, el aguamarina de la venta— porque así se
+       encuentran sin gritar. El que ya está se va a neutro.
 
-       El hecho se dice con la palomita y la fecha, no cambiando el nombre del botón: quien
-       vuelva a tocarlo tiene que seguir sabiendo qué hace. */
-    return `<button class="btn hito ${ts?'btn-gho hito-hecho':(toca?'btn-pri':propia)}" onclick="${x.fn}">`
-      +(ts?`<svg class="svgi hito-ok" aria-hidden="true"><use href="#i-check"/></svg>`
-          :`<svg class="svgi" aria-hidden="true"><use href="#${x.ico}"/></svg>`)
-      +` ${x.label}`
-      +(ts?`<small class="hito-fecha">${esc(x.hecho)} · ${esc(hitoFecha(ts))}</small>`
-          :(toca&&x.pista?`<small class="hito-pista">${esc(x.pista)}</small>`:''))
-      +`</button>`;
-  }).join('');
+       El hecho se dice con la palomita del riel y la fecha, no cambiando el nombre del botón:
+       quien vuelva a tocarlo tiene que seguir sabiendo qué hace. */
+    const boton=`<button class="btn hito ${ts?'btn-gho hito-hecho':(toca?'btn-pri':propia)}" onclick="${x.fn}">`
+      +`<svg class="svgi" aria-hidden="true"><use href="#${x.ico}"/></svg> ${x.label}</button>`;
+    /* El estorbo va en ámbar y con palabras, encima del botón: el color no dice nada solo, y
+       quien lo lee tiene que poder arreglarlo (corregir el teléfono) antes de tocar. */
+    const av=(w&&!w.ok)?`<p class="hito-av"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg> ${esc(w.destino)}</p>`:'';
+    return {texto:x.paso, nota:nota, clave:x.k,
+      estado:ts?'hecho':(toca?'actual':'pendiente'),
+      extra:av+boton+(w?verMensajeHTML():'')};
+  });
+  /* Un riel vertical con el conector en verde entre los tres pasos (pieza 16). Eran tres botones
+     apilados sin nada que los uniera, y «vas en el 2 de 3» había que deducirlo contando
+     palomitas. El conector va en --ok y no en el azul de marca a propósito: el azul es el del
+     botón que hace lo que se vino a hacer, y un riel lleno de azul competiría con él.
+
+     Nace quieto —se repinta en cada tecla del anticipo— y solo se anima cuando alguien marca un
+     hito: eso lo hace animarHitoDelRiel() desde marcarHito(). */
+  return Piezas.rielHTML(pasos,{etiqueta:'Entrega de la cotización',clase:'entrega-riel'});
 }
 
 /* ----- Formulario de revisión del precio -----

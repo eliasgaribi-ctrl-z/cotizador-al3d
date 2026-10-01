@@ -1358,29 +1358,22 @@ textarea{resize:vertical;min-height:46px}
 .btn-gho{background:var(--sup);color:var(--n7);border-color:var(--n3)}@media(hover:hover){.btn-gho:hover{border-color:var(--n4);background:var(--n1)}}
 .btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
 /* ----- Los tres pasos de la entrega -----
-   Un renglón por paso, en el orden en que se hacen. El que toca lleva el único relleno de la
-   columna; el que ya está se queda neutro, con su palomita y su fecha, y sigue tocable: un
-   PDF se reimprime y un chat se vuelve a abrir. La palomita va en verde y la fecha en el
-   secundario de la app —5,5:1 sobre blanco—, porque son un dato al margen y no la acción. */
-.hito-ok{color:var(--ok)}
-.hito-fecha{font-size:var(--t1);font-weight:400;color:var(--muted);white-space:nowrap}
-/* La pista va DENTRO del botón de relleno, así que hereda su tinta blanca. Sin opacidad: la
-   separan el tamaño y el peso, que es como este proyecto hace la jerarquía, y así no hay nada
-   que medir — blanco sobre el degradado de marca son 10:1 de sobra. Con un 82 % de opacidad
-   quedaba en 5,1:1, que pasa, pero pagar contraste por una diferencia que ya está hecha con
-   el cuerpo de la letra es pagar de más. */
-/* La pista va en su propio renglón dentro del botón: al lado le robaba el ancho al nombre y lo
-   partía en dos —«Enviar por / WhatsApp  adjunta el PDF…»—, que es peor que no decir nada,
-   porque lo primero que hay que leer de un botón es qué hace.
-   El `flex-wrap` se pone SOLO en estos tres botones y no en `.btn`, que es la clase de todos
-   los botones grandes de las dos apps: `css/sistema.css` se genera de esta hoja y la plataforma
-   la hereda, así que envolver ahí habría cambiado el alto de botones de seis pantallas que no
-   tienen nada que ver con esto. */
-.btn.hito{flex-wrap:wrap}
-.hito-pista{flex-basis:100%;font-size:var(--t1);font-weight:400;color:var(--muted);text-align:center;margin-top:1px}
-.btn-pri .hito-pista{color:inherit}
-/* Sin relleno y con la palomita, el nombre del botón ya no es lo primero que se lee, así que
-   se le devuelve el peso: es el nombre de la acción, y sigue siendo tocable. */
+   Un botón por paso, en el orden en que se hacen, colgado del riel que los une (H3, pieza 16).
+   El que toca lleva el único relleno de la columna; el que ya está se queda neutro y sigue
+   tocable: un PDF se reimprime y un chat se vuelve a abrir.
+
+   Lo que ya se hizo con su fecha, y a qué número va a abrir el chat, se dicen en la nota del
+   riel y ya no en un <small> dentro del botón. Ahí le robaban el ancho al nombre y lo partían
+   en dos —«Enviar por / WhatsApp  adjunta el PDF…»—, que es peor que no decir nada, porque lo
+   primero que hay que leer de un botón es qué hace. El estilo del riel y del aviso ámbar del
+   teléfono inválido viven en el bloque «Cotizador · entrega» de más abajo.
+
+   Con la pista fuera del botón se fue también el `flex-wrap:wrap` que solo tenía sentido para
+   ella —le daba su propio renglón dentro del botón—: un botón de icono y rótulo en una línea no
+   lo necesita, y dejarlo era permitir que el icono se separara de su nombre en una columna
+   angosta. */
+/* Sin relleno, el nombre del botón ya no es lo primero que se lee, así que se le devuelve el
+   peso: es el nombre de la acción, y sigue siendo tocable. */
 .hito-hecho{color:var(--n7)}
 /* El pliegue de «otras salidas» va después de los tres renglones y antes del cierre. El
    <details> no es un .btn, así que se le da el mismo aire que separa dos botones. Va en
@@ -2300,7 +2293,6 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
    app: es un dato al margen y no una acción. */
 .hentry-hitos{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:7px;
   font-size:var(--t1);color:var(--muted);line-height:1.5}
-.hentry-hitos .svgi{width:13px;height:13px;color:var(--ok);flex-shrink:0}
 
 /* ===================== WhatsApp ===================== */
 .btn-wa{background:var(--sup);color:var(--wa);border:1.5px solid rgba(var(--wa-rgb),.32)}
@@ -3616,14 +3608,10 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
 .inp-money::before{color:var(--tinta3);font-weight:500;font-size:var(--t3);left:11px}
 
 /* ---------- Los tres hitos de la entrega ----------
-   La fecha de un hito hecho y la pista del que toca van al escalón chico y a la tercera
-   tinta; dentro del botón relleno heredan el blanco, que es lo que ya hacía la regla de
-   arriba. El nombre del hito hecho vuelve a la tinta principal: lo que dice que está hecho
-   son la palomita y la fecha, no un texto apagado. */
-.hito-fecha,.hito-pista{font-size:var(--t1);font-weight:400;color:var(--tinta3)}
-.btn-pri .hito-pista,.btn-ok .hito-pista{color:#fff}
+   El nombre del hito hecho vuelve a la tinta principal: lo que dice que está hecho es el punto
+   verde del riel con su palomita, no un texto apagado. La fecha y la pista se fueron a la nota
+   del riel, que ya se pinta con los tokens de la pieza. */
 .hito-hecho{color:var(--tinta)}
-.hito-ok{color:var(--ok)}
 /* El pliegue de «otras salidas» es el último renglón de la columna y no una caja más: la
    misma decisión que «Datos que salen en el PDF» en la pantalla del cliente. */
 details.ai-cfg.otras-salidas{
@@ -4993,6 +4981,79 @@ mark.coincide{background:var(--a-suave);color:var(--tinta);font-weight:700;borde
 
 /* ── Cotizador · entrega (PDF, WhatsApp) y registrar venta ── */
 
+/* ----- El riel de los tres pasos (H3) -----
+   Eran tres botones apilados sin nada que los uniera: había que contar palomitas para saber si
+   faltaba uno. Ahora cuelgan del riel de la pieza 16, con el conector en --ok —no en el azul de
+   marca: el azul es el del botón que hace lo que se vino a hacer, y un riel azul competiría con
+   él—, y «vas en el 2 de 3» se lee de un vistazo.
+
+   El botón de cada paso va en `extra`, o sea en la columna del texto, con el punto y el conector
+   a su izquierda. Ancho completo, como estaban: son la acción de la pantalla. */
+.entrega-riel{margin:var(--e3) 0}
+.entrega-riel>.riel-paso{padding-bottom:var(--e4)}
+.entrega-riel .riel-extra{margin-top:var(--e2)}
+/* `.btn+.btn` da el aire entre el botón del paso y «Ver mensaje»; el primero no lo necesita. */
+.entrega-riel .riel-extra>.btn:first-child{margin-top:0}
+/* La nota lleva el número de WhatsApp y la fecha del hito: a 360 px, dentro de una columna de
+   280, un «+52 33 2813 0092» sin partir desbordaría a lo ancho. */
+.entrega-riel .riel-nota{overflow-wrap:anywhere}
+
+/* El estorbo que impide el paso, dicho con palabras y en ámbar: «el teléfono no parece válido».
+   Va encima del botón y no dentro, porque lo que hay que hacer es salir a corregir el teléfono,
+   no tocar aquí. El icono no dice nada solo: la frase va completa al lado. */
+.hito-av{display:flex;align-items:flex-start;gap:6px;margin:0 0 var(--e2);
+  padding:8px 10px;border:1px solid var(--av-borde);border-radius:var(--rr2);
+  background:var(--av-bg);color:var(--av);font-size:var(--t1);font-weight:600;line-height:1.45}
+.hito-av .svgi{width:14px;height:14px;flex:none;margin-top:1px;color:var(--av)}
+
+/* «Ver mensaje»: enseña el texto exacto antes de salir de la app (H2). Es opcional y secundario
+   —el paso se hace con el botón de arriba—, así que va en fantasma y con la letra chica; el alto
+   se queda en 44 px porque con el dedo todo lo tocable mide 44. */
+.hito-ver{font-size:var(--t2);padding:10px 14px;min-height:44px}
+
+/* El globo del mensaje: el texto va tal cual se va a mandar, con sus renglones y sus asteriscos
+   de negrita de WhatsApp, y con su propia altura máxima para que en un teléfono acostado no tape
+   la pantalla entera. El desplazamiento vertical es del globo, no de la página de abajo. */
+#wa-msg .vistazo-texto{max-height:44vh;overflow:auto}
+
+/* ----- Los cuatro puntos de cada entrada del historial (H3) -----
+   El riel mini al principio del renglón y, al lado, el último hito con su fecha: los puntos
+   dicen en qué se quedó y el texto dice cuándo fue lo último. Sin el `flex-shrink:0` los catorce
+   píxeles de cada punto se apretaban cuando el nombre del hito es largo. */
+.hentry-hitos .riel-mini{flex:none}
+.hentry-ultimo{min-width:0;overflow-wrap:anywhere}
+
+/* ----- Registrar venta: la cuenta dice si lleva IVA (C4) -----
+   Las cinco cuentas como fichas, dentro de la rejilla del modal. La pieza las acomoda de a 150 px
+   como mínimo, y en un teléfono de 360 —283 px de ancho útil dentro del modal— eso las pone de
+   una en una: cinco renglones de 52 px, un tercio de la pantalla solo para elegir una cuenta que
+   casi nunca cambia. Con 128 caben dos por renglón (tres renglones), y «Constru BNT» con su
+   «con IVA» debajo sigue entrando sin partirse; de 520 para arriba, tres.
+
+   La etiqueta «con IVA / sin IVA» y su tono ámbar los pone la pieza (`.tono-av`, con su tinta
+   entera y no la del 80 % del elegido): aquí solo se le da el fondo del campo, que es el que
+   tienen las cajas de al lado, para que el grupo se lea como un campo más del formulario. */
+#rv-cuentas-caja .glide{background:var(--soft);grid-template-columns:repeat(auto-fill,minmax(min(128px,100%),1fr))}
+
+/* El aviso de que la hoja va a mover el IVA. Ámbar, con la consecuencia en pesos, y nunca
+   cambia nada solo: lo que se puede corregir es la cuenta. */
+.rv-iva-av{margin:8px 0 0;padding:10px 12px;border:1px solid var(--av-borde);border-radius:var(--r-sm);
+  background:var(--av-bg);color:var(--av);font-size:var(--t2);font-weight:600;line-height:1.5}
+
+/* El hueco de la palomita que se dibuja al registrar (pieza 6, C23 #6). Mide lo que medía el
+   icono fijo que había antes, así que la caja verde no cambia de alto al encenderse. */
+.rv-copied-ico{display:inline-flex;align-items:center;flex:none;width:16px;height:16px}
+.rv-copied-ico .palomita{width:16px;height:16px}
+
+/* ----- El salto atrás que no se ve (H3) -----
+   marcarHito() repinta el panel entero y el riel nace con el hito ya puesto, así que para que el
+   conector se vea llenarse hay que devolverle por un cuadro el estado de antes. Esa clase apaga
+   TODO el movimiento del riel durante ese cuadro: sin ella el conector empezaría a vaciarse y el
+   viaje de vuelta se quedaría a medias, que se ve como un parpadeo. */
+.entrega-riel.entrega-quieta,.entrega-riel.entrega-quieta *,
+.entrega-riel.entrega-quieta>.riel-paso::before,
+.entrega-riel.entrega-quieta>.riel-paso::after{transition:none!important;animation:none!important}
+
 /* ── fin de cot-entrega ── */
 
 /* ── Cotizador · Cotizar con IA ── */
@@ -6246,7 +6307,14 @@ input[type=range].desl-iman{transform:none!important}
 
 /* ── fin de rm · cot-precio ── */
 /* ── rm · cot-entrega ── */
+/* Nada que apagar aquí, y es a propósito: todo lo que se mueve en la entrega lo mueven las
+   piezas —el conector del riel y su palomita (bloque «rm · piezas · 4»), el total que rueda del
+   modal, la ficha del plazo y el relleno de «Registrar venta»—, y cada una trae su propio
+   apagado. Lo que esta zona añadió por su cuenta (el aviso ámbar del teléfono, el globo del
+   mensaje, los puntos del historial) está quieto en los dos modos.
 
+   Lo único con movimiento propio es la línea de avance de la vista previa del PDF, y vive en el
+   documento que se genera, con su propio @media (prefers-reduced-motion) — ver entrega.js. */
 /* ── fin de rm · cot-entrega ── */
 /* ── rm · cot-ia ── */
 
