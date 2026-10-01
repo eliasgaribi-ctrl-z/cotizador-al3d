@@ -211,7 +211,7 @@ El respaldo no lleva llaves de IA porque ya no hay ninguna en el teléfono: vive
     js/datos/, js/nucleo/     la capa de datos y las primitivas de pantalla
 
 Los doce de `js/cotizador/` son scripts **clásicos** que comparten el ámbito global, como cuando
-eran un solo `<script>`: los 161 manejadores en línea del marcado dependen de eso, y portarlos a
+eran un solo `<script>`: los 156 manejadores en línea del marcado dependen de eso, y portarlos a
 módulos ES los dejaría mudos sin un solo error. `pruebas/sintaxis.mjs` compila los doce y
 `pruebas/publicacion.mjs` vigila que `arranque.js` siga siendo el último.
 
@@ -318,8 +318,8 @@ plataforma con `herramientas/extraer-catalogo.sh`.
 
 ## Pruebas
 
-    pruebas/correr.sh               34 archivos, solo node, unos segundos
-    pruebas/correr.sh --navegador   24 más, que piden Chromium y un servidor
+    pruebas/correr.sh               41 archivos, solo node, unos segundos
+    pruebas/correr.sh --navegador   30 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
 contra una hoja de mentiras, sin cuenta y sin red; otra rasteriza cada pieza y **cuenta sus
