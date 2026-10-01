@@ -665,12 +665,17 @@ async function contestarPf(si) {
     return !!b && (b.hasAttribute('data-mantener') || b.classList.contains('mantener'));
   });
   if (!sostener) { await p.click('#pf-confirma-si'); return msg; }
+  /* Con el DEDO y no con el ratón: el contexto de esta prueba es un teléfono (isMobile), y la pieza
+     escucha el puntero táctil. Con mouse.down() el gesto no llegaba y el botón nunca confirmaba.
+     Es el mismo arnés de CDP que usan cot-historial y cot-cliente para sostener. */
   const c = await p.locator('#pf-confirma-si').boundingBox();
-  await p.mouse.move(c.x + c.width / 2, c.y + c.height / 2);
-  await p.mouse.down();
+  const x = c.x + c.width / 2, y = c.y + c.height / 2;
+  const cdp = await p.context().newCDPSession(p);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }] });
   await p.waitForTimeout(1600);          // la pieza pide 1200 ms; se le da margen
-  await p.mouse.up();
-  await p.waitForTimeout(300);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach().catch(() => {});
+  await p.waitForTimeout(400);
   return msg;
 }
 await p.click('#pf-ficha [data-hoja-quitar]');
