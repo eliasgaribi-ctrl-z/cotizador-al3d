@@ -550,13 +550,15 @@ function gestoDeLaRejilla(cont) {
    primera espera 400 ms y, mientras el cursor siga por la rejilla, las siguientes salen sin espera
    (WarmTooltip). Es una pieza que ya existía y que ya sabe quedarse en el puntero fino: con el dedo
    no hace nada —el dedo tiene la lista del día— y con el teclado sale al enfocar una celda.
-   La ficha no sustituye al toque: no recibe el puntero, y el clic sigue abriendo el día. El texto
-   se parte en renglones donde el `aria-label` tiene sus puntos para que se lea como lista. */
+   La ficha no sustituye al toque: no recibe el puntero, y el clic sigue abriendo el día. Los puntos
+   del `aria-label` se vuelven « · » y no saltos de línea: la pieza junta todo el espacio en blanco
+   del nombre en uno solo (es un nombre de icono, de una línea), y un salto no sobreviviría; la hoja
+   de estilos deja que el texto baje de renglón en vez de cortarlo. */
 function fichaDeCadaDia(cont) {
   const P = piezas();
   if (!P.nombres) return null;
   return P.nombres(cont, { selector: '.cal-dia[data-dia]', siempre: true, toque: false,
-    texto: el => String(el.getAttribute('aria-label') || '').replace(/\. /g, '\n') });
+    texto: el => String(el.getAttribute('aria-label') || '').replace(/\.\s+/g, ' · ') });
 }
 
 /* ============================================================================
@@ -2235,7 +2237,7 @@ function abrirGanar(folio, estado, focoK) {
          «Hoy» es lo que está marcado. «Sin fecha» vacía el campo, que ya estaba permitido. */
       '<div class="fld"><span class="fld-lab" id="ag-ganar-fecha-l">¿Qué día se instala?</span>' +
         htmlFechasRapidas(fechaVal || '', 'ag-ganar-fecha-l') + '</div>' +
-      '<div class="fld"><label for="ag-ganar-fecha">Otro día</label>' +
+      '<div class="fld"><label for="ag-ganar-fecha">Otro día de instalación</label>' +
         '<input type="date" id="ag-ganar-fecha" value="' + esc(fechaVal || '') + '"></div>' +
       '<p class="hintnote">Es la única fecha que la plataforma te pide. Si todavía no hay día, toca «Sin fecha»: el proyecto se guarda igual y te lo recuerda a las 48 horas.</p>' +
       '<div class="fld"><label id="ag-ganar-plazo-l">¿Cuánto tarda en el taller?</label>' +

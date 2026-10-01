@@ -2992,14 +2992,17 @@ html.pj-arrastrando,html.pj-arrastrando *{cursor:grabbing!important;-webkit-user
 .dia-t:focus:not(:focus-visible){outline:none}
 
 /* F26 · la ficha de cada día con el ratón es la de la pieza `nombres` (`.nombre-tip`), que es de una
-   línea con puntos suspensivos porque sus nombres son cortos. El de un día es una lista —cuántas
-   instalaciones, qué vence, el semáforo—, así que, mientras la ficha es de una celda del calendario,
-   se parte en renglones y se acota. `:has()` en vez de una clase propia porque la ficha es un solo
-   nodo de toda la página que la pieza no deja marcar; sin `:has()` (navegadores viejos) queda la
-   línea con puntos suspensivos, que sigue diciendo lo principal. */
-body:has(.cal-dia:hover) .nombre-tip,
-body:has(.cal-dia:focus-visible) .nombre-tip{white-space:pre-line;text-overflow:clip;
+   línea con puntos suspensivos porque sus nombres son cortos. El de un día es una frase larga
+   —cuántas instalaciones, qué vence, el semáforo—, así que, mientras la ficha es de una celda del
+   calendario, baja de renglón y se acota en vez de cortarse. `:has()` en vez de una clase propia
+   porque la ficha es un solo nodo de toda la página que la pieza no deja marcar; sin `:has()`
+   (navegadores viejos) queda la línea con puntos suspensivos, que sigue diciendo lo principal. */
+body:has(.cal-dia:focus-visible) .nombre-tip{white-space:normal;text-overflow:clip;
   max-width:min(340px,calc(100vw - 16px));line-height:1.4}
+@media(hover:hover) and (pointer:fine){
+  body:has(.cal-dia:hover) .nombre-tip{white-space:normal;text-overflow:clip;
+    max-width:min(340px,calc(100vw - 16px));line-height:1.4}
+}
 
 /* F29 · la barra de acción sube 12 px con un fundido de 180 ms al aparecer. `@starting-style` vale
    para un elemento que pasa de `display:none` a visible, que es lo que hace `hidden=false`; en un
@@ -3017,7 +3020,7 @@ body:has(.cal-dia:focus-visible) .nombre-tip{white-space:pre-line;text-overflow:
 /* F17 · lo que implica la ventana elegida, debajo de los chips. `.hintnote` es `inline-flex`; aquí
    ocupa su renglón. La altura la fijan los dos textos del cruce (viven en la misma celda), así que
    cambiar de ventana no mueve lo de abajo. */
-.hintnote.pf-vent-desc{display:flex;margin-top:var(--e2)}
+.hintnote.pf-vent-desc{display:flex;margin:var(--e2) 0 var(--e3)}
 
 /* F24 · la ficha que salta con los chips del plazo: «Entra al taller el lun 8 oct · listo el vie 19
    oct». Tinta sobre superficie invertida, como la ficha de nombres (claro: marino con blanco;

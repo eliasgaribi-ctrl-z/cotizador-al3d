@@ -425,7 +425,11 @@ async function ronda(cfg) {
       cierto((await mesIso()) === m1, 'con el ratón, arrastrar la rejilla no cambia de mes (están las flechas)');
     }
     cierto(await sinDesborde(p), 'sin desborde de lado después de cambiar de mes');
-    if (cfg.reducido) cierto(await p.evaluate(() => document.getAnimations().length) === 0, 'con menos movimiento no queda ninguna animación después de cambiar de mes');
+    if (cfg.reducido) {
+      /* Solo lo del calendario: la entrada de la sección (`.pf-mod`) es del router. */
+      const vivas = await p.evaluate(() => document.getAnimations().filter(a => a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest('.cal-card')).map(a => (a.animationName || a.transitionProperty || '?') + ' en ' + ((a.effect && a.effect.target && (a.effect.target.className || a.effect.target.tagName)) || '?')));
+      cierto(vivas.length === 0, 'con menos movimiento no queda ninguna animación después de cambiar de mes', vivas);
+    }
   });
 
   /* ---------- F18 · la lista del día a la vista ---------- */
@@ -451,7 +455,10 @@ async function ronda(cfg) {
     });
     cierto(e.top >= 0 && e.bottom <= e.fondo, 'el encabezado del día quedó entre el borde de arriba y las barras de abajo', e);
     cierto(e.foco, 'el foco está en el título del día', e);
-    cierto(e.scrollY === y0, 'si el encabezado ya estaba a la vista la página NO se movió', { y0, ahora: e.scrollY });
+    /* En el teléfono la lista cabe debajo de la celda que está en medio de la pantalla; en la
+       computadora la rejilla es alta y la lista queda abajo del pliegue, y entonces sí baja. */
+    if (cfg.ancho < 760) cierto(e.scrollY === y0, 'si el encabezado ya estaba a la vista la página NO se movió', { y0, ahora: e.scrollY });
+    else cierto(e.scrollY >= y0, 'en la computadora la página baja lo justo (o no se mueve)', { y0, ahora: e.scrollY });
     cierto(await p.evaluate(() => !!document.querySelector('.dia-lista .pf-fila')), 'y la lista trae la instalación del día');
     cierto(await sinDesborde(p), 'sin desborde de lado con la lista abierta');
     /* Un segundo toque cierra. */
@@ -499,12 +506,11 @@ async function ronda(cfg) {
       cierto(espera >= 300, 'la primera ficha espera (≈ 400 ms)', espera);
       const t1 = await tip();
       const lab = await etiqueta(a);
-      cierto(t1.t === lab.replace(/\. /g, '\n'), 'dice el aria-label de la celda, en renglones', { dijo: t1.t, lab });
-      cierto(t1.h > 30 && !t1.corta, 'se lee entera: varios renglones, sin recortar', t1);
+      cierto(t1.t === lab.replace(/\.\s+/g, ' · '), 'dice el aria-label de la celda, con sus frases separadas', { dijo: t1.t, lab });
+      cierto(t1.h > 30 && !t1.corta, 'se lee entera: baja de renglón, sin recortar con puntos suspensivos', t1);
       const t2 = Date.now();
       await p.locator(b).hover();
-      await hasta(p, x => { const t = document.querySelector('.nombre-tip.pz-abierto'); return t && t.textContent.includes(x); }, null, 2000).catch(() => {});
-      await hasta(p, (l) => { const t = document.querySelector('.nombre-tip.pz-abierto'); return !!t && t.textContent === l; }, (await etiqueta(b)).replace(/\. /g, '\n'), 2000);
+      await hasta(p, (l) => { const t = document.querySelector('.nombre-tip.pz-abierto'); return !!t && t.textContent === l; }, (await etiqueta(b)).replace(/\.\s+/g, ' · '), 2000);
       cierto(Date.now() - t2 < 300, 'la siguiente sale sin esperar (la rejilla sigue «caliente»)', Date.now() - t2);
       cierto(!(await p.evaluate(() => !!document.querySelector('.cal-sem[title]'))), 'el punto del semáforo ya no trae su `title` nativo encima');
       const c = await contraste(p, '.nombre-tip.pz-abierto');
@@ -512,9 +518,11 @@ async function ronda(cfg) {
       await p.mouse.move(2, 2);
       await p.waitForTimeout(1000);
       cierto(!(await tip()), 'al salir de la rejilla la ficha se va');
+      const abiertoAntes = await p.evaluate(() => !!document.querySelector('.dia-lista'));
       await p.click(a);
       await p.waitForTimeout(500);
-      cierto(await p.evaluate(() => !!document.querySelector('.dia-lista')), 'y el clic sigue abriendo el día');
+      cierto(await p.evaluate(() => !!document.querySelector('.dia-lista')) !== abiertoAntes, 'y el clic sigue alternando el día (la ficha no lo sustituye)');
+      if (!(await p.evaluate(() => !!document.querySelector('.dia-lista')))) { await p.click(a); await p.waitForTimeout(400); }
     } else {
       await p.locator(a).tap();
       await p.waitForTimeout(900);
@@ -715,7 +723,14 @@ async function ronda(cfg) {
     const cifras = () => p.$$eval('#mod-fabricacion .pf-cuentas b[data-cuenta]', bs => Object.fromEntries(bs.map(b => [b.dataset.cuenta, b.textContent])));
     const cifras0 = await cifras();
     await p.evaluate(() => { window.__fab.rodo = []; document.querySelector('#pf-mbar button').__marca = 1; });
-    await toca('#pf-mbar [data-abrir-agendar]');
+    if (cfg.ancho < 760) await toca('#pf-mbar [data-abrir-agendar]');
+    else {
+      /* En la computadora no hay barra: se toca un día libre del futuro, que abre «Agendar» con la
+         fecha ya puesta (el toque y medio). */
+      const libre = sumar(fechas.hoy, 5);
+      await irAlMesDe(libre);
+      await toca('.cal-dia[data-dia="' + libre + '"]');
+    }
     await hasta(p, () => document.getElementById('pf-hoja').classList.contains('show') && !!document.querySelector('#pf-hoja .riel'));
     await p.waitForTimeout(500);
     const pasos = () => p.evaluate(() => { const r = document.querySelector('#pf-hoja .riel'); return r ? {
