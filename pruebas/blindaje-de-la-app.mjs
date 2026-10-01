@@ -165,7 +165,11 @@ console.log('\nLO QUE ESTE TELÉFONO SUBIÓ NO REMONTA SU PROPIA PANTALLA');
 {
   const app = sinComentarios(leer('js/app.js'));
   const sinc = (app.match(/async function sincronizarDeVerdad\(\) \{[\s\S]*?\n\}/) || [''])[0];
-  cierto('bombear no suma a `movio`', /try \{ await Sync\.bombear\(\); \} catch/.test(sinc) && !/subidas/.test(sinc));
+  /* El indicador de sincronización (P15) lee el Resultado de `bombear()` para decir si algo no
+     salió, así que ya no es un `await` suelto dentro de un `try` de una línea. Lo que se vigila
+     es lo de siempre: que lo subido no entre a `movio`, que es lo que remonta la pantalla. */
+  cierto('bombear no suma a `movio`', /await Sync\.bombear\(\)/.test(sinc) && !/subidas/.test(sinc) &&
+         !/movio \+=[^;]*(bombear|mandadas|fallidas)/.test(sinc));
   cierto('  lo que baja sí', /movio \+= \(Number\(r\.valor\.nuevos\)/.test(sinc));
 }
 
