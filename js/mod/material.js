@@ -33,7 +33,7 @@ import * as Agenda from '../datos/agenda.js';
 import {
   $, esc, money, cant, plural, ico, toast, avisarResultado, vacio, segmento,
   abrirCapa, cerrarCapa, linkWa, telWa, fmtFecha, cuando, diasHasta, hoyISO, ajustarAltoBarra, cantHay, rotularPapel,
-  cifraQueCabe, repintarEnSitio, conservandoFoco } from '../nucleo/ui.js';
+  cifraQueCabe, repintarEnSitio, conservandoFoco, esqueletoModulo } from '../nucleo/ui.js';
 
 /* ============================================================================
    Estado del módulo. Todo aquí, y todo se suelta en desmontar().
@@ -61,6 +61,31 @@ let pide = null;                // qué está preguntando el modal chico, si est
 
 const _oyentes = [];            // [[elemento, tipo, fn]]
 let _imprimiendo = false;
+
+/* Lo que cuelga de la pantalla y se suelta en desmontar(): el control de los bordes que se
+   desvanecen, si la cinta de cuentas ya se pintó una vez (la primera NO rueda), y qué acciones
+   tienen su ventana de «Deshacer» abierta. */
+let _bordes = null;
+let _cuentasVistas = false;
+const _ventanas = new Map();    // 'recibo' | 'calibrar:CLAVE' -> { mango, escribiendo }
+
+/* La lectura más nueva gana. Con el conteo en su sitio (más abajo) se toca «Así está» renglón
+   tras renglón y cada toque dispara su propia lectura de fondo; sin esto, la lectura del primer
+   toque —que arrancó antes que el segundo conteo y termina después— pisaba EXIS con una lista
+   donde el segundo renglón todavía no estaba contado, y «Contados hoy» se quedaba un número
+   atrás hasta el toque siguiente. */
+let _lecturaN = 0;
+let _lecturaP = null;
+
+/* Las piezas compartidas (js/piezas.js) las carga index.html como guion clásico ANTES que los
+   módulos, y cuelgan de window.Piezas. Se piden en el momento de usarlas y con la puerta
+   abierta a que falten: este módulo también lo cargan las pruebas de node, y una pantalla de
+   almacén que se queda sin botones porque una pieza no llegó es peor que una sin animación. */
+const piezas = () => (typeof window !== 'undefined' && window.Piezas) || {};
+
+/* La ventana de «Deshacer»: lo que dura el aviso con botón (ui.js, `toast` con acción: 8 s como
+   mínimo). Una sola cifra para las dos acciones de este módulo que la llevan. */
+const VENTANA_MS = 8000;
 
 function on(el, tipo, fn) {
   if (!el) return;
@@ -200,12 +225,27 @@ export async function montar(c, ctx) {
   on(cont, 'click', conservandoFoco(clicCuerpo));
   on($('pf-hoja'), 'click', clicHoja);
   on($('pf-pide'), 'click', clicPide);
+  /* Lo que se teclea en las dos capas. Delegado, por lo mismo que el clic: las dos se rehacen
+     con innerHTML y un oyente por campo se iría con el campo. */
+  on($('pf-hoja'), 'input', alEscribirHoja);
+  on($('pf-pide'), 'input', alEscribirPide);
   on(window, 'afterprint', trasImprimir);
+
+  /* Las fórmulas se parten por la derecha sin decir que sigue (F30): con un SELECTOR la pieza
+     las cubre todas, las de hoy y las de cada repintado, y se llama una sola vez. */
+  const P = piezas();
+  if (P.bordesDesvanecidos) _bordes = P.bordesDesvanecidos('.mat-formula', { eje: 'x' });
 
   await cargar();
 }
 
 export function desmontar() {
+  /* Lo que está en su ventana de «Deshacer» se confirma antes de soltar nada: salir de la
+     pantalla no es tocar «Deshacer», y es lo mismo que hace la pieza si la página se va. Va
+     primero porque la escritura lleva sus líneas ya armadas y no necesita nada de lo de abajo. */
+  confirmarVentanas();
+  if (_bordes) { try { _bordes.destruir(); } catch (_) {} _bordes = null; }
+
   for (const [el, tipo, fn] of _oyentes) {
     try { el.removeEventListener(tipo, fn); } catch (_) {}
   }
@@ -215,7 +255,7 @@ export function desmontar() {
      lista» puesto, el primer dedo del día lo aprieta creyendo que es de la pantalla que
      está viendo. Se limpia aquí y no en la que sigue. */
   const b = $('pf-mbar');
-  if (b) { b.hidden = true; b.innerHTML = ''; b.onclick = null; ajustarAltoBarra(); }
+  if (b) { b.hidden = true; b.innerHTML = ''; b.onclick = null; b.classList.remove('mat-mbar'); ajustarAltoBarra(); }
 
   /* Las capas también son del documento. Salir de Material con el catálogo abierto dejaba
      el velo encima de la Agenda. */
@@ -229,6 +269,7 @@ export function desmontar() {
   COMPRA = []; EXIS = []; PROYS = []; CTES = []; CALIB = [];
   REQS = new Map(); FECHA = new Map(); MATS = new Map();
   pide = null;
+  _cuentasVistas = false;
   cont = null; CTX = null;
 }
 
@@ -238,14 +279,31 @@ export function desmontar() {
 
 async function cargar() {
   const cuerpo = $('mt-cuerpo');
-  /* Solo la primera vez. cargar() corre también después de cada acción («Así está», guardar un
-     material), y vaciar el cuerpo a un renglón para rellenarlo después hacía parpadear la lista
-     y saltar el scroll. Con algo ya pintado, se repinta encima cuando llegan los datos. */
+  /* Solo la primera vez. cargar() corre también después de cada acción (guardar un material,
+     recibir la lista), y vaciar el cuerpo para rellenarlo después hacía parpadear la lista y
+     saltar el scroll. Con algo ya pintado, se repinta encima cuando llegan los datos.
+
+     Y la primera vez es la silueta del módulo, la misma que el router pone mientras el módulo
+     se importa (F16), no un reloj centrado con una frase: antes el router enseñaba una forma de
+     «cargando», el módulo la cambiaba por otra de otro alto, y la página daba un salto en el
+     momento en que más se mira. `esqueletoModulo` ya lleva `aria-busy` y su texto de estado, y
+     su brillo aparece a los 180 ms: una lectura que tarda 60 ms no parpadea.
+
+     Pero esos 180 ms son para quien NO tenía nada a la vista. Si el router ya enseña la suya
+     —el módulo tardó en importarse—, `montar()` la quita en cuanto este cuerpo recibe hijos, y
+     la nueva, con su retardo, dejaba un hueco en blanco de 180 ms entre las dos siluetas: el
+     parpadeo que esta ficha venía a quitar. Cuando la del router ya se ve, la de aquí nace
+     visible (`sin-espera`) y toma su lugar sin hueco. Se mira ANTES de que termine esta tarea:
+     el router la retira en una microtarea que corre después. */
   if (cuerpo && !cuerpo.childElementCount) {
-    cuerpo.innerHTML = '<div class="vacio">' + ico('i-reloj') +
-      '<p class="vacio-t">Sumando el libro del almacén…</p></div>';
+    const ajena = [...document.querySelectorAll('.pf-esqueleto')].find(e => !cuerpo.contains(e));
+    const yaSeVe = !!ajena && parseFloat(getComputedStyle(ajena).opacity) > 0.01;
+    cuerpo.innerHTML = esqueletoModulo('material', 'Material');
+    if (yaSeVe) { const mia = cuerpo.querySelector('.pf-esqueleto'); if (mia) mia.classList.add('sin-espera'); }
   }
   await leerDatos();
+  /* Se pudo haber salido mientras se leía (una escritura con «Deshacer» termina ya fuera). */
+  if (!cont) return;
   pintar();
   publicarCuenta();
 }
@@ -259,7 +317,14 @@ export async function contar() {
   return { material: cuantosComprar() };
 }
 
-async function leerDatos() {
+function leerDatos() {
+  const mia = ++_lecturaN;
+  const p = leerDatosDeVerdad(mia);
+  _lecturaP = p;
+  return p;
+}
+
+async function leerDatosDeVerdad(mia) {
   /* Todo en paralelo y todo local: esta pantalla se abre en el taller, sin señal, y
      `listaCompra` y `existencias` recorren el libro de movimientos completo cada una. En
      serie se nota en un celular viejo justo cuando alguien está esperando.
@@ -281,6 +346,9 @@ async function leerDatos() {
     DB.listar('constantes'),
     Material.calibracion(),
   ]);
+  /* Una lectura más nueva ya salió o va a salir: esta es la vieja y no pisa nada. Quien la
+     esperaba espera a la nueva, para que `await leerDatos()` siga significando «ya está leído». */
+  if (mia !== _lecturaN) return _lecturaP;
 
   COMPRA = Array.isArray(compra) ? compra : [];
   EXIS = Array.isArray(exis) ? exis : [];
@@ -299,8 +367,9 @@ async function leerDatos() {
     if (!prev || String(i.fecha) < String(prev.fecha)) FECHA.set(i.proyecto_id, i);
   }
 
-  REQS = new Map();
   const reqs = await Promise.all(PROYS.map(p => Material.requerimientos(p.id)));
+  if (mia !== _lecturaN) return _lecturaP;
+  REQS = new Map();
   PROYS.forEach((p, k) => REQS.set(p.id, reqs[k] || []));
 }
 
@@ -339,11 +408,18 @@ function pintar() {
   const cab = $('mt-cab'), cuerpo = $('mt-cuerpo'), pie = $('mt-pie');
   if (!cab || !cuerpo || !pie) return;
 
+  /* Lo que está en su ventana de «Deshacer» se confirma ANTES de rehacer la pantalla: su botón
+     va a dejar de existir con el innerHTML de abajo, y una mecha sin botón es una escritura
+     que nadie ve venir. Salir de la pestaña, como salir de la pantalla, no es «Deshacer». */
+  confirmarVentanas();
+
   cab.innerHTML = cuentas() + fila_calibracion() + pestanas();
+  rodarCuentas();
   cuerpo.innerHTML =
     TAB === 'comprar'  ? tabComprar() :
     TAB === 'almacen'  ? tabAlmacen() :
                          tabProyecto();
+  if (TAB === 'almacen') anclarContados();
   pie.innerHTML = laVerdad();
 
   pintarMbar();
@@ -358,9 +434,9 @@ function cuentas() {
   const viejos = EXIS.filter(esViejo).length;
 
   const c = [
-    unaCuenta(pend, pend === 1 ? 'Material por comprar' : 'Materiales por comprar', pend > 0),
-    unaCuenta(bajos, 'Bajo mínimo', bajos > 0),
-    unaCuenta(viejos, 'Sin contar en ' + VIEJO_DIAS + ' días', viejos > 0),
+    unaCuenta(pend, pend === 1 ? 'Material por comprar' : 'Materiales por comprar', pend > 0, 'pend'),
+    unaCuenta(bajos, 'Bajo mínimo', bajos > 0, 'bajos'),
+    unaCuenta(viejos, 'Sin contar en ' + VIEJO_DIAS + ' días', viejos > 0, 'viejos'),
   ];
 
   if (Prefs.veDinero()) {
@@ -368,15 +444,56 @@ function cuentas() {
     /* Sin un solo costo capturado no se pinta «$0.00»: eso se lee como que la compra sale
        gratis. Se pinta el renglón que dice qué falta para que ese número exista. */
     c.push(costo > 0
-      ? '<p class="pf-cuenta dinero">' + cifraQueCabe(money(costo)) + 'Costo de lo que hay que comprar</p>'
+      ? '<p class="pf-cuenta dinero">' + cifraQueCabe(money(costo)).replace('<b ', '<b data-cuenta="costo" ') +
+        'Costo de lo que hay que comprar</p>'
       : '<p class="pf-cuenta"><b>—</b>Sin costos capturados</p>');
   }
   return '<div class="pf-cuentas">' + c.join('') + '</div>';
 }
 
-function unaCuenta(n, etiqueta, urge) {
-  return '<p class="pf-cuenta' + (urge ? ' urge' : '') + '"><b>' + num(n) + '</b>' +
+/* `clave` marca la cifra que puede rodar (F23): `rodarCuentas()` solo toca las que la traen. */
+function unaCuenta(n, etiqueta, urge, clave) {
+  return '<p class="pf-cuenta' + (urge ? ' urge' : '') + '"><b data-cuenta="' + esc(clave) + '">' + num(n) + '</b>' +
     esc(etiqueta) + '</p>';
+}
+
+/* ----- Las cuentas ruedan cuando cambian (F23) -----
+   «Por comprar 3 → 2» cambiaba de golpe en medio de un repintado completo y se pasaba por alto,
+   justo la cifra que se vino a leer. La pieza `rodarCifra` recuerda el último valor de cada
+   cifra por su `clave` —que sobrevive al innerHTML, y esta cinta se rehace en cada toque— y solo
+   hace rodar la que cambió; la que no cambió no se toca. Dos cuidados que son de aquí:
+
+     · NUNCA en el primer pintado de la pantalla (`animar` es falso hasta que la cinta se pintó
+       una vez): entrar a Material no es un cambio, y tres cifras girando al abrir es ruido. La
+       pieza igual la recuerda, así que lo siguiente sí rueda desde ahí.
+     · `cifraQueCabe()` sigue mandando en el ancho del costo: la rueda no cambia el tamaño de la
+       caja, que es lo que esa cifra mide para achicarse hasta caber en su tarjeta. */
+function rodarCuentas() {
+  const P = piezas(), cab = $('mt-cab');
+  const animar = _cuentasVistas;
+  _cuentasVistas = true;
+  if (!P.rodarCifra || !cab) return;
+  for (const b of cab.querySelectorAll('.pf-cuenta b[data-cuenta]')) {
+    P.rodarCifra(b, b.textContent, { clave: 'material:' + b.dataset.cuenta, animar });
+  }
+}
+
+/** Rehace SOLO la cinta de cuentas y las pestañas, sin tocar la lista: lo que cambia después de un
+ *  conteo en su sitio («Sin contar en 30 días» baja uno, el «Por comprar · N» de la pestaña). */
+function refrescarCabecera() {
+  const cab = $('mt-cab');
+  if (!cab) return;
+  const t = document.createElement('template');
+  t.innerHTML = cuentas();
+  const vieja = cab.querySelector('.pf-cuentas');
+  if (vieja) vieja.replaceWith(t.content.firstElementChild);
+  rodarCuentas();
+  /* Las pestañas solo si dicen otra cosa: reemplazarlas por igual le quita el foco a quien
+     las navega con el teclado, y no hay nada que mostrar. */
+  const tp = document.createElement('template');
+  tp.innerHTML = pestanas();
+  const nueva = tp.content.firstElementChild, actual = cab.lastElementChild;
+  if (nueva && actual && actual.outerHTML !== nueva.outerHTML) actual.replaceWith(nueva);
 }
 
 function pestanas() {
@@ -515,6 +632,7 @@ function filaCompra(l) {
            «hay nada · piden 0». */
         '<small>' + esc((num(l.disponible) <= 0 ? 'no hay ' : 'hay ') +
           cantHay(l.disponible) + ' · piden ' + cant(l.requerido)) + '</small>' +
+        medidorCompra(l) +
       '</div>';
 
   return '<div class="mat-fila">' +
@@ -551,6 +669,33 @@ function filaCompra(l) {
         ico('i-wa') + 'Pedirlo por WhatsApp</a></div>'
       : '') +
   '</div>';
+}
+
+/* ----- El medidor de cada renglón (F3) -----
+   «hay 2.4 · piden 3» es una frase chica debajo del número, y cuánto falta se entiende mejor con
+   los ojos que con una resta. La pieza 20 pinta una barra QUIETA de 6 px con tres señales que no
+   son color: lo lleno es lo que hay, lo rayado es la parte de eso que ya tiene dueño (hay 2.4 y
+   los proyectos piden 3: todo lo que hay está pedido), y la muesca es el mínimo de almacén o,
+   si no hay mínimo, lo que piden. Lo que falta hasta «piden» va en ámbar y con borde punteado.
+   Con el libro en negativo la barra sale vacía y la marca roja del cero a la izquierda: eso es
+   «el libro va debajo de nada», y la frase de arriba ya lo dice con palabras.
+
+   La barra va `aria-hidden` y NO lleva texto encima: la frase de siempre se queda. En la lista
+   que se imprime la barra se esconde (`.no-papel`) —la vidriería lee la frase y una barra rayada
+   en una impresora de blanco y negro es una mancha—. Sin mínimo ni pedido no hay contra qué
+   medir, y una barra al 83 % que no significa nada es peor que ninguna. */
+function medidorCompra(l) {
+  const P = piezas();
+  if (!P.medidorHTML) return '';
+  const hay = num(l.disponible), pide = num(l.requerido), minimo = num(l.min_stock);
+  if (!(pide > 0 || minimo > 0)) return '';
+  return P.medidorHTML({
+    valor: hay, max: Math.max(hay, pide, minimo) * 1.2,
+    rayado: Math.min(Math.max(hay, 0), pide),
+    meta: pide > 0 ? pide : null,
+    muesca: minimo > 0 ? minimo : (pide > 0 ? pide : null),
+    clase: 'no-papel',
+  });
 }
 
 /** El pedido, ya escrito. Sin precio: se le pregunta a él, no se le dice. */
@@ -593,11 +738,12 @@ function tabAlmacen() {
   /* En el orden del catálogo, no por lo que urge: una lista que se reordena entre dos
      aperturas se lee como si hubiera cambiado, y ésta se recorre con el estante enfrente,
      renglón por renglón, en el mismo orden todos los meses. Lo que urge ya está marcado. */
-  const filas = EXIS.map(filaExistencia).join('');
+  const filas = EXIS.map(e => filaExistencia(e)).join('');
 
   return '<div class="card"><div class="card-h"><h2>' + ico('i-material') +
     ' En almacén <span class="folio">' + EXIS.length + '</span></h2></div>' +
     '<div class="card-b">' +
+    htmlContados() +
     '<p class="hintnote">«Así está» graba el conteo con el número que la plataforma ya tenía, ' +
     'sin teclearlo. Sin ese botón el conteo del mes son diecinueve números capturados a mano ' +
     'en un almacén, y eso se hace una vez y nunca más: teclea solo los que no cuadren.</p>' +
@@ -607,11 +753,105 @@ function tabAlmacen() {
     '</div></div>';
 }
 
-function filaExistencia(e) {
+/* ----- El conteo del mes, renglón por renglón (F6) -----
+   «Así está» y «Corregir» pasaban por cargar(): la lista entera se volvía a pintar con cada
+   toque, el foco se iba y no se veía cuántos llevaba contados. Ahora el renglón tocado se
+   rehace en su sitio y nada más. El cuadro del icono se llena con una palomita que se dibuja
+   UNA vez, solo en el renglón recién contado (`recien`): los que ya venían contados de antes
+   salen con su palomita puesta, y rehacer la lista no los dibuja otra vez.
+
+   Lo que NO se hace, a propósito: tachar ni atenuar la etiqueta. Un renglón contado no es un
+   renglón hecho —mañana hay que contarlo igual—, y atenuar texto con `opacity` es justo lo que
+   el §4.3 del sistema de diseño prohíbe. La marca va en el icono y en el sello, que dice «contado
+   hoy por …» con letra, no solo con color.
+
+   «Hoy» es `frescura_dias === 0`, que es lo que ya calcula la capa de datos. */
+const contadoHoy = e => !!(e && e.existe !== false && e.ultimo_conteo && num(e.frescura_dias) === 0 && e.frescura_dias !== null);
+const contadosHoy = () => EXIS.filter(contadoHoy).length;
+
+/* El sello de la capa de datos dice «contado el 1 oct por Beto», que de hoy sería «el 1 oct»
+   cuando lo que se quiere leer es «hoy». Se escribe aquí y no en `stock.js` porque es texto de
+   pantalla; el sufijo de los movimientos de después es el mismo que pone esa capa. */
+function selloMostrado(e) {
+  if (!contadoHoy(e)) return e.sello;
+  const quien = String(e.contado_por || '').trim();
+  const post = num(e.movimientos_posteriores);
+  return 'contado hoy' + (quien ? ' por ' + quien : '') +
+    (post ? ' · ' + post + (post === 1 ? ' movimiento' : ' movimientos') + ' después' : '');
+}
+
+/* Lo que hace distinto a un renglón de otro. Sirve para no volver a pintar uno que no cambió:
+   cambiar un renglón por otro igual a media palomita la reiniciaba. */
+const firmaFila = e => [e.cantidad, e.sello, e.frescura_dias, e.comprometido, e.min_stock,
+  e.movimientos_posteriores, e.costo_compra].join('|');
+
+/** «Contados hoy: 7 de 19», con su barra quieta. Arriba de la lista, donde se mira al empezar. */
+function htmlContados() {
+  const P = piezas(), n = contadosHoy(), t = EXIS.length;
+  return '<div class="mat-contados no-papel" id="mt-contados">' +
+    '<p class="mat-contados-t">Contados hoy: <b data-contados>' + n + '</b> <span data-contados-de>de ' + t + '</span></p>' +
+    (P.medidorHTML ? P.medidorHTML({ valor: n, max: t || 1, tono: 'ok' }) : '') +
+  '</div>';
+}
+
+/** Después de pintar la pestaña entera: que la pieza recuerde el número de ahora SIN rodar, para
+ *  que el siguiente conteo ruede desde aquí y no desde lo que quedó de la última visita. */
+function anclarContados() {
+  const P = piezas(), b = cont && cont.querySelector('#mt-contados [data-contados]');
+  if (b && P.rodarCifra) P.rodarCifra(b, b.textContent, { clave: 'material:contados', animar: false });
+}
+
+function pintarContados() {
+  const P = piezas(), el = $('mt-contados');
+  if (!el) return;
+  const n = contadosHoy(), t = EXIS.length;
+  const b = el.querySelector('[data-contados]');
+  if (b) { if (P.rodarCifra) P.rodarCifra(b, String(n), { clave: 'material:contados' }); else b.textContent = String(n); }
+  const de = el.querySelector('[data-contados-de]');
+  if (de) de.textContent = 'de ' + t;
+  const m = el.querySelector('.medidor');
+  if (m && P.pintarMedidor) P.pintarMedidor(m, { valor: n, max: t || 1, tono: 'ok' });
+}
+
+/** Cambia el renglón de un material por su versión de ahora. `false` si no hay renglón que cambiar
+ *  (otra pestaña) y `true` si ya estaba al día o se cambió. */
+function pintarFila(id, recien) {
+  const cuerpo = $('mt-cuerpo');
+  if (!cuerpo) return false;
+  let viejo = null;
+  for (const f of cuerpo.querySelectorAll('.mat-fila[data-mat]')) if (f.dataset.mat === id) { viejo = f; break; }
+  const e = EXIS.find(x => x.material_id === id);
+  if (!viejo || !e) return false;
+  if (viejo.dataset.firma === firmaFila(e)) return true;
+  const t = document.createElement('template');
+  t.innerHTML = filaExistencia(e, { recien });
+  viejo.replaceWith(t.content.firstElementChild);
+  return true;
+}
+
+/** El medidor de un renglón de almacén: lo que hay contra el mínimo y contra lo que ya tiene
+ *  dueño. Solo si hay contra qué medir (ver `medidorCompra`). */
+function medidorExistencia(e, bajo) {
+  const P = piezas();
+  if (!P.medidorHTML) return '';
+  const hay = num(e.cantidad), comp = num(e.comprometido), minimo = num(e.min_stock);
+  if (!(comp > 0 || minimo > 0)) return '';
+  return P.medidorHTML({
+    valor: hay, max: Math.max(hay, comp, minimo) * 1.2,
+    rayado: comp > 0 ? comp : null,
+    meta: comp > 0 ? comp : null,
+    muesca: minimo > 0 ? minimo : null,
+    tono: bajo ? 'av' : '',
+  });
+}
+
+function filaExistencia(e, o = {}) {
   const bajo = num(e.min_stock) > 0 && e.cantidad < num(e.min_stock);
   const viejo = esViejo(e);
+  const hoy = contadoHoy(e);
   const mat = MATS.get(e.material_id) || null;
   const veDinero = Prefs.veDinero();
+  const P = piezas();
 
   const medida = unidadYMedida(e.unidad_compra, mat && mat.medida);
 
@@ -627,11 +867,16 @@ function filaExistencia(e) {
   }
   if (!e.existe) marcas.push('<span class="mat-conf requiere_dato">Ya no está en el catálogo</span>');
 
-  return '<div class="mat-fila">' +
+  /* La caja del icono es de adorno (`aria-hidden`): lo que dice que ya se contó es el sello. */
+  const caja = '<span class="mat-caja" aria-hidden="true">' +
+    (hoy && P.palomitaHTML ? P.palomitaHTML({ dibujar: !!o.recien }) : '') + '</span>';
+
+  return '<div class="mat-fila' + (hoy ? ' contado' : '') + '" data-mat="' + esc(e.material_id) +
+    '" data-firma="' + esc(firmaFila(e)) + '">' +
     '<div>' +
-      '<div class="mat-n">' + esc(e.nombre) + '</div>' +
+      '<div class="mat-n">' + caja + esc(e.nombre) + '</div>' +
       (medida ? '<div class="mat-med">' + esc(medida) + '</div>' : '') +
-      '<div class="mat-sello' + (viejo ? ' viejo' : '') + '">' + esc(e.sello) + '</div>' +
+      '<div class="mat-sello' + (viejo ? ' viejo' : '') + (hoy ? ' hoy' : '') + '">' + esc(selloMostrado(e)) + '</div>' +
       (marcas.length ? '<div>' + marcas.join(' ') + '</div>' : '') +
     '</div>' +
     '<div class="mat-cant' + (bajo ? ' falta' : (e.cantidad <= 0 ? ' cero' : '')) + '">' +
@@ -639,6 +884,7 @@ function filaExistencia(e) {
       (num(e.comprometido) > 0
         ? '<small>' + esc(cant(e.comprometido) + ' ya con dueño · libre ' + cant(e.libre)) + '</small>'
         : '') +
+      medidorExistencia(e, bajo) +
     '</div>' +
     (veDinero && e.costo_compra !== null && e.costo_compra !== undefined
       ? '<div class="mat-nota">' + esc(money(e.costo_compra)) + ' por ' +
@@ -794,15 +1040,36 @@ function pintarMbar() {
   if (!b) return;
   const pedir = porComprar().filter(l => num(l.comprar) > 0);
   if (TAB !== 'comprar' || !pedir.length) {
-    b.hidden = true; b.innerHTML = ''; b.onclick = null; ajustarAltoBarra(); return;
+    b.hidden = true; b.innerHTML = ''; b.onclick = null; b.classList.remove('mat-mbar'); ajustarAltoBarra(); return;
   }
-  b.innerHTML = '<button type="button" class="btn btn-ok" data-recibi>' +
-    esc(textoRecibi(pedir)) + '</button>';
-  b.hidden = false;
+  const texto = textoRecibi(pedir);
+  const P = piezas();
+  const btn = b.hidden ? null : b.querySelector('[data-recibi]');
+  /* La barra ya está a la vista con su botón (se repinta después de cada acción y de cada
+     cambio de pestaña, y casi siempre dice lo mismo): el botón NO se reescribe. Si el rótulo
+     cambió —«(2 materiales)» a «(1 material)» porque alguien editó un mínimo—, el nuevo se cruza
+     con el viejo en su sitio (F29) en vez de aparecer de golpe; si es el mismo, `cambiarRotulo`
+     no toca nada. Reescribir con innerHTML era lo que hacía que un cambio de acción no se notara
+     y, con un dedo encima, que el botón se cayera de debajo de él. */
+  if (btn && P.cambiarRotulo) P.cambiarRotulo(btn, texto);
+  else if (btn) btn.textContent = texto;
+  else {
+    b.innerHTML = '<button type="button" class="btn btn-ok" data-recibi>' + esc(texto) + '</button>';
+    b.hidden = false;
+  }
+  /* La entrada (sube 12 px con un fundido de 180 ms) es CSS de esta pantalla, y se cuelga de
+     esta clase y no de `.pf-mbar` a secas: la barra es de todo el documento y la usan otros
+     módulos con sus propias acciones. */
+  b.classList.add('mat-mbar');
   b.onclick = ev => {
-    const btn = ev.target.closest('[data-recibi]');
-    if (btn) conBoton(btn, recibirTodo);
+    const bt = ev.target.closest('[data-recibi]');
+    if (bt) pedirRecibo(bt);
   };
+  /* Mide el alto de la barra ya puesta y publica `--mbar-h`. Medir con la entrada a medias no
+     engaña: la barra solo se TRASLADA (translateY) mientras entra, y un traslado no cambia su
+     alto —a diferencia de escalarla, que sí lo cambiaría—. Es el mismo problema que ya resolvió
+     `alTerminarDeEntrar` para el marco del cotizador, y aquí se evita por construcción en vez de
+     esperar al final de la animación. */
   ajustarAltoBarra();
 }
 
@@ -824,7 +1091,7 @@ async function clicCuerpo(ev) {
 
   if (t.closest('[data-imprimir]')) { imprimir(); return; }
   const rb = t.closest('[data-recibi]');
-  if (rb) { await conBoton(rb, recibirTodo); return; }
+  if (rb) { pedirRecibo(rb); return; }
 
   const asi = t.closest('[data-asi]');
   if (asi) { await conBoton(asi, () => aceptarDerivado(asi.dataset.asi)); return; }
@@ -839,11 +1106,13 @@ async function clicCuerpo(ev) {
   if (rec) { await conBoton(rec, () => recalcular(rec.dataset.recalcular)); return; }
 
   const cal = t.closest('[data-calibrar]');
-  if (cal) { await conBoton(cal, () => aplicarCalibracion(Number(cal.dataset.calibrar))); return; }
+  if (cal) { pedirCalibracion(cal, Number(cal.dataset.calibrar)); return; }
 }
 
 /** Un botón que dispara una mutación se apaga mientras dura. Sin esto, dos toques nerviosos
- *  en «Recibí lo de la lista» meten el material dos veces, y deshacerlo es un conteo. */
+ *  en «Recalcular» o en «Así está» escriben dos veces, y deshacerlo es un conteo. «Recibí lo de
+ *  la lista» y «Actualizar» ya no pasan por aquí: su ventana de «Deshacer» (`conVentana`) cuida
+ *  el segundo toque por su cuenta. */
 async function conBoton(btn, fn) {
   if (!btn || btn.disabled) return;
   btn.disabled = true;
@@ -862,9 +1131,20 @@ async function conBoton(btn, fn) {
    botón dice cuántos materiales va a meter antes de tocarlo, no después: es la única
    advertencia que hace falta, y una pregunta de «¿seguro?» encima de un gesto que ya se
    hizo con la remisión en la mano es la que enseña a darle sí sin leer. Si algo llegó
-   incompleto, el arreglo es un conteo en «En almacén», que manda sobre el libro. */
-async function recibirTodo() {
-  const lineas = porComprar()
+   incompleto, el arreglo es un conteo en «En almacén», que manda sobre el libro.
+
+   Lo que sí se le da es una salida (F13): al tocar, el botón se vuelve «Deshacer» durante 8 s,
+   con una mecha que se consume, y la escritura se hace AL APAGARSE la mecha, no al tocar. Es el
+   orden contrario al de «escribir y ofrecer revertir», y se eligió porque en `stock.js` no hay
+   cómo anular una recepción —el libro es un apéndice: habría que escribir un movimiento
+   compensatorio y todo lo que lo lea tendría que entender de qué es—, mientras que no escribir
+   todavía no deja rastro que deshacer. Tampoco es un «¿seguro?»: no frena a quien sabe lo que
+   hace, solo deja que quien se equivocó de botón lo retire sin conteo.
+
+   Las líneas se arman AL TOCAR y esas son las que se escriben: es lo que el botón dijo («2
+   materiales») y no lo que la lista valga ocho segundos después. */
+function lineasDeRecibo() {
+  return porComprar()
     .filter(l => num(l.comprar) > 0)
     .map(l => ({
       material_id: l.material_id,
@@ -874,23 +1154,115 @@ async function recibirTodo() {
       costo_total: (l.costo === null || l.costo === undefined) ? undefined : num(l.costo),
       nota: 'Recibido de la lista de compra del ' + fmtFecha(hoyISO()),
     }));
+}
 
+function pedirRecibo(btn) {
+  const lineas = lineasDeRecibo();
   if (!lineas.length) { toast('No hay nada marcado para comprar en esta lista', 'err', 3600); return; }
+  conVentana('recibo', btn, () => escribirRecibo(lineas),
+    () => toast('No se registró nada: lo de la lista sigue por recibir.', '', 3600));
+}
 
+async function escribirRecibo(lineas) {
   const r = await Stock.recibirCompra(lineas);
   if (!avisarResultado(r)) return;
   const n = r.valor.movimientos;
   toast('Entraron ' + n + (n === 1 ? ' material' : ' materiales') + ' al almacén' +
     (r.valor.costo_total ? ' · ' + money(r.valor.costo_total) : '') +
     '. Si algo llegó incompleto, corrígelo con un conteo.', 'ok', 5200);
-  await cargar();
+  if (cont) await cargar();
 }
 
+/* ----- Una acción con su ventana de «Deshacer» -----
+   Lo común de «Recibí lo de la lista» y «Actualizar» (la calibración): el botón que se tocó
+   ofrece «Deshacer» (pieza 15) y la escritura va en `escribir`, que corre al apagarse la mecha.
+   Dos cosas que son de aquí y no de la pieza:
+
+     · Una ventana por clave. Mientras la de «recibo» está abierta, o mientras su escritura
+       corre, el mismo botón no vuelve a empezar otra: la pieza ya se come el toque del botón
+       que está en «Deshacer», pero el que escribe vuelve a su rótulo en cuanto la mecha se
+       apaga y los milisegundos que tarda la escritura eran justo la rendija por donde un
+       segundo toque metía el material dos veces. En el teléfono además hay dos botones iguales
+       —el de la tarjeta y el de la barra—, de los que solo se ve uno, pero la clave los cuida a
+       los dos.
+     · Sin la pieza (o sin botón) se escribe de inmediato, como antes: quitar la ventana es
+       mejor que quitar la acción. */
+function conVentana(clave, btn, escribir, alDeshacer) {
+  if (_ventanas.has(clave)) return;
+  const estado = { mango: null, escribiendo: false };
+  _ventanas.set(clave, estado);
+  const confirmar = async () => {
+    estado.escribiendo = true;
+    /* La escritura repinta la pantalla ocho segundos después del toque, fuera del manejador de
+       clic que cuida el foco (`conservandoFoco`): quien navega con teclado y sigue sobre el botón
+       caía al <body>, al principio de la página. Se le da el mismo cuidado aquí. */
+    const conFoco = cont ? conservandoFoco(() => escribir(), cont) : () => escribir();
+    try { await conFoco(); } catch (e) {
+      /* Una mutación de la capa de datos no lanza nunca; si algo llega aquí es un error de
+         programación de esta pantalla y se dice, en vez de dejar la acción muerta. */
+      console.error('la acción de material falló', e);
+      toast('Algo se rompió al hacer eso. Recarga la plataforma y vuelve a intentarlo.', 'err', 4600);
+    } finally { _ventanas.delete(clave); }
+  };
+  const P = piezas();
+  if (!P.deshacerEnBoton || !btn) { confirmar(); return; }
+  estado.mango = P.deshacerEnBoton(btn, {
+    ms: VENTANA_MS,
+    alConfirmar: confirmar,
+    alDeshacer: () => { _ventanas.delete(clave); if (alDeshacer) alDeshacer(); },
+  });
+}
+
+/** Lo que está en su ventana se confirma ya. Es lo que pasa cuando su botón está por dejar de
+ *  existir —se repinta la pantalla, se cambia de pestaña, se sale del módulo—, igual que cuando
+ *  la página se va: nadie tocó «Deshacer», y una escritura que ya nadie ve venir es peor que una
+ *  hecha un poco antes. Efecto conocido: si dos ventanas están abiertas a la vez, la primera en
+ *  terminar repinta la pantalla y confirma la otra antes de su hora. */
+function confirmarVentanas() {
+  for (const v of [..._ventanas.values()]) if (v.mango && v.mango.vivo) v.mango.confirmar();
+}
+
+/** «Así está»: el conteo con el número que ya traía el libro. El renglón se actualiza en su
+ *  sitio (ver `alContar`), no con una recarga de toda la pantalla. */
 async function aceptarDerivado(id) {
   const r = await Stock.aceptarDerivado(id);
   if (!avisarResultado(r)) return;
   toast('Contado: quedó en ' + uc(r.valor.ahora, unidadDe(id)) + ' con la fecha de hoy', 'ok', 4200);
-  await cargar();
+  await alContar(id);
+}
+
+/* Después de un conteo escrito. Primero lo barato y a la vista: se lee SOLO la existencia de ese
+   material y se rehace SOLO su renglón, que es lo que se está mirando (la lista no se vacía, el
+   scroll no se mueve y el foco vuelve al mismo botón). Después, por detrás y sin pintar la
+   lista, la lectura completa de siempre: lo que hay que comprar y la cuenta de la barra
+   dependen del libro entero. Si mientras tanto se cambió de pestaña, esa sí se repinta con los
+   datos nuevos; si no, solo se corrigen la cinta de cuentas, las pestañas y la barra.
+
+   `Stock.existencia()` no trae lo comprometido —eso lo agrega `existencias()` sobre todo el
+   libro— y un conteo no cambia lo que ya tiene dueño, así que se conserva el del renglón. */
+async function alContar(id) {
+  const nueva = await Stock.existencia(id);
+  if (!cont) return;
+  const i = EXIS.findIndex(x => x.material_id === id);
+  if (i < 0 || !nueva || !nueva.existe) { await cargar(); return; }
+  const antes = EXIS[i], comp = num(antes.comprometido);
+  EXIS[i] = { ...nueva, comprometido: antes.comprometido,
+    libre: Math.round((num(nueva.cantidad) - comp) * 1e6) / 1e6 };
+
+  if (TAB === 'almacen') { pintarFila(id, true); pintarContados(); }
+  refrescarCabecera();
+  publicarCuenta();
+
+  const tab = TAB;
+  await leerDatos();
+  if (!cont) return;
+  if (TAB !== tab) pintar();
+  else {
+    if (TAB === 'almacen') { pintarFila(id, false); pintarContados(); }
+    refrescarCabecera();
+    pintarMbar();
+  }
+  publicarCuenta();
 }
 
 const unidadDe = id => {
@@ -909,16 +1281,26 @@ async function recalcular(id) {
   await cargar();
 }
 
-async function aplicarCalibracion(i) {
+/* ----- «Actualizar» la constante que propone la calibración (F13) -----
+   Misma ventana de «Deshacer» que «Recibí lo de la lista», y por la misma razón: el valor anterior
+   está en CTES, pero revertir sería escribir otra vez y dejar dos renglones de «cambiada por» donde
+   nadie cambió nada. Aquí no se escribe hasta que la mecha se apaga, y deshacer no deja rastro.
+   La propuesta se toma AL TOCAR (`k`): el índice de CALIB puede moverse en los ocho segundos. */
+function pedirCalibracion(btn, i) {
   const k = CALIB[i];
   if (!k || !k.constante_sugerida) return;
+  conVentana('calibrar:' + k.constante_sugerida, btn, () => escribirCalibracion(k),
+    () => toast(k.constante_sugerida + ' se quedó como estaba.', '', 3600));
+}
+
+async function escribirCalibracion(k) {
   const r = await Material.guardarConstante(k.constante_sugerida, k.valor_sugerido,
     'Calibración: ' + k.muestras + ' correcciones de ' + k.familia + ' dieron una razón media de ' +
     k.razon + ' contra lo calculado.');
   if (!avisarResultado(r)) return;
   toast(k.constante_sugerida + ' quedó en ' + k.valor_sugerido +
     '. Lo que se calcule de aquí en adelante ya la usa; lo ya comprado no se toca.', 'ok', 5200);
-  await cargar();
+  if (cont) await cargar();
 }
 
 /* ============================================================================
@@ -936,7 +1318,18 @@ function abrirHoja(modo) {
 function repintarHoja() {
   const capa = $('pf-hoja');
   if (!capa || !capa.classList.contains('show')) return;
+  /* Lo tecleado y todavía sin guardar sobrevive al repintado: «Ver y corregir la lámina» abre el
+     panel chico encima de las constantes y al guardar se repinta la hoja de abajo. Antes los
+     números escritos se perdían sin decir nada; con «Guardar 2 cambios» a la vista (F20) que
+     desaparezcan de golpe sería peor. Si se guardó, el valor nuevo ya es el `data-antes` y el campo
+     deja de estar cambiado solo; si el guardado falló, sigue marcado. */
+  const tecleado = [...capa.querySelectorAll('[data-cte]')].filter(cambioDe).map(i => [i.dataset.cte, i.value]);
   repintarEnSitio(capa, htmlHoja());   // editar un material no devuelve el catálogo arriba
+  for (const [clave, valor] of tecleado) {
+    const i = [...capa.querySelectorAll('[data-cte]')].find(x => x.dataset.cte === clave);
+    if (i) i.value = valor;
+  }
+  if (tecleado.length) marcarCambios();
 }
 
 function htmlHoja() {
@@ -955,9 +1348,13 @@ function htmlHoja() {
       (hojaModo === 'catalogo' ? htmlCatalogo() : htmlConstantes()) +
     '</div>' +
     (hojaModo === 'constantes'
+      /* «Guardar» nace fantasma y `aria-disabled`, no `disabled`: el toque tiene que llegar para
+         decir por qué no pasa nada («No cambiaste ningún número»), y un botón apagado de verdad
+         se queda mudo y sin foco. Se llena de color cuando algún campo cambia (F20). */
       ? '<div class="pf-panel-f">' +
           '<button type="button" class="btn btn-gho" data-cerrar-hoja>Cerrar</button>' +
-          '<button type="button" class="btn btn-pri" data-guardar-ctes>Guardar lo que cambiaste</button>' +
+          '<button type="button" class="btn btn-gho mat-guardar" data-guardar-ctes aria-disabled="true">' +
+            'Guardar cambios</button>' +
         '</div>'
       : '<div class="pf-panel-f">' +
           '<button type="button" class="btn btn-gho" data-cerrar-hoja>Cerrar</button>' +
@@ -1086,7 +1483,10 @@ function filaConstante(clave, fila, destacada) {
       '<label for="cte-' + esc(clave) + '">Valor</label>' +
       '<input type="number" step="any" id="cte-' + esc(clave) + '" data-cte="' + esc(clave) + '"' +
         ' value="' + esc(valor === null ? '' : String(valor)) + '"' +
-        ' data-antes="' + esc(valor === null ? '' : String(valor)) + '"></div>' +
+        ' data-antes="' + esc(valor === null ? '' : String(valor)) + '">' +
+      /* El valor de antes, en chico, solo mientras el campo difiere de él (F20). Nace escondido. */
+      '<small class="cte-antes" id="cte-antes-' + esc(clave) + '" hidden>Antes: ' +
+        esc(valor === null ? 'sin valor' : String(valor)) + '</small></div>' +
     '<div class="mat-formula">' + esc(origen) + '</div>' +
   '</div>';
 }
@@ -1105,6 +1505,53 @@ async function clicHoja(ev) {
   if (g) { await conBoton(g, guardarConstantes); return; }
 }
 
+/* Un campo «cambió» cuando lo escrito difiere de `data-antes`, que es el valor con que se pintó.
+   Es UNA sola regla para lo que se enciende en pantalla y para lo que se guarda: si fueran dos,
+   el botón podría decir «2 cambios» y guardar uno. */
+const cambioDe = i => String(i.value).trim() !== String(i.dataset.antes).trim();
+
+/* ----- «Guardar» se enciende cuando hay qué guardar (F20) -----
+   El botón azul estaba siempre encendido y nada decía qué campos se habían tocado: con dieciocho
+   constantes, quien se equivocaba de renglón no lo veía. Ahora, con cada tecla (un oyente
+   delegado en #pf-hoja), cada campo que difiere de `data-antes` lleva un filete ámbar y, debajo
+   y en chico, el valor de antes; y el botón pasa de fantasma a lleno con la cuenta, «Guardar 2
+   cambios». Un solo botón de color por pantalla: si no hay nada que guardar, no lo es.
+
+   El valor que se escribe NO se atenúa ni se pinta de otro color: se queda a contraste completo
+   —es lo que se vino a leer—; la marca es el filete y la palabra «Antes». */
+function alEscribirHoja(ev) {
+  const t = ev.target;
+  if (!t || !t.matches || !t.matches('[data-cte]')) return;
+  marcarCambios();
+}
+
+function marcarCambios() {
+  const capa = $('pf-hoja');
+  if (!capa) return;
+  let n = 0;
+  for (const i of capa.querySelectorAll('[data-cte]')) {
+    const camb = cambioDe(i);
+    const fld = i.closest('.fld');
+    if (fld) {
+      fld.classList.toggle('cambiado', camb);
+      const antes = fld.querySelector('.cte-antes');
+      if (antes) antes.hidden = !camb;
+    }
+    /* El valor de antes también se lee con el campo, pero solo si hay cambio: «Antes: 0.8» dicho
+       sobre un campo que no cambió es ruido. */
+    if (camb) { n++; i.setAttribute('aria-describedby', 'cte-antes-' + i.dataset.cte); }
+    else i.removeAttribute('aria-describedby');
+  }
+  const g = capa.querySelector('[data-guardar-ctes]');
+  if (!g) return;
+  g.classList.toggle('btn-pri', n > 0);
+  g.classList.toggle('btn-gho', n === 0);
+  g.setAttribute('aria-disabled', n > 0 ? 'false' : 'true');
+  const rotulo = n === 0 ? 'Guardar cambios' : 'Guardar ' + n + (n === 1 ? ' cambio' : ' cambios');
+  const P = piezas();
+  if (P.cambiarRotulo) P.cambiarRotulo(g, rotulo); else g.textContent = rotulo;
+}
+
 /** Se guardan SOLO las que cambiaron. Guardar las dieciocho en cada toque escribiría
  *  «cambiada por Beto» en diecisiete constantes que nadie tocó, y el rastro de quién movió
  *  qué —que es para lo que existe la nota— dejaría de servir para nada. */
@@ -1112,7 +1559,7 @@ async function guardarConstantes() {
   const capa = $('pf-hoja');
   if (!capa) return;
   const campos = [...capa.querySelectorAll('[data-cte]')];
-  const cambios = campos.filter(i => String(i.value).trim() !== String(i.dataset.antes).trim());
+  const cambios = campos.filter(cambioDe);
 
   if (!cambios.length) {
     toast('No cambiaste ningún número. Escribe el valor nuevo encima del que está.', '', 3600);
@@ -1184,7 +1631,8 @@ function abrirContar(id) {
       '<div class="fld"><label for="mt-contar">Lo que hay de verdad, en ' +
         esc(un(2, e.unidad_compra)) + '</label>' +
         '<input type="number" step="any" min="0" id="mt-contar" value="' +
-        esc(String(e.cantidad)) + '" inputmode="decimal"></div>' +
+        esc(String(e.cantidad)) + '" inputmode="decimal">' +
+        htmlDiferencia('mt-contar') + '</div>' +
       '<div class="fld"><label for="mt-contar-nota">¿Algo que anotar? (opcional)</label>' +
         '<input type="text" id="mt-contar-nota" placeholder="Se mojaron dos, salió una para la muestra…"></div>' +
       '<p class="hintnote">Puede llevar decimales: media lámina es 0.5. Este número gana sobre ' +
@@ -1194,7 +1642,102 @@ function abrirContar(id) {
       '<button type="button" class="btn btn-gho" data-pide="cerrar">Cancelar</button>' +
       '<button type="button" class="btn btn-pri" data-pide="contar">Guardar el conteo</button>' +
     '</div>',
-    { modo: 'contar', id });
+    { modo: 'contar', id, libro: num(e.cantidad), unidad: e.unidad_compra });
+  pintarDiferencia(false);
+}
+
+/* ----- La diferencia se ve mientras se teclea (F4) -----
+   Un conteo es la única aserción absoluta del almacén —«este número gana sobre todo lo
+   anterior»—, y la diferencia contra el libro solo se sabía después de guardar, en el aviso. Un
+   «30» escrito en lugar de «3.0» reiniciaba el almacén con un número diez veces mayor y nadie lo
+   veía hasta que ya era el libro. Debajo del campo, una línea que cambia con cada tecla: «El
+   libro dice 2.4 láminas · tú dices 3 → +0.6 láminas». Es la misma resta que ya devuelve
+   `Stock.contar` (`diferencia`), dicha antes y no después: aquí no se calcula nada de material.
+
+   Si lo escrito es tres veces mayor o menor que el libro, la línea pasa a ámbar y lo dice con
+   palabras: «¿Seguro? Es mucho más de lo que dice el libro». NO bloquea el guardado: hay
+   semanas en que el estante sí está así, y un freno ahí enseña a ignorar el aviso. El ámbar
+   nunca va solo; el color de una línea que ya dice «¿Seguro?» es refuerzo, no la información.
+
+   El `<output aria-live="polite">` es lo que lee un lector de pantalla. El número que rueda
+   (`diferenciaViva`, 280 ms: se teclea rápido y 600 ms por tecla se acumulan) es una capa
+   `aria-hidden` encima del texto final, así que nadie oye dígitos a medio giro. */
+function htmlDiferencia(paraId) {
+  return '<output class="mat-dif" id="mt-dif" for="' + esc(paraId) + '" aria-live="polite">' +
+    '<span class="mat-dif-linea"><span id="mt-dif-izq"></span> <b class="mat-dif-n" id="mt-dif-n"></b>' +
+    '<span id="mt-dif-der"></span></span>' +
+    '<span class="mat-dif-aviso" id="mt-dif-aviso" hidden></span></output>';
+}
+
+function alEscribirPide(ev) {
+  const t = ev.target;
+  if (!pide || !t) return;
+  if ((pide.modo === 'contar' && t.id === 'mt-contar') || (pide.modo === 'ajustar' && t.id === 'mt-real')) {
+    /* «3.» a medio teclear no es un número todavía (`value` sale vacío): sin esto la línea
+       cambiaba a «escribe cuántas hay» y volvía a cada punto decimal. */
+    if (t.validity && t.validity.badInput) return;
+    pintarDiferencia(true);
+  }
+}
+
+function pintarDiferencia(animar) {
+  if (!pide) return;
+  const P = piezas();
+  const campo = $(pide.modo === 'contar' ? 'mt-contar' : 'mt-real');
+  const izq = $('mt-dif-izq'), n = $('mt-dif-n'), der = $('mt-dif-der'), aviso = $('mt-dif-aviso'), sal = $('mt-dif');
+  if (!campo || !izq || !n || !der || !aviso || !sal) return;
+
+  const txt = String(campo.value).trim();
+  const dice = txt === '' ? NaN : Number(txt);
+  const hay = isFinite(dice);
+  const poner = (el, t) => {
+    if (animar && P.rodarCifra) P.rodarCifra(el, t, { duracion: 280 });
+    else if (P.rodarCifra) P.rodarCifra(el, t, { animar: false });
+    else el.textContent = t;
+  };
+  let dudoso = false, palabra = 'más';
+
+  if (pide.modo === 'contar') {
+    const libro = pide.libro;
+    const dichoLibro = libro > 0 ? uc(libro, pide.unidad) : cantHay(libro);
+    der.textContent = '';
+    if (!hay) {
+      izq.textContent = 'El libro dice ' + dichoLibro + ' · escribe cuántas hay';
+      n.textContent = ''; n.removeAttribute('data-signo');
+    } else {
+      izq.textContent = 'El libro dice ' + dichoLibro + ' · tú dices ' + cant(dice) + ' →';
+      const dif = Math.round((dice - libro) * 100) / 100;
+      const texto = P.diferenciaViva
+        ? P.diferenciaViva(n, dif, { decimales: 2, unidad: un(Math.abs(dif), pide.unidad),
+            cero: 'sin diferencia', animar, duracion: 280 })
+        : null;
+      if (texto === null) n.textContent = (dif > 0 ? '+' : dif < 0 ? '−' : '') + cant(Math.abs(dif));
+      /* Con el libro en cero un primer conteo no es un error, y con el libro en negativo «tres
+         veces más» no quiere decir nada: solo se pregunta cuando hay una proporción que medir. */
+      dudoso = libro > 0 && !!(P.cifras && P.cifras.proporcionDudosa(libro, dice));
+      palabra = dice > libro ? 'más' : 'menos';
+    }
+  } else {
+    const calc = pide.calculado;
+    if (!(calc > 0)) {
+      izq.textContent = 'Lo calculado fue 0: no hay con qué comparar.';
+      n.textContent = ''; der.textContent = '';
+    } else if (!hay) {
+      izq.textContent = 'Lo calculado fue ' + cant(calc) + ' · escribe cuánto se usó'; n.textContent = ''; der.textContent = '';
+    } else {
+      izq.textContent = 'Se usó';
+      poner(n, Math.round(dice / calc * 100) + ' %');
+      der.textContent = ' de lo calculado';
+      dudoso = !!(P.cifras && P.cifras.proporcionDudosa(calc, dice));
+      palabra = dice > calc ? 'más' : 'menos';
+    }
+  }
+
+  sal.toggleAttribute('data-dudoso', dudoso);
+  aviso.hidden = !dudoso;
+  aviso.textContent = dudoso
+    ? '¿Seguro? Es mucho ' + palabra + ' de lo que dice ' + (pide.modo === 'contar' ? 'el libro' : 'el cálculo')
+    : '';
 }
 
 /* ----- Ajustar una línea -----
@@ -1223,7 +1766,7 @@ function abrirAjustar(reqId) {
       (req.formula ? '<div class="mat-formula">' + esc(req.formula) + '</div>' : '') +
       '<div class="fld"><label for="mt-real">Lo que se usó, en ' + esc(un(2, req.unidad_compra)) + '</label>' +
         '<input type="number" step="any" min="0" id="mt-real" value="' + esc(String(usa)) +
-        '" inputmode="decimal"></div>' +
+        '" inputmode="decimal">' + htmlDiferencia('mt-real') + '</div>' +
       '<div class="fld"><label for="mt-motivo">¿Por qué salió distinto?</label>' +
         '<input type="text" id="mt-motivo" placeholder="El nesting no cerró, se rompió una cara, el ancho real era mayor…" value="' +
         esc(req.motivo_ajuste || '') + '"></div>' +
@@ -1235,7 +1778,8 @@ function abrirAjustar(reqId) {
       '<button type="button" class="btn btn-gho" data-pide="cerrar">Cancelar</button>' +
       '<button type="button" class="btn btn-pri" data-pide="ajustar">Guardar la corrección</button>' +
     '</div>',
-    { modo: 'ajustar', id: reqId });
+    { modo: 'ajustar', id: reqId, calculado: num(req.cantidad_compra) });
+  pintarDiferencia(false);
 }
 
 /* ----- Editar una fila del catálogo -----
@@ -1318,21 +1862,32 @@ async function hacerContar() {
   const v = i ? String(i.value).trim() : '';
   if (v === '') { toast('Falta el número. Si no queda nada, escribe 0.', 'err', 4200); return; }
 
-  const r = await Stock.contar(pide.id, Number(v), n ? n.value : '');
+  const id = pide.id;
+  const r = await Stock.contar(id, Number(v), n ? n.value : '');
   if (!avisarResultado(r)) return;
 
   const d = num(r.valor.diferencia);
   cerrarPide();
+
+  /* Dos avisos seguidos, y la pila de dos de `toast()` (pieza 12) no pisa a cualquiera: un aviso
+     informativo SIEMPRE cede su lugar al que llega después, venga con lo que venga; solo los que
+     traen botón o son de error se quedan. Antes el segundo, informativo, se comía al primero. Lo
+     que no se puede perder es el «Ojo»: dice que el número que se va a ver NO es el que se
+     tecleó, porque hay movimientos con fecha posterior que se le suman. Ese es el importante, y
+     se marca como tal dándole su botón —«Entendido», que dura 8 s como mínimo y no cede su sitio—
+     y se lanza PRIMERO, para que el aviso de siempre («Contado: …») llegue con lugar libre y se
+     apile al lado en vez de reemplazarlo. */
+  const post = num(r.valor.movimientos_posteriores);
+  if (post) {
+    toast('Ojo: hay ' + post + (post === 1 ? ' movimiento' : ' movimientos') +
+      ' con fecha posterior a este conteo, y se le suman.', '', 8000, { label: 'Entendido', fn: () => {} });
+  }
   toast(d === 0
     ? 'Contado: era lo que decía el libro. Ya quedó con la fecha de hoy.'
     : 'Contado: ' + (d > 0 ? 'había ' + cant(d) + ' más' : 'faltaban ' + cant(-d)) +
       ' de lo que decía el libro. Desde aquí la cuenta arranca de tu número.',
     'ok', 4800);
-  if (r.valor.movimientos_posteriores) {
-    toast('Ojo: hay ' + r.valor.movimientos_posteriores +
-      ' movimientos con fecha posterior a este conteo, y se le suman.', '', 5600);
-  }
-  await cargar();
+  await alContar(id);
 }
 
 async function hacerAjustar() {
