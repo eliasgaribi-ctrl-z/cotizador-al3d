@@ -149,8 +149,10 @@ else {
   e.mejor.laminas >= 2 ? bien('en ' + e.mejor.laminas + ' hojas de 100 × 100: no cabían en una (14 800 mm² en 10 000)') : mal('dice ' + e.mejor.laminas + ' hoja(s) y no caben en una');
   const figs = await p.evaluate(() => document.querySelectorAll('#an-res figure.an-hoja').length);
   figs === e.mejor.laminas ? bien('se pinta una figura por hoja') : mal('se pintan ' + figs + ' figuras para ' + e.mejor.laminas + ' hojas');
-  const capt = await p.evaluate(() => document.querySelector('#an-res figcaption').textContent);
-  /^Hoja 1 · \d+ piezas? · 100\u00A0mm × 100\u00A0mm$/.test(capt) ? bien('con su leyenda: «' + capt + '»') : mal('leyenda rara: «' + capt + '»');
+  /* Con más de una hoja la leyenda dice «Hoja 1 de 3» y trae su aprovechamiento (A12, pruebas/navegador/an-mesa.mjs):
+     el título es el primer renglón de la leyenda. */
+  const capt = await p.evaluate(() => document.querySelector('#an-res figcaption .an-cap-t').textContent);
+  /^Hoja 1( de \d+)? · \d+ piezas? · 100\u00A0mm × 100\u00A0mm$/.test(capt) ? bien('con su leyenda: «' + capt + '»') : mal('leyenda rara: «' + capt + '»');
   (await p.evaluate(() => !document.getElementById('an-dl').disabled)) ? bien('y «Descargar» se encendió') : mal('«Descargar» sigue apagado con resultado');
   /* La descarga por hoja es un menú (A16): «Descargar SVG» abre Todas + una entrada por hoja. */
   await p.click('#an-dl');

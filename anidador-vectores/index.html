@@ -301,17 +301,52 @@ document.documentElement.classList.add('arrancando');
         </div>
         <div class="an-fichas">
           <div class="an-ficha"><span class="k">Colocadas</span><span class="v" id="an-st-col">—</span></div>
-          <div class="an-ficha"><span class="k">Hojas</span><span class="v" id="an-st-hojas">—</span></div>
-          <div class="an-ficha"><span class="k">Merma</span><span class="v" id="an-st-merma">—</span></div>
+          <div class="an-ficha" id="an-ficha-hojas"><span class="k">Hojas</span><span class="v" id="an-st-hojas">—</span></div>
+          <div class="an-ficha"><span class="k">Merma</span><span class="v" id="an-st-merma">—</span><span class="sub" id="an-st-merma-m2"></span></div>
           <div class="an-ficha"><span class="k">Intentos</span><span class="v" id="an-st-int">—</span></div>
         </div>
       </div>
 
+      <!-- Qué piezas se ven en la mesa (A25): «Como vienen» es el archivo tal cual llegó y
+           «Acomodadas» es lo que encontró el motor. Es un radiogroup de P.opcionesDeslizantes;
+           «Acomodadas» queda apagada (aria-disabled, que sí se puede enfocar y leer) mientras
+           no haya un primer acomodo. Al cambiar, el haz del láser cruza la mesa una vez (la idea del
+           barrido es de Skiper · skiper66, SVG clip path mask: gratuito con atribución). -->
+      <div class="an-ver">
+        <div class="glide" id="an-vista-ver" role="radiogroup" aria-label="Qué piezas ver en la mesa">
+          <button type="button" class="chip on" role="radio" aria-checked="true" tabindex="0" data-v="vienen">Como vienen</button>
+          <button type="button" class="chip" role="radio" aria-checked="false" tabindex="-1" data-v="acomodadas" aria-disabled="true">Acomodadas</button>
+        </div>
+      </div>
+
       <!-- La mesa: fondo oscuro con cuadrícula, como la cama de un láser, y las hojas de
-           material encima con su acabado. -->
+           material encima con su acabado. Las dos vistas comparten la misma celda de la rejilla
+           (la de resultados encima) para que el haz pueda destapar una con la otra. Abajo, el pie
+           de la mesa: lo que se hace con lo que se ve (zoom, hojas, la pieza elegida). -->
       <div class="an-mesa" id="an-mesa" data-mat="acrilico">
         <div class="an-lienzo" id="an-orig"><div class="an-vacio"><p>Sube un SVG para verlo aquí, sobre la mesa.</p><button type="button" class="btn btn-gho an-ejemplo" data-an-ejemplo>Probar con un ejemplo</button></div></div>
         <div class="an-lienzo an-lienzo-res" id="an-res" hidden></div>
+        <p class="solo-voz" id="an-mesa-ayuda">Con la hoja enfocada: más y menos acercan y alejan, cero regresa a la hoja entera y las flechas la desplazan. Enter pasa a las piezas, las flechas cambian de pieza y Enter abre su ficha. Con el cálculo detenido, Mayús y una flecha empuja la pieza 5 milímetros y la tecla R la gira 90 grados, o 180 si el material tiene veta.</p>
+        <i class="an-haz" id="an-haz" aria-hidden="true"></i>
+        <div class="an-calculando" id="an-calculando" role="status" hidden><span>Calculando las formas…</span> <b id="an-calculando-s" aria-hidden="true"></b></div>
+        <p class="an-noticia" id="an-noticia" hidden></p>
+        <div class="an-mesa-pie" id="an-mesa-pie" hidden>
+          <div class="an-pie-fila an-pags" id="an-pags"></div>
+          <div class="an-pie-fila an-zoom" id="an-zoom" role="group" aria-label="Zoom de la hoja" hidden>
+            <button type="button" class="an-btn-mesa an-btn-cuadro" id="an-zoom-menos" aria-label="Alejar">&minus;</button>
+            <button type="button" class="an-btn-mesa an-btn-cuadro" id="an-zoom-mas" aria-label="Acercar">+</button>
+            <button type="button" class="an-btn-mesa" id="an-zoom-todo">Ver hoja completa</button>
+            <span class="an-escala" id="an-escala" aria-hidden="true"><i></i><b>100&nbsp;mm</b></span>
+          </div>
+          <div class="an-pie-fila an-pieza" id="an-pieza" role="group" aria-label="Pieza elegida" hidden>
+            <span class="an-pieza-t" id="an-pieza-t"></span>
+            <button type="button" class="an-btn-mesa" id="an-pieza-girar">Girar 90°</button>
+            <button type="button" class="an-btn-mesa" id="an-pieza-devolver" hidden>Devolver a su lugar</button>
+          </div>
+          <div class="an-pie-fila an-fuera" id="an-fuera" hidden>
+            <button type="button" class="an-btn-mesa" id="an-fuera-ver" aria-pressed="false"></button>
+          </div>
+        </div>
       </div>
     </section>
   </aside>
