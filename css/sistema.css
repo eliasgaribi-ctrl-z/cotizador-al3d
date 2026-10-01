@@ -2169,7 +2169,7 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 }
 /* ----- Visibilidad en PDF / modo edición ----- */
 .pdf-vis{border:none;background:none;font-size:15px;cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1;color:var(--brand)}
-.pdf-vis.off{opacity:.4;color:var(--muted)}
+.pdf-vis.off{color:var(--tinta2)}
 @media(hover:hover){.pdf-vis:hover{background:var(--soft)}}
 /* Oculta del PDF: no se atenúa con opacidad —eso hundía su texto a 2:1 y la partida sigue
    siendo legible por derecho— sino que se marca en el margen y lo dice con palabras. */
@@ -3181,9 +3181,12 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
   box-shadow:none;
 }
 .edit-mode-banner{border-color:var(--av-borde);background:var(--av-bg)}
-/* Tres veces y se calla. Un aro de box-shadow repinta en cada cuadro, y una llamada que no
-   termina deja de llamar: se vuelve fondo. irAlCandado() la reinicia cuando hace falta. */
-.cand-partidas{animation:late 2.8s ease-in-out 3}
+/* Una vez y se calla (C7, falla 3). Eran tres, y antes de eso un bucle: un aro de box-shadow
+   repinta en cada cuadro, y una llamada que no termina deja de llamar —se vuelve fondo—. Late al
+   aparecer, que es lo que hace esta regla sola (una animación de CSS arranca cuando el elemento
+   pasa de oculto a visible), y otra vez cuando se toca algo bloqueado: latirCandado() la reinicia
+   desde partidas.js. Nada de eso es movimiento en reposo: cada latido lo causa un cambio o un toque. */
+.cand-partidas{animation:late 2.8s ease-in-out 1}
 @media(hover:hover){.cand-partidas:hover{transform:none;animation:none;box-shadow:0 0 0 3px rgba(var(--a-rgb),.2)}}
 
 /* ---------- Barra de pasos ----------
@@ -3404,7 +3407,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
   0%,100%{box-shadow:0 0 0 0 rgba(var(--av-rgb),.35)}
   60%{box-shadow:0 0 0 8px rgba(var(--av-rgb),0)}
 }
-.cand-cliente.ojo{border-color:var(--av-borde);background:var(--av-bg);animation:late-av 2.8s ease-in-out 3}
+.cand-cliente.ojo{border-color:var(--av-borde);background:var(--av-bg);animation:late-av 2.8s ease-in-out 1}
 .cand-cliente.ojo>.svgi{color:var(--amber-ico)}
 /* La misma ficha, pero de la rejilla y no de la tarjeta: el aviso de «esto venía de antes»
    cuelga de .wrap, encima de las dos columnas, porque tiene que leerse en las dos pantallas.
@@ -3441,10 +3444,14 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
    bucle para siempre en una pantalla donde la capa de estructura pide «una pantalla, UNA cosa
    que se mueva sola». El cambio a verde ya dice que está. */
 #prog-bar.lleno::after{animation:none;opacity:0}
+/* El destello ya no corre por su cuenta (C19, falla 3): reposa fuera de la barra, a la izquierda, y
+   `.sube` —que updProg() pone SOLO cuando el porcentaje sube— lo pasa una vez por encima. El
+   bloque «cot-partidas» de más abajo trae esa regla. `brillo` se queda declarado: otros sitios
+   del documento de diseño lo citan. */
 #prog-bar::after{
   content:'';position:absolute;inset:0;width:30%;
   background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);
-  animation:brillo 2.4s linear 2;
+  transform:translateX(-100%);
 }
 @keyframes brillo{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
 .prog-track{border-radius:3px;box-shadow:none;background:var(--linea);height:6px}
@@ -4972,7 +4979,112 @@ mark.coincide{background:var(--a-suave);color:var(--tinta);font-weight:700;borde
 /* ── fin de cot-cliente ── */
 
 /* ── Cotizador · partidas y completitud ── */
+/* ----- C1 / C15 · una partida que viaja, que se levanta o que se desliza ----- */
+/* El número es el asa de reordenar con el dedo (C15). Es un botón —tabulable, con las flechas— y
+   `touch-action:none` va SOLO en él: el resto de la partida deja desplazar la página. La zona
+   crece 11 px por arriba y por abajo con un ::before para llegar a 44 sin mover nada. */
+.pnum .n.pmover{position:relative;cursor:grab;touch-action:none;-webkit-touch-callout:none;
+  user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+.pnum .n.pmover::before{content:"";position:absolute;inset:-11px -9px}
+.pnum .n.pmover:focus-visible{outline:2px solid var(--a-tx);outline-offset:2px}
+@media(hover:hover) and (pointer:fine){ .pnum .n.pmover:hover{border-color:var(--a-borde);color:var(--a-tx)} }
+/* 300 ms: el borde se recorre mientras se sostiene; si se suelta antes, no pasa nada. */
+.partida.armando .pnum .n::after{content:"";position:absolute;inset:-3px;border-radius:calc(var(--rr1) + 3px);
+  border:2px solid var(--a-fill);animation:arma-mover .3s linear forwards;pointer-events:none}
+@keyframes arma-mover{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
+.partida.levantada{z-index:30;border-color:var(--a-borde);box-shadow:var(--sombra-alta);scale:1.015}
+.partida.levantada .pnum .n{background:var(--a-suave);border-color:var(--a-borde);color:var(--a-tx);cursor:grabbing}
+/* Mientras hay una levantada, las demás se apartan con una transición y no saltan; y nada de la
+   lista se selecciona por accidente con el dedo arrastrando. */
+#items.arrastrando{user-select:none;-webkit-user-select:none}
+#items.arrastrando .partida:not(.levantada){transition:transform .2s var(--ease-out),border-color var(--mv-s)}
+/* «Subir» y «Bajar» en la línea de la fórmula: la alternativa sin gesto para quien no puede
+   mantener y arrastrar —teclado, lector de pantalla, control por voz—, y visible para todos. */
+.pmover-par{margin-left:auto;display:inline-flex;gap:2px;flex-shrink:0}
+.pmover-b{width:36px;min-width:36px;min-height:36px;padding:0;border:0;border-radius:var(--rr2);background:none;
+  color:var(--tinta2);font:700 16px/1 var(--f-cifra);cursor:pointer;
+  transition:background-color var(--mv-s),color var(--mv-s),transform var(--mv-liq)}
+.pmover-b:active:not([aria-disabled="true"]){transform:scale(.97)}
+.pmover-b[aria-disabled="true"]{color:var(--tinta3);cursor:default}
+.pmover-b:focus-visible{outline:2px solid var(--a-tx);outline-offset:1px}
+@media(hover:hover) and (pointer:fine){ .pmover-b:hover:not([aria-disabled="true"]){background:var(--sup2);color:var(--tinta)} }
+@media(hover:none),(pointer:coarse){ .pmover-b{width:44px;min-width:44px;min-height:44px} }
+/* La partida plegada es la fila que se desliza (pieza 9). La fila ocupa el interior del marco —el
+   relleno de la partida pasa a la cara— para que sus acciones se descubran de borde a borde, y la
+   cara conserva el fondo propio de la partida (más hundido si está oculta del PDF o congelada).
+   La cara es el último hijo de la fila y se nombra así, sin repetir su clase: las clases de la
+   pieza 9 viven en su propio bloque y pruebas/piezas-hojas.mjs vigila que no se escriban fuera. */
+.partida>.desliza-partida{margin:calc(var(--pp) * -1);border-radius:inherit}
+.partida>.desliza-partida>:last-child{padding:var(--pp);background:var(--sup)}
+.partida.hidden-pdf>.desliza-partida>:last-child,.items-cand .partida>.desliza-partida>:last-child{background:var(--sup2)}
+/* El aviso de «mantén presionado para borrar»: la × mide 38 px y la pista no cabe en ella. Es solo
+   para la vista (la pieza ya la dice en voz alta) y se borra sola. Va donde los avisos. */
+.del-pista{position:fixed;left:24px;bottom:26px;z-index:99;max-width:min(320px,calc(100vw - 32px));padding:8px 14px;
+  border-radius:var(--rr2);background:var(--tinta);color:var(--sup);font:700 var(--t2)/1.25 var(--f-texto);
+  pointer-events:none;box-shadow:var(--sombra-alta)}
+.del-pista:empty{display:none}
+@media(max-width:759px){
+  .del-pista{left:50%;transform:translateX(-50%);bottom:calc(20px + 66px + env(safe-area-inset-bottom,0px))}
+}
 
+/* ----- C11 · el ojo del PDF se tacha donde está ----- */
+/* Dos iconos en la misma celda y se cruzan con opacity: el ojo que se toca es el mismo botón y la
+   raya aparece AHÍ. El estado se dice con el icono y con la tinta de segundo nivel (4.5:1), no con
+   la opacidad: el 40 % de antes dejaba el ojo apagado en 2:1 sobre la hoja. */
+.ojo-pdf{display:inline-grid;place-items:center}
+.ojo-pdf>.svgi{grid-area:1/1;transition:opacity var(--mv-s)}
+.ojo-pdf>.ojo-b{opacity:0}
+.pdf-vis.off .ojo-a{opacity:0}
+.pdf-vis.off .ojo-b{opacity:1}
+
+/* ----- C19 · la barra avanza y destella UNA vez, cuando el porcentaje sube ----- */
+#prog-bar.sube::after{animation:brillo-una .9s ease-out 1 both}
+@keyframes brillo-una{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
+
+/* ----- C13 · comparar materiales sin elegirlos: tinta fantasma ----- */
+/* El chip que se espía lleva el filete punteado de «todavía no» y la superficie hundida; no pierde
+   su borde de 1 px, así que no se mueve nada. En el total de la partida el fantasma se marca con un
+   contorno y NO con borde ni relleno: que aparezca no empuja el encabezado. Sigue siendo un `.lt`,
+   así que en borrador se difumina igual que el importe de verdad. */
+.chip[data-peek]{-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+.chip.espiado{border-style:dashed;border-color:var(--tinta3);background:var(--sup2)}
+.lt.lt-fantasma{color:var(--tinta2);outline:1.5px dashed var(--tinta3);outline-offset:3px;border-radius:var(--rr1)}
+.peek-fila{margin-top:var(--e2);font-size:var(--t1);font-weight:600;line-height:1.4;color:var(--tinta2)}
+.peek-fila:empty{display:none}
+.peek-fila b{font-family:var(--f-cifra);font-variant-numeric:tabular-nums;font-weight:700;color:var(--tinta)}
+/* Lo que se tapa en borrador no se destapa por la puerta de al lado: el importe de esta línea se
+   difumina con el mismo filtro que `.formula .dinero` y se suelta con «Ver precios». */
+body.precios-ocultos .peek-fila .dinero{filter:blur(7px);transition:filter .16s;user-select:none;-webkit-user-select:none}
+body.precios-ocultos.precios-a-la-vista .peek-fila .dinero{filter:none}
+
+/* ----- C14 · el letrero mientras se escribe ----- */
+/* Con `display:grid` la pared ignoraba el atributo `hidden`; se escribe aquí y no en la pieza,
+   que no sabe que esta pantalla la esconde sin material elegido. */
+.letrero-caja{margin-top:var(--e3)}
+.letrero-caja[hidden],.letrero-caja .letrero-pared[hidden]{display:none}
+.letrero-pie{margin:var(--e2) 0 0;font-size:var(--t1);font-weight:600;line-height:1.4;color:var(--tinta2)}
+
+/* ----- C27 · el estado vacío empieza el trabajo ----- */
+.empty.vacio-partidas{display:grid;gap:var(--e3);text-align:left;padding:var(--e4)}
+.vacio-t{margin:0;font-size:var(--t2);font-weight:600;color:var(--tinta2)}
+.mosaicos{position:relative;display:grid;grid-template-columns:repeat(auto-fill,minmax(122px,1fr));gap:6px}
+.mos{position:relative;z-index:1;min-height:72px;padding:10px;border:1px solid var(--linea);border-radius:var(--rr3);
+  background:transparent;color:var(--tinta);text-align:left;cursor:pointer;font:700 var(--t2)/1.2 var(--f-texto);
+  -webkit-tap-highlight-color:transparent;transition:transform var(--mv-liq),border-color var(--mv-s)}
+.mos small{display:block;margin-top:4px;font-size:var(--t1);font-weight:600;color:var(--tinta2)}
+.mos:active{transform:scale(.97)}
+.mos:focus-visible{outline:2px solid var(--a-tx);outline-offset:2px}
+/* Un solo resaltado que se mueve entre mosaicos con transform. El ancho y el alto no se animan: los
+   cinco mosaicos miden lo mismo, y se escriben al llegar. */
+.resalte-mos{position:absolute;left:0;top:0;z-index:0;border-radius:var(--rr3);background:var(--a-suave);
+  opacity:0;pointer-events:none;transition:transform .22s var(--ease-out),opacity .15s linear}
+.resalte-mos.ve{opacity:1}
+.resalte-mos.sin-t{transition:none}
+.vacio-ia{margin:0;font-size:var(--t2);color:var(--tinta2)}
+.vacio-ia-b{display:inline-flex;align-items:center;min-height:32px;padding:0;border:0;background:none;color:var(--a-tx);
+  font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+@media(hover:none),(pointer:coarse){ .vacio-ia-b{min-height:44px} }
+@media print{ .letrero-caja,.pmover-par,.del-pista,.vacio-ia{display:none!important} }
 /* ── fin de cot-partidas ── */
 
 /* ── Cotizador · precio, autorización, notario y hitos ── */
@@ -6629,7 +6741,17 @@ input[type=range].desl-iman{transform:none!important}
 
 /* ── fin de rm · cot-cliente ── */
 /* ── rm · cot-partidas ── */
-
+/* Se va lo que se mueve o se aprieta; se queda lo que informa. El anillo de «armando» aparece ya
+   entero (dice que el dedo está siendo contado); las vecinas se apartan sin recorrido; el ojo
+   cruza en un fundido corto; el resalte de los mosaicos cambia de sitio en seco y la partida
+   levantada no crece. */
+.partida.armando .pnum .n::after{animation:none;clip-path:none}
+.partida.levantada{scale:1}
+#items.arrastrando .partida:not(.levantada){transition:none}
+.pmover-b:active,.mos:active{transform:none}
+.resalte-mos{transition:opacity .15s linear}
+.ojo-pdf>.svgi{transition:opacity .15s linear}
+#prog-bar.sube::after{animation:none}
 /* ── fin de rm · cot-partidas ── */
 /* ── rm · cot-precio ── */
 
