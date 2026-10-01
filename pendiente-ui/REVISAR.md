@@ -3,8 +3,6 @@
 Cada zona del paquete de UI entrega aquí lo que dejó a medias, lo que no alcanzó a probar y los
 supuestos que tomó. **La auditoría mira esta lista, no las ~50,000 líneas del paquete.** No hubo
 revisor aparte por zona: fue el acuerdo para no agotar el límite semanal.
-## Cotizador · partidas y completitud (cot-partidas)
-
 Fichas: 9 hecho, 2 parcial.
 
 - **[alta]** `js/cotizador/partidas.js · repintarConViaje(), togglePartida(), delItem(), css/sistema.css .pcab (sticky + backdrop-filter)`  
@@ -88,3 +86,95 @@ Fichas: 9 hecho, 1 parcial.
 
 - **[baja]** `A29 / A22`  
   No hay disparo del reflejo «tras una actualización»: esa recarga ocurre en la plataforma, no en anidador-vectores/. Si A22 quiere el brillo en la página suelta del anidador, necesita llamar a algo que hoy no se expone (la clase 'brilla' de #brandLogo).
+
+## Cotizador · precio, autorización, notario y hitos (cot-precio)
+
+Fichas: 8 hecho, 4 parcial, 1 ya estaba.
+
+- **[alta]** `js/cotizador/proceso.js · renderMobileBar()`  
+  Es la reescritura más riesgosa: el dock ya no se rehace con innerHTML, se ajusta en sitio por 'modo' (cliente/total). Los manejadores en línea del botón se cambian con setAttribute('onclick'). Probado con la prueba nueva y las existentes, pero conviene revisar un flujo largo a mano en teléfono real (vendedor, autorizador, editMode, rechazada).
+
+- **[media]** `js/cotizador/proceso.js · autorizarConfirmado() y SELLO_RATO_MS`  
+  Cambio de comportamiento: tras responder la hoja se espera 450 ms (con _sellando en alto) antes de aplicarSello(). Rompió cotizacion-de-antes.mjs, cuya espera subí de 500 a 1100 ms (única prueba ajena editada, con razón). Si alguna otra prueba o flujo externo asume que autorizar() queda aplicado en <450 ms, fallará.
+
+- **[media]** `js/cotizador/proceso.js · renderAuth() (_vivo, _neon, _montarCola, armarBotonesDelPanel)`  
+  renderAuth ahora saca del panel viejo y devuelve el botón #a-autorizar[data-estado], la capa .neon-capa y el contenedor #auth-cola. Si cambia el marcado de authRevisionHTML (id a-autorizar) o se añaden más cosas con vida propia, hay que sumarlas ahí. Además, un repintado en pleno mantener presionado de #a-rechazar le cancela el gesto (poco probable).
+
+- **[media]** `js/cotizador/notario.js · autorizarRemota() / remotaOcupada() / rechazarRemota()`  
+  Reescritos con Piezas.trabajando y fallback sin piezas (remotaOcupada con disabled). El fallback sin Piezas NO tiene prueba. Tampoco la prueba de node de defensas-del-cotizador cubre estas funciones (pasa porque no las llama).
+
+- **[media]** `js/cotizador/proceso.js · ANTICIPO_EXCEPCION y partirAnticipo()`  
+  Supuesto de la decisión 1: la excepción de $60,000 se mide sobre el total que se cobra (con IVA), y no se prende en 60,000.00 exactos. La muestra la dejó «pendiente de confirmar con Elías»; falta esa confirmación. La frase del aviso («aplica la excepción de las condiciones de pago…») la escribí yo.
+
+- **[media]** `js/cotizador/proceso.js · pintarPasos() y css/sistema.css (.pasos::before/::after)`  
+  C12 sin Piezas.riel (decisión mía, ver ficha). El filete se verificó a 360/420 px y en computadora de 1100 px, no a 320 px ni en la capa vidrio.css con la barra más ancha; el glifo de 22 px a 320 px no se midió. El filete cuenta pasos hechos / 4 (no media el paso actual).
+
+- **[media]** `js/cotizador/historial.js · pintarPlazo()`  
+  Añade clase .plazo-nota y un <span> dentro de #f-plazo-h y #rv-plazo-h (el del modal de Registrar venta es de cot-entrega): cambió el layout de esa nota (flex). No se midió dentro del modal de venta; pruebas/navegador/cot-entrega.mjs sigue verde.
+
+- **[media]** `js/cotizador/partidas.js · toggleItemAuth() / .ia-body`  
+  NO hecho: el ajuste por partida del formulario de revisión sigue con display:none (parte de C16). Requiere tocar partidas.js (otro agente) o pasar a .plegable con data-plegar sincronizando _authAbiertas.
+
+- **[media]** `js/cotizador/venta.js (registrarGanada) y js/cotizador/arranque.js (separarDeLaCotizacionAnterior)`  
+  No conectados al vuelo de C20 (archivos ajenos). Tampoco rodarCifra en rvRecalc()/#prog-pct, ni #s-neto (renderSummary), ni el ojo tachado de .pdf-vis.
+
+- **[baja]** `js/cotizador/proceso.js · volarCotizacion() / cotizacionQueVuela()`  
+  Elige el botón destino con document.querySelector('.btn-hist[onclick^="abrirHistorial"]') (no tiene id) y la tarjeta de origen entre #card-proy/#card-partidas/#sidebox. Frágil si cambia el marcado del encabezado. El vuelo se probó con ratón y dedo; el caso empotrado (.btn-pf oculto) solo por lectura.
+
+- **[baja]** `css/sistema.css · .queue-item[class~="lista-nueva"] .qi-folio::after`  
+  Uso selector por atributo porque pruebas/piezas-hojas.mjs prohíbe escribir .lista-nueva fuera del bloque de la pieza. La palabra «nueva» sale por CSS content: los lectores de pantalla la oyen por el anunciar de la lista viva, no por el CSS.
+
+- **[baja]** `js/cotizador/proceso.js · esperaHTML() / pintarHaceEspera()`  
+  El reloj de 1 s es un setInterval (no animación) que se apaga con la pantalla oculta o sin elementos; se probó con visibilityState simulado, no con una pestaña realmente en segundo plano. «Revisado hace» solo cuenta consultas posteriores a la solicitud (_estadoTs >= sol.ts).
+
+- **[baja]** `pruebas/navegador/cot-precio.mjs`  
+  Las rondas pasan 8/8 con la máquina cargada por otros agentes, pero hay esperas por tiempo (sellar 2.4 s, marca «nueva» 4 s, reloj de 2.3 s) que podrían ser frágiles en una máquina muy lenta; ya endurecí dos (cierre de la revisión remota, pendientes del vigilante). No se mide contraste real del botón que sella sobre su relleno a medias (lo mide la pieza 14), ni se probó lector de pantalla.
+
+- **[baja]** `mensaje del commit 8b3784e`  
+  El trailer Co-Authored-By dice «Claude Opus 5» porque CONVENCIONES.md pide esas líneas exactas, aunque no es el modelo que hizo el trabajo.
+
+## Plataforma · Hoy y Tablero (pf-tablero). Worktree: /home/user/cotizador-al3d/.claude/worktrees/wf_80e50a4c-9e3-2. Archivos tocados: js/mod/tablero.js, js/mod/inicio.js, css/plataforma.css (solo bloques «Plataforma · Hoy y Tablero» y «rm · pf-tablero»; el diff de CSS no borra nada) y pruebas/navegador/pf-tablero.mjs (nuevo). PASO 0 verificado: js/piezas.js pesa 359742 bytes.
+
+Fichas: 9 hecho.
+
+- **[alta]** `js/mod/tablero.js · armarMecha / alApagarseLaMecha / oyente visibilitychange`  
+  La escritura de «Ya se armó» ocurre 5 s DESPUÉS del toque. Si el sistema mata la pestaña antes (batería, memoria, cierre abrupto) se pierde sin aviso. Mitigado confirmando todas las mechas al ocultarse la app (visibilitychange) y con el pagehide de la pieza, pero solo se probó simulando el evento en Chromium: no en un teléfono real, ni se sabe si las escrituras async a IndexedDB alcanzan a terminar en un pagehide real.
+
+- **[media]** `js/mod/tablero.js · armarRielPide (click con detail===0); css/plataforma.css · .pf-cuenta-t::after (content … / ""), :has(), inert, overflow:clip, scroll-snap`  
+  Todo se probó solo en Chromium. No se probó en WebKit/Safari ni con VoiceOver/TalkBack: se ASUME que una activación por lector de pantalla llega como click con detail 0 (misma suposición de la pieza 5) y que Safari entiende la sintaxis de texto alternativo de content; si no, el lector lee «mayor que» y el deslizador no se podría confirmar con lector.
+
+- **[media]** `js/mod/tablero.js · renglon()`  
+  «Mover la fecha» en los renglones de la LISTA solo se alcanza deslizando a la izquierda (el botón visible solo trae Abrir): contradice la regla 10 (todo gesto con alternativa simple). Vías alternativas: el botón «Ver la semana en el Calendario» y la tarjeta «No llegan» (que sí lo trae visible), pero no hay un botón por renglón. Decidir si se añade un botón visible o si basta con el Calendario.
+
+- **[media]** `js/mod/tablero.js · abrirPide / proyectos.js moverEtapa`  
+  El deslizador de P21 protege el cruce de corte en el Tablero, pero Proyectos (moverEtapa, ficha) sigue cruzando a «Cortado» y sacando material sin preguntar, así que la protección se esquiva abriendo la ficha. No es mi archivo: la zona pf-proyectos debería igualarlo (la ficha lo pide). Lo mismo con el toast de moverEtapa() de P4.
+
+- **[baja]** `js/mod/tablero.js · ofrecerDeshacer (P4)`  
+  Decisión: «Deshacer» = NO escribir (alConfirmar al apagarse la mecha), tal como documenta la API de la pieza 15, y no «llamar a Proy.avanzarEtapa(id, de)» como dice la ficha. Si el dueño quiere escribir al instante y revertir con renglón de bitácora, hay que cambiarlo y entonces sí aparece el salto de grupo que la ficha quería evitar.
+
+- **[baja]** `js/mod/tablero.js · lineaEstaciones / css/plataforma.css · .tb-linea, .tb-etapa::before/::after`  
+  La encomienda decía «pieza 16» y NO se usó P.rielHTML: las estaciones son filtros con aria-pressed y cuenta, y el riel modela estados de paso con palomita. Se dibujó el tubo con CSS (lo que dice el «Cómo en vanilla» de la ficha). No se revisó a 320 px ni en el Fold abierto; la tira queda pegada a la tarjeta de arriba (preexistente, se ve igual en la base).
+
+- **[baja]** `js/mod/tablero.js · rodarCuentas; js/mod/inicio.js · rodarCuentas`  
+  No pasan animar:false: dependen de que app.js llame olvidarCifras() al ENTRAR a la pantalla (lo hace hoy). Proyectos decide «nunca al entrar» con otro criterio (tiempo desde desmontar). Si alguien cambia app.js, el Tablero rodaría al entrar. Control y Proyectos no son míos y siguen sin P3/P18 propios.
+
+- **[baja]** `js/mod/tablero.js · llevarA y bajarA; js/mod/inicio.js · pintarMbar`  
+  La lógica «llevar a un lugar con P.senalar + foco + voz» y los helpers piezas()/puedeIr() están duplicados entre tablero.js e inicio.js (ui.js no es mío). Conviene subirlos a js/nucleo/ui.js al integrar.
+
+- **[baja]** `js/mod/inicio.js · resolverEnSitio (P13)`  
+  El renglón atendido se vuelve inerte con el atributo `inert`; en navegadores que no lo soportan (Safari < 15.5) sigue tocable ~1 s mientras se despide. Y el pliegue anima grid-template-rows (layout, no solo transform) en un solo renglón: lo pide la ficha, pero conviene mirar su fluidez en un teléfono de gama media.
+
+- **[baja]** `js/mod/inicio.js · cuentas() (pase al Calendario)`  
+  Se asume que {lente:'instalaciones', vista:'semana', dia} es una combinación válida del pase de fabricacion.js y que {lente:'taller'} aterriza en «Ganados sin fecha, con el reloj corriendo»; con el rol de PAGOS el Calendario fuerza la lente 'instalaciones', así que ahí «Ganados sin fecha» abre sin su grupo (solo probé direccion y fabricacion).
+
+- **[baja]** `js/mod/inicio.js · abrirGanar / abrirFecha (P14)`  
+  Cambié el texto de la nota bajo el campo de fecha de «Se ganó» («Para otro día, usa el campo…») y en abrirFecha NO hay ficha «Sin fecha» a propósito. «Noche» = 22:00 es una decisión mía (la ventana de las plazas); no existe una constante en agenda.js para esa hora.
+
+- **[baja]** `pruebas/navegador/pf-tablero.mjs · contraste()`  
+  El contraste se calcula con colores computados compuestos hacia arriba, solo válido para fondos lisos (lo nuevo lo es); NO es la medición por render de contraste.mjs. Márgenes más justos: texto del deslizador 4,94 y píldora «Salieron N materiales» 4,67 en claro. Si se retocan --mal-bg / --ok-bg hay que re-medir con contraste.mjs.
+
+- **[baja]** `js/mod/tablero.js · pintar (pista); pruebas/respaldo.mjs / docs`  
+  Clave nueva de localStorage al3d_pista_tablero (la pieza 9 recuerda que ya enseñó el gesto). No la vi en ninguna lista de claves de respaldo o documentación; las pruebas de node pasan, pero el integrador debería decidir si va en la documentación de claves.
+
+- **[baja]** `pruebas/navegador/vidrio.mjs`  
+  Falló una vez («700 px, con ratón, en claro: la página está de verdad en claro (data-tema=oscuro)») y pasó en la repetición y en la base; no encontré la causa. Si reaparece, mirar el arranque de tema antes de culpar a esta zona.
