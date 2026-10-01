@@ -771,6 +771,59 @@ async function ronda(cfg, { larga = false } = {}) {
 }
 
 /* ------------------------------------------------------------------------------------------
+   La silueta del router y la del módulo, sin hueco (F16). Se frena la descarga de Material 900 ms
+   para que el router enseñe la suya (aparece a los 180 ms) y, cuando el módulo llega, ponga la
+   propia. Cuadro a cuadro se mira que, desde que alguna silueta se vio, nunca haya un cuadro sin
+   ninguna hasta que lleguen los datos: ese hueco en blanco era el parpadeo.
+   ------------------------------------------------------------------------------------------ */
+async function siluetaSinHueco() {
+  console.log('\nLA SILUETA DEL ROUTER Y LA DEL MÓDULO, SIN HUECO');
+  const ctx = await nav.newContext({ viewport: { width: 360, height: 740 }, hasTouch: true, isMobile: true, locale: 'es-MX',
+    timezoneId: 'America/Mexico_City', serviceWorkers: 'block' });
+  await ctx.addInitScript(() => {
+    try {
+      localStorage.setItem('al3d_pf_rol', 'direccion'); localStorage.setItem('al3d_pf_nombre', 'Beto');
+      localStorage.setItem('al3d_pf_ult_export', new Date().toISOString());
+    } catch (_) {}
+    window.__sil = { vista: false, huecos: 0, cargado: false, frames: 0, sinEspera: false, ajena: false };
+    const paso = () => {
+      const c = document.getElementById('mt-cuerpo');
+      const todas = [...document.querySelectorAll('.pf-esqueleto')];
+      const op = e => parseFloat(getComputedStyle(e).opacity);
+      const ajena = todas.find(e => !(c && c.contains(e))), mia = c && todas.find(e => c.contains(e));
+      if (ajena && op(ajena) > .01) { __sil.vista = true; __sil.ajena = true; }
+      if (mia && op(mia) > .01) __sil.vista = true;
+      if (mia && mia.classList.contains('sin-espera')) __sil.sinEspera = true;
+      if (c && c.childElementCount && !mia) __sil.cargado = true;
+      if (__sil.vista && !__sil.cargado) {
+        __sil.frames++;
+        const alguna = (ajena && op(ajena) > .01) || (mia && op(mia) > .01);
+        if (!alguna) __sil.huecos++;
+      }
+      requestAnimationFrame(paso);
+    };
+    requestAnimationFrame(paso);
+  });
+  await ctx.route(/\/js\/mod\/material\.js/, async r => { await dormir(900); await r.continue(); });
+  await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());
+  const p = await ctx.newPage();
+  const errores = [];
+  p.on('pageerror', e => errores.push(e.message));
+  await p.goto(B + '/#/hoy', { waitUntil: 'load' });
+  await p.waitForFunction(() => [...document.querySelectorAll('.pf-mod')].some(x => !x.hidden && x.childNodes.length) && !document.getElementById('pf-arranque'), null, { timeout: 30000 });
+  await p.waitForTimeout(400);
+  await p.evaluate(() => { location.hash = '#/material'; });
+  await p.waitForFunction(() => window.__sil.cargado, null, { timeout: 15000 });
+  await p.waitForTimeout(500);
+  const v = await p.evaluate(() => ({ ...window.__sil }));
+  cierto(v.ajena, 'el router enseñó su silueta mientras el módulo se descargaba', v);
+  cierto(v.sinEspera, 'la del módulo nació visible (sin esperar otros 180 ms)', v);
+  cierto(v.huecos === 0, 'ningún cuadro sin silueta entre las dos', v);
+  cierto(errores.length === 0, 'sin errores de página', errores);
+  await ctx.close();
+}
+
+/* ------------------------------------------------------------------------------------------
    Las rondas. Cuatro del teléfono (360 y 420 px, con y sin movimiento, claro y oscuro) y una de
    computadora con ratón y teclado. La primera del teléfono y la de computadora son las largas, las
    que esperan los ocho segundos de la mecha.
@@ -782,9 +835,11 @@ const RONDAS = [
   [{ ancho: 420, tema: 'claro', reducido: true, tactil: true }, {}],
   [{ ancho: 1280, alto: 860, tema: 'claro', reducido: false, tactil: false }, { larga: true }],
 ];
-/* SOLO=2 corre únicamente la tercera (para depurar). Sin SOLO, todas. */
-const solo = process.env.SOLO === undefined ? null : process.env.SOLO.split(',').map(Number);
-for (let i = 0; i < RONDAS.length; i++) if (!solo || solo.includes(i)) await ronda(...RONDAS[i]);
+/* Para depurar: SOLO=2 corre únicamente la tercera ronda, SOLO=s la de la silueta y SOLO=s,0 las dos.
+   Sin SOLO, todo. */
+const solo = process.env.SOLO === undefined ? null : process.env.SOLO.split(',');
+if (!solo || solo.includes('s')) await siluetaSinHueco();
+for (let i = 0; i < RONDAS.length; i++) if (!solo || solo.includes(String(i))) await ronda(...RONDAS[i]);
 
 await nav.close();
 console.log('\n' + (fallos ? fallos + ' fallo(s) en pf-material.' : 'Material con las piezas: todo en verde.'));

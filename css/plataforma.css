@@ -2859,6 +2859,12 @@ html.pj-arrastrando,html.pj-arrastrando *{cursor:grabbing!important;-webkit-user
 .pf-mbar.mat-mbar{transition:opacity .18s var(--ease-out),transform .18s var(--ease-out)}
 @starting-style{.pf-mbar.mat-mbar{opacity:0;transform:translateY(12px)}}
 
+/* F16 · la silueta que el módulo pone en su cuerpo toma el lugar de la que ya enseñaba el router sin
+   volver a esperar sus 180 ms: la espera es para quien no tenía nada a la vista, y aquí un hueco en
+   blanco entre las dos siluetas era el parpadeo. La clase la pone `cargar()` solo cuando la del
+   router ya se ve. */
+.pf-esqueleto.sin-espera{animation:none}
+
 /* En papel no hay caja de conteo ni medidor de pantalla: la lista que se imprime es la de compra y
    su casilla de tachar es otra (`.compra-check`). */
 @media print{ .mat-caja{display:none} }

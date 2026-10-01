@@ -287,8 +287,20 @@ async function cargar() {
      se importa (F16), no un reloj centrado con una frase: antes el router enseñaba una forma de
      «cargando», el módulo la cambiaba por otra de otro alto, y la página daba un salto en el
      momento en que más se mira. `esqueletoModulo` ya lleva `aria-busy` y su texto de estado, y
-     su brillo aparece a los 180 ms: una lectura que tarda 60 ms no parpadea. */
-  if (cuerpo && !cuerpo.childElementCount) cuerpo.innerHTML = esqueletoModulo('material', 'Material');
+     su brillo aparece a los 180 ms: una lectura que tarda 60 ms no parpadea.
+
+     Pero esos 180 ms son para quien NO tenía nada a la vista. Si el router ya enseña la suya
+     —el módulo tardó en importarse—, `montar()` la quita en cuanto este cuerpo recibe hijos, y
+     la nueva, con su retardo, dejaba un hueco en blanco de 180 ms entre las dos siluetas: el
+     parpadeo que esta ficha venía a quitar. Cuando la del router ya se ve, la de aquí nace
+     visible (`sin-espera`) y toma su lugar sin hueco. Se mira ANTES de que termine esta tarea:
+     el router la retira en una microtarea que corre después. */
+  if (cuerpo && !cuerpo.childElementCount) {
+    const ajena = [...document.querySelectorAll('.pf-esqueleto')].find(e => !cuerpo.contains(e));
+    const yaSeVe = !!ajena && parseFloat(getComputedStyle(ajena).opacity) > 0.01;
+    cuerpo.innerHTML = esqueletoModulo('material', 'Material');
+    if (yaSeVe) { const mia = cuerpo.querySelector('.pf-esqueleto'); if (mia) mia.classList.add('sin-espera'); }
+  }
   await leerDatos();
   /* Se pudo haber salido mientras se leía (una escritura con «Deshacer» termina ya fuera). */
   if (!cont) return;
