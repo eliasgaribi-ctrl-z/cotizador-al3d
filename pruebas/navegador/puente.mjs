@@ -668,8 +668,23 @@ async function contestarPf(si) {
   /* Con el DEDO y no con el ratón: el contexto de esta prueba es un teléfono (isMobile), y la pieza
      escucha el puntero táctil. Con mouse.down() el gesto no llegaba y el botón nunca confirmaba.
      Es el mismo arnés de CDP que usan cot-historial y cot-cliente para sostener. */
-  const c = await p.locator('#pf-confirma-si').boundingBox();
+  /* La hoja ENTRA deslizándose hacia arriba: si se toman las coordenadas apenas aparece, el dedo
+     sostiene 1,6 s en un punto donde el botón ya no está y la pregunta se queda abierta. Se espera a
+     que deje de moverse —dos medidas iguales— y se comprueba que el punto caiga de verdad encima,
+     para que un fallo se vea como lo que es y no como «el botón no responde». */
+  let c = await p.locator('#pf-confirma-si').boundingBox();
+  for (let i = 0; i < 20; i++) {
+    await p.waitForTimeout(100);
+    const d = await p.locator('#pf-confirma-si').boundingBox();
+    if (d && c && Math.abs(d.y - c.y) < 0.5 && Math.abs(d.x - c.x) < 0.5) { c = d; break; }
+    c = d;
+  }
   const x = c.x + c.width / 2, y = c.y + c.height / 2;
+  const encima = await p.evaluate(([px, py]) => {
+    const e = document.elementFromPoint(px, py);
+    return !!e && !!e.closest('#pf-confirma-si');
+  }, [x, y]);
+  if (!encima) throw new Error('el punto del dedo no cae sobre #pf-confirma-si: la hoja se movió o algo la tapa');
   const cdp = await p.context().newCDPSession(p);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }] });
   await p.waitForTimeout(1600);          // la pieza pide 1200 ms; se le da margen
