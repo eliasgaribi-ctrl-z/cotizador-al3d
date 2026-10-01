@@ -3,8 +3,6 @@
 Cada zona del paquete de UI entrega aquí lo que dejó a medias, lo que no alcanzó a probar y los
 supuestos que tomó. **La auditoría mira esta lista, no las ~50,000 líneas del paquete.** No hubo
 revisor aparte por zona: fue el acuerdo para no agotar el límite semanal.
-El viaje de View Transitions no se midió en un Android de gama media, que es lo que pedía el Cuidado de C1 (.pcab es sticky con backdrop-filter y se fotografía junto con hasta 40 partidas nombradas). Solo se probó en Chromium de escritorio emulando 360/420 px. Si se siente pesado, lo primero a bajar es el tope de nombres o saltar el viaje con más de N partidas.
-
 - **[media]** `js/cotizador/partidas.js · _movBajar/_movArmar/_movPoner/_movSoltar (reordenar con el dedo)`  
   El gesto se probó con eventos táctiles por CDP en Chromium, no con un dedo en un teléfono. Sin verificar: iOS Safari (long-press, selección, touch-action:none solo en el número), el autoscroll en bordes, y arrastrar una partida ABIERTA de ~1300 px (no se colapsa durante el arrastre; en la práctica conviene plegar antes). Con menos movimiento las vecinas se apartan sin transición.
 
@@ -335,3 +333,89 @@ Fichas: 5 hecho, 1 parcial.
 
 - **[baja]** `pruebas/navegador/pf-control.mjs (mock de puente) y trailer del commit`  
   La prueba usa un puente de mentiras con páginas de una fila y demora; asume que el app sincroniza por su cuenta y por eso espera a que se calle (asentar). Si cambia el intervalo de 30 s del app podría coincidir con una medición. El commit lleva los trailers de CONVENCIONES.md (Claude Opus 5), no los del recordatorio de atribución de la sesión (Sonnet 5.5): si el integrador quiere los otros, hay que reescribir el mensaje.
+
+## Cotizador · cliente, folio e iconos (cot-cliente)
+
+Fichas: 4 hecho, 2 parcial.
+
+- **[alta]** `js/cotizador/nucleo.js confirmar() + pruebas/navegador/cot-historial.mjs (~línea 942)`  
+  DECISIÓN DE PRODUCTO: los 5 confirmar({peligro:true}) del repo son «abrir/empezar desde otra cotización y perder la que está en pantalla» (4 en historial.js, 1 en escalador.js), pasos frecuentes. Ahora piden sostener 1 s. Lo puse porque la tarea lo manda (mantener para confirmar lo destructivo), pero conviene mirar si molesta o si peligro debería marcarse solo donde de verdad no hay vuelta. Edité un test AJENO (cot-historial.mjs): donde tocaba #conf-si ahora sostiene el botón con el dedo, porque ese confirm es de peligro. Los otros llamadores de peligro (escalador.js, historial.js ~965 y ~1967/1974) no tienen prueba que los pulse y no los corrí a mano.
+
+- **[alta]** `js/cotizador/nucleo.js _comboColocar / armarComboClientes`  
+  La lista solo se probó en Chromium sin teclado virtual (360/420 px por 740, escritorio, toque emulado). NO probado en un Android ni un iPhone reales: la colocación contra el teclado con visualViewport, el voltearse hacia arriba cuando no cabe abajo, el popover en capa superior en Safari 17+ y la rama sin showPopover (navegadores viejos, que escondo con hidden) no se ejercitaron. Tampoco se probó con un lector de pantalla real: aria-activedescendant, el conteo con voz() y role=status de la isla son inferencia. El bloqueo del blur usa pointerdown+preventDefault y una bandera; en iOS conviene comprobar que tocar una fila no baje el teclado y que deslizar la lista no la cierre.
+
+- **[media]** `js/cotizador/arranque.js armarCotCliente()`  
+  ACOPLE FRÁGIL: la isla se entera de _sellando (proceso.js) y de _foliosEsperando() (notario.js) porque ENVUELVO window.saveState, saveQueue y renderAuth en runtime. Es la única manera de no editar esas zonas. Si alguien captura esas funciones en una constante antes de init(), o las reasigna, la isla deja de enterarse. Lo limpio es una línea programarIsla() donde se cambia _sellando y donde cambia la solicitud; el integrador puede sustituir los wrappers. Los estados se leen con un retraso de 250 ms por diseño. Un test mío fuerza _sellando=true más renderAuth() y Q.estado='pendiente' más saveState(), no el flujo real de punta a punta.
+
+- **[media]** `css/sistema.css .isla.ver (transition:width) y nucleo.js _islaMostrar`  
+  Rompe a propósito la regla «solo transform y opacity»: anima un ancho en un elemento de 32 px entre ocho hermanos. Solo corre desde 561 px (en ≤560 no cambia de ancho). La ficha pedía clip-path:inset; no lo usé porque deja el hueco reservado. Si se quiere cumplir la regla al pie de la letra hay que aceptar que los vecinos salten de golpe al abrir y cerrar.
+
+- **[media]** `js/cotizador/nucleo.js _islaMostrar (prueba de ajuste con cab.offsetHeight)`  
+  La frase de la isla casi nunca se ve en escritorio. Medido: con la barra vacía a 1280–1440 px solo caben 188 px y «Sin señal · se guarda aquí» a 11 px pide 178, pero con «Deshacer» a la vista (casi siempre tras teclear) o a ~1100 px no cabe y la isla se queda en el icono (probado: la barra no cambia de alto). Si no cabe, «Volvió la señal» sale como aviso. Sin señal/sellando/esperando solo dicen su frase por el role=status, el title y el icono. Habría que decidir si vale dar más sitio a la isla en la barra.
+
+- **[media]** `js/cotizador/nucleo.js pintarConexion / _islaFinal`  
+  HEURÍSTICAS: 1) «Esperando a Dirección» cuenta TODAS las solicitudes vivas de _foliosEsperando() (cola incluida, con «· N»), no solo la cotización en pantalla. 2) Al terminar solo afirma «Sellada» o «Dirección autorizó» si Q.estado==='autorizada' en ese momento; si la solicitud que terminó era de otro folio de la cola y la de pantalla ya estaba autorizada, podría decir «Dirección autorizó» sin ser esa. 3) Si sellar falla, se va callada y confía en el aviso de error de proceso.js. 4) En teléfono la frase no se puede leer, solo el icono, y «Sellando» o «Esperando» son un círculo sin palabras. No hay forma táctil de ver el rótulo.
+
+- **[media]** `js/cotizador/arranque.js (segunda llamada a Piezas.nombres) y partidas.js _armarPartidas`  
+  La × de una partida con datos no enseña nombre con el dedo (ya es «mantener 900 ms para borrar»). Se elige por [data-mantener], que pone la pieza al armarse; si otra zona cambia cómo arma ese botón (otra clase, otro atributo), el selector deja de excluirla y el toque largo volvería a poder borrar (sostenido más de 900 ms con el nombre ya visible). Probado que a 600 ms no borra y no enseña nombre; no probé sostener más de 900 ms en una partida vacía, que se borra con un toque y por tanto no puede borrar sosteniendo.
+
+- **[baja]** `js/cotizador/nucleo.js autocompletarCliente (_puestoApp)`  
+  Elegir otro cliente de la lista sobrescribe un campo si su valor es exactamente lo que la app puso antes, comparado con el texto del campo. Si una persona edita y luego vuelve a dejar el mismo texto, se trata como puesto por la app. Con dos «Farmacia Guadalupe», teclear el nombre completo ya llena los datos del más reciente (comportamiento de siempre) y elegir la otra fila los cambia: probado. Las filas salen de cuadernos() y la reconocida por nombre completo de clientesConocidos() (agrupa por nombre): pueden discrepar en casos raros (mismo cliente con varios nombres).
+
+- **[baja]** `js/cotizador/proceso.js telIncompleto/faltaTexto/pintarObligatorios`  
+  No los cambié. La pieza dice «revisa» u «no» (11 dígitos sin +, o teléfono que empieza en 0) en ámbar, pero el paso 1 sigue dejando pasar por dígitos≥10, como hoy. Apretarlo bloquearía números internacionales válidos tecleados sin «+». Q.tel ahora se guarda con espacios («33 2813 0092»): lo consumen telClave, telWhatsApp y el PDF; probé que cuadernos y piezas-numeros siguen en verde, pero no revisé cada consumidor de Q.tel.
+
+- **[baja]** `cotizador.html #fld-tel / sistema.css .grid2 .fld:last-child`  
+  Visto en capturas a 360 px: con Cliente y Teléfono en una columna, el Teléfono (último hijo del grid2, margin-bottom:0) queda a unos 10 px de la etiqueta de Proyecto, la mitad que los demás espacios. Ya estaba así; no lo toqué por ser regla compartida.
+
+- **[baja]** `css/sistema.css input.lavado / @keyframes lavado-campo; .combo-menu`  
+  El lavado anima background-color y border-color 600 ms (pintura, no transform/opacity), tal como pide la ficha. La lista no tiene transición de apertura (aparece en seco) a propósito. El resalte usa translateY y la altura se escribe sin transición.
+
+- **[baja]** `pruebas/navegador/cot-cliente.mjs`  
+  Las 8 rondas pasan (990 comprobaciones), pero hay esperas con tiempo (3.5 s de enrollado, 2.7 s de despedida, 1.25 s de sostener) que pueden volverse flojas con la máquina cargada. cot-historial.mjs dio un fallo de otra cosa (cifras que ruedan) en la ronda 4 corrida con carga y pasó solo, repetida. El test del escritorio usa 1440 y 1100 px y depende de que 'Deshacer' esté oculto al empezar.
+
+## Plataforma · Fabricación y calendario (pf-fabricacion)
+
+Fichas: 11 hecho, 1 parcial, 1 ya estaba.
+
+- **[media]** `js/nucleo/ui.js · marcasDelRiel/filaTaller`  
+  Pinté CUATRO marcas (en diseño, cortado, armado, listo), no tres como dice la ficha; la de «en diseño» cae en el extremo izquierdo. Decisión mía: sin ella un proyecto recién pasado a diseño se ve con todo hueco. Si se prefieren tres, quitar ['en_diseno',…] de HITOS_DEL_RIEL (y los 4→3 en pruebas/pf-fabricacion.mjs y navegador/pf-fabricacion.mjs). A 360 px el riel mide ~100–110 px; probado sin desborde, pero con fechas largas a la derecha podría apretarse (min-width 72 px).
+
+- **[media]** `js/nucleo/ui.js · ORDEN_DEL_RIEL`  
+  Repite el orden de ETAPAS (datos/proyectos.js) para decidir «hecho»; el riel NO lo recibe de la capa de datos como sugería el brief (h.paso/h.pos no existen en ventanaTaller y datos/taller.js no es mío). Una prueba de node compara ORDEN_DEL_RIEL con ETAPAS, pero si ETAPAS cambia sin correr pruebas se desfasa en silencio.
+
+- **[media]** `js/mod/fabricacion.js · repintarPeriodo/firmaFija`  
+  Cambiar de mes repinta solo lienzo + cuentas + tarjeta «Bajar» si firmaFija(d) no cambió (cuentas, ventanas, pendientes, lente…). Compara solo CONTEOS: si cambia el contenido de la columna del taller con el mismo número de ventanas (p. ej. tras una sincronización entre dos toques de ‹ ›), esa columna queda vieja hasta el siguiente repintado completo. No lo probé con sincronización real.
+
+- **[media]** `js/mod/fabricacion.js · gestoDeLaRejilla`  
+  El arrastre solo acepta dedo y lápiz (el ratón se excluyó a propósito para no pelear con la selección de texto). El brief decía «Pointer Events»; la ficha de teclado/ratón se cubre con ‹ ›, ←/→ y RePág/AvPág. Probado con touch de Chrome (CDP) en Chromium, NO en Safari/iOS real ni en un gama media. Un arrastre que empieza durante los 200 ms del viaje se pierde (Chrome manda el toque al <html>; la pieza 22 solo rescata toques, no arrastres).
+
+- **[media]** `js/mod/fabricacion.js · probarPlazos/fichaDePlazoDe/fichaDePlazoNuevo`  
+  Con el dedo, el deslizar-y-soltar-sobre-otro-chip se resuelve llamando chip.click() a mano porque Chrome no manda clic tras deslizar; en otro navegador podría mandar además un clic al ancestro (ignorado por la delegación, pero no lo vi). La ficha va SOBRE los chips y tapa un momento el nombre del proyecto (o va debajo si arriba no cabe). En «Se ganó» la ficha lee el campo de fecha al momento de mostrarse; no se refresca si cambia el campo con la ficha ya visible.
+
+- **[media]** `js/mod/fabricacion.js · ordenACalendar`  
+  Probado con Google Identity y la red de Calendar SIMULADOS (init script + route); no contra Google real. El caso gcal-borrar usa la misma función pero no tiene prueba propia. Los rótulos de fallo se mapean por r.codigo (SIN_RED → «No contestó», ROL_SIN_PERMISO → «Google no dejó», DATO_INVALIDO → «Falta un dato»); otros códigos caen en «No se pudo». ajustes.js (conElPuente, bombear, jalar) de F7 NO se tocó.
+
+- **[media]** `js/mod/fabricacion.js · abrirGanar (P14)`  
+  Las fichas «Hoy/Mañana/sáb/lun» son para la fecha de INSTALACIÓN de fabricacion.js; el valor por omisión sigue siendo hoy (el brief critica dejar «hoy» por inercia, pero cambiar el default cambia lo que se guarda y no lo decidí). inicio.js (abrirGanar y abrirFecha con la hora) no se tocó. El campo cambió de etiqueta a «Otro día de instalación».
+
+- **[media]** `js/mod/fabricacion.js · cambio de ‹ › con View Transitions`  
+  Con menos movimiento no hay viaje (lo decide P.transicion). Con movimiento y VT, el repintado corre un cuadro después; el foco por número de día (RePág/AvPág) va dentro de fn. Probé 360/420/1280 pero no un gama media real: la transición del lienzo (rejilla de 42 botones) podría verse pesada ahí; si estorba, bajar duracion o pasar vt:false.
+
+- **[media]** `pruebas/navegador/pf-tablero.mjs (P11) — AJENO A MI ZONA`  
+  3 fallos preexistentes en la base: espera animation-iteration-count '3' en .cand-partidas pero css/sistema.css (base 0acc2b7) tiene `animation:late 2.8s ease-in-out 1`. No lo toqué (no es mi bloque); lo anoto para quien integre.
+
+- **[baja]** `js/mod/fabricacion.js · fichaDeCadaDia (F26) y css/plataforma.css (body:has(.cal-dia:hover) .nombre-tip)`  
+  Usé Piezas.nombres, no P.vistazo (la tarea decía «pieza 4/popover», pero el api/piezas-4.md marca F26 con nombres y la pieza ya trae los 400 ms/«caliente»). La pieza colapsa saltos de línea, así que la ficha es un párrafo con « · », no una lista. Depende de :has() para bajar de renglón; sin :has() queda una línea con puntos suspensivos. El selector :hover va dentro de @media(hover:hover) and (pointer:fine) (lo exige hojas-de-estilo.mjs).
+
+- **[baja]** `js/mod/fabricacion.js · pintarPaso2 / volverAlPaso1`  
+  «‹ Otro proyecto» solo se pinta si se pasó por el paso 1; quien llega directo al paso 2 (el «Mover/Agendar» del Tablero que trae el proyecto) no lo tiene. Los puntos del riel no son tocables (la ficha decía solo «un <ol> con aria-current»). El riel de la hoja se rehace con la hoja (nace quieto): la animación del conector no se ve; lo que se mueve es el cuerpo.
+
+- **[baja]** `css/plataforma.css · .pf-mbar.cal-mbar @starting-style (F29)`  
+  Solo se verificó la duración de transición calculada (0.18 s / 0.15 s) y el comportamiento del rótulo/--mbar-h; la entrada visual (opacity+translateY al pasar de hidden a visible) no la vi cuadro a cuadro. En navegadores sin @starting-style la barra aparece de golpe (como hoy).
+
+- **[baja]** `pruebas/navegador/pf-fabricacion.mjs`  
+  Depende del reloj del equipo (fechas relativas a hoy; el sábado/lunes y el fin de mes se resuelven con irAlMesDe). Una corrida completa toma varios minutos y es sensible a carga de la máquina (otros agentes corriendo Chromium): si falla un tiempo de espera, repetir antes de investigar. No la corrí con SOLO=… a 8 rondas ni con mal clima de red.
+
+- **[baja]** `git log (trailer)`  
+  Los commits terminan con «Co-Authored-By: Claude Opus 5» exactamente como manda CONVENCIONES.md, aunque el recordatorio del arnés pedía otro identificador de modelo; seguí la guía del repo.
