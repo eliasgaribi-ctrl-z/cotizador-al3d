@@ -113,7 +113,10 @@ async function ronda(R, indice) {
       const fuera = [...(raiz ? raiz.querySelectorAll('*') : [])].filter(e => {
         const b = e.getBoundingClientRect();
         if (!b.width || !b.height || getComputedStyle(e).position === 'fixed') return false;
-        if (e.closest('.mira,.toast,.vistazo,.desenfoque-borde,[hidden],.rueda-vista,.solo-voz')) return false;
+        /* `.fichas`: las fichas de filtro del historial (H8) van en una fila que se desplaza de lado A
+           PROPÓSITO, con el borde que se desvanece: sus botones sí caen fuera del ancho, y es lo que
+           se quiere. Lo que no puede pasar —que ensanche la página— lo sigue midiendo `pagina`. */
+        if (e.closest('.mira,.toast,.vistazo,.desenfoque-borde,[hidden],.rueda-vista,.solo-voz,.fichas')) return false;
         return b.right > W + 1 || b.left < -1;
       }).slice(0, 4).map(e => e.tagName + '.' + String(e.className).slice(0, 30));
       return { pagina: de.scrollWidth - de.clientWidth, fuera };
