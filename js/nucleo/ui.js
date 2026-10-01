@@ -710,6 +710,61 @@ export function corta(iso) {
   return p.d + ' ' + MES_CORTO[p.m - 1];
 }
 
+/* ----- El riel con sus hitos (F5) -----
+   Antes el riel era una barra de «empezar» a «listo» con un punto en «hoy», y los hitos de en
+   medio —cuándo hay que haber cortado, armado, dejado listo— y cuál de ellos ya pasó el
+   proyecto estaban solo en la frase. Quien miraba treinta renglones tenía que leerlos todos para
+   saber cuál iba tarde. Ahora el riel lleva una marca por hito, en su fecha, y se ve de un
+   vistazo en qué va cada uno:
+
+     · rellena (verde)  — la etapa real del proyecto ya llegó a ese hito;
+     · hueca            — todavía no toca, o todavía no ha pasado;
+     · roja, con muesca — el hito quedó DETRÁS del punto de hoy y sigue sin hacerse: «voy tarde»
+                          dicho con una forma, no solo con un color (uno de cada doce no
+                          distingue el rojo del verde).
+
+   La marca de «en diseño» cae en el extremo de la izquierda —empezar y entrar a diseño son el
+   mismo día en `ventanaTaller`— y es la que hace que un proyecto recién ganado se vea «en
+   camino» y no con las tres marcas vacías. Las cuatro vienen en `v.hitos`; este archivo no las
+   calcula ni decide cuándo algo va tarde: compara dos fechas que ya trae la ventana y la etapa
+   que ya trae el proyecto. El orden de las etapas se repite aquí (`ORDEN_DEL_RIEL`) solo para
+   decir «ya llegó»; pruebas/pf-fabricacion.mjs lo compara con `ETAPAS` de datos/proyectos.js
+   para que no se desfasen en silencio. */
+export const HITOS_DEL_RIEL = [['en_diseno', 'En diseño'], ['cortado', 'Cortado'], ['armado', 'Armado'], ['listo', 'Listo']];
+export const ORDEN_DEL_RIEL = ['ganado', 'en_diseno', 'cortado', 'armado', 'listo', 'instalado', 'garantia'];
+
+/** Las marcas del riel de una ventana y dónde cae hoy, ambos de 0 a 1 sobre el largo de la
+ *  ventana. Función pura (sin DOM) para poder probarla en node. Una ventana sin fechas
+ *  —«Ganado sin fecha y sin venta», que no tiene de dónde contar— no lleva marcas: un riel que
+ *  inventara posiciones diría un plan que nadie hizo. */
+export function marcasDelRiel(v, hoy) {
+  const vacio = { marcas: [], hoy: 0 };
+  if (!v || !partesISO(v.empezar) || !partesISO(v.listo)) return vacio;
+  const dia = partesISO(hoy) ? hoy : hoyISO();
+  const largo = Math.max(1, diasEntre(v.empezar, v.listo) || 1);
+  const sobre = iso => Math.max(0, Math.min(1, (diasEntre(v.empezar, iso) || 0) / largo));
+  const llego = ORDEN_DEL_RIEL.indexOf(v.etapa_real);
+  const marcas = [];
+  for (const [clave, nombre] of HITOS_DEL_RIEL) {
+    const f = v.hitos && v.hitos[clave];
+    if (!partesISO(f)) continue;
+    const hecho = llego >= ORDEN_DEL_RIEL.indexOf(clave);
+    const estado = hecho ? 'hecho' : f < dia ? 'tarde' : 'pendiente';
+    marcas.push({ clave, texto: nombre, pos: sobre(f), estado,
+      titulo: nombre + ' · ' + corta(f) + (estado === 'hecho' ? ' · hecho' : estado === 'tarde' ? ' · va tarde' : '') });
+  }
+  return { marcas, hoy: sobre(dia) };
+}
+
+/** El riel pintado con la pieza 16 (`P.rielHTML`, forma «marcas»). `aria-hidden` lo pone la
+ *  pieza: la frase de arriba es la que se lee y el riel es su dibujo. */
+function rielDelTaller(v, dia, clases) {
+  const r = marcasDelRiel(v, dia);
+  const P = typeof window !== 'undefined' ? window.Piezas : null;
+  if (!P || !P.rielHTML) return '<span class="riel riel-marcas tal-riel' + clases + '" aria-hidden="true"></span>';
+  return P.rielHTML(r.marcas, { forma: 'marcas', hoy: r.hoy, clase: 'tal-riel' + clases });
+}
+
 /**
  * Un renglón de trabajo del taller.
  *
@@ -725,9 +780,6 @@ export function corta(iso) {
  */
 export function filaTaller(v, hoy, opts = {}) {
   const dia = partesISO(hoy) ? hoy : hoyISO();
-  /* Dónde va hoy dentro de la ventana, de 0 a 100. Fuera de ella se pega a los bordes. */
-  const largo = Math.max(1, diasEntre(v.empezar, v.listo) || 1);
-  const pos = Math.max(0, Math.min(100, Math.round((diasEntre(v.empezar, dia) || 0) / largo * 100)));
   const tono = TONO_TALLER[v.estado] || '';
   const verbo = VERBO_TALLER[v.etapa_real] || '';
   const mano = v.plazo_fuente === 'elegido';
@@ -740,8 +792,7 @@ export function filaTaller(v, hoy, opts = {}) {
       (opts.extraHTML || '') +
       '<div class="tal-pista" aria-hidden="true">' +
         '<span class="tal-fecha">' + esc(corta(v.empezar)) + '</span>' +
-        '<span class="tal-riel' + (v.ancla === 'ganado' ? ' propuesta' : '') + (tono === 'mal' || tono === 'urge' ? ' tarde' : '') + '">' +
-          '<i class="tal-hoy" style="left:' + pos + '%"></i></span>' +
+        rielDelTaller(v, dia, (v.ancla === 'ganado' ? ' propuesta' : '') + (tono === 'mal' || tono === 'urge' ? ' tarde' : '')) +
         '<span class="tal-fecha">' + esc(corta(v.listo)) + (v.instalacion ? ' · instala ' + esc(corta(v.instalacion)) : '') + '</span>' +
       '</div>' +
       '<div class="pf-fila-d">' +
