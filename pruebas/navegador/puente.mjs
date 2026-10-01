@@ -664,7 +664,6 @@ async function contestarPf(si) {
     const b = document.getElementById('pf-confirma-si');
     return !!b && (b.hasAttribute('data-mantener') || b.classList.contains('mantener'));
   });
-  console.log('    [log] contestarPf: sostener=' + sostener);
   if (!sostener) { await p.click('#pf-confirma-si'); return msg; }
   /* Con el DEDO y no con el ratón: el contexto de esta prueba es un teléfono (isMobile), y la pieza
      escucha el puntero táctil. Con mouse.down() el gesto no llegaba y el botón nunca confirmaba.
@@ -685,7 +684,6 @@ async function contestarPf(si) {
     const e = document.elementFromPoint(px, py);
     return !!e && !!e.closest('#pf-confirma-si');
   }, [x, y]);
-  console.log('    [log] contestarPf: encima=' + encima);
   if (!encima) throw new Error('el punto del dedo no cae sobre #pf-confirma-si: la hoja se movió o algo la tapa');
   const cdp = await p.context().newCDPSession(p);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }] });
@@ -693,8 +691,6 @@ async function contestarPf(si) {
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await cdp.detach().catch(() => {});
   await p.waitForTimeout(400);
-  console.log('    [log] contestarPf: tras sostener, la pregunta sigue abierta=' +
-    await p.evaluate(() => !!document.querySelector('#pf-confirma.show')));
   return msg;
 }
 await p.click('#pf-ficha [data-hoja-quitar]');

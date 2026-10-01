@@ -1,10 +1,10 @@
-# Las pruebas de navegador del paquete de UI: 43 de 44, y la que falta
+# Las pruebas de navegador del paquete de UI: 44 de 44
 
 El paquete «Ideas de UI para todo el repo AL3D» (brief v3) está **implementado entero** en la rama
 `claude/cambios-paquetes-individuales-1itp1x`: las 26 piezas compartidas, las 19 zonas de pantalla
 con sus 153 fichas, las seis fallas del brief y las seis funciones nuevas.
 
-**Las 46 pruebas de node pasan. De las 44 de navegador pasan 43.** Falta una: `puente`.
+**Las 46 pruebas de node pasan, y las 44 de navegador también.**
 
 ## Lo que encontró correrlas todas juntas
 
@@ -21,46 +21,31 @@ También salieron **tres falsos positivos por falta de recursos** (`cot-historia
 de las primeras): fallaban con cuatro navegadores a la vez y pasaban al correrlas solas. Antes de dar
 por mala una prueba, **córrela sola**.
 
-## La que falta: `puente`
+## La última en caer: `puente`
 
-Quedan dos comprobaciones en rojo, y **las dos son la prueba asumiendo el comportamiento viejo, no
-código roto**. Lo que cambió, y que la prueba todavía no sabe:
+Fue la que más costó, y por una lectura equivocada: se dio por hecho que las dos comprobaciones de
+«Quitar del tablero» seguían en rojo cuando **ya pasaban**. Lo que detenía la prueba estaba más
+adelante. Quedan aquí las dos cosas que cambió el paquete y que la prueba tuvo que aprender:
 
 1. **«Quitar del tablero» ahora se confirma SOSTENIENDO el botón**, no con un toque. Es la única de
    las cinco preguntas de `decisionHoja()` que borra algo de este teléfono sin más, y por eso lleva
-   la pieza 5 (ver `conMantenerPresionado()` en `js/mod/proyectos.js`).
-2. **El filtro «Todas» ya no existe en el teléfono.** Desde P28 la tira dejó de ser un filtro y pasó
-   a ser el pasador de las páginas —una por etapa—, así que un botón que no lleva a ningún lado se
-   quitó a propósito (`pintarFiltros()` en `js/mod/proyectos.js`).
+   la pieza 5 (ver `conMantenerPresionado()` en `js/mod/proyectos.js`). `contestarPf()` detecta la
+   marca que deja la pieza en el botón, espera a que la hoja deje de deslizarse, y sostiene con el
+   dedo por CDP. Una corrida con logs confirmó que funciona: el sostener se detecta, el dedo cae
+   encima y la pregunta se cierra. **«Quitar» sí borra; no era un defecto del código.**
+2. **El filtro «Todas» ya no existe en el teléfono.** Desde P28 la tira es el pasador de las
+   páginas —una por etapa— (`pintarFiltros()` en `js/mod/proyectos.js`).
 
-### Lo que ya se le hizo a la prueba, y dónde se quedó
+Y lo que de verdad la detenía, en el último clic de Ajustes: «Probar» deja un aviso largo —el
+puente de mentiras dice que corre otra versión—, que tapa el botón «Revisar el esquema» por abajo
+mientras el índice de Ajustes lo tapa por arriba. El clic de Playwright dejaba el cursor encima del
+aviso, y **la pieza 12 congela la mecha de un aviso con el cursor encima**, así que no se iba nunca
+y el clic esperaba hasta agotar el tiempo. La prueba ahora aparta el cursor, limpia los avisos y
+trae el botón al centro.
 
-`contestarPf()` de `pruebas/navegador/puente.mjs` ya detecta si el botón pide sostener —por la marca
-que deja la pieza, no por una lista de cuáles son— y sostiene con el dedo por CDP, que es el arnés
-que sí funciona en `cot-historial` y `cot-cliente`. También espera a que la hoja **deje de
-deslizarse** antes de tomar las coordenadas, y comprueba con `elementFromPoint` que el dedo caiga
-encima; si no, falla diciendo eso.
-
-**Aun así las dos comprobaciones siguen en rojo**, y la causa no está confirmada. Se intentaron cinco
-corridas y cada una tarda ~20 minutos, así que se dejó aquí escrito en vez de seguir.
-
-### Por dónde seguir
-
-Lo primero es **saber si el sostener llega o no**, en vez de seguir adivinando: poner un
-`console.log` del valor de `sostener` y de `encima` dentro de `contestarPf()`, correrla una vez y
-mirar. De ahí salen dos caminos:
-
-- **Si el sostener no se detecta** (la marca no está en el botón cuando la prueba mira), el problema
-  es de orden: `conMantenerPresionado()` arma la pieza sobre `#pf-confirma-si` justo después de que
-  `confirmarPf()` abre la capa, y la prueba podría estar mirando antes.
-- **Si se detecta y aun así no confirma**, entonces el gesto no está llegando a la pieza, y hay que
-  mirar `P.mantener` en `js/piezas.js` con el contexto `isMobile` de esta prueba.
-
-Y hay una tercera posibilidad que **no se descartó**: que «Quitar» de verdad no borre, y sea un
-defecto del código y no de la prueba. Se dio por supuesto que era la prueba porque el diálogo sale
-con su texto correcto, pero eso no lo demuestra. **Vale la pena quitarse esa duda a mano**: abrir la
-app, provocar una tarjeta importada cuya fila ya no esté, y quitarla sosteniendo el botón. Si se
-quita, era la prueba; si no, es un defecto que borra —o más bien no borra— datos.
+Es comportamiento a propósito de la pieza, pero vale anotarlo para un teléfono: **un aviso largo y
+un índice que se pega pueden tapar juntos un botón**. Con el dedo no pasa lo del cursor —el aviso se
+va solo o se desliza—, pero conviene mirarlo en un teléfono real.
 
 ## Cómo correrlas
 
