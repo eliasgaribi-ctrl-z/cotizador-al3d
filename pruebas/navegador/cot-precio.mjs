@@ -261,18 +261,25 @@ async function ronda(R, indice) {
     await p.fill('#f-anti', '99999'); await p.waitForTimeout(250);
     cierto(await ev(() => document.querySelector('#s-anti-partido .desl-caja').classList.contains('fuera') || +$('f-anti-r').value >= +$('f-anti-r').max - 0.01), 'un anticipo que pasa del total deja la barra en su tope y lo dice (.fuera)');
     await ev(() => $('f-anti').dispatchEvent(new Event('change', { bubbles: true }))); await p.waitForTimeout(250);
-    /* La excepción de $60,000, sobre el total que se cobra. */
+    /* La excepción de $60,000, sobre el SUBTOTAL: lo decidió Dirección, para que el mismo trabajo
+       caiga del mismo lado de la regla se facture o no. */
     const ex0 = await ev(() => ({ oculta: $('s-anti-excep').hidden }));
     cierto(ex0.oculta, 'con un total de $' + Math.round(t2) + ' no hay excepción que avisar');
     await ev(() => { document.body.classList.add('precios-a-la-vista'); Q.items[0].altura = 80; Q.items[0].n = 30; saveState(); renderItems(); renderSummary(); }); await p.waitForTimeout(300);
-    const ex1 = await ev(() => ({ oculta: $('s-anti-excep').hidden, texto: $('s-anti-excep').textContent, total: precioFinal(), disp: getComputedStyle($('s-anti-excep')).display }));
-    cierto(!ex1.oculta && ex1.total > 60000 && /\$60,000/.test(ex1.texto) && ex1.disp !== 'none', 'arriba de $60,000 (total ' + Math.round(ex1.total) + ') avisa la excepción: «' + ex1.texto + '»');
-    /* Sobre el total que se cobra: sin IVA, el mismo subtotal ya no pasa de 60 000 → sin aviso. */
-    await ev(() => { Q.iva = false; renderItems(); renderSummary(); Q.items[0].n = 24; saveState(); renderItems(); renderSummary(); });
+    const ex1 = await ev(() => ({ oculta: $('s-anti-excep').hidden, texto: $('s-anti-excep').textContent, sub: desgloseFinal().sub, total: precioFinal(), disp: getComputedStyle($('s-anti-excep')).display }));
+    cierto(!ex1.oculta && ex1.sub > 60000 && /\$60,000/.test(ex1.texto) && ex1.disp !== 'none', 'con un subtotal de $' + Math.round(ex1.sub) + ' avisa la excepción: «' + ex1.texto + '»');
+    /* Y la prueba que separa las dos reglas: un subtotal DEBAJO de 60 000 cuyo total CON IVA pasa.
+       Con la regla vieja habría avisado; con esta no, y el aviso tampoco depende de si hay factura. */
+    await ev(() => { Q.iva = true; Q.items[0].altura = 80; Q.items[0].n = 22; saveState(); renderItems(); renderSummary(); });
+    await p.waitForTimeout(300);
+    const ex2 = await ev(() => ({ oculta: $('s-anti-excep').hidden, sub: desgloseFinal().sub, total: precioFinal() }));
+    cierto(ex2.sub < 60000 && ex2.total > 60000 && ex2.oculta,
+      'un subtotal de $' + Math.round(ex2.sub) + ' que con IVA da $' + Math.round(ex2.total) + ' NO dispara la excepción: se mide sobre el subtotal');
+    /* Y el mismo trabajo sin factura cae del mismo lado: el aviso no cambia al quitar el IVA. */
+    const ex3 = await ev(() => { Q.iva = false; renderItems(); renderSummary(); return { oculta: $('s-anti-excep').hidden, sub: desgloseFinal().sub }; });
     await p.waitForTimeout(250);
-    const ex2 = await ev(() => ({ oculta: $('s-anti-excep').hidden, total: precioFinal() }));
-    cierto(ex2.total < 60000 ? ex2.oculta : !ex2.oculta, 'la excepción se mide sobre el total que se cobra, no sobre el subtotal (total ' + Math.round(ex2.total) + ')');
-    cierto(await ev(() => { document.body.classList.remove('precios-a-la-vista'); return getComputedStyle($('s-anti-excep')).display === 'none'; }), 'y en borrador el aviso no sale: su sola presencia diría que el total pasa de $60,000');
+    cierto(ex3.oculta === ex2.oculta, 'quitar la factura no cambia el veredicto con el mismo trabajo (subtotal $' + Math.round(ex3.sub) + ')');
+    cierto(await ev(() => { document.body.classList.remove('precios-a-la-vista'); return getComputedStyle($('s-anti-excep')).display === 'none'; }), 'y en borrador el aviso no sale: su sola presencia diría que el subtotal pasa de $60,000');
     await s.sinBucles('en la columna del dinero', '#sidebox');
     await s.captura('02-anticipo');
     sinErrores(s, 'en el anticipo'); await s.cierra();

@@ -18,27 +18,35 @@
 /* ----- La cuenta del anticipo, sin pantalla (C17) -----
    La regla de las condiciones de pago es «50 % de anticipo y el resto a más tardar dos días hábiles
    después de la instalación», con una excepción para los proyectos mayores a $60,000. La excepción
-   se mide sobre el TOTAL QUE SE COBRA —con IVA si lleva factura—, igual que el repo ya calcula el
-   anticipo («sobre lo que realmente se va a cobrar», precioFinal): no sobre el subtotal. Es una
-   constante con nombre para que cambiar de opinión sea cambiar un número. Esa decisión la tomó el
-   paquete de UI y quedó anotada para confirmarla con Dirección. */
+   se mide sobre el SUBTOTAL, sin IVA —lo confirmó Dirección—, y no sobre el total que se cobra: el
+   tamaño del proyecto es el trabajo que lleva, y el mismo trabajo no puede caer de un lado o del
+   otro de la regla según se facture o no. Con factura son $69,600 de total los que la disparan.
+
+   Ojo con la cuenta: el subtotal NO es «lo capturado», es el del precio que se va a cobrar, que es
+   el que cambia cuando el autorizador ajusta. Sale de desgloseFinal().sub, que divide entre 1.16 el
+   neto ya redondeado para que los tres números cierren entre sí.
+
+   El reparto (hoy / al instalar) sí va sobre el total: es dinero que se cobra. La excepción es lo
+   único que mira el subtotal, y por eso entra como un tercer dato y no cambia el resto. */
 const ANTICIPO_EXCEPCION=60000;
-function partirAnticipo(total,anti){
+function partirAnticipo(total,anti,sub){
   const t=Math.max(0,+total||0), a=Math.max(0,+anti||0), resta=t-a;
+  /* Sin subtotal se mide contra el total: es el caso sin factura, donde valen lo mismo. */
+  const base=(sub===undefined||sub===null||!isFinite(+sub))?t:Math.max(0,+sub);
   return {hoy:a, alInstalar:Math.max(0,+resta.toFixed(2)), supera:resta<-0.01,
-    pct:t>0?Math.round(a/t*100):0, excepcion:t>ANTICIPO_EXCEPCION};
+    pct:t>0?Math.round(a/t*100):0, excepcion:base>ANTICIPO_EXCEPCION};
 }
 /* La barra de dos tramos del anticipo. Se monta una vez y después solo se le ajusta el rango: el
    total cambia en cada tecla de una partida y el deslizador conserva el porcentaje pactado al
    moverse. Imán fuerte en el 50 % exacto —con factura el 50 % no es redondo: $6,264.48— que pesa
    más que los cientos, y tope en el total. Sin total no hay nada que partir y la barra se esconde. */
 let _antiDesl=null, _antiTotal=0;
-function montarAnticipoPartido(pf){
+function montarAnticipoPartido(pf,sub){
   const P=window.Piezas, caja=$('s-anti-partido'), r=$('f-anti-r'), ex=$('s-anti-excep');
   if(ex){
-    const si=pf>ANTICIPO_EXCEPCION;
+    const si=partirAnticipo(pf,0,sub).excepcion;
     if(ex.hidden===si) ex.hidden=!si;
-    if(si&&!ex.textContent) ex.textContent='Pasa de '+money(ANTICIPO_EXCEPCION).replace(/\.00$/,'')+': aplica la excepción de las condiciones de pago. El 50% es solo la referencia.';
+    if(si&&!ex.textContent) ex.textContent='El subtotal pasa de '+money(ANTICIPO_EXCEPCION).replace(/\.00$/,'')+': aplica la excepción de las condiciones de pago. El 50% es solo la referencia.';
   }
   if(!caja||!r) return;
   const hay=pf>0&&!!(P&&P.deslizadorConImanes);
@@ -160,13 +168,13 @@ function renderSummary(){
      #f-anti y deja que el `input` y el `change` de siempre hagan el resto (acotado, `antiManual`). */
   const restEl=$('s-anti-rest');
   if(restEl){
-    const c=partirAnticipo(pf,Q.anti);
+    const c=partirAnticipo(pf,Q.anti,desgloseFinal().sub);
     const html=pf>0
       ? `<span class="anti-tramo">Hoy <b>${money(c.hoy)}</b></span><span class="anti-tramo">Al instalar <b>${money(c.alInstalar)}</b></span>${c.supera?'<span class="anti-sobra">El anticipo supera el total</span>':''}`
       : '';
     if(restEl.dataset.firma!==html){ restEl.dataset.firma=html; restEl.innerHTML=html; }
   }
-  montarAnticipoPartido(pf);
+  montarAnticipoPartido(pf,desgloseFinal().sub);
   // Precio autorizado (descuento o aumento respecto al calculado)
   const authRow=$('s-auth-row');
   if(authRow){

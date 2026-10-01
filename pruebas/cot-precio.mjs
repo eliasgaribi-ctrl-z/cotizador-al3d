@@ -80,7 +80,7 @@ const bloqueConst = (texto, nombre) => {
 const cargar = (codigo, globales = {}) => { const ctx = vm.createContext(Object.assign({ Math, Number, String, Array, Object, JSON, isFinite, Set }, globales)); vm.runInContext(codigo.replace(/^(const|let) /gm, 'var '), ctx); return ctx; };
 
 /* ============================== 1 · EL ANTICIPO PARTIDO (C17) ============================== */
-console.log('\n1. EL ANTICIPO PARTIDO SUMA EL TOTAL Y LA EXCEPCIÓN SE MIDE SOBRE LO QUE SE COBRA');
+console.log('\n1. EL ANTICIPO PARTIDO SUMA EL TOTAL, Y LA EXCEPCIÓN SE MIDE SOBRE EL SUBTOTAL');
 {
   const A = cargar(linea(PROCESO, 'ANTICIPO_EXCEPCION') + '\n' + fuente(PROCESO, 'partirAnticipo'));
   eq('la excepción de las condiciones de pago es de $60,000', A.ANTICIPO_EXCEPCION, 60000);
@@ -96,11 +96,15 @@ console.log('\n1. EL ANTICIPO PARTIDO SUMA EL TOTAL Y LA EXCEPCIÓN SE MIDE SOBR
     if (!ok && !mala) mala = { total, anti, c };
   }
   cierto('hoy + al instalar = total, o el anticipo supera y se dice, en ' + n + ' combinaciones', !mala, JSON.stringify(mala));
-  eq('en $60,000 exactos todavía no hay excepción: «mayores a» no incluye al 60,000', A.partirAnticipo(60000, 30000).excepcion, false);
-  eq('con un centavo más sí', A.partirAnticipo(60000.01, 30000).excepcion, true);
-  /* Con factura el total que se cobra lleva IVA: $53,000 de subtotal son $61,480 y ya pasan. */
-  eq('se mide sobre el total CON IVA: $53,000 + 16 % = $61,480 pasa', A.partirAnticipo(53000 * 1.16, 0).excepcion, true);
-  eq('y el mismo subtotal sin factura, no', A.partirAnticipo(53000, 0).excepcion, false);
+  eq('en $60,000 exactos todavía no hay excepción: «mayores a» no incluye al 60,000', A.partirAnticipo(60000, 30000, 60000).excepcion, false);
+  eq('con un centavo más sí', A.partirAnticipo(60000.01, 30000, 60000.01).excepcion, true);
+  /* Lo decidió Dirección: la excepción mira el SUBTOTAL, así que el mismo trabajo cae del mismo lado
+     de la regla se facture o no. Con factura, $53,000 de subtotal son $61,480 de total y NO pasan. */
+  eq('se mide sobre el SUBTOTAL: $53,000 + 16 % = $61,480 de total NO pasa', A.partirAnticipo(53000 * 1.16, 0, 53000).excepcion, false);
+  eq('y $62,000 de subtotal sí pasa, aunque se cobre sin factura', A.partirAnticipo(62000, 0, 62000).excepcion, true);
+  eq('con factura, $62,000 de subtotal ($71,920 de total) también', A.partirAnticipo(62000 * 1.16, 0, 62000).excepcion, true);
+  /* Sin subtotal se cae al total, que es lo mismo cuando no hay factura. */
+  eq('sin tercer dato se mide contra el total', A.partirAnticipo(70000, 0).excepcion, true);
   eq('un anticipo mayor que el total lo dice y deja el resto en cero', (c => [c.supera, c.alInstalar])(A.partirAnticipo(10440, 12760)), [true, 0]);
   eq('sin total no hay nada que partir', A.partirAnticipo(0, 0), { hoy: 0, alInstalar: 0, supera: false, pct: 0, excepcion: false });
   eq('basura no truena', A.partirAnticipo(undefined, 'x'), { hoy: 0, alInstalar: 0, supera: false, pct: 0, excepcion: false });

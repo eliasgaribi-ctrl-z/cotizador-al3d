@@ -104,7 +104,7 @@ Fichas: 8 hecho, 4 parcial, 1 ya estaba.
   Reescritos con Piezas.trabajando y fallback sin piezas (remotaOcupada con disabled). El fallback sin Piezas NO tiene prueba. Tampoco la prueba de node de defensas-del-cotizador cubre estas funciones (pasa porque no las llama).
 
 - **[media]** `js/cotizador/proceso.js · ANTICIPO_EXCEPCION y partirAnticipo()`  
-  Supuesto de la decisión 1: la excepción de $60,000 se mide sobre el total que se cobra (con IVA), y no se prende en 60,000.00 exactos. La muestra la dejó «pendiente de confirmar con Elías»; falta esa confirmación. La frase del aviso («aplica la excepción de las condiciones de pago…») la escribí yo.
+  **RESUELTO (1-oct-2026).** Dirección confirmó que la excepción se mide sobre el **subtotal**, sin IVA, para que el mismo trabajo caiga del mismo lado de la regla se facture o no. `partirAnticipo(total, anti, sub)` recibe el subtotal de `desgloseFinal().sub`, y lo cubren `pruebas/cot-precio.mjs` y su prueba de navegador (un subtotal de $52,800 que con IVA da $61,248 ya no dispara el aviso). Nota original: Supuesto de la decisión 1: la excepción de $60,000 se mide sobre el total que se cobra (con IVA), y no se prende en 60,000.00 exactos. La muestra la dejó «pendiente de confirmar con Elías»; falta esa confirmación. La frase del aviso («aplica la excepción de las condiciones de pago…») la escribí yo.
 
 - **[media]** `js/cotizador/proceso.js · pintarPasos() y css/sistema.css (.pasos::before/::after)`  
   C12 sin Piezas.riel (decisión mía, ver ficha). El filete se verificó a 360/420 px y en computadora de 1100 px, no a 320 px ni en la capa vidrio.css con la barra más ancha; el glifo de 22 px a 320 px no se midió. El filete cuenta pasos hechos / 4 (no media el paso actual).
