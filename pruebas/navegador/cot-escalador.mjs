@@ -936,7 +936,7 @@ for (const ancho of [360, 420]) {
       await p.evaluate(() => { window.__pdf = scLoadPDF(new File([new Blob(['%PDF-1.4'])], 'plano.pdf', { type: 'application/pdf' })); });
       await p.waitForTimeout(700);
       await contraste(p, '#sc-overlay-pasos', etq + ' · el PDF abriendo, sobre la foto');
-      const B1 = await p.evaluate(() => { const c = document.querySelector('.sp-overlay-tarjeta').getBoundingClientRect(), a = document.getElementById('sp-canvas-area').getBoundingClientRect(); return { dentro: c.top >= a.top - 1 && c.bottom <= a.bottom + 1 && c.left >= a.left - 1 && c.right <= a.right + 1 }; });
+      const B1 = await p.evaluate(() => { const c = document.querySelector('#scalermodal .sp-overlay-tarjeta').getBoundingClientRect(), a = document.getElementById('sp-canvas-area').getBoundingClientRect(); return { dentro: c.top >= a.top - 1 && c.bottom <= a.bottom + 1 && c.left >= a.left - 1 && c.right <= a.right + 1 }; });
       cierto(B1.dentro, etq + ' · la tarjeta del PDF cabe dentro del lienzo');
       if (laDeCaptura) await cap(p, nombre('2-pdf-abriendo'));
       await p.evaluate(() => { delete window.pdfjsLib; });
@@ -944,7 +944,7 @@ for (const ancho of [360, 420]) {
       await p.evaluate(async () => { await scLoadPDF(new File([new Blob(['%PDF-1.4'])], 'plano.pdf', { type: 'application/pdf' })); });
       await p.waitForTimeout(450);
       const B2 = await p.evaluate(() => {
-        const c = document.querySelector('.sp-overlay-tarjeta').getBoundingClientRect(), a = document.getElementById('sp-canvas-area').getBoundingClientRect();
+        const c = document.querySelector('#scalermodal .sp-overlay-tarjeta').getBoundingClientRect(), a = document.getElementById('sp-canvas-area').getBoundingClientRect();
         const btns = [...document.querySelectorAll('#sc-overlay-mal .sp-overlay-btn')].filter(b => !b.hidden);
         return { dentro: c.top >= a.top - 1 && c.bottom <= a.bottom + 1 && c.left >= a.left - 1 && c.right <= a.right + 1,
           altos: btns.every(b => b.getBoundingClientRect().height >= 44), n: btns.length,
@@ -952,8 +952,8 @@ for (const ancho of [360, 420]) {
       });
       cierto(B2.dentro, etq + ' · la tarjeta del error cabe dentro del lienzo');
       cierto(B2.n === 2 && B2.altos && B2.libres, etq + ' · sus dos salidas miden 44 px o más y nada las tapa (ni los botones de zoom)');
-      await contraste(p, '.sp-overlay-tarjeta', etq + ' · el error del PDF, sobre la foto');
-      await contraste(p, '.sp-overlay-btn.pri', etq + ' · «Elegir otro archivo»');
+      await contraste(p, '#scalermodal .sp-overlay-tarjeta', etq + ' · el error del PDF, sobre la foto');
+      await contraste(p, '#scalermodal .sp-overlay-btn.pri', etq + ' · «Elegir otro archivo»');
       if (laDeCaptura) await cap(p, nombre('3-pdf-error'));
       cierto((await infinitas(p)).length === 0, etq + ' · con el error puesto nada se anima solo');
       await p.unroute('**/cdnjs.cloudflare.com/**');

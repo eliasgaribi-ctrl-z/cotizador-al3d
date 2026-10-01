@@ -2036,10 +2036,6 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
 .vt-stat.hl{background:var(--soft-2);border-color:rgba(var(--a-rgb),.18)}
 .vt-stat.hl .v{color:var(--brand-strong)}
 .vt-swatches{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
-.vt-sw{width:24px;height:24px;border-radius:7px;border:1.5px solid rgba(var(--tinta-rgb),.14);cursor:pointer;position:relative;transition:transform var(--mv-s),opacity var(--mv-s);padding:0;background-clip:padding-box}
-@media(hover:hover){.vt-sw:hover{transform:scale(1.12)}}
-.vt-sw.off{opacity:.25}
-.vt-sw.off::after{content:'';position:absolute;left:1px;right:1px;top:50%;height:2px;background:var(--red);transform:rotate(-45deg)}
 .vt-empty{text-align:center;color:var(--muted);font-size:12.5px;padding:22px 12px;line-height:1.65;border:1.5px dashed var(--line);border-radius:var(--r-sm);background:var(--soft)}
 .vt-esc-note{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:8px}
 .vt-esc-ok{background:var(--green-bg);border:1px solid rgba(var(--ok-rgb),.2);border-radius:var(--r-sm);padding:9px 11px;font-size:12px;color:var(--green);font-weight:700;margin-bottom:10px;line-height:1.45}
@@ -2063,7 +2059,6 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
   .vt-modal-bg .sp-side{width:100%}
   .vt-modo button{min-height:52px}
   .vt-go{min-height:48px}
-  .vt-sw{width:30px;height:30px}
   .vt-dl button{min-height:46px}
 }
 /* Estos tres viven en la tarjeta de partidas, no en el modal: siguen en 760 px */
@@ -2629,7 +2624,6 @@ a.btn-hist,a.btn-hist:visited{text-decoration:none;color:var(--a-tx);border-colo
   .ptop-actions .del{margin-left:2px}
   .sp-ibtn{min-width:44px;min-height:44px}
   .optgrp .chip{min-height:44px}
-  .vt-sw{width:32px;height:32px}
   /* La cola del inventario, medida en el iPhone 15 Pro Max: cerrar el historial 32×32,
      el contador de letras 37 px de alto (16 px de letra + 5+5 de padding), el plegado
      de la partida 30×30 y el asa de la cortina de comparación 38 px de diámetro. */
@@ -5612,6 +5606,64 @@ body.precios-ocultos:not(.precios-a-la-vista) .desglose-total dd{filter:blur(7px
 
 /* ── Cotizador · vectorizador ── */
 
+/* ----- H9 · Los deslizadores, con marcas y con la pastilla pegada al pulgar -----
+   La pieza `deslizadorConImanes` envuelve cada rango en una `.desl-caja` y le pone sus marcas
+   debajo y la pastilla del valor encima del pulgar. La pastilla ya dice el valor, así que la
+   píldora de la etiqueta de arriba (`.vt-val`, la que decía «Medio») sobra: se esconde SOLO si la
+   pieza envolvió el rango; si no hubiera cargado, la etiqueta seguiría diciéndolo como siempre.
+   El renglón de la etiqueta se pega a la caja, que ya trae sus 30 px de aire para la pastilla. */
+.vt-row:has(+ .desl-caja) .vt-val{display:none}
+.vt-row:has(+ .desl-caja){margin-bottom:0}
+/* Las marcas de Colores (rayitas y números) se quedaban pegadas a la etiqueta de Detalle, que no
+   lleva el margen de arriba que sí traen las otras dos. El margen va en la caja de Colores y no en
+   Detalle: en el modo Corte esa caja no se pinta, y Detalle no tiene por qué empezar más abajo. */
+#vt-fld-colores{margin-bottom:12px}
+/* La espera de un re-trazo, cuando ya hay trazo a la vista: una barra fina pegada al borde de
+   arriba del lienzo, no el velo oscuro con desenfoque, que tapaba justo lo que se quería comparar
+   con el ajuste nuevo. No intercepta el dedo (el lienzo sigue siendo tocable mientras corre) y
+   su texto se queda para el lector de pantalla, sin pintarse. La barra de avance es información:
+   con menos movimiento se queda, y sigue creciendo. */
+.vt-prog.fina{inset:0 0 auto 0;justify-content:flex-start;gap:0;background:none;
+  -webkit-backdrop-filter:none;backdrop-filter:none;pointer-events:none}
+.vt-prog.fina .vt-prog-txt{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.vt-prog.fina .vt-prog-track{width:100%;height:3px;border-radius:0;background:transparent}
+
+/* ----- H10 · El trazo de corte que se dibuja al terminar de vectorizar -----
+   Un <svg> encima del escenario, dentro de él, así que escala con el zoom. El grosor viene en
+   unidades de la imagen (`--vt-sw`, calculado por vtDibujarCorte para que sean ~2 px de pantalla
+   con el zoom que haya) y no con `vector-effect: non-scaling-stroke`, porque con ese los guiones
+   se miden en pantalla y ya no cuadran con getTotalLength(). Existe solo mientras dura el momento
+   (menos de un segundo) y lo retira el JS: nada de esto está en reposo. */
+.vt-corte{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:2}
+.vt-corte-trazo{fill:none;stroke:var(--a);stroke-width:var(--vt-sw,2);stroke-linejoin:round;stroke-linecap:round}
+.vt-corte-relleno{fill-opacity:0;fill-rule:evenodd}
+
+/* ----- H22 · Las muestras de color, como fichas que dicen su estado -----
+   Eran cuadritos de 24 px que, quitados, se ponían al 25 % de opacidad con una raya roja: el estado
+   se decía con la opacidad (§4.3 lo prohíbe) y cuál era el fondo solo se sabía por un `title` que
+   en el teléfono no existe. Ahora son 44 px de alto, con la muestra del color de verdad, su nombre
+   y un ✓ que se vuelve ✕ al quitarlo, con el nombre tachado: el estado lo dicen el icono y la
+   palabra, no la opacidad. El borde de la muestra es un neutro y no la tinta: de noche la tinta
+   es negra y un color oscuro sobre fondo oscuro perdía su contorno. */
+.vt-sw{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px 0 7px;
+  border:1px solid var(--linea);border-radius:999px;background:var(--sup);color:var(--tinta);
+  font:600 var(--t2)/1 var(--f-texto);cursor:pointer;
+  transition:transform var(--mv-liq),background-color var(--mv-s),border-color var(--mv-s)}
+.vt-sw:active{transform:scale(.97)}
+@media(hover:hover) and (pointer:fine){.vt-sw:hover{border-color:var(--n4)}}
+.vt-sw-m{flex:none;width:30px;height:30px;border-radius:50%;border:1px solid var(--n4);background-clip:padding-box}
+/* Los dos iconos comparten la celda y se cruzan: el ✓ se encoge y el ✕ brota. */
+.vt-sw-e{display:inline-grid;place-items:center;flex:none;width:18px;height:18px;font-size:16px}
+.vt-sw-e>.svgi{grid-area:1/1;transition:opacity var(--mv-s),transform var(--mv-liq)}
+.vt-sw-si{color:var(--ok)}
+.vt-sw-no{color:var(--mal);opacity:0;transform:scale(.5)}
+.vt-sw.off{background:var(--n1)}
+.vt-sw.off .vt-sw-si{opacity:0;transform:scale(.5)}
+.vt-sw.off .vt-sw-no{opacity:1;transform:none}
+.vt-sw.off .vt-sw-n{color:var(--tinta2);text-decoration:line-through;text-decoration-thickness:2px}
+/* Con muchos colores (el modo Foto llega a 24) los nombres son solo el número: la ficha se
+   encoge y caben más por renglón. */
+.vt-swatches.denso .vt-sw{padding-right:11px;gap:6px}
 /* ── fin de cot-vector ── */
 
 /* ── Cotizador · historial, cuadernos y respaldos ── */
@@ -7069,7 +7121,15 @@ input[type=range].desl-iman{transform:none!important}
 .sp-overlay-btn:active{transform:none}
 /* ── fin de rm · cot-escalador ── */
 /* ── rm · cot-vector ── */
-
+/* Se va lo que se anima: el ✓ que se cruza con el ✕ cambia en seco —el nombre tachado y el icono
+   ya dicen el estado—, la ficha de color no se encoge al apretarla y el trazo de corte ni siquiera
+   arranca (vtDibujarCorte lo pregunta en el momento; esto es por si algo más lo pintara). Se
+   queda lo que informa: la barra fina del re-trazo sigue creciendo con su transición de 200 ms,
+   porque es el avance, no adorno. */
+.vt-sw{transition:none}
+.vt-sw:active{transform:none}
+.vt-sw-e>.svgi{transition:none}
+.vt-corte{display:none}
 /* ── fin de rm · cot-vector ── */
 /* ── rm · cot-historial ── */
 /* Se va lo que escala al apretar. Se queda lo que informa: el relleno del botón que se sostiene
