@@ -719,7 +719,6 @@ body.precios-ocultos .precios-nota{display:flex}
 .paso-tab.on{background:var(--sup);border-color:var(--n3);color:var(--n8)}
 .paso-tab.on .n{background:var(--a);color:#fff}
 .paso-tab.hecho .n{background:var(--ok-bg);color:var(--ok)}
-.paso-tab.hecho .n::after{content:'✓'}
 .paso-tab.hecho .n>span,.paso-tab.hecho .n{font-size:12px}
 /* El paso que todavía no toca: ámbar, el mismo de todo lo que falta. No se deshabilita
    —tocarlo dice qué falta y lleva al hueco—, porque un botón gris no explica nada. */
@@ -3494,10 +3493,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
    dirección sin desaparecer: es donde la gente lo busca. */
 .authnote.espera{display:flex;gap:var(--e2);align-items:flex-start}
 .authnote.falla{border-color:var(--amber-ico);background:var(--amber-bg);color:var(--amber)}
-.espera-giro{flex:0 0 auto;width:14px;height:14px;margin-top:2px;border-radius:50%;
-  border:2px solid var(--linea);border-top-color:var(--brand);animation:esq-gira .8s linear infinite}
 .auth-quien{font-size:var(--t1)}
-.btn.trabajando{cursor:progress;opacity:.8}
 .qi-remota{display:inline-block;margin-left:var(--e1);padding:0 6px;border-radius:999px;
   background:var(--soft-2);color:var(--tinta2);font-size:9px;letter-spacing:.3px;vertical-align:1px}
 #roleseg button.apagado{opacity:.45}
@@ -4976,6 +4972,116 @@ mark.coincide{background:var(--a-suave);color:var(--tinta);font-weight:700;borde
 /* ── fin de cot-partidas ── */
 
 /* ── Cotizador · precio, autorización, notario y hitos ── */
+
+/* ----- El riel de cuatro pasos enseña cuánto va (C12) -----
+   Nada unía a los cuatro pasos —las flechas llevan tiempo en display:none— y «voy en la mitad»
+   había que contarlo palomita por palomita. Un filete de 2 px por dentro del borde de abajo se llena
+   de 0 a 100 % según los pasos hechos: lo escribe pintarPasos() en `--avance` y la transición solo
+   corre cuando el número cambia, o sea al autorizar o al entregar —escribir el mismo valor en cada
+   tecla no dispara nada—. Verde (--ok-fill) y no el azul de marca: el azul es de la pestaña actual
+   y el verde de lo que ya está, igual que el conector del riel de la entrega.
+
+   Es decorativo y va en pseudo-elementos: lo que dice el estado de cada paso con palabras es el
+   nombre accesible de la pestaña («Paso 2 de 4 · Partidas · hecho»). */
+.pasos{position:relative}
+.pasos::before,.pasos::after{content:"";position:absolute;left:14px;right:14px;bottom:3px;height:2px;
+  border-radius:1px;pointer-events:none}
+.pasos::before{background:var(--linea)}
+.pasos::after{background:var(--ok-fill);transform-origin:left center;transform:scaleX(var(--avance,0));
+  transition:transform var(--mv-t)}
+/* El círculo de cada paso es el glifo de su estado (StatusMark): anillo punteado ámbar para el que
+   todavía no toca, relleno de marca para el actual, palomita dibujada para el hecho. Cabe en los
+   22 px que le quedan a 320, donde las pestañas que no son la actual se quedan solo con su círculo. */
+.paso-tab.espera .n{border-style:dashed;border-width:1.5px;border-color:var(--av)}
+.paso-tab .n .palomita{width:14px;height:14px}
+
+/* ----- El recorrido de la solicitud (C9) -----
+   Tres tramos en un renglón, cada uno con su glifo de 22 px y su nombre debajo. Con tres columnas
+   iguales caben a 320 px: «En este teléfono» y «Dirección decide» se parten en dos renglones antes
+   que salirse. El estado va con palabras para el lector de pantalla (.solo-voz) y con el glifo para
+   el ojo; el color nunca va solo. */
+.authnote.espera{display:block}
+.recorrido{list-style:none;margin:0 0 var(--e3);padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--e1)}
+.recorrido .tramo{display:grid;justify-items:center;align-content:start;gap:var(--e1);text-align:center;
+  font-size:var(--t1);font-weight:600;line-height:1.3;color:var(--tinta2)}
+.recorrido .tramo[data-e="ok"] .tramo-t,.recorrido .tramo[data-e="trabaja"] .tramo-t{color:var(--tinta)}
+.espera-frase{display:block}
+/* «Revisado hace 9 s»: cifras tabulares para que el reloj no baile al contar, y --tinta2 porque
+   --tinta3 sobre el fondo hundido de esta nota no llega a 4.5:1. */
+.espera-hace{display:block;margin-top:var(--e1);font-size:var(--t1);color:var(--tinta2);font-variant-numeric:tabular-nums}
+/* La insignia con su glifo: el puntito era de 8 px, el glifo de 14 pide su propio hueco. */
+.badge .marca-estado{margin-right:2px}
+/* La cola del autorizador, viva (C22): el contenedor sobrevive a los repintados del panel, y los
+   renglones que se despiden —se quedan absolutos mientras se desvanecen— necesitan caja de donde
+   colgarse y que recorte lo que se sale. */
+#auth-cola{position:relative}
+/* La palabra «nueva» sale mientras la pieza tenga puesta su marca. El selector va por atributo y no por
+   clase a propósito: pruebas/piezas-hojas.mjs vigila que lo de la pieza no se escriba fuera de su
+   bloque, y esto no es de la pieza, es de la cola —solo lee la clase que ella pone y quita sola—. */
+.queue-item[class~="lista-nueva"] .qi-folio::after{content:"nueva";margin-left:var(--e1);padding:0 6px;border-radius:999px;
+  background:var(--a-suave);color:var(--a-tx);font-size:10px;letter-spacing:.3px;vertical-align:1px;text-transform:none}
+.falt-row.lista-se-va{border-radius:var(--rr2)}
+
+/* ----- El anticipo, partido a la vista (C17) -----
+   La barra de dos tramos va debajo del campo, que sigue ahí para teclear. Debajo, «Hoy $X · Al
+   instalar $Y», cada cifra en el extremo de su tramo; y cuando el anticipo se pasa del total, la
+   frase lo dice con palabras y en ámbar. El renglón de las dos cifras está difuminado en borrador
+   porque lleva importes (#s-anti-rest ya estaba en la lista de lo que se tapa). */
+.anti-partido{margin-top:var(--e2)}
+.anti-partido[hidden]{display:none}
+.anti-rest{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--e1) var(--e3)}
+.anti-tramo{color:var(--tinta2)}
+.anti-tramo b{color:var(--tinta);font-family:var(--f-cifra);font-variant-numeric:tabular-nums}
+.anti-sobra{flex-basis:100%;color:var(--av);font-weight:600}
+/* La excepción de las condiciones de pago, cuando el total que se cobra pasa de $60,000. Ámbar y con
+   palabras: avisa que el 50 % es solo la referencia. En borrador no sale, porque su sola presencia
+   diría que el total pasa de ese número. */
+.anti-excep{margin:var(--e2) 0 0;padding:10px 12px;border:1px solid var(--av-borde);border-radius:var(--rr2);
+  background:var(--av-bg);color:var(--av);font-size:var(--t2);font-weight:600;line-height:1.45}
+body.precios-ocultos:not(.precios-a-la-vista) .anti-excep{display:none}
+.anti-r:disabled{cursor:not-allowed;--desl-pulgar:var(--n6)}
+
+/* ----- El deslizador del precio (C18) -----
+   Va encima del campo, con un poco de aire arriba para las marcas del riel. La frase del ajuste
+   de la revisión remota usa la misma regla que la del formulario local (.descuento-info). */
+.precio-desl{margin:var(--e1) 0 var(--e2)}
+.precio-r:disabled{cursor:not-allowed;--desl-pulgar:var(--n6)}
+
+/* ----- La barra fija con su rótulo que cruza (C10) -----
+   El botón principal del dock ya no se reescribe con innerHTML: su contenido vive dentro del rótulo
+   de la pieza 23, donde el icono, el texto y la flecha son tres hijos de una caja flex y los
+   espacios en blanco entre ellos no cuentan. Lo que los separaba era un espacio de texto; ahora es
+   el `gap` que el rótulo hereda del botón. */
+.mbar-btn{gap:6px}
+
+/* ----- El desglose del total del dock (C23 #4) -----
+   Con la cotización en borrador los importes van difuminados en toda la pantalla; el globo que
+   explica el total los difumina también. El desglose se calcula al abrir, así que el filtro va en
+   la hoja y no en lo que pinte el guion. */
+body.precios-ocultos:not(.precios-a-la-vista) .desglose-total dd{filter:blur(7px);user-select:none;-webkit-user-select:none}
+
+/* ----- La cotización que vuela al Historial (C20) -----
+   Una copia de la tarjeta con el folio y el cliente —no el total: en un borrador va difuminado, y un
+   importe que cruza la pantalla no tiene por qué leerse—. La mueve Web Animations desde el guion;
+   aquí solo cómo se ve mientras vuela. Nada queda en reposo: se quita al llegar. */
+.vuelo-cot{position:fixed;z-index:60;margin:0;pointer-events:none;transform-origin:50% 50%;will-change:transform,opacity;
+  display:grid;gap:2px;padding:12px 14px;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup);
+  box-shadow:0 1px 2px rgba(var(--tinta-rgb),.06),0 10px 24px -16px rgba(var(--a-rgb),.35)}
+.vuelo-cot .vc-folio{font:700 var(--t2)/1.2 var(--f-cifra);color:var(--a-tx)}
+.vuelo-cot .vc-cli{font:700 var(--t4)/1.25 var(--f-cifra);color:var(--tinta);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media print{.vuelo-cot{display:none}}
+
+/* ----- El plazo sugerido dice qué es y por qué (H19) -----
+   «sugerido» en chiquito dentro del chip, en tinta2 (4.5:1) y, en el chip elegido, del mismo color
+   que su rótulo (el que ya mide 4.5:1 sobre el fondo del elegido, sea el que sea). La nota
+   de abajo lleva a su lado el «?» de 44 px que abre la razón; con flex se queda al lado de la frase
+   y, si no cabe, baja sin empujar los chips. */
+#f-plazo .chip small,#rv-plazo .chip small{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--tinta2);opacity:1}
+#f-plazo .chip.on small,#rv-plazo .chip.on small{color:inherit;opacity:1}
+.plazo-nota{display:flex;align-items:center;flex-wrap:wrap;gap:var(--e1) var(--e2)}
+.plazo-nota>span{min-width:0;flex:1 1 12ch}
+.plazo-nota .porque{flex:none}
 
 /* ── fin de cot-precio ── */
 
@@ -6545,7 +6651,7 @@ html[data-tema="oscuro"] .ai-btn:disabled,html[data-tema="oscuro"] .ai-btn[disab
   .toast-uno{animation-name:aparece!important;animation-duration:.15s!important}
   .toast-uno.sale{transform:none!important;transition:opacity .15s ease!important}
   /* 5 · Esperar se sigue viendo: un pulso lento de opacidad en vez de un giro */
-  .esq-giro,.espera-giro,.ia-espera .svgi,.ia-hoy-cargando .svgi,.ai-status.work::before{animation:pulso-lento 1.6s ease-in-out infinite!important}
+  .esq-giro,.ia-espera .svgi,.ia-hoy-cargando .svgi,.ai-status.work::before{animation:pulso-lento 1.6s ease-in-out infinite!important}
 }
 @keyframes aparece{from{opacity:0}}
 @keyframes pulso-lento{50%{opacity:.35}}
@@ -6632,7 +6738,12 @@ input[type=range].desl-iman{transform:none!important}
 
 /* ── fin de rm · cot-partidas ── */
 /* ── rm · cot-precio ── */
-
+/* El filete del riel es información —cuánto va— y se queda, pero salta de un valor al otro en vez de
+   deslizarse. Lo demás de esta zona lo apagan las piezas que usa: el arco del recorrido queda quieto
+   (el texto de al lado dice «en curso»), el botón que sella no avanza su relleno pero su reloj con
+   letra sí corre, el neón se vuelve un halo de un segundo, la barra del anticipo y la del precio
+   pierden la liga, y la tarjeta que vuela ni arranca (volarCotizacion() pregunta antes). */
+.pasos::after{transition:none}
 /* ── fin de rm · cot-precio ── */
 /* ── rm · cot-entrega ── */
 /* Nada que apagar aquí, y es a propósito: todo lo que se mueve en la entrega lo mueven las

@@ -336,7 +336,7 @@ document.documentElement.classList.add('arrancando');
           </div>
           <div class="hintnote" id="maps-hint" style="margin-top:7px;display:none">Pega el link completo, empezando con <b>https://</b> — o escribe la dirección en el campo de arriba y usa «Abrir en Maps».</div>
         </div>
-        <details class="ai-cfg" id="pdf-extra-box" style="margin-bottom:0">
+        <details class="ai-cfg pliegue" id="pdf-extra-box" style="margin-bottom:0">
           <summary>Datos que salen en el PDF (opcional)</summary>
           <div style="margin-top:12px">
             <div class="grid2">
@@ -351,7 +351,7 @@ document.documentElement.classList.add('arrancando');
                  corrige, cero toques lo aceptan. No mueve un peso: no está en _CAMPOS_PRECIO. -->
             <div class="fld">
               <label id="f-plazo-l">Plazo de taller</label>
-              <div class="chips" id="f-plazo" role="group" aria-labelledby="f-plazo-l"></div>
+              <div class="chips ficha-transparente" id="f-plazo" role="group" aria-labelledby="f-plazo-l"></div>
               <div class="hintnote" id="f-plazo-h" style="margin-top:7px"></div>
             </div>
             <div class="fld" style="margin-bottom:0">
@@ -470,7 +470,20 @@ document.documentElement.classList.add('arrancando');
              ver js/cotizador/proceso.js. Este es el texto de arranque, con el 50 % sugerido. -->
         <label for="f-anti" id="f-anti-lbl">Anticipo sugerido (50%)</label>
         <div class="inp-money"><input id="f-anti" type="number" inputmode="decimal" min="0" placeholder="0"></div>
+        <!-- La barra de dos tramos (C17): lo que se paga hoy y lo que se paga al instalar. Es un
+             <input type="range"> nativo que escribe #f-anti y despacha input y change, así el
+             acotado y `Q.antiManual` siguen saliendo del código de siempre y el teclado, el foco
+             y el lector de pantalla vienen del navegador. La monta renderSummary() con la pieza
+             del deslizador con imanes: imán a cientos, imán fuerte en el 50 % y tope en el total
+             que se cobra. Escondida mientras no hay total (no hay nada que partir). -->
+        <div class="anti-partido" id="s-anti-partido" hidden>
+          <input type="range" id="f-anti-r" class="anti-r" min="0" max="1" step="any" value="0" aria-label="Anticipo: lo que se paga hoy y lo que se paga al instalar">
+        </div>
         <div class="anti-rest" id="s-anti-rest"></div>
+        <!-- La excepción de las condiciones de pago, dicha donde se pacta el anticipo: arriba de
+             $60,000 el 50 % es solo la referencia. Se mide sobre el total que se cobra, con IVA si
+             lleva (decisión del paquete de UI; la constante vive en proceso.js). -->
+        <p class="anti-excep" id="s-anti-excep" hidden></p>
       </div>
       <!-- El botón no es un adorno: espiar era «mantener tocado», o sea imposible sin dedo ni
            ratón, y quien navega con teclado no tenía manera de leer un solo importe. -->
@@ -614,8 +627,10 @@ document.documentElement.classList.add('arrancando');
       <div id="rem-partidas"></div>
       <div class="fld" style="margin-top:12px">
         <label for="rem-precio" id="rem-lab">Precio final autorizado</label>
+        <div class="precio-desl"><input type="range" id="rem-precio-r" class="precio-r" min="0" max="1" step="any" value="0" aria-label="Ajustar el precio autorizado, subtotal sin IVA" aria-describedby="rem-ajuste"></div>
         <div class="inp-money"><input id="rem-precio" type="number" inputmode="decimal" min="0" step="100" oninput="pintarRemotaNeto()"></div>
         <div class="precio-auth-neto" id="rem-neto"></div>
+        <div class="descuento-info" id="rem-ajuste"></div>
       </div>
       <div class="fld"><label for="rem-nota">Nota para quien la pidió (opcional)</label><textarea id="rem-nota" placeholder="Comentario para el vendedor…"></textarea></div>
       <div class="authnote auth-quien" id="rem-autoriza"></div>

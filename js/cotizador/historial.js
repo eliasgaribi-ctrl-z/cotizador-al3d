@@ -1574,7 +1574,12 @@ function tipoTrabajoCot(it){
    partidas sin terminar tiene su «continuar de todos modos»— el plazo inflado se quedaba
    escrito en el proyecto. `itemVacio` es la misma prueba que ya usan el aviso de partidas
    sin terminar y la IA; la plataforma lleva su gemela en `tiposDerivados`. */
-function plazoSugeridoCot(items){
+/* `razones` es opcional (H19): un arreglo al que se le agregan, en palabras, las cuentas de las que
+   salió el plazo —el trabajo más lento, cuántos tipos hay, si alguna pieza no cabe en una lámina—.
+   Delante del cliente, eso es lo que sostiene el plazo («Letras 3D con iluminación · 2 tipos de
+   trabajo · lado mayor a 2.44 m → 2.5 semanas»). Sin él la función es la de siempre y devuelve solo
+   el cubo, que es lo que leen la plataforma y las pruebas. */
+function plazoSugeridoCot(items,razones){
   const tipos=new Set(), n=x=>(isFinite(Number(x))&&Number(x)>0)?Number(x):0;
   let mayor=0;
   for(const it of (items||[])){
@@ -1584,18 +1589,39 @@ function plazoSugeridoCot(items){
     const lado=(it.tipo==='letras'||it.tipo==='recorte')?n(it.altura):(it.tipo==='caja'||it.tipo==='bastidor')?Math.max(n(it.ancho),n(it.alto)):0;
     if(lado>mayor) mayor=lado;
   }
-  if(!tipos.size) return 4;
-  let k=Math.max(...[...tipos].map(t=>CUBO_POR_TIPO_COT[t]||4));
-  k+=tipos.size-1;
-  if(mayor>244) k+=1;
-  return Math.min(5,k);
+  const dice=Array.isArray(razones)?razones:null;
+  const semanas=c=>(PLAZOS_COT.find(p=>p.k===c)||{etiqueta:''}).etiqueta;
+  if(!tipos.size){ if(dice) dice.push('Todavía no hay trabajo capturado: se propone el plazo de un proyecto especial'); return 4; }
+  const base=Math.max(...[...tipos].map(t=>CUBO_POR_TIPO_COT[t]||4));
+  let k=base;
+  if(dice){
+    /* Los nombres de Notion van sin acentos a propósito (son los siete valores exactos); aquí se
+       leen, y un «iluminacion» sin tilde delante del cliente desentona. */
+    const leer={'Rotulacion de vinil':'Rotulación de vinil','Recorte acrilico':'Recorte de acrílico',
+      'Letras 3D sin iluminacion':'Letras 3D sin iluminación','Caja de luz sin iluminacion':'Caja de luz sin iluminación',
+      'Letras 3D con iluminacion':'Letras 3D con iluminación','Caja de luz con iluminacion':'Caja de luz con iluminación',
+      'Custome / Proyecto Especial':'Proyecto especial'};
+    const lento=[...tipos].find(t=>(CUBO_POR_TIPO_COT[t]||4)===base);
+    dice.push((leer[lento]||lento)+': '+semanas(base));
+  }
+  if(tipos.size>1){ k+=tipos.size-1; if(dice) dice.push(tipos.size+' tipos de trabajo: suma media semana por cada uno de más'); }
+  if(mayor>244){
+    k+=1;
+    if(dice) dice.push('Una pieza de '+(mayor/100).toFixed(2)+' m no cabe en una lámina de 2.44 m: suma media semana');
+  }
+  k=Math.min(5,k);
+  if(dice) dice.push('Plazo sugerido: '+semanas(k));
+  return k;
 }
 /* Los chips. El marcado es el propuesto salvo que alguien haya elegido; la nota de abajo dice
    cuál de los dos casos es, para que «2 semanas» resaltado no se lea como una decisión que
    nadie tomó. Se repinta desde renderItems, porque la propuesta depende de las partidas. */
 function pintarPlazo(){
-  const sug=plazoSugeridoCot(Q.items);
+  const razones=[], sug=plazoSugeridoCot(Q.items,razones);
   const elegido=(Q.plazoK>=1&&Q.plazoK<=5)?Q.plazoK:null;
+  /* La propuesta solo se marca «sugerido» y se explica cuando hay trabajo capturado de verdad: con la
+     lista vacía, el 2.5 de siempre es un valor por omisión y no el resultado de ninguna cuenta. */
+  const hayBase=(Q.items||[]).some(it=>it&&typeof it==='object'&&!itemVacio(it));
   const on=elegido!==null?elegido:sug;
   const nota=elegido!==null
     ?'Elegido a mano. Tócalo otra vez para volver al propuesto.'
@@ -1605,9 +1631,25 @@ function pintarPlazo(){
      función los pinta a los dos para que nunca digan cosas distintas. */
   for(const [boxId,hId] of [['f-plazo','f-plazo-h'],['rv-plazo','rv-plazo-h']]){
     const box=$(boxId), h=$(hId); if(!box) continue;
-    box.innerHTML=PLAZOS_COT.map(p=>chip(p.k===on,`setPlazo(${p.k})`,esc(p.etiqueta),'',true)).join('');
-    if(h) h.textContent=nota;
+    /* El chip que la app propone lleva «sugerido» en chiquito (H19), esté o no elegido: si alguien
+       eligió otro, es la manera de saber cuál era la propuesta y de dónde sale. */
+    box.innerHTML=PLAZOS_COT.map(p=>chip(p.k===on,`setPlazo(${p.k})`,esc(p.etiqueta),hayBase&&p.k===sug?'sugerido':'',true)).join('');
+    if(h){
+      h.classList.add('plazo-nota');
+      /* La nota y, al lado, el «?» que abre la razón: un globo y no un tooltip, porque se abre con el
+         toque y no con el cursor encima. Cada lugar lleva su propio id: el formulario del cliente y
+         el modal de Registrar venta pintan los dos. */
+      const porque=hayBase&&window.Piezas&&Piezas.porqueHTML
+        ? Piezas.porqueHTML({id:'plazo-porque-'+boxId,etiqueta:'Por qué ese plazo',titulo:'Por qué '+(PLAZOS_COT.find(p=>p.k===sug)||{etiqueta:''}).etiqueta,
+            cuerpo:'<span class="vistazo-t">Por qué '+esc((PLAZOS_COT.find(p=>p.k===sug)||{etiqueta:''}).etiqueta)+'</span><ul>'+razones.map(r=>'<li>'+esc(r)+'</li>').join('')+'</ul>'})
+        : '';
+      h.innerHTML='<span>'+esc(nota)+'</span>'+porque;
+    }
   }
+  /* La ficha que viaja de un plazo al otro (C23 #2). Los hijos se reescriben en cada pintado, y la
+     pieza lo sabe: sale del rectángulo que midió antes. El modal de Registrar venta lo hace en su
+     archivo. */
+  if(window.Piezas&&Piezas.fichaQueViaja&&$('f-plazo')) Piezas.fichaQueViaja('f-plazo');
 }
 /* Tocar el que ya está elegido lo suelta: vuelve a mandar el propuesto. */
 function setPlazo(k){
