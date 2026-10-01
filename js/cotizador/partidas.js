@@ -1824,16 +1824,28 @@ function renderAiPreview(){
     <div class="sub">${esc(f.name||'archivo')} ${isImg?'· clic en la imagen para verla a pantalla completa':''}</div>
   </div>`;
 }
+/* Una imagen se abre en el visor con zoom de historial.js (visorAbrir: crece desde la miniatura
+   que se tocó, se pellizca y se arrastra); un PDF sigue siendo un <iframe>, que ya trae el zoom
+   del visor de PDF del navegador y no se puede pellizcar desde aquí. La miniatura de la que sale
+   el vuelo es la del toque: el onclick del marcado corre con `window.event`, y de ahí se saca la
+   <img>; si no hay evento —se llamó desde la consola—, el plano aparece sin vuelo. */
 function openAiFile(){
   if(!Q.aiFile||!Q.aiFile.url)return;
   const isImg=Q.aiFile.type && Q.aiFile.type.indexOf('image/')===0;
-  const safeName=esc(Q.aiFile.name||'Archivo');
-  $('lightboxBody').innerHTML=isImg
-    ? `<img class="lightbox-img" src="${urlImagenSegura(Q.aiFile.url)}" alt="${safeName}" onclick="event.stopPropagation()">`
-    : `<iframe class="lightbox-iframe" src="${urlPdfSegura(Q.aiFile.url)}" onclick="event.stopPropagation()"></iframe>`;
+  if(isImg){
+    const ev=window.event, t=ev&&ev.target&&ev.target.closest?ev.target.closest('img'):null;
+    visorAbrir(Q.aiFile.url,Q.aiFile.name||'Archivo',t);
+    return;
+  }
+  $('lightboxBody').innerHTML=`<iframe class="lightbox-iframe" src="${urlPdfSegura(Q.aiFile.url)}" onclick="event.stopPropagation()"></iframe>`;
   $('lightbox').classList.add('show');
 }
-function closeLightbox(){ $('lightbox').classList.remove('show'); $('lightboxBody').innerHTML=''; }
+/* Si hay un visor con vuelo de regreso en curso, él quita la capa al aterrizar y aquí no se
+   toca nada (visorCerrar devuelve true). Sin visor —el <iframe> del PDF—, como siempre. */
+function closeLightbox(){
+  if(typeof visorCerrar==='function'&&visorCerrar()) return;
+  $('lightbox').classList.remove('show'); $('lightboxBody').innerHTML='';
+}
 /* En un borrador esta es la ÚNICA copia de la imagen —la del historial nace al autorizar—, y
    el ✕ está a un dedo de la miniatura, con el archivo original quizá ya fuera del teléfono.
    Así que sale con Deshacer, igual que borrar una partida. */

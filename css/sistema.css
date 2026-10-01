@@ -5616,6 +5616,164 @@ body.precios-ocultos:not(.precios-a-la-vista) .desglose-total dd{filter:blur(7px
 
 /* ── Cotizador · historial, cuadernos y respaldos ── */
 
+/* ----- Las fichas de «lo que falta» (H8) -----
+   Una fila bajo el buscador. En un teléfono cinco fichas con su conteo no caben en un renglón y
+   envueltas se comían 100 px de una caja que ya tiene encabezado, ayuda y buscador: se quedan en
+   UNA fila que se desplaza de lado, con el borde que se desvanece (pieza 10) diciendo que hay más.
+   La ficha activa es la de la pieza —hundida en --a-suave—, no el botón con relleno. */
+.hist-fichas{padding:10px 20px;border-bottom:1px solid var(--linea2);background:var(--sup);flex-shrink:0}
+.hist-fichas[hidden]{display:none}
+.hist-fichas .fichas{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.hist-fichas .fichas::-webkit-scrollbar{display:none}
+.hist-fichas .ficha{flex:none;min-height:36px;white-space:nowrap}
+@media(max-width:560px){.hist-fichas{padding:10px 13px}}
+
+/* ----- Cada entrada del historial, compacta (H16) -----
+   La imagen baja de 96 (74 en el teléfono) a 64 (56): sigue siendo con lo que se reconoce una
+   cotización vieja, pero ya no manda la altura del renglón. Lo de adentro del pliegue —la tabla de
+   partidas, la dirección y la nota— se abre con un toque sobre «3 partidas». */
+.hentry{padding:var(--e3) var(--e5)}
+/* Con 80 cotizaciones, el layout de TODAS al abrir el historial era lo más caro (unos 360 ms en un
+   teléfono de gama media): las que están fuera de la pantalla no lo piden hasta que se acercan.
+   `auto` en el tamaño intrínseco recuerda el alto real una vez pintada, para que la barra de
+   desplazamiento no salte. Donde no existe (Safari anterior a 18), no hace nada. */
+.hentry{content-visibility:auto;contain-intrinsic-size:auto 250px}
+.hentry-top{margin-bottom:var(--e2)}
+.hentry-img,.hentry-img-ph{width:64px;height:64px;border-radius:var(--rr2)}
+.hentry-total{margin-top:var(--e2);padding-top:var(--e2)}
+.hentry-det{margin-top:var(--e1)}
+.hentry-resumen{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:36px;margin:0 -8px;padding:0 8px;
+  border-radius:var(--rr2);cursor:pointer;list-style:none;font-size:var(--t2);font-weight:600;color:var(--a-tx)}
+.hentry-resumen::-webkit-details-marker{display:none}
+.hentry-resumen .pliegue-flecha{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.hentry-resumen:focus-visible{outline:2px solid var(--a-borde);outline-offset:1px}
+.hentry-resumen:active{transform:scale(.98);transition:transform var(--mv-liq)}
+@media(hover:hover) and (pointer:fine){.hentry-resumen:hover{background:var(--a-suave)}}
+.hentry-det-c{padding-top:2px}
+.hentry-dir,.hentry-nota{margin:var(--e2) 0 0;font-size:var(--t2);line-height:1.5;color:var(--tinta2);overflow-wrap:anywhere}
+.hentry-nota{padding-top:var(--e2);border-top:1px solid var(--linea2)}
+.hentry-reenvio{padding-top:var(--e2)}
+@media(max-width:560px){
+  .hentry{padding:var(--e3) 13px}
+  .hentry-img,.hentry-img-ph{width:56px;height:56px}
+}
+
+/* ----- La vigencia de 10 días (función 33) -----
+   Un anillo que se consume, con la cifra de días dentro, y a su lado la palabra —«Vigente», «Por
+   vencer», «Vencida»— y la fecha: el color apoya y nunca dice solo. Vigente en verde; con 3 días o
+   menos, ámbar; vencida, un anillo punteado rojo sin arco. El anillo no se anima: la lista se
+   repinta entera con innerHTML y nace ya en su sitio; solo se mueve el aviso de reenviar. */
+.hvig{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:var(--e2) 0 0}
+.hvig-anillo{position:relative;flex:none;width:36px;height:36px}
+.hvig-anillo svg{display:block;width:36px;height:36px;transform:rotate(-90deg)}
+.hvig-anillo circle{fill:none;stroke-width:3.5}
+.hvig-anillo .base{stroke:var(--n3)}
+.hvig-anillo .resto{stroke:var(--ok-fill);stroke-linecap:round;stroke-dasharray:1}
+.hvig-anillo b{position:absolute;inset:0;display:grid;place-items:center;font:700 var(--t2)/1 var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta)}
+.hvig[data-estado="av"] .hvig-anillo .resto{stroke:var(--av)}
+.hvig[data-estado="mal"] .hvig-anillo .base{stroke:var(--mal);stroke-dasharray:3 4}
+.hvig[data-estado="mal"] .hvig-anillo .resto{stroke:transparent}
+.hvig-d{display:grid;gap:1px;min-width:0;flex:1 1 150px}
+.hvig-t{font-size:var(--t3);font-weight:700;line-height:1.25}
+.hvig[data-estado="ok"] .hvig-t{color:var(--ok)}
+.hvig[data-estado="av"] .hvig-t{color:var(--av)}
+.hvig[data-estado="mal"] .hvig-t{color:var(--mal)}
+.hvig-d small{font-size:var(--t2);font-weight:500;color:var(--tinta2);overflow-wrap:anywhere}
+.hentry-reenviar{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:36px;padding:0 12px;margin:0;
+  border:1px solid var(--linea);border-radius:var(--rr2);background:var(--sup);color:var(--tinta2);
+  font:500 var(--t2)/1.2 var(--f-texto);cursor:pointer;
+  transition:border-color var(--mv-s),color var(--mv-s),transform var(--mv-liq)}
+.hentry-reenviar:active{transform:scale(.97)}
+.hentry-reenviar:focus-visible{outline:2px solid var(--a-borde);outline-offset:2px}
+.hvig[data-estado="mal"] .hentry-reenviar,.hvig[data-estado="av"] .hentry-reenviar{border-color:var(--a-borde);color:var(--a-tx);font-weight:600}
+.hvig .hentry-reenviar{margin-left:auto}
+@media(hover:hover) and (pointer:fine){.hentry-reenviar:hover{border-color:var(--a-borde);color:var(--tinta)}}
+
+/* ----- Estados vacíos con salida (H17) -----
+   La carpeta es quieta: dos tarjetas desplazadas detrás de la del icono del historial. No se
+   mueve ni en reposo ni al tocar. Un solo botón con relleno por vacío. */
+.hvacio{display:grid;justify-items:center;gap:var(--e2);text-align:center}
+.hvacio-ilu{position:relative;width:96px;height:72px;margin-bottom:var(--e2)}
+.hvacio-ilu i{position:absolute;display:grid;place-items:center;border:1px solid var(--linea);border-radius:var(--rr3);background:var(--sup2)}
+.hvacio-ilu .c1{inset:6px 26px 14px 0;transform:rotate(-7deg);background:var(--n1)}
+.hvacio-ilu .c2{inset:2px 4px 10px 22px;transform:rotate(5deg)}
+.hvacio-ilu .c3{inset:14px 12px 0 12px;background:var(--sup);color:var(--a-tx)}
+.hvacio-ilu .c3 .svgi{width:26px;height:26px}
+.hvacio-t{margin:0;font-size:var(--t3);font-weight:600;color:var(--tinta);overflow-wrap:anywhere}
+.hvacio-d{margin:0;max-width:34ch;font-size:var(--t2);line-height:1.5;color:var(--tinta2)}
+.hvacio-acts{display:flex;flex-wrap:wrap;justify-content:center;gap:var(--e2);margin-top:var(--e2)}
+.hvacio-acts .btn{width:auto;margin:0;padding:0 16px;min-height:40px}
+
+/* ----- Restaurar con los pasos a la vista (H25) -----
+   La vista sustituye a la lista dentro del mismo panel del historial; el encabezado se queda. */
+.hist-panel.restaurando>:is(.hist-ayuda,.hist-search-bar,.hist-fichas,.hist-body,.hist-foot){display:none}
+.hist-restaurar{display:grid;align-content:start;gap:var(--e3);flex:1;overflow-y:auto;padding:var(--e5)}
+.hist-restaurar[hidden]{display:none}
+.hist-rest-t{margin:0;font:600 var(--t5)/1.2 var(--f-cifra);color:var(--tinta)}
+.hist-rest-t:focus{outline:none}
+.hist-rest-txt{margin:0;font-size:var(--t3);line-height:1.55;color:var(--tinta2)}
+.hist-rest-fin{margin:0;min-height:1.5em;font-size:var(--t2);font-weight:600;color:var(--tinta2)}
+.hist-rest-acts{display:flex;flex-wrap:wrap;gap:var(--e2)}
+.hist-rest-acts .btn{width:auto;margin:0;padding:0 20px;min-height:44px}
+@media(max-width:560px){.hist-restaurar{padding:var(--e4) 13px}}
+
+/* La pista de «mantén presionado» del bote de basura (H26 · #5): un globo encima del botón, sin
+   ocupar sitio, que se desvanece solo. Se vacía al terminar (animationend) para volver a encender. */
+.hentry-acts{position:relative}
+.hentry-pista{position:absolute;z-index:3;right:0;bottom:calc(100% + 6px);width:max-content;max-width:min(260px,calc(100vw - 48px));
+  padding:6px 10px;border-radius:var(--rr2);background:var(--tinta);color:var(--sup);pointer-events:none;
+  font:600 var(--t2)/1.35 var(--f-texto);animation:hentry-pista-sale 2.2s ease both}
+.hentry-pista:empty{display:none}
+@keyframes hentry-pista-sale{0%{opacity:0;transform:translateY(4px)}8%{opacity:1;transform:none}85%{opacity:1}100%{opacity:0}}
+/* Con la columna de acciones a la derecha (pantalla ancha) «encima» sería fuera de la entrada, y
+   `content-visibility` recorta lo que se sale: el globo va a la izquierda de la columna. */
+@media(min-width:561px){.hentry-pista{right:calc(100% + 8px);bottom:0}}
+
+/* ----- El plano a pantalla completa, con zoom (H14) -----
+   `touch-action:none` va SOLO en el lienzo del visor: fuera de él la página hace scroll normal.
+   La imagen se coloca en (0,0) y se mueve y escala con `transform` (la cuenta está en
+   visorMontar); el fondo de cuadrícula es el mismo de las otras vistas previas, para que un
+   plano con transparencia no se pierda contra el velo. El botón de cerrar sube a 44 px. */
+.lightbox-close{width:44px;height:44px}
+#lightbox.con-visor{background:rgba(12,14,30,.92)}
+.visor-lienzo{position:fixed;inset:0;overflow:hidden;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+.visor-lienzo:active{cursor:grabbing}
+.visor-lienzo:focus-visible{outline:2px solid #fff;outline-offset:-4px}
+.visor-img{position:absolute;left:0;top:0;display:block;max-width:none;transform-origin:0 0;border-radius:6px;
+  box-shadow:0 30px 80px -20px rgba(0,0,0,.6);-webkit-user-drag:none;user-select:none;
+  background:repeating-conic-gradient(var(--n1) 0% 25%,var(--sup) 0% 50%) 50%/16px 16px}
+.visor-pie{position:fixed;left:50%;bottom:max(14px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:2;
+  display:flex;gap:10px;align-items:center;padding:6px 14px;border-radius:999px;background:rgba(23,26,51,.88);color:#fff;
+  font:600 var(--t1)/1.3 var(--f-texto);white-space:nowrap;pointer-events:none}
+.visor-pie b{font:700 var(--t2)/1 var(--f-cifra);font-variant-numeric:tabular-nums}
+
+/* ----- Cuadernos ----- */
+/* Las iniciales viajan de la tarjeta al encabezado del cuaderno (H27): el mismo cuadro, y a su
+   lado el nombre. */
+.cua-det-fila{display:flex;align-items:center;gap:var(--e3);margin-top:var(--e2)}
+.cua-det-fila .cua-ini{flex:none}
+.cua-det-fila .cua-det-nom{min-width:0;overflow-wrap:anywhere}
+/* El estado de la nota (H29): el glifo de 14 px y la frase, en un renglón. */
+.cua-nota-estado{display:flex;align-items:center;gap:6px}
+.cua-nota-txt{min-width:0;overflow-wrap:anywhere}
+/* El vistazo al cuaderno (H21), dentro del globo de la pieza 4. */
+.hvz-cab{display:flex;align-items:center;gap:var(--e3);margin-bottom:var(--e2)}
+.hvz-cab .cua-ini{flex:none}
+.hvz-cab>div{display:grid;min-width:0}
+.hvz-nom{font:600 var(--t3)/1.3 var(--f-cifra);color:var(--tinta);overflow-wrap:anywhere}
+.hvz-cab small{font-size:var(--t2);color:var(--tinta2)}
+.vistazo .hvz-cots{list-style:none;margin:0;padding:0}
+.vistazo .hvz-cots li{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:var(--e3);padding:var(--e2) 0;margin:0;border-top:1px solid var(--linea2)}
+.hvz-folio{grid-column:1;font:600 var(--t1)/1.3 var(--f-cifra);color:var(--tinta3)}
+.hvz-proy{grid-column:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:var(--tinta)}
+.hvz-fecha{grid-column:1;font-size:var(--t1);color:var(--tinta3)}
+.hvz-tot{grid-column:2;grid-row:1/4;align-self:center;font:600 var(--t3) var(--f-cifra);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+
+/* Con el dedo, 44 px (§4.5): lo que sube es la caja, nunca la letra. */
+@media(hover:none),(pointer:coarse){
+  .hist-fichas .ficha,.hentry-reenviar,.hentry-resumen{min-height:44px}
+  .hvacio-acts .btn{min-height:44px}
+}
 /* ── fin de cot-historial ── */
 
 /* ===================== Cierre de la hoja: lo que tiene que ganar por orden =====================
@@ -6914,7 +7072,15 @@ input[type=range].desl-iman{transform:none!important}
 
 /* ── fin de rm · cot-vector ── */
 /* ── rm · cot-historial ── */
-
+/* Se va lo que escala al apretar. Se queda lo que informa: el relleno del botón que se sostiene
+   (es de la pieza 5 y es información), el vistazo en fundido, y los pasos de la restauración, que
+   entran en fundido y marcan su estado con el glifo, sin giro. El visor no anima nada con menos
+   movimiento: ni vuelo de ida ni de regreso (lo decide visorMontar al preguntar en el momento) ni
+   el doble toque, que salta directo a 2×. */
+.hentry-resumen:active,.hentry-reenviar:active,.hvacio-acts .btn:active{transform:none}
+/* La pista del bote se desvanece sin desplazarse: es información, no adorno. */
+.hentry-pista{animation-name:hentry-pista-quieta}
+@keyframes hentry-pista-quieta{0%{opacity:0}8%{opacity:1}85%{opacity:1}100%{opacity:0}}
 /* ── fin de rm · cot-historial ── */
 }
 

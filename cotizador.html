@@ -599,7 +599,23 @@ document.documentElement.classList.add('arrancando');
       <input id="hist-search" type="search" aria-label="Buscar en el historial por folio, cliente, fecha, partida o total" placeholder="Buscar por folio, cliente, fecha o partida…" autocomplete="off" oninput="pintarHistorialPronto()">
       <span class="hist-count" id="hist-count"></span>
     </div>
+    <!-- Las fichas de «lo que falta» (H8): Todas · Sin PDF · Sin enviar · Sin venta · Este mes. Las
+         pinta pintarFichasHistorial() al abrir; vacío y oculto mientras no hay nada que filtrar. -->
+    <div class="hist-fichas" id="hist-fichas" hidden></div>
     <div class="hist-body" id="hist-body"></div>
+    <!-- La vista de restaurar un respaldo (H25), dentro del mismo historial: sustituye a la lista
+         mientras dura y la recarga de la app es su último paso. Sin manejadores en línea: los
+         botones los cablea historial.js (el «Restaurar» se sostiene, pieza 5). -->
+    <div class="hist-restaurar" id="hist-restaurar" role="region" aria-labelledby="hist-rest-t" hidden>
+      <h2 class="hist-rest-t" id="hist-rest-t" tabindex="-1">Restaurar este respaldo</h2>
+      <p class="hist-rest-txt" id="hist-rest-txt"></p>
+      <div id="hist-rest-pasos"></div>
+      <p class="hist-rest-fin" id="hist-rest-fin"></p>
+      <div class="hist-rest-acts">
+        <button type="button" class="btn btn-dgr" id="hist-rest-si">Restaurar</button>
+        <button type="button" class="btn btn-gho" id="hist-rest-no">Cancelar</button>
+      </div>
+    </div>
     <div class="hist-foot">
       <button onclick="respaldar()" title="Descarga un archivo con el historial, los folios y la cotización en curso"><svg class="svgi" aria-hidden="true"><use href="#i-bajar"/></svg> Respaldar</button>
       <button onclick="pedirRestaurar()" title="Reemplaza los datos de este dispositivo con los de un respaldo"><svg class="svgi" aria-hidden="true"><use href="#i-subir"/></svg> Restaurar</button>
