@@ -1939,7 +1939,6 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
   font-size:var(--t1);letter-spacing:0;text-transform:none;cursor:pointer;padding:4px 8px;border-radius:var(--rr1)}
 @media(hover:hover){.ia-hoy-mas:hover{background:var(--a-suave)}}
 .ia-hoy-cargando .ia-hoy-t{margin:0;color:var(--tinta3)}
-.ia-hoy-cargando .svgi{animation:ia-gira 1.4s linear infinite}
 .ia-cifras{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--e2)}
 /* En una sola columna debajo de 361 px. Con dos, a cada cifra le tocan 106 px y
    «$212,100.00» pide 107: el importe salía con puntos suspensivos, y un número cortado no
@@ -1987,9 +1986,9 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
 .ia-burbuja b{font-weight:700}
 .ia-burbuja code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em;
   background:var(--sup2);border:1px solid var(--linea2);border-radius:4px;padding:0 4px}
-.ia-espera{color:var(--tinta2);display:inline-flex;align-items:center;gap:8px}
-.ia-espera .svgi{animation:ia-gira 1.4s linear infinite}
-@keyframes ia-gira{to{transform:rotate(360deg)}}
+/* La espera del asistente ya no es un reloj que gira: es la traza de pasos (F14, ver
+   `.ia-traza-caja` en el bloque de esta zona), y el único movimiento que queda es el del paso que
+   de verdad está trabajando. Se quitó el giro infinito del reloj y su `@keyframes`. */
 .ia-mal{background:var(--mal-bg);border-color:var(--mal-borde);color:var(--mal);display:flex;gap:8px;align-items:flex-start}
 .ia-mal .svgi{flex:0 0 auto;margin-top:2px}
 /* El «entendido» va en el hilo, como un mensaje: no tapa la portada ni las preguntas rápidas,
@@ -2027,10 +2026,14 @@ body.pf-marco-lleno .pf-ia-btn{display:none}
   overflow-y:auto}
 .ia-pie .btn.ia-enviar{flex:0 0 44px;width:44px;min-height:44px;padding:0;border-radius:var(--rr3);
   display:inline-flex;align-items:center;justify-content:center}
+/* Fantasma por omisión; el relleno de color es de `.listo` y el cuadro de «Detener» es de `.detener`
+   (F2, bloque de esta zona). Se declara aquí la base para que el botón NO nazca de color: hay un solo
+   botón de color por pantalla, y uno vacío no cuenta como tal. */
+.ia-pie .btn.ia-enviar{background:var(--sup);border-color:var(--linea);color:var(--tinta2)}
 .ia-enviar .svgi{width:var(--ico2);height:var(--ico2)}
 .ia-pista{margin:0;padding:0 var(--e4) calc(var(--e3) + env(safe-area-inset-bottom,0px));font-size:var(--t1);color:var(--tinta3)}
 @media(hover:none),(pointer:coarse){ .ia-pista{display:none} .ia-pie{padding-bottom:calc(var(--e3) + env(safe-area-inset-bottom,0px))} }
-@media(prefers-reduced-motion:reduce){ .ia-espera .svgi,.ia-hoy-cargando .svgi{animation:none} @media(hover:hover){.pf-ia-btn:hover,.ia-frecuente:hover{transform:none}} }
+@media(prefers-reduced-motion:reduce){ @media(hover:hover){.pf-ia-btn:hover,.ia-frecuente:hover{transform:none}} }
 
 /* ============================================================================
    EL VIDRIO LÍQUIDO, EN LA PLATAFORMA
@@ -3277,6 +3280,76 @@ body:has(.cal-dia:focus-visible) .nombre-tip{white-space:normal;text-overflow:cl
 
 /* ── Plataforma · Ajustes y asistente ── */
 
+/* F2 · «Preguntar» nace fantasma y se llena de color en cuanto hay texto (`.listo`, que pone
+   `alEscribir()`); mientras la IA contesta se vuelve el cuadro de «Detener» (`.detener`). Solo se
+   transicionan colores, en un botón de 44 px: nada de `transition:all`, y el movimiento (el
+   `:active`) es `transform`. La base fantasma está junto a la regla de `.ia-enviar`, arriba. */
+.ia-pie .btn.ia-enviar{transition:background .15s,border-color .15s,color .15s,transform var(--mv-liq)}
+.ia-pie .btn.ia-enviar.listo{background:var(--a-fill);border-color:var(--a-fill);color:#fff}
+/* «Detener» es el color de la tinta y no el del acento: pararse no es lo que la pantalla le pide a
+   nadie, y un solo botón de color a la vez. */
+.ia-pie .btn.ia-enviar.detener{background:var(--tinta);border-color:var(--tinta);color:var(--sup)}
+.ia-pie .btn.ia-enviar:active{transform:scale(.97)}
+@media(hover:hover) and (pointer:fine){
+  .ia-pie .btn.ia-enviar.listo:hover{background:var(--a-fuerte);border-color:var(--a-fuerte)}
+  .ia-pie .btn.ia-enviar:not(.listo):not(.detener):hover{border-color:var(--n4)}
+}
+.ia-parar{display:block;width:14px;height:14px;border-radius:3px;background:currentColor}
+
+/* F14 · la espera como traza. Es una burbuja más del hilo, pero no responde nada: sin sombra, con el
+   borde discreto y una anchura mínima para que «Contestó Gemini en 18 s» no se parta. La pieza
+   (sistema.css, «8 · Pasos que avanzan») pone las marcas, el reloj y el pliegue. */
+.ia-traza-caja{min-width:min(240px,100%);padding:8px 12px;box-shadow:none;background:var(--sup2);border-color:var(--linea2)}
+.ia-msg.bot .ia-traza-caja{border-bottom-left-radius:var(--rr3)}
+.ia-traza-caja .traza-resumen{min-height:28px}
+
+/* F15 · la respuesta nueva entra con una subida breve; solo la que lleva `data-nueva` (la pone
+   `hiloHTML()` una vez, en el pintado donde llegó), así que repintar el panel no hace saltar al resto. */
+.ia-msg[data-nueva]{animation:entra .15s var(--ease-out) both}
+
+/* F16 · la silueta de la portada toma el lugar de las cifras con su misma caja: dos columnas
+   (una bajo 361 px), cada cifra con el padding, el borde y el fondo de `.ia-cifra`. Así, al llegar
+   los números, no se mueve nada. */
+.ia-hoy-cargando .silueta-cifras{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--e2)}
+@media(max-width:360px){ .ia-hoy-cargando .silueta-cifras{grid-template-columns:1fr} }
+.ia-hoy-cargando .silueta-cifra{padding:10px 12px;border:1px solid var(--linea2);border-radius:var(--rr2);background:var(--sup2);
+  display:grid;gap:6px}
+.ia-hoy-cargando .silueta-t{margin-top:var(--e3)}
+
+/* F22 · el índice de Ajustes. Sticky debajo del encabezado (56 px en el teléfono, 64 en la
+   computadora: los mismos de `.pf-cab`), con fondo OPACO porque las tarjetas pasan por debajo y no
+   flota nada que valga un desenfoque. La ficha de la sección vigente la dibuja la pieza 2 mientras
+   viaja; en reposo la pinta `[aria-current]`. */
+.aj-indice{position:sticky;top:56px;z-index:20;margin-bottom:var(--e4);
+  background:var(--fondo);border-bottom:1px solid var(--linea)}
+@media(min-width:760px){ .aj-indice{top:64px} }
+.aj-indice-tira{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:6px 0}
+.aj-indice-tira::-webkit-scrollbar{display:none}
+.aj-ir{flex:0 0 auto;min-height:36px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:var(--tinta2);
+  font:600 var(--t2)/1 var(--f-texto);white-space:nowrap;cursor:pointer;transition:transform var(--mv-liq)}
+.aj-ir:active{transform:scale(.97)}
+.aj-ir[aria-current="true"]{background:var(--a-suave);color:var(--a-tx)}
+@media(hover:hover) and (pointer:fine){ .aj-ir:not([aria-current="true"]):hover{background:var(--sup2);color:var(--tinta)} }
+@media(hover:none),(pointer:coarse){ .aj-ir{min-height:44px} }
+/* La raya de progreso de la lectura: UN `transform` que escribe el oyente de scroll. Con menos
+   movimiento se queda igual, porque dice cuánto se lleva leído y eso es información. */
+.aj-progreso{height:3px;background:var(--linea2)}
+.aj-progreso i{display:block;height:100%;background:var(--a-fill);transform-origin:left center;transform:scaleX(var(--p,0))}
+.aj-tarjeta{scroll-margin-top:calc(64px + 56px + var(--e3))}
+
+/* F32 · los pasos de Google Cloud y del puente como riel que se palomea. «Vas aquí» lo dice una
+   etiqueta con palabras, no solo el anillo azul (el color nunca es la única señal); el lector oye
+   «paso actual» por `aria-current="step"`. */
+.aj-pasos-riel{margin-top:var(--e3)}
+.aj-pasos-pista{margin-bottom:0}
+.aj-pasos-riel .riel-paso[data-estado="actual"] .riel-t::after{content:"Vas aquí";display:inline-block;margin-left:8px;padding:2px 8px;
+  border-radius:999px;background:var(--a-suave);color:var(--a-tx);font:700 var(--t1)/1.3 var(--f-texto);vertical-align:1px}
+.aj-pasos-riel .riel-boton{min-height:44px}
+
+/* F3 · el medidor del respaldo: la barra de 6 px de la pieza 20, debajo de la frase del espacio. */
+.aj-medidor{margin:var(--e2) 0 var(--e3)}
+
+@media print{ .aj-indice{display:none} }
 /* ── fin de pf-ajustes ── */
 
 @media(prefers-reduced-motion:reduce){
@@ -3356,6 +3429,9 @@ button.ct-mes-ver:active{transform:none}
 @starting-style{.pf-mbar.mapa-mbar{transform:none}}
 /* ── fin de rm · pf-mapa ── */
 /* ── rm · pf-ajustes ── */
-
+/* La respuesta nueva del asistente sigue apareciendo —es información: llegó—, pero sin subir: solo el
+   fundido de 150 ms. El índice de Ajustes conserva su raya de progreso (dice cuánto se lleva leído) y
+   se salta la ficha que viaja: eso lo resuelve la pieza por su cuenta. */
+.ia-msg[data-nueva]{animation-name:aparece;animation-duration:.15s}
 /* ── fin de rm · pf-ajustes ── */
 }
