@@ -104,7 +104,8 @@ Estado al 19 de septiembre de 2026: la hoja corre `puente-sheets-4`, implementad
 (entrar con Google).
 Desde el 25 la plataforma espera **`puente-sheets-7`**: lo de la 6 (abajo) más el notario y la IA (al final).
 Desde el 1 de octubre espera **`puente-sheets-8`**: el sello firma también los renglones del PDF
-(al final, después de la 7). Cuál corre la hoja de verdad
+(al final, después de la 7).
+Y la **`puente-sheets-9`**: lo de la 8 más el almacén, el catálogo y las listas de compra (al final). Cuál corre la hoja de verdad
 lo dice **Ajustes → El puente → Probar**: si es vieja, el aviso dice qué falla con esa versión.
 
 ## 23 de septiembre de 2026 — `puente-sheets-6`
@@ -239,9 +240,9 @@ nadie puede autorizar y la IA no contesta. Así que, en este orden:
    autoriza desde su teléfono.
 6. Solo entonces se publica la app (merge a `main` con `APP_VERSION` subido).
 
-Para comprobarlo: en **Ajustes → El puente → Probar** tiene que decir `puente-sheets-7`, y en
-el cotizador, **Cotizar con IA → Proveedores de IA** tiene que marcar «listo» en los que
-tengan llave.
+Para comprobarlo: en **Ajustes → El puente → Probar** tiene que decir `puente-sheets-7` (o
+posterior), y en el cotizador, **Cotizar con IA → Proveedores de IA** tiene que marcar «listo»
+en los que tengan llave.
 
 ### Al pasar a `puente-sheets-8` (el QR responde de cada renglón)
 
@@ -260,6 +261,27 @@ firma renglones**. Así que, en cuanto se pueda:
 4. Para comprobarlo de punta a punta: autoriza una cotización, abre su QR y mira que salga la
    tabla «Renglones autorizados» con sus partidas. Un PDF autorizado ANTES del cambio tiene que
    seguir diciendo «Auténtica», con la nota de que solo garantiza el total.
+
+### Al pasar a `puente-sheets-9` (el almacén) — aquí el orden no rompe nada
+
+La 9 le da pestaña en la hoja al almacén, al catálogo de material y a las listas de compra
+(«Almacén», «Catálogo de material», «Listas de compra») y dos caminos nuevos,
+`/empujar_almacen` y `/jalar_almacen`. Si la app nueva sale antes que el puente, no se pierde
+nada: los teléfonos ven que la hoja corre la 8 (o una anterior) y dejan el almacén esperando en su bandeja, con
+esa razón; en cuanto la hoja se actualiza, el siguiente bombeo lo manda solo, en su orden.
+
+1. Baja el `Código.gs` de la hoja, compáralo con `puente/hoja-apps-script.gs` («Antes de pegar
+   nada»), fusiona lo que tenga de más, pégalo y guarda.
+2. **Implementar → Gestionar implementaciones → lápiz → Versión nueva → Implementar.** La URL
+   no cambia. No pide permisos nuevos.
+3. Opcional: **⚡ AL3D → 🔧 Actualizar el puente → 3 · Preparar la hoja para el puente** crea
+   las tres pestañas de una vez con sus cabeceras. Si no se corre, se crean solas con la primera
+   subida.
+4. En **Ajustes → El puente → Probar**, en un teléfono, tiene que decir `puente-sheets-9`.
+
+Las tres pestañas son el buzón de la plataforma y llevan una protección con aviso: se leen, no
+se teclean. Una corrección a mano ahí no llega a los teléfonos hasta la vuelta semanal en que
+cada uno las vuelve a leer enteras.
 
 ## Las cabeceras del sitio
 

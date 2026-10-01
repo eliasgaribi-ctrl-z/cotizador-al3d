@@ -746,8 +746,9 @@ function cardPuente() {
      que nunca baja, y un número que nunca baja se aprende a ignorar. */
   const cuentaApart = APARTADAS
     ? ' Además hay ' + APARTADAS + (APARTADAS === 1 ? ' cambio apartado' : ' cambios apartados') +
-      ' que este puente no lleva: el almacén y el catálogo se quedan en este dispositivo ' +
-      'hasta que existan sus bases. No se pierden.'
+      ' que no viajan: las constantes del taller y los avisos se quedan en este dispositivo, y el ' +
+      'almacén, el catálogo y las listas de compra esperan aquí solo si la hoja corre un puente sin ' +
+      'sus pestañas —se mandan solos en cuanto se actualice—. No se pierden.'
     : '';
 
   /* Lo que se intentó y no se pudo escribir. Sin esto la pantalla decía en verde «la bandeja

@@ -407,7 +407,12 @@ function hojaDeMentiras({ candadoLibre = true, props = {}, google = [] } = {}) {
       deleteRows(ini, k) { g.splice(ini, k); f.splice(ini, k); for (let i = 0; i < k; i++) { g.push(renglon()); f.push(renglon()); } },
       copyTo() { const c = nuevaHoja(nombre + ' (copia)', filas, cols); for (let r = 0; r <= filas; r++) { c._g[r] = g[r].slice(); c._f[r] = f[r].slice(); } return c; },
       hideSheet() { h._oculta = true; return h; },
-      setFrozenRows() {}, setColumnWidth() {}, insertColumnsAfter() {}, setActiveRange() {},
+      setFrozenRows() {}, setColumnWidth() {}, setActiveRange() {},
+      /* Las pestañas del almacén (puente-sheets-8) nacen con más columnas que las 8 de una hoja
+         insertada aquí, y las piden así; y buscan sus cabeceras hasta la última columna usada. */
+      insertColumnsAfter(_d, k) { for (let r = 0; r <= filas; r++) { g[r].push(...new Array(k).fill('')); f[r].push(...new Array(k).fill('')); } cols += k; },
+      getLastColumn() { let u = 0; for (let r = 1; r <= filas; r++) for (let i = 1; i <= cols; i++) if (g[r][i] !== '' && i > u) u = i; return u; },
+      protect: () => { const p = { setDescription: () => p, setWarningOnly: () => p }; return p; },
       insertRowsAfter(_d, k) { for (let i = 0; i < k; i++) { g.push(renglon()); f.push(renglon()); } filas += k; },
       getProtections: () => [],
     };
@@ -422,7 +427,7 @@ function hojaDeMentiras({ candadoLibre = true, props = {}, google = [] } = {}) {
         protect: () => { const p = { setDescription: () => p, setWarningOnly: () => p }; return p; },
       };
       for (const k of ['setFontWeight', 'setBackground', 'setFontColor', 'setHorizontalAlignment', 'setFontSize',
-                       'setWrap', 'setVerticalAlignment', 'setFontStyle', 'setDataValidation'])
+                       'setWrap', 'setVerticalAlignment', 'setFontStyle', 'setDataValidation', 'setNote'])
         R[k] = () => R;
       return R;
     }

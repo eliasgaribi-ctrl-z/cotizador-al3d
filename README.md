@@ -139,6 +139,11 @@ nada (el token de dispositivo de **Ajustes → El puente** queda de salida de em
 el día que Google no conteste). A partir de ahí la venta sale sola y el espejo del dinero baja solo — **y solo a quien le toca verlo**: al teléfono de
 fabricación las cifras no le bajan. Baja también el **récord de ventas completo** de la hoja, que
 es lo que Control suma: una fila que se borra allá desaparece de aquí en la siguiente bajada.
+Y desde `puente-sheets-9` viaja también **el almacén**: el libro de movimientos, el catálogo de
+material y las listas de compra tienen su pestaña en la hoja («Almacén», «Catálogo de material»,
+«Listas de compra»), así que lo que fabricación cuenta o recibe en su teléfono lo ve Dirección en
+el suyo. Un movimiento no se descuenta dos veces —ni por un reintento ni porque dos teléfonos
+corten el mismo proyecto—, el catálogo se escribe campo por campo, y pagos no mueve el almacén.
 Sin puente no se rompe nada: la plataforma funciona completa en un dispositivo, y Control lo dice
 en su primera línea. Los pasos están en [`puente/README.md`](puente/README.md).
 
@@ -311,8 +316,9 @@ El sitio se sirve desde `main` y **es un solo conjunto de archivos que se promoc
 
 1. Hacer commit a `main` (o fusionar el PR).
 2. Si cambió `puente/hoja-apps-script.gs`, **publicar el puente antes que la app** — ver
-   [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md). Con `puente-sheets-7` es obligatorio: la app
-   nueva no autoriza sin el notario de la hoja.
+   [`puente/DESPLIEGUE.md`](puente/DESPLIEGUE.md). Desde `puente-sheets-7` es obligatorio: la app
+   nueva no autoriza sin el notario de la hoja. Con la 9, sin publicar el puente el almacén se
+   queda esperando en cada teléfono (no se pierde) y «Probar» lo dice.
 3. En **`sw.js`**, subir **`APP_VERSION`** una unidad. Es la primera línea de código del archivo.
    Sin eso, los teléfonos que ya tienen la app siguen sirviendo la versión guardada.
 4. Esperar de 30 a 60 segundos a que GitHub Pages redespliegue. La copia de Cloudflare Pages
@@ -329,7 +335,7 @@ plataforma con `herramientas/extraer-catalogo.sh`.
 
 ## Pruebas
 
-    pruebas/correr.sh               48 archivos, solo node, unos segundos
+    pruebas/correr.sh               49 archivos, solo node, unos segundos
     pruebas/correr.sh --navegador   44 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
@@ -349,10 +355,6 @@ píxeles** para comprobar que nada de lo que lleva texto baja de 4,5:1 de contra
 
 ## Pendientes
 
-- **El puente lleva la venta, y por ahora nada más.** El almacén, el catálogo de material y las
-  listas de compra no tienen todavía pestaña en la hoja a la que ir, así que se quedan en cada
-  dispositivo. No se pierden: se apartan en la bandeja con su razón y se reincorporan solos el
-  día que existan.
 - **El neón flex se vende y no está en ningún catálogo.** Cae en partida *manual*, que es justo
   la que el módulo de material excluye por diseño. Es un hueco de negocio: falta decidir cómo se
   cobra.

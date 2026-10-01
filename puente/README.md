@@ -71,6 +71,8 @@ respuesta es `ROL_SIN_PERMISO` antes de mirar el camino. La única excepción es
 | `/rechazar` | solo Dirección entrando con Google | Rechaza una solicitud pendiente, con su nota |
 | `/revocar` | solo Dirección entrando con Google | La autorización vigente de un folio pasa a «revocada», y el QR de ese PDF lo dice |
 | `/verificar` | **pública, sin token** | La abre el QR de un PDF desde el teléfono de cualquiera: «auténtica», «superada», «revocada» o «no auténtica», con folio, fecha, total, negocio y —si el sello los firmó— los renglones (`renglones`: `[{descripcion, cantidad, importe}]`, o `null` en un sello de antes de `puente-sheets-8`, que solo responde del total), y nada más: ni cliente, ni teléfono, ni correo. Va antes de las dos puertas, con su propio cupo: 30 consultas por folio y 400 en total cada diez minutos |
+| `/empujar_almacen` | dirección y fabricación; pagos solo lo derivado | Hasta 25 operaciones del almacén —renglones del libro, materiales del catálogo, líneas de la lista de compra— en un viaje, en orden y bajo el candado (desde `puente-sheets-9`). Ver «El almacén», abajo |
+| `/jalar_almacen` | cualquier rol | Lo que las tres pestañas del almacén recibieron después de la secuencia que el teléfono manda (`desde`), en páginas de 1500. **Los costos solo para quien ve el dinero** |
 | `/ia` | cualquier rol | **Un** intento contra **un** proveedor (Qwen, DeepSeek o Gemini) con las llaves de la hoja; la cadena y los reintentos siguen en el teléfono. Tope de 200 por persona al día. Es el único camino que acepta cuerpos de más de 64 KB —hasta 15 MB, la imagen o el PDF—, y solo si el cuerpo **empieza** por `{"ruta":"ia"` |
 
 Los tres roles y lo que cada uno puede escribir son los mismos de antes:
@@ -78,8 +80,13 @@ Los tres roles y lo que cada uno puede escribir son los mismos de antes:
 - **dirección** — todo.
 - **fabricación** — mueve la obra y el almacén. **No toca dinero**: ni anticipo, ni
   liquidación, ni cuenta, ni estatus de cobranza. Y desde `puente-sheets-3` tampoco lo
-  **ve**: las cifras no bajan a ese teléfono.
-- **pagos** — cobra. **No mueve la obra**.
+  **ve**: las cifras no bajan a ese teléfono. En el almacén (desde la 9), igual: registra
+  movimientos, edita el catálogo y corrige las listas de compra, pero el costo de compra y el
+  costo de un movimiento ni los escribe ni le bajan.
+- **pagos** — cobra. **No mueve la obra ni el almacén**: de lo suyo en el almacén solo entra lo
+  que la plataforma deriva sola si ese teléfono es el que está abierto el día del corte (la
+  salida `derivado` y la línea que pasa a `consumido`), para que ese día el material se
+  descuente igual.
 
 El rol sale de la pestaña **«Accesos»** de la hoja —el correo con el que se entró con Google—
 o, de emergencia, del token de dispositivo. Cambiar el segmento de rol en Ajustes da otro
@@ -198,6 +205,49 @@ diciendo «auténtica». Desde la 8:
 - **La copia que hay que mantener.** `cotPreciosCliente`, `cotItemPrecio`, `cotPiezas` y
   `cotPrecioFinal` son copias de `nucleo.js`, como el catálogo. `pruebas/precio-servidor.mjs` las
   compara con tres mil cotizaciones al azar: tocar el reparto del aumento es tocar los dos lados.
+
+### El almacén, el catálogo y las listas de compra (desde `puente-sheets-9`)
+
+Hasta la 8 el puente llevaba la venta y nada más: el libro del almacén, el catálogo de material
+y las listas de compra se quedaban en cada teléfono, apartados en la bandeja «hasta que exista
+su pestaña». Ahora existen, y las crea el propio Apps Script la primera vez que hacen falta (o
+`prepararHojaParaElPuente`):
+
+| Pestaña | Qué es | Cómo se escribe |
+|---|---|---|
+| **Almacén** | el libro de movimientos: entradas, salidas, ajustes, conteos, mermas y devoluciones | **append-only**: un renglón que ya está no se vuelve a escribir |
+| **Catálogo de material** | una fila por material (`acr-3mm`) | campo por campo |
+| **Listas de compra** | una fila por requerimiento (`<proyecto>:<material>`), de donde sale la lista | campo por campo |
+
+Cada columna se describe como las de `/esquema` —`{ campo, nombre, tipo, para }`, en
+`ALM_PESTANAS`—, se busca por su cabecera y no por su posición, y lleva su explicación como
+nota. Al final de cada pestaña van las columnas de la hoja: **Secuencia**, **Llegó**,
+**Subió**, **Sellos** (cuándo se escribió cada campo) y **Otros (JSON)** (lo que llegó sin
+columna propia, para no perderlo).
+
+- **Un movimiento no se descuenta dos veces.** El id lo pone el teléfono y la hoja lo busca
+  antes de escribir: un reintento contesta «ya estaba». La salida que deriva el corte lleva un
+  id que sale del requerimiento (`mov-salida:<proyecto>:<material>`), así que si dos teléfonos
+  cortan el mismo proyecto emiten el mismo renglón y entra uno. Y el teléfono que baja un id que
+  ya tiene lo descarta.
+- **Solo se escribe lo que cambió.** La operación dice qué campos cambió (`campos`) y la hoja
+  escribe esos; de cada uno guarda su sello, y un cambio que llega tarde —el teléfono que estuvo
+  sin señal— no pisa uno más nuevo. Una línea `consumido` no vuelve a `calculado`: si volviera,
+  el corte siguiente restaría el material otra vez.
+- **Los roles.** Ver arriba: fabricación sin costos, pagos solo lo derivado, Dirección todo.
+- **Bajar sin depender del reloj.** Cada fila escrita recibe un número de secuencia bajo el
+  candado; el teléfono pide «lo de más de N» y guarda el más alto que vio. Una vez por semana
+  pide todo, por si algo se quedó sin bajar.
+- **El cupo.** Una compra recibida son diez renglones: `sync` los manda en **un** viaje de hasta
+  25, contra el mismo cupo de 60 peticiones por minuto y el mismo candado que `/empujar`.
+- **Contra una hoja vieja.** Si la hoja corre la 8 o una anterior, el teléfono lo sabe por `/salud` (o porque
+  el camino contesta «Camino desconocido») y aparta lo del almacén con esa razón, sin gastar
+  peticiones. En cuanto la hoja se actualiza, el siguiente bombeo lo reincorpora solo, en su
+  orden.
+
+Las tres pestañas son **el buzón de la plataforma**: se leen, no se editan a mano. Una
+corrección tecleada ahí no cambia la secuencia y no llega a los teléfonos hasta la vuelta
+semanal; el catálogo y las listas se corrigen en la plataforma (Material).
 
 ---
 
@@ -336,7 +386,7 @@ devuelve a la cola (por ejemplo, cuando ese teléfono ya entra como Dirección).
   de fabricación, que es el que anda en la calle y en el taller. Los otros dos roles
   valen lo que vale la hoja entera.
 - **La hoja puede quedarse con una versión vieja del código.** Guardar en Apps Script no
-  publica. `salud` contesta su `version` —hoy `puente-sheets-8`— justo para poder verlo, y
+  publica. `salud` contesta su `version` —hoy `puente-sheets-9`— justo para poder verlo, y
   «Probar» lo compara con la que la plataforma espera y dice qué falla con la que hay.
 
 ## Si algo falla
