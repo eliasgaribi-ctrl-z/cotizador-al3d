@@ -509,7 +509,7 @@
     }
 
     A = { texto: texto, nombre: nombre || 'diseño.svg', peso: opts.peso || texto.length, raiz: raiz,
-          bbox: null, escala: null, k: null, piezas: 0, avisos: [], origen: opts.origen || null };
+          bbox: null, escala: null, k: null, piezas: 0, avisos: [], avisoSel: {}, numeros: {}, origen: opts.origen || null };
     T = { corriendo: false, intentos: 0, sinMejora: 0, ultimaMejora: 0, mejor: null, detenidoSolo: false };
     /* La medida es de ESTE archivo: la del anterior no puede quedarse en los campos, porque
        un 280 heredado se leería como que este archivo mide 280. */
@@ -518,10 +518,13 @@
     /* Lo que el motor va a dejar fuera, dicho antes y con su número. */
     var n = function (sel) { return raiz.getElementsByTagName(sel).length; };
     var c;
-    if ((c = n('text'))) A.avisos.push('Trae ' + c + (c === 1 ? ' texto' : ' textos') + ' sin convertir: el motor solo acomoda contornos. En Illustrator, Texto → Crear contornos, y vuelve a exportar.');
-    if ((c = n('use'))) A.avisos.push('Trae ' + c + (c === 1 ? ' símbolo reutilizado' : ' símbolos reutilizados') + ' (<use>) que se van a quedar fuera. Expándelos antes de exportar (Objeto → Expandir).');
-    if ((c = n('image'))) A.avisos.push('Trae ' + c + (c === 1 ? ' imagen incrustada' : ' imágenes incrustadas') + ', que no se cortan: se ignoran.');
-    if (n('clipPath') || n('mask')) A.avisos.push('Trae máscaras de recorte. Se ignoran: la geometría que recortaban se acomoda entera.');
+    /* Cada aviso apunta a lo que habla (A15): `avisoSel` guarda el selector de lo que hay que
+       señalar en la vista previa, por número de aviso. */
+    var avisar = function (txt, sel) { A.avisos.push(txt); A.avisoSel[A.avisos.length - 1] = sel; };
+    if ((c = n('text'))) avisar('Trae ' + c + (c === 1 ? ' texto' : ' textos') + ' sin convertir: el motor solo acomoda contornos. En Illustrator, Texto → Crear contornos, y vuelve a exportar.', 'text');
+    if ((c = n('use'))) avisar('Trae ' + c + (c === 1 ? ' símbolo reutilizado' : ' símbolos reutilizados') + ' (<use>) que se van a quedar fuera. Expándelos antes de exportar (Objeto → Expandir).', 'use');
+    if ((c = n('image'))) avisar('Trae ' + c + (c === 1 ? ' imagen incrustada' : ' imágenes incrustadas') + ', que no se cortan: se ignoran.', 'image');
+    if (n('clipPath') || n('mask')) avisar('Trae máscaras de recorte. Se ignoran: la geometría que recortaban se acomoda entera.', '[clip-path],[mask]');
     /* Después de contar y antes de pintar: los avisos hablan del archivo como llegó, y todo
        lo que viene abajo —la vista previa, el motor, la salida— copia la raíz ya limpia. */
     sanear(raiz);
@@ -561,6 +564,7 @@
   function pintarOriginal() {
     var cont = $('an-orig'); cont.innerHTML = '';
     var clon = document.importNode(A.raiz, true);
+    rotular(clon, 'data-e');   // el mismo número que el id que verá el motor (svgParaMotor)
     quitarEtiquetas(clon, ['style']);
     clon.removeAttribute('width'); clon.removeAttribute('height');
     clon.setAttribute('role', 'img'); clon.setAttribute('aria-label', 'Las piezas del archivo, sin acomodar');
@@ -572,7 +576,7 @@
       var e = M.escalaDelArchivo({ width: A.raiz.getAttribute('width'), height: A.raiz.getAttribute('height') });
       if (e.viewBox) clon.setAttribute('viewBox', [e.viewBox.x, e.viewBox.y, e.viewBox.w, e.viewBox.h].join(' '));
     }
-    $('an-res').hidden = true; cont.hidden = false;
+    reiniciarMesa();
     cont.appendChild(clon);
     /* El recuadro de la tinta, en unidades del archivo. Hace falta que esté en pantalla, y se
        mide sobre una copia SIN lo que no se corta —el mismo filtro de svgParaMotor—: medido
@@ -596,6 +600,7 @@
      como transform en la raíz; el parser del motor la aplica a cada elemento y la quita. */
   function svgParaMotor(k) {
     var clon = A.raiz.cloneNode(true);
+    rotular(clon, 'id');   // la mesa necesita saber qué pieza es cuál: ver «La mesa de corte»
     quitarEtiquetas(clon, NO_SE_CORTAN);
     clon.removeAttribute('width'); clon.removeAttribute('height');
     if (k && Math.abs(k - 1) > 1e-12) clon.setAttribute('transform', 'scale(' + k + ')');
@@ -732,8 +737,11 @@
     $('an-peso').textContent = peso(A.peso);
     $('an-drop-t').textContent = 'Cambiar de archivo: arrastra otro SVG, pégalo o toca aquí';
     $('an-st-piezas').textContent = A.piezas;
-    $('an-avisos').innerHTML = A.avisos.map(function (a) {
-      return '<div class="hintnote nota-av"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg><span>' + esc(a) + '</span></div>';
+    $('an-avisos').innerHTML = A.avisos.map(function (a, i) {
+      /* «Ver cuáles» solo sale si en la vista previa queda algo que señalar (A15). */
+      var ver = elementosDeAviso(i).length
+        ? '<button type="button" class="btn btn-gho an-aviso-ver" data-aviso="' + i + '" aria-pressed="false">Ver cuáles</button>' : '';
+      return '<div class="hintnote nota-av"><svg class="svgi" aria-hidden="true"><use href="#i-aviso"/></svg><span>' + esc(a) + '</span>' + ver + '</div>';
     }).join('');
   }
 
@@ -786,12 +794,13 @@
        pieza media separación por lado y adelgaza la hoja otro tanto por lado. Con una sola,
        una pieza de 395 en una hoja de 400 con 3 mm pasaba este filtro, el motor la dejaba
        fuera callado y el marcador se quedaba en «1/2» sin decir por qué. */
-    var partes = SN.getParts(hijos(svg));
+    var hs = hijos(svg), partes = SN.getParts(hs);
     if (!partes.length) { mensaje('No encontré contornos que acomodar en este archivo.', 'mal'); return; }
-    var fuera = partes.filter(function (p) {
+    var sinCabida = partes.filter(function (p) {
       var b = window.GeometryUtil.getPolygonBounds(p);
       return !M.cabe({ w: b.width, h: b.height }, { ancho: mat.ancho - 2 * mat.sep, alto: mat.alto - 2 * mat.sep }, mat.rot);
-    }).length;
+    });
+    var fuera = sinCabida.length;
     if (fuera === partes.length) {
       mensaje('Ninguna de las ' + partes.length + ' piezas cabe en una hoja de ' + mat.ancho + ' × ' + mat.alto + ' mm. Revisa la medida del diseño o la de la hoja.', 'mal');
       return;
@@ -807,7 +816,8 @@
        minutos de cálculo. Se guarda aparte con la hoja y la escala con las que se calculó, para
        poder devolverlo (ver recuperarAnterior) y que la pantalla no quede diciendo otra cosa. */
     var previo = T.mejor ? { mejor: T.mejor, material: T.material, k: T.k, intentos: T.intentos, archivo: A } : null;
-    T = { corriendo: true, intentos: 0, sinMejora: 0, ultimaMejora: Date.now(), mejor: null, detenidoSolo: false, material: mat, k: A.k, huella: huellaMotor(mat), fuera: fuera, total: partes.length, anterior: previo };
+    T = { corriendo: true, intentos: 0, sinMejora: 0, ultimaMejora: Date.now(), mejor: null, detenidoSolo: false, material: mat, k: A.k, huella: huellaMotor(mat), fuera: fuera, fueraIds: idsDe(hs, sinCabida), total: partes.length, anterior: previo };
+    A.numeros = numerarPartes(hs, partes);   // «Pieza 7» es el lugar de la pieza en el archivo
     /* El avance de cada intento interno ya no se pinta —lo sustituyó la mecha del paro, A4—;
        el motor pide una función, no necesita que haga nada. */
     if (SN.start(function () {}, mostrarDe(++corrida)) === false) {
@@ -824,8 +834,7 @@
     $('an-st-col').textContent = '0/' + partes.length; $('an-st-int').textContent = '0';
     $('an-st-uso-lbl').textContent = 'buscando…';
     $('an-gauge-fg').style.strokeDashoffset = '326.73'; $('an-gauge-fg').className.baseVal = 'an-gauge-fg';
-    $('an-res').innerHTML = '<p class="an-vacio">Calculando el primer acomodo…</p>';
-    $('an-orig').hidden = true; $('an-res').hidden = false;
+    empezarCalculo();   // la silueta se queda en la mesa, atenuada, con su ficha (A13)
     $('an-mesa').classList.add('corriendo');
     $('an-mesa').style.setProperty('--an-mesa-h', $('an-mesa').offsetHeight + 'px');
     $('an-vista-tab').textContent = 'Acomodando…';
@@ -842,6 +851,7 @@
     corrida++;   // el intento que siga en los workers ya no se enseña
     window.SvgNest.stop();
     T.corriendo = false; T.detenidoSolo = !!solo;
+    terminarCalculo();
     apagarParo();
     $('an-mesa').classList.remove('corriendo');
     pintarEstadoTrabajo(); habilitar();
@@ -995,14 +1005,325 @@
     if (ef < 0.8) return { txt: 'muy bien', cls: 'muybien' };
     return { txt: 'excelente', cls: 'excelente' };
   }
+  /* ======================================================================
+     LA MESA DE CORTE
+     Nueve fichas viven aquí y se tocan entre sí, así que se cuentan juntas:
+
+     · Las piezas llevan nombre (A8, A10, A15). Cada elemento del archivo recibe un `id` propio
+       antes de que nada se quite o se mueva —`an-e12` es «el elemento 12 del archivo»—, en el clon
+       que va al motor (svgParaMotor) y, como `data-e`, en el de la vista previa (pintarOriginal).
+       Tiene que ser `id` y no `data-*` en el del motor porque svgparser.js, al reemplazar un rect o
+       una elipse, solo conserva `id` y `class`. En la vista previa se usa `data-e` para no pisar los
+       ids del archivo, de los que dependen un <use> o un clip-path que ahí sí se pintan. De
+       ahí cada <g> de la hoja se llama `pz-an-e12`, y con ese nombre se sabe qué pieza es la misma
+       de una mejora a la siguiente. Los ids se quitan en armarSalida(): son de la mesa, no del
+       archivo de corte.
+     · Cada mejora del motor repinta la hoja (A8) y las piezas VIAJAN de donde estaban a donde
+       quedaron en vez de volver a caer (P.flip); las que no se movieron no se mueven. La primera
+       vez, y «desde cero», sí caen. Cuando el acomodo baja de hoja (A11) el orden es: primero las
+       piezas, después se pliega la hoja que quedó vacía, al final la ficha «Una hoja menos · 2.88 m²»;
+       una cosa después de la otra, para que no compitan.
+     · Las dos vistas (A25) —«Como vienen» y «Acomodadas»— comparten la celda de la mesa y un haz
+       cruza al cambiar. Mientras no hay primer acomodo (A13) se queda la silueta, atenuada, con una
+       ficha que dice cuánto lleva calculando.
+     · Con más de una hoja, en pantalla angosta o táctil, las hojas son un carrusel (A12) y cada una
+       dice su aprovechamiento; con la hoja ya en pantalla se acerca con pellizco, rueda o botones y se
+       arrastra (A7).
+     · Tocar una pieza dice su medida y si va girada (A10); con el cálculo detenido, mantenerla
+       presionada la levanta, se arrastra y al soltarla se queda o regresa sola (A24).
+     · Los avisos y las piezas que no caben señalan en la vista lo que se va a quedar fuera (A15).
+
+     De dónde sale cada idea: React Bits (CardSwap y Masonry, para que las piezas viajen; Stack, para
+     la hoja que sale del montón; Carousel, para las hojas; RefineFrame, para la silueta del primer
+     acomodo; TargetCursor, para las esquinas; TechText, para la pieza que se levanta y regresa),
+     Vengeance · Model Viewer (solo su manejo de arrastre, zoom y teclado) y Skiper · skiper101 (la
+     ficha de la pieza) y skiper66 (el barrido con clip-path). Los dos de Skiper son gratuitos con
+     atribución: queda dicha aquí y en css/anidador.css.
+     ====================================================================== */
+  var MS_VIAJE = 460;          // lo que tardan las piezas en llegar a su nuevo lugar (A8)
+  var MAX_VIAJE = 150;         // con más piezas que estas, cambio directo (A8, y P.flip lo respeta)
+  var MS_BARRIDO = 620;        // lo que tarda el haz en cruzar la mesa (A25)
+  var MS_PLIEGUE = 320;        // la hoja que sobra se pliega en esto (A11)
+  var MS_NOTICIA = 6000;       // y la ficha «Una hoja menos» se queda esto
+  var PX_MM_MAX = 4;           // el zoom no pasa de aquí: 1 mm son 4 px (casi tamaño real)
+  var PX_MM_REAL = 96 / 25.4;  // píxeles CSS por milímetro a tamaño real: a donde llega el doble toque (A7)
+  var MS_LARGO = 350;          // mantener presionada una pieza la levanta (A24)
+  var HOLGURA_MM = 0.3;        // lo que se perdona al medir un choque: la fineza con que se enderezan las curvas
+  var CHOQUE_MM2 = 1;          // un traslape menor que esto es redondeo de la curva, no encimarse
+  var PASO_TECLA_MM = 5;       // cuánto mueve Mayús + flecha a la pieza que tiene el foco
+  var MAX_SENALADAS = 40;      // cuántas esquinas se ponen a la vez (cada una es un nodo flotante)
+  var RETAZO_BAJO = 0.25;      // la última hoja con menos de esto sugiere un retazo (A12)
+  var MQ_CARRUSEL = '(max-width:900px), (pointer:coarse)';
+
+  var _vista = 'vienen';       // lo que se ve: 'vienen' (el archivo) o 'acomodadas' (el resultado)
+  var _ctlVer = null;          // el radiogroup de arriba de la mesa
+  var _tokBarrido = 0, _barrido = null;
+  var _calc = { reloj: 0, t0: 0 };
+  var _zoom = [];              // el encuadre de cada hoja: { z, cx, cy } o nada (hoja entera)
+  var _activa = 0;             // la hoja que atienden los botones del zoom cuando no hay carrusel
+  var _pags = null;            // el carrusel (P.paginas)
+  var _tokPliegue = 0, _tNoticia = 0;
+  var _vz = null, _sel = '';   // la ficha de la pieza (P.vistazo) y el id de la elegida
+  var _senal = null;           // las esquinas que están puestas: { quien, boton, ctl }
+  var _origen = (typeof WeakMap === 'function') ? new WeakMap() : null;  // el transform que le dio el motor a una pieza movida a mano
+  var _gesto = null;           // el dedo (o los dos) que están sobre una hoja
+  var _ultimoToque = null;
+  var _cacheLocal = {}, _cacheArea = {};
+
+  function PZ() { return window.Piezas || null; }
+  /* Se pregunta en el momento y no una vez al cargar: quien activa «reducir movimiento» con la
+     página abierta lo espera ya. */
+  function sinMov() { var P = PZ(); return P && P.sinMovimiento ? P.sinMovimiento() : QUIETO; }
+  function hojas() { return lista(document.querySelectorAll('#an-res > .an-hoja:not(.saliendo)')); }
+  function hayResultado() { return !!(T.mejor && $('an-res').firstElementChild); }
+  function editable() { return !!(T.mejor && !T.corriendo && A && hayResultado()); }
+  function sobreMesa(e, sel) { var t = e.target; return t && t.closest ? t.closest(sel) : null; }
+
+  /* Un nombre para cada elemento del archivo, en el orden en que aparecen. Se llama antes de
+     quitar nada, y sobre clones de A.raiz que son iguales, para que el 12 de la vista previa sea
+     el 12 del que ve el motor. */
+  function rotular(raiz, atributo) {
+    lista(raiz.getElementsByTagName('*')).forEach(function (e, i) {
+      e.setAttribute(atributo, atributo === 'id' ? 'an-e' + i : String(i));
+    });
+  }
+  /* «Pieza 7»: el lugar de la pieza en el archivo, no en la hoja (que cambia con cada mejora).
+     Sale de la tabla que arma iniciar() con las piezas que el motor ve. */
+  function numeroDe(g) {
+    var c = g.firstElementChild;
+    return (A && A.numeros && c && A.numeros[c.id]) || 0;
+  }
+  function nombreDe(g) { var n = numeroDe(g); return n ? 'Pieza ' + n : 'Pieza'; }
+  /* iniciar() sabe qué piezas ve el motor (`partes`, con su `source`, el lugar del elemento entre
+     los hijos del SVG) y cuáles no caben ni giradas. Aquí se traducen a ids de elemento. */
+  function numerarPartes(hs, partes) {
+    var t = {};
+    partes.forEach(function (p, k) { var e = hs[p.source]; if (e && e.getAttribute) t[e.getAttribute('id')] = k + 1; });
+    return t;
+  }
+  function idsDe(hs, partes) {
+    return partes.map(function (p) { var e = hs[p.source]; return e && e.getAttribute ? e.getAttribute('id') : ''; }).filter(Boolean);
+  }
+
+  /* ---------- Las dos vistas (A25) y el primer acomodo (A13) ----------
+     «Como vienen» (#an-orig) y «Acomodadas» (#an-res) son dos capas de la misma celda. Para
+     cambiar de una a otra se destapan las dos a la vez, se recorta la de arriba (la de resultados)
+     con clip-path y un haz de luz va justo en el borde del recorte —los dos con la misma curva y el
+     mismo tiempo, así que no se separan—. Al terminar, la que quedó tapada vuelve a `hidden`: ya no
+     se lee, no se enfoca y no ocupa lugar. El recorte no es de las cosas baratas (no corre en la
+     tarjeta gráfica) y por eso es un momento de 0.6 s que pidió el dedo, no algo que se repita
+     solo. Con menos movimiento, cambio directo. */
+  function aplicarVista() {
+    var orig = $('an-orig'), res = $('an-res');
+    orig.hidden = _vista !== 'vienen';
+    res.hidden = _vista !== 'acomodadas';
+    var mesa = $('an-mesa');
+    mesa.classList.toggle('ve-acomodadas', _vista === 'acomodadas');
+    if (_pags && _vista === 'acomodadas') _pags.medir();   // escondida no se podía medir: los puntos se vuelven a decidir
+    actualizarPie();
+    medirMesa();
+  }
+  /* El haz láser que recorre la mesa mientras el motor corre se mide con la altura de la mesa
+     (--an-mesa-h): la mesa cambia de alto al pintar las hojas, al cambiar de vista y al aparecer o
+     irse el pie, y un haz medido una sola vez, al arrancar, no la recorría entera. */
+  function medirMesa() {
+    var mesa = $('an-mesa');
+    if (mesa.classList.contains('corriendo')) mesa.style.setProperty('--an-mesa-h', mesa.offsetHeight + 'px');
+  }
+  function habilitarAcomodadas(si) {
+    var b = $('an-vista-ver').querySelector('[data-v="acomodadas"]');
+    if (!b) return;
+    if (si) b.removeAttribute('aria-disabled'); else b.setAttribute('aria-disabled', 'true');
+  }
+  function cancelarBarrido() {
+    _tokBarrido++;
+    if (_barrido) { _barrido.forEach(function (a) { try { a.cancel(); } catch (_) {} }); _barrido = null; }
+    $('an-mesa').classList.remove('barriendo');
+  }
+  /* Devuelve una promesa que se cumple cuando la vista nueva ya está puesta. */
+  function cambiarVista(v, opc) {
+    opc = opc || {};
+    if (v === 'acomodadas' && !hayResultado()) v = 'vienen';
+    var desde = _vista;
+    if (v === desde && !opc.forzar) { cancelarBarrido(); aplicarVista(); return Promise.resolve(); }
+    cancelarBarrido();
+    _vista = v;
+    soltarSenales(); cerrarFicha();
+    if (_ctlVer) _ctlVer.fijar(v, false);
+    var orig = $('an-orig'), res = $('an-res'), haz = $('an-haz'), mesa = $('an-mesa');
+    if (opc.sinBarrido || sinMov() || !res.animate || !haz.animate || !res.firstElementChild || !orig.firstElementChild) {
+      aplicarVista(); return Promise.resolve();
+    }
+    var tok = ++_tokBarrido, ida = v === 'acomodadas';
+    orig.hidden = false; res.hidden = false;
+    var ancho = Math.max(0, mesa.clientWidth);   // medido con las dos a la vista: una escondida mide 0
+    mesa.classList.add('barriendo');
+    var tapado = 'inset(0px 100% 0px 0px)', abierto = 'inset(0px 0px 0px 0px)', curva = 'cubic-bezier(.4,0,.2,1)';
+    var a1 = res.animate([{ clipPath: ida ? tapado : abierto }, { clipPath: ida ? abierto : tapado }], { duration: MS_BARRIDO, easing: curva, fill: 'both' });
+    var x0 = ida ? 0 : Math.max(0, ancho - 3), x1 = ida ? Math.max(0, ancho - 3) : 0;
+    var a2 = haz.animate([{ transform: 'translateX(' + x0 + 'px)', opacity: 1 }, { transform: 'translateX(' + x1 + 'px)', opacity: 1 }], { duration: MS_BARRIDO, easing: curva, fill: 'both' });
+    _barrido = [a1, a2];
+    return Promise.all([a1.finished, a2.finished]).then(function () {
+      if (tok !== _tokBarrido) return;
+      cancelarBarrido(); aplicarVista();
+    }, function () { /* cancelado por otro cambio: ese ya dejó la vista puesta */ });
+  }
+  if (PZ() && PZ().opcionesDeslizantes && $('an-vista-ver')) {
+    _ctlVer = PZ().opcionesDeslizantes($('an-vista-ver'), { alCambiar: function (v) { cambiarVista(v); } });
+  }
+
+  /* La silueta del primer acomodo (A13). El motor tarda en calcular las formas de ajuste antes de
+     dar nada, y la mesa se quedaba en negro con una frase. Ahora se queda lo que ya se veía,
+     atenuado (css/anidador.css: .calculando), y una ficha dice qué se hace y cuánto lleva. */
+  function empezarCalculo() {
+    cancelarBarrido(); finalizarPliegue(); soltarSenales(); cerrarFicha();
+    liberarCarrusel();
+    _zoom = []; _activa = 0;
+    var res = $('an-res'); res.textContent = '';
+    _vista = 'vienen'; habilitarAcomodadas(false);
+    if (_ctlVer) _ctlVer.fijar('vienen', false);
+    $('an-st-merma-m2').textContent = ''; $('an-st-merma-m2').removeAttribute('data-v');
+    aplicarVista();
+    var P = PZ(), ficha = $('an-calculando'), seg = $('an-calculando-s');
+    $('an-mesa').classList.add('calculando');
+    ficha.hidden = false; seg.textContent = '';
+    _calc.t0 = Date.now();
+    clearInterval(_calc.reloj);
+    _calc.reloj = setInterval(function () {
+      var ms = Date.now() - _calc.t0;
+      seg.textContent = ms >= 1000 ? (P && P.reloj ? P.reloj(ms) : Math.floor(ms / 1000) + ' s') : '';
+    }, 1000);
+  }
+  function terminarCalculo() {
+    clearInterval(_calc.reloj); _calc.reloj = 0;
+    var ficha = $('an-calculando'); if (ficha) ficha.hidden = true;
+    $('an-mesa').classList.remove('calculando');
+  }
+  /* Un archivo nuevo: la mesa vuelve a lo que era antes de cualquier acomodo. */
+  function reiniciarMesa() {
+    cancelarBarrido(); finalizarPliegue(); soltarSenales(); cerrarFicha(); terminarCalculo();
+    liberarCarrusel();
+    _zoom = []; _activa = 0; _cacheLocal = {}; _cacheArea = {};
+    var res = $('an-res'); res.textContent = '';
+    _vista = 'vienen'; habilitarAcomodadas(false);
+    if (_ctlVer) _ctlVer.fijar('vienen', false);
+    var n = $('an-noticia'); if (n) n.hidden = true;
+    aplicarVista();
+  }
+
+  /* ---------- El pie de la mesa ----------
+     Zoom, puntos del carrusel, la pieza elegida y las que no caben: cada fila aparece cuando hay a
+     qué aplicarla, y el pie entero se esconde si ninguna aparece. */
+  function actualizarPie() {
+    var pie = $('an-mesa-pie'); if (!pie) return;
+    var enHojas = _vista === 'acomodadas' && hayResultado();
+    var tieneZoom = enHojas;
+    var tienePags = !!(enHojas && _pags);
+    var fuera = (T.fueraIds || []).length;
+    var tienePieza = !!(enHojas && _sel && editable());
+    $('an-zoom').hidden = !tieneZoom;
+    $('an-pags').classList.toggle('oculta', !tienePags);
+    $('an-pieza').hidden = !tienePieza;
+    $('an-fuera').hidden = !fuera;
+    if (fuera) {
+      var b = $('an-fuera-ver'), n = (T.fueraIds || []).length;
+      b.textContent = (n === 1 ? '1 pieza no cabe' : n + ' piezas no caben') + ' · ' + (_senal && _senal.quien === 'fuera' ? 'Soltar' : 'Ver cuáles');
+      b.setAttribute('aria-pressed', _senal && _senal.quien === 'fuera' ? 'true' : 'false');
+    }
+    if (tienePieza) {
+      var g = document.getElementById(_sel);
+      $('an-pieza-t').textContent = g ? nombreDe(g) : '';
+      $('an-pieza-devolver').hidden = !(g && fueMovida(g));
+    }
+    pie.hidden = $('an-zoom').hidden && $('an-pieza').hidden && $('an-fuera').hidden && !(tienePags && !$('an-pags').hidden);
+    if (tieneZoom) actualizarZoomUI();
+  }
+
+  /* ---------- Varias hojas en carrusel (A12) ----------
+     En computadora las hojas se quedan una debajo de otra, que sí cabe. En pantalla angosta o
+     táctil, con más de una, son páginas de P.paginas: scroll-snap, puntos de 44 px que se pintan en
+     el pie, y las flechas del teclado con la tira enfocada. Repintar la mesa no es cambiar de hoja:
+     pintarResultado() guarda y repone el scroll de lado. */
+  function liberarCarrusel() {
+    if (!_pags) return;
+    try { _pags.destruir(); } catch (_) {}
+    _pags = null;
+    var cont = $('an-res');
+    ['tabindex', 'role', 'aria-roledescription', 'aria-label'].forEach(function (a) { cont.removeAttribute(a); });
+    lista(cont.children).forEach(function (f) {
+      ['role', 'aria-roledescription', 'data-pag-rotulo'].forEach(function (a) { f.removeAttribute(a); });
+      if (f.hasAttribute('aria-label') && f.getAttribute('aria-label').indexOf('Hoja ') === 0) f.removeAttribute('aria-label');
+      f.classList.remove('pagina-actual');
+    });
+    var barra = $('an-pags'); barra.textContent = ''; barra.classList.remove('paginas-barra'); barra.removeAttribute('role'); barra.removeAttribute('aria-label');
+  }
+  function ajustarCarrusel() {
+    var P = PZ(), cont = $('an-res'), figs = hojas();
+    var quiere = !!(P && P.paginas && figs.length >= 2 && window.matchMedia && window.matchMedia(MQ_CARRUSEL).matches);
+    if (!quiere) { liberarCarrusel(); actualizarPie(); return; }
+    if (!_pags) {
+      _pags = P.paginas(cont, { nombre: 'hoja', etiqueta: 'Hojas del acomodo', puntos: $('an-pags'),
+        alCambiar: function (i) { _activa = i; cerrarFicha(); actualizarZoomUI(); } });
+    } else _pags.medir();
+    actualizarPie();
+  }
+  if (window.matchMedia) {
+    var _mqC = window.matchMedia(MQ_CARRUSEL);
+    if (_mqC.addEventListener) _mqC.addEventListener('change', ajustarCarrusel);
+  }
+
+  /* ---------- El aprovechamiento de cada hoja (A12) ----------
+     La misma cuenta que hace el motor para el número grande, hoja por hoja: el área de cada
+     pieza ya engordada media separación (lo que el motor llama `tree[id]`) entre el área de la hoja
+     ya adelgazada otro tanto. Con las hojas iguales, el promedio de estas cifras ES el
+     aprovechamiento del marcador; con el área de la pieza a secas saldría unos puntos más baja y
+     las dos no cuadrarían. Una pieza se mide una vez (la cuenta cuesta un recorte de Clipper). */
+  function areaDelMotor(g, sep) {
+    var c = g.firstElementChild; if (!c || !c.id) return NaN;
+    var llave = c.id + '|' + sep + '|' + (T.k || (A && A.k) || 1);
+    if (llave in _cacheArea) return _cacheArea[llave];
+    var area = NaN;
+    try {
+      var SN = window.SvgNest, GU = window.GeometryUtil, SP = window.SvgParser;
+      SP.config({ tolerance: TOLERANCIA_MM });
+      var poli = SP.polygonify(c);
+      poli = SN.cleanPolygon(poli) || poli;
+      if (sep > 0) { var o = SN.polygonOffset(poli, 0.5 * sep); if (o && o.length === 1) poli = o[0]; }
+      area = Math.abs(GU.polygonArea(poli));
+    } catch (_) { area = NaN; }
+    _cacheArea[llave] = area;
+    return area;
+  }
+  function usoDeHoja(svg, d) {
+    var sep = (T.material && T.material.sep > 0) ? T.material.sep : 0, suma = 0, hay = false;
+    hijos(svg).forEach(function (g) {
+      if (!g.tagName || g.tagName !== 'g') return;
+      var a = areaDelMotor(g, sep);
+      if (a === a) { suma += a; hay = true; }
+    });
+    var bin = (d.w - sep) * (d.h - sep);
+    return hay && bin > 0 ? Math.min(1, suma / bin) : NaN;
+  }
+
+  /* ---------- Pintar el resultado ---------- */
+  function dimsDeHoja(s) {
+    var w = parseFloat(s.getAttribute('data-w')), h = parseFloat(s.getAttribute('data-h'));
+    if (w > 0 && h > 0) return { w: w, h: h };
+    var vb = s.viewBox && s.viewBox.baseVal;
+    return vb ? { w: vb.width, h: vb.height } : { w: 0, h: 0 };
+  }
+  /* Los números de la merma (A11): lo que se tira, en metros cuadrados. Es el porcentaje que ya
+     estaba por lo que mide el material que se compra: ancho × alto × hojas × merma. */
   function pintarStats() {
     $('an-st-int').textContent = T.intentos;
     if (!T.mejor) return;
     var ef = T.mejor.eficiencia || 0;
     contar($('an-st-uso'), ef * 100, function (v) { return Math.round(v) + ' %'; });
     contar($('an-st-merma'), (1 - ef) * 100, function (v) { return Math.round(v) + ' %'; });
+    var n = T.mejor.svglist.length, d = dimsDeHoja(T.mejor.svglist[0]);
+    contar($('an-st-merma-m2'), (1 - ef) * n * d.w * d.h / 1e6, function (v) { return v.toFixed(2) + ' m²'; });
     $('an-st-col').textContent = T.mejor.colocadas + '/' + T.mejor.total;
-    $('an-st-hojas').textContent = T.mejor.svglist.length;
+    $('an-st-hojas').textContent = n;
     var cal = calificar(ef);
     $('an-st-uso-lbl').textContent = cal.txt;
     var fg = $('an-gauge-fg');
@@ -1010,41 +1331,783 @@
     fg.setAttribute('class', 'an-gauge-fg ' + cal.cls);
   }
 
-  function pintarResultado(mejora) {
-    var cont = $('an-res'); cont.innerHTML = '';
-    var W = 0, H = 0, idx = 0;
+  /* Las hojas, como nodos sueltos todavía. Cada <g> de pieza recibe su turno de color y de caída,
+     y ahora también su nombre (`pz-` + el id de su elemento), su número y lo que hace falta para
+     llegar a ella con el teclado. */
+  function construirHojas(mejora) {
+    var salida = [], idx = 0, n = T.mejor.svglist.length;
     T.mejor.svglist.forEach(function (s, i) {
-      var vb = s.viewBox && s.viewBox.baseVal;
-      if (vb) { W = vb.width; H = vb.height; }
-      var alta = vb ? vb.height > vb.width : false;
+      var d = dimsDeHoja(s), alta = d.h > d.w;
       var fig = document.createElement('figure'); fig.className = 'an-hoja' + (alta ? ' alta' : '') + (mejora ? ' mejora' : '');
       s.removeAttribute('width'); s.removeAttribute('height');
-      s.setAttribute('role', 'img'); s.setAttribute('aria-label', 'Hoja ' + (i + 1) + ' con las piezas acomodadas');
+      s.setAttribute('data-w', fmt(d.w)); s.setAttribute('data-h', fmt(d.h)); s.setAttribute('data-i', String(i));
+      /* Un grupo y no una imagen: role="img" vuelve decorativo todo lo de dentro, y las piezas
+         se pueden elegir con el teclado. */
+      s.setAttribute('role', 'group'); s.setAttribute('aria-label', 'Hoja ' + (i + 1) + ' con las piezas acomodadas');
+      s.setAttribute('tabindex', '0');
       var piezas = 0;
-      hijos(s).forEach(function (n) {
-        if (n.tagName !== 'g') return;
+      hijos(s).forEach(function (g) {
+        if (g.tagName !== 'g') return;
         /* Cada pieza con su turno de color y su turno de caída. */
-        n.setAttribute('class', 'an-p' + (idx % COLORES_PIEZA));
-        n.style.setProperty('--i', String(piezas));
+        g.setAttribute('class', 'an-p' + (idx % COLORES_PIEZA));
+        g.style.setProperty('--i', String(piezas));
+        var c = g.firstElementChild;
+        if (c && c.id) {
+          /* El hueco de una pieza hereda el id de su contorno (el motor parte un trazo compuesto en
+             dos elementos): se le quita para que no haya dos iguales en la página. */
+          hijos(g).slice(1).forEach(function (h) { if (h.getAttribute && /^an-e\d+$/.test(h.getAttribute('id') || '')) h.removeAttribute('id'); });
+          g.setAttribute('id', 'pz-' + c.id);
+          g.setAttribute('tabindex', '-1'); g.setAttribute('role', 'button');
+          g.setAttribute('aria-label', nombreDe(g));
+        }
         piezas++; idx++;
       });
       fig.appendChild(s);
       var cap = document.createElement('figcaption');
-      cap.innerHTML = '<b>Hoja ' + (i + 1) + '</b> · ' + piezas + (piezas === 1 ? ' pieza' : ' piezas') +
-        (vb ? ' · ' + esc(M.formatoMm(vb.width)) + ' × ' + esc(M.formatoMm(vb.height)) : '');
+      var t = document.createElement('span'); t.className = 'an-cap-t';
+      t.innerHTML = '<b>Hoja ' + (i + 1) + '</b>' + (n > 1 ? ' de ' + n : '') + ' · ' + piezas + (piezas === 1 ? ' pieza' : ' piezas') +
+        (d.w > 0 ? ' · ' + esc(M.formatoMm(d.w)) + ' × ' + esc(M.formatoMm(d.h)) : '');
+      cap.appendChild(t);
+      if (n > 1) {
+        var uso = usoDeHoja(s, d);
+        if (uso === uso) {
+          var fila = document.createElement('span'); fila.className = 'an-cap-uso';
+          var barra = document.createElement('span'); barra.className = 'an-cap-barra'; barra.setAttribute('aria-hidden', 'true');
+          var relleno = document.createElement('i'); relleno.style.setProperty('--uso', String(Math.max(0, Math.min(1, uso)))); barra.appendChild(relleno);
+          var pct = document.createElement('span'); pct.className = 'an-cap-pct'; pct.textContent = Math.round(uso * 100) + ' %';
+          fila.appendChild(barra); fila.appendChild(pct); cap.appendChild(fila);
+          if (i === n - 1 && uso < RETAZO_BAJO) {
+            var b = document.createElement('button'); b.type = 'button'; b.className = 'an-cap-retazo'; b.setAttribute('data-an-retazo', '');
+            b.textContent = '¿Cabe en un retazo?'; cap.appendChild(b);
+          }
+        }
+      }
       fig.appendChild(cap);
-      cont.appendChild(fig);
+      salida.push(fig);
     });
-    $('an-orig').hidden = true; cont.hidden = false;
-    /* La mesa crece al pintar las hojas: el haz láser se medía una sola vez, al arrancar, y no
-       recorría la mesa entera. Se vuelve a medir con las hojas puestas. */
-    $('an-mesa').style.setProperty('--an-mesa-h', $('an-mesa').offsetHeight + 'px');
-    actualizarDescarga();
+    return salida;
+  }
+  /* La hoja que ya no hace falta, vacía: sus piezas pasaron a las demás. */
+  function vaciarHoja(fig) {
+    lista(fig.querySelectorAll('svg>g')).forEach(function (g) { g.parentNode.removeChild(g); });
+    fig.classList.remove('mejora'); fig.classList.add('saliendo');
+    fig.setAttribute('aria-hidden', 'true');
+    try { fig.inert = true; } catch (_) {}
+    var cap = fig.querySelector('figcaption'); if (cap) cap.textContent = '';
+  }
+  function guardarFoco(cont) {
+    var a = document.activeElement;
+    if (!a || a === document.body || !cont.contains(a)) return null;
+    var svg = a.closest ? a.closest('.an-hoja>svg') : null;
+    return svg ? { hoja: +svg.getAttribute('data-i'), pieza: a.tagName === 'g' ? a.id : '' } : null;
+  }
+  function reponerFoco(cont, f) {
+    if (!f) return;
+    var figs = hojas(), fig = figs[f.hoja], svg = fig ? fig.querySelector(':scope>svg') : null;
+    var el = (f.pieza && document.getElementById(f.pieza)) || svg;
+    if (el && el.focus) { try { el.focus({ preventScroll: true }); } catch (_) {} }
+  }
+
+  function pintarResultado(mejora) {
+    var cont = $('an-res'), P = PZ();
+    if (!T.mejor) return;
+    terminarCalculo();
+    finalizarPliegue();
+    cerrarFicha();
+    var tok = ++_tokPliegue;
+    var viejas = lista(cont.querySelectorAll(':scope > .an-hoja'));
+    var scrollX = cont.scrollLeft, foco = guardarFoco(cont);
+    var nuevas = construirHojas(mejora);
+    var sobran = (mejora && viejas.length > nuevas.length) ? viejas.slice(nuevas.length) : [];
+    var d = dimsDeHoja(T.mejor.svglist[0]);
+    var poner = function () {
+      cont.textContent = '';
+      nuevas.forEach(function (f) { cont.appendChild(f); });
+      sobran.forEach(function (v) { vaciarHoja(v); cont.appendChild(v); });
+      reponerEncuadres();
+      cont.scrollLeft = scrollX;
+      marcarGiradas();
+      ajustarCarrusel();
+      reponerFoco(cont, foco);
+    };
+    /* Las piezas viajan. P.flip lee dónde estaba cada <g> por su id, repinta (`poner`, que corre
+       en el acto) y mueve de la posición vieja a la nueva solo las que cambiaron. */
+    var viaje = (mejora && P && P.flip)
+      ? P.flip(function () { return lista(cont.querySelectorAll('.an-hoja>svg>g[id]')); }, poner,
+          { clase: 'se-movio', duracion: MS_VIAJE, maximo: MAX_VIAJE })
+      : (poner(), Promise.resolve([]));
+    habilitarAcomodadas(true);
+    if (!mejora) cambiarVista('acomodadas'); else { aplicarVista(); }
+    /* Una hoja menos (A11): primero viajaron las piezas, ahora se pliega la que quedó vacía y al
+       final sale la ficha. */
+    if (sobran.length) {
+      viaje.then(function () {
+        if (tok !== _tokPliegue) return;
+        return plegarHojas(sobran);
+      }).then(function () {
+        if (tok !== _tokPliegue) return;
+        noticiaHojaMenos(sobran.length, d);
+      });
+    }
+    actualizarEditable();
+    medirMesa();
     /* Cuando MEJORA —no la primera vez— el marcador late una vez. */
     if (mejora && !QUIETO) {
       var m = $('an-prog'); m.classList.remove('mejora');
       void m.offsetWidth; m.classList.add('mejora');
     }
+    actualizarDescarga();
+  }
+
+  /* ---------- Una hoja menos (A11) ---------- */
+  function plegarHojas(figs) {
+    var cont = $('an-res');
+    if (sinMov()) { figs.forEach(function (f) { if (f.parentNode) f.parentNode.removeChild(f); }); ajustarCarrusel(); return Promise.resolve(); }
+    var enCarrusel = cont.classList.contains('paginas');
+    var hueco = parseFloat(window.getComputedStyle(cont).rowGap) || 0;
+    var anims = figs.map(function (f) {
+      var alto = f.offsetHeight;
+      f.style.overflow = 'hidden';
+      var kf = enCarrusel
+        ? [{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(.92)' }]
+        : [{ height: alto + 'px', opacity: 1, marginTop: '0px' }, { height: '0px', opacity: 0, marginTop: (-hueco) + 'px' }];
+      return f.animate(kf, { duration: MS_PLIEGUE, easing: 'cubic-bezier(.5,0,.75,0)', fill: 'forwards' });
+    });
+    return Promise.all(anims.map(function (a) { return a.finished.catch(function () {}); })).then(function () {
+      figs.forEach(function (f) { if (f.parentNode) f.parentNode.removeChild(f); });
+      ajustarCarrusel();
+    });
+  }
+  /* Si otra mejora llega a media secuencia, lo que quedaba pendiente se termina de golpe. */
+  function finalizarPliegue() {
+    _tokPliegue++;
+    lista(document.querySelectorAll('#an-res > .an-hoja.saliendo')).forEach(function (f) {
+      try { f.getAnimations().forEach(function (a) { a.cancel(); }); } catch (_) {}
+      if (f.parentNode) f.parentNode.removeChild(f);
+    });
+  }
+  function noticiaHojaMenos(n, d) {
+    var el = $('an-noticia'), P = PZ();
+    var txt = (n === 1 ? 'Una hoja menos' : n + ' hojas menos') + ' · ' + (n * d.w * d.h / 1e6).toFixed(2) + ' m² de ' + MAT_TXT[materialElegido()];
+    el.textContent = txt; el.hidden = false;
+    el.classList.remove('sale');
+    if (!sinMov()) { void el.offsetWidth; el.classList.add('sale'); }
+    if (P && P.voz) P.voz(txt);
+    clearTimeout(_tNoticia);
+    _tNoticia = setTimeout(function () { el.hidden = true; el.classList.remove('sale'); }, MS_NOTICIA);
+    var f = $('an-ficha-hojas');
+    if (f && !sinMov()) {
+      f.classList.remove('baja'); void f.offsetWidth; f.classList.add('baja');
+      setTimeout(function () { f.classList.remove('baja'); }, 700);
+    }
+  }
+
+  /* ---------- El zoom y el paneo (A7) ----------
+     El encuadre de cada hoja es { z, cx, cy }: cuántas veces más cerca que la hoja entera y qué
+     punto de la hoja (en mm) queda al centro. El viewBox sale de ahí, así que sigue siendo vector.
+     Vive en esta variable y no en el SVG, porque cada mejora repinta la hoja con un SVG nuevo:
+     pintarResultado() lo repone en el nuevo.
+
+     Cuentas de pantalla: el SVG se pinta «meet» dentro de su caja, con la hoja entera a
+     a0 = min(ancho/W, alto/H) píxeles por mm y centrada si sobra lado. Con zoom z la escala es
+     a0·z y el desplazamiento del centrado no cambia, de modo que el punto de la hoja bajo un punto
+     de pantalla se calcula sin leer ninguna matriz (leerla en pleno gesto devolvía la del cuadro
+     anterior). */
+  function geo(svg) {
+    var r = svg.getBoundingClientRect(), W = parseFloat(svg.getAttribute('data-w')), H = parseFloat(svg.getAttribute('data-h'));
+    var a0 = (W > 0 && H > 0 && r.width > 0 && r.height > 0) ? Math.min(r.width / W, r.height / H) : 0;
+    return { r: r, W: W, H: H, a0: a0, ox: (r.width - W * a0) / 2, oy: (r.height - H * a0) / 2 };
+  }
+  function zMaxDe(g) { return g.a0 > 0 ? Math.max(4, Math.min(80, PX_MM_MAX / g.a0)) : 8; }
+  function zUnoDe(g) { return g.a0 > 0 ? Math.min(zMaxDe(g), Math.max(2, PX_MM_REAL / g.a0)) : 4; }
+  function centroLimitado(W, H, z, cx, cy) {
+    var mx = W / (2 * z), my = H / (2 * z);
+    return { cx: Math.min(W - mx, Math.max(mx, cx)), cy: Math.min(H - my, Math.max(my, cy)) };
+  }
+  function hojaEn(g, v, px, py) {
+    var sc = g.a0 * v.z;
+    return { x: v.cx - g.W / (2 * v.z) + (px - g.r.left - g.ox) / sc, y: v.cy - g.H / (2 * v.z) + (py - g.r.top - g.oy) / sc };
+  }
+  function centroPara(g, z, u, px, py) {
+    var sc = g.a0 * z;
+    return { cx: u.x + g.W / (2 * z) - (px - g.r.left - g.ox) / sc, cy: u.y + g.H / (2 * z) - (py - g.r.top - g.oy) / sc };
+  }
+  function indiceDe(svg) { return parseInt(svg.getAttribute('data-i'), 10) || 0; }
+  function vistaDe(svg) {
+    var i = indiceDe(svg), W = parseFloat(svg.getAttribute('data-w')) || 0, H = parseFloat(svg.getAttribute('data-h')) || 0;
+    return _zoom[i] || { z: 1, cx: W / 2, cy: H / 2 };
+  }
+  function pintarEncuadre(svg, v) {
+    var W = parseFloat(svg.getAttribute('data-w')), H = parseFloat(svg.getAttribute('data-h'));
+    if (!(W > 0 && H > 0)) return;
+    var w = W / v.z, h = H / v.z;
+    svg.setAttribute('viewBox', [v.cx - w / 2, v.cy - h / 2, w, h].map(fmt).join(' '));
+    svg.classList.toggle('con-zoom', v.z > 1.0001);
+  }
+  function reponerEncuadres() {
+    hojas().forEach(function (f) {
+      var svg = f.querySelector(':scope>svg'); if (svg) pintarEncuadre(svg, vistaDe(svg));
+    });
+  }
+  /* Pone el encuadre pedido, ya acotado: z entre 1 y el máximo, y la ventana dentro de la hoja. */
+  function fijarVista(svg, v) {
+    var g = geo(svg);
+    if (!(g.W > 0 && g.H > 0)) return vistaDe(svg);
+    var z = Math.max(1, Math.min(v.z, zMaxDe(g)));
+    var c = centroLimitado(g.W, g.H, z, v.cx, v.cy);
+    var nv = { z: z, cx: c.cx, cy: c.cy };
+    _zoom[indiceDe(svg)] = z <= 1.0001 ? null : nv;
+    pintarEncuadre(svg, nv);
+    cerrarFicha();
+    actualizarZoomUI();
+    return nv;
+  }
+  var _animVista = 0;
+  function animarVista(svg, destino) {
+    cancelAnimationFrame(_animVista);
+    if (sinMov()) { fijarVista(svg, destino); return; }
+    var ini = vistaDe(svg), t0 = performance.now(), ms = 300;
+    (function paso(t) {
+      var k = Math.min(1, (t - t0) / ms); k = 1 - Math.pow(1 - k, 3);
+      fijarVista(svg, { z: ini.z + (destino.z - ini.z) * k, cx: ini.cx + (destino.cx - ini.cx) * k, cy: ini.cy + (destino.cy - ini.cy) * k });
+      if (k < 1) _animVista = requestAnimationFrame(paso);
+    })(t0);
+  }
+  /* El punto de la hoja que está bajo (px, py) se queda bajo (px, py). */
+  function zoomEn(svg, px, py, factor) {
+    var g = geo(svg), v = vistaDe(svg); if (!(g.a0 > 0)) return false;
+    var z = Math.max(1, Math.min(v.z * factor, zMaxDe(g)));
+    if (Math.abs(z - v.z) < 1e-6) return false;
+    var u = hojaEn(g, v, px, py), c = centroPara(g, z, u, px, py);
+    fijarVista(svg, { z: z, cx: c.cx, cy: c.cy });
+    return true;
+  }
+  function hojaActiva() {
+    var figs = hojas(); if (!figs.length) return null;
+    var i = _pags ? _pags.actual() : _activa;
+    i = Math.max(0, Math.min(figs.length - 1, i || 0));
+    return figs[i].querySelector(':scope>svg');
+  }
+  /* Los botones del pie y la barra de 100 mm: dicen lo que pasa con la hoja que atienden. */
+  function actualizarZoomUI() {
+    var svg = hojaActiva(); if (!svg || $('an-zoom').hidden) return;
+    var g = geo(svg), v = vistaDe(svg), max = zMaxDe(g);
+    $('an-zoom-menos').setAttribute('aria-disabled', v.z <= 1.0001 ? 'true' : 'false');
+    $('an-zoom-mas').setAttribute('aria-disabled', v.z >= max - 1e-6 ? 'true' : 'false');
+    $('an-zoom-todo').setAttribute('aria-disabled', v.z <= 1.0001 ? 'true' : 'false');
+    var esc_ = $('an-escala'), sc = g.a0 * v.z;
+    if (!(sc > 0)) return;
+    /* La barra mide lo más cerca de 100 mm que quepa en 64 px: a la hoja entera de un teléfono son
+       200 mm (47 px); con zoom, 50, 20 o 10 mm. */
+    var opciones = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000], largo = opciones[opciones.length - 1];
+    for (var k = opciones.length - 1; k >= 0; k--) { if (opciones[k] * sc <= 64) { largo = opciones[k]; break; } }
+    esc_.style.setProperty('--w', Math.round(largo * sc) + 'px');
+    esc_.querySelector('b').textContent = (largo >= 1000 ? (largo / 1000) + ' m' : largo + ' mm');
+  }
+  $('an-zoom-mas').addEventListener('click', function () { zoomBoton(1.5); });
+  $('an-zoom-menos').addEventListener('click', function () { zoomBoton(1 / 1.5); });
+  $('an-zoom-todo').addEventListener('click', function () {
+    var svg = hojaActiva(); if (!svg || this.getAttribute('aria-disabled') === 'true') return;
+    var g = geo(svg); animarVista(svg, { z: 1, cx: g.W / 2, cy: g.H / 2 });
+  });
+  function zoomBoton(f) {
+    var svg = hojaActiva(); if (!svg) return;
+    var btn = f > 1 ? $('an-zoom-mas') : $('an-zoom-menos');
+    if (btn.getAttribute('aria-disabled') === 'true') return;
+    var v = vistaDe(svg);
+    animarVista(svg, { z: v.z * f, cx: v.cx, cy: v.cy });
+  }
+
+  /* La rueda acerca con Ctrl (o ⌘, o el pellizco del panel táctil, que el navegador manda como
+     Ctrl + rueda), y sin Ctrl solo si ya hay zoom: con la hoja entera, la rueda sigue siendo de la
+     página, y secuestrarla en una pantalla que se recorre con la rueda sería peor que no tener zoom. */
+  $('an-res').addEventListener('wheel', function (e) {
+    var svg = sobreMesa(e, '.an-hoja>svg'); if (!svg) return;
+    var v = vistaDe(svg), pidio = e.ctrlKey || e.metaKey;
+    if (!pidio && v.z <= 1.0001) return;
+    var dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+    var cambio = zoomEn(svg, e.clientX, e.clientY, Math.exp(-Math.max(-100, Math.min(100, dy)) * 0.002));
+    if (cambio || pidio) e.preventDefault();
+  }, { passive: false });
+
+  /* ---------- Los dedos sobre una hoja (A7, A10, A24) ----------
+     Un solo oyente de pointerdown en la mesa, que reparte según lo que haya: dos dedos son un
+     pellizco; un dedo con zoom, un arrastre del dibujo; un dedo que se queda 350 ms sobre una pieza
+     con el cálculo detenido la levanta; y un toque corto (el dedo no pasó de 8 px) elige la pieza
+     que está debajo, o suelta la elegida si no hay ninguna. Dos toques seguidos van a tamaño real
+     en ese punto, o de regreso a la hoja entera. Sin zoom y sin pieza levantada el dedo no se toca:
+     el scroll de la página y el del carrusel son del navegador.
+
+     Con el dedo, lo que arranca como scroll del navegador se cancela solo (pointercancel) y aquí
+     simplemente se suelta todo. */
+  function distancia(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+  function puntos(m) { var l = []; m.ids.forEach(function (p) { l.push(p); }); return l; }
+  function soltarGesto(devolverPieza) {
+    var m = _gesto; if (!m) return;
+    clearTimeout(m.timer);
+    if (m.pieza && m.modo === 'pieza') terminarLevantada(m, devolverPieza);
+    m.svg.classList.remove('arrastrando');
+    _gesto = null;
+  }
+  function iniciarPinza(m) {
+    var p = puntos(m), g = geo(m.svg), v = vistaDe(m.svg);
+    var mid = { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
+    m.modo = 'pinza';
+    m.base = { d: distancia(p[0], p[1]) || 1, v: v, u: hojaEn(g, v, mid.x, mid.y) };
+    m.svg.classList.add('arrastrando'); cerrarFicha();
+  }
+  $('an-res').addEventListener('pointerdown', function (e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    var svg = sobreMesa(e, '.an-hoja>svg'); if (!svg) return;
+    cancelAnimationFrame(_animVista);
+    _activa = indiceDe(svg);
+    if (_gesto && _gesto.svg !== svg) soltarGesto(true);
+    var p = { x: e.clientX, y: e.clientY };
+    try { svg.setPointerCapture(e.pointerId); } catch (_) {}
+    if (!_gesto) {
+      var pieza = sobreMesa(e, '.an-hoja>svg>g[id]');
+      _gesto = { svg: svg, ids: new Map(), modo: 'espera', x0: p.x, y0: p.y, t0: Date.now(), pieza: pieza, tipo: e.pointerType, timer: 0, base: null };
+      _gesto.ids.set(e.pointerId, p);
+      if (pieza && e.pointerType !== 'mouse' && editable()) _gesto.timer = setTimeout(levantarPieza, MS_LARGO);
+      return;
+    }
+    /* El segundo dedo: pellizco. Lo que se hubiera levantado regresa. */
+    clearTimeout(_gesto.timer);
+    if (_gesto.modo === 'pieza') terminarLevantada(_gesto, true);
+    _gesto.ids.set(e.pointerId, p);
+    if (_gesto.ids.size >= 2) iniciarPinza(_gesto);
+  });
+  $('an-res').addEventListener('pointermove', function (e) {
+    var m = _gesto; if (!m || !m.ids.has(e.pointerId)) return;
+    var p = m.ids.get(e.pointerId); p.x = e.clientX; p.y = e.clientY;
+    if (m.modo === 'espera') {
+      var umbral = m.tipo === 'mouse' ? 4 : 8;
+      if (distancia(p, { x: m.x0, y: m.y0 }) <= umbral) return;
+      clearTimeout(m.timer); m.timer = 0;
+      if (m.pieza && m.tipo === 'mouse' && editable()) { levantarPieza(); }
+      else if (vistaDe(m.svg).z > 1.0001) {
+        m.modo = 'arrastre'; m.base = { x: p.x, y: p.y, v: vistaDe(m.svg), g: geo(m.svg) }; m.svg.classList.add('arrastrando'); cerrarFicha();
+      } else m.modo = 'libre';
+      if (m.modo === 'espera') return;
+    }
+    if (m.modo === 'arrastre') {
+      var b = m.base, sc = b.g.a0 * b.v.z; if (!(sc > 0)) return;
+      fijarVista(m.svg, { z: b.v.z, cx: b.v.cx - (p.x - b.x) / sc, cy: b.v.cy - (p.y - b.y) / sc });
+    } else if (m.modo === 'pinza' && m.ids.size >= 2) {
+      var l = puntos(m), d = distancia(l[0], l[1]), mid = { x: (l[0].x + l[1].x) / 2, y: (l[0].y + l[1].y) / 2 };
+      var g = geo(m.svg), z = Math.max(1, Math.min(m.base.v.z * d / m.base.d, zMaxDe(g)));
+      var c = centroPara(g, z, m.base.u, mid.x, mid.y);
+      fijarVista(m.svg, { z: z, cx: c.cx, cy: c.cy });
+    } else if (m.modo === 'pieza') {
+      var q = m.lev; if (!q) return;
+      escribirTransform(m.pieza, { x: q.t.x + (p.x - q.x) / q.sc, y: q.t.y + (p.y - q.y) / q.sc, r: q.t.r });
+    }
+  });
+  function alSoltar(e) {
+    var m = _gesto; if (!m || !m.ids.has(e.pointerId)) return;
+    var cancelado = e.type === 'pointercancel', p = m.ids.get(e.pointerId);
+    m.ids.delete(e.pointerId);
+    try { m.svg.releasePointerCapture(e.pointerId); } catch (_) {}
+    if (cancelado) { if (!m.ids.size) soltarGesto(true); return; }
+    if (m.modo === 'espera' && !m.ids.size) {
+      clearTimeout(m.timer);
+      var ahora = Date.now();
+      /* Un toque. Dos seguidos, cerca uno del otro, son el doble toque del zoom. */
+      if (_ultimoToque && _ultimoToque.svg === m.svg && ahora - _ultimoToque.t < 320 && distancia(_ultimoToque, p) < 30) {
+        _ultimoToque = null; _gesto = null;
+        dobleToque(m.svg, p.x, p.y);
+        return;
+      }
+      _ultimoToque = { t: ahora, x: p.x, y: p.y, svg: m.svg };
+      _gesto = null;
+      if (m.pieza) alternarFicha(m.pieza); else cerrarFicha();
+      return;
+    }
+    if (m.modo === 'pieza' && !m.ids.size) {
+      var g = m.pieza;
+      m.svg.classList.remove('arrastrando');
+      _gesto = null; clearTimeout(m.timer);
+      terminarLevantada(m, false);
+      if (g.isConnected && fichaPieza()) fichaPieza().abrir(g);
+      return;
+    }
+    if (m.modo === 'pinza' && m.ids.size === 1) {
+      /* Quedó un dedo: si hay zoom sigue arrastrando desde donde está, sin saltos. */
+      var resto = puntos(m)[0];
+      m.modo = 'arrastre'; m.base = { x: resto.x, y: resto.y, v: vistaDe(m.svg), g: geo(m.svg) };
+      return;
+    }
+    if (!m.ids.size) { m.svg.classList.remove('arrastrando'); _gesto = null; clearTimeout(m.timer); }
+  }
+  $('an-res').addEventListener('pointerup', alSoltar);
+  $('an-res').addEventListener('pointercancel', alSoltar);
+  /* Con una pieza levantada o el dibujo en la mano, el dedo no puede además desplazar la página.
+     touch-action se decide al empezar el toque; esto lo reafirma para lo que arranca después de
+     mantener presionado. */
+  $('an-res').addEventListener('touchmove', function (e) {
+    if (_gesto && _gesto.modo !== 'espera' && _gesto.modo !== 'libre' && e.cancelable) e.preventDefault();
+  }, { passive: false });
+  /* El toque largo abre el menú del sistema en algunos teléfonos (copiar, compartir imagen). */
+  $('an-res').addEventListener('contextmenu', function (e) { if (_gesto && sobreMesa(e, '.an-hoja>svg')) e.preventDefault(); });
+  /* A tamaño real en ese punto, o de regreso a la hoja entera. */
+  function dobleToque(svg, px, py) {
+    var g = geo(svg), v = vistaDe(svg); if (!(g.a0 > 0)) return;
+    if (v.z > 1.05) { animarVista(svg, { z: 1, cx: g.W / 2, cy: g.H / 2 }); return; }
+    var z = zUnoDe(g), u = hojaEn(g, v, px, py), c = centroPara(g, z, u, px, py);
+    animarVista(svg, { z: z, cx: c.cx, cy: c.cy });
+  }
+
+  /* ---------- La ficha de la pieza (A10) ---------- */
+  function centroLocal(g) {
+    var c = cajaLocal(g); return c ? { x: c.x + c.w / 2, y: c.y + c.h / 2 } : { x: 0, y: 0 };
+  }
+  /* Los contornos de una pieza (el de fuera y sus huecos) en las unidades de la pieza, ANTES de su
+     transform. Se miden con el mismo polygonify que usa el motor, a la misma fineza de curvas. */
+  function poligonosLocales(g) {
+    var c0 = g.firstElementChild; if (!c0) return [];
+    var llave = c0.id + '|' + (T.k || (A && A.k) || 1);
+    if (llave in _cacheLocal) return _cacheLocal[llave];
+    var SP = window.SvgParser, salida = [];
+    if (SP) {
+      try { SP.config({ tolerance: TOLERANCIA_MM }); } catch (_) {}
+      hijos(g).forEach(function (e) {
+        if (!e.tagName) return;
+        var p = null;
+        try { p = SP.polygonify(e); } catch (_) {}
+        if (p && p.length > 2) salida.push(p);
+      });
+    }
+    if (c0.id) _cacheLocal[llave] = salida;
+    return salida;
+  }
+  function cajaLocal(g) {
+    var polis = poligonosLocales(g); if (!polis.length) return null;
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    polis[0].forEach(function (p) { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); });
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  }
+  function giroDe(g) { var r = leerTransform(g).r; return ((Math.round(r * 10) / 10 % 360) + 360) % 360; }
+  function textoFicha(g) {
+    var c = cajaLocal(g), r = giroDe(g), sinMm = function (v) { return M.formatoMm(v).replace(/ mm$/, ''); };
+    var t = nombreDe(g);
+    if (c) t += ' · ' + sinMm(c.w) + ' × ' + sinMm(c.h) + ' mm';
+    if (r) t += ' · girada ' + r + '°';
+    return t;
+  }
+  function fichaPieza() {
+    var P = PZ();
+    if (_vz || !P || !P.vistazo) return _vz;
+    /* No cierra solo al tocar fuera: los botones de «Girar» y «Devolver» están fuera de la ficha y
+       un toque en ellos la cerraba, y con ella la pieza elegida, antes de que llegara el clic. Cierra
+       quien toca el fondo de la mesa (pointerup de abajo) o la página (el oyente de abajo). */
+    _vz = P.vistazo(null, { rol: 'nota', titulo: 'Pieza', lado: 'arriba', alinear: 'centro', tocarFueraCierra: false,
+      contenido: function (g) {
+        var pista = editable() ? 'Mantén presionada para moverla' : (T.corriendo ? 'Detén el cálculo para moverla a mano' : '');
+        return esc(textoFicha(g)) + (pista ? '<br><small>' + esc(pista) + '</small>' : '');
+      },
+      alAbrir: function (pop, g) { _sel = g.id; actualizarPie(); },
+      alCerrar: function () { _sel = ''; actualizarPie(); } });
+    return _vz;
+  }
+  function cerrarFicha() { if (_vz && _vz.abierto()) _vz.cerrar('codigo'); }
+  document.addEventListener('pointerdown', function (e) {
+    if (!_vz || !_vz.abierto()) return;
+    var t = e.target;
+    if (t && t.closest && (t.closest('#an-mesa') || t.closest('.vistazo'))) return;
+    cerrarFicha();
+  }, true);
+  function alternarFicha(g) {
+    var v = fichaPieza(); if (!v) return;
+    if (v.abierto() && _sel === g.id) v.cerrar('alternar'); else v.abrir(g);
+  }
+
+  /* ---------- Mover y girar una pieza a mano (A24) ----------
+     Solo con el cálculo detenido: mientras corre, el motor repinta la mesa cada pocos segundos y
+     taparía lo que se hizo. Una pieza es un <g transform="translate(x y) rotate(r)">; moverla es
+     cambiar ese atributo, y armarSalida() copia los <g> tal cual, así que la descarga lleva la
+     posición nueva sin más.
+
+     «Cabe» es lo que hace el motor: cada pieza engordada media separación no toca a otra engordada
+     igual (a una separación entera una de otra), y de la orilla de la hoja queda a media. No a una
+     entera, como parecería: el motor adelgaza la hoja media separación pero reporta las posiciones
+     desde la hoja adelgazada, así que sus propias piezas quedan a media separación de la orilla de
+     arriba y de la izquierda (1.5 mm con la separación de 3). Exigir una entera hacía imposible
+     mover siquiera una pieza que el motor dejó junto a la orilla. Se mide con Clipper:
+     desfase de media separación (menos la holgura de las curvas) e intersección de las dos
+     regiones —con sus huecos, así que una pieza chica sí cabe dentro del hueco de una «O»—. Un
+     traslape de menos de 1 mm² es el redondeo de las curvas y se perdona; si no, las piezas que el
+     propio motor dejó tocándose por la separación saldrían como choque. */
+  var RE_TRANSFORM = /translate\(\s*([-\d.eE+]+)[\s,]+([-\d.eE+]+)\s*\)\s*rotate\(\s*([-\d.eE+]+)/;
+  function leerTransform(g) {
+    var m = RE_TRANSFORM.exec(g.getAttribute('transform') || '');
+    return m ? { x: parseFloat(m[1]), y: parseFloat(m[2]), r: parseFloat(m[3]) } : { x: 0, y: 0, r: 0 };
+  }
+  function escribirTransform(g, t) { g.setAttribute('transform', 'translate(' + fmt(t.x) + ' ' + fmt(t.y) + ') rotate(' + fmt(t.r) + ')'); }
+  function aHoja(poli, t) {
+    var a = t.r * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    return poli.map(function (p) { return { x: t.x + p.x * c - p.y * s, y: t.y + p.x * s + p.y * c }; });
+  }
+  function cajaDe(polis) {
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    polis.forEach(function (pl) { pl.forEach(function (p) { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); }); });
+    return { x0: x0, y0: y0, x1: x1, y1: y1 };
+  }
+  var ESC_CLIP = 1000;   // micras: Clipper trabaja en enteros
+  function regionDe(polis, mitad) {
+    var C = window.ClipperLib; if (!C) return null;
+    var rutas = polis.map(function (pl) { return pl.map(function (p) { return { X: Math.round(p.x * ESC_CLIP), Y: Math.round(p.y * ESC_CLIP) }; }); });
+    rutas = C.Clipper.SimplifyPolygons(rutas, C.PolyFillType.pftEvenOdd);
+    if (mitad > 0) {
+      var co = new C.ClipperOffset(2, 0.1 * ESC_CLIP), fuera = new C.Paths();
+      co.AddPaths(rutas, C.JoinType.jtRound, C.EndType.etClosedPolygon);
+      co.Execute(fuera, mitad * ESC_CLIP);
+      rutas = fuera;
+    }
+    return rutas;
+  }
+  function areaDeChoque(a, b) {
+    var C = window.ClipperLib, c = new C.Clipper(), sol = new C.Paths(), suma = 0;
+    c.AddPaths(a, C.PolyType.ptSubject, true); c.AddPaths(b, C.PolyType.ptClip, true);
+    c.Execute(C.ClipType.ctIntersection, sol, C.PolyFillType.pftNonZero, C.PolyFillType.pftNonZero);
+    for (var i = 0; i < sol.length; i++) suma += C.Clipper.Area(sol[i]);
+    return Math.abs(suma) / (ESC_CLIP * ESC_CLIP);
+  }
+  /* '' si la pieza `g`, puesta en `t`, cabe; 'orilla' u 'otra' si no. */
+  function porQueNoCabe(g, t) {
+    var svg = g.ownerSVGElement, d = dimsDeHoja(svg), sep = (T.material && T.material.sep > 0) ? T.material.sep : 0;
+    var propia = poligonosLocales(g).map(function (p) { return aHoja(p, t); });
+    if (!propia.length || !window.ClipperLib) return '';
+    var caja = cajaDe(propia), margen = Math.max(0, sep / 2 - HOLGURA_MM), eps = 0.02;
+    if (caja.x0 < margen - eps || caja.y0 < margen - eps || caja.x1 > d.w - margen + eps || caja.y1 > d.h - margen + eps) return 'orilla';
+    var mitad = Math.max(0, sep / 2 - HOLGURA_MM / 2), mia = null;
+    var otras = lista(svg.querySelectorAll(':scope>g[id]'));
+    for (var i = 0; i < otras.length; i++) {
+      var o = otras[i]; if (o === g) continue;
+      var suyas = poligonosLocales(o).map(function (p) { return aHoja(p, leerTransform(o)); });
+      if (!suyas.length) continue;
+      var cb = cajaDe(suyas);
+      if (cb.x1 + sep < caja.x0 || cb.x0 - sep > caja.x1 || cb.y1 + sep < caja.y0 || cb.y0 - sep > caja.y1) continue;
+      if (!mia) mia = regionDe(propia, mitad);
+      if (areaDeChoque(mia, regionDe(suyas, mitad)) > CHOQUE_MM2) return 'otra';
+    }
+    return '';
+  }
+  function fueMovida(g) {
+    var o = _origen && _origen.get(g); if (!o) return false;
+    var t = leerTransform(g);
+    return Math.abs(t.x - o.x) > 0.0005 || Math.abs(t.y - o.y) > 0.0005 || Math.abs(t.r - o.r) > 0.0005;
+  }
+  function textoRechazo(razon) {
+    var sep = (T.material && T.material.sep > 0) ? T.material.sep : 0, mm = fmtMm(sep) + ' mm';
+    if (razon === 'orilla') return sep > 0 ? 'No cabe ahí: queda a menos de ' + fmtMm(sep / 2) + ' mm de la orilla de la hoja.' : 'No cabe ahí: se sale de la hoja.';
+    return sep > 0 ? 'No cabe ahí: queda a menos de ' + mm + ' de otra pieza.' : 'No cabe ahí: se encima con otra pieza.';
+  }
+  function rechazar(g, razon) {
+    g.classList.add('rechazada');
+    setTimeout(function () { g.classList.remove('rechazada'); }, 900);
+    mensaje(textoRechazo(razon), 'av');
+  }
+  /* Algo cambió a mano: ese acomodo ya no es el que encontró el motor. */
+  function marcarEditado(g) {
+    T.mejor.editado = true;
+    T.huella = null;                  // no hay nada que «seguir buscando»: el motor no sabe de esto
+    habilitar();
+    $('an-vista-tab').textContent = 'Acomodo editado a mano';
+    mensaje(nombreDe(g) + ' movida a mano. Descarga el SVG con la posición nueva, o vuelve a acomodar desde cero.', 'ok');
+    actualizarPie();
+  }
+  function llevarA(g, nuevo, alTerminar) {
+    var P = PZ();
+    if (P && P.flip) P.flip([g], function () { escribirTransform(g, nuevo); }, { clave: function () { return 'x'; }, duracion: 260 }).then(function () { if (alTerminar) alTerminar(); });
+    else { escribirTransform(g, nuevo); if (alTerminar) alTerminar(); }
+  }
+  function levantarPieza() {
+    var m = _gesto; if (!m || !m.pieza || !editable() || m.modo === 'pieza') return;
+    clearTimeout(m.timer); m.timer = 0;
+    var g = m.pieza, svg = m.svg, geoms = geo(svg), v = vistaDe(svg);
+    m.modo = 'pieza';
+    /* El origen del arrastre es donde bajó el dedo, no donde estaba al levantarse: con el ratón la
+       pieza se levanta a los 4 px de camino, y partir de ahí se comía ese tramo. */
+    m.lev = { t: leerTransform(g), x: m.x0, y: m.y0, sc: geoms.a0 * v.z, siguiente: g.nextSibling };
+    /* Arrastrando, otras piezas no la tapan: va al final del dibujo y regresa a su lugar. */
+    svg.appendChild(g);
+    g.classList.add('levantada'); svg.classList.add('arrastrando');
+    cerrarFicha();
+    try { if (navigator.vibrate) navigator.vibrate(12); } catch (_) {}
+  }
+  /* Soltar (o abandonar) una pieza levantada: queda donde está si cabe y regresa sola si no. */
+  function terminarLevantada(m, abandonar) {
+    var g = m.pieza, q = m.lev; m.modo = 'quieta';
+    if (!g || !q) return;
+    g.classList.remove('levantada');
+    if (g.parentNode && q.siguiente !== undefined) g.parentNode.insertBefore(g, q.siguiente && q.siguiente.parentNode === g.parentNode ? q.siguiente : null);
+    var ahora = leerTransform(g);
+    if (abandonar) { escribirTransform(g, q.t); return; }
+    var sinMover = Math.abs(ahora.x - q.t.x) < 0.01 && Math.abs(ahora.y - q.t.y) < 0.01;
+    if (sinMover) return;
+    var razon = porQueNoCabe(g, ahora);
+    if (razon) { llevarA(g, q.t); rechazar(g, razon); return; }
+    recordarOrigenAntes(g, q.t);
+    marcarEditado(g);
+  }
+  /* El primer movimiento de una pieza guarda dónde la puso el motor. */
+  function recordarOrigenAntes(g, t) { if (_origen && !_origen.has(g)) _origen.set(g, t); }
+  /* Lo que se intenta con el teclado y no se puede, se dice: sin esto, Mayús + flecha sobre una pieza
+     con el motor corriendo no hacía nada y no había por qué. */
+  function puedeEditar() {
+    if (editable()) return true;
+    if (T.corriendo) mensaje('Detén el cálculo para mover piezas a mano.', 'av');
+    return false;
+  }
+  function rotarPieza(g, grados) {
+    if (!g || !puedeEditar()) return;
+    var t = leerTransform(g), c = centroLocal(g), r1 = t.r + grados;
+    var a0 = t.r * Math.PI / 180, a1 = r1 * Math.PI / 180;
+    var cx = t.x + c.x * Math.cos(a0) - c.y * Math.sin(a0), cy = t.y + c.x * Math.sin(a0) + c.y * Math.cos(a0);
+    var nuevo = { r: ((r1 % 360) + 360) % 360, x: cx - (c.x * Math.cos(a1) - c.y * Math.sin(a1)), y: cy - (c.x * Math.sin(a1) + c.y * Math.cos(a1)) };
+    var razon = porQueNoCabe(g, nuevo);
+    if (razon) { rechazar(g, razon); return; }
+    recordarOrigenAntes(g, t);
+    llevarA(g, nuevo, marcarGiradas);
+    marcarEditado(g);
+    mensaje(nombreDe(g) + ' girada a ' + giroTexto(nuevo.r) + '. Acomodo editado a mano.', 'ok');
+  }
+  function giroTexto(r) { return (Math.round(r * 10) / 10) + '°'; }
+  function empujarPieza(g, dx, dy) {
+    if (!g || !puedeEditar()) return;
+    var t = leerTransform(g), nuevo = { x: t.x + dx, y: t.y + dy, r: t.r };
+    var razon = porQueNoCabe(g, nuevo);
+    if (razon) { rechazar(g, razon); return; }
+    recordarOrigenAntes(g, t);
+    escribirTransform(g, nuevo);
+    marcarEditado(g);
+  }
+  $('an-pieza-girar').addEventListener('click', function () { var g = _sel && document.getElementById(_sel); if (g) rotarPieza(g, 90); });
+  $('an-pieza-devolver').addEventListener('click', function () {
+    var g = _sel && document.getElementById(_sel), o = g && _origen && _origen.get(g);
+    if (!g || !o) return;
+    llevarA(g, o, function () { marcarGiradas(); actualizarPie(); });
+    mensaje(nombreDe(g) + ' devuelta a su lugar.', 'ok');
+  });
+
+  /* El teclado (A7, A10, A24): la hoja es un solo tope de tabulador; las piezas se recorren con
+     las flechas (tabindex -1, foco con código). + − 0 acercan, alejan y regresan; con zoom las
+     flechas sobre la hoja la desplazan. Sobre una pieza: Enter o Espacio abren su ficha, Mayús +
+     flecha la mueve 5 mm, R la gira 90°. */
+  $('an-res').addEventListener('keydown', function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var svg = sobreMesa(e, '.an-hoja>svg'); if (!svg) return;
+    var g = sobreMesa(e, '.an-hoja>svg>g[id]'), k = e.key, flecha = /^Arrow(Left|Right|Up|Down)$/.test(k);
+    if (k === '+' || k === '=') { zoomBoton(1.5); e.preventDefault(); return; }
+    if (k === '-' || k === '_') { zoomBoton(1 / 1.5); e.preventDefault(); return; }
+    if (k === '0') { var g0 = geo(svg); animarVista(svg, { z: 1, cx: g0.W / 2, cy: g0.H / 2 }); e.preventDefault(); return; }
+    var piezas = lista(svg.querySelectorAll(':scope>g[id]'));
+    if (g) {
+      if (k === 'Enter' || k === ' ') { alternarFicha(g); e.preventDefault(); return; }
+      if (k === 'r' || k === 'R') { rotarPieza(g, 90); e.preventDefault(); return; }
+      if (k === 'Escape') { if (_gesto) { soltarGesto(true); } else svg.focus({ preventScroll: true }); return; }
+      if (flecha && e.shiftKey) {
+        var dx = k === 'ArrowLeft' ? -PASO_TECLA_MM : k === 'ArrowRight' ? PASO_TECLA_MM : 0, dy = k === 'ArrowUp' ? -PASO_TECLA_MM : k === 'ArrowDown' ? PASO_TECLA_MM : 0;
+        empujarPieza(g, dx, dy); e.preventDefault(); return;
+      }
+      var i = piezas.indexOf(g), j = -1;
+      if (k === 'ArrowRight' || k === 'ArrowDown') j = Math.min(piezas.length - 1, i + 1);
+      else if (k === 'ArrowLeft' || k === 'ArrowUp') j = Math.max(0, i - 1);
+      else if (k === 'Home') j = 0; else if (k === 'End') j = piezas.length - 1;
+      if (j >= 0) { irAPieza(svg, piezas[j]); e.preventDefault(); }
+      return;
+    }
+    if (e.target !== svg) return;
+    if ((k === 'Enter' || k === ' ') && piezas.length) { irAPieza(svg, piezas[0]); e.preventDefault(); return; }
+    var v = vistaDe(svg);
+    if (flecha && v.z > 1.0001) {
+      var paso = 40 / (geo(svg).a0 * v.z || 1);
+      fijarVista(svg, { z: v.z, cx: v.cx + (k === 'ArrowRight' ? paso : k === 'ArrowLeft' ? -paso : 0), cy: v.cy + (k === 'ArrowDown' ? paso : k === 'ArrowUp' ? -paso : 0) });
+      e.preventDefault();
+    }
+  });
+  /* El foco a una pieza; si queda fuera de la ventana del zoom, la ventana la sigue. */
+  function irAPieza(svg, g) {
+    var v = vistaDe(svg);
+    if (v.z > 1.0001) {
+      var c = centroLocal(g), t = leerTransform(g), a = t.r * Math.PI / 180;
+      var x = t.x + c.x * Math.cos(a) - c.y * Math.sin(a), y = t.y + c.x * Math.sin(a) + c.y * Math.cos(a);
+      var gs = geo(svg), mx = gs.W / (2 * v.z), my = gs.H / (2 * v.z);
+      if (Math.abs(x - v.cx) > mx * 0.85 || Math.abs(y - v.cy) > my * 0.85) fijarVista(svg, { z: v.z, cx: x, cy: y });
+    }
+    try { g.focus({ preventScroll: true }); } catch (_) { g.focus(); }
+  }
+
+  /* ---------- Esquinas sobre lo que se va a quedar fuera (A15) ----------
+     Tocar «Ver cuáles» en un aviso, o en «N piezas no caben», cierra cuatro esquinas (P.senalar)
+     sobre esos elementos EN LA VISTA PREVIA y las deja puestas; el mismo botón las suelta, y
+     Escape también. Los avisos se cuentan sobre el archivo como llegó, antes de sanear(): solo se
+     señala lo que sigue en la vista, y si no queda nada el botón ni sale. Las de las piezas que no
+     caben van en rojo, y el rojo siempre trae su palabra («no caben»). */
+  function elementosDeAviso(i) {
+    var sel = A && A.avisoSel && A.avisoSel[i], svg = $('an-orig').querySelector('svg');
+    if (!sel || !svg) return [];
+    /* Solo lo que se dibuja: un texto con display:none cuenta en el aviso (se cuenta antes de
+       sanear) pero no hay dónde cerrar las esquinas. Las cotas de la vista son nuestras. */
+    return lista(svg.querySelectorAll(sel)).filter(function (e) {
+      if (e.closest('.an-cotas')) return false;
+      var r = e.getBoundingClientRect();
+      return r.width > 0 || r.height > 0;
+    });
+  }
+  function elementosFuera() {
+    var svg = $('an-orig').querySelector('svg'); if (!svg) return [];
+    return (T.fueraIds || []).map(function (id) { return svg.querySelector('[data-e="' + String(id).replace(/^an-e/, '') + '"]'); }).filter(Boolean);
+  }
+  function soltarSenales() {
+    if (!_senal) return;
+    var s = _senal; _senal = null;
+    try { s.ctl.soltar(); } catch (_) {}
+    if (s.boton && s.boton.isConnected) s.boton.setAttribute('aria-pressed', 'false');
+    actualizarPie();
+  }
+  function senalarElementos(quien, boton, buscar, tono) {
+    var P = PZ(); if (!P || !P.senalar) return;
+    if (_senal && _senal.quien === quien) { soltarSenales(); return; }
+    soltarSenales();
+    var poner = function () {
+      var vivos = buscar().filter(function (e) { var r = e.getBoundingClientRect(); return r.width > 0 || r.height > 0; }).slice(0, MAX_SENALADAS);
+      if (!vivos.length) { mensaje('Eso ya no se ve en la vista previa.', 'av'); return; }
+      _senal = { quien: quien, boton: boton, ctl: P.senalar(vivos, { tono: tono, quedar: true, desplazar: true }) };
+      boton.setAttribute('aria-pressed', 'true');
+      actualizarPie();
+    };
+    if (_vista !== 'vienen') cambiarVista('vienen').then(poner); else poner();
+  }
+  $('an-avisos').addEventListener('click', function (e) {
+    var b = sobreMesa(e, '[data-aviso]'); if (!b) return;
+    var i = parseInt(b.getAttribute('data-aviso'), 10);
+    senalarElementos('aviso:' + i, b, function () { return elementosDeAviso(i); }, 'av');
+  });
+  $('an-fuera-ver').addEventListener('click', function () {
+    senalarElementos('fuera', this, elementosFuera, 'mal');
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && _senal) soltarSenales(); });
+
+  /* «¿Cabe en un retazo?» (A12): lleva a la hoja «Retazo» y a sus medidas, que es donde se
+     prueba con el sobrante. */
+  $('an-res').addEventListener('click', function (e) {
+    if (!sobreMesa(e, '[data-an-retazo]')) return;
+    var P = PZ(), tile = document.querySelector('.an-tile-retazo');
+    if (tile) tile.click();
+    var destino = $('an-retazos') && !$('an-retazos').hidden ? $('an-retazos') : tile;
+    if (P && P.senalar && destino) P.senalar(destino, { desplazar: true });
+  });
+
+  /* Lo que cambia con el cálculo: mientras corre no se mueven piezas a mano. */
+  function actualizarEditable() {
+    $('an-mesa').classList.toggle('editable', editable());
+    if (T.mejor && T.mejor.editado && !T.corriendo) $('an-vista-tab').textContent = 'Acomodo editado a mano';
+    if (T.corriendo && _gesto && _gesto.modo === 'pieza') soltarGesto(true);
+    actualizarPie();
+  }
+  if (window.ResizeObserver) {
+    try { new ResizeObserver(function () { if (!$('an-zoom').hidden) actualizarZoomUI(); }).observe($('an-mesa')); } catch (_) {}
   }
 
   function pintarEstadoTrabajo() {
@@ -1058,6 +2121,7 @@
        no tiene de dónde. js/tema.js lee esta clase; ver P.temaEnCirculo. */
     document.documentElement.classList.toggle('sin-revelado', !!T.corriendo);
     habilitar();
+    actualizarEditable();   // con el cálculo detenido se pueden mover piezas a mano (A24)
   }
 
   /* ---------- Salida ---------- */
@@ -1069,8 +2133,11 @@
     if (!T.mejor) return null;
     var ns = 'http://www.w3.org/2000/svg';
     var hojas = (indice === null || indice === undefined) ? T.mejor.svglist : [T.mejor.svglist[indice]];
-    var vb0 = hojas[0].viewBox.baseVal;
-    var W = vb0.width, H = vb0.height, gap = HUECO_ENTRE_HOJAS_MM;
+    /* La medida sale de data-w/data-h y no del viewBox: con zoom, el viewBox de la hoja en pantalla
+       es solo la ventana que se está mirando (A7), y descargar «lo que se ve» daría un archivo del
+       tamaño del recuadro. */
+    var dims0 = dimsDeHoja(hojas[0]);
+    var W = dims0.w, H = dims0.h, gap = HUECO_ENTRE_HOJAS_MM;
     var totalH = H * hojas.length + gap * (hojas.length - 1);
 
     var out = document.createElementNS(ns, 'svg');
@@ -1098,10 +2165,13 @@
           c.setAttribute('id', 'contorno-hoja-' + (i + 1));
           c.setAttribute('fill', 'none'); c.setAttribute('stroke', '#4060f8'); c.setAttribute('stroke-width', '0.5');
         } else {
-          /* Las clases de color y el turno de caída son de la mesa, no del archivo de corte. */
-          c.removeAttribute('class'); c.removeAttribute('style');
+          /* Las clases de color y el turno de caída son de la mesa, no del archivo de corte; los
+             ids, el foco y el nombre de la pieza, también. Su transform sí se queda: es donde está
+             la pieza, y si se movió a mano (A24) es donde se movió. */
+          ['class', 'style', 'id', 'tabindex', 'role', 'aria-label'].forEach(function (a) { c.removeAttribute(a); });
         }
         lista(c.getElementsByTagName('*')).forEach(function (e) {
+          if (/^an-e\d+$/.test(e.getAttribute('id') || '')) e.removeAttribute('id');
           var cls = e.getAttribute('class');
           if (cls === null) return;
           /* El motor marca los huecos concatenando ' hole' a la clase que hubiera, y cuando no
@@ -1422,4 +2492,14 @@
                mejor: T.mejor ? { hojas: T.mejor.svglist.length, laminas: T.mejor.svglist.length, eficiencia: T.mejor.eficiencia, colocadas: T.mejor.colocadas, total: T.mejor.total } : null };
     }
   };
+  /* Lo que las pruebas necesitan saber de la mesa y no está en el DOM: qué vista es, el encuadre de
+     cada hoja, qué pieza está elegida, si hay esquinas puestas y si el acomodo se tocó a mano. */
+  window.Anidador.mesa = function () {
+    return { vista: _vista, zoom: _zoom.map(function (v) { return v ? { z: v.z, cx: v.cx, cy: v.cy } : null; }),
+             eleccion: _sel, senal: _senal ? _senal.quien : '', carrusel: !!_pags, editable: editable(),
+             editado: !!(T.mejor && T.mejor.editado), numeros: A ? Object.assign({}, A.numeros) : {}, fuera: (T.fueraIds || []).slice() };
+  };
+  /* ¿Cabe la pieza `id` donde está? '' si sí. Las posiciones que da el motor tienen que caber siempre:
+     si no, la cuenta del choque no es la del motor y mover una pieza sería imposible. */
+  window.Anidador.mesa.cabe = function (id) { var g = document.getElementById(id); return g ? porQueNoCabe(g, leerTransform(g)) : null; };
 })();
