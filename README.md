@@ -79,8 +79,10 @@ material que hay que comprar**. Nada de eso se captura.
   la hoja **recalcula el precio con su propia copia del catálogo** y, si no coincide con el del
   teléfono, no sella. Si coincide, firma el folio, el trabajo, el precio y el total, y lo anota
   en su pestaña «Autorizaciones». Sin señal no se autoriza: lo tecleado se queda para después.
-  Quien cotiza sin ser Dirección **solicita**, y la solicitud le llega a Dirección a su teléfono;
-  el sello regresa solo. El precio vale mientras el trabajo no cambie (la huella); en cuanto
+  Quien cotiza sin ser Dirección **solicita**, y la solicitud le llega a Dirección a su teléfono,
+  donde la revisa **renglón por renglón** —cada partida con su calculado y su precio autorizado,
+  y el total sale de ellos— o, de atajo, le pone un total encima; el sello regresa solo con los
+  dos. El precio vale mientras el trabajo no cambie (la huella); en cuanto
   cambia, vuelve al calculado, lo dice y ofrece **volver a autorizarlo** sobre el mismo folio.
 - **Un QR que delata un PDF alterado** — la cotización sellada lleva un QR y un código. Cualquiera
   que lo escanee llega a `verificar.html`, que le pregunta a la hoja: auténtica, ya no vigente,
@@ -323,7 +325,7 @@ plataforma con `herramientas/extraer-catalogo.sh`.
 
 ## Pruebas
 
-    pruebas/correr.sh               47 archivos, solo node, unos segundos
+    pruebas/correr.sh               48 archivos, solo node, unos segundos
     pruebas/correr.sh --navegador   44 más, que piden Chromium y un servidor
 
 Una de ellas revisa que el sitio *se pueda publicar*; otra corre el Apps Script del puente entero
@@ -347,8 +349,6 @@ píxeles** para comprobar que nada de lo que lleva texto baja de 4,5:1 de contra
   listas de compra no tienen todavía pestaña en la hoja a la que ir, así que se quedan en cada
   dispositivo. No se pierden: se apartan en la bandeja con su razón y se reincorporan solos el
   día que existan.
-- **La revisión de una solicitud remota ajusta el precio total, no partida por partida.** Para
-  ajustar renglón por renglón, Dirección abre la cotización en su teléfono y la autoriza ahí.
 - **El QR comprueba el total y el negocio, no cada renglón.** Un PDF con los renglones
   cambiados pero el mismo total pasa la verificación; lo que no pasa es un total distinto.
 - **El neón flex se vende y no está en ningún catálogo.** Cae en partida *manual*, que es justo
