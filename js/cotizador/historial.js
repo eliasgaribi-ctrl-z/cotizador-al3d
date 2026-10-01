@@ -2595,7 +2595,14 @@ function pintarFolio(){
   /* La píldora del folio ya significa provisional/confirmado, así que «sin guardar» va como
      marca APARTE y no reescribiendo su texto: son dos cosas distintas y confundirlas sería
      peor que no decir nada. */
-  el.innerHTML=esc(Q.folio||'')+(_saveOk?'':' <b class="folio-mal">sin guardar</b>');
+  /* El número voltea solo si cambió y solo si ya había uno (C24, folioQueVoltea en nucleo.js);
+     pintarFolio() corre en cada guardado fallido y al arrancar, y repintar el MISMO folio no
+     mueve nada. La marca de «sin guardar» es hermana de las casillas, no una de ellas: no voltea,
+     y se pone y se quita sin tocar el folio. */
+  folioQueVoltea(el,Q.folio||'');
+  const mal=el.querySelector(':scope>.folio-mal');
+  if(_saveOk){ if(mal) mal.remove(); }
+  else if(!mal){ const b=document.createElement('b'); b.className='folio-mal'; b.textContent='sin guardar'; el.append(b); }
   el.classList.toggle('prov',!conf);
   el.classList.toggle('nosave',!_saveOk);
   el.title=!_saveOk

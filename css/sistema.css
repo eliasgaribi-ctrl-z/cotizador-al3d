@@ -3509,9 +3509,6 @@ input:disabled,select:disabled,textarea:disabled{background:var(--sup2);box-shad
    trae el Deshacer. El texto respeta sus saltos de línea: son párrafos. */
 #confmodal,#pf-confirma{z-index:90}
 .modal-conf{max-width:420px}
-.folio.sin-senal{color:var(--av);background:var(--av-bg);border-color:var(--av-borde);display:inline-flex;align-items:center;gap:4px}
-.folio.sin-senal[hidden]{display:none}
-@media(max-width:560px){.folio.sin-senal .lbl{display:none}}
 .conf-texto{white-space:pre-line;color:var(--tinta2);font-size:var(--t3);line-height:1.55;margin:0 0 var(--e4)}
 /* Con menos movimiento late en vez de girar (ver «Menos movimiento no es ninguno»). */
 .mini,.anti-rest{font-size:var(--t1);color:var(--tinta3);line-height:1.5}
@@ -4971,7 +4968,85 @@ mark.coincide{background:var(--a-suave);color:var(--tinta);font-weight:700;borde
    ===================================================================== */
 
 /* ── Cotizador · cliente, folio e iconos ── */
+/* ----- C6 · La lista de clientes bajo el campo -----
+   Un popover manual: sube a la capa superior y se coloca con JS (nucleo.js, _comboColocar), así que
+   aquí solo está lo que no depende del campo. El UA le da `inset:0; margin:auto; width:fit-content`
+   a todo [popover]: se anula, o la lista saldría centrada en la pantalla. Sin popover (navegadores
+   de antes de 2024) es el mismo bloque con `position:fixed`, escondido con [hidden]. */
+.combo-menu{position:fixed;inset:auto;margin:0;box-sizing:border-box;padding:4px;max-height:300px;overflow:auto;overscroll-behavior:contain;
+  background:var(--sup);color:var(--tinta);border:1px solid var(--linea);border-radius:var(--rr3);box-shadow:var(--sombra-alta);z-index:70}
+.combo-menu[hidden]{display:none}
+.combo-lista{position:relative}
+/* El resalte: UN solo elemento que se desliza de renglón a renglón con translateY. Solo transform y
+   opacity; la altura se escribe sin transición (todos los renglones miden lo mismo). */
+.combo-pil{position:absolute;left:0;right:0;top:0;height:0;border-radius:var(--rr2);background:var(--a-suave);opacity:0;pointer-events:none;
+  transition:transform var(--mv-r),opacity .15s}
+/* 60 px de alto: el dedo acierta sin apuntar y caben tres líneas sin apretar. */
+.combo-op{position:relative;z-index:1;min-height:60px;padding:8px 10px;border-radius:var(--rr2);cursor:pointer;display:grid;gap:1px;align-content:center;
+  -webkit-tap-highlight-color:transparent}
+.combo-op b{font-weight:700;font-size:var(--t3);color:var(--tinta);overflow-wrap:anywhere}
+.combo-op[aria-selected="true"] b{color:var(--a-tx)}
+.combo-op span{font:600 var(--t2)/1.3 var(--f-cifra);font-variant-numeric:tabular-nums;color:var(--tinta)}
+.combo-op small{font-size:var(--t1);color:var(--tinta2);font-weight:600}
+/* El toque se siente al instante, antes de que se cierre la lista (el resalte solo sigue al ratón). */
+.combo-op:active{background:var(--a-suave)}
+/* La última cotización de otro cliente es dinero de ESE trabajo: en borrador se difumina como los
+   demás importes (precios-ocultos, nucleo.js). «Ver precios» la destapa; en papel no hay lista. */
+body.precios-ocultos:not(.precios-a-la-vista) .combo-importe{filter:blur(7px);user-select:none;-webkit-user-select:none}
 
+/* El lavado de lo que llenó la app: un verde que se funde en 600 ms (los 40 % primeros quietos, para
+   que se alcance a ver) sobre el fondo y el borde del propio campo. `.lavado-quieto` es el mismo verde
+   sin fundido, 1,2 s, para quien pidió menos movimiento: la señal se queda, el movimiento no. */
+input.lavado,textarea.lavado{animation:lavado-campo .6s cubic-bezier(.2,.8,.2,1)}
+input.lavado-quieto,textarea.lavado-quieto{background-color:var(--ok-bg);border-color:var(--ok-borde)}
+@keyframes lavado-campo{0%,40%{background-color:var(--ok-bg);border-color:var(--ok-borde)}}
+
+/* ----- C23 #5 · La pista de «mantén presionado» del diálogo de confirmar ----- */
+.conf-pista{margin:0 0 var(--e3);color:var(--tinta2);font-size:var(--t2);line-height:1.4}
+.conf-pista[hidden]{display:none}
+
+/* ----- C21 · La isla de estado junto al folio -----
+   En reposo no ocupa sitio ni se ve, pero sigue en el árbol (1 px recortado) porque es el
+   role="status" que el lector de pantalla oye al cambiar su texto: con `hidden` no hablaría. Fuera
+   del reparto de la barra (position:absolute sin desplazamientos), así que ni el `gap` la cuenta.
+   Abierta es una pastilla de 32 px de alto: el glifo y, desde 561 px, la frase. El ancho lo
+   escribe JS (32 px + lo que mide la frase) y es el único ancho que esta hoja anima. */
+.isla{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;opacity:0}
+.isla.ver{position:relative;flex:none;display:inline-flex;align-items:center;box-sizing:border-box;height:32px;margin:0;
+  border:1px solid var(--linea);border-radius:999px;background:var(--sup2);color:var(--tinta);clip:auto;clip-path:none;opacity:1;
+  transition:width .42s cubic-bezier(.2,.8,.2,1),opacity .2s,background-color .25s,border-color .25s,color .25s}
+.isla.ver.se-va{opacity:0}
+.isla[data-estado="sin-senal"]{background:var(--av-bg);border-color:var(--av-borde);color:var(--av)}
+.isla[data-tono="ok"]{background:var(--ok-bg);border-color:var(--ok-borde);color:var(--ok)}
+.isla-ic{flex:none;width:30px;height:30px;display:grid;place-items:center}
+.isla-ic .svgi{width:var(--ico2);height:var(--ico2)}
+/* La frase entra en opacidad, un poco después de que la pastilla empiece a abrirse. */
+/* 11 px y no 12,5: medido, la barra de una laptop de 1280 px solo deja 188 px para la isla abierta, y
+   «Sin señal · se guarda aquí» a 12,5 px pedía 198. A 11 px cabe (178); más angosto de ~1200 px la
+   isla se queda en el icono en vez de romper la barra (ver _islaMostrar en nucleo.js). */
+.isla-t{flex:none;padding:0 12px 0 0;font:600 var(--t1)/1 var(--f-texto);opacity:0;transition:opacity .18s}
+.isla.abierta .isla-t{opacity:1;transition-delay:.14s}
+/* Hasta 560 px la barra de arriba está medida al píxel (la comparte con la marca, el rol y los dos
+   botones de icono): ahí la isla es solo el glifo, 32 px y sin crecer, en el lugar del folio que
+   tenía el chip de «sin señal». La frase sigue en el árbol para el lector, recortada. */
+@media(max-width:560px){
+  /* `margin-right:auto` la pega al folio: la barra reparte lo que sobra entre sus piezas, y sin esto la
+     isla quedaba flotando a media fila, lejos del número que acompaña. Solo con la isla a la vista:
+     en reposo no es un elemento del reparto y la fila queda exactamente como antes. */
+  .topbar-in .isla.ver{order:2;margin-right:auto}
+  .isla.ver{width:32px!important;transition:opacity .2s,background-color .25s,border-color .25s,color .25s}
+  .isla-t{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%)}
+}
+
+/* ----- C24 · El folio que voltea -----
+   Las casillas no llevan ancho mínimo: el folio mide lo mismo que cuando era un solo texto (los
+   dígitos son tabulares), y la barra de arriba, medida al píxel, no se entera. `perspective` va en
+   el contenedor de las casillas y no en el folio, para que el borde de la píldora no se deforme; la
+   línea del medio solo se pinta mientras la casilla gira. */
+.fcs{display:inline-flex;perspective:260px}
+.fc{display:inline-block;text-align:center;transform-origin:50% 50%;backface-visibility:hidden}
+.fc.volteando{background:linear-gradient(transparent calc(50% - .5px),rgba(var(--tinta-rgb),.35) calc(50% - .5px) calc(50% + .5px),transparent calc(50% + .5px))}
+#folio .folio-mal{margin-left:6px}
 /* ── fin de cot-cliente ── */
 
 /* ── Cotizador · partidas y completitud ── */
@@ -7002,7 +7077,16 @@ input[type=range].desl-iman{transform:none!important}
 .carga-logo circle{transition:none!important}
 /* ── fin de rm · piezas · 4 ── */
 /* ── rm · cot-cliente ── */
-
+/* La isla abre y cierra en un fundido corto y sin cambiar de ancho (el ancho SÍ desplaza a sus vecinos
+   y es lo que se apaga); lo que dice —la frase, el glifo, el color— se queda. El arco de «Sellando»
+   ya lo deja quieto «rm · piezas · 1». El resalte de la lista cambia de renglón en seco; el lavado
+   de los campos lo sustituye el verde quieto que pone el propio JS (lavado-quieto). El folio cambia
+   sin voltear: folioQueVoltea() ya no anima con menos movimiento, esto es por si otra pieza lo pide. */
+.isla.ver{transition:opacity .15s linear,background-color .15s,border-color .15s,color .15s!important}
+.isla-t,.isla.abierta .isla-t{transition:opacity .15s linear!important;transition-delay:0s!important}
+.combo-pil{transition:none}
+input.lavado,textarea.lavado{animation:none!important}
+.fc,.fc.volteando{animation:none!important;background:none}
 /* ── fin de rm · cot-cliente ── */
 /* ── rm · cot-partidas ── */
 /* Se va lo que se mueve o se aprieta; se queda lo que informa. El anillo de «armando» aparece ya

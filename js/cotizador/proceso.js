@@ -2557,13 +2557,15 @@ function desgloseDelDock(){
    que quedaba solo quitaba una clase que nadie ponía. Se fue entero. */
 
 /* ===================== Inputs generales ===================== */
-function upd(k,v){
+function upd(k,v,cuaderno){
   undoJuntar('q:'+k);
   Q[k]=v; saveState(); updProg();   // updProg ya repinta el encabezado plegado
   /* Los tres de texto que se siguen pactando con el precio cerrado van también al historial:
      ver guardarAutorizadaLuego() en historial.js. */
   if(k==='entrecalles'||k==='entrega'||k==='notaCliente') guardarAutorizadaLuego();
-  if(k==='cliente') autocompletarCliente(v);
+  /* `cuaderno` solo lo manda la lista de clientes (C6, nucleo.js) cuando alguien toca UNA fila:
+     con dos clientes del mismo nombre, el nombre no alcanza para saber cuál se eligió. */
+  if(k==='cliente') autocompletarCliente(v,cuaderno);
   /* Los dos campos que dicen de quién es esto son los dos que pueden destapar un cuaderno. */
   if(k==='cliente'||k==='tel') actualizarAvisoCuaderno();
 }
