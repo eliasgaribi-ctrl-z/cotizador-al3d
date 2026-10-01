@@ -3,8 +3,7 @@
 Cada zona del paquete de UI entrega aquí lo que dejó a medias, lo que no alcanzó a probar y los
 supuestos que tomó. **La auditoría mira esta lista, no las ~50,000 líneas del paquete.** No hubo
 revisor aparte por zona: fue el acuerdo para no agotar el límite semanal.
-- **[media]** `js/cotizador/partidas.js · _ratonArma() y el bloque dragstart/drop de renderItems()`  
-  El arrastre HTML5 con ratón real no se pudo ejercitar: en este arnés ni el código original completa un drag nativo (se comprobó contra una copia del commit base). Solo están probados el drop por eventos sintéticos (cotizador-flujo.mjs, sigue verde) y que draggable se arma en pointerdown con el ratón y se desarma al soltar. Cambio de comportamiento: antes toda la partida era arrastrable, incluso desde un campo de texto; ahora presionar sobre input/textarea/select/etiqueta arrastrable no la arma. Firefox/Safari sin probar.
+El arrastre HTML5 con ratón real no se pudo ejercitar: en este arnés ni el código original completa un drag nativo (se comprobó contra una copia del commit base). Solo están probados el drop por eventos sintéticos (cotizador-flujo.mjs, sigue verde) y que draggable se arma en pointerdown con el ratón y se desarma al soltar. Cambio de comportamiento: antes toda la partida era arrastrable, incluso desde un campo de texto; ahora presionar sobre input/textarea/select/etiqueta arrastrable no la arma. Firefox/Safari sin probar.
 
 - **[media]** `js/cotizador/partidas.js · renderItems() (.pmover-par dentro de .pline) y css/sistema.css .partida.folded .pline{display:none}`  
   Los botones visibles ↑/↓ de C15 viven en la línea de la fórmula, que CSS oculta con la partida plegada. Plegada, la alternativa sin gesto son solo las flechas del teclado sobre el número (un lector de pantalla en modo navegación puede no mandar flechas a un botón). Habría que decidir si los ↑/↓ merecen un sitio que se vea también plegada.
@@ -551,3 +550,40 @@ Fichas: 12 hecho.
 
 - **[baja]** `pruebas/navegador/pf-ajustes.mjs`  
   Las cuatro rondas tardan unos 8–10 min en total (esperas reales de relojes y de los 1.8 s de «Listo»); RONDA=n corre solo una y CAPTURAS=carpeta guarda fotos. Sin lógica pura que justificara una prueba de node, no se añadió ninguna.
+
+## Cotizador · propuesta con opciones (función nueva 76)
+
+Fichas: 1 hecho.
+
+- **[alta]** `js/cotizador/partidas.js · modelo 'la opción abierta es la que cuenta' (resumenPartida, opcionesDe)`  
+  DECISIÓN DE PRODUCTO a validar. Mientras el cliente no elige, el total (pantalla, PDF, WhatsApp, anticipo) suma la opción ABIERTA, no cero. Lo único que impide mandarlo así es el aviso de partidas sin terminar, que deja seguir con 'de todos modos'. Si alguien autoriza 'de todos modos', la cotización queda autorizada/sellada con opciones sin elegir; entonces las tarjetas son solo lectura (capturaBloqueada) y para elegir hay que reabrir (Editar partidas), lo cual suelta la autorización por huellaTrabajo. Se probó el frenado con revisarAntesDe, pero NO el flujo completo solicitar -> autorizar -> reabrir con una propuesta pendiente.
+
+- **[media]** `js/cotizador/proceso.js · pintarFaltantes() (NO se tocó: fuera de mi zona)`  
+  El texto del aviso de partidas sin terminar, para una partida con propuesta pendiente (que sí tiene precio), dice 'saldría en el PDF con precio y sin decir qué se cobra', lo cual es inexacto para este caso; la fila sí dice 'Falta elegir la opción'. Convendría un texto propio cuando la ficha de faltante lleva opcion:true (resumenPartida la marca).
+
+- **[media]** `js/cotizador/entrega.js · generarPDF() hoja de opciones (bloqueOpc) y preciosCliente()`  
+  Si el autorizador ajustó la partida o subió el total, la tarjeta de la opción abierta usa pc[it.id] (lo que suma la tabla) pero las demás opciones salen al catálogo (lineTotal), así que la comparación mezcla un precio ajustado con precios de catálogo. Caso raro (el aviso frena antes de autorizar) pero no probado ni resuelto.
+
+- **[media]** `js/cotizador/entrega.js · copiarParaCanva() y copiarParaGemini()`  
+  No saben de la propuesta: copian solo la opción abierta sin avisar que hay opciones por elegir. Solo se actualizaron generarPDF y mensajeWhatsApp.
+
+- **[media]** `Producto: PDF después de elegir`  
+  La muestra de la pieza 76 dice 'el PDF lleva las tres y marca la elegida'; la tarea dice que al elegir las otras se descartan. Se siguió la tarea: tras elegir ya no hay hoja de opciones (la hoja solo sale mientras la propuesta está sin elegir y marca la que cuenta en el total, 'Incluida en el total'). Si se quiere conservar el registro de lo que se propuso, habría que guardar un rastro mínimo en la partida.
+
+- **[media]** `js/cotizador/partidas.js · elegirOpcion() con P.transicion (View Transitions)`  
+  La transición (el importe viaja de la tarjeta a #lt-<id>, más las partidas nombradas) se verificó en Chromium de pruebas con fotogramas intermedios y contando startViewTransition (1 con movimiento, 0 con menos). NO se probó en un Android de gama media real. Un segundo toque durante el viaje lo entrega P.transicion al elemento de debajo (comportamiento heredado de la pieza); se añadió la guarda _opEligiendo contra doble elegir.
+
+- **[media]** `Persistencia fuera del cotizador (puente/hoja-apps-script.gs, js/datos/proyectos.js)`  
+  it.opciones es un objeto anidado dentro de cada partida. localStorage, historial, cola y deshacer lo guardan por JSON genérico (probado), y derivar() del material lo ignora (probado en node), pero NO se verificó que la hoja de Apps Script o el registro de venta toleren el campo si se registra una venta con una propuesta pendiente (venta.js, proceso.js y notario.js no se tocaron).
+
+- **[baja]** `js/cotizador/partidas.js · _opCargar/_opNormal, opciones no abiertas`  
+  Las opciones guardadas pasan por normalizarItems (cifras y tipo válidos) pero NO por las reglas de captura (p. ej. altura < 10 cm = recorte): esas solo corren al teclear la opción abierta. Una opción guardada con letras de 6 cm (por ejemplo desde un respaldo editado) se cotizaría como letras hasta que se abra.
+
+- **[baja]** `css/sistema.css · bloque cot-partidas, ::view-transition-group(vt-elegida-precio)`  
+  Regla con pseudo-elemento de vista; en navegadores sin View Transitions se descarta sola. Verificado solo en Chromium. El CSS del documento PDF (dentro de entrega.js) suma ~1.4 KB a todo PDF aunque no haya opciones.
+
+- **[baja]** `Trailer del commit 56abeca`  
+  CONVENCIONES.md pide 'Co-Authored-By: Claude Opus 5'; el commit lleva 'Claude Sonnet 5.5' (el recordatorio de atribución del arnés y el modelo real) más la línea Claude-Session pedida. Si el integrador necesita el trailer literal, hay que reescribirlo.
+
+- **[baja]** `pendiente-ui/fichas/cot-opciones.md`  
+  El archivo de fichas que la tarea manda leer NO existe en el worktree (solo hay cot-partidas, cot-precio, etc.). Se trabajó con el texto de la tarea, el brief §2d fila 76 y la muestra muestras-7-piezas-67-76.html (pieza 76); no se leyó ninguna ficha C* aparte de cot-partidas.md.
