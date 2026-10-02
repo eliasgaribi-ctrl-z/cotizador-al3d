@@ -20,6 +20,16 @@ Google (`ORIGENES` en `js/nucleo/ingreso.js` y el comentario de `PUENTE_CLIENT_I
 `.gs`). **El puente no** se redespliega con nada de eso: es código de Apps Script y se publica
 desde su editor.
 
+### La palomita roja de «Workers Builds: puente-al3d»
+
+El Worker viejo del puente se quedó conectado al repositorio en Cloudflare, y cada push lo
+intenta construir desde `puente/`. Cuando el puente se mudó a la hoja se borró su
+`wrangler.jsonc` y ese build salía en rojo. Ahora `puente/wrangler.jsonc` publica
+`puente/retirado.js`, que contesta 410 a todo: el build pasa y la dirección vieja ya no
+habla con Notion. Si algún día se desconecta el repositorio desde el panel
+(**Workers y Pages → puente-al3d → Configuración → Compilación → Desconectar**), esos dos
+archivos se pueden borrar. **Cloudflare Pages** es otro proyecto, el que sirve el sitio.
+
 ## Los pasos
 
 1. Abre la hoja → **Extensiones → Apps Script**.
