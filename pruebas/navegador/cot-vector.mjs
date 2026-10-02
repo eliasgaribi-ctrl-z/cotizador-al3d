@@ -349,8 +349,17 @@ const trazarYEsperar = async p => { await p.evaluate(() => vtVectorizar()); awai
   await p.waitForTimeout(450);
   await montar(p, { modo: 'logo', trazo: true });
   cierto(await p.evaluate(() => ['orig', 'cmp', 'vec'].every(x => !document.getElementById('vt-view-' + x).disabled)), 'con trazo, las tres vistas se encienden (nacían apagadas y nada las encendía jamás)');
+  /* La ficha vive lo que dura el viaje —unos cientos de milisegundos— y con la máquina cargada ya
+     se había ido cuando se buscaba después del toque: la prueba fallaba una de cada dos veces sin
+     que la app hiciera nada mal. Se vigila desde ANTES del toque y se anota si llegó a nacer. */
+  await p.evaluate(() => {
+    const grupo = document.querySelector('#vt-view-vec').parentElement;
+    window.__fichaVec = false;
+    const mo = new MutationObserver(() => { if (grupo.querySelector('.ficha-viaja')) { window.__fichaVec = true; mo.disconnect(); } });
+    mo.observe(grupo, { childList: true, subtree: true });
+  });
   await p.click('#vt-view-vec');
-  const vista = await p.evaluate(() => ({ ficha: !!document.querySelector('#vt-view-vec').parentElement.querySelector('.ficha-viaja'), v: VT.vista, src: getComputedStyle(document.getElementById('vt-cvs-src')).visibility, out: getComputedStyle(document.getElementById('vt-cvs-out')).display }));
+  const vista = await p.evaluate(() => ({ ficha: window.__fichaVec || !!document.querySelector('#vt-view-vec').parentElement.querySelector('.ficha-viaja'), v: VT.vista, src: getComputedStyle(document.getElementById('vt-cvs-src')).visibility, out: getComputedStyle(document.getElementById('vt-cvs-out')).display }));
   cierto(vista.ficha && vista.v === 'vec' && vista.src === 'hidden' && vista.out !== 'none', '«Vector» enseña solo el trazo, y la ficha viaja hasta él');
   await p.waitForTimeout(450);
   await p.click('#vt-view-orig');
